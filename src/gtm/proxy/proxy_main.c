@@ -133,7 +133,7 @@ int            GTMProxyPortNumber;
 int            GTMProxyWorkerThreads;
 char        *GTMProxyDataDir;
 char        *GTMProxyConfigFileName;
-char        *GTMConfigFileName;
+extern char        *GTMConfigFileName;
 
 char        *GTMServerHost;
 int            GTMServerPortNumber;
