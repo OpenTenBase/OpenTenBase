@@ -35,21 +35,21 @@ or
 
 ` apt install -y gcc make libreadline-dev zlib1g-dev libssl-dev libossp-uuid-dev bison flex`
 
-### Create User 'tbase'
+### Create User 'opentenbase'
 
 ```shell
 mkdir /data
-useradd -d /data/tbase -s /bin/bash -m tbase # add user tbase
-passwd tbase # set password
+useradd -d /data/opentenbase -s /bin/bash -m opentenbase # add user opentenbase
+passwd opentenbase # set password
 ```
 
 ### Building
 
 ```shell
-git clone https://github.com/Tencent/TBase
+git clone https://github.com/OpenTenBase/OpenTenBase
 
-export SOURCECODE_PATH=/data/tbase/TBase
-export INSTALL_PATH=/data/tbase/install
+export SOURCECODE_PATH=/data/opentenbase/OpenTenBase
+export INSTALL_PATH=/data/opentenbase/install
 
 cd ${SOURCECODE_PATH}
 rm -rf ${INSTALL_PATH}/opentenbase_bin_v2.0
@@ -63,7 +63,7 @@ cd contrib
 make -sj
 make install
 ```
-**Notice: if you use Ubuntu and see *initgtm: command not found* while doing "init all", you may add *${INSTALL_PATH}/tbase_bin_v2.0/bin* to */etc/environment***
+**Notice: if you use Ubuntu and see *initgtm: command not found* while doing "init all", you may add *${INSTALL_PATH}/opentenbase_bin_v2.0/bin* to */etc/environment***
 
 ## Installation
 Use PGXC\_CTL tool to build a cluster, for example: a cluster with a global transaction management node (GTM), a coordinator(COORDINATOR) and two data nodes (DATANODE).
@@ -73,7 +73,7 @@ Use PGXC\_CTL tool to build a cluster, for example: a cluster with a global tran
 
 1. Install pgxc and import the path of pgxc installation package into environment variable.
 
-    ```
+    ```shell
 	PG_HOME=${INSTALL_PATH}/opentenbase_bin_v2.0
 	export PATH="$PATH:$PG_HOME/bin"
 	export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$PG_HOME/lib"
