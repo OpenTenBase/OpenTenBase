@@ -82,7 +82,7 @@ typedef struct CheckPoint
 #define XLOG_END_OF_RECOVERY			0x90
 #define XLOG_FPI_FOR_HINT				0xA0
 #define XLOG_FPI						0xB0
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #define XLOG_MVCC						0xC0
 #endif
 /* remove or rename 2pc file when 2pc is cleaned */
@@ -240,7 +240,7 @@ typedef struct ControlFileData
 	 */
 	char		mock_authentication_nonce[MOCK_AUTH_NONCE_LEN];
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	/*
 	 * need mvcc if page is all visible?
      */

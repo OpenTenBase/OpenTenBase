@@ -25,7 +25,7 @@ LWLockMinimallyPadded *BufferIOLWLockArray = NULL;
 WritebackContext BackendWritebackContext;
 CkptSortItem *CkptBufferIds;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 bool        g_WarmSharedBuffer = false;
 #endif
 /*
@@ -207,7 +207,7 @@ BufferShmemSize(void)
 
     return size;
 }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /*
  * Preload shared buffer from shared memory to local memory
  */

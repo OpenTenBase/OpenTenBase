@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -97,7 +97,7 @@
 #ifdef PGXC
 #include "pgxc/pgxc.h"
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include <math.h>
 #include "nodes/pg_list.h"
 #include "parser/parse_oper.h"
@@ -105,7 +105,7 @@
 #include "catalog/pg_aggregate.h"
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 bool  enable_pullup_subquery = false;
 #endif
 
@@ -152,7 +152,7 @@ static Node *convert_testexpr_mutator(Node *node,
                          convert_testexpr_context *context);
 static bool subplan_is_hashable(Plan *plan);
 static bool testexpr_is_hashable(Node *testexpr);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static Node *convert_joinqual_to_antiqual(Node* node, Query* parse);
 static Node *convert_opexpr_to_boolexpr_for_antijoin(Node* node, Query* parse);
 static bool var_is_nullable(Node *node, Query *parse);
@@ -178,7 +178,7 @@ static Bitmapset *finalize_plan(PlannerInfo *root,
 static bool finalize_primnode(Node *node, finalize_primnode_context *context);
 static bool finalize_agg_primnode(Node *node, finalize_primnode_context *context);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static Expr * convert_OR_EXIST_sublink_to_join(PlannerInfo *root,
 			  SubLink *sublink, Node **jtlink);
 static Node * get_or_exist_subquery_targetlist(PlannerInfo *root, Node *node,
@@ -549,7 +549,7 @@ get_first_col_type(Plan *plan, Oid *coltype, int32 *coltypmod,
     *colcollation = InvalidOid;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /*
  * Check if there is a range table entry of type func expr whose arguments
  * are correlated
@@ -1348,7 +1348,7 @@ testexpr_is_hashable(Node *testexpr)
     return false;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /*
  * Rewrite qual to complete nullability check for NOT IN/ANY sublink pullup
  */
@@ -1482,13 +1482,13 @@ hash_ok_operator(OpExpr *expr)
     }
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /*
  * Check if total cost of inlining to multiple subquery is cheaper.
  *
  * There are three alternatives to optimize CTE with multiple references.
  * XXX Keep the CTE as an optimization fence, using materialized CTE scan could
- * 	   be cost saving. But in TBase distributed system, this will lead to more
+ * 	   be cost saving. But in OpenTenBase distributed system, this will lead to more
  * 	   executor nodes perfored in CN, which could be much slower.
  * XXX Inline the CTE to multiple subqueries. This could leverage more join
  *     reordering and predicate pushdown opetimization automatically.
@@ -1544,7 +1544,7 @@ is_cte_worth_inline(CommonTableExpr *cte, Plan *plan, Path *path)
 	inline_total_cost = plan->total_cost * cte->cterefcount;
 
 	/*
-	 * In a distributed system like TBase, the inline one could leverage more
+	 * In a distributed system like OpenTenBase, the inline one could leverage more
 	 * optimizations like subquery pullup, predicate pushdown, etc. We add a
 	 * optimization factor 0.5 here to show case these cost saves.
 	 */
@@ -1681,7 +1681,7 @@ SS_process_ctes(PlannerInfo *root)
 
 		plan = create_plan(subroot, best_path);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		/*
 		 * Handle the CTE with multiple references in the main query. Since we
 		 * need to compare the cost between CTE Scan and inline subquery Scan,
@@ -1792,7 +1792,7 @@ SS_process_ctes(PlannerInfo *root)
     }
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static bool
 simplify_EXPR_query(PlannerInfo *root, Query *query)
 {// #lizard forgives
@@ -2319,7 +2319,7 @@ inline_cte_walker(Node *node, inline_cte_walker_context *context)
  * subselect to the query's rangetable, so that it can be referenced in
  * the JoinExpr's rarg.
  */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 JoinExpr *
 convert_ANY_sublink_to_join(PlannerInfo *root, SubLink *sublink,
                             Relids available_rels, bool under_not)
@@ -2339,13 +2339,13 @@ convert_ANY_sublink_to_join(PlannerInfo *root, SubLink *sublink,
     List       *subquery_vars;
     Node       *quals;
     ParseState *pstate;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	bool		correlated = false;
 #endif
 
     Assert(sublink->subLinkType == ANY_SUBLINK);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	if (enable_pullup_subquery)
 	{
 		/*
@@ -2401,7 +2401,7 @@ convert_ANY_sublink_to_join(PlannerInfo *root, SubLink *sublink,
 	 */
 	if (contain_vars_of_level((Node *) subselect, 1))
 		return NULL;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	}
 #endif
 
@@ -2443,7 +2443,7 @@ convert_ANY_sublink_to_join(PlannerInfo *root, SubLink *sublink,
 	rte = addRangeTableEntryForSubquery(pstate,
 										subselect,
 										makeAlias("ANY_subquery", NIL),
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 										correlated,	/* lateral */
 #else
 										false,
@@ -2475,7 +2475,7 @@ convert_ANY_sublink_to_join(PlannerInfo *root, SubLink *sublink,
 	 */
 	result = makeNode(JoinExpr);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	/* Different logic for NOT IN/ANY sublink */
 	if (under_not)
 	{
@@ -2662,7 +2662,7 @@ convert_EXISTS_sublink_to_join(PlannerInfo *root, SubLink *sublink,
     return result;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /*
   * try to convert an expr SubLink to a join
   */
@@ -3061,7 +3061,7 @@ get_or_exist_subquery_targetlist(PlannerInfo *root, Node *node, List **targetLis
 	return node;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /*
  * simplify_TargetList_query:remove any useless stuff in an TargetList's
  * subquery
@@ -5832,7 +5832,7 @@ SS_remote_attach_initplans(PlannerInfo *root, Plan *plan)
 	SS_remote_attach_initplans(root, plan->righttree);
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static bool
 var_is_nullable(Node *node, Query *parse)
 {

@@ -789,7 +789,7 @@ write_pipe_chunks(char *data, int len, int dest)
 
         rc = write(fd, &p, PIPE_HEADER_SIZE + PIPE_MAX_PAYLOAD);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /* if we are interruppted, just return */
         if (EINTR == errno && rc < 0)
         {
@@ -807,7 +807,7 @@ write_pipe_chunks(char *data, int len, int dest)
     memcpy(p.proto.data, data, len);
 
     rc = write(fd, &p, PIPE_HEADER_SIZE + len);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* if we are interruppted, just return */
     if (EINTR == errno && rc < 0)
     {

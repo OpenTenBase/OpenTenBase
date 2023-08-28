@@ -22,7 +22,7 @@
 #include "optimizer/pathnode.h"
 #include "optimizer/paths.h"
 #include "optimizer/planmain.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "optimizer/planner.h"
 #endif
 
@@ -166,7 +166,7 @@ add_paths_to_joinrel(PlannerInfo *root,
 	{
 		case JOIN_SEMI:
 		case JOIN_ANTI:
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         case JOIN_LEFT_SCALAR:
         case JOIN_LEFT_SEMI:
 #endif
@@ -213,7 +213,7 @@ add_paths_to_joinrel(PlannerInfo *root,
 	 * If it's SEMI, ANTI, or inner_unique join, compute correction factors
 	 * for cost estimation.  These will be the same for all paths.
 	 */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (jointype == JOIN_SEMI || jointype == JOIN_ANTI ||
         jointype == JOIN_LEFT_SCALAR || jointype == JOIN_LEFT_SEMI ||
 		extra.inner_unique)
@@ -672,7 +672,7 @@ try_partial_mergejoin_path(PlannerInfo *root,
                            JoinPathExtraData *extra)
 {
     JoinCostWorkspace workspace;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	bool redistribute_inner = false;
 	int  nRemotePlans_inner = 0;
 	Path *mj_path = NULL;
@@ -712,7 +712,7 @@ try_partial_mergejoin_path(PlannerInfo *root,
         return;
 
     /* Might be good enough to be worth trying, so let's try it. */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	mj_path = (Path *)
 					 create_mergejoin_path(root,
 										   joinrel,
@@ -1387,7 +1387,7 @@ match_unsorted_outer(PlannerInfo *root,
 		case JOIN_LEFT:
 		case JOIN_SEMI:
 		case JOIN_ANTI:
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         case JOIN_LEFT_SCALAR:
         case JOIN_LEFT_SEMI:
 #endif
@@ -1721,7 +1721,7 @@ hash_inner_and_outer(PlannerInfo *root,
     bool        isouterjoin = IS_OUTER_JOIN(jointype);
     List       *hashclauses;
     ListCell   *l;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     JoinType jointype_ori = jointype;
 #endif
     /*
@@ -1894,7 +1894,7 @@ hash_inner_and_outer(PlannerInfo *root,
         {
             Path       *cheapest_partial_outer;
             Path       *cheapest_safe_inner = NULL;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             /*
               * In parallel hashjoin, we also build hashtable parallelly, try
               * to build parallel inner path.
@@ -1904,7 +1904,7 @@ hash_inner_and_outer(PlannerInfo *root,
             cheapest_partial_outer =
                 (Path *) linitial(outerrel->partial_pathlist);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             if (innerrel->partial_pathlist && olap_optimizer)
             {
                 cheapest_partial_inner = 
@@ -1935,7 +1935,7 @@ hash_inner_and_outer(PlannerInfo *root,
                                           cheapest_partial_outer,
                                           cheapest_safe_inner,
                                           hashclauses, jointype, extra);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             if (cheapest_partial_inner != NULL &&
                 jointype_ori != JOIN_UNIQUE_INNER &&
                 jointype_ori != JOIN_UNIQUE_OUTER && olap_optimizer)

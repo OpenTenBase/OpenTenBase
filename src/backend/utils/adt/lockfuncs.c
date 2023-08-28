@@ -78,7 +78,7 @@ typedef enum
     DONT_WAIT
 } TryType;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 bool is_session_locked_for_backup = false;
 #endif
 
@@ -726,7 +726,7 @@ pgxc_advisory_lock(int64 key64, int32 key1, int32 key2, bool iskeybig,
     bool sessionLock = (locklevel == SESSION_LOCK);
     bool dontWait = (try == DONT_WAIT);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     bool session_backup_lock = false;
 
     if (key1 == xc_lockForBackupKey1 && key2 == xc_lockForBackupKey2 &&
@@ -746,7 +746,7 @@ pgxc_advisory_lock(int64 key64, int32 key1, int32 key2, bool iskeybig,
     /* Skip everything XC specific if there's only one Coordinator running */
     if (numcoords <= 1)
     {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         LockAcquireResult result = LockAcquire(&locktag, lockmode, sessionLock, dontWait);
 
         if (result == LOCKACQUIRE_OK || result == LOCKACQUIRE_ALREADY_HELD)
@@ -772,7 +772,7 @@ pgxc_advisory_lock(int64 key64, int32 key1, int32 key2, bool iskeybig,
      * already did all necessary steps when we locked for the first time.
      */
     if (LockIncrementIfExists(&locktag, lockmode, sessionLock) == true)
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     {
         if (session_backup_lock)
         {
@@ -859,7 +859,7 @@ pgxc_advisory_lock(int64 key64, int32 key1, int32 key2, bool iskeybig,
             pgxc_execute_on_nodes(1, &coOids[prev], unlock_cmd.data);
     }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (!abort_locking)
     {
         if (session_backup_lock)
@@ -1393,7 +1393,7 @@ pg_advisory_unlock_all(PG_FUNCTION_ARGS)
 {
     LockReleaseSession(USER_LOCKMETHOD);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     is_session_locked_for_backup = false;
 #endif
 
@@ -1510,7 +1510,7 @@ pgxc_lock_for_utility_stmt(Node *parsetree)
 {
     bool lockAcquired;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (is_session_locked_for_backup)
     {
         ereport(ERROR,

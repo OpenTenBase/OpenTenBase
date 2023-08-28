@@ -37,7 +37,7 @@ extern void DropOwnedObjects(DropOwnedStmt *stmt);
 extern void ReassignOwnedObjects(ReassignOwnedStmt *stmt);
 extern List *roleSpecsToIds(List *memberNames);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern bool PreCheckDropRole(DropRoleStmt *stmt, char *query_string,
                                 List **exist_roles);
 extern void DropRoleParallelMode(List *role_list);

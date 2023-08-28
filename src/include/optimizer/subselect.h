@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -75,12 +75,12 @@
 #include "nodes/plannodes.h"
 #include "nodes/relation.h"
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern bool  enable_pullup_subquery;
 #endif
 
 extern void SS_process_ctes(PlannerInfo *root);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern JoinExpr *convert_ANY_sublink_to_join(PlannerInfo *root, SubLink *sublink,
                             Relids available_rels, bool under_not);
 #else
@@ -92,7 +92,7 @@ extern JoinExpr *convert_EXISTS_sublink_to_join(PlannerInfo *root,
                                SubLink *sublink,
                                bool under_not,
                                Relids available_rels);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern JoinExpr *convert_EXPR_sublink_to_join(PlannerInfo *root, OpExpr *expr,
 							Relids available_rels, Node **filter);
 extern JoinExpr *convert_ALL_sublink_to_join(PlannerInfo *root, SubLink *sublink,
@@ -121,7 +121,7 @@ extern Param *assign_nestloop_param_placeholdervar(PlannerInfo *root,
 extern int    SS_assign_special_param(PlannerInfo *root);
 
 extern void SS_remote_attach_initplans(PlannerInfo *root, Plan *plan);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern bool has_correlation_in_funcexpr_rte(List *rtable);
 #endif
 

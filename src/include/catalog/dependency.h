@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -239,7 +239,7 @@ typedef enum ObjectClass
     OCLASS_PGXC_NODE,            /* pgxc_node */
     OCLASS_PGXC_GROUP,            /* pgxc_group */
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     OCLASS_PG_PARTITION_INTERVAL,
 #endif
 #ifdef __AUDIT__
@@ -281,7 +281,7 @@ extern void performDeletion(const ObjectAddress *object,
 extern void performMultipleDeletions(const ObjectAddresses *objects,
                          DropBehavior behavior, int flags);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern void RemoveRelationsParallelMode(DropStmt *drop,
 										ObjectAddresses* objects,
 										List *heap_list);

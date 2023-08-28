@@ -61,7 +61,7 @@ typedef enum
 	POOL_CMD_GLOBAL_SET	/* Global SET flag */
 } PoolCommandType;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 typedef enum
 {
 	SIGNAL_SIGINT   = 0,

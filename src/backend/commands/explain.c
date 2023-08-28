@@ -46,7 +46,7 @@
 #include "pgxc/planner.h"
 #include "pgxc/execRemote.h"
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "commands/explain_dist.h"
 #include "commands/vacuum.h"
 #endif
@@ -906,7 +906,7 @@ ExplainNode(PlanState *planstate, List *ancestors,
     int            save_indent = es->indent;
     bool        haschildren;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if(!planstate) return;
     
     plan = planstate->plan;
@@ -1235,7 +1235,7 @@ ExplainNode(PlanState *planstate, List *ancestors,
                         {
                             bool             first = true;
                             ListCell        *lc;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                             int             index = 0;
                             char cursor[NAMEDATALEN];
 
@@ -1264,7 +1264,7 @@ ExplainNode(PlanState *planstate, List *ancestors,
                                 }
                                 else
                                     appendStringInfo(es->str, ",%s", nodename);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                                 if (explain_query_analyze)
                                 {
                                     int nodeid = 0;
@@ -1285,7 +1285,7 @@ ExplainNode(PlanState *planstate, List *ancestors,
 #endif
                             }
                             appendStringInfoChar(es->str, ')');
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                             if (explain_query_analyze)
                             {
                                 appendStringInfo(es->str, ", (cursor:%s)", cursor);
@@ -1375,7 +1375,7 @@ ExplainNode(PlanState *planstate, List *ancestors,
 					case JOIN_ANTI:
 						jointype = "Anti";
 						break;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 					case JOIN_LEFT_SCALAR:
 						jointype = "Left Scalar";
 						break;
@@ -1822,7 +1822,7 @@ ExplainNode(PlanState *planstate, List *ancestors,
         case T_MergeAppend:
             show_merge_append_keys(castNode(MergeAppendState, planstate),
                                    ancestors, es);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             show_upper_qual(plan->qual, "Filter", planstate, ancestors, es);
 #endif
 
@@ -1955,7 +1955,7 @@ ExplainNode(PlanState *planstate, List *ancestors,
     switch (nodeTag(plan))
     {
         case T_ModifyTable:
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 			/* compatible with make_modifytable */
 			if (((ModifyTable *) plan)->haspartparent &&
 			    (((ModifyTable *) plan)->operation == CMD_UPDATE ||
@@ -2617,7 +2617,7 @@ show_sort_info(SortState *sortstate, ExplainState *es)
 		if (opened_group)
 			ExplainCloseGroup("Workers", "Workers", false, es);
 	}
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	else if (sortstate->instrument.spaceType != -1)
 	{
 		/* try our cached distributed instrument */
@@ -3006,7 +3006,7 @@ ExplainTargetRel(Plan *plan, Index rti, ExplainState *es)
     const char *objecttag = NULL;
     RangeTblEntry *rte;
     char       *refname;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     int         partidx = -1;
 #endif
 
@@ -3023,7 +3023,7 @@ ExplainTargetRel(Plan *plan, Index rti, ExplainState *es)
         case T_IndexOnlyScan:
         case T_BitmapHeapScan:
         case T_TidScan:
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             {
                 Scan *scan = (Scan*)plan;
                 if(scan->ispartchild)
@@ -3118,7 +3118,7 @@ ExplainTargetRel(Plan *plan, Index rti, ExplainState *es)
             appendStringInfo(es->str, " %s", quote_identifier(objectname));
         if (objectname == NULL || strcmp(refname, objectname) != 0)
             appendStringInfo(es->str, " %s", quote_identifier(refname));
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if(partidx >= 0)
         {
             char * relname;
@@ -3136,7 +3136,7 @@ ExplainTargetRel(Plan *plan, Index rti, ExplainState *es)
         if (namespace != NULL)
             ExplainPropertyText("Schema", namespace, es);
         ExplainPropertyText("Alias", refname, es);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if(partidx >= 0)
         {
             char * relname;
@@ -3970,7 +3970,7 @@ ExplainRemoteQuery(RemoteQuery *plan, PlanState *planstate, List *ancestors, Exp
                 node_no = lfirst_int(lcell);
                 appendStringInfo(node_names, "%s%s", sep,
                                     get_pgxc_nodename(PGXCNodeGetNodeOid(node_no, PGXC_NODE_DATANODE)));
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 if (explain_query_analyze)
                 {
                     char *analyze_info = GetAnalyzeInfo(node_no, plan->sql_statement);

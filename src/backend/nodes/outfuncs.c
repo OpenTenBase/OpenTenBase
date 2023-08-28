@@ -51,7 +51,7 @@
 #include "audit/audit.h"
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "commands/defrem.h"
 #include "postmaster/postmaster.h"
 #include "utils/memutils.h"
@@ -555,7 +555,7 @@ _outPlannedStmt(StringInfo str, const PlannedStmt *node)
     WRITE_NODE_FIELD(utilityStmt);
     WRITE_LOCATION_FIELD(stmt_location);
     WRITE_LOCATION_FIELD(stmt_len);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     WRITE_BOOL_FIELD(haspart_tobe_modify);
     WRITE_UINT_FIELD(partrelindex);
     WRITE_BITMAPSET_FIELD(partpruning);
@@ -587,7 +587,7 @@ _outPlanInfo(StringInfo str, const Plan *node)
     WRITE_NODE_FIELD(initPlan);
     WRITE_BITMAPSET_FIELD(extParam);
     WRITE_BITMAPSET_FIELD(allParam);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     WRITE_BOOL_FIELD(isempty);
 #endif
 #ifdef __AUDIT_FGA__
@@ -605,7 +605,7 @@ _outScanInfo(StringInfo str, const Scan *node)
     _outPlanInfo(str, (const Plan *) node);
 
     WRITE_UINT_FIELD(scanrelid);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     WRITE_BOOL_FIELD(ispartchild);
     WRITE_INT_FIELD(childidx);
 #endif
@@ -622,7 +622,7 @@ _outJoinPlanInfo(StringInfo str, const Join *node)
     WRITE_ENUM_FIELD(jointype, JoinType);
     WRITE_BOOL_FIELD(inner_unique);
     WRITE_NODE_FIELD(joinqual);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     WRITE_BOOL_FIELD(prefetch_inner);
 #endif
 }
@@ -691,7 +691,7 @@ _outModifyTable(StringInfo str, const ModifyTable *node)
     WRITE_NODE_FIELD(onConflictWhere);
     WRITE_UINT_FIELD(exclRelRTI);
     WRITE_NODE_FIELD(exclRelTlist);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     WRITE_BOOL_FIELD(haspartparent);
     WRITE_UINT_FIELD(partrelidx);
     WRITE_INT_FIELD(parentplanidx);
@@ -709,7 +709,7 @@ _outAppend(StringInfo str, const Append *node)
 
     WRITE_NODE_FIELD(partitioned_rels);
     WRITE_NODE_FIELD(appendplans);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     WRITE_BOOL_FIELD(interval);
 #endif
 }
@@ -785,7 +785,7 @@ _outMergeAppend(StringInfo str, const MergeAppend *node)
     appendStringInfoString(str, " :nullsFirst");
     for (i = 0; i < node->numCols; i++)
         appendStringInfo(str, " %s", booltostr(node->nullsFirst[i]));
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     WRITE_BOOL_FIELD(interval);
 #endif
 }
@@ -870,7 +870,7 @@ _outGather(StringInfo str, const Gather *node)
     WRITE_INT_FIELD(num_workers);
     WRITE_BOOL_FIELD(single_copy);
     WRITE_BOOL_FIELD(invisible);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     WRITE_BOOL_FIELD(parallelWorker_sendTuple);
 #endif
 }
@@ -1014,7 +1014,7 @@ _outExecNodes(StringInfo str, const ExecNodes *node)
 #ifdef __COLD_HOT__
     WRITE_NODE_FIELD(sec_en_expr);
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (portable_output)
     {
         WRITE_RELID_FIELD(en_relid);
@@ -1331,7 +1331,7 @@ _outAgg(StringInfo str, const Agg *node)
     WRITE_BITMAPSET_FIELD(aggParams);
     WRITE_NODE_FIELD(groupingSets);
     WRITE_NODE_FIELD(chain);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	WRITE_UINT_FIELD(entrySize);
 	WRITE_BOOL_FIELD(hybrid);
 	WRITE_BOOL_FIELD(noDistinct);
@@ -1683,7 +1683,7 @@ _outLimit(StringInfo str, const Limit *node)
 
     WRITE_NODE_FIELD(limitOffset);
     WRITE_NODE_FIELD(limitCount);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     WRITE_BOOL_FIELD(skipEarlyFinish);
 #endif
 }
@@ -1708,7 +1708,7 @@ _outRemoteSubplan(StringInfo str, const RemoteSubplan *node)
     WRITE_BOOL_FIELD(parallelWorkerSendTuple);
 	WRITE_BITMAPSET_FIELD(initPlanParams);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (IS_PGXC_COORDINATOR && !g_set_global_snapshot)
     {
         if (!need_global_snapshot)
@@ -1781,7 +1781,7 @@ _outRemoteStmt(StringInfo str, const RemoteStmt *node)
     WRITE_INT_FIELD(distributionKey);
     WRITE_NODE_FIELD(distributionNodes);
     WRITE_NODE_FIELD(distributionRestrict);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     WRITE_BOOL_FIELD(parallelModeNeeded);
     WRITE_BOOL_FIELD(parallelWorkerSendTuple);
 
@@ -1924,7 +1924,7 @@ _outRangeVar(StringInfo str, const RangeVar *node)
     WRITE_CHAR_FIELD(relpersistence);
     WRITE_NODE_FIELD(alias);
     WRITE_LOCATION_FIELD(location);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     WRITE_BOOL_FIELD(intervalparent);
     WRITE_NODE_FIELD(partitionvalue);
 #endif
@@ -2595,7 +2595,7 @@ _outCollateExpr(StringInfo str, const CollateExpr *node)
     WRITE_NODE_TYPE("COLLATE");
 
     WRITE_NODE_FIELD(arg);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (portable_output)
     {
         WRITE_COLLID_FIELD(collOid);
@@ -2919,7 +2919,7 @@ _outInferenceElem(StringInfo str, const InferenceElem *node)
     WRITE_NODE_TYPE("INFERENCEELEM");
 
     WRITE_NODE_FIELD(expr);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (portable_output)
     {
         WRITE_COLLID_FIELD(infercollid);
@@ -2930,7 +2930,7 @@ _outInferenceElem(StringInfo str, const InferenceElem *node)
 #endif
     WRITE_OID_FIELD(infercollid);
     WRITE_OID_FIELD(inferopclass);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     }
 #endif
 }
@@ -3016,7 +3016,7 @@ _outOnConflictExpr(StringInfo str, const OnConflictExpr *node)
     WRITE_ENUM_FIELD(action, OnConflictAction);
     WRITE_NODE_FIELD(arbiterElems);
     WRITE_NODE_FIELD(arbiterWhere);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (portable_output)
     {
         WRITE_CONSTRAINT_FIELD(constraint);
@@ -3333,7 +3333,7 @@ _outAggPath(StringInfo str, const AggPath *node)
     WRITE_FLOAT_FIELD(numGroups, "%.0f");
     WRITE_NODE_FIELD(groupClause);
     WRITE_NODE_FIELD(qual);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	WRITE_UINT_FIELD(entrySize);
 	WRITE_BOOL_FIELD(hybrid);
 	WRITE_BOOL_FIELD(noDistinct);
@@ -3472,7 +3472,7 @@ _outLimitPath(StringInfo str, const LimitPath *node)
     WRITE_NODE_FIELD(subpath);
     WRITE_NODE_FIELD(limitOffset);
     WRITE_NODE_FIELD(limitCount);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     WRITE_BOOL_FIELD(skipEarlyFinish);
 #endif
 }
@@ -3597,7 +3597,7 @@ _outPlannerInfo(StringInfo str, const PlannerInfo *node)
     WRITE_BITMAPSET_FIELD(curOuterRels);
     WRITE_NODE_FIELD(curOuterParams);
 	WRITE_BOOL_FIELD(partColsUpdated);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     WRITE_BOOL_FIELD(haspart_tobe_modify);
     WRITE_UINT_FIELD(partrelindex);
     WRITE_BITMAPSET_FIELD(partpruning);
@@ -3652,7 +3652,7 @@ _outRelOptInfo(StringInfo str, const RelOptInfo *node)
     WRITE_BOOL_FIELD(has_eclass_joins);
     WRITE_BITMAPSET_FIELD(top_parent_relids);
 	WRITE_NODE_FIELD(partitioned_child_rels);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	WRITE_BOOL_FIELD(intervalparent);
 	WRITE_BOOL_FIELD(isdefault);
 	WRITE_BITMAPSET_FIELD(childs);
@@ -3771,7 +3771,7 @@ _outEquivalenceMember(StringInfo str, const EquivalenceMember *node)
     WRITE_BITMAPSET_FIELD(em_nullable_relids);
     WRITE_BOOL_FIELD(em_is_const);
     WRITE_BOOL_FIELD(em_is_child);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (portable_output)
     {
         WRITE_TYPID_FIELD(em_datatype);
@@ -3918,7 +3918,7 @@ _outMinMaxAggInfo(StringInfo str, const MinMaxAggInfo *node)
 {
     WRITE_NODE_TYPE("MINMAXAGGINFO");
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (portable_output)
     {
         WRITE_FUNCID_FIELD(aggfnoid);
@@ -3929,7 +3929,7 @@ _outMinMaxAggInfo(StringInfo str, const MinMaxAggInfo *node)
 #endif
     WRITE_OID_FIELD(aggfnoid);
     WRITE_OID_FIELD(aggsortop);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     }
 #endif
     WRITE_NODE_FIELD(target);
@@ -4196,7 +4196,7 @@ _outColumnDef(StringInfo str, const ColumnDef *node)
     WRITE_NODE_FIELD(cooked_default);
     WRITE_CHAR_FIELD(identity);
     WRITE_NODE_FIELD(collClause);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (portable_output)
     {
         WRITE_COLLID_FIELD(collOid);
@@ -4215,7 +4215,7 @@ _outTypeName(StringInfo str, const TypeName *node)
     WRITE_NODE_TYPE("TYPENAME");
 
     WRITE_NODE_FIELD(names);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (portable_output)
     {
         WRITE_TYPID_FIELD(typeOid);
@@ -4502,7 +4502,7 @@ _outRangeTblEntry(StringInfo str, const RangeTblEntry *node)
         case RTE_NAMEDTUPLESTORE:
             WRITE_STRING_FIELD(enrname);
             WRITE_FLOAT_FIELD(enrtuples, "%.0f");
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             if (portable_output)
             {
                 WRITE_RELID_FIELD(relid);
@@ -4539,7 +4539,7 @@ _outRangeTblEntry(StringInfo str, const RangeTblEntry *node)
     WRITE_BITMAPSET_FIELD(insertedCols);
     WRITE_BITMAPSET_FIELD(updatedCols);
     WRITE_NODE_FIELD(securityQuals);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     WRITE_BOOL_FIELD(intervalparent);
     WRITE_BOOL_FIELD(isdefault);
     WRITE_NODE_FIELD(partvalue);
@@ -5000,7 +5000,7 @@ _outForeignKeyCacheInfo(StringInfo str, const ForeignKeyCacheInfo *node)
 
     WRITE_NODE_TYPE("FOREIGNKEYCACHEINFO");
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (portable_output)
     {
         WRITE_RELID_FIELD(conrelid);
@@ -5011,7 +5011,7 @@ _outForeignKeyCacheInfo(StringInfo str, const ForeignKeyCacheInfo *node)
 #endif
     WRITE_OID_FIELD(conrelid);
     WRITE_OID_FIELD(confrelid);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     }
 #endif
     WRITE_INT_FIELD(nkeys);
@@ -5072,7 +5072,7 @@ _outPartitionRangeDatum(StringInfo str, const PartitionRangeDatum *node)
     WRITE_NODE_FIELD(value);
     WRITE_LOCATION_FIELD(location);
 }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static void
 _outPartitionBy(StringInfo str, const PartitionBy *node)
 {
@@ -5816,7 +5816,7 @@ outNode(StringInfo str, const void *obj)
             case T_PartitionRangeDatum:
                 _outPartitionRangeDatum(str, obj);
                 break;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             case T_PartitionBy:
                 _outPartitionBy(str,obj);
                 break;

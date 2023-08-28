@@ -299,7 +299,7 @@ connectGTMStart(GTM_Conn *conn)
         /* Using pghost, so we have to look-up the hostname */
         node = conn->pghost;
         hint.ai_family = AF_UNSPEC;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #ifdef HAVE_UNIX_SOCKETS
         if (is_absolute_path(conn->pghost))
         {

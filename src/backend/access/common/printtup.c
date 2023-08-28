@@ -28,7 +28,7 @@
 #include "utils/memutils.h"
 
 #include "miscadmin.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "access/htup_details.h"
 #include "catalog/pg_type.h"
 #include "postmaster/postmaster.h"
@@ -76,7 +76,7 @@ typedef struct
     int            nattrs;
     PrinttupAttrInfo *myinfo;    /* Cached info about each attr */
     MemoryContext tmpcontext;    /* Memory context for per-row workspace */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     long        nTuples;
 #endif
 } DR_printtup;
@@ -106,7 +106,7 @@ printtup_create_DR(CommandDest dest)
     self->nattrs = 0;
     self->myinfo = NULL;
     self->tmpcontext = NULL;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     self->nTuples = 0;
 #endif
 
@@ -340,7 +340,7 @@ printtup(TupleTableSlot *slot, DestReceiver *self)
     bool        binary = false;
     bool        needEncodingConvert = false;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (end_query_requested)
     {
         end_query_requested = false;
@@ -394,7 +394,7 @@ printtup(TupleTableSlot *slot, DestReceiver *self)
      */
     pq_beginmessage(&buf, 'D');
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (enable_statistic)
     {
         myState->nTuples++;
@@ -448,7 +448,7 @@ printtup(TupleTableSlot *slot, DestReceiver *self)
         else
         {
 	            int len = strlen(outputstr);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	            if (slot->tts_tupleDescriptor->attrs[i]->atttypid == RECORDOID && self->mydest == DestRemoteExecute)
 	            {
 		            Oid			    tupType;
@@ -605,7 +605,7 @@ printtup_shutdown(DestReceiver *self)
         MemoryContextDelete(myState->tmpcontext);
     myState->tmpcontext = NULL;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (enable_statistic)
     {
         elog(LOG, "PrintTup Pid %d sendTuples %ld", MyProcPid, myState->nTuples);
@@ -780,7 +780,7 @@ printtup_internal_20(TupleTableSlot *slot, DestReceiver *self)
 
     return true;
 }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 void
 FormRowDescriptionMessage(TupleDesc typeinfo, List *targetlist, int16 *formats, StringInfo buf)
 {// #lizard forgives

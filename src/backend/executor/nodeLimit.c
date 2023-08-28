@@ -25,7 +25,7 @@
 #include "executor/nodeLimit.h"
 #include "miscadmin.h"
 #include "nodes/nodeFuncs.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "pgxc/squeue.h"
 #endif
 static void recompute_limits(LimitState *node);
@@ -136,7 +136,7 @@ ExecLimit(PlanState *pstate)
                     node->position - node->offset >= node->count)
                 {
                     node->lstate = LIMIT_WINDOWEND;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                     if (g_DataPumpDebug)
                     {
                         elog(LOG, "ExecLimit: pid %d nodeLimit finishing", MyProcPid);

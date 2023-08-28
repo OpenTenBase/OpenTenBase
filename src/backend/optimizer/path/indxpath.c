@@ -2026,7 +2026,7 @@ adjust_rowcount_for_semijoins(PlannerInfo *root,
 	{
 		SpecialJoinInfo *sjinfo = (SpecialJoinInfo *) lfirst(lc);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if ((sjinfo->jointype == JOIN_SEMI ||
         	 sjinfo->jointype == JOIN_LEFT_SCALAR ||
 			 sjinfo->jointype == JOIN_LEFT_SEMI) &&

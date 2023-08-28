@@ -256,7 +256,7 @@ extern void AfterTriggerBeginSubXact(void);
 extern void AfterTriggerEndSubXact(bool isCommit);
 extern void AfterTriggerSetState(ConstraintsSetStmt *stmt);
 extern bool AfterTriggerPendingOnRel(Oid relid);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern int16 pgxc_get_trigevent(CmdType commandType);
 extern bool pgxc_has_trigger_for_event(int16 tg_event, TriggerDesc *trigdesc);
 extern bool should_pgxc_fire_trigger(TriggerDesc *trigdesc, Relation rel);

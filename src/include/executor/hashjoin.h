@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -125,7 +125,7 @@ typedef struct HashJoinTupleData
 {
     struct HashJoinTupleData *next; /* link to next tuple in same bucket */
     uint32        hashvalue;        /* tuple's hash code */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     int         workerNumber;   /* next tuple comes from which parallel worker */
 #endif
     /* Tuple data, in MinimalTuple format, follows on a MAXALIGN boundary */
@@ -197,7 +197,7 @@ typedef struct HashJoinTableData
 
     /* buckets[i] is head of list of tuples in i'th in-memory bucket */
     struct HashJoinTupleData **buckets;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     int        *bucket_wNum; /* head of current bucket comes from which parallel worker */
     /* buckets_tail[i] is tail of list of tuples in i'th in-memory bucket */
     struct HashJoinTupleData **buckets_tail;
@@ -209,7 +209,7 @@ typedef struct HashJoinTableData
 
     bool        skewEnabled;    /* are we using skew optimization? */
     HashSkewBucket **skewBucket;    /* hashtable of skew buckets */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     HashSkewBucket **skewBucket_tail; /* tail of skew buckets */
 #endif
     int            skewBucketLen;    /* size of skewBucket array (a power of 2!) */

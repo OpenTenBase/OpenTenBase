@@ -23,7 +23,7 @@
 #include "utils/lsyscache.h"
 #include "utils/selfuncs.h"
 #include "statistics/statistics.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "access/htup_details.h"
 #include "catalog/pg_operator.h"
 #include "utils/syscache.h"
@@ -129,7 +129,7 @@ clauselist_selectivity(PlannerInfo *root,
 	rel = find_single_rel_for_clauses(root, clauses);
 	if (rel && rel->rtekind == RTE_RELATION && rel->statlist != NIL)
 	{
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		/*
 		 * Perform subset eliminations on any clauses found applicable by
 		 * subset_clauselist_selectivity. Subset dependencies got higher
@@ -872,7 +872,7 @@ clause_selectivity(PlannerInfo *root,
     return s1;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /*
  * clause_selectivity_could_under_estimated
  *	  Check whether BaseRelOpt of the path might got under estimated rows.
@@ -933,7 +933,7 @@ clause_selectivity_could_under_estimated(PlannerInfo *root, Path *path)
 			 * single column histograms. Thus we count all unsupported cases
 			 * here. is_opclause() covers the NULL check for 'clause'
 			 *
-			 * TODO(Tbase): Be more precise on other type of clauses.
+			 * TODO(OpenTenBase): Be more precise on other type of clauses.
 			 */
 			if (is_opclause(clause))
 			{

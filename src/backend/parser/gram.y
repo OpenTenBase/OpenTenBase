@@ -715,7 +715,7 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 	OBJECT_P OF OFF OFFSET 
 	/* PGPAL added NODE token*/
 	OID_P  
-	OIDS OLD ON ONLY OPERATOR OPTION OPTIONS OR
+	OIDS OLD ON ONLY OPENTENBASE_P OPERATOR OPTION OPTIONS OR
 	ORDER ORDINALITY OUT_P OUTER_P OVER OVERLAPS OVERLAY OVERRIDING OWNED OWNER
 
 	PARALLEL PARSER PARTIAL PARTITION PARTITIONS PASSING PASSWORD PAUSE PLACING PLANS POLICY
@@ -735,7 +735,7 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 	START STATEMENT STATISTICS STDIN STDOUT STEP STORAGE STRICT_P STRIP_P
 	SUBSCRIPTION SUBSTRING SUCCESSFUL SYMMETRIC SYNC SYSDATE SYSID SYSTEM_P SYSTIMESTAMP 
 
-	TABLE TABLES TABLESAMPLE TABLESPACE TBASE_P TEMP TEMPLATE TEMPORARY TEXT_P THEN
+	TABLE TABLES TABLESAMPLE TABLESPACE TEMP TEMPLATE TEMPORARY TEXT_P THEN
 	TIME TIMESTAMP TO TRAILING TRANSACTION TRANSFORM TREAT TRIGGER TRIM TRUE_P
 	TRUNCATE TRUSTED TYPE_P TYPES_P
 
@@ -9900,13 +9900,13 @@ CreateSubscriptionStmt:
 					n->conninfo = $5;
 					n->publication = $7;
 					n->options = $8;
-					n->istbase = false;
+					n->isopentenbase = false;
 					n->sub_parallel_number = 0;
 					n->sub_parallel_index = 0;
 					$$ = (Node *)n;
 				}
 /* __SUBSCRIPTION__ BEGIN */
-			| CREATE TBASE_P SUBSCRIPTION name CONNECTION Sconst PUBLICATION publication_name_list opt_definition
+			| CREATE OPENTENBASE_P SUBSCRIPTION name CONNECTION Sconst PUBLICATION publication_name_list opt_definition
 				{
 					CreateSubscriptionStmt *n =
 						makeNode(CreateSubscriptionStmt);
@@ -9914,7 +9914,7 @@ CreateSubscriptionStmt:
 					n->conninfo = $6;
 					n->publication = $8;
 					n->options = $9;
-					n->istbase = true;
+					n->isopentenbase = true;
 					n->sub_parallel_number = 0;
 					n->sub_parallel_index = 0;
 					$$ = (Node *)n;
@@ -9950,18 +9950,18 @@ AlterSubscriptionStmt:
 					n->kind = ALTER_SUBSCRIPTION_OPTIONS;
 					n->subname = $3;
 					n->options = $5;
-					n->istbase = false;
+					n->isopentenbase = false;
 					$$ = (Node *)n;
 				}
 /* __SUBSCRIPTION__ BEGIN */
-			| ALTER TBASE_P SUBSCRIPTION name SET definition
+			| ALTER OPENTENBASE_P SUBSCRIPTION name SET definition
 				{
 					AlterSubscriptionStmt *n =
 						makeNode(AlterSubscriptionStmt);
 					n->kind = ALTER_SUBSCRIPTION_OPTIONS;
 					n->subname = $4;
 					n->options = $6;
-					n->istbase = true;
+					n->isopentenbase = true;
 					$$ = (Node *)n;
 				}
 /* __SUBSCRIPTION__ END */
@@ -9972,18 +9972,18 @@ AlterSubscriptionStmt:
 					n->kind = ALTER_SUBSCRIPTION_CONNECTION;
 					n->subname = $3;
 					n->conninfo = $5;
-					n->istbase = false;
+					n->isopentenbase = false;
 					$$ = (Node *)n;
 				}
 /* __SUBSCRIPTION__ BEGIN */
-			| ALTER TBASE_P SUBSCRIPTION name CONNECTION Sconst
+			| ALTER OPENTENBASE_P SUBSCRIPTION name CONNECTION Sconst
 				{
 					AlterSubscriptionStmt *n =
 						makeNode(AlterSubscriptionStmt);
 					n->kind = ALTER_SUBSCRIPTION_CONNECTION;
 					n->subname = $4;
 					n->conninfo = $6;
-					n->istbase = true;
+					n->isopentenbase = true;
 					$$ = (Node *)n;
 				}
 /* __SUBSCRIPTION__ END */
@@ -9994,18 +9994,18 @@ AlterSubscriptionStmt:
 					n->kind = ALTER_SUBSCRIPTION_REFRESH;
 					n->subname = $3;
 					n->options = $6;
-					n->istbase = false;
+					n->isopentenbase = false;
 					$$ = (Node *)n;
 				}
 /* __SUBSCRIPTION__ BEGIN */
-			| ALTER TBASE_P SUBSCRIPTION name REFRESH PUBLICATION opt_definition
+			| ALTER OPENTENBASE_P SUBSCRIPTION name REFRESH PUBLICATION opt_definition
 				{
 					AlterSubscriptionStmt *n =
 						makeNode(AlterSubscriptionStmt);
 					n->kind = ALTER_SUBSCRIPTION_REFRESH;
 					n->subname = $4;
 					n->options = $7;
-					n->istbase = true;
+					n->isopentenbase = true;
 					$$ = (Node *)n;
 				}
 /* __SUBSCRIPTION__ END */
@@ -10017,11 +10017,11 @@ AlterSubscriptionStmt:
 					n->subname = $3;
 					n->publication = $6;
 					n->options = $7;
-					n->istbase = false;
+					n->isopentenbase = false;
 					$$ = (Node *)n;
 				}
 /* __SUBSCRIPTION__ BEGIN */
-			| ALTER TBASE_P SUBSCRIPTION name SET PUBLICATION publication_name_list opt_definition
+			| ALTER OPENTENBASE_P SUBSCRIPTION name SET PUBLICATION publication_name_list opt_definition
 				{
 					AlterSubscriptionStmt *n =
 						makeNode(AlterSubscriptionStmt);
@@ -10029,7 +10029,7 @@ AlterSubscriptionStmt:
 					n->subname = $4;
 					n->publication = $7;
 					n->options = $8;
-					n->istbase = true;
+					n->isopentenbase = true;
 					$$ = (Node *)n;
 				}
 /* __SUBSCRIPTION__ END */
@@ -10041,11 +10041,11 @@ AlterSubscriptionStmt:
 					n->subname = $3;
 					n->options = list_make1(makeDefElem("enabled",
 											(Node *)makeInteger(TRUE), @1));
-					n->istbase = false;
+					n->isopentenbase = false;
 					$$ = (Node *)n;
 				}
 /* __SUBSCRIPTION__ BEGIN */
-			| ALTER TBASE_P SUBSCRIPTION name ENABLE_P
+			| ALTER OPENTENBASE_P SUBSCRIPTION name ENABLE_P
 				{
 					AlterSubscriptionStmt *n =
 						makeNode(AlterSubscriptionStmt);
@@ -10053,7 +10053,7 @@ AlterSubscriptionStmt:
 					n->subname = $4;
 					n->options = list_make1(makeDefElem("enabled",
 											(Node *)makeInteger(TRUE), @1));
-					n->istbase = true;
+					n->isopentenbase = true;
 					$$ = (Node *)n;
 				}
 /* __SUBSCRIPTION__ END */
@@ -10065,11 +10065,11 @@ AlterSubscriptionStmt:
 					n->subname = $3;
 					n->options = list_make1(makeDefElem("enabled",
 											(Node *)makeInteger(FALSE), @1));
-					n->istbase = false;
+					n->isopentenbase = false;
 					$$ = (Node *)n;
 				}
 /* __SUBSCRIPTION__ BEGIN */
-			| ALTER TBASE_P SUBSCRIPTION name DISABLE_P
+			| ALTER OPENTENBASE_P SUBSCRIPTION name DISABLE_P
 				{
 					AlterSubscriptionStmt *n =
 						makeNode(AlterSubscriptionStmt);
@@ -10077,7 +10077,7 @@ AlterSubscriptionStmt:
 					n->subname = $4;
 					n->options = list_make1(makeDefElem("enabled",
 											(Node *)makeInteger(FALSE), @1));
-					n->istbase = true;
+					n->isopentenbase = true;
 					$$ = (Node *)n;
 				}
 /* __SUBSCRIPTION__ END */
@@ -10095,17 +10095,17 @@ DropSubscriptionStmt: DROP SUBSCRIPTION name opt_drop_behavior
 					n->subname = $3;
 					n->missing_ok = false;
 					n->behavior = $4;
-					n->istbase = false;
+					n->isopentenbase = false;
 					$$ = (Node *) n;
 				}
 /* __SUBSCRIPTION__ BEGIN */
-				|	DROP TBASE_P SUBSCRIPTION name opt_drop_behavior
+				|	DROP OPENTENBASE_P SUBSCRIPTION name opt_drop_behavior
 				{
 					DropSubscriptionStmt *n = makeNode(DropSubscriptionStmt);
 					n->subname = $4;
 					n->missing_ok = false;
 					n->behavior = $5;
-					n->istbase = true;
+					n->isopentenbase = true;
 					$$ = (Node *) n;
 				}
 /* __SUBSCRIPTION__ END */
@@ -10115,17 +10115,17 @@ DropSubscriptionStmt: DROP SUBSCRIPTION name opt_drop_behavior
 					n->subname = $5;
 					n->missing_ok = true;
 					n->behavior = $6;
-					n->istbase = false;
+					n->isopentenbase = false;
 					$$ = (Node *) n;
 				}
 /* __SUBSCRIPTION__ BEGIN */
-				|  DROP TBASE_P SUBSCRIPTION IF_P EXISTS name opt_drop_behavior
+				|  DROP OPENTENBASE_P SUBSCRIPTION IF_P EXISTS name opt_drop_behavior
 				{
 					DropSubscriptionStmt *n = makeNode(DropSubscriptionStmt);
 					n->subname = $6;
 					n->missing_ok = true;
 					n->behavior = $7;
-					n->istbase = true;
+					n->isopentenbase = true;
 					$$ = (Node *) n;
 				}
 /* __SUBSCRIPTION__ END */
@@ -16826,6 +16826,9 @@ unreserved_keyword:
 /* PGPAL_END */
 			| OIDS
 			| OLD
+/* __SUBSCRIPTION__ BEGIN */
+			| OPENTENBASE_P
+/* __SUBSCRIPTION__ END */
 			| OPERATOR
 			| OPTION
 			| OPTIONS
@@ -16939,9 +16942,6 @@ unreserved_keyword:
 			| SYSTEM_P
 			| TABLES
 			| TABLESPACE
-/* __SUBSCRIPTION__ BEGIN */
-			| TBASE_P
-/* __SUBSCRIPTION__ END */
 			| TEMP
 			| TEMPLATE
 			| TEMPORARY

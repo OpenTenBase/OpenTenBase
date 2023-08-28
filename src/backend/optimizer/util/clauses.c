@@ -51,7 +51,7 @@
 #include "utils/memutils.h"
 #include "utils/syscache.h"
 #include "utils/typcache.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "optimizer/planner.h"
 #include "tcop/pquery.h"
 #endif
@@ -99,7 +99,7 @@ typedef struct
     List       *safe_param_ids; /* PARAM_EXEC Param IDs to treat as safe */
 } max_parallel_hazard_context;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 typedef struct
 {
 	SubLink   *sublink;
@@ -167,7 +167,7 @@ static Node *substitute_actual_srf_parameters_mutator(Node *node,
                                          substitute_actual_srf_parameters_context *context);
 static bool tlist_matches_coltypelist(List *tlist, List *coltypelist);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static Node *
 substitute_sublink_with_node_mutator(Node *node,
 									substitute_sublink_with_node_context *context);
@@ -315,7 +315,7 @@ make_orclause(List *orclauses)
     return (Expr *) expr;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 bool
 OpExpr_clause(Node *clause)
 {
@@ -573,7 +573,7 @@ get_agg_clause_costs_walker(Node *node, get_agg_clause_costs_context *context)
             costs->hasNonPartial = true;
         }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /* if aggref only has distinct */
         if (aggref->aggorder != NIL)
         {
@@ -1274,7 +1274,7 @@ max_parallel_hazard_walker(Node *node, max_parallel_hazard_context *context)
         {
             if (max_parallel_hazard_test(PROPARALLEL_RESTRICTED, context))
             {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 if (param->paramkind == PARAM_EXEC && paramPassDown)
                     return false;
                 else
@@ -5267,7 +5267,7 @@ tlist_matches_coltypelist(List *tlist, List *coltypelist)
 
     return true;
 }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /*
  * Replace Param nodes by appropriate actual parameters
  */

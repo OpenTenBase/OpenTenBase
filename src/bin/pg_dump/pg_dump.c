@@ -333,7 +333,7 @@ main(int argc, char **argv)
         {"exclude-table", required_argument, NULL, 'T'},
         {"no-password", no_argument, NULL, 'w'},
         {"password", no_argument, NULL, 'W'},
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         {"with-dropped-column", no_argument, NULL, 'u'},
 #endif
         {"username", required_argument, NULL, 'U'},
@@ -508,7 +508,7 @@ main(int argc, char **argv)
                 simple_string_list_append(&table_exclude_patterns, optarg);
                 break;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             case 'u':            
                 with_dropped_column = true;
                 break;
@@ -1001,7 +1001,7 @@ help(const char *progname)
     printf(_("  -S, --superuser=NAME         superuser user name to use in plain-text format\n"));
     printf(_("  -t, --table=TABLE            dump the named table(s) only\n"));
     printf(_("  -T, --exclude-table=TABLE    do NOT dump the named table(s)\n"));
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     printf(_("  -u, --with-dropped-column    dump the table schema with dropped columns\n"));
 #endif
     printf(_("  -x, --no-privileges          do not dump privileges (grant/revoke)\n"));
@@ -2169,7 +2169,7 @@ dumpTableData(Archive *fout, TableDataInfo *tdinfo)
     if(shardstring && tdinfo->tdtable->pgxclocatortype != 'S')
         return;
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (tdinfo->tdtable->relkind == RELKIND_RELATION && 
         tdinfo->tdtable->parttype == 'c')
         return;
@@ -5623,7 +5623,7 @@ getFuncs(Archive *fout, int *numFuncs)
     return finfo;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static void getKeyValues(Archive *fout, int32 ntable, TableInfo *tblinfo)
 {
     if (tblinfo)
@@ -5748,7 +5748,7 @@ getTables(Archive *fout, int *numTables)
     int            i_relreplident;
     int            i_owning_tab;
     int            i_owning_col;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     int         i_parttype;
     int         i_partattnum;
     int         i_partstartvalue;
@@ -5869,7 +5869,7 @@ getTables(Archive *fout, int *numTables)
 #ifdef PGXC
                           "%s"
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                          "c.relpartkind AS parttype, "
                          "(SELECT partpartkey FROM pg_partition_interval p WHERE p.partrelid = c.oid) AS partattnum,"
                          "(SELECT partnparts FROM pg_partition_interval p WHERE p.partrelid = c.oid) AS nparts,"
@@ -6415,7 +6415,7 @@ getTables(Archive *fout, int *numTables)
     i_pgxcsecattnum = PQfnumber(res, "pgxcsecattnum");
     i_pgxc_node_names = PQfnumber(res, "pgxc_node_names");
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     i_parttype = PQfnumber(res, "parttype");
     i_partattnum = PQfnumber(res, "partattnum");
     i_nparts = PQfnumber(res, "nparts");
@@ -6523,7 +6523,7 @@ getTables(Archive *fout, int *numTables)
             }
         }
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         tblinfo[i].parttype = *(PQgetvalue(res, i, i_parttype));
         if(tblinfo[i].parttype == 'p')
         {
@@ -6640,7 +6640,7 @@ getTables(Archive *fout, int *numTables)
 
     destroyPQExpBuffer(query);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     getKeyValues(fout, ntups, tblinfo);
 #endif
 
@@ -15270,7 +15270,7 @@ dumpTable(Archive *fout, TableInfo *tbinfo)
     if (tbinfo->relkind == RELKIND_SEQUENCE)
         dumpSequence(fout, tbinfo);
     else
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     {
         if(tbinfo->parttype == 'c')
         {
@@ -15278,7 +15278,7 @@ dumpTable(Archive *fout, TableInfo *tbinfo)
         }
 #endif
         dumpTableSchema(fout, tbinfo);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     }
 #endif
     /* Handle the ACL here */
@@ -15677,7 +15677,7 @@ dumpTableSchema(Archive *fout, TableInfo *tbinfo)
                  * columns, and then fix up the dropped and nonlocal cases
                  * below.
                  */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 /* when set with_dropped_column, also dump dropped columns */
                 if (shouldPrintColumn(dopt, tbinfo, j) || 
                     (with_dropped_column && !tbinfo->ispartition && (tbinfo->attisdropped[j] || numParents)))
@@ -15813,7 +15813,7 @@ dumpTableSchema(Archive *fout, TableInfo *tbinfo)
             /* Emit the INHERITS clause, except if this is a partition. */
             if (numParents > 0 &&
                 !tbinfo->ispartition &&
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 !with_dropped_column &&
 #endif
                 !dopt->binary_upgrade)
@@ -15835,7 +15835,7 @@ dumpTableSchema(Archive *fout, TableInfo *tbinfo)
 
             if (tbinfo->relkind == RELKIND_PARTITIONED_TABLE)
                 appendPQExpBuffer(q, "\nPARTITION BY %s", tbinfo->partkeydef);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             if (tbinfo->relkind == RELKIND_RELATION)
             {
                 if (tbinfo->parttype == 'p')
@@ -15909,7 +15909,7 @@ dumpTableSchema(Archive *fout, TableInfo *tbinfo)
                     appendPQExpBuffer(q, "\nDISTRIBUTE BY MODULO (%s)",
                                       fmtId(tbinfo->attnames[hashkey - 1]));
                 }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 				else if(tbinfo->pgxclocatortype == 'S' && !tbinfo->ispartition)
 				{
 					int hashkey = tbinfo->pgxcattnum;
@@ -15965,7 +15965,7 @@ dumpTableSchema(Archive *fout, TableInfo *tbinfo)
             appendPQExpBufferStr(q, ";\n");
 
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /* dump table keyvalues */
         if (tbinfo->nKeys)
         {
@@ -16259,7 +16259,7 @@ dumpTableSchema(Archive *fout, TableInfo *tbinfo)
                                   tbinfo->attfdwoptions[j]);
             }
         }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /* add alter table....drop column to dumped table while with_dropped_column is set */
         if (with_dropped_column && !dopt->binary_upgrade && !tbinfo->ispartition &&
             (tbinfo->relkind == RELKIND_RELATION || tbinfo->relkind == RELKIND_PARTITIONED_TABLE))
@@ -16337,7 +16337,7 @@ dumpTableSchema(Archive *fout, TableInfo *tbinfo)
     if (dopt->binary_upgrade)
         binary_upgrade_extension_member(q, &tbinfo->dobj, labelq->data);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (tbinfo->relkind == RELKIND_RELATION && tbinfo->parttype == 'p')
     {
         for (j = 0; j < tbinfo->ncheck; j++)
@@ -16509,7 +16509,7 @@ dumpIndex(Archive *fout, IndxInfo *indxinfo)
     if (dopt->dataOnly)
         return;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if(tbinfo->parttype == 'c')
     {
         return;

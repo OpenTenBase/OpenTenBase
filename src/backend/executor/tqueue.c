@@ -48,7 +48,7 @@
 #include "utils/typcache.h"
 #include "utils/timestamp.h"
 #include "postmaster/postmaster.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "executor/executor.h"
 #include "access/parallel.h"
 #endif
@@ -150,7 +150,7 @@ typedef struct TQueueDestReceiver
     char        mode;            /* current message mode */
     TupleDesc    tupledesc;        /* current top-level tuple descriptor */
     TupleRemapInfo **field_remapinfo;    /* current top-level remap info */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     bool        *execute_done;
     uint64      send_tuples;     /* total tuples sent to shm_mq */
     TimestampTz send_total_time; /* total time for sending the tuples */
@@ -237,7 +237,7 @@ tqueueReceiveSlot(TupleTableSlot *slot, DestReceiver *self)
     TupleDesc    tupledesc = slot->tts_tupleDescriptor;
     HeapTuple    tuple;
     shm_mq_result result;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     TimestampTz begin = 0;
     TimestampTz end   = 0;
 
@@ -343,7 +343,7 @@ tqueueReceiveSlot(TupleTableSlot *slot, DestReceiver *self)
         ereport(ERROR,
                 (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
                  errmsg("could not send tuple to shared-memory queue")));
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (enable_statistic)
     {
         end = GetCurrentTimestamp();
@@ -615,7 +615,7 @@ tqueueShutdownReceiver(DestReceiver *self)
 {
     TQueueDestReceiver *tqueue = (TQueueDestReceiver *) self;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (enable_statistic)
     {
         elog(LOG, "TqueueSend: send_tuples:%lu, send_total_time:%ld, avg_time:%lf.",
@@ -668,7 +668,7 @@ CreateTupleQueueDestReceiver(shm_mq_handle *handle)
     /* Top-level tupledesc is not known yet */
     self->tupledesc = NULL;
     self->field_remapinfo = NULL;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     self->execute_done    = NULL;
     self->send_tuples     = 0;
     self->send_total_time = 0;
@@ -1325,7 +1325,7 @@ BuildFieldRemapInfo(TupleDesc tupledesc, MemoryContext mycontext)
 
     return remapinfo;
 }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 void
 ParallelReceiverSetExecuteDone(DestReceiver *self, bool *execute_done)
 {

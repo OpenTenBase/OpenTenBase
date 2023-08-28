@@ -156,7 +156,7 @@ recurse_dir(const char *datadir, const char *parentpath,
  * If 'trunc' is true, any existing file with the same name is truncated.
  */
 static void
-tbase_copy_file_range(const char *path, off_t begin, off_t end, bool trunc)
+opentenbase_copy_file_range(const char *path, off_t begin, off_t end, bool trunc)
 {
     char        buf[BLCKSZ];
     char        srcpath[MAXPGPATH];
@@ -222,7 +222,7 @@ copy_executeFileMap(filemap_t *map)
                 break;
 
             case FILE_ACTION_COPY:
-				tbase_copy_file_range(entry->path, 0, entry->newsize, true);
+				opentenbase_copy_file_range(entry->path, 0, entry->newsize, true);
                 break;
 
             case FILE_ACTION_TRUNCATE:
@@ -230,7 +230,7 @@ copy_executeFileMap(filemap_t *map)
                 break;
 
             case FILE_ACTION_COPY_TAIL:
-				tbase_copy_file_range(entry->path, entry->oldsize, entry->newsize, false);
+				opentenbase_copy_file_range(entry->path, entry->oldsize, entry->newsize, false);
                 break;
 
             case FILE_ACTION_CREATE:
@@ -257,7 +257,7 @@ execute_pagemap(datapagemap_t *pagemap, const char *path)
     while (datapagemap_next(iter, &blkno))
     {
         offset = blkno * BLCKSZ;
-		tbase_copy_file_range(path, offset, offset + BLCKSZ, false);
+		opentenbase_copy_file_range(path, offset, offset + BLCKSZ, false);
         /* Ok, this block has now been copied from new data dir to old */
     }
     pg_free(iter);

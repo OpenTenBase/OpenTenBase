@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -121,7 +121,7 @@ extern int64 nextval_internal(Oid relid, bool check_permissions);
 extern Datum nextval(PG_FUNCTION_ARGS);
 extern List *sequence_options(Oid relid);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern ObjectAddress DefineSequence(ParseState *pstate, CreateSeqStmt *seq,
 								bool exists_ok);
 extern bool PrecheckDefineSequence(CreateSeqStmt *seq);
@@ -157,7 +157,7 @@ typedef enum
 
 extern bool IsTempSequence(Oid relid);
 extern char *GetGlobalSeqName(Relation rel, const char *new_seqname, const char *new_schemaname);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern void RenameDatabaseSequence(const char* oldname, const char* newname);
 #endif
 #endif

@@ -60,12 +60,12 @@ static GTM_TransactionHandle GTM_GlobalSessionIDToHandle(
 
 GlobalTransactionId ControlXid;  /* last one written to control file */
 GTM_Transactions GTMTransactions;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #endif
 void
 GTM_InitTxnManager(void)
 {
-#ifndef __TBASE__
+#ifndef __OPENTENBASE__
     int ii;
 
     memset(&GTMTransactions, 0, sizeof (GTM_Transactions));
@@ -506,7 +506,7 @@ GTM_GetGlobalTransactionIdMulti(GTM_TransactionHandle handle[], int txn_count,
     if (GlobalTransactionIdIsValid(xid) &&
             (xid - ControlXid > CONTROL_INTERVAL || xid < ControlXid))
     {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         int32 ret;
         ret =  GTM_StoreReserveXid(CONTROL_INTERVAL);
         if (ret)
@@ -519,7 +519,7 @@ GTM_GetGlobalTransactionIdMulti(GTM_TransactionHandle handle[], int txn_count,
         ControlXid = xid;
     }
     
-#ifndef __TBASE__    
+#ifndef __OPENTENBASE__    
     if (GTM_NeedXidRestoreUpdate())
     {
         GTM_SetNeedBackup();
@@ -556,7 +556,7 @@ GlobalTransactionId
 ReadNewGlobalTransactionId(void)
 {
     GlobalTransactionId xid;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     xid = pg_atomic_read_u32(&GTMTransactions.gt_global_xid);
     return xid;    
 #else
@@ -808,7 +808,7 @@ GTM_RollbackTransactionGXID(GlobalTransactionId gxid)
 
 /*
  * Rollback multiple transactions in one go.
- * In TBase, rollback transaction will not bother GTM.
+ * In OpenTenBase, rollback transaction will not bother GTM.
  */
 int
 GTM_RollbackTransactionMulti(GTM_TransactionHandle txn[], int txn_count, int status[])
@@ -840,7 +840,7 @@ GTM_CommitTransactionGXID(GlobalTransactionId gxid)
 
 /*
  * Commit multiple transactions in one go.
- * In TBase, commit transaction will not bother GTM.
+ * In OpenTenBase, commit transaction will not bother GTM.
  */
 int
 GTM_CommitTransactionMulti(GTM_TransactionHandle txn[], int txn_count,
@@ -893,7 +893,7 @@ GTM_StartPreparedTransaction(GTM_TransactionHandle txn,
                              char *gid,
                              char *nodestring)
 {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     int32          ret = -1;
     txn = txn;
     
@@ -1100,7 +1100,7 @@ ProcessBeginTransactionCommand(Port *myport, StringInfo message)
     return;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #ifndef __XLOG__
 void
 ProcessBkupGlobalTimestamp(Port *myport, StringInfo message)
@@ -1162,7 +1162,7 @@ GetNextGlobalTransactionId(void)
 
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 GlobalTimestamp
 GetNextGlobalTimestamp(void)
 {
@@ -1778,7 +1778,7 @@ GTM_BkupBeginTransactionGetGXIDMulti(GlobalTransactionId *gxid,
     if (GlobalTransactionIdIsValid(xid) &&
             (xid - ControlXid > CONTROL_INTERVAL || xid < ControlXid))
     {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         int32 ret;
         ret =  GTM_StoreReserveXid(CONTROL_INTERVAL);
         if (ret)
@@ -1806,7 +1806,7 @@ GTM_BkupBeginTransactionGetGXID(GlobalTransactionId gxid,
                                 uint32 client_id)
 {
     GTMProxy_ConnID connid = -1;
-#ifdef __TBASE__            
+#ifdef __OPENTENBASE__            
     if (enable_gtm_sequence_debug)
     {
         elog(LOG, "GTM_BkupBeginTransactionGetGXID gxid:%u.", gxid);
@@ -2397,7 +2397,7 @@ void
 ProcessGetGIDDataTransactionCommand(Port *myport, StringInfo message)
 {// #lizard forgives
     StringInfoData buf;    
-#ifndef __TBASE__
+#ifndef __OPENTENBASE__
     GTM_TransactionHandle txn, prepared_txn;
 #endif
     GlobalTransactionId gxid;
@@ -2428,7 +2428,7 @@ ProcessGetGIDDataTransactionCommand(Port *myport, StringInfo message)
     pq_getmsgend(message);
 
     /* Get the prepared Transaction for given GID */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (Recovery_IsStandby())
     {
         if (myport->remote_type != GTM_NODE_GTM)
@@ -2936,7 +2936,7 @@ ProcessStartPreparedTransactionCommand(Port *myport, StringInfo message, bool is
     }
     memcpy(&gxid, data, sizeof (gxid));
     
-#ifndef __TBASE__
+#ifndef __OPENTENBASE__
     txn = GTM_GXIDToHandle(gxid);
 #else
     txn = txn;
@@ -3630,7 +3630,7 @@ int GTM_GetAllTransactions(GTM_TransactionInfo txninfo[], uint32 txncnt);
  */
 uint32 GTM_GetAllPrepared(GlobalTransactionId gxids[], uint32 gxidcnt);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 
 void
 ProcessFinishGIDTransactionCommand(Port *myport, StringInfo message)

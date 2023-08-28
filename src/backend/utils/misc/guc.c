@@ -117,7 +117,7 @@
 #include "utils/varlena.h"
 #include "utils/xml.h"
 #include "utils/syscache.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "optimizer/subselect.h"
 #include "postmaster/pgarch.h"
 #include "optimizer/planner.h"
@@ -194,7 +194,7 @@ extern bool trace_syncscan;
 extern bool optimize_bounded_sort;
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern bool    PoolConnectDebugPrint;
 extern bool       GTMDebugPrint;
 extern bool    g_GTM_skip_catalog;
@@ -293,7 +293,7 @@ static ConfigVariable *ProcessConfigFileInternal(GucContext context,
 static void strreplace_all(char *str, char *needle, char *replacement);
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static bool set_warm_shared_buffer(bool *newval, void **extra, GucSource source);
 static const char *show_total_memorysize(void);
 
@@ -573,7 +573,7 @@ static const struct config_enum_entry shard_visible_modes[] = {
  };
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /*
  * Although only "break", "continue" are documented, we
  * accept all the likely variants of "on" and "off".
@@ -644,7 +644,7 @@ bool        random_collect_stats = true;
 bool        g_replication_slot_debug = false;
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 int         query_delay = 0;
 #endif
 
@@ -734,7 +734,7 @@ static int    wal_segment_size;
 static bool integer_datetimes;
 static bool assert_enabled;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 bool g_enable_copy_silence = false;
 bool g_enable_user_authority_force_check = false;
 #endif
@@ -1114,7 +1114,7 @@ static struct config_bool ConfigureNamesBool[] =
 		true,
 		NULL, NULL, NULL
 	},
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	{
 		{"enable_nestloop_suppression", PGC_USERSET, QUERY_TUNING_METHOD,
 			gettext_noop("Enables the selectivity hints when planning nested-loop joins."),
@@ -2074,7 +2074,7 @@ static struct config_bool ConfigureNamesBool[] =
         NULL, NULL, NULL
     },
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	{
 		{"enable_statistic", PGC_SIGHUP, STATS_COLLECTOR,
 			gettext_noop("collect statistic information for debug."),
@@ -2441,7 +2441,7 @@ static struct config_bool ConfigureNamesBool[] =
     },
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     {
         {"enable_pooler_debug_print", PGC_SUSET, CUSTOM_OPTIONS,
             gettext_noop("enable pooler manager debug infomation print"),
@@ -2771,7 +2771,7 @@ static struct config_bool ConfigureNamesBool[] =
 		NULL, NULL, NULL
 	},
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	{
 		{"enable_lock_account", PGC_SUSET, CUSTOM_OPTIONS,
 			gettext_noop("Enable lock account when login fail serval times."),
@@ -3638,7 +3638,7 @@ static struct config_int ConfigureNamesInt[] =
         200, 1, 10000,
         NULL, NULL, NULL
     },
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     {
         {"gts_acquire_gap", PGC_SIGHUP, WAL_SETTINGS,
             gettext_noop("Time gap between global timestamp acquirement in the WAL writer."),
@@ -3848,7 +3848,7 @@ static struct config_int ConfigureNamesInt[] =
         4, 0, MAX_BACKENDS,
         NULL, NULL, NULL
     },
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     {
         {"max_network_bandwidth_per_subscription",
             PGC_SIGHUP,
@@ -4144,7 +4144,7 @@ static struct config_int ConfigureNamesInt[] =
         (XLOG_SEG_SIZE / XLOG_BLCKSZ),
         NULL, NULL, NULL
     },
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     {
         {"wal_track_entry_number", PGC_POSTMASTER, REPLICATION_STANDBY,
             gettext_noop("Number of entries to track GTS of each xlog segment."),
@@ -4358,7 +4358,7 @@ static struct config_int ConfigureNamesInt[] =
         (512 * 1024) / BLCKSZ, 0, INT_MAX / 3,
         NULL, NULL, NULL
     },
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	{
 		{"min_parallel_rows_size", PGC_USERSET, QUERY_TUNING_COST,
 			gettext_noop("Sets the minimum amount of rows for a parallel aggregate or scan."),
@@ -4418,7 +4418,7 @@ static struct config_int ConfigureNamesInt[] =
         NULL, NULL, NULL
     },
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     {
         {"pool_conn_keepalive", PGC_SIGHUP, DATA_NODES,
             gettext_noop("Close connections if they are idle in the pool for that time."),
@@ -4658,7 +4658,7 @@ static struct config_int ConfigureNamesInt[] =
         1000, 1, INT_MAX,
         NULL, NULL, NULL
     },
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     {
         {"sender_thread_num", PGC_SIGHUP, CUSTOM_OPTIONS,
             gettext_noop("Number of maximum senders in datapump"),
@@ -4854,7 +4854,7 @@ static struct config_int ConfigureNamesInt[] =
 	},
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     {
         {"account_lock_track_count", PGC_POSTMASTER, LOGGING,
             gettext_noop("The limit to store user account info. aka the max num of hash table entry."),
@@ -5561,7 +5561,7 @@ static struct config_string ConfigureNamesString[] =
 #endif
         NULL, NULL, NULL
     },
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     {
         {"gtm_unix_socket_directory", PGC_POSTMASTER, CONN_AUTH_SETTINGS,
          gettext_noop("Sets the directory where GTM Unix-domain sockets used."),
@@ -5738,7 +5738,7 @@ static struct config_string ConfigureNamesString[] =
             GUC_NO_RESET_ALL | GUC_IS_NAME
         },
         &PGXCClusterName,
-        "tbase_cluster",
+        "opentenbase_cluster",
         NULL, NULL, NULL
     },
     {
@@ -5748,7 +5748,7 @@ static struct config_string ConfigureNamesString[] =
             GUC_NO_RESET_ALL | GUC_IS_NAME
         },
         &PGXCMainClusterName,
-        "tbase_cluster",
+        "opentenbase_cluster",
         NULL, NULL, NULL
     },
 #endif
@@ -5836,7 +5836,7 @@ static struct config_string ConfigureNamesString[] =
         "",
         check_wal_consistency_checking, assign_wal_consistency_checking, NULL
     },
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     {
         {"pgbouncer_conf", PGC_POSTMASTER, PROCESS_TITLE,
             gettext_noop("pgbouncer config file name, in PGDATA dir."),
@@ -5848,7 +5848,7 @@ static struct config_string ConfigureNamesString[] =
         NULL, NULL, NULL
     },
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     {
         {"pooler_warm_db_user", PGC_USERSET, CUSTOM_OPTIONS,
             gettext_noop("pooler warm datanode database and user."),
@@ -6310,7 +6310,7 @@ static struct config_enum ConfigureNamesEnum[] =
         PASSWORD_TYPE_MD5, password_encryption_options,
         NULL, NULL, NULL
     },
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     {
         {"archive_status_control", PGC_USERSET, WAL_ARCHIVING,
             gettext_noop("Control of break or continue archive xlog. "),
@@ -9445,7 +9445,7 @@ set_config_option(const char *name, const char *value,
         step->force_autocommit = true;
         step->exec_type = EXEC_ON_CURRENT;
 		step->is_set = true;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		ExecRemoteUtility(step, NULL, NON_PARALLEL_DDL);
 #else
         ExecRemoteUtility(step);
@@ -12289,7 +12289,7 @@ SerializeGUCState(Size maxsize, char *start_address)
          */
         if (strcmp(guc_variables[i]->name, "role") == 0)
         {
-#ifndef __TBASE__
+#ifndef __OPENTENBASE__
             i_role = i;
 #else
             {
@@ -13732,7 +13732,7 @@ strreplace_all(char *str, char *needle, char *replacement)
     }
 }
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 bool
 set_warm_shared_buffer(bool *newval, void **extra, GucSource source)
 {

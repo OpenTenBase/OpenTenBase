@@ -4,7 +4,7 @@
  *
  *	  a bloom filter, using murmurhash
  *
- * Copyright (c) 2020-Present TBase development team, Tencent
+ * Copyright (c) 2020-Present OpenTenBase development team, Tencent
  *
  *
  * IDENTIFICATION

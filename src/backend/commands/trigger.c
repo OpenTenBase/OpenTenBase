@@ -2303,7 +2303,7 @@ ExecBSInsertTriggers(EState *estate, ResultRelInfo *relinfo)
     if (!trigdesc->trig_insert_before_statement)
         return;
     
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* should I fire the trigger? */
     if (!should_pgxc_fire_trigger(trigdesc, relinfo->ri_RelationDesc))
         return;
@@ -2353,7 +2353,7 @@ ExecASInsertTriggers(EState *estate, ResultRelInfo *relinfo,
 {
     TriggerDesc *trigdesc = relinfo->ri_TrigDesc;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* should I fire the trigger? */
     if (!should_pgxc_fire_trigger(trigdesc, relinfo->ri_RelationDesc))
         return;
@@ -2375,7 +2375,7 @@ ExecBRInsertTriggers(EState *estate, ResultRelInfo *relinfo,
     TriggerData LocTriggerData;
     int            i;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* should I fire the trigger? */
     if (!should_pgxc_fire_trigger(trigdesc, relinfo->ri_RelationDesc))
         return slot;
@@ -2443,7 +2443,7 @@ ExecARInsertTriggers(EState *estate, ResultRelInfo *relinfo,
 {
     TriggerDesc *trigdesc = relinfo->ri_TrigDesc;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* should I fire the trigger? */
     if (!should_pgxc_fire_trigger(trigdesc, relinfo->ri_RelationDesc))
         return;
@@ -2468,7 +2468,7 @@ ExecIRInsertTriggers(EState *estate, ResultRelInfo *relinfo,
     TriggerData LocTriggerData;
     int            i;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* should I fire the trigger? */
     if (!should_pgxc_fire_trigger(trigdesc, relinfo->ri_RelationDesc))
         return slot;
@@ -2542,7 +2542,7 @@ ExecBSDeleteTriggers(EState *estate, ResultRelInfo *relinfo)
         return;
     if (!trigdesc->trig_delete_before_statement)
         return;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* should I fire the trigger? */
     if (!should_pgxc_fire_trigger(trigdesc, relinfo->ri_RelationDesc))
         return;
@@ -2591,7 +2591,7 @@ ExecASDeleteTriggers(EState *estate, ResultRelInfo *relinfo,
 {
     TriggerDesc *trigdesc = relinfo->ri_TrigDesc;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* should I fire the trigger? */
     if (!should_pgxc_fire_trigger(trigdesc, relinfo->ri_RelationDesc))
         return;
@@ -2616,7 +2616,7 @@ ExecBRDeleteTriggers(EState *estate, EPQState *epqstate,
     TupleTableSlot *newSlot;
     int            i;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* should I fire the trigger? */
     if (!should_pgxc_fire_trigger(trigdesc, relinfo->ri_RelationDesc))
         return true;
@@ -2685,7 +2685,7 @@ ExecARDeleteTriggers(EState *estate, ResultRelInfo *relinfo,
 {// #lizard forgives
     TriggerDesc *trigdesc = relinfo->ri_TrigDesc;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* should I fire the trigger? */
     if (!should_pgxc_fire_trigger(trigdesc, relinfo->ri_RelationDesc))
         return;
@@ -2724,7 +2724,7 @@ ExecIRDeleteTriggers(EState *estate, ResultRelInfo *relinfo,
     HeapTuple    rettuple;
     int            i;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* should I fire the trigger? */
     if (!should_pgxc_fire_trigger(trigdesc, relinfo->ri_RelationDesc))
         return true;
@@ -2783,7 +2783,7 @@ ExecBSUpdateTriggers(EState *estate, ResultRelInfo *relinfo)
     if (!trigdesc->trig_update_before_statement)
         return;
     
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* should I fire the trigger? */
     if (!should_pgxc_fire_trigger(trigdesc, relinfo->ri_RelationDesc))
         return;
@@ -2835,7 +2835,7 @@ ExecASUpdateTriggers(EState *estate, ResultRelInfo *relinfo,
 {
     TriggerDesc *trigdesc = relinfo->ri_TrigDesc;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* should I fire the trigger? */
     if (!should_pgxc_fire_trigger(trigdesc, relinfo->ri_RelationDesc))
         return;
@@ -2866,7 +2866,7 @@ ExecBRUpdateTriggers(EState *estate, EPQState *epqstate,
     Bitmapset  *updatedCols;
     LockTupleMode lockmode;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* should I fire the trigger? */
     if (!should_pgxc_fire_trigger(trigdesc, relinfo->ri_RelationDesc))
         return slot;
@@ -2981,7 +2981,7 @@ ExecARUpdateTriggers(EState *estate, ResultRelInfo *relinfo,
 {// #lizard forgives
     TriggerDesc *trigdesc = relinfo->ri_TrigDesc;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* should I fire the trigger? */
     if (!should_pgxc_fire_trigger(trigdesc, relinfo->ri_RelationDesc))
         return;
@@ -3030,7 +3030,7 @@ ExecIRUpdateTriggers(EState *estate, ResultRelInfo *relinfo,
     HeapTuple    oldtuple;
     int            i;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* should I fire the trigger? */
     if (!should_pgxc_fire_trigger(trigdesc, relinfo->ri_RelationDesc))
         return slot;
@@ -3104,7 +3104,7 @@ ExecBSTruncateTriggers(EState *estate, ResultRelInfo *relinfo)
         return;
     if (!trigdesc->trig_truncate_before_statement)
         return;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* should I fire the trigger? */
     if (!should_pgxc_fire_trigger(trigdesc, relinfo->ri_RelationDesc))
         return;
@@ -3152,7 +3152,7 @@ ExecASTruncateTriggers(EState *estate, ResultRelInfo *relinfo)
 {
     TriggerDesc *trigdesc = relinfo->ri_TrigDesc;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* should I fire the trigger? */
     if (!should_pgxc_fire_trigger(trigdesc, relinfo->ri_RelationDesc))
         return;
@@ -3554,7 +3554,7 @@ typedef struct AfterTriggerSharedData
 typedef struct AfterTriggerEventData *AfterTriggerEvent;
 
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 
 
 /*
@@ -3640,7 +3640,7 @@ typedef union
 typedef struct AfterTriggerEventData
 {
     TriggerFlags ate_flags;        /* status bits and offset to shared data */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         CtidOrRpid        xc_ate_cor;
 #else
         ItemPointerData ate_ctid1;    /* inserted, deleted, or old updated tuple */
@@ -3652,14 +3652,14 @@ typedef struct AfterTriggerEventData
 typedef struct AfterTriggerEventDataOneCtid
 {
     TriggerFlags ate_flags;        /* status bits and offset to shared data */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     CtidOrRpid        xc_ate_cor;
 #else
     ItemPointerData ate_ctid1;    /* inserted, deleted, or old updated tuple */
 #endif
 }            AfterTriggerEventDataOneCtid;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #define ate_ctid1 xc_ate_cor.cor_ctid
 #define xc_ate_row xc_ate_cor.cor_rpid
 #endif
@@ -3786,7 +3786,7 @@ typedef struct AfterTriggersData
     int            maxquerydepth;    /* allocated len of above array */
     MemoryContext event_cxt;    /* memory context for events, if any */
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     MemoryContext    xc_rs_cxt;        /* memory context to store OLD and NEW rows */
     ARRowStore      **xc_rowstores;        /* Array of per-query row triggers. */
     int                xc_max_rowstores;    /* Allocated length of above array */
@@ -3815,7 +3815,7 @@ static SetConstraintState SetConstraintStateCreate(int numalloc);
 static SetConstraintState SetConstraintStateCopy(SetConstraintState state);
 static SetConstraintState SetConstraintStateAddItem(SetConstraintState state,
                           Oid tgoid, bool tgisdeferred);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static void pgxc_ARNextNewRowpos(RowPointerData *rpid);
 
 static void pgxc_ARAddRow(HeapTuple oldtup, HeapTuple newtup, bool is_deferred);
@@ -4133,7 +4133,7 @@ AfterTriggerExecute(AfterTriggerEvent event,
     Buffer        buffer1 = InvalidBuffer;
     Buffer        buffer2 = InvalidBuffer;
     int            tgindx;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     HeapTuple    rs_tuple1 = NULL;
     HeapTuple    rs_tuple2 = NULL;
 #endif
@@ -4206,7 +4206,7 @@ AfterTriggerExecute(AfterTriggerEvent event,
             break;
 
         default:
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             /*
              * If this table contains locator info, then the events may be having
              * tuplestore positions of saved rows instead of ctids. So fetch them.
@@ -4262,7 +4262,7 @@ AfterTriggerExecute(AfterTriggerEvent event,
                 LocTriggerData.tg_newtuple = NULL;
                 LocTriggerData.tg_newtuplebuf = InvalidBuffer;
             }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             }
 #endif
     }
@@ -4324,7 +4324,7 @@ AfterTriggerExecute(AfterTriggerEvent event,
         rettuple != LocTriggerData.tg_trigtuple &&
         rettuple != LocTriggerData.tg_newtuple)
         heap_freetuple(rettuple);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (IS_PGXC_COORDINATOR)
     {
         if (rs_tuple1)
@@ -4582,7 +4582,7 @@ AfterTriggerBeginXact(void)
     afterTriggers.firing_counter = (CommandId) 1;    /* mustn't be 0 */
     afterTriggers.query_depth = -1;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /*
      * Even though these are only used on coordinator, better nullify them
      * always.
@@ -4625,7 +4625,7 @@ AfterTriggerBeginQuery(void)
     /* Increase the query stack depth */
     afterTriggers.query_depth++;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /*
      * Cleanup the row store if left allocated by some other query at the
      * same query level. AfterTriggerEndQuery() should have cleaned it up, but
@@ -4741,7 +4741,7 @@ AfterTriggerEndQuery(EState *estate)
     }
     afterTriggerFreeEventList(&afterTriggers.query_stack[afterTriggers.query_depth]);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* Cleanup the row store if created for this query */
     if (IS_PGXC_COORDINATOR)
         pgxc_ARFreeRowStoreForQuery(afterTriggers.query_depth);
@@ -4864,7 +4864,7 @@ AfterTriggerEndXact(bool isCommit)
     /* No more afterTriggers manipulation until next transaction starts. */
     afterTriggers.query_depth = -1;
     
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* On similar lines, discard the rowstore memory. */
     if (IS_PGXC_COORDINATOR && afterTriggers.xc_rs_cxt)
 	{
@@ -5199,7 +5199,7 @@ AfterTriggerSetState(ConstraintsSetStmt *stmt)
 {// #lizard forgives
     int            my_level = GetCurrentTransactionNestLevel();
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /*
      * If there are any row stores allocated for AR triggers, we should mark
      * all of them deferred, so they don't get deallocated at the end of query.
@@ -5592,7 +5592,7 @@ AfterTriggerSaveEvent(EState *estate, ResultRelInfo *relinfo,
     int            tgtype_level;
     int            i;
     Tuplestorestate *fdw_tuplestore = NULL;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     bool        is_deferred = false;
     bool        event_added = false;
 #endif
@@ -5772,7 +5772,7 @@ AfterTriggerSaveEvent(EState *estate, ResultRelInfo *relinfo,
 
     tgtype_level = (row_trigger ? TRIGGER_TYPE_ROW : TRIGGER_TYPE_STATEMENT);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /*
          * Just save the position where the row would go *if* it gets inserted.
          * We are not sure whether it needs to be inserted because possibly in
@@ -5882,7 +5882,7 @@ AfterTriggerSaveEvent(EState *estate, ResultRelInfo *relinfo,
         new_shared.ats_firing_id = 0;
         new_shared.ats_transition_capture = transition_capture;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (IS_PGXC_COORDINATOR &&
             IsRowPointerValid(&new_event.xc_ate_row))
         {
@@ -5909,7 +5909,7 @@ AfterTriggerSaveEvent(EState *estate, ResultRelInfo *relinfo,
             tuplestore_puttuple(fdw_tuplestore, newtup);
     }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /*
      * If we have saved at least one row trigger event, save the
      * OLD and NEW row into the tuplestore.
@@ -5925,7 +5925,7 @@ pg_trigger_depth(PG_FUNCTION_ARGS)
 {
     PG_RETURN_INT32(MyTriggerDepth);
 }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /* pgxc_get_trigevent: Converts the command type into a trigger event type */
 int16
 pgxc_get_trigevent(CmdType commandType)

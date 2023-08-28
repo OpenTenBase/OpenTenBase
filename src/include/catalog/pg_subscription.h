@@ -87,19 +87,19 @@ typedef struct Subscription
     char       *synccommit;        /* Synchronous commit setting for worker */
     List       *publications;    /* List of publication names to subscribe to */
 #ifdef __SUBSCRIPTION__
-    char       *parent_name;            /* Name of TBase subscription created on coordinator */
-    int32        parallel_number;        /* Split TBase subscription into multiple parallel tbase-sub-subscription */
-    int32        parallel_index;            /* Index of this tbase-sub-subscription in all parallel tbase-sub-subscriptions */
+    char       *parent_name;            /* Name of OpenTenBase subscription created on coordinator */
+    int32        parallel_number;        /* Split OpenTenBase subscription into multiple parallel opentenbase-sub-subscription */
+    int32        parallel_index;            /* Index of this opentenbase-sub-subscription in all parallel opentenbase-sub-subscriptions */
     bool        ignore_pk_conflict;        /* ignore primary key conflict occurs when apply */
     char       *manual_hot_date;        /* GUC parameter, manual_hot_date */
     char       *temp_hot_date;            /* GUC parameter, temp_hot_date */
     char       *temp_cold_date;            /* GUC parameter, temp_cold_date */
-    bool        is_all_actived;            /* Whether all parallel tbase-sub-subscriptions are actived */
-    bool        active_state;            /* Whether the current tbase-sub-subscription is activated by the first tbase-sub-subscription,
+    bool        is_all_actived;            /* Whether all parallel opentenbase-sub-subscriptions are actived */
+    bool        active_state;            /* Whether the current opentenbase-sub-subscription is activated by the first opentenbase-sub-subscription,
                                          * valid only when parallel_index > 0
                                          */
-    XLogRecPtr    active_lsn;                /* The LSN value that was set when the current tbase-sub-subscription was activated by the first
-                                         * tbase-sub-subscription, valid only when parallel_index > 0
+    XLogRecPtr    active_lsn;                /* The LSN value that was set when the current opentenbase-sub-subscription was activated by the first
+                                         * opentenbase-sub-subscription, valid only when parallel_index > 0
                                          */
 #endif
 } Subscription;
@@ -131,25 +131,25 @@ extern char *GetSubscriptionTableDesc(Oid proid);
 
 #ifdef __SUBSCRIPTION__
 
-extern void ActiveAllParallelTbaseSubscriptions(XLogRecPtr active_lsn);
-extern List *GetTbaseSubscriptnParallelChild(Oid subid);
-extern List *GetTbaseSubscriptnParallelWorker(Oid subid);
+extern void ActiveAllParallelOpenTenBaseSubscriptions(XLogRecPtr active_lsn);
+extern List *GetOpenTenBaseSubscriptnParallelChild(Oid subid);
+extern List *GetOpenTenBaseSubscriptnParallelWorker(Oid subid);
 
-#define Natts_tbase_subscription                            7
-#define Anum_tbase_subscription_sub_name                    1
-#define Anum_tbase_subscription_sub_ignore_pk_conflict        2
-#define Anum_tbase_subscription_sub_manual_hot_date            3
-#define Anum_tbase_subscription_sub_temp_hot_date            4
-#define Anum_tbase_subscription_sub_temp_cold_date            5
-#define Anum_tbase_subscription_sub_parallel_number            6
-#define Anum_tbase_subscription_sub_is_all_actived            7
+#define Natts_opentenbase_subscription                            7
+#define Anum_opentenbase_subscription_sub_name                    1
+#define Anum_opentenbase_subscription_sub_ignore_pk_conflict        2
+#define Anum_opentenbase_subscription_sub_manual_hot_date            3
+#define Anum_opentenbase_subscription_sub_temp_hot_date            4
+#define Anum_opentenbase_subscription_sub_temp_cold_date            5
+#define Anum_opentenbase_subscription_sub_parallel_number            6
+#define Anum_opentenbase_subscription_sub_is_all_actived            7
 
-#define Natts_tbase_subscription_parallel                    5
-#define Anum_tbase_subscription_parallel_sub_parent            1
-#define Anum_tbase_subscription_parallel_sub_child            2
-#define Anum_tbase_subscription_parallel_sub_index            3
-#define Anum_tbase_subscription_parallel_sub_active_state    4
-#define Anum_tbase_subscription_parallel_sub_active_lsn        5
+#define Natts_opentenbase_subscription_parallel                    5
+#define Anum_opentenbase_subscription_parallel_sub_parent            1
+#define Anum_opentenbase_subscription_parallel_sub_child            2
+#define Anum_opentenbase_subscription_parallel_sub_index            3
+#define Anum_opentenbase_subscription_parallel_sub_active_state    4
+#define Anum_opentenbase_subscription_parallel_sub_active_lsn        5
 
 #endif
 

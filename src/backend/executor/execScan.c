@@ -30,7 +30,7 @@
 #include "audit/audit_fga.h"
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "pgxc/shardmap.h"
 #include "access/htup_details.h"
 #include "utils/guc.h"
@@ -213,7 +213,7 @@ next_record:
 				}
             }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             /* update shard statistic info about select if needed */
             if (g_StatShardInfo && !TupIsNull(slot) && IS_PGXC_DATANODE)
             {
@@ -270,7 +270,7 @@ next_record:
                 return slot;
         }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		shardid = InvalidShardID;
         /* update shard statistic info about select if needed */
         if (g_StatShardInfo && IS_PGXC_DATANODE)
@@ -333,7 +333,7 @@ next_record:
                 }
             }
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 			if (IS_PGXC_DATANODE)
 			{
 				LightLockCheck(commandType, InvalidOid, shardid);

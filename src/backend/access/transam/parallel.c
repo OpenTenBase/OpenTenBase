@@ -37,7 +37,7 @@
 #include "utils/memutils.h"
 #include "utils/resowner.h"
 #include "utils/snapmgr.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "catalog/pg_collation.h"
 #include "pgxc/squeue.h"
 #include "utils/formatting.h"
@@ -568,7 +568,7 @@ WaitForParallelWorkersToFinish(ParallelContext *pcxt)
             }
         }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (GetParallelSendError())
             anyone_alive = false;
 #endif
@@ -667,7 +667,7 @@ DestroyParallelContext(ParallelContext *pcxt)
         }
     }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     parallelExecutionError = NULL;
 #endif
 

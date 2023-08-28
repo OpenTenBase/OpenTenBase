@@ -164,7 +164,7 @@ PQmakeEmptyPGresult(PGconn *conn, ExecStatusType status)
     result->curBlock = NULL;
     result->curOffset = 0;
     result->spaceLeft = 0;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     result->report_commandid = InvalidCommandId;
 #endif
     if (conn)
@@ -3764,7 +3764,7 @@ PQunescapeBytea(const unsigned char *strtext, size_t *retbuflen)
     *retbuflen = buflen;
     return tmpbuf;
 }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /*
  * PQgetResultTimed
  *      Get the next PGresult produced by a query.  Returns NULL if no

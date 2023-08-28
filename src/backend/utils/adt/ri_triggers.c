@@ -267,7 +267,7 @@ RI_FKey_check(TriggerData *trigdata)
     SPIPlanPtr    qplan;
     int            i;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* foreign key supported */
     if (IS_PGXC_COORDINATOR)
     {
@@ -318,7 +318,7 @@ RI_FKey_check(TriggerData *trigdata)
      * and lock on the buffer to call HeapTupleSatisfiesVisibility.  Caller
      * should be holding pin, but not lock.
      */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (IS_PGXC_DATANODE)
     {
 #endif
@@ -329,7 +329,7 @@ RI_FKey_check(TriggerData *trigdata)
             return PointerGetDatum(NULL);
         }
         LockBuffer(new_row_buf, BUFFER_LOCK_UNLOCK);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     }
 #endif
     /*

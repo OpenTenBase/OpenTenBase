@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -294,7 +294,7 @@ json_in(PG_FUNCTION_ARGS)
     lex = makeJsonLexContext(result, false);
     pg_parse_json(lex, &nullSemAction);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     pfree(lex);
 #endif
 
@@ -345,7 +345,7 @@ json_recv(PG_FUNCTION_ARGS)
     lex = makeJsonLexContextCstringLen(str, nbytes, false);
     pg_parse_json(lex, &nullSemAction);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     pfree(lex);
 #endif
 

@@ -148,7 +148,7 @@
 #ifdef EXEC_BACKEND
 #include "storage/spin.h"
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "pgxc/squeue.h"
 #endif
 
@@ -271,7 +271,7 @@ bool        enable_bonjour = false;
 char       *bonjour_name;
 bool        restart_after_crash = true;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /* collect statistic information for debug */
 bool        enable_statistic = false;
 bool        g_enable_bouncer = true;
@@ -316,7 +316,7 @@ static pid_t StartupPID = 0,
 			Clean2pcPID = 0,
             PgArchPID = 0,
             PgStatPID = 0,
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             GTMProxyPID = 0,
             BouncerPid = 0,
 #endif
@@ -328,7 +328,7 @@ static pid_t StartupPID = 0,
 #endif
 
             SysLoggerPID = 0;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static int    g_postmaster_timeout_id = -1;
 static Latch PostmasterLatchData;
 #endif
@@ -462,13 +462,13 @@ static DNSServiceRef bonjour_sdref = NULL;
 #endif
 
 #ifdef PGXC
-char             *PGXCDefaultClusterName = "tbase_cluster"; 
+char             *PGXCDefaultClusterName = "opentenbase_cluster"; 
 char            *PGXCNodeName = NULL;
 char            *PGXCClusterName = NULL;
 char            *PGXCMainClusterName = NULL;
 bool        IsPGXCMainCluster = false;
 int            PGXCNodeId = 0;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 char             PGXCSessionId[NAMEDATALEN];
 int              PGXCLevelId = -1;
 List            *PGXCGroupNodeList = NIL;
@@ -512,7 +512,7 @@ static int    ServerLoop(void);
 static int    BackendStartup(Port *port);
 static int    ProcessStartupPacket(Port *port, bool SSLdone);
 static void processCancelRequest(Port *port, void *pkt);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static void processEndQueryRequest(Port *port, void *pkt);
 #endif
 static int    initMasks(fd_set *rmask);
@@ -533,7 +533,7 @@ static pid_t StartChildProcess(AuxProcType type);
 static void StartAutovacuumWorker(void);
 static void MaybeStartWalReceiver(void);
 static void InitPostmasterDeathWatchHandle(void);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static int32 StartBouncer(void);
 static int32 StartGTMProxy(void);
 static void  PostmasterLogTimeoutHandler(void);
@@ -1410,7 +1410,7 @@ PostmasterMain(int argc, char *argv[])
      */
     RemovePgTempFiles();
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* 
       * If using data pump, we should create or clean the data pump socket dir first.
       */
@@ -1459,7 +1459,7 @@ PostmasterMain(int argc, char *argv[])
                         LOG_METAINFO_DATAFILE)));
 
     /* if enabled , start bouncer */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (g_enable_bouncer && IS_PGXC_COORDINATOR)
     {
         BouncerPid = StartBouncer();
@@ -2045,7 +2045,7 @@ ServerLoop(void)
         if (PgPoolerPID == 0 &&
             (pmState == PM_RUN || pmState == PM_HOT_STANDBY))
             PgPoolerPID = StartPoolManager();
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (IS_PGXC_COORDINATOR && BouncerPid == 0 && pmState == PM_RUN && g_enable_bouncer)
         {
             BouncerPid = StartBouncer();
@@ -2262,7 +2262,7 @@ ProcessStartupPacket(Port *port, bool SSLdone)
         /* Not really an error, but we don't want to proceed further */
         return STATUS_ERROR;
     }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     else if (proto == EDN_QUERY_REQUEST_CODE)
     {
         processEndQueryRequest(port, buf);
@@ -2583,7 +2583,7 @@ processCancelRequest(Port *port, void *pkt)
                     backendPID)));
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static void
 processEndQueryRequest(Port *port, void *pkt)
 {
@@ -2960,7 +2960,7 @@ pmdie(SIGNAL_ARGS)
             if (pmState == PM_RUN || pmState == PM_RECOVERY ||
                 pmState == PM_HOT_STANDBY || pmState == PM_STARTUP)
             {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 if (BouncerPid != 0)
                 {
                     signal_child(BouncerPid, SIGKILL);
@@ -3045,7 +3045,7 @@ pmdie(SIGNAL_ARGS)
 #ifdef USE_SYSTEMD
             sd_notify(0, "STOPPING=1");
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             if (BouncerPid != 0)
             {
                 signal_child(BouncerPid, SIGKILL);
@@ -3272,7 +3272,7 @@ reaper(SIGNAL_ARGS)
             if (WalWriterPID == 0)
                 WalWriterPID = StartWalWriter();
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             if (0 == BouncerPid && IS_PGXC_COORDINATOR && g_enable_bouncer)
             {
                 BouncerPid = StartBouncer();
@@ -3537,7 +3537,7 @@ reaper(SIGNAL_ARGS)
         }
 #endif
         
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /* Bouncer exit, restart now */
         if (pid == BouncerPid && IS_PGXC_COORDINATOR && g_enable_bouncer)
         {
@@ -3711,7 +3711,7 @@ CleanupBackgroundWorker(int pid,
         rw->rw_backend = NULL;
         rw->rw_pid = 0;
         rw->rw_child_slot = 0;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /* parallel worker exit abnormally, tell gather node */
         if (!EXIT_STATUS_0(exitstatus))
         {
@@ -3780,7 +3780,7 @@ CleanupBackend(int pid,
     {
         HandleChildCrash(pid, exitstatus, _("server process"));
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (EXIT_STATUS_3(exitstatus))
         {
             exit_on_stop = true;
@@ -4412,7 +4412,7 @@ PostmasterStateMachine(void)
      * EOF on its input pipe, which happens when there are no more upstream
      * processes.
      */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if ((Shutdown > NoShutdown || exit_on_stop) && pmState == PM_NO_CHILDREN)
 #else
     if (Shutdown > NoShutdown && pmState == PM_NO_CHILDREN)
@@ -4575,7 +4575,7 @@ TerminateChildren(int signal)
             StartupStatus = STARTUP_SIGNALED;
     }
     
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (BouncerPid != 0)
     {
         signal_child(BouncerPid, SIGKILL);
@@ -6426,7 +6426,7 @@ do_start_bgworker(RegisteredBgWorker *rw)
             /* in postmaster, fork failed ... */
             ereport(LOG,
                     (errmsg("could not fork worker process: %m")));
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             /*
               * if could not fork parallel worker, need to tell gather node
                         */
@@ -7220,7 +7220,7 @@ InitPostmasterDeathWatchHandle(void)
 #endif                            /* WIN32 */
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static int32 StartBouncer(void)
 {
     int  ret = 0;

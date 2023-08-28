@@ -60,7 +60,7 @@
 #include "storage/spin.h"
 #include "utils/timeout.h"
 #include "utils/timestamp.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "storage/lock.h"
 #endif
 
@@ -242,7 +242,7 @@ InitProcGlobal(void)
             LWLockInitialize(&(procs[i].backendLock), LWTRANCHE_PROC);
 
         }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         LWLockInitialize(&(procs[i].globalxidLock), LWTRANCHE_PROC_DATA);
 #endif
         procs[i].pgprocno = i;

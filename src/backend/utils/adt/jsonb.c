@@ -27,7 +27,7 @@
 #include "utils/jsonb.h"
 #include "utils/syscache.h"
 #include "utils/typcache.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "utils/memutils.h"
 #endif
 
@@ -63,7 +63,7 @@ typedef struct JsonbAggState
     Oid            val_output_func;
 } JsonbAggState;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 MemoryContext JsonbIOContext = NULL;
 #endif
 
@@ -235,7 +235,7 @@ jsonb_from_cstring(char *json, int len)
     JsonLexContext *lex;
     JsonbInState state;
     JsonSemAction sem;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     MemoryContext old;
     Jsonb *result = NULL;
     if (JsonbIOContext == NULL)
@@ -261,7 +261,7 @@ jsonb_from_cstring(char *json, int len)
 
     pg_parse_json(lex, &sem);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     MemoryContextSwitchTo(old);
     result = JsonbValueToJsonb(state.res);
     MemoryContextReset(JsonbIOContext);
@@ -334,7 +334,7 @@ jsonb_in_object_field_start(void *pstate, char *fname, bool isnull)
 static void
 jsonb_put_escaped_value(StringInfo out, JsonbValue *scalarVal)
 {// #lizard forgives
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     char *val = NULL;
 #endif
     switch (scalarVal->type)
@@ -343,7 +343,7 @@ jsonb_put_escaped_value(StringInfo out, JsonbValue *scalarVal)
             appendBinaryStringInfo(out, "null", 4);
             break;
         case jbvString:
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             val = pnstrdup(scalarVal->val.string.val, scalarVal->val.string.len);
             escape_json(out, val);
             pfree(val);
@@ -352,7 +352,7 @@ jsonb_put_escaped_value(StringInfo out, JsonbValue *scalarVal)
 #endif
             break;
         case jbvNumeric:
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             val = DatumGetCString(DirectFunctionCall1(numeric_out,
                                                        PointerGetDatum(scalarVal->val.numeric)));
             appendStringInfoString(out, val);
@@ -503,7 +503,7 @@ JsonbToCStringWorker(StringInfo out, JsonbContainer *in, int estimated_len, bool
     bool        use_indent = false;
     bool        raw_scalar = false;
     bool        last_was_key = false;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     bool        should_free = false;
     char        *result     = NULL;
 #endif
@@ -611,7 +611,7 @@ JsonbToCStringWorker(StringInfo out, JsonbContainer *in, int estimated_len, bool
 
     Assert(level == 0);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     result = out->data;
     if (should_free)
     {

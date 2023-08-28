@@ -40,7 +40,7 @@
 #include "utils/memutils.h"
 #include "utils/pg_rusage.h"
 #include "utils/snapmgr.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "pgxc/squeue.h"
 #include "optimizer/planner.h"
 #include "executor/execParallel.h"
@@ -51,7 +51,7 @@
 #include "optimizer/planmain.h"
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 bool     paramPassDown = false;
 #endif
 
@@ -90,7 +90,7 @@ static uint64 DoPortalRunFetch(Portal portal,
                  DestReceiver *dest);
 static void DoPortalRewind(Portal portal);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static void GetGtmInfoFromUserCmd(Node* stmt);
 static bool NeedSnapshot(PlannedStmt *plannedstmt);
 #endif
@@ -132,7 +132,7 @@ CreateQueryDesc(PlannedStmt *plannedstmt,
     qd->myindex = -1;
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     qd->sender = NULL;
     qd->es_param_exec_vals = NULL;
 	qd->epqContext = NULL;
@@ -194,7 +194,7 @@ ProcessQuery(PlannedStmt *plan,
     /*
      * Create the QueryDesc object
      */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (plan->need_snapshot && !g_set_global_snapshot)
     {
         queryDesc = CreateQueryDesc(plan, sourceText,
@@ -261,7 +261,7 @@ ProcessQuery(PlannedStmt *plan,
         }
     }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	if (instrument && queryDesc->planstate)
 	{
 		SendLocalInstr(queryDesc->planstate);
@@ -645,7 +645,7 @@ PortalStart(Portal portal, ParamListInfo params,
     QueryDesc  *queryDesc;
 #endif
     int            myeflags;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     bool snapshot_set = true;
 #endif
 
@@ -705,7 +705,7 @@ PortalStart(Portal portal, ParamListInfo params,
                                             None_Receiver,
                                             params,
                                             NULL,
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                                             portal->up_instrument);
 #else
                                             0);
@@ -735,7 +735,7 @@ PortalStart(Portal portal, ParamListInfo params,
 				 * Also, if we are doing EvalPlanQual, we will be rescan soon, which
 				 * is not supported in SharedQueue mode. Force to do it traditionally.
                  */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 for (i = 0; i < queryDesc->plannedstmt->nParamRemote; i++)
                 {
                         RemoteParam *rparam = &queryDesc->plannedstmt->remoteparams[i];
@@ -759,7 +759,7 @@ PortalStart(Portal portal, ParamListInfo params,
                     Locator       *locator;
                     Oid            keytype;
                     DestReceiver *dest;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                     int16 nodeMap[MAX_NODES_NUMBER];
 #endif
 
@@ -770,7 +770,7 @@ PortalStart(Portal portal, ParamListInfo params,
                     PGXC_PARENT_NODE_ID = PGXCNodeGetNodeIdFromName(PGXC_PARENT_NODE,
                                                        &PGXC_PARENT_NODE_TYPE);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                     /* init nodemap */
                     for (i = 0; i < MAX_NODES_NUMBER; i++)
                     {
@@ -780,7 +780,7 @@ PortalStart(Portal portal, ParamListInfo params,
                     i = 0;
                     foreach(lc, queryDesc->plannedstmt->distributionNodes)
                     {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                         int nodeid = lfirst_int(lc);
 
                         if (PGXC_PARENT_NODE_ID == nodeid)
@@ -853,12 +853,12 @@ PortalStart(Portal portal, ParamListInfo params,
                     SetProducerDestReceiverParams(dest,
                             queryDesc->plannedstmt->distributionKey,
                             locator, queryDesc->squeue
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                             ,
                             queryDesc->sender
 #endif
                             );
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                     /* set nodemap for shard distribution */
                     if (LOCATOR_TYPE_SHARD == queryDesc->plannedstmt->distributionType)
                     {
@@ -879,7 +879,7 @@ PortalStart(Portal portal, ParamListInfo params,
                                 queryDesc->plannedstmt->distributionRestrict,
                                 queryDesc->plannedstmt->distributionNodes,
                                 &queryDesc->myindex, consMap
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                                 ,&queryDesc->sender
 #endif
                                 );
@@ -890,7 +890,7 @@ PortalStart(Portal portal, ParamListInfo params,
                         Oid            keytype;
                         DestReceiver *dest;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                         if (distributed_query_analyze)
                         {
                             StoreQueryAnalyzeInfo(portal->name, queryDesc->plannedstmt);
@@ -953,7 +953,7 @@ PortalStart(Portal portal, ParamListInfo params,
                                 false);
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                         if (needParallelSend(queryDesc->squeue))
                         {
                             SetLocatorInfo(queryDesc->squeue, consMap, len, 
@@ -964,7 +964,7 @@ PortalStart(Portal portal, ParamListInfo params,
                         SetProducerDestReceiverParams(dest,
                                 queryDesc->plannedstmt->distributionKey,
                                 locator, queryDesc->squeue
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                               ,
                             queryDesc->sender
 #endif
@@ -1010,7 +1010,7 @@ PortalStart(Portal portal, ParamListInfo params,
                 if (snapshot)
                     PushActiveSnapshot(snapshot);
                 else
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 {
                     /*
                      * set snapshot if needed
@@ -1032,7 +1032,7 @@ PortalStart(Portal portal, ParamListInfo params,
                  * Create QueryDesc in portal's context; for the moment, set
                  * the destination to DestNone.
                  */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 if (!snapshot_set)
                 {
                     queryDesc = CreateQueryDesc(linitial_node(PlannedStmt, portal->stmts),
@@ -1053,7 +1053,7 @@ PortalStart(Portal portal, ParamListInfo params,
                                             None_Receiver,
                                             params,
                                             portal->queryEnv,
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                                             portal->up_instrument);
 #else
                                             0);
@@ -1096,7 +1096,7 @@ PortalStart(Portal portal, ParamListInfo params,
                 portal->atEnd = false;    /* allow fetches */
                 portal->portalPos = 0;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 if (snapshot_set)
                 {
                     PopActiveSnapshot();
@@ -1329,7 +1329,7 @@ PortalRun(Portal portal, long count, bool isTopLevel, bool run_once,
     saveResourceOwner = CurrentResourceOwner;
     savePortalContext = PortalContext;
     saveMemoryContext = CurrentMemoryContext;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     parallelExecutionError = NULL;
 #endif
     PG_TRY();
@@ -1438,7 +1438,7 @@ PortalRun(Portal portal, long count, bool isTopLevel, bool run_once,
                             tuplestore_ateof(portal->holdStore);
                         portal->portalPos += nprocessed;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                         if (portal->atEnd)
                         {
                             removeProducingPortal(portal);
@@ -1576,7 +1576,7 @@ PortalRun(Portal portal, long count, bool isTopLevel, bool run_once,
     }
     PG_CATCH();
     {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         HandleParallelExecutionError();
 #endif
         /* Uncaught error while executing portal: mark it dead */
@@ -1600,7 +1600,7 @@ PortalRun(Portal portal, long count, bool isTopLevel, bool run_once,
 
     if (saveMemoryContext == saveTopTransactionContext)
         MemoryContextSwitchTo(TopTransactionContext);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /*
      * saveMemoryContext points to subtransaction's memorycontext, but ROLLBACK SUBTXN
      * has already released the resource, so we need to switch to current transaction context.
@@ -1616,7 +1616,7 @@ PortalRun(Portal portal, long count, bool isTopLevel, bool run_once,
     ActivePortal = saveActivePortal;
     if (saveResourceOwner == saveTopTransactionResourceOwner)
         CurrentResourceOwner = TopTransactionResourceOwner;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /*
      * saveResourceOwner points to subtransaction's resourceOwner, but ROLLBACK SUBTXN
      * has already released the resource, so we need to switch to current transaction owner.
@@ -1929,7 +1929,7 @@ PortalRunUtility(Portal portal, PlannedStmt *pstmt,
     Node       *utilityStmt = pstmt->utilityStmt;
     Snapshot    snapshot;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* 
      * If process alter gtm node OR create gtm node command, we set NewGtmHost and NewGtmPort here.
      * Fucntion GetTransactionSnapshot will try to connect gtm using this gtm info.
@@ -1958,7 +1958,7 @@ PortalRunUtility(Portal portal, PlannedStmt *pstmt,
 		  IsA(utilityStmt, ListenStmt) ||
 		  IsA(utilityStmt, NotifyStmt) ||
 		  IsA(utilityStmt, UnlistenStmt) ||
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		  /* Node Lock/Unlock do not modify any data */
 		  IsA(utilityStmt, LockNodeStmt) ||
 #endif
@@ -2100,7 +2100,7 @@ PortalRunMulti(Portal portal,
              */
             if (!active_snapshot_set)
             {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 if (!setHoldSnapshot && !NeedSnapshot(pstmt))
                 {
                     /* will set snapshot when execute */
@@ -2129,7 +2129,7 @@ PortalRunMulti(Portal portal,
                  */
                 PushCopiedSnapshot(snapshot);
                 active_snapshot_set = true;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 }
                 if (IS_PGXC_LOCAL_COORDINATOR)
                     SetSendCommandId(true);
@@ -2999,7 +2999,7 @@ bool PortalGetQueryInfo(Portal portal, Query ** parseTree, const char ** querySt
 }
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static void
 GetGtmInfoFromUserCmd(Node* stmt)
 {// #lizard forgives

@@ -535,7 +535,7 @@ Setup_AF_UNIX(char *sock_path)
 int
 StreamConnection(int server_fd, Port *port)
 {// #lizard forgives
-#ifndef __TBASE__
+#ifndef __OPENTENBASE__
     char        remote_host[NI_MAXHOST];
     char        remote_port[NI_MAXSERV];
     char        remote_ps_data[NI_MAXHOST];
@@ -617,7 +617,7 @@ StreamConnection(int server_fd, Port *port)
         (void) pq_setkeepalivescount(tcp_keepalives_count, port);
     }
     /* remove dns query in case of dns block */
-#ifndef __TBASE__
+#ifndef __OPENTENBASE__
     remote_host[0] = '\0';
     remote_port[0] = '\0';
 

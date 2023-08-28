@@ -63,7 +63,7 @@
 #include "utils/selfuncs.h"
 #include "utils/lsyscache.h"
 #include "utils/syscache.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "optimizer/distribution.h"
 #endif
 
@@ -77,7 +77,7 @@ planner_hook_type planner_hook = NULL;
 /* Hook for plugins to get control when grouping_planner() plans upper rels */
 create_upper_paths_hook_type create_upper_paths_hook = NULL;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 bool olap_optimizer = false;
 bool enable_distinct_optimizer;
 #endif
@@ -238,7 +238,7 @@ static void add_partial_paths_to_grouping_rel(PlannerInfo *root,
                                  List *havingQual);
 static bool can_parallel_agg(PlannerInfo *root, RelOptInfo *input_rel,
                 RelOptInfo *grouped_rel, const AggClauseCosts *agg_costs);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static Path *adjust_modifytable_subpath(PlannerInfo *root, Query *parse, Path *path);
 static bool can_distinct_agg_optimize(PlannerInfo *root, RelOptInfo *input_rel,
                                       RelOptInfo *grouped_rel, PathTarget *pathtarget,
@@ -322,7 +322,7 @@ standard_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
     glob->lastPlanNodeId = 0;
     glob->transientPlan = false;
     glob->dependsOnRole = false;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     groupOids = NULL;
 	min_workers_of_hashjon_gather = PG_INT32_MAX;
 #endif
@@ -420,7 +420,7 @@ standard_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
     if (!root->distribution)
         root->distribution = best_path->distribution;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (root->distribution && !parse->hasUnshippableTriggers)
     {
         remote_subplan_depth++;
@@ -428,7 +428,7 @@ standard_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 #endif
     top_plan = create_plan(root, best_path);
 #ifdef XCP
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (root->distribution && !parse->hasUnshippableTriggers)
 #else
     if (root->distribution)
@@ -559,7 +559,7 @@ standard_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
     result->utilityStmt = parse->utilityStmt;
     result->stmt_location = parse->stmt_location;
     result->stmt_len = parse->stmt_len;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     result->haspart_tobe_modify = root->haspart_tobe_modify;
     result->partrelindex = root->partrelindex;
     result->partpruning = bms_copy(root->partpruning);
@@ -2532,7 +2532,7 @@ grouping_planner(PlannerInfo *root, bool inheritance_update,
                                               limitCount, /* LIMIT + OFFSET */
 											  0, offset_est + count_est,
 											  false);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 					/*
 					 * Upper level limit node could skip early ExecFinishNode to save
 					 * 2~3ms of meaningless communication, since we've already push
@@ -2592,7 +2592,7 @@ grouping_planner(PlannerInfo *root, bool inheritance_update,
              */
             path = adjust_path_distribution(root, parse, path);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             /*
              * unshippable triggers found on target relation, we have to do DML
              * on coordinator.
@@ -4111,7 +4111,7 @@ estimate_hashagg_tablesize(Path *path, const AggClauseCosts *agg_costs,
     return hashentrysize * dNumGroups;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 Size
 estimate_hashagg_entrysize(Path *path, const AggClauseCosts *agg_costs,
 						   double dNumGroups)
@@ -4490,7 +4490,7 @@ create_ordinary_grouping_paths(PlannerInfo *root, RelOptInfo *input_rel,
 	                                      gd, can_sort, can_hash,
 	                                      (List *) parse->havingQual);
     }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	else
 	{
 		if (g_hybrid_hash_agg)
@@ -4662,7 +4662,7 @@ create_ordinary_grouping_paths(PlannerInfo *root, RelOptInfo *input_rel,
 														&agg_partial_costs,
 														dNumPartialGroups);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 						if (olap_optimizer && !has_cold_hot_table)
 						{
 							/* redistribute local grouping results among datanodes */
@@ -4676,7 +4676,7 @@ create_ordinary_grouping_paths(PlannerInfo *root, RelOptInfo *input_rel,
 						path = create_remotesubplan_path(root, path, NULL);
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 						if (parse->groupClause && olap_optimizer && !has_cold_hot_table && 
 							(!is_sorted || root->group_pathkeys))
 						{
@@ -4742,7 +4742,7 @@ create_ordinary_grouping_paths(PlannerInfo *root, RelOptInfo *input_rel,
                                                               NIL,
 														  dNumPartialGroups);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 						if (olap_optimizer && !has_cold_hot_table)
 						{
 							/* redistribute local grouping results among datanodes */
@@ -4756,7 +4756,7 @@ create_ordinary_grouping_paths(PlannerInfo *root, RelOptInfo *input_rel,
                         path = create_remotesubplan_path(root, path, NULL);
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 						if (olap_optimizer && !has_cold_hot_table && (!is_sorted || root->group_pathkeys))
                         {
                                 path = (Path *) create_sort_path(root,
@@ -4803,7 +4803,7 @@ create_ordinary_grouping_paths(PlannerInfo *root, RelOptInfo *input_rel,
 			 * to sort above, then we'd better generate a Path, so that we at
 			 * least have one.
 			 */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 			if (hashaggtablesize < work_mem * 1024L || g_hybrid_hash_agg ||
 				grouped_rel->pathlist == NIL)
 #else
@@ -4829,7 +4829,7 @@ create_ordinary_grouping_paths(PlannerInfo *root, RelOptInfo *input_rel,
 
 					/* keep partially aggregated path for the can_sort branch */
 					agg_path = path;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 					if (hashaggtablesize >= work_mem * 1024L && g_hybrid_hash_agg)
 					{
 						AggPath *aggpath = (AggPath *)agg_path;
@@ -4838,7 +4838,7 @@ create_ordinary_grouping_paths(PlannerInfo *root, RelOptInfo *input_rel,
 					}
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 					if (olap_optimizer && !has_cold_hot_table)
 					{
 						/* redistribute local grouping results among datanodes */
@@ -4866,7 +4866,7 @@ create_ordinary_grouping_paths(PlannerInfo *root, RelOptInfo *input_rel,
                                                      dNumGroups);
 
 						//agg_path->parallel_safe = true;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 						if (hashaggtablesize >= work_mem * 1024L && g_hybrid_hash_agg)
 							{
 							AggPath *aggpath = (AggPath *)agg_path;
@@ -4879,7 +4879,7 @@ create_ordinary_grouping_paths(PlannerInfo *root, RelOptInfo *input_rel,
 
 					if (can_sort)
                     {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 						if (!olap_optimizer || has_cold_hot_table)
 #endif
                             path = (Path *) create_sort_path(root,
@@ -4888,7 +4888,7 @@ create_ordinary_grouping_paths(PlannerInfo *root, RelOptInfo *input_rel,
                                                              root->group_pathkeys,
                                                              -1.0);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 						if (olap_optimizer && !has_cold_hot_table)
                         {
 							/* redistribute local grouping results among datanodes */
@@ -4902,7 +4902,7 @@ create_ordinary_grouping_paths(PlannerInfo *root, RelOptInfo *input_rel,
 						path = create_remotesubplan_path(root, path, NULL);
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 						if (olap_optimizer && !has_cold_hot_table)
 						{
 							/*
@@ -7108,7 +7108,7 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
 			 */
 			if (path == cheapest_path || is_sorted)
             {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 				bool try_redistribute_grouping = false;
 				PathTarget * local_grouping_target = make_partial_grouping_target(root, target, (Node *) parse->havingQual);
 
@@ -7119,7 +7119,7 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
 														 parse->targetList);
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 				if (olap_optimizer && !has_cold_hot_table)
                 {
 					if (!is_sorted && !agg_costs->hasOnlyDistinct)
@@ -7139,7 +7139,7 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
 													 path,
 													 root->group_pathkeys,
 													 -1.0);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 }
 #endif
 /*
@@ -7148,7 +7148,7 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
 				 * disable construction of complex distributed paths.
  */
 				if (! can_push_down_grouping(root, parse, path))
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 {
 					/* some special aggs cannot be parallel executed, such as count(distinct) */
 					if(agg_costs->hasNonPartial || agg_costs->hasNonSerial ||
@@ -7244,7 +7244,7 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
 				else
 					*try_distributed_aggregation = false;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 				if(try_redistribute_grouping)
 				{
                     /*
@@ -7366,7 +7366,7 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
 				}
 				else if (parse->hasAggs)
 				{
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 					bool parallel_aware = false;
 					bool parallel_safe  = false;
 					Path *agg_path      = NULL;
@@ -7432,7 +7432,7 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
 				}
 				else if (parse->groupClause)
 				{
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 					bool parallel_aware = false;
 					bool parallel_safe	= false;
 					Path *group_path      = NULL;
@@ -7495,7 +7495,7 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
 					/* Other cases should have been handled above */
 					Assert(false);
 				}
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 				}
 #endif
 			}
@@ -7507,11 +7507,11 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
 		 */
 		if (grouped_rel->partial_pathlist)
 		{
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 			bool       redistribute_group PG_USED_FOR_ASSERTS_ONLY = false;
 #endif
 			Path	   *path = (Path *) linitial(grouped_rel->partial_pathlist);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 			double		total_groups = 0;
 
 			if (olap_optimizer && !has_cold_hot_table)
@@ -7534,7 +7534,7 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
 			 * unless there's no GROUP BY clause or a degenerate (constant)
 			 * one, in which case there will only be a single group.
          */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		    if (!olap_optimizer || has_cold_hot_table)
             {
 #endif
@@ -7544,7 +7544,7 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
 												 path,
 												 root->group_pathkeys,
 												 -1.0);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	    	}
 #endif
             /*
@@ -7558,7 +7558,7 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
 			 * XXX Keep this after the Sort node, to make the path sorted.
              */
 			if (! can_push_down_grouping(root, parse, path))
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             {
 				if (olap_optimizer && !has_cold_hot_table)
                 {
@@ -7576,7 +7576,7 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
 			else
 				*try_distributed_aggregation = false;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 /*
 			 * Since Gather's output is always unsorted, we'll need to sort,
 			 * unless there's no GROUP BY clause or a degenerate (constant)
@@ -7670,7 +7670,7 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
 											   subpath->pathkeys))
 						continue;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 					if (olap_optimizer && !has_cold_hot_table)
 						total_groups = subpath->rows;
 					else
@@ -7678,7 +7678,7 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
 					total_groups = subpath->rows * subpath->parallel_workers;
 
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 					if (olap_optimizer && !has_cold_hot_table)
                     {
 					    gmpath = (Path *) create_gather_path(root,
@@ -7707,7 +7707,7 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
 					redistribute_group = false;
 
 					if (! can_push_down_grouping(root, parse, gmpath))
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                     {
 						if (olap_optimizer && !has_cold_hot_table)
 						{
@@ -7724,7 +7724,7 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
 					gmpath = create_remotesubplan_path(root, gmpath, NULL);
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                     /*
 					 * Since Gather's output is always unsorted, we'll need to sort,
 					 * unless there's no GROUP BY clause or a degenerate (constant)
@@ -7818,7 +7818,7 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
 			 * were unable to sort above, then we'd better generate a Path, so
 			 * that we at least have one.
              */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 			if (hashaggtablesize < work_mem * 1024L || g_hybrid_hash_agg ||
 				grouped_rel->pathlist == NIL)
 #else
@@ -7828,7 +7828,7 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
             {
 				/* Don't mess with the cheapest path directly. */
 				Path *path = cheapest_path;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 				bool try_redistribute_grouping = false;
 #endif
 
@@ -7890,7 +7890,7 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
 														&hashagg_partial_costs,
 														dNumLocalGroups);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 						if (hashaggtablesize >= work_mem * 1024L && g_hybrid_hash_agg)
 						{
 							AggPath *aggpath = (AggPath *)path;
@@ -7913,7 +7913,7 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
 				 * We just need an Agg over the cheapest-total input path,
 				 * since input order won't matter.
  */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 				if(try_redistribute_grouping)
                 {
 					AggClauseCosts hashagg_final_costs;
@@ -7939,7 +7939,7 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
 												 havingQual,
 												 &hashagg_final_costs,
 												 dNumGroups);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 					if (hashaggtablesize >= work_mem * 1024L && g_hybrid_hash_agg)
 					{
 						AggPath *aggpath = (AggPath *)agg_path;
@@ -7976,7 +7976,7 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
 										 dNumGroups);
 					agg_path->parallel_aware = parallel_aware;
 					agg_path->parallel_safe  = parallel_safe;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 					if (hashaggtablesize >= work_mem * 1024L && g_hybrid_hash_agg)
                     {
 						AggPath *aggpath = (AggPath *)agg_path;
@@ -8015,13 +8015,13 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
 														  agg_final_costs,
 														  dNumGroups);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 			if (hashaggtablesize < work_mem * 1024L || g_hybrid_hash_agg)
 #else
 			if (hashaggtablesize < work_mem * 1024L)
 #endif
 			{
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 				double		total_groups = 0;
 
 				if (olap_optimizer && !has_cold_hot_table)
@@ -8048,7 +8048,7 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
 				* distributed paths.
                 */
 				if (! can_push_down_grouping(root, parse, path))
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 				{
 					if (olap_optimizer && !has_cold_hot_table)
 					{
@@ -8067,7 +8067,7 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
 				else
 					*try_distributed_aggregation = false;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 				if (!redistribute_group)
 				{
 					Path *agg_path = (Path *)
@@ -8087,7 +8087,7 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
 						agg_path->parallel_aware = true;
 						agg_path->parallel_safe  = true;
                     }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 					if (hashaggtablesize >= work_mem * 1024L && g_hybrid_hash_agg)
 					{
 						AggPath *aggpath = (AggPath *)agg_path;
@@ -8117,7 +8117,7 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
 					agg_path->parallel_aware = true;
 					agg_path->parallel_safe = true;
                 }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 				if (hashaggtablesize >= work_mem * 1024L && g_hybrid_hash_agg)
 				{
 					AggPath *aggpath = (AggPath *)agg_path;
@@ -8126,7 +8126,7 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
 				}
 #endif
 				add_path(grouped_rel, agg_path);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 }
 #endif
 			}
@@ -8230,7 +8230,7 @@ add_partial_paths_to_grouping_rel(PlannerInfo *root,
 		 * Tentatively produce a partial HashAgg Path, depending on if it
 		 * looks as if the hash table will fit in work_mem.
 		 */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		if (hashaggtablesize < work_mem * 1024L || g_hybrid_hash_agg)
 #else
 		if (hashaggtablesize < work_mem * 1024L)
@@ -8247,7 +8247,7 @@ add_partial_paths_to_grouping_rel(PlannerInfo *root,
 											 NIL,
 											 agg_partial_costs,
 											 dNumPartialGroups);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 			if (hashaggtablesize >= work_mem * 1024L)
         {
 				aggpath->hybrid = true;
@@ -8422,7 +8422,7 @@ adjust_path_distribution(PlannerInfo *root, Query *parse, Path *path)
             ereport(ERROR,
                     (errcode(ERRCODE_STATEMENT_TOO_COMPLEX),
                      errmsg("could not plan this distributed update"),
-                     errdetail("correlated UPDATE or updating distribution column currently not supported in TBase.")));
+                     errdetail("correlated UPDATE or updating distribution column currently not supported in OpenTenBase.")));
 #endif
         if (parse->commandType == CMD_DELETE)
 #ifdef _PG_REGRESS_
@@ -8434,9 +8434,9 @@ adjust_path_distribution(PlannerInfo *root, Query *parse, Path *path)
             ereport(ERROR,
                     (errcode(ERRCODE_STATEMENT_TOO_COMPLEX),
                      errmsg("could not plan this distributed delete"),
-                     errdetail("correlated or complex DELETE is currently not supported in TBase.")));
+                     errdetail("correlated or complex DELETE is currently not supported in OpenTenBase.")));
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /*
           * If the planned statement is DML, and the target relation has
           * unshippable triggers, we will add distribution before ModifyTable
@@ -8477,7 +8477,7 @@ adjust_path_distribution(PlannerInfo *root, Query *parse, Path *path)
     return path;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /*
  * can_distinct_agg_optimize
  *		Check if distinct app is workable.
@@ -8577,7 +8577,7 @@ can_push_down_window(PlannerInfo *root, Path *path)
 
     return false;
 }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static Path *
 adjust_modifytable_subpath(PlannerInfo *root, Query *parse, Path *path)
 {

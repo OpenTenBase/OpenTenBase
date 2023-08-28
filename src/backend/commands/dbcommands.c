@@ -68,7 +68,7 @@
 #include "pgxc/pgxc.h"
 #include "access/gtm.h"
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "commands/sequence.h"
 #endif
 
@@ -1164,7 +1164,7 @@ dropdb(const char *dbname, bool missing_ok)
     /* Drop sequences on gtm that are on the database dropped. */
     if (IS_PGXC_LOCAL_COORDINATOR)
     {
-#ifdef __TBASE__        
+#ifdef __OPENTENBASE__        
         RegisterSeqDrop((char*)dbname, GTM_SEQ_DB_NAME);                                    
 #else
         if (DropSequenceGTM((char *)dbname, GTM_SEQ_DB_NAME))
@@ -1262,7 +1262,7 @@ RenameDatabase(const char *oldname, const char *newname)
      * Close pg_database, but keep lock till commit.
      */
     heap_close(rel, NoLock);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (IS_PGXC_LOCAL_COORDINATOR)
     {
         RenameDatabaseSequence(oldname, newname);

@@ -969,7 +969,7 @@ distrib_execute_query(char *sql, bool is_temp, ExecNodes *exec_nodes)
 
     /* Redistribution operations only concern Datanodes */
     step->exec_type = EXEC_ON_DATANODES;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	ExecRemoteUtility(step, NULL, NON_PARALLEL_DDL);
 #else
     ExecRemoteUtility(step);

@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -151,7 +151,7 @@ extern PGDLLIMPORT volatile uint32 InterruptHoldoffCount;
 extern PGDLLIMPORT volatile uint32 QueryCancelHoldoffCount;
 extern PGDLLIMPORT volatile uint32 CritSectionCount;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern PGDLLIMPORT volatile int PoolerReloadHoldoffCount;
 extern PGDLLIMPORT volatile int PoolerReloadPending;
 #endif
@@ -205,7 +205,7 @@ do { \
 } while(0)
 
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #define HOLD_POOLER_RELOAD()  (PoolerReloadHoldoffCount++)
 
 #define RESUME_POOLER_RELOAD() \
@@ -513,8 +513,8 @@ extern AuxProcType MyAuxProcType;
 #define AmClusterMonitorProcess()    (MyAuxProcType == ClusterMonitorProcess)
 
 #ifdef __SUBSCRIPTION__
-extern bool AmTbaseSubscriptionWalSender(void);
-extern bool AmTbaseSubscriptionApplyWorker(void);
+extern bool AmOpenTenBaseSubscriptionWalSender(void);
+extern bool AmOpenTenBaseSubscriptionApplyWorker(void);
 #endif
 
 /*****************************************************************************

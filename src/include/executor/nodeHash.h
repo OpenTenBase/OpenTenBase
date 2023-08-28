@@ -24,7 +24,7 @@ extern void ExecReScanHash(HashState *node);
 
 extern HashJoinTable ExecHashTableCreate(Hash *node, List *hashOperators,
 					bool keepNulls);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern HashJoinTable ExecShmHashTableCreate(Hash *node, List *hashOperators,
 					bool keepNulls);
 extern Node *MultiExecShmHash(HashState *node);

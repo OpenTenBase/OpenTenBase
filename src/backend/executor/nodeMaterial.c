@@ -327,7 +327,7 @@ ExecReScanMaterial(MaterialState *node)
 
     if (node->eflags != 0)
     {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	    /*
 	     * If we haven't materialized yet, but some nodes have done disconnect,
 	     * maybe this node needs to be executed when the material is executed,

@@ -6,7 +6,7 @@
  * Portions Copyright (c) 1996-2009, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  * Portions Copyright (c) 2010-2012 Postgres-XC Development Group
- * Portions Copyright (c) 2012-2018 TBase Development Group
+ * Portions Copyright (c) 2012-2018 OpenTenBase Development Group
  *
  * $PostgreSQL$
  *

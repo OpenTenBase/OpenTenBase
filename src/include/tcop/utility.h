@@ -15,7 +15,7 @@
 #define UTILITY_H
 
 #include "tcop/tcopprot.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "lib/stringinfo.h"
 #endif
 typedef enum
@@ -63,7 +63,7 @@ extern bool CommandIsReadOnly(PlannedStmt *pstmt);
 #ifdef PGXC
 extern bool pgxc_lock_for_utility_stmt(Node *parsetree);
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 typedef void (*ErrcodeHookType) (ErrorData *edata, StringInfo buff);
 extern PGDLLIMPORT ErrcodeHookType g_pfErrcodeHook;
 

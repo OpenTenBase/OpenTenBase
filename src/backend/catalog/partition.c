@@ -129,7 +129,7 @@ RelationBuildPartitionDesc(Relation rel)
 
     /* Range partitioning specific */
     PartitionRangeBound **rbounds = NULL;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     bool old_portable_output = false;
 #endif
     /*
@@ -174,7 +174,7 @@ RelationBuildPartitionDesc(Relation rel)
                                 Anum_pg_class_relpartbound,
                                 &isnull);
         Assert(!isnull);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /*
           * partition bound stored as string transformed without portable_output
           * in catalog, so we need to read bound without portable_input.
@@ -198,7 +198,7 @@ RelationBuildPartitionDesc(Relation rel)
 		            inhrelid, partdefid);
 		}
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         set_portable_input(old_portable_output);
 #endif
         boundspecs = lappend(boundspecs, boundspec);

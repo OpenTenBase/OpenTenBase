@@ -53,7 +53,7 @@ typedef struct RemoteCopyOptions {
     bool        rco_binary;            /* binary format? */
     bool        rco_oids;            /* include OIDs? */
     bool        rco_csv_mode;        /* Comma Separated Value format? */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     bool        rco_insert_into;
 #endif
     char       *rco_delim;            /* column delimiter (must be 1 byte) */

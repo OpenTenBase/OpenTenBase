@@ -79,7 +79,7 @@
 #include "utils/snapmgr.h"
 #include "utils/timestamp.h"
 #include "pg_trace.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "storage/nodelock.h"
 #include "pgxc/shardmap.h"
 #include "utils/relcryptmap.h"
@@ -129,7 +129,7 @@ int            wal_retrieve_retry_interval = 5000;
 bool        XLOG_DEBUG = false;
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 int            wal_gts_track_entries = 100;
 typedef struct
 {
@@ -321,7 +321,7 @@ static char *recoveryTargetName;
 static XLogRecPtr recoveryTargetLSN;
 static int    recovery_min_apply_delay = 0;
 static TimestampTz recoveryDelayUntilTime;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static GlobalTimestamp recoveryTargetGTS   = 0;
 static char           *recoveryGTMHost     = NULL;
 GlobalTimestamp        segmentTrackGTS;
@@ -985,7 +985,7 @@ static void WALInsertLockAcquire(void);
 static void WALInsertLockAcquireExclusive(void);
 static void WALInsertLockRelease(void);
 static void WALInsertLockUpdateInsertingAt(XLogRecPtr insertingAt);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static void InitGTSTrackInfo(XlogSegGTSTrack *track_info, XLogSegNo base, GlobalTimestamp gts);
 static void TrackGTS(XlogSegGTSTrack *track_info, XLogSegNo seg, GlobalTimestamp gts);
 static GlobalTimestamp FlushGTSTrack(XlogSegGTSTrack *track_info, XLogSegNo seg);
@@ -1165,7 +1165,7 @@ XLogInsertRecord(XLogRecData *rdata,
          */
     }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if(segmentTrackGTS != InvalidGTS && XLogArchivingActive())
     {
         BackendTrackGTS(XLByteToSegNo(EndPos - 1), segmentTrackGTS);
@@ -1530,7 +1530,7 @@ CopyXLogRecordToWAL(int write_len, bool isLogSwitch, XLogRecData *rdata,
     int            written;
     XLogRecPtr    CurrPos;
     XLogPageHeader pagehdr;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     int         rdata_index = 0;
 #endif
 
@@ -1548,7 +1548,7 @@ CopyXLogRecordToWAL(int write_len, bool isLogSwitch, XLogRecData *rdata,
      */
     Assert(freespace >= sizeof(uint32));
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     WalCheckEndPtr = InvalidXLogRecPtr;
     rdata_index = 0;
 #endif
@@ -1562,7 +1562,7 @@ CopyXLogRecordToWAL(int write_len, bool isLogSwitch, XLogRecData *rdata,
 
         while (rdata_len > freespace)
         {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             if (g_wal_check)
             {
                 if (WalCheckEndPtr == InvalidXLogRecPtr && 
@@ -1616,7 +1616,7 @@ CopyXLogRecordToWAL(int write_len, bool isLogSwitch, XLogRecData *rdata,
             freespace = INSERT_FREESPACE(CurrPos);
         }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (g_wal_check)
         {
             if (WalCheckEndPtr == InvalidXLogRecPtr && 
@@ -1639,7 +1639,7 @@ CopyXLogRecordToWAL(int write_len, bool isLogSwitch, XLogRecData *rdata,
         written += rdata_len;
 
         rdata = rdata->next;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         rdata_index++;
 #endif
     }
@@ -2634,7 +2634,7 @@ XLogWrite(XLogwrtRqst WriteRqst, bool flexible)
 
                 if (XLogArchivingActive())
                 {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                     GlobalTimestamp gts;
                     gts = FlushXlogTrack(openLogSegNo);
                     /* We notify the gts of xlog segment before .ready to ensure archiver will backup both files. */
@@ -2903,7 +2903,7 @@ XLogFlush(XLogRecPtr record)
         return;
     }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* Quick exit if already known flushed */
     if (record <= LogwrtResult.Flush)
     {
@@ -3065,7 +3065,7 @@ XLogFlush(XLogRecPtr record)
              (uint32) (record >> 32), (uint32) record,
              (uint32) (LogwrtResult.Flush >> 32), (uint32) LogwrtResult.Flush);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* check data consistency of wal */
     if (g_wal_check)
     {
@@ -5520,7 +5520,7 @@ readRecoveryCommandFile(void)
             recoveryTargetBarrierId = pstrdup(item->value);
         }
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         else if (strcmp(item->name, "recovery_target_global_timestamp") == 0)
         {
             recoveryTarget = RECOVERY_TARGET_GTS;
@@ -5893,7 +5893,7 @@ recoveryStopsBefore(XLogReaderState *record)
     bool        isCommit  = false;
     TimestampTz recordXtime = 0;
     TransactionId recordXid = InvalidTransactionId;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     GlobalTimestamp     xact_gts          = 0;
     GlobalTimestamp     max_gts_in_seg    = 0;
     XLogSegNo           current_track_seg = 0;
@@ -5971,13 +5971,13 @@ recoveryStopsBefore(XLogReaderState *record)
 #endif
         if (xact_info == XLOG_XACT_COMMIT)
         {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             xl_xact_commit *xlrec = NULL;
 #endif
 
             isCommit = true;
             recordXid = XLogRecGetXid(record);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             xlrec = (xl_xact_commit *) XLogRecGetData(record);
             xact_gts = xlrec->global_timestamp;
             if (XLogArchivingActive())
@@ -5996,7 +5996,7 @@ recoveryStopsBefore(XLogReaderState *record)
                               xlrec,
                               &parsed);
             recordXid = parsed.twophase_xid;            
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             xact_gts = xlrec->global_timestamp;
             if (XLogArchivingActive())
             {
@@ -6006,13 +6006,13 @@ recoveryStopsBefore(XLogReaderState *record)
         }
         else if (xact_info == XLOG_XACT_ABORT)
         {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             xl_xact_abort *xlrec = (xl_xact_abort *) XLogRecGetData(record);
 #endif
             isCommit = false;
             recordXid = XLogRecGetXid(record);
             
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             xact_gts = xlrec->global_timestamp;
             if (XLogArchivingActive())
             {
@@ -6029,7 +6029,7 @@ recoveryStopsBefore(XLogReaderState *record)
                              xlrec,
                              &parsed);
             recordXid = parsed.twophase_xid;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             xact_gts = xlrec->global_timestamp;
             if (XLogArchivingActive())
             {
@@ -6037,7 +6037,7 @@ recoveryStopsBefore(XLogReaderState *record)
             }
 #endif
         }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         else if (xact_info == XLOG_XACT_ACQUIRE_GTS)
         {
             xl_xact_acquire_gts *xlrec = (xl_xact_acquire_gts *) XLogRecGetData(record);
@@ -6095,7 +6095,7 @@ recoveryStopsBefore(XLogReaderState *record)
     }
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (XLogRecGetRmid(record) == RM_XACT_ID && xact_gts)
     {
         /* Check if target LSN has been reached */
@@ -6645,7 +6645,7 @@ StartupXLOG(void)
      */
     ReadControlFile();
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     nodeLockRecovery();
     RecoverShardStatistic();
 #endif
@@ -6728,7 +6728,7 @@ StartupXLOG(void)
      * recovery
      */
     readRecoveryCommandFile();
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     SetRecoveryGTMShareData();
 #endif
 
@@ -6759,7 +6759,7 @@ StartupXLOG(void)
                     (errmsg("starting point-in-time recovery to barrier %s",
                             (recoveryTargetBarrierId))));
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         else if (recoveryTarget == RECOVERY_TARGET_GTS)
             ereport(LOG,
                     (errmsg("starting point-in-time recovery to global timestamp %lu",
@@ -7102,7 +7102,7 @@ StartupXLOG(void)
     elog(LOG, "read latestCommitTs " INT64_FORMAT " read latestGTS " INT64_FORMAT, ShmemVariableCache->latestCommitTs, ShmemVariableCache->latestGTS);    
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (RECOVERY_TARGET_GTS == recoveryTarget)
     {
         if (ShmemVariableCache->latestCommitTs > recoveryTargetGTS)
@@ -7218,7 +7218,7 @@ StartupXLOG(void)
         InRecovery = true;
     }
     
-#ifdef __TBASE__    
+#ifdef __OPENTENBASE__    
     if (XLogArchivingActive())
     {
         char        xlogfile[MAXFNAMELEN];
@@ -9341,7 +9341,7 @@ CreateCheckPoint(int flags)
 
     XLogFlush(recptr);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	if (shutdown)
 	{
 		uint32		id,
@@ -10591,7 +10591,7 @@ xlog_redo(XLogReaderState *record)
         /* Keep track of full_page_writes */
         lastFullPageWrites = fpw;
     }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     else if (info == XLOG_MVCC)
     {
         int32 need_mvcc;
@@ -12807,7 +12807,7 @@ XLogRequestWalReceiverReply(void)
     doRequestWalReceiverReply = true;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 XlogSegGTSTrack **g_xlog_track_entry = NULL;
 #define MIN_XLOG_TRACK_NUMBER 16
 static int32  GTSTrackSegmentNumber()
@@ -13069,7 +13069,7 @@ XLogPutMvccFlag(int32 need_mvcc)
 }
 
 Datum  
-tbase_set_need_mvcc(PG_FUNCTION_ARGS)
+opentenbase_set_need_mvcc(PG_FUNCTION_ARGS)
 {
     int32 need_mvcc = PG_GETARG_INT32(0);
 
@@ -13087,7 +13087,7 @@ tbase_set_need_mvcc(PG_FUNCTION_ARGS)
 }
 
 Datum  
-tbase_show_need_mvcc(PG_FUNCTION_ARGS)
+opentenbase_show_need_mvcc(PG_FUNCTION_ARGS)
 {
     int32 need_mvcc = 0;
 

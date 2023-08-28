@@ -840,7 +840,7 @@ BuildDescForRelation(List *schema)
          * information we need.
          */
         attnum++;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (entry->is_dropped)
         {
             Form_pg_attribute attr = (Form_pg_attribute)entry->ptr;

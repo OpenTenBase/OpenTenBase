@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -113,7 +113,7 @@
 #include "gtm/gtm_backup.h"
 #include "gtm/gtm_time.h"
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "gtm/gtm_store.h"
 #endif
 
@@ -149,7 +149,7 @@ char        *error_reporter;
 char        *status_reader;
 bool        isStartUp;
 int            scale_factor_threads = 1;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 int         wal_writer_delay;
 int         checkpoint_interval;
 char        *archive_command;
@@ -162,7 +162,7 @@ bool        first_init;
 #endif
 GTM_MutexLock   control_lock;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 bool        enable_gtm_sequence_debug = false;
 bool        enalbe_gtm_xlog_debug = true;
 bool        enalbe_gtm_xlog_replay_debug = true;
@@ -312,7 +312,7 @@ MainThreadInit()
     }
 
     
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* use init value of g_max_lock_number for main thread. */
     if (!g_max_lock_number)
     {
@@ -368,7 +368,7 @@ BaseInit(char *data_dir)
     ChangeToDataDir();
     CreateDataDirLockFile();
     
-#ifdef __TBASE__    
+#ifdef __OPENTENBASE__    
     GTM_StoreSizeInit();
     if(GTM_ControlDataInit() != GTM_STORE_OK)
         exit(1);
@@ -481,7 +481,7 @@ gtm_status()
     exit(0);
 }
 
-#ifndef __TBASE__
+#ifndef __OPENTENBASE__
 /*
  * Save control file info
  */
@@ -694,7 +694,7 @@ ServerLoop(void)
             GTM_SetShuttingDown();            
 
             elog(LOG, "GTM timer thread exit.");
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             GTM_StoreShutDown(); //TODO xlog shutdown or not?
 
             /* Save control data */
@@ -962,7 +962,7 @@ GTM_ThreadTimeKeeper(void *argp)
 
     if (sigsetjmp(local_sigjmp_buf, 1) != 0)
     {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         RWLockCleanUp();
 #endif
         EmitErrorReport(NULL);
@@ -1039,7 +1039,7 @@ GTM_ThreadTimeBackup(void *argp)
     time_t        now;    
     int ret;
     struct sigaction    action;  
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     GTM_ConnectionInfo  fake_conn;
     GTM_ConnectionInfo *conn;
     memset(&fake_conn, 0X00, sizeof(GTM_ConnectionInfo));
@@ -1085,7 +1085,7 @@ GTM_ThreadTimeBackup(void *argp)
 
     if (sigsetjmp(local_sigjmp_buf, 1) != 0)
     {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         RWLockCleanUp();
 #endif
         EmitErrorReport(NULL);
@@ -1209,7 +1209,7 @@ GTM_ThreadCheckPointer(void *argp)
 
     if (sigsetjmp(local_sigjmp_buf, 1) != 0)
     {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         RWLockCleanUp();
 #endif
         EmitErrorReport(NULL);
@@ -1290,7 +1290,7 @@ GTM_ThreadXLogWriter(void *argp)
 
     if (sigsetjmp(local_sigjmp_buf, 1) != 0)
     {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         RWLockCleanUp();
 #endif
         EmitErrorReport(NULL);
@@ -1425,7 +1425,7 @@ GTM_XLogTestThread(void *argp)
     if (sigsetjmp(local_sigjmp_buf, 1) != 0)
     {
         bool    report = false;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         RWLockCleanUp();
 #endif
         /*
@@ -1506,7 +1506,7 @@ ProcessCommand(Port *myport, StringInfo input_message)
     GTM_MessageType    mtype;
     GTM_ProxyMsgHeader proxyhdr;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     GTM_ThreadInfo *my_threadinfo = NULL;    
     GTM_ConnectionInfo *conn;
     my_threadinfo = GetMyThreadInfo;
@@ -1530,7 +1530,7 @@ ProcessCommand(Port *myport, StringInfo input_message)
      * compile option.
      */
     elog(DEBUG1, "mtype = %s (%d).", gtm_util_message_name(mtype), (int)mtype);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /*
      * Get Timestamp does not need to sync with standby
      */
@@ -1610,7 +1610,7 @@ ProcessCommand(Port *myport, StringInfo input_message)
         case MSG_REPORT_XMIN:
         case MSG_BKUP_REPORT_XMIN:
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         case MSG_TXN_FINISH_GID:
         case MSG_TXN_LOG_COMMIT:
         case MSG_TXN_LOG_GLOBAL_COMMIT:
@@ -1667,7 +1667,7 @@ ProcessCommand(Port *myport, StringInfo input_message)
             /* Mark PGXC Node as disconnected if backend disconnected is postmaster */
             ProcessPGXCNodeBackendDisconnect(myport, input_message);
             break;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         case MSG_GET_STORAGE:
             {
                 /* process storage file transfer request */
@@ -1708,14 +1708,14 @@ ProcessCommand(Port *myport, StringInfo input_message)
                          mtype)));
     }
 
-#ifdef __TBASE__    
+#ifdef __OPENTENBASE__    
     if (handle_standby)
     {
         GTM_RWLockRelease(&my_threadinfo->thr_lock);    
     }
 #endif
 
-#ifndef __TBASE__    
+#ifndef __OPENTENBASE__    
     if (GTM_NeedBackup())
     {
         GTM_WriteRestorePoint();
@@ -2063,7 +2063,7 @@ ProcessTransactionCommand(Port *myport, GTM_MessageType mtype, StringInfo messag
             ProcessBkupBeginTransactionCommand(myport, message);
             break;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         case MSG_BKUP_GLOBAL_TIMESTAMP:
             ProcessBkupGlobalTimestamp(myport, message);
             break;
@@ -2175,7 +2175,7 @@ ProcessTransactionCommand(Port *myport, GTM_MessageType mtype, StringInfo messag
             break;
 
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         case MSG_TXN_FINISH_GID:
             {
                 ProcessFinishGIDTransactionCommand(myport, message);
@@ -2736,7 +2736,7 @@ PromoteToActive(void)
                          conf_file)));
     }
 
-#ifndef __TBASE__
+#ifndef __OPENTENBASE__
     GTM_SetNeedBackup();
     GTM_WriteRestorePoint();
 #endif
@@ -2993,7 +2993,7 @@ GTM_RestoreSeqInfo(FILE *ctlf, struct GTM_RestoreContext *context)
     }
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     void
 GTM_RestoreStoreInfo(GlobalTransactionId next_gxid, bool force_xid)
 {
@@ -3008,7 +3008,7 @@ GTM_RestoreStoreInfo(GlobalTransactionId next_gxid, bool force_xid)
         elog(FATAL, "GTM_RestoreStoreInfo restore data file failed");
         return;
     }
-#ifndef __TBASE__
+#ifndef __OPENTENBASE__
     /*
      * If the caller has supplied an explicit XID to restore, just use that.
      * This is typically only be used during initdb and in some exception
@@ -3075,7 +3075,7 @@ GTM_RestoreStoreInfo(GlobalTransactionId next_gxid, bool force_xid)
     SetNextGlobalTimestamp(saved_gts + GTM_GLOBAL_TIME_DELTA);
     elog(LOG, "Restoring gts to " INT64_FORMAT "\n",
             saved_gts + GTM_GLOBAL_TIME_DELTA);
-#ifndef __TBASE__    
+#ifndef __OPENTENBASE__    
     elog(LOG, "Restoring last GXID to %u\n", next_gxid);
     elog(LOG, "Restoring global xmin to %u\n",
             GTMTransactions.gt_recent_global_xmin);
@@ -3325,7 +3325,8 @@ void GTM_TimerRun(void)
     }
 }
 
-    void *
+    void 
+*
 GTM_TimerThread(void *argp)
 {
     GTM_ThreadInfo *thrinfo = (GTM_ThreadInfo *)argp;
@@ -3354,8 +3355,8 @@ GTM_TimerThread(void *argp)
      */
 
     if (sigsetjmp(local_sigjmp_buf, 1) != 0)
-    {
-#ifdef __TBASE__
+    {__OPENTENBASE__
+#ifdef __OPENTENBASE__
         RWLockCleanUp();        
 #endif
         EmitErrorReport(NULL);

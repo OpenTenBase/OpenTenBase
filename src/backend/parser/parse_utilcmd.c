@@ -83,7 +83,7 @@
 #include "utils/guc.h"
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "utils/fmgroids.h"
 #include "catalog/pgxc_class.h"
 #include "utils/inval.h"
@@ -130,7 +130,7 @@ typedef struct
     DistributeBy    *distributeby;        /* original distribute by column of CREATE TABLE */
     PGXCSubCluster    *subcluster;        /* original subcluster option of CREATE TABLE */
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* for interval partition */
     bool        interval_child;     /* is interval partition child? */
     int            interval_child_idx; /* interval partition child's index */          
@@ -199,7 +199,7 @@ static void validateInfiniteBounds(ParseState *pstate, List *blist);
 static Const *transformPartitionBoundValue(ParseState *pstate, A_Const *con,
                              const char *colName, Oid colType, int32 colTypmod);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static void transformPartitionBy(ParseState *pstate, ColumnDef *partcol, PartitionBy *partitionby);
 static char * ChooseSerialName(const char *relname, const char *colname,
 									const char *label, Oid namespaceid);
@@ -218,7 +218,7 @@ static char * ChooseSerialName(const char *relname, const char *colname,
  * then expand those into multiple IndexStmt blocks.
  *      - thomas 1997-12-02
  */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 List *
 transformCreateStmt(CreateStmt *stmt, const char *queryString,
 					bool autodistribute, Oid *nspaceid, bool existsok)
@@ -241,11 +241,11 @@ transformCreateStmt(CreateStmt *stmt, const char *queryString)
     ParseCallbackState pcbstate;
     bool        like_found = false;
     bool        is_foreign_table = IsA(stmt, CreateForeignTableStmt);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     List *constraints = stmt->constraints;
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* sanity check */
     if (stmt->partspec && stmt->partspec->interval)
     {
@@ -316,7 +316,7 @@ transformCreateStmt(CreateStmt *stmt, const char *queryString)
                                              &existing_relid);
     cancel_parser_errposition_callback(&pcbstate);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	if (nspaceid)
 		*nspaceid = namespaceid;
 #endif
@@ -390,12 +390,12 @@ transformCreateStmt(CreateStmt *stmt, const char *queryString)
     cxt.distributeby = stmt->distributeby;
     cxt.subcluster = stmt->subcluster;
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     cxt.interval_child = stmt->interval_child;
     cxt.interval_child_idx = stmt->interval_child_idx;
     cxt.interval_parentId = stmt->interval_parentId;
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     cxt.ispartitioned = (stmt->partspec != NULL && stmt->partspec->interval == NULL);
 #else
     cxt.ispartitioned = stmt->partspec != NULL;
@@ -477,7 +477,7 @@ transformCreateStmt(CreateStmt *stmt, const char *queryString)
      * ERROR since Postgres-XL does not support inheriting from multiple
      * parents.
      */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* add distribute info on both datanode and coordinator */
     if (stmt->inhRelations && IsPostmasterEnvironment && autodistribute)
 #else
@@ -611,7 +611,7 @@ transformCreateStmt(CreateStmt *stmt, const char *queryString)
     stmt->tableElts = cxt.columns;
     stmt->constraints = cxt.ckconstraints;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (stmt->partspec && strcmp(stmt->partspec->strategy, PARTITION_INTERVAL) == 0)
     {
         if (stmt->constraints)
@@ -638,7 +638,7 @@ transformCreateStmt(CreateStmt *stmt, const char *queryString)
      * If the user did not specify any distribution clause and there is no
      * inherits clause, try and use PK or unique index
      */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* add distribute info on both datanode and coordinator */
     if (IsPostmasterEnvironment && autodistribute && !stmt->distributeby)
 #else
@@ -661,7 +661,7 @@ transformCreateStmt(CreateStmt *stmt, const char *queryString)
             stmt->distributeby->disttype = DISTTYPE_REPLICATION;
             stmt->distributeby->colname = NULL;
         }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /*
          * If there are columns suitable for shard/[hash for regress only] distribution distribute on
          * first of them. Use shard first.
@@ -687,7 +687,7 @@ transformCreateStmt(CreateStmt *stmt, const char *queryString)
     }
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	/* distributed column must be set not null */
 	if (stmt->distributeby && stmt->distributeby->disttype == DISTTYPE_SHARD)
 	{
@@ -749,7 +749,7 @@ transformCreateStmt(CreateStmt *stmt, const char *queryString)
     return result;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /*
  * Check relation exists before choose sequence name, if
  * the relation already exists, no need to create sequence
@@ -874,7 +874,7 @@ generateSerialExtraStmts(CreateStmtContext *cxt, ColumnDef *column,
             RangeVarAdjustRelationPersistence(cxt->relation, snamespaceid);
         }
         snamespace = get_namespace_name(snamespaceid);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		if (strcmp("CREATE TABLE", cxt->stmtType) == 0)
 			sname = ChooseSerialName(cxt->relation->relname,
 									column->colname,
@@ -965,7 +965,7 @@ transformColumnDefinition(CreateStmtContext *cxt, ColumnDef *column)
     ListCell   *clist;
 
     cxt->columns = lappend(cxt->columns, column);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (cxt->interval_child && column->is_dropped)
     {
         return;
@@ -1448,7 +1448,7 @@ transformTableLikeClause(CreateStmtContext *cxt, TableLikeClause *table_like_cla
         /*
          * Ignore dropped columns in the parent.  attmap entry is left zero.
          */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (attribute->attisdropped && !cxt->interval_child)
         {
             continue;
@@ -1479,7 +1479,7 @@ transformTableLikeClause(CreateStmtContext *cxt, TableLikeClause *table_like_cla
         def->collOid = attribute->attcollation;
         def->constraints = NIL;
         def->location = -1;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (attribute->attisdropped && cxt->interval_child)
         {
             Form_pg_attribute attr = (Form_pg_attribute) palloc(ATTRIBUTE_FIXED_PART_SIZE);
@@ -1494,7 +1494,7 @@ transformTableLikeClause(CreateStmtContext *cxt, TableLikeClause *table_like_cla
          */
         cxt->columns = lappend(cxt->columns, def);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (attribute->attisdropped && cxt->interval_child)
         {
             continue;
@@ -1506,7 +1506,7 @@ transformTableLikeClause(CreateStmtContext *cxt, TableLikeClause *table_like_cla
          * If the distribution is not defined yet by a priority source add it
          * to the list of possible fallbacks
          */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /* we need distribution info on both coordinator and datanode */
         if (IsPostmasterEnvironment && cxt->distributeby == NULL && !cxt->isalter &&
                 cxt->fallback_source <= FBS_COLDEF &&
@@ -1690,7 +1690,7 @@ transformTableLikeClause(CreateStmtContext *cxt, TableLikeClause *table_like_cla
                                                                                                  parent_index,
 												 attmap, tupleDesc->natts, NULL);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             if(cxt->interval_child)
             {
                 index_stmt->idxname = GetPartitionName(parent_index_oid, 
@@ -2265,7 +2265,7 @@ transformIndexConstraints(CreateStmtContext *cxt)
             }
         }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (keep || cxt->interval_child)
 #else
         if (keep)
@@ -2665,7 +2665,7 @@ transformIndexConstraint(Constraint *constraint, CreateStmtContext *cxt)
         }
 
 #ifdef PGXC
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (IsPostmasterEnvironment)
 #else
         if (IS_PGXC_COORDINATOR)
@@ -2741,7 +2741,7 @@ transformIndexConstraint(Constraint *constraint, CreateStmtContext *cxt)
         index->indexParams = lappend(index->indexParams, iparam);
     }
 #ifdef PGXC
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (IsPostmasterEnvironment && !isLocalSafe)
 #else
     if (IS_PGXC_COORDINATOR && !isLocalSafe)
@@ -3342,7 +3342,7 @@ transformAlterTableStmt(Oid relid, AlterTableStmt *stmt,
     bool        skipValidation = true;
     AlterTableCmd *newcmd;
     RangeTblEntry *rte;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     List *createlist = NULL;
 	List *partlist = NIL;
 #endif
@@ -3465,7 +3465,7 @@ transformAlterTableStmt(Oid relid, AlterTableStmt *stmt,
                 newcmds = lappend(newcmds, cmd);
                 break;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             /* add partitions to interval partition */
             case AT_AddPartitions:
                 if (RELATION_IS_INTERVAL(rel))
@@ -3627,7 +3627,7 @@ transformAlterTableStmt(Oid relid, AlterTableStmt *stmt,
                         createpart->partbound = NULL;
                         createpart->partspec  = NULL;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 						partlist = transformCreateStmt(createpart,
 															queryString, true,
 															NULL, true);
@@ -4055,7 +4055,7 @@ transformAlterTableStmt(Oid relid, AlterTableStmt *stmt,
     stmt->cmds = newcmds;
 
     result = lappend(cxt.blist, stmt);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if(createlist)
         result = list_concat(result, createlist);
 #endif
@@ -4220,7 +4220,7 @@ transformColumnType(CreateStmtContext *cxt, ColumnDef *column)
      * If the distribution is not defined yet by a priority source add it to the
      * list of possible fallbacks
      */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* we need distribution info on both coordinator and datanode */
     if (IsPostmasterEnvironment && cxt->distributeby == NULL && !cxt->isalter &&
             cxt->fallback_source <= FBS_COLDEF &&
@@ -4655,7 +4655,7 @@ checkLocalFKConstraints(CreateStmtContext *cxt)
                 lattr = cxt->distributeby->colname;
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 if (ltype == LOCATOR_TYPE_SHARD)
                 {
                     /* find the fk attribute matching the distribution column */
@@ -4721,7 +4721,7 @@ checkLocalFKConstraints(CreateStmtContext *cxt)
                 ltype = cxt->rel->rd_locator_info->locatorType;
                 lattr = cxt->rel->rd_locator_info->partAttrName;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 if (ltype == LOCATOR_TYPE_SHARD)
                 {
                     /* find the fk attribute matching the distribution column */
@@ -5406,7 +5406,7 @@ transformPartitionBoundValue(ParseState *pstate, A_Const *con,
     return (Const *) value;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /* get interval partition details */
 static void
 transformPartitionBy(ParseState *pstate, ColumnDef *partcol, PartitionBy *partitionby)

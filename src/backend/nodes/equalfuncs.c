@@ -1709,7 +1709,7 @@ _equalStatSyncOpt(const StatSyncOpt *a, const StatSyncOpt *b)
     return true;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static bool
 _equalSampleStmt(const SampleStmt *a, const SampleStmt *b)
 {
@@ -2301,7 +2301,7 @@ _equalCreateSubscriptionStmt(const CreateSubscriptionStmt *a,
     COMPARE_NODE_FIELD(publication);
     COMPARE_NODE_FIELD(options);
 #ifdef __SUBSCRIPTION__
-    COMPARE_SCALAR_FIELD(istbase);
+    COMPARE_SCALAR_FIELD(isopentenbase);
     COMPARE_SCALAR_FIELD(sub_parallel_number);
     COMPARE_SCALAR_FIELD(sub_parallel_index);
 #endif
@@ -2319,7 +2319,7 @@ _equalAlterSubscriptionStmt(const AlterSubscriptionStmt *a,
     COMPARE_NODE_FIELD(publication);
     COMPARE_NODE_FIELD(options);
 #ifdef __SUBSCRIPTION__
-    COMPARE_SCALAR_FIELD(istbase);
+    COMPARE_SCALAR_FIELD(isopentenbase);
 #endif
 
     return true;
@@ -2333,7 +2333,7 @@ _equalDropSubscriptionStmt(const DropSubscriptionStmt *a,
     COMPARE_SCALAR_FIELD(missing_ok);
     COMPARE_SCALAR_FIELD(behavior);
 #ifdef __SUBSCRIPTION__
-    COMPARE_SCALAR_FIELD(istbase);
+    COMPARE_SCALAR_FIELD(isopentenbase);
 #endif
 
     return true;

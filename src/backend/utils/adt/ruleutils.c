@@ -86,7 +86,7 @@
 #include "utils/typcache.h"
 #include "utils/varlena.h"
 #include "utils/xml.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "optimizer/planmain.h"
 #endif
 #ifdef __COLD_HOT__
@@ -117,7 +117,7 @@
 #define PRETTY_INDENT(context)    ((context)->prettyFlags & PRETTYFLAG_INDENT)
 
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static int daysofmonth[13] = {0,31,29,31,30,31,30,31,31,30,31,30,31};
 static int daysofmonth_common_year[13] = {0,31,28,31,30,31,30,31,31,30,31,30,31};
 
@@ -514,7 +514,7 @@ static char *generate_operator_name(Oid operid, Oid arg1, Oid arg2);
 static text *string_to_text(char *str);
 static char *flatten_reloptions(Oid relid);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static Bitmapset *pruning_walker(Relation rel, Node *expr);
 static Bitmapset *pruning_opexpr(Relation rel, OpExpr *expr);
 static Bitmapset *pruning_scalar_array_opexpr(Relation rel, ScalarArrayOpExpr *expr);
@@ -1231,7 +1231,7 @@ pg_get_indexdef_worker(Oid indexrelid, int colno,
     StringInfoData buf;
     char       *str;
     char       *sep;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     bool       is_interval_child = false;
     HeapTuple  ht_parent_idx;
 #endif
@@ -1335,7 +1335,7 @@ pg_get_indexdef_worker(Oid indexrelid, int colno,
     /*
      * Report the indexed attributes
      */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     {
         Relation rel = relation_open(indrelid, NoLock);
         if (rel->rd_rel->relkind == RELKIND_RELATION && RELATION_IS_CHILD(rel))
@@ -1517,7 +1517,7 @@ pg_get_indexdef_worker(Oid indexrelid, int colno,
     ReleaseSysCache(ht_idx);
     ReleaseSysCache(ht_idxrel);
     ReleaseSysCache(ht_am);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (is_interval_child)
     {
         ReleaseSysCache(ht_parent_idx);
@@ -6342,7 +6342,7 @@ get_insert_query_def(Query *query, deparse_context *context)
     /* Insert the WITH clause if given */
     get_with_clause(query, context);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* 
       * If query has unshippable triggers, we have to do INSERT on coordinator,
       * and we do not need select_rte and values_rte.
@@ -6373,7 +6373,7 @@ get_insert_query_def(Query *query, deparse_context *context)
             values_rte = rte;
         }
     }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     }
 #endif
     if (select_rte && values_rte)
@@ -7924,7 +7924,7 @@ get_parameter(Param *param, deparse_context *context)
      */
     appendStringInfo(context->buf, "$%d", param->paramid);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* param need explicit cast */
     if (param->explicit_cast)
     {
@@ -10504,7 +10504,7 @@ get_from_clause_item(Node *jtnode, Query *query, deparse_context *context)
                                  only_marker(rte),
                                  generate_relation_name(rte->relid,
                                                         context->namespaces));
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 /* print for default partition */
                 if (rte->intervalparent && rte->isdefault)
                 {
@@ -11685,7 +11685,7 @@ get_range_partbound_string(List *bound_datums)
     return buf->data;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /* form interval partition child table/index name */
 char * 
 GetPartitionName(Oid parentrelid, int partidx, bool isindex)

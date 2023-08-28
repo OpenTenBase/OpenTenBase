@@ -888,7 +888,7 @@ pgstat_report_stat(bool force)
             this_msg = entry->t_shared ? &shared_msg : &regular_msg;
             this_ent = &this_msg->m_entry[this_msg->m_nentries];
             this_ent->t_id = entry->t_id;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 			this_ent->t_parent_id = entry->t_parent_id;
 #endif
             memcpy(&this_ent->t_counts, &entry->t_counts,
@@ -1747,7 +1747,7 @@ pgstat_initstats(Relation rel)
 
     /* Else find or make the PgStat_TableStatus entry, and update link */
     rel->pgstat_info = get_tabstat_entry(rel_id, rel->rd_rel->relisshared);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	rel->pgstat_info->t_parent_id = rel->rd_rel->relparent;
 #endif
 }
@@ -5794,7 +5794,7 @@ pgstat_recv_inquiry(PgStat_MsgInquiry *msg, int len)
                                          msg->databaseid);
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static void 
 pgstat_update_tabstat(PgStat_StatTabEntry *tabentry, 
 					  PgStat_TableEntry *tabmsg, bool found)
@@ -5887,7 +5887,7 @@ pgstat_recv_tabstat(PgStat_MsgTabstat *msg, int len)
         tabentry = (PgStat_StatTabEntry *) hash_search(dbentry->tables,
                                                        (void *) &(tabmsg->t_id),
                                                        HASH_ENTER, &found);
-#ifndef __TBASE__													
+#ifndef __OPENTENBASE__													
 		if (!found)
 		{
 			/*
@@ -5947,7 +5947,7 @@ pgstat_recv_tabstat(PgStat_MsgTabstat *msg, int len)
         tabentry->n_live_tuples = Max(tabentry->n_live_tuples, 0);
         /* Likewise for n_dead_tuples */
         tabentry->n_dead_tuples = Max(tabentry->n_dead_tuples, 0);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		if (tabmsg->t_parent_id != InvalidOid)
 		{
 			tabentry = (PgStat_StatTabEntry *) hash_search(dbentry->tables,

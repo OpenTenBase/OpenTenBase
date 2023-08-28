@@ -83,7 +83,7 @@
 #include "pgxc/pgxc.h"
 #include "pgxc/execRemote.h"
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "executor/nodeAgg.h"
 #include "executor/nodeHashjoin.h"
 #include "pgxc/squeue.h"
@@ -111,11 +111,11 @@ sigjmp_buf *PG_exception_stack = NULL;
 
 extern bool redirection_done;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern PGDLLIMPORT int g_in_plpgsql_exec_fun;
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /* for error code contrib */
 ErrcodeHookType g_pfErrcodeHook;
 #endif
@@ -604,7 +604,7 @@ errfinish(int dummy,...)
         fflush(stdout);
         fflush(stderr);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /*
           * parallel worker exit abnormally, tell other workers
                  */
@@ -640,7 +640,7 @@ errfinish(int dummy,...)
         abort();
     }
     
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (STOP == elevel)
     {
         /*
@@ -3333,13 +3333,13 @@ write_pipe_chunks(char *data, int len, int dest)
         p.proto.is_last = (dest == LOG_DESTINATION_CSVLOG ? 'F' : 'f');
         p.proto.len = PIPE_MAX_PAYLOAD;
         memcpy(p.proto.data, data, PIPE_MAX_PAYLOAD);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /* use timeout to prevent write log stuck. */
         PostmasterEnableLogTimeout();
 #endif
         rc = write(fd, &p, PIPE_HEADER_SIZE + PIPE_MAX_PAYLOAD);
         
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         PostmasterDisableTimeout();
         /* if we are interruppted, just return */
         if (EINTR == errno && rc < 0)
@@ -3357,12 +3357,12 @@ write_pipe_chunks(char *data, int len, int dest)
     p.proto.len = len;
     memcpy(p.proto.data, data, len);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* use timeout to prevent write log stuck. */
     PostmasterEnableLogTimeout();
 #endif
     rc = write(fd, &p, PIPE_HEADER_SIZE + len);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* if we are interruppted, just return */
     PostmasterDisableTimeout();
     if (EINTR == errno && rc < 0)
@@ -4463,7 +4463,7 @@ pg_msgmodule_disable_all(PG_FUNCTION_ARGS)
                     "Please recompile with --enable-genmsgids")));
 }
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /* get error message in error stack */
 bool
 GetErrorMsg(StringInfo buf)

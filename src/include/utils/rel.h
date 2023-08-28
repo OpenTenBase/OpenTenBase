@@ -30,7 +30,7 @@
 #include "storage/relfilenode.h"
 #include "utils/relcache.h"
 #include "utils/reltrigger.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "catalog/pg_partition_interval.h"
 #include "nodes/parsenodes.h"
 #endif
@@ -237,7 +237,7 @@ typedef struct RelationData
 #ifdef PGXC
 	RelationLocInfo *rd_locator_info;
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	Form_pg_partition_interval  rd_partitions_info;
 	dlist_node		rd_lru_list_elem;	/* list member of LRU list */
 #endif
@@ -692,7 +692,7 @@ typedef struct ViewOptions
  */
 #define RelationGetPartitionKey(relation) ((relation)->rd_partkey)
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #define RelationGetNParts(relation) \
 	((relation)->rd_partitions_info ? (relation)->rd_partitions_info->partnparts : 0)
 

@@ -42,7 +42,7 @@
 #include "utils/memutils.h"
 #include "utils/rel.h"
 #include "postmaster/postmaster.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "pgxc/squeue.h"
 #endif
 static TupleTableSlot *ExecGather(PlanState *pstate);
@@ -74,7 +74,7 @@ ExecInitGather(Gather *node, EState *estate, int eflags)
     gatherstate->ps.state = estate;
     gatherstate->ps.ExecProcNode = ExecGather;
     gatherstate->need_to_scan_locally = !node->single_copy;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     gatherstate->get_tuples     = 0;
     gatherstate->get_total_time = -1;
 #endif
@@ -135,7 +135,7 @@ ExecGather(PlanState *pstate)
     int            i;
     TupleTableSlot *slot;
     ExprContext *econtext;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     bool  parallel_send   = false;
     int   launchedWorkers = 0;
     TimestampTz begin = 0;
@@ -149,7 +149,7 @@ ExecGather(PlanState *pstate)
      * needs to allocate a large dynamic segment, so it is better to do it
      * only if it is really needed.
      */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (IsParallelWorker())
     {
         if (!node->initialized)
@@ -179,7 +179,7 @@ ExecGather(PlanState *pstate)
 
 			/* Initialize, or re-initialize, shared state needed by workers. */
             if (!node->pei)
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 node->pei = ExecInitParallelPlan(node->ps.lefttree,
                                                  estate,
                                                  gather->num_workers,
@@ -227,7 +227,7 @@ ExecGather(PlanState *pstate)
                     node->reader = NULL;
                 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 launchedWorkers = pcxt->nworkers_launched;
                 /* set up launched parallel workers' total number in shm */
                 num_parallel_workers = GetParallelWorkerStatusInfo(pcxt->toc);
@@ -242,7 +242,7 @@ ExecGather(PlanState *pstate)
             }
         }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (parallel_send)
             node->need_to_scan_locally = false;
         else
@@ -254,7 +254,7 @@ ExecGather(PlanState *pstate)
 #endif
         node->initialized = true;
     }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     }
 #endif
     /*
@@ -267,7 +267,7 @@ ExecGather(PlanState *pstate)
     econtext = node->ps.ps_ExprContext;
     ResetExprContext(econtext);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (parallel_send)
     {
         WaitForParallelWorkerDone(launchedWorkers, (launchedWorkers == 0));
@@ -276,7 +276,7 @@ ExecGather(PlanState *pstate)
     }
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (enable_statistic && !node->need_to_scan_locally)
     {
         begin = GetCurrentTimestamp();
@@ -288,7 +288,7 @@ ExecGather(PlanState *pstate)
      */
     slot = gather_getnext(node);
     if (TupIsNull(slot))
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     {
         if (enable_statistic && !node->need_to_scan_locally)
         {
@@ -303,7 +303,7 @@ ExecGather(PlanState *pstate)
         return NULL;
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (enable_statistic && !node->need_to_scan_locally)
     {
         end = GetCurrentTimestamp();
@@ -585,7 +585,7 @@ ExecReScanGather(GatherState *node)
 >>>>>>> 41b0dd987d... Separate reinitialization of shared parallel-scan state from ExecReScan.
 #endif
 }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 void
 ExecFinishGather(PlanState *pstate)
 {

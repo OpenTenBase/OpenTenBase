@@ -87,7 +87,7 @@ struct _Locator
 #ifdef _MIGRATE_
     Oid         groupid;        /* only used by LOCATOR_TYPE_SHARD */
     char        locatorType;    /* locator type */
-    int          nodeindexMap[TBASE_MAX_DATANODE_NUMBER];   /* map for global node index to local */
+    int          nodeindexMap[OPENTENBASE_MAX_DATANODE_NUMBER];   /* map for global node index to local */
 #endif
 #ifdef __COLD_HOT__
     bool        need_shardmap_router;
@@ -96,7 +96,7 @@ struct _Locator
     Oid         secDataType;    /* second distribute column's datatype */
     Oid         relid;          
     RelationAccessType accessType;
-    int         indexMap[TBASE_MAX_DATANODE_NUMBER]; /* map for global node index to local for cold-hot */
+    int         indexMap[OPENTENBASE_MAX_DATANODE_NUMBER]; /* map for global node index to local for cold-hot */
 #endif
     /* locator-specific data */
     /* XXX: move them into union ? */
@@ -1102,7 +1102,7 @@ hash_func_ptr(Oid dataType)
         case RELTIMEOID:
         case DATEOID:
             return hashint4;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         case FLOAT4OID:
             return hashfloat4;
         case FLOAT8OID:
@@ -1182,7 +1182,7 @@ createLocator(char locatorType, RelationAccessType accessType,
     locator->secDataType = InvalidOid;
     locator->need_shardmap_router = false;
     locator->relid = InvalidOid;
-    memset(locator->indexMap, 0xff, sizeof(int) * TBASE_MAX_DATANODE_NUMBER);
+    memset(locator->indexMap, 0xff, sizeof(int) * OPENTENBASE_MAX_DATANODE_NUMBER);
 #endif
     
     /* Create node map */
@@ -2315,7 +2315,7 @@ GET_NODES(Locator *self, Datum value, bool isnull,
 #endif
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 
 char
 getLocatorDisType(Locator *self)
@@ -2936,7 +2936,7 @@ GetRelationNodesByQuals(Oid reloid, RelationLocInfo *rel_loc_info,
 
         distcol_value = (Datum) 0;
         distcol_isnull = true;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (rel_loc_info->secAttrNum != InvalidAttrNumber && seccol_list &&
             (relaccess == RELATION_ACCESS_READ || relaccess == RELATION_ACCESS_READ_FQS))
         {

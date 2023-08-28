@@ -226,7 +226,7 @@ InitPostmasterChild(void)
         elog(FATAL, "setsid() failed: %m");
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	prctl(PR_SET_PDEATHSIG, SIGKILL);
 #endif
 }

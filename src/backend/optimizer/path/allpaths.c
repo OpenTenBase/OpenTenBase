@@ -237,7 +237,7 @@ set_base_rel_consider_startup(PlannerInfo *root)
 		SpecialJoinInfo *sjinfo = (SpecialJoinInfo *) lfirst(lc);
 		int			varno;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if ((sjinfo->jointype == JOIN_SEMI || sjinfo->jointype == JOIN_ANTI ||
              sjinfo->jointype == JOIN_LEFT_SCALAR ||
 			 sjinfo->jointype == JOIN_LEFT_SEMI) &&

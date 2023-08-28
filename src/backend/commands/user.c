@@ -43,7 +43,7 @@
 #include "utils/datamask.h"
 #include "utils/mls_extension.h"
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "pgxc/poolutils.h"
 #include "pgxc/poolmgr.h"
 #endif
@@ -1207,7 +1207,7 @@ void DropRoleByTuple(char *role, HeapTuple tuple, Relation pg_authid_rel,
     }
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 bool PreCheckDropRole(DropRoleStmt *stmt, char *query_string,
 						List **exist_roles)
 {

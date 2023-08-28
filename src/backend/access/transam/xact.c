@@ -95,7 +95,7 @@
 #define implicit2PC_head "_$XC$"
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "access/xlog_internal.h"
 #include "pgxc/squeue.h"
 #include "postmaster/postmaster.h"
@@ -119,7 +119,7 @@ int            XactIsoLevel;
 bool        DefaultXactReadOnly = false;
 bool        XactReadOnly;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /* GTM Readonly flag which makes cluster read only */
 bool        GTM_ReadOnly = false;
 #endif
@@ -170,7 +170,7 @@ bool        g_allow_dml_on_datanode = false;
 bool		g_allow_force_ddl = false;
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern PGDLLIMPORT int g_in_plpgsql_exec_fun;
 extern bool PlpgsqlDebugPrint;
 #endif
@@ -233,7 +233,7 @@ typedef struct TransactionStateData
     GlobalTransactionId transactionId;
     GlobalTransactionId    topGlobalTransansactionId;
     GlobalTransactionId    auxilliaryTransactionId;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     bool                isLocalParameterUsed;        /* Check if a local parameter is active
                                                      * in transaction block (SET LOCAL, DEFERRED) */
 #endif
@@ -263,7 +263,7 @@ typedef struct TransactionStateData
     int                waitedForXidsCount;    /* count of xids we waited to finish */
     TransactionId    *waitedForXids;        /* xids we waited to finish */
 #endif
-#ifdef __TBASE__    
+#ifdef __OPENTENBASE__    
     bool          need_send_begin_txn;
     bool         need_send_begin_subtxn;
     List        *node_has_begin_txn_list;
@@ -283,7 +283,7 @@ static TransactionStateData TopTransactionStateData = {
     0,                            /* global transaction id */
     0,                            /* prepared global transaction id */
     0,                            /* commit prepared global transaction id */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     0,                            /* Check if a local parameter is active
                                     * in transaction block (SET LOCAL, DEFERRED) */
 #endif
@@ -705,7 +705,7 @@ isXactWriteLocalNode(void)
     return XactWriteLocalNode;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /*
  *    GetCurrentLocalParamStatus
  *
@@ -1631,7 +1631,7 @@ AtStart_Memory(void)
     /* Make the CurTransactionContext active. */
     MemoryContextSwitchTo(CurTransactionContext);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     need_global_snapshot = false;
     executed_node_list = NULL;
 #endif
@@ -1834,7 +1834,7 @@ RecordTransactionCommit(void)
          */
 
 #ifdef __SUPPORT_DISTRIBUTED_TRANSACTION__
-        if(IsPostmasterEnvironment && IS_PGXC_DATANODE && !IsLogicalWorker() && !AmTbaseSubscriptionApplyWorker()) 
+        if(IsPostmasterEnvironment && IS_PGXC_DATANODE && !IsLogicalWorker() && !AmOpenTenBaseSubscriptionApplyWorker()) 
         {
             volatile PGXACT *pgxact = MyPgXact;
             
@@ -2106,7 +2106,7 @@ AtCommit_Memory(void)
     CurTransactionContext = NULL;
     CurrentTransactionState->curTransactionContext = NULL;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     need_global_snapshot = false;
     executed_node_list = NULL;
 #endif
@@ -2732,7 +2732,7 @@ CommitTransaction(void)
         elog(LOG, "Commit Transaction.");
     }
     
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     HOLD_INTERRUPTS();
     disable_timeout_safely();
 #endif
@@ -3005,7 +3005,7 @@ CommitTransaction(void)
 #endif
             latestXid = RecordTransactionCommit();
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         FinishSeqOp(true);
 #endif
     }
@@ -3188,7 +3188,7 @@ CommitTransaction(void)
      */
     s->state = TRANS_DEFAULT;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (s->node_has_begin_subtxn_list)
     {
         //list_free(s->node_has_begin_subtxn_list);
@@ -3216,7 +3216,7 @@ CommitTransaction(void)
     AtEOXact_Remote();
     GTMxactStartTimestamp = 0;
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     SetCurrentHandlesReadonly();
     AtEOXact_Global();
 #endif
@@ -3659,7 +3659,7 @@ PrepareTransaction(void)
     else
         SetSendCommandId(false);
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 
     if(enable_distri_debug)
     {
@@ -3871,7 +3871,7 @@ AbortTransaction(void)
     AtEOXact_DBCleanup(false);
 	}
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     SqueueProducerExit();
 #endif
 
@@ -4093,7 +4093,7 @@ AbortTransaction(void)
         else
 #endif
             latestXid = RecordTransactionAbort(false);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		if (can_abort)
 		{
         FinishSeqOp(false);
@@ -4183,7 +4183,7 @@ AbortTransaction(void)
     GTMxactStartTimestamp = 0;
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	//SetExitPlpgsqlFunc();
     SetExitCreateExtension();
     SetCurrentHandlesReadonly();
@@ -4257,7 +4257,7 @@ CleanupTransaction(void)
      */
     s->state = TRANS_DEFAULT;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (s->node_has_begin_subtxn_list)
     {
         //list_free(s->node_has_begin_subtxn_list);
@@ -4600,7 +4600,7 @@ CommitTransactionCommand(void)
             }
             break;
     }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	leader_cn_executed_ddl = false;
 #endif
 }
@@ -4772,7 +4772,7 @@ AbortCurrentTransaction(void)
             AbortCurrentTransaction();
             break;
     }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	leader_cn_executed_ddl = false;
 #endif
 }
@@ -5787,7 +5787,7 @@ BeginInternalSubTransaction(char *name)
 {// #lizard forgives
     TransactionState s = CurrentTransactionState;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #else
     elog(ERROR, "Internal subtransactions not supported in Postgres-XL");
 #endif
@@ -6201,7 +6201,7 @@ CommitSubTransaction(void)
     if (s->state != TRANS_INPROGRESS)
         elog(WARNING, "CommitSubTransaction while in %s state",
              TransStateAsString(s->state));
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     SubTranscation_PreCommit_Remote();
 #endif
     /* Pre-commit processing goes here */
@@ -6216,7 +6216,7 @@ CommitSubTransaction(void)
         s->parallelModeLevel = 0;
     }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	if (s->curTransactionOwner)
 	{
 		TransactionId xid = GetCurrentTransactionIdIfAny();
@@ -6323,7 +6323,7 @@ AbortSubTransaction(void)
 {// #lizard forgives
     TransactionState s = CurrentTransactionState;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     SubTranscation_PreAbort_Remote();
 #endif
 
@@ -6384,7 +6384,7 @@ AbortSubTransaction(void)
         elog(WARNING, "AbortSubTransaction while in %s state",
              TransStateAsString(s->state));
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (s->curTransactionOwner)
     {
         TransactionId xid = GetCurrentTransactionIdIfAny();
@@ -6505,7 +6505,7 @@ CleanupSubTransaction(void)
         elog(WARNING, "CleanupSubTransaction while in %s state",
              TransStateAsString(s->state));
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (IS_PGXC_LOCAL_COORDINATOR)
 #endif
     {
@@ -6582,7 +6582,7 @@ PushTransaction(void)
      * assume that it necessarily has a transaction context, resource owner,
      * or XID.
      */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (InPlpgsqlFunc())
     {
         if (PlpgsqlDebugPrint)
@@ -6627,7 +6627,7 @@ PopTransaction(void)
     /* Free the old child structure */
     if (s->name)
         pfree(s->name);
-#ifdef __TBASE__    
+#ifdef __OPENTENBASE__    
     if (s->node_has_begin_subtxn_list)
     {
         //list_free(s->node_has_begin_subtxn_list);
@@ -7074,7 +7074,7 @@ XactLogCommitRecord(TimestampTz global_timestamp,
     xl_xact_invals xl_invals;
     xl_xact_twophase xl_twophase;
     xl_xact_origin xl_origin;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     XLogRecPtr    end_lsn;
 #endif
     uint8        info;
@@ -7096,7 +7096,7 @@ XactLogCommitRecord(TimestampTz global_timestamp,
     xlrec.global_timestamp = global_timestamp;
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     segmentTrackGTS = global_timestamp;
 #endif
 
@@ -7206,7 +7206,7 @@ XactLogCommitRecord(TimestampTz global_timestamp,
     XLogSetRecordFlags(XLOG_INCLUDE_ORIGIN);
     end_lsn = XLogInsert(RM_XACT_ID, info);
     
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	{
 		uint32		id,
 					off;
@@ -7244,7 +7244,7 @@ XactLogAbortRecord(TimestampTz global_timestamp,
     xl_xact_subxacts xl_subxacts;
     xl_xact_relfilenodes xl_relfilenodes;
     xl_xact_twophase xl_twophase;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     XLogRecPtr      end_lsn;
 #endif
 
@@ -7267,7 +7267,7 @@ XactLogAbortRecord(TimestampTz global_timestamp,
 #ifdef __SUPPORT_DISTRIBUTED_TRANSACTION__
     xlrec.global_timestamp = global_timestamp;
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     segmentTrackGTS = global_timestamp;
 #endif
 
@@ -7325,7 +7325,7 @@ XactLogAbortRecord(TimestampTz global_timestamp,
 
     end_lsn = XLogInsert(RM_XACT_ID, info);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	{
 		uint32		id,
 					off;
@@ -7729,7 +7729,7 @@ xact_redo(XLogReaderState *record)
             ProcArrayApplyXidAssignment(xlrec->xtop,
                                         xlrec->nsubxacts, xlrec->xsub);
     }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     else if (info == XLOG_XACT_ACQUIRE_GTS)
     {
         xl_xact_acquire_gts *xlrec = (xl_xact_acquire_gts *) XLogRecGetData(record);
@@ -8126,7 +8126,7 @@ SetTopTransactionId(GlobalTransactionId xid)
 }
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 bool 
 InSubTransaction(void)
 {

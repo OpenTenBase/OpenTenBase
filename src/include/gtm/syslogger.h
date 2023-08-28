@@ -3,7 +3,7 @@
  * syslogger.h
  *	  Exports from gtm/syslogger.c.
  *
- * Copyright (c) 2021-Present TBase development team, Tencent
+ * Copyright (c) 2021-Present OpenTenBase development team, Tencent
  *
  * src/include/gtm/syslogger.h
  *

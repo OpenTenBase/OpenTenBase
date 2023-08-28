@@ -124,7 +124,7 @@ static void ApplyExtensionUpdates(Oid extensionOid,
                       bool is_create,
                       bool support_gis_extension);
 static char *read_whole_file(const char *filename, int *length);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static void execute_support_gis_sql_string(ExtensionControlFile *control, const char *sql, const char *filename);
 static ObjectAddress PrepareExtensionInternal(char *extensionName,
                         char *schemaName,
@@ -3374,7 +3374,7 @@ read_whole_file(const char *filename, int *length)
     return buf;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /*
  * PREPARE EXTENSION
  */

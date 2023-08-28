@@ -109,7 +109,7 @@
 #ifdef _MLS_
 #include "utils/relcrypt.h"
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "parser/scansup.h"
 #include "catalog/catalog.h"
 #endif
@@ -198,7 +198,7 @@ static const Oid object_classes[] = {
     PgxcNodeRelationId,            /* OCLASS_PGXC_NODE */
     PgxcGroupRelationId,        /* OCLASS_PGXC_GROUP */
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     PgPartitionIntervalRelationId,
 #endif
 #ifdef __AUDIT__
@@ -394,7 +394,7 @@ performDeletion(const ObjectAddress *object,
     heap_close(depRel, RowExclusiveLock);
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 
 /*
  * replace all invisible characters with ' ',
@@ -1579,7 +1579,7 @@ doDeletion(const ObjectAddress *object, int flags)
                              */
                             relseq = relation_open(object->objectId, AccessShareLock);
                             seqname = GetGlobalSeqName(relseq, NULL, NULL);
-#ifdef __TBASE__            
+#ifdef __OPENTENBASE__            
                             RegisterSeqDrop(seqname, GTM_SEQ_FULL_NAME);
 #else
                             DropSequenceGTM(seqname, GTM_SEQ_FULL_NAME);
@@ -1717,7 +1717,7 @@ doDeletion(const ObjectAddress *object, int flags)
             RemovePgxcClass(object->objectId);
             break;
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         case OCLASS_PG_PARTITION_INTERVAL:
             RemoveIntervalPartition(object->objectId);
             break;
@@ -2982,7 +2982,7 @@ getObjectClass(const ObjectAddress *object)
 
         case TransformRelationId:
             return OCLASS_TRANSFORM;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         case PgPartitionIntervalRelationId:
             return OCLASS_PG_PARTITION_INTERVAL;
 #endif

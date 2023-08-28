@@ -17,14 +17,14 @@
 #include "nodes/parsenodes.h"
 
 #define PGXC_NODENAME_LENGTH    64
-#define        TBASE_MAX_COORDINATOR_NUMBER 2048
-#define        TBASE_MAX_DATANODE_NUMBER    2048
+#define        OPENTENBASE_MAX_COORDINATOR_NUMBER 2048
+#define        OPENTENBASE_MAX_DATANODE_NUMBER    2048
 
 /* Global number of nodes */
 extern int     NumDataNodes;
 extern int     NumCoords;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern char *PGXCNodeHost;
 #endif
 
@@ -41,7 +41,7 @@ typedef struct
 } NodeDefinition;
 
 extern void NodeTablesShmemInit(void);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern void NodeDefHashTabShmemInit(void);
 extern Size NodeHashTableShmemSize(void);
 #endif

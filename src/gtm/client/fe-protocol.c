@@ -404,7 +404,7 @@ break;
             }
             break;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             /* Add for global timestamp */
         case TXN_BEGIN_GETGTS_RESULT:
             if (gtmpqGetnchar((char *) &result->gr_resdata.grd_gts.grd_gts,
@@ -706,7 +706,7 @@ result->gr_status = GTM_RESULT_ERROR;
 #endif
             break;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         case STORAGE_TRANSFER_RESULT:
         {
             int32 loop_count = 0;
@@ -1603,7 +1603,7 @@ gtmpqFreeResultResource(GTM_Result *result)
             }
             break;
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         case TXN_CHECK_GTM_STATUS_RESULT:
             if (result->gr_resdata.grd_gts.standby_count > 0 &&
                 result->gr_resdata.grd_gts.standby_count <= GTM_MAX_WALSENDER)

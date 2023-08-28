@@ -36,7 +36,7 @@ typedef struct
     /* send buffer */
     int            SendPointer;
     char        SendBuffer[POOL_BUFFER_SIZE];
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* error code */
     slock_t     lock;
     int         error_code;

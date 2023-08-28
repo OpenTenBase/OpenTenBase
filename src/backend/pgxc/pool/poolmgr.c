@@ -67,7 +67,7 @@
 #include "port.h"
 #include <math.h>
 #include <sys/timeb.h>
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "access/xlog.h"
 #endif
 
@@ -359,7 +359,7 @@ typedef enum
     PoolSetCommandStatus_butty
 }PoolStatusEnum;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 char *poolErrorMsg[] = {"No Error",
                         "Fail to get connections, pooler is locked",
                         "Fail to get connections, last request not finished yet",
@@ -412,7 +412,7 @@ static void pooler_subthread_write_log(int elevel, int lineno, const char *filen
 #define MAX_THREAD_LOG_PIPE_LEN         (2 * 1024)                                     /* length of thread log pipe */
 #define DEFAULT_LOG_BUF_LEN             (1024)                                         /* length of thread log length */
 PGPipe  *g_ThreadLogQueue = NULL;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 bool g_allow_distri_query_on_standby_node = false;
 #endif
 
@@ -607,7 +607,7 @@ static int  refresh_database_pools(PoolAgent *agent);
 static void pooler_async_ping_node(Oid node);
 static bool match_databasepool(DatabasePool *databasePool, const char* user_name, const char* database);
 static int handle_close_pooled_connections(PoolAgent * agent, StringInfo s);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static void ConnectPoolManager(void);
 #endif
 
@@ -1046,7 +1046,7 @@ agent_create(int new_fd)
     agent->port.RecvLength = 0;
     agent->port.RecvPointer = 0;
     agent->port.SendPointer = 0;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     agent->port.error_code  = 0;
     SpinLockInit(&agent->port.lock);
 #endif
@@ -1839,7 +1839,7 @@ PoolManagerGetConnections(List *datanodelist, List *coordlist, bool raise_error,
 
     int         j = 0;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	/*
 	 * if it is the standby node of the main plane, the distributed query will be connected to
 	 * the main data node, and the standby cn may generate the same global xid as the main cn,
@@ -3038,7 +3038,7 @@ agent_acquire_connections(PoolAgent *agent, List *datanodelist, List *coordlist,
                 "list_length(coordlist) %d, num_coord_connections %d",
                 list_length(datanodelist), agent->num_dn_connections,
                 list_length(coordlist), agent->num_coord_connections);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         SpinLockAcquire(&agent->port.lock);
         agent->port.error_code = POOL_ERR_GET_CONNECTIONS_INVALID_ARGUMENT;
         snprintf(agent->port.err_msg, POOL_ERR_MSG_LEN, "agent_acquire_connections called with invalid arguments -"
@@ -3078,7 +3078,7 @@ agent_acquire_connections(PoolAgent *agent, List *datanodelist, List *coordlist,
     /* we can get here is because we have error last time, so here just check whether we have done the job */
     if (!agent_destory_task_control(agent))
     {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         SpinLockAcquire(&agent->port.lock);
         agent->port.error_code = POOL_ERR_GET_CONNECTIONS_TASK_NOT_DONE;
         snprintf(agent->port.err_msg, POOL_ERR_MSG_LEN, "%s", poolErrorMsg[agent->port.error_code]);
@@ -3127,7 +3127,7 @@ agent_acquire_connections(PoolAgent *agent, List *datanodelist, List *coordlist,
                 /* we have task control pending, can not proceed, wait for the pending job done */
                 if (agent->task_control)
                 {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                     SpinLockAcquire(&agent->port.lock);
                     agent->port.error_code = POOL_ERR_GET_CONNECTIONS_TASK_NOT_DONE;
                     snprintf(agent->port.err_msg, POOL_ERR_MSG_LEN, "%s", poolErrorMsg[agent->port.error_code]);
@@ -3278,7 +3278,7 @@ agent_acquire_connections(PoolAgent *agent, List *datanodelist, List *coordlist,
                 /* we have task control pending, can not proceed, wait for the pending job done */
                 if (agent->task_control)
                 {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                     SpinLockAcquire(&agent->port.lock);
                     agent->port.error_code = POOL_ERR_GET_CONNECTIONS_TASK_NOT_DONE;
                     snprintf(agent->port.err_msg, POOL_ERR_MSG_LEN, "%s", poolErrorMsg[agent->port.error_code]);
@@ -3724,7 +3724,7 @@ cancel_query_on_connections(PoolAgent *agent, List *datanodelist, List *coordlis
     /* we can get here is because we have error last time, so here just check whether we have done the job */
     if (!agent_destory_task_control(agent))
     {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         SpinLockAcquire(&agent->port.lock);
         agent->port.error_code = POOL_ERR_CANCEL_TASK_NOT_DONE;
         snprintf(agent->port.err_msg, POOL_ERR_MSG_LEN, "%s", poolErrorMsg[agent->port.error_code]);
@@ -4408,7 +4408,7 @@ create_database_pool(const char *database, const char *user_name, const char *pg
     hflags |= HASH_FUNCTION;
 
     snprintf(hash_name, NODE_POOL_NAME_LEN, "%s_%s_Node_Pool", database, user_name);
-    databasePool->nodePools = hash_create(hash_name, TBASE_MAX_DATANODE_NUMBER + TBASE_MAX_COORDINATOR_NUMBER,
+    databasePool->nodePools = hash_create(hash_name, OPENTENBASE_MAX_DATANODE_NUMBER + OPENTENBASE_MAX_COORDINATOR_NUMBER,
                                           &hinfo, hflags);
 
     MemoryContextSwitchTo(oldcontext);
@@ -4501,7 +4501,7 @@ reload_database_pools(PoolAgent *agent)
             if (connstr_chk == NULL || strcmp(connstr_chk, nodePool->connstr))
             {
                 /* Node has been removed or altered */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 				if (nodePool->size == nodePool->freeSize || connstr_chk == NULL)
 #else
                 if (nodePool->size == nodePool->freeSize)
@@ -7928,7 +7928,7 @@ void *pooler_sync_remote_operator_thread(void *arg)
                                 {
                                     snprintf(request->errmsg, POOLER_ERROR_MSG_LEN, "connect node:[%s] failed", request->nodepool->connstr);
                                     request->current_status = PoolConnectStaus_error;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                                     SpinLockAcquire(&request->agent->port.lock);
                                     request->agent->port.error_code = POOL_ERR_GET_CONNECTIONS_OOM;
                                     snprintf(request->agent->port.err_msg, POOL_ERR_MSG_LEN, "%s, connection info [%s]", poolErrorMsg[POOL_ERR_GET_CONNECTIONS_OOM],
@@ -7962,7 +7962,7 @@ void *pooler_sync_remote_operator_thread(void *arg)
 									else
 									{
                                         request->current_status = PoolConnectStaus_error;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                                         SpinLockAcquire(&request->agent->port.lock);
                                         request->agent->port.error_code = POOL_ERR_GET_CONNECTIONS_CONNECTION_BAD;
                                         snprintf(request->agent->port.err_msg, POOL_ERR_MSG_LEN, "%s, connection info [%s]", poolErrorMsg[POOL_ERR_GET_CONNECTIONS_CONNECTION_BAD],
@@ -8748,7 +8748,7 @@ static inline bool dispatch_connection_request(PGXCASyncTaskCtl  *taskControl,
         {
             DecreasePoolerSize(nodepool,__FILE__,__LINE__);        
         }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         SpinLockAcquire(&agent->port.lock);
         agent->port.error_code = POOL_ERR_GET_CONNECTIONS_DISPATCH_FAILED;
         snprintf(agent->port.err_msg, POOL_ERR_MSG_LEN, "%s", poolErrorMsg[agent->port.error_code]);
@@ -9037,7 +9037,7 @@ static inline bool dispatch_cancle_request(PGXCASyncTaskCtl  *taskControl,
                                                                                                             taskControl->m_mumber_total);        
         }
         pfree(req);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         SpinLockAcquire(&agent->port.lock);
         agent->port.error_code = POOL_ERR_CANCEL_DISPATCH_FAILED;
         snprintf(agent->port.err_msg, POOL_ERR_MSG_LEN, "%s", poolErrorMsg[agent->port.error_code]);
@@ -9255,7 +9255,7 @@ static void create_node_map(void)
     hinfo.hash = oid_hash;
     hflags |= HASH_FUNCTION;
 
-    g_nodemap = hash_create("Node Map Hash", TBASE_MAX_DATANODE_NUMBER + TBASE_MAX_COORDINATOR_NUMBER,
+    g_nodemap = hash_create("Node Map Hash", OPENTENBASE_MAX_DATANODE_NUMBER + OPENTENBASE_MAX_COORDINATOR_NUMBER,
                                               &hinfo, hflags);    
 
     PgxcNodeGetOids(&coOids, &dnOids, &numCo, &numDn, false);
@@ -9315,7 +9315,7 @@ static void refresh_node_map(void)
     int             numDn;
     int             nodeindex;
     bool            found;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	bool           inited = false;
 #endif
 
@@ -9323,11 +9323,11 @@ static void refresh_node_map(void)
     {
         /* init node map */
         create_node_map();
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		inited = true;
 #endif
     }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	/* reset hashtab */
 	if (!inited)
 	{
@@ -10407,7 +10407,7 @@ PoolAsyncPingNodes()
 		return;
 	}	
 
-    coOids = (Oid*)palloc(sizeof(Oid) * TBASE_MAX_COORDINATOR_NUMBER);
+    coOids = (Oid*)palloc(sizeof(Oid) * OPENTENBASE_MAX_COORDINATOR_NUMBER);
     if (coOids == NULL)
     {
         ereport(ERROR,
@@ -10415,7 +10415,7 @@ PoolAsyncPingNodes()
                  errmsg("out of memory for coOids")));
     }
 
-    dnOids = (Oid*)palloc(sizeof(Oid) * TBASE_MAX_DATANODE_NUMBER);
+    dnOids = (Oid*)palloc(sizeof(Oid) * OPENTENBASE_MAX_DATANODE_NUMBER);
     if (dnOids == NULL)
     {
         ereport(ERROR,
@@ -10423,7 +10423,7 @@ PoolAsyncPingNodes()
                  errmsg("out of memory for dnOids")));
     }
 
-    coHealthMap = (bool*)palloc(sizeof(bool) * TBASE_MAX_COORDINATOR_NUMBER);
+    coHealthMap = (bool*)palloc(sizeof(bool) * OPENTENBASE_MAX_COORDINATOR_NUMBER);
     if (coHealthMap == NULL)
     {
         ereport(ERROR,
@@ -10431,7 +10431,7 @@ PoolAsyncPingNodes()
                  errmsg("out of memory for coHealthMap")));
     }
 
-    dnHealthMap = (bool*)palloc(sizeof(bool) * TBASE_MAX_DATANODE_NUMBER);
+    dnHealthMap = (bool*)palloc(sizeof(bool) * OPENTENBASE_MAX_DATANODE_NUMBER);
     if (dnHealthMap == NULL)
     {
         ereport(ERROR,
@@ -10505,7 +10505,7 @@ PoolPingNodes()
     int                numDn;
     int                i;
 
-    coOids = (Oid*)palloc(sizeof(Oid) * TBASE_MAX_COORDINATOR_NUMBER);
+    coOids = (Oid*)palloc(sizeof(Oid) * OPENTENBASE_MAX_COORDINATOR_NUMBER);
     if (coOids == NULL)
     {
         ereport(ERROR,
@@ -10513,7 +10513,7 @@ PoolPingNodes()
                  errmsg("out of memory for coOids")));
     }
 
-    dnOids = (Oid*)palloc(sizeof(Oid) * TBASE_MAX_DATANODE_NUMBER);
+    dnOids = (Oid*)palloc(sizeof(Oid) * OPENTENBASE_MAX_DATANODE_NUMBER);
     if (dnOids == NULL)
     {
         ereport(ERROR,
@@ -10521,7 +10521,7 @@ PoolPingNodes()
                  errmsg("out of memory for dnOids")));
     }
 
-    coHealthMap = (bool*)palloc(sizeof(bool) * TBASE_MAX_COORDINATOR_NUMBER);
+    coHealthMap = (bool*)palloc(sizeof(bool) * OPENTENBASE_MAX_COORDINATOR_NUMBER);
     if (coHealthMap == NULL)
     {
         ereport(ERROR,
@@ -10529,7 +10529,7 @@ PoolPingNodes()
                  errmsg("out of memory for coHealthMap")));
     }
 
-    dnHealthMap = (bool*)palloc(sizeof(bool) * TBASE_MAX_DATANODE_NUMBER);
+    dnHealthMap = (bool*)palloc(sizeof(bool) * OPENTENBASE_MAX_DATANODE_NUMBER);
     if (dnHealthMap == NULL)
     {
         ereport(ERROR,
@@ -10866,7 +10866,7 @@ handle_get_connections(PoolAgent * agent, StringInfo s)
         elog(WARNING,POOL_MGR_PREFIX"Pool connection get request cannot run during pool lock");
         list_free(datanodelist);
         list_free(coordlist);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /* set error message */
         SpinLockAcquire(&agent->port.lock);
         agent->port.error_code = POOL_ERR_GET_CONNECTIONS_POOLER_LOCKED;
@@ -11422,7 +11422,7 @@ static bool match_databasepool(DatabasePool *databasePool, const char* user_name
 
     return true;
 }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static void
 ConnectPoolManager(void)
 {

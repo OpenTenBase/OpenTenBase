@@ -265,7 +265,7 @@ GTM_RWLockRelease(GTM_RWLock *lock)
     }    
     return status ? false : true;
 }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 void RWLockCleanUp(void)
 {
     int    i = 0;

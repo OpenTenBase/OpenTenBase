@@ -34,7 +34,7 @@ typedef struct
     int *consMap;                    /* map of consumers: consMap[node-1] indicates
                                      * the target consumer */
     SharedQueue squeue;                /* a SharedQueue for result distribution */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     DataPumpSender sender;             /* used to send data locally, could be NULL */
     int16 *nodeMap;
 #endif
@@ -45,7 +45,7 @@ typedef struct
     long tcount;
     long selfcount;
     long othercount;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     uint64      send_tuples;        /* number of tuples sent to remote */
     TimestampTz send_total_time;    /* total time to send tuples */
 #endif
@@ -202,7 +202,7 @@ producerShutdownReceiver(DestReceiver *self)
 {
     ProducerState *myState = (ProducerState *) self;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (enable_statistic)
     {
         elog(LOG, "ProducerSend: send_tuples:%lu, send_total_time:%ld, avg_time:%lf.",
@@ -233,7 +233,7 @@ producerDestroyReceiver(DestReceiver *self)
         myState->consumer = NULL;
     }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (myState->nodeMap)
     {
         pfree(myState->nodeMap);
@@ -297,7 +297,7 @@ CreateProducerDestReceiver(void)
     self->tcount = 0;
     self->selfcount = 0;
     self->othercount = 0;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     self->send_tuples     = 0;
     self->send_total_time = 0;
     self->nodeMap = NULL;
@@ -315,7 +315,7 @@ SetProducerDestReceiverParams(DestReceiver *self,
                               AttrNumber distKey,
                               Locator *locator,
                               SharedQueue squeue
-#ifdef __TBASE__                              
+#ifdef __OPENTENBASE__                              
                                 ,
                               DataPumpSender sender
 #endif
@@ -327,7 +327,7 @@ SetProducerDestReceiverParams(DestReceiver *self,
     myState->distKey = distKey;
     myState->locator = locator;
     myState->squeue = squeue;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     myState->sender = sender;
 #endif
     myState->typeinfo = NULL;
@@ -335,7 +335,7 @@ SetProducerDestReceiverParams(DestReceiver *self,
     /* Create workspace */
     myState->distNodes = (int *) getLocatorResults(locator);
     if (squeue)
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         myState->tstores = (Tuplestorestate **)
             palloc0(getLocatorNodeCount(locator) * sizeof(Tuplestorestate *));
 #else
@@ -404,7 +404,7 @@ ProducerReceiverPushBuffers(DestReceiver *self)
     }
     return true;
 }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 void
 SetProducerNodeMap(DestReceiver *self, int16 *nodemap)
 {

@@ -236,7 +236,7 @@ CreatePortal(const char *name, bool allowDup, bool dupSilent)
     portal->atEnd = true;        /* disallow fetches until query is set */
     portal->visible = true;
     portal->creation_time = GetCurrentStatementStartTimestamp();
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     portal->failed_in_sub = false;
 #endif
 
@@ -489,7 +489,7 @@ MarkPortalActive(Portal portal)
 void
 MarkPortalDone(Portal portal)
 {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /*
      * portal already failed in abort subtransaction, no need to
      * mark done.
@@ -656,7 +656,7 @@ PortalDrop(Portal portal, bool isTopCommit)
         (!isTopCommit || portal->status == PORTAL_FAILED))
     {
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		/* 
 		 * When CN/DN received rollback_subtxn, the resource already been
 		 * released by AbortSubTransaction, and the memory delete by

@@ -94,7 +94,7 @@
 #include "utils/snapmgr.h"
 #include "utils/syscache.h"
 #include "utils/tqual.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "catalog/pg_partition_interval.h"
 #include "catalog/pgxc_node.h"
 #include "utils/guc.h"
@@ -416,7 +416,7 @@ AllocateRelationDesc(Form_pg_class relp)
     Relation    relation;
     MemoryContext oldcxt;
     Form_pg_class relationForm;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     Relation    parent = NULL;
 #endif
 
@@ -450,7 +450,7 @@ AllocateRelationDesc(Form_pg_class relp)
     /* initialize relation tuple form */
     relation->rd_rel = relationForm;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* child table, find it's parent */
     if (RELATION_IS_CHILD(relation))
     {
@@ -469,7 +469,7 @@ AllocateRelationDesc(Form_pg_class relp)
                                                relationForm->relhasoids);
     /* which we mark as a reference-counted tupdesc */
     relation->rd_att->tdrefcount = 1;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     }
 #endif
 
@@ -1150,7 +1150,7 @@ RelationBuildPartitionKey(Relation relation)
     MemoryContextSwitchTo(oldcxt);
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static void
 RelationBuildPartitionInfo(Relation rel)
 {
@@ -1449,7 +1449,7 @@ RelationBuildDesc(Oid targetRelId, bool insertIt)
     Oid            relid;
     HeapTuple    pg_class_tuple;
     Form_pg_class relp;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     Relation    parent;
 #endif
 
@@ -1537,7 +1537,7 @@ RelationBuildDesc(Oid targetRelId, bool insertIt)
             break;
     }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* child table, find it's parent */
     if (RELATION_IS_CHILD(relation))
     {
@@ -1562,7 +1562,7 @@ RelationBuildDesc(Oid targetRelId, bool insertIt)
      */
     RelationBuildTupleDesc(relation);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     }
 #endif
 
@@ -1643,7 +1643,7 @@ RelationBuildDesc(Oid targetRelId, bool insertIt)
         relation->rd_pdcxt = NULL;
     }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* if interval partitioned table, initialize partition descriptor info */
     if (RELATION_IS_INTERVAL(relation))
     {
@@ -4021,7 +4021,7 @@ RelationCacheInitializePhase2(void)
                   false, Natts_pg_shseclabel, Desc_pg_shseclabel);
         formrdesc("pg_subscription", SubscriptionRelation_Rowtype_Id, true,
                   true, Natts_pg_subscription, Desc_pg_subscription);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         formrdesc("pgxc_node", PgxcNodeRelation_Rowtype_Id, true,
                   true, Natts_pgxc_node, Desc_pgxc_node);
 #endif

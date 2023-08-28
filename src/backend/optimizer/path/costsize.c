@@ -97,7 +97,7 @@
 #include "utils/selfuncs.h"
 #include "utils/spccache.h"
 #include "utils/tuplesort.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "optimizer/planner.h"
 #include "utils/ruleutils.h"
 #include "storage/lmgr.h"
@@ -183,7 +183,7 @@ static double get_parallel_divisor(Path *path);
 /*
  * In PostgreSQL, the row count estimate of a base rel scan, like a Seq Scan
  * or an Index Scan, can be directly copied from RelOptInfo->rows/tuples. In
- * TBase, it's not that straightforward as a Scan runs in parallel in the
+ * OpenTenBase, it's not that straightforward as a Scan runs in parallel in the
  * DNs, and the number of rows scanned by each Scan is RelOptInfo->rows /
  * number of DN.
  *
@@ -430,7 +430,7 @@ cost_gather(GatherPath *path, PlannerInfo *root,
     path->path.total_cost = (startup_cost + run_cost);
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /* 
  * gather node has been optimized, it only needs to do some initiating work
  * so set total_cost to startup_cost which means run_cost = 0.
@@ -1076,7 +1076,7 @@ cost_bitmap_heap_scan(Path *path, PlannerInfo *root, RelOptInfo *baserel,
     cpu_per_tuple = cpu_tuple_cost + qpqual_cost.per_tuple;
     cpu_run_cost = cpu_per_tuple * tuples_fetched;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	{
 		/* Adjust costing for parallelism between data nodes, if used. */
 		double nodes = path_count_datanodes(path);
@@ -2214,7 +2214,7 @@ initial_cost_nestloop(PlannerInfo *root, JoinCostWorkspace *workspace,
 	inner_run_cost = inner_path->total_cost - inner_path->startup_cost;
 	inner_rescan_run_cost = inner_rescan_total_cost - inner_rescan_start_cost;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (jointype == JOIN_SEMI ||
         jointype == JOIN_ANTI ||
         jointype == JOIN_LEFT_SCALAR ||
@@ -2289,7 +2289,7 @@ final_cost_nestloop(PlannerInfo *root, NestPath *path,
 	else
 		path->path.rows = path->path.parent->rows;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	path->path.rows = clamp_row_est(path->path.rows / path_count_datanodes(&path->path));
 #endif
 	
@@ -2312,7 +2312,7 @@ final_cost_nestloop(PlannerInfo *root, NestPath *path,
 
 	/* cost of inner-relation source data (we already dealt with outer rel) */
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (path->jointype == JOIN_SEMI ||
         path->jointype == JOIN_ANTI ||
         path->jointype == JOIN_LEFT_SCALAR ||
@@ -2433,7 +2433,7 @@ final_cost_nestloop(PlannerInfo *root, NestPath *path,
 	{
 		/* Normal-case source costs were included in preliminary estimate */
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		/*
 		 * When outerpath only got one row, we need to check if the number of
 		 * rows is under estimated. It might lead to huge cost estimation error
@@ -2463,7 +2463,7 @@ final_cost_nestloop(PlannerInfo *root, NestPath *path,
 	startup_cost += path->path.pathtarget->cost.startup;
 	run_cost += path->path.pathtarget->cost.per_tuple * path->path.rows;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	/*
 	 * While NestLoop is executed it rescans inner plan. We do not want to
 	 * rescan RemoteSubplan and do not support it. So if inner_plan is a
@@ -2782,7 +2782,7 @@ final_cost_mergejoin(PlannerInfo *root, MergePath *path,
 	else
 		path->jpath.path.rows = path->jpath.path.parent->rows;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	path->jpath.path.rows = clamp_row_est(path->jpath.path.rows / path_count_datanodes(&path->jpath.path));
 #endif
 	
@@ -2818,7 +2818,7 @@ final_cost_mergejoin(PlannerInfo *root, MergePath *path,
 	 * all the joinclauses are merge clauses, this means we don't ever need to
 	 * back up the merge, and so we can skip mark/restore overhead.
 	 */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	if ((path->jpath.jointype == JOIN_SEMI ||
 		 path->jpath.jointype == JOIN_ANTI ||
          path->jpath.jointype == JOIN_LEFT_SCALAR ||
@@ -3110,7 +3110,7 @@ initial_cost_hashjoin(PlannerInfo *root, JoinCostWorkspace *workspace,
     startup_cost += outer_path->startup_cost;
     run_cost += outer_path->total_cost - outer_path->startup_cost;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (outer_path->parallel_aware && outer_path->parallel_workers && olap_optimizer)
     {
         if (IsA(inner_path, RemoteSubPath))
@@ -3229,7 +3229,7 @@ final_cost_hashjoin(PlannerInfo *root, HashPath *path,
 	else
 		path->jpath.path.rows = path->jpath.path.parent->rows;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	path->jpath.path.rows = clamp_row_est(path->jpath.path.rows / path_count_datanodes(&path->jpath.path));
 #endif
 	
@@ -3332,7 +3332,7 @@ final_cost_hashjoin(PlannerInfo *root, HashPath *path,
 
 	/* CPU costs */
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (path->jpath.jointype == JOIN_SEMI ||
         path->jpath.jointype == JOIN_ANTI ||
         path->jpath.jointype == JOIN_LEFT_SCALAR ||
@@ -3384,7 +3384,7 @@ final_cost_hashjoin(PlannerInfo *root, HashPath *path,
 			clamp_row_est(inner_path_rows / virtualbuckets) * 0.05;
 
 		/* Get # of tuples that will pass the basic join */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		if (path->jpath.jointype == JOIN_SEMI ||
 			path->jpath.jointype == JOIN_LEFT_SCALAR ||
 			path->jpath.jointype == JOIN_LEFT_SEMI)
@@ -4488,7 +4488,7 @@ calc_joinrel_size_estimate(PlannerInfo *root,
 			nrows *= pselec;
 			break;
         case JOIN_SEMI:
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         case JOIN_LEFT_SCALAR:
         case JOIN_LEFT_SEMI:
 #endif
@@ -4571,7 +4571,7 @@ get_foreign_key_join_selectivity(PlannerInfo *root,
 		 * how many table rows would get through a join that's inside the RHS.
 		 * Hence, if either case applies, punt and ignore the FK.
 		 */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		if ((jointype == JOIN_SEMI || jointype == JOIN_ANTI ||
 			 jointype == JOIN_LEFT_SCALAR || jointype == JOIN_LEFT_SEMI) &&
 			(ref_is_outer || bms_membership(inner_relids) != BMS_SINGLETON))
@@ -4694,7 +4694,7 @@ get_foreign_key_join_selectivity(PlannerInfo *root,
 		 * work, it is uncommon in practice to have an FK referencing a parent
 		 * table.  So, at least for now, disregard inheritance here.
 		 */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		if (jointype == JOIN_SEMI || jointype == JOIN_ANTI ||
 			jointype == JOIN_LEFT_SCALAR || jointype == JOIN_LEFT_SEMI)
 #else
@@ -4766,7 +4766,7 @@ set_subquery_size_estimates(PlannerInfo *root, RelOptInfo *rel)
      */
     sub_final_rel = fetch_upper_rel(subroot, UPPERREL_FINAL, NULL);
     rel->tuples = sub_final_rel->cheapest_total_path->rows;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		/* count tuples in all data nodes */
 	rel->tuples *= path_count_datanodes(sub_final_rel->cheapest_total_path);
 #endif

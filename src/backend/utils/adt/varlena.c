@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -2220,7 +2220,7 @@ varstrfastcmp_locale(Datum x, Datum y, SortSupport ssup)
      * memcmp() compares data from cachelines that are needed in L1 cache even
      * when the last comparison's result cannot be reused.
      */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	/**
 	 * on cn node, when client encoding is not equals server encoding, a1p is client encoding
 	 * so must convert a1p to server encoding
@@ -2248,7 +2248,7 @@ varstrfastcmp_locale(Datum x, Datum y, SortSupport ssup)
      * it seems (at least with moderate to low cardinality sets), because
      * quicksort compares the same pivot against many values.
      */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /**
      * on cn node, when client encoding is not equals server encoding, a2p is client encoding
      * so must convert a2p to server encoding

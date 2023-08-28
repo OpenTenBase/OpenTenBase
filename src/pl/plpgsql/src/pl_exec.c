@@ -122,7 +122,7 @@ static SimpleEcontextStackEntry *simple_econtext_stack = NULL;
 #define eval_mcontext_alloc0(estate, sz) \
     MemoryContextAllocZero(get_eval_mcontext(estate), sz)
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern int PGDLLIMPORT g_in_plpgsql_exec_fun;
 extern bool PGDLLIMPORT PlpgsqlDebugPrint;
 #endif
@@ -344,7 +344,7 @@ plpgsql_exec_function(PLpgSQL_function *func, FunctionCallInfo fcinfo,
     int            i;
     int            rc;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     SetEnterPlpgsqlFunc();
     SetTopXactNeedBeginTxn();
     if (PlpgsqlDebugPrint)
@@ -622,7 +622,7 @@ plpgsql_exec_function(PLpgSQL_function *func, FunctionCallInfo fcinfo,
      * Return the function's result
      */
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     SetExitPlpgsqlFunc();
     if (PlpgsqlDebugPrint)
     {

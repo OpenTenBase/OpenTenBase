@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -61,7 +61,7 @@
 #ifndef _MLS_EXTENSION_H
 #define _MLS_EXTENSION_H
 /* the marco of MLS define*/
-#define MLS_EXTENSION_NAME "tbase_mls"
+#define MLS_EXTENSION_NAME "opentenbase_mls"
 #define MLS_EXTENSION_NAMESPACE_NAME "mls"
 #define MLS_USER_PREFIX      "mls_"
 #define MLS_USER_PREFIX_LEN  3

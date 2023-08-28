@@ -12,7 +12,7 @@
 #endif
 
 #include "mb/pg_wchar.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "postmaster/postmaster.h"
 #endif
 
@@ -1970,7 +1970,7 @@ pg_verify_mbstr_len(int encoding, const char *mbstr, int len, bool noError)
 
         if (nullpos == NULL)
             return len;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (enable_null_string)
         {
             return (nullpos - mbstr);
@@ -2000,7 +2000,7 @@ pg_verify_mbstr_len(int encoding, const char *mbstr, int len, bool noError)
                 len--;
                 continue;
             }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             if (enable_null_string)
             {
                 return mb_len;

@@ -57,7 +57,7 @@
 #include "utils/rel.h"
 #include "utils/tqual.h"
 #include "utils/lsyscache.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "optimizer/pgxcship.h"
 #include "pgxc/execRemote.h"
 #include "pgxc/planner.h"
@@ -292,7 +292,7 @@ ExecInsert(ModifyTableState *mtstate,
     List       *recheckIndexes = NIL;
     TupleTableSlot *result = NULL;
 	TransitionCaptureState *ar_insert_trig_tcs;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     bool       has_unshippable_trigger = false;
     int        remoterel_index = 0;
     ModifyTable *mt = (ModifyTable *)mtstate->ps.plan;
@@ -328,7 +328,7 @@ ExecInsert(ModifyTableState *mtstate,
     }
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* Determine the interval partition to heap_insert the tuple into */
 	if (resultRelInfo->ispartparent)
     {
@@ -434,7 +434,7 @@ ExecInsert(ModifyTableState *mtstate,
     if (resultRelationDesc->rd_rel->relhasoids)
         HeapTupleSetOid(tuple, InvalidOid);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (IS_PGXC_DATANODE && onconflict == ONCONFLICT_UPDATE && resultRelInfo->ri_TrigDesc)
     {
         int16 trigevent = pgxc_get_trigevent(mtstate->operation);
@@ -561,7 +561,7 @@ ExecInsert(ModifyTableState *mtstate,
             CheckMlsTableUserAcl(resultRelInfo,slot->tts_tuple);
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /*
          * DML with unshippable triggers on resultrelation, we execute DML
          * on coordiantor.
@@ -636,7 +636,7 @@ ExecInsert(ModifyTableState *mtstate,
                     bool            ret;
                     int             oldtag;
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                     if (has_unshippable_trigger)
                         return NULL;
 #endif
@@ -718,7 +718,7 @@ ExecInsert(ModifyTableState *mtstate,
             if (specConflict)
             {
                 list_free(recheckIndexes);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 if (has_unshippable_trigger)
                     return NULL;
 #endif
@@ -745,7 +745,7 @@ ExecInsert(ModifyTableState *mtstate,
                                                        estate, false, NULL,
                                                        arbiterIndexes);
         }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         }
 #endif
     }
@@ -826,7 +826,7 @@ ExecInsert(ModifyTableState *mtstate,
  *        Returns RETURNING result if any, otherwise NULL.
  * ----------------------------------------------------------------
  */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static TupleTableSlot *
 ExecDelete(ModifyTableState *mtstate,
            ItemPointer tupleid,
@@ -856,7 +856,7 @@ ExecDelete(ModifyTableState *mtstate,
     HTSU_Result result;
     HeapUpdateFailureData hufd;
     TupleTableSlot *slot = NULL;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     int        remoterel_index = 0;
     ModifyTable *mt = (ModifyTable *)mtstate->ps.plan;
 #endif
@@ -957,7 +957,7 @@ ExecDelete(ModifyTableState *mtstate,
     }
     else
     {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (IS_PGXC_COORDINATOR && mt->remote_plans)
         {
             bool succeed = false;
@@ -1070,7 +1070,7 @@ ldelete:;
          * take care of it later.  We can't delete index tuples immediately
          * anyway, since the tuple is still visible to other transactions.
          */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         }
 #endif
     }
@@ -1205,7 +1205,7 @@ ExecUpdate(ModifyTableState *mtstate,
     HeapUpdateFailureData hufd;
     List       *recheckIndexes = NIL;
 	TupleConversionMap *saved_tcs_map = NULL;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     int        remoterel_index = 0;
     ModifyTable *mt = (ModifyTable *)mtstate->ps.plan;
 #endif
@@ -1475,7 +1475,7 @@ lreplace:;
             CheckMlsTableUserAcl(resultRelInfo,slot->tts_tuple);
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (IS_PGXC_COORDINATOR && mt->remote_plans)
         {
             bool succeed = false;
@@ -1600,7 +1600,7 @@ lreplace:;
         if (resultRelInfo->ri_NumIndices > 0 && !HeapTupleIsHeapOnly(tuple))
             recheckIndexes = ExecInsertIndexTuples(slot, &(tuple->t_self),
                                                    estate, false, NULL, NIL);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         }
 #endif
     }
@@ -2198,7 +2198,7 @@ ExecModifyTable(PlanState *pstate)
     ItemPointerData tuple_ctid;
     HeapTupleData oldtupdata;
     HeapTuple    oldtuple;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     ModifyTable *mt = (ModifyTable *)node->ps.plan;
     ResultRelInfo *part_resultRelInfo;
     int64        insert_tuple_count = 0;
@@ -2265,7 +2265,7 @@ ExecModifyTable(PlanState *pstate)
 
     estate->es_result_relation_info = resultRelInfo;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /*
       * Update/delete on interval partition table, get child resultRelation
       * and plan.
@@ -2339,7 +2339,7 @@ ExecModifyTable(PlanState *pstate)
 
         if (TupIsNull(planSlot))
         {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             if(node->is_exec_partition) /*in inner loop */
             {
                 node->part_whichplan++;
@@ -2379,7 +2379,7 @@ ExecModifyTable(PlanState *pstate)
             if (node->mt_whichplan < node->mt_nplans)
             {
                 resultRelInfo++;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 if(resultRelInfo->ispartparent && node->operation != CMD_INSERT)
                 {
                     /* if loop enter into partitioned ResultRelInfo */
@@ -2415,7 +2415,7 @@ ExecModifyTable(PlanState *pstate)
                 subplanstate = node->mt_plans[node->mt_whichplan];
                 junkfilter = resultRelInfo->ri_junkFilter;
                 estate->es_result_relation_info = resultRelInfo;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 }
 #endif
                 EvalPlanQualSetPlan(&node->mt_epqstate, subplanstate->plan,
@@ -2430,7 +2430,7 @@ ExecModifyTable(PlanState *pstate)
             }
             else
                 break;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             }
 #endif
         }
@@ -2487,7 +2487,7 @@ ExecModifyTable(PlanState *pstate)
                     tuple_ctid = *tupleid;    /* be sure we don't free ctid!! */
                     tupleid = &tuple_ctid;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                     /* 
                        * for update/delete with unshippable triggers, we need to get
                        * the oldtuple for triggers.
@@ -2693,7 +2693,7 @@ ExecModifyTable(PlanState *pstate)
                                   &node->mt_epqstate, estate, node->canSetTag);
                 break;
             case CMD_DELETE:
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 slot = ExecDelete(node, tupleid, oldtuple, slot, planSlot,
 						         &node->mt_epqstate, estate,
                                  NULL, true, node->canSetTag);
@@ -2780,7 +2780,7 @@ ExecInitModifyTable(ModifyTable *node, EState *estate, int eflags)
     Relation    rel;
 	bool        update_tuple_routing_needed = node->partColsUpdated;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     bool        remote_dml = false;
 #endif
 
@@ -2820,7 +2820,7 @@ ExecInitModifyTable(ModifyTable *node, EState *estate, int eflags)
     EvalPlanQualInit(&mtstate->mt_epqstate, estate, NULL, NIL, node->epqParam);
     mtstate->fireBSTriggers = true;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* interval partition used only */
     mtstate->haspartparent = node->haspartparent;
     mtstate->partplans = NULL;
@@ -2880,7 +2880,7 @@ ExecInitModifyTable(ModifyTable *node, EState *estate, int eflags)
 		   update_tuple_routing_needed = true;
 
         /* Now init the plan for this result rel */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (resultRelInfo->ispartparent && node->arbiterIndexes)
         {
             mtstate->part_arbiterindexes = (List **)palloc0(resultRelInfo->partarraysize * sizeof(List *));
@@ -2891,7 +2891,7 @@ ExecInitModifyTable(ModifyTable *node, EState *estate, int eflags)
 #endif
         estate->es_result_relation_info = resultRelInfo;
         mtstate->mt_plans[i] = ExecInitNode(subplan, estate, eflags);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         }
         else
         {
@@ -2961,7 +2961,7 @@ ExecInitModifyTable(ModifyTable *node, EState *estate, int eflags)
         i++;
     }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /*
       * We have to execDML on coordinator, init remoteDML planstate.
          */
@@ -3117,7 +3117,7 @@ ExecInitModifyTable(ModifyTable *node, EState *estate, int eflags)
                 ExecBuildProjectionInfo(rlist, econtext, slot, &mtstate->ps,
                                         resultRelInfo->ri_RelationDesc->rd_att);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             /* prepare returninglist for each child partition */
             if(resultRelInfo->ispartparent)
             {
@@ -3285,7 +3285,7 @@ ExecInitModifyTable(ModifyTable *node, EState *estate, int eflags)
             {
                 JunkFilter *j;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 if(resultRelInfo->ispartparent && (operation == CMD_UPDATE || operation == CMD_DELETE))
                 {
                     int partidx = 0;
@@ -3302,7 +3302,7 @@ ExecInitModifyTable(ModifyTable *node, EState *estate, int eflags)
                 {
 #endif
                 subplan = mtstate->mt_plans[i]->plan;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 }
 #endif
                 if (operation == CMD_INSERT || operation == CMD_UPDATE)
@@ -3327,7 +3327,7 @@ ExecInitModifyTable(ModifyTable *node, EState *estate, int eflags)
                         if (!AttributeNumberIsValid(j->jf_junkAttNo))
                             elog(ERROR, "could not find junk ctid column");
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                         if (remote_dml)
                         {
                             j->jf_xc_wholerow = ExecFindJunkAttribute(j, "wholerow");
@@ -3357,7 +3357,7 @@ ExecInitModifyTable(ModifyTable *node, EState *estate, int eflags)
                 }
 
                 resultRelInfo->ri_junkFilter = j;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 /* init junkfiler for each interval partition child table */
                 if(resultRelInfo->ispartparent)
                 {
@@ -3435,7 +3435,7 @@ ExecEndModifyTable(ModifyTableState *node)
                                                            resultRelInfo);
     }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	if (IS_PGXC_COORDINATOR)
 	{
 		ModifyTable *plan = (ModifyTable *)node->ps.plan;
@@ -3481,7 +3481,7 @@ ExecEndModifyTable(ModifyTableState *node)
      */
     for (i = 0; i < node->mt_nplans; i++)
         ExecEndNode(node->mt_plans[i]);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     for (i = 0; i < node->part_len; i++)
     {
         if(node->partplans[i])
@@ -3500,7 +3500,7 @@ ExecReScanModifyTable(ModifyTableState *node)
      */
     elog(ERROR, "ExecReScanModifyTable is not implemented");
 }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 TupleTableSlot *
 ExecRemoteUpdate(ModifyTableState *mtstate,
            ItemPointer tupleid,

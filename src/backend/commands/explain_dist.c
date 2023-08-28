@@ -3,7 +3,7 @@
  * explain_dist.c
  *    This code provides support for distributed explain analyze.
  *
- * Portions Copyright (c) 2020, Tencent TBase-C Group
+ * Portions Copyright (c) 2020, Tencent OpenTenBase-C Group
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *

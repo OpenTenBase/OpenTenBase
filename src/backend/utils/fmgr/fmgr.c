@@ -29,7 +29,7 @@
 #include "utils/guc.h"
 #include "utils/lsyscache.h"
 #include "utils/syscache.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "pgxc/poolmgr.h"
 #endif
 /*
@@ -631,7 +631,7 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
     else
         save_nestlevel = 0;        /* keep compiler quiet */
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /*
       * function with SECURITY DEFINER executed on coordinator,we need not only
       * set current user on coordinator, but also set remote current user.
@@ -712,7 +712,7 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
         if (fmgr_hook)
             (*fmgr_hook) (FHET_ABORT, &fcache->flinfo, &fcache->arg);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /*
           * set current user back both local and remote
              */
@@ -752,7 +752,7 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 
     if (fcache->proconfig)
         AtEOXact_GUC(true, save_nestlevel);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /*
       * set current user back both local and remote
          */

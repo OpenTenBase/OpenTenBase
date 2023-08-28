@@ -945,7 +945,7 @@ dependencies_clauselist_selectivity(PlannerInfo *root,
 		Node	   *clause = (Node *) lfirst(l);
 		AttrNumber	attnum;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		/* Could eliminated by the prior subset dependency */
 		if (bms_is_member(listidx, *estimatedclauses))
 		{

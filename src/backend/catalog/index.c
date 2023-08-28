@@ -209,7 +209,7 @@ index_check_primary_key(Relation heapRel,
 {
     List       *cmds;
     int            i;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     bool       is_interval_child = false;
     Relation   parentRel = NULL;
     Relation   tempRel = NULL;
@@ -241,7 +241,7 @@ index_check_primary_key(Relation heapRel,
                  errmsg("multiple primary keys for table \"%s\" are not allowed",
                         RelationGetRelationName(heapRel))));
     }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (is_interval_child)
     {
         tempRel = heapRel;
@@ -288,7 +288,7 @@ index_check_primary_key(Relation heapRel,
 
         ReleaseSysCache(atttuple);
     }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (is_interval_child)
     {
         heapRel = tempRel;
@@ -4090,7 +4090,7 @@ ResetReindexPending(void)
     pendingReindexedIndexes = NIL;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /* is this index on interval partition parent table */
 bool
 index_is_interval(Oid indexId)

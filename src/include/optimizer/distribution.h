@@ -3,7 +3,7 @@
  * distribution.h
  *	  Routines related to adjust distribution
  *
- * Copyright (c) 2020-Present TBase development team, Tencent
+ * Copyright (c) 2020-Present OpenTenBase development team, Tencent
  *
  *
  * IDENTIFICATION
@@ -18,7 +18,7 @@
 
 #include "nodes/relation.h"
 
-/* TODO(TBase): Move all plan/path distribution routines to this file */
+/* TODO(OpenTenBase): Move all plan/path distribution routines to this file */
 
 extern bool equal_distributions(PlannerInfo *root, Distribution *dst1,
 					Distribution *dst2);

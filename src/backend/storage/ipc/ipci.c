@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -129,7 +129,7 @@
 #ifdef _MIGRATE_
 #include "pgxc/shardmap.h"
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "storage/nodelock.h"
 #include "commands/vacuum.h"
 #include "libpq/auth.h"
@@ -223,11 +223,11 @@ CreateSharedMemoryAndSemaphores(bool makePrivate, int port)
         size = add_size(size, XLOGShmemSize());
         size = add_size(size, CLOGShmemSize());
         size = add_size(size, CommitTsShmemSize());
-#ifdef __TBASE__        
+#ifdef __OPENTENBASE__        
         size = add_size(size, GTSTrackSize());
         size = add_size(size, RecoveryGTMHostSize());
 #endif
-#ifdef __TBASE_DEBUG__
+#ifdef __OPENTENBASE_DEBUG__
         size = add_size(size, SnapTableShmemSize());
 #endif
         size = add_size(size, SUBTRANSShmemSize());
@@ -261,7 +261,7 @@ CreateSharedMemoryAndSemaphores(bool makePrivate, int port)
         size = add_size(size, AsyncShmemSize());
 #ifdef PGXC
         size = add_size(size, NodeTablesShmemSize());
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         size = add_size(size, NodeHashTableShmemSize());
 #endif
 #endif
@@ -295,7 +295,7 @@ CreateSharedMemoryAndSemaphores(bool makePrivate, int port)
 #ifdef _MLS_
         size = add_size(size, MlsShmemSize());
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         size = add_size(size, UserAuthShmemSize());
         size = add_size(size, NodeLockShmemSize());
         size = add_size(size, ShardStatisticShmemSize());
@@ -373,12 +373,12 @@ CreateSharedMemoryAndSemaphores(bool makePrivate, int port)
     XLOGShmemInit();
     CLOGShmemInit();
     CommitTsShmemInit();
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     GTSTrackInit();
     RecoveryGTMHostInit();
 #endif
 
-#ifdef __TBASE_DEBUG__
+#ifdef __OPENTENBASE_DEBUG__
     InitSnapBufTable();
 #endif
     SUBTRANSShmemInit();
@@ -468,7 +468,7 @@ CreateSharedMemoryAndSemaphores(bool makePrivate, int port)
     ShardBarrierShmemInit();
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     NodeLockShmemInit();
     ShardStatisticShmemInit();
     QueryAnalyzeInfoInit();

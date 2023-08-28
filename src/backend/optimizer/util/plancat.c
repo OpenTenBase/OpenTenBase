@@ -52,14 +52,14 @@
 #ifdef PGXC
 #include "pgxc/pgxc.h"
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "utils/ruleutils.h"
 #endif
 
 /* GUC parameter */
 int            constraint_exclusion = CONSTRAINT_EXCLUSION_PARTITION;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 int         ParentTablePageSampleThreshold    = 50;
 int         ParentTablePageSampleRate        = 20;
 #endif
@@ -85,7 +85,7 @@ static PartitionScheme find_partition_scheme(PlannerInfo *root, Relation rel);
 static void set_baserel_partition_key_exprs(Relation relation,
                                                                RelOptInfo *rel);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static BlockNumber GetIntervalPartitionPages(Relation rel, bool isindex, bool statistic);
 #endif
 /*
@@ -148,7 +148,7 @@ get_relation_info(PlannerInfo *root, Oid relationObjectId, bool inhparent,
     rel->attr_widths = (int32 *)
         palloc0((rel->max_attr - rel->min_attr + 1) * sizeof(int32));
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* interval partition table */
     if (RELATION_IS_INTERVAL(relation))
     {
@@ -403,26 +403,26 @@ get_relation_info(PlannerInfo *root, Oid relationObjectId, bool inhparent,
                  * We have to get relation statistics instead.
                  */
                 if (IS_PGXC_COORDINATOR && relation->rd_locator_info != NULL)
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 {
                     if (RELATION_IS_INTERVAL(relation))
                         info->pages = GetIntervalPartitionPages(indexRelation, true, true);
                     else
 #endif
                         info->pages = indexRelation->rd_rel->relpages;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 }
 #endif
                 else
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 {
                     if (RELATION_IS_INTERVAL(relation))
                         info->pages = GetIntervalPartitionPages(indexRelation, true, false);
                     else
 #endif
                         info->pages = RelationGetNumberOfBlocks(indexRelation);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 }
 #endif
 				info->tuples = rel->tuples;
@@ -655,7 +655,7 @@ infer_arbiter_indexes(PlannerInfo *root)
 
     relation = heap_open(relationObjectId, NoLock);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (root->parse->hasUnshippableTriggers)
     {
         root->parse->conflict_cols = NULL;
@@ -689,7 +689,7 @@ infer_arbiter_indexes(PlannerInfo *root)
 
         inferAttrs = bms_add_member(inferAttrs,
                                     attno - FirstLowInvalidHeapAttributeNumber);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /* when we do upsert, we need to know the conflict columns */
         if (root->parse->hasUnshippableTriggers)
         {
@@ -1003,7 +1003,7 @@ estimate_rel_size(Relation rel, int32 *attr_widths,
                  * does not know how many pages are there, we rely on relation
                  * statistics.
                  */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 /* 
                   * For interval partition does not store locally, we rely on child relation statistics.
                   */
@@ -1035,7 +1035,7 @@ estimate_rel_size(Relation rel, int32 *attr_widths,
             else
 #endif
             /* it has storage, ok to call the smgr */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             {
                 if (rel->rd_rel->relkind == RELKIND_RELATION)
                 {
@@ -1061,7 +1061,7 @@ estimate_rel_size(Relation rel, int32 *attr_widths,
                 else
 #endif
                     curpages = RelationGetNumberOfBlocks(rel);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             }
 #endif
             /*
@@ -1480,7 +1480,7 @@ get_relation_statistics(RelOptInfo *rel, Relation relation)
 			stainfos = lcons(info, stainfos);
 		}
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		if (statext_is_kind_built(htup, STATS_EXT_SUBSET))
 		{
 			StatisticExtInfo *info = makeNode(StatisticExtInfo);
@@ -2186,7 +2186,7 @@ set_baserel_partition_key_exprs(Relation relation,
 	rel->nullable_partexprs = (List **) palloc0(sizeof(List *) * partnatts);
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /* Get statistic/physical page num of interval partition table or its index */
 static BlockNumber 
 GetIntervalPartitionPages(Relation rel, bool isindex, bool statistic)

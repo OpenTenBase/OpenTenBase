@@ -1085,7 +1085,7 @@ CreateReplicationSlot(CreateReplicationSlotCmd *cmd)
                 {
                     MyReplicationSlot->relid = relid;
 
-                    if (!AmTbaseSubscriptionWalSender())
+                    if (!AmOpenTenBaseSubscriptionWalSender())
                     {
                         UpdatePubTableStatistics(MyReplicationSlot->subid, MyReplicationSlot->relid, 0, 
                                                  0, 0, 0, 0, true);
@@ -1103,7 +1103,7 @@ CreateReplicationSlot(CreateReplicationSlotCmd *cmd)
 
                 if (OidIsValid(subid) && subname)
                 {
-                    if (!AmTbaseSubscriptionWalSender())
+                    if (!AmOpenTenBaseSubscriptionWalSender())
                     {
                         UpdatePubStatistics(MyReplicationSlot->subname.data, 0, 0, 0, 0, 0, true);
                     }
@@ -1448,7 +1448,7 @@ StartLogicalReplication(StartReplicationCmd *cmd)
     /* we have done the decode, update statistic data for table */
     if (OidIsValid(MyReplicationSlot->subid) && OidIsValid(MyReplicationSlot->relid))
     {
-        if (!AmTbaseSubscriptionWalSender())
+        if (!AmOpenTenBaseSubscriptionWalSender())
         {
             UpdatePubStatistics(MyReplicationSlot->subname.data, 0, 
                 MyReplicationSlot->ntups_insert, MyReplicationSlot->ntups_delete, 
@@ -2201,7 +2201,7 @@ ProcessStandbyReplyMessage(void)
     }
 
 #ifdef __SUBSCRIPTION__
-    if (AmTbaseSubscriptionWalSender())
+    if (AmOpenTenBaseSubscriptionWalSender())
     {
         if (isAllActived)
             logicalrep_dml_set_send_all(false);

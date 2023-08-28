@@ -95,7 +95,7 @@ typedef enum GTM_MessageType
 	MSG_BACKEND_DISCONNECT,			/* tell GTM that the backend diconnected from the proxy */
 	MSG_BARRIER,				/* Tell the barrier was issued */
 	MSG_BKUP_BARRIER,			/* Backup barrier to standby */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	/* Gtm storage tags. */
 	MSG_GET_STORAGE,			/* Backup get storage file */
 	MSG_TXN_FINISH_GID,			/* Finish gid transaction in GTM */
@@ -121,7 +121,7 @@ typedef enum GTM_MessageType
     MSG_GET_REPLICATION_STATUS,
     MSG_GET_REPLICATION_TRANSFER,
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     MSG_GET_STATISTICS,
     MSG_GET_ERRORLOG,
 #endif
@@ -148,7 +148,7 @@ typedef enum GTM_ResultType
 	NODE_BEGIN_REPLICATION_INIT_RESULT,
 	NODE_END_REPLICATION_INIT_RESULT,
 	BEGIN_BACKUP_SUCCEED_RESULT,
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	BEGIN_BACKUP_FAIL_RESULT,
 #endif
 	END_BACKUP_RESULT,
@@ -157,7 +157,7 @@ typedef enum GTM_ResultType
 	TXN_BEGIN_GETGTS_RESULT,
 	TXN_BEGIN_GETGXID_MULTI_RESULT,
 	TXN_BEGIN_GETGTS_MULTI_RESULT,
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	TXN_CHECK_GTM_STATUS_RESULT,
 #endif
 	TXN_PREPARE_RESULT,
@@ -190,7 +190,7 @@ typedef enum GTM_ResultType
 	TXN_GET_ALL_PREPARED_RESULT,
 	TXN_BEGIN_GETGXID_AUTOVACUUM_RESULT,
 	BARRIER_RESULT,
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	STORAGE_TRANSFER_RESULT,
 	TXN_FINISH_GID_RESULT,
 	MSG_LIST_GTM_STORE_RESULT,
@@ -209,7 +209,7 @@ typedef enum GTM_ResultType
     MSG_REPLICATION_CONTENT,
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     MSG_GET_GTM_STATISTICS_RESULT,
     MSG_GET_GTM_ERRORLOG_RESULT,
 #endif

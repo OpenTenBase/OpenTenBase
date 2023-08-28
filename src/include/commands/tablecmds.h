@@ -25,7 +25,7 @@
 
 extern ObjectAddress DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
 			   ObjectAddress *typaddress, const char *queryString);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern ObjectAddresses* PreCheckforRemoveRelation(DropStmt* drop,
 													char* queryString,
 													bool *needDrop,
@@ -118,7 +118,7 @@ extern bool oidarray_contian_oid(Oid *old_oids, int old_num, Oid new_oid);
 extern Oid *add_node_list(Oid *old_oids, int old_num, Oid *add_oids, int add_num, int *new_num);
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern void StoreIntervalPartitionInfo(Oid relationId, char partkind, Oid parentId, bool isindex);
 #endif
 

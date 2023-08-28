@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -4201,7 +4201,7 @@ cancel_errReturn:
     return FALSE;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static int
 internal_end_query(SockAddr *raddr, int be_pid, int be_key,
                 char *errbuf, int errbufsize)
@@ -4300,7 +4300,7 @@ cancel_errReturn:
 #endif
 
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 int
 PQend_query(PGcancel *cancel, char *errbuf, int errbufsize)
 {

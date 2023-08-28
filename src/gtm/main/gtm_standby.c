@@ -26,7 +26,7 @@
 #include "gtm/gtm_serialize.h"
 #include "gtm/gtm_utils.h"
 #include "gtm/register.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "gtm/gtm_store.h"
 #endif
 
@@ -101,7 +101,7 @@ int
 gtm_standby_restore_next_gxid(void)
 {
 	GlobalTransactionId next_gxid = InvalidGlobalTransactionId;
-#ifdef __TBASE__	
+#ifdef __OPENTENBASE__	
 	next_gxid = get_next_gxid(GTM_ActiveConn);
 	GTM_RestoreStoreInfo(next_gxid, true);
 #else
@@ -115,7 +115,7 @@ gtm_standby_restore_next_gxid(void)
 int
 gtm_standby_restore_sequence(void)
 {
-#ifndef __TBASE__
+#ifndef __OPENTENBASE__
 	GTM_SeqInfo *seq_list;
 	int num_seq;
 	int i;
@@ -146,7 +146,7 @@ gtm_standby_restore_sequence(void)
 int
 gtm_standby_restore_gxid(void)
 {
-#ifndef __TBASE__
+#ifndef __OPENTENBASE__
 	int num_txn;
 	GTM_Transactions txn;
 	int i;
@@ -657,7 +657,7 @@ gtm_standby_finishActiveConn(void)
 	/* Disconnect form Active */
 	GTMPQfinish(GTM_ActiveConn);
 	
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	GTM_ActiveConn = NULL;
 #endif
 
@@ -686,7 +686,7 @@ gtm_standby_connectToActiveGTM(int timeout)
 
 	return PQconnectGTM(connect_string);
 }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /*
  * Init standby storage.
  */

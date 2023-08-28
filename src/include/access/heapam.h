@@ -147,7 +147,7 @@ extern void heap_get_latest_tid(Relation relation, Snapshot snapshot,
 extern void setLastTid(const ItemPointer tid);
 
 extern BulkInsertState GetBulkInsertState(void);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern BulkInsertState GetBulkInsertState_part(int npart);
 #endif
 extern void FreeBulkInsertState(BulkInsertState);

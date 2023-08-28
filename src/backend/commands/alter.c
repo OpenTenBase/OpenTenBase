@@ -636,7 +636,7 @@ AlterObjectNamespace_oid(Oid classId, Oid objid, Oid nspOid,
         case OCLASS_PGXC_NODE:
         case OCLASS_PGXC_GROUP:
         case OCLASS_PGXC_CLASS:
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         case OCLASS_PG_PARTITION_INTERVAL:
 #endif
 #ifdef __AUDIT__

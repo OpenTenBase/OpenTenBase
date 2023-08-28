@@ -878,7 +878,7 @@ ExecInitBitmapHeapScan(BitmapHeapScan *node, EState *estate, int eflags)
     /*
      * open the base relation and acquire appropriate lock on it.
      */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if(node->scan.ispartchild)
     {
         currentRelation = ExecOpenScanRelationPartition(estate,
@@ -890,7 +890,7 @@ ExecInitBitmapHeapScan(BitmapHeapScan *node, EState *estate, int eflags)
     {
 #endif
     currentRelation = ExecOpenScanRelation(estate, node->scan.scanrelid, eflags);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     }
 #endif
 

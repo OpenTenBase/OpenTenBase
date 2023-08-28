@@ -79,7 +79,7 @@
 #endif
 #include "pgxc/pgxc.h"
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "storage/nodelock.h"
 #include "libpq/pqsignal.h"
 #include "commands/vacuum.h"
@@ -230,7 +230,7 @@ CreateCachedPlan(RawStmt *raw_parse_tree,
     plansource->generic_cost = -1;
     plansource->total_custom_cost = 0;
     plansource->num_custom_plans = 0;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     plansource->insert_into = false;
 #endif
 
@@ -824,7 +824,7 @@ RevalidateCachedQuery(CachedPlanSource *plansource,
     plansource->query_context = querytree_context;
     plansource->query_list = qlist;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     plansource->insert_into = false;
     if (IS_PGXC_COORDINATOR && g_transform_insert_to_copy && rawtree && IsA(rawtree->stmt, InsertStmt))
     {
@@ -1073,7 +1073,7 @@ BuildCachedPlan(CachedPlanSource *plansource, List *qlist,
     plan = (CachedPlan *) palloc(sizeof(CachedPlan));
     plan->magic = CACHEDPLAN_MAGIC;
     plan->stmt_list = plist;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     plan->stmt_list_backup = NULL;
 #endif
 
@@ -1132,7 +1132,7 @@ choose_custom_plan(CachedPlanSource *plansource, ParamListInfo boundParams)
     if (plansource->is_oneshot)
         return true;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* has unshipptable triggers, always choose custom plan */
     if (plansource->gplan && plansource->gplan->stmt_list)
     {
@@ -1533,7 +1533,7 @@ CopyCachedPlan(CachedPlanSource *plansource)
     newsource->generic_cost = plansource->generic_cost;
     newsource->total_custom_cost = plansource->total_custom_cost;
     newsource->num_custom_plans = plansource->num_custom_plans;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     newsource->insert_into = plansource->insert_into;
 #endif
 
@@ -1885,7 +1885,7 @@ PlanCacheRelCallback(Datum arg, Oid relid)
         {
             ListCell   *lc;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             if (plansource->gplan->stmt_list_backup)
             {
                 foreach(lc, plansource->gplan->stmt_list_backup)
@@ -1920,7 +1920,7 @@ PlanCacheRelCallback(Datum arg, Oid relid)
                     break;        /* out of stmt_list scan */
                 }
             }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             }
 #endif
         }
@@ -2153,7 +2153,7 @@ SetRemoteSubplan(CachedPlanSource *plansource, const char *plan_string)
     stmt->distributionKey = rstmt->distributionKey;
     stmt->distributionNodes = rstmt->distributionNodes;
     stmt->distributionRestrict = rstmt->distributionRestrict;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     stmt->parallelModeNeeded = rstmt->parallelModeNeeded;
 
     stmt->haspart_tobe_modify = rstmt->haspart_tobe_modify;
@@ -2168,7 +2168,7 @@ SetRemoteSubplan(CachedPlanSource *plansource, const char *plan_string)
     stmt->parseTree = rstmt->parseTree;
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* register sigusr2 handler for remotesubplan */
     pqsignal(SIGUSR2, RemoteSubplanSigusr2Handler);
 #endif
@@ -2179,7 +2179,7 @@ SetRemoteSubplan(CachedPlanSource *plansource, const char *plan_string)
      */
     if (IsConnFromDatanode() && stmt->pname &&
             list_length(stmt->distributionRestrict) > 1)
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     {
         bool with_params = false;
         int numParallelWorkers = 0;
@@ -2238,7 +2238,7 @@ SetRemoteSubplan(CachedPlanSource *plansource, const char *plan_string)
     }
     plan->is_valid = true;
     plan->is_oneshot = false;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     plan->stmt_list_backup = NULL;
 #endif
 

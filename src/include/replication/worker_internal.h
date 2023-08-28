@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -153,9 +153,9 @@ am_tablesync_worker(void)
 }
 
 #ifdef __SUBSCRIPTION__
-extern bool am_tbase_subscript_dispatch_worker(void);
-extern bool IsColdMoveTBaseSubscription(void);
-extern bool IsClusterSyncTBaseSubscription(void);
+extern bool am_opentenbase_subscript_dispatch_worker(void);
+extern bool IsColdMoveOpenTenBaseSubscription(void);
+extern bool IsClusterSyncOpenTenBaseSubscription(void);
 extern void logical_apply_dispatch(StringInfo s);
 #endif
 

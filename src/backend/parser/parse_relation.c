@@ -41,7 +41,7 @@
 #include "miscadmin.h"
 #endif
 #include "utils/varlena.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "utils/ruleutils.h"
 #include "parser/parse_expr.h"
 #include "optimizer/clauses.h"
@@ -71,7 +71,7 @@ static int    specialAttNum(const char *attname);
 #endif
 static bool isQueryUsingTempRelation_walker(Node *node, void *context);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 typedef struct
 {
 	List *related_oids;		/* the related tableoid list */
@@ -1252,7 +1252,7 @@ addRangeTableEntry(ParseState *pstate,
     rte->rtekind = RTE_RELATION;
     rte->alias = alias;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* get interval partition info */
     if(relation->intervalparent && relation->partitionvalue->isdefault)
     {
@@ -2801,7 +2801,7 @@ get_rte_attribute_type(RangeTblEntry *rte, AttrNumber attnum,
                 /* Plain relation RTE --- get the attribute's type info */
                 HeapTuple    tp;
                 Form_pg_attribute att_tup;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 Oid childOid = InvalidOid;
 
                 if (rte->relkind == RELKIND_RELATION)
@@ -2846,7 +2846,7 @@ get_rte_attribute_type(RangeTblEntry *rte, AttrNumber attnum,
                 *vartypmod = att_tup->atttypmod;
                 *varcollid = att_tup->attcollation;
                 ReleaseSysCache(tp);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 if (rte->relkind == RELKIND_RELATION)
                 {
                     if (OidIsValid(childOid))
@@ -3431,7 +3431,7 @@ errorMissingColumn(ParseState *pstate,
     }
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 bool
 CheckAndGetRelation(Query *query, List **relation_list)
 {
@@ -3475,7 +3475,7 @@ isQueryUsingTempRelation_walker(Node *node, void *context)
                 Relation    rel = heap_open(rte->relid, AccessShareLock);
                 char        relpersistence = rel->rd_rel->relpersistence;
                 heap_close(rel, AccessShareLock);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 				if (context)
 				{
 					ViewRelatedContext *vrContext = (ViewRelatedContext *)context;

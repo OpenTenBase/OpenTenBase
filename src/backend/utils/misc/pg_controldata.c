@@ -135,7 +135,7 @@ pg_control_checkpoint(PG_FUNCTION_ARGS)
     TupleDescInitEntry(tupdesc, (AttrNumber) 21, "latest_gts",
                        TIMESTAMPTZOID, -1, 0);
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     TupleDescInitEntry(tupdesc, (AttrNumber) 22, "need_mvcc_if_page_is_visible",
                        INT4OID, -1, 0);
 #endif
@@ -222,7 +222,7 @@ pg_control_checkpoint(PG_FUNCTION_ARGS)
     values[20] = TimestampTzGetDatum(ControlFile->checkPointCopy.latestGTS);
     nulls[20] = false;
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     values[21] = Int32GetDatum(ControlFile->need_mvcc);
     nulls[21] = false;
 #endif

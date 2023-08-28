@@ -320,7 +320,7 @@ DECLARE_UNIQUE_INDEX(pgxc_node_id_index, 9003, on pgxc_node using btree(node_id 
 
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 DECLARE_INDEX(pg_partition_interval_index, 8101, on pg_partition_interval using btree(partrelid oid_ops));
 #define PgPartitionIntervalRelIndexId     8101
 #endif

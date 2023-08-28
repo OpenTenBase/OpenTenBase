@@ -20,12 +20,12 @@
 #include "gtm/libpq-be.h"
 
 /* Global sequence  related structures */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #define  SEQ_RESERVE_COUNT     5000
 #define  SEQ_RESERVE_MIN_GAP   10
 #endif
 /* constant postfix for sequence to avoid same name */
-#define GTM_SEQ_POSTFIX "_$TBASE$_sequence_temp_54312678712612"
+#define GTM_SEQ_POSTFIX "_$OPENTENBASE$_sequence_temp_54312678712612"
 #define SEQ_KEY_LEN 256
 
 typedef struct GTM_SeqLastVal
@@ -55,7 +55,7 @@ typedef struct GTM_SeqInfo
 	int32			gs_ref_count;
 	int32			gs_state;
 	GTM_RWLock		gs_lock;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	bool			 gs_reserved;	 /* whether we have reserve value*/
 	GTMStorageHandle gs_store_handle;
 	int32            gs_left_reserve_seq_number;
@@ -143,7 +143,7 @@ void GTM_SeqRemoveDropped(void *seqinfo);
 void GTM_SeqRestoreAltered(void *ptr);
 void GTM_SeqRemoveAltered(void *seqinfo);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern void  GTM_SeqInvalidateHandle(GTM_SequenceKey seqkey);
 extern void  GTM_SeqInvalidateAlteredSeq(void *ptr);
 #endif

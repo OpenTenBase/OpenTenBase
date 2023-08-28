@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -219,7 +219,7 @@ extern MemoryContext SlabContextCreate(MemoryContext parent,
                   Size blockSize,
                   Size chunkSize);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern int32 get_total_memory_size(void);
 extern void AllocSetStats_Output(MemoryContext context, long *total_space, long *free_space);
 #endif

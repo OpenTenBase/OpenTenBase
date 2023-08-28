@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -134,7 +134,7 @@ typedef enum
     EXEC_DIRECT_DELETE
 } ExecDirectType;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 typedef enum UPSERT_ACTION
 {
     UPSERT_NONE,
@@ -200,7 +200,7 @@ typedef struct
     List            *coord_var_tlist;
     List            *query_var_tlist;
     bool            is_temp;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /*
       * This part is used for 'insert...on onconflict do update' while the target
       * relation has unshippable triggers, we have to do the UPSERT on coordinator with
@@ -248,7 +248,7 @@ typedef struct
     SimpleSort *sort;
     char       *cursor;
     int64       unique;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /*
       * if gather is under remotesubplan, parallel worker can send tuples 
       * directly without gather node?
@@ -296,7 +296,7 @@ extern PlannedStmt *pgxc_planner(Query *query, int cursorOptions,
                                          ParamListInfo boundParams);
 extern ExecNodes *pgxc_is_query_shippable(Query *query, int query_level);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern RangeTblEntry *make_dummy_remote_rte(char *relname, Alias *alias);
 extern void pgxc_add_returning_list(RemoteQuery *rq, List *ret_list, int rel_index);
 

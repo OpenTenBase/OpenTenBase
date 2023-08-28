@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -101,7 +101,7 @@ typedef struct Distribution
 } Distribution;
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /*
  * The location of DML result relation in JOINREL
  */
@@ -153,7 +153,7 @@ typedef struct AggClauseCosts
     QualCost    transCost;        /* total per-input-row execution costs */
     Cost        finalCost;        /* total per-aggregated-row costs */
     Size        transitionSpace;    /* space for pass-by-ref transition data */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     bool        hasOnlyDistinct;
     bool        hasOrder;
 #endif
@@ -429,7 +429,7 @@ typedef struct PlannerInfo
      */
     Distribution *distribution; /* Query result distribution */
     bool        recursiveOk;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     bool        haspart_tobe_modify;
     Index        partrelindex;
     Bitmapset    *partpruning;
@@ -789,7 +789,7 @@ typedef struct RelOptInfo
         List      **partexprs;      /* Non-nullable partition key expressions. */
         List      **nullable_partexprs; /* Nullable partition key expressions. */
         List       *partitioned_child_rels; /* List of RT indexes. */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	/* used for interval partition */
 	bool		intervalparent;     /* is interval partition */
 	bool		isdefault;			/* is default partition table */
@@ -1717,7 +1717,7 @@ typedef struct AggPath
     double        numGroups;        /* estimated number of groups in input */
     List       *groupClause;    /* a list of SortGroupClause's */
     List       *qual;            /* quals (HAVING quals), if any */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	uint32      entrySize;
 	bool        hybrid;
 	bool        noDistinct;     /* no need of distinct related initialization */
@@ -1744,7 +1744,7 @@ typedef struct RollupData
     double        numGroups;        /* est. number of result groups */
     bool        hashable;        /* can be hashed */
     bool        is_hashed;        /* to be implemented as a hashagg */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	uint32      entrySize;
 #endif
 } RollupData;
@@ -1861,7 +1861,7 @@ typedef struct LimitPath
     Path       *subpath;        /* path representing input source */
     Node       *limitOffset;    /* OFFSET parameter, or NULL if none */
     Node       *limitCount;        /* COUNT parameter, or NULL if none */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	bool		skipEarlyFinish;	/* Early ExecFinishNode ? */
 #endif
 } LimitPath;

@@ -2893,7 +2893,7 @@ HeapTupleIsSurelyDead(HeapTuple htup, TransactionId OldestXmin)
 #ifdef __SUPPORT_DISTRIBUTED_TRANSACTION__
 
 
-#ifdef __TBASE_DEBUG__
+#ifdef __OPENTENBASE_DEBUG__
 
 static HTAB *SharedSnapHash;
 
@@ -3258,7 +3258,7 @@ static bool SnapshotCheck(TransactionId xid, Snapshot snapshot, int target_res, 
 
 #endif /* __SNAPSHOT_CHECK__ */
 
-#endif /* __TBASE_DEBUG__ */
+#endif /* __OPENTENBASE_DEBUG__ */
 
 
 static bool

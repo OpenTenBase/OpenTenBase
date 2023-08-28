@@ -122,7 +122,7 @@ pgxc_pool_reload(PG_FUNCTION_ARGS)
     /* Reinitialize session, it updates the shared memory table */
     InitMultinodeExecutor(true);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* Take a lock on pooler to forbid any action during reload */
     PoolManagerLock(true);
 #endif
@@ -134,7 +134,7 @@ pgxc_pool_reload(PG_FUNCTION_ARGS)
         PoolManagerReloadConnectionInfo();
     }while (!PoolManagerCheckConnectionInfo());
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     PoolManagerLock(false);
 #endif
 

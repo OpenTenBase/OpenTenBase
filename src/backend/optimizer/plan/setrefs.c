@@ -916,7 +916,7 @@ set_plan_refs(PlannerInfo *root, Plan *plan, int rtoffset)
                                               (Plan *) lfirst(l),
                                               rtoffset);
                 }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 foreach(l, splan->partplans)
                 {
                     lfirst(l) = set_plan_refs(root,
@@ -1742,7 +1742,7 @@ set_join_references(PlannerInfo *root, Join *join, int rtoffset)
 		case JOIN_LEFT:
 		case JOIN_SEMI:
 		case JOIN_ANTI:
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         case JOIN_LEFT_SCALAR:
         case JOIN_LEFT_SEMI:
 #endif

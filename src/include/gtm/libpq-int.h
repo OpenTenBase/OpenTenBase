@@ -132,7 +132,7 @@ void gtmpqFreeResultData(GTM_Result *result, GTM_PGXCNodeType remote_type);
 
 #define SOCK_ERRNO errno
 #define SOCK_ERRNO_SET(e) (errno = (e))
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern int gtmpqGetInt64(int64 *result, GTM_Conn *conn);
 extern int gtmpqPutInt64(int64 value, GTM_Conn *conn);
 extern bool gtmpqHasDataLeft(GTM_Conn *conn);

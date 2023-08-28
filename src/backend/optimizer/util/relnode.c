@@ -32,7 +32,7 @@
 #ifdef PGXC
 #include "pgxc/pgxc.h"
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "access/heapam.h"
 #include "access/sysattr.h"
 #include "optimizer/distribution.h"
@@ -168,7 +168,7 @@ build_simple_rel(PlannerInfo *root, int relid, RelOptInfo *parent)
 	rel->partexprs = NULL;
         rel->nullable_partexprs = NULL;
     rel->partitioned_child_rels = NIL;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	rel->intervalparent = false;
 	rel->isdefault      = rte->isdefault;
 	rel->estimate_partidx = -1;
@@ -224,7 +224,7 @@ build_simple_rel(PlannerInfo *root, int relid, RelOptInfo *parent)
                  (int) rte->rtekind);
             break;
     }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (rte->rtekind == RTE_RELATION)
     {
         Relation childRel = heap_open(rte->relid, NoLock);
@@ -629,7 +629,7 @@ build_join_rel(PlannerInfo *root,
 	joinrel->partexprs = NULL;
     joinrel->nullable_partexprs = NULL;
     joinrel->partitioned_child_rels = NIL;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	joinrel->resultRelLoc = RESULT_REL_NONE;
 #endif
 

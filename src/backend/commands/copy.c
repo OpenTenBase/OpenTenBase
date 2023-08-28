@@ -68,7 +68,7 @@
 #include "utils/rel.h"
 #include "utils/rls.h"
 #include "utils/snapmgr.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "utils/rel.h"
 #include "utils/ruleutils.h"
 #endif
@@ -156,7 +156,7 @@ typedef struct CopyStateData
     bool        oids;            /* include OIDs? */
     bool        freeze;            /* freeze rows on loading? */
     bool        csv_mode;        /* Comma Separated Value format? */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     bool        internal_mode;  /* internal format? */
 #endif
     bool        header_line;    /* CSV header line? */
@@ -258,7 +258,7 @@ typedef struct CopyStateData
 #ifdef _SHARDING_
     Bitmapset * shard_array;
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     Relation    *partrels;
     int            nparts;
     bool        insert_into;
@@ -377,7 +377,7 @@ static void CopyFromInsertBatch(CopyState cstate, EState *estate,
                     int firstBufferedLineNo);
 static bool CopyReadLine(CopyState cstate);
 static bool CopyReadLineText(CopyState cstate);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static int CopyReadAttributesInternal(CopyState cstate);
 #endif
 static int    CopyReadAttributesText(CopyState cstate);
@@ -636,7 +636,7 @@ static int
 CopyGetData(CopyState cstate, void *databuf, int minread, int maxread)
 {// #lizard forgives
     int            bytesread = 0;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     cstate->whole_line = false;
 #endif
 
@@ -733,7 +733,7 @@ CopyGetData(CopyState cstate, void *databuf, int minread, int maxread)
                     }
                 }
                 avail = cstate->fe_msgbuf->len - cstate->fe_msgbuf->cursor;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 if (avail > maxread)
                 {
                     cstate->whole_line = false;
@@ -906,7 +906,7 @@ DoCopy(ParseState *pstate, const CopyStmt *stmt,
                      errhint("Anyone can COPY to stdout or from stdin. "
                              "psql's \\copy command also works for anyone.")));
         else
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         {
             /* 
              * if transformed from insert into multi-values, 
@@ -920,13 +920,13 @@ DoCopy(ParseState *pstate, const CopyStmt *stmt,
                      errmsg("must be superuser to COPY to or from a file"),
                      errhint("Anyone can COPY to stdout or from stdin. "
                              "psql's \\copy command also works for anyone.")));
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             }
         }
 #endif
     }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     pstate->stmt = stmt;
 #endif
 
@@ -1155,7 +1155,7 @@ DoCopy(ParseState *pstate, const CopyStmt *stmt,
 #endif
 
 #ifdef __STORAGE_SCALABLE__
-        if (am_walsender && !AmTbaseSubscriptionWalSender())
+        if (am_walsender && !AmOpenTenBaseSubscriptionWalSender())
         {
             Assert(MyReplicationSlot);
             if (MyReplicationSlot)
@@ -1237,7 +1237,7 @@ ProcessCopyOptions(ParseState *pstate,
                 cstate->csv_mode = true;
             else if (strcmp(fmt, "binary") == 0)
                 cstate->binary = true;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             else if (strcmp(fmt, "internal") == 0)
             {
                 cstate->internal_mode = true;
@@ -1660,7 +1660,7 @@ BeginCopy(ParseState *pstate,
             RemoteCopy_GetRelationLoc(remoteCopyState,
                                       cstate->rel,
                                       attnums);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             if (pstate && pstate->stmt && pstate->stmt->insert_into)
             {
                 cstate->insert_into = true;
@@ -2031,7 +2031,7 @@ EndCopy(CopyState cstate)
     }
     else
     {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (cstate->filename != NULL && cstate->copy_file && FreeFile(cstate->copy_file))
 #else
         if (cstate->filename != NULL && FreeFile(cstate->copy_file))
@@ -2371,7 +2371,7 @@ CopyTo(CopyState cstate)
         bool       *nulls;
         HeapScanDesc scandesc;
         HeapTuple    tuple;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         int         i = 0;
         int32       nchildren = 0;
         Bitmapset   *children = NULL;
@@ -2406,7 +2406,7 @@ CopyTo(CopyState cstate)
             cls_attnum = cstate->rel->rd_cls_struct->attnum;
         }
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         //partitioned table
         cstate->nparts = 0;
         cstate->partrels = NULL;
@@ -2455,7 +2455,7 @@ CopyTo(CopyState cstate)
         values = (Datum *) palloc(num_phys_attrs * sizeof(Datum));
         nulls = (bool *) palloc(num_phys_attrs * sizeof(bool));
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if(cstate->nparts > 0)
         {
             int shardid;
@@ -2685,7 +2685,7 @@ CopyTo(CopyState cstate)
         }
 
         heap_endscan(scandesc);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         }
 #endif
 
@@ -2959,7 +2959,7 @@ CopyFrom(CopyState cstate)
     HeapTuple  *bufferedTuples = NULL;    /* initialize to silence warning */
     Size        bufferedTuplesSize = 0;
     int            firstBufferedLineNo = 0;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     BulkInsertState *part_bistates = NULL;
     HeapTuple    **part_bufferedTuples = NULL;
     int         *part_nBufferedTuples = NULL;
@@ -3130,7 +3130,7 @@ CopyFrom(CopyState cstate)
      * here that basically duplicated execUtils.c ...)
      */
     resultRelInfo = makeNode(ResultRelInfo);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if(IS_PGXC_DATANODE && RELATION_IS_INTERVAL(cstate->rel))
     {
         resultRelInfo->ispartparent = true;
@@ -3183,7 +3183,7 @@ CopyFrom(CopyState cstate)
     else
     {
         useHeapMultiInsert = true;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if(IS_PGXC_DATANODE && RELATION_IS_INTERVAL(cstate->rel))
         {
             int i;
@@ -3216,7 +3216,7 @@ CopyFrom(CopyState cstate)
     values = (Datum *) palloc(tupDesc->natts * sizeof(Datum));
     nulls = (bool *) palloc(tupDesc->natts * sizeof(bool));
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if(IS_PGXC_DATANODE && RELATION_IS_INTERVAL(cstate->rel))
     {
         int i = 0;
@@ -3233,7 +3233,7 @@ CopyFrom(CopyState cstate)
 #endif
 
     bistate = GetBulkInsertState();
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     }
 #endif
     econtext = GetPerTupleExprContext(estate);
@@ -3251,7 +3251,7 @@ CopyFrom(CopyState cstate)
         Oid            loaded_oid = InvalidOid;
 
         CHECK_FOR_INTERRUPTS();
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if(IS_PGXC_DATANODE && RELATION_IS_INTERVAL(cstate->rel) && useHeapMultiInsert)
         {
             if(need_to_reset)
@@ -3273,14 +3273,14 @@ CopyFrom(CopyState cstate)
              */
             ResetPerTupleExprContext(estate);
         }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         }
 #endif
 
         /* Switch into its memory context */
         MemoryContextSwitchTo(GetPerTupleMemoryContext(estate));
    
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /* skip error line when copy from */
 
         if (g_enable_copy_silence)
@@ -3295,7 +3295,7 @@ readnextline:
             }
             PG_CATCH();
             {    
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 /* 
                  * errors occured in copy from transformed from insert into multi-values,
                  * should throw the errors
@@ -3315,7 +3315,7 @@ readnextline:
                  * omit errors from input files, PG_exception_stack has been reset.
                  */
                 goto readnextline;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 }
 #endif
             }
@@ -3334,7 +3334,7 @@ readnextline:
 #endif                    
             if (!NextCopyFrom(cstate, econtext, values, nulls, &loaded_oid))
                 break;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         }
 #endif
 
@@ -3377,7 +3377,7 @@ readnextline:
                                GET_NODES(rcstate->locator, value, isnull, NULL),
 #endif
                                (PGXCNodeHandle**) getLocatorResults(rcstate->locator),
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                                (cstate->binary || cstate->insert_into)))
 #else
                                   cstate->binary))
@@ -3594,7 +3594,7 @@ readnextline:
                     CheckMlsTableUserAcl(resultRelInfo,slot->tts_tuple);
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 if(IS_PGXC_DATANODE && RELATION_IS_INTERVAL(cstate->rel))
                 {
                     /* router for tuple */
@@ -3617,7 +3617,7 @@ readnextline:
                     if (nBufferedTuples == 0)
                         firstBufferedLineNo = cstate->cur_lineno;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                     if(IS_PGXC_DATANODE && RELATION_IS_INTERVAL(cstate->rel) && partidx >= 0)
                     {
                         part_bufferedTuples[partidx][part_nBufferedTuples[partidx]++] = tuple;
@@ -3628,7 +3628,7 @@ readnextline:
 #endif
                         bufferedTuples[nBufferedTuples++] = tuple;
                         bufferedTuplesSize += tuple->t_len;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                     }
 #endif
 
@@ -3638,7 +3638,7 @@ readnextline:
                      * large, to avoid using large amounts of memory for the
                      * buffer when the tuples are exceptionally wide.
                      */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                     if(IS_PGXC_DATANODE && RELATION_IS_INTERVAL(cstate->rel))
                     {
                         if(part_nBufferedTuples[partidx] == MAX_BUFFERED_TUPLES ||
@@ -3732,7 +3732,7 @@ readnextline:
                         nBufferedTuples = 0;
                         bufferedTuplesSize = 0;
                     }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                     }
 #endif
 
@@ -3741,7 +3741,7 @@ readnextline:
                 {
                     List       *recheckIndexes = NIL;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                     if(IS_PGXC_DATANODE && RELATION_IS_INTERVAL(cstate->rel) && partidx >= 0)
                     {
                         partRel = resultRelInfo->part_relinfo[partidx];         
@@ -3775,7 +3775,7 @@ readnextline:
                                                                false,
                                                                NULL,
                                                                NIL);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                     }
 #endif
                     /* AFTER ROW INSERT Triggers */
@@ -3805,7 +3805,7 @@ readnextline:
 #endif
     }
     /* Flush any remaining buffered tuples */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if(IS_PGXC_DATANODE && npart > 0)
     {
         int partcur = 0;
@@ -3923,7 +3923,7 @@ readnextline:
     /* Done, clean up */
     error_context_stack = errcallback.previous;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if(IS_PGXC_DATANODE && RelationGetNParts(cstate->rel)> 0)
     {
         int i = 0;
@@ -3933,7 +3933,7 @@ readnextline:
 #endif
 
     FreeBulkInsertState(bistate);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if(IS_PGXC_DATANODE && npart > 0)
     {
         if(part_nBufferedTuples)
@@ -3974,7 +3974,7 @@ readnextline:
 
     ExecResetTupleTable(estate->es_tupleTable, false);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if(resultRelInfo->ispartparent)
     {
         int j=0;
@@ -4135,7 +4135,7 @@ BeginCopyFrom(ParseState *pstate,
     cstate->cur_lineno = 0;
     cstate->cur_attname = NULL;
     cstate->cur_attval = NULL;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     cstate->data_list = NULL;
     cstate->data_index = 0;
     cstate->data_ncolumns = 0;
@@ -4218,7 +4218,7 @@ BeginCopyFrom(ParseState *pstate,
                     Expr *planned_defexpr = expression_planner((Expr *) defexpr);
                     defexpr = expression_planner(defexpr);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                     /* treat distributed column as defaults too */
                     if (!pgxc_is_expr_shippable(planned_defexpr, NULL) ||
                         IsDistributedColumn(attnum, rel->rd_locator_info))
@@ -4316,7 +4316,7 @@ BeginCopyFrom(ParseState *pstate,
         }
         else
         {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             if (pstate && pstate->stmt && pstate->stmt->insert_into)
             {
                 /* insert_into to copy_from */
@@ -4351,7 +4351,7 @@ BeginCopyFrom(ParseState *pstate,
                 ereport(ERROR,
                         (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                          errmsg("\"%s\" is a directory", cstate->filename)));
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             }
 #endif
         }
@@ -4497,7 +4497,7 @@ NextCopyFromRawFields(CopyState cstate, char ***fields, int *nfields)
     /* Parse the line into de-escaped field values */
     if (cstate->csv_mode)
         fldct = CopyReadAttributesCSV(cstate);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     else if (cstate->internal_mode)
     {
         fldct = CopyReadAttributesInternal(cstate);
@@ -4558,7 +4558,7 @@ NextCopyFrom(CopyState cstate, ExprContext *econtext,
         int            fieldno;
         char       *string;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (cstate->insert_into && cstate->data_list)
         {
             resetStringInfo(&cstate->line_buf);
@@ -4921,7 +4921,7 @@ append_defvals(Datum *values, CopyState cstate)
                                     false /* there's at least one user-supplied attribute */ );
             else
                 CopyAttributeOutText(&new_cstate, string);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             if (cstate->insert_into && cstate->data_list)
             {
                 int len = strlen(string) + 1;
@@ -4934,7 +4934,7 @@ append_defvals(Datum *values, CopyState cstate)
         }
     }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (cstate->insert_into && cstate->data_list)
     {
         /* do nothing, default values have been appended before */
@@ -4945,7 +4945,7 @@ append_defvals(Datum *values, CopyState cstate)
     /* Append the generated default values to the user-supplied data-row */
     appendBinaryStringInfo(&cstate->line_buf, new_cstate.fe_msgbuf->data,
                                               new_cstate.fe_msgbuf->len);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     }
 #endif
 }
@@ -5164,7 +5164,7 @@ CopyReadLineText(CopyState cstate)
                 break;
             }
             need_data = false;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             if (cstate->internal_mode)
             {
                 if (!cstate->whole_line)
@@ -5453,7 +5453,7 @@ GetDecimalFromHex(char hex)
         return tolower((unsigned char) hex) - 'a' + 10;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static int
 CopyReadAttributesInternal(CopyState cstate)
 {
@@ -6417,7 +6417,7 @@ GetRemoteCopyOptions(CopyState cstate)
         res->rco_force_quote = list_copy(cstate->force_quote);
     if (cstate->force_notnull)
         res->rco_force_notnull = list_copy(cstate->force_notnull);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     res->rco_insert_into = cstate->insert_into;
 #endif
 

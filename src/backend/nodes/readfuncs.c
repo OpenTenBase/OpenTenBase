@@ -56,7 +56,7 @@
 #include "audit/audit.h"
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "catalog/pg_constraint_fn.h"
 #include "commands/defrem.h"
 #include "catalog/pg_am.h"
@@ -806,7 +806,7 @@ _readRangeVar(void)
     READ_CHAR_FIELD(relpersistence);
     READ_NODE_FIELD(alias);
     READ_LOCATION_FIELD(location);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     READ_BOOL_FIELD(intervalparent);
     READ_NODE_FIELD(partitionvalue);
 #endif
@@ -1563,7 +1563,7 @@ _readCollateExpr(void)
     READ_LOCALS(CollateExpr);
 
     READ_NODE_FIELD(arg);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (portable_input)
     {
         READ_COLLID_FIELD(collOid);
@@ -1977,7 +1977,7 @@ _readInferenceElem(void)
     READ_LOCALS(InferenceElem);
 
     READ_NODE_FIELD(expr);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (portable_input)
     {
         READ_COLLID_FIELD(infercollid);
@@ -1988,7 +1988,7 @@ _readInferenceElem(void)
 #endif
     READ_OID_FIELD(infercollid);
     READ_OID_FIELD(inferopclass);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     }
 #endif
     READ_DONE();
@@ -2076,7 +2076,7 @@ _readOnConflictExpr(void)
     READ_ENUM_FIELD(action, OnConflictAction);
     READ_NODE_FIELD(arbiterElems);
     READ_NODE_FIELD(arbiterWhere);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (portable_input)
     {
         READ_CONSTRAINT_FIELD(constraint);
@@ -2186,7 +2186,7 @@ _readRangeTblEntry(void)
         case RTE_NAMEDTUPLESTORE:
             READ_STRING_FIELD(enrname);
             READ_FLOAT_FIELD(enrtuples);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             if (portable_input)
             {
                 READ_RELID_FIELD(relid);
@@ -2229,7 +2229,7 @@ _readRangeTblEntry(void)
     READ_BITMAPSET_FIELD(updatedCols);
     READ_NODE_FIELD(securityQuals);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     READ_BOOL_FIELD(intervalparent);
     READ_BOOL_FIELD(isdefault);
     READ_NODE_FIELD(partvalue);
@@ -2308,7 +2308,7 @@ ReadCommonPlan(Plan *local_node)
     READ_NODE_FIELD(initPlan);
     READ_BITMAPSET_FIELD(extParam);
     READ_BITMAPSET_FIELD(allParam);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     READ_BOOL_FIELD(isempty);
 #endif
 #ifdef __AUDIT_FGA__
@@ -2377,7 +2377,7 @@ _readPlannedStmt(void)
     READ_NODE_FIELD(utilityStmt);
     READ_LOCATION_FIELD(stmt_location);
     READ_LOCATION_FIELD(stmt_len);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     READ_BOOL_FIELD(haspart_tobe_modify);
     READ_UINT_FIELD(partrelindex);
     READ_BITMAPSET_FIELD(partpruning);
@@ -2453,7 +2453,7 @@ _readModifyTable(void)
     READ_NODE_FIELD(onConflictWhere);
     READ_UINT_FIELD(exclRelRTI);
     READ_NODE_FIELD(exclRelTlist);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     READ_BOOL_FIELD(haspartparent);
     READ_UINT_FIELD(partrelidx);
     READ_INT_FIELD(parentplanidx);
@@ -2475,7 +2475,7 @@ _readAppend(void)
 
     READ_NODE_FIELD(partitioned_rels);
     READ_NODE_FIELD(appendplans);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     READ_BOOL_FIELD(interval);
 #endif
 
@@ -2572,7 +2572,7 @@ _readMergeAppend(void)
     }
 
     READ_BOOL_ARRAY(nullsFirst, local_node->numCols);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     READ_BOOL_FIELD(interval);
 #endif
 
@@ -2641,7 +2641,7 @@ ReadCommonScan(Scan *local_node)
     ReadCommonPlan(&local_node->plan);
 
     READ_UINT_FIELD(scanrelid);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     READ_BOOL_FIELD(ispartchild);
     READ_INT_FIELD(childidx);
 #endif
@@ -2942,7 +2942,7 @@ ReadCommonJoin(Join *local_node)
     READ_ENUM_FIELD(jointype, JoinType);
     READ_BOOL_FIELD(inner_unique);
     READ_NODE_FIELD(joinqual);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     READ_BOOL_FIELD(prefetch_inner);
 #endif
 }
@@ -3301,7 +3301,7 @@ _readAgg(void)
     READ_BITMAPSET_FIELD(aggParams);
     READ_NODE_FIELD(groupingSets);
     READ_NODE_FIELD(chain);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	READ_UINT_FIELD(entrySize);
 	READ_BOOL_FIELD(hybrid);
 	READ_BOOL_FIELD(noDistinct);
@@ -3518,7 +3518,7 @@ _readGather(void)
     READ_INT_FIELD(num_workers);
     READ_BOOL_FIELD(single_copy);
     READ_BOOL_FIELD(invisible);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     READ_BOOL_FIELD(parallelWorker_sendTuple);
 #endif
 
@@ -3681,7 +3681,7 @@ _readLimit(void)
 
     READ_NODE_FIELD(limitOffset);
     READ_NODE_FIELD(limitCount);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	READ_BOOL_FIELD(skipEarlyFinish);
 #endif
     READ_DONE();
@@ -3837,7 +3837,7 @@ _readRemoteSubplan(void)
     READ_DONE();
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /*
  * _readRemoteQuery
  */
@@ -3904,7 +3904,7 @@ _readExecNodes(void)
 #ifdef __COLD_HOT__
     READ_NODE_FIELD(sec_en_expr);
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (portable_input)
     {
         READ_RELID_FIELD(en_relid);
@@ -4001,7 +4001,7 @@ _readRemoteStmt(void)
     READ_INT_FIELD(distributionKey);
     READ_NODE_FIELD(distributionNodes);
     READ_NODE_FIELD(distributionRestrict);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     READ_BOOL_FIELD(parallelModeNeeded);
     READ_BOOL_FIELD(parallelWorkerSendTuple);
 
@@ -4190,7 +4190,7 @@ _readCleanAuditStmt(void)
 }
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static PlaceHolderVar *
 _readPlaceHolderVar(void)
 {
@@ -4219,7 +4219,7 @@ _readPlaceHolderInfo(void)
     READ_DONE();
 }
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static PartitionBy *
 _readPartitionBy(void)
 {
@@ -4526,7 +4526,7 @@ parseNodeString(void)
         return_value = _readPartitionBoundSpec();
     else if (MATCH("PARTITIONRANGEDATUM", 19))
         return_value = _readPartitionRangeDatum();
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     else if (MATCH("PARTITIONBY", 11))
         return_value = _readPartitionBy();
     else if (MATCH("ADDDROPPARTITIONS", 17))
@@ -4538,7 +4538,7 @@ parseNodeString(void)
     else if (MATCH("AUDITFGAPOLICY", 14))
         return_value = _readAuditFgaStmt();
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     else if (MATCH("REMOTEQUERY", 11))
         return_value = _readRemoteQuery();    
     else if (MATCH("EXEC_NODES", 10))

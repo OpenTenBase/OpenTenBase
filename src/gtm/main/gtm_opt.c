@@ -57,7 +57,7 @@ extern int tcp_keepalives_interval;
 extern char *GTMDataDir;
 extern int			scale_factor_threads;
 extern int			worker_thread_number;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern bool	enable_gtm_sequence_debug;
 extern int      wal_writer_delay;
 extern int      checkpoint_interval;
@@ -162,7 +162,7 @@ struct config_bool ConfigureNamesBool[] =
 		&Backup_synchronously,
 		false, NULL, NULL, false, NULL
 	},
-#ifdef __TBASE__	
+#ifdef __OPENTENBASE__	
 	{
 		{GTM_OPTNAME_SYNCHRONOUS_COMMIT, GTMC_SIGHUP,
 		   gettext_noop("enable GTM synchronous commit."),

@@ -48,7 +48,7 @@ static int    step_bsearch_cmp(const void *a, const void *b);
 
 static void printResultSet(PGresult *res);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static const char * get_connection(int id);
 static bool parse_connection_conf(void);
 
@@ -160,7 +160,7 @@ main(int argc, char **argv)
 
     printf("Parsed test spec with %d sessions\n", testspec->nsessions);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     has_conn_conf = parse_connection_conf();
 #endif    
 
@@ -900,7 +900,7 @@ printResultSet(PGresult *res)
     }
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 
 #define CONNECTION_CONF_FILENAME "isolation_test.conf"   
 #define MAX_CONNECTION 10

@@ -33,7 +33,7 @@
 #include <errno.h>
 #include <pthread.h>
 #include "c.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "port/pg_crc32c.h"
 #endif
 
@@ -57,7 +57,7 @@ typedef enum GTM_PGXCNodeType
     GTM_NODE_COORDINATOR = 3,
     GTM_NODE_DATANODE = 4,
     GTM_NODE_GTM = 5,
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	GTM_NODE_GTM_CTL   = 6,	/* gtm ctl will never register and unregister, maybe used by gtm_ctl or pgxc_ctl */
 #endif
     GTM_NODE_DEFAULT/* In case nothing is associated to connection */
@@ -162,7 +162,7 @@ typedef enum GTM_PortLastCall
 #define GTM_ERRCODE_NODE_EXCLUDED 3
 #define GTM_ERRCODE_UNKNOWN 4
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #define InvalidGTS ((GTM_Timestamp) 0)
 typedef  int32 GTMStorageHandle;  
 #define GTM_MAX_SESSION_ID_LEN            (256) /* max align(64) (64 + 13 + 13) */

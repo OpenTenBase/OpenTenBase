@@ -48,7 +48,7 @@
 #include "pgxc/execRemote.h"
 #include "utils/snapmgr.h"
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "utils/ruleutils.h"
 #endif
 #ifdef _MLS_
@@ -789,7 +789,7 @@ pg_table_size(PG_FUNCTION_ARGS)
     if (rel == NULL)
         PG_RETURN_NULL();
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if(!isRestoreMode && IS_PGXC_DATANODE && RELATION_IS_INTERVAL(rel))
     {
         List *        parts;
@@ -845,7 +845,7 @@ pg_table_size(PG_FUNCTION_ARGS)
     {
 #endif
     size = calculate_table_size(rel, NULL);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     }
 #endif
 
@@ -872,7 +872,7 @@ pg_allocated_table_size(PG_FUNCTION_ARGS)
     if (rel == NULL)
         PG_RETURN_NULL();
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if(!isRestoreMode && IS_PGXC_DATANODE && RELATION_IS_INTERVAL(rel))
     {
         List *        parts;
@@ -904,7 +904,7 @@ pg_allocated_table_size(PG_FUNCTION_ARGS)
     {
 #endif
     calculate_table_size(rel, &size);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     }
 #endif
 
@@ -975,7 +975,7 @@ calculate_total_relation_size(Relation rel, int64 *alloc_size)
     return size;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 int64
 get_total_relation_size(Relation rel)
 {

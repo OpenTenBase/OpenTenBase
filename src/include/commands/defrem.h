@@ -165,7 +165,7 @@ extern List *defGetQualifiedName(DefElem *def);
 extern TypeName *defGetTypeName(DefElem *def);
 extern int    defGetTypeLength(DefElem *def);
 extern List *defGetStringList(DefElem *def);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern void get_opclass_name_namespace(Oid opcid, char **name, char **nspace);
 #endif
 #endif                            /* DEFREM_H */

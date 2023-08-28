@@ -21,7 +21,7 @@
 #include "gtm/libpq.h"
 #include "gtm/gtm_stat_error.h"
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "gtm/gtm_store.h"
 #endif
 
@@ -252,7 +252,7 @@ GTM_ThreadCreate(void *(* startroutine)(void *), int32 max_lock)
      * the context of the calling thread
      */
     thrinfo->thr_parent_context = TopMemoryContext;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (!max_lock)
     {
         abort();
@@ -318,7 +318,7 @@ GTM_ThreadCreate(void *(* startroutine)(void *), int32 max_lock)
 		MemoryContextDelete(thrinfo->thr_thread_context);
 
 		GTM_RWLockDestroy(&thrinfo->thr_lock);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         GTM_DestroyDataPumpBuf(thrinfo->datapump_buff);
 #endif
 		pfree(thrinfo);
@@ -378,7 +378,7 @@ GTM_ThreadCleanup(void *argp)
 
     elog(DEBUG1, "Cleaning up thread state");
 
-#ifndef __TBASE__
+#ifndef __OPENTENBASE__
         int             ii;
 
         for (ii = 0; ii < GTMThreads->gt_array_size; ii++)
@@ -400,7 +400,7 @@ GTM_ThreadCleanup(void *argp)
 #endif
 
     GTM_ThreadRemove(thrinfo);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     RWLockCleanUp();
     if(thrinfo->locks_hold != NULL)
         pfree(thrinfo->locks_hold);
@@ -431,7 +431,7 @@ GTM_ThreadCleanup(void *argp)
 
     /* temporarily set error context, in case coredump when elog. */
     thrinfo->thr_error_context = thrinfo->thr_parent_context;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     SetMyThreadInfo(NULL);
 #endif
     pfree(thrinfo);

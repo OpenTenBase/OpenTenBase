@@ -82,7 +82,7 @@
 #ifdef _MLS_
 #include "utils/mls.h"
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "utils/ruleutils.h"
 #endif
 /*
@@ -650,7 +650,7 @@ objectNamesToOids(GrantObjectType objtype, List *objnames)
 
                 relOid = RangeVarGetRelid(relvar, NoLock, false);
                 objects = lappend_oid(objects, relOid);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 if (objtype == ACL_OBJECT_RELATION)
                 {
                     Relation rel = relation_open(relOid, NoLock);

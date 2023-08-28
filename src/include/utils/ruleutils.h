@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -97,7 +97,7 @@ extern char *generate_collation_name(Oid collid);
 extern char *get_range_partbound_string(List *bound_datums);
 extern void add_day_calculation(int *year, int *mon, int *day, int step, int steptype, bool is_leap_year);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern char * GetPartitionName(Oid parentrelid, int partidx, bool isindex);
 
 extern int RelationGetPartitionIdxByValue(Relation rel, Datum value);

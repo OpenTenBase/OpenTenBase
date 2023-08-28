@@ -69,7 +69,7 @@ typedef struct WorkerInstrumentation
 	Instrumentation instrument[FLEXIBLE_ARRAY_MEMBER];
 } WorkerInstrumentation;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 typedef struct RemoteInstrumentation
 {
 	int              nodeid;    /* which datanode the instrument comes from */

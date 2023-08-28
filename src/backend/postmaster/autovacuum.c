@@ -110,7 +110,7 @@
 #include "utils/timestamp.h"
 #include "utils/tqual.h"
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "gtm/gtm_c.h"
 #include "access/gtm.h"
 #include "access/xact.h"
@@ -119,7 +119,7 @@
 #include "utils/ruleutils.h"
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 int            WalGTSAcquireDelay = 30;
 #endif
 
@@ -374,7 +374,7 @@ static void avl_sigterm_handler(SIGNAL_ARGS);
 static void autovac_refresh_stats(void);
 static void remove_wi_from_list(dsa_pointer *list, dsa_pointer wi_ptr);
 static void add_wi_to_list(dsa_pointer *list, dsa_pointer wi_ptr);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static void AcquireLatestGTS(void);
 #endif
 
@@ -461,7 +461,7 @@ NON_EXEC_STATIC void
 AutoVacLauncherMain(int argc, char *argv[])
 {// #lizard forgives
     sigjmp_buf    local_sigjmp_buf;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     int32        acquire_count = 0;
     int32        second_passed = 0;
 #endif
@@ -674,7 +674,7 @@ AutoVacLauncherMain(int argc, char *argv[])
         launcher_determine_sleep(!dlist_is_empty(&AutoVacuumShmem->av_freeWorkers),
                                  false, &nap);
 
-#ifdef __TBASE__        
+#ifdef __OPENTENBASE__        
         acquire_count = (nap.tv_sec + nap.tv_usec / 1000000) / WalGTSAcquireDelay;
         if (acquire_count)
         {
@@ -709,7 +709,7 @@ AutoVacLauncherMain(int argc, char *argv[])
                            WAIT_EVENT_AUTOVACUUM_MAIN);
 
             ResetLatch(MyLatch);
-#ifdef __TBASE__            
+#ifdef __OPENTENBASE__            
             second_passed += (nap.tv_sec + nap.tv_usec / 1000000);
         }
 #endif
@@ -778,7 +778,7 @@ AutoVacLauncherMain(int argc, char *argv[])
                 AutoVacuumShmem->av_signal[AutoVacForkFailed] = false;
                 pg_usleep(1000000L);    /* 1s */
                 SendPostmasterSignal(PMSIGNAL_START_AUTOVAC_WORKER);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 second_passed += 1;
 #endif
                 continue;
@@ -3586,7 +3586,7 @@ add_wi_to_list(dsa_pointer *list, dsa_pointer wi_ptr)
         *list = wi_ptr;
     }
 }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /* Acquire latest gts and sync to xlog. */
 static void AcquireLatestGTS(void)
 {

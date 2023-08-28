@@ -86,11 +86,11 @@
 #ifdef _MIGRATE_
 #include "pgxc/shardmap.h"
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "tcop/tcopprot.h"
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 
 
 #define TIMESTAMP_SHIFT (1000*1000L)
@@ -340,7 +340,7 @@ CreateSharedProcArray(void)
 
     /* Register and initialize fields of ProcLWLockTranche */
     LWLockRegisterTranche(LWTRANCHE_PROC, "proc");
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     LWLockRegisterTranche(LWTRANCHE_PROC_DATA, "proc_data");
 #endif
 }
@@ -576,7 +576,7 @@ ProcArrayEndTransaction(PGPROC *proc, TransactionId latestXid)
         pgxact->delayChkpt = false; /* be sure this is cleared in abort */
         proc->recoveryConflictPending = false;
 
-#ifdef    __TBASE__
+#ifdef    __OPENTENBASE__
         /* Clear the subtransaction-XID cache too while holding the lock */
         pgxact->nxids = 0;
         pgxact->overflowed = false;
@@ -1962,7 +1962,7 @@ GetMaxSnapshotSubxidCount(void)
     return TOTAL_MAX_CACHED_SUBXIDS;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 TransactionId GetLocalTransactionId(const char *globalXid,
 				TransactionId *subxids, int *nsub, bool *overflowed)
 {
@@ -5418,7 +5418,7 @@ SetLatestCompletedXid(TransactionId latestCompletedXid)
     ShmemVariableCache->latestCompletedXid = latestCompletedXid;
     LWLockRelease(ProcArrayLock);
 }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /* 
   * get current running transactions 
   * do not include lazy vacuum and itself

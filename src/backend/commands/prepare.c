@@ -43,7 +43,7 @@
 #include "catalog/pgxc_node.h"
 #include "utils/resowner_private.h"
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "commands/vacuum.h"
 #endif
 
@@ -814,7 +814,7 @@ DropPreparedStatement(const char *stmt_name, bool showError)
             ResourceOwnerForgetPreparedStmt(CurTransactionResourceOwner,
                     entry->stmt_name);
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (distributed_query_analyze)
         {
             if (IS_PGXC_DATANODE)
@@ -850,7 +850,7 @@ DropAllPreparedStatements(void)
         hash_search(prepared_queries, entry->stmt_name, HASH_REMOVE, NULL);
 
 #ifdef XCP
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (entry->use_resowner && CurTransactionResourceOwner)
 #else
         if (entry->use_resowner)
@@ -1205,7 +1205,7 @@ InactivateDatanodeStatementOnNode(int nodeidx)
 }
 
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /* prepare remoteDML statement on coordinator */
 void
 PrepareRemoteDMLStatement(bool upsert, char *stmt, 

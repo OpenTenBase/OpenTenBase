@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -71,7 +71,7 @@
 #define ACCESS_GTM_H
 
 #include "gtm/gtm_c.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "fmgr.h"
 #define GTM_NAME_LEN     SEQ_KEY_MAX_LENGTH
 typedef struct
@@ -102,7 +102,7 @@ extern bool gtm_backup_barrier;
 extern bool IsXidFromGTM;
 extern GlobalTransactionId currentGxid;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern char *NewGtmHost;
 extern int     NewGtmPort;
 #endif
@@ -178,7 +178,7 @@ extern int ReportGlobalXmin(GlobalTransactionId gxid,
         GlobalTransactionId *global_xmin,
         GlobalTransactionId *latest_completed_xid);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern void  RegisterSeqCreate(char *name, int32 type);
 extern void  RegisterSeqDrop(char *name, int32 type);
 extern void  RegisterRenameSequence(char *new, char *old);

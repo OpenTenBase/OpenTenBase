@@ -155,7 +155,7 @@ static char *nodename = NULL;
 static char *nodetype = NULL;
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static char *master_gtm_ip           = NULL;
 static char *master_gtm_port      = NULL;
 static char *master_gtm_nodename = NULL;
@@ -170,7 +170,7 @@ static char *shdesc_file;
 static char *hba_file;
 static char *ident_file;
 static char *conf_file;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static char *bouncer_conf;
 static char *bouncer_auth;
 static char *gtm_proxy;
@@ -290,7 +290,7 @@ static void setup_privileges(FILE *cmdfd);
 static void set_info_version(void);
 static void setup_schema(FILE *cmdfd);
 static void load_plpgsql(FILE *cmdfd);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static void load_gtm_info(FILE *cmdfd);
 #endif
 static void vacuum_db(FILE *cmdfd);
@@ -1317,7 +1317,7 @@ setup_config(void)
 
     free(conflines);
     
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* pgbouncer.ini */
     conflines = readfile(bouncer_conf);
 
@@ -2085,7 +2085,7 @@ load_plpgsql(FILE *cmdfd)
     PG_CMD_PUTS("CREATE EXTENSION plpgsql;\n\n");
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static void
 load_gtm_info(FILE *cmdfd)
 {
@@ -2761,7 +2761,7 @@ setup_data_file_paths(void)
     set_input(&hba_file, "pg_hba.conf.sample");
     set_input(&ident_file, "pg_ident.conf.sample");
     
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     set_input(&bouncer_conf, "pgbouncer.ini");    
     set_input(&bouncer_auth, "userlist.txt");
     set_input(&gtm_proxy, "gtm_proxy.conf.sample");    
@@ -2800,7 +2800,7 @@ setup_data_file_paths(void)
     check_input(shdesc_file);
     check_input(hba_file);
     check_input(ident_file);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     check_input(bouncer_conf);
     check_input(bouncer_auth);
     check_input(gtm_proxy);
@@ -3176,7 +3176,7 @@ initialize_data_directory(void)
 
     load_plpgsql(cmdfd);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     load_gtm_info(cmdfd);
 #endif
 
@@ -3232,7 +3232,7 @@ main(int argc, char *argv[])
         {"mls_user", required_argument, NULL, 14},
         {"audit_user", required_argument, NULL, 15},
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         {"master_gtm_ip", required_argument, NULL, 16},
         {"master_gtm_port", required_argument, NULL, 17},
         {"master_gtm_nodename", required_argument, NULL, 18},
@@ -3394,7 +3394,7 @@ main(int argc, char *argv[])
                 }
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             case 16: /*master gtm ip*/
                 {
                     master_gtm_ip = pg_strdup(optarg);

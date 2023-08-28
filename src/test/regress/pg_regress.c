@@ -1065,7 +1065,7 @@ setup_connection_information(void)
     psql_command_node("postgres", PGXC_COORD_1, "EXECUTE DIRECT ON ( %s ) $$SELECT pgxc_pool_reload()$$;",
                       (char *)get_node_name(PGXC_DATANODE_2));
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     sleep(10);
     psql_command_node("postgres", PGXC_COORD_1, "create DEFAULT node group default_group with (%s, %s);",
                       (char *)get_node_name(PGXC_DATANODE_1),
@@ -3031,7 +3031,7 @@ regression_main(int argc, char *argv[], init_function ifunc, test_function tfunc
             case 22:
                 add_stringlist_item(&loadextension, optarg);
                 break;
-#ifdef __TBASE__                
+#ifdef __OPENTENBASE__                
             case 23:
                 add_stringlist_item(&schedulelist, "txn_test_schedual");
                 break;

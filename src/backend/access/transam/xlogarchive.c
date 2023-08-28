@@ -28,7 +28,7 @@
 #include "storage/ipc.h"
 #include "storage/lwlock.h"
 #include "storage/pmsignal.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "utils/timestamp.h"
 #endif
 /*
@@ -552,7 +552,7 @@ XLogArchiveNotifySeg(XLogSegNo segno)
     XLogFileName(xlog, ThisTimeLineID, segno);
     XLogArchiveNotify(xlog);
 }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /*
  * Convenience routine to notify using segment number gts representation of filename
  */
@@ -708,7 +708,7 @@ XLogArchiveCheckDone(const char *xlog)
     StatusFilePath(archiveStatusPath, xlog, ".done");
     if (stat(archiveStatusPath, &stat_buf) == 0)
         return true;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* Here we fake a gts file, when restore from archive we need to skip it. */
     XLogArchiveNotifyGTS(xlog, InvalidGlobalTimestamp);
 #endif
@@ -806,13 +806,13 @@ bool
 XLogArchiveIsReady(const char *xlog)
 {
     char        archiveStatusPath[MAXPGPATH];
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     char        archiveGTSStatusPath[MAXPGPATH];
 #endif
     struct stat stat_buf;
 
     StatusFilePath(archiveStatusPath, xlog, ".ready");
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* when recovery from archive, we don't have .ready file, and we have to ensure .gts files are removed too. */
     StatusFilePath(archiveGTSStatusPath, xlog, ".gts");
 #endif
@@ -832,7 +832,7 @@ XLogArchiveCleanup(const char *xlog)
 {
     char        archiveStatusPath[MAXPGPATH];
     
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* Remove the .gts file */
     StatusFilePath(archiveStatusPath, xlog, ".gts");
     unlink(archiveStatusPath);

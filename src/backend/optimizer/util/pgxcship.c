@@ -41,7 +41,7 @@
 #ifdef __COLD_HOT__
 #include "catalog/pgxc_key_values.h"
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "catalog/pg_constraint.h"
 #include "access/htup_details.h"
 #include "optimizer/pathnode.h"
@@ -153,7 +153,7 @@ static ExecNodes *pgxc_FQS_find_datanodes_recurse(Node *node, Query *query,
 static ExecNodes *pgxc_FQS_datanodes_for_rtr(Index varno, Query *query);
 
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static ExecNodes* pgxc_is_group_subquery_shippable(Query *query, Shippability_context *sc_context);
 static void pgxc_is_rte_subquery_shippable(Node *node, Shippability_context *sc_context);
 static bool pgxc_is_simple_subquery(Query *subquery);
@@ -211,7 +211,7 @@ pgxc_set_exprtype_shippability(Oid exprtype, Shippability_context *sc_context)
         pgxc_set_shippability_reason(sc_context, SS_UNSHIPPABLE_TYPE);
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /*
  * pgxc_FQS_check_const_recurse
  * Recursively check the query node to see if it only contains constant values.
@@ -343,7 +343,7 @@ pgxc_FQS_datanodes_for_rtr(Index varno, Query *query)
         case RTE_RELATION:
         {
             /* For anything, other than a table, we can't find the datanodes */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 			if (rte->relkind != RELKIND_RELATION &&
 				rte->relkind != RELKIND_PARTITIONED_TABLE)
 			{
@@ -365,7 +365,7 @@ pgxc_FQS_datanodes_for_rtr(Index varno, Query *query)
              * because has_subclass can return true even if there aren't any
              * subclasses, but it's ok.
              */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 			/* 
 			 * all partitioned tables should have the same distribution, try to 
 			 * get execution datanodes
@@ -384,7 +384,7 @@ pgxc_FQS_datanodes_for_rtr(Index varno, Query *query)
 		}
 		break;
 		case RTE_SUBQUERY:
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		{
 			Query 		*subquery = rte->subquery;
 			ExecNodes 	*exec_nodes = NULL;
@@ -533,7 +533,7 @@ pgxc_FQS_find_datanodes_recurse(Node *node, Query *query, Bitmapset **relids)
 				result_en = pgxc_is_join_shippable(result_en, en, from_relids,
 										fle_relids, JOIN_INNER,
 										make_ands_implicit((Expr *)from_expr->quals),
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                                         query,
 #endif
                                         query_rtable);
@@ -585,7 +585,7 @@ pgxc_FQS_find_datanodes_recurse(Node *node, Query *query, Bitmapset **relids)
             result_en = pgxc_is_join_shippable(ren, len, r_relids, l_relids,
                                                 join_expr->jointype,
                                                 make_ands_implicit((Expr *)join_expr->quals),
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                                                 query,
 #endif
                                                 query_rtable);
@@ -792,7 +792,7 @@ retry_pools:
         List *newlist = NIL;
         ListCell *lc;
         bool *healthmap = NULL;
-        healthmap = (bool*)palloc(sizeof(bool) * TBASE_MAX_DATANODE_NUMBER);
+        healthmap = (bool*)palloc(sizeof(bool) * OPENTENBASE_MAX_DATANODE_NUMBER);
         if (healthmap == NULL)
         {
             ereport(ERROR,
@@ -899,7 +899,7 @@ retry_pools:
                     continue;
                 if (strcmp(tle->resname, GetRelationDistribColumn(rel_loc_info)) == 0)
                 {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                     if (expression_returns_set((Node *)tle->expr))
                         rel_exec_nodes->en_expr = NULL;
                     else
@@ -1453,7 +1453,7 @@ pgxc_shippability_walker(Node *node, Shippability_context *sc_context)
                     pgxc_targetlist_has_distcol(query))
                 pgxc_set_shippability_reason(sc_context, SS_UPDATES_DISTRIBUTION_COLUMN);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             /*
              * Check shippability of triggers on this query. Don't consider
              * TRUNCATE triggers; it's a utility statement and triggers are
@@ -1772,7 +1772,7 @@ bool pgxc_is_var_distrib_column(Var *var, List *rtable)
     return false;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static bool
 pgxc_is_shard_in_same_group(Var *var1, Var *var2, List *rtable)
 {// #lizard forgives
@@ -1953,7 +1953,7 @@ pgxc_is_query_shippable(Query *query, int query_level)
 	if (query->hasSubLinks)
 	{
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		int num_fromclause_nodes = 0;
 		int num_sublink_nodes = 0;
 
@@ -2134,7 +2134,7 @@ pgxc_is_expr_shippable(Expr *node, bool *has_aggs)
 static bool
 pgxc_is_func_shippable(Oid funcid)
 {// #lizard forgives    
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     bool result = false;
     
     switch(funcid)
@@ -2324,7 +2324,7 @@ pgxc_find_dist_equijoin_qual(Relids varnos_1,
             if (!pgxc_is_var_distrib_column(lvar, rtable) ||
                 !pgxc_is_var_distrib_column(rvar, rtable))
                 continue;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             /* join shard tables should in same group */
             if (!pgxc_is_shard_in_same_group(lvar, rvar, rtable))
             {
@@ -2351,7 +2351,7 @@ pgxc_find_dist_equijoin_qual(Relids varnos_1,
     return NULL;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static List*
 pgxc_find_dist_equi_nodes(Relids varnos_1,
         Relids varnos_2, Oid distcol_type, Node *quals, List *rtable)
@@ -2646,7 +2646,7 @@ pgxc_merge_exec_nodes(ExecNodes *en1, ExecNodes *en2)
 static ExecNodes *
 pgxc_is_join_shippable(ExecNodes *inner_en, ExecNodes *outer_en, Relids in_relids,
                         Relids out_relids, JoinType jointype, List *join_quals,
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                         Query *query,
 #endif
 						List *rtables)
@@ -2695,7 +2695,7 @@ pgxc_is_join_shippable(ExecNodes *inner_en, ExecNodes *outer_en, Relids in_relid
 													(Node *)join_quals, rtables);
 			if (equi_join_expr && pgxc_is_expr_shippable(equi_join_expr, NULL))
 				merge_nodes = true;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             if (merge_nodes && restrict_query && query->commandType == CMD_SELECT)
             {
                 if (outer_en->restrict_shippable || inner_en->restrict_shippable)
@@ -2800,7 +2800,7 @@ pgxc_is_join_shippable(ExecNodes *inner_en, ExecNodes *outer_en, Relids in_relid
 			 (jointype == JOIN_INNER || jointype == JOIN_LEFT))
 	{
 		merge_nodes = true;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		/*
 		 * Push down to restrict datanodes based if join is on distributed
 		 * column or related qual
@@ -2861,7 +2861,7 @@ pgxc_is_join_shippable(ExecNodes *inner_en, ExecNodes *outer_en, Relids in_relid
 			 jointype == JOIN_INNER)
 	{
 		merge_nodes = true;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		/*
 		 * Push down to restrict datanodes based if join is on distributed
 		 * column or related qual
@@ -2948,7 +2948,7 @@ bool pgxc_targetlist_has_distcol(Query *query)
     }
     return false;
 }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /*
  * pgxc_check_triggers_shippability:
  * Return true if none of the triggers prevents the query from being FQSed.
@@ -3133,7 +3133,7 @@ pgxc_is_trigger_shippable(Trigger *trigger)
     /*
       * For now, we regard a function as shippable only if it is immutable, but
       * do not look inside the function. 
-      *  In TBase, we need more than this. We have to know what exactly the function do, 
+      *  In OpenTenBase, we need more than this. We have to know what exactly the function do, 
       *  and if function called will involve more than one datanodes.
       * TODO: check the function called
       */

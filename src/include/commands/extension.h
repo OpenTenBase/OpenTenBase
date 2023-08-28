@@ -32,7 +32,7 @@ extern Oid    CurrentExtensionObject;
 
 
 extern ObjectAddress CreateExtension(ParseState *pstate, CreateExtensionStmt *stmt);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern ObjectAddress PrepareExtension(ParseState *pstate, CreateExtensionStmt *stmt);
 extern void ExecuteExtension(ParseState *pstate, CreateExtensionStmt *stmt);
 extern void SetExitCreateExtension(void);

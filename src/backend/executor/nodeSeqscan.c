@@ -169,7 +169,7 @@ InitScanRelation(SeqScanState *node, EState *estate, int eflags)
 	 * get the relation object id from the relid'th entry in the range table,
 	 * open that relation and acquire appropriate lock on it.
 	 */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	/* if interval partition, scan child table instead */
 	if(((SeqScan *) node->ss.ps.plan)->ispartchild)
 	{
@@ -184,7 +184,7 @@ InitScanRelation(SeqScanState *node, EState *estate, int eflags)
 	currentRelation = ExecOpenScanRelation(estate,
 										   ((SeqScan *) node->ss.ps.plan)->scanrelid,
 										   eflags);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	}
 #endif
 

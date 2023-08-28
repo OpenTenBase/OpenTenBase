@@ -329,7 +329,7 @@ get_lwlock_stats_entry(LWLock *lock)
 }
 #endif                            /* LWLOCK_STATS */
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static void LWLockPrint(const char *where, LWLock *lock, LWLockMode mode);
 #endif
 /*
@@ -525,7 +525,7 @@ RegisterLWLockTranches(void)
                           "predicate_lock_manager");
     LWLockRegisterTranche(LWTRANCHE_PARALLEL_QUERY_DSA,
                           "parallel_query_dsa");
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     LWLockRegisterTranche(LWTRANCHE_PARALLEL_WORKER_DSA,
                           "parallel_worker_dsa");
 #endif
@@ -1880,7 +1880,7 @@ LWLockHeldByMeInMode(LWLock *l, LWLockMode mode)
     return false;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static void LWLockPrint(const char *where, LWLock *lock, LWLockMode mode)
 {
     uint32            state = pg_atomic_read_u32(&lock->state);

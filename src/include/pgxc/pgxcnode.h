@@ -48,7 +48,7 @@ typedef enum
 }	PGXCNode_HandleRequested;
 
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 typedef enum
 {
 	DNStatus_OK      = 0, 
@@ -123,7 +123,7 @@ struct pgxc_node_handle
 
 	bool		in_extended_query;
 	bool		needSync; /* set when error and extend query. */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	bool		sock_fatal_occurred;	/*Network failure occurred, and sock descriptor was closed */
 	char        last_command; /*last command we processed. */
 	long        recv_datarows;
@@ -162,7 +162,7 @@ extern int PGXCNodeConnected(NODE_CONNECTION * conn);
 extern int PGXCNodeConnClean(NODE_CONNECTION * conn);
 extern void PGXCNodeCleanAndRelease(int code, Datum arg);
 extern int PGXCNodePing(const char *connstr);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern NODE_CONNECTION *PGXCNodeConnectBarely(char *connstr);
 extern char* PGXCNodeSendShowQuery(NODE_CONNECTION *conn, const char *sql_command);
 extern int  PGXCNodeSendSetQuery(NODE_CONNECTION *conn, const char *sql_command, char *errmsg_buf, int32 buf_len, SendSetQueryStatus* status, CommandId *cmdId);
@@ -180,7 +180,7 @@ extern PGXCNodeAllHandles *get_handles(List *datanodelist, List *coordlist,
 									   bool is_query_coord_only, bool is_global_session, bool raise_error);
 
 extern PGXCNodeAllHandles *get_current_handles(void);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern PGXCNodeAllHandles *get_current_txn_handles(void);
 extern PGXCNodeAllHandles *get_current_cn_handles(void);
 extern PGXCNodeAllHandles *get_current_dn_handles(void);
@@ -217,7 +217,7 @@ extern int	pgxc_node_send_my_sync(PGXCNodeHandle * handle);
 #ifdef __SUBSCRIPTION__
 extern int pgxc_node_send_apply(PGXCNodeHandle * handle, char * buf, int len, bool ignore_pk_conflict);
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern int pgxc_node_send_disconnect(PGXCNodeHandle * handle, char *cursor, int cons);
 #endif
 extern int	pgxc_node_send_bind(PGXCNodeHandle * handle, const char *portal,
@@ -254,7 +254,7 @@ pgxc_node_send_prefinish_timestamp(PGXCNodeHandle *handle, GlobalTimestamp times
 extern int
 pgxc_node_send_global_timestamp(PGXCNodeHandle *handle, GlobalTimestamp timestamp);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern int	pgxc_node_send_coord_info(PGXCNodeHandle * handle, int coord_pid, TransactionId coord_vxid);
 extern int	pgxc_node_receive(const int conn_count,
 				  PGXCNodeHandle ** connections, struct timeval * timeout);
@@ -294,7 +294,7 @@ extern void PgxcNodeRefreshBackendHandlesShmem(List *nodes_alter);
 extern void HandlePoolerMessages(void);
 extern void pgxc_print_pending_data(PGXCNodeHandle *handle, bool reset);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 void add_error_message_from_combiner(PGXCNodeHandle *handle, void *combiner_input);
 void pgxc_set_coordinator_proc_pid(int proc_pid);
 int pgxc_get_coordinator_proc_pid(void);

@@ -32,10 +32,10 @@ typedef enum BufferAccessStrategyType
     BAS_BULKREAD,                /* Large read-only scan (hint bit updates are
                                  * ok) */
     BAS_BULKWRITE,                /* Large multi-block write (e.g. COPY IN) */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     BAS_BULKWRITE_PART,
 #endif
-#ifdef __TBASE__    
+#ifdef __OPENTENBASE__    
     BAS_BULKREAD_STAT_SHARD,    /* use when calling stat shard function */
 #endif
     BAS_VACUUM                    /* VACUUM */
@@ -70,7 +70,7 @@ extern int    target_prefetch_pages;
 extern int    checkpoint_flush_after;
 extern int    backend_flush_after;
 extern int    bgwriter_flush_after;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern bool g_WarmSharedBuffer;
 #endif
 
@@ -247,12 +247,12 @@ extern void TestForOldSnapshot_impl(Snapshot snapshot, Relation relation);
 
 /* in freelist.c */
 extern BufferAccessStrategy GetAccessStrategy(BufferAccessStrategyType btype);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern BufferAccessStrategy GetAccessStrategy_part(int npart);
 #endif
 extern void FreeAccessStrategy(BufferAccessStrategy strategy);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern void   WarmSharedBuffer(void);
 #endif
 

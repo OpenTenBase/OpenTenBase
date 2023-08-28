@@ -23,9 +23,9 @@ char	   *syncrep_parse_error_msg;
 static SyncRepConfigData *create_syncrep_config(const char *num_sync,
 					List *members, uint8 syncrep_method);
 
-/* __TBASE__ BEGIN */
+/* __OPENTENBASE__ BEGIN */
 static char * create_application_name(char * num1, char * num2, char * num3, char * num4, char * num5);
-/* __TBASE__ END */
+/* __OPENTENBASE__ END */
 
 /*
  * Bison doesn't allocate anything that needs to live across parser calls,
@@ -78,15 +78,15 @@ standby_list:
 standby_name:
 		NAME						{ $$ = $1; }
 		| NUM						{ $$ = $1; }
-/* __TBASE__ BEGIN */
+/* __OPENTENBASE__ BEGIN */
 		| app_name					{ $$ = $1; }
-/* __TBASE__ END */
+/* __OPENTENBASE__ END */
 	;
 
-/* __TBASE__ BEGIN */
+/* __OPENTENBASE__ BEGIN */
 app_name:
 	NUM '.' NUM '.' NUM '.' NUM ':' NUM { $$ = create_application_name($1, $3, $5, $7, $9); }
-/* __TBASE__ END */
+/* __OPENTENBASE__ END */
 %%
 
 static SyncRepConfigData *
@@ -125,7 +125,7 @@ create_syncrep_config(const char *num_sync, List *members, uint8 syncrep_method)
 	return config;
 }
 
-/* __TBASE__ BEGIN */
+/* __OPENTENBASE__ BEGIN */
 static char * 
 create_application_name(char * num1, char * num2, char * num3, char * num4, char * num5)
 {
@@ -139,6 +139,6 @@ create_application_name(char * num1, char * num2, char * num3, char * num4, char
 			num5);
 	return buf;
 }
-/* __TBASE__ END */
+/* __OPENTENBASE__ END */
 
 #include "syncrep_scanner.c"

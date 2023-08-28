@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -2284,7 +2284,7 @@ eqjoinsel(PG_FUNCTION_ARGS)
 			break;
 		case JOIN_SEMI:
 		case JOIN_ANTI:
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         case JOIN_LEFT_SCALAR:
         case JOIN_LEFT_SEMI:
 #endif
@@ -3541,7 +3541,7 @@ estimate_num_groups(PlannerInfo *root, List *groupExprs, double input_rows,
              */
             double        clamp = rel->tuples;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 			double      nodes = 1;
 			if (list_length(rel->pathlist) > 0)
 			{
@@ -3607,7 +3607,7 @@ estimate_num_groups(PlannerInfo *root, List *groupExprs, double input_rows,
                     (1 - pow((rel->tuples - rel->rows) / rel->tuples,
                              rel->tuples / reldistinct));
             }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 			reldistinct = clamp_row_est(reldistinct / nodes);
 #else
             reldistinct = clamp_row_est(reldistinct);

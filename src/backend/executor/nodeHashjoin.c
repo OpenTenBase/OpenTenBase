@@ -22,7 +22,7 @@
 #include "executor/nodeHashjoin.h"
 #include "miscadmin.h"
 #include "utils/memutils.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "access/xact.h"
 #include "executor/execParallel.h"
 #endif
@@ -42,7 +42,7 @@
 /* Returns true if doing null-fill on inner relation */
 #define HJ_FILL_INNER(hjstate)    ((hjstate)->hj_NullOuterTupleSlot != NULL)
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 volatile ParallelHashJoinStatus *statusParallelWorker = NULL;
 #endif
 static TupleTableSlot *ExecHashJoinOuterGetTuple(PlanState *outerNode,
@@ -54,7 +54,7 @@ static TupleTableSlot *ExecHashJoinGetSavedTuple(HashJoinState *hjstate,
                           TupleTableSlot *tupleSlot);
 static bool ExecHashJoinNewBatch(HashJoinState *hjstate);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static void ExecShareBufFileName(volatile ParallelHashJoinState *parallelState, HashJoinTable hashtable, bool inner);
 static HashJoinTable ExecMergeShmHashTable(HashJoinState * hjstate, volatile ParallelHashJoinState *parallelState, 
                                 Hash *node, List *hashOperators, bool keepNulls);
@@ -85,7 +85,7 @@ ExecHashJoin(PlanState *pstate)
     TupleTableSlot *outerTupleSlot;
     uint32        hashvalue;
     int            batchno;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     volatile ParallelHashJoinState *parallelState;
 #endif
     /*
@@ -97,7 +97,7 @@ ExecHashJoin(PlanState *pstate)
     outerNode = outerPlanState(node);
     hashtable = node->hj_HashTable;
     econtext = node->js.ps.ps_ExprContext;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     parallelState = node->hj_parallelState;
 #endif
     /*
@@ -161,7 +161,7 @@ ExecHashJoin(PlanState *pstate)
                          (outerNode->plan->startup_cost < hashNode->ps.plan->total_cost &&
                           !node->hj_OuterNotEmpty))
                 {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                     /* When we need to prefetch inner, we just assume there is at lease one row from outer plan */
                     if (!hashJoin->join.prefetch_inner)
                     {
@@ -172,7 +172,7 @@ ExecHashJoin(PlanState *pstate)
                         {
                             node->hj_OuterNotEmpty = false;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                             if(!IsParallelWorker() || !parallelState)
                             {
                                 if (!node->hj_InnerInited && IS_PGXC_DATANODE)
@@ -189,7 +189,7 @@ ExecHashJoin(PlanState *pstate)
                         }
                         else
                             node->hj_OuterNotEmpty = true;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                     }
                     else
                     {
@@ -202,7 +202,7 @@ ExecHashJoin(PlanState *pstate)
                     node->hj_FirstOuterTupleSlot = NULL;
                 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 if(IsParallelWorker() && parallelState)
                 {
 #if 1
@@ -326,7 +326,7 @@ ExecHashJoin(PlanState *pstate)
                  */
                 hashNode->hashtable = hashtable;
                 (void) MultiExecProcNode((PlanState *) hashNode);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 }
 #endif
                 /*
@@ -373,7 +373,7 @@ ExecHashJoin(PlanState *pstate)
                     /* end of batch, or maybe whole join */
                     if (HJ_FILL_INNER(node))
                     {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                         /*
                           * In parallel mode, we can also do right or full join
                           * since tuples are hashed into different corresponding
@@ -485,7 +485,7 @@ ExecHashJoin(PlanState *pstate)
 				 */
 				if (joinqual == NULL || ExecQual(joinqual, econtext))
 				{
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                     if (node->js.jointype == JOIN_LEFT_SCALAR && node->hj_MatchedOuter)
                         ereport(ERROR,
                                 (errcode(ERRCODE_CARDINALITY_VIOLATION),
@@ -510,12 +510,12 @@ ExecHashJoin(PlanState *pstate)
 						node->hj_JoinState = HJ_NEED_NEW_OUTER;
 
 					if (otherqual == NULL || ExecQual(otherqual, econtext))
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                     {
                         node->matched_tuples++;
 #endif
                         return ExecProject(node->js.ps.ps_ProjInfo);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                     }
 #endif
                     else
@@ -671,7 +671,7 @@ ExecInitHashJoin(HashJoin *node, EState *estate, int eflags)
 		case JOIN_INNER:
         case JOIN_SEMI:
 		    break;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		case JOIN_LEFT_SCALAR:
 		case JOIN_LEFT_SEMI:
 #endif
@@ -761,7 +761,7 @@ ExecInitHashJoin(HashJoin *node, EState *estate, int eflags)
 	hjstate->hj_JoinState = HJ_BUILD_HASHTABLE;
 	hjstate->hj_MatchedOuter = false;
 	hjstate->hj_OuterNotEmpty = false;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     hjstate->hj_OuterInited = false;
     hjstate->hj_InnerInited = false;
 #endif
@@ -778,11 +778,11 @@ ExecInitHashJoin(HashJoin *node, EState *estate, int eflags)
 void
 ExecEndHashJoin(HashJoinState *node)
 {// #lizard forgives
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     HashState *hashNode = (HashState *) innerPlanState(node);
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (IsParallelWorker() && node->hj_parallelState && HJ_FILL_INNER(node) &&
         hashNode->ps.plan->parallel_aware)
     {
@@ -830,7 +830,7 @@ ExecEndHashJoin(HashJoinState *node)
         ExecHashTableDestroy(node->hj_HashTable);
         node->hj_HashTable = NULL;
     }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if(IsParallelWorker() && node->hj_parallelState && hashNode->ps.plan->parallel_aware)
     {
         int nWorkers = 0;
@@ -1003,7 +1003,7 @@ ExecHashJoinNewBatch(HashJoinState *hjstate)
     BufFile    *innerFile;
     TupleTableSlot *slot;
     uint32        hashvalue;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     HashState  *hashNode = (HashState *) innerPlanState(hjstate);
 #endif
 
@@ -1052,7 +1052,7 @@ ExecHashJoinNewBatch(HashJoinState *hjstate)
      * scan, we have to rescan outer batches in case they contain tuples that
      * need to be reassigned.
      */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (IsParallelWorker() && hjstate->hj_parallelState && HJ_FILL_INNER(hjstate) &&
         hashNode->ps.plan->parallel_aware)
     {
@@ -1103,7 +1103,7 @@ ExecHashJoinNewBatch(HashJoinState *hjstate)
         if (hashtable->outerBatchFile[curbatch])
             BufFileClose(hashtable->outerBatchFile[curbatch]);
         hashtable->outerBatchFile[curbatch] = NULL;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (IsParallelWorker() && hjstate->hj_parallelState && HJ_FILL_INNER(hjstate) &&
             hashNode->ps.plan->parallel_aware)
         {
@@ -1233,7 +1233,7 @@ ExecHashJoinGetSavedTuple(HashJoinState *hjstate,
      * such a check.
      */
     CHECK_FOR_INTERRUPTS();
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 RETRY:
 #endif
     /*
@@ -1242,7 +1242,7 @@ RETRY:
      * cheating.
      */
     nread = BufFileRead(file, (void *) header, sizeof(header));
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /*
       * each bufFile of worker may have more than one file, and some of
       * those files do not exceed the MAX_PHYSICAL_FILESIZE, those files
@@ -1271,7 +1271,7 @@ RETRY:
         ExecClearTuple(tupleSlot);
         return NULL;
     }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     }
 #endif
     if (nread != sizeof(header))
@@ -1362,7 +1362,7 @@ ExecReScanHashJoin(HashJoinState *node)
     if (node->js.ps.lefttree->chgParam == NULL)
         ExecReScan(node->js.ps.lefttree);
 }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /* ----------------------------------------------------------------
  *        ExecParallelHashJoinEstimate
  *

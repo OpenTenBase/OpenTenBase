@@ -39,7 +39,7 @@
 #include "access/xact.h"
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "access/xact.h"
 #include "libpq/libpq.h"
 #endif
@@ -55,7 +55,7 @@ bool enable_multi_cluster_print = false;
 
 static Datum generate_node_id(const char *node_name);
 static void count_coords_datanodes(Relation rel, int *num_coord, int *num_dns);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static void  PgxcCheckNodeValid(char *name, char *clustername, char type);
 static void  ValidateCreateGtmNode(void);
 static void  ValidateAlterGtmNode(void);
@@ -79,9 +79,9 @@ NodeDefinition *coDefs;
 NodeDefinition *dnDefs;
 NodeDefinition *sdnDefs;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 char *PGXCNodeHost;
-static char *g_TbasePlane = NULL;
+static char *g_OpenTenBasePlane = NULL;
 #endif
 
 /* HashTable key: nodeoid  value: position of coDefs/dnDefs */
@@ -113,14 +113,14 @@ NodeTablesShmemInit(void)
     /*
      * Initialize the table of Coordinators: first sizeof(int) bytes are to
      * store actual number of Coordinators, remaining data in the structure is
-     * array of NodeDefinition that can contain up to TBASE_MAX_COORDINATOR_NUMBER entries.
+     * array of NodeDefinition that can contain up to OPENTENBASE_MAX_COORDINATOR_NUMBER entries.
      * That is a bit weird and probably it would be better have these in
      * separate structures, but I am unsure about cost of having shmem structure
      * containing just single integer.
      */
     shmemNumCoords = ShmemInitStruct("Coordinator Table",
                                 sizeof(int) +
-                                    sizeof(NodeDefinition) * TBASE_MAX_COORDINATOR_NUMBER,
+                                    sizeof(NodeDefinition) * OPENTENBASE_MAX_COORDINATOR_NUMBER,
                                 &found);
 
     /* Have coDefs pointing right behind shmemNumCoords */
@@ -131,14 +131,14 @@ NodeTablesShmemInit(void)
     {
         *shmemNumCoords = 0;
         /* Mark nodeishealthy true at init time for all */
-        for (i = 0; i < TBASE_MAX_COORDINATOR_NUMBER; i++)
+        for (i = 0; i < OPENTENBASE_MAX_COORDINATOR_NUMBER; i++)
             coDefs[i].nodeishealthy = true;
     }
 
     /* Same for Datanodes */
     shmemNumDataNodes = ShmemInitStruct("Datanode Table",
                                    sizeof(int) +
-                                       sizeof(NodeDefinition) * TBASE_MAX_DATANODE_NUMBER,
+                                       sizeof(NodeDefinition) * OPENTENBASE_MAX_DATANODE_NUMBER,
                                    &found);
 
     /* Have dnDefs pointing right behind shmemNumDataNodes */
@@ -149,7 +149,7 @@ NodeTablesShmemInit(void)
     {
         *shmemNumDataNodes = 0;
         /* Mark nodeishealthy true at init time for all */
-        for (i = 0; i < TBASE_MAX_DATANODE_NUMBER; i++)
+        for (i = 0; i < OPENTENBASE_MAX_DATANODE_NUMBER; i++)
             dnDefs[i].nodeishealthy = true;
     }
 
@@ -157,7 +157,7 @@ NodeTablesShmemInit(void)
     /* Same for Datanodes */
     shmemNumSlaveDataNodes = ShmemInitStruct("Slave Datanode Table",
                                    sizeof(int) +
-                                       sizeof(NodeDefinition) * TBASE_MAX_DATANODE_NUMBER,
+                                       sizeof(NodeDefinition) * OPENTENBASE_MAX_DATANODE_NUMBER,
                                    &found);
 
     /* Have dnDefs pointing right behind shmemNumSlaveDataNodes */
@@ -168,11 +168,11 @@ NodeTablesShmemInit(void)
     {
         *shmemNumSlaveDataNodes = 0;
         /* Mark nodeishealthy true at init time for all */
-        for (i = 0; i < TBASE_MAX_DATANODE_NUMBER; i++)
+        for (i = 0; i < OPENTENBASE_MAX_DATANODE_NUMBER; i++)
             sdnDefs[i].nodeishealthy = true;
     }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     PGXCNodeHost = (char *)ShmemInitStruct("PGXC Node Host",
                                             NAMEDATALEN,
                                            &found);
@@ -181,12 +181,12 @@ NodeTablesShmemInit(void)
         PGXCNodeHost[0] = '\0';
     }
 
-	g_TbasePlane = (char *)ShmemInitStruct("TBase Plane",
+	g_OpenTenBasePlane = (char *)ShmemInitStruct("OpenTenBase Plane",
 											NAMEDATALEN,
 								            &found);
 	if (!found)
 	{
-		g_TbasePlane[0] = '\0';
+		g_OpenTenBasePlane[0] = '\0';
 	}
     
     NodeDefHashTabShmemInit();
@@ -195,7 +195,7 @@ NodeTablesShmemInit(void)
 }
 
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 void
 NodeDefHashTabShmemInit(void)
 {
@@ -206,8 +206,8 @@ NodeDefHashTabShmemInit(void)
     info.entrysize = sizeof(NodeDefLookupEnt);
     info.hash        = tag_hash;
     g_NodeDefHashTab = ShmemInitHash("NodeDef info look up",
-                                  TBASE_MAX_COORDINATOR_NUMBER + 2 * TBASE_MAX_DATANODE_NUMBER, 
-                                  TBASE_MAX_COORDINATOR_NUMBER + 2 * TBASE_MAX_DATANODE_NUMBER,
+                                  OPENTENBASE_MAX_COORDINATOR_NUMBER + 2 * OPENTENBASE_MAX_DATANODE_NUMBER, 
+                                  OPENTENBASE_MAX_COORDINATOR_NUMBER + 2 * OPENTENBASE_MAX_DATANODE_NUMBER,
                                   &info,
                                   HASH_ELEM | HASH_FUNCTION | HASH_FIXED_SIZE);    
 
@@ -229,7 +229,7 @@ NodeHashTableShmemSize(void)
     Size size;
 
     /* hash table, here just double the element size, in case of memory corruption */
-    size = mul_size((TBASE_MAX_DATANODE_NUMBER+TBASE_MAX_COORDINATOR_NUMBER) * 2 , MAXALIGN64(sizeof(NodeDefLookupEnt)));
+    size = mul_size((OPENTENBASE_MAX_DATANODE_NUMBER+OPENTENBASE_MAX_COORDINATOR_NUMBER) * 2 , MAXALIGN64(sizeof(NodeDefLookupEnt)));
 
     return size;
 }
@@ -247,11 +247,11 @@ NodeTablesShmemSize(void)
     Size dn_slave_size;
     Size total_size;
 
-    co_size = mul_size(sizeof(NodeDefinition), TBASE_MAX_COORDINATOR_NUMBER);
+    co_size = mul_size(sizeof(NodeDefinition), OPENTENBASE_MAX_COORDINATOR_NUMBER);
     co_size = add_size(co_size, sizeof(int));
-    dn_size = mul_size(sizeof(NodeDefinition), TBASE_MAX_DATANODE_NUMBER);
+    dn_size = mul_size(sizeof(NodeDefinition), OPENTENBASE_MAX_DATANODE_NUMBER);
     dn_size = add_size(dn_size, sizeof(int));
-    dn_slave_size = mul_size(sizeof(NodeDefinition), TBASE_MAX_DATANODE_NUMBER);
+    dn_slave_size = mul_size(sizeof(NodeDefinition), OPENTENBASE_MAX_DATANODE_NUMBER);
     dn_slave_size = add_size(dn_slave_size, sizeof(int));
 
     total_size = add_size(co_size, dn_size);
@@ -269,7 +269,7 @@ static void
 check_node_options(const char *node_name, List *options, char **node_host,
             int *node_port, char *node_type,
             bool *is_primary, bool *is_preferred
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             ,char **node_group,
             char **node_cluster_name,
             bool *alter
@@ -277,7 +277,7 @@ check_node_options(const char *node_name, List *options, char **node_host,
             )
 {// #lizard forgives
     ListCell   *option;
-#ifdef __TBASE__    
+#ifdef __OPENTENBASE__    
     bool        set_node_primary_option = false;
     bool        set_node_host_option = false;
     bool        set_node_port_option = false;
@@ -296,7 +296,7 @@ check_node_options(const char *node_name, List *options, char **node_host,
         if (strcmp(defel->defname, "port") == 0)
         {
             *node_port = defGetTypeLength(defel);
-#ifdef __TBASE__            
+#ifdef __OPENTENBASE__            
             set_node_host_option = true;
 #endif
             if (*node_port < 1 || *node_port > 65535)
@@ -307,7 +307,7 @@ check_node_options(const char *node_name, List *options, char **node_host,
         else if (strcmp(defel->defname, "host") == 0)
         {
             *node_host = defGetString(defel);
-#ifdef __TBASE__            
+#ifdef __OPENTENBASE__            
             set_node_port_option = true;
 #endif
         }
@@ -334,7 +334,7 @@ check_node_options(const char *node_name, List *options, char **node_host,
         else if (strcmp(defel->defname, "primary") == 0)
         {
             *is_primary = defGetBoolean(defel);
-#ifdef __TBASE__            
+#ifdef __OPENTENBASE__            
             set_node_primary_option = true;
 #endif
         }
@@ -342,7 +342,7 @@ check_node_options(const char *node_name, List *options, char **node_host,
         {
             *is_preferred = defGetBoolean(defel);
         }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         else if (strcmp(defel->defname, "group") == 0)
         {
             *node_group = defGetString(defel);
@@ -386,15 +386,15 @@ check_node_options(const char *node_name, List *options, char **node_host,
                         node_name)));
 
 #ifdef XCP
-    if (*node_type == PGXC_NODE_DATANODE && NumDataNodes >= TBASE_MAX_DATANODE_NUMBER)
+    if (*node_type == PGXC_NODE_DATANODE && NumDataNodes >= OPENTENBASE_MAX_DATANODE_NUMBER)
         ereport(ERROR,
                 (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
                  errmsg("Too many datanodes, current value of max_datanodes is %d",
-                        TBASE_MAX_DATANODE_NUMBER)));
+                        OPENTENBASE_MAX_DATANODE_NUMBER)));
 
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (PGXC_NODE_GTM == *node_type)
     {
         /* Currently only accept master gtm, so set to  */
@@ -596,7 +596,7 @@ PgxcNodeListAndCount(void)
     HeapTuple   tuple;
     NodeDefinition *nodes = NULL;
     int    numNodes;
-#ifdef __TBASE__    
+#ifdef __OPENTENBASE__    
     int loop = 0;
     NodeDefLookupTag tag;
     NodeDefLookupEnt *ent;
@@ -651,7 +651,7 @@ PgxcNodeListAndCount(void)
         NodeDefinition *node = NULL;
         int i;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if(enable_multi_cluster && strcmp(NameStr(nodeForm->node_cluster_name), PGXCClusterName))
             continue;
 #endif
@@ -676,7 +676,7 @@ PgxcNodeListAndCount(void)
                 break;
         }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (PGXCNodeHost[0] == '\0' && IsUnderPostmaster)
         {
             char *ip = get_local_address(MyProcPort);
@@ -731,20 +731,20 @@ PgxcNodeListAndCount(void)
     if (*shmemNumSlaveDataNodes > 1)
         qsort(sdnDefs, *shmemNumSlaveDataNodes, sizeof(NodeDefinition), cmp_nodes);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	/* set plane type */
-	if (g_TbasePlane[0] == '\0')
+	if (g_OpenTenBasePlane[0] == '\0')
 	{
 		if (PGXCClusterName && strlen(PGXCClusterName) > 0)
 		{
-			snprintf(g_TbasePlane, NAMEDATALEN, "%s", PGXCClusterName);
+			snprintf(g_OpenTenBasePlane, NAMEDATALEN, "%s", PGXCClusterName);
 		}
 	}
 	else
 	{
 		bool plane_changed = false;
 
-		if (PGXCClusterName && strcmp(g_TbasePlane, PGXCClusterName))
+		if (PGXCClusterName && strcmp(g_OpenTenBasePlane, PGXCClusterName))
 		{
 			plane_changed = true;
 		}
@@ -766,7 +766,7 @@ PgxcNodeListAndCount(void)
 				}
 			}
 
-			snprintf(g_TbasePlane, NAMEDATALEN, "%s", PGXCClusterName);
+			snprintf(g_OpenTenBasePlane, NAMEDATALEN, "%s", PGXCClusterName);
 		}
 	}
     /* Add to hash table */
@@ -1160,7 +1160,7 @@ PgxcNodeCreate(CreateNodeStmt *stmt)
 #ifdef _MIGRATE_
     Oid         nodeOid;
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     char           *node_group = NULL;
     Oid            groupoid = InvalidOid;
     char        *node_cluster_name = NULL;
@@ -1174,7 +1174,7 @@ PgxcNodeCreate(CreateNodeStmt *stmt)
                 (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                  errmsg("must be superuser to create cluster nodes")));
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* 
      * Support create node format like this: 
      * create gtm node gtm1 with (host='xxx.xxx.xxx.xxx',port=2999);
@@ -1190,7 +1190,7 @@ PgxcNodeCreate(CreateNodeStmt *stmt)
     check_node_options(node_name, stmt->options, &node_host,
                 &node_port, &node_type,
                 &is_primary, &is_preferred 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 ,&node_group
                 ,&node_cluster_name
                 ,&alter
@@ -1205,7 +1205,7 @@ PgxcNodeCreate(CreateNodeStmt *stmt)
 
     }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (alter)
     {
         if(node_group)
@@ -1254,11 +1254,11 @@ PgxcNodeCreate(CreateNodeStmt *stmt)
                 (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                  errmsg("Node name \"%s\" is too long",
                         node_name)));
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     PgxcCheckNodeValid((char*)node_name, (char*)node_cluster_name, node_type);
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* check if group is exist */
     if(node_group)
     {
@@ -1283,7 +1283,7 @@ PgxcNodeCreate(CreateNodeStmt *stmt)
                  errmsg("PGXC node %s: two nodes cannot be primary",
                         node_name)));
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /*
      * Check gtm only has one primary node
      */
@@ -1345,14 +1345,14 @@ PgxcNodeCreate(CreateNodeStmt *stmt)
      */
     count_coords_datanodes(pgxcnodesrel, &coordCount, &dnCount);
 
-    if ((node_type == PGXC_NODE_DATANODE && dnCount >= TBASE_MAX_DATANODE_NUMBER) ||
-        (node_type == PGXC_NODE_COORDINATOR && coordCount >= TBASE_MAX_COORDINATOR_NUMBER))
+    if ((node_type == PGXC_NODE_DATANODE && dnCount >= OPENTENBASE_MAX_DATANODE_NUMBER) ||
+        (node_type == PGXC_NODE_COORDINATOR && coordCount >= OPENTENBASE_MAX_COORDINATOR_NUMBER))
     {
         ereport(ERROR,
                 (errcode(ERRCODE_INSUFFICIENT_RESOURCES),
                  errmsg("cannot add more than %d %s",
                      node_type == PGXC_NODE_COORDINATOR ?
-                     TBASE_MAX_COORDINATOR_NUMBER : TBASE_MAX_DATANODE_NUMBER,
+                     OPENTENBASE_MAX_COORDINATOR_NUMBER : OPENTENBASE_MAX_DATANODE_NUMBER,
                      node_type == PGXC_NODE_COORDINATOR ?
                      "coordinators" : "datanodes"),
                  errhint("increase the value of %s GUC and restart the cluster",
@@ -1424,7 +1424,7 @@ PgxcNodeAlter(AlterNodeStmt *stmt)
     uint32        node_id;
     int            coordCount = 0;
     int            dnCount = 0;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     char        *node_group = NULL;
     char         *node_cluster = NULL;
     Oid            groupoid    = InvalidOid;
@@ -1488,7 +1488,7 @@ PgxcNodeAlter(AlterNodeStmt *stmt)
     check_node_options(node_name, stmt->options, &node_host,
                 &node_port, &node_type,
                 &is_primary, &is_preferred
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 , &node_group,
                 &node_cluster,
                 &alter
@@ -1511,7 +1511,7 @@ PgxcNodeAlter(AlterNodeStmt *stmt)
                  errmsg("PGXC node %s: two nodes cannot be primary",
                         node_name)));
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /*
      * Check only one gtm node can be primary
      */
@@ -1537,14 +1537,14 @@ PgxcNodeAlter(AlterNodeStmt *stmt)
      */
     count_coords_datanodes(rel, &coordCount, &dnCount);
 
-    if ((node_type == PGXC_NODE_DATANODE && dnCount >= TBASE_MAX_DATANODE_NUMBER) ||
-        (node_type == PGXC_NODE_COORDINATOR && coordCount >= TBASE_MAX_COORDINATOR_NUMBER))
+    if ((node_type == PGXC_NODE_DATANODE && dnCount >= OPENTENBASE_MAX_DATANODE_NUMBER) ||
+        (node_type == PGXC_NODE_COORDINATOR && coordCount >= OPENTENBASE_MAX_COORDINATOR_NUMBER))
     {
         ereport(ERROR,
                 (errcode(ERRCODE_INSUFFICIENT_RESOURCES),
                  errmsg("cannot add more than %d %s",
                      node_type == PGXC_NODE_COORDINATOR ?
-                     TBASE_MAX_COORDINATOR_NUMBER : TBASE_MAX_DATANODE_NUMBER,
+                     OPENTENBASE_MAX_COORDINATOR_NUMBER : OPENTENBASE_MAX_DATANODE_NUMBER,
                      node_type == PGXC_NODE_COORDINATOR ?
                      "coordinators" : "datanodes"),
                  errhint("increase the value of %s GUC and restart the cluster",
@@ -1648,7 +1648,7 @@ PgxcNodeRemove(DropNodeStmt *stmt)
     Oid groupoid;
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     char        node_type = PGXC_NODE_NONE;
     Form_pgxc_node    nodeForm;
     char       *node_cluster;
@@ -1677,7 +1677,7 @@ PgxcNodeRemove(DropNodeStmt *stmt)
         node_cluster = stmt->cluster_name;
     }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* Filter options */
     if (stmt->options)
     {
@@ -1782,7 +1782,7 @@ PgxcNodeRemove(DropNodeStmt *stmt)
                 (errcode(ERRCODE_UNDEFINED_OBJECT),
                  errmsg("PGXC Node %s: object not defined",
                         node_name)));
-#ifdef __TBASE__    
+#ifdef __OPENTENBASE__    
     nodeForm = (Form_pgxc_node) GETSTRUCT(tup);
     node_type = nodeForm->node_type;
 #endif
@@ -1816,7 +1816,7 @@ PgxcNodeRemove(DropNodeStmt *stmt)
     heap_close(relation, RowExclusiveLock);
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 void PgxcCheckNodeValid(char *name, char *clustername, char type)
 {// #lizard forgives
     bool         valid  = true;
@@ -1879,7 +1879,7 @@ void PgxcCheckNodeValid(char *name, char *clustername, char type)
 #endif
 
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /* When create master gtm node, supposed to be no gtm info in pgxc_node. If found, report ERROR. */
 static void 
 ValidateCreateGtmNode(void)

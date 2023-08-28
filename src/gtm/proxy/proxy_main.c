@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -1655,7 +1655,7 @@ ProcessCommand(GTMProxy_ConnectionInfo *conninfo, GTM_Conn *gtm_conn,
         case MSG_REPORT_XMIN:
         case MSG_NODE_REGISTER:
         case MSG_NODE_UNREGISTER:
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         case MSG_TXN_FINISH_GID:
         case MSG_LIST_GTM_STORE:
         case MSG_LIST_GTM_STORE_SEQ:            /* List  gtm running sequence info */            
@@ -1821,7 +1821,7 @@ IsProxiedMessage(GTM_MessageType mtype)
         case MSG_SNAPSHOT_GET:
         case MSG_TXN_COMMIT:
         case MSG_BARRIER:
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         case MSG_TXN_FINISH_GID:
         case MSG_LIST_GTM_STORE:
         case MSG_LIST_GTM_STORE_SEQ:            /* List  gtm running sequence info */            
@@ -2030,7 +2030,7 @@ ProcessResponse(GTMProxy_ThreadInfo *thrinfo, GTMProxy_CommandInfo *cmdinfo,
         case MSG_SEQUENCE_ALTER:
         case MSG_SNAPSHOT_GET:
         case MSG_TXN_COMMIT:
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         case MSG_TXN_FINISH_GID:
         case MSG_LIST_GTM_STORE:
         case MSG_LIST_GTM_STORE_SEQ:            /* List  gtm running sequence info */            

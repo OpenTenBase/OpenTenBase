@@ -25,7 +25,7 @@
 #endif
 #include "storage/sinval.h"
 #include "utils/datetime.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "utils/resowner.h"
 #endif
 #include "pgxc/pgxcnode.h"
@@ -55,7 +55,7 @@ extern PGDLLIMPORT int XactIsoLevel;
 extern bool DefaultXactReadOnly;
 extern bool XactReadOnly;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern bool GTM_ReadOnly;
 #endif
 
@@ -165,7 +165,7 @@ typedef void (*GTMCallback) (GTMEvent event, void *arg);
 #define XLOG_XACT_COMMIT_PREPARED	0x30
 #define XLOG_XACT_ABORT_PREPARED	0x40
 #define XLOG_XACT_ASSIGNMENT		0x50
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /* free opcode 0x60 */
 #define XLOG_XACT_ACQUIRE_GTS		0x60
 #endif
@@ -361,7 +361,7 @@ typedef struct xl_xact_parsed_abort
 	TransactionId twophase_xid; /* only for 2PC */
 } xl_xact_parsed_abort;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 typedef struct xl_xact_acquire_gts
 {
 	TimestampTz global_timestamp;   /* logical global timestamp */
@@ -544,7 +544,7 @@ extern uint64 GetGlobalXidVersion(void);
 
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern void AtEOXact_Global(void);
 #endif
 #ifdef __SUPPORT_DISTRIBUTED_TRANSACTION__
@@ -563,7 +563,7 @@ extern GlobalTimestamp GetLocalPrepareTimestamp(void);
 
 
 extern TransactionId GetCurrentTransactionIdIfAny(void);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern bool GetCurrentLocalParamStatus(void);
 extern void SetCurrentLocalParamStatus(bool status);
 #endif
@@ -574,7 +574,7 @@ extern void SetAuxilliaryTransactionId(GlobalTransactionId gxid);
 extern void SetTopGlobalTransactionId(GlobalTransactionId gxid);
 extern void SetTopTransactionId(GlobalTransactionId xid);
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern bool InSubTransaction(void);
 extern bool InPlpgsqlFunc(void);
 extern bool NeedBeginTxn(void);

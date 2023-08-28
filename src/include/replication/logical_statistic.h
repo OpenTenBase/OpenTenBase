@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -63,7 +63,7 @@
  * pg_subscription_statistic.h
  *        Statistic info about shards of a subscription (pg_subscription_statistic).
  *
- * Portions Copyright (c) 2018, Tencent TBase Group
+ * Portions Copyright (c) 2018, Tencent OpenTenBase Group
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
@@ -120,21 +120,21 @@ extern void SetSubStatCheck(bool substatcount, bool substatchecksum);
 
 extern void GetSubTableEntry(Oid subid, Oid relid, void **entry, CmdType cmd);
 
-extern Datum tbase_get_pub_stat(PG_FUNCTION_ARGS);
-extern Datum tbase_get_all_pub_stat(PG_FUNCTION_ARGS);
-extern Datum tbase_get_sub_stat(PG_FUNCTION_ARGS);
-extern Datum tbase_get_all_sub_stat(PG_FUNCTION_ARGS);
-extern Datum tbase_get_pubtable_stat(PG_FUNCTION_ARGS);
-extern Datum tbase_get_all_pubtable_stat(PG_FUNCTION_ARGS);
-extern Datum tbase_get_subtable_stat(PG_FUNCTION_ARGS);
-extern Datum tbase_get_all_subtable_stat(PG_FUNCTION_ARGS);
-extern Datum tbase_set_pub_stat_check(PG_FUNCTION_ARGS);
-extern Datum tbase_set_sub_stat_check(PG_FUNCTION_ARGS);
-extern Datum tbase_get_pub_stat_check(PG_FUNCTION_ARGS);
-extern Datum tbase_get_sub_stat_check(PG_FUNCTION_ARGS);
-extern Datum tbase_remove_pub_stat(PG_FUNCTION_ARGS);
-extern Datum tbase_remove_pubtable_stat(PG_FUNCTION_ARGS);
-extern Datum tbase_remove_sub_stat(PG_FUNCTION_ARGS);
-extern Datum tbase_remove_subtable_stat(PG_FUNCTION_ARGS);
+extern Datum opentenbase_get_pub_stat(PG_FUNCTION_ARGS);
+extern Datum opentenbase_get_all_pub_stat(PG_FUNCTION_ARGS);
+extern Datum opentenbase_get_sub_stat(PG_FUNCTION_ARGS);
+extern Datum opentenbase_get_all_sub_stat(PG_FUNCTION_ARGS);
+extern Datum opentenbase_get_pubtable_stat(PG_FUNCTION_ARGS);
+extern Datum opentenbase_get_all_pubtable_stat(PG_FUNCTION_ARGS);
+extern Datum opentenbase_get_subtable_stat(PG_FUNCTION_ARGS);
+extern Datum opentenbase_get_all_subtable_stat(PG_FUNCTION_ARGS);
+extern Datum opentenbase_set_pub_stat_check(PG_FUNCTION_ARGS);
+extern Datum opentenbase_set_sub_stat_check(PG_FUNCTION_ARGS);
+extern Datum opentenbase_get_pub_stat_check(PG_FUNCTION_ARGS);
+extern Datum opentenbase_get_sub_stat_check(PG_FUNCTION_ARGS);
+extern Datum opentenbase_remove_pub_stat(PG_FUNCTION_ARGS);
+extern Datum opentenbase_remove_pubtable_stat(PG_FUNCTION_ARGS);
+extern Datum opentenbase_remove_sub_stat(PG_FUNCTION_ARGS);
+extern Datum opentenbase_remove_subtable_stat(PG_FUNCTION_ARGS);
 #endif                            /* PG_SUBSCRIPTION_STATISTIC_H */
 

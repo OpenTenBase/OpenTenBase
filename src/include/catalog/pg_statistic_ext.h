@@ -49,7 +49,7 @@ CATALOG(pg_statistic_ext,3381)
 												 * to build */
 	pg_ndistinct stxndistinct;	/* ndistinct coefficients (serialized) */
 	pg_dependencies stxdependencies;	/* dependencies (serialized) */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	pg_dependencies stxsubset;	/* subset (serialized) */
 #endif
 #endif
@@ -67,7 +67,7 @@ typedef FormData_pg_statistic_ext *Form_pg_statistic_ext;
  *        compiler constants for pg_statistic_ext
  * ----------------
  */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #define Natts_pg_statistic_ext					9
 #else
 #define Natts_pg_statistic_ext					8
@@ -80,13 +80,13 @@ typedef FormData_pg_statistic_ext *Form_pg_statistic_ext;
 #define Anum_pg_statistic_ext_stxkind			6
 #define Anum_pg_statistic_ext_stxndistinct		7
 #define Anum_pg_statistic_ext_stxdependencies	8
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #define Anum_pg_statistic_ext_stxsubset			9
 #endif
 
 #define STATS_EXT_NDISTINCT			'd'
 #define STATS_EXT_DEPENDENCIES		'f'
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #define STATS_EXT_SUBSET			's'
 #endif
 

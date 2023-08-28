@@ -26,7 +26,7 @@ extern void StoreViewQuery(Oid viewOid, Query *viewParse, bool replace);
 
 extern Query *MakeViewParse(ViewStmt* stmt, const char* query_string,
 									int stmt_location, int stmt_len);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern bool IsViewTemp(ViewStmt* stmt, const char* query_string,
 						int stmt_location, int stmt_len, List **relation_list);
 #endif

@@ -29,7 +29,7 @@ extern bool log_hostname;
 extern bool enable_bonjour;
 extern char *bonjour_name;
 extern bool restart_after_crash;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern bool enable_statistic;
 extern bool g_enable_bouncer;
 extern bool g_enable_gtm_proxy;
@@ -107,7 +107,7 @@ extern void ShmemBackendArrayAllocation(void);
  * relevant GUC check hooks and in RegisterBackgroundWorker().
  */
 #define MAX_BACKENDS	0x3FFFF
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern void PostmasterEnableLogTimeout(void);
 extern void PostmasterDisableTimeout(void);
 extern bool PostmasterIsPrimaryAndNormal(void);

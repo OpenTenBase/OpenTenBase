@@ -154,7 +154,7 @@ typedef enum PgStat_Single_Reset_Type
 typedef struct PgStat_TableStatus
 {
 	Oid			t_id;			/* table's OID */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	Oid			t_parent_id;	/* parent's OID for interval child table, of InvalidOid */
 #endif
 	bool		t_shared;		/* is it a shared catalog? */
@@ -256,7 +256,7 @@ typedef struct PgStat_MsgInquiry
 typedef struct PgStat_TableEntry
 {
 	Oid			t_id;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	Oid			t_parent_id;
 #endif
 	PgStat_TableCounts t_counts;

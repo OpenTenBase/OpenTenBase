@@ -580,11 +580,11 @@ MFLAGS=
 MAKEFLAGS=
 
 # Identity of this package.
-PACKAGE_NAME='TBase'
-PACKAGE_TARNAME='TBase'
-PACKAGE_VERSION='10.0 TBase V2'
+PACKAGE_NAME='OpenTenBase'
+PACKAGE_TARNAME='OpenTenBase'
+PACKAGE_VERSION='10.0 OpenTenBase V2'
 PACKAGE_XC_VERSION='10.0'
-PACKAGE_STRING='TBase V2.00.1'
+PACKAGE_STRING='OpenTenBase V2.00.1'
 PACKAGE_BUGREPORT='bugs@postgres-xl.org'
 PACKAGE_URL=''
 
@@ -1420,7 +1420,7 @@ if test "$ac_init_help" = "long"; then
   # Omit some internal or obsolete options to make the list less imposing.
   # This message is too long to be a string in the A/UX 3.1 sh.
   cat <<_ACEOF
-\`configure' configures PostgreSQL 10 (TBase 2.01) to adapt to many kinds of systems.
+\`configure' configures PostgreSQL 10 (OpenTenBase 2.01) to adapt to many kinds of systems.
 
 Usage: $0 [OPTION]... [VAR=VALUE]...
 

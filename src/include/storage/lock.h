@@ -597,7 +597,7 @@ extern void VirtualXactLockTableInsert(VirtualTransactionId vxid);
 extern void VirtualXactLockTableCleanup(void);
 extern bool VirtualXactLock(VirtualTransactionId vxid, bool wait);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern void StillHoldlock(void);
 #endif
 #endif                            /* LOCK_H */

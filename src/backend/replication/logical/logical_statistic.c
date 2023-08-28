@@ -1,6 +1,6 @@
 /* -------------------------------------------------------------------------
  *
- * Portions Copyright (c) 2018, Tencent TBase Group
+ * Portions Copyright (c) 2018, Tencent OpenTenBase Group
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
@@ -507,7 +507,7 @@ typedef struct
 }StatInfo;
 
 /* show statistic data of one publication */
-Datum tbase_get_pub_stat(PG_FUNCTION_ARGS)
+Datum opentenbase_get_pub_stat(PG_FUNCTION_ARGS)
 {
 #define NCOLUMNS 6
     bool        found;
@@ -575,7 +575,7 @@ Datum tbase_get_pub_stat(PG_FUNCTION_ARGS)
 }
 
 /* show statistic data of all publications with its tables */
-Datum tbase_get_all_pub_stat(PG_FUNCTION_ARGS)
+Datum opentenbase_get_all_pub_stat(PG_FUNCTION_ARGS)
 {
 #define NCOLUMNS 6
     FuncCallContext     *funcctx;
@@ -654,7 +654,7 @@ Datum tbase_get_all_pub_stat(PG_FUNCTION_ARGS)
 
 
 /* show statistic data of one subscription */
-Datum tbase_get_sub_stat(PG_FUNCTION_ARGS)
+Datum opentenbase_get_sub_stat(PG_FUNCTION_ARGS)
 {
 #define NCOLUMNS 6
     bool        found;
@@ -723,7 +723,7 @@ Datum tbase_get_sub_stat(PG_FUNCTION_ARGS)
 
 
 /* show statistic data of all subscription  */
-Datum tbase_get_all_sub_stat(PG_FUNCTION_ARGS)
+Datum opentenbase_get_all_sub_stat(PG_FUNCTION_ARGS)
 {
 #define NCOLUMNS 6
     FuncCallContext     *funcctx;
@@ -801,7 +801,7 @@ Datum tbase_get_all_sub_stat(PG_FUNCTION_ARGS)
 }
 
 /* show statistic data of one publication table */
-Datum tbase_get_pubtable_stat(PG_FUNCTION_ARGS)
+Datum opentenbase_get_pubtable_stat(PG_FUNCTION_ARGS)
 {
 #define ATTR_COLUMNS 7
     bool         found;
@@ -872,7 +872,7 @@ Datum tbase_get_pubtable_stat(PG_FUNCTION_ARGS)
 }
 
 /* show statistic data of all publication table */
-Datum tbase_get_all_pubtable_stat(PG_FUNCTION_ARGS)
+Datum opentenbase_get_all_pubtable_stat(PG_FUNCTION_ARGS)
 {
 #define ATTR_COLUMNS 7
     FuncCallContext     *funcctx;
@@ -953,7 +953,7 @@ Datum tbase_get_all_pubtable_stat(PG_FUNCTION_ARGS)
     }
 }
 
-Datum tbase_get_subtable_stat(PG_FUNCTION_ARGS)
+Datum opentenbase_get_subtable_stat(PG_FUNCTION_ARGS)
 {
 #define SUBTABLE_COLUMNS 8
     bool         found;
@@ -1031,7 +1031,7 @@ Datum tbase_get_subtable_stat(PG_FUNCTION_ARGS)
 }
 
 /* show statistic data of all subscriptions with its tables */
-Datum tbase_get_all_subtable_stat(PG_FUNCTION_ARGS)
+Datum opentenbase_get_all_subtable_stat(PG_FUNCTION_ARGS)
 {
 #define SUBTABLE_COLUMNS 8
     FuncCallContext     *funcctx;
@@ -1117,7 +1117,7 @@ Datum tbase_get_all_subtable_stat(PG_FUNCTION_ARGS)
     }
 }
 
-Datum tbase_set_pub_stat_check(PG_FUNCTION_ARGS)
+Datum opentenbase_set_pub_stat_check(PG_FUNCTION_ARGS)
 {
     bool pubstatcount = PG_GETARG_BOOL(0);
     bool pubstatchecksum = PG_GETARG_BOOL(1);
@@ -1126,7 +1126,7 @@ Datum tbase_set_pub_stat_check(PG_FUNCTION_ARGS)
 
     PG_RETURN_BOOL(true);
 }
-Datum tbase_set_sub_stat_check(PG_FUNCTION_ARGS)
+Datum opentenbase_set_sub_stat_check(PG_FUNCTION_ARGS)
 {
     bool substatcount = PG_GETARG_BOOL(0);
     bool substatchecksum = PG_GETARG_BOOL(1);
@@ -1136,7 +1136,7 @@ Datum tbase_set_sub_stat_check(PG_FUNCTION_ARGS)
     PG_RETURN_BOOL(true);
 }
 
-Datum tbase_get_pub_stat_check(PG_FUNCTION_ARGS)
+Datum opentenbase_get_pub_stat_check(PG_FUNCTION_ARGS)
 {
 #define NATTRS 2
     Datum        values[NATTRS];
@@ -1168,7 +1168,7 @@ Datum tbase_get_pub_stat_check(PG_FUNCTION_ARGS)
 }
 
 
-Datum tbase_get_sub_stat_check(PG_FUNCTION_ARGS)
+Datum opentenbase_get_sub_stat_check(PG_FUNCTION_ARGS)
 {
 #define NATTRS 2
     Datum        values[NATTRS];
@@ -1199,7 +1199,7 @@ Datum tbase_get_sub_stat_check(PG_FUNCTION_ARGS)
     PG_RETURN_DATUM(HeapTupleGetDatum(htup));
 }
 
-Datum tbase_remove_pub_stat(PG_FUNCTION_ARGS)
+Datum opentenbase_remove_pub_stat(PG_FUNCTION_ARGS)
 {
     char        *subname;
     HASH_SEQ_STATUS scan_status;
@@ -1223,7 +1223,7 @@ Datum tbase_remove_pub_stat(PG_FUNCTION_ARGS)
     PG_RETURN_BOOL(true);
 }
 
-Datum tbase_remove_pubtable_stat(PG_FUNCTION_ARGS)
+Datum opentenbase_remove_pubtable_stat(PG_FUNCTION_ARGS)
 {
     Oid subid;
     HASH_SEQ_STATUS scan_status;
@@ -1247,7 +1247,7 @@ Datum tbase_remove_pubtable_stat(PG_FUNCTION_ARGS)
     PG_RETURN_BOOL(true);
 }
 
-Datum tbase_remove_sub_stat(PG_FUNCTION_ARGS)
+Datum opentenbase_remove_sub_stat(PG_FUNCTION_ARGS)
 {
     char        *subname;
     HASH_SEQ_STATUS scan_status;
@@ -1271,7 +1271,7 @@ Datum tbase_remove_sub_stat(PG_FUNCTION_ARGS)
     PG_RETURN_BOOL(true);
 }
 
-Datum tbase_remove_subtable_stat(PG_FUNCTION_ARGS)
+Datum opentenbase_remove_subtable_stat(PG_FUNCTION_ARGS)
 {
     Oid subid;
     HASH_SEQ_STATUS scan_status;

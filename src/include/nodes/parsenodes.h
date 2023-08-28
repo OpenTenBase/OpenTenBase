@@ -66,7 +66,7 @@ typedef enum SortByNulls
     SORTBY_NULLS_LAST
 } SortByNulls;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 typedef enum ParallelDDLRemoteType
 {
 	NON_PARALLEL_DDL,	/* non parallel ddl mode, exec_type decides */
@@ -109,7 +109,7 @@ typedef uint32 AclMode;            /* a bitmask of privilege bits */
 #define PGXC_NODE_DATANODE            'D'
 #define PGXC_NODE_SLAVEDATANODE        'S'
 #define PGXC_NODE_NONE                'N'
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #define PGXC_NODE_GTM                'G'
 #endif
 
@@ -155,7 +155,7 @@ typedef struct Query
     bool        hasModifyingCTE;    /* has INSERT/UPDATE/DELETE in WITH */
     bool        hasForUpdate;    /* FOR [KEY] UPDATE/SHARE was specified */
     bool        hasRowSecurity; /* rewriter has applied some RLS policy */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     bool        isSingleValues; /*for interval partition insert */
     bool        isMultiValues;  /* is simple insert into values (),(),()...();? */
     bool        hasUnshippableTriggers; /* has unshippable triggers on resultRelation, 
@@ -688,7 +688,7 @@ typedef struct ColumnDef
     List       *constraints;    /* other constraints on column */
     List       *fdwoptions;        /* per-column FDW options */
     int            location;        /* parse location, or -1 if none/unknown */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     bool        is_dropped;     /* column has been dropped? */
     void       *ptr;
 #endif
@@ -809,7 +809,7 @@ typedef struct PartitionElem
     int            location;        /* token location, or -1 if unknown */
 } PartitionElem;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #define MAX_NUM_INTERVAL_PARTITIONS 65536
 
 #define PARTITION_ROUTER_RESULT_NULL  -2
@@ -863,7 +863,7 @@ typedef struct PartitionSpec
         char       *strategy;           /* partitioning strategy ('hash', 'list' or
                                                                  * 'range') */
     List       *partParams;        /* List of PartitionElems */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     PartitionBy *interval;      /* used for interval partition */
 #endif
     int            location;        /* token location, or -1 if unknown */
@@ -873,7 +873,7 @@ typedef struct PartitionSpec
 #define PARTITION_STRATEGY_HASH         'h'
 #define PARTITION_STRATEGY_LIST        'l'
 #define PARTITION_STRATEGY_RANGE    'r'
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #define PARTITION_STRATEGY_INTERVAL    'i'
 #define PARTITION_INTERVAL "interval"
 #endif
@@ -1157,7 +1157,7 @@ typedef struct RangeTblEntry
 #ifdef _MLS_
     Node       *cls_expr;    /* cls policy check node tree, if exists */
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* used for interval partition */
     bool        intervalparent; /* is interval partition */
     bool        isdefault;      /* is default partition table */
@@ -1569,7 +1569,7 @@ typedef struct InsertStmt
     List       *returningList;    /* list of expressions to return */
     WithClause *withClause;        /* WITH clause */
     OverridingKind override;    /* OVERRIDING clause */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     int        ninsert_columns; /* number of insert columns */
     int        ndatarows;       /* totals rows for insert into multi-values */
     char       ***data_list;    /* datarows in memroy of insert into multi-values */
@@ -1884,7 +1884,7 @@ typedef enum AlterTableType
     AT_AddNodeList,                /* ADD NODE nodelist */
     AT_DeleteNodeList,            /* DELETE NODE nodelist */
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     AT_AddPartitions,
     AT_DropPartitions,
     AT_ExchangeIndexName,
@@ -2090,7 +2090,7 @@ typedef struct CopyStmt
 #ifdef _SHARDING_
     List        *shards;
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* these members do not need copy, data_list may be very large */
     bool        insert_into;    /* is this copy from transformed from insert into multi-values */
     char        ***data_list;   /* datarows of insert multi-values in memory */
@@ -2167,7 +2167,7 @@ typedef struct CreateStmt
     DistributeBy *distributeby;     /* distribution to use, or NULL */
     PGXCSubCluster *subcluster;        /* subcluster of table */
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* for interval partition */
     bool        interval_child;     /* is interval partition child? */
     int            interval_child_idx; /* interval partition child's index */          
@@ -2901,7 +2901,7 @@ typedef struct IndexStmt
     bool        if_not_exists;    /* just do nothing if index already exists? */
         bool        reset_default_tblspc;   /* reset default_tablespace prior to
                                              * executing */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* used for interval partition */
     Oid         parentIndexOid;
 	List       *partsOldNode;   /* like oldNode just for partition tables */
@@ -3770,7 +3770,7 @@ typedef struct CreateSubscriptionStmt
     List       *publication;    /* One or more publication to subscribe to */
     List       *options;        /* List of DefElem nodes */
 #ifdef __SUBSCRIPTION__
-    bool        istbase;        /* support for CREATE TBASE SUBSCRIPTION */
+    bool        isopentenbase;        /* support for CREATE OPENTENBASE SUBSCRIPTION */
     int            sub_parallel_number;
     int            sub_parallel_index;
 #endif    
@@ -3794,7 +3794,7 @@ typedef struct AlterSubscriptionStmt
     List       *publication;    /* One or more publication to subscribe to */
     List       *options;        /* List of DefElem nodes */
 #ifdef __SUBSCRIPTION__
-    bool        istbase;        /* support for ALTER TBASE SUBSCRIPTION */
+    bool        isopentenbase;        /* support for ALTER OPENTENBASE SUBSCRIPTION */
 #endif    
 } AlterSubscriptionStmt;
 
@@ -3805,7 +3805,7 @@ typedef struct DropSubscriptionStmt
     bool        missing_ok;        /* Skip error if missing? */
     DropBehavior behavior;        /* RESTRICT or CASCADE behavior */
 #ifdef __SUBSCRIPTION__
-    bool        istbase;        /* support for DROP TBASE SUBSCRIPTION */
+    bool        isopentenbase;        /* support for DROP OPENTENBASE SUBSCRIPTION */
 #endif
 } DropSubscriptionStmt;
 
@@ -3947,7 +3947,7 @@ typedef struct CleanAuditStmt        /* clean audit*/
 
 #endif                            /* __AUDIT__ */
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 
 typedef struct SampleStmt
 {

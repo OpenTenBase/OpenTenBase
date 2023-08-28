@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -130,7 +130,7 @@ typedef struct
     int32   shmemNumShardNodes;        /* number of nodes in the sharding group*/
 
     int32   shmemshardnodes[MAX_GROUP_NODE_NUMBER];/* node index of this group, ordered by node name */
-    int32   shmemNodeMap[TBASE_MAX_DATANODE_NUMBER];    /* map for global node index to group native node index */
+    int32   shmemNodeMap[OPENTENBASE_MAX_DATANODE_NUMBER];    /* map for global node index to group native node index */
     ShardMapItemDef shmemshardmap[1];    /* shard map info */
 }GroupShardInfo;
 
@@ -1040,7 +1040,7 @@ static void ShardMapInitDone_CN(int32 map, Oid group, bool need_lock)
                 cmp_int32);
         
         /*init all element to invalid big. */
-        memset(g_GroupShardingMgr->members[map]->shmemNodeMap, 0XFF, sizeof(int32) * TBASE_MAX_DATANODE_NUMBER);
+        memset(g_GroupShardingMgr->members[map]->shmemNodeMap, 0XFF, sizeof(int32) * OPENTENBASE_MAX_DATANODE_NUMBER);
         for (i = 0; i < nodeCnt; i++)
         {
             nodeindex = g_GroupShardingMgr->members[map]->shmemshardnodes[i];
@@ -1120,7 +1120,7 @@ static void ShardMapInitDone_DN(Oid group, bool need_lock)
             cmp_int32);
     
     /*init all element to invalid big. */
-    memset(g_GroupShardingMgr_DN->members->shmemNodeMap, 0XFF, sizeof(int32) * TBASE_MAX_DATANODE_NUMBER);
+    memset(g_GroupShardingMgr_DN->members->shmemNodeMap, 0XFF, sizeof(int32) * OPENTENBASE_MAX_DATANODE_NUMBER);
     for (i = 0; i < nodeCnt; i++)
     {
         nodeindex = g_GroupShardingMgr_DN->members->shmemshardnodes[i];
@@ -3715,7 +3715,7 @@ ResetShardStatistic(void)
 
 /* display shard statistic info */
 Datum  
-tbase_shard_statistic(PG_FUNCTION_ARGS)
+opentenbase_shard_statistic(PG_FUNCTION_ARGS)
 {// #lizard forgives
 #define NCOLUMNS 9
     FuncCallContext     *funcctx;

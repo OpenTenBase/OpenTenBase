@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -334,7 +334,7 @@ DecodeXLogOp(LogicalDecodingContext *ctx, XLogRecordBuffer *buf)
         case XLOG_FPW_CHANGE:
         case XLOG_FPI_FOR_HINT:
         case XLOG_FPI:
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         case XLOG_MVCC:
 #endif
             break;
@@ -443,7 +443,7 @@ DecodeXactOp(LogicalDecodingContext *ctx, XLogRecordBuffer *buf)
             ReorderBufferProcessXid(reorder, XLogRecGetXid(r), buf->origptr);
             break;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		case XLOG_XACT_ACQUIRE_GTS:
 			{
 				/* nothing to do. */

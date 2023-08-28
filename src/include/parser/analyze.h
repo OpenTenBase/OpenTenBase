@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -77,7 +77,7 @@
 
 #include "parser/parse_node.h"
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern bool g_transform_insert_to_copy;
 #endif
 
@@ -113,7 +113,7 @@ extern void ParseAnalyze_callback(ParseState *pstate, Query *query);
 extern post_parse_analyze_hook_type prev_ParseAnalyze_callback;
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern List *transformInsertValuesIntoCopyFrom(List *plantree_list, InsertStmt *stmt, bool *success,
                                             char *transform_string, Query    *query);
 #endif

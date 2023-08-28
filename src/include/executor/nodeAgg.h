@@ -15,11 +15,11 @@
 #define NODEAGG_H
 
 #include "nodes/execnodes.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "executor/execParallel.h"
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern bool g_hybrid_hash_agg;
 extern bool g_hybrid_hash_agg_debug;
 extern int  g_default_hashagg_nbatches;
@@ -33,7 +33,7 @@ extern Size hash_agg_entry_size(int numAggs);
 
 extern Datum aggregate_dummy(PG_FUNCTION_ARGS);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern void ReDistributeEstimate(PlanState *node, ParallelContext *pcxt);
 
 extern void ReDistributeInitializeDSM(PlanState *node, ParallelContext *pcxt);

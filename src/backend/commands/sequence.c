@@ -28,7 +28,7 @@
 #include "catalog/dependency.h"
 #include "catalog/indexing.h"
 #include "catalog/namespace.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "catalog/pg_namespace.h"
 #endif
 #include "catalog/objectaccess.h"
@@ -154,11 +154,11 @@ static void init_params(ParseState *pstate, List *options, bool for_identity,
             bool *is_restart);
 static void do_setval(Oid relid, int64 next, bool iscalled);
 static void process_owned_by(Relation seqrel, List *owned_by, bool for_identity);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern bool  g_GTM_skip_catalog;
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern bool is_txn_has_parallel_ddl;
 
 /*
@@ -246,7 +246,7 @@ DefineSequence(ParseState *pstate, CreateSeqStmt *seq)
     char        *seqname = NULL;
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (g_GTM_skip_catalog && IS_PGXC_DATANODE)
     {
         ereport(ERROR,
@@ -273,7 +273,7 @@ DefineSequence(ParseState *pstate, CreateSeqStmt *seq)
             RangeVarGetAndCheckCreationNamespace(seq->sequence, NoLock, &seqoid);
             if (OidIsValid(seqoid))
             {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 				if (!exists_ok)
 					ereport(ERROR,
 						(errcode(ERRCODE_DUPLICATE_TABLE),
@@ -391,7 +391,7 @@ DefineSequence(ParseState *pstate, CreateSeqStmt *seq)
 
         heap_freetuple(tuple);
         heap_close(rel, RowExclusiveLock);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     }
     else
     {
@@ -445,7 +445,7 @@ DefineSequence(ParseState *pstate, CreateSeqStmt *seq)
 					 errmsg("GTM error, could not create sequence %s", seqname)));
         }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         RegisterSeqCreate(seqname, GTM_SEQ_FULL_NAME);
 #endif
         pfree(seqname);
@@ -664,7 +664,7 @@ AlterSequence(ParseState *pstate, AlterSeqStmt *stmt)
     
 
     init_sequence(relid, &elm, &seqrel);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (g_GTM_skip_catalog && IS_PGXC_DATANODE)
     {
         ereport(ERROR,
@@ -748,7 +748,7 @@ AlterSequence(ParseState *pstate, AlterSeqStmt *stmt)
 
         heap_close(rel, RowExclusiveLock);    
         relation_close(seqrel, NoLock);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     }
     else
     {
@@ -1032,7 +1032,7 @@ nextval_internal(Oid relid, bool check_permissions)
 
     elm->increment = incby;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* ready to change the on-disk (or really, in-buffer) tuple */
     START_CRIT_SECTION();
     
@@ -2319,7 +2319,7 @@ ResetSequenceCaches(void)
 
     last_used_seq = NULL;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* connect GTM to clean up all current session related sequence */
     CleanGTMSeq();
 #endif
@@ -2336,7 +2336,7 @@ seq_mask(char *page, BlockNumber blkno)
     mask_unused_space(page);
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 void RenameDatabaseSequence(const char* oldname, const char* newname)
 {    
     if (RenameDBSequenceGTM(oldname, newname) < 0)

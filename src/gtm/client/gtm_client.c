@@ -485,7 +485,7 @@ send_failed:
     return -1;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 int
 bkup_global_timestamp(GTM_Conn *conn, GlobalTimestamp timestamp)
 {
@@ -1602,7 +1602,7 @@ send_failed:
     conn->result->gr_status = GTM_RESULT_COMM_ERROR;
     return -1;
 }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 int
 finish_gid_gtm(GTM_Conn *conn, char *gid)
 {// #lizard forgives

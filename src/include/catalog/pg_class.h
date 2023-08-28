@@ -75,7 +75,7 @@ CATALOG(pg_class,1259) BKI_BOOTSTRAP BKI_ROWTYPE_OID(83) BKI_SCHEMA_MACRO
 #ifdef _SHARDING_
     bool        relhasextent;   /* T if organize with extent */
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* used for interval partition */
     char        relpartkind;    /* partition parent or partition child or non-partition */
     Oid         relparent;      /* partition parent objectid if partition child */
@@ -140,7 +140,7 @@ typedef FormData_pg_class *Form_pg_class;
 #ifdef _SHARDING_
 #define Anum_pg_class_relhasextent            29
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #define Anum_pg_class_relpartkind            30
 #define Anum_pg_class_relparent                31
 #endif
@@ -229,7 +229,7 @@ DESCR("");
 #define       RELKIND_NORMAL_TABLE      'n'
 #endif
 
-#ifdef __TBASE__  
+#ifdef __OPENTENBASE__  
 #define       RELPARTKIND_PARENT        'p'
 #define       RELPARTKIND_CHILD         'c'
 #define       RELPARTKIND_NONE          'n'

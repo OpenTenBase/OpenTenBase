@@ -49,7 +49,7 @@
 #include "utils/guc.h"
 #include "utils/ps_status.h"
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "fmgr.h"
 #include "utils/builtins.h"
 #endif
@@ -101,7 +101,7 @@ static bool pgarch_archiveXlog(char *xlog);
 static bool pgarch_readyXlog(char *xlog);
 static void pgarch_archiveDone(char *xlog);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 
 #define SLEEPSECONDS 5.0
 
@@ -368,7 +368,7 @@ pgarch_MainLoop(void)
             ProcessConfigFile(PGC_SIGHUP);
         }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (pgarch_Break())
         {
             ereport(WARNING,
@@ -414,7 +414,7 @@ pgarch_MainLoop(void)
             pg_time_t    curtime = (pg_time_t) time(NULL);
             int            timeout;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             timeout = archive_autowake_interval - (curtime - last_copy_time);
 #else
             timeout = PGARCH_AUTOWAKE_INTERVAL - (curtime - last_copy_time);
@@ -494,7 +494,7 @@ pgarch_ArchiverCopyLoop(void)
                 return;
             }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             /* just return if archive is breaked ... */
             if (pgarch_Break())
             {
@@ -554,24 +554,24 @@ pgarch_archiveXlog(char *xlog)
     char       *endp;
     const char *sp;
     int            rc;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     char        xlog_gts[MAXFNAMELEN];
     int            loop = 0;
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* Two loop around, the first loop we backup the xlog file, then the second one we backup the gts file.*/
     while (loop < 2)
     {
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (0 == loop)
         {
 #endif
             /* the first loop we backup the xlog file */
             snprintf(pathname, MAXPGPATH, XLOGDIR "/%s", xlog);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         }
         else if (1 == loop)
         {
@@ -705,7 +705,7 @@ pgarch_archiveXlog(char *xlog)
             return false;
         }
         elog(DEBUG1, "archived write-ahead log file \"%s\"", xlog);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /* backup next entry. */
         loop++;
     }

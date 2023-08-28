@@ -43,7 +43,7 @@
 #include "utils/memutils.h"
 #include "utils/snapmgr.h"
 #include "pgstat.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "pgxc/execRemote.h"
 #include "executor/nodeHashjoin.h"
 #include "executor/nodeAgg.h"
@@ -65,7 +65,7 @@
 #define PARALLEL_KEY_INSTRUMENTATION    UINT64CONST(0xE000000000000005)
 #define PARALLEL_KEY_DSA                UINT64CONST(0xE000000000000006)
 #define PARALLEL_KEY_QUERY_TEXT        UINT64CONST(0xE000000000000007)
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #define PARALLEL_KEY_WORKERS_TOTAL_NUM  UINT64CONST(0xE000000000000008)
 #define PARALLEL_KEY_WORKERS_SEND       UINT64CONST(0xE000000000000009)
 #define PARALLEL_KEY_WORKERS_SEG_HANDLE UINT64CONST(0xE00000000000000A)
@@ -87,7 +87,7 @@
 
 #define PARALLEL_TUPLE_QUEUE_SIZE        65536
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /* dsa for parallel worker, used in execution for exchange data between workers */
 static dsa_area   **currentParallelWorkerArea = NULL;
 
@@ -138,7 +138,7 @@ typedef struct ExecParallelInitializeDSMContext
     int            nnodes;
 } ExecParallelInitializeDSMContext;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /* Context object for ExecParallelInitializeRemoteInstr. */
 typedef struct ExecParallelRemoteInstrContext
 {
@@ -159,7 +159,7 @@ static bool ExecParallelReInitializeDSM(PlanState *planstate,
 							ParallelContext *pcxt);
 static bool ExecParallelRetrieveInstrumentation(PlanState *planstate,
                                     SharedExecutorInstrumentation *instrumentation);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static bool ExecParallelEstimateRemoteInstr(PlanState *planstate,
                                             ExecParallelRemoteInstrContext *ri);
 static bool ExecParallelInitRemoteInstrDSM(PlanState *planstate,
@@ -258,7 +258,7 @@ ExecSerializePlan(Plan *plan, EState *estate)
 static bool
 ExecParallelEstimate(PlanState *planstate, ExecParallelEstimateContext *e)
 {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	int previous_nworkers;
 #endif
     if (planstate == NULL)
@@ -306,7 +306,7 @@ ExecParallelEstimate(PlanState *planstate, ExecParallelEstimateContext *e)
 		case T_SortState:
 			/* even when not parallel-aware, for EXPLAIN ANALYZE */
 			ExecSortEstimate((SortState *) planstate, e->pcxt);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 			if (planstate->plan->parallel_aware)
 				ReDistributeEstimate(planstate, e->pcxt);
 			break;
@@ -356,7 +356,7 @@ ExecParallelEstimate(PlanState *planstate, ExecParallelEstimateContext *e)
                 break;
         }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	planstate_tree_walker(planstate, ExecParallelEstimate, e);
 	
 	if (IsA(planstate, GatherState))
@@ -376,7 +376,7 @@ static bool
 ExecParallelInitializeDSM(PlanState *planstate,
                           ExecParallelInitializeDSMContext *d)
 {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	int previous_nworkers;
 #endif
     if (planstate == NULL)
@@ -438,7 +438,7 @@ ExecParallelInitializeDSM(PlanState *planstate,
 		case T_SortState:
 			/* even when not parallel-aware, for EXPLAIN ANALYZE */
 			ExecSortInitializeDSM((SortState *) planstate, d->pcxt);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 			if (planstate->plan->parallel_aware)
 				ReDistributeInitializeDSM(planstate, d->pcxt);
 			break;
@@ -486,7 +486,7 @@ ExecParallelInitializeDSM(PlanState *planstate,
                 break;
         }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	planstate_tree_walker(planstate, ExecParallelInitializeDSM, d);
 	
 	if (IsA(planstate, GatherState))
@@ -554,7 +554,7 @@ ExecParallelSetupTupleQueues(ParallelContext *pcxt, bool reinitialize)
  * Sets up the required infrastructure for backend workers to perform
  * execution and return results to the main backend.
  */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 ParallelExecutorInfo *
 ExecInitParallelPlan(PlanState *planstate, EState *estate, int nworkers, Gather *gather)
 #else
@@ -581,14 +581,14 @@ ExecInitParallelPlan(PlanState *planstate, EState *estate, int nworkers)
     ParallelWorkerStatus *num_parallel_workers = NULL;
     bool        *parallel_send                 = NULL;
     dsm_handle  *handle                        = NULL;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     StringInfoData    buf;
 #endif
     /* Allocate object for return value. */
     pei = palloc0(sizeof(ParallelExecutorInfo));
     pei->finished = false;
     pei->planstate = planstate;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     pei->executor_done = NULL;
 #endif
 
@@ -620,7 +620,7 @@ ExecInitParallelPlan(PlanState *planstate, EState *estate, int nworkers)
     shm_toc_estimate_chunk(&pcxt->estimator, param_len);
     shm_toc_estimate_keys(&pcxt->estimator, 1);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* Estimate space for parallel workers' total number. */
     shm_toc_estimate_chunk(&pcxt->estimator, sizeof(ParallelWorkerStatus));
     shm_toc_estimate_keys(&pcxt->estimator, 1);
@@ -739,7 +739,7 @@ ExecInitParallelPlan(PlanState *planstate, EState *estate, int nworkers)
     shm_toc_estimate_chunk(&pcxt->estimator, dsa_minsize);
     shm_toc_estimate_keys(&pcxt->estimator, 1);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* Estimate space for DSA area for each parallel worker. */
     if(nworkers)
     {
@@ -752,7 +752,7 @@ ExecInitParallelPlan(PlanState *planstate, EState *estate, int nworkers)
     }
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	/* set snapshot as needed */
 	if (!g_set_global_snapshot && !ActiveSnapshotSet())
 	{
@@ -787,7 +787,7 @@ ExecInitParallelPlan(PlanState *planstate, EState *estate, int nworkers)
     shm_toc_insert(pcxt->toc, PARALLEL_KEY_PARAMS, param_space);
     SerializeParamList(estate->es_param_list_info, &param_space);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* Store parallel workers total number. */
     num_parallel_workers = shm_toc_allocate(pcxt->toc, sizeof(ParallelWorkerStatus));
     num_parallel_workers->parallelWorkersSetupDone = false;
@@ -912,7 +912,7 @@ ExecInitParallelPlan(PlanState *planstate, EState *estate, int nworkers)
         pei->area = dsa_create_in_place(area_space, dsa_minsize,
                                         LWTRANCHE_PARALLEL_QUERY_DSA,
                                         pcxt->seg);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /* create dsa for each parallel worker. */
         if(nworkers)
         {
@@ -1076,7 +1076,7 @@ ExecParallelRetrieveInstrumentation(PlanState *planstate,
     ibytes = mul_size(instrumentation->num_workers, sizeof(Instrumentation));
     planstate->worker_instrument =
         palloc(ibytes + offsetof(WorkerInstrumentation, instrument));
-#ifndef __TBASE__
+#ifndef __OPENTENBASE__
     MemoryContextSwitchTo(oldcontext);
 #endif
 
@@ -1095,7 +1095,7 @@ ExecParallelRetrieveInstrumentation(PlanState *planstate,
 		default:
 			break;
 	}
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	/* also retrieve instrumentation from remote */
 	if (planstate->dn_instrument != NULL)
 	{
@@ -1110,7 +1110,7 @@ ExecParallelRetrieveInstrumentation(PlanState *planstate,
 		memcpy(planstate->dn_instrument, tmp_instrument, size);
 	}
 	/*
-	 * TBase switch memory context later to keep retrieved instrumentation live until 
+	 * OpenTenBase switch memory context later to keep retrieved instrumentation live until 
 	 * sending them back to upstream.
 	 */
 	MemoryContextSwitchTo(oldcontext);
@@ -1315,7 +1315,7 @@ ExecParallelInitializeWorker(PlanState *planstate, ParallelWorkerContext *pwcxt)
 		case T_SortState:
 			/* even when not parallel-aware, for EXPLAIN ANALYZE */
 			ExecSortInitializeWorker((SortState *) planstate, pwcxt);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 			if (planstate->plan->parallel_aware)
 				ReDistributeInitializeWorker(planstate, pwcxt);
 			break;
@@ -1358,7 +1358,7 @@ ExecParallelInitializeWorker(PlanState *planstate, ParallelWorkerContext *pwcxt)
 								 pwcxt);
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /*
  * Estimate share memory space for plan nodes executed by remote, they contain instruments
  * from all datanodes involved, and only leader worker receive these instruments.
@@ -1484,7 +1484,7 @@ ParallelQueryMain(dsm_segment *seg, shm_toc *toc)
     void       *area_space;
     dsa_area   *area;
 	ParallelWorkerContext pwcxt;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     int i                               = 0;
     int nWorkers                        = 0;
     ParallelWorkerStatus *worker_status = NULL;
@@ -1492,7 +1492,7 @@ ParallelQueryMain(dsm_segment *seg, shm_toc *toc)
     dsm_handle *handle                  = NULL;
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     parallel_send = shm_toc_lookup(toc, PARALLEL_KEY_WORKERS_SEND, false);
 
     parallelExecutionError = shm_toc_lookup(toc, PARALLEL_KEY_EXEC_ERROR, false);
@@ -1508,7 +1508,7 @@ ParallelQueryMain(dsm_segment *seg, shm_toc *toc)
 #endif
     /* Set up DestReceiver, SharedExecutorInstrumentation, and QueryDesc. */
     receiver = ExecParallelGetReceiver(seg, toc);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         {
             bool *execute_done = shm_toc_lookup(toc, PARALLEL_KEY_EXEC_DONE, false);
 
@@ -1541,7 +1541,7 @@ ParallelQueryMain(dsm_segment *seg, shm_toc *toc)
     area_space = shm_toc_lookup(toc, PARALLEL_KEY_DSA, false);
     area = dsa_attach_in_place(area_space, seg);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* Attach to each worker's dynamic shared memory area */
     worker_status = GetParallelWorkerStatusInfo(toc);
     nWorkers      = worker_status->numExpectedWorkers;
@@ -1644,7 +1644,7 @@ ParallelQueryMain(dsm_segment *seg, shm_toc *toc)
 
     /* Cleanup. */
     dsa_detach(area);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     for(i = 0; i < nWorkers; i++)
     {
         dsa_detach(currentParallelWorkerArea[i]);
@@ -1655,7 +1655,7 @@ ParallelQueryMain(dsm_segment *seg, shm_toc *toc)
     (*receiver->rDestroy) (receiver);
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 ParallelWorkerStatus *GetParallelWorkerStatusInfo(shm_toc *toc)
 {
     ParallelWorkerStatus *worker_status = NULL;

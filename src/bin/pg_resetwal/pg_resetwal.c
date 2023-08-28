@@ -672,7 +672,7 @@ GuessControlValues(void)
     ControlFile.loblksize = LOBLKSIZE;
     ControlFile.float4ByVal = FLOAT4PASSBYVAL;
     ControlFile.float8ByVal = FLOAT8PASSBYVAL;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     ControlFile.need_mvcc = 0;
 #endif
     /*
@@ -773,7 +773,7 @@ PrintControlValues(bool guessed)
            (ControlFile.float8ByVal ? _("by value") : _("by reference")));
     printf(_("Data page checksum version:           %u\n"),
            ControlFile.data_checksum_version);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     printf(_("Need mvcc if page is visible:           %d\n"),
            ControlFile.need_mvcc);
 #endif
@@ -897,7 +897,7 @@ RewriteControlFile(void)
     /* Now we can force the recorded xlog seg size to the right thing. */
     ControlFile.xlog_seg_size = XLogSegSize;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     ControlFile.need_mvcc = 0;
 #endif
 

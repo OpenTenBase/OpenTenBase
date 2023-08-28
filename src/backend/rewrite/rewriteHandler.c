@@ -1442,7 +1442,7 @@ rewriteTargetListUD(Query *parsetree, RangeTblEntry *target_rte,
     }
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if(target_relation->rd_rel->relkind == RELKIND_RELATION &&
         IS_PGXC_COORDINATOR)
     {

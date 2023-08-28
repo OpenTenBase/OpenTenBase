@@ -86,7 +86,7 @@ typedef enum
 #ifdef PGXC
     RECOVERY_TARGET_BARRIER,
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     RECOVERY_TARGET_GTS,
 #endif
     RECOVERY_TARGET_LSN,
@@ -116,7 +116,7 @@ extern char *wal_consistency_checking_string;
 extern bool log_checkpoints;
 
 extern int    CheckPointSegments;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern int    wal_gts_track_entries;
 
 extern bool i_am_standby;
@@ -337,7 +337,7 @@ extern SessionBackupState get_backup_status(void);
 
 #define TABLESPACE_MAP            "tablespace_map"
 #define TABLESPACE_MAP_OLD        "tablespace_map.old"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /* Used to track the max GTS of each xlog segment. */
 #define   MAX_XLOG_TRACK_INFO   256
 

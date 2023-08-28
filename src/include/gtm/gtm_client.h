@@ -205,7 +205,7 @@ typedef struct GTM_Result
 	GTM_ProxyMsgHeader	gr_proxyhdr;
 	GTM_ResultData		gr_resdata;
 	
-#ifdef __TBASE__	
+#ifdef __OPENTENBASE__	
 	struct
 	{
 		int32					len;
@@ -296,7 +296,7 @@ GlobalTransactionId begin_transaction(GTM_Conn *conn, GTM_IsolationLevel isoleve
 int bkup_begin_transaction(GTM_Conn *conn, GTM_IsolationLevel isolevel,
 						   bool read_only, const char *global_sessionid,
 						   uint32 client_id, GTM_Timestamp timestamp);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 Get_GTS_Result get_global_timestamp(GTM_Conn *conn);
 #ifdef __XLOG__
 int check_gtm_status(GTM_Conn *conn, int *status, GTM_Timestamp *master,XLogRecPtr *master_ptr,
@@ -485,7 +485,7 @@ int set_begin_replication(GTM_Conn *conn,const char *application_name,const char
 #endif
 
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /*
  * GTM-Storage
  */

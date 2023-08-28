@@ -429,7 +429,7 @@ ExecInitNode(Plan *node, EState *estate, int eflags)
     /* Set up instrumentation for this node if requested */
     if (estate->es_instrument)
         result->instrument = InstrAlloc(1, estate->es_instrument);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	result->dn_instrument = NULL;
 #endif
 
@@ -882,7 +882,7 @@ ExecShutdownNode(PlanState *node)
     return false;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 void
 ExecDisconnectNode(PlanState *node)
 {// #lizard forgives

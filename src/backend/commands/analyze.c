@@ -72,7 +72,7 @@
 #include "pgxc/planner.h"
 #include "utils/snapmgr.h"
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "funcapi.h"
 #include "nodes/nodes.h"
 #include "utils/ruleutils.h"
@@ -97,7 +97,7 @@ typedef struct AnlIndexData
 /* Default statistics target (GUC parameter) */
 int            default_statistics_target = 100;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /* enable calculate coordinator statistics by sampling rows from data node */
 bool		enable_sampling_analyze = true;
 
@@ -155,7 +155,7 @@ static void analyze_rel_coordinator(Relation onerel, bool inh, int attr_cnt,
 extern bool random_collect_stats;
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static void get_rel_pages_visiblepages(Relation onerel, 
 						   BlockNumber *pages, 
 						   BlockNumber *visiblepages);
@@ -183,7 +183,7 @@ analyze_rel(Oid					 relid,
     int            elevel;
     AcquireSampleRowsFunc acquirefunc = NULL;
     BlockNumber relpages = 0;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	List	 *childs = NULL;
 	Oid		  child;
 	ListCell *lc;
@@ -320,7 +320,7 @@ analyze_rel(Oid					 relid,
         /* Regular table, so we'll use the regular row acquisition function */
         acquirefunc = acquire_sample_rows;
         /* Also get regular table's size */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if(IS_PGXC_DATANODE && RELATION_IS_INTERVAL(onerel))
         {
             ListCell *lc;
@@ -646,7 +646,7 @@ do_analyze_rel(Relation				 onerel,
 		goto cleanup;
 	}
 #ifdef XCP
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	if (!enable_sampling_analyze && iscoordinator)
 #else
 	if (iscoordinator)
@@ -697,7 +697,7 @@ do_analyze_rel(Relation				 onerel,
      * Acquire the sample rows
      */
     rows = (HeapTuple *) palloc(targrows * sizeof(HeapTuple));
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	if (enable_sampling_analyze && iscoordinator)
 	{
 		numrows = acquire_coordinator_sample_rows(onerel, elevel,
@@ -810,7 +810,7 @@ do_analyze_rel(Relation				 onerel,
     if (!inh)
     {
         BlockNumber relallvisible;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		if (iscoordinator)
 		{
 			relpages = coordpages;
@@ -821,7 +821,7 @@ do_analyze_rel(Relation				 onerel,
 #endif
 			visibilitymap_count(onerel, &relallvisible, NULL);
 
-	#ifdef __TBASE__
+	#ifdef __OPENTENBASE__
 			if(IS_PGXC_DATANODE && RELATION_IS_INTERVAL(onerel))
 			{
 				get_rel_pages_visiblepages(onerel, &relpages, &relallvisible);
@@ -4497,7 +4497,7 @@ analyze_rel_coordinator(Relation onerel, bool inh, int attr_cnt,
 }
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 Size
 QueryAnalyzeInfoShmemSize(void)
 {
@@ -4834,7 +4834,7 @@ GetAnalyzeInfo(int nodeid, char *key)
         elog(ERROR, "GetAnalyzeInfo:query info is null");
     }
 
-    snprintf(query, QUERY_LEN, "select pid::text from tbase_get_analyze_info('%s')", key);
+    snprintf(query, QUERY_LEN, "select pid::text from opentenbase_get_analyze_info('%s')", key);
 
     plan = makeNode(RemoteQuery);
     plan->combine_type = COMBINE_TYPE_NONE;

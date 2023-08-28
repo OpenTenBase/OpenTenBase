@@ -19,7 +19,7 @@
 #include "nodes/parsenodes.h"
 #include "nodes/relation.h"
 #include "pgxc/locator.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "utils/reltrigger.h"
 #endif
 
@@ -28,7 +28,7 @@ extern ExecNodes *pgxc_is_query_shippable(Query *query, int query_level);
 /* Determine if an expression is shippable */
 extern bool pgxc_is_expr_shippable(Expr *node, bool *has_aggs);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern bool pgxc_check_triggers_shippability(Oid relid, int commandType);
 
 extern bool pgxc_find_unshippable_triggers(TriggerDesc *trigdesc, int16 trig_event, 

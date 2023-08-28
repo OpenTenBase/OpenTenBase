@@ -99,7 +99,7 @@ extern WaitEventSet *FeBeWaitSet;
 extern char *SSLCipherSuites;
 extern char *SSLECDHCurve;
 extern bool SSLPreferServerCiphers;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern char *get_local_address(Port *port);
 #endif
 #endif                            /* LIBPQ_H */

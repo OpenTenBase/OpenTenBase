@@ -31,7 +31,7 @@
 #include "utils/tuplesort.h"
 #include "nodes/tidbitmap.h"
 #include "storage/condition_variable.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "storage/buffile.h"
 #include "pgxc/locator.h"
 #endif
@@ -340,7 +340,7 @@ typedef struct JunkFilter
     AttrNumber *jf_cleanMap;
     TupleTableSlot *jf_resultSlot;
     AttrNumber    jf_junkAttNo;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /*
      * Similar to jf_junkAttNo that is used for ctid, we also need xc_node_id
      * and wholerow junk attribute numbers to be saved here. In XC, we need
@@ -430,7 +430,7 @@ typedef struct ResultRelInfo
 
     /* relation descriptor for root partitioned table */
     Relation    ri_PartitionRoot;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* used for interval partition */
     bool        ispartparent;
     int         arraymode;        /*1: compact model,  2: expanding model*/
@@ -443,7 +443,7 @@ typedef struct ResultRelInfo
 #endif
 } ResultRelInfo;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #define RESULT_RELINFO_MODE_COMPACT     1
 #define RESULT_RELINFO_MODE_EXPAND        2
 #endif
@@ -597,7 +597,7 @@ typedef struct ExecAuxRowMark
     AttrNumber    ctidAttNo;        /* resno of ctid junk attribute, if any */
     AttrNumber    toidAttNo;        /* resno of tableoid junk attribute, if any */
     AttrNumber    wholeAttNo;        /* resno of whole-row junk attribute, if any */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	AttrNumber	nodeidAttNo;    /* resno of xc_node_id junk attribute, if any */
 #endif
 } ExecAuxRowMark;
@@ -638,7 +638,7 @@ typedef struct TupleHashEntryData
 #define SH_DECLARE
 #include "lib/simplehash.h"
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /*
  * used for hybrid-hash agg
  * when hashtable exceeds the max-mem, write the tuples of hashtable into SpillSet,
@@ -680,7 +680,7 @@ typedef struct TupleHashTableData
     FmgrInfo   *in_hash_funcs;    /* hash functions for input datatype(s) */
     FmgrInfo   *cur_eq_funcs;    /* equality functions for input vs. table */
     uint32        hash_iv;        /* hash-function IV */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	/* used for hybrid-hash agg */
 	bool        hybrid;           /* hybrid hash agg? */
 	bool        spilled;          /* does hashtable spilled? */
@@ -929,7 +929,7 @@ typedef struct PlanState
                                          * wrapper */
 
     Instrumentation *instrument;    /* Optional runtime stats for this node */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	DatanodeInstrumentation *dn_instrument;     /* per-datanode instrumentation */
 #endif
     WorkerInstrumentation *worker_instrument;    /* per-worker instrumentation */
@@ -1002,7 +1002,7 @@ typedef struct EPQState
     Plan       *plan;            /* plan tree to be executed */
     List       *arowMarks;        /* ExecAuxRowMarks (non-locking only) */
     int            epqParam;        /* ID of Param to force scan node re-eval */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	EState	   *parentestate;   /* parant EState, more information to modify plantree if needed */
 #endif
 } EPQState;
@@ -1061,7 +1061,7 @@ typedef struct ModifyTableState
     OnConflictAction mt_onconflict; /* ON CONFLICT type */
     List       *mt_arbiterindexes;    /* unique index OIDs to arbitrate taking
                                      * alt path */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     List       **part_arbiterindexes;
 #endif
     TupleTableSlot *mt_existing;    /* slot to store existing target tuple in */
@@ -1076,7 +1076,7 @@ typedef struct ModifyTableState
 
         /* Per plan map for tuple conversion from child to root */
         TupleConversionMap **mt_per_subplan_tupconv_maps;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* used for interval partition */
     bool        haspartparent;
     bool        is_exec_partition;
@@ -1723,7 +1723,7 @@ typedef struct NestLoopState
     JoinState    js;                /* its first field is NodeTag */
     bool        nl_NeedNewOuter;
     bool        nl_MatchedOuter;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     bool        nl_InnerInited;
 #endif
     TupleTableSlot *nl_NullInnerTupleSlot;
@@ -1767,7 +1767,7 @@ typedef struct MergeJoinState
     bool        mj_FillInner;
     bool        mj_MatchedOuter;
     bool        mj_MatchedInner;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     bool        mj_InnerInited;
 #endif
     TupleTableSlot *mj_OuterTupleSlot;
@@ -1810,7 +1810,7 @@ typedef struct MergeJoinState
 typedef struct HashJoinTupleData *HashJoinTuple;
 typedef struct HashJoinTableData *HashJoinTable;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /* used for parallel workers when execution hashjoin */
 typedef enum ParallelHashJoinStatus
 {
@@ -1874,7 +1874,7 @@ typedef struct HashJoinState
     int            hj_JoinState;
     bool        hj_MatchedOuter;
     bool        hj_OuterNotEmpty;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     bool        hj_OuterInited;
     bool        hj_InnerInited;
     bool        share_outerBufFile;
@@ -1907,7 +1907,7 @@ typedef struct MaterialState
     Tuplestorestate *tuplestorestate;
 } MaterialState;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 typedef enum ReDistributeStatus
 {
     ReDistribute_Error,
@@ -1991,7 +1991,7 @@ typedef struct SortState
     void       *tuplesortstate; /* private state of tuplesort.c */
 	bool		am_worker;		/* are we a worker? */
 	SharedSortInfo *shared_info;	/* one entry per worker */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	TuplesortInstrumentation instrument; /* cached instrument from distributed nodes */
     Size            stateLen;
     ReDistributeState *state;
@@ -2075,7 +2075,7 @@ typedef struct AggState
     TupleTableSlot *evalslot;    /* slot for agg inputs */
     ProjectionInfo *evalproj;    /* projection machinery */
     TupleDesc    evaldesc;        /* descriptor of input tuples */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     Size            stateLen;
     ReDistributeState *state;
     BufFile        **file;
@@ -2185,7 +2185,7 @@ typedef struct GatherState
     struct TupleQueueReader **reader;
     TupleTableSlot *funnel_slot;
     bool        need_to_scan_locally;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     uint64 get_tuples;           /* number of tuples from parallel workers */
     TimestampTz get_total_time;  /* total time to get tuples */
 #endif
@@ -2214,7 +2214,7 @@ typedef struct GatherMergeState
     struct binaryheap *gm_heap; /* binary heap of slot indices */
     bool        gm_initialized; /* gather merge initilized ? */
     bool        need_to_scan_locally;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     uint64 get_tuples;             /* number of tuples from parallel workers */
     TimestampTz get_total_time;  /* total time to get tuples */
 #endif

@@ -1340,7 +1340,7 @@ DefineIndex(Oid relationId,
     /*
      * Index can now be marked valid -- update its pg_index entry
      */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	/*
 	 * local coordinator set this after command sent to DN and other CN
 	 * see ProcessUtilityPost.
@@ -1349,7 +1349,7 @@ DefineIndex(Oid relationId,
     {
 #endif
 	IndexCreateSetValid(indexRelationId, heaprelid.relId);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     }
 #endif
 
@@ -1460,7 +1460,7 @@ ComputeIndexAttrs(IndexInfo *indexInfo,
     ListCell   *nextExclOp;
     ListCell   *lc;
     int            attn;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     bool       is_interval_child = false;
     Oid        parentId = InvalidOid;
 
@@ -1512,7 +1512,7 @@ ComputeIndexAttrs(IndexInfo *indexInfo,
             /* Simple index attribute */
             HeapTuple    atttuple;
             Form_pg_attribute attform;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             Oid childId = relId;
             if (is_interval_child)
             {
@@ -1540,7 +1540,7 @@ ComputeIndexAttrs(IndexInfo *indexInfo,
             atttype = attform->atttypid;
             attcollation = attform->attcollation;
             ReleaseSysCache(atttuple);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             if (is_interval_child)
             {
                 relId = childId;

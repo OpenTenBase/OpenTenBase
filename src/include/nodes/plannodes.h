@@ -114,7 +114,7 @@ typedef struct PlannedStmt
     int            stmt_location;    /* start location, or -1 if unknown */
     int            stmt_len;        /* length in bytes; 0 means "rest of string" */
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     bool        haspart_tobe_modify;
     Index        partrelindex;
     Bitmapset    *partpruning;
@@ -191,7 +191,7 @@ typedef struct Plan
     Bitmapset  *extParam;
     Bitmapset  *allParam;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     bool        isempty;
 #endif
 
@@ -273,7 +273,7 @@ typedef struct ModifyTable
     Node       *onConflictWhere;    /* WHERE for ON CONFLICT UPDATE */
     Index        exclRelRTI;        /* RTI of the EXCLUDED pseudo relation */
     List       *exclRelTlist;    /* tlist of the EXCLUDED pseudo relation */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     List       *remote_plans;    /* per-target-table remote node */
     /* used for interval partition */
     /* has only one partitioned parent table at most in DML statement(INSERT/UPDATE/DELETE)*/
@@ -297,7 +297,7 @@ typedef struct Append
     /* RT indexes of non-leaf tables in a partition tree */
     List       *partitioned_rels;
     List       *appendplans;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     bool       interval;
 #endif
 } Append;
@@ -319,7 +319,7 @@ typedef struct MergeAppend
     Oid           *sortOperators;    /* OIDs of operators to sort them by */
     Oid           *collations;        /* OIDs of collations */
     bool       *nullsFirst;        /* NULLS FIRST/LAST directions */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     bool       interval;
 #endif
 } MergeAppend;
@@ -382,7 +382,7 @@ typedef struct Scan
 {
     Plan        plan;
     Index        scanrelid;        /* relid is index into the range table */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     bool        ispartchild;
     int         childidx;
 #endif
@@ -726,7 +726,7 @@ typedef struct Join
     JoinType    jointype;
     bool        inner_unique;
     List       *joinqual;        /* JOIN quals (in addition to plan.qual) */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         bool        prefetch_inner;
 #endif
 } Join;
@@ -852,7 +852,7 @@ typedef struct Agg
     /* Note: planner provides numGroups & aggParams only in HASHED/MIXED case */
     List       *groupingSets;    /* grouping sets to use */
     List       *chain;            /* chained Agg/Sort nodes */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	uint32     entrySize;
 	bool       hybrid;
 	bool       noDistinct;      /* no need of distinct related initialization */
@@ -900,7 +900,7 @@ typedef struct Gather
     int            num_workers;
     bool        single_copy;
     bool        invisible;        /* suppress EXPLAIN display (for testing)? */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /*
       * if gather is under remotesubplan, parallel worker can send tuples 
       * directly without gather node?
@@ -988,7 +988,7 @@ typedef struct Limit
     Plan        plan;
     Node       *limitOffset;    /* OFFSET parameter, or NULL if none */
     Node       *limitCount;        /* COUNT parameter, or NULL if none */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	bool		skipEarlyFinish;	/* Early ExecFinishNode ? */
 #endif
 } Limit;

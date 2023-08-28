@@ -122,7 +122,7 @@ extern bool TransactionIdIsInProgress(TransactionId xid);
 #ifdef __SUPPORT_DISTRIBUTED_TRANSACTION__
 extern bool TransactionIdIsPrepared(TransactionId xid, Snapshot snapshot, GlobalTimestamp *prepare_ts);
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern TransactionId GetLocalTransactionId(const char *globalXid,
 					TransactionId *subxids, int *nsub, bool *overflowed);
 #endif
@@ -169,7 +169,7 @@ extern void ProcArraySetReplicationSlotXmin(TransactionId xmin,
 
 extern void ProcArrayGetReplicationSlotXmin(TransactionId *xmin,
 								TransactionId *catalog_xmin);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern RunningTransactions GetCurrentRunningTransaction(void);
 extern GlobalTimestamp GetLatestCommitTS(void);
 #endif

@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -110,7 +110,7 @@ static HTAB *LogicalRepTypMap = NULL;
 
 #ifdef __SUBSCRIPTION__
 static bool g_logical_apply_ignore_pk_conflict = false;
-static bool g_am_tbase_logical_apply_worker = false;
+static bool g_am_opentenbase_logical_apply_worker = false;
 #endif
 
 static void logicalrep_typmap_invalidate_cb(Datum arg, int cacheid,
@@ -348,7 +348,7 @@ logicalrep_rel_open(LogicalRepRelId remoteid, LOCKMODE lockmode)
 #ifdef __SUBSCRIPTION__
 	if (!found)
 	{
-		if (am_tbase_subscript_dispatch_worker())
+		if (am_opentenbase_subscript_dispatch_worker())
 		{
 			//elog(LOG, "no relation map entry for remote relation ID %u, ignoring this subscription", remoteid);
 			return NULL;
@@ -384,7 +384,7 @@ logicalrep_rel_open(LogicalRepRelId remoteid, LOCKMODE lockmode)
                                  lockmode, true);
         if (!OidIsValid(relid))
 		{
-			if (am_tbase_subscript_dispatch_worker())
+			if (am_opentenbase_subscript_dispatch_worker())
 			{
 				/*Since the received data of the publisher's table does not have this table locally,
 				 * the log will be printed frequently, which will cause log expand.
@@ -715,20 +715,20 @@ logicalrep_statis_update_for_apply(Oid subid, char *subname)
 #endif
 
 #ifdef __SUBSCRIPTION__
-bool AmTbaseSubscriptionApplyWorker(void)
+bool AmOpenTenBaseSubscriptionApplyWorker(void)
 {
-    return IS_PGXC_DATANODE && g_am_tbase_logical_apply_worker;
+    return IS_PGXC_DATANODE && g_am_opentenbase_logical_apply_worker;
 }
 
-void TbaseSubscriptionApplyWorkerSet(void)
+void OpenTenBaseSubscriptionApplyWorkerSet(void)
 {
-    g_am_tbase_logical_apply_worker = true;
+    g_am_opentenbase_logical_apply_worker = true;
     return;
 }
 
-void TbaseSubscriptionApplyWorkerReset(void)
+void OpenTenBaseSubscriptionApplyWorkerReset(void)
 {
-    g_am_tbase_logical_apply_worker = false;
+    g_am_opentenbase_logical_apply_worker = false;
     return;
 }
 

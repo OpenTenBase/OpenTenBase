@@ -431,7 +431,7 @@ RangeVarGetRelidExtended(const RangeVar *relation, LOCKMODE lockmode,
                             relation->relname)));
     }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (OidIsValid(relId) && lockmode != NoLock)
     {
         Oid parentId = get_interval_parent_relid(relId);
@@ -4108,7 +4108,7 @@ recomputeNamespacePath(void)
     if (!list_member_oid(oidlist, PG_CATALOG_NAMESPACE))
         oidlist = lcons_oid(PG_CATALOG_NAMESPACE, oidlist);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /*
          * If this is secondary backend of a distributed session, check if primary backend
          * of the same session has created temporary namespace and wire it up.

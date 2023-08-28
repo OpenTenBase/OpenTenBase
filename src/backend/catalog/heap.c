@@ -109,14 +109,14 @@
 #include "access/sysattr.h"
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "catalog/pg_partition_interval.h"
 #endif
 #ifdef __COLD_HOT__
 #include "catalog/pgxc_key_values.h"
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern bool enable_parallel_ddl;
 #endif
 
@@ -943,7 +943,7 @@ InsertPgClassTuple(Relation pg_class_desc,
 #ifdef _SHARDING_
     values[Anum_pg_class_relhasextent - 1] = BoolGetDatum(rd_rel->relhasextent);
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     values[Anum_pg_class_relpartkind - 1] = CharGetDatum(rd_rel->relpartkind);
     values[Anum_pg_class_relparent - 1] = ObjectIdGetDatum(rd_rel->relparent);
 #endif
@@ -1573,7 +1573,7 @@ GetRelationDistributionItems(Oid relid,
 #endif
         }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (IS_PGXC_COORDINATOR && LOCATOR_TYPE_SHARD == local_locatortype)
         {
             Oid group = GetDefaultGroup();
@@ -2811,7 +2811,7 @@ heap_drop_with_catalog(Oid relid)
      */
     tuple = SearchSysCache1(RELOID, ObjectIdGetDatum(relid));
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	if (enable_parallel_ddl && tuple == NULL)
 	{
 		elog(WARNING, "The tuple may have been dropped by parallel ddl");
@@ -4373,7 +4373,7 @@ StorePartitionKey(Relation rel,
     CacheInvalidateRelcache(rel);
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /*
  * StoreIntervalPartition
  *        Store basic information about interval partition into the catalog

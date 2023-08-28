@@ -52,7 +52,7 @@
 #include "parser/parsetree.h"
 #include "parser/parse_coerce.h"
 #include "utils/rel.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "optimizer/planmain.h"
 #include "catalog/pgxc_class.h"
 #endif
@@ -91,7 +91,7 @@ preprocess_targetlist(PlannerInfo *root, List *tlist)
             elog(ERROR, "subquery cannot be result relation");
     }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* 
          * get group oid which base rel belongs to, and used later at end of planner.
          * local tables not included.

@@ -306,7 +306,7 @@ process_syncing_tables_for_sync(XLogRecPtr current_lsn)
 		ListCell   *lc_simple;
 
 		/*get parallel_index != 0 other sub_child worker's MyLogicalRepWorker*/
-		List *parallel_sub_workers_list = GetTbaseSubscriptnParallelWorker(MySubscription->oid);
+		List *parallel_sub_workers_list = GetOpenTenBaseSubscriptnParallelWorker(MySubscription->oid);
 
 		foreach (lc_simple, parallel_sub_workers_list)
 		{
@@ -418,9 +418,9 @@ process_syncing_tables_for_apply(XLogRecPtr current_lsn)
             MySubscription->parallel_index == 0)
          {
             /*
-             * all copy is done, activate the other parallel tbase-sub-subscriptions directly
+             * all copy is done, activate the other parallel opentenbase-sub-subscriptions directly
              */
-            ActiveAllParallelTbaseSubscriptions(current_lsn);
+            ActiveAllParallelOpenTenBaseSubscriptions(current_lsn);
             Assert(MySubscription->is_all_actived);
             if (MySubscription->is_all_actived == false) abort();
          }
@@ -493,7 +493,7 @@ process_syncing_tables_for_apply(XLogRecPtr current_lsn)
 #ifdef __SUBSCRIPTION__
                 /*
                  * Check if all COPY operations have completed on all tables, and if all completed,
-                 * activate all the other parallel tbase-sub-subscriptions
+                 * activate all the other parallel opentenbase-sub-subscriptions
                  */
                  if (MySubscription->is_all_actived == false &&
                       MySubscription->parallel_number > 1)
@@ -504,9 +504,9 @@ process_syncing_tables_for_apply(XLogRecPtr current_lsn)
                     if (notready_list == NIL)
                     {
                         /*
-                         * all copy is done, activate the other parallel tbase-sub-subscriptions directly
+                         * all copy is done, activate the other parallel opentenbase-sub-subscriptions directly
                          */
-                        ActiveAllParallelTbaseSubscriptions(current_lsn);
+                        ActiveAllParallelOpenTenBaseSubscriptions(current_lsn);
                         Assert(MySubscription->is_all_actived);
                         if (MySubscription->is_all_actived == false) abort();
                     }
@@ -585,11 +585,11 @@ process_syncing_tables_for_apply(XLogRecPtr current_lsn)
 						ListCell   *lc_simple;
 						ListCell   *notready_simple;
 
-						/* get parallel sub_child_ids from tbase_subscription_parallel where sub_parent in
-						 *  (select sub_parent from tbase_subscription_parallel where sub_child = MySubscription->oid)
+						/* get parallel sub_child_ids from opentenbase_subscription_parallel where sub_parent in
+						 *  (select sub_parent from opentenbase_subscription_parallel where sub_child = MySubscription->oid)
 						 *  */
 
-						List *parallel_childids_list = GetTbaseSubscriptnParallelChild(MySubscription->oid);
+						List *parallel_childids_list = GetOpenTenBaseSubscriptnParallelChild(MySubscription->oid);
 
 
 						/* update pg_subscription_rel set srsubstate = SUBREL_STATE_SYNCDONE
@@ -1201,7 +1201,7 @@ LogicalRepSyncTableStart(XLogRecPtr *origin_startpos)
 	        	   ListCell   *lc_simple;
 
 	        	   /*get parallel_index != 0 other sub_child worker's MyLogicalRepWorker*/
-	        	   List *parallel_sub_workers_list = GetTbaseSubscriptnParallelWorker(MySubscription->oid);
+	        	   List *parallel_sub_workers_list = GetOpenTenBaseSubscriptnParallelWorker(MySubscription->oid);
 
 	        	   foreach (lc_simple, parallel_sub_workers_list)
 	        	   {

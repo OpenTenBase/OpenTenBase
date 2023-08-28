@@ -54,7 +54,7 @@ extern MVNDistinct *statext_ndistinct_deserialize(bytea *data);
 
 extern MVDependencies *statext_dependencies_build(int numrows, HeapTuple *rows,
 						   Bitmapset *attrs, VacAttrStats **stats);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern MVDependencies *statext_subset_build(int numrows, List *columns);
 #endif
 extern bytea *statext_dependencies_serialize(MVDependencies *dependencies);

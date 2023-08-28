@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -124,7 +124,7 @@ extern void InsertTrsprtCryptPolicyMapTuple(Relation pg_transp_crypt_map_desc,
                                                     Oid relnamespace,
                                                     Oid    reltablespace);
 extern void init_extension_table_oids(void);
-extern void check_tbase_mls_extension(void);
+extern void check_opentenbase_mls_extension(void);
 extern void CheckMlsTableUserAcl(ResultRelInfo *resultRelInfo, HeapTuple tuple);
 extern bool check_user_has_acl_for_namespace(Oid target_namespace);
 extern bool check_user_has_acl_for_relation(Oid target_relid);

@@ -20,7 +20,7 @@ char        isolation_exec[MAXPGPATH];
 bool        looked_up_isolation_exec = false;
 
 #define PG_ISOLATION_VERSIONSTR "isolationtester (PostgreSQL) " PG_VERSION "\n"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static void check_connection_conf(void);
 static void format_isolation_test(void);
 static void cmd_exec_result(const char *cmd);
@@ -107,7 +107,7 @@ isolation_init(int argc, char **argv)
 {
     size_t        argv0_len;
     
-#ifdef __TBASE__    
+#ifdef __OPENTENBASE__    
     int         i;
 #endif
     /*
@@ -129,7 +129,7 @@ isolation_init(int argc, char **argv)
 
     /* set default regression database name */
     add_stringlist_item(&dblist, "isolation_regression");
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     for(i= 0; i < argc; i++)
     {
         if (strcmp(argv[i], "--txn-test") == 0)
@@ -149,7 +149,7 @@ main(int argc, char *argv[])
     return regression_main(argc, argv, isolation_init, isolation_start_test);
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #define CONNECTION_CONF_FILENAME    "isolation_test.conf"   
 #define MAX_CONNECTION              10
 #define FORMAT_SHELL_NAME           "isolation_test_format.sh"    

@@ -50,7 +50,7 @@ extern GlobalTransactionId ReadNewGlobalTransactionId(void);
 extern GlobalTransactionId GTM_GetLatestCompletedXID(void);
 extern void SetGlobalTransactionIdLimit(GlobalTransactionId oldest_datfrozenxid);
 extern void SetNextGlobalTransactionId(GlobalTransactionId gxid);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern GlobalTimestamp GetNextGlobalTimestamp(void);
 extern void SetNextGlobalTimestamp(GlobalTimestamp gts);
 extern GlobalTimestamp SyncGlobalTimestamp(void);
@@ -260,7 +260,7 @@ GTM_Snapshot GTM_GetTransactionSnapshot(GTM_TransactionHandle handle[],
 void GTM_FreeCachedTransInfo(void);
 
 void ProcessBeginTransactionCommand(Port *myport, StringInfo message);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 void
 ProcessBkupGlobalTimestamp(Port *myport, StringInfo message);
 #endif
@@ -320,7 +320,7 @@ void GTM_RememberDroppedSequence(GlobalTransactionId gxid, void *seq);
 void GTM_ForgetCreatedSequence(GlobalTransactionId gxid, void *seq);
 void GTM_RememberCreatedSequence(GlobalTransactionId gxid, void *seq);
 void GTM_RememberAlteredSequence(GlobalTransactionId gxid, void *seq);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern void GTM_RestoreStoreInfo(GlobalTransactionId next_gxid, bool force_xid);
 extern void ProcessFinishGIDTransactionCommand(Port *myport, StringInfo message);
 void ProcessGetGTSCommand(Port *myport, StringInfo message);

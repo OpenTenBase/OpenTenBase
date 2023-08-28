@@ -55,7 +55,7 @@ typedef enum OnCommitAction
     ONCOMMIT_DROP                /* ON COMMIT DROP */
 } OnCommitAction;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 typedef enum CreateExtensionAction
 {
     CREATEEXT_CREATE,                
@@ -64,7 +64,7 @@ typedef enum CreateExtensionAction
 } CreateExtensionAction;
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 typedef struct PartitionForExpr
 {
     NodeTag            type;
@@ -92,7 +92,7 @@ typedef struct RangeVar
     char        relpersistence; /* see RELPERSISTENCE_* in pg_class.h */
     Alias       *alias;            /* table alias & optional column aliases */
     int            location;        /* token location, or -1 if unknown */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* used for interval partition */
     bool             intervalparent;    /* is interval partition */
     PartitionForExpr *partitionvalue;/* partition for (...) */
@@ -280,7 +280,7 @@ typedef struct Param
     int32        paramtypmod;    /* typmod value, if known */
     Oid            paramcollid;    /* OID of collation, or InvalidOid if none */
     int            location;        /* token location, or -1 if unknown */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     bool        explicit_cast;  /* need explicit cast? */ 
 #endif
 } Param;

@@ -80,7 +80,7 @@ typedef struct MVDependencies
 
 extern MVNDistinct *statext_ndistinct_load(Oid mvoid);
 extern MVDependencies *statext_dependencies_load(Oid mvoid);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern MVDependencies *statext_subset_load(Oid mvoid);
 #endif
 
@@ -95,7 +95,7 @@ extern Selectivity dependencies_clauselist_selectivity(PlannerInfo *root,
 									SpecialJoinInfo *sjinfo,
 									RelOptInfo *rel,
 									Bitmapset **estimatedclauses);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern Selectivity subset_clauselist_selectivity(PlannerInfo *root,
 									List *clauses,
 									int varRelid,

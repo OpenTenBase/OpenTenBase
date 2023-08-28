@@ -693,7 +693,7 @@ ExecMergeJoin(PlanState *pstate)
                             node->mj_MatchedInner = true;
                             break;
                         }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 						/*
 						 * If we have finished the join, and the inner never
 						 * be executed, we need to disconnect from remote node.
@@ -711,7 +711,7 @@ ExecMergeJoin(PlanState *pstate)
             case EXEC_MJ_INITIALIZE_INNER:
                 MJ_printf("ExecMergeJoin: EXEC_MJ_INITIALIZE_INNER\n");
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 node->mj_InnerInited = true;
 #endif
 				innerTupleSlot = ExecProcNode(innerPlan);
@@ -808,7 +808,7 @@ ExecMergeJoin(PlanState *pstate)
 
 				if (qualResult)
 				{
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                     if (node->js.jointype == JOIN_LEFT_SCALAR && node->mj_MatchedOuter)
                         ereport(ERROR,
                                 (errcode(ERRCODE_CARDINALITY_VIOLATION),
@@ -1553,7 +1553,7 @@ ExecInitMergeJoin(MergeJoin *node, EState *estate, int eflags)
 			mergestate->mj_FillOuter = false;
 			mergestate->mj_FillInner = false;
 			break;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         case JOIN_LEFT_SCALAR:
         case JOIN_LEFT_SEMI:
 #endif
@@ -1632,7 +1632,7 @@ ExecInitMergeJoin(MergeJoin *node, EState *estate, int eflags)
 	mergestate->mj_MatchedInner = false;
 	mergestate->mj_OuterTupleSlot = NULL;
 	mergestate->mj_InnerTupleSlot = NULL;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     mergestate->mj_InnerInited    = false;
 #endif
     /*

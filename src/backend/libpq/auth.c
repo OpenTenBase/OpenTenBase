@@ -41,12 +41,12 @@
 #include "utils/mls.h"
 #include "utils/mls_extension.h"
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "storage/shmem.h"
 #include "storage/lwlock.h"
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #define FORMATTED_TS_LEN 128
 
 typedef struct
@@ -91,7 +91,7 @@ static int    CheckMD5Auth(Port *port, char *shadow_pass, char **logdetail);
 static int    CheckSCRAMAuth(Port *port, char *shadow_pass, char **logdetail);
 
 
-#ifdef __TBASE__    
+#ifdef __OPENTENBASE__    
 static void pgua_store(const char* username, int result);
 static int  pgua_check(Port *port);
 static void PrintUserAuthEntryInfo(UserAuthEntry* ent);
@@ -3226,7 +3226,7 @@ PerformRadiusTransaction(char *server, char *secret, char *portstr, char *identi
     }                            /* while (true) */
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 Size UserAuthShmemSize(void)
 {
     Size        size;

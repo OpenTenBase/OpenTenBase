@@ -169,7 +169,7 @@ extern void final_cost_hashjoin(PlannerInfo *root, HashPath *path,
 					JoinPathExtraData *extra);
 extern void cost_gather(GatherPath *path, PlannerInfo *root,
 			RelOptInfo *baserel, ParamPathInfo *param_info, double *rows);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern void reset_cost_gather(GatherPath *path);
 #endif
 extern void cost_subplan(PlannerInfo *root, SubPlan *subplan, Plan *plan);
@@ -228,7 +228,7 @@ extern Selectivity clause_selectivity(PlannerInfo *root,
 				   int varRelid,
 				   JoinType jointype,
 				   SpecialJoinInfo *sjinfo);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern bool clause_selectivity_could_under_estimated(PlannerInfo *root, Path *path);
 #endif
 extern void cost_gather_merge(GatherMergePath *path, PlannerInfo *root,

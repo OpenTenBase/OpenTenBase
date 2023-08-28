@@ -38,7 +38,7 @@
 #include "storage/backendid.h"
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "gtm/gtm_store.h"
 #endif
 
@@ -494,7 +494,7 @@ ProcessPGXCNodeList(Port *myport, StringInfo message)
 void
 ProcessGTMBeginBackup(Port *myport, StringInfo message)
 {// #lizard forgives
-#ifndef __TBASE__
+#ifndef __OPENTENBASE__
     int ii;
 #else
     bool  failed = false;
@@ -537,7 +537,7 @@ ProcessGTMBeginBackup(Port *myport, StringInfo message)
     my_threadinfo = GetMyThreadInfo;
     elog(LOG, "GTM start backup local identifier:%ld local lsn:%ld local gts:%ld remote identifier:%ld, remote lsn:%ld, remote gts:%ld",
                     local_sysid, local_syslsn, local_sysgts, remote_sysid, remote_syslsn, remote_sysgts);
-#ifndef __TBASE__
+#ifndef __OPENTENBASE__
     for (ii = 0; ii < GTMThreads->gt_array_size; ii++)
     {
         if (GTMThreads->gt_threads[ii] && GTMThreads->gt_threads[ii] != my_threadinfo)
@@ -572,7 +572,7 @@ ProcessGTMBeginBackup(Port *myport, StringInfo message)
 void
 ProcessGTMEndBackup(Port *myport, StringInfo message)
 {
-#ifndef __TBASE__
+#ifndef __OPENTENBASE__
     int  ii;
 #else
     bool bret = false;
@@ -587,7 +587,7 @@ ProcessGTMEndBackup(Port *myport, StringInfo message)
 
     elog(LOG, "GTM end backup");
     
-#ifndef __TBASE__
+#ifndef __OPENTENBASE__
     for (ii = 0; ii < GTMThreads->gt_array_size; ii++)
     {
         if (GTMThreads->gt_threads[ii] && GTMThreads->gt_threads[ii] != my_threadinfo)

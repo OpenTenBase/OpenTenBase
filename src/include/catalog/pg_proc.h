@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -308,8 +308,8 @@ DATA(insert OID = 90  (  pg_ddl_command_send    PGNSP PGUID 12 1 0 0 0 f f f f t
 DESCR("I/O");
 
 #ifdef PGXC
-DATA(insert OID =  3417 (  tbase_version        PGNSP PGUID 12 1 0 0 0 f f f f t f s s 0 0 25 "" _null_ _null_ _null_ _null_ _null_ tbase_version _null_ _null_ _null_ ));
-DESCR("TBase version string");
+DATA(insert OID =  3417 (  opentenbase_version        PGNSP PGUID 12 1 0 0 0 f f f f t f s s 0 0 25 "" _null_ _null_ _null_ _null_ _null_ opentenbase_version _null_ _null_ _null_ ));
+DESCR("OpenTenBase version string");
 #endif
 
 /* OIDS 100 - 199 */
@@ -6729,7 +6729,7 @@ DESCR("disable fga audit policy");
 
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 DATA(insert OID = 5007 (  pg_list_gtm_store        PGNSP PGUID 12 1 0 0 0 f f f f f f s r 0 0 2249 "" "{20,23,23,23,20,23,23,23,23,23,23,23,23,20,1184,23}" "{o,o,o,o,o,o,o,o,o,o,o,o,o,o,o,o}" "{system_identifier,major_version,minor_version,gtm_status,global_time_stamp,global_xmin,next_gxid,seq_total,seq_used,seq_freelist,txn_total,txn_used,txn_freelist,system_lsn,last_update_time,crc_check_value}" _null_ _null_ pg_list_gtm_store _null_ _null_ _null_ ));
 DESCR("gtm store: list gtm store info");
                                                                                                                                                                                                                                                                                                                            
@@ -6803,47 +6803,47 @@ DESCR("dump crypt key shmem hash context");
 #endif
 
 #ifdef __STORAGE_SCALABLE__
-DATA(insert OID = 4603 (  tbase_get_pub_stat PGNSP PGUID 12 1 0 0 0 f f f f t t v r 1 0 2249 "25" "{25,25,20,20,20,20,20}" "{i,o,o,o,o,o,o}" "{sub_name,subscription_name,ntups_copyOut,ntups_insert,ntups_delete,checksum_insert,checksum_delete}" _null_ _null_ tbase_get_pub_stat _null_ _null_ _null_ ));
+DATA(insert OID = 4603 (  opentenbase_get_pub_stat PGNSP PGUID 12 1 0 0 0 f f f f t t v r 1 0 2249 "25" "{25,25,20,20,20,20,20}" "{i,o,o,o,o,o,o}" "{sub_name,subscription_name,ntups_copyOut,ntups_insert,ntups_delete,checksum_insert,checksum_delete}" _null_ _null_ opentenbase_get_pub_stat _null_ _null_ _null_ ));
 DESCR("get statistic data of one publication");
-DATA(insert OID = 4604 (  tbase_get_all_pub_stat PGNSP PGUID 12 1 0 0 0 f f f f t t v r 0 0 2249 "" "{25,20,20,20,20,20}" "{o,o,o,o,o,o}" "{subscription_name,ntups_copyOut,ntups_insert,ntups_delete,checksum_insert,checksum_delete}" _null_ _null_ tbase_get_all_pub_stat _null_ _null_ _null_ ));
+DATA(insert OID = 4604 (  opentenbase_get_all_pub_stat PGNSP PGUID 12 1 0 0 0 f f f f t t v r 0 0 2249 "" "{25,20,20,20,20,20}" "{o,o,o,o,o,o}" "{subscription_name,ntups_copyOut,ntups_insert,ntups_delete,checksum_insert,checksum_delete}" _null_ _null_ opentenbase_get_all_pub_stat _null_ _null_ _null_ ));
 DESCR("get statistic data of all publications");
-DATA(insert OID = 4605 (  tbase_get_sub_stat PGNSP PGUID 12 1 0 0 0 f f f f t t v r 1 0 2249 "25" "{25,25,20,20,20,20,20}" "{i,o,o,o,o,o,o}" "{sub_name,subscription_name,ntups_copyIn,ntups_insert,ntups_delete,checksum_insert,checksum_delete}" _null_ _null_ tbase_get_sub_stat _null_ _null_ _null_ ));
+DATA(insert OID = 4605 (  opentenbase_get_sub_stat PGNSP PGUID 12 1 0 0 0 f f f f t t v r 1 0 2249 "25" "{25,25,20,20,20,20,20}" "{i,o,o,o,o,o,o}" "{sub_name,subscription_name,ntups_copyIn,ntups_insert,ntups_delete,checksum_insert,checksum_delete}" _null_ _null_ opentenbase_get_sub_stat _null_ _null_ _null_ ));
 DESCR("get statistic data of one subscription");
-DATA(insert OID = 4606 (  tbase_get_all_sub_stat PGNSP PGUID 12 1 0 0 0 f f f f t t v r 0 0 2249 "" "{25,20,20,20,20,20}" "{o,o,o,o,o,o}" "{subscription_name,ntups_copyIn,ntups_insert,ntups_delete,checksum_insert,checksum_delete}" _null_ _null_ tbase_get_all_sub_stat _null_ _null_ _null_ ));
+DATA(insert OID = 4606 (  opentenbase_get_all_sub_stat PGNSP PGUID 12 1 0 0 0 f f f f t t v r 0 0 2249 "" "{25,20,20,20,20,20}" "{o,o,o,o,o,o}" "{subscription_name,ntups_copyIn,ntups_insert,ntups_delete,checksum_insert,checksum_delete}" _null_ _null_ opentenbase_get_all_sub_stat _null_ _null_ _null_ ));
 DESCR("get statistic data of all subscriptions");
-DATA(insert OID = 4607 (  tbase_get_pubtable_stat PGNSP PGUID 12 1 0 0 0 f f f f t t v r 2 0 2249 "26 26" "{26,26,26,26,20,20,20,20,20}" "{i,i,o,o,o,o,o,o,o}" "{subid,relid,subscription_id,relation_id,ntups_copyOut,ntups_insert,ntups_delete,checksum_insert,checksum_delete}" _null_ _null_ tbase_get_pubtable_stat _null_ _null_ _null_ ));
+DATA(insert OID = 4607 (  opentenbase_get_pubtable_stat PGNSP PGUID 12 1 0 0 0 f f f f t t v r 2 0 2249 "26 26" "{26,26,26,26,20,20,20,20,20}" "{i,i,o,o,o,o,o,o,o}" "{subid,relid,subscription_id,relation_id,ntups_copyOut,ntups_insert,ntups_delete,checksum_insert,checksum_delete}" _null_ _null_ opentenbase_get_pubtable_stat _null_ _null_ _null_ ));
 DESCR("get statistic data of one publication with one table");
-DATA(insert OID = 4608 (  tbase_get_all_pubtable_stat PGNSP PGUID 12 1 0 0 0 f f f f t t v r 0 0 2249 "" "{26,26,20,20,20,20,20}" "{o,o,o,o,o,o,o}" "{subscription_id,relation_id,ntups_copyOut,ntups_insert,ntups_delete,checksum_insert,checksum_delete}" _null_ _null_ tbase_get_all_pubtable_stat _null_ _null_ _null_ ));
+DATA(insert OID = 4608 (  opentenbase_get_all_pubtable_stat PGNSP PGUID 12 1 0 0 0 f f f f t t v r 0 0 2249 "" "{26,26,20,20,20,20,20}" "{o,o,o,o,o,o,o}" "{subscription_id,relation_id,ntups_copyOut,ntups_insert,ntups_delete,checksum_insert,checksum_delete}" _null_ _null_ opentenbase_get_all_pubtable_stat _null_ _null_ _null_ ));
 DESCR("get statistic data of all publications with its tables");
-DATA(insert OID = 4609 (  tbase_get_subtable_stat PGNSP PGUID 12 1 0 0 0 f f f f t t v r 2 0 2249 "26 26" "{26,26,26,26,18,20,20,20,20,20}" "{i,i,o,o,o,o,o,o,o,o}" "{subid,relid,subscription_id,relation_id,state,ntups_copyIn,ntups_insert,ntups_delete,checksum_insert,checksum_delete}" _null_ _null_ tbase_get_subtable_stat _null_ _null_ _null_ ));
+DATA(insert OID = 4609 (  opentenbase_get_subtable_stat PGNSP PGUID 12 1 0 0 0 f f f f t t v r 2 0 2249 "26 26" "{26,26,26,26,18,20,20,20,20,20}" "{i,i,o,o,o,o,o,o,o,o}" "{subid,relid,subscription_id,relation_id,state,ntups_copyIn,ntups_insert,ntups_delete,checksum_insert,checksum_delete}" _null_ _null_ opentenbase_get_subtable_stat _null_ _null_ _null_ ));
 DESCR("get statistic data of one subscription with one table");
-DATA(insert OID = 4610 (  tbase_get_all_subtable_stat PGNSP PGUID 12 1 0 0 0 f f f f t t v r 0 0 2249 "" "{26,26,18,20,20,20,20,20}" "{o,o,o,o,o,o,o,o}" "{subscription_id,relation_id,state,ntups_copyIn,ntups_insert,ntups_delete,checksum_insert,checksum_delete}" _null_ _null_ tbase_get_all_subtable_stat _null_ _null_ _null_ ));
+DATA(insert OID = 4610 (  opentenbase_get_all_subtable_stat PGNSP PGUID 12 1 0 0 0 f f f f t t v r 0 0 2249 "" "{26,26,18,20,20,20,20,20}" "{o,o,o,o,o,o,o,o}" "{subscription_id,relation_id,state,ntups_copyIn,ntups_insert,ntups_delete,checksum_insert,checksum_delete}" _null_ _null_ opentenbase_get_all_subtable_stat _null_ _null_ _null_ ));
 DESCR("get statistic data of all subscriptions with its tables");
-DATA(insert OID = 4611 (  tbase_set_pub_stat_check PGNSP PGUID 12 1 0 0 0 f f f f t f v r 2 0 16 "16 16" _null_ _null_ _null_ _null_ _null_ tbase_set_pub_stat_check _null_ _null_ _null_ ));
+DATA(insert OID = 4611 (  opentenbase_set_pub_stat_check PGNSP PGUID 12 1 0 0 0 f f f f t f v r 2 0 16 "16 16" _null_ _null_ _null_ _null_ _null_ opentenbase_set_pub_stat_check _null_ _null_ _null_ ));
 DESCR("enable collecting publication statistic data");
-DATA(insert OID = 4612 (  tbase_set_sub_stat_check PGNSP PGUID 12 1 0 0 0 f f f f t f v r 2 0 16 "16 16" _null_ _null_ _null_ _null_ _null_ tbase_set_sub_stat_check _null_ _null_ _null_ ));
+DATA(insert OID = 4612 (  opentenbase_set_sub_stat_check PGNSP PGUID 12 1 0 0 0 f f f f t f v r 2 0 16 "16 16" _null_ _null_ _null_ _null_ _null_ opentenbase_set_sub_stat_check _null_ _null_ _null_ ));
 DESCR("enable collecting subscription statistic data");
-DATA(insert OID = 4613 (  tbase_get_pub_stat_check PGNSP PGUID 12 1 0 0 0 f f f f t t v r 0 0 2249 "" "{16,16}" "{o,o}" "{statcount,statchecksum}" _null_ _null_ tbase_get_pub_stat_check _null_ _null_ _null_ ));
+DATA(insert OID = 4613 (  opentenbase_get_pub_stat_check PGNSP PGUID 12 1 0 0 0 f f f f t t v r 0 0 2249 "" "{16,16}" "{o,o}" "{statcount,statchecksum}" _null_ _null_ opentenbase_get_pub_stat_check _null_ _null_ _null_ ));
 DESCR("show publication statistic data collection info");
-DATA(insert OID = 4614 (  tbase_get_sub_stat_check PGNSP PGUID 12 1 0 0 0 f f f f t t v r 0 0 2249 "" "{16,16}" "{o,o}" "{statcount,statchecksum}" _null_ _null_ tbase_get_sub_stat_check _null_ _null_ _null_ ));
+DATA(insert OID = 4614 (  opentenbase_get_sub_stat_check PGNSP PGUID 12 1 0 0 0 f f f f t t v r 0 0 2249 "" "{16,16}" "{o,o}" "{statcount,statchecksum}" _null_ _null_ opentenbase_get_sub_stat_check _null_ _null_ _null_ ));
 DESCR("show subscription statistic data collection info");
-DATA(insert OID = 4615 (  tbase_remove_pub_stat PGNSP PGUID 12 1 0 0 0 f f f f t f v r 1 0 16 "25" _null_ _null_ _null_ _null_ _null_ tbase_remove_pub_stat _null_ _null_ _null_ ));
+DATA(insert OID = 4615 (  opentenbase_remove_pub_stat PGNSP PGUID 12 1 0 0 0 f f f f t f v r 1 0 16 "25" _null_ _null_ _null_ _null_ _null_ opentenbase_remove_pub_stat _null_ _null_ _null_ ));
 DESCR("remove publication statistic entry in hashtable");
-DATA(insert OID = 4616 (  tbase_remove_pubtable_stat PGNSP PGUID 12 1 0 0 0 f f f f t f v r 1 0 16 "26" _null_ _null_ _null_ _null_ _null_ tbase_remove_pubtable_stat _null_ _null_ _null_ ));
+DATA(insert OID = 4616 (  opentenbase_remove_pubtable_stat PGNSP PGUID 12 1 0 0 0 f f f f t f v r 1 0 16 "26" _null_ _null_ _null_ _null_ _null_ opentenbase_remove_pubtable_stat _null_ _null_ _null_ ));
 DESCR("remove publication table statistic entry in hashtable");
-DATA(insert OID = 4617 (  tbase_remove_sub_stat PGNSP PGUID 12 1 0 0 0 f f f f t f v r 1 0 16 "25" _null_ _null_ _null_ _null_ _null_ tbase_remove_sub_stat _null_ _null_ _null_ ));
+DATA(insert OID = 4617 (  opentenbase_remove_sub_stat PGNSP PGUID 12 1 0 0 0 f f f f t f v r 1 0 16 "25" _null_ _null_ _null_ _null_ _null_ opentenbase_remove_sub_stat _null_ _null_ _null_ ));
 DESCR("remove subscription statistic entry in hashtable");
-DATA(insert OID = 4618 (  tbase_remove_subtable_stat PGNSP PGUID 12 1 0 0 0 f f f f t f v r 1 0 16 "26" _null_ _null_ _null_ _null_ _null_ tbase_remove_subtable_stat _null_ _null_ _null_ ));
+DATA(insert OID = 4618 (  opentenbase_remove_subtable_stat PGNSP PGUID 12 1 0 0 0 f f f f t f v r 1 0 16 "26" _null_ _null_ _null_ _null_ _null_ opentenbase_remove_subtable_stat _null_ _null_ _null_ ));
 DESCR("remove subscription table statistic entry in hashtable");
 DATA(insert OID = 4619 (  vacuum_hidden_shards    PGNSP PGUID 12 1 0 0 0 f f f f t f s r 1 0 20 "25" _null_ _null_ _null_ _null_ _null_ vacuum_hidden_shards _null_ _null_ _null_ ));
 DESCR("vacuum hidden shards");
-DATA(insert OID = 4620 (  tbase_shard_statistic PGNSP PGUID 12 1 0 0 0 f f f f t t v r 0 0 2249 "" "{25,25,23,20,20,20,20,20,20}" "{o,o,o,o,o,o,o,o,o}" "{group_name,node_name,shard_id,ntups_select,ntups_insert,ntups_update,ntups_delete,size,ntups}" _null_ _null_ tbase_shard_statistic _null_ _null_ _null_ ));
+DATA(insert OID = 4620 (  opentenbase_shard_statistic PGNSP PGUID 12 1 0 0 0 f f f f t t v r 0 0 2249 "" "{25,25,23,20,20,20,20,20,20}" "{o,o,o,o,o,o,o,o,o}" "{group_name,node_name,shard_id,ntups_select,ntups_insert,ntups_update,ntups_delete,size,ntups}" _null_ _null_ opentenbase_shard_statistic _null_ _null_ _null_ ));
 DESCR("show statistic data of all shards");
 
-DATA(insert OID = 4628 (  tbase_set_need_mvcc PGNSP PGUID 12 1 0 0 0 f f f f t f v r 1 0 16 "23" _null_ _null_ _null_ _null_ _null_ tbase_set_need_mvcc _null_ _null_ _null_ ));
+DATA(insert OID = 4628 (  opentenbase_set_need_mvcc PGNSP PGUID 12 1 0 0 0 f f f f t f v r 1 0 16 "23" _null_ _null_ _null_ _null_ _null_ opentenbase_set_need_mvcc _null_ _null_ _null_ ));
 DESCR("set need_mvcc flag");
 
-DATA(insert OID = 4629 (  tbase_show_need_mvcc PGNSP PGUID 12 1 0 0 0 f f f f t f v r 0 0 23 "" _null_ _null_ _null_ _null_ _null_ tbase_show_need_mvcc _null_ _null_ _null_ ));
+DATA(insert OID = 4629 (  opentenbase_show_need_mvcc PGNSP PGUID 12 1 0 0 0 f f f f t f v r 0 0 23 "" _null_ _null_ _null_ _null_ _null_ opentenbase_show_need_mvcc _null_ _null_ _null_ ));
 DESCR("show need_mvcc flag");
 
 #endif

@@ -58,7 +58,7 @@
 #include "parser/parsetree.h"
 #include "pgxc/xc_maintenance_mode.h"
 #include "catalog/pgxc_class.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "commands/explain_dist.h"
 #include "executor/execParallel.h"
 #include "executor/nodeModifyTable.h"
@@ -82,7 +82,7 @@
 /* Declarations used by guc.c */
 int PGXLRemoteFetchSize;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 int g_in_plpgsql_exec_fun = 0;
 bool PlpgsqlDebugPrint = false;
 
@@ -90,7 +90,7 @@ bool need_global_snapshot = false;
 List *executed_node_list = NULL;
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /* GUC parameter */
 int DataRowBufferSize = 0;  /* MBytes */
 
@@ -144,7 +144,7 @@ static bool pgxc_node_remote_finish(char *prepareGID, bool commit,
 static bool
 pgxc_node_remote_prefinish(char *prepareGID, char *nodestring);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /*static void pgxc_node_remote_abort_subtxn(void);*/
 /*static void pgxc_node_remote_commit_subtxn(void);*/
 static void pgxc_abort_connections(PGXCNodeAllHandles *all_handles);
@@ -306,7 +306,7 @@ InitResponseCombiner(ResponseCombiner *combiner, int node_count,
     combiner->cursor_count = 0;
     combiner->cursor_connections = NULL;
     combiner->remoteCopyType = REMOTE_COPY_NONE;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     combiner->dataRowBuffer  = NULL;
     combiner->dataRowMemSize = NULL;
     combiner->nDataRows      = NULL;
@@ -467,7 +467,7 @@ HandleCommandComplete(ResponseCombiner *combiner, char *msg_body, size_t len, PG
                      * not the scaring data corruption message.
                      */
                     if (combiner->errorMessage == NULL && rowcount != estate->es_processed)
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                     {
                         /*
                           * In extend query protocol, need to set connection to idle
@@ -485,7 +485,7 @@ HandleCommandComplete(ResponseCombiner *combiner, char *msg_body, size_t len, PG
                         ereport(ERROR,
                                 (errcode(ERRCODE_DATA_CORRUPTED),
                                  errmsg("Write to replicated table returned different results from the Datanodes")));
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                     }
 #endif
                 }
@@ -495,7 +495,7 @@ HandleCommandComplete(ResponseCombiner *combiner, char *msg_body, size_t len, PG
             }
             else
                 estate->es_processed += rowcount;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             combiner->DML_processed += rowcount;
 #endif
         }
@@ -773,7 +773,7 @@ HandleDataRow(ResponseCombiner *combiner, char *msg_body, size_t len, Oid node)
 static void
 HandleError(ResponseCombiner *combiner, char *msg_body, size_t len, PGXCNodeHandle *conn)
 {// #lizard forgives
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #define APPEND_LENGTH 128
     char *message_trans = NULL;
 #endif
@@ -841,7 +841,7 @@ HandleError(ResponseCombiner *combiner, char *msg_body, size_t len, PGXCNodeHand
                           combiner->errorCode[4]) == ERRCODE_PRODUCER_ERROR)
     {
         MemoryContext oldcontext = MemoryContextSwitchTo(ErrorContext);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #ifdef     _PG_REGRESS_
         (void)message_trans;
         combiner->errorMessage = pstrdup(message);
@@ -1125,7 +1125,7 @@ CloseCombiner(ResponseCombiner *combiner)
         pfree(combiner->tapemarks);
         combiner->tapemarks = NULL;
     }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	if (combiner->recv_instr_htbl)
 	{
 		hash_destroy(combiner->recv_instr_htbl);
@@ -1222,7 +1222,7 @@ BufferConnection(PGXCNodeHandle *conn, bool need_prefetch)
         /* Move to buffer currentRow (received from the data node) */
         if (combiner->currentRow)
         {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             if (combiner->merge_sort)
             {
                 int node_index = combiner->current_conn;
@@ -1350,7 +1350,7 @@ BufferConnection(PGXCNodeHandle *conn, bool need_prefetch)
                         }
                     }
                 }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             }
 #endif
             combiner->currentRow = NULL;
@@ -1378,7 +1378,7 @@ BufferConnection(PGXCNodeHandle *conn, bool need_prefetch)
 
         if (res == RESPONSE_EOF)
         {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		    if (need_prefetch)
             {
                 /*
@@ -1530,7 +1530,7 @@ BufferConnection(PGXCNodeHandle *conn, bool need_prefetch)
              */
             if (combiner->extended_query)
                 break;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             if (conn->state == DN_CONNECTION_STATE_ERROR_FATAL)
             {
                 ereport(ERROR,
@@ -2007,7 +2007,7 @@ FetchTuple(ResponseCombiner *combiner)
     PGXCNodeHandle *conn;
     TupleTableSlot *slot;
     Oid             nodeOid = -1;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     TimestampTz begin = 0;
     TimestampTz end   = 0;
 #endif
@@ -2017,7 +2017,7 @@ FetchTuple(ResponseCombiner *combiner)
      * We do not have remote connections, so just get local tuple and return it
      */
 	if (outerPlanState(combiner)
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	    /* 
 		 * if dn_instrument is not null, means this node is initialized for recv
 		 * instrument from remote, not execute it locally too.
@@ -2067,7 +2067,7 @@ FetchTuple(ResponseCombiner *combiner)
         }
     }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (enable_statistic)
     {
         begin = GetCurrentTimestamp();
@@ -2176,7 +2176,7 @@ READ_ROWBUFFER:
         }
     }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* fetch datarow from prerowbuffers */
     if (!combiner->currentRow)
     {
@@ -2285,7 +2285,7 @@ READ_ROWBUFFER:
         slot = combiner->ss.ps.ps_ResultTupleSlot;
         CopyDataRowTupleToSlot(combiner, slot);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (enable_statistic)
         {
             end = GetCurrentTimestamp();
@@ -2381,7 +2381,7 @@ READ_ROWBUFFER:
                 combiner->current_conn_rows_consumed = 0;
             }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             if (enable_statistic)
             {
                 end = GetCurrentTimestamp();
@@ -2408,7 +2408,7 @@ READ_ROWBUFFER:
         }
         else if (res == RESPONSE_EOF)
         {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             /* 
              * We encountered incomplete message, try to read more.
              * Here if we read timeout, then we move to other connections to read, because we
@@ -2581,7 +2581,7 @@ READ_ROWBUFFER:
                             goto READ_ROWBUFFER;
                     } 
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                     if (enable_statistic)
                     {
                         bool done = false;
@@ -2631,7 +2631,7 @@ READ_ROWBUFFER:
                         goto READ_ROWBUFFER;
                     }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                     if (enable_statistic)
                     {
                         bool done = false;
@@ -2718,7 +2718,7 @@ READ_ROWBUFFER:
                 } 
 
                 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 if (enable_statistic)
                 {
                     bool done = false;
@@ -2763,7 +2763,7 @@ READ_ROWBUFFER:
                     elog(DEBUG1, "FetchTuple:data left in rowbuffer in simple_query.");
                     goto READ_ROWBUFFER;
                 }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 if (enable_statistic)
                 {
                     bool done = false;
@@ -2818,7 +2818,7 @@ READ_ROWBUFFER:
         }
     }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (enable_statistic)
     {
         bool done = false;
@@ -2852,7 +2852,7 @@ READ_ROWBUFFER:
     return NULL;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static int
 pgxc_node_receive_copy_begin(const int conn_count, PGXCNodeHandle ** connections,
                          struct timeval * timeout, ResponseCombiner *combiner)
@@ -3028,7 +3028,7 @@ pgxc_node_receive_responses(const int conn_count, PGXCNodeHandle ** connections,
         {
             int32 nbytes = 0;
 			int result =  handle_response(to_receive[i], combiner);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #ifdef     _PG_REGRESS_            
             elog(LOG, "Received response %d on connection to node %s",
                     result, to_receive[i]->nodename);
@@ -3220,7 +3220,7 @@ handle_response(PGXCNodeHandle *conn, ResponseCombiner *combiner)
         elog(DEBUG5, "handle_response - received message %c, node %s, "
                 "current_state %d", msg_type, conn->nodename, conn->state);
         
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         conn->last_command = msg_type;
 
         /*
@@ -3231,7 +3231,7 @@ handle_response(PGXCNodeHandle *conn, ResponseCombiner *combiner)
         {
             PGXCNodeSetConnectionState(conn,
                     DN_CONNECTION_STATE_ERROR_FATAL);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 			elog(DEBUG5, "handle_response, fatal_conn=%p, fatal_conn->nodename=%s, fatal_conn->sock=%d, "
 				"fatal_conn->read_only=%d, fatal_conn->transaction_status=%c, "
 				"fatal_conn->sock_fatal_occurred=%d, conn->backend_pid=%d, fatal_conn->error=%s", 
@@ -3296,7 +3296,7 @@ handle_response(PGXCNodeHandle *conn, ResponseCombiner *combiner)
                 Assert(conn->have_row_desc);
 #endif
                 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 if (enable_statistic)
                 {
                     conn->recv_datarows++;
@@ -3356,7 +3356,7 @@ handle_response(PGXCNodeHandle *conn, ResponseCombiner *combiner)
                  * command
                  */
              
-                #ifdef __TBASE__
+                #ifdef __OPENTENBASE__
                 combiner->errorNode   = conn->nodename;
                 combiner->backend_pid = conn->backend_pid;
                 #endif
@@ -3397,7 +3397,7 @@ handle_response(PGXCNodeHandle *conn, ResponseCombiner *combiner)
                 conn->have_row_desc = false;
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 if (enable_statistic)
                 {
                     elog(LOG, "ConnectionFetchDatarows: remote_node %s remote_pid %d, datarows %ld", conn->nodename, conn->backend_pid, conn->recv_datarows);
@@ -3448,7 +3448,7 @@ handle_response(PGXCNodeHandle *conn, ResponseCombiner *combiner)
                 #endif
                 return RESPONSE_ASSIGN_GXID;
                 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 			case 'i': /* Remote Instrument */
 				if (msg_len > 0)
 					HandleRemoteInstr(msg, msg_len, conn->nodeid, combiner);
@@ -3541,7 +3541,7 @@ pgxc_node_begin(int conn_count, PGXCNodeHandle **connections,
     int new_count = 0;
     char            *init_str = NULL;
     char             set_cmd[SET_CMD_LENGTH];
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     const char*     begin_cmd = "BEGIN";
     const char*     begin_subtxn_cmd = "BEGIN_SUBTXN";
     const char*        begin_both_cmd = "BEGIN;BEGIN_SUBTXN";
@@ -3598,7 +3598,7 @@ pgxc_node_begin(int conn_count, PGXCNodeHandle **connections,
             need_tran_block = false;
         }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (need_tran_block && 'I' == connections[i]->transaction_status )
         {
             need_send_begin = true;
@@ -3727,7 +3727,7 @@ pgxc_node_begin(int conn_count, PGXCNodeHandle **connections,
 #if 0    
     if (PoolManagerSetCommand(new_connections, new_count, POOL_CMD_LOCAL_SET, init_str) < 0)
     {        
-        elog(ERROR, "pgxc_node_begin TBase ERROR SET, query:%s, new_count:%d", init_str, new_count);
+        elog(ERROR, "pgxc_node_begin OpenTenBase ERROR SET, query:%s, new_count:%d", init_str, new_count);
     }
 #endif
 
@@ -3796,7 +3796,7 @@ pgxc_node_remote_cleanup_all(void)
             continue;
         }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		/* 
 		 * At the end of the transaction, 
 		 * clean up the CN info sent to the DN in pgxc_node_begin
@@ -3832,7 +3832,7 @@ pgxc_node_remote_cleanup_all(void)
             continue;
         }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		/* 
 		 * At the end of the transaction, 
 		 * clean up the CN info sent to the DN in pgxc_node_begin
@@ -3957,7 +3957,7 @@ pgxc_node_remote_prepare(char *prepareGID, bool localNode, bool implicit)
     int             twophase_index = 0;
     StringInfoData  partnodes;
 #endif
-    connections = (PGXCNodeHandle**)palloc(sizeof(PGXCNodeHandle*) * (TBASE_MAX_DATANODE_NUMBER + TBASE_MAX_COORDINATOR_NUMBER));
+    connections = (PGXCNodeHandle**)palloc(sizeof(PGXCNodeHandle*) * (OPENTENBASE_MAX_DATANODE_NUMBER + OPENTENBASE_MAX_COORDINATOR_NUMBER));
     if (connections == NULL)
     {
         ereport(ERROR,
@@ -4546,7 +4546,7 @@ prepare_err:
 #endif
 
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* read ReadyForQuery from connections which sent commit/commit prepared */
     if (!isOK)
     {
@@ -4809,7 +4809,7 @@ prepare_err:
     return NULL;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /*
  * Commit transactions on remote nodes.
  * If barrier lock is set wait while it is released.
@@ -4867,7 +4867,7 @@ pgxc_node_remote_commit(TranscationType txn_type, bool need_release_handle)
 	PGXCNodeHandle **connections = NULL;
 	int				conn_count = 0;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     switch (txn_type)
     {
         case TXN_TYPE_CommitTxn:
@@ -4900,7 +4900,7 @@ pgxc_node_remote_commit(TranscationType txn_type, bool need_release_handle)
 #endif
 
     /* palloc will FATAL when out of memory */
-    connections = (PGXCNodeHandle**)palloc(sizeof(PGXCNodeHandle*) * (TBASE_MAX_DATANODE_NUMBER + TBASE_MAX_COORDINATOR_NUMBER));
+    connections = (PGXCNodeHandle**)palloc(sizeof(PGXCNodeHandle*) * (OPENTENBASE_MAX_DATANODE_NUMBER + OPENTENBASE_MAX_COORDINATOR_NUMBER));
     
     SetSendCommandId(false);
 
@@ -5055,7 +5055,7 @@ pgxc_node_remote_commit(TranscationType txn_type, bool need_release_handle)
 		CloseCombiner(&combiner);
 	}
 
-#ifndef __TBASE__
+#ifndef __OPENTENBASE__
 	stat_transaction(conn_count);
 
 	if (!temp_object_included && !PersistentConnections && need_release_handle)
@@ -5076,7 +5076,7 @@ pgxc_node_remote_commit(TranscationType txn_type, bool need_release_handle)
 		connections = NULL;
 	}
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	return conn_count;
 #endif
 }
@@ -5136,19 +5136,19 @@ void InitLocalTwoPhaseState(void)
     if (IS_PGXC_COORDINATOR)
     {
         g_twophase_state.coord_state = (ConnTransState *)MemoryContextAllocZero(TopMemoryContext, 
-                                    TBASE_MAX_COORDINATOR_NUMBER * sizeof(ConnTransState));
+                                    OPENTENBASE_MAX_COORDINATOR_NUMBER * sizeof(ConnTransState));
     }
     else
     {
         g_twophase_state.coord_state = NULL;
     }
     g_twophase_state.datanode_state = (ConnTransState *)MemoryContextAllocZero(TopMemoryContext, 
-                                    TBASE_MAX_DATANODE_NUMBER * sizeof(ConnTransState));
+                                    OPENTENBASE_MAX_DATANODE_NUMBER * sizeof(ConnTransState));
     /* since participates conclude nodename and  ","*/
-    participants_capacity = (NAMEDATALEN+1) * (TBASE_MAX_DATANODE_NUMBER + TBASE_MAX_COORDINATOR_NUMBER);
+    participants_capacity = (NAMEDATALEN+1) * (OPENTENBASE_MAX_DATANODE_NUMBER + OPENTENBASE_MAX_COORDINATOR_NUMBER);
     g_twophase_state.participants = (char *)MemoryContextAllocZero(TopMemoryContext, participants_capacity);
     g_twophase_state.connections = (AllConnNodeInfo *)MemoryContextAllocZero(TopMemoryContext,
-                                  (TBASE_MAX_DATANODE_NUMBER + TBASE_MAX_COORDINATOR_NUMBER) *
+                                  (OPENTENBASE_MAX_DATANODE_NUMBER + OPENTENBASE_MAX_COORDINATOR_NUMBER) *
                                   sizeof(AllConnNodeInfo));
 }
 
@@ -5507,7 +5507,7 @@ void get_partnodes(PGXCNodeAllHandles * handles, StringInfo participants)
 static void
 pgxc_node_remote_abort(TranscationType txn_type, bool need_release_handle)
 {// #lizard forgives
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #define ROLLBACK_PREPARED_CMD_LEN 256
 	bool                  force_release_handle = false;
 #endif
@@ -5527,7 +5527,7 @@ pgxc_node_remote_abort(TranscationType txn_type, bool need_release_handle)
     int             twophase_index = 0;
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     switch (txn_type)
     {
         case TXN_TYPE_RollbackTxn:
@@ -5559,8 +5559,8 @@ pgxc_node_remote_abort(TranscationType txn_type, bool need_release_handle)
     handles = get_current_handles();
 
     /* palloc will FATAL when out of memory .*/
-    connections = (PGXCNodeHandle**)palloc(sizeof(PGXCNodeHandle*) * (TBASE_MAX_DATANODE_NUMBER + TBASE_MAX_COORDINATOR_NUMBER));
-    sync_connections = (PGXCNodeHandle**)palloc(sizeof(PGXCNodeHandle*) * (TBASE_MAX_DATANODE_NUMBER + TBASE_MAX_COORDINATOR_NUMBER));
+    connections = (PGXCNodeHandle**)palloc(sizeof(PGXCNodeHandle*) * (OPENTENBASE_MAX_DATANODE_NUMBER + OPENTENBASE_MAX_COORDINATOR_NUMBER));
+    sync_connections = (PGXCNodeHandle**)palloc(sizeof(PGXCNodeHandle*) * (OPENTENBASE_MAX_DATANODE_NUMBER + OPENTENBASE_MAX_COORDINATOR_NUMBER));
     
 
     SetSendCommandId(false);
@@ -5897,7 +5897,7 @@ pgxc_node_remote_abort(TranscationType txn_type, bool need_release_handle)
 
     stat_transaction(conn_count);
     
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     force_release_handle = validate_handles();
     if (force_release_handle)
     {
@@ -6038,7 +6038,7 @@ DataNodeCopyBegin(RemoteCopyData *rcstate)
             rcstate->locator = NULL;
             return;
         }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (pgxc_node_send_cmd_id(connections[i], cid) < 0)
         {
             ereport(ERROR,
@@ -6320,7 +6320,7 @@ DataNodeCopyEnd(PGXCNodeHandle *handle, bool is_error)
     return false;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /*
  * Get Node connections of all Datanodes
  */
@@ -6346,7 +6346,7 @@ get_exec_connections(RemoteQueryState *planstate,
                      bool is_global_session)
 {// #lizard forgives
     List        *nodelist = NIL;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     List        *temp_list = NIL;
 #endif
     List        *primarynode = NIL;
@@ -6357,7 +6357,7 @@ get_exec_connections(RemoteQueryState *planstate,
     PGXCNodeAllHandles *pgxc_handles = NULL;
 	bool        missing_ok = (exec_nodes ? exec_nodes->missing_ok : false);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (IsParallelWorker())
     {
         if (EXEC_ON_CURRENT != exec_type)
@@ -6563,7 +6563,7 @@ get_exec_connections(RemoteQueryState *planstate,
 		dn_conn_count = NumDataNodes;
 	}
 	
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (IsParallelWorker())
     {
         int32   i          = 0;
@@ -6717,7 +6717,7 @@ pgxc_start_command_on_connection(PGXCNodeHandle *connection,
      * in cases when we need to send out of order command id to data node
      * e.g. in case of a fetch
      */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (snapshot)
     {
         cid = snapshot->curcid;
@@ -6768,7 +6768,7 @@ pgxc_start_command_on_connection(PGXCNodeHandle *connection,
          * immediately by the sorter
          */
         if (step->cursor)
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         {
             /* we need all rows one time */
             if (step->dml_on_coordinator)
@@ -6811,7 +6811,7 @@ GetGlobInfoForRemoteUtility(RemoteQuery *node, GlobalTransactionId *gxid,
 {
 	bool                utility_need_transcation = true;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	/* Some DDL such as ROLLBACK, SET does not need transaction */
 	utility_need_transcation =
 			(!ExecDDLWithoutAcquireXid(node->parsetree) && !node->is_set);
@@ -6826,7 +6826,7 @@ GetGlobInfoForRemoteUtility(RemoteQuery *node, GlobalTransactionId *gxid,
 	if (ActiveSnapshotSet())
 		*snapshot = GetActiveSnapshot();
 
-#ifdef __TBASE__	
+#ifdef __OPENTENBASE__	
 	if (utility_need_transcation)
 #endif
 	{
@@ -6953,7 +6953,7 @@ void RemoteReceiveAndCheck(int conn_count, PGXCNodeHandle **conns,
         {
             /*
              * Got error
-             * TODO(Tbase): How do we check the error here?
+             * TODO(OpenTenBase): How do we check the error here?
              */
             break;
         }
@@ -6971,7 +6971,7 @@ void RemoteReceiveAndCheck(int conn_count, PGXCNodeHandle **conns,
     }
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /*
  * Send ddl to leader cn, the function only be invoked
  * in parallel ddl mode.
@@ -7052,7 +7052,7 @@ ExecRemoteUtility(RemoteQuery *node)
     pgxc_connections = get_exec_connections(NULL, node->exec_nodes, exec_type, 
                                             exec_direct_type != EXEC_DIRECT_UTILITY);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	if (type == EXCLUED_LEADER_DDL)
 	{
 		delete_leadercn_handle(pgxc_connections, leader_cn_conn);
@@ -7092,7 +7092,7 @@ ExecRemoteUtility(RemoteQuery *node)
 
 	GetGlobInfoForRemoteUtility(node, &gxid, &snapshot);
 
-#ifdef __TBASE__    
+#ifdef __OPENTENBASE__    
 	if (type == ONLY_LEADER_DDL)
     {
 		LeaderCnExecRemoteUtility(node, leader_cn_conn, combiner,
@@ -7152,7 +7152,7 @@ ExecRemoteUtility(RemoteQuery *node)
                               pgxc_connections->coord_handles,
 							combiner);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	if (LOCAL_PARALLEL_DDL && combiner && combiner->errorMessage)
             {
 		pfree_pgxc_all_handles(pgxc_connections);
@@ -7718,7 +7718,7 @@ PreAbort_Remote(TranscationType txn_type, bool need_release_handle)
 #endif
             }
         }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		else
 		{
 			elog(LOG, "PreAbort_Remote cn node %s pid %d, invalid socket %d!", handle->nodename, handle->backend_pid, handle->sock);
@@ -7766,7 +7766,7 @@ PreAbort_Remote(TranscationType txn_type, bool need_release_handle)
                  * different one.
                  */
                 handle->combiner = NULL;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 /*
                  * if datanode report error, there is no need to send cancel to it, 
                  * and would not wait this datanode reponse. 
@@ -7825,7 +7825,7 @@ PreAbort_Remote(TranscationType txn_type, bool need_release_handle)
 
             }
         }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		else
 		{
 			elog(LOG, "PreAbort_Remote dn node %s pid %d, invalid socket %d!", handle->nodename, handle->backend_pid, handle->sock);
@@ -7962,7 +7962,7 @@ char *
 PrePrepare_Remote(char *prepareGID, bool localNode, bool implicit)
 {// #lizard forgives
     /* Always include local node if running explicit prepare */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     int    ret = 0;
 #endif
     char *nodestring;
@@ -8012,7 +8012,7 @@ PrePrepare_Remote(char *prepareGID, bool localNode, bool implicit)
             elog(ERROR, "ALL_PREPARE_PREPARE_GTM is running");
         }
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (ret)
         {
             elog(ERROR, "Prepare Transaction gid:%s on GTM failed", prepareGID);
@@ -8059,7 +8059,7 @@ PrePrepare_Remote(char *prepareGID, bool localNode, bool implicit)
 void
 PostPrepare_Remote(char *prepareGID, bool implicit)
 {
-#ifndef __TBASE__
+#ifndef __OPENTENBASE__
     struct rusage        start_r;
     struct timeval        start_t;
 
@@ -8085,7 +8085,7 @@ IsTwoPhaseCommitRequired(bool localWrite)
 	PGXCNodeAllHandles *handles = NULL;
     bool                found = localWrite;
     int                 i = 0;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     int                                     sock_fatal_count = 0;
 #endif
 
@@ -8108,7 +8108,7 @@ IsTwoPhaseCommitRequired(bool localWrite)
     if (!TransactionIdIsValid(GetTopTransactionIdIfAny()))
         return false;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	handles = get_sock_fatal_handles();
 	sock_fatal_count = handles->dn_conn_count + handles->co_conn_count;
 
@@ -8146,7 +8146,7 @@ IsTwoPhaseCommitRequired(bool localWrite)
     {
         PGXCNodeHandle *conn = handles->datanode_handles[i];
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		elog(DEBUG5, "IsTwoPhaseCommitRequired, conn->nodename=%s, conn->sock=%d, conn->read_only=%d, conn->transaction_status=%c", 
 			conn->nodename, conn->sock, conn->read_only, conn->transaction_status);
 #endif
@@ -8177,7 +8177,7 @@ IsTwoPhaseCommitRequired(bool localWrite)
     {
         PGXCNodeHandle *conn = handles->coord_handles[i];
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		elog(DEBUG5, "IsTwoPhaseCommitRequired, conn->nodename=%s, conn->sock=%d, conn->read_only=%d, conn->transaction_status=%c", 
 			conn->nodename, conn->sock, conn->read_only, conn->transaction_status);
 #endif
@@ -8206,7 +8206,7 @@ IsTwoPhaseCommitRequired(bool localWrite)
     }
     pfree_pgxc_all_handles(handles);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	elog(DEBUG5, "IsTwoPhaseCommitRequired return false");
 #endif
 
@@ -8219,7 +8219,7 @@ IsTwoPhaseCommitRequired(bool localWrite)
 static bool
 pgxc_node_remote_prefinish(char *prepareGID, char *nodestring)
 {// #lizard forgives
-    PGXCNodeHandle       *connections[TBASE_MAX_COORDINATOR_NUMBER + TBASE_MAX_DATANODE_NUMBER];
+    PGXCNodeHandle       *connections[OPENTENBASE_MAX_COORDINATOR_NUMBER + OPENTENBASE_MAX_DATANODE_NUMBER];
     int                    conn_count = 0;
     ResponseCombiner    combiner;
     PGXCNodeAllHandles *pgxc_handles;
@@ -8483,7 +8483,7 @@ FinishRemotePreparedTransaction(char *prepareGID, bool commit)
 
     if (nodestring)
     {
-        strncpy(g_twophase_state.participants, nodestring,((NAMEDATALEN+1) * (TBASE_MAX_DATANODE_NUMBER + TBASE_MAX_COORDINATOR_NUMBER)));
+        strncpy(g_twophase_state.participants, nodestring,((NAMEDATALEN+1) * (OPENTENBASE_MAX_DATANODE_NUMBER + OPENTENBASE_MAX_COORDINATOR_NUMBER)));
     }
 #endif
 
@@ -8515,7 +8515,7 @@ FinishRemotePreparedTransaction(char *prepareGID, bool commit)
     }
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     FinishGIDGTM(prepareGID);
 #endif
     SetCurrentHandlesReadonly();
@@ -8577,7 +8577,7 @@ pgxc_node_remote_finish(char *prepareGID, bool commit,
     }
 #endif
 
-    connections = (PGXCNodeHandle**)palloc(sizeof(PGXCNodeHandle*) * (TBASE_MAX_DATANODE_NUMBER + TBASE_MAX_COORDINATOR_NUMBER));
+    connections = (PGXCNodeHandle**)palloc(sizeof(PGXCNodeHandle*) * (OPENTENBASE_MAX_DATANODE_NUMBER + OPENTENBASE_MAX_COORDINATOR_NUMBER));
     if (connections == NULL)
     {
         ereport(ERROR,
@@ -9028,7 +9028,7 @@ ExecRemoteQuery(PlanState *pstate)
         {
             connections = pgxc_connections->datanode_handles;
             total_conn_count = regular_conn_count = pgxc_connections->dn_conn_count;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 			if (regular_conn_count > 1)
 			{
 				need_global_snapshot = true;
@@ -9053,7 +9053,7 @@ ExecRemoteQuery(PlanState *pstate)
         {
             connections = pgxc_connections->coord_handles;
             total_conn_count = regular_conn_count = pgxc_connections->co_conn_count;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             need_global_snapshot = true;
 #endif
         }
@@ -9071,7 +9071,7 @@ ExecRemoteQuery(PlanState *pstate)
 			need_global_snapshot = g_set_global_snapshot;
 		}
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /* set snapshot as needed */
         if (!g_set_global_snapshot && SetSnapshot(pstate->state))
         {
@@ -9081,7 +9081,7 @@ ExecRemoteQuery(PlanState *pstate)
 
         primaryconnection = pgxc_connections->primary_handle;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /* initialize */
         combiner->recv_node_count = regular_conn_count;
         combiner->recv_tuples      = 0;
@@ -9112,7 +9112,7 @@ ExecRemoteQuery(PlanState *pstate)
 					(!step->read_only && total_conn_count > 1) ||
 					(TransactionBlockStatusCode() == 'T');
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		/* Set plpgsql transaction begin for all connections */
 		if (primaryconnection)
 		{
@@ -9133,7 +9133,7 @@ ExecRemoteQuery(PlanState *pstate)
         {    
             //elog(LOG, "[PLPGSQL]ExecRemoteQuery has primaryconnection");
             //primaryconnection->read_only = true;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 			combiner->connections = &primaryconnection;
 			combiner->conn_count = 1;
 			combiner->current_conn = 0;
@@ -9194,7 +9194,7 @@ ExecRemoteQuery(PlanState *pstate)
 				pgxc_node_report_error(combiner);
 		}
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (regular_conn_count > 0)
         {
             combiner->connections = connections;
@@ -9205,7 +9205,7 @@ ExecRemoteQuery(PlanState *pstate)
         for (i = 0; i < regular_conn_count; i++)
         {
             //connections[i]->read_only = true;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 			connections[i]->recv_datarows = 0;
 #endif
 
@@ -9291,7 +9291,7 @@ ExecRemoteQuery(PlanState *pstate)
     if (combiner->errorMessage)
         pgxc_node_report_error(combiner);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (enable_statistic)
     {
         elog(LOG, "FetchTuple: recv_node_count:%d, recv_tuples:%lu, "
@@ -9359,7 +9359,7 @@ pgxc_connections_cleanup(ResponseCombiner *combiner)
     /* clean up the buffer */
     list_free_deep(combiner->rowBuffer);
     combiner->rowBuffer = NIL;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* clean up tuplestore */
     if (combiner->merge_sort)
     {
@@ -9543,7 +9543,7 @@ pgxc_connections_cleanup(ResponseCombiner *combiner)
             }
             continue;
         }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         else if (RESPONSE_COPY == res)
         {
             if (combiner->is_abort && conn->state == DN_CONNECTION_STATE_COPY_IN)
@@ -10063,7 +10063,7 @@ ExecInitRemoteSubplan(RemoteSubplan *node, EState *estate, int eflags)
     combiner->ss.ps.plan = (Plan *) node;
     combiner->ss.ps.state = estate;
     combiner->ss.ps.ExecProcNode = ExecRemoteSubplan;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	if (estate->es_instrument)
 	{
 		HASHCTL		ctl;
@@ -10083,7 +10083,7 @@ ExecInitRemoteSubplan(RemoteSubplan *node, EState *estate, int eflags)
     ExecInitResultTupleSlot(estate, &combiner->ss.ps);
     ExecAssignResultTypeFromTL((PlanState *) remotestate);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (IS_PGXC_COORDINATOR && !g_set_global_snapshot)
     {
         if (!need_global_snapshot)
@@ -10399,7 +10399,7 @@ ExecInitRemoteSubplan(RemoteSubplan *node, EState *estate, int eflags)
         rstmt.distributionType = node->distributionType;
         rstmt.distributionNodes = node->distributionNodes;
         rstmt.distributionRestrict = node->distributionRestrict;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         rstmt.parallelWorkerSendTuple = node->parallelWorkerSendTuple;
         if(IsParallelWorker())
         {
@@ -10470,19 +10470,19 @@ ExecInitRemoteSubplan(RemoteSubplan *node, EState *estate, int eflags)
          */
         if (!(eflags & EXEC_FLAG_SUBPLAN))
         {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             remotestate->eflags = eflags;
             /* In parallel worker, no init, do it until we start to run. */
             if (IsParallelWorker())
             {
 #endif
                 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             }
             else
             {
                 //ExecFinishInitRemoteSubplan(remotestate);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 /* Not parallel aware, build connections. */
                 if (!node->scan.plan.parallel_aware)
                 {
@@ -10527,7 +10527,7 @@ ExecFinishInitRemoteSubplan(RemoteSubplanState *node)
     bool                is_read_only;
     char                cursor[NAMEDATALEN];
     
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     node->finish_init = true;
 #endif
     /*
@@ -10592,7 +10592,7 @@ ExecFinishInitRemoteSubplan(RemoteSubplanState *node)
     snapshot = GetActiveSnapshot();
     timestamp = GetCurrentGTMStartTimestamp();
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* set snapshot as needed */
     if (!g_set_global_snapshot && SetSnapshot(estate))
     {
@@ -10608,7 +10608,7 @@ ExecFinishInitRemoteSubplan(RemoteSubplanState *node)
     is_read_only = IS_PGXC_DATANODE ||
             !IsA(outerPlan(plan), ModifyTable);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	/* Set plpgsql transaction begin for all connections */
 	for (i = 0; i < combiner->conn_count; i++)
 	{
@@ -10887,10 +10887,10 @@ ExecRemoteSubplan(PlanState *pstate)
     TupleTableSlot *resultslot = combiner->ss.ps.ps_ResultTupleSlot;
     struct rusage    start_r;
     struct timeval        start_t;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     int count = 0;
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	if ((node->eflags & EXEC_FLAG_EXPLAIN_ONLY) != 0)
 		return NULL;
 	
@@ -10942,7 +10942,7 @@ primary_mode_phase_two:
                  OidIsValid(primary_data_node) &&
                  combiner->conn_count > 1 && !g_UseDataPump);
         char cursor[NAMEDATALEN];
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		StringInfo shardmap = NULL;
 #endif
 
@@ -10957,7 +10957,7 @@ primary_mode_phase_two:
         else
             cursor[0] = '\0';
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if(g_UseDataPump)
         {
             /* fetch all */
@@ -11004,7 +11004,7 @@ primary_mode_phase_two:
 		if (estate->es_epqTuple != NULL)
 			epqctxlen = encode_epqcontext(&combiner->ss.ps, &epqctxdata);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		/*
 		 * consider whether to distribute shard map info
 		 * we do that when:
@@ -11108,7 +11108,7 @@ primary_mode_phase_two:
             {
                 PGXCNodeHandle *conn = combiner->connections[i];
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 conn->recv_datarows = 0;
 #endif
 
@@ -11274,7 +11274,7 @@ primary_mode_phase_two:
     if (log_remotesubplan_stats)
         ShowUsageCommon("ExecRemoteSubplan", &start_r, &start_t);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (enable_statistic)
     {
         elog(LOG, "FetchTuple: recv_node_count:%d, recv_tuples:%lu, "
@@ -11321,12 +11321,12 @@ ExecReScanRemoteSubplan(RemoteSubplanState *node)
      * Force query is re-bound with new parameters
      */
     node->bound = false;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     node->eflags &= ~(EXEC_FLAG_DISCONN);
 #endif
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /*
  * ExecShutdownRemoteSubplan
  * 
@@ -12179,7 +12179,7 @@ GetImplicit2PCGID(const char *implicit2PC_head, bool localWrite)
     MemoryContext oldContext = CurrentMemoryContext;
     StringInfoData str;
 
-    dnNodeIds = (int*)palloc(sizeof(int) * TBASE_MAX_DATANODE_NUMBER);
+    dnNodeIds = (int*)palloc(sizeof(int) * OPENTENBASE_MAX_DATANODE_NUMBER);
     if (dnNodeIds == NULL)
     {
         ereport(ERROR,
@@ -12187,7 +12187,7 @@ GetImplicit2PCGID(const char *implicit2PC_head, bool localWrite)
                  errmsg("out of memory for dnNodeIds")));
     }
 
-    coordNodeIds = (int*)palloc(sizeof(int) * TBASE_MAX_COORDINATOR_NUMBER);
+    coordNodeIds = (int*)palloc(sizeof(int) * OPENTENBASE_MAX_COORDINATOR_NUMBER);
     if (coordNodeIds == NULL)
     {
         ereport(ERROR,
@@ -12238,7 +12238,7 @@ GetImplicit2PCGID(const char *implicit2PC_head, bool localWrite)
     return str.data;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 void
 ExecRemoteSubPlanInitializeDSM(RemoteSubplanState *node,
                                ParallelContext *pcxt)

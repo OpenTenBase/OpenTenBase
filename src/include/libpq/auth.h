@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -81,7 +81,7 @@ extern bool pg_krb_caseins_users;
 extern char *pg_krb_realm;
 
 extern void ClientAuthentication(Port *port);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern Size UserAuthShmemSize(void);
 extern void UserAuthShmemInit(void);
 #endif
@@ -91,7 +91,7 @@ extern void UserAuthShmemInit(void);
 typedef void (*ClientAuthentication_hook_type) (Port *, int);
 extern PGDLLIMPORT ClientAuthentication_hook_type ClientAuthentication_hook;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern int    pgua_max;            
 extern int    account_lock_time; 
 extern int    account_lock_threshold; 

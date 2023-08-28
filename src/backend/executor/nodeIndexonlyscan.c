@@ -160,7 +160,7 @@ IndexOnlyNext(IndexOnlyScanState *node)
          * It's worth going through this complexity to avoid needing to lock
          * the VM buffer, which could cause significant contention.
          */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (!VM_ALL_VISIBLE(scandesc->heapRelation,
                             ItemPointerGetBlockNumber(tid),
                             &node->ioss_VMBuffer) || NeedMvcc())
@@ -530,7 +530,7 @@ ExecInitIndexOnlyScan(IndexOnlyScan *node, EState *estate, int eflags)
     /*
      * open the base relation and acquire appropriate lock on it.
      */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if(node->scan.ispartchild)
     {
         currentRelation = ExecOpenScanRelationPartition(estate,
@@ -542,7 +542,7 @@ ExecInitIndexOnlyScan(IndexOnlyScan *node, EState *estate, int eflags)
     {
 #endif
         currentRelation = ExecOpenScanRelation(estate, node->scan.scanrelid, eflags);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     }
 #endif
 #ifdef _MLS_

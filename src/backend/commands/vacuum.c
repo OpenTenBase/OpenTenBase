@@ -73,7 +73,7 @@
 #include "catalog/catalog.h"
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "utils/ruleutils.h"
 #endif
 
@@ -1275,7 +1275,7 @@ vacuum_rel(Oid relid, RangeVar *relation, int options, VacuumParams *params, Sta
     Oid            save_userid;
     int            save_sec_context;
     int            save_nestlevel;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
        bool            part_vacuum_result = true;
        List            *childs = NULL;
        List            *new_childs = NULL;
@@ -1287,7 +1287,7 @@ vacuum_rel(Oid relid, RangeVar *relation, int options, VacuumParams *params, Sta
 
     Assert(params != NULL);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if(!IsAutoVacuumWorkerProcess())
     {
         StartTransactionCommand();
@@ -2045,7 +2045,7 @@ vacuum_rel_coordinator(Relation onerel, bool is_outer, VacuumParams *params, Sta
     bool         replicated;
 	int 		rel_nodes = 0;
 	bool        isSync = false;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	TransactionId oldestXmin = InvalidTransactionId;
 	TransactionId freezeLimit = InvalidTransactionId;
 	MultiXactId multiXactCutoff = InvalidMultiXactId;
@@ -2057,7 +2057,7 @@ vacuum_rel_coordinator(Relation onerel, bool is_outer, VacuumParams *params, Sta
 
 	elog(DEBUG5, "Getting relation statistics for %s.%s", nspname, relname);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	if (params && onerel->rd_rel->relkind != RELKIND_PARTITIONED_TABLE)
 	{
 		vacuum_set_xid_limits(onerel,
@@ -2166,7 +2166,7 @@ vacuum_rel_coordinator(Relation onerel, bool is_outer, VacuumParams *params, Sta
             min_frozenxid = InvalidTransactionId;
         }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		if (TransactionIdIsValid(freezeLimit))
 		{
 	        min_frozenxid = freezeLimit;

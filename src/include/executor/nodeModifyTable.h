@@ -19,7 +19,7 @@ extern ModifyTableState *ExecInitModifyTable(ModifyTable *node, EState *estate, 
 extern void ExecEndModifyTable(ModifyTableState *node);
 extern void ExecReScanModifyTable(ModifyTableState *node);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern TupleTableSlot *ExecRemoteUpdate(ModifyTableState *mtstate,
            ItemPointer tupleid,
            HeapTuple oldtuple,

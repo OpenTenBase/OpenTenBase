@@ -49,7 +49,7 @@ typedef struct
     uint32        maxrate;
     bool        sendtblspcmapfile;
 } basebackup_options;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 int32   g_TransferSpeed    = 50;  /* in million bytes */
 size_t  g_BytesTransfered  = 0;
 static  struct timeval     g_Start;
@@ -233,7 +233,7 @@ perform_base_backup(basebackup_options *opt, DIR *tblspcdir)
     StringInfo    tblspc_map_file = NULL;
     int            datadirpathlen;
     List       *tablespaces = NIL;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     BeginTransfer();
 #endif
     datadirpathlen = strlen(DataDir);
@@ -281,7 +281,7 @@ perform_base_backup(basebackup_options *opt, DIR *tblspcdir)
 
         /* Send tablespace header */
         SendBackupHeader(tablespaces);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /* trade the above size to be 512 bytes. */
         JudgeHalt(512);
 #endif
@@ -544,7 +544,7 @@ perform_base_backup(basebackup_options *opt, DIR *tblspcdir)
                             (errmsg("base backup could not send data, aborting backup")));
 
                 len += cnt;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 JudgeHalt(cnt);
 #endif
 
@@ -933,7 +933,7 @@ sendFileWithContent(const char *filename, const char *content)
     /* Send the contents as a CopyData message */
     pq_putmessage('d', content, len);
     
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     JudgeHalt(len);
 #endif
 
@@ -946,7 +946,7 @@ sendFileWithContent(const char *filename, const char *content)
         MemSet(buf, 0, pad);
         pq_putmessage('d', buf, pad);
         
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         JudgeHalt(pad);
 #endif
     }
@@ -1286,7 +1286,7 @@ sendFile(char *readfilename, char *tarfilename, struct stat *statbuf,
 
         len += cnt;
         
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         JudgeHalt(cnt);
 #endif
         throttle(cnt);
@@ -1311,7 +1311,7 @@ sendFile(char *readfilename, char *tarfilename, struct stat *statbuf,
             cnt = Min(sizeof(buf), statbuf->st_size - len);
             pq_putmessage('d', buf, cnt);
             len += cnt;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             JudgeHalt(cnt);
 #endif
             throttle(cnt);
@@ -1327,7 +1327,7 @@ sendFile(char *readfilename, char *tarfilename, struct stat *statbuf,
     {
         MemSet(buf, 0, pad);
         pq_putmessage('d', buf, pad);        
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         JudgeHalt(pad);
 #endif
     }
@@ -1371,7 +1371,7 @@ _tarWriteHeader(const char *filename, const char *linktarget,
         }
 
         pq_putmessage('d', h, sizeof(h));
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /* limit the transfer speed */
         JudgeHalt(512);
 #endif

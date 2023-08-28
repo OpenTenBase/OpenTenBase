@@ -29,7 +29,7 @@
 #include "optimizer/prep.h"
 #include "optimizer/var.h"
 #include "utils/lsyscache.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "optimizer/pgxcship.h"
 #include "pgxc/pgxc.h"
 #endif

@@ -64,9 +64,9 @@
 #endif
 
 #ifdef __SUBSCRIPTION__
-const char * g_tbase_subscription_extension = "tbase_subscription";
-const char * g_tbase_subscription_relname = "tbase_subscription";
-const char * g_tbase_subscription_parallel_relname = "tbase_subscription_parallel";
+const char * g_opentenbase_subscription_extension = "opentenbase_subscription";
+const char * g_opentenbase_subscription_relname = "opentenbase_subscription";
+const char * g_opentenbase_subscription_parallel_relname = "opentenbase_subscription_parallel";
 #endif
 
 #ifdef __STORAGE_SCALABLE__
@@ -84,7 +84,7 @@ static List *fetch_shard_list(WalReceiverConn *wrconn, List *publications);
 
 #ifdef __SUBSCRIPTION__
 static void
-parse_tbase_subscription_options(List *options,
+parse_opentenbase_subscription_options(List *options,
                                  bool is_create_stmt,
                                  bool *ignore_pk_conflict,
                                  char **manual_hot_date,
@@ -94,8 +94,8 @@ parse_tbase_subscription_options(List *options,
 								 bool *copy_data,
 								 char **slot_name,
 								 bool *slot_name_given);
-static bool check_tbase_subscription_ifexists(Relation tbase_sub_rel, char * check_subname);
-static List * tbase_subscription_parallelization(Node * stmt, int parallel_number, bool slot_name_given);
+static bool check_opentenbase_subscription_ifexists(Relation opentenbase_sub_rel, char * check_subname);
+static List * opentenbase_subscription_parallelization(Node * stmt, int parallel_number, bool slot_name_given);
 #endif
 
 /*
@@ -233,7 +233,7 @@ parse_subscription_options(List *options, bool *connect, bool *enabled_given,
                  strcmp(defel->defname, "temp_cold_date") == 0 ||
                  strcmp(defel->defname, "parallel_number") == 0)
         {
-            /* parse in parse_tbase_subscription_options */
+            /* parse in parse_opentenbase_subscription_options */
         }
 #endif
         else
@@ -431,7 +431,7 @@ CreateSubscription(CreateSubscriptionStmt *stmt, bool isTopLevel)
 
 #ifdef __SUBSCRIPTION__
     /* add parallel info into conninfo */
-    if (conninfo != NULL && IsTbaseSubscription((Node *)stmt))
+    if (conninfo != NULL && isOpenTenBaseSubscription((Node *)stmt))
     {
         StringInfoData conn_str;
         initStringInfo(&conn_str);
@@ -545,7 +545,7 @@ CreateSubscription(CreateSubscriptionStmt *stmt, bool isTopLevel)
 
 #ifdef __STORAGE_SCALABLE__
                 relation = heap_open(relid, NoLock);
-                if (shards && !stmt->istbase)
+                if (shards && !stmt->isopentenbase)
                 {
                     if (!RelationIsSharded(relation))
                     {
@@ -563,7 +563,7 @@ CreateSubscription(CreateSubscriptionStmt *stmt, bool isTopLevel)
                 }
 
 #ifdef __SUBSCRIPTION__
-                if (stmt->istbase)
+                if (stmt->isopentenbase)
                 {
                     /* only support shard table */
                     if (relation->rd_locator_info == NULL ||
@@ -572,7 +572,7 @@ CreateSubscription(CreateSubscriptionStmt *stmt, bool isTopLevel)
                         heap_close(relation, NoLock);
                         ereport(LOG,
                             (errcode(ERRCODE_WRONG_OBJECT_TYPE),
-                             errmsg("TBase Subscripton currently only supports subscribing into the SHARD table, "
+                             errmsg("OpenTenBase Subscripton currently only supports subscribing into the SHARD table, "
                                      "but \"%s\" is not a SHARD table, skip it", RangeVarGetName(rv))));
                         continue;
                     }
@@ -723,7 +723,7 @@ AlterSubscription_refresh(Subscription *sub, bool copy_data)
                 heap_close(relation, NoLock);
                 ereport(LOG,
                     (errcode(ERRCODE_WRONG_OBJECT_TYPE),
-                     errmsg("TBase Subscripton on COORDINATOR currently only supports subscribing into the SHARD table, "
+                     errmsg("OpenTenBase Subscripton on COORDINATOR currently only supports subscribing into the SHARD table, "
                             "but \"%s\" is not a SHARD table, skip it", RangeVarGetName(rv))));
                 continue;
             }
@@ -1164,9 +1164,9 @@ DropSubscription(DropSubscriptionStmt *stmt, bool isTopLevel)
     /* Remove any associated shards/tables */
     RemoveSubscriptionShard(subid, InvalidShardID);
     RemoveSubscriptionTable(subid, InvalidOid);
-    DirectFunctionCall1Coll(tbase_remove_subtable_stat, InvalidOid,
+    DirectFunctionCall1Coll(opentenbase_remove_subtable_stat, InvalidOid,
                             UInt32GetDatum(subid));
-    DirectFunctionCall1Coll(tbase_remove_sub_stat, InvalidOid,
+    DirectFunctionCall1Coll(opentenbase_remove_sub_stat, InvalidOid,
                             PointerGetDatum(cstring_to_text(stmt->subname)));
 #endif
 
@@ -1483,14 +1483,14 @@ fetch_shard_list(WalReceiverConn *wrconn, List *publications)
 
 #ifdef __SUBSCRIPTION__
 /*
- * Common option parsing function for CREATE and ALTER TBASE SUBSCRIPTION commands.
+ * Common option parsing function for CREATE and ALTER OPENTENBASE SUBSCRIPTION commands.
  *
  * Since not all options can be specified in both commands, this function
  * will report an error on options if the target output pointer is NULL to
  * accommodate that.
  */
 static void
-parse_tbase_subscription_options(List *options,
+parse_opentenbase_subscription_options(List *options,
                                  bool is_create_stmt,
                                  bool *ignore_pk_conflict,
                                  char **manual_hot_date,
@@ -1596,30 +1596,30 @@ parse_tbase_subscription_options(List *options,
             {
                 ereport(ERROR,
                         (errcode(ERRCODE_SYNTAX_ERROR),
-                         errmsg("The \"copy_data\" option can not be specified in ALTER TBASE SUBSCRIPTION.")));
+                         errmsg("The \"copy_data\" option can not be specified in ALTER OPENTENBASE SUBSCRIPTION.")));
             }
         }
     }
 }
 
 /*
- * check if tbase_subscription extension is installed
+ * check if opentenbase_subscription extension is installed
  */
-void check_tbase_subscription_extension(void)
+void check_opentenbase_subscription_extension(void)
 {
     Oid extOid = InvalidOid;
 
-    extOid = get_extension_oid(g_tbase_subscription_extension, true);
+    extOid = get_extension_oid(g_opentenbase_subscription_extension, true);
 
     if (!OidIsValid(extOid))
         ereport(ERROR,
                 (errcode(ERRCODE_UNDEFINED_OBJECT),
                  errmsg("This operation is not allowed until the extension \"%s\" is installed.",
-                        g_tbase_subscription_extension)));
+                        g_opentenbase_subscription_extension)));
 }
 
 /* check if already exists a same name */
-static bool check_tbase_subscription_ifexists(Relation tbase_sub_rel, char * check_subname)
+static bool check_opentenbase_subscription_ifexists(Relation opentenbase_sub_rel, char * check_subname)
 {
     HeapScanDesc    scan = NULL;
     HeapTuple       tuple = NULL;
@@ -1627,14 +1627,14 @@ static bool check_tbase_subscription_ifexists(Relation tbase_sub_rel, char * che
 
     bool            exists = false;
 
-    desc = RelationGetDescr(tbase_sub_rel);
-    scan = heap_beginscan(tbase_sub_rel, GetActiveSnapshot(), 0, NULL);
+    desc = RelationGetDescr(opentenbase_sub_rel);
+    scan = heap_beginscan(opentenbase_sub_rel, GetActiveSnapshot(), 0, NULL);
     while ((tuple = heap_getnext(scan, ForwardScanDirection)) != NULL)
     {
         Name subname = NULL;
         bool isnull = true;
 
-        subname = DatumGetName(fastgetattr(tuple, Anum_tbase_subscription_sub_name, desc, &isnull));
+        subname = DatumGetName(fastgetattr(tuple, Anum_opentenbase_subscription_sub_name, desc, &isnull));
 
         if (false == isnull && subname != NULL && 0 == pg_strcasecmp(check_subname, NameStr(*subname)))
         {
@@ -1648,9 +1648,9 @@ static bool check_tbase_subscription_ifexists(Relation tbase_sub_rel, char * che
 }
 
 /*
- * transform tbase subscription into parallel sub-subscriptions list
+ * transform opentenbase subscription into parallel sub-subscriptions list
  */
-static List * tbase_subscription_parallelization(Node * stmt, int parallel_number, bool slot_name_given)
+static List * opentenbase_subscription_parallelization(Node * stmt, int parallel_number, bool slot_name_given)
 {// #lizard forgives
     int i = 0;
     List * lstmt = NIL;
@@ -1794,10 +1794,10 @@ static List * tbase_subscription_parallelization(Node * stmt, int parallel_numbe
 }
 
 /*
- * Create new Tbase subscription.
+ * Create new OpenTenBase subscription.
  */
 ObjectAddress
-CreateTbaseSubscription(CreateSubscriptionStmt *stmt, bool isTopLevel)
+CreateOpenTenBaseSubscription(CreateSubscriptionStmt *stmt, bool isTopLevel)
 {// #lizard forgives
     bool ignore_pk_conflict = false;
     char *manual_hot_date = NULL;
@@ -1808,18 +1808,18 @@ CreateTbaseSubscription(CreateSubscriptionStmt *stmt, bool isTopLevel)
 	char *slot_name = NULL;
 	bool slot_name_given = false;
 
-    Relation tbase_sub_rel = NULL;
-    Oid    tbase_sub_parent_oid = InvalidOid;
+    Relation opentenbase_sub_rel = NULL;
+    Oid    opentenbase_sub_parent_oid = InvalidOid;
 
     List * stmt_create_list = NULL;
 
     ObjectAddress myself = InvalidObjectAddress;
 
-    /* check if tbase_subscription is installed */
-    check_tbase_subscription_extension();
+    /* check if opentenbase_subscription is installed */
+    check_opentenbase_subscription_extension();
 
     /* parse options */
-    parse_tbase_subscription_options(stmt->options, true,
+    parse_opentenbase_subscription_options(stmt->options, true,
                                         &ignore_pk_conflict,
                                         &manual_hot_date,
                                         &temp_hot_date,
@@ -1842,91 +1842,91 @@ CreateTbaseSubscription(CreateSubscriptionStmt *stmt, bool isTopLevel)
     PushActiveSnapshot(GetLocalTransactionSnapshot());
 
     /* check if already exists a same name */
-    tbase_sub_rel = relation_openrv(makeRangeVar("public", (char *)g_tbase_subscription_relname, -1), RowExclusiveLock);
-    if (check_tbase_subscription_ifexists(tbase_sub_rel,  stmt->subname))
+    opentenbase_sub_rel = relation_openrv(makeRangeVar("public", (char *)g_opentenbase_subscription_relname, -1), RowExclusiveLock);
+    if (check_opentenbase_subscription_ifexists(opentenbase_sub_rel,  stmt->subname))
     {
-        relation_close(tbase_sub_rel, RowExclusiveLock);
+        relation_close(opentenbase_sub_rel, RowExclusiveLock);
         ereport(ERROR,
                 (errcode(ERRCODE_DUPLICATE_OBJECT),
-                 errmsg("tbase subscription \"%s\" already exists",
+                 errmsg("opentenbase subscription \"%s\" already exists",
                         stmt->subname)));
     }
 
-    /* create an item in tbase_subscription */
+    /* create an item in opentenbase_subscription */
     do
     {
         TupleDesc    tup_desc = NULL;
         HeapTuple    tuple = NULL;
-        bool        nulls[Natts_tbase_subscription] = { false };
-        Datum        values[Natts_tbase_subscription] = { 0 };
+        bool        nulls[Natts_opentenbase_subscription] = { false };
+        Datum        values[Natts_opentenbase_subscription] = { 0 };
 
-        tup_desc = RelationGetDescr(tbase_sub_rel);
+        tup_desc = RelationGetDescr(opentenbase_sub_rel);
 
-        values[Anum_tbase_subscription_sub_name - 1] = DirectFunctionCall1(namein, CStringGetDatum(stmt->subname));
-        values[Anum_tbase_subscription_sub_ignore_pk_conflict - 1] = BoolGetDatum(ignore_pk_conflict);
+        values[Anum_opentenbase_subscription_sub_name - 1] = DirectFunctionCall1(namein, CStringGetDatum(stmt->subname));
+        values[Anum_opentenbase_subscription_sub_ignore_pk_conflict - 1] = BoolGetDatum(ignore_pk_conflict);
 
         if (manual_hot_date)
         {
-            values[Anum_tbase_subscription_sub_manual_hot_date - 1] = CStringGetTextDatum(manual_hot_date);
+            values[Anum_opentenbase_subscription_sub_manual_hot_date - 1] = CStringGetTextDatum(manual_hot_date);
         }
         else
         {
-            nulls[Anum_tbase_subscription_sub_manual_hot_date - 1] = true;
+            nulls[Anum_opentenbase_subscription_sub_manual_hot_date - 1] = true;
         }
 
         if (temp_hot_date)
         {
-            values[Anum_tbase_subscription_sub_temp_hot_date - 1] = CStringGetTextDatum(temp_hot_date);
+            values[Anum_opentenbase_subscription_sub_temp_hot_date - 1] = CStringGetTextDatum(temp_hot_date);
         }
         else
         {
-            nulls[Anum_tbase_subscription_sub_temp_hot_date - 1] = true;
+            nulls[Anum_opentenbase_subscription_sub_temp_hot_date - 1] = true;
         }
 
         if (temp_cold_date)
         {
-            values[Anum_tbase_subscription_sub_temp_cold_date - 1] = CStringGetTextDatum(temp_cold_date);
+            values[Anum_opentenbase_subscription_sub_temp_cold_date - 1] = CStringGetTextDatum(temp_cold_date);
         }
         else
         {
-            nulls[Anum_tbase_subscription_sub_temp_cold_date - 1] = true;
+            nulls[Anum_opentenbase_subscription_sub_temp_cold_date - 1] = true;
         }
 
-        values[Anum_tbase_subscription_sub_parallel_number - 1] = Int32GetDatum(parallel_number);
+        values[Anum_opentenbase_subscription_sub_parallel_number - 1] = Int32GetDatum(parallel_number);
 
         /*
-         * If there are some parallel tbase-sub-subscriptions, 
-         * other tbase-sub-subscriptions can be activated only after 
-         * the first tbase-sub-subscription has completed the data COPY.
-         * And other tbase-sub-subscriptions can only be activated by 
-         * the first tbase-sub-subscription.
+         * If there are some parallel opentenbase-sub-subscriptions, 
+         * other opentenbase-sub-subscriptions can be activated only after 
+         * the first opentenbase-sub-subscription has completed the data COPY.
+         * And other opentenbase-sub-subscriptions can only be activated by 
+         * the first opentenbase-sub-subscription.
          */
         if (parallel_number > 1 && copy_data == true)
         {
-            values[Anum_tbase_subscription_sub_is_all_actived - 1] = BoolGetDatum(false);
+            values[Anum_opentenbase_subscription_sub_is_all_actived - 1] = BoolGetDatum(false);
         }
         else
         {
-            values[Anum_tbase_subscription_sub_is_all_actived - 1] = BoolGetDatum(true);
+            values[Anum_opentenbase_subscription_sub_is_all_actived - 1] = BoolGetDatum(true);
         }
 
         tuple = heap_form_tuple(tup_desc, values, nulls);
-        tbase_sub_parent_oid = simple_heap_insert(tbase_sub_rel, tuple);
+        opentenbase_sub_parent_oid = simple_heap_insert(opentenbase_sub_rel, tuple);
         heap_freetuple(tuple);
     } while (0);
 
     /* transform to CreateSubscriptionStmt list, and rename each item */
-	stmt_create_list = tbase_subscription_parallelization((Node *)stmt, parallel_number, slot_name_given);
+	stmt_create_list = opentenbase_subscription_parallelization((Node *)stmt, parallel_number, slot_name_given);
 
     /* call CreateSubscription for each item */
     do
     {
-        Relation tbase_sub_parallel_rel = NULL;        
+        Relation opentenbase_sub_parallel_rel = NULL;        
         
         int i = 0;
         ListCell * lc = NULL;
 
-        tbase_sub_parallel_rel = relation_openrv(makeRangeVar("public", (char *)g_tbase_subscription_parallel_relname, -1), RowExclusiveLock);
+        opentenbase_sub_parallel_rel = relation_openrv(makeRangeVar("public", (char *)g_opentenbase_subscription_parallel_relname, -1), RowExclusiveLock);
 
         foreach(lc, stmt_create_list)
         {
@@ -1935,8 +1935,8 @@ CreateTbaseSubscription(CreateSubscriptionStmt *stmt, bool isTopLevel)
 
             TupleDesc    tup_desc = NULL;
             HeapTuple    tuple = NULL;
-            bool        nulls[Natts_tbase_subscription_parallel] = { false };
-            Datum        values[Natts_tbase_subscription_parallel] = { 0 };
+            bool        nulls[Natts_opentenbase_subscription_parallel] = { false };
+            Datum        values[Natts_opentenbase_subscription_parallel] = { 0 };
 
             bool        force_to_disable = false;
 
@@ -1945,36 +1945,36 @@ CreateTbaseSubscription(CreateSubscriptionStmt *stmt, bool isTopLevel)
                 if (i == 0)
                 {
                     /*
-                     * Here we only activate the first tbase-sub-subscription. 
-                     * When the first tbase-sub-subscription completes the data COPY, 
-                     * it will activate the other tbase-sub-subscriptions.
+                     * Here we only activate the first opentenbase-sub-subscription. 
+                     * When the first opentenbase-sub-subscription completes the data COPY, 
+                     * it will activate the other opentenbase-sub-subscriptions.
                      */
-                    values[Anum_tbase_subscription_parallel_sub_active_state - 1] = BoolGetDatum(true);
+                    values[Anum_opentenbase_subscription_parallel_sub_active_state - 1] = BoolGetDatum(true);
                 }
                 else
                 {
                     force_to_disable = true;
-                    values[Anum_tbase_subscription_parallel_sub_active_state - 1] = BoolGetDatum(false);
+                    values[Anum_opentenbase_subscription_parallel_sub_active_state - 1] = BoolGetDatum(false);
                 }
             }
             else
             {
-                values[Anum_tbase_subscription_parallel_sub_active_state - 1] = BoolGetDatum(true);
+                values[Anum_opentenbase_subscription_parallel_sub_active_state - 1] = BoolGetDatum(true);
             }
 
-            values[Anum_tbase_subscription_parallel_sub_active_lsn - 1] = LSNGetDatum(InvalidXLogRecPtr);
+            values[Anum_opentenbase_subscription_parallel_sub_active_lsn - 1] = LSNGetDatum(InvalidXLogRecPtr);
 
             /* create each sub-subscription by CREATE SUBSCRIPTION */
             pg_sub_tup_addr = CreateSubscription(stmt_create, isTopLevel, force_to_disable);
 
-            /* record each sub-subscription into tbase_subscription_parallel */
-            values[Anum_tbase_subscription_parallel_sub_parent - 1] = ObjectIdGetDatum(tbase_sub_parent_oid);
-            values[Anum_tbase_subscription_parallel_sub_child - 1] = ObjectIdGetDatum(pg_sub_tup_addr.objectId);
-            values[Anum_tbase_subscription_parallel_sub_index - 1] = Int32GetDatum(i);
+            /* record each sub-subscription into opentenbase_subscription_parallel */
+            values[Anum_opentenbase_subscription_parallel_sub_parent - 1] = ObjectIdGetDatum(opentenbase_sub_parent_oid);
+            values[Anum_opentenbase_subscription_parallel_sub_child - 1] = ObjectIdGetDatum(pg_sub_tup_addr.objectId);
+            values[Anum_opentenbase_subscription_parallel_sub_index - 1] = Int32GetDatum(i);
 
-            tup_desc = RelationGetDescr(tbase_sub_parallel_rel);
+            tup_desc = RelationGetDescr(opentenbase_sub_parallel_rel);
             tuple = heap_form_tuple(tup_desc, values, nulls);
-            simple_heap_insert(tbase_sub_parallel_rel, tuple);
+            simple_heap_insert(opentenbase_sub_parallel_rel, tuple);
             heap_freetuple(tuple);
 
             Assert(i <= parallel_number && i == stmt_create->sub_parallel_index);
@@ -1986,11 +1986,11 @@ CreateTbaseSubscription(CreateSubscriptionStmt *stmt, bool isTopLevel)
             i++; 
         }
 
-        relation_close(tbase_sub_parallel_rel, RowExclusiveLock);
+        relation_close(opentenbase_sub_parallel_rel, RowExclusiveLock);
     } while (0);
 
-    ObjectAddressSet(myself, RelationGetRelid(tbase_sub_rel), tbase_sub_parent_oid);
-    relation_close(tbase_sub_rel, RowExclusiveLock);
+    ObjectAddressSet(myself, RelationGetRelid(opentenbase_sub_rel), opentenbase_sub_parent_oid);
+    relation_close(opentenbase_sub_rel, RowExclusiveLock);
 
     PopActiveSnapshot();
     CommandCounterIncrement();
@@ -1999,21 +1999,21 @@ CreateTbaseSubscription(CreateSubscriptionStmt *stmt, bool isTopLevel)
 }
 
 /*
- * Alter the existing Tbase subscription.
+ * Alter the existing OpenTenBase subscription.
  */
-void AlterTbaseSubscription(AlterSubscriptionStmt *stmt)
+void AlterOpenTenBaseSubscription(AlterSubscriptionStmt *stmt)
 {// #lizard forgives
     int parallel_number = 0;
     bool is_all_actived = false;
     bool slot_name_given = false;
     char * slot_name = NULL;
 
-    check_tbase_subscription_extension();
+    check_opentenbase_subscription_extension();
 
-    /* first check TBase subscprition exists and get parallel_number */
+    /* first check OpenTenBase subscprition exists and get parallel_number */
     do
     {
-        Relation        tbase_sub_rel = NULL;
+        Relation        opentenbase_sub_rel = NULL;
         HeapScanDesc    scan = NULL;
         HeapTuple       tuple = NULL;
         TupleDesc        desc = NULL;
@@ -2021,11 +2021,11 @@ void AlterTbaseSubscription(AlterSubscriptionStmt *stmt)
 
         PushActiveSnapshot(GetLocalTransactionSnapshot());
 
-        tbase_sub_rel = relation_openrv(makeRangeVar("public", 
-                                        (char *)g_tbase_subscription_relname, -1), 
+        opentenbase_sub_rel = relation_openrv(makeRangeVar("public", 
+                                        (char *)g_opentenbase_subscription_relname, -1), 
                                         RowExclusiveLock);
-        desc = RelationGetDescr(tbase_sub_rel);
-        scan = heap_beginscan(tbase_sub_rel, GetActiveSnapshot(), 0, NULL);
+        desc = RelationGetDescr(opentenbase_sub_rel);
+        scan = heap_beginscan(opentenbase_sub_rel, GetActiveSnapshot(), 0, NULL);
 
         exists = false;
         while ((tuple = heap_getnext(scan, ForwardScanDirection)) != NULL)
@@ -2033,26 +2033,26 @@ void AlterTbaseSubscription(AlterSubscriptionStmt *stmt)
             Name subname;
             bool isnull;
 
-            subname = DatumGetName(fastgetattr(tuple, Anum_tbase_subscription_sub_name, desc, &isnull));
+            subname = DatumGetName(fastgetattr(tuple, Anum_opentenbase_subscription_sub_name, desc, &isnull));
 
             if (false == isnull && subname != NULL && 0 == pg_strcasecmp(stmt->subname, NameStr(*subname)))
             {
                 exists = true;
-                parallel_number = DatumGetInt32(fastgetattr(tuple, Anum_tbase_subscription_sub_parallel_number, desc, &isnull));
-                is_all_actived = DatumGetBool(fastgetattr(tuple, Anum_tbase_subscription_sub_is_all_actived, desc, &isnull));
+                parallel_number = DatumGetInt32(fastgetattr(tuple, Anum_opentenbase_subscription_sub_parallel_number, desc, &isnull));
+                is_all_actived = DatumGetBool(fastgetattr(tuple, Anum_opentenbase_subscription_sub_is_all_actived, desc, &isnull));
                 break;
             }        
         }
 
         heap_endscan(scan);
-        relation_close(tbase_sub_rel, RowExclusiveLock);
+        relation_close(opentenbase_sub_rel, RowExclusiveLock);
 
         PopActiveSnapshot();
         CommandCounterIncrement();
 
         if (false == exists)
         {
-            elog(ERROR, "TBase subscription \"%s\" does not exist", stmt->subname);
+            elog(ERROR, "OpenTenBase subscription \"%s\" does not exist", stmt->subname);
             return;
         }
     } while(0);
@@ -2060,13 +2060,13 @@ void AlterTbaseSubscription(AlterSubscriptionStmt *stmt)
     if (false == is_all_actived && parallel_number > 1 &&
         stmt->kind == ALTER_SUBSCRIPTION_REFRESH)
     {
-        elog(ERROR, "TBase Subscription '%s' is not allowed to refresh until all its sub-subscriptions have been activated", stmt->subname);
+        elog(ERROR, "OpenTenBase Subscription '%s' is not allowed to refresh until all its sub-subscriptions have been activated", stmt->subname);
         return;
     }
 	/* check if slot_name is given*/
 	if (stmt->kind == ALTER_SUBSCRIPTION_OPTIONS)
 	{
-	    parse_tbase_subscription_options(stmt->options, false, NULL, NULL, NULL,
+	    parse_opentenbase_subscription_options(stmt->options, false, NULL, NULL, NULL,
 	            NULL, NULL, NULL, &slot_name, &slot_name_given);
 	}
 
@@ -2075,7 +2075,7 @@ void AlterTbaseSubscription(AlterSubscriptionStmt *stmt)
         List    * stmt_list;
         ListCell* lc;
 
-		stmt_list = tbase_subscription_parallelization((Node *)stmt, parallel_number, slot_name_given);
+		stmt_list = opentenbase_subscription_parallelization((Node *)stmt, parallel_number, slot_name_given);
 
         foreach(lc, stmt_list)
         {
@@ -2094,53 +2094,53 @@ void AlterTbaseSubscription(AlterSubscriptionStmt *stmt)
 }
 
 /*
- * Drop a Tbase subscription
+ * Drop a OpenTenBase subscription
  */
 void
-DropTbaseSubscription(DropSubscriptionStmt *stmt, bool isTopLevel)
+DropOpenTenBaseSubscription(DropSubscriptionStmt *stmt, bool isTopLevel)
 {// #lizard forgives
     Oid    sub_parent_oid = InvalidOid;
     int parallel_number = -1;
     
-    check_tbase_subscription_extension();
+    check_opentenbase_subscription_extension();
 
     PushActiveSnapshot(GetLocalTransactionSnapshot());
 
     /* check if subscription exists */
     do
     {
-        Relation         tbase_sub_rel = NULL;
+        Relation         opentenbase_sub_rel = NULL;
         HeapScanDesc    scan = NULL;
         HeapTuple       tuple = NULL;
         TupleDesc        desc = NULL;
 
         bool            exists = false;
 
-        tbase_sub_rel = relation_openrv(makeRangeVar("public", 
-                                        (char *)g_tbase_subscription_relname, -1), 
+        opentenbase_sub_rel = relation_openrv(makeRangeVar("public", 
+                                        (char *)g_opentenbase_subscription_relname, -1), 
                                         RowExclusiveLock);
-        desc = RelationGetDescr(tbase_sub_rel);
-        scan = heap_beginscan(tbase_sub_rel, GetActiveSnapshot(), 0, NULL);
+        desc = RelationGetDescr(opentenbase_sub_rel);
+        scan = heap_beginscan(opentenbase_sub_rel, GetActiveSnapshot(), 0, NULL);
 
         while ((tuple = heap_getnext(scan, ForwardScanDirection)) != NULL)
         {
             Name subname = NULL;
             bool isnull = true;
 
-            subname = DatumGetName(fastgetattr(tuple, Anum_tbase_subscription_sub_name, desc, &isnull));
+            subname = DatumGetName(fastgetattr(tuple, Anum_opentenbase_subscription_sub_name, desc, &isnull));
 
             if (false == isnull && subname != NULL && 0 == pg_strcasecmp(stmt->subname, NameStr(*subname)))
             {
                 exists = true;
                 sub_parent_oid = HeapTupleGetOid(tuple);
-                parallel_number = DatumGetInt32(fastgetattr(tuple, Anum_tbase_subscription_sub_parallel_number, desc, &isnull));
-                simple_heap_delete(tbase_sub_rel, &tuple->t_self);
+                parallel_number = DatumGetInt32(fastgetattr(tuple, Anum_opentenbase_subscription_sub_parallel_number, desc, &isnull));
+                simple_heap_delete(opentenbase_sub_rel, &tuple->t_self);
                 break;
             }        
         }
 
         heap_endscan(scan);
-        relation_close(tbase_sub_rel, RowExclusiveLock);
+        relation_close(opentenbase_sub_rel, RowExclusiveLock);
 
         if (false == exists)
         {
@@ -2148,13 +2148,13 @@ DropTbaseSubscription(DropSubscriptionStmt *stmt, bool isTopLevel)
             {
                 ereport(ERROR,
                         (errcode(ERRCODE_UNDEFINED_OBJECT),
-                         errmsg("tbase subscription \"%s\" does not exist",
+                         errmsg("opentenbase subscription \"%s\" does not exist",
                                 stmt->subname)));
             }
             else
             {
                 ereport(NOTICE,
-                        (errmsg("tbase subscription \"%s\" does not exist, skipping",
+                        (errmsg("opentenbase subscription \"%s\" does not exist, skipping",
                                 stmt->subname)));
             }
 
@@ -2168,38 +2168,38 @@ DropTbaseSubscription(DropSubscriptionStmt *stmt, bool isTopLevel)
         }
     } while (0);
 
-    /* scan tbase_subscription_parallel, and delete related tuple by sub_parent */
+    /* scan opentenbase_subscription_parallel, and delete related tuple by sub_parent */
     do
     {
-        Relation         tbase_sub_parallel_rel = NULL;
+        Relation         opentenbase_sub_parallel_rel = NULL;
         HeapScanDesc    scan = NULL;
         HeapTuple       tuple = NULL;
         TupleDesc        desc = NULL;
 
         int32             i_assert = 0;
 
-        tbase_sub_parallel_rel = relation_openrv(makeRangeVar("public",
-                                                    (char *)g_tbase_subscription_parallel_relname, -1),
+        opentenbase_sub_parallel_rel = relation_openrv(makeRangeVar("public",
+                                                    (char *)g_opentenbase_subscription_parallel_relname, -1),
                                                     RowExclusiveLock);
-        desc = RelationGetDescr(tbase_sub_parallel_rel);
-        scan = heap_beginscan(tbase_sub_parallel_rel, GetActiveSnapshot(), 0, NULL);
+        desc = RelationGetDescr(opentenbase_sub_parallel_rel);
+        scan = heap_beginscan(opentenbase_sub_parallel_rel, GetActiveSnapshot(), 0, NULL);
 
         while ((tuple = heap_getnext(scan, ForwardScanDirection)) != NULL)
         {
             Oid     sub_parent = InvalidOid;
             bool isnull = true;
 
-            sub_parent = DatumGetObjectId(fastgetattr(tuple, Anum_tbase_subscription_parallel_sub_parent, desc, &isnull));
+            sub_parent = DatumGetObjectId(fastgetattr(tuple, Anum_opentenbase_subscription_parallel_sub_parent, desc, &isnull));
 
             if (false == isnull && sub_parent == sub_parent_oid)
             {
                 i_assert++; Assert(i_assert <= parallel_number);
-                simple_heap_delete(tbase_sub_parallel_rel, &tuple->t_self);
+                simple_heap_delete(opentenbase_sub_parallel_rel, &tuple->t_self);
             }
         }
 
         heap_endscan(scan);
-        relation_close(tbase_sub_parallel_rel, RowExclusiveLock);
+        relation_close(opentenbase_sub_parallel_rel, RowExclusiveLock);
 
         Assert(i_assert == parallel_number);
         if (!(i_assert == parallel_number))
@@ -2215,7 +2215,7 @@ DropTbaseSubscription(DropSubscriptionStmt *stmt, bool isTopLevel)
         ListCell * lc = NULL;
         int32 i_assert = 0;
 
-		stmt_drop_list = tbase_subscription_parallelization((Node *)stmt, parallel_number, false);
+		stmt_drop_list = opentenbase_subscription_parallelization((Node *)stmt, parallel_number, false);
 
         foreach(lc, stmt_drop_list)
         {
@@ -2239,26 +2239,26 @@ DropTbaseSubscription(DropSubscriptionStmt *stmt, bool isTopLevel)
     CommandCounterIncrement();
 }
 
-bool IsTbaseSubscription(Node * stmt)
+bool isOpenTenBaseSubscription(Node * stmt)
 {
     switch (nodeTag(stmt))
     {
         case T_CreateSubscriptionStmt:
         {
             CreateSubscriptionStmt * stmt_create = (CreateSubscriptionStmt *) stmt;
-            return stmt_create->istbase;
+            return stmt_create->isopentenbase;
             break;
         }
         case T_AlterSubscriptionStmt:
         {
             AlterSubscriptionStmt * stmt_alter = (AlterSubscriptionStmt *) stmt;
-            return stmt_alter->istbase;
+            return stmt_alter->isopentenbase;
             break;
         }
         case T_DropSubscriptionStmt:
         {
             DropSubscriptionStmt * stmt_drop = (DropSubscriptionStmt *) stmt;
-            return stmt_drop->istbase;
+            return stmt_drop->isopentenbase;
             break;
         }
         default:

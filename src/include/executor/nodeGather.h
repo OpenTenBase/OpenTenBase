@@ -20,7 +20,7 @@ extern GatherState *ExecInitGather(Gather *node, EState *estate, int eflags);
 extern void ExecEndGather(GatherState *node);
 extern void ExecShutdownGather(GatherState *node);
 extern void ExecReScanGather(GatherState *node);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern void ExecFinishGather(PlanState *pstate);
 #endif
 

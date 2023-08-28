@@ -194,7 +194,7 @@ extern void StorePartitionKey(Relation rel,
                   List *partexprs,
                   Oid *partopclass,
                   Oid *partcollation);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern void StoreIntervalPartition(Relation rel, char strategy);
 extern void AddRelationPartitionInfo(Oid relid, PartitionBy *partitionby);
 #endif

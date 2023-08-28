@@ -99,7 +99,7 @@ extern int32 get_collation_encoding(Oid colloid);
 extern Oid 	get_collid(const char *collname, int32 collencoding, Oid collnsp);
 #endif
 extern char *get_constraint_name(Oid conoid);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern char *get_constraint_name_relid(Oid conoid, Oid *relid);
 extern Oid get_interval_parent_relid(Oid relid);
 extern Oid get_rel_filenode(Oid relid);
@@ -198,7 +198,7 @@ extern int	get_pgxc_nodeport(Oid nodeid);
 extern char *get_pgxc_nodehost(Oid nodeid);
 extern bool	is_pgxc_nodepreferred(Oid nodeid);
 extern bool	is_pgxc_nodeprimary(Oid nodeid);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern char *get_pgxc_nodename_from_identifier(int id);
 #endif
 extern Oid	get_pgxc_groupoid(const char *groupname);

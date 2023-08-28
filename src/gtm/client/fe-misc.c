@@ -1036,7 +1036,7 @@ gtmpqSocketPoll(int sock, int forRead, int forWrite, time_t end_time)
 #endif   /* HAVE_POLL */
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /*
  * gtmpqGetInt8
  *    read a 8 byte integer and convert from network byte order

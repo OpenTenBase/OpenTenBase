@@ -42,7 +42,7 @@ extern Node *get_sortgroupclause_expr(SortGroupClause *sgClause,
 extern List *get_sortgrouplist_exprs(List *sgClauses,
 						List *targetList);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern Aggref *get_optimize_distinct_agg(PathTarget *pathtarget);
 #endif
 

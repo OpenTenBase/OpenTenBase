@@ -37,7 +37,7 @@ typedef struct ExplainState
     bool        nodes;            /* print nodes in RemoteQuery node */
     bool        num_nodes;        /* print number of nodes in RemoteQuery node */
 #endif /* PGXC */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	bool        skip_remote_query;  /* skip execute remote query */
 #endif
     bool        timing;            /* print detailed node timing */

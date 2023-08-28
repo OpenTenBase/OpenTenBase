@@ -113,7 +113,7 @@ ExecNestLoop(PlanState *pstate)
              */
             if (TupIsNull(outerTupleSlot))
             {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 if (!node->nl_InnerInited && IS_PGXC_DATANODE)
                 {
 				    /*
@@ -168,7 +168,7 @@ ExecNestLoop(PlanState *pstate)
          */
         ENL1_printf("getting new inner tuple");
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         node->nl_InnerInited = true;
 #endif
 		innerTupleSlot = ExecProcNode(innerPlan);
@@ -179,7 +179,7 @@ ExecNestLoop(PlanState *pstate)
 			ENL1_printf("no inner tuple, need new outer tuple");
 
 			node->nl_NeedNewOuter = true;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             if (!node->nl_MatchedOuter &&
                 (node->js.jointype == JOIN_LEFT ||
                  node->js.jointype == JOIN_ANTI ||
@@ -234,7 +234,7 @@ ExecNestLoop(PlanState *pstate)
 
 		if (ExecQual(joinqual, econtext))
 		{
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             if (node->js.jointype == JOIN_LEFT_SCALAR && node->nl_MatchedOuter)
                 ereport(ERROR,
                         (errcode(ERRCODE_CARDINALITY_VIOLATION),
@@ -355,7 +355,7 @@ ExecInitNestLoop(NestLoop *node, EState *estate, int eflags)
 		case JOIN_INNER:
         case JOIN_SEMI:
             break;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		case JOIN_LEFT_SCALAR:
 		case JOIN_LEFT_SEMI:
             nlstate->nl_NullInnerTupleSlot =
@@ -385,7 +385,7 @@ ExecInitNestLoop(NestLoop *node, EState *estate, int eflags)
 	 */
 	nlstate->nl_NeedNewOuter = true;
 	nlstate->nl_MatchedOuter = false;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     nlstate->nl_InnerInited  = false;
 #endif
     NL1_printf("ExecInitNestLoop: %s\n",

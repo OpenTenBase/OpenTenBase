@@ -33,11 +33,11 @@ inline bool
 Recovery_IsStandby(void)
 {
     bool res;
-#ifndef __TBASE__
+#ifndef __OPENTENBASE__
     GTM_RWLockAcquire(&StandbyLock, GTM_LOCKMODE_READ);
 #endif
     res = (GTM_StandbyMode == GTM_STANDBY_MODE);
-#ifndef __TBASE__
+#ifndef __OPENTENBASE__
     GTM_RWLockRelease(&StandbyLock);
 #endif
     return res;
@@ -46,11 +46,11 @@ Recovery_IsStandby(void)
 void
 Recovery_StandbySetStandby(bool standby)
 {
-#ifndef __TBASE__
+#ifndef __OPENTENBASE__
     GTM_RWLockAcquire(&StandbyLock, GTM_LOCKMODE_WRITE);
 #endif
     GTM_StandbyMode = standby;
-#ifndef __TBASE__
+#ifndef __OPENTENBASE__
     GTM_RWLockRelease(&StandbyLock);
 #endif
 }

@@ -63,7 +63,7 @@ extern void tblspc_redo(XLogReaderState *rptr);
 extern void tblspc_desc(StringInfo buf, XLogReaderState *rptr);
 extern const char *tblspc_identify(uint8 info);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern bool PreCheckforDropTableSpace(DropTableSpaceStmt *stmt);
 #endif
 

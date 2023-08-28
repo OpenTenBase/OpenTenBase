@@ -401,7 +401,7 @@ join_is_legal(PlannerInfo *root, RelOptInfo *rel1, RelOptInfo *rel2,
 		 * point (see below).  Therefore the semijoin is no longer relevant in
 		 * this join path.
 		 */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		if (sjinfo->jointype == JOIN_SEMI ||
 			sjinfo->jointype == JOIN_LEFT_SCALAR ||
 			sjinfo->jointype == JOIN_LEFT_SEMI)
@@ -844,7 +844,7 @@ populate_joinrel_with_paths(PlannerInfo *root, RelOptInfo *rel1,
 						 errmsg("FULL JOIN is only supported with merge-joinable or hash-joinable join conditions")));
 			break;
 		case JOIN_SEMI:
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         case JOIN_LEFT_SCALAR:
         case JOIN_LEFT_SEMI:
 #endif
@@ -863,7 +863,7 @@ populate_joinrel_with_paths(PlannerInfo *root, RelOptInfo *rel1,
 					mark_dummy_rel(joinrel);
 					break;
 				}
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 				add_paths_to_joinrel(root, joinrel, rel1, rel2,
 									 sjinfo->jointype, sjinfo,
 									 restrictlist);
@@ -882,7 +882,7 @@ populate_joinrel_with_paths(PlannerInfo *root, RelOptInfo *rel1,
 			 * but if so the check is cheap because it's cached.  So test
 			 * anyway to be sure.)
 			 */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 			if (sjinfo->jointype == JOIN_SEMI && bms_equal(sjinfo->syn_righthand, rel2->relids) &&
 				create_unique_path(root, rel2, rel2->cheapest_total_path,
 								   sjinfo) != NULL)

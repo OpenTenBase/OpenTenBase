@@ -875,7 +875,7 @@ static const struct cachedesc cacheinfo[] = {
         256
     },            
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     {PgPartitionIntervalRelationId,    /* PGPARTITIONINTERVALREL*/
         PgPartitionIntervalRelIndexId,
         1,

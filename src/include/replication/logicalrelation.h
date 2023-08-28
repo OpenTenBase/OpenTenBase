@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -125,9 +125,9 @@ extern void logicl_apply_set_ignor_pk_conflict(bool ignore);
 extern void logicl_aply_rset_ignor_pk_conflict(void);
 extern bool logical_apply_ignore_pk_conflict(void);
 
-extern void TbaseSubscriptionApplyWorkerReset(void);
-extern void TbaseSubscriptionApplyWorkerSet(void);
-extern bool AmTbaseSubscriptionApplyWorker(void);
+extern void OpenTenBaseSubscriptionApplyWorkerReset(void);
+extern void OpenTenBaseSubscriptionApplyWorkerSet(void);
+extern bool AmOpenTenBaseSubscriptionApplyWorker(void);
 #endif
 
 #endif                            /* LOGICALRELATION_H */

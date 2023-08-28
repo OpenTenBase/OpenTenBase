@@ -68,7 +68,7 @@
 #include "utils/timestamp.h"
 #include "utils/tqual.h"
 #include "access/commit_ts.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "utils/ruleutils.h"
 #endif
 
@@ -183,7 +183,7 @@ static int    vac_cmp_itemptr(const void *left, const void *right);
 static bool heap_page_is_all_visible(Relation rel, Buffer buf,
                          TransactionId *visibility_cutoff_xid, bool *all_frozen);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static void 
 lazy_vacuum_interval_rel(Relation onerel, VacuumParams *params)
 {
@@ -323,7 +323,7 @@ lazy_vacuum_rel(Relation onerel, int options, VacuumParams *params,
 
     Assert(params != NULL);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	/* update statistic info for interval partition parent table */
 	if (RELATION_IS_INTERVAL(onerel))
 	{

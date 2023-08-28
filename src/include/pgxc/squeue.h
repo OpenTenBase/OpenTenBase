@@ -20,12 +20,12 @@
 #include "executor/tuptable.h"
 #include "nodes/pg_list.h"
 #include "utils/tuplestore.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "tcop/dest.h"
 #include "storage/dsm_impl.h"
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "storage/s_lock.h"
 #include "storage/spin.h"
 #include <signal.h>
@@ -34,9 +34,9 @@ extern PGDLLIMPORT int NSQueues;
 extern PGDLLIMPORT int SQueueSize;
 
 /* Fixed size of shared queue, maybe need to be GUC configurable */
-#define SQUEUE_SIZE ((long) SQueueSize * TBASE_MAX_DATANODE_NUMBER * 1024L)
+#define SQUEUE_SIZE ((long) SQueueSize * OPENTENBASE_MAX_DATANODE_NUMBER * 1024L)
 /* Number of shared queues, maybe need to be GUC configurable */
-#ifndef __TBASE__
+#ifndef __OPENTENBASE__
 #define NUM_SQUEUES Max((long) NSQueues, MaxConnections / 4)
 #else
 #define NUM_SQUEUES NSQueues
@@ -48,7 +48,7 @@ extern PGDLLIMPORT int SQueueSize;
 #define SQ_CONS_NONE -2
 #define SQ_CONS_INIT -3
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #define WORD_IN_LONGLONG        2
 #define BITS_IN_BYTE            8
 #define BITS_IN_WORD            32
@@ -61,21 +61,21 @@ extern PGDLLIMPORT int SQueueSize;
 
 typedef struct SQueueHeader *SharedQueue;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 typedef struct DataPumpSenderControl* DataPumpSender;
 typedef struct ParallelSendControl* ParallelSender;
 #endif
 
 extern Size SharedQueueShmemSize(void);
 extern void SharedQueuesInit(void);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern void SharedQueueAcquire(const char *sqname, int ncons, bool parallelSend, int numParallelWorkers, bool with_params);
 #else
 extern void SharedQueueAcquire(const char *sqname, int ncons);
 #endif
 extern SharedQueue SharedQueueBind(const char *sqname, List *consNodes,
 								   List *distNodes, int *myindex, int *consMap
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 								   ,
 									DataPumpSender *sender
 #endif
@@ -97,7 +97,7 @@ extern void SharedQueueReset(SharedQueue squeue, int consumerIdx);
 extern void SharedQueueResetNotConnected(SharedQueue squeue);
 extern bool SharedQueueCanPause(SharedQueue squeue);
 extern bool SharedQueueWaitOnProducerLatch(SharedQueue squeue, long timeout);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 typedef enum 
 { 
 	DataPumpOK						       = 0,
@@ -194,7 +194,7 @@ extern bool IsConsumerDisConnect(char *sqname, int nodeid);
 extern void RemoveDisConsumerHash(char *sqname);
 
 extern void RemoteSubplanSigusr2Handler(SIGNAL_ARGS);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 enum MT_thr_detach 
 { 
 	MT_THR_JOINABLE, 

@@ -30,12 +30,12 @@ typedef struct ParallelExecutorInfo
 	shm_mq_handle **tqueue;
 	dsa_area   *area;
 	bool		finished;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	bool        *executor_done;
 #endif
 } ParallelExecutorInfo;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 
 extern bool *parallelExecutionError;
 
@@ -52,7 +52,7 @@ extern void ExecParallelReinitialize(PlanState *planstate,
 						 ParallelExecutorInfo *pei);
 
 extern void ParallelQueryMain(dsm_segment *seg, shm_toc *toc);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern ParallelWorkerStatus *GetParallelWorkerStatusInfo(shm_toc *toc);
 extern int32 ExecGetForWorkerNumber(ParallelWorkerStatus *worker_status);
 

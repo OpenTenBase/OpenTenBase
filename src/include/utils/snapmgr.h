@@ -135,7 +135,7 @@ extern Snapshot RestoreSnapshot(char *start_address);
 extern void RestoreTransactionSnapshot(Snapshot snapshot, void *master_pgproc);
 
 /* Support for snapshot checking */
-#ifdef __TBASE_DEBUG__
+#ifdef __OPENTENBASE_DEBUG__
 
 extern Size SnapTableShmemSize(void);
 extern void InitSnapBufTable(void);

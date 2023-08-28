@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -364,7 +364,7 @@ extern RelOptInfo *build_child_join_rel(PlannerInfo *root,
                                         RelOptInfo *parent_joinrel, List *restrictlist,
                                         SpecialJoinInfo *sjinfo, JoinType jointype);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern Path *create_redistribute_grouping_path(PlannerInfo *root, 
                                                 Query *parse, Path *path);
 extern Path *create_redistribute_distinct_agg_path(PlannerInfo *root,

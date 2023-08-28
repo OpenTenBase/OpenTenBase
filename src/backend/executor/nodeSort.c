@@ -20,7 +20,7 @@
 #include "executor/nodeSort.h"
 #include "miscadmin.h"
 #include "utils/tuplesort.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "executor/nodeAgg.h"
 #include "utils/memutils.h"
 #endif
@@ -47,7 +47,7 @@ ExecSort(PlanState *pstate)
     ScanDirection dir;
     Tuplesortstate *tuplesortstate;
     TupleTableSlot *slot;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     AttrNumber varattno = 0;
     Oid        dataType = 0;
     node->tmpcxt = NULL;
@@ -154,7 +154,7 @@ ExecSort(PlanState *pstate)
             slot = ExecProcNode(outerNode);
 
             if (TupIsNull(slot))
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             {
                 if (IsParallelWorker() && node->state)
                 {
@@ -191,12 +191,12 @@ ExecSort(PlanState *pstate)
                 {
 #endif
                 break;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 }
             }
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             if (IsParallelWorker() && node->state)
             {
                 if (node->dataslot == NULL)
@@ -295,7 +295,7 @@ ExecInitSort(Sort *node, EState *estate, int eflags)
     sortstate->bounded = false;
     sortstate->sort_Done = false;
     sortstate->tuplesortstate = NULL;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     sortstate->state     = NULL;
     sortstate->file      = NULL;
     sortstate->dataslot  = NULL;

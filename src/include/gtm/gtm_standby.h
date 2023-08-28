@@ -52,7 +52,7 @@ void gtm_standby_closeActiveConn(void);
 void gtm_standby_finishActiveConn(void);
 
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern int32 GTM_StoreStandbyInitFromMaster(char *data_dir);
 #endif
 

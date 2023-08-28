@@ -69,13 +69,13 @@
 #ifdef _MLS_
 #include "catalog/pg_authid.h"
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "pgxc/groupmgr.h"
 #include "postmaster/postmaster.h"
 #endif
 
 #define CMD_ID_MSG_LEN 8
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #define PGXC_CANCEL_DELAY    100
 #define PGXC_RESULT_TIME_OUT PoolDNSetTimeout /* in seconds */
 #endif
@@ -101,7 +101,7 @@ static PGXCNodeHandle *co_handles = NULL;
 
 PGXCNodeAllHandles *current_transaction_handles = NULL;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /* Hash key: nodeoid value: index in  dn_handles or co_handles */
 static HTAB *node_handles_hash = NULL; 
 
@@ -160,7 +160,7 @@ static void pgxc_node_all_free(void);
 static int    get_int(PGXCNodeHandle * conn, size_t len, int *out);
 static int    get_char(PGXCNodeHandle * conn, char *out);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static ParamEntry * paramlist_get_paramentry(List *param_list, const char *name);
 static ParamEntry * paramentry_copy(ParamEntry * src_entry);
 static void PGXCNodeHandleError(PGXCNodeHandle *handle, char *msg_body, int len);
@@ -196,7 +196,7 @@ init_pgxc_handle(PGXCNodeHandle *pgxc_handle)
     pgxc_handle->inCursor = 0;
     pgxc_handle->outEnd = 0;
     pgxc_handle->needSync = false;
-#ifdef __TBASE__    
+#ifdef __OPENTENBASE__    
 	pgxc_handle->sock_fatal_occurred = false;
     pgxc_handle->plpgsql_need_begin_sub_txn = false;
     pgxc_handle->plpgsql_need_begin_txn = false;
@@ -226,7 +226,7 @@ InitMultinodeExecutor(bool is_force)
     MemoryContext    oldcontext;
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* Init node handles hashtable */
     HASHCTL         hinfo;
     int             hflags;
@@ -279,7 +279,7 @@ InitMultinodeExecutor(bool is_force)
                 (errcode(ERRCODE_OUT_OF_MEMORY),
                  errmsg("out of memory for node handles")));
 
-#ifdef __TBASE__    
+#ifdef __OPENTENBASE__    
     /* destory hash table */
     if (node_handles_hash)
     {
@@ -317,7 +317,7 @@ InitMultinodeExecutor(bool is_force)
             elog(LOG, "dn handle %d nodename %s nodehost %s nodeport %d Oid %d NumDataNodes %d", count, dn_handles[count].nodename,
                 dn_handles[count].nodehost, dn_handles[count].nodeport, dnOids[count], NumDataNodes);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         node_handle_ent = (PGXCNodeHandlesLookupEnt *) hash_search(node_handles_hash, &(dn_handles[count].nodeoid),
                                             HASH_ENTER, &found);    
         if (node_handle_ent)
@@ -348,7 +348,7 @@ InitMultinodeExecutor(bool is_force)
         elog(DEBUG1, "sdn handle %d nodename %s nodehost %s nodeport %d Oid %d", count, dn_handles[count].nodename,
             sdn_handles[count].nodehost, sdn_handles[count].nodeport, sdnOids[count]);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         node_handle_ent = (PGXCNodeHandlesLookupEnt *) hash_search(node_handles_hash, &(sdn_handles[count].nodeoid),
                                             HASH_ENTER, &found);    
         if (node_handle_ent)
@@ -378,7 +378,7 @@ InitMultinodeExecutor(bool is_force)
         if(enable_multi_cluster_print)
             elog(LOG, "cn handle %d nodename %s nodehost %s nodeport %d Oid %d", count, co_handles[count].nodename,
                 co_handles[count].nodehost, co_handles[count].nodeport, coOids[count]);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         node_handle_ent = (PGXCNodeHandlesLookupEnt *) hash_search(node_handles_hash, &(co_handles[count].nodeoid),
                                             HASH_ENTER, &found);    
         if (node_handle_ent)
@@ -442,7 +442,7 @@ InitMultinodeExecutor(bool is_force)
                 PGXCNodeId = count + 1;
         }
     }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if(strcmp(PGXCMainClusterName, PGXCClusterName) == 0)
         IsPGXCMainCluster = true;
 
@@ -484,7 +484,7 @@ PGXCNodeConnStr(char *host, int port, char *dbname,
     char       *out,
                 connstr[1024];
     int            num;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     bool       same_host = false;
 
     if (host && (strcmp(PGXCNodeHost, host) == 0))
@@ -698,7 +698,7 @@ pgxc_node_init(PGXCNodeHandle *handle, int sock, bool global_session, int pid)
     handle->inEnd = 0;
     handle->inCursor = 0;
     handle->needSync = false;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     handle->recv_datarows = 0;
     handle->plpgsql_need_begin_sub_txn = false;
     handle->plpgsql_need_begin_txn = false;
@@ -740,7 +740,7 @@ pgxc_node_init(PGXCNodeHandle *handle, int sock, bool global_session, int pid)
             elog(LOG, "pgxc_node_init send SET %s command", init_str);
             if (PoolManagerSetCommand(&handle, 1, POOL_CMD_GLOBAL_SET, init_str) < 0)
             {
-                elog(ERROR, "TBase: ERROR pgxc_node_init SET query:%s", init_str);
+                elog(ERROR, "OpenTenBase: ERROR pgxc_node_init SET query:%s", init_str);
             }
         }
 
@@ -769,7 +769,7 @@ pgxc_node_init(PGXCNodeHandle *handle, int sock, bool global_session, int pid)
  *		DNStatus_EXPIRED = 2,
  *		DNStatus_BUTTY
  */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 int
 pgxc_node_receive(const int conn_count,
                   PGXCNodeHandle ** connections, struct timeval * timeout)
@@ -780,7 +780,7 @@ pgxc_node_receive(const int conn_count,
                   PGXCNodeHandle ** connections, struct timeval * timeout)
 #endif
 {// #lizard forgives
-#ifndef __TBASE__
+#ifndef __OPENTENBASE__
 #define ERROR_OCCURED        true
 #define NO_ERROR_OCCURED    false
 #endif
@@ -840,13 +840,13 @@ pgxc_node_receive(const int conn_count,
     {
         if (is_msg_buffered)
         {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             return DNStatus_OK;            
 #else
             return NO_ERROR_OCCURED;
 #endif
         }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		elog(DEBUG1, "no message in buffer");
         return DNStatus_ERR;
 #else
@@ -883,14 +883,14 @@ retry:
         
         if (errno)
         {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             return DNStatus_ERR;
 #else
             return ERROR_OCCURED;
 #endif
         }
         
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         return DNStatus_OK;            
 #else
         return NO_ERROR_OCCURED;
@@ -909,7 +909,7 @@ retry:
             elog(DEBUG1, "timeout %ld while waiting for any response from node:%s pid:%d connections", timeout_ms, conn->nodename, conn->backend_pid);
             //PGXCNodeSetConnectionState(connections[i], DN_CONNECTION_STATE_ERROR_FATAL);
         }        
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         return DNStatus_EXPIRED;            
 #else
         return NO_ERROR_OCCURED;
@@ -951,7 +951,7 @@ retry:
                     
                     /* Should we read from the other connections before returning? */
                     #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                     return DNStatus_ERR;            
 #else
                     return ERROR_OCCURED;
@@ -970,7 +970,7 @@ retry:
                 add_error_message(conn, "unexpected network error on datanode connection");
                 elog(LOG, "unexpected EOF on datanode:%s pid:%d with event %d", conn->nodename, conn->backend_pid, pool_fd[i].revents);
                 /* Should we check/read from the other connections before returning? */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 return DNStatus_ERR;            
 #else
                 return ERROR_OCCURED;
@@ -978,7 +978,7 @@ retry:
             }
         }
     }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     return DNStatus_OK;            
 #else
     return NO_ERROR_OCCURED;
@@ -1242,7 +1242,7 @@ retry:
                 PGXCNodeSetConnectionState(conn,
                         DN_CONNECTION_STATE_ERROR_FATAL);    /* No more connection to
                                                             * backend */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 				elog(DEBUG5, "pgxc_node_read_data, fatal_conn=%p, fatal_conn->nodename=%s, fatal_conn->sock=%d, "
 					"fatal_conn->read_only=%d, fatal_conn->transaction_status=%c, "
 					"fatal_conn->sock_fatal_occurred=%d, conn->backend_pid=%d, fatal_conn->error=%s", 
@@ -1251,7 +1251,7 @@ retry:
 #endif
                 closesocket(conn->sock);
                 conn->sock = NO_SOCKET;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 				conn->sock_fatal_occurred = true;
 #endif
             }
@@ -3448,7 +3448,7 @@ pgxc_node_send_timestamp(PGXCNodeHandle *handle, TimestampTz timestamp)
     return 0;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /*
  * Send the Coordinator info down to the PGXC node at the beginning of transaction,
  * In this way, Datanode can print this Coordinator info into logfile, 
@@ -3595,7 +3595,7 @@ add_error_message(PGXCNodeHandle *handle, const char *message)
 
     }
 }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 void
 add_error_message_from_combiner(PGXCNodeHandle *handle, void *combiner_input)
 {
@@ -4157,7 +4157,7 @@ get_handles(List *datanodelist, List *coordlist, bool is_coord_only_query, bool 
     return result;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static PGXCNodeAllHandles *
 get_empty_handles(void)
 {
@@ -4177,7 +4177,7 @@ get_empty_handles(void)
 PGXCNodeAllHandles *
 get_current_handles(void)
 {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     PGXCNodeAllHandles *result = get_empty_handles();
 #else
 	PGXCNodeAllHandles *result;
@@ -4193,7 +4193,7 @@ get_current_handles(void)
 	}
 #endif
 
-#ifndef __TBASE__
+#ifndef __OPENTENBASE__
 	result->datanode_handles = (PGXCNodeHandle **)
 							   palloc(NumDataNodes * sizeof(PGXCNodeHandle *));
 	if (!result->datanode_handles)
@@ -4233,7 +4233,7 @@ get_current_handles(void)
     return result;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /* get current transaction handles that register in pgxc_node_begin */
 PGXCNodeAllHandles *
 get_current_txn_handles(void)
@@ -5117,7 +5117,7 @@ PGXCNodeGetTransactionParamStr(void)
         local_params = makeStringInfo();
         MemoryContextSwitchTo(oldcontext);
     }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (session_param_list)
     {
         ParamEntry * entry_txn_iso;
@@ -5470,7 +5470,7 @@ PGXCNodeSetConnectionState(PGXCNodeHandle *handle, DNConnectionState new_state)
     handle->state = new_state;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /*
  * Handle ErrorResponse ('E') message from a Datanode connection for PGXCNodeHandle
  */
@@ -5769,7 +5769,7 @@ HandlePoolerMessages(void)
     return;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 NODE_CONNECTION *
 PGXCNodeConnectBarely(char *connstr)
 {
@@ -6058,7 +6058,7 @@ PGXCGetAllDnOid(Oid *nodelist)
 
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /*
  * Return the name of ascii-minimized coordinator as ddl leader cn
  */

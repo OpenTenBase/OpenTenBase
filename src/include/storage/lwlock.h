@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -280,7 +280,7 @@ typedef enum BuiltinTrancheIds
     LWTRANCHE_REPLICATION_ORIGIN,
     LWTRANCHE_REPLICATION_SLOT_IO_IN_PROGRESS,
     LWTRANCHE_PROC,
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     LWTRANCHE_PROC_DATA,
 #endif
     LWTRANCHE_BUFFER_MAPPING,
@@ -288,7 +288,7 @@ typedef enum BuiltinTrancheIds
     LWTRANCHE_PREDICATE_LOCK_MANAGER,
     LWTRANCHE_SHARED_QUEUES,
     LWTRANCHE_PARALLEL_QUERY_DSA,
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     LWTRANCHE_PARALLEL_WORKER_DSA,
 #endif
     LWTRANCHE_TBM,

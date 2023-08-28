@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -114,7 +114,7 @@ typedef struct QueryDesc
 #ifdef XCP
     SharedQueue squeue;         /* the shared memory queue to sent data to other
                                  * nodes */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
      DataPumpSender sender; /* used for locally data transfering */
     ParamExecData *es_param_exec_vals;    /* values of internal params */
 	RemoteEPQContext *epqContext; /* information about EvalPlanQual from remote */

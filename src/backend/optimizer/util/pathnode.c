@@ -41,7 +41,7 @@
 #include "pgxc/locator.h"
 #include "pgxc/nodemgr.h"
 #include "utils/rel.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "catalog/pgxc_key_values.h"
 #include "executor/nodeAgg.h"
 #include "optimizer/distribution.h"
@@ -59,7 +59,7 @@
 
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /*GUC parameter */
 bool prefer_olap;
 /* Max replication level on join to make Query more efficient */
@@ -108,7 +108,7 @@ static List *set_joinpath_distribution(PlannerInfo *root, JoinPath *pathnode);
 extern void PoolPingNodes(void);
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static int get_num_connections(int numnodes, int nRemotePlans);
 #endif
 
@@ -305,7 +305,7 @@ set_cheapest(RelOptInfo *parent_rel)
 
     Assert(IsA(parent_rel, RelOptInfo));
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	/*
 	 * When set_joinpath_distribution() adjusted the strategy for complex
 	 * UPDATE/DELETE, the original paths could be give up caused by no proper
@@ -326,7 +326,7 @@ set_cheapest(RelOptInfo *parent_rel)
 			ereport(ERROR,
 					(errcode(ERRCODE_STATEMENT_TOO_COMPLEX),
 					 errmsg("could not plan this distributed UPDATE/DELETE"),
-					 errdetail("correlated or complex UPDATE/DELETE is currently not supported in TBase.")));
+					 errdetail("correlated or complex UPDATE/DELETE is currently not supported in OpenTenBase.")));
 #endif
 	}
 #endif
@@ -514,7 +514,7 @@ add_path(RelOptInfo *parent_rel, Path *new_path)
      */
     CHECK_FOR_INTERRUPTS();
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	/*
 	 * In case we skipped the join paths caused by invalid result rel
 	 * distribution.
@@ -1271,7 +1271,7 @@ set_scanpath_distribution(PlannerInfo *root, RelOptInfo *rel, Path *pathnode)
     rte = planner_rt_fetch(rel->relid, root);
     rel_loc_info = GetRelationLocInfo(rte->relid);
     
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* 
      * get group oid which base rel belongs to, and used later at end of planner.
      * local tables not included.
@@ -1328,7 +1328,7 @@ retry_pools:
         {
             int i;
             bool *healthmap = NULL;
-            healthmap = (bool*)palloc(sizeof(bool) * TBASE_MAX_DATANODE_NUMBER);
+            healthmap = (bool*)palloc(sizeof(bool) * OPENTENBASE_MAX_DATANODE_NUMBER);
             if (healthmap == NULL)
             {
                 ereport(ERROR,
@@ -1608,7 +1608,7 @@ set_joinpath_distribution(PlannerInfo *root, JoinPath *pathnode)
 
     List           *innerpathkeys = pathnode->innerjoinpath->pathkeys;
     List           *outerpathkeys = pathnode->outerjoinpath->pathkeys;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	bool           dml = false;
 	bool		   keepResultRelLoc = false;
 	PlannerInfo    *top_root = root;
@@ -1662,7 +1662,7 @@ set_joinpath_distribution(PlannerInfo *root, JoinPath *pathnode)
     /* Catalog join */
     if (innerd == NULL && outerd == NULL)
         return NIL;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	/*
 	 * DML may need to push down to datanodes, for example:
 	 *   DELETE FROM
@@ -1744,7 +1744,7 @@ set_joinpath_distribution(PlannerInfo *root, JoinPath *pathnode)
 			(pathnode->jointype == JOIN_INNER ||
 			 pathnode->jointype == JOIN_LEFT ||
 			 pathnode->jointype == JOIN_SEMI ||
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
              pathnode->jointype == JOIN_LEFT_SCALAR ||
 			 pathnode->jointype == JOIN_LEFT_SEMI ||
 #endif
@@ -1890,7 +1890,7 @@ set_joinpath_distribution(PlannerInfo *root, JoinPath *pathnode)
                             if (equal(var, emvar))
                             {
                                 targetd->distributionExpr = (Node *) var;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 								/*
 								 * For UPDATE/DELETE, make sure we are distributing by
 								 * the result relation.
@@ -1910,7 +1910,7 @@ set_joinpath_distribution(PlannerInfo *root, JoinPath *pathnode)
                     /* Not found, take any */
                     targetd->distributionExpr = innerd->distributionExpr;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 					/*
 					 * For UPDATE/DELETE, make sure we are distributing by
 					 * the result relation.
@@ -1992,7 +1992,7 @@ set_joinpath_distribution(PlannerInfo *root, JoinPath *pathnode)
 					else
 						targetd->distributionExpr = outerd->distributionExpr;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 					/*
 					 * For UPDATE/DELETE, make sure we are distributing by
 					 * the result relation.
@@ -2034,7 +2034,7 @@ set_joinpath_distribution(PlannerInfo *root, JoinPath *pathnode)
 			else
 				targetd->distributionExpr = outerd->distributionExpr;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 			/*
 			 * For UPDATE/DELETE, make sure we are distributing by
 			 * the result relation.
@@ -2070,7 +2070,7 @@ not_allowed_join:
 
 #ifdef NOT_USED	
 	/* These join types allow replicated inner */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	if (outerd &&
 			(pathnode->jointype == JOIN_INNER ||
 			 pathnode->jointype == JOIN_LEFT ||
@@ -2149,7 +2149,7 @@ not_allowed_join:
         Expr           *new_outer_key = NULL;
         char            distType = LOCATOR_TYPE_NONE;
         ListCell        *lc;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		Oid				group;
 		int 			nRemotePlans_outer = 0;
 		int 			nRemotePlans_inner = 0;
@@ -2180,19 +2180,19 @@ not_allowed_join:
                 {
                     Expr *left = (Expr *) linitial(expr->args);
                     Expr *right = (Expr *) lsecond(expr->args);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                     Expr *left_expr = left;
                     Expr *right_expr = right;
 #endif
 					Oid leftType PG_USED_FOR_ASSERTS_ONLY = exprType((Node *) left);
-#ifndef __TBASE__
+#ifndef __OPENTENBASE__
 					Oid rightType PG_USED_FOR_ASSERTS_ONLY = exprType((Node *) right);
 #endif
 					Relids inner_rels = pathnode->innerjoinpath->parent->relids;
 					Relids outer_rels = pathnode->outerjoinpath->parent->relids;
 					QualCost cost;
 
-#ifndef	__TBASE__
+#ifndef	__OPENTENBASE__
 					/*
 					 * Check if both parts are of the same data type and choose
 					 * distribution type to redistribute.
@@ -2232,7 +2232,7 @@ not_allowed_join:
 
 					if (outerd->distributionExpr && BMS_EQUAL_CONSTRAINT(outerd->nodes))
 					{
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 						/*
 						 * For UPDATE/DELETE, make sure outer rel does not need
 						 * to distribute
@@ -2281,7 +2281,7 @@ not_allowed_join:
 					}
 					if (innerd->distributionExpr && BMS_EQUAL_CONSTRAINT(innerd->nodes))
 					{
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 						/* For UPDATE/DELETE, make sure inner rel does not need to distribute */
 						if (keepResultRelLoc && resultRelLoc == RESULT_REL_OUTER)
 							continue;
@@ -2339,7 +2339,7 @@ not_allowed_join:
 					 * does not allow either HASH or MODULO distribution.
 					 * HASH distribution is preferrable.
 					 */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                     if (groupOids)
                     {
                         group = linitial_oid(groupOids);
@@ -2362,7 +2362,7 @@ not_allowed_join:
                         distType = LOCATOR_TYPE_MODULO;
                     else
                         continue;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 					}
 
 					/*
@@ -2413,7 +2413,7 @@ not_allowed_join:
 			}
 		}
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		contains_remotesubplan(pathnode->outerjoinpath, &nRemotePlans_outer, &redistribute_outer);
 		contains_remotesubplan(pathnode->innerjoinpath, &nRemotePlans_inner, &redistribute_inner);
 #endif
@@ -2423,7 +2423,7 @@ not_allowed_join:
 		{
 			Bitmapset *nodes = NULL;
 			Bitmapset *restrictNodes = NULL;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 			/* consider the outer/inner size when make the redistribute plan */
 			bool replicate_inner = false;
 			bool replicate_outer = false;
@@ -2444,7 +2444,7 @@ not_allowed_join:
                 for (i = 0; i < NumDataNodes; i++)
                     nodes = bms_add_member(nodes, i);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 					if (OidIsValid(group))
 				{
 					int      node_index;
@@ -2513,7 +2513,7 @@ not_allowed_join:
              */
             else if (new_inner_key)
             {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 				/*
 				 * If inner is smaller than outer, redistribute inner as the
 				 * preferred key we picked.
@@ -2543,13 +2543,13 @@ not_allowed_join:
 #endif
 					nodes = bms_copy(outerd->nodes);
 					restrictNodes = bms_copy(outerd->restrictNodes);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 }
 #endif
             }
             else /*if (new_outer_key)*/
             {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 				/*
 				 * If outer is smaller than inner, redistribute outer as the
 				 * preferred key we picked.
@@ -2574,7 +2574,7 @@ not_allowed_join:
 #endif
 					nodes = bms_copy(innerd->nodes);
 					restrictNodes = bms_copy(innerd->restrictNodes);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 }
 #endif
             }
@@ -2585,7 +2585,7 @@ not_allowed_join:
              */
             if (new_inner_key)
             {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 				/*
 				 * replicate outer rel, just set LOCATOR_TYPE_NONE to remove
 				 * the path distribution.
@@ -2619,7 +2619,7 @@ not_allowed_join:
 
                 if (IsA(pathnode, MergePath))
                     ((MergePath*)pathnode)->innersortkeys = NIL;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 }
 #endif
             }
@@ -2629,7 +2629,7 @@ not_allowed_join:
              */
             if (new_outer_key)
             {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 /*
 				 * replicate inner rel, just set LOCATOR_TYPE_NONE to remove
 				 * the path distribution.
@@ -2663,7 +2663,7 @@ not_allowed_join:
 
                 if (IsA(pathnode, MergePath))
                     ((MergePath*)pathnode)->outersortkeys = NIL;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 }
 #endif
             }
@@ -2698,7 +2698,7 @@ not_allowed_join:
                 targetd->distributionExpr =
                         pathnode->innerjoinpath->distribution->distributionExpr;
             else
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 if(replicate_outer)
                     targetd->distributionExpr =
                             pathnode->innerjoinpath->distribution->distributionExpr;
@@ -2710,7 +2710,7 @@ not_allowed_join:
 			return alternate;
 		}
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		if (keepResultRelLoc)
 		{
 			/*
@@ -2856,7 +2856,7 @@ pull_up:
     return alternate;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /* count remotesubplans in path */
 void
 contains_remotesubplan(Path *path, int *number, bool *redistribute)
@@ -4378,7 +4378,7 @@ create_append_path(RelOptInfo *rel, List *subpaths, Relids required_outer,
                  * Both distribution and subpath->distribution may be NULL at
                  * this point, or they both are not null.
                  */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 				if (distribution)
 				{
 					if (distribution->restrictNodes && subpath->distribution->restrictNodes)
@@ -5473,7 +5473,7 @@ create_nestloop_path(PlannerInfo *root,
     pathnode->outerjoinpath = outer_path;
     pathnode->innerjoinpath = inner_path;
     pathnode->joinrestrictinfo = restrict_clauses;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     pathnode->path.parallel_aware = outer_path->parallel_workers > 0 ? true : false;
 #endif
 #ifdef XCP
@@ -5482,7 +5482,7 @@ create_nestloop_path(PlannerInfo *root,
     alternate = set_joinpath_distribution(root, pathnode);
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	/*
 	 * Since set_joinpath_distribution() could add additional pathnode such as
 	 * RemoteSubplan, the result of initial_cost_nestloop() needs to be
@@ -5504,7 +5504,7 @@ create_nestloop_path(PlannerInfo *root,
     {
         NestPath *altpath = (NestPath *) lfirst(lc);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		/*
 		 * Recalculate the initial cost of alternate path
 		 */
@@ -5592,7 +5592,7 @@ create_mergejoin_path(PlannerInfo *root,
     pathnode->path_mergeclauses = mergeclauses;
     pathnode->outersortkeys = outersortkeys;
     pathnode->innersortkeys = innersortkeys;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     pathnode->jpath.path.parallel_aware = outer_path->parallel_workers > 0 ? true : false;
 #endif
 #ifdef XCP
@@ -5601,7 +5601,7 @@ create_mergejoin_path(PlannerInfo *root,
     /* pathnode->skip_mark_restore will be set by final_cost_mergejoin */
     /* pathnode->materialize_inner will be set by final_cost_mergejoin */
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	/*
 	 * Since set_joinpath_distribution() could add additional pathnode such as
 	 * RemoteSubplan, the result of initial_cost_mergejoin() needs to be
@@ -5624,7 +5624,7 @@ create_mergejoin_path(PlannerInfo *root,
     {
         MergePath *altpath = (MergePath *) lfirst(lc);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		/*
 		 * Recalculate the initial cost of alternate path
 		 */
@@ -5692,7 +5692,7 @@ create_hashjoin_path(PlannerInfo *root,
                                   extra->sjinfo,
                                   required_outer,
                                   &restrict_clauses);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (olap_optimizer)
     {
         pathnode->jpath.path.parallel_aware = outer_path->parallel_aware;
@@ -5728,7 +5728,7 @@ create_hashjoin_path(PlannerInfo *root,
     alternate = set_joinpath_distribution(root, (JoinPath *) pathnode);
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	/*
 	 * Since set_joinpath_distribution() could add additional pathnode such as
 	 * RemoteSubplan, the result of initial_cost_hashjoin() needs to be
@@ -5754,7 +5754,7 @@ create_hashjoin_path(PlannerInfo *root,
     {
         HashPath *altpath = (HashPath *) lfirst(lc);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		/*
 		 * Recalculate the initial cost of alternate path
 		 */
@@ -6226,7 +6226,7 @@ create_agg_path(PlannerInfo *root,
     pathnode->numGroups = numGroups;
     pathnode->groupClause = groupClause;
     pathnode->qual = qual;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	pathnode->hybrid = false;
 	pathnode->entrySize = 0;
 #endif
@@ -6242,7 +6242,7 @@ create_agg_path(PlannerInfo *root,
     pathnode->path.total_cost += target->cost.startup +
         target->cost.per_tuple * pathnode->path.rows;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	/* estimate entry size for hashtable used by hashagg */
 	if (g_hybrid_hash_agg)
 	{
@@ -6411,7 +6411,7 @@ create_groupingsets_path(PlannerInfo *root,
             pathnode->path.rows += agg_path.rows;
         }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		if (g_hybrid_hash_agg)
 		{
 			if (rollup->is_hashed)
@@ -7380,7 +7380,7 @@ reparameterize_pathlist_by_child(PlannerInfo *root,
 	return result;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /*
  * Count datanode number for given path, consider replication table as 1
  * because we use this function to figure out how many parts that data

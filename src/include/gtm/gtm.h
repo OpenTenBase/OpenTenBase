@@ -149,7 +149,7 @@ extern void
 GTM_ConnCleanup(GTM_ConnectionInfo *conn);
 extern void
 GTM_RemoveConnection(GTM_ConnectionInfo *conn);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern   bool	enable_gtm_sequence_debug;
 extern	 bool 	enable_gtm_debug;
 extern   bool   enable_sync_commit;

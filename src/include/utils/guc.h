@@ -264,7 +264,7 @@ extern bool enable_oracle_compatible;
 #ifdef __SUPPORT_DISTRIBUTED_TRANSACTION__
 extern bool    support_oracle_compatible;
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern int32   g_TransferSpeed;
 /* slicent copy from */
 extern bool g_enable_copy_silence;
@@ -316,7 +316,7 @@ extern bool g_snapshot_for_analyze;
 extern bool trace_extent;
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern bool g_allow_distri_query_on_standby_node;
 #endif
 

@@ -30,7 +30,7 @@
 #include "gen_alloc.h"
 
 #include "gtm/gtm_serialize.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "gtm/gtm_store.h"
 #endif
 /*

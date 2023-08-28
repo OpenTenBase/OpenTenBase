@@ -3,7 +3,7 @@
  * subset.c
  *	  POSTGRES user defined column correlationship
  *
- * Portions Copyright (c) 2020-Present, TBase Development Team, Tencent
+ * Portions Copyright (c) 2020-Present, OpenTenBase Development Team, Tencent
  *
  * IDENTIFICATION
  *	  src/backend/statistics/knowledge.c

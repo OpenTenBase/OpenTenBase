@@ -27,7 +27,7 @@
 
 /* version string we expect back from pg_dump */
 #define PGDUMP_VERSIONSTR "pg_dump (PostgreSQL) " PG_VERSION "\n"
-#define PGDUM_SERCURITY_VERSIONSTR "pg_dump_security (TBase) " PG_VERSION "\n"
+#define PGDUM_SERCURITY_VERSIONSTR "pg_dump_security (OpenTenBase) " PG_VERSION "\n"
 
 
 static void help(void);
@@ -104,7 +104,7 @@ static int include_nodes = 0;
 #endif /* PGXC */
 #define exit_nicely(code) exit(code)
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static int dump_security_data = 0;
 #endif
 
@@ -126,7 +126,7 @@ main(int argc, char *argv[])
         {"schema-only", no_argument, NULL, 's'},
         {"superuser", required_argument, NULL, 'S'},
         {"tablespaces-only", no_argument, NULL, 't'},
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         {"with-dropped-column", no_argument, NULL, 'u'},
 #endif
         {"username", required_argument, NULL, 'U'},
@@ -162,7 +162,7 @@ main(int argc, char *argv[])
         //{"include-nodes", no_argument, &include_nodes, 1},
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		{"dump-security-data", no_argument, &dump_security_data, 1},
 #endif
 		{NULL, 0, NULL, 0}
@@ -327,7 +327,7 @@ main(int argc, char *argv[])
 				tablespaces_only = true;
 				break;
 			
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             case 'u':            
                 appendPQExpBufferStr(pgdumpopts, " -u");
                 break;
@@ -689,7 +689,7 @@ help(void)
     printf(_("  -s, --schema-only            dump only the schema, no data\n"));
     printf(_("  -S, --superuser=NAME         superuser user name to use in the dump\n"));
     printf(_("  -t, --tablespaces-only       dump only tablespaces, no databases or roles\n"));
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	printf(_("	-u, --with-dropped-column	 dump the table schema with dropped columns\n"));
 	printf(_("  --dump-security-data         dump security meta data\n"));
 #endif
@@ -1918,7 +1918,7 @@ runPgDumpSecurity(PGconn *old_conn, const char *pghost, const char *pgport,
 
 		new_conn = connectDatabase(dbname, NULL, pghost, pgport, pguser, prompt_password, false);
 
-		extnames = executeQuery(new_conn, "SELECT extname from pg_extension WHERE extname='tbase_mls' ORDERY BY 1");
+		extnames = executeQuery(new_conn, "SELECT extname from pg_extension WHERE extname='opentenbase_mls' ORDERY BY 1");
 		if (PQntuples(extnames) > 0)
 		{
 			break;

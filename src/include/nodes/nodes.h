@@ -127,7 +127,7 @@ typedef enum NodeTag
     T_CreateKeyValuesStmt,
     T_CheckOverLapStmt,
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     T_LockNodeStmt,
 	T_SampleStmt,
 #endif
@@ -253,7 +253,7 @@ typedef enum NodeTag
     T_DistributeBy,
     T_PGXCSubCluster,
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     T_PartitionBy,
     T_AddDropPartitions,
     T_PartitionForExpr,
@@ -797,7 +797,7 @@ typedef enum JoinType
 	JOIN_UNIQUE_OUTER,			/* LHS path must be made unique */
 	JOIN_UNIQUE_INNER,			/* RHS path must be made unique */
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	JOIN_LEFT_SCALAR,			/* pairs + unmatched LHS tuples, only 1 copy of
 	 	 	 	 	 	 	 	 * each LHS row else report error. */
 	JOIN_LEFT_SEMI				/* 1 copy of each LHS row that has match(es) +
@@ -823,7 +823,7 @@ typedef enum JoinType
  * pushed-down quals.  This is convenient because for almost all purposes,
  * quals attached to a semijoin can be treated the same as innerjoin quals.
  */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #define IS_OUTER_JOIN(jointype) \
 	(((1 << (jointype)) & \
 	  ((1 << JOIN_LEFT) | \

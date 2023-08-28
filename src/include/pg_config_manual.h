@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -389,14 +389,14 @@
 /* #define ACLDEBUG */
 
 
-/* all code written by Tencent Team must be in macro __TBASE__ block*/
-#define __TBASE__ 0
+/* all code written by Tencent Team must be in macro __OPENTENBASE__ block*/
+#define __OPENTENBASE__ 0
 #define __SUPPORT_DISTRIBUTED_TRANSACTION__ 0
 //#define __PAGE_TIMESTAMP_LOG__ 0
 //#define __USE_GLOBAL_SNAPSHOT__ 0
 #ifdef __SUPPORT_DISTRIBUTED_TRANSACTION__
 #undef __USE_GLOBAL_SNAPSHOT__
-//#define __TBASE_DEBUG__ 0
+//#define __OPENTENBASE_DEBUG__ 0
 //#define __SNAPSHOT_CHECK__ 0
 //#define __USE_SYSTEM_TIMESTAMP__ 0
 #define __PULLUP_QUERY__ 0

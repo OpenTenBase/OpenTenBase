@@ -34,7 +34,7 @@
 #include "utils/lsyscache.h"
 #include "utils/syscache.h"
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "utils/guc.h"
 #endif
 
@@ -341,7 +341,7 @@ shell_out(PG_FUNCTION_ARGS)
 Datum
 pg_node_tree_in(PG_FUNCTION_ARGS)
 {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	if (g_allow_force_ddl)
 		return textin(fcinfo);
 #endif

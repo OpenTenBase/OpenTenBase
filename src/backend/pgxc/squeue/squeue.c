@@ -38,7 +38,7 @@
 #include "utils/hsearch.h"
 #include "utils/resowner.h"
 #include "pgstat.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include <pthread.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -63,7 +63,7 @@
 int   NSQueues = 64;
 int   SQueueSize = 64;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern ProtocolVersion FrontendProtocol;
 
 bool  g_UseDataPump         = true;/* Use data pumb, true default. */
@@ -125,7 +125,7 @@ typedef struct SQueueSync
     void        *queue;             /* NULL if not assigned to any queue */
     LWLock       *sqs_producer_lwlock; /* Synchronize access to the queue */
     Latch         sqs_producer_latch; /* the latch producer is waiting on */
-    ConsumerSync sqs_consumer_sync[0]; /* actual length is TBASE_MAX_DATANODE_NUMBER-1 is
+    ConsumerSync sqs_consumer_sync[0]; /* actual length is OPENTENBASE_MAX_DATANODE_NUMBER-1 is
                                         * not known on compile time */
 } SQueueSync;
 
@@ -155,7 +155,7 @@ typedef struct
     int            cs_qlength;        /* The size of the consumer queue */
     int            cs_qreadpos;    /* The read position in the consumer queue */
     int            cs_qwritepos;    /* The write position in the consumer queue */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     bool        send_fd;        /* true if send fd to producer */
     bool        cs_done;
 #endif
@@ -181,7 +181,7 @@ typedef struct SQueueHeader
     bool        stat_finish;
     long        stat_paused;
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
      DataPumpSender sender; /* used for locally data transfering */
     bool        with_params;
     bool        sender_destroy;
@@ -214,7 +214,7 @@ static LWLockPadded *SQueueLocks = NULL;
 static void *SQueueSyncs;
 
 #define SQUEUE_SYNC_SIZE \
-    (sizeof(SQueueSync) + (TBASE_MAX_DATANODE_NUMBER-1) * sizeof(ConsumerSync))
+    (sizeof(SQueueSync) + (OPENTENBASE_MAX_DATANODE_NUMBER-1) * sizeof(ConsumerSync))
 
 #define GET_SQUEUE_SYNC(idx) \
     ((SQueueSync *) (((char *) SQueueSyncs) + (idx) * SQUEUE_SYNC_SIZE))
@@ -274,19 +274,19 @@ static bool sq_push_long_tuple(ConsState *cstate, RemoteDataRow datarow);
 static void sq_pull_long_tuple(ConsState *cstate, RemoteDataRow datarow,
                                 int consumerIdx, SQueueSync *sqsync);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 typedef struct DisConsumer
 {
     char sq_key[SQUEUE_KEYSIZE];
     int  nConsumer;
     TimestampTz time;
-    bool disconnect[TBASE_MAX_DATANODE_NUMBER];
+    bool disconnect[OPENTENBASE_MAX_DATANODE_NUMBER];
 } DisConsumer;
 
 static HTAB *DisConsumerHash = NULL;
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /*
 typedef struct
 {
@@ -574,7 +574,7 @@ typedef struct ParallelSendDestReceiver
     MemoryContext tmpcxt;
     TupleDesc      tupledesc;        /* current top-level tuple descriptor */
     SharedQueue squeue;             /* share queue */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     uint64      send_tuples;        /* total tuples sent to shm_mq */
     TimestampTz send_total_time;    /* total time for sending the tuples */
 #endif
@@ -686,7 +686,7 @@ SharedQueuesInit(void)
     info.keysize = SQUEUE_KEYSIZE;
 
     if(g_UseDataPump)
-        info.entrysize = SQUEUE_HDR_SIZE(TBASE_MAX_DATANODE_NUMBER);
+        info.entrysize = SQUEUE_HDR_SIZE(OPENTENBASE_MAX_DATANODE_NUMBER);
     else
         info.entrysize = SQUEUE_SIZE;
 
@@ -698,7 +698,7 @@ SharedQueuesInit(void)
 
     SharedQueues = ShmemInitHash("Shared Queues", NUM_SQUEUES,
                                  NUM_SQUEUES, &info, hash_flags);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (g_UseDataPump)
     {
         HASHCTL ctl;
@@ -726,8 +726,8 @@ SharedQueuesInit(void)
     if (!found)
     {
         int    i, l;
-        int    nlocks = (NUM_SQUEUES * (TBASE_MAX_DATANODE_NUMBER)); /* 
-                                                      * (TBASE_MAX_DATANODE_NUMBER - 1)
+        int    nlocks = (NUM_SQUEUES * (OPENTENBASE_MAX_DATANODE_NUMBER)); /* 
+                                                      * (OPENTENBASE_MAX_DATANODE_NUMBER - 1)
                                                       * consumers + 1 producer
                                                       */
         bool    foundLocks;
@@ -753,7 +753,7 @@ SharedQueuesInit(void)
             sqs->sqs_producer_lwlock = &(SQueueLocks[l++]).lock;
             InitSharedLatch(&sqs->sqs_producer_latch);
 
-            for (j = 0; j < TBASE_MAX_DATANODE_NUMBER-1; j++)
+            for (j = 0; j < OPENTENBASE_MAX_DATANODE_NUMBER-1; j++)
             {
                 InitSharedLatch(&sqs->sqs_consumer_sync[j].cs_latch);
 
@@ -775,9 +775,9 @@ SharedQueueShmemSize(void)
 	/* Shared Queues Sync */
     sqs_size = mul_size(NUM_SQUEUES, SQUEUE_SYNC_SIZE);
 	/* Shared Queue Locks */
-    sqs_size = add_size(sqs_size, mul_size((NUM_SQUEUES * (TBASE_MAX_DATANODE_NUMBER)), sizeof(LWLockPadded)));
+    sqs_size = add_size(sqs_size, mul_size((NUM_SQUEUES * (OPENTENBASE_MAX_DATANODE_NUMBER)), sizeof(LWLockPadded)));
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (g_UseDataPump)
     {
 	    /* Disconnect Consumers */
@@ -787,7 +787,7 @@ SharedQueueShmemSize(void)
 
     /* Shared Queues */
     if(g_UseDataPump)
-        return add_size(sqs_size, hash_estimate_size(NUM_SQUEUES, SQUEUE_HDR_SIZE(TBASE_MAX_DATANODE_NUMBER)));
+        return add_size(sqs_size, hash_estimate_size(NUM_SQUEUES, SQUEUE_HDR_SIZE(OPENTENBASE_MAX_DATANODE_NUMBER)));
     else
         return add_size(sqs_size, hash_estimate_size(NUM_SQUEUES, SQUEUE_SIZE));
 }
@@ -800,7 +800,7 @@ SharedQueueShmemSize(void)
  * so shared queue may be formatted during reservation. The first process that
  * is acquiring the shared queue on the Datanode does the formatting.
  */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 void
 SharedQueueAcquire(const char *sqname, int ncons, bool parallelSend, int numParallelWorkers, bool with_params)
 #else
@@ -845,7 +845,7 @@ tryagain:
         int        qsize;   /* Size of one queue */
         int        i;
         char   *heapPtr;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         SQueueSync *sqsync = NULL;
 #endif
         elog(DEBUG1, "Create a new SQueue %s and format it for %d consumers", sqname, ncons);
@@ -858,7 +858,7 @@ tryagain:
         sq->stat_finish = false;
         sq->stat_paused = 0;
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         sq->sender_destroy = false;
         sq->sq_error = false;
         sq->with_params = with_params;
@@ -908,7 +908,7 @@ tryagain:
         /* Skip header */
         heapPtr += SQUEUE_HDR_SIZE(sq->sq_nconsumers);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		/* Init latch */
 		sqsync = sq->sq_sync;
         InitSharedLatch(&sqsync->sqs_producer_latch);
@@ -927,7 +927,7 @@ tryagain:
             cstate->cs_qlength = qsize;
             cstate->cs_qreadpos = 0;
             cstate->cs_qwritepos = 0;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             cstate->send_fd = false;
             cstate->cs_done = false;
             InitSharedLatch(&sqsync->sqs_consumer_sync[i].cs_latch);
@@ -1036,7 +1036,7 @@ tryagain:
 SharedQueue
 SharedQueueBind(const char *sqname, List *consNodes,
                                    List *distNodes, int *myindex, int *consMap
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                                    ,
                                     DataPumpSender *sender
 #endif
@@ -1081,7 +1081,7 @@ SharedQueueBind(const char *sqname, List *consNodes,
             /* Producer */
             int        i;
             ListCell *lc;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             int pro_nodeid = 0;
             int pro_index  = 0;
 #endif
@@ -1485,7 +1485,7 @@ SharedQueueBind(const char *sqname, List *consNodes,
             /* Check if entry was found and therefore loop was broken */
             Assert(i < sq->sq_nconsumers);
         }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /* should not happen */
         if (*myindex == -1)
         {
@@ -1791,7 +1791,7 @@ SharedQueueRead(SharedQueue squeue, int consumerIdx,
     Assert(cstate->cs_qlength > 0);
 
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (g_UseDataPump)
     {
         if (!cstate->send_fd)
@@ -1940,7 +1940,7 @@ SharedQueueRead(SharedQueue squeue, int consumerIdx,
 						 squeue->err_msg)));
 #endif
         }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		if (squeue->sender_destroy)
 		{
 			LWLockRelease(sqsync->sqs_consumer_sync[consumerIdx].cs_lwlock);
@@ -2064,7 +2064,7 @@ SharedQueueReset(SharedQueue squeue, int consumerIdx)
                     squeue->sq_key, squeue->sq_nodeid, squeue->sq_pid);
         }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /* tell sender and convert to exit */
         if (g_UseDataPump)
         {
@@ -2189,7 +2189,7 @@ SharedQueueReset(SharedQueue squeue, int consumerIdx)
     }
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 void
 SetDisConnectConsumer(const char *sqname, int cons)
 {// #lizard forgives
@@ -2241,7 +2241,7 @@ SetDisConnectConsumer(const char *sqname, int cons)
     {
         ent->nConsumer = 0;
         ent->time = GetCurrentTimestamp();
-        memset(ent->disconnect, 0, sizeof(bool) * TBASE_MAX_DATANODE_NUMBER);
+        memset(ent->disconnect, 0, sizeof(bool) * OPENTENBASE_MAX_DATANODE_NUMBER);
     }
 
     if (!ent->disconnect[PGXC_PARENT_NODE_ID])
@@ -2317,13 +2317,13 @@ SharedQueueDisconnectConsumer(const char *sqname)
      */
     if (!SharedQueues)
         return;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     elog(DEBUG1, "Squeue %s: SharedQueueDisconnectConsumer Pid %d, nodeid %d", sqname, MyProcPid, PGXC_PARENT_NODE_ID);
 #endif
     LWLockAcquire(SQueuesLock, LW_EXCLUSIVE);
 
     squeue = (SharedQueue) hash_search(SharedQueues, sqname, HASH_FIND, &found);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (!found || squeue->sender_destroy)
 #else
     if (!found || squeue->sq_pid == 0)
@@ -2339,7 +2339,7 @@ SharedQueueDisconnectConsumer(const char *sqname)
          * need to study this further and make adjustments if necessary.
          */
         LWLockRelease(SQueuesLock);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         elog(DEBUG1, "Squeue %s: SharedQueueDisconnectConsumer squeue not Found Pid %d, nodeid %d", sqname, MyProcPid, PGXC_PARENT_NODE_ID);
 #endif
         return;
@@ -2379,7 +2379,7 @@ SharedQueueDisconnectConsumer(const char *sqname)
 
             break;
         }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         else if (cstate->cs_node == -1 && squeue->sq_pid == 0)
         {
             cstate->cs_node = PGXC_PARENT_NODE_ID;
@@ -2544,7 +2544,7 @@ SharedQueueFinish(SharedQueue squeue, TupleDesc tupDesc,
             "pid %d, nconsumers %d", squeue->sq_key, squeue->sq_nodeid,
             squeue->sq_pid, squeue->sq_nconsumers);
     
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (!sqsync)
         return 0;
 
@@ -2579,7 +2579,7 @@ SharedQueueFinish(SharedQueue squeue, TupleDesc tupDesc,
                 {
                     ConsState *cstate = &squeue->sq_consumers[i];
                     ParallelSendNodeControl  *node = &nodes[i];
-#ifdef __TBASE__                    
+#ifdef __OPENTENBASE__                    
                     if (node->status == DataPumpSndStatus_set_socket)
 #endif
                     {
@@ -3067,7 +3067,7 @@ SharedQueueUnBind(SharedQueue squeue, bool failed)
             "pid %d, nconsumers %d", squeue->sq_key, failed ? 'T' : 'F',
             squeue->sq_nodeid, squeue->sq_pid, squeue->sq_nconsumers);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (!sqsync)
         return;
 #endif
@@ -3154,7 +3154,7 @@ CHECK:
                 squeue->sq_key, squeue->sq_nodeid, squeue->sq_pid);
     }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (g_UseDataPump)
     {
         SqueueProducerExit();
@@ -3214,7 +3214,7 @@ CHECK:
     LWLockRelease(sqsync->sqs_producer_lwlock);
     LWLockRelease(SQueuesLock);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (distributed_query_analyze)
     {
         DropQueryAnalyzeInfo(squeue->sq_key);
@@ -3358,7 +3358,7 @@ SharedQueueRelease(const char *sqname)
         LWLockRelease(sqsync->sqs_producer_lwlock);
     }
 done:
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (sq && sq->sq_pid == MyProcPid && sq->sq_nodeid == PGXC_PARENT_NODE_ID)
     {
         if (sq->sq_sync)
@@ -3574,7 +3574,7 @@ sq_pull_long_tuple(ConsState *cstate, RemoteDataRow datarow,
     }
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 void ThreadSemaInit(ThreadSema *sema, int32 init)
 {
     if (sema)

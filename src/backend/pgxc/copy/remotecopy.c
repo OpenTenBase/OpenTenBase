@@ -102,7 +102,7 @@ RemoteCopy_BuildStatement(RemoteCopyData *state,
 {// #lizard forgives
     int            attnum;
     TupleDesc    tupDesc = RelationGetDescr(rel);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     RelationLocInfo *relation_loc_info = rel->rd_locator_info;
 #endif
     /*
@@ -162,7 +162,7 @@ RemoteCopy_BuildStatement(RemoteCopyData *state,
                             appendStringInfoString(&state->query_buf,
                                quote_identifier(NameStr(tupDesc->attrs[attnum - 1]->attname)));
                         }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                     /* distributed column also need to be set as default column */
                     else if (defexpr && IsDistributedColumn(attnum, relation_loc_info))
                     {
@@ -236,7 +236,7 @@ RemoteCopy_BuildStatement(RemoteCopyData *state,
 
     if (options->rco_csv_mode)
         appendStringInfoString(&state->query_buf, " CSV");
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (options->rco_insert_into)
     {
         appendStringInfoString(&state->query_buf, " ROWS");
@@ -307,7 +307,7 @@ makeRemoteCopyOptions(void)
     res->rco_escape = NULL;
     res->rco_force_quote = NIL;
     res->rco_force_notnull = NIL;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     res->rco_insert_into = false;
 #endif
     return res;

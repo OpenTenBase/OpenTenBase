@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -75,7 +75,7 @@
 #define ELOG_H
 
 #include <setjmp.h>
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "lib/stringinfo.h"
 #endif
 
@@ -122,7 +122,7 @@
 #endif
 #define FATAL        21            /* fatal error - abort process */
 #define PANIC        22            /* take down the other backends with me */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #define STOP        23            /* take down the other backends with me, but without coredump */
 #endif
 
@@ -565,7 +565,7 @@ extern void set_syslog_parameters(const char *ident, int facility);
  */
 extern void write_stderr(const char *fmt,...) pg_attribute_printf(1, 2);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern bool GetErrorMsg(StringInfo buf);
 #endif
 #endif                            /* ELOG_H */

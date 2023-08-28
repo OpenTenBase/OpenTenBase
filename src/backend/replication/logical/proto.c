@@ -45,7 +45,7 @@ static void logicalrep_write_namespace(StringInfo out, Oid nspid);
 static const char *logicalrep_read_namespace(StringInfo in);
 
 #ifdef __SUBSCRIPTION__
-static int32 logicalrep_dml_hashmod = 0;        /* The number of parallel tbase-sub-subscriptions on the subnet, 
+static int32 logicalrep_dml_hashmod = 0;        /* The number of parallel opentenbase-sub-subscriptions on the subnet, 
                                                  * used to calculate the hash value when the tuple is sent
                                                  */
 static int32 logicalrep_dml_hashvalue = 0;        /* Send Tuple to the subscriber only if the Hash value is equal to this value
@@ -989,7 +989,7 @@ int32 logicalrep_dml_calc_hash(Relation rel, HeapTuple tuple)
     return ret;
 }
 
-bool AmTbaseSubscriptionWalSender(void)
+bool AmOpenTenBaseSubscriptionWalSender(void)
 {
     return (IS_PGXC_DATANODE && logicalrep_dml_hashmod > 0);
 }

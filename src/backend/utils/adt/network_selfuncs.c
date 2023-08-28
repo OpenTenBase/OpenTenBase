@@ -223,7 +223,7 @@ networkjoinsel(PG_FUNCTION_ARGS)
 			break;
 		case JOIN_SEMI:
 		case JOIN_ANTI:
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         case JOIN_LEFT_SCALAR:
         case JOIN_LEFT_SEMI:
 #endif

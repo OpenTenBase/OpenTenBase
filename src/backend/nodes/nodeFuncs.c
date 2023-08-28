@@ -3884,13 +3884,13 @@ planstate_walk_members(List *plans, PlanState **planstates,
 
     for (j = 0; j < nplans; j++)
     {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (planstates[j])
         {
 #endif
         if (walker(planstates[j], context))
             return true;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         }
 #endif
     }

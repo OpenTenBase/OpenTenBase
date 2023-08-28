@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -269,7 +269,7 @@ struct pg_result
     int            curOffset;        /* start offset of free space in block */
     int            spaceLeft;        /* number of free bytes remaining in block */
     
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     uint32        report_commandid;
 #endif
 };
@@ -658,7 +658,7 @@ extern void pqSaveParameterStatus(PGconn *conn, const char *name,
                       const char *value);
 extern int    pqRowProcessor(PGconn *conn, const char **errmsgp);
 extern void pqHandleSendFailure(PGconn *conn);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /* Timed get result. */
 extern PGresult *PQgetResultTimed(PGconn *conn, time_t finish_time);
 extern uint32   PQresultCommandId(const PGresult *res);

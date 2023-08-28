@@ -1406,7 +1406,7 @@ describeOneTableDetails(const char *schemaname,
         char       *reloftype;
         char        relpersistence;
         char        relreplident;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         char        relpartkind;
 #endif
     }            tableinfo;
@@ -1431,7 +1431,7 @@ describeOneTableDetails(const char *schemaname,
                           "c.relhastriggers, c.relrowsecurity, c.relforcerowsecurity, "
 						  "c.relhasoids, c.relispartition, %s, c.reltablespace, "
                           "CASE WHEN c.reloftype = 0 THEN '' ELSE c.reloftype::pg_catalog.regtype::pg_catalog.text END, "
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                           "c.relpersistence, c.relreplident, c.relpartkind\n"
 #else
                           "c.relpersistence, c.relreplident\n"
@@ -1572,7 +1572,7 @@ describeOneTableDetails(const char *schemaname,
 		*(PQgetvalue(res, 0, 12)) : 0;
     tableinfo.relreplident = (pset.sversion >= 90400) ?
 		*(PQgetvalue(res, 0, 13)) : 'd';
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     tableinfo.relpartkind = (pset.sversion >= 90500)?
 		*PQgetvalue(res, 0, 14) : 'n';
 #endif
@@ -3214,7 +3214,7 @@ describeOneTableDetails(const char *schemaname,
             }
         }
 #endif /* PGXC */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /*print partition info*/
         if (verbose && pset.sversion >= 90500 && tableinfo.relkind == 'r' && tableinfo.relpartkind == 'p')
         {
@@ -3766,7 +3766,7 @@ listTables(const char *tabtypes, const char *pattern, bool verbose, bool showSys
     appendPQExpBufferStr(&buf, "''");    /* dummy */
     appendPQExpBufferStr(&buf, ")\n");
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* do not list all child tables/indexes */
     if (!pattern)
     {

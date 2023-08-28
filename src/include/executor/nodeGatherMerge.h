@@ -22,7 +22,7 @@ extern GatherMergeState *ExecInitGatherMerge(GatherMerge *node,
 extern void ExecEndGatherMerge(GatherMergeState *node);
 extern void ExecReScanGatherMerge(GatherMergeState *node);
 extern void ExecShutdownGatherMerge(GatherMergeState *node);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern void ExecFinishGatherMerge(PlanState *pstate);
 #endif
 

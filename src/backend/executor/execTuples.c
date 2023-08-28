@@ -95,7 +95,7 @@
 #include "pgxc/pgxc.h"
 #include "utils/memutils.h"
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "access/printtup.h"
 #endif
 static TupleDesc ExecTypeFromTLInternal(List *targetList,
@@ -603,7 +603,7 @@ HeapTuple
 ExecCopySlotTuple_shard(TupleTableSlot *slot, bool hasshard, AttrNumber diskey,
                                  AttrNumber secdiskey, Oid relid)
 {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	HeapTuple tuple;
 #endif
     /*
@@ -616,7 +616,7 @@ ExecCopySlotTuple_shard(TupleTableSlot *slot, bool hasshard, AttrNumber diskey,
      * If we have a physical tuple (either format) then just copy it.
      */
     if (TTS_HAS_PHYSICAL_TUPLE(slot))
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	{
 		tuple = heap_copytuple(slot->tts_tuple);
 		if (hasshard)
@@ -629,7 +629,7 @@ ExecCopySlotTuple_shard(TupleTableSlot *slot, bool hasshard, AttrNumber diskey,
         return heap_copytuple(slot->tts_tuple);
 #endif
     if (slot->tts_mintuple)
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	{
 		tuple = heap_tuple_from_minimal_tuple(slot->tts_mintuple);
 		if (hasshard)
@@ -785,7 +785,7 @@ ExecCopySlotDatarow(TupleTableSlot *slot, MemoryContext tmpcxt)
                 else
                     pval = slot->tts_values[i];
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 /*
                   * column is composite type, need to send tupledesc to remote node
                   */
@@ -1010,7 +1010,7 @@ ExecMaterializeSlot_shard(TupleTableSlot *slot,
      * nothing to do.
      */
     if (slot->tts_tuple && slot->tts_shouldFree)
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	{
 		if (hasshard)
 		{
@@ -1021,7 +1021,7 @@ ExecMaterializeSlot_shard(TupleTableSlot *slot,
 		}
 #endif
         return slot->tts_tuple;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	}
 #endif
     /*
@@ -1034,7 +1034,7 @@ ExecMaterializeSlot_shard(TupleTableSlot *slot,
     oldContext = MemoryContextSwitchTo(slot->tts_mcxt);
     slot->tts_tuple = ExecCopySlotTuple_shard(slot, hasshard, diskey, secdiskey, relid);
     slot->tts_shouldFree = true;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	if (hasshard && HeapTupleHeaderGetShardId(slot->tts_tuple->t_data) == InvalidShardID)
 	{
 		slot_getallattrs(slot);

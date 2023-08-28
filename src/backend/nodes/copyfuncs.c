@@ -124,7 +124,7 @@ _copyPlannedStmt(const PlannedStmt *from)
     COPY_LOCATION_FIELD(stmt_location);
     COPY_LOCATION_FIELD(stmt_len);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     COPY_SCALAR_FIELD(haspart_tobe_modify);
     COPY_SCALAR_FIELD(partrelindex);
     COPY_BITMAPSET_FIELD(partpruning);
@@ -163,7 +163,7 @@ CopyPlanFields(const Plan *from, Plan *newnode)
     COPY_BITMAPSET_FIELD(extParam);
     COPY_BITMAPSET_FIELD(allParam);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     COPY_SCALAR_FIELD(isempty);
 #endif
 
@@ -263,7 +263,7 @@ _copyModifyTable(const ModifyTable *from)
     COPY_NODE_FIELD(onConflictWhere);
     COPY_SCALAR_FIELD(exclRelRTI);
     COPY_NODE_FIELD(exclRelTlist);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     COPY_NODE_FIELD(remote_plans);
     COPY_SCALAR_FIELD(haspartparent);
     COPY_SCALAR_FIELD(partrelidx);
@@ -293,7 +293,7 @@ _copyAppend(const Append *from)
      */
     COPY_NODE_FIELD(partitioned_rels);
     COPY_NODE_FIELD(appendplans);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     COPY_SCALAR_FIELD(interval);
 #endif
 
@@ -323,7 +323,7 @@ _copyMergeAppend(const MergeAppend *from)
     COPY_POINTER_FIELD(sortOperators, from->numCols * sizeof(Oid));
     COPY_POINTER_FIELD(collations, from->numCols * sizeof(Oid));
     COPY_POINTER_FIELD(nullsFirst, from->numCols * sizeof(bool));
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     COPY_SCALAR_FIELD(interval);
 #endif
 
@@ -420,7 +420,7 @@ _copyGather(const Gather *from)
     COPY_SCALAR_FIELD(num_workers);
     COPY_SCALAR_FIELD(single_copy);
     COPY_SCALAR_FIELD(invisible);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     COPY_SCALAR_FIELD(parallelWorker_sendTuple);
 #endif
 
@@ -466,7 +466,7 @@ CopyScanFields(const Scan *from, Scan *newnode)
 
     COPY_SCALAR_FIELD(scanrelid);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     COPY_SCALAR_FIELD(ispartchild);
     COPY_SCALAR_FIELD(childidx);
 #endif
@@ -867,7 +867,7 @@ CopyJoinFields(const Join *from, Join *newnode)
     COPY_SCALAR_FIELD(jointype);
     COPY_SCALAR_FIELD(inner_unique);
     COPY_NODE_FIELD(joinqual);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     COPY_SCALAR_FIELD(prefetch_inner);
 #endif
 }
@@ -1044,7 +1044,7 @@ _copyAgg(const Agg *from)
     COPY_BITMAPSET_FIELD(aggParams);
     COPY_NODE_FIELD(groupingSets);
     COPY_NODE_FIELD(chain);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	COPY_SCALAR_FIELD(entrySize);
 	COPY_SCALAR_FIELD(hybrid);
 	COPY_SCALAR_FIELD(noDistinct);
@@ -1197,7 +1197,7 @@ _copyLimit(const Limit *from)
      */
     COPY_NODE_FIELD(limitOffset);
     COPY_NODE_FIELD(limitCount);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	COPY_SCALAR_FIELD(skipEarlyFinish);
 #endif
     return newnode;
@@ -1318,7 +1318,7 @@ _copyRemoteQuery(const RemoteQuery *from)
     COPY_NODE_FIELD(coord_var_tlist);
     COPY_NODE_FIELD(query_var_tlist);
     COPY_SCALAR_FIELD(is_temp);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	COPY_NODE_FIELD(forDeparse);
     COPY_STRING_FIELD(sql_select);
     COPY_STRING_FIELD(sql_select_base);
@@ -1423,7 +1423,7 @@ _copyRemoteSubplan(const RemoteSubplan *from)
     COPY_NODE_FIELD(sort);
     COPY_STRING_FIELD(cursor);
     COPY_SCALAR_FIELD(unique);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     COPY_SCALAR_FIELD(parallelWorkerSendTuple);
 	COPY_BITMAPSET_FIELD(initPlanParams);
 #endif
@@ -1483,7 +1483,7 @@ _copyRangeVar(const RangeVar *from)
     COPY_NODE_FIELD(alias);
     COPY_LOCATION_FIELD(location);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     COPY_SCALAR_FIELD(intervalparent);
     COPY_NODE_FIELD(partitionvalue);
 #endif
@@ -2625,7 +2625,7 @@ _copyRangeTblEntry(const RangeTblEntry *from)
 #ifdef _MLS_
     COPY_NODE_FIELD(cls_expr);
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     COPY_SCALAR_FIELD(intervalparent);
     COPY_SCALAR_FIELD(isdefault);
     COPY_NODE_FIELD(partvalue);
@@ -3127,7 +3127,7 @@ _copyColumnDef(const ColumnDef *from)
     COPY_NODE_FIELD(constraints);
     COPY_NODE_FIELD(fdwoptions);
     COPY_LOCATION_FIELD(location);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     COPY_SCALAR_FIELD(is_dropped);
     if (from->is_dropped && from->ptr)
     {
@@ -3256,7 +3256,7 @@ _copyQuery(const Query *from)
     COPY_SCALAR_FIELD(hasModifyingCTE);
     COPY_SCALAR_FIELD(hasForUpdate);
     COPY_SCALAR_FIELD(hasRowSecurity);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     COPY_SCALAR_FIELD(isSingleValues);
     COPY_SCALAR_FIELD(isMultiValues);
     COPY_SCALAR_FIELD(hasUnshippableTriggers);
@@ -3314,7 +3314,7 @@ _copyInsertStmt(const InsertStmt *from)
     COPY_NODE_FIELD(returningList);
     COPY_NODE_FIELD(withClause);
     COPY_SCALAR_FIELD(override);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     COPY_SCALAR_FIELD(ninsert_columns);
 	if(from->data_list != NULL)
 	{
@@ -3578,7 +3578,7 @@ _copyCopyStmt(const CopyStmt *from)
     COPY_STRING_FIELD(filename);
     COPY_NODE_FIELD(options);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     COPY_SCALAR_FIELD(insert_into);
 #endif
 
@@ -3639,7 +3639,7 @@ CopyCreateStmtFields(const CreateStmt *from, CreateStmt *newnode)
     COPY_NODE_FIELD(distributeby);
     COPY_NODE_FIELD(subcluster);
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     COPY_SCALAR_FIELD(interval_child);
     COPY_SCALAR_FIELD(interval_child_idx);
     COPY_SCALAR_FIELD(interval_parentId);
@@ -3772,7 +3772,7 @@ _copyIndexStmt(const IndexStmt *from)
     COPY_SCALAR_FIELD(concurrent);
     COPY_SCALAR_FIELD(if_not_exists);
 	COPY_SCALAR_FIELD(reset_default_tblspc);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     COPY_SCALAR_FIELD(parentIndexOid);
 	COPY_NODE_FIELD(partsOldNode);
 #endif
@@ -4874,7 +4874,7 @@ _copyPartitionSpec(const PartitionSpec *from)
 
     COPY_STRING_FIELD(strategy);
     COPY_NODE_FIELD(partParams);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     COPY_NODE_FIELD(interval);
 #endif
     COPY_LOCATION_FIELD(location);
@@ -4922,7 +4922,7 @@ _copyPartitionCmd(const PartitionCmd *from)
     return newnode;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static PartitionBy *
 _copyPartitionBy(const PartitionBy *from)
 {
@@ -5050,7 +5050,7 @@ _copyCreateSubscriptionStmt(const CreateSubscriptionStmt *from)
     COPY_NODE_FIELD(publication);
     COPY_NODE_FIELD(options);
 #ifdef __SUBSCRIPTION__
-    COPY_SCALAR_FIELD(istbase);
+    COPY_SCALAR_FIELD(isopentenbase);
     COPY_SCALAR_FIELD(sub_parallel_number);
     COPY_SCALAR_FIELD(sub_parallel_index);
 #endif
@@ -5069,7 +5069,7 @@ _copyAlterSubscriptionStmt(const AlterSubscriptionStmt *from)
     COPY_NODE_FIELD(publication);
     COPY_NODE_FIELD(options);
 #ifdef __SUBSCRIPTION__
-    COPY_SCALAR_FIELD(istbase);
+    COPY_SCALAR_FIELD(isopentenbase);
 #endif
 
     return newnode;
@@ -5084,7 +5084,7 @@ _copyDropSubscriptionStmt(const DropSubscriptionStmt *from)
     COPY_SCALAR_FIELD(missing_ok);
     COPY_SCALAR_FIELD(behavior);
 #ifdef __SUBSCRIPTION__
-    COPY_SCALAR_FIELD(istbase);
+    COPY_SCALAR_FIELD(isopentenbase);
 #endif
 
     return newnode;
@@ -5245,7 +5245,7 @@ _copyDropNodeStmt(const DropNodeStmt *from)
 
     COPY_STRING_FIELD(node_name);
     COPY_STRING_FIELD(cluster_name);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     COPY_NODE_FIELD(options);
 #endif
     return newnode;
@@ -6305,7 +6305,7 @@ copyObjectImpl(const void *from)
         case T_PartitionCmd:
             retval = _copyPartitionCmd(from);
             break;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         case T_PartitionBy:
             retval = _copyPartitionBy(from);
             break;

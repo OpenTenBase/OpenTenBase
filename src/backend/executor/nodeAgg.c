@@ -230,15 +230,15 @@
 #include "utils/syscache.h"
 #include "utils/tuplesort.h"
 #include "utils/datum.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "pgxc/locator.h"
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 volatile ReDistributeStatus *workerStatus = NULL;
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /* global GUC variables for hybrid hash agg */
 bool g_hybrid_hash_agg = false;
 bool g_hybrid_hash_agg_debug = false;
@@ -306,7 +306,7 @@ typedef struct AggStatePerTransData
     /* Oid of state value's datatype */
     Oid            aggtranstype;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	Oid         serial_func_id;
 	Oid         deserial_func_id;
 #endif
@@ -327,7 +327,7 @@ typedef struct AggStatePerTransData
     /* fmgr lookup data for deserialization function */
     FmgrInfo    deserialfn;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	FmgrInfo	combfn;
 	FmgrInfo	serial_func;
 	FmgrInfo	deserial_func;
@@ -419,7 +419,7 @@ typedef struct AggStatePerTransData
 
     FunctionCallInfoData deserialfn_fcinfo;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	FunctionCallInfoData combfn_fcinfo;
 	FunctionCallInfoData serial_func_fcinfo;
 	FunctionCallInfoData deserial_func_fcinfo;
@@ -550,7 +550,7 @@ typedef struct AggStatePerHashData
     Agg           *aggnode;        /* original Agg node, for numGroups etc. */
 }            AggStatePerHashData;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /*
  * used in ReDistributeInitializeDSM and ReDistributeInitializeWorker
  * to distinguish keys between shared memory for parallel and
@@ -624,7 +624,7 @@ static int find_compatible_pertrans(AggState *aggstate, Aggref *newagg,
                          Datum initValue, bool initValueIsNull,
                          List *transnos);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static int ReDistributeBufferFreeSize(ReDistributeBuffer *buf);
 static void ReDistributeBufferPutData(ReDistributeBuffer *buf, int dataLen, char *data);
 static void ReDistributeBufferGetData(ReDistributeBuffer *buf, int *dataLen, char **data, RemoteDataRow *datarow);
@@ -1135,7 +1135,7 @@ advance_aggregates(AggState *aggstate, AggStatePerGroup pergroup, AggStatePerGro
                     AggStatePerGroup pergroupstate;
 
                     select_current_set(aggstate, setno, true);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 					if (g_hybrid_hash_agg)
 					{
 						AggStatePerHash perhash = &aggstate->perhash[aggstate->current_set];
@@ -1172,7 +1172,7 @@ combine_aggregates(AggState *aggstate, AggStatePerGroup pergroup)
     /* combine not supported with grouping sets */
     Assert(aggstate->phase->numsets <= 1);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	if (g_hybrid_hash_agg)
 	{	
 		if (aggstate->perhash)
@@ -1955,7 +1955,7 @@ build_hash_table(AggState *aggstate)
                                                  aggstate->hashcontext->ecxt_per_tuple_memory,
                                                  tmpmem,
                                                  DO_AGGSPLIT_SKIPFINAL(aggstate->aggsplit));
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		if (perhash->aggnode->hybrid)
 		{
 			/* set entry size of each hashtable */
@@ -2141,7 +2141,7 @@ lookup_hash_entry(AggState *aggstate)
     /* find or create the hashtable entry using the filtered tuple */
     entry = LookupTupleHashEntry(perhash->hashtable, hashslot, &isnew);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	if (perhash->hashtable->hybrid)
 	{
 		/* use our own context */
@@ -2175,7 +2175,7 @@ lookup_hash_entry(AggState *aggstate)
 
     if (isnew)
     {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		if (perhash->hashtable->hybrid)
 		{
 			entry->additional = (AggStatePerGroup)
@@ -2223,7 +2223,7 @@ lookup_hash_entries(AggState *aggstate)
     return pergroup;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static void
 dump_hashtable_if_spilled(AggState *aggstate)
 {
@@ -3326,7 +3326,7 @@ agg_retrieve_direct(AggState *aggstate)
                     outerslot = fetch_input_tuple(aggstate);
                     if (TupIsNull(outerslot))
                     {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 						if (g_hybrid_hash_agg)
 						{
 							dump_hashtable_if_spilled(aggstate);
@@ -3411,7 +3411,7 @@ agg_fill_hash_table(AggState *aggstate)
 {
     TupleTableSlot *outerslot;
     ExprContext *tmpcontext = aggstate->tmpcontext;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     AttrNumber varattno = InvalidAttrNumber;
     Oid                dataType = InvalidOid;
 
@@ -3486,7 +3486,7 @@ agg_fill_hash_table(AggState *aggstate)
 
         outerslot = fetch_input_tuple(aggstate);
         if (TupIsNull(outerslot))
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         {
             if (IsParallelWorker() && aggstate->state)
             {
@@ -3548,12 +3548,12 @@ agg_fill_hash_table(AggState *aggstate)
 					dump_hashtable_if_spilled(aggstate);
 				}
             break;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             }
         }
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (IsParallelWorker() && aggstate->state)
         {
             if (aggstate->dataslot == NULL)
@@ -3593,7 +3593,7 @@ agg_fill_hash_table(AggState *aggstate)
     aggstate->table_filled = true;
     /* Initialize to walk the first hash table */
     select_current_set(aggstate, 0, true);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	if (!aggstate->perhash[0].hashtable->spilled)
 	{
 		ResetTupleHashIterator(aggstate->perhash[0].hashtable,
@@ -3653,7 +3653,7 @@ agg_retrieve_hash_table(AggState *aggstate)
         {
             int            nextset = aggstate->current_set + 1;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 			if (perhash->hashtable->hybrid)
 			{
 				if (!HybridHashtableLoadDone(perhash->hashtable))
@@ -3799,7 +3799,7 @@ ExecInitAgg(Agg *node, EState *estate, int eflags)
     aggstate->grp_firstTuple = NULL;
     aggstate->sort_in = NULL;
     aggstate->sort_out = NULL;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     aggstate->state    = NULL;
     aggstate->file     = NULL;    
     aggstate->dataslot = NULL;
@@ -4194,7 +4194,7 @@ ExecInitAgg(Agg *node, EState *estate, int eflags)
         Datum        textInitVal;
         Datum        initValue;
         bool        initValueIsNull;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		Oid         combfn_oid;
 		Oid         serial_func;
 		Oid         deserial_func;
@@ -4258,7 +4258,7 @@ ExecInitAgg(Agg *node, EState *estate, int eflags)
         else
             transfn_oid = aggform->aggtransfn;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		combfn_oid = aggform->aggcombinefn;
 		serial_func = aggform->aggserialfn;
 		deserial_func = aggform->aggdeserialfn;
@@ -4436,7 +4436,7 @@ ExecInitAgg(Agg *node, EState *estate, int eflags)
                                       inputTypes, numArguments);
             peragg->transno = transno;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 			pertrans->serial_func_id = InvalidOid;
 			pertrans->deserial_func_id = InvalidOid;
 			if (g_hybrid_hash_agg)
@@ -5348,7 +5348,7 @@ aggregate_dummy(PG_FUNCTION_ARGS)
     return (Datum) 0;            /* keep compiler quiet */
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 void
 ReDistributeEstimate(PlanState *node, ParallelContext *pcxt)
 {

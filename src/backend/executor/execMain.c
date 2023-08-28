@@ -85,7 +85,7 @@
 #include "pgxc/execRemote.h"
 #include "pgxc/poolmgr.h"
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "optimizer/planmain.h"
 #include "pgxc/squeue.h"
 #include "utils/relfilenodemap.h"
@@ -105,7 +105,7 @@ ExecutorEnd_hook_type ExecutorEnd_hook = NULL;
 /* Hook for plugin to get control in ExecCheckRTPerms() */
 ExecutorCheckPerms_hook_type ExecutorCheckPerms_hook = NULL;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 bool Executor_done = false;
 #endif
 
@@ -292,7 +292,7 @@ standard_ExecutorStart(QueryDesc *queryDesc, int eflags)
             palloc0(queryDesc->plannedstmt->nParamExec * sizeof(ParamExecData));
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (IsParallelWorker())
         {
             if (queryDesc->plannedstmt->nParamExec > 0)
@@ -997,7 +997,7 @@ InitPlan(QueryDesc *queryDesc, int eflags)
             resultRelationOid = getrelid(resultRelationIndex, rangeTable);
             resultRelation = heap_open(resultRelationOid, RowExclusiveLock);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             if(plannedstmt->haspart_tobe_modify 
                     && resultRelationIndex == plannedstmt->partrelindex)
             {
@@ -1535,7 +1535,7 @@ InitResultRelInfo(ResultRelInfo *resultRelInfo,
 
     resultRelInfo->ri_PartitionCheck = partition_check;
     resultRelInfo->ri_PartitionRoot = partition_root;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if(resultRelInfo->ispartparent)
     {
         int     npart;
@@ -1852,7 +1852,7 @@ ExecEndPlan(PlanState *planstate, EState *estate)
         /* Close indices and then the relation itself */
         ExecCloseIndices(resultRelInfo);
         heap_close(resultRelInfo->ri_RelationDesc, NoLock);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if(resultRelInfo->ispartparent)
         {
             int j=0;
@@ -2113,7 +2113,7 @@ ExecutePlan(EState *estate,
             break;
         }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /* executor done */
         if (Executor_done)
         {
@@ -2798,7 +2798,7 @@ ExecBuildAuxRowMark(ExecRowMark *erm, List *targetlist)
         if (!AttributeNumberIsValid(aerm->ctidAttNo))
             elog(ERROR, "could not find junk %s column", resname);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		/* we need xc_node_id combined with ctid to determine physical tuple */
 		snprintf(resname, sizeof(resname), "xc_node_id%u", erm->rowmarkId);
 		aerm->nodeidAttNo = ExecFindJunkAttributeInTlist(targetlist,

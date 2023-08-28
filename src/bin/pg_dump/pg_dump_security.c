@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -88,7 +88,7 @@
 #include "catalog/pg_authid.h"
 
 /* version string we expect back from pg_dump */
-#define PGDUMP_VERSIONSTR "pg_dump (TBase) " PG_VERSION "\n"
+#define PGDUMP_VERSIONSTR "pg_dump (OpenTenBase) " PG_VERSION "\n"
 
 static void help(void);
 
@@ -162,7 +162,7 @@ main(int argc, char *argv[])
         }
         if ((strcmp(argv[1], "--version") == 0) || (strcmp(argv[1], "-V") == 0))
         {
-            puts("pg_dump_security (TBase) " PG_VERSION);
+            puts("pg_dump_security (OpenTenBase) " PG_VERSION);
             exit_nicely(0);
         }
     }
@@ -293,7 +293,7 @@ main(int argc, char *argv[])
     if (quote_all_identifiers && server_version >= 90100)
         executeCommand(conn, "SET quote_all_identifiers = true");
 
-    fprintf(OPF, "--\n-- TBase security dump\n--\n\n");
+    fprintf(OPF, "--\n-- OpenTenBase security dump\n--\n\n");
     if (verbose)
         dumpTimestamp("Started on");
 
@@ -332,7 +332,7 @@ main(int argc, char *argv[])
 
     if (verbose)
         dumpTimestamp("Completed on");
-    fprintf(OPF, "--\n-- TBase security dump complete\n--\n\n");
+    fprintf(OPF, "--\n-- OpenTenBase security dump complete\n--\n\n");
 
     if (filename)
     {
@@ -350,7 +350,7 @@ main(int argc, char *argv[])
 static void
 help(void)
 {
-    printf(_("%s extracts a TBase database into an SQL script file.\n\n"), progname);
+    printf(_("%s extracts a OpenTenBase database into an SQL script file.\n\n"), progname);
     printf(_("Usage:\n"));
     printf(_("  %s [OPTION]...\n"), progname);
 

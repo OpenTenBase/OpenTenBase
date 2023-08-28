@@ -439,7 +439,7 @@ MakeViewParse(ViewStmt* stmt, const char* query_string,
 	return viewParse;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /*
  * IsViewTemp
  *		Check whethe we need a temporary view.

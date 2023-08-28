@@ -39,7 +39,7 @@ extern Expr *get_notclausearg(Expr *notclause);
 
 extern bool or_clause(Node *clause);
 extern Expr *make_orclause(List *orclauses);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern bool OpExpr_clause(Node *clause);
 #endif
 extern bool and_clause(Node *clause);

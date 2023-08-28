@@ -64,7 +64,7 @@
 #include "commands/tablecmds.h"
 #endif /* PGXC */
 #include "utils/lsyscache.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "pgxc/nodemgr.h"
 #include "pgxc/squeue.h"
 #include "catalog/pgxc_class.h"
@@ -100,7 +100,7 @@
 #define CP_SMALL_TLIST        0x0002    /* Prefer narrower tlists */
 #define CP_LABEL_TLIST        0x0004    /* tlist must contain sortgrouprefs */
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 int remote_subplan_depth = 0;
 List *groupOids = NULL;
 bool mergejoin = false;
@@ -343,7 +343,7 @@ static int add_sort_column(AttrNumber colIdx, Oid sortOp, Oid coll,
                 bool nulls_first,int numCols, AttrNumber *sortColIdx,
                 Oid *sortOperators, Oid *collations, bool *nullsFirst);
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static double GetPlanRows(Plan *plan);
 static bool set_plan_parallel(Plan *plan);
 static void set_plan_nonparallel(Plan *plan);
@@ -593,7 +593,7 @@ create_scan_plan(PlannerInfo *root, Path *best_path, int flags)
     List       *tlist;
     Plan       *plan;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     bool    isindexscan = false;                /* result is sorted? */
     bool    need_merge_append = false;            /* need MergeAppend */
 //    bool    need_pullup_filter = false;         /* need pull up filter */
@@ -674,7 +674,7 @@ create_scan_plan(PlannerInfo *root, Path *best_path, int flags)
         else
         {
             tlist = build_physical_tlist(root, rel);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 //            does_use_physical_tlist = true;
 #endif
             if (tlist == NIL)
@@ -717,7 +717,7 @@ create_scan_plan(PlannerInfo *root, Path *best_path, int flags)
     }
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if((rel->reloptkind == RELOPT_BASEREL || rel->reloptkind == RELOPT_OTHER_MEMBER_REL) && rel->rtekind == RTE_RELATION && rel->intervalparent && !rel->isdefault)
     {
         rte = root->simple_rte_array[rel->relid];
@@ -890,7 +890,7 @@ create_scan_plan(PlannerInfo *root, Path *best_path, int flags)
             break;
     }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if((rel->reloptkind == RELOPT_BASEREL || rel->reloptkind == RELOPT_OTHER_MEMBER_REL) && rel->rtekind == RTE_RELATION && rel->intervalparent && !rel->isdefault)
     {        
         /* create append plan with a list of scan.
@@ -1365,7 +1365,7 @@ create_append_plan(PlannerInfo *root, AppendPath *best_path)
     List       *tlist = build_path_tlist(root, &best_path->path);
     List       *subplans = NIL;
     ListCell   *subpaths;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     bool       parallel_aware = true;
 #endif
 
@@ -1404,7 +1404,7 @@ create_append_plan(PlannerInfo *root, AppendPath *best_path)
 
         subplans = lappend(subplans, subplan);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         parallel_aware = parallel_aware & subplan->parallel_aware;
 #endif
     }
@@ -1420,7 +1420,7 @@ create_append_plan(PlannerInfo *root, AppendPath *best_path)
 
     copy_generic_path_info(&plan->plan, (Path *) best_path);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (olap_optimizer)
     {
         plan->plan.parallel_aware = parallel_aware;
@@ -1660,7 +1660,7 @@ create_unique_plan(PlannerInfo *root, UniquePath *best_path, int flags)
     AttrNumber *groupColIdx;
     int            groupColPos;
     ListCell   *l;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	TargetEntry *distributed_expr = NULL;
 	Path	    *subpath = best_path->subpath;
 	Node	    *sub_disExpr = NULL;
@@ -1766,7 +1766,7 @@ create_unique_plan(PlannerInfo *root, UniquePath *best_path, int flags)
         if (!tle)                /* shouldn't happen */
             elog(ERROR, "failed to find unique expression in subplan tlist");
         groupColIdx[groupColPos++] = tle->resno;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		if (enable_distributed_unique_plan)
 		{
 			if (equal(tle->expr, sub_disExpr))
@@ -1798,7 +1798,7 @@ create_unique_plan(PlannerInfo *root, UniquePath *best_path, int flags)
                 elog(ERROR, "could not find compatible hash operator for operator %u",
                      in_oper);
             groupOperators[groupColPos++] = eq_oper;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 			if (enable_distributed_unique_plan)
 			{
 				if (!distributed_expr)
@@ -1810,7 +1810,7 @@ create_unique_plan(PlannerInfo *root, UniquePath *best_path, int flags)
 			}
 #endif
         }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		if (enable_distributed_unique_plan)
 		{
 			if (!match_distributed_column)
@@ -1921,7 +1921,7 @@ create_unique_plan(PlannerInfo *root, UniquePath *best_path, int flags)
             tle = get_tle_by_resno(subplan->targetlist,
                                    groupColIdx[groupColPos]);
             Assert(tle != NULL);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             /* get distributed column for remote_subplan */
             if (enable_distributed_unique_plan)
             {
@@ -1944,7 +1944,7 @@ create_unique_plan(PlannerInfo *root, UniquePath *best_path, int flags)
             sortList = lappend(sortList, sortcl);
             groupColPos++;
         }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		if (enable_distributed_unique_plan)
 		{
 			if (!match_distributed_column)
@@ -2137,7 +2137,7 @@ create_projection_plan(PlannerInfo *root, ProjectionPath *best_path)
         plan->plan_width = best_path->path.pathtarget->width;
         plan->parallel_safe = best_path->path.parallel_safe;
         /* ... but don't change subplan's parallel_aware flag */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /* set interval child tlist */
         if (IsA(plan, Append))
         {
@@ -2239,7 +2239,7 @@ create_sort_plan(PlannerInfo *root, SortPath *best_path, int flags)
 
     copy_generic_path_info(&plan->plan, (Path *) best_path);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (plan->plan.parallel_aware)
     {
         Plan *left = plan->plan.lefttree;
@@ -2356,7 +2356,7 @@ create_agg_plan(PlannerInfo *root, AggPath *best_path)
                     subplan);
 
     copy_generic_path_info(&plan->plan, (Path *) best_path);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	/* set entry size of hashtable using by hashagg */
 	if (g_hybrid_hash_agg)
 	{
@@ -3070,7 +3070,7 @@ create_modifytable_plan(PlannerInfo *root, ModifyTablePath *best_path)
 
     copy_generic_path_info(&plan->plan, &best_path->path);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	/*
 	 * If we have unshippable triggers, we have to do DML on coordinators,
 	 * generate remote_dml plan now.
@@ -3244,7 +3244,7 @@ create_remotescan_plan(PlannerInfo *root,
                               best_path->subpath->distribution,
                               best_path->path.pathkeys);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (olap_optimizer)
     {
         plan->scan.plan.startup_cost = ((Path *)best_path)->startup_cost;
@@ -3875,7 +3875,7 @@ create_bitmap_subplan(PlannerInfo *root, Path *bitmapqual,
         ListCell   *l;
 		double      nodes = 1;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		nodes = path_count_datanodes(&apath->path);
 #endif
 
@@ -3967,7 +3967,7 @@ create_bitmap_subplan(PlannerInfo *root, Path *bitmapqual,
         else
         {
 			double  nodes = 1;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 			nodes = path_count_datanodes(&opath->path);
 #endif
             plan = (Plan *) make_bitmap_or(subplans);
@@ -4006,7 +4006,7 @@ create_bitmap_subplan(PlannerInfo *root, Path *bitmapqual,
         List       *subindexECs;
         ListCell   *l;
 		double      nodes = 1;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		nodes = path_count_datanodes(&ipath->path);
 #endif
         /* Use the regular indexscan plan build machinery... */
@@ -4841,7 +4841,7 @@ create_nestloop_plan(PlannerInfo *root,
      * rescan RemoteSubplan and do not support it.
      * So if inner_plan is a RemoteSubplan, materialize it.
      */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	if (!IsA(inner_plan, Material) && contain_remote_subplan_walker((Node*)inner_plan, NULL, true))
     {
         inner_plan = materialize_top_remote_subplan(inner_plan);
@@ -4902,7 +4902,7 @@ create_mergejoin_plan(PlannerInfo *root,
     ListCell   *lip;
         Path       *outer_path = best_path->jpath.outerjoinpath;
         Path       *inner_path = best_path->jpath.innerjoinpath;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     bool       reset = false;
 
     if (!mergejoin)
@@ -5194,7 +5194,7 @@ create_mergejoin_plan(PlannerInfo *root,
     /* Costs of sort and material steps are included in path cost already */
     copy_generic_path_info(&join_plan->join.plan, &best_path->jpath.path);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (reset)
     {
         mergejoin = false;
@@ -5218,7 +5218,7 @@ create_hashjoin_plan(PlannerInfo *root,
     Oid            skewTable = InvalidOid;
     AttrNumber    skewColumn = InvalidAttrNumber;
     bool        skewInherit = false;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     bool       outer_parallel_aware = false;
     bool       hashjoin_parallel_aware = false;
     Plan       *subplan = NULL;
@@ -5327,7 +5327,7 @@ create_hashjoin_plan(PlannerInfo *root,
     copy_plan_costsize(&hash_plan->plan, inner_plan);
     hash_plan->plan.startup_cost = hash_plan->plan.total_cost;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /*
       * In parallel hashjoin, we need to set hash plan be parallel plan.
          */
@@ -5379,7 +5379,7 @@ create_hashjoin_plan(PlannerInfo *root,
 
     copy_generic_path_info(&join_plan->join.plan, &best_path->jpath.path);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (outer_parallel_aware)
     {
         join_plan->join.plan.parallel_aware = hashjoin_parallel_aware;
@@ -6463,7 +6463,7 @@ make_remotesubplan(PlannerInfo *root,
     Plan       *plan = &node->scan.plan;
     Bitmapset  *tmpset;
     int            nodenum;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     char distributionType = resultDistribution ? resultDistribution->distributionType :
                                                  LOCATOR_TYPE_NONE;
     Plan *gather_left = lefttree;
@@ -6476,7 +6476,7 @@ make_remotesubplan(PlannerInfo *root,
     Assert(!equal(resultDistribution, execDistribution));
     Assert(!IsA(lefttree, RemoteSubplan));
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	/* do things like path_count_datanodes, but we have only distribution here */
 	if (execDistribution &&
 	    (execDistribution->distributionType == LOCATOR_TYPE_HASH ||
@@ -6857,7 +6857,7 @@ make_remotesubplan(PlannerInfo *root,
                 {
                     /* Ok to modify subplan's target list */
                     lefttree->targetlist = lappend(lefttree->targetlist, newtle);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 					if (IsA(lefttree, Gather)&& g_UseDataPump && olap_optimizer &&
 						(distributionType == LOCATOR_TYPE_HASH || distributionType == LOCATOR_TYPE_SHARD))
 					{
@@ -7166,7 +7166,7 @@ make_remotesubplan(PlannerInfo *root,
     node->cursor = get_internal_cursor();
     node->unique = 0;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* 
       * if gather node is under remotesubplan, parallel workers can send tuples directly
       * without gather motion to speed up the data transfering.
@@ -7349,7 +7349,7 @@ make_nestloop(List *tlist,
     node->join.joinqual = joinclauses;
     node->nestParams = nestParams;
     
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* we prefetch the inner plan data to avoid deadlock */
     if (contain_remote_subplan_walker((Node*)lefttree, NULL, true))
     {        
@@ -7383,7 +7383,7 @@ make_hashjoin(List *tlist,
     node->join.jointype = jointype;
     node->join.inner_unique = inner_unique;
     node->join.joinqual = joinclauses;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* we prefetch the inner plan data to avoid deadlock */
     if (contain_remote_subplan_walker((Node*)lefttree, NULL, true))
     {
@@ -7447,7 +7447,7 @@ make_mergejoin(List *tlist,
     node->join.joinqual = joinclauses;
 
     
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* we prefetch the inner plan data to avoid deadlock */
     if (contain_remote_subplan_walker((Node*)lefttree, NULL, true))
     {        
@@ -8067,7 +8067,7 @@ make_agg(List *tlist, List *qual,
     node->aggParams = NULL;        /* SS_finalize_plan() will fill this */
     node->groupingSets = groupingSets;
     node->chain = chain;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	node->hybrid = false;
 	node->entrySize = 0;
 	node->noDistinct = false;
@@ -8330,7 +8330,7 @@ make_gather(List *qptlist,
     node->single_copy = single_copy;
     node->invisible = false;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	/*
 	 * if there has hashjoin in the lower layer, write down the smallest workers
 	 */
@@ -8436,7 +8436,7 @@ make_limit(Plan *lefttree, Node *limitOffset, Node *limitCount,
     node->limitOffset = limitOffset;
     node->limitCount = limitCount;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	node->skipEarlyFinish = skipEarlyFinish;
 #endif
 
@@ -8577,7 +8577,7 @@ make_modifytable(PlannerInfo *root,
     Bitmapset  *direct_modify_plans;
     ListCell   *lc;
     int            i;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     int         partoffset;         
 #endif
 
@@ -8632,7 +8632,7 @@ make_modifytable(PlannerInfo *root,
     node->returningLists = returningLists;
     node->rowMarks = rowMarks;
     node->epqParam = epqParam;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     node->haspartparent = false;
     node->parentplanidx = -1;
     node->partplans = NULL;
@@ -8670,7 +8670,7 @@ make_modifytable(PlannerInfo *root,
 
             fdwroutine = resultRel->fdwroutine;
             
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             /* for update or delete */
             if(resultRel->intervalparent)
             {
@@ -8700,7 +8700,7 @@ make_modifytable(PlannerInfo *root,
                 fdwroutine = GetFdwRoutineByRelId(rte->relid);
             else
                 fdwroutine = NULL;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             /* for insert */
             if(rte->rtekind == RTE_RELATION)
             {
@@ -8781,7 +8781,7 @@ make_modifytable(PlannerInfo *root,
     node->fdwPrivLists = fdw_private_list;
     node->fdwDirectModifyPlans = direct_modify_plans;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* expand partitioned table */
     if(node->haspartparent)
     {
@@ -8943,7 +8943,7 @@ get_internal_cursor(void)
 #endif
 
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 bool
 contain_remote_subplan_walker(Node *node, void *context, bool include_cte)
 {// #lizard forgives

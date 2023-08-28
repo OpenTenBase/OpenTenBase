@@ -37,7 +37,7 @@
 #include "utils/nabstime.h"
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "utils/lsyscache.h"
 #endif
 
@@ -304,7 +304,7 @@ hashvarlena(PG_FUNCTION_ARGS)
 
     return result;
 }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static Datum
 hashcustomtype(PG_FUNCTION_ARGS)
 {
@@ -1070,12 +1070,12 @@ compute_hash(Oid type, Datum value, char locator)
 
         case NUMERICOID:
             return DirectFunctionCall1(hash_numeric, value);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		case JSONBOID:
 		    return DirectFunctionCall1(jsonb_hash, value);
 #endif
         default:
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             if (locator == LOCATOR_TYPE_SHARD)
                 return DirectFunctionCall2(hashcustomtype, type, value);
 #endif
@@ -1159,7 +1159,7 @@ get_compute_hash_function(Oid type, char locator)
             return "timetz_hash";
         case NUMERICOID:
             return "hash_numeric";
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		case JSONBOID:
 		    return "jsonb_hash";
 #endif

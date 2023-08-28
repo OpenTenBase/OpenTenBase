@@ -1164,7 +1164,7 @@ get_object_address(ObjectType objtype, Node *object,
     return address;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 char *GetRemoveObjectName(ObjectType objtype, Node *object)
 {
 	switch (objtype)
@@ -3544,7 +3544,7 @@ getObjectDescription(const ObjectAddress *object)
                                  get_pgxc_groupname(object->objectId));
                 break;
             }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         case OCLASS_PG_PARTITION_INTERVAL:
             {
                 appendStringInfo(&buffer, _("interval partition %s"),
@@ -4112,7 +4112,7 @@ getObjectTypeDescription(const ObjectAddress *object)
         case OCLASS_PGXC_GROUP:
             appendStringInfoString(&buffer, "node group");
             break;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         case OCLASS_PG_PARTITION_INTERVAL:
             appendStringInfoString(&buffer, "interval partition");
             break;
@@ -5227,7 +5227,7 @@ getObjectIdentityParts(const ObjectAddress *object,
                                        quote_identifier(groupname));
                 break;
             }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         case OCLASS_PG_PARTITION_INTERVAL:
             {
                 char       *relname;

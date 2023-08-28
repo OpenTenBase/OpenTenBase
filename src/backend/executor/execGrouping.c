@@ -316,7 +316,7 @@ BuildTupleHashTable(int numCols, AttrNumber *keyColIdx,
     hashtable->inputslot = NULL;
     hashtable->in_hash_funcs = NULL;
     hashtable->cur_eq_funcs = NULL;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	hashtable->spilled = false;
 	hashtable->spill_set = NULL;
 	hashtable->hybrid = false;
@@ -398,7 +398,7 @@ LookupTupleHashEntry(TupleHashTable hashtable, TupleTableSlot *slot,
         }
         else
         {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 			if (hashtable->hybrid)
 			{
 				if (!entry)
@@ -421,7 +421,7 @@ LookupTupleHashEntry(TupleHashTable hashtable, TupleTableSlot *slot,
             *isnew = true;
             /* zero caller data */
             entry->additional = NULL;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 			if (hashtable->hybrid)
 			{
 				/* use our own memorycontext */

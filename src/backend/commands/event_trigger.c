@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -175,7 +175,7 @@ static event_trigger_support_data event_trigger_support[] = {
     {"STATISTICS", true},
     {"SUBSCRIPTION", true},
 #ifdef __SUBSCRIPTION__
-    {"TBASE SUBSCRIPTION", true},
+    {"OPENTENBASE SUBSCRIPTION", true},
 #endif
     {"TABLE", true},
     {"TABLESPACE", false},
@@ -358,7 +358,7 @@ check_ddl_tag(const char *tag)
         pg_strcasecmp(tag, "REVOKE") == 0 ||
         pg_strcasecmp(tag, "DROP OWNED") == 0 ||
         pg_strcasecmp(tag, "IMPORT FOREIGN SCHEMA") == 0 ||
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         pg_strcasecmp(tag, "AUDIT") == 0 ||
         pg_strcasecmp(tag, "NO AUDIT") == 0 ||
         pg_strcasecmp(tag, "CLEAN AUDIT") == 0 ||
@@ -766,7 +766,7 @@ EventTriggerCommonSetup(Node *parsetree,
     ListCell   *lc;
     List       *runlist = NIL;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* 
      * check overlap will not trigger the EVENT TRIGGER
      */
@@ -1264,7 +1264,7 @@ EventTriggerSupportsObjectClass(ObjectClass objclass)
         case OCLASS_PGXC_NODE:
         case OCLASS_PGXC_GROUP:
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         case OCLASS_PG_PARTITION_INTERVAL:
 #endif
 #ifdef __AUDIT__
@@ -1775,7 +1775,7 @@ EventTriggerCollectSimpleCommand(ObjectAddress address,
     MemoryContext oldcxt;
     CollectedCommand *command;
     
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (address.classId == InvalidOid  && 
         address.objectId == InvalidOid && 
         address.objectSubId == InvalidOid)

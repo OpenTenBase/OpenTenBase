@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -206,7 +206,7 @@ typedef struct SnapshotData
     TimestampTz whenTaken;        /* timestamp when snapshot was taken */
     XLogRecPtr    lsn;            /* position in the WAL stream when taken */
     
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     int         groupsize;
     Bitmapset    *shardgroup;
     char        sg_filler[SHARD_TABLE_BITMAP_SIZE];
@@ -229,7 +229,7 @@ typedef enum
     HeapTupleWouldBlock            /* can be returned by heap_tuple_lock */
 } HTSU_Result;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #define    SnapshotGetShardTable(snapshot) ((snapshot)->shardgroup)
 #endif
 

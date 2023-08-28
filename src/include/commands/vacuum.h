@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -218,7 +218,7 @@ extern int	vacuum_freeze_table_age;
 extern int	vacuum_multixact_freeze_min_age;
 extern int	vacuum_multixact_freeze_table_age;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern bool	enable_sampling_analyze;
 extern bool distributed_query_analyze;
 extern bool explain_query_analyze;
@@ -359,7 +359,7 @@ extern double anl_init_selection_state(int n);
 extern double anl_get_next_S(double t, int n, double *stateptr);
 extern RemoteQuery *init_sync_remotequery(StatSyncOpt *syncOpt, char **cnname);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern Size QueryAnalyzeInfoShmemSize(void);
 
 extern void QueryAnalyzeInfoInit(void);

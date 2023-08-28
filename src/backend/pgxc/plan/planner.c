@@ -59,7 +59,7 @@
 #include "commands/tablecmds.h"
 #include "utils/timestamp.h"
 #include "utils/date.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "access/sysattr.h"
 #include "catalog/pg_attribute.h"
 #include "optimizer/var.h"
@@ -277,7 +277,7 @@ pgxc_FQS_planner(Query *query, int cursorOptions, ParamListInfo boundParams)
     Plan            *top_plan;
     List            *tlist = query->targetList;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     groupOids = NULL;
 #endif
 
@@ -458,7 +458,7 @@ pgxc_FQS_create_remote_plan(Query *query, ExecNodes *exec_nodes, bool is_exec_di
 
     return query_step;
 }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 RangeTblEntry *
 make_dummy_remote_rte(char *relname, Alias *alias)
 {

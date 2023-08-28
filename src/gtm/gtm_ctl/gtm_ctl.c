@@ -29,7 +29,7 @@
 #endif
 
 #include "libpq/pqsignal.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "gtm/gtm_client.h"
 #endif
 /* PID can be negative for standalone backend */
@@ -76,7 +76,7 @@ static char *log_file = NULL;
 static char *gtm_path = NULL;
 static char *gtm_app = NULL;
 static char *argv0 = NULL;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static char *gtm_host = NULL;
 static char *gtm_port = NULL;
 static char *startup_gts = NULL;
@@ -1421,7 +1421,7 @@ main(int argc, char **argv)
     char        *nodename = NULL; /* GTM Proxy nodename */
 
     progname = "gtm_ctl";
-#ifdef  __TBASE__
+#ifdef  __OPENTENBASE__
     gtm_app  = "gtm";
     gtm_host = "127.0.0.1";
 #endif
@@ -1535,7 +1535,7 @@ main(int argc, char **argv)
 						exit(1);
 					}
 					break;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 				case 'H':
 					gtm_host = xstrdup(optarg);
 					break;
@@ -1664,7 +1664,7 @@ main(int argc, char **argv)
         }
     }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	if(ctl_command == STATUS_COMMAND || ctl_command == STAT_COMMAND
 	            || ctl_command == ERRLOG_COMMAND)
 	{

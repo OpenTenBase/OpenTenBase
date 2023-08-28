@@ -59,7 +59,7 @@
 
 int            max_logical_replication_workers = 4;
 int            max_sync_workers_per_subscription = 2;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 int         max_network_bandwidth_per_subscription = 50;
 #endif
 

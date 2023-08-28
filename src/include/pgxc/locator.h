@@ -109,7 +109,7 @@ typedef struct
 #endif
 	Oid			en_relid;			/* Relation to determine execution nodes */
 	RelationAccessType accesstype;	/* Access type to determine execution nodes */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	bool    	restrict_shippable; /* The ExecNode is choose by join qual on distribute column */
 	bool		const_subquery; 	/* The subquery rte only got constant values */
 #endif
@@ -247,7 +247,7 @@ extern LocatorHashFunc hash_func_ptr(Oid dataType);
 extern bool IsTypeDistributable(Oid col_type);
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern char getLocatorDisType(Locator *self);
 extern bool prefer_olap;
 extern bool IsDistributedColumn(AttrNumber attr, RelationLocInfo *relation_loc_info);

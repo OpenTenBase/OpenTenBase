@@ -49,7 +49,7 @@ ObjectAddress
 CreateStatistics(CreateStatsStmt *stmt)
 {
 	int16		attnums[STATS_MAX_DIMENSIONS];
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	int16		attnums_ori[STATS_MAX_DIMENSIONS];
 #endif
 	int			numcols = 0;
@@ -67,7 +67,7 @@ CreateStatistics(CreateStatsStmt *stmt)
 	Oid			relid;
 	ObjectAddress parentobject,
 				myself;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     Datum		types[3];		/* one for each possible type of statistic */
 #else
 	Datum		types[2];		/* one for each possible type of statistic */
@@ -77,7 +77,7 @@ CreateStatistics(CreateStatsStmt *stmt)
 	ArrayType  *stxkind;
 	bool		build_ndistinct;
 	bool		build_dependencies;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	bool		build_subset;
 #endif
 	bool		requested_type = false;
@@ -217,7 +217,7 @@ CreateStatistics(CreateStatsStmt *stmt)
 							STATS_MAX_DIMENSIONS)));
 
 		attnums[numcols] = attForm->attnum;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		attnums_ori[numcols] = attForm->attnum;
 #endif
 		numcols++;
@@ -260,7 +260,7 @@ CreateStatistics(CreateStatsStmt *stmt)
 	 */
 	build_ndistinct = false;
 	build_dependencies = false;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	build_subset = false;
 #endif
 	foreach(cell, stmt->stat_types)
@@ -277,7 +277,7 @@ CreateStatistics(CreateStatsStmt *stmt)
 			build_dependencies = true;
 			requested_type = true;
 		}
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		else if (strcmp(type, "subset") == 0)
 		{
 			if (list_length(stmt->exprs) != 2)
@@ -308,7 +308,7 @@ CreateStatistics(CreateStatsStmt *stmt)
 	{
 		build_ndistinct = true;
 		build_dependencies = true;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		/* No need to build user defined knowledge */
 		build_subset = false;
 #endif
@@ -320,7 +320,7 @@ CreateStatistics(CreateStatsStmt *stmt)
 		types[ntypes++] = CharGetDatum(STATS_EXT_NDISTINCT);
 	if (build_dependencies)
 		types[ntypes++] = CharGetDatum(STATS_EXT_DEPENDENCIES);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	/*
 	 * User defined subset hint should not coexists with other
 	 * types. Thus we don't need to extend the size of 'types'
@@ -347,7 +347,7 @@ CreateStatistics(CreateStatsStmt *stmt)
 	/* no statistics built yet */
 	nulls[Anum_pg_statistic_ext_stxndistinct - 1] = true;
 	nulls[Anum_pg_statistic_ext_stxdependencies - 1] = true;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	nulls[Anum_pg_statistic_ext_stxsubset - 1] = true;
 #endif
 

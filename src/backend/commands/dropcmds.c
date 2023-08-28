@@ -27,7 +27,7 @@
 #include "parser/parse_type.h"
 #include "utils/builtins.h"
 #include "utils/syscache.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "utils/rel.h"
 #include "catalog/catalog.h"
 #include "storage/lmgr.h"
@@ -85,7 +85,7 @@ ObjectAddresses* PreCheckforRemoveObjects(DropStmt *stmt, bool missing_ok,
 
 			does_not_exist_skipping(stmt->removeType, object, missing_ok);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 			if (query_string)
 			{
 				if (!querystring_omit)
@@ -100,7 +100,7 @@ ObjectAddresses* PreCheckforRemoveObjects(DropStmt *stmt, bool missing_ok,
             continue;
         }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /* could not drop trigger on child partition */
         if (OBJECT_TRIGGER == stmt->removeType && relation)
         {

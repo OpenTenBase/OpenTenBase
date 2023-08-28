@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -135,7 +135,7 @@
 #ifdef _MLS_
 #include "utils/datamask.h"
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "optimizer/pgxcship.h"
 #include "audit/audit_fga.h"
 #include "pgstat.h"
@@ -144,7 +144,7 @@
 #endif
 
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /* GUC to enable transform insert into multi-values to copy from */
 bool   g_transform_insert_to_copy;
 #endif
@@ -646,7 +646,7 @@ transformInsertStmt(ParseState *pstate, InsertStmt *stmt)
     ListCell   *lc;
     bool        isOnConflictUpdate;
     AclMode        targetPerms;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     int ncolumns = 0;
 #endif
 
@@ -655,7 +655,7 @@ transformInsertStmt(ParseState *pstate, InsertStmt *stmt)
 
     qry->commandType = CMD_INSERT;
     pstate->p_is_insert = true;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     qry->isSingleValues = false;
     qry->isMultiValues = false;
     stmt->ninsert_columns = 0;
@@ -888,7 +888,7 @@ transformInsertStmt(ParseState *pstate, InsertStmt *stmt)
         }
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /*
          * transform 'insert into values' into 'COPY FROM', only handle
          * distributed relation(by hash/shard/replication) without
@@ -1133,7 +1133,7 @@ TRANSFORM_VALUELISTS:
                                             exprLocation((Node *) sublist))));
             }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             if (IsExtendedQuery() && qry->isMultiValues && !qry->hasUnshippableTriggers)
             {
                 /*
@@ -1187,7 +1187,7 @@ TRANSFORM_VALUELISTS:
             exprsLists = lappend(exprsLists, sublist);
         }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /* number of insert columns must be same as valueslist */
         if (IsExtendedQuery() && qry->isMultiValues && !qry->hasUnshippableTriggers)
         {
@@ -1248,7 +1248,7 @@ TRANSFORM_VALUELISTS:
                                       stmt->cols,
                                       icolumns, attrnos,
                                       false);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         }
 #endif
     }
@@ -1279,7 +1279,7 @@ TRANSFORM_VALUELISTS:
                                       stmt->cols,
                                       icolumns, attrnos,
                                       false);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if(RELATION_IS_INTERVAL(pstate->p_target_relation))
         {
             int partcol = InvalidAttrNumber;
@@ -2759,7 +2759,7 @@ transformUpdateTargetList(ParseState *pstate, List *origTlist)
     RangeTblEntry *target_rte;
     ListCell   *orig_tl;
     ListCell   *tl;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     RelationLocInfo *rd_locator_info = pstate->p_target_relation->rd_locator_info;
 #endif
 
@@ -2806,7 +2806,7 @@ transformUpdateTargetList(ParseState *pstate, List *origTlist)
                             RelationGetRelationName(pstate->p_target_relation)),
                      parser_errposition(pstate, origTarget->location)));
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /* could not update distributed columns */
         if(IS_PGXC_COORDINATOR)
         {
@@ -3615,7 +3615,7 @@ test_raw_expression_coverage(Node *node, void *context)
 }
 
 #endif                            /* RAW_EXPRESSION_COVERAGE_TEST */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 List *
 transformInsertValuesIntoCopyFrom(List *plantree_list, InsertStmt *stmt, bool *success,
                                             char *transform_string, Query    *query)

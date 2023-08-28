@@ -45,7 +45,7 @@ typedef struct StatExtEntry
 	char	   *name;			/* statistics object's name */
 	Bitmapset  *columns;		/* attribute numbers covered by the object */
 	List	   *types;			/* 'char' list of enabled statistic kinds */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	List	   *orderedColumns;	/* attribute numbers in order of dependency */
 #endif
 } StatExtEntry;
@@ -56,7 +56,7 @@ static VacAttrStats **lookup_var_attr_stats(Relation rel, Bitmapset *attrs,
                       int nvacatts, VacAttrStats **vacatts);
 static void statext_store(Relation pg_stext, Oid relid,
 			  MVNDistinct *ndistinct, MVDependencies *dependencies,
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 			  MVDependencies *subset,
 #endif
 			  VacAttrStats **stats);
@@ -92,7 +92,7 @@ BuildRelationExtStatistics(Relation onerel, double totalrows,
 		StatExtEntry *stat = (StatExtEntry *) lfirst(lc);
 		MVNDistinct *ndistinct = NULL;
 		MVDependencies *dependencies = NULL;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		MVDependencies *subset = NULL;
 #endif
 		VacAttrStats **stats;
@@ -131,14 +131,14 @@ BuildRelationExtStatistics(Relation onerel, double totalrows,
 			else if (t == STATS_EXT_DEPENDENCIES)
 				dependencies = statext_dependencies_build(numrows, rows,
 														  stat->columns, stats);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 			else if (t == STATS_EXT_SUBSET)
 				subset = statext_subset_build(numrows, stat->orderedColumns);
 #endif
 		}
 
 		/* store the statistics in the catalog */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		statext_store(pg_stext, stat->statOid,
 					  ndistinct, dependencies,
 					  subset, stats);
@@ -172,7 +172,7 @@ statext_is_kind_built(HeapTuple htup, char type)
             attnum = Anum_pg_statistic_ext_stxdependencies;
             break;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		case STATS_EXT_SUBSET:
 			attnum = Anum_pg_statistic_ext_stxsubset;
 			break;
@@ -217,7 +217,7 @@ fetch_statentries_for_relation(Relation pg_statext, Oid relid)
 		ArrayType  *arr;
 		char	   *enabled;
 		Form_pg_statistic_ext staForm;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		bool		need_column_order = false;
 #endif
 
@@ -248,7 +248,7 @@ fetch_statentries_for_relation(Relation pg_statext, Oid relid)
 				   (enabled[i] == STATS_EXT_DEPENDENCIES) ||
 				   (enabled[i] == STATS_EXT_SUBSET));
 			entry->types = lappend_int(entry->types, (int) enabled[i]);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 
 			if (enabled[i] == STATS_EXT_SUBSET)
 			{
@@ -342,7 +342,7 @@ lookup_var_attr_stats(Relation rel, Bitmapset *attrs,
 static void
 statext_store(Relation pg_stext, Oid statOid,
 			  MVNDistinct *ndistinct, MVDependencies *dependencies,
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 			  MVDependencies *subset,
 #endif
 			  VacAttrStats **stats)
@@ -376,7 +376,7 @@ statext_store(Relation pg_stext, Oid statOid,
 		values[Anum_pg_statistic_ext_stxdependencies - 1] = PointerGetDatum(data);
 	}
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	if (subset != NULL)
 	{
 		bytea	   *data = statext_dependencies_serialize(subset);
@@ -389,7 +389,7 @@ statext_store(Relation pg_stext, Oid statOid,
 	/* always replace the value (either by bytea or NULL) */
 	replaces[Anum_pg_statistic_ext_stxndistinct - 1] = true;
 	replaces[Anum_pg_statistic_ext_stxdependencies - 1] = true;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	replaces[Anum_pg_statistic_ext_stxsubset - 1] = true;
 #endif
 

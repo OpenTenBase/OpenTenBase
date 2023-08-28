@@ -657,9 +657,9 @@ ReplicationSlotDropPtr(ReplicationSlot *slot)
 #ifdef __STORAGE_SCALABLE__
     if (OidIsValid(slot->subid) && slot->data.persistency == RS_PERSISTENT)
     {
-        DirectFunctionCall1Coll(tbase_remove_pubtable_stat, InvalidOid,
+        DirectFunctionCall1Coll(opentenbase_remove_pubtable_stat, InvalidOid,
                                 UInt32GetDatum(slot->subid));
-        DirectFunctionCall1Coll(tbase_remove_pub_stat, InvalidOid,
+        DirectFunctionCall1Coll(opentenbase_remove_pub_stat, InvalidOid,
                                 PointerGetDatum(cstring_to_text(slot->subname.data)));
     }
 #endif
@@ -873,7 +873,7 @@ ReplicationSlotPersist(void)
     ReplicationSlotMarkDirty();
     ReplicationSlotSave();
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     replica_slot_wal_record_creat_slot();
 #endif
 }
@@ -1436,7 +1436,7 @@ SaveSlotToPath(ReplicationSlot *slot, const char *dir, int elevel)
                            S_IRUSR | S_IWUSR);
     if (fd < 0)
     {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         LWLockRelease(&slot->io_in_progress_lock);
 #endif
         ereport(elevel,
@@ -1471,7 +1471,7 @@ SaveSlotToPath(ReplicationSlot *slot, const char *dir, int elevel)
         CloseTransientFile(fd);
         errno = save_errno;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         LWLockRelease(&slot->io_in_progress_lock);
 #endif        
         ereport(elevel,
@@ -1491,7 +1491,7 @@ SaveSlotToPath(ReplicationSlot *slot, const char *dir, int elevel)
         pgstat_report_wait_end();
         CloseTransientFile(fd);
         errno = save_errno;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         LWLockRelease(&slot->io_in_progress_lock);
 #endif
         ereport(elevel,
@@ -1507,7 +1507,7 @@ SaveSlotToPath(ReplicationSlot *slot, const char *dir, int elevel)
     /* rename to permanent file, fsync file and directory */
     if (rename(tmppath, path) != 0)
     {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         LWLockRelease(&slot->io_in_progress_lock);
 #endif
         ereport(elevel,
@@ -1722,7 +1722,7 @@ RestoreSlotFromDisk(const char *name)
 
     slot->in_use                    = true;
     slot->active_pid                = 0;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	slot->pgoutput = false;
 	slot->subid = InvalidOid;
 	slot->relid = InvalidOid;

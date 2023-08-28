@@ -117,7 +117,7 @@
 #include "utils/snapmgr.h"
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "access/gtm.h"
 #include "utils/timeout.h"
 #include "utils/relcryptmap.h"
@@ -145,7 +145,7 @@ int            max_prepared_xacts = 10000;  /* We require 2PC */
 #else
 int            max_prepared_xacts = 0;
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 bool        enable_2pc_recovery_info = true;
 #endif
 
@@ -496,7 +496,7 @@ EndGlobalPrepare(GlobalTransaction gxact, bool isImplicit)
              gxact->xid, IsAutoVacuumWorkerProcess());
     }
 
-#ifdef __TBASE_DEBUG__
+#ifdef __OPENTENBASE_DEBUG__
 	if(enable_distri_print)
 	{
 		InsertPreparedXid(pgxact->xid, GetGlobalPrepareTimestamp());
@@ -1197,7 +1197,7 @@ typedef struct TwoPhaseFileHeader
 #ifdef __SUPPORT_DISTRIBUTED_TRANSACTION__
     TimestampTz prepared_timestamp; /* global prepare timestamp */
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     int32       ncreatesegs;    /* number of created sequences */
     int32       ndropsegs;        /* number of dropped sequences */
     int32       nrenamesegs;    /* number of renamed sequences */
@@ -1288,7 +1288,7 @@ StartPrepare(GlobalTransaction gxact)
     RelFileNode *commitrels;
     RelFileNode *abortrels;
     SharedInvalidationMessage *invalmsgs;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     char *create_info = NULL;
     char *drop_info   = NULL;
     char *rename_info = NULL;
@@ -1318,7 +1318,7 @@ StartPrepare(GlobalTransaction gxact)
     hdr.nabortrels = smgrGetPendingDeletes(false, &abortrels);
     hdr.ninvalmsgs = xactGetCommittedInvalidationMessages(&invalmsgs,
                                                           &hdr.initfileinval);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     hdr.ncreatesegs = GetGTMCreateSeq(&create_info);
     hdr.ndropsegs   = GetGTMDropSeq(&drop_info);
     hdr.nrenamesegs    = GetGTMRenameSeq(&rename_info);
@@ -1362,7 +1362,7 @@ StartPrepare(GlobalTransaction gxact)
         pfree(invalmsgs);
     }
     
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (hdr.ncreatesegs > 0)
     {
         save_state_data(create_info,
@@ -1815,7 +1815,7 @@ FinishPreparedTransaction(const char *gid, bool isCommit)
     RelFileNode *delrels;
     int            ndelrels;
     SharedInvalidationMessage *invalmsgs;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     RenameInfo  *rename_info = NULL;
     CreateInfo    *create_info = NULL;
     DropInfo    *drop_info   = NULL;
@@ -1843,7 +1843,7 @@ FinishPreparedTransaction(const char *gid, bool isCommit)
          *explict trans exit after FinishGTMGID, or nodestring and gxid is lost due to GTM restart, or
          *the transaction abnormal exit last time and it lost g_twophase_state
          */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         HOLD_INTERRUPTS();
         disable_timeout_safely();
 #endif
@@ -2010,7 +2010,7 @@ FinishPreparedTransaction(const char *gid, bool isCommit)
     bufptr += MAXALIGN(hdr->ninvalmsgs * sizeof(SharedInvalidationMessage));
 
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     create_info = (CreateInfo *) bufptr;
     bufptr += MAXALIGN(hdr->ncreatesegs * sizeof(CreateInfo));
 
@@ -2109,7 +2109,7 @@ FinishPreparedTransaction(const char *gid, bool isCommit)
         ProcessRecords(bufptr, xid, twophase_postabort_callbacks);
 
     
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     FinishSeqOp(isCommit);
 #endif
 
@@ -2130,7 +2130,7 @@ FinishPreparedTransaction(const char *gid, bool isCommit)
     MyLockedGxact = NULL;    
 
     pfree(buf);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     
     if(enable_distri_debug)
     {
@@ -2149,7 +2149,7 @@ FinishPreparedTransaction(const char *gid, bool isCommit)
     }
     
     AtEOXact_Global();
-#ifdef __TBASE_DEBUG__
+#ifdef __OPENTENBASE_DEBUG__
     if(enable_distri_print)
     {
         DeletePreparedXid(xid);
@@ -2737,7 +2737,7 @@ RecoverPreparedTransactions(void)
         bufptr += MAXALIGN(hdr->nabortrels * sizeof(RelFileNode));
         bufptr += MAXALIGN(hdr->ninvalmsgs * sizeof(SharedInvalidationMessage));
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         bufptr += MAXALIGN(hdr->ncreatesegs * sizeof(CreateInfo));
         bufptr += MAXALIGN(hdr->ndropsegs * sizeof(DropInfo));
         bufptr += MAXALIGN(hdr->nrenamesegs * sizeof(RenameInfo));

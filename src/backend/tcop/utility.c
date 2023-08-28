@@ -100,7 +100,7 @@
 #include "pgxc/locator.h"
 #include "utils/inval.h"
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "storage/nodelock.h"
 #include "utils/ruleutils.h"
 #include "utils/memutils.h"
@@ -121,7 +121,7 @@
 #include "catalog/pgxc_key_values.h"
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern int DropSequenceGTM(char *name, GTM_SequenceKeyType type);
 #endif
 
@@ -146,7 +146,7 @@ static RemoteQueryExecType GetNodesForRulesUtility(RangeVar *relation, bool *is_
 static void DropStmtPreTreatment(DropStmt *stmt, const char *queryString, bool sentToRemote,
                                  bool *is_temp, RemoteQueryExecType *exec_type);
 static bool IsStmtAllowedInLockedMode(Node *parsetree, const char *queryString);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static void ExecCreateKeyValuesStmt(Node *parsetree);
 static void RemoveSequeceBarely(DropStmt *stmt);
 extern void RegisterSeqDrop(char *name, int32 type);
@@ -290,7 +290,7 @@ check_xact_readonly(Node *parsetree)
         case T_AlterEnumStmt:
         case T_ViewStmt:
         case T_DropStmt:
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             {
                 if (nodeTag(parsetree) == T_DropStmt)
                 {
@@ -349,7 +349,7 @@ check_xact_readonly(Node *parsetree)
         case T_CreateSubscriptionStmt:
         case T_AlterSubscriptionStmt:
         case T_DropSubscriptionStmt:
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             {
                 if (nodeTag(parsetree) == T_CreatePublicationStmt ||
                     nodeTag(parsetree) == T_CreateSubscriptionStmt ||
@@ -358,8 +358,8 @@ check_xact_readonly(Node *parsetree)
                     if (XactReadOnly && !IsInParallelMode() && IS_PGXC_DATANODE)
                     {
                         #ifdef __SUBSCRIPTION__
-                        /* TBASE SUBSCRIPTION is not allowed on DATANODE */
-                        if (!IsTbaseSubscription(parsetree))
+                        /* OPENTENBASE SUBSCRIPTION is not allowed on DATANODE */
+                        if (!isOpenTenBaseSubscription(parsetree))
                         #endif
                         break;
                     }
@@ -500,7 +500,7 @@ ProcessUtility(PlannedStmt *pstmt,
     Assert(pstmt->commandType == CMD_UTILITY);
     Assert(queryString != NULL);    /* required as of 8.4 */
     
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (IS_PGXC_LOCAL_COORDINATOR)
         SetSendCommandId(true);
 #endif
@@ -565,7 +565,7 @@ ProcessUtilityPre(PlannedStmt *pstmt,
                     case TRANS_STMT_BEGIN:
                     case TRANS_STMT_START:
                     case TRANS_STMT_COMMIT:
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                     case TRANS_STMT_BEGIN_SUBTXN:
                     case TRANS_STMT_ROLLBACK_SUBTXN:
                     case TRANS_STMT_COMMIT_SUBTXN:
@@ -879,7 +879,7 @@ ProcessUtilityPre(PlannedStmt *pstmt,
         case T_CreateKeyValuesStmt:
         case T_CheckOverLapStmt:
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         case T_LockNodeStmt:
 		case T_SampleStmt:
 #endif
@@ -895,7 +895,7 @@ ProcessUtilityPre(PlannedStmt *pstmt,
                 if (IS_PGXC_LOCAL_COORDINATOR)
                 {
 					exec_type = GetRenameExecType(stmt, &is_temp);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 					if (LOCAL_PARALLEL_DDL)
 						exec_type = EXEC_ON_NONE;
                     /* clean connections of the old name first. */
@@ -928,7 +928,7 @@ ProcessUtilityPre(PlannedStmt *pstmt,
              */
             if (!IsConnFromCoord())
 			{
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 				if (LOCAL_PARALLEL_DDL)
 				{
 					PGXCNodeHandle* leaderCnHandle = find_ddl_leader_cn();
@@ -1049,7 +1049,7 @@ ProcessUtilityPre(PlannedStmt *pstmt,
             break;
 
         case T_CreateTrigStmt:
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         {
             /* 
               * trigger is already supported on shard table, we do all DML/truncate with triggers on
@@ -1179,17 +1179,17 @@ ProcessUtilityPre(PlannedStmt *pstmt,
             if (IS_PGXC_COORDINATOR)
             {
                 #ifdef __SUBSCRIPTION__
-                if (!IsTbaseSubscription(parsetree))
+                if (!isOpenTenBaseSubscription(parsetree))
                 #endif
                 ereport(ERROR,
                         (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-                         errmsg("COORDINATOR only supports CREATE TBASE SUBSCRIPTION"),
+                         errmsg("COORDINATOR only supports CREATE OPENTENBASE SUBSCRIPTION"),
                          errdetail("The feature is not currently supported")));
             }
             #ifdef __SUBSCRIPTION__
             else if (IS_PGXC_DATANODE)
             {
-                if (IsTbaseSubscription(parsetree))
+                if (isOpenTenBaseSubscription(parsetree))
                     ereport(ERROR,
                             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                              errmsg("DATANODE only supports CREATE SUBSCRIPTION"),
@@ -1221,22 +1221,22 @@ ProcessUtilityPre(PlannedStmt *pstmt,
             {
                 ereport(ERROR,
                     (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-                     errmsg("TBase only supports ALTER [TBASE] SUBSCRIPTION XXX connection '...'; "
-                     "and ALTER [TBASE] SUBSCRIPTION XXX REFRESH PUBLICATION ...; "
-                     "and ALTER [TBASE] SUBSCRIPTION XXX DISABLE; ")));
+                     errmsg("OpenTenBase only supports ALTER [OPENTENBASE] SUBSCRIPTION XXX connection '...'; "
+                     "and ALTER [OPENTENBASE] SUBSCRIPTION XXX REFRESH PUBLICATION ...; "
+                     "and ALTER [OPENTENBASE] SUBSCRIPTION XXX DISABLE; ")));
             }
 
             if (IS_PGXC_COORDINATOR)
             {
-                if (!IsTbaseSubscription(parsetree))
+                if (!isOpenTenBaseSubscription(parsetree))
                     ereport(ERROR,
                             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-                             errmsg("COORDINATOR only supports ALTER TBASE SUBSCRIPTION"),
+                             errmsg("COORDINATOR only supports ALTER OPENTENBASE SUBSCRIPTION"),
                              errdetail("The feature is not currently supported")));
             }
             else if (IS_PGXC_DATANODE)
             {
-                if (IsTbaseSubscription(parsetree))
+                if (isOpenTenBaseSubscription(parsetree))
                     ereport(ERROR,
                             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                              errmsg("DATANODE only supports ALTER SUBSCRIPTION"),
@@ -1254,15 +1254,15 @@ ProcessUtilityPre(PlannedStmt *pstmt,
 #ifdef __SUBSCRIPTION__
         if (IS_PGXC_COORDINATOR)
         {
-            if (!IsTbaseSubscription(parsetree))
+            if (!isOpenTenBaseSubscription(parsetree))
                 ereport(ERROR,
                         (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-                         errmsg("COORDINATOR only supports DROP TBASE SUBSCRIPTION"),
+                         errmsg("COORDINATOR only supports DROP OPENTENBASE SUBSCRIPTION"),
                          errdetail("The feature is not currently supported")));
         }
         else if (IS_PGXC_DATANODE)
         {
-            if (IsTbaseSubscription(parsetree))
+            if (isOpenTenBaseSubscription(parsetree))
                 ereport(ERROR,
                         (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                          errmsg("DATANODE only supports DROP SUBSCRIPTION"),
@@ -1424,7 +1424,7 @@ ProcessUtilityPost(PlannedStmt *pstmt,
         case T_CreateKeyValuesStmt:
         case T_CheckOverLapStmt:
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         case T_LockNodeStmt:
 		case T_SampleStmt:
 #endif
@@ -1469,7 +1469,7 @@ ProcessUtilityPost(PlannedStmt *pstmt,
 		case T_DropdbStmt:
 		case T_DropRoleStmt:
         case T_DropTableSpaceStmt:
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 			if (LOCAL_PARALLEL_DDL)
 				break;
 #endif
@@ -1763,7 +1763,7 @@ ProcessUtilityPost(PlannedStmt *pstmt,
             break;
 
         case T_CreateSeqStmt:
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 			if (LOCAL_PARALLEL_DDL)
 				break;
 #endif
@@ -1841,7 +1841,7 @@ ProcessUtilityPost(PlannedStmt *pstmt,
             break;
     }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (IS_PGXC_DATANODE && g_GTM_skip_catalog)
     {
         ereport(ERROR,
@@ -1951,7 +1951,7 @@ ProcessUtilityPost(PlannedStmt *pstmt,
 	}
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /*
  * Enable parallel ddl for specific query.
  */
@@ -2113,7 +2113,7 @@ standard_ProcessUtility(PlannedStmt *pstmt,
     bool        isTopLevel = (context == PROCESS_UTILITY_TOPLEVEL);
     ParseState *pstate;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	 /* parallel enable check */
 	 parallel_ddl_process(parsetree);
 #endif
@@ -2211,7 +2211,7 @@ standard_ProcessUtility(PlannedStmt *pstmt,
                         }
                         break;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                     case TRANS_STMT_BEGIN_SUBTXN:
                         elog(DEBUG1, "[PLPGSQL] recv beginsubtxn cmd. pid:%d", MyProcPid);
                         BeginInternalSubTransaction(NULL);
@@ -2342,7 +2342,7 @@ standard_ProcessUtility(PlannedStmt *pstmt,
             /* no event triggers for global objects */
             if (IS_PGXC_LOCAL_COORDINATOR)
                 PreventTransactionChain(isTopLevel, "CREATE TABLESPACE");
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 			/*
 			 * If I am the main execute CN but not Leader CN,
 			 * Notify the Leader CN to create firstly.
@@ -2365,7 +2365,7 @@ standard_ProcessUtility(PlannedStmt *pstmt,
             if (IS_PGXC_LOCAL_COORDINATOR)
                 PreventTransactionChain(isTopLevel, "DROP TABLESPACE");
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 				/*
 				 * If I am the main execute CN but not Leader CN,
 				 * Notify the Leader CN to create firstly.
@@ -2416,7 +2416,7 @@ standard_ProcessUtility(PlannedStmt *pstmt,
             break;
 
         case T_TruncateStmt:
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 			/*
 			 * If I am the main execute CN but not Leader CN,
 			 * Notify the Leader CN to create firstly.
@@ -2484,7 +2484,7 @@ standard_ProcessUtility(PlannedStmt *pstmt,
             if (IS_PGXC_LOCAL_COORDINATOR)
                 PreventTransactionChain(isTopLevel, "CREATE DATABASE");
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 			/*
 			 * If I am the main execute CN but not Leader CN,
 			 * Notify the Leader CN to create firstly.
@@ -2499,7 +2499,7 @@ standard_ProcessUtility(PlannedStmt *pstmt,
             break;
 
         case T_AlterDatabaseStmt:
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 			/*
 			 * If I am the main execute CN but not Leader CN,
 			 * Notify the Leader CN to create firstly.
@@ -2521,7 +2521,7 @@ standard_ProcessUtility(PlannedStmt *pstmt,
             break;
 
         case T_AlterDatabaseSetStmt:
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 			/*
 			 * If I am the main execute CN but not Leader CN,
 			 * Notify the Leader CN to create firstly.
@@ -2711,13 +2711,13 @@ standard_ProcessUtility(PlannedStmt *pstmt,
                     if (IsTransactionBlock())
                     {
                         if (PoolManagerSetCommand(NULL, POOL_SET_COMMAND_ALL, POOL_CMD_LOCAL_SET, queryString) < 0)
-                            elog(ERROR, "TBase: ERROR local SET query:%s", queryString);
+                            elog(ERROR, "OpenTenBase: ERROR local SET query:%s", queryString);
                     }
                 }
                 else
                 {
                     if (PoolManagerSetCommand(NULL, POOL_SET_COMMAND_ALL, POOL_CMD_GLOBAL_SET, queryString) < 0)
-                        elog(ERROR, "TBase: ERROR global SET query:%s", queryString);
+                        elog(ERROR, "OpenTenBase: ERROR global SET query:%s", queryString);
                 }
             }
 #endif
@@ -2751,7 +2751,7 @@ standard_ProcessUtility(PlannedStmt *pstmt,
              * ******************************** ROLE statements ****
              */
         case T_CreateRoleStmt:
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 			/*
 			 * If I am the main execute CN but not Leader CN,
 			 * Notify the Leader CN to create firstly.
@@ -2771,7 +2771,7 @@ standard_ProcessUtility(PlannedStmt *pstmt,
             break;
 
         case T_AlterRoleSetStmt:
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 			/*
 			 * If I am the main execute CN but not Leader CN,
 			 * Notify the Leader CN to create firstly.
@@ -2787,7 +2787,7 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 
         case T_DropRoleStmt:
 			{
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 				CheckAndDropRole(parsetree, sentToRemote, queryString);
 #else
             /* no event triggers for global objects */
@@ -2844,14 +2844,14 @@ standard_ProcessUtility(PlannedStmt *pstmt,
                 switch (stmt->kind)
                 {
                     case REINDEX_OBJECT_INDEX:
-#ifdef __TBASE__	
+#ifdef __OPENTENBASE__	
 						CheckAndSendLeaderCNReindex(sentToRemote, stmt,
 													queryString);
 #endif
                         ReindexIndex(stmt->relation, stmt->options);
                         break;
                     case REINDEX_OBJECT_TABLE:
-#ifdef __TBASE__	
+#ifdef __OPENTENBASE__	
 						CheckAndSendLeaderCNReindex(sentToRemote, stmt,
 													queryString);
 #endif
@@ -2928,7 +2928,7 @@ standard_ProcessUtility(PlannedStmt *pstmt,
                                        sentToRemote,
                                        completionTag);
 				}
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 				else if (LOCAL_PARALLEL_DDL)
 				{
 					bool is_temp = false;
@@ -3005,7 +3005,7 @@ standard_ProcessUtility(PlannedStmt *pstmt,
                                        completionTag);
                 else
 				{
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 					/*
 					 * If I am the main execute CN but not Leader CN,
 					 * Notify the Leader CN to create firstly.
@@ -3596,7 +3596,7 @@ standard_ProcessUtility(PlannedStmt *pstmt,
                 break;
             }
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         case T_LockNodeStmt:
         {
             LockNodeStmt *stmt = (LockNodeStmt *)parsetree;
@@ -3687,7 +3687,7 @@ ProcessUtilitySlow(ParseState *pstate,
                  * relation and attribute manipulation
                  */
             case T_CreateSchemaStmt:
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 				/*
                  * If I am the main execute CN but not Leader CN,
                  * Notify the Leader CN to create firstly.
@@ -3721,7 +3721,7 @@ ProcessUtilitySlow(ParseState *pstate,
                        PGXCSubCluster *subcluster = NULL;
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 					Oid nspaceid;
 					bool exist_ok = true;
 
@@ -3838,7 +3838,7 @@ ProcessUtilitySlow(ParseState *pstate,
                             }
                         }
                     }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 					/*
 					 * If I am the main execute CN but not Leader CN,
 					 * Notify the Leader CN to create firstly.
@@ -3892,7 +3892,7 @@ ProcessUtilitySlow(ParseState *pstate,
                         {
                             Datum        toast_options;
                             static char *validnsps[] = HEAP_RELOPT_NAMESPACES;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                             CreateStmt *createStmt = (CreateStmt *)stmt;
 
                             /* Set temporary object object flag in pooler */
@@ -3934,7 +3934,7 @@ ProcessUtilitySlow(ParseState *pstate,
                             NewRelationCreateToastTable(address.objectId,
                                     toast_options);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                             if (OidIsValid(address.objectId))
                             {
                                 /* 
@@ -4105,7 +4105,7 @@ ProcessUtilitySlow(ParseState *pstate,
                      * permissions.
                      */
                     lockmode = AlterTableGetLockLevel(atstmt->cmds);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 					/*
 					 * If I am the main execute CN but not Leader CN,
 					 * Notify the Leader CN to create firstly.
@@ -4348,7 +4348,7 @@ ProcessUtilitySlow(ParseState *pstate,
                     Oid            relid;
                     LOCKMODE    lockmode;
 					List       *inheritors = NIL;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                     Relation   rel = NULL;
 					bool		istemp = false;
 #endif
@@ -4357,7 +4357,7 @@ ProcessUtilitySlow(ParseState *pstate,
                         PreventTransactionChain(isTopLevel,
                                                 "CREATE INDEX CONCURRENTLY");
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 					if (!sentToRemote && LOCAL_PARALLEL_DDL)
 					{
 						relid =	RangeVarGetRelidExtended(stmt->relation,
@@ -4455,7 +4455,7 @@ ProcessUtilitySlow(ParseState *pstate,
                                     false,    /* skip_build */
                                     false); /* quiet */
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                     if (OidIsValid(address.objectId))
                     {
                         /* for interval partition, create index on child tables. */
@@ -4598,7 +4598,7 @@ ProcessUtilitySlow(ParseState *pstate,
 				break;
 
 			case T_CreateExtensionStmt:
-#ifdef __TBASE__				
+#ifdef __OPENTENBASE__				
 				{
 					CreateExtensionStmt *stmt = (CreateExtensionStmt *) parsetree;
 					char *extension_query_string = NULL;
@@ -4706,7 +4706,7 @@ ProcessUtilitySlow(ParseState *pstate,
             case T_CompositeTypeStmt:    /* CREATE TYPE (composite) */
                 {
                     CompositeTypeStmt *stmt = (CompositeTypeStmt *) parsetree;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 					/*
 					 * If I am the main execute CN but not Leader CN,
 					 * Notify the Leader CN to create firstly.
@@ -4722,7 +4722,7 @@ ProcessUtilitySlow(ParseState *pstate,
                 break;
 
             case T_CreateEnumStmt:    /* CREATE TYPE AS ENUM */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 					/*
 					 * If I am the main execute CN but not Leader CN,
 					 * Notify the Leader CN to create firstly.
@@ -4736,7 +4736,7 @@ ProcessUtilitySlow(ParseState *pstate,
                 break;
 
             case T_CreateRangeStmt: /* CREATE TYPE AS RANGE */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 					/*
 					 * If I am the main execute CN but not Leader CN,
 					 * Notify the Leader CN to create firstly.
@@ -4755,7 +4755,7 @@ ProcessUtilitySlow(ParseState *pstate,
 
             case T_ViewStmt:    /* CREATE VIEW */
                 EventTriggerAlterTableStart(parsetree);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 				/*
 				 * If I am the main execute CN but not Leader CN,
 				 * Notify the Leader CN to create firstly.
@@ -4796,7 +4796,7 @@ ProcessUtilitySlow(ParseState *pstate,
                 break;
 
             case T_CreateFunctionStmt:    /* CREATE FUNCTION */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 				/*
 				 * If I am the main execute CN but not Leader CN,
 				 * Notify the Leader CN to create firstly.
@@ -4818,7 +4818,7 @@ ProcessUtilitySlow(ParseState *pstate,
                 break;
 
 			case T_CreateSeqStmt:
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 				{
 					bool need_send = false;
 					bool is_temp = false;
@@ -4871,7 +4871,7 @@ ProcessUtilitySlow(ParseState *pstate,
 				break;
 
 			case T_AlterSeqStmt:
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 if (!sentToRemote && LOCAL_PARALLEL_DDL)
                 {
 					AlterSeqStmt *stmt = (AlterSeqStmt *) parsetree;
@@ -4910,7 +4910,7 @@ ProcessUtilitySlow(ParseState *pstate,
                     CreateTableAsStmt *stmt = (CreateTableAsStmt *) parsetree;
                     if (IS_PGXC_DATANODE && stmt->relkind == OBJECT_MATVIEW)
                         stmt->into->skipData = true;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 /*
                  * If I am the main execute CN but not Leader CN,
                  * Notify the Leader CN to create firstly.
@@ -4953,7 +4953,7 @@ ProcessUtilitySlow(ParseState *pstate,
                 address = CreateTrigger((CreateTrigStmt *) parsetree,
                                         queryString, InvalidOid, InvalidOid,
                                         InvalidOid, InvalidOid, false);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 /* create trigger on interval partition */
                 if (IsValidObjectAddress(&address))
                 {
@@ -5075,7 +5075,7 @@ ProcessUtilitySlow(ParseState *pstate,
             case T_RenameStmt:
 				{
 					RenameStmt * stmt = (RenameStmt *) parsetree;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 					if (LOCAL_PARALLEL_DDL)
 					{
 						bool is_temp = false;
@@ -5109,7 +5109,7 @@ ProcessUtilitySlow(ParseState *pstate,
                 break;
 
             case T_AlterObjectSchemaStmt:
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 				/*
 				 * If I am the main execute CN but not Leader CN,
 				 * Notify the Leader CN to create firstly.
@@ -5125,7 +5125,7 @@ ProcessUtilitySlow(ParseState *pstate,
                 break;
 
             case T_AlterOwnerStmt:
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 				/*
 				 * If I am the main execute CN but not Leader CN,
 				 * Notify the Leader CN to create firstly.
@@ -5196,9 +5196,9 @@ ProcessUtilitySlow(ParseState *pstate,
 
             case T_CreateSubscriptionStmt:
 #ifdef __SUBSCRIPTION__
-                if (((CreateSubscriptionStmt *) parsetree)->istbase)
+                if (((CreateSubscriptionStmt *) parsetree)->isopentenbase)
                 {
-                    address = CreateTbaseSubscription((CreateSubscriptionStmt *) parsetree,
+                    address = CreateOpenTenBaseSubscription((CreateSubscriptionStmt *) parsetree,
                                                          isTopLevel);
                 }
                 else
@@ -5214,9 +5214,9 @@ ProcessUtilitySlow(ParseState *pstate,
 
             case T_AlterSubscriptionStmt:
 #ifdef __SUBSCRIPTION__
-                if (((AlterSubscriptionStmt *) parsetree)->istbase)
+                if (((AlterSubscriptionStmt *) parsetree)->isopentenbase)
                 {
-                    AlterTbaseSubscription((AlterSubscriptionStmt *) parsetree);
+                    AlterOpenTenBaseSubscription((AlterSubscriptionStmt *) parsetree);
                     commandCollected = true;
                 }
                 else
@@ -5226,9 +5226,9 @@ ProcessUtilitySlow(ParseState *pstate,
 
             case T_DropSubscriptionStmt:
 #ifdef __SUBSCRIPTION__
-                if (((DropSubscriptionStmt *) parsetree)->istbase)
+                if (((DropSubscriptionStmt *) parsetree)->isopentenbase)
                 {
-                    DropTbaseSubscription((DropSubscriptionStmt *) parsetree, isTopLevel);
+                    DropOpenTenBaseSubscription((DropSubscriptionStmt *) parsetree, isTopLevel);
                 }
                 else
 #endif
@@ -5277,7 +5277,7 @@ ProcessUtilitySlow(ParseState *pstate,
         EventTriggerEndCompleteQuery();
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /*
  * SendLeaderCNUtility
  * For parallel ddl, we execute ddl in leader cn firstly
@@ -5439,7 +5439,7 @@ ExecDropStmt(DropStmt *stmt, bool isTopLevel)
             {
                 bool        is_temp = false;
 				RemoteQueryExecType exec_type = EXEC_ON_ALL_NODES;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 char        *new_query_string = pstrdup(queryString);
 				ObjectAddresses *new_objects = NULL;
 				PGXCNodeHandle	*leaderCnHandle = NULL;
@@ -5450,7 +5450,7 @@ ExecDropStmt(DropStmt *stmt, bool isTopLevel)
                 DropStmtPreTreatment((DropStmt *) stmt, queryString, sentToRemote,
                         &is_temp, &exec_type);
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 				if (!sentToRemote && LOCAL_PARALLEL_DDL)
 				{
 					leaderCnHandle = find_ddl_leader_cn();
@@ -5508,7 +5508,7 @@ ExecDropStmt(DropStmt *stmt, bool isTopLevel)
 #endif
 
 #ifdef PGXC
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 				/* DROP is done depending on the object type and its temporary type */
 				if (IS_PGXC_LOCAL_COORDINATOR)
 					ExecUtilityStmtOnNodes(NULL, new_query_string, NULL, sentToRemote, false,
@@ -5523,7 +5523,7 @@ ExecDropStmt(DropStmt *stmt, bool isTopLevel)
             }
 #endif
             break;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		case OBJECT_SCHEMA:
 		case OBJECT_FUNCTION:
 		case OBJECT_TYPE:
@@ -5628,7 +5628,7 @@ ExecDropStmt(DropStmt *stmt, bool isTopLevel)
     }
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 void
 CheckAndDropRole(Node *parsetree, bool sentToRemote, const char *queryString)
 {
@@ -6064,7 +6064,7 @@ CreateCommandTag(Node *parsetree)
                     case TRANS_STMT_BEGIN:
                         tag = "BEGIN";
                         break;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                     case TRANS_STMT_BEGIN_SUBTXN:
                         tag = "BEGIN SUBTXN";
                         break;
@@ -6755,24 +6755,24 @@ CreateCommandTag(Node *parsetree)
         case T_CreateSubscriptionStmt:
             tag = "CREATE SUBSCRIPTION";
             #ifdef __SUBSCRIPTION__
-            if (IsTbaseSubscription(parsetree))
-                tag = "CREATE TBASE SUBSCRIPTION";
+            if (isOpenTenBaseSubscription(parsetree))
+                tag = "CREATE OPENTENBASE SUBSCRIPTION";
             #endif
             break;
 
         case T_AlterSubscriptionStmt:
             tag = "ALTER SUBSCRIPTION";
             #ifdef __SUBSCRIPTION__
-            if (IsTbaseSubscription(parsetree))
-                tag = "ALTER TBASE SUBSCRIPTION";
+            if (isOpenTenBaseSubscription(parsetree))
+                tag = "ALTER OPENTENBASE SUBSCRIPTION";
             #endif
             break;
 
         case T_DropSubscriptionStmt:
             tag = "DROP SUBSCRIPTION";
             #ifdef __SUBSCRIPTION__
-            if (IsTbaseSubscription(parsetree))
-                tag = "DROP TBASE SUBSCRIPTION";
+            if (isOpenTenBaseSubscription(parsetree))
+                tag = "DROP OPENTENBASE SUBSCRIPTION";
             #endif
             break;
 
@@ -6945,7 +6945,7 @@ CreateCommandTag(Node *parsetree)
             tag = "CHECK OVERLAPS";
             break;
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         case T_LockNodeStmt:
         {
             LockNodeStmt *stmt = (LockNodeStmt *)parsetree;
@@ -7532,7 +7532,7 @@ GetCommandLogLevel(Node *parsetree)
             lev = LOGSTMT_ALL;
             break;
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         case T_LockNodeStmt:
             lev = LOGSTMT_DDL;
             break;
@@ -7594,7 +7594,7 @@ ExecUtilityStmtOnNodesInternal(Node* parsetree, const char *queryString,
         step->force_autocommit = force_autocommit;
         step->exec_type = exec_type;
         step->parsetree = parsetree;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		if (LOCAL_PARALLEL_DDL &&
 			(exec_type == EXEC_ON_COORDS ||	exec_type == EXEC_ON_ALL_NODES))
 		{
@@ -7877,7 +7877,7 @@ IsStmtAllowedInLockedMode(Node *parsetree, const char *queryString)
 #ifdef XCP
         case T_PauseClusterStmt:
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		/* Node Lock/Unlock do not modify any data */
 		case T_LockNodeStmt:
 #endif

@@ -81,7 +81,7 @@
 #ifdef _SHARDING_
 #include "utils/guc.h"
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "storage/nodelock.h"
 #include "access/xact.h"
 #include "pgxc/shardmap.h"
@@ -441,7 +441,7 @@ heapgetpage(HeapScanDesc scan, BlockNumber page)
      * full page write. Until we can prove that beyond doubt, let's check each
      * tuple for visibility the hard way.
      */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     all_visible = !NeedMvcc() && PageIsAllVisible(dp) && !snapshot->takenDuringRecovery;
 #else
     all_visible = PageIsAllVisible(dp) && !snapshot->takenDuringRecovery;
@@ -2626,7 +2626,7 @@ GetBulkInsertState(void)
     return bistate;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 BulkInsertState
 GetBulkInsertState_part(int npart)
 {
@@ -2756,7 +2756,7 @@ heap_insert(Relation relation, HeapTuple tup, CommandId cid,
 #endif
 
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     LightLockCheck(CMD_INSERT, RelationGetRelid(relation), HeapTupleGetShardId(tup));
 #endif
     /*
@@ -2908,7 +2908,7 @@ heap_insert(Relation relation, HeapTuple tup, CommandId cid,
     /* Note: speculative insertions are counted too, even if aborted later */
     pgstat_count_heap_insert(relation, 1);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* update shard statistic info about insert if needed */
     if (g_StatShardInfo && IS_PGXC_DATANODE)
     {
@@ -3127,7 +3127,7 @@ heap_multi_insert(Relation relation, HeapTuple *tuples, int ntuples,
         }
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         LightLockCheck(CMD_INSERT, RelationGetRelid(relation), tuple_sid);
 #endif
 
@@ -3314,7 +3314,7 @@ heap_multi_insert(Relation relation, HeapTuple *tuples, int ntuples,
         ndone += nthispage;
     }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* update shard statistic info about insert if needed */
     if (g_StatShardInfo && IS_PGXC_DATANODE)
     {
@@ -3483,7 +3483,7 @@ heap_delete(Relation relation, ItemPointer tid,
     bool        all_visible_cleared = false;
     HeapTuple    old_key_tuple = NULL;    /* replica identity of the tuple */
     bool        old_key_copied = false;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     HeapTuple   tup;
 #endif
 
@@ -3541,7 +3541,7 @@ heap_delete(Relation relation, ItemPointer tid,
     tp.t_len = ItemIdGetLength(lp);
     tp.t_self = *tid;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     tup = &tp;
     LightLockCheck(CMD_DELETE, RelationGetRelid(relation), HeapTupleGetShardId(tup));
 #endif
@@ -3924,7 +3924,7 @@ l1:
 
     pgstat_count_heap_delete(relation);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* update shard statistic info about delete if needed */
     if (g_StatShardInfo && IS_PGXC_DATANODE)
     {
@@ -4057,7 +4057,7 @@ heap_update(Relation relation, ItemPointer otid, HeapTuple newtup,
                 infomask2_old_tuple,
                 infomask_new_tuple,
                 infomask2_new_tuple;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     HeapTuple tup;
 #endif
 
@@ -4076,7 +4076,7 @@ heap_update(Relation relation, ItemPointer otid, HeapTuple newtup,
     }
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     LightLockCheck(CMD_UPDATE, RelationGetRelid(relation), HeapTupleGetShardId(newtup));
 #endif
 
@@ -4159,7 +4159,7 @@ heap_update(Relation relation, ItemPointer otid, HeapTuple newtup,
     oldtup.t_len = ItemIdGetLength(lp);
     oldtup.t_self = *otid;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     tup = &oldtup;
     LightLockCheck(CMD_UPDATE, RelationGetRelid(relation), HeapTupleGetShardId(tup));
 #endif
@@ -4907,7 +4907,7 @@ l2:
         LockBuffer(newbuf, BUFFER_LOCK_UNLOCK);
     LockBuffer(buffer, BUFFER_LOCK_UNLOCK);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* update shard statistic info about update if needed */
     if (g_StatShardInfo && IS_PGXC_DATANODE)
     {
@@ -9104,7 +9104,7 @@ heap_xlog_delete(XLogReaderState *record)
         PageSetLSN(page, lsn);
         MarkBufferDirty(buffer);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /* update shard statistic info about delete if needed */
         if (g_StatShardInfo && IS_PGXC_DATANODE && i_am_standby)
         {
@@ -9220,7 +9220,7 @@ heap_xlog_insert(XLogReaderState *record)
 
         MarkBufferDirty(buffer);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /* update shard statistic info about insert if needed */
         if (g_StatShardInfo && IS_PGXC_DATANODE && i_am_standby)
         {
@@ -9362,7 +9362,7 @@ heap_xlog_multi_insert(XLogReaderState *record)
             if (offnum == InvalidOffsetNumber)
                 elog(PANIC, "failed to add tuple");
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             /* update shard statistic info about insert if needed */
             if (g_StatShardInfo && IS_PGXC_DATANODE && i_am_standby)
             {
@@ -9660,7 +9660,7 @@ heap_xlog_update(XLogReaderState *record, bool hot_update)
         PageSetLSN(page, lsn);
         MarkBufferDirty(nbuffer);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /* update shard statistic info about update if needed */
         if (g_StatShardInfo && IS_PGXC_DATANODE && i_am_standby)
         {

@@ -414,7 +414,7 @@ CreateTableSpace(CreateTableSpaceStmt *stmt)
 #endif                            /* HAVE_SYMLINK */
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 bool
 PreCheckforDropTableSpace(DropTableSpaceStmt *stmt)
 {

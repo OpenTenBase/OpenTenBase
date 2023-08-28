@@ -29,7 +29,7 @@
 #include "gtm/libpq-int.h"
 #include "gtm/pqformat.h"
 #include "gtm/gtm_backup.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "gtm/gtm_store.h"
 extern bool enable_gtm_sequence_debug;
 #endif
@@ -44,7 +44,7 @@ typedef struct GTM_SeqInfoHashBucket
 
 typedef struct GTM_SeqAlteredInfo
 {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     GTMStorageHandle storage_handle;
 #endif
     GTM_SequenceKey    curr_key;
@@ -62,7 +62,7 @@ static int seq_release_seqinfo(GTM_SeqInfo *seqinfo);
 static int seq_add_seqinfo(GTM_SeqInfo *seqinfo);
 static int seq_remove_seqinfo(GTM_SeqInfo *seqinfo);
 static int seq_rename_seqinfo(GTM_SeqInfo *seqinfo, GTM_SequenceKey newkey);
-#ifndef __TBASE__
+#ifndef __OPENTENBASE__
 static GTM_SequenceKey seq_copy_key_context(GTM_SequenceKey key,
         MemoryContext context);
 #endif
@@ -70,13 +70,13 @@ static GTM_SequenceKey seq_copy_key(GTM_SequenceKey key);
 static int seq_drop_with_dbkey(GTM_SequenceKey nsp);
 static bool GTM_NeedSeqRestoreUpdateInternal(GTM_SeqInfo *seqinfo);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static GTM_Sequence get_rangemax(GTM_SeqInfo *seqinfo, GTM_Sequence range,GTM_Sequence *used_count);
 #else
 static GTM_Sequence get_rangemax(GTM_SeqInfo *seqinfo, GTM_Sequence range);
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static void  GTM_JudgeReserve(GTM_SeqInfo *seqinfo);
 static GTM_SeqInfo* GTM_FormSeqOfStore(GTM_SequenceKey seqkey);
 #endif
@@ -285,7 +285,7 @@ seq_remove_seqinfo(GTM_SeqInfo *seqinfo)
         elog(LOG, "seq_remove_seqinfo remove succeed");
     }    
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     ret = GTM_StoreDropSeq(seqinfo->gs_store_handle);
     if (ret)
     {
@@ -379,7 +379,7 @@ seq_rename_seqinfo(GTM_SeqInfo *seqinfo, GTM_SequenceKey newkey)
 
 }
 
-#ifndef __TBASE__
+#ifndef __OPENTENBASE__
 /*
  * Same as seq_copy_key but use specified MemoryContext
  */
@@ -436,7 +436,7 @@ GTM_SeqOpen(GTM_SequenceKey seqkey,
             bool cycle,
             GlobalTransactionId gxid)
 {// #lizard forgives
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     int32                  ret          = -1;
     GTMStorageHandle      seq_handle  = INVALID_STORAGE_HANDLE;
 #endif
@@ -444,7 +444,7 @@ GTM_SeqOpen(GTM_SequenceKey seqkey,
     GTM_SeqInfo *seqinfo = NULL;
     int          errcode = 0;
     
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (enable_gtm_sequence_debug)
     {
         elog(LOG, "GTM_SeqOpen seq:%s enter.", seqkey->gsk_key);
@@ -568,7 +568,7 @@ GTM_SeqOpen(GTM_SequenceKey seqkey,
         GTM_RWLockDestroy(&seqinfo->gs_lock);
         pfree(seqinfo->gs_key);
         pfree(seqinfo);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         return errcode;
 #endif
     }
@@ -576,17 +576,17 @@ GTM_SeqOpen(GTM_SequenceKey seqkey,
     {
         /* open the sequence and remember the newly created sequence. */
         seqinfo = seq_find_seqinfo(seqinfo->gs_key);
-#ifndef __TBASE__
+#ifndef __OPENTENBASE__
         GTM_RememberCreatedSequence(gxid, seq_copy_key_context(seqinfo->gs_key,
                     TopMostMemoryContext));
 #endif
     }
 
-#ifndef __TBASE__    
+#ifndef __OPENTENBASE__    
     GTM_SetNeedBackup();
 #endif
     
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (seqinfo)
     {
         seqinfo->gs_reserved                 = true;
@@ -637,14 +637,14 @@ int GTM_SeqAlter(GTM_SequenceKey seqkey,
                  bool cycle,
                  bool is_restart)
 {// #lizard forgives
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     int32 ret = 0;
 #endif
     GTM_SeqInfo *seqinfo = seq_find_seqinfo(seqkey);
     GTM_SequenceKeyData     newseqkey;
     char        *seqkey_copy;
 
-#ifdef __TBASE__    
+#ifdef __OPENTENBASE__    
     if (NULL ==seqinfo)
     {
         GTM_FormSeqOfStore(seqkey);
@@ -662,7 +662,7 @@ int GTM_SeqAlter(GTM_SequenceKey seqkey,
         newseqkey.gsk_key = strcat(seqkey_copy, GTM_SEQ_POSTFIX);
 
         seqinfo = seq_find_seqinfo(&newseqkey);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (NULL == seqinfo)
         {
             GTM_FormSeqOfStore(&newseqkey);
@@ -706,7 +706,7 @@ int GTM_SeqAlter(GTM_SequenceKey seqkey,
         seqinfo->gs_init_value = startval;
 
     
-#ifdef __TBASE__    
+#ifdef __OPENTENBASE__    
     ret = GTM_StoreSeqAlter(seqinfo, seqinfo->gs_store_handle, is_restart);
     if (ret)
     {
@@ -803,7 +803,7 @@ GTM_SeqClose(GTM_SequenceKey seqkey, GlobalTransactionId gxid)
         case GTM_SEQ_FULL_NAME:
         {
             GTM_SeqInfo *seqinfo = seq_find_seqinfo(seqkey);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             if (NULL ==seqinfo)
             {
                 GTM_FormSeqOfStore(seqkey);
@@ -816,14 +816,14 @@ GTM_SeqClose(GTM_SequenceKey seqkey, GlobalTransactionId gxid)
              * drop it completely
              */
             res = 0;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             if ((seqinfo != NULL))
 #else
             if ((seqinfo != NULL) && (!GlobalTransactionIdIsValid(gxid) ||
                 (seqinfo->gs_created_gxid == gxid)))
 #endif
             {
-#ifndef __TBASE__
+#ifndef __OPENTENBASE__
                 GTM_ForgetCreatedSequence(gxid, seqinfo);
 #endif
                 seq_release_seqinfo(seqinfo);
@@ -850,7 +850,7 @@ GTM_SeqClose(GTM_SequenceKey seqkey, GlobalTransactionId gxid)
                 newkey.gsk_keylen = strlen(newkey.gsk_key) + 1;
                 oldContext = MemoryContextSwitchTo(TopMostMemoryContext);
                 seqinfo->gs_oldkey = seq_copy_key(seqinfo->gs_key);
-#ifndef __TBASE__
+#ifndef __OPENTENBASE__
                 if ((res = seq_rename_seqinfo(seqinfo, &newkey)) == 0)
                     GTM_RememberDroppedSequence(gxid,
                             seq_copy_key_context(seqinfo->gs_key, TopMostMemoryContext));
@@ -906,7 +906,7 @@ seq_key_dbname_equal(GTM_SequenceKey nsp, GTM_SequenceKey seq)
 static int
 seq_drop_with_dbkey(GTM_SequenceKey nsp)
 {// #lizard forgives
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     int32 ret = -1;        
 #endif
     int ii = 0;
@@ -957,7 +957,7 @@ seq_drop_with_dbkey(GTM_SequenceKey nsp)
 
                     deleted = true;
                     
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                     ret =  GTM_StoreDropSeq(curr_seqinfo->gs_store_handle);
                     if (ret)
                     {
@@ -985,7 +985,7 @@ seq_drop_with_dbkey(GTM_SequenceKey nsp)
         GTM_RWLockRelease(&bucket->shb_lock);
     }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     ret =  GTM_StoreDropAllSeqInDatabase(nsp);
     if (ret)
     {
@@ -1004,7 +1004,7 @@ int
 GTM_SeqRename(GTM_SequenceKey seqkey, GTM_SequenceKey newseqkey,
         GlobalTransactionId gxid)
 {// #lizard forgives
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     int32 ret = 0;
 #endif
     GTM_SeqInfo *seqinfo = NULL;
@@ -1014,7 +1014,7 @@ GTM_SeqRename(GTM_SequenceKey seqkey, GTM_SequenceKey newseqkey,
     GTM_SeqAlteredInfo *alterinfo;
 
     seqinfo = seq_find_seqinfo(seqkey);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (NULL == seqinfo)
     {
         GTM_FormSeqOfStore(seqkey);
@@ -1026,7 +1026,7 @@ GTM_SeqRename(GTM_SequenceKey seqkey, GTM_SequenceKey newseqkey,
     if (seqinfo == NULL)
     {
         newseqinfo = seq_find_seqinfo(newseqkey);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (NULL == newseqinfo)
         {
             GTM_FormSeqOfStore(newseqkey);
@@ -1054,7 +1054,7 @@ GTM_SeqRename(GTM_SequenceKey seqkey, GTM_SequenceKey newseqkey,
     alterinfo->curr_key = seq_copy_key(newseqkey);
     alterinfo->prev_key = seq_copy_key(seqinfo->gs_key);
     MemoryContextSwitchTo(oldContext);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /*Here we do nothing, just rename the seq when transaction commit. */
     alterinfo->storage_handle = seqinfo->gs_store_handle;
 #endif    
@@ -1063,7 +1063,7 @@ GTM_SeqRename(GTM_SequenceKey seqkey, GTM_SequenceKey newseqkey,
     errcode = seq_rename_seqinfo(seqinfo, newseqkey);
     if (!errcode)
     {
-#ifndef __TBASE__
+#ifndef __OPENTENBASE__
         GTM_RememberAlteredSequence(gxid, alterinfo);
 #else
         ret    = GTM_StoreSeqRename(alterinfo->storage_handle, 
@@ -1095,7 +1095,7 @@ GTM_SeqGetCurrent(GTM_SequenceKey seqkey, char *coord_name,
     char        *seqkey_copy = NULL;
 
     seqinfo = seq_find_seqinfo(seqkey);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (NULL == seqinfo)
     {
         GTM_FormSeqOfStore(seqkey);
@@ -1116,7 +1116,7 @@ GTM_SeqGetCurrent(GTM_SequenceKey seqkey, char *coord_name,
         newseqkey.gsk_key = strcat(seqkey_copy, GTM_SEQ_POSTFIX);
 
         seqinfo = seq_find_seqinfo(&newseqkey);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (NULL == seqinfo)
         {
             GTM_FormSeqOfStore(&newseqkey);
@@ -1231,14 +1231,14 @@ int
 GTM_SeqSetVal(GTM_SequenceKey seqkey, char *coord_name,
               int coord_procid, GTM_Sequence nextval, bool iscalled)
 {// #lizard forgives
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     int32 ret = 0;
     GTM_SeqInfo *seqinfo = seq_find_seqinfo(seqkey);
 #endif
     GTM_SequenceKeyData     newseqkey;
     char        *seqkey_copy;
     
-#ifdef __TBASE__    
+#ifdef __OPENTENBASE__    
     if (NULL ==seqinfo)
     {
         GTM_FormSeqOfStore(seqkey);
@@ -1255,7 +1255,7 @@ GTM_SeqSetVal(GTM_SequenceKey seqkey, char *coord_name,
         newseqkey.gsk_type = seqkey->gsk_type;
         newseqkey.gsk_key = strcat(seqkey_copy, GTM_SEQ_POSTFIX);
         seqinfo = seq_find_seqinfo(&newseqkey);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (NULL == seqinfo)
         {
             GTM_FormSeqOfStore(&newseqkey);
@@ -1283,7 +1283,7 @@ GTM_SeqSetVal(GTM_SequenceKey seqkey, char *coord_name,
         seq_set_lastval(seqinfo, coord_name, coord_procid, nextval);
     }
 
-#ifdef __TBASE__        
+#ifdef __OPENTENBASE__        
     ret = GTM_StoreSetSeqValue(seqinfo->gs_store_handle, nextval, iscalled);
     if (ret)
     {
@@ -1322,7 +1322,7 @@ GTM_SeqGetNext(GTM_SequenceKey seqkey, char *coord_name,
                int coord_procid, GTM_Sequence range,
                GTM_Sequence *result, GTM_Sequence *rangemax)
 {// #lizard forgives
-#ifdef __TBASE__    
+#ifdef __OPENTENBASE__    
     int32          ret = -1;
     char         buf[100] = {0};
     GTM_Sequence used_count = 0;
@@ -1331,7 +1331,7 @@ GTM_SeqGetNext(GTM_SequenceKey seqkey, char *coord_name,
     char        *seqkey_copy;
 
     GTM_SeqInfo *seqinfo = seq_find_seqinfo(seqkey);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (NULL == seqinfo)
     {
         GTM_FormSeqOfStore(seqkey);
@@ -1349,7 +1349,7 @@ GTM_SeqGetNext(GTM_SequenceKey seqkey, char *coord_name,
         newseqkey.gsk_key = strcat(seqkey_copy, GTM_SEQ_POSTFIX);
 
         seqinfo = seq_find_seqinfo(&newseqkey);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (NULL == seqinfo)
         {
             GTM_FormSeqOfStore(&newseqkey);
@@ -1376,7 +1376,7 @@ GTM_SeqGetNext(GTM_SequenceKey seqkey, char *coord_name,
     {        
         *result = seqinfo->gs_value;
         seqinfo->gs_called = true;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         elog(DEBUG1, "[GTM_SeqGetNext] SEQ IS NOT CALLED. seqname:%s range:%lld gs_increment_by:%lld result:%lld coord_name:%s coord_procid:%d", 
                 seqinfo->gs_key->gsk_key, (long long int)range,
                 (long long int)seqinfo->gs_increment_by, (long long int)(*result), coord_name, coord_procid);            
@@ -1419,7 +1419,7 @@ GTM_SeqGetNext(GTM_SequenceKey seqkey, char *coord_name,
             {
                 GTM_RWLockRelease(&seqinfo->gs_lock);
                 seq_release_seqinfo(seqinfo);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 snprintf(buf, sizeof(buf), INT64_FORMAT, seqinfo->gs_max_value);
                 ereport(ERROR,
                         (ERANGE,
@@ -1463,7 +1463,7 @@ GTM_SeqGetNext(GTM_SequenceKey seqkey, char *coord_name,
             {
                 GTM_RWLockRelease(&seqinfo->gs_lock);
                 seq_release_seqinfo(seqinfo);
-#ifdef __TBASE__                
+#ifdef __OPENTENBASE__                
                 snprintf(buf, sizeof(buf), INT64_FORMAT, seqinfo->gs_min_value);
                 ereport(ERROR,
                         (ERANGE,
@@ -1482,7 +1482,7 @@ GTM_SeqGetNext(GTM_SequenceKey seqkey, char *coord_name,
     /* if range is specified calculate valid max value for this range */
     if (range > 1)
     {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         *rangemax = get_rangemax(seqinfo, range,&used_count);
 #else
         *rangemax = get_rangemax(seqinfo, range);
@@ -1491,13 +1491,13 @@ GTM_SeqGetNext(GTM_SequenceKey seqkey, char *coord_name,
     else
     {
         *rangemax  = *result;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         used_count = 1;
 #endif
     }
 
         
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (enable_gtm_sequence_debug)
     {
         elog(LOG, "GTM_SeqGetNext seq:%d sequence:%s value:%zu", seqinfo->gs_store_handle, seqinfo->gs_key->gsk_key, seqinfo->gs_value);
@@ -1532,7 +1532,7 @@ GTM_SeqGetNext(GTM_SequenceKey seqkey, char *coord_name,
     seq_set_lastval(seqinfo, coord_name, coord_procid, *rangemax);
     seqinfo->gs_value = *rangemax;
 
-#ifdef __TBASE__    
+#ifdef __OPENTENBASE__    
     if (enable_gtm_sequence_debug)
     {
         elog(LOG, "GTM_SeqGetNext seq:%d reserved:%d", seqinfo->gs_store_handle, seqinfo->gs_reserved);
@@ -1560,7 +1560,7 @@ GTM_SeqGetNext(GTM_SequenceKey seqkey, char *coord_name,
  * particular we need to be careful about overflow and underflow for
  * mix and max types of sequences..
  */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static GTM_Sequence
 get_rangemax(GTM_SeqInfo *seqinfo, GTM_Sequence range,GTM_Sequence *used_count)
 #else
@@ -1620,14 +1620,14 @@ get_rangemax(GTM_SeqInfo *seqinfo, GTM_Sequence range,GTM_Sequence *used_count)
 int
 GTM_SeqReset(GTM_SequenceKey seqkey)
 {// #lizard forgives
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     int32         ret = 0;
 #endif
     GTM_SequenceKeyData     newseqkey;
     char        *seqkey_copy;
 
     GTM_SeqInfo *seqinfo = seq_find_seqinfo(seqkey);
-#ifdef __TBASE__    
+#ifdef __OPENTENBASE__    
     if (NULL ==seqinfo)
     {
         GTM_FormSeqOfStore(seqkey);
@@ -1645,7 +1645,7 @@ GTM_SeqReset(GTM_SequenceKey seqkey)
         newseqkey.gsk_key = strcat(seqkey_copy, GTM_SEQ_POSTFIX);
 
         seqinfo = seq_find_seqinfo(&newseqkey);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (NULL == seqinfo)
         {
             GTM_FormSeqOfStore(&newseqkey);
@@ -1664,7 +1664,7 @@ GTM_SeqReset(GTM_SequenceKey seqkey)
 
     GTM_RWLockAcquire(&seqinfo->gs_lock, GTM_LOCKMODE_WRITE);
     seqinfo->gs_value = seqinfo->gs_backedUpValue = seqinfo->gs_init_value;
-#ifdef __TBASE__        
+#ifdef __OPENTENBASE__        
     ret = GTM_StoreResetSeq(seqinfo->gs_store_handle);
     if (ret)
     {
@@ -1689,7 +1689,7 @@ GTM_SeqReset(GTM_SequenceKey seqkey)
 #endif
 
     GTM_RWLockRelease(&gtm_bkup_lock);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     GTM_SetNeedBackup();
 #endif
     seq_release_seqinfo(seqinfo);
@@ -1699,7 +1699,7 @@ GTM_SeqReset(GTM_SequenceKey seqkey)
 void
 GTM_InitSeqManager(void)
 {
-#ifndef __TBASE__
+#ifndef __OPENTENBASE__
     int ii;
 
     for (ii = 0; ii < SEQ_HASH_TABLE_SIZE; ii++)
@@ -1747,7 +1747,7 @@ ProcessSequenceInitCommand(Port *myport, StringInfo message, bool is_backup)
     {
         strncpy(postfix, seqkey.gsk_key + (seqkey.gsk_keylen - strlen(GTM_SEQ_POSTFIX) - 1), strlen(GTM_SEQ_POSTFIX));
         if (!strcmp(postfix, GTM_SEQ_POSTFIX))
-            elog(ERROR, "postfix of sequence key can not be _$TBASE$_sequence_temp_54312678712612.");
+            elog(ERROR, "postfix of sequence key can not be _$OPENTENBASE$_sequence_temp_54312678712612.");
     }
 
     /*
@@ -1804,7 +1804,7 @@ ProcessSequenceInitCommand(Port *myport, StringInfo message, bool is_backup)
 
             elog(DEBUG1, "calling open_sequence() for standby GTM %p.",  GetMyConnection(myport)->standby);
         retry:
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             if (enable_gtm_sequence_debug)
             {
                 elog(LOG, "calling open_sequence() for standby GTM %p, seq:%s.",  GetMyConnection(myport)->standby, seqkey.gsk_key);
@@ -1829,7 +1829,7 @@ ProcessSequenceInitCommand(Port *myport, StringInfo message, bool is_backup)
             elog(DEBUG1, "open_sequence() returns rc %d.", rc);
 
             
-#ifdef __TBASE__            
+#ifdef __OPENTENBASE__            
             if (enable_gtm_sequence_debug)
             {
                 elog(LOG, "calling open_sequence() for standby GTM %p, seq:%s, rc:%d.", GetMyConnection(myport)->standby, seqkey.gsk_key, rc);
@@ -1843,7 +1843,7 @@ ProcessSequenceInitCommand(Port *myport, StringInfo message, bool is_backup)
         }
 #endif
         
-#ifndef __TBASE__    
+#ifndef __OPENTENBASE__    
         /* Save control file with new seq info */
         SaveControlInfo();
 #endif
@@ -1982,7 +1982,7 @@ ProcessSequenceAlterCommand(Port *myport, StringInfo message, bool is_backup)
 #endif
         
         
-#ifndef __TBASE__    
+#ifndef __OPENTENBASE__    
         /* Save control file info */
         SaveControlInfo();        
 #endif
@@ -2320,7 +2320,7 @@ ProcessSequenceGetNextCommand(Port *myport, StringInfo message, bool is_backup)
         }
 
 #endif
-#ifndef __TBASE__    
+#ifndef __OPENTENBASE__    
         /* Save control file info */
         SaveControlInfo();
 #endif
@@ -2452,7 +2452,7 @@ ProcessSequenceSetValCommand(Port *myport, StringInfo message, bool is_backup)
         }
 #endif
         
-#ifndef __TBASE__
+#ifndef __OPENTENBASE__
     
         /* Save control file info */
         SaveControlInfo();
@@ -2544,7 +2544,7 @@ ProcessSequenceResetCommand(Port *myport, StringInfo message, bool is_backup)
             elog(DEBUG1, "reset_sequence() returns rc %d.", rc);
         }
 #endif
-#ifndef __TBASE__
+#ifndef __OPENTENBASE__
         /* Save control file info */
         SaveControlInfo();
 #endif
@@ -2647,7 +2647,7 @@ ProcessSequenceCloseCommand(Port *myport, StringInfo message, bool is_backup)
             elog(DEBUG1, "close_sequence() returns rc %d.", rc);
         }
 #endif    
-#ifndef __TBASE__                
+#ifndef __OPENTENBASE__                
         /* Save control file info */
         SaveControlInfo();
 #endif
@@ -2766,7 +2766,7 @@ ProcessSequenceRenameCommand(Port *myport, StringInfo message, bool is_backup)
             elog(DEBUG1, "rename_sequence() returns rc %d.", rc);
         }
 #endif        
-#ifndef __TBASE__
+#ifndef __OPENTENBASE__
         /* Save control file info */
         SaveControlInfo();
 #endif    
@@ -2946,7 +2946,7 @@ bool GTM_NeedSeqRestoreUpdate(GTM_SequenceKey seqkey)
 {
     GTM_SeqInfo *seqinfo = seq_find_seqinfo(seqkey);
     
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (NULL ==seqinfo)
     {
         GTM_FormSeqOfStore(seqkey);
@@ -3184,7 +3184,7 @@ void
 GTM_SeqRemoveCreated(void *ptr)
 {
     GTM_SeqInfo *seqinfo = seq_find_seqinfo((GTM_SequenceKey) ptr);
-#ifdef __TBASE__    
+#ifdef __OPENTENBASE__    
     if (NULL ==seqinfo)
     {
         GTM_FormSeqOfStore((GTM_SequenceKey) ptr);
@@ -3224,7 +3224,7 @@ GTM_SeqRestoreAltered(void *ptr)
 {
     GTM_SeqAlteredInfo *alterinfo = (GTM_SeqAlteredInfo *) ptr;
     GTM_SeqInfo *seqinfo = seq_find_seqinfo(alterinfo->curr_key);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (NULL ==seqinfo)
     {
         GTM_FormSeqOfStore(alterinfo->curr_key);
@@ -3250,7 +3250,7 @@ void
 GTM_SeqRestoreDropped(void *ptr)
 {
     GTM_SeqInfo *seqinfo = seq_find_seqinfo((GTM_SequenceKey) ptr);
-#ifdef __TBASE__    
+#ifdef __OPENTENBASE__    
     if (NULL ==seqinfo)
     {
         GTM_FormSeqOfStore((GTM_SequenceKey) ptr);
@@ -3290,7 +3290,7 @@ void
 GTM_SeqRemoveDropped(void *ptr)
 {
     GTM_SeqInfo *seqinfo = seq_find_seqinfo((GTM_SequenceKey) ptr);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (NULL ==seqinfo)
     {
         GTM_FormSeqOfStore((GTM_SequenceKey) ptr);
@@ -3300,7 +3300,7 @@ GTM_SeqRemoveDropped(void *ptr)
 
     if (seqinfo)
     {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         int32 ret = 0;
         ret    = GTM_StoreDropSeq(seqinfo->gs_store_handle);
         if (ret)
@@ -3317,7 +3317,7 @@ GTM_SeqRemoveDropped(void *ptr)
         }
     }
 }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static void GTM_JudgeReserve(GTM_SeqInfo *seqinfo)
 {
     if (seqinfo)
@@ -3583,7 +3583,7 @@ ProcessDBSequenceRenameCommand(Port *myport, StringInfo message, bool is_backup)
             elog(DEBUG1, "rename_sequence() returns rc %d.", rc);
         }
 #endif        
-#ifndef __TBASE__
+#ifndef __OPENTENBASE__
         /* Save control file info */
         SaveControlInfo();
 #endif    

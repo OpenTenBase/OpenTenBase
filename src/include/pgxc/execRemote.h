@@ -31,7 +31,7 @@
 #include "tcop/dest.h"
 #include "tcop/pquery.h"
 #include "utils/snapshot.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "access/parallel.h"
 #endif
 #include "access/xact.h"
@@ -51,7 +51,7 @@
 #define RESPONSE_ASSIGN_GXID 12
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #define RESPONSE_INSTR 13
 #define     UINT32_BITS_NUM              32
 #define     WORD_NUMBER_FOR_NODES      (MAX_NODES_NUMBER / UINT32_BITS_NUM)
@@ -150,7 +150,7 @@ typedef struct ResponseCombiner
      * access to the data
      */
     ListCell  **tapemarks;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     List            **prerowBuffers;    /* 
                                           *used for each connection in prefetch with merge_sort, 
                                           * put datarows in each rowbuffer in order
@@ -175,7 +175,7 @@ typedef struct ResponseCombiner
     char       *update_cursor;            /* throw this cursor current tuple can be updated */
     int            cursor_count;            /* total count of participating nodes */
     PGXCNodeHandle **cursor_connections;/* data node connections being combined */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* statistic information for debug */
     int         recv_node_count;       /* number of recv nodes */
     uint64      recv_tuples;           /* number of recv tuples */
@@ -213,7 +213,7 @@ typedef struct RemoteQueryState
     int            eflags;            /* capability flags to pass to tuplestore */
     bool        eof_underlying; /* reached end of underlying plan? */
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     ParallelWorkerStatus *parallel_status; /*Shared storage for parallel worker .*/
 
     /* parameters for insert...on conflict do update */
@@ -259,7 +259,7 @@ typedef struct RemoteSubplanState
     int            nParamRemote;    /* number of params sent from the master node */
     RemoteParam *remoteparams;  /* parameter descriptors */
     
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     bool        finish_init;
     int32       eflags;                       /* estate flag. */
     ParallelWorkerStatus *parallel_status; /* Shared storage for parallel worker. */
@@ -279,7 +279,7 @@ typedef struct RemoteStmt
 
     bool        hasReturning;    /* is it insert|update|delete RETURNING? */
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     bool        parallelModeNeeded;     /* is parallel needed? */
     bool        parallelWorkerSendTuple;/* can parallel workers send tuples to remote? */
 #endif
@@ -308,7 +308,7 @@ typedef struct RemoteStmt
     List       *distributionNodes;
 
     List       *distributionRestrict;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* used for interval partition */
     bool        haspart_tobe_modify;
     Index        partrelindex;
@@ -321,7 +321,7 @@ typedef struct RemoteStmt
 #endif
 } RemoteStmt;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 typedef enum
 {
     TXN_TYPE_CommitTxn,
@@ -338,7 +338,7 @@ typedef enum
 extern int PGXLRemoteFetchSize;
 
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern PGDLLIMPORT int g_in_plpgsql_exec_fun;
 #endif
 
@@ -359,7 +359,7 @@ extern int DataNodeCopyInBinaryForAll(char *msg_buf, int len, int conn_count,
                                       PGXCNodeHandle** connections);
 extern bool DataNodeCopyEnd(PGXCNodeHandle *handle, bool is_error);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern PGXCNodeAllHandles *get_exec_connections_all_dn(bool is_global_session);
 #endif
 
@@ -373,7 +373,7 @@ extern void ExecFinishInitRemoteSubplan(RemoteSubplanState *node);
 extern TupleTableSlot* ExecRemoteSubplan(PlanState *pstate);
 extern void ExecEndRemoteSubplan(RemoteSubplanState *node);
 extern void ExecReScanRemoteSubplan(RemoteSubplanState *node);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern void ExecRemoteUtility(RemoteQuery *node,
 								PGXCNodeHandle *leader_cn_conn,
 								ParallelDDLRemoteType type);
@@ -412,7 +412,7 @@ extern char *PrePrepare_Remote(char *prepareGID, bool localNode, bool implicit);
 extern void PostPrepare_Remote(char *prepareGID, bool implicit);
 extern void PreCommit_Remote(char *prepareGID, char *nodestring, bool preparedLocalNode);
 extern bool    PreAbort_Remote(TranscationType txn_type, bool need_release_handle);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern void SubTranscation_PreCommit_Remote(void);
 extern void SubTranscation_PreAbort_Remote(void);
 #endif
@@ -425,7 +425,7 @@ extern void pgxc_all_success_nodes(ExecNodes **d_nodes, ExecNodes **c_nodes, cha
 extern void AtEOXact_DBCleanup(bool isCommit);
 
 extern void set_dbcleanup_callback(xact_callback function, void *paraminfo, int paraminfo_size);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern void ExecRemoteSubPlanInitializeDSM(RemoteSubplanState *node, ParallelContext *pcxt);
 extern void ExecRemoteQueryInitializeDSM(RemoteQueryState *node, ParallelContext *pcxt);
 extern void ExecRemoteSubPlanInitDSMWorker(RemoteSubplanState *node,

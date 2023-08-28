@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -79,9 +79,9 @@
 #include "nodes/parsenodes.h"
 
 #ifdef __SUBSCRIPTION__
-extern const char * g_tbase_subscription_extension;
-extern const char * g_tbase_subscription_relname;
-extern const char * g_tbase_subscription_parallel_relname;
+extern const char * g_opentenbase_subscription_extension;
+extern const char * g_opentenbase_subscription_relname;
+extern const char * g_opentenbase_subscription_parallel_relname;
 #endif
 
 #ifdef __SUBSCRIPTION__
@@ -98,12 +98,12 @@ extern ObjectAddress AlterSubscriptionOwner(const char *name, Oid newOwnerId);
 extern void AlterSubscriptionOwner_oid(Oid subid, Oid newOwnerId);
 
 #ifdef __SUBSCRIPTION__
-extern void check_tbase_subscription_extension(void);
-extern ObjectAddress CreateTbaseSubscription(CreateSubscriptionStmt *stmt,
+extern void check_opentenbase_subscription_extension(void);
+extern ObjectAddress CreateOpenTenBaseSubscription(CreateSubscriptionStmt *stmt,
                                bool isTopLevel);
-extern void AlterTbaseSubscription(AlterSubscriptionStmt *stmt);
-extern void DropTbaseSubscription(DropSubscriptionStmt *stmt, bool isTopLevel);
-extern bool IsTbaseSubscription(Node * stmt);
+extern void AlterOpenTenBaseSubscription(AlterSubscriptionStmt *stmt);
+extern void DropOpenTenBaseSubscription(DropSubscriptionStmt *stmt, bool isTopLevel);
+extern bool isOpenTenBaseSubscription(Node * stmt);
 #endif
 
 #endif                            /* SUBSCRIPTIONCMDS_H */

@@ -30,7 +30,7 @@
 #include "utils/guc.h"
 #include "utils/lsyscache.h"
 #include "utils/pg_rusage.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "catalog/pg_type.h"
 #include "utils/memutils.h"
 #include "access/htup_details.h"
@@ -49,7 +49,7 @@
 #define GetMyCoordName \
     OidIsValid(MyCoordId) ? get_pgxc_nodename(MyCoordId) : ""
 /* Configuration variables */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /*
  * This two value set while accept create/alter gtm node command
  */
@@ -74,7 +74,7 @@ static GTM_Conn *conn;
 /* Used to check if needed to commit/abort at datanodes */
 GlobalTransactionId currentGxid = InvalidGlobalTransactionId;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 typedef struct
 {
     int            currIdx;        /* current PROCLOCK index */
@@ -87,7 +87,7 @@ List *g_CreateSeqList = NULL;
 List *g_DropSeqList   = NULL;
 List *g_AlterSeqList  = NULL;
 /* constant postfix for sequence to avoid same name */
-#define GTM_SEQ_POSTFIX "_$TBASE$_sequence_temp_54312678712612"
+#define GTM_SEQ_POSTFIX "_$OPENTENBASE$_sequence_temp_54312678712612"
 static void CheckConnection(void);
 static void ResetGTMConnection(void);
 static int GetGTMStoreStatus(GTMStorageStatus *header);
@@ -1090,7 +1090,7 @@ IsGTMConnected()
     return conn != NULL;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /*
  * Set gtm info with GtmHost and GtmPort.
  *
@@ -1276,7 +1276,7 @@ InitGTM(void)
 {// #lizard forgives
 #define  CONNECT_STR_LEN   256 /* 256 bytes should be enough */
     char conn_str[CONNECT_STR_LEN];
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	int  try_cnt = 0;
 	const int max_try_cnt = 1;
     bool  same_host = false;
@@ -1318,7 +1318,7 @@ try_connect_gtm:
 		else if (IS_PGXC_DATANODE)
 			remote_type = GTM_NODE_DATANODE;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (same_host)
         {
             /* Use 60s as connection timeout */
@@ -1343,7 +1343,7 @@ try_connect_gtm:
 	}
 	else
 	{
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (same_host)
         {
             /* Use 60s as connection timeout */
@@ -1382,7 +1382,7 @@ try_connect_gtm:
 	{
 		int save_errno = errno;
 		
-#ifdef __TBASE__	
+#ifdef __OPENTENBASE__	
 		if (try_cnt < max_try_cnt)
 		{
 			/* If connect gtm failed, get gtm info from syscache, and try again */
@@ -1889,7 +1889,7 @@ StartPreparedTranGTM(GlobalTransactionId gxid,
         ret = start_prepared_transaction(conn, gxid, gid, nodestring);
     }
     /* Here, we should not reconnect, for sometime gtm raise an error, reconnect may skip the error. */
-#ifndef __TBASE__
+#ifndef __OPENTENBASE__
     
     /*
      * If something went wrong (timeout), try and reset GTM connection.
@@ -2310,7 +2310,7 @@ CleanGTMSeq(void)
     return;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static void ResetGtmInfo(void)
 {
     if (GtmHost)

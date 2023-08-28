@@ -9,7 +9,7 @@
  * are reached or passed, the current logfile is closed and a new one
  * is created (rotated) The logfiles are stored in a subdirectory gtm_log.
  *
- * Copyright (c) 2021-Present TBase development team, Tencent
+ * Copyright (c) 2021-Present OpenTenBase development team, Tencent
  *
  * IDENTIFICATION
  *	  src/gtm/common/syslogger.c

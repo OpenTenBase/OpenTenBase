@@ -810,7 +810,7 @@ char *
 get_relid_attribute_name(Oid relid, AttrNumber attnum)
 {
     char       *attname;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     Relation rel = relation_open(relid, NoLock);
     if (rel->rd_rel->relkind == RELKIND_RELATION && RELATION_IS_CHILD(rel))
     {
@@ -1106,7 +1106,7 @@ get_constraint_name(Oid conoid)
         return NULL;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 char *
 get_constraint_name_relid(Oid conoid, Oid *relid)
 {
@@ -2700,7 +2700,7 @@ is_pgxc_nodeprimary(Oid nodeid)
     return result;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /*
  * get_pgxc_nodename
  *		Get node name for given identifier
@@ -3810,7 +3810,7 @@ get_range_subtype(Oid rangeOid)
     else
         return InvalidOid;
 }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 Oid
 get_interval_parent_relid(Oid relid)
 {

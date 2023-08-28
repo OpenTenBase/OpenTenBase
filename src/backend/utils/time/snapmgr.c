@@ -871,7 +871,7 @@ PushActiveSnapshot(Snapshot snap)
 {
     ActiveSnapshotElt *newactive;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (snap == InvalidSnapshot)
     {
         return;

@@ -835,7 +835,7 @@ extern void ResetUsageCommon(struct rusage *save_r, struct timeval *save_t);
 extern void ResetUsage(void);
 extern void ShowUsageCommon(const char *title, struct rusage *save_r, struct
 		timeval *save_t);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #define CLEAR_BIT(data, bit) data = (~(1 << (bit)) & (data))
 #define SET_BIT(data, bit)   data = ((1 << (bit)) | (data))
 #define BIT_CLEAR(data, bit) (0 == ((1 << (bit)) & (data))) 

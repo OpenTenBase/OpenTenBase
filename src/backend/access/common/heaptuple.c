@@ -75,7 +75,7 @@
 #endif
 #include "utils/expandeddatum.h"
 #include "pgxc/shardmap.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "utils/typcache.h"
 #include "pgxc/execRemote.h"
 #include "catalog/pg_type.h"
@@ -1439,7 +1439,7 @@ slot_deform_datarow(TupleTableSlot *slot)
             slot->tts_values[i] = (Datum) 0;
             slot->tts_isnull[i] = true;
         }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         else if (len == -2)
         {
             /* composite type */

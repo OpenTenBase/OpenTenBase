@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -176,8 +176,8 @@ DATA(insert OID = 4565 ( "mls_admin" f f t f t f f -1 md5c9952291f36f276ac60ab76
 DATA(insert OID = 6116 ( "audit_admin" f f f f t f f -1 md535964be9ee19e31738175cf766ff7ca4 _null_));
 #define DEFAULT_ROLE_AUDIT_SYS_USERID 6116
 
-#define MLS_USER_DEFAULT_PASSWD     "SecurityAdmin@TBasev2"
-#define AUDIT_USER_DEFAULT_PASSWD   "AuditAdmin@TBasev2"
+#define MLS_USER_DEFAULT_PASSWD     "SecurityAdmin@OpenTenBasev2"
+#define AUDIT_USER_DEFAULT_PASSWD   "AuditAdmin@OpenTenBasev2"
 
 #define MLS_USER        "mls_admin"
 #define AUDIT_USER      "audit_admin"

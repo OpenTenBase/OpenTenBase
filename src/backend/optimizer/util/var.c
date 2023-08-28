@@ -80,7 +80,7 @@ static Node *flatten_join_alias_vars_mutator(Node *node,
                                 flatten_join_alias_vars_context *context);
 static Relids alias_relid_set(PlannerInfo *root, Relids relids);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static bool contain_vars_upper_level_walker(Node *node, int *sublevels_up);
 #endif
 /*
@@ -843,7 +843,7 @@ alias_relid_set(PlannerInfo *root, Relids relids)
     return result;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /*
  * contain_vars_upper_level
  *	  Recursively scan a clause to discover whether it contains any Var nodes

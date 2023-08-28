@@ -106,7 +106,7 @@ typedef XLogLongPageHeaderData *XLogLongPageHeader;
 #define XLByteToSeg(xlrp, logSegNo) \
     logSegNo = (xlrp) / XLogSegSize
     
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #define XLByteToSegNo(xlrp) ((xlrp) / XLogSegSize)
 #endif
 
@@ -322,7 +322,7 @@ extern bool XLogArchiveIsBusy(const char *xlog);
 extern bool XLogArchiveIsReady(const char *xlog);
 extern bool XLogArchiveIsReadyOrDone(const char *xlog);
 extern void XLogArchiveCleanup(const char *xlog);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern void XLogArchiveNotifySegGTS(XLogSegNo segno, GlobalTimestamp gts);
 extern void XLogArchiveNotifyGTS(const char *xlog, GlobalTimestamp gts);
 #endif

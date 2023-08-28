@@ -133,7 +133,7 @@
 #include "pgxc/groupmgr.h"
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "parser/scansup.h"
 #endif
 
@@ -158,7 +158,7 @@ typedef struct OnCommitItem
 
 static List *on_commits = NIL;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern bool    is_txn_has_parallel_ddl;
 #endif
 
@@ -189,7 +189,7 @@ extern bool    is_txn_has_parallel_ddl;
 #define AT_PASS_MISC            8    /* other stuff */
 #ifdef PGXC
 #define AT_PASS_DISTRIB            9    /* Redistribution pass */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #define AT_PASS_PARTITION         10
 #define AT_NUM_PASSES            11
 #else
@@ -361,7 +361,7 @@ static void StoreCatalogInheritance(Oid relationId, List *supers,
 static void StoreCatalogInheritance1(Oid relationId, Oid parentOid,
                          int16 seqNumber, Relation inhRelation,
                          bool child_is_partition);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static void StoreIntervalPartitionDependency(Oid relationId, Oid parentOid);
 
 static void ATAddPartitions(Relation rel, int nparts);
@@ -621,7 +621,7 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
      * Truncate relname to appropriate length (probably a waste of time, as
      * parser should have done this already).
      */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* interval partition's child has its own name */
     if (stmt->interval_child)
     {
@@ -647,7 +647,7 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
         if (relkind != RELKIND_RELATION)
             elog(ERROR, "unexpected relkind: %d", (int) relkind);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (strcmp(stmt->partspec->strategy, PARTITION_INTERVAL) == 0)
             relkind = RELKIND_RELATION;
         else
@@ -664,7 +664,7 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
      * drop, and mark stmt->relation as RELPERSISTENCE_TEMP if a temporary
      * namespace is selected.
      */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	if (stmt->interval_child)
 	{
 		/* interval partition child's namespace is same as parent. */
@@ -983,7 +983,7 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
                                           typaddress);
 
     /* Store inheritance information for new rel. */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (stmt->interval_child)
     {
         CommandCounterIncrement();
@@ -1008,7 +1008,7 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
         }
 #endif
     StoreCatalogInheritance(relationId, inheritOids, stmt->partbound != NULL);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     }
 #endif
     /*
@@ -1233,7 +1233,7 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
         stmt->partspec = transformPartitionSpec(rel, stmt->partspec,
                                                 &strategy);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /*
           * For interval partition, and store all information
           * into catalog pg_partition_interval.
@@ -1256,7 +1256,7 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
 
 		/* make it all visible */
         CommandCounterIncrement();
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         }
 #endif
     }
@@ -1406,7 +1406,7 @@ DropErrorMsgWrongType(const char *relname, char wrongkind, char rightkind)
              (wentry->kind != '\0') ? errhint("%s", _(wentry->drophint_msg)) : 0));
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 
 /*
  * remove relname in query string (replace with ' ')
@@ -1629,7 +1629,7 @@ ObjectAddresses* PreCheckforRemoveRelation(DropStmt* drop, char* queryString,
  *        Implements DROP TABLE, DROP INDEX, DROP SEQUENCE, DROP VIEW,
  *        DROP MATERIALIZED VIEW, DROP FOREIGN TABLE
  */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 int
 RemoveRelations(DropStmt *drop, char* queryString)
 #else
@@ -1642,7 +1642,7 @@ RemoveRelations(DropStmt *drop)
     ListCell   *cell;
     int            flags = 0;
     LOCKMODE    lockmode = AccessExclusiveLock;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     bool        querystring_omit = false;
     int         drop_cnt = 0;
 #endif
@@ -1712,7 +1712,7 @@ RemoveRelations(DropStmt *drop)
         Oid            relOid;
         ObjectAddress obj;
         struct DropRelationCallbackState state;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         Relation child_rel = NULL;
 #endif
         /*
@@ -1741,12 +1741,12 @@ RemoveRelations(DropStmt *drop)
         if (!OidIsValid(relOid))
         {
 			bool missing_ok = drop->missing_ok;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 			if (IsConnFromCoord() && is_txn_has_parallel_ddl)
 				missing_ok = false;
 #endif
 			DropErrorMsgNonExistent(rel, relkind, missing_ok);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 			if (!querystring_omit)
             {
                 OmitqueryStringSpace(queryString);
@@ -1758,7 +1758,7 @@ RemoveRelations(DropStmt *drop)
             continue;
         }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /* could not drop child interval partition or its index */
         if (RELKIND_RELATION == relkind)// ||
             //RELKIND_INDEX == relkind)
@@ -1803,7 +1803,7 @@ RemoveRelations(DropStmt *drop)
         obj.objectSubId = 0;
 
         add_exact_object_address(&obj, objects);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         drop_cnt++;
 #endif
     }
@@ -1812,7 +1812,7 @@ RemoveRelations(DropStmt *drop)
 
     free_object_addresses(objects);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     return drop_cnt;
 #endif
 }
@@ -1847,7 +1847,7 @@ RangeVarCallbackForDropRelation(const RangeVar *rel, Oid relOid, Oid oldRelOid,
      */
     if (relOid != oldRelOid && OidIsValid(state->heapOid))
     {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		/*
 		 * Unlock index before unlock table, or may cause deadlock
 		 * when drop index and create same index executed concurrently.
@@ -1882,7 +1882,7 @@ RangeVarCallbackForDropRelation(const RangeVar *rel, Oid relOid, Oid oldRelOid,
     tuple = SearchSysCache1(RELOID, ObjectIdGetDatum(relOid));
     if (!HeapTupleIsValid(tuple))
 	{
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		if (is_txn_has_parallel_ddl && !state->concurrent)
 		{
 			elog(ERROR, "Can't get valid tuple, relation %s had been invalid"
@@ -1941,7 +1941,7 @@ RangeVarCallbackForDropRelation(const RangeVar *rel, Oid relOid, Oid oldRelOid,
 		{
             LockRelationOid(state->heapOid, heap_lockmode);
     }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		else
 		{
 			if (is_txn_has_parallel_ddl && !state->concurrent)
@@ -2009,7 +2009,7 @@ ExecuteTruncate(TruncateStmt *stmt)
         bool        recurse = rv->inh;
         Oid            myrelid;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /* for interval partition, locate which partition need to be truncated */
         if(rv->intervalparent && !rv->partitionvalue->isdefault)
         {
@@ -2098,7 +2098,7 @@ ExecuteTruncate(TruncateStmt *stmt)
 
         rel = heap_openrv(rv, AccessExclusiveLock);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /* could not truncate interval partitioned parent table directly */
         if(RelationGetPartitionColumnIndex(rel) != InvalidAttrNumber && !rv->intervalparent)
         {
@@ -2520,7 +2520,7 @@ MergeAttributes(List *schema, List *supers, char relpersistence,
     int            child_attno;
     static Node bogus_marker = {0}; /* marks conflicting defaults */
     List       *saved_schema = NIL;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     bool       need_dropped_column = false;
 
     if (is_partition && relpersistence == RELPERSISTENCE_PERMANENT)
@@ -2705,7 +2705,7 @@ MergeAttributes(List *schema, List *supers, char relpersistence,
             /*
              * Ignore dropped columns in the parent.
              */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             if (attribute->attisdropped)
             {
                 if (need_dropped_column)
@@ -3286,7 +3286,7 @@ StoreCatalogInheritance1(Oid relationId, Oid parentOid,
     SetRelationHasSubclass(parentOid, true);
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 void
 StoreIntervalPartitionInfo(Oid relationId, char partkind, Oid parentId, bool isindex)
 {// #lizard forgives
@@ -3806,7 +3806,7 @@ renameatt(RenameStmt *stmt)
     Oid            relid;
     AttrNumber    attnum;
     ObjectAddress address;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     Relation    rel;
 #endif
 
@@ -3839,7 +3839,7 @@ renameatt(RenameStmt *stmt)
 
     ObjectAddressSubSet(address, RelationRelationId, relid, attnum);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (stmt->renameType == OBJECT_COLUMN)
     {
         rel = heap_open(relid, NoLock);
@@ -4020,7 +4020,7 @@ RenameConstraint(RenameStmt *stmt)
             return InvalidObjectAddress;
         }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /* rename constraint of interval partition is not permitted */
         {
             Relation rel = heap_open(relid, NoLock);
@@ -4080,7 +4080,7 @@ RenameRelation(RenameStmt *stmt)
         return InvalidObjectAddress;
     }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* rename is forbidden on interval partition */
     if (stmt->renameType == OBJECT_TABLE ||
         stmt->renameType == OBJECT_INDEX)
@@ -4130,7 +4130,7 @@ RenameRelation(RenameStmt *stmt)
         }
     }
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (stmt->renameType == OBJECT_TABLE)
     {
         Relation rel = heap_open(relid, AccessExclusiveLock);
@@ -4272,7 +4272,7 @@ RenameRelationInternal(Oid myrelid, const char *newrelname, bool is_internal)
             ereport(ERROR,
                     (errcode(ERRCODE_CONNECTION_FAILURE),
                      errmsg("GTM error, could not rename sequence")));
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
          RegisterRenameSequence(newseqname, seqname);
 #endif
 
@@ -4711,7 +4711,7 @@ AlterTableGetLockLevel(List *cmds)
             case AT_DetachPartition:
                 cmd_lockmode = AccessExclusiveLock;
                 break;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             case AT_AddPartitions:
             case AT_DropPartitions:
                 cmd_lockmode = RowExclusiveLock;
@@ -4876,7 +4876,7 @@ ATPrepCmd(List **wqueue, Relation rel, AlterTableCmd *cmd,
      */
     cmd = copyObject(cmd);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if(RELATION_IS_INTERVAL(rel))
         {
             switch (cmd->subtype)
@@ -5126,7 +5126,7 @@ ATPrepCmd(List **wqueue, Relation rel, AlterTableCmd *cmd,
             ATSimplePermissions(rel, ATT_TABLE | ATT_VIEW | ATT_MATVIEW | ATT_INDEX);
             /* This command never recurses */
             /* No command-specific prep needed */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             if (RELATION_IS_INTERVAL(rel))
             {
                 ATSimpleRecursion(wqueue, rel, cmd, recurse, lockmode);
@@ -5160,7 +5160,7 @@ ATPrepCmd(List **wqueue, Relation rel, AlterTableCmd *cmd,
             break;
         case AT_ReplicaIdentity:    /* REPLICA IDENTITY ... */
             ATSimplePermissions(rel, ATT_TABLE | ATT_MATVIEW);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             if (RELATION_IS_INTERVAL(rel))
             {
                 ATSimpleRecursion(wqueue, rel, cmd, recurse, lockmode);
@@ -5206,7 +5206,7 @@ ATPrepCmd(List **wqueue, Relation rel, AlterTableCmd *cmd,
         case AT_SubCluster:
         case AT_AddNodeList:
         case AT_DeleteNodeList:
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             elog(ERROR, "this operation is not permitted");
 #endif
             ATSimplePermissions(rel, ATT_TABLE);
@@ -5234,7 +5234,7 @@ ATPrepCmd(List **wqueue, Relation rel, AlterTableCmd *cmd,
             /* No command-specific prep needed */
             pass = AT_PASS_MISC;
             break;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         case AT_AddPartitions:
         case AT_DropPartitions:
             ATSimplePermissions(rel, ATT_TABLE);
@@ -5619,7 +5619,7 @@ ATExecCmd(List **wqueue, AlteredTableInfo *tab, Relation rel,
             Assert(rel->rd_rel->relkind == RELKIND_PARTITIONED_TABLE);
             ATExecDetachPartition(rel, ((PartitionCmd *) cmd->def)->name);
             break;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         case AT_AddPartitions:
             ATAddPartitions(rel, ((AddDropPartitions *)cmd->def)->nparts);
             break;
@@ -5651,7 +5651,7 @@ ATExecCmd(List **wqueue, AlteredTableInfo *tab, Relation rel,
     CommandCounterIncrement();
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static void
 ATAddPartitions(Relation rel, int nparts)
 {
@@ -6117,7 +6117,7 @@ ATRewriteTables(AlterTableStmt *parsetree, List **wqueue, LOCKMODE lockmode)
      * it caused foreign key constraints to fail.
      * PGXCTODO - issue for pg_catalog or any other cases?
      */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (IS_PGXC_DATANODE)
         return;
 #else
@@ -6687,7 +6687,7 @@ ATSimpleRecursion(List **wqueue, Relation rel,
         ListCell   *child;
         List       *children;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (RELATION_IS_INTERVAL(rel))
         {
             children = RelationGetAllPartitions(rel);
@@ -6696,7 +6696,7 @@ ATSimpleRecursion(List **wqueue, Relation rel,
         {
 #endif
         children = find_all_inheritors(relid, lockmode, NULL);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         }
 #endif
         /*
@@ -6714,7 +6714,7 @@ ATSimpleRecursion(List **wqueue, Relation rel,
             /* find_all_inheritors already got lock */
             childrel = relation_open(childrelid, NoLock);
             CheckTableNotInUse(childrel, "ALTER TABLE");
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             if (RELATION_IS_CHILD(childrel) && cmd->subtype == AT_ReplicaIdentity)
             {
                 AlterTableCmd *childcmd = copyObject(cmd);
@@ -6740,7 +6740,7 @@ ATSimpleRecursion(List **wqueue, Relation rel,
             {
 #endif
                 ATPrepCmd(wqueue, childrel, cmd, false, true, lockmode);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             }
 #endif
             relation_close(childrel, NoLock);
@@ -7399,7 +7399,7 @@ ATExecAddColumn(List **wqueue, AlteredTableInfo *tab, Relation rel,
      * routines, we have to do this one level of recursion at a time; we can't
      * use find_all_inheritors to do it in one pass.
      */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if(RELATION_IS_INTERVAL(rel))
     {
         children = RelationGetAllPartitions(rel);
@@ -7408,7 +7408,7 @@ ATExecAddColumn(List **wqueue, AlteredTableInfo *tab, Relation rel,
     {
 #endif
     children = find_inheritance_children(RelationGetRelid(rel), lockmode);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     }
 #endif
 
@@ -7425,7 +7425,7 @@ ATExecAddColumn(List **wqueue, AlteredTableInfo *tab, Relation rel,
     if (!recursing)
     {
         colDef = copyObject(colDef);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if(RELATION_IS_INTERVAL(rel))
             colDef->inhcount = 0;
         else
@@ -8508,7 +8508,7 @@ ATExecDropColumn(List **wqueue, Relation rel, const char *colName,
 		             colName, RelationGetRelationName(rel))));
     }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* Don't drop columns used in the interval partition key*/
     if (RELATION_IS_INTERVAL(rel) && RelationGetPartitionColumnIndex(rel) == attnum)
     {
@@ -8540,7 +8540,7 @@ ATExecDropColumn(List **wqueue, Relation rel, const char *colName,
      * routines, we have to do this one level of recursion at a time; we can't
      * use find_all_inheritors to do it in one pass.
      */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (RELATION_IS_INTERVAL(rel))
     {
         children = RelationGetAllPartitions(rel);
@@ -8549,7 +8549,7 @@ ATExecDropColumn(List **wqueue, Relation rel, const char *colName,
     {
 #endif
     children = find_inheritance_children(RelationGetRelid(rel), lockmode);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     }
 #endif
 
@@ -8585,7 +8585,7 @@ ATExecDropColumn(List **wqueue, Relation rel, const char *colName,
                      colName, childrelid);
             childatt = (Form_pg_attribute) GETSTRUCT(tuple);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             if (RELATION_IS_INTERVAL(rel))
             {
                 /* Time to delete this child column, too */
@@ -8640,7 +8640,7 @@ ATExecDropColumn(List **wqueue, Relation rel, const char *colName,
                 /* Make update visible */
                 CommandCounterIncrement();
             }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             }
 #endif
             heap_freetuple(tuple);
@@ -8744,7 +8744,7 @@ ATExecAddIndex(AlteredTableInfo *tab, Relation rel,
                           skip_build,
                           quiet);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* create index on interval partition child table */
     if (OidIsValid(address.objectId))
     {
@@ -8972,7 +8972,7 @@ ATExecAddConstraint(List **wqueue, AlteredTableInfo *tab, Relation rel,
 
         case CONSTR_FOREIGN:
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             if (RELATION_IS_INTERVAL(rel))
             {
                 elog(ERROR, "ADD ForeignKeyConstraint on interval partition is forbidden");
@@ -9112,7 +9112,7 @@ ATAddCheckConstraint(List **wqueue, AlteredTableInfo *tab, Relation rel,
     if (newcons == NIL)
         return address;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* add constraint to interval partition child tables */
     if (RELATION_IS_INTERVAL(rel))
     {
@@ -9282,7 +9282,7 @@ ATAddForeignKeyConstraint(AlteredTableInfo *tab, Relation rel,
             break;
     }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (rel->rd_locator_info && rel->rd_locator_info->locatorType == LOCATOR_TYPE_SHARD)
     {
         if (fkconstraint->deferrable || fkconstraint->initdeferred)
@@ -10678,7 +10678,7 @@ ATExecDropConstraint(Relation rel, const char *constrName,
     HeapTuple    tuple;
     bool        found = false;
     bool        is_no_inherit_constraint = false;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     bool        check_constraint = false;
 #endif
 
@@ -10714,7 +10714,7 @@ ATExecDropConstraint(Relation rel, const char *constrName,
                      errmsg("cannot drop inherited constraint \"%s\" of relation \"%s\"",
                             constrName, RelationGetRelationName(rel))));
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /* only handle check, primary, unique constraint */
         if (RELATION_IS_INTERVAL(rel))
         {
@@ -10790,7 +10790,7 @@ ATExecDropConstraint(Relation rel, const char *constrName,
         }
     }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (RELATION_IS_INTERVAL(rel))
     {
         if (check_constraint)
@@ -10810,7 +10810,7 @@ ATExecDropConstraint(Relation rel, const char *constrName,
         children = find_inheritance_children(RelationGetRelid(rel), lockmode);
     else
         children = NIL;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     }
 #endif
     /*
@@ -10866,7 +10866,7 @@ ATExecDropConstraint(Relation rel, const char *constrName,
 
         systable_endscan(scan);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (RELATION_IS_INTERVAL(rel))
         {
             /* Time to delete this child constraint, too */
@@ -10921,7 +10921,7 @@ ATExecDropConstraint(Relation rel, const char *constrName,
             /* Make update visible */
             CommandCounterIncrement();
         }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         }
 #endif
         heap_freetuple(copy_tuple);
@@ -10996,7 +10996,7 @@ ATPrepAlterColumnType(List **wqueue,
                        colName, RelationGetRelationName(rel))));
     }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* could not alter partition column of interval partition */
     if (RELATION_IS_INTERVAL(rel) && RelationGetPartitionColumnIndex(rel) == attnum)
     {
@@ -11123,7 +11123,7 @@ ATPrepAlterColumnType(List **wqueue,
      * If we are told not to recurse, there had better not be any child
      * tables; else the alter would put them out of step.
      */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* Recurse manually by queueing a new command for each interval partition child */
     if (recurse || RELATION_IS_INTERVAL(rel))
 #else
@@ -11134,7 +11134,7 @@ ATPrepAlterColumnType(List **wqueue,
         ListCell   *child;
         List       *children;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (RELATION_IS_INTERVAL(rel))
         {
             children = RelationGetAllPartitions(rel);
@@ -11143,7 +11143,7 @@ ATPrepAlterColumnType(List **wqueue,
         {
 #endif
         children = find_all_inheritors(relid, lockmode, NULL);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         }
 #endif
         /*
@@ -11532,7 +11532,7 @@ ATExecAlterColumnType(AlteredTableInfo *tab, Relation rel,
             case OCLASS_PGXC_NODE:
             case OCLASS_PGXC_GROUP:
             case OCLASS_PGXC_CLASS:
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             case OCLASS_PG_PARTITION_INTERVAL:
 #endif
 #ifdef __AUDIT__
@@ -12369,7 +12369,7 @@ ATExecChangeOwner(Oid relationOid, Oid newOwnerId, bool recursing, LOCKMODE lock
     }
 
     InvokeObjectPostAlterHook(RelationRelationId, relationOid, 0);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* 
      * if this a interval partition parent, we do alter action recursively, 
      * need to be mentioned, orignal partition table does not change its children recursively,
@@ -15480,7 +15480,7 @@ ATPrepChangePersistence(Relation rel, bool toLogged)
 
     return true;
 }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static void AlterTableNamespaceRecruse(Oid relid, Oid oldschema, Oid newschema, const char * newschemaname)
 {
     Relation    rel;
@@ -15530,7 +15530,7 @@ AlterTableNamespace(AlterObjectSchemaStmt *stmt, Oid *oldschema)
 
     rel = relation_open(relid, NoLock);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* altet partition table namespace is not permitted */
     if (RELKIND_RELATION == rel->rd_rel->relkind)
     {
@@ -15591,7 +15591,7 @@ AlterTableNamespace(AlterObjectSchemaStmt *stmt, Oid *oldschema)
     if (oldschema)
         *oldschema = oldNspOid;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /*
      * if this is interval partition, we change its children's schema too.
      * while, change child schema directly is forbidden.
@@ -15675,7 +15675,7 @@ AlterTableNamespaceInternal(Relation rel, Oid oldNspOid, Oid nspOid,
                      errmsg("GTM error, could not rename sequence")));
 
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         RegisterRenameSequence(newseqname, seqname);
 #endif
         pfree(seqname);
@@ -15886,7 +15886,7 @@ AlterSeqNamespaces(Relation classRel, Relation rel,
                         (errcode(ERRCODE_CONNECTION_FAILURE),
                          errmsg("GTM error, could not rename sequence")));
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             RegisterRenameSequence(newseqname, seqname);
 #endif
 
@@ -16505,7 +16505,7 @@ transformPartitionSpec(Relation rel, PartitionSpec *partspec, char *strategy)
         *strategy = PARTITION_STRATEGY_LIST;
     else if (pg_strcasecmp(partspec->strategy, "range") == 0)
         *strategy = PARTITION_STRATEGY_RANGE;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     else if (pg_strcasecmp(partspec->strategy, "interval") == 0)
     {
         *strategy = PARTITION_STRATEGY_INTERVAL;

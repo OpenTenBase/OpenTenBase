@@ -26,7 +26,7 @@
 #include "utils/memutils.h"
 #include "utils/rel.h"
 #include "postmaster/postmaster.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "pgxc/squeue.h"
 #endif
 /*
@@ -80,7 +80,7 @@ ExecInitGatherMerge(GatherMerge *node, EState *estate, int eflags)
     gm_state->ps.plan = (Plan *) node;
     gm_state->ps.state = estate;
     gm_state->ps.ExecProcNode = ExecGatherMerge;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     gm_state->get_tuples     = 0;
     gm_state->get_total_time = -1;
 #endif
@@ -172,7 +172,7 @@ ExecGatherMerge(PlanState *pstate)
     TupleTableSlot *slot;
     ExprContext *econtext;
     int            i;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     TimestampTz begin = 0;
     TimestampTz end   = 0;
 #endif
@@ -193,13 +193,13 @@ ExecGatherMerge(PlanState *pstate)
         if (gm->num_workers > 0 && IsInParallelMode())
         {
             ParallelContext *pcxt;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             ParallelWorkerStatus *num_parallel_workers = NULL;
 #endif
 
 			/* Initialize, or re-initialize, shared state needed by workers. */
             if (!node->pei)
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 node->pei = ExecInitParallelPlan(node->ps.lefttree,
                                                  estate,
                                                  gm->num_workers,
@@ -236,7 +236,7 @@ ExecGatherMerge(PlanState *pstate)
                                                node->tupDesc);
                 }
                 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 /* set up launched parallel workers' total number in shm */
                 num_parallel_workers = GetParallelWorkerStatusInfo(pcxt->toc);
                 num_parallel_workers->numLaunchedWorkers       = pcxt->nworkers_launched;
@@ -251,7 +251,7 @@ ExecGatherMerge(PlanState *pstate)
         }
 
         /* always allow leader to participate */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         node->need_to_scan_locally = (node->reader == NULL);
 #else
         node->need_to_scan_locally = true;
@@ -266,7 +266,7 @@ ExecGatherMerge(PlanState *pstate)
     econtext = node->ps.ps_ExprContext;
     ResetExprContext(econtext);
     
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (enable_statistic && !node->need_to_scan_locally)
     {
         begin = GetCurrentTimestamp();
@@ -279,7 +279,7 @@ ExecGatherMerge(PlanState *pstate)
      */
     slot = gather_merge_getnext(node);
     if (TupIsNull(slot))
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     {
         if (enable_statistic && !node->need_to_scan_locally)
         {
@@ -295,7 +295,7 @@ ExecGatherMerge(PlanState *pstate)
 #endif
 
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (enable_statistic && !node->need_to_scan_locally)
     {
         end = GetCurrentTimestamp();
@@ -349,7 +349,7 @@ ExecShutdownGatherMerge(GatherMergeState *node)
 {
     ExecShutdownGatherMergeWorkers(node);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     parallelExecutionError = NULL;
 #endif
 
@@ -800,7 +800,7 @@ heap_compare_slots(Datum a, Datum b, void *arg)
     }
     return 0;
 }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 void
 ExecFinishGatherMerge(PlanState *pstate)
 {

@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -366,7 +366,7 @@ xact_desc(StringInfo buf, XLogReaderState *record)
 		appendStringInfo(buf, "xtop %u: ", xlrec->xtop);
 		xact_desc_assignment(buf, xlrec);
 	}
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	else if (info == XLOG_XACT_ACQUIRE_GTS)
 	{
 		xl_xact_acquire_gts *xlrec = (xl_xact_acquire_gts *) rec;
@@ -400,7 +400,7 @@ xact_identify(uint8 info)
         case XLOG_XACT_ASSIGNMENT:
             id = "ASSIGNMENT";
             break;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         case XLOG_XACT_ACQUIRE_GTS:
             id = "ACQUIRE_GTS";
             break;

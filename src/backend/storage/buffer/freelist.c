@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -605,7 +605,7 @@ GetAccessStrategy(BufferAccessStrategyType btype)
         case BAS_BULKWRITE:
             ring_size = 16 * 1024 * 1024 / BLCKSZ;
             break;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         case BAS_BULKREAD_STAT_SHARD:
             ring_size = 32 * 1024 * 1024 / BLCKSZ;
             break;
@@ -754,7 +754,7 @@ StrategyRejectBuffer(BufferAccessStrategy strategy, BufferDesc *buf)
     return true;
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 BufferAccessStrategy
 GetAccessStrategy_part(int npart)
 {

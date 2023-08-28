@@ -99,7 +99,7 @@
 /* PGXC_DATANODE */
 #include "access/transam.h"
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "storage/nodelock.h"
 #include "optimizer/planmain.h"
 #include "access/twophase.h"
@@ -207,7 +207,7 @@ static bool RecoveryConflictPending = false;
 static bool RecoveryConflictRetryable = true;
 static ProcSignalReason RecoveryConflictReason;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static char *remotePrepareGID = NULL;
 /* for error code contrib */
 bool g_is_in_init_phase = false;
@@ -246,7 +246,7 @@ static bool IsTransactionExitStmtList(List *pstmts);
 static bool IsTransactionStmtList(List *pstmts);
 static void drop_unnamed_stmt(void);
 static void log_disconnections(int code, Datum arg);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static void replace_null_with_blank(char *src, int length);
 static bool NeedResourceOwner(const char *stmt_name);
 #endif
@@ -656,7 +656,7 @@ SocketBackend(StringInfo inBuf)
                          errmsg("invalid frontend message type %d", qtype)));
             break;
 #ifdef PGXC /* PGXC_DATANODE */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         case 'N':
 		case 'U':				/* coord info: coord_pid and top_xid */
 		case 'o':               /* global session id */
@@ -1357,7 +1357,7 @@ exec_simple_query(const char *query_string)
         g_commandTag = commandTag;
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         HeavyLockCheck(commandTag, CMD_UNKNOWN, query_string, parsetree);
 
         groupOids = NULL;
@@ -1401,7 +1401,7 @@ exec_simple_query(const char *query_string)
          */
 		if (analyze_requires_snapshot(parsetree) && g_snapshot_for_analyze)
         {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             /* use local snapshot instead of global if told so */
             if (g_set_global_snapshot)
             {
@@ -1469,7 +1469,7 @@ exec_simple_query(const char *query_string)
         portal = CreatePortal("", true, true);
         /* Don't display the portal in pg_cursors */
         portal->visible = false;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /*
          * try to transform 'insert into values...' to 'COPY FROM'
          */
@@ -1506,7 +1506,7 @@ exec_simple_query(const char *query_string)
          */
         PortalStart(portal, NULL, 0, InvalidSnapshot);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /* store query info, only SELECT cmd */
         if (distributed_query_analyze)
         {
@@ -1571,7 +1571,7 @@ exec_simple_query(const char *query_string)
 
         PortalDrop(portal, false);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /* remove query info */
         if (distributed_query_analyze)
         {
@@ -1713,7 +1713,7 @@ exec_parse_message(const char *query_string,    /* string to execute */
     bool        is_named;
     bool        save_log_statement_stats = log_statement_stats;
     char        msec_str[32];
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     bool        use_resowner = false;
 #endif
 
@@ -1765,7 +1765,7 @@ exec_parse_message(const char *query_string,    /* string to execute */
         /* Named prepared statement --- parse in MessageContext */
         oldcontext = MemoryContextSwitchTo(MessageContext);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         use_resowner = NeedResourceOwner(stmt_name);
 
         if (use_resowner && IS_PGXC_COORDINATOR)
@@ -1833,7 +1833,7 @@ exec_parse_message(const char *query_string,    /* string to execute */
          */
         commandTag = CreateCommandTag(raw_parse_tree->stmt);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         explain_stmt = false;
 
         if (strcmp(commandTag, "EXPLAIN") == 0)
@@ -1841,7 +1841,7 @@ exec_parse_message(const char *query_string,    /* string to execute */
             explain_stmt = true;
         }
 #endif
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         HeavyLockCheck(commandTag, CMD_UNKNOWN, query_string, raw_parse_tree);
 #endif
 
@@ -1876,7 +1876,7 @@ exec_parse_message(const char *query_string,    /* string to execute */
          */
 		if (analyze_requires_snapshot(raw_parse_tree) && g_snapshot_for_analyze)
         {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             /* use local snapshot instead of global if told so */
             if (g_set_global_snapshot)
             {
@@ -1905,7 +1905,7 @@ exec_parse_message(const char *query_string,    /* string to execute */
                                         &paramTypes,
                                         &numParams);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (query->isMultiValues && !query->hasUnshippableTriggers)
         {
             InsertStmt *src_insert = (InsertStmt *)raw_parse_tree->stmt;
@@ -1979,7 +1979,7 @@ exec_parse_message(const char *query_string,    /* string to execute */
         /*
          * Store the query as a prepared statement.
          */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (use_resowner)
         {
 			StorePreparedStatement(stmt_name, psrc, false, true, need_rewrite);
@@ -2220,7 +2220,7 @@ exec_bind_message(StringInfo input_message)
     bool        save_log_statement_stats = log_statement_stats;
     bool        snapshot_set = false;
     char        msec_str[32];
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     int ncolumns;
     int column_index;
     int index;
@@ -2271,7 +2271,7 @@ exec_bind_message(StringInfo input_message)
     pgstat_report_activity(STATE_RUNNING, debug_query_string);
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	HeavyLockCheck(psrc->commandTag, CMD_UNKNOWN, NULL, NULL);
 #endif
 
@@ -2316,7 +2316,7 @@ exec_bind_message(StringInfo input_message)
                  errmsg("bind message supplies %d parameters, but prepared statement \"%s\" requires %d",
                         numParams, stmt_name, psrc->num_params)));
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /*
      * if we told to do copy from instead of insert into multi-values,
      * also need to do some check to ensure we can do copy from 
@@ -2438,7 +2438,7 @@ exec_bind_message(StringInfo input_message)
         (psrc->raw_parse_tree &&
 		 analyze_requires_snapshot(psrc->raw_parse_tree))) && g_snapshot_for_analyze)
     {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /* use local snapshot instead of global if told so */
         if (g_set_global_snapshot)
         {
@@ -2470,7 +2470,7 @@ exec_bind_message(StringInfo input_message)
         params->parserSetupArg = NULL;
         params->numParams = numParams;
         params->paramMask = NULL;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         index = 0;
 #endif
         for (paramno = 0; paramno < numParams; paramno++)
@@ -2511,7 +2511,7 @@ exec_bind_message(StringInfo input_message)
                 pbuf.data = NULL;    /* keep compiler quiet */
                 csave = 0;
             }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             index++;
 #endif
             if (numPFormats > 1)
@@ -2537,7 +2537,7 @@ exec_bind_message(StringInfo input_message)
                     pstring = NULL;
                 else
                 {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                     if (enable_null_string && IS_PGXC_LOCAL_COORDINATOR)
                     {
                         switch (ptype)
@@ -2562,7 +2562,7 @@ exec_bind_message(StringInfo input_message)
 
                 pval = OidInputFunctionCall(typinput, pstring, typioparam, -1);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 if (psrc->insert_into)
                 {
                     if (isNull)
@@ -2611,7 +2611,7 @@ exec_bind_message(StringInfo input_message)
 
                 pval = OidReceiveFunctionCall(typreceive, bufptr, typioparam, -1);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 
                 if (psrc->insert_into)
                 {
@@ -2662,7 +2662,7 @@ exec_bind_message(StringInfo input_message)
                 }
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 if (enable_null_string && IS_PGXC_LOCAL_COORDINATOR && !isNull)
                 {
                     int length = 0;
@@ -2732,7 +2732,7 @@ exec_bind_message(StringInfo input_message)
     else
         params = NULL;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (psrc->insert_into)
     {
         if (column_index != (numParams / ncolumns))
@@ -2798,7 +2798,7 @@ exec_bind_message(StringInfo input_message)
      */
     cplan = GetCachedPlan(psrc, params, false, NULL);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     cplan->stmt_list_backup = NULL;
     if (psrc->insert_into && data_list)
     {
@@ -3072,7 +3072,7 @@ exec_execute_message(const char *portal_name, long max_rows)
 
     (*receiver->rDestroy) (receiver);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (portal->cplan && portal->cplan->stmt_list_backup)
     {
         portal->cplan->stmt_list = portal->cplan->stmt_list_backup;
@@ -3109,7 +3109,7 @@ exec_execute_message(const char *portal_name, long max_rows)
             CommandCounterIncrement();
         }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		if (instrument &&
 		    desc != NULL &&
 		    desc->myindex == -1)
@@ -3587,7 +3587,7 @@ finish_xact_command(void)
 #endif
 
 		xact_started = false;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         is_txn_has_parallel_ddl = false;
 #endif
 	}
@@ -3611,7 +3611,7 @@ IsTransactionExitStmt(Node *parsetree)
             stmt->kind == TRANS_STMT_PREPARE ||
             stmt->kind == TRANS_STMT_ROLLBACK ||
             stmt->kind == TRANS_STMT_ROLLBACK_TO ||
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             stmt->kind == TRANS_STMT_ROLLBACK_SUBTXN
 #endif
             )
@@ -3689,7 +3689,7 @@ quickdie(SIGNAL_ARGS)
      */
     HOLD_INTERRUPTS();
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     SqueueProducerExit();
 #endif
 
@@ -3800,7 +3800,7 @@ StatementCancelHandler(SIGNAL_ARGS)
 
     errno = save_errno;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (IsSqueueConsumer() || IsSqueueProducer())
     {
         SetSqueueError();
@@ -4819,12 +4819,12 @@ PostgresMain(int argc, char *argv[],
     cluster_ex_lock_held = false;
 #endif /* XCP */
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* for error code contrib */
     g_is_in_init_phase = true;
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     HOLD_POOLER_RELOAD();
 #endif
 
@@ -4905,7 +4905,7 @@ PostgresMain(int argc, char *argv[],
          */
         pqsignal(SIGPIPE, SIG_IGN);
         pqsignal(SIGUSR1, procsignal_sigusr1_handler);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /* SIGUSR2 is registered for postgres in SetRemoteSubplan */
 #endif
         pqsignal(SIGUSR2, SIG_IGN);
@@ -5203,7 +5203,7 @@ PostgresMain(int argc, char *argv[],
          */
         debug_query_string = NULL;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         if (groupOids)
         {
             groupOids = NULL;
@@ -5265,7 +5265,7 @@ PostgresMain(int argc, char *argv[],
 		/* We don't have a transaction command open anymore */
 		xact_started = false;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		/* Clear parallel DDL flag */
 		is_txn_has_parallel_ddl = false;
 		leader_cn_executed_ddl = false;
@@ -5288,7 +5288,7 @@ PostgresMain(int argc, char *argv[],
 		RESUME_INTERRUPTS();
 	}
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /* for error code contrib */
     g_is_in_init_phase = false;
 #endif
@@ -5299,7 +5299,7 @@ PostgresMain(int argc, char *argv[],
     if (!ignore_till_sync)
         send_ready_for_query = true;    /* initially, or after error */
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if (!am_walsender)
     {
         IsNormalPostgres = true;
@@ -5317,7 +5317,7 @@ PostgresMain(int argc, char *argv[],
 
 #ifdef __SUBSCRIPTION__
         logicl_aply_rset_ignor_pk_conflict();
-        TbaseSubscriptionApplyWorkerReset();
+        OpenTenBaseSubscriptionApplyWorkerReset();
 #endif
 
         /*
@@ -5337,7 +5337,7 @@ PostgresMain(int argc, char *argv[],
         MemoryContextResetAndDeleteChildren(AuditContext);
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		CheckInvalidateRemoteHandles();
 #endif
 
@@ -5347,7 +5347,7 @@ PostgresMain(int argc, char *argv[],
         AuditClearResultInfo();
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         ClearPrepareGID();
         groupOids = NULL;
         end_query_requested = false;
@@ -5443,14 +5443,14 @@ PostgresMain(int argc, char *argv[],
          * STDIN doing the same thing.)
          */
         DoingCommandRead = true;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         RESUME_POOLER_RELOAD();
 #endif
         /*
          * (3) read a command (loop blocks here)
          */
         firstchar = ReadCommand(&input_message);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         HOLD_POOLER_RELOAD();
 #endif
         /*
@@ -5776,7 +5776,7 @@ PostgresMain(int argc, char *argv[],
                 finish_xact_command();
                 need_report_activity = true;
                 break;	
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             case 'N':
                 {
                     int    cons;
@@ -6355,7 +6355,7 @@ log_disconnections(int code, Datum arg)
                     port->user_name, port->database_name, port->remote_host,
                     port->remote_port[0] ? " port=" : "", port->remote_port)));
 }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static void
 replace_null_with_blank(char *src, int length)
 {

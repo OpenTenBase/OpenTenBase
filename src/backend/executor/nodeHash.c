@@ -36,13 +36,13 @@
 #include "utils/memutils.h"
 #include "utils/lsyscache.h"
 #include "utils/syscache.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "executor/execParallel.h"
 #include "pgxc/nodemgr.h"
 #include "optimizer/cost.h"
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #define HASH_BUCKET_THRESHOLD  1048576
 #define HASH_BATCH_THRESHOLD   32
 #endif
@@ -184,7 +184,7 @@ ExecInitHash(Hash *node, EState *estate, int eflags)
     hashstate->ps.ExecProcNode = ExecHash;
     hashstate->hashtable = NULL;
     hashstate->hashkeys = NIL;    /* will be set by parent HashJoin */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	hashstate->shared_info = NULL;
 #endif
 
@@ -272,7 +272,7 @@ ExecHashTableCreate(Hash *node, List *hashOperators, bool keepNulls)
      */
     outerNode = outerPlan(node);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if(IsParallelWorker() && node->plan.parallel_aware)
     {
         double plan_rows = outerNode->plan_rows;// * max_parallel_workers_per_gather;
@@ -308,7 +308,7 @@ ExecHashTableCreate(Hash *node, List *hashOperators, bool keepNulls)
     ExecChooseHashTableSize(outerNode->plan_rows, outerNode->plan_width,
                             OidIsValid(node->skewTable),
                             &nbuckets, &nbatch, &num_skew_mcvs);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     }
 #endif
     /* nbuckets must be a power of 2 */
@@ -420,7 +420,7 @@ ExecHashTableCreate(Hash *node, List *hashOperators, bool keepNulls)
 
     hashtable->buckets = (HashJoinTuple *)
         palloc0(nbuckets * sizeof(HashJoinTuple));
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     hashtable->bucket_wNum = (int *)palloc0(nbuckets * sizeof(int));
 #endif
     /*
@@ -1116,7 +1116,7 @@ ExecScanHashBucket(HashJoinState *hjstate,
     HashJoinTable hashtable = hjstate->hj_HashTable;
     HashJoinTuple hashTuple = hjstate->hj_CurTuple;
     uint32        hashvalue = hjstate->hj_CurHashValue;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     HashState  *hashNode = (HashState *) innerPlanState(hjstate);
 #endif
     /*
@@ -1126,7 +1126,7 @@ ExecScanHashBucket(HashJoinState *hjstate,
      * If the tuple hashed to a skew bucket then scan the skew bucket
      * otherwise scan the standard hashtable bucket.
      */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     if(IsParallelWorker() && hashtable->curbatch == 0 && hashNode->ps.plan->parallel_aware)
     {
         dsa_area *dsa = NULL;
@@ -1211,7 +1211,7 @@ ExecScanHashBucket(HashJoinState *hjstate,
 
         hashTuple = hashTuple->next;
     }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     }
 #endif
     /*
@@ -1253,11 +1253,11 @@ ExecScanHashTableForUnmatched(HashJoinState *hjstate, ExprContext *econtext)
 {// #lizard forgives
     HashJoinTable hashtable = hjstate->hj_HashTable;
     HashJoinTuple hashTuple = hjstate->hj_CurTuple;
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     HashState  *hashNode = (HashState *) innerPlanState(hjstate);
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
      /* 
       * parallel right/full join 
       */
@@ -1386,7 +1386,7 @@ ExecScanHashTableForUnmatched(HashJoinState *hjstate, ExprContext *econtext)
             hashTuple = hashTuple->next;
         }
     }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     }
 #endif
     /*
@@ -1894,7 +1894,7 @@ ExecHashInitializeWorker(HashState *node, ParallelWorkerContext *pwcxt)
 	shared_info = (SharedHashInfo *)
 		shm_toc_lookup(pwcxt->toc, node->ps.plan->plan_node_id, true);
 	node->hinstrument = &shared_info->hinstrument[ParallelWorkerNumber];
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 	/* set node->shared_info for distributed instrument */
 	node->shared_info = shared_info;
 #endif
@@ -2024,7 +2024,7 @@ dense_alloc(HashJoinTable hashtable, Size size)
     /* return pointer to the start of the tuple memory */
     return ptr;
 }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static void
 ExecShmHashSkewTableInsert(HashJoinTable hashtable,
                         TupleTableSlot *slot,

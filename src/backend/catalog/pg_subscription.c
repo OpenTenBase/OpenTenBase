@@ -127,13 +127,13 @@ GetSubscription(Oid subid, bool missing_ok)
         Oid     sub_parent_oid = InvalidOid;
         int32    sub_index = -1;
 
-        check_tbase_subscription_extension();
+        check_opentenbase_subscription_extension();
         PushActiveSnapshot(GetLocalTransactionSnapshot());
 
-        /* get sub_parent/sub_index in tbase_subscription_parallel */
+        /* get sub_parent/sub_index in opentenbase_subscription_parallel */
         do
         {
-            Relation         tbase_sub_parallel_rel = NULL;
+            Relation         opentenbase_sub_parallel_rel = NULL;
             HeapScanDesc    scan = NULL;
             HeapTuple       tuple = NULL;
             TupleDesc        desc = NULL;
@@ -143,34 +143,34 @@ GetSubscription(Oid subid, bool missing_ok)
             bool            found = false;
 
             ScanKeyInit(&skey[nkeys++],
-                        Anum_tbase_subscription_parallel_sub_child,
+                        Anum_opentenbase_subscription_parallel_sub_child,
                         BTEqualStrategyNumber, F_OIDEQ,
                         ObjectIdGetDatum(subid));
 
-            tbase_sub_parallel_rel = relation_openrv(makeRangeVar("public",
-                                                        (char *)g_tbase_subscription_parallel_relname, -1),
+            opentenbase_sub_parallel_rel = relation_openrv(makeRangeVar("public",
+                                                        (char *)g_opentenbase_subscription_parallel_relname, -1),
                                                         AccessShareLock);
-            desc = RelationGetDescr(tbase_sub_parallel_rel);
-            scan = heap_beginscan(tbase_sub_parallel_rel, GetActiveSnapshot(), nkeys, skey);
+            desc = RelationGetDescr(opentenbase_sub_parallel_rel);
+            scan = heap_beginscan(opentenbase_sub_parallel_rel, GetActiveSnapshot(), nkeys, skey);
 
             while ((tuple = heap_getnext(scan, ForwardScanDirection)) != NULL)
             {
                 Oid        sub_child = InvalidOid;
 
-                sub_child = DatumGetObjectId(fastgetattr(tuple, Anum_tbase_subscription_parallel_sub_child, desc, &isnull));
+                sub_child = DatumGetObjectId(fastgetattr(tuple, Anum_opentenbase_subscription_parallel_sub_child, desc, &isnull));
                 if (false == isnull && subid == sub_child)
                 {
                     found = true;
-                    sub_parent_oid = DatumGetObjectId(fastgetattr(tuple, Anum_tbase_subscription_parallel_sub_parent, desc, &isnull));
-                    sub_index = DatumGetInt32(fastgetattr(tuple, Anum_tbase_subscription_parallel_sub_index, desc, &isnull));
-                    sub->active_state = DatumGetBool(fastgetattr(tuple, Anum_tbase_subscription_parallel_sub_active_state, desc, &isnull));
-                    sub->active_lsn = DatumGetLSN(fastgetattr(tuple, Anum_tbase_subscription_parallel_sub_active_lsn, desc, &isnull));
+                    sub_parent_oid = DatumGetObjectId(fastgetattr(tuple, Anum_opentenbase_subscription_parallel_sub_parent, desc, &isnull));
+                    sub_index = DatumGetInt32(fastgetattr(tuple, Anum_opentenbase_subscription_parallel_sub_index, desc, &isnull));
+                    sub->active_state = DatumGetBool(fastgetattr(tuple, Anum_opentenbase_subscription_parallel_sub_active_state, desc, &isnull));
+                    sub->active_lsn = DatumGetLSN(fastgetattr(tuple, Anum_opentenbase_subscription_parallel_sub_active_lsn, desc, &isnull));
                     break;
                 }
             }
 
             heap_endscan(scan);
-            relation_close(tbase_sub_parallel_rel, AccessShareLock);
+            relation_close(opentenbase_sub_parallel_rel, AccessShareLock);
 
             Assert(found == true && sub_parent_oid != InvalidOid && sub_index >= 0);
             if (!(found == true && sub_parent_oid != InvalidOid && sub_index >= 0))
@@ -179,10 +179,10 @@ GetSubscription(Oid subid, bool missing_ok)
             }
         } while (0);
 
-        /* get others options in tbase_subscription by sub_parent */
+        /* get others options in opentenbase_subscription by sub_parent */
         do
         {
-            Relation         tbase_sub_rel = NULL;
+            Relation         opentenbase_sub_rel = NULL;
             HeapScanDesc    scan = NULL;
             HeapTuple       tuple = NULL;
             TupleDesc        desc = NULL;
@@ -196,11 +196,11 @@ GetSubscription(Oid subid, bool missing_ok)
                         BTEqualStrategyNumber, F_OIDEQ,
                         ObjectIdGetDatum(sub_parent_oid));
 
-            tbase_sub_rel = relation_openrv(makeRangeVar("public", 
-                                            (char *)g_tbase_subscription_relname, -1), 
+            opentenbase_sub_rel = relation_openrv(makeRangeVar("public", 
+                                            (char *)g_opentenbase_subscription_relname, -1), 
                                             AccessShareLock);
-            desc = RelationGetDescr(tbase_sub_rel);
-            scan = heap_beginscan(tbase_sub_rel, GetActiveSnapshot(), nkeys, skey);
+            desc = RelationGetDescr(opentenbase_sub_rel);
+            scan = heap_beginscan(opentenbase_sub_rel, GetActiveSnapshot(), nkeys, skey);
 
             while ((tuple = heap_getnext(scan, ForwardScanDirection)) != NULL)
             {
@@ -211,42 +211,42 @@ GetSubscription(Oid subid, bool missing_ok)
                 if (tupleoid == sub_parent_oid)
                 {
                 
-                    bool    nulls[Natts_tbase_subscription] = { false };
-                    Datum    values[Natts_tbase_subscription] = { 0 };
+                    bool    nulls[Natts_opentenbase_subscription] = { false };
+                    Datum    values[Natts_opentenbase_subscription] = { 0 };
 
                     Name subname = NULL;
 
                     heap_deform_tuple(tuple, desc, values, nulls);
 
-                    Assert(false == nulls[Anum_tbase_subscription_sub_name - 1]);
-                    subname = DatumGetName(values[Anum_tbase_subscription_sub_name - 1]);
+                    Assert(false == nulls[Anum_opentenbase_subscription_sub_name - 1]);
+                    subname = DatumGetName(values[Anum_opentenbase_subscription_sub_name - 1]);
                     sub->parent_name = pstrdup(NameStr(*subname));
 
-                    Assert(false == nulls[Anum_tbase_subscription_sub_parallel_number - 1]);
-                    sub->parallel_number = DatumGetInt32(values[Anum_tbase_subscription_sub_parallel_number - 1]);
+                    Assert(false == nulls[Anum_opentenbase_subscription_sub_parallel_number - 1]);
+                    sub->parallel_number = DatumGetInt32(values[Anum_opentenbase_subscription_sub_parallel_number - 1]);
 
                     sub->parallel_index = sub_index;
 
-                    Assert(false == nulls[Anum_tbase_subscription_sub_ignore_pk_conflict - 1]);
-                    sub->ignore_pk_conflict = DatumGetBool(values[Anum_tbase_subscription_sub_ignore_pk_conflict - 1]);
+                    Assert(false == nulls[Anum_opentenbase_subscription_sub_ignore_pk_conflict - 1]);
+                    sub->ignore_pk_conflict = DatumGetBool(values[Anum_opentenbase_subscription_sub_ignore_pk_conflict - 1]);
 
-                    if (false == nulls[Anum_tbase_subscription_sub_manual_hot_date - 1])
-                        sub->manual_hot_date = TextDatumGetCString(values[Anum_tbase_subscription_sub_manual_hot_date - 1]);
+                    if (false == nulls[Anum_opentenbase_subscription_sub_manual_hot_date - 1])
+                        sub->manual_hot_date = TextDatumGetCString(values[Anum_opentenbase_subscription_sub_manual_hot_date - 1]);
                     else
                         sub->manual_hot_date = NULL;
 
-                    if (false == nulls[Anum_tbase_subscription_sub_temp_hot_date - 1])
-                        sub->temp_hot_date = TextDatumGetCString(values[Anum_tbase_subscription_sub_temp_hot_date - 1]);
+                    if (false == nulls[Anum_opentenbase_subscription_sub_temp_hot_date - 1])
+                        sub->temp_hot_date = TextDatumGetCString(values[Anum_opentenbase_subscription_sub_temp_hot_date - 1]);
                     else
                         sub->temp_hot_date = NULL;
 
-                    if (false == nulls[Anum_tbase_subscription_sub_temp_cold_date - 1])
-                        sub->temp_cold_date = TextDatumGetCString(values[Anum_tbase_subscription_sub_temp_cold_date - 1]);
+                    if (false == nulls[Anum_opentenbase_subscription_sub_temp_cold_date - 1])
+                        sub->temp_cold_date = TextDatumGetCString(values[Anum_opentenbase_subscription_sub_temp_cold_date - 1]);
                     else
                         sub->temp_cold_date = NULL;
 
-                    Assert (false == nulls[Anum_tbase_subscription_sub_is_all_actived - 1]);
-                    sub->is_all_actived = DatumGetBool(values[Anum_tbase_subscription_sub_is_all_actived - 1]);
+                    Assert (false == nulls[Anum_opentenbase_subscription_sub_is_all_actived - 1]);
+                    sub->is_all_actived = DatumGetBool(values[Anum_opentenbase_subscription_sub_is_all_actived - 1]);
 
                     found = true;
                     break;
@@ -254,7 +254,7 @@ GetSubscription(Oid subid, bool missing_ok)
             }
 
             heap_endscan(scan);
-            relation_close(tbase_sub_rel, AccessShareLock);
+            relation_close(opentenbase_sub_rel, AccessShareLock);
 
             Assert(found == true && sub->parallel_number >= 1 && sub->parallel_number > sub_index);
             if (!(found == true && sub->parallel_number >= 1 && sub->parallel_number > sub_index))
@@ -1160,16 +1160,16 @@ RemoveSubscriptionTable(Oid subid, Oid relid)
 
 #ifdef __SUBSCRIPTION__
 /*
- * When the first tbase-sub-subscription completes the data COPY, 
- * it will activate the other tbase-sub-subscriptions.
+ * When the first opentenbase-sub-subscription completes the data COPY, 
+ * it will activate the other opentenbase-sub-subscriptions.
  */
-void ActiveAllParallelTbaseSubscriptions(XLogRecPtr active_lsn)
+void ActiveAllParallelOpenTenBaseSubscriptions(XLogRecPtr active_lsn)
 {// #lizard forgives
     Subscription * first_sub = MySubscription;
     Oid parent_sub_oid = InvalidOid;
     List * child_sub_oid_list = NIL;
 
-    /* check if i am the first tbase-sub-subscription */
+    /* check if i am the first opentenbase-sub-subscription */
     Assert(MySubscription != NULL);
     if (!(MySubscription != NULL))
     {
@@ -1184,10 +1184,10 @@ void ActiveAllParallelTbaseSubscriptions(XLogRecPtr active_lsn)
 
     PushActiveSnapshot(GetLocalTransactionSnapshot());
 
-    /* Update tbase_subscription, set sub_is_all_actived to true */
+    /* Update opentenbase_subscription, set sub_is_all_actived to true */
     do
     {
-        Relation         tbase_sub_rel = NULL;
+        Relation         opentenbase_sub_rel = NULL;
         HeapScanDesc    scan = NULL;
         HeapTuple       tuple = NULL;
         TupleDesc        desc = NULL;
@@ -1197,29 +1197,29 @@ void ActiveAllParallelTbaseSubscriptions(XLogRecPtr active_lsn)
         bool            found = false;
 
         ScanKeyInit(&skey[nkeys++],
-                    Anum_tbase_subscription_sub_name,
+                    Anum_opentenbase_subscription_sub_name,
                     BTEqualStrategyNumber, F_NAMEEQ,
                     CStringGetDatum(first_sub->parent_name));
 
-        tbase_sub_rel = relation_openrv(makeRangeVar("public", 
-                                        (char *)g_tbase_subscription_relname, -1), 
+        opentenbase_sub_rel = relation_openrv(makeRangeVar("public", 
+                                        (char *)g_opentenbase_subscription_relname, -1), 
                                         RowExclusiveLock);
-        desc = RelationGetDescr(tbase_sub_rel);
-        scan = heap_beginscan(tbase_sub_rel, GetActiveSnapshot(), nkeys, skey);
+        desc = RelationGetDescr(opentenbase_sub_rel);
+        scan = heap_beginscan(opentenbase_sub_rel, GetActiveSnapshot(), nkeys, skey);
 
         while ((tuple = heap_getnext(scan, ForwardScanDirection)) != NULL)
         {
-            bool    nulls[Natts_tbase_subscription] = { 0 };
-            Datum    values[Natts_tbase_subscription] = { 0 };
+            bool    nulls[Natts_opentenbase_subscription] = { 0 };
+            Datum    values[Natts_opentenbase_subscription] = { 0 };
             HeapTuple newtup = NULL;
 
             parent_sub_oid = HeapTupleGetOid(tuple);
             heap_deform_tuple(tuple, desc, values, nulls);
 
-            values[Anum_tbase_subscription_sub_is_all_actived - 1] = BoolGetDatum(true);
+            values[Anum_opentenbase_subscription_sub_is_all_actived - 1] = BoolGetDatum(true);
             newtup = heap_form_tuple(desc, values, nulls);
 
-            simple_heap_update(tbase_sub_rel, &tuple->t_self, newtup);
+            simple_heap_update(opentenbase_sub_rel, &tuple->t_self, newtup);
             heap_freetuple(newtup);
 
             found = true;
@@ -1227,7 +1227,7 @@ void ActiveAllParallelTbaseSubscriptions(XLogRecPtr active_lsn)
         }
 
         heap_endscan(scan);
-        relation_close(tbase_sub_rel, RowExclusiveLock);
+        relation_close(opentenbase_sub_rel, RowExclusiveLock);
 
         Assert(found == true && OidIsValid(parent_sub_oid));
         if (!(found == true && OidIsValid(parent_sub_oid)))
@@ -1236,10 +1236,10 @@ void ActiveAllParallelTbaseSubscriptions(XLogRecPtr active_lsn)
         }
     } while (0);
 
-    /* scan tbase_subscription_parallel, and set sub_active_state and sub_active_lsn */
+    /* scan opentenbase_subscription_parallel, and set sub_active_state and sub_active_lsn */
     do
     {
-        Relation         tbase_sub_parallel_rel = NULL;
+        Relation         opentenbase_sub_parallel_rel = NULL;
         HeapScanDesc    scan = NULL;
         HeapTuple       tuple = NULL;
         TupleDesc        desc = NULL;
@@ -1249,29 +1249,29 @@ void ActiveAllParallelTbaseSubscriptions(XLogRecPtr active_lsn)
         int32            sub_number = 0;
 
         ScanKeyInit(&skey[nkeys++],
-                    Anum_tbase_subscription_parallel_sub_parent,
+                    Anum_opentenbase_subscription_parallel_sub_parent,
                     BTEqualStrategyNumber, F_OIDEQ,
                     ObjectIdGetDatum(parent_sub_oid));
 
-        tbase_sub_parallel_rel = relation_openrv(makeRangeVar("public",
-                                                    (char *)g_tbase_subscription_parallel_relname, -1),
+        opentenbase_sub_parallel_rel = relation_openrv(makeRangeVar("public",
+                                                    (char *)g_opentenbase_subscription_parallel_relname, -1),
                                                     RowExclusiveLock);
-        desc = RelationGetDescr(tbase_sub_parallel_rel);
-        scan = heap_beginscan(tbase_sub_parallel_rel, GetActiveSnapshot(), nkeys, skey);
+        desc = RelationGetDescr(opentenbase_sub_parallel_rel);
+        scan = heap_beginscan(opentenbase_sub_parallel_rel, GetActiveSnapshot(), nkeys, skey);
 
         while ((tuple = heap_getnext(scan, ForwardScanDirection)) != NULL)
         {
             Oid        sub_parent = InvalidOid;
             Oid        sub_child = InvalidOid;
 
-            bool    nulls[Natts_tbase_subscription_parallel] = { 0 };
-            Datum    values[Natts_tbase_subscription_parallel] = { 0 };
+            bool    nulls[Natts_opentenbase_subscription_parallel] = { 0 };
+            Datum    values[Natts_opentenbase_subscription_parallel] = { 0 };
             HeapTuple newtup = NULL;
 
             heap_deform_tuple(tuple, desc, values, nulls);
 
-            sub_parent = DatumGetObjectId(values[Anum_tbase_subscription_parallel_sub_parent - 1]);
-            sub_child= DatumGetObjectId(values[Anum_tbase_subscription_parallel_sub_child - 1]);
+            sub_parent = DatumGetObjectId(values[Anum_opentenbase_subscription_parallel_sub_parent - 1]);
+            sub_child= DatumGetObjectId(values[Anum_opentenbase_subscription_parallel_sub_child - 1]);
 
             Assert(OidIsValid(sub_parent) && OidIsValid(sub_child) && sub_parent == parent_sub_oid);
             if (!(OidIsValid(sub_parent) && OidIsValid(sub_child) && sub_parent == parent_sub_oid))
@@ -1279,11 +1279,11 @@ void ActiveAllParallelTbaseSubscriptions(XLogRecPtr active_lsn)
                 abort();
             }
 
-            values[Anum_tbase_subscription_parallel_sub_active_state - 1] = BoolGetDatum(true);
-            values[Anum_tbase_subscription_parallel_sub_active_lsn - 1] = LSNGetDatum(active_lsn);
+            values[Anum_opentenbase_subscription_parallel_sub_active_state - 1] = BoolGetDatum(true);
+            values[Anum_opentenbase_subscription_parallel_sub_active_lsn - 1] = LSNGetDatum(active_lsn);
             newtup = heap_form_tuple(desc, values, nulls);
 
-            simple_heap_update(tbase_sub_parallel_rel, &tuple->t_self, newtup);
+            simple_heap_update(opentenbase_sub_parallel_rel, &tuple->t_self, newtup);
             heap_freetuple(newtup);
 
             sub_number++;
@@ -1295,7 +1295,7 @@ void ActiveAllParallelTbaseSubscriptions(XLogRecPtr active_lsn)
         }
 
         heap_endscan(scan);
-        relation_close(tbase_sub_parallel_rel, RowExclusiveLock);
+        relation_close(opentenbase_sub_parallel_rel, RowExclusiveLock);
 
         Assert(sub_number == first_sub->parallel_number && child_sub_oid_list != NIL && list_length(child_sub_oid_list) == sub_number);
         if (!(sub_number == first_sub->parallel_number && child_sub_oid_list != NIL && list_length(child_sub_oid_list) == sub_number))
@@ -1372,12 +1372,12 @@ void ActiveAllParallelTbaseSubscriptions(XLogRecPtr active_lsn)
  * Returned list is palloc'ed in current memory context.
  */
 List *
-GetTbaseSubscriptnParallelChild(Oid subid)
+GetOpenTenBaseSubscriptnParallelChild(Oid subid)
 {
 	List	   *res = NIL;
 	int				nkeys = 0;
 	ScanKeyData 	skey[1];
-	Relation 		tbase_sub_parallel_rel = NULL;
+	Relation 		opentenbase_sub_parallel_rel = NULL;
 	HeapScanDesc	scan = NULL;
 	HeapTuple   	tuple = NULL;
 	TupleDesc		desc = NULL;
@@ -1390,28 +1390,28 @@ GetTbaseSubscriptnParallelChild(Oid subid)
 
 	PushActiveSnapshot(GetLocalTransactionSnapshot());
 
-	/* get sub_parent_oid in tbase_subscription_parallel */
+	/* get sub_parent_oid in opentenbase_subscription_parallel */
 	ScanKeyInit(&skey[nkeys++],
-				Anum_tbase_subscription_parallel_sub_child,
+				Anum_opentenbase_subscription_parallel_sub_child,
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(subid));
 
-	tbase_sub_parallel_rel = relation_openrv(makeRangeVar("public",
-											(char *)g_tbase_subscription_parallel_relname, -1),
+	opentenbase_sub_parallel_rel = relation_openrv(makeRangeVar("public",
+											(char *)g_opentenbase_subscription_parallel_relname, -1),
 											AccessShareLock);
-	desc = RelationGetDescr(tbase_sub_parallel_rel);
-	scan = heap_beginscan(tbase_sub_parallel_rel, GetActiveSnapshot(), nkeys, skey);
+	desc = RelationGetDescr(opentenbase_sub_parallel_rel);
+	scan = heap_beginscan(opentenbase_sub_parallel_rel, GetActiveSnapshot(), nkeys, skey);
 
 	while ((tuple = heap_getnext(scan, ForwardScanDirection)) != NULL)
 	{
 		Oid		sub_child = InvalidOid;
 
-		sub_child = DatumGetObjectId(fastgetattr(tuple, Anum_tbase_subscription_parallel_sub_child, desc, &isnull));
+		sub_child = DatumGetObjectId(fastgetattr(tuple, Anum_opentenbase_subscription_parallel_sub_child, desc, &isnull));
 		if (false == isnull && subid == sub_child)
 		{
 			found = true;
-			sub_parent_oid = DatumGetObjectId(fastgetattr(tuple, Anum_tbase_subscription_parallel_sub_parent, desc, &isnull));
-			sub_index = DatumGetInt32(fastgetattr(tuple, Anum_tbase_subscription_parallel_sub_index, desc, &isnull));
+			sub_parent_oid = DatumGetObjectId(fastgetattr(tuple, Anum_opentenbase_subscription_parallel_sub_parent, desc, &isnull));
+			sub_index = DatumGetInt32(fastgetattr(tuple, Anum_opentenbase_subscription_parallel_sub_index, desc, &isnull));
 			break;
 		}
 	}
@@ -1423,32 +1423,32 @@ GetTbaseSubscriptnParallelChild(Oid subid)
 		abort();
 	}
 
-	/* get sub_child_oid in tbase_subscription_parallel with sub_parent_oid */
+	/* get sub_child_oid in opentenbase_subscription_parallel with sub_parent_oid */
 	nkeys = 0;
 	ScanKeyInit(&skey[nkeys++],
-				Anum_tbase_subscription_parallel_sub_parent,
+				Anum_opentenbase_subscription_parallel_sub_parent,
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(sub_parent_oid));
 
-	scan = heap_beginscan(tbase_sub_parallel_rel, GetActiveSnapshot(), nkeys, skey);
+	scan = heap_beginscan(opentenbase_sub_parallel_rel, GetActiveSnapshot(), nkeys, skey);
 
 	while ((tuple = heap_getnext(scan, ForwardScanDirection)) != NULL)
 	{
 		Oid		parent_oid = InvalidOid;
 
-		parent_oid = DatumGetObjectId(fastgetattr(tuple, Anum_tbase_subscription_parallel_sub_parent, desc, &isnull));
+		parent_oid = DatumGetObjectId(fastgetattr(tuple, Anum_opentenbase_subscription_parallel_sub_parent, desc, &isnull));
 		if (false == isnull && sub_parent_oid == parent_oid)
 		{
 			Oid sub_child_oid;
 
-			sub_child_oid = DatumGetObjectId(fastgetattr(tuple, Anum_tbase_subscription_parallel_sub_child, desc, &isnull));
+			sub_child_oid = DatumGetObjectId(fastgetattr(tuple, Anum_opentenbase_subscription_parallel_sub_child, desc, &isnull));
 
 			res = lappend_oid(res, sub_child_oid);
 		}
 	}
 	/* Cleanup */
 	heap_endscan(scan);
-	relation_close(tbase_sub_parallel_rel, AccessShareLock);
+	relation_close(opentenbase_sub_parallel_rel, AccessShareLock);
 
 	PopActiveSnapshot();
 
@@ -1460,13 +1460,13 @@ GetTbaseSubscriptnParallelChild(Oid subid)
  *
  */
 List *
-GetTbaseSubscriptnParallelWorker(Oid subid)
+GetOpenTenBaseSubscriptnParallelWorker(Oid subid)
 {
 	List *res = NIL;
 	ListCell   *lc_simple;
 	LogicalRepWorker *syncworker;
 
-	List *parallel_childids_list = GetTbaseSubscriptnParallelChild(subid);
+	List *parallel_childids_list = GetOpenTenBaseSubscriptnParallelChild(subid);
 
 	/*
 	 * Look for a sync worker for this relation.

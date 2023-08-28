@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -1771,7 +1771,7 @@ void CheckMlsTableUserAcl(ResultRelInfo *resultRelInfo, HeapTuple tuple)
     bool is_null;
     bool is_relation = false;
 
-    check_tbase_mls_extension();
+    check_opentenbase_mls_extension();
 
     if (is_mls_root_user())
         return ;
@@ -1844,9 +1844,9 @@ void CheckMlsTableUserAcl(ResultRelInfo *resultRelInfo, HeapTuple tuple)
 }
 
 /*
- * check if tbase_mls extension is installed
+ * check if opentenbase_mls extension is installed
  */
-void check_tbase_mls_extension(void)
+void check_opentenbase_mls_extension(void)
 {
     Oid extOid = InvalidOid;
 

@@ -37,7 +37,7 @@
 #include "utils/resowner_private.h"
 #include "utils/syscache.h"
 #include "utils/tqual.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "catalog/pgxc_key_values.h"
 #endif
 
@@ -947,7 +947,7 @@ InitCatCachePhase2(CatCache *cache, bool touch_index)
          * catch thinkos in definitions of new catcaches, so we don't worry
          * about the pg_am indexes not getting tested.
          */
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /*
          * we have already added some non-unique indexes into syscache,
          * so we can not do this assert.
@@ -1213,7 +1213,7 @@ SearchCatCache(CatCache *cache,
         if (IsBootstrapProcessingMode())
             return NULL;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         /*
          * skip PgxcKeyValueRelationId, in case to insert into hashCatCache and to be enlarged over 1GB.
          */
@@ -1230,7 +1230,7 @@ SearchCatCache(CatCache *cache,
                         cache->cc_relname, cache->cc_ntup, CacheHdr->ch_ntup);
             CACHE3_elog(DEBUG2, "SearchCatCache(%s): put neg entry in bucket %d",
                         cache->cc_relname, hashIndex);
-#ifdef __TBASE__            
+#ifdef __OPENTENBASE__            
         }
 #endif
         /*

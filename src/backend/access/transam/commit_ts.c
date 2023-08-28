@@ -78,7 +78,7 @@ typedef struct CommitTimestampEntry
 #define TransactionIdToCTsEntry(xid)    \
     ((xid) % (TransactionId) COMMIT_TS_XACTS_PER_PAGE)
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 /* We store the latest async LSN for each group of transactions */
 #define TLOG_XACTS_PER_LSN_GROUP    32    /* keep this a power of 2 */
 #define TLOG_LSNS_PER_PAGE    (COMMIT_TS_XACTS_PER_PAGE / TLOG_XACTS_PER_LSN_GROUP)
@@ -339,7 +339,7 @@ TransactionIdSetCommitTs(TransactionId xid, TimestampTz gts, TimestampTz ts,
 		   &entry, SizeOfCommitTimestampEntry);
 	LruTlogEnableMemoryProtection(CommitTsCtl->shared[partitionno]->page_buffer[slotno]);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /*
      * Update the group LSN if the transaction completion LSN is higher.
      *

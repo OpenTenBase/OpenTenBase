@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -180,7 +180,7 @@ static void fix_append_rel_relids(List *append_rel_list, int varno,
                       Relids subrelids);
 static Node *find_jointree_node_for_rel(Node *jtnode, int relid);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 static Node *pull_up_or_sublinks_qual_recurse(PlannerInfo *root, Node *node,
 									Node **jtlink,Node **orclauses);
 static bool check_pull_up_sublinks_qual_or_recurse(PlannerInfo *root,
@@ -222,7 +222,7 @@ pull_up_sublinks(PlannerInfo *root)
 	Node	   *jtnode;
 	Relids		relids;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /*
      * Look for SubLinks in targetlist, and try to transform them into joins.
      */
@@ -317,7 +317,7 @@ pull_up_sublinks_jointree_recurse(PlannerInfo *root, Node *jtnode,
         newf->quals = pull_up_sublinks_qual_recurse(root, f->quals,
                                                     &jtlink, frelids,
                                                     NULL, NULL);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 		if (enable_pullup_subquery)
 		{
 			newf->quals = pull_up_or_sublinks_qual_recurse(root, newf->quals, &jtlink, &orquals);
@@ -383,7 +383,7 @@ pull_up_sublinks_jointree_recurse(PlannerInfo *root, Node *jtnode,
 														 NULL, NULL);
 				break;
 			case JOIN_LEFT:
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 			case JOIN_SEMI:
             case JOIN_LEFT_SCALAR:
             case JOIN_LEFT_SEMI:
@@ -426,7 +426,7 @@ pull_up_sublinks_jointree_recurse(PlannerInfo *root, Node *jtnode,
 			 (int) nodeTag(jtnode));
 	return jtnode;
 }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 
 static bool
 check_pull_up_sublinks_qual_or_recurse(PlannerInfo *root, Node *node)
@@ -577,7 +577,7 @@ pull_up_sublinks_qual_recurse(PlannerInfo *root, Node *node,
         /* Is it a convertible ANY or EXISTS clause? */
         if (sublink->subLinkType == ANY_SUBLINK)
         {
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             if ((j = convert_ANY_sublink_to_join(root, sublink,
                                                  available_rels1, false)) != NULL)
 #else
@@ -607,7 +607,7 @@ pull_up_sublinks_qual_recurse(PlannerInfo *root, Node *node,
                 /* Return NULL representing constant TRUE */
                 return NULL;
             }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             if (available_rels2 != NULL &&
                 (j = convert_ANY_sublink_to_join(root, sublink,
                                                  available_rels2, false)) != NULL)
@@ -694,7 +694,7 @@ pull_up_sublinks_qual_recurse(PlannerInfo *root, Node *node,
                 return NULL;
             }
         }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
         else if (sublink->subLinkType == ALL_SUBLINK)
         {        
             if ((j = convert_ALL_sublink_to_join(root, sublink,
@@ -816,7 +816,7 @@ pull_up_sublinks_qual_recurse(PlannerInfo *root, Node *node,
                     return NULL;
                 }
             }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             else if (sublink->subLinkType == ANY_SUBLINK)
             {
                 if ((j = convert_ANY_sublink_to_join(root, sublink,
@@ -904,7 +904,7 @@ pull_up_sublinks_qual_recurse(PlannerInfo *root, Node *node,
         else
             return (Node *) make_andclause(newclauses);
     }
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
     /*
       * another case handled here:
       * select * from a where a.num op (select max(b.num) from b where a.id op b.id and ...) ;
@@ -1243,7 +1243,7 @@ pull_up_subqueries_recurse(PlannerInfo *root, Node *jtnode,
 				break;
 			case JOIN_LEFT:
 			case JOIN_SEMI:
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
             case JOIN_LEFT_SCALAR:
             case JOIN_LEFT_SEMI:
 #endif
@@ -3197,7 +3197,7 @@ reduce_outer_joins_pass2(Node *jtnode,
 				if (!computed_local_nonnullable_vars)
 					local_nonnullable_vars = find_nonnullable_vars(j->quals);
 				local_forced_null_vars = find_forced_null_vars(j->quals);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
                 if (jointype == JOIN_INNER || jointype == JOIN_SEMI || jointype == JOIN_LEFT_SCALAR)
 #else
 				if (jointype == JOIN_INNER || jointype == JOIN_SEMI)

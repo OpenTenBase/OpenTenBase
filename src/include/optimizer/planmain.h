@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -94,7 +94,7 @@ typedef enum
 extern double cursor_tuple_fraction;
 extern int    force_parallel_mode;
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern int remote_subplan_depth;
 extern List *groupOids;
 extern bool enable_distributed_unique_plan;
@@ -201,7 +201,7 @@ extern void extract_query_dependencies(Node *query,
                            List **relationOids,
                            List **invalItems,
                            bool *hasRowSecurity);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern bool contain_remote_subplan_walker(Node *node, void *context, bool include_cte);
 extern Plan *create_remotedml_plan(PlannerInfo *root, Plan *topplan, CmdType cmdtyp);
 extern bool partkey_match_index(Oid indexoid, AttrNumber partkey);

@@ -16,7 +16,7 @@
 
 #include "nodes/execnodes.h"
 #include "storage/buffile.h"
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #include "access/parallel.h"
 #endif
 
@@ -26,7 +26,7 @@ extern void ExecReScanHashJoin(HashJoinState *node);
 
 extern void ExecHashJoinSaveTuple(MinimalTuple tuple, uint32 hashvalue,
                       BufFile **fileptr);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern void ExecParallelHashJoinEstimate(HashJoinState *node, ParallelContext *pcxt);
 
 extern void ExecParallelHashJoinInitializeDSM(HashJoinState *node, ParallelContext *pcxt);

@@ -71,7 +71,7 @@
 #define EXEC_FLAG_DISCONN   	0x1000
 #endif
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 #define HIT_TUPLE  0 
 #define SKIP_TUPLE 1
 
@@ -244,7 +244,7 @@ extern void ExecFinishInitProcNode(PlanState *node);
 #endif
 extern Node *MultiExecProcNode(PlanState *node);
 extern void ExecEndNode(PlanState *node);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern void ExecDisconnectNode(PlanState *node);
 
 extern void ExecFinishNode(PlanState *node);
@@ -519,7 +519,7 @@ extern bool ExecRelationIsTargetRelation(EState *estate, Index scanrelid);
 
 extern Relation ExecOpenScanRelation(EState *estate, Index scanrelid, int eflags);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern Relation ExecOpenScanRelationPartition(EState *estate, Index scanrelid, int eflags, int partidx);
 
 extern bool HasDisconnectNode(PlanState *node);
@@ -580,7 +580,7 @@ extern void CheckCmdReplicaIdentity(Relation rel, CmdType cmd);
 
 extern void CheckSubscriptionRelkind(char relkind, const char *nspname,
                           const char *relname);
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern void OptimizeHybridHashtableSize(TupleHashTable hashtable, uint32 entrySize, double numGroups);
 extern void DumpHybridHashtable(AggState *aggstate, TupleHashTable hashtable);
 extern void LoadHybridHashtable(AggState *aggstate, TupleHashTable hashtable, TupleHashIterator *hashiter);

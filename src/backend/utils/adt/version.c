@@ -1,9 +1,9 @@
 /*
- * Tencent is pleased to support the open source community by making TBase available.  
+ * Tencent is pleased to support the open source community by making OpenTenBase available.  
  * 
  * Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
  * 
- * TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+ * OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
  * 
  * A copy of the BSD 3-Clause License is included in this file.
  * 
@@ -78,7 +78,7 @@
 #include "utils/builtins.h"
 
 
-#define TBASE_VERSION_STR "TBase_V2.5.0_release"
+#define OPENTENBASE_VERSION_STR "OpenTenBase_V2.5.0_release"
 
 Datum
 pgsql_version(PG_FUNCTION_ARGS)
@@ -86,11 +86,11 @@ pgsql_version(PG_FUNCTION_ARGS)
     PG_RETURN_TEXT_P(cstring_to_text(PG_VERSION_STR));
 }
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 Datum
-tbase_version(PG_FUNCTION_ARGS)
+opentenbase_version(PG_FUNCTION_ARGS)
 {
-    PG_RETURN_TEXT_P(cstring_to_text(TBASE_VERSION_STR));
+    PG_RETURN_TEXT_P(cstring_to_text(OPENTENBASE_VERSION_STR));
 }
 #endif
 

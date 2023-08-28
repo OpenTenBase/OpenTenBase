@@ -161,7 +161,7 @@ should_apply_changes_for_rel(LogicalRepRelMapEntry *rel)
         if (rel->localrel != NULL)
         {
             /*
-             * TBase Subscripton on COORDINATOR currently only supports subscribing into the SHARD table
+             * OpenTenBase Subscripton on COORDINATOR currently only supports subscribing into the SHARD table
              */
             if (false == RelationIsSharded(rel->localrel))
             {
@@ -750,7 +750,7 @@ apply_handle_commit(StringInfo s)
     if (IsTransactionState() && !am_tablesync_worker())
     {
 #ifdef __SUBSCRIPTION__
-        if (am_tbase_subscript_dispatch_worker())
+        if (am_opentenbase_subscript_dispatch_worker())
         {
             TransactionId xid = GetTopTransactionIdIfAny();
             bool markXidCommitted = TransactionIdIsValid(xid);
@@ -1429,7 +1429,7 @@ void logical_apply_dispatch(StringInfo s)
 {
 	char action = pq_getmsgbyte(s);
 
-	TbaseSubscriptionApplyWorkerSet();
+	OpenTenBaseSubscriptionApplyWorkerSet();
 
 	switch (action)
 	{
@@ -2109,17 +2109,17 @@ ApplyWorkerMain(Datum main_arg)
                     PGC_BACKEND, PGC_S_OVERRIDE);
     }
 
-    if (am_tbase_subscript_dispatch_worker())
+    if (am_opentenbase_subscript_dispatch_worker())
     {
         SetConfigOption("persistent_datanode_connections", "true",
                     PGC_BACKEND, PGC_S_OVERRIDE);
 
-        if (IsColdMoveTBaseSubscription())
+        if (IsColdMoveOpenTenBaseSubscription())
         {
             SetConfigOption("wal_stream_type", "internal_stream",
                         PGC_BACKEND, PGC_S_SESSION);
         }
-        else if (IsClusterSyncTBaseSubscription())
+        else if (IsClusterSyncOpenTenBaseSubscription())
         {
             SetConfigOption("wal_stream_type", "cluster_stream",
                         PGC_BACKEND, PGC_S_SESSION);
@@ -2264,7 +2264,7 @@ IsLogicalWorker(void)
 }
 
 #ifdef __SUBSCRIPTION__
-bool am_tbase_subscript_dispatch_worker(void)
+bool am_opentenbase_subscript_dispatch_worker(void)
 {
     return IS_PGXC_COORDINATOR && 
             MySubscription != NULL &&
@@ -2273,11 +2273,11 @@ bool am_tbase_subscript_dispatch_worker(void)
 }
 
 /*
- * The current TBaseSubscription is created during hot and cold migration.
+ * The current OpenTenBaseSubscription is created during hot and cold migration.
  */
-bool IsColdMoveTBaseSubscription(void)
+bool IsColdMoveOpenTenBaseSubscription(void)
 {
-    if (am_tbase_subscript_dispatch_worker())
+    if (am_opentenbase_subscript_dispatch_worker())
     {
         if (MySubscription->manual_hot_date != NULL ||
             MySubscription->temp_cold_date != NULL ||
@@ -2291,11 +2291,11 @@ bool IsColdMoveTBaseSubscription(void)
 }
 
 /*
- * The current TBaseSubscription is created when the data is synchronized between clusters.
+ * The current OpenTenBaseSubscription is created when the data is synchronized between clusters.
  */
-bool IsClusterSyncTBaseSubscription(void)
+bool IsClusterSyncOpenTenBaseSubscription(void)
 {
-    if (am_tbase_subscript_dispatch_worker())
+    if (am_opentenbase_subscript_dispatch_worker())
     {
         if (MySubscription->manual_hot_date == NULL &&
             MySubscription->temp_cold_date == NULL &&

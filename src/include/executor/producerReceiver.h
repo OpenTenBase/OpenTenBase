@@ -25,7 +25,7 @@ extern void  SetProducerDestReceiverParams(DestReceiver *self,
                                               AttrNumber distKey,
                                               Locator *locator,
                                               SharedQueue squeue
-#ifdef __TBASE__                              
+#ifdef __OPENTENBASE__                              
                                                 ,
                                               DataPumpSender sender
 #endif
@@ -35,7 +35,7 @@ extern DestReceiver *SetSelfConsumerDestReceiver(DestReceiver *self,
 extern void SetProducerTempMemory(DestReceiver *self, MemoryContext tmpcxt);
 extern bool ProducerReceiverPushBuffers(DestReceiver *self);
 
-#ifdef __TBASE__
+#ifdef __OPENTENBASE__
 extern void SetProducerNodeMap(DestReceiver *self, int16 *nodemap);
 #endif
 #endif   /* PRODUCER_RECEIVER_H */
