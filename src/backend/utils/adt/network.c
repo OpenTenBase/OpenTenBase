@@ -4,6 +4,10 @@
  *    src/backend/utils/adt/network.c
  *
  *    Jon Postel RIP 16 Oct 1998
+ *
+ * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
+ * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
+ *
  */
 
 #include "postgres.h"

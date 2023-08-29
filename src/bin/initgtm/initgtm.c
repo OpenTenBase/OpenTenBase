@@ -14,6 +14,9 @@
  * Portions Copyright (c) 2010-2012 Postgres-XC Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
+ * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
+ * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
+ *
  * src/bin/initgtm/initgtm.c
  *
  *-------------------------------------------------------------------------

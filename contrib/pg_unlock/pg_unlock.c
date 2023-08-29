@@ -1,3 +1,9 @@
+/*
+ * Copyright (c) 2023 THL A29 Limited, a Tencent company.
+ *
+ * This source code file is licensed under the BSD 3-Clause License,
+ * you may obtain a copy of the License at http://opensource.org/license/bsd-3-clause/
+ */
 #include "postgres.h"
 #include "fmgr.h"
 #include "c.h"
@@ -266,7 +272,8 @@ PG_FUNCTION_INFO_V1(pg_findgxid);
 
 	/*get all the transaction info*/
 static char * TTSgetvalue(TupleTableSlots *result, int tup_num, int field_num);
-static void	DropTupleTableSlots(TupleTableSlots *Slots);
+static void	DropTupleTableSlots(TupleTableSlots *
+Slots);
 static Datum	execute_on_single_node(Oid node, const char * query, int attnum, TupleTableSlots * tuples);
 void	GetAllTransInfo(void);
 void	LoadTransaction(Oid node);
@@ -1264,7 +1271,8 @@ static char * TTSgetvalue(TupleTableSlots *result, int tup_num, int field_num)
 	return result->slot[tup_num][field_num];
 }
 
-static void DropTupleTableSlots(TupleTableSlots *Slots)
+static void DropTupleTableSlots(TupleTableSlots *
+Slots)
 {
 	int i;
 	int j;

@@ -6,6 +6,9 @@
  * Portions Copyright (c) 2011, Postgres-XC Development Group
  * Portions Copyright (c) 1996-2011, PostgreSQL Global Development Group
  *
+ * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
+ * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
+ *
  *      src/include/gtm/gtm_opt_tables.h
  *
  *-------------------------------------------------------------------------

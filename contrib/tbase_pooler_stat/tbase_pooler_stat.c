@@ -5,6 +5,11 @@
  *
  * Copyright (c) 2020 Tbase Kernel Group
  *
+ * Copyright (c) 2023 THL A29 Limited, a Tencent company.
+ *
+ * This source code file is licensed under the BSD 3-Clause License,
+ * you may obtain a copy of the License at http://opensource.org/license/bsd-3-clause/
+ *
  * Permission to use, copy, modify, and distribute this software and
  * its documentation for any purpose, without fee, and without a
  * written agreement is hereby granted, provided that the above

@@ -4,6 +4,9 @@
  *
  * Copyright (c) 2000-2011, PostgreSQL Global Development Group
  *
+ * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
+ * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
+ *
  * src/backend/utils/misc/guc-file.l
  */
 

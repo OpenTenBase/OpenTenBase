@@ -9,6 +9,9 @@
  * Written by Peter Eisentraut <peter_e@gmx.net>.
  * Modified by Koichi Suzuki <koichi.szk@gmail.com>
  *
+ * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
+ * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
+ *
  * src/include/gtm/gtm_opt.h
  *--------------------------------------------------------------------
  */
