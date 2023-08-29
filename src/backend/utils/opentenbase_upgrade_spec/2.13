@@ -1,8 +1,8 @@
 # -----------------------------
-# Tbase upgrade spec file 
+# OpenTenBase upgrade spec file 
 # -----------------------------
 #
-# This file will be installed to ${install_path}/share/postgresql/tbase_upgrade_spec/${version} 
+# This file will be installed to ${install_path}/share/postgresql/opentenbase_upgrade_spec/${version} 
 # When are about to release a version,you have to mannualy comfirm the following settings  
 
 # This section indicates protocol changes with its previous version

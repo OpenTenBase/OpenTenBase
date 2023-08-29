@@ -1,10 +1,10 @@
-TBase Cluster Database Management System
+OpenTenBase Cluster Database Management System
 
-Tencent is pleased to support the open source community by making TBase available.  
+Tencent is pleased to support the open source community by making OpenTenBase available.  
 
 Copyright (C) 2019 THL A29 Limited, a Tencent company.  All rights reserved.
 
-TBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
+OpenTenBase is licensed under the BSD 3-Clause License, except for the third-party component listed below. 
 
 A copy of the BSD 3-Clause License is included in this file.
 
@@ -62,7 +62,7 @@ DAMAGE.
 History
 =======
 
-TBase project is based on prior work of Postgres-XL project.
+OpenTenBase project is based on prior work of Postgres-XL project.
 Postgres-XL project is based on prior work of Postgres-XC project. The
 Postgres-XC project itself is based on PostgreSQL and is available under
 PostgreSQL license. The work done by the PostgreSQL community is copyrighted

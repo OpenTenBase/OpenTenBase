@@ -1,32 +1,32 @@
-![logo](images/TBase_logo_white.png)
+![logo](images/OpenTenBase_logo.svg)
 ___
-# TBase Database Management System
-TBase is an advanced enterprise-level database management system based on prior work of Postgres-XL project. It supports an extended subset of the SQL standard, including transactions, foreign keys, user-defined types and functions. Additional, it adds parallel computing, security, management, audit and other functions.
+# OpenTenBase Database Management System
+OpenTenBase is an advanced enterprise-level database management system based on prior work of Postgres-XL project. It supports an extended subset of the SQL standard, including transactions, foreign keys, user-defined types and functions. Additional, it adds parallel computing, security, management, audit and other functions.
 
-TBase has many language interfaces similar to PostgreSQL, many of which are listed here:
+OpenTenBase has many language interfaces similar to PostgreSQL, many of which are listed here:
 
 	https://www.postgresql.org/download
 
 ## Overview
-A TBase cluster consists of multiple CoordinateNodes, DataNodes, and GTM nodes. All user data resides in the DataNode, the CoordinateNode contains only metadata, the GTM for global transaction management. The CoordinateNodes and DataNodes share the same schema.
+A OpenTenBase cluster consists of multiple CoordinateNodes, DataNodes, and GTM nodes. All user data resides in the DataNode, the CoordinateNode contains only metadata, the GTM for global transaction management. The CoordinateNodes and DataNodes share the same schema.
 
 Users always connect to the CoordinateNodes, which divides up the query into fragments that are executed in the DataNodes, and collects the results.
 
 The latest version of this software may be obtained at:
 
-	http://github.com/Tencent/TBase
+	https://github.com/OpenTenBase/OpenTenBase
 
 For more information look at our website located at:
 
-	http://tbase.qq.com
+	opentenbase.github.io/website
 
 ## Building
 
 ```
 cd ${SOURCECODE_PATH}
-rm -rf ${INSTALL_PATH}/tbase_bin_v2.0
+rm -rf ${INSTALL_PATH}/opentenbase_bin_v2.0
 chmod +x configure*
-./configure --prefix=${INSTALL_PATH}/tbase_bin_v2.0 --enable-user-switch --with-openssl --with-ossp-uuid CFLAGS=-g
+./configure --prefix=${INSTALL_PATH}/opentenbase_bin_v2.0 --enable-user-switch --with-openssl --with-ossp-uuid CFLAGS=-g
 make clean
 make -sj
 make install
@@ -45,7 +45,7 @@ Use PGXC\_CTL tool to build a cluster, for example: a cluster with a global tran
 1. Install pgxc and import the path of pgxc installation package into environment variable.
 
     ```
-	PG_HOME=${INSTALL_PATH}/tbase_bin_v2.0
+	PG_HOME=${INSTALL_PATH}/opentenbase_bin_v2.0
 	export PATH="$PATH:$PG_HOME/bin"
 	export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$PG_HOME/lib"
 	export LC_ALL=C
@@ -65,7 +65,7 @@ Use PGXC\_CTL tool to build a cluster, for example: a cluster with a global tran
 	* The pgxcInstallDir at the beginning of the configuration file refers to the installation package location of pgxc. The database user can set it according to his own needs.
 
 	```
-	pgxcInstallDir=${INSTALL_PATH}/tbase_bin_v2.0
+	pgxcInstallDir=${INSTALL_PATH}/opentenbase_bin_v2.0
 	```
 
 	* For GTM, you need to configure the node name, IP, port and node directory.
@@ -90,7 +90,7 @@ Use PGXC\_CTL tool to build a cluster, for example: a cluster with a global tran
 
 	```
 	coordNames=(cn001)
-	coordMasterCluster=(tbase_cluster)
+	coordMasterCluster=(opentenbase_cluster)
 	coordPorts=(30004)
 	poolerPorts=(30014)
 	coordPgHbaEntries=(0.0.0.0/0)
@@ -105,7 +105,7 @@ Use PGXC\_CTL tool to build a cluster, for example: a cluster with a global tran
 	datanodeNames=(dn001 dn002)
 	datanodePorts=(20008 20009)
 	datanodePoolerPorts=(20018 20019)
-	datanodeMasterCluster=(tbase_cluster tbase_cluster)
+	datanodeMasterCluster=(opentenbase_cluster opentenbase_cluster)
 	datanodePgHbaEntries=(0.0.0.0/0)
 	datanodeMasterServers=(xxx.xxx.xxx.3 xxx.xxx.xxx.4)
 	datanodeMasterDirs=(${DATANODE_MASTER_DATA_DIR}/data/dn_master/dn001 ${DATANODE_MASTER_DATA_DIR}/data/dn_master/dn002)
@@ -139,9 +139,9 @@ postgres=# create table foo(id bigint, str text) distribute by shard(id);
 ## References  
 
 ```
-https://github.com/Tencent/TBase/wiki/1%E3%80%81TBase_Quick_Start
+opentenbase.github.io/docs
 ```
 
 ## License
 
-The TBase is licensed under the BSD 3-Clause License. Copyright and license information can be found in the file [LICENSE.txt](LICENSE.txt)
+The OpenTenBase is licensed under the BSD 3-Clause License. Copyright and license information can be found in the file [LICENSE.txt](LICENSE.txt)

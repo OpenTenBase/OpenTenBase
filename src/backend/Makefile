@@ -266,8 +266,8 @@ endif
 	$(INSTALL_DATA) $(srcdir)/access/transam/recovery.conf.sample '$(DESTDIR)$(datadir)/recovery.conf.sample'
 	$(INSTALL_DATA) $(srcdir)/utils/misc/pgbouncer.ini '$(DESTDIR)$(datadir)/pgbouncer.ini'
 	$(INSTALL_DATA) $(srcdir)/utils/misc/userlist.txt '$(DESTDIR)$(datadir)/userlist.txt'
-	for f in $(srcdir)/utils/tbase_upgrade_spec/* ; do \
-		install -D -t $(DESTDIR)$(datadir)/tbase_upgrade_spec/ $$f; \
+	for f in $(srcdir)/utils/opentenbase_upgrade_spec/* ; do \
+		install -D -t $(DESTDIR)$(datadir)/opentenbase_upgrade_spec/ $$f; \
 	done
 install-bin: postgres $(POSTGRES_IMP) installdirs
 	$(INSTALL_PROGRAM) postgres$(X) '$(DESTDIR)$(bindir)/postgres$(X)'
@@ -286,7 +286,7 @@ endif
 
 installdirs:
 	$(MKDIR_P) '$(DESTDIR)$(bindir)' '$(DESTDIR)$(datadir)'
-	$(MKDIR_P) '$(DESTDIR)$(bindir)' '$(DESTDIR)$(datadir)/tbase_upgrade_spec'
+	$(MKDIR_P) '$(DESTDIR)$(bindir)' '$(DESTDIR)$(datadir)/opentenbase_upgrade_spec'
 ifeq ($(PORTNAME), cygwin)
 ifeq ($(MAKE_DLL), true)
 	$(MKDIR_P) '$(DESTDIR)$(libdir)'

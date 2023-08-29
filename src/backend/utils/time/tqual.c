@@ -3470,7 +3470,7 @@ XidInMVCCSnapshotDistri(HeapTupleHeader tuple, TransactionId xid,
 
 	*need_retry = false;
 	/* 
-	 * For Tbase, we propose a concurrency control mechanism based on global
+	 * For OpenTenBase, we propose a concurrency control mechanism based on global
 	 * timestamp to maintain distributed transaction consistency.
 	 * 
 	 * Rule: T2 can see T1's modification only if T2.start > T1.commit.

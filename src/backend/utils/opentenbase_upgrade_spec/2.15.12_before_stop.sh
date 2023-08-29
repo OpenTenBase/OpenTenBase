@@ -5,8 +5,8 @@ version=$3
 
 port=`grep -E '^\s*port\s*=' $data_dir/postgresql.conf |tail -n1 |awk -F '=' '{print $2}'`
 host=`ip addr | grep 'state UP' -A2 | tail -n1 | awk '{print $2}' | cut -f1 -d '/'`
-user=tbase
-passwd=tbase@TBASE
+user=opentenbase
+passwd=opentenbase@OPENTENBASE
 dbname=postgres
 
 execSql()
@@ -39,12 +39,12 @@ for ((i=1; i<=num; ++i)); do
     dbs=$(execSql "select datname from pg_database where datname !='template0'" $dbname $node_host $node_port)
     for db in ${dbs}
     do
-        execSql "create extension if not exists pg_stat_log" $db $node_host $node_port
+        execSql "drop extension if exists pg_stat_log" $db $node_host $node_port
         if [ $? -eq 0 ]
         then
-                echo "create pg_stat_log on $node_host:$node_port:$db success"
+                echo "drop pg_stat_log on $node_host:$node_port:$db success"
         else
-                echo "create pg_stat_log on $node_host:$node_port:$db failed"
+                echo "drop pg_stat_log on $node_host:$node_port:$db failed"
         fi
     done
 done
