@@ -328,7 +328,7 @@ BZIP2	= bzip2
 
 check: temp-install
 
-#EXTRA_INSTALL+=contrib/tbase_mls
+#EXTRA_INSTALL+=contrib/opentenbase_mls
 #EXTRA_INSTALL+=contrib/pg_fga
 
 .PHONY: temp-install

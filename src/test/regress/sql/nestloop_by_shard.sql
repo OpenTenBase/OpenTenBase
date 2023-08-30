@@ -43,7 +43,7 @@ CREATE INDEX unique2_s ON tenk1_s USING btree(unique2 int4_ops);
 CREATE INDEX hundred_s ON tenk1_s USING btree(hundred int4_ops);
 CREATE INDEX thous_tenthous_s ON tenk1_s (thousand, tenthous);
 
-COPY tenk1_s FROM '/home/tbase/PG-XL-v10/src/test/regress/data/tenk.data';
+COPY tenk1_s FROM '/home/opentenbase/OpenTenBase/src/test/regress/data/tenk.data';
 
 CREATE TABLE onek_s (
 	unique1 int4,
@@ -70,7 +70,7 @@ CREATE INDEX onek_unique2_s ON onek_s USING btree(unique2 int4_ops);
 CREATE INDEX onek_hundred_s ON onek_s USING btree(hundred int4_ops);
 CREATE INDEX onek_stringu1_s ON onek_s USING btree(stringu1 name_ops);
 
-COPY onek_s FROM '/home/tbase/PG-XL-v10/src/test/regress/data/onek.data';
+COPY onek_s FROM '/home/opentenbase/OpenTenBase/src/test/regress/data/onek.data';
 
 
 set enable_hashjoin=off;

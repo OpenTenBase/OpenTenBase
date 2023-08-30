@@ -1,0 +1,5 @@
+# opentenbase_gts_tools extension
+comment = 'GTS wrapper for OpenTenBase'
+default_version = '1.0'
+module_pathname = '$libdir/opentenbase_gts_tools'
+relocatable = true

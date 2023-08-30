@@ -97,7 +97,7 @@ ERROR:  subscription "testsub" does not exist
 (0 rows)
 
 ALTER SUBSCRIPTION testsub SET PUBLICATION testpub2, testpub3 WITH (refresh = false);
-ERROR:  TBase only supports ALTER [TBASE] SUBSCRIPTION XXX connection '...'; and ALTER [TBASE] SUBSCRIPTION XXX REFRESH PUBLICATION ...; and ALTER [TBASE] SUBSCRIPTION XXX DISABLE; 
+ERROR:  OpenTenBase only supports ALTER [OPENTENBASE] SUBSCRIPTION XXX connection '...'; and ALTER [OPENTENBASE] SUBSCRIPTION XXX REFRESH PUBLICATION ...; and ALTER [OPENTENBASE] SUBSCRIPTION XXX DISABLE; 
 ALTER SUBSCRIPTION testsub CONNECTION 'dbname=doesnotexist2';
 ERROR:  subscription "testsub" does not exist
 ALTER SUBSCRIPTION testsub SET (slot_name = 'newname');

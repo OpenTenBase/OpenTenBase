@@ -48,8 +48,8 @@ SUBDIRS = \
                 seg             \
                 spi             \
                 tablefunc       \
-				tbase_gts_tools \
-		        tbase_memory_tools	\
+				opentenbase_gts_tools \
+		        opentenbase_memory_tools	\
                 tcn             \
                 test_decoding   \
                 tsm_system_rows \
@@ -57,8 +57,8 @@ SUBDIRS = \
                 unaccent        \
                 vacuumlo        \
                 stormstats		\
-                tbase_subscription  \
-				tbase_pooler_stat \
+                opentenbase_subscription  \
+				opentenbase_pooler_stat \
                 pg_stat_cluster_activity
 
 ifeq ($(with_openssl),yes)

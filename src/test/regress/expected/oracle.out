@@ -2097,26 +2097,26 @@ CREATE DATABASE regression_sort WITH TEMPLATE = template0 ENCODING='SQL_ASCII' L
 \c regression_sort
 CREATE TABLE test_sort (name TEXT);
 INSERT INTO test_sort VALUES ('red'), ('brown'), ('yellow'), ('Purple');
-INSERT INTO test_sort VALUES ('guangdong'), ('shenzhen'), ('Tencent'), ('TBase');
+INSERT INTO test_sort VALUES ('guangdong'), ('shenzhen'), ('beijing'), ('OpenTenBase');
 SELECT * FROM test_sort ORDER BY NLSSORT(name, 'en_US.utf8');
-   name    
------------
+    name     
+-------------
+ beijing
  brown
  guangdong
+ OpenTenBase
  Purple
  red
  shenzhen
- TBase
- Tencent
  yellow
 (8 rows)
 
 SELECT * FROM test_sort ORDER BY NLSSORT(name, '');
-   name    
------------
+    name     
+-------------
+ OpenTenBase
  Purple
- TBase
- Tencent
+ beijing
  brown
  guangdong
  red
@@ -2139,11 +2139,11 @@ SELECT set_nls_sort('');
 (1 row)
 
 SELECT * FROM test_sort ORDER BY NLSSORT(name);
-   name    
------------
+    name     
+-------------
+ OpenTenBase
  Purple
- TBase
- Tencent
+ beijing
  brown
  guangdong
  red
@@ -2158,29 +2158,29 @@ SELECT set_nls_sort('en_US.utf8');
 (1 row)
 
 SELECT * FROM test_sort ORDER BY NLSSORT(name);
-   name    
------------
+    name     
+-------------
+ beijing
  brown
  guangdong
+ OpenTenBase
  Purple
  red
  shenzhen
- TBase
- Tencent
  yellow
 (8 rows)
 
 INSERT INTO test_sort VALUES(NULL);
 SELECT * FROM test_sort ORDER BY NLSSORT(name);
-   name    
------------
+    name     
+-------------
+ beijing
  brown
  guangdong
+ OpenTenBase
  Purple
  red
  shenzhen
- TBase
- Tencent
  yellow
  
 (9 rows)
@@ -2192,15 +2192,15 @@ SELECT set_nls_sort('nls_sort = russian');
 (1 row)
 
 SELECT * FROM test_sort ORDER BY NLSSORT(name);
-   name    
------------
+    name     
+-------------
+ beijing
  brown
  guangdong
+ OpenTenBase
  Purple
  red
  shenzhen
- TBase
- Tencent
  yellow
  
 (9 rows)
@@ -2220,11 +2220,11 @@ SELECT set_nls_sort('nls_sortr = en_US.iso885915');
 (1 row)
 
 SELECT * FROM test_sort ORDER BY NLSSORT(name, 'Nls_sort =   ');
-   name    
------------
+    name     
+-------------
+ OpenTenBase
  Purple
- TBase
- Tencent
+ beijing
  brown
  guangdong
  red
@@ -2234,43 +2234,43 @@ SELECT * FROM test_sort ORDER BY NLSSORT(name, 'Nls_sort =   ');
 (9 rows)
 
 SELECT * FROM test_sort ORDER BY NLSSORT(name, 'Nls_sort =  zh_CN.gb18030 ');
-   name    
------------
+    name     
+-------------
+ beijing
  brown
  guangdong
+ OpenTenBase
  Purple
  red
  shenzhen
- TBase
- Tencent
  yellow
  
 (9 rows)
 
 SELECT * FROM test_sort ORDER BY NLSSORT(name, 'Nls_sort =  wa_BE.iso885915@euro ');
-   name    
------------
+    name     
+-------------
+ beijing
  brown
  guangdong
+ OpenTenBase
  Purple
  red
  shenzhen
- TBase
- Tencent
  yellow
  
 (9 rows)
 
 SELECT * FROM test_sort ORDER BY NLSSORT(name, 'NLS_SORT =  tt_RU.utf8@iqtelif ');
-   name    
------------
+    name     
+-------------
+ beijing
  brown
  guangdong
+ OpenTenBase
  Purple
  red
  shenzhen
- TBase
- Tencent
  yellow
  
 (9 rows)

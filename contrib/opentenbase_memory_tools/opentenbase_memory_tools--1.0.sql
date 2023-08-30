@@ -1,7 +1,7 @@
-/* contrib/tbase_memory/tbase_memory_tools--1.0.sql */
+/* contrib/opentenbase_memory/opentenbase_memory_tools--1.0.sql */
 
 -- complain if script is sourced in psql, rather than via CREATE EXTENSION
-\echo Use "create EXTENSION tbase_memory_tools" to load this file. \quit
+\echo Use "create EXTENSION opentenbase_memory_tools" to load this file. \quit
 
 --
 -- pg_node_memory_detail()

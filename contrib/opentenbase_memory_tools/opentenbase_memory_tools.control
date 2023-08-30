@@ -1,0 +1,5 @@
+# opentenbase_memory_tools extension
+comment = 'memory wrapper for OpenTenBase'
+default_version = '1.0'
+module_pathname = '$libdir/opentenbase_memory_tools'
+relocatable = true

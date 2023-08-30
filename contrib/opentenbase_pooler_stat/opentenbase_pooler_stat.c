@@ -1,9 +1,9 @@
 /*
- * contrib/tbase_pooler_stat/tbase_pooler_stat.c
+ * contrib/opentenbase_pooler_stat/opentenbase_pooler_stat.c
  *
- * tbase_pooler_stat.c
+ * opentenbase_pooler_stat.c
  *
- * Copyright (c) 2020 Tbase Kernel Group
+ * Copyright (c) 2020 OpenTenBase Kernel Group
  *
  * Copyright (c) 2023 THL A29 Limited, a Tencent company.
  *
@@ -40,9 +40,9 @@
 
 PG_MODULE_MAGIC;
 
-PG_FUNCTION_INFO_V1(tbase_get_pooler_cmd_statistics);
-PG_FUNCTION_INFO_V1(tbase_reset_pooler_cmd_statistics);
-PG_FUNCTION_INFO_V1(tbase_get_pooler_conn_statistics);
+PG_FUNCTION_INFO_V1(opentenbase_get_pooler_cmd_statistics);
+PG_FUNCTION_INFO_V1(opentenbase_reset_pooler_cmd_statistics);
+PG_FUNCTION_INFO_V1(opentenbase_get_pooler_conn_statistics);
 
 typedef struct
 {
@@ -87,7 +87,7 @@ static char *g_pooler_cmd_name_tab[POOLER_CMD_COUNT] =
  * get pooler command statistics
  */
 Datum
-tbase_get_pooler_cmd_statistics(PG_FUNCTION_ARGS)
+opentenbase_get_pooler_cmd_statistics(PG_FUNCTION_ARGS)
 {
 #define  LIST_POOLER_CMD_STATISTICS_COLUMNS 5
     FuncCallContext 	*funcctx;
@@ -174,7 +174,7 @@ tbase_get_pooler_cmd_statistics(PG_FUNCTION_ARGS)
  * reset pooler command statistics
  */
 Datum
-tbase_reset_pooler_cmd_statistics(PG_FUNCTION_ARGS)
+opentenbase_reset_pooler_cmd_statistics(PG_FUNCTION_ARGS)
 {
     PoolManagerResetCmdStatistics();
 
@@ -185,7 +185,7 @@ tbase_reset_pooler_cmd_statistics(PG_FUNCTION_ARGS)
  * get pooler connections statistics
  */
 Datum
-tbase_get_pooler_conn_statistics(PG_FUNCTION_ARGS)
+opentenbase_get_pooler_conn_statistics(PG_FUNCTION_ARGS)
 {
 #define  LIST_POOLER_CONN_STATISTICS_COLUMNS 12
     FuncCallContext 	 *funcctx = NULL;

@@ -10,7 +10,7 @@ create user normal_user;
 create user mls_normal_user createrole;
 \c regression godlike
 
-create extension tbase_mls;
+create extension opentenbase_mls;
 select current_database();
 select current_user;
 
@@ -134,7 +134,7 @@ select MLS_TRANSPARENT_CRYPT_DROP_ALGORITHM(1);
 create table tbl_datamask_xx( i int, i_m int, ii int2, ii_m int2, j bigint, j_m bigint, x varchar, x_m varchar, y text, y_m text) distribute by shard(i);
 insert into tbl_datamask_xx values(1024, 1024, 7788, 7788, 42949672960,42949672960, '112233201804035566', '112233201804035566', 'abcdefghijk', 'abcdefghijk');
 insert into tbl_datamask_xx(i, x) values(1025, 'all is null');
-insert into tbl_datamask_xx(i, x, x_m, y_m) values(1026, 'all is null', 'this is a very very very looooooooong string, i guess here is over 32 bytes length, emmmmm', 'tbase!!~~~');
+insert into tbl_datamask_xx(i, x, x_m, y_m) values(1026, 'all is null', 'this is a very very very looooooooong string, i guess here is over 32 bytes length, emmmmm', 'OpenTenBase!!~~~');
 
 
 create table tbl_datamask_yy( i int, i_m int, ii int2, ii_m int2, j bigint, j_m bigint, x varchar, x_m varchar, y text, y_m text) distribute by shard(i);;
@@ -241,7 +241,7 @@ select MLS_DATAMASK_CREATE('public', 'tbl_xx', 'ff8',    3, 12345.678);
 select MLS_DATAMASK_CREATE('public', 'tbl_xx', 'nn',     3, 500.001);
 select MLS_DATAMASK_CREATE('public', 'tbl_xx', 'cc',     2, 12);
 select MLS_DATAMASK_CREATE('public', 'tbl_xx', 'cc_2',   4, 12);
-select MLS_DATAMASK_CREATE('public', 'tbl_xx', 'cc_3',   3, 'tbase security');
+select MLS_DATAMASK_CREATE('public', 'tbl_xx', 'cc_3',   3, 'OpenTenBase security');
 select MLS_DATAMASK_CREATE('public', 'tbl_xx', 'varch2', 4, 10);
 
 select MLS_DATAMASK_CREATE_USER_POLICY('public', 'tbl_xx', 'tt',     'godlike');
@@ -438,9 +438,9 @@ select MLS_DATAMASK_CREATE('public', 'test_table_e', 'e_j', 3, 'jjj');
 select MLS_DATAMASK_CREATE('public', 'test_table_e', 'e_k', 3, 'kkk');
 
 \c - godlike
-insert into test_table_e(e_a, e_b, e_c, e_d, e_e, e_f, e_g, e_h, e_i, e_j, e_k) values(111, 222, 333, 'Tbase', 'Tbase', 'Tbase', 'Tbase', '123.123', '2018-08-08 8:8:8', '444.444', ' 888.888');
-insert into test_table_e(e_a, e_b, e_c, e_d, e_e, e_f, e_g, e_h, e_i, e_j, e_k) values(444, 555, 666, 'Tbase', 'Tbase ', 'Tbase ', 'Tbase ', '1234.1234', '2019-09-09 9:9:9', '444555.444555', ' 888999.888999');
-insert into test_table_e(e_a, e_b, e_c, e_d, e_e, e_f, e_g, e_h, e_i, e_j, e_k) values(777, 888, 999, 'hello world', 'hello tbase', 'hello 700', 'hello 007', '12345.12345', '2020-10-10 10:10:10', '44456.44456', ' 8889990.888999');
+insert into test_table_e(e_a, e_b, e_c, e_d, e_e, e_f, e_g, e_h, e_i, e_j, e_k) values(111, 222, 333, 'OpenTenBase', 'OpenTenBase', 'OpenTenBase', 'OpenTenBase', '123.123', '2018-08-08 8:8:8', '444.444', ' 888.888');
+insert into test_table_e(e_a, e_b, e_c, e_d, e_e, e_f, e_g, e_h, e_i, e_j, e_k) values(444, 555, 666, 'OpenTenBase', 'OpenTenBase ', 'OpenTenBase ', 'OpenTenBase ', '1234.1234', '2019-09-09 9:9:9', '444555.444555', ' 888999.888999');
+insert into test_table_e(e_a, e_b, e_c, e_d, e_e, e_f, e_g, e_h, e_i, e_j, e_k) values(777, 888, 999, 'hello world', 'hello OpenTenBase', 'hello 700', 'hello 007', '12345.12345', '2020-10-10 10:10:10', '44456.44456', ' 8889990.888999');
 select * from test_table_e order by e_a;
 
 \c - mls_admin
@@ -457,8 +457,8 @@ create table alter_order_range(f1 int, f2 int2, f3 int4, f4 int8, f5 varchar, f6
 create table alter_order_range_201701 partition of alter_order_range(f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) for values from ('2017-01-01') to ('2017-02-01');
 create table alter_order_range_201702 partition of alter_order_range(f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) for values from ('2017-02-01') to ('2017-03-01');
 
-insert into alter_order_range(f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) values(1,111, 222, 333, 'Tbase', 'Tbase ', 'helloworld', 'Tbase', '123.123', '2017-01-02 0:0:0', '444.444', ' 888.888');
-insert into alter_order_range(f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) values(2,111, 222, 333, 'Tbase', 'Tbase ', 'helloworld', 'Tbase', '123.123', '2017-02-02 0:0:0', '444.444', ' 888.888');
+insert into alter_order_range(f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) values(1,111, 222, 333, 'OpenTenBase', 'OpenTenBase ', 'helloworld', 'OpenTenBase', '123.123', '2017-01-02 0:0:0', '444.444', ' 888.888');
+insert into alter_order_range(f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) values(2,111, 222, 333, 'OpenTenBase', 'OpenTenBase ', 'helloworld', 'OpenTenBase', '123.123', '2017-02-02 0:0:0', '444.444', ' 888.888');
 
 \c - mls_admin
 select MLS_DATAMASK_CREATE('public', 'alter_order_range', 'f2', 1);
@@ -528,14 +528,14 @@ create table order_range_list_gd_201703 partition of order_range_list_gd(f1 prim
 create table order_range_list_bj_201701 partition of order_range_list_bj(f1 primary key,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) for values from ('2017-01-01') to ('2017-02-01');
 create table order_range_list_bj_201702 partition of order_range_list_bj(f1 primary key,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) for values from ('2017-02-01') to ('2017-03-01');
 create table order_range_list_bj_201703 partition of order_range_list_bj(f1 primary key,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) for values from ('2017-03-01') to ('2017-04-01');
-insert into order_range_list(f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) values(1,111, 222, 333, 'Tbase', 'gd', 'hello tbase ', 'Tbase', '123.123', '2017-01-02 0:0:0', '444.444', ' 888.888');
-insert into order_range_list(f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) values(2,111, 222, 333, 'Tbase', 'gd', 'hello tbase ', 'Tbase', '123.123', '2017-02-02 0:0:0', '444.444', ' 888.888');
-insert into order_range_list(f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) values(3,111, 222, 333, 'Tbase', 'gd', 'hello tbase ', 'Tbase', '123.123', '2017-03-02 0:0:0', '444.444', ' 888.888');
-insert into order_range_list(f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) values(4,111, 222, 333, 'Tbase', 'bj', 'hello beijing', 'Tbase', '123.123', '2017-01-02 0:0:0', '444.444', ' 888.888');
-insert into order_range_list(f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) values(5,111, 222, 333, 'Tbase', 'bj', 'hello beijing', 'Tbase', '123.123', '2017-02-02 0:0:0', '444.444', ' 888.888');
-insert into order_range_list(f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) values(6,111, 222, 333, 'Tbase', 'bj', 'hello beijing', 'Tbase', '123.123', '2017-03-02 0:0:0', '444.444', ' 888.888');
-insert into order_range_list(f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) values(7,111, 222, 333, 'Tbase', 'sh', 'hello tailand', 'Tbase', '123.123', '2017-02-02 0:0:0', '444.444', ' 888.888');
-insert into order_range_list(f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) values(8,111, 222, 333, 'Tbase', 'sh', 'hello tailand', 'Tbase', '123.123', '2017-01-02 0:0:0', '444.444', ' 888.888');
+insert into order_range_list(f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) values(1,111, 222, 333, 'OpenTenBase', 'gd', 'hello OpenTenBase ', 'OpenTenBase', '123.123', '2017-01-02 0:0:0', '444.444', ' 888.888');
+insert into order_range_list(f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) values(2,111, 222, 333, 'OpenTenBase', 'gd', 'hello OpenTenBase ', 'OpenTenBase', '123.123', '2017-02-02 0:0:0', '444.444', ' 888.888');
+insert into order_range_list(f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) values(3,111, 222, 333, 'OpenTenBase', 'gd', 'hello OpenTenBase ', 'OpenTenBase', '123.123', '2017-03-02 0:0:0', '444.444', ' 888.888');
+insert into order_range_list(f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) values(4,111, 222, 333, 'OpenTenBase', 'bj', 'hello beijing', 'OpenTenBase', '123.123', '2017-01-02 0:0:0', '444.444', ' 888.888');
+insert into order_range_list(f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) values(5,111, 222, 333, 'OpenTenBase', 'bj', 'hello beijing', 'OpenTenBase', '123.123', '2017-02-02 0:0:0', '444.444', ' 888.888');
+insert into order_range_list(f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) values(6,111, 222, 333, 'OpenTenBase', 'bj', 'hello beijing', 'OpenTenBase', '123.123', '2017-03-02 0:0:0', '444.444', ' 888.888');
+insert into order_range_list(f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) values(7,111, 222, 333, 'OpenTenBase', 'sh', 'hello tailand', 'OpenTenBase', '123.123', '2017-02-02 0:0:0', '444.444', ' 888.888');
+insert into order_range_list(f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) values(8,111, 222, 333, 'OpenTenBase', 'sh', 'hello tailand', 'OpenTenBase', '123.123', '2017-01-02 0:0:0', '444.444', ' 888.888');
 
 \c - mls_admin
 select MLS_DATAMASK_CREATE('public', 'order_range_list', 'f2', 1);
@@ -803,7 +803,7 @@ select MLS_TRANSPARENT_CRYPT_DROP_ALGORITHM(1);
 
 --case: interval partition with index
 \c - godlike 
---create extension tbase_mls;
+--create extension opentenbase_mls;
 --create default node group default_group with(datanode_1, datanode_2); 
 --create sharding group to group default_group;
 
@@ -1154,96 +1154,96 @@ drop table order_range_list;
 
 --case2 parent and child have no crypt policy, bind crypt to the child, parent would not bound with crypt.
 \c - godlike
-CREATE TABLE tbl_tbase (
+CREATE TABLE tbl_opentenbase (
     f1 bigint,
     f2 text
 )
 PARTITION BY RANGE (f1)
 DISTRIBUTE BY SHARD (f1) to GROUP default_group;
-CREATE TABLE tbl_tbase_1 PARTITION OF tbl_tbase FOR VALUES FROM (1) TO (10000000);
+CREATE TABLE tbl_opentenbase_1 PARTITION OF tbl_opentenbase FOR VALUES FROM (1) TO (10000000);
 
 \c - mls_admin 
-select MLS_TRANSPARENT_CRYPT_ALGORITHM_BIND_TABLE('public', 'tbl_tbase_1', 1); 
-select tblname, attnum, algorithm_id from pg_transparent_crypt_policy_map where tblname ilike 'tbl_tbase%' order by tblname;
+select MLS_TRANSPARENT_CRYPT_ALGORITHM_BIND_TABLE('public', 'tbl_opentenbase_1', 1); 
+select tblname, attnum, algorithm_id from pg_transparent_crypt_policy_map where tblname ilike 'tbl_opentenbase%' order by tblname;
 
 --case2.1 bind parent crypt would fail
 \c - mls_admin 
-select MLS_TRANSPARENT_CRYPT_ALGORITHM_BIND_TABLE('public', 'tbl_tbase', 1); 
+select MLS_TRANSPARENT_CRYPT_ALGORITHM_BIND_TABLE('public', 'tbl_opentenbase', 1); 
 
 --case2.2 detach the child by mls_admin, bind parent crypt policy, then attach this crypt child 
 \c - mls_admin 
-alter table tbl_tbase detach partition tbl_tbase_1;
-select MLS_TRANSPARENT_CRYPT_ALGORITHM_BIND_TABLE('public', 'tbl_tbase', 1); 
-select tblname, attnum, algorithm_id from pg_transparent_crypt_policy_map where tblname ilike 'tbl_tbase%' order by tblname;
+alter table tbl_opentenbase detach partition tbl_opentenbase_1;
+select MLS_TRANSPARENT_CRYPT_ALGORITHM_BIND_TABLE('public', 'tbl_opentenbase', 1); 
+select tblname, attnum, algorithm_id from pg_transparent_crypt_policy_map where tblname ilike 'tbl_opentenbase%' order by tblname;
 \c - godlike
-alter table tbl_tbase attach partition tbl_tbase_1 FOR VALUES FROM (1) TO (10000000);
+alter table tbl_opentenbase attach partition tbl_opentenbase_1 FOR VALUES FROM (1) TO (10000000);
 
 --clean case2
 \c - mls_admin
-select MLS_TRANSPARENT_CRYPT_ALGORITHM_UNBIND_TABLE('public', 'tbl_tbase'); 
-select MLS_TRANSPARENT_CRYPT_ALGORITHM_UNBIND_TABLE('public', 'tbl_tbase_1'); 
-select tblname, attnum, algorithm_id from pg_transparent_crypt_policy_map where tblname ilike 'tbl_tbase%' order by tblname;
+select MLS_TRANSPARENT_CRYPT_ALGORITHM_UNBIND_TABLE('public', 'tbl_opentenbase'); 
+select MLS_TRANSPARENT_CRYPT_ALGORITHM_UNBIND_TABLE('public', 'tbl_opentenbase_1'); 
+select tblname, attnum, algorithm_id from pg_transparent_crypt_policy_map where tblname ilike 'tbl_opentenbase%' order by tblname;
 \c - godlike
-drop table tbl_tbase;
+drop table tbl_opentenbase;
 
 --case3 parent has no crypt, but child has. drop table would fail
 \c - godlike
-CREATE TABLE tbl_tbase (
+CREATE TABLE tbl_opentenbase (
     f1 bigint,
     f2 text
 )
 PARTITION BY RANGE (f1)
 DISTRIBUTE BY SHARD (f1) to GROUP default_group;
-CREATE TABLE tbl_tbase_1 PARTITION OF tbl_tbase FOR VALUES FROM (1) TO (10000000);
+CREATE TABLE tbl_opentenbase_1 PARTITION OF tbl_opentenbase FOR VALUES FROM (1) TO (10000000);
 \c - mls_admin 
-select MLS_TRANSPARENT_CRYPT_ALGORITHM_BIND_TABLE('public', 'tbl_tbase_1', 1); 
-select tblname, attnum, algorithm_id from pg_transparent_crypt_policy_map where tblname ilike 'tbl_tbase%' order by tblname;
+select MLS_TRANSPARENT_CRYPT_ALGORITHM_BIND_TABLE('public', 'tbl_opentenbase_1', 1); 
+select tblname, attnum, algorithm_id from pg_transparent_crypt_policy_map where tblname ilike 'tbl_opentenbase%' order by tblname;
 \c - godlike
-drop table tbl_tbase;
+drop table tbl_opentenbase;
 
 --case3.1 detach the crypt child, drop ok
 \c - mls_admin 
-alter table tbl_tbase detach partition tbl_tbase_1;
+alter table tbl_opentenbase detach partition tbl_opentenbase_1;
 \c - godlike
-drop table tbl_tbase;
+drop table tbl_opentenbase;
 --case3.2 unbind crypt, drop ok
 \c - godlike
-CREATE TABLE tbl_tbase (
+CREATE TABLE tbl_opentenbase (
     f1 bigint,
     f2 text
 )
 PARTITION BY RANGE (f1)
 DISTRIBUTE BY SHARD (f1) to GROUP default_group;
-alter table tbl_tbase attach partition tbl_tbase_1 FOR VALUES FROM (1) TO (10000000);
+alter table tbl_opentenbase attach partition tbl_opentenbase_1 FOR VALUES FROM (1) TO (10000000);
 \c - mls_admin 
-select MLS_TRANSPARENT_CRYPT_ALGORITHM_UNBIND_TABLE('public', 'tbl_tbase_1'); 
-select tblname, attnum, algorithm_id from pg_transparent_crypt_policy_map where tblname ilike 'tbl_tbase%' order by tblname;
+select MLS_TRANSPARENT_CRYPT_ALGORITHM_UNBIND_TABLE('public', 'tbl_opentenbase_1'); 
+select tblname, attnum, algorithm_id from pg_transparent_crypt_policy_map where tblname ilike 'tbl_opentenbase%' order by tblname;
 \c - godlike
-drop table tbl_tbase;
+drop table tbl_opentenbase;
 
 --case4 unbind crypt would not be cascaded, parent is empty, crypt could be dropped
 \c - godlike
-CREATE TABLE tbl_tbase (
+CREATE TABLE tbl_opentenbase (
     f1 bigint,
     f2 text
 )
 PARTITION BY RANGE (f1)
 DISTRIBUTE BY SHARD (f1) to GROUP default_group;
-CREATE TABLE tbl_tbase_1 PARTITION OF tbl_tbase FOR VALUES FROM (1) TO (10000000);
+CREATE TABLE tbl_opentenbase_1 PARTITION OF tbl_opentenbase FOR VALUES FROM (1) TO (10000000);
 \c - mls_admin 
-select MLS_TRANSPARENT_CRYPT_ALGORITHM_BIND_TABLE('public', 'tbl_tbase', 1); 
-select tblname, attnum, algorithm_id from pg_transparent_crypt_policy_map where tblname ilike 'tbl_tbase%' order by tblname;
+select MLS_TRANSPARENT_CRYPT_ALGORITHM_BIND_TABLE('public', 'tbl_opentenbase', 1); 
+select tblname, attnum, algorithm_id from pg_transparent_crypt_policy_map where tblname ilike 'tbl_opentenbase%' order by tblname;
 
 --case4.1 crypt could be dropped on child if child is empty.
-select MLS_TRANSPARENT_CRYPT_ALGORITHM_UNBIND_TABLE('public', 'tbl_tbase'); 
-select tblname, attnum, algorithm_id from pg_transparent_crypt_policy_map where tblname ilike 'tbl_tbase%' order by tblname;
+select MLS_TRANSPARENT_CRYPT_ALGORITHM_UNBIND_TABLE('public', 'tbl_opentenbase'); 
+select tblname, attnum, algorithm_id from pg_transparent_crypt_policy_map where tblname ilike 'tbl_opentenbase%' order by tblname;
 
-select MLS_TRANSPARENT_CRYPT_ALGORITHM_UNBIND_TABLE('public', 'tbl_tbase_1'); 
-select tblname, attnum, algorithm_id from pg_transparent_crypt_policy_map where tblname ilike 'tbl_tbase%' order by tblname;
+select MLS_TRANSPARENT_CRYPT_ALGORITHM_UNBIND_TABLE('public', 'tbl_opentenbase_1'); 
+select tblname, attnum, algorithm_id from pg_transparent_crypt_policy_map where tblname ilike 'tbl_opentenbase%' order by tblname;
 
 --clean case4
 \c - godlike
-drop table tbl_tbase;
+drop table tbl_opentenbase;
 
 --case 5 materialized view
 \c - godlike 

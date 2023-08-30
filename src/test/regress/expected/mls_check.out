@@ -13,7 +13,7 @@ create user normal_user;
 \c regression mls_admin
 create user mls_normal_user createrole;
 \c regression godlike
-create extension tbase_mls;
+create extension opentenbase_mls;
 select current_database();
  current_database 
 ------------------
@@ -372,7 +372,7 @@ create table tbl_datamask_xx( i int, i_m int, ii int2, ii_m int2, j bigint, j_m 
 NOTICE:  Replica identity is needed for shard table, please add to this table through "alter table" command.
 insert into tbl_datamask_xx values(1024, 1024, 7788, 7788, 42949672960,42949672960, '112233201804035566', '112233201804035566', 'abcdefghijk', 'abcdefghijk');
 insert into tbl_datamask_xx(i, x) values(1025, 'all is null');
-insert into tbl_datamask_xx(i, x, x_m, y_m) values(1026, 'all is null', 'this is a very very very looooooooong string, i guess here is over 32 bytes length, emmmmm', 'tbase!!~~~');
+insert into tbl_datamask_xx(i, x, x_m, y_m) values(1026, 'all is null', 'this is a very very very looooooooong string, i guess here is over 32 bytes length, emmmmm', 'OpenTenbase!!~~~');
 create table tbl_datamask_yy( i int, i_m int, ii int2, ii_m int2, j bigint, j_m bigint, x varchar, x_m varchar, y text, y_m text) distribute by shard(i);;
 NOTICE:  Replica identity is needed for shard table, please add to this table through "alter table" command.
 insert into tbl_datamask_yy values(1024, 1024, 7788, 7788, 42949672960,42949672960, '112233201804035566', '112233201804035566', 'abcdefghijk', 'abcdefghijk');
@@ -507,7 +507,7 @@ select * from tbl_datamask_xx order by i;
 ------+------+------+-------+-------------+---------+--------------------+--------------------------------------------------------------------------------------------+-------------+-------------
  1024 | 9999 | 7788 | 22072 | 42949672960 | 9999999 | 112233201804035566 | XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX                                                          | abcdefghijk | abcdefgXXXX
  1025 | 9999 |      | 22072 |             | 9999999 | all is null        | XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX                                                          |             | XXXX
- 1026 | 9999 |      | 22072 |             | 9999999 | all is null        | XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXoong string, i guess here is over 32 bytes length, emmmmm |             | tbase!XXXX
+ 1026 | 9999 |      | 22072 |             | 9999999 | all is null        | XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXoong string, i guess here is over 32 bytes length, emmmmm |             | OpenTenbase!XXXX
 (3 rows)
 
 \c regression godlike
@@ -516,7 +516,7 @@ select * from tbl_datamask_xx order by i;
 ------+------+------+------+-------------+-------------+--------------------+--------------------------------------------------------------------------------------------+-------------+-------------
  1024 | 1024 | 7788 | 7788 | 42949672960 | 42949672960 | 112233201804035566 | 112233201804035566                                                                         | abcdefghijk | abcdefghijk
  1025 |      |      |      |             |             | all is null        |                                                                                            |             | 
- 1026 |      |      |      |             |             | all is null        | this is a very very very looooooooong string, i guess here is over 32 bytes length, emmmmm |             | tbase!!~~~
+ 1026 |      |      |      |             |             | all is null        | this is a very very very looooooooong string, i guess here is over 32 bytes length, emmmmm |             | OpenTenbase!!~~~
 (3 rows)
 
 \c regression godlike2
@@ -525,7 +525,7 @@ select * from tbl_datamask_xx order by i;
 ------+------+------+------+-------------+-------------+--------------------+--------------------------------------------------------------------------------------------+-------------+-------------
  1024 | 1024 | 7788 | 7788 | 42949672960 | 42949672960 | 112233201804035566 | 112233201804035566                                                                         | abcdefghijk | abcdefghijk
  1025 |      |      |      |             |             | all is null        |                                                                                            |             | 
- 1026 |      |      |      |             |             | all is null        | this is a very very very looooooooong string, i guess here is over 32 bytes length, emmmmm |             | tbase!!~~~
+ 1026 |      |      |      |             |             | all is null        | this is a very very very looooooooong string, i guess here is over 32 bytes length, emmmmm |             | OpenTenbase!!~~~
 (3 rows)
 
 --case3:update datamask datum value
@@ -548,7 +548,7 @@ select * from tbl_datamask_xx order by i;
 ------+------+------+-------+-------------+---------+--------------------+--------------------------------------------------------------------------------------------+-------------+-------------
  1024 | 7777 | 7788 | 22072 | 42949672960 | 9999999 | 112233201804035566 | XXXXX3201804035566                                                                         | abcdefghijk | abcdefgXXXX
  1025 | 7777 |      | 22072 |             | 9999999 | all is null        | XXXXX                                                                                      |             | XXXX
- 1026 | 7777 |      | 22072 |             | 9999999 | all is null        | XXXXXis a very very very looooooooong string, i guess here is over 32 bytes length, emmmmm |             | tbase!XXXX
+ 1026 | 7777 |      | 22072 |             | 9999999 | all is null        | XXXXXis a very very very looooooooong string, i guess here is over 32 bytes length, emmmmm |             | OpenTenbase!XXXX
 (3 rows)
 
 --case4:enable or disable datamask policy on one column
@@ -565,7 +565,7 @@ select * from tbl_datamask_xx order by i;
 ------+------+------+------+-------------+-------------+--------------------+--------------------------------------------------------------------------------------------+-------------+-------------
  1024 | 7777 | 7788 | 7788 | 42949672960 | 42949672960 | 112233201804035566 | 112233201804035566                                                                         | abcdefghijk | abcdefghijk
  1025 | 7777 |      |      |             |             | all is null        |                                                                                            |             | 
- 1026 | 7777 |      |      |             |             | all is null        | this is a very very very looooooooong string, i guess here is over 32 bytes length, emmmmm |             | tbase!!~~~
+ 1026 | 7777 |      |      |             |             | all is null        | this is a very very very looooooooong string, i guess here is over 32 bytes length, emmmmm |             | OpenTenbase!!~~~
 (3 rows)
 
 \c regression mls_admin
@@ -581,7 +581,7 @@ select * from tbl_datamask_xx order by i;
 ------+------+------+------+-------------+-------------+--------------------+--------------------------------------------------------------------------------------------+-------------+-------------
  1024 | 1024 | 7788 | 7788 | 42949672960 | 42949672960 | 112233201804035566 | 112233201804035566                                                                         | abcdefghijk | abcdefghijk
  1025 |      |      |      |             |             | all is null        |                                                                                            |             | 
- 1026 |      |      |      |             |             | all is null        | this is a very very very looooooooong string, i guess here is over 32 bytes length, emmmmm |             | tbase!!~~~
+ 1026 |      |      |      |             |             | all is null        | this is a very very very looooooooong string, i guess here is over 32 bytes length, emmmmm |             | OpenTenbase!!~~~
 (3 rows)
 
 ----the follows should fail, cause datamask column exist in expr
@@ -610,7 +610,7 @@ select * from tbl_datamask_xx where i_m = 7777 order by i;
 -------+------+------+-------+-------------+---------+--------------------+--------------------------------------------------------------------------------------------+-------------+-------------
   1024 | 7777 | 7788 | 22072 | 42949672960 | 9999999 | 112233201804035566 | XXXXX3201804035566                                                                         | abcdefghijk | abcdefgXXXX
   1025 | 7777 |      | 22072 |             | 9999999 | all is null        | XXXXX                                                                                      |             | XXXX
-  1026 | 7777 |      | 22072 |             | 9999999 | all is null        | XXXXXis a very very very looooooooong string, i guess here is over 32 bytes length, emmmmm |             | tbase!XXXX
+  1026 | 7777 |      | 22072 |             | 9999999 | all is null        | XXXXXis a very very very looooooooong string, i guess here is over 32 bytes length, emmmmm |             | OpenTenbase!XXXX
  10240 | 7777 |      | 22072 |             | 9999999 |                    | XXXXX                                                                                      |             | XXXX
 (4 rows)
 
@@ -656,7 +656,7 @@ select * from tbl_datamask_xx order by i;
 -------+------+------+------+-------------+-------------+--------------------+--------------------------------------------------------------------------------------------+-------------+-------------
   1024 | 7777 | 7788 | 7788 | 42949672960 | 42949672960 | 112233201804035566 | XXXXX3201804035566                                                                         | abcdefghijk | abcdefghijk
   1025 | 7777 |      |      |             |             | all is null        | XXXXX                                                                                      |             | 
-  1026 | 7777 |      |      |             |             | all is null        | XXXXXis a very very very looooooooong string, i guess here is over 32 bytes length, emmmmm |             | tbase!!~~~
+  1026 | 7777 |      |      |             |             | all is null        | XXXXXis a very very very looooooooong string, i guess here is over 32 bytes length, emmmmm |             | OpenTenbase!!~~~
  10240 | 7777 |      |      |             |             |                    | XXXXX                                                                                      |             | 
 (4 rows)
 
@@ -711,7 +711,7 @@ select MLS_DATAMASK_CREATE('public', 'tbl_xx', 'cc_2',   4, 12);
  t
 (1 row)
 
-select MLS_DATAMASK_CREATE('public', 'tbl_xx', 'cc_3',   3, 'tbase security');
+select MLS_DATAMASK_CREATE('public', 'tbl_xx', 'cc_3',   3, 'OpenTenbase security');
  mls_datamask_create 
 ---------------------
  t
@@ -775,7 +775,7 @@ select MLS_DATAMASK_CREATE_USER_POLICY('public', 'tbl_xx', 'varch2', 'godlike');
 select * from tbl_xx;
   id  |            tt            |   ff4   |    ff8    |   nn    |      cc      |     cc_2     |      cc_3      |    cc_4    |    varch2    
 ------+--------------------------+---------+-----------+---------+--------------+--------------+----------------+------------+--------------
- 1024 | Sat Oct 10 10:10:10 2099 | 12345.6 | 12345.678 | 500.001 | XXXXXXXXXXXX | XXXXXXXXXXXX | tbase security | abcefghijk | a XXXXXXXXXX
+ 1024 | Sat Oct 10 10:10:10 2099 | 12345.6 | 12345.678 | 500.001 | XXXXXXXXXXXX | XXXXXXXXXXXX | OpenTenbase security | abcefghijk | a XXXXXXXXXX
 (1 row)
 
 \c regression godlike
@@ -792,7 +792,7 @@ insert into tbl_yy select * from tbl_xx order by id asc;
 select * from tbl_yy;
   id  |            tt            |   ff4   |    ff8    |   nn    |      cc      |     cc_2     |      cc_3      |    cc_4    |    varch2    
 ------+--------------------------+---------+-----------+---------+--------------+--------------+----------------+------------+--------------
- 1024 | Sat Oct 10 10:10:10 2099 | 12345.6 | 12345.678 | 500.001 | XXXXXXXXXXXX | XXXXXXXXXXXX | tbase security | abcefghijk | a XXXXXXXXXX
+ 1024 | Sat Oct 10 10:10:10 2099 | 12345.6 | 12345.678 | 500.001 | XXXXXXXXXXXX | XXXXXXXXXXXX | OpenTenbase security | abcefghijk | a XXXXXXXXXX
 (1 row)
 
 drop table tbl_yy;
@@ -1168,9 +1168,9 @@ LINE 1: SELECT 'kkk'::float8;
 QUERY:  SELECT 'kkk'::float8;
 CONTEXT:  PL/pgSQL function mls_datamask_create(name,name,name,integer,text) line 72 at EXECUTE
 \c - godlike
-insert into test_table_e(e_a, e_b, e_c, e_d, e_e, e_f, e_g, e_h, e_i, e_j, e_k) values(111, 222, 333, 'Tbase', 'Tbase', 'Tbase', 'Tbase', '123.123', '2018-08-08 8:8:8', '444.444', ' 888.888');
-insert into test_table_e(e_a, e_b, e_c, e_d, e_e, e_f, e_g, e_h, e_i, e_j, e_k) values(444, 555, 666, 'Tbase', 'Tbase ', 'Tbase ', 'Tbase ', '1234.1234', '2019-09-09 9:9:9', '444555.444555', ' 888999.888999');
-insert into test_table_e(e_a, e_b, e_c, e_d, e_e, e_f, e_g, e_h, e_i, e_j, e_k) values(777, 888, 999, 'hello world', 'hello tbase', 'hello 700', 'hello 007', '12345.12345', '2020-10-10 10:10:10', '44456.44456', ' 8889990.888999');
+insert into test_table_e(e_a, e_b, e_c, e_d, e_e, e_f, e_g, e_h, e_i, e_j, e_k) values(111, 222, 333, 'OpenTenbase', 'OpenTenbase', 'OpenTenbase', 'OpenTenbase', '123.123', '2018-08-08 8:8:8', '444.444', ' 888.888');
+insert into test_table_e(e_a, e_b, e_c, e_d, e_e, e_f, e_g, e_h, e_i, e_j, e_k) values(444, 555, 666, 'OpenTenbase', 'OpenTenbase ', 'OpenTenbase ', 'OpenTenbase ', '1234.1234', '2019-09-09 9:9:9', '444555.444555', ' 888999.888999');
+insert into test_table_e(e_a, e_b, e_c, e_d, e_e, e_f, e_g, e_h, e_i, e_j, e_k) values(777, 888, 999, 'hello world', 'hello OpenTenbase', 'hello 700', 'hello 007', '12345.12345', '2020-10-10 10:10:10', '44456.44456', ' 8889990.888999');
 select * from test_table_e order by e_a;
  e_a | e_b  | e_c  | e_d | e_e |         e_f          | e_g |     e_h     |           e_i            |   e_j   |      e_k       
 -----+------+------+-----+-----+----------------------+-----+-------------+--------------------------+---------+----------------
@@ -1195,8 +1195,8 @@ NOTICE:  table "alter_order_range" does not exist, skipping
 create table alter_order_range(f1 int, f2 int2, f3 int4, f4 int8, f5 varchar, f6 text, f7 char(20), f8 varchar2, f9 numeric, f10 timestamp, f11 float4, f12 float8) partition by range (f10);
 create table alter_order_range_201701 partition of alter_order_range(f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) for values from ('2017-01-01') to ('2017-02-01');
 create table alter_order_range_201702 partition of alter_order_range(f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) for values from ('2017-02-01') to ('2017-03-01');
-insert into alter_order_range(f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) values(1,111, 222, 333, 'Tbase', 'Tbase ', 'helloworld', 'Tbase', '123.123', '2017-01-02 0:0:0', '444.444', ' 888.888');
-insert into alter_order_range(f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) values(2,111, 222, 333, 'Tbase', 'Tbase ', 'helloworld', 'Tbase', '123.123', '2017-02-02 0:0:0', '444.444', ' 888.888');
+insert into alter_order_range(f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) values(1,111, 222, 333, 'OpenTenbase', 'OpenTenbase ', 'helloworld', 'OpenTenbase', '123.123', '2017-01-02 0:0:0', '444.444', ' 888.888');
+insert into alter_order_range(f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) values(2,111, 222, 333, 'OpenTenbase', 'OpenTenbase ', 'helloworld', 'OpenTenbase', '123.123', '2017-02-02 0:0:0', '444.444', ' 888.888');
 \c - mls_admin
 select MLS_DATAMASK_CREATE('public', 'alter_order_range', 'f2', 1);
  mls_datamask_create 
@@ -1436,14 +1436,14 @@ create table order_range_list_gd_201703 partition of order_range_list_gd(f1 prim
 create table order_range_list_bj_201701 partition of order_range_list_bj(f1 primary key,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) for values from ('2017-01-01') to ('2017-02-01');
 create table order_range_list_bj_201702 partition of order_range_list_bj(f1 primary key,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) for values from ('2017-02-01') to ('2017-03-01');
 create table order_range_list_bj_201703 partition of order_range_list_bj(f1 primary key,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) for values from ('2017-03-01') to ('2017-04-01');
-insert into order_range_list(f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) values(1,111, 222, 333, 'Tbase', 'gd', 'hello tbase ', 'Tbase', '123.123', '2017-01-02 0:0:0', '444.444', ' 888.888');
-insert into order_range_list(f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) values(2,111, 222, 333, 'Tbase', 'gd', 'hello tbase ', 'Tbase', '123.123', '2017-02-02 0:0:0', '444.444', ' 888.888');
-insert into order_range_list(f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) values(3,111, 222, 333, 'Tbase', 'gd', 'hello tbase ', 'Tbase', '123.123', '2017-03-02 0:0:0', '444.444', ' 888.888');
-insert into order_range_list(f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) values(4,111, 222, 333, 'Tbase', 'bj', 'hello beijing', 'Tbase', '123.123', '2017-01-02 0:0:0', '444.444', ' 888.888');
-insert into order_range_list(f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) values(5,111, 222, 333, 'Tbase', 'bj', 'hello beijing', 'Tbase', '123.123', '2017-02-02 0:0:0', '444.444', ' 888.888');
-insert into order_range_list(f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) values(6,111, 222, 333, 'Tbase', 'bj', 'hello beijing', 'Tbase', '123.123', '2017-03-02 0:0:0', '444.444', ' 888.888');
-insert into order_range_list(f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) values(7,111, 222, 333, 'Tbase', 'sh', 'hello tailand', 'Tbase', '123.123', '2017-02-02 0:0:0', '444.444', ' 888.888');
-insert into order_range_list(f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) values(8,111, 222, 333, 'Tbase', 'sh', 'hello tailand', 'Tbase', '123.123', '2017-01-02 0:0:0', '444.444', ' 888.888');
+insert into order_range_list(f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) values(1,111, 222, 333, 'OpenTenbase', 'gd', 'hello OpenTenbase ', 'OpenTenbase', '123.123', '2017-01-02 0:0:0', '444.444', ' 888.888');
+insert into order_range_list(f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) values(2,111, 222, 333, 'OpenTenbase', 'gd', 'hello OpenTenbase ', 'OpenTenbase', '123.123', '2017-02-02 0:0:0', '444.444', ' 888.888');
+insert into order_range_list(f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) values(3,111, 222, 333, 'OpenTenbase', 'gd', 'hello OpenTenbase ', 'OpenTenbase', '123.123', '2017-03-02 0:0:0', '444.444', ' 888.888');
+insert into order_range_list(f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) values(4,111, 222, 333, 'OpenTenbase', 'bj', 'hello beijing', 'OpenTenbase', '123.123', '2017-01-02 0:0:0', '444.444', ' 888.888');
+insert into order_range_list(f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) values(5,111, 222, 333, 'OpenTenbase', 'bj', 'hello beijing', 'OpenTenbase', '123.123', '2017-02-02 0:0:0', '444.444', ' 888.888');
+insert into order_range_list(f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) values(6,111, 222, 333, 'OpenTenbase', 'bj', 'hello beijing', 'OpenTenbase', '123.123', '2017-03-02 0:0:0', '444.444', ' 888.888');
+insert into order_range_list(f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) values(7,111, 222, 333, 'OpenTenbase', 'sh', 'hello tailand', 'OpenTenbase', '123.123', '2017-02-02 0:0:0', '444.444', ' 888.888');
+insert into order_range_list(f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) values(8,111, 222, 333, 'OpenTenbase', 'sh', 'hello tailand', 'OpenTenbase', '123.123', '2017-01-02 0:0:0', '444.444', ' 888.888');
 \c - mls_admin
 select MLS_DATAMASK_CREATE('public', 'order_range_list', 'f2', 1);
  mls_datamask_create 
@@ -1582,9 +1582,9 @@ select MLS_DATAMASK_CREATE_USER_POLICY('public', 'order_range_list', 'f12', 'god
 select * from order_range_list order by f1 asc;
  f1 |  f2  |  f3  |  f4  |  f5   |  f6  |          f7          |  f8   |  f9  |           f10            | f11  | f12  
 ----+------+------+------+-------+------+----------------------+-------+------+--------------------------+------+------
-  1 | 9999 | 9999 | 9999 | XXXXe | XXXX | XXXXo tbase          | XXXXe | 9999 | Tue May 05 05:05:05 2015 | 9999 | 9999
-  2 | 9999 | 9999 | 9999 | XXXXe | XXXX | XXXXo tbase          | XXXXe | 9999 | Tue May 05 05:05:05 2015 | 9999 | 9999
-  3 | 9999 | 9999 | 9999 | XXXXe | XXXX | XXXXo tbase          | XXXXe | 9999 | Tue May 05 05:05:05 2015 | 9999 | 9999
+  1 | 9999 | 9999 | 9999 | XXXXe | XXXX | XXXXo OpenTenbase          | XXXXe | 9999 | Tue May 05 05:05:05 2015 | 9999 | 9999
+  2 | 9999 | 9999 | 9999 | XXXXe | XXXX | XXXXo OpenTenbase          | XXXXe | 9999 | Tue May 05 05:05:05 2015 | 9999 | 9999
+  3 | 9999 | 9999 | 9999 | XXXXe | XXXX | XXXXo OpenTenbase          | XXXXe | 9999 | Tue May 05 05:05:05 2015 | 9999 | 9999
   4 | 9999 | 9999 | 9999 | XXXXe | XXXX | XXXXo beijing        | XXXXe | 9999 | Tue May 05 05:05:05 2015 | 9999 | 9999
   5 | 9999 | 9999 | 9999 | XXXXe | XXXX | XXXXo beijing        | XXXXe | 9999 | Tue May 05 05:05:05 2015 | 9999 | 9999
   6 | 9999 | 9999 | 9999 | XXXXe | XXXX | XXXXo beijing        | XXXXe | 9999 | Tue May 05 05:05:05 2015 | 9999 | 9999
@@ -1595,9 +1595,9 @@ select * from order_range_list order by f1 asc;
 select * from order_range_list_gd order by f1 asc;
  f1 |  f2  |  f3  |  f4  |  f5   |  f6  |          f7          |  f8   |  f9  |           f10            | f11  | f12  
 ----+------+------+------+-------+------+----------------------+-------+------+--------------------------+------+------
-  1 | 9999 | 9999 | 9999 | XXXXe | XXXX | XXXXo tbase          | XXXXe | 9999 | Tue May 05 05:05:05 2015 | 9999 | 9999
-  2 | 9999 | 9999 | 9999 | XXXXe | XXXX | XXXXo tbase          | XXXXe | 9999 | Tue May 05 05:05:05 2015 | 9999 | 9999
-  3 | 9999 | 9999 | 9999 | XXXXe | XXXX | XXXXo tbase          | XXXXe | 9999 | Tue May 05 05:05:05 2015 | 9999 | 9999
+  1 | 9999 | 9999 | 9999 | XXXXe | XXXX | XXXXo OpenTenbase          | XXXXe | 9999 | Tue May 05 05:05:05 2015 | 9999 | 9999
+  2 | 9999 | 9999 | 9999 | XXXXe | XXXX | XXXXo OpenTenbase          | XXXXe | 9999 | Tue May 05 05:05:05 2015 | 9999 | 9999
+  3 | 9999 | 9999 | 9999 | XXXXe | XXXX | XXXXo OpenTenbase          | XXXXe | 9999 | Tue May 05 05:05:05 2015 | 9999 | 9999
 (3 rows)
 
 select * from order_range_list_bj order by f1 asc;
@@ -1618,19 +1618,19 @@ select * from order_range_list_sh order by f1 asc;
 select * from order_range_list_gd_201701 order by f1 asc;
  f1 |  f2  |  f3  |  f4  |  f5   |  f6  |          f7          |  f8   |  f9  |           f10            | f11  | f12  
 ----+------+------+------+-------+------+----------------------+-------+------+--------------------------+------+------
-  1 | 9999 | 9999 | 9999 | XXXXe | XXXX | XXXXo tbase          | XXXXe | 9999 | Tue May 05 05:05:05 2015 | 9999 | 9999
+  1 | 9999 | 9999 | 9999 | XXXXe | XXXX | XXXXo OpenTenbase          | XXXXe | 9999 | Tue May 05 05:05:05 2015 | 9999 | 9999
 (1 row)
 
 select * from order_range_list_gd_201702 order by f1 asc;
  f1 |  f2  |  f3  |  f4  |  f5   |  f6  |          f7          |  f8   |  f9  |           f10            | f11  | f12  
 ----+------+------+------+-------+------+----------------------+-------+------+--------------------------+------+------
-  2 | 9999 | 9999 | 9999 | XXXXe | XXXX | XXXXo tbase          | XXXXe | 9999 | Tue May 05 05:05:05 2015 | 9999 | 9999
+  2 | 9999 | 9999 | 9999 | XXXXe | XXXX | XXXXo OpenTenbase          | XXXXe | 9999 | Tue May 05 05:05:05 2015 | 9999 | 9999
 (1 row)
 
 select * from order_range_list_gd_201703 order by f1 asc;
  f1 |  f2  |  f3  |  f4  |  f5   |  f6  |          f7          |  f8   |  f9  |           f10            | f11  | f12  
 ----+------+------+------+-------+------+----------------------+-------+------+--------------------------+------+------
-  3 | 9999 | 9999 | 9999 | XXXXe | XXXX | XXXXo tbase          | XXXXe | 9999 | Tue May 05 05:05:05 2015 | 9999 | 9999
+  3 | 9999 | 9999 | 9999 | XXXXe | XXXX | XXXXo OpenTenbase          | XXXXe | 9999 | Tue May 05 05:05:05 2015 | 9999 | 9999
 (1 row)
 
 select * from order_range_list_bj_201701 order by f1 asc;
@@ -1656,73 +1656,73 @@ select * from order_range_list_bj_201703 order by f1 asc;
 select * from order_range_list order by f1 asc;
  f1 | f2  | f3  | f4  |  f5   | f6 |          f7          |  f8   |   f9    |           f10            |   f11   |   f12   
 ----+-----+-----+-----+-------+----+----------------------+-------+---------+--------------------------+---------+---------
-  1 | 111 | 222 | 333 | Tbase | gd | hello tbase          | Tbase | 123.123 | Mon Jan 02 00:00:00 2017 | 444.444 | 888.888
-  2 | 111 | 222 | 333 | Tbase | gd | hello tbase          | Tbase | 123.123 | Thu Feb 02 00:00:00 2017 | 444.444 | 888.888
-  3 | 111 | 222 | 333 | Tbase | gd | hello tbase          | Tbase | 123.123 | Thu Mar 02 00:00:00 2017 | 444.444 | 888.888
-  4 | 111 | 222 | 333 | Tbase | bj | hello beijing        | Tbase | 123.123 | Mon Jan 02 00:00:00 2017 | 444.444 | 888.888
-  5 | 111 | 222 | 333 | Tbase | bj | hello beijing        | Tbase | 123.123 | Thu Feb 02 00:00:00 2017 | 444.444 | 888.888
-  6 | 111 | 222 | 333 | Tbase | bj | hello beijing        | Tbase | 123.123 | Thu Mar 02 00:00:00 2017 | 444.444 | 888.888
-  7 | 111 | 222 | 333 | Tbase | sh | hello tailand        | Tbase | 123.123 | Thu Feb 02 00:00:00 2017 | 444.444 | 888.888
-  8 | 111 | 222 | 333 | Tbase | sh | hello tailand        | Tbase | 123.123 | Mon Jan 02 00:00:00 2017 | 444.444 | 888.888
+  1 | 111 | 222 | 333 | OpenTenbase | gd | hello OpenTenbase          | OpenTenbase | 123.123 | Mon Jan 02 00:00:00 2017 | 444.444 | 888.888
+  2 | 111 | 222 | 333 | OpenTenbase | gd | hello OpenTenbase          | OpenTenbase | 123.123 | Thu Feb 02 00:00:00 2017 | 444.444 | 888.888
+  3 | 111 | 222 | 333 | OpenTenbase | gd | hello OpenTenbase          | OpenTenbase | 123.123 | Thu Mar 02 00:00:00 2017 | 444.444 | 888.888
+  4 | 111 | 222 | 333 | OpenTenbase | bj | hello beijing        | OpenTenbase | 123.123 | Mon Jan 02 00:00:00 2017 | 444.444 | 888.888
+  5 | 111 | 222 | 333 | OpenTenbase | bj | hello beijing        | OpenTenbase | 123.123 | Thu Feb 02 00:00:00 2017 | 444.444 | 888.888
+  6 | 111 | 222 | 333 | OpenTenbase | bj | hello beijing        | OpenTenbase | 123.123 | Thu Mar 02 00:00:00 2017 | 444.444 | 888.888
+  7 | 111 | 222 | 333 | OpenTenbase | sh | hello tailand        | OpenTenbase | 123.123 | Thu Feb 02 00:00:00 2017 | 444.444 | 888.888
+  8 | 111 | 222 | 333 | OpenTenbase | sh | hello tailand        | OpenTenbase | 123.123 | Mon Jan 02 00:00:00 2017 | 444.444 | 888.888
 (8 rows)
 
 select * from order_range_list_gd order by f1 asc;
  f1 | f2  | f3  | f4  |  f5   | f6 |          f7          |  f8   |   f9    |           f10            |   f11   |   f12   
 ----+-----+-----+-----+-------+----+----------------------+-------+---------+--------------------------+---------+---------
-  1 | 111 | 222 | 333 | Tbase | gd | hello tbase          | Tbase | 123.123 | Mon Jan 02 00:00:00 2017 | 444.444 | 888.888
-  2 | 111 | 222 | 333 | Tbase | gd | hello tbase          | Tbase | 123.123 | Thu Feb 02 00:00:00 2017 | 444.444 | 888.888
-  3 | 111 | 222 | 333 | Tbase | gd | hello tbase          | Tbase | 123.123 | Thu Mar 02 00:00:00 2017 | 444.444 | 888.888
+  1 | 111 | 222 | 333 | OpenTenbase | gd | hello OpenTenbase          | OpenTenbase | 123.123 | Mon Jan 02 00:00:00 2017 | 444.444 | 888.888
+  2 | 111 | 222 | 333 | OpenTenbase | gd | hello OpenTenbase          | OpenTenbase | 123.123 | Thu Feb 02 00:00:00 2017 | 444.444 | 888.888
+  3 | 111 | 222 | 333 | OpenTenbase | gd | hello OpenTenbase          | OpenTenbase | 123.123 | Thu Mar 02 00:00:00 2017 | 444.444 | 888.888
 (3 rows)
 
 select * from order_range_list_bj order by f1 asc;
  f1 | f2  | f3  | f4  |  f5   | f6 |          f7          |  f8   |   f9    |           f10            |   f11   |   f12   
 ----+-----+-----+-----+-------+----+----------------------+-------+---------+--------------------------+---------+---------
-  4 | 111 | 222 | 333 | Tbase | bj | hello beijing        | Tbase | 123.123 | Mon Jan 02 00:00:00 2017 | 444.444 | 888.888
-  5 | 111 | 222 | 333 | Tbase | bj | hello beijing        | Tbase | 123.123 | Thu Feb 02 00:00:00 2017 | 444.444 | 888.888
-  6 | 111 | 222 | 333 | Tbase | bj | hello beijing        | Tbase | 123.123 | Thu Mar 02 00:00:00 2017 | 444.444 | 888.888
+  4 | 111 | 222 | 333 | OpenTenbase | bj | hello beijing        | OpenTenbase | 123.123 | Mon Jan 02 00:00:00 2017 | 444.444 | 888.888
+  5 | 111 | 222 | 333 | OpenTenbase | bj | hello beijing        | OpenTenbase | 123.123 | Thu Feb 02 00:00:00 2017 | 444.444 | 888.888
+  6 | 111 | 222 | 333 | OpenTenbase | bj | hello beijing        | OpenTenbase | 123.123 | Thu Mar 02 00:00:00 2017 | 444.444 | 888.888
 (3 rows)
 
 select * from order_range_list_sh order by f1 asc;
  f1 | f2  | f3  | f4  |  f5   | f6 |          f7          |  f8   |   f9    |           f10            |   f11   |   f12   
 ----+-----+-----+-----+-------+----+----------------------+-------+---------+--------------------------+---------+---------
-  7 | 111 | 222 | 333 | Tbase | sh | hello tailand        | Tbase | 123.123 | Thu Feb 02 00:00:00 2017 | 444.444 | 888.888
-  8 | 111 | 222 | 333 | Tbase | sh | hello tailand        | Tbase | 123.123 | Mon Jan 02 00:00:00 2017 | 444.444 | 888.888
+  7 | 111 | 222 | 333 | OpenTenbase | sh | hello tailand        | OpenTenbase | 123.123 | Thu Feb 02 00:00:00 2017 | 444.444 | 888.888
+  8 | 111 | 222 | 333 | OpenTenbase | sh | hello tailand        | OpenTenbase | 123.123 | Mon Jan 02 00:00:00 2017 | 444.444 | 888.888
 (2 rows)
 
 select * from order_range_list_gd_201701 order by f1 asc;
  f1 | f2  | f3  | f4  |  f5   | f6 |          f7          |  f8   |   f9    |           f10            |   f11   |   f12   
 ----+-----+-----+-----+-------+----+----------------------+-------+---------+--------------------------+---------+---------
-  1 | 111 | 222 | 333 | Tbase | gd | hello tbase          | Tbase | 123.123 | Mon Jan 02 00:00:00 2017 | 444.444 | 888.888
+  1 | 111 | 222 | 333 | OpenTenbase | gd | hello OpenTenbase          | OpenTenbase | 123.123 | Mon Jan 02 00:00:00 2017 | 444.444 | 888.888
 (1 row)
 
 select * from order_range_list_gd_201702 order by f1 asc;
  f1 | f2  | f3  | f4  |  f5   | f6 |          f7          |  f8   |   f9    |           f10            |   f11   |   f12   
 ----+-----+-----+-----+-------+----+----------------------+-------+---------+--------------------------+---------+---------
-  2 | 111 | 222 | 333 | Tbase | gd | hello tbase          | Tbase | 123.123 | Thu Feb 02 00:00:00 2017 | 444.444 | 888.888
+  2 | 111 | 222 | 333 | OpenTenbase | gd | hello OpenTenbase          | OpenTenbase | 123.123 | Thu Feb 02 00:00:00 2017 | 444.444 | 888.888
 (1 row)
 
 select * from order_range_list_gd_201703 order by f1 asc;
  f1 | f2  | f3  | f4  |  f5   | f6 |          f7          |  f8   |   f9    |           f10            |   f11   |   f12   
 ----+-----+-----+-----+-------+----+----------------------+-------+---------+--------------------------+---------+---------
-  3 | 111 | 222 | 333 | Tbase | gd | hello tbase          | Tbase | 123.123 | Thu Mar 02 00:00:00 2017 | 444.444 | 888.888
+  3 | 111 | 222 | 333 | OpenTenbase | gd | hello OpenTenbase          | OpenTenbase | 123.123 | Thu Mar 02 00:00:00 2017 | 444.444 | 888.888
 (1 row)
 
 select * from order_range_list_bj_201701 order by f1 asc;
  f1 | f2  | f3  | f4  |  f5   | f6 |          f7          |  f8   |   f9    |           f10            |   f11   |   f12   
 ----+-----+-----+-----+-------+----+----------------------+-------+---------+--------------------------+---------+---------
-  4 | 111 | 222 | 333 | Tbase | bj | hello beijing        | Tbase | 123.123 | Mon Jan 02 00:00:00 2017 | 444.444 | 888.888
+  4 | 111 | 222 | 333 | OpenTenbase | bj | hello beijing        | OpenTenbase | 123.123 | Mon Jan 02 00:00:00 2017 | 444.444 | 888.888
 (1 row)
 
 select * from order_range_list_bj_201702 order by f1 asc;
  f1 | f2  | f3  | f4  |  f5   | f6 |          f7          |  f8   |   f9    |           f10            |   f11   |   f12   
 ----+-----+-----+-----+-------+----+----------------------+-------+---------+--------------------------+---------+---------
-  5 | 111 | 222 | 333 | Tbase | bj | hello beijing        | Tbase | 123.123 | Thu Feb 02 00:00:00 2017 | 444.444 | 888.888
+  5 | 111 | 222 | 333 | OpenTenbase | bj | hello beijing        | OpenTenbase | 123.123 | Thu Feb 02 00:00:00 2017 | 444.444 | 888.888
 (1 row)
 
 select * from order_range_list_bj_201703 order by f1 asc;
  f1 | f2  | f3  | f4  |  f5   | f6 |          f7          |  f8   |   f9    |           f10            |   f11   |   f12   
 ----+-----+-----+-----+-------+----+----------------------+-------+---------+--------------------------+---------+---------
-  6 | 111 | 222 | 333 | Tbase | bj | hello beijing        | Tbase | 123.123 | Thu Mar 02 00:00:00 2017 | 444.444 | 888.888
+  6 | 111 | 222 | 333 | OpenTenbase | bj | hello beijing        | OpenTenbase | 123.123 | Thu Mar 02 00:00:00 2017 | 444.444 | 888.888
 (1 row)
 
 --clean
@@ -2464,7 +2464,7 @@ ERROR:  INVALID INPUT:algo_name:AES128-algo_id:1 already in use, (spcname:pg_def
 CONTEXT:  PL/pgSQL function mls_transparent_crypt_drop_algorithm(integer) line 20 at RAISE
 --case: interval partition with index
 \c - godlike 
---create extension tbase_mls;
+--create extension opentenbase_mls;
 --create default node group default_group with(datanode_1, datanode_2); 
 --create sharding group to group default_group;
 create table tbl_mls_test(f1 int, f2 timestamp default now(), f3 int) 
@@ -3330,180 +3330,180 @@ select tblname, attnum, algorithm_id from pg_transparent_crypt_policy_map where 
 drop table order_range_list;
 --case2 parent and child have no crypt policy, bind crypt to the child, parent would not bound with crypt.
 \c - godlike
-CREATE TABLE tbl_tbase (
+CREATE TABLE tbl_opentenbase (
     f1 bigint,
     f2 text
 )
 PARTITION BY RANGE (f1)
 DISTRIBUTE BY SHARD (f1) to GROUP default_group;
 NOTICE:  Replica identity is needed for shard table, please add to this table through "alter table" command.
-CREATE TABLE tbl_tbase_1 PARTITION OF tbl_tbase FOR VALUES FROM (1) TO (10000000);
+CREATE TABLE tbl_opentenbase_1 PARTITION OF tbl_opentenbase FOR VALUES FROM (1) TO (10000000);
 NOTICE:  Replica identity is needed for shard table, please add to this table through "alter table" command.
 \c - mls_admin 
-select MLS_TRANSPARENT_CRYPT_ALGORITHM_BIND_TABLE('public', 'tbl_tbase_1', 1); 
+select MLS_TRANSPARENT_CRYPT_ALGORITHM_BIND_TABLE('public', 'tbl_opentenbase_1', 1); 
  mls_transparent_crypt_algorithm_bind_table 
 --------------------------------------------
  t
 (1 row)
 
-select tblname, attnum, algorithm_id from pg_transparent_crypt_policy_map where tblname ilike 'tbl_tbase%' order by tblname;
+select tblname, attnum, algorithm_id from pg_transparent_crypt_policy_map where tblname ilike 'tbl_opentenbase%' order by tblname;
    tblname   | attnum | algorithm_id 
 -------------+--------+--------------
- tbl_tbase_1 | -32767 |            1
+ tbl_opentenbase_1 | -32767 |            1
 (1 row)
 
 --case2.1 bind parent crypt would fail
 \c - mls_admin 
-select MLS_TRANSPARENT_CRYPT_ALGORITHM_BIND_TABLE('public', 'tbl_tbase', 1); 
-ERROR:  ERROR: table:public.tbl_tbase_1 has attnum:-32767 bound crypt policy, algo_id:1
+select MLS_TRANSPARENT_CRYPT_ALGORITHM_BIND_TABLE('public', 'tbl_opentenbase', 1); 
+ERROR:  ERROR: table:public.tbl_opentenbase_1 has attnum:-32767 bound crypt policy, algo_id:1
 CONTEXT:  PL/pgSQL function mls_transparent_crypt_algorithm_bind_table(name,name,integer) line 71 at RAISE
 --case2.2 detach the child by mls_admin, bind parent crypt policy, then attach this crypt child 
 \c - mls_admin 
-alter table tbl_tbase detach partition tbl_tbase_1;
-select MLS_TRANSPARENT_CRYPT_ALGORITHM_BIND_TABLE('public', 'tbl_tbase', 1); 
+alter table tbl_opentenbase detach partition tbl_opentenbase_1;
+select MLS_TRANSPARENT_CRYPT_ALGORITHM_BIND_TABLE('public', 'tbl_opentenbase', 1); 
  mls_transparent_crypt_algorithm_bind_table 
 --------------------------------------------
  t
 (1 row)
 
-select tblname, attnum, algorithm_id from pg_transparent_crypt_policy_map where tblname ilike 'tbl_tbase%' order by tblname;
+select tblname, attnum, algorithm_id from pg_transparent_crypt_policy_map where tblname ilike 'tbl_opentenbase%' order by tblname;
    tblname   | attnum | algorithm_id 
 -------------+--------+--------------
- tbl_tbase   | -32767 |            1
- tbl_tbase_1 | -32767 |            1
+ tbl_opentenbase   | -32767 |            1
+ tbl_opentenbase_1 | -32767 |            1
 (2 rows)
 
 \c - godlike
-alter table tbl_tbase attach partition tbl_tbase_1 FOR VALUES FROM (1) TO (10000000);
+alter table tbl_opentenbase attach partition tbl_opentenbase_1 FOR VALUES FROM (1) TO (10000000);
 --clean case2
 \c - mls_admin
-select MLS_TRANSPARENT_CRYPT_ALGORITHM_UNBIND_TABLE('public', 'tbl_tbase'); 
+select MLS_TRANSPARENT_CRYPT_ALGORITHM_UNBIND_TABLE('public', 'tbl_opentenbase'); 
  mls_transparent_crypt_algorithm_unbind_table 
 ----------------------------------------------
  t
 (1 row)
 
-select MLS_TRANSPARENT_CRYPT_ALGORITHM_UNBIND_TABLE('public', 'tbl_tbase_1'); 
+select MLS_TRANSPARENT_CRYPT_ALGORITHM_UNBIND_TABLE('public', 'tbl_opentenbase_1'); 
  mls_transparent_crypt_algorithm_unbind_table 
 ----------------------------------------------
  t
 (1 row)
 
-select tblname, attnum, algorithm_id from pg_transparent_crypt_policy_map where tblname ilike 'tbl_tbase%' order by tblname;
+select tblname, attnum, algorithm_id from pg_transparent_crypt_policy_map where tblname ilike 'tbl_opentenbase%' order by tblname;
  tblname | attnum | algorithm_id 
 ---------+--------+--------------
 (0 rows)
 
 \c - godlike
-drop table tbl_tbase;
+drop table tbl_opentenbase;
 --case3 parent has no crypt, but child has. drop table would fail
 \c - godlike
-CREATE TABLE tbl_tbase (
+CREATE TABLE tbl_opentenbase (
     f1 bigint,
     f2 text
 )
 PARTITION BY RANGE (f1)
 DISTRIBUTE BY SHARD (f1) to GROUP default_group;
 NOTICE:  Replica identity is needed for shard table, please add to this table through "alter table" command.
-CREATE TABLE tbl_tbase_1 PARTITION OF tbl_tbase FOR VALUES FROM (1) TO (10000000);
+CREATE TABLE tbl_opentenbase_1 PARTITION OF tbl_opentenbase FOR VALUES FROM (1) TO (10000000);
 NOTICE:  Replica identity is needed for shard table, please add to this table through "alter table" command.
 \c - mls_admin 
-select MLS_TRANSPARENT_CRYPT_ALGORITHM_BIND_TABLE('public', 'tbl_tbase_1', 1); 
+select MLS_TRANSPARENT_CRYPT_ALGORITHM_BIND_TABLE('public', 'tbl_opentenbase_1', 1); 
  mls_transparent_crypt_algorithm_bind_table 
 --------------------------------------------
  t
 (1 row)
 
-select tblname, attnum, algorithm_id from pg_transparent_crypt_policy_map where tblname ilike 'tbl_tbase%' order by tblname;
+select tblname, attnum, algorithm_id from pg_transparent_crypt_policy_map where tblname ilike 'tbl_opentenbase%' order by tblname;
    tblname   | attnum | algorithm_id 
 -------------+--------+--------------
- tbl_tbase_1 | -32767 |            1
+ tbl_opentenbase_1 | -32767 |            1
 (1 row)
 
 \c - godlike
-drop table tbl_tbase;
-ERROR:  could not drop table:tbl_tbase, cause mls poilcy is bound
+drop table tbl_opentenbase;
+ERROR:  could not drop table:tbl_opentenbase, cause mls poilcy is bound
 --case3.1 detach the crypt child, drop ok
 \c - mls_admin 
-alter table tbl_tbase detach partition tbl_tbase_1;
+alter table tbl_opentenbase detach partition tbl_opentenbase_1;
 \c - godlike
-drop table tbl_tbase;
+drop table tbl_opentenbase;
 --case3.2 unbind crypt, drop ok
 \c - godlike
-CREATE TABLE tbl_tbase (
+CREATE TABLE tbl_opentenbase (
     f1 bigint,
     f2 text
 )
 PARTITION BY RANGE (f1)
 DISTRIBUTE BY SHARD (f1) to GROUP default_group;
 NOTICE:  Replica identity is needed for shard table, please add to this table through "alter table" command.
-alter table tbl_tbase attach partition tbl_tbase_1 FOR VALUES FROM (1) TO (10000000);
+alter table tbl_opentenbase attach partition tbl_opentenbase_1 FOR VALUES FROM (1) TO (10000000);
 \c - mls_admin 
-select MLS_TRANSPARENT_CRYPT_ALGORITHM_UNBIND_TABLE('public', 'tbl_tbase_1'); 
+select MLS_TRANSPARENT_CRYPT_ALGORITHM_UNBIND_TABLE('public', 'tbl_opentenbase_1'); 
  mls_transparent_crypt_algorithm_unbind_table 
 ----------------------------------------------
  t
 (1 row)
 
-select tblname, attnum, algorithm_id from pg_transparent_crypt_policy_map where tblname ilike 'tbl_tbase%' order by tblname;
+select tblname, attnum, algorithm_id from pg_transparent_crypt_policy_map where tblname ilike 'tbl_opentenbase%' order by tblname;
  tblname | attnum | algorithm_id 
 ---------+--------+--------------
 (0 rows)
 
 \c - godlike
-drop table tbl_tbase;
+drop table tbl_opentenbase;
 --case4 unbind crypt would not be cascaded, parent is empty, crypt could be dropped
 \c - godlike
-CREATE TABLE tbl_tbase (
+CREATE TABLE tbl_opentenbase (
     f1 bigint,
     f2 text
 )
 PARTITION BY RANGE (f1)
 DISTRIBUTE BY SHARD (f1) to GROUP default_group;
 NOTICE:  Replica identity is needed for shard table, please add to this table through "alter table" command.
-CREATE TABLE tbl_tbase_1 PARTITION OF tbl_tbase FOR VALUES FROM (1) TO (10000000);
+CREATE TABLE tbl_opentenbase_1 PARTITION OF tbl_opentenbase FOR VALUES FROM (1) TO (10000000);
 NOTICE:  Replica identity is needed for shard table, please add to this table through "alter table" command.
 \c - mls_admin 
-select MLS_TRANSPARENT_CRYPT_ALGORITHM_BIND_TABLE('public', 'tbl_tbase', 1); 
+select MLS_TRANSPARENT_CRYPT_ALGORITHM_BIND_TABLE('public', 'tbl_opentenbase', 1); 
  mls_transparent_crypt_algorithm_bind_table 
 --------------------------------------------
  t
 (1 row)
 
-select tblname, attnum, algorithm_id from pg_transparent_crypt_policy_map where tblname ilike 'tbl_tbase%' order by tblname;
+select tblname, attnum, algorithm_id from pg_transparent_crypt_policy_map where tblname ilike 'tbl_opentenbase%' order by tblname;
    tblname   | attnum | algorithm_id 
 -------------+--------+--------------
- tbl_tbase   | -32767 |            1
- tbl_tbase_1 | -32767 |            1
+ tbl_opentenbase   | -32767 |            1
+ tbl_opentenbase_1 | -32767 |            1
 (2 rows)
 
 --case4.1 crypt could be dropped on child if child is empty.
-select MLS_TRANSPARENT_CRYPT_ALGORITHM_UNBIND_TABLE('public', 'tbl_tbase'); 
+select MLS_TRANSPARENT_CRYPT_ALGORITHM_UNBIND_TABLE('public', 'tbl_opentenbase'); 
  mls_transparent_crypt_algorithm_unbind_table 
 ----------------------------------------------
  t
 (1 row)
 
-select tblname, attnum, algorithm_id from pg_transparent_crypt_policy_map where tblname ilike 'tbl_tbase%' order by tblname;
+select tblname, attnum, algorithm_id from pg_transparent_crypt_policy_map where tblname ilike 'tbl_opentenbase%' order by tblname;
    tblname   | attnum | algorithm_id 
 -------------+--------+--------------
- tbl_tbase_1 | -32767 |            1
+ tbl_opentenbase_1 | -32767 |            1
 (1 row)
 
-select MLS_TRANSPARENT_CRYPT_ALGORITHM_UNBIND_TABLE('public', 'tbl_tbase_1'); 
+select MLS_TRANSPARENT_CRYPT_ALGORITHM_UNBIND_TABLE('public', 'tbl_opentenbase_1'); 
  mls_transparent_crypt_algorithm_unbind_table 
 ----------------------------------------------
  t
 (1 row)
 
-select tblname, attnum, algorithm_id from pg_transparent_crypt_policy_map where tblname ilike 'tbl_tbase%' order by tblname;
+select tblname, attnum, algorithm_id from pg_transparent_crypt_policy_map where tblname ilike 'tbl_opentenbase%' order by tblname;
  tblname | attnum | algorithm_id 
 ---------+--------+--------------
 (0 rows)
 
 --clean case4
 \c - godlike
-drop table tbl_tbase;
+drop table tbl_opentenbase;
 --case 5 materialized view
 \c - godlike 
 create schema crypt_schema_materializedview_single;

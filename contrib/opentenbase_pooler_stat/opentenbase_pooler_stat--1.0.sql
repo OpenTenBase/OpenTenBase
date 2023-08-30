@@ -1,10 +1,10 @@
-/* contrib/tbase_pooler_stat/tbase_pooler_stat--1.0.sql */
+/* contrib/opentenbase_pooler_stat/opentenbase_pooler_stat--1.0.sql */
 
 -- complain if script is sourced in psql, rather than via CREATE EXTENSION
-\echo Use "CREATE EXTENSION tbase_pooler_stat" to load this file. \quit
+\echo Use "CREATE EXTENSION opentenbase_pooler_stat" to load this file. \quit
 
 -- Register functions.
-CREATE OR REPLACE FUNCTION tbase_get_pooler_cmd_statistics(
+CREATE OR REPLACE FUNCTION opentenbase_get_pooler_cmd_statistics(
 	OUT command_type text,
 	OUT request_times int8,
 	OUT avg_costtime int8,
@@ -16,12 +16,12 @@ AS 'MODULE_PATHNAME'
 LANGUAGE C;
 
 
-CREATE OR REPLACE FUNCTION tbase_reset_pooler_cmd_statistics()
+CREATE OR REPLACE FUNCTION opentenbase_reset_pooler_cmd_statistics()
 RETURNS void
 AS 'MODULE_PATHNAME'
 LANGUAGE C;
 
-CREATE OR REPLACE FUNCTION tbase_get_pooler_conn_statistics(
+CREATE OR REPLACE FUNCTION opentenbase_get_pooler_conn_statistics(
 	OUT database name,
 	OUT user_name name,
 	OUT node_name name,

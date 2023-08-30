@@ -657,7 +657,7 @@ CREATE DATABASE regression_sort WITH TEMPLATE = template0 ENCODING='SQL_ASCII' L
 \c regression_sort
 CREATE TABLE test_sort (name TEXT);
 INSERT INTO test_sort VALUES ('red'), ('brown'), ('yellow'), ('Purple');
-INSERT INTO test_sort VALUES ('guangdong'), ('shenzhen'), ('Tencent'), ('TBase');
+INSERT INTO test_sort VALUES ('guangdong'), ('shenzhen'), ('beijing'), ('OpenTenBase');
 SELECT * FROM test_sort ORDER BY NLSSORT(name, 'en_US.utf8');
 SELECT * FROM test_sort ORDER BY NLSSORT(name, '');
 SELECT set_nls_sort('invalid');

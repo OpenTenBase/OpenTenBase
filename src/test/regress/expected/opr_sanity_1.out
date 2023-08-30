@@ -76,19 +76,19 @@ WHERE p1.prolang = 0 OR p1.prorettype = 0 OR
        CASE WHEN proretset THEN prorows <= 0 ELSE prorows != 0 END OR
        provolatile NOT IN ('i', 's', 'v') OR
        proparallel NOT IN ('s', 'r', 'u');
- oid  |           proname           
-------+-----------------------------
- 4603 | tbase_get_pub_stat
- 4604 | tbase_get_all_pub_stat
- 4605 | tbase_get_sub_stat
- 4606 | tbase_get_all_sub_stat
- 4607 | tbase_get_pubtable_stat
- 4608 | tbase_get_all_pubtable_stat
- 4609 | tbase_get_subtable_stat
- 4610 | tbase_get_all_subtable_stat
- 4613 | tbase_get_pub_stat_check
- 4614 | tbase_get_sub_stat_check
- 4620 | tbase_shard_statistic
+ oid  |              proname              
+------+-----------------------------------
+ 4603 | opentenbase_get_pub_stat
+ 4604 | opentenbase_get_all_pub_stat
+ 4605 | opentenbase_get_sub_stat
+ 4606 | opentenbase_get_all_sub_stat
+ 4607 | opentenbase_get_pubtable_stat
+ 4608 | opentenbase_get_all_pubtable_stat
+ 4609 | opentenbase_get_subtable_stat
+ 4610 | opentenbase_get_all_subtable_stat
+ 4613 | opentenbase_get_pub_stat_check
+ 4614 | opentenbase_get_sub_stat_check
+ 4620 | opentenbase_shard_statistic
 (11 rows)
 
 -- prosrc should never be null or empty

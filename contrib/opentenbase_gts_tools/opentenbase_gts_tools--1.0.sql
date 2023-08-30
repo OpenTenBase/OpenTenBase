@@ -1,7 +1,7 @@
-/* contrib/tbase_gts/tbase_gts_tools--1.0.sql */
+/* contrib/opentenbase_gts/opentenbase_gts_tools--1.0.sql */
 
 -- complain if script is sourced in psql, rather than via CREATE EXTENSION
-\echo Use "create EXTENSION tbase_gts_tools" to load this file. \quit
+\echo Use "create EXTENSION opentenbase_gts_tools" to load this file. \quit
 
 CREATE FUNCTION txid_gts(int)
 RETURNS bigint
