@@ -3474,7 +3474,6 @@ GetRelationGroupsByQuals(Oid reloid, RelationLocInfo *rel_loc_info, Node *sec_qu
     ListCell  *qual_cell;
     Datum seccol_value = 0;
     bool  seccol_isnull = false;
-    Oid      seccol_type PG_USED_FOR_ASSERTS_ONLY = InvalidOid;
     Oid    *opArray = NULL;
     bool *isswapArray = NULL;
     List *seccol_value_list = NULL;
@@ -3573,7 +3572,6 @@ GetRelationGroupsByQuals(Oid reloid, RelationLocInfo *rel_loc_info, Node *sec_qu
                         constvalue = constvalue + ONE_SECOND_DATUM;
                     }
                     minStamp = minStamp ? ((constvalue >= minStamp) ? minStamp : constvalue) : constvalue;
-                    seccol_type = const_expr->consttype;
                 }
                 else
                 {
@@ -3585,7 +3583,6 @@ GetRelationGroupsByQuals(Oid reloid, RelationLocInfo *rel_loc_info, Node *sec_qu
                     }
                     
                     maxStamp = (constvalue >= maxStamp) ? constvalue : maxStamp;
-                    seccol_type = const_expr->consttype;
                 }
             }
             else if (2063 == opArray[i]) /* <= */
@@ -3595,13 +3592,11 @@ GetRelationGroupsByQuals(Oid reloid, RelationLocInfo *rel_loc_info, Node *sec_qu
                     /* const <= var */
 					minStamp = minStamp ? ((const_expr->constvalue >= minStamp) ? minStamp : const_expr->constvalue)
 					                    : const_expr->constvalue;
-                    seccol_type = const_expr->consttype;
                 }
                 else
                 {
                     /* var <= const */
                     maxStamp = (const_expr->constvalue >= maxStamp) ? const_expr->constvalue : maxStamp;
-                    seccol_type = const_expr->consttype;
                 }
             }  
             else if (2065 == opArray[i]) /* >= */
@@ -3610,14 +3605,12 @@ GetRelationGroupsByQuals(Oid reloid, RelationLocInfo *rel_loc_info, Node *sec_qu
                 {
                     /* const >= var */
                     maxStamp = (const_expr->constvalue >= maxStamp) ? const_expr->constvalue : maxStamp;
-                    seccol_type = const_expr->consttype;
                 }
                 else
                 {
                     /* var >= const */
 					minStamp = minStamp ? ((const_expr->constvalue >= minStamp) ? minStamp : const_expr->constvalue)
 					                    : const_expr->constvalue;
-                    seccol_type = const_expr->consttype;
                 }
             }
             else if (2064 == opArray[i]) /* > */
@@ -3633,7 +3626,6 @@ GetRelationGroupsByQuals(Oid reloid, RelationLocInfo *rel_loc_info, Node *sec_qu
                         constvalue = constvalue - ONE_SECOND_DATUM;
                     }
                     maxStamp = (constvalue >= maxStamp) ? constvalue : maxStamp;
-                    seccol_type = const_expr->consttype;
                 }
                 else
                 {
@@ -3645,13 +3637,9 @@ GetRelationGroupsByQuals(Oid reloid, RelationLocInfo *rel_loc_info, Node *sec_qu
                     }
                     
                     minStamp = minStamp ? ((constvalue >= minStamp) ? minStamp : constvalue) : constvalue;
-                    seccol_type = const_expr->consttype;
                 }
             }
-            else
-            {
-                seccol_type = InvalidOid;
-            }
+
             /* skip range condition */
             rangeOpCnt++;
         }

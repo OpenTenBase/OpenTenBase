@@ -830,7 +830,6 @@ pgxc_build_upsert_statement(PlannerInfo *root, CmdType cmdtype,
     /* construct select targetlist and whereclause */
     foreach(cell, sourceTargetList)
     {
-        Oid type PG_USED_FOR_ASSERTS_ONLY; 
         TargetEntry    *select_tle;
         
         tle = lfirst(cell);
@@ -850,8 +849,6 @@ pgxc_build_upsert_statement(PlannerInfo *root, CmdType cmdtype,
 			rqplan->rq_param_types[rqplan->rq_num_params++] = InvalidOid;
             continue;
 		}
-
-        type = exprType((Node *) tle->expr);
 
         var = makeVarFromTargetEntry(resultRelationIndex, tle);
 
@@ -1065,17 +1062,16 @@ pgxc_build_dml_statement(PlannerInfo *root, CmdType cmdtype,
                         Index resultRelationIndex, RemoteQuery *rqplan,
                         List *sourceTargetList, bool interval)
 {// #lizard forgives
-    Query            *query_to_deparse;
-    RangeTblRef        *target_table_ref;
-    RangeTblEntry    *res_rel;
+    Query           *query_to_deparse;
+    RangeTblRef     *target_table_ref;
+    RangeTblEntry   *res_rel;
     ListCell        *elt;
     bool            ctid_found = false;
     bool            node_id_found = false;
-    int                col_att = 0;
-    int                ctid_param_num PG_USED_FOR_ASSERTS_ONLY = 0;
+    int             col_att = 0;
     ListCell        *lc;
     bool            can_use_pk_for_rep_change = false;
-    int16            *indexed_col_numbers = NULL;
+    int16           *indexed_col_numbers = NULL;
 #if 0
     int                index_col_count = 0;
 #endif
@@ -1288,28 +1284,6 @@ pgxc_build_dml_statement(PlannerInfo *root, CmdType cmdtype,
                                 get_attname(res_rel->relid, attnum));
             /* keep param type */
             rqplan->rq_param_types[rqplan->rq_num_params++] = type;
-        }
-
-        /*
-         * The data row generated for BIND has all required values, plus NULL
-         * values for attributes that are not SET. The first n parameters are
-         * the n table attributes, followed by ctid and optionally node_id. So
-         * we know that the ctid has to be n + 1.
-         */
-        if (!can_use_pk_for_rep_change)
-        {
-            ctid_param_num = natts + 1;
-        }
-    }
-    if (cmdtype == CMD_DELETE)
-    {
-        if (!can_use_pk_for_rep_change)
-        {
-            /*
-             * Since there is no data to update, the first param is going to be
-             * ctid.
-             */
-            ctid_param_num = 1;
         }
     }
 

@@ -8152,7 +8152,6 @@ ParallelFastSendDatarow(ParallelSendDataQueue *buf, TupleTableSlot *slot, void *
     ParallelWorkerControl *control  = NULL;
     TupleDesc         tdesc = slot->tts_tupleDescriptor;
     uint32 head = 0;
-    uint32 tail PG_USED_FOR_ASSERTS_ONLY = 0;
     StringInfoData        data;
 
     control  = (ParallelWorkerControl*)ctl;
@@ -8170,7 +8169,6 @@ ParallelFastSendDatarow(ParallelSendDataQueue *buf, TupleTableSlot *slot, void *
     tuple_len += control->tupleLen;    
 
     head      = buf->bufHead;
-    tail      = buf->bufTail;
     free_size = BufferFreeSpace(buf);
     if (free_size > tuple_len)    
     {

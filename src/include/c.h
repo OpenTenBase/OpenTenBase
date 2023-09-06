@@ -831,6 +831,19 @@ typedef NameData *Name;
 #endif
 
 /*
+ * ExceptionalCondition is compiled into the backend whether or not
+ * USE_ASSERT_CHECKING is defined, so as to support use of extensions
+ * that are built with that #define with a backend that isn't.  Hence,
+ * we should declare it as long as !FRONTEND.
+ */
+#ifndef FRONTEND
+extern void ExceptionalCondition(const char *conditionName,
+					 const char *errorType,
+					 const char *fileName, int lineNumber) pg_attribute_noreturn();
+#endif
+
+
+/*
  * Macros to support compile-time assertion checks.
  *
  * If the "condition" (a compile-time-constant expression) evaluates to false,

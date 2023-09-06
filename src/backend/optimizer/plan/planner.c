@@ -7509,9 +7509,6 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
 		 */
 		if (grouped_rel->partial_pathlist)
 		{
-#ifdef __OPENTENBASE__
-			bool       redistribute_group PG_USED_FOR_ASSERTS_ONLY = false;
-#endif
 			Path	   *path = (Path *) linitial(grouped_rel->partial_pathlist);
 #ifdef __OPENTENBASE__
 			double		total_groups = 0;
@@ -7566,7 +7563,6 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
                 {
 					/* redistribute local grouping results among datanodes */
 					path = create_redistribute_grouping_path(root, parse, path);
-					redistribute_group = true;
                 }
                 else
 					path = create_remotesubplan_path(root, path, NULL);
@@ -7706,7 +7702,6 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
 					 * first phase of the aggregate, and redistribute only the partial
 					 * results.
                      */
-					redistribute_group = false;
 
 					if (! can_push_down_grouping(root, parse, gmpath))
 #ifdef __OPENTENBASE__
@@ -7715,7 +7710,6 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
 						{
 							/* redistribute local grouping results among datanodes */
 							gmpath = create_redistribute_grouping_path(root, parse, gmpath);
-							redistribute_group = true;
 						}
 						else
                         {

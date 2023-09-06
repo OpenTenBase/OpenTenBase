@@ -366,7 +366,7 @@ MainThreadInit()
 static void
 InitGTMProcess()
 {
-    GTM_ThreadInfo *thrinfo PG_USED_FOR_ASSERTS_ONLY = MainThreadInit();
+    MainThreadInit();
     MyThreadID = pthread_self();
     MemoryContextInit();
 

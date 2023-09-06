@@ -589,43 +589,6 @@ transformDeleteStmt(ParseState *pstate, DeleteStmt *stmt)
     return qry;
 }
 
-/*
- * Determine whether tables of different groups are allowed to insert.
- */
-static bool
-is_table_allowed_insert(RelationLocInfo *from, RelationLocInfo *to)
-{
-	List *from_nodelist = from->rl_nodeList;
-	List *to_nodelist = to->rl_nodeList;
-	List *diff = NULL;
-	bool result = false;
-
-	/* necessary check, will never happened. */
-	if (from == NULL || to == NULL)
-	{
-		elog(ERROR, "is_reptable_allow_insert, invalid params %s:%s",
-			from ? " " : "from is null",
-			to ? " " : "to is null");
-	}
-
-	/* step1: From table must be replication table. */
-	if (
-#ifdef __COLD_HOT__
-		(from->coldGroupId != to->coldGroupId) ||
-#endif
-		((from->groupId != to->groupId) && (!IsRelationReplicated(from))))
-	{
-		return false;
-	}
-
-	/* step2: Data distribution nodes have intersections */
-	diff = list_difference_int(to_nodelist, from_nodelist);
-
-	/* stemp3: Insertions are allowed if there is an intersection of data distribution nodes. */
-	result = (list_length(diff) != list_length(to_nodelist));
-	list_free(diff);
-	return result;
-}
 
 /*
  * transformInsertStmt -

@@ -1879,7 +1879,9 @@ ProcessBkupBeginTransactionGetGXIDAutovacuumCommand(Port *myport, StringInfo mes
 void
 ProcessBeginTransactionGetGXIDAutovacuumCommand(Port *myport, StringInfo message)
 {// #lizard forgives
-    bool txn_read_only PG_USED_FOR_ASSERTS_ONLY;
+#ifndef __XLOG__
+	bool txn_read_only PG_USED_FOR_ASSERTS_ONLY;
+#endif
     StringInfoData buf;
     GlobalTransactionId gxid;
     MemoryContext oldContext;
@@ -2278,7 +2280,6 @@ ProcessCommitPreparedTransactionCommand(Port *myport, StringInfo message, bool i
     int status[txn_count];
     int ii;
     int waited_xid_count;
-    GlobalTransactionId *waited_xids PG_USED_FOR_ASSERTS_ONLY = NULL;
 
     for (ii = 0; ii < txn_count; ii++)
     {
@@ -2295,7 +2296,7 @@ ProcessCommitPreparedTransactionCommand(Port *myport, StringInfo message, bool i
     waited_xid_count = pq_getmsgint(message, sizeof (int));
     if (waited_xid_count > 0)
     {
-        waited_xids = (GlobalTransactionId *) pq_getmsgbytes(message,
+        (GlobalTransactionId *) pq_getmsgbytes(message,
                 waited_xid_count * sizeof (GlobalTransactionId));
     }
 

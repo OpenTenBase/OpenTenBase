@@ -4802,11 +4802,7 @@ PostgresMain(int argc, char *argv[],
 
 #ifdef PGXC /* PGXC_DATANODE */
     /* Snapshot info */
-    TransactionId             xmin PG_USED_FOR_ASSERTS_ONLY;
-    TransactionId             xmax PG_USED_FOR_ASSERTS_ONLY;
     GlobalTimestamp            gts;
-    int                        xcnt PG_USED_FOR_ASSERTS_ONLY;
-    TransactionId             *xip PG_USED_FOR_ASSERTS_ONLY;
     /* Timestamp info */
     TimestampTz        timestamp;
 
