@@ -75,21 +75,22 @@
 #include "utils/syscache.h"
 
 #ifdef PGXC
+#include "nodes/nodes.h"
 #include "pgxc/barrier.h"
 #include "pgxc/execRemote.h"
 #include "pgxc/locator.h"
 #include "pgxc/pgxc.h"
 #include "pgxc/planner.h"
 #include "pgxc/poolutils.h"
-#include "nodes/nodes.h"
+#include "pgxc/pgxcnode.h"
 #include "pgxc/poolmgr.h"
 #include "pgxc/nodemgr.h"
 #include "pgxc/groupmgr.h"
+#include "pgxc/xc_maintenance_mode.h"
 #include "utils/lsyscache.h"
 #include "utils/rel.h"
 #include "utils/builtins.h"
 #include "utils/snapmgr.h"
-#include "pgxc/xc_maintenance_mode.h"
 #ifdef XCP
 #include "pgxc/pause.h"
 #endif
@@ -128,25 +129,25 @@ extern int DropSequenceGTM(char *name, GTM_SequenceKeyType type);
 #endif
 
 static void ExecUtilityStmtOnNodes(Node* parsetree, const char *queryString, ExecNodes *nodes,
-                                   bool sentToRemote,
-                                   bool force_autocommit,
-                                   RemoteQueryExecType exec_type,
-                                   bool is_temp,
-                                   bool add_context);
+								   bool sentToRemote,
+								   bool force_autocommit,
+								   RemoteQueryExecType exec_type,
+								   bool is_temp,
+								   bool add_context);
 static void ExecUtilityStmtOnNodesInternal(Node* parsetree, const char *queryString,
-                                   ExecNodes *nodes,
-                                   bool sentToRemote,
-                                   bool force_autocommit,
-                                   RemoteQueryExecType exec_type,
-                                   bool is_temp);
+								   ExecNodes *nodes,
+								   bool sentToRemote,
+								   bool force_autocommit,
+								   RemoteQueryExecType exec_type,
+								   bool is_temp);
 static RemoteQueryExecType ExecUtilityFindNodes(ObjectType objectType,
-                                                Oid relid,
-                                                bool *is_temp);
+												Oid relid,
+												bool *is_temp);
 static RemoteQueryExecType ExecUtilityFindNodesRelkind(Oid relid, bool *is_temp);
 static RemoteQueryExecType GetNodesForCommentUtility(CommentStmt *stmt, bool *is_temp);
 static RemoteQueryExecType GetNodesForRulesUtility(RangeVar *relation, bool *is_temp);
 static void DropStmtPreTreatment(DropStmt *stmt, const char *queryString, bool sentToRemote,
-                                 bool *is_temp, RemoteQueryExecType *exec_type);
+								 bool *is_temp, RemoteQueryExecType *exec_type);
 static bool IsStmtAllowedInLockedMode(Node *parsetree, const char *queryString);
 #ifdef __OPENTENBASE__
 static void ExecCreateKeyValuesStmt(Node *parsetree);
