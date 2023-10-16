@@ -1,6 +1,9 @@
 # ----------
 # src/test/regress/parallel_schedule
 #
+# This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
+# All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
+#
 # By convention, we put no more than twenty tests in any one parallel group;
 # this limits the number of connections needed to run the tests.
 # ----------

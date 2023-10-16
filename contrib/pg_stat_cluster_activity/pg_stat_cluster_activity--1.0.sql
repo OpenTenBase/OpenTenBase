@@ -1,4 +1,9 @@
-/* contrib/pg_stat_cluster_activity/pg_stat_cluster_activity--1.0.sql */
+/* 
+ * contrib/pg_stat_cluster_activity/pg_stat_cluster_activity--1.0.sql
+ *
+ * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
+ * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
+ */
 
 -- complain if script is sourced in psql, rather than via ALTER EXTENSION
 \echo Use "CREATE EXTENSION pg_stat_cluster_activity" to load this file. \quit

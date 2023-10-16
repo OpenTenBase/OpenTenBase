@@ -1,4 +1,8 @@
 # pg_stat_cluster_activity extension
+#
+# This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
+# All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
+#
 comment = 'track execution statistics in whole cluster scope'
 default_version = '1.0'
 module_pathname = '$libdir/pg_stat_cluster_activity'

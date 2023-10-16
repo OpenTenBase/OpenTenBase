@@ -1,5 +1,8 @@
 #!/bin/bash
 #
+# This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
+# All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
+#
 # This script sets up test environment for pgxc_clean.
 # Please note that all the prepared transactions are
 # partially committed or aborted.
