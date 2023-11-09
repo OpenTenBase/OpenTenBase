@@ -1,8 +1,9 @@
 /* -------------------------------------------------------------------------
  *
- * Portions Copyright (c) 2018, Tencent OpenTenBase Group
- * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
- * Portions Copyright (c) 1994, Regents of the University of California
+ * Copyright (c) 2023 THL A29 Limited, a Tencent company.
+ *
+ * This source code file is licensed under the BSD 3-Clause License,
+ * you may obtain a copy of the License at http://opensource.org/license/bsd-3-clause/
  *
  * -------------------------------------------------------------------------
  */

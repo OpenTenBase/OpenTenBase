@@ -15,8 +15,8 @@
  *    The author is not responsible for loss or damages that may
  *    result from it's use.
  * 
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
+ *	The author is not responsible for loss or damages that may
+ *	result from it's use.
  *
  * IDENTIFICATION
  *        src/bin/pg_dump/pg_backup_archiver.h

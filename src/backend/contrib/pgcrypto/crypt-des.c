@@ -58,10 +58,6 @@
  *    It is assumed that the 8-byte arrays passed by reference can be
  *    addressed as arrays of uint32's (ie. the CPU is not picky about
  *    alignment).
- * 
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- * 
  */
 
 #include "postgres.h"

@@ -5,8 +5,10 @@
  *
  *	  a bloom filter, using murmurhash
  *
- * Copyright (c) 2020-Present OpenTenBase development team, Tencent
+ * Copyright (c) 2023 THL A29 Limited, a Tencent company.
  *
+ * This source code file is licensed under the BSD 3-Clause License,
+ * you may obtain a copy of the License at http://opensource.org/license/bsd-3-clause/
  *
  * IDENTIFICATION
  *	  src/include/gtm/bloom.h
