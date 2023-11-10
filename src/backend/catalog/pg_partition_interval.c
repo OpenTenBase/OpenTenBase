@@ -1,17 +1,12 @@
-/*
- * Copyright (c) 2023 THL A29 Limited, a Tencent company.
- *
- * This source code file is licensed under the BSD 3-Clause License,
- * you may obtain a copy of the License at http://opensource.org/license/bsd-3-clause/
- */
 /*-------------------------------------------------------------------------
  *
  * pg_partition_interval.c
  *    routines to support manipulation of the interval partition relation
  *
- * Copyright (c) 1996-2010, PostgreSQL Global Development Group
- * Portions Copyright (c) 2010-2012 Postgres-XC Development Group
+ * Copyright (c) 2023 THL A29 Limited, a Tencent company.
  *
+ * This source code file is licensed under the BSD 3-Clause License,
+ * you may obtain a copy of the License at http://opensource.org/license/bsd-3-clause/
  *
  *-------------------------------------------------------------------------
  */

@@ -1,6 +1,6 @@
 /*-------------------------------------------------------------------------
  *
- * slru.c
+ * lru.c
  *        Simple LRU buffering for transaction status logfiles
  *
  * We use a simple least-recently-used scheme to manage a pool of page
@@ -44,7 +44,7 @@
  * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
  * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
- * src/backend/access/transam/slru.c
+ * src/backend/access/transam/lru.c
  *
  *-------------------------------------------------------------------------
  */

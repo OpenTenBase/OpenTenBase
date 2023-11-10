@@ -9,7 +9,7 @@
  * you may obtain a copy of the License at http://opensource.org/license/bsd-3-clause/
  *
  * IDENTIFICATION
- *      src/backend/storage/freespace/fsmpage.c
+ *      src/backend/storage/freespace/extent_xlog.c
  *
  */
 #include "postgres.h"

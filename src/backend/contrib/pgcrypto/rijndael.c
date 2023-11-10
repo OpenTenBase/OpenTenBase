@@ -37,9 +37,6 @@ Key Setup:      374/1960 cycles (encrypt/decrypt)
 Encrypt:       502 cycles =    51.0 mbits/sec
 Decrypt:       498 cycles =    51.4 mbits/sec
 Mean:           500 cycles =    51.2 mbits/sec
-
-This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
-All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
 */
 
 #include "postgres.h"

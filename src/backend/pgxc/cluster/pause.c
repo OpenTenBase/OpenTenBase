@@ -4,9 +4,6 @@
  *
  *     Cluster Pause/Unpause handling
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * IDENTIFICATION
  *      $$
  *

@@ -8,6 +8,9 @@
  * This source code file is licensed under the BSD 3-Clause License,
  * you may obtain a copy of the License at http://opensource.org/license/bsd-3-clause/
  *
+ * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
+ * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
+ * 
  * src/include/access/tupdesc_details.h
  *
  *-------------------------------------------------------------------------
