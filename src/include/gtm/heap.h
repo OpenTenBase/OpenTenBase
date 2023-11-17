@@ -2,10 +2,6 @@
  * Author: Armon Dadgar
  *
  * Header for the Heap functions and data definitions
- * 
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- * 
  */
 
 #ifndef HEAP_H

@@ -16,10 +16,6 @@
 /* that the originators of the algorithm place on its exploitation.     */
 /*                                                                        */
 /* Dr Brian Gladman (gladman@seven77.demon.co.uk) 14th January 1999        */
-/*
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- */
 
 #ifndef _RIJNDAEL_H_
 #define _RIJNDAEL_H_
