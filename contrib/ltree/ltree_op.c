@@ -1,6 +1,10 @@
 /*
  * op function for ltree
  * Teodor Sigaev <teodor@stack.net>
+ * 
+ * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
+ * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
+ * 
  * contrib/ltree/ltree_op.c
  */
 #include "postgres.h"

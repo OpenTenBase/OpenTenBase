@@ -3,12 +3,10 @@
  * gtm_xlog.c
  *        Functionalities of GTM Standby
  *
- * Portions Copyright (c) 1996-2010, PostgreSQL Global Development Group
- * Portions Copyright (c) 1994, Regents of the University of California
- * Portions Copyright (c) 2010-2012 Postgres-XC Development Group
+ * Copyright (c) 2023 THL A29 Limited, a Tencent company.
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
+ * This source code file is licensed under the BSD 3-Clause License,
+ * you may obtain a copy of the License at http://opensource.org/license/bsd-3-clause/
  *
  * IDENTIFICATION
  *        src/gtm/main/gtm_xlog.c

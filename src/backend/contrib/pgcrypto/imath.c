@@ -26,6 +26,9 @@
   ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
   CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
   SOFTWARE.
+
+  This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
+  All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  */
 /* contrib/pgcrypto/imath.c */
 

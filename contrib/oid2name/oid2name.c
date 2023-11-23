@@ -5,6 +5,9 @@
  * Originally by
  * B. Palmer, bpalmer@crimelabs.net 1-17-2001
  *
+ * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
+ * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
+ * 
  * contrib/oid2name/oid2name.c
  */
 #include "postgres_fe.h"

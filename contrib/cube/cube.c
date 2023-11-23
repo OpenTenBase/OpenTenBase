@@ -1,6 +1,9 @@
 /******************************************************************************
   contrib/cube/cube.c
 
+  This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
+  All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
+
   This file contains routines that can be bound to a Postgres backend and
   called by the backend in the process of processing queries.  The calling
   format for these routines is dictated by Postgres architecture.

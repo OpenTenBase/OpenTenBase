@@ -1,6 +1,9 @@
 /*
  * contrib/hstore/hstore_compat.c
  *
+ * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
+ * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
+ * 
  * Notes on old/new hstore format disambiguation.
  *
  * There are three formats to consider:

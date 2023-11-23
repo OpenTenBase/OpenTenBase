@@ -2,6 +2,9 @@
  * This file is in the public domain, so clarified as of
  * 1996-06-05 by Arthur David Olson.
  *
+ * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
+ * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
+ * 
  * IDENTIFICATION
  *      src/timezone/localtime.c
  */
