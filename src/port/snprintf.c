@@ -2,6 +2,9 @@
  * Copyright (c) 1983, 1995, 1996 Eric P. Allman
  * Copyright (c) 1988, 1993
  *    The Regents of the University of California.  All rights reserved.
+ *    
+ * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
+ * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions

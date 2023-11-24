@@ -1,5 +1,8 @@
 /*
  * Copyright (c) 2004-2007 EnterpriseDB Corporation. All Rights Reserved.
+ * 
+ * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
+ * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  */
 #ifndef PGXC_CLASS_H
 #define PGXC_CLASS_H

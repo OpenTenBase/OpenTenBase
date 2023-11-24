@@ -13,6 +13,9 @@
  *    Copyright (c) 2003-2017, PostgreSQL Global Development Group
  *    Author: Jan Wieck, Afilias USA INC.
  *    64-bit txids: Marko Kreen, Skype Technologies
+ *    
+ *	  This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
+ *	  Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  *    src/backend/utils/adt/txid.c
  *

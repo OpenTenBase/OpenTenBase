@@ -1,6 +1,9 @@
 /*
  *    pg_test_fsync.c
  *        tests all supported fsync() methods
+ *        
+ *	  This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
+ *	  All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  */
 
 #include "postgres_fe.h"
