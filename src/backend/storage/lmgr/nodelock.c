@@ -3,8 +3,10 @@
  * nodeLock.c
  *     lock node to reject query
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
+ * Copyright (c) 2023 THL A29 Limited, a Tencent company.
+ *
+ * This source code file is licensed under the BSD 3-Clause License,
+ * you may obtain a copy of the License at http://opensource.org/license/bsd-3-clause/
  *
  * IDENTIFICATION
  *      src/backend/storage/nodeLock.c
