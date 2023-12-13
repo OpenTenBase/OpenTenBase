@@ -183,3 +183,25 @@ opentenbase.github.io/docs
 ## License
 
 The OpenTenBase is licensed under the BSD 3-Clause License. Copyright and license information can be found in the file [LICENSE.txt](LICENSE.txt)
+
+## Contributors
+Thanks for all contributors here: [CONTRIBUTORS](CONTRIBUTORS.md)
+
+## News and Events
+
+|Latest|
+|------|
+|[开放原子校源行走进苏南，加速开源人才培养和创新能力提升](https://mp.weixin.qq.com/s/SU5NYTcKQPyHqfiT4OXp8Q)|
+|[OpenTenBase首亮相，腾讯云数据库开源取得重大突破](https://www.opentenbase.org/news/news-post-3/)|
+|[开放原子校源行走进西部，加速开源人才培养](https://www.opentenbase.org/event/event-post-3/)|
+|[开源数据库OpenTenBase获信通院“OSCAR尖峰开源项目优秀案例”奖](https://www.opentenbase.org/news/news-post-2/)|
+|[开放原子开源基金会赴黑龙江科技大学走访交流](https://www.opentenbase.org/event/event-post-2/)|
+
+|History|
+|-------|
+|[history_events](history_events.md)|
+
+## Blogs and Articals
+|Blogs and Articals|
+|------------------|
+|[快速入门](https://www.opentenbase.org/blog/01-quickstart/)|
