@@ -1,5 +1,7 @@
 # Contributors list
 
+Many thanks to the following contributors for their contributions to OpenTenBase:
+
 ## GitHub ID
 
 - [JennyJennyChen](https://github.com/JennyJennyChen)

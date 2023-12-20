@@ -1,11 +1,12 @@
 ![logo](images/OpenTenBase_logo.svg)
 ___
-# OpenTenBase Database Management System
+# OpenTenBase 数据库管理系统
 OpenTenBase is an advanced enterprise-level database management system based on prior work of Postgres-XL project. It supports an extended subset of the SQL standard, including transactions, foreign keys, user-defined types and functions. Additional, it adds parallel computing, security, management, audit and other functions.
 
 OpenTenBase has many language interfaces similar to PostgreSQL, many of which are listed here:
 
 	https://www.postgresql.org/download
+
 
 ## Overview
 A OpenTenBase cluster consists of multiple CoordinateNodes, DataNodes, and GTM nodes. All user data resides in the DataNode, the CoordinateNode contains only metadata, the GTM for global transaction management. The CoordinateNodes and DataNodes share the same schema.
@@ -191,12 +192,16 @@ Thanks for all contributors here: [CONTRIBUTORS](CONTRIBUTORS.md)
 
 |Latest|
 |------|
-|[Special Review of Cloud Native Open Source Project Application Practice](https://www.opentenbase.org/en/event/event-post-1/)|
+|[开放原子校源行走进苏南，加速开源人才培养和创新能力提升](https://mp.weixin.qq.com/s/SU5NYTcKQPyHqfiT4OXp8Q)|
+|[OpenTenBase首亮相，腾讯云数据库开源取得重大突破](https://www.opentenbase.org/news/news-post-3/)|
+|[开放原子校源行走进西部，加速开源人才培养](https://www.opentenbase.org/event/event-post-3/)|
+|[开源数据库OpenTenBase获信通院“OSCAR尖峰开源项目优秀案例”奖](https://www.opentenbase.org/news/news-post-2/)|
+|[开放原子开源基金会赴黑龙江科技大学走访交流](https://www.opentenbase.org/event/event-post-2/)|
 
 ## Blogs and Articals
 |Blogs and Articals|
 |------------------|
-|[Quick Start](https://www.opentenbase.org/en/blog/01-quickstart/)|
+|[快速入门](https://www.opentenbase.org/blog/01-quickstart/)|
 
 ## History
 [history_events](history_events.md)
