@@ -180,6 +180,10 @@ postgres=# create table foo(id bigint, str text) distribute by shard(id);
 opentenbase.github.io/docs
 ```
 
+## Who are using OpenTenBase
+Tencent
+
+
 ## License
 
 The OpenTenBase is licensed under the BSD 3-Clause License. Copyright and license information can be found in the file [LICENSE.txt](LICENSE.txt)
