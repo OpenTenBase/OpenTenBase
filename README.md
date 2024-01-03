@@ -180,7 +180,7 @@ postgres=# create table foo(id bigint, str text) distribute by shard(id);
 opentenbase.github.io/docs
 ```
 
-## Who is using OpenTenBase
+## Who are using OpenTenBase
 Tencent
 
 
