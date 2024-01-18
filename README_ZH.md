@@ -1,42 +1,42 @@
 ![logo](images/OpenTenBase_logo.svg)
 ___
 # OpenTenBase 数据库管理系统
-OpenTenBase is an advanced enterprise-level database management system based on prior work of Postgres-XL project. It supports an extended subset of the SQL standard, including transactions, foreign keys, user-defined types and functions. Additional, it adds parallel computing, security, management, audit and other functions.
+OpenTenBase 是基于 Postgres-XL 项目的先进企业级数据库管理系统。它支持SQL标准的扩展子集，包括事务、外键、用户定义类型和函数。此外，它还添加了并行计算、安全性、管理、审计和其他功能。
 
-OpenTenBase has many language interfaces similar to PostgreSQL, many of which are listed here:
+OpenTenBase具有许多类似于PostgreSQL的语言接口，其中的一些可以在下面的链接中找到：
 
 	https://www.postgresql.org/download
 
 
-## Overview
-A OpenTenBase cluster consists of multiple CoordinateNodes, DataNodes, and GTM nodes. All user data resides in the DataNode, the CoordinateNode contains only metadata, the GTM for global transaction management. The CoordinateNodes and DataNodes share the same schema.
+## 概览
+一个 OpenTenBase 集群由多个 `CoordinateNodes` 、`DataNodes` 和 `GTM` 节点组成。所有用户数据都存储在 `DataNode` 中，`CoordinateNode` 仅包含元数据，`GTM` 则用于全局事务管理。`CoordinateNodes` 和`DataNodes` 共享相同的视图。
 
-Users always connect to the CoordinateNodes, which divides up the query into fragments that are executed in the DataNodes, and collects the results.
+用户始终连接到 `CoordinateNodes`，它将查询分片为在 `DataNodes` 中执行的片段，并收集结果。
 
-The latest version of this software may be obtained at:
+您可以在以下的链接获取 OpenTenBase 软件的最新版本：
 
 	https://github.com/OpenTenBase/OpenTenBase
 
-For more information look at our website located at:
+更多的信息则可以从我们的网站中获取到：
 
 	opentenbase.github.io/website
 
-## Building
-### System Requirements: 
+## 构建过程
+### 系统要求
 
-Memory: 4G RAM minimum
+内存: 最小 4G RAM
 
-OS: TencentOS 2, TencentOS 3, OpenCloudOS, CentOS 7, CentOS 8, Ubuntu
+操作系统: TencentOS 2, TencentOS 3, OpenCloudOS, CentOS 7, CentOS 8, Ubuntu等
 
-### Dependence
+### 安装依赖
 
 ` yum -y install gcc make readline-devel zlib-devel openssl-devel uuid-devel bison flex`
 
-or
+或者
 
 ` apt install -y gcc make libreadline-dev zlib1g-dev libssl-dev libossp-uuid-dev bison flex`
 
-### Create User 'opentenbase'
+### 创建用户 'opentenbase'
 
 ```shell
 mkdir /data
@@ -44,7 +44,7 @@ useradd -d /data/opentenbase -s /bin/bash -m opentenbase # add user opentenbase
 passwd opentenbase # set password
 ```
 
-### Building
+### 编译
 
 ```shell
 git clone https://github.com/OpenTenBase/OpenTenBase
@@ -64,15 +64,15 @@ cd contrib
 make -sj
 make install
 ```
-**Notice: if you use Ubuntu and see *initgtm: command not found* while doing "init all", you may add *${INSTALL_PATH}/opentenbase_bin_v2.0/bin* to */etc/environment***
+**注意: 如果您使用 Ubuntu 并且在"init all"的过程中出现了 `initgtm: command not found`错误, 你可以需要添加 `${INSTALL_PATH}/opentenbase_bin_v2.0/bi` 到 `/etc/environment`中**
 
-## Installation
-Use PGXC\_CTL tool to build a cluster, for example: a cluster with a global transaction management node (GTM), a coordinator(COORDINATOR) and two data nodes (DATANODE).
+## 安装
+使用 PGXC\_CTL 工具 来搭建一个集群, 例如: 搭建一个具有1个 global transaction management(GTM) 节点, 1个 coordinator(COORDINATOR)节点以及2个 data nodes (DATANODE) 节点的集群。
 
 ![topology](images/topology.png)
-### Preparation
+### 准备工作
 
-1. Install pgxc and import the path of pgxc installation package into environment variable.
+1. 安装 `pgxc` 并且把 `pgxc` 安装包的路径导入到系统环境变量中
 
     ```shell
 	PG_HOME=${INSTALL_PATH}/opentenbase_bin_v2.0
@@ -81,7 +81,7 @@ Use PGXC\_CTL tool to build a cluster, for example: a cluster with a global tran
 	export LC_ALL=C
     ```
 
-2. Disable SELinux and firewall (optinal)
+2. 关掉 `SELinux` 和 `firewall` (可选的)
 
     ```
 	vi /etc/selinux/config # set SELINUX=disabled
@@ -90,24 +90,24 @@ Use PGXC\_CTL tool to build a cluster, for example: a cluster with a global tran
     systemctl stop firewalld
     ```
     
-2. Get through the SSH password free login between the machines where the cluster node is installed, and then deploy and init will SSH to the machines of each node. After getting through, you do not need to enter the password.
+3. 实现集群节点所在机器之间的 `ssh` 无密码登录，然后进行部署和初始化将会通过 `ssh` 连接到每个节点的机器。一旦完成这一步，就无需输入密码
 
     ```
 	ssh-keygen -t rsa
 	ssh-copy-id -i ~/.ssh/id_rsa.pub destination-user@destination-server
     ```
 
-### Cluster startup steps
+### 集群启动步骤
 
-1. Generate and fill in configuration file pgxc\_ctl.conf. pgxc\_ctl tool can generate a template for the configuration file. You need to fill in the cluster node information in the template. After the pgxc\_ctl tool is started, pgxc\_ctl directory will be generated in the current user's home directory. After entering " prepare config" command, the configuration file template that can be directly modified will be generated in pgxc\_ctl directory.
+1. 生成并填写配置文件 `pgxc_ctl.conf`。`pgxc_ctl` 工具可以生成配置文件的模板，需要在模板中填写集群节点的信息。启动 `pgxc_ctl` 工具后，将在当前用户的主目录中生成 `pgxc_ctl` 目录。在输入 "prepare config" 命令后，将在 `pgxc_ctl` 目录中生成可直接修改的配置文件模板。
 
-	* The pgxcInstallDir at the beginning of the configuration file refers to the installation package location of pgxc. The database user can set it according to his own needs.
+	* 配置文件开头的 `pgxcInstallDir` 指的是 `pgxc` 安装包的存放位置, 数据库用户可以根据自己的需求进行设置
 
 	```
 	pgxcInstallDir=${INSTALL_PATH}/opentenbase_bin_v2.0
 	```
 
-	* For GTM, you need to configure the node name, IP, port and node directory.
+	* 对于GTM节点，您需要配置节点名称、IP端口、端口号和节点目录
 
 	```
 	#---- GTM ----------
@@ -117,15 +117,15 @@ Use PGXC\_CTL tool to build a cluster, for example: a cluster with a global tran
 	gtmMasterDir=${GTM_MASTER_DATA_DIR}/data/gtm_master
 	```
 
-	* If you do not need gtmSlave, you can directly set it to 'n' in the configuration of the corresponding node.
+	* 如果您不需要`gtmSlave`，您可以直接在相应节点的配置中将其设置为`n`
 
 	```
 	gtmSlave=n
 	```
 
-	If you need gtmSlave, configure it according to the instructions in the configuration file.
+	如果您需要`gtmSlave`，则可以按照配置文件中的说明进行配置。
 
-	* Coordination node, which needs to be configured with IP, port, directory, etc.
+	* Coordination节点要配置IP、端口、目录等信息
 
 	```
 	coordNames=(cn001)
@@ -137,7 +137,7 @@ Use PGXC\_CTL tool to build a cluster, for example: a cluster with a global tran
 	coordMasterDirs=(${COORD_MASTER_DATA_DIR}/data/cn_master/cn001)
 	```
 
-	* Data node, similar to the above nodes: IP, port, directory, etc. (since there are two data nodes, you need to configure the same information as the number of nodes.)
+	* Data节点与上述节点类似：需要配置IP地址、端口号、目录等（由于有两个数据节点，您需要配置与节点数量相同的信息）。
 
 	```
 	primaryDatanode=dn001
@@ -150,19 +150,19 @@ Use PGXC\_CTL tool to build a cluster, for example: a cluster with a global tran
 	datanodeMasterDirs=(${DATANODE_MASTER_DATA_DIR}/data/dn_master/dn001 ${DATANODE_MASTER_DATA_DIR}/data/dn_master/dn002)
 	```
 
-	There are coordSlave and datanodeSlave corresponding to the coordination node and data node. If not, configure them as 'n'; otherwise, configure them according to the configuration file.
+	Coordination节点和Data节点分别对应 `coordSlave` 和 `datanodeSlave`。如果不需要这些节点，则可以将它们配置为'n'；否则，需要根据配置文件的说明进行配置。
 
-	In addition, two type ports: `poolerPort` and `port`, need to be configured for coordinator node and datanode. `poolerPort` is used by nodes to communicate with other nodes. `port` is the port used to login to the node. Here, `poolerPort` and `port` must be configured differently, otherwise there will be conflicts and the cluster cannot be started.
+	此外，Coordination节点和Data节点需要配置两种类型的端口：`poolerPort` 和 `port`, `poolerPort` 用于节点之间的通信，`port` 用于用户登陆节点。值得注意的是，`poolerPort` 和 `port` 必须配置不同，否则会发生冲突，导致集群无法启动。
 
-	Each node needs to have its own directory and cannot be created in the same directory.
+	每个节点都需要有自己的目录，并且不能配置位相同的目录。
 
-2. Distribution of installation package(deploy all). After filling in the configuration file, run the pgxc\_ctl tool，and then input "deploy all" command to distribute the installation package to the IP machine of each node.
+3. 安装包的分发（全节点部署）。在填写好配置文件后，运行 `pgxc_ctl` 工具，然后输入 "deploy all" 命令，将安装包分发到每个节点的IP机器上。
 ![topology](images/deploy.png)
 
-3. Initialize each node of the cluster(init all). After the distribution of the installation package is completed, input "init all" command in pgxc\_ctl tool to initialize all the nodes in the configuration file pgxc\_ctl.conf and start the cluster. So far, the cluster has been started.
+4. 初始化集群的每个节点（全节点初始化）。在安装包分发完成后，在 `pgxc_ctl` 工具中输入 "init all" 命令，初始化配置文件 `pgxc_ctl.conf` 中的所有节点，并启动集群。到目前为止，集群已经完成启动。
 ![topology](images/init.png)
 
-## Usage
+## 使用
 
 ```
 $ psql -h ${CoordinateNode_IP} -p ${CoordinateNode_PORT} -U ${pgxcOwner} -d postgres
@@ -175,22 +175,22 @@ postgres=# create table foo(id bigint, str text) distribute by shard(id);
 
 ```
 
-## References  
+## 引用  
 
 ```
 opentenbase.github.io/docs
 ```
 
-## License
+## 许可
 
-The OpenTenBase is licensed under the BSD 3-Clause License. Copyright and license information can be found in the file [LICENSE.txt](LICENSE.txt)
+OpenTenBase 使用 BSD 3-Clause 许可证，版权和许可信息可以在 [LICENSE.txt](LICENSE.txt) 中找到。
 
-## Contributors
-Thanks for all contributors here: [CONTRIBUTORS](CONTRIBUTORS.md)
+## 贡献者
+感谢所有参与项目贡献的人: [CONTRIBUTORS](CONTRIBUTORS.md)
 
-## News and Events
+## 最新消息和活动
 
-|Latest|
+|新闻|
 |------|
 |[开放原子校源行走进苏南，加速开源人才培养和创新能力提升](https://mp.weixin.qq.com/s/SU5NYTcKQPyHqfiT4OXp8Q)|
 |[OpenTenBase首亮相，腾讯云数据库开源取得重大突破](https://www.opentenbase.org/news/news-post-3/)|
@@ -198,10 +198,10 @@ Thanks for all contributors here: [CONTRIBUTORS](CONTRIBUTORS.md)
 |[开源数据库OpenTenBase获信通院“OSCAR尖峰开源项目优秀案例”奖](https://www.opentenbase.org/news/news-post-2/)|
 |[开放原子开源基金会赴黑龙江科技大学走访交流](https://www.opentenbase.org/event/event-post-2/)|
 
-## Blogs and Articals
-|Blogs and Articals|
+## 博客和文章
+|博客和文章|
 |------------------|
 |[快速入门](https://www.opentenbase.org/blog/01-quickstart/)|
 
-## History
+## 过去的活动
 [history_events](history_events.md)
