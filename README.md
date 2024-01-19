@@ -18,7 +18,7 @@ The latest version of this software may be obtained at:
 
 For more information look at our website located at:
 
-	opentenbase.github.io/website
+	https://www.opentenbase.org/
 
 ## Building
 ### System Requirements: 
