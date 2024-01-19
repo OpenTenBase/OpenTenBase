@@ -11,7 +11,7 @@ OpenTenBase具有许多类似于PostgreSQL的语言接口，其中的一些可�
 ## 概览
 一个 OpenTenBase 集群由多个 `CoordinateNodes` 、`DataNodes` 和 `GTM` 节点组成。所有用户数据都存储在 `DataNode` 中，`CoordinateNode` 仅包含元数据，`GTM` 则用于全局事务管理。`CoordinateNodes` 和`DataNodes` 共享相同的视图。
 
-用户始终连接到 `CoordinateNodes`，它将查询分片为在 `DataNodes` 中执行的片段，并收集结果。
+用户总是会将请求发送到到 `CoordinateNodes`，`CoordinateNodes`将请求分段之后分发给 `DataNodes`执行 ，`CoordinateNodes`将收集到的请求汇总后返回给用户。
 
 您可以在以下的链接获取 OpenTenBase 软件的最新版本：
 
@@ -19,7 +19,7 @@ OpenTenBase具有许多类似于PostgreSQL的语言接口，其中的一些可�
 
 更多的信息则可以从我们的网站中获取到：
 
-	opentenbase.github.io/website
+	https://www.opentenbase.org/
 
 ## 构建过程
 ### 系统要求
@@ -64,7 +64,7 @@ cd contrib
 make -sj
 make install
 ```
-**注意: 如果您使用 Ubuntu 并且在"init all"的过程中出现了 `initgtm: command not found`错误, 你可以需要添加 `${INSTALL_PATH}/opentenbase_bin_v2.0/bi` 到 `/etc/environment`中**
+**注意: 如果您使用 Ubuntu 并且在"init all"的过程中出现了 `initgtm: command not found`错误, 你可以需要添加 `${INSTALL_PATH}/opentenbase_bin_v2.0/bin` 到 `/etc/environment`中**
 
 ## 安装
 使用 PGXC\_CTL 工具 来搭建一个集群, 例如: 搭建一个具有1个 global transaction management(GTM) 节点, 1个 coordinator(COORDINATOR)节点以及2个 data nodes (DATANODE) 节点的集群。
@@ -152,14 +152,14 @@ make install
 
 	Coordination节点和Data节点分别对应 `coordSlave` 和 `datanodeSlave`。如果不需要这些节点，则可以将它们配置为'n'；否则，需要根据配置文件的说明进行配置。
 
-	此外，Coordination节点和Data节点需要配置两种类型的端口：`poolerPort` 和 `port`, `poolerPort` 用于节点之间的通信，`port` 用于用户登陆节点。值得注意的是，`poolerPort` 和 `port` 必须配置不同，否则会发生冲突，导致集群无法启动。
+	此外，Coordination节点和Data节点需要配置两种类型的端口：`poolerPort` 和 `port`, `poolerPort` 用于节点之间的通信，`port` 用于用户登录节点。值得注意的是，`poolerPort` 和 `port` 必须配置不同，否则会发生冲突，导致集群无法启动。
 
 	每个节点都需要有自己的目录，并且不能配置位相同的目录。
 
-3. 安装包的分发（全节点部署）。在填写好配置文件后，运行 `pgxc_ctl` 工具，然后输入 "deploy all" 命令，将安装包分发到每个节点的IP机器上。
+3. 安装包的分发（deploy all）。在填写好配置文件后，运行 `pgxc_ctl` 工具，然后输入 "deploy all" 命令，将安装包分发到每个节点的IP机器上。
 ![topology](images/deploy.png)
 
-4. 初始化集群的每个节点（全节点初始化）。在安装包分发完成后，在 `pgxc_ctl` 工具中输入 "init all" 命令，初始化配置文件 `pgxc_ctl.conf` 中的所有节点，并启动集群。到目前为止，集群已经完成启动。
+4. 初始化集群的每个节点（init all）。在安装包分发完成后，在 `pgxc_ctl` 工具中输入 "init all" 命令，初始化配置文件 `pgxc_ctl.conf` 中的所有节点，并启动集群。到目前为止，集群已经完成启动。
 ![topology](images/init.png)
 
 ## 使用
@@ -178,7 +178,7 @@ postgres=# create table foo(id bigint, str text) distribute by shard(id);
 ## 引用  
 
 ```
-opentenbase.github.io/docs
+https://docs.opentenbase.org/
 ```
 
 ## 许可
