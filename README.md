@@ -177,7 +177,7 @@ postgres=# create table foo(id bigint, str text) distribute by shard(id);
 ## References  
 
 ```
-opentenbase.github.io/docs
+https://docs.opentenbase.org/
 ```
 
 ## Who are using OpenTenBase
