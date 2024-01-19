@@ -80,7 +80,7 @@ Use PGXC\_CTL tool to build a cluster, for example: a cluster with a global tran
 	export LC_ALL=C
     ```
 
-2. Disable SELinux and firewall (optinal)
+2. Disable SELinux and firewall (optional)
 
     ```
 	vi /etc/selinux/config # set SELINUX=disabled
