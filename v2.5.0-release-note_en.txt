@@ -1,0 +1,15 @@
+The main modifications of V2.5.0-release version focus on:
+1. Performance optimization
+When using the extended protocol, inserting multiple pieces of data in /function is rewritten as copy, and the writing performance is improved dozens of times.
+The cost estimation accuracy is improved, and the execution plan performance is improved by more than 2 times.
+pg_stat_cluster_activity memory usage optimization
+
+
+2. Function enhancement
+Supports joining tables of different nodegroups with resource isolation
+Support subscribing to DN WAL logs from CN
+Support analyze information synchronization to other CNs to ensure consistent statistical information of different CNs
+Increase libpq TCP timeout setting
+Error message prompts have been enhanced to facilitate user analysis of problems.
+
+3. Other known bug fixes
