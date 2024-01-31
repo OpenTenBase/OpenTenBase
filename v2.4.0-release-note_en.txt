@@ -1,0 +1,20 @@
+The main modifications of V2.4.0-release version focus on:
+1. Distributed computing performance improvement:
+● hasAggs/having/sort/limit/Stable function/ is optimized and pushed down to DN for execution, improving performance by nearly a hundred times.
+● Distributed process ProcLock segmented lock optimization reduces lock conflicts and increases execution efficiency by approximately 5 times.
+● Execution plan optimization: When the number of redistributed nodes is 1, the remote operator is skipped and the execution plan is streamlined.
+
+2. 2PC transaction optimization:
+● Deadlock check performance optimization: obtain gxid in batches; change traversal search gxid to binary search; increase try round limit.
+● 2PC adds a protection mode to prevent partial submission.
+● drop database adds a prepare process to ensure that no node failure remains.
+
+3. Enhanced ease of use:
+● Added pooler multi-thread logging function to facilitate problem analysis by users.
+● GTM log optimization, logs are aggregated into one file, and active logs are automatically split, making it easier for users to view at any time.
+● Supports gtm_ctl -l to specify the log file path to start, making it convenient for users to manage logs.
+
+4. New feature support:
+● Self-developed partition table pruning, adding IN syntax pruning, accelerating pruning in advance.
+● Data shuffle supports user-defined functions.
+● Allow deletion of columns of the main table with distributed foreign key constraints.
