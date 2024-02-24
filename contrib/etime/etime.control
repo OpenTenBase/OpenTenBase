@@ -1,0 +1,5 @@
+# etime extension
+comment = 'provides etime functionality'
+default_version = '1.0'
+module_pathname = '$libdir/etime'
+relocatable = true
