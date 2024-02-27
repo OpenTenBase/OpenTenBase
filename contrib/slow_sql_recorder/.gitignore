@@ -1,0 +1,5 @@
+/slow_sql_recorder.sql
+# Generated subdirectories
+/log/
+/results/
+/tmp_check/
