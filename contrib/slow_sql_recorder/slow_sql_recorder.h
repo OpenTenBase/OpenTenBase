@@ -12,5 +12,6 @@
 #include "commands/explain.h"
 #include "executor/instrument.h"
 #include "utils/guc.h"
+#include "access/parallel.h"
 
 #endif

@@ -1,8 +1,7 @@
 # contrib/slow_sql_recorder/Makefile
 MODULE_big = slow_sql_recorder
-OBJS = \        # 所有.c文件生产的同名.o目标文件
-    $(WIN32RES) \
-    slow_sql_recorder.o
+OBJS = slow_sql_recorder.o
+    
 EXTENSION = slow_sql_recorder  # 插件名
 DATA = slow_sql_recorder--1.0.sql  # 插件的sql文件
 PGFILEDESC = "slow_sql_recorder - recorder about slow sql executing over 10 second"
@@ -13,7 +12,7 @@ SHLIB_LINK_INTERNAL = $(libpq)
 REGRESS = slow_sql_recorder # sql、expected 文件夹下的测试sql文件名
 
 ifdef USE_PGXS
-PG_CONFIG = slow_sql_recorder
+PG_CONFIG = pg_config
 PGXS := $(shell $(PG_CONFIG) --pgxs)
 include $(PGXS)
 else
