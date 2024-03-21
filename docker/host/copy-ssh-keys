@@ -1,0 +1,3 @@
+#!/bin/sh
+ssh-copy-id -i ~/.ssh/id_rsa.pub opentenbase@172.16.200.10
+ssh-copy-id -i ~/.ssh/id_rsa.pub opentenbase@172.16.200.15
