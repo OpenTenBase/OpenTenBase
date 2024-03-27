@@ -2,8 +2,6 @@
 .cproject
 .project
 .settings/language.settings.xml
-*.so
-*.o
 /.idea
 .*/.DS_Store
 /src/.idea/misc.xml
@@ -113,3 +111,18 @@
 /src/gtm/xlog_test/set_gts
 /src/gtm/xlog_test/set_gts.c
 /src/gtm/xlog_test/xlog_reader
+
+src/bin
+
+# object files
+objfiles.txt
+*.o
+
+# lib files
+*.so*
+*.a
+
+*.log
+*.pc
+*.status
+GNUmakefile
