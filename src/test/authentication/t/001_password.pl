@@ -41,6 +41,7 @@ sub reset_pg_hba
 	$node->reload;
 }
 
+# Test access for a single role, useful to wrap all tests into one.
 # 测试不同角色在指定的访问方法下的身份验证结果
 sub test_role
 {
@@ -62,11 +63,14 @@ sub test_role
 		"authentication $status_string for method $method, role $role"); # 使用Test::More模块进行断言
 }
 
+# Initialize master node
 # 初始化一个名为 `master` 的 PostgreSQL 节点，并创建两个具有不同密码验证方式的用户角色
 my $node = get_new_node('master'); # 创建一个名为master的PostgreSQL节点
 $node->init;# 初始化该节点
 $node->start; # 启动该节点
 
+# Create 3 roles with different password methods for each one. The same
+# password is used for all of them.
 # 为scram_role创建具有scram-sha-256密码验证方式的角色.
 $node->safe_psql('postgres',
 "SET password_encryption='scram-sha-256'; CREATE ROLE scram_role LOGIN PASSWORD 'pass';"
@@ -78,21 +82,26 @@ $node->safe_psql('postgres',
  # 设置环境变量PGPASSWORD为pass
 $ENV{"PGPASSWORD"} = 'pass';
 
+# For "trust" method, all users should be able to connect.
 # 使用reset_pg_hba函数测试不同的访问方法对不同的数据库角色进行正确的身份验证
 reset_pg_hba($node, 'trust');
 test_role($node, 'scram_role', 'trust', 0);
 test_role($node, 'md5_role',   'trust', 0);
 
+# For plain "password" method, all users should also be able to connect.
  # 针对password方法进行测试
 reset_pg_hba($node, 'password');
 test_role($node, 'scram_role', 'password', 0);
 test_role($node, 'md5_role',   'password', 0);
 
+# For "scram-sha-256" method, user "scram_role" should be able to connect.
  # 针对scram-sha-256方法进行测试
 reset_pg_hba($node, 'scram-sha-256');
 test_role($node, 'scram_role', 'scram-sha-256', 0);
 test_role($node, 'md5_role',   'scram-sha-256', 2);
 
+# For "md5" method, all users should be able to connect (SCRAM
+# authentication will be performed for the user with a scram verifier.)
 # 针对md5方法进行测试
 reset_pg_hba($node, 'md5');
 test_role($node, 'scram_role', 'md5', 0);

@@ -20,6 +20,8 @@ else
 	plan tests => 12;
 }
 
+# Delete pg_hba.conf from the given node, add a new entry to it
+# and then execute a reload to refresh it.
 # 重置pg_hba.conf文件，接收两个参数：节点和身份验证方法
 sub reset_pg_hba
 {
@@ -33,6 +35,7 @@ sub reset_pg_hba
 	# 重新加载配置
 	$node->reload;
 }
+# Test access for a single role, useful to wrap all tests into one.
 # 身份验证测试，接收四个参数：节点、角色、密码、预期结果
 sub test_login
 {
@@ -54,6 +57,9 @@ sub test_login
 		"authentication $status_string for role $role with password $password" # 输出测试信息
 	);
 }
+
+# Initialize master node. Force UTF-8 encoding, so that we can use non-ASCII
+# characters in the passwords below.
 # 创建一个新的Postgres节点
 my $node = get_new_node('master');
 # 初始化节点，设置locale和编码
@@ -61,7 +67,7 @@ $node->init(extra => [ '--locale=C', '--encoding=UTF8' ]);
 # 启动节点
 $node->start;
 
-
+# These tests are based on the example strings from RFC4013.txt,
 # Section "3. Examples":
 #
 # #  Input            Output     Comments
@@ -74,6 +80,7 @@ $node->start;
 # 6  <U+0007>                    Error - prohibited character
 # 7  <U+0627><U+0031>            Error - bidirectional check
 
+# Create test roles.
 # 创建测试角色
 $node->safe_psql(
 	'postgres',
@@ -86,20 +93,24 @@ CREATE ROLE saslpreptest6_role LOGIN PASSWORD E'foo\\x07bar';
 CREATE ROLE saslpreptest7_role LOGIN PASSWORD E'foo\\u0627\\u0031bar';
 ");
 
+# Require password from now on.
 # 调用重置pg_hba.conf的函数
 reset_pg_hba($node, 'scram-sha-256');
 
+# Check that #1 and #5 are treated the same as just 'IX'
 # 进行身份验证测试
 test_login($node, 'saslpreptest1_role', "I\xc2\xadX",   0);
 test_login($node, 'saslpreptest1_role', "\xe2\x85\xa8", 0);
 
+# but different from lower case 'ix'
 test_login($node, 'saslpreptest1_role', "ix", 2);
-
+# Check #4
 test_login($node, 'saslpreptest4a_role', "a",        0);
 test_login($node, 'saslpreptest4a_role', "\xc2\xaa", 0);
 test_login($node, 'saslpreptest4b_role', "a",        0);
 test_login($node, 'saslpreptest4b_role', "\xc2\xaa", 0);
-
+# Check #6 and #7 - In PostgreSQL, contrary to the spec, if the password
+# contains prohibited characters, we use it as is, without normalization.
 test_login($node, 'saslpreptest6_role', "foo\x07bar", 0);
 test_login($node, 'saslpreptest6_role', "foobar",     2);
 

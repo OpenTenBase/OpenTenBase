@@ -24,164 +24,241 @@
 #include "libpq/libpq-fs.h"
 
 #define BUFSIZE            1024
+
+/*
+ * importFile -
+ *      import file "in_filename" into database as large object "lobjOid"
+ *
+ */
 static Oid
 importFile(PGconn *conn, char *filename)
 {
-    Oid            lobjId;                // 声明变量lobjId为Oid类型
-    int            lobj_fd;                // 声明变量lobj_fd为整型
-    char        buf[BUFSIZE];            // 声明字符数组buf, 长度为BUFSIZE
-    int            nbytes,                // 声明整型变量nbytes
-                tmp;                    // 声明整型变量tmp
-    int            fd;                    // 声明整型变量fd
+    Oid            lobjId;
+    int            lobj_fd;
+    char        buf[BUFSIZE];
+    int            nbytes,
+                tmp;
+    int            fd;
 
-    fd = open(filename, O_RDONLY, 0666);    // 打开指定文件，只读模式
-    if (fd < 0)                                // 如果打开文件失败
-    {
-        fprintf(stderr, "cannot open unix file \"%s\"\n", filename);    // 输出错误信息
+    /*
+     * open the file to be read in
+     */
+     // 打开指定文件，只读模式
+    fd = open(filename, O_RDONLY, 0666);
+    // 如果打开文件失败
+    if (fd < 0)
+    {                            /* error */
+        // 输出错误信息
+        fprintf(stderr, "cannot open unix file\"%s\"\n", filename);
     }
 
+    /*
+     * create the large object
+     */
+     // 在数据库中创建一个大型对象，并返回其Oid
+    lobjId = lo_creat(conn, INV_READ | INV_WRITE);
+     // 如果创建失败
+    if (lobjId == 0)
+        // 输出错误信息
+        fprintf(stderr, "cannot create large object");
 
-    lobjId = lo_creat(conn, INV_READ | INV_WRITE);    // 在数据库中创建一个大型对象，并返回其Oid
-    if (lobjId == 0)                                // 如果创建失败
-        fprintf(stderr, "cannot create large object");    // 输出错误信息
+     // 打开指定的大型对象，以便写入
+    lobj_fd = lo_open(conn, lobjId, INV_WRITE);
 
-    lobj_fd = lo_open(conn, lobjId, INV_WRITE);        // 打开指定的大型对象，以便写入
-
-   
-    while ((nbytes = read(fd, buf, BUFSIZE)) > 0)        // 循环读取文件内容到buf中
+    /*
+     * read in from the Unix file and write to the inversion file
+     */
+     // 循环读取文件内容到buf中
+    while ((nbytes = read(fd, buf, BUFSIZE)) > 0)
     {
-        tmp = lo_write(conn, lobj_fd, buf, nbytes);        // 将buf中的数据写入到大型对象中
-        if (tmp < nbytes)                            // 如果写入失败
-            fprintf(stderr, "error while reading \"%s\"", filename);    // 输出错误信息
+        // 将buf中的数据写入到大型对象中
+        tmp = lo_write(conn, lobj_fd, buf, nbytes);
+        // 如果写入失败，输出错误信息
+        if (tmp < nbytes)
+            fprintf(stderr, "error while reading \"%s\"", filename);
     }
 
-    close(fd);                                    // 关闭文件
-    lo_close(conn, lobj_fd);                    // 关闭大型对象
+     // 关闭文件
+    close(fd);
+    // 关闭大型对象
+    lo_close(conn, lobj_fd);
 
-    return lobjId;                                // 返回大型对象的Oid
+    return lobjId;
 }
 
 static void
 pickout(PGconn *conn, Oid lobjId, pg_int64 start, int len)
 {
-    int            lobj_fd;                // 声明整型变量lobj_fd
-    char       *buf;                    // 声明字符指针buf
-    int            nbytes;                // 声明整型变量nbytes
-    int            nread;                // 声明整型变量nread
+    int            lobj_fd;
+    char       *buf;
+    int            nbytes;
+    int            nread;
 
-    lobj_fd = lo_open(conn, lobjId, INV_READ);    // 打开指定的大型对象，以便读取
-    if (lobj_fd < 0)                            // 如果打开失败
-        fprintf(stderr, "cannot open large object %u", lobjId);    // 输出错误信息
+    // 打开指定的大型对象，以便读取
+    lobj_fd = lo_open(conn, lobjId, INV_READ);
+    // 如果打开失败，则输出错误信息
+    if (lobj_fd < 0)
+        fprintf(stderr, "cannot open large object %u", lobjId);
 
-    if (lo_lseek64(conn, lobj_fd, start, SEEK_SET) < 0)    // 移动大型对象的读写指针到指定位置
-        fprintf(stderr, "error in lo_lseek64: %s", PQerrorMessage(conn));    // 输出错误信息
+    if (lo_lseek64(conn, lobj_fd, start, SEEK_SET) < 0)
+        fprintf(stderr, "error in lo_lseek64: %s", PQerrorMessage(conn));
 
-    if (lo_tell64(conn, lobj_fd) != start)        // 如果移动失败
-        fprintf(stderr, "error in lo_tell64: %s", PQerrorMessage(conn));    // 输出错误信息
+    // 如果移动失败，输出错误信息
+    if (lo_tell64(conn, lobj_fd) != start)
+        fprintf(stderr, "error in lo_tell64: %s", PQerrorMessage(conn));
 
-    buf = malloc(len + 1);                    // 为buf分配内存空间
+    // 为buf分配内存空间
+    buf = malloc(len + 1);
 
-    nread = 0;                                // 初始化nread为0
-    while (len - nread > 0)                    // 循环读取大型对象的内容
+    // 初始化nread为0
+    nread = 0;
+    // 循环读取大型对象的内容
+    while (len - nread > 0)
     {
-        nbytes = lo_read(conn, lobj_fd, buf, len - nread);    // 从大型对象中读取数据到buf中
-        buf[nbytes] = '\0';                    // 在buf末尾添加字符串结束符
-        fprintf(stderr, ">>> %s", buf);        // 输出buf中的内容
-        nread += nbytes;                        // 更新已读取的字节数
-        if (nbytes <= 0)                        // 如果读取失败
-            break;                                // 退出循环
+        // 从大型对象中读取数据到buf中
+        nbytes = lo_read(conn, lobj_fd, buf, len - nread);
+        // 在buf末尾添加字符串结束符
+        buf[nbytes] = '\0';
+        // 输出buf中的内容
+        fprintf(stderr, ">>> %s", buf);
+        // 更新已读取的字节数
+        nread += nbytes;
+        // 如果读取失败
+        if (nbytes <= 0)
+            break;                /* no more data? */
     }
-    free(buf);                                // 释放buf所占用的内存空间
-    fprintf(stderr, "\n");                    // 输出换行符
-    lo_close(conn, lobj_fd);                    // 关闭大型对象
+    // 释放buf所占用的内存空间
+    free(buf);
+    fprintf(stderr, "\n");
+    // 关闭大型对象
+    lo_close(conn, lobj_fd);
 }
 
 static void
 overwrite(PGconn *conn, Oid lobjId, pg_int64 start, int len)
 {
-    int            lobj_fd;                // 声明整型变量lobj_fd
-    char       *buf;                    // 声明字符指针buf
-    int            nbytes;                // 声明整型变量nbytes
-    int            nwritten;                // 声明整型变量nwritten
-    int            i;                        // 声明整型变量i
+    int            lobj_fd;
+    char       *buf;
+    int            nbytes;
+    int            nwritten;
+    int            i;
 
-    lobj_fd = lo_open(conn, lobjId, INV_WRITE);    // 打开指定的大型对象，以便写入
-    if (lobj_fd < 0)                            // 如果打开失败
-        fprintf(stderr, "cannot open large object %u", lobjId);    // 输出错误信息
+    // 打开指定的大型对象，以便写入
+    lobj_fd = lo_open(conn, lobjId, INV_WRITE);
+    // 如果打开失败， 就输出错误信息
+    if (lobj_fd < 0)
+        fprintf(stderr, "cannot open large object %u", lobjId);
 
-    if (lo_lseek64(conn, lobj_fd, start, SEEK_SET) < 0)    // 移动大型对象的读写指针到指定位置
-        fprintf(stderr, "error in lo_lseek64: %s", PQerrorMessage(conn));    // 输出错误信息
+    if (lo_lseek64(conn, lobj_fd, start, SEEK_SET) < 0)
+        fprintf(stderr, "error in lo_lseek64: %s", PQerrorMessage(conn));
 
-    buf = malloc(len + 1);                    // 为buf分配内存空间
+    // 为buf分配内存空间
+    buf = malloc(len + 1);
 
-    for (i = 0; i < len; i++)                    // 循环初始化buf为'X'
+    // 循环初始化buf为'X'
+    for (i = 0; i < len; i++)
         buf[i] = 'X';
-    buf[i] = '\0';                            // 在buf末尾添加字符串结束符
+    // 在buf末尾添加字符串结束符
+    buf[i] = '\0';
 
-    nwritten = 0;                            // 初始化nwritten为0
-    while (len - nwritten > 0)                    // 循环向大型对象中写入内容
+    // 初始化nwritten为0
+    nwritten = 0;
+    // 循环向大型对象中写入内容
+    while (len - nwritten > 0)
     {
-        nbytes = lo_write(conn, lobj_fd, buf + nwritten, len - nwritten);    // 向大型对象中写入数据
-        nwritten += nbytes;                        // 更新已写入的字节数
-        if (nbytes <= 0)                        // 如果写入失败
+        // 向大型对象中写入数据
+        nbytes = lo_write(conn, lobj_fd, buf + nwritten, len - nwritten);
+        // 更新已写入的字节数
+        nwritten += nbytes;
+        // 如果写入失败
+        if (nbytes <= 0)
         {
-            fprintf(stderr, "\nWRITE FAILED!\n");    // 输出错误信息
-            break;                                // 退出循环
+            // 输出错误信息
+            fprintf(stderr, "\nWRITE FAILED!\n");
+            break;
         }
     }
-    free(buf);                                // 释放buf所占用的内存空间
-    fprintf(stderr, "\n");                    // 输出换行符
-    lo_close(conn, lobj_fd);                    // 关闭大型对象
+    // 释放buf所占用的内存空间
+    free(buf);
+    // 输出换行符
+    fprintf(stderr, "\n");
+    // 关闭大型对象
+    lo_close(conn, lobj_fd);
 }
 
 static void
 my_truncate(PGconn *conn, Oid lobjId, pg_int64 len)
 {
-    int            lobj_fd;                // 声明整型变量lobj_fd
+    int            lobj_fd;
 
-    lobj_fd = lo_open(conn, lobjId, INV_READ | INV_WRITE);    // 打开指定的大型对象，以便读写
-    if (lobj_fd < 0)                            // 如果打开失败
-        fprintf(stderr, "cannot open large object %u", lobjId);    // 输出错误信息
+    // 打开指定的大型对象，以便读写
+    lobj_fd = lo_open(conn, lobjId, INV_READ | INV_WRITE);
+    // 如果打开失败的话， 输出错误信息
+    if (lobj_fd < 0)
+        fprintf(stderr, "cannot open large object %u", lobjId);
 
-    if (lo_truncate64(conn, lobj_fd, len) < 0)    // 截断大型对象至指定长度
-        fprintf(stderr, "error in lo_truncate64: %s", PQerrorMessage(conn));    // 输出错误信息
+    if (lo_truncate64(conn, lobj_fd, len) < 0)
+        fprintf(stderr, "error in lo_truncate64: %s", PQerrorMessage(conn));
 
-    lo_close(conn, lobj_fd);                    // 关闭大型对象
+    // 关闭大型对象
+    lo_close(conn, lobj_fd);
 }
 
+
+/*
+ * exportFile -
+ *      export large object "lobjOid" to file "out_filename"
+ *
+ */
 static void
 exportFile(PGconn *conn, Oid lobjId, char *filename)
 {
-    int            lobj_fd;                // 声明整型变量lobj_fd
-    char        buf[BUFSIZE];            // 声明字符数组buf, 长度为BUFSIZE
-    int            nbytes,                // 声明整型变量nbytes
-                tmp;                    // 声明整型变量tmp
-    int            fd;                    // 声明整型变量fd
+    int            lobj_fd;
+    char        buf[BUFSIZE];
+    int            nbytes,
+                tmp;
+    int            fd;
 
-    lobj_fd = lo_open(conn, lobjId, INV_READ);    // 打开指定的大型对象，以便读取
-    if (lobj_fd < 0)                            // 如果打开失败
-        fprintf(stderr, "cannot open large object %u", lobjId);    // 输出错误信息
+    /*
+     * open the large object
+     */
+    // 打开指定的大型对象，以便读取
+    lobj_fd = lo_open(conn, lobjId, INV_READ);
+    // 如果打开失败， 输出错误信息
+    if (lobj_fd < 0)
+        fprintf(stderr, "cannot open large object %u", lobjId);
 
-    fd = open(filename, O_CREAT | O_WRONLY | O_TRUNC, 0666);    // 创建或打开指定文件，可写并清空文件内容
-    if (fd < 0)                                // 如果打开失败
-    {                           
-        fprintf(stderr, "cannot open unix file \"%s\"",
-                filename);                // 输出错误信息
+    /*
+     * open the file to be written to
+     */
+    fd = open(filename, O_CREAT | O_WRONLY | O_TRUNC, 0666);
+    if (fd < 0)
+    {                            /* error */
+        fprintf(stderr, "cannot open unix file\"%s\"",
+                filename);
     }
 
-    
-    while ((nbytes = lo_read(conn, lobj_fd, buf, BUFSIZE)) > 0)    // 循环从大型对象中读取内容到buf中
+    /*
+     * read in from the inversion file and write to the Unix file
+     */
+    // 循环从大型对象中读取内容到buf中
+    while ((nbytes = lo_read(conn, lobj_fd, buf, BUFSIZE)) > 0)
     {
-        tmp = write(fd, buf, nbytes);            // 将buf中的数据写入到文件中
-        if (tmp < nbytes)                        // 如果写入失败
+        // 将buf中的数据写入到文件中
+        tmp = write(fd, buf, nbytes);
+        // 如果写入失败
+        if (tmp < nbytes)
         {
+            // 输出错误信息
             fprintf(stderr, "error while writing \"%s\"",
-                    filename);                // 输出错误信息
+                    filename);
         }
     }
 
-    lo_close(conn, lobj_fd);                    // 关闭大型对象
-    close(fd);                                // 关闭文件
+    // 关闭大型对象
+    lo_close(conn, lobj_fd);
+    // 关闭文件
+    close(fd);
 
     return;
 }
@@ -189,73 +266,106 @@ exportFile(PGconn *conn, Oid lobjId, char *filename)
 static void
 exit_nicely(PGconn *conn)
 {
-    PQfinish(conn);                            // 关闭数据库连接
-    exit(1);                                // 退出程序
+    // 关闭数据库连接
+    PQfinish(conn);
+    // 退出程序
+    exit(1);
 }
 
 int
 main(int argc, char **argv)
 {
-    char       *in_filename,                // 声明字符指针in_filename
-               *out_filename,                // 声明字符指针out_filename
-               *out_filename2;            // 声明字符指针out_filename2
-    char       *database;                    // 声明字符指针database
-    Oid            lobjOid;                // 声明变量lobjOid为Oid类型
-    PGconn       *conn;                    // 声明指向PGconn类型对象的指针conn
-    PGresult   *res;                        // 声明指向PGresult类型对象的指针res
+    char       *in_filename,
+               *out_filename,
+               *out_filename2;
+    char       *database;
+    Oid            lobjOid;
+    PGconn       *conn;
+    PGresult   *res;
 
-    if (argc != 5)                            // 如果参数个数不为5
+    // 如果参数个数不为5，输出错误信息，退出程序
+    if (argc != 5)
     {
         fprintf(stderr, "Usage: %s database_name in_filename out_filename out_filename2\n",
-                argv[0]);                    // 输出错误信息
-        exit(1);                            // 退出程序
+                argv[0]);
+        exit(1);
     }
 
-    database = argv[1];                        // 获取数据库名
-    in_filename = argv[2];                    // 获取输入文件名
-    out_filename = argv[3];                    // 获取输出文件名
-    out_filename2 = argv[4];                    // 获取第二个输出文件名
+    // 获取数据库名
+    database = argv[1];
+    // 获取输入文件名
+    in_filename = argv[2];
+    // 获取输出文件名
+    out_filename = argv[3];
+    // 获取第二个输出文件名
+    out_filename2 = argv[4];
 
+    /*
+     * set up the connection
+     */
+     // 连接数据库
+    conn = PQsetdb(NULL, NULL, NULL, NULL, database);
 
-    conn = PQsetdb(NULL, NULL, NULL, NULL, database);    // 连接数据库
-
-    if (PQstatus(conn) != CONNECTION_OK)        // 如果连接失败
+    /* check to see that the backend connection was successfully made */
+    // 如果连接失败
+    if (PQstatus(conn) != CONNECTION_OK)
     {
+        // 输出错误信息，退出程序
         fprintf(stderr, "Connection to database failed: %s",
-                PQerrorMessage(conn));        // 输出错误信息
-        exit_nicely(conn);                    // 退出程序
+                PQerrorMessage(conn));
+        exit_nicely(conn);
     }
 
-    res = PQexec(conn, "begin");                // 开始事务
-    PQclear(res);                            // 释放结果对象
-    printf("importing file \"%s\" ...\n", in_filename);    // 输出提示信息
-    lobjOid = lo_import(conn, in_filename);    // 导入文件到数据库中作为大型对象
-    if (lobjOid == 0)                            // 如果导入失败
-        fprintf(stderr, "%s\n", PQerrorMessage(conn));    // 输出错误信息
+    // 开始事务
+    res = PQexec(conn, "begin");
+   // 释放结果对象
+    PQclear(res);
+    // 输出提示信息
+    printf("importing file \"%s\" ...\n", in_filename);
+/*    lobjOid = importFile(conn, in_filename); */
+    // 导入文件到数据库中作为大型对象
+    lobjOid = lo_import(conn, in_filename);
+    // 如果导入失败
+    if (lobjOid == 0)
+        // 输出错误信息
+        fprintf(stderr, "%s\n", PQerrorMessage(conn));
     else
     {
-        printf("\tas large object %u.\n", lobjOid);    // 输出成功信息
+        // 输出成功信息
+        printf("\tas large object %u.\n", lobjOid);
 
-        printf("picking out bytes 4294967000-4294968000 of the large object\n");    // 输出提示信息
-        pickout(conn, lobjOid, 4294967000U, 1000);    // 选择大型对象的一部分内容并输出
+        // 输出提示信息，挑出大对象的4294967000-4294968000字节
+        printf("picking out bytes 4294967000-4294968000 of the large object\n");
+        // 选择大型对象的一部分内容并输出
+        pickout(conn, lobjOid, 4294967000U, 1000);
 
-        printf("overwriting bytes 4294967000-4294968000 of the large object with X's\n");    // 输出提示信息
-        overwrite(conn, lobjOid, 4294967000U, 1000);    // 用'X'覆盖大型对象的一部分内容
+        // 输出提示信息，用 X 覆盖大型对象的字节 4294967000-4294968000
+        printf("overwriting bytes 4294967000-4294968000 of the large object with X's\n");
+        // 用'X'覆盖大型对象的一部分内容
+        overwrite(conn, lobjOid, 4294967000U, 1000);
 
-        printf("exporting large object to file \"%s\" ...\n", out_filename);    // 输出提示信息
-        if (lo_export(conn, lobjOid, out_filename) < 0)    // 将大型对象导出到文件
-            fprintf(stderr, "%s\n", PQerrorMessage(conn));    // 输出错误信息
+        // 输出提示信息，将截断的大型对象导出到文件
+        printf("exporting large object to file \"%s\" ...\n", out_filename);
+/*        exportFile(conn, lobjOid, out_filename); */
+        if (lo_export(conn, lobjOid, out_filename) < 0)
+            fprintf(stderr, "%s\n", PQerrorMessage(conn));
 
-        printf("truncating to 3294968000 bytes\n");    // 输出提示信息
-        my_truncate(conn, lobjOid, 3294968000U);    // 截断大型对象至指定长度
+        // 输出提示信息，截断到 3294968000 字节
+        printf("truncating to 3294968000 bytes\n");
+        // 截断大型对象至指定长度
+        my_truncate(conn, lobjOid, 3294968000U);
 
-        printf("exporting truncated large object to file \"%s\" ...\n", out_filename2);    // 输出提示信息
-        if (lo_export(conn, lobjOid, out_filename2) < 0)    // 将截断后的大型对象导出到文件
-            fprintf(stderr, "%s\n", PQerrorMessage(conn));    // 输出错误信息
+        // 输出提示信息，将截断的大型对象导出到文件
+        printf("exporting truncated large object to file \"%s\" ...\n", out_filename2);
+        if (lo_export(conn, lobjOid, out_filename2) < 0)
+            fprintf(stderr, "%s\n", PQerrorMessage(conn));
     }
 
-    res = PQexec(conn, "end");                    // 提交事务
-    PQclear(res);                            // 释放结果对象
-    PQfinish(conn);                            // 关闭数据库连接
-    return 0;                                // 返回0表示执行成功
+     // 提交事务
+    res = PQexec(conn, "end");
+    // 释放结果对象
+    PQclear(res);
+    // 关闭数据库连接
+    PQfinish(conn);
+    return 0;
 }
