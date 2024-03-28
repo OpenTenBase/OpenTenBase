@@ -16,6 +16,7 @@
 #define SIGLEN    ( sizeof(int)*SIGLENINT )
 #define SIGLENBIT (SIGLEN*BITBYTE)
 
+// typedef BITVEC，BITVECP实际上是一个长度为SIGLEN的char数组和char指针
 typedef char BITVEC[SIGLEN];
 typedef char *BITVECP;
 
@@ -42,8 +43,7 @@ typedef struct
     int32        vl_len_;        /* varlena header (do not touch directly!) */
     int32        flag;
     char        data[FLEXIBLE_ARRAY_MEMBER];
-} GISTTYPE;
-
+} GISTTYPE; // 索引条目的结构体定义,包含一个变长数组data保存真正的数据
 #define ALLISTRUE        0x04
 
 #define ISALLTRUE(x)    ( ((GISTTYPE*)x)->flag & ALLISTRUE )
@@ -108,8 +108,18 @@ PG_FUNCTION_INFO_V1(ghstore_picksplit);
 PG_FUNCTION_INFO_V1(ghstore_union);
 PG_FUNCTION_INFO_V1(ghstore_same);
 
+/* 实现部分，包括压缩、解压缩、检测一致性、计算罚分、选择分裂策略、合并键等操作的具体实现 */
+
+/* 包括如何将数据压缩成索引结构、如何根据索引结构判断数据匹配情况、如何选择最优的数据分裂策略等。 */
+
+
+
+
+
+
 Datum
-ghstore_compress(PG_FUNCTION_ARGS)
+/* ghstore_compress：将HStore数据压缩为GiST索引节点。 */
+ghstore_compress(PG_FUNCTION_ARGS)  
 {
     GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
     GISTENTRY  *retval = entry;
@@ -176,12 +186,13 @@ ghstore_compress(PG_FUNCTION_ARGS)
  * Since type ghstore isn't toastable (and doesn't need to be),
  * this function can be a no-op.
  */
+/* ghstore_decompress：对于HStore类型的GiST索引，这是一个空操作，因为HStore类型不需要解压缩。 */
 Datum
 ghstore_decompress(PG_FUNCTION_ARGS)
 {
     PG_RETURN_POINTER(PG_GETARG_POINTER(0));
 }
-
+/* ghstore_same：判断两个索引节点是否相同，这在检测索引的一致性时很有用。 */
 Datum
 ghstore_same(PG_FUNCTION_ARGS)
 {
@@ -270,7 +281,7 @@ unionkey(BITVECP sbase, GISTTYPE *add)
         sbase[i] |= sadd[i];
     return 0;
 }
-
+/* ghstore_union：计算一组条目的并集，用于索引节点的合并操作。 */
 Datum
 ghstore_union(PG_FUNCTION_ARGS)
 {
@@ -304,6 +315,7 @@ ghstore_union(PG_FUNCTION_ARGS)
     PG_RETURN_POINTER(result);
 }
 
+/* ghstore_penalty：计算将新条目添加到现有节点所需的“代价”，用于选择索引分裂的最优策略。 */
 Datum
 ghstore_penalty(PG_FUNCTION_ARGS)
 {
@@ -330,7 +342,7 @@ comparecost(const void *a, const void *b)
     return ((const SPLITCOST *) a)->cost - ((const SPLITCOST *) b)->cost;
 }
 
-
+/* ghstore_picksplit：选择一个分裂策略，将节点分裂成两个，以维持树的平衡。 */
 Datum
 ghstore_picksplit(PG_FUNCTION_ARGS)
 {
@@ -495,7 +507,7 @@ ghstore_picksplit(PG_FUNCTION_ARGS)
     PG_RETURN_POINTER(v);
 }
 
-
+/* ghstore_consistent：根据查询条件判断索引节点是否可能包含符合条件的条目。 */
 Datum
 ghstore_consistent(PG_FUNCTION_ARGS)
 {

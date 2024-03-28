@@ -1,18 +1,23 @@
 /* contrib/hstore/hstore--1.3--1.4.sql */
-
 -- complain if script is sourced in psql, rather than via ALTER EXTENSION
+-- 如果脚本通过 psql 而不是通过 ALTER EXTENSION 命令加载，则输出提示信息并退出
 \echo Use "ALTER EXTENSION hstore UPDATE TO '1.4'" to load this file. \quit
 
+/*更新过程签名的硬编码方式。
+我们使用 to_regprocedure() 函数，以便在针对 9.6beta1 定义运行时，查询不会失败，
+ 在这种情况下，to_regprocedure() 将返回 NULL，不会进行更新。
+
+通过将新类型转换为 OID 向 pg_proc 表中的函数更新参数类型和参数数量
+*/
 -- Update procedure signatures the hard way.
 -- We use to_regprocedure() so that query doesn't fail if run against 9.6beta1 definitions,
 -- wherein the signatures have been updated already.  In that case to_regprocedure() will
 -- return NULL and no updates will happen.
-
 UPDATE pg_catalog.pg_proc SET
   proargtypes = pg_catalog.array_to_string(newtypes::pg_catalog.oid[], ' ')::pg_catalog.oidvector,
   pronargs = pg_catalog.array_length(newtypes, 1)
 FROM (VALUES
-(NULL::pg_catalog.text, NULL::pg_catalog.regtype[]), -- establish column types
+(NULL::pg_catalog.text, NULL::pg_catalog.regtype[]), -- 确定列类型
 ('ghstore_same(internal,internal,internal)', '{ghstore,ghstore,internal}'),
 ('ghstore_consistent(internal,internal,int4,oid,internal)', '{internal,hstore,int2,oid,internal}'),
 ('gin_extract_hstore(internal,internal)', '{hstore,internal}'),
@@ -21,10 +26,12 @@ FROM (VALUES
 ) AS update_data (oldproc, newtypes)
 WHERE oid = pg_catalog.to_regprocedure(oldproc);
 
+-- 更新函数返回类型为 'ghstore' 的函数
 UPDATE pg_catalog.pg_proc SET
   prorettype = 'ghstore'::pg_catalog.regtype
 WHERE oid = pg_catalog.to_regprocedure('ghstore_union(internal,internal)');
 
+-- 将指定函数设置为并行安全
 ALTER FUNCTION hstore_in(cstring) PARALLEL SAFE;
 ALTER FUNCTION hstore_out(hstore) PARALLEL SAFE;
 ALTER FUNCTION hstore_recv(internal) PARALLEL SAFE;

@@ -7,7 +7,6 @@
 #include "fmgr.h"
 #include "utils/array.h"
 
-
 /*
  * HEntry: there is one of these for each key _and_ value in an hstore
  *
@@ -17,11 +16,11 @@
  */
 typedef struct
 {
-    uint32        entry;
+    uint32 entry;
 } HEntry;
 
 #define HENTRY_ISFIRST 0x80000000
-#define HENTRY_ISNULL  0x40000000
+#define HENTRY_ISNULL 0x40000000
 #define HENTRY_POSMASK 0x3FFFFFFF
 
 /* note possible multiple evaluations, also access to prior array element */
@@ -29,9 +28,9 @@ typedef struct
 #define HSE_ISNULL(he_) (((he_).entry & HENTRY_ISNULL) != 0)
 #define HSE_ENDPOS(he_) ((he_).entry & HENTRY_POSMASK)
 #define HSE_OFF(he_) (HSE_ISFIRST(he_) ? 0 : HSE_ENDPOS((&(he_))[-1]))
-#define HSE_LEN(he_) (HSE_ISFIRST(he_)    \
-                      ? HSE_ENDPOS(he_) \
-                      : HSE_ENDPOS(he_) - HSE_ENDPOS((&(he_))[-1]))
+#define HSE_LEN(he_) (HSE_ISFIRST(he_)      \
+                          ? HSE_ENDPOS(he_) \
+                          : HSE_ENDPOS(he_) - HSE_ENDPOS((&(he_))[-1]))
 
 /*
  * determined by the size of "endpos" (ie HENTRY_POSMASK), though this is a
@@ -43,8 +42,8 @@ typedef struct
 
 typedef struct
 {
-    int32        vl_len_;        /* varlena header (do not touch directly!) */
-    uint32        size_;            /* flags and number of items in hstore */
+    int32 vl_len_; /* varlena header (do not touch directly!) */
+    uint32 size_;  /* flags and number of items in hstore */
     /* array of HEntry follows */
 } HStore;
 
@@ -59,8 +58,7 @@ typedef struct
 #define HS_FLAG_NEWVERSION 0x80000000
 
 #define HS_COUNT(hsp_) ((hsp_)->size_ & 0x0FFFFFFF)
-#define HS_SETCOUNT(hsp_,c_) ((hsp_)->size_ = (c_) | HS_FLAG_NEWVERSION)
-
+#define HS_SETCOUNT(hsp_, c_) ((hsp_)->size_ = (c_) | HS_FLAG_NEWVERSION)
 
 /*
  * "x" comes from an existing HS_COUNT() (as discussed, <= INT_MAX/24) or a
@@ -68,19 +66,19 @@ typedef struct
  * more than INT_MAX, that extreme case arising in hstore_from_arrays().
  * Therefore, this calculation is limited to about INT_MAX / 5 + INT_MAX.
  */
-#define HSHRDSIZE    (sizeof(HStore))
-#define CALCDATASIZE(x, lenstr) ( (x) * 2 * sizeof(HEntry) + HSHRDSIZE + (lenstr) )
+#define HSHRDSIZE (sizeof(HStore))
+#define CALCDATASIZE(x, lenstr) ((x) * 2 * sizeof(HEntry) + HSHRDSIZE + (lenstr))
 
 /* note multiple evaluations of x */
-#define ARRPTR(x)        ( (HEntry*) ( (HStore*)(x) + 1 ) )
-#define STRPTR(x)        ( (char*)(ARRPTR(x) + HS_COUNT((HStore*)(x)) * 2) )
+#define ARRPTR(x) ((HEntry *)((HStore *)(x) + 1))
+#define STRPTR(x) ((char *)(ARRPTR(x) + HS_COUNT((HStore *)(x)) * 2))
 
 /* note multiple/non evaluations */
-#define HSTORE_KEY(arr_,str_,i_)    ((str_) + HSE_OFF((arr_)[2*(i_)]))
-#define HSTORE_VAL(arr_,str_,i_)    ((str_) + HSE_OFF((arr_)[2*(i_)+1]))
-#define HSTORE_KEYLEN(arr_,i_)        (HSE_LEN((arr_)[2*(i_)]))
-#define HSTORE_VALLEN(arr_,i_)        (HSE_LEN((arr_)[2*(i_)+1]))
-#define HSTORE_VALISNULL(arr_,i_)    (HSE_ISNULL((arr_)[2*(i_)+1]))
+#define HSTORE_KEY(arr_, str_, i_) ((str_) + HSE_OFF((arr_)[2 * (i_)]))
+#define HSTORE_VAL(arr_, str_, i_) ((str_) + HSE_OFF((arr_)[2 * (i_) + 1]))
+#define HSTORE_KEYLEN(arr_, i_) (HSE_LEN((arr_)[2 * (i_)]))
+#define HSTORE_VALLEN(arr_, i_) (HSE_LEN((arr_)[2 * (i_) + 1]))
+#define HSTORE_VALISNULL(arr_, i_) (HSE_ISNULL((arr_)[2 * (i_) + 1]))
 
 /*
  * currently, these following macros are the _only_ places that rely
@@ -96,54 +94,57 @@ typedef struct
  * position in the destination. lots of modification and multiple
  * evaluation here.
  */
-#define HS_COPYITEM(dent_,dbuf_,dptr_,sptr_,klen_,vlen_,vnull_)            \
-    do {                                                                \
-        memcpy((dptr_), (sptr_), (klen_)+(vlen_));                        \
-        (dptr_) += (klen_)+(vlen_);                                        \
-        (dent_)++->entry = ((dptr_) - (dbuf_) - (vlen_)) & HENTRY_POSMASK; \
-        (dent_)++->entry = ((((dptr_) - (dbuf_)) & HENTRY_POSMASK)        \
-                             | ((vnull_) ? HENTRY_ISNULL : 0));            \
-    } while(0)
+#define HS_COPYITEM(dent_, dbuf_, dptr_, sptr_, klen_, vlen_, vnull_)                                 \
+    do                                                                                                \
+    {                                                                                                 \
+        memcpy((dptr_), (sptr_), (klen_) + (vlen_));                                                  \
+        (dptr_) += (klen_) + (vlen_);                                                                 \
+        (dent_)++->entry = ((dptr_) - (dbuf_) - (vlen_)) & HENTRY_POSMASK;                            \
+        (dent_)++->entry = ((((dptr_) - (dbuf_)) & HENTRY_POSMASK) | ((vnull_) ? HENTRY_ISNULL : 0)); \
+    } while (0)
 
 /*
  * add one key/item pair, from a Pairs structure, into an
  * under-construction hstore
  */
-#define HS_ADDITEM(dent_,dbuf_,dptr_,pair_)                                \
-    do {                                                                \
-        memcpy((dptr_), (pair_).key, (pair_).keylen);                    \
-        (dptr_) += (pair_).keylen;                                        \
-        (dent_)++->entry = ((dptr_) - (dbuf_)) & HENTRY_POSMASK;        \
-        if ((pair_).isnull)                                                \
-            (dent_)++->entry = ((((dptr_) - (dbuf_)) & HENTRY_POSMASK)    \
-                                 | HENTRY_ISNULL);                        \
-        else                                                            \
-        {                                                                \
-            memcpy((dptr_), (pair_).val, (pair_).vallen);                \
-            (dptr_) += (pair_).vallen;                                    \
-            (dent_)++->entry = ((dptr_) - (dbuf_)) & HENTRY_POSMASK;    \
-        }                                                                \
+#define HS_ADDITEM(dent_, dbuf_, dptr_, pair_)                                           \
+    do                                                                                   \
+    {                                                                                    \
+        memcpy((dptr_), (pair_).key, (pair_).keylen);                                    \
+        (dptr_) += (pair_).keylen;                                                       \
+        (dent_)++->entry = ((dptr_) - (dbuf_)) & HENTRY_POSMASK;                         \
+        if ((pair_).isnull)                                                              \
+            (dent_)++->entry = ((((dptr_) - (dbuf_)) & HENTRY_POSMASK) | HENTRY_ISNULL); \
+        else                                                                             \
+        {                                                                                \
+            memcpy((dptr_), (pair_).val, (pair_).vallen);                                \
+            (dptr_) += (pair_).vallen;                                                   \
+            (dent_)++->entry = ((dptr_) - (dbuf_)) & HENTRY_POSMASK;                     \
+        }                                                                                \
     } while (0)
 
 /* finalize a newly-constructed hstore */
-#define HS_FINALIZE(hsp_,count_,buf_,ptr_)                            \
-    do {                                                            \
-        int buflen = (ptr_) - (buf_);                                \
-        if ((count_))                                                \
-            ARRPTR(hsp_)[0].entry |= HENTRY_ISFIRST;                \
-        if ((count_) != HS_COUNT((hsp_)))                            \
-        {                                                            \
-            HS_SETCOUNT((hsp_),(count_));                            \
-            memmove(STRPTR(hsp_), (buf_), buflen);                    \
-        }                                                            \
-        SET_VARSIZE((hsp_), CALCDATASIZE((count_), buflen));        \
+#define HS_FINALIZE(hsp_, count_, buf_, ptr_)                \
+    do                                                       \
+    {                                                        \
+        int buflen = (ptr_) - (buf_);                        \
+        if ((count_))                                        \
+            ARRPTR(hsp_)                                     \
+            [0].entry |= HENTRY_ISFIRST;                     \
+        if ((count_) != HS_COUNT((hsp_)))                    \
+        {                                                    \
+            HS_SETCOUNT((hsp_), (count_));                   \
+            memmove(STRPTR(hsp_), (buf_), buflen);           \
+        }                                                    \
+        SET_VARSIZE((hsp_), CALCDATASIZE((count_), buflen)); \
     } while (0)
 
 /* ensure the varlena size of an existing hstore is correct */
-#define HS_FIXSIZE(hsp_,count_)                                            \
-    do {                                                                \
-        int bl = (count_) ? HSE_ENDPOS(ARRPTR(hsp_)[2*(count_)-1]) : 0; \
-        SET_VARSIZE((hsp_), CALCDATASIZE((count_),bl));                    \
+#define HS_FIXSIZE(hsp_, count_)                                          \
+    do                                                                    \
+    {                                                                     \
+        int bl = (count_) ? HSE_ENDPOS(ARRPTR(hsp_)[2 * (count_)-1]) : 0; \
+        SET_VARSIZE((hsp_), CALCDATASIZE((count_), bl));                  \
     } while (0)
 
 /* DatumGetHStoreP includes support for reading old-format hstore values */
@@ -153,35 +154,34 @@ extern HStore *hstoreUpgrade(Datum orig);
 
 #define PG_GETARG_HS(x) DatumGetHStoreP(PG_GETARG_DATUM(x))
 
-
 /*
  * Pairs is a "decompressed" representation of one key/value pair.
  * The two strings are not necessarily null-terminated.
  */
 typedef struct
 {
-    char       *key;
-    char       *val;
-    size_t        keylen;
-    size_t        vallen;
-    bool        isnull;            /* value is null? */
-    bool        needfree;        /* need to pfree the value? */
+    char *key;
+    char *val;
+    size_t keylen;
+    size_t vallen;
+    bool isnull;   /* value is null? */
+    bool needfree; /* need to pfree the value? */
 } Pairs;
 
-extern int    hstoreUniquePairs(Pairs *a, int32 l, int32 *buflen);
+extern int hstoreUniquePairs(Pairs *a, int32 l, int32 *buflen);
 extern HStore *hstorePairs(Pairs *pairs, int32 pcount, int32 buflen);
 
 extern size_t hstoreCheckKeyLen(size_t len);
 extern size_t hstoreCheckValLen(size_t len);
 
-extern int    hstoreFindKey(HStore *hs, int *lowbound, char *key, int keylen);
+extern int hstoreFindKey(HStore *hs, int *lowbound, char *key, int keylen);
 extern Pairs *hstoreArrayToPairs(ArrayType *a, int *npairs);
 
-#define HStoreContainsStrategyNumber    7
-#define HStoreExistsStrategyNumber        9
-#define HStoreExistsAnyStrategyNumber    10
-#define HStoreExistsAllStrategyNumber    11
-#define HStoreOldContainsStrategyNumber 13    /* backwards compatibility */
+#define HStoreContainsStrategyNumber 7
+#define HStoreExistsStrategyNumber 9
+#define HStoreExistsAnyStrategyNumber 10
+#define HStoreExistsAllStrategyNumber 11
+#define HStoreOldContainsStrategyNumber 13 /* backwards compatibility */
 
 /*
  * defining HSTORE_POLLUTE_NAMESPACE=0 will prevent use of old function names;
@@ -192,14 +192,31 @@ extern Pairs *hstoreArrayToPairs(ArrayType *a, int *npairs);
 #endif
 
 #if HSTORE_POLLUTE_NAMESPACE
-#define HSTORE_POLLUTE(newname_,oldname_) \
-    PG_FUNCTION_INFO_V1(oldname_);          \
-    Datum newname_(PG_FUNCTION_ARGS);      \
+#define HSTORE_POLLUTE(newname_, oldname_)                        \
+    PG_FUNCTION_INFO_V1(oldname_);                                \
+    Datum newname_(PG_FUNCTION_ARGS);                             \
     Datum oldname_(PG_FUNCTION_ARGS) { return newname_(fcinfo); } \
     extern int no_such_variable
 #else
-#define HSTORE_POLLUTE(newname_,oldname_) \
+#define HSTORE_POLLUTE(newname_, oldname_) \
     extern int no_such_variable
 #endif
 
-#endif                            /* __HSTORE_H__ */
+#endif /* __HSTORE_H__ */
+/*
+这段代码是一个头文件（header file），定义了与HStore（HStore是一种键值对存储结构）相关的结构、宏和函数。让我逐步解释一下：
+
+结构体定义：
+
+HEntry: 每个键值对的键和值都有一个HEntry结构体来表示。
+HStore: HStore本身的结构，包含一个变长数组，存储了键值对的信息。
+宏定义：
+
+定义了HEntry结构体的一些标志位和操作，如HSE_ISFIRST、HSE_ISNULL等。
+定义了一些用于操作HStore的宏，如HS_COUNT、HS_SETCOUNT等。
+还有一些用于操作键值对的宏，如HS_COPYITEM、HS_ADDITEM等。
+函数声明：
+
+声明了一些函数，如hstoreUpgrade、hstoreUniquePairs等，用于处理HStore数据结构。
+总的来说，这个头文件定义了HStore数据结构的各种操作和相关函数，方便在代码中使用HStore进行键值对的存储和操作。 
+*/
