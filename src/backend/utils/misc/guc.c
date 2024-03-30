@@ -298,7 +298,7 @@ static void strreplace_all(char *str, char *needle, char *replacement);
 
 #ifdef __OPENTENBASE__
 static bool set_warm_shared_buffer(bool *newval, void **extra, GucSource source);
-static int32 show_total_memorysize(void);
+static const char *show_total_memorysize(void);
 
 static bool check_constrain_group(char **newval, void **extra, GucSource source);
 static void assign_constrain_group(const char *newval, void *extra);
@@ -13746,14 +13746,14 @@ set_warm_shared_buffer(bool *newval, void **extra, GucSource source)
     }
     return true;
 }
-static int32
+static const char *
 show_total_memorysize(void)
 {
     int32   size;
-//    static char buf[64];
+    static char buf[64];
     size = get_total_memory_size();
-//	snprintf(buf, sizeof(buf), "%dM", size);
-    return size;
+	snprintf(buf, sizeof(buf), "%d", size);
+    return buf;
 }
 
 static bool
