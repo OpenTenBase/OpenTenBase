@@ -13746,13 +13746,13 @@ set_warm_shared_buffer(bool *newval, void **extra, GucSource source)
     }
     return true;
 }
-static const char *
+int32
 show_total_memorysize(void)
 {
     int32   size;
-    static char buf[64];
+//    static char buf[64];
     size = get_total_memory_size();
-	snprintf(buf, sizeof(buf), "%dM", size);
+//	snprintf(buf, sizeof(buf), "%dM", size);
     return size;
 }
 
