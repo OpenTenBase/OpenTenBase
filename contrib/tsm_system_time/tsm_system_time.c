@@ -1,25 +1,20 @@
-/*-------------------------------------------------------------------------
- *
+/*
  * tsm_system_time.c
- *      support routines for SYSTEM_TIME tablesample method
+ *      支持SYSTEM_TIME表采样方法的例程
  *
- * The desire here is to produce a random sample with as many rows as possible
- * in no more than the specified amount of time.  We use a block-sampling
- * approach.  To ensure that the whole relation will be visited if necessary,
- * we start at a randomly chosen block and then advance with a stride that
- * is randomly chosen but is relatively prime to the relation's nblocks.
+ * 我们的目标是在不超过指定时间的情况下产生一个包含尽可能多行的随机样本。我们使用块采样方法。为了确保必要时能够访问整个关系，
+ * 我们从一个随机选择的块开始，然后用一个步长进行推进，这个步长是随机选择的，但是与关系的nblocks互质。
  *
- * Because of the time dependence, this method is necessarily unrepeatable.
- * However, we do what we can to reduce surprising behavior by selecting
- * the sampling pattern just once per query, much as in tsm_system_rows.
+ * 由于依赖于时间，这种方法本质上是无法重复的。
+ * 然而，我们尽可能减少意外行为，通过每个查询只选择一次采样模式，就像在tsm_system_rows中一样。
  *
- * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
- * Portions Copyright (c) 1994, Regents of the University of California
+ * 部分版权所有 (c) 1996-2017, PostgreSQL全球开发组
+ * 部分版权所有 (c) 1994, 加利福尼亚大学董事会
  *
- * IDENTIFICATION
+ * 识别
  *      contrib/tsm_system_time/tsm_system_time.c
  *
- *-------------------------------------------------------------------------
+ *---------------------------------------------------------
  */
 
 #include "postgres.h" // 包含PostgreSQL的核心头文件
