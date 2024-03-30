@@ -13752,7 +13752,7 @@ show_total_memorysize(void)
     int32   size;
     static char buf[64];
     size = get_total_memory_size();
-	snprintf(buf, sizeof(buf), "%dM", size);
+	snprintf(buf, sizeof(buf), "%d", size);
     return buf;
 }
 
