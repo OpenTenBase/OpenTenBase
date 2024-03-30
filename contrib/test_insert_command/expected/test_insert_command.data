@@ -1,0 +1,35 @@
+#预期结果：
+
+#测试用例 1：使用 VALUES 插入单条记录
+ name  | student_id | gender | age 
+-------+------------+--------+-----
+ Alice | S001       | Female |  20
+(1 row)
+
+#测试用例 2：使用 VALUES 插入多条记录
+ name    | student_id | gender | age 
+---------+------------+--------+-----
+ Bob     | S002       | Male   |  22
+ Charlie | S003       | Male   |  21
+ David   | S004       | Male   |  23
+(3 rows)
+
+#测试用例 3：使用子查询插入数据
+ name  | student_id | gender | age 
+-------+------------+--------+-----
+ Bob   | S002       | Male   |  22
+ David | S004       | Male   |  23
+(2 rows)
+
+#测试用例 4：使用 VALUES 插入数据并返回插入的数据
+ name | student_id | gender | age 
+------+------------+--------+-----
+ Eve  | S005       | Female |  21
+(1 row)
+
+#测试用例 5：使用子查询插入数据并返回插入的数据
+ name  | student_id | gender | age 
+-------+------------+--------+-----
+ Bob   | S002       | Male   |  22
+ David | S004       | Male   |  23
+(2 rows)
