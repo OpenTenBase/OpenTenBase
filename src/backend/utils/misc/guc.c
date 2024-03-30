@@ -13752,6 +13752,9 @@ show_total_memorysize(void)
     int32   size;
     static char buf[64];
     size = get_total_memory_size();
+    /*
+     * session_memory_size再pg_setting中的值是int类型，单位为M，所以不要有单位显示，防止报错
+     */
 	snprintf(buf, sizeof(buf), "%d", size);
     return buf;
 }
