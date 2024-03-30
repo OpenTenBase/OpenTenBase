@@ -22,31 +22,36 @@
  *-------------------------------------------------------------------------
  */
 
-#include "postgres.h"
+#include "postgres.h" // 包含PostgreSQL的核心头文件
 
+// 如果是MSVC编译器，则包含额外的头文件
 #ifdef _MSC_VER
-#include <float.h>                /* for _isnan */
+#include <float.h> // 包含isnan函数的声明
 #endif
-#include <math.h>
+#include <math.h> // 包含数学函数的声明
 
-#include "access/relscan.h"
-#include "access/tsmapi.h"
-#include "catalog/pg_type.h"
-#include "miscadmin.h"
-#include "optimizer/clauses.h"
-#include "optimizer/cost.h"
-#include "utils/sampling.h"
-#include "utils/spccache.h"
+// 包含其他必要的PostgreSQL头文件
+#include "access/relscan.h" // 关系扫描
+#include "access/tsmapi.h" // 表采样方法API
+#include "catalog/pg_type.h" // 类型信息
+#include "miscadmin.h" // 杂项管理
+#include "optimizer/clauses.h" // 查询优化器中的子句处理
+#include "optimizer/cost.h" // 查询优化器中的成本估计
+#include "utils/sampling.h" // 采样工具
+#include "utils/spccache.h" // 表空间缓存
 
+// 模块魔术值，用于插件系统
 PG_MODULE_MAGIC;
 
 PG_FUNCTION_INFO_V1(tsm_system_time_handler);
 
-
+/*
+ * 系统时间采样器的私有状态结构体。
+ */
 /* Private state */
 typedef struct
 {
-    uint32        seed;            /* random seed */
+    uint32        seed;            /* random seed */// 随机种子
     double        millis;            /* time limit for sampling */
     instr_time    start_time;        /* scan start time */
     OffsetNumber lt;            /* last tuple returned from current block */
@@ -57,7 +62,7 @@ typedef struct
     BlockNumber firstblock;        /* first block to sample from */
     BlockNumber step;            /* step size, or 0 if not set yet */
 } SystemTimeSamplerData;
-
+// 静态函数声明
 static void system_time_samplescangetsamplesize(PlannerInfo *root,
                                     RelOptInfo *baserel,
                                     List *paramexprs,
@@ -77,116 +82,130 @@ static uint32 random_relative_prime(uint32 n, SamplerRandomState randstate);
 
 
 /*
- * Create a TsmRoutine descriptor for the SYSTEM_TIME method.
+ * 创建一个TsmRoutine描述符，用于SYSTEM_TIME方法。
  */
+// tsm_system_time_handler是一个函数，它在PostgreSQL的表采样器插件系统中注册一个基于系统时间的采样方法。
 Datum
 tsm_system_time_handler(PG_FUNCTION_ARGS)
 {
+    // 创建一个新的TsmRoutine结构体实例，用于描述采样方法的特性和行为。
     TsmRoutine *tsm = makeNode(TsmRoutine);
 
+    // 设置采样方法接受的参数类型。这里只接受一个参数，类型为浮点数（FLOAT8OID）。
     tsm->parameterTypes = list_make1_oid(FLOAT8OID);
 
-    /* See notes at head of file */
+    // 这些标志指示采样方法是否可以在查询之间或扫描之间重复使用。
+    // 对于基于时间的采样方法，我们设置为false，因为每次调用都需要重新计算。
     tsm->repeatable_across_queries = false;
     tsm->repeatable_across_scans = false;
 
+    // 指定采样方法的各个步骤对应的函数。
+    // SampleScanGetSampleSize：估计采样大小的函数。
     tsm->SampleScanGetSampleSize = system_time_samplescangetsamplesize;
+    // InitSampleScan：初始化采样扫描的函数。
     tsm->InitSampleScan = system_time_initsamplescan;
+    // BeginSampleScan：开始采样扫描的函数。
     tsm->BeginSampleScan = system_time_beginsamplescan;
+    // NextSampleBlock：选择下一个采样块的函数。
     tsm->NextSampleBlock = system_time_nextsampleblock;
+    // NextSampleTuple：选择下一个采样元组的函数。
     tsm->NextSampleTuple = system_time_nextsampletuple;
+    // EndSampleScan：结束采样扫描的函数。这里设置为NULL，因为基于时间的采样不需要特别的结束处理。
     tsm->EndSampleScan = NULL;
 
+    // 返回创建的TsmRoutine结构体，这样PostgreSQL就可以使用这个采样方法了。
     PG_RETURN_POINTER(tsm);
 }
-
 /*
- * Sample size estimation.
+ * 系统时间采样方法的采样大小估计函数。
  */
 static void
-system_time_samplescangetsamplesize(PlannerInfo *root,
-                                    RelOptInfo *baserel,
-                                    List *paramexprs,
-                                    BlockNumber *pages,
-                                    double *tuples)
+system_time_samplescangetsamplesize(PlannerInfo *root, // 指向查询计划器信息的结构体
+                                    RelOptInfo *baserel, // 指向基础关系（表）的优化信息
+                                    List *paramexprs, // 采样方法参数的表达式列表
+                                    BlockNumber *pages, // 输出参数，用于存储估计的页数
+                                    double *tuples) // 输出参数，用于存储估计的元组数
 {
-    Node       *limitnode;
-    double        millis;
-    double        spc_random_page_cost;
-    double        npages;
-    double        ntuples;
+    Node       *limitnode; // 用于存储时间限制表达式的节点
+    double        millis; // 用于存储时间限制的毫秒数
+    double        spc_random_page_cost; // 表空间的随机读取成本（每页）
+    double        npages; // 估计的页数
+    double        ntuples; // 估计的元组数
 
-    /* Try to extract an estimate for the limit time spec */
+    // 尝试从参数中提取时间限制的估计值
     limitnode = (Node *) linitial(paramexprs);
     limitnode = estimate_expression_value(root, limitnode);
 
+    // 如果提取的值是一个非空的常数值，则将其转换为双精度浮点数
     if (IsA(limitnode, Const) &&
         !((Const *) limitnode)->constisnull)
     {
         millis = DatumGetFloat8(((Const *) limitnode)->constvalue);
+        // 如果时间限制是负数或NaN，则使用默认值1000毫秒
         if (millis < 0 || isnan(millis))
         {
-            /* Default millis if the value is bogus */
             millis = 1000;
         }
     }
     else
     {
-        /* Default millis if we didn't obtain a non-null Const */
+        // 如果没有获取到非空的常数值，则同样使用默认时间限制1000毫秒
         millis = 1000;
     }
 
-    /* Get the planner's idea of cost per page read */
+    // 获取计划器对表空间的随机读取成本的估计
     get_tablespace_page_costs(baserel->reltablespace,
                               &spc_random_page_cost,
                               NULL);
+}
 
     /*
-     * Estimate the number of pages we can read by assuming that the cost
-     * figure is expressed in milliseconds.  This is completely, unmistakably
-     * bogus, but we have to do something to produce an estimate and there's
-     * no better answer.
+     * 通过假设成本数字表示的是毫秒来估计我们可以读取的页数。这完全是、毫无疑问地
+     * 错误的，但我们必须做点什么来产生一个估计，而且没有更好的答案。
      */
-    if (spc_random_page_cost > 0)
-        npages = millis / spc_random_page_cost;
-    else
-        npages = millis;        /* even more bogus, but whatcha gonna do? */
+    // 根据毫秒数和每页的成本估计我们可以读取的页数
+if (spc_random_page_cost > 0)
+    npages = millis / spc_random_page_cost; // 如果每页的成本大于0，页数等于毫秒数除以每页成本
+else
+    npages = millis; // 如果每页成本不大于0，页数等于毫秒数（这个估计不太准确）
 
-    /* Clamp to sane value */
-    npages = clamp_row_est(Min((double) baserel->pages, npages));
+// 将页数限制在一个合理的值
+npages = clamp_row_est(Min((double) baserel->pages, npages)); // 取baserel->pages和npages的最小值，并应用clamp_row_est函数进行限制
 
-    if (baserel->tuples > 0 && baserel->pages > 0)
-    {
-        /* Estimate number of tuples returned based on tuple density */
-        double        density = baserel->tuples / (double) baserel->pages;
+// 如果基础关系中有元组和页数的信息
+if (baserel->tuples > 0 && baserel->pages > 0)
+{
+    // 根据元组密度估计返回的元组数
+    double        density = baserel->tuples / (double) baserel->pages;
 
-        ntuples = npages * density;
-    }
-    else
-    {
-        /* For lack of data, assume one tuple per page */
-        ntuples = npages;
-    }
+    ntuples = npages * density; // 估计的元组数等于页数乘以元组密度
+}
+else
+{
+    // 由于缺乏数据，假设每页有一个元组
+    ntuples = npages;
+}
 
-    /* Clamp to the estimated relation size */
-    ntuples = clamp_row_est(Min(baserel->tuples, ntuples));
+// 将估计的元组数限制在关系大小的范围内
+ntuples = clamp_row_est(Min(baserel->tuples, ntuples)); // 取baserel->tuples和ntuples的最小值，并应用clamp_row_est函数进行限制
 
-    *pages = npages;
-    *tuples = ntuples;
+// 将估计的页数和元组数赋值给输出参数
+*pages = npages;
+*tuples = ntuples;
 }
 
 /*
- * Initialize during executor setup.
+ * 在执行器设置期间初始化采样扫描。
  */
 static void
 system_time_initsamplescan(SampleScanState *node, int eflags)
 {
-    node->tsm_state = palloc0(sizeof(SystemTimeSamplerData));
-    /* Note the above leaves tsm_state->step equal to zero */
+    node->tsm_state = palloc0(sizeof(SystemTimeSamplerData)); // 为采样器状态分配内存并初始化
+    // 注意上述操作使tsm_state->step保持为0
 }
 
 /*
- * Examine parameters and prepare for a sample scan.
+ * 检查参数并准备进行采样扫描。
  */
 static void
 system_time_beginsamplescan(SampleScanState *node,
@@ -194,65 +213,64 @@ system_time_beginsamplescan(SampleScanState *node,
                             int nparams,
                             uint32 seed)
 {
-    SystemTimeSamplerData *sampler = (SystemTimeSamplerData *) node->tsm_state;
-    double        millis = DatumGetFloat8(params[0]);
+    SystemTimeSamplerData *sampler = (SystemTimeSamplerData *) node->tsm_state; // 采样器状态
+    double        millis = DatumGetFloat8(params[0]); // 从参数中获取毫秒数
 
+// 如果毫秒数是负数或NaN，报告错误
     if (millis < 0 || isnan(millis))
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_TABLESAMPLE_ARGUMENT),
                  errmsg("sample collection time must not be negative")));
 
-    sampler->seed = seed;
-    sampler->millis = millis;
-    sampler->lt = InvalidOffsetNumber;
-    sampler->doneblocks = 0;
-    /* start_time, lb will be initialized during first NextSampleBlock call */
-    /* we intentionally do not change nblocks/firstblock/step here */
+    sampler->seed = seed; // 设置随机种子
+    sampler->millis = millis; // 设置采样时间限制
+    sampler->lt = InvalidOffsetNumber; // 设置最后一个元组偏移量为无效
+    sampler->doneblocks = 0; // 设置已扫描块数为0
+    // start_time, lb将在第一次NextSampleBlock调用时初始化
+    // 我们有意不在这里改变nblocks/firstblock/step的值
 }
 
 /*
- * Select next block to sample.
+ * 选择下一个要采样的块。
  *
- * Uses linear probing algorithm for picking next block.
+ * 使用线性探测算法来选择下一个块。
  */
 static BlockNumber
-system_time_nextsampleblock(SampleScanState *node)
+system_time_nextsampleblock(SampleScanState *node) // node是当前采样扫描的状态结构体
 {
-    SystemTimeSamplerData *sampler = (SystemTimeSamplerData *) node->tsm_state;
-    HeapScanDesc scan = node->ss.ss_currentScanDesc;
-    instr_time    cur_time;
+    SystemTimeSamplerData *sampler = (SystemTimeSamplerData *) node->tsm_state; // 从状态结构体中获取采样器数据
+    HeapScanDesc scan = node->ss.ss_currentScanDesc; // 获取当前扫描描述符
+    instr_time    cur_time; // 当前时间
 
-    /* First call within scan? */
+    // 这是扫描过程中的第一次调用吗？
     if (sampler->doneblocks == 0)
     {
-        /* First scan within query? */
+        // 这是查询中的第一次扫描吗？
         if (sampler->step == 0)
         {
-            /* Initialize now that we have scan descriptor */
-            SamplerRandomState randstate;
+            // 现在我们已经有了扫描描述符，可以进行初始化
+            SamplerRandomState randstate; // 随机状态
 
-            /* If relation is empty, there's nothing to scan */
+            // 如果关系（表）为空，则无需扫描
             if (scan->rs_nblocks == 0)
-                return InvalidBlockNumber;
+                return InvalidBlockNumber; // 返回无效块号
 
-            /* We only need an RNG during this setup step */
-            sampler_random_init_state(sampler->seed, randstate);
+            // 我们只在设置步骤时需要随机数生成器
+            sampler_random_init_state(sampler->seed, randstate); // 初始化随机状态
 
-            /* Compute nblocks/firstblock/step only once per query */
-            sampler->nblocks = scan->rs_nblocks;
+            // 每个查询只计算一次块数、起始块和步长
+            sampler->nblocks = scan->rs_nblocks; // 关系中的块数
 
-            /* Choose random starting block within the relation */
-            /* (Actually this is the predecessor of the first block visited) */
-            sampler->firstblock = sampler_random_fract(randstate) *
-                sampler->nblocks;
+            // 选择关系内的一个随机起始块
+            sampler->firstblock = sampler_random_fract(randstate) * sampler->nblocks;
 
-            /* Find relative prime as step size for linear probing */
+            // 为线性探测找到与块数相对质的步长
             sampler->step = random_relative_prime(sampler->nblocks, randstate);
         }
 
-        /* Reinitialize lb and start_time */
-        sampler->lb = sampler->firstblock;
-        INSTR_TIME_SET_CURRENT(sampler->start_time);
+        // 重置最后一个块和开始时间
+        sampler->lb = sampler->firstblock; // 设置最后一个块为起始块
+        INSTR_TIME_SET_CURRENT(sampler->start_time); // 设置当前时间为开始时间
     }
 
     /* If we've read all blocks in relation, we're done */
@@ -265,11 +283,9 @@ system_time_nextsampleblock(SampleScanState *node)
     if (INSTR_TIME_GET_MILLISEC(cur_time) >= sampler->millis)
         return InvalidBlockNumber;
 
-    /*
-     * It's probably impossible for scan->rs_nblocks to decrease between scans
-     * within a query; but just in case, loop until we select a block number
-     * less than scan->rs_nblocks.  We don't care if scan->rs_nblocks has
-     * increased since the first scan.
+   /*
+     * 在一个查询中的扫描之间，scan->rs_nblocks减少的可能性大概是不存在的；
+     * 但为了安全起见，循环直到我们选择一个小于scan->rs_nblocks的块号。我们不关心自第一次扫描以来scan->rs_nblocks是否增加了。
      */
     do
     {
@@ -281,78 +297,74 @@ system_time_nextsampleblock(SampleScanState *node)
 }
 
 /*
- * Select next sampled tuple in current block.
+ * 选择当前块中的下一个采样元组。
  *
- * In block sampling, we just want to sample all the tuples in each selected
- * block.
+ * 在块采样中，我们的目标是采样每个选中块中的所有元组。
  *
- * When we reach end of the block, return InvalidOffsetNumber which tells
- * SampleScan to go to next block.
+ * 当我们到达块的末尾时，返回InvalidOffsetNumber，这会指示SampleScan继续到下一个块。
  */
+
 static OffsetNumber
-system_time_nextsampletuple(SampleScanState *node,
-                            BlockNumber blockno,
-                            OffsetNumber maxoffset)
+system_time_nextsampletuple(SampleScanState *node, // 当前采样扫描的状态结构体
+                            BlockNumber blockno, // 当前块的块号
+                            OffsetNumber maxoffset) // 当前块中的最大元组偏移量
 {
-    SystemTimeSamplerData *sampler = (SystemTimeSamplerData *) node->tsm_state;
-    OffsetNumber tupoffset = sampler->lt;
+    SystemTimeSamplerData *sampler = (SystemTimeSamplerData *) node->tsm_state; // 从状态结构体中获取采样器数据
+    OffsetNumber tupoffset = sampler->lt; // 获取最后一个处理的元组偏移量
 
-    /* Advance to next possible offset on page */
+    // 推进到页上的下一个可能的元组偏移量
     if (tupoffset == InvalidOffsetNumber)
-        tupoffset = FirstOffsetNumber;
+        tupoffset = FirstOffsetNumber; // 如果最后一个偏移量无效，则从第一个偏移量开始
     else
-        tupoffset++;
+        tupoffset++; // 否则，递增到下一个偏移量
 
-    /* Done? */
+    // 是否完成当前块的采样？
     if (tupoffset > maxoffset)
-        tupoffset = InvalidOffsetNumber;
+        tupoffset = InvalidOffsetNumber; // 如果当前偏移量超出了块的范围，则设置为无效偏移量
 
-    sampler->lt = tupoffset;
+    sampler->lt = tupoffset; // 更新最后一个处理的元组偏移量
 
-    return tupoffset;
+    return tupoffset; // 返回当前元组偏移量
 }
 
 /*
- * Compute greatest common divisor of two uint32's.
+ * 计算两个uint32类型数的最大公约数。
  */
 static uint32
 gcd(uint32 a, uint32 b)
 {
     uint32        c;
 
+    // 使用欧几里得算法计算最大公约数
     while (a != 0)
     {
         c = a;
-        a = b % a;
-        b = c;
+        a = b % a; // 计算b除以a的余数
+        b = c; // 然后将a的值赋给b，继续循环
     }
 
-    return b;
+    return b; // 返回最大公约数
 }
-
 /*
- * Pick a random value less than and relatively prime to n, if possible
- * (else return 1).
+ * 选择一个小于`n`并且与`n`互质的随机值，如果可能的话（否则返回1）。
  */
 static uint32
 random_relative_prime(uint32 n, SamplerRandomState randstate)
 {
-    uint32        r;
+    uint32        r; // 用于存储随机生成的数
 
-    /* Safety check to avoid infinite loop or zero result for small n. */
+    // 安全检查，避免无限循环或对于小的`n`返回零结果。
     if (n <= 1)
-        return 1;
+        return 1; // 如果`n`小于或等于1，直接返回1，因为1与任何正整数都互质。
 
-    /*
-     * This should only take 2 or 3 iterations as the probability of 2 numbers
-     * being relatively prime is ~61%; but just in case, we'll include a
-     * CHECK_FOR_INTERRUPTS in the loop.
-     */
+    // 循环生成随机数，直到找到一个与`n`互质的数。
+    // 理论上，只需要2或3次迭代，因为两个数互质的概率约为61%。
+    // 但是为了安全起见，在循环中包含CHECK_FOR_INTERRUPTS，以处理可能的中断。
     do
     {
-        CHECK_FOR_INTERRUPTS();
-        r = (uint32) (sampler_random_fract(randstate) * n);
-    } while (r == 0 || gcd(r, n) > 1);
+        CHECK_FOR_INTERRUPTS(); // 检查是否有中断信号
+        r = (uint32) (sampler_random_fract(randstate) * n); // 生成一个0到`n`之间的随机浮点数，并转换为无符号整数
+    } while (r == 0 || gcd(r, n) > 1); // 如果`r`为0或与`n`不互质，则继续循环
 
-    return r;
+    return r; // 返回找到的与`n`互质的随机数
 }
