@@ -24,16 +24,26 @@
 PG_MODULE_MAGIC;
 
 /* GUC variables */
+/* 自动执行计划日志记录的最短执行时间（毫秒），-1表示禁用 */
 static int    auto_explain_log_min_duration = -1; /* msec or -1 */
+/* 是否使用EXPLAIN ANALYZE记录执行计划 */
 static bool auto_explain_log_analyze = false;
+/* 是否记录详细信息 */
 static bool auto_explain_log_verbose = false;
+/* 是否记录缓冲区信息 */
 static bool auto_explain_log_buffers = false;
+/* 是否记录触发器信息 */
 static bool auto_explain_log_triggers = false;
+/* 是否记录计时信息 */
 static bool auto_explain_log_timing = true;
+/* 记录格式 */
 static int    auto_explain_log_format = EXPLAIN_FORMAT_TEXT;
+/* 是否记录嵌套语句 */
 static bool auto_explain_log_nested_statements = false;
+/* 执行计划采样率 */
 static double auto_explain_sample_rate = 1;
 
+/* 计划格式选项 */
 static const struct config_enum_entry format_options[] = {
     {"text", EXPLAIN_FORMAT_TEXT, false},
     {"xml", EXPLAIN_FORMAT_XML, false},
@@ -43,17 +53,21 @@ static const struct config_enum_entry format_options[] = {
 };
 
 /* Current nesting depth of ExecutorRun calls */
+/* ExecutorRun调用的当前嵌套深度 */
 static int    nesting_level = 0;
 
 /* Saved hook values in case of unload */
+/* 卸载时保存的钩子值 */
 static ExecutorStart_hook_type prev_ExecutorStart = NULL;
 static ExecutorRun_hook_type prev_ExecutorRun = NULL;
 static ExecutorFinish_hook_type prev_ExecutorFinish = NULL;
 static ExecutorEnd_hook_type prev_ExecutorEnd = NULL;
 
 /* Is the current query sampled, per backend */
+/* 当前查询是否采样 */
 static bool current_query_sampled = true;
 
+/* 检查自动执行计划是否启用 */
 #define auto_explain_enabled() \
     (auto_explain_log_min_duration >= 0 && \
      (nesting_level == 0 || auto_explain_log_nested_statements))
@@ -61,6 +75,7 @@ static bool current_query_sampled = true;
 void        _PG_init(void);
 void        _PG_fini(void);
 
+/* 执行计划钩子函数 */
 static void explain_ExecutorStart(QueryDesc *queryDesc, int eflags);
 static void explain_ExecutorRun(QueryDesc *queryDesc,
                     ScanDirection direction,
@@ -72,6 +87,9 @@ static void explain_ExecutorEnd(QueryDesc *queryDesc);
 /*
  * Module load callback
  */
+ /*
+  * 模块加载回调
+  */
 void
 _PG_init(void)
 {
@@ -260,22 +278,22 @@ explain_ExecutorStart(QueryDesc *queryDesc, int eflags)
  * ExecutorRun hook: all we need do is track nesting depth
  */
 static void
-explain_ExecutorRun(QueryDesc *queryDesc, ScanDirection direction,
-                    uint64 count, bool execute_once)
+explain_ExecutorRun(QueryDesc* queryDesc, ScanDirection direction,
+    uint64 count, bool execute_once)
 {
-    nesting_level++;
+    nesting_level++; // 增加嵌套深度
     PG_TRY();
     {
         if (prev_ExecutorRun)
-            prev_ExecutorRun(queryDesc, direction, count, execute_once);
+            prev_ExecutorRun(queryDesc, direction, count, execute_once); // 调用原始 ExecutorRun 函数
         else
-            standard_ExecutorRun(queryDesc, direction, count, execute_once);
-        nesting_level--;
+            standard_ExecutorRun(queryDesc, direction, count, execute_once); // 使用标准 ExecutorRun 函数
+        nesting_level--; // 减少嵌套深度
     }
     PG_CATCH();
     {
-        nesting_level--;
-        PG_RE_THROW();
+        nesting_level--; // 减少嵌套深度
+        PG_RE_THROW(); // 重新抛出异常
     }
     PG_END_TRY();
 }
@@ -284,21 +302,21 @@ explain_ExecutorRun(QueryDesc *queryDesc, ScanDirection direction,
  * ExecutorFinish hook: all we need do is track nesting depth
  */
 static void
-explain_ExecutorFinish(QueryDesc *queryDesc)
+explain_ExecutorFinish(QueryDesc* queryDesc)
 {
-    nesting_level++;
+    nesting_level++; // 增加嵌套深度
     PG_TRY();
     {
         if (prev_ExecutorFinish)
-            prev_ExecutorFinish(queryDesc);
+            prev_ExecutorFinish(queryDesc); // 调用原始 ExecutorFinish 函数
         else
-            standard_ExecutorFinish(queryDesc);
-        nesting_level--;
+            standard_ExecutorFinish(queryDesc); // 使用标准 ExecutorFinish 函数
+        nesting_level--; // 减少嵌套深度
     }
     PG_CATCH();
     {
-        nesting_level--;
-        PG_RE_THROW();
+        nesting_level--; // 减少嵌套深度
+        PG_RE_THROW(); // 重新抛出异常
     }
     PG_END_TRY();
 }
@@ -307,7 +325,7 @@ explain_ExecutorFinish(QueryDesc *queryDesc)
  * ExecutorEnd hook: log results if needed
  */
 static void
-explain_ExecutorEnd(QueryDesc *queryDesc)
+explain_ExecutorEnd(QueryDesc* queryDesc)
 {
     if (queryDesc->totaltime && auto_explain_enabled() && current_query_sampled)
     {
@@ -317,31 +335,31 @@ explain_ExecutorEnd(QueryDesc *queryDesc)
          * Make sure stats accumulation is done.  (Note: it's okay if several
          * levels of hook all do this.)
          */
-        InstrEndLoop(queryDesc->totaltime);
+        InstrEndLoop(queryDesc->totaltime); // 结束循环并统计执行时间
 
         /* Log plan if duration is exceeded. */
-        msec = queryDesc->totaltime->total * 1000.0;
-        if (msec >= auto_explain_log_min_duration)
+        msec = queryDesc->totaltime->total * 1000.0; // 将执行时间转换为毫秒
+        if (msec >= auto_explain_log_min_duration) // 如果执行时间超过设定的最小记录时间
         {
-            ExplainState *es = NewExplainState();
+            ExplainState* es = NewExplainState(); // 创建 ExplainState 结构体
 
-            es->analyze = (queryDesc->instrument_options && auto_explain_log_analyze);
-            es->verbose = auto_explain_log_verbose;
-            es->buffers = (es->analyze && auto_explain_log_buffers);
-            es->timing = (es->analyze && auto_explain_log_timing);
-            es->summary = es->analyze;
-            es->format = auto_explain_log_format;
+            es->analyze = (queryDesc->instrument_options && auto_explain_log_analyze); // 是否分析执行计划
+            es->verbose = auto_explain_log_verbose; // 是否记录详细信息
+            es->buffers = (es->analyze && auto_explain_log_buffers); // 是否记录缓冲区信息
+            es->timing = (es->analyze && auto_explain_log_timing); // 是否记录计时信息
+            es->summary = es->analyze; // 是否总结执行计划
+            es->format = auto_explain_log_format; // 记录格式
 
-            ExplainBeginOutput(es);
-            ExplainQueryText(es, queryDesc);
-            ExplainPrintPlan(es, queryDesc);
+            ExplainBeginOutput(es); // 开始记录输出
+            ExplainQueryText(es, queryDesc); // 记录查询文本
+            ExplainPrintPlan(es, queryDesc); // 记录执行计划
             if (es->analyze && auto_explain_log_triggers)
-                ExplainPrintTriggers(es, queryDesc);
-            ExplainEndOutput(es);
+                ExplainPrintTriggers(es, queryDesc); // 记录触发器信息
+            ExplainEndOutput(es); // 结束记录输出
 
             /* Remove last line break */
             if (es->str->len > 0 && es->str->data[es->str->len - 1] == '\n')
-                es->str->data[--es->str->len] = '\0';
+                es->str->data[--es->str->len] = '\0'; // 移除最后一个换行符
 
             /* Fix JSON to output an object */
             if (auto_explain_log_format == EXPLAIN_FORMAT_JSON)
@@ -357,16 +375,16 @@ explain_ExecutorEnd(QueryDesc *queryDesc)
              * often result in duplication.
              */
             ereport(LOG,
-                    (errmsg("duration: %.3f ms  plan:\n%s",
-                            msec, es->str->data),
-                     errhidestmt(true)));
+                (errmsg("duration: %.3f ms  plan:\n%s",
+                    msec, es->str->data),
+                    errhidestmt(true))); // 记录执行计划到日志中
 
-            pfree(es->str->data);
+            pfree(es->str->data); // 释放 ExplainState 结构体中的字符串数据
         }
     }
 
     if (prev_ExecutorEnd)
-        prev_ExecutorEnd(queryDesc);
+        prev_ExecutorEnd(queryDesc); // 调用原始 ExecutorEnd 函数
     else
-        standard_ExecutorEnd(queryDesc);
+        standard_ExecutorEnd(queryDesc); // 使用标准 ExecutorEnd 函数
 }

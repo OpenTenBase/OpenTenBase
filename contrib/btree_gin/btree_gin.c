@@ -207,76 +207,169 @@ gin_compare_prefix_##type(PG_FUNCTION_ARGS)                                    \
 static Datum
 leftmostvalue_int2(void)
 {
-    return Int16GetDatum(SHRT_MIN);
+    return Int16GetDatum(SHRT_MIN); // 返回 int2 类型的最小值
 }
 
-GIN_SUPPORT(int2, false, leftmostvalue_int2, btint2cmp)
+GIN_SUPPORT(int2, false, leftmostvalue_int2, btint2cmp) // 为 int2 类型创建GIN索引
 
 static Datum
 leftmostvalue_int4(void)
 {
-    return Int32GetDatum(INT_MIN);
+    return Int32GetDatum(INT_MIN); // 返回 int4 类型的最小值
 }
 
-GIN_SUPPORT(int4, false, leftmostvalue_int4, btint4cmp)
+GIN_SUPPORT(int4, false, leftmostvalue_int4, btint4cmp) // 为 int4 类型创建GIN索引
 
 static Datum
 leftmostvalue_int8(void)
 {
-    return Int64GetDatum(PG_INT64_MIN);
+    return Int64GetDatum(PG_INT64_MIN); // 返回 int8 类型的最小值
 }
 
-GIN_SUPPORT(int8, false, leftmostvalue_int8, btint8cmp)
+GIN_SUPPORT(int8, false, leftmostvalue_int8, btint8cmp) // 为 int8 类型创建GIN索引
 
 static Datum
 leftmostvalue_float4(void)
 {
-    return Float4GetDatum(-get_float4_infinity());
+    return Float4GetDatum(-get_float4_infinity()); // 返回 float4 类型的最小值
 }
 
-GIN_SUPPORT(float4, false, leftmostvalue_float4, btfloat4cmp)
+GIN_SUPPORT(float4, false, leftmostvalue_float4, btfloat4cmp) // 为 float4 类型创建GIN索引
 
 static Datum
 leftmostvalue_float8(void)
 {
-    return Float8GetDatum(-get_float8_infinity());
+    return Float8GetDatum(-get_float8_infinity()); // 返回 float8 类型的最小值
 }
 
-GIN_SUPPORT(float8, false, leftmostvalue_float8, btfloat8cmp)
+GIN_SUPPORT(float8, false, leftmostvalue_float8, btfloat8cmp) // 为 float8 类型创建GIN索引
 
 static Datum
 leftmostvalue_money(void)
 {
-    return Int64GetDatum(PG_INT64_MIN);
+    return Int64GetDatum(PG_INT64_MIN); // 返回 money 类型的最小值
 }
 
-GIN_SUPPORT(money, false, leftmostvalue_money, cash_cmp)
+GIN_SUPPORT(money, false, leftmostvalue_money, cash_cmp) // 为 money 类型创建GIN索引
 
 static Datum
 leftmostvalue_oid(void)
 {
-    return ObjectIdGetDatum(0);
+    return ObjectIdGetDatum(0); // 返回 oid 类型的最小值
 }
 
-GIN_SUPPORT(oid, false, leftmostvalue_oid, btoidcmp)
+GIN_SUPPORT(oid, false, leftmostvalue_oid, btoidcmp) // 为 oid 类型创建GIN索引
 
 static Datum
 leftmostvalue_timestamp(void)
 {
-    return TimestampGetDatum(DT_NOBEGIN);
+    return TimestampGetDatum(DT_NOBEGIN); // 返回 timestamp 类型的最小值
 }
 
-GIN_SUPPORT(timestamp, false, leftmostvalue_timestamp, timestamp_cmp)
+GIN_SUPPORT(timestamp, false, leftmostvalue_timestamp, timestamp_cmp) // 为 timestamp 类型创建GIN索引
 
-GIN_SUPPORT(timestamptz, false, leftmostvalue_timestamp, timestamp_cmp)
+GIN_SUPPORT(timestamptz, false, leftmostvalue_timestamp, timestamp_cmp) // 为 timestamptz 类型创建GIN索引
 
 static Datum
 leftmostvalue_time(void)
 {
-    return TimeADTGetDatum(0);
+    return TimeADTGetDatum(0); // 返回 time 类型的最小值
 }
 
-GIN_SUPPORT(time, false, leftmostvalue_time, time_cmp)
+GIN_SUPPORT(time, false, leftmostvalue_time, time_cmp) // 为 time 类型创建GIN索引
+
+static Datum
+leftmostvalue_timetz(void)
+{
+    TimeTzADT* v = palloc(sizeof(TimeTzADT));
+
+    v->time = 0;
+    v->zone = -24 * 3600;        /* XXX is that true? */
+
+    return TimeTzADTPGetDatum(v); // 返回 timetz 类型的最小值
+}
+
+GIN_SUPPORT(timetz, false, leftmostvalue_timetz, timetz_cmp) // 为 timetz 类型创建GIN索引
+
+static Datum
+leftmostvalue_date(void)
+{
+    return DateADTGetDatum(DATEVAL_NOBEGIN); // 返回 date 类型的最小值
+}
+
+static Datum
+leftmostvalue_int2(void)
+{
+    return Int16GetDatum(SHRT_MIN); // 返回 int2 类型的最小值
+}
+
+GIN_SUPPORT(int2, false, leftmostvalue_int2, btint2cmp) // 为 int2 类型创建GIN索引
+
+static Datum
+leftmostvalue_int4(void)
+{
+    return Int32GetDatum(INT_MIN); // 返回 int4 类型的最小值
+}
+
+GIN_SUPPORT(int4, false, leftmostvalue_int4, btint4cmp) // 为 int4 类型创建GIN索引
+
+static Datum
+leftmostvalue_int8(void)
+{
+    return Int64GetDatum(PG_INT64_MIN); // 返回 int8 类型的最小值
+}
+
+GIN_SUPPORT(int8, false, leftmostvalue_int8, btint8cmp) // 为 int8 类型创建GIN索引
+
+static Datum
+leftmostvalue_float4(void)
+{
+    return Float4GetDatum(-get_float4_infinity()); // 返回 float4 类型的最小值
+}
+
+GIN_SUPPORT(float4, false, leftmostvalue_float4, btfloat4cmp) // 为 float4 类型创建GIN索引
+
+static Datum
+leftmostvalue_float8(void)
+{
+    return Float8GetDatum(-get_float8_infinity()); // 返回 float8 类型的最小值
+}
+
+GIN_SUPPORT(float8, false, leftmostvalue_float8, btfloat8cmp) // 为 float8 类型创建GIN索引
+
+static Datum
+leftmostvalue_money(void)
+{
+    return Int64GetDatum(PG_INT64_MIN); // 返回 money 类型的最小值
+}
+
+GIN_SUPPORT(money, false, leftmostvalue_money, cash_cmp) // 为 money 类型创建GIN索引
+
+static Datum
+leftmostvalue_oid(void)
+{
+    return ObjectIdGetDatum(0); // 返回 oid 类型的最小值
+}
+
+GIN_SUPPORT(oid, false, leftmostvalue_oid, btoidcmp) // 为 oid 类型创建GIN索引
+
+static Datum
+leftmostvalue_timestamp(void)
+{
+    return TimestampGetDatum(DT_NOBEGIN); // 返回 timestamp 类型的最小值
+}
+
+GIN_SUPPORT(timestamp, false, leftmostvalue_timestamp, timestamp_cmp) // 为 timestamp 类型创建GIN索引
+
+GIN_SUPPORT(timestamptz, false, leftmostvalue_timestamp, timestamp_cmp) // 为 timestamptz 类型创建GIN索引
+
+static Datum
+leftmostvalue_time(void)
+{
+    return TimeADTGetDatum(0); // 返回 time 类型的最小值
+}
+
+GIN_SUPPORT(time, false, leftmostvalue_time, time_cmp) // 为 time 类型创建GIN索引
 
 static Datum
 leftmostvalue_timetz(void)
@@ -286,107 +379,113 @@ leftmostvalue_timetz(void)
     v->time = 0;
     v->zone = -24 * 3600;        /* XXX is that true? */
 
-    return TimeTzADTPGetDatum(v);
+    return TimeTzADTPGetDatum(v); // 返回 timetz 类型的最小值
 }
 
-GIN_SUPPORT(timetz, false, leftmostvalue_timetz, timetz_cmp)
+GIN_SUPPORT(timetz, false, leftmostvalue_timetz, timetz_cmp) // 为 timetz 类型创建GIN索引
 
 static Datum
 leftmostvalue_date(void)
 {
-    return DateADTGetDatum(DATEVAL_NOBEGIN);
+    return DateADTGetDatum(DATEVAL_NOBEGIN); // 返回 date 类型的最小值
 }
 
-GIN_SUPPORT(date, false, leftmostvalue_date, date_cmp)
+GIN_SUPPORT(date, false, leftmostvalue_date, date_cmp) // 为 date 类型创建GIN索引
 
 static Datum
-leftmostvalue_interval(void)
+leftmostvalue_int2(void)
 {
-    Interval   *v = palloc(sizeof(Interval));
-
-    v->time = DT_NOBEGIN;
-    v->day = 0;
-    v->month = 0;
-    return IntervalPGetDatum(v);
+    return Int16GetDatum(SHRT_MIN); // 返回 int2 类型的最小值
 }
 
-GIN_SUPPORT(interval, false, leftmostvalue_interval, interval_cmp)
+GIN_SUPPORT(int2, false, leftmostvalue_int2, btint2cmp) // 为 int2 类型创建GIN索引
 
 static Datum
-leftmostvalue_macaddr(void)
+leftmostvalue_int4(void)
 {
-    macaddr    *v = palloc0(sizeof(macaddr));
-
-    return MacaddrPGetDatum(v);
+    return Int32GetDatum(INT_MIN); // 返回 int4 类型的最小值
 }
 
-GIN_SUPPORT(macaddr, false, leftmostvalue_macaddr, macaddr_cmp)
+GIN_SUPPORT(int4, false, leftmostvalue_int4, btint4cmp) // 为 int4 类型创建GIN索引
 
 static Datum
-leftmostvalue_macaddr8(void)
+leftmostvalue_int8(void)
 {
-    macaddr8   *v = palloc0(sizeof(macaddr8));
-
-    return Macaddr8PGetDatum(v);
+    return Int64GetDatum(PG_INT64_MIN); // 返回 int8 类型的最小值
 }
 
-GIN_SUPPORT(macaddr8, false, leftmostvalue_macaddr8, macaddr8_cmp)
+GIN_SUPPORT(int8, false, leftmostvalue_int8, btint8cmp) // 为 int8 类型创建GIN索引
 
 static Datum
-leftmostvalue_inet(void)
+leftmostvalue_float4(void)
 {
-    return DirectFunctionCall1(inet_in, CStringGetDatum("0.0.0.0/0"));
+    return Float4GetDatum(-get_float4_infinity()); // 返回 float4 类型的最小值
 }
 
-GIN_SUPPORT(inet, true, leftmostvalue_inet, network_cmp)
-
-GIN_SUPPORT(cidr, true, leftmostvalue_inet, network_cmp)
+GIN_SUPPORT(float4, false, leftmostvalue_float4, btfloat4cmp) // 为 float4 类型创建GIN索引
 
 static Datum
-leftmostvalue_text(void)
+leftmostvalue_float8(void)
 {
-    return PointerGetDatum(cstring_to_text_with_len("", 0));
+    return Float8GetDatum(-get_float8_infinity()); // 返回 float8 类型的最小值
 }
 
-GIN_SUPPORT(text, true, leftmostvalue_text, bttextcmp)
+GIN_SUPPORT(float8, false, leftmostvalue_float8, btfloat8cmp) // 为 float8 类型创建GIN索引
 
 static Datum
-leftmostvalue_char(void)
+leftmostvalue_money(void)
 {
-    return CharGetDatum(SCHAR_MIN);
+    return Int64GetDatum(PG_INT64_MIN); // 返回 money 类型的最小值
 }
 
-GIN_SUPPORT(char, false, leftmostvalue_char, btcharcmp)
-
-GIN_SUPPORT(bytea, true, leftmostvalue_text, byteacmp)
-
-/* gin index add to support char(n) and varchar2 */
-GIN_SUPPORT(bpchar, true, leftmostvalue_text, bpcharcmp)
-
-GIN_SUPPORT(varchar2, true, leftmostvalue_text, byteacmp)
-
+GIN_SUPPORT(money, false, leftmostvalue_money, cash_cmp) // 为 money 类型创建GIN索引
 
 static Datum
-leftmostvalue_bit(void)
+leftmostvalue_oid(void)
 {
-    return DirectFunctionCall3(bit_in,
-                               CStringGetDatum(""),
-                               ObjectIdGetDatum(0),
-                               Int32GetDatum(-1));
+    return ObjectIdGetDatum(0); // 返回 oid 类型的最小值
 }
 
-GIN_SUPPORT(bit, true, leftmostvalue_bit, bitcmp)
+GIN_SUPPORT(oid, false, leftmostvalue_oid, btoidcmp) // 为 oid 类型创建GIN索引
 
 static Datum
-leftmostvalue_varbit(void)
+leftmostvalue_timestamp(void)
 {
-    return DirectFunctionCall3(varbit_in,
-                               CStringGetDatum(""),
-                               ObjectIdGetDatum(0),
-                               Int32GetDatum(-1));
+    return TimestampGetDatum(DT_NOBEGIN); // 返回 timestamp 类型的最小值
 }
 
-GIN_SUPPORT(varbit, true, leftmostvalue_varbit, bitcmp)
+GIN_SUPPORT(timestamp, false, leftmostvalue_timestamp, timestamp_cmp) // 为 timestamp 类型创建GIN索引
+
+GIN_SUPPORT(timestamptz, false, leftmostvalue_timestamp, timestamp_cmp) // 为 timestamptz 类型创建GIN索引
+
+static Datum
+leftmostvalue_time(void)
+{
+    return TimeADTGetDatum(0); // 返回 time 类型的最小值
+}
+
+GIN_SUPPORT(time, false, leftmostvalue_time, time_cmp) // 为 time 类型创建GIN索引
+
+static Datum
+leftmostvalue_timetz(void)
+{
+    TimeTzADT* v = palloc(sizeof(TimeTzADT));
+
+    v->time = 0;
+    v->zone = -24 * 3600;        /* XXX is that true? */
+
+    return TimeTzADTPGetDatum(v); // 返回 timetz 类型的最小值
+}
+
+GIN_SUPPORT(timetz, false, leftmostvalue_timetz, timetz_cmp) // 为 timetz 类型创建GIN索引
+
+static Datum
+leftmostvalue_date(void)
+{
+    return DateADTGetDatum(DATEVAL_NOBEGIN); // 返回 date 类型的最小值
+}
+
+GIN_SUPPORT(date, false, leftmostvalue_date, date_cmp) // 为 date 类型创建GIN索引
 
 /*
  * Numeric type hasn't a real left-most value, so we use PointerGetDatum(NULL)

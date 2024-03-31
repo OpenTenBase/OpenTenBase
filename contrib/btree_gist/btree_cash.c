@@ -16,46 +16,64 @@ typedef struct
 /*
 ** Cash ops
 */
+// 声明 gbt_cash_compress 函数的元信息
 PG_FUNCTION_INFO_V1(gbt_cash_compress);
+// 声明 gbt_cash_fetch 函数的元信息
 PG_FUNCTION_INFO_V1(gbt_cash_fetch);
+// 声明 gbt_cash_union 函数的元信息
 PG_FUNCTION_INFO_V1(gbt_cash_union);
+// 声明 gbt_cash_picksplit 函数的元信息
 PG_FUNCTION_INFO_V1(gbt_cash_picksplit);
+// 声明 gbt_cash_consistent 函数的元信息
 PG_FUNCTION_INFO_V1(gbt_cash_consistent);
+// 声明 gbt_cash_distance 函数的元信息
 PG_FUNCTION_INFO_V1(gbt_cash_distance);
+// 声明 gbt_cash_penalty 函数的元信息
 PG_FUNCTION_INFO_V1(gbt_cash_penalty);
+// 声明 gbt_cash_same 函数的元信息
 PG_FUNCTION_INFO_V1(gbt_cash_same);
 
+// 判断两个 Cash 类型值是否满足大于关系的辅助函数
 static bool
-gbt_cashgt(const void *a, const void *b, FmgrInfo *flinfo)
+gbt_cashgt(const void* a, const void* b, FmgrInfo* flinfo)
 {
-    return (*((const Cash *) a) > *((const Cash *) b));
-}
-static bool
-gbt_cashge(const void *a, const void *b, FmgrInfo *flinfo)
-{
-    return (*((const Cash *) a) >= *((const Cash *) b));
-}
-static bool
-gbt_casheq(const void *a, const void *b, FmgrInfo *flinfo)
-{
-    return (*((const Cash *) a) == *((const Cash *) b));
-}
-static bool
-gbt_cashle(const void *a, const void *b, FmgrInfo *flinfo)
-{
-    return (*((const Cash *) a) <= *((const Cash *) b));
-}
-static bool
-gbt_cashlt(const void *a, const void *b, FmgrInfo *flinfo)
-{
-    return (*((const Cash *) a) < *((const Cash *) b));
+    return (*((const Cash*)a) > *((const Cash*)b));
 }
 
-static int
-gbt_cashkey_cmp(const void *a, const void *b, FmgrInfo *flinfo)
+// 判断两个 Cash 类型值是否满足大于等于关系的辅助函数
+static bool
+gbt_cashge(const void* a, const void* b, FmgrInfo* flinfo)
 {
-    cashKEY    *ia = (cashKEY *) (((const Nsrt *) a)->t);
-    cashKEY    *ib = (cashKEY *) (((const Nsrt *) b)->t);
+    return (*((const Cash*)a) >= *((const Cash*)b));
+}
+
+// 判断两个 Cash 类型值是否满足等于关系的辅助函数
+static bool
+gbt_casheq(const void* a, const void* b, FmgrInfo* flinfo)
+{
+    return (*((const Cash*)a) == *((const Cash*)b));
+}
+
+// 判断两个 Cash 类型值是否满足小于等于关系的辅助函数
+static bool
+gbt_cashle(const void* a, const void* b, FmgrInfo* flinfo)
+{
+    return (*((const Cash*)a) <= *((const Cash*)b));
+}
+
+// 判断两个 Cash 类型值是否满足小于关系的辅助函数
+static bool
+gbt_cashlt(const void* a, const void* b, FmgrInfo* flinfo)
+{
+    return (*((const Cash*)a) < *((const Cash*)b));
+}
+
+// 比较两个 Cash 类型键值的辅助函数
+static int
+gbt_cashkey_cmp(const void* a, const void* b, FmgrInfo* flinfo)
+{
+    cashKEY* ia = (cashKEY*)(((const Nsrt*)a)->t);
+    cashKEY* ib = (cashKEY*)(((const Nsrt*)b)->t);
 
     if (ia->lower == ib->lower)
     {
@@ -68,8 +86,9 @@ gbt_cashkey_cmp(const void *a, const void *b, FmgrInfo *flinfo)
     return (ia->lower > ib->lower) ? 1 : -1;
 }
 
+// 计算两个 Cash 类型值之间的距离的辅助函数
 static float8
-gbt_cash_dist(const void *a, const void *b, FmgrInfo *flinfo)
+gbt_cash_dist(const void* a, const void* b, FmgrInfo* flinfo)
 {
     return GET_FLOAT_DISTANCE(Cash, a, b);
 }
@@ -175,23 +194,40 @@ gbt_cash_distance(PG_FUNCTION_ARGS)
 }
 
 
-Datum
+/*
+ * gbt_cash_union: 合并两个cash类型的GiST索引项
+ *
+ * 参数：
+ *   - PG_FUNCTION_ARGS: PostgreSQL函数参数
+ *
+ * 返回值：
+ *   - GiST索引项的指针
+ */
 gbt_cash_union(PG_FUNCTION_ARGS)
 {
-    GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
-    void       *out = palloc(sizeof(cashKEY));
+    GistEntryVector* entryvec = (GistEntryVector*)PG_GETARG_POINTER(0);
+    void* out = palloc(sizeof(cashKEY));
 
-    *(int *) PG_GETARG_POINTER(1) = sizeof(cashKEY);
-    PG_RETURN_POINTER(gbt_num_union((void *) out, entryvec, &tinfo, fcinfo->flinfo));
+    *(int*)PG_GETARG_POINTER(1) = sizeof(cashKEY);
+    PG_RETURN_POINTER(gbt_num_union((void*)out, entryvec, &tinfo, fcinfo->flinfo));
 }
 
 
+/*
+ * gbt_cash_penalty: 计算两个cash类型GiST索引项的惩罚因子
+ *
+ * 参数：
+ *   - PG_FUNCTION_ARGS: PostgreSQL函数参数
+ *
+ * 返回值：
+ *   - 惩罚因子的指针
+ */
 Datum
 gbt_cash_penalty(PG_FUNCTION_ARGS)
 {
-    cashKEY    *origentry = (cashKEY *) DatumGetPointer(((GISTENTRY *) PG_GETARG_POINTER(0))->key);
-    cashKEY    *newentry = (cashKEY *) DatumGetPointer(((GISTENTRY *) PG_GETARG_POINTER(1))->key);
-    float       *result = (float *) PG_GETARG_POINTER(2);
+    cashKEY* origentry = (cashKEY*)DatumGetPointer(((GISTENTRY*)PG_GETARG_POINTER(0))->key);
+    cashKEY* newentry = (cashKEY*)DatumGetPointer(((GISTENTRY*)PG_GETARG_POINTER(1))->key);
+    float* result = (float*)PG_GETARG_POINTER(2);
 
     penalty_num(result, origentry->lower, origentry->upper, newentry->lower, newentry->upper);
 
@@ -199,23 +235,41 @@ gbt_cash_penalty(PG_FUNCTION_ARGS)
 
 }
 
+/*
+ * gbt_cash_picksplit: 在cash类型的GiST索引项中选择一个分裂点
+ *
+ * 参数：
+ *   - PG_FUNCTION_ARGS: PostgreSQL函数参数
+ *
+ * 返回值：
+ *   - 分裂点的指针
+ */
 Datum
 gbt_cash_picksplit(PG_FUNCTION_ARGS)
 {
     PG_RETURN_POINTER(gbt_num_picksplit(
-                                        (GistEntryVector *) PG_GETARG_POINTER(0),
-                                        (GIST_SPLITVEC *) PG_GETARG_POINTER(1),
-                                        &tinfo, fcinfo->flinfo
-                                        ));
+        (GistEntryVector*)PG_GETARG_POINTER(0),
+        (GIST_SPLITVEC*)PG_GETARG_POINTER(1),
+        &tinfo, fcinfo->flinfo
+    ));
 }
 
+/*
+ * gbt_cash_same: 检查两个cash类型GiST索引项是否相同
+ *
+ * 参数：
+ *   - PG_FUNCTION_ARGS: PostgreSQL函数参数
+ *
+ * 返回值：
+ *   - 一个指示索引项是否相同的布尔值指针
+ */
 Datum
 gbt_cash_same(PG_FUNCTION_ARGS)
 {
-    cashKEY    *b1 = (cashKEY *) PG_GETARG_POINTER(0);
-    cashKEY    *b2 = (cashKEY *) PG_GETARG_POINTER(1);
-    bool       *result = (bool *) PG_GETARG_POINTER(2);
+    cashKEY* b1 = (cashKEY*)PG_GETARG_POINTER(0);
+    cashKEY* b2 = (cashKEY*)PG_GETARG_POINTER(1);
+    bool* result = (bool*)PG_GETARG_POINTER(2);
 
-    *result = gbt_num_same((void *) b1, (void *) b2, &tinfo, fcinfo->flinfo);
+    *result = gbt_num_same((void*)b1, (void*)b2, &tinfo, fcinfo->flinfo);
     PG_RETURN_POINTER(result);
 }
