@@ -15,7 +15,7 @@
 PG_MODULE_MAGIC;
 
 
-/*
+/* 1
  * This is the trigger that protects us from orphaned large objects
  */
 PG_FUNCTION_INFO_V1(lo_manage);
