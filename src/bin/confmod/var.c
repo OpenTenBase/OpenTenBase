@@ -42,7 +42,26 @@ static pg_conf_var_hash var_hash[NUM_HASH_BUCKET];
 	4.返回v除以256的余数。这个余数将用作哈希表的索引
 	5.确保字符串 name 被映射到哈希表的一个特定位置。
 	这种简单的哈希函数 我认为 是可以优化的，
-
+	下面是一个简单的优化，利用字符串前缀哈希算法：
+	const int P = 131;
+	const int maxn=1e5+100;
+	unsigned int a[maxn],h[maxn],p[maxn];
+	unsigned int gets(int l,int r)
+	{
+	    return h[r]-h[l-1]*p[r-l+1];
+	}
+	
+	hash_value(char *name)
+	{
+	    unsigned char *name_u = (unsigned char *)name;
+	    unsigned int v;
+	
+	    for(v = 0; *name_u; name_u++){
+	        p[i]=p[i-1]*P;
+	        h[i]=h[i-1]*P+name_u;
+    	}
+	    return gets(*name,*name_u);
+	}
 */
 static int
 hash_value(char *name)
