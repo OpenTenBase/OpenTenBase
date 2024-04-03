@@ -1,13 +1,8 @@
 #-------------------------------------------------------------------------
 #
 # GNUmakefile--
-#    Makefile for src/oracle_test/regress (the regression tests)
-#
-#
-# src/oracle_test/regress/GNUmakefile
-#
-# add the file for requirement "SQL PARSER"
-#
+# 原pgsql GNUmakefile
+
 #-------------------------------------------------------------------------
 
 PGFILEDESC = "pg_regress - test driver"
