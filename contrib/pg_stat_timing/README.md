@@ -24,7 +24,7 @@ shared_preload_libraries = 'pg_stat_timing'
 
 
 
-#### **加载插件**
+#### 加载插件
 
 需要在 OpenTenBase 数据库中加载该插件。使用以下 SQL 命令在数据库中加载插件：
 
@@ -34,7 +34,7 @@ CREATE EXTENSION pg_stat_timing;
 
 
 
-#### **设置预期时间**
+#### 设置预期时间
 
 使用提供的自定义函数 `set_expected_time()` 来设置预期的查询执行时间。在 SQL 控制台中执行以下命令：
 
@@ -54,7 +54,7 @@ LOG:  Query (ID: 123) exceeded expected time: 100000 microseconds (actual: 15000
 
 
 
-#### **定位慢SQL**
+#### 定位慢SQL
 
  查询的执行时间信息将记录在日志中。可以查看日志以获取有关查询执行时间的详细信息。
 
