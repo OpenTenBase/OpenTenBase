@@ -13671,6 +13671,16 @@ relation_expr:
 					$$->intervalparent = false;
 					$$->partitionvalue = NULL;
 				}
+			| qualified_name PARTITION '(' qualified_name ')'
+				{
+					/* inheritance query, explicitly */
+					$$ = $4;
+					$$->inh = true;
+					$$->alias = NULL;
+
+					$$->intervalparent = false;
+					$$->partitionvalue = NULL;
+				}
 			| ONLY qualified_name opt_partition_for
 				{
 					/* no inheritance */
