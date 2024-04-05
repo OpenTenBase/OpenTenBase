@@ -1,0 +1,1 @@
+通过修改语法表（/OpenTenBase/src/backend/parser/gram.y），模仿opentenbase支持的语法格式，实现了select xxx from 主表 partition(子表)；。
