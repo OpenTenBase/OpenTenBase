@@ -62,53 +62,53 @@ my_int128_compare(int128 x, int128 y)
 }
 
 /*
- * Get a random uint64 value.
- * We don't assume random() is good for more than 16 bits.
+ * 获取一个随机的 uint64 值。
+ * 我们不假设 random() 函数能生成超过 16 位的好的随机数。
  */
 static uint64
 get_random_uint64(void)
 {
-    uint64        x;
+    uint64 x;
 
-    x = (uint64) (random() & 0xFFFF) << 48;
-    x |= (uint64) (random() & 0xFFFF) << 32;
-    x |= (uint64) (random() & 0xFFFF) << 16;
-    x |= (uint64) (random() & 0xFFFF);
+    x = (uint64) (random() & 0xFFFF) << 48;  // 取 16 位随机数左移 48 位
+    x |= (uint64) (random() & 0xFFFF) << 32; // 取 16 位随机数左移 32 位，并合并到 x
+    x |= (uint64) (random() & 0xFFFF) << 16; // 取 16 位随机数左移 16 位，并合并到 x
+    x |= (uint64) (random() & 0xFFFF);       // 取 16 位随机数，并合并到 x
     return x;
 }
 
 /*
- * Main program.
+ * 主程序。
  *
- * Generates a lot of random numbers and tests the implementation for each.
- * The results should be reproducible, since we don't call srandom().
+ * 生成大量随机数并对每个实现进行测试。
+ * 结果应该是可重现的，因为我们没有调用 srandom() 函数。
  *
- * You can give a loop count if you don't like the default 1B iterations.
+ * 如果你不喜欢默认的 10 亿迭代次数，你可以给出一个循环次数。
  */
 int
 main(int argc, char **argv)
 {
-    long        count;
+    long count;
 
     if (argc >= 2)
-        count = strtol(argv[1], NULL, 0);
+        count = strtol(argv[1], NULL, 0); // 将命令行参数转换为长整型作为迭代次数
     else
-        count = 1000000000;
+        count = 1000000000; // 默认迭代 10 亿次
 
     while (count-- > 0)
     {
-        int64        x = get_random_uint64();
-        int64        y = get_random_uint64();
-        int64        z = get_random_uint64();
-        test128        t1;
-        test128        t2;
+        int64 x = get_random_uint64(); // 生成随机数 x
+        int64 y = get_random_uint64(); // 生成随机数 y
+        int64 z = get_random_uint64(); // 生成随机数 z
+        test128 t1; // 定义测试结构体 t1
+        test128 t2; // 定义测试结构体 t2
 
-        /* check unsigned addition */
-        t1.hl.hi = x;
-        t1.hl.lo = y;
-        t2 = t1;
-        t1.i128 += (int128) (uint64) z;
-        int128_add_uint64(&t2.I128, (uint64) z);
+        /* 检查无符号加法 */
+        t1.hl.hi = x; // 设置 t1 的高 64 位为 x
+        t1.hl.lo = y; // 设置 t1 的低 64 位为 y
+        t2 = t1; // 复制 t1 到 t2
+        t1.i128 += (int128) (uint64) z; // 执行无符号加法
+        int128_add_uint64(&t2.I128, (uint64) z); // 调用函数执行无符号加法
 
         if (t1.hl.hi != t2.hl.hi || t1.hl.lo != t2.hl.lo)
         {
@@ -118,7 +118,7 @@ main(int argc, char **argv)
             return 1;
         }
 
-        /* check signed addition */
+        /* 检查有符号加法 */
         t1.hl.hi = x;
         t1.hl.lo = y;
         t2 = t1;
@@ -133,7 +133,7 @@ main(int argc, char **argv)
             return 1;
         }
 
-        /* check multiplication */
+        /* 检查乘法 */
         t1.i128 = (int128) x * (int128) y;
 
         t2.hl.hi = t2.hl.lo = 0;
@@ -147,7 +147,7 @@ main(int argc, char **argv)
             return 1;
         }
 
-        /* check comparison */
+        /* 检查比较 */
         t1.hl.hi = x;
         t1.hl.lo = y;
         t2.hl.hi = z;
@@ -164,7 +164,7 @@ main(int argc, char **argv)
             return 1;
         }
 
-        /* check case with identical hi parts; above will hardly ever hit it */
+        /* 检查具有相同高位的情况；上述检查几乎不会触发它 */
         t2.hl.hi = x;
 
         if (my_int128_compare(t1.i128, t2.i128) !=

@@ -1,34 +1,29 @@
-For All Releases (major, minor, beta, RC)
-================
+对于所有版本发布（主要版本、次要版本、beta、RC）
 
-* Release version number changes
-	o run src/tools/version_stamp.pl, then run autoconf
-	  (by packager) (beta)
+* 发布版本号更改
+    - 运行 src/tools/version_stamp.pl，然后运行 autoconf（由打包者执行）（beta）
 
-* Release notes
-	o run git log and, if useful, src/tools/git_changelog
-	o update doc/src/sgml/release.sgml
-	o run spellchecker on result
-	o add SGML markup
+* 发布说明
+    - 运行 git log 并根据需要运行 src/tools/git_changelog
+    - 更新 doc/src/sgml/release.sgml
+    - 对结果运行拼写检查器
+    - 添加 SGML 标记
 
-* Update timezone data to match latest IANA timezone database and new
-  Windows releases, if any (see src/timezone/README)
+* 更新时区数据以匹配最新的 IANA 时区数据库和新的 Windows 发布（如果有的话）（见 src/timezone/README）
 
-* Translation updates
-	1. Check out the messages repository (of the right branch) from
-	   <http://git.postgresql.org/git/pgtranslation/messages.git>.
-	2. Check out the admin repository from
-	   <http://git.postgresql.org/git/pgtranslation/admin.git>.
-	3. From babel.postgresql.org, download the "qualified list"
-	   for the respective branch.
-	4. Run ".../admin/cp-po -L qualified-list-xxx.txt -g .../messages .../postgresql".
-	   This creates a commit in the postgresql repository.
-	5. Push everything.
+* 翻译更新
+    1. 检出正确分支的消息存储库（<http://git.postgresql.org/git/pgtranslation/messages.git>）。
+    2. 从<http://git.postgresql.org/git/pgtranslation/admin.git>检出管理存储库。
+    3. 从 babel.postgresql.org 下载相应分支的“qualified list”。
+    4. 运行“.../admin/cp-po -L qualified-list-xxx.txt -g .../messages .../postgresql”。
+       这将在 postgresql 存储库中创建一个提交。
+    5. 推送所有内容。
 
 
-For Major Releases
+对于主要版本发布
 ==================
-(in addition to the above)
+（除了上述步骤）
+
 
 * Release notes
 	o use src/tools/git_changelog

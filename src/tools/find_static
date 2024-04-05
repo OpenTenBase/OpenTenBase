@@ -2,49 +2,49 @@
 
 # src/tools/find_static
 
+# 陷阱：在脚本退出时清理临时文件
 trap "rm -f /tmp/$$" 0 1 2 3 15
 
-# This script finds functions that are either never called, or
-# should be static.
-# Some functions, like library functions and debug_print functions,
-# should remain unchanged.
+# 这个脚本用于查找从未调用过或应该是静态的函数。
+# 一些函数，比如库函数和 debug_print 函数，应该保持不变。
 
-# Run on a compiled source tree, from the top of the source tree
+# 在已编译的源代码树上运行，从源代码树的顶层开始
 
-# My nm utility has 9 characters of address which I strip, then a 'type'
-# character, with T as a text function, and U as an undefined function
-# symbol, then the function name.
+# 我的 nm 实用程序有 9 个字符的地址，我去掉它们，然后是一个 'type' 字符，
+# T 表示文本函数，U 表示未定义的函数符号，然后是函数名。
 
 find . -name '[a-z]*.o' -type f -print | while read FILE
-do	nm $FILE | cut -c17-100 |awk '{printf "%s\t%s\t%s\n", "'"$FILE"'",$1,$2}'
+do
+    nm $FILE | cut -c17-100 | awk '{printf "%s\t%s\t%s\n", "'"$FILE"'",$1,$2}'
 done >/tmp/$$
+
 dropdb debug
 createdb debug
 echo "
-	create table debug (file text, scope char, func text);
+    create table debug (file text, scope char, func text);
 
-	copy debug from '/tmp/"$$"';
+    copy debug from '/tmp/"$$"';
 
-	select 	*
-	into	table debug2
-	from 	debug;
+    select  *
+    into    table debug2
+    from    debug;
 
-	create index idebug on debug(scope,func);
-	create index idebug2 on debug2(func,scope);
-	vacuum debug;
-	vacuum debug2;
+    create index idebug on debug(scope,func);
+    create index idebug2 on debug2(func,scope);
+    vacuum debug;
+    vacuum debug2;
 
-	update 	debug2
-	set 	scope = '_'
-	from 	debug
-	where 	debug2.func = debug.func and
-		debug2.scope = 'T' and debug.scope = 'U';
+    update  debug2
+    set     scope = '_'
+    from    debug
+    where   debug2.func = debug.func and
+            debug2.scope = 'T' and debug.scope = 'U';
 
-	delete 	from debug2
-	where 	scope = '_';
+    delete  from debug2
+    where   scope = '_';
 
-	select 	*
-	from 	debug2
-	where	scope = 'T' and func != 'main'
-        order by file, func;
-" |psql -X debug
+    select  *
+    from    debug2
+    where   scope = 'T' and func != 'main'
+    order by file, func;
+" | psql -X debug

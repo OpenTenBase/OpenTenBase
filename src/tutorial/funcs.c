@@ -1,35 +1,32 @@
 /* src/tutorial/funcs.c */
 
 /******************************************************************************
-  These are user-defined functions that can be bound to a Postgres backend
-  and called by Postgres to execute SQL functions of the same name.
+  这些是用户定义的函数，可以绑定到Postgres后端，并由Postgres调用执行同名的SQL函数。
 
-  The calling format for these functions is defined by the CREATE FUNCTION
-  SQL statement that binds them to the backend.
+  这些函数的调用格式由将它们绑定到后端的CREATE FUNCTION SQL语句定义。
 
-  NOTE: this file shows examples of "old style" function call conventions.
-  See funcs_new.c for examples of "new style".
+  注意：此文件显示了“旧风格”函数调用约定的示例。请参阅 funcs_new.c 以查看“新风格”的示例。
 *****************************************************************************/
 
-#include "postgres.h"            /* general Postgres declarations */
+#include "postgres.h"            /* 一般Postgres声明 */
 
-#include "executor/executor.h"    /* for GetAttributeByName() */
-#include "utils/geo_decls.h"    /* for point type */
+#include "executor/executor.h"    /* 用于GetAttributeByName() */
+#include "utils/geo_decls.h"    /* 用于点类型 */
 
 PG_MODULE_MAGIC;
 
-/* These prototypes just prevent possible warnings from gcc. */
+/* 这些原型只是为了防止可能的gcc警告。 */
 
 int            add_one(int arg);
 float8       *add_one_float8(float8 *arg);
 Point       *makepoint(Point *pointx, Point *pointy);
 text       *copytext(text *t);
 text       *concat_text(text *arg1, text *arg2);
-bool c_overpaid(HeapTupleHeader t,        /* the current instance of EMP */
+bool c_overpaid(HeapTupleHeader t,        /* EMP的当前实例 */
            int32 limit);
 
 
-/* By Value */
+/* 传值 */
 
 int
 add_one(int arg)
@@ -37,7 +34,7 @@ add_one(int arg)
     return arg + 1;
 }
 
-/* By Reference, Fixed Length */
+/* 引用传递，固定长度 */
 
 float8 *
 add_one_float8(float8 *arg)
@@ -60,24 +57,24 @@ makepoint(Point *pointx, Point *pointy)
     return new_point;
 }
 
-/* By Reference, Variable Length */
+/* 引用传递，可变长度 */
 
 text *
 copytext(text *t)
 {
     /*
-     * VARSIZE is the total size of the struct in bytes.
+     * VARSIZE是结构的总大小（以字节为单位）。
      */
     text       *new_t = (text *) palloc(VARSIZE(t));
 
     SET_VARSIZE(new_t, VARSIZE(t));
 
     /*
-     * VARDATA is a pointer to the data region of the struct.
+     * VARDATA是结构的数据区域的指针。
      */
-    memcpy((void *) VARDATA(new_t), /* destination */
-           (void *) VARDATA(t), /* source */
-           VARSIZE(t) - VARHDRSZ);    /* how many bytes */
+    memcpy((void *) VARDATA(new_t), /* 目标 */
+           (void *) VARDATA(t), /* 源 */
+           VARSIZE(t) - VARHDRSZ);    /* 复制的字节数 */
     return new_t;
 }
 
@@ -95,10 +92,10 @@ concat_text(text *arg1, text *arg2)
     return new_text;
 }
 
-/* Composite types */
+/* 复合类型 */
 
 bool
-c_overpaid(HeapTupleHeader t,    /* the current instance of EMP */
+c_overpaid(HeapTupleHeader t,    /* EMP的当前实例 */
            int32 limit)
 {
     bool        isnull;

@@ -3,15 +3,14 @@
  *
  *
  * testlibpq2.c
- *        Test of the asynchronous notification interface
+ *        异步通知接口测试
  *
- * Start this program, then from psql in another window do
+ * 运行此程序后，在另一个窗口的 psql 中执行以下操作：
  *     NOTIFY TBL2;
- * Repeat four times to get this program to exit.
+ * 重复四次以使该程序退出。
  *
- * Or, if you want to get fancy, try this:
- * populate a database with the following commands
- * (provided in src/test/examples/testlibpq2.sql):
+ * 或者，如果你想更加复杂一些，可以尝试以下操作：
+ * 使用以下命令在数据库中创建表（在 src/test/examples/testlibpq2.sql 中提供）：
  *
  *     CREATE TABLE TBL1 (i int4);
  *
@@ -20,7 +19,7 @@
  *     CREATE RULE r1 AS ON INSERT TO TBL1 DO
  *       (INSERT INTO TBL2 VALUES (new.i); NOTIFY TBL2);
  *
- * and do this four times:
+ * 并且执行以下操作四次：
  *
  *     INSERT INTO TBL1 VALUES (10);
  */
@@ -57,51 +56,48 @@ main(int argc, char **argv)
     int            nnotifies;
 
     /*
-     * If the user supplies a parameter on the command line, use it as the
-     * conninfo string; otherwise default to setting dbname=postgres and using
-     * environment variables or defaults for all other connection parameters.
+     * 如果用户在命令行上提供了参数，则将其作为 conninfo 字符串使用；
+     * 否则默认为设置 dbname=postgres，并使用环境变量或默认值设置所有其他连接参数。
      */
     if (argc > 1)
         conninfo = argv[1];
     else
         conninfo = "dbname = postgres";
 
-    /* Make a connection to the database */
+    /* 连接到数据库 */
     conn = PQconnectdb(conninfo);
 
-    /* Check to see that the backend connection was successfully made */
+    /* 检查后端连接是否成功建立 */
     if (PQstatus(conn) != CONNECTION_OK)
     {
-        fprintf(stderr, "Connection to database failed: %s",
+        fprintf(stderr, "连接到数据库失败：%s",
                 PQerrorMessage(conn));
         exit_nicely(conn);
     }
 
     /*
-     * Issue LISTEN command to enable notifications from the rule's NOTIFY.
+     * 发送 LISTEN 命令以启用规则的 NOTIFY 通知。
      */
     res = PQexec(conn, "LISTEN TBL2");
     if (PQresultStatus(res) != PGRES_COMMAND_OK)
     {
-        fprintf(stderr, "LISTEN command failed: %s", PQerrorMessage(conn));
+        fprintf(stderr, "LISTEN 命令失败：%s", PQerrorMessage(conn));
         PQclear(res);
         exit_nicely(conn);
     }
 
     /*
-     * should PQclear PGresult whenever it is no longer needed to avoid memory
-     * leaks
+     * 使用 PQclear 清理 PGresult，以避免内存泄漏。
      */
     PQclear(res);
 
-    /* Quit after four notifies are received. */
+    /* 收到四次通知后退出。 */
     nnotifies = 0;
     while (nnotifies < 4)
     {
         /*
-         * Sleep until something happens on the connection.  We use select(2)
-         * to wait for input, but you could also use poll() or similar
-         * facilities.
+         * 等待连接上发生事件。我们使用 select(2) 来等待输入，
+         * 但也可以使用 poll() 或类似的功能。
          */
         int            sock;
         fd_set        input_mask;
@@ -109,32 +105,32 @@ main(int argc, char **argv)
         sock = PQsocket(conn);
 
         if (sock < 0)
-            break;                /* shouldn't happen */
+            break;                /* 不应该发生 */
 
         FD_ZERO(&input_mask);
         FD_SET(sock, &input_mask);
 
         if (select(sock + 1, &input_mask, NULL, NULL, NULL) < 0)
         {
-            fprintf(stderr, "select() failed: %s\n", strerror(errno));
+            fprintf(stderr, "select() 失败：%s\n", strerror(errno));
             exit_nicely(conn);
         }
 
-        /* Now check for input */
+        /* 检查是否有输入 */
         PQconsumeInput(conn);
         while ((notify = PQnotifies(conn)) != NULL)
         {
             fprintf(stderr,
-                    "ASYNC NOTIFY of '%s' received from backend PID %d\n",
-                    notify->relname, notify->be_pid);
+                    "从后端 PID %d 接收到关于 '%s' 的异步通知\n",
+                    notify->be_pid, notify->relname);
             PQfreemem(notify);
             nnotifies++;
         }
     }
 
-    fprintf(stderr, "Done.\n");
+    fprintf(stderr, "完成。\n");
 
-    /* close the connection to the database and cleanup */
+    /* 关闭与数据库的连接并清理 */
     PQfinish(conn);
 
     return 0;

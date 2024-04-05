@@ -3,17 +3,16 @@
  *
  *
  * testlibpq3.c
- *        Test out-of-line parameters and binary I/O.
+ *        测试离线参数和二进制I/O。
  *
- * Before running this, populate a database with the following commands
- * (provided in src/test/examples/testlibpq3.sql):
+ * 在运行此程序之前，请使用以下命令填充数据库（提供在 src/test/examples/testlibpq3.sql 中）：
  *
  * CREATE TABLE test1 (i int4, t text, b bytea);
  *
  * INSERT INTO test1 values (1, 'joe''s place', '\\000\\001\\002\\003\\004');
  * INSERT INTO test1 values (2, 'ho there', '\\004\\003\\002\\001\\000');
  *
- * The expected output is:
+ * 预期输出为：
  *
  * tuple 0: got
  *    i = (4 bytes) 1
@@ -25,6 +24,58 @@
  *    t = (8 bytes) 'ho there'
  *    b = (5 bytes) \004\003\002\001\000
  */
+#include <stdio.h>
+#include <stdlib.h>
+#include <libpq-fe.h>
+
+int main() {
+    PGconn *conn;
+    PGresult *res;
+    int nFields;
+    int i, j;
+
+    /* 连接到数据库 */
+    conn = PQconnectdb("dbname = postgres");
+
+    /* 检查后端连接是否成功建立 */
+    if (PQstatus(conn) != CONNECTION_OK) {
+        fprintf(stderr, "连接到数据库失败：%s", PQerrorMessage(conn));
+        PQfinish(conn);
+        exit(1);
+    }
+
+    /* 执行查询 */
+    res = PQexec(conn, "SELECT * FROM test1");
+
+    /* 检查查询结果 */
+    if (PQresultStatus(res) != PGRES_TUPLES_OK) {
+        fprintf(stderr, "查询失败：%s", PQerrorMessage(conn));
+        PQclear(res);
+        PQfinish(conn);
+        exit(1);
+    }
+
+    /* 获取结果集的列数 */
+    nFields = PQnfields(res);
+
+    /* 遍历结果集 */
+    for (i = 0; i < PQntuples(res); i++) {
+        printf("tuple %d: got\n", i);
+        for (j = 0; j < nFields; j++) {
+            printf("   %s = (%d bytes) %s\n", 
+                   PQfname(res, j),         // 列名
+                   PQgetlength(res, i, j),  // 字段长度
+                   PQgetvalue(res, i, j));  // 字段值
+        }
+        printf("\n");
+    }
+
+    /* 清理结果并关闭连接 */
+    PQclear(res);
+    PQfinish(conn);
+
+    return 0;
+}
 
 #ifdef WIN32
 #include <windows.h>

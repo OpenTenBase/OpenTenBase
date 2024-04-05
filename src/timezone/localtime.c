@@ -13,74 +13,63 @@
  * Leap second handling from Bradley White.
  * POSIX-style TZ environment variable handling from Guy Harris.
  */
-
-/* this file needs to build in both frontend and backend contexts */
-#include "c.h"
-
-#include <fcntl.h>
-
-#include "datatype/timestamp.h"
-#include "pgtz.h"
-
-#include "private.h"
-#include "tzfile.h"
-
+/* 
+ * 这个文件需要在前端和后端环境中构建。
+ * c.h 包含了通用的 C 语言头文件，它被前端和后端都使用。
+ * fcntl.h 是 POSIX 标准的头文件，提供了对文件控制的函数定义，被后端使用。
+ * datatype/timestamp.h 包含了时间戳数据类型的定义，被后端使用。
+ * pgtz.h 包含了时区相关的结构体定义，被后端使用。
+ * private.h 包含了一些私有的头文件，被后端使用。
+ * tzfile.h 包含了时区文件的相关定义，被后端使用。
+ */
 
 #ifndef WILDABBR
 /*
- * Someone might make incorrect use of a time zone abbreviation:
- *    1.  They might reference tzname[0] before calling tzset (explicitly
- *        or implicitly).
- *    2.  They might reference tzname[1] before calling tzset (explicitly
- *        or implicitly).
- *    3.  They might reference tzname[1] after setting to a time zone
- *        in which Daylight Saving Time is never observed.
- *    4.  They might reference tzname[0] after setting to a time zone
- *        in which Standard Time is never observed.
- *    5.  They might reference tm.TM_ZONE after calling offtime.
- * What's best to do in the above cases is open to debate;
- * for now, we just set things up so that in any of the five cases
- * WILDABBR is used. Another possibility: initialize tzname[0] to the
- * string "tzname[0] used before set", and similarly for the other cases.
- * And another: initialize tzname[0] to "ERA", with an explanation in the
- * manual page of what this "time zone abbreviation" means (doing this so
- * that tzname[0] has the "normal" length of three characters).
+ * 有人可能会错误地使用时区缩写：
+ *    1. 在调用 tzset（显式或隐式）之前可能会引用 tzname[0]。
+ *    2. 在调用 tzset（显式或隐式）之前可能会引用 tzname[1]。
+ *    3. 在设置为从不观察夏令时的时区后，可能会引用 tzname[1]。
+ *    4. 在设置为从不观察标准时间的时区后，可能会引用 tzname[0]。
+ *    5. 在调用 offtime 后可能会引用 tm.TM_ZONE。
+ * 在上述情况下最好的做法是值得商榷的；
+ * 目前，我们只是设置了在任何这五种情况下都使用 WILDABBR。
+ * 另一种可能性是：将 tzname[0] 初始化为字符串 "tzname[0] used before set"，其他情况类似。
+ * 还有一种是：将 tzname[0] 初始化为 "ERA"，并在手册页中解释这个 "时区缩写" 的含义（这样做是为了让 tzname[0] 的长度保持正常的三个字符）。
  */
 #define WILDABBR    "   "
 #endif                            /* !defined WILDABBR */
 
-static const char wildabbr[] = WILDABBR;
+static const char wildabbr[] = WILDABBR;  /* 用于表示未知时区缩写的字符串 */
 
-static const char gmt[] = "GMT";
+static const char gmt[] = "GMT";  /* 表示格林尼治标准时间的字符串 */
 
-/* The minimum and maximum finite time values.  This assumes no padding.  */
-static const pg_time_t time_t_min = MINVAL(pg_time_t, TYPE_BIT(pg_time_t));
-static const pg_time_t time_t_max = MAXVAL(pg_time_t, TYPE_BIT(pg_time_t));
-
-/*
- * We cache the result of trying to load the TZDEFRULES zone here.
- * tzdefrules_loaded is 0 if not tried yet, +1 if good, -1 if failed.
- */
-static struct state tzdefrules_s;
-static int    tzdefrules_loaded = 0;
+/* 最小和最大有限时间值。假设没有填充。 */
+static const pg_time_t time_t_min = MINVAL(pg_time_t, TYPE_BIT(pg_time_t));  /* 最小有限时间值 */
+static const pg_time_t time_t_max = MAXVAL(pg_time_t, TYPE_BIT(pg_time_t));  /* 最大有限时间值 */
 
 /*
- * The DST rules to use if TZ has no rules and we can't load TZDEFRULES.
- * We default to US rules as of 1999-08-17.
- * POSIX 1003.1 section 8.1.1 says that the default DST rules are
- * implementation dependent; for historical reasons, US rules are a
- * common default.
+ * 我们在这里缓存尝试加载 TZDEFRULES 时区的结果。
+ * tzdefrules_loaded 如果尚未尝试，则为 0，如果成功，则为 +1，如果失败，则为 -1。
  */
-#define TZDEFRULESTRING ",M4.1.0,M10.5.0"
+static struct state tzdefrules_s;  /* 存储 TZDEFRULES 时区的状态信息 */
+static int    tzdefrules_loaded = 0;  /* TZDEFRULES 时区加载状态 */
 
-/* structs ttinfo, lsinfo, state have been moved to pgtz.h */
+/*
+ * 如果 TZ 没有规则并且无法加载 TZDEFRULES，则使用的 DST 规则。
+ * 我们默认使用 1999-08-17 的美国规则。
+ * POSIX 1003.1 第 8.1.1 节规定默认的 DST 规则是实现依赖的；出于历史原因，美国规则是一个常见的默认值。
+ */
+#define TZDEFRULESTRING ",M4.1.0,M10.5.0"  /* 默认的 DST 规则字符串 */
+
+/* 结构体 ttinfo, lsinfo, state 已经移动到 pgtz.h 中 */
 
 enum r_type
 {
-    JULIAN_DAY,                    /* Jn = Julian day */
-    DAY_OF_YEAR,                /* n = day of year */
-    MONTH_NTH_DAY_OF_WEEK        /* Mm.n.d = month, week, day of week */
-};
+    JULIAN_DAY,                    /* Jn = 儒略日 */
+    DAY_OF_YEAR,                /* n = 一年中的第几天 */
+    MONTH_NTH_DAY_OF_WEEK        /* Mm.n.d = 月份，周数，星期几 */
+};  /* 定义了表示不同类型时间规则的枚举 */
+
 
 struct rule
 {
@@ -1230,7 +1219,8 @@ gmtload(struct state *sp)
  * is to not call it, so we drop its guts into "localsub", which can be
  * freely called. (And no, the PANS doesn't require the above behavior,
  * but it *is* desirable.)
- */
+ */// localsub函数用于处理本地时间，类似于localtime函数。
+// sp参数是指向时区状态的指针，timep是指向时间戳的指针，tmp是指向pg_tm结构的指针。
 static struct pg_tm *
 localsub(struct state const *sp, pg_time_t const *timep,
          struct pg_tm *tmp)
@@ -1240,8 +1230,10 @@ localsub(struct state const *sp, pg_time_t const *timep,
     struct pg_tm *result;
     const pg_time_t t = *timep;
 
+    // 如果sp为空，则调用gmtsub函数处理时间，并返回结果。
     if (sp == NULL)
         return gmtsub(timep, 0, tmp);
+    // 如果时间在时间范围之外，根据情况调整时间，以处理重复的时区规则。
     if ((sp->goback && t < sp->ats[0]) ||
         (sp->goahead && t > sp->ats[sp->timecnt - 1]))
     {
@@ -1279,6 +1271,7 @@ localsub(struct state const *sp, pg_time_t const *timep,
         }
         return result;
     }
+    // 如果时间段为空或时间早于时间段的起始时间，则使用默认类型。
     if (sp->timecnt == 0 || t < sp->ats[0])
     {
         i = sp->defaulttype;
@@ -1301,6 +1294,7 @@ localsub(struct state const *sp, pg_time_t const *timep,
     }
     ttisp = &sp->ttis[i];
 
+    // 调用timesub函数计算时间，并根据时区信息设置相关参数。
     result = timesub(&t, ttisp->tt_gmtoff, sp, tmp);
     if (result)
     {
@@ -1310,25 +1304,24 @@ localsub(struct state const *sp, pg_time_t const *timep,
     return result;
 }
 
-
+// pg_localtime函数用于将时间戳转换为本地时间。
 struct pg_tm *
 pg_localtime(const pg_time_t *timep, const pg_tz *tz)
 {
     return localsub(&tz->state, timep, &tm);
 }
 
-
 /*
- * gmtsub is to gmtime as localsub is to localtime.
+ * gmtsub函数类似于gmtime函数，用于处理GMT时间。
  *
- * Except we have a private "struct state" for GMT, so no sp is passed in.
+ * 除了我们有一个私有的“struct state”用于GMT，所以不需要传入sp。
  */
 static struct pg_tm *
 gmtsub(pg_time_t const *timep, int32 offset, struct pg_tm *tmp)
 {
     struct pg_tm *result;
 
-    /* GMT timezone state data is kept here */
+    /* GMT时区状态数据保存在这里 */
     static struct state gmtmem;
     static bool gmt_is_set = false;
 #define gmtptr        (&gmtmem)
@@ -1338,11 +1331,11 @@ gmtsub(pg_time_t const *timep, int32 offset, struct pg_tm *tmp)
         gmt_is_set = true;
         gmtload(gmtptr);
     }
+    // 调用timesub函数计算时间，并根据时区信息设置相关参数。
     result = timesub(timep, offset, gmtptr, tmp);
 
     /*
-     * Could get fancy here and deliver something such as "+xx" or "-xx" if
-     * offset is non-zero, but this is no time for a treasure hunt.
+     * 可以在这里添加一些花哨的东西，如“+xx”或“-xx”，如果offset不为零，但这不是寻宝的时候。
      */
     if (offset != 0)
         tmp->tm_zone = wildabbr;
@@ -1352,11 +1345,13 @@ gmtsub(pg_time_t const *timep, int32 offset, struct pg_tm *tmp)
     return result;
 }
 
+// pg_gmtime函数用于将时间戳转换为GMT时间。
 struct pg_tm *
 pg_gmtime(const pg_time_t *timep)
 {
     return gmtsub(timep, 0, &tm);
 }
+
 
 /*
  * Return the number of leap years through the end of the given year

@@ -1,16 +1,13 @@
 src/test/authentication/README
 
-Regression tests for authentication
+认证回归测试
 ===================================
 
-This directory contains a test suite for authentication. SSL certificate
-authentication tests are kept separate, in src/test/ssl/, because they
-are more complicated, and are not safe to run in a multi-user system.
+该目录包含用于认证的测试套件。SSL 证书认证测试被单独保存在 src/test/ssl/ 中，因为它们更复杂，并且在多用户系统中运行不安全。
 
-
-Running the tests
+运行测试
 =================
 
     make check
 
-NOTE: This requires the --enable-tap-tests argument to configure.
+注意：这需要在 configure 中使用 --enable-tap-tests 参数。
