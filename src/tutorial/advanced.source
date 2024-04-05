@@ -1,60 +1,56 @@
 ---------------------------------------------------------------------------
 --
 -- advanced.sql-
---    Tutorial on advanced more PostgreSQL features
+--    PostgreSQL高级特性教程
 --
 --
--- Copyright (c) 1994, Regents of the University of California
+-- 版权所有（c）1994，加利福尼亚大学理事会
 --
 -- src/tutorial/advanced.source
 --
 ---------------------------------------------------------------------------
 
 -----------------------------
--- Inheritance:
---	A table can inherit from zero or more tables.  A query can reference
---	either all rows of a table or all rows of a table plus all of its
---	descendants.
+-- 继承：
+--    一个表可以从零个或多个表继承。查询可以引用一个表的所有行，也可以引用一个表的所有行以及它的所有子表的行。
 -----------------------------
 
--- For example, the capitals table inherits from cities table. (It inherits
--- all data fields from cities.)
+-- 例如，capitals表从cities表继承。（它继承了cities的所有数据字段。）
 
 CREATE TABLE cities (
-	name		text,
-	population	float8,
-	altitude	int		-- (in ft)
+    name        text,
+    population  float8,
+    altitude    int     --（单位：英尺）
 );
 
 CREATE TABLE capitals (
-	state		char(2)
-) INHERITS (cities);
+    state       char(2)
+) INHERITS (cities); -- capitals表继承自cities表
 
--- Now, let's populate the tables.
-INSERT INTO cities VALUES ('San Francisco', 7.24E+5, 63);
-INSERT INTO cities VALUES ('Las Vegas', 2.583E+5, 2174);
-INSERT INTO cities VALUES ('Mariposa', 1200, 1953);
+-- 现在，让我们填充表格。
+INSERT INTO cities VALUES ('旧金山', 7.24E+5, 63);
+INSERT INTO cities VALUES ('拉斯维加斯', 2.583E+5, 2174);
+INSERT INTO cities VALUES ('马里波萨', 1200, 1953);
 
-INSERT INTO capitals VALUES ('Sacramento', 3.694E+5, 30, 'CA');
-INSERT INTO capitals VALUES ('Madison', 1.913E+5, 845, 'WI');
+INSERT INTO capitals VALUES ('萨克拉门托', 3.694E+5, 30, 'CA');
+INSERT INTO capitals VALUES ('麦迪逊', 1.913E+5, 845, 'WI');
 
 SELECT * FROM cities;
 SELECT * FROM capitals;
 
--- You can find all cities, including capitals, that
--- are located at an altitude of 500 ft or higher by:
+-- 您可以通过以下方式找到所有位于海拔500英尺或更高的城市，包括首都：
 
 SELECT c.name, c.altitude
 FROM cities c
 WHERE c.altitude > 500;
 
--- To scan rows of the parent table only, use ONLY:
+-- 要仅扫描父表的行，请使用ONLY：
 
 SELECT name, altitude
 FROM ONLY cities
 WHERE altitude > 500;
 
 
--- clean up (you must remove the children first)
+-- 清理（必须先删除子表）
 DROP TABLE capitals;
 DROP TABLE cities;

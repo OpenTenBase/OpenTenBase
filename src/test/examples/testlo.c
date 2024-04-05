@@ -1,10 +1,10 @@
 /*-------------------------------------------------------------------------
  *
  * testlo.c
- *      test using large objects with libpq
+ *      使用 libpq 处理大型对象的测试程序
  *
- * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
- * Portions Copyright (c) 1994, Regents of the University of California
+ * 版权所有 (c) 1996-2017, PostgreSQL 全球开发团队
+ * 版权所有 (c) 1994, 加利福尼亚大学理事会
  *
  *
  * IDENTIFICATION
@@ -12,6 +12,7 @@
  *
  *-------------------------------------------------------------------------
  */
+
 #include <stdio.h>
 #include <stdlib.h>
 

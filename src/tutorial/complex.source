@@ -1,37 +1,33 @@
 ---------------------------------------------------------------------------
 --
--- complex.sql-
---    This file shows how to create a new user-defined type and how to
---    use this new type.
+-- complex.sql
+--    该文件展示了如何创建一个新的用户定义类型以及如何使用这个新类型。
 --
 --
--- Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
--- Portions Copyright (c) 1994, Regents of the University of California
+-- 版权所有（c）1996-2017，PostgreSQL全球开发集团
+-- 版权所有（c）1994，加利福尼亚大学校董会
 --
 -- src/tutorial/complex.source
 --
 ---------------------------------------------------------------------------
 
 -----------------------------
--- Creating a new type:
---	We are going to create a new type called 'complex' which represents
---	complex numbers.
---	A user-defined type must have an input and an output function, and
---	optionally can have binary input and output functions.  All of these
---	are usually user-defined C functions.
+-- 创建一个新类型:
+--	我们将创建一个名为 'complex' 的新类型，用于表示复数。
+--	用户定义类型必须有一个输入函数和一个输出函数，并且
+--	可以选择具有二进制输入和输出函数。所有这些
+--	通常都是用户定义的C函数。
 -----------------------------
 
--- Assume the user defined functions are in _OBJWD_/complex$DLSUFFIX
--- (we do not want to assume this is in the dynamic loader search path).
--- Look at $PWD/complex.c for the source.  Note that we declare all of
--- them as STRICT, so we do not need to cope with NULL inputs in the
--- C code.  We also mark them IMMUTABLE, since they always return the
--- same outputs given the same inputs.
+-- 假设用户定义的函数在_OBJWD_/complex$DLSUFFIX 中
+-- （我们不希望假设这在动态加载器搜索路径中）。
+-- 查看 $PWD/complex.c 以获取源代码。请注意，我们声明所有的
+-- 函数都是 STRICT，因此我们不需要在C代码中处理 NULL 输入。
+-- 我们还将它们标记为 IMMUTABLE，因为它们始终返回相同的输出，给定相同的输入。
 
--- the input function 'complex_in' takes a null-terminated string (the
--- textual representation of the type) and turns it into the internal
--- (in memory) representation. You will get a message telling you 'complex'
--- does not exist yet but that's okay.
+-- 输入函数 'complex_in' 接受一个空结尾的字符串（类型的文本表示）
+-- 并将其转换为内部（内存中）的表示。您将收到一个消息，告诉您 'complex'
+-- 还不存在，但没关系。
 
 CREATE FUNCTION complex_in(cstring)
    RETURNS complex

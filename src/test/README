@@ -1,47 +1,42 @@
-PostgreSQL tests
+PostgreSQL 测试
 ================
 
-This directory contains a variety of test infrastructure as well as some of the
-tests in PostgreSQL. Not all tests are here -- in particular, there are more in
-individual contrib/ modules and in src/bin.
+该目录包含各种测试基础设施以及一些 PostgreSQL 中的测试。并非所有测试都在这里 -- 特别是，在各个 contrib/ 模块和 src/bin 中还有更多测试。
 
-Not all these tests get run by "make check". Check src/test/Makefile to see
-which tests get run automatically.
+并非所有这些测试都会被 "make check" 运行。检查 src/test/Makefile 以查看哪些测试会自动运行。
 
 authentication/
-  Tests for authentication
+  认证测试
 
 examples/
-  Demonstration programs for libpq that double as regression tests via
-  "make check"
+  通过 "make check" 运行的同时也是 libpq 的演示程序，可作为回归测试
 
 isolation/
-  Tests for concurrent behavior at the SQL level
+  SQL 级别并发行为的测试
 
 locale/
-  Sanity checks for locale data, encodings, etc
+  包括语言环境数据、编码等的健全性检查
 
 mb/
-  Tests for multibyte encoding (UTF-8) support
+  多字节编码（UTF-8）支持的测试
 
 modules/
-  Extensions used only or mainly for test purposes, generally not suitable
-  for installing in production databases
+  仅用于测试目的的扩展，通常不适合安装在生产数据库中
 
 perl/
-  Infrastructure for Perl-based TAP tests
+  基于 Perl 的 TAP 测试基础设施
 
 recovery/
-  Test suite for recovery and replication
+  用于恢复和复制的测试套件
 
 regress/
-  PostgreSQL's main regression test suite, pg_regress
+  PostgreSQL 的主要回归测试套件，pg_regress
 
 ssl/
-  Tests to exercise and verify SSL certificate handling
+  用于测试和验证 SSL 证书处理的测试
 
 subscription/
-  Tests for logical replication
+  逻辑复制的测试
 
 thread/
-  A thread-safety-testing utility used by configure
+  由 configure 使用的线程安全性测试实用工具
