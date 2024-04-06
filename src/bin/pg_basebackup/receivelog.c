@@ -33,6 +33,7 @@
 static Walfile *walfile = NULL;
 static char current_walfile_name[MAXPGPATH] = "";
 static bool reportFlushPosition = false;
+static bool checkFlushPosition = false;
 static XLogRecPtr lastFlushPosition = InvalidXLogRecPtr;
 
 static bool still_sending = true;    /* feedback still needs to be sent? */
@@ -161,8 +162,8 @@ open_walfile(StreamCtl *stream, XLogRecPtr startpoint)
     }
 
     /* No file existed, so create one */
-
     f = stream->walmethod->open_for_write(current_walfile_name, stream->partial_suffix, XLogSegSize);
+
     if (f == NULL)
     {
         fprintf(stderr,
@@ -184,10 +185,7 @@ static bool
 close_walfile(StreamCtl *stream, XLogRecPtr pos)
 {// #lizard forgives
     off_t        currpos;
-    int            r;
-
-    if (walfile == NULL)
-        return true;
+    int            r;        
 
     currpos = stream->walmethod->get_current_pos(walfile);
     if (currpos == -1)

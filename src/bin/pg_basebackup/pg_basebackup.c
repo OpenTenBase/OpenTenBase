@@ -36,8 +36,7 @@
 #include "pgtime.h"
 #include "receivelog.h"
 #include "replication/basebackup.h"
-#include "streamutil.h"
-
+#include "streamutil.h" 
 
 typedef struct TablespaceListCell
 {
@@ -100,6 +99,7 @@ static bool made_new_xlogdir = false;
 static bool found_existing_xlogdir = false;
 static bool made_tablespace_dirs = false;
 static bool found_tablespace_dirs = false;
+static bool check_tablespace_dirs = false; 
 
 /* Progress counters */
 static uint64 totalsize;
