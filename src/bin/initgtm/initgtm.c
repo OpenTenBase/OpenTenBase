@@ -110,6 +110,7 @@ static int    CreateRestrictedProcess(char *cmd, PROCESS_INFORMATION *processInf
 #define DIR_SEP "\\"
 #endif
 
+
 static char *
 xstrdup(const char *s)
 {
@@ -239,9 +240,11 @@ readfile(const char *path)
         linelen++;
         if (c == '\n')
         {
+        	nlines++;
+			if(linelen > maxlength){
+				maxlength = linelen;
+			} 
             nlines++;
-            if (linelen > maxlength)
-                maxlength = linelen;
             linelen = 0;
         }
     }
@@ -394,7 +397,6 @@ get_id(void)
         exit(1);
     }
 #endif
-
     return xstrdup(pw->pw_name);
 }
 
@@ -409,11 +411,15 @@ mkdatadir(const char *subdir)
 
     path = pg_malloc(strlen(pg_data) + 2 +
                      (subdir == NULL ? 0 : strlen(subdir)));
-
-    if (subdir != NULL)
-        sprintf(path, "%s/%s", pg_data, subdir);
-    else
-        strcpy(path, pg_data);
+      
+    if(subdir != NULL)
+    {
+    	sprintf(path, "%s/%s", pg_data, subdir);
+	}
+	else
+	{
+		strcpy(path, pg_data);
+	}
 
     if (pg_mkdir_p(path, S_IRWXU) == 0)
         return true;
