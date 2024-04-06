@@ -1,0 +1,5 @@
+comment = 'Extension to add Oracle DBMS_METADATA compatibility to PostgreSQL'
+default_version = '1.0.0'
+module_pathname = '$libdir/pg_dbms_metadata'
+schema = 'dbms_metadata'
+relocatable = false

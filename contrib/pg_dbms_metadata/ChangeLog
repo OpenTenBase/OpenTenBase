@@ -1,0 +1,6 @@
+Version 1.0.0 (Based on HexaCluster Corp. Version 1.0.0) - 2024-04-06
+
+-- Add Oracle compatible view 'dual' for better usage of the dbms_metadata package.
+-- Remove stored procedure support, as the current core of PGXC is based on PostgreSQL 10, which does not support stored procedures.
+-- Add PGXC distributed syntax to the create table statement.
+-- Adjust test cases to better test PGXC
