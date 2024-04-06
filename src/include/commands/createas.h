@@ -28,4 +28,7 @@ extern int    GetIntoRelEFlags(IntoClause *intoClause);
 
 extern DestReceiver *CreateIntoRelDestReceiver(IntoClause *intoClause);
 
+extern DestReceiver *CheckRelDestReceiver(IntoClause *intoClause);
+
+
 #endif                            /* CREATEAS_H */
