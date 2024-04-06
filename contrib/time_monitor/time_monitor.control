@@ -1,0 +1,5 @@
+# time_monitor extension
+comment = 'Monitor the execution time of SQL statements'
+default_version = '1.0'
+module_pathname = '$libdir/time_monitor'
+relocatable = false
