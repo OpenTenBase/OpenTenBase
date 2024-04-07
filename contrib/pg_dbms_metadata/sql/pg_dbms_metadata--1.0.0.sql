@@ -585,11 +585,6 @@ BEGIN
     -- Getting values of transform params
     SELECT current_setting('DBMS_METADATA.SQLTERMINATOR')::boolean INTO l_sqlterminator_guc;
 
-    CASE
-    WHEN routine_type = 'FUNCTION' THEN
-        routine_type_flag = 'f';
-    END CASE;
-
     SELECT dbms_metadata.get_object_oid(routine_type, schema_name, routine_name) INTO l_oid;
 
     SELECT
@@ -597,8 +592,7 @@ BEGIN
     FROM
         pg_proc p
     WHERE
-        p.oid = l_oid
-        AND p.prokind = routine_type_flag; 
+        p.oid = l_oid; 
     
     IF l_sqlterminator_guc THEN
         routine_code := concat(routine_code, ';');
