@@ -4,7 +4,6 @@ LABEL author="Liu Dongming <ldming101@gmail.com>"
 
 ARG TARGETOS
 ARG TARGETARCH
-
 ARG OPENTENBASE_HOME=/var/lib/opentenbase
 ARG OPENTENBASE_LIB=/var/lib/opentenbase/lib
 ARG OPENTENBASE_BIN=/var/lib/opentenbase/bin
