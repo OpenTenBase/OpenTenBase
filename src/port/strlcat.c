@@ -32,29 +32,35 @@
 size_t
 strlcat(char *dst, const char *src, size_t siz)
 {
-    char       *d = dst;
-    const char *s = src;
-    size_t        n = siz;
-    size_t        dlen;
+    char       *d = dst; // 指向 dst 的指针，用于遍历 dst 字符串  
+    const char *s = src; // 指向 src 的指针，用于遍历 src 字符串 
+    size_t        n = siz; // 剩余的可用空间大小  
+    size_t        dlen;   // dst 字符串的长度  
 
     /* Find the end of dst and adjust bytes left but don't go past end */
+	// 找到 dst 字符串的结尾，并调整剩余空间大小，但不超过 dst 的总大小  
+
     while (n-- != 0 && *d != '\0')
         d++;
-    dlen = d - dst;
-    n = siz - dlen;
+    dlen = d - dst;   // 计算 dst 字符串的长度  
+    n = siz - dlen;   // 更新剩余的可用空间大小
 
-    if (n == 0)
+    if (n == 0)		 // 如果没有剩余空间，返回 dst 和 src 的总长度  
         return (dlen + strlen(s));
+    // 连接 src 到 dst，直到 src 结束或剩余空间用完  
+    
     while (*s != '\0')
     {
         if (n != 1)
         {
-            *d++ = *s;
-            n--;
+            *d++ = *s;	// 将 src 的字符复制到 dst  
+            n--;		// 剩余空间减一  
         }
-        s++;
+        s++;  			// 移动到 src 的下一个字符  
     }
-    *d = '\0';
+    // 在 dst 的末尾添加空字符（'\0'），确保它是一个有效的 C 字符串  
 
+    *d = '\0';
+	
     return (dlen + (s - src));    /* count does not include NUL */
 }
