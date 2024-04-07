@@ -43,31 +43,33 @@
  * Function creation history:  http://www.gratisoft.us/todd/papers/strlcpy.html
  */
 size_t
-strlcpy(char *dst, const char *src, size_t siz)
+strlcpy(char *dst, const char *src, size_t siz) //安全复制字符串的函数
 {
-    char       *d = dst;
-    const char *s = src;
-    size_t        n = siz;
+    char       *d = dst; //d是一个指向dst缓冲区的指针，用于在复制过程中更新目标位置
+    const char *s = src; //s是一个指向src字符串的指针，用于在复制过程中更新源位置。
+    size_t        n = siz;//s是一个指向src字符串的指针，用于在复制过程中更新源位置。
 
     /* Copy as many bytes as will fit */
-    if (n != 0)
+    if (n != 0) //如果n（即dst缓冲区的大小）不为0，开始复制字符串。
     {
-        while (--n != 0)
+        while (--n != 0) //while循环用于逐个复制字符，直到遇到源字符串的结尾（空字符'\0'）
+        				//或dst缓冲区已满。（--n!=0）
         {
-            if ((*d++ = *s++) == '\0')
+            if ((*d++ = *s++) == '\0') 
                 break;
         }
     }
 
     /* Not enough room in dst, add NUL and traverse rest of src */
-    if (n == 0)
+    if (n == 0) //如果n为0，这意味着dst缓冲区已满，但字符串复制尚未完成。
     {
         if (siz != 0)
             *d = '\0';            /* NUL-terminate dst */
-        while (*s++)
+        while (*s++)	//while循环仅仅是为了遍历完src的剩余部分，不执行任何操作。
+        			   //这只是一个简单的技巧，用于确保s指针指向src的末尾。
             ;
     }
-
+								//返回复制的字符数。
     return (s - src - 1);        /* count does not include NUL */
 }
 #endif
