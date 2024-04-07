@@ -2,7 +2,7 @@
 
 This folder contains two Helm charts for deploying the OpenTenBase KubeBlocks add-on on a Kubernetes cluster. Use this add-on, you can deploy and manage OpenTenBase clusters on Kubernetes. 
 
-Now, already support OS architecure `amd64` and `arm64`. You can follow the steps below to deploy the OpenTenBase Cluster on you laptop(including Mac M1).
+Now, already support OS architecture `amd64` and `arm64`. You can follow the steps below to deploy the OpenTenBase Cluster on you laptop(including Mac M1). This significantly lowers the barrier and difficulty for users to experience OpenTenBase.
 
 ## What is KubeBlocks?
 
@@ -22,9 +22,9 @@ Before you deploy the OpenTenBase KubeBlocks add-on, you need to have the follow
 
 Refer to the [KubeBlocks installation guide](https://kubeblocks.io/docs/release-0.8/user_docs/installation/install-with-kbcli/install-kbcli) to install the `kbcli` and  KubeBlocks control plane on your Kubernetes cluster.
 
-## Deploy OpenTenBase KubeBlocks Add-on
+## Deploy OpenTenBase Add-on
 
-To deploy the OpenTenBase KubeBlocks add-on on your Kubernetes cluster, follow these steps:
+To deploy the OpenTenBase add-on on your Kubernetes cluster, follow these steps:
 
 ```bash
 $ helm install opentenbase ./opentenbase
