@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+if [ -z "${MASTER_NAME}" ]; then
+  log:info "Starting postgres as master gtm"
+  sed -i "s|startup = STANDBY|#startup = ACT|" "${PGDATA}/gtm.conf"
+  sed -i "s|active_host = '*|#active_host = ''|" "${PGDATA}/gtm.conf"
+  sed -i "s|active_port = 6666|#active_port =|" "${PGDATA}/gtm.conf"
+else
+  log:info "Starting postgres as standby gtm"
+  MASTER_SERVICE="${MASTER_NAME}-gtm-0.${MASTER_NAME}-svc-gtm"
+  sed -i "s|#startup = ACT|startup = STANDBY|" "${PGDATA}/gtm.conf"
+  sed -i "s|#active_host = ''|active_host = '${MASTER_SERVICE}'|" "${PGDATA}/gtm.conf"
+  sed -i "s|#active_port =|active_port = 6666|" "${PGDATA}/gtm.conf"
+fi

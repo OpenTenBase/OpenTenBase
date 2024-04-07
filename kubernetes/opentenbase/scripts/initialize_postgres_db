@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+# Initialize the postgres database.
+CUR_PATH="$(dirname "${BASH_SOURCE[0]}")"
+# shellcheck source=./common.sh
+source "${CUR_PATH}/common.sh"
+log:info "Initializing database on node ${PG_NODE}"
+
+if [ "${RESET_DB}" == "true" ] && [ -d "${PGDATA}" ]; then
+  rm -R "${PGDATA}"
+fi
+
+if [ ! -f "${PGDATA}/postgresql.conf" ]; then
+
+  if ((POD_INDEX > 0)); then
+
+    # restore nodes from first one otherwise when creating new nodes they will not have required data
+    case "${NODE_TYPE}" in
+    datanode)
+      log:info "Database configuration not found, restoring from first datanode"
+      # waiting for first datanode.
+      "${CUR_PATH}/wait_for_connection" "local-alias-dn-0" "${PG_PORT}"
+      assert $? "Error while waiting for connection. Deployment not ready." || exit $?
+      pg_basebackup -d "postgresql://${PGUSER}:${PGPASSWORD}@local-alias-dn-0:${PG_PORT}" -D "${PGDATA}" -P --wal-method=stream
+      sed -i "s|pgxc_node_name = 'DN_0'|pgxc_node_name = 'DN_${POD_INDEX}'|" "${PGDATA}/postgresql.conf"
+      ;;
+    coordinator)
+      log:info "Database configuration not found, restoring from first coordinator"
+      # waiting for first coordinator.
+      "${CUR_PATH}/wait_for_connection" "local-alias-crd-0" "${PG_PORT}"
+      assert $? "Error while waiting for connection. Deployment not ready." || exit $?
+      pg_basebackup -d "postgresql://${PGUSER}:${PGPASSWORD}@local-alias-crd-0:${PG_PORT}" -D "${PGDATA}" -P --wal-method=stream
+      sed -i "s|pgxc_node_name = 'CN_0'|pgxc_node_name = 'CN_${POD_INDEX}'|" "${PGDATA}/postgresql.conf"
+      ;;
+    esac
+
+  else
+    # if it's the first coordinator or any datanode then init
+    log:info "Database configuration not found, calling initdb"
+
+    if [ -z "${PGPASSWORD}" ]; then
+      log:warning "Database superuser password not found, DB is insecure."
+      initdb \
+        -D "${PGDATA}" \
+        -U "${PGUSER}" \
+        --nodename="${PG_NODE}" \
+        --nodetype="${NODE_TYPE}" \
+        --master_gtm_nodename="a_one" \
+        --master_gtm_ip="${PG_GTM_HOST}" \
+        --master_gtm_port="${PG_GTM_PORT}"
+      assert $? "Postgres init db failed, postgres database cannot be started." || exit $?
+    else
+      log:info "Database superuser password found, initializing db with password."
+      echo "${PGPASSWORD}" > "/tmp/${PGUSER}"
+      initdb \
+        -A "${AUTH_TYPE}" \
+        -D "${PGDATA}" \
+        -U "${PGUSER}" \
+        --nodename="${PG_NODE}" \
+        --nodetype="${NODE_TYPE}" \
+        --master_gtm_nodename="a_one" \
+        --master_gtm_ip="${PG_GTM_HOST}" \
+        --master_gtm_port="${PG_GTM_PORT}" \
+        --pwfile="/tmp/${PGUSER}"
+      assert $? "Postgres init db failed, postgres database cannot be started." || exit $?
+    fi
+
+  fi
+
+  # shellcheck source=./initialize_networks
+  source "${CUR_PATH}/initialize_networks" || exit $?
+  # shellcheck source=./initialize_node_config
+  source "${CUR_PATH}/initialize_node_config" || exit $?
+
+  log:info "Database configuration initialized."
+else
+  log:info "Database configuration found, init skipped."
+fi
+
+# if its currently a standby convert it back to master
+rm -rf "${PGDATA}/recovery.conf"
+sed -i '/hot_standby = on/d' "${PGDATA}/postgresql.conf"
+
+# required for postgres permissions.
+# the loaded values are actually set by kuberntes. :(
+log:info "Set data folder permissions 0700"
+chmod -R 0700 "${PGDATA}"
+assert $? "Failed to change data folder permissions" || exit $?
+
+# cleanup pid if it still exists
+rm -rf "${PGDATA}/postmaster.pid"
+
+# check for proxy.
+if [ "${PROXY_ENABLED}" = "true" ]; then
+  export PG_GTM_HOST="${PROXY_SERVICE}"
+  log:info "looking for GTM proxy host @ ${PG_GTM_HOST}..."
+else
+  log:info "looking for GTM host @ ${PG_GTM_HOST}..."
+fi
+
+# waiting for GTM.
+"${CUR_PATH}/wait_for_connection" "${PG_GTM_HOST}" "${PG_GTM_PORT}"
+assert $? "Error while waiting for connection. Deployment not ready." || exit $?

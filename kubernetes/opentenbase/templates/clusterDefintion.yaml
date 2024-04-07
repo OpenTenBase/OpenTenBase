@@ -1,0 +1,267 @@
+apiVersion: apps.kubeblocks.io/v1alpha1
+kind: ClusterDefinition
+metadata:
+  name: opentenbase
+  labels:
+    {{- include "opentenbase.labels" . | nindent 4 }}
+spec:
+  connectionCredential:
+    username: "opentenbase"
+    password: "$(RANDOM_PASSWD)"
+    endpoint: "$(SVC_FQDN):$(SVC_PORT_postgresql)"
+    host: "$(SVC_FQDN)"
+    port: "$(SVC_PORT_postgresql)"
+    metaDbPasswd: "$(RANDOM_PASSWD)"
+  componentDefs:
+    - name: gtm
+      scriptSpecs: &scriptSpecs
+        - name: opentenbase-scripts
+          templateRef: opentenbase-scripts
+          volumeName: scripts
+          namespace: {{ .Release.Namespace }}
+          defaultMode: 0555
+      configSpecs: &configSpecs
+        - name: config
+          templateRef: opentenbase-config
+          volumeName: cfg
+          namespace: {{ .Release.Namespace }}
+          defaultMode: 0555
+      workloadType: Stateful
+      characterType: postgresql
+      service:
+        ports:
+          - name: gtm
+            port: 50001
+            targetPort: 50001
+      volumeTypes:
+        - name: data
+          type: data
+      podSpec:
+        securityContext:
+          fsGroup: 1000
+          runAsGroup: 1000
+          runAsUser: 1000
+          fsGroupChangePolicy: OnRootMismatch
+        containers:
+          - name: gtm
+            command:
+              - bash
+              - /scripts/gtm_entrypoint
+            env:
+              - name: POD_IP
+                valueFrom:
+                  fieldRef:
+                    apiVersion: v1
+                    fieldPath: status.podIP
+              - name: POD_NAME
+                valueFrom:
+                  fieldRef:
+                    apiVersion: v1
+                    fieldPath: metadata.name
+              - name: PGPASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: $(CONN_CREDENTIAL_SECRET_NAME)
+                    key: password
+                    optional: false
+              - name: PGUSER
+                value: "opentenbase"
+              - name: PG_GTM_PORT
+                value: "50001"
+              - name: PGDATA
+                value: /data/pgdata
+              - name: PGUSER
+                value: "opentenbase"
+              - name: PG_HOST
+                value: "0.0.0.0"
+              - name: STORAGE_MOUNT_PATH
+                value: /data
+              - name: NODE_TYPE
+                value: gtm
+            ports:
+              - name: gtm
+                containerPort: 50001
+            volumeMounts: &volumeMounts
+              - name: data
+                mountPath: /data
+              - name: scripts
+                mountPath: /scripts
+              - name: cfg
+                mountPath: /config
+    - name: dn
+      scriptSpecs: *scriptSpecs
+      configSpecs: *configSpecs
+      workloadType: Consensus
+      characterType: opentenbase
+      componentDefRef: &componentDefRef
+        - componentDefName: gtm
+          componentRefEnv:
+            - name: PG_GTM_PORT
+              valueFrom:
+                type: FieldRef
+                fieldPath: $.componentDef.service.ports[?(@.name == "gtm")].port
+            - name: PG_GTM_HOST
+              valueFrom:
+                type: ServiceRef
+      rsmSpec:
+        roles:
+          - name: "primary"
+            accessMode: ReadWrite
+            isLeader: true
+            canVote: true
+          - name: "secondary"
+            accessMode: Readonly
+            canVote: true
+        roleProbe:
+          roleUpdateMechanism: DirectAPIServerEventUpdate
+          customHandler:
+            - image: "domainlau/opentenbase:v2.5.0"
+              command:
+                - bash
+                - -c
+                - |
+                  psql -h127.0.0.1 postgres -t -c "select pg_is_in_recovery()" | tr -d ' \n' | { read is_recovery; if [ "$is_recovery" = "f" ]; then echo "primary"; else echo "secondary"; fi; }
+        memberUpdateStrategy: Serial
+      service:
+        ports:
+          - name: postgresql
+            port: 5432
+            targetPort: 5432
+      volumeTypes:
+        - name: data
+          type: data
+      podSpec:
+        securityContext:
+          fsGroup: 1000
+          runAsGroup: 1000
+          runAsUser: 1000
+          fsGroupChangePolicy: OnRootMismatch
+        containers:
+          - name: dn
+            command:
+              - bash
+              - /scripts/dn_entrypoint
+            env:
+              - name: POD_IP
+                valueFrom:
+                  fieldRef:
+                    apiVersion: v1
+                    fieldPath: status.podIP
+              - name: POD_NAME
+                valueFrom:
+                  fieldRef:
+                    apiVersion: v1
+                    fieldPath: metadata.name
+              - name: PGPASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: $(CONN_CREDENTIAL_SECRET_NAME)
+                    key: password
+                    optional: false
+              - name: PGUSER
+                value: "opentenbase"
+              - name: PGDATA
+                value: /data/pgdata
+              - name: PG_HOST
+                value: "0.0.0.0"
+              - name: PG_PORT
+                value: "5432"
+              - name: NODE_TYPE
+                value: datanode
+              - name: STORAGE_MOUNT_PATH
+                value: /data
+            ports:
+              - name: dn
+                containerPort: 5432
+            livenessProbe:
+              exec:
+                command:
+                  - bash
+                  - -c
+                  - psql -h 127.0.0.1 -p 5432 postgres -c "select 1"
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            readinessProbe:
+              exec:
+                command:
+                  - bash
+                  - -c
+                  - pg_isready -h 127.0.0.1 -p 5432
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            volumeMounts: *volumeMounts
+    - name: cn
+      scriptSpecs: *scriptSpecs
+      configSpecs: *configSpecs
+      workloadType: Stateful
+      characterType: postgresql
+      service:
+        ports:
+          - name: postgresql
+            port: 5432
+            targetPort: 5432
+      componentDefRef: *componentDefRef
+      volumeTypes:
+        - name: data
+          type: data
+      podSpec:
+        securityContext:
+          fsGroup: 1000
+          runAsGroup: 1000
+          runAsUser: 1000
+          fsGroupChangePolicy: OnRootMismatch
+        containers:
+          - name: cn
+            command:
+              - /bin/bash
+              - /scripts/cn_entrypoint
+            env:
+              - name: POD_IP
+                valueFrom:
+                  fieldRef:
+                    apiVersion: v1
+                    fieldPath: status.podIP
+              - name: POD_NAME
+                valueFrom:
+                  fieldRef:
+                    apiVersion: v1
+                    fieldPath: metadata.name
+              - name: PGPASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: $(CONN_CREDENTIAL_SECRET_NAME)
+                    key: password
+                    optional: false
+              - name: PGUSER
+                value: "opentenbase"
+              - name: PGDATA
+                value: /data/pgdata
+              - name: PG_HOST
+                value: "0.0.0.0"
+              - name: PG_PORT
+                value: "5432"
+              - name: NODE_TYPE
+                value: coordinator
+              - name: STORAGE_MOUNT_PATH
+                value: /data
+            ports:
+              - containerPort: 5432
+                name: cn
+                protocol: TCP
+            livenessProbe:
+              exec:
+                command:
+                  - bash
+                  - -c
+                  - psql -h 127.0.0.1 -p 5432 postgres -c "select 1"
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            readinessProbe:
+              exec:
+                command:
+                  - bash
+                  - -c
+                  - pg_isready -h 127.0.0.1 -p 5432
+              initialDelaySeconds: 30
+              periodSeconds: 5
+            volumeMounts: *volumeMounts

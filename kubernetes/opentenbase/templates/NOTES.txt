@@ -1,0 +1,14 @@
+Thanks for installing OpenTenBase using KubeBlocks!
+
+1. Run the following command to create your first OpenTenBase cluster:
+
+```
+kbcli cluster create otb --cluster-definition polardbx
+```
+
+2. Port-forward service to localhost and connect to PolarDB-X cluster:
+
+```
+kubectl port-forward svc/otb-cn-0 5432:5432
+psql -h127.0.0.1 -U opentenbase postgres
+```

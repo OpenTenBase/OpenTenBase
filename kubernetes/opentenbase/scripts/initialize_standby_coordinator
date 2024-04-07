@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+
+MASTER_SERVICE="${MASTER_NAME}-crd-${POD_INDEX}.${MASTER_NAME}-svc-crd"
+
+# waiting for master coordinator.
+"${CUR_PATH}/wait_for_connection" "${MASTER_SERVICE}" "${PG_PORT}"
+assert $? "Error while waiting for connection. Deployment not ready." || exit $?
+
+if [ ! -f "${PGDATA}/postgresql.conf" ]; then
+  log:info "Database configuration not found, creating base backup and setting to standby"
+
+  pg_basebackup -d "postgresql://${PGUSER}:${PGPASSWORD}@${MASTER_SERVICE}:${PG_PORT}" -D "${PGDATA}" -P --wal-method=stream
+
+  echo "standby_mode          = 'on'" >"${PGDATA}/recovery.conf"
+  echo "primary_conninfo      = 'host=${MASTER_SERVICE} port=${PG_PORT} user=${PGUSER} password=${PGPASSWORD}'" >>"${PGDATA}/recovery.conf"
+  echo "trigger_file          = '/tmp/MasterNow'" >>"${PGDATA}/recovery.conf"
+  echo "hot_standby = on" >>"${PGDATA}/postgresql.conf"
+fi
+
+# required for postgres permissions.
+# the loaded values are actually set by kuberntes. :(
+log:info "Set data folder permissions 0700"
+chmod -R 0700 "${PGDATA}"
+assert $? "Failed to change data folder permissions" || exit $?

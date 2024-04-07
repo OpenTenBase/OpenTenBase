@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+# Script to register the nodes in postgres
+CUR_PATH="$(dirname "${BASH_SOURCE[0]}")"
+
+# shellcheck source=./common.sh
+source "${CUR_PATH}/common.sh"
+
+# shellcheck source=./initialize_env_dependencies
+source "${CUR_PATH}/initialize_env_dependencies"
+
+function wait_for_postgres() {
+  while true; do
+    pg_isready &>/dev/null
+    if [ $? -eq 0 ]; then
+      break
+    else
+      log:info "Waiting for database to be ready.."
+      sleep "${PORT_WAIT_INTERVAL}"
+    fi
+  done
+}
+
+log:info "Registering cluster nodes on ${POD_NAME}.."
+
+function register_node() {
+  local LOCAL_NODE_TYPE=$1
+  local LOCAL_NODE_IDX=$2
+  case "${LOCAL_NODE_TYPE}" in
+  datanode)
+    NODE_FULL_NAME="${DATANODE_BASENAME}-${LOCAL_NODE_IDX}"
+    NODE_HOST="${KB_CLUSTER_NAME}-dn-$i-headless"
+    NODE_NAME="dn_$i"
+    ;;
+  coordinator)
+    NODE_FULL_NAME="${COORDINATOR_BASENAME}-${LOCAL_NODE_IDX}"
+    NODE_HOST="${KB_CLUSTER_NAME}-cn-$i-headless"
+    NODE_NAME="cn_$i"
+    ;;
+  *)
+    assert 1 "Register node is defined only for datanodes and coordinators" || exit $?
+    ;;
+  esac
+
+  wait_for_postgres || return $?
+
+  local LOCAL_HOST_IP="${POD_IP}"
+  if [ "${NODE_FULL_NAME}" = "${POD_NAME}" ]; then
+    log:info "Registering self.."
+  else
+    while true; do
+      LOCAL_HOST_IP=$(getent hosts "${NODE_HOST}" | awk '{ print $1 }')
+      if [ -z "${LOCAL_HOST_IP}" ]; then
+        log:info "Waiting for host to be ready @ ${NODE_HOST} ..."
+        sleep "${PORT_WAIT_INTERVAL}"
+      else
+        break
+      fi
+    done
+  fi
+  log:info "Resolved ${NODE_HOST} -> ${LOCAL_HOST_IP}, registering node on local as ${LOCAL_NODE_TYPE}:"
+
+  local CREATE_SCRIPT="CREATE NODE $NODE_NAME WITH (TYPE = '${LOCAL_NODE_TYPE}', HOST = '${NODE_HOST}', PORT = ${PG_PORT});"
+  log:script "$CREATE_SCRIPT"
+  psql -c "$CREATE_SCRIPT" || true
+  local ALTER_SCRIPT="ALTER NODE $NODE_NAME WITH (TYPE = '${LOCAL_NODE_TYPE}', HOST = '${NODE_HOST}', PORT = ${PG_PORT});"
+  log:script "$ALTER_SCRIPT"
+  psql -c "$ALTER_SCRIPT" || true
+  #  assert_warn $? "Failed executing sql script. Is node already defined? Node register skipped."
+}
+
+function main() {
+  # must be in a function so it can be called in parallel
+  # (will not affect main script)
+
+  export PGDATABASE=postgres
+
+  # registering datanodes.
+  for i in $(seq "0" "${DATANODE_COUNT}"); do
+    if [ "${i}" -eq "${DATANODE_COUNT}" ]; then break; fi
+    register_node datanode "${i}"
+    assert $? "Failed to register datanodes" || return $?
+  done
+
+  for i in $(seq "0" "${COORDINATOR_COUNT}"); do
+    if [ "${i}" -eq "${COORDINATOR_COUNT}" ]; then break; fi
+    register_node coordinator "${i}"
+    assert $? "Failed to register coordinator" || return $?
+  done
+
+  log:info "Reloading pool...  "
+  psql -q -c "SELECT pgxc_pool_reload();"
+  assert $? "Failed to reload node pool" || return $?
+  log:info "Registered node list:  "
+  psql -q -c "SELECT * FROM pgxc_node"
+  assert $? "Failed to reload node pool" || return $?
+
+  log:info "Setting state to active."
+  echo "$(date)" >> ~/service_activation_time
+  assert $? "Failed generate activation file stamp" || return $?
+  log:info "Node ready."
+}
+
+main
