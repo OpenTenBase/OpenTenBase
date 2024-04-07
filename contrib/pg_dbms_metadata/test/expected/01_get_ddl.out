@@ -195,7 +195,7 @@ SELECT dbms_metadata.get_ddl('FUNCTION','Merge objects','gdmmm') from dual;
      RETURN "First_val" || actual_finder."City";                                            +
  END                                                                                        +
  $function$                                                                                 +
- ;
+ ;                                                                                          +
 (1 row)
 
 -- tests for schema as NULL
@@ -211,7 +211,7 @@ SELECT dbms_metadata.get_ddl('FUNCTION','Merge objects') from dual;
      RETURN "First_val" || actual_finder."City";                                            +
  END                                                                                        +
  $function$                                                                                 +
- ;
+ ;                                                                                          +
 (1 row)
 
 -- Test triggers DDL export

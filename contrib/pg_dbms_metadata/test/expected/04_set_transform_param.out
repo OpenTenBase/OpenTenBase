@@ -25,8 +25,8 @@ led=false,fillfactor=70,autovacuum_vacuum_scale_factor=0.2,autovacuum_analyze_sc
 (1 row)
 
 
-SELECT dbms_metadata.set_transform_param('SQLTERMINATOR',false);
-SELECT dbms_metadata.get_ddl('TABLE','table_all','gdmmm');
+SELECT dbms_metadata.set_transform_param('SQLTERMINATOR',false) from dual;
+SELECT dbms_metadata.get_ddl('TABLE','table_all','gdmmm') from dual;
                                                                                                                                                                   get_ddl                                                                                                                                                                  
 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
  -- Table definition                                                                                                                                                                                       
@@ -50,25 +50,26 @@ led=false,fillfactor=70,autovacuum_vacuum_scale_factor=0.2,autovacuum_analyze_sc
                                                                                                                                              +     
 (1 row)
 
-SELECT dbms_metadata.set_transform_param('DEFAULT');
-SELECT dbms_metadata.get_ddl('TABLE','table_all','gdmmm');
+SELECT dbms_metadata.set_transform_param('DEFAULT') from dual;
+SELECT dbms_metadata.get_ddl('TABLE','table_all','gdmmm') from dual;
                                                                                                                                                                  get_ddl                                                                                                                                                                  
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- -- Table definition                                                                                                                                                                                                                                                                                                                     +
- CREATE TABLE gdmmm.table_all (a integer DEFAULT nextval('gdmmm.table_all_a_seq'::regclass) NOT NULL,b integer  NOT NULL,c character varying(20) DEFAULT 'def'::character varying,d integer ) WITH (autovacuum_enabled=false,fillfactor=70,toast_tuple_target=200,autovacuum_vacuum_scale_factor=0.2,autovacuum_analyze_scale_factor=0.1)+
-                                                                                                                                                                                                                                                                                                                                         +
- -- Table comments                                                                                                                                                                                                                                                                                                                       +
- COMMENT ON TABLE gdmmm.table_all IS 'This is a comment for the table.'                                                                                                                                                                                                                                                                  +
-                                                                                                                                                                                                                                                                                                                                         +
- -- Column comments                                                                                                                                                                                                                                                                                                                      +
- COMMENT ON COLUMN gdmmm.table_all.a IS 'This is a comment for the column.'                                                                                                                                                                                                                                                              +
- COMMENT ON COLUMN gdmmm.table_all.b IS 'This is a comment for the column.'                                                                                                                                                                                                                                                              +
-                                                                                                                                                                                                                                                                                                                                         +
-                                                                                                                                                                                                                                                                                                                                         +
- -- Constraints                                                                                                                                                                                                                                                                                                                          +
- ALTER TABLE gdmmm.table_all ADD CONSTRAINT table_all_pkey PRIMARY KEY (a)                                                                                                                                                                                                                                                               +
- ALTER TABLE gdmmm.table_all ADD CONSTRAINT table_all_d_key UNIQUE (d)                                                                                                                                                                                                                                                                   +
-                                                                                                                                                                                                                                                                                                                                         +
- 
+ -- Table definition                                                                                                                                                                                       
+                                                                                                                                                    +
+ CREATE TABLE gdmmm.table_all (a integer DEFAULT nextval('gdmmm.table_all_a_seq'::regclass)NOT NULL,b integer NOT NULL,c character varying(20) DEFAULT 'def'::character varying,d integer ) WITH (autovacuu
+m_enabled=false,fillfactor=70,autovacuum_vacuum_scale_factor=0.2,autovacuum_analyze_scale_factor=0.1) DISTRIBUTE BY SHARD(a) to GROUP default_group;+
+                                                                                                                                                     +
+ -- Table comments                                                                                                                                                                                         
+                                                                                                                                                    +
+ COMMENT ON TABLE gdmmm.table_all IS 'This is a comment for the table.';                                                                                                                                                                                                                                                                               +
+ -- Column comments                                                                                                                                 +
+ COMMENT ON COLUMN gdmmm.table_all.a IS 'This is a comment for the column.';                                                                                                                               
+                                                                                                                                                    +
+ COMMENT ON COLUMN gdmmm.table_all.b IS 'This is a comment for the column.';                                                                                                                               
+-- Constraints                                                                                                                                                                                            
+                                                                                                                                                    +
+ ALTER TABLE gdmmm.table_all ADD CONSTRAINT table_all_pkey PRIMARY KEY (a);                                                                                                                                
+                                                                                                                                                    +
 (1 row)
+
 
