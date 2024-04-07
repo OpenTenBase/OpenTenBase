@@ -1259,3 +1259,884 @@ $$
 		) AS extentinfo(shardid, num_of_extent) ON shardinfo.shardid = extentinfo.shardid;
 $$
 LANGUAGE SQL STRICT STABLE;
+
+
+----OpenTenBase开源核心贡献挑战赛Oracle兼容视图
+---ORACLE compatibility view ALL_OBJECTS
+create view all_objects as 
+															select
+																pa.rolname as owner,
+																cs.relname as object_name,
+																null :: NAME as subobject_name,
+																cs.oid as object_id,
+																null :: numeric as data_object_id,
+															case
+																	when ( cs.relkind = any ( array [ 'r' :: "char",
+		'f' :: "char" ] ) ) then
+																	'TABLE' :: NAME
+		when ( cs.relkind = any ( array [ 'i' :: "char",
+		'I' :: "char" ] ) ) then
+																	'INDEX' :: NAME
+		when ( cs.relkind = 'S' :: "char" ) then
+																	'SEQUENCE' :: NAME
+		when ( cs.relkind = 'L' :: "char" ) then
+																	'LARGE SEQUENCE' :: NAME
+		when ( cs.relkind = 'v' :: "char" ) then
+																	'VIEW' :: NAME
+		when ( cs.relkind = 'm' :: "char" ) then
+																	'MATERIALIZED VIEW' :: NAME
+		else null :: NAME
+	end as object_type,
+																null :: TIMESTAMP with TIME zone as created,
+																null :: TIMESTAMP with TIME zone as last_ddl_time,
+																null :: character varying (19) as "timestamp",
+																'VALID' :: character varying (7) as status,
+																
+															case
+																	when ( ( cs.relpersistence = 'g' :: "char" )
+		or ( cs.relpersistence = 't' :: "char" ) ) then
+																	'Y' :: character (1)
+		else 'N' :: character (1)
+	end as temporary,
+																
+															case
+																	when ( cs.relkind = any ( array [ 'i' :: "char",
+		'I' :: "char" ] ) ) then
+																case
+																		
+																		when ( s.conindid > (0) :: oid ) then
+																		'Y' :: character (1)
+			else 'N' :: character (1)
+		end
+		else null :: character (1)
+	end as generated,
+																null :: character varying (1) as secondary,
+																cs.relnamespace as namespace,
+																null :: character varying (128) as edition_name,
+																null :: character varying (18) as sharing,
+																null :: character varying (1) as editionable,
+																null :: character varying (1) as oracle_maintained,
+																null :: character varying (1) as application,
+															case
+																	
+																	when (
+																		(
+																			( ( cs.relkind = 'S' :: "char" )
+		or ( cs.relkind = 'L' :: "char" ) )
+		or ( cs.relkind = any ( array [ 'i' :: "char",
+		'I' :: "char" ] ) ) 
+																		)
+		or ( cs.relkind = 'm' :: "char" ) 
+																		) then
+																		null :: character varying (100)
+		else 'DEFAULT' :: character varying (100)
+	end as default_collation,
+																	null :: character varying (1) as duplicated,
+																	null :: character varying (1) as sharded,
+																	null :: numeric as created_appid,
+																	null :: numeric as created_vsnid,
+																	null :: numeric as modified_appid,
+																	null :: numeric as modified_vsnid
+from
+																	
+																				pg_class cs
+left join 
+																				(
+	select
+		MAX (pg_constraint.conindid) as conindid
+	from
+		pg_constraint
+	group by
+		pg_constraint.conindid ) s 
+																				on
+	s.conindid = cs.oid
+left join pg_roles pa on
+	pa.oid = cs.relowner
+where
+																		cs.relkind = any (
+																			array [ 'r' :: "char",
+																			'f' :: "char",
+																			'i' :: "char",
+																			'I' :: "char",
+																			'S' :: "char",
+																			'v' :: "char",
+																			'L' :: "char",
+																			'm' :: "char" ] 
+																	)
+union all
+														select
+															pa.rolname as owner,
+															tr.tgname as object_name,
+															null :: NAME as subobject_name,
+															tr.oid as object_id,
+															null :: numeric as data_object_id,
+															'TRIGGER' :: NAME as object_type,
+															null :: TIMESTAMP with TIME zone as created,
+															null :: TIMESTAMP with TIME zone as last_ddl_time,
+															null :: character varying (19) as "timestamp",
+															'VALID' :: character varying (7) as status,
+															'N' :: character (1) as temporary,
+															null :: character (1) as generated,
+															null :: character varying (1) as secondary,
+															cs.relnamespace as namespace,
+															null :: character varying (128) as edition_name,
+															null :: character varying (18) as sharing,
+															null :: character varying (1) as editionable,
+															null :: character varying (1) as oracle_maintained,
+															null :: character varying (1) as application,
+															'DEFAULT' :: character varying (100) as default_collation,															
+															null :: character varying (1) as duplicated,
+															null :: character varying (1) as sharded,
+															null :: numeric as created_appid,
+															null :: numeric as created_vsnid,
+															null :: numeric as modified_appid,
+															null :: numeric as modified_vsnid
+from
+															(
+																( pg_trigger tr
+left join pg_class cs on
+	( ( cs.oid = tr.tgrelid ) ) )
+left join pg_roles pa on
+	( ( pa.oid = cs.relowner ) ) 
+															)
+union all
+														
+													select
+														pa.rolname as owner,
+														te.typname as object_name,
+														null :: NAME as subobject_name,
+														te.oid as object_id,
+														null :: numeric as data_object_id,
+														'TYPE' :: NAME as object_type,
+														null :: TIMESTAMP with TIME zone as created,
+														null :: TIMESTAMP with TIME zone as last_ddl_time,
+														null :: character varying (19) as "timestamp",
+														'VALID' :: character varying (7) as status,
+														'N' :: character (1) as temporary,
+														null :: character (1) as generated,
+														null :: character varying (1) as secondary,
+														te.typnamespace as namespace,
+														null :: character varying (128) as edition_name,
+														null :: character varying (18) as sharing,
+														null :: character varying (1) as editionable,
+														null :: character varying (1) as oracle_maintained,
+														null :: character varying (1) as application,
+														'DEFAULT' :: character varying (100) as default_collation,
+
+														
+														
+														null :: character varying (1) as duplicated,
+														null :: character varying (1) as sharded,
+														null :: numeric as created_appid,
+														null :: numeric as created_vsnid,
+														null :: numeric as modified_appid,
+														null :: numeric as modified_vsnid
+from
+														( pg_type te
+left join pg_roles pa on
+	( ( pa.oid = te.typowner ) ) )
+union all
+												select
+													pa.rolname as owner,
+													op.oprname as object_name,
+													null :: NAME as subobject_name,
+													op.oid as object_id,
+													null :: numeric as data_object_id,
+													'OPERATOR' :: NAME as object_type,
+													null :: TIMESTAMP with TIME zone as created,
+													null :: TIMESTAMP with TIME zone as last_ddl_time,
+													null :: character varying (19) as "timestamp",
+													'VALID' :: character varying (7) as status,
+													'N' :: character (1) as temporary,	
+													null :: character (1) as generated,
+													null :: character varying (1) as secondary,
+													op.oprnamespace as namespace,
+													null :: character varying (128) as edition_name,
+													null :: character varying (18) as sharing,
+													null :: character varying (1) as editionable,
+													null :: character varying (1) as oracle_maintained,
+													null :: character varying (1) as application,
+													null :: character varying (100) as default_collation,
+													null :: character varying (1) as duplicated,
+													null :: character varying (1) as sharded,
+													null :: numeric as created_appid,
+													null :: numeric as created_vsnid,
+													null :: numeric as modified_appid,
+													null :: numeric as modified_vsnid
+from
+													( pg_operator op
+left join pg_roles pa on
+	( ( pa.oid = op.oprowner ) ) )
+union all
+									select
+										pa.rolname as owner,
+										pc.proname as object_name,
+										null :: NAME as subobject_name,
+										pc.oid as object_id,
+										null :: numeric as data_object_id,
+										'FUNCTION' :: NAME as object_type,
+										null :: TIMESTAMP with TIME zone as created,
+										null :: TIMESTAMP with TIME zone as last_ddl_time,
+										null :: character varying (19) as "timestamp",
+										'VALID' :: character varying (7) as status,
+										'N' :: character (1) as temporary,
+										null :: character (1) as generated,
+										null :: character varying (1) as secondary,
+										pc.pronamespace as namespace,
+										null :: character varying (128) as edition_name,
+										null :: character varying (18) as sharing,
+										null :: character varying (1) as editionable,
+										null :: character varying (1) as oracle_maintained,
+										null :: character varying (1) as application,
+										'DEFAULT' :: character varying (100) as default_collation,
+										null :: character varying (1) as duplicated,
+										null :: character varying (1) as sharded,
+										null :: numeric as created_appid,
+										null :: numeric as created_vsnid,
+										null :: numeric as modified_appid,
+										null :: numeric as modified_vsnid
+from
+										pg_proc pc
+left join pg_roles pa on
+	pa.oid = pc.proowner;
+
+----ORACLE compatibility view all_tables
+create view all_tables as 
+select
+		(c.rolname)::character varying(64) as owner,
+		(a.relname)::character varying(64) as table_name,
+		(case
+			when (a.reltablespace = (0)::oid) then 'DEFAULT TABLESPACE'::name
+			else b.spcname
+		end)::character varying(64) as tablespace_name,
+		NULL::character varying(128) as cluster_name,		
+		NULL::character varying(128) as iot_name,		
+		'VALID'::character varying(8) as status,		
+			case
+			when ((
+			select
+				"position"((
+				select
+					array_to_string(a.reloptions,
+					','::text) as array_to_string),
+				'FILLFACTOR'::text) as "position") = 0) then (0)::numeric
+			when (a.reloptions is NULL) then (0)::numeric
+			else ((100 - ((
+			select
+				"substring"((
+				select
+					"substring"(((
+					select
+						array_to_string(a.reloptions,
+						','::text) as array_to_string) || ','::text),
+					'(FILLFACTOR(.*?),)'::text) as "substring"),
+				12,
+				(LENGTH((
+				select
+					"substring"(((
+					select
+						array_to_string(a.reloptions,
+						','::text) as array_to_string) || ','::text),
+					'(FILLFACTOR(.*?),)'::text) as "substring")) - 12)) as "substring"))::bigint))::numeric
+		end as pct_free,
+		0::numeric as pct_used,		
+		  case
+			when (((
+			select
+				"position"((
+				select
+					array_to_string(a.reloptions,
+					','::text) as array_to_string),
+				'USTORE'::text) as "position") = 0)
+			and ((
+			select
+				"position"((
+				select
+					array_to_string(a.reloptions,
+					','::text) as array_to_string),
+				'USTORE'::text) as "position") = 0)) then NULL::numeric
+			when (a.reloptions is NULL) then NULL::numeric
+			when ((
+			select
+				"position"((
+				select
+					array_to_string(a.reloptions,
+					','::text) as array_to_string),
+				'INIT_TD'::text) as "position") = 0) then (4)::numeric
+			else ((
+			select
+				"substring"((
+				select
+					"substring"(((
+					select
+						array_to_string(a.reloptions,
+						','::text) as array_to_string) || ','::text),
+					'(INIT_TD(.*?),)'::text) as "substring"),
+				9,
+				(LENGTH((
+				select
+					"substring"(((
+					select
+						array_to_string(a.reloptions,
+						','::text) as array_to_string) || ','::text),
+					'(INIT_TD(.*?),)'::text) as "substring")) - 9)) as "substring"))::numeric
+		 end  as  ini_trans,
+		case
+			when (((
+			select
+				"position"((
+				select
+					array_to_string(a.reloptions,
+					','::text) as array_to_string),
+				'USTORE'::text) as "position") = 0)
+			and ((
+			select
+				"position"((
+				select
+					array_to_string(a.reloptions,
+					','::text) as array_to_string),
+				'USTORE'::text) as "position") = 0)) then NULL::numeric
+			when (a.reloptions is NULL) then 255::numeric
+			else (128)::numeric
+		end as max_trans,
+		NULL::numeric as initial_extent,
+		NULL::numeric as next_extent,
+		NULL::numeric as min_extents,
+		NULL::numeric as max_extents,
+		NULL::numeric as pct_increase,
+		NULL::numeric as freelists,
+		NULL::numeric as freelist_groups,
+		case
+			when (a.relpersistence = 'u'::"char") then 'NO'::character varying(3)
+			else 'YES'::character varying(3)
+		end as logging,
+		NULL::character varying(1) as backed_up,
+		(a.reltuples)::numeric as num_rows,						
+		NULL::numeric as blocks,
+		NULL::numeric as empty_blocks,
+		NULL::numeric as avg_space,
+		NULL::numeric as chain_cnt,
+		case
+			when ((
+			select
+				sum((((pg_statistic.stawidth)::double precision - (((pg_statistic.stawidth - 1))::double precision * pg_statistic.staNULLfrac)))::integer) as sum
+			from
+				pg_statistic
+			where
+				(pg_statistic.starelid = a.oid)) = 0) then 0
+			else (3 + ((
+			select
+				sum(((pg_statistic.stawidth)::double precision - (((pg_statistic.stawidth - 1))::double precision * pg_statistic.staNULLfrac))) as sum
+			from
+				pg_statistic
+			where
+				(pg_statistic.starelid = a.oid)))::integer)
+		end as avg_row_len,
+		NULL::numeric as avg_space_freelist_blocks,
+		NULL::numeric as num_freelist_blocks,		
+		'1'::character varying(10) as degree,		
+		NULL::character varying(10) as instances,
+		NULL::character varying(5) as cache,		
+		'ENABLED'::character varying(8) as table_lock,				
+		case
+			when (((current_setting('default_statistics_target'::text))::bigint > 0)
+			and (a.reltuples > (((current_setting('default_statistics_target'::text))::bigint * 300))::double precision)) then ((current_setting('default_statistics_target'::text))::numeric * (300)::numeric)
+			when ((current_setting('default_statistics_target'::text))::bigint < 0) then (round(((a.reltuples * (abs((current_setting('default_statistics_target'::text))::numeric))::double precision) / (100)::double precision)))::numeric
+			else (a.reltuples)::numeric
+		end as sample_size,	
+		pg_stat_get_last_analyze_time(a.oid) as last_analyzed,			
+		 case
+			when a.relispartition = true then 'YES'::character varying(3)
+			else 'NO'::character varying(3)
+		end as partitioned,
+		NULL::character varying(12) as iot_type,
+		case
+			when ((a.relpersistence = 't'::"char")
+			or (a.relpersistence = 'g'::"char")) then 'Y'::character(1)
+			else 'N'::character(1)
+		end as temporary,		
+		'N'::character varying(1) as secondary,						
+		'NO'::character varying(3) as nested,
+		'DEFAULT'::character varying(7) as buffer_pool,
+		'DEFAULT'::character varying(7) as flash_cache,
+		'DEFAULT'::character varying(7) as cell_flash_cache,
+		'DISABLED'::character varying(8) as row_movement,		
+		'YES'::character varying(3) as global_stats,
+		'NO'::character varying(3) as user_stats,		
+		case
+			when (a.relpersistence = 't'::"char") then 'sys$session'::character varying(15)
+			when ((a.relpersistence = 'g'::"char")
+				and ((
+				select
+					"substring"((
+					select
+						"substring"(((
+						select
+							array_to_string(a.reloptions,
+							','::text) as array_to_string) || ','::text),
+						'(ON_COMMIT_DELETE_ROWS(.*?),)'::text) as "substring"),
+					23,
+					(LENGTH((
+					select
+						"substring"(((
+						select
+							array_to_string(a.reloptions,
+							','::text) as array_to_string) || ','::text),
+						'(ON_COMMIT_DELETE_ROWS(.*?),)'::text) as "substring")) - 23)) as "substring") = 'false'::text)) then 'sys$session'::character varying(15)
+			when ((a.relpersistence = 'g'::"char")
+				and ((
+				select
+					"substring"((
+					select
+						"substring"(((
+						select
+							array_to_string(a.reloptions,
+							','::text) as array_to_string) || ','::text),
+						'(ON_COMMIT_DELETE_ROWS(.*?),)'::text) as "substring"),
+					23,
+					(LENGTH((
+					select
+						"substring"(((
+						select
+							array_to_string(a.reloptions,
+							','::text) as array_to_string) || ','::text),
+						'(ON_COMMIT_DELETE_ROWS(.*?),)'::text) as "substring")) - 23)) as "substring") = 'true'::text)) then 'sys$transaction'::character varying(15)
+			else NULL::character varying(15)
+		end as duration,
+		'DISABLED'::character varying(8) as skip_corrupt,		
+		'YES'::character varying(3) as monitoring,		
+		NULL::character varying(30) as cluster_owner,
+		NULL::character varying(8) as dependencies,
+		case
+			when ((
+			select
+				"substring"((
+				select
+					"substring"(((
+					select
+						array_to_string(a.reloptions,
+						','::text) as array_to_string) || ','::text),
+					'(COMPRESSION(.*?),)'::text) as "substring"),
+				13,
+				(LENGTH((
+				select
+					"substring"(((
+					select
+						array_to_string(a.reloptions,
+						','::text) as array_to_string) || ','::text),
+					'(COMPRESSION(.*?),)'::text) as "substring")) - 13)) as "substring") = 'no'::text) then 'disabled'::character varying(8)
+			when (a.reloptions is NULL) then 'DISABLED'::character varying(8)
+			else 'ENABLED'::character varying(8)
+		end as compression,		
+		NULL::character varying(30) as compress_for,
+		'NO'::character varying(30) as dropped,		
+		'NO'::character varying(3) as read_only,		
+		'YES'::character varying(3) as segment_created,		
+		'DEFAULT'::character varying(7) as result_cache,
+		'NO'::character varying(3) as clustering,
+		NULL::character varying(23) as activity_tracking,
+		NULL::character varying(25) as dml_timestamp,		
+		'NO'::character varying(3) as has_identity,		
+		'NO'::character varying(3) as container_data,
+		'DISABLED'::character varying(8) as inmemory,		
+		NULL::character varying(8) as inmemory_priority,
+		NULL::character varying(15) as inmemory_distribute,
+		NULL::character varying(17) as inmemory_compression,
+		NULL::character varying(13) as inmemory_duplicate,		
+		'USING_NLS_COMP'::character varying(100) as default_collation,		
+		'N'::character varying(1) as duplicated,
+		'N'::character varying(1) as sharded,		
+		case
+			when (a.relkind = 'f'::"char") then 'YES'::character varying(3)
+			else 'NO'::character varying(3)
+		end as external,
+		'NO'::character varying(3) as hybrid,
+		NULL::character varying(24) as cellmemory,
+		'NO'::character varying(3) as containers_default,
+		'NO'::character varying(3) as container_map,
+		'NO'::character varying(3) as extended_data_link,
+		'NO'::character varying(3) as extended_data_link_map,
+		NULL::character varying(12) as inmemory_service,
+		NULL::character varying(1000) as inmemory_service_name,
+		'NO'::character varying(3) as container_map_object,
+		'DISABLED'::character varying(8) as memoptimize_read,
+		'DISABLED'::character varying(8) as memoptimize_write,
+		'NO'::character varying(3) as has_sensitive_column,
+		'NO'::character varying(3) as admit_NULL,
+		'NO'::character varying(3) as data_link_dml_enabled,		
+		case
+			when (current_setting('wal_level'::text) = 'logical'::text) then 'ENABLED'::character varying(8)
+			else 'DISABLED'::character varying(8)
+		end as logical_replication
+	from
+		((pg_class a
+	left join pg_tablespace b on
+		(((a.reltablespace = b.oid)
+			or ((a.reltablespace = (0)::oid)
+				and (b.spcname = 'pg_default'::name)))))
+	left join pg_roles c on
+		((a.relowner = c.oid)))
+	where
+		((a.relkind = 'r'::"char")
+			or (a.relkind = 'f'::"char"));
+--ORACLE compatibility view all_procedures			
+create view all_procedures as 
+SELECT 
+	( n.rolname ) :: CHARACTER VARYING ( 64 ) AS OWNER,
+  ( f.proname ) :: CHARACTER VARYING ( 64 ) AS object_name,
+  NULL :: CHARACTER VARYING ( 128 ) AS procedure_name,
+  f.oid  AS object_id,
+	1 :: NUMERIC AS subprogram_id,
+  NULL :: CHARACTER VARYING ( 40 ) AS overload,
+	'FUNCTION' :: CHARACTER VARYING ( 13 ) AS object_type,
+		CASE
+				WHEN ( f.proisagg = TRUE ) THEN
+				'YES' :: CHARACTER VARYING ( 3 ) ELSE'NO' :: CHARACTER VARYING ( 3 ) 
+			END AS AGGREGATE,
+			'NO' :: CHARACTER VARYING ( 3 ) AS pipelined,
+			( n.rolname ) :: CHARACTER VARYING ( 128 ) AS impltypeowner,
+			( ty.typname ) :: CHARACTER VARYING ( 128 ) AS impltypename,
+			'NO' :: CHARACTER VARYING ( 3 ) AS parallel,
+			'NO' :: CHARACTER VARYING ( 3 ) AS interface,
+			'NO' :: CHARACTER VARYING ( 3 ) AS DETERMINISTIC,
+		CASE
+				WHEN ( f.prosecdef = 'f' ) THEN
+				'DEFINER' :: CHARACTER VARYING ( 12 ) ELSE'CURRENT_USER' :: CHARACTER VARYING ( 12 ) 
+			END AS "authid",
+			NULL :: CHARACTER VARYING ( 3 ) AS result_cache,
+			( 0 ) :: CHARACTER VARYING ( 256 ) AS origin_con_id,
+			NULL :: CHARACTER VARYING ( 5 ) AS polymorphic
+		FROM 
+			(
+				(
+					(						
+							( pg_proc f LEFT JOIN pg_roles n ON ( ( f.proowner = n.oid ) )  )
+										
+						LEFT JOIN pg_aggregate agg ON ( ( ( agg.aggfnoid ) :: oid = f.oid ) ) 
+					)
+					LEFT JOIN pg_type ty ON ( ( ty.oid = agg.aggtranstype ) ) 
+				)
+				LEFT JOIN pg_roles n1 ON ( ( ty.typowner = n1.oid ) ) 
+			) 
+		where f.oid not in (select tgfoid from pg_trigger)
+union all 
+			
+	SELECT 
+			( n.rolname ) :: CHARACTER VARYING ( 64 ) AS OWNER,
+			( tg.tgname ) :: CHARACTER VARYING ( 64 ) AS object_name,
+			NULL :: CHARACTER VARYING ( 128 ) AS procedure_name,
+			tg.oid AS object_id,
+			( 1 ) :: NUMERIC AS subprogram_id,
+			NULL :: CHARACTER VARYING ( 40 ) AS overload,
+			'TRIGGER' :: CHARACTER VARYING ( 13 ) AS object_type,
+			'NO' :: CHARACTER VARYING ( 3 ) AS AGGREGATE,
+			'NO' :: CHARACTER VARYING ( 3 ) AS pipelined,
+			NULL :: CHARACTER VARYING ( 128 ) AS impltypeowner,
+			NULL :: CHARACTER VARYING ( 128 ) AS impltypename,
+			'NO' :: CHARACTER VARYING ( 3 ) AS parallel,
+			'NO' :: CHARACTER VARYING ( 3 ) AS interface,
+			'NO' :: CHARACTER VARYING ( 3 ) AS DETERMINISTIC,
+		CASE
+				
+				WHEN ( f.prosecdef = 'f' ) THEN
+				'DEFINER' :: CHARACTER VARYING ( 12 ) ELSE'CURRENT_USER' :: CHARACTER VARYING ( 12 ) 
+			END AS "authid",
+			NULL :: CHARACTER VARYING ( 3 ) AS result_cache,
+			( 0 ) :: CHARACTER VARYING ( 256 ) AS origin_con_id,
+			NULL :: CHARACTER VARYING ( 5 ) AS polymorphic
+		FROM
+			(
+			( pg_trigger tg LEFT JOIN pg_proc f ON ( ( tg.tgfoid = f.oid ) ) )				
+				LEFT JOIN  pg_roles n ON ( ( f.proowner = n.oid ) ) 					
+			) 
+			union all
+select 
+			( pr.rolname ) :: CHARACTER VARYING ( 64 ) AS OWNER,
+ 		  ( f.proname ) :: CHARACTER VARYING ( 64 ) AS object_name,
+      NULL :: CHARACTER VARYING ( 128 ) AS procedure_name,
+			f.oid  AS object_id,
+			1 :: NUMERIC AS subprogram_id,
+  		NULL :: CHARACTER VARYING ( 40 ) AS overload,
+			'TYPE' :: CHARACTER VARYING ( 13 ) AS object_type,			
+			'NO' :: CHARACTER VARYING ( 3 ) AS AGGREGATE,
+			'NO' :: CHARACTER VARYING ( 3 ) AS pipelined,
+			NULL :: CHARACTER VARYING ( 128 ) AS impltypeowner,
+			NULL :: CHARACTER VARYING ( 128 ) AS impltypename,
+			'NO' :: CHARACTER VARYING ( 3 ) AS parallel,
+			'NO' :: CHARACTER VARYING ( 3 ) AS interface,
+			'NO' :: CHARACTER VARYING ( 3 ) AS DETERMINISTIC,
+		 CASE
+				
+				WHEN ( f.prosecdef = 'f' ) THEN
+				'DEFINER' :: CHARACTER VARYING ( 12 ) ELSE'CURRENT_USER' :: CHARACTER VARYING ( 12 ) 
+			END AS "authid",
+			NULL :: CHARACTER VARYING ( 3 ) AS result_cache,
+			( 0 ) :: CHARACTER VARYING ( 256 ) AS origin_con_id,
+			NULL :: CHARACTER VARYING ( 5 ) AS polymorphic						
+			from  
+			pg_type pt LEFT JOIN pg_roles pr ON pr.oid = pt.typowner 
+			left  join pg_proc f on f.proowner = pr.oid
+		  where f.provariadic <>0	;
+---ORACLE compatibility view all_tab_columns		  
+create view all_tab_columns as 
+SELECT
+	( n.rolname ) :: CHARACTER VARYING ( 64 ) AS OWNER,
+	( tbl.relname ) :: CHARACTER VARYING ( 64 ) AS TABLE_NAME,
+	( col.attname ) :: CHARACTER VARYING ( 64 ) AS COLUMN_NAME,
+	( ty.typname ) :: CHARACTER VARYING ( 128 ) AS data_type,
+	NULL :: CHARACTER VARYING ( 3 ) AS data_type_mod,
+CASE
+		
+		WHEN (
+			( ( ty.oid < ( 16384 ) :: oid ) AND ( ty.typtype = 'b' :: "char" ) ) 
+			AND ( ty.typcategory <> 'A' :: "char" ) 
+			) THEN
+			NULL :: CHARACTER VARYING ( 128 ) ELSE ( n1.rolname ) :: CHARACTER VARYING ( 128 ) 
+		END AS data_type_owner,
+	CASE
+			(
+				(
+					( col.attlen < 0 ) 
+					AND (
+						( ( ty.typname = 'varchar' :: NAME ) OR ( ty.typname = 'bpchar' :: NAME ) ) 
+						OR ( ty.typname = 'nvarchar2' :: NAME ) 
+					) 
+				) 
+				AND ( spa.nspname = 'pg_catalog' :: NAME ) 
+			) 
+		WHEN TRUE THEN
+			( col.atttypmod - 4 ) ELSE ( col.attlen ) :: INTEGER 
+		END AS data_length,
+	CASE
+			
+			WHEN (
+				( ( ty.typname = 'numeric' :: NAME ) AND ( spa.nspname = 'pg_catalog' :: NAME ) ) 
+				AND ( col.atttypmod <> ( - 1 ) ) 
+				) THEN
+				( ( ( col.atttypmod - 4 ) >> 16 ) & 65535 ) ELSE NULL :: INTEGER 
+			END AS data_precision,
+		CASE
+				
+				WHEN (
+					( ( ty.typname = 'numeric' :: NAME ) AND ( spa.nspname = 'pg_catalog' :: NAME ) ) 
+					AND ( col.atttypmod <> ( - 1 ) ) 
+					) THEN
+					( ( col.atttypmod - 4 ) & 65535 ) 
+					WHEN (
+						( ( ty.typname = 'numeric' :: NAME ) AND ( spa.nspname = 'pg_catalog' :: NAME ) ) 
+						AND ( col.atttypmod = ( - 1 ) ) 
+						) THEN
+						NULL :: INTEGER ELSE 0 
+					END AS data_scale,
+				CASE
+						
+						WHEN col.attnotnull THEN
+						'N' :: bpchar ELSE'Y' :: bpchar 
+					END AS NULLABLE,
+					( col.attnum ) :: INTEGER AS column_id,
+				CASE
+						
+						WHEN ( col.atthasdef = TRUE ) THEN
+						( OCTET_LENGTH ( def.adsrc ) ) :: NUMERIC ELSE NULL :: NUMERIC 
+					END AS default_length,
+				CASE
+						
+						WHEN ( col.atthasdef = TRUE ) THEN
+						def.adsrc ELSE NULL :: TEXT 
+					END AS data_default,
+				CASE
+						
+						WHEN ( sta.n_distinct > ( 0 ) :: DOUBLE PRECISION ) THEN
+						( sta.n_distinct ) :: NUMERIC 
+						WHEN ( sta.n_distinct < ( 0 ) :: DOUBLE PRECISION ) THEN
+						( FLOOR ( ( ABS ( sta.n_distinct ) * tbl.reltuples ) ) ) :: NUMERIC ELSE NULL :: NUMERIC 
+					END AS num_distinct,
+        NULL :: CHARACTER VARYING ( 40 ) AS low_value,
+				NULL :: CHARACTER VARYING ( 40 ) AS high_value,
+				CASE
+						
+						WHEN (
+							(
+								( ( array_length( sta.histogram_bounds, 1 ) - 1 ) > 0 ) 
+								AND ( tbl.reltuples > ( 0 ) :: DOUBLE PRECISION ) 
+							) 
+							AND ( sta.null_frac <> ( 1 ) :: DOUBLE PRECISION ) 
+							) THEN
+							(
+								( 1 ) :: NUMERIC / (
+									( ( 2 ) :: DOUBLE PRECISION * ( tbl.reltuples * ( ( 1 ) :: DOUBLE PRECISION - sta.null_frac ) ) ) 
+								) :: NUMERIC 
+							) 
+							WHEN ( sta.n_distinct > ( 0 ) :: DOUBLE PRECISION ) THEN
+							( ( ( 1 ) :: DOUBLE PRECISION / sta.n_distinct ) ) :: NUMERIC 
+							WHEN ( ( sta.n_distinct < ( 0 ) :: DOUBLE PRECISION ) AND ( tbl.reltuples > ( 0 ) :: DOUBLE PRECISION ) ) THEN
+							( ( ( 1 ) :: DOUBLE PRECISION / ( ABS ( sta.n_distinct ) * tbl.reltuples ) ) ) :: NUMERIC ELSE ( 0 ) :: NUMERIC 
+						END AS density,
+						( FLOOR ( ( sta.null_frac * tbl.reltuples ) ) ) :: NUMERIC AS num_nulls,
+						( ( array_length( sta.histogram_bounds, 1 ) - 1 ) ) :: NUMERIC AS num_buckets,
+						( pg_stat_get_last_analyze_time ( col.attrelid ) ) :: TIMESTAMP ( 0 ) WITHOUT TIME ZONE AS last_analyzed,
+					CASE
+							
+							WHEN ( ( col.attstattarget > 0 ) AND ( tbl.reltuples > ( ( col.attstattarget * 300 ) ) :: DOUBLE PRECISION ) ) THEN
+							( ( col.attstattarget * 300 ) ) :: NUMERIC 
+							WHEN (
+								( ( current_setting ( 'default_statistics_target' :: TEXT ) ) :: BIGINT > 0 ) 
+								AND ( tbl.reltuples > ( ( ( current_setting ( 'default_statistics_target' :: TEXT ) ) :: BIGINT * 300 ) ) :: DOUBLE PRECISION ) 
+								) THEN
+								( ( ( current_setting ( 'default_statistics_target' :: TEXT ) ) :: BIGINT * 300 ) ) :: NUMERIC 
+								WHEN ( ( current_setting ( 'default_statistics_target' :: TEXT ) ) :: BIGINT < 0 ) THEN
+								(
+									FLOOR (
+										(
+											( tbl.reltuples * ( ABS ( ( current_setting ( 'default_statistics_target' :: TEXT ) ) :: NUMERIC ) ) :: DOUBLE PRECISION ) / ( 100 ) :: DOUBLE PRECISION 
+										) 
+									) 
+								) :: NUMERIC ELSE ( tbl.reltuples ) :: NUMERIC 
+							END AS sample_size,
+							NULL :: CHARACTER VARYING ( 44 ) AS CHARACTER_SET_NAME,
+						CASE
+								
+								WHEN (
+									(
+										( ( ty.typname = 'varchar' :: NAME ) OR ( ty.typname = 'nvarchar2' :: NAME ) ) 
+										OR ( ty.typname = 'bpchar' :: NAME ) 
+									) 
+									OR ( ( ty.typname = 'char' :: NAME ) AND ( col.atttypmod <> ( - 1 ) ) ) 
+									) THEN
+									( ( col.atttypmod - 4 ) ) :: NUMERIC 
+									WHEN (
+										(
+											(
+												(
+													(
+														( ( ty.typname = 'varchar' :: NAME ) OR ( ty.typname = 'nvarchar2' :: NAME ) ) 
+														OR ( ty.typname = 'bpchar' :: NAME ) 
+													) 
+													OR ( ( ty.typname = 'char' :: NAME ) AND ( col.atttypmod = ( - 1 ) ) ) 
+												) 
+												OR ( ty.typname = 'text' :: NAME ) 
+											) 
+											OR ( ty.typname = 'clob' :: NAME ) 
+										) 
+										OR ( ty.typname = 'name' :: NAME ) 
+										) THEN
+										( 0 ) :: NUMERIC ELSE NULL :: NUMERIC 
+									END AS char_col_decl_length,
+									'NO' :: CHARACTER VARYING ( 3 ) AS global_stats,
+									'NO' :: CHARACTER VARYING ( 3 ) AS user_stats,
+									( sta.avg_width ) :: NUMERIC AS avg_col_len,
+								CASE
+										
+										WHEN (
+											(
+												( ( ty.typname = 'varchar' :: NAME ) OR ( ty.typname = 'nvarchar2' :: NAME ) ) 
+												OR ( ty.typname = 'bpchar' :: NAME ) 
+											) 
+											OR ( ( ty.typname = 'char' :: NAME ) AND ( spa.nspname = 'pg_catalog' :: NAME ) ) 
+											) THEN
+											( ( col.atttypmod - 4 ) ) :: NUMERIC ELSE ( 0 ) :: NUMERIC 
+										END AS CHAR_LENGTH,
+									CASE
+											
+											WHEN (
+												(
+													( ( ty.typname = 'varchar' :: NAME ) OR ( ty.typname = 'nvarchar2' :: NAME ) ) 
+													OR ( ty.typname = 'bpchar' :: NAME ) 
+												) 
+												OR ( ty.typname = 'char' :: NAME ) 
+												) THEN
+												'B' :: CHARACTER VARYING ( 1 ) ELSE NULL :: CHARACTER VARYING ( 1 ) 
+											END AS char_used,
+											NULL :: CHARACTER VARYING ( 3 ) AS v80_fmt_image,
+											'YES' :: CHARACTER VARYING ( 3 ) AS data_upgraded,
+										CASE
+												
+												WHEN (
+													(
+														( sta.n_distinct > ( 0 ) :: DOUBLE PRECISION ) 
+														AND ( ( ( array_length( sta.histogram_bounds, 1 ) - 1 ) ) :: DOUBLE PRECISION >= sta.n_distinct ) 
+													) 
+													OR (
+														( sta.n_distinct < ( 0 ) :: DOUBLE PRECISION ) 
+														AND (
+															( ( array_length( sta.histogram_bounds, 1 ) - 1 ) ) :: DOUBLE PRECISION >= ( ABS ( sta.n_distinct ) * tbl.reltuples ) 
+														) 
+													) 
+													) THEN
+													'FREQUENCY' :: CHARACTER VARYING ( 15 ) 
+													WHEN (
+														(
+															( sta.n_distinct > ( 0 ) :: DOUBLE PRECISION ) 
+															AND ( ( ( array_length( sta.histogram_bounds, 1 ) - 1 ) ) :: DOUBLE PRECISION < sta.n_distinct ) 
+														) 
+														OR (
+															( sta.n_distinct < ( 0 ) :: DOUBLE PRECISION ) 
+															AND (
+																( ( array_length( sta.histogram_bounds, 1 ) - 1 ) ) :: DOUBLE PRECISION < ( ABS ( sta.n_distinct ) * tbl.reltuples ) 
+															) 
+														) 
+														) THEN
+														'EQUI-WIDTH' :: CHARACTER VARYING ( 15 ) ELSE'NONE' :: CHARACTER VARYING ( 15 ) 
+													END AS histogram,
+													NULL :: CHARACTER VARYING ( 3 ) AS default_on_null,
+													NULL :: CHARACTER VARYING ( 3 ) AS identity_column,
+													NULL :: CHARACTER VARYING ( 128 ) AS evaluation_edition,
+													NULL :: CHARACTER VARYING ( 128 ) AS unusable_before,
+													NULL :: CHARACTER VARYING ( 128 ) AS unusable_beginning,
+												CASE
+														
+														WHEN ( col.attcollation <> ( 0 ) :: oid ) THEN
+														( coll.collname ) :: CHARACTER VARYING ( 100 ) ELSE NULL :: CHARACTER VARYING ( 100 ) 
+													END AS "collation"
+
+												FROM
+													(
+														(
+															(
+																(
+																	(
+																		(
+																			(
+																				(
+																					(
+																						( pg_attribute col JOIN pg_class tbl ON ( ( col.attrelid = tbl.oid ) ) )
+																						JOIN pg_roles n ON ( ( tbl.relowner = n.oid ) ) 
+																					)
+																					JOIN pg_type ty ON ( ( col.atttypid = ty.oid ) ) 
+																				)
+																				JOIN pg_roles n1 ON ( ( ty.typowner = n1.oid ) ) 
+																			)
+																			LEFT JOIN pg_attrdef def ON ( ( ( col.attrelid = def.adrelid ) AND ( col.attnum = def.adnum ) ) ) 
+																		)
+																		LEFT JOIN pg_description des ON ( ( ( col.attrelid = des.objoid ) AND ( col.attnum = des.objsubid ) ) ) 
+																	)
+																	LEFT JOIN pg_stats sta ON (
+																		(
+																			(
+																				( ( tbl.relname = sta.tablename )  ) 
+																				AND ( col.attname = sta.attname ) 
+																			) 
+																			AND ( tbl.relnamespace = ( SELECT pg_namespace.oid FROM pg_namespace WHERE ( pg_namespace.nspname = sta.schemaname ) ) ) 
+																		) 
+																	) 
+																)
+																JOIN pg_namespace spa ON ( ( spa.oid = ty.typnamespace ) ) 
+															)
+															LEFT JOIN pg_collation coll ON ( ( col.attcollation = coll.oid ) ) 
+														)
+														LEFT JOIN pg_namespace cn ON ( ( cn.oid = tbl.relnamespace ) ) 
+													) 
+												WHERE
+													(
+														( col.attnum > 0 ) 
+														AND (
+															(
+																(
+																	( ( tbl.relkind = 'r' :: "char" ) OR ( tbl.relkind = 'v' :: "char" ) ) 
+																	OR ( tbl.relkind = 't' :: "char" ) 
+																) 
+																OR ( tbl.relkind = 'f' :: "char" ) 
+															) 
+															OR ( tbl.relkind = 'm' :: "char" ) 
+														) 
+	);
