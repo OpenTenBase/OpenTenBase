@@ -198,7 +198,7 @@ CREATE FUNCTION dbms_metadata.set_default_transform_params()
 RETURNS void AS $$
 BEGIN
     -- If true, Append a SQL terminator
-    PERFORM set_config('DBMS_METADATA.SQLTERMINATOR', 'false', false);
+    PERFORM set_config('DBMS_METADATA.SQLTERMINATOR', 'true', false);
     -- If true, include all non-referential table constraints
     PERFORM set_config('DBMS_METADATA.CONSTRAINTS', 'true', false);
     -- If true, include all referential constraints
