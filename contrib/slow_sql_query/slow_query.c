@@ -1,6 +1,5 @@
 #include "postgres.h"
 #include "fmgr.h"
-#include 'slow_query.conf'
 #include "access/htup_details.h"
 #include "executor/executor.h"
 #include "optimizer/planner.h"
