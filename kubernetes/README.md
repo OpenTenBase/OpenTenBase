@@ -67,6 +67,45 @@ otb-dn-1-0   2/2     Running   0          2m39s
 otb-gtm-0    1/1     Running   0          2m39s
 ```
 
+Check all components status:
+
+```bash
+$ kbcli cluster describe otb
+Name: otb        Created Time: Apr 07,2024 15:28 UTC+0800
+NAMESPACE   CLUSTER-DEFINITION   VERSION              STATUS     TERMINATION-POLICY   
+default     opentenbase          opentenbase-v2.5.0   Updating   Delete               
+
+Endpoints:
+COMPONENT   MODE        INTERNAL                                  EXTERNAL   
+gtm         ReadWrite   otb-gtm.default.svc.cluster.local:50001   <none>     
+dn-0        ReadWrite   otb-dn-0.default.svc.cluster.local:5432   <none>     
+dn-1        ReadWrite   otb-dn-1.default.svc.cluster.local:5432   <none>     
+cn-0        ReadWrite   otb-cn-0.default.svc.cluster.local:5432   <none>     
+
+Topology:
+COMPONENT   INSTANCE     ROLE     STATUS    AZ       NODE                            CREATED-TIME                 
+cn-0        otb-cn-0-0   <none>   Running   <none>   kind-control-plane/172.18.0.2   Apr 07,2024 15:28 UTC+0800   
+dn-0        otb-dn-0-0   <none>   Running   <none>   kind-control-plane/172.18.0.2   Apr 07,2024 15:28 UTC+0800   
+dn-1        otb-dn-1-0   <none>   Running   <none>   kind-control-plane/172.18.0.2   Apr 07,2024 15:28 UTC+0800   
+gtm         otb-gtm-0    <none>   Running   <none>   kind-control-plane/172.18.0.2   Apr 07,2024 15:28 UTC+0800   
+
+Resources Allocation:
+COMPONENT   DEDICATED   CPU(REQUEST/LIMIT)   MEMORY(REQUEST/LIMIT)   STORAGE-SIZE   STORAGE-CLASS   
+gtm         false       1 / 1                1Gi / 1Gi               data:20Gi      standard        
+dn-0        false       1 / 1                1Gi / 1Gi               data:20Gi      standard        
+dn-1        false       1 / 1                1Gi / 1Gi               data:20Gi      standard        
+cn-0        false       1 / 1                1Gi / 1Gi               data:20Gi      standard        
+
+Images:
+COMPONENT   TYPE   IMAGE                                    
+gtm         gtm    docker.io/domainlau/opentenbase:v2.5.0   
+dn-0        dn     docker.io/domainlau/opentenbase:v2.5.0   
+dn-1        dn     docker.io/domainlau/opentenbase:v2.5.0   
+cn-0        cn     docker.io/domainlau/opentenbase:v2.5.0   
+
+Show cluster events: kbcli cluster list-events -n default otb
+```
+
 ## Connect to the OpenTenBase Cluster
 Run the following command to connect to the OpenTenBase cluster:
 
