@@ -271,7 +271,8 @@ CREATE INDEX perf_index ON table_all USING btree (c);
 SELECT dbms_metadata.get_ddl('INDEX','Gin_Index_Name') from dual;
                                              get_ddl                                              
 --------------------------------------------------------------------------------------------------
-CREATE INDEX "Gin_Index_Name" ON "Sample unlogged table" USING spgist ("name of customer");(1 row)
+CREATE INDEX "Gin_Index_Name" ON "Sample unlogged table" USING spgist ("name of customer");
+(1 row)
 
 SELECT dbms_metadata.get_ddl('CONSTRAINT','child_uniq') from dual;
                                  get_ddl                                 
@@ -282,7 +283,8 @@ ALTER TABLE gdmmm.table_all_child ADD CONSTRAINT child_uniq UNIQUE (id);
 SELECT dbms_metadata.get_ddl('CONSTRAINT','Unique age') from dual;
                                        get_ddl                                        
 --------------------------------------------------------------------------------------
-ALTER TABLE gdmmm."Sample unlogged table" ADD CONSTRAINT "Unique age" UNIQUE (id, "Age");(1 row)
+ALTER TABLE gdmmm."Sample unlogged table" ADD CONSTRAINT "Unique age" UNIQUE (id, "Age");
+(1 row)
 
 -- Test type DDL export
 \i test/sql/get_ddl/get_ddl_type.sql
