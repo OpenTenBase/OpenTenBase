@@ -2120,7 +2120,7 @@ alter_group_cmds:
 			| alter_group_cmds ',' alter_group_cmd	{ $$ = lappend($1, $3); }
 		;
 		
-		
+
 partition_cmd:
 			/* ALTER TABLE <name> ATTACH PARTITION <table_name> FOR VALUES */
 			ATTACH PARTITION qualified_name PartitionBoundSpec
@@ -6842,9 +6842,24 @@ TruncateStmt:
 			TRUNCATE opt_table relation_expr_list opt_restart_seqs opt_drop_behavior
 				{
 					TruncateStmt *n = makeNode(TruncateStmt);
+#ifdef __OPENTENBASE__
+					n->p_relation = NULL;
+#endif
 					n->relations = $3;
 					n->restart_seqs = $4;
 					n->behavior = $5;
+					$$ = (Node *)n;
+				}
+			/* ALTER TABLE <name> TRUNCATE PARTITION <partition_name> */
+			| ALTER TABLE relation_expr TRUNCATE PARTITION '(' relation_expr_list ')' opt_restart_seqs opt_drop_behavior
+				{
+					TruncateStmt *n = makeNode(TruncateStmt);
+#ifdef __OPENTENBASE__
+					n->p_relation = $3;
+#endif
+					n->relations = $7;
+					n->restart_seqs = $9;
+					n->behavior = $10;
 					$$ = (Node *)n;
 				}
 		;

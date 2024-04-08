@@ -2443,6 +2443,22 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 				}
 				SendLeaderCNUtility(queryString, is_temp);
 			}
+
+            /* Check if all of relations is partition of parent relation */
+            RangeVar* p_rel = (RangeVar *)((TruncateStmt *) parsetree)->p_relation;
+			Oid inhparent = RangeVarGetRelid(p_rel, AccessExclusiveLock, false);
+			ListCell	*cell;
+            foreach (cell, ((TruncateStmt *) parsetree)->relations)
+            {
+				RangeVar* c_rel = (RangeVar *)lfirst(cell);
+				Oid inhrelid = RangeVarGetRelid(c_rel, AccessExclusiveLock, false);
+                if (!CheckInhRel(inhrelid, inhparent))
+                {
+                    elog(ERROR, "table %s is not partition of %s table", 
+                        c_rel->relname, p_rel->relname);
+                    break;
+                }
+            }
 #endif
             ExecuteTruncate((TruncateStmt *) parsetree);
             break;

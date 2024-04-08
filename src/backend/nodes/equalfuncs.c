@@ -1308,6 +1308,9 @@ _equalDropStmt(const DropStmt *a, const DropStmt *b)
 static bool
 _equalTruncateStmt(const TruncateStmt *a, const TruncateStmt *b)
 {
+#ifdef __OPENTENBASE__
+    COMPARE_NODE_FIELD(p_relation);
+#endif
     COMPARE_NODE_FIELD(relations);
     COMPARE_SCALAR_FIELD(restart_seqs);
     COMPARE_SCALAR_FIELD(behavior);
