@@ -1,10 +1,6 @@
-drop table t_austria cascade;
-drop table t_ger_swiss cascade;
-drop table t_rest cascade;
-drop table t_turnover cascade;
-drop table t_usa cascade;
-drop table t_base cascade;
-
+--
+-- PARTITION
+--
 CREATE TABLE t_base (
     id          serial, 
     country     text, 
@@ -43,7 +39,27 @@ VALUES ('Canada', 'taskCanada', 300);
 
 
 select * from t_base partition (t_rest);
-select * from t_base partition (t_austria);
-select * from t_base partition (t_usa);
-select * from t_base partition (t_ger_swiss);
+postgres=# select * from t_base partition (t_rest);
+ id | country |    task    | turnover 
+----+---------+------------+----------
+  1 | Uganda  | Some task  |      200
+  6 | Canada  | taskCanada |      300
+(2 rows)
 
+select * from t_base partition (t_austria);
+ id | country |    task     | turnover 
+----+---------+-------------+----------
+  3 | Austria | taskAustria |     1000
+(1 row)
+
+select * from t_base partition (t_usa);
+ id | country |  task   | turnover 
+----+---------+---------+----------
+  2 | USA     | taskUSA |        2
+(1 row)
+
+select * from t_base partition (t_ger_swiss);
+--+-------------+-------------+----------
+  5 | Switzerland | taskSwiss   |      700
+  4 | Germany     | taskGermany |      500
+(2 rows)

@@ -1,10 +1,6 @@
-drop table t_austria cascade;
-drop table t_ger_swiss cascade;
-drop table t_rest cascade;
-drop table t_turnover cascade;
-drop table t_usa cascade;
-drop table t_base cascade;
-
+--
+-- PARTITION
+--
 CREATE TABLE t_base (
     id          serial, 
     country     text, 
