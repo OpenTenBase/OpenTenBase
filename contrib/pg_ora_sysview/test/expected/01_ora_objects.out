@@ -1,0 +1,77 @@
+joyann=> \connect - opentenbase
+joyann=> SET search_path = sys;
+SET
+joyann=# SELECT owner,object_type,count(*) from dba_objects group by 1,2 order by 1;
+    owner    |    object_type    | count 
+-------------+-------------------+-------
+ joyann      | TABLE             |     1
+ joyann      | INDEX             |     1
+ joyann      | TYPE              |     3
+ joyann      | TOAST TABLE       |     1
+ jynnuser    | INDEX             |     6
+ jynnuser    | SEQUENCE          |     3
+ jynnuser    | TRIGGER           |     6
+ jynnuser    | TYPE              |    17
+ jynnuser    | FUNCTION          |     2
+ jynnuser    | COMPOSITE TYPE    |     2
+ jynnuser    | VIEW              |     2
+ jynnuser    | TABLE             |     6
+ opentenbase | TOAST TABLE       |    22
+ opentenbase | TYPE              |   459
+ opentenbase | PARTITIONED INDEX |     1
+ opentenbase | FUNCTION          |  3519
+ opentenbase | PARTITIONED TABLE |     2
+ opentenbase | VIEW              |   135
+ opentenbase | INDEX             |   189
+ opentenbase | TABLE             |   176
+ zjaauser    | SEQUENCE          |     1
+ zjaauser    | TABLE             |     5
+ zjaauser    | TYPE              |    11
+ zjaauser    | INDEX             |     5
+(24 rows)
+
+joyann=> \connect - jynnuser
+joyann=> SET search_path = sys;
+SET
+joyann=> SELECT owner,object_type,count(*) from all_objects group by 1,2 order by 1;
+    owner    | object_type | count 
+-------------+-------------+-------
+ jynnuser    | FUNCTION    |     2
+ jynnuser    | SEQUENCE    |     3
+ jynnuser    | TABLE       |     6
+ opentenbase | TABLE       |   153
+ opentenbase | FUNCTION    |  3021
+(5 rows)
+
+joyann=> SELECT object_type,count(*) from user_objects group by 1 order by 1;
+ object_type | count 
+-------------+-------
+ FUNCTION    |     2
+ SEQUENCE    |     3
+ TABLE       |     6
+(3 rows)
+
+joyann=> \connect - zjaauser
+You are now connected to database "joyann" as user "zjaauser".
+joyann=> SET search_path = sys;
+SET
+joyann=> SELECT owner,object_type,count(*) from all_objects group by 1,2 order by 1;
+    owner    | object_type | count 
+-------------+-------------+-------
+ jynnuser    | FUNCTION    |     2
+ jynnuser    | TABLE       |     1
+ opentenbase | TABLE       |   153
+ opentenbase | FUNCTION    |  3021
+ zjaauser    | SEQUENCE    |     1
+ zjaauser    | TABLE       |     5
+(6 rows)
+
+joyann=> SELECT object_type,count(*) from user_objects group by 1 order by 1;
+ object_type | count 
+-------------+-------
+ SEQUENCE    |     1
+ TABLE       |     5
+(2 rows)
+
+
+

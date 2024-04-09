@@ -1,0 +1,47 @@
+joyann=> \connect - opentenbase
+You are now connected to database "joyann" as user "opentenbase".
+joyann=# SET search_path = sys;
+SET
+joyann=# SELECT owner,object_type,count(*) from dba_procedures group by 1,2 order by 1;
+    owner    | object_type | count 
+-------------+-------------+-------
+ jynnuser    | FUNCTION    |     2
+ opentenbase | FUNCTION    |  3519
+(2 rows)
+
+joyann=# \connect - jynnuser
+You are now connected to database "joyann" as user "jynnuser".
+joyann=> 
+joyann=> SET search_path = sys;
+SET
+joyann=> SELECT owner,object_type,count(*) from all_procedures group by 1,2 order by 1;
+    owner    | object_type | count 
+-------------+-------------+-------
+ jynnuser    | FUNCTION    |     3
+ opentenbase | FUNCTION    |  3497
+(2 rows)
+
+joyann=> 
+joyann=> SELECT object_type,count(*) from user_procedures group by 1 order by 1;
+ object_type | count 
+-------------+-------
+ FUNCTION    |     3
+(1 row)
+
+
+joyann=> \connect - zjaauser
+You are now connected to database "joyann" as user "zjaauser".
+joyann=> SET search_path = sys;
+SET
+joyann=> SELECT owner,object_type,count(*) from all_procedures group by 1,2 order by 1;
+    owner    | object_type | count 
+-------------+-------------+-------
+ jynnuser    | FUNCTION    |     3
+ opentenbase | FUNCTION    |  3497
+(2 rows)
+
+joyann=> 
+joyann=> SELECT object_type,count(*) from user_procedures group by 1 order by 1;
+ object_type | count 
+-------------+-------
+(0 rows)
