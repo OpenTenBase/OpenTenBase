@@ -1953,6 +1953,13 @@ set_subquery_pathlist(PlannerInfo *root, RelOptInfo *rel,
     RelOptInfo *sub_final_rel;
     ListCell   *lc;
 
+    /**
+     * fix such issue temporarily:
+     * ERROR:  DML has a subquery contains a function runs on CN
+HINT:  You might need to push that function down to DN.
+     *
+     * annotate such codes:
+     */
 	if (subquery->hasCoordFuncs &&
 	    (parse->commandType == CMD_UPDATE ||
 	     parse->commandType == CMD_INSERT ||
