@@ -1,0 +1,8 @@
+[core]
+	repositoryformatversion = 0
+	filemode = true
+	bare = false
+	logallrefupdates = true
+[remote "tenbase"]
+	url = https://github.com/joyannlin/OpenTenBase.git
+	fetch = +refs/heads/*:refs/remotes/tenbase/*

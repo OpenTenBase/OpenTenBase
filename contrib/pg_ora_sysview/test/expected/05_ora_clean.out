@@ -1,5 +1,3 @@
-joyann=# drop extension pg_ora_sysview ;
-DROP EXTENSION
 joyann=# drop schema jynnn cascade;
 NOTICE:  drop cascades to 12 other objects
 DETAIL:  drop cascades to table jynnn.t_ora_jyinhp

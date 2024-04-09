@@ -3,9 +3,15 @@
 ----
 
 ----
--- public.dual
+-- view dual,best implemented through the kernel and placed under 'pg_catalog'
 ----
-CREATE VIEW public.dual as SELECT 'X'::character varying AS dummy;
+DO $$
+BEGIN
+    IF (SELECT current_setting('server_version') NOT ILIKE '%OpenTenBase%') 
+    THEN
+        EXECUTE 'CREATE VIEW public.dual as SELECT ''X''::character varying AS dummy';
+    END IF;
+END $$;
 
 ----
 -- DBMS_METADATA.GET_DDL
