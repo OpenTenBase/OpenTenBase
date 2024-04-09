@@ -40,7 +40,7 @@ static void slow_sql_executor_end(QueryDesc *queryDesc) {
 
     // 检查是否超过慢查询阈值
     if (duration > slow_sql_min_duration) {
-        ereport(LOG, (errmsg("慢查询: %s, 执行时间: %d 毫秒.", 
+        ereport(LOG, (errmsg("slow query: %s, execution time: %d ms.", 
                             queryDesc->sourceText, duration)));
     }
 
@@ -57,8 +57,8 @@ static void assign_slow_sql_min_duration(int newval, void *extra) {
 
 void _PG_init(void) {
     // 注册GUC变量
-    DefineCustomIntVariable("slow_sql.min_duration",
-                            "慢查询阈值（毫秒）.",
+    DefineCustomIntVariable("slow_sql_min_duration",
+                            "slow query threhold（ms）.",
                             NULL,
                             &slow_sql_min_duration,
                             10000, // 默认10秒
