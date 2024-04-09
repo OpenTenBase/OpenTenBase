@@ -7,7 +7,9 @@
 PG_MODULE_MAGIC;
 
 // 定义GUC变量：慢查询的阈值（单位：毫秒）
-int slow_sql_min_duration;
+static int slow_sql_min_duration;
+static TimestampTz startTime = 0;
+static TimestampTz endTime = 0;
 
 // 钩子函数的原始指针
 static ExecutorStart_hook_type prev_ExecutorStart = NULL;
@@ -29,13 +31,12 @@ static void slow_sql_executor_start(QueryDesc *queryDesc, int eflags) {
         standard_ExecutorStart(queryDesc, eflags);
 
     // 记录开始时间
-    queryDesc->instrument->startTime = GetCurrentTimestamp();
+    startTime = GetCurrentTimestamp();
 }
 
 static void slow_sql_executor_end(QueryDesc *queryDesc) {
-    TimestampTz endTime = GetCurrentTimestamp();
-    TimestampTz startTime = queryDesc->instrument->startTime;
-    int duration = DatumGetInt32(DirectFunctionCall2(timestamp_mi, TimestampTzGetDatum(endTime), TimestampTzGetDatum(startTime)));
+    endTime = GetCurrentTimestamp();
+    int duration = endTime-startTime;
 
     // 检查是否超过慢查询阈值
     if (duration > slow_sql_min_duration) {
