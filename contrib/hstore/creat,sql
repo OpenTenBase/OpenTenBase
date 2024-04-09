@@ -1,0 +1,10 @@
+-- 创建一个新的操作符来简化从 hstore 获取值的调用
+CREATE OPERATOR <>-> (
+    LEFTARG = hstore,
+    RIGHTARG = text,
+    PROCEDURE = hstore_to_varchar,
+    RESTRICT = contsel  -- 使用现有的选择性估计函数
+);
+
+-- 使用以下方式调用，获取键 "my_key" 对应的值作为文本类型
+-- SELECT my_hstore_column <>-> 'my_key' FROM my_table;
