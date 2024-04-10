@@ -31,6 +31,7 @@
 
 #ifdef XCP
 struct ResponseCombiner;
+struct RDAResponseCombiner;
 #endif
 
 /* Tuplesortstate is an opaque type whose details are not known outside
@@ -121,6 +122,12 @@ extern Tuplesortstate *tuplesort_begin_merge(TupleDesc tupDesc,
 					 Oid *sortOperators, Oid *sortCollations, bool *nullsFirstFlags,
 					 struct ResponseCombiner *combiner,
 					 int workMem);
+extern Tuplesortstate *tuplesort_begin_merge_for_rda(TupleDesc tupDesc,
+                     int nkeys, AttrNumber *attNums,
+                     Oid *sortOperators, Oid *sortCollations,
+                     bool *nullsFirstFlags,
+                     struct RDAResponseCombiner *combiner,
+                     int workMem);
 #endif
 
 extern void tuplesort_set_bound(Tuplesortstate *state, int64 bound);

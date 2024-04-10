@@ -204,6 +204,12 @@ typedef struct
 } RemoteSubplan;
 
 /*
+ * make the remote-data-access plan object is the same as remote-subplan,
+ * only 'plan->type' is different.
+ */
+typedef RemoteSubplan RemoteDataAccess;
+
+/*
  * FQS_context
  * This context structure is used by the Fast Query Shipping walker, to gather
  * information during analysing query for Fast Query Shipping.

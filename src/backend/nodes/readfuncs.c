@@ -3821,7 +3821,28 @@ _readExtensibleNode(void)
 static RemoteSubplan *
 _readRemoteSubplan(void)
 {
-    READ_LOCALS(RemoteSubplan);
+	READ_LOCALS(RemoteSubplan);
+	ReadCommonScan(&local_node->scan);
+
+	READ_CHAR_FIELD(distributionType);
+	READ_INT_FIELD(distributionKey);
+	READ_NODE_FIELD(distributionNodes);
+	READ_NODE_FIELD(distributionRestrict);
+	READ_NODE_FIELD(nodeList);
+	READ_BOOL_FIELD(execOnAll);
+	READ_NODE_FIELD(sort);
+	READ_STRING_FIELD(cursor);
+	READ_INT64_FIELD(unique);
+	READ_BOOL_FIELD(parallelWorkerSendTuple);
+	READ_BITMAPSET_FIELD(initPlanParams);
+
+    READ_DONE();
+}
+
+static RemoteDataAccess *
+_readRemoteDataAccess(void)
+{
+    READ_LOCALS(RemoteDataAccess);
     ReadCommonScan(&local_node->scan);
 
     READ_CHAR_FIELD(distributionType);
@@ -3832,9 +3853,9 @@ _readRemoteSubplan(void)
     READ_BOOL_FIELD(execOnAll);
     READ_NODE_FIELD(sort);
     READ_STRING_FIELD(cursor);
-    READ_INT64_FIELD(unique);
+    READ_INT_FIELD(unique);
     READ_BOOL_FIELD(parallelWorkerSendTuple);
-	READ_BITMAPSET_FIELD(initPlanParams);
+    READ_BITMAPSET_FIELD(initPlanParams);
 
     READ_DONE();
 }
@@ -4410,131 +4431,133 @@ parseNodeString(void)
         return_value = _readPartitionPruneStepOp();
     else if (MATCH("PARTITIONPRUNESTEPCOMBINE", 25))
         return_value = _readPartitionPruneStepCombine();
-    else if (MATCH("RTE", 3))
-        return_value = _readRangeTblEntry();
-    else if (MATCH("RANGETBLFUNCTION", 16))
-        return_value = _readRangeTblFunction();
-    else if (MATCH("TABLESAMPLECLAUSE", 17))
-        return_value = _readTableSampleClause();
-    else if (MATCH("NOTIFY", 6))
-        return_value = _readNotifyStmt();
-    else if (MATCH("DEFELEM", 7))
-        return_value = _readDefElem();
-    else if (MATCH("DECLARECURSOR", 13))
-        return_value = _readDeclareCursorStmt();
-    else if (MATCH("PLANNEDSTMT", 11))
-        return_value = _readPlannedStmt();
-    else if (MATCH("PLAN", 4))
-        return_value = _readPlan();
-    else if (MATCH("RESULT", 6))
-        return_value = _readResult();
-    else if (MATCH("PROJECTSET", 10))
-        return_value = _readProjectSet();
-    else if (MATCH("MODIFYTABLE", 11))
-        return_value = _readModifyTable();
-    else if (MATCH("APPEND", 6))
-        return_value = _readAppend();
-    else if (MATCH("MERGEAPPEND", 11))
-        return_value = _readMergeAppend();
-    else if (MATCH("RECURSIVEUNION", 14))
-        return_value = _readRecursiveUnion();
-    else if (MATCH("BITMAPAND", 9))
-        return_value = _readBitmapAnd();
-    else if (MATCH("BITMAPOR", 8))
-        return_value = _readBitmapOr();
-    else if (MATCH("SCAN", 4))
-        return_value = _readScan();
-    else if (MATCH("SEQSCAN", 7))
-        return_value = _readSeqScan();
-    else if (MATCH("SAMPLESCAN", 10))
-        return_value = _readSampleScan();
-    else if (MATCH("INDEXSCAN", 9))
-        return_value = _readIndexScan();
-    else if (MATCH("INDEXONLYSCAN", 13))
-        return_value = _readIndexOnlyScan();
-    else if (MATCH("BITMAPINDEXSCAN", 15))
-        return_value = _readBitmapIndexScan();
-    else if (MATCH("BITMAPHEAPSCAN", 14))
-        return_value = _readBitmapHeapScan();
-    else if (MATCH("TIDSCAN", 7))
-        return_value = _readTidScan();
-    else if (MATCH("SUBQUERYSCAN", 12))
-        return_value = _readSubqueryScan();
-    else if (MATCH("FUNCTIONSCAN", 12))
-        return_value = _readFunctionScan();
-    else if (MATCH("VALUESSCAN", 10))
-        return_value = _readValuesScan();
-    else if (MATCH("TABLEFUNCSCAN", 13))
-        return_value = _readTableFuncScan();
-    else if (MATCH("CTESCAN", 7))
-        return_value = _readCteScan();
-    else if (MATCH("WORKTABLESCAN", 13))
-        return_value = _readWorkTableScan();
-    else if (MATCH("FOREIGNSCAN", 11))
-        return_value = _readForeignScan();
-    else if (MATCH("CUSTOMSCAN", 10))
-        return_value = _readCustomScan();
-    else if (MATCH("JOIN", 4))
-        return_value = _readJoin();
-    else if (MATCH("NESTLOOP", 8))
-        return_value = _readNestLoop();
-    else if (MATCH("MERGEJOIN", 9))
-        return_value = _readMergeJoin();
-    else if (MATCH("HASHJOIN", 8))
-        return_value = _readHashJoin();
-    else if (MATCH("MATERIAL", 8))
-        return_value = _readMaterial();
-    else if (MATCH("SORT", 4))
-        return_value = _readSort();
-    else if (MATCH("GROUP", 5))
-        return_value = _readGroup();
-    else if (MATCH("AGG", 3))
-        return_value = _readAgg();
-    else if (MATCH("WINDOWAGG", 9))
-        return_value = _readWindowAgg();
-    else if (MATCH("UNIQUE", 6))
-        return_value = _readUnique();
-    else if (MATCH("GATHER", 6))
-        return_value = _readGather();
-    else if (MATCH("GATHERMERGE", 11))
-        return_value = _readGatherMerge();
-    else if (MATCH("HASH", 4))
-        return_value = _readHash();
-    else if (MATCH("SETOP", 5))
-        return_value = _readSetOp();
-    else if (MATCH("LOCKROWS", 8))
-        return_value = _readLockRows();
-    else if (MATCH("LIMIT", 5))
-        return_value = _readLimit();
-    else if (MATCH("NESTLOOPPARAM", 13))
-        return_value = _readNestLoopParam();
-    else if (MATCH("PLANROWMARK", 11))
-        return_value = _readPlanRowMark();
-    else if (MATCH("PLANINVALITEM", 13))
-        return_value = _readPlanInvalItem();
-    else if (MATCH("SUBPLAN", 7))
-        return_value = _readSubPlan();
-    else if (MATCH("ALTERNATIVESUBPLAN", 18))
-        return_value = _readAlternativeSubPlan();
-    else if (MATCH("EXTENSIBLENODE", 14))
-        return_value = _readExtensibleNode();
-    else if (MATCH("REMOTESUBPLAN", 13))
-        return_value = _readRemoteSubplan();
-    else if (MATCH("REMOTESTMT", 10))
-        return_value = _readRemoteStmt();
-    else if (MATCH("SIMPLESORT", 10))
-        return_value = _readSimpleSort();
-    else if (MATCH("PARTITIONBOUNDSPEC", 18))
-        return_value = _readPartitionBoundSpec();
-    else if (MATCH("PARTITIONRANGEDATUM", 19))
-        return_value = _readPartitionRangeDatum();
+	else if (MATCH("RTE", 3))
+		return_value = _readRangeTblEntry();
+	else if (MATCH("RANGETBLFUNCTION", 16))
+		return_value = _readRangeTblFunction();
+	else if (MATCH("TABLESAMPLECLAUSE", 17))
+		return_value = _readTableSampleClause();
+	else if (MATCH("NOTIFY", 6))
+		return_value = _readNotifyStmt();
+	else if (MATCH("DEFELEM", 7))
+		return_value = _readDefElem();
+	else if (MATCH("DECLARECURSOR", 13))
+		return_value = _readDeclareCursorStmt();
+	else if (MATCH("PLANNEDSTMT", 11))
+		return_value = _readPlannedStmt();
+	else if (MATCH("PLAN", 4))
+		return_value = _readPlan();
+	else if (MATCH("RESULT", 6))
+		return_value = _readResult();
+	else if (MATCH("PROJECTSET", 10))
+		return_value = _readProjectSet();
+	else if (MATCH("MODIFYTABLE", 11))
+		return_value = _readModifyTable();
+	else if (MATCH("APPEND", 6))
+		return_value = _readAppend();
+	else if (MATCH("MERGEAPPEND", 11))
+		return_value = _readMergeAppend();
+	else if (MATCH("RECURSIVEUNION", 14))
+		return_value = _readRecursiveUnion();
+	else if (MATCH("BITMAPAND", 9))
+		return_value = _readBitmapAnd();
+	else if (MATCH("BITMAPOR", 8))
+		return_value = _readBitmapOr();
+	else if (MATCH("SCAN", 4))
+		return_value = _readScan();
+	else if (MATCH("SEQSCAN", 7))
+		return_value = _readSeqScan();
+	else if (MATCH("SAMPLESCAN", 10))
+		return_value = _readSampleScan();
+	else if (MATCH("INDEXSCAN", 9))
+		return_value = _readIndexScan();
+	else if (MATCH("INDEXONLYSCAN", 13))
+		return_value = _readIndexOnlyScan();
+	else if (MATCH("BITMAPINDEXSCAN", 15))
+		return_value = _readBitmapIndexScan();
+	else if (MATCH("BITMAPHEAPSCAN", 14))
+		return_value = _readBitmapHeapScan();
+	else if (MATCH("TIDSCAN", 7))
+		return_value = _readTidScan();
+	else if (MATCH("SUBQUERYSCAN", 12))
+		return_value = _readSubqueryScan();
+	else if (MATCH("FUNCTIONSCAN", 12))
+		return_value = _readFunctionScan();
+	else if (MATCH("VALUESSCAN", 10))
+		return_value = _readValuesScan();
+	else if (MATCH("TABLEFUNCSCAN", 13))
+		return_value = _readTableFuncScan();
+	else if (MATCH("CTESCAN", 7))
+		return_value = _readCteScan();
+	else if (MATCH("WORKTABLESCAN", 13))
+		return_value = _readWorkTableScan();
+	else if (MATCH("FOREIGNSCAN", 11))
+		return_value = _readForeignScan();
+	else if (MATCH("CUSTOMSCAN", 10))
+		return_value = _readCustomScan();
+	else if (MATCH("JOIN", 4))
+		return_value = _readJoin();
+	else if (MATCH("NESTLOOP", 8))
+		return_value = _readNestLoop();
+	else if (MATCH("MERGEJOIN", 9))
+		return_value = _readMergeJoin();
+	else if (MATCH("HASHJOIN", 8))
+		return_value = _readHashJoin();
+	else if (MATCH("MATERIAL", 8))
+		return_value = _readMaterial();
+	else if (MATCH("SORT", 4))
+		return_value = _readSort();
+	else if (MATCH("GROUP", 5))
+		return_value = _readGroup();
+	else if (MATCH("AGG", 3))
+		return_value = _readAgg();
+	else if (MATCH("WINDOWAGG", 9))
+		return_value = _readWindowAgg();
+	else if (MATCH("UNIQUE", 6))
+		return_value = _readUnique();
+	else if (MATCH("GATHER", 6))
+		return_value = _readGather();
+	else if (MATCH("GATHERMERGE", 11))
+		return_value = _readGatherMerge();
+	else if (MATCH("HASH", 4))
+		return_value = _readHash();
+	else if (MATCH("SETOP", 5))
+		return_value = _readSetOp();
+	else if (MATCH("LOCKROWS", 8))
+		return_value = _readLockRows();
+	else if (MATCH("LIMIT", 5))
+		return_value = _readLimit();
+	else if (MATCH("NESTLOOPPARAM", 13))
+		return_value = _readNestLoopParam();
+	else if (MATCH("PLANROWMARK", 11))
+		return_value = _readPlanRowMark();
+	else if (MATCH("PLANINVALITEM", 13))
+		return_value = _readPlanInvalItem();
+	else if (MATCH("SUBPLAN", 7))
+		return_value = _readSubPlan();
+	else if (MATCH("ALTERNATIVESUBPLAN", 18))
+		return_value = _readAlternativeSubPlan();
+	else if (MATCH("EXTENSIBLENODE", 14))
+		return_value = _readExtensibleNode();
+	else if (MATCH("REMOTESUBPLAN", 13))
+		return_value = _readRemoteSubplan();
+    else if (MATCH("REMOTEDATAACCESS", 16))
+        return_value = _readRemoteDataAccess();
+	else if (MATCH("REMOTESTMT", 10))
+		return_value = _readRemoteStmt();
+	else if (MATCH("SIMPLESORT", 10))
+		return_value = _readSimpleSort();
+	else if (MATCH("PARTITIONBOUNDSPEC", 18))
+		return_value = _readPartitionBoundSpec();
+	else if (MATCH("PARTITIONRANGEDATUM", 19))
+		return_value = _readPartitionRangeDatum();
 #ifdef __OPENTENBASE__
-    else if (MATCH("PARTITIONBY", 11))
-        return_value = _readPartitionBy();
-    else if (MATCH("ADDDROPPARTITIONS", 17))
-        return_value = _readAddDropPartitions();
-    else if (MATCH("PARTITIONFOREXPR", 16))
-        return_value = _readPartitionForExpr();
+	else if (MATCH("PARTITIONBY", 11))
+		return_value = _readPartitionBy();
+	else if (MATCH("ADDDROPPARTITIONS", 17))
+		return_value = _readAddDropPartitions();
+	else if (MATCH("PARTITIONFOREXPR", 16))
+		return_value = _readPartitionForExpr();
 #endif
 #ifdef __AUDIT_FGA__
     else if (MATCH("AUDITFGAPOLICY", 14))

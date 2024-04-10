@@ -110,6 +110,8 @@ bool child_of_gather = false;
 bool enable_group_across_query = false;
 bool enable_distributed_unique_plan = false;
 int min_workers_of_hashjon_gather = PG_INT32_MAX;
+
+static int replace_rda_depth = 0;
 #endif
 #ifdef __COLD_HOT__
 bool has_cold_hot_table = false;
@@ -133,6 +135,7 @@ static void adjust_subplan_distribution(PlannerInfo *root, Distribution *pathd,
 static RemoteSubplan *create_remotescan_plan(PlannerInfo *root,
                        RemoteSubPath *best_path);
 //static char *get_internal_cursor(void);
+static Plan *replace_rda_recurse(PlannerInfo *root, Plan *plan, Plan *parent);
 #endif
 static Result *create_qual_plan(PlannerInfo *root, QualPath *best_path);
 static ProjectSet *create_project_set_plan(PlannerInfo *root, ProjectSetPath *best_path);
@@ -342,8 +345,9 @@ static GatherMerge *create_gather_merge_plan(PlannerInfo *root,
 
 #ifdef XCP
 static int add_sort_column(AttrNumber colIdx, Oid sortOp, Oid coll,
-                bool nulls_first,int numCols, AttrNumber *sortColIdx,
-                Oid *sortOperators, Oid *collations, bool *nullsFirst);
+				bool nulls_first,int numCols, AttrNumber *sortColIdx,
+				Oid *sortOperators, Oid *collations, bool *nullsFirst);
+static char *get_internal_rda_seq(void);
 #endif
 #ifdef __OPENTENBASE__
 static double GetPlanRows(Plan *plan);
@@ -351,6 +355,8 @@ static bool set_plan_parallel(Plan *plan);
 static void set_plan_nonparallel(Plan *plan);
 static Plan *materialize_top_remote_subplan(Plan *node);
 static bool contain_node_walker(Plan *node, NodeTag type, bool search_nonparallel);
+static bool check_exist_rda_replace(PlannerInfo *root, Plan *plan);
+static void alter_all_gather_or_merge(PlannerInfo *root, Plan *plan);
 #endif
 static RemoteSubplan *find_push_down_plan(Plan *plan, bool force);
 
@@ -6443,6 +6449,661 @@ make_worktablescan(List *qptlist,
 }
 
 #ifdef XCP
+static void
+replace_rda_in_expr_recurse(PlannerInfo *root, Expr *node, Plan *parent)
+{
+    switch (nodeTag(node))
+    {
+        case T_SubPlan:
+        {
+            SubPlan             *subplan = (SubPlan *) node;
+            Plan                *expr_plan = (Plan *)list_nth(root->glob->subplans, subplan->plan_id - 1);
+            PlannerInfo         *expr_root = (PlannerInfo *)list_nth(root->glob->subroots, subplan->plan_id - 1);
+
+            replace_rda_recurse(expr_root, expr_plan, NULL);
+            break;
+        }
+        case T_AlternativeSubPlan:
+        {
+            ListCell            *lc;
+            AlternativeSubPlan  *asplan = (AlternativeSubPlan *) node;
+
+            foreach(lc, asplan->subplans)
+            {
+                SubPlan         *subplan = lfirst_node(SubPlan, lc);
+                Plan            *expr_plan = (Plan *)list_nth(root->glob->subplans, subplan->plan_id - 1);
+                PlannerInfo     *expr_root = (PlannerInfo *)list_nth(root->glob->subroots, subplan->plan_id - 1);
+
+                replace_rda_recurse(expr_root, expr_plan, NULL);
+            }
+            break;
+        }
+        case T_BoolExpr:
+        {
+            ListCell   *lc;
+            BoolExpr   *boolexpr = (BoolExpr *) node;
+
+            foreach(lc, boolexpr->args)
+            {
+                Expr	   *arg = (Expr *) lfirst(lc);
+                replace_rda_in_expr_recurse(root, arg, parent);
+            }
+            break;
+        }
+        case T_FieldSelect:
+        {
+            FieldSelect *fselect = (FieldSelect *) node;
+
+            replace_rda_in_expr_recurse(root, fselect->arg, parent);
+            break;
+        }
+		case T_RelabelType:
+        {
+            /* relabel doesn't need to do anything at runtime */
+            RelabelType *relabel = (RelabelType *) node;
+
+            replace_rda_in_expr_recurse(root, relabel->arg, parent);
+            break;
+        }
+		case T_ConvertRowtypeExpr:
+        {
+            ConvertRowtypeExpr *convert = (ConvertRowtypeExpr *) node;
+
+			/* evaluate argument into step's result area */
+            replace_rda_in_expr_recurse(root, convert->arg, parent);
+            break;
+        }
+		case T_WindowFunc:
+		{
+			WindowFunc *wfunc = (WindowFunc *) node;
+			ListCell   *lc;
+
+			if (parent && IsA(parent, WindowAggState))
+			{
+				foreach(lc, wfunc->args)
+				{
+					Expr	   *e = lfirst(lc);
+					replace_rda_in_expr_recurse(root, e, parent);
+				}
+				replace_rda_in_expr_recurse(root, wfunc->aggfilter, parent);
+			}
+			else
+			{
+				/* planner messed up */
+				elog(ERROR, "WindowFunc found in non-WindowAgg plan node");
+			}
+			break;
+		}
+		case T_ArrayRef:
+		{
+			ListCell   *lc;
+			ArrayRef   *aref = (ArrayRef *) node;
+			bool	   isAssignment = (aref->refassgnexpr != NULL);
+			replace_rda_in_expr_recurse(root, aref->refexpr, parent);
+			/* Verify subscript list lengths are within limit */
+	        if (list_length(aref->refupperindexpr) > MAXDIM)
+	        	ereport(ERROR,
+	        			(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
+	        			 errmsg("number of array dimensions (%d) exceeds the maximum allowed (%d)",
+	        					list_length(aref->refupperindexpr), MAXDIM)));
+        
+	        if (list_length(aref->reflowerindexpr) > MAXDIM)
+	        	ereport(ERROR,
+	        			(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
+	        			 errmsg("number of array dimensions (%d) exceeds the maximum allowed (%d)",
+	        					list_length(aref->reflowerindexpr), MAXDIM)));
+			foreach(lc, aref->refupperindexpr)
+			{
+				Expr *e = (Expr *) lfirst(lc);
+				if(!e)
+				   continue;
+				replace_rda_in_expr_recurse(root, e, parent);
+			}
+			foreach(lc, aref->reflowerindexpr)
+			{
+				Expr *e = (Expr *) lfirst(lc);
+				if(!e)
+				   continue;
+				replace_rda_in_expr_recurse(root, e, parent);
+			}
+			if(isAssignment)
+			{
+				replace_rda_in_expr_recurse(root, aref->refassgnexpr, parent);
+			}
+			break;
+		}
+		case T_OpExpr:
+		{
+			ListCell   *lc;
+			OpExpr	   *op = (OpExpr *) node;
+			foreach(lc, op->args)
+            {
+				Expr	   *arg = (Expr *) lfirst(lc);
+				if (!IsA(arg, Const))
+				{
+                    replace_rda_in_expr_recurse(root, arg, parent);
+				}
+            }
+			break;
+		}
+		case T_FuncExpr:
+		{
+			ListCell   *lc;
+			FuncExpr *func = (FuncExpr *) node;
+			foreach(lc, func->args)
+            {
+				Expr	   *arg = (Expr *) lfirst(lc);
+				if (!IsA(arg, Const))
+				{
+                    replace_rda_in_expr_recurse(root, arg, parent);
+				}
+            }
+			break;
+		}
+		case T_DistinctExpr:
+		{
+			ListCell   *lc;
+			DistinctExpr *op = (DistinctExpr *) node;
+			foreach(lc, op->args)
+            {
+				Expr	   *arg = (Expr *) lfirst(lc);
+				if (!IsA(arg, Const))
+				{
+                    replace_rda_in_expr_recurse(root, arg, parent);
+				}
+            }
+			break;
+		}
+		case T_NullIfExpr:
+		{
+			ListCell   *lc;
+			NullIfExpr *op = (NullIfExpr *) node;
+			foreach(lc, op->args)
+            {
+				Expr	   *arg = (Expr *) lfirst(lc);
+				if (!IsA(arg, Const))
+				{
+                    replace_rda_in_expr_recurse(root, arg, parent);
+				}
+            }
+			break;			
+		}
+		case T_ScalarArrayOpExpr:
+		{
+			ScalarArrayOpExpr *opexpr = (ScalarArrayOpExpr *) node;
+			Expr	   *scalararg;
+            Expr	   *arrayarg;
+			Assert(list_length(opexpr->args) == 2);
+			scalararg = (Expr *) linitial(opexpr->args);
+			arrayarg = (Expr *) lsecond(opexpr->args);
+			replace_rda_in_expr_recurse(root, scalararg, parent);
+			replace_rda_in_expr_recurse(root, arrayarg, parent);
+			break;
+		}
+		case T_FieldStore:
+		{
+			ListCell   *l1,*l2;
+			FieldStore *fstore = (FieldStore *) node;
+			replace_rda_in_expr_recurse(root, fstore->arg, parent);
+			/* evaluate new field values, store in workspace columns */
+			forboth(l1, fstore->newvals, l2, fstore->fieldnums)
+			{
+				Expr	   *e = (Expr *) lfirst(l1);
+				AttrNumber	fieldnum = lfirst_int(l2);
+				if (fieldnum <= 0)
+						elog(ERROR, "field number %d is out of range in FieldStore",
+							 fieldnum);
+
+				replace_rda_in_expr_recurse(root, e, parent);
+			}
+			break;
+		}
+		case T_CoerceViaIO:
+		{
+			CoerceViaIO *iocoerce = (CoerceViaIO *) node;
+			replace_rda_in_expr_recurse(root, iocoerce->arg, parent);
+			break;
+		}
+		case T_ArrayCoerceExpr:
+		{
+			ArrayCoerceExpr *acoerce = (ArrayCoerceExpr *) node;
+			replace_rda_in_expr_recurse(root, acoerce->arg, parent);
+			break;
+		}
+		case T_CaseExpr:
+		{
+			ListCell   *lc;
+
+			CaseExpr   *caseExpr = (CaseExpr *) node;
+			if (caseExpr->arg != NULL)
+			{
+                replace_rda_in_expr_recurse(root, caseExpr->arg, parent);
+			}
+			foreach(lc, caseExpr->args)
+			{
+				CaseWhen   *when = (CaseWhen *) lfirst(lc);
+				replace_rda_in_expr_recurse(root, when->expr, parent);
+				replace_rda_in_expr_recurse(root, when->result, parent);
+			}
+			/* transformCaseExpr always adds a default */
+			Assert(caseExpr->defresult);
+			replace_rda_in_expr_recurse(root, caseExpr->defresult, parent);
+		    break;
+		}
+		case T_ArrayExpr:
+		{
+			ListCell   *lc;
+			ArrayExpr  *arrayexpr = (ArrayExpr *) node;
+
+			foreach(lc, arrayexpr->elements)
+			{
+				Expr	   *e = (Expr *) lfirst(lc);
+				replace_rda_in_expr_recurse(root, e, parent);
+			}
+			break;
+		}
+		case T_RowExpr:
+		{
+			RowExpr    *rowexpr = (RowExpr *) node;
+			ListCell   *l;
+			foreach(l, rowexpr->args)
+			{
+				Expr	   *e = (Expr *) lfirst(l);
+				replace_rda_in_expr_recurse(root, e, parent);
+			}
+			break;
+		}
+		case T_RowCompareExpr:
+		{
+			RowCompareExpr *rcexpr = (RowCompareExpr *) node;
+			int			nopers = list_length(rcexpr->opnos);
+			ListCell   *l_left_expr,
+					   *l_right_expr;
+			int			off;
+			
+			Assert(list_length(rcexpr->largs) == nopers);
+			Assert(list_length(rcexpr->rargs) == nopers);
+			Assert(list_length(rcexpr->opfamilies) == nopers);
+			Assert(list_length(rcexpr->inputcollids) == nopers);
+
+			off = 0;
+			for(off = 0,
+				l_left_expr = list_head(rcexpr->largs),
+				l_right_expr = list_head(rcexpr->rargs);
+				off < nopers;
+                off++,
+                l_left_expr = lnext(l_left_expr),
+                l_right_expr = lnext(l_right_expr))
+			{
+				Expr	   *left_expr = (Expr *) lfirst(l_left_expr);
+				Expr	   *right_expr = (Expr *) lfirst(l_right_expr);
+				replace_rda_in_expr_recurse(root, left_expr, parent);
+				replace_rda_in_expr_recurse(root, right_expr, parent);
+			}
+			break;
+		}
+		case T_CoalesceExpr:
+		{
+			CoalesceExpr *coalesce = (CoalesceExpr *) node;
+			ListCell   *lc;
+
+			/* We assume there's at least one arg */
+			Assert(coalesce->args != NIL);
+
+			foreach(lc, coalesce->args)
+			{
+				Expr	   *e = (Expr *) lfirst(lc);
+				replace_rda_in_expr_recurse(root, e, parent);
+			}
+			break;
+		}
+		case T_MinMaxExpr:
+		{
+			MinMaxExpr *minmaxexpr = (MinMaxExpr *) node;
+			ListCell   *lc;
+
+			foreach(lc, minmaxexpr->args)
+			{
+				Expr	   *e = (Expr *) lfirst(lc);
+				replace_rda_in_expr_recurse(root, e, parent);
+			}
+			break;			
+		}
+		case T_XmlExpr:
+		{
+			XmlExpr    *xexpr = (XmlExpr *) node;
+			ListCell   *arg;
+
+			foreach(arg, xexpr->named_args)
+			{
+				Expr	   *e = (Expr *) lfirst(arg);
+				replace_rda_in_expr_recurse(root, e, parent);
+			}
+
+			foreach(arg, xexpr->args)
+			{
+				Expr	   *e = (Expr *) lfirst(arg);
+				replace_rda_in_expr_recurse(root, e, parent);
+			}
+			break;
+		}
+		case T_NullTest:
+		{
+			NullTest   *ntest = (NullTest *) node;
+			replace_rda_in_expr_recurse(root, ntest->arg, parent);
+			break;
+		}
+		case T_BooleanTest:
+		{
+			BooleanTest *btest = (BooleanTest *) node;
+			replace_rda_in_expr_recurse(root, btest->arg, parent);
+			break;
+		}
+		case T_CoerceToDomain:
+		{
+			CoerceToDomain *ctest = (CoerceToDomain *) node;
+			replace_rda_in_expr_recurse(root, ctest->arg, parent);
+			/* TODO: some RDA not do replace  in ExecInitCoerceToDomain*/
+			break;
+		}
+		case T_TargetEntry:
+		{
+			TargetEntry* tle = (TargetEntry*)node;
+			replace_rda_in_expr_recurse(root, tle->expr, parent);
+		}
+        default:
+        {
+            elog(DEBUG2, "unrecognized node type: %d", (int) nodeTag(node));
+            break;
+        }
+    }
+}
+
+/* replace remotesubplan in expr */
+static void
+replace_rda_in_expr(PlannerInfo *root, List *qual, Plan *parent)
+{
+    ListCell   *lc;
+
+    if (qual == NULL)
+        return;
+
+    Assert(IsA(qual, List));
+    foreach(lc, qual)
+    {
+        Expr        *node = (Expr *) lfirst(lc);
+        replace_rda_in_expr_recurse(root, node, parent);
+    }
+}
+
+static void
+replace_rda_node(PlannerInfo *root, RemoteSubplan *plan, Plan *parent)
+{
+    Plan       *sub_plan = plan->scan.plan.lefttree;
+    Plan       *outerplan = ((Plan *)plan)->lefttree;
+
+    /* Do not replace the top remoteSubplan in plan-tree */
+    if (replace_rda_depth > 1)
+    {
+        /* hack here: the remoteSubplan node is also remoteDataAccess */
+        RemoteDataAccess *remote_plan = (RemoteDataAccess *)plan;
+        char *old_cursor = remote_plan->cursor;
+
+        remote_plan->scan.plan.type = T_RemoteDataAccess;
+        remote_plan->cursor = get_internal_rda_seq();
+        if (old_cursor)
+            pfree(old_cursor);
+
+        if(outerplan)
+        {
+            if(IsA(outerplan, Gather))
+            {
+                Gather *gather = (Gather *) outerplan;
+                gather->parallelWorker_sendTuple = false;
+            }
+        }
+
+    }
+
+    replace_rda_recurse(root, sub_plan, (Plan *)plan);
+}
+
+/*
+ * replace all remoteSubplan node under the top one.
+ * we just re-set the 'plan->type' to T_RemoteDataAccess now, as
+ * the remoteDataAccess node has the same elements with remoteSubplan.
+ * If we re-asssign a new remoteDataAccess struct, pls make a new plan
+ * object node.
+ */
+static Plan *
+replace_rda_recurse(PlannerInfo *root, Plan *plan, Plan *parent)
+{
+    if (IsA(plan, NestLoop))
+        return plan;
+
+    if (IsA(plan, RemoteSubplan) &&
+            ((list_length(((RemoteSubplan *) plan)->nodeList) > 1 &&
+                        ((RemoteSubplan *) plan)->execOnAll)))
+    {
+        replace_rda_depth++;
+        replace_rda_node(root, (RemoteSubplan *)plan, parent);
+        replace_rda_depth--;
+    }
+    else
+    {
+        /* recurse the child nodes directly if it's not RemoteSubplan */
+        if (plan->lefttree)
+            replace_rda_recurse(root, plan->lefttree, plan);
+        if (plan->righttree)
+            replace_rda_recurse(root, plan->righttree, plan);
+			
+        // if (plan->qual)
+        //     replace_rda_in_expr(root, plan->qual, plan);
+
+        /* subqueryScan case subplan */
+        if (IsA(plan, SubqueryScan))
+        {
+            replace_rda_recurse(root, ((SubqueryScan *)plan)->subplan, NULL);
+        }
+
+		// if(IsA(plan, HashJoin))
+		// {
+		// 	HashJoin *node = (HashJoin *)plan;
+		// 	if(node->join.joinqual)
+		// 	    replace_rda_in_expr(root, node->join.joinqual, node);
+		// 	if(node->hashclauses)
+		// 	    replace_rda_in_expr(root, node->hashclauses, node);
+		// }
+
+        /* Append node case for subplan */
+        if (IsA(plan, Append))
+        {
+            ListCell *lc;
+
+            foreach(lc, ((Append *)plan)->appendplans)
+            {
+                Plan *aplan = (Plan *)lfirst(lc);
+
+                replace_rda_recurse(root, aplan, plan);
+            }
+        }
+
+		/* MergeAppend node case for subplan */
+		if (IsA(plan, MergeAppend))
+		{
+            MergeAppend *mergeappend = (MergeAppend *)plan;            
+            ListCell *lc;
+            foreach(lc, mergeappend->mergeplans)
+            {
+                Plan *child_plan = (Plan *)lfirst(lc);
+                replace_rda_recurse(root, child_plan, plan);
+            }
+		}
+
+        /* replace RemoteSubplan in initPlan */
+        if (plan->initPlan && root)
+        {
+            ListCell    *l;
+            foreach(l, plan->initPlan)
+            {
+                SubPlan     *subplan = (SubPlan *) lfirst(l);
+                Plan        *initplan = (Plan *)list_nth(root->glob->subplans, subplan->plan_id - 1);
+                PlannerInfo *initroot = (PlannerInfo *)list_nth(root->glob->subroots, subplan->plan_id - 1);
+
+                replace_rda_recurse(initroot, initplan, NULL);
+            }
+        }
+    }
+
+    return plan;
+}
+
+Plan *
+replace_remotesubplan_with_rda(PlannerInfo *root, Plan *plan)
+{
+    /*
+     * The first top 'RemoteSubplan' node will never be replaced,
+     * it's safe to set parent as NULL.
+     */
+    return replace_rda_recurse(root, plan, NULL);
+}
+
+Plan *
+check_parallel_rda_replace(PlannerInfo *root, Plan *plan)
+{
+    if((IsA(plan, Gather) || IsA(plan, GatherMerge)) && check_exist_rda_replace(root, plan))
+    {
+        alter_all_gather_or_merge(root,plan);
+    }
+
+    if (plan->lefttree)
+        check_parallel_rda_replace(root, plan->lefttree);
+    if (plan->righttree)
+        check_parallel_rda_replace(root, plan->righttree);
+
+    /* subqueryScan case subplan */
+    if (IsA(plan, SubqueryScan))
+    {
+        check_parallel_rda_replace(root, ((SubqueryScan *)plan)->subplan);
+    }
+
+    /* Append node case for subplan */
+    if (IsA(plan, Append))
+    {
+        ListCell *lc;
+        foreach(lc, ((Append *)plan)->appendplans)
+        {
+            Plan *aplan = (Plan *)lfirst(lc);
+            check_parallel_rda_replace(root, aplan);
+        }
+    }
+	/* MergeAppend node case for subplan */
+	if (IsA(plan, MergeAppend))
+	{
+        MergeAppend *mergeappend = (MergeAppend *)plan;            
+        ListCell *lc;
+        foreach(lc, mergeappend->mergeplans)
+        {
+            Plan *child_plan = (Plan *)lfirst(lc);
+            check_parallel_rda_replace(root, child_plan);
+        }
+	}
+    /* replace RemoteSubplan in initPlan */
+    if (plan->initPlan && root)
+    {
+        ListCell    *l;
+        foreach(l, plan->initPlan)
+        {
+            SubPlan     *subplan = (SubPlan *) lfirst(l);
+            Plan        *initplan = (Plan *)list_nth(root->glob->subplans, subplan->plan_id - 1);
+            PlannerInfo *initroot = (PlannerInfo *)list_nth(root->glob->subroots, subplan->plan_id - 1);
+            check_parallel_rda_replace(initroot, initplan);
+        }
+    }
+
+    return plan;
+}
+
+bool
+check_exist_rda_replace(PlannerInfo *root, Plan *plan)
+{
+    if(IsA(plan, RemoteDataAccess))
+        return true;
+
+    if(plan->lefttree)
+    {
+        if(check_exist_rda_replace(root, plan->lefttree))
+            return true;
+    }
+
+    if(plan->righttree)
+    {
+        if(check_exist_rda_replace(root, plan->righttree))
+            return true;
+    }
+
+    /* subqueryScan case subplan */
+    if (IsA(plan, SubqueryScan))
+    {
+        if(check_exist_rda_replace(root, ((SubqueryScan *)plan)->subplan))
+            return true;
+    }
+
+    /* Append node case for subplan */
+    if (IsA(plan, Append))
+    {
+        ListCell *lc;
+        foreach(lc, ((Append *)plan)->appendplans)
+        {
+            Plan *aplan = (Plan *)lfirst(lc);
+            if(check_exist_rda_replace(root, aplan))
+                return true;
+        }
+    }
+	/* MergeAppend node case for subplan */
+	if (IsA(plan, MergeAppend))
+	{
+        MergeAppend *mergeappend = (MergeAppend *)plan;            
+        ListCell *lc;
+        foreach(lc, mergeappend->mergeplans)
+        {
+            Plan *child_plan = (Plan *)lfirst(lc);
+            if(check_exist_rda_replace(root, child_plan))
+                return true;
+        }
+	}
+    /* replace RemoteSubplan in initPlan */
+    if (plan->initPlan && root)
+    {
+        ListCell    *l;
+        foreach(l, plan->initPlan)
+        {
+            SubPlan     *subplan = (SubPlan *) lfirst(l);
+            Plan        *initplan = (Plan *)list_nth(root->glob->subplans, subplan->plan_id - 1);
+            PlannerInfo *initroot = (PlannerInfo *)list_nth(root->glob->subroots, subplan->plan_id - 1);
+            if(check_exist_rda_replace(initroot, initplan))
+                return true;
+        }
+    }
+
+    return false;
+}
+
+void
+alter_all_gather_or_merge(PlannerInfo *root, Plan *plan)
+{
+    if(IsA(plan, Gather))
+    {
+        Gather *gather = (Gather *)plan;
+        gather->num_workers = 0;
+    }
+    else if(IsA(plan, GatherMerge))
+    {
+        GatherMerge *gatherMerge = (GatherMerge *)plan;
+        gatherMerge->num_workers = 0;
+    }
+}
+
 /*
  * make_remotesubplan
  *     Create a RemoteSubplan node to execute subplan on remote nodes.
@@ -8921,7 +9582,7 @@ is_projection_capable_plan(Plan *plan)
 #ifdef XCP
 #define CNAME_MAXLEN 64
 static int cursor_id = 0;
-
+static int32  rda_id_count = 0; /* rad id count use static, so we can identify the rdas of one query. */
 
 /*
  * Return a name unique for the cluster
@@ -8941,6 +9602,43 @@ get_internal_cursor(void)
     snprintf(cursor, CNAME_MAXLEN - 1, "p_%d_%x_%x_%x",
              PGXCNodeId, getpid(), cursor_id, random_id);
     return cursor;
+}
+
+static int64
+get_internal_rda_id(void)
+{
+    int64 h_part, l_part;
+    GlobalTimestamp  current_gts     = InvalidGlobalTimestamp;
+
+    if (!IS_PGXC_LOCAL_COORDINATOR)
+    {
+        elog(ERROR, "RDAID can only be generated on coordinator!");
+    }
+    if (rda_id_count++ == INT32_MAX)
+        rda_id_count = 0;
+    current_gts = GetGlobalTimestampGTM() + rda_id_count;
+
+    /* Get latest gts, in case gtm not avaliable, we can error asap. */
+    h_part = (PGXCNodeId << 16 & 0XFFFF0000)| (MyProcPid & 0X0000FFFF);
+    l_part = DatumGetUInt32((Datum)current_gts);
+
+    /* rda identifer composed of current_gts as low 32 bits, PGXCNodeId as 48~64 bits, MyProcPid as 32~48 bits. */
+    return (int64)(h_part<<32 | l_part);
+}
+
+/*
+ * Get a unique sequence number for RemoteDataAccess plan node in the cluster
+ */
+static char *
+get_internal_rda_seq(void)
+{
+    char *rda_seq;
+    int64 rda_id = get_internal_rda_id();
+
+    rda_seq = (char *)palloc(CNAME_MAXLEN);
+    snprintf(rda_seq, CNAME_MAXLEN - 1, "%ld", rda_id);
+
+    return rda_seq;
 }
 #endif
 

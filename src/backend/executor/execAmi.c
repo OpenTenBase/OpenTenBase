@@ -62,6 +62,7 @@
 #include "utils/syscache.h"
 #ifdef PGXC
 #include "pgxc/execRemote.h"
+#include "pgxc/remoteDataAccess.h"
 #endif
 
 
@@ -229,12 +230,15 @@ ExecReScan(PlanState *node)
             break;
 
 #ifdef PGXC
-        case T_RemoteSubplanState:
-            ExecReScanRemoteSubplan((RemoteSubplanState *) node);
+		case T_RemoteSubplanState:
+			ExecReScanRemoteSubplan((RemoteSubplanState *) node);
+			break;
+        case T_RemoteDataAccessState:
+            ExecReScanRemoteDataAccess((RemoteDataAccessState *) node);
             break;
-        case T_RemoteQueryState:
-            ExecReScanRemoteQuery((RemoteQueryState *) node);
-            break;
+		case T_RemoteQueryState:
+			ExecReScanRemoteQuery((RemoteQueryState *) node);
+			break;
 #endif
         case T_CustomScanState:
             ExecReScanCustomScan((CustomScanState *) node);

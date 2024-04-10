@@ -1738,6 +1738,52 @@ _outRemoteSubplan(StringInfo str, const RemoteSubplan *node)
 }
 
 static void
+_outRemoteDataAccess(StringInfo str, const RemoteDataAccess *node)
+{
+    WRITE_NODE_TYPE("REMOTEDATAACCESS");
+
+    _outScanInfo(str, (Scan *) node);
+
+    WRITE_CHAR_FIELD(distributionType);
+    WRITE_INT_FIELD(distributionKey);
+    WRITE_NODE_FIELD(distributionNodes);
+    WRITE_NODE_FIELD(distributionRestrict);
+    WRITE_NODE_FIELD(nodeList);
+    WRITE_BOOL_FIELD(execOnAll);
+    WRITE_NODE_FIELD(sort);
+    WRITE_STRING_FIELD(cursor);
+    WRITE_INT_FIELD(unique);
+    WRITE_BOOL_FIELD(parallelWorkerSendTuple);
+    WRITE_BITMAPSET_FIELD(initPlanParams);
+
+#ifdef __OPENTENBASE__
+    if (IS_PGXC_COORDINATOR && !g_set_global_snapshot)
+    {
+        if (!need_global_snapshot)
+        {
+            int node_count = list_length(node->nodeList);
+
+            if (node_count > 1)
+            {
+                need_global_snapshot = g_set_global_snapshot;
+            }
+            else if (node_count == 1)
+            {
+                MemoryContext old = MemoryContextSwitchTo(TopTransactionContext);
+                executed_node_list = list_append_unique_int(executed_node_list, linitial_int(node->nodeList));
+                MemoryContextSwitchTo(old);
+
+                if (list_length(executed_node_list) > 1)
+                {
+                    need_global_snapshot = g_set_global_snapshot;
+                }
+            }
+        }
+    }
+#endif
+}
+
+static void
 _outRemoteStmt(StringInfo str, const RemoteStmt *node)
 {
     int i;
@@ -5308,12 +5354,15 @@ outNode(StringInfo str, const void *obj)
             case T_RemoteSubplan:
                 _outRemoteSubplan(str, obj);
                 break;
-            case T_RemoteStmt:
-                _outRemoteStmt(str, obj);
+            case T_RemoteDataAccess:
+                _outRemoteDataAccess(str, obj);
                 break;
-            case T_SimpleSort:
-                _outSimpleSort(str, obj);
-                break;
+			case T_RemoteStmt:
+				_outRemoteStmt(str, obj);
+				break;
+			case T_SimpleSort:
+				_outSimpleSort(str, obj);
+				break;
 #endif
             case T_PlanRowMark:
                 _outPlanRowMark(str, obj);

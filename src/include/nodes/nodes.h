@@ -108,7 +108,8 @@ typedef enum NodeTag
     T_SimpleSort,
     T_RemoteQuery,
 #ifdef XCP
-    T_RemoteSubplan,
+	T_RemoteSubplan,
+    T_RemoteDataAccess,
 #endif
     T_PGXCNodeHandle,
     T_AlterNodeStmt,
@@ -190,7 +191,8 @@ typedef enum NodeTag
 #ifdef PGXC
     T_RemoteQueryState,
 #ifdef XCP
-    T_RemoteSubplanState,
+	T_RemoteSubplanState,
+    T_RemoteDataAccessState,
 #endif
 #endif
 
@@ -257,11 +259,11 @@ typedef enum NodeTag
     T_PGXCSubCluster,
 #endif
 #ifdef __OPENTENBASE__
-    T_PartitionBy,
-    T_AddDropPartitions,
-    T_PartitionForExpr,
-    T_ExchangeIndexName,
-    T_ModifyPartStartValue,
+	T_PartitionBy,
+	T_AddDropPartitions,
+	T_PartitionForExpr,
+	T_ExchangeIndexName,
+	T_ModifyPartStartValue,
 #endif
 #ifdef __AUDIT_FGA__
     T_AuditFgaPolicy,

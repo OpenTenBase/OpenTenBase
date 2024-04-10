@@ -704,6 +704,16 @@ ExecMergeJoin(PlanState *pstate)
 						{
 							ExecDisconnectNode(innerPlan);
 						}
+
+                        if (IS_PGXC_DATANODE)
+                        {
+                            if(!TupIsNull(outerTupleSlot))
+                            {
+                                ExecFinishNode(outerPlan);
+                            }
+
+                            ExecFinishNode(innerPlan);
+                        }
 #endif
                         /* Otherwise we're done. */
                         return NULL;
@@ -765,6 +775,17 @@ ExecMergeJoin(PlanState *pstate)
 							node->mj_MatchedOuter = false;
 							break;
 						}
+#ifdef __OPENTENBASE__
+                        if (IS_PGXC_DATANODE)
+                        {
+                            if(!TupIsNull(innerTupleSlot))
+                            {
+                                ExecFinishNode(innerPlan);
+                            }
+
+                            ExecFinishNode(outerPlan);
+                        }
+#endif
 						/* Otherwise we're done. */
 						return NULL;
 				}
@@ -1015,6 +1036,17 @@ ExecMergeJoin(PlanState *pstate)
 							node->mj_JoinState = EXEC_MJ_ENDOUTER;
 							break;
 						}
+#ifdef __OPENTENBASE__
+                        if (IS_PGXC_DATANODE)
+                        {
+                            if(!TupIsNull(outerTupleSlot))
+                            {
+                                ExecFinishNode(outerPlan);
+                            }
+
+                            ExecFinishNode(innerPlan);
+                        }
+#endif
 						/* Otherwise we're done. */
 						return NULL;
 				}
@@ -1157,6 +1189,13 @@ ExecMergeJoin(PlanState *pstate)
 								node->mj_JoinState = EXEC_MJ_ENDINNER;
 								break;
 							}
+#ifdef __OPENTENBASE__
+                            if (IS_PGXC_DATANODE)
+                            {
+                                ExecFinishNode(innerPlan);
+                                ExecFinishNode(outerPlan);
+                            }
+#endif
 							/* Otherwise we're done. */
 							return NULL;
 					}
@@ -1276,6 +1315,17 @@ ExecMergeJoin(PlanState *pstate)
 							node->mj_JoinState = EXEC_MJ_ENDOUTER;
 							break;
 						}
+#ifdef __OPENTENBASE__
+                        if (IS_PGXC_DATANODE)
+                        {
+                            if(!TupIsNull(outerTupleSlot))
+                            {
+                                ExecFinishNode(outerPlan);
+                            }
+
+                            ExecFinishNode(innerPlan);
+                        }
+#endif
 						/* Otherwise we're done. */
 						return NULL;
 				}
@@ -1346,6 +1396,17 @@ ExecMergeJoin(PlanState *pstate)
 							node->mj_JoinState = EXEC_MJ_ENDINNER;
 							break;
 						}
+#ifdef __OPENTENBASE__
+                        if (IS_PGXC_DATANODE)
+                        {
+                            if(!TupIsNull(innerTupleSlot))
+                            {
+                                ExecFinishNode(innerPlan);
+                            }
+
+                            ExecFinishNode(outerPlan);
+                        }
+#endif
 						/* Otherwise we're done. */
 						return NULL;
 				}

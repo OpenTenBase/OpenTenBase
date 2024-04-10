@@ -198,6 +198,7 @@ extern Oid	get_pgxc_nodeoid_extend(const char *nodename, const char *clustername
 extern uint32	get_pgxc_node_id(Oid nodeid);
 extern char	get_pgxc_nodetype(Oid nodeid);
 extern int	get_pgxc_nodeport(Oid nodeid);
+extern int	get_pgxc_node_fwdserverport(Oid nodeid);
 extern char *get_pgxc_nodehost(Oid nodeid);
 extern bool	is_pgxc_nodepreferred(Oid nodeid);
 extern bool	is_pgxc_nodeprimary(Oid nodeid);

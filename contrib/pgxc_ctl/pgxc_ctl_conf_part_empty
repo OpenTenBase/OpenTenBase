@@ -146,6 +146,7 @@ coordArchLogDir=$HOME/coord_archlog
 coordNames=()		# Master and slave use the same name
 coordPorts=()			# Master server listening ports
 poolerPorts=()			# Master pooler ports
+coordFwdServerPorts=()
 coordPgHbaEntries=(::1/128)	# Assumes that all the coordinator (master/slave) accepts
 												# the same connection
 												# This entry allows only $pgxcOwner to connect.
@@ -174,6 +175,7 @@ coordSlaveServers=()			# none means this slave is not available
 coordSlaveCluster=()
 coordSlavePorts=()			# coordinator slave listening ports
 coordSlavePoolerPorts=()			# coordinator slave pooler ports
+coordSlaveFwdServerPorts=()
 coordSlaveDirs=()
 coordArchLogDirs=()
 
@@ -216,6 +218,7 @@ primaryDatanode= # Primary Node.
 datanodeNames=()
 datanodePorts=()	# Master and slave use the same port!
 datanodePoolerPorts=()	# Master and slave use the same port!
+datanodeFwdServerPorts=()	# Master and slave use the same port!
 datanodePgHbaEntries=(::1/128)	# Assumes that all the coordinator (master/slave) accepts
 										# the same connection
 										# This list sets up pg_hba.conf for $pgxcOwner user.

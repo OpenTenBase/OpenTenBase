@@ -322,6 +322,7 @@ static pid_t StartupPID = 0,
 #ifdef __OPENTENBASE__
             GTMProxyPID = 0,
             BouncerPid = 0,
+            ForwarderPid = 0,
 #endif
 #ifdef __AUDIT__
             AuditLoggerPID = 0,
@@ -482,7 +483,7 @@ List            *PGXCGroupNodeList = NIL;
  * This will have minimal impact on performance
  */
 uint32            PGXCNodeIdentifier = 0;
-            
+extern void ForwarderCleanupRDAStore(void);	
 #endif
 
 /*
@@ -689,7 +690,12 @@ Datum xc_lockForBackupKey2;
 #define StartClusterMonitor()    StartChildProcess(ClusterMonitorProcess)
 #endif
 
-#define StartupDataBase()        StartChildProcess(StartupProcess)
+#ifdef __OPENTENBASE__
+#define StartForwarder()	    StartChildProcess(ForwarderProcess)			
+#endif	
+
+
+#define StartupDataBase()		StartChildProcess(StartupProcess)
 #define StartBackgroundWriter() StartChildProcess(BgWriterProcess)
 #define StartCheckpointer()        StartChildProcess(CheckpointerProcess)
 #define StartWalWriter()        StartChildProcess(WalWriterProcess)
@@ -1163,14 +1169,16 @@ PostmasterMain(int argc, char *argv[])
      */
     InitializeMaxBackends();
 
-    /*
-     * Establish input sockets.
-     *
-     * First, mark them all closed, and set up an on_proc_exit function that's
-     * charged with closing the sockets again at postmaster shutdown.
-     */
-    for (i = 0; i < MAXLISTEN; i++)
-        ListenSocket[i] = PGINVALID_SOCKET;
+	/* remove all left over rda files. */
+	ForwarderCleanupRDAStore();
+	/*
+	 * Establish input sockets.
+	 *
+	 * First, mark them all closed, and set up an on_proc_exit function that's
+	 * charged with closing the sockets again at postmaster shutdown.
+	 */
+	for (i = 0; i < MAXLISTEN; i++)
+		ListenSocket[i] = PGINVALID_SOCKET;
 
     on_proc_exit(CloseServerPorts, 0);
 
@@ -2054,10 +2062,15 @@ ServerLoop(void)
             BouncerPid = StartBouncer();
         }
 
-        if (g_enable_gtm_proxy && GTMProxyPID == 0 && pmState == PM_RUN)
-        {
-            GTMProxyPID = StartGTMProxy();
-        }
+		if (g_enable_gtm_proxy && GTMProxyPID == 0 && pmState == PM_RUN)
+		{
+			GTMProxyPID = StartGTMProxy();
+		}
+
+		/* forwarder only run on datanodes. */
+		if (ForwarderPid == 0 &&
+			(pmState == PM_RUN || pmState == PM_HOT_STANDBY))
+			ForwarderPid = StartForwarder();
 #endif
 #endif /* PGXC */
 
@@ -2860,6 +2873,12 @@ SIGHUP_handler(SIGNAL_ARGS)
         if (PgPoolerPID != 0)
             signal_child(PgPoolerPID, SIGHUP);
 #endif /* PGXC */
+
+#ifdef __OPENTENBASE__
+		if (ForwarderPid != 0)
+			signal_child(ForwarderPid, SIGHUP);
+#endif
+
 #ifdef __USE_GLOBAL_SNAPSHOT__
         if (ClusterMonPID != 0)
             signal_child(ClusterMonPID, SIGHUP);
@@ -2973,6 +2992,11 @@ pmdie(SIGNAL_ARGS)
                 {
                     signal_child(GTMProxyPID, SIGTERM);
                 }
+
+				if (ForwarderPid != 0)
+				{
+					signal_child(ForwarderPid, SIGTERM);
+				}
 #endif
                 /* autovac workers are told to shut down immediately */
                 /* and bgworkers too; does this need tweaking? */
@@ -3058,6 +3082,11 @@ pmdie(SIGNAL_ARGS)
             {
                 signal_child(GTMProxyPID, SIGTERM);
             }
+
+			if (ForwarderPid != 0)
+			{
+				signal_child(ForwarderPid, SIGTERM);
+			}
 #endif
 
             if (StartupPID != 0)
@@ -3281,10 +3310,16 @@ reaper(SIGNAL_ARGS)
                 BouncerPid = StartBouncer();
             }
 
-            if (g_enable_gtm_proxy && 0 == GTMProxyPID)
-            {
-                GTMProxyPID = StartGTMProxy();
-            }
+			if (g_enable_gtm_proxy && 0 == GTMProxyPID)
+			{
+				GTMProxyPID = StartGTMProxy();
+			}
+
+			/* forwarder. */
+			if (ForwarderPid == 0 )
+			{
+				ForwarderPid = StartForwarder();
+			}
 #endif
 
             /*
@@ -3301,8 +3336,8 @@ reaper(SIGNAL_ARGS)
             if (PgStatPID == 0)
                 PgStatPID = pgstat_start();
 #ifdef PGXC
-            if (PgPoolerPID == 0)
-                PgPoolerPID = StartPoolManager();
+			if (PgPoolerPID == 0)
+				PgPoolerPID = StartPoolManager();
 #endif /* PGXC */
 
 #ifdef __USE_GLOBAL_SNAPSHOT__
@@ -3557,21 +3592,30 @@ reaper(SIGNAL_ARGS)
             continue;
         }
 
-        /* GTM proxy exit, restart now */
-        if (pid == GTMProxyPID && g_enable_gtm_proxy)
-        {
-            GTMProxyPID = 0;
-            /* for safety's sake, launch new logger *first* */
-            if (pmState == PM_RUN)
-            {
-                GTMProxyPID = StartGTMProxy();
-            }
-            
-            if (!EXIT_STATUS_0(exitstatus))
-                LogChildExit(LOG, _("gtm_proxy process"),
-                             pid, exitstatus);
-            continue;
-        }
+		/* GTM proxy exit, restart now */
+		if (pid == GTMProxyPID && g_enable_gtm_proxy)
+		{
+			GTMProxyPID = 0;
+			/* for safety's sake, launch new logger *first* */
+			if (pmState == PM_RUN)
+			{
+				GTMProxyPID = StartGTMProxy();
+			}
+			
+			if (!EXIT_STATUS_0(exitstatus))
+				LogChildExit(LOG, _("gtm_proxy process"),
+							 pid, exitstatus);
+			continue;
+		}
+
+		if (pid == ForwarderPid)
+		{
+			ForwarderPid = 0;
+			if (!EXIT_STATUS_0(exitstatus))
+				HandleChildCrash(pid, exitstatus,
+								 _("forwarder process"));
+			continue;
+		}
 #endif
 #ifdef PGXC /* PGXC_COORD */
         /*
@@ -4066,6 +4110,21 @@ HandleChildCrash(int pid, int exitstatus, const char *procname)
     }
 #endif /* PGXC */
 
+#ifdef __OPENTENBASE__
+		/* Take care of the forwarder process too */
+		if (pid == ForwarderPid)
+			ForwarderPid = 0;
+		else if (ForwarderPid != 0 && !FatalError)
+		{
+			ereport(DEBUG2,
+				(errmsg_internal("sending %s to process %d",
+								 (SendStop ? "SIGSTOP" : "SIGQUIT"),
+								 (int) ForwarderPid)));
+			signal_child(ForwarderPid, (SendStop ? SIGSTOP : SIGQUIT));
+		}
+#endif /* OPENTENBASE */
+
+
 #ifdef __USE_GLOBAL_SNAPSHOT__
     if (pid == ClusterMonPID)
         ClusterMonPID = 0;
@@ -4277,6 +4336,10 @@ PostmasterStateMachine(void)
 #ifdef PGXC
             PgPoolerPID == 0 &&
 #endif
+#ifdef __OPENTENBASE__
+			ForwarderPid == 0 &&
+#endif
+
 #ifdef __USE_GLOBAL_SNAPSHOT__
             ClusterMonPID == 0 &&
 #endif
@@ -4384,6 +4447,10 @@ PostmasterStateMachine(void)
 #ifdef PGXC
             Assert(PgPoolerPID == 0);
 #endif
+#ifdef __OPENTENBASE__
+			Assert(ForwarderPid == 0);
+#endif
+
 #ifdef XCP
             Assert(ClusterMonPID == 0);
 #endif
@@ -4595,6 +4662,13 @@ TerminateChildren(int signal)
     {
         signal_child(PgPoolerPID, SIGQUIT);
     }
+#endif
+
+#ifdef __OPENTENBASE__
+	if (ForwarderPid != 0)
+	{
+		signal_child(ForwarderPid, SIGQUIT);
+	}
 #endif
 
 #ifdef __USE_GLOBAL_SNAPSHOT__
@@ -6105,31 +6179,40 @@ StartChildProcess(AuxProcType type)
                         (errmsg("could not fork cluster monitor process: %m")));
                 break;
 #endif
-            case StartupProcess:
-                ereport(LOG,
-                        (errmsg("could not fork startup process: %m")));
-                break;
-            case BgWriterProcess:
-                ereport(LOG,
-                        (errmsg("could not fork background writer process: %m")));
-                break;
-            case CheckpointerProcess:
-                ereport(LOG,
-                        (errmsg("could not fork checkpointer process: %m")));
-                break;
-            case WalWriterProcess:
-                ereport(LOG,
-                        (errmsg("could not fork WAL writer process: %m")));
-                break;
-            case WalReceiverProcess:
-                ereport(LOG,
-                        (errmsg("could not fork WAL receiver process: %m")));
-                break;
-            default:
-                ereport(LOG,
-                        (errmsg("could not fork process: %m")));
-                break;
-        }
+
+#ifdef __OPENTENBASE__
+			case ForwarderProcess:
+				ereport(LOG,
+						(errmsg("could not fork fowrarder process: %m")));
+				break;
+#endif
+
+
+			case StartupProcess:
+				ereport(LOG,
+						(errmsg("could not fork startup process: %m")));
+				break;
+			case BgWriterProcess:
+				ereport(LOG,
+						(errmsg("could not fork background writer process: %m")));
+				break;
+			case CheckpointerProcess:
+				ereport(LOG,
+						(errmsg("could not fork checkpointer process: %m")));
+				break;
+			case WalWriterProcess:
+				ereport(LOG,
+						(errmsg("could not fork WAL writer process: %m")));
+				break;
+			case WalReceiverProcess:
+				ereport(LOG,
+						(errmsg("could not fork WAL receiver process: %m")));
+				break;
+			default:
+				ereport(LOG,
+						(errmsg("could not fork process: %m")));
+				break;
+		}
 
         /*
          * fork failure is fatal during startup, but there's no need to choke

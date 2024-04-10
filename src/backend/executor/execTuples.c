@@ -827,16 +827,17 @@ ExecCopySlotDatarow(TupleTableSlot *slot, MemoryContext tmpcxt)
                     pfree(tupdesc_data.data);
                 }
 #endif
-                /* Convert Datum to string */
-                pstring = OidOutputFunctionCall(typOutput, pval);
+				/* Convert Datum to string */
+				pstring = OidOutputFunctionCall(typOutput, pval);
 
-                /* copy data to the buffer */
-                len = strlen(pstring);
-                n32 = htonl(len);
-                appendBinaryStringInfo(&buf, (char *) &n32, 4);
-                appendBinaryStringInfo(&buf, pstring, len);
-            }
-        }
+				/* copy data to the buffer */
+				len = strlen(pstring);
+				n32 = htonl(len);
+				appendBinaryStringInfo(&buf, (char *) &n32, 4);
+				appendBinaryStringInfo(&buf, pstring, len);
+				pfree(pstring);
+			}
+		}
 
         /* restore memory context to allocate result */
         if (savecxt)

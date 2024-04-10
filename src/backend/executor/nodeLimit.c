@@ -44,113 +44,122 @@ static void pass_down_bound(LimitState *node, PlanState *child_node);
 static TupleTableSlot *            /* return: a tuple or NULL */
 ExecLimit(PlanState *pstate)
 {// #lizard forgives
-    LimitState *node = castNode(LimitState, pstate);
-    ScanDirection direction;
-    TupleTableSlot *slot;
-    PlanState  *outerPlan;
+	LimitState *node = castNode(LimitState, pstate);
+	ScanDirection direction;
+	TupleTableSlot *slot;
+	PlanState  *outerPlan;
 
-    CHECK_FOR_INTERRUPTS();
+	CHECK_FOR_INTERRUPTS();
 
-    /*
-     * get information from the node
-     */
-    direction = node->ps.state->es_direction;
-    outerPlan = outerPlanState(node);
+	/*
+	 * get information from the node
+	 */
+	direction = node->ps.state->es_direction;
+	outerPlan = outerPlanState(node);
 
-    /*
-     * The main logic is a simple state machine.
-     */
-    switch (node->lstate)
-    {
-        case LIMIT_INITIAL:
+	/*
+	 * The main logic is a simple state machine.
+	 */
+	switch (node->lstate)
+	{
+		case LIMIT_INITIAL:
 
-            /*
-             * First call for this node, so compute limit/offset. (We can't do
-             * this any earlier, because parameters from upper nodes will not
-             * be set during ExecInitLimit.)  This also sets position = 0 and
-             * changes the state to LIMIT_RESCAN.
-             */
-            recompute_limits(node);
+			/*
+			 * First call for this node, so compute limit/offset. (We can't do
+			 * this any earlier, because parameters from upper nodes will not
+			 * be set during ExecInitLimit.)  This also sets position = 0 and
+			 * changes the state to LIMIT_RESCAN.
+			 */
+			recompute_limits(node);
 
-            /* FALL THRU */
+			/* FALL THRU */
 
-        case LIMIT_RESCAN:
+		case LIMIT_RESCAN:
 
-            /*
-             * If backwards scan, just return NULL without changing state.
-             */
-            if (!ScanDirectionIsForward(direction))
-                return NULL;
+			/*
+			 * If backwards scan, just return NULL without changing state.
+			 */
+			if (!ScanDirectionIsForward(direction))
+				return NULL;
 
-            /*
-             * Check for empty window; if so, treat like empty subplan.
-             */
-            if (node->count <= 0 && !node->noCount)
-            {
-                node->lstate = LIMIT_EMPTY;
-                return NULL;
-            }
-
-            /*
-             * Fetch rows from subplan until we reach position > offset.
-             */
-            for (;;)
-            {
-                slot = ExecProcNode(outerPlan);
-                if (TupIsNull(slot))
-                {
-                    /*
-                     * The subplan returns too few tuples for us to produce
-                     * any output at all.
-                     */
-                    node->lstate = LIMIT_EMPTY;
-                    return NULL;
-                }
-                node->subSlot = slot;
-                if (++node->position > node->offset)
-                    break;
-            }
-
-            /*
-             * Okay, we have the first tuple of the window.
-             */
-            node->lstate = LIMIT_INWINDOW;
-            break;
-
-        case LIMIT_EMPTY:
-
-            /*
-             * The subplan is known to return no tuples (or not more than
-             * OFFSET tuples, in general).  So we return no tuples.
-             */
-            return NULL;
-
-        case LIMIT_INWINDOW:
-            if (ScanDirectionIsForward(direction))
-            {
-                /*
-                 * Forwards scan, so check for stepping off end of window. If
-                 * we are at the end of the window, return NULL without
-                 * advancing the subplan or the position variable; but change
-                 * the state machine state to record having done so.
-                 */
-                if (!node->noCount &&
-                    node->position - node->offset >= node->count)
-                {
-                    node->lstate = LIMIT_WINDOWEND;
+			/*
+			 * Check for empty window; if so, treat like empty subplan.
+			 */
+			if (node->count <= 0 && !node->noCount)
+			{
+				node->lstate = LIMIT_EMPTY;
 #ifdef __OPENTENBASE__
-                    if (g_DataPumpDebug)
-                    {
-                        elog(LOG, "ExecLimit: pid %d nodeLimit finishing", MyProcPid);
-                    }
-                    
-					if (!((Limit *)node->ps.plan)->skipEarlyFinish)
-                    ExecFinishNode(pstate);
+                if (g_DataPumpDebug)
+                    elog(LOG, "ExecLimit: pid %d nodeLimit disconnecting", MyProcPid);
 
-                    if (g_DataPumpDebug)
-                    {
-                        elog(LOG, "ExecLimit: pid %d nodeLimit finished", MyProcPid);
-                    }
+                ExecDisconnectNode(pstate);
+
+                if (g_DataPumpDebug)
+                    elog(LOG, "ExecLimit: pid %d nodeLimit disconnected", MyProcPid);
+#endif
+				return NULL;
+			}
+
+			/*
+			 * Fetch rows from subplan until we reach position > offset.
+			 */
+			for (;;)
+			{
+				slot = ExecProcNode(outerPlan);
+				if (TupIsNull(slot))
+				{
+					/*
+					 * The subplan returns too few tuples for us to produce
+					 * any output at all.
+					 */
+					node->lstate = LIMIT_EMPTY;
+					return NULL;
+				}
+				node->subSlot = slot;
+				if (++node->position > node->offset)
+					break;
+			}
+
+			/*
+			 * Okay, we have the first tuple of the window.
+			 */
+			node->lstate = LIMIT_INWINDOW;
+			break;
+
+		case LIMIT_EMPTY:
+
+			/*
+			 * The subplan is known to return no tuples (or not more than
+			 * OFFSET tuples, in general).  So we return no tuples.
+			 */
+			return NULL;
+
+		case LIMIT_INWINDOW:
+			if (ScanDirectionIsForward(direction))
+			{
+				/*
+				 * Forwards scan, so check for stepping off end of window. If
+				 * we are at the end of the window, return NULL without
+				 * advancing the subplan or the position variable; but change
+				 * the state machine state to record having done so.
+				 */
+				if (!node->noCount &&
+					node->position - node->offset >= node->count)
+				{
+					node->lstate = LIMIT_WINDOWEND;
+#ifdef __OPENTENBASE__
+					if (g_DataPumpDebug)
+					{
+						elog(LOG, "ExecLimit: pid %d nodeLimit finishing", MyProcPid);
+					}
+					
+					if (!((Limit *)node->ps.plan)->skipEarlyFinish)
+					ExecFinishNode(pstate);
+
+					if (g_DataPumpDebug)
+					{
+						elog(LOG, "ExecLimit: pid %d nodeLimit finished", MyProcPid);
+					}
 #endif
                     return NULL;
                 }

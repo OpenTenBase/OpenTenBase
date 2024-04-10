@@ -85,10 +85,12 @@ extern Agg *make_agg(List *tlist, List *qual,
 extern Limit *make_limit(Plan *lefttree, Node *limitOffset, Node *limitCount,
 						 int64 offset_est, int64 count_est, bool skipEarlyFinish);
 extern RemoteSubplan *make_remotesubplan(PlannerInfo *root,
-                   Plan *lefttree,
-                   Distribution *resultDistribution,
-                   Distribution *execDistribution,
-                   List *pathkeys);
+				   Plan *lefttree,
+				   Distribution *resultDistribution,
+				   Distribution *execDistribution,
+				   List *pathkeys);
+extern Plan * replace_remotesubplan_with_rda(PlannerInfo *root, Plan *plan);
+extern Plan * check_parallel_rda_replace(PlannerInfo *root, Plan *plan);
 
 /*
  * prototypes for plan/initsplan.c

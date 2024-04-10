@@ -2959,6 +2959,11 @@ pgstat_bestart(void)
             case ClusterMonitorProcess:
                 beentry->st_backendType = B_PGXL_CLUSTER_MONITOR;
                 break;
+#ifdef __OPENTENBASE__
+            case ForwarderProcess:
+                beentry->st_backendType = B_TELEDB_FORWARDER;
+                break;
+#endif                                
             default:
                 elog(FATAL, "unrecognized process type: %d",
                      (int) MyAuxProcType);
@@ -4210,6 +4215,9 @@ pgstat_get_backend_desc(BackendType backendType)
 			break;
 		case B_CLEAN_2PC_WORKER:
 			backendDesc = "2pc clean worker";
+			break;
+        case B_TELEDB_FORWARDER:
+			backendDesc = "forwarder";
 			break;
     }
 
