@@ -114,26 +114,26 @@ cmd_t *prepare_initCoordinatorMaster(char *nodeName)
 
     /* Update postgresql.conf */
 
-    /* coordSpecificExtraConfig */
-    //gtmPxyIdx = getEffectiveGtmProxyIdxFromServerName(aval(VAR_coordMasterServers)[jj]);
-    //gtmHost = (gtmPxyIdx >= 0) ? aval(VAR_gtmProxyServers)[gtmPxyIdx] : sval(VAR_gtmMasterServer);
-    //gtmPort = (gtmPxyIdx >= 0) ? aval(VAR_gtmProxyPorts)[gtmPxyIdx] : sval(VAR_gtmMasterPort);
-    appendCmdEl(cmdInitdb, (cmdPgConf = initCmd(aval(VAR_coordMasterServers)[jj])));
-    snprintf(newCommand(cmdPgConf), MAXLINE,
-             "cat >> %s/postgresql.conf", aval(VAR_coordMasterDirs)[jj]);
-    if (doesExist(VAR_coordExtraConfig, 0) &&
-        !is_none(sval(VAR_coordExtraConfig)))
-        AddMember(confFiles, sval(VAR_coordExtraConfig));
-    if (doesExist(VAR_coordSpecificExtraConfig, jj) &&
-        !is_none(aval(VAR_coordSpecificExtraConfig)[jj]))
-        AddMember(confFiles, aval(VAR_coordSpecificExtraConfig)[jj]);
-    if ((f = prepareLocalStdin((cmdPgConf->localStdin = Malloc(MAXPATH+1)), MAXPATH, confFiles)) == NULL)
-    {
-        cleanCmd(cmd);
-        Free(confFiles);
-        return(NULL);
-    }
-    /* From configuration variables */
+	/* coordSpecificExtraConfig */
+	//gtmPxyIdx = getEffectiveGtmProxyIdxFromServerName(aval(VAR_coordMasterServers)[jj]);
+	//gtmHost = (gtmPxyIdx >= 0) ? aval(VAR_gtmProxyServers)[gtmPxyIdx] : sval(VAR_gtmMasterServer);
+	//gtmPort = (gtmPxyIdx >= 0) ? aval(VAR_gtmProxyPorts)[gtmPxyIdx] : sval(VAR_gtmMasterPort);
+	appendCmdEl(cmdInitdb, (cmdPgConf = initCmd(aval(VAR_coordMasterServers)[jj])));
+	snprintf(newCommand(cmdPgConf), MAXLINE,
+			 "cat >> %s/postgresql.conf", aval(VAR_coordMasterDirs)[jj]);
+	if (doesExist(VAR_coordExtraConfig, 0) &&
+		!is_none(sval(VAR_coordExtraConfig)))
+		AddMember(confFiles, sval(VAR_coordExtraConfig));
+	if (doesExist(VAR_coordSpecificExtraConfig, jj) &&
+		!is_none(aval(VAR_coordSpecificExtraConfig)[jj]))
+		AddMember(confFiles, aval(VAR_coordSpecificExtraConfig)[jj]);
+	if ((f = prepareLocalStdin((cmdPgConf->localStdin = Malloc(MAXPATH+1)), MAXPATH, confFiles)) == NULL)
+	{
+		cleanCmd(cmd);
+		Free(confFiles);
+		return(NULL);
+	}
+	/* From configuration variables */
 
     fprintf(f,
             "#===========================================\n"
@@ -195,36 +195,39 @@ cmd_t *prepare_initCoordinatorMaster(char *nodeName)
 
     /* pg_hba.conf */
 
-    appendCmdEl(cmdInitdb, (cmdPgHba = initCmd(aval(VAR_coordMasterServers)[jj])));
-    if ((f = prepareLocalStdin(localStdin, MAXPATH, NULL)) == NULL)
-    {
-        cleanCmd(cmd);
-        Free(cmdInitdb);
-        return(NULL);
-    }
-    fprintf(f, 
-            "#=================================================\n"
-            "# Addition at initialization, %s\n",
-            timeStampString(timestamp, MAXTOKEN));
-    if (doesExist(VAR_coordExtraPgHba, 0) && !is_none(sval(VAR_coordExtraPgHba)))
-        AddMember(confFiles, sval(VAR_coordExtraPgHba));
-    if (doesExist(VAR_coordSpecificExtraPgHba, jj) && !is_none(aval(VAR_coordSpecificExtraPgHba)[jj]))
-        AddMember(confFiles, aval(VAR_coordSpecificExtraPgHba)[jj]);
-    appendFiles(f, confFiles);
-    CleanArray(confFiles);
-    for (kk = 0; aval(VAR_coordPgHbaEntries)[kk]; kk++)
-    {
-        fprintf(f,"host all %s %s trust\n",    sval(VAR_pgxcOwner), aval(VAR_coordPgHbaEntries)[kk]);
-        if (isVarYes(VAR_coordSlave))
-            if (!is_none(aval(VAR_coordSlaveServers)[jj]))
-                fprintf(f, "host replication %s %s trust\n",
-                        sval(VAR_pgxcOwner), aval(VAR_coordPgHbaEntries)[kk]);
-    }
-    fprintf(f, "# End of addition\n");
-    fclose(f);
-    cmdPgHba->localStdin = Strdup(localStdin);
-    snprintf(newCommand(cmdPgHba), MAXLINE,
-             "cat >> %s/pg_hba.conf", aval(VAR_coordMasterDirs)[jj]);
+	appendCmdEl(cmdInitdb, (cmdPgHba = initCmd(aval(VAR_coordMasterServers)[jj])));
+	if ((f = prepareLocalStdin(localStdin, MAXPATH, NULL)) == NULL)
+	{
+		cleanCmd(cmd);
+		Free(cmdInitdb);
+		return(NULL);
+	}
+	fprintf(f, 
+			"#=================================================\n"
+			"# Addition at initialization, %s\n",
+			timeStampString(timestamp, MAXTOKEN));
+	if (doesExist(VAR_coordExtraPgHba, 0) && !is_none(sval(VAR_coordExtraPgHba)))
+		AddMember(confFiles, sval(VAR_coordExtraPgHba));
+	if (doesExist(VAR_coordSpecificExtraPgHba, jj) && !is_none(aval(VAR_coordSpecificExtraPgHba)[jj]))
+		AddMember(confFiles, aval(VAR_coordSpecificExtraPgHba)[jj]);
+	appendFiles(f, confFiles);
+	CleanArray(confFiles);
+	if (is_none(sval(VAR_pwdFile)))
+	{
+		for (kk = 0; aval(VAR_coordPgHbaEntries)[kk]; kk++)
+		{
+			fprintf(f,"host all %s %s trust\n",	sval(VAR_pgxcOwner), aval(VAR_coordPgHbaEntries)[kk]);
+			if (isVarYes(VAR_coordSlave))
+				if (!is_none(aval(VAR_coordSlaveServers)[jj]))
+					fprintf(f, "host replication %s %s trust\n",
+							sval(VAR_pgxcOwner), aval(VAR_coordPgHbaEntries)[kk]);
+		}
+	}
+	fprintf(f, "# End of addition\n");
+	fclose(f);
+	cmdPgHba->localStdin = Strdup(localStdin);
+	snprintf(newCommand(cmdPgHba), MAXLINE,
+			 "cat > %s/pg_hba.conf", aval(VAR_coordMasterDirs)[jj]);
 
     /*
      * Now prepare statements to create/alter nodes.
@@ -522,34 +525,35 @@ cmd_t *prepare_configureNode(char *nodeName)
     int idx;
     FILE *f;
 
-    if ((idx = coordIdx(nodeName)) < 0)
-    {
-        elog(ERROR, "ERROR: %s is not a coordinator.\n", nodeName);
-        return NULL;
-    }
-    if (is_none(aval(VAR_coordMasterServers)[idx]))
-        return NULL;
-    cmd = initCmd(NULL);
-    snprintf(newCommand(cmd), MAXLINE,
-             "psql -p %d -h %s -a %s %s",
-             atoi(aval(VAR_coordPorts)[idx]),
-             aval(VAR_coordMasterServers)[idx],
-             sval(VAR_defaultDatabase),
-             sval(VAR_pgxcOwner));
-    if ((f = prepareLocalStdin(newFilename(cmd->localStdin), MAXPATH, NULL)) == NULL)
-    {
-        cleanCmd(cmd);
-        Free(cmd);
-        return NULL;
-    }
-    /* Setup coordinators */
-    for (ii = 0; aval(VAR_coordNames)[ii]; ii++)
-    {
-        int targetIdx;
-        if (is_none(aval(VAR_coordNames)[ii]))
-            continue;
-        if ((targetIdx = coordIdx(aval(VAR_coordNames)[ii])) < 0)
-            continue;
+	if ((idx = coordIdx(nodeName)) < 0)
+	{
+		elog(ERROR, "ERROR: %s is not a coordinator.\n", nodeName);
+		return NULL;
+	}
+	if (is_none(aval(VAR_coordMasterServers)[idx]))
+		return NULL;
+	cmd = initCmd(NULL);
+	snprintf(newCommand(cmd), MAXLINE,
+			 "%spsql -p %d -h %s -a %s %s",
+			 pwdParam,
+			 atoi(aval(VAR_coordPorts)[idx]),
+			 aval(VAR_coordMasterServers)[idx],
+			 sval(VAR_defaultDatabase),
+			 sval(VAR_pgxcOwner));
+	if ((f = prepareLocalStdin(newFilename(cmd->localStdin), MAXPATH, NULL)) == NULL)
+	{
+		cleanCmd(cmd);
+		Free(cmd);
+		return NULL;
+	}
+	/* Setup coordinators */
+	for (ii = 0; aval(VAR_coordNames)[ii]; ii++)
+	{
+		int targetIdx;
+		if (is_none(aval(VAR_coordNames)[ii]))
+			continue;
+		if ((targetIdx = coordIdx(aval(VAR_coordNames)[ii])) < 0)
+			continue;
 
         if (!is_none(aval(VAR_coordMasterServers)[ii]))
         {
@@ -643,36 +647,38 @@ static cmd_t *prepare_configureDataNode(char *nodeName)
     if (connCordIndx == -1)
         return NULL;
 
-    snprintf(newCommand(cmd), MAXLINE,
-             "psql -p %d -h %s -a %s %s",
-             atoi(aval(VAR_coordPorts)[connCordIndx]),
-             aval(VAR_coordMasterServers)[connCordIndx],
-             sval(VAR_defaultDatabase),
-             sval(VAR_pgxcOwner));
-    if ((f = prepareLocalStdin(newFilename(cmd->localStdin), MAXPATH, NULL)) == NULL)
-    {
-        cleanCmd(cmd);
-        Free(cmd);
-        return NULL;
-    }
-    /* Setup coordinators */
-    for (ii = 0; aval(VAR_coordNames)[ii]; ii++)
-    {
-        int targetIdx;
-        if (is_none(aval(VAR_coordNames)[ii]))
-            continue;
-        if ((targetIdx = coordIdx(aval(VAR_coordNames)[ii])) < 0)
-            continue;
-        if (!is_none(aval(VAR_coordMasterServers)[ii]))
-        {
-            /* Register outside coordinator */
-            fprintf(f, "EXECUTE DIRECT ON (%s) 'CREATE NODE %s WITH (TYPE=''coordinator'', HOST=''%s'', PORT=%d)';\n",
-                    aval(VAR_datanodeNames)[idx],
-                    aval(VAR_coordNames)[ii],
-                    aval(VAR_coordMasterServers)[ii],
-                    atoi(aval(VAR_coordPorts)[ii]));
-        }
-    }
+	snprintf(newCommand(cmd), MAXLINE,
+			 "%spsql -p %d -h %s -a %s %s",
+			 pwdParam,
+			 atoi(aval(VAR_coordPorts)[connCordIndx]),
+			 aval(VAR_coordMasterServers)[connCordIndx],
+			 sval(VAR_defaultDatabase),
+			 sval(VAR_pgxcOwner));
+	if ((f = prepareLocalStdin(newFilename(cmd->localStdin), MAXPATH, NULL)) == NULL)
+	{
+		cleanCmd(cmd);
+		Free(cmd);
+		return NULL;
+	}
+	/* Setup coordinators */
+	for (ii = 0; aval(VAR_coordNames)[ii]; ii++)
+	{
+		int targetIdx;
+		if (is_none(aval(VAR_coordNames)[ii]))
+			continue;
+		if ((targetIdx = coordIdx(aval(VAR_coordNames)[ii])) < 0)
+			continue;
+		if (!is_none(aval(VAR_coordMasterServers)[ii]))
+		{
+			/* Register outside coordinator */
+			fprintf(f, "EXECUTE DIRECT ON (%s) 'CREATE NODE %s WITH (TYPE=''coordinator'', HOST=''%s'', PORT=%d, FWD_SERVER_PORT=%d)';\n",
+					aval(VAR_datanodeNames)[idx],
+					aval(VAR_coordNames)[ii],
+					aval(VAR_coordMasterServers)[ii],
+					atoi(aval(VAR_coordPorts)[ii]),
+					atoi(aval(VAR_coordFwdServerPorts)[ii]));
+		}
+	}
 
     /* Setup datanodes */
     for (ii = 0; aval(VAR_datanodeNames)[ii]; ii++)
@@ -790,34 +796,35 @@ cmd_t *prepare_configureNode_multicluster(char *nodeName)
     int idx;
     FILE *f;
 
-    if ((idx = coordIdx(nodeName)) < 0)
-    {
-        elog(ERROR, "ERROR: %s is not a coordinator.\n", nodeName);
-        return NULL;
-    }
-    if (is_none(aval(VAR_coordMasterServers)[idx]))
-        return NULL;
-    cmd = initCmd(NULL);
-    snprintf(newCommand(cmd), MAXLINE,
-             "psql -p %d -h %s -a %s %s",
-             atoi(aval(VAR_coordPorts)[idx]),
-             aval(VAR_coordMasterServers)[idx],
-             sval(VAR_defaultDatabase),
-             sval(VAR_pgxcOwner));
-    if ((f = prepareLocalStdin(newFilename(cmd->localStdin), MAXPATH, NULL)) == NULL)
-    {
-        cleanCmd(cmd);
-        Free(cmd);
-        return NULL;
-    }
-    /* Setup coordinators */
-    for (ii = 0; aval(VAR_coordNames)[ii]; ii++)
-    {
-        int targetIdx;
-        if (is_none(aval(VAR_coordNames)[ii]))
-            continue;
-        if ((targetIdx = coordIdx(aval(VAR_coordNames)[ii])) < 0)
-            continue;
+	if ((idx = coordIdx(nodeName)) < 0)
+	{
+		elog(ERROR, "ERROR: %s is not a coordinator.\n", nodeName);
+		return NULL;
+	}
+	if (is_none(aval(VAR_coordMasterServers)[idx]))
+		return NULL;
+	cmd = initCmd(NULL);
+	snprintf(newCommand(cmd), MAXLINE,
+			 "%spsql -p %d -h %s -a %s %s",
+			 pwdParam,
+			 atoi(aval(VAR_coordPorts)[idx]),
+			 aval(VAR_coordMasterServers)[idx],
+			 sval(VAR_defaultDatabase),
+			 sval(VAR_pgxcOwner));
+	if ((f = prepareLocalStdin(newFilename(cmd->localStdin), MAXPATH, NULL)) == NULL)
+	{
+		cleanCmd(cmd);
+		Free(cmd);
+		return NULL;
+	}
+	/* Setup coordinators */
+	for (ii = 0; aval(VAR_coordNames)[ii]; ii++)
+	{
+		int targetIdx;
+		if (is_none(aval(VAR_coordNames)[ii]))
+			continue;
+		if ((targetIdx = coordIdx(aval(VAR_coordNames)[ii])) < 0)
+			continue;
 
         if (!is_none(aval(VAR_coordMasterServers)[ii]))
         {
@@ -937,47 +944,50 @@ static cmd_t *prepare_configureDataNode_multicluster(char *nodeName)
     if (connCordIndx == -1)
         return NULL;
 
-    snprintf(newCommand(cmd), MAXLINE,
-             "psql -p %d -h %s -a %s %s",
-             atoi(aval(VAR_coordPorts)[connCordIndx]),
-             aval(VAR_coordMasterServers)[connCordIndx],
-             sval(VAR_defaultDatabase),
-             sval(VAR_pgxcOwner));
-    if ((f = prepareLocalStdin(newFilename(cmd->localStdin), MAXPATH, NULL)) == NULL)
-    {
-        cleanCmd(cmd);
-        Free(cmd);
-        return NULL;
-    }
-    /* Setup coordinators */
-    for (ii = 0; aval(VAR_coordNames)[ii]; ii++)
-    {
-        int targetIdx;
-        if (is_none(aval(VAR_coordNames)[ii]))
-            continue;
-        if ((targetIdx = coordIdx(aval(VAR_coordNames)[ii])) < 0)
-            continue;
-        if (!is_none(aval(VAR_coordMasterServers)[ii]))
-        {
-            /* Register outside coordinator */
-            fprintf(f, "EXECUTE DIRECT ON (%s) 'CREATE NODE %s WITH (TYPE=''coordinator'', HOST=''%s'', PORT=%d, CLUSTER=''%s'')';\n",
-                    aval(VAR_datanodeNames)[idx],
-                    aval(VAR_coordNames)[ii],
-                    aval(VAR_coordMasterServers)[ii],
-                    atoi(aval(VAR_coordPorts)[ii]),
-                    aval(VAR_coordMasterCluster)[ii]);
-        }
-        if (!is_none(aval(VAR_coordSlaveServers)[ii]))
-        {
-            fprintf(f, "EXECUTE DIRECT ON (%s) 'CREATE NODE %s WITH (TYPE=''coordinator'', HOST=''%s'', PORT=%d, CLUSTER=''%s'')';\n",
-                aval(VAR_datanodeNames)[idx],
-                aval(VAR_coordNames)[ii],
-                aval(VAR_coordSlaveServers)[ii],
-                atoi(aval(VAR_coordSlavePorts)[ii]),
-                aval(VAR_coordSlaveCluster)[ii]);
-    
-        }
-    }
+	snprintf(newCommand(cmd), MAXLINE,
+			 "%spsql -p %d -h %s -a %s %s",
+			 pwdParam,
+			 atoi(aval(VAR_coordPorts)[connCordIndx]),
+			 aval(VAR_coordMasterServers)[connCordIndx],
+			 sval(VAR_defaultDatabase),
+			 sval(VAR_pgxcOwner));
+	if ((f = prepareLocalStdin(newFilename(cmd->localStdin), MAXPATH, NULL)) == NULL)
+	{
+		cleanCmd(cmd);
+		Free(cmd);
+		return NULL;
+	}
+	/* Setup coordinators */
+	for (ii = 0; aval(VAR_coordNames)[ii]; ii++)
+	{
+		int targetIdx;
+		if (is_none(aval(VAR_coordNames)[ii]))
+			continue;
+		if ((targetIdx = coordIdx(aval(VAR_coordNames)[ii])) < 0)
+			continue;
+		if (!is_none(aval(VAR_coordMasterServers)[ii]))
+		{
+			/* Register outside coordinator */
+			fprintf(f, "EXECUTE DIRECT ON (%s) 'CREATE NODE %s WITH (TYPE=''coordinator'', HOST=''%s'', PORT=%d, FWD_SERVER_PORT=%d, CLUSTER=''%s'')';\n",
+					aval(VAR_datanodeNames)[idx],
+					aval(VAR_coordNames)[ii],
+					aval(VAR_coordMasterServers)[ii],
+					atoi(aval(VAR_coordPorts)[ii]),
+					atoi(aval(VAR_coordFwdServerPorts)[ii]),
+					aval(VAR_coordMasterCluster)[ii]);
+		}
+		if (!is_none(aval(VAR_coordSlaveServers)[ii]))
+		{
+			fprintf(f, "EXECUTE DIRECT ON (%s) 'CREATE NODE %s WITH (TYPE=''coordinator'', HOST=''%s'', PORT=%d, FWD_SERVER_PORT=%d, CLUSTER=''%s'')';\n",
+				aval(VAR_datanodeNames)[idx],
+				aval(VAR_coordNames)[ii],
+				aval(VAR_coordSlaveServers)[ii],
+				atoi(aval(VAR_coordSlavePorts)[ii]),
+				atoi(aval(VAR_coordSlaveFwdServerPorts)[ii]),
+				aval(VAR_coordSlaveCluster)[ii]);
+	
+		}
+	}
 
     /* Setup datanodes */
     for (ii = 0; aval(VAR_datanodeNames)[ii]; ii++)
@@ -1558,18 +1568,19 @@ int add_coordinatorMaster(char *name, char *host, int port, int pooler,
         goto selfadd;
     }
 
-    /* Lock ddl */
-    if ((lockf = pgxc_popen_wRaw("psql -h %s -p %s %s",
-                    aval(VAR_coordMasterServers)[connCordIndx],
-                    aval(VAR_coordPorts)[connCordIndx],
-                    sval(VAR_defaultDatabase))) == NULL)
-    {
-        elog(ERROR, "ERROR: could not open psql command, %s\n", strerror(errno));
-        Free(pgHbaConfFiles);
-        return 1;
-    }
-    fprintf(lockf, "select pgxc_lock_for_backup();\n");    /* Keep open until the end of the addition. */
-    fflush(lockf);
+	/* Lock ddl */
+	if ((lockf = pgxc_popen_wRaw("%spsql -h %s -p %s %s",
+								 pwdParam,
+								 aval(VAR_coordMasterServers)[connCordIndx],
+								 aval(VAR_coordPorts)[connCordIndx],
+								 sval(VAR_defaultDatabase))) == NULL)
+	{
+		elog(ERROR, "ERROR: could not open psql command, %s\n", strerror(errno));
+		Free(pgHbaConfFiles);
+		return 1;
+	}
+	fprintf(lockf, "select pgxc_lock_for_backup();\n");	/* Keep open until the end of the addition. */
+	fflush(lockf);
 
     /* pg_dumpall */
     createLocalFileName(GENERAL, pgdumpall_out, MAXPATH);
@@ -1635,7 +1646,9 @@ int add_coordinatorMaster(char *name, char *host, int port, int pooler,
     pclose(lockf);
 
 selfadd:
-    if ((f = pgxc_popen_wRaw("psql -h %s -p %d %s", host, port, sval(VAR_defaultDatabase))) == NULL)
+    if ((f = pgxc_popen_wRaw("%spsql -h %s -p %d %s",
+                             pwdParam, host, port,
+                             sval(VAR_defaultDatabase))) == NULL)
         elog(ERROR, "ERROR: cannot connect to the coordinator master %s.\n", name);
     else
     {
@@ -1936,7 +1949,11 @@ int remove_coordinatorMaster(char *name, int clean_opt)
     {
         if ((ii != idx) && doesExist(VAR_coordNames, ii) && !is_none(aval(VAR_coordNames)[ii]))
         {
-            f = pgxc_popen_wRaw("psql -p %d -h %s %s", atoi(aval(VAR_coordPorts)[ii]), aval(VAR_coordMasterServers)[ii], sval(VAR_defaultDatabase));
+            f = pgxc_popen_wRaw("%spsql -p %d -h %s %s",
+                                pwdParam,
+                                atoi(aval(VAR_coordPorts)[ii]),
+                                aval(VAR_coordMasterServers)[ii],
+                                sval(VAR_defaultDatabase));
             if (f == NULL)
             {
                 elog(ERROR, "ERROR: cannot begin psql for the coordinator master %s\n", aval(VAR_coordNames)[ii]);
@@ -1957,7 +1974,11 @@ int remove_coordinatorMaster(char *name, int clean_opt)
             if (coord_idx == -1)
                 return 1;
 
-            f = pgxc_popen_wRaw("psql -p %d -h %s %s", atoi(aval(VAR_coordPorts)[coord_idx]), aval(VAR_coordMasterServers)[coord_idx], sval(VAR_defaultDatabase));
+            f = pgxc_popen_wRaw("%spsql -p %d -h %s %s",
+                                pwdParam,
+                                atoi(aval(VAR_coordPorts)[coord_idx]),
+                                aval(VAR_coordMasterServers)[coord_idx],
+                                sval(VAR_defaultDatabase));
             if (f == NULL)
             {
                 elog(ERROR, "ERROR: cannot begin psql for the coordinator master %s\n", aval(VAR_coordNames)[coord_idx]);
@@ -2035,81 +2056,83 @@ int remove_coordinatorSlave(char *name, int clean_opt)
     char **nodelist = NULL;
     FILE *f;
 
-    if (!isVarYes(VAR_coordSlave))
-    {
-        elog(ERROR, "ERROR: coordinator slave is not configured.\n");
-        return 1;
-    }
-    idx = coordIdx(name);
-    if (idx < 0)
-    {
-        elog(ERROR, "ERROR: coordinator %s is not configured.\n", name);
-        return 1;
-    }
-    if (!doesExist(VAR_coordSlaveServers, idx) || is_none(aval(VAR_coordSlaveServers)[idx]))
-    {
-        elog(ERROR, "ERROR: coordinator slave %s is not configured.\n", name);
-        return 1;
-    }
-    AddMember(nodelist, name);
-    if (pingNodeSlave(aval(VAR_coordSlaveServers)[idx], aval(VAR_coordSlaveDirs)[idx]) == 0)
-        stop_coordinator_slave(nodelist, "immediate");
-    {
-        FILE *f;
-        if ((f = pgxc_popen_w(aval(VAR_coordMasterServers)[idx], "cat >> %s/postgresql.conf", aval(VAR_coordMasterDirs)[idx])) == NULL)
-        {
-            elog(ERROR, "ERROR: cannot open %s/postgresql.conf at %s, %s\n", aval(VAR_coordMasterDirs)[idx], aval(VAR_coordMasterServers)[idx], strerror(errno));
-            return 1;
-        }
-        fprintf(f,
-                "#=======================================\n"
-                "# Updated to remove the slave %s\n"
-                "archive_mode = off\n"
-                "synchronous_standby_names = ''\n"
-                "archive_command = ''\n"
-                "max_wal_senders = 0\n"
-                "wal_level = minimal\n"
-                "# End of the update\n",
-                timeStampString(date, MAXTOKEN));
-        pclose(f);
-    }
-    doImmediate(aval(VAR_coordMasterServers)[idx], NULL, "pg_ctl restart -Z coordinator -D %s", aval(VAR_coordMasterDirs)[idx]);
-    if (clean_opt)
-        clean_coordinator_slave(nodelist);
-    /*
-     * Maintain variables
-     */
-    replace_arrayEl(VAR_coordSlaveServers, idx, "none", NULL);
-    replace_arrayEl(VAR_coordSlavePorts, idx, "none", NULL);
-    replace_arrayEl(VAR_coordSlavePoolerPorts, idx, "none", NULL);
-    replace_arrayEl(VAR_coordSlaveDirs, idx, "none", NULL);
-    replace_arrayEl(VAR_coordArchLogDirs, idx, "none", NULL);
-    handle_no_slaves();
-    /*
-     * Maintain configuration file
-     */
-    if ((f = fopen(pgxc_ctl_config_path, "a")) == NULL)
-    {
-        /* Should it be panic? */
-        elog(ERROR, "ERROR: cannot open configuration file \"%s\", %s\n", pgxc_ctl_config_path, strerror(errno));
-        Free(nodelist);
-        return 1;
-    }
-    fprintf(f, 
-            "#================================================================\n"
-            "# pgxc configuration file updated due to coodinator slave removal\n"
-            "#        %s\n",
-            timeStampString(date, MAXTOKEN));
-    fprintSval(f, VAR_coordSlave);
-    fprintAval(f, VAR_coordSlaveServers);
-    fprintAval(f, VAR_coordSlavePorts);
-    fprintAval(f, VAR_coordSlavePoolerPorts);
-    fprintAval(f, VAR_coordSlaveDirs);
-    fprintAval(f, VAR_coordArchLogDirs);
-    fclose(f);
-    backup_configuration();
-    CleanArray(nodelist);
-    return 0;
+	if (!isVarYes(VAR_coordSlave))
+	{
+		elog(ERROR, "ERROR: coordinator slave is not configured.\n");
+		return 1;
+	}
+	idx = coordIdx(name);
+	if (idx < 0)
+	{
+		elog(ERROR, "ERROR: coordinator %s is not configured.\n", name);
+		return 1;
+	}
+	if (!doesExist(VAR_coordSlaveServers, idx) || is_none(aval(VAR_coordSlaveServers)[idx]))
+	{
+		elog(ERROR, "ERROR: coordinator slave %s is not configured.\n", name);
+		return 1;
+	}
+	AddMember(nodelist, name);
+	if (pingNodeSlave(aval(VAR_coordSlaveServers)[idx], aval(VAR_coordSlaveDirs)[idx]) == 0)
+		stop_coordinator_slave(nodelist, "immediate");
+	{
+		FILE *f;
+		if ((f = pgxc_popen_w(aval(VAR_coordMasterServers)[idx], "cat >> %s/postgresql.conf", aval(VAR_coordMasterDirs)[idx])) == NULL)
+		{
+			elog(ERROR, "ERROR: cannot open %s/postgresql.conf at %s, %s\n", aval(VAR_coordMasterDirs)[idx], aval(VAR_coordMasterServers)[idx], strerror(errno));
+			return 1;
+		}
+		fprintf(f,
+				"#=======================================\n"
+				"# Updated to remove the slave %s\n"
+				"archive_mode = off\n"
+				"synchronous_standby_names = ''\n"
+				"archive_command = ''\n"
+				"max_wal_senders = 0\n"
+				"wal_level = minimal\n"
+				"# End of the update\n",
+				timeStampString(date, MAXTOKEN));
+		pclose(f);
+	}
+	doImmediate(aval(VAR_coordMasterServers)[idx], NULL, "pg_ctl restart -Z coordinator -D %s", aval(VAR_coordMasterDirs)[idx]);
+	if (clean_opt)
+		clean_coordinator_slave(nodelist);
+	/*
+	 * Maintain variables
+	 */
+	replace_arrayEl(VAR_coordSlaveServers, idx, "none", NULL);
+	replace_arrayEl(VAR_coordSlavePorts, idx, "none", NULL);
+	replace_arrayEl(VAR_coordSlavePoolerPorts, idx, "none", NULL);
+	replace_arrayEl(VAR_coordSlaveFwdServerPorts, idx, "none", NULL);
+	replace_arrayEl(VAR_coordSlaveDirs, idx, "none", NULL);
+	replace_arrayEl(VAR_coordArchLogDirs, idx, "none", NULL);
+	handle_no_slaves();
+	/*
+	 * Maintain configuration file
+	 */
+	if ((f = fopen(pgxc_ctl_config_path, "a")) == NULL)
+	{
+		/* Should it be panic? */
+		elog(ERROR, "ERROR: cannot open configuration file \"%s\", %s\n", pgxc_ctl_config_path, strerror(errno));
+		Free(nodelist);
+		return 1;
+	}
+	fprintf(f, 
+			"#================================================================\n"
+			"# pgxc configuration file updated due to coodinator slave removal\n"
+			"#        %s\n",
+			timeStampString(date, MAXTOKEN));
+	fprintSval(f, VAR_coordSlave);
+	fprintAval(f, VAR_coordSlaveServers);
+	fprintAval(f, VAR_coordSlavePorts);
+	fprintAval(f, VAR_coordSlavePoolerPorts);
+	fprintAval(f, VAR_coordSlaveFwdServerPorts);
+	fprintAval(f, VAR_coordSlaveDirs);
+	fprintAval(f, VAR_coordArchLogDirs);
+	fclose(f);
+	backup_configuration();
+	CleanArray(nodelist);
+	return 0;
 
 }
 
