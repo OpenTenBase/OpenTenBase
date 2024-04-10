@@ -320,7 +320,7 @@ extern int    StatementTimeout;
 extern int    LockTimeout;
 extern int    IdleInTransactionSessionTimeout;
 extern bool log_lock_waits;
-
+extern bool enable_dds;
 
 /*
  * Function Prototypes

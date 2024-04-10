@@ -5,9 +5,8 @@
  *	  Functions to re-distrubution data to remote Datanodes
  *
  *
- * 
  * Copyright (c) 2019-2024 TeleDB Development Group
- * 
+ *
  *
  * IDENTIFICATION
  *    src/include/pgxc/rda_frame_impl.h

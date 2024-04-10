@@ -3,7 +3,7 @@
 # Makefile--
 #    Makefile for distributed executor's shared memory queue
 #
-#  Copyright (c) 2019-2024 TeleDB Development Group
+#  Copyright (c) 2019-2024 TeleDB Development Group 
 #  
 # IDENTIFICATION
 #    $PostgreSQL$

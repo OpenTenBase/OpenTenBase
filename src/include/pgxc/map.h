@@ -27,6 +27,17 @@
 		extern void *map_iter_value(void *map);
 		extern int   map_size(void *map);
 
+		extern void *dds_map_create();
+		extern int dds_map_put(void *map, char *k, void *v, bool overwrite);
+		extern void *dds_map_get(void *map, char *k);
+		extern void *dds_map_erase(void *map, char *k);
+		extern int dds_map_begin_iter(void *map);
+		extern int dds_map_iter_next(void *map);
+		extern int dds_map_iter_key(void *map, char *k);
+		extern void *dds_map_iter_value(void *map);
+		extern int dds_map_delete(void *map);
+		extern int dds_map_size(void *map);
+
 		extern void *fwd_memory_check_map_create();
 		extern int fwd_memory_check_map_put(void *map, void *address, void *value);
 		extern void *fwd_memory_check_map_get(void *map, void *address);

@@ -6,7 +6,7 @@
  *
  *
  * Copyright (c) 2019-2024 TeleDB Development Group
- * 
+ *
  *
  * IDENTIFICATION
  *	  src/backend/pgxc/pool/remoteDataAccess.c

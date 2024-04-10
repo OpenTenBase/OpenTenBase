@@ -18,6 +18,7 @@
 #include <sys/param.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/prctl.h>
 #include <dirent.h>
 #include "common/ip.h"
 #include "libpq/pqsignal.h"
@@ -43,6 +44,7 @@
 #include "pgxc/nodemgr.h"
 #include "pgxc/poolutils.h"
 #include "pgxc/poolcomm.h"
+#include "pgxc/dds.h"
 #include "../interfaces/libpq/libpq-fe.h"
 #include "../interfaces/libpq/libpq-int.h"
 #include "postmaster/postmaster.h"		/* For Unix_socket_directories */
@@ -1020,6 +1022,71 @@ rda_response_call_back_ptr g_fwd_client_rsp_callback_array[RDA_PACKAGE_BUTTY] = 
 			forwarder_subthread_write_log(elevel, __LINE__, __FILE__, PG_FUNCNAME_MACRO, __VA_ARGS__); \
 		}\
     } while(0)
+
+/* dds structure and function*/
+#define DDS_PREFIX "DDS: "
+
+typedef struct DDSPollingControl
+{
+    void *dependency_map;
+    bool thread_need_quit;      /* quit flag */
+    bool error;
+    bool quit_status;           /* succeessful quit or not */
+    bool thread_running;        /* running flag */
+    ThreadSema quit_sem;        /* used to wait for thread quit */
+} DDSPollingControl;
+
+typedef struct DDSDetectorControl
+{
+    DDSQueue *dds_msg_queue;
+    void *dds_node_map;
+    bool thread_need_quit;      /* quit flag */
+    bool error;
+    bool quit_status;           /* succeessful quit or not */
+    bool thread_running;        /* running flag */
+    ThreadSema quit_sem;        /* used to wait for thread quit */
+} DDSDetectorControl;
+
+typedef struct DDSReceiverControl
+{
+    bool thread_need_quit;      /* quit flag */
+    bool error;
+    bool quit_status;           /* succeessful quit or not */
+    bool thread_running;        /* running flag */
+    ThreadSema quit_sem;        /* used to wait for thread quit */
+} DDSReceiverControl;
+
+static DDSPollingControl *ddspolling_control;
+static DDSDetectorControl *ddsdetector_control;
+static DDSReceiverControl *ddsreceiver_control;
+
+static void *dependency_map = NULL;
+static void *dds_node_map = NULL;
+static DDSQueue *dds_msg_queue;
+
+static int init_ddsdetector_structure(DDSDetectorControl *control);
+static int init_ddspolling_structure(DDSPollingControl *control);
+static int init_ddsreceiver_structure(DDSReceiverControl *control);
+static void free_ddsdetector_structure(void);
+static void free_ddspolling_structure(void);
+static DDSDetectorControl *init_ddsdetector_control(void);
+static DDSPollingControl *init_ddspolling_control(void);
+static DDSReceiverControl *init_ddsreceiver_control(void);
+static void free_ddsdetector_control(DDSDetectorControl *control);
+static void free_ddspolling_control(DDSPollingControl *control);
+static void free_ddsreceiver_control(DDSReceiverControl *control);
+static bool create_ddsdetector_thread(DDSDetectorControl *control);
+static bool create_ddspolling_thread(DDSPollingControl *control);
+static bool create_ddsreceiver_thread(DDSReceiverControl *control);
+static void clean_ddsdetector_thread(DDSDetectorControl *control);
+static void clean_ddspolling_thread(DDSPollingControl *control);
+static void clean_ddsreceiver_thread(DDSReceiverControl *control);
+static void *ddsdetector_thread(void *arg);
+static void *ddspolling_thread(void *arg);
+static void *ddsreceiver_thread(void *arg);
+static void ddsdetector_loop(DDSDetectorControl *control);
+static void ddspolling_loop(DDSPollingControl *control);
+static void ddsreceiver_loop(DDSReceiverControl *control);
 
 /* hash function */
 static int route_to_node(int node_id);
@@ -2638,6 +2705,53 @@ int ForwarderInit()
     /* create log queue, so we can print log in mutiple threads. */
     g_ForwarderLogQueue = CreatePipe(FWD_MAX_THREAD_LOG_PIPE_LEN);
 
+    /* init ddspolling control */
+    ddspolling_control = init_ddspolling_control();
+    if(NULL == ddspolling_control)
+    {
+        free_ddspolling_structure();
+        elog(LOG, DDS_PREFIX "init_ddspolling_control failed");
+        return -1;
+    }
+    fwd_check_thread_id();
+    elog(LOG, DDS_PREFIX "ddspolling control initiated");
+
+    /* start ddspolling thread */
+    create_ddspolling_thread(ddspolling_control);
+    fwd_check_thread_id();
+    elog(LOG, DDS_PREFIX "ddspolling thread started");
+
+    /* init ddsdetector control */
+    ddsdetector_control = init_ddsdetector_control();
+    if(NULL == ddsdetector_control)
+    {
+        free_ddsdetector_structure();
+        elog(LOG, DDS_PREFIX "init_ddsdetector_control failed");
+        return -1;
+    }
+    fwd_check_thread_id();
+    elog(LOG, DDS_PREFIX "ddsdetector control initiated");
+
+    /* start ddsdetector thread */
+    create_ddsdetector_thread(ddsdetector_control);
+    fwd_check_thread_id();
+    elog(LOG, DDS_PREFIX "ddsdetector thread started");
+
+    /* init ddsreceiver control */
+    ddsreceiver_control = init_ddsreceiver_control();
+    if(NULL == ddsreceiver_control)
+    {
+        elog(LOG, DDS_PREFIX "init_ddsreceiver_control failed");
+        return -1;
+    }
+    fwd_check_thread_id();
+    elog(LOG, DDS_PREFIX "ddsreceiver control initiated");
+
+    /* start ddsreceiver thread */
+    create_ddsreceiver_thread(ddsreceiver_control);
+    fwd_check_thread_id();
+    elog(LOG, DDS_PREFIX "ddsreceiver thread started");
+
     /* Init sender, receiver and cleanner resource*/
     ret = fwd_init_thread_resource();
     if (ret)
@@ -3057,6 +3171,15 @@ fwd_clean_fwd_resource()
     free_data_fwd_control(g_fwd_data_control);
     free_thread_resource();
     fwd_server_socket_status_destory();
+
+    clean_ddspolling_thread(ddspolling_control);
+    free_ddspolling_control(ddspolling_control);
+    free_ddspolling_structure();
+    clean_ddsdetector_thread(ddsdetector_control);
+    free_ddsdetector_control(ddsdetector_control);
+    free_ddsdetector_structure();
+    clean_ddsreceiver_thread(ddsreceiver_control);
+    free_ddsreceiver_control(ddsreceiver_control);
 }
 
 int
@@ -3739,13 +3862,19 @@ static void fwd_register_local_rda(void)
         /* fill node index, cn start at FWD_CN_NODEID_BASE*/
         for (index = 0; index < g_total_node_num; index++)
         {
+            g_fwd_local_rda_combiner_array[rda_id].in_frames[index]->dest_nodeid = my_node_id;
+            g_fwd_local_rda_combiner_array[rda_id].out_frames[index]->src_nodeid = my_node_id;
             if (index >= g_fwd_dn_num)
             {
-                node_ids[index] = index + FWD_CN_NODEID_BASE - g_fwd_dn_num;   
+                node_ids[index] = index + FWD_CN_NODEID_BASE - g_fwd_dn_num;
+                g_fwd_local_rda_combiner_array[rda_id].in_frames[index]->src_nodeid= node_ids[index];
+                g_fwd_local_rda_combiner_array[rda_id].out_frames[index]->dest_nodeid= node_ids[index];   
             }
             else
             {
-                node_ids[index] = index;    
+                node_ids[index] = index;
+                g_fwd_local_rda_combiner_array[rda_id].in_frames[index]->src_nodeid = index;
+                g_fwd_local_rda_combiner_array[rda_id].out_frames[index]->dest_nodeid = index; 
             }
         }
 
@@ -3781,7 +3910,7 @@ static void fwd_unregister_local_rda(void)
         {
             if (index >= g_fwd_dn_num)
             {
-                node_ids[index] = index + FWD_CN_NODEID_BASE - g_fwd_dn_num;   
+                node_ids[index] = index + FWD_CN_NODEID_BASE - g_fwd_dn_num;
             }
             else
             {
@@ -5800,7 +5929,7 @@ fwd_data_thread_op_handler(ServiceThreadControl *control, bool *done)
                         d_queue->ack_bytes           = 0;
                         d_queue->resend_package_done = true;
                         d_queue->send_offset         = 0;
-                        d_queue->seq                 = RDA_INVALID_PKG_SEQ;
+                        d_queue->seq                 = RDA_FIRST_PKG_SEQ;
                         d_queue->ack_seq	         = RDA_INVALID_PKG_SEQ;
                         d_queue->next_send           = 0;
                         d_queue->peer_free_slot_num  = 0;
@@ -7408,6 +7537,8 @@ FWDPackage *fwd_make_package(int8 type, int32 nodeid,
     pkg->node_id        = nodeid;
     pkg->controller_idx = ctrl_index;
     pkg->rda_id         = rda_id;
+    pkg->pending_1      = 0;
+    pkg->pending_2      = 0;
     set_pkg_version(pkg);
 
     if (pkg_len)
@@ -8831,6 +8962,754 @@ static int rda_client_server_status_rsp_callback(ServiceThreadControl *control, 
     return 0;
 }
 
+/*
+    init DDSDetector thread structures.
+*/
+static int
+init_ddsdetector_structure(DDSDetectorControl *control)
+{
+    /* free by free_ddsdetector_structure */
+
+    dds_node_map = dds_map_create();
+
+    dds_msg_queue = new_ddsqueue();
+    if(NULL == dds_msg_queue)
+    {
+        return -1;
+    }
+
+    control->dds_node_map = dds_node_map;
+    control->dds_msg_queue = dds_msg_queue;
+    control->thread_need_quit = false;
+    control->thread_running = false;
+    control->error = false;
+    ThreadSemaInit(&control->quit_sem, 0);
+    return 0;
+}
+
+/*
+    init DDSPolling thread structures.
+*/
+static int
+init_ddspolling_structure(DDSPollingControl *control)
+{
+    /* free by free_ddspolling_structure */
+
+    dependency_map = dds_map_create();
+    
+    control->dependency_map = dependency_map;
+    control->thread_need_quit = false;
+    control->thread_running = false;
+    control->error = false;
+    ThreadSemaInit(&control->quit_sem, 0);
+    return 0;
+}
+
+/*
+    init DDSReceiver thread structures.
+*/
+static int
+init_ddsreceiver_structure(DDSReceiverControl *control)
+{
+    control->thread_need_quit = false;
+    control->thread_running = false;
+    control->error = false;
+    ThreadSemaInit(&control->quit_sem, 0);
+    return 0;
+}
+
+/*
+    free DDSDetector thread structures.
+*/
+static void
+free_ddsdetector_structure(void)
+{
+    if (dds_node_map != NULL)
+    {
+        dds_map_delete(dds_node_map);
+    }
+    if(dds_msg_queue)
+    {
+        free_ddsqueue(dds_msg_queue);
+        dds_msg_queue = NULL;
+    }
+}
+
+/*
+    free DDSPolling thread structures.
+*/
+static void
+free_ddspolling_structure(void)
+{ 
+    if (dependency_map != NULL)
+    {
+        dds_map_delete(dependency_map);
+    }
+}
+
+/*
+    init DDSDetector thread controller.
+*/
+static DDSDetectorControl *
+init_ddsdetector_control(void)
+{
+    /* free by free_ddsdetector_control */
+    DDSDetectorControl *control;
+
+    control = (DDSDetectorControl *)fwd_malloc(sizeof(DDSDetectorControl));
+    if(control == NULL)
+    {
+        elog(LOG, DDS_PREFIX "DDSDetectorControl malloc failed");
+        return NULL;
+    }
+
+    int ret = init_ddsdetector_structure(control);
+    if(ret != 0)
+    {
+        free_ddsdetector_control(control);
+        elog(LOG, DDS_PREFIX "init_ddsdetector_structure failed");
+        return NULL;
+    }
+    
+    return control;
+}
+
+/*
+    init DDSPolling thread controller.
+*/
+static DDSPollingControl *
+init_ddspolling_control(void)
+{
+    /* free by free_ddspolling_control */
+    DDSPollingControl *control;
+
+    control = (DDSPollingControl *)fwd_malloc(sizeof(DDSPollingControl));
+    if(control == NULL)
+    {
+        elog(LOG, DDS_PREFIX "DDSPollingControl malloc failed");
+        return NULL;
+    }
+
+    int ret = init_ddspolling_structure(control);
+    if(ret != 0)
+    {
+        free_ddspolling_control(control);
+        elog(LOG, DDS_PREFIX "init_ddspolling_structure failed");
+        return NULL;
+    }
+    
+    return control;
+}
+
+/*
+    init DDSReceiver thread controller.
+*/
+static DDSReceiverControl *
+init_ddsreceiver_control(void)
+{
+    /* free by free_ddspolling_control */
+    DDSReceiverControl *control;
+
+    control = (DDSReceiverControl *)fwd_malloc(sizeof(DDSReceiverControl));
+    if(control == NULL)
+    {
+        elog(LOG, DDS_PREFIX "DDSReceiverControl malloc failed");
+        return NULL;
+    }
+
+    int ret = init_ddsreceiver_structure(control);
+    if(ret != 0)
+    {
+        free_ddsreceiver_control(control);
+        elog(LOG, FORWARDER_PREFIX "init_ddsreceiver_structure failed");
+        return NULL;
+    }
+    
+    return control;
+}
+
+/*
+    free DDSDetector thread controller.
+*/
+static void
+free_ddsdetector_control(DDSDetectorControl *control)
+{
+    if (control)
+    {
+        fwd_free(control);
+        ddsdetector_control = NULL;
+    }
+}
+
+/*
+    free DDSPolling thread controller.
+*/
+static void
+free_ddspolling_control(DDSPollingControl *control)
+{
+    if (control)
+    {
+        fwd_free(control);
+        ddspolling_control = NULL;
+    }
+}
+
+/*
+    free DDSReceiver thread controller.
+*/
+static void
+free_ddsreceiver_control(DDSReceiverControl *control)
+{
+    if (control)
+    {
+        fwd_free(control);
+        ddsreceiver_control = NULL;
+    }
+}
+
+/*
+    create DDSDetector thread.
+*/
+static bool
+create_ddsdetector_thread(DDSDetectorControl *control)
+{
+    bool succeed = true;
+    int ret = 0;
+
+    ret = create_thread(ddsdetector_thread, (void *)&control, MT_THR_DETACHED);
+    if (ret)
+    {
+        succeed = false;
+        clean_ddsdetector_thread(control);
+    }
+    else
+    {
+        control->thread_running = true;
+    }
+    return succeed;
+}
+
+/*
+    create DDSPolling thread.
+*/
+static bool
+create_ddspolling_thread(DDSPollingControl *control)
+{
+    bool succeed = true;
+    int ret = 0;
+
+    ret = create_thread(ddspolling_thread, (void *)&control, MT_THR_DETACHED);
+    if (ret)
+    {
+        succeed = false;
+        clean_ddspolling_thread(control);
+    }
+    else
+    {
+        control->thread_running = true;
+    }
+    return succeed;
+}
+
+/*
+    create DDSReceiver thread.
+*/
+static bool
+create_ddsreceiver_thread(DDSReceiverControl *control)
+{
+    bool succeed = true;
+    int ret = 0;
+
+    ret = create_thread(ddsreceiver_thread, (void *)&control, MT_THR_DETACHED);
+    if (ret)
+    {
+        succeed = false;
+        clean_ddsreceiver_thread(control);
+    }
+    else
+    {
+        control->thread_running = true;
+    }
+    return succeed;
+}
+
+/*
+    when create thread failed, tell thread to quit.
+ */
+static void
+clean_ddsdetector_thread(DDSDetectorControl *control)
+{
+    if(NULL == ddsdetector_control)
+    {
+        return;
+    }
+
+    if(control->thread_running)
+    {
+        control->thread_need_quit = true;
+        ThreadSemaDown(&control->quit_sem);
+    }
+}
+
+/*
+    when create thread failed, tell thread to quit.
+ */
+static void
+clean_ddspolling_thread(DDSPollingControl *control)
+{
+    if(NULL == ddspolling_control)
+    {
+        return;
+    }
+
+    if(control->thread_running)
+    {
+        control->thread_need_quit = true;
+        ThreadSemaDown(&control->quit_sem);
+    }
+}
+
+/*
+    when create thread failed, tell thread to quit.
+ */
+static void
+clean_ddsreceiver_thread(DDSReceiverControl *control)
+{
+    if(NULL == ddsreceiver_control)
+    {
+        return;
+    }
+
+    if(control->thread_running)
+    {
+        control->thread_need_quit = true;
+        ThreadSemaDown(&control->quit_sem);
+    }
+}
+
+/*
+    DDSDetector thread.
+*/
+void *
+ddsdetector_thread(void *arg)
+{
+    DDSDetectorControl *thread;
+    prctl(PR_SET_NAME, (unsigned long)"DDSDetector");
+    thread = ddsdetector_control;
+    thread_sigmask();
+    thread->thread_running = true;
+    while (1)
+    {
+        /* error, quit directly */
+        if (thread->error)
+        {
+            break;
+        }
+        /* We have been told to quit. */
+        if (thread->thread_need_quit)
+        {
+            break;
+        }
+        /* Loop to deal with messages in dds_msg_queue. */
+        ddsdetector_loop(thread);
+        pg_usleep(DDSDETECTOR_SLEEPTIME);
+    }
+    thread->thread_running = false;
+    /* Tell main thread quit is done. */
+    ThreadSemaUp(&thread->quit_sem);
+    return NULL;
+}
+
+/*
+    DDSPolling thread.
+*/
+void *
+ddspolling_thread(void *arg)
+{
+    DDSPollingControl *thread;
+    prctl(PR_SET_NAME, (unsigned long)"DDSPolling");
+    thread = ddspolling_control;
+    thread_sigmask();
+    thread->thread_running = true;
+    while (1)
+    {
+        /* error, quit directly */
+        if (thread->error)
+        {
+            break;
+        }
+        /* We have been told to quit. */
+        if (thread->thread_need_quit)
+        {
+            break;
+        }
+        ddspolling_loop(thread);
+        pg_usleep(DDSPOLLING_SLEEPTIME);
+    }
+    thread->thread_running = false;
+    /* Tell main thread quit is done. */
+    ThreadSemaUp(&thread->quit_sem);
+    return NULL;
+}
+
+/*
+    DDSReceiver thread.
+*/
+void *
+ddsreceiver_thread(void *arg)
+{
+    DDSReceiverControl *thread;
+    prctl(PR_SET_NAME, (unsigned long)"DDSReceiver");
+    thread = ddsreceiver_control;
+    thread_sigmask();
+    thread->thread_running = true;
+    while (1)
+    {
+        /* error, quit directly */
+        if (thread->error)
+        {
+            break;
+        }
+        /* We have been told to quit. */
+        if (thread->thread_need_quit)
+        {
+            break;
+        }
+        ddsreceiver_loop(thread);
+        pg_usleep(DDSRECEIVER_SLEEPTIME);
+    }
+    thread->thread_running = false;
+    /* Tell main thread quit is done. */
+    ThreadSemaUp(&thread->quit_sem);
+    return NULL;
+}
+
+/*
+    ddsdetector thread loop, deal with messages in dds_msg_list, including DDS algorithm.
+*/
+static void
+ddsdetector_loop(DDSDetectorControl *control)
+{
+    DDSMsgType type;
+    DDSNode *node;
+    int nodeid = PGXC_INVALID_NODE_IDX;
+    DDSElem *e = NULL;
+    DDSMsgNodeid *msginfo = NULL;
+    DDSMessage *msg = NULL;
+    DDSNodeHashtableEntry *ddsnode_entry = NULL;
+    int map_ret;
+    bool detected_flag = false;
+    int kill_ret;
+
+    e = pop_ddsqueue(control->dds_msg_queue);
+    while (e != NULL)
+    {
+        msginfo = (DDSMsgNodeid *)e->data;
+        msg = msginfo->msg;
+        nodeid = msginfo->nodeid;
+        type = msg->msgtype;
+        switch (type)
+        {
+        case PushState:
+            if (check_txn_exist(msg->dependency.src_gxid))
+            {
+                ddsnode_entry = (DDSNodeHashtableEntry *) dds_map_get(control->dds_node_map, msg->dependency.src_gxid);
+                if (ddsnode_entry == NULL)
+                {
+                    ddsnode_entry = (DDSNodeHashtableEntry *)fwd_malloc(sizeof(DDSNodeHashtableEntry));
+                    if(NULL == ddsnode_entry)
+                    {
+                        break;
+                    }
+                    map_ret = dds_map_put(control->dds_node_map, msg->dependency.src_gxid, ddsnode_entry, false);
+                    if(map_ret == -1)
+                    {
+                        break;
+                    }
+                    node = &ddsnode_entry->node_entry;
+                    init_ddsnode(node, msg);
+                }
+                node = &ddsnode_entry->node_entry;
+                node->downstream_nodes = insert_dependency_into_list(node->downstream_nodes, &msg->dependency);
+            }
+            else
+            {
+                if (nodeid >= FWD_CN_NODEID_BASE)
+                {
+                    set_and_send_kill_txn_msg(msg, nodeid, true);
+                }
+                else
+                {
+                    set_and_send_kill_txn_msg(msg, nodeid, false);
+                }   
+            }
+            break;
+        case DDS:
+            ddsnode_entry = (DDSNodeHashtableEntry *) dds_map_get(control->dds_node_map, msg->dependency.dest_gxid);
+            if (ddsnode_entry != NULL)
+            {
+                node = &ddsnode_entry->node_entry;
+                detected_flag = process_dds_msg(msg, node);
+                if (detected_flag)
+                {
+                    kill_ret = terminate_transaction(node->gxid);
+                    if (kill_ret < 0)
+                    {
+                        forwarder_thread_logger(LOG, DDS_PREFIX "distributed deadlock detected, fail to terminate transaction: %s", node->gxid);
+                        break;
+                    }
+                    delete_ddsnode_downstream_list(node);
+                    ddsnode_entry = (DDSNodeHashtableEntry *) dds_map_erase(control->dds_node_map, node->gxid);
+                    fwd_free(ddsnode_entry);
+                    ddsnode_entry = NULL;
+                    forwarder_thread_logger(LOG, DDS_PREFIX "distributed deadlock detected, succeed to terminate transaction: %s", node->gxid);
+                }
+            }
+            break;
+        case UpdateDownstream:
+            ddsnode_entry = (DDSNodeHashtableEntry *) dds_map_get(control->dds_node_map, msg->dependency.src_gxid);
+            if (ddsnode_entry != NULL)
+            {
+                node = &ddsnode_entry->node_entry;
+                node->downstream_nodes = delete_dependency_from_list(node->downstream_nodes, msg->dependency.dest_gxid);
+                if (node->downstream_nodes == NULL)
+                {
+                    delete_ddsnode_downstream_list(node);
+                    ddsnode_entry = (DDSNodeHashtableEntry *) dds_map_erase(control->dds_node_map, node->gxid);
+                    fwd_free(ddsnode_entry);
+                    ddsnode_entry = NULL;
+                }
+            }
+            break;
+        case KillTransaction:
+            kill_ret = kill_proccess(msg->dependency_pid);
+            if (kill_ret >= 0)
+            {
+                forwarder_thread_logger(LOG, DDS_PREFIX "succeed to kill process: %d", msg->dependency_pid);
+            }
+            break;
+        default:
+            break;
+        }
+        if (NULL != msg)
+        {
+            fwd_free(msg);
+            msg = NULL;
+        }
+        if (NULL != msginfo)
+        {
+            fwd_free(msginfo);
+            msginfo = NULL;
+        }
+        if (NULL != e)
+        {
+            fwd_free(e);
+        }
+        e = pop_ddsqueue(control->dds_msg_queue);
+    }
+    check_hashtable_nodes_alive_and_send_dds_msg(control->dds_node_map);
+}
+
+/*
+    ddspolling thread loop, polls the shared memory array and saves information, 
+    polls dependency_hashtable and sends PushState or UpdateDownstream messages.
+*/
+static void
+ddspolling_loop(DDSPollingControl *control)
+{
+    int i;
+    int cn_nodeid;
+    int ret;
+    Dependent_Trans *local_tail = NULL, *local_head = NULL;
+    Dependent_Bucket *bucket = NULL;
+    DependencyHashtableEntry *dep_entry = NULL;
+
+    for(i = 0; i < BUCKET_NUM; i++)
+    {
+        bucket = GetDependentBucket(i);
+
+        while(1)
+        {
+            SpinLockAcquire(&bucket->tail_lock);
+            if(bucket->tail < bucket->head)
+            {
+                local_tail = bucket->tail;
+                local_head = bucket->head;
+                bucket->tail += (local_head - local_tail);  /* need use this, otherwise may get diff bucket->head value */
+                SpinLockRelease(&bucket->tail_lock);
+            }
+            else
+            {
+                SpinLockRelease(&bucket->tail_lock);
+                break;
+            }
+            while(local_tail < local_head)
+            {
+                Dependent_Trans *cur = get_true_location(bucket, local_tail);
+                while(cur->valid)
+                {
+                    switch (cur->dep_type)
+                    {
+                    case DELETE:
+                        dep_entry = (DependencyHashtableEntry *)dds_map_get(control->dependency_map, cur->dep_gxid.waiter_gxid);
+                        if(dep_entry != NULL && strlen(cur->dep_gxid.holder_gxid) > 0)
+                        {
+                            GxidList *list = dep_entry->gxid_entry;
+                            DDSMessage *update_downstream_msg  = (DDSMessage *)fwd_malloc(sizeof(DDSMessage));
+                            if (NULL == update_downstream_msg)
+                            {
+                                break;
+                            }
+                            set_dds_msg(update_downstream_msg, UpdateDownstream, cur->dep_gxid.waiter_gxid, cur->dep_gxid.holder_gxid, 0, dep_entry->xact_start_time);
+                            cn_nodeid = get_nodeid_from_gxid(cur->dep_gxid.waiter_gxid);    
+                            send_dds_msg(update_downstream_msg, cn_nodeid, true);
+                            dep_entry->gxid_entry = find_and_delete_dependent(list, cur);
+                        }
+
+                        cur->valid = false;
+                        local_tail++;
+                        break;
+                    case ADD:
+                        dep_entry = (DependencyHashtableEntry *)dds_map_get(control->dependency_map, cur->dep_gxid.waiter_gxid);
+                        if(dep_entry == NULL)
+                        {
+                            dep_entry = (DependencyHashtableEntry *)fwd_malloc(sizeof(DependencyHashtableEntry));
+                            if(NULL == dep_entry)
+                            {
+                                break;
+                            }
+
+                            dep_entry->gxid_entry = (GxidList *)fwd_malloc(sizeof(GxidList));
+                            if(NULL == dep_entry->gxid_entry)
+                            {
+                                break;
+                            }
+
+                            memcpy(dep_entry->gxid_entry->gxid, cur->dep_gxid.holder_gxid, sizeof(dep_entry->gxid_entry->gxid));
+                            dep_entry->gxid_entry->next = NULL;
+                            ret = dds_map_put(control->dependency_map, cur->dep_gxid.waiter_gxid, dep_entry, false);
+                            if(ret == -1)
+                            {
+                                break;
+                            }
+                        }
+                        else
+                        {
+                            if (find_and_add_dependent(dep_entry, cur) < 0)
+                            {
+                                break;
+                            }
+                        }
+                        dep_entry->xact_start_time = cur->waiter_xact_start_time;
+                        cur->valid = false;
+                        local_tail++;
+                        break;
+                    default:
+                        break;
+                    }
+                } 
+            }
+        }
+    }
+
+    traverse_and_make_pushState(control->dependency_map);
+}
+
+/*
+    ddsreceiver thread loop, receives dds message sent from other nodes.
+*/
+static void
+ddsreceiver_loop(DDSReceiverControl *control)
+{
+    DDSMessage *msg = NULL;
+    DDSMsgNodeid *msginfo = NULL;
+    DDSElem *e = NULL;
+    rda_dsm_tup_datarow* datarow;
+    int nodeid;
+
+    if (g_fwd_local_rda_combiner_complete == false || g_fwd_dn_rcv_rda_slots_group_ready == false)
+    {
+        return;
+    }
+
+    datarow = fwd_local_rda_receive(FWD_DDS_RDA_ID);
+    while (datarow != NULL)
+    {
+        e = (DDSElem *)fwd_malloc(sizeof(DDSElem));
+        if (NULL == e)
+        {
+            break;
+        }
+        msginfo = (DDSMsgNodeid *)fwd_malloc(sizeof(DDSMsgNodeid));
+        if (NULL == msginfo)
+        {
+            fwd_free(e);
+            break;
+        }
+        msg = (DDSMessage *)fwd_malloc(datarow->msglen);
+        if (NULL == msg)
+        {
+            fwd_free(e);
+            fwd_free(msginfo);
+            break;
+        }
+        nodeid = datarow->msgnode;
+        memcpy(msg, datarow->msg, datarow->msglen);
+        msginfo->msg = msg;
+        msginfo->nodeid = nodeid;
+        e->data = msginfo;
+        e->next = NULL;
+        free(datarow);    
+        push_ddsqueue(ddsdetector_control->dds_msg_queue, e);
+        datarow = NULL;
+        msg = NULL;
+        e = NULL;
+        datarow = fwd_local_rda_receive(FWD_DDS_RDA_ID);
+    }
+}
+
+/*
+    send dds msg to cn/dn server.
+*/
+void
+send_dds_msg(DDSMessage *msg, int nodeid, bool is_send_to_cn)
+{
+    int real_nodeid;
+    DDSElem *e;
+    DDSMsgNodeid *msginfo;
+
+    if (g_fwd_local_rda_combiner_complete == false || nodeid == PGXC_INVALID_NODE_IDX || NULL == msg)
+    {
+        return;
+    }
+
+    real_nodeid = is_send_to_cn ? nodeid + FWD_CN_NODEID_BASE : nodeid;
+
+    if ((is_send_to_cn == IS_PGXC_COORDINATOR) && (real_nodeid == my_node_id))
+    {
+        e = (DDSElem *)fwd_malloc(sizeof(DDSElem));
+        if (NULL == e)
+        {
+            return;
+        }
+        msginfo = (DDSMsgNodeid *)fwd_malloc(sizeof(DDSMsgNodeid));
+        if (NULL == msginfo)
+        {
+            fwd_free(e);
+            return;
+        }
+        msginfo->msg = msg;
+        msginfo->nodeid = real_nodeid;
+        e->data = msginfo;
+        e->next = NULL;
+        push_ddsqueue(ddsdetector_control->dds_msg_queue, e);
+        return;
+    }
+
+    fwd_local_rda_send(FWD_DDS_RDA_ID, real_nodeid, msg, sizeof(DDSMessage));
+    fwd_free(msg);
+    msg = NULL;
+}
 
 #if 0
 void SocketTest()
