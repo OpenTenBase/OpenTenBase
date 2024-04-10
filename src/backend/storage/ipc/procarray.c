@@ -3269,6 +3269,92 @@ BackendXidGetPid(TransactionId xid)
 }
 
 /*
+ *	GxidGetBackendId -- get a backend's backendid given its GXID
+ */
+BackendId 
+GxidGetBackendId(char *gxid)
+{
+    BackendId result;
+    ProcArrayStruct *arrayP;
+    int index;
+	char *cur_gxid;
+	int pgprocno;
+	volatile PGPROC *proc;
+
+	arrayP = procArray;
+	result = -1;
+
+    if (!gxid)
+        return result;
+
+    LWLockAcquire(ProcArrayLock, LW_SHARED);
+
+    for (index = 0; index < arrayP->numProcs; index++)
+    {
+        pgprocno = arrayP->pgprocnos[index];
+        proc = &allProcs[pgprocno];
+
+        if (!proc->hasGlobalXid)
+        {
+            continue;
+        }
+        cur_gxid = (char *)proc->globalXid;
+        if (strcmp(cur_gxid, gxid) == 0)
+        {
+            result = proc->backendId;
+            break;
+        }
+    }
+
+    LWLockRelease(ProcArrayLock);
+
+    return result;
+}
+
+/*
+ *	GxidGetPid -- get a backend's pid given its GXID
+ */
+int 
+GxidGetPid(char *gxid)
+{
+    int result;
+    ProcArrayStruct *arrayP;
+    int index;
+	char *cur_gxid;
+	int pgprocno;
+	volatile PGPROC *proc;
+
+	result = InvalidPid;
+	arrayP = procArray;
+
+    if (!gxid)
+        return result;
+
+    LWLockAcquire(ProcArrayLock, LW_SHARED);
+
+    for (index = 0; index < arrayP->numProcs; index++)
+    {
+        pgprocno = arrayP->pgprocnos[index];
+        proc = &allProcs[pgprocno];
+
+        if (!proc->hasGlobalXid)
+        {
+            continue;
+        }
+        cur_gxid = (char *)proc->globalXid;
+        if (strcmp(cur_gxid, gxid) == 0)
+        {
+            result = proc->pid;
+            break;
+        }
+    }
+
+    LWLockRelease(ProcArrayLock);
+
+    return result;
+}
+
+/*
  * IsBackendPid -- is a given pid a running backend
  *
  * This is not called by the backend, but is called by external modules.

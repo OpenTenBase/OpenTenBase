@@ -60,8 +60,10 @@
 #include "storage/procarray.h"
 #include "storage/procsignal.h"
 #include "storage/spin.h"
+#include "pgxc/dds.h"
 #include "utils/timeout.h"
 #include "utils/timestamp.h"
+#include "utils/memutils.h"
 #ifdef __OPENTENBASE__
 #include "storage/lock.h"
 #endif
@@ -71,11 +73,15 @@
 #define CLEAN_2PC_WORKER_NUM    3
 
 /* GUC variables */
-int            DeadlockTimeout = 1000;
-int            StatementTimeout = 0;
-int            LockTimeout = 0;
-int            IdleInTransactionSessionTimeout = 0;
+int         DeadlockTimeout = 1000;
+int         StatementTimeout = 0;
+int         LockTimeout = 0;
+int         IdleInTransactionSessionTimeout = 0;
 bool        log_lock_waits = false;
+bool        enable_dds = true;
+
+/* prepare-statement session timeout GUC variables */
+int			IdleInPrepareStatementSessionTimeout = 0;
 
 /* Pointer to this process's PGPROC and PGXACT structs, if any */
 PGPROC       *MyProc = NULL;
@@ -108,6 +114,13 @@ static void ProcKill(int code, Datum arg);
 static void AuxiliaryProcKill(int code, Datum arg);
 static void CheckDeadLock(void);
 
+/* The root memory context */
+static MemoryContext ProcMemoryContext = NULL;
+
+/* dependent trans list */
+Dependent_List *add_list;
+Dependent_List *delete_list;
+int bucket_index;
 
 /*
  * Report shared-memory space needed by InitProcGlobal.
@@ -181,6 +194,12 @@ InitProcGlobal(void)
                 j;
     bool        found;
     uint32        TotalProcs = MaxBackends + NUM_AUXILIARY_PROCS + max_prepared_xacts;
+
+    ProcMemoryContext = AllocSetContextCreate(TopMemoryContext,
+                                                   "ProcMemoryContext",
+                                                   ALLOCSET_DEFAULT_MINSIZE,
+                                                   ALLOCSET_DEFAULT_INITSIZE,
+                                                   ALLOCSET_DEFAULT_MAXSIZE);
 
     /* Create the ProcGlobal shared structure */
     ProcGlobal = (PROC_HDR *)
@@ -314,6 +333,7 @@ void
 InitProcess(void)
 {// #lizard forgives
     PGPROC       *volatile *procgloballist;
+	MemoryContext oldcontext;
 
     /*
      * ProcGlobal should be set up already (if we are a backend, we inherit
@@ -470,12 +490,31 @@ InitProcess(void)
      */
     on_shmem_exit(ProcKill, 0);
 
+
     /*
      * Now that we have a PGPROC, we could try to acquire locks, so initialize
      * local state needed for LWLocks, and the deadlock checker.
      */
     InitLWLockAccess();
     InitDeadLockChecking();
+
+    /* create add_list and delete_list */
+    oldcontext = MemoryContextSwitchTo(TopMemoryContext);
+    oldcontext = MemoryContextSwitchTo(ProcMemoryContext);
+    add_list = new_dep_list();
+    if(NULL == add_list)
+    {
+        elog(LOG, "create add_list failed");
+    }
+    delete_list = new_dep_list();
+    if(NULL == delete_list)
+    {
+        elog(LOG, "create delete_list failed");
+    }
+    MemoryContextSwitchTo(oldcontext);
+
+    /* init variable bucket_index */
+    bucket_index = MyProc->pid % BUCKET_NUM;
 }
 
 /*
@@ -729,6 +768,7 @@ LockErrorCleanup(void)
 {
     LWLock       *partitionLock;
     DisableTimeoutParams timeouts[2];
+	MemoryContext oldcontext;
 
     HOLD_INTERRUPTS();
 
@@ -754,6 +794,15 @@ LockErrorCleanup(void)
     timeouts[1].id = LOCK_TIMEOUT;
     timeouts[1].keep_indicator = true;
     disable_timeouts(timeouts, 2);
+
+    /* free two list */
+    oldcontext = MemoryContextSwitchTo(TopMemoryContext);
+    oldcontext = MemoryContextSwitchTo(ProcMemoryContext);
+    free_dep_list(add_list);
+    free_dep_list(delete_list);
+    add_list = new_dep_list();
+    delete_list = new_dep_list();
+    MemoryContextSwitchTo(oldcontext);
 
     /* Unlink myself from the wait queue, if on it (might not be anymore!) */
     partitionLock = LockHashPartitionLock(lockAwaited->hashcode);
@@ -1393,24 +1442,86 @@ ProcSleep(LOCALLOCK *locallock, LockMethod lockMethodTable)
             allow_autovacuum_cancel = false;
         }
 
+		if(enable_dds && deadlock_state != DS_NOT_YET_CHECKED){
+			MemoryContext oldcontext;
+			SHM_QUEUE  *procLocks;
+			PROCLOCK   *cur_proclock;
+			bool isWaiter = false;
+
+			oldcontext = MemoryContextSwitchTo(ProcMemoryContext);
+			put_add_to_delete(add_list, delete_list);
+			
+			LWLockAcquire(partitionLock, LW_SHARED);
+
+			procLocks = &(lock->procLocks);
+			cur_proclock = (PROCLOCK *) SHMQueueNext(procLocks, procLocks,
+										offsetof(PROCLOCK, lockLink));
+			while(cur_proclock)
+			{
+				if(strcmp(MyProc->globalXid, cur_proclock->tag.myProc->globalXid) == 0 && cur_proclock->tag.myProc->waitProcLock == cur_proclock)
+				{
+					isWaiter = true;
+					break;
+				}
+				cur_proclock = (PROCLOCK *) SHMQueueNext(procLocks, &cur_proclock->lockLink,
+										offsetof(PROCLOCK, lockLink));
+			}
+
+			if(isWaiter)
+			{
+				cur_proclock = (PROCLOCK *) SHMQueueNext(procLocks, procLocks,
+										offsetof(PROCLOCK, lockLink));
+				while(cur_proclock)
+				{	
+					/* find holder */
+					if(strcmp(cur_proclock->tag.myProc->globalXid, MyProc->globalXid) == 0)
+					{
+						break;
+					}
+					
+					/* There may be a situation where the holder transaction has terminated prematurely and its hasGlobalXid is false */
+					if(cur_proclock->tag.myProc->hasGlobalXid)
+					{
+						/* free in check_dep_in_list or free_dep_list */
+						Dependent_Cell *cell = (Dependent_Cell *)palloc(sizeof(Dependent_Cell));
+						if(NULL == cell)
+						{
+							elog(LOG, "Failed to allocate memory for cell");
+							continue;
+						}
+						memcpy(cell->gxid_data.waiter_gxid, MyProc->globalXid, NAMEDATALEN);
+						memcpy(cell->gxid_data.holder_gxid, cur_proclock->tag.myProc->globalXid, NAMEDATALEN);
+						cell->waiter_xact_st_data = GetCurrentTransactionStartTimestamp();
+						cell->next = NULL;
+						check_dep_in_list(add_list, delete_list, cell);
+					}
+					cur_proclock = (PROCLOCK *) SHMQueueNext(procLocks, &cur_proclock->lockLink,
+												offsetof(PROCLOCK, lockLink));
+				}
+			}
+			LWLockRelease(partitionLock);
+			push_dep_to_bucket(delete_list, DELETE, &bucket_index);
+			push_dep_to_bucket(add_list, ADD, &bucket_index);
+			MemoryContextSwitchTo(oldcontext);
+		}
         /*
-         * If awoken after the deadlock check interrupt has run, and
-         * log_lock_waits is on, then report about the wait.
-         */
+        * If awoken after the deadlock check interrupt has run, and
+        * log_lock_waits is on, then report about the wait.
+        */
         if (log_lock_waits && deadlock_state != DS_NOT_YET_CHECKED)
         {
             StringInfoData buf,
                         lock_waiters_sbuf,
                         lock_holders_sbuf;
             const char *modename;
-            long        secs;
-            int            usecs;
-            long        msecs;
+            long		secs;
+            int			usecs;
+            long		msecs;
             SHM_QUEUE  *procLocks;
             PROCLOCK   *proclock;
-            bool        first_holder = true,
+            bool		first_holder = true,
                         first_waiter = true;
-            int            lockHoldersNum = 0;
+            int			lockHoldersNum = 0;
 
             initStringInfo(&buf);
             initStringInfo(&lock_waiters_sbuf);

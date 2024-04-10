@@ -1672,6 +1672,15 @@ static struct config_bool ConfigureNamesBool[] =
         false,
         NULL, NULL, NULL
     },
+    {
+        {"enable_dds", PGC_POSTMASTER, LOCK_MANAGEMENT,
+            gettext_noop("enable dds check deadlock algorithm."),
+            NULL,
+        },
+        &enable_dds,
+        true,
+        NULL, NULL, NULL
+    },
 
 #ifdef LOCK_DEBUG
     {
