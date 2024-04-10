@@ -272,9 +272,10 @@ pid_t get_prog_pid(char *host, char *pidfile, char *dir)
     FILE *wkf;
 
     snprintf(cmd, MAXLINE,
-             "ssh %s@%s "
+             "ssh -p%s %s@%s "
              "\"cat %s/%s.pid\"",
-             sval(VAR_pgxcUser), host, dir, pidfile);
+             sval(VAR_sshPort), sval(VAR_pgxcUser), 
+             host, dir, pidfile);
     wkf = popen(cmd, "r");
     if (wkf == NULL)
     {
@@ -340,8 +341,8 @@ int pingNodeSlave(char *host, char *datadir)
     char line[MAXLINE+1];
     int     rv;
 
-    snprintf(cmd, MAXLINE, "ssh %s@%s pg_ctl -D %s status > /dev/null 2>&1; echo $?",
-             sval(VAR_pgxcUser), host, datadir);
+    snprintf(cmd, MAXLINE, "ssh -p%s %s@%s pg_ctl -D %s status > /dev/null 2>&1; echo $?",
+             sval(VAR_sshPort), sval(VAR_pgxcUser), host, datadir);
     wkf = popen(cmd, "r");
     if (wkf == NULL)
         return -1;
@@ -370,8 +371,8 @@ char *getChPidList(char *host, pid_t ppid)
     char *rv = Malloc(MAXLINE+1);
 
     rv[0] = 0;
-    snprintf(cmd, MAXLINE, "ssh %s@%s pgrep -P %d",
-             sval(VAR_pgxcUser), host, ppid);
+    snprintf(cmd, MAXLINE, "ssh -p%s %s@%s pgrep -P %d",
+             sval(VAR_sshPort), sval(VAR_pgxcUser), host, ppid);
     wkf = popen(cmd, "r");
     if (wkf == NULL)
     {

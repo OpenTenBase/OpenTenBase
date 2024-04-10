@@ -41,6 +41,10 @@ extern char progname[];
 extern FILE *inF;
 extern FILE *outF;
 
+extern char pwdFileParam[];
+extern char pwdFileCheck[];
+extern char pwdParam[];
+
 /* pg_ctl stop option */
 #define IMMEDIATE "immediate"
 #define FAST "fast"

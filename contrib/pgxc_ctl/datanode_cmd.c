@@ -70,6 +70,7 @@ cmd_t *prepare_initDatanodeMaster(char *nodeName)
     char remoteDirCheck[MAXPATH * 2 + 128];
     char remoteWalDirCheck[MAXPATH * 2 + 128];
     bool wal;
+    char *pwdCheck = "";
 
     if ((idx = datanodeIdx(nodeName)) < 0)
         return(NULL);
@@ -100,18 +101,17 @@ cmd_t *prepare_initDatanodeMaster(char *nodeName)
                     aval(VAR_datanodeMasterWALDirs)[idx]
                    );
         }
-
+        pwdCheck = pwdFileCheck;
     }
 
     /* Build each datanode's initialize command */
     cmd = cmdInitdb = initCmd(aval(VAR_datanodeMasterServers)[idx]);
     snprintf(newCommand(cmdInitdb), MAXLINE,
-             "%s %s"
+             "%s %s %s"
              "rm -rf %s;"
              "mkdir -p %s; PGXC_CTL_SILENT=1 initdb --nodename %s --nodetype datanode %s %s -D %s "
-             "--master_gtm_nodename %s --master_gtm_ip %s --master_gtm_port %s",
-             remoteDirCheck,
-             remoteWalDirCheck,
+             "--master_gtm_nodename %s --master_gtm_ip %s --master_gtm_port %s %s",
+             remoteDirCheck, remoteWalDirCheck, pwdCheck,
              aval(VAR_datanodeMasterDirs)[idx], aval(VAR_datanodeMasterDirs)[idx],
              aval(VAR_datanodeNames)[idx],
              wal ? "-X" : "",
@@ -119,7 +119,9 @@ cmd_t *prepare_initDatanodeMaster(char *nodeName)
              aval(VAR_datanodeMasterDirs)[idx],
              sval(VAR_gtmName),
              sval(VAR_gtmMasterServer),
-             sval(VAR_gtmMasterPort));
+             sval(VAR_gtmMasterPort),
+             pwdFileParam);
+
 
     /* Initialize postgresql.conf */
     appendCmdEl(cmdInitdb, (cmdPgConf = initCmd(aval(VAR_datanodeMasterServers)[idx])));
@@ -219,7 +221,7 @@ cmd_t *prepare_initDatanodeMaster(char *nodeName)
     /* pg_hba.conf */
     appendCmdEl(cmdInitdb, (cmdPgHba = initCmd(aval(VAR_datanodeMasterServers)[idx])));
     snprintf(newCommand(cmdPgHba), MAXLINE,
-             "cat >> %s/pg_hba.conf", aval(VAR_datanodeMasterDirs)[idx]);
+             "cat > %s/pg_hba.conf", aval(VAR_datanodeMasterDirs)[idx]);
     if ((f = prepareLocalStdin(newFilename(cmdPgHba->localStdin), MAXPATH, NULL)) == NULL)
     {
         cleanCmd(cmd);
@@ -235,16 +237,19 @@ cmd_t *prepare_initDatanodeMaster(char *nodeName)
         AddMember(fileList, aval(VAR_datanodeSpecificExtraPgHba)[idx]);
     appendFiles(f, fileList);
     CleanArray(fileList);
-    for (jj = 0; aval(VAR_datanodePgHbaEntries)[jj]; jj++)
+    if (is_none(sval(VAR_pwdFile)))
     {
-        fprintf(f,
-                "host all %s %s trust\n",
-                sval(VAR_pgxcOwner), aval(VAR_datanodePgHbaEntries)[jj]);
-        if (isVarYes(VAR_datanodeSlave))
-            if (!is_none(aval(VAR_datanodeSlaveServers)[idx]))
-                fprintf(f,
-                        "host replication %s %s trust\n",
-                        sval(VAR_pgxcOwner), aval(VAR_datanodePgHbaEntries)[jj]);
+        for (jj = 0; aval(VAR_datanodePgHbaEntries)[jj]; jj++)
+        {
+            fprintf(f,
+                    "host all %s %s trust\n",
+                    sval(VAR_pgxcOwner), aval(VAR_datanodePgHbaEntries)[jj]);
+            if (isVarYes(VAR_datanodeSlave))
+                if (!is_none(aval(VAR_datanodeSlaveServers)[idx]))
+                    fprintf(f,
+                            "host replication %s %s trust\n",
+                            sval(VAR_pgxcOwner), aval(VAR_datanodePgHbaEntries)[jj]);
+        }
     }
     fprintf(f, "# End of additon\n");
     fclose(f);
@@ -947,7 +952,8 @@ static int failover_oneDatanode(int datanodeIdx)
                  aval(VAR_coordNames)[jj]);
             continue;
         }
-        if ((f = pgxc_popen_wRaw("psql -p %d -h %s %s %s",
+        if ((f = pgxc_popen_wRaw("%spsql -p %d -h %s %s %s",
+                                 pwdParam,
                                  atoi(aval(VAR_coordPorts)[jj]),
                                  aval(VAR_coordMasterServers)[jj],
                                  sval(VAR_defaultDatabase),
@@ -1002,54 +1008,55 @@ int add_datanodeMaster(char *name, char *host, int port, int pooler, char *dir,
     char **pgHbaConfFiles = NULL;
     bool wal;
 
-    if (waldir && (strcasecmp(waldir, "none") != 0))
-        wal = true;
-    else
-        wal = false;
-    
-    /* Check if all the datanodes are running */
-    if (!check_AllDatanodeRunning())
-    {
-        elog(ERROR, "ERROR: Some of the datanode  masters are not running. Cannot add new one.\n");
-        return 1;
-    }
-    /* Check if there's no conflict with the current configuration */
-    if (checkNameConflict(name, FALSE))
-    {
-        elog(ERROR, "ERROR: Node name %s duplicate.\n", name);
-        return 1;
-    }
-    if (checkPortConflict(host, port) || checkPortConflict(host, pooler))
-    {
-        elog(ERROR, "ERROR: port numbrer (%d) or pooler port (%d) at host %s conflicts.\n", port, pooler, host);
-        return 1;
-    }
-    if (checkDirConflict(host, dir))
-    {
-        elog(ERROR, "ERROR: directory \"%s\" conflicts at host %s.\n", dir, host);
-        return 1;
-    }
-    if ((waldir != NULL) && (checkDirConflict(host, waldir)))
-    {
-        elog(ERROR, "ERROR: directory \"%s\" conflicts at host %s.\n", waldir, host);
-        return 1;
-    }
-    /*
-     * Check if datanode masgter configuration is consistent
-     */
-    idx = size = arraySizeName(VAR_datanodeNames);
-    if ((arraySizeName(VAR_datanodePorts) != size) ||
-        (arraySizeName(VAR_datanodePoolerPorts) != size) ||
-        (arraySizeName(VAR_datanodeMasterServers) != size) ||
-        (arraySizeName(VAR_datanodeMasterDirs) != size) ||
-        (arraySizeName(VAR_datanodeMasterWALDirs) != size) ||
-        (arraySizeName(VAR_datanodeMaxWALSenders) != size) ||
-        (arraySizeName(VAR_datanodeSpecificExtraConfig) != size) ||
-        (arraySizeName(VAR_datanodeSpecificExtraPgHba) != size))
-    {
-        elog(ERROR, "ERROR: Found some conflicts in datanode master configuration.\n");
-        return 1;
-    }
+	if (waldir && (strcasecmp(waldir, "none") != 0))
+		wal = true;
+	else
+		wal = false;
+
+	/* Check if all the datanodes are running */
+	if (!check_AllDatanodeRunning())
+	{
+		elog(ERROR, "ERROR: Some of the datanode  masters are not running. Cannot add new one.\n");
+		return 1;
+	}
+	/* Check if there's no conflict with the current configuration */
+	if (checkNameConflict(name, FALSE))
+	{
+		elog(ERROR, "ERROR: Node name %s duplicate.\n", name);
+		return 1;
+	}
+	if (checkPortConflict(host, port) || checkPortConflict(host, pooler))
+	{
+		elog(ERROR, "ERROR: port numbrer (%d) or pooler port (%d) at host %s conflicts.\n", port, pooler, host);
+		return 1;
+	}
+	if (checkDirConflict(host, dir))
+	{
+		elog(ERROR, "ERROR: directory \"%s\" conflicts at host %s.\n", dir, host);
+		return 1;
+	}
+	if ((waldir != NULL) && (checkDirConflict(host, waldir)))
+	{
+		elog(ERROR, "ERROR: directory \"%s\" conflicts at host %s.\n", waldir, host);
+		return 1;
+	}
+	/*
+	 * Check if datanode masgter configuration is consistent
+	 */
+	idx = size = arraySizeName(VAR_datanodeNames);
+	if ((arraySizeName(VAR_datanodePorts) != size) ||
+	    (arraySizeName(VAR_datanodePoolerPorts) != size) ||
+		(arraySizeName(VAR_datanodeFwdServerPorts) != size) ||
+		(arraySizeName(VAR_datanodeMasterServers) != size) ||
+		(arraySizeName(VAR_datanodeMasterDirs) != size) ||
+		(arraySizeName(VAR_datanodeMasterWALDirs) != size) ||
+		(arraySizeName(VAR_datanodeMaxWALSenders) != size) ||
+		(arraySizeName(VAR_datanodeSpecificExtraConfig) != size) ||
+		(arraySizeName(VAR_datanodeSpecificExtraPgHba) != size))
+	{
+		elog(ERROR, "ERROR: Found some conflicts in datanode master configuration.\n");
+		return 1;
+	}
 
     /* find any available datanode */
     restore_dnode_idx = get_any_available_datanode(-1);
@@ -1179,14 +1186,16 @@ int add_datanodeMaster(char *name, char *host, int port, int pooler, char *dir,
 
     /* initdb */
     doImmediate(host, NULL, "PGXC_CTL_SILENT=1 initdb -D %s %s %s --nodename %s --nodetype datanode "
-                            "--master_gtm_nodename %s --master_gtm_ip %s --master_gtm_port %s", 
+                            "--master_gtm_nodename %s --master_gtm_ip %s --master_gtm_port %s %s",
                             dir,
                             wal ? "-X" : "",
                             wal ? waldir : "",
                             name,
                             sval(VAR_gtmName),
                             sval(VAR_gtmMasterServer),
-                            sval(VAR_gtmMasterPort));
+                            sval(VAR_gtmMasterPort),
+                            pwdFileParam);
+
 
     /* Edit configurations */
     if ((f = pgxc_popen_w(host, "cat >> %s/postgresql.conf", dir)))
@@ -1212,13 +1221,16 @@ int add_datanodeMaster(char *name, char *host, int port, int pooler, char *dir,
         fprintf(f, "# Added at initialization.\n");
 
         appendFiles(f, pgHbaConfFiles);
-        for (kk = 0; aval(VAR_datanodePgHbaEntries)[kk]; kk++)
+        if (is_none(sval(VAR_pwdFile)))
         {
-            fprintf(f,"host all %s %s trust\n",    sval(VAR_pgxcOwner), aval(VAR_datanodePgHbaEntries)[kk]);
-            if (isVarYes(VAR_datanodeSlave))
-                if (!is_none(aval(VAR_datanodeSlaveServers)[jj]))
-                    fprintf(f, "host replication %s %s trust\n",
-                            sval(VAR_pgxcOwner), aval(VAR_datanodePgHbaEntries)[kk]);
+            for (kk = 0; aval(VAR_datanodePgHbaEntries)[kk]; kk++)
+            {
+                fprintf(f,"host all %s %s trust\n",	sval(VAR_pgxcOwner), aval(VAR_datanodePgHbaEntries)[kk]);
+                if (isVarYes(VAR_datanodeSlave))
+                    if (!is_none(aval(VAR_datanodeSlaveServers)[jj]))
+                        fprintf(f, "host replication %s %s trust\n",
+                                sval(VAR_pgxcOwner), aval(VAR_datanodePgHbaEntries)[kk]);
+            }
         }
         fprintf(f, "# End of addition\n");
         pclose(f);
@@ -1227,7 +1239,11 @@ int add_datanodeMaster(char *name, char *host, int port, int pooler, char *dir,
      /* Lock ddl */
      if (restore_dnode_idx != -1)
      {
-         if ((lockf = pgxc_popen_wRaw("psql -h %s -p %d %s", aval(VAR_datanodeMasterServers)[restore_dnode_idx], atoi(aval(VAR_datanodePorts)[restore_dnode_idx]), sval(VAR_defaultDatabase))) == NULL)
+        if ((lockf = pgxc_popen_wRaw("%spsql -h %s -p %d %s",
+                                    pwdParam,
+                                    aval(VAR_datanodeMasterServers)[restore_dnode_idx],
+                                    atoi(aval(VAR_datanodePorts)[restore_dnode_idx]),
+                                    sval(VAR_defaultDatabase))) == NULL)
          {
              elog(ERROR, "ERROR: could not open datanode psql command, %s\n", strerror(errno));
              return 1;
@@ -1235,7 +1251,11 @@ int add_datanodeMaster(char *name, char *host, int port, int pooler, char *dir,
      }
      else if (restore_coord_idx != -1)
      {
-         if ((lockf = pgxc_popen_wRaw("psql -h %s -p %d %s", aval(VAR_coordMasterServers)[restore_coord_idx], atoi(aval(VAR_coordPorts)[restore_coord_idx]), sval(VAR_defaultDatabase))) == NULL)
+        if ((lockf = pgxc_popen_wRaw("%spsql -h %s -p %d %s",
+                                    pwdParam,
+                                    aval(VAR_coordMasterServers)[restore_coord_idx],
+                                    atoi(aval(VAR_coordPorts)[restore_coord_idx]),
+                                    sval(VAR_defaultDatabase))) == NULL)
          {
              elog(ERROR, "ERROR: could not open coordinator psql command, %s\n", strerror(errno));
               return 1;
@@ -1275,7 +1295,9 @@ int add_datanodeMaster(char *name, char *host, int port, int pooler, char *dir,
     pg_usleep(2000000L);
 
     /* Restore the backup */
-    doImmediateRaw("psql -h %s -p %d -d %s -f %s", host, port, sval(VAR_defaultDatabase), pgdumpall_out);
+    doImmediateRaw("%spsql -h %s -p %d -d %s -f %s",
+                    pwdParam, host, port,
+                    sval(VAR_defaultDatabase), pgdumpall_out);
     doImmediateRaw("rm -f %s", pgdumpall_out);
 
     /* Quit the new datanode */
@@ -1291,7 +1313,11 @@ int add_datanodeMaster(char *name, char *host, int port, int pooler, char *dir,
     {
         if (!is_none(aval(VAR_coordNames)[ii]))
         {
-            if ((f = pgxc_popen_wRaw("psql -h %s -p %s %s", aval(VAR_coordMasterServers)[ii], aval(VAR_coordPorts)[ii], sval(VAR_defaultDatabase))) == NULL)
+            if ((f = pgxc_popen_wRaw("%spsql -h %s -p %s %s",
+                                                pwdParam,
+                                                aval(VAR_coordMasterServers)[ii],
+                                                aval(VAR_coordPorts)[ii],
+                                                sval(VAR_defaultDatabase))) == NULL)
             {
                 elog(ERROR, "ERROR: cannot connect to the coordinator master %s.\n", aval(VAR_coordNames)[ii]);
                 continue;
@@ -1315,10 +1341,11 @@ int add_datanodeMaster(char *name, char *host, int port, int pooler, char *dir,
     {
         if (!is_none(aval(VAR_datanodeNames)[ii]))
         {
-            if ((f = pgxc_popen_wRaw("psql -h %s -p %s %s",
-                                aval(VAR_datanodeMasterServers)[ii],
-                                aval(VAR_datanodePorts)[ii],
-                                sval(VAR_defaultDatabase))) == NULL)
+            if ((f = pgxc_popen_wRaw("%spsql -h %s -p %s %s",
+                                    pwdParam,
+                                    aval(VAR_datanodeMasterServers)[ii],
+                                    aval(VAR_datanodePorts)[ii],
+                                    sval(VAR_defaultDatabase))) == NULL)
             {
                 elog(ERROR, "ERROR: cannot connect to the datanode %s.\n", aval(VAR_datanodeNames)[ii]);
                 continue;
@@ -1351,9 +1378,10 @@ int add_datanodeSlave(char *name, char *host, int port, int pooler, char *dir,
     FILE *f;
     char port_s[MAXTOKEN+1];
     char pooler_s[MAXTOKEN+1];
-    int kk;
-    bool wal;
-    int size;
+	char fwdserver_s[MAXTOKEN+1];
+	int kk;
+	bool wal;
+	int size;
     char *__p__ = NULL;
 
     if (walDir && (strcasecmp(walDir, "none") != 0))
@@ -1441,32 +1469,33 @@ int add_datanodeSlave(char *name, char *host, int port, int pooler, char *dir,
             "# Additional entry by adding the slave, %s\n",
 			timeStampString(date, MAXTOKEN+1));
 
-    for (kk = 0; aval(VAR_datanodePgHbaEntries)[kk]; kk++)
+    if (is_none(sval(VAR_pwdFile)))
     {
-        fprintf(f, "host replication %s %s trust\n",
-                sval(VAR_pgxcOwner), aval(VAR_datanodePgHbaEntries)[kk]);
+        for (kk = 0; aval(VAR_datanodePgHbaEntries)[kk]; kk++)
+        {
+            fprintf(f, "host replication %s %s trust\n",
+                    sval(VAR_pgxcOwner), aval(VAR_datanodePgHbaEntries)[kk]);
+        }
+        fprintf(f,
+                "host replication %s %s/32 trust\n"
+                "# End of addition ===============================\n",
+                sval(VAR_pgxcOwner), getIpAddress(host));
     }
-
-    __p__ = getIpAddress(host);
-    fprintf(f,
-            "host replication %s %s/32 trust\n"
-            "# End of addition ===============================\n",
-            sval(VAR_pgxcOwner),__p__);
-    Free(__p__);
     pclose(f);
 
-    size = arraySizeName(VAR_datanodeNames);
-    /* Need an API to expand the array to desired size */
-    if ((extendVar(VAR_datanodeSlaveServers, size, "none") != 0) ||
-        (extendVar(VAR_datanodeSlavePorts, size, "none")  != 0) ||
+	size = arraySizeName(VAR_datanodeNames);
+	/* Need an API to expand the array to desired size */
+	if ((extendVar(VAR_datanodeSlaveServers, size, "none") != 0) ||
+		(extendVar(VAR_datanodeSlavePorts, size, "none")  != 0) ||
         (extendVar(VAR_datanodeSlavePoolerPorts, size, "none")  != 0) ||
-        (extendVar(VAR_datanodeSlaveDirs, size, "none")  != 0) ||
-        (extendVar(VAR_datanodeSlaveWALDirs, size, "none")  != 0) ||
-        (extendVar(VAR_datanodeArchLogDirs, size, "none") != 0))
-    {
-        elog(PANIC, "PANIC: Internal error, inconsistent datanode information\n");
-        return 1;
-    }
+		(extendVar(VAR_datanodeSlaveFwdServerPorts, size, "none")  != 0) ||
+		(extendVar(VAR_datanodeSlaveDirs, size, "none")  != 0) ||
+		(extendVar(VAR_datanodeSlaveWALDirs, size, "none")  != 0) ||
+		(extendVar(VAR_datanodeArchLogDirs, size, "none") != 0))
+	{
+		elog(PANIC, "PANIC: Internal error, inconsistent datanode information\n");
+		return 1;
+	}
 
     /* Reconfigure pgxc_ctl configuration with the new slave */
     snprintf(port_s, MAXTOKEN, "%d", port);
@@ -1661,7 +1690,11 @@ int remove_datanodeMaster(char *name, int clean_opt)
     {
         if (doesExist(VAR_coordNames, ii) && !is_none(aval(VAR_coordNames)[ii]))
         {
-            f = pgxc_popen_wRaw("psql -p %d -h %s %s", atoi(aval(VAR_coordPorts)[ii]), aval(VAR_coordMasterServers)[ii], sval(VAR_defaultDatabase));
+            f = pgxc_popen_wRaw("%spsql -p %d -h %s %s",
+                                pwdParam,
+                                atoi(aval(VAR_coordPorts)[ii]),
+                                aval(VAR_coordMasterServers)[ii],
+                                sval(VAR_defaultDatabase));
             if (f == NULL)
             {
                 elog(ERROR, "ERROR: cannot begin psql for the coordinator master %s\n", aval(VAR_coordNames)[ii]);
@@ -1679,93 +1712,97 @@ int remove_datanodeMaster(char *name, int clean_opt)
     if (connCordIdx == -1)
         return 1;
 
-    /* Issue DROP NODE  on datanodes */
-    for (ii = 0; aval(VAR_datanodeNames)[ii]; ii++)
-    {
-        if (!is_none(aval(VAR_datanodeNames)[ii]) &&
-            strcmp(aval(VAR_datanodeNames)[ii], name) != 0)
-        {
-            if ((f = pgxc_popen_wRaw("psql -h %s -p %s %s",
-                            aval(VAR_coordMasterServers)[connCordIdx],
-                            aval(VAR_coordPorts)[connCordIdx],
-                            sval(VAR_defaultDatabase))) == NULL)
-            {
-                elog(ERROR, "ERROR: cannot connect to the coordinator %s.\n", aval(VAR_coordNames)[0]);
-                continue;
-            }
-            fprintf(f, "EXECUTE DIRECT ON (%s) 'DROP NODE %s';\n", aval(VAR_datanodeNames)[ii], name);
-            fprintf(f, "EXECUTE DIRECT ON (%s) 'SELECT pgxc_pool_reload();'\n", aval(VAR_datanodeNames)[ii]);
-            fprintf(f, "\\q\n");
-            pclose(f);
-        }
-    }
-    /* Stop the datanode master if running */
-    if (pingNode(aval(VAR_datanodeMasterServers)[idx], aval(VAR_datanodePorts)[idx]) == 0)
-    {
-        AddMember(namelist, name);
-        stop_datanode_master(namelist, "fast");
-        CleanArray(namelist);
-    }
-    /* Cleanup the datanode master resource if specified */
-    if (clean_opt)
-        doImmediate(aval(VAR_datanodeMasterServers)[idx], NULL, "rm -rf %s", aval(VAR_datanodeMasterDirs)[idx]);
-    /* Update configuration and backup --> should cleanup "none" entries here */
-    replace_arrayEl(VAR_datanodeNames, idx, "none", NULL);
-     replace_arrayEl(VAR_datanodeMasterServers, idx, "none", NULL);
-    replace_arrayEl(VAR_datanodePorts, idx, "-1", "-1");
-    replace_arrayEl(VAR_datanodePoolerPorts, idx, "-1", "-1");
-     replace_arrayEl(VAR_datanodeMasterDirs, idx, "none", NULL);
-     replace_arrayEl(VAR_datanodeMasterWALDirs, idx, "none", NULL);
-    replace_arrayEl(VAR_datanodeMaxWALSenders, idx, "0", "0");
-     replace_arrayEl(VAR_datanodeSpecificExtraConfig, idx, "none", NULL);
-     replace_arrayEl(VAR_datanodeSpecificExtraPgHba, idx, "none", NULL);
- 
-     if (isVarYes(VAR_datanodeSlave))
-    {
-        replace_arrayEl(VAR_datanodeSlaveServers, idx, "none", NULL);
-        replace_arrayEl(VAR_datanodeSlavePorts, idx, "none", NULL);
-        replace_arrayEl(VAR_datanodeSlavePoolerPorts, idx, "none", NULL);
-        replace_arrayEl(VAR_datanodeSlaveDirs, idx, "none", NULL);
-        replace_arrayEl(VAR_datanodeSlaveWALDirs, idx, "none", NULL);
-        replace_arrayEl(VAR_datanodeArchLogDirs, idx, "none", NULL);
-    }
- 
-    handle_no_slaves();
-    /*
-     * Write config files
-     */
-    if ((f = fopen(pgxc_ctl_config_path, "a")) == NULL)
-    {
-        /* Should it be panic? */
-        elog(ERROR, "ERROR: cannot open configuration file \"%s\", %s\n", pgxc_ctl_config_path, strerror(errno));
-        return 1;
-    }
-    fprintf(f, 
-            "#================================================================\n"
-            "# pgxc configuration file updated due to datanode master removal\n"
-            "#        %s\n",
-            timeStampString(date, MAXTOKEN+1));
-    fprintSval(f, VAR_datanodeSlave);
-    fprintAval(f, VAR_datanodeNames);
-    fprintAval(f, VAR_datanodeMasterDirs);
-    fprintAval(f, VAR_datanodeMasterWALDirs);
-    fprintAval(f, VAR_datanodePorts);
-    fprintAval(f, VAR_datanodePoolerPorts);
-    fprintAval(f, VAR_datanodeMasterServers);
-    fprintAval(f, VAR_datanodeMaxWALSenders);
-     if (isVarYes(VAR_datanodeSlave))
-    {
-        fprintAval(f, VAR_datanodeSlaveServers);
-        fprintAval(f, VAR_datanodeSlavePorts);
-        fprintAval(f, VAR_datanodeSlaveDirs);
-        fprintAval(f, VAR_datanodeSlaveWALDirs);
-        fprintAval(f, VAR_datanodeArchLogDirs);
-    }
-    fprintAval(f, VAR_datanodeSpecificExtraConfig);
-    fprintAval(f, VAR_datanodeSpecificExtraPgHba);
-    fclose(f);
-    backup_configuration();
-    return 0;
+	/* Issue DROP NODE  on datanodes */
+	for (ii = 0; aval(VAR_datanodeNames)[ii]; ii++)
+	{
+		if (!is_none(aval(VAR_datanodeNames)[ii]) &&
+			strcmp(aval(VAR_datanodeNames)[ii], name) != 0)
+		{
+            if ((f = pgxc_popen_wRaw("%spsql -h %s -p %s %s",
+                                    pwdParam,
+                                    aval(VAR_coordMasterServers)[connCordIdx],
+                                    aval(VAR_coordPorts)[connCordIdx],
+                                    sval(VAR_defaultDatabase))) == NULL)
+			{
+				elog(ERROR, "ERROR: cannot connect to the coordinator %s.\n", aval(VAR_coordNames)[0]);
+				continue;
+			}
+			fprintf(f, "EXECUTE DIRECT ON (%s) 'DROP NODE %s';\n", aval(VAR_datanodeNames)[ii], name);
+			fprintf(f, "EXECUTE DIRECT ON (%s) 'SELECT pgxc_pool_reload();'\n", aval(VAR_datanodeNames)[ii]);
+			fprintf(f, "\\q\n");
+			pclose(f);
+		}
+	}
+	/* Stop the datanode master if running */
+	if (pingNode(aval(VAR_datanodeMasterServers)[idx], aval(VAR_datanodePorts)[idx]) == 0)
+	{
+		AddMember(namelist, name);
+		stop_datanode_master(namelist, "fast");
+		CleanArray(namelist);
+	}
+	/* Cleanup the datanode master resource if specified */
+	if (clean_opt)
+		doImmediate(aval(VAR_datanodeMasterServers)[idx], NULL, "rm -rf %s", aval(VAR_datanodeMasterDirs)[idx]);
+	/* Update configuration and backup --> should cleanup "none" entries here */
+	replace_arrayEl(VAR_datanodeNames, idx, "none", NULL);
+ 	replace_arrayEl(VAR_datanodeMasterServers, idx, "none", NULL);
+	replace_arrayEl(VAR_datanodePorts, idx, "-1", "-1");
+	replace_arrayEl(VAR_datanodePoolerPorts, idx, "-1", "-1");
+	replace_arrayEl(VAR_datanodeFwdServerPorts, idx, "-1", "-1");
+ 	replace_arrayEl(VAR_datanodeMasterDirs, idx, "none", NULL);
+ 	replace_arrayEl(VAR_datanodeMasterWALDirs, idx, "none", NULL);
+	replace_arrayEl(VAR_datanodeMaxWALSenders, idx, "0", "0");
+ 	replace_arrayEl(VAR_datanodeSpecificExtraConfig, idx, "none", NULL);
+ 	replace_arrayEl(VAR_datanodeSpecificExtraPgHba, idx, "none", NULL);
+
+ 	if (isVarYes(VAR_datanodeSlave))
+	{
+		replace_arrayEl(VAR_datanodeSlaveServers, idx, "none", NULL);
+		replace_arrayEl(VAR_datanodeSlavePorts, idx, "none", NULL);
+		replace_arrayEl(VAR_datanodeSlavePoolerPorts, idx, "none", NULL);
+		replace_arrayEl(VAR_datanodeSlaveFwdServerPorts, idx, "none", NULL);
+		replace_arrayEl(VAR_datanodeSlaveDirs, idx, "none", NULL);
+		replace_arrayEl(VAR_datanodeSlaveWALDirs, idx, "none", NULL);
+		replace_arrayEl(VAR_datanodeArchLogDirs, idx, "none", NULL);
+	}
+
+	handle_no_slaves();
+	/*
+	 * Write config files
+	 */
+	if ((f = fopen(pgxc_ctl_config_path, "a")) == NULL)
+	{
+		/* Should it be panic? */
+		elog(ERROR, "ERROR: cannot open configuration file \"%s\", %s\n", pgxc_ctl_config_path, strerror(errno));
+		return 1;
+	}
+	fprintf(f,
+			"#================================================================\n"
+			"# pgxc configuration file updated due to datanode master removal\n"
+			"#        %s\n",
+			timeStampString(date, MAXTOKEN+1));
+	fprintSval(f, VAR_datanodeSlave);
+	fprintAval(f, VAR_datanodeNames);
+	fprintAval(f, VAR_datanodeMasterDirs);
+	fprintAval(f, VAR_datanodeMasterWALDirs);
+	fprintAval(f, VAR_datanodePorts);
+	fprintAval(f, VAR_datanodePoolerPorts);
+	fprintAval(f, VAR_datanodeFwdServerPorts);
+	fprintAval(f, VAR_datanodeMasterServers);
+	fprintAval(f, VAR_datanodeMaxWALSenders);
+ 	if (isVarYes(VAR_datanodeSlave))
+	{
+		fprintAval(f, VAR_datanodeSlaveServers);
+		fprintAval(f, VAR_datanodeSlavePorts);
+		fprintAval(f, VAR_datanodeSlaveDirs);
+		fprintAval(f, VAR_datanodeSlaveWALDirs);
+		fprintAval(f, VAR_datanodeArchLogDirs);
+	}
+	fprintAval(f, VAR_datanodeSpecificExtraConfig);
+	fprintAval(f, VAR_datanodeSpecificExtraPgHba);
+	fclose(f);
+	backup_configuration();
+	return 0;
 }
 
 int remove_datanodeSlave(char *name, int clean_opt)

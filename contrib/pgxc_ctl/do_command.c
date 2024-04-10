@@ -899,147 +899,151 @@ static void do_add_command(char *line)
          * add gtm master name host port dir
          */
 
-        if (!GetToken())
-        {
-            elog(ERROR, "ERROR: Specify option for add gtm command.\n");
-            return;
-        }
-         if (TestToken("master"))
-         {
-             GetAndSet(name, "ERROR: please specify the name of gtm master\n");
-             GetAndSet(host, "ERROR: please specify the host name for gtm master\n");
-             GetAndSet(port, "ERROR: please specify the port number for gtm master\n");
-             GetAndSet(dir, "ERROR: please specify the working director for gtm master\n");
-             add_gtmMaster(name, host, atoi(port), dir);
-         }
-         else if (TestToken("slave"))
-        {
-            GetAndSet(name, "ERROR: please specify the name of gtm slave\n");
-            GetAndSet(host, "ERROR: please specify the host name for gtm slave\n");
-            GetAndSet(port, "ERROR: please specify the port number for gtm slave\n");
-            GetAndSet(dir, "ERROR: please specify the working director for gtm slave\n");
-            add_gtmSlave(name, host, atoi(port), dir);
-        }
-         else
-         {
-             elog(ERROR, "ERROR: you can specify only master/slave to add gtm command. %s is invalid.\n", token);
-             return;
-         }
-        freeAndReset(name);
-        freeAndReset(host);
-        freeAndReset(port);
-        freeAndReset(dir);
-    }
-    else if (TestToken("gtm_proxy"))
-    {
-        /*
-         * Add gtm_proxy name host port dir
-         */
-        GetAndSet(name, "ERROR: please specify the name of gtm_proxy\n");
-        GetAndSet(host, "ERROR: please specify the host name for gtm_proxy\n");
-        GetAndSet(port, "ERROR: please specify the port number for gtm_proxy\n");
-        GetAndSet(dir, "ERROR: please specify the working director for gtm_proxy\n");
-        add_gtmProxy(name, host, atoi(port), dir);
-        freeAndReset(name);
-        freeAndReset(host);
-        freeAndReset(port);
-        freeAndReset(dir);
-    }
-    else if (TestToken("coordinator"))
-    {
-        /*
-         * Add coordinator master name host port pooler dir
-         * Add coordinator slave name host dir
-         */
-        if (!GetToken() || (!TestToken("master") && !TestToken("slave")))
-        {
-            elog(ERROR, "ERROR: please specify master or slave.\n");
-            return;
-        }
-        if (TestToken("master"))
-        {
-            GetAndSet(name, "ERROR: please specify the name of the coordinator master\n");
-            GetAndSet(host, "ERROR: please specify the host for the coordinator masetr\n");
-            GetAndSet(port, "ERROR: please specify the port number for the coordinator master\n");
-            GetAndSet(pooler, "ERROR: please specify the pooler port number for the coordinator master.\n");
-            GetAndSet(dir, "ERROR: please specify the working directory for the coordinator master\n");
-            GetAndSet(extraConf, "ERROR: please specify file to read extra configuration. Specify 'none' if nothing extra to be added.\n");
-            GetAndSet(extraPgHbaConf, "ERROR: please specify file to read extra pg_hba configuration. Specify 'none' if nothing extra to be added.\n");
-            add_coordinatorMaster(name, host, atoi(port), atoi(pooler), dir,
-                    extraConf, extraPgHbaConf);
-            freeAndReset(name);
-            freeAndReset(host);
-            freeAndReset(port);
-            freeAndReset(pooler);
-            freeAndReset(dir);
+		if (!GetToken())
+		{
+			elog(ERROR, "ERROR: Specify option for add gtm command.\n");
+			return;
+		}
+ 		if (TestToken("master"))
+ 		{
+ 			GetAndSet(name, "ERROR: please specify the name of gtm master\n");
+ 			GetAndSet(host, "ERROR: please specify the host name for gtm master\n");
+ 			GetAndSet(port, "ERROR: please specify the port number for gtm master\n");
+ 			GetAndSet(dir, "ERROR: please specify the working director for gtm master\n");
+ 			add_gtmMaster(name, host, atoi(port), dir);
+ 		}
+ 		else if (TestToken("slave"))
+		{
+			GetAndSet(name, "ERROR: please specify the name of gtm slave\n");
+			GetAndSet(host, "ERROR: please specify the host name for gtm slave\n");
+			GetAndSet(port, "ERROR: please specify the port number for gtm slave\n");
+			GetAndSet(dir, "ERROR: please specify the working director for gtm slave\n");
+			add_gtmSlave(name, host, atoi(port), dir);
+		}
+ 		else
+ 		{
+ 			elog(ERROR, "ERROR: you can specify only master/slave to add gtm command. %s is invalid.\n", token);
+ 			return;
+ 		}
+		freeAndReset(name);
+		freeAndReset(host);
+		freeAndReset(port);
+		freeAndReset(dir);
+	}
+	else if (TestToken("gtm_proxy"))
+	{
+		/*
+		 * Add gtm_proxy name host port dir
+		 */
+		GetAndSet(name, "ERROR: please specify the name of gtm_proxy\n");
+		GetAndSet(host, "ERROR: please specify the host name for gtm_proxy\n");
+		GetAndSet(port, "ERROR: please specify the port number for gtm_proxy\n");
+		GetAndSet(dir, "ERROR: please specify the working director for gtm_proxy\n");
+		add_gtmProxy(name, host, atoi(port), dir);
+		freeAndReset(name);
+		freeAndReset(host);
+		freeAndReset(port);
+		freeAndReset(dir);
+	}
+	else if (TestToken("coordinator"))
+	{
+		/*
+		 * Add coordinator master name host port pooler dir
+		 * Add coordinator slave name host dir
+		 */
+		if (!GetToken() || (!TestToken("master") && !TestToken("slave")))
+		{
+			elog(ERROR, "ERROR: please specify master or slave.\n");
+			return;
+		}
+		if (TestToken("master"))
+		{
+			GetAndSet(name, "ERROR: please specify the name of the coordinator master\n");
+			GetAndSet(host, "ERROR: please specify the host for the coordinator masetr\n");
+			GetAndSet(port, "ERROR: please specify the port number for the coordinator master\n");
+			GetAndSet(pooler, "ERROR: please specify the pooler port number for the coordinator master.\n");
+			GetAndSet(dir, "ERROR: please specify the working directory for the coordinator master\n");
+			GetAndSet(extraConf, "ERROR: please specify file to read extra configuration. Specify 'none' if nothing extra to be added.\n");
+			GetAndSet(extraPgHbaConf, "ERROR: please specify file to read extra pg_hba configuration. Specify 'none' if nothing extra to be added.\n");
+			add_coordinatorMaster(name, host, atoi(port), atoi(pooler), dir,
+					extraConf, extraPgHbaConf);
+			freeAndReset(name);
+			freeAndReset(host);
+			freeAndReset(port);
+			freeAndReset(pooler);
+			freeAndReset(dir);
             freeAndReset(extraConf);
             freeAndReset(extraPgHbaConf);
-        }
-        else
-        {
-            GetAndSet(name, "ERROR: please specify the name of the coordinator slave\n");
-            GetAndSet(host, "ERROR: please specify the host for the coordinator slave\n");
-            GetAndSet(port, "ERROR: please specify the port number for the coordinator slave\n");
-            GetAndSet(pooler, "ERROR: please specify the pooler port number for the coordinator slave.\n");
-            GetAndSet(dir, "ERROR: please specify the working director for coordinator slave\n");
-            GetAndSet(archDir, "ERROR: please specify WAL archive directory for coordinator slave\n");
-            add_coordinatorSlave(name, host, atoi(port), atoi(pooler), dir, archDir);
-            freeAndReset(name);
-            freeAndReset(host);
-            freeAndReset(dir);
+		}
+		else
+		{
+			GetAndSet(name, "ERROR: please specify the name of the coordinator slave\n");
+			GetAndSet(host, "ERROR: please specify the host for the coordinator slave\n");
+			GetAndSet(port, "ERROR: please specify the port number for the coordinator slave\n");
+			GetAndSet(pooler, "ERROR: please specify the pooler port number for the coordinator slave.\n");
+			GetAndSet(dir, "ERROR: please specify the working director for coordinator slave\n");
+			GetAndSet(archDir, "ERROR: please specify WAL archive directory for coordinator slave\n");
+			add_coordinatorSlave(name, host, atoi(port), atoi(pooler), dir, archDir);
+			freeAndReset(name);
+			freeAndReset(host);
+			freeAndReset(dir);
             freeAndReset(archDir);
-        }
-    }
-    else if (TestToken("datanode"))
-    {
-        if (!GetToken() || (!TestToken("master") && !TestToken("slave")))
-        {
-            elog(ERROR, "ERROR: please specify master or slave.\n");
-            return;
-        }
-        if (TestToken("master"))
-        {
-            GetAndSet(name, "ERROR: please specify the name of the datanode master\n");
-            GetAndSet(host, "ERROR: please specify the host for the datanode masetr\n");
-            GetAndSet(port, "ERROR: please specify the port number for the datanode master\n");
-            GetAndSet(pooler, "ERROR: please specify the pooler port number for the datanode master.\n");
-            GetAndSet(dir, "ERROR: please specify the working director for the datanode master\n");
-            GetAndSet(walDir, "ERROR: please specify the WAL directory for the datanode master WAL. Specify 'none' for default\n");
-            GetAndSet(extraConf, "ERROR: please specify file to read extra configuration. Specify 'none' if nothig extra to be added.\n");
-            GetAndSet(extraPgHbaConf, "ERROR: please specify file to read extra pg_hba configuration. Specify 'none' if nothig extra to be added.\n");
-            add_datanodeMaster(name, host, atoi(port), atoi(pooler), dir,
-                    walDir, extraConf, extraPgHbaConf);
-            freeAndReset(name);
-            freeAndReset(host);
-            freeAndReset(port);
-            freeAndReset(pooler);
-            freeAndReset(dir);
-            freeAndReset(walDir);
+		}
+	}
+	else if (TestToken("datanode"))
+	{
+		if (!GetToken() || (!TestToken("master") && !TestToken("slave")))
+		{
+			elog(ERROR, "ERROR: please specify master or slave.\n");
+			return;
+		}
+		if (TestToken("master"))
+		{
+			GetAndSet(name, "ERROR: please specify the name of the datanode master\n");
+			GetAndSet(host, "ERROR: please specify the host for the datanode masetr\n");
+			GetAndSet(port, "ERROR: please specify the port number for the datanode master\n");
+			GetAndSet(pooler, "ERROR: please specify the pooler port number for the datanode master.\n");
+			GetAndSet(rpc, "ERROR: please specify the rpc port number for the datanode master.\n");
+			GetAndSet(dir, "ERROR: please specify the working director for the datanode master\n");
+			GetAndSet(walDir, "ERROR: please specify the WAL directory for the datanode master WAL. Specify 'none' for default\n");
+			GetAndSet(extraConf, "ERROR: please specify file to read extra configuration. Specify 'none' if nothig extra to be added.\n");
+			GetAndSet(extraPgHbaConf, "ERROR: please specify file to read extra pg_hba configuration. Specify 'none' if nothig extra to be added.\n");
+			add_datanodeMaster(name, host, atoi(port), atoi(pooler), atoi(rpc), dir,
+					walDir, extraConf, extraPgHbaConf);
+			freeAndReset(name);
+			freeAndReset(host);
+			freeAndReset(port);
+			freeAndReset(pooler);
+			freeAndReset(rpc);
+			freeAndReset(dir);
+			freeAndReset(walDir);
             freeAndReset(extraConf);
             freeAndReset(extraPgHbaConf);
-        }
-        else
-        {
-            GetAndSet(name, "ERROR: please specify the name of the datanode slave\n");
-            GetAndSet(host, "ERROR: please specify the host for the datanode slave\n");
-            GetAndSet(port, "ERROR: please specify the port number for the datanode slave\n");
-            GetAndSet(pooler, "ERROR: please specify the pooler port number for the datanode slave.\n");
-            GetAndSet(dir, "ERROR: please specify the working directory for datanode slave\n");
-            GetAndSet(walDir, "ERROR: please specify the WAL directory for datanode slave WAL. Specify 'none' for default.\n");
-            GetAndSet(archDir, "ERROR: please specify WAL archive directory for datanode slave\n");
-            
-            add_datanodeSlave(name, host, atoi(port), atoi(pooler), dir,
-                    walDir, archDir);
-            freeAndReset(name);
-            freeAndReset(host);
-            freeAndReset(port);
-            freeAndReset(pooler);
-            freeAndReset(dir);
-            freeAndReset(walDir);
+		}
+		else
+		{
+			GetAndSet(name, "ERROR: please specify the name of the datanode slave\n");
+			GetAndSet(host, "ERROR: please specify the host for the datanode slave\n");
+			GetAndSet(port, "ERROR: please specify the port number for the datanode slave\n");
+			GetAndSet(pooler, "ERROR: please specify the pooler port number for the datanode slave.\n");
+			GetAndSet(rpc, "ERROR: please specify the rpc port number for the datanode slave.\n");
+			GetAndSet(dir, "ERROR: please specify the working directory for datanode slave\n");
+			GetAndSet(walDir, "ERROR: please specify the WAL directory for datanode slave WAL. Specify 'none' for default.\n");
+			GetAndSet(archDir, "ERROR: please specify WAL archive directory for datanode slave\n");
+			
+			add_datanodeSlave(name, host, atoi(port), atoi(pooler), atoi(rpc), dir,
+					walDir, archDir);
+			freeAndReset(name);
+			freeAndReset(host);
+			freeAndReset(port);
+			freeAndReset(pooler);
+			freeAndReset(rpc);
+			freeAndReset(dir);
+			freeAndReset(walDir);
             freeAndReset(archDir);
-        }
-    }
-    return;
+		}
+	}
+	return;
 }
 
 static void do_remove_command(char *line)

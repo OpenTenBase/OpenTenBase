@@ -1189,8 +1189,8 @@ int backup_configuration(void)
     if ((strcasecmp(sval(VAR_configBackup), "y") != 0) || is_none(sval(VAR_configBackupHost)) || 
         is_none(sval(VAR_configBackupDir)) || is_none(sval(VAR_configBackupFile)))
         return (2);
-    return(doImmediate(NULL, NULL, "scp %s %s@%s:%s/%s",
-                       pgxc_ctl_config_path,
+    return(doImmediate(NULL, NULL, "scp -P%s %s %s@%s:%s/%s",
+                       sval(VAR_sshPort), pgxc_ctl_config_path,
                        sval(VAR_pgxcUser), sval(VAR_configBackupHost),
                        sval(VAR_configBackupDir), sval(VAR_configBackupFile)));
 }

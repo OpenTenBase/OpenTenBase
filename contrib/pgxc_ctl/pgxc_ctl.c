@@ -72,6 +72,10 @@ char progname[MAXPATH+1];
 char *myName;
 char *defaultDatabase;
 
+char pwdFileParam[MAXPATH * 2 + 16];
+char pwdFileCheck[MAXPATH * 2 + 128];
+char pwdParam[256];
+
 FILE *inF;
 FILE *outF;
 
@@ -104,6 +108,22 @@ static void trim_trailing_slash(char *path)
     }
 }
     
+static void init_pwd_env() {
+	pwdFileCheck[0] = '\0';
+	pwdFileParam[0] = '\0';
+	pwdParam[0] = '\0';
+	if (!is_none(sval(VAR_pwdFile)))
+	{
+		snprintf(pwdFileParam, sizeof(pwdFileParam), "--pwfile %s", sval(VAR_pwdFile));
+		snprintf(pwdFileCheck, sizeof(pwdFileCheck),
+				 "if [ -z `ls %s 2> /dev/null` ]; then echo 'ERROR: "
+				 "target file (%s) not exists. "
+				 "Skip Coordinator initilialization'; exit; fi;",
+				 sval(VAR_pwdFile),
+				 sval(VAR_pwdFile));
+		snprintf(pwdParam, sizeof(pwdParam), "PGPASSWORD=`cat %s` ", sval(VAR_pwdFile));
+	}
+}
 
 static void build_pgxc_ctl_home(char *home)
 {
@@ -540,6 +560,8 @@ int main(int argc, char *argv[])
     build_configuration_path(configuration);
     read_configuration();
     check_configuration();
+
+    init_pwd_env();
     /*
      * Setop output
      */
