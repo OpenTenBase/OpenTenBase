@@ -144,6 +144,7 @@ coordArchLogDir=$HOME/coord_archlog
 coordNames=(coord1 coord2)		# Master and slave use the same name
 coordPorts=(30001 30002)			# Master server listening ports
 poolerPorts=(30011 30012)			# Master pooler ports
+coordFwdServerPorts=(30021 30022)
 coordPgHbaEntries=(::1/128)	# Assumes that all the coordinator (master/slave) accepts
 												# the same connection
 												# This entry allows only $pgxcOwner to connect.
@@ -170,6 +171,7 @@ coordSlaveSync=y		# Specify to connect with synchronized mode.
 coordSlaveServers=(localhost localhost)			# none means this slave is not available
 coordSlavePorts=(30101 30102)			# coordinator slave listening ports
 coordSlavePoolerPorts=(30111 30112)			# coordinator slave pooler ports
+coordSlaveFwdServerPorts=(30113 30114)	
 coordSlaveDirs=($coordSlaveDir.1 $coordSlaveDir.2)
 coordArchLogDirs=($coordArchLogDir.1 $coordArchLogDir.2)
 
@@ -213,6 +215,7 @@ datanodeNames=(datanode_1 datanode_2)
 datanodePorts=(40001 40002)	# Master and slave use the same port!
 #ifdef XCP
 datanodePoolerPorts=(40011 40012)	# Master and slave use the same port!
+datanodeFwdServerPorts=(6680 6681)	# Master and slave use the same port!
 #endif
 datanodePgHbaEntries=(::1/128)	# Assumes that all the coordinator (master/slave) accepts
 										# the same connection

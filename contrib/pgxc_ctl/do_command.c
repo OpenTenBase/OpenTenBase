@@ -871,33 +871,34 @@ static void stop_all(char *immediate)
  */
 static void do_add_command(char *line)
 {
-    char *token;
-    char *name;
-    char *host;
-    char *port;
-    char *pooler;
-    char *dir;
-    char *walDir;
-    char *archDir;
-    char *extraConf;
-    char *extraPgHbaConf;
+	char *token;
+	char *name;
+	char *host;
+	char *port;
+	char *rpc;
+	char *pooler;
+	char *dir;
+	char *walDir;
+	char *archDir;
+	char *extraConf;
+	char *extraPgHbaConf;
 
-    if (!GetToken())
-    {
-        elog(ERROR, "ERROR: Specify options for add command.\n");
-        return;
-    }
-    if (!TestToken("gtm") && is_none(sval(VAR_gtmMasterServer)))
-    {
-        elog(ERROR, "ERROR: GTM master must be added before adding any other component.\n");
-        return;
-    }
+	if (!GetToken())
+	{
+		elog(ERROR, "ERROR: Specify options for add command.\n");
+		return;
+	}
+	if (!TestToken("gtm") && is_none(sval(VAR_gtmMasterServer)))
+	{
+		elog(ERROR, "ERROR: GTM master must be added before adding any other component.\n");
+		return;
+	}
 
-    if (TestToken("gtm"))
-    {
-        /*
-         * add gtm master name host port dir
-         */
+	if (TestToken("gtm"))
+	{
+		/*
+		 * add gtm master name host port dir
+		 */
 
 		if (!GetToken())
 		{

@@ -76,6 +76,7 @@ static void  ValidateAlterGtmNode(void);
 static int       *shmemNumCoords;
 static int       *shmemNumDataNodes;
 static int       *shmemNumSlaveDataNodes;
+static bool	     *shmemInitDone;
 
 /* Shared memory tables of node definitions */
 NodeDefinition *coDefs;
@@ -113,21 +114,23 @@ NodeTablesShmemInit(void)
     bool found;
     int i;
 
-    /*
-     * Initialize the table of Coordinators: first sizeof(int) bytes are to
-     * store actual number of Coordinators, remaining data in the structure is
-     * array of NodeDefinition that can contain up to OPENTENBASE_MAX_COORDINATOR_NUMBER entries.
-     * That is a bit weird and probably it would be better have these in
-     * separate structures, but I am unsure about cost of having shmem structure
-     * containing just single integer.
-     */
-    shmemNumCoords = ShmemInitStruct("Coordinator Table",
-                                sizeof(int) +
-                                    sizeof(NodeDefinition) * OPENTENBASE_MAX_COORDINATOR_NUMBER,
-                                &found);
+	/*
+	 * Initialize the table of Coordinators: first sizeof(int) bytes are to
+	 * store actual number of Coordinators, remaining data in the structure is
+	 * array of NodeDefinition that can contain up to OPENTENBASE_MAX_COORDINATOR_NUMBER entries.
+	 * That is a bit weird and probably it would be better have these in
+	 * separate structures, but I am unsure about cost of having shmem structure
+	 * containing just single integer.
+	 */
+	shmemInitDone = ShmemInitStruct("Coordinator Table",
+								sizeof(bool) + sizeof(int) +
+									sizeof(NodeDefinition) * OPENTENBASE_MAX_COORDINATOR_NUMBER,
+								&found);
 
-    /* Have coDefs pointing right behind shmemNumCoords */
-    coDefs = (NodeDefinition *) (shmemNumCoords + 1);
+	/* Have coDefs pointing right behind shmemNumCoords */
+	*shmemInitDone = false;
+	shmemNumCoords = (int*)(shmemInitDone + 1);
+	coDefs = (NodeDefinition *) (shmemNumCoords + 1);
 
     /* Mark it empty upon creation */
     if (!found)
@@ -270,12 +273,12 @@ NodeTablesShmemSize(void)
  */
 static void
 check_node_options(const char *node_name, List *options, char **node_host,
-            int *node_port, char *node_type,
-            bool *is_primary, bool *is_preferred
+			int *node_port, int *fwd_server_port, char *node_type,
+			bool *is_primary, bool *is_preferred
 #ifdef __OPENTENBASE__
-            ,char **node_group,
-            char **node_cluster_name,
-            bool *alter
+			,char **node_group,
+			char **node_cluster_name,
+			bool *alter
 #endif
             )
 {// #lizard forgives
@@ -359,13 +362,21 @@ check_node_options(const char *node_name, List *options, char **node_host,
             *alter = defGetBoolean(defel);
         }
 #endif
-        else
-        {
-            ereport(ERROR,
-                    (errcode(ERRCODE_SYNTAX_ERROR),
-                     errmsg("incorrect option: %s", defel->defname)));
-        }
-    }
+		else if (strcmp(defel->defname, "fwd_server_port") == 0)
+		{
+			*fwd_server_port = defGetTypeLength(defel);
+			if (*fwd_server_port < 1 || *fwd_server_port > 65535)
+				ereport(ERROR,
+						(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+						 errmsg("forwarder server port value is out of range")));
+		}
+		else
+		{
+			ereport(ERROR,
+					(errcode(ERRCODE_SYNTAX_ERROR),
+					 errmsg("incorrect option: %s", defel->defname)));
+		}
+	}
 
     /* A primary node has to be a Datanode or Gtm */
     if (*is_primary && *node_type != PGXC_NODE_DATANODE && *node_type != PGXC_NODE_GTM)
@@ -691,33 +702,36 @@ PgxcNodeListAndCount(void)
         }
 #endif
 
-        /* Populate the definition */
-        node->nodeoid = HeapTupleGetOid(tuple);
-        memcpy(&node->nodename, &nodeForm->node_name, NAMEDATALEN);
-        memcpy(&node->nodehost, &nodeForm->node_host, NAMEDATALEN);
-        node->nodeport = nodeForm->node_port;
-        node->nodeisprimary = nodeForm->nodeis_primary;
-        node->nodeispreferred = nodeForm->nodeis_preferred;
-        if(enable_multi_cluster_print)
-            elog(LOG, "nodename %s nodehost %s nodeport %d Oid %d", 
-                    node->nodename.data, node->nodehost.data, node->nodeport, node->nodeoid);
-        /*
-         * Copy over the health status from above for nodes that
-         * existed before and after the refresh. If we do not find
-         * entry for a nodeoid, we mark it as healthy
-         */
-        node->nodeishealthy = true;
-        for (i = 0; i < numNodes; i++)
-        {
-            if (nodes[i].nodeoid == node->nodeoid)
-            {
-                node->nodeishealthy = nodes[i].nodeishealthy;
-                break;
-            }
-        }
-    }
-    heap_endscan(scan);
-    heap_close(rel, AccessShareLock);
+		/* Populate the definition */
+		node->nodeoid = HeapTupleGetOid(tuple);
+		memcpy(&node->nodename, &nodeForm->node_name, NAMEDATALEN);
+		memcpy(&node->nodehost, &nodeForm->node_host, NAMEDATALEN);
+		node->nodeport = nodeForm->node_port;
+		node->fwdserverport = nodeForm->fwd_server_port;
+		node->nodeisprimary = nodeForm->nodeis_primary;
+		node->nodeispreferred = nodeForm->nodeis_preferred;
+		memcpy(&node->node_cluster_name, &nodeForm->node_cluster_name, NAMEDATALEN);
+		node->weights = 0;
+		if(enable_multi_cluster_print)
+			elog(LOG, "nodename %s nodehost %s nodeport %d Oid %d nodeclustername %s", 
+					node->nodename.data, node->nodehost.data, node->nodeport, node->nodeoid, node->node_cluster_name.data);
+		/*
+		 * Copy over the health status from above for nodes that
+		 * existed before and after the refresh. If we do not find
+		 * entry for a nodeoid, we mark it as healthy
+		 */
+		node->nodeishealthy = true;
+		for (i = 0; i < numNodes; i++)
+		{
+			if (nodes[i].nodeoid == node->nodeoid)
+			{
+				node->nodeishealthy = nodes[i].nodeishealthy;
+				break;
+			}
+		}
+	}
+	heap_endscan(scan);
+	heap_close(rel, AccessShareLock);
 
     elog(DEBUG1, "Done pgxc_nodes scan: %d coordinators and %d datanodes and %d slavedatanodes",
             *shmemNumCoords, *shmemNumDataNodes, *shmemNumSlaveDataNodes);
@@ -811,7 +825,8 @@ PgxcNodeListAndCount(void)
     }
 #endif
 
-    LWLockRelease(NodeTableLock);
+	*shmemInitDone = true;
+	LWLockRelease(NodeTableLock);
 }
 
 /*
@@ -856,40 +871,40 @@ PgxcNodeGetOidsExtend(Oid **coOids, Oid **dnOids, Oid **sdnOids,
     elog(DEBUG1, "Get OIDs from table: %d coordinators and %d datanodes",
             *shmemNumCoords, *shmemNumDataNodes);
 
-    if (num_coords)
-        *num_coords = *shmemNumCoords;
-    if (num_dns)
-        *num_dns = *shmemNumDataNodes;
-    if (num_sdns)
-        *num_sdns = *shmemNumSlaveDataNodes;
+	if (num_coords)
+		*num_coords = *shmemNumCoords;
+	if (num_dns)
+		*num_dns = *shmemNumDataNodes;
+	if (num_sdns)
+		*num_sdns = *shmemNumSlaveDataNodes;
+	
+	if (coOids)
+	{
+		int i;
 
-    if (coOids)
-    {
-        int i;
+		*coOids = (Oid *) palloc(*shmemNumCoords * sizeof(Oid));
+		for (i = 0; i < *shmemNumCoords; i++){
+			(*coOids)[i] = coDefs[i].nodeoid;
+			elog(DEBUG1, "i %d coOid %d",i, (*coOids)[i]); 
+		}
+	}
 
-        *coOids = (Oid *) palloc(*shmemNumCoords * sizeof(Oid));
-        for (i = 0; i < *shmemNumCoords; i++){
-            (*coOids)[i] = coDefs[i].nodeoid;
-            elog(DEBUG1, "i %d coOid %d",i, (*coOids)[i]); 
-        }
-    }
+	if (dnOids)
+	{
+		int i;
 
-    if (dnOids)
-    {
-        int i;
-
-        *dnOids = (Oid *) palloc(*shmemNumDataNodes * sizeof(Oid));
-        for (i = 0; i < *shmemNumDataNodes; i++)
-        {
-            (*dnOids)[i] = dnDefs[i].nodeoid;
-            elog(DEBUG1, "i %d dnOid %d",i, (*dnOids)[i]); 
-        }
-    }
-
+		*dnOids = (Oid *) palloc(*shmemNumDataNodes * sizeof(Oid));
+		for (i = 0; i < *shmemNumDataNodes; i++)
+		{
+			(*dnOids)[i] = dnDefs[i].nodeoid;
+			elog(DEBUG1, "i %d dnOid %d",i, (*dnOids)[i]); 
+		}
+	}
+	
     
-    if (sdnOids)
-    {
-        int i;
+	if (sdnOids)
+	{
+		int i;
 
         *sdnOids = (Oid *) palloc(*shmemNumSlaveDataNodes * sizeof(Oid));
         for (i = 0; i < *shmemNumSlaveDataNodes; i++)
@@ -1083,6 +1098,70 @@ PgxcNodeGetDefinition(Oid node)
     return NULL;
 }
 
+
+/*
+ * Find node definition by node name and node type.
+ */
+
+NodeDefinition *
+PgxcNodeGetDefinitionByName(char *node_name, int node_type, int *node_idx)
+{
+    int             index  = 0;
+    int             total  = 0;
+    NodeDefinition *def_array = NULL;
+	NodeDefinition *result = NULL;
+	
+	LWLockAcquire(NodeTableLock, LW_SHARED);
+    switch (node_type)
+    {
+         case   TeleDBXNodeType_DN:
+         {
+            total = *shmemNumDataNodes;
+            def_array = dnDefs;
+            break;
+         }
+         
+         case   TeleDBXNodeType_CN:
+         {
+            total = *shmemNumCoords;
+            def_array = coDefs;
+            break;
+         }
+         
+         case   TeleDBXNodeType_SDN:
+         {
+            total = *shmemNumSlaveDataNodes;
+            def_array = sdnDefs;
+            break;
+         }
+         
+         default:
+         {
+            break;
+         }
+    }
+
+    for (index = 0; index < total; index++)
+    {
+        if (0 == strcmp(node_name, NameStr(def_array[index].nodename)))
+        {
+            *node_idx = index;
+            result = (NodeDefinition *) palloc(sizeof(NodeDefinition));
+
+			memcpy(result, def_array + index, sizeof(NodeDefinition));
+        }
+    }
+	/* not found, return NULL */
+	LWLockRelease(NodeTableLock);
+	return result;
+}
+
+bool 
+PgxcSharedCacheInitDone(void)
+{
+	return *shmemInitDone;
+}
+
 /*
  * Update health status of a node in the shared memory node table.
  *
@@ -1149,12 +1228,13 @@ PgxcNodeCreate(CreateNodeStmt *stmt)
     HeapTuple    htup;
     bool        nulls[Natts_pgxc_node];
     Datum        values[Natts_pgxc_node];
-    const char *node_name = stmt->node_name;
+	const char *node_name = stmt->node_name;
     int        i;
-    /* Options with default values */
+	/* Options with default values */
     char       *node_host = NULL;
     char        node_type = PGXC_NODE_NONE;
     int            node_port = 0;
+    int			fwd_server_port = 0;
     bool        is_primary = false;
     bool        is_preferred = false;
     Datum        node_id;
@@ -1189,22 +1269,22 @@ PgxcNodeCreate(CreateNodeStmt *stmt)
     }
 #endif
 
-    /* Filter options */
-    check_node_options(node_name, stmt->options, &node_host,
-                &node_port, &node_type,
-                &is_primary, &is_preferred 
+	/* Filter options */
+	check_node_options(node_name, stmt->options, &node_host,
+				&node_port, &fwd_server_port, &node_type,
+				&is_primary, &is_preferred 
 #ifdef __OPENTENBASE__
-                ,&node_group
-                ,&node_cluster_name
-                ,&alter
-#endif                
-                );
-    
-    if(!node_cluster_name)
-    {
-        node_cluster_name = strdup(PGXCDefaultClusterName);
-        elog(DEBUG1, "PGXC node %s: Applying default cluster value: %s",
-             node_name, node_cluster_name);
+				,&node_group
+				,&node_cluster_name
+				,&alter
+#endif				
+				);
+	
+	if(!node_cluster_name)
+	{
+		node_cluster_name = strdup(PGXCDefaultClusterName);
+		elog(DEBUG1, "PGXC node %s: Applying default cluster value: %s",
+			 node_name, node_cluster_name);
 
     }
 
@@ -1303,16 +1383,27 @@ PgxcNodeCreate(CreateNodeStmt *stmt)
     }
 #endif
 
-    /*
-     * Then assign default values if necessary
-     * First for port.
-     */
-    if (node_port == 0)
-    {
-        node_port = 5432;
-        elog(DEBUG1, "PGXC node %s: Applying default port value: %d",
-             node_name, node_port);
-    }
+	/*
+	 * Then assign default values if necessary
+	 * First for port.
+	 */
+	if (node_port == 0)
+	{
+		node_port = 5432;
+		elog(DEBUG1, "PGXC node %s: Applying default port value: %d",
+			 node_name, node_port);
+	}
+
+	/* Then apply default value for rpc_host */
+	if (node_type == PGXC_NODE_DATANODE)
+	{
+		if (fwd_server_port == 0)
+		{
+			fwd_server_port = 9876;
+			elog(DEBUG1, "PGXC node %s: Applying default port value: %d",
+				node_name, fwd_server_port);
+		}
+	}
 
     /* Then apply default value for host */
     if (!node_host)
@@ -1365,17 +1456,18 @@ PgxcNodeCreate(CreateNodeStmt *stmt)
 
     }
 
-    /* Build entry tuple */
-    
-    values[Anum_pgxc_node_name - 1] = DirectFunctionCall1(namein, CStringGetDatum(node_name));
-    values[Anum_pgxc_node_type - 1] = CharGetDatum(node_type);
-    values[Anum_pgxc_node_port - 1] = Int32GetDatum(node_port);
-    values[Anum_pgxc_node_host - 1] = DirectFunctionCall1(namein, CStringGetDatum(node_host));
-    values[Anum_pgxc_node_is_primary - 1] = BoolGetDatum(is_primary);
-    values[Anum_pgxc_node_is_preferred - 1] = BoolGetDatum(is_preferred);
-    values[Anum_pgxc_node_id - 1] = node_id;
-    values[Anum_pgxc_node_cluster_name - 1] = DirectFunctionCall1(namein, CStringGetDatum(node_cluster_name));
-    
+	/* Build entry tuple */
+	
+	values[Anum_pgxc_node_name - 1] = DirectFunctionCall1(namein, CStringGetDatum(node_name));
+	values[Anum_pgxc_node_type - 1] = CharGetDatum(node_type);
+	values[Anum_pgxc_node_port - 1] = Int32GetDatum(node_port);
+	values[Anum_pgxc_node_host - 1] = DirectFunctionCall1(namein, CStringGetDatum(node_host));
+	values[Anum_pgxc_node_is_primary - 1] = BoolGetDatum(is_primary);
+	values[Anum_pgxc_node_is_preferred - 1] = BoolGetDatum(is_preferred);
+	values[Anum_pgxc_node_id - 1] = node_id;
+	values[Anum_pgxc_node_cluster_name - 1] = DirectFunctionCall1(namein, CStringGetDatum(node_cluster_name));
+	values[Anum_pgxc_node_fwd_server_port - 1] = Int32GetDatum(fwd_server_port);
+	
 
     htup = heap_form_tuple(pgxcnodesrel->rd_att, values, nulls);
     
@@ -1412,10 +1504,11 @@ PgxcNodeCreate(CreateNodeStmt *stmt)
 void
 PgxcNodeAlter(AlterNodeStmt *stmt)
 {// #lizard forgives
-    const char *node_name = stmt->node_name;
+	const char *node_name = stmt->node_name;
     char       *node_host = NULL;
     char        node_type = PGXC_NODE_NONE;
     int            node_port = 0;
+    int			fwd_server_port = 0;
     bool        is_preferred = false;
     bool        is_primary = false;
     HeapTuple    oldtup, newtup;
@@ -1431,7 +1524,7 @@ PgxcNodeAlter(AlterNodeStmt *stmt)
     char        *node_group = NULL;
     char         *node_cluster = NULL;
     Oid            groupoid    = InvalidOid;
-    bool        alter = false;
+	bool        alter = false;
 #endif
 
 
@@ -1487,14 +1580,14 @@ PgxcNodeAlter(AlterNodeStmt *stmt)
     node_type = get_pgxc_nodetype(nodeOid);
     node_id = get_pgxc_node_id(nodeOid);
 
-    /* Filter options */
-    check_node_options(node_name, stmt->options, &node_host,
-                &node_port, &node_type,
-                &is_primary, &is_preferred
+	/* Filter options */
+	check_node_options(node_name, stmt->options, &node_host,
+				&node_port, &fwd_server_port, &node_type,
+				&is_primary, &is_preferred
 #ifdef __OPENTENBASE__
-                , &node_group,
-                &node_cluster,
-                &alter
+				, &node_group,
+				&node_cluster,
+				&alter
 #endif
                 );
 
@@ -1557,27 +1650,29 @@ PgxcNodeAlter(AlterNodeStmt *stmt)
 
     }
 
-    /* Update values for catalog entry */
-    MemSet(new_record, 0, sizeof(new_record));
-    MemSet(new_record_nulls, false, sizeof(new_record_nulls));
-    MemSet(new_record_repl, false, sizeof(new_record_repl));
-    new_record[Anum_pgxc_node_port - 1] = Int32GetDatum(node_port);
-    new_record_repl[Anum_pgxc_node_port - 1] = true;
-    new_record[Anum_pgxc_node_host - 1] =
-        DirectFunctionCall1(namein, CStringGetDatum(node_host));
-    new_record_repl[Anum_pgxc_node_host - 1] = true;
-    new_record[Anum_pgxc_node_type - 1] = CharGetDatum(node_type);
-    new_record_repl[Anum_pgxc_node_type - 1] = true;
-    new_record[Anum_pgxc_node_is_primary - 1] = BoolGetDatum(is_primary);
-    new_record_repl[Anum_pgxc_node_is_primary - 1] = true;
-    new_record[Anum_pgxc_node_is_preferred - 1] = BoolGetDatum(is_preferred);
-    new_record_repl[Anum_pgxc_node_is_preferred - 1] = true;
-    new_record[Anum_pgxc_node_id - 1] = UInt32GetDatum(node_id);
-    new_record_repl[Anum_pgxc_node_id - 1] = true;
-    new_record[Anum_pgxc_node_cluster_name - 1] = 
-        DirectFunctionCall1(namein, CStringGetDatum(node_cluster));
-    new_record_repl[Anum_pgxc_node_cluster_name - 1] = true;
-    
+	/* Update values for catalog entry */
+	MemSet(new_record, 0, sizeof(new_record));
+	MemSet(new_record_nulls, false, sizeof(new_record_nulls));
+	MemSet(new_record_repl, false, sizeof(new_record_repl));
+	new_record[Anum_pgxc_node_port - 1] = Int32GetDatum(node_port);
+	new_record_repl[Anum_pgxc_node_port - 1] = true;
+	new_record[Anum_pgxc_node_host - 1] =
+		DirectFunctionCall1(namein, CStringGetDatum(node_host));
+	new_record_repl[Anum_pgxc_node_host - 1] = true;
+	new_record[Anum_pgxc_node_type - 1] = CharGetDatum(node_type);
+	new_record_repl[Anum_pgxc_node_type - 1] = true;
+	new_record[Anum_pgxc_node_is_primary - 1] = BoolGetDatum(is_primary);
+	new_record_repl[Anum_pgxc_node_is_primary - 1] = true;
+	new_record[Anum_pgxc_node_is_preferred - 1] = BoolGetDatum(is_preferred);
+	new_record_repl[Anum_pgxc_node_is_preferred - 1] = true;
+	new_record[Anum_pgxc_node_id - 1] = UInt32GetDatum(node_id);
+	new_record_repl[Anum_pgxc_node_id - 1] = true;
+	new_record[Anum_pgxc_node_cluster_name - 1] = 
+		DirectFunctionCall1(namein, CStringGetDatum(node_cluster));
+	new_record_repl[Anum_pgxc_node_cluster_name - 1] = true;
+	new_record[Anum_pgxc_node_fwd_server_port - 1] = Int32GetDatum(fwd_server_port);
+	new_record_repl[Anum_pgxc_node_fwd_server_port - 1] = true;
+	
 
     /* Update relation */
     newtup = heap_modify_tuple(oldtup, RelationGetDescr(rel),
@@ -1657,10 +1752,11 @@ PgxcNodeRemove(DropNodeStmt *stmt)
     char       *node_cluster;
     char           *node_group = NULL;
     char        *node_cluster_name = NULL;
-    bool        alter = false;
+	bool        alter = false;
     bool        is_preferred = false;
     char       *node_host = NULL;
     int            node_port = 0;
+	int			fwd_server_port = 0;
 #endif
 
     /* Only a DB administrator can remove cluster nodes */
@@ -1681,20 +1777,20 @@ PgxcNodeRemove(DropNodeStmt *stmt)
     }
 
 #ifdef __OPENTENBASE__
-    /* Filter options */
-    if (stmt->options)
-    {
-        is_primary = false;
-        is_preferred = false;
-        node_type = PGXC_NODE_DATANODE;
-        check_node_options(node_name, stmt->options, &node_host,
-                            &node_port, &node_type,
-                            &is_primary, &is_preferred 
-                            ,&node_group
-                            ,&node_cluster_name
-                            ,&alter            
-                            );
-    }
+	/* Filter options */
+	if (stmt->options)
+	{
+		is_primary = false;
+		is_preferred = false;
+		node_type = PGXC_NODE_DATANODE;
+		check_node_options(node_name, stmt->options, &node_host,
+							&node_port, &fwd_server_port, &node_type,
+							&is_primary, &is_preferred 
+							,&node_group
+							,&node_cluster_name
+							,&alter			
+							);
+	}
 
     if (alter)
     {

@@ -120,6 +120,7 @@
 #include "miscadmin.h"
 #ifdef PGXC
 #include "pgxc/execRemote.h"
+#include "pgxc/remoteDataAccess.h"
 #endif
 
 static TupleTableSlot *ExecProcNodeFirst(PlanState *node);
@@ -381,9 +382,13 @@ ExecInitNode(Plan *node, EState *estate, int eflags)
             break;
 #endif
 #ifdef XCP
-        case T_RemoteSubplan:
-            result = (PlanState *) ExecInitRemoteSubplan((RemoteSubplan *) node,
-                                                         estate, eflags);
+		case T_RemoteSubplan:
+			result = (PlanState *) ExecInitRemoteSubplan((RemoteSubplan *) node,
+													     estate, eflags);
+			break;
+        case T_RemoteDataAccess:
+            result = (PlanState *) ExecInitRemoteDataAccess((RemoteDataAccess *) node,
+                                                            estate, eflags);
             break;
 #endif /* XCP */
 
@@ -826,8 +831,11 @@ ExecEndNode(PlanState *node)
             break;
 #endif
 #ifdef XCP
-        case T_RemoteSubplanState:
-            ExecEndRemoteSubplan((RemoteSubplanState *) node);
+		case T_RemoteSubplanState:
+			ExecEndRemoteSubplan((RemoteSubplanState *) node);
+			break;
+        case T_RemoteDataAccessState:
+            ExecEndRemoteDataAccess((RemoteDataAccessState *) node);
             break;
 #endif /* XCP */
 
@@ -888,10 +896,10 @@ ExecShutdownNode(PlanState *node)
 void
 ExecDisconnectNode(PlanState *node)
 {// #lizard forgives
-    PlanState *ps = node;
-        
-    if (!node)
-        return;
+	PlanState *ps = node;
+
+	if (!node)
+		return;
 
     if (IsA(node, SubqueryScanState))
     {
@@ -899,14 +907,17 @@ ExecDisconnectNode(PlanState *node)
         ps = substate->subplan;
     }
 
-    switch (nodeTag(ps))
-    {
-        case T_RemoteSubplanState:
-            ExecDisconnectRemoteSubplan((RemoteSubplanState *) ps);
+	switch (nodeTag(ps))
+	{
+		case T_RemoteSubplanState:
+			ExecDisconnectRemoteSubplan((RemoteSubplanState *) ps);
+			return;
+        case T_RemoteDataAccessState:
+            ExecDisconnectRemoteDataAccess((RemoteDataAccessState *) ps);
             return;
-        case T_AppendState:
-            {
-                AppendState    *append = (AppendState *) ps;
+		case T_AppendState:
+			{
+				AppendState    *append = (AppendState *) ps;
                 int             i;
 
                 for (i = 0; i < append->as_nplans; i++)
@@ -965,6 +976,13 @@ HasDisconnectNode(PlanState *node)
             }
             return false;
         }
+        case T_RemoteDataAccessState:
+        {
+            RemoteDataAccessState *rda = (RemoteDataAccessState *) ps;
+            if (rda->eflags & EXEC_FLAG_DISCONN)
+                return true;
+            return false;
+        }
 
         case T_AppendState:
         {
@@ -1008,10 +1026,10 @@ HasDisconnectNode(PlanState *node)
 void
 ExecFinishNode(PlanState *node)
 {// #lizard forgives
-    PlanState *ps = node;
-        
-    if (!node)
-        return;
+	PlanState *ps = node;
+
+	if (!node)
+		return;
 
     if (IsA(node, SubqueryScanState))
     {
@@ -1019,15 +1037,18 @@ ExecFinishNode(PlanState *node)
         ps = substate->subplan;
     }
 
-    switch (nodeTag(ps))
-    {
-        case T_RemoteSubplanState:
-            ExecFinishRemoteSubplan((RemoteSubplanState *) ps);
+	switch (nodeTag(ps))
+	{
+		case T_RemoteSubplanState:
+			ExecFinishRemoteSubplan((RemoteSubplanState *) ps);
+			return;
+        case T_RemoteDataAccessState:
+            ExecFinishRemoteDataAccess((RemoteDataAccessState *) ps);
             return;
-        case T_GatherState:
-            if (!IsParallelWorker())
-            {
-                GatherState *gatherState = castNode(GatherState, ps);
+		case T_GatherState:
+			if (!IsParallelWorker())
+			{
+				GatherState *gatherState = castNode(GatherState, ps);
                 Gather        *gather = (Gather *) gatherState->ps.plan;
 
                 if (!gather->parallelWorker_sendTuple)

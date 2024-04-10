@@ -60,11 +60,16 @@ CATALOG(pgxc_node,9015) BKI_SHARED_RELATION BKI_ROWTYPE_OID(9017) BKI_SCHEMA_MAC
     int32        node_id;
 
     NameData    node_cluster_name;
+
+	/*
+	 * Port number of the node forwarder server listen
+	 */
+	int32 		fwd_server_port;
 } FormData_pgxc_node;
 
 typedef FormData_pgxc_node *Form_pgxc_node;
 
-#define Natts_pgxc_node                8
+#define Natts_pgxc_node				9
 
 #define Anum_pgxc_node_name            1
 #define Anum_pgxc_node_type            2
@@ -74,6 +79,7 @@ typedef FormData_pgxc_node *Form_pgxc_node;
 #define Anum_pgxc_node_is_preferred    6
 #define Anum_pgxc_node_id            7
 #define Anum_pgxc_node_cluster_name 8
+#define Anum_pgxc_node_fwd_server_port		9
 
 
 #endif   /* PGXC_NODE_H */

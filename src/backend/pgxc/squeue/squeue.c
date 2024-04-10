@@ -62,6 +62,8 @@
 #include "utils/memutils.h"
 #include "utils/elog.h"
 #include "commands/vacuum.h"
+#include "utils/builtins.h"
+#include "commands/sequence.h"
 #endif
 int   NSQueues = 64;
 int   SQueueSize = 64;

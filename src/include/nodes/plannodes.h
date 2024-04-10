@@ -201,6 +201,7 @@ typedef struct Plan
 #ifdef __AUDIT_FGA__
     List       *audit_fga_quals;    
 #endif
+
 } Plan;
 
 /* ----------------

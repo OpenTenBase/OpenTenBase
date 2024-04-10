@@ -95,7 +95,9 @@ static void show_upper_qual(List *qual, const char *qlabel,
 static void show_sort_keys(SortState *sortstate, List *ancestors,
                ExplainState *es);
 static void show_simple_sort_keys(RemoteSubplanState *remotestate,
-               List *ancestors, ExplainState *es);
+			   List *ancestors, ExplainState *es);
+static void show_remote_simple_sort_keys(PlanState *planstate,
+                 SimpleSort *sort, List *ancestors, ExplainState *es);
 static void show_merge_append_keys(MergeAppendState *mstate, List *ancestors,
                        ExplainState *es);
 static void show_agg_keys(AggState *astate, List *ancestors,
@@ -1046,8 +1048,11 @@ ExplainNode(PlanState *planstate, List *ancestors,
             }
             break;
 #ifdef XCP
-        case T_RemoteSubplan:
-            pname = sname = "Remote Subquery Scan";
+		case T_RemoteSubplan:
+			pname = sname = "Remote Subquery Scan";
+			break;
+        case T_RemoteDataAccess:
+            pname = sname = "Remote Data Access Scan";
             break;
 #endif /* XCP */
         case T_CustomScan:
@@ -1294,22 +1299,80 @@ ExplainNode(PlanState *planstate, List *ancestors,
                                 appendStringInfo(es->str, ", (cursor:%s)", cursor);
                             }
 #endif
+						}
+						else
+						{
+							appendStringInfo(es->str, " on %s",
+										 rsubplan->execOnAll ? "all" : "any");
+						}
+					}
+					else
+					{
+						appendStringInfo(es->str, " on local node");
+					}
+				}
+				else
+				{
+					ExplainPropertyText("Replicated",
+										rsubplan->execOnAll ? "no" : "yes",
+										es);
+					if (es->nodes)
+						ExplainPropertyList("Node List", nodeNameList, es);
+				}
+			}
+			break;
+
+        case T_RemoteDataAccess:
+            {
+                RemoteDataAccess  *rda_plan = (RemoteDataAccess *) plan;
+                List *nodeNameList = NIL;
+                ListCell *lc;
+
+                foreach(lc, rda_plan->nodeList)
+                {
+                    char *nodename = get_pgxc_nodename(
+                            PGXCNodeGetNodeOid(lfirst_int(lc),
+                                                PGXC_NODE_DATANODE));
+                    nodeNameList = lappend(nodeNameList, nodename);
+                }
+
+                /* print out destination nodes */
+                if (es->format == EXPLAIN_FORMAT_TEXT)
+                {
+                    if (nodeNameList)
+                    {
+                        if (es->nodes)
+                        {
+                            bool            first = true;
+                            ListCell        *lc;
+
+                            foreach(lc, nodeNameList)
+                            {
+                                char *nodename = (char *) lfirst(lc);
+                                if (first)
+                                {
+                                    appendStringInfo(es->str, " on %s (%s",
+                                                        rda_plan->execOnAll ? "all" : "any",
+                                                        nodename);
+                                    first = false;
+                                }
+                                else
+                                    appendStringInfo(es->str, ",%s", nodename);
+                            }
+
+                            appendStringInfoChar(es->str, ')');
                         }
                         else
-                        {
                             appendStringInfo(es->str, " on %s",
-                                         rsubplan->execOnAll ? "all" : "any");
-                        }
+                                            rda_plan->execOnAll ? "all" : "any");
                     }
                     else
-                    {
                         appendStringInfo(es->str, " on local node");
-                    }
                 }
                 else
                 {
                     ExplainPropertyText("Replicated",
-                                        rsubplan->execOnAll ? "no" : "yes",
+                                        rda_plan->execOnAll ? "no" : "yes",
                                         es);
                     if (es->nodes)
                         ExplainPropertyList("Node List", nodeNameList, es);
@@ -1618,10 +1681,48 @@ ExplainNode(PlanState *planstate, List *ancestors,
                     }
                 }
 
+				/* add info about output sort order */
+				if (es->verbose)
+					show_simple_sort_keys((RemoteSubplanState *)planstate,
+										  ancestors, es);
+			}
+			break;
+        case T_RemoteDataAccess:
+            {
+                RemoteDataAccess  *rda_plan = (RemoteDataAccess *) plan;
+
+                /* print out destination nodes */
+                if (es->format == EXPLAIN_FORMAT_TEXT)
+                {
+                    if (list_length(rda_plan->distributionNodes) > 0)
+                    {
+                        char        label[24];
+                        AttrNumber  dkey = rda_plan->distributionKey;
+                        sprintf(label, "Distribute results by %c",
+                                rda_plan->distributionType);
+                        if (dkey == InvalidAttrNumber)
+                        {
+                            appendStringInfoSpaces(es->str, es->indent * 2);
+                            appendStringInfo(es->str, "%s\n", label);
+                        }
+                        else
+                        {
+                            TargetEntry *tle = NULL;
+                            if (plan->targetlist)
+                                tle = (TargetEntry *) list_nth(plan->targetlist,
+                                                                dkey-1);
+                            if (IsA(tle, TargetEntry))
+                                show_expression((Node *) tle->expr, label,
+                                                planstate, ancestors,
+                                                false, es);
+                        }
+                    }
+                }
+
                 /* add info about output sort order */
                 if (es->verbose)
-                    show_simple_sort_keys((RemoteSubplanState *)planstate,
-                                          ancestors, es);
+                    show_remote_simple_sort_keys(planstate, rda_plan->sort,
+                                            ancestors, es);
             }
             break;
 #endif
@@ -2187,6 +2288,24 @@ show_simple_sort_keys(RemoteSubplanState *planstate, List *ancestors, ExplainSta
         return;
 
     show_sort_group_keys((PlanState *) planstate, "Sort Key",
+                         sort->numCols, sort->sortColIdx,
+                         sort->sortOperators, sort->sortCollations,
+                         sort->nullsFirst,
+                         ancestors, es);
+}
+
+/*
+ * Show the sort keys for a SimpleSort node.
+ */
+static void
+show_remote_simple_sort_keys(PlanState *planstate, SimpleSort *sort,
+                             List *ancestors, ExplainState *es)
+{
+    /* if remote subplan does not sort the results */
+    if (!sort)
+        return;
+
+    show_sort_group_keys(planstate, "Sort Key",
                          sort->numCols, sort->sortColIdx,
                          sort->sortOperators, sort->sortCollations,
                          sort->nullsFirst,

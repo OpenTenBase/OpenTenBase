@@ -251,6 +251,9 @@ extern bool log_btree_build_stats;
 #ifdef XCP
 extern bool log_gtm_stats;
 extern bool log_remotesubplan_stats;
+extern bool enable_remote_data_access_plan;
+extern bool rda_io_buffer_debug_out_to_file;
+extern bool log_remote_data_access_stats;
 #endif
 
 extern PGDLLIMPORT bool check_function_bodies;

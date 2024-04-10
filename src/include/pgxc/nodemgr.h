@@ -30,6 +30,13 @@ extern int     NumCoords;
 #ifdef __OPENTENBASE__
 extern char *PGXCNodeHost;
 #endif
+typedef enum
+{
+    TeleDBXNodeType_DN  = 0,
+    TeleDBXNodeType_CN  = 1,
+    TeleDBXNodeType_SDN = 2,
+    TeleDBXNodeType_butty
+}TeleDBXNodeType;
 
 /* Node definition */
 typedef struct
@@ -38,9 +45,12 @@ typedef struct
     NameData    nodename;
     NameData    nodehost;
     int            nodeport;
+    int         fwdserverport;
     bool        nodeisprimary;
     bool         nodeispreferred;
     bool        nodeishealthy;
+    int         weights;
+    NameData    node_cluster_name;
 } NodeDefinition;
 
 extern void NodeTablesShmemInit(void);
@@ -64,6 +74,8 @@ PgxcNodeGetHealthMapExtend(Oid *coOids, Oid *dnOids, Oid *sdnOids,
                 PgxcNodeGetHealthMapExtend(coOids, dnOids, NULL,num_coords, num_dns, NULL, coHealthMap, \
                 dnHealthMap, NULL)
 extern NodeDefinition *PgxcNodeGetDefinition(Oid node);
+extern NodeDefinition *PgxcNodeGetDefinitionByName(char *node_name, int node_type, int *node_idx);
+extern bool PgxcSharedCacheInitDone(void);
 extern void PgxcNodeAlter(AlterNodeStmt *stmt);
 extern void PgxcNodeCreate(CreateNodeStmt *stmt);
 extern void PgxcNodeRemove(DropNodeStmt *stmt);

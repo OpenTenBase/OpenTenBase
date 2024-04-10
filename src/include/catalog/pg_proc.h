@@ -5534,6 +5534,10 @@ DATA(insert OID = 7011 ( pgxc_lock_for_backup PGNSP PGUID 12 1 0 0 0 f f f f t f
 DESCR("lock the cluster for taking backup");
 DATA(insert OID = 7012 ( pgxc_pool_disconnect PGNSP PGUID 12 1 0 0 0 f f f f t f v u 2 0 16 "19 19" "{19,19}" "{i,i}" "{database, username}" _null_ _null_ pgxc_pool_disconnect _null_ _null_ _null_ ));
 DESCR("disconnect pooler to other nodes with the identified database and/or username");
+DATA(insert OID = 7013 ( pgxc_rda_reload	PGNSP PGUID 12 1 0 0 0 f f f f t f v u 0 0 16 "" _null_ _null_ _null_ _null_ _null_ pgxc_rda_reload _null_ _null_ _null_ ));
+DESCR("reload connectsion information in rda");
+DATA(insert OID = 7014 ( pgxc_stat_rda	 PGNSP PGUID 12 1 0 0 0 f f f f t f v u 0 0 2249 "" "{20,23,25,23,25,20,20,20,20,20,20,23,23,23,20,20,20,20,20,20,20,20,20}" "{o,o,o,o,o,o,o,o,o,o,o,o,o,o,o,o,o,o,o,o,o,o,o}" "{rda_id,node_id,direction,frame_size,status,duration,cur_seq,ack_seq,peer_next_send,first_buffer_seq,last_buffer_seq,buffer_free_size,peer_free_slot_num,controller_index,send_offset,pkgs_sent,pkgs_resent,pkgs_received,pkgs_dropped,bytes_sent,bytes_resent,bytes_received,bytes_dropped}" _null_ _null_ pgxc_stat_rda _null_ _null_ _null_ ));
+DESCR("query running information in rda");
 #endif
 
 /* pg_upgrade support */

@@ -1571,11 +1571,11 @@ SearchSysCache(int cacheId,
                Datum key3,
                Datum key4)
 {
-    if (cacheId < 0 || cacheId >= SysCacheSize ||
-        !PointerIsValid(SysCache[cacheId]))
+	if (cacheId < 0 || cacheId >= SysCacheSize ||
+		!PointerIsValid(SysCache[cacheId]))
         elog(ERROR, "invalid cache ID: %d", cacheId);
 
-    return SearchCatCache(SysCache[cacheId], key1, key2, key3, key4);
+	return SearchCatCache(SysCache[cacheId], key1, key2, key3, key4);
 }
 
 /*

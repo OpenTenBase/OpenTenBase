@@ -143,6 +143,7 @@ coordArchLogDir=$HOME/pgxc/nodes/coord_archlog
 coordNames=(coord1 coord2 coord3 coord4)		# Master and slave use the same name
 coordPorts=(20004 20005 20004 20005)			# Master ports
 poolerPorts=(20010 20011 20010 20011)			# Master pooler ports
+coordFwdServerPorts=(20020 20021 20010 20021)
 coordPgHbaEntries=(192.168.1.0/24)				# Assumes that all the coordinator (master/slave) accepts
 												# the same connection
 												# This entry allows only $pgxcOwner to connect.
@@ -174,6 +175,7 @@ coordSlaveServers=(node07 node08 node09 node06)			# none means this slave is not
 coordSlaveCluster=(cluster2 cluster2 cluster2 cluster2)
 coordSlavePorts=(20004 20005 20004 20005)			# Master ports
 coordSlavePoolerPorts=(20010 20011 20010 20011)			# Master pooler ports
+coordSlaveFwdServerPorts=(20020 20021 20020 20021)	
 coordSlaveDirs=($coordSlaveDir $coordSlaveDir $coordSlaveDir $coordSlaveDir)
 coordArchLogDirs=($coordArchLogDir $coordArchLogDir $coordArchLogDir $coordArchLogDir)
 
@@ -239,6 +241,7 @@ datanodeNames=(datanode1 datanode2 datanode3 datanode4)
 datanodePorts=(20008 20009 20008 20009)	# Master ports
 #ifdef XCP
 datanodePoolerPorts=(20012 20013 20012 20013)	# Master pooler ports
+datanodeFwdServerPorts=(20016 20017 20016 20017)	# Master rpc ports
 #endif
 datanodePgHbaEntries=(192.168.1.0/24)	# Assumes that all the coordinator (master/slave) accepts
 										# the same connection

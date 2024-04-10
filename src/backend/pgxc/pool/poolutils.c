@@ -20,6 +20,13 @@
 #include "postgres.h"
 #include "miscadmin.h"
 #include "libpq/pqsignal.h"
+#include "access/htup_details.h"
+#include "access/xact.h"
+#include "catalog/pg_type.h"
+#include "funcapi.h"
+#include "miscadmin.h"
+#include "utils/array.h"
+#include "utils/builtins.h"
 
 #include "pgxc/pgxc.h"
 #include "nodes/nodes.h"
@@ -43,6 +50,15 @@
 #include "utils/lsyscache.h"
 #include "utils/memutils.h"
 #include "utils/resowner.h"
+#include "pgxc/forwarder.h"
+
+/* Working status for pg_lock_status */
+typedef struct
+{
+	int			     currIdx;		/* current PROCLOCK index */
+    int			     nelements;		/* The length of the array */
+    rda_stat_record *rda_result;
+} PG_RDA_Stat;
 
 /*
  * pgxc_pool_check
@@ -482,3 +498,178 @@ pgxc_pool_disconnect(PG_FUNCTION_ARGS)
 }
 #endif
 
+/* call the reload rda services
+ * Then rebuild the socket connection at forwarder process
+ */
+Datum
+pgxc_rda_reload(PG_FUNCTION_ARGS)
+{
+	int ret = 0;
+	if (IsTransactionBlock())
+		ereport(ERROR,
+				(errcode(ERRCODE_ACTIVE_SQL_TRANSACTION),
+				 errmsg("pgxc_rda_reload cannot run inside a transaction block")));
+
+	/* Reinitialize session, it updates the shared memory table */
+	InitMultinodeExecutor(true);
+
+	ConnectForwarderRDA();
+	ret = ForwarderReload();
+	if (ret != 0)
+    {
+		ForwarderRDADisconnect();
+		PG_RETURN_BOOL(false);
+	}
+
+	do 
+    {
+		ret = ForwarderReloadStatus();
+		if (ret == -1)
+		{
+			ForwarderRDADisconnect();
+			PG_RETURN_BOOL(false);
+		}
+	} while (ret != 0);
+
+	ForwarderRDADisconnect();
+	PG_RETURN_BOOL(true);
+}
+
+/*
+ * dump all rda status in forwarder
+ */
+Datum
+pgxc_stat_rda(PG_FUNCTION_ARGS)
+{
+#define     NUM_RDA_STATUS_COLUMNS      23
+    FuncCallContext *funcctx      = NULL;
+    PG_RDA_Stat     *mystatus     = NULL; 
+
+	if (IsTransactionBlock())
+		ereport(ERROR,
+				(errcode(ERRCODE_ACTIVE_SQL_TRANSACTION),
+				 errmsg("pgxc_stat_rda cannot run inside a transaction block")));
+
+	InitMultinodeExecutor(false);
+
+	if (SRF_IS_FIRSTCALL())
+	{
+		TupleDesc	  tupdesc;
+		MemoryContext oldcontext;
+
+		/* create a function context for cross-call persistence */
+		funcctx = SRF_FIRSTCALL_INIT();
+        
+		/*
+		 * switch to memory context appropriate for multiple function calls
+		 */
+		oldcontext = MemoryContextSwitchTo(funcctx->multi_call_memory_ctx);
+		/* build tupdesc for result tuples */
+		/* this had better match function's declaration in pg_proc.h */
+		tupdesc = CreateTemplateTupleDesc(NUM_RDA_STATUS_COLUMNS, false);
+		TupleDescInitEntry(tupdesc, (AttrNumber) 1, "rda_id",
+						   INT8OID, -1, 0);
+		TupleDescInitEntry(tupdesc, (AttrNumber) 2, "node_id",
+						   INT4OID, -1, 0);
+		TupleDescInitEntry(tupdesc, (AttrNumber) 3, "direction",
+						   TEXTOID, -1, 0);
+        TupleDescInitEntry(tupdesc, (AttrNumber) 4, "frame_size",
+						   INT4OID, -1, 0);
+		TupleDescInitEntry(tupdesc, (AttrNumber) 5, "status",
+						   TEXTOID, -1, 0);
+		TupleDescInitEntry(tupdesc, (AttrNumber) 6, "duration",
+						   INT8OID, -1, 0);
+		TupleDescInitEntry(tupdesc, (AttrNumber) 7, "cur_seq",
+						   INT8OID, -1, 0);
+		TupleDescInitEntry(tupdesc, (AttrNumber) 8, "ack_seq",
+						   INT8OID, -1, 0);
+		TupleDescInitEntry(tupdesc, (AttrNumber) 9, "peer_next_send",
+						   INT8OID, -1, 0);
+		TupleDescInitEntry(tupdesc, (AttrNumber) 10, "first_buffer_seq",
+						   INT8OID, -1, 0);
+		TupleDescInitEntry(tupdesc, (AttrNumber) 11, "last_buffer_seq",
+						   INT8OID, -1, 0);
+        TupleDescInitEntry(tupdesc, (AttrNumber) 12, "buffer_free_size",
+                           INT4OID, -1, 0);
+		TupleDescInitEntry(tupdesc, (AttrNumber) 13, "peer_free_slot_num",
+						   INT4OID, -1, 0);
+		TupleDescInitEntry(tupdesc, (AttrNumber) 14, "controller_index",
+						   INT4OID, -1, 0);
+		TupleDescInitEntry(tupdesc, (AttrNumber) 15, "send_offset",
+						   INT8OID, -1, 0);
+		TupleDescInitEntry(tupdesc, (AttrNumber) 16, "pkgs_sent",
+						   INT8OID, -1, 0);
+		TupleDescInitEntry(tupdesc, (AttrNumber) 17, "pkgs_resent",
+						   INT8OID, -1, 0);
+        TupleDescInitEntry(tupdesc, (AttrNumber) 18, "pkgs_received",
+						   INT8OID, -1, 0);
+		TupleDescInitEntry(tupdesc, (AttrNumber) 19, "pkgs_dropped",
+						   INT8OID, -1, 0);
+		TupleDescInitEntry(tupdesc, (AttrNumber) 20, "bytes_sent",
+						   INT8OID, -1, 0);
+        TupleDescInitEntry(tupdesc, (AttrNumber) 21, "bytes_resent",
+						   INT8OID, -1, 0);
+		TupleDescInitEntry(tupdesc, (AttrNumber) 22, "bytes_received",
+						   INT8OID, -1, 0);
+		TupleDescInitEntry(tupdesc, (AttrNumber) 23, "bytes_dropped",
+						   INT8OID, -1, 0);
+
+        /* get all rda stat data */
+    	ConnectForwarderRDA();
+                           
+        mystatus = (PG_RDA_Stat *) palloc(sizeof(PG_RDA_Stat));
+        mystatus->currIdx    = 0;
+        mystatus->rda_result = ForwarderStatRDA(&mystatus->nelements);
+        
+        funcctx->user_fctx = (void *) mystatus;
+        
+		funcctx->tuple_desc = BlessTupleDesc(tupdesc);
+		MemoryContextSwitchTo(oldcontext);
+        ForwarderRDADisconnect();
+	}
+
+    funcctx = SRF_PERCALL_SETUP();
+    mystatus = (PG_RDA_Stat *) funcctx->user_fctx;
+    while (mystatus->currIdx < mystatus->nelements)
+	{
+		Datum		values[NUM_RDA_STATUS_COLUMNS];
+		bool		nulls[NUM_RDA_STATUS_COLUMNS];
+		HeapTuple	tuple;
+		Datum		result;
+
+		/*
+		 * Form tuple with appropriate data.
+		 */
+		MemSet(values, 0, sizeof(values));
+		MemSet(nulls, false, sizeof(nulls));
+        values[0] = Int64GetDatum(mystatus->rda_result[mystatus->currIdx].rda_id);
+        values[1] = Int32GetDatum(mystatus->rda_result[mystatus->currIdx].node_id);
+        values[2] = mystatus->rda_result[mystatus->currIdx].is_in_frame ? CStringGetTextDatum("in_frame") : CStringGetTextDatum("out_frame");
+        values[3] = Int32GetDatum(mystatus->rda_result[mystatus->currIdx].frame_data_size);
+        values[4] = CStringGetTextDatum(g_rda_status_names[mystatus->rda_result[mystatus->currIdx].status]);
+        values[5] = Int64GetDatum(mystatus->rda_result[mystatus->currIdx].status_duration);
+        values[6] = UInt64GetDatum(mystatus->rda_result[mystatus->currIdx].cur_seq);
+        values[7] = UInt64GetDatum(mystatus->rda_result[mystatus->currIdx].ack_seq);
+        values[8] = UInt64GetDatum(mystatus->rda_result[mystatus->currIdx].peer_next_send);
+        values[9] = UInt64GetDatum(mystatus->rda_result[mystatus->currIdx].first_buffer_seq);
+        values[10] = UInt64GetDatum(mystatus->rda_result[mystatus->currIdx].last_buffer_seq);
+        values[11] = Int32GetDatum(mystatus->rda_result[mystatus->currIdx].buffer_free_size);
+        values[12] = UInt32GetDatum(mystatus->rda_result[mystatus->currIdx].peer_free_slot_num);
+        values[13] = Int32GetDatum(mystatus->rda_result[mystatus->currIdx].controller_index);
+        values[14] = UInt64GetDatum(mystatus->rda_result[mystatus->currIdx].send_offset);
+        values[15] = UInt64GetDatum(mystatus->rda_result[mystatus->currIdx].pkgs_sent);
+        values[16] = UInt64GetDatum(mystatus->rda_result[mystatus->currIdx].pkgs_resent);
+        values[17] = UInt64GetDatum(mystatus->rda_result[mystatus->currIdx].pkgs_received);
+        values[18] = UInt64GetDatum(mystatus->rda_result[mystatus->currIdx].pkgs_dropped);
+        values[19] = UInt64GetDatum(mystatus->rda_result[mystatus->currIdx].bytes_sent);
+        values[20] = UInt64GetDatum(mystatus->rda_result[mystatus->currIdx].bytes_resent);
+        values[21] = UInt64GetDatum(mystatus->rda_result[mystatus->currIdx].bytes_received);
+        values[22] = UInt64GetDatum(mystatus->rda_result[mystatus->currIdx].bytes_dropped);
+
+		tuple = heap_form_tuple(funcctx->tuple_desc, values, nulls);
+		result = HeapTupleGetDatum(tuple);
+        mystatus->currIdx++;
+		SRF_RETURN_NEXT(funcctx, result);
+	}
+    SRF_RETURN_DONE(funcctx);
+}

@@ -31,6 +31,8 @@
 #define VAR_configBackupDir    "configBackupDir"
 #define VAR_configBackupFile    "configBackupFile"
 #define VAR_allServers        "allServers"
+#define VAR_sshPort         "sshPort"
+#define VAR_pwdFile         "pwdFile"
 
 
 /* GTM master */
@@ -63,6 +65,7 @@
 #define VAR_coordPorts        "coordPorts"
 #define VAR_poolerPorts        "poolerPorts"
 #define VAR_coordPgHbaEntries    "coordPgHbaEntries"
+#define VAR_coordFwdServerPorts	"coordFwdServerPorts"
 
 /* Coordinators master */
 #define VAR_coordMasterServers    "coordMasterServers"
@@ -80,7 +83,7 @@
 #define VAR_coordSlaveDirs    "coordSlaveDirs"
 #define VAR_coordArchLogDirs    "coordArchLogDirs"
 #define VAR_coordSlaveCluster    "coordSlaveCluster"
-
+#define VAR_coordSlaveFwdServerPorts	"coordSlaveFwdServerPorts"
 
 /* Coordinator configuration files */
 #define VAR_coordExtraConfig    "coordExtraConfig"
@@ -101,6 +104,7 @@
 #define VAR_datanodePoolerPorts        "datanodePoolerPorts"
 #define VAR_datanodePgHbaEntries    "datanodePgHbaEntries"
 #define VAR_primaryDatanode            "primaryDatanode"
+#define VAR_datanodeFwdServerPorts	"datanodeFwdServerPorts"
 
 /* Datanode masters */
 #define VAR_datanodeMasterServers    "datanodeMasterServers"
@@ -120,6 +124,7 @@
 #define VAR_datanodeSlaveWALDirs        "datanodeSlaveWALDirs"
 #define VAR_datanodeArchLogDirs        "datanodeArchLogDirs"
 #define VAR_datanodeSlaveCluster    "datanodeSlaveCluster"
+#define VAR_datanodeSlaveFwdServerPorts		"datanodeSlaveFwdServerPorts"
 
 
 /* Datanode configuration files */

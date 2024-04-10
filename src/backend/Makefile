@@ -18,8 +18,9 @@ top_builddir = ../..
 include $(top_builddir)/src/Makefile.global
 
 ifneq ($(PORTNAME), win32)
-override CFLAGS += $(PTHREAD_CFLAGS)
+override CFLAGS += $(PTHREAD_CFLAGS) -std=c++11
 endif
+CFLAGS += -std=c++11
 
 SUBDIRS = access audit bootstrap catalog contrib parser commands executor foreign lib libpq \
 	pgxc main nodes optimizer partitioning oracle port postmaster regex replication rewrite \
@@ -79,7 +80,7 @@ ifneq ($(PORTNAME), win32)
 ifneq ($(PORTNAME), aix)
 
 postgres: $(OBJS)
-	$(CC) $(CFLAGS) $(LDFLAGS) $(LDFLAGS_EX) -L$(top_builddir)/src/gtm/libpg $(export_dynamic) $(call expand_subsys,$^) $(LIBS) $(ICU_LIBS) -lz -o $@
+	$(CC) $(CFLAGS) $(LDFLAGS) $(LDFLAGS_EX) -L$(top_builddir)/src/gtm/libpg -Wl,--copy-dt-needed-entries $(export_dynamic) $(call expand_subsys,$^) $(LIBS) $(ICU_LIBS) -lz -lstdc++ -o $@
 
 endif
 endif

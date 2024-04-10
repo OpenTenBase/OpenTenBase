@@ -807,25 +807,25 @@ heap_compare_slots(Datum a, Datum b, void *arg)
 void
 ExecFinishGatherMerge(PlanState *pstate)
 {
-    TupleTableSlot *slot = NULL;
-    GatherMergeState *node = castNode(GatherMergeState, pstate);
+	TupleTableSlot *slot = NULL;
+	GatherMergeState *node = castNode(GatherMergeState, pstate);
+    if (node->pei)
+        (*node->pei->executor_done) = true;
 
-    (*node->pei->executor_done) = true;
+	if (g_DataPumpDebug)
+	{
+		elog(LOG, "ExecFinishGatherMerge: pid %d inform worker to finish current work", MyProcPid);
+	}
+	
+	do
+	{
+		/* read all data from workers */
+		slot = ExecGatherMerge(pstate);
+	} while(!TupIsNull(slot));
 
-    if (g_DataPumpDebug)
-    {
-        elog(LOG, "ExecFinishGatherMerge: pid %d inform worker to finish current work", MyProcPid);
-    }
-    
-    do
-    {
-        /* read all data from workers */
-        slot = ExecGatherMerge(pstate);
-    } while(!TupIsNull(slot));
-
-    if (g_DataPumpDebug)
-    {
-        elog(LOG, "ExecFinishGatherMerge: pid %d get all data from worker", MyProcPid);
-    }
+	if (g_DataPumpDebug)
+	{
+		elog(LOG, "ExecFinishGatherMerge: pid %d get all data from worker", MyProcPid);
+	}
 }
 #endif

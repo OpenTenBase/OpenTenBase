@@ -441,7 +441,9 @@ typedef enum
     PoolerProcess,
     ClusterMonitorProcess,
 #endif   
-
+#ifdef __OPENTENBASE__
+	ForwarderProcess,
+#endif   
     NUM_AUXPROCTYPES            /* Must be last! */
 } AuxProcType;
 
@@ -454,6 +456,10 @@ extern AuxProcType MyAuxProcType;
 #define AmWalWriterProcess()        (MyAuxProcType == WalWriterProcess)
 #define AmWalReceiverProcess()        (MyAuxProcType == WalReceiverProcess)
 #define AmClusterMonitorProcess()    (MyAuxProcType == ClusterMonitorProcess)
+
+#ifdef __OPENTENBASE__
+#define AmForwarderProcess()	(MyAuxProcType == ForwarderProcess)
+#endif
 
 #ifdef __SUBSCRIPTION__
 extern bool AmOpenTenBaseSubscriptionWalSender(void);
