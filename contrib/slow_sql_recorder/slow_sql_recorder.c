@@ -15,10 +15,10 @@ PG_MODULE_MAGIC;
 
 /* Current nesting depth of ExecutorRun calls */
 static int    nesting_level = 0;
-static const double max_query_duration = 10000.0;
+static int min_query_duration = -1;
+static bool ssl_switch = false;
 
 /* Saved hook values in case of unload */
-static ProcessUtility_hook_type prev_ProcessUtility_hook = NULL;
 static ExecutorStart_hook_type prev_ExecutorStart_hook = NULL;
 static ExecutorRun_hook_type prev_ExecutorRun_hook = NULL;
 static ExecutorFinish_hook_type prev_ExecutorFinish_hook = NULL;
@@ -28,20 +28,18 @@ static ExecutorEnd_hook_type prev_ExecutorEnd_hook = NULL;
 // static bool current_query_sampled = true;
 
 #define slow_log_record_enabled(level) \
-	(!IsParallelWorker() && \
-	(level) == 0)
+  (min_query_duration >= 0 && \
+	(ssl_switch &&((level) == 0)))
+
+
+typedef struct sslSharedState
+{
+    LWLock *lock;
+    slock_t mutex; 
+};
 
 void        _PG_init(void);
 void        _PG_fini(void);
-
-
-static void ssl_ProcessUtility(PlannedStmt *pstmt,
-                    const char *queryString, ProcessUtilityContext context,
-                    ParamListInfo params,
-                    QueryEnvironment *queryEnv,
-                    DestReceiver *dest,
-                    bool sentToRemote,
-                    char *completionTag);
 
 
 static void ssl_ExecutorEnd(QueryDesc *queryDesc);
@@ -50,6 +48,24 @@ static void ssl_ExecutorRun(QueryDesc *queryDesc, ScanDirection direction,
 static void ssl_ExecutorFinish(QueryDesc *queryDesc);
 static void ssl_ExecutorStart(QueryDesc *queryDesc, int eflags);
 
+PG_FUNCTION_INFO_V1(record);
+Datum
+record(PG_FUNCTION_ARGS){
+    int32 times;
+    Assert(fcinfo->nargs == 1);
+    times = 1000;
+    ssl_switch = true;
+    PG_RETURN_INT32(times);
+}
+
+PG_FUNCTION_INFO_V1(report);
+Datum
+report(PG_FUNCTION_ARGS){
+    int32 times;
+    Assert(fcinfo->nargs == 1);
+    times = 0;
+    PG_RETURN_INT32(times);
+}
 /*
  * Module load callback
  */
@@ -71,12 +87,32 @@ _PG_init(void)
     //                          NULL);
 
     // EmitWarningsOnPlaceholders("auto_explain");
+    elog(LOG, "pg_init: nesting_leve:%d\n", nesting_level);
+
+    DefineCustomIntVariable("slow_sql_recorder.min_query_duration",
+                        "Sets the minimum execution time above which plans will be logged.",
+                        "Zero prints all plans. -1 turns this feature off.",
+                        &min_query_duration,
+                        -1,
+                        -1, INT_MAX,
+                        PGC_SUSET,
+                        GUC_UNIT_MS,
+                        NULL,
+                        NULL,
+                        NULL);
+
+    DefineCustomBoolVariable("slow_sql_recorder.ssl_switch",
+                            "slow sql record switch.",
+                            NULL,
+                            &ssl_switch,
+                            false,
+                            PGC_SUSET,
+                            0,
+                            NULL,
+                            NULL,
+                            NULL);
 
     /* Install hooks. */
-
-    prev_ProcessUtility_hook = ProcessUtility_hook; 
-    ProcessUtility_hook = ssl_ProcessUtility;
-
     prev_ExecutorStart_hook = ExecutorStart_hook;
     ExecutorStart_hook = ssl_ExecutorStart;
 
@@ -100,28 +136,10 @@ void
 _PG_fini(void)
 {
     /* Uninstall hooks. */
-    ProcessUtility_hook = prev_ProcessUtility_hook; 
     ExecutorStart_hook = prev_ExecutorStart_hook;
     ExecutorRun_hook = prev_ExecutorRun_hook;
     ExecutorFinish_hook = prev_ExecutorFinish_hook;
     ExecutorEnd_hook = prev_ExecutorEnd_hook;
-    // ExecutorFinish_hook = prev_ExecutorFinish;
-    // ExecutorEnd_hook = prev_ExecutorEnd;
-}
-
-
-/**
- * slow_sql_recorder_process_utiliti_hook
-*/
-static void 
-ssl_ProcessUtility(PlannedStmt *pstmt,
-                    const char *queryString, ProcessUtilityContext context,
-                    ParamListInfo params,
-                    QueryEnvironment *queryEnv,
-                    DestReceiver *dest,
-                    bool sentToRemote,
-                    char *completionTag){
-
 }
 
 static void 
@@ -138,7 +156,10 @@ ssl_ExecutorStart(QueryDesc *queryDesc, int eflags)
 	 * counting of optimizable statements that are directly contained in
 	 * utility statements.
 	 */
-	if (slow_log_record_enabled(nesting_level) && queryDesc->plannedstmt->queryId != UINT64CONST(0))
+    elog(LOG, "begin: slow_log_record_enabled:%d\n", slow_log_record_enabled(nesting_level));
+    elog(LOG, "begin: ssl_switch %d, nesting_level:%d\n", ssl_switch , nesting_level);
+
+	if (slow_log_record_enabled(nesting_level))
 	{
 		/*
 		 * Set up to track total elapsed time in ExecutorRun.  Make sure the
@@ -206,7 +227,11 @@ ssl_ExecutorFinish(QueryDesc *queryDesc)
 
 static void
 ssl_ExecutorEnd(QueryDesc *queryDesc){
-    if (queryDesc->totaltime && slow_log_record_enabled(nesting_level))
+    elog(LOG, "end: nesting_leve:%d\n", nesting_level);
+    elog(LOG, "end: queryDesc->totaltime->:%d\n", queryDesc->totaltime == NULL);
+    elog(LOG, "[slow_sql_recorder] nesting_leve:%d\n", nesting_level);
+
+    if (queryDesc->totaltime!= NULL && slow_log_record_enabled(nesting_level))
     {
         double        msec;
 
@@ -218,7 +243,9 @@ ssl_ExecutorEnd(QueryDesc *queryDesc){
 
         /* Log plan if duration is exceeded. */
         msec = queryDesc->totaltime->total * 1000.0;
-        if (msec >= max_query_duration)
+        elog(LOG, "[slow_sql_recorder] execution duration: %.3f, ms:\n",  msec);
+        ereport(LOG,(errmsg("[slow_sql_recorder] execution duration: %.3f, ms:\n",  msec)));
+        if (msec >= min_query_duration)
         {
             ExplainState *es = NewExplainState();
 
@@ -259,4 +286,5 @@ ssl_ExecutorEnd(QueryDesc *queryDesc){
         prev_ExecutorEnd_hook(queryDesc);
     else
         standard_ExecutorEnd(queryDesc);
+
 }

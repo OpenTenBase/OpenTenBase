@@ -1,4 +1,4 @@
-\echo Use "CREATE EXTENSION pg_testgen" to load this file. \quit
+\echo Use "CREATE EXTENSION slow_sql_recorder" to load this file. \quit
 
 CREATE FUNCTION record(integer)
     RETURNS integer
@@ -6,7 +6,7 @@ CREATE FUNCTION record(integer)
     LANGUAGE C STRICT;
 
 CREATE FUNCTION report()
-    RETURNS SETOF varchar 
+    RETURNS integer
     AS 'MODULE_PATHNAME', 'report'
     LANGUAGE C STRICT;
     
