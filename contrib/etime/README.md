@@ -1,3 +1,4 @@
+> There are another branch for other issue.
 # etime 
 # Open Source Opentenbase ETime logging
 
@@ -15,35 +16,56 @@ After that, you run query and see execution time in table you pre-set.
 **min_value**
 You can set the threshold in mircosecond.  the query execution time above that will be recorded in table.
 
-In Opentenbase psql session, You run `set etime.min_value=1000` and the execution time below 1000us will be recorded.
+In Opentenbase psql session, you run `set etime.min_value = 1000;` and the execution time below 1000us will be recorded.
 
 The default is: `0`.
 
 **tablename**
 You can set the table name.  the query execution time above will be recorded in this table.
 
-In Opentenbase psql session, You run `set etime.tablename="etime_t"` and record will be written in the table named `etime_t`.
+In Opentenbase psql session, you run `set etime.tablename = "etime_t";` and record will be written in the table named `etime_t`.
 
 Last but not least, The table must be have `specific schema` like: `(sql text, time bigint);`.
 
 The default is: `NULL`.
 
+**max_sql_size**
+You can set the max *bytes* of query recorded including other info(maybe occupy 40 Bytes).
+
+In Opentenbase psql session, you run `set etime.max_sql_size = 128;` and the bytes of query including other info will less than `128`;
+
+The default is: `1024`.
+
 ## Example
 *SQL*
 ```
-set etime.min_value=1000;
+create table etime (sql text, time bigint);
+set etime.tablename = "etime";
+set etime.min_value = 1000000;
+set etime.max_sql_size = 128;
 
 create table foo(id bigint, str text) distribute by shard(id);
 insert into foo values(1, 'tencent'), (2, 'shenzhen');
+
+-- The following sql maybe be recorded because if you set threshold above
+-- is very low, like 0.
+-- But now it cannot be recorded.
 insert into foo select 1, 'asdasd';
+
+-- It cannot be recorded due to fast execution.
 select * from foo;
+
+-- It can be recorded for its execution time more than 1s you set above.
+select pg_sleep(1);
+
+-- output record
+select * from etime;
 ```
 *Table Output*
 ```
-                 sql                 | time
--------------------------------------+------
- select * from foo;                  | 1051
- insert into foo select 1, 'asdasd'; | 3784
+         sql         |  time
+---------------------+---------
+ select pg_sleep(1); | 1002178
 ```
 
 ## Caveats

@@ -56,7 +56,7 @@ typedef struct ETimeEventStackItem
 
 	ETimeEvent eTimeEvent;
 
-  int64 stackId;
+	int64 stackId;
 
 	MemoryContext context;
 	MemoryContextCallback contextCallback;
@@ -76,11 +76,9 @@ stack_free(void *stackFree)
 	ETimeEventStackItem *nextItem = eTimeEventStack;
 
 	/* Only process if the stack contains items */
-	while (nextItem != NULL)
-	{
+	while (nextItem != NULL) {
 		/* Check if this item matches the item to be freed */
-		if (nextItem == (ETimeEventStackItem *)stackFree)
-		{
+		if (nextItem == (ETimeEventStackItem *)stackFree) {
 			/* Move top of stack to the item after the freed item */
 			eTimeEventStack = nextItem->next;
 			return;
@@ -140,29 +138,31 @@ stack_push()
 	return stackItem;
 }
 
-static void stack_pop(int64 stackId) {
-  /* Make sure what we want to delete is at the top of the stack */
-  if (eTimeEventStack != NULL && eTimeEventStack->stackId == stackId) {
-    MemoryContextDelete(eTimeEventStack->context);
-  } else {
-    elog(ERROR,
-         "etime stack item " INT64_FORMAT " not found on top - cannot pop",
-         stackId);
-  }
+static void
+stack_pop(int64 stackId) {
+	/* Make sure what we want to delete is at the top of the stack */
+	if (eTimeEventStack != NULL && eTimeEventStack->stackId == stackId) {
+		MemoryContextDelete(eTimeEventStack->context);
+	} else {
+		elog(WARNING,
+				"etime stack item " INT64_FORMAT " not found on top - cannot pop",
+				stackId);
+	}
 }
 
 /*
  * repeat twice in str for ch and store it in new_str.
  */
-char *repeatChar2(char *str, char *new_str, char ch) {
-  while (*str != 0) {
+char *
+repeatChar2(const char *str, char *new_str, char ch) {
+	while (*str != 0) {
 		*new_str = *str;
 		if(*str == ch) {
 			*++new_str = ch;
 		}
 		++str;
 		++new_str;
-  }
+	}
 	return new_str;
 }
 
@@ -172,8 +172,9 @@ char *repeatChar2(char *str, char *new_str, char ch) {
 static void
 my_ExecutorStart_hook(QueryDesc *queryDesc, int eflags)
 {
+	// dont record query time due to no target table
 	if(tablename == NULL) {
-		return;
+		goto hook;
 	}
 
 	ETimeEventStackItem *stackItem = NULL;
@@ -186,6 +187,7 @@ my_ExecutorStart_hook(QueryDesc *queryDesc, int eflags)
 	}
 
 	/* Call the previous hook or standard function */
+hook:
 	if (prev_ExecutorStart_hook)
 		prev_ExecutorStart_hook(queryDesc, eflags);
 	else
@@ -207,8 +209,7 @@ stack_find_context(MemoryContext findContext)
 	ETimeEventStackItem *nextItem = eTimeEventStack;
 
 	/* Look through the stack for the stack entry by query memory context */
-	while (nextItem != NULL)
-	{
+	while (nextItem != NULL) {
 		if (nextItem->eTimeEvent.queryContext == findContext)
 			break;
 
@@ -228,69 +229,69 @@ my_ExecutorEnd_hook(QueryDesc *queryDesc)
 	TimestampTz endTime = GetCurrentTimestamp();
 	long secs;
 	int microsecs;
-  MemoryContext contextOld;
+	MemoryContext contextOld;
 
 	/* Find an item from the stack by the query memory context */
-  stackItem = stack_find_context(queryDesc->estate->es_query_cxt);
-  if (stackItem != NULL) {
-    internalStatement = 1;
-    contextOld = MemoryContextSwitchTo(stackItem->context);
-    TimestampDifference(stackItem->eTimeEvent.startTime, endTime, &secs,
-                        &microsecs);
-    if (secs * USECS_PER_SEC + microsecs > min_value) {
-      PG_TRY();
-      {
-        if (SPI_connect() != SPI_OK_CONNECT) {
-          elog(ERROR, "etime plugin SPI_connect failed");
-          goto clear_stack_item;
-        }
+	stackItem = stack_find_context(queryDesc->estate->es_query_cxt);
+	if (stackItem != NULL) {
+		internalStatement = 1;
+		contextOld = MemoryContextSwitchTo(stackItem->context);
+		TimestampDifference(stackItem->eTimeEvent.startTime, endTime, &secs,
+												&microsecs);
+		if (secs * USECS_PER_SEC + microsecs > min_value) {
+			PG_TRY();
+			{
+				if (SPI_connect() != SPI_OK_CONNECT) {
+					elog(WARNING, "etime plugin SPI_connect failed");
+					goto clear_stack_item;
+				}
 
-        // construct a sql to insert record in etime_t table
-        char sql[maxSqlSize];
-        int sz = snprintf(sql, maxSqlSize, "insert into %s values(", tablename);
-        int st_sz = repeatChar2(queryDesc->sourceText, sql + sz + 1, '\'') -
-                    (sql + sz + 1);
-        sql[sz] = '\'';
-        if (sz + 1 + st_sz >= maxSqlSize) {
-          elog(ERROR, "etime plugin try to execute [%s], but it is too long",
-               sql);
-          goto clear_conn;
-        }
-        int post_sz = snprintf(sql + sz + 1 + st_sz, maxSqlSize - sz - st_sz,
-                               "\',%ld)", secs * USECS_PER_SEC + microsecs);
-        if (sz + 1 + st_sz + post_sz >= maxSqlSize) {
-          elog(ERROR, "etime plugin try to execute [%s], but it is too long",
-               sql);
-          goto clear_conn;
-        }
-        sql[sz + 1 + st_sz + post_sz] = 0;
+				// construct a sql to insert record in etime_t table
+				char sql[maxSqlSize];
+				int sz = snprintf(sql, maxSqlSize, "insert into %s values(", tablename);
+				int st_sz = repeatChar2(queryDesc->sourceText, sql + sz + 1, '\'') -
+										(sql + sz + 1);
+				sql[sz] = '\'';
+				if (sz + 1 + st_sz >= maxSqlSize) {
+					elog(WARNING, "etime plugin try to execute [%s], but it is too long",
+							 sql);
+					goto clear_conn;
+				}
+				int post_sz = snprintf(sql + sz + 1 + st_sz, maxSqlSize - sz - st_sz,
+															 "\',%ld)", secs * USECS_PER_SEC + microsecs);
+				if (sz + 1 + st_sz + post_sz >= maxSqlSize) {
+					elog(WARNING, "etime plugin try to execute [%s], but it is too long",
+							 sql);
+					goto clear_conn;
+				}
+				sql[sz + 1 + st_sz + post_sz] = 0;
 
-        // int ret = SPI_execute("insert into etime_t values(123)", false, 0);
-        int ret = SPI_execute(sql, false, 0);
-        if (ret != SPI_OK_INSERT) {
-          elog(ERROR, "etime plugin SPI_execute [%s] failed", sql);
-          goto clear_conn;
-        }
-      }
-      PG_CATCH();
-      {
-        elog(ERROR, "etime plugin come across some wrong");
-        goto clear_conn;
-      }
-      PG_END_TRY();
+				// int ret = SPI_execute("insert into etime_t values(123)", false, 0);
+				int ret = SPI_execute(sql, false, 0);
+				if (ret != SPI_OK_INSERT) {
+					elog(WARNING, "etime plugin SPI_execute [%s] failed", sql);
+					goto clear_conn;
+				}
+			}
+			PG_CATCH();
+			{
+				elog(WARNING, "etime plugin come across some wrong");
+				goto clear_conn;
+			}
+			PG_END_TRY();
 
-      // clear connection
-    clear_conn:
-      if (SPI_finish() != SPI_OK_FINISH) {
-        elog(ERROR, "etime plugin SPI_finish failed");
-      }
-    }
-    // clear stack item
-  clear_stack_item:
-    MemoryContextSwitchTo(contextOld);
-    stack_pop(stackItem->stackId);
-    internalStatement = 0;
-  }
+			// clear connection
+		clear_conn:
+			if (SPI_finish() != SPI_OK_FINISH) {
+				elog(WARNING, "etime plugin SPI_finish failed");
+			}
+		}
+		// clear stack item
+	clear_stack_item:
+		MemoryContextSwitchTo(contextOld);
+		stack_pop(stackItem->stackId);
+		internalStatement = 0;
+	}
 
 	/* Call the previous hook or standard function */
 	if (prev_ExecutorEnd_hook)
@@ -301,11 +302,11 @@ my_ExecutorEnd_hook(QueryDesc *queryDesc)
 
 void _PG_init(void)
 {
-  /* Be sure we do initialization only once */
-  static bool inited = false;
+	/* Be sure we do initialization only once */
+	static bool inited = false;
 
-  if (inited)
-      return;
+	if (inited)
+		return;
 
 	/* Define etime.min_value */
 	DefineCustomIntVariable(
@@ -322,8 +323,7 @@ void _PG_init(void)
 			PGC_SUSET,
 			GUC_NOT_IN_SAMPLE,
 			NULL, NULL, NULL);
-	
-	
+
 	/* Define etime.tablename */
 	DefineCustomStringVariable(
 			"etime.tablename",
@@ -334,10 +334,10 @@ void _PG_init(void)
 			PGC_SUSET,
 			0,
 			NULL, NULL, NULL);
-	
+
 	/* Define etime.maxSqlSize */
 	DefineCustomIntVariable(
-			"etime.maxSqlSize",
+			"etime.max_sql_size",
 
 			"Specifies, in us, max bytes of query writen including other info.",
 
@@ -355,7 +355,7 @@ void _PG_init(void)
 
 	prev_ExecutorEnd_hook = ExecutorEnd_hook;
 	ExecutorEnd_hook = my_ExecutorEnd_hook;
-  
+
 	inited = true;
 }
 
