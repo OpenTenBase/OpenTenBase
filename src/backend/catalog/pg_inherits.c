@@ -484,6 +484,12 @@ DeleteInheritsTuple(Oid inhrelid, Oid inhparent)
 }
 
 #ifdef __OPENTENBASE__
+/*
+ * Rreturn true if inhrelid table is partition of inhparent table, false
+ * otherwise.
+ * 
+ * We assume that both tables already have held AccessExclusiveLock lock.
+ */
 bool
 CheckInhRel(Oid inhrelid, Oid inhparent)
 {
@@ -493,7 +499,7 @@ CheckInhRel(Oid inhrelid, Oid inhparent)
 	SysScanDesc scan;
 	HeapTuple	inheritsTuple;
 
-    /*
+	/*
 	 * Find pg_inherits entries by inhrelid.
 	 */
 	catalogRelation = heap_open(InheritsRelationId, NoLock);
@@ -504,7 +510,7 @@ CheckInhRel(Oid inhrelid, Oid inhparent)
 	scan = systable_beginscan(catalogRelation, InheritsRelidSeqnoIndexId,
 							  true, NULL, 1, &key);
 
-    while (HeapTupleIsValid(inheritsTuple = systable_getnext(scan)))
+	while (HeapTupleIsValid(inheritsTuple = systable_getnext(scan)))
 	{
 		Oid			parent;
 
@@ -513,14 +519,15 @@ CheckInhRel(Oid inhrelid, Oid inhparent)
 		if (!OidIsValid(inhparent) || parent == inhparent)
 		{
 			found = true;
-            break;
+			break;
 		}
 	}
 
 	/* Done */
 	systable_endscan(scan); 
 	heap_close(catalogRelation, NoLock);
-    
+
 	return found;
 }
 #endif
+

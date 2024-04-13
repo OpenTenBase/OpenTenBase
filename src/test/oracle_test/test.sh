@@ -6,8 +6,9 @@ DIRECTORY='sql'
 DIRTMP='tmp'
 DIREXCEPTED='expected'
 
-rm -rf "$DIRTMP/*"
+rm -rf "$DIRTMP"/*
 
+# connect to psql with following params
 TESTDB='testdb'
 HOST='localhost'
 PORT=30004
@@ -24,3 +25,6 @@ if diff -r -q $DIREXCEPTED $DIRTMP > /dev/null; then
 else
   echo "error"
 fi
+
+rm -rf "$DIRTMP"/*
+

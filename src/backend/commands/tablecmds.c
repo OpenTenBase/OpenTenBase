@@ -5655,60 +5655,6 @@ ATExecCmd(List **wqueue, AlteredTableInfo *tab, Relation rel,
 
 #ifdef __OPENTENBASE__
 static void
-ATExecTruncatePartition(Relation rel, TruncateStmt * truncate_stmt)
-{
-    ListCell   *cell;
-    Relation    partRel,
-                classRel;
-    RangeVar   *name;
-	Oid         defaultPartOid;
-    foreach(cell, truncate_stmt->relations)
-    {
-        name = (RangeVar *) lfirst(cell);
-
-#ifdef _MLS_
-        bool        schema_bound;
-        Oid         partoid;
-        
-        partRel = heap_openrv(name, ShareUpdateExclusiveLock);
-        partoid = RelationGetRelid(partRel);
-        heap_close(partRel, ShareUpdateExclusiveLock);
-        
-        if (true == mls_check_relation_permission(partoid, &schema_bound))
-        {
-            if (false == schema_bound)
-            {
-                if (!is_mls_user())
-                {
-                    elog(ERROR, "could not detach partition for table:%s, cause mls poilcy is bound", 
-                        NameStr(rel->rd_rel->relname));
-                }
-            }   
-        }
-        else if(is_mls_user())
-        {
-            elog(ERROR, "must be owner of relation %s", NameStr(rel->rd_rel->relname));
-        }
-#endif
-
-       /*
-        * We must lock the default partition, because detaching this partition
-        * will changing its partition constrant.
-        */
-        defaultPartOid =
-            get_default_oid_from_partdesc(RelationGetPartitionDesc(rel));
-        if (OidIsValid(defaultPartOid))
-            LockRelationOid(defaultPartOid, AccessExclusiveLock);
-
-        partRel = heap_openrv(name, ShareUpdateExclusiveLock);
-
-        heap_close(partRel, NoLock);
-    }
-
-    ExecuteTruncate(truncate_stmt);
-}
-
-static void
 ATAddPartitions(Relation rel, int nparts)
 {
     int existnparts = 0;
@@ -18081,5 +18027,6 @@ static bool mls_policy_check(Node * stmt, Oid relid)
 
 
 #endif
+
 
 

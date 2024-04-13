@@ -2772,7 +2772,7 @@ typedef struct TruncateStmt
 {
     NodeTag        type;
 #ifdef __OPENTENBASE__
-    RangeVar   *p_relation;        /* parent table to work on */
+	RangeVar   *p_relation;        /* parent table to work on */
 #endif
     List       *relations;        /* relations (RangeVars) to be truncated */
     bool        restart_seqs;    /* restart owned sequences? */
@@ -3964,3 +3964,4 @@ typedef struct SampleStmt
 #endif
 
 #endif                            /* PARSENODES_H */
+

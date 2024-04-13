@@ -1,9 +1,18 @@
 DROP TABLE
+DROP TABLE
+DROP TABLE
+DROP TABLE
 CREATE TABLE
 CREATE TABLE
 CREATE TABLE
 CREATE TABLE
 COPY 3
+TRUNCATE TABLE
+ count 
+-------
+     3
+(1 row)
+
  count 
 -------
      1
@@ -12,6 +21,13 @@ COPY 3
 TRUNCATE TABLE
  count 
 -------
+     2
+(1 row)
+
+ count 
+-------
      0
 (1 row)
+
+DROP TABLE
 

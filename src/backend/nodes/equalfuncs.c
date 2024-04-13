@@ -1309,7 +1309,7 @@ static bool
 _equalTruncateStmt(const TruncateStmt *a, const TruncateStmt *b)
 {
 #ifdef __OPENTENBASE__
-    COMPARE_NODE_FIELD(p_relation);
+	COMPARE_NODE_FIELD(p_relation);
 #endif
     COMPARE_NODE_FIELD(relations);
     COMPARE_SCALAR_FIELD(restart_seqs);
@@ -3988,3 +3988,4 @@ equal(const void *a, const void *b)
 
     return retval;
 }
+

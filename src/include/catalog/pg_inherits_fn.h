@@ -33,3 +33,4 @@ extern bool DeleteInheritsTuple(Oid inhrelid, Oid inhparent);
 extern bool CheckInhRel(Oid inhrelid, Oid inhparent);
 #endif
 #endif							/* PG_INHERITS_FN_H */
+
