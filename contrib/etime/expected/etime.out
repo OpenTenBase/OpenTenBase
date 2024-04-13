@@ -1,3 +1,40 @@
-         sql         |  time
----------------------+---------
- select pg_sleep(1); | 1002178
+DROP TABLE
+CREATE TABLE
+DROP EXTENSION
+CREATE EXTENSION
+LOAD
+SET
+SET
+SET
+DROP TABLE
+CREATE TABLE
+COPY 2
+INSERT 0 1
+ count 
+-------
+     3
+(1 row)
+
+ pg_sleep 
+----------
+ 
+(1 row)
+
+ count 
+-------
+     1
+(1 row)
+
+SET
+ pg_sleep 
+----------
+ 
+(1 row)
+
+ count 
+-------
+     1
+(1 row)
+
+DROP TABLE
+DROP TABLE
