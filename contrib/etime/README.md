@@ -10,22 +10,7 @@ Move this reposity into `${SOURCECODE_PATH}/contri` directory directly.  And und
 
 In psql session, you should run `create extension etime;` to create etime extension and `load '$libdir/etime';` to load dynamic file firstly.  And you can set name of table which will be written by record.
 
-After that, you run query and see execution time in table you pre-set.
-
-## Settings
-**min_value**
-You can set the threshold in mircosecond.  the query execution time above that will be recorded in table.
-
-In Opentenbase psql session, you run `set etime.min_value = 1000;` and the execution time below 1000us will be recorded.
-
-The default is: `0`.
-
-**tablename**
-You can set the table name.  the query execution time above will be recorded in this table.
-
-In Opentenbase psql session, you run `set etime.tablename = "etime_t";` and record will be written in the table named `etime_t`.
-
-Last but not least, The table must be have `specific schema` like: 
+Before executing query, you should create a table named `etime` with **specific schema** like:
 ```sql
 create table etime (
 	sql text,
@@ -35,7 +20,16 @@ create table etime (
 );
 ```
 
-The default is: `NULL`.
+After that, you can run query and see execution time in table you pre-set by `select * from etime;`.  Out of convenience, you also can query info whose duration time is greater than threshold you pre-set by `select * from e_gt_dt(xxx);`.
+
+## Settings
+**min_value**
+You can set the threshold in mircosecond.  the query execution time above that will be recorded in table.
+
+In Opentenbase psql session, you run `set etime.min_value = 1000;` and the execution time below 1000us will be recorded.
+
+The default is: `0`.
+
 
 **max_sql_size**
 You can set the max *bytes* of query recorded including other info(maybe occupy 40 Bytes).
@@ -47,10 +41,19 @@ The default is: `1024`.
 ## Example
 *SQL*
 ```
-create table etime (sql text, time bigint);
-set etime.tablename = "etime";
+drop extension if exists etime;
+create extension etime;
+load '$libdir/etime';
 set etime.min_value = 1000000;
 set etime.max_sql_size = 512;
+
+drop extension if exists etime;
+create table etime (
+	sql text,
+	start_time TimestampTz,
+	end_time TimestampTz,
+	duration_time bigint
+);
 
 create table foo(id bigint, str text) distribute by shard(id);
 insert into foo values(1, 'tencent'), (2, 'shenzhen');
@@ -63,18 +66,24 @@ insert into foo select 1, 'asdasd';
 -- It cannot be recorded due to fast execution.
 select * from foo;
 
--- It can be recorded for its execution time more than 1s you set above.
+-- These can be recorded for their execution time more than 1s you set above.
 select pg_sleep(1);
+select pg_sleep(2);
 
 -- output record
 select * from etime;
+-- the following output is 2
+-- select count(*) from e_gt_dt(1000000);
+-- the following output is 1
+-- select count(*) from e_gt_dt(2000000);
 ```
 *Table Output*
 ```
          sql         |          start_time           |           end_time            | duration_time
 ---------------------+-------------------------------+-------------------------------+---------------
- select pg_sleep(1); | 2024-04-14 13:44:33.413022+08 | 2024-04-14 13:44:33.413022+08 |       1000328
+ select pg_sleep(1); | 2024-04-14 16:53:37.318473+08 | 2024-04-14 16:53:38.319617+08 |       1001144
+ select pg_sleep(2); | 2024-04-14 16:53:38.327944+08 | 2024-04-14 16:53:40.330524+08 |       2002580
 ```
 
 ## Caveats
-Every time you create new psql session, you must run `load '$libdir/etime';` to load dynamic file and set table name to store info.
+1. Every time you create new psql session, you must run `load '$libdir/etime';` to load dynamic file and set table name to store info.

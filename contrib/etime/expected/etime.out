@@ -10,7 +10,6 @@ create table etime (
 drop extension if exists etime;
 create extension etime;
 load '$libdir/etime';
-set etime.tablename = "etime";
 set etime.min_value = 1000000;
 set etime.max_sql_size = 512;
 drop table if exists foo cascade;
@@ -27,6 +26,12 @@ select count(*) from foo;
      3
 (1 row)
 
+select count(*) from e_gt_dt(1000000);
+ count 
+-------
+     0
+(1 row)
+
 -- It can be recorded for its execution time more than 1s you set above.
 select pg_sleep(1);
  pg_sleep 
@@ -36,6 +41,12 @@ select pg_sleep(1);
 
 -- output record count is 1
 select count(*) from etime;
+ count 
+-------
+     1
+(1 row)
+
+select count(*) from e_gt_dt(1000000);
  count 
 -------
      1
@@ -51,6 +62,43 @@ select pg_sleep(1);
 (1 row)
 
 select count(*) from etime;
+ count 
+-------
+     1
+(1 row)
+
+select count(*) from e_gt_dt(1000000);
+ count 
+-------
+     1
+(1 row)
+
+select count(*) from e_gt_dt(2000000);
+ count 
+-------
+     0
+(1 row)
+
+-- output record count is still 2
+select pg_sleep(2);
+ pg_sleep 
+----------
+ 
+(1 row)
+
+select count(*) from etime;
+ count 
+-------
+     2
+(1 row)
+
+select count(*) from e_gt_dt(1000000);
+ count 
+-------
+     2
+(1 row)
+
+select count(*) from e_gt_dt(2000000);
  count 
 -------
      1

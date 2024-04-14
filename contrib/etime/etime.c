@@ -19,17 +19,25 @@ void _PG_fini(void);
  */
 int min_value = 0;
 
+/* max bytes of query writen including other info. */
+static int maxSqlSize = 1024;
+
 /*
  * table'name where info will be written.
  * The table must be have a schema like this:
- * ================================================
- * | create table etime_t(sql text, time bigint); |
- * ================================================
+ * ==========================
+ * create table etime (
+ *		sql text,
+ *		start_time TimestampTz,
+ *		end_time TimestampTz,
+ *		duration_time bigint
+ * );
+ * ==========================
  */
-static char *tablename = NULL;
+static const char * const tablename = "etime";
 
-/* max bytes of query writen including other info. */
-static int maxSqlSize = 1024;
+/* Be sure we do initialization only once */
+static bool inited = false;
 
 static ExecutorStart_hook_type prev_ExecutorStart_hook = NULL;
 static ExecutorEnd_hook_type prev_ExecutorEnd_hook = NULL;
@@ -175,10 +183,9 @@ my_ExecutorStart_hook(QueryDesc *queryDesc, int eflags)
 {
 	ETimeEventStackItem *stackItem = NULL;
 
-	// dont record query time due to no target table
-	if(tablename == NULL) {
+	// not inited
+	if (!inited)
 		goto hook;
-	}
 
 	if (internalStatement == 0) {
 		/* Push the etime event onto the stack */
@@ -226,6 +233,10 @@ stack_find_context(MemoryContext findContext)
 static void
 my_ExecutorEnd_hook(QueryDesc *queryDesc)
 {
+	// not inited
+	if (!inited)
+		goto hook;
+
 	ETimeEventStackItem *stackItem = NULL;
 	TimestampTz endTime = GetCurrentTimestamp();
 	long secs;
@@ -255,18 +266,25 @@ my_ExecutorEnd_hook(QueryDesc *queryDesc)
 										(sql + sz + 1);
 				sql[sz] = '\'';
 				if (sz + 1 + st_sz >= maxSqlSize) {
-					elog(WARNING, "etime plugin try to execute [%s], but it is too long",
-							 sql);
+					elog(WARNING, "etime plugin's max_sql_size too small to store sql");
 					goto clear_conn;
 				}
 				int post_sz = snprintf(sql + sz + 1 + st_sz, maxSqlSize - sz - st_sz,
-															 "\','%s','%s',%ld)",
+															 "\','%s'",
 															 timestamptz_to_str(stackItem->eTimeEvent.startTime),
+															 secs * USECS_PER_SEC + microsecs);
+				if (sz + 1 + st_sz + post_sz >= maxSqlSize) {
+					elog(WARNING, "etime plugin's max_sql_size too small to store sql");
+					goto clear_conn;
+				}
+				post_sz = post_sz +
+											snprintf(sql + sz + 1 + st_sz + post_sz,
+															 maxSqlSize - sz - st_sz - post_sz,
+															 ",'%s',%ld)",
 															 timestamptz_to_str(stackItem->eTimeEvent.endTime),
 															 secs * USECS_PER_SEC + microsecs);
 				if (sz + 1 + st_sz + post_sz >= maxSqlSize) {
-					elog(WARNING, "etime plugin try to execute [%s], but it is too long",
-							 sql);
+					elog(WARNING, "etime plugin's max_sql_size too small to store sql");
 					goto clear_conn;
 				}
 				sql[sz + 1 + st_sz + post_sz] = 0;
@@ -299,6 +317,7 @@ my_ExecutorEnd_hook(QueryDesc *queryDesc)
 	}
 
 	/* Call the previous hook or standard function */
+hook:
 	if (prev_ExecutorEnd_hook)
 		prev_ExecutorEnd_hook(queryDesc);
 	else
@@ -307,9 +326,6 @@ my_ExecutorEnd_hook(QueryDesc *queryDesc)
 
 void _PG_init(void)
 {
-	/* Be sure we do initialization only once */
-	static bool inited = false;
-
 	if (inited)
 		return;
 
@@ -327,17 +343,6 @@ void _PG_init(void)
 			(1 << 31) - 1,
 			PGC_SUSET,
 			GUC_NOT_IN_SAMPLE,
-			NULL, NULL, NULL);
-
-	/* Define etime.tablename */
-	DefineCustomStringVariable(
-			"etime.tablename",
-			"Specifies, is us, the table'name which store record recorded.",
-			NULL,
-			&tablename,
-			NULL,
-			PGC_SUSET,
-			0,
 			NULL, NULL, NULL);
 
 	/* Define etime.maxSqlSize */
