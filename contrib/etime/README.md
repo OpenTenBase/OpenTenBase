@@ -25,7 +25,15 @@ You can set the table name.  the query execution time above will be recorded in 
 
 In Opentenbase psql session, you run `set etime.tablename = "etime_t";` and record will be written in the table named `etime_t`.
 
-Last but not least, The table must be have `specific schema` like: `(sql text, time bigint);`.
+Last but not least, The table must be have `specific schema` like: 
+```sql
+create table etime (
+	sql text,
+	start_time TimestampTz,
+	end_time TimestampTz,
+	duration_time bigint
+);
+```
 
 The default is: `NULL`.
 
@@ -42,7 +50,7 @@ The default is: `1024`.
 create table etime (sql text, time bigint);
 set etime.tablename = "etime";
 set etime.min_value = 1000000;
-set etime.max_sql_size = 128;
+set etime.max_sql_size = 512;
 
 create table foo(id bigint, str text) distribute by shard(id);
 insert into foo values(1, 'tencent'), (2, 'shenzhen');
@@ -63,9 +71,9 @@ select * from etime;
 ```
 *Table Output*
 ```
-         sql         |  time
----------------------+---------
- select pg_sleep(1); | 1002178
+         sql         |          start_time           |           end_time            | duration_time
+---------------------+-------------------------------+-------------------------------+---------------
+ select pg_sleep(1); | 2024-04-14 13:44:33.413022+08 | 2024-04-14 13:44:33.413022+08 |       1000328
 ```
 
 ## Caveats

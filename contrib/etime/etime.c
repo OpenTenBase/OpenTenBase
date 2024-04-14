@@ -44,6 +44,7 @@ typedef struct
 {
 	char *queryText;						/* sql text */
 	TimestampTz startTime;			/* start time the query executing */
+	TimestampTz endTime;				/* end time the query executing */
 	MemoryContext queryContext; /* Context for query tracking rows */
 } ETimeEvent;
 
@@ -172,12 +173,12 @@ repeatChar2(const char *str, char *new_str, char ch) {
 static void
 my_ExecutorStart_hook(QueryDesc *queryDesc, int eflags)
 {
+	ETimeEventStackItem *stackItem = NULL;
+
 	// dont record query time due to no target table
 	if(tablename == NULL) {
 		goto hook;
 	}
-
-	ETimeEventStackItem *stackItem = NULL;
 
 	if (internalStatement == 0) {
 		/* Push the etime event onto the stack */
@@ -236,6 +237,7 @@ my_ExecutorEnd_hook(QueryDesc *queryDesc)
 	if (stackItem != NULL) {
 		internalStatement = 1;
 		contextOld = MemoryContextSwitchTo(stackItem->context);
+		stackItem->eTimeEvent.endTime = endTime;
 		TimestampDifference(stackItem->eTimeEvent.startTime, endTime, &secs,
 												&microsecs);
 		if (secs * USECS_PER_SEC + microsecs > min_value) {
@@ -258,7 +260,10 @@ my_ExecutorEnd_hook(QueryDesc *queryDesc)
 					goto clear_conn;
 				}
 				int post_sz = snprintf(sql + sz + 1 + st_sz, maxSqlSize - sz - st_sz,
-															 "\',%ld)", secs * USECS_PER_SEC + microsecs);
+															 "\','%s','%s',%ld)",
+															 timestamptz_to_str(stackItem->eTimeEvent.startTime),
+															 timestamptz_to_str(stackItem->eTimeEvent.endTime),
+															 secs * USECS_PER_SEC + microsecs);
 				if (sz + 1 + st_sz + post_sz >= maxSqlSize) {
 					elog(WARNING, "etime plugin try to execute [%s], but it is too long",
 							 sql);

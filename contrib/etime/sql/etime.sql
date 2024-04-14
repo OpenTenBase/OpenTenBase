@@ -1,7 +1,12 @@
 SET client_min_messages TO WARNING;
 
 drop table if exists etime cascade;
-create table etime (sql text, time bigint);
+create table etime (
+	sql text,
+	start_time TimestampTz,
+	end_time TimestampTz,
+	duration_time bigint
+);
 
 -- create extension
 drop extension if exists etime;
@@ -9,7 +14,7 @@ create extension etime;
 load '$libdir/etime';
 set etime.tablename = "etime";
 set etime.min_value = 1000000;
-set etime.max_sql_size = 128;
+set etime.max_sql_size = 512;
 
 
 drop table if exists foo cascade;
