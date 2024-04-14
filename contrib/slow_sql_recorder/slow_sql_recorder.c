@@ -1,30 +1,15 @@
 #include "slow_sql_recorder.h"
 #include "tcop/utility.h"
+#include "storage/shmem.h"
+#include "storage/lwlock.h"
+#include "storage/ipc.h"
+#include "miscadmin.h"
+#include "port.h"
+#include "pgstat.h"
+
 PG_MODULE_MAGIC;
+#define SSL_LOG_FILE	"pg_log/slow_sql_log.csv"
 
-/* GUC variables */
-// static int    auto_explain_log_min_duration = -1; /* msec or -1 */
-
-// static const struct config_enum_entry format_options[] = {
-//     {"text", EXPLAIN_FORMAT_TEXT, false},
-//     {"xml", EXPLAIN_FORMAT_XML, false},
-//     {"json", EXPLAIN_FORMAT_JSON, false},
-//     {"yaml", EXPLAIN_FORMAT_YAML, false},
-//     {NULL, 0, false}
-// };
-
-/* Current nesting depth of ExecutorRun calls */
-static int    nesting_level = 0;
-static int min_query_duration = -1;
-static bool ssl_switch = false;
-
-/* Saved hook values in case of unload */
-static ExecutorStart_hook_type prev_ExecutorStart_hook = NULL;
-static ExecutorRun_hook_type prev_ExecutorRun_hook = NULL;
-static ExecutorFinish_hook_type prev_ExecutorFinish_hook = NULL;
-static ExecutorEnd_hook_type prev_ExecutorEnd_hook = NULL;
-
-/* Is the current query sampled, per backend */
 // static bool current_query_sampled = true;
 
 #define slow_log_record_enabled(level) \
@@ -36,7 +21,22 @@ typedef struct sslSharedState
 {
     LWLock *lock;
     slock_t mutex; 
-};
+}sslSharedState;
+
+/* Current nesting depth of ExecutorRun calls */
+static int    nesting_level = 0;
+static int min_query_duration = -1;
+static bool ssl_switch = false;
+
+// static sslSharedState* ssl_shared_state = NULL;
+
+/* Saved hook values in case of unload */
+// static shmem_startup_hook_type prev_shmem_startup_hook = NULL;
+static ExecutorStart_hook_type prev_ExecutorStart_hook = NULL;
+static ExecutorRun_hook_type prev_ExecutorRun_hook = NULL;
+static ExecutorFinish_hook_type prev_ExecutorFinish_hook = NULL;
+static ExecutorEnd_hook_type prev_ExecutorEnd_hook = NULL;
+
 
 void        _PG_init(void);
 void        _PG_fini(void);
@@ -47,6 +47,10 @@ static void ssl_ExecutorRun(QueryDesc *queryDesc, ScanDirection direction,
                     uint64 count, bool execute_once);
 static void ssl_ExecutorFinish(QueryDesc *queryDesc);
 static void ssl_ExecutorStart(QueryDesc *queryDesc, int eflags);
+// static void ssl_shmem_startup(void);
+// static void ssl_shmem_shutdown(int code, Datum arg);
+static bool ssl_store(const char* query, double total_time); //write the slow sql to the log file
+
 
 PG_FUNCTION_INFO_V1(record);
 Datum
@@ -102,7 +106,7 @@ _PG_init(void)
                         NULL);
 
     DefineCustomBoolVariable("slow_sql_recorder.ssl_switch",
-                            "slow sql record switch.",
+                            "slow sql record switch. TRUE truns on this feature, FALSE turns off",
                             NULL,
                             &ssl_switch,
                             false,
@@ -111,7 +115,10 @@ _PG_init(void)
                             NULL,
                             NULL,
                             NULL);
+    
 
+    // prev_shmem_startup_hook = shmem_startup_hook;
+    // shmem_startup_hook = ssl_shmem_startup;
     /* Install hooks. */
     prev_ExecutorStart_hook = ExecutorStart_hook;
     ExecutorStart_hook = ssl_ExecutorStart;
@@ -140,6 +147,39 @@ _PG_fini(void)
     ExecutorRun_hook = prev_ExecutorRun_hook;
     ExecutorFinish_hook = prev_ExecutorFinish_hook;
     ExecutorEnd_hook = prev_ExecutorEnd_hook;
+    // shmem_startup_hook = prev_shmem_startup_hook;
+    
+}
+
+static bool 
+ssl_store(const char* query, double total_time){
+    FILE* file;
+    elog(LOG, "[ssl store], log_file:%s\n", SSL_LOG_FILE);
+    file = AllocateFile(SSL_LOG_FILE, "a");
+    elog(LOG, "[ssl store], log_file:%s\n", SSL_LOG_FILE);
+
+    if(file == NULL){
+        elog(LOG, "file cannot open:%s\n", SSL_LOG_FILE);
+        goto error;
+    }
+    if(fprintf(file, "%s,%.2f\n", query, total_time) <= 0 ||fflush(file) != 0){
+        goto error;
+    }
+    if(file != NULL){
+        FreeFile(file);
+    }
+    return true;
+
+error:
+	ereport(LOG,
+			(errcode_for_file_access(),
+			 errmsg("could not write file \"%s\": %m",
+					SSL_LOG_FILE)));
+    if(file != NULL){
+        FreeFile(file);
+    }
+	/* Mark our write complete */
+	return false;
 }
 
 static void 
@@ -274,12 +314,13 @@ ssl_ExecutorEnd(QueryDesc *queryDesc){
              * often result in duplication.
              */
             ereport(LOG,
-                    (errmsg("[slow_sql_recorder] execution duration: %.3f, ms:\n%s", 
+                    (errmsg("[slow_sql_recorder] exec_time: %.3f, %s\n", 
                         msec, es->str->data),
                      errhidestmt(true)));
 
             pfree(es->str->data);
         }
+            ssl_store(queryDesc->sourceText, msec);
     }
 
     if (prev_ExecutorEnd_hook)
@@ -288,3 +329,4 @@ ssl_ExecutorEnd(QueryDesc *queryDesc){
         standard_ExecutorEnd(queryDesc);
 
 }
+
