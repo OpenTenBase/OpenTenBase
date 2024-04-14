@@ -4,16 +4,11 @@ CUR_PATH="$(dirname "${BASH_SOURCE[0]}")"
 # shellcheck source=./common.sh
 source "${CUR_PATH}/common.sh"
 
-if [[ -f "${PASSWORD_SECRET_MOUNT_PATH}/${PGUSER}" ]]; then
-  PGPASSWORD="$(cat "${PASSWORD_SECRET_MOUNT_PATH}/${PGUSER}")"
-  export PGPASSWORD
-fi
-
-# initialize dependecies.
+# initialize dependencies.
 # shellcheck source=./initialize_env_dependencies
 source "${CUR_PATH}/initialize_env_dependencies" || exit $?
 
-if [ -z "${MASTER_NAME}" ]; then
+if [ "${POD_INDEX}" -eq 0 ]; then
   log:info "Starting postgres as master datanode"
   # initialize the database.
   # shellcheck source=./initialize_postgres_db

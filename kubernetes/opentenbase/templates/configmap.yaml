@@ -6,19 +6,17 @@ metadata:
   labels:
     {{- include "opentenbase.labels" . | nindent 4 }}
 data:
-  config_append_internal_global: |
-    # applies only on startup
-    listen_addresses = '*'
+  global.conf: |
+    {{- .Files.Get "config/global.tpl" | nindent 4 }}
 
-  config_append_gtm: |
-    log_min_messages = 'notice'
+  gtm.conf: |
+    {{- .Files.Get "config/gtm-config.tpl" | nindent 4 }}
 
-  config_append_datanode: |
-    logging_collector = on
-    log_directory = 'pg_log'
-    log_min_messages = 'notice'
+  gtm_proxy.conf: |
+    {{- .Files.Get "config/gtm-proxy-config.tpl" | nindent 4 }}
 
-  config_append_coordinator: |
-    logging_collector = on
-    log_directory = 'pg_log'
-    log_min_messages = 'notice'
+  datanode.conf: |
+    {{- .Files.Get "config/dn-config.tpl" | nindent 4 }}
+
+  coordinator.conf: |
+    {{- .Files.Get "config/cn-config.tpl" | nindent 4 }}

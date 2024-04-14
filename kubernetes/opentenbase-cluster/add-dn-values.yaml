@@ -74,6 +74,19 @@ dn:
   - replicas: 1
     resources:
       requests:
+        cpu: "2"
+        memory: "2Gi"
+      limits:
+        cpu: "2"
+        memory: "2Gi"
+    persistence:
+      enabled: true
+      data:
+        storageClassName:
+        size: 20Gi
+  - replicas: 1
+    resources:
+      requests:
         cpu: "1"
         memory: "1Gi"
       limits:
@@ -84,6 +97,7 @@ dn:
       data:
         storageClassName:
         size: 20Gi
+
 cn:
   -
     ## @param cn.replicas number of cn nodes

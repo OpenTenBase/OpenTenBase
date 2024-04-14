@@ -3,7 +3,7 @@ kind: Cluster
 metadata:
   name: {{ include "opentenbase.name" . }}
   annotations:
-    kubeblocks.io/extra-env: '{"DATANODE_COUNT":"2", "COORDINATOR_COUNT":"1"}'
+    kubeblocks.io/extra-env: {{ include "opentenbase.extraEnv" . | squote }}
 spec:
   clusterDefinitionRef: opentenbase
   clusterVersionRef: opentenbase-{{ default .Chart.AppVersion .Values.clusterVersionOverride }}

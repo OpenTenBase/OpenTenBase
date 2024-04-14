@@ -4,7 +4,7 @@ description: OpenTenBase is an enterprise-level distributed HTAP open source dat
 
 type: application
 version: 0.1.0
-appVersion: v2.5.0
+appVersion: 2.5.0
 
 keywords:
   - opentenbase

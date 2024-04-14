@@ -4,11 +4,6 @@ CUR_PATH="$(dirname "${BASH_SOURCE[0]}")"
 # shellcheck source=./common.sh
 source "${CUR_PATH}/common.sh"
 
-if [[ -f "${PASSWORD_SECRET_MOUNT_PATH}/${PGUSER}" ]]; then
-  PGPASSWORD="$(cat "${PASSWORD_SECRET_MOUNT_PATH}/${PGUSER}")"
-  export PGPASSWORD
-fi
-
 log:info "Starting as global transaction manager (GTM)"
 
 # init and load methods.
@@ -37,7 +32,7 @@ fi
 if [ -z "${CONTROL_INFO}" ]; then
   log:info "GTM configuration not found, calling initdb"
 
-  initgtm -D "${PGDATA}" -Z gtm || exit $?
+  initgtm -D "${PGDATA}" -Z gtm
 
   # shellcheck source=./initialize_networks
   source "${CUR_PATH}/initialize_networks" || exit $?

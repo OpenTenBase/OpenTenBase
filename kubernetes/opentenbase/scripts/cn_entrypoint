@@ -10,7 +10,7 @@ source "${CUR_PATH}/initialize_env_dependencies" || exit $?
 
 log:info "Initializing coordinator node @ ${PG_NODE}"
 
-if [ -z "${MASTER_NAME}" ]; then
+if [ "${POD_INDEX}" -eq 0 ]; then
   log:info "Starting postgres as master coordinator"
   # initialize the database.
   # shellcheck source=./initialize_postgres_db

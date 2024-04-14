@@ -11,19 +11,19 @@ CONFIG_TARGET_FILE=""
 case "${NODE_TYPE}" in
 gtm)
   CONFIG_TARGET_FILE="${PGDATA}/gtm.conf"
-  NODE_CONFIG_FILE="/config/config_append_gtm"
+  NODE_CONFIG_FILE="/config/gtm.conf"
   ;;
 datanode)
   CONFIG_TARGET_FILE="${PGDATA}/postgresql.conf"
-  NODE_CONFIG_FILE="/config/config_append_datanode"
+  NODE_CONFIG_FILE="/config/datanode.conf"
   ;;
 coordinator)
   CONFIG_TARGET_FILE="${PGDATA}/postgresql.conf"
-  NODE_CONFIG_FILE="/config/config_append_coordinator"
+  NODE_CONFIG_FILE="/config/coordinator.conf"
   ;;
 proxy)
   CONFIG_TARGET_FILE="${PGDATA}/gtm_proxy.conf"
-  NODE_CONFIG_FILE="/config/config_append_proxy"
+  NODE_CONFIG_FILE="/config/gtm_proxy.conf"
   ;;
 *)
   log:error "Node configuration does not exist for type ${NODE_TYPE}, error in config."
@@ -31,7 +31,7 @@ proxy)
   ;;
 esac
 
-cat "/config/config_append_internal_global" >>"${CONFIG_TARGET_FILE}"
+cat "/config/global.conf" >>"${CONFIG_TARGET_FILE}"
 assert $? "Failed to append internal global configuration to ${CONFIG_TARGET_FILE}" || exit $?
 cat "${NODE_CONFIG_FILE}" >>"${CONFIG_TARGET_FILE}"
 assert $? "Failed to append node configuration file ${NODE_CONFIG_FILE} to ${CONFIG_TARGET_FILE}" || exit $?

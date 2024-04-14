@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 
-MASTER_SERVICE="${MASTER_NAME}-dn-${POD_INDEX}.${MASTER_NAME}-svc-dn"
+if [ "${KB_DN_LEADER}" == "" ]; then
+  log:warning "No primary found, waiting for first datanode."
+  KB_DN_LEADER="${KB_CLUSTER_COMP_NAME}-0"
+fi
+
+MASTER_SERVICE="${KB_DN_LEADER}.${KB_CLUSTER_COMP_NAME}-headless"
 
 # waiting for master datanode.
 "${CUR_PATH}/wait_for_connection" "${MASTER_SERVICE}" "${PG_PORT}"
@@ -18,7 +23,7 @@ if [ ! -f "${PGDATA}/postgresql.conf" ]; then
 fi
 
 # required for postgres permissions.
-# the loaded values are actually set by kuberntes. :(
+# the loaded values are actually set by kubernetes. :(
 log:info "Set data folder permissions 0700"
 chmod -R 0700 "${PGDATA}"
 assert $? "Failed to change data folder permissions" || exit $?

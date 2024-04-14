@@ -18,18 +18,45 @@ if [ ! -f "${PGDATA}/postgresql.conf" ]; then
     datanode)
       log:info "Database configuration not found, restoring from first datanode"
       # waiting for first datanode.
-      "${CUR_PATH}/wait_for_connection" "local-alias-dn-0" "${PG_PORT}"
+      if [ "${KB_DN_LEADER}" == "" ]; then
+        log:warning "No primary found, waiting for first datanode."
+        KB_DN_LEADER="${KB_CLUSTER_COMP_NAME}-0"
+      fi
+      MASTER_SERVICE="${KB_DN_LEADER}.${KB_CLUSTER_COMP_NAME}-headless"
+      "${CUR_PATH}/wait_for_connection" "${MASTER_SERVICE}" "${PG_PORT}"
       assert $? "Error while waiting for connection. Deployment not ready." || exit $?
-      pg_basebackup -d "postgresql://${PGUSER}:${PGPASSWORD}@local-alias-dn-0:${PG_PORT}" -D "${PGDATA}" -P --wal-method=stream
-      sed -i "s|pgxc_node_name = 'DN_0'|pgxc_node_name = 'DN_${POD_INDEX}'|" "${PGDATA}/postgresql.conf"
+      # wait for the first datanode to be ready
+      while true; do
+        pg_isready -h "${MASTER_SERVICE}" -p "${PG_PORT}" -U "${PGUSER}" -d "postgres"
+        if [ $? -eq 0 ]; then
+          break
+        fi
+        log:info "Waiting for first datanode to be ready."
+        sleep 5
+      done
+      pg_basebackup -d "postgresql://${PGUSER}:${PGPASSWORD}@${MASTER_SERVICE}:${PG_PORT}" -D "${PGDATA}" -P --wal-method=stream
+      sed -i "s|pgxc_node_name = 'DN_0'|pgxc_node_name = 'dn_${POD_INDEX}'|" "${PGDATA}/postgresql.conf"
       ;;
     coordinator)
       log:info "Database configuration not found, restoring from first coordinator"
       # waiting for first coordinator.
-      "${CUR_PATH}/wait_for_connection" "local-alias-crd-0" "${PG_PORT}"
+      if [ "${KB_CN_LEADER}" == "" ]; then
+        log:warning "No leader found, waiting for first datanode."
+        KB_CN_LEADER="${KB_CLUSTER_COMP_NAME}-0"
+      fi
+      MASTER_SERVICE="${KB_CN_LEADER}.${KB_CLUSTER_COMP_NAME}-headless"
+      "${CUR_PATH}/wait_for_connection" "${MASTER_SERVICE}" "${PG_PORT}"
       assert $? "Error while waiting for connection. Deployment not ready." || exit $?
-      pg_basebackup -d "postgresql://${PGUSER}:${PGPASSWORD}@local-alias-crd-0:${PG_PORT}" -D "${PGDATA}" -P --wal-method=stream
-      sed -i "s|pgxc_node_name = 'CN_0'|pgxc_node_name = 'CN_${POD_INDEX}'|" "${PGDATA}/postgresql.conf"
+      while true; do
+        pg_isready -h "${MASTER_SERVICE}" -p "${PG_PORT}" -U "${PGUSER}" -d "postgres"
+        if [ $? -eq 0 ]; then
+          break
+        fi
+        log:info "Waiting for first coordinate node to be ready."
+        sleep 5
+      done
+      pg_basebackup -d "postgresql://${PGUSER}:${PGPASSWORD}@${MASTER_SERVICE}:${PG_PORT}" -D "${PGDATA}" -P --wal-method=stream
+      sed -i "s|pgxc_node_name = 'CN_0'|pgxc_node_name = 'cn_${POD_INDEX}'|" "${PGDATA}/postgresql.conf"
       ;;
     esac
 
@@ -81,7 +108,7 @@ rm -rf "${PGDATA}/recovery.conf"
 sed -i '/hot_standby = on/d' "${PGDATA}/postgresql.conf"
 
 # required for postgres permissions.
-# the loaded values are actually set by kuberntes. :(
+# the loaded values are actually set by kubernetes. :(
 log:info "Set data folder permissions 0700"
 chmod -R 0700 "${PGDATA}"
 assert $? "Failed to change data folder permissions" || exit $?

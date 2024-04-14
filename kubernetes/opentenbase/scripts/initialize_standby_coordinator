@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 
-MASTER_SERVICE="${MASTER_NAME}-crd-${POD_INDEX}.${MASTER_NAME}-svc-crd"
+if [ "${KB_CN_LEADER}" == "" ]; then
+  log:warning "No primary found, waiting for first coordinate."
+  KB_CN_LEADER="${KB_CLUSTER_COMP_NAME}-0"
+fi
+
+MASTER_SERVICE="${KB_CN_LEADER}.${KB_CLUSTER_COMP_NAME}-headless"
 
 # waiting for master coordinator.
 "${CUR_PATH}/wait_for_connection" "${MASTER_SERVICE}" "${PG_PORT}"

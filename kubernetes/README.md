@@ -38,7 +38,7 @@ NAME          MAIN-COMPONENT-NAME   STATUS      AGE
 opentenbase   gtm                   Available   11m
 
 $ kubectl get cv |grep opentenbase
-opentenbase-v2.5.0     opentenbase          Available   12m
+opentenbase-2.5.0     opentenbase          Available   12m
 ```
 
 ## Create an OpenTenBase Cluster
@@ -53,7 +53,7 @@ This command will create an OpenTenBase cluster with one GTM, one Coordinator, a
 ```bash
 $ kubectl get cluster otb
 NAME   CLUSTER-DEFINITION   VERSION              TERMINATION-POLICY   STATUS     AGE
-otb    opentenbase          opentenbase-v2.5.0   Delete               Creating   12s
+otb    opentenbase          opentenbase-2.5.0   Delete               Creating   12s
 ```
 
 Check the pods of the OpenTenBase cluster:
@@ -73,7 +73,7 @@ Check all components status:
 $ kbcli cluster describe otb
 Name: otb        Created Time: Apr 07,2024 15:28 UTC+0800
 NAMESPACE   CLUSTER-DEFINITION   VERSION              STATUS     TERMINATION-POLICY   
-default     opentenbase          opentenbase-v2.5.0   Updating   Delete               
+default     opentenbase          opentenbase-2.5.0   Updating   Delete               
 
 Endpoints:
 COMPONENT   MODE        INTERNAL                                  EXTERNAL   
@@ -120,9 +120,9 @@ postgres=# select * from pgxc_node;
  node_name | node_type | node_port |     node_host     | nodeis_primary | nodeis_preferred |   node_id   |  node_cluster_name  
 -----------+-----------+-----------+-------------------+----------------+------------------+-------------+---------------------
  a_one     | G         |     50001 | otb-gtm           | t              | f                | -1343982441 | opentenbase_cluster
- dn_0      | D         |      5432 | otb-dn-0-headless | f              | f                |  1485981022 | opentenbase_cluster
- dn_1      | D         |      5432 | otb-dn-1-headless | f              | f                | -1300059100 | opentenbase_cluster
- cn_0      | C         |      5432 | otb-cn-0-headless | f              | f                | -1541982360 | opentenbase_cluster
+ dn_0      | D         |      5432 | otb-dn-0          | f              | f                |  1485981022 | opentenbase_cluster
+ dn_1      | D         |      5432 | otb-dn-1          | f              | f                | -1300059100 | opentenbase_cluster
+ cn_0      | C         |      5432 | otb-cn-0          | f              | f                | -1541982360 | opentenbase_cluster
 (4 rows)
 
 postgres=# create default node group default_group with(dn_0, dn_1);

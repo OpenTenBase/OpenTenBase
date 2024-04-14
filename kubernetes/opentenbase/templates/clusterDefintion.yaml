@@ -28,6 +28,27 @@ spec:
           defaultMode: 0555
       workloadType: Stateful
       characterType: postgresql
+      rsmSpec:
+        roles:
+          - name: primary
+            accessMode: ReadWrite
+            isLeader: true
+          - name: secondary
+            accessMode: Readonly
+            isLeader: false
+        roleProbe:
+          customHandler:
+            - image: {{ .Values.images.registry }}/{{ .Values.images.repository}}:{{ .Values.images.tag }}
+              command:
+                - /bin/bash
+                - -c
+                - |
+                  is_primary=$(gtm_ctl status -P 50001 | grep primary)
+                  if [ "$is_primary" = "" ]; then
+                    echo -n "secondary"
+                  else
+                    echo -n "primary"
+                  fi
       service:
         ports:
           - name: gtm
@@ -72,6 +93,8 @@ spec:
                 value: /data/pgdata
               - name: PGUSER
                 value: "opentenbase"
+              - name: PGDATABASE
+                value: "postgres"
               - name: PG_HOST
                 value: "0.0.0.0"
               - name: STORAGE_MOUNT_PATH
@@ -91,8 +114,29 @@ spec:
     - name: dn
       scriptSpecs: *scriptSpecs
       configSpecs: *configSpecs
-      workloadType: Consensus
-      characterType: opentenbase
+      workloadType: Stateful
+      characterType: postgresql
+      rsmSpec:
+        roles:
+          - name: primary
+            accessMode: ReadWrite
+            isLeader: true
+          - name: secondary
+            accessMode: Readonly
+            isLeader: false
+        roleProbe:
+          customHandler:
+            - image: {{ .Values.images.registry }}/{{ .Values.images.repository}}:{{ .Values.images.tag }}
+              command:
+                - /bin/bash
+                - -c
+                - |
+                  is_recovery=$(psql -h127.0.0.1 postgres -t -c "select pg_is_in_recovery()" | xargs echo -n)
+                  if [ "$is_recovery" = "f" ]; then
+                    echo -n "primary"
+                  else
+                    echo -n "secondary"
+                  fi
       componentDefRef: &componentDefRef
         - componentDefName: gtm
           componentRefEnv:
@@ -103,25 +147,6 @@ spec:
             - name: PG_GTM_HOST
               valueFrom:
                 type: ServiceRef
-      rsmSpec:
-        roles:
-          - name: "primary"
-            accessMode: ReadWrite
-            isLeader: true
-            canVote: true
-          - name: "secondary"
-            accessMode: Readonly
-            canVote: true
-        roleProbe:
-          roleUpdateMechanism: DirectAPIServerEventUpdate
-          customHandler:
-            - image: "domainlau/opentenbase:v2.5.0"
-              command:
-                - bash
-                - -c
-                - |
-                  psql -h127.0.0.1 postgres -t -c "select pg_is_in_recovery()" | tr -d ' \n' | { read is_recovery; if [ "$is_recovery" = "f" ]; then echo "primary"; else echo "secondary"; fi; }
-        memberUpdateStrategy: Serial
       service:
         ports:
           - name: postgresql
@@ -166,6 +191,8 @@ spec:
                 value: "0.0.0.0"
               - name: PG_PORT
                 value: "5432"
+              - name: PGDATABASE
+                value: "postgres"
               - name: NODE_TYPE
                 value: datanode
               - name: STORAGE_MOUNT_PATH
@@ -195,6 +222,27 @@ spec:
       configSpecs: *configSpecs
       workloadType: Stateful
       characterType: postgresql
+      rsmSpec:
+        roles:
+          - name: primary
+            accessMode: ReadWrite
+            isLeader: true
+          - name: secondary
+            accessMode: Readonly
+            isLeader: false
+        roleProbe:
+          customHandler:
+            - image: {{ .Values.images.registry }}/{{ .Values.images.repository}}:{{ .Values.images.tag }}
+              command:
+                - /bin/bash
+                - -c
+                - |
+                  is_recovery=$(psql -h127.0.0.1 postgres -t -c "select pg_is_in_recovery()" | xargs echo -n)
+                  if [ "$is_recovery" = "f" ]; then
+                    echo -n "primary"
+                  else
+                    echo -n "secondary"
+                  fi
       service:
         ports:
           - name: postgresql
@@ -240,6 +288,8 @@ spec:
                 value: "0.0.0.0"
               - name: PG_PORT
                 value: "5432"
+              - name: PGDATABASE
+                value: "postgres"
               - name: NODE_TYPE
                 value: coordinator
               - name: STORAGE_MOUNT_PATH
