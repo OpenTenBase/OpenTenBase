@@ -8,7 +8,8 @@ DATA = etime--1.0.sql
 PGFILEDESC = "etime - an util to record exec time"
 
 REGRESS = etime
-REGRESS_OPTS = --temp-config=$(top_srcdir)/contrib/etime/etime.conf
+REGRESS_OPTS = --inputdir=./ --outputdir=results
+
 
 ifdef USE_PGXS
 PG_CONFIG = pg_config
@@ -21,4 +22,15 @@ include $(top_builddir)/src/Makefile.global
 include $(top_srcdir)/contrib/contrib-global.mk
 endif
 
-EXTRA_INSTALL += contrib/pg_stat_statements
+# params of connection to psql
+PGPORT = 30004
+PGHOST = localhost
+PGDATABASE = testdb
+PGUSER = opentenbase
+
+.PHONY: installcheck
+
+installcheck:
+# $(pg_regress_installcheck) $(REGRESS_OPTS) $(REGRESS)
+	PGUSER=$(PGUSER) PGPORT=$(PGPORT) PGHOST=$(PGHOST) PGDATABASE=$(PGDATABASE) $(pg_regress_installcheck) $(REGRESS_OPTS) $(REGRESS)
+# EXTRA_INSTALL += contrib/pg_stat_statements

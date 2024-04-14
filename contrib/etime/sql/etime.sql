@@ -1,3 +1,5 @@
+SET client_min_messages TO WARNING;
+
 drop table if exists etime cascade;
 create table etime (sql text, time bigint);
 
