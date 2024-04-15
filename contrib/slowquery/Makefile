@@ -1,18 +1,16 @@
-# The name of the plugin
-PLUGIN_NAME = slowquery
+MODULE_big = slowquery
+OBJS = slowquery.o
 
-# The directory where the plugin's source files are located
-PLUGIN_SOURCE_DIR = xxx
+EXTENSION = slowquery
+DATA = slowquery--1.0.sql  slowquery--unpackaged--1.0.sql
 
-# PostgreSQL configuration variables
+ifdef USE_PGXS
 PG_CONFIG = pg_config
-
-config=$(top_srcdir)/contrib/slowquery/postgresql.conf
-
-PG_INCLUDE_PATH = $(shell $(PG_CONFIG) --includedir)
-PG_LIB_PATH = $(shell $(PG_CONFIG) --libdir)
-
-PG_VERSION := $(shell $(PG_CONFIG) --version | cut -d ' ' -f 2 | cut -d '.' -f 1,2)
-
-SRCS = slowquery.c
-OBJS = $(SRCS:.c=.o)
+PGXS := $(shell $(PG_CONFIG) --pgxs)
+include $(PGXS)
+else
+subdir = contrib/slowquery
+top_builddir = ../..
+include $(top_builddir)/src/Makefile.global
+include $(top_srcdir)/contrib/contrib-global.mk
+endif
