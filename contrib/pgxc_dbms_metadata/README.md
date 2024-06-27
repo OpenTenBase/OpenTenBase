@@ -1,4 +1,4 @@
-# pg_dbms_metadata
+# pgxc_dbms_metadata
 
 Propose Oracle DBMS_METADATA compatibility for PostgreSQL PGXC,Based on HexaCluster Corp. Version 1.0
 
@@ -32,7 +32,7 @@ The following functions are implemented:
 
 ## [Installation](#installation)
 
-To be able to run this extension, your PostgreSQL version must support extensions (>= 9.1).
+To be able to run this extension, your OpenTenBase version must support extensions (>= V2).
 
 1. Copy the source code from repository.
 2. set pg_config binary location in PATH environment variable
@@ -48,24 +48,29 @@ Test of the extension can be done using:
     make installcheck
 ```
 
+create extension:
+```
+psql -d mydb -f test/sql/05_ora_clean.sql
+```
+
 If you don't want to create an extension for this, you can simply import the SQL file and use the complete functionality:
 ```
 psql -d mydb -c "CREATE SCHEMA dbms_metadata;"
 
-psql -d mydb -f sql/pg_dbms_metadata--1.0.0.sql
+psql -d mydb -f sql/pgxc_dbms_metadata--1.0.0.sql
 ```
 This is especially useful for database in DBaas cloud services. To upgrade just import the extension upgrade files using psql.
 
 ## [Manage the extension](#manage-the-extension)
 
-Each database that needs to use `pg_dbms_metadata` must creates the extension:
+Each database that needs to use `pgxc_dbms_metadata` must creates the extension:
 ```
-    psql -d mydb -c "CREATE EXTENSION pg_dbms_metadata"
+    psql -d mydb -c "CREATE EXTENSION pgxc_dbms_metadata"
 ```
 
 To upgrade to a new version execute:
 ```
-    psql -d mydb -c 'ALTER EXTENSION pg_dbms_metadata UPDATE TO "1.1.0"'
+    psql -d mydb -c 'ALTER EXTENSION pgxc_dbms_metadata UPDATE TO "1.1.0"'
 ```
 
 ## [Functions](#functions)
@@ -195,6 +200,31 @@ Example:
 ```
 CALL dbms_metadata.set_transform_param('SQLTERMINATOR',true);
 ```
+
+### [Test](#test)
+init test case:
+```
+psql -d mydb -f test/sql/00_init.sql
+```
+test dbms_metadata.get_ddl
+```
+psql -d mydb -f test/sql/01_get_ddl.sql
+```
+
+test dbms_metadata.get_dependent_ddl
+```
+psql -d mydb -f test/sql/02_get_dependent_ddl.sql
+```
+test dbms_metadata.get_granted_ddl
+```
+psql -d mydb -f test/sql/03_get_granted_ddl.sql
+```
+test dbms_metadata.set_transform_param
+```
+psql -d mydb -f test/sql/04_set_transform_param.sql
+```
+clean test data:
+psql -d mydb -f test/sql/05_clean_up.sql
 
 ## [License](#license)
 

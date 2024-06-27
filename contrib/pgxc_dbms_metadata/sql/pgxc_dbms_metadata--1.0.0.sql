@@ -1,5 +1,5 @@
 ----
--- Script to create the objects of the pg_dbms_metadata extension
+-- Script to create the objects of the pgxc_dbms_metadata extension
 ----
 
 ----

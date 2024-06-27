@@ -1,32 +1,32 @@
 {
-    "name": "pg_dbms_metadata",
+    "name": "pgxc_dbms_metadata",
     "abstract": "Extension to extract DDL of database objects in a way compatible to Oracle DBMS_METADATA package.",
     "version": "1.0.0",
     "maintainer": "joyannlin",
     "license": "postgresql",
     "release_status": "stable",
     "provides": {
-       "pg_dbms_metadata": {
+       "pgxc_dbms_metadata": {
           "abstract": "Extension to extract DDL of database objects in a way compatible to Oracle DBMS_METADATA package",
-          "file": "sql/pg_dbms_metadata--1.0.0.sql",
+          "file": "sql/pgxc_dbms_metadata--1.0.0.sql",
           "docfile": "README.md",
           "version": "1.0.0"
        }
     },
     "resources": {
        "bugtracker": {
-          "web": "https://github.com/joyannlin/pg_dbms_metadata/issues"
+          "web": "https://github.com/joyannlin/pgxc_dbms_metadata/issues"
        },
        "repository": {
-         "url":  "git://github.com/joyannlin/pg_dbms_metadata.git",
-         "web":  "https://github.com/joyannlin/pg_dbms_metadata.git",
+         "url":  "git://github.com/joyannlin/pgxc_dbms_metadata.git",
+         "web":  "https://github.com/joyannlin/pgxc_dbms_metadata.git",
          "type": "git"
        }
     },
     "prereqs": {
         "runtime": {
             "requires": {
-                "PostgreSQL": "9.1"
+                "OpenTenBase": "V2"
             }
         }
     },

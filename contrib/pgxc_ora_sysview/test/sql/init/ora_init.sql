@@ -1,7 +1,7 @@
 /*
  * Must be executed before all regression test.
  */
-CREATE EXTENSION pg_ora_sysview;
+-- CREATE EXTENSION pgxc_ora_sysview;
 -- Create all objects used in the regression tests
 CREATE SCHEMA jynnn;
 CREATE SCHEMA zjaaa;
@@ -102,7 +102,7 @@ CREATE TABLE jynnn.t_ora_sales_february PARTITION OF jynnn.t_ora_sales
 CREATE TABLE jynnn.t_ora_sales_january PARTITION OF jynnn.t_ora_sales
     FOR VALUES FROM ('2023-01-01') TO ('2023-02-01');
 
-ALTER TABLE jynnn.t_ora_jyinhp OWNER TO jynnuser;
+ALTER TABLE jynnn.t_ora_sales OWNER TO jynnuser;
 
 ----
 -- Name: "Sample unlogged table"; Type: Unlogged Table; Schema: jynnn; Owner: jynnuser
@@ -144,6 +144,18 @@ FROM
     jynnn."Sample unlogged table";
 
 ALTER VIEW jynnn."Global fines" OWNER TO jynnuser;
+
+----
+-- Name: t_ora_mview; Type: MATERIALIZED VIEW; Schema: jynnn; Owner: jynnuser
+----
+
+CREATE MATERIALIZED VIEW jynnn.t_ora_mview AS 
+SELECT
+    t_ora_jyinhp.a
+FROM
+    jynnn.t_ora_jyinhp;
+
+ALTER MATERIALIZED VIEW jynnn.t_ora_mview OWNER TO jynnuser;
 
 ----
 -- Name: t_ora_double_salary; Type: FUNCTION; Schema: jynnn; Owner: jynnuser
