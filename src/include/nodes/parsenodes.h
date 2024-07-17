@@ -931,6 +931,20 @@ typedef struct PartitionRangeDatum
     int            location;        /* token location, or -1 if unknown */
 } PartitionRangeDatum;
 
+#ifdef __OPENTENBASE__
+/* save tablename and PartitionRangeDatum */
+typedef struct Datumtablename
+{
+	NodeTag type;
+
+	char strategy;			 /* see PARTITION_STRATEGY codes above(like in PartitionBoundSpec) */
+	QulificationType cmp_op; /* compare operation kind for range */
+	char *tablename;		 /* child table name */
+	List *data;				 /* list of PartitionRangeDatum for range and Consts for list */
+	int location;			 /* token location, or -1 if unknown */
+} Datumtablename;
+#endif
+
 /*
  * PartitionCmd - info for ALTER TABLE/INDEX ATTACH/DETACH PARTITION commands
  */
@@ -2175,6 +2189,9 @@ typedef struct CreateStmt
     bool        interval_child;     /* is interval partition child? */
     int            interval_child_idx; /* interval partition child's index */          
     Oid            interval_parentId;  /* interval partition parent's oid */
+    /* for partition of with oracle schema */
+	List *child_tb_data; /* list of Datumtablename */
+	bool is_child;		 /* child stmt in partition of clause */
 #endif
 } CreateStmt;
 

@@ -28,6 +28,8 @@ extern bool loose_unique_index;
 #ifdef __OPENTENBASE__
 extern List *transformCreateStmt(CreateStmt *stmt, const char *queryString,
 					bool autodistribute, Oid *nspaceid, bool existsok);
+List *transformChildPartBounds(CreateStmt *parent_stmt);
+void transformDatumtablename2PartBound(List *child_stmts, List *child_tb_data);
 #elif XCP
 extern List *transformCreateStmt(CreateStmt *stmt, const char *queryString,
                     bool autodistribute);

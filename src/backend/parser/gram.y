@@ -260,6 +260,7 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 /* PGXC_END */
 	A_Const				*a_const;
 	PartitionElem		*partelem;
+	Datumtablename	*datumtbname;
 	PartitionSpec		*partspec;
 	PartitionBoundSpec	*partboundspec;
 	RoleSpec			*rolespec;
@@ -620,7 +621,8 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 %type <partspec>	PartitionSpec OptPartitionSpec
 %type <str>			part_strategy
 %type <partelem>	part_elem
-%type <list>		part_params
+%type <datumtbname> tb_data_elem
+%type <list>		part_params tb_data_list
 %type <partboundspec> PartitionBoundSpec
 %type <node>		partbound_datum PartitionRangeDatum
 %type <list>       hash_partbound partbound_datum_list range_datum_list
@@ -705,7 +707,7 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 	KEY
 
 	LABEL LANGUAGE LARGE_P LAST_P LATERAL_P
-	LEADING LEAKPROOF LEAST LEFT LEVEL LIKE LIMIT LISTEN LOAD LOCAL
+	LEADING LEAKPROOF LEAST LEFT LESS LEVEL LIKE LIMIT LISTEN LOAD LOCAL
 	LOCALTIME LOCALTIMESTAMP LOCATION LOCK_P LOCKED LOGGED
 
 	MAPPING MATCH MATERIALIZED MAXVALUE METHOD MINUTE_P MINVALUE MODE MONTH_P MOVE
@@ -737,7 +739,7 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 	START STATEMENT STATISTICS STDIN STDOUT STEP STORAGE STRICT_P STRIP_P
 	SUBSCRIPTION SUBSTRING SUCCESSFUL SYMMETRIC SYNC SYSDATE SYSID SYSTEM_P SYSTIMESTAMP 
 
-	TABLE TABLES TABLESAMPLE TABLESPACE TEMP TEMPLATE TEMPORARY TEXT_P THEN
+	TABLE TABLES TABLESAMPLE TABLESPACE TEMP TEMPLATE TEMPORARY TEXT_P THAN	THEN
 	TIME TIMESTAMP TO TRAILING TRANSACTION TRANSFORM TREAT TRIGGER TRIM TRUE_P
 	TRUNCATE TRUSTED TYPE_P TYPES_P
 
@@ -2864,6 +2866,35 @@ alter_identity_column_option:
 				}
 		;
 
+tb_data_list:
+			tb_data_elem										{ $$ = list_make1($1); }
+			|	tb_data_list ',' tb_data_elem		{ $$ = lappend($1, $3); }
+		;
+
+tb_data_elem:
+			PARTITION ColId VALUES LESS THAN '(' range_datum_list ')'
+				{
+					Datumtablename *n = makeNode(Datumtablename);
+					n->strategy = PARTITION_STRATEGY_RANGE;
+					n->cmp_op = QULIFICATION_TYPE_LS;
+					n->tablename = $2;
+					n->data = $7;
+					n->location = @1;
+
+					$$ = n;
+				}
+			| PARTITION ColId VALUES '(' partbound_datum_list ')'
+				{
+					Datumtablename *n = makeNode(Datumtablename);
+					n->strategy = PARTITION_STRATEGY_LIST;
+					n->tablename = $2;
+					n->data = $5;
+					n->location = @1;
+
+					$$ = n;
+				}
+		;
+
 PartitionBoundSpec:
 			/* a HASH partition*/
 			FOR VALUES WITH '(' hash_partbound ')'
@@ -3569,6 +3600,38 @@ CreateStmt:	CREATE OptTemp TABLE qualified_name '(' OptTableElementList ')'
 					n->oncommit = $15;
 					n->tablespacename = $16;
 					n->if_not_exists = true;
+					$$ = (Node *)n;
+				}
+		| CREATE OptTemp TABLE qualified_name '(' OptTableElementList ')'
+			OptInherit OptPartitionSpec '(' tb_data_list ')' OptWith OnCommitOption
+			OptTableSpace
+/* PGXC_BEGIN */
+			OptDistributeBy
+/* PGXC_END */
+				{
+					CreateStmt *n = makeNode(CreateStmt);
+					$4->relpersistence = $2;
+					n->relation = $4;
+					n->tableElts = $6;
+					n->inhRelations = $8;
+					n->partspec = $9;
+					n->ofTypename = NULL;
+					n->constraints = NIL;
+					n->options = $13;
+					n->oncommit = $14;
+					n->tablespacename = $15;
+					n->if_not_exists = false;
+/* PGXC_BEGIN */
+					if ($2 == RELPERSISTENCE_LOCAL_TEMP)
+					{
+						$4->relpersistence = RELPERSISTENCE_TEMP;
+						n->islocal = true;
+					}
+					n->relkind = RELKIND_RELATION;
+					n->distributeby = $16;
+					n->subcluster = NULL;
+					n->child_tb_data = $11;
+/* PGXC_END */
 					$$ = (Node *)n;
 				}
 		;
@@ -16792,6 +16855,7 @@ unreserved_keyword:
 			| LARGE_P
 			| LAST_P
 			| LEAKPROOF
+			| LESS
 			| LEVEL
 			| LISTEN
 			| LOAD
@@ -16948,6 +17012,7 @@ unreserved_keyword:
 			| TEMPLATE
 			| TEMPORARY
 			| TEXT_P
+			| THAN
 			| TRANSACTION
 			| TRANSFORM
 			| TRIGGER

@@ -555,6 +555,9 @@ typedef enum NodeTag
     T_PartitionElem,
     T_PartitionSpec,
     T_PartitionBoundSpec,
+#ifdef __OPENTENBASE__
+	T_Datumtablename,
+#endif
     T_PartitionRangeDatum,
     T_PartitionCmd,
 

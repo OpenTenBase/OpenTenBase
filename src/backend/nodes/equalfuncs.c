@@ -1267,6 +1267,10 @@ _equalCreateStmt(const CreateStmt *a, const CreateStmt *b)
     COMPARE_NODE_FIELD(distributeby);
     COMPARE_NODE_FIELD(subcluster);
 #endif
+#ifdef __OPENTENBASE__
+	COMPARE_NODE_FIELD(child_tb_data);
+	COMPARE_SCALAR_FIELD(is_child);
+#endif
 
     return true;
 }
@@ -2981,6 +2985,20 @@ _equalPartitionRangeDatum(const PartitionRangeDatum *a, const PartitionRangeDatu
     return true;
 }
 
+#ifdef __OPENTENBASE__
+static bool
+_equalDatumtablename(const Datumtablename *a, const Datumtablename *b)
+{
+	COMPARE_SCALAR_FIELD(strategy);
+	COMPARE_SCALAR_FIELD(cmp_op);
+	COMPARE_STRING_FIELD(tablename);
+	COMPARE_NODE_FIELD(data);
+	COMPARE_LOCATION_FIELD(location);
+
+	return true;
+}
+#endif
+
 static bool
 _equalPartitionCmd(const PartitionCmd *a, const PartitionCmd *b)
 {
@@ -3957,6 +3975,11 @@ equal(const void *a, const void *b)
         case T_PartitionRangeDatum:
             retval = _equalPartitionRangeDatum(a, b);
             break;
+#ifdef __OPENTENBASE__
+		case T_Datumtablename:
+			retval = _equalDatumtablename(a, b);
+			break;
+#endif
         case T_PartitionCmd:
             retval = _equalPartitionCmd(a, b);
             break;

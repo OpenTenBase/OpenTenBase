@@ -3646,6 +3646,8 @@ CopyCreateStmtFields(const CreateStmt *from, CreateStmt *newnode)
     COPY_SCALAR_FIELD(interval_child);
     COPY_SCALAR_FIELD(interval_child_idx);
     COPY_SCALAR_FIELD(interval_parentId);
+	COPY_NODE_FIELD(child_tb_data);
+	COPY_SCALAR_FIELD(is_child);
 #endif
 }
 
@@ -4926,6 +4928,20 @@ _copyPartitionCmd(const PartitionCmd *from)
 }
 
 #ifdef __OPENTENBASE__
+static Datumtablename *
+_copyDatumtablename(const Datumtablename *from)
+{
+	Datumtablename *newnode = makeNode(Datumtablename);
+
+	COPY_SCALAR_FIELD(strategy);
+	COPY_SCALAR_FIELD(cmp_op);
+	COPY_STRING_FIELD(tablename);
+	COPY_NODE_FIELD(data);
+	COPY_LOCATION_FIELD(location);
+
+	return newnode;
+}
+
 static PartitionBy *
 _copyPartitionBy(const PartitionBy *from)
 {
@@ -6309,6 +6325,9 @@ copyObjectImpl(const void *from)
             retval = _copyPartitionCmd(from);
             break;
 #ifdef __OPENTENBASE__
+		case T_Datumtablename:
+			retval = _copyDatumtablename(from);
+			break;
         case T_PartitionBy:
             retval = _copyPartitionBy(from);
             break;

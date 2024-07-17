@@ -3940,6 +3940,43 @@ ProcessUtilitySlow(ParseState *pstate,
 #ifdef __OPENTENBASE__
                             if (OidIsValid(address.objectId))
                             {
+								/* now the parent table has been created */
+								/* construct child stmt by parent stmt for child_tb_data */
+								if (createStmt->child_tb_data && !createStmt->is_child)
+								{
+									List *child_stmts = transformChildPartBounds(createStmt);
+									ListCell *lc = NULL;
+									foreach (lc, child_stmts)
+									{
+										Node *stmt = (Node *)lfirst(lc);
+										if (IsA(stmt, CreateStmt))
+										{
+											CreateStmt *stmt_crt = (CreateStmt *)stmt;
+											if (stmt_crt->is_child)
+											{
+												List *tmp_stmts =
+													transformCreateStmt(stmt_crt, queryString,
+																		!is_local && !sentToRemote,
+																		&nspaceid, exist_ok);
+												Assert(list_length(tmp_stmts) == 1);
+												stmt_crt = linitial(tmp_stmts);
+												/* Create the child table itself */
+												ObjectAddress addr =
+													DefineRelation(stmt_crt, RELKIND_RELATION,
+																   InvalidOid, NULL, queryString);
+												/*
+												 * Let NewRelationCreateToastTable decide if this
+												 * one needs a secondary relation too.
+												 */
+												CommandCounterIncrement();
+
+												NewRelationCreateToastTable(addr.objectId,
+																			toast_options);
+											}
+										}
+									}
+								}
+
                                 /* 
                                   *  interval partition's parent table has been created, we need to create
                                   *  child tables.

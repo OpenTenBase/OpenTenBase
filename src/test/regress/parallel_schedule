@@ -15,6 +15,10 @@ test: oracle audit
 test: partition
 test: partition_index
 
+# test for partition by schema which can be compatible of oracle's
+test: partition_range
+test: partition_list
+
 #run alter node
 test: alter_node
 

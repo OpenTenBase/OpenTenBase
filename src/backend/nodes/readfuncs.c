@@ -4160,6 +4160,22 @@ _readPartitionRangeDatum(void)
     READ_DONE();
 }
 
+#ifdef __OPENTENBASE__
+static Datumtablename *
+_readDatumtablename(void)
+{
+	READ_LOCALS(Datumtablename);
+
+	READ_CHAR_FIELD(strategy);
+	READ_ENUM_FIELD(cmp_op, QulificationType);
+	READ_STRING_FIELD(tablename);
+	READ_NODE_FIELD(data);
+	READ_LOCATION_FIELD(location);
+
+	READ_DONE();
+}
+#endif
+
 #ifdef __AUDIT__
 
 static AuditStmt *
@@ -4529,6 +4545,8 @@ parseNodeString(void)
     else if (MATCH("PARTITIONRANGEDATUM", 19))
         return_value = _readPartitionRangeDatum();
 #ifdef __OPENTENBASE__
+	else if (MATCH("DATUMTABLENAME", 14))
+		return_value = _readDatumtablename();
     else if (MATCH("PARTITIONBY", 11))
         return_value = _readPartitionBy();
     else if (MATCH("ADDDROPPARTITIONS", 17))
