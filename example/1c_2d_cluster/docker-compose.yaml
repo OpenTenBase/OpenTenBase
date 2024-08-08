@@ -1,36 +1,36 @@
-version: '3'
+# version: '3'
 services:
-  opentenbaseHost:
+  opentenbaseCN:
     image: docker.io/library/opentenbase:1.0.0
     networks:
       OpenTenBaseNetWork:
         ipv4_address: 172.16.200.5
-    container_name: opentenbaseHost
+    container_name: opentenbaseCN
     restart: unless-stopped
     volumes:
-      - "./pgxc_conf/host/:/home/opentenbase/pgxc_conf"
+      - "./pgxc_conf/cn/:/home/opentenbase/pgxc_conf"
     tty: true
 
-  opentenbaseWait1:
+  opentenbaseDN1:
     image: docker.io/library/opentenbasebase:1.0.0
     networks:
       OpenTenBaseNetWork:
         ipv4_address: 172.16.200.10
-    container_name: opentenbaseWait1 
+    container_name: opentenbaseDN1
     restart: unless-stopped
     volumes:
-      - "./pgxc_conf/wait1:/home/opentenbasebase/pgxc_conf"
+      - "./pgxc_conf/dn1:/home/opentenbasebase/pgxc_conf"
     tty: true
 
-  opentenbaseWait2:
+  opentenbaseDN2:
     image: docker.io/library/opentenbase:1.0.0
     networks:
       OpenTenBaseNetWork:
         ipv4_address: 172.16.200.15
-    container_name: opentenbaseWait2 
+    container_name: opentenbaseDN2
     restart: unless-stopped
     volumes:
-      - "./pgxc_conf/wait2:/home/opentenbase/pgxc_conf"
+      - "./pgxc_conf/dn2:/home/opentenbase/pgxc_conf"
     tty: true
 networks:
   OpenTenBaseNetWork:
