@@ -362,6 +362,26 @@ check_valid_version_name(const char *versionname)
 }
 
 /*
+ * Check whether plug-ins are allowed to be loaded
+ */
+static void
+check_extension_allowed_to_load(const char *extension_name)
+{
+	/* postgis with oracle=on is not supported */
+	if (enable_oracle_compatible &&
+		extension_name &&
+		((strcmp(extension_name, "postgis") == 0) ||
+		 (strcmp(extension_name, "postgis_tiger_geocoder") == 0) ||
+		 (strcmp(extension_name, "postgis_raster") == 0) ||
+		 (strcmp(extension_name, "postgis_topology") == 0)))
+	{
+		ereport(ERROR,
+				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+				errmsg("In oracle compatible mode, the postgis extension is not supported")));
+	}
+}
+
+/*
  * Utility functions to handle extension-related path names
  */
 static bool
@@ -1662,29 +1682,30 @@ CreateExtension(ParseState *pstate, CreateExtensionStmt *stmt)
 
     /* Check extension name validity before any filesystem access */
     check_valid_extension_name(stmt->extname);
+	check_extension_allowed_to_load(stmt->extname);
 
-    /*
-     * Check for duplicate extension name.  The unique index on
-     * pg_extension.extname would catch this anyway, and serves as a backstop
-     * in case of race conditions; but this is a friendlier error message, and
-     * besides we need a check to support IF NOT EXISTS.
-     */
-    if (get_extension_oid(stmt->extname, true) != InvalidOid)
-    {
-        if (stmt->if_not_exists)
-        {
-            ereport(NOTICE,
-                    (errcode(ERRCODE_DUPLICATE_OBJECT),
-                     errmsg("extension \"%s\" already exists, skipping",
-                            stmt->extname)));
-            return InvalidObjectAddress;
-        }
-        else
-            ereport(ERROR,
-                    (errcode(ERRCODE_DUPLICATE_OBJECT),
-                     errmsg("extension \"%s\" already exists",
-                            stmt->extname)));
-    }
+	/*
+	 * Check for duplicate extension name.  The unique index on
+	 * pg_extension.extname would catch this anyway, and serves as a backstop
+	 * in case of race conditions; but this is a friendlier error message, and
+	 * besides we need a check to support IF NOT EXISTS.
+	 */
+	if (get_extension_oid(stmt->extname, true) != InvalidOid)
+	{
+		if (stmt->if_not_exists)
+		{
+			ereport(NOTICE,
+					(errcode(ERRCODE_DUPLICATE_OBJECT),
+					 errmsg("extension \"%s\" already exists, skipping",
+							stmt->extname)));
+			return InvalidObjectAddress;
+		}
+		else
+			ereport(ERROR,
+					(errcode(ERRCODE_DUPLICATE_OBJECT),
+					 errmsg("extension \"%s\" already exists",
+							stmt->extname)));
+	}
 
     /*
      * We use global variables to track the extension being created, so we can
@@ -3509,12 +3530,14 @@ PrepareExtensionInternal(char *extensionName,
     ObjectAddress address;
     ListCell   *lc;
 
-    /*
-     * Read the primary control file.  Note we assume that it does not contain
-     * any non-ASCII data, so there is no need to worry about encoding at this
-     * point.
-     */
-    pcontrol = read_extension_control_file(extensionName);
+	check_extension_allowed_to_load(extensionName);
+
+	/*
+	 * Read the primary control file.  Note we assume that it does not contain
+	 * any non-ASCII data, so there is no need to worry about encoding at this
+	 * point.
+	 */
+	pcontrol = read_extension_control_file(extensionName);
 
     /*
      * Determine the version to install

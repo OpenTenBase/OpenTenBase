@@ -109,6 +109,7 @@ typedef struct
 } substitute_sublink_with_node_context;
 #endif
 static bool contain_agg_clause_walker(Node *node, void *context);
+static bool contain_user_defined_functions_walker(Node *node, void *context);
 static bool get_agg_clause_costs_walker(Node *node,
                             get_agg_clause_costs_context *context);
 static bool find_window_functions_walker(Node *node, WindowFuncLists *lists);
@@ -889,13 +890,68 @@ contain_subplans(Node *clause)
 static bool
 contain_subplans_walker(Node *node, void *context)
 {
-    if (node == NULL)
-        return false;
-    if (IsA(node, SubPlan) ||
-        IsA(node, AlternativeSubPlan) ||
-        IsA(node, SubLink))
-        return true;            /* abort the tree traversal and return true */
-    return expression_tree_walker(node, contain_subplans_walker, context);
+	if (node == NULL)
+		return false;
+	if (IsA(node, SubPlan) ||
+		IsA(node, AlternativeSubPlan) ||
+		IsA(node, SubLink))
+		return true;			/* abort the tree traversal and return true */
+	return expression_tree_walker(node, contain_subplans_walker, context);
+}
+
+/*****************************************************************************
+ *		Check clauses for user defined functions
+ *****************************************************************************/
+
+bool
+contain_user_defined_functions(Node *clause)
+{
+	return contain_user_defined_functions_walker(clause, NULL);
+}
+
+static bool
+contain_user_defined_functions_checker(Oid func_id, void *context)
+{
+	if(func_id >= FirstNormalObjectId)
+	{
+		Oid func_lang_oid;
+		Oid plpgsql_oid;
+		Oid sql_oid;
+		float cost;
+
+		func_lang_oid = get_func_lang(func_id);
+		plpgsql_oid = get_language_oid("plpgsql", true);
+		sql_oid = get_language_oid("sql", true);
+		cost = get_func_cost_with_sign(func_id);
+		if ((func_lang_oid == plpgsql_oid ||
+			 func_lang_oid == sql_oid) &&
+			cost >= 0)
+			return true;
+	}
+
+	return false;
+}
+
+static bool
+contain_user_defined_functions_walker(Node *node, void *context)
+{
+	if (node == NULL)
+		return false;
+
+	if (check_functions_in_node(node, contain_user_defined_functions_checker,
+								context))
+		return true;
+
+	/* Recurse to check arguments */
+	if (IsA(node, Query))
+	{
+		/* Recurse into subselects */
+		return query_tree_walker((Query *) node,
+								 contain_user_defined_functions_walker,
+								 context, 0);
+	}
+	return expression_tree_walker(node, contain_user_defined_functions_walker,
+								  context);
 }
 
 
@@ -5370,40 +5426,3 @@ replace_eval_sql_value_function(Node *node)
 	return expression_tree_mutator(node, replace_eval_sql_value_function, NULL);
 }
 #endif
-/*****************************************************************************
- *		Check clauses for pull-up-ed user defined functions
- *****************************************************************************/
- 
-static bool
-contain_user_defined_functions_checker(Oid func_id, void *context)
-{
-	return func_is_pullup(func_id);
-}
-
-static bool
-contain_check_functions_walker(Node *node, bool (*checker)())
-{
-	if (node == NULL)
-		return false;
-	
-	if (check_functions_in_node(node, checker,
-	                            NULL))
-		return true;
-	
-	/* Recurse to check arguments */
-	if (IsA(node, Query))
-	{
-		/* Recurse into subselects */
-		return query_tree_walker((Query *) node,
-		                         contain_check_functions_walker,
-		                         checker, 0);
-	}
-	return expression_tree_walker(node, contain_check_functions_walker,
-	                              checker);
-}
-
-bool
-contain_user_defined_functions(Node *clause)
-{
-	return contain_check_functions_walker(clause, &contain_user_defined_functions_checker);
-}
