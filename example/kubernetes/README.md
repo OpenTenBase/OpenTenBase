@@ -17,12 +17,19 @@ Before you deploy the OpenTenBase KubeBlocks add-on, you need to have the follow
 * The `kubectl` command-line tool installed on your local machine
 * The `helm` command-line tool installed on your local machine
 * The `kbcli` command-line tool to install the KubeBlocks control plane
+* Container named `opentenbase` built by `{SOURCE_CODE_OTB}/docker/k8s_support/Dockerfile`
 
 ## Install KubeBlocks
 
 Refer to the [KubeBlocks installation guide](https://kubeblocks.io/docs/release-0.8/user_docs/installation/install-with-kbcli/install-kbcli) to install the `kbcli` and  KubeBlocks control plane on your Kubernetes cluster.
 
 ## Deploy OpenTenBase Add-on
+
+Navigate to ./example/kubernetes
+
+```bash
+cd {SOURCE_CODE_OTB}/example/kubernetes
+```
 
 To deploy the OpenTenBase add-on on your Kubernetes cluster, follow these steps:
 
