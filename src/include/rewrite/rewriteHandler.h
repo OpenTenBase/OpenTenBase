@@ -15,7 +15,9 @@
 #define REWRITEHANDLER_H
 
 #include "utils/relcache.h"
+#include "nodes/params.h"
 #include "nodes/parsenodes.h"
+#include "utils/queryenvironment.h"
 
 extern List *QueryRewrite(Query *parsetree);
 extern void AcquireRewriteLocks(Query *parsetree,
@@ -31,7 +33,12 @@ extern int relation_is_updatable(Oid reloid,
                       Bitmapset *include_cols);
 
 #ifdef PGXC
-extern List *QueryRewriteCTAS(Query *parsetree);
+extern List *QueryRewriteCTAS(Query *parsetree,
+                              ParserSetupHook parserSetup,
+                              void *parserSetupArg,
+                              QueryEnvironment *queryEnv,
+                              Oid *paramTypes,
+                              int numParams);
 #endif
 
 #endif                            /* REWRITEHANDLER_H */

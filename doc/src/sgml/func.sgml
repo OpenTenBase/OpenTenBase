@@ -19846,6 +19846,7 @@ postgres=# SELECT * FROM pg_walfile_name_offset(pg_stop_backup());
         <literal>1</literal> for its partitions, <literal>2</literal> for
         their partitions, and so on.
        </entry>
+       </row>
        <row>
         <entry>
          <indexterm><primary>pg_partition_root</primary></indexterm>
@@ -19857,7 +19858,6 @@ postgres=# SELECT * FROM pg_walfile_name_offset(pg_stop_backup());
          relation belongs.
         </entry>
        </row>
-      </row>
        <row>
         <entry>
          <indexterm><primary>pg_partition_ancestors</primary></indexterm>

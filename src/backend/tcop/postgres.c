@@ -902,10 +902,30 @@ pg_analyze_and_rewrite(RawStmt *parsetree, const char *query_string,
     }
 #endif
 
-    /*
-     * (2) Rewrite the queries, as necessary
-     */
-    querytree_list = pg_rewrite_query(query);
+	/*
+	 * (2) Rewrite the queries, as necessary
+	 */
+#ifdef PGXC
+	if (query->commandType == CMD_UTILITY &&
+	    IsA(query->utilityStmt, CreateTableAsStmt))
+	{
+		/*
+		 * CREATE TABLE AS SELECT and SELECT INTO are rewritten so that the
+		 * target table is created first. The SELECT query is then transformed
+		 * into an INSERT INTO statement
+		 */
+		List        *ctas_list = QueryRewriteCTAS(query, NULL, NULL, queryEnv, paramTypes, numParams);
+		ListCell    *cell;
+
+		querytree_list = NIL;
+		foreach(cell, ctas_list)
+		{
+			querytree_list = list_concat_unique(querytree_list, pg_rewrite_query((Query *) lfirst(cell)));
+		}
+	}
+	else
+#endif
+	querytree_list = pg_rewrite_query(query);
 
     TRACE_POSTGRESQL_QUERY_REWRITE_DONE(query_string);
 
@@ -965,10 +985,30 @@ pg_analyze_and_rewrite_params(RawStmt *parsetree,
     }
 #endif
 
-    /*
-     * (2) Rewrite the queries, as necessary
-     */
-    querytree_list = pg_rewrite_query(query);
+	/*
+	 * (2) Rewrite the queries, as necessary
+	 */
+#ifdef PGXC
+	if (query->commandType == CMD_UTILITY &&
+	    IsA(query->utilityStmt, CreateTableAsStmt))
+	{
+		/*
+		 * CREATE TABLE AS SELECT and SELECT INTO are rewritten so that the
+		 * target table is created first. The SELECT query is then transformed
+		 * into an INSERT INTO statement
+		 */
+		List        *ctas_list = QueryRewriteCTAS(query, parserSetup, parserSetupArg, queryEnv, NULL, 0);
+		ListCell    *cell;
+
+		querytree_list = NIL;
+		foreach(cell, ctas_list)
+		{
+			querytree_list = list_concat_unique(querytree_list, pg_rewrite_query((Query *) lfirst(cell)));
+		}
+	}
+	else
+#endif
+	querytree_list = pg_rewrite_query(query);
 
     TRACE_POSTGRESQL_QUERY_REWRITE_DONE(query_string);
 
@@ -993,29 +1033,16 @@ pg_rewrite_query(Query *query)
     if (log_parser_stats)
         ResetUsage();
 
-#ifdef PGXC
-    if (query->commandType == CMD_UTILITY &&
-	    IsA(query->utilityStmt, CreateTableAsStmt))
+	if (query->commandType == CMD_UTILITY)
 	{
-		/*
-		 * CREATE TABLE AS SELECT and SELECT INTO are rewritten so that the
-		 * target table is created first. The SELECT query is then transformed
-		 * into an INSERT INTO statement
-		 */
-		querytree_list = QueryRewriteCTAS(query);
+		/* don't rewrite utilities, just dump 'em into result list */
+		querytree_list = list_make1(query);
 	}
 	else
-#endif
-    if (query->commandType == CMD_UTILITY)
-    {
-        /* don't rewrite utilities, just dump 'em into result list */
-        querytree_list = list_make1(query);
-    }
-    else
-    {
-        /* rewrite regular queries */
-        querytree_list = QueryRewrite(query);
-    }
+	{
+		/* rewrite regular queries */
+		querytree_list = QueryRewrite(query);
+	}
 
     if (log_parser_stats)
         ShowUsage("REWRITER STATISTICS");
@@ -1877,76 +1904,84 @@ exec_parse_message(const char *query_string,    /* string to execute */
          * Set up a snapshot if parse analysis will need one.
          */
 		if (analyze_requires_snapshot(raw_parse_tree) && g_snapshot_for_analyze)
-        {
-#ifdef __OPENTENBASE__
-            /* use local snapshot instead of global if told so */
-            if (g_set_global_snapshot)
-            {
-                PushActiveSnapshot(GetTransactionSnapshot());
-            }
-            else
-            {
-                PushActiveSnapshot(GetLocalTransactionSnapshot());
-            }
-#else
-            PushActiveSnapshot(GetTransactionSnapshot());
-#endif
-            snapshot_set = true;
-        }
+		{
+			PushActiveSnapshot(GetTransactionSnapshot());
+			snapshot_set = true;
+		}
 
-        /*
-         * Analyze and rewrite the query.  Note that the originally specified
-         * parameter set is not required to be complete, so we have to use
-         * parse_analyze_varparams().
-         */
-        if (log_parser_stats)
-            ResetUsage();
+		/*
+		 * Analyze and rewrite the query.  Note that the originally specified
+		 * parameter set is not required to be complete, so we have to use
+		 * parse_analyze_varparams().
+		 */
+		if (log_parser_stats)
+			ResetUsage();
 
-        query = parse_analyze_varparams(raw_parse_tree,
-                                        query_string,
-                                        &paramTypes,
-                                        &numParams);
+		query = parse_analyze_varparams(raw_parse_tree,
+										query_string,
+										&paramTypes,
+										&numParams);
 
 #ifdef __OPENTENBASE__
-        if (query->isMultiValues && !query->hasUnshippableTriggers)
-        {
-            InsertStmt *src_insert = (InsertStmt *)raw_parse_tree->stmt;
-            InsertStmt *dest_insert = (InsertStmt *)psrc->raw_parse_tree->stmt;
-            psrc->insert_into = true;
-            dest_insert->ninsert_columns = src_insert->ninsert_columns;
-        }
+		if (query->isMultiValues && !query->hasUnshippableTriggers)
+		{
+			InsertStmt *src_insert = (InsertStmt *)raw_parse_tree->stmt;
+			InsertStmt *dest_insert = (InsertStmt *)psrc->raw_parse_tree->stmt;
+			psrc->insert_into = true;
+			dest_insert->ninsert_columns = src_insert->ninsert_columns;
+		}
 #endif
 
-        /*
-         * Check all parameter types got determined.
-         */
-        for (i = 0; i < numParams; i++)
-        {
-            Oid            ptype = paramTypes[i];
+		/*
+		 * Check all parameter types got determined.
+		 */
+		for (i = 0; i < numParams; i++)
+		{
+			Oid			ptype = paramTypes[i];
 
-            if (ptype == InvalidOid || ptype == UNKNOWNOID)
-                ereport(ERROR,
-                        (errcode(ERRCODE_INDETERMINATE_DATATYPE),
-                         errmsg("could not determine data type of parameter $%d",
-                                i + 1)));
-        }
+			if (ptype == InvalidOid || ptype == UNKNOWNOID)
+				ereport(ERROR,
+						(errcode(ERRCODE_INDETERMINATE_DATATYPE),
+						 errmsg("could not determine data type of parameter $%d",
+								i + 1)));
+		}
 
-        if (log_parser_stats)
-            ShowUsage("PARSE ANALYSIS STATISTICS");
+		if (log_parser_stats)
+			ShowUsage("PARSE ANALYSIS STATISTICS");
 
-        querytree_list = pg_rewrite_query(query);
-
-        /* Done with the snapshot used for parsing */
-        if (snapshot_set)
-            PopActiveSnapshot();
-    }
-    else
-    {
-        /* Empty input string.  This is legal. */
-        raw_parse_tree = NULL;
-        commandTag = NULL;
 #ifdef PGXC
-        psrc = CreateCachedPlan(raw_parse_tree, query_string, stmt_name, commandTag);
+		if (query->commandType == CMD_UTILITY &&
+		    IsA(query->utilityStmt, CreateTableAsStmt))
+		{
+			/*
+			 * CREATE TABLE AS SELECT and SELECT INTO are rewritten so that the
+			 * target table is created first. The SELECT query is then transformed
+			 * into an INSERT INTO statement
+			 */
+			List        *ctas_list = QueryRewriteCTAS(query, NULL, NULL, NULL, NULL, 0);
+			ListCell    *cell;
+			
+			querytree_list = NIL;
+			foreach(cell, ctas_list)
+			{
+				querytree_list = list_concat_unique(querytree_list, pg_rewrite_query((Query *) lfirst(cell)));
+			}
+		}
+		else
+#endif		
+		querytree_list = pg_rewrite_query(query);
+
+		/* Done with the snapshot used for parsing */
+		if (snapshot_set)
+			PopActiveSnapshot();
+	}
+	else
+	{
+		/* Empty input string.  This is legal. */
+		raw_parse_tree = NULL;
+		commandTag = NULL;
+#ifdef PGXC
+		psrc = CreateCachedPlan(raw_parse_tree, query_string, stmt_name, commandTag);
 #else
         psrc = CreateCachedPlan(raw_parse_tree, query_string, commandTag);
 #endif
