@@ -1,0 +1,44 @@
+# version: '3'
+services:
+  opentenbaseCN:
+    image: docker.io/library/opentenbase:1.0.0
+    networks:
+      OpenTenBaseNetWork:
+        ipv4_address: 172.16.200.5
+    container_name: opentenbaseCN
+    restart: unless-stopped
+    volumes:
+      - "./pgxc_conf/cn/:/home/opentenbase/pgxc_conf"
+    tty: true
+
+  opentenbaseDN1:
+    image: docker.io/library/opentenbasebase:1.0.0
+    networks:
+      OpenTenBaseNetWork:
+        ipv4_address: 172.16.200.10
+    container_name: opentenbaseDN1
+    restart: unless-stopped
+    volumes:
+      - "./pgxc_conf/dn1:/home/opentenbasebase/pgxc_conf"
+    tty: true
+
+  opentenbaseDN2:
+    image: docker.io/library/opentenbase:1.0.0
+    networks:
+      OpenTenBaseNetWork:
+        ipv4_address: 172.16.200.15
+    container_name: opentenbaseDN2
+    restart: unless-stopped
+    volumes:
+      - "./pgxc_conf/dn2:/home/opentenbase/pgxc_conf"
+    tty: true
+networks:
+  OpenTenBaseNetWork:
+    name: OpenTenBaseNetWork
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.16.200.0/26
+          gateway: 172.16.200.1
+      
