@@ -1,0 +1,16 @@
+listen_addresses = '0.0.0.0'
+max_connections = 500
+max_pool_size = 65535
+shared_buffers = 256MB
+max_prepared_transactions = 2000
+maintenance_work_mem = 256MB
+wal_level = logical
+max_wal_senders = 64
+max_wal_size = 1GB
+min_wal_size = 256MB
+log_destination = 'csvlog'
+logging_collector = on
+log_directory = 'pg_log'
+log_filename = 'postgresql-%A-%H.log'
+synchronous_commit = local
+synchronous_standby_names = ''

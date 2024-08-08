@@ -35,3 +35,6 @@ all check install installdirs installcheck installcheck-parallel uninstall clean
 	   echo "You must use GNU make to build Postgres-XL." ; \
 	   false; \
 	 fi
+
+
+include docker/docker.mk

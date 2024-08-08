@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# Initialize the node configuration.
+CUR_PATH="$(dirname "${BASH_SOURCE[0]}")"
+# shellcheck source=./common.sh
+source "${CUR_PATH}/common.sh"
+log:info "Initializing node configuration for ${NODE_TYPE} @ ${PG_NODE}"
+
+NODE_CONFIG_FILE=""
+CONFIG_TARGET_FILE=""
+
+case "${NODE_TYPE}" in
+gtm)
+  CONFIG_TARGET_FILE="${PGDATA}/gtm.conf"
+  NODE_CONFIG_FILE="/config/gtm.conf"
+  ;;
+datanode)
+  CONFIG_TARGET_FILE="${PGDATA}/postgresql.conf"
+  NODE_CONFIG_FILE="/config/datanode.conf"
+  ;;
+coordinator)
+  CONFIG_TARGET_FILE="${PGDATA}/postgresql.conf"
+  NODE_CONFIG_FILE="/config/coordinator.conf"
+  ;;
+proxy)
+  CONFIG_TARGET_FILE="${PGDATA}/gtm_proxy.conf"
+  NODE_CONFIG_FILE="/config/gtm_proxy.conf"
+  ;;
+*)
+  log:error "Node configuration does not exist for type ${NODE_TYPE}, error in config."
+  exit 1
+  ;;
+esac
+
+cat "/config/global.conf" >>"${CONFIG_TARGET_FILE}"
+assert $? "Failed to append internal global configuration to ${CONFIG_TARGET_FILE}" || exit $?
+cat "${NODE_CONFIG_FILE}" >>"${CONFIG_TARGET_FILE}"
+assert $? "Failed to append node configuration file ${NODE_CONFIG_FILE} to ${CONFIG_TARGET_FILE}" || exit $?
+
+log:info "Node configuration added to ${CONFIG_TARGET_FILE}"

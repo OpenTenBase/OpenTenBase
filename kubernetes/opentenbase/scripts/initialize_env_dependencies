@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Initializes the env variables in the pod,
+# depending on pod type.
+CUR_PATH="$(dirname "${BASH_SOURCE[0]}")"
+# shellcheck source=./common.sh
+source "${CUR_PATH}/common.sh"
+
+POD_INDEX=$(echo "${POD_NAME}" | grep -Eo "[0-9]+\s*$")
+export POD_INDEX
+
+if [ -z "${PG_NODE}" ]; then
+  case "${NODE_TYPE}" in
+  datanode)
+    PG_NODE="dn_${POD_INDEX}"
+    POD_CLUSTER_INDEX=$((POD_INDEX + COORDINATOR_COUNT + PROXY_COUNT + 1))
+    PGXL_NODE_INDEX=$((POD_INDEX + 10000))
+    export PGXL_NODE_INDEX
+    ;;
+  coordinator)
+    PG_NODE="cn_${POD_INDEX}"
+    POD_CLUSTER_INDEX=$((POD_INDEX + PROXY_COUNT + 1))
+    PGXL_NODE_INDEX=$((POD_INDEX + 10000))
+    export PGXL_NODE_INDEX
+    ;;
+  proxy)
+    PG_NODE="PXY_${POD_INDEX}"
+    POD_CLUSTER_INDEX=$((POD_INDEX + 1))
+    ;;
+  *)
+    if [ -n "${NODE_TYPE}" ]; then
+      log:warning "Cluster node type not recognized '${NODE_TYPE}', skipping env initialization"
+    fi
+    ;;
+  esac
+fi
+
+export POD_CLUSTER_INDEX
