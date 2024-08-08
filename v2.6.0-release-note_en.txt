@@ -1,0 +1,15 @@
+The main modifications of V2.6.0-release version focus on:
+
+1. Function enhancement
+Support for spatial database plugin PostGIS.
+Support for RPM package deployment.
+Added a plugin `slowquery` to log SQL queries that exceed the set execution time threshold.
+
+2. Other known bug fixes
+Fixed operating systems support issues
+Fixed the make html compilation issue caused by /doc/src/sgml/func.sgml
+
+3、Peripheral ecosystem
+Added guidelines and documentation for docker deployment cases
+Added support for the KubeBlock plugin for Kubernetes cluster deployment, along with new deployment case guidelines and documentation
+Added guidelines and documentation for monitoring deployment cases based on Grafana/Prometheus
