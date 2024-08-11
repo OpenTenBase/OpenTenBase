@@ -1,0 +1,40 @@
+1. 介绍
+slow_query.c 慢 SQL 查询监控插件是一个用于数据库的扩展，通过记录慢查询到日志文件中，可以及时发现和优化影响数据库性能的查询语句，提高系统的响应速度和稳定性。
+
+2. 安装与配置
+
+(1).将slow_sql_query插件源代码放置于contrib目录下。
+
+(2).切换至contrib目录，并执行
+```
+make -sj
+make install
+```
+编译安装插件。
+(3).慢 SQL 查询监控插件需要通过配置文件进行配置。以下是配置文件的详细说明：
+在 postgresql.conf 文件中添加 include 'slow_query.conf'，以引入慢查询配置文件。
+在 slow_query.conf 文件中定义慢查询阈值，单位为毫秒。
+
+(4).重新加载数据库配置以应用更改。
+
+以下是一些示例代码，演示了如何重新加载配置文件使用慢 SQL 查询监控插件：
+
+sql
+-- 设置慢查询阈值为2000毫秒
+ALTER SYSTEM SET slow_query_threshold TO 2000;
+SELECT pg_reload_conf(); -- 重新加载配置文件
+
+
+3. 使用说明
+安装完成后，slow_sql_query将自动开始监控数据库中的查询。
+当执行时间超过设定阈值的查询被触发时，插件将把相关信息记录到日志文件中。
+可以通过检查服务器的日志文件来查看慢查询的记录。
+
+4. 测试步骤
+连接到PostgreSQL数据库。
+执行一个预计执行时间较短的查询，例如SELECT COUNT(*) FROM users;。
+执行一个预计执行时间较长的查询，例如SELECT * FROM large_table WHERE some_column = 'some_value';。
+检查PostgreSQL的日志文件，确认慢查询是否被记录。
+
+5.技术架构
+slow_sql_query利用PostgreSQL的执行时钩子机制，在查询执行完成后判断执行时间是否超过阈值，并通过内存上下文记录相关信息到日志中。
