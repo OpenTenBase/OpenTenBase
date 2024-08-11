@@ -67,6 +67,9 @@
 #include "utils/syscache.h"
 #ifdef __OPENTENBASE__
 #include "optimizer/distribution.h"
+#include "catalog/heap.h"
+#include "commands/sequence.h"
+#include "utils/guc.h"
 #endif
 
 /* GUC parameters */
@@ -435,18 +438,51 @@ standard_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 #else
     if (root->distribution)
 #endif
-    {
-        /*
-         * FIXME, this keeps adding RemoteSubplan at a top of queries that
-         * don't really need it (e.g above a MergeAppend with subplans pushed
-         * to remote nodes). Not sure why it's happening, though ...
+	{
+		/*
+         * If distribution is needed, we need pass the sort information
+         * to remote plan so that cn can sort results from distributed
+         * dns. But when "order by" in the inner layer of the SQL 
+         * statement, the sort information will be generated in the 
+         * subplan so that we can't generate remote plan with top_plan
+         * directly. In order to generate remote plan corretly, we 
+         * pass subplan that owns sort information to remote subplan.
          */
-        top_plan = (Plan *) make_remotesubplan(root, top_plan, NULL,
-                                               root->distribution,
-                                               root->sort_pathkeys);
-        SS_remote_attach_initplans(root, top_plan);
-        remote_subplan_depth--;
-    }
+		bool remote_set = false;
+		if (IsA(best_path, SubqueryScanPath))
+		{
+			SubqueryScan    *sub_plan = (SubqueryScan *) top_plan;
+			Assert(IsA(top_plan, SubqueryScan));
+			Assert(best_path->parent && best_path->parent->subroot);
+
+			/*
+			 * We use subroot here to solve the sitution that the plan
+			 * doesn't have a sort operator but need to merge sort.
+			 */
+			if (best_path->parent->subroot->sort_pathkeys)
+			{
+				sub_plan->subplan = (Plan *) make_remotesubplan(
+									root, sub_plan->subplan, NULL,
+									root->distribution,
+									best_path->parent->subroot->sort_pathkeys);
+				remote_set = true;
+			}
+		}
+		if (!remote_set)
+		{
+			/*
+			 * FIXME, this keeps adding RemoteSubplan at a top of queries that
+			 * don't really need it (e.g above a MergeAppend with subplans pushed
+			 * to remote nodes). Not sure why it's happening, though ...
+			 */
+			top_plan = (Plan *) make_remotesubplan(root, top_plan, NULL,
+												   root->distribution,
+												   root->sort_pathkeys);
+            remote_set = true;
+		}
+		SS_remote_attach_initplans(root, top_plan);
+		remote_subplan_depth--;
+	}
 #endif
 
     /*
@@ -530,27 +566,34 @@ standard_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
         lfirst(lp) = set_plan_references(subroot, subplan);
     }
 
-    /* build the PlannedStmt result */
-    result = makeNode(PlannedStmt);
+    /* Replace remoteSubplan nodes with our RDA if GUC enable at the end of Plan create */
+    if (remote_subplan_depth == 0 && enable_remote_data_access_plan)
+    {
+        top_plan = replace_remotesubplan_with_rda(root, top_plan);
+        top_plan = check_parallel_rda_replace(root, top_plan);
+    }
 
-    result->commandType = parse->commandType;
-    result->queryId = parse->queryId;
-    result->hasReturning = (parse->returningList != NIL);
-    result->hasModifyingCTE = parse->hasModifyingCTE;
-    result->canSetTag = parse->canSetTag;
-    result->transientPlan = glob->transientPlan;
-    result->dependsOnRole = glob->dependsOnRole;
-    result->parallelModeNeeded = glob->parallelModeNeeded;
-    result->planTree = top_plan;
-    result->rtable = glob->finalrtable;
-    result->resultRelations = glob->resultRelations;
-    result->nonleafResultRelations = glob->nonleafResultRelations;
-    result->rootResultRelations = glob->rootResultRelations;
-    result->subplans = glob->subplans;
-    result->rewindPlanIDs = glob->rewindPlanIDs;
-    result->rowMarks = glob->finalrowmarks;
-    result->relationOids = glob->relationOids;
-    result->invalItems = glob->invalItems;
+	/* build the PlannedStmt result */
+	result = makeNode(PlannedStmt);
+
+	result->commandType = parse->commandType;
+	result->queryId = parse->queryId;
+	result->hasReturning = (parse->returningList != NIL);
+	result->hasModifyingCTE = parse->hasModifyingCTE;
+	result->canSetTag = parse->canSetTag;
+	result->transientPlan = glob->transientPlan;
+	result->dependsOnRole = glob->dependsOnRole;
+	result->parallelModeNeeded = glob->parallelModeNeeded;
+	result->planTree = top_plan;
+	result->rtable = glob->finalrtable;
+	result->resultRelations = glob->resultRelations;
+	result->nonleafResultRelations = glob->nonleafResultRelations;
+	result->rootResultRelations = glob->rootResultRelations;
+	result->subplans = glob->subplans;
+	result->rewindPlanIDs = glob->rewindPlanIDs;
+	result->rowMarks = glob->finalrowmarks;
+	result->relationOids = glob->relationOids;
+	result->invalItems = glob->invalItems;
 #ifdef XCP
     result->distributionType = LOCATOR_TYPE_NONE;
     result->distributionKey = InvalidAttrNumber;

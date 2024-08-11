@@ -141,6 +141,7 @@
 #ifdef PGXC
 #include "pgxc/execRemote.h"
 #include "catalog/pgxc_node.h"
+#include "pgxc/remoteDataAccess.h"
 #endif
 #include "utils/datum.h"
 #include "utils/logtape.h"
@@ -297,7 +298,8 @@ struct Tuplesortstate
     MemoryContext tuplecontext; /* sub-context of sortcontext for tuple data */
     LogicalTapeSet *tapeset;    /* logtape.c object for tapes in a temp file */
 #ifdef PGXC
-    ResponseCombiner *combiner; /* tuple source, alternate to tapeset */
+	ResponseCombiner *combiner; /* tuple source, alternate to tapeset */
+	RDAResponseCombiner *rdaCombiner; /* tuple source from RDA */
 #endif /* PGXC */
 
     /*
@@ -641,7 +643,11 @@ static void readtup_heap(Tuplesortstate *state, SortTuple *stup,
 static unsigned int getlen_datanode(Tuplesortstate *state, int tapenum,
                 bool eofOK);
 static void readtup_datanode(Tuplesortstate *state, SortTuple *stup,
-                 int tapenum, unsigned int len);
+				 int tapenum, unsigned int len);
+static unsigned int rda_getlen_datanode(Tuplesortstate *state, int tapenum,
+				bool eofOK);
+static void rda_readtup_datanode(Tuplesortstate *state, SortTuple *stup,
+				 int tapenum, unsigned int len);
 #endif
 static int comparetup_cluster(const SortTuple *a, const SortTuple *b,
                    Tuplesortstate *state);
@@ -1250,6 +1256,97 @@ tuplesort_begin_merge(TupleDesc tupDesc,
 
     return state;
 }
+
+/*
+ *use like tuplesort_begin_merge
+ */
+Tuplesortstate *
+tuplesort_begin_merge_for_rda(TupleDesc tupDesc,
+                              int nkeys, AttrNumber *attNums,
+                              Oid *sortOperators, Oid *sortCollations,
+                              bool *nullsFirstFlags,
+                              RDAResponseCombiner *combiner,
+                              int workMem)
+{
+    int             i;
+    int             tape_count;
+    MemoryContext   oldcontext;
+    Tuplesortstate  *state = tuplesort_begin_common(workMem, false);
+
+    oldcontext = MemoryContextSwitchTo(state->sortcontext);
+
+    AssertArg(nkeys > 0);
+    AssertArg(combiner);
+
+#ifdef TRACE_SORT
+    if (trace_sort)
+        elog(LOG,
+                "begin merge sort: nkeys = %d, workMem = %d", nkeys, workMem);
+#endif
+
+    state->nKeys = nkeys;
+
+    TRACE_POSTGRESQL_SORT_START(MERGE_SORT,
+                                false,	/* no unique check */
+                                nkeys,
+                                workMem,
+                                false);
+
+    state->rdaCombiner = combiner;
+    state->comparetup = comparetup_heap;
+    state->copytup = NULL;
+    state->writetup = NULL;
+    state->readtup = rda_readtup_datanode;
+    state->getlen = rda_getlen_datanode;
+
+    state->tuples = false;
+
+    state->tupDesc = tupDesc;	/* assume we need not copy tupDesc */
+    state->sortKeys = (SortSupport) palloc0(nkeys * sizeof(SortSupportData));
+
+    for (i = 0; i < nkeys; i++)
+    {
+        SortSupport sortKey = state->sortKeys + i;
+
+        AssertArg(attNums[i] != 0);
+        AssertArg(sortOperators[i] != 0);
+
+        sortKey->ssup_cxt = CurrentMemoryContext;
+        sortKey->ssup_collation = sortCollations[i];
+        sortKey->ssup_nulls_first = nullsFirstFlags[i];
+        sortKey->ssup_attno = attNums[i];
+
+        PrepareSortSupportFromOrderingOp(sortOperators[i], sortKey);
+    }
+
+    /*
+     * logical tape in this case is a sorted stream
+     */
+    tape_count = combiner->node_count + 1;
+    state->maxTapes = tape_count;
+    state->tapeRange = tape_count;
+
+    state->mergeactive = (bool *) palloc0(tape_count * sizeof(bool));
+    state->tp_runs = (int *) palloc0(tape_count * sizeof(int));
+    state->tp_dummy = (int *) palloc0(tape_count * sizeof(int));
+    state->tp_tapenum = (int *) palloc0(tape_count * sizeof(int));
+    /* mark each stream (tape) has one run */
+    for (i = 0; i < tape_count; i++)
+    {
+        state->tp_runs[i] = 1;
+        state->tp_tapenum[i] = i;
+    }
+
+    init_slab_allocator(state, 0);
+
+    beginmerge(state);
+    state->status = TSS_FINALMERGE;
+
+    MemoryContextSwitchTo(oldcontext);
+
+    return state;
+}
+
 #endif
 
 /*
@@ -4026,6 +4123,52 @@ readtup_datanode(Tuplesortstate *state, SortTuple *stup,
     htup.t_len = tuple->t_len + MINIMAL_TUPLE_OFFSET;
     htup.t_data = (HeapTupleHeader) ((char *) tuple - MINIMAL_TUPLE_OFFSET);
 	htup.t_tableOid = InvalidOid;
+    stup->datum1 = heap_getattr(&htup,
+                                state->sortKeys[0].ssup_attno,
+                                state->tupDesc,
+                                &stup->isnull1);
+}
+
+static unsigned int
+rda_getlen_datanode(Tuplesortstate *state, int tapenum, bool eofOK)
+{
+    RDAResponseCombiner *combiner = state->rdaCombiner;
+    TupleTableSlot   *dstslot = combiner->ss.ps.ps_ResultTupleSlot;
+    TupleTableSlot   *slot;
+
+    slot = fetch_slot_from_rda(combiner, tapenum);
+    if (TupIsNull(slot))
+    {
+        if (eofOK)
+            return 0;
+        else
+            elog(ERROR, "unexpected end of data");
+    }
+
+    if (slot != dstslot)
+        ExecCopySlot(dstslot, slot);
+
+    return 1;
+}
+
+static void
+rda_readtup_datanode(Tuplesortstate *state, SortTuple *stup,
+                     int tapenum, unsigned int len)
+{
+    TupleTableSlot *slot = state->rdaCombiner->ss.ps.ps_ResultTupleSlot;
+    MinimalTuple tuple;
+    HeapTupleData htup;
+
+    Assert(!TupIsNull(slot));
+
+    /* copy the tuple into sort storage */
+    tuple = ExecCopySlotMinimalTuple(slot);
+    stup->tuple = (void *) tuple;
+    USEMEM(state, GetMemoryChunkSpace(tuple));
+    /* set up first-column key value */
+    htup.t_len = tuple->t_len + MINIMAL_TUPLE_OFFSET;
+    htup.t_data = (HeapTupleHeader) ((char *) tuple - MINIMAL_TUPLE_OFFSET);
+    htup.t_tableOid = InvalidOid;
     stup->datum1 = heap_getattr(&htup,
                                 state->sortKeys[0].ssup_attno,
                                 state->tupDesc,

@@ -145,6 +145,7 @@ extern char *quote_literal_cstr(const char *rawstr);
 /* backend/pgxc/pool/poolutils.c */
 extern Datum pgxc_pool_check(PG_FUNCTION_ARGS);
 extern Datum pgxc_pool_reload(PG_FUNCTION_ARGS);
+extern Datum pgxc_rda_reload(PG_FUNCTION_ARGS);
 extern Datum pgxc_pool_disconnect(PG_FUNCTION_ARGS);
 
 /* backend/access/transam/transam.c */

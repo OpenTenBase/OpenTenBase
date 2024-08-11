@@ -424,6 +424,12 @@ typedef uint32 SubTransactionId;
 
 typedef int64    GlobalTimestamp;
 
+/*
+ * RDAID
+ */
+typedef int64	RDAIdentifier;
+#define InvalidRDAId ((RDAIdentifier) 0)
+
 
 /* MultiXactId must be equivalent to TransactionId, to fit in t_xmax */
 typedef TransactionId MultiXactId;

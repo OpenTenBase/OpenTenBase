@@ -74,6 +74,7 @@
 #include "pgxc/locator.h"
 #include "pgxc/planner.h"
 #include "pgxc/poolmgr.h"
+#include "pgxc/forwarder.h"
 #include "pgxc/nodemgr.h"
 #include "pgxc/xc_maintenance_mode.h"
 #include "storage/procarray.h"
@@ -83,6 +84,7 @@
 #include "parser/parse_utilcmd.h"
 #include "pgxc/nodemgr.h"
 #include "pgxc/squeue.h"
+#include "pgxc/forwarder.h"
 #include "utils/snapmgr.h"
 #endif
 #include "postmaster/autovacuum.h"
@@ -615,6 +617,14 @@ bool        log_statement_stats = false;    /* this is sort of all three above
 #ifdef XCP
 bool        log_gtm_stats = false;
 bool        log_remotesubplan_stats = false;
+bool        enable_remote_data_access_plan = false;
+/* debug feature for io transfer */
+bool        rda_io_buffer_debug_out_to_file = false;
+bool        log_remote_data_access_stats = false;
+int         rda_mmap_frame_size_kb = 64;
+int         rda_send_wait_time = 20;
+int         rda_receive_wait_time = 20;
+int         rda_wait_rescan_time = 20;
 #endif
 
 bool        log_btree_build_stats = false;
@@ -1530,21 +1540,57 @@ static struct config_bool ConfigureNamesBool[] =
         check_log_stats, NULL, NULL
     },
 #ifdef XCP
+	{
+		{"log_remotesubplan_stats", PGC_SUSET, STATS_MONITORING,
+			gettext_noop("Writes remote subplan performance statistics to the server log."),
+			NULL
+		},
+		&log_remotesubplan_stats,
+		false,
+		NULL, NULL, NULL
+	},
+	{
+		{"log_gtm_stats", PGC_SUSET, STATS_MONITORING,
+			gettext_noop("Writes GTM performance statistics to the server log."),
+			NULL
+		},
+		&log_gtm_stats,
+		false,
+		NULL, NULL, NULL
+	},
     {
-        {"log_remotesubplan_stats", PGC_SUSET, STATS_MONITORING,
-            gettext_noop("Writes remote subplan performance statistics to the server log."),
+        {"enable_remote_data_access_plan", PGC_SUSET, DEVELOPER_OPTIONS,
+            gettext_noop("Enable RDA plan for data re-distribution."),
             NULL
         },
-        &log_remotesubplan_stats,
+        &enable_remote_data_access_plan,
         false,
         NULL, NULL, NULL
     },
-    {
-        {"log_gtm_stats", PGC_SUSET, STATS_MONITORING,
-            gettext_noop("Writes GTM performance statistics to the server log."),
+	{
+        {"enable_rda_buffer_out_to_file", PGC_POSTMASTER, DEVELOPER_OPTIONS,
+            gettext_noop("Debug feature for io transfer."),
             NULL
         },
-        &log_gtm_stats,
+        &rda_io_buffer_debug_out_to_file,
+        false,
+        NULL, NULL, NULL
+    },
+	{
+        {"enable_forwarder_package_dump", PGC_POSTMASTER, DEVELOPER_OPTIONS,
+            gettext_noop("Debug feature for network transfer."),
+            NULL
+        },
+        &g_fwd_dump_pkg_to_file,
+        false,
+        NULL, NULL, NULL
+    },
+	{
+        {"enable_forwarder_network_checksum", PGC_POSTMASTER, UNGROUPED,
+            gettext_noop("Enable forwarder data transfer md5 check."),
+            NULL
+        },
+        &g_fwd_enable_fwd_md5,
         false,
         NULL, NULL, NULL
     },
@@ -1624,6 +1670,15 @@ static struct config_bool ConfigureNamesBool[] =
         },
         &Trace_notify,
         false,
+        NULL, NULL, NULL
+    },
+    {
+        {"enable_dds", PGC_POSTMASTER, LOCK_MANAGEMENT,
+            gettext_noop("enable dds check deadlock algorithm."),
+            NULL,
+        },
+        &enable_dds,
+        true,
         NULL, NULL, NULL
     },
 
@@ -4601,15 +4656,51 @@ static struct config_int ConfigureNamesInt[] =
 		NULL, NULL, NULL
 	},
 #endif
+	{
+		{"pooler_port", PGC_POSTMASTER, DATA_NODES,
+			gettext_noop("Port of the Pool Manager."),
+			NULL
+		},
+		&PoolerPort,
+		6667, 1, 65535,
+		NULL, NULL, NULL
+	},
+	{
+		{"fwd_server_port", PGC_POSTMASTER, DATA_NODES,
+			gettext_noop("Port of the forwarder server port."),
+			NULL
+		},
+		&g_FwdServerPort,
+		6669, 1, 65535,
+		NULL, NULL, NULL
+	},
+	{
+		{"forwarder_worker_number", PGC_POSTMASTER, DATA_NODES,
+			gettext_noop("Number of forwarder network thread."),
+			NULL
+		},
+		&g_FwdWorkerNum,
+		2, 1, 1024,
+		NULL, NULL, NULL
+	},
     {
-        {"pooler_port", PGC_POSTMASTER, DATA_NODES,
-            gettext_noop("Port of the Pool Manager."),
-            NULL
-        },
-        &PoolerPort,
-        6667, 1, 65535,
-        NULL, NULL, NULL
-    },
+		{"forwarder_io_worker_num", PGC_POSTMASTER, DATA_NODES,
+			gettext_noop("Number of forwarder network io thread."),
+			NULL
+		},
+		&g_FwdIOThreadNum,
+		2, 1, 512,
+		NULL, NULL, NULL
+	},
+    {
+		{"forwarder_connection_per_node", PGC_POSTMASTER, DATA_NODES,
+			gettext_noop("Number of forwarder sender socket per node."),
+			NULL
+		},
+		&g_rda_sender_socket_num_per_node,
+		1, 1, 1024,
+		NULL, NULL, NULL
+	},
 #ifdef XCP
     /*
      * Shared queues provide shared memory buffers to stream data from
@@ -4627,17 +4718,29 @@ static struct config_int ConfigureNamesInt[] =
         NULL, NULL, NULL
     },
 
-    {
-        {"shared_queue_size", PGC_POSTMASTER, RESOURCES_MEM,
-            gettext_noop("Sets the amount of memory allocated for a shared"
-                    " memory queue per datanode."),
-            NULL,
-            GUC_UNIT_KB
-        },
-        &SQueueSize,
-        32, 1, MAX_KILOBYTES,
-        NULL, NULL, NULL
-    },
+	{
+		{"shared_queue_size", PGC_POSTMASTER, RESOURCES_MEM,
+			gettext_noop("Sets the amount of memory allocated for a shared"
+					" memory queue per datanode."),
+			NULL,
+			GUC_UNIT_KB
+		},
+		&SQueueSize,
+		32, 1, MAX_KILOBYTES,
+		NULL, NULL, NULL
+	},
+
+	{
+		{"rda_mmap_frame_size_kb", PGC_POSTMASTER, UNGROUPED,
+			gettext_noop("RDA: Sets the amount of memory allocated for a shared"
+					" memory queue per datanode."),
+			NULL,
+			GUC_UNIT_KB
+		},
+		&rda_mmap_frame_size_kb,
+		512, 1, MAX_KILOBYTES,
+		NULL, NULL, NULL
+	},
 
     {
         {"parentPGXCPid", PGC_USERSET, UNGROUPED,
@@ -4827,16 +4930,16 @@ static struct config_int ConfigureNamesInt[] =
 #endif
 #endif
 #endif /* PGXC */
-    {
-        {"gin_pending_list_limit", PGC_USERSET, CLIENT_CONN_STATEMENT,
-            gettext_noop("Sets the maximum size of the pending list for GIN index."),
-            NULL,
-            GUC_UNIT_KB
-        },
-        &gin_pending_list_limit,
-        4096, 64, MAX_KILOBYTES,
-        NULL, NULL, NULL
-    },
+	{
+		{"gin_pending_list_limit", PGC_USERSET, CLIENT_CONN_STATEMENT,
+			gettext_noop("Sets the maximum size of the pending list for GIN index."),
+			NULL,
+			GUC_UNIT_KB
+		},
+		&gin_pending_list_limit,
+		4096, 64, MAX_KILOBYTES,
+		NULL, NULL, NULL
+	},
 
 #ifdef __TWO_PHASE_TRANS__
 	{
@@ -4969,13 +5072,13 @@ static struct config_uint ConfigureNamesUInt[] =
         },
         &MyCoordLxid,
 		0, 0, UINT_MAX,
-        NULL, NULL, NULL
-    },
+		NULL, NULL, NULL
+	},
 
-    /* End-of-list marker */
-    {
-        {NULL, 0, 0, NULL, NULL}, NULL, 0, 0, 0, NULL, NULL, NULL
-    }
+	/* End-of-list marker */
+	{
+		{NULL, 0, 0, NULL, NULL}, NULL, 0, 0, 0, NULL, NULL, NULL
+	}
 };
 
 static struct config_real ConfigureNamesReal[] =

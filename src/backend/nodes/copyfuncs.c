@@ -1434,6 +1434,38 @@ _copyRemoteSubplan(const RemoteSubplan *from)
 }
 
 /*
+ * _copyRemoteSubplan
+ */
+static RemoteDataAccess *
+_copyRemoteDataAccess(const RemoteDataAccess *from)
+{
+    RemoteDataAccess *newnode = makeNode(RemoteDataAccess);
+
+    /*
+     * copy node superclass fields
+     */
+    CopyScanFields((Scan *) from, (Scan *) newnode);
+
+    /*
+     * copy remainder of node
+     */
+    COPY_SCALAR_FIELD(distributionType);
+    COPY_SCALAR_FIELD(distributionKey);
+    COPY_NODE_FIELD(distributionNodes);
+    COPY_NODE_FIELD(distributionRestrict);
+    COPY_NODE_FIELD(nodeList);
+    COPY_SCALAR_FIELD(execOnAll);
+    COPY_NODE_FIELD(sort);
+    COPY_STRING_FIELD(cursor);
+    COPY_SCALAR_FIELD(unique);
+#ifdef __OPENTENBASE__
+    COPY_SCALAR_FIELD(parallelWorkerSendTuple);
+    COPY_BITMAPSET_FIELD(initPlanParams);
+#endif
+    return newnode;
+}
+
+/*
  * _copyDistribution
  */
 static Distribution *
@@ -5547,12 +5579,15 @@ copyObjectImpl(const void *from)
             break;
 #endif
 #ifdef XCP
-        case T_RemoteSubplan:
-            retval = _copyRemoteSubplan(from);
+		case T_RemoteSubplan:
+			retval = _copyRemoteSubplan(from);
+			break;
+        case T_RemoteDataAccess:
+            retval = _copyRemoteDataAccess(from);
             break;
-        case T_Distribution:
-            retval = _copyDistribution(from);
-            break;
+		case T_Distribution:
+			retval = _copyDistribution(from);
+			break;
 #endif
             /*
              * PRIMITIVE NODES

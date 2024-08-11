@@ -328,73 +328,85 @@ AuxiliaryProcessMain(int argc, char *argv[])
                 statmsg = "cluster monitor process";
                 break;
 #endif
-            case StartupProcess:
-                statmsg = "startup process";
-                break;
-            case BgWriterProcess:
-                statmsg = "writer process";
-                break;
-            case CheckpointerProcess:
-                statmsg = "checkpointer process";
-                break;
-            case WalWriterProcess:
-                statmsg = "wal writer process";
-                break;
-            case WalReceiverProcess:
-                statmsg = "wal receiver process";
-                break;
-            default:
-                statmsg = "??? process";
-                break;
-        }
-        init_ps_display(statmsg, "", "", "");
-    }
+#ifdef __OPENTENBASE__
+			case ForwarderProcess:
+				statmsg = "forwarder process";
+				break;
+#endif
 
-    /* Acquire configuration parameters, unless inherited from postmaster */
-    if (!IsUnderPostmaster)
-    {
-        if (!SelectConfigFiles(userDoption, progname))
-            proc_exit(1);
-    }
+			case StartupProcess:
+				statmsg = "startup process";
+				break;
+			case BgWriterProcess:
+				statmsg = "writer process";
+				break;
+			case CheckpointerProcess:
+				statmsg = "checkpointer process";
+				break;
+			case WalWriterProcess:
+				statmsg = "wal writer process";
+				break;
+			case WalReceiverProcess:
+				statmsg = "wal receiver process";
+				break;
+			default:
+				statmsg = "??? process";
+				break;
+		}
+		init_ps_display(statmsg, "", "", "");
+	}
 
-    /* Validate we have been given a reasonable-looking DataDir */
-    Assert(DataDir);
-    ValidatePgVersion(DataDir);
+	/* Acquire configuration parameters, unless inherited from postmaster */
+	if (!IsUnderPostmaster)
+	{
+		if (!SelectConfigFiles(userDoption, progname))
+			proc_exit(1);
+	}
 
-    /* Change into DataDir (if under postmaster, should be done already) */
-    if (!IsUnderPostmaster)
-        ChangeToDataDir();
+	/* Validate we have been given a reasonable-looking DataDir */
+	Assert(DataDir);
+	ValidatePgVersion(DataDir);
 
-    /* If standalone, create lockfile for data directory */
-    if (!IsUnderPostmaster)
-        CreateDataDirLockFile(false);
+	/* Change into DataDir (if under postmaster, should be done already) */
+	if (!IsUnderPostmaster)
+		ChangeToDataDir();
 
-    SetProcessingMode(BootstrapProcessing);
-    IgnoreSystemIndexes = true;
+	/* If standalone, create lockfile for data directory */
+	if (!IsUnderPostmaster)
+		CreateDataDirLockFile(false);
 
-    /* Initialize MaxBackends (if under postmaster, was done already) */
-    if (!IsUnderPostmaster)
-        InitializeMaxBackends();
+	SetProcessingMode(BootstrapProcessing);
+	IgnoreSystemIndexes = true;
 
-    BaseInit();
+	/* Initialize MaxBackends (if under postmaster, was done already) */
+	if (!IsUnderPostmaster)
+		InitializeMaxBackends();
 
-    /*
-     * When we are an auxiliary process, we aren't going to do the full
-     * InitPostgres pushups, but there are a couple of things that need to get
-     * lit up even in an auxiliary process.
-     */
-    if (IsUnderPostmaster)
-    {
+	BaseInit();
+
+	/*
+	 * When we are an auxiliary process, we aren't going to do the full
+	 * InitPostgres pushups, but there are a couple of things that need to get
+	 * lit up even in an auxiliary process.
+	 */
+	if (IsUnderPostmaster)
+	{
 #ifdef PGXC
         /* Initialize pooler flag before creating PGPROC structure */
         if (MyAuxProcType == PoolerProcess)
                 PGXCPoolerProcessIam();            
 #endif
 
-        /*
-         * Create a PGPROC so we can use LWLocks.  In the EXEC_BACKEND case,
-         * this was already done by SubPostmasterMain().
-         */
+#ifdef __OPENTENBASE__
+		if (MyAuxProcType == ForwarderProcess)
+		{
+			TeleDBForwarderIam();	
+		}
+#endif
+		/*
+		 * Create a PGPROC so we can use LWLocks.  In the EXEC_BACKEND case,
+		 * this was already done by SubPostmasterMain().
+		 */
 #ifndef EXEC_BACKEND
         InitAuxiliaryProcess();
 #endif
@@ -442,54 +454,62 @@ AuxiliaryProcessMain(int argc, char *argv[])
             proc_exit(1);        /* should never return */
 #endif
 
-        case CheckerProcess:
-            /* don't set signals, they're useless here */
-            CheckerModeMain();
+#ifdef __OPENTENBASE__
+		case ForwarderProcess:
+			/* don't set signals, forwarder manage its own agenda */
+			ForwarderInit();
+			proc_exit(1);		/* should never return */
+#endif
+
+
+		case CheckerProcess:
+			/* don't set signals, they're useless here */
+			CheckerModeMain();
             proc_exit(1);        /* should never return */
 
-        case BootstrapProcess:
+		case BootstrapProcess:
 
-            /*
-             * There was a brief instant during which mode was Normal; this is
-             * okay.  We need to be in bootstrap mode during BootStrapXLOG for
-             * the sake of multixact initialization.
-             */
-            SetProcessingMode(BootstrapProcessing);
-            bootstrap_signals();
-            BootStrapXLOG();
-            BootstrapModeMain();
+			/*
+			 * There was a brief instant during which mode was Normal; this is
+			 * okay.  We need to be in bootstrap mode during BootStrapXLOG for
+			 * the sake of multixact initialization.
+			 */
+			SetProcessingMode(BootstrapProcessing);
+			bootstrap_signals();
+			BootStrapXLOG();
+			BootstrapModeMain();
             proc_exit(1);        /* should never return */
 
-        case StartupProcess:
-            /* don't set signals, startup process has its own agenda */
-            StartupProcessMain();
+		case StartupProcess:
+			/* don't set signals, startup process has its own agenda */
+			StartupProcessMain();
             proc_exit(1);        /* should never return */
 
-        case BgWriterProcess:
-            /* don't set signals, bgwriter has its own agenda */
-            BackgroundWriterMain();
+		case BgWriterProcess:
+			/* don't set signals, bgwriter has its own agenda */
+			BackgroundWriterMain();
             proc_exit(1);        /* should never return */
 
-        case CheckpointerProcess:
-            /* don't set signals, checkpointer has its own agenda */
-            CheckpointerMain();
+		case CheckpointerProcess:
+			/* don't set signals, checkpointer has its own agenda */
+			CheckpointerMain();
             proc_exit(1);        /* should never return */
 
-        case WalWriterProcess:
-            /* don't set signals, walwriter has its own agenda */
-            InitXLOGAccess();
-            WalWriterMain();
+		case WalWriterProcess:
+			/* don't set signals, walwriter has its own agenda */
+			InitXLOGAccess();
+			WalWriterMain();
             proc_exit(1);        /* should never return */
 
-        case WalReceiverProcess:
-            /* don't set signals, walreceiver has its own agenda */
-            WalReceiverMain();
+		case WalReceiverProcess:
+			/* don't set signals, walreceiver has its own agenda */
+			WalReceiverMain();
             proc_exit(1);        /* should never return */
 
-        default:
-            elog(PANIC, "unrecognized process type: %d", (int) MyAuxProcType);
-            proc_exit(1);
-    }
+		default:
+			elog(PANIC, "unrecognized process type: %d", (int) MyAuxProcType);
+			proc_exit(1);
+	}
 }
 
 /*

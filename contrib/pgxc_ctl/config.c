@@ -332,20 +332,22 @@ static void emptyCoordSlaves()
 {
     int ii;
 
-    reset_var_val(VAR_coordSlave, "n");
-    reset_var(VAR_coordSlaveServers);
-    reset_var(VAR_coordSlavePorts);
-    reset_var(VAR_coordSlavePoolerPorts);
-    reset_var(VAR_coordSlaveDirs);
-    reset_var(VAR_coordArchLogDirs);
-    for (ii = 0; ii < arraySizeName(VAR_coordNames); ii++)
-    {
-        add_val(find_var(VAR_coordSlaveServers), "none");
-        add_val(find_var(VAR_coordSlaveDirs), "none");
-        add_val(find_var(VAR_coordArchLogDirs), "none");
-        add_val(find_var(VAR_coordSlavePorts), "none");
-        add_val(find_var(VAR_coordSlavePoolerPorts), "none");
-    }
+	reset_var_val(VAR_coordSlave, "n");
+	reset_var(VAR_coordSlaveServers);
+	reset_var(VAR_coordSlavePorts);
+	reset_var(VAR_coordSlavePoolerPorts);
+	reset_var(VAR_coordSlaveFwdServerPorts);
+	reset_var(VAR_coordSlaveDirs);
+	reset_var(VAR_coordArchLogDirs);
+	for (ii = 0; ii < arraySizeName(VAR_coordNames); ii++)
+	{
+		add_val(find_var(VAR_coordSlaveServers), "none");
+		add_val(find_var(VAR_coordSlaveDirs), "none");
+		add_val(find_var(VAR_coordArchLogDirs), "none");
+		add_val(find_var(VAR_coordSlavePorts), "none");
+		add_val(find_var(VAR_coordSlavePoolerPorts), "none");
+		add_val(find_var(VAR_coordSlaveFwdServerPorts), "none");
+	}
 }
 
 /*
@@ -355,20 +357,22 @@ static void emptyDatanodeSlaves()
 {
     int ii;
 
-    reset_var_val(VAR_datanodeSlave, "n");
-    reset_var(VAR_datanodeSlaveServers);
-    reset_var(VAR_datanodeSlavePorts);
-    reset_var(VAR_datanodeSlavePoolerPorts);
-    reset_var(VAR_datanodeSlaveDirs);
-    reset_var(VAR_datanodeArchLogDirs);
-    for (ii = 0; ii < arraySizeName(VAR_datanodeSlaveServers); ii++)
-    {
-        add_val(find_var(VAR_datanodeSlaveServers), "none");
-        add_val(find_var(VAR_datanodeSlaveDirs), "none");
-        add_val(find_var(VAR_datanodeArchLogDirs), "none");
-        add_val(find_var(VAR_datanodeSlavePorts), "-1");
-        add_val(find_var(VAR_datanodeSlavePoolerPorts), "-1");
-    }
+	reset_var_val(VAR_datanodeSlave, "n");
+	reset_var(VAR_datanodeSlaveServers);
+	reset_var(VAR_datanodeSlavePorts);
+	reset_var(VAR_datanodeSlavePoolerPorts);
+	reset_var(VAR_datanodeSlaveFwdServerPorts);
+	reset_var(VAR_datanodeSlaveDirs);
+	reset_var(VAR_datanodeArchLogDirs);
+	for (ii = 0; ii < arraySizeName(VAR_datanodeSlaveServers); ii++)
+	{
+		add_val(find_var(VAR_datanodeSlaveServers), "none");
+		add_val(find_var(VAR_datanodeSlaveDirs), "none");
+		add_val(find_var(VAR_datanodeArchLogDirs), "none");
+		add_val(find_var(VAR_datanodeSlavePorts), "-1");
+		add_val(find_var(VAR_datanodeSlavePoolerPorts), "-1");
+		add_val(find_var(VAR_datanodeSlaveFwdServerPorts), "-1");
+	}
 }
 
 /*
@@ -827,48 +831,50 @@ static void checkResourceConflict(char *srcNames, char *srcServers, char *srcPor
  */
 static void verifyResource(void)
 {
-    char *GtmVars[] = {VAR_gtmName, 
-                       VAR_gtmMasterServer, 
-                       VAR_gtmMasterPort, 
-                       VAR_gtmMasterDir, 
-                       NULL};
-    char *mainClusterVars[] = {VAR_pgxcMainClusterName,
-                            NULL};
-    char *multiCoordClusterVars[] ={VAR_coordNames,
-                                    VAR_coordMasterCluster,
-                                    VAR_coordSlaveCluster,
-                                 NULL};
-    char *multiDatanodeClusterVars[] ={VAR_datanodeNames,
-                                     VAR_datanodeMasterCluster,
-                                         VAR_datanodeSlaveCluster,
-                                 NULL};
-    
-    char *GtmSlaveVars[] = {VAR_gtmSlaveName,
-                            VAR_gtmSlaveServer, 
-                            VAR_gtmSlavePort, 
-                            VAR_gtmSlaveDir, 
-                            NULL};
-    char *gtmProxyVars[] = {VAR_gtmProxyNames, 
-                            VAR_gtmProxyServers, 
-                            VAR_gtmProxyPorts, 
-                            VAR_gtmProxyDirs, 
-                            NULL};
-    char *coordMasterVars[] = {VAR_coordNames, 
-                               VAR_coordPorts, 
-                               VAR_poolerPorts, 
-                               VAR_coordMasterServers,
-                               VAR_coordMasterDirs, 
-                               VAR_coordMaxWALSenders, 
-                               
-                               NULL};
-    char *coordSlaveVars[] = {VAR_coordNames, 
-                              VAR_coordSlaveServers, 
-                              VAR_coordSlavePorts, 
-                              VAR_coordSlavePoolerPorts, 
-                              VAR_coordSlaveDirs, 
-                              VAR_coordArchLogDirs, 
-                             
-                              NULL};
+	char *GtmVars[] = {VAR_gtmName, 
+					   VAR_gtmMasterServer, 
+					   VAR_gtmMasterPort, 
+					   VAR_gtmMasterDir, 
+					   NULL};
+	char *mainClusterVars[] = {VAR_pgxcMainClusterName,
+							NULL};
+	char *multiCoordClusterVars[] ={VAR_coordNames,
+									VAR_coordMasterCluster,
+									VAR_coordSlaveCluster,
+								 NULL};
+	char *multiDatanodeClusterVars[] ={VAR_datanodeNames,
+									 VAR_datanodeMasterCluster,
+									 	VAR_datanodeSlaveCluster,
+								 NULL};
+	
+	char *GtmSlaveVars[] = {VAR_gtmSlaveName,
+							VAR_gtmSlaveServer, 
+							VAR_gtmSlavePort, 
+							VAR_gtmSlaveDir, 
+							NULL};
+	char *gtmProxyVars[] = {VAR_gtmProxyNames, 
+							VAR_gtmProxyServers, 
+							VAR_gtmProxyPorts, 
+							VAR_gtmProxyDirs, 
+							NULL};
+	char *coordMasterVars[] = {VAR_coordNames, 
+							   VAR_coordPorts, 
+							   VAR_poolerPorts,
+							   VAR_coordFwdServerPorts, 
+							   VAR_coordMasterServers,
+							   VAR_coordMasterDirs, 
+							   VAR_coordMaxWALSenders, 
+							   
+							   NULL};
+	char *coordSlaveVars[] = {VAR_coordNames, 
+							  VAR_coordSlaveServers, 
+							  VAR_coordSlavePorts, 
+							  VAR_coordSlavePoolerPorts,
+							  VAR_coordSlaveFwdServerPorts, 
+							  VAR_coordSlaveDirs, 
+							  VAR_coordArchLogDirs, 
+							 
+							  NULL};
 #if 0
     /*
      * Please note that at present, pgxc_ctl supports only synchronous replication
@@ -879,22 +885,24 @@ static void verifyResource(void)
      */
     char *coordSlaveSVars[] = {VAR_coordSlaveSync, NULL};    /* For extension */
 #endif
-    char *datanodeMasterVars[] = {VAR_datanodeNames, 
-                                  VAR_datanodePorts, 
-                                  VAR_datanodePoolerPorts, 
-                                  VAR_datanodeMasterServers,
-                                  VAR_datanodeMasterDirs, 
-                                  VAR_datanodeMaxWALSenders,
-                                  
-                                  NULL};
-    char *datanodeSlaveVars[] = {VAR_datanodeNames,
-                                 VAR_datanodeSlaveServers,
-                                 VAR_datanodeSlavePorts,
-                                 VAR_datanodeSlavePoolerPorts, 
-                                 VAR_datanodeSlaveDirs,
-                                 VAR_datanodeArchLogDirs,
-                                 
-                                 NULL};
+	char *datanodeMasterVars[] = {VAR_datanodeNames, 
+								  VAR_datanodePorts, 
+								  VAR_datanodePoolerPorts, 
+								  VAR_datanodeFwdServerPorts,
+								  VAR_datanodeMasterServers,
+								  VAR_datanodeMasterDirs, 
+								  VAR_datanodeMaxWALSenders,
+								  
+								  NULL};
+	char *datanodeSlaveVars[] = {VAR_datanodeNames,
+								 VAR_datanodeSlaveServers,
+								 VAR_datanodeSlavePorts,
+								 VAR_datanodeSlavePoolerPorts, 
+								 VAR_datanodeSlaveFwdServerPorts, 
+								 VAR_datanodeSlaveDirs,
+								 VAR_datanodeArchLogDirs,
+								 
+								 NULL};
 #if 0
     char *datanodeSlaveSVars[] = {VAR_datanodeSlaveSync, NULL};    /* For extension, see above */
 #endif
@@ -1161,24 +1169,24 @@ static void verifyResource(void)
  */
 void check_configuration(void)
 {
-    /*
-     * See if mandatory configuration is defined.  Will continue if error is detected
-     * to check all the errors at a time.
-     */
-    /* GTM Master */
-    if (!find_var(VAR_gtmName) || !find_var(VAR_gtmMasterServer) || !find_var(VAR_gtmMasterPort) || !find_var(VAR_gtmMasterDir))
-        elog(ERROR, "ERROR: GTM master configuration is missing. gtmName, gtmMasterServer, gtmMasterPort or gtmMasterDir\n");
-    /* Coordinator Master */
-    if (!find_var(VAR_coordNames) || !find_var(VAR_coordPorts) || !find_var(VAR_poolerPorts) ||
-        !find_var(VAR_coordMasterServers) || !find_var(VAR_coordMasterDirs))
-        elog(ERROR, "ERROR: Coordinator master configuration is missing. coordNames, coodPorts, poolerPorts, coordMasterPorts or coordMasterDirs\n");
-    /* Datanode Master */
-    if (!find_var(VAR_datanodeNames) || !find_var(VAR_datanodePorts) || !find_var(VAR_datanodeMasterServers) ||
-        !find_var(VAR_datanodeMasterDirs))
-        elog(ERROR, "ERROR: Datanode master configuration is missing. datanodeNames, datanodePorts, datanodePoolerPorts, datanodeMasterPorts or datanodeMasterDirs\n");
-    handle_no_slaves();
-    verifyResource();
-    makeServerList();
+	/*
+	 * See if mandatory configuration is defined.  Will continue if error is detected
+	 * to check all the errors at a time.
+	 */
+	/* GTM Master */
+	if (!find_var(VAR_gtmName) || !find_var(VAR_gtmMasterServer) || !find_var(VAR_gtmMasterPort) || !find_var(VAR_gtmMasterDir))
+		elog(ERROR, "ERROR: GTM master configuration is missing. gtmName, gtmMasterServer, gtmMasterPort or gtmMasterDir\n");
+	/* Coordinator Master */
+	if (!find_var(VAR_coordNames) || !find_var(VAR_coordPorts) || !find_var(VAR_poolerPorts) ||
+	    !find_var(VAR_coordMasterServers) || !find_var(VAR_coordMasterDirs) || !find_var(VAR_coordFwdServerPorts))
+		elog(ERROR, "ERROR: Coordinator master configuration is missing. coordNames, coodPorts, poolerPorts, VAR_coordFwdServerPort, coordMasterPorts or coordMasterDirs\n");
+	/* Datanode Master */
+	if (!find_var(VAR_datanodeNames) || !find_var(VAR_datanodePorts) || !find_var(VAR_datanodeMasterServers) ||
+		!find_var(VAR_datanodeMasterDirs) || !find_var(VAR_datanodeFwdServerPorts))
+		elog(ERROR, "ERROR: Datanode master configuration is missing. datanodeNames, datanodePorts, datanodePoolerPorts, VAR_datanodeFwdServerPorts, datanodeMasterPorts or datanodeMasterDirs\n");
+	handle_no_slaves();
+	verifyResource();
+	makeServerList();
 }
 
 /*
@@ -1189,8 +1197,8 @@ int backup_configuration(void)
     if ((strcasecmp(sval(VAR_configBackup), "y") != 0) || is_none(sval(VAR_configBackupHost)) || 
         is_none(sval(VAR_configBackupDir)) || is_none(sval(VAR_configBackupFile)))
         return (2);
-    return(doImmediate(NULL, NULL, "scp %s %s@%s:%s/%s",
-                       pgxc_ctl_config_path,
+    return(doImmediate(NULL, NULL, "scp -P%s %s %s@%s:%s/%s",
+                       sval(VAR_sshPort), pgxc_ctl_config_path,
                        sval(VAR_pgxcUser), sval(VAR_configBackupHost),
                        sval(VAR_configBackupDir), sval(VAR_configBackupFile)));
 }

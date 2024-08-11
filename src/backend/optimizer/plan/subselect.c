@@ -5291,7 +5291,10 @@ finalize_plan(PlannerInfo *root, Plan *plan, int gather_param, Bitmapset *valid_
 #endif
 
 #ifdef XCP
-        case T_RemoteSubplan:
+		case T_RemoteSubplan:
+			break;
+
+        case T_RemoteDataAccess:
             break;
 #endif
 

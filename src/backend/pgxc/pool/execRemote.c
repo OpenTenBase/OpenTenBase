@@ -9835,6 +9835,8 @@ determine_param_types(Plan *plan,  struct find_params_context *context)
                                        (void *) context))
                 return true;
             break;
+        case T_RemoteDataAccess:
+            break;
 
         case T_TidScan:
             if (expression_tree_walker((Node *) ((TidScan *) plan)->tidquals,

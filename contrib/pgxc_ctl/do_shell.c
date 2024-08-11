@@ -182,7 +182,8 @@ FILE *pgxc_popen_w(char *host, const char *cmd_fmt, ...)
     va_start(arg, cmd_fmt);
     vsnprintf(actualCmd, MAXLINE, cmd_fmt, arg);
     va_end(arg);
-    snprintf(sshCmd, MAXLINE, "ssh %s@%s \" %s \"", sval(VAR_pgxcUser), host, actualCmd);
+    snprintf(sshCmd, MAXLINE, "ssh -p%s %s@%s \" %s \"",
+        sval(VAR_sshPort), sval(VAR_pgxcUser), host, actualCmd);
     if ((f = popen(sshCmd, "w")) == NULL)
         elog(ERROR, "ERROR: could not open the command \"%s\" to write, %s\n", sshCmd, strerror(errno));
     return f;
@@ -214,22 +215,22 @@ int doImmediate(char *host, char *stdIn, const char *cmd_fmt, ...)
     {
         int rc1;
         /* Remote case */
-        snprintf(actualCmd, MAXLINE, "ssh %s@%s \"( %s ) > %s 2>&1\" < %s > /dev/null 2>&1",
-                 sval(VAR_pgxcUser), host, cmd_wk, 
+        snprintf(actualCmd, MAXLINE, "ssh -p%s %s@%s \"( %s ) > %s 2>&1\" < %s > /dev/null 2>&1",
+                 sval(VAR_sshPort), sval(VAR_pgxcUser), host, cmd_wk,
                  createRemoteFileName(STDOUT, remoteStdout, MAXPATH),
                  ((stdIn == NULL) || (stdIn[0] == 0)) ? "/dev/null" : stdIn);
         elog(INFO, "Actual Command: %s\n", actualCmd);
         rc = system(actualCmd);
-        snprintf(actualCmd, MAXLINE, "scp %s@%s:%s %s > /dev/null 2>&1",
-                 sval(VAR_pgxcUser), host, remoteStdout,
+        snprintf(actualCmd, MAXLINE, "scp -P%s %s@%s:%s %s > /dev/null 2>&1",
+                 sval(VAR_sshPort), sval(VAR_pgxcUser), host, remoteStdout,
                  createLocalFileName(STDOUT, localStdout, MAXPATH));
         elog(INFO, "Bring remote stdout: %s\n", actualCmd);
         rc1 = system(actualCmd);
         if (WEXITSTATUS(rc1) != 0)
             elog(WARNING, "WARNING: Stdout transfer not successful, file: %s:%s->%s\n",
                  host, remoteStdout, localStdout);
-        doImmediateRaw("ssh %s@%s \"rm -f %s < /dev/null > /dev/null\" < /dev/null > /dev/null",
-                       sval(VAR_pgxcUser), host, remoteStdout);
+        doImmediateRaw("ssh -p%s %s@%s \"rm -f %s < /dev/null > /dev/null\" < /dev/null > /dev/null",
+                                   sval(VAR_sshPort), sval(VAR_pgxcUser), host, remoteStdout);
     }
     elogFile(INFO, localStdout);
     unlink(localStdout);
@@ -271,8 +272,8 @@ static void touchStdout(cmd_t *cmd)
 {
     if (cmd->remoteStdout)
         if (cmd->remoteStdout)
-            doImmediateRaw("(ssh %s@%s touch %s) < /dev/null > /dev/null 2>&1", 
-                           sval(VAR_pgxcUser), cmd->host,
+            doImmediateRaw("(ssh -p%s %s@%s touch %s) < /dev/null > /dev/null 2>&1", 
+                           sval(VAR_sshPort), sval(VAR_pgxcUser), cmd->host,
                            cmd->remoteStdout);
     if (cmd->localStdout)
         doImmediateRaw("(touch %s) < /dev/null > /dev/null", cmd->localStdout);
@@ -328,8 +329,8 @@ int doCmdEl(cmd_t *cmd)
     {
         /* Build actual command */
         snprintf(allocActualCmd(cmd), MAXLINE,
-                 "ssh %s@%s \"( %s ) > %s 2>&1\" < %s > /dev/null 2>&1",
-                 sval(VAR_pgxcUser),
+                 "ssh -p%s %s@%s \"( %s ) > %s 2>&1\" < %s > /dev/null 2>&1",
+                 sval(VAR_sshPort), sval(VAR_pgxcUser),
                  cmd->host,
                  cmd->command,
                  cmd->remoteStdout ? cmd->remoteStdout : "/dev/null",
@@ -340,9 +341,9 @@ int doCmdEl(cmd_t *cmd)
         /* Handle stdout */
         clearStdin(cmd);
         touchStdout(cmd);
-        doImmediateRaw("(scp %s@%s:%s %s; ssh %s@%s rm -rf %s) < /dev/null > /dev/null",
-                       sval(VAR_pgxcUser), cmd->host, cmd->remoteStdout, cmd->localStdout,
-                       sval(VAR_pgxcUser), cmd->host, cmd->remoteStdout);
+        doImmediateRaw("(scp -P%s %s@%s:%s %s; ssh -p%s %s@%s rm -rf %s) < /dev/null > /dev/null",
+                       sval(VAR_sshPort), sval(VAR_pgxcUser), cmd->host, cmd->remoteStdout, cmd->localStdout,
+                       sval(VAR_sshPort), sval(VAR_pgxcUser), cmd->host, cmd->remoteStdout);
         freeAndReset(cmd->remoteStdout);
         /* Handle stdin */
         return (cmd->excode);
@@ -540,7 +541,8 @@ void do_cleanCmdEl(cmd_t *cmd)
             unlink(cmd->localStdin);
         Free(cmd->localStdin);
         if (cmd->remoteStdout)
-            doImmediateRaw("ssh %s@%s \"rm -f %s > /dev/null 2>&1\"", sval(VAR_pgxcUser), cmd->host, cmd->remoteStdout);
+            doImmediateRaw("ssh -p%s %s@%s \"rm -f %s > /dev/null 2>&1\"",
+                sval(VAR_sshPort), sval(VAR_pgxcUser), cmd->host, cmd->remoteStdout);
         Free(cmd->remoteStdout);
         Free(cmd->actualCmd);
         Free(cmd->command);
@@ -685,9 +687,9 @@ cmd_t *makeConfigBackupCmd(void)
 {
     cmd_t *rv = Malloc0(sizeof(cmd_t));
     snprintf((rv->command = Malloc(MAXLINE+1)), MAXLINE,
-             "ssh %s@%s mkdir -p %s;scp %s %s@%sp:%s",
-             sval(VAR_pgxcUser), sval(VAR_configBackupHost), sval(VAR_configBackupDir),
-             pgxc_ctl_config_path, sval(VAR_pgxcUser), sval(VAR_configBackupHost),
+             "ssh -p%s %s@%s mkdir -p %s;scp -P%s %s %s@%sp:%s",
+             sval(VAR_sshPort), sval(VAR_pgxcUser), sval(VAR_configBackupHost), sval(VAR_configBackupDir),
+             sval(VAR_sshPort), pgxc_ctl_config_path, sval(VAR_pgxcUser), sval(VAR_configBackupHost),
              sval(VAR_configBackupFile));
     return(rv);
 }
@@ -696,9 +698,9 @@ int doConfigBackup(void)
 {
     int rc;
 
-    rc = doImmediateRaw("ssh %s@%s mkdir -p %s;scp %s %s@%s:%s/%s",
-                        sval(VAR_pgxcUser), sval(VAR_configBackupHost), sval(VAR_configBackupDir),
-                        pgxc_ctl_config_path, sval(VAR_pgxcUser), sval(VAR_configBackupHost),
+    rc = doImmediateRaw("ssh -p%s %s@%s mkdir -p %s;scp -P%s %s %s@%s:%s/%s",
+                        sval(VAR_sshPort), sval(VAR_pgxcUser), sval(VAR_configBackupHost), sval(VAR_configBackupDir),
+                        sval(VAR_sshPort), pgxc_ctl_config_path, sval(VAR_pgxcUser), sval(VAR_configBackupHost),
                         sval(VAR_configBackupDir), sval(VAR_configBackupFile));
     return(rc);
 }

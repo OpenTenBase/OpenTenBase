@@ -309,9 +309,9 @@ extern PGPROC *PreparedXactProcs;
  * PGXC needs another slot for the pool manager process
  */
 #ifdef PGXC
-#define NUM_AUXILIARY_PROCS        5
+#define NUM_AUXILIARY_PROCS		6
 #else
-#define NUM_AUXILIARY_PROCS        4
+#define NUM_AUXILIARY_PROCS		5
 #endif
 
 /* configurable options */
@@ -320,7 +320,7 @@ extern int    StatementTimeout;
 extern int    LockTimeout;
 extern int    IdleInTransactionSessionTimeout;
 extern bool log_lock_waits;
-
+extern bool enable_dds;
 
 /*
  * Function Prototypes

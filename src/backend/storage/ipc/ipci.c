@@ -57,6 +57,7 @@
 #include "pgxc/pgxc.h"
 #include "pgxc/squeue.h"
 #include "pgxc/pause.h"
+#include "pgxc/dds.h"
 #endif
 #include "utils/backend_random.h"
 #ifdef _MLS_
@@ -208,7 +209,8 @@ CreateSharedMemoryAndSemaphores(bool makePrivate, int port)
 #endif
 #endif
 
-        size = add_size(size, BackendRandomShmemSize());
+		size = add_size(size, BackendRandomShmemSize());
+		size = add_size(size, DependentShmemSize());
 #ifdef EXEC_BACKEND
         size = add_size(size, ShmemBackendArraySize());
 #endif
@@ -318,6 +320,7 @@ CreateSharedMemoryAndSemaphores(bool makePrivate, int port)
 #ifdef __OPENTENBASE__
     GTSTrackInit();
     RecoveryGTMHostInit();
+	InitDependentShmem();
 #endif
 
 #ifdef __OPENTENBASE_DEBUG__

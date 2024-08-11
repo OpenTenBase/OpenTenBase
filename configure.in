@@ -542,6 +542,18 @@ fi
 AC_PROG_CPP
 AC_SUBST(GCC)
 
+#
+# c++ complier
+#
+
+# we need C++ complier support as map.c source is in source code tree.
+# you may add new pre-check issue for C++ complier and library, pls add xx.m4 to 'config' dir
+AC_PROG_CXX([c++ g++])
+
+if test "$GXX" != yes; then
+    AC_MSG_ERROR([g++ or c++ is not ready, pls install g++ for RPC])
+fi
+AC_SUBST(GXX)
 
 #
 # Set up TAS assembly code if needed; the template file has now had its

@@ -47,6 +47,8 @@ typedef struct
 #endif
 } PoolPort;
 
+typedef PoolPort ForwarderPort;
+
 extern int    pool_listen(unsigned short port, const char *unixSocketName);
 extern int    pool_connect(unsigned short port, const char *unixSocketName);
 extern int    pool_getbyte(PoolPort *port);
@@ -65,4 +67,24 @@ extern int	pool_sendpids(PoolPort *port, int *pids, int count, char *errbuf, int
 extern int	pool_recvpids(PoolPort *port, int **pids);
 extern int	pool_sendres_with_command_id(PoolPort *port, int res, CommandId cmdID, char *errbuf, int32 buf_len, char *errmsg, bool need_log);
 extern int  pool_recvres_with_commandID(PoolPort *port, CommandId *cmdID, const char *sql);
+
+/* forwarder unix sock api */
+extern int	forwarder_listen(unsigned short port, const char *unixSocketName);
+extern int	forwarder_connect(unsigned short port, const char *unixSocketName);
+
+#define forwarder_getbyte(port)             pool_getbyte((PoolPort *)(port))
+#define forwarder_pollbyte(port)            pool_pollbyte((PoolPort *)(port))
+#define forwarder_getmessage(port, s, maxlen) \
+                    pool_getmessage((PoolPort *)(port), s, maxlen)
+#define forwarder_getbytes(port, s, len) \
+                    pool_getbytes((PoolPort *)(port), s, len)
+#define forwarder_putmessage(port, msgtype, s, len) \
+                    pool_putmessage((PoolPort *)(port), msgtype, s, len)
+#define forwarder_putbytes(port, s, len) \
+                    pool_putbytes((PoolPort *)(port), s, len)
+#define forwarder_flush(port)               pool_flush((PoolPort *)(port))
+#define forwarder_recvres(port, need_log)   pool_recvres((PoolPort *)(port), need_log)
+#define forwarder_sendres(port, res, errbuf, buf_len, need_log)  \
+                    pool_sendres((PoolPort *)(port), res, errbuf, buf_len, need_log)
+
 #endif   /* POOLCOMM_H */

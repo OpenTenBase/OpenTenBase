@@ -237,16 +237,16 @@ InitMultinodeExecutor(bool is_force)
     PGXCNodeHandlesLookupEnt *node_handle_ent = NULL;
 #endif
 
-    /* Free all the existing information first */
-    if (is_force)
-        pgxc_node_all_free();
+	/* Free all the existing information first */
+	if (is_force)
+		pgxc_node_all_free();
 
-    /* This function could get called multiple times because of sigjmp */
+	/* This function could get called multiple times because of sigjmp */
     if (dn_handles != NULL &&
         co_handles != NULL)
-        return;
-
-    /* Update node table in the shared memory */
+		return;
+	
+	/* Update node table in the shared memory */
 	PgxcNodeListAndCountWrapTransaction();
 
     /* Get classified list of node Oids */
@@ -352,42 +352,42 @@ InitMultinodeExecutor(bool is_force)
             sdn_handles[count].nodehost, sdn_handles[count].nodeport, sdnOids[count]);
 
 #ifdef __OPENTENBASE__
-        node_handle_ent = (PGXCNodeHandlesLookupEnt *) hash_search(node_handles_hash, &(sdn_handles[count].nodeoid),
-                                            HASH_ENTER, &found);    
-        if (node_handle_ent)
-        {
-            node_handle_ent->nodeoid = sdn_handles[count].nodeoid;
-            node_handle_ent->nodeidx = count;
+		node_handle_ent = (PGXCNodeHandlesLookupEnt *) hash_search(node_handles_hash, &(sdn_handles[count].nodeoid),
+											HASH_ENTER, &found);	
+		if (node_handle_ent)
+		{
+			node_handle_ent->nodeoid = sdn_handles[count].nodeoid;
+			node_handle_ent->nodeidx = count;
 
 			elog(DEBUG5,
 				"node_handles_hash enter slave datanode nodeoid: %d",
 				node_handle_ent->nodeoid);
-        }
-        sdn_handles[count].node_type = PGXC_NODE_SLAVEDATANODE;
-#endif        
-        
-    }
-        
-    for (count = 0; count < NumCoords; count++)
-    {
-        init_pgxc_handle(&co_handles[count]);
-        co_handles[count].nodeoid = coOids[count];
-        co_handles[count].nodeid = get_pgxc_node_id(coOids[count]);
-        strncpy(co_handles[count].nodename, get_pgxc_nodename(coOids[count]),
-                NAMEDATALEN);
-        strncpy(co_handles[count].nodehost, get_pgxc_nodehost(coOids[count]),
-                NAMEDATALEN);
-        co_handles[count].nodeport = get_pgxc_nodeport(coOids[count]);
-        if(enable_multi_cluster_print)
-            elog(LOG, "cn handle %d nodename %s nodehost %s nodeport %d Oid %d", count, co_handles[count].nodename,
-                co_handles[count].nodehost, co_handles[count].nodeport, coOids[count]);
+		}
+		sdn_handles[count].node_type = PGXC_NODE_SLAVEDATANODE;
+#endif		
+		
+	}
+
+	for (count = 0; count < NumCoords; count++)
+	{
+		init_pgxc_handle(&co_handles[count]);
+		co_handles[count].nodeoid = coOids[count];
+		co_handles[count].nodeid = get_pgxc_node_id(coOids[count]);
+		strncpy(co_handles[count].nodename, get_pgxc_nodename(coOids[count]),
+				NAMEDATALEN);
+		strncpy(co_handles[count].nodehost, get_pgxc_nodehost(coOids[count]),
+				NAMEDATALEN);
+		co_handles[count].nodeport = get_pgxc_nodeport(coOids[count]);
+		if(enable_multi_cluster_print)
+			elog(LOG, "cn handle %d nodename %s nodehost %s nodeport %d Oid %d", count, co_handles[count].nodename,
+				co_handles[count].nodehost, co_handles[count].nodeport, coOids[count]);
 #ifdef __OPENTENBASE__
-        node_handle_ent = (PGXCNodeHandlesLookupEnt *) hash_search(node_handles_hash, &(co_handles[count].nodeoid),
-                                            HASH_ENTER, &found);    
-        if (node_handle_ent)
-        {
-            node_handle_ent->nodeoid = co_handles[count].nodeoid;
-            node_handle_ent->nodeidx = count;
+		node_handle_ent = (PGXCNodeHandlesLookupEnt *) hash_search(node_handles_hash, &(co_handles[count].nodeoid),
+										    HASH_ENTER, &found);	
+		if (node_handle_ent)
+		{
+			node_handle_ent->nodeoid = co_handles[count].nodeoid;
+			node_handle_ent->nodeidx = count;
 
 			elog(DEBUG5,
 				"node_handles_hash enter coordinator nodeoid: %d",
@@ -868,15 +868,15 @@ pgxc_node_receive(const int conn_count,
     }
 
 retry:
-	CHECK_FOR_INTERRUPTS();
-    poll_val  = poll(pool_fd, conn_count, timeout_ms);
-    if (poll_val < 0)
-    {
-        /* error - retry if EINTR */
-        if (errno == EINTR  || errno == EAGAIN)
-        {
-            goto retry;
-        }
+	poll_val  = poll(pool_fd, conn_count, timeout_ms);
+	if (poll_val < 0)
+	{
+		CHECK_FOR_INTERRUPTS();
+		/* error - retry if EINTR */
+		if (errno == EINTR  || errno == EAGAIN)
+		{
+			goto retry;
+		}
 
         if (errno == EBADF)
         {
@@ -1736,12 +1736,12 @@ ensure_buffer_capacity(char *currbuf, size_t currsize, size_t bytes_needed, size
     char       *newbuf;
     Size        newsize = (Size) currsize;
 
-    if (((Size) bytes_needed) >= MaxAllocSize)
+	if (((Size) bytes_needed) >= MaxAllocSize)
         ereport(ERROR,
-                (ENOSPC,
-                 errmsg("out of memory"),
-                 errdetail("Cannot enlarge buffer containing %ld bytes by %ld more bytes.",
-                           currsize, bytes_needed)));
+				(ENOSPC,
+				 errmsg("out of memory"),
+				 errdetail("Cannot enlarge buffer containing %ld bytes by %ld more bytes.",
+						   currsize, bytes_needed)));
 
     if (bytes_needed <= newsize)
     {

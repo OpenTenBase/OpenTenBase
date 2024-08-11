@@ -48,11 +48,18 @@ static int    pool_discardbytes(PoolPort *port, size_t len);
             DEFAULT_PGSOCKET_DIR, \
             (port))
 
+#define FORWARDER_UNIXSOCK_PATH(path, port, sockdir) \
+    snprintf(path, sizeof(path), "%s/.s.PGRPC.%d", \
+            ((sockdir) && *(sockdir) != '\0') ? (sockdir) : \
+            DEFAULT_PGSOCKET_DIR, \
+            (port))
+
 static char sock_path[MAXPGPATH];
 
 static void StreamDoUnlink(int code, Datum arg);
 
 static int    Lock_AF_UNIX(unsigned short port, const char *unixSocketName);
+static int	F_Lock_AF_UNIX(unsigned short port, const char *unixSocketName);
 #endif
 
 /*
@@ -147,6 +154,18 @@ Lock_AF_UNIX(unsigned short port, const char *unixSocketName)
 
     return 0;
 }
+
+static int
+F_Lock_AF_UNIX(unsigned short port, const char *unixSocketName)
+{
+    FORWARDER_UNIXSOCK_PATH(sock_path, port, unixSocketName);
+
+    CreateSocketLockFile(sock_path, true, "");
+
+    unlink(sock_path);
+
+    return 0;
+}
 #endif
 
 /*
@@ -189,6 +208,101 @@ pool_connect(unsigned short port, const char *unixSocketName)
 #endif
 }
 
+int
+forwarder_listen(unsigned short port, const char *unixSocketName)
+{
+    int         fd,
+                len;
+    struct sockaddr_un unix_addr;
+    int         maxconn;
+
+#ifdef HAVE_UNIX_SOCKETS
+    if (F_Lock_AF_UNIX(port, unixSocketName) < 0)
+        return -1;
+
+    /* create a Unix domain stream socket */
+    if ((fd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0)
+        return -1;
+
+    /* fill in socket address structure */
+    memset(&unix_addr, 0, sizeof(unix_addr));
+    unix_addr.sun_family = AF_UNIX;
+    strcpy(unix_addr.sun_path, sock_path);
+    len = sizeof(unix_addr.sun_family) +
+        strlen(unix_addr.sun_path) + 1;
+
+    /* bind the name to the descriptor */
+    if (bind(fd, (struct sockaddr *) & unix_addr, len) < 0)
+    {
+        close(fd);
+        return -1;
+    }
+
+    /*
+     * Select appropriate accept-queue length limit.  PG_SOMAXCONN is only
+     * intended to provide a clamp on the request on platforms where an
+     * overly large request provokes a kernel error (are there any?).
+     */
+    maxconn = MaxBackends * 2;
+    if (maxconn > PG_SOMAXCONN)
+        maxconn = PG_SOMAXCONN;
+
+    /* tell kernel we're a server */
+    if (listen(fd, maxconn) < 0)
+    {
+        close(fd);
+        return -1;
+    }
+
+    /* Arrange to unlink the socket file at exit */
+    on_proc_exit(StreamDoUnlink, 0);
+
+    return fd;
+#else
+    /* TODO support for non-unix platform */
+    ereport(FATAL,
+            (errcode(ERRCODE_INTERNAL_ERROR),
+                errmsg("forwarder manager only supports UNIX socket")));
+    return -1;
+#endif
+}
+
+int
+forwarder_connect(unsigned short port, const char *unixSocketName)
+{
+    int         fd,
+                len;
+    struct sockaddr_un unix_addr;
+
+#ifdef HAVE_UNIX_SOCKETS
+    /* create a Unix domain stream socket */
+    if ((fd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0)
+        return -1;
+
+    /* fill socket address structure w/server's addr */
+    FORWARDER_UNIXSOCK_PATH(sock_path, port, unixSocketName);
+
+    memset(&unix_addr, 0, sizeof(unix_addr));
+    unix_addr.sun_family = AF_UNIX;
+    strcpy(unix_addr.sun_path, sock_path);
+    len = sizeof(unix_addr.sun_family) +
+        strlen(unix_addr.sun_path) + 1;
+
+    if (connect(fd, (struct sockaddr *) & unix_addr, len) < 0)
+    {
+        close(fd);
+        return -1;
+    }
+
+    return fd;
+#else
+    /* TODO support for non-unix platform */
+    ereport(FATAL,
+            (errcode(ERRCODE_INTERNAL_ERROR),
+                errmsg("forwarder manager only supports UNIX socket")));
+    return -1;
+#endif
+}
 
 /*
  * Get one byte from the buffer, read data from the connection if buffer is empty

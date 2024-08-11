@@ -663,6 +663,7 @@ set_plan_refs(PlannerInfo *root, Plan *plan, int rtoffset)
             break;
 #ifdef XCP
         case T_RemoteSubplan:
+        case T_RemoteDataAccess:
             set_remotesubplan_references(root, plan, rtoffset);
             break;
 #endif /* XCP */
