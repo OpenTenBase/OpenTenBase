@@ -85,6 +85,7 @@ static void KillExistingXLOG(void);
 static void KillExistingArchiveStatus(void);
 static void WriteEmptyXLOG(void);
 static void usage(void);
+static void check(void);
 
 
 int

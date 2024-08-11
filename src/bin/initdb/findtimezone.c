@@ -1346,10 +1346,12 @@ static bool
 validate_zone(const char *tzname)
 {
     pg_tz       *tz;
-
-    if (!tzname || !tzname[0])
-        return false;
-
+    if(!tzname){
+    	return false;
+	}
+	if(!tzname[0]){
+		return false;
+	}
     tz = pg_load_tz(tzname);
     if (!tz)
         return false;
@@ -1383,6 +1385,9 @@ select_default_timezone(const char *share_path)
 
     /* Check TZ environment variable */
     tzname = getenv("TZ");
+    if(!share_path){
+    	return;
+	}
     if (validate_zone(tzname))
         return tzname;
 

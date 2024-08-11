@@ -34,6 +34,14 @@ static const char *progname;
  *
  * Be careful to keep this in sync with the help() display.
  */
+ 
+typedef struct
+{
+    const char *switchname;
+    const char *configname;
+	const char *checkgname; 
+} InfoItem;
+
 typedef struct
 {
     const char *switchname;
