@@ -1,0 +1,10 @@
+-- test for retrieving granted roles ddl
+\i test/sql/get_granted_ddl/get_granted_ddl_role.sql
+SELECT dbms_metadata.get_granted_ddl('ROLE_GRANT','dbms_metadata_test_User565667') from dual;
+                              get_granted_ddl                              
+---------------------------------------------------------------------------
+ GRANT "Dbms_Metadata_test_user2873487" TO "dbms_metadata_test_User565667"+
+ GRANT dbms_metadata_test_user8987987 TO "dbms_metadata_test_User565667"  +
+ 
+(1 row)
+
