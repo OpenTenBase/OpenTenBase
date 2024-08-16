@@ -17,6 +17,7 @@ FROM (VALUES
 ) AS update_data (oldproc, newtypes)
 WHERE oid = pg_catalog.to_regprocedure(oldproc);
 
+-- 更新函数以及设为并行安全
 ALTER FUNCTION seg_in(cstring) PARALLEL SAFE;
 ALTER FUNCTION seg_out(seg) PARALLEL SAFE;
 ALTER FUNCTION seg_over_left(seg, seg) PARALLEL SAFE;
