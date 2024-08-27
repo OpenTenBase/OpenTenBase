@@ -31,6 +31,9 @@
 
 /*
  * Case-independent comparison of two null-terminated strings.
+ 
+ pg_strcasecmp函数：比较两个以空字符('\0')结尾的字符串，不考虑它们的大小写。
+ 如果字符串不相同，返回它们的第一个不同字符的差值（ASCII码值）；如果字符串相同，返回0。  
  */
 int
 pg_strcasecmp(const char *s1, const char *s2)
@@ -64,6 +67,10 @@ pg_strcasecmp(const char *s1, const char *s2)
 /*
  * Case-independent comparison of two not-necessarily-null-terminated strings.
  * At most n bytes will be examined from each string.
+ 
+pg_strncasecmp 函数： 用于比较两个可能不以空字符结尾的字符串，
+并且最多只比较前n个字节。如果字符串在n个字节内完全相同，则返回0；
+如果不同，则返回它们的第一个不同字符的差值（ASCII码值）。  
  */
 int
 pg_strncasecmp(const char *s1, const char *s2, size_t n)
@@ -100,7 +107,14 @@ pg_strncasecmp(const char *s1, const char *s2, size_t n)
  * Unlike some versions of toupper(), this is safe to apply to characters
  * that aren't lower case letters.  Note however that the whole thing is
  * a bit bogus for multibyte character sets.
+
+
+pg_toupper函数：将一个小写字母转换为大写字母。
+如果传入的字符不是小写字母，则返回原字符。
+需要注意的是，这个函数仅对ASCII字符集有效，并且不处理多字节字符集的情况。  
+
  */
+ 
 unsigned char
 pg_toupper(unsigned char ch)
 {
@@ -123,7 +137,7 @@ pg_tolower(unsigned char ch)
 {
     if (ch >= 'A' && ch <= 'Z')
         ch += 'a' - 'A';
-    else if (IS_HIGHBIT_SET(ch) && isupper(ch))
+    else if (IS_HIGHBIT_SET(ch) && isupper(ch))	
         ch = tolower(ch);
     return ch;
 }
@@ -135,7 +149,8 @@ unsigned char
 pg_ascii_toupper(unsigned char ch)
 {
     if (ch >= 'a' && ch <= 'z')
-        ch += 'A' - 'a';
+        ch += 'A' - 'a';	//通过加减，实则运算ascll码，小写97，大写65
+        					//实际就是小写字母-32，完成大小写转换
     return ch;
 }
 
@@ -146,6 +161,7 @@ unsigned char
 pg_ascii_tolower(unsigned char ch)
 {
     if (ch >= 'A' && ch <= 'Z')
-        ch += 'a' - 'A';
+        ch += 'a' - 'A';	//通过加减，实则运算ascll码，小写97，大写65
+        					//实际就是大写字母+32，完成大小写转换
     return ch;
 }
