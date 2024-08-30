@@ -409,7 +409,9 @@ mkdatadir(const char *subdir)
 
     path = pg_malloc(strlen(pg_data) + 2 +
                      (subdir == NULL ? 0 : strlen(subdir)));
-
+    if(subdir  == NULL){
+    	strcpy(path,pg_data);
+	} 
     if (subdir != NULL)
         sprintf(path, "%s/%s", pg_data, subdir);
     else
@@ -563,11 +565,11 @@ setup_control(void)
 {
     char        path[MAXPGPATH];
     char        *controlline = NULL;
-
-    if (!is_gtm)
-        return;
-
-    fputs(_("creating control file ... "), stdout);
+    if(!is_gtm)
+	{
+		return;
+	}else{
+	fputs(_("creating control file ... "), stdout);
     fflush(stdout);
 
     snprintf(path, sizeof(path), "%s/gtm.control", pg_data);
@@ -575,6 +577,8 @@ setup_control(void)
     chmod(path, S_IRUSR | S_IWUSR);
 
     check_ok();
+	}
+
 }
 #endif
 
@@ -704,12 +708,12 @@ CreateRestrictedProcess(char *cmd, PROCESS_INFORMATION *processInfo)
 
     ZeroMemory(&si, sizeof(si));
     si.cb = sizeof(si);
-
     Advapi32Handle = LoadLibrary("ADVAPI32.DLL");
     if (Advapi32Handle != NULL)
     {
         _CreateRestrictedToken = (__CreateRestrictedToken) GetProcAddress(Advapi32Handle, "CreateRestrictedToken");
     }
+    
 
     if (_CreateRestrictedToken == NULL)
     {
@@ -802,6 +806,7 @@ usage(const char *progname)
     printf(_("\nOther options:\n"));
     printf(_("  -?, --help                show this help, then exit\n"));
     printf(_("  -V, --version             output version information, then exit\n"));
+    printf(_("  -C, --change              output version information, then exit\n"));
 }
 
 int
