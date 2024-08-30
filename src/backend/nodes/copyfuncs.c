@@ -3704,6 +3704,9 @@ _copyTruncateStmt(const TruncateStmt *from)
 {
     TruncateStmt *newnode = makeNode(TruncateStmt);
 
+#ifdef __OPENTENBASE__
+	COPY_NODE_FIELD(p_relation);
+#endif
     COPY_NODE_FIELD(relations);
     COPY_SCALAR_FIELD(restart_seqs);
     COPY_SCALAR_FIELD(behavior);
@@ -6365,3 +6368,4 @@ copyObjectImpl(const void *from)
 
     return retval;
 }
+

@@ -2443,6 +2443,27 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 				}
 				SendLeaderCNUtility(queryString, is_temp);
 			}
+
+            /* Check if all of relations is partition of parent relation */
+			RangeVar *p_rel = (RangeVar *)((TruncateStmt *)parsetree)->p_relation;
+			if (p_rel != NULL) {
+                bool is_partition = true;
+				Oid inhparent = RangeVarGetRelid(p_rel, AccessExclusiveLock, false);
+				ListCell *cell;
+				foreach (cell, ((TruncateStmt *)parsetree)->relations) {
+					RangeVar *c_rel = (RangeVar *)lfirst(cell);
+					Oid inhrelid = RangeVarGetRelid(c_rel, AccessExclusiveLock, false);
+					if (!CheckInhRel(inhrelid, inhparent)) {
+                        is_partition = false;
+						elog(WARNING, "table %s is not partition of %s table",
+								    c_rel->relname, p_rel->relname);
+						break;
+					}
+				}
+                if(!is_partition) {
+                    break;
+                }
+			}
 #endif
             ExecuteTruncate((TruncateStmt *) parsetree);
             break;
@@ -8385,3 +8406,4 @@ RemoveSequeceBarely(DropStmt *stmt)
     }
 }
 #endif
+
