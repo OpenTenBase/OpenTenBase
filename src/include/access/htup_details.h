@@ -897,6 +897,12 @@ typedef enum SetShardFlag
 
 #define heap_form_tuple(tupleDescriptor, values, isnull) \
     heap_form_tuple_shard(tupleDescriptor, values, isnull, SetFlag_NoShard, InvalidAttrNumber, InvalidAttrNumber, InvalidOid, InvalidShardID)
+
+/**
+ * fix issue: undefined reference to heap_form_tuple
+ * extern HeapTuple heap_form_tuple(TupleDesc tupleDescriptor, Datum *values, bool *isnull);
+ */
+
 #define heap_form_tuple_toast(tupleDescriptor, values, isnull, sid) \
     heap_form_tuple_shard(tupleDescriptor, values, isnull, SetFlag_ToastShard, InvalidAttrNumber, InvalidAttrNumber, InvalidOid, sid)
 #define heap_form_tuple_plain(tupleDescriptor, values, isnull, attrno, secattrno, relid) \

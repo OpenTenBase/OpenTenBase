@@ -805,6 +805,20 @@ heap_copy_tuple_as_datum(HeapTuple tuple, TupleDesc tupleDesc)
 }
 
 /*
+ * fix issue: undefined reference to heap_form_tuple
+ *
+
+#ifdef _SHARDING_
+
+HeapTuple heap_form_tuple(TupleDesc tupleDescriptor, Datum *values, bool *isnull)
+{
+    return heap_form_tuple_shard(tupleDescriptor, values, isnull, SetFlag_NoShard, InvalidAttrNumber, InvalidAttrNumber, InvalidOid, InvalidShardID);
+}
+
+#endif
+*/
+
+/*
  * heap_form_tuple
  *        construct a tuple from the given values[] and isnull[] arrays,
  *        which are of the length indicated by tupleDescriptor->natts
