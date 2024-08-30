@@ -20,50 +20,91 @@ For more information look at our website located at:
 
 	https://www.opentenbase.org/
 
-## Building
-### System Requirements: 
+## Building OpenTenBase
 
-Memory: 4G RAM minimum
+### System Requirements
 
-OS: TencentOS 2, TencentOS 3, OpenCloudOS, CentOS 7, CentOS 8, Ubuntu
+- **Memory:** At least 4GB of RAM to ensure smooth operation.
+- **Operating System:** Compatible with TencentOS 2, TencentOS 3, OpenCloudOS, CentOS 7, CentOS 8, and Ubuntu for a wide range of deployment options.
 
-### Dependence
+### Dependencies Installation
 
-` yum -y install gcc make readline-devel zlib-devel openssl-devel uuid-devel bison flex`
+To prepare your system for building OpenTenBase, you'll need to install some essential development libraries. Use the package manager specific to your OS to install the required dependencies:
 
-or
+For Red Hat-based systems (e.g., CentOS):
 
-` apt install -y gcc make libreadline-dev zlib1g-dev libssl-dev libossp-uuid-dev bison flex`
+```shell
+yum -y install gcc make readline-devel zlib-devel openssl-devel uuid-devel bison flex
+```
 
-### Create User 'opentenbase'
+For Debian-based systems (e.g., Ubuntu):
+
+```shell
+apt install -y gcc make libreadline-dev zlib1g-dev libssl-dev libossp-uuid-dev bison flex
+```
+
+### Setting Up the 'opentenbase' User
+
+Creating a dedicated user account for OpenTenBase is a best practice for security and management. Follow these steps to set up the user and its home directory:
 
 ```shell
 mkdir /data
-useradd -d /data/opentenbase -s /bin/bash -m opentenbase # add user opentenbase
-passwd opentenbase # set password
+useradd -d /data/opentenbase -s /bin/bash -m opentenbase # Creates the 'opentenbase' user with a home directory at /data/opentenbase
+passwd opentenbase # Prompts you to set a password for the new user
 ```
 
-### Building
+### Compilation and Installation
 
-```shell
-git clone https://github.com/OpenTenBase/OpenTenBase
+Now that your system is ready, you can proceed with the actual building process of OpenTenBase:
 
-export SOURCECODE_PATH=/data/opentenbase/OpenTenBase
-export INSTALL_PATH=/data/opentenbase/install
+1. **Clone the Repository:**
 
-cd ${SOURCECODE_PATH}
-rm -rf ${INSTALL_PATH}/opentenbase_bin_v2.0
-chmod +x configure*
-./configure --prefix=${INSTALL_PATH}/opentenbase_bin_v2.0 --enable-user-switch --with-openssl --with-ossp-uuid CFLAGS=-g
-make clean
-make -sj
-make install
-chmod +x contrib/pgxc_ctl/make_signature
-cd contrib
-make -sj
-make install
+   ```shell
+   git clone https://github.com/OpenTenBase/OpenTenBase
+   ```
+
+2. **Set Up Environment Variables:**
+
+   ```shell
+   export SOURCECODE_PATH=/data/opentenbase/OpenTenBase
+   export INSTALL_PATH=/data/opentenbase/install
+   ```
+
+3. **Navigate to the Source Code Directory and Begin the Build:**
+
+   ```shell
+   cd ${SOURCECODE_PATH}
+   rm -rf ${INSTALL_PATH}/opentenbase_bin_v2.0 # Removes previous build artifacts if present
+   chmod +x configure* # Makes the configure scripts executable
+   
+   # Run the configuration script with the specified installation prefix and options
+   ./configure --prefix=${INSTALL_PATH}/opentenbase_bin_v2.0 --enable-user-switch --with-openssl --with-ossp-uuid CFLAGS=-g
+   
+   # Clean previous builds and prepare for a fresh one
+   make clean
+   
+   # Compile the source code using all available CPU cores for a faster build
+   make -sj
+   
+   # Install the compiled software to the designated location
+   make install
+   
+   # Ensure the necessary executables have the proper permissions
+   chmod +x contrib/pgxc_ctl/make_signature
+   
+   # Navigate into the contrib directory to compile and install additional components
+   cd contrib
+   make -sj
+   make install
+   ```
+
+**Troubleshooting Note for Ubuntu Users:** If you encounter the "initgtm: command not found" error during the "init all" step, it may be due to the system not recognizing the path to the 'initgtm' executable. To resolve this, you can add the installation's 'bin' directory to your system's PATH environment variable by editing the `/etc/environment` file and appending the following line:
+
 ```
-**Notice: if you use Ubuntu and see *initgtm: command not found* while doing "init all", you may add *${INSTALL_PATH}/opentenbase_bin_v2.0/bin* to */etc/environment***
+${INSTALL_PATH}/opentenbase_bin_v2.0/bin
+```
+
+This will ensure that the 'initgtm' command and other executables from the OpenTenBase installation are accessible system-wide. Don't forget to reload your environment or restart your session for the changes to take effect.
 
 ## Installation
 Use PGXC\_CTL tool to build a cluster, for example: a cluster with a global transaction management node (GTM), a coordinator(COORDINATOR) and two data nodes (DATANODE).
