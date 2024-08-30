@@ -34,6 +34,35 @@
 #define NUM_HASH_BUCKET 256
 static pg_conf_var_hash var_hash[NUM_HASH_BUCKET];
 
+/*
+	1.这个函数计算给定字符串 name 的哈希值
+	2.将输入的 char *name 强转为 unsigned char *name_u。这是为了确保字符被视为无符号的。
+	  因为在处理字符的ASCII值时，通常我们不需要考虑符号位。
+	3.建一个无符号的整形变量v，遍历字符串，然后累加每个字符的ASCII值到 v。
+	4.返回v除以256的余数。这个余数将用作哈希表的索引
+	5.确保字符串 name 被映射到哈希表的一个特定位置。
+	这种简单的哈希函数 我认为 是可以优化的，
+	下面是一个简单的优化，利用字符串前缀哈希算法：
+	const int P = 131;
+	const int maxn=1e5+100;
+	unsigned int a[maxn],h[maxn],p[maxn];
+	unsigned int gets(int l,int r)
+	{
+	    return h[r]-h[l-1]*p[r-l+1];
+	}
+	
+	hash_value(char *name)
+	{
+	    unsigned char *name_u = (unsigned char *)name;
+	    unsigned int v;
+	
+	    for(v = 0; *name_u; name_u++){
+	        p[i]=p[i-1]*P;
+	        h[i]=h[i-1]*P+name_u;
+    	}
+	    return gets(*name,*name_u);
+	}
+*/
 static int
 hash_value(char *name)
 {
@@ -86,6 +115,11 @@ add_var_hash(pg_conf_var *var)
 }
 
 static pg_conf_var *
+/*
+* 根据传来的指针类型的 字符串变量名
+在哈希表中 查找对应的结构，如果找到了 返回
+如果没找到 返回 null
+*/
 find_var(char *name)
 {
     pg_conf_var_hash *hash = &var_hash[hash_value(name)];
@@ -101,6 +135,10 @@ find_var(char *name)
     return NULL;
 }
 
+/*
+这个函数创建一个新的 pg_conf_var 结构，设置其 name 字段为传入的 name，并初始化其他字段。
+然后，它将新创建的变量添加到哈希表中，并返回新变量的指针。
+*/
 static pg_conf_var *
 new_var(char *name)
 {

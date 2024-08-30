@@ -15,6 +15,7 @@
 #include "log.h"
 
 static char *
+//输入：一个字符串 line 和一个指向字符指针的指针 token。
 get_name(char *line, char **token)
 {// #lizard forgives
     *token = NULL;
