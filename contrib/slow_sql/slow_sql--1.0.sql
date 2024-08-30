@@ -1,0 +1,1 @@
+\echo Use "CREATE EXTENSION slow_sql" to load this file. \quit

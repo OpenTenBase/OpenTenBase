@@ -63,7 +63,8 @@ SUBDIRS = \
                 stormstats		\
                 opentenbase_subscription  \
 				opentenbase_pooler_stat \
-                pg_stat_cluster_activity
+                pg_stat_cluster_activity \
+                slow_sql
 
 ifeq ($(with_openssl),yes)
 SUBDIRS += sslinfo
