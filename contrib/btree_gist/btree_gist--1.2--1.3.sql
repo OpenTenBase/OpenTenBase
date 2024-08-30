@@ -6,36 +6,43 @@
 -- Add support for indexing UUID columns
 
 -- define the GiST support methods
-CREATE FUNCTION gbt_uuid_consistent(internal,uuid,int2,oid,internal)
+-- 检查 GiST 或 GIN 索引的一致性
+CREATE FUNCTION gbt_uuid_consistent(internal, uuid, int2, oid, internal)
 RETURNS bool
 AS 'MODULE_PATHNAME'
 LANGUAGE C IMMUTABLE STRICT;
 
+-- 从索引中提取数据
 CREATE FUNCTION gbt_uuid_fetch(internal)
 RETURNS internal
 AS 'MODULE_PATHNAME'
 LANGUAGE C IMMUTABLE STRICT;
 
+-- 压缩数据以进行索引存储
 CREATE FUNCTION gbt_uuid_compress(internal)
 RETURNS internal
 AS 'MODULE_PATHNAME'
 LANGUAGE C IMMUTABLE STRICT;
 
-CREATE FUNCTION gbt_uuid_penalty(internal,internal,internal)
+-- 计算 GiST 或 GIN 索引中两个键之间的惩罚
+CREATE FUNCTION gbt_uuid_penalty(internal, internal, internal)
 RETURNS internal
 AS 'MODULE_PATHNAME'
 LANGUAGE C IMMUTABLE STRICT;
 
+-- 选择 GiST 或 GIN 索引中的分割点
 CREATE FUNCTION gbt_uuid_picksplit(internal, internal)
 RETURNS internal
 AS 'MODULE_PATHNAME'
 LANGUAGE C IMMUTABLE STRICT;
 
+-- 合并 GiST 或 GIN 索引中的数据
 CREATE FUNCTION gbt_uuid_union(internal, internal)
 RETURNS gbtreekey32
 AS 'MODULE_PATHNAME'
 LANGUAGE C IMMUTABLE STRICT;
 
+-- 比较 GiST 或 GIN 索引中的两个键是否相同
 CREATE FUNCTION gbt_uuid_same(gbtreekey32, gbtreekey32, internal)
 RETURNS internal
 AS 'MODULE_PATHNAME'
