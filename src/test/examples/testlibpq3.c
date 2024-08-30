@@ -45,7 +45,9 @@
 static void
 exit_nicely(PGconn *conn)
 {
+    // 关闭数据库连接
     PQfinish(conn);
+    // 退出程序
     exit(1);
 }
 
@@ -54,6 +56,7 @@ exit_nicely(PGconn *conn)
  * a table defined as in the comment above.  We split it out because the
  * main() function uses it twice.
  */
+// 显示二进制结果
 static void
 show_binary_results(PGresult *res)
 {
@@ -64,12 +67,14 @@ show_binary_results(PGresult *res)
                 b_fnum;
 
     /* Use PQfnumber to avoid assumptions about field order in result */
-    i_fnum = PQfnumber(res, "i");
-    t_fnum = PQfnumber(res, "t");
-    b_fnum = PQfnumber(res, "b");
+    i_fnum = PQfnumber(res, "i");// 获取字段 "i" 的索引号
+    t_fnum = PQfnumber(res, "t");// 获取字段 "t" 的索引号
+    b_fnum = PQfnumber(res, "b");// 获取字段 "b" 的索引号
 
+    // 遍历每一行
     for (i = 0; i < PQntuples(res); i++)
     {
+        // 用于存储字段值的指针
         char       *iptr;
         char       *tptr;
         char       *bptr;
@@ -77,9 +82,10 @@ show_binary_results(PGresult *res)
         int            ival;
 
         /* Get the field values (we ignore possibility they are null!) */
-        iptr = PQgetvalue(res, i, i_fnum);
-        tptr = PQgetvalue(res, i, t_fnum);
-        bptr = PQgetvalue(res, i, b_fnum);
+        iptr = PQgetvalue(res, i, i_fnum);// 获取字段 "i" 的值作为字符串
+        tptr = PQgetvalue(res, i, t_fnum);// 获取字段 "t" 的值作为字符串
+        bptr = PQgetvalue(res, i, b_fnum);// 获取字段 "b" 的值作为字符串
+
 
         /*
          * The binary representation of INT4 is in network byte order, which
@@ -97,14 +103,16 @@ show_binary_results(PGresult *res)
          */
         blen = PQgetlength(res, i, b_fnum);
 
-        printf("tuple %d: got\n", i);
+        blen = PQgetlength(res, i, b_fnum);// 获取字段 "b" 的长度
+
+        printf("tuple %d: got\n", i);// 输出行号
         printf(" i = (%d bytes) %d\n",
-               PQgetlength(res, i, i_fnum), ival);
+               PQgetlength(res, i, i_fnum), ival);// 输出字段 "i" 的值
         printf(" t = (%d bytes) '%s'\n",
-               PQgetlength(res, i, t_fnum), tptr);
-        printf(" b = (%d bytes) ", blen);
+               PQgetlength(res, i, t_fnum), tptr); // 输出字段 "t" 的值
+        printf(" b = (%d bytes) ", blen);// 输出字段 "b" 的长度
         for (j = 0; j < blen; j++)
-            printf("\\%03o", bptr[j]);
+            printf("\\%03o", bptr[j]);// 输出字段 "b" 的二进制内容
         printf("\n\n");
     }
 }
@@ -112,13 +120,13 @@ show_binary_results(PGresult *res)
 int
 main(int argc, char **argv)
 {
-    const char *conninfo;
-    PGconn       *conn;
-    PGresult   *res;
-    const char *paramValues[1];
-    int            paramLengths[1];
-    int            paramFormats[1];
-    uint32_t    binaryIntVal;
+    const char *conninfo; // 用于存储数据库连接信息
+    PGconn       *conn;// 表示数据库连接
+    PGresult   *res;// 存储查询结果
+    const char *paramValues[1];// 查询参数值数组
+    int            paramLengths[1]; // 查询参数长度数组
+    int            paramFormats[1];// 查询参数格式数组
+    uint32_t    binaryIntVal;// 用于存储二进制整数值
 
     /*
      * If the user supplies a parameter on the command line, use it as the
@@ -126,18 +134,21 @@ main(int argc, char **argv)
      * environment variables or defaults for all other connection parameters.
      */
     if (argc > 1)
-        conninfo = argv[1];
+        conninfo = argv[1];// 从命令行参数获取数据库连接信息
     else
-        conninfo = "dbname = postgres";
+        conninfo = "dbname = postgres";// 默认的数据库连接信息
 
     /* Make a connection to the database */
     conn = PQconnectdb(conninfo);
 
     /* Check to see that the backend connection was successfully made */
+    // 检查数据库连接是否成功
     if (PQstatus(conn) != CONNECTION_OK)
     {
+        // 输出连接失败信息
         fprintf(stderr, "Connection to database failed: %s",
                 PQerrorMessage(conn));
+        // 退出程序
         exit_nicely(conn);
     }
 
@@ -153,6 +164,7 @@ main(int argc, char **argv)
      */
 
     /* Here is our out-of-line parameter value */
+   // 设置查询参数值
     paramValues[0] = "joe's place";
 
     res = PQexecParams(conn,
@@ -164,15 +176,21 @@ main(int argc, char **argv)
                        NULL,    /* default to all text params */
                        1);        /* ask for binary results */
 
+    // 检查查询结果
     if (PQresultStatus(res) != PGRES_TUPLES_OK)
     {
+        // 输出查询失败信息
         fprintf(stderr, "SELECT failed: %s", PQerrorMessage(conn));
+        // 释放查询结果对象
         PQclear(res);
+        // 退出程序
         exit_nicely(conn);
     }
 
+    // 显示二进制结果
     show_binary_results(res);
 
+    // 释放查询结果对象
     PQclear(res);
 
     /*
@@ -186,12 +204,16 @@ main(int argc, char **argv)
      */
 
     /* Convert integer value "2" to network byte order */
+    // 转换整数值为网络字节顺序
     binaryIntVal = htonl((uint32_t) 2);
 
     /* Set up parameter arrays for PQexecParams */
+    // 设置二进制整数值参数
     paramValues[0] = (char *) &binaryIntVal;
+    // 设置参数长度
     paramLengths[0] = sizeof(binaryIntVal);
-    paramFormats[0] = 1;        /* binary */
+    // 设置参数格式
+    paramFormats[0] = 1;         /* binary */
 
     res = PQexecParams(conn,
                        "SELECT * FROM test1 WHERE i = $1::int4",
@@ -202,18 +224,25 @@ main(int argc, char **argv)
                        paramFormats,
                        1);        /* ask for binary results */
 
+    // 检查查询结果
     if (PQresultStatus(res) != PGRES_TUPLES_OK)
     {
+        // 输出查询失败信息
         fprintf(stderr, "SELECT failed: %s", PQerrorMessage(conn));
+        // 释放查询结果对象
         PQclear(res);
+        // 退出程序
         exit_nicely(conn);
     }
 
+    // 显示二进制结果
     show_binary_results(res);
 
+    // 释放查询结果对象
     PQclear(res);
 
     /* close the connection to the database and cleanup */
+    // 关闭数据库连接
     PQfinish(conn);
 
     return 0;

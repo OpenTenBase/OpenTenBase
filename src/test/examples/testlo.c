@@ -43,6 +43,7 @@ importFile(PGconn *conn, char *filename)
     /*
      * open the file to be read in
      */
+    // 打开要导入的文件
     fd = open(filename, O_RDONLY, 0666);
     if (fd < 0)
     {                            /* error */
@@ -52,15 +53,18 @@ importFile(PGconn *conn, char *filename)
     /*
      * create the large object
      */
+    /* 创建一个新的大型对象 */
     lobjId = lo_creat(conn, INV_READ | INV_WRITE);
     if (lobjId == 0)
         fprintf(stderr, "cannot create large object");
 
+    // 打开大型对象以便写入数据
     lobj_fd = lo_open(conn, lobjId, INV_WRITE);
 
     /*
      * read in from the Unix file and write to the inversion file
      */
+    // 从文件读取数据并写入大型对象
     while ((nbytes = read(fd, buf, BUFSIZE)) > 0)
     {
         tmp = lo_write(conn, lobj_fd, buf, nbytes);
@@ -68,6 +72,7 @@ importFile(PGconn *conn, char *filename)
             fprintf(stderr, "error while reading \"%s\"", filename);
     }
 
+    // 关闭文件和大型对象
     close(fd);
     lo_close(conn, lobj_fd);
 
@@ -82,13 +87,16 @@ pickout(PGconn *conn, Oid lobjId, int start, int len)
     int            nbytes;
     int            nread;
 
+    // 打开大型对象以便读取数据
     lobj_fd = lo_open(conn, lobjId, INV_READ);
     if (lobj_fd < 0)
         fprintf(stderr, "cannot open large object %u", lobjId);
 
+    // 将文件指针定位到指定位置
     lo_lseek(conn, lobj_fd, start, SEEK_SET);
     buf = malloc(len + 1);
 
+    // 从大型对象中读取指定长度的数据
     nread = 0;
     while (len - nread > 0)
     {
@@ -113,17 +121,21 @@ overwrite(PGconn *conn, Oid lobjId, int start, int len)
     int            nwritten;
     int            i;
 
+    // 打开大型对象以便写入数据
     lobj_fd = lo_open(conn, lobjId, INV_WRITE);
     if (lobj_fd < 0)
         fprintf(stderr, "cannot open large object %u", lobjId);
 
+    // 将文件指针定位到指定位置
     lo_lseek(conn, lobj_fd, start, SEEK_SET);
     buf = malloc(len + 1);
 
+    // 将指定位置开始的数据替换为'X'
     for (i = 0; i < len; i++)
         buf[i] = 'X';
     buf[i] = '\0';
 
+    // 将替换后的数据写入大型对象
     nwritten = 0;
     while (len - nwritten > 0)
     {
@@ -146,6 +158,7 @@ overwrite(PGconn *conn, Oid lobjId, int start, int len)
  *      export large object "lobjOid" to file "out_filename"
  *
  */
+// 导出大型对象到文件
 static void
 exportFile(PGconn *conn, Oid lobjId, char *filename)
 {
@@ -158,6 +171,7 @@ exportFile(PGconn *conn, Oid lobjId, char *filename)
     /*
      * open the large object
      */
+    // 打开大型对象以便读取数据
     lobj_fd = lo_open(conn, lobjId, INV_READ);
     if (lobj_fd < 0)
         fprintf(stderr, "cannot open large object %u", lobjId);
@@ -165,6 +179,7 @@ exportFile(PGconn *conn, Oid lobjId, char *filename)
     /*
      * open the file to be written to
      */
+    // 打开要导出的文件
     fd = open(filename, O_CREAT | O_WRONLY | O_TRUNC, 0666);
     if (fd < 0)
     {                            /* error */
@@ -175,6 +190,7 @@ exportFile(PGconn *conn, Oid lobjId, char *filename)
     /*
      * read in from the inversion file and write to the Unix file
      */
+    // 从大型对象读取数据并写入文件
     while ((nbytes = lo_read(conn, lobj_fd, buf, BUFSIZE)) > 0)
     {
         tmp = write(fd, buf, nbytes);
@@ -185,12 +201,14 @@ exportFile(PGconn *conn, Oid lobjId, char *filename)
         }
     }
 
+    // 关闭大型对象和文件
     lo_close(conn, lobj_fd);
     close(fd);
 
     return;
 }
 
+// 关闭数据库连接
 static void
 exit_nicely(PGconn *conn)
 {
@@ -208,6 +226,7 @@ main(int argc, char **argv)
     PGconn       *conn;
     PGresult   *res;
 
+    // 检查命令行参数数量
     if (argc != 4)
     {
         fprintf(stderr, "Usage: %s database_name in_filename out_filename\n",
@@ -215,6 +234,7 @@ main(int argc, char **argv)
         exit(1);
     }
 
+    // 获取命令行参数
     database = argv[1];
     in_filename = argv[2];
     out_filename = argv[3];
@@ -234,6 +254,8 @@ main(int argc, char **argv)
 
     res = PQexec(conn, "begin");
     PQclear(res);
+    
+    // 导入文件为大型对象
     printf("importing file \"%s\" ...\n", in_filename);
 /*    lobjOid = importFile(conn, in_filename); */
     lobjOid = lo_import(conn, in_filename);
@@ -243,12 +265,15 @@ main(int argc, char **argv)
     {
         printf("\tas large object %u.\n", lobjOid);
 
+        // 从大型对象中提取指定范围的数据
         printf("picking out bytes 1000-2000 of the large object\n");
         pickout(conn, lobjOid, 1000, 1000);
 
+        // 覆盖大型对象中指定范围的数据为'X'
         printf("overwriting bytes 1000-2000 of the large object with X's\n");
         overwrite(conn, lobjOid, 1000, 1000);
 
+        // 导出大型对象到文件
         printf("exporting large object to file \"%s\" ...\n", out_filename);
 /*        exportFile(conn, lobjOid, out_filename); */
         if (lo_export(conn, lobjOid, out_filename) < 0)
