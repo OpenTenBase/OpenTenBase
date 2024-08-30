@@ -35,15 +35,14 @@ static bool scan_directory_ci(const char *dirname,
                   const char *fname, int fnamelen,
                   char *canonname, int canonnamelen);
 
-
 /*
- * Return full pathname of timezone data directory
+ * 返回时区数据目录的完整路径名
  */
 static const char *
 pg_TZDIR(void)
 {
 #ifndef SYSTEMTZDIR
-    /* normal case: timezone stuff is under our share dir */
+    /* 正常情况下：时区数据存储在我们的共享目录下 */
     static bool done_tzdir = false;
     static char tzdir[MAXPGPATH];
 
@@ -56,21 +55,18 @@ pg_TZDIR(void)
     done_tzdir = true;
     return tzdir;
 #else
-    /* we're configured to use system's timezone database */
+    /* 配置为使用系统的时区数据库 */
     return SYSTEMTZDIR;
 #endif
 }
 
 
 /*
- * Given a timezone name, open() the timezone data file.  Return the
- * file descriptor if successful, -1 if not.
+ * 给定时区名称，打开时区数据文件。如果成功返回文件描述符，如果失败返回-1。
  *
- * The input name is searched for case-insensitively (we assume that the
- * timezone database does not contain case-equivalent names).
+ * 对输入名称进行不区分大小写的搜索（我们假设时区数据库不包含大小写等价的名称）。
  *
- * If "canonname" is not NULL, then on success the canonical spelling of the
- * given name is stored there (the buffer must be > TZ_STRLEN_MAX bytes!).
+ * 如果“canonname”不为NULL，则在成功时将给定名称的规范拼写存储在那里（缓冲区必须> TZ_STRLEN_MAX 字节！）。
  */
 int
 pg_open_tzfile(const char *name, char *canonname)
@@ -80,31 +76,29 @@ pg_open_tzfile(const char *name, char *canonname)
     int            fullnamelen;
     int            orignamelen;
 
-    /* Initialize fullname with base name of tzdata directory */
+    /* 用tzdata目录的基本名称初始化fullname */
     strlcpy(fullname, pg_TZDIR(), sizeof(fullname));
     orignamelen = fullnamelen = strlen(fullname);
 
     if (fullnamelen + 1 + strlen(name) >= MAXPGPATH)
-        return -1;                /* not gonna fit */
+        return -1;                /* 不会适合 */
 
     /*
-     * If the caller doesn't need the canonical spelling, first just try to
-     * open the name as-is.  This can be expected to succeed if the given name
-     * is already case-correct, or if the filesystem is case-insensitive; and
-     * we don't need to distinguish those situations if we aren't tasked with
-     * reporting the canonical spelling.
+     * 如果调用者不需要规范拼写，首先尝试直接打开名称。如果给定的名称已经是大小写正确的，
+     * 或者文件系统不区分大小写，那么可以预期这将成功；如果我们不需要区分这些情况，
+     * 那么我们不需要报告规范拼写。
      */
     if (canonname == NULL)
     {
         int            result;
 
         fullname[fullnamelen] = '/';
-        /* test above ensured this will fit: */
+        /* 上面的测试确保这会适合： */
         strcpy(fullname + fullnamelen + 1, name);
         result = open(fullname, O_RDONLY | PG_BINARY, 0);
         if (result >= 0)
             return result;
-        /* If that didn't work, fall through to do it the hard way */
+        /* 如果上述尝试失败，则继续使用更复杂的方法 */
         fullname[fullnamelen] = '\0';
     }
 
@@ -147,6 +141,11 @@ pg_open_tzfile(const char *name, char *canonname)
  * (of length fnamelen --- fname may not be null terminated!).  If found,
  * copy the actual filename into canonname and return true.
  */
+/*
+ * 扫描目录中的文件，进行大小写不敏感的匹配查找。
+ * 如果找到匹配项，则将匹配的规范名称拷贝到canonname中。
+ * 如果成功找到匹配项，则返回true，否则返回false。
+ */
 static bool
 scan_directory_ci(const char *dirname, const char *fname, int fnamelen,
                   char *canonname, int canonnamelen)
@@ -155,34 +154,40 @@ scan_directory_ci(const char *dirname, const char *fname, int fnamelen,
     DIR           *dirdesc;
     struct dirent *direntry;
 
+    // 打开目录流
     dirdesc = AllocateDir(dirname);
     if (!dirdesc)
     {
+        // 如果无法打开目录，则报错并返回false
         ereport(LOG,
                 (errcode_for_file_access(),
                  errmsg("could not open directory \"%s\": %m", dirname)));
         return false;
     }
 
+    // 逐个读取目录中的文件项
     while ((direntry = ReadDir(dirdesc, dirname)) != NULL)
     {
         /*
-         * Ignore . and .., plus any other "hidden" files.  This is a security
-         * measure to prevent access to files outside the timezone directory.
+         * 忽略“.”和“..”，以及任何其他“隐藏”文件。
+         * 这是一种安全措施，以防止访问时区目录之外的文件。
          */
         if (direntry->d_name[0] == '.')
             continue;
 
+        // 如果文件名长度与要匹配的长度相同，并且忽略大小写后匹配，则认为找到了匹配项
         if (strlen(direntry->d_name) == fnamelen &&
             pg_strncasecmp(direntry->d_name, fname, fnamelen) == 0)
         {
-            /* Found our match */
+            /* 找到了匹配项 */
+            // 将匹配的规范名称拷贝到canonname中
             strlcpy(canonname, direntry->d_name, canonnamelen);
             found = true;
             break;
         }
     }
 
+    // 关闭目录流
     FreeDir(dirdesc);
 
     return found;
@@ -190,19 +195,18 @@ scan_directory_ci(const char *dirname, const char *fname, int fnamelen,
 
 
 /*
- * We keep loaded timezones in a hashtable so we don't have to
- * load and parse the TZ definition file every time one is selected.
- * Because we want timezone names to be found case-insensitively,
- * the hash key is the uppercased name of the zone.
+ * 我们将加载的时区缓存在哈希表中，以便每次选择时区时都不必重新加载和解析TZ定义文件。
+ * 因为我们希望时区名称不区分大小写，所以哈希键是时区名称的大写形式。
  */
 typedef struct
 {
-    /* tznameupper contains the all-upper-case name of the timezone */
+    /* tznameupper 包含时区的全大写名称 */
     char        tznameupper[TZ_STRLEN_MAX + 1];
     pg_tz        tz;
 } pg_tz_cache;
 
 static HTAB *timezone_cache = NULL;
+
 
 
 static bool

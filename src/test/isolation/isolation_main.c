@@ -11,23 +11,22 @@
  * src/test/isolation/isolation_main.c
  *
  *-------------------------------------------------------------------------
- */
-
-#include "postgres_fe.h"
+ */#include "postgres_fe.h"
 
 #include "pg_regress.h"
 #include "getopt_long.h"
 
-char        saved_argv0[MAXPGPATH];
-char        isolation_exec[MAXPGPATH];
-bool        looked_up_isolation_exec = false;
+char saved_argv0[MAXPGPATH];  // 保存程序路径的全局变量
+char isolation_exec[MAXPGPATH];  // 存储 isolationtester 可执行文件路径的全局变量
+bool looked_up_isolation_exec = false;  // 标记是否查找过 isolationtester 可执行文件路径的全局变量
 
 #define PG_ISOLATION_VERSIONSTR "isolationtester (PostgreSQL) " PG_VERSION "\n"
 #ifdef __OPENTENBASE__
-static void check_connection_conf(void);
-static void format_isolation_test(void);
-static void cmd_exec_result(const char *cmd);
+static void check_connection_conf(void);  // 检查连接配置的函数声明
+static void format_isolation_test(void);  // 格式化隔离测试的函数声明
+static void cmd_exec_result(const char *cmd);  // 执行命令并输出结果的函数声明
 #endif
+
 /*
  * start an isolation tester process for specified file (including
  * redirection), and return process ID
@@ -38,25 +37,28 @@ isolation_start_test(const char *testname,
                      _stringlist **expectfiles,
                      _stringlist **tags)
 {
-    PID_TYPE    pid;
-    char        infile[MAXPGPATH];
-    char        outfile[MAXPGPATH];
-    char        expectfile[MAXPGPATH];
-    char        psql_cmd[MAXPGPATH * 3];
-    size_t        offset = 0;
+    PID_TYPE pid;  // 进程ID
+    char infile[MAXPGPATH];  // 输入文件路径
+    char outfile[MAXPGPATH];  // 输出文件路径
+    char expectfile[MAXPGPATH];  // 期望文件路径
+    char psql_cmd[MAXPGPATH * 3];  // psql 命令的缓冲区，用于启动隔离测试
+    size_t offset = 0;  // 偏移量
 
     /* need to do the path lookup here, check isolation_init() for details */
+    // 需要在此处执行路径查找，查找 isolationtester 可执行文件路径的细节请参考 isolation_init() 函数
     if (!looked_up_isolation_exec)
     {
         /* look for isolationtester binary */
+        // 查找 isolationtester 可执行文件
         if (find_other_exec(saved_argv0, "isolationtester",
                             PG_ISOLATION_VERSIONSTR, isolation_exec) != 0)
         {
-            fprintf(stderr, _("could not find proper isolationtester binary\n"));
-            exit(2);
+            fprintf(stderr, _("could not find proper isolationtester binary\n"));  // 输出错误信息
+            exit(2);  // 退出程序
         }
-        looked_up_isolation_exec = true;
+        looked_up_isolation_exec = true;  // 标记已查找 isolationtester 可执行文件路径
     }
+
 
     /*
      * Look for files in the output dir first, consistent with a vpath search.

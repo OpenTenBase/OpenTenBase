@@ -34,36 +34,34 @@ static int    nconns = 0;
 
 /* In dry run only output permutations to be run by the tester. */
 static int    dry_run = false;
-
-static void run_testspec(TestSpec *testspec);
-static void run_all_permutations(TestSpec *testspec);
+static void run_testspec(TestSpec *testspec);  // 运行测试规范的函数声明
+static void run_all_permutations(TestSpec *testspec);  // 运行所有排列组合的函数声明
 static void run_all_permutations_recurse(TestSpec *testspec, int nsteps,
-                             Step **steps);
-static void run_named_permutations(TestSpec *testspec);
-static void run_permutation(TestSpec *testspec, int nsteps, Step **steps);
+                                         Step **steps);  // 递归运行所有排列组合的函数声明
+static void run_named_permutations(TestSpec *testspec);  // 运行指定名称的所有排列组合的函数声明
+static void run_permutation(TestSpec *testspec, int nsteps, Step **steps);  // 运行排列组合的函数声明
 
-#define STEP_NONBLOCK    0x1        /* return 0 as soon as cmd waits for a lock */
-#define STEP_RETRY        0x2        /* this is a retry of a previously-waiting cmd */
-static bool try_complete_step(Step *step, int flags);
+#define STEP_NONBLOCK    0x1  // 表示步骤不阻塞的标志位
+#define STEP_RETRY       0x2  // 表示步骤是之前等待命令的重试的标志位
+static bool try_complete_step(Step *step, int flags);  // 尝试完成步骤的函数声明
 
-static int    step_qsort_cmp(const void *a, const void *b);
-static int    step_bsearch_cmp(const void *a, const void *b);
+static int step_qsort_cmp(const void *a, const void *b);  // 步骤比较函数声明（用于快速排序）
+static int step_bsearch_cmp(const void *a, const void *b);  // 步骤比较函数声明（用于二分查找）
 
-static void printResultSet(PGresult *res);
+static void printResultSet(PGresult *res);  // 打印结果集的函数声明
 
 #ifdef __OPENTENBASE__
-static const char * get_connection(int id);
-static bool parse_connection_conf(void);
-
+static const char *get_connection(int id);  // 获取连接的函数声明
+static bool parse_connection_conf(void);  // 解析连接配置的函数声明
 #endif
 
-
-/* close all connections and exit */
+/* 关闭所有连接并退出 */
 static void
 exit_nicely(void)
 {
     int            i;
 
+    // 循环关闭所有连接
     for (i = 0; i < nconns; i++)
         PQfinish(conns[i]);
     exit(1);
@@ -83,45 +81,42 @@ main(int argc, char **argv)
     int            nallsteps;
     Step      **allsteps;
     bool        has_conn_conf;
+    // 解析命令行参数
     while ((opt = getopt(argc, argv, "nV")) != -1)
     {
         switch (opt)
         {
             case 'n':
-                dry_run = true;
+                dry_run = true; // 设置 dry_run 标志为真
                 break;
             case 'V':
-                puts("isolationtester (PostgreSQL) " PG_VERSION);
+                puts("isolationtester (PostgreSQL) " PG_VERSION); // 打印版本信息
                 exit(0);
             default:
-                fprintf(stderr, "Usage: isolationtester [-n] [CONNINFO]\n");
+                fprintf(stderr, "Usage: isolationtester [-n] [CONNINFO]\n"); // 打印用法信息
                 return EXIT_FAILURE;
         }
     }
 
     /*
-     * Make stdout unbuffered to match stderr; and ensure stderr is unbuffered
-     * too, which it should already be everywhere except sometimes in Windows.
+     * 将stdout设置为无缓冲以匹配stderr；并确保stderr也是无缓冲的，在Windows中除外，它通常不是无缓冲的。
      */
     setbuf(stdout, NULL);
     setbuf(stderr, NULL);
 
     /*
-     * If the user supplies a non-option parameter on the command line, use it
-     * as the conninfo string; otherwise default to setting dbname=postgres
-     * and using environment variables or defaults for all other connection
-     * parameters.
+     * 如果用户在命令行上提供了一个非选项参数，则将其用作conninfo字符串；否则默认设置dbname=postgres并使用环境变量或默认值为所有其他连接参数。
      */
     if (argc > optind)
         conninfo = argv[optind];
     else
         conninfo = "dbname = postgres";
 
-    /* Read the test spec from stdin */
+    /* 从stdin读取测试规范 */
     spec_yyparse();
     testspec = &parseresult;
 
-    /* Create a lookup table of all steps. */
+    /* 创建所有步骤的查找表。 */
     nallsteps = 0;
     for (i = 0; i < testspec->nsessions; i++)
         nallsteps += testspec->sessions[i]->nsteps;
@@ -135,41 +130,40 @@ main(int argc, char **argv)
             allsteps[n++] = testspec->sessions[i]->steps[j];
     }
 
+    // 对所有步骤进行排序
     qsort(allsteps, nallsteps, sizeof(Step *), &step_qsort_cmp);
     testspec->nallsteps = nallsteps;
     testspec->allsteps = allsteps;
 
-    /* Verify that all step names are unique */
+    /* 验证所有步骤的名称都是唯一的 */
     for (i = 1; i < testspec->nallsteps; i++)
     {
         if (strcmp(testspec->allsteps[i - 1]->name,
                    testspec->allsteps[i]->name) == 0)
         {
             fprintf(stderr, "duplicate step name: %s\n",
-                    testspec->allsteps[i]->name);
+                    testspec->allsteps[i]->name); // 打印重复的步骤名称
             exit_nicely();
         }
     }
 
     /*
-     * In dry-run mode, just print the permutations that would be run, and
-     * exit.
+     * 在干运行模式下，只打印将运行的排列，并退出。
      */
     if (dry_run)
     {
-        run_testspec(testspec);
+        run_testspec(testspec); // 执行测试规范
         return 0;
     }
 
-    printf("Parsed test spec with %d sessions\n", testspec->nsessions);
+    printf("Parsed test spec with %d sessions\n", testspec->nsessions); // 打印解析的测试规范的会话数
 
 #ifdef __OPENTENBASE__
     has_conn_conf = parse_connection_conf();
 #endif    
 
     /*
-     * Establish connections to the database, one for each session and an
-     * extra for lock wait detection and global work.
+     * 建立到数据库的连接，一个用于每个会话，另一个用于锁等待检测和全局工作。
      */
     nconns = 1 + testspec->nsessions;
     conns = calloc(nconns, sizeof(PGconn *));
@@ -181,26 +175,28 @@ main(int argc, char **argv)
             conninfo = get_connection(i);
         }
 
-        conns[i] = PQconnectdb(conninfo);
+        conns[i] = PQconnectdb(conninfo); // 连接数据库
 
         if (PQstatus(conns[i]) != CONNECTION_OK)
         {
             fprintf(stderr, "Connection %d to database failed: %s",
-                    i, PQerrorMessage(conns[i]));
+                    i, PQerrorMessage(conns[i])); // 连接失败时打印错误消息
             exit_nicely();
         }
 
         /*
-         * Suppress NOTIFY messages, which otherwise pop into results at odd
-         * places.
+         * 抑制NOTIFY消息，否则它们会在奇怪的地方弹出结果。
          */
         res = PQexec(conns[i], "SET client_min_messages = warning;");
         if (PQresultStatus(res) != PGRES_COMMAND_OK)
         {
-            fprintf(stderr, "message level setup failed: %s", PQerrorMessage(conns[i]));
+            fprintf(stderr, "message level setup failed: %s", PQerrorMessage(conns[i])); // 设置消息级别失败时打印错误消息
             exit_nicely();
         }
         PQclear(res);
+    }
+}
+
 
         /* Get the backend pid for lock wait checking. */
         res = PQexec(conns[i], "SELECT pg_backend_pid()");
@@ -235,90 +231,81 @@ main(int argc, char **argv)
     }
 
     /*
-     * Build the query we'll use to detect lock contention among sessions in
-     * the test specification.  Most of the time, we could get away with
-     * simply checking whether a session is waiting for *any* lock: we don't
-     * exactly expect concurrent use of test tables.  However, autovacuum will
-     * occasionally take AccessExclusiveLock to truncate a table, and we must
-     * ignore that transient wait.
-     */
-    initPQExpBuffer(&wait_query);
-    appendPQExpBufferStr(&wait_query,
-                         "SELECT pg_catalog.pg_isolation_test_session_is_blocked($1, '{");
-    /* The spec syntax requires at least one session; assume that here. */
-    appendPQExpBufferStr(&wait_query, backend_pids[1]);
-    for (i = 2; i < nconns; i++)
-        appendPQExpBuffer(&wait_query, ",%s", backend_pids[i]);
-    appendPQExpBufferStr(&wait_query, "}')");
+ * 构建我们将在测试规范中检测会话之间的锁争用的查询。大多数情况下，我们可以简单地检查会话是否正在等待任何锁：
+ * 我们不期望测试表的并发使用。然而，自动清理偶尔会获取AccessExclusiveLock来截断表，我们必须忽略这个瞬态等待。
+ */
+initPQExpBuffer(&wait_query);
+appendPQExpBufferStr(&wait_query,
+                     "SELECT pg_catalog.pg_isolation_test_session_is_blocked($1, '{");
+/* 规范语法要求至少有一个会话；在这里假设有一个。 */
+appendPQExpBufferStr(&wait_query, backend_pids[1]);
+for (i = 2; i < nconns; i++)
+    appendPQExpBuffer(&wait_query, ",%s", backend_pids[i]);
+appendPQExpBufferStr(&wait_query, "}')");
 
-    res = PQprepare(conns[0], PREP_WAITING, wait_query.data, 0, NULL);
-    if (PQresultStatus(res) != PGRES_COMMAND_OK)
-    {
-        fprintf(stderr, "prepare of lock wait query failed: %s",
-                PQerrorMessage(conns[0]));
-        exit_nicely();
-    }
-    PQclear(res);
-    termPQExpBuffer(&wait_query);
+res = PQprepare(conns[0], PREP_WAITING, wait_query.data, 0, NULL);
+if (PQresultStatus(res) != PGRES_COMMAND_OK)
+{
+    fprintf(stderr, "prepare of lock wait query failed: %s",
+            PQerrorMessage(conns[0]));
+    exit_nicely();
+}
+PQclear(res);
+termPQExpBuffer(&wait_query);
 
-    /*
-     * Run the permutations specified in the spec, or all if none were
-     * explicitly specified.
-     */
-    run_testspec(testspec);
+/*
+ * 运行在规范中指定的排列，如果没有明确指定，则运行所有排列。
+ */
+run_testspec(testspec);
 
-    /* Clean up and exit */
-    for (i = 0; i < nconns; i++)
-        PQfinish(conns[i]);
-    return 0;
+/* 清理并退出 */
+for (i = 0; i < nconns; i++)
+    PQfinish(conns[i]);
+return 0;
 }
 
 static int *piles;
 
 /*
- * Run the permutations specified in the spec, or all if none were
- * explicitly specified.
+ * 运行在规范中指定的排列，如果没有明确指定，则运行所有排列。
  */
 static void
 run_testspec(TestSpec *testspec)
 {
-    if (testspec->permutations)
-        run_named_permutations(testspec);
-    else
-        run_all_permutations(testspec);
+if (testspec->permutations)
+    run_named_permutations(testspec);
+else
+    run_all_permutations(testspec);
 }
 
 /*
- * Run all permutations of the steps and sessions.
+ * 运行所有步骤和会话的所有排列。
  */
 static void
 run_all_permutations(TestSpec *testspec)
 {
-    int            nsteps;
-    int            i;
-    Step      **steps;
+int            nsteps;
+int            i;
+Step      **steps;
 
-    /* Count the total number of steps in all sessions */
-    nsteps = 0;
-    for (i = 0; i < testspec->nsessions; i++)
-        nsteps += testspec->sessions[i]->nsteps;
+/* 计算所有会话中步骤的总数 */
+nsteps = 0;
+for (i = 0; i < testspec->nsessions; i++)
+    nsteps += testspec->sessions[i]->nsteps;
 
-    steps = pg_malloc(sizeof(Step *) * nsteps);
+steps = pg_malloc(sizeof(Step *) * nsteps);
 
-    /*
-     * To generate the permutations, we conceptually put the steps of each
-     * session on a pile. To generate a permutation, we pick steps from the
-     * piles until all piles are empty. By picking steps from piles in
-     * different order, we get different permutations.
-     *
-     * A pile is actually just an integer which tells how many steps we've
-     * already picked from this pile.
-     */
-    piles = pg_malloc(sizeof(int) * testspec->nsessions);
-    for (i = 0; i < testspec->nsessions; i++)
-        piles[i] = 0;
+/*
+ * 为了生成排列，我们在概念上将每个会话的步骤放在一个堆上。为了生成一个排列，
+ * 我们从堆中选择步骤，直到所有堆都为空。通过以不同的顺序从堆中选择步骤，我们得到不同的排列。
+ *
+ * 一个堆实际上只是一个告诉我们已经从该堆中选取了多少步骤的整数。
+ */
+piles = pg_malloc(sizeof(int) * testspec->nsessions);
+for (i = 0; i < testspec->nsessions; i++)
+    piles[i] = 0;
 
-    run_all_permutations_recurse(testspec, 0, steps);
+run_all_permutations_recurse(testspec, 0, steps);
 }
 
 static void

@@ -3,8 +3,7 @@
  *
  *
  * testlibpq4.c
- *        this test program shows to use LIBPQ to make multiple backend
- * connections
+ *        此测试程序演示如何使用 LIBPQ 来建立多个后端连接
  *
  */
 #include <stdio.h>
@@ -24,10 +23,10 @@ exit_nicely(PGconn *conn1, PGconn *conn2)
 static void
 check_conn(PGconn *conn, const char *dbName)
 {
-    /* check to see that the backend connection was successfully made */
+    /* 检查后端连接是否成功建立 */
     if (PQstatus(conn) != CONNECTION_OK)
     {
-        fprintf(stderr, "Connection to database \"%s\" failed: %s",
+        fprintf(stderr, "连接到数据库 \"%s\" 失败：%s",
                 dbName, PQerrorMessage(conn));
         exit(1);
     }
@@ -57,8 +56,8 @@ main(int argc, char **argv)
 
     if (argc != 4)
     {
-        fprintf(stderr, "usage: %s tableName dbName1 dbName2\n", argv[0]);
-        fprintf(stderr, "      compares two tables in two databases\n");
+        fprintf(stderr, "用法：%s 表名 数据库名1 数据库名2\n", argv[0]);
+        fprintf(stderr, "      比较两个数据库中的两个表\n");
         exit(1);
     }
     tblName = argv[1];
@@ -67,46 +66,41 @@ main(int argc, char **argv)
 
 
     /*
-     * begin, by setting the parameters for a backend connection if the
-     * parameters are null, then the system will try to use reasonable
-     * defaults by looking up environment variables or, failing that, using
-     * hardwired constants
+     * 开始，设置后端连接的参数 如果参数为null，则系统将尝试使用合理的默认值 通过查找环境变量或者使用硬编码的常量
      */
-    pghost = NULL;                /* host name of the backend */
-    pgport = NULL;                /* port of the backend */
-    pgoptions = NULL;            /* special options to start up the backend
-                                 * server */
-    pgtty = NULL;                /* debugging tty for the backend */
+    pghost = NULL;                /* 后端的主机名 */
+    pgport = NULL;                /* 后端的端口 */
+    pgoptions = NULL;            /* 启动后端服务器的特殊选项 */
+    pgtty = NULL;                /* 后端的调试 tty */
 
-    /* make a connection to the database */
+    /* 建立与数据库的连接 */
     conn1 = PQsetdb(pghost, pgport, pgoptions, pgtty, dbName1);
     check_conn(conn1, dbName1);
 
     conn2 = PQsetdb(pghost, pgport, pgoptions, pgtty, dbName2);
     check_conn(conn2, dbName2);
 
-    /* start a transaction block */
+    /* 开始一个事务块 */
     res1 = PQexec(conn1, "BEGIN");
     if (PQresultStatus(res1) != PGRES_COMMAND_OK)
     {
-        fprintf(stderr, "BEGIN command failed\n");
+        fprintf(stderr, "BEGIN 命令失败\n");
         PQclear(res1);
         exit_nicely(conn1, conn2);
     }
 
     /*
-     * make sure to PQclear() a PGresult whenever it is no longer needed to
-     * avoid memory leaks
+     * 确保在不再需要时 PQclear() PGresult 以避免内存泄漏
      */
     PQclear(res1);
 
     /*
-     * fetch instances from the pg_database, the system catalog of databases
+     * 从 pg_database 中获取实例，pg_database 是数据库的系统目录
      */
     res1 = PQexec(conn1, "DECLARE myportal CURSOR FOR select * from pg_database");
     if (PQresultStatus(res1) != PGRES_COMMAND_OK)
     {
-        fprintf(stderr, "DECLARE CURSOR command failed\n");
+        fprintf(stderr, "DECLARE CURSOR 命令失败\n");
         PQclear(res1);
         exit_nicely(conn1, conn2);
     }
@@ -115,18 +109,18 @@ main(int argc, char **argv)
     res1 = PQexec(conn1, "FETCH ALL in myportal");
     if (PQresultStatus(res1) != PGRES_TUPLES_OK)
     {
-        fprintf(stderr, "FETCH ALL command didn't return tuples properly\n");
+        fprintf(stderr, "FETCH ALL 命令未正确返回元组\n");
         PQclear(res1);
         exit_nicely(conn1, conn2);
     }
 
-    /* first, print out the attribute names */
+    /* 首先，打印属性名 */
     nFields = PQnfields(res1);
     for (i = 0; i < nFields; i++)
         printf("%-15s", PQfname(res1, i));
     printf("\n\n");
 
-    /* next, print out the instances */
+    /* 接下来，打印实例 */
     for (i = 0; i < PQntuples(res1); i++)
     {
         for (j = 0; j < nFields; j++)
@@ -136,15 +130,15 @@ main(int argc, char **argv)
 
     PQclear(res1);
 
-    /* close the portal */
+    /* 关闭游标 */
     res1 = PQexec(conn1, "CLOSE myportal");
     PQclear(res1);
 
-    /* end the transaction */
+    /* 结束事务 */
     res1 = PQexec(conn1, "END");
     PQclear(res1);
 
-    /* close the connections to the database and cleanup */
+    /* 关闭与数据库的连接并进行清理 */
     PQfinish(conn1);
     PQfinish(conn2);
 
