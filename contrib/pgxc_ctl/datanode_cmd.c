@@ -2001,7 +2001,7 @@ int show_config_datanodeMaster(int flag, int idx, char *hostname)
     if (outBuf[0])
         elog(NOTICE, "%s", outBuf);
     elog(NOTICE, "    Nodename: '%s', port: %s, pooler port %s\n",
-         aval(VAR_datanodeNames)[idx], aval(VAR_datanodePorts)[idx], aval(VAR_poolerPorts)[idx]);
+         aval(VAR_datanodeNames)[idx], aval(VAR_datanodePorts)[idx], aval(VAR_datanodePoolerPorts)[idx]);
     elog(NOTICE, "    MaxWALSenders: %s, Dir: '%s'\n",
          aval(VAR_datanodeMaxWALSenders)[idx], aval(VAR_datanodeMasterDirs)[idx]);
     elog(NOTICE, "    ExtraConfig: '%s', Specific Extra Config: '%s'\n",
@@ -2038,7 +2038,7 @@ int show_config_datanodeSlave(int flag, int idx, char *hostname)
     if (outBuf[0])
         elog(NOTICE, "%s", outBuf);
     elog(NOTICE, "    Nodename: '%s', port: %s, pooler port: %s\n",
-         aval(VAR_datanodeNames)[idx], aval(VAR_datanodeSlavePorts)[idx], aval(VAR_poolerPorts)[idx]);
+         aval(VAR_datanodeNames)[idx], aval(VAR_datanodeSlavePorts)[idx], aval(VAR_datanodeSlavePoolerPorts)[idx]);
     elog(NOTICE,"    Dir: '%s', Archive Log Dir: '%s'\n",
          aval(VAR_datanodeSlaveDirs)[idx], aval(VAR_datanodeArchLogDirs)[idx]);
     unlockLogFile();
