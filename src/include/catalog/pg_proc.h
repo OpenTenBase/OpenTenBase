@@ -6791,6 +6791,23 @@ DESCR("show need_mvcc flag");
 
 #endif
 
+#ifdef __HLL__
+#ifdef _PG_ORCL_
+DATA(insert OID = 9147 (  hll_transfn   PGNSP PGUID 12 1 0 0 0 f f f f f f i s 2 0 2281 "2281 2776" _null_ _null_ _null_ _null_ _null_ hll_transfn _null_ _null_ _null_ ));
+DESCR("aggregate transition function");
+DATA(insert OID = 9148 (  hll_finalfn   PGNSP PGUID 12 1 0 0 0 f f f f f f i s 2 0 1700 "2281 2776" _null_ _null_ _null_ _null_ _null_ hll_finalfn _null_ _null_ _null_ ));
+DESCR("aggregate final function");
+DATA(insert OID = 9149 (  hll_combinefn   PGNSP PGUID 12 1 0 0 0 f f f f f f i s 2 0 2281 "2281 2281" _null_ _null_ _null_ _null_ _null_ hll_combinefn _null_ _null_ _null_ ));
+DESCR("aggregate combine function");
+DATA(insert OID = 9150 (  hll_serialize    PGNSP PGUID 12 1 0 0 0 f f f f t f i s 1 0 17 "2281" _null_ _null_ _null_ _null_ _null_ hll_serialize _null_ _null_ _null_ ));
+DESCR("aggregate serial function");
+DATA(insert OID = 9151 (  hll_deserialize     PGNSP PGUID 12 1 0 0 0 f f f f t f i s 2 0 2281 "17 2281" _null_ _null_ _null_ _null_ _null_ hll_deserialize _null_ _null_ _null_ ));
+DESCR("aggregate deserial function");
+DATA(insert OID = 9152 (  approx_count_distinct   PGNSP PGUID 12 1 0 0 0 t f f f f f i s 1 0 1700 "2776" _null_ _null_ _null_ _null_ _null_ aggregate_dummy _null_ _null_ _null_ ));
+DESCR("hyperloglog count");
+#endif
+#endif
+
 /*
  * Symbolic values for provolatile column: these indicate whether the result
  * of a function is dependent *only* on the values of its explicit arguments,

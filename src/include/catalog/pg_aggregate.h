@@ -314,6 +314,11 @@ DATA(insert ( 3988    h 1 ordered_set_transition_multi    percent_rank_final    
 DATA(insert ( 3990    h 1 ordered_set_transition_multi    cume_dist_final                            -    -    -    -        -        -        t f 0    2281    0    0        0    _null_ _null_ ));
 DATA(insert ( 3992    h 1 ordered_set_transition_multi    dense_rank_final                        -    -    -    -        -        -        t f 0    2281    0    0        0    _null_ _null_ ));
 
+#ifdef __HLL__
+#ifdef _PG_ORCL_
+DATA(insert ( 9152    n 0 hll_transfn        hll_finalfn        hll_combinefn    hll_serialize    hll_deserialize    -        -                -                t f 0    2281    0    0        0    _null_ _null_ ));
+#endif
+#endif
 
 /*
  * prototypes for functions in pg_aggregate.c
