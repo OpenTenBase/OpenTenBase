@@ -334,6 +334,8 @@
 
 /* all code written by Tencent Team must be in macro __OPENTENBASE__ block*/
 #define __OPENTENBASE__ 0
+/* all HLL-related code must be in macro __HLL__ block*/
+#define __HLL__ 1
 #define __SUPPORT_DISTRIBUTED_TRANSACTION__ 0
 //#define __PAGE_TIMESTAMP_LOG__ 0
 //#define __USE_GLOBAL_SNAPSHOT__ 0
