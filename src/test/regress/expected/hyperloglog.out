@@ -1,0 +1,15 @@
+--
+-- HYPERLOGLOG
+--
+SELECT approx_count_distinct(tenthous) from onek;
+ approx_count_distinct 
+-----------------------
+                  1005
+(1 row)
+
+SELECT approx_count_distinct(fivethous + tenthous) from onek;
+ approx_count_distinct 
+-----------------------
+                   747
+(1 row)
+
