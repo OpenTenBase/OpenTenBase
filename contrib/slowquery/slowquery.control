@@ -1,0 +1,5 @@
+# slowquery extension
+comment = 'Slow Query Plugin for PostgreSQL'
+description = 'This plugin logs slow queries in PostgreSQL.'
+version = '1.0.0'
+maintainer ='luo798'

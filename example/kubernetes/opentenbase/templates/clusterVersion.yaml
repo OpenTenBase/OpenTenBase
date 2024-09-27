@@ -1,0 +1,27 @@
+apiVersion: apps.kubeblocks.io/v1alpha1
+kind: ClusterVersion
+metadata:
+  name: opentenbase-{{ default .Chart.AppVersion }}
+  labels:
+    {{- include "opentenbase.labels" . | nindent 4 }}
+spec:
+  clusterDefinitionRef: opentenbase
+  componentVersions:
+    - componentDefRef: gtm
+      versionsContext:
+        containers:
+          - name: gtm
+            image: {{ .Values.images.registry }}/{{ .Values.images.repository}}:{{.Values.images.tag}}
+            imagePullPolicy: {{ default "IfNotPresent" .Values.images.pullPolicy }}
+    - componentDefRef: dn
+      versionsContext:
+        containers:
+          - name: dn
+            image: {{ .Values.images.registry }}/{{ .Values.images.repository}}:{{.Values.images.tag}}
+            imagePullPolicy: {{ default "IfNotPresent" .Values.images.pullPolicy }}
+    - componentDefRef: cn
+      versionsContext:
+        containers:
+          - name: cn
+            image: {{ .Values.images.registry }}/{{ .Values.images.repository}}:{{.Values.images.tag}}
+            imagePullPolicy: {{ default "IfNotPresent" .Values.images.pullPolicy }}

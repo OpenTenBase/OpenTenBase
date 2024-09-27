@@ -828,11 +828,11 @@ make_op(ParseState *pstate, List *opname, Node *ltree, Node *rtree,
         rtypeId = exprType(rtree);
 
 #ifdef _PG_ORCL_
-        /* try coerce TYPCATEGORY_STRING to TYPCATEGORY_NUMERIC */
-        if (enable_oracle_compatible && opname != NIL && ltypeId != rtypeId)
-        {
-            char * schemaname = NULL;
-            char * opername = NULL;
+		/* try coerce TYPCATEGORY_STRING to TYPCATEGORY_NUMERIC */
+		if (opname != NIL && ltypeId != rtypeId)
+		{
+			char * schemaname = NULL;
+			char * opername = NULL;
 
             /* deconstruct the name list */
             DeconstructQualifiedName(opname, &schemaname, &opername);
@@ -846,82 +846,125 @@ make_op(ParseState *pstate, List *opname, Node *ltree, Node *rtree,
                 }
             }
 
-            if (opername != NULL && 
-                (strcmp(opername, "=") == 0 || strcmp(opername, "<>") == 0 ||
-                 strcmp(opername, ">") == 0 || strcmp(opername, ">=") == 0 ||
-                 strcmp(opername, "<") == 0 || strcmp(opername, "<=") == 0 ||
-                 strcmp(opername, "-") == 0 || strcmp(opername, "+") == 0  ||
-                 strcmp(opername, "*") == 0 || strcmp(opername, "/") == 0))
-            {
-                /* '123' = 1 */
-                if (TYPCATEGORY_NUMERIC == TypeCategory(rtypeId) &&
-                    TYPCATEGORY_STRING  == TypeCategory(ltypeId))
-                {
-                    Node * ltarget = coerce_to_target_type(pstate,
-                                                            ltree, ltypeId,
-                                                            NUMERICOID, -1,
-                                                            COERCION_EXPLICIT,
-                                                            COERCE_EXPLICIT_CAST,
-                                                            -1);
-                    if (ltarget != NULL)
-                    {
-                        ltree = ltarget;
-                        ltypeId = exprType(ltree);
-                    }
-                }
-                /* 1 = '123' */
-                else if (TYPCATEGORY_NUMERIC == TypeCategory(ltypeId) &&
-                         TYPCATEGORY_STRING == TypeCategory(rtypeId))
-                {
-                    Node * rtarget = coerce_to_target_type(pstate,
-                                                            rtree, rtypeId,
-                                                            NUMERICOID, -1,
-                                                            COERCION_EXPLICIT,
-                                                            COERCE_EXPLICIT_CAST,
-                                                            -1);
-                    if (rtarget != NULL)
-                    {
-                        rtree = rtarget;
-                        rtypeId = exprType(rtree);
-                    }
-                }
-            }
-            else if (opername != NULL && 
-                (strcmp(opername, "~~") == 0 || strcmp(opername, "!~~") == 0 ||
-                 strcmp(opername, "~~*") == 0 || strcmp(opername, "!~~*") == 0))
-            {
-                
-                if (TYPCATEGORY_STRING != TypeCategory(ltypeId))
-                {
-                    Node * ltarget = coerce_to_target_type(pstate,
-                                                            ltree, ltypeId,
-                                                            TEXTOID, -1,
-                                                            COERCION_EXPLICIT,
-                                                            COERCE_EXPLICIT_CAST,
-                                                            -1);
-                    if (ltarget != NULL)
-                    {
-                        ltree = ltarget;
-                        ltypeId = exprType(ltree);
-                    }
-                }
+			if (opername != NULL && strcmp(opername, "||") == 0)
+			{
+				if (TYPCATEGORY_NUMERIC == TypeCategory(ltypeId))
+				{
+					Operator tmp_tup = oper(pstate, opname, TEXTOID, rtypeId, true, location);;
+					if (HeapTupleIsValid(tmp_tup))
+					{
+					Node * ltarget = coerce_to_target_type(pstate,
+														ltree, ltypeId,
+															TEXTOID, -1,
+															COERCION_EXPLICIT,
+															COERCE_EXPLICIT_CAST,
+															-1);
+					if (ltarget != NULL)
+					{
+						ltree = ltarget;
+						ltypeId = exprType(ltree);
+					}
+						ReleaseSysCache(tmp_tup);
+					}
+				}
 
-                if (TYPCATEGORY_STRING != TypeCategory(rtypeId))
-                {
-                    Node * rtarget = coerce_to_target_type(pstate,
-                                                            rtree, rtypeId,
-                                                            TEXTOID, -1,
-                                                            COERCION_EXPLICIT,
-                                                            COERCE_EXPLICIT_CAST,
-                                                            -1);
-                    if (rtarget != NULL)
-                    {
-                        rtree = rtarget;
-                        rtypeId = exprType(rtree);
-                    }
-                }
-            }
-        }
+				if (TYPCATEGORY_NUMERIC == TypeCategory(rtypeId))
+				{
+					Operator tmp_tup = oper(pstate, opname, ltypeId, TEXTOID, true, location);;
+					if (HeapTupleIsValid(tmp_tup))
+					{
+					Node * rtarget = coerce_to_target_type(pstate,
+															rtree, rtypeId,
+															TEXTOID, -1,
+															COERCION_EXPLICIT,
+															COERCE_EXPLICIT_CAST,
+															-1);
+					if (rtarget != NULL)
+					{
+						rtree = rtarget;
+						rtypeId = exprType(rtree);
+					}
+						ReleaseSysCache(tmp_tup);
+					}
+				}
+			}
+
+			if (enable_oracle_compatible && opername != NULL && 
+				(strcmp(opername, "=") == 0 || strcmp(opername, "<>") == 0 ||
+				 strcmp(opername, ">") == 0 || strcmp(opername, ">=") == 0 ||
+				 strcmp(opername, "<") == 0 || strcmp(opername, "<=") == 0 ||
+				 strcmp(opername, "-") == 0 || strcmp(opername, "+") == 0  ||
+				 strcmp(opername, "*") == 0 || strcmp(opername, "/") == 0))
+			{
+				/* '123' = 1 */
+				if (TYPCATEGORY_NUMERIC == TypeCategory(rtypeId) &&
+					TYPCATEGORY_STRING  == TypeCategory(ltypeId))
+				{
+					Node * ltarget = coerce_to_target_type(pstate,
+															ltree, ltypeId,
+															NUMERICOID, -1,
+															COERCION_EXPLICIT,
+															COERCE_EXPLICIT_CAST,
+															-1);
+					if (ltarget != NULL)
+					{
+						ltree = ltarget;
+						ltypeId = exprType(ltree);
+					}
+				}
+				/* 1 = '123' */
+				else if (TYPCATEGORY_NUMERIC == TypeCategory(ltypeId) &&
+						 TYPCATEGORY_STRING == TypeCategory(rtypeId))
+				{
+					Node * rtarget = coerce_to_target_type(pstate,
+															rtree, rtypeId,
+															NUMERICOID, -1,
+															COERCION_EXPLICIT,
+															COERCE_EXPLICIT_CAST,
+															-1);
+					if (rtarget != NULL)
+					{
+						rtree = rtarget;
+						rtypeId = exprType(rtree);
+					}
+				}
+			}
+			else if (enable_oracle_compatible && opername != NULL && 
+				(strcmp(opername, "~~") == 0 || strcmp(opername, "!~~") == 0 ||
+				 strcmp(opername, "~~*") == 0 || strcmp(opername, "!~~*") == 0))
+			{
+				
+				if (TYPCATEGORY_STRING != TypeCategory(ltypeId))
+				{
+					Node * ltarget = coerce_to_target_type(pstate,
+															ltree, ltypeId,
+															TEXTOID, -1,
+															COERCION_EXPLICIT,
+															COERCE_EXPLICIT_CAST,
+															-1);
+					if (ltarget != NULL)
+					{
+						ltree = ltarget;
+						ltypeId = exprType(ltree);
+					}
+				}
+
+				if (TYPCATEGORY_STRING != TypeCategory(rtypeId))
+				{
+					Node * rtarget = coerce_to_target_type(pstate,
+															rtree, rtypeId,
+															TEXTOID, -1,
+															COERCION_EXPLICIT,
+															COERCE_EXPLICIT_CAST,
+															-1);
+					if (rtarget != NULL)
+					{
+						rtree = rtarget;
+						rtypeId = exprType(rtree);
+					}
+				}
+			}
+		}
 #endif
         tup = oper(pstate, opname, ltypeId, rtypeId, false, location);
     }

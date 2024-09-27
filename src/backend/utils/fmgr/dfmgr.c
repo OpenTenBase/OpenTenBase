@@ -15,7 +15,8 @@
 #include "postgres.h"
 
 #include <sys/stat.h>
-
+#include <libgen.h>
+#include <stdlib.h>
 #include "dynloader.h"
 #include "lib/stringinfo.h"
 #include "miscadmin.h"
@@ -27,6 +28,8 @@
 /* signatures for PostgreSQL-specific library init/fini functions */
 typedef void (*PG_init_t) (void);
 typedef void (*PG_fini_t) (void);
+
+extern char *exename;
 
 /* hashtable entry for rendezvous variables */
 typedef struct
@@ -72,6 +75,7 @@ static char *expand_dynamic_library_name(const char *name);
 static void check_restricted_library_name(const char *name);
 static char *substitute_libpath_macro(const char *name);
 static char *find_in_dynamic_libpath(const char *basename);
+static void put_projdb_env(void);
 
 /* Magic structure that module needs to match to be accepted */
 static const Pg_magic_struct magic_data = PG_MODULE_MAGIC_DATA;
@@ -165,6 +169,28 @@ lookup_external_function(void *filehandle, const char *funcname)
     return (PGFunction) pg_dlsym(filehandle, (char *) funcname);
 }
 
+/*
+ * Add PROJ_LIB variable in the environment, if and only
+ * if PROJ_LIB is not set yet. 
+ */
+static void 
+put_projdb_env(void)
+{
+	char *install_dir = NULL;
+	char projdb_path[MAXPGPATH];
+
+	/* if PROJ_LIB already set, just do nothing */
+	if (getenv("PROJ_LIB") != NULL)
+		return;
+
+	/* obtain root install path */
+	install_dir = dirname(dirname(exename));
+
+	/* calculate the full path of proj directory */
+	join_path_components(projdb_path, install_dir, "share/proj");
+	canonicalize_path(projdb_path);
+	setenv("PROJ_LIB", projdb_path, 1);
+}
 
 /*
  * Load the specified dynamic-link library file, unless it already is
@@ -228,17 +254,20 @@ internal_load_library(const char *libname)
 #endif
         file_scanner->next = NULL;
 
-        file_scanner->handle = pg_dlopen(file_scanner->filename);
-        if (file_scanner->handle == NULL)
-        {
-            load_error = (char *) pg_dlerror();
-            free((char *) file_scanner);
-            /* errcode_for_file_access might not be appropriate here? */
-            ereport(ERROR,
-                    (errcode_for_file_access(),
-                     errmsg("could not load library \"%s\": %s",
-                            libname, load_error)));
-        }
+		if (strstr(basename(file_scanner->filename), "postgis") != NULL)
+			put_projdb_env();
+
+		file_scanner->handle = pg_dlopen(file_scanner->filename);
+		if (file_scanner->handle == NULL)
+		{
+			load_error = (char *) pg_dlerror();
+			free((char *) file_scanner);
+			/* errcode_for_file_access might not be appropriate here? */
+			ereport(ERROR,
+					(errcode_for_file_access(),
+					 errmsg("could not load library \"%s\": %s",
+							libname, load_error)));
+		}
 
         /* Check the magic function to determine compatibility */
         magic_func = (PGModuleMagicFunction)

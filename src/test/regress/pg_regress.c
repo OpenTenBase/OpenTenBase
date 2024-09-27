@@ -3510,30 +3510,52 @@ regression_main(int argc, char *argv[], init_function ifunc, test_function tfunc
                  success_count + fail_count + fail_ignore_count,
                  fail_ignore_count);
 
-    putchar('\n');
-    for (i = strlen(buf); i > 0; i--)
-        putchar('=');
-    printf("\n%s\n", buf);
-    for (i = strlen(buf); i > 0; i--)
-        putchar('=');
-    putchar('\n');
-    putchar('\n');
+	putchar('\n');
+	for (i = strlen(buf); i > 0; i--)
+		putchar('=');
+	printf("\n%s\n", buf);
+	for (i = strlen(buf); i > 0; i--)
+		putchar('=');
+	putchar('\n');
+	putchar('\n');
 
-    if (file_size(difffilename) > 0)
-    {
-        printf(_("The differences that caused some tests to fail can be viewed in the\n"
-                 "file \"%s\".  A copy of the test summary that you see\n"
-                 "above is saved in the file \"%s\".\n\n"),
-               difffilename, logfilename);
-    }
-    else
-    {
-        unlink(difffilename);
-        unlink(logfilename);
-    }
+	if (file_size(difffilename) > 0)
+	{
+		printf(_("The differences that caused some tests to fail can be viewed in the\n"
+				 "file \"%s\".  A copy of the test summary that you see\n"
+				 "above is saved in the file \"%s\".\n\n"),
+			   difffilename, logfilename);
+	}
+	else
+	{
+		unlink(difffilename);
+		unlink(logfilename);
+	}
 
-    if (fail_count != 0)
-        exit(1);
+	header(_("postgis regress start"));
 
-    return 0;
+	snprintf(buf, sizeof(buf),
+			 _("%s/../postgis_regress.sh %s/../../../../contrib/postgis-3.2.1/"),
+			 temp_instance, temp_instance);
+
+	printf(_("exec: \"%s \" \n"), buf);
+	system(buf);
+
+	header(_("postgis regress end"));
+	putchar('\n');
+	putchar('\n');
+
+	/*
+	 * Shut down temp installation's postmaster
+	 */
+	if (temp_instance)
+	{
+		header(_("shutting down postmaster"));
+		stop_postmaster();
+	}
+
+	if (fail_count != 0)
+		exit(1);
+
+	return 0;
 }

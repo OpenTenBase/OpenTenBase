@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Helper method, wait for connection.
+# Usage: wait_for_connection [hostname] [port]
+CUR_PATH="$(dirname "${BASH_SOURCE[0]}")"
+# shellcheck source=./common.sh
+source "${CUR_PATH}/common.sh"
+
+HOST=$1
+PORT=$2
+
+: ${PORT_WAIT_INTERVAL:="1"}
+: ${PORT_WAIT_TRIES:="60"}
+: ${PORT_WAIT_TIMEOUT:="1"}
+
+log:info "Checking ${HOST}:${PORT} is open with an interval of ${PORT_WAIT_INTERVAL}, max ${PORT_WAIT_TRIES} times.."
+WAIT_INDEX=0
+while true; do
+  nc -w "${PORT_WAIT_TIMEOUT}" -zv "${HOST}" "${PORT}" &>/dev/null
+  if [ $? -ne 0 ]; then
+    if [ ${WAIT_INDEX} -gt ${PORT_WAIT_TRIES} ]; then
+      log:error "Timed out while waiting for port ${PORT} on ${HOST}"
+      exit 3
+    fi
+    log:info "Port ${PORT} not available on ${HOST}, retry in ${PORT_WAIT_INTERVAL}"
+  else
+    log:info "Port ${PORT} is open on ${HOST}"
+    break
+  fi
+  WAIT_INDEX=$((WAIT_INDEX + 1))
+  sleep "${PORT_WAIT_INTERVAL}"
+done

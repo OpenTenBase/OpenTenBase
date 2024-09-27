@@ -558,15 +558,15 @@ transformCreateStmt(CreateStmt *stmt, const char *queryString)
                     stmt->distributeby->colname =
                             pstrdup(rel->rd_locator_info->partAttrName);
 #endif
-                    break;
-                case LOCATOR_TYPE_REPLICATED:
-                    stmt->distributeby->disttype = DISTTYPE_REPLICATION;
-                    break;
-                case LOCATOR_TYPE_RROBIN:
-                default:
-                    stmt->distributeby->disttype = DISTTYPE_ROUNDROBIN;
-                    break;
-            }
+					break;
+				case LOCATOR_TYPE_RROBIN:
+					stmt->distributeby->disttype = DISTTYPE_ROUNDROBIN;
+					break;
+				case LOCATOR_TYPE_REPLICATED:
+				default:
+					stmt->distributeby->disttype = DISTTYPE_REPLICATION;
+					break;
+			}
 #ifdef _SHARDING_
             if (LOCATOR_TYPE_SHARD == rel->rd_locator_info->locatorType ||
                 (LOCATOR_TYPE_REPLICATED == rel->rd_locator_info->locatorType && OidIsValid(rel->rd_locator_info->groupId)))
@@ -679,15 +679,15 @@ transformCreateStmt(CreateStmt *stmt, const char *queryString)
 #endif
         }
 #endif
-        /*
-         * If none of above applies distribute by round robin
-         */
-        else
-        {
-            stmt->distributeby->disttype = DISTTYPE_ROUNDROBIN;
-            stmt->distributeby->colname = NULL;
-        }
-    }
+		/*
+		 * If none of above applies distribute by replication
+		 */
+		else
+		{
+			stmt->distributeby->disttype = DISTTYPE_REPLICATION;
+			stmt->distributeby->colname = NULL;
+		}
+	}
 #endif
 
 #ifdef __OPENTENBASE__
@@ -2160,10 +2160,9 @@ get_opclass(Oid opclass, Oid actual_datatype)
         result = list_make2(makeString(nsp_name), makeString(opc_name));
     }
 
-    ReleaseSysCache(ht_opc);
-    return result;
+	ReleaseSysCache(ht_opc);
+	return result;
 }
-
 
 /*
  * transformIndexConstraints

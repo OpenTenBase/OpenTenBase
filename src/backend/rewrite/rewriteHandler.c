@@ -3959,20 +3959,25 @@ QueryRewrite(Query *parsetree)
  * all the Coordinators and the Datanodes.
  */
 List *
-QueryRewriteCTAS(Query *parsetree)
-{// #lizard forgives
-    RangeVar *relation;
-    CreateStmt *create_stmt;
-    PlannedStmt *wrapper;
-    List *tableElts = NIL;
-    StringInfoData cquery;
-    ListCell *col;
-    Query *cparsetree;
-    List *raw_parsetree_list, *tlist;
-    char *selectstr;
-    CreateTableAsStmt *stmt;
-    IntoClause *into;
-    ListCell *lc;
+QueryRewriteCTAS(Query *parsetree,
+				 ParserSetupHook parserSetup,
+				 void *parserSetupArg,
+				 QueryEnvironment *queryEnv,
+				 Oid *paramTypes,
+				 int numParams)
+{
+	RangeVar *relation;
+	CreateStmt *create_stmt;
+	PlannedStmt *wrapper;
+	List *tableElts = NIL;
+	StringInfoData cquery;
+	ListCell *col;
+	Query *cparsetree;
+	List *raw_parsetree_list, *tlist;
+	char *selectstr;
+	CreateTableAsStmt *stmt;
+	IntoClause *into;
+	ListCell *lc;
 	const int InvalidLevel = -1;
 	int old_level = InvalidLevel;
 
@@ -4158,8 +4163,14 @@ QueryRewriteCTAS(Query *parsetree)
     appendStringInfo(&cquery, " %s %s", selectstr,
             into->skipData ? "LIMIT 0" : "");
 
-    raw_parsetree_list = pg_parse_query(cquery.data);
-    return pg_analyze_and_rewrite(linitial(raw_parsetree_list), cquery.data,
-            NULL, 0, NULL);
+	raw_parsetree_list = pg_parse_query(cquery.data);
+	
+	if (parserSetup != NULL)
+		return pg_analyze_and_rewrite_params(linitial(raw_parsetree_list), cquery.data,
+		                                     parserSetup, parserSetupArg, queryEnv);
+	else
+		return pg_analyze_and_rewrite(linitial(raw_parsetree_list), cquery.data,
+		                              paramTypes, numParams, queryEnv);
+
 }
 #endif
