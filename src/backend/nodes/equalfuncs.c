@@ -1267,6 +1267,9 @@ _equalCreateStmt(const CreateStmt *a, const CreateStmt *b)
     COMPARE_NODE_FIELD(distributeby);
     COMPARE_NODE_FIELD(subcluster);
 #endif
+#ifdef __OPENTENBASE__
+	COMPARE_SCALAR_FIELD(non_interval_child);
+#endif
 
     return true;
 }
@@ -1442,9 +1445,25 @@ _equalRenameStmt(const RenameStmt *a, const RenameStmt *b)
     COMPARE_STRING_FIELD(newname);
     COMPARE_SCALAR_FIELD(behavior);
     COMPARE_SCALAR_FIELD(missing_ok);
+#ifdef __OPENTENBASE__
+	COMPARE_NODE_FIELD(ex_cmd);
+#endif
 
     return true;
 }
+
+#ifdef __OPENTENBASE__
+static bool
+_equalExchangeTableCmd(const ExchangeTableCmd *a, const ExchangeTableCmd *b)
+{
+	COMPARE_SCALAR_FIELD(option);
+	COMPARE_NODE_FIELD(parent_rel);
+	COMPARE_NODE_FIELD(child_rel);
+	COMPARE_NODE_FIELD(ex_rel);
+
+	return true;
+}
+#endif
 
 static bool
 _equalAlterObjectDependsStmt(const AlterObjectDependsStmt *a, const AlterObjectDependsStmt *b)
@@ -2981,6 +3000,32 @@ _equalPartitionRangeDatum(const PartitionRangeDatum *a, const PartitionRangeDatu
     return true;
 }
 
+#ifdef __OPENTENBASE__
+static bool
+_equalSubPartitionSpec(const SubPartitionSpec *a, const SubPartitionSpec *b)
+{
+	COMPARE_SCALAR_FIELD(strategy);
+	COMPARE_STRING_FIELD(colname);
+	COMPARE_SCALAR_FIELD(colattr);
+	COMPARE_NODE_FIELD(cmds);
+	COMPARE_LOCATION_FIELD(location);
+
+	return true;
+}
+
+static bool
+_equalSubPartitionCmd(const SubPartitionCmd *a, const SubPartitionCmd *b)
+{
+	COMPARE_SCALAR_FIELD(strategy);
+	COMPARE_SCALAR_FIELD(cmp_op);
+	COMPARE_STRING_FIELD(tablename);
+	COMPARE_NODE_FIELD(data);
+	COMPARE_LOCATION_FIELD(location);
+
+	return true;
+}
+#endif
+
 static bool
 _equalPartitionCmd(const PartitionCmd *a, const PartitionCmd *b)
 {
@@ -3531,6 +3576,11 @@ equal(const void *a, const void *b)
         case T_RenameStmt:
             retval = _equalRenameStmt(a, b);
             break;
+#ifdef __OPENTENBASE__
+		case T_ExchangeTableCmd:
+			retval = _equalExchangeTableCmd(a, b);
+			break;
+#endif
         case T_AlterObjectDependsStmt:
             retval = _equalAlterObjectDependsStmt(a, b);
             break;
@@ -3957,6 +4007,14 @@ equal(const void *a, const void *b)
         case T_PartitionRangeDatum:
             retval = _equalPartitionRangeDatum(a, b);
             break;
+#ifdef __OPENTENBASE__
+		case T_SubPartitionSpec:
+			retval = _equalSubPartitionSpec(a, b);
+			break;
+		case T_SubPartitionCmd:
+			retval = _equalSubPartitionCmd(a, b);
+			break;
+#endif
         case T_PartitionCmd:
             retval = _equalPartitionCmd(a, b);
             break;
