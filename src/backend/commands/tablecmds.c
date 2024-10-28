@@ -573,6 +573,14 @@ static bool mls_allow_detach_parition(Node * stmt, Oid relid);
 static bool mls_policy_check(Node * stmt, Oid relid);
 #endif
 
+#ifdef __OPENTENBASE__
+static bool IsSameTableStructure(Relation rel1, Relation rel2);
+static char *GetConsrcFromHeap(HeapTuple tup);
+static bool GetConidString(HeapTuple tup, StringInfoData buf, Oid conid);
+static bool GetExeclusiveString(HeapTuple tup, StringInfoData buf);
+static bool IsSameConstraints(Relation rel1, Relation rel2);
+#endif
+
 /* ----------------------------------------------------------------
  *        DefineRelation
  *                Creates a new relation.
@@ -644,7 +652,11 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
                 (errcode(ERRCODE_INVALID_TABLE_DEFINITION),
                  errmsg("ON COMMIT can only be used on temporary tables")));
 
+#ifdef __OPENTENBASE__
+	if (stmt->partspec != NULL && strcmp(stmt->partspec->strategy, PARTITION_NON_INTERVAL) != 0)
+#else
     if (stmt->partspec != NULL)
+#endif
     {
         if (relkind != RELKIND_RELATION)
             elog(ERROR, "unexpected relkind: %d", (int) relkind);
@@ -1134,6 +1146,24 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
         pstate->p_sourcetext = queryString;
 
         bound = transformPartitionBound(pstate, parent, stmt->partbound);
+
+#ifdef __OPENTENBASE__
+		/* transform non_intervals to SubPartitionSpec and insert into inhRelation->partbound */
+		if (stmt->non_interval_child && stmt->partspec &&
+			list_length(stmt->partspec->non_intervals->cmds) == 1)
+		{
+			SubPartitionCmd *subpartcmd = linitial(stmt->partspec->non_intervals->cmds);
+			if (subpartcmd->strategy == PARTITION_STRATEGY_RANGE)
+			{
+				AddNewPartBound(pstate, parent, subpartcmd, bound->lowerdatums);
+			}
+			else if (subpartcmd->strategy == PARTITION_STRATEGY_LIST)
+			{
+				stmt->partbound = AddNewPartBound(pstate, parent, subpartcmd, bound->listdatums);
+				bound = transformPartitionBound(pstate, parent, stmt->partbound);
+			}
+		}
+#endif
 
         /*
          * Check first that the new partition's bound is valid and does not
@@ -4292,6 +4322,475 @@ RenameRelationInternal(Oid myrelid, const char *newrelname, bool is_internal)
     RenameCryptRelation(myrelid, newrelname);
 #endif
 }
+
+#ifdef __OPENTENBASE__
+/*
+ * exchange data bewteen bewteen exchangecmd->ex_rel and exchangecmd->child_rel.
+ *
+ * 1. exchange filenode bewteen exchangecmd->ex_rel and exchangecmd->child_rel.
+ * 2. reindex all tables.
+*/
+void ExecExchangeTable(ExchangeTableCmd *exchangecmd)
+{
+	Oid parentId;
+	Oid childId;
+	Oid exId;
+	List *rels = NIL;
+	Relation relrelation;
+	HeapTuple childReltup;
+	HeapTuple exReltup;
+	Form_pg_class childRelform;
+	Form_pg_class exRelform;
+	Oid tmpFileNode;
+	ListCell *lc;
+
+	// judge whether the tabls exist
+	parentId = RangeVarGetRelid(exchangecmd->parent_rel, AccessExclusiveLock, false);
+	if (!OidIsValid(parentId))
+	{
+		ereport(ERROR, (errcode(ERRCODE_INTEGRITY_CONSTRAINT_VIOLATION),
+						errmsg("relation %s does not exist", exchangecmd->parent_rel->relname)));
+		return;
+	}
+	childId = RangeVarGetRelid(exchangecmd->child_rel, AccessExclusiveLock, false);
+	if (!OidIsValid(childId))
+	{
+		ereport(ERROR, (errcode(ERRCODE_INTEGRITY_CONSTRAINT_VIOLATION),
+						errmsg("relation %s does not exist", exchangecmd->child_rel->relname)));
+		return;
+	}
+	exId = RangeVarGetRelid(exchangecmd->ex_rel, AccessExclusiveLock, false);
+	if (!OidIsValid(exId))
+	{
+		ereport(ERROR, (errcode(ERRCODE_INTEGRITY_CONSTRAINT_VIOLATION),
+						errmsg("relation %s does not exist", exchangecmd->ex_rel->relname)));
+		return;
+	}
+
+	Relation parent_rel = heap_openrv(exchangecmd->parent_rel, AccessExclusiveLock);
+	Relation child_rel = heap_openrv(exchangecmd->child_rel, AccessExclusiveLock);
+	Relation ex_rel = heap_openrv(exchangecmd->ex_rel, AccessExclusiveLock);
+	rels = lappend(rels, parent_rel);
+	rels = lappend(rels, child_rel);
+	rels = lappend(rels, ex_rel);
+
+	// check whether the exchange cmd is valid.
+	CheckRelationship(parent_rel, child_rel, ex_rel, rels);
+	// is same table structure
+	if (!IsSameTableStructure(child_rel, ex_rel))
+	{
+		ereport(ERROR,
+				(errcode(ERRCODE_INTEGRITY_CONSTRAINT_VIOLATION),
+				 errmsg("the table structure of relation %s must be same as %s's",
+						RelationGetRelationName(child_rel), RelationGetRelationName(ex_rel))));
+	}
+
+	relrelation = heap_open(RelationRelationId, RowExclusiveLock);
+
+	// get pg_class tuple and update filenode in pg_class tuple
+	childReltup = SearchSysCacheCopy1(RELOID, ObjectIdGetDatum(childId));
+	if (!HeapTupleIsValid(childReltup))
+		elog(ERROR, "cache lookup failed for relation %u", childId);
+	childRelform = (Form_pg_class)GETSTRUCT(childReltup);
+
+	exReltup = SearchSysCacheCopy1(RELOID, ObjectIdGetDatum(exId));
+	if (!HeapTupleIsValid(exReltup))
+		elog(ERROR, "cache lookup failed for relation %u", exId);
+	exRelform = (Form_pg_class)GETSTRUCT(exReltup);
+
+	tmpFileNode = childRelform->relfilenode;
+	childRelform->relfilenode = exRelform->relfilenode;
+	CatalogTupleUpdate(relrelation, &childReltup->t_self, childReltup);
+	InvokeObjectPostAlterHookArg(RelationRelationId, childId, 0, InvalidOid, false);
+
+	exRelform->relfilenode = tmpFileNode;
+	CatalogTupleUpdate(relrelation, &exReltup->t_self, exReltup);
+	InvokeObjectPostAlterHookArg(RelationRelationId, exId, 0, InvalidOid, false);
+	CommandCounterIncrement();
+
+	heap_freetuple(childReltup);
+	heap_freetuple(exReltup);
+	heap_close(relrelation, RowExclusiveLock);
+
+	if (exchangecmd->option == EXCHANGE_TABLE_INCLUDING_INDEXES)
+	{
+		// if there are no indexes, skip
+		reindex_relation(childId, REINDEX_REL_PROCESS_TOAST, 0);
+		reindex_relation(exId, REINDEX_REL_PROCESS_TOAST, 0);
+	}
+
+	// close but keep lock
+	foreach (lc, rels)
+	{
+		heap_close(lfirst(lc), NoLock);
+	}
+}
+
+/*
+ * 1. child_rel must be partition of parent_rel and not be partition of ex_rel.
+ * 2. ex_rel must be not partition of parent_rel nad child_rel.
+ * 3. parent_rel must be not partition of ex_rel nad child_rel.
+ * 4. ex_rel must be non-partition table.
+*/
+void
+CheckRelationship(Relation parent_rel, Relation child_rel, Relation ex_rel, List *rels)
+{
+	// 1. child_rel must be partition of parent_rel and not be partition of ex_rel.
+	if (!IsPartitionChild(child_rel, parent_rel, rels) || IsPartitionChild(child_rel, ex_rel, rels))
+	{
+		ereport(ERROR,
+				(errcode(ERRCODE_INTEGRITY_CONSTRAINT_VIOLATION),
+				 errmsg("%s must be partition of %s and not be partition of %s.",
+						RelationGetRelationName(child_rel), RelationGetRelationName(parent_rel),
+						RelationGetRelationName(ex_rel))));
+	}
+
+	// 2. ex_rel must be not partition of parent_rel nad child_rel.
+	if (IsPartitionChild(ex_rel, parent_rel, rels) || IsPartitionChild(ex_rel, child_rel, rels))
+	{
+		ereport(ERROR,
+				(errcode(ERRCODE_INTEGRITY_CONSTRAINT_VIOLATION),
+				 errmsg("%s must be not partition of %s nad %s.", RelationGetRelationName(ex_rel),
+						RelationGetRelationName(parent_rel), RelationGetRelationName(child_rel))));
+	}
+
+	// 3. parent_rel must be not partition of ex_rel nad child_rel.
+	if (IsPartitionChild(parent_rel, ex_rel, rels) || IsPartitionChild(parent_rel, child_rel, rels))
+	{
+		ereport(ERROR, (errcode(ERRCODE_INTEGRITY_CONSTRAINT_VIOLATION),
+						errmsg("%s must be not partition of %s nad %s.",
+							   RelationGetRelationName(parent_rel), RelationGetRelationName(ex_rel),
+							   RelationGetRelationName(child_rel))));
+	}
+
+	// 4. ex_rel must be non-partition table.
+	if (RelationGetPartitionKey(ex_rel))
+	{
+		ereport(ERROR, (errcode(ERRCODE_INTEGRITY_CONSTRAINT_VIOLATION),
+						errmsg("the relation %s can not be partition table",
+							   RelationGetRelationName(ex_rel))));
+	}
+}
+
+/*
+ * check whether child_rel is chlid partition of parent_rel, and traverse
+ * its child/grandchild relation and lock it with AccessExclusiveLock.
+ *
+ * rels store all relations traversed from parent_rel to child_rel,
+ * except for the both.
+*/
+bool
+IsPartitionChild(Relation child_rel, Relation parent_rel, List *rels)
+{
+	struct PartitionDescData *partdesc = RelationGetPartitionDesc(parent_rel);
+	int nparts = partdesc ? partdesc->nparts : 0;
+
+	// traverse parent table and check whether child_rel is partiton of parent_rel
+	for (int i = 0; i < nparts; i++)
+	{
+		Oid c_oid = partdesc->oids[i];
+		Relation c_rel = heap_open(c_oid, AccessExclusiveLock);
+		if (RelationGetRelid(c_rel) == RelationGetRelid(child_rel))
+		{
+			// close, because c_rel(child_rel) has been lock in AccessExclusiveLock mode
+			heap_close(c_rel, AccessExclusiveLock);
+			return true;
+		}
+		if (rels)
+		{
+			lappend(rels, c_rel);
+		}
+		// traverse child's child
+		if (IsPartitionChild(child_rel, c_rel, rels))
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+/*
+ * check whether the table structure is same and the both is ordinary table
+ *
+ * note: this function can check constraints
+ */
+static bool
+IsSameTableStructure(Relation rel1, Relation rel2)
+{
+	// 1. the attributes at each position should be same,
+	// including column name, column type and column length.
+	TupleDesc desc1 = RelationGetDescr(rel1);
+	TupleDesc desc2 = RelationGetDescr(rel2);
+	// same number
+	if (desc1->natts != desc2->natts)
+	{
+		goto fail;
+	}
+	else
+	{
+		int natts = desc1->natts;
+		for (int i = 0; i < natts; i++)
+		{
+			FormData_pg_attribute *attr1 = TupleDescAttr(desc1, i);
+			FormData_pg_attribute *attr2 = TupleDescAttr(desc2, i);
+			// check column name/type/length
+			if (strcmp(NameStr(attr1->attname), NameStr(attr2->attname)) != 0 ||
+				attr1->atttypid != attr2->atttypid ||
+				(attr1->attlen != attr2->attlen || attr1->atttypmod != attr2->atttypmod))
+			{
+				goto fail;
+			}
+		}
+	}
+
+	/* must be same constraints */
+	if (!IsSameConstraints(rel1, rel2))
+	{
+		goto fail;
+	}
+
+	return true;
+fail:
+	return false;
+}
+
+/*
+ * check whether the constraints is same,
+ * including all contypeas shown in pg_constraint.h, except for CONSTRAINT_TRIGGER.
+ */
+static bool
+IsSameConstraints(Relation rel1, Relation rel2)
+{
+	bool is_same;
+
+	ScanKeyData key;
+	HeapTuple contuple1;
+	HeapTuple contuple2;
+	StringInfoData buf1;
+	StringInfoData buf2;
+	Oid relid1 = RelationGetRelid(rel1);
+	Oid relid2 = RelationGetRelid(rel2);
+
+	Relation conrel = heap_open(ConstraintRelationId, RowExclusiveLock);
+
+	ScanKeyInit(&key, Anum_pg_constraint_conrelid, BTEqualStrategyNumber, F_OIDEQ,
+				ObjectIdGetDatum(relid1));
+	SysScanDesc scan1 = systable_beginscan(conrel, ConstraintRelidIndexId, true, NULL, 1, &key);
+	ScanKeyInit(&key, Anum_pg_constraint_conrelid, BTEqualStrategyNumber, F_OIDEQ,
+				ObjectIdGetDatum(relid2));
+	SysScanDesc scan2 = systable_beginscan(conrel, ConstraintRelidIndexId, true, NULL, 1, &key);
+	while (true)
+	{
+		int validate_res = HeapTupleIsValid(contuple1 = systable_getnext(scan1)) +
+						   HeapTupleIsValid(contuple2 = systable_getnext(scan2));
+		if (validate_res == 0)
+		{
+			break;
+		}
+		else if (validate_res == 1)
+		{
+			goto fail;
+		}
+		Form_pg_constraint currcon1 = (Form_pg_constraint)GETSTRUCT(contuple1);
+		Form_pg_constraint currcon2 = (Form_pg_constraint)GETSTRUCT(contuple2);
+
+		char contype;
+
+		/*
+		 * different constraint type and different constraint name, but name
+		 * **must** be unique when contype is CONSTRAINT_UNIQUE or CONSTRAINT_PRIMARY.
+		 */
+		char *name1 = NameStr(currcon1->conname);
+		char *name2 = NameStr(currcon2->conname);
+		if (currcon1->contype != currcon2->contype)
+		{
+			goto fail;
+		}
+		else
+		{
+			contype = currcon1->contype;
+			if ((contype != CONSTRAINT_UNIQUE && contype != CONSTRAINT_PRIMARY) &&
+				(strlen(name1) != strlen(name2) || strcmp(name1, name2) != 0))
+			{
+				goto fail;
+			}
+		}
+
+		bool res = true;
+		switch (contype)
+		{
+		case CONSTRAINT_CHECK:
+		{
+			/*
+			 * this is a simple judgement which only check whether is experssion same.
+			 * Although there are two check experssions with same logic,  they will be
+			 * judged as different.
+			 */
+			char *consrc1 = GetConsrcFromHeap(contuple1);
+			char *consrc2 = GetConsrcFromHeap(contuple2);
+			if (!consrc1 || !consrc2 || strcmp(consrc1, consrc2) != 0)
+			{
+				goto fail;
+			}
+
+			break;
+		}
+		case CONSTRAINT_FOREIGN:
+		{
+			/*
+			 * check referencing-column, referenced-column, match type, action, etc.
+			 * they should be the same.
+			 */
+
+			/* referencing-column */
+			initStringInfo(&buf1);
+			res &= GetConidString(contuple1, buf1, currcon1->conrelid);
+			res &= GetConidString(contuple1, buf1, currcon1->confrelid);
+
+			/* referenced-column */
+			initStringInfo(&buf2);
+			res &= GetConidString(contuple2, buf2, currcon2->conrelid);
+			res &= GetConidString(contuple2, buf2, currcon2->confrelid);
+
+			if (!res || buf1.len != buf2.len || strncmp(buf1.data, buf2.data, buf1.len) != 0)
+			{
+				goto fail;
+			}
+
+			/* match type */
+			/* ON UPDATE and ON DELETE clauses */
+			if (currcon1->confmatchtype != currcon2->confmatchtype ||
+				currcon1->confupdtype != currcon2->confupdtype ||
+				currcon1->confdeltype != currcon2->confdeltype)
+			{
+				goto fail;
+			}
+			break;
+		}
+		case CONSTRAINT_PRIMARY:
+		case CONSTRAINT_UNIQUE:
+		{
+			/* column name should be the same */
+			initStringInfo(&buf1);
+			res &= GetConidString(contuple1, buf1, currcon1->conrelid);
+			initStringInfo(&buf2);
+			res &= GetConidString(contuple2, buf2, currcon2->conrelid);
+
+			if (!res || buf1.len != buf2.len || strncmp(buf1.data, buf2.data, buf1.len) != 0)
+			{
+				goto fail;
+			}
+			break;
+		}
+		case CONSTRAINT_TRIGGER:
+		{
+			/* ignore */
+			break;
+		}
+		break;
+		case CONSTRAINT_EXCLUSION:
+		{
+			/* column name should be the same */
+			initStringInfo(&buf1);
+			res &= GetExeclusiveString(contuple1, buf1);
+			initStringInfo(&buf2);
+			res &= GetExeclusiveString(contuple1, buf2);
+
+			if (!res || buf1.len != buf2.len || strncmp(buf1.data, buf2.data, buf1.len) != 0)
+			{
+				goto fail;
+			}
+			break;
+		}
+		default:
+			elog(ERROR, "invalid constraint type \"%c\"", contype);
+			break;
+		}
+	}
+
+	// success
+	is_same = true;
+exit:
+	/* Cleanup */
+	systable_endscan(scan1);
+	systable_endscan(scan2);
+	heap_close(conrel, NoLock);
+	return is_same;
+fail:
+	is_same = false;
+	goto exit;
+}
+
+static char *
+GetConsrcFromHeap(HeapTuple tup)
+{
+	bool isnull;
+	Datum val = SysCacheGetAttr(CONSTROID, tup, Anum_pg_constraint_conbin, &isnull);
+	if (isnull)
+	{
+		return NULL;
+	}
+	Node *expr = stringToNode(TextDatumGetCString(val));
+	List *context;
+	Form_pg_constraint currcon = (Form_pg_constraint)GETSTRUCT(tup);
+	if (currcon->conrelid != InvalidOid)
+	{
+		/* relation constraint */
+		context = deparse_context_for(get_rel_name(currcon->conrelid), currcon->conrelid);
+	}
+	else
+	{
+		/* domain constraint --- can't have Vars */
+		context = NIL;
+	}
+
+	return deparse_expression(expr, context, false, false);
+}
+
+static bool
+GetConidString(HeapTuple tup, StringInfoData buf, Oid conid)
+{
+	bool isnull;
+	Datum val = SysCacheGetAttr(CONSTROID, tup, Anum_pg_constraint_conkey, &isnull);
+	if (isnull)
+	{
+		return false;
+	}
+	decompile_column_index_array_wrap(val, conid, &buf);
+	return true;
+}
+
+static bool
+GetExeclusiveString(HeapTuple tup, StringInfoData buf)
+{
+	Datum val;
+	bool isnull;
+	Datum *elems;
+	int nElems;
+	int i;
+	Oid *operators;
+
+	val = SysCacheGetAttr(CONSTROID, tup, Anum_pg_constraint_conexclop, &isnull);
+	if (isnull)
+	{
+		return false;
+	}
+	deconstruct_array(DatumGetArrayTypeP(val), OIDOID, sizeof(Oid), true, 'i', &elems, NULL,
+					  &nElems);
+
+	operators = (Oid *)palloc(nElems * sizeof(Oid));
+	for (i = 0; i < nElems; i++)
+		operators[i] = DatumGetObjectId(elems[i]);
+	Form_pg_constraint currcon = (Form_pg_constraint)GETSTRUCT(tup);
+
+	/* pg_get_indexdef_columns_with_operators does the rest */
+	/* suppress tablespace because pg_dump wants it that way */
+	appendStringInfoString(&buf,
+						   pg_get_indexdef_columns_with_operators(currcon->conindid, operators));
+	return true;
+}
+#endif
 
 /*
  * Disallow ALTER TABLE (and similar commands) when the current backend has
@@ -16499,6 +16998,9 @@ transformPartitionSpec(Relation rel, PartitionSpec *partspec, char *strategy)
     newspec->strategy = partspec->strategy;
     newspec->partParams = NIL;
     newspec->location = partspec->location;
+#ifdef __OPENTENBASE__
+	newspec->non_intervals = copyObject(partspec->non_intervals);
+#endif
 
     /* Parse partitioning strategy name */
 	if (pg_strcasecmp(partspec->strategy, "hash") == 0)
@@ -18029,3 +18531,6 @@ static bool mls_policy_check(Node * stmt, Oid relid)
 #endif
 
 
+
+#ifdef __OPENTENBASE__
+#endif

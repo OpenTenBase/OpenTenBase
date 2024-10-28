@@ -126,6 +126,7 @@
 
 #ifdef __OPENTENBASE__
 extern int DropSequenceGTM(char *name, GTM_SequenceKeyType type);
+static RemoteQueryExecType GetExchangeTableExecType(ExchangeTableCmd *cmd, bool *is_temp);
 #endif
 
 static void ExecUtilityStmtOnNodes(Node* parsetree, const char *queryString, ExecNodes *nodes,
@@ -3940,7 +3941,46 @@ ProcessUtilitySlow(ParseState *pstate,
 #ifdef __OPENTENBASE__
                             if (OidIsValid(address.objectId))
                             {
-                                /* 
+								/* now the parent table has been created */
+								/* construct child stmt by parent stmt with non_intervals */
+								if (createStmt->partspec && createStmt->partspec->non_intervals &&
+									createStmt->partspec->non_intervals->cmds &&
+									!createStmt->non_interval_child)
+								{
+									List *child_stmts = transformChildPartBounds(createStmt);
+									ListCell *lc = NULL;
+									foreach (lc, child_stmts)
+									{
+										Node *stmt = (Node *)lfirst(lc);
+										if (IsA(stmt, CreateStmt))
+										{
+											CreateStmt *stmt_crt = (CreateStmt *)stmt;
+											if (stmt_crt->non_interval_child)
+											{
+												List *tmp_stmts =
+													transformCreateStmt(stmt_crt, queryString,
+																		!is_local && !sentToRemote,
+																		&nspaceid, exist_ok);
+												Assert(list_length(tmp_stmts) == 1);
+												stmt_crt = linitial(tmp_stmts);
+												/* Create the child table itself */
+												ObjectAddress addr =
+													DefineRelation(stmt_crt, RELKIND_RELATION,
+																   InvalidOid, NULL, queryString);
+												/*
+												 * Let NewRelationCreateToastTable decide if this
+												 * one needs a secondary relation too.
+												 */
+												CommandCounterIncrement();
+
+												NewRelationCreateToastTable(addr.objectId,
+																			toast_options);
+											}
+										}
+									}
+								}
+
+								/* 
                                   *  interval partition's parent table has been created, we need to create
                                   *  child tables.
                                                           */
@@ -4101,6 +4141,59 @@ ProcessUtilitySlow(ParseState *pstate,
                     ListCell   *l;
                     LOCKMODE    lockmode;
 
+#ifdef __OPENTENBASE__
+					if (list_length(atstmt->cmds) == 1)
+					{
+						Node *node = linitial(atstmt->cmds);
+						if (node->type == T_AlterTableCmd)
+						{
+							/* ALTER TABLE <name> ADD PARTITION <name> values */
+							AlterTableCmd *cmd = (AlterTableCmd *)node;
+							if (cmd->subtype == AT_CreatePartition && cmd->def &&
+								IsA(cmd->def, PartitionCmd))
+							{
+								/* construct a child partition createStmt */
+								CreateStmt *createStmt =
+									transformPartitionCmd2CreateStmt(cmd->def, atstmt);
+
+								/* do createStmt now */
+								PlannedStmt *tmp_pstmt = copyObject(pstmt);
+								tmp_pstmt->utilityStmt = createStmt;
+								ProcessUtilitySlow(pstate, tmp_pstmt, queryString, context, params,
+												   queryEnv, dest, sentToRemote, completionTag);
+								break;
+							}
+							/* ALTER TABLE <name> EXCHANGE PARTITION <name> WITH TABLE <name> */
+							else if (cmd->subtype == AT_ExchangeTableCmd && cmd->def &&
+									 IsA(cmd->def, ExchangeTableCmd))
+							{
+								ExchangeTableCmd *exchange = (ExchangeTableCmd *)cmd->def;
+								exchange->parent_rel = copyObject(atstmt->relation);
+								if (!sentToRemote && LOCAL_PARALLEL_DDL)
+								{
+									bool is_temp = false;
+									PGXCNodeHandle *leaderCnHandle = find_ddl_leader_cn();
+									bool is_leader_cn = is_ddl_leader_cn(leaderCnHandle->nodename);
+									RemoteQueryExecType exec_type =
+										GetExchangeTableExecType(exchange, &is_temp);
+									if (!is_leader_cn)
+									{
+										SendLeaderCNUtility(queryString, is_temp);
+									}
+									ExecExchangeTable(exchange);
+									ExecUtilityStmtOnNodes(parsetree, queryString, NULL,
+														   sentToRemote, false, exec_type, is_temp,
+														   false);
+								}
+								else
+								{
+									ExecExchangeTable(exchange);
+								}
+								break;
+							}
+						}
+					}
+#endif
                     /*
                      * Figure out lock mode, and acquire lock.  This also does
                      * basic permissions checks, so that we won't wait for a
@@ -5364,6 +5457,39 @@ void CheckAndSendLeaderCNReindex(bool sentToRemote, ReindexStmt *stmt,
 	}
 }
 
+/* the logic is like GetRenameExecType */
+static RemoteQueryExecType GetExchangeTableExecType(ExchangeTableCmd *cmd, bool *is_temp)
+{
+	RemoteQueryExecType exec_type1 = EXEC_ON_NONE;
+	RemoteQueryExecType exec_type2 = EXEC_ON_NONE;
+
+	if (cmd->child_rel)
+	{
+		Oid relid = RangeVarGetRelid(cmd->child_rel, NoLock, true);
+		if (OidIsValid(relid))
+			exec_type1 = ExecUtilityFindNodes(OBJECT_TABLE, relid, is_temp);
+		else
+			exec_type1 = EXEC_ON_NONE;
+	}
+	else
+		exec_type1 = ExecUtilityFindNodes(OBJECT_TABLE, InvalidOid, is_temp);
+
+	if (cmd->ex_rel)
+	{
+		Oid relid = RangeVarGetRelid(cmd->ex_rel, NoLock, true);
+		if (OidIsValid(relid))
+			exec_type2 = ExecUtilityFindNodes(OBJECT_TABLE, relid, is_temp);
+		else
+			exec_type2 = EXEC_ON_NONE;
+	}
+	else
+		exec_type2 = ExecUtilityFindNodes(OBJECT_TABLE, InvalidOid, is_temp);
+	if (exec_type1 != exec_type2)
+	{
+		return EXEC_ON_NONE;
+	}
+	return exec_type1;
+}
 #endif
 
 static RemoteQueryExecType GetRenameExecType(RenameStmt *stmt, bool *is_temp)

@@ -206,6 +206,7 @@ static Const *transformPartitionBoundValue(ParseState *pstate, A_Const *con,
 static void transformPartitionBy(ParseState *pstate, ColumnDef *partcol, PartitionBy *partitionby);
 static char * ChooseSerialName(const char *relname, const char *colname,
 									const char *label, Oid namespaceid);
+static void transformSubPartitionSpec2PartBound(List *child_stmts, SubPartitionSpec *subpartspec);
 #endif
 /*
  * transformCreateStmt -
@@ -294,6 +295,84 @@ transformCreateStmt(CreateStmt *stmt, const char *queryString)
                 (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                  errmsg("cannot create interval partition as partition child")));
     }
+
+	/* rule check in sub partition by clause */
+	if (stmt->partspec && stmt->partspec->non_intervals && stmt->partspec->non_intervals->cmds)
+	{
+		if (!stmt->non_interval_child)
+		{
+			SubPartitionSpec *subpartspec = stmt->partspec->non_intervals;
+
+			/* must include partition by clause */
+			if (stmt->partspec == NULL || stmt->partspec->partParams == NULL)
+			{
+				ereport(ERROR,
+						(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
+						 errmsg("cannot use oracle's partition caluse without partition by")));
+			}
+
+			/* only support one column in partition by clause */
+			if (list_length(stmt->partspec->partParams) != 1)
+			{
+				ereport(ERROR, (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
+								errmsg("partition params must be one")));
+			}
+
+			/*
+			 * only support partition range/list.
+			 * the strategy in partition by clause should be the same as others in this clause,
+			 * and it also should be the same as in SubPartitionSpec's.
+			 */
+			const char strategy = ((SubPartitionSpec *)linitial(subpartspec->cmds))->strategy;
+			foreach (elements, subpartspec->cmds)
+			{
+				SubPartitionCmd *subpartcmd = lfirst(elements);
+				if (strategy != subpartcmd->strategy)
+				{
+					ereport(ERROR,
+							(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
+							 errmsg("the strategy in partition by clause should be the same as "
+									"others in this clause")));
+				}
+			}
+
+			if (!(strcmp(stmt->partspec->strategy, "range") == 0 &&
+					  strategy == PARTITION_STRATEGY_RANGE ||
+				  strcmp(stmt->partspec->strategy, "list") == 0 &&
+					  strategy == PARTITION_STRATEGY_LIST))
+			{
+				ereport(ERROR,
+						(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
+						 errmsg("the strategy in partition by clause should be the same as in "
+								"SubPartitionSpec's")));
+			}
+
+			subpartspec->strategy = strategy;
+			subpartspec->colname =
+				pstrdup(((PartitionElem *)linitial(stmt->partspec->partParams))->name);
+
+			subpartspec->colattr = -1;
+			ColumnDef *col = NULL;
+
+			/* get partition by column */
+			foreach (elements, stmt->tableElts)
+			{
+				subpartspec->colattr++;
+				col = (ColumnDef *)lfirst(elements);
+				if (strcmp(col->colname, subpartspec->colname) == 0)
+				{
+					break;
+				}
+			}
+
+			if (subpartspec->colattr == -1)
+			{
+				ereport(ERROR, (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
+								errmsg("PartitionKey [%s] not defined in table column definitions.",
+									   subpartspec->colname)));
+			}
+		}
+	}
 #endif
 
     /*
@@ -5558,5 +5637,148 @@ transformPartitionBy(ParseState *pstate, ColumnDef *partcol, PartitionBy *partit
     }        
 
     
+}
+
+/* transform parent create stmt to child stmts which are partition of parent's */
+List *
+transformChildPartBounds(CreateStmt *parent_stmt)
+{
+	List *result = NIL;
+	ListCell *lc = NIL;
+	SubPartitionSpec *subpartspec = parent_stmt->partspec->non_intervals;
+
+	/* child's inherit relation */
+	RangeVar *inh_relation = copyObject(parent_stmt->relation);
+	inh_relation->catalogname = NULL;
+	inh_relation->schemaname = NULL;
+	inh_relation->inh = true;
+	inh_relation->relpersistence = RELPERSISTENCE_PERMANENT;
+
+	foreach (lc, subpartspec->cmds)
+	{
+		CreateStmt *child_stmt = copyObject(parent_stmt);
+		child_stmt->non_interval_child = true;
+		child_stmt->distributeby = NULL;
+		child_stmt->partspec->strategy = pstrdup(PARTITION_NON_INTERVAL);
+
+		/* change relation name */
+		SubPartitionCmd *subpartcmd = (SubPartitionCmd *)lfirst(lc);
+		child_stmt->relation->relname = pstrdup(subpartcmd->tablename);
+
+		/* transform parent's tableElts to child's inhRelations */
+		child_stmt->tableElts = NIL;
+		child_stmt->inhRelations = list_make1(inh_relation);
+
+		/*
+		 * construct child's subcluster
+		 *
+		 * the parent relation has noe been created here, so the subcluster clause
+		 * should be constructed after the parent relation created. (utility.c)
+		 */
+
+		result = lappend(result, child_stmt);
+	}
+
+	/* transform non_intervals to partbound */
+	transformSubPartitionSpec2PartBound(result, subpartspec);
+
+	return result;
+}
+
+/* transform child stmts's non_intervals to PartitionBoundSpec */
+static void
+transformSubPartitionSpec2PartBound(List *child_stmts, SubPartitionSpec *subpartspec)
+{
+	ListCell *lc1 = NIL;
+	ListCell *lc2 = NIL;
+	PartitionBoundSpec *last_child_bound = NULL;
+	forboth(lc1, child_stmts, lc2, subpartspec->cmds)
+	{
+		CreateStmt *child_stmt = (CreateStmt *)lfirst(lc1);
+		SubPartitionCmd *subpartcmd = (SubPartitionCmd *)lfirst(lc2);
+		PartitionBoundSpec *partbound = makeNode(PartitionBoundSpec);
+		partbound->is_default = false;
+		partbound->strategy = subpartcmd->strategy;
+		partbound->location = subpartcmd->location;
+
+		if (subpartcmd->strategy == PARTITION_STRATEGY_RANGE)
+		{
+			switch (subpartcmd->cmp_op)
+			{
+			case QULIFICATION_TYPE_LS:
+			{
+				/* LESS THAN */
+				partbound->upperdatums = copyObject(subpartcmd->data);
+				if (last_child_bound == NULL)
+				{
+					partbound->lowerdatums = copyObject(subpartcmd->data);
+					PartitionRangeDatum *r_datum = linitial(partbound->lowerdatums);
+					r_datum->kind = PARTITION_RANGE_DATUM_MINVALUE;
+					r_datum->value = NULL;
+				}
+				else
+				{
+					partbound->lowerdatums = copyObject(last_child_bound->upperdatums);
+				}
+				last_child_bound = partbound;
+			}
+			break;
+			default:
+			{
+				elog(ERROR, "unsupported compare type: %d", subpartcmd->cmp_op);
+			}
+			}
+		}
+		else if (subpartcmd->strategy == PARTITION_STRATEGY_LIST)
+		{
+			partbound->listdatums = copyObject(subpartcmd->data);
+		}
+		else
+		{
+			elog(ERROR, "unsupported strategy type: %d", subpartcmd->strategy);
+		}
+
+		child_stmt->partbound = partbound;
+	}
+}
+
+/* transform PartitionCmd in alterTableStmt to CreateStmt */
+CreateStmt *
+transformPartitionCmd2CreateStmt(PartitionCmd *partcmd, AlterTableStmt *atstmt)
+{
+	/* construct a child partition createStmt */
+	CreateStmt *createStmt = makeNode(CreateStmt);
+	PartitionBoundSpec *bound = copyObject(partcmd->bound);
+	SubPartitionCmd *subpartcmd = makeNode(SubPartitionCmd);
+	RangeVar *relation = makeNode(RangeVar);
+	relation->inh = true;
+	relation->relname = pstrdup(partcmd->name->relname);
+	relation->location = bound->location;
+	relation->relpersistence = RELPERSISTENCE_PERMANENT;
+	createStmt->partbound = bound;
+	createStmt->relation = relation;
+	createStmt->inhRelations = list_make1(copyObject(atstmt->relation));
+
+	createStmt->partspec = makeNode(PartitionSpec);
+	createStmt->partspec->strategy = pstrdup(PARTITION_NON_INTERVAL);
+	createStmt->partspec->non_intervals = makeNode(SubPartitionSpec);
+
+	subpartcmd->strategy = bound->strategy;
+	/* only support less than comare operator */
+	subpartcmd->cmp_op = QULIFICATION_TYPE_LS;
+	subpartcmd->tablename = pstrdup(partcmd->name->relname);
+	if (bound->strategy == PARTITION_STRATEGY_RANGE)
+	{
+		subpartcmd->data = copyObject(bound->upperdatums);
+	}
+	else if (bound->strategy == PARTITION_STRATEGY_LIST)
+	{
+		subpartcmd->data = copyObject(bound->listdatums);
+	}
+
+	createStmt->partspec->non_intervals->cmds = list_make1(subpartcmd);
+	createStmt->non_interval_child = true;
+
+	return createStmt;
 }
 #endif

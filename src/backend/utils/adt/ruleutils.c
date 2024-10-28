@@ -1197,6 +1197,14 @@ pg_get_indexdef_columns(Oid indexrelid, bool pretty)
                                   prettyFlags, false);
 }
 
+#ifdef __OPENTENBASE__
+char *
+pg_get_indexdef_columns_with_operators(Oid indexrelid, const Oid *excludeOps)
+{
+	return pg_get_indexdef_worker(indexrelid, 0, excludeOps, true, false, false, 0, false);
+}
+#endif
+
 /*
  * Internal workhorse to decompile an index definition.
  *
@@ -2298,6 +2306,13 @@ decompile_column_index_array(Datum column_index_array, Oid relId,
     }
 }
 
+#ifdef __OPENTENBASE__
+void
+decompile_column_index_array_wrap(Datum column_index_array, Oid relId, StringInfo buf)
+{
+	decompile_column_index_array(column_index_array, relId, buf);
+}
+#endif
 
 /* ----------
  * get_expr            - Decompile an expression tree
