@@ -5705,28 +5705,28 @@ transformSubPartitionSpec2PartBound(List *child_stmts, SubPartitionSpec *subpart
 		{
 			switch (subpartcmd->cmp_op)
 			{
-			case QULIFICATION_TYPE_LS:
-			{
-				/* LESS THAN */
-				partbound->upperdatums = copyObject(subpartcmd->data);
-				if (last_child_bound == NULL)
+				case QULIFICATION_TYPE_LS:
 				{
-					partbound->lowerdatums = copyObject(subpartcmd->data);
-					PartitionRangeDatum *r_datum = linitial(partbound->lowerdatums);
-					r_datum->kind = PARTITION_RANGE_DATUM_MINVALUE;
-					r_datum->value = NULL;
+					/* LESS THAN */
+					partbound->upperdatums = copyObject(subpartcmd->data);
+					if (last_child_bound == NULL)
+					{
+						partbound->lowerdatums = copyObject(subpartcmd->data);
+						PartitionRangeDatum *r_datum = linitial(partbound->lowerdatums);
+						r_datum->kind = PARTITION_RANGE_DATUM_MINVALUE;
+						r_datum->value = NULL;
+					}
+					else
+					{
+						partbound->lowerdatums = copyObject(last_child_bound->upperdatums);
+					}
+					last_child_bound = partbound;
 				}
-				else
+				break;
+				default:
 				{
-					partbound->lowerdatums = copyObject(last_child_bound->upperdatums);
+					elog(ERROR, "unsupported compare type: %d", subpartcmd->cmp_op);
 				}
-				last_child_bound = partbound;
-			}
-			break;
-			default:
-			{
-				elog(ERROR, "unsupported compare type: %d", subpartcmd->cmp_op);
-			}
 			}
 		}
 		else if (subpartcmd->strategy == PARTITION_STRATEGY_LIST)
