@@ -53,7 +53,7 @@ extern PartitionBoundInfo partition_bounds_copy(PartitionBoundInfo src,
 					  PartitionKey key);
 
 #ifdef __OPENTENBASE__
-extern PartitionBoundSpec *AddNewPartBound(ParseState *pstate, Relation inh, SubPartitionCmd *subpartcmd, List *formed_datums);
+extern PartitionBoundSpec *AddNewPartBound(ParseState *pstate, Relation inh, PartitionDef *part, List *formed_datums);
 #endif
 extern void check_new_partition_bound(char *relname, Relation parent,
 						  PartitionBoundSpec *spec);

@@ -3942,10 +3942,9 @@ ProcessUtilitySlow(ParseState *pstate,
                             if (OidIsValid(address.objectId))
                             {
 								/* now the parent table has been created */
-								/* construct child stmt by parent stmt with non_intervals */
-								if (createStmt->partspec && createStmt->partspec->non_intervals &&
-									createStmt->partspec->non_intervals->cmds &&
-									!createStmt->non_interval_child)
+								/* construct child stmt by parent stmt with partition_bounds */
+								if (createStmt->partspec && createStmt->partspec->partition_bounds &&
+									!createStmt->partition_bound_child)
 								{
 									List *child_stmts = transformChildPartBounds(createStmt);
 									ListCell *lc = NULL;
@@ -3955,7 +3954,7 @@ ProcessUtilitySlow(ParseState *pstate,
 										if (IsA(stmt, CreateStmt))
 										{
 											CreateStmt *stmt_crt = (CreateStmt *)stmt;
-											if (stmt_crt->non_interval_child)
+											if (stmt_crt->partition_bound_child)
 											{
 												List *tmp_stmts =
 													transformCreateStmt(stmt_crt, queryString,
@@ -3964,17 +3963,7 @@ ProcessUtilitySlow(ParseState *pstate,
 												Assert(list_length(tmp_stmts) == 1);
 												stmt_crt = linitial(tmp_stmts);
 												/* Create the child table itself */
-												ObjectAddress addr =
-													DefineRelation(stmt_crt, RELKIND_RELATION,
-																   InvalidOid, NULL, queryString);
-												/*
-												 * Let NewRelationCreateToastTable decide if this
-												 * one needs a secondary relation too.
-												 */
-												CommandCounterIncrement();
-
-												NewRelationCreateToastTable(addr.objectId,
-																			toast_options);
+												lappend(stmts, stmt_crt);
 											}
 										}
 									}

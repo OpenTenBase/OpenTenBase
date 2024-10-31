@@ -3646,7 +3646,7 @@ CopyCreateStmtFields(const CreateStmt *from, CreateStmt *newnode)
     COPY_SCALAR_FIELD(interval_child);
     COPY_SCALAR_FIELD(interval_child_idx);
     COPY_SCALAR_FIELD(interval_parentId);
-	COPY_SCALAR_FIELD(non_interval_child);
+	COPY_SCALAR_FIELD(partition_bound_child);
 #endif
 }
 
@@ -4898,7 +4898,7 @@ _copyPartitionSpec(const PartitionSpec *from)
     COPY_NODE_FIELD(partParams);
 #ifdef __OPENTENBASE__
     COPY_NODE_FIELD(interval);
-	COPY_NODE_FIELD(non_intervals);
+	COPY_NODE_FIELD(partition_bounds);
 #endif
     COPY_LOCATION_FIELD(location);
 
@@ -4964,29 +4964,17 @@ _copyPartitionBy(const PartitionBy *from)
     return newnode;
 }
 
-static SubPartitionSpec *
-_copySubPartitionSpec(const SubPartitionSpec *from)
+static PartitionDef *
+_copyPartitionDef(const PartitionDef *from)
 {
-	SubPartitionSpec *newnode = makeNode(SubPartitionSpec);
-
-	COPY_SCALAR_FIELD(strategy);
-	COPY_STRING_FIELD(colname);
-	COPY_SCALAR_FIELD(colattr);
-	COPY_NODE_FIELD(cmds);
-	COPY_LOCATION_FIELD(location);
-
-	return newnode;
-}
-
-static SubPartitionCmd *
-_copySubPartitionCmd(const SubPartitionCmd *from)
-{
-	SubPartitionCmd *newnode = makeNode(SubPartitionCmd);
+	PartitionDef *newnode = makeNode(PartitionDef);
 
 	COPY_SCALAR_FIELD(strategy);
 	COPY_SCALAR_FIELD(cmp_op);
 	COPY_STRING_FIELD(tablename);
 	COPY_NODE_FIELD(data);
+	COPY_STRING_FIELD(colname);
+	COPY_SCALAR_FIELD(colattr);
 	COPY_LOCATION_FIELD(location);
 
 	return newnode;
@@ -6365,11 +6353,8 @@ copyObjectImpl(const void *from)
         case T_PartitionBy:
             retval = _copyPartitionBy(from);
             break;
-		case T_SubPartitionSpec:
-			retval = _copySubPartitionSpec(from);
-			break;
-		case T_SubPartitionCmd:
-			retval = _copySubPartitionCmd(from);
+		case T_PartitionDef:
+			retval = _copyPartitionDef(from);
 			break;
         case T_AddDropPartitions:
             retval = _copyAddDropPartitions(from);

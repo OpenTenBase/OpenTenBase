@@ -864,17 +864,17 @@ partition_bounds_copy(PartitionBoundInfo src,
 
 #ifdef __OPENTENBASE__
 /*
- * transform SubPartitionCmd to PartitionBoundSpec whose lower bound is the one
- * which is the greater one which is less than subpartcmd, for range strategy.  If
+ * transform PartitionDef to PartitionBoundSpec whose lower bound is the one
+ * which is the greater one which is less than part, for range strategy.  If
  * there is overlapping range, report it as error.
  *
  * return partbound, if list strategy, NULL else.
  *
- * note: this function will only change formed_datums and *DO NOT* change subpartcmd
+ * note: this function will only change formed_datums and *DO NOT* change part
  * in list strategy.
 */
 PartitionBoundSpec *
-AddNewPartBound(ParseState *pstate, Relation inh, SubPartitionCmd *subpartcmd, List *formed_datums)
+AddNewPartBound(ParseState *pstate, Relation inh, PartitionDef *part, List *formed_datums)
 {
 	PartitionRangeDatum *prd = linitial(formed_datums);
 	PartitionKey key = RelationGetPartitionKey(inh);
@@ -891,24 +891,24 @@ AddNewPartBound(ParseState *pstate, Relation inh, SubPartitionCmd *subpartcmd, L
 			partbound = makeNode(PartitionBoundSpec);
 			partbound->is_default = false;
 			partbound->strategy = PARTITION_STRATEGY_LIST;
-			partbound->listdatums = copyObject(subpartcmd->data);
+			partbound->listdatums = copyObject(part->data);
 		}
 		break;
 		case PARTITION_STRATEGY_RANGE:
 		{
-			if (list_length(subpartcmd->data) != list_length(formed_datums))
+			if (list_length(part->data) != list_length(formed_datums))
 			{
 				ereport(ERROR, (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
 								errmsg("length of range value must be the same as exist's")));
 			}
 
-			if (list_length(subpartcmd->data) != 1)
+			if (list_length(part->data) != 1)
 			{
 				ereport(ERROR, (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
 								errmsg("length of range value must be one")));
 			}
 
-			switch (subpartcmd->cmp_op)
+			switch (part->cmp_op)
 			{
 				case QULIFICATION_TYPE_LS:
 				{
@@ -941,7 +941,7 @@ AddNewPartBound(ParseState *pstate, Relation inh, SubPartitionCmd *subpartcmd, L
 				break;
 				default:
 				{
-					elog(ERROR, "unsupported compare type: %d", subpartcmd->cmp_op);
+					elog(ERROR, "unsupported compare type: %d", part->cmp_op);
 				}
 			}
 		}

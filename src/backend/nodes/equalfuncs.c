@@ -1268,7 +1268,7 @@ _equalCreateStmt(const CreateStmt *a, const CreateStmt *b)
     COMPARE_NODE_FIELD(subcluster);
 #endif
 #ifdef __OPENTENBASE__
-	COMPARE_SCALAR_FIELD(non_interval_child);
+	COMPARE_SCALAR_FIELD(partition_bound_child);
 #endif
 
     return true;
@@ -3002,24 +3002,14 @@ _equalPartitionRangeDatum(const PartitionRangeDatum *a, const PartitionRangeDatu
 
 #ifdef __OPENTENBASE__
 static bool
-_equalSubPartitionSpec(const SubPartitionSpec *a, const SubPartitionSpec *b)
-{
-	COMPARE_SCALAR_FIELD(strategy);
-	COMPARE_STRING_FIELD(colname);
-	COMPARE_SCALAR_FIELD(colattr);
-	COMPARE_NODE_FIELD(cmds);
-	COMPARE_LOCATION_FIELD(location);
-
-	return true;
-}
-
-static bool
-_equalSubPartitionCmd(const SubPartitionCmd *a, const SubPartitionCmd *b)
+_equalPartitionDef(const PartitionDef *a, const PartitionDef *b)
 {
 	COMPARE_SCALAR_FIELD(strategy);
 	COMPARE_SCALAR_FIELD(cmp_op);
 	COMPARE_STRING_FIELD(tablename);
 	COMPARE_NODE_FIELD(data);
+	COMPARE_STRING_FIELD(colname);
+	COMPARE_SCALAR_FIELD(colattr);
 	COMPARE_LOCATION_FIELD(location);
 
 	return true;
@@ -4008,11 +3998,8 @@ equal(const void *a, const void *b)
             retval = _equalPartitionRangeDatum(a, b);
             break;
 #ifdef __OPENTENBASE__
-		case T_SubPartitionSpec:
-			retval = _equalSubPartitionSpec(a, b);
-			break;
-		case T_SubPartitionCmd:
-			retval = _equalSubPartitionCmd(a, b);
+		case T_PartitionDef:
+			retval = _equalPartitionDef(a, b);
 			break;
 #endif
         case T_PartitionCmd:

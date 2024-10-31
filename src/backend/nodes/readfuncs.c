@@ -4161,29 +4161,17 @@ _readPartitionRangeDatum(void)
 }
 
 #ifdef __OPENTENBASE__
-static SubPartitionSpec *
-_readSubPartitionSpec(void)
+static PartitionDef *
+_readPartitionDef(void)
 {
-	READ_LOCALS(SubPartitionSpec);
-
-	READ_CHAR_FIELD(strategy);
-	READ_STRING_FIELD(colname);
-	READ_INT_FIELD(colattr);
-	READ_NODE_FIELD(cmds);
-	READ_LOCATION_FIELD(location);
-
-	READ_DONE();
-}
-
-static SubPartitionCmd *
-_readSubPartitionCmd(void)
-{
-	READ_LOCALS(SubPartitionCmd);
+	READ_LOCALS(PartitionDef);
 
 	READ_CHAR_FIELD(strategy);
 	READ_ENUM_FIELD(cmp_op, QulificationType);
 	READ_STRING_FIELD(tablename);
 	READ_NODE_FIELD(data);
+	READ_STRING_FIELD(colname);
+	READ_INT_FIELD(colattr);
 	READ_LOCATION_FIELD(location);
 
 	READ_DONE();
@@ -4572,10 +4560,8 @@ parseNodeString(void)
     else if (MATCH("PARTITIONRANGEDATUM", 19))
         return_value = _readPartitionRangeDatum();
 #ifdef __OPENTENBASE__
-	else if (MATCH("SUBPARTITIONSPEC", 16))
-		return_value = _readSubPartitionSpec();
-	else if (MATCH("SUBPARTITIONCmd", 15))
-		return_value = _readSubPartitionCmd();
+	else if (MATCH("PARTITIONDEF", 12))
+		return_value = _readPartitionDef();
 	else if (MATCH("EXCHANGETABLECMD", 16))
 		return_value = _readExchangeTableCmd();
     else if (MATCH("PARTITIONBY", 11))

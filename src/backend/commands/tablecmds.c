@@ -653,7 +653,7 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
                  errmsg("ON COMMIT can only be used on temporary tables")));
 
 #ifdef __OPENTENBASE__
-	if (stmt->partspec != NULL && strcmp(stmt->partspec->strategy, PARTITION_NON_INTERVAL) != 0)
+	if (stmt->partspec != NULL && strcmp(stmt->partspec->strategy, PARTITION_PARTITION_BOUNDS) != 0)
 #else
     if (stmt->partspec != NULL)
 #endif
@@ -1148,18 +1148,18 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
         bound = transformPartitionBound(pstate, parent, stmt->partbound);
 
 #ifdef __OPENTENBASE__
-		/* transform non_intervals to SubPartitionSpec and insert into inhRelation->partbound */
-		if (stmt->non_interval_child && stmt->partspec &&
-			list_length(stmt->partspec->non_intervals->cmds) == 1)
+		/* transform partition_bounds to PartitionDef and insert into inhRelation->partbound */
+		if (stmt->partition_bound_child && stmt->partspec &&
+			list_length(stmt->partspec->partition_bounds) == 1)
 		{
-			SubPartitionCmd *subpartcmd = linitial(stmt->partspec->non_intervals->cmds);
-			if (subpartcmd->strategy == PARTITION_STRATEGY_RANGE)
+			PartitionDef *part = linitial(stmt->partspec->partition_bounds);
+			if (part->strategy == PARTITION_STRATEGY_RANGE)
 			{
-				AddNewPartBound(pstate, parent, subpartcmd, bound->lowerdatums);
+				AddNewPartBound(pstate, parent, part, bound->lowerdatums);
 			}
-			else if (subpartcmd->strategy == PARTITION_STRATEGY_LIST)
+			else if (part->strategy == PARTITION_STRATEGY_LIST)
 			{
-				stmt->partbound = AddNewPartBound(pstate, parent, subpartcmd, bound->listdatums);
+				stmt->partbound = AddNewPartBound(pstate, parent, part, bound->listdatums);
 				bound = transformPartitionBound(pstate, parent, stmt->partbound);
 			}
 		}
@@ -16999,7 +16999,7 @@ transformPartitionSpec(Relation rel, PartitionSpec *partspec, char *strategy)
     newspec->partParams = NIL;
     newspec->location = partspec->location;
 #ifdef __OPENTENBASE__
-	newspec->non_intervals = copyObject(partspec->non_intervals);
+	newspec->partition_bounds = copyObject(partspec->partition_bounds);
 #endif
 
     /* Parse partitioning strategy name */

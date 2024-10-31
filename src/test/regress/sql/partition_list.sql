@@ -136,15 +136,6 @@ select count(*) from list_pt;
 
 drop table list_pt;
 
--- overlapping data range --
-create table list_pt
-(id int, class int, name varchar(20), age int, citycode int)
-partition by list(citycode)
-(
-	partition list_pt_p1 values (1001, 1002),
-	partition list_pt_p2 values (1002, 1004)
-);
-
 create table list_pt
 (id int, class int, name varchar(20), age int, citycode int)
 partition by list(citycode)

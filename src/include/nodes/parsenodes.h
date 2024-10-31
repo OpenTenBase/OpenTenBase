@@ -854,8 +854,8 @@ typedef struct PartitionBy
     int                    nPartitions;    /* number of partitions to be created */
 }PartitionBy;
 
-/* sub partition cmd for each non-interval(range/list) partition */
-typedef struct SubPartitionCmd
+/* partition def for each non-interval(range/list) partition */
+typedef struct PartitionDef
 {
 	NodeTag type;
 
@@ -863,22 +863,11 @@ typedef struct SubPartitionCmd
 	QulificationType cmp_op;	/* compare operation kind for range */
 	char *tablename;			/* child table name */
 	List *data;					/* list of PartitionRangeDatum for range and Consts for list */
+	char *colname;				/* name of partition by column*/
+	AttrNumber colattr;			/* attrnumber of partition by column */
 
 	int location;				/* token location, or -1 if unknown */
-} SubPartitionCmd;
-
-/* sub partition Spec for non-interval(range/list) partitions */
-typedef struct SubPartitionSpec
-{
-	NodeTag type;
-
-	char strategy;		/* see PARTITION_STRATEGY codes below(like strategy in PartitionBoundSpec) */
-	char *colname;		/* name of partition by column*/
-	AttrNumber colattr;	/* attrnumber of partition by column */
-	List *cmds;			/* list of SubPartitionCmd */
-
-	int location;		/* token location, or -1 if unknown */
-} SubPartitionSpec;
+} PartitionDef;
 #endif
 
 /*
@@ -894,7 +883,7 @@ typedef struct PartitionSpec
     List       *partParams;        /* List of PartitionElems */
 #ifdef __OPENTENBASE__
     PartitionBy *interval;      /* used for interval partition */
-	SubPartitionSpec *non_intervals;		/* list and used for non-interval(range/list) partitons */
+	List *partition_bounds;		/* list and used for non-interval(range/list) partitons */
 #endif
     int            location;        /* token location, or -1 if unknown */
 } PartitionSpec;
@@ -906,7 +895,7 @@ typedef struct PartitionSpec
 #ifdef __OPENTENBASE__
 #define PARTITION_STRATEGY_INTERVAL    'i'
 #define PARTITION_INTERVAL "interval"
-#define PARTITION_NON_INTERVAL "non-interval"
+#define PARTITION_PARTITION_BOUNDS "partition-bounds"
 #endif
 
 /*
@@ -2205,8 +2194,8 @@ typedef struct CreateStmt
     bool        interval_child;     /* is interval partition child? */
     int            interval_child_idx; /* interval partition child's index */          
     Oid            interval_parentId;  /* interval partition parent's oid */
-	/* for non-interval partition */
-	bool non_interval_child;		/* is non-interval partition child? */
+	/* for partition bound */
+	bool partition_bound_child;		/* is partition bound child? */
 #endif
 } CreateStmt;
 

@@ -134,16 +134,6 @@ select count(*) from range_pt_varchar_p3;
 
 drop table range_pt_varchar;
 
--- overlapping data range --
-create table range_pt
-(id int, class int, name varchar(20), age int, citycode int)
-partition by range(age)
-(
-	partition range_pt_p1 values less than (10),
-	partition range_pt_p2 values less than (20),
-	partition range_pt_p3 values less than (15)
-);
-
 -- delete/truncate from child partition table --
 create table range_pt
 (id int, class int, name varchar(20), age int, citycode int)

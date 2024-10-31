@@ -262,8 +262,7 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 	EXCHANGE_TABLE_OPTION	exchange_table_option;
 	PartitionElem		*partelem;
 	PartitionSpec		*partspec;
-	SubPartitionSpec	*subpartspec;
-	SubPartitionCmd		*subpartcmd;
+	PartitionDef		*part;
 	PartitionBoundSpec	*partboundspec;
 	RoleSpec			*rolespec;
 	PartitionForExpr	*partfor;
@@ -621,11 +620,10 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 %type <boolean> opt_if_not_exists
 %type <ival>	generated_when override_kind
 %type <partspec>	PartitionSpec OptPartitionSpec
-%type <subpartspec>	SubPartitionSpec OptSubPartitionSpec
 %type <str>			part_strategy
 %type <partelem>	part_elem
-%type <subpartcmd>	non_interval_expr
-%type <list>		part_params non_interval_exprs
+%type <part>		partition_bound
+%type <list>		part_params partition_bounds
 %type <partboundspec> PartitionBoundSpec
 %type <node>		partbound_datum PartitionRangeDatum
 %type <list>       hash_partbound partbound_datum_list range_datum_list
@@ -4226,7 +4224,7 @@ PartitionSpec: PARTITION BY part_strategy '(' part_params ')' interval_expr
 
 					$$ = n;
 				}
-		| PARTITION BY part_strategy '(' part_params ')' OptSubPartitionSpec
+		| PARTITION BY part_strategy '(' part_params ')' '(' partition_bounds ')'
 				{
 					PartitionSpec *n = makeNode(PartitionSpec);
 
@@ -4234,41 +4232,20 @@ PartitionSpec: PARTITION BY part_strategy '(' part_params ')' interval_expr
 					n->partParams = $5;
 					n->location = @1;
 
-					n->non_intervals = $7;
-
-					$$ = n;
-				}
-
-		;
-
-/* Optional sub partition key specification */
-OptSubPartitionSpec: SubPartitionSpec	{ $$ = $1; }
-		;
-
-SubPartitionSpec: '(' non_interval_exprs ')'
-				{
-					SubPartitionSpec *n = makeNode(SubPartitionSpec);
-
-					if($2 == NULL) {
-						$$ = NULL;
-						return;
-					}
-					n->location = @1;
-					n->cmds = $2;
+					n->partition_bounds = $8;
 
 					$$ = n;
 				}
 		;
 
-non_interval_exprs:
-			non_interval_expr								{ $$ = list_make1($1); }
-			| non_interval_exprs ',' non_interval_expr		{ $$ = lappend($1, $3); }
-			| /*EMPTY*/			{ $$ = NULL; }
+partition_bounds:
+			partition_bound								{ $$ = list_make1($1); }
+			| partition_bounds ',' partition_bound		{ $$ = lappend($1, $3); }
 		;
 
-non_interval_expr: PARTITION ColId VALUES LESS THAN '(' range_datum_list ')'
+partition_bound: PARTITION ColId VALUES LESS THAN '(' range_datum_list ')'
 				{
-					SubPartitionCmd *n = makeNode(SubPartitionCmd);
+					PartitionDef *n = makeNode(PartitionDef);
 					n->strategy = PARTITION_STRATEGY_RANGE;
 					n->cmp_op = QULIFICATION_TYPE_LS;
 					n->tablename = $2;
@@ -4279,7 +4256,7 @@ non_interval_expr: PARTITION ColId VALUES LESS THAN '(' range_datum_list ')'
 				}
 			| PARTITION ColId VALUES '(' partbound_datum_list ')'
 				{
-					SubPartitionCmd *n = makeNode(SubPartitionCmd);
+					PartitionDef *n = makeNode(PartitionDef);
 					n->strategy = PARTITION_STRATEGY_LIST;
 					n->tablename = $2;
 					n->data = $5;
