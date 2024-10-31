@@ -5213,6 +5213,9 @@ AlterTableGetLockLevel(List *cmds)
                 cmd_lockmode = AccessExclusiveLock;
                 break;
 #ifdef __OPENTENBASE__
+			case AT_CreatePartition:
+				cmd_lockmode = AccessExclusiveLock;
+				break;
             case AT_AddPartitions:
             case AT_DropPartitions:
                 cmd_lockmode = RowExclusiveLock;

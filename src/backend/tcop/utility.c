@@ -4136,24 +4136,9 @@ ProcessUtilitySlow(ParseState *pstate,
 						Node *node = linitial(atstmt->cmds);
 						if (node->type == T_AlterTableCmd)
 						{
-							/* ALTER TABLE <name> ADD PARTITION <name> values */
 							AlterTableCmd *cmd = (AlterTableCmd *)node;
-							if (cmd->subtype == AT_CreatePartition && cmd->def &&
-								IsA(cmd->def, PartitionCmd))
-							{
-								/* construct a child partition createStmt */
-								CreateStmt *createStmt =
-									transformPartitionCmd2CreateStmt(cmd->def, atstmt);
-
-								/* do createStmt now */
-								PlannedStmt *tmp_pstmt = copyObject(pstmt);
-								tmp_pstmt->utilityStmt = createStmt;
-								ProcessUtilitySlow(pstate, tmp_pstmt, queryString, context, params,
-												   queryEnv, dest, sentToRemote, completionTag);
-								break;
-							}
 							/* ALTER TABLE <name> EXCHANGE PARTITION <name> WITH TABLE <name> */
-							else if (cmd->subtype == AT_ExchangeTableCmd && cmd->def &&
+							if (cmd->subtype == AT_ExchangeTableCmd && cmd->def &&
 									 IsA(cmd->def, ExchangeTableCmd))
 							{
 								ExchangeTableCmd *exchange = (ExchangeTableCmd *)cmd->def;
@@ -4262,6 +4247,20 @@ ProcessUtilitySlow(ParseState *pstate,
                                 AlterTable(relid, lockmode,
                                         (AlterTableStmt *) stmt);
                             }
+#ifdef __OPENTENBASE__
+							/* ALTER TABLE <name> ADD PARTITION <name> values */
+							else if (IsA(stmt, CreateStmt)) {
+								EventTriggerAlterTableEnd();
+								/* do createStmt now */
+								PlannedStmt *tmp_pstmt = copyObject(pstmt);
+								tmp_pstmt->utilityStmt = stmt;
+								ProcessUtilitySlow(pstate, tmp_pstmt, queryString, context, params,
+												queryEnv, dest, sentToRemote, completionTag);
+								EventTriggerAlterTableStart(parsetree);
+								EventTriggerAlterTableRelid(relid);
+								break;
+							}
+#endif
                             else
                             {
                                 /*

@@ -3429,6 +3429,7 @@ transformAlterTableStmt(Oid relid, AlterTableStmt *stmt,
 #ifdef __OPENTENBASE__
     List *createlist = NULL;
 	List *partlist = NIL;
+	CreateStmt *create_stmt = NIL;
 #endif
     /*
      * We must not scribble on the passed-in AlterTableStmt, so copy it. (This
@@ -3550,6 +3551,13 @@ transformAlterTableStmt(Oid relid, AlterTableStmt *stmt,
                 break;
 
 #ifdef __OPENTENBASE__
+			case AT_CreatePartition:
+				if(cmd->def && IsA(cmd->def, PartitionCmd))
+				{
+					/* construct a child partition createStmt */
+					create_stmt = transformPartitionCmd2CreateStmt(cmd->def, stmt);
+				}
+				break;
             /* add partitions to interval partition */
             case AT_AddPartitions:
                 if (RELATION_IS_INTERVAL(rel))
@@ -4136,6 +4144,14 @@ transformAlterTableStmt(Oid relid, AlterTableStmt *stmt,
     /*
      * Output results.
      */
+#ifdef __OPENTENBASE__
+	if(create_stmt)
+	{
+		result = lappend(result, create_stmt);
+		return result;
+	}
+	else
+#endif
     stmt->cmds = newcmds;
 
     result = lappend(cxt.blist, stmt);
