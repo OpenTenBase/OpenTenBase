@@ -37,7 +37,9 @@
 #include "utils/builtins.h"
 #include "utils/lsyscache.h"
 #include "utils/syscache.h"
-
+#ifdef _PG_ORCL_
+#include "utils/guc.h"
+#endif
 
 static void unify_hypothetical_args(ParseState *pstate,
                         List *fargs, int numAggregatedArgs,
@@ -103,7 +105,23 @@ ParseFuncOrColumn(ParseState *pstate, List *funcname, List *fargs,
     FuncDetailCode fdresult;
     char        aggkind = 0;
     ParseCallbackState pcbstate;
+#ifdef _PG_ORCL_
+    ListCell   *lc;
 
+    foreach(lc, funcname)
+    {
+        char *name = strVal(lfirst(lc));
+
+        if (strcmp(name, "approx_count_distinct") == 0) {
+            if (!enable_oracle_compatible) {
+                ereport(ERROR,
+                        (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+                        errmsg("Function %s requires enable_oracle_compatible to be on.", name)));
+            }
+            break;
+        }
+    }
+#endif
     /*
      * If there's an aggregate filter, transform it using transformWhereClause
      */
