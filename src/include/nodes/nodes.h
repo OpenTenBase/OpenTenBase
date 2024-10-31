@@ -258,6 +258,7 @@ typedef enum NodeTag
 #endif
 #ifdef __OPENTENBASE__
     T_PartitionBy,
+	T_PartitionDef,
     T_AddDropPartitions,
     T_PartitionForExpr,
     T_ExchangeIndexName,
@@ -405,6 +406,9 @@ typedef enum NodeTag
     T_AlterFunctionStmt,
     T_DoStmt,
     T_RenameStmt,
+#ifdef __OPENTENBASE__
+	T_ExchangeTableCmd,
+#endif
     T_RuleStmt,
     T_NotifyStmt,
     T_ListenStmt,

@@ -4160,6 +4160,37 @@ _readPartitionRangeDatum(void)
     READ_DONE();
 }
 
+#ifdef __OPENTENBASE__
+static PartitionDef *
+_readPartitionDef(void)
+{
+	READ_LOCALS(PartitionDef);
+
+	READ_CHAR_FIELD(strategy);
+	READ_ENUM_FIELD(cmp_op, QulificationType);
+	READ_STRING_FIELD(tablename);
+	READ_NODE_FIELD(data);
+	READ_STRING_FIELD(colname);
+	READ_INT_FIELD(colattr);
+	READ_LOCATION_FIELD(location);
+
+	READ_DONE();
+}
+
+static ExchangeTableCmd *
+_readExchangeTableCmd(void)
+{
+	READ_LOCALS(ExchangeTableCmd);
+
+	READ_ENUM_FIELD(option, EXCHANGE_TABLE_OPTION);
+	READ_NODE_FIELD(parent_rel);
+	READ_NODE_FIELD(child_rel);
+	READ_NODE_FIELD(ex_rel);
+
+	READ_DONE();
+}
+#endif
+
 #ifdef __AUDIT__
 
 static AuditStmt *
@@ -4529,6 +4560,10 @@ parseNodeString(void)
     else if (MATCH("PARTITIONRANGEDATUM", 19))
         return_value = _readPartitionRangeDatum();
 #ifdef __OPENTENBASE__
+	else if (MATCH("PARTITIONDEF", 12))
+		return_value = _readPartitionDef();
+	else if (MATCH("EXCHANGETABLECMD", 16))
+		return_value = _readExchangeTableCmd();
     else if (MATCH("PARTITIONBY", 11))
         return_value = _readPartitionBy();
     else if (MATCH("ADDDROPPARTITIONS", 17))

@@ -3646,6 +3646,7 @@ CopyCreateStmtFields(const CreateStmt *from, CreateStmt *newnode)
     COPY_SCALAR_FIELD(interval_child);
     COPY_SCALAR_FIELD(interval_child_idx);
     COPY_SCALAR_FIELD(interval_parentId);
+	COPY_SCALAR_FIELD(partition_bound_child);
 #endif
 }
 
@@ -3861,9 +3862,27 @@ _copyRenameStmt(const RenameStmt *from)
     COPY_STRING_FIELD(newname);
     COPY_SCALAR_FIELD(behavior);
     COPY_SCALAR_FIELD(missing_ok);
+#ifdef __OPENTENBASE__
+	COPY_NODE_FIELD(ex_cmd);
+#endif
 
     return newnode;
 }
+
+#ifdef __OPENTENBASE__
+static ExchangeTableCmd *
+_copyExchangeTableCmd(const ExchangeTableCmd *from)
+{
+	ExchangeTableCmd *newnode = makeNode(ExchangeTableCmd);
+
+	COPY_SCALAR_FIELD(option);
+	COPY_NODE_FIELD(parent_rel);
+	COPY_NODE_FIELD(child_rel);
+	COPY_NODE_FIELD(ex_rel);
+
+	return newnode;
+}
+#endif
 
 static AlterObjectDependsStmt *
 _copyAlterObjectDependsStmt(const AlterObjectDependsStmt *from)
@@ -4879,6 +4898,7 @@ _copyPartitionSpec(const PartitionSpec *from)
     COPY_NODE_FIELD(partParams);
 #ifdef __OPENTENBASE__
     COPY_NODE_FIELD(interval);
+	COPY_NODE_FIELD(partition_bounds);
 #endif
     COPY_LOCATION_FIELD(location);
 
@@ -4942,6 +4962,22 @@ _copyPartitionBy(const PartitionBy *from)
     COPY_SCALAR_FIELD(nPartitions);
 
     return newnode;
+}
+
+static PartitionDef *
+_copyPartitionDef(const PartitionDef *from)
+{
+	PartitionDef *newnode = makeNode(PartitionDef);
+
+	COPY_SCALAR_FIELD(strategy);
+	COPY_SCALAR_FIELD(cmp_op);
+	COPY_STRING_FIELD(tablename);
+	COPY_NODE_FIELD(data);
+	COPY_STRING_FIELD(colname);
+	COPY_SCALAR_FIELD(colattr);
+	COPY_LOCATION_FIELD(location);
+
+	return newnode;
 }
 
 static SampleStmt *
@@ -5875,6 +5911,11 @@ copyObjectImpl(const void *from)
         case T_RenameStmt:
             retval = _copyRenameStmt(from);
             break;
+#ifdef __OPENTENBASE__
+		case T_ExchangeTableCmd:
+			retval = _copyExchangeTableCmd(from);
+			break;
+#endif
         case T_AlterObjectDependsStmt:
             retval = _copyAlterObjectDependsStmt(from);
             break;
@@ -6312,6 +6353,9 @@ copyObjectImpl(const void *from)
         case T_PartitionBy:
             retval = _copyPartitionBy(from);
             break;
+		case T_PartitionDef:
+			retval = _copyPartitionDef(from);
+			break;
         case T_AddDropPartitions:
             retval = _copyAddDropPartitions(from);
             break;

@@ -24,6 +24,11 @@
 
 extern char *pg_get_indexdef_string(Oid indexrelid);
 extern char *pg_get_indexdef_columns(Oid indexrelid, bool pretty);
+#ifdef __OPENTENBASE__
+/* exposed to tablecmds.c */
+extern char *pg_get_indexdef_columns_with_operators(Oid indexrelid, const Oid *excludeOps);
+extern void decompile_column_index_array_wrap(Datum column_index_array, Oid relId, StringInfo buf);
+#endif
 
 extern char *pg_get_partkeydef_columns(Oid relid, bool pretty);
 

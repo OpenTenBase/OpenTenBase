@@ -259,8 +259,10 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 	PGXCSubCluster		*subclus;
 /* PGXC_END */
 	A_Const				*a_const;
+	EXCHANGE_TABLE_OPTION	exchange_table_option;
 	PartitionElem		*partelem;
 	PartitionSpec		*partspec;
+	PartitionDef		*part;
 	PartitionBoundSpec	*partboundspec;
 	RoleSpec			*rolespec;
 	PartitionForExpr	*partfor;
@@ -620,13 +622,15 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 %type <partspec>	PartitionSpec OptPartitionSpec
 %type <str>			part_strategy
 %type <partelem>	part_elem
-%type <list>		part_params
+%type <part>		partition_bound
+%type <list>		part_params partition_bounds
 %type <partboundspec> PartitionBoundSpec
 %type <node>		partbound_datum PartitionRangeDatum
 %type <list>       hash_partbound partbound_datum_list range_datum_list
 %type <defelt>     hash_partbound_elem
 
 %type <node>	lock_param
+%type <exchange_table_option>	opt_include_index
 
 %type <partfor>	   opt_partition_for partition_for
 %type <partby>     interval_expr
@@ -705,7 +709,7 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 	KEY
 
 	LABEL LANGUAGE LARGE_P LAST_P LATERAL_P
-	LEADING LEAKPROOF LEAST LEFT LEVEL LIKE LIMIT LISTEN LOAD LOCAL
+	LEADING LEAKPROOF LEAST LEFT LESS LEVEL LIKE LIMIT LISTEN LOAD LOCAL
 	LOCALTIME LOCALTIMESTAMP LOCATION LOCK_P LOCKED LOGGED
 
 	MAPPING MATCH MATERIALIZED MAXVALUE METHOD MINUTE_P MINVALUE MODE MONTH_P MOVE
@@ -737,7 +741,7 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 	START STATEMENT STATISTICS STDIN STDOUT STEP STORAGE STRICT_P STRIP_P
 	SUBSCRIPTION SUBSTRING SUCCESSFUL SYMMETRIC SYNC SYSDATE SYSID SYSTEM_P SYSTIMESTAMP 
 
-	TABLE TABLES TABLESAMPLE TABLESPACE TEMP TEMPLATE TEMPORARY TEXT_P THEN
+	TABLE TABLES TABLESAMPLE TABLESPACE TEMP TEMPLATE TEMPORARY TEXT_P THAN	THEN
 	TIME TIMESTAMP TO TRAILING TRANSACTION TRANSFORM TREAT TRIGGER TRIM TRUE_P
 	TRUNCATE TRUSTED TYPE_P TYPES_P
 
@@ -2148,6 +2152,46 @@ partition_cmd:
 
 					$$ = (Node *) n;
 				}
+			| /* ALTER TABLE <name> ADD PARTITION <table_name> VALUES LESS THAN */
+			ADD_P PARTITION qualified_name VALUES LESS THAN '(' range_datum_list ')'
+				{
+					AlterTableCmd *n = makeNode(AlterTableCmd);
+					PartitionCmd *cmd = makeNode(PartitionCmd);
+					PartitionBoundSpec *bound = makeNode(PartitionBoundSpec);
+
+					bound->strategy = PARTITION_STRATEGY_RANGE;
+					bound->is_default = false;
+					bound->lowerdatums = $8;
+					bound->upperdatums = $8;
+					bound->location = @3;
+
+					cmd->name = $3;
+					cmd->bound = bound;
+
+					n->subtype = AT_CreatePartition;
+					n->def = (Node *) cmd;
+
+					$$ = (Node *) n;
+				}
+			| ADD_P PARTITION qualified_name VALUES IN_P '(' partbound_datum_list ')'
+				{
+					AlterTableCmd *n = makeNode(AlterTableCmd);
+					PartitionCmd *cmd = makeNode(PartitionCmd);
+					PartitionBoundSpec *bound = makeNode(PartitionBoundSpec);
+
+					bound->strategy = PARTITION_STRATEGY_LIST;
+					bound->is_default = false;
+					bound->listdatums = $7;
+					bound->location = @3;
+
+					cmd->name = $3;
+					cmd->bound = bound;
+
+					n->subtype = AT_CreatePartition;
+					n->def = (Node *) cmd;
+
+					$$ = (Node *) n;
+				}
 		;
 
 alter_group_cmd:
@@ -2391,6 +2435,18 @@ alter_table_cmd:
 					n->subtype = AT_ExchangeIndexName;
 					exchange->oldIndexRelation = $3;
 					exchange->newIndexRelation = $5;
+					n->def = (Node *)exchange;
+					$$ = (Node *)n;
+				}
+			/* ALTER TABLE parent_table EXCHANGE PARTITION child_table WITH TABLE ordinary_table */
+			| EXCHANGE PARTITION relation_expr WITH TABLE relation_expr opt_include_index
+				{
+					AlterTableCmd *n = makeNode(AlterTableCmd);
+					ExchangeTableCmd *exchange = makeNode(ExchangeTableCmd);
+					n->subtype = AT_ExchangeTableCmd;
+					exchange->option = $7;
+					exchange->child_rel = $3;
+					exchange->ex_rel = $6;
 					n->def = (Node *)exchange;
 					$$ = (Node *)n;
 				}
@@ -2732,6 +2788,11 @@ alter_table_cmd:
 					$$ = (Node *)n;
 				}
 /* _SHARDING_ END*/
+		;
+
+opt_include_index: INCLUDING INDEXES	{ $$ = EXCHANGE_TABLE_INCLUDING_INDEXES; }
+			| EXCLUDING INDEXES			{ $$ = EXCHANGE_TABLE_EXCLUDING_INDEXES; }
+			| /* EMPTY */				{ $$ = EXCHANGE_TABLE_EXCLUDING_INDEXES; }
 		;
 
 alter_column_default:
@@ -4163,8 +4224,48 @@ PartitionSpec: PARTITION BY part_strategy '(' part_params ')' interval_expr
 
 					$$ = n;
 				}
+		| PARTITION BY part_strategy '(' part_params ')' '(' partition_bounds ')'
+				{
+					PartitionSpec *n = makeNode(PartitionSpec);
 
+					n->strategy = $3;
+					n->partParams = $5;
+					n->location = @1;
+
+					n->partition_bounds = $8;
+
+					$$ = n;
+				}
 		;
+
+partition_bounds:
+			partition_bound								{ $$ = list_make1($1); }
+			| partition_bounds ',' partition_bound		{ $$ = lappend($1, $3); }
+		;
+
+partition_bound: PARTITION ColId VALUES LESS THAN '(' range_datum_list ')'
+				{
+					PartitionDef *n = makeNode(PartitionDef);
+					n->strategy = PARTITION_STRATEGY_RANGE;
+					n->cmp_op = QULIFICATION_TYPE_LS;
+					n->tablename = $2;
+					n->data = $7;
+					n->location = @1;
+
+					$$ = n;
+				}
+			| PARTITION ColId VALUES '(' partbound_datum_list ')'
+				{
+					PartitionDef *n = makeNode(PartitionDef);
+					n->strategy = PARTITION_STRATEGY_LIST;
+					n->tablename = $2;
+					n->data = $5;
+					n->location = @1;
+
+					$$ = n;
+				}
+		;
+
 interval_expr:  BEGIN_P '(' AexprConst ')' STEP '(' AexprConst ')' PARTITIONS '(' Iconst ')'
 				{
 					PartitionBy *n = makeNode(PartitionBy);
@@ -16792,6 +16893,7 @@ unreserved_keyword:
 			| LARGE_P
 			| LAST_P
 			| LEAKPROOF
+			| LESS
 			| LEVEL
 			| LISTEN
 			| LOAD
@@ -16948,6 +17050,7 @@ unreserved_keyword:
 			| TEMPLATE
 			| TEMPORARY
 			| TEXT_P
+			| THAN
 			| TRANSACTION
 			| TRANSFORM
 			| TRIGGER

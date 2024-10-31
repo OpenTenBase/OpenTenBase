@@ -853,6 +853,21 @@ typedef struct PartitionBy
     int                 interval;       /* int of interval value */
     int                    nPartitions;    /* number of partitions to be created */
 }PartitionBy;
+
+/* partition def for each non-interval(range/list) partition */
+typedef struct PartitionDef
+{
+	NodeTag type;
+
+	char strategy;				/* see PARTITION_STRATEGY codes below(like strategy in PartitionBoundSpec) */
+	QulificationType cmp_op;	/* compare operation kind for range */
+	char *tablename;			/* child table name */
+	List *data;					/* list of PartitionRangeDatum for range and Consts for list */
+	char *colname;				/* name of partition by column*/
+	AttrNumber colattr;			/* attrnumber of partition by column */
+
+	int location;				/* token location, or -1 if unknown */
+} PartitionDef;
 #endif
 
 /*
@@ -868,6 +883,7 @@ typedef struct PartitionSpec
     List       *partParams;        /* List of PartitionElems */
 #ifdef __OPENTENBASE__
     PartitionBy *interval;      /* used for interval partition */
+	List *partition_bounds;		/* list and used for non-interval(range/list) partitons */
 #endif
     int            location;        /* token location, or -1 if unknown */
 } PartitionSpec;
@@ -879,6 +895,7 @@ typedef struct PartitionSpec
 #ifdef __OPENTENBASE__
 #define PARTITION_STRATEGY_INTERVAL    'i'
 #define PARTITION_INTERVAL "interval"
+#define PARTITION_PARTITION_BOUNDS "partition-bounds"
 #endif
 
 /*
@@ -1888,10 +1905,12 @@ typedef enum AlterTableType
     AT_DeleteNodeList,            /* DELETE NODE nodelist */
 #endif
 #ifdef __OPENTENBASE__
+	AT_CreatePartition,			/* create and add partition */
     AT_AddPartitions,
     AT_DropPartitions,
     AT_ExchangeIndexName,
     AT_ModifyStartValue,
+	AT_ExchangeTableCmd,				/* exchange table data */
 #endif
 #ifdef _SHARDING_
     AT_RebuildExtent,            /* Rebuild extent file */
@@ -2175,6 +2194,8 @@ typedef struct CreateStmt
     bool        interval_child;     /* is interval partition child? */
     int            interval_child_idx; /* interval partition child's index */          
     Oid            interval_parentId;  /* interval partition parent's oid */
+	/* for partition bound */
+	bool partition_bound_child;		/* is partition bound child? */
 #endif
 } CreateStmt;
 
@@ -2986,6 +3007,30 @@ typedef struct InlineCodeBlock
     bool        langIsTrusted;    /* trusted property of the language */
 } InlineCodeBlock;
 
+#ifdef __OPENTENBASE__
+/* whether reindex table after */
+typedef enum EXCHANGE_TABLE_OPTION
+{
+	EXCHANGE_TABLE_EXCLUDING_INDEXES = 0,
+	/* reindex child_table table and ordinary_table */
+	EXCHANGE_TABLE_INCLUDING_INDEXES = 1,
+} EXCHANGE_TABLE_OPTION;
+
+/* ----------------------
+ * ALTER TABLE parent_table EXCHANGE PARTITION child_table WITH TABLE ordinary_table
+ * ----------------------
+ */
+typedef struct ExchangeTableCmd
+{
+	NodeTag type;
+
+	EXCHANGE_TABLE_OPTION option;	/* reindex table after exchange data bewteen tables */
+	RangeVar *parent_rel;			/* parent_table */
+	RangeVar *child_rel;			/* child_table */
+	RangeVar *ex_rel;				/* ordinary_table */
+} ExchangeTableCmd;
+#endif
+
 /* ----------------------
  *        Alter Object Rename Statement
  * ----------------------
@@ -3005,6 +3050,9 @@ typedef struct RenameStmt
     char       *newname;        /* the new name */
     DropBehavior behavior;        /* RESTRICT or CASCADE behavior */
     bool        missing_ok;        /* skip error if missing? */
+#ifdef __OPENTENBASE__
+	ExchangeTableCmd *ex_cmd;	   /* for alter table partition exchange clause */
+#endif
 } RenameStmt;
 
 /* ----------------------

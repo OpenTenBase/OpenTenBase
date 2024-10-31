@@ -862,6 +862,100 @@ partition_bounds_copy(PartitionBoundInfo src,
 	return dest;
 }
 
+#ifdef __OPENTENBASE__
+/*
+ * transform PartitionDef to PartitionBoundSpec whose lower bound is the one
+ * which is the greater one which is less than part, for range strategy.  If
+ * there is overlapping range, report it as error.
+ *
+ * return partbound, if list strategy, NULL else.
+ *
+ * note: this function will only change formed_datums and *DO NOT* change part
+ * in list strategy.
+*/
+PartitionBoundSpec *
+AddNewPartBound(ParseState *pstate, Relation inh, PartitionDef *part, List *formed_datums)
+{
+	PartitionRangeDatum *prd = linitial(formed_datums);
+	PartitionKey key = RelationGetPartitionKey(inh);
+	PartitionDesc partdesc = RelationGetPartitionDesc(inh);
+	PartitionBoundInfo boundinfo = partdesc->boundinfo;
+	PartitionBoundSpec *partbound = NULL;
+	bool equal;
+
+	switch (key->strategy)
+	{
+		case PARTITION_STRATEGY_LIST:
+		{
+			// copy everyone
+			partbound = makeNode(PartitionBoundSpec);
+			partbound->is_default = false;
+			partbound->strategy = PARTITION_STRATEGY_LIST;
+			partbound->listdatums = copyObject(part->data);
+		}
+		break;
+		case PARTITION_STRATEGY_RANGE:
+		{
+			if (list_length(part->data) != list_length(formed_datums))
+			{
+				ereport(ERROR, (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
+								errmsg("length of range value must be the same as exist's")));
+			}
+
+			if (list_length(part->data) != 1)
+			{
+				ereport(ERROR, (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
+								errmsg("length of range value must be one")));
+			}
+
+			switch (part->cmp_op)
+			{
+				case QULIFICATION_TYPE_LS:
+				{
+					/* LESS THAN */
+					PartitionRangeBound *lower = make_one_range_bound(key, -1, formed_datums, true);
+					int offset = -1;
+					if (boundinfo)
+					{
+						offset = partition_range_bsearch(key->partnatts, key->partsupfunc,
+														key->partcollation, boundinfo, lower, &equal);
+						if (boundinfo->indexes[offset + 1] >= 0)
+						{
+							ereport(ERROR, (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
+											errmsg("there are overlapping range")));
+						}
+						else if (offset != -1)
+						{
+							// there is a lower bound value
+							((Const *)prd->value)->constvalue =
+								boundinfo->datums[offset][list_length(formed_datums) - 1];
+						}
+					}
+					else
+					{
+						// there is no value which is less than r_datum
+						prd->kind = PARTITION_RANGE_DATUM_MINVALUE;
+						prd->value = NULL;
+					}
+				}
+				break;
+				default:
+				{
+					elog(ERROR, "unsupported compare type: %d", part->cmp_op);
+				}
+			}
+		}
+		break;
+		default:
+		{
+			elog(ERROR, "unexpected partition strategy: %d", (int)key->strategy);
+		}
+	}
+
+	return partbound;
+}
+#endif
+
 /*
  * check_new_partition_bound
  *

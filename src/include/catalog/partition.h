@@ -52,6 +52,9 @@ extern bool partition_bounds_equal(int partnatts, int16 *parttyplen,
 extern PartitionBoundInfo partition_bounds_copy(PartitionBoundInfo src,
 					  PartitionKey key);
 
+#ifdef __OPENTENBASE__
+extern PartitionBoundSpec *AddNewPartBound(ParseState *pstate, Relation inh, PartitionDef *part, List *formed_datums);
+#endif
 extern void check_new_partition_bound(char *relname, Relation parent,
 						  PartitionBoundSpec *spec);
 extern Oid	get_partition_parent(Oid relid);
