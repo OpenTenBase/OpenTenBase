@@ -112,7 +112,7 @@
 #include "utils/timeout.h"
 #include "utils/timestamp.h"
 #include "utils/tqual.h"
-
+#include <math.h>
 #ifdef __OPENTENBASE__
 #include "gtm/gtm_c.h"
 #include "access/gtm.h"
@@ -3155,8 +3155,8 @@ relation_needs_vacanalyze(Oid relid,
         vactuples = tabentry->n_dead_tuples;
         anltuples = tabentry->changes_since_analyze;
 
-        vacthresh = (float4) vac_base_thresh + vac_scale_factor * reltuples;
-        anlthresh = (float4) anl_base_thresh + anl_scale_factor * reltuples;
+        vacthresh = (float4) fmin(vac_base_thresh + vac_scale_factor * reltuples, vac_base_thresh + vac_scale_factor * sqrt(reltuples) * 1000.0);
+        anlthresh = (float4) fmin(anl_base_thresh + anl_scale_factor * reltuples, anl_base_thresh + anl_scale_factor * sqrt(reltuples) * 1000.0);
 
         /*
          * Note that we don't need to take special consideration for stat
