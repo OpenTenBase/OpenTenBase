@@ -3348,7 +3348,8 @@ int32 GTM_StoreDropAllSeqInDatabase(GTM_SequenceKey seq_database_key)
 
             if (seq_count >= seq_maxcount)
             {
-                int                   newcount = NULL;
+                // I guess 0 is better
+                int                   newcount = 0;//NULL;
                 GTM_StoredSeqInfo    *newlist  = NULL;
 
                 newcount = 2 * seq_maxcount;
@@ -3444,8 +3445,8 @@ ProcessListStorageSequenceCommand(Port *myport, StringInfo message)
         {    
             seq_info = GetSeqStore(bucket_handle);
             if (seq_count >= seq_maxcount)
-            {
-                int                   newcount = NULL;
+            {   // I guess 0 is better
+                int                   newcount = 0; // NULL;
                 GTM_StoredSeqInfo    *newlist  = NULL;
                 
                 newcount = 2 * seq_maxcount;
@@ -3557,7 +3558,8 @@ ProcessListStorageTransactionCommand(Port *myport, StringInfo message)
             txn_info = GetTxnStore(bucket_handle);
             if (txn_count >= txn_maxcount)
             {
-                int             newcount = NULL;
+                // I guess 0 is better
+                int                             newcount = 0; // NULL;
                 GTM_StoredTransactionInfo   *newlist     = NULL;
                 
                 newcount = 2 * txn_maxcount;
@@ -4274,7 +4276,8 @@ GTMStorageHandle *GTM_StoreGetAllSeqInDatabase(GTM_SequenceKey seq_database_key,
 
             if (seq_count >= seq_maxcount)
             {
-                int                  newcount = NULL;
+                // I guess 0 is better
+                int                 newcount  = 0; // NULL;
                 GTMStorageHandle    *newlist  = NULL;
 
                 newcount = 2 * seq_maxcount;
