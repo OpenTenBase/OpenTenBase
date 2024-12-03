@@ -53,6 +53,10 @@
 #include "utils/memutils.h"
 #include "utils/syscache.h"
 #include "utils/typcache.h"
+
+// NCU奶龙 FIX
+#include "../include/commands/proclang.h"
+
 #ifdef __OPENTENBASE__
 #include "optimizer/planner.h"
 #include "tcop/pquery.h"
@@ -920,6 +924,7 @@ contain_user_defined_functions_checker(Oid func_id, void *context)
 		float cost;
 
 		func_lang_oid = get_func_lang(func_id);
+        // 这里的函数调用有一个未知的头文件缺失问题 proclang.h
 		plpgsql_oid = get_language_oid("plpgsql", true);
 		sql_oid = get_language_oid("sql", true);
 		cost = get_func_cost_with_sign(func_id);
