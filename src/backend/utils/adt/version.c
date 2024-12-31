@@ -21,7 +21,7 @@
 #include "utils/builtins.h"
 
 
-#define OPENTENBASE_VERSION_STR "OpenTenBase_V2.5.0_release"
+#define OPENTENBASE_VERSION_STR "OpenTenBase_V2.6.0_release"
 
 Datum
 pgsql_version(PG_FUNCTION_ARGS)
@@ -36,4 +36,3 @@ opentenbase_version(PG_FUNCTION_ARGS)
     PG_RETURN_TEXT_P(cstring_to_text(OPENTENBASE_VERSION_STR));
 }
 #endif
-
