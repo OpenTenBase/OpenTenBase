@@ -56,6 +56,9 @@ RUN make -sj && \
 # Add opentenbase user
 RUN useradd -m -r -s /bin/bash opentenbase
 
+RUN chown opentenbase /data -R
+RUN chgrp opentenbase /data -R
+
 RUN echo "export OPENTENBASE_HOME=/data/opentenbase/install/opentenbase_bin_v2.0 \n\
 export PATH=/data/opentenbase/install/opentenbase_bin_v2.0/bin:$PATH \n\
 export LD_LIBRARY_PATH=$OPENTENBASE_HOME/lib:${LD_LIBRARY_PATH} \n\
@@ -74,11 +77,9 @@ EXPOSE 22
 CMD ["/usr/sbin/sshd", "-D"]
 
 # Share belive config
-RUN su opentenbase
+USER opentenbase
 RUN mkdir /home/opentenbase/.ssh -p
 RUN ssh-keygen -t rsa -f /home/opentenbase/.ssh/id_rsa -N ''
 # Set right
 RUN chown opentenbase /home/opentenbase/.ssh -R
 RUN chgrp opentenbase /home/opentenbase/.ssh -R
-RUN chown opentenbase /data -R
-RUN chgrp opentenbase /data -R
