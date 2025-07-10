@@ -1,5 +1,11 @@
 ![logo](images/OpenTenBase_logo.svg)
 ___
+
+<p align="center">
+  <a href="./README.md">English</a> |
+  <a href="./README_ZH.md">简体中文</a>
+</p>
+
 # OpenTenBase Database Management System
 OpenTenBase is an advanced enterprise-level database management system based on prior work of Postgres-XL project. It supports an extended subset of the SQL standard, including transactions, foreign keys, user-defined types and functions. Additional, it adds parallel computing, security, management, audit and other functions.
 
