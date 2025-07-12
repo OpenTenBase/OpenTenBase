@@ -8,8 +8,8 @@ In this example, we try to build a cluster which includes 1 Coordinator Node and
 ## 1.Build docker images
 
 ```shell
-cd {OpenTenbase Dir}/docker
-./buildImage.sh
+chmod +x docker/buildImage.sh
+./docker/buildImage.sh
 ```
 
 Commands above will build `opentenbasebase` and `opentenbase` images.

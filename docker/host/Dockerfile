@@ -22,14 +22,18 @@ RUN apt-get update && \
         openssh-server \
         iputils-ping # ping command
 
-# Clone the source code repository
-RUN git clone https://github.com/OpenTenBase/OpenTenBase /data/opentenbase/OpenTenBase
+# Create the target directory
+RUN mkdir -p /data/opentenbase
+
+# Copy the local OpenTenBase source code to the container
+# Build context should be the project root directory
+COPY . /data/opentenbase/OpenTenBase
 
 # Set environment variables
 ENV SOURCECODE_PATH=/data/opentenbase/OpenTenBase
 ENV INSTALL_PATH=/data/opentenbase/install
 
-COPY ./copy-ssh-keys /usr/bin
+COPY docker/host/copy-ssh-keys /usr/bin
 
 # Navigate to the source code directory
 WORKDIR $SOURCECODE_PATH
