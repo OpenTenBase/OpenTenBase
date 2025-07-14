@@ -2936,7 +2936,7 @@ mysql_foreign_join_ok(PlannerInfo *root, RelOptInfo *joinrel,
 															 true);
 
 		if (IS_OUTER_JOIN(jointype) &&
-			!RINFO_IS_PUSHED_DOWN(rinfo, joinrel->relids))
+			!(rinfo)->is_pushed_down && bms_is_subset(rinfo->required_relids, joinrel->relids))
 		{
 			if (!is_remote_clause)
 				return false;
