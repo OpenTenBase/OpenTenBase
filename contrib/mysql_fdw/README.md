@@ -7,52 +7,159 @@ This PostgreSQL extension implements a Foreign Data Wrapper (FDW) for
 Please note that this version of mysql_fdw works with PostgreSQL and EDB
 Postgres Advanced Server 10, 11, 12, 13, 14, and 15.
 
+This project is adapted for OpenTenBase based on https://github.com/EnterpriseDB/mysql_fdw/releases/tag/REL-2_9_0.
+
 Installation
 ------------
 
-To compile the [MySQL][1] foreign data wrapper, MySQL's C client library
-is needed. This library can be downloaded from the official [MySQL
-website][1].
+The mysql_fdw submodule is already included under contrib and added to the contrib Makefile. Running `make install` for the entire OpenTenBase project will automatically compile and install this extension.
 
-1. To build on POSIX-compliant systems you need to ensure the
-   `pg_config` executable is in your path when you run `make`. This
-   executable is typically in your PostgreSQL installation's `bin`
-   directory. For example:
+Test Example
+------------
 
-    ```
-    $ export PATH=/usr/local/pgsql/bin/:$PATH
-    ```
+There are two ways to start MySQL server.
 
-2. The `mysql_config` must also be in the path, it resides in the MySQL
-   `bin` directory.
+Method 1: Use MySQL service on the host machine (macOS example)
 
-    ```
-    $ export PATH=/usr/local/mysql/bin/:$PATH
-    ```
+```bash
+brew install mysql
+brew services start mysql
+```
 
-3. Compile the code using make.
+Configure the MySQL server:
 
-    ```
-    $ make USE_PGXS=1
-    ```
+```bash
+mysql -u root -p
+```
 
-4.  Finally install the foreign data wrapper.
+```sql
+-- Create database
+CREATE DATABASE IF NOT EXISTS db;
+-- Create user (allow connections from any host)
+CREATE USER IF NOT EXISTS 'foo'@'%' IDENTIFIED BY 'bar';
+-- Grant privileges
+GRANT ALL PRIVILEGES ON db.* TO 'foo'@'%';
+-- Refresh privileges
+FLUSH PRIVILEGES;
+-- Create test table
+USE db;
+CREATE TABLE IF NOT EXISTS warehouse (
+    warehouse_id INT PRIMARY KEY,
+    warehouse_name VARCHAR(255),
+    warehouse_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+-- Verify setup
+SELECT User, Host FROM mysql.user WHERE User = 'foo';
+SHOW DATABASES;
+USE db;
+SHOW TABLES;
+```
 
-    ```
-    $ make USE_PGXS=1 install
-    ```
+Method 2: Use MySQL service in a Docker container
 
-5. Running regression test.
+```bash
+# Start MySQL container
+# Replace *** with your desired values
+# Example: MYSQL_ROOT_PASSWORD=root, MYSQL_DATABASE=db, MYSQL_USER=foo, MYSQL_PASSWORD=bar
 
-    ```
-    $ make USE_PGXS=1 installcheck
-    ```
-   However, make sure to set the `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER_NAME`,
-   and `MYSQL_PWD` environment variables correctly. The default settings
-   can be found in the `mysql_init.sh` script.
+docker run -d \
+  --name mysql8 \
+  -e MYSQL_ROOT_PASSWORD=*** \
+  -e MYSQL_DATABASE=*** \
+  -e MYSQL_USER=*** \
+  -e MYSQL_PASSWORD=*** \
+  -p 3306:3306 \
+  mysql:8.0
+```
 
-If you run into any issues, please [let us know][2].
+Get the MySQL container IP address:
 
+```bash
+MYSQL_CONTAINER_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' mysql8)
+echo "MySQL container IP: $MYSQL_CONTAINER_IP"
+```
+
+Configure the database as in Method 1.
+
+# Set up OpenTenBase environment
+
+Follow all steps in the `Running Instructions` section of `example/1c_2d_cluster/README` to initialize the OpenTenBase cluster.
+
+Then, start testing:
+
+```sql
+-- Load extension after installation
+CREATE EXTENSION mysql_fdw;
+
+-- Create server object
+CREATE SERVER mysql_server
+    FOREIGN DATA WRAPPER mysql_fdw
+    OPTIONS (host 'host.docker.internal', port '3306');
+
+-- Create user mapping
+CREATE USER MAPPING FOR opentenbase
+    SERVER mysql_server
+    OPTIONS (username 'foo', password 'bar');
+
+-- Create foreign table
+CREATE FOREIGN TABLE warehouse
+    (
+        warehouse_id int,
+        warehouse_name text,
+        warehouse_created timestamp
+    )
+    SERVER mysql_server
+    OPTIONS (dbname 'db', table_name 'warehouse');
+
+-- Insert new rows into the table
+INSERT INTO warehouse values (1, 'UPS', current_date);
+INSERT INTO warehouse values (2, 'TV', current_date);
+INSERT INTO warehouse values (3, 'Table', current_date);
+
+-- Select from the table
+SELECT * FROM warehouse ORDER BY 1;
+
+warehouse_id | warehouse_name | warehouse_created
+-------------+----------------+-------------------
+           1 | UPS            | 10-JUL-20 00:00:00
+           2 | TV             | 10-JUL-20 00:00:00
+           3 | Table          | 10-JUL-20 00:00:00
+
+-- Delete a row from the table
+DELETE FROM warehouse where warehouse_id = 3;
+
+-- Update a row in the table
+UPDATE warehouse set warehouse_name = 'UPS_NEW' where warehouse_id = 1;
+
+-- Explain a table with verbose option
+EXPLAIN VERBOSE SELECT warehouse_id, warehouse_name FROM warehouse WHERE warehouse_name LIKE 'TV' limit 1;
+
+                                   QUERY PLAN
+--------------------------------------------------------------------------------------------------------------------
+Limit  (cost=10.00..11.00 rows=1 width=36)
+    Output: warehouse_id, warehouse_name
+    ->  Foreign Scan on public.warehouse  (cost=10.00..1010.00 rows=1000 width=36)
+        Output: warehouse_id, warehouse_name
+        Local server startup cost: 10
+        Remote query: SELECT `warehouse_id`, `warehouse_name` FROM `db`.`warehouse` WHERE ((`warehouse_name` LIKE BINARY 'TV'))
+```
+
+Known Issues
+------------
+
+Currently, OpenTenBase does not support distributed DELETE or UPDATE operations on MySQL foreign tables.
+
+```bash
+postgres=# -- delete row from table
+postgres=# DELETE FROM warehouse where warehouse_id = 3;
+ERROR:  could not plan this distributed delete
+DETAIL:  correlated or complex DELETE is currently not supported in OpenTenBase.
+postgres=# 
+postgres=# -- update a row of table
+postgres=# UPDATE warehouse set warehouse_name = 'UPS_NEW' where warehouse_id = 1;
+ERROR:  could not plan this distributed update
+DETAIL:  correlated UPDATE or updating distribution column currently not supported in OpenTenBase.
+```
 
 Enhancements
 ------------
@@ -193,66 +300,6 @@ The following parameters can be set on IMPORT FOREIGN SCHEMA command:
   a foreign server or not. The default is `true`. The IMPORT will fail
   altogether if an imported generated expression uses a function or operator
   that does not exist on PostgreSQL.
-
-Examples
---------
-
-```sql
--- load extension first time after install
-CREATE EXTENSION mysql_fdw;
-
--- create server object
-CREATE SERVER mysql_server
-	FOREIGN DATA WRAPPER mysql_fdw
-	OPTIONS (host '127.0.0.1', port '3306');
-
--- create user mapping
-CREATE USER MAPPING FOR postgres
-	SERVER mysql_server
-	OPTIONS (username 'foo', password 'bar');
-
--- create foreign table
-CREATE FOREIGN TABLE warehouse
-	(
-		warehouse_id int,
-		warehouse_name text,
-		warehouse_created timestamp
-	)
-	SERVER mysql_server
-	OPTIONS (dbname 'db', table_name 'warehouse');
-
--- insert new rows in table
-INSERT INTO warehouse values (1, 'UPS', current_date);
-INSERT INTO warehouse values (2, 'TV', current_date);
-INSERT INTO warehouse values (3, 'Table', current_date);
-
--- select from table
-SELECT * FROM warehouse ORDER BY 1;
-
-warehouse_id | warehouse_name | warehouse_created
--------------+----------------+-------------------
-           1 | UPS            | 10-JUL-20 00:00:00
-           2 | TV             | 10-JUL-20 00:00:00
-           3 | Table          | 10-JUL-20 00:00:00
-
--- delete row from table
-DELETE FROM warehouse where warehouse_id = 3;
-
--- update a row of table
-UPDATE warehouse set warehouse_name = 'UPS_NEW' where warehouse_id = 1;
-
--- explain a table with verbose option
-EXPLAIN VERBOSE SELECT warehouse_id, warehouse_name FROM warehouse WHERE warehouse_name LIKE 'TV' limit 1;
-
-                                   QUERY PLAN
---------------------------------------------------------------------------------------------------------------------
-Limit  (cost=10.00..11.00 rows=1 width=36)
-	Output: warehouse_id, warehouse_name
-	->  Foreign Scan on public.warehouse  (cost=10.00..1010.00 rows=1000 width=36)
-		Output: warehouse_id, warehouse_name
-		Local server startup cost: 10
-		Remote query: SELECT `warehouse_id`, `warehouse_name` FROM `db`.`warehouse` WHERE ((`warehouse_name` LIKE BINARY 'TV'))
-```
 
 Contributing
 ------------
