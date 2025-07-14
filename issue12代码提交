@@ -1,79 +1,255 @@
+/*
+
+ * 员工-部门管理系统删除测试
+
+ * 功能：测试员工删除及关联部门数据的级联删除
+
+ */
+
+
+
 #include <stdio.h>
+
 #include <stdlib.h>
+
 #include <string.h>
+
 #include <assert.h>
 
-// 模拟数据库表结构
+
+
+// 最大员工数和部门数常量
+
+#define MAX_EMPLOYEES 4
+
+#define MAX_DEPARTMENTS 6
+
+
+
+// 员工结构体
+
 typedef struct {
-    int id;
-    char name[50];
-    int ref_id;  // 关联ID
-} Record;
 
-// 模拟数据库
-Record* database = NULL;
-int db_size = 0;
+    int emp_id;         // 员工ID
 
-// 初始化测试数据
-void init_test_data() {
-    db_size = 5;
-    database = (Record*)malloc(db_size * sizeof(Record));
-    
-    // 主记录
-    database[0] = (Record){1, "主订单", -1};
-    database[1] = (Record){2, "用户信息", -1};
-    
-    // 关联记录
-    database[2] = (Record){3, "订单详情1", 1};
-    database[3] = (Record){4, "订单详情2", 1};
-    database[4] = (Record){5, "用户地址", 2};
+    char name[50];      // 员工姓名
+
+    char position[50];  // 职位
+
+} Employee;
+
+
+
+// 部门结构体
+
+typedef struct {
+
+    int dept_id;        // 部门ID
+
+    int emp_id;         // 关联员工ID
+
+    char dept_name[50]; // 部门名称
+
+    int budget;         // 部门预算
+
+} Department;
+
+
+
+// 测试数据初始化
+
+Employee employees[MAX_EMPLOYEES] = {
+
+    {101, "张三", "经理"},
+
+    {102, "李四", "工程师"},
+
+    {103, "王五", "设计师"},
+
+    {104, "赵六", "测试员"}
+
+};
+
+
+
+Department departments[MAX_DEPARTMENTS] = {
+
+    {1, 101, "研发部", 500000},
+
+    {2, 101, "人事部", 300000},
+
+    {3, 102, "前端组", 200000},
+
+    {4, 103, "设计部", 250000},
+
+    {5, 104, "测试部", 150000},
+
+    {6, 104, "质量部", 100000}
+
+};
+
+
+
+int emp_count = MAX_EMPLOYEES;
+
+int dept_count = MAX_DEPARTMENTS;
+
+
+
+/* 打印当前数据状态 */
+
+void print_current_data() {
+
+    printf("\n当前员工数据(%d人):\n", emp_count);
+
+    for (int i = 0; i < emp_count; i++) {
+
+        printf("ID:%d 姓名:%-8s 职位:%s\n", 
+
+              employees[i].emp_id, employees[i].name, employees[i].position);
+
+    }
+
+
+
+    printf("\n当前部门数据(%d个):\n", dept_count);
+
+    for (int i = 0; i < dept_count; i++) {
+
+        printf("部门ID:%d 主管ID:%d 名称:%-10s 预算:%d\n",
+
+              departments[i].dept_id, departments[i].emp_id,
+
+              departments[i].dept_name, departments[i].budget);
+
+    }
+
 }
 
-// 删除函数
-void delete_record(int id) {
-    // 先删除关联记录
-    for (int i = 0; i < db_size; i++) {
-        if (database[i].ref_id == id) {
-            delete_record(database[i].id);
+
+
+/* 删除指定员工 */
+
+int delete_employee(int emp_id) {
+
+    for (int i = 0; i < emp_count; i++) {
+
+        if (employees[i].emp_id == emp_id) {
+
+            // 使用memmove移动数组元素实现删除
+
+            memmove(&employees[i], &employees[i+1], 
+
+                   (emp_count-i-1)*sizeof(Employee));
+
+            emp_count--;
+
+            return 1; // 删除成功
+
         }
+
     }
-    
-    // 再删除主记录
-    for (int i = 0; i < db_size; i++) {
-        if (database[i].id == id) {
-            // 移动数组元素
-            memmove(&database[i], &database[i+1], (db_size - i - 1) * sizeof(Record));
-            db_size--;
-            database = (Record*)realloc(database, db_size * sizeof(Record));
-            break;
-        }
-    }
+
+    return 0; // 未找到员工
+
 }
 
-// 测试用例
-void test_delete_with_relations() {
-    init_test_data();
-    
-    printf("删除前记录数: %d\n", db_size);
-    
-    // 删除主订单(应该同时删除两个订单详情)
-    delete_record(1);
-    
-    printf("删除后记录数: %d\n", db_size);
-    assert(db_size == 2);  // 剩下用户信息和用户地址
-    
-    // 验证关联记录也被删除
-    int found = 0;
-    for (int i = 0; i < db_size; i++) {
-        if (database[i].ref_id == 1) found++;
+
+
+/* 删除关联部门（级联删除） */
+
+int delete_related_departments(int emp_id) {
+
+    int deleted = 0;
+
+    for (int i = 0; i < dept_count; ) {
+
+        if (departments[i].emp_id == emp_id) {
+
+            memmove(&departments[i], &departments[i+1],
+
+                   (dept_count-i-1)*sizeof(Department));
+
+            dept_count--;
+
+            deleted++;
+
+        } else {
+
+            i++; // 只有不删除时才递增
+
+        }
+
     }
-    assert(found == 0);
-    
-    free(database);
-    printf("测试通过!\n");
+
+    return deleted;
+
 }
+
+
+
+/* 测试级联删除功能 */
+
+void test_cascade_delete() {
+
+    printf("===== 测试开始 =====\n");
+
+    print_current_data();
+
+
+
+    // 测试删除员工101（张三）
+
+    int target_emp = 101;
+
+    printf("\n正在删除员工%d及其管理部门...\n", target_emp);
+
+    
+
+    int emp_deleted = delete_employee(target_emp);
+
+    int depts_deleted = delete_related_departments(target_emp);
+
+    
+
+    // 验证删除结果
+
+    assert(emp_deleted == 1);
+
+    assert(depts_deleted == 2);
+
+    
+
+    printf("\n===== 删除结果 =====\n");
+
+    printf("成功删除员工%d及其管理的%d个部门\n", target_emp, depts_deleted);
+
+    print_current_data();
+
+
+
+    // 最终验证
+
+    printf("\n===== 最终验证 =====\n");
+
+    printf("剩余员工数: %d (预期3)\n", emp_count);
+
+    printf("剩余部门数: %d (预期4)\n", dept_count);
+
+    assert(emp_count == 3);
+
+    assert(dept_count == 4);
+
+    printf("测试通过！\n");
+
+}
+
+
 
 int main() {
-    test_delete_with_relations();
+
+    test_cascade_delete();
+
     return 0;
+
 }
