@@ -5,6 +5,7 @@
 *.so
 *.o
 /.idea
+.vscode
 .*/.DS_Store
 /src/.idea/misc.xml
 /src/.idea/modules.xml

@@ -20,16 +20,23 @@ RUN apt-get update && \
         flex \
         vim \
         openssh-server \
-        iputils-ping # ping command
+        iputils-ping \
+        libmysqlclient-dev \
+        mysql-client \
+        default-mysql-client
 
-# Clone the source code repository
-RUN git clone https://github.com/OpenTenBase/OpenTenBase /data/opentenbase/OpenTenBase
+# Create the target directory
+RUN mkdir -p /data/opentenbase
+
+# Copy the local OpenTenBase source code to the container
+# Build context should be the project root directory
+COPY . /data/opentenbase/OpenTenBase
 
 # Set environment variables
 ENV SOURCECODE_PATH=/data/opentenbase/OpenTenBase
 ENV INSTALL_PATH=/data/opentenbase/install
 
-COPY ./copy-ssh-keys /usr/bin
+COPY docker/host/copy-ssh-keys /usr/bin
 
 # Navigate to the source code directory
 WORKDIR $SOURCECODE_PATH
@@ -58,11 +65,11 @@ RUN useradd -m -r -s /bin/bash opentenbase
 
 RUN echo "export OPENTENBASE_HOME=/data/opentenbase/install/opentenbase_bin_v2.0 \n\
 export PATH=/data/opentenbase/install/opentenbase_bin_v2.0/bin:$PATH \n\
-export LD_LIBRARY_PATH=$OPENTENBASE_HOME/lib:${LD_LIBRARY_PATH} \n\
+export LD_LIBRARY_PATH=/usr/lib/aarch64-linux-gnu:/usr/lib/x86_64-linux-gnu:/data/opentenbase/install/opentenbase_bin_v2.0/lib:${LD_LIBRARY_PATH} \n\
 export LC_ALL=C \n\
-" >> /home/opentenbase/.bashrc 
+" >> /home/opentenbase/.bashrc
 
-RUN echo "PATH=\"/data/opentenbase/install/opentenbase_bin_v2.0/bin:$PATH\"" >> /etc/environment 
+RUN echo "PATH=\"/data/opentenbase/install/opentenbase_bin_v2.0/bin:$PATH\"" >> /etc/environment
 
 # Set root password for SSH access
 RUN echo 'root:qwerty' | chpasswd
