@@ -30,6 +30,7 @@ SUBDIRS = \
                 isn             \
                 lo              \
                 ltree           \
+                mysql_fdw       \
                 oid2name        \
                 pageinspect     \
                 passwordcheck   \
