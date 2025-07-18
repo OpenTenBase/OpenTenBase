@@ -9,6 +9,7 @@ top_builddir = ..
 include $(top_builddir)/src/Makefile.global
 
 SUBDIRS = \
+                hdfs_fdw \
                 adminpack       \
                 amcheck         \
                 auth_delay      \
