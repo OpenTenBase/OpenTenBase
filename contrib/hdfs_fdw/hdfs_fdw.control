@@ -1,0 +1,4 @@
+comment = 'Foreign-data wrapper for HDFS'
+default_version = '1.0'
+module_pathname = '$libdir/hdfs_fdw'
+relocatable = true
