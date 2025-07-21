@@ -1,3 +1,8 @@
+-- Test custom-defined functions in OpenTenBase distributed environment
+-- Data operations: insert, update, select, delete
+-- Node information: xl_nodename_from_id1
+-- Error handling: raise exception
+
 create table test_distributed_ops (
     id serial,
     name varchar(50),
