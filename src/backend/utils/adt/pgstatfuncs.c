@@ -541,10 +541,10 @@ Datum
 pg_stat_get_activity(PG_FUNCTION_ARGS)
 {// #lizard forgives
 #define PG_STAT_GET_ACTIVITY_COLS    24
-    int            num_backends = pgstat_fetch_stat_numbackends();
+    int            num_backends = pgstat_fetch_stat_numbackends();  // 当前后端进程总数
     int            curr_backend;
     int            pid = PG_ARGISNULL(0) ? -1 : PG_GETARG_INT32(0);
-    ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
+    ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;   // 获取返回集信息，它包含了调用者期望如何接收结果的上下文。
     TupleDesc    tupdesc;
     Tuplestorestate *tupstore;
     MemoryContext per_query_ctx;
@@ -567,8 +567,8 @@ pg_stat_get_activity(PG_FUNCTION_ARGS)
 
     per_query_ctx = rsinfo->econtext->ecxt_per_query_memory;
     oldcontext = MemoryContextSwitchTo(per_query_ctx);
-
     tupstore = tuplestore_begin_heap(true, false, work_mem);
+    
     rsinfo->returnMode = SFRM_Materialize;
     rsinfo->setResult = tupstore;
     rsinfo->setDesc = tupdesc;
@@ -591,7 +591,7 @@ pg_stat_get_activity(PG_FUNCTION_ARGS)
         MemSet(nulls, 0, sizeof(nulls));
 
         /* Get the next one in the list */
-        local_beentry = pgstat_fetch_stat_local_beentry(curr_backend);
+        local_beentry = pgstat_fetch_stat_local_beentry(curr_backend);  // 从统计信息收集器（stats collector）的共享内存中，获取编号为 curr_backend 的那个进程的状态快照
         if (!local_beentry)
         {
             int            i;
@@ -610,7 +610,7 @@ pg_stat_get_activity(PG_FUNCTION_ARGS)
             continue;
         }
 
-        beentry = &local_beentry->backendStatus;
+        beentry = &local_beentry->backendStatus;    // 获得
 
         /* If looking for specific PID, ignore all the others */
         if (pid != -1 && beentry->st_procpid != pid)
@@ -618,11 +618,11 @@ pg_stat_get_activity(PG_FUNCTION_ARGS)
 
         /* Values available to all callers */
         if (beentry->st_databaseid != InvalidOid)
-            values[0] = ObjectIdGetDatum(beentry->st_databaseid);
+            values[0] = ObjectIdGetDatum(beentry->st_databaseid);       //数据库ID
         else
             nulls[0] = true;
 
-        values[1] = Int32GetDatum(beentry->st_procpid);
+        values[1] = Int32GetDatum(beentry->st_procpid);     // 进程ID
 
         if (beentry->st_userid != InvalidOid)
             values[2] = ObjectIdGetDatum(beentry->st_userid);
@@ -692,6 +692,7 @@ pg_stat_get_activity(PG_FUNCTION_ARGS)
 
             values[5] = CStringGetTextDatum(beentry->st_activity);
 
+            // 直接调用 BackendPidGetProc()，通过进程ID去共享内存的 ProcArray 里找到了那个进程对应的 PGPROC 结构体，并直接读取了 wait_event_info 字段
             proc = BackendPidGetProc(beentry->st_procpid);
             if (proc != NULL)
             {
@@ -840,6 +841,7 @@ pg_stat_get_activity(PG_FUNCTION_ARGS)
             nulls[17] = true;
         }
 
+        // 把填充好的 values 和 nulls 数组，正式变成一行数据，存入我们一开始创建的那个内存临时表 tupstore 中
         tuplestore_putvalues(tupstore, tupdesc, values, nulls);
 
         /* If only a single backend was requested, and we found it, break. */
