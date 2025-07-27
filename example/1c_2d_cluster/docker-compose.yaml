@@ -12,14 +12,16 @@ services:
     tty: true
 
   opentenbaseDN1:
-    image: docker.io/library/opentenbasebase:1.0.0
+    image: docker.io/library/opentenbase:1.0.0
     networks:
       OpenTenBaseNetWork:
         ipv4_address: 172.16.200.10
     container_name: opentenbaseDN1
     restart: unless-stopped
+    ports:
+      - 30004:30004
     volumes:
-      - "./pgxc_conf/dn1:/home/opentenbasebase/pgxc_conf"
+      - "./pgxc_conf/dn1:/home/opentenbase/pgxc_conf"
     tty: true
 
   opentenbaseDN2:
