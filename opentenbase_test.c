@@ -231,7 +231,7 @@ int main() {
     print_result(res); 
     PQclear(res);
 
-    //查询该表分布在各个节点上的数据 (还需要更普适)
+    //查询该表分布在各个节点上的数据 (根据自己的数据节点的名字)
     res = PQexec(conn, "EXECUTE DIRECT ON (dn001) 'SELECT * FROM test_table'");
     if (PQresultStatus(res) != PGRES_TUPLES_OK) {
         fprintf(stderr, "查询数据失败: %s", PQerrorMessage(conn));

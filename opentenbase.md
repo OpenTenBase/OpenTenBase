@@ -3,7 +3,7 @@
 
 ## 准备工作
 ### 集群准备
-按照Opentenbase开源项目中的README.md完成配置，本地集群共四个节点：一个GTM节点，一个Coordinator节点，两个DataNode节点（注意都不进行备份）
+按照Opentenbase开源项目中的README.md完成配置，本地集群共四个节点：一个GTM节点，一个Coordinator节点，两个DataNode节点（我在配置文件中命名为dn001和dn002）
 四个节点均使用Ubuntu 20.04，按照要求创建用户opentenbase，并实现虚拟机之间的互联
 ### 数据库准备
 按照README.md文件中的sql指令创建分片组：
