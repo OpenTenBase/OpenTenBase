@@ -1,0 +1,1 @@
+src/backend/pgxc/cluster/pause.o

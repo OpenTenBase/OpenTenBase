@@ -1,0 +1,1 @@
+src/backend/pgxc/shard/shardmap.o src/backend/pgxc/shard/shardbarrier.o src/backend/pgxc/shard/shard_vacuum.o

@@ -1,0 +1,1 @@
+src/backend/pgxc/copy/copyops.o src/backend/pgxc/copy/remotecopy.o

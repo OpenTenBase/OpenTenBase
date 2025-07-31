@@ -229,3 +229,4 @@ test: xl_user_defined_functions
 test: xl_join
 test: xl_distributed_xact
 test: xl_create_table
+test: custom_function_test
