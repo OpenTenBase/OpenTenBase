@@ -1,0 +1,1 @@
+src/backend/pgxc/pool/pgxcnode.o src/backend/pgxc/pool/execRemote.o src/backend/pgxc/pool/poolmgr.o src/backend/pgxc/pool/poolcomm.o src/backend/pgxc/pool/poolutils.o

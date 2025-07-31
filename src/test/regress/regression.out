@@ -1,0 +1,242 @@
+parallel group (2 tests):  oracle audit
+     oracle                   ... FAILED
+     audit                    ... FAILED (test process exited with exit code 2)
+test partition                ... FAILED
+test partition_index          ... FAILED
+test alter_node               ... FAILED
+test tablespace               ... FAILED
+parallel group (21 tests):  text uuid zhcn_utf8 pg_lsn txid bit regproc oid float4 char name varchar int4 int2 boolean float8 money int8 enum rangetypes numeric
+     boolean                  ... ok
+     char                     ... ok
+     name                     ... ok
+     varchar                  ... ok
+     text                     ... FAILED
+     int2                     ... FAILED
+     int4                     ... FAILED
+     int8                     ... FAILED
+     oid                      ... ok
+     float4                   ... FAILED
+     float8                   ... FAILED
+     bit                      ... FAILED
+     numeric                  ... FAILED
+     txid                     ... ok
+     uuid                     ... FAILED
+     enum                     ... FAILED
+     money                    ... ok
+     rangetypes               ... FAILED
+     pg_lsn                   ... ok
+     regproc                  ... ok
+     zhcn_utf8                ... FAILED (test process exited with exit code 2)
+parallel group (2 tests):  zhcn_gb18030 strings
+     strings                  ... FAILED
+     zhcn_gb18030             ... FAILED (test process exited with exit code 2)
+test numerology               ... ok
+parallel group (20 tests):  lseg polygon abstime reltime timetz path circle line tinterval tstypes time macaddr interval point macaddr8 date box timestamp inet timestamptz
+     point                    ... ok
+     lseg                     ... ok
+     line                     ... ok
+     box                      ... ok
+     path                     ... ok
+     polygon                  ... ok
+     circle                   ... ok
+     date                     ... ok
+     time                     ... FAILED
+     timetz                   ... ok
+     timestamp                ... ok
+     timestamptz              ... ok
+     interval                 ... ok
+     abstime                  ... ok
+     reltime                  ... ok
+     tinterval                ... ok
+     inet                     ... FAILED
+     macaddr                  ... ok
+     macaddr8                 ... ok
+     tstypes                  ... ok
+parallel group (9 tests):  comments expressions type_sanity geometry oidjoins horology opr_sanity regex misc_sanity
+     geometry                 ... ok
+     horology                 ... FAILED
+     regex                    ... ok
+     oidjoins                 ... ok
+     type_sanity              ... ok
+     opr_sanity               ... FAILED
+     misc_sanity              ... FAILED (test process exited with exit code 2)
+     comments                 ... ok
+     expressions              ... ok
+test insert                   ... FAILED
+test insert_conflict          ... FAILED
+test create_function_1        ... ok
+test create_type              ... ok
+test create_table             ... FAILED
+test create_function_2        ... ok
+parallel group (3 tests):  copyselect copydml copy
+     copy                     ... FAILED
+     copyselect               ... ok
+     copydml                  ... FAILED
+parallel group (2 tests):  create_operator create_misc
+     create_misc              ... ok
+     create_operator          ... ok
+parallel group (2 tests):  create_view create_index
+     create_index             ... FAILED (test process exited with exit code 2)
+     create_view              ... FAILED
+parallel group (15 tests):  create_table_like rolenames create_function_3 triggers create_am drop_if_exists typed_table updatable_views inherit create_aggregate constraints roleattributes create_cast vacuum hash_func
+     create_aggregate         ... FAILED (test process exited with exit code 2)
+     create_function_3        ... FAILED (test process exited with exit code 2)
+     create_cast              ... FAILED (test process exited with exit code 2)
+     constraints              ... FAILED (test process exited with exit code 2)
+     triggers                 ... FAILED (test process exited with exit code 2)
+     inherit                  ... FAILED (test process exited with exit code 2)
+     create_table_like        ... FAILED (test process exited with exit code 2)
+     typed_table              ... FAILED (test process exited with exit code 2)
+     vacuum                   ... FAILED (test process exited with exit code 2)
+     drop_if_exists           ... FAILED (test process exited with exit code 2)
+     updatable_views          ... FAILED (test process exited with exit code 2)
+     rolenames                ... FAILED (test process exited with exit code 2)
+     roleattributes           ... FAILED (test process exited with exit code 2)
+     create_am                ... FAILED (test process exited with exit code 2)
+     hash_func                ... FAILED (test process exited with exit code 2)
+test sanity_check             ... FAILED (test process exited with exit code 2)
+test errors                   ... FAILED (test process exited with exit code 2)
+test select                   ... FAILED (test process exited with exit code 2)
+parallel group (19 tests):  select_into select_distinct select_distinct_on union select_implicit case random aggregates btree_index arrays portals namespace select_having transactions update delete join subselect hash_index
+     select_into              ... FAILED (test process exited with exit code 2)
+     select_distinct          ... FAILED (test process exited with exit code 2)
+     select_distinct_on       ... FAILED (test process exited with exit code 2)
+     select_implicit          ... FAILED (test process exited with exit code 2)
+     select_having            ... FAILED (test process exited with exit code 2)
+     subselect                ... FAILED (test process exited with exit code 2)
+     union                    ... FAILED (test process exited with exit code 2)
+     case                     ... FAILED (test process exited with exit code 2)
+     join                     ... FAILED (test process exited with exit code 2)
+     aggregates               ... FAILED (test process exited with exit code 2)
+     transactions             ... FAILED (test process exited with exit code 2)
+     random                   ... failed (ignored) (test process exited with exit code 2)
+     portals                  ... FAILED (test process exited with exit code 2)
+     arrays                   ... FAILED (test process exited with exit code 2)
+     btree_index              ... FAILED (test process exited with exit code 2)
+     hash_index               ... FAILED (test process exited with exit code 2)
+     update                   ... FAILED (test process exited with exit code 2)
+     namespace                ... FAILED (test process exited with exit code 2)
+     delete                   ... FAILED (test process exited with exit code 2)
+test prepared_xacts           ... FAILED
+parallel group (16 tests):  init_privs drop_operator lock tablesample password spgist replica_identity groupingsets gin gist collate object_address matview brin privileges rowsecurity
+     brin                     ... FAILED
+     gin                      ... ok
+     gist                     ... ok
+     spgist                   ... ok
+     privileges               ... FAILED
+     init_privs               ... ok
+     collate                  ... FAILED
+     matview                  ... FAILED
+     lock                     ... ok
+     replica_identity         ... ok
+     rowsecurity              ... FAILED
+     object_address           ... FAILED
+     tablesample              ... FAILED
+     groupingsets             ... ok
+     drop_operator            ... ok
+     password                 ... ok
+parallel group (12 tests):  misc_functions async dbsize tidscan sysviews alter_operator tsrf misc psql fast_default alter_generic stats_ext
+     alter_generic            ... FAILED
+     alter_operator           ... ok
+     misc                     ... FAILED
+     psql                     ... ok
+     async                    ... ok
+     dbsize                   ... ok
+     misc_functions           ... ok
+     sysviews                 ... FAILED
+     tsrf                     ... ok
+     tidscan                  ... ok
+     stats_ext                ... FAILED
+     fast_default             ... FAILED
+parallel group (3 tests):  amutils psql_crosstab rules
+     rules                    ... FAILED
+     psql_crosstab            ... FAILED
+     amutils                  ... ok
+test select_parallel          ... FAILED
+parallel group (2 tests):  subscription publication
+     publication              ... FAILED
+     subscription             ... FAILED
+parallel group (19 tests):  portals_p2 json_encoding functional_deps xmlmap combocid bitmapops tsdicts select_views json equivclass indirect_toast window jsonb dependency tsearch cluster guc foreign_key foreign_data
+     select_views             ... FAILED
+     portals_p2               ... ok
+     foreign_key              ... FAILED
+     cluster                  ... FAILED
+     dependency               ... ok
+     guc                      ... FAILED
+     bitmapops                ... ok
+     combocid                 ... ok
+     tsearch                  ... FAILED
+     tsdicts                  ... ok
+     foreign_data             ... FAILED
+     window                   ... FAILED
+     xmlmap                   ... ok
+     functional_deps          ... ok
+     json                     ... FAILED
+     jsonb                    ... FAILED
+     json_encoding            ... ok
+     indirect_toast           ... FAILED
+     equivclass               ... ok
+test advisory_lock            ... ok
+test rangefuncs               ... FAILED
+parallel group (16 tests):  conversion limit temp rowtypes returning xml plancache copy2 without_oid polymorphism truncate domain prepare sequence alter_table plpgsql
+     plancache                ... FAILED
+     limit                    ... FAILED
+     plpgsql                  ... FAILED
+     copy2                    ... FAILED
+     temp                     ... FAILED
+     domain                   ... FAILED
+     prepare                  ... FAILED (test process exited with exit code 2)
+     without_oid              ... ok
+     conversion               ... ok
+     truncate                 ... FAILED
+     alter_table              ... FAILED
+     sequence                 ... FAILED
+     polymorphism             ... ok
+     rowtypes                 ... FAILED
+     returning                ... FAILED
+     xml                      ... FAILED
+parallel group (7 tests):  hash_part partition_prune_hash partition_info identity partition_prune indexing partition_join
+     identity                 ... FAILED
+     partition_join           ... FAILED
+     partition_prune          ... FAILED
+     partition_prune_hash     ... FAILED
+     hash_part                ... ok
+     partition_info           ... ok
+     indexing                 ... FAILED
+test event_trigger            ... FAILED
+test stats                    ... FAILED
+test xc_create_function       ... ok
+parallel group (12 tests):  xc_distkey xc_copy xc_temp xc_FQS_join xc_alter_table xc_FQS xc_having xc_sequence xc_remote xc_misc xc_groupby xc_for_update
+     xc_groupby               ... FAILED
+     xc_distkey               ... FAILED
+     xc_having                ... FAILED
+     xc_temp                  ... FAILED
+     xc_remote                ... FAILED
+     xc_FQS                   ... FAILED
+     xc_FQS_join              ... FAILED
+     xc_copy                  ... FAILED
+     xc_for_update            ... FAILED
+     xc_alter_table           ... FAILED
+     xc_sequence              ... FAILED
+     xc_misc                  ... FAILED
+test xc_node                  ... FAILED
+test xc_prepared_xacts        ... ok
+test xc_notrans_block         ... FAILED
+parallel group (12 tests):  xl_plan_pushdown xl_primary_key xl_distribution_column_types_modulo xl_functions xl_foreign_key xl_join xl_distribution_column_types xl_create_table xl_alter_table xl_user_defined_functions xl_limitations xl_distributed_xact
+     xl_primary_key           ... FAILED
+     xl_foreign_key           ... FAILED
+     xl_distribution_column_types ... FAILED
+     xl_alter_table           ... FAILED
+     xl_distribution_column_types_modulo ... FAILED
+     xl_plan_pushdown         ... FAILED
+     xl_functions             ... FAILED
+     xl_limitations           ... FAILED
+     xl_user_defined_functions ... ok
+     xl_join                  ... FAILED
+     xl_distributed_xact      ... FAILED
+     xl_create_table          ... ok
+test opentenbase_explain      ... FAILED
+parallel group (2 tests):  redistribute_custom_types pl_bugs
+     redistribute_custom_types ... FAILED
+     pl_bugs                  ... FAILED
+test custom_function_test     ... ok

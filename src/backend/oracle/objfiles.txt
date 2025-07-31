@@ -1,0 +1,1 @@
+src/backend/oracle/others.o src/backend/oracle/datefce.o src/backend/oracle/plvstr.o src/backend/oracle/convert.o src/backend/oracle/charpad.o

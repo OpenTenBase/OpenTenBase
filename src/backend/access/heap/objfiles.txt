@@ -1,0 +1,1 @@
+src/backend/access/heap/heapam.o src/backend/access/heap/hio.o src/backend/access/heap/pruneheap.o src/backend/access/heap/rewriteheap.o src/backend/access/heap/syncscan.o src/backend/access/heap/tuptoaster.o src/backend/access/heap/visibilitymap.o

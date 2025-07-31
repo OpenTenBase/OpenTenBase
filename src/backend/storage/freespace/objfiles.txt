@@ -1,0 +1,1 @@
+src/backend/storage/freespace/freespace.o src/backend/storage/freespace/fsmpage.o src/backend/storage/freespace/indexfsm.o src/backend/storage/freespace/emapage.o src/backend/storage/freespace/extent_xlog.o
