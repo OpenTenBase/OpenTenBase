@@ -2,10 +2,9 @@
  *
  * explain_dist.h
  *
- * Copyright (c) 2023 THL A29 Limited, a Tencent company.
- *
- * This source code file is licensed under the BSD 3-Clause License,
- * you may obtain a copy of the License at http://opensource.org/license/bsd-3-clause/
+ * Portions Copyright (c) 2018, Tencent OpenTenBase-C Group.
+ * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/commands/explain_dist.h
  *
@@ -15,44 +14,95 @@
 #define EXPLAINDIST_H
 
 #include "commands/explain.h"
-#include "pgxc/execRemote.h"
+#include "executor/execFragment.h"
+#include "executor/instrument.h"
+#include "nodes/nodes.h"
+#include "utils/tuplesort.h"
 
-/* Key of hash table entry */
-typedef struct RemoteInstrKey
+typedef struct
 {
-	int plan_node_id;   /* unique id of current plan node */
-	int node_id;        /* node id */
-} RemoteInstrKey;
+    bool isvalid;       /* TRUE if instrument value is valid */
+    int num_workers;    /* number of parallel workers launched */
+} RemoteState;
 
-/* Hash table entry */
-typedef struct RemoteInstr
+typedef struct
 {
-	RemoteInstrKey key;
-	
-	int nodeTag;            /* type of current plan node */
-	Instrumentation instr;  /* instrument of current plan node */
-	
-	/* for Gather and Sort */
-	int nworkers_launched;  /* worker num of gather or sort */
-	
-	/* for Sort */
-	TuplesortInstrumentation sort_stat;      /* instrument if no parallel */
-	TuplesortInstrumentation *w_sort_stats;  /* instrument of parallel workers */
-	
-	/* for Hash */
-	HashInstrumentation hash_stat;
-} RemoteInstr;
+    RemoteState rs;
+    TuplesortInstrumentation stat;      /* instrument if no parallel */
+    TuplesortInstrumentation *w_stats;  /* instrument of parallel workers */
+} RemoteSortState;
 
-typedef struct AttachRemoteInstrContext
+typedef struct
 {
-	List        *node_idx_List;     /* list of node index in dn_handles */
-	HTAB        *htab;              /* htab from combiner, stored remote instr */
-	Bitmapset   *printed_nodes;     /* ids of plan nodes we've handled */
-} AttachRemoteInstrContext;
+    RemoteState rs;
+    /* values used in explain analyze from HashState */
+    HashInstrumentation stat;
+} RemoteHashState;
 
-extern void SendLocalInstr(PlanState *planstate);
-extern void HandleRemoteInstr(char *msg_body, size_t len, int nodeid, ResponseCombiner *combiner);
-extern bool AttachRemoteInstr(PlanState *planstate, AttachRemoteInstrContext *ctx);
-extern void ExplainCommonRemoteInstr(PlanState *planstate, ExplainState *es);
+typedef struct
+{
+    RemoteState rs;
+    /* values used in explain analyze from AggState */
+    AggregateInstrumentation stat;
+    AggregateInstrumentation *w_stats;
+} RemoteAggState;
+
+typedef struct ResultCacheInfo
+{
+    char    *rc_name;
+    Size    rc_name_len;
+    Size    rc_memory;
+    long    rc_lru_count;
+    long    rc_total_search;
+    double  rc_hits;
+} ResultCacheInfo;
+
+typedef struct ResultCacheState
+{
+    bool            rcisvalid;
+    int             num_rc_objs;
+    ResultCacheInfo *rc_stats;
+} ResultCacheState;
+
+typedef struct
+{
+    RemoteState rs;
+    /* either stat or w_stats is valid */
+    FragmentInstrumentation stat;      /* instrument if no parallel */
+    FragmentInstrumentation *w_stats;  /* instrument of parallel workers */
+} RemoteFragState;
+
+typedef struct
+{
+    Instrumentation instr;          /* normal case */
+    ResultCacheState rcstate;      /* result cache info */
+    RemoteState *state;             /* specific instrument info */
+    WorkerInstrumentation *w_instrs;/* instrument of parallel workers */
+} RemoteInstrumentation;
+
+extern void InitRemoteInstr(void);
+extern void ResetRemoteInstr(void);
+extern bool HasRemoteInstr(void);
+
+extern void SendLocalInstr(QueryDesc *queryDesc);
+extern void HandleRemoteInstr(char *msg_body, size_t len, int nodeoid, int fid);
+
+extern RemoteInstrumentation *ConstructRemoteInstr(Plan *plan, int fid);
+extern void DestroyRemoteInstr(RemoteInstrumentation *remote_instrs);
+extern void ExplainResultCacheInstr(RemoteInstrumentation *instrs,
+                                    ExplainState *es);
+extern void ExplainCommonRemoteInstr(RemoteInstrumentation *instrs,
+                                     ExplainState *es, const char *prefix);
+extern void ExplainCommonRemoteInstrJson(RemoteInstrumentation *instrs,
+                                     ExplainState *es, const char *prefix);
+extern void ExplainSpecialRemoteInstr(RemoteInstrumentation *instrs,
+                                     ExplainState *es, NodeTag plantag);
+extern void ExplainRemoteWorkerInstr(RemoteInstrumentation *instrs,
+                                     ExplainState *es, NodeTag plantag);
+extern void ExplainRemoteWorkerInstrJson(RemoteInstrumentation *instrs,
+                                     ExplainState *es, NodeTag plantag,
+									 bool isRecv);
+extern void ExplainCommonRemoteInstrRecv(Plan *plan, ExplainState *es);
+extern void ExplainCommonRemoteInstrRecvJson(Plan *plan, ExplainState *es);
 
 #endif  /* EXPLAINDIST_H  */

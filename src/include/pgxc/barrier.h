@@ -2,7 +2,7 @@
  *
  * barrier.h
  *
- *      Definitions for the PITR barrier handling
+ *	  Definitions for the PITR barrier handling
  *
  *
  * Portions Copyright (c) 1996-2011, PostgreSQL Global Development Group
@@ -19,19 +19,19 @@
 #include "access/xlog.h"
 #include "access/xlogdefs.h"
 
-#define CREATE_BARRIER_PREPARE    'P'
-#define CREATE_BARRIER_EXECUTE    'X'
-#define CREATE_BARRIER_END        'E'
+#define CREATE_BARRIER_PREPARE	'P'
+#define CREATE_BARRIER_EXECUTE	'X'
+#define CREATE_BARRIER_END		'E'
 
-#define CREATE_BARRIER_PREPARE_DONE    'p'
-#define CREATE_BARRIER_EXECUTE_DONE    'x'
+#define CREATE_BARRIER_PREPARE_DONE	'p'
+#define CREATE_BARRIER_EXECUTE_DONE	'x'
 
 typedef struct xl_barrier
 {
-    char    barrier_id[1];    /* variable length data follows */
+	char	barrier_id[1];	/* variable length data follows */
 } xl_barrier;
 
-#define XLOG_BARRIER_CREATE    0x00
+#define XLOG_BARRIER_CREATE	0x00
 
 extern void ProcessCreateBarrierPrepare(const char *id);
 extern void ProcessCreateBarrierEnd(const char *id);

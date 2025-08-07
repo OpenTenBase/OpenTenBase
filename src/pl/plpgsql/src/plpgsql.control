@@ -5,3 +5,5 @@ module_pathname = '$libdir/plpgsql'
 relocatable = false
 schema = pg_catalog
 superuser = false
+# sql_mode can be opentenbase_ora, postgresql, all
+sql_mode = 'all'

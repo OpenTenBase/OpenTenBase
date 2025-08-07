@@ -160,12 +160,19 @@ LOCK [ TABLE ] [ ONLY ] <replaceable class="PARAMETER">name</replaceable> [ * ] 
   <title>Notes</title>
 
    <para>
-    <literal>LOCK TABLE ... IN ACCESS SHARE MODE</> requires <literal>SELECT</>
-    privileges on the target table.  <literal>LOCK TABLE ... IN ROW EXCLUSIVE
-    MODE</> requires <literal>INSERT</>, <literal>UPDATE</>, <literal>DELETE</>,
-    or <literal>TRUNCATE</> privileges on the target table. All other forms of
-    <command>LOCK</> require table-level <literal>UPDATE</>, <literal>DELETE</>,
-    or <literal>TRUNCATE</> privileges.
+    To lock a table, the user must have the right privilege for the specified
+    <replaceable class="parameter">lockmode</replaceable>, or be the table's
+    owner, a superuser, or a role with privileges of the <link
+    linkend="predefined-roles-table"><literal>pg_maintain</literal></link>
+    role. If the user has <literal>MAINTAIN</literal>,
+    <literal>UPDATE</literal>, <literal>DELETE</literal>, or
+    <literal>TRUNCATE</literal> privileges on the table, any <replaceable
+    class="parameter">lockmode</replaceable> is permitted. If the user has
+    <literal>INSERT</literal> privileges on the table, <literal>ROW EXCLUSIVE
+    MODE</literal> (or a less-conflicting mode as described in <xref
+    linkend="explicit-locking"/>) is permitted. If a user has
+    <literal>SELECT</literal> privileges on the table, <literal>ACCESS SHARE
+    MODE</literal> is permitted.
    </para>
 
    <para>
@@ -244,7 +251,7 @@ COMMIT WORK;
    and <literal>SHARE UPDATE EXCLUSIVE</> lock modes, the
    <productname>PostgreSQL</productname> lock modes and the
    <command>LOCK TABLE</command> syntax are compatible with those
-   present in <productname>Oracle</productname>.
+   present in <productname>OpenTenBase_Ora</productname>.
   </para>
  </refsect1>
 </refentry>

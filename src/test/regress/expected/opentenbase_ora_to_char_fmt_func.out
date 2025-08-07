@@ -1,0 +1,571 @@
+\c regression_ora
+-- TestPoint : base fmt test
+select c1, length(c1) from (select to_char(-123.456, '9') as c1 from dual);
+ C1 | LENGTH 
+----+--------
+ ## |      2
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, '99') as c1 from dual);
+ C1  | LENGTH 
+-----+--------
+ ### |      3
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, '999.99') as c1 from dual);
+   C1    | LENGTH 
+---------+--------
+ -123.46 |      7
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, '9999.9999') as c1 from dual);
+     C1     | LENGTH 
+------------+--------
+  -123.4560 |     10
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, '0') as c1 from dual);
+ C1 | LENGTH 
+----+--------
+ ## |      2
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, '90') as c1 from dual);
+ C1  | LENGTH 
+-----+--------
+ ### |      3
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, '900.000') as c1 from dual);
+    C1    | LENGTH 
+----------+--------
+ -123.456 |      8
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, '0900.0000') as c1 from dual);
+     C1     | LENGTH 
+------------+--------
+ -0123.4560 |     10
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, ',') as c1 from dual);
+ERROR:  Invalid number format model
+select c1, length(c1) from (select to_char(-123.456, '9,9') as c1 from dual);
+  C1  | LENGTH 
+------+--------
+ #### |      4
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, '9,99.99') as c1 from dual);
+    C1    | LENGTH 
+----------+--------
+ -1,23.46 |      8
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, '99,99.9999') as c1 from dual);
+     C1      | LENGTH 
+-------------+--------
+  -1,23.4560 |     11
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, '.') as c1 from dual);
+ C1 | LENGTH 
+----+--------
+ ## |      2
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, '9.9') as c1 from dual);
+  C1  | LENGTH 
+------+--------
+ #### |      4
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, '999.99') as c1 from dual);
+   C1    | LENGTH 
+---------+--------
+ -123.46 |      7
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, '9999.9999') as c1 from dual);
+     C1     | LENGTH 
+------------+--------
+  -123.4560 |     10
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, '$') as c1 from dual);
+ C1 | LENGTH 
+----+--------
+ ## |      2
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, '$9.9') as c1 from dual);
+  C1   | LENGTH 
+-------+--------
+ ##### |      5
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, '99$9.99') as c1 from dual);
+    C1    | LENGTH 
+----------+--------
+ -$123.46 |      8
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, '9999.99$99') as c1 from dual);
+     C1      | LENGTH 
+-------------+--------
+  -$123.4560 |     11
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, 'B') as c1 from dual);
+ C1 | LENGTH 
+----+--------
+ #  |      1
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, 'B9.9') as c1 from dual);
+  C1  | LENGTH 
+------+--------
+ #### |      4
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, 'B999.99') as c1 from dual);
+   C1    | LENGTH 
+---------+--------
+ -123.46 |      7
+(1 row)
+
+select c1, length(c1) from (select to_char(-0.456, 'B9.99') as c1 from dual);
+  C1   | LENGTH 
+-------+--------
+  -.46 |      5
+(1 row)
+
+select c1, length(c1) from (select to_char(-0.0, 'B9.99') as c1 from dual);
+  C1   | LENGTH 
+-------+--------
+       |      5
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, 'B9999.9999') as c1 from dual);
+     C1     | LENGTH 
+------------+--------
+  -123.4560 |     10
+(1 row)
+
+select c1, length(c1) from (select to_char(-0.456, 'B9999.9999') as c1 from dual);
+     C1     | LENGTH 
+------------+--------
+     -.4560 |     10
+(1 row)
+
+select c1, length(c1) from (select to_char(-0.0, 'B9999.9999') as c1 from dual);
+     C1     | LENGTH 
+------------+--------
+            |     10
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, 'C') as c1 from dual);
+    C1    | LENGTH 
+----------+--------
+ ######## |      8
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, 'C9.9') as c1 from dual);
+     C1      | LENGTH 
+-------------+--------
+ ########### |     11
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, '9C9') as c1 from dual);
+     C1     | LENGTH 
+------------+--------
+ ########## |     10
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, 'C999.99') as c1 from dual);
+       C1       | LENGTH 
+----------------+--------
+     -USD123.46 |     14
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, '9999.9999C') as c1 from dual);
+        C1         | LENGTH 
+-------------------+--------
+      -123.4560USD |     17
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, 'D') as c1 from dual);
+ C1 | LENGTH 
+----+--------
+ ## |      2
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, '9D9') as c1 from dual);
+  C1  | LENGTH 
+------+--------
+ #### |      4
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, '999D99') as c1 from dual);
+   C1    | LENGTH 
+---------+--------
+ -123.46 |      7
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, '9999D9999') as c1 from dual);
+     C1     | LENGTH 
+------------+--------
+  -123.4560 |     10
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, 'EEEE') as c1 from dual);
+ERROR:  invalid number format model
+select c1, length(c1) from (select to_char(-123.456, '9.99999EEEE') as c1 from dual);
+      C1       | LENGTH 
+---------------+--------
+  -1.23456E+02 |     13
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, '99.999999EEEE') as c1 from dual);
+       C1       | LENGTH 
+----------------+--------
+  -1.234560E+02 |     14
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, 'G') as c1 from dual);
+ERROR:  Invalid number format model
+select c1, length(c1) from (select to_char(-123.456, '9G9') as c1 from dual);
+  C1  | LENGTH 
+------+--------
+ #### |      4
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, '9G99D99') as c1 from dual);
+    C1    | LENGTH 
+----------+--------
+ -1,23.46 |      8
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, '99G99D9999') as c1 from dual);
+     C1      | LENGTH 
+-------------+--------
+  -1,23.4560 |     11
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, 'L') as c1 from dual);
+     C1      | LENGTH 
+-------------+--------
+ ########### |     11
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, 'L9.9') as c1 from dual);
+       C1       | LENGTH 
+----------------+--------
+ ############## |     14
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, 'L999.99') as c1 from dual);
+        C1         | LENGTH 
+-------------------+--------
+          -$123.46 |     17
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, '999.99L') as c1 from dual);
+        C1         | LENGTH 
+-------------------+--------
+          -123.46$ |     17
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, 'L9999.9999') as c1 from dual);
+          C1          | LENGTH 
+----------------------+--------
+           -$123.4560 |     20
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, 'MI') as c1 from dual);
+ C1 | LENGTH 
+----+--------
+ #  |      1
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, '9.9MI') as c1 from dual);
+  C1  | LENGTH 
+------+--------
+ #### |      4
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, '999.99MI') as c1 from dual);
+   C1    | LENGTH 
+---------+--------
+ 123.46- |      7
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, '9999.9999MI') as c1 from dual);
+     C1     | LENGTH 
+------------+--------
+  123.4560- |     10
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, 'PR') as c1 from dual);
+ C1 | LENGTH 
+----+--------
+ ## |      2
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, '9.9PR') as c1 from dual);
+  C1   | LENGTH 
+-------+--------
+ ##### |      5
+(1 row)
+
+select c1, length(c1) from (select to_char(123.456, '9.9PR') as c1 from dual);
+  C1   | LENGTH 
+-------+--------
+ ##### |      5
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, '999.99PR') as c1 from dual);
+    C1    | LENGTH 
+----------+--------
+ <123.46> |      8
+(1 row)
+
+select c1, length(c1) from (select to_char(123.456, '999.99PR') as c1 from dual);
+    C1    | LENGTH 
+----------+--------
+  123.46  |      8
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, '9999.9999PR') as c1 from dual);
+     C1      | LENGTH 
+-------------+--------
+  <123.4560> |     11
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, 'RN') as c1 from dual);
+       C1        | LENGTH 
+-----------------+--------
+ ############### |     15
+(1 row)
+
+select c1, length(c1) from (select to_char(4000, 'RN') as c1 from dual);
+       C1        | LENGTH 
+-----------------+--------
+ ############### |     15
+(1 row)
+
+select c1, length(c1) from (select to_char(123.456, 'RN') as c1 from dual);
+       C1        | LENGTH 
+-----------------+--------
+          CXXIII |     15
+(1 row)
+
+select c1, length(c1) from (select to_char(123.456, 'rn') as c1 from dual);
+       C1        | LENGTH 
+-----------------+--------
+          cxxiii |     15
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, 'S') as c1 from dual);
+ C1 | LENGTH 
+----+--------
+ #  |      1
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, 'S9.9') as c1 from dual);
+  C1  | LENGTH 
+------+--------
+ #### |      4
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, 'S999.99') as c1 from dual);
+   C1    | LENGTH 
+---------+--------
+ -123.46 |      7
+(1 row)
+
+select c1, length(c1) from (select to_char(123.456, '999.99S') as c1 from dual);
+   C1    | LENGTH 
+---------+--------
+ 123.46+ |      7
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, 'S9999.9999') as c1 from dual);
+     C1     | LENGTH 
+------------+--------
+  -123.4560 |     10
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, 'TM') as c1 from dual);
+    C1    | LENGTH 
+----------+--------
+ -123.456 |      8
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, 'TM9') as c1 from dual);
+    C1    | LENGTH 
+----------+--------
+ -123.456 |      8
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, 'TMe') as c1 from dual);
+      C1      | LENGTH 
+--------------+--------
+ -1.23456E+02 |     12
+(1 row)
+
+select c1, length(c1) from (select to_char(123.456, 'TMe') as c1 from dual);
+     C1      | LENGTH 
+-------------+--------
+ 1.23456E+02 |     11
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, 'U') as c1 from dual);
+     C1      | LENGTH 
+-------------+--------
+ ########### |     11
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, 'U9.9') as c1 from dual);
+       C1       | LENGTH 
+----------------+--------
+ ############## |     14
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, 'U999.99') as c1 from dual);
+        C1         | LENGTH 
+-------------------+--------
+          -$123.46 |     17
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, 'U9999.9999') as c1 from dual);
+          C1          | LENGTH 
+----------------------+--------
+           -$123.4560 |     20
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, 'V') as c1 from dual);
+ C1 | LENGTH 
+----+--------
+ #  |      1
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, '99V99') as c1 from dual);
+  C1   | LENGTH 
+-------+--------
+ ##### |      5
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, '999V99') as c1 from dual);
+   C1   | LENGTH 
+--------+--------
+ -12346 |      6
+(1 row)
+
+select c1, length(c1) from (select to_char(-123.456, '9999V9999') as c1 from dual);
+    C1     | LENGTH 
+-----------+--------
+  -1234560 |      9
+(1 row)
+
+select c1, length(c1) from (select to_char(123, 'X') as c1 from dual);
+ C1 | LENGTH 
+----+--------
+ ## |      2
+(1 row)
+
+select c1, length(c1) from (select to_char(-123, 'XX') as c1 from dual);
+ C1  | LENGTH 
+-----+--------
+ ### |      3
+(1 row)
+
+select c1, length(c1) from (select to_char(123.456, 'XX') as c1 from dual);
+ C1  | LENGTH 
+-----+--------
+  7B |      3
+(1 row)
+
+select c1, length(c1) from (select to_char(123.456, 'XXX') as c1 from dual);
+  C1  | LENGTH 
+------+--------
+   7B |      4
+(1 row)
+
+-- to_char format issue
+select r, length(r) len from (select to_char(1, '000X') as r from dual);
+   R   | LEN 
+-------+-----
+  0001 |   5
+(1 row)
+
+select r, length(r) len from (select to_char(1, 'FMX') as r from dual);
+ R | LEN 
+---+-----
+ 1 |   1
+(1 row)
+
+select r, length(r) len from (select to_char(1, '.X') as r from dual);
+ERROR:  invalid number format model
+select r, length(r) len from (select to_char(1, ',X') as r from dual);
+ERROR:  invalid number format model
+select r, length(r) len from (select to_char(1, 'Rn') as r from dual);
+        R        | LEN 
+-----------------+-----
+               I |  15
+(1 row)
+
+select r, length(r) len from (select to_char(1, 'rN') as r from dual);
+        R        | LEN 
+-----------------+-----
+               i |  15
+(1 row)
+
+select r, length(r) len from (select to_char(1.123, '9.999Mi') as r from dual);
+   R    | LEN 
+--------+-----
+ 1.123  |   6
+(1 row)
+
+select r, length(r) len from (select to_char(1.123, '9.999mI') as r from dual);
+   R    | LEN 
+--------+-----
+ 1.123  |   6
+(1 row)
+
+select r, length(r) len from (select to_char(1.123, '9.999Pr') as r from dual);
+    R    | LEN 
+---------+-----
+  1.123  |   7
+(1 row)
+
+select r, length(r) len from (select to_char(1.123, '9.999pR') as r from dual);
+    R    | LEN 
+---------+-----
+  1.123  |   7
+(1 row)
+
+select r, length(r) len from (select to_char(1234, 'Tm') as r from dual);
+  R   | LEN 
+------+-----
+ 1234 |   4
+(1 row)
+
+select r, length(r) len from (select to_char(1234, 'tM') as r from dual);
+  R   | LEN 
+------+-----
+ 1234 |   4
+(1 row)
+
+select r, length(r) len from (select to_char(0.123, '.999PR') as r from dual);
+   R    | LEN 
+--------+-----
+  .123  |   6
+(1 row)
+
+select r, length(r) len from (select to_char(-0.123, '.999PR') as r from dual);
+   R    | LEN 
+--------+-----
+ <.123> |   6
+(1 row)
+

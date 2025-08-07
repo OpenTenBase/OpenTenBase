@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * keywords.c
- *      lexical token lookup for key words in PostgreSQL
+ *	  lexical token lookup for key words in PostgreSQL
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -9,7 +9,7 @@
  *
  *
  * IDENTIFICATION
- *      src/interfaces/ecpg/preproc/keywords.c
+ *	  src/interfaces/ecpg/preproc/keywords.c
  *
  *-------------------------------------------------------------------------
  */
@@ -37,4 +37,4 @@ const ScanKeyword SQLScanKeywords[] = {
 #include "parser/kwlist.h"
 };
 
-const int    NumSQLScanKeywords = lengthof(SQLScanKeywords);
+const int	NumSQLScanKeywords = lengthof(SQLScanKeywords);

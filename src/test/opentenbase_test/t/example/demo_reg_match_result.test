@@ -1,0 +1,28 @@
+%cn 1
+%cn_slave 1
+%dn 1
+%dn_slave1
+%gtm 1
+%gtm_slave 1
+
+connect conncn1 cn1
+
+connection conncn1
+
+create default node group default_group with ("dn1");
+
+create sharding group to group default_group;
+
+clean sharding;
+
+create table t(a int, b int);
+insert into t select
+generate_series(200,210);
+update
+t set b=a*a;
+
+select * from t order by a;
+
+explain select * from t order by a;
+
+disconnect conncn1

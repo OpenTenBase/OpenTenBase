@@ -1,15 +1,12 @@
 /*-------------------------------------------------------------------------
  *
  * libpq-fe.h
- *      This file contains definitions for structures and
- *      externs for functions used by frontend postgres applications.
+ *	  This file contains definitions for structures and
+ *	  externs for functions used by frontend postgres applications.
  *
  * Portions Copyright (c) 1996-2009, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  * Portions Copyright (c) 2010-2012 Postgres-XC Development Group
- *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  * $PostgreSQL: pgsql/src/interfaces/libpq/libpq-fe.h,v 1.145 2009/01/01 17:24:03 momjian Exp $
  *
@@ -20,7 +17,7 @@
 #define LIBPQ_FE_H
 
 #ifdef __cplusplus
-extern        "C"
+extern		"C"
 {
 #endif
 
@@ -36,7 +33,7 @@ extern        "C"
  * Option flags for PQcopyResult
  */
 #define PG_COPYRES_ATTRS          0x01
-#define PG_COPYRES_TUPLES         0x02        /* Implies PG_COPYRES_ATTRS */
+#define PG_COPYRES_TUPLES         0x02		/* Implies PG_COPYRES_ATTRS */
 #define PG_COPYRES_EVENTS         0x04
 #define PG_COPYRES_NOTICEHOOKS    0x08
 
@@ -44,38 +41,38 @@ extern        "C"
 
 typedef enum
 {
-    /*
-     * Although it is okay to add to this list, values which become unused
-     * should never be removed, nor should constants be redefined - that would
-     * break compatibility with existing code.
-     */
-    CONNECTION_OK,
-    CONNECTION_BAD,
-    /* Non-blocking mode only below here */
+	/*
+	 * Although it is okay to add to this list, values which become unused
+	 * should never be removed, nor should constants be redefined - that would
+	 * break compatibility with existing code.
+	 */
+	CONNECTION_OK,
+	CONNECTION_BAD,
+	/* Non-blocking mode only below here */
 
-    /*
-     * The existence of these should never be relied upon - they should only
-     * be used for user feedback or similar purposes.
-     */
-    CONNECTION_STARTED,                /* Waiting for connection to be made.  */
-    CONNECTION_MADE,                /* Connection OK; waiting to send.       */
-    CONNECTION_AWAITING_RESPONSE,    /* Waiting for a response from the
-                                     * postmaster.          */
-    CONNECTION_AUTH_OK,                /* Received authentication; waiting for
-                                     * backend startup. */
-    CONNECTION_SETENV,                /* Negotiating environment. */
-    CONNECTION_SSL_STARTUP,            /* Negotiating SSL. */
-    CONNECTION_NEEDED                /* Internal state: connect() needed */
+	/*
+	 * The existence of these should never be relied upon - they should only
+	 * be used for user feedback or similar purposes.
+	 */
+	CONNECTION_STARTED,				/* Waiting for connection to be made.  */
+	CONNECTION_MADE,				/* Connection OK; waiting to send.	   */
+	CONNECTION_AWAITING_RESPONSE,	/* Waiting for a response from the
+									 * postmaster.		  */
+	CONNECTION_AUTH_OK,				/* Received authentication; waiting for
+									 * backend startup. */
+	CONNECTION_SETENV,				/* Negotiating environment. */
+	CONNECTION_SSL_STARTUP,			/* Negotiating SSL. */
+	CONNECTION_NEEDED				/* Internal state: connect() needed */
 } ConnStatusType;
 
 typedef enum
 {
-    PGRES_POLLING_FAILED = 0,
-    PGRES_POLLING_READING,        /* These two indicate that one may      */
-    PGRES_POLLING_WRITING,        /* use select before polling again.   */
-    PGRES_POLLING_OK,
-    PGRES_POLLING_ACTIVE        /* unused; keep for awhile for backwards
-                                 * compatibility */
+	PGRES_POLLING_FAILED = 0,
+	PGRES_POLLING_READING,		/* These two indicate that one may	  */
+	PGRES_POLLING_WRITING,		/* use select before polling again.   */
+	PGRES_POLLING_OK,
+	PGRES_POLLING_ACTIVE		/* unused; keep for awhile for backwards
+								 * compatibility */
 } GTMClientPollingStatusType;
 
 /* ----------------
@@ -89,8 +86,8 @@ typedef enum
  */
 typedef struct _GTMPQconninfoOption
 {
-    char       *keyword;        /* The keyword of the option            */
-    char       *val;            /* Option's current value, or NULL         */
+	char	   *keyword;		/* The keyword of the option			*/
+	char	   *val;			/* Option's current value, or NULL		 */
 } GTMPQconninfoOption;
 
 typedef struct gtm_conn GTM_Conn;
@@ -100,7 +97,7 @@ typedef struct gtm_conn GTM_Conn;
  * ----------------
  */
 
-/* ===    in fe-connect.c === */
+/* ===	in fe-connect.c === */
 
 /* make a new client connection to the backend */
 /* Asynchronous (non-blocking) */
@@ -124,17 +121,18 @@ extern char *GTMPQport(const GTM_Conn *conn);
 extern ConnStatusType GTMPQstatus(const GTM_Conn *conn);
 extern int GTMPQispostmaster(const GTM_Conn *conn);
 extern char *GTMPQerrorMessage(const GTM_Conn *conn);
-extern int    GTMPQsocket(const GTM_Conn *conn);
+extern int	GTMPQsocket(const GTM_Conn *conn);
 
 /* Enable/disable tracing */
 extern void GTMPQtrace(GTM_Conn *conn, FILE *debug_port);
 extern void GTMPQuntrace(GTM_Conn *conn);
 
 /* Force the write buffer to be written (or at least try) */
-extern int    PQflush(GTM_Conn *conn);
+extern int	PQflush(GTM_Conn *conn);
 
 extern bool GTMSetSockKeepAlive(GTM_Conn *conn, int tcp_keepalives_idle,
 	int tcp_keepalives_interval, int tcp_keepalives_count);
+extern bool GTMSetSockReuseAddr(GTM_Conn *conn);
 
 #define libpq_gettext(x)	x
 

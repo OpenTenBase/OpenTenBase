@@ -1,15 +1,12 @@
 /*-------------------------------------------------------------------------
  *
  * freespace.h
- *      POSTGRES free space map for quickly finding free space in relations
+ *	  POSTGRES free space map for quickly finding free space in relations
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
- * 
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- * 
+ *
  * src/include/storage/freespace.h
  *
  *-------------------------------------------------------------------------
@@ -30,37 +27,32 @@ extern BlockNumber GetPageWithFreeSpace_fromextent(Relation rel, Size spaceNeede
 #endif
 
 extern BlockNumber RecordAndGetPageWithFreeSpace(Relation rel,
-                              BlockNumber oldPage,
-                              Size oldSpaceAvail,
-                              Size spaceNeeded);
+							  BlockNumber oldPage,
+							  Size oldSpaceAvail,
+							  Size spaceNeeded);
 #ifdef _SHARDING_
 extern BlockNumber RecordAndGetPageWithFreeSpace_extent(Relation rel, 
-                              BlockNumber oldPage,
-                              Size oldSpaceAvail,
-                              Size spaceNeeded,
-                              ShardID sid);
+							  BlockNumber oldPage,
+							  Size oldSpaceAvail,
+							  Size spaceNeeded,
+							  ShardID sid);
 extern void RecordNewPageWithFullFreeSpace(Relation rel, BlockNumber heapBlk);
 #endif
 extern void RecordPageWithFreeSpace(Relation rel, BlockNumber heapBlk,
-                        Size spaceAvail);
-#ifdef _SHARDING_
-extern void RecordPageWithFreeSpace_extent(Relation rel, ShardID sid, 
-                            BlockNumber heapBlk, Size spaceAvail);
-
-#endif
+						Size spaceAvail);
 extern void XLogRecordPageWithFreeSpace_extent(RelFileNode rnode, BlockNumber heapBlk,
-                            Size spaceAvail, bool hasExtent);
+							Size spaceAvail, bool hasExtent, bool checksum_enabled);
 #ifdef _SHARDING_
-#define XLogRecordPageWithFreeSpace(rnode, heapBlk, spaceAvail) \
-    XLogRecordPageWithFreeSpace_extent(rnode, heapBlk, spaceAvail, false);
+#define XLogRecordPageWithFreeSpace(rnode, heapBlk, spaceAvail, checksum_enabled) \
+	XLogRecordPageWithFreeSpace_extent(rnode, heapBlk, spaceAvail, false, checksum_enabled);
 uint8 GetMaxAvailWithExtent(Relation rel, ExtentID eid);
 #endif
 
 extern void FreeSpaceMapTruncateRel(Relation rel, BlockNumber nblocks);
 extern void FreeSpaceMapVacuum(Relation rel);
 extern void UpdateFreeSpaceMap(Relation rel,
-                   BlockNumber startBlkNum,
-                   BlockNumber endBlkNum,
-                   Size freespace);
+				   BlockNumber startBlkNum,
+				   BlockNumber endBlkNum,
+				   Size freespace);
 
-#endif                            /* FREESPACE_H_ */
+#endif							/* FREESPACE_H_ */

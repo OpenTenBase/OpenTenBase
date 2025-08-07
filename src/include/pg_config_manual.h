@@ -9,13 +9,9 @@
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * src/include/pg_config_manual.h
  *------------------------------------------------------------------------
  */
-
 /*
  * Maximum length for identifiers (e.g. table names, column names,
  * function names).  Names actually are limited to one less byte than this,
@@ -24,7 +20,6 @@
  * Changing this requires an initdb.
  */
 #define NAMEDATALEN 64
-
 
 #define MAXFULLNAMEDATALEN (NAMEDATALEN * 3 + 2)
 
@@ -40,7 +35,7 @@
  * Changing this does not require an initdb, but it does require a full
  * backend recompile (including any user-defined C functions).
  */
-#define FUNC_MAX_ARGS        100
+#define FUNC_MAX_ARGS		100
 
 /*
  * Maximum number of columns in an index.  There is little point in making
@@ -49,12 +44,12 @@
  *
  * Changing this requires an initdb.
  */
-#define INDEX_MAX_KEYS        32
+#define INDEX_MAX_KEYS		32
 
 /*
  * Maximum number of columns in a partition key
  */
-#define PARTITION_MAX_KEYS    32
+#define PARTITION_MAX_KEYS	32
 
 /*
  * When we don't have native spinlocks, we use semaphores to simulate them.
@@ -62,7 +57,7 @@
  * may improve performance, but supplying a real spinlock implementation is
  * probably far better.
  */
-#define NUM_SPINLOCK_SEMAPHORES        128
+#define NUM_SPINLOCK_SEMAPHORES		128
 
 /*
  * When we have neither spinlocks nor atomic operations support we're
@@ -70,7 +65,7 @@
  * be safe against atomic operations while holding a spinlock separate
  * semaphores have to be used.
  */
-#define NUM_ATOMICS_SEMAPHORES        64
+#define NUM_ATOMICS_SEMAPHORES		64
 
 /*
  * Define this if you want to allow the lo_import and lo_export SQL
@@ -92,7 +87,7 @@
  * on the same platform!  So we just punt and use a reasonably
  * generous setting here.
  */
-#define MAXPGPATH        1024
+#define MAXPGPATH		1024
 
 /*
  * PG_SOMAXCONN: maximum accept-queue length limit passed to
@@ -103,13 +98,13 @@
  * rather than silently reducing the value to what it can handle
  * (which is what most if not all Unixen do).
  */
-#define PG_SOMAXCONN    10000
+#define PG_SOMAXCONN	10000
 
 /*
  * You can try changing this if you have a machine with bytes of
  * another size, but no guarantee...
  */
-#define BITS_PER_BYTE        8
+#define BITS_PER_BYTE		8
 
 /*
  * Preferred alignment for disk I/O buffers.  On some CPUs, copies between
@@ -117,7 +112,7 @@
  * is aligned on a larger-than-MAXALIGN boundary.  Ideally this should be
  * a platform-dependent value, but for now we just hard-wire it.
  */
-#define ALIGNOF_BUFFER    32
+#define ALIGNOF_BUFFER	32
 
 /*
  * Disable UNIX sockets for certain operating systems.
@@ -159,7 +154,7 @@
  * we could also enable by default if we have mmap and msync(MS_ASYNC)?
  */
 #ifdef HAVE_SYNC_FILE_RANGE
-#define DEFAULT_BACKEND_FLUSH_AFTER 0    /* never enabled by default */
+#define DEFAULT_BACKEND_FLUSH_AFTER 0	/* never enabled by default */
 #define DEFAULT_BGWRITER_FLUSH_AFTER 64
 #define DEFAULT_CHECKPOINT_FLUSH_AFTER 32
 #else
@@ -214,7 +209,7 @@
  * which should be safe in nearly all cases.  You might want to override
  * this if you are building 32-bit code for a known-recent PPC machine.
  */
-#ifdef HAVE_PPC_LWARX_MUTEX_HINT    /* must have assembler support in any case */
+#ifdef HAVE_PPC_LWARX_MUTEX_HINT	/* must have assembler support in any case */
 #if defined(__ppc64__) || defined(__powerpc64__)
 #define USE_PPC_LWARX_MUTEX_HINT
 #endif
@@ -240,7 +235,13 @@
  * wasted memory. The default is 128, which should be large enough for all
  * supported platforms.
  */
-#define PG_CACHE_LINE_SIZE        128
+#define PG_CACHE_LINE_SIZE		128
+
+#if defined(__AVX2__)
+    #define ALIGNOF_SIMD  64
+#else
+    #define ALIGNOF_SIMD  32
+#endif
 
 /*
  *------------------------------------------------------------------------
@@ -269,7 +270,7 @@
  * facilitate catching bugs that refer to already-freed values.
  * Right now, this gets defined automatically if --enable-cassert.
  */
-#ifdef USE_ASSERT_CHECKING
+#if defined(USE_ASSERT_CHECKING) && !defined(CLOBBER_FREED_MEMORY)
 #define CLOBBER_FREED_MEMORY
 #endif
 
@@ -281,6 +282,8 @@
 #if defined(USE_ASSERT_CHECKING) || defined(USE_VALGRIND)
 #define MEMORY_CONTEXT_CHECKING
 #endif
+
+#define MEMORY_CONTEXT_TRACK
 
 /*
  * Define this to cause palloc()'d memory to be filled with random data, to
@@ -331,9 +334,16 @@
 /* #define HEAPDEBUGALL */
 /* #define ACLDEBUG */
 
+#define DEFAULT_RESQUEUE_NAME 			"pg_default_resqueue"
+#define MAX_RESQUEUE_NUMBER				1024
 
 /* all code written by Tencent Team must be in macro __OPENTENBASE__ block*/
 #define __OPENTENBASE__ 0
+#define __OPENTENBASE_C__ 0
+#define __OPENTENBASE_C_TEST__ 0
+//#define __OPENTENBASE_C_CHECK__ 0
+#define VECTOR_SCAN_COMPATIBLE 0
+//#define __OPENTENBASE_C_DEBUG__ 0
 #define __SUPPORT_DISTRIBUTED_TRANSACTION__ 0
 //#define __PAGE_TIMESTAMP_LOG__ 0
 //#define __USE_GLOBAL_SNAPSHOT__ 0
@@ -346,15 +356,22 @@
 #endif
 #define _MIGRATE_ 0
 #define _SHARDING_
+#define __LICENSE__ 0
 #define __AUDIT__ 0
 #define _MLS_ 0
 #define __AUDIT_FGA__
 #define __STORAGE_SCALABLE__ 0
 #define __XLOG__ 0
-#define __COLD_HOT__ 0
 #define __SUBSCRIPTION__ 0
 #define _PUB_SUB_RELIABLE_ 0
+#define __RESOURCE_QUEUE__ 0
+#define __FDW__ 0
 #define __TWO_PHASE_TRANS__ 0
 //#define __TWO_PHASE_TESTS__ 0
+
 /* MAX NODES NUMBER of the cluster */
-#define     MAX_NODES_NUMBER             4096
+#define     MAX_NODES_NUMBER   		  4096
+
+//#define LWLOCK_STATS 0
+/* global trace id length*/
+#define TRACEID_LEN               128

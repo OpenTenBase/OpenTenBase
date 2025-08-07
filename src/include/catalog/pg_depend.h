@@ -1,8 +1,8 @@
 /*-------------------------------------------------------------------------
  *
  * pg_depend.h
- *      definition of the system "dependency" relation (pg_depend)
- *      along with the relation's initial contents.
+ *	  definition of the system "dependency" relation (pg_depend)
+ *	  along with the relation's initial contents.
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -11,8 +11,8 @@
  * src/include/catalog/pg_depend.h
  *
  * NOTES
- *      the genbki.pl script reads this file and generates .bki
- *      information from the DATA() statements.
+ *	  the genbki.pl script reads this file and generates .bki
+ *	  information from the DATA() statements.
  *
  *-------------------------------------------------------------------------
  */
@@ -22,56 +22,56 @@
 #include "catalog/genbki.h"
 
 /* ----------------
- *        pg_depend definition.  cpp turns this into
- *        typedef struct FormData_pg_depend
+ *		pg_depend definition.  cpp turns this into
+ *		typedef struct FormData_pg_depend
  * ----------------
  */
 #define DependRelationId  2608
 
 CATALOG(pg_depend,2608) BKI_WITHOUT_OIDS
 {
-    /*
-     * Identification of the dependent (referencing) object.
-     *
-     * These fields are all zeroes for a DEPENDENCY_PIN entry.
-     */
-    Oid            classid;        /* OID of table containing object */
-    Oid            objid;            /* OID of object itself */
-    int32        objsubid;        /* column number, or 0 if not used */
+	/*
+	 * Identification of the dependent (referencing) object.
+	 *
+	 * These fields are all zeroes for a DEPENDENCY_PIN entry.
+	 */
+	Oid			classid;		/* OID of table containing object */
+	Oid			objid;			/* OID of object itself */
+	int32		objsubid;		/* column number, or 0 if not used */
 
-    /*
-     * Identification of the independent (referenced) object.
-     */
-    Oid            refclassid;        /* OID of table containing object */
-    Oid            refobjid;        /* OID of object itself */
-    int32        refobjsubid;    /* column number, or 0 if not used */
+	/*
+	 * Identification of the independent (referenced) object.
+	 */
+	Oid			refclassid;		/* OID of table containing object */
+	Oid			refobjid;		/* OID of object itself */
+	int32		refobjsubid;	/* column number, or 0 if not used */
 
-    /*
-     * Precise semantics of the relationship are specified by the deptype
-     * field.  See DependencyType in catalog/dependency.h.
-     */
-    char        deptype;        /* see codes in dependency.h */
+	/*
+	 * Precise semantics of the relationship are specified by the deptype
+	 * field.  See DependencyType in catalog/dependency.h.
+	 */
+	char		deptype;		/* see codes in dependency.h */
 } FormData_pg_depend;
 
 /* ----------------
- *        Form_pg_depend corresponds to a pointer to a row with
- *        the format of pg_depend relation.
+ *		Form_pg_depend corresponds to a pointer to a row with
+ *		the format of pg_depend relation.
  * ----------------
  */
 typedef FormData_pg_depend *Form_pg_depend;
 
 /* ----------------
- *        compiler constants for pg_depend
+ *		compiler constants for pg_depend
  * ----------------
  */
-#define Natts_pg_depend                7
-#define Anum_pg_depend_classid        1
-#define Anum_pg_depend_objid        2
-#define Anum_pg_depend_objsubid        3
-#define Anum_pg_depend_refclassid    4
-#define Anum_pg_depend_refobjid        5
-#define Anum_pg_depend_refobjsubid    6
-#define Anum_pg_depend_deptype        7
+#define Natts_pg_depend				7
+#define Anum_pg_depend_classid		1
+#define Anum_pg_depend_objid		2
+#define Anum_pg_depend_objsubid		3
+#define Anum_pg_depend_refclassid	4
+#define Anum_pg_depend_refobjid		5
+#define Anum_pg_depend_refobjsubid	6
+#define Anum_pg_depend_deptype		7
 
 
 /*
@@ -87,4 +87,4 @@ typedef FormData_pg_depend *Form_pg_depend;
  * convenient to find from the contents of other catalogs.
  */
 
-#endif                            /* PG_DEPEND_H */
+#endif							/* PG_DEPEND_H */

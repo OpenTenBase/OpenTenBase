@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * lockoptions.h
- *      Common header for some locking-related declarations.
+ *	  Common header for some locking-related declarations.
  *
  *
  * Copyright (c) 2014-2017, PostgreSQL Global Development Group
@@ -20,11 +20,11 @@
  */
 typedef enum LockClauseStrength
 {
-    LCS_NONE,                    /* no such clause - only used in PlanRowMark */
-    LCS_FORKEYSHARE,            /* FOR KEY SHARE */
-    LCS_FORSHARE,                /* FOR SHARE */
-    LCS_FORNOKEYUPDATE,            /* FOR NO KEY UPDATE */
-    LCS_FORUPDATE                /* FOR UPDATE */
+	LCS_NONE,					/* no such clause - only used in PlanRowMark */
+	LCS_FORKEYSHARE,			/* FOR KEY SHARE */
+	LCS_FORSHARE,				/* FOR SHARE */
+	LCS_FORNOKEYUPDATE,			/* FOR NO KEY UPDATE */
+	LCS_FORUPDATE				/* FOR UPDATE */
 } LockClauseStrength;
 
 /*
@@ -35,12 +35,12 @@ typedef enum LockClauseStrength
  */
 typedef enum LockWaitPolicy
 {
-    /* Wait for the lock to become available (default behavior) */
-    LockWaitBlock,
-    /* Skip rows that can't be locked (SKIP LOCKED) */
-    LockWaitSkip,
-    /* Raise an error if a row cannot be locked (NOWAIT) */
-    LockWaitError
+	/* Wait for the lock to become available (default behavior) */
+	LockWaitBlock,
+	/* Skip rows that can't be locked (SKIP LOCKED) */
+	LockWaitSkip,
+	/* Raise an error if a row cannot be locked (NOWAIT) */
+	LockWaitError
 } LockWaitPolicy;
 
-#endif                            /* LOCKOPTIONS_H */
+#endif							/* LOCKOPTIONS_H */

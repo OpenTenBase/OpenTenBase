@@ -6,9 +6,6 @@
  *
  * Copyright (c) 2001-2017, PostgreSQL Global Development Group
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * src/include/executor/instrument.h
  *
  *-------------------------------------------------------------------------
@@ -41,6 +38,7 @@ typedef enum InstrumentOption
 	INSTRUMENT_TIMER = 1 << 0,	/* needs timer (and row counts) */
 	INSTRUMENT_BUFFERS = 1 << 1,	/* needs buffer usage */
 	INSTRUMENT_ROWS = 1 << 2,	/* needs row count */
+	INSTRUMENT_SQL_WARN = 1 << 3,	/* needs to print plan */
 	INSTRUMENT_ALL = PG_INT32_MAX
 } InstrumentOption;
 
@@ -55,47 +53,43 @@ typedef struct Instrumentation
 	instr_time	counter;		/* Accumulated runtime for this node */
 	double		firsttuple;		/* Time for first tuple of this cycle */
 	double		tuplecount;		/* Tuples emitted so far this cycle */
+	double		vectorcount;	/* Vectors emitted so far this cycle */
 	BufferUsage bufusage_start; /* Buffer usage at start */
 	/* Accumulated statistics across all completed cycles: */
 	double		startup;		/* Total startup time (in seconds) */
 	double		total;			/* Total total time (in seconds) */
 	double		ntuples;		/* Total tuples produced */
+	double		ntuples2;		/* Secondary node-specific tuple counter */
+	double		nvectors;		/* Total vectors produced */
 	double		nloops;			/* # of run cycles for this node */
 	double		nfiltered1;		/* # tuples removed by scanqual or joinqual */
 	double		nfiltered2;		/* # tuples removed by "other" quals */
 	BufferUsage bufusage;		/* Total buffer usage */
+	double	   	exec_firsttuple; /* The time from entering the executor to the first tuple */
+	double	    exec_total;  /* The total time from entering the executor to finish */
+	double 		exec_enter;  /* The time from entering the executor */
 } Instrumentation;
 
 typedef struct WorkerInstrumentation
 {
-	int			num_workers;	/* # of structures that follow */
+	int			 num_workers;	/* # of structures that follow */
 	Instrumentation instrument[FLEXIBLE_ARRAY_MEMBER];
 } WorkerInstrumentation;
 
-#ifdef __OPENTENBASE__
-typedef struct RemoteInstrumentation
-{
-	int              nodeid;    /* which datanode the instrument comes from */
-	Instrumentation  instr;     /* the instrumentation */
-} RemoteInstrumentation;
-
-typedef struct DatanodeInstrumentation
-{
-	int     nnode;             /* how many datanodes this node has been executed */
-	RemoteInstrumentation instrument[FLEXIBLE_ARRAY_MEMBER];
-} DatanodeInstrumentation;
-#endif
-
 extern PGDLLIMPORT BufferUsage pgBufferUsage;
-
+extern bool real_tuple_exec;
 extern Instrumentation *InstrAlloc(int n, int instrument_options);
 extern void InstrInit(Instrumentation *instr, int instrument_options);
 extern void InstrStartNode(Instrumentation *instr);
+extern void InstrStartFragment(Instrumentation *instr, instr_time* executor_starttime);
 extern void InstrStopNode(Instrumentation *instr, double nTuples);
+extern void InstrStopFragment(Instrumentation *instr, instr_time* executor_starttime);
 extern void InstrEndLoop(Instrumentation *instr);
 extern void InstrAggNode(Instrumentation *dst, Instrumentation *add);
 extern void InstrStartParallelQuery(void);
 extern void InstrEndParallelQuery(BufferUsage *result);
 extern void InstrAccumParallelQuery(BufferUsage *result);
+extern void BufferUsageAccumDiff(BufferUsage *dst,
+								 const BufferUsage *add, const BufferUsage *sub);
 
 #endif							/* INSTRUMENT_H */

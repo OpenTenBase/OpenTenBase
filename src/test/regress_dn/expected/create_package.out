@@ -1,0 +1,194 @@
+\c regression_ora
+--
+-- CREATE_FUNCTION_2
+--
+CREATE PACKAGE pkghobby as 
+$p$
+    FUNCTION hobbies(person) RETURNS setof hobbies_r;
+    FUNCTION hobby_construct(text, text) RETURNS hobbies_r;
+$p$;
+CREATE PACKAGE BODY pkghobby as
+$p$
+    FUNCTION hobbies(person)
+        RETURNS setof hobbies_r
+        AS 'select * from hobbies_r where person = $1.name'
+        LANGUAGE SQL;
+
+    FUNCTION hobby_construct(text, text)
+        RETURNS hobbies_r
+        AS 'select $1 as name, $2 as hobby'
+        LANGUAGE SQL;
+$p$;
+-- cannot drop function which defined in package
+DROP FUNCTION pkghobby.hobbies;
+ERROR:  cannot drop function PKGHOBBY.HOBBIES(PERSON) because package PKGHOBBY requires it
+HINT:  You can drop package PKGHOBBY instead.
+SELECT pkghobby.hobby_construct('n1', 'l2');
+ HOBBY_CONSTRUCT 
+-----------------
+ (n1,l2)
+(1 row)
+
+DROP PACKAGE BODY pkghobby;
+SELECT pkghobby.hobby_construct('n1', 'l2');
+ERROR:  must create package body
+DROP PACKAGE pkghobby;
+CREATE PACKAGE body as
+$p$
+    FUNCTION hobbies(person) RETURNS setof hobbies_r;
+    FUNCTION hobby_construct(text, text) RETURNS hobbies_r;
+$p$;
+ERROR:  syntax error at or near "as"
+LINE 1: CREATE PACKAGE body as
+                            ^
+CREATE PACKAGE BODY body as
+$p$
+    FUNCTION hobbies(person)
+        RETURNS setof hobbies_r
+        AS 'select * from hobbies_r where person = $1.name'
+        LANGUAGE SQL;
+
+    FUNCTION hobby_construct(text, text)
+        RETURNS hobbies_r
+        AS 'select $1 as name, $2 as hobby'
+        LANGUAGE SQL;
+$p$;
+ERROR:  syntax error at or near "body"
+LINE 1: CREATE PACKAGE BODY body as
+                            ^
+-- create package body before create package
+CREATE PACKAGE BODY pkghobby as
+$p$
+    FUNCTION hobbies(person)
+        RETURNS setof hobbies_r
+        AS 'select * from hobbies_r where person = $1.name'
+        LANGUAGE SQL;
+
+    FUNCTION hobby_construct(text, text)
+        RETURNS hobbies_r
+        AS 'select $1 as name, $2 as hobby'
+        LANGUAGE SQL;
+$p$;
+ERROR:  package "PKGHOBBY" does not exist
+HINT:  please create the package first.
+CREATE PACKAGE pkghobby as
+$p$
+    FUNCTION hobbies(person) RETURNS setof hobbies_r;
+    FUNCTION hobby_construct(text, text) RETURNS hobbies_r;
+$p$;
+-- create package body which fucntion is not declare in package header
+CREATE PACKAGE BODY pkghobby as
+$p$
+    FUNCTION hobbies(person)
+        RETURNS setof hobbies_r
+        AS 'select * from hobbies_r where person = $1.name'
+        LANGUAGE SQL;
+
+    FUNCTION hobby_construct4other(text, text)
+        RETURNS hobbies_r
+        AS 'select $1 as name, $2 as hobby'
+        LANGUAGE SQL;
+$p$;
+ERROR:  function HOBBY_CONSTRUCT is declared in a package specification and must be defined in the package body
+CREATE PACKAGE BODY pkghobby as
+$p$
+    FUNCTION hobbies(person)
+        RETURNS setof hobbies_r
+        AS 'select * from hobbies_r where person = $1.name'
+        LANGUAGE SQL;
+
+    FUNCTION hobby_construct(text, text)
+        RETURNS hobbies_r
+        AS 'select $1 as name, $2 as hobby'
+        LANGUAGE SQL;
+$p$;
+-- replace
+CREATE OR REPLACE PACKAGE pkghobby as
+$p$
+    FUNCTION hobbies(person) RETURNS setof hobbies_r;
+    FUNCTION hobby_construct4other(text, text) RETURNS hobbies_r;
+$p$;
+CREATE OR REPLACE PACKAGE BODY pkghobby as
+$p$
+    FUNCTION hobbies(person)
+        RETURNS setof hobbies_r
+        AS 'select * from hobbies_r where person = $1.name'
+        LANGUAGE SQL;
+
+    FUNCTION hobby_construct4other(text, text)
+        RETURNS hobbies_r
+        AS 'select $1 as name, $2 as hobby'
+        LANGUAGE SQL;
+$p$;
+SELECT pkghobby.hobby_construct4other('n1', 'l2');
+ HOBBY_CONSTRUCT4OTHER 
+-----------------------
+ (n1,l2)
+(1 row)
+
+-- test multi-line comments
+CREATE OR REPLACE PACKAGE test AS
+-- multi
+-- line
+-- comments
+END test;
+/
+CREATE OR REPLACE PACKAGE BODY test AS
+-- multi
+-- line
+-- comments
+	var1 varchar2(4096) := 'test';
+	function func return varchar2 is
+    var2 INTEGER;
+  begin 
+    var2 = 12;
+  return gstr;
+  end func;
+END test;
+/
+/*
+ * test end the procedures named unreserved keywords in 
+ * format of 'END {unreserved_keyword};'
+ */
+ -- log
+CREATE OR REPLACE PACKAGE PLOG IS 
+PROCEDURE log();
+END PLOG;
+/
+CREATE OR REPLACE PACKAGE BODY PLOG IS 
+PROCEDURE log() is
+BEGIN
+    raise notice 'function:log';
+END log;
+END PLOG;
+/
+call plog.log();
+NOTICE:  function:log
+-- error
+CREATE OR REPLACE PACKAGE PLOG IS 
+PROCEDURE error();
+END PLOG;
+/
+CREATE OR REPLACE PACKAGE BODY PLOG IS 
+PROCEDURE error() IS
+BEGIN
+    raise notice 'function:error';
+END error;
+END PLOG;
+/
+call plog.error();
+NOTICE:  function:error
+-- debug
+CREATE OR REPLACE PACKAGE PLOG IS 
+PROCEDURE debug();
+END PLOG;
+/
+CREATE OR REPLACE PACKAGE BODY PLOG IS 
+PROCEDURE debug() IS
+BEGIN
+    raise notice 'function:debug';
+END debug;
+END PLOG;
+/
+call plog.debug();
+NOTICE:  function:debug

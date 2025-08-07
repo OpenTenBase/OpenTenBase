@@ -1,0 +1,19 @@
+DATASOURCE: 
+  COS:
+    Type:       QCloud
+    AccessKey:  xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+    SecretKey:  xxxxxxxxxxxxxxxxxxxrxxxxxxxxx
+    Region:     xx
+    UseHttps:   y
+    Loglevel:   OSS_WARNING
+    UseWriteCache:  true
+  KAFKA:
+    k_brokers:  ip:port
+    k_timeout_ms: 500
+    k_msg_batch: 200
+    datetime_convert: true
+    MSGFORMAT:
+      FORMAT: json
+      OP: payload-op
+      BEFORE: payload-before
+      AFTER:  payload-after

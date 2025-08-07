@@ -49,22 +49,22 @@ SELECT pg_partition_root('ptif_test0_index');
 SELECT pg_partition_root('ptif_test3_index');
 
 -- List all tables members of the tree
-SELECT relid, parentrelid, level, isleaf
+SELECT relid, parentrelid, "level", isleaf
   FROM pg_partition_tree('ptif_test');
 -- List tables from an intermediate level
-SELECT relid, parentrelid, level, isleaf
+SELECT relid, parentrelid, "level", isleaf
   FROM pg_partition_tree('ptif_test0') p
   JOIN pg_class c ON (p.relid = c.oid);
 -- List from leaf table
-SELECT relid, parentrelid, level, isleaf
+SELECT relid, parentrelid, "level", isleaf
   FROM pg_partition_tree('ptif_test01') p
   JOIN pg_class c ON (p.relid = c.oid);
 -- List from partitioned table with no partitions
-SELECT relid, parentrelid, level, isleaf
+SELECT relid, parentrelid, "level", isleaf
   FROM pg_partition_tree('ptif_test3') p
   JOIN pg_class c ON (p.relid = c.oid);
 -- List all members using pg_partition_root with leaf table reference
-SELECT relid, parentrelid, level, isleaf
+SELECT relid, parentrelid, "level", isleaf
   FROM pg_partition_tree(pg_partition_root('ptif_test01')) p
   JOIN pg_class c ON (p.relid = c.oid);
 -- List all ancestors of root and leaf tables
@@ -75,7 +75,7 @@ DROP TABLE ptif_test;
 
 -- A table not part of a partition tree works is not listed.
 CREATE TABLE ptif_normal_table(a int);
-SELECT relid, parentrelid, level, isleaf
+SELECT relid, parentrelid, "level", isleaf
   FROM pg_partition_tree('ptif_normal_table');
 SELECT pg_partition_root('ptif_normal_table');
 SELECT * FROM pg_partition_ancestors('ptif_normal_table');
@@ -92,3 +92,45 @@ SELECT * FROM pg_partition_ancestors('ptif_test_view');
 SELECT * FROM pg_partition_ancestors('ptif_test_matview');
 DROP VIEW ptif_test_view;
 DROP MATERIALIZED VIEW ptif_test_matview;
+
+-- partition table without partitioned with index, can select normally
+CREATE TABLE p_t(stat_month VARCHAR(6), organ_flag CHAR(1)) PARTITION BY LIST (stat_month) with (oids = false);
+SELECT * FROM p_t;
+CREATE INDEX p_t_idx ON p_t USING btree(organ_flag);
+SELECT * FROM p_t;
+DROP TABLE p_t cascade;
+
+create or REPLACE procedure bug_col_par_ad_insert_data(starts int,table_num int, table_name varchar)
+as
+$$
+declare
+ v_sql varchar;
+BEGIN
+ v_sql := 'insert into '||table_name||' select i, repeat((i%365)::text,5)::bytea, (i%10)::char, int8(i%550), int2(i%127), int4(i%789),round(i%20*2.5866,3)::numeric, bpchar(md5((i%300)::text)), (''工号:''||(i%360))::varchar, ''南山''||(i%400)||''号''::varchar, md5((i%300)::TEXT), (i%666)::bigint::oid, ((i%200)*2.35)::float4, float8((i%300)*2.215), ''abstime ''||(i%765), ''reltime ''||(i%332), ''tinterval ''||(i%378), concat(concat_ws(''.'',(i+100)%200, i%100,i%100,(i+100)%200),''/25'')::inet,date(''2022-02-17 19:12:40+08''::timestamp + (i%500+1)*interval ''1 day''), ''00:00:00'' + (i%400+1) * interval ''1 minute'', (date(''2022-02-18'')+(i%24) * interval ''1 day''+(i%24) * interval ''1 minute''+(i%24) * interval ''1 second'')::timestamp,timestamptz((date(date(''2022-02-18'')+(i%24) * interval ''1 day'')),(date ''2022-02-18'' + (i%365) * interval ''10 hour'')::time without time zone),(i%500) * interval ''1 day'',timetz(''2022-02-16 17:29:13.9+08''::timestamp + (i%500)*interval ''1 second''), concat(concat_ws(''.'',(i+100)%200, i%100,i%100,(i+100)%200),''/25'')::inet, int4(i%10)::bit(5), (i%100+1)::int::bit(5)::varbit(5), bool(i::int4) from generate_series('||starts||','||table_num||') i';
+ -- RAISE notice '%', v_sql;
+ execute v_sql;
+end;
+$$
+language plpgsql;
+
+-- TestPoint: 复杂类型向量化查询
+drop type if exists complex_20220623_1 cascade;
+CREATE TYPE complex_20220623_1 AS (i integer ,dp double precision,t text);
+
+drop table if exists bug_col_par_hash_ad_shard_1;
+create table bug_col_par_hash_ad_shard_1(c0 INTEGER,c1 BYTEA default '',c2 CHAR default 'a',c3 INT8 default 0,c4 INT2 default -1,c5 INT4 default -1,c6 numeric default 0.1,c7 BPCHAR default '',c8 VARCHAR default '',c9 varchar default '',c10 TEXT default '',c11 OID default 1,c12 FLOAT4 default 0.1,c13 FLOAT8 default 0.1,c14 text default 'abstime',c15 varchar default '00:05:04',c16 varchar default 'tinterval(abstime(now()), abstime(now()))',c17 INET default '148.85.65.189/25',c18 DATE default '2022-02-16 14:25:25',c19 TIME default '14:25:03',c20 TIMESTAMP default now(),c21 TIMESTAMPTZ default now(),c22 INTERVAL default interval '1 hour',c23 TIMETZ default '14:36:04+08',c24 CIDR default '198.24.10.0/24',c25 bit varying(5) default '',c26 VARBIT default '',c27 bool default false) partition by range (c3) distribute by shard(c18,c20,c3);
+create table bug_col_par_hash_ad_shard_1_part_0 partition of bug_col_par_hash_ad_shard_1 for values from (minvalue) to (100);
+create table bug_col_par_hash_ad_shard_1_part_1 partition of bug_col_par_hash_ad_shard_1 for values from (100) to (150);
+create table bug_col_par_hash_ad_shard_1_part_2 partition of bug_col_par_hash_ad_shard_1 for values from (150) to (250);
+create table bug_col_par_hash_ad_shard_1_part_3 partition of bug_col_par_hash_ad_shard_1 for values from (250) to (350) ;
+create table bug_col_par_hash_ad_shard_1_part_4 partition of bug_col_par_hash_ad_shard_1 default;
+
+call bug_col_par_ad_insert_data(1, 3000, 'bug_col_par_hash_ad_shard_1');
+call bug_col_par_ad_insert_data(3001, 6000, 'bug_col_par_hash_ad_shard_1');
+call bug_col_par_ad_insert_data(6001, 10000, 'bug_col_par_hash_ad_shard_1');
+call bug_col_par_ad_insert_data(10001, 12000, 'bug_col_par_hash_ad_shard_1');
+call bug_col_par_ad_insert_data(12001, 13000, 'bug_col_par_hash_ad_shard_1');
+
+alter table bug_col_par_hash_ad_shard_1 add column f4 complex_20220623_1 default (1, 1.5, 'ayoyo');
+select * from bug_col_par_hash_ad_shard_1 order by 1 limit 1 offset 10;
+select f4 from bug_col_par_hash_ad_shard_1 order by 1 limit 1 offset 10;

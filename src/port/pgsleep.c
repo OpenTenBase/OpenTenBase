@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * pgsleep.c
- *       Portable delay handling.
+ *	   Portable delay handling.
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -46,18 +46,67 @@
 void
 pg_usleep(long microsec)
 {
-    if (microsec > 0)
-    {
+	if (microsec > 0)
+	{
 #ifndef WIN32
-        struct timeval delay;
+		struct timeval delay;
 
-        delay.tv_sec = microsec / 1000000L;
-        delay.tv_usec = microsec % 1000000L;
-        (void) select(0, NULL, NULL, NULL, &delay);
+		delay.tv_sec = microsec / 1000000L;
+		delay.tv_usec = microsec % 1000000L;
+		(void) select(0, NULL, NULL, NULL, &delay);
 #else
-        SleepEx((microsec < 500 ? 1 : (microsec + 500) / 1000), FALSE);
+		SleepEx((microsec < 500 ? 1 : (microsec + 500) / 1000), FALSE);
 #endif
-    }
+	}
 }
 
-#endif                            /* defined(FRONTEND) || !defined(WIN32) */
+/*
+ * pg_usleep_well --- delay the specified number of microseconds persistently.
+ *
+ * Note: This serves the same purpose as its origin pg_usleep, but in addition
+ * Will try to sleep persistently while being interrupted. If interrupted while
+ * sleeping, it will try to sleep again for the remaining time designated.
+ * This effort is also bound by parameter retry passed in. If we run out of
+ * retry time, we will accept being interrupted and end the sleep.
+ */
+void
+pg_usleep_well(long microsec, int retry)
+{
+	if (microsec > 0)
+	{
+#ifndef WIN32
+		struct timeval delay;
+		struct timeval tz_before;
+		struct timeval tz_after;
+		struct timezone timezone;
+		int ret;
+		long time_slept;
+
+		if (retry <= 0)
+		{
+			/*
+			 * Someone really don't want us to fall into sleep,
+			 * wake up then.
+			 */
+			 return;
+		}
+
+		delay.tv_sec = microsec / 1000000L;
+		delay.tv_usec = microsec % 1000000L;
+		gettimeofday(&tz_before, &timezone);
+		ret = select(0, NULL, NULL, NULL, &delay);
+		if (errno == EINTR && ret != 0)
+		{
+			errno = 0;
+			gettimeofday(&tz_after, &timezone);
+			time_slept = (tz_after.tv_sec - tz_before.tv_sec) * 1000000L + tz_after.tv_usec - tz_before.tv_usec;
+			return pg_usleep_well(microsec - time_slept, retry--);
+		}
+#else
+		SleepEx((microsec < 500 ? 1 : (microsec + 500) / 1000), FALSE);
+#endif
+	}
+}
+
+
+#endif							/* defined(FRONTEND) || !defined(WIN32) */

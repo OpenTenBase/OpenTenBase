@@ -1,0 +1,2748 @@
+\c opentenbase_ora_package_function_regression_ora
+\set ECHO none
+ ?column? 
+----------
+        1
+(1 row)
+
+ ?column? 
+----------
+        1
+(1 row)
+
+ TO_BINARY_FLOAT_EXT 
+---------------------
+             123.457
+(1 row)
+
+ TO_BINARY_FLOAT_EXT 
+---------------------
+             123.456
+(1 row)
+
+ TO_BINARY_FLOAT_EXT 
+---------------------
+              1488.3
+(1 row)
+
+ TO_BINARY_FLOAT_EXT 
+---------------------
+                13.3
+(1 row)
+
+ERROR:  This argument must be a literal
+ TO_BINARY_FLOAT_EXT 
+---------------------
+                1000
+(1 row)
+
+ TO_BINARY_FLOAT_EXT 
+---------------------
+            1000.234
+(1 row)
+
+ TO_BINARY_FLOAT_EXT 
+---------------------
+           2024.0115
+(1 row)
+
+ TO_BINARY_FLOAT_EXT 
+---------------------
+           1000.1234
+(1 row)
+
+ ?column? 
+----------
+        1
+(1 row)
+
+ ?column? 
+----------
+        1
+(1 row)
+
+ TO_BINARY_DOUBLE_EXT 
+----------------------
+           123.456789
+(1 row)
+
+ TO_BINARY_DOUBLE_EXT 
+----------------------
+              123.456
+(1 row)
+
+ TO_BINARY_DOUBLE_EXT 
+----------------------
+                 2050
+(1 row)
+
+ERROR:  This argument must be a literal
+ TO_BINARY_DOUBLE_EXT 
+----------------------
+                 1000
+(1 row)
+
+ TO_BINARY_DOUBLE_EXT 
+----------------------
+             1000.234
+(1 row)
+
+ TO_BINARY_DOUBLE_EXT 
+----------------------
+            2024.0115
+(1 row)
+
+ TO_BINARY_DOUBLE_EXT 
+----------------------
+            1000.1234
+(1 row)
+
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+  C1   
+-------
+ -.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1     
+-----------
+ -2123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  Invalid number format model
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  multiple decimal points
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  cannot use "$" twice
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  Invalid number format model
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  Invalid number format model
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  multiple decimal points
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  Invalid number format model
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  Invalid number format model
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  Invalid number format model
+ERROR:  invalid number
+ERROR:  invalid number
+   C1    
+---------
+ 123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+   C1    
+---------
+ 123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  "RN" not supported for input
+ERROR:  "RN" not supported for input
+ERROR:  invalid number
+ERROR:  cannot use "S" twice
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  Invalid number format model
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+ C1  
+-----
+ 123
+(1 row)
+
+ C1  
+-----
+ 123
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid NLS parameter string used in SQL function
+ERROR:  invalid NLS parameter string used in SQL function
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+ C1 
+----
+   
+(1 row)
+
+ C1 
+----
+   
+(1 row)
+
+ C1 
+----
+   
+(1 row)
+
+ C1 
+----
+   
+(1 row)
+
+ C1 
+----
+   
+(1 row)
+
+ C1 
+----
+   
+(1 row)
+
+ C1 
+----
+   
+(1 row)
+
+ C1 
+----
+   
+(1 row)
+
+ C1 
+----
+   
+(1 row)
+
+ C1 
+----
+   
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+  C1   
+-------
+ -.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1     
+-----------
+ -2123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  Invalid number format model
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  multiple decimal points
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  cannot use "$" twice
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  Invalid number format model
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  Invalid number format model
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  multiple decimal points
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  Invalid number format model
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  Invalid number format model
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  Invalid number format model
+ERROR:  invalid number
+ERROR:  invalid number
+   C1    
+---------
+ 123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+   C1    
+---------
+ 123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  "RN" not supported for input
+ERROR:  "RN" not supported for input
+ERROR:  invalid number
+ERROR:  cannot use "S" twice
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  Invalid number format model
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+ C1  
+-----
+ 123
+(1 row)
+
+ C1  
+-----
+ 123
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid NLS parameter string used in SQL function
+ERROR:  invalid NLS parameter string used in SQL function
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+ C1 
+----
+   
+(1 row)
+
+ C1 
+----
+   
+(1 row)
+
+ C1 
+----
+   
+(1 row)
+
+ C1 
+----
+   
+(1 row)
+
+ C1 
+----
+   
+(1 row)
+
+ERROR:  This argument must be a literal
+ C1 
+----
+   
+(1 row)
+
+ C1 
+----
+   
+(1 row)
+
+ERROR:  This argument must be a literal
+ERROR:  This argument must be a literal
+ERROR:  This argument must be a literal
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+  C1   
+-------
+ -.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1     
+-----------
+ -2123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  Invalid number format model
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  multiple decimal points
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  cannot use "$" twice
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  Invalid number format model
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  Invalid number format model
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  multiple decimal points
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  Invalid number format model
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  Invalid number format model
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  Invalid number format model
+ERROR:  invalid number
+ERROR:  invalid number
+   C1    
+---------
+ 123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+   C1    
+---------
+ 123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  "RN" not supported for input
+ERROR:  "RN" not supported for input
+ERROR:  invalid number
+ERROR:  cannot use "S" twice
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  Invalid number format model
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+ C1  
+-----
+ 123
+(1 row)
+
+ C1  
+-----
+ 123
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid NLS parameter string used in SQL function
+ERROR:  invalid NLS parameter string used in SQL function
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+ C1 
+----
+   
+(1 row)
+
+ C1 
+----
+   
+(1 row)
+
+ C1 
+----
+   
+(1 row)
+
+ C1 
+----
+   
+(1 row)
+
+ C1 
+----
+   
+(1 row)
+
+ C1 
+----
+   
+(1 row)
+
+ C1 
+----
+   
+(1 row)
+
+ C1 
+----
+   
+(1 row)
+
+ C1 
+----
+   
+(1 row)
+
+ C1 
+----
+   
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+  C1   
+-------
+ -.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1     
+-----------
+ -2123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  Invalid number format model
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  multiple decimal points
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  cannot use "$" twice
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  Invalid number format model
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  Invalid number format model
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  multiple decimal points
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  Invalid number format model
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  Invalid number format model
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  Invalid number format model
+ERROR:  invalid number
+ERROR:  invalid number
+   C1    
+---------
+ 123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+   C1    
+---------
+ 123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  "RN" not supported for input
+ERROR:  "RN" not supported for input
+ERROR:  invalid number
+ERROR:  cannot use "S" twice
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  Invalid number format model
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+ C1  
+-----
+ 123
+(1 row)
+
+ C1  
+-----
+ 123
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid NLS parameter string used in SQL function
+ERROR:  invalid NLS parameter string used in SQL function
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+ C1 
+----
+   
+(1 row)
+
+ C1 
+----
+   
+(1 row)
+
+ C1 
+----
+   
+(1 row)
+
+ C1 
+----
+   
+(1 row)
+
+ C1 
+----
+   
+(1 row)
+
+ERROR:  This argument must be a literal
+ C1 
+----
+   
+(1 row)
+
+ C1 
+----
+   
+(1 row)
+
+ERROR:  This argument must be a literal
+ERROR:  This argument must be a literal
+ERROR:  This argument must be a literal
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1     | LENGTH 
+-----------+--------
+ -1b23a456 |      9
+(1 row)
+
+         C1          | LENGTH 
+---------------------+--------
+  -AusDollar1b23a456 |     19
+(1 row)
+
+         C1          | LENGTH 
+---------------------+--------
+ -AusDollars1b23a456 |     19
+(1 row)
+
+ERROR:  invalid NLS parameter string used in SQL function
+ERROR:  invalid NLS parameter string used in SQL function
+         C1          | LENGTH 
+---------------------+--------
+  -territory1b23a456 |     19
+(1 row)
+
+ C1 | LENGTH 
+----+--------
+    |       
+(1 row)
+
+ C1 | LENGTH 
+----+--------
+    |       
+(1 row)
+
+ C1 | LENGTH 
+----+--------
+    |       
+(1 row)
+
+ C1 | LENGTH 
+----+--------
+    |       
+(1 row)
+
+ C1 | LENGTH 
+----+--------
+    |       
+(1 row)
+
+    C1     | LENGTH 
+-----------+--------
+ -1b23a456 |      9
+(1 row)
+
+    C1     | LENGTH 
+-----------+--------
+ -1b23a456 |      9
+(1 row)
+
+ C1 | LENGTH 
+----+--------
+ -0 |      2
+(1 row)
+
+ C1  | LENGTH 
+-----+--------
+  -0 |      3
+(1 row)
+
+   C1    | LENGTH 
+---------+--------
+    -.46 |      7
+(1 row)
+
+     C1     | LENGTH 
+------------+--------
+     -.4560 |     10
+(1 row)
+
+ C1 | LENGTH 
+----+--------
+ -0 |      2
+(1 row)
+
+ C1  | LENGTH 
+-----+--------
+  -0 |      3
+(1 row)
+
+    C1    | LENGTH 
+----------+--------
+  -00.456 |      8
+(1 row)
+
+     C1     | LENGTH 
+------------+--------
+ -0000.4560 |     10
+(1 row)
+
+ERROR:  Invalid number format model
+ERROR:  Invalid number format model
+  C1  | LENGTH 
+------+--------
+   -0 |      4
+(1 row)
+
+    C1    | LENGTH 
+----------+--------
+     -.46 |      8
+(1 row)
+
+     C1      | LENGTH 
+-------------+--------
+      -.4560 |     11
+(1 row)
+
+ C1 | LENGTH 
+----+--------
+ -. |      2
+(1 row)
+
+  C1  | LENGTH 
+------+--------
+  -.5 |      4
+(1 row)
+
+   C1    | LENGTH 
+---------+--------
+    -.46 |      7
+(1 row)
+
+     C1     | LENGTH 
+------------+--------
+     -.4560 |     10
+(1 row)
+
+ C1 | LENGTH 
+----+--------
+  $ |      2
+(1 row)
+
+ C1 | LENGTH 
+----+--------
+ ## |      2
+(1 row)
+
+  C1  | LENGTH 
+------+--------
+ #### |      4
+(1 row)
+
+ C1 | LENGTH 
+----+--------
+ -$ |      2
+(1 row)
+
+  C1   | LENGTH 
+-------+--------
+  -$.5 |      5
+(1 row)
+
+    C1    | LENGTH 
+----------+--------
+    -$.46 |      8
+(1 row)
+
+     C1      | LENGTH 
+-------------+--------
+     -$.4560 |     11
+(1 row)
+
+ C1 | LENGTH 
+----+--------
+    |      1
+(1 row)
+
+  C1  | LENGTH 
+------+--------
+  -.5 |      4
+(1 row)
+
+ C1  | LENGTH 
+-----+--------
+     |      3
+(1 row)
+
+   C1    | LENGTH 
+---------+--------
+    -.46 |      7
+(1 row)
+
+  C1   | LENGTH 
+-------+--------
+  -.46 |      5
+(1 row)
+
+  C1   | LENGTH 
+-------+--------
+       |      5
+(1 row)
+
+     C1     | LENGTH 
+------------+--------
+     -.4560 |     10
+(1 row)
+
+     C1     | LENGTH 
+------------+--------
+     -.4560 |     10
+(1 row)
+
+     C1     | LENGTH 
+------------+--------
+            |     10
+(1 row)
+
+    C1    | LENGTH 
+----------+--------
+     -USD |      8
+(1 row)
+
+     C1      | LENGTH 
+-------------+--------
+      -USD.5 |     11
+(1 row)
+
+       C1       | LENGTH 
+----------------+--------
+        -USD.46 |     14
+(1 row)
+
+        C1         | LENGTH 
+-------------------+--------
+         -.4560USD |     17
+(1 row)
+
+  C1  | LENGTH 
+------+--------
+  -.5 |      4
+(1 row)
+
+   C1    | LENGTH 
+---------+--------
+    -.46 |      7
+(1 row)
+
+     C1     | LENGTH 
+------------+--------
+     -.4560 |     10
+(1 row)
+
+ERROR:  invalid number format model
+      C1       | LENGTH 
+---------------+--------
+  -4.56000E-01 |     13
+(1 row)
+
+       C1       | LENGTH 
+----------------+--------
+  -4.560000E-01 |     14
+(1 row)
+
+ERROR:  Invalid number format model
+ERROR:  Invalid number format model
+  C1  | LENGTH 
+------+--------
+   -0 |      4
+(1 row)
+
+    C1    | LENGTH 
+----------+--------
+     -.46 |      8
+(1 row)
+
+     C1      | LENGTH 
+-------------+--------
+      -.4560 |     11
+(1 row)
+
+     C1      | LENGTH 
+-------------+--------
+          -$ |     11
+(1 row)
+
+       C1       | LENGTH 
+----------------+--------
+           -$.5 |     14
+(1 row)
+
+        C1         | LENGTH 
+-------------------+--------
+             -$.46 |     17
+(1 row)
+
+        C1         | LENGTH 
+-------------------+--------
+             -.46$ |     17
+(1 row)
+
+          C1          | LENGTH 
+----------------------+--------
+              -$.4560 |     20
+(1 row)
+
+ C1 | LENGTH 
+----+--------
+ -  |      1
+(1 row)
+
+  C1  | LENGTH 
+------+--------
+  .5- |      4
+(1 row)
+
+   C1    | LENGTH 
+---------+--------
+    .46- |      7
+(1 row)
+
+     C1     | LENGTH 
+------------+--------
+     .4560- |     10
+(1 row)
+
+ C1 | LENGTH 
+----+--------
+ <> |      2
+(1 row)
+
+  C1   | LENGTH 
+-------+--------
+  <.5> |      5
+(1 row)
+
+  C1   | LENGTH 
+-------+--------
+   .5  |      5
+(1 row)
+
+    C1    | LENGTH 
+----------+--------
+    <.46> |      8
+(1 row)
+
+    C1    | LENGTH 
+----------+--------
+     .46  |      8
+(1 row)
+
+     C1      | LENGTH 
+-------------+--------
+     <.4560> |     11
+(1 row)
+
+       C1        | LENGTH 
+-----------------+--------
+ ############### |     15
+(1 row)
+
+       C1        | LENGTH 
+-----------------+--------
+ ############### |     15
+(1 row)
+
+       C1        | LENGTH 
+-----------------+--------
+ ############### |     15
+(1 row)
+
+       C1        | LENGTH 
+-----------------+--------
+ ############### |     15
+(1 row)
+
+ C1 | LENGTH 
+----+--------
+ -  |      1
+(1 row)
+
+  C1  | LENGTH 
+------+--------
+  -.5 |      4
+(1 row)
+
+   C1    | LENGTH 
+---------+--------
+    -.46 |      7
+(1 row)
+
+   C1    | LENGTH 
+---------+--------
+    .46+ |      7
+(1 row)
+
+     C1     | LENGTH 
+------------+--------
+     -.4560 |     10
+(1 row)
+
+  C1   | LENGTH 
+-------+--------
+ -.456 |      5
+(1 row)
+
+  C1   | LENGTH 
+-------+--------
+ -.456 |      5
+(1 row)
+
+    C1     | LENGTH 
+-----------+--------
+ -4.56E-01 |      9
+(1 row)
+
+    C1    | LENGTH 
+----------+--------
+ 4.56E-01 |      8
+(1 row)
+
+     C1      | LENGTH 
+-------------+--------
+          -$ |     11
+(1 row)
+
+       C1       | LENGTH 
+----------------+--------
+           -$.5 |     14
+(1 row)
+
+        C1         | LENGTH 
+-------------------+--------
+             -$.46 |     17
+(1 row)
+
+          C1          | LENGTH 
+----------------------+--------
+              -$.4560 |     20
+(1 row)
+
+ C1 | LENGTH 
+----+--------
+ -  |      1
+(1 row)
+
+  C1   | LENGTH 
+-------+--------
+   -46 |      5
+(1 row)
+
+   C1   | LENGTH 
+--------+--------
+    -46 |      6
+(1 row)
+
+    C1     | LENGTH 
+-----------+--------
+     -4560 |      9
+(1 row)
+
+   R    | LEN 
+--------+-----
+  11230 |   6
+(1 row)
+
+   R    | LEN 
+--------+-----
+  11230 |   6
+(1 row)
+
+ C1 | LENGTH 
+----+--------
+  0 |      2
+(1 row)
+
+ C1  | LENGTH 
+-----+--------
+   0 |      3
+(1 row)
+
+ C1  | LENGTH 
+-----+--------
+   0 |      3
+(1 row)
+
+  C1  | LENGTH 
+------+--------
+    0 |      4
+(1 row)
+
+ERROR:  Invalid number format model
+ERROR:  Invalid number format model
+ERROR:  Invalid number format model
+ERROR:  Invalid number format model
+ERROR:  Invalid number format model
+ERROR:  Invalid number format model
+ERROR:  Invalid number format model
+ERROR:  Invalid number format model
+ERROR:  Invalid number format model
+ERROR:  Invalid number format model
+ERROR:  Invalid number format model
+ERROR:  Invalid number format model
+ERROR:  invalid NLS parameter string used in SQL function
+ R | LEN 
+---+-----
+   |   1
+(1 row)
+
+ R | LEN 
+---+-----
+   |   1
+(1 row)
+
+    R     | LEN 
+----------+-----
+      USD |   8
+(1 row)
+
+    R     | LEN 
+----------+-----
+      USD |   8
+(1 row)
+
+  R  | LEN 
+-----+-----
+  .1 |   3
+(1 row)
+
+  R  | LEN 
+-----+-----
+  .0 |   3
+(1 row)
+
+        R         | LEN 
+------------------+-----
+  123,321.1233210 |  16
+(1 row)
+
+        R         | LEN 
+------------------+-----
+  123,321.1233210 |  16
+(1 row)
+
+        R         | LEN 
+------------------+-----
+  123,321.1233210 |  16
+(1 row)
+
+        R         | LEN 
+------------------+-----
+  123,321.1233210 |  16
+(1 row)
+
+        R         | LEN 
+------------------+-----
+  123,321.1233210 |  16
+(1 row)
+
+        R         | LEN 
+------------------+-----
+  123,321.1233210 |  16
+(1 row)
+
+       R       | LEN 
+---------------+-----
+       USD.123 |  13
+(1 row)
+
+       R        | LEN 
+----------------+-----
+      USD00.123 |  14
+(1 row)
+
+       R        | LEN 
+----------------+-----
+        USD.123 |  14
+(1 row)
+
+        R         | LEN 
+------------------+-----
+      USD0123.123 |  16
+(1 row)
+
+   R   | LEN 
+-------+-----
+ ##### |   5
+(1 row)
+
+   R   | LEN 
+-------+-----
+ ##### |   5
+(1 row)
+
+   R    | LEN 
+--------+-----
+ ###### |   6
+(1 row)
+
+   R   | LEN 
+-------+-----
+ ##### |   5
+(1 row)
+
+   R   | LEN 
+-------+-----
+  .123 |   5
+(1 row)
+
+      R       | LEN 
+--------------+-----
+ ############ |  12
+(1 row)
+
+      R       | LEN 
+--------------+-----
+      USD.123 |  12
+(1 row)
+
+   R   | LEN 
+-------+-----
+ ##### |   5
+(1 row)
+
+   R   | LEN 
+-------+-----
+ ##### |   5
+(1 row)
+
+        R        | LEN 
+-----------------+-----
+ ############### |  15
+(1 row)
+
+        R        | LEN 
+-----------------+-----
+           $.123 |  15
+(1 row)
+
+   R   | LEN 
+-------+-----
+ ##### |   5
+(1 row)
+
+   R    | LEN 
+--------+-----
+ ###### |   6
+(1 row)
+
+   R   | LEN 
+-------+-----
+ ##### |   5
+(1 row)
+
+   R   | LEN 
+-------+-----
+ ##### |   5
+(1 row)
+
+   R   | LEN 
+-------+-----
+ +.123 |   5
+(1 row)
+
+        R        | LEN 
+-----------------+-----
+ ############### |  15
+(1 row)
+
+        R        | LEN 
+-----------------+-----
+           $.123 |  15
+(1 row)
+
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1     
+-----------
+ -2123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  Invalid number format model
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  multiple decimal points
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  cannot use "$" twice
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  Invalid number format model
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  Invalid number format model
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  multiple decimal points
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  Invalid number format model
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  Invalid number format model
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  Invalid number format model
+ERROR:  invalid number
+ERROR:  invalid number
+   C1    
+---------
+ 123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+   C1    
+---------
+ 123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  "RN" not supported for input
+ERROR:  "RN" not supported for input
+ERROR:  invalid number
+ERROR:  cannot use "S" twice
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  Invalid number format model
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+ERROR:  invalid number
+ C1  
+-----
+ 123
+(1 row)
+
+ C1  
+-----
+ 123
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ERROR:  invalid NLS parameter string used in SQL function
+ERROR:  invalid NLS parameter string used in SQL function
+ERROR:  invalid number
+    C1    
+----------
+ -123.456
+(1 row)
+
+ C1 
+----
+   
+(1 row)
+
+ C1 
+----
+   
+(1 row)
+
+ C1 
+----
+   
+(1 row)
+
+ C1 
+----
+   
+(1 row)
+
+ C1 
+----
+   
+(1 row)
+
+ C1 
+----
+   
+(1 row)
+
+ C1 
+----
+   
+(1 row)
+
+ C1 
+----
+   
+(1 row)
+
+ C1 
+----
+   
+(1 row)
+
+ C1 
+----
+   
+(1 row)
+
+ERROR:  This argument must be a literal
+ C1 
+----
+   
+(1 row)
+
+ C1 
+----
+   
+(1 row)
+
+ C1 
+----
+   
+(1 row)
+
+ERROR:  This argument must be a literal
+ERROR:  This argument must be a literal
+    C1    
+----------
+ -123.456
+(1 row)
+
+    C1    
+----------
+ -123.456
+(1 row)
+
+ BIN_TO_NUM 
+------------
+          0
+(1 row)
+
+ BIN_TO_NUM 
+------------
+          1
+(1 row)
+
+ BIN_TO_NUM 
+------------
+         15
+(1 row)
+
+ BIN_TO_NUM 
+------------
+        495
+(1 row)
+
+ BIN_TO_NUM 
+------------
+     507375
+(1 row)
+
+ BIN_TO_NUM 
+------------
+          0
+(1 row)
+
+ BIN_TO_NUM 
+------------
+          1
+(1 row)
+
+ BIN_TO_NUM 
+------------
+         15
+(1 row)
+
+ BIN_TO_NUM 
+------------
+        495
+(1 row)
+
+ BIN_TO_NUM 
+------------
+     507375
+(1 row)
+
+ BIN_TO_NUM 
+------------
+          0
+(1 row)
+
+ BIN_TO_NUM 
+------------
+          1
+(1 row)
+
+ BIN_TO_NUM 
+------------
+         15
+(1 row)
+
+ BIN_TO_NUM 
+------------
+        495
+(1 row)
+
+ BIN_TO_NUM 
+------------
+     507375
+(1 row)
+
+ BIN_TO_NUM 
+------------
+          0
+(1 row)
+
+ BIN_TO_NUM 
+------------
+          1
+(1 row)
+
+ BIN_TO_NUM 
+------------
+         13
+(1 row)
+
+ BIN_TO_NUM 
+------------
+        429
+(1 row)
+
+ BIN_TO_NUM 
+------------
+     439725
+(1 row)
+
+ BIN_TO_NUM 
+------------
+          0
+(1 row)
+
+ BIN_TO_NUM 
+------------
+          1
+(1 row)
+
+ BIN_TO_NUM 
+------------
+         13
+(1 row)
+
+ BIN_TO_NUM 
+------------
+        429
+(1 row)
+
+ BIN_TO_NUM 
+------------
+     439725
+(1 row)
+
+ BIN_TO_NUM 
+------------
+          0
+(1 row)
+
+ BIN_TO_NUM 
+------------
+          1
+(1 row)
+
+ BIN_TO_NUM 
+------------
+         13
+(1 row)
+
+ BIN_TO_NUM 
+------------
+        429
+(1 row)
+
+ BIN_TO_NUM 
+------------
+     439725
+(1 row)
+
+ BIN_TO_NUM 
+------------
+          0
+(1 row)
+
+ BIN_TO_NUM 
+------------
+          1
+(1 row)
+
+ BIN_TO_NUM 
+------------
+        104
+(1 row)
+
+ BIN_TO_NUM 
+------------
+       3341
+(1 row)
+
+ BIN_TO_NUM 
+------------
+    3421613
+(1 row)
+
+ BIN_TO_NUM 
+------------
+          0
+(1 row)
+
+ BIN_TO_NUM 
+------------
+          1
+(1 row)
+
+ BIN_TO_NUM 
+------------
+        104
+(1 row)
+
+ BIN_TO_NUM 
+------------
+       3341
+(1 row)
+
+ BIN_TO_NUM 
+------------
+    3421613
+(1 row)
+
+ BIN_TO_NUM 
+------------
+          0
+(1 row)
+
+ BIN_TO_NUM 
+------------
+          1
+(1 row)
+
+ BIN_TO_NUM 
+------------
+        104
+(1 row)
+
+ BIN_TO_NUM 
+------------
+       3341
+(1 row)
+
+ BIN_TO_NUM 
+------------
+    3421613
+(1 row)
+
+ BIN_TO_NUM 
+------------
+        240
+(1 row)
+
+ BIN_TO_NUM 
+------------
+        208
+(1 row)
+
+ BIN_TO_NUM | BIN_TO_NUM 
+------------+------------
+        208 |        224
+(1 row)
+
+ BIN_TO_NUM | ?column? 
+------------+----------
+        208 |      230
+(1 row)
+
+ERROR:  "2" is not a valid binary digit
+CONTEXT:  PL/pgSQL function BIN_TO_NUM(NUMERIC[]) line 15 at RETURN
+ERROR:  function BIN_TO_NUM(BOOLEAN, UNKNOWN, UNKNOWN, UNKNOWN) does not exist
+LINE 1: select bin_to_num(true, '100', '2', '0000001') from dual;
+               ^
+HINT:  No function matches the given name and argument types. You might need to add explicit type casts.
+ERROR:  function BIN_TO_NUM(INTEGER, PG_CATALOG.DATE, UNKNOWN, UNKNOWN) does not exist
+LINE 1: select bin_to_num(1, '2024-01-17'::date, '2', '0000001') fro...
+               ^
+HINT:  No function matches the given name and argument types. You might need to add explicit type casts.
+ERROR:  invalid input syntax for type numeric: "NULL"
+LINE 1: select bin_to_num('1', '100', 'NULL', '0000001') from dual;
+                                      ^
+ERROR:  table "TB_BIN_TO_NUM_20240117" does not exist
+ BIN_TO_NUM 
+------------
+      46699
+(1 row)

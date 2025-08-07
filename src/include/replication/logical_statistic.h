@@ -1,12 +1,11 @@
 /* -------------------------------------------------------------------------
  *
  * pg_subscription_statistic.h
- *        Statistic info about shards of a subscription (pg_subscription_statistic).
+ *		Statistic info about shards of a subscription (pg_subscription_statistic).
  *
- * Copyright (c) 2023 THL A29 Limited, a Tencent company.
- *
- * This source code file is licensed under the BSD 3-Clause License,
- * you may obtain a copy of the License at http://opensource.org/license/bsd-3-clause/
+ * Portions Copyright (c) 2018, Tencent OpenTenBase Group
+ * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1994, Regents of the University of California
  *
  * -------------------------------------------------------------------------
  */
@@ -25,13 +24,13 @@ extern int32 g_SubTableStatHashSize;
 
 
 /* ----------------
- *        state constants
+ *		state constants
  * ----------------
  */
-#define STATE_INIT        'i' /* initializing (sublsn NULL) */
-#define STATE_DATACOPY    'c' /* copy data to relation */
-#define STATE_COPYDONE    'd' /* finished to copy data */
-#define STATE_APPLY        'a' /* apply logical log */
+#define STATE_INIT		'i' /* initializing (sublsn NULL) */
+#define STATE_DATACOPY	'c' /* copy data to relation */
+#define STATE_COPYDONE	'd' /* finished to copy data */
+#define STATE_APPLY		'a' /* apply logical log */
 #define STATE_SYNCDONE  's' /* finish to sync relation */
 
 extern Size PubStatDataShmemSize(int ssize, int tsize);
@@ -77,5 +76,4 @@ extern Datum opentenbase_remove_pub_stat(PG_FUNCTION_ARGS);
 extern Datum opentenbase_remove_pubtable_stat(PG_FUNCTION_ARGS);
 extern Datum opentenbase_remove_sub_stat(PG_FUNCTION_ARGS);
 extern Datum opentenbase_remove_subtable_stat(PG_FUNCTION_ARGS);
-#endif                            /* PG_SUBSCRIPTION_STATISTIC_H */
-
+#endif							/* PG_SUBSCRIPTION_STATISTIC_H */

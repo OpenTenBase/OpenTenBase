@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * lockdefs.h
- *       Frontend exposed parts of postgres' low level lock mechanism
+ *	   Frontend exposed parts of postgres' low level lock mechanism
  *
  * The split between lockdefs.h and lock.h is not very principled. This file
  * contains definition that have to (indirectly) be available when included by
@@ -31,25 +31,25 @@ typedef int LOCKMODE;
  */
 
 /* NoLock is not a lock mode, but a flag value meaning "don't get a lock" */
-#define NoLock                    0
+#define NoLock					0
 
-#define AccessShareLock            1    /* SELECT */
-#define RowShareLock            2    /* SELECT FOR UPDATE/FOR SHARE */
-#define RowExclusiveLock        3    /* INSERT, UPDATE, DELETE */
-#define ShareUpdateExclusiveLock 4    /* VACUUM (non-FULL),ANALYZE, CREATE INDEX
-                                     * CONCURRENTLY */
-#define ShareLock                5    /* CREATE INDEX (WITHOUT CONCURRENTLY) */
-#define ShareRowExclusiveLock    6    /* like EXCLUSIVE MODE, but allows ROW
-                                     * SHARE */
-#define ExclusiveLock            7    /* blocks ROW SHARE/SELECT...FOR UPDATE */
-#define AccessExclusiveLock        8    /* ALTER TABLE, DROP TABLE, VACUUM FULL,
-                                     * and unqualified LOCK TABLE */
+#define AccessShareLock			1	/* SELECT */
+#define RowShareLock			2	/* SELECT FOR UPDATE/FOR SHARE */
+#define RowExclusiveLock		3	/* INSERT, UPDATE, DELETE */
+#define ShareUpdateExclusiveLock 4	/* VACUUM (non-FULL),ANALYZE, CREATE INDEX
+									 * CONCURRENTLY */
+#define ShareLock				5	/* CREATE INDEX (WITHOUT CONCURRENTLY) */
+#define ShareRowExclusiveLock	6	/* like EXCLUSIVE MODE, but allows ROW
+									 * SHARE */
+#define ExclusiveLock			7	/* blocks ROW SHARE/SELECT...FOR UPDATE */
+#define AccessExclusiveLock		8	/* ALTER TABLE, DROP TABLE, VACUUM FULL,
+									 * and unqualified LOCK TABLE */
 
 typedef struct xl_standby_lock
 {
-    TransactionId xid;            /* xid of holder of AccessExclusiveLock */
-    Oid            dbOid;
-    Oid            relOid;
+	TransactionId xid;			/* xid of holder of AccessExclusiveLock */
+	Oid			dbOid;
+	Oid			relOid;
 } xl_standby_lock;
 
-#endif                            /* LOCKDEF_H_ */
+#endif							/* LOCKDEF_H_ */

@@ -5,10 +5,7 @@
  * The background clean 2pc processes are added by whalesong.
  * They attempt to clean the abnormal 2pc.
  *
- * Copyright (c) 2023 THL A29 Limited, a Tencent company.
- *
- * This source code file is licensed under the BSD 3-Clause License,
- * you may obtain a copy of the License at http://opensource.org/license/bsd-3-clause/
+ * Portions Copyright (c) 1996-2021, TDSQL-PG Development Group
  *
  *
  * IDENTIFICATION
@@ -20,6 +17,8 @@
 #include "postgres.h"
 
 #include "access/htup_details.h"
+#include "access/twophase.h"
+#include "catalog/namespace.h"
 #include "catalog/pg_database.h"
 #include "catalog/pg_type.h"
 #include "commands/dbcommands.h"
@@ -39,11 +38,14 @@
 #include "utils/memutils.h"
 #include "utils/ps_status.h"
 #include "utils/timeout.h"
+#include "storage/backendid.h"
 
-#define MAX_GID           64
+#define MAX_GID           GIDSIZE
 
 #define SQL_CMD_LEN       1024
 #define MAX_DB_SIZE       100
+
+#define CLEAN_TIME_GAP    10
 
 #define DB_TEMPLATE0     "template0"
 #define DB_TEMPLATE1     "template1"
@@ -60,10 +62,10 @@ typedef enum
 
 bool enable_clean_2pc_launcher = true;
 
-int auto_clean_2pc_interval        = 60;
-int auto_clean_2pc_delay           = 300;
-int auto_clean_2pc_timeout         = 1200;
-int auto_clean_2pc_max_check_time  = 1200;
+int auto_clean_2pc_interval        = 30;
+int auto_clean_2pc_delay           = 30;
+int auto_clean_2pc_timeout         = 180;
+int auto_clean_2pc_max_check_time  = 180;
 
 static volatile sig_atomic_t got_SIGTERM = false;
 static volatile sig_atomic_t got_SIGHUP  = false;
@@ -91,6 +93,8 @@ static void	start_clean_worker(int count);
 static void do_query_2pc(TimestampTz clean_time);
 static void do_clean_2pc(TimestampTz clean_time);
 
+static bool check_pg_clean_extension(void);
+
 static void clean_2pc_sigterm_handler(SIGNAL_ARGS);
 static void clean_2pc_sighup_handler(SIGNAL_ARGS);
 static void clean_2pc_sigusr2_handler(SIGNAL_ARGS);
@@ -112,6 +116,8 @@ typedef struct
 	TimestampTz clean_time;
 
 	bool worker_running;
+	bool is_deadlock;
+
 	Oid  worker_db;
 
 	int  db_count;
@@ -164,7 +170,8 @@ StartClean2pcLauncher(void)
 NON_EXEC_STATIC void
 Clean2pcLauncherMain(int argc, char *argv[])
 {
-	int wait_time = 0;
+	int i = 0;
+	int wait_time = auto_clean_2pc_delay;
 	TimestampTz clean_time = GetCurrentTimestamp();
 
 	am_clean_2pc_launcher = true;
@@ -183,7 +190,7 @@ Clean2pcLauncherMain(int argc, char *argv[])
 	 */
 	pqsignal(SIGHUP, clean_2pc_sighup_handler);
 	pqsignal(SIGTERM, clean_2pc_sigterm_handler);
-	pqsignal(SIGINT, StatementCancelHandler);
+	pqsignal(SIGINT, SIG_IGN);
 	pqsignal(SIGQUIT, quickdie);
 	InitializeTimeouts(); /* establishes SIGALRM handler */
 
@@ -225,47 +232,51 @@ Clean2pcLauncherMain(int argc, char *argv[])
 		MemoryContextSwitchTo(oldcontext);
 	}
 
-	wait_time = auto_clean_2pc_delay;
 	for (;;)
 	{
-		pg_usleep(1000000L * wait_time);
-
-		if (got_SIGTERM)
+		for (i = 0; i < wait_time; i++)
 		{
-			elog(LOG, "2pc clean launcher got SIGTERM");
-			got_SIGTERM = false;
-			proc_exit(0);
+			pg_usleep(USECS_PER_SEC);
+
+			if (got_SIGTERM)
+			{
+				got_SIGTERM = false;
+				elog(LOG, "2pc clean launcher got SIGTERM");
+				proc_exit(0);
+			}
+
+			if (got_SIGHUP)
+			{
+				got_SIGHUP = false;
+				elog(LOG, "2pc clean launcher got SIGHUP");
+				ProcessConfigFile(PGC_SIGHUP);
+				if (auto_clean_2pc_delay != wait_time)
+				{
+					elog(LOG, "auto_clean_2pc_delay: %d, wait_time: %d",
+						auto_clean_2pc_delay, wait_time);
+					wait_time = auto_clean_2pc_delay;
+				}
+			}
+
+			if (got_SIGUSR2)
+			{
+				got_SIGUSR2 = false;
+				clean_time = GetCurrentTimestamp();
+				elog(LOG, "2pc clean launcher got SIGUSR2, "
+					"clean_time: %ld", clean_time);
+				wait_time = auto_clean_2pc_delay;
+				i = 0;
+			}
 		}
 
-		if (got_SIGHUP)
+		if (GetCurrentTimestamp() - clean_time >= USECS_PER_MINUTE)
 		{
-			elog(LOG, "2pc clean launcher got SIGHUP");
-			got_SIGHUP = false;
-			ProcessConfigFile(PGC_SIGHUP);
-			wait_time = auto_clean_2pc_delay;
-			continue;
-		}
-
-		if (got_SIGUSR2)
-		{
-			got_SIGUSR2 = false;
-			clean_time = GetCurrentTimestamp();
-			wait_time = auto_clean_2pc_delay;
-			elog(LOG, "2pc clean launcher got SIGUSR2, clean_time: "
-				INT64_FORMAT, clean_time);
-			continue;
+			clean_time += CLEAN_TIME_GAP * USECS_PER_SEC;
 		}
 
 		start_query_worker(clean_time);
 
-		if (got_SIGTERM || got_SIGHUP || got_SIGUSR2)
-		{
-			wait_time = 0;
-		}
-		else
-		{
-			wait_time = auto_clean_2pc_interval;
-		}
+		wait_time = auto_clean_2pc_interval;
 	}
 }
 
@@ -274,7 +285,7 @@ Clean2pcLauncherMain(int argc, char *argv[])
  * postmaster.
  */
 int
-StartClean2pcWorker(void)
+StartCln2pcWorker(void)
 {
 	pid_t clean_2pc_pid = 0;
 
@@ -324,7 +335,7 @@ Clean2pcWorkerMain(int argc, char *argv[])
 	/* Identify myself via ps */
 	init_ps_display("2pc clean worker", "", "", "");
 
-	elog(LOG, "2pc clean worker start");
+	elog(DEBUG1, "2pc clean worker start");
 
 	SetProcessingMode(InitProcessing);
 
@@ -379,21 +390,86 @@ Clean2pcWorkerMain(int argc, char *argv[])
 		MemoryContextSwitchTo(oldcontext);
 	}
 
+	if (LockTimeout == 0)
+	{
+		set_config_option("lock_timeout", "30s", PGC_USERSET, PGC_S_SESSION,
+						  GUC_ACTION_SET, true, 0, false);
+	}
+	
 	if (Clean2pcShmem->db_count == 0)
 	{
+		MemoryContext current_context = NULL;
+
 		elog(DEBUG5, "query 2pc from db: %s", db_name);
-		do_query_2pc(Clean2pcShmem->clean_time);
-		clean_db_count = Clean2pcShmem->db_count;
+
+		current_context = CurrentMemoryContext;
+		PG_TRY();
+		{
+			do_query_2pc(Clean2pcShmem->clean_time);
+			Clean2pcShmem->is_deadlock = false;
+
+			clean_db_count = Clean2pcShmem->db_count;
+		}
+		PG_CATCH();
+		{
+			ErrorData* edata = NULL;
+			(void)MemoryContextSwitchTo(current_context);
+			edata = CopyErrorData();
+
+			elog(WARNING, "query 2pc from db(%s) error(%d): %s",
+				db_name, edata->sqlerrcode, edata->message);
+
+			if (edata->sqlerrcode == ERRCODE_LOCK_NOT_AVAILABLE)
+			{
+				elog(LOG, "query 2pc deadlock from db: %s", db_name);
+				Clean2pcShmem->is_deadlock = true;
+			}
+			else
+			{
+				Clean2pcShmem->is_deadlock = false;
+			}
+		}
+		PG_END_TRY();
 	}
 	else
 	{
+		MemoryContext current_context = NULL;
+
 		elog(LOG, "clean 2pc for db: %s", db_name);
-		do_clean_2pc(Clean2pcShmem->clean_time);
+
+		current_context = CurrentMemoryContext;
+		PG_TRY();
+		{
+			do_clean_2pc(Clean2pcShmem->clean_time);
+			Clean2pcShmem->is_deadlock = false;
+		}
+		PG_CATCH();
+		{
+			ErrorData* edata = NULL;
+			(void)MemoryContextSwitchTo(current_context);
+			edata = CopyErrorData();
+
+			elog(WARNING, "clean 2pc for db(%s) error(%d): %s",
+				db_name, edata->sqlerrcode, edata->message);
+
+			if (edata->sqlerrcode == ERRCODE_LOCK_NOT_AVAILABLE)
+			{
+				elog(LOG, "clean 2pc deadlock for db: %s", db_name);
+				Clean2pcShmem->is_deadlock = true;
+
+				clean_db_count = Clean2pcShmem->db_count;
+			}
+			else
+			{
+				Clean2pcShmem->is_deadlock = false;
+			}
+		}
+		PG_END_TRY();
 	}
 
 	Clean2pcShmem->worker_running = false;
 
-	LWLockRelease(Clean2pcLock);
+	LWLockReleaseAll();
 
 	if (clean_db_count != 0)
 	{
@@ -435,6 +511,12 @@ do_query_2pc(TimestampTz clean_time)
 	Assert(result_str != NULL);
 	resetStringInfo(result_str);
 
+	if (!check_pg_clean_extension())
+	{
+		elog(WARNING, "create extension pg_clean please");
+		return;
+	}
+
 	check_time = (curr_time - clean_time)/USECS_PER_SEC;
 
 	if (check_time < 0)
@@ -458,8 +540,18 @@ do_query_2pc(TimestampTz clean_time)
 		}
 	}
 
-	snprintf(query, SQL_CMD_LEN, "select * FROM pg_clean_check_txn("
-		INT64_FORMAT ") order by database limit 1000;", check_time);
+	if (Clean2pcShmem->is_deadlock)
+	{
+		snprintf(query, SQL_CMD_LEN, "select * FROM "
+			"public.pg_clean_check_txn_for_deadlock(" INT64_FORMAT ") "
+			"order by database limit 1000;", check_time);
+	}
+	else
+	{
+		snprintf(query, SQL_CMD_LEN, "select * FROM "
+			"public.pg_clean_check_txn(" INT64_FORMAT ") "
+			"order by database limit 1000;", check_time);
+	}
 
 	StartTransactionCommand();
 
@@ -582,12 +674,12 @@ do_query_2pc(TimestampTz clean_time)
 
 	CommitTransactionCommand();
 
+	elog(LOG, "query remain 2pc count(%d), db count(%d), clean time(%ld), "
+		"sql: %s", count_2pc, count_db, clean_time, query);
 	if (count_2pc > 0)
 	{
 		Assert(result_str->data != NULL);
-		elog(LOG, "query remain 2pc count(%d), db count(%d), sql: %s",
-			count_2pc, count_db, query);
-		elog(DEBUG1, "remain 2pc:\n%s", result_str->data);
+		elog(LOG, "remain 2pc:\n%s", result_str->data);
 	}
 }
 
@@ -613,8 +705,18 @@ do_clean_2pc(TimestampTz clean_time)
 	Assert(result_str != NULL);
 	resetStringInfo(result_str);
 
-	snprintf(query, SQL_CMD_LEN, "select * FROM pg_clean_execute_on_node('%s', %ld)"
-			" limit 1000;", PGXCNodeName, clean_time);
+	if (Clean2pcShmem->is_deadlock)
+	{
+		snprintf(query, SQL_CMD_LEN, "select * FROM "
+			"public.pg_clean_execute_on_node_for_deadlock('%s', %ld) limit 1000;",
+			PGXCNodeName, clean_time);
+	}
+	else
+	{
+		snprintf(query, SQL_CMD_LEN, "select * FROM "
+			"public.pg_clean_execute_on_node('%s', %ld) limit 1000;",
+			PGXCNodeName, clean_time);
+	}
 
 	StartTransactionCommand();
 
@@ -681,20 +783,59 @@ do_clean_2pc(TimestampTz clean_time)
 
 	CommitTransactionCommand();
 
+	elog(LOG, "clean 2pc count(%d), clean time(%ld), sql: %s",
+		count, clean_time, query);
 	if (count > 0)
 	{
 		Assert(NULL != result_str->data);
-		elog(LOG, "clean 2pc count(%d), sql: %s", count, query);
 		elog(LOG, "clean 2pc:\n%s", result_str->data);
 	}
+}
+
+/*
+ * check if pg_clean_check_txn funciton exist
+ */
+static bool
+check_pg_clean_extension(void)
+{
+	bool                 res = false;
+	List                *names = NULL;
+	FuncCandidateList    clist = NULL;
+	char                *fuc_name = "pg_clean_check_txn";
+
+	StartTransactionCommand();
+
+	/*
+	 * Parse the name into components and see if it matches any pg_proc
+	 * entries in the current search path.
+	 */
+	names = list_make1(makeString(fuc_name));
+	clist = FuncnameGetCandidates(names, -1, NIL, false, false, true);
+
+	if (clist == NULL || clist->next != NULL)
+	{
+		res = false;
+	}
+	else
+	{
+		res = true;
+	}
+
+	CommitTransactionCommand();
+
+	return res;
 }
 
 /* SIGTERM: set flag to exit normally */
 static void
 clean_2pc_sigterm_handler(SIGNAL_ARGS)
 {
-	elog(LOG, "SIGTERM: %d", postgres_signal_arg);
+	int save_errno = errno;
+
 	got_SIGTERM = true;
+	SetLatch(MyLatch);
+
+	errno = save_errno;
 }
 
 
@@ -702,16 +843,24 @@ clean_2pc_sigterm_handler(SIGNAL_ARGS)
 static void
 clean_2pc_sighup_handler(SIGNAL_ARGS)
 {
-	elog(LOG, "SIGHUP: %d", postgres_signal_arg);
+	int save_errno = errno;
+
 	got_SIGHUP = true;
+	SetLatch(MyLatch);
+
+	errno = save_errno;
 }
 
 /* SIGUSR2: used for notify 2pc abnormal */
 static void
 clean_2pc_sigusr2_handler(SIGNAL_ARGS)
 {
-	elog(LOG, "SIGUSR2: %d", postgres_signal_arg);
+	int save_errno = errno;
+
 	got_SIGUSR2 = true;
+	SetLatch(MyLatch);
+
+	errno = save_errno;
 }
 
 /*
@@ -974,6 +1123,8 @@ ExitCleanRunning(int status, Datum arg)
 	{
 		elog(DEBUG5, "2pc clean worker exit normally");
 	}
+
+	LWLockReleaseAll();
 }
 
 /*

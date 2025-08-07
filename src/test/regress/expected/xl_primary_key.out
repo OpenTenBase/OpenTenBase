@@ -6,11 +6,11 @@
 CREATE TABLE xl_pk_products ( product_no integer, product_uid integer, name text, price numeric, primary key (product_uid, product_no) ) DISTRIBUTE BY HASH(product_no);
 CREATE TABLE xl_pk_products1 ( product_no integer, product_uid integer, name text, price numeric, primary key (product_uid, product_no) ) DISTRIBUTE BY HASH(product_uid);
 CREATE TABLE xl_pk_products2 ( product_no integer, product_uid integer, name text, price numeric, primary key (product_uid) ) DISTRIBUTE BY HASH(product_no); 
-ERROR:  Unique index of partitioned table must contain the hash distribution column.
+ERROR:  Unique index of distributed table must contain the distribution column.
 CREATE TABLE xl_pk_products3 ( product_no integer, product_uid integer, name text, price numeric, primary key (product_no, product_uid) ) DISTRIBUTE BY MODULO(product_no);
 CREATE TABLE xl_pk_products4 ( product_no integer, product_uid integer, name text, price numeric, primary key (product_uid, product_no) ) DISTRIBUTE BY MODULO(product_no);
 CREATE TABLE xl_pk_products5 ( product_no integer, product_uid integer, name text, price numeric, primary key (product_uid) ) DISTRIBUTE BY MODULO(product_no);
-ERROR:  Unique index of partitioned table must contain the hash distribution column.
+ERROR:  Unique index of distributed table must contain the distribution column.
 --For roundrobin distributed table, PRIMARY KEY or UNIQUE INDEX is not supported
 CREATE TABLE xl_pk_products6 ( product_no integer, product_uid integer, name text, price numeric, primary key (product_uid) ) DISTRIBUTE BY ROUNDROBIN;
 ERROR:  Cannot locally enforce a unique index on round robin distributed table.

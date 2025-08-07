@@ -1,4 +1,5 @@
 set enable_seqscan=off;
+SET datestyle TO ISO;
 CREATE TABLE test_date (
 	i date
 );
@@ -14,38 +15,38 @@ CREATE INDEX idx_date ON test_date USING gin (i);
 SELECT * FROM test_date WHERE i<'2004-10-26'::date ORDER BY i;
      i      
 ------------
- 10-23-2004
- 10-24-2004
- 10-25-2004
+ 2004-10-23
+ 2004-10-24
+ 2004-10-25
 (3 rows)
 
 SELECT * FROM test_date WHERE i<='2004-10-26'::date ORDER BY i;
      i      
 ------------
- 10-23-2004
- 10-24-2004
- 10-25-2004
- 10-26-2004
+ 2004-10-23
+ 2004-10-24
+ 2004-10-25
+ 2004-10-26
 (4 rows)
 
 SELECT * FROM test_date WHERE i='2004-10-26'::date ORDER BY i;
      i      
 ------------
- 10-26-2004
+ 2004-10-26
 (1 row)
 
 SELECT * FROM test_date WHERE i>='2004-10-26'::date ORDER BY i;
      i      
 ------------
- 10-26-2004
- 10-27-2004
- 10-28-2004
+ 2004-10-26
+ 2004-10-27
+ 2004-10-28
 (3 rows)
 
 SELECT * FROM test_date WHERE i>'2004-10-26'::date ORDER BY i;
      i      
 ------------
- 10-27-2004
- 10-28-2004
+ 2004-10-27
+ 2004-10-28
 (2 rows)
 

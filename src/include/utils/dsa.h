@@ -1,13 +1,13 @@
 /*-------------------------------------------------------------------------
  *
  * dsa.h
- *      Dynamic shared memory areas.
+ *	  Dynamic shared memory areas.
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *      src/include/utils/dsa.h
+ *	  src/include/utils/dsa.h
  *
  *-------------------------------------------------------------------------
  */
@@ -22,7 +22,7 @@ struct dsa_area;
 typedef struct dsa_area dsa_area;
 
 /*
- * If this system only uses a 32-bit value for Size, then use the 32-bit
+ * If this system only uses a 32-bit value for size_t, then use the 32-bit
  * implementation of DSA.  This limits the amount of DSA that can be created
  * to something significantly less than the entire 4GB address space because
  * the DSA pointer must encode both a segment identifier and an offset, but
@@ -36,7 +36,7 @@ typedef struct dsa_area dsa_area;
  * dsa_pointer.
  */
 #if SIZEOF_SIZE_T == 4 || !defined(PG_HAVE_ATOMIC_U64_SUPPORT) || \
-    defined(USE_SMALL_DSA_POINTER)
+	defined(USE_SMALL_DSA_POINTER)
 #define SIZEOF_DSA_POINTER 4
 #else
 #define SIZEOF_DSA_POINTER 8
@@ -70,9 +70,9 @@ typedef pg_atomic_uint64 dsa_pointer_atomic;
 #endif
 
 /* Flags for dsa_allocate_extended. */
-#define DSA_ALLOC_HUGE        0x01    /* allow huge allocation (> 1 GB) */
-#define DSA_ALLOC_NO_OOM    0x02    /* no failure if out-of-memory */
-#define DSA_ALLOC_ZERO        0x04    /* zero allocated memory */
+#define DSA_ALLOC_HUGE		0x01	/* allow huge allocation (> 1 GB) */
+#define DSA_ALLOC_NO_OOM	0x02	/* no failure if out-of-memory */
+#define DSA_ALLOC_ZERO		0x04	/* zero allocated memory */
 
 /* A sentinel value for dsa_pointer used to indicate failure to allocate. */
 #define InvalidDsaPointer ((dsa_pointer) 0)
@@ -82,11 +82,11 @@ typedef pg_atomic_uint64 dsa_pointer_atomic;
 
 /* Allocate uninitialized memory with error on out-of-memory. */
 #define dsa_allocate(area, size) \
-    dsa_allocate_extended(area, size, 0)
+	dsa_allocate_extended(area, size, 0)
 
 /* Allocate zero-initialized memory with error on out-of-memory. */
 #define dsa_allocate0(area, size) \
-    dsa_allocate_extended(area, size, DSA_ALLOC_ZERO)
+	dsa_allocate_extended(area, size, DSA_ALLOC_ZERO)
 
 /*
  * The type used for dsa_area handles.  dsa_handle values can be shared with
@@ -102,8 +102,8 @@ typedef dsm_handle dsa_handle;
 extern void dsa_startup(void);
 
 extern dsa_area *dsa_create(int tranche_id);
-extern dsa_area *dsa_create_in_place(void *place, Size size,
-                    int tranche_id, dsm_segment *segment);
+extern dsa_area *dsa_create_in_place(void *place, size_t size,
+					int tranche_id, dsm_segment *segment);
 extern dsa_area *dsa_attach(dsa_handle handle);
 extern dsa_area *dsa_attach_in_place(void *place, dsm_segment *segment);
 extern void dsa_release_in_place(void *place);
@@ -113,13 +113,13 @@ extern void dsa_pin_mapping(dsa_area *area);
 extern void dsa_detach(dsa_area *area);
 extern void dsa_pin(dsa_area *area);
 extern void dsa_unpin(dsa_area *area);
-extern void dsa_set_size_limit(dsa_area *area, Size limit);
-extern Size dsa_minimum_size(void);
+extern void dsa_set_size_limit(dsa_area *area, size_t limit);
+extern size_t dsa_minimum_size(void);
 extern dsa_handle dsa_get_handle(dsa_area *area);
-extern dsa_pointer dsa_allocate_extended(dsa_area *area, Size size, int flags);
+extern dsa_pointer dsa_allocate_extended(dsa_area *area, size_t size, int flags);
 extern void dsa_free(dsa_area *area, dsa_pointer dp);
 extern void *dsa_get_address(dsa_area *area, dsa_pointer dp);
 extern void dsa_trim(dsa_area *area);
 extern void dsa_dump(dsa_area *area);
 
-#endif                            /* DSA_H */
+#endif							/* DSA_H */

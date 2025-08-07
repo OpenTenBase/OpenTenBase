@@ -13,37 +13,37 @@
 -- define the GiST support methods
 CREATE FUNCTION gbt_enum_consistent(internal,anyenum,int2,oid,internal)
 RETURNS bool
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_enum_consistent'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_enum_compress(internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_enum_compress'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_enum_fetch(internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_enum_fetch'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_enum_penalty(internal,internal,internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_enum_penalty'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_enum_picksplit(internal, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_enum_picksplit'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_enum_union(internal, internal)
 RETURNS gbtreekey8
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_enum_union'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_enum_same(gbtreekey8, gbtreekey8, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_enum_same'
 LANGUAGE C IMMUTABLE STRICT;
 
 -- Create the operator class

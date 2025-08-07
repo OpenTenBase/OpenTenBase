@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * linux.h
- *        Port-specific prototypes for Linux
+ *		Port-specific prototypes for Linux
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -14,7 +14,7 @@
 #ifndef PORT_PROTOS_H
 #define PORT_PROTOS_H
 
-#include "utils/dynamic_loader.h"    /* pgrminclude ignore */
+#include "utils/dynamic_loader.h"	/* pgrminclude ignore */
 #ifdef HAVE_DLOPEN
 #include <dlfcn.h>
 #endif
@@ -35,10 +35,10 @@
 #define RTLD_GLOBAL 0
 #endif
 
-#define pg_dlopen(f)    dlopen((f), RTLD_NOW | RTLD_GLOBAL)
-#define pg_dlsym        dlsym
-#define pg_dlclose        dlclose
-#define pg_dlerror        dlerror
-#endif                            /* HAVE_DLOPEN */
+#define pg_dlopen(f)	dlopen((f), RTLD_NOW | RTLD_GLOBAL)
+#define pg_dlsym		dlsym
+#define pg_dlclose		dlclose
+#define pg_dlerror		dlerror
+#endif							/* HAVE_DLOPEN */
 
-#endif                            /* PORT_PROTOS_H */
+#endif							/* PORT_PROTOS_H */

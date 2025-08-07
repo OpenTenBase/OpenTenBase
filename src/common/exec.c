@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * exec.c
- *        Functions for finding and validating executable files
+ *		Functions for finding and validating executable files
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -9,7 +9,7 @@
  *
  *
  * IDENTIFICATION
- *      src/common/exec.c
+ *	  src/common/exec.c
  *
  *-------------------------------------------------------------------------
  */
@@ -28,19 +28,19 @@
 #ifndef FRONTEND
 /* We use only 3- and 4-parameter elog calls in this file, for simplicity */
 /* NOTE: caller must provide gettext call around str! */
-#define log_error(str, param)    elog(LOG, str, param)
-#define log_error4(str, param, arg1)    elog(LOG, str, param, arg1)
+#define log_error(str, param)	elog(LOG, str, param)
+#define log_error4(str, param, arg1)	elog(LOG, str, param, arg1)
 #else
-#define log_error(str, param)    (fprintf(stderr, str, param), fputc('\n', stderr))
-#define log_error4(str, param, arg1)    (fprintf(stderr, str, param, arg1), fputc('\n', stderr))
+#define log_error(str, param)	(fprintf(stderr, str, param), fputc('\n', stderr))
+#define log_error4(str, param, arg1)	(fprintf(stderr, str, param, arg1), fputc('\n', stderr))
 #endif
 
 #ifdef _MSC_VER
 #define getcwd(cwd,len)  GetCurrentDirectory(len, cwd)
 #endif
 
-static int    validate_exec(const char *path);
-static int    resolve_symlinks(char *path);
+static int	validate_exec(const char *path);
+static int	resolve_symlinks(char *path);
 static char *pipe_read_line(char *cmd, char *line, int maxsize);
 
 #ifdef WIN32
@@ -51,62 +51,62 @@ static BOOL GetTokenUser(HANDLE hToken, PTOKEN_USER *ppTokenUser);
  * validate_exec -- validate "path" as an executable file
  *
  * returns 0 if the file is found and no error is encountered.
- *          -1 if the regular file "path" does not exist or cannot be executed.
- *          -2 if the file is otherwise valid but cannot be read.
+ *		  -1 if the regular file "path" does not exist or cannot be executed.
+ *		  -2 if the file is otherwise valid but cannot be read.
  */
 static int
 validate_exec(const char *path)
 {
-    struct stat buf;
-    int            is_r;
-    int            is_x;
+	struct stat buf;
+	int			is_r;
+	int			is_x;
 
 #ifdef WIN32
-    char        path_exe[MAXPGPATH + sizeof(".exe") - 1];
+	char		path_exe[MAXPGPATH + sizeof(".exe") - 1];
 
-    /* Win32 requires a .exe suffix for stat() */
-    if (strlen(path) >= strlen(".exe") &&
-        pg_strcasecmp(path + strlen(path) - strlen(".exe"), ".exe") != 0)
-    {
-        strlcpy(path_exe, path, sizeof(path_exe) - 4);
-        strcat(path_exe, ".exe");
-        path = path_exe;
-    }
+	/* Win32 requires a .exe suffix for stat() */
+	if (strlen(path) >= strlen(".exe") &&
+		pg_strcasecmp(path + strlen(path) - strlen(".exe"), ".exe") != 0)
+	{
+		strlcpy(path_exe, path, sizeof(path_exe) - 4);
+		strcat(path_exe, ".exe");
+		path = path_exe;
+	}
 #endif
 
-    /*
-     * Ensure that the file exists and is a regular file.
-     *
-     * XXX if you have a broken system where stat() looks at the symlink
-     * instead of the underlying file, you lose.
-     */
-    if (stat(path, &buf) < 0)
-        return -1;
+	/*
+	 * Ensure that the file exists and is a regular file.
+	 *
+	 * XXX if you have a broken system where stat() looks at the symlink
+	 * instead of the underlying file, you lose.
+	 */
+	if (stat(path, &buf) < 0)
+		return -1;
 
-    if (!S_ISREG(buf.st_mode))
-        return -1;
+	if (!S_ISREG(buf.st_mode))
+		return -1;
 
-    /*
-     * Ensure that the file is both executable and readable (required for
-     * dynamic loading).
-     */
+	/*
+	 * Ensure that the file is both executable and readable (required for
+	 * dynamic loading).
+	 */
 #ifndef WIN32
-    is_r = (access(path, R_OK) == 0);
-    is_x = (access(path, X_OK) == 0);
+	is_r = (access(path, R_OK) == 0);
+	is_x = (access(path, X_OK) == 0);
 #else
-    is_r = buf.st_mode & S_IRUSR;
-    is_x = buf.st_mode & S_IXUSR;
+	is_r = buf.st_mode & S_IRUSR;
+	is_x = buf.st_mode & S_IXUSR;
 #endif
-    return is_x ? (is_r ? 0 : -2) : -1;
+	return is_x ? (is_r ? 0 : -2) : -1;
 }
 
 
 /*
  * find_my_exec -- find an absolute path to a valid executable
  *
- *    argv0 is the name passed on the command line
- *    retpath is the output area (must be of size MAXPGPATH)
- *    Returns 0 if OK, -1 if error.
+ *	argv0 is the name passed on the command line
+ *	retpath is the output area (must be of size MAXPGPATH)
+ *	Returns 0 if OK, -1 if error.
  *
  * The reason we have to work so hard to find an absolute path is that
  * on some platforms we can't do dynamic loading unless we know the
@@ -117,90 +117,90 @@ validate_exec(const char *path)
  */
 int
 find_my_exec(const char *argv0, char *retpath)
-{// #lizard forgives
-    char        cwd[MAXPGPATH],
-                test_path[MAXPGPATH];
-    char       *path;
+{
+	char		cwd[MAXPGPATH],
+				test_path[MAXPGPATH];
+	char	   *path;
 
-    if (!getcwd(cwd, MAXPGPATH))
-    {
-        log_error(_("could not identify current directory: %s"),
-                  strerror(errno));
-        return -1;
-    }
+	if (!getcwd(cwd, MAXPGPATH))
+	{
+		log_error(_("could not identify current directory: %s"),
+				  strerror(errno));
+		return -1;
+	}
 
-    /*
-     * If argv0 contains a separator, then PATH wasn't used.
-     */
-    if (first_dir_separator(argv0) != NULL)
-    {
-        if (is_absolute_path(argv0))
-            StrNCpy(retpath, argv0, MAXPGPATH);
-        else
-            join_path_components(retpath, cwd, argv0);
-        canonicalize_path(retpath);
+	/*
+	 * If argv0 contains a separator, then PATH wasn't used.
+	 */
+	if (first_dir_separator(argv0) != NULL)
+	{
+		if (is_absolute_path(argv0))
+			StrNCpy(retpath, argv0, MAXPGPATH);
+		else
+			join_path_components(retpath, cwd, argv0);
+		canonicalize_path(retpath);
 
-        if (validate_exec(retpath) == 0)
-            return resolve_symlinks(retpath);
+		if (validate_exec(retpath) == 0)
+			return resolve_symlinks(retpath);
 
-        log_error(_("invalid binary \"%s\""), retpath);
-        return -1;
-    }
+		log_error(_("invalid binary \"%s\""), retpath);
+		return -1;
+	}
 
 #ifdef WIN32
-    /* Win32 checks the current directory first for names without slashes */
-    join_path_components(retpath, cwd, argv0);
-    if (validate_exec(retpath) == 0)
-        return resolve_symlinks(retpath);
+	/* Win32 checks the current directory first for names without slashes */
+	join_path_components(retpath, cwd, argv0);
+	if (validate_exec(retpath) == 0)
+		return resolve_symlinks(retpath);
 #endif
 
-    /*
-     * Since no explicit path was supplied, the user must have been relying on
-     * PATH.  We'll search the same PATH.
-     */
-    if ((path = getenv("PATH")) && *path)
-    {
-        char       *startp = NULL,
-                   *endp = NULL;
+	/*
+	 * Since no explicit path was supplied, the user must have been relying on
+	 * PATH.  We'll search the same PATH.
+	 */
+	if ((path = getenv("PATH")) && *path)
+	{
+		char	   *startp = NULL,
+				   *endp = NULL;
 
-        do
-        {
-            if (!startp)
-                startp = path;
-            else
-                startp = endp + 1;
+		do
+		{
+			if (!startp)
+				startp = path;
+			else
+				startp = endp + 1;
 
-            endp = first_path_var_separator(startp);
-            if (!endp)
-                endp = startp + strlen(startp); /* point to end */
+			endp = first_path_var_separator(startp);
+			if (!endp)
+				endp = startp + strlen(startp); /* point to end */
 
-            StrNCpy(test_path, startp, Min(endp - startp + 1, MAXPGPATH));
+			StrNCpy(test_path, startp, Min(endp - startp + 1, MAXPGPATH));
 
-            if (is_absolute_path(test_path))
-                join_path_components(retpath, test_path, argv0);
-            else
-            {
-                join_path_components(retpath, cwd, test_path);
-                join_path_components(retpath, retpath, argv0);
-            }
-            canonicalize_path(retpath);
+			if (is_absolute_path(test_path))
+				join_path_components(retpath, test_path, argv0);
+			else
+			{
+				join_path_components(retpath, cwd, test_path);
+				join_path_components(retpath, retpath, argv0);
+			}
+			canonicalize_path(retpath);
 
-            switch (validate_exec(retpath))
-            {
-                case 0:            /* found ok */
-                    return resolve_symlinks(retpath);
-                case -1:        /* wasn't even a candidate, keep looking */
-                    break;
-                case -2:        /* found but disqualified */
-                    log_error(_("could not read binary \"%s\""),
-                              retpath);
-                    break;
-            }
-        } while (*endp);
-    }
+			switch (validate_exec(retpath))
+			{
+				case 0:			/* found ok */
+					return resolve_symlinks(retpath);
+				case -1:		/* wasn't even a candidate, keep looking */
+					break;
+				case -2:		/* found but disqualified */
+					log_error(_("could not read binary \"%s\""),
+							  retpath);
+					break;
+			}
+		} while (*endp);
+	}
 
-    log_error(_("could not find a \"%s\" to execute"), argv0);
-    return -1;
+	log_error(_("could not find a \"%s\" to execute"), argv0);
+	return -1;
 }
 
 
@@ -217,85 +217,85 @@ find_my_exec(const char *argv0, char *retpath)
  */
 static int
 resolve_symlinks(char *path)
-{// #lizard forgives
+{
 #ifdef HAVE_READLINK
-    struct stat buf;
-    char        orig_wd[MAXPGPATH],
-                link_buf[MAXPGPATH];
-    char       *fname;
+	struct stat buf;
+	char		orig_wd[MAXPGPATH],
+				link_buf[MAXPGPATH];
+	char	   *fname;
 
-    /*
-     * To resolve a symlink properly, we have to chdir into its directory and
-     * then chdir to where the symlink points; otherwise we may fail to
-     * resolve relative links correctly (consider cases involving mount
-     * points, for example).  After following the final symlink, we use
-     * getcwd() to figure out where the heck we're at.
-     *
-     * One might think we could skip all this if path doesn't point to a
-     * symlink to start with, but that's wrong.  We also want to get rid of
-     * any directory symlinks that are present in the given path. We expect
-     * getcwd() to give us an accurate, symlink-free path.
-     */
-    if (!getcwd(orig_wd, MAXPGPATH))
-    {
-        log_error(_("could not identify current directory: %s"),
-                  strerror(errno));
-        return -1;
-    }
+	/*
+	 * To resolve a symlink properly, we have to chdir into its directory and
+	 * then chdir to where the symlink points; otherwise we may fail to
+	 * resolve relative links correctly (consider cases involving mount
+	 * points, for example).  After following the final symlink, we use
+	 * getcwd() to figure out where the heck we're at.
+	 *
+	 * One might think we could skip all this if path doesn't point to a
+	 * symlink to start with, but that's wrong.  We also want to get rid of
+	 * any directory symlinks that are present in the given path. We expect
+	 * getcwd() to give us an accurate, symlink-free path.
+	 */
+	if (!getcwd(orig_wd, MAXPGPATH))
+	{
+		log_error(_("could not identify current directory: %s"),
+				  strerror(errno));
+		return -1;
+	}
 
-    for (;;)
-    {
-        char       *lsep;
-        int            rllen;
+	for (;;)
+	{
+		char	   *lsep;
+		int			rllen;
 
-        lsep = last_dir_separator(path);
-        if (lsep)
-        {
-            *lsep = '\0';
-            if (chdir(path) == -1)
-            {
-                log_error4(_("could not change directory to \"%s\": %s"), path, strerror(errno));
-                return -1;
-            }
-            fname = lsep + 1;
-        }
-        else
-            fname = path;
+		lsep = last_dir_separator(path);
+		if (lsep)
+		{
+			*lsep = '\0';
+			if (chdir(path) == -1)
+			{
+				log_error4(_("could not change directory to \"%s\": %s"), path, strerror(errno));
+				return -1;
+			}
+			fname = lsep + 1;
+		}
+		else
+			fname = path;
 
-        if (lstat(fname, &buf) < 0 ||
-            !S_ISLNK(buf.st_mode))
-            break;
+		if (lstat(fname, &buf) < 0 ||
+			!S_ISLNK(buf.st_mode))
+			break;
 
-        rllen = readlink(fname, link_buf, sizeof(link_buf));
-        if (rllen < 0 || rllen >= sizeof(link_buf))
-        {
-            log_error(_("could not read symbolic link \"%s\""), fname);
-            return -1;
-        }
-        link_buf[rllen] = '\0';
-        strcpy(path, link_buf);
-    }
+		rllen = readlink(fname, link_buf, sizeof(link_buf));
+		if (rllen < 0 || rllen >= sizeof(link_buf))
+		{
+			log_error(_("could not read symbolic link \"%s\""), fname);
+			return -1;
+		}
+		link_buf[rllen] = '\0';
+		strcpy(path, link_buf);
+	}
 
-    /* must copy final component out of 'path' temporarily */
-    strlcpy(link_buf, fname, sizeof(link_buf));
+	/* must copy final component out of 'path' temporarily */
+	strlcpy(link_buf, fname, sizeof(link_buf));
 
-    if (!getcwd(path, MAXPGPATH))
-    {
-        log_error(_("could not identify current directory: %s"),
-                  strerror(errno));
-        return -1;
-    }
-    join_path_components(path, path, link_buf);
-    canonicalize_path(path);
+	if (!getcwd(path, MAXPGPATH))
+	{
+		log_error(_("could not identify current directory: %s"),
+				  strerror(errno));
+		return -1;
+	}
+	join_path_components(path, path, link_buf);
+	canonicalize_path(path);
 
-    if (chdir(orig_wd) == -1)
-    {
-        log_error4(_("could not change directory to \"%s\": %s"), orig_wd, strerror(errno));
-        return -1;
-    }
-#endif                            /* HAVE_READLINK */
+	if (chdir(orig_wd) == -1)
+	{
+		log_error4(_("could not change directory to \"%s\": %s"), orig_wd, strerror(errno));
+		return -1;
+	}
+#endif							/* HAVE_READLINK */
 
-    return 0;
+	return 0;
 }
 
 
@@ -305,34 +305,34 @@ resolve_symlinks(char *path)
  */
 int
 find_other_exec(const char *argv0, const char *target,
-                const char *versionstr, char *retpath)
+				const char *versionstr, char *retpath)
 {
-    char        cmd[MAXPGPATH];
-    char        line[100];
+	char		cmd[MAXPGPATH];
+	char		line[MAXPGPATH];
 
-    if (find_my_exec(argv0, retpath) < 0)
-        return -1;
+	if (find_my_exec(argv0, retpath) < 0)
+		return -1;
 
-    /* Trim off program name and keep just directory */
-    *last_dir_separator(retpath) = '\0';
-    canonicalize_path(retpath);
+	/* Trim off program name and keep just directory */
+	*last_dir_separator(retpath) = '\0';
+	canonicalize_path(retpath);
 
-    /* Now append the other program's name */
-    snprintf(retpath + strlen(retpath), MAXPGPATH - strlen(retpath),
-             "/%s%s", target, EXE);
+	/* Now append the other program's name */
+	snprintf(retpath + strlen(retpath), MAXPGPATH - strlen(retpath),
+			 "/%s%s", target, EXE);
 
-    if (validate_exec(retpath) != 0)
-        return -1;
+	if (validate_exec(retpath) != 0)
+		return -1;
 
-    snprintf(cmd, sizeof(cmd), "\"%s\" -V", retpath);
+	snprintf(cmd, sizeof(cmd), "\"%s\" -V", retpath);
 
-    if (!pipe_read_line(cmd, line, sizeof(line)))
-        return -1;
+	if (!pipe_read_line(cmd, line, sizeof(line)))
+		return -1;
 
-    if (strcmp(line, versionstr) != 0)
-        return -2;
+	if (strcmp(line, versionstr) != 0)
+		return -2;
 
-    return 0;
+	return 0;
 }
 
 
@@ -346,160 +346,160 @@ find_other_exec(const char *argv0, const char *target,
  */
 static char *
 pipe_read_line(char *cmd, char *line, int maxsize)
-{// #lizard forgives
+{
 #ifndef WIN32
-    FILE       *pgver;
+	FILE	   *pgver;
 
-    /* flush output buffers in case popen does not... */
-    fflush(stdout);
-    fflush(stderr);
+	/* flush output buffers in case popen does not... */
+	fflush(stdout);
+	fflush(stderr);
 
-    errno = 0;
-    if ((pgver = popen(cmd, "r")) == NULL)
-    {
-        perror("popen failure");
-        return NULL;
-    }
+	errno = 0;
+	if ((pgver = popen(cmd, "r")) == NULL)
+	{
+		perror("popen failure");
+		return NULL;
+	}
 
-    errno = 0;
-    if (fgets(line, maxsize, pgver) == NULL)
-    {
-        if (feof(pgver))
-            fprintf(stderr, "no data was returned by command \"%s\"\n", cmd);
-        else
-            perror("fgets failure");
-        pclose(pgver);            /* no error checking */
-        return NULL;
-    }
+	errno = 0;
+	if (fgets(line, maxsize, pgver) == NULL)
+	{
+		if (feof(pgver))
+			fprintf(stderr, "no data was returned by command \"%s\"\n", cmd);
+		else
+			perror("fgets failure");
+		pclose(pgver);			/* no error checking */
+		return NULL;
+	}
 
-    if (pclose_check(pgver))
-        return NULL;
+	if (pclose_check(pgver))
+		return NULL;
 
-    return line;
-#else                            /* WIN32 */
+	return line;
+#else							/* WIN32 */
 
-    SECURITY_ATTRIBUTES sattr;
-    HANDLE        childstdoutrd,
-                childstdoutwr,
-                childstdoutrddup;
-    PROCESS_INFORMATION pi;
-    STARTUPINFO si;
-    char       *retval = NULL;
+	SECURITY_ATTRIBUTES sattr;
+	HANDLE		childstdoutrd,
+				childstdoutwr,
+				childstdoutrddup;
+	PROCESS_INFORMATION pi;
+	STARTUPINFO si;
+	char	   *retval = NULL;
 
-    sattr.nLength = sizeof(SECURITY_ATTRIBUTES);
-    sattr.bInheritHandle = TRUE;
-    sattr.lpSecurityDescriptor = NULL;
+	sattr.nLength = sizeof(SECURITY_ATTRIBUTES);
+	sattr.bInheritHandle = TRUE;
+	sattr.lpSecurityDescriptor = NULL;
 
-    if (!CreatePipe(&childstdoutrd, &childstdoutwr, &sattr, 0))
-        return NULL;
+	if (!CreatePipe(&childstdoutrd, &childstdoutwr, &sattr, 0))
+		return NULL;
 
-    if (!DuplicateHandle(GetCurrentProcess(),
-                         childstdoutrd,
-                         GetCurrentProcess(),
-                         &childstdoutrddup,
-                         0,
-                         FALSE,
-                         DUPLICATE_SAME_ACCESS))
-    {
-        CloseHandle(childstdoutrd);
-        CloseHandle(childstdoutwr);
-        return NULL;
-    }
+	if (!DuplicateHandle(GetCurrentProcess(),
+						 childstdoutrd,
+						 GetCurrentProcess(),
+						 &childstdoutrddup,
+						 0,
+						 FALSE,
+						 DUPLICATE_SAME_ACCESS))
+	{
+		CloseHandle(childstdoutrd);
+		CloseHandle(childstdoutwr);
+		return NULL;
+	}
 
-    CloseHandle(childstdoutrd);
+	CloseHandle(childstdoutrd);
 
-    ZeroMemory(&pi, sizeof(pi));
-    ZeroMemory(&si, sizeof(si));
-    si.cb = sizeof(si);
-    si.dwFlags = STARTF_USESTDHANDLES;
-    si.hStdError = childstdoutwr;
-    si.hStdOutput = childstdoutwr;
-    si.hStdInput = INVALID_HANDLE_VALUE;
+	ZeroMemory(&pi, sizeof(pi));
+	ZeroMemory(&si, sizeof(si));
+	si.cb = sizeof(si);
+	si.dwFlags = STARTF_USESTDHANDLES;
+	si.hStdError = childstdoutwr;
+	si.hStdOutput = childstdoutwr;
+	si.hStdInput = INVALID_HANDLE_VALUE;
 
-    if (CreateProcess(NULL,
-                      cmd,
-                      NULL,
-                      NULL,
-                      TRUE,
-                      0,
-                      NULL,
-                      NULL,
-                      &si,
-                      &pi))
-    {
-        /* Successfully started the process */
-        char       *lineptr;
+	if (CreateProcess(NULL,
+					  cmd,
+					  NULL,
+					  NULL,
+					  TRUE,
+					  0,
+					  NULL,
+					  NULL,
+					  &si,
+					  &pi))
+	{
+		/* Successfully started the process */
+		char	   *lineptr;
 
-        ZeroMemory(line, maxsize);
+		ZeroMemory(line, maxsize);
 
-        /* Try to read at least one line from the pipe */
-        /* This may require more than one wait/read attempt */
-        for (lineptr = line; lineptr < line + maxsize - 1;)
-        {
-            DWORD        bytesread = 0;
+		/* Try to read at least one line from the pipe */
+		/* This may require more than one wait/read attempt */
+		for (lineptr = line; lineptr < line + maxsize - 1;)
+		{
+			DWORD		bytesread = 0;
 
-            /* Let's see if we can read */
-            if (WaitForSingleObject(childstdoutrddup, 10000) != WAIT_OBJECT_0)
-                break;            /* Timeout, but perhaps we got a line already */
+			/* Let's see if we can read */
+			if (WaitForSingleObject(childstdoutrddup, 10000) != WAIT_OBJECT_0)
+				break;			/* Timeout, but perhaps we got a line already */
 
-            if (!ReadFile(childstdoutrddup, lineptr, maxsize - (lineptr - line),
-                          &bytesread, NULL))
-                break;            /* Error, but perhaps we got a line already */
+			if (!ReadFile(childstdoutrddup, lineptr, maxsize - (lineptr - line),
+						  &bytesread, NULL))
+				break;			/* Error, but perhaps we got a line already */
 
-            lineptr += strlen(lineptr);
+			lineptr += strlen(lineptr);
 
-            if (!bytesread)
-                break;            /* EOF */
+			if (!bytesread)
+				break;			/* EOF */
 
-            if (strchr(line, '\n'))
-                break;            /* One or more lines read */
-        }
+			if (strchr(line, '\n'))
+				break;			/* One or more lines read */
+		}
 
-        if (lineptr != line)
-        {
-            /* OK, we read some data */
-            int            len;
+		if (lineptr != line)
+		{
+			/* OK, we read some data */
+			int			len;
 
-            /* If we got more than one line, cut off after the first \n */
-            lineptr = strchr(line, '\n');
-            if (lineptr)
-                *(lineptr + 1) = '\0';
+			/* If we got more than one line, cut off after the first \n */
+			lineptr = strchr(line, '\n');
+			if (lineptr)
+				*(lineptr + 1) = '\0';
 
-            len = strlen(line);
+			len = strlen(line);
 
-            /*
-             * If EOL is \r\n, convert to just \n. Because stdout is a
-             * text-mode stream, the \n output by the child process is
-             * received as \r\n, so we convert it to \n.  The server main.c
-             * sets setvbuf(stdout, NULL, _IONBF, 0) which has the effect of
-             * disabling \n to \r\n expansion for stdout.
-             */
-            if (len >= 2 && line[len - 2] == '\r' && line[len - 1] == '\n')
-            {
-                line[len - 2] = '\n';
-                line[len - 1] = '\0';
-                len--;
-            }
+			/*
+			 * If EOL is \r\n, convert to just \n. Because stdout is a
+			 * text-mode stream, the \n output by the child process is
+			 * received as \r\n, so we convert it to \n.  The server main.c
+			 * sets setvbuf(stdout, NULL, _IONBF, 0) which has the effect of
+			 * disabling \n to \r\n expansion for stdout.
+			 */
+			if (len >= 2 && line[len - 2] == '\r' && line[len - 1] == '\n')
+			{
+				line[len - 2] = '\n';
+				line[len - 1] = '\0';
+				len--;
+			}
 
-            /*
-             * We emulate fgets() behaviour. So if there is no newline at the
-             * end, we add one...
-             */
-            if (len == 0 || line[len - 1] != '\n')
-                strcat(line, "\n");
+			/*
+			 * We emulate fgets() behaviour. So if there is no newline at the
+			 * end, we add one...
+			 */
+			if (len == 0 || line[len - 1] != '\n')
+				strcat(line, "\n");
 
-            retval = line;
-        }
+			retval = line;
+		}
 
-        CloseHandle(pi.hProcess);
-        CloseHandle(pi.hThread);
-    }
+		CloseHandle(pi.hProcess);
+		CloseHandle(pi.hThread);
+	}
 
-    CloseHandle(childstdoutwr);
-    CloseHandle(childstdoutrddup);
+	CloseHandle(childstdoutwr);
+	CloseHandle(childstdoutrddup);
 
-    return retval;
-#endif                            /* WIN32 */
+	return retval;
+#endif							/* WIN32 */
 }
 
 
@@ -509,38 +509,38 @@ pipe_read_line(char *cmd, char *line, int maxsize)
 int
 pclose_check(FILE *stream)
 {
-    int            exitstatus;
-    char       *reason;
+	int			exitstatus;
+	char	   *reason;
 
-    exitstatus = pclose(stream);
+	exitstatus = pclose(stream);
 
-    if (exitstatus == 0)
-        return 0;                /* all is well */
+	if (exitstatus == 0)
+		return 0;				/* all is well */
 
-    if (exitstatus == -1)
-    {
-        /* pclose() itself failed, and hopefully set errno */
-        log_error(_("pclose failed: %s"), strerror(errno));
-    }
-    else
-    {
-        reason = wait_result_to_str(exitstatus);
-        log_error("%s", reason);
+	if (exitstatus == -1)
+	{
+		/* pclose() itself failed, and hopefully set errno */
+		log_error(_("pclose failed: %s"), strerror(errno));
+	}
+	else
+	{
+		reason = wait_result_to_str(exitstatus);
+		log_error("%s", reason);
 #ifdef FRONTEND
-        free(reason);
+		free(reason);
 #else
-        pfree(reason);
+		pfree(reason);
 #endif
-    }
-    return exitstatus;
+	}
+	return exitstatus;
 }
 
 /*
- *    set_pglocale_pgservice
+ *	set_pglocale_pgservice
  *
- *    Set application-specific locale and service directory
+ *	Set application-specific locale and service directory
  *
- *    This function takes the value of argv[0] rather than a full path.
+ *	This function takes the value of argv[0] rather than a full path.
  *
  * (You may be wondering why this is in exec.c.  It requires this module's
  * services and doesn't introduce any new dependencies, so this seems as
@@ -549,58 +549,58 @@ pclose_check(FILE *stream)
 void
 set_pglocale_pgservice(const char *argv0, const char *app)
 {
-    char        path[MAXPGPATH];
-    char        my_exec_path[MAXPGPATH];
-    char        env_path[MAXPGPATH + sizeof("PGSYSCONFDIR=")];    /* longer than
-                                                                 * PGLOCALEDIR */
-    char       *dup_path;
+	char		path[MAXPGPATH];
+	char		my_exec_path[MAXPGPATH];
+	char		env_path[MAXPGPATH + sizeof("PGSYSCONFDIR=")];	/* longer than
+																 * PGLOCALEDIR */
+	char	   *dup_path;
 
-    /* don't set LC_ALL in the backend */
-    if (strcmp(app, PG_TEXTDOMAIN("postgres")) != 0)
-    {
-        setlocale(LC_ALL, "");
+	/* don't set LC_ALL in the backend */
+	if (strcmp(app, PG_TEXTDOMAIN("postgres")) != 0)
+	{
+		setlocale(LC_ALL, "");
 
-        /*
-         * One could make a case for reproducing here PostmasterMain()'s test
-         * for whether the process is multithreaded.  Unlike the postmaster,
-         * no frontend program calls sigprocmask() or otherwise provides for
-         * mutual exclusion between signal handlers.  While frontends using
-         * fork(), if multithreaded, are formally exposed to undefined
-         * behavior, we have not witnessed a concrete bug.  Therefore,
-         * complaining about multithreading here may be mere pedantry.
-         */
-    }
+		/*
+		 * One could make a case for reproducing here PostmasterMain()'s test
+		 * for whether the process is multithreaded.  Unlike the postmaster,
+		 * no frontend program calls sigprocmask() or otherwise provides for
+		 * mutual exclusion between signal handlers.  While frontends using
+		 * fork(), if multithreaded, are formally exposed to undefined
+		 * behavior, we have not witnessed a concrete bug.  Therefore,
+		 * complaining about multithreading here may be mere pedantry.
+		 */
+	}
 
-    if (find_my_exec(argv0, my_exec_path) < 0)
-        return;
+	if (find_my_exec(argv0, my_exec_path) < 0)
+		return;
 
 #ifdef ENABLE_NLS
-    get_locale_path(my_exec_path, path);
-    bindtextdomain(app, path);
-    textdomain(app);
+	get_locale_path(my_exec_path, path);
+	bindtextdomain(app, path);
+	textdomain(app);
 
-    if (getenv("PGLOCALEDIR") == NULL)
-    {
-        /* set for libpq to use */
-        snprintf(env_path, sizeof(env_path), "PGLOCALEDIR=%s", path);
-        canonicalize_path(env_path + 12);
-        dup_path = strdup(env_path);
-        if (dup_path)
-            putenv(dup_path);
-    }
+	if (getenv("PGLOCALEDIR") == NULL)
+	{
+		/* set for libpq to use */
+		snprintf(env_path, sizeof(env_path), "PGLOCALEDIR=%s", path);
+		canonicalize_path(env_path + 12);
+		dup_path = strdup(env_path);
+		if (dup_path)
+			putenv(dup_path);
+	}
 #endif
 
-    if (getenv("PGSYSCONFDIR") == NULL)
-    {
-        get_etc_path(my_exec_path, path);
+	if (getenv("PGSYSCONFDIR") == NULL)
+	{
+		get_etc_path(my_exec_path, path);
 
-        /* set for libpq to use */
-        snprintf(env_path, sizeof(env_path), "PGSYSCONFDIR=%s", path);
-        canonicalize_path(env_path + 13);
-        dup_path = strdup(env_path);
-        if (dup_path)
-            putenv(dup_path);
-    }
+		/* set for libpq to use */
+		snprintf(env_path, sizeof(env_path), "PGSYSCONFDIR=%s", path);
+		canonicalize_path(env_path + 13);
+		dup_path = strdup(env_path);
+		if (dup_path)
+			putenv(dup_path);
+	}
 }
 
 #ifdef WIN32
@@ -629,121 +629,121 @@ set_pglocale_pgservice(const char *argv0, const char *app)
  */
 BOOL
 AddUserToTokenDacl(HANDLE hToken)
-{// #lizard forgives
-    int            i;
-    ACL_SIZE_INFORMATION asi;
-    ACCESS_ALLOWED_ACE *pace;
-    DWORD        dwNewAclSize;
-    DWORD        dwSize = 0;
-    DWORD        dwTokenInfoLength = 0;
-    PACL        pacl = NULL;
-    PTOKEN_USER pTokenUser = NULL;
-    TOKEN_DEFAULT_DACL tddNew;
-    TOKEN_DEFAULT_DACL *ptdd = NULL;
-    TOKEN_INFORMATION_CLASS tic = TokenDefaultDacl;
-    BOOL        ret = FALSE;
+{
+	int			i;
+	ACL_SIZE_INFORMATION asi;
+	ACCESS_ALLOWED_ACE *pace;
+	DWORD		dwNewAclSize;
+	DWORD		dwSize = 0;
+	DWORD		dwTokenInfoLength = 0;
+	PACL		pacl = NULL;
+	PTOKEN_USER pTokenUser = NULL;
+	TOKEN_DEFAULT_DACL tddNew;
+	TOKEN_DEFAULT_DACL *ptdd = NULL;
+	TOKEN_INFORMATION_CLASS tic = TokenDefaultDacl;
+	BOOL		ret = FALSE;
 
-    /* Figure out the buffer size for the DACL info */
-    if (!GetTokenInformation(hToken, tic, (LPVOID) NULL, dwTokenInfoLength, &dwSize))
-    {
-        if (GetLastError() == ERROR_INSUFFICIENT_BUFFER)
-        {
-            ptdd = (TOKEN_DEFAULT_DACL *) LocalAlloc(LPTR, dwSize);
-            if (ptdd == NULL)
-            {
-                log_error("could not allocate %lu bytes of memory", dwSize);
-                goto cleanup;
-            }
+	/* Figure out the buffer size for the DACL info */
+	if (!GetTokenInformation(hToken, tic, (LPVOID) NULL, dwTokenInfoLength, &dwSize))
+	{
+		if (GetLastError() == ERROR_INSUFFICIENT_BUFFER)
+		{
+			ptdd = (TOKEN_DEFAULT_DACL *) LocalAlloc(LPTR, dwSize);
+			if (ptdd == NULL)
+			{
+				log_error("could not allocate %lu bytes of memory", dwSize);
+				goto cleanup;
+			}
 
-            if (!GetTokenInformation(hToken, tic, (LPVOID) ptdd, dwSize, &dwSize))
-            {
-                log_error("could not get token information: error code %lu", GetLastError());
-                goto cleanup;
-            }
-        }
-        else
-        {
-            log_error("could not get token information buffer size: error code %lu", GetLastError());
-            goto cleanup;
-        }
-    }
+			if (!GetTokenInformation(hToken, tic, (LPVOID) ptdd, dwSize, &dwSize))
+			{
+				log_error("could not get token information: error code %lu", GetLastError());
+				goto cleanup;
+			}
+		}
+		else
+		{
+			log_error("could not get token information buffer size: error code %lu", GetLastError());
+			goto cleanup;
+		}
+	}
 
-    /* Get the ACL info */
-    if (!GetAclInformation(ptdd->DefaultDacl, (LPVOID) &asi,
-                           (DWORD) sizeof(ACL_SIZE_INFORMATION),
-                           AclSizeInformation))
-    {
-        log_error("could not get ACL information: error code %lu", GetLastError());
-        goto cleanup;
-    }
+	/* Get the ACL info */
+	if (!GetAclInformation(ptdd->DefaultDacl, (LPVOID) &asi,
+						   (DWORD) sizeof(ACL_SIZE_INFORMATION),
+						   AclSizeInformation))
+	{
+		log_error("could not get ACL information: error code %lu", GetLastError());
+		goto cleanup;
+	}
 
-    /* Get the current user SID */
-    if (!GetTokenUser(hToken, &pTokenUser))
-        goto cleanup;            /* callee printed a message */
+	/* Get the current user SID */
+	if (!GetTokenUser(hToken, &pTokenUser))
+		goto cleanup;			/* callee printed a message */
 
-    /* Figure out the size of the new ACL */
-    dwNewAclSize = asi.AclBytesInUse + sizeof(ACCESS_ALLOWED_ACE) +
-        GetLengthSid(pTokenUser->User.Sid) - sizeof(DWORD);
+	/* Figure out the size of the new ACL */
+	dwNewAclSize = asi.AclBytesInUse + sizeof(ACCESS_ALLOWED_ACE) +
+		GetLengthSid(pTokenUser->User.Sid) - sizeof(DWORD);
 
-    /* Allocate the ACL buffer & initialize it */
-    pacl = (PACL) LocalAlloc(LPTR, dwNewAclSize);
-    if (pacl == NULL)
-    {
-        log_error("could not allocate %lu bytes of memory", dwNewAclSize);
-        goto cleanup;
-    }
+	/* Allocate the ACL buffer & initialize it */
+	pacl = (PACL) LocalAlloc(LPTR, dwNewAclSize);
+	if (pacl == NULL)
+	{
+		log_error("could not allocate %lu bytes of memory", dwNewAclSize);
+		goto cleanup;
+	}
 
-    if (!InitializeAcl(pacl, dwNewAclSize, ACL_REVISION))
-    {
-        log_error("could not initialize ACL: error code %lu", GetLastError());
-        goto cleanup;
-    }
+	if (!InitializeAcl(pacl, dwNewAclSize, ACL_REVISION))
+	{
+		log_error("could not initialize ACL: error code %lu", GetLastError());
+		goto cleanup;
+	}
 
-    /* Loop through the existing ACEs, and build the new ACL */
-    for (i = 0; i < (int) asi.AceCount; i++)
-    {
-        if (!GetAce(ptdd->DefaultDacl, i, (LPVOID *) &pace))
-        {
-            log_error("could not get ACE: error code %lu", GetLastError());
-            goto cleanup;
-        }
+	/* Loop through the existing ACEs, and build the new ACL */
+	for (i = 0; i < (int) asi.AceCount; i++)
+	{
+		if (!GetAce(ptdd->DefaultDacl, i, (LPVOID *) &pace))
+		{
+			log_error("could not get ACE: error code %lu", GetLastError());
+			goto cleanup;
+		}
 
-        if (!AddAce(pacl, ACL_REVISION, MAXDWORD, pace, ((PACE_HEADER) pace)->AceSize))
-        {
-            log_error("could not add ACE: error code %lu", GetLastError());
-            goto cleanup;
-        }
-    }
+		if (!AddAce(pacl, ACL_REVISION, MAXDWORD, pace, ((PACE_HEADER) pace)->AceSize))
+		{
+			log_error("could not add ACE: error code %lu", GetLastError());
+			goto cleanup;
+		}
+	}
 
-    /* Add the new ACE for the current user */
-    if (!AddAccessAllowedAceEx(pacl, ACL_REVISION, OBJECT_INHERIT_ACE, GENERIC_ALL, pTokenUser->User.Sid))
-    {
-        log_error("could not add access allowed ACE: error code %lu", GetLastError());
-        goto cleanup;
-    }
+	/* Add the new ACE for the current user */
+	if (!AddAccessAllowedAceEx(pacl, ACL_REVISION, OBJECT_INHERIT_ACE, GENERIC_ALL, pTokenUser->User.Sid))
+	{
+		log_error("could not add access allowed ACE: error code %lu", GetLastError());
+		goto cleanup;
+	}
 
-    /* Set the new DACL in the token */
-    tddNew.DefaultDacl = pacl;
+	/* Set the new DACL in the token */
+	tddNew.DefaultDacl = pacl;
 
-    if (!SetTokenInformation(hToken, tic, (LPVOID) &tddNew, dwNewAclSize))
-    {
-        log_error("could not set token information: error code %lu", GetLastError());
-        goto cleanup;
-    }
+	if (!SetTokenInformation(hToken, tic, (LPVOID) &tddNew, dwNewAclSize))
+	{
+		log_error("could not set token information: error code %lu", GetLastError());
+		goto cleanup;
+	}
 
-    ret = TRUE;
+	ret = TRUE;
 
 cleanup:
-    if (pTokenUser)
-        LocalFree((HLOCAL) pTokenUser);
+	if (pTokenUser)
+		LocalFree((HLOCAL) pTokenUser);
 
-    if (pacl)
-        LocalFree((HLOCAL) pacl);
+	if (pacl)
+		LocalFree((HLOCAL) pacl);
 
-    if (ptdd)
-        LocalFree((HLOCAL) ptdd);
+	if (ptdd)
+		LocalFree((HLOCAL) ptdd);
 
-    return ret;
+	return ret;
 }
 
 /*
@@ -757,48 +757,48 @@ cleanup:
 static BOOL
 GetTokenUser(HANDLE hToken, PTOKEN_USER *ppTokenUser)
 {
-    DWORD        dwLength;
+	DWORD		dwLength;
 
-    *ppTokenUser = NULL;
+	*ppTokenUser = NULL;
 
-    if (!GetTokenInformation(hToken,
-                             TokenUser,
-                             NULL,
-                             0,
-                             &dwLength))
-    {
-        if (GetLastError() == ERROR_INSUFFICIENT_BUFFER)
-        {
-            *ppTokenUser = (PTOKEN_USER) LocalAlloc(LPTR, dwLength);
+	if (!GetTokenInformation(hToken,
+							 TokenUser,
+							 NULL,
+							 0,
+							 &dwLength))
+	{
+		if (GetLastError() == ERROR_INSUFFICIENT_BUFFER)
+		{
+			*ppTokenUser = (PTOKEN_USER) LocalAlloc(LPTR, dwLength);
 
-            if (*ppTokenUser == NULL)
-            {
-                log_error("could not allocate %lu bytes of memory", dwLength);
-                return FALSE;
-            }
-        }
-        else
-        {
-            log_error("could not get token information buffer size: error code %lu", GetLastError());
-            return FALSE;
-        }
-    }
+			if (*ppTokenUser == NULL)
+			{
+				log_error("could not allocate %lu bytes of memory", dwLength);
+				return FALSE;
+			}
+		}
+		else
+		{
+			log_error("could not get token information buffer size: error code %lu", GetLastError());
+			return FALSE;
+		}
+	}
 
-    if (!GetTokenInformation(hToken,
-                             TokenUser,
-                             *ppTokenUser,
-                             dwLength,
-                             &dwLength))
-    {
-        LocalFree(*ppTokenUser);
-        *ppTokenUser = NULL;
+	if (!GetTokenInformation(hToken,
+							 TokenUser,
+							 *ppTokenUser,
+							 dwLength,
+							 &dwLength))
+	{
+		LocalFree(*ppTokenUser);
+		*ppTokenUser = NULL;
 
-        log_error("could not get token information: error code %lu", GetLastError());
-        return FALSE;
-    }
+		log_error("could not get token information: error code %lu", GetLastError());
+		return FALSE;
+	}
 
-    /* Memory in *ppTokenUser is LocalFree():d by the caller */
-    return TRUE;
+	/* Memory in *ppTokenUser is LocalFree():d by the caller */
+	return TRUE;
 }
 
 #endif

@@ -1,0 +1,522 @@
+create default node group default_group with ("dn1", "dn2");
+CREATE NODE GROUP
+create sharding group to group default_group;
+CREATE SHARDING GROUP
+clean sharding;
+CLEAN SHARDING
+create table t(a int, b int);
+CREATE TABLE
+grant all on t to public;
+GRANT
+-- create a resource group when gp_resource_manager is queue
+DROP ROLE IF EXISTS role_concurrency_test;
+DROP ROLE
+NOTICE:  (00000) role "role_concurrency_test" does not exist, skipping
+-- start_ignore
+DROP RESOURCE GROUP rg_concurrency_test;
+ERROR:  (42704) resource group "rg_concurrency_test" does not exist
+-- end_ignore
+CREATE RESOURCE GROUP rg_concurrency_test WITH concurrency 1 CPU_RATE_LIMIT 20;
+CREATE RESOURCE GROUP
+CREATE ROLE role_concurrency_test RESOURCE GROUP rg_concurrency_test;
+CREATE ROLE
+-- After a 'q' command the client connection is disconnected but the
+-- QD may still be alive, if we then query pg_stat_activity quick enough
+-- we might still see this session with query '<IDLE>'.
+-- A filter is put to filter out this kind of quitted sessions.
+CREATE OR REPLACE VIEW rg_activity_status AS
+	SELECT rsgname, wait_event_type, state, query
+	FROM pg_stat_activity
+	WHERE rsgname='rg_concurrency_test'
+    order by wait_event_type, state;
+CREATE VIEW
+--
+-- 1. increase concurrency after pending queries
+--
+ALTER RESOURCE GROUP rg_concurrency_test SET CONCURRENCY 1;
+ALTER RESOURCE GROUP
+SET ROLE role_concurrency_test;
+SET
+set opentenbase_test_flag='suspend_after_resgroup_assigned11';
+SET
+ select count(*) from t;
+SELECT * FROM rg_activity_status;
+       rsgname       | wait_event_type | state  |          query          
+---------------------+-----------------+--------+-------------------------
+ rg_concurrency_test |                 | active | select count(*) from t;
+(1 row)
+
+SET ROLE role_concurrency_test;
+SET
+set opentenbase_test_flag='suspend_after_resgroup_assigned21';
+SET
+ select count(*) from t;
+SELECT * FROM rg_activity_status;
+       rsgname       | wait_event_type | state  |          query          
+---------------------+-----------------+--------+-------------------------
+ rg_concurrency_test | ResourceGroup   | active | select count(*) from t;
+ rg_concurrency_test |                 | active | select count(*) from t;
+(2 rows)
+
+SET ROLE role_concurrency_test;
+SET
+set opentenbase_test_flag='suspend_after_resgroup_assigned22';
+SET
+ select count(*) from t;
+SELECT * FROM rg_activity_status;
+       rsgname       | wait_event_type | state  |          query          
+---------------------+-----------------+--------+-------------------------
+ rg_concurrency_test | ResourceGroup   | active | select count(*) from t;
+ rg_concurrency_test | ResourceGroup   | active | select count(*) from t;
+ rg_concurrency_test |                 | active | select count(*) from t;
+(3 rows)
+
+ALTER RESOURCE GROUP rg_concurrency_test SET CONCURRENCY 2;
+ALTER RESOURCE GROUP
+SELECT * FROM rg_activity_status;
+       rsgname       | wait_event_type | state  |          query          
+---------------------+-----------------+--------+-------------------------
+ rg_concurrency_test | ResourceGroup   | active | select count(*) from t;
+ rg_concurrency_test |                 | active | select count(*) from t;
+ rg_concurrency_test |                 | active | select count(*) from t;
+(3 rows)
+
+ count 
+-------
+     0
+(1 row)
+
+SELECT * FROM rg_activity_status;
+       rsgname       | wait_event_type | state  |          query          
+---------------------+-----------------+--------+-------------------------
+ rg_concurrency_test |                 | active | select count(*) from t;
+ rg_concurrency_test |                 | active | select count(*) from t;
+(2 rows)
+
+ count 
+-------
+     0
+(1 row)
+
+ count 
+-------
+     0
+(1 row)
+
+SELECT * FROM rg_activity_status;
+ rsgname | wait_event_type | state | query 
+---------+-----------------+-------+-------
+(0 rows)
+
+--
+-- 2. increase concurrency before pending queries
+--
+ALTER RESOURCE GROUP rg_concurrency_test SET CONCURRENCY 1;
+ALTER RESOURCE GROUP
+SET ROLE role_concurrency_test;
+SET
+set opentenbase_test_flag='suspend_after_resgroup_assigned11';
+SET
+ select count(*) from t;
+SELECT * FROM rg_activity_status;
+       rsgname       | wait_event_type | state  |          query          
+---------------------+-----------------+--------+-------------------------
+ rg_concurrency_test |                 | active | select count(*) from t;
+(1 row)
+
+ALTER RESOURCE GROUP rg_concurrency_test SET CONCURRENCY 2;
+ALTER RESOURCE GROUP
+SET ROLE role_concurrency_test;
+SET
+set opentenbase_test_flag='suspend_after_resgroup_assigned21';
+SET
+ select count(*) from t;
+SELECT * FROM rg_activity_status;
+       rsgname       | wait_event_type | state  |          query          
+---------------------+-----------------+--------+-------------------------
+ rg_concurrency_test |                 | active | select count(*) from t;
+ rg_concurrency_test |                 | active | select count(*) from t;
+(2 rows)
+
+SET ROLE role_concurrency_test;
+SET
+set opentenbase_test_flag='suspend_after_resgroup_assigned22';
+SET
+ select count(*) from t;
+-- 22 blocking
+SELECT * FROM rg_activity_status;
+       rsgname       | wait_event_type | state  |          query          
+---------------------+-----------------+--------+-------------------------
+ rg_concurrency_test | ResourceGroup   | active | select count(*) from t;
+ rg_concurrency_test |                 | active | select count(*) from t;
+ rg_concurrency_test |                 | active | select count(*) from t;
+(3 rows)
+
+ count 
+-------
+     0
+(1 row)
+
+-- 11 end. should only have 21 and 22
+SELECT * FROM rg_activity_status;
+       rsgname       | wait_event_type | state  |          query          
+---------------------+-----------------+--------+-------------------------
+ rg_concurrency_test |                 | active | select count(*) from t;
+ rg_concurrency_test |                 | active | select count(*) from t;
+(2 rows)
+
+ count 
+-------
+     0
+(1 row)
+
+ count 
+-------
+     0
+(1 row)
+
+SELECT * FROM rg_activity_status;
+ rsgname | wait_event_type | state | query 
+---------+-----------------+-------+-------
+(0 rows)
+
+--
+-- 3. decrease concurrency
+--
+ALTER RESOURCE GROUP rg_concurrency_test SET CONCURRENCY 10;
+ALTER RESOURCE GROUP
+SET ROLE role_concurrency_test;
+SET
+set opentenbase_test_flag='suspend_after_resgroup_assigned11';
+SET
+ select count(*) from t;
+SET ROLE role_concurrency_test;
+SET
+set opentenbase_test_flag='suspend_after_resgroup_assigned12';
+SET
+ select count(*) from t;
+SET ROLE role_concurrency_test;
+SET
+set opentenbase_test_flag='suspend_after_resgroup_assigned13';
+SET
+ select count(*) from t;
+SET ROLE role_concurrency_test;
+SET
+set opentenbase_test_flag='suspend_after_resgroup_assigned14';
+SET
+ select count(*) from t;
+SET ROLE role_concurrency_test;
+SET
+set opentenbase_test_flag='suspend_after_resgroup_assigned15';
+SET
+ select count(*) from t;
+-- should no blocking on resgroup
+SELECT * FROM rg_activity_status;
+       rsgname       | wait_event_type | state  |          query          
+---------------------+-----------------+--------+-------------------------
+ rg_concurrency_test |                 | active | select count(*) from t;
+ rg_concurrency_test |                 | active | select count(*) from t;
+ rg_concurrency_test |                 | active | select count(*) from t;
+ rg_concurrency_test |                 | active | select count(*) from t;
+ rg_concurrency_test |                 | active | select count(*) from t;
+(5 rows)
+
+ALTER RESOURCE GROUP rg_concurrency_test SET CONCURRENCY 1;
+ALTER RESOURCE GROUP
+-- after sleep 5s, should also no blocking on resgroup
+SELECT * FROM rg_activity_status;
+       rsgname       | wait_event_type | state  |          query          
+---------------------+-----------------+--------+-------------------------
+ rg_concurrency_test |                 | active | select count(*) from t;
+ rg_concurrency_test |                 | active | select count(*) from t;
+ rg_concurrency_test |                 | active | select count(*) from t;
+ rg_concurrency_test |                 | active | select count(*) from t;
+ rg_concurrency_test |                 | active | select count(*) from t;
+(5 rows)
+
+ count 
+-------
+     0
+(1 row)
+
+ count 
+-------
+     0
+(1 row)
+
+ count 
+-------
+     0
+(1 row)
+
+ count 
+-------
+     0
+(1 row)
+
+ count 
+-------
+     0
+(1 row)
+
+-- this part finish
+SELECT * FROM rg_activity_status;
+ rsgname | wait_event_type | state | query 
+---------+-----------------+-------+-------
+(0 rows)
+
+--
+-- 4. increase concurrency from 0
+--
+DROP ROLE role_concurrency_test;
+DROP ROLE
+DROP RESOURCE GROUP rg_concurrency_test;
+DROP RESOURCE GROUP
+CREATE RESOURCE GROUP rg_concurrency_test WITH concurrency 0 CPU_RATE_LIMIT 20;
+CREATE RESOURCE GROUP
+CREATE ROLE role_concurrency_test RESOURCE GROUP rg_concurrency_test;
+CREATE ROLE
+SET ROLE role_concurrency_test;
+SET
+set opentenbase_test_flag='suspend_after_resgroup_assigned11';
+SET
+ select count(*) from t;
+-- 11 should be blocked by resgroup
+SELECT * FROM rg_activity_status;
+       rsgname       | wait_event_type | state  |          query          
+---------------------+-----------------+--------+-------------------------
+ rg_concurrency_test | ResourceGroup   | active | select count(*) from t;
+(1 row)
+
+ALTER RESOURCE GROUP rg_concurrency_test SET CONCURRENCY 1;
+ALTER RESOURCE GROUP
+-- 11 should not be blocked by resgroup
+SELECT * FROM rg_activity_status;
+       rsgname       | wait_event_type | state  |          query          
+---------------------+-----------------+--------+-------------------------
+ rg_concurrency_test |                 | active | select count(*) from t;
+(1 row)
+
+ count 
+-------
+     0
+(1 row)
+
+-- 11 should not block. gone. empty
+SELECT * FROM rg_activity_status;
+ rsgname | wait_event_type | state | query 
+---------+-----------------+-------+-------
+(0 rows)
+
+--
+-- 5.1 decrease concurrency to 0,
+-- without running queries,
+-- without pending queries.
+--
+ALTER RESOURCE GROUP rg_concurrency_test SET CONCURRENCY 1;
+ALTER RESOURCE GROUP
+-- should no output
+SELECT * FROM rg_activity_status;
+ rsgname | wait_event_type | state | query 
+---------+-----------------+-------+-------
+(0 rows)
+
+ALTER RESOURCE GROUP rg_concurrency_test SET CONCURRENCY 0;
+ALTER RESOURCE GROUP
+-- should no output
+SELECT * FROM rg_activity_status;
+ rsgname | wait_event_type | state | query 
+---------+-----------------+-------+-------
+(0 rows)
+
+--
+-- 5.2 decrease concurrency to 0,
+-- with running queries,
+-- without pending queries.
+--
+ALTER RESOURCE GROUP rg_concurrency_test SET CONCURRENCY 1;
+ALTER RESOURCE GROUP
+SELECT * FROM rg_activity_status;
+ rsgname | wait_event_type | state | query 
+---------+-----------------+-------+-------
+(0 rows)
+
+SET ROLE role_concurrency_test;
+SET
+set opentenbase_test_flag='suspend_after_resgroup_assigned11';
+SET
+ select count(*) from t;
+-- should not be blocked by resgroup
+SELECT * FROM rg_activity_status;
+       rsgname       | wait_event_type | state  |          query          
+---------------------+-----------------+--------+-------------------------
+ rg_concurrency_test |                 | active | select count(*) from t;
+(1 row)
+
+ALTER RESOURCE GROUP rg_concurrency_test SET CONCURRENCY 0;
+ALTER RESOURCE GROUP
+-- should not be blocked by resgroup
+SELECT * FROM rg_activity_status;
+       rsgname       | wait_event_type | state  |          query          
+---------------------+-----------------+--------+-------------------------
+ rg_concurrency_test |                 | active | select count(*) from t;
+(1 row)
+
+ count 
+-------
+     0
+(1 row)
+
+-- should not be blocked
+SELECT * FROM rg_activity_status;
+ rsgname | wait_event_type | state | query 
+---------+-----------------+-------+-------
+(0 rows)
+
+--
+-- 5.3 decrease concurrency to 0,
+-- with running queries,
+-- with pending queries.
+--
+ALTER RESOURCE GROUP rg_concurrency_test SET CONCURRENCY 1;
+ALTER RESOURCE GROUP
+-- empty
+SELECT * FROM rg_activity_status;
+ rsgname | wait_event_type | state | query 
+---------+-----------------+-------+-------
+(0 rows)
+
+SET ROLE role_concurrency_test;
+SET
+set opentenbase_test_flag='suspend_after_resgroup_assigned11';
+SET
+ select count(*) from t;
+SET ROLE role_concurrency_test;
+SET
+set opentenbase_test_flag='suspend_after_resgroup_assigned12';
+SET
+ select count(*) from t;
+-- one blocked on resgroup
+SELECT * FROM rg_activity_status;
+       rsgname       | wait_event_type | state  |          query          
+---------------------+-----------------+--------+-------------------------
+ rg_concurrency_test | ResourceGroup   | active | select count(*) from t;
+ rg_concurrency_test |                 | active | select count(*) from t;
+(2 rows)
+
+ALTER RESOURCE GROUP rg_concurrency_test SET CONCURRENCY 0;
+ALTER RESOURCE GROUP
+SELECT * FROM rg_activity_status;
+       rsgname       | wait_event_type | state  |          query          
+---------------------+-----------------+--------+-------------------------
+ rg_concurrency_test | ResourceGroup   | active | select count(*) from t;
+ rg_concurrency_test |                 | active | select count(*) from t;
+(2 rows)
+
+ count 
+-------
+     0
+(1 row)
+
+-- one blocking
+SELECT * FROM rg_activity_status;
+       rsgname       | wait_event_type | state  |          query          
+---------------------+-----------------+--------+-------------------------
+ rg_concurrency_test | ResourceGroup   | active | select count(*) from t;
+(1 row)
+
+SELECT pg_cancel_backend(pid) FROM pg_stat_activity
+WHERE wait_event_type='ResourceGroup' AND rsgname='rg_concurrency_test';
+ pg_cancel_backend 
+-------------------
+ t
+(1 row)
+
+-- blocking has been canceled
+SELECT * FROM rg_activity_status;
+ rsgname | wait_event_type | state | query 
+---------+-----------------+-------+-------
+(0 rows)
+
+-- report canceled error
+ERROR:  (57014) canceling statement due to user request
+-- not block on resgroup. wait for client
+SELECT * FROM rg_activity_status;
+ rsgname | wait_event_type | state | query 
+---------+-----------------+-------+-------
+(0 rows)
+
+-- empty
+SELECT * FROM rg_activity_status;
+ rsgname | wait_event_type | state | query 
+---------+-----------------+-------+-------
+(0 rows)
+
+-- 6: drop a resgroup with concurrency=0 and pending queries
+DROP ROLE IF EXISTS role_concurrency_test;
+DROP ROLE
+DROP RESOURCE GROUP rg_concurrency_test;
+DROP RESOURCE GROUP
+CREATE RESOURCE GROUP rg_concurrency_test WITH concurrency 0 CPU_RATE_LIMIT 20 ;
+CREATE RESOURCE GROUP
+CREATE ROLE role_concurrency_test RESOURCE GROUP rg_concurrency_test;
+CREATE ROLE
+SET ROLE role_concurrency_test;
+SET
+set opentenbase_test_flag='suspend_after_resgroup_assigned61';
+SET
+ select count(*) from t;
+ALTER ROLE role_concurrency_test RESOURCE GROUP none;
+ALTER ROLE
+NOTICE:  (0A000) resource group required -- using default resource group "default_group"
+DROP RESOURCE GROUP rg_concurrency_test;
+DROP RESOURCE GROUP
+ count 
+-------
+     0
+(1 row)
+
+-- empty
+SELECT * FROM rg_activity_status;
+ rsgname | wait_event_type | state | query 
+---------+-----------------+-------+-------
+(0 rows)
+
+-- 7: drop a role with concurrency=0 and pending queries
+DROP ROLE IF EXISTS role_concurrency_test;
+DROP ROLE
+DROP RESOURCE GROUP rg_concurrency_test;
+ERROR:  (42704) resource group "rg_concurrency_test" does not exist
+CREATE RESOURCE GROUP rg_concurrency_test WITH concurrency 0 CPU_RATE_LIMIT 20;
+CREATE RESOURCE GROUP
+CREATE ROLE role_concurrency_test RESOURCE GROUP rg_concurrency_test;
+CREATE ROLE
+SET ROLE role_concurrency_test;
+SET
+set opentenbase_test_flag='suspend_after_resgroup_assigned61';
+SET
+ select count(*) from t;
+-- block
+SELECT * FROM rg_activity_status;
+       rsgname       | wait_event_type | state  |          query          
+---------------------+-----------------+--------+-------------------------
+ rg_concurrency_test | ResourceGroup   | active | select count(*) from t;
+(1 row)
+
+DROP ROLE role_concurrency_test;
+DROP ROLE
+DROP RESOURCE GROUP rg_concurrency_test;
+DROP RESOURCE GROUP
+-- empty
+SELECT * FROM rg_activity_status;
+ rsgname | wait_event_type | state | query 
+---------+-----------------+-------+-------
+(0 rows)
+
+--?ERROR:.*
+DETAIL:  Cannot execute commands anymore, please terminate this session.
+-- empty
+SELECT * FROM rg_activity_status;
+ rsgname | wait_event_type | state | query 
+---------+-----------------+-------+-------
+(0 rows)

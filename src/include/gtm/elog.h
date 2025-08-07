@@ -1,15 +1,12 @@
 /*-------------------------------------------------------------------------
  *
  * elog.h
- *      POSTGRES error reporting/logging definitions.
+ *	  POSTGRES error reporting/logging definitions.
  *
  *
  * Portions Copyright (c) 1996-2009, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  * Portions Copyright (c) 2010-2012 Postgres-XC Development Group
- *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  * $PostgreSQL: pgsql/src/include/utils/elog.h,v 1.98 2009/01/01 17:24:02 momjian Exp $
  *
@@ -22,48 +19,48 @@
 #include "stringinfo.h"
 
 /* Error level codes */
-#define DEBUG8         9
-#define DEBUG7        9
-#define DEBUG6        9
-#define DEBUG5        10            /* Debugging messages, in categories of
-                                 * decreasing detail. */
-#define DEBUG4        11
-#define DEBUG3        12
-#define DEBUG2        13
-#define DEBUG1        14            /* used by GUC debug_* variables */
-#define LOG            15            /* Server operational messages; sent only to
-                                 * server log by default. */
-#define COMMERROR    16            /* Client communication problems; same as LOG
-                                 * for server reporting, but never sent to
-                                 * client. */
-#define INFO        17            /* Messages specifically requested by user
-                                 * (eg VACUUM VERBOSE output); always sent to
-                                 * client regardless of client_min_messages,
-                                 * but by default not sent to server log. */
-#define NOTICE        18            /* Helpful messages to users about query
-                                 * operation; sent to client and server log
-                                 * by default. */
-#define WARNING        19            /* Warnings.  NOTICE is for expected messages
-                                 * like implicit sequence creation by SERIAL.
-                                 * WARNING is for unexpected messages. */
-#define ERROR        20            /* user error - abort transaction; return to
-                                 * known state */
-#define ERROR2        21            /* user error - only send error message to the
-                                 * client */
-#define FATAL        22            /* fatal error - abort process */
-#define PANIC        23            /* take down the other backends with me */
+#define DEBUG8 		9
+#define DEBUG7		9
+#define DEBUG6		9
+#define DEBUG5		10			/* Debugging messages, in categories of
+								 * decreasing detail. */
+#define DEBUG4		11
+#define DEBUG3		12
+#define DEBUG2		13
+#define DEBUG1		14			/* used by GUC debug_* variables */
+#define LOG			15			/* Server operational messages; sent only to
+								 * server log by default. */
+#define COMMERROR	16			/* Client communication problems; same as LOG
+								 * for server reporting, but never sent to
+								 * client. */
+#define INFO		17			/* Messages specifically requested by user
+								 * (eg VACUUM VERBOSE output); always sent to
+								 * client regardless of client_min_messages,
+								 * but by default not sent to server log. */
+#define NOTICE		18			/* Helpful messages to users about query
+								 * operation; sent to client and server log
+								 * by default. */
+#define WARNING		19			/* Warnings.  NOTICE is for expected messages
+								 * like implicit sequence creation by SERIAL.
+								 * WARNING is for unexpected messages. */
+#define ERROR		20			/* user error - abort transaction; return to
+								 * known state */
+#define ERROR2		21			/* user error - only send error message to the
+								 * client */
+#define FATAL		22			/* fatal error - abort process */
+#define PANIC		23			/* take down the other backends with me */
 
- /* #define DEBUG DEBUG1 */    /* Backward compatibility with pre-7.3 */
+ /* #define DEBUG DEBUG1 */	/* Backward compatibility with pre-7.3 */
 
 
 /* Which __func__ symbol do we have, if any? */
 #ifdef HAVE_FUNCNAME__FUNC
-#define PG_FUNCNAME_MACRO    __func__
+#define PG_FUNCNAME_MACRO	__func__
 #else
 #ifdef HAVE_FUNCNAME__FUNCTION
-#define PG_FUNCNAME_MACRO    __FUNCTION__
+#define PG_FUNCNAME_MACRO	__FUNCTION__
 #else
-#define PG_FUNCNAME_MACRO    NULL
+#define PG_FUNCNAME_MACRO	NULL
 #endif
 #endif
 
@@ -75,38 +72,40 @@
  */
 typedef struct ErrorData
 {
-    int            elevel;            /* error level */
-    bool        output_to_server;        /* will report to server log? */
-    bool        output_to_client;        /* will report to client? */
-    bool        show_funcname;    /* true to force funcname inclusion */
-    const char *filename;        /* __FILE__ of ereport() call */
-    int            lineno;            /* __LINE__ of ereport() call */
-    const char *funcname;        /* __func__ of ereport() call */
-    const char *domain;            /* message domain */
-    char       *message;        /* primary error message */
-    char       *detail;            /* detail error message */
-    char       *detail_log;        /* detail error message for server log only */
-    char       *hint;            /* hint message */
-    char       *context;        /* context message */
-    int            saved_errno;    /* errno at entry */
+	int			elevel;			/* error level */
+	bool		output_to_server;		/* will report to server log? */
+	bool		output_to_client;		/* will report to client? */
+	bool		show_funcname;	/* true to force funcname inclusion */
+	const char *filename;		/* __FILE__ of ereport() call */
+	int			lineno;			/* __LINE__ of ereport() call */
+	const char *funcname;		/* __func__ of ereport() call */
+	const char *domain;			/* message domain */
+	char       *nodename;       /* message node */
+	int         pid;            /* error pid */
+	char	   *message;		/* primary error message */
+	char	   *detail;			/* detail error message */
+	char	   *detail_log;		/* detail error message for server log only */
+	char	   *hint;			/* hint message */
+	char	   *context;		/* context message */
+	int			saved_errno;	/* errno at entry */
 } ErrorData;
 
 
 /*----------
  * New-style error reporting API: to be used in this way:
- *        ereport(ERROR,
- *                (errcode(ERRCODE_UNDEFINED_CURSOR),
- *                 errmsg("portal \"%s\" not found", stmt->portalname),
- *                 ... other errxxx() fields as needed ...));
+ *		ereport(ERROR,
+ *				(errcode(ERRCODE_UNDEFINED_CURSOR),
+ *				 errmsg("portal \"%s\" not found", stmt->portalname),
+ *				 ... other errxxx() fields as needed ...));
  *
  * The error level is required, and so is a primary error message (errmsg
- * or errmsg_internal).  All else is optional.    errcode() defaults to
+ * or errmsg_internal).  All else is optional.	errcode() defaults to
  * ERRCODE_INTERNAL_ERROR if elevel is ERROR or more, ERRCODE_WARNING
  * if elevel is WARNING, or ERRCODE_SUCCESSFUL_COMPLETION if elevel is
  * NOTICE or below.
  *
  * ereport_domain() allows a message domain to be specified, for modules that
- * wish to use a different message catalog from the backend's.    To avoid having
+ * wish to use a different message catalog from the backend's.	To avoid having
  * one copy of the default text domain per .o file, we define it as NULL here
  * and have errstart insert the default text domain.  Modules can either use
  * ereport_domain() directly, or preferably they can override the TEXTDOMAIN
@@ -115,18 +114,18 @@ typedef struct ErrorData
  */
 #define TEXTDOMAIN "GTM"
 
-#define ereport_domain(elevel, domain, rest)    \
-    (errstart(elevel, __FILE__, __LINE__, PG_FUNCNAME_MACRO, domain) ? \
-     (errfinish rest) : (void) 0)
+#define ereport_domain(elevel, domain, rest)	\
+	(errstart(elevel, __FILE__, __LINE__, PG_FUNCNAME_MACRO, domain) ? \
+	 (errfinish rest) : (void) 0)
 
-#define ereport(level, rest)    \
-    ereport_domain(level, TEXTDOMAIN, rest)
+#define ereport(level, rest)	\
+	ereport_domain(level, TEXTDOMAIN, rest)
 
 
-#define PG_RE_THROW()        pg_re_throw()
+#define PG_RE_THROW()		pg_re_throw()
 
 extern bool errstart(int elevel, const char *filename, int lineno,
-         const char *funcname, const char *domain);
+		 const char *funcname, const char *domain);
 extern void errfinish(int dummy,...);
 
 extern int
@@ -161,10 +160,10 @@ __attribute__((format(printf, 1, 2)));
 
 /*----------
  * Old-style error reporting API: to be used in this way:
- *        elog(ERROR, "portal \"%s\" not found", stmt->portalname);
+ *		elog(ERROR, "portal \"%s\" not found", stmt->portalname);
  *----------
  */
-#define elog    elog_start(__FILE__, __LINE__, PG_FUNCNAME_MACRO), elog_finish
+#define elog	elog_start(__FILE__, __LINE__, PG_FUNCNAME_MACRO), elog_finish
 
 extern void elog_start(const char *filename, int lineno, const char *funcname);
 extern void
@@ -176,15 +175,15 @@ __attribute__((format(printf, 2, 3)));
 /*----------
  * API for catching ereport(ERROR) exits.  Use these macros like so:
  *
- *        PG_TRY();
- *        {
- *            ... code that might throw ereport(ERROR) ...
- *        }
- *        PG_CATCH();
- *        {
- *            ... error recovery code ...
- *        }
- *        PG_END_TRY();
+ *		PG_TRY();
+ *		{
+ *			... code that might throw ereport(ERROR) ...
+ *		}
+ *		PG_CATCH();
+ *		{
+ *			... error recovery code ...
+ *		}
+ *		PG_END_TRY();
  *
  * (The braces are not actually necessary, but are recommended so that
  * pg_indent will indent the construct nicely.)  The error recovery code
@@ -205,23 +204,23 @@ __attribute__((format(printf, 2, 3)));
  *----------
  */
 #define PG_TRY()  \
-    do { \
-        sigjmp_buf *save_exception_stack = PG_exception_stack; \
-        sigjmp_buf local_sigjmp_buf; \
-        if (sigsetjmp(local_sigjmp_buf, 0) == 0) \
-        { \
-            PG_exception_stack = &local_sigjmp_buf
+	do { \
+		sigjmp_buf *save_exception_stack = PG_exception_stack; \
+		sigjmp_buf local_sigjmp_buf; \
+		if (sigsetjmp(local_sigjmp_buf, 0) == 0) \
+		{ \
+			PG_exception_stack = &local_sigjmp_buf
 
-#define PG_CATCH()    \
-        } \
-        else \
-        { \
-            PG_exception_stack = save_exception_stack; \
+#define PG_CATCH()	\
+		} \
+		else \
+		{ \
+			PG_exception_stack = save_exception_stack; \
 
 #define PG_END_TRY()  \
-        } \
-        PG_exception_stack = save_exception_stack; \
-    } while (0)
+		} \
+		PG_exception_stack = save_exception_stack; \
+	} while (0)
 
 int errfunction(const char *funcname);
 
@@ -231,16 +230,16 @@ extern void EmitErrorReport(void *port);
 
 typedef enum
 {
-    PGERROR_TERSE,                /* single-line error messages */
-    PGERROR_DEFAULT,            /* recommended style */
-    PGERROR_VERBOSE                /* all the facts, ma'am */
+	PGERROR_TERSE,				/* single-line error messages */
+	PGERROR_DEFAULT,			/* recommended style */
+	PGERROR_VERBOSE				/* all the facts, ma'am */
 } PGErrorVerbosity;
 
 /* Log destination bitmap */
-#define LOG_DESTINATION_STDERR     1
-#define LOG_DESTINATION_SYSLOG     2
+#define LOG_DESTINATION_STDERR	 1
+#define LOG_DESTINATION_SYSLOG	 2
 #define LOG_DESTINATION_EVENTLOG 4
-#define LOG_DESTINATION_CSVLOG     8
+#define LOG_DESTINATION_CSVLOG	 8
 
 #define GTM_DEFAULT_EXIT_FLAG	 1024
 extern int	exit_flag;

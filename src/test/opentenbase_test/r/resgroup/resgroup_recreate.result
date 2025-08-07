@@ -1,0 +1,30 @@
+-- this test case is usless now.
+-- gpdb wants to test a case that when a resgroup already has a session assigned but no query running.
+-- but , now, opentenbase will not assign to a session if no query running
+CREATE RESOURCE GROUP rg1 WITH concurrency 2 cpu_rate_limit 10;
+CREATE RESOURCE GROUP
+CREATE ROLE r1 RESOURCE GROUP rg1;
+CREATE ROLE
+set role r1;
+SET
+BEGIN;
+BEGIN
+END;
+COMMIT
+ALTER ROLE r1 RESOURCE GROUP none;
+ALTER ROLE
+NOTICE:  (0A000) resource group required -- using default resource group "default_group"
+DROP RESOURCE GROUP rg1;
+DROP RESOURCE GROUP
+CREATE RESOURCE GROUP rg1 WITH concurrency 2 cpu_rate_limit 10;
+CREATE RESOURCE GROUP
+ALTER ROLE r1 RESOURCE GROUP rg1;
+ALTER ROLE
+BEGIN;
+BEGIN
+END;
+COMMIT
+DROP ROLE r1;
+DROP ROLE
+DROP RESOURCE GROUP rg1;
+DROP RESOURCE GROUP

@@ -47,5 +47,5 @@
 bool
 gtm_standby_check_communication_error(int *retry_count, GTM_Conn *oldconn)
 {
-    return false;
+	return false;
 }

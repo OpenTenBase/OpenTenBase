@@ -1,5 +1,4 @@
 %{
-
 /*-------------------------------------------------------------------------
  *
  * repl_scanner.l
@@ -8,8 +7,6 @@
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  * IDENTIFICATION
  *	  src/backend/replication/repl_scanner.l
@@ -93,6 +90,7 @@ PROGRESS			{ return K_PROGRESS; }
 MAX_RATE		{ return K_MAX_RATE; }
 WAL			{ return K_WAL; }
 TABLESPACE_MAP			{ return K_TABLESPACE_MAP; }
+NOVERIFY_CHECKSUMS	{ return K_NOVERIFY_CHECKSUMS; }
 TIMELINE			{ return K_TIMELINE; }
 START_REPLICATION	{ return K_START_REPLICATION; }
 CREATE_REPLICATION_SLOT		{ return K_CREATE_REPLICATION_SLOT; }
@@ -110,6 +108,7 @@ SUBSCRIPTION_NAME   { return K_SUBSCRIPTION_NAME; }
 ID_SUBSCRIPTION     { return K_ID_SUBSCRIPTION; }
 REL_NAMESPACE       { return K_REL_NAMESPACE; }
 NAME_REL            { return K_NAME_REL; }
+INCLUDE_LOG         { return K_INCLUDE_LOG; }
 
 ","				{ return ','; }
 ";"				{ return ';'; }

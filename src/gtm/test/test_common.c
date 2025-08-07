@@ -12,14 +12,14 @@ char connect_string[100];
 void
 print_nodeinfo(GTM_PGXCNodeInfo d)
 {
-    client_log(("type=%d, nodename=%s, proxyname=%s, ipaddress=%s, port=%d, datafolder=%s, status=%d\n",
-            d.type,
-            d.nodename,
-            d.proxyname,
-            d.ipaddress,
-            d.port,
-            d.datafolder,
-            d.status));
+	client_log(("type=%d, nodename=%s, proxyname=%s, ipaddress=%s, port=%d, datafolder=%s, status=%d\n",
+		    d.type,
+		    d.nodename,
+		    d.proxyname,
+		    d.ipaddress,
+		    d.port,
+		    d.datafolder,
+		    d.status));
 }
 
 
@@ -29,16 +29,16 @@ print_nodeinfo(GTM_PGXCNodeInfo d)
 void
 connect1()
 {
-    sprintf(connect_string, "host=localhost port=6666 node_name=one_zero_one remote_type=%d",
-        GTM_NODE_GTM);
-    
-    conn = PQconnectGTM(connect_string);
-    if (conn == NULL)
-    {
-        client_log(("Error in connection\n"));
-        exit(1);
-    }
-    client_log(("PGconnectGTM() ok.\n"));
+	sprintf(connect_string, "host=localhost port=6666 node_name=one_zero_one remote_type=%d",
+		GTM_NODE_GTM);
+	
+	conn = PQconnectGTM(connect_string);
+	if (conn == NULL)
+	{
+		client_log(("Error in connection\n"));
+		exit(1);
+	}
+	client_log(("PGconnectGTM() ok.\n"));
 }
 
 /*
@@ -47,16 +47,16 @@ connect1()
 void
 connect2()
 {
-    sprintf(connect_string, "host=localhost port=6667 node_name=one_zero_two remote_type=%d",
-        GTM_NODE_GTM);
-    
-    conn = PQconnectGTM(connect_string);
-    if (conn == NULL)
-    {
-        client_log(("Error in connection\n"));
-        exit(1);
-    }
-    client_log(("PGconnectGTM() ok.\n"));
+	sprintf(connect_string, "host=localhost port=6667 node_name=one_zero_two remote_type=%d",
+		GTM_NODE_GTM);
+	
+	conn = PQconnectGTM(connect_string);
+	if (conn == NULL)
+	{
+		client_log(("Error in connection\n"));
+		exit(1);
+	}
+	client_log(("PGconnectGTM() ok.\n"));
 }
 
 
@@ -66,15 +66,15 @@ connect2()
 int
 grep_count(const char *file, const char *key)
 {
-    FILE *fp;
-    int count;
-    char cmd[1024];
+	FILE *fp;
+	int count;
+	char cmd[1024];
 
-    snprintf(cmd, sizeof(cmd), "grep -c '%s' %s", key, file);
+	snprintf(cmd, sizeof(cmd), "grep -c '%s' %s", key, file);
 
-    fp = popen(cmd, "r");
-    fscanf(fp, "%d", &count);
-    pclose(fp);
+	fp = popen(cmd, "r");
+	fscanf(fp, "%d", &count);
+	pclose(fp);
 
-    return count;
+	return count;
 }

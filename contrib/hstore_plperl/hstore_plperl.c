@@ -30,27 +30,27 @@ static hstoreCheckValLen_t hstoreCheckValLen_p;
 void
 _PG_init(void)
 {
-    /* Asserts verify that typedefs above match original declarations */
-    AssertVariableIsOfType(&hstoreUpgrade, hstoreUpgrade_t);
-    hstoreUpgrade_p = (hstoreUpgrade_t)
-        load_external_function("$libdir/hstore", "hstoreUpgrade",
-                               true, NULL);
-    AssertVariableIsOfType(&hstoreUniquePairs, hstoreUniquePairs_t);
-    hstoreUniquePairs_p = (hstoreUniquePairs_t)
-        load_external_function("$libdir/hstore", "hstoreUniquePairs",
-                               true, NULL);
-    AssertVariableIsOfType(&hstorePairs, hstorePairs_t);
-    hstorePairs_p = (hstorePairs_t)
-        load_external_function("$libdir/hstore", "hstorePairs",
-                               true, NULL);
-    AssertVariableIsOfType(&hstoreCheckKeyLen, hstoreCheckKeyLen_t);
-    hstoreCheckKeyLen_p = (hstoreCheckKeyLen_t)
-        load_external_function("$libdir/hstore", "hstoreCheckKeyLen",
-                               true, NULL);
-    AssertVariableIsOfType(&hstoreCheckValLen, hstoreCheckValLen_t);
-    hstoreCheckValLen_p = (hstoreCheckValLen_t)
-        load_external_function("$libdir/hstore", "hstoreCheckValLen",
-                               true, NULL);
+	/* Asserts verify that typedefs above match original declarations */
+	AssertVariableIsOfType(&hstoreUpgrade, hstoreUpgrade_t);
+	hstoreUpgrade_p = (hstoreUpgrade_t)
+		load_external_function("$libdir/hstore", "hstoreUpgrade",
+							   true, NULL);
+	AssertVariableIsOfType(&hstoreUniquePairs, hstoreUniquePairs_t);
+	hstoreUniquePairs_p = (hstoreUniquePairs_t)
+		load_external_function("$libdir/hstore", "hstoreUniquePairs",
+							   true, NULL);
+	AssertVariableIsOfType(&hstorePairs, hstorePairs_t);
+	hstorePairs_p = (hstorePairs_t)
+		load_external_function("$libdir/hstore", "hstorePairs",
+							   true, NULL);
+	AssertVariableIsOfType(&hstoreCheckKeyLen, hstoreCheckKeyLen_t);
+	hstoreCheckKeyLen_p = (hstoreCheckKeyLen_t)
+		load_external_function("$libdir/hstore", "hstoreCheckKeyLen",
+							   true, NULL);
+	AssertVariableIsOfType(&hstoreCheckValLen, hstoreCheckValLen_t);
+	hstoreCheckValLen_p = (hstoreCheckValLen_t)
+		load_external_function("$libdir/hstore", "hstoreCheckValLen",
+							   true, NULL);
 }
 
 
@@ -67,31 +67,31 @@ PG_FUNCTION_INFO_V1(hstore_to_plperl);
 Datum
 hstore_to_plperl(PG_FUNCTION_ARGS)
 {
-    dTHX;
-    HStore       *in = PG_GETARG_HS(0);
-    int            i;
-    int            count = HS_COUNT(in);
-    char       *base = STRPTR(in);
-    HEntry       *entries = ARRPTR(in);
-    HV           *hv;
+	dTHX;
+	HStore	   *in = PG_GETARG_HSTORE_P(0);
+	int			i;
+	int			count = HS_COUNT(in);
+	char	   *base = STRPTR(in);
+	HEntry	   *entries = ARRPTR(in);
+	HV		   *hv;
 
-    hv = newHV();
+	hv = newHV();
 
-    for (i = 0; i < count; i++)
-    {
-        const char *key;
-        SV           *value;
+	for (i = 0; i < count; i++)
+	{
+		const char *key;
+		SV		   *value;
 
-        key = pnstrdup(HSTORE_KEY(entries, base, i),
-                       HSTORE_KEYLEN(entries, i));
-        value = HSTORE_VALISNULL(entries, i) ? newSV(0) :
-            cstr2sv(pnstrdup(HSTORE_VAL(entries, base, i),
-                             HSTORE_VALLEN(entries, i)));
+		key = pnstrdup(HSTORE_KEY(entries, base, i),
+					   HSTORE_KEYLEN(entries, i));
+		value = HSTORE_VALISNULL(entries, i) ? newSV(0) :
+			cstr2sv(pnstrdup(HSTORE_VAL(entries, base, i),
+							 HSTORE_VALLEN(entries, i)));
 
-        (void) hv_store(hv, key, strlen(key), value, 0);
-    }
+		(void) hv_store(hv, key, strlen(key), value, 0);
+	}
 
-    return PointerGetDatum(newRV((SV *) hv));
+	return PointerGetDatum(newRV((SV *) hv));
 }
 
 
@@ -100,46 +100,46 @@ PG_FUNCTION_INFO_V1(plperl_to_hstore);
 Datum
 plperl_to_hstore(PG_FUNCTION_ARGS)
 {
-    dTHX;
-    HV           *hv = (HV *) SvRV((SV *) PG_GETARG_POINTER(0));
-    HE           *he;
-    int32        buflen;
-    int32        i;
-    int32        pcount;
-    HStore       *out;
-    Pairs       *pairs;
+	dTHX;
+	HV		   *hv = (HV *) SvRV((SV *) PG_GETARG_POINTER(0));
+	HE		   *he;
+	int32		buflen;
+	int32		i;
+	int32		pcount;
+	HStore	   *out;
+	Pairs	   *pairs;
 
-    pcount = hv_iterinit(hv);
+	pcount = hv_iterinit(hv);
 
-    pairs = palloc(pcount * sizeof(Pairs));
+	pairs = palloc(pcount * sizeof(Pairs));
 
-    i = 0;
-    while ((he = hv_iternext(hv)))
-    {
-        char       *key = sv2cstr(HeSVKEY_force(he));
-        SV           *value = HeVAL(he);
+	i = 0;
+	while ((he = hv_iternext(hv)))
+	{
+		char	   *key = sv2cstr(HeSVKEY_force(he));
+		SV		   *value = HeVAL(he);
 
-        pairs[i].key = pstrdup(key);
-        pairs[i].keylen = hstoreCheckKeyLen(strlen(pairs[i].key));
-        pairs[i].needfree = true;
+		pairs[i].key = pstrdup(key);
+		pairs[i].keylen = hstoreCheckKeyLen(strlen(pairs[i].key));
+		pairs[i].needfree = true;
 
-        if (!SvOK(value))
-        {
-            pairs[i].val = NULL;
-            pairs[i].vallen = 0;
-            pairs[i].isnull = true;
-        }
-        else
-        {
-            pairs[i].val = pstrdup(sv2cstr(value));
-            pairs[i].vallen = hstoreCheckValLen(strlen(pairs[i].val));
-            pairs[i].isnull = false;
-        }
+		if (!SvOK(value))
+		{
+			pairs[i].val = NULL;
+			pairs[i].vallen = 0;
+			pairs[i].isnull = true;
+		}
+		else
+		{
+			pairs[i].val = pstrdup(sv2cstr(value));
+			pairs[i].vallen = hstoreCheckValLen(strlen(pairs[i].val));
+			pairs[i].isnull = false;
+		}
 
-        i++;
-    }
+		i++;
+	}
 
-    pcount = hstoreUniquePairs(pairs, pcount, &buflen);
-    out = hstorePairs(pairs, pcount, buflen);
-    PG_RETURN_POINTER(out);
+	pcount = hstoreUniquePairs(pairs, pcount, &buflen);
+	out = hstorePairs(pairs, pcount, buflen);
+	PG_RETURN_POINTER(out);
 }

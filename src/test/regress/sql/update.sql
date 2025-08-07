@@ -89,6 +89,16 @@ UPDATE update_test AS t SET b = update_test.b + 10 WHERE t.a = 10;
 UPDATE update_test SET c = repeat('x', 10000) WHERE c = 'car';
 SELECT a, b, char_length(c) FROM update_test ORDER BY a;
 
+-- Check multi-assignment with a Result node to handle a one-time filter.
+EXPLAIN (VERBOSE, COSTS OFF)
+UPDATE update_test t
+  SET (a, b) = (SELECT b, a FROM update_test s WHERE s.a = t.a)
+  WHERE CURRENT_USER = SESSION_USER;
+UPDATE update_test t
+  SET (a, b) = (SELECT b, a FROM update_test s WHERE s.a = t.a)
+  WHERE CURRENT_USER = SESSION_USER;
+SELECT a, b, char_length(c) FROM update_test;
+
 -- Test ON CONFLICT DO UPDATE
 INSERT INTO upsert_test VALUES(1, 'Boo');
 -- uncorrelated  sub-select:
@@ -576,3 +586,351 @@ update hash_parted set b = b + 8 where b = 1;
 drop table hash_parted;
 drop operator class custom_opclass using hash;
 drop function dummy_hashint4(a int4, seed int8);
+
+-- test update pull up
+create table test1 (                                         
+    c11 integer,                                           
+    c12 integer,                                                 
+    c13 integer,                                                  
+    c14 integer,                                                     
+    c15 integer                                                       
+);
+
+create table test2 (                                         
+    c21 integer,                                           
+    c22 integer,                                                 
+    c23 integer,                                                  
+    c24 integer,                                                     
+    c25 integer                                                       
+);
+
+
+create table test3 (                                         
+    c31 bigint,                                           
+    c32 bigint,                                                 
+    c33 bigint,                                                  
+    c34 bigint,                                                     
+    c35 bigint                                                       
+);
+
+
+create table test4 (                                         
+    c41 char(10),                                           
+    c42 char(10),                                                 
+    c43 char(10),                                                  
+    c44 char(10),                                                     
+    c45 char(10)                                                       
+);
+
+create table test5 (
+    c51 char(10),
+    c52 char(20),
+    c53 char(30),
+    c54 char(40),
+    c55 char(50)
+);
+
+insert into test1
+select  i,i,i,i,i
+from generate_series(1, 10) as i;
+
+insert into test2
+select  i,i,i+1,i,i
+from generate_series(1, 10) as i;
+
+insert into test3
+select  i,i,i+1,i,i
+from generate_series(1, 10) as i;
+
+insert into test4
+select  i,i,i+1,i,i
+from generate_series(1, 10) as i;
+
+insert into test5
+select  i,i,i+1,i,i
+from generate_series(1, 10) as i;
+
+explain (costs off) update test1
+set c13=(select test2.c23 from test2
+         where test1.c12=test2.c22
+           and exists(select 1 from test3
+                      where c32=c22));
+                      
+explain (costs off) update test1
+set c13=(select (select 1 from test3 where c32=c22)
+         from test2
+         where test1.c12=test2.c22);
+
+explain (costs off) update test1
+set c13=(select c22
+         from (select * from test2 where c12=c22) t2
+         where test1.c12=t2.c22);
+
+explain (costs off) update test1
+set (c13, c14)= (select c23, c24
+                 from test2 where c12=c22);
+
+explain (costs off) update test1
+set (c13)= (select c23
+            from test2 where c12=c22);
+
+explain (costs off) update test3
+set (c33, c34)= (select c23, c24
+                 from test2 where c32=c22);
+
+explain (costs off) update test1
+set (c12)=(select c22 from test2 where c13=c23), 
+    (c14)=(select c24 from test2 where c13=c23);
+
+explain (costs off) update test1
+set (c12)=(select c22 from test2 where c13=c23),
+    (c14,c15)=(select c24,c25 from test2 where c13=c23);
+
+explain (costs off) update test1
+set (c14,c15)=(select c24,c25 from test2 where c13=c23),
+    (c12)=(select c22 from test2);
+
+explain (costs off, nodes off)
+update test4
+set c42=(select c52||'u' from test5
+                where c43=c53);
+
+explain (costs off, nodes off)
+update test4
+set c42=(select c54 from test5
+                where c43=c53);
+
+explain (costs off, nodes off)
+update test4
+set (c42)=(select c52||'u' from test5
+                where c43=c53);
+
+explain (costs off, nodes off)
+update test4
+set (c42, c44)=(select c52||'u', c55 from test5
+                where c43=c53);
+
+explain (costs off, nodes off)
+update test4
+set (c42, c44)=(select c52||c53, c55 from test5
+                where c43=c53);
+
+explain (costs off) update test1
+set c13=(select c13
+         from (select * from test2 where c12=c22) t2
+         where test1.c12=t2.c22);
+
+explain (costs off) update test1
+set (c13, c14)= (select c13, c24
+                 from test2 where c12=c22);
+
+drop table test1;
+drop table test2;
+drop table test3;
+drop table test4;
+drop table test5;
+
+create table t1(f11 int, f12 int) distribute by replication;
+create table t2(f21 int, f22 int);
+
+explain (costs off) update t1 set f11=t2.f21 from t2 where f11=t2.f21;
+explain (costs off) update t2 set f22=t1.f12 from t1 where f21=t1.f11;
+
+drop table t1;
+drop table t2;
+
+DROP TABLE IF EXISTS test11;
+create table test11(id int primary key, f2 int, name varchar(10)) distribute by shard(id);
+insert into test11 values(3, 2, 'test1');
+
+DROP TABLE IF EXISTS test22;
+create table test22(id int, f2 int primary key, name varchar(10)) distribute by shard(f2);
+insert into test22 values(2, 3, 'test2');
+
+EXPLAIN (VERBOSE on, COSTS off)
+MERGE INTO test11 t
+USING (
+select * from test22
+) t2 ON (t.id = t2.f2)
+WHEN MATCHED THEN UPDATE SET t.name = t2.name;
+
+select * from test11 order by id;
+MERGE INTO test11 t
+USING (
+select * from test22
+) t2 ON (t.id = t2.f2)
+WHEN MATCHED THEN UPDATE SET t.name = t2.name;
+select * from test11 order by id;
+
+DROP TABLE IF EXISTS test11;
+create table test11(id int primary key, f2 int, name varchar(10)) distribute by shard(id);
+insert into test11 values(2, 2, 'test1');
+insert into test11 values(3, 2, 'test1');
+
+DROP TABLE IF EXISTS test22;
+create table test22(id int, f2 int primary key, name varchar(10)) distribute by shard(f2);
+insert into test22 values(2, 3, 'test2');
+
+EXPLAIN (VERBOSE on, COSTS off)
+MERGE INTO test11 t
+USING (
+select * from test22
+) t2 ON (t.id = t2.f2)
+WHEN MATCHED THEN UPDATE SET t.name = t2.name
+WHEN NOT MATCHED THEN INSERT VALUES(t2.id, t2.f2, t2.name);
+
+select * from test11 order by id;
+MERGE INTO test11 t
+USING (
+select * from test22
+) t2 ON (t.id = t2.f2)
+WHEN MATCHED THEN UPDATE SET t.name = t2.name
+WHEN NOT MATCHED THEN INSERT VALUES(t2.id, t2.f2, t2.name);
+select * from test11 order by id;
+
+DROP TABLE IF EXISTS test11;
+create table test11(id int primary key, f2 int, name varchar(10)) distribute by shard(id);
+insert into test11 values(1, 1, 'test1');
+insert into test11 values(3, 2, 'test1');
+
+DROP TABLE IF EXISTS test22;
+create table test22(id int, f2 int primary key, name varchar(10)) distribute by shard(f2);
+insert into test22 values(0, 0, 'test2');
+insert into test22 values(2, 3, 'test2');
+
+EXPLAIN (VERBOSE on, COSTS off)
+MERGE INTO test11 t
+USING (
+select * from test22
+) t2 ON (t.id = t2.f2)
+WHEN MATCHED THEN UPDATE SET t.name = t2.name 
+WHEN NOT MATCHED THEN INSERT VALUES(id + 2, f2, name);
+
+MERGE INTO test11 t
+USING (
+select * from test22
+) t2 ON (t.id = t2.f2)
+WHEN MATCHED THEN UPDATE SET t.name = t2.name 
+WHEN NOT MATCHED THEN INSERT VALUES(id + 2, f2, name);
+select * from test11 order by id;
+
+DROP TABLE IF EXISTS test11;
+DROP TABLE IF EXISTS test22;
+
+------------------------
+-- Test combocid bug
+------------------------
+CREATE TABLE exchange20230221(a int, b int, c int) DISTRIBUTE BY SHARD(a);
+
+BEGIN;
+    INSERT INTO exchange20230221 VALUES(101, 0, 1);
+    INSERT INTO exchange20230221 VALUES(102, 0, 1);
+    INSERT INTO exchange20230221 VALUES(103, 0, 1);
+    INSERT INTO exchange20230221 VALUES(104, 0, 1);
+
+    UPDATE exchange20230221 tt SET b =
+    (
+        SELECT SUM(C) FROM exchange20230221 WHERE tt.a >= exchange20230221.b
+    );
+
+    SELECT CTID, * FROM exchange20230221 ORDER BY a;
+
+    UPDATE exchange20230221 tt SET b =
+    (
+        SELECT SUM(C) FROM exchange20230221 WHERE tt.a >= exchange20230221.b
+    );
+
+    SELECT CTID, * FROM exchange20230221 ORDER BY a;
+
+
+    UPDATE exchange20230221 tt SET b =
+    (
+        SELECT SUM(C) FROM exchange20230221 WHERE tt.a >= exchange20230221.b
+    );
+
+    SELECT CTID, * FROM exchange20230221 ORDER BY a;
+
+END;
+
+SELECT CTID, * FROM exchange20230221 ORDER BY A;
+
+EXPLAIN UPDATE exchange20230221 TT SET b =
+(
+        SELECT SUM(C) FROM exchange20230221 WHERE tt.a >= exchange20230221.b
+);
+
+drop table if exists t1 cascade;
+CREATE TABLE IF NOT EXISTS t1(c0 boolean , c1 boolean  PRIMARY KEY);
+INSERT INTO t1(c0, c1) VALUES(TRUE, FALSE);
+-- need report error, distributed column can't be updated
+UPDATE t1 SET c1=(t1.c0);
+drop table t1;
+
+CREATE TABLE numeric_t1 (
+    c0 int,
+    c1 int,
+    c2 text,
+    c3 text,
+    c4 date,
+    c5 date,
+    c6 timestamp,
+    c7 timestamp,
+    c8 numeric,
+    c9 numeric) PARTITION BY hash(c1) ;
+create TABLE numeric_t1_p0 partition of numeric_t1 for values with(modulus 2,remainder 0);
+create TABLE numeric_t1_p1 partition of numeric_t1 for values with(modulus 2,remainder 1);
+alter table numeric_t1 alter column c0 drop not null;
+CREATE INDEX idx_numeric_t1_c1 ON numeric_t1(c1);
+CREATE INDEX idx_numeric_t1_c3 ON numeric_t1(c3);
+CREATE INDEX idx_numeric_t1_c5 ON numeric_t1(c5);
+CREATE INDEX idx_numeric_t1_c7 ON numeric_t1(c7);
+CREATE INDEX idx_numeric_t1_c9 ON numeric_t1(c9);
+INSERT INTO numeric_t1 VALUES (8, NULL, 'd', NULL, '1982-10-20', '2030-04-08 19:04:18', '2000-06-17 02:13:12.045113', '2035-05-01 04:41:48.021671', -5.97543228059052e+18, -1.23456789123457e+30) ;
+INSERT INTO numeric_t1 VALUES (2, 8, 'sfqiutilrankiwcsswhajl', NULL, '2024-04-01 20:14:50', '2029-12-17 04:32:05', '2009-01-25 03:20:02.049928', NULL, 0.123456789123457, 1.23456789123457e+44);
+INSERT INTO numeric_t1 VALUES (3, 6, NULL, 'foo', '2024-11-19', '1993-12-09', '2031-07-28 17:26:17', NULL, -1.23456789123457e-09, 0.123456789123457);
+INSERT INTO numeric_t1 VALUES (NULL, 7, 'bar', 'fqiu', '2034-10-05 21:10:19', '2015-08-15 11:46:15', '2029-08-28 01:41:22.021862', '2014-10-16 12:24:57', 1.23456789123457e+25, 1.23456789123457e+43);
+INSERT INTO numeric_t1 VALUES (1, 9, NULL, 'qiutilivqnqjgmnqkkbb', '1973-12-17 14:20:44', '1982-03-06 18:27:55', '2020-03-02 16:38:21.053405', '1993-06-28 18:16:39.019608', 6.30340576171875e+80, 1.23456789123457e-09);
+INSERT INTO numeric_t1 VALUES (NULL, NULL, 'iutilrankiwwjl', 'utilrankiwwsjnqy', '1973-07-18 20:02:01', '1988-09-06', NULL, '2023-09-09', -1.23456789123457e+43, 5.07171630859375e+80);
+INSERT INTO numeric_t1 VALUES (NULL, 8, 'tilranki', 'foo', '1987-04-18', '1997-08-13 21:02:30', '2022-08-11 22:10:03', '1987-07-16 01:35:03.017239', 1.23456789123457e+39, 1.23456789123457e+39);
+INSERT INTO numeric_t1 VALUES (7, NULL, 'foo', 'ilrank', '2002-12-21', '1983-10-10', '1988-10-18 02:07:19.004820', '1985-08-28 17:42:50.006351', 1.23456789123457e+43, -1.23456789123457e+43);
+INSERT INTO numeric_t1 VALUES (0, 1, 'lrankiwwsjnqymnlkyjmbtqd', 'bar', '1979-07-05', '2034-02-06 10:30:34', '1987-07-17 09:10:12', '2031-03-15 05:47:42', -1.23456789123457e+30, 1.23456789123457e+43);
+INSERT INTO numeric_t1 VALUES (3, 0, 'bar', NULL, '1999-08-09 14:58:55', '2012-06-19 21:58:04', NULL, '1972-07-21 10:04:14.016456', -1.23456789123457e+43, -1.23456789123457e+30);
+
+CREATE TABLE numeric_t2 (
+    c0 int,
+    c1 int,
+    c2 text,
+    c3 text,
+    c4 date,
+    c5 date,
+    c6 timestamp,
+    c7 timestamp,
+    c8 numeric,
+    c9 numeric)  PARTITION BY hash( c4) ;
+create TABLE numeric_t2_p0 partition of numeric_t2 for values with(modulus 4,remainder 0);
+create TABLE numeric_t2_p1 partition of numeric_t2 for values with(modulus 4,remainder 1);
+create TABLE numeric_t2_p2 partition of numeric_t2 for values with(modulus 4,remainder 2);
+create TABLE numeric_t2_p3 partition of numeric_t2 for values with(modulus 4,remainder 3);
+alter table numeric_t2 alter column c0 drop not null;
+CREATE INDEX idx_numeric_t2_c1 ON numeric_t2(c1);
+CREATE INDEX idx_numeric_t2_c3 ON numeric_t2(c3);
+CREATE INDEX idx_numeric_t2_c5 ON numeric_t2(c5);
+CREATE INDEX idx_numeric_t2_c7 ON numeric_t2(c7);
+CREATE INDEX idx_numeric_t2_c9 ON numeric_t2(c9);
+INSERT INTO numeric_t2 VALUES (NULL, 0, NULL, NULL, '1993-09-02', '2004-10-19', '1983-03-05 17:05:58.001300', NULL, -0.123456789123457, 0.03564453125);
+INSERT INTO numeric_t2 VALUES (NULL, NULL, NULL, 'bar', '2020-10-16', '2014-08-15', '2012-06-20 00:16:56.002271', NULL, 0.123456789123457, -1.23456789123457e+44);
+INSERT INTO numeric_t2 VALUES (NULL, NULL, 'bar', 'bar', '1973-01-10', '1992-02-21 00:31:02', '2001-02-03 23:08:54.012154', '1995-04-02', 1.23456789123457e+25, -1.23456789123457e-09);
+INSERT INTO numeric_t2 VALUES (2, NULL, NULL, NULL, '1990-12-14', '1976-05-18', '1990-02-04 02:55:04.062384', '1976-09-12', 1.23456789123457e+25, 1.23456789123457e+39);
+INSERT INTO numeric_t2 VALUES (6, 1, 'jnqym', 'foo', '1994-11-17', '1992-12-19', '1983-09-16 20:25:16', '1993-06-11 20:11:55.034239', 1.23456789123457e-09, -1.23456789123457e-09);
+INSERT INTO numeric_t2 VALUES (8, NULL, 'nqymnlkkuauxsr', 'bar', '2009-01-20', '2021-11-10 11:29:47', NULL, '1983-08-26 12:21:43', 1.23456789123457e+30, 8.26326089129473e+18);
+INSERT INTO numeric_t2 VALUES (9, NULL, NULL, 'qymnlkyjmefaa', '2006-01-17 15:28:48', '2014-12-17 23:51:26', '2019-07-10 07:18:14.060949', NULL, -1.23456789123457e-09, 1.23456789123457e+44);
+INSERT INTO numeric_t2 VALUES (NULL, NULL, 'ymnlkyjmtdoetzumapaqztok', 'foo', '1971-07-28 00:12:34', '2022-04-04', '1985-02-03 14:23:35.014738', '2005-06-20 17:13:35.057121', 5.98724365234375e+80, NULL);
+INSERT INTO numeric_t2 VALUES (NULL, 7, 'mn', 'nlkyjmefrbtqdq', '1982-03-02', '1988-01-15 11:07:22', '1976-05-21 16:05:54.029950', '2032-12-15 08:54:03.030226', -1.23456789123457e+25, -1.23456789123457e+30);
+INSERT INTO numeric_t2 VALUES (NULL, 2, 'foo', 'lkyjmefehbqurhplvrfwmpfvnnaicbnvlejrbtqdq', '1994-03-12', '1981-07-20 18:42:38', NULL, NULL, 1.23456789123457e-09, -1.23456789123457e+44) ;
+
+-- update select, success
+update numeric_t1 tt1 set (c4,c8)=(select c4,tt3.c8 from numeric_t2 tt2 where
+        tt1.c7=tt2.c7 and tt1.c3=tt2.c3 and tt1.c4 IS NOT NULL AND ( ( NOT ( tt2.c3 IS NULL ) AND tt3.c0 = 4 )
+        OR ( tt2.c0 = tt3.c1 ) AND tt1.c0 = tt1.c1 ) AND ( tt3.c5 >= '2005-11-16 12:05:19' ) ),
+        (c3,c7)=(select c3,tt3.c7 from numeric_t1 tt2 where tt1.c7=tt2.c7 and tt1.c3=tt2.c3 and
+        tt1.c0 = 6 AND tt2.c1 = tt1.c1 ) from numeric_t1 tt3 WHERE ( tt1.c8 IN ( tt3.c8) );

@@ -49,3 +49,31 @@ SELECT pg_size_bytes('-. kb');
 SELECT pg_size_bytes('.+912');
 SELECT pg_size_bytes('+912+ kB');
 SELECT pg_size_bytes('++123 kB');
+
+-- test pg_database_size (temp disable unstable cases)
+--CREATE DATABASE test_dbsize;
+--\c test_dbsize
+--SELECT pg_database_size('test_dbsize');
+--CREATE TABLE rowtbl (i int, j text);
+--SELECT pg_database_size('test_dbsize');
+--INSERT INTO rowtbl VALUES (generate_series(1,10), 'hello word');
+--SELECT pg_database_size('test_dbsize');
+--SELECT pg_database_size('test_dbsize');
+--SELECT pg_database_size('test_dbsize');
+--\c regression
+--DROP DATABASE test_dbsize;
+
+-- Similar to PostgreSQL, returning null for an invalid OID.
+select pg_relation_size(0);
+select pg_relation_size(888);
+
+-- test index table size
+create table testtable5(f1 int primary key,f2 int) distribute by shard(f1);
+insert into testtable5 select i, i+10 from generate_series(1, 100000) i;
+select (pg_table_size('testtable5_pkey') > 8192) as opentenbase;
+select (pg_relation_size('testtable5_pkey') > 8192) as opentenbase;
+select (pg_total_relation_size('testtable5_pkey') > 8192)  as opentenbase;
+select (pg_allocated_table_size('testtable5_pkey') > 8192) as opentenbase;
+select (pg_allocated_total_relation_size('testtable5_pkey') > 8192)  as opentenbase;
+
+drop table t_col_no, testtable5;

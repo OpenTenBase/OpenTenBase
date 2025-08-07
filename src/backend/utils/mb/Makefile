@@ -12,7 +12,7 @@ subdir = src/backend/utils/mb
 top_builddir = ../../../..
 include $(top_builddir)/src/Makefile.global
 
-OBJS = encnames.o conv.o mbutils.o wchar.o wstrcmp.o wstrncmp.o
+OBJS = encnames.o conv.o stringinfo_mb.o mbutils.o wchar.o wstrcmp.o wstrncmp.o
 
 include $(top_srcdir)/src/backend/common.mk
 

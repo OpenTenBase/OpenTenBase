@@ -1,16 +1,14 @@
 /*-------------------------------------------------------------------------
  *
  * statscmds.c
- *      Commands for creating and altering extended statistics objects
+ *	  Commands for creating and altering extended statistics objects
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  * IDENTIFICATION
- *      src/backend/commands/statscmds.c
+ *	  src/backend/commands/statscmds.c
  *
  *-------------------------------------------------------------------------
  */
@@ -24,6 +22,7 @@
 #include "catalog/pg_statistic_ext.h"
 #include "commands/defrem.h"
 #include "miscadmin.h"
+#include "opentenbase_ora/opentenbase_ora.h"
 #include "statistics/statistics.h"
 #include "utils/builtins.h"
 #include "utils/inval.h"
@@ -37,23 +36,20 @@
 static int
 compare_int16(const void *a, const void *b)
 {
-    int            av = *(const int16 *) a;
-    int            bv = *(const int16 *) b;
+	int			av = *(const int16 *) a;
+	int			bv = *(const int16 *) b;
 
-    /* this can't overflow if int is wider than int16 */
-    return (av - bv);
+	/* this can't overflow if int is wider than int16 */
+	return (av - bv);
 }
 
 /*
- *        CREATE STATISTICS
+ *		CREATE STATISTICS
  */
 ObjectAddress
 CreateStatistics(CreateStatsStmt *stmt)
 {
 	int16		attnums[STATS_MAX_DIMENSIONS];
-#ifdef __OPENTENBASE__
-	int16		attnums_ori[STATS_MAX_DIMENSIONS];
-#endif
 	int			numcols = 0;
 	char	   *namestr;
 	NameData	stxname;
@@ -79,12 +75,10 @@ CreateStatistics(CreateStatsStmt *stmt)
 	ArrayType  *stxkind;
 	bool		build_ndistinct;
 	bool		build_dependencies;
-#ifdef __OPENTENBASE__
-	bool		build_subset;
-#endif
 	bool		requested_type = false;
 	int			i;
 	ListCell   *cell;
+	int (*strcmpfunc)(const char *, const char *) = GETSTRCMPFUNC;
 
 	Assert(IsA(stmt, CreateStatsStmt));
 
@@ -101,6 +95,10 @@ CreateStatistics(CreateStatsStmt *stmt)
 	{
 		if (stmt->if_not_exists)
 		{
+			/*
+			 * Since stats objects aren't members of extensions (see comments
+			 * below), no need for checkMembershipInCurrentExtension here.
+			 */
 			ereport(NOTICE,
 					(errcode(ERRCODE_DUPLICATE_OBJECT),
 					 errmsg("statistics object \"%s\" already exists, skipping",
@@ -219,9 +217,6 @@ CreateStatistics(CreateStatsStmt *stmt)
 							STATS_MAX_DIMENSIONS)));
 
 		attnums[numcols] = attForm->attnum;
-#ifdef __OPENTENBASE__
-		attnums_ori[numcols] = attForm->attnum;
-#endif
 		numcols++;
 		ReleaseSysCache(atttuple);
 	}
@@ -262,43 +257,20 @@ CreateStatistics(CreateStatsStmt *stmt)
 	 */
 	build_ndistinct = false;
 	build_dependencies = false;
-#ifdef __OPENTENBASE__
-	build_subset = false;
-#endif
 	foreach(cell, stmt->stat_types)
 	{
 		char	   *type = strVal((Value *) lfirst(cell));
 
-		if (strcmp(type, "ndistinct") == 0)
+		if (strcmpfunc(type, "ndistinct") == 0)
 		{
 			build_ndistinct = true;
 			requested_type = true;
 		}
-		else if (strcmp(type, "dependencies") == 0)
+		else if (strcmpfunc(type, "dependencies") == 0)
 		{
 			build_dependencies = true;
 			requested_type = true;
 		}
-#ifdef __OPENTENBASE__
-		else if (strcmp(type, "subset") == 0)
-		{
-			if (list_length(stmt->exprs) != 2)
-			{
-				ereport(ERROR,
-						(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
-						 errmsg("subset statistics require exactly 2 columns")));
-			}
-
-			build_subset = true;
-			requested_type = true;
-
-			/*
-			 * The original stmt expr order implies the relation between them,
-			 * thus we need to keep the original order stored.
-			 */
-			stxkeys = buildint2vector(attnums_ori, numcols);
-		}
-#endif
 		else
 			ereport(ERROR,
 					(errcode(ERRCODE_SYNTAX_ERROR),
@@ -310,10 +282,6 @@ CreateStatistics(CreateStatsStmt *stmt)
 	{
 		build_ndistinct = true;
 		build_dependencies = true;
-#ifdef __OPENTENBASE__
-		/* No need to build user defined knowledge */
-		build_subset = false;
-#endif
 	}
 
 	/* construct the char array of enabled statistic types */
@@ -322,15 +290,6 @@ CreateStatistics(CreateStatsStmt *stmt)
 		types[ntypes++] = CharGetDatum(STATS_EXT_NDISTINCT);
 	if (build_dependencies)
 		types[ntypes++] = CharGetDatum(STATS_EXT_DEPENDENCIES);
-#ifdef __OPENTENBASE__
-	/*
-	 * User defined subset hint should not coexists with other
-	 * types. Thus we don't need to extend the size of 'types'
-	 * array.
-	 */
-	if (build_subset)
-		types[ntypes++] = CharGetDatum(STATS_EXT_SUBSET);
-#endif
 	Assert(ntypes > 0 && ntypes <= lengthof(types));
 	stxkind = construct_array(types, ntypes, CHAROID, 1, true, 'c');
 
@@ -349,9 +308,6 @@ CreateStatistics(CreateStatsStmt *stmt)
 	/* no statistics built yet */
 	nulls[Anum_pg_statistic_ext_stxndistinct - 1] = true;
 	nulls[Anum_pg_statistic_ext_stxdependencies - 1] = true;
-#ifdef __OPENTENBASE__
-	nulls[Anum_pg_statistic_ext_stxsubset - 1] = true;
-#endif
 
 	/* insert it into pg_statistic_ext */
 	statrel = heap_open(StatisticExtRelationId, RowExclusiveLock);
@@ -405,32 +361,32 @@ CreateStatistics(CreateStatsStmt *stmt)
 void
 RemoveStatisticsById(Oid statsOid)
 {
-    Relation    relation;
-    HeapTuple    tup;
-    Form_pg_statistic_ext statext;
-    Oid            relid;
+	Relation	relation;
+	HeapTuple	tup;
+	Form_pg_statistic_ext statext;
+	Oid			relid;
 
-    /*
-     * Delete the pg_statistic_ext tuple.  Also send out a cache inval on the
-     * associated table, so that dependent plans will be rebuilt.
-     */
-    relation = heap_open(StatisticExtRelationId, RowExclusiveLock);
+	/*
+	 * Delete the pg_statistic_ext tuple.  Also send out a cache inval on the
+	 * associated table, so that dependent plans will be rebuilt.
+	 */
+	relation = heap_open(StatisticExtRelationId, RowExclusiveLock);
 
-    tup = SearchSysCache1(STATEXTOID, ObjectIdGetDatum(statsOid));
+	tup = SearchSysCache1(STATEXTOID, ObjectIdGetDatum(statsOid));
 
-    if (!HeapTupleIsValid(tup)) /* should not happen */
-        elog(ERROR, "cache lookup failed for statistics object %u", statsOid);
+	if (!HeapTupleIsValid(tup)) /* should not happen */
+		elog(ERROR, "cache lookup failed for statistics object %u", statsOid);
 
-    statext = (Form_pg_statistic_ext) GETSTRUCT(tup);
-    relid = statext->stxrelid;
+	statext = (Form_pg_statistic_ext) GETSTRUCT(tup);
+	relid = statext->stxrelid;
 
-    CacheInvalidateRelcacheByRelid(relid);
+	CacheInvalidateRelcacheByRelid(relid);
 
-    CatalogTupleDelete(relation, &tup->t_self);
+	CatalogTupleDelete(relation, &tup->t_self);
 
-    ReleaseSysCache(tup);
+	ReleaseSysCache(tup);
 
-    heap_close(relation, RowExclusiveLock);
+	heap_close(relation, RowExclusiveLock);
 }
 
 /*
@@ -445,18 +401,18 @@ RemoveStatisticsById(Oid statsOid)
  */
 void
 UpdateStatisticsForTypeChange(Oid statsOid, Oid relationOid, int attnum,
-                              Oid oldColumnType, Oid newColumnType)
+							  Oid oldColumnType, Oid newColumnType)
 {
-    /*
-     * Currently, we don't actually need to do anything here.  For both
-     * ndistinct and functional-dependencies stats, the on-disk representation
-     * is independent of the source column data types, and it is plausible to
-     * assume that the old statistic values will still be good for the new
-     * column contents.  (Obviously, if the ALTER COLUMN TYPE has a USING
-     * expression that substantially alters the semantic meaning of the column
-     * values, this assumption could fail.  But that seems like a corner case
-     * that doesn't justify zapping the stats in common cases.)
-     *
-     * Future types of extended stats will likely require us to work harder.
-     */
+	/*
+	 * Currently, we don't actually need to do anything here.  For both
+	 * ndistinct and functional-dependencies stats, the on-disk representation
+	 * is independent of the source column data types, and it is plausible to
+	 * assume that the old statistic values will still be good for the new
+	 * column contents.  (Obviously, if the ALTER COLUMN TYPE has a USING
+	 * expression that substantially alters the semantic meaning of the column
+	 * values, this assumption could fail.  But that seems like a corner case
+	 * that doesn't justify zapping the stats in common cases.)
+	 *
+	 * Future types of extended stats will likely require us to work harder.
+	 */
 }

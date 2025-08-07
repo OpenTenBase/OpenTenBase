@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * geqo_random.h
- *      random number generator
+ *	  random number generator
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -13,9 +13,9 @@
 
 /* contributed by:
    =*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=
-   *  Martin Utesch                 * Institute of Automatic Control       *
-   =                             = University of Mining and Technology =
-   *  utesch@aut.tu-freiberg.de  * Freiberg, Germany                   *
+   *  Martin Utesch				 * Institute of Automatic Control	   *
+   =							 = University of Mining and Technology =
+   *  utesch@aut.tu-freiberg.de  * Freiberg, Germany				   *
    =*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=
  */
 
@@ -36,6 +36,6 @@ extern double geqo_rand(PlannerInfo *root);
 
 /* geqo_randint returns integer value between lower and upper inclusive */
 #define geqo_randint(root, upper, lower) \
-    ( (int) floor( geqo_rand(root)*(((upper)-(lower))+0.999999) ) + (lower) )
+	( (int) floor( geqo_rand(root)*(((upper)-(lower))+0.999999) ) + (lower) )
 
-#endif                            /* GEQO_RANDOM_H */
+#endif							/* GEQO_RANDOM_H */

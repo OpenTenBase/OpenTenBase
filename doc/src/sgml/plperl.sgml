@@ -275,6 +275,20 @@ SELECT * FROM perl_row();
   </para>
 
   <para>
+   Similarly, output arguments of procedures can be returned as a hash
+   reference:
+
+<programlisting>
+CREATE PROCEDURE perl_triple(INOUT a integer, INOUT b integer) AS $$
+    my ($a, $b) = @_;
+    return {a =&gt; $a * 3, b =&gt; $b * 3};
+$$ LANGUAGE plperl;
+
+CALL perl_triple(5, 10);
+</programlisting>
+  </para>
+
+  <para>
     PL/Perl functions can also return sets of either scalar or
     composite types.  Usually you'll want to return rows one at a
     time, both to speed up startup time and to keep from queuing up
@@ -663,6 +677,55 @@ SELECT release_hosts_query();
     </para>
     </listitem>
     </varlistentry>
+
+    <varlistentry>
+     <term>
+      <literal><function>spi_commit()</function></literal>
+      <indexterm>
+       <primary>spi_commit</primary>
+       <secondary>in PL/Perl</secondary>
+     </indexterm>
+     </term>
+     <term>
+      <literal><function>spi_rollback()</function></literal>
+      <indexterm>
+       <primary>spi_rollback</primary>
+       <secondary>in PL/Perl</secondary>
+      </indexterm>
+     </term>
+     <listitem>
+      <para>
+       Commit or roll back the current transaction.  This can only be called
+       in a procedure or anonymous code block (<command>DO</command> command)
+       called from the top level.  (Note that it is not possible to run the
+       SQL commands <command>COMMIT</command> or <command>ROLLBACK</command>
+       via <function>spi_exec_query</function> or similar.  It has to be done
+       using these functions.)  After a transaction is ended, a new
+       transaction is automatically started, so there is no separate function
+       for that.
+      </para>
+
+      <para>
+       Here is an example:
+<programlisting>
+CREATE PROCEDURE transaction_test1()
+LANGUAGE plperl
+AS $$
+foreach my $i (0..9) {
+    spi_exec_query("INSERT INTO test1 (a) VALUES ($i)");
+    if ($i % 2 == 0) {
+        spi_commit();
+    } else {
+        spi_rollback();
+    }
+}
+$$;
+
+CALL transaction_test1();
+</programlisting>
+      </para>
+     </listitem>
+    </varlistentry>
    </variablelist>
  </sect2>
 
@@ -978,6 +1041,19 @@ $$ LANGUAGE plperl;
    be permitted to use this language.
   </para>
 
+  <warning>
+   <para>
+    Trusted PL/Perl relies on the Perl <literal>Opcode</literal> module to
+    preserve security.
+    Perl
+    <ulink url="https://perldoc.perl.org/Opcode#WARNING">documents</ulink>
+    that the module is not effective for the trusted PL/Perl use case.  If
+    your security needs are incompatible with the uncertainty in that warning,
+    consider executing <literal>REVOKE USAGE ON LANGUAGE plperl FROM
+    PUBLIC</literal>.
+   </para>
+  </warning>
+
   <para>
    Here is an example of a function that will not work because file
    system operations are not allowed for security reasons:
@@ -1239,7 +1315,7 @@ $$ LANGUAGE plperl;
 
 CREATE TRIGGER test_valid_id_trig
     BEFORE INSERT OR UPDATE ON test
-    FOR EACH ROW EXECUTE PROCEDURE valid_id();
+    FOR EACH ROW EXECUTE FUNCTION valid_id();
 </programlisting>
   </para>
  </sect1>
@@ -1276,7 +1352,7 @@ CREATE TRIGGER test_valid_id_trig
   </para>
 
   <para>
-   The return value of the trigger procedure is ignored.
+   The return value of the trigger function is ignored.
   </para>
 
   <para>
@@ -1289,7 +1365,7 @@ $$ LANGUAGE plperl;
 
 CREATE EVENT TRIGGER perl_a_snitch
     ON ddl_command_start
-    EXECUTE PROCEDURE perlsnitch();
+    EXECUTE FUNCTION perlsnitch();
 </programlisting>
   </para>
  </sect1>

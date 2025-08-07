@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * genbki.h
- *      Required include file for all POSTGRES catalog header files
+ *	  Required include file for all POSTGRES catalog header files
  *
  * genbki.h defines CATALOG(), DATA(), BKI_BOOTSTRAP and related macros
  * so that the catalog header files can be read by the C compiler.
@@ -20,7 +20,7 @@
 #define GENBKI_H
 
 /* Introduces a catalog's structure definition */
-#define CATALOG(name,oid)    typedef struct CppConcat(FormData_,name)
+#define CATALOG(name,oid)	typedef struct CppConcat(FormData_,name)
 
 /* Options that may appear after CATALOG (on the same line) */
 #define BKI_BOOTSTRAP
@@ -42,9 +42,20 @@
 #undef CATALOG_VARLEN
 
 /* Declarations that provide the initial content of a catalog */
+/* "PG" prefix means it's loaded to postgres database and "ORA" to opentenbase_ora */
+/* while no special prefix means it's loaded to databases regardless of sql mode. */
+/* Shared metadata must be mark with PG to insure loading once during initdb */
 /* In C, these need to expand into some harmless, repeatable declaration */
 #define DATA(x)   extern int no_such_variable
-#define DESCR(x)  extern int no_such_variable
-#define SHDESCR(x) extern int no_such_variable
+#define PGDATA(x)   extern int no_such_variable
+#define ORADATA(x)   extern int no_such_variable
 
-#endif                            /* GENBKI_H */
+#define DESCR(x)  extern int no_such_variable
+#define PGDESCR(x)  extern int no_such_variable
+#define ORADESCR(x)  extern int no_such_variable
+
+#define SHDESCR(x) extern int no_such_variable
+#define PGSHDESCR(x) extern int no_such_variable
+#define ORASHDESCR(x) extern int no_such_variable
+
+#endif							/* GENBKI_H */

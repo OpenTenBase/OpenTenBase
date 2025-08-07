@@ -1,15 +1,12 @@
 /*-------------------------------------------------------------------------
  *
  * timeout.h
- *      Routines to multiplex SIGALRM interrupts for multiple timeout reasons.
+ *	  Routines to multiplex SIGALRM interrupts for multiple timeout reasons.
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- * 
  * src/include/utils/timeout.h
  *
  *-------------------------------------------------------------------------
@@ -25,19 +22,21 @@
  */
 typedef enum TimeoutId
 {
-    /* Predefined timeout reasons */
-    STARTUP_PACKET_TIMEOUT,
-    DEADLOCK_TIMEOUT,
-    LOCK_TIMEOUT,
-    STATEMENT_TIMEOUT,
-    STANDBY_DEADLOCK_TIMEOUT,
-    STANDBY_TIMEOUT,
-    STANDBY_LOCK_TIMEOUT,
-    IDLE_IN_TRANSACTION_SESSION_TIMEOUT,
-    /* First user-definable timeout reason */
-    USER_TIMEOUT,
-    /* Maximum number of timeout reasons */
-    MAX_TIMEOUTS = 16
+	/* Predefined timeout reasons */
+	STARTUP_PACKET_TIMEOUT,
+	DEADLOCK_TIMEOUT,
+	LOCK_TIMEOUT,
+	STATEMENT_TIMEOUT,
+	STANDBY_DEADLOCK_TIMEOUT,
+	STANDBY_TIMEOUT,
+	STANDBY_LOCK_TIMEOUT,
+	IDLE_IN_TRANSACTION_SESSION_TIMEOUT,
+	IDLE_SESSION_TIMEOUT,
+	PERSISTENT_CONNECTIONS_TIMEOUT,
+	/* First user-definable timeout reason */
+	USER_TIMEOUT,
+	/* Maximum number of timeout reasons */
+	MAX_TIMEOUTS = 16
 } TimeoutId;
 
 /* callback function signature */
@@ -48,16 +47,16 @@ typedef void (*timeout_handler_proc) (void);
  */
 typedef enum TimeoutType
 {
-    TMPARAM_AFTER,
-    TMPARAM_AT
+	TMPARAM_AFTER,
+	TMPARAM_AT
 } TimeoutType;
 
 typedef struct
 {
-    TimeoutId    id;                /* timeout to set */
-    TimeoutType type;            /* TMPARAM_AFTER or TMPARAM_AT */
-    int            delay_ms;        /* only used for TMPARAM_AFTER */
-    TimestampTz fin_time;        /* only used for TMPARAM_AT */
+	TimeoutId	id;				/* timeout to set */
+	TimeoutType type;			/* TMPARAM_AFTER or TMPARAM_AT */
+	int			delay_ms;		/* only used for TMPARAM_AFTER */
+	TimestampTz fin_time;		/* only used for TMPARAM_AT */
 } EnableTimeoutParams;
 
 /*
@@ -65,8 +64,8 @@ typedef struct
  */
 typedef struct
 {
-    TimeoutId    id;                /* timeout to clear */
-    bool        keep_indicator; /* keep the indicator flag? */
+	TimeoutId	id;				/* timeout to clear */
+	bool		keep_indicator; /* keep the indicator flag? */
 } DisableTimeoutParams;
 
 /* timeout setup */
@@ -90,4 +89,4 @@ extern TimestampTz get_timeout_finish_time(TimeoutId id);
 extern void disable_timeout_safely(void);
 #endif
 
-#endif                            /* TIMEOUT_H */
+#endif							/* TIMEOUT_H */

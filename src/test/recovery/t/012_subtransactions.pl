@@ -7,19 +7,25 @@ use TestLib;
 use Test::More tests => 12;
 
 # Setup master node
-my $node_master = get_new_node("master");
-$node_master->init(allows_streaming => 1);
+my $node_master = get_new_node("master", 'datanode');
+# There is no gtm in centralized mode, so it doesn’t matter what
+# the master gtm IP and port are
+$node_master->init(allows_streaming => 1,
+                   extra => ['--master_gtm_nodename', 'no_gtm',
+                             '--master_gtm_ip', '127.0.0.1',
+                             '--master_gtm_port', '25001']);
 $node_master->append_conf(
 	'postgresql.conf', qq(
-	max_prepared_transactions = 10
 	log_checkpoints = true
+	allow_dml_on_datanode = on
+	is_centralized_mode = on
 ));
 $node_master->start;
 $node_master->backup('master_backup');
 $node_master->psql('postgres', "CREATE TABLE t_012_tbl (id int)");
 
 # Setup standby node
-my $node_standby = get_new_node('standby');
+my $node_standby = get_new_node('standby', 'datanode');
 $node_standby->init_from_backup($node_master, 'master_backup',
 	has_streaming => 1);
 $node_standby->start;

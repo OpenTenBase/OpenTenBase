@@ -1,15 +1,12 @@
 /*-------------------------------------------------------------------------
  *
  * publicationcmds.h
- *      prototypes for publicationcmds.c.
+ *	  prototypes for publicationcmds.c.
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- * 
  * src/include/commands/publicationcmds.h
  *
  *-------------------------------------------------------------------------
@@ -35,4 +32,4 @@ extern void RemovePublicationShardById(Oid proid);
 extern char *GetPublicationShardDesc(Oid proid);
 #endif
 
-#endif                            /* PUBLICATIONCMDS_H */
+#endif							/* PUBLICATIONCMDS_H */

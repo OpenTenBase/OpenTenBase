@@ -1,0 +1,166 @@
+SET enable_seqscan = off;
+-- L2
+CREATE TABLE t (val vector(3)) DISTRIBUTE BY REPLICATION;
+INSERT INTO t (val) VALUES ('[0,0,0]'), ('[1,2,3]'), ('[1,1,1]'), (NULL);
+CREATE INDEX ON t USING ivfflat (val vector_l2_ops) WITH (lists = 1);
+INSERT INTO t (val) VALUES ('[1,2,4]');
+SELECT * FROM t ORDER BY val <-> '[3,3,3]';
+   val   
+---------
+ [1,2,3]
+ [1,2,4]
+ [1,1,1]
+ [0,0,0]
+(4 rows)
+
+SELECT COUNT(*) FROM (SELECT * FROM t ORDER BY val <-> (SELECT NULL::vector)) t2;
+ count 
+-------
+     4
+(1 row)
+
+SELECT COUNT(*) FROM t;
+ count 
+-------
+     5
+(1 row)
+
+TRUNCATE t;
+NOTICE:  ivfflat index created with little data
+DETAIL:  This will cause low recall.
+HINT:  Drop the index until the table has more data.
+SELECT * FROM t ORDER BY val <-> '[3,3,3]';
+ val 
+-----
+(0 rows)
+
+DROP TABLE t;
+-- inner product
+CREATE TABLE t (val vector(3)) DISTRIBUTE BY REPLICATION;
+INSERT INTO t (val) VALUES ('[0,0,0]'), ('[1,2,3]'), ('[1,1,1]'), (NULL);
+CREATE INDEX ON t USING ivfflat (val vector_ip_ops) WITH (lists = 1);
+INSERT INTO t (val) VALUES ('[1,2,4]');
+SELECT * FROM t ORDER BY val <#> '[3,3,3]';
+   val   
+---------
+ [1,2,4]
+ [1,2,3]
+ [1,1,1]
+ [0,0,0]
+(4 rows)
+
+SELECT COUNT(*) FROM (SELECT * FROM t ORDER BY val <#> (SELECT NULL::vector)) t2;
+ count 
+-------
+     4
+(1 row)
+
+DROP TABLE t;
+-- cosine
+CREATE TABLE t (val vector(3)) DISTRIBUTE BY REPLICATION;
+INSERT INTO t (val) VALUES ('[0,0,0]'), ('[1,2,3]'), ('[1,1,1]'), (NULL);
+CREATE INDEX ON t USING ivfflat (val vector_cosine_ops) WITH (lists = 1);
+INSERT INTO t (val) VALUES ('[1,2,4]');
+SELECT * FROM t ORDER BY val <=> '[3,3,3]';
+   val   
+---------
+ [1,1,1]
+ [1,2,3]
+ [1,2,4]
+(3 rows)
+
+SELECT COUNT(*) FROM (SELECT * FROM t ORDER BY val <=> '[0,0,0]') t2;
+ count 
+-------
+     3
+(1 row)
+
+SELECT COUNT(*) FROM (SELECT * FROM t ORDER BY val <=> (SELECT NULL::vector)) t2;
+ count 
+-------
+     3
+(1 row)
+
+DROP TABLE t;
+-- iterative
+CREATE TABLE t (val vector(3)) DISTRIBUTE BY REPLICATION;
+INSERT INTO t (val) VALUES ('[0,0,0]'), ('[1,2,3]'), ('[1,1,1]'), (NULL);
+CREATE INDEX ON t USING ivfflat (val vector_l2_ops) WITH (lists = 3);
+SET ivfflat.iterative_scan = relaxed_order;
+SELECT * FROM t ORDER BY val <-> '[3,3,3]';
+   val   
+---------
+ [1,2,3]
+ [1,1,1]
+ [0,0,0]
+(3 rows)
+
+SET ivfflat.max_probes = 1;
+SELECT * FROM t ORDER BY val <-> '[3,3,3]';
+   val   
+---------
+ [1,2,3]
+(1 row)
+
+SET ivfflat.max_probes = 2;
+SELECT * FROM t ORDER BY val <-> '[3,3,3]';
+   val   
+---------
+ [1,2,3]
+ [1,1,1]
+(2 rows)
+
+RESET ivfflat.iterative_scan;
+RESET ivfflat.max_probes;
+DROP TABLE t;
+-- unlogged
+CREATE UNLOGGED TABLE t (val vector(3));
+INSERT INTO t (val) VALUES ('[0,0,0]'), ('[1,2,3]'), ('[1,1,1]'), (NULL);
+CREATE INDEX ON t USING ivfflat (val vector_l2_ops) WITH (lists = 1);
+SELECT * FROM t ORDER BY val <-> '[3,3,3]';
+   val   
+---------
+ [1,2,3]
+ [1,1,1]
+ [0,0,0]
+(3 rows)
+
+DROP TABLE t;
+-- options
+CREATE TABLE t (val vector(3)) DISTRIBUTE BY REPLICATION;
+CREATE INDEX ON t USING ivfflat (val vector_l2_ops) WITH (lists = 0);
+ERROR:  value 0 out of bounds for option "lists"
+DETAIL:  Valid values are between "1" and "32768".
+CREATE INDEX ON t USING ivfflat (val vector_l2_ops) WITH (lists = 32769);
+ERROR:  value 32769 out of bounds for option "lists"
+DETAIL:  Valid values are between "1" and "32768".
+SHOW ivfflat.probes;
+ ivfflat.probes 
+----------------
+ 1
+(1 row)
+
+SET ivfflat.probes = 0;
+ERROR:  0 is outside the valid range for parameter "ivfflat.probes" (1 .. 32768)
+SET ivfflat.probes = 32769;
+ERROR:  32769 is outside the valid range for parameter "ivfflat.probes" (1 .. 32768)
+SHOW ivfflat.iterative_scan;
+ ivfflat.iterative_scan 
+------------------------
+ off
+(1 row)
+
+SET ivfflat.iterative_scan = on;
+ERROR:  invalid value for parameter "ivfflat.iterative_scan": "on"
+HINT:  Available values: off, relaxed_order.
+SHOW ivfflat.max_probes;
+ ivfflat.max_probes 
+--------------------
+ 32768
+(1 row)
+
+SET ivfflat.max_probes = 0;
+ERROR:  0 is outside the valid range for parameter "ivfflat.max_probes" (1 .. 32768)
+SET ivfflat.max_probes = 32769;
+ERROR:  32769 is outside the valid range for parameter "ivfflat.max_probes" (1 .. 32768)
+DROP TABLE t;

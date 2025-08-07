@@ -20,4 +20,4 @@ extern MergeJoinState *ExecInitMergeJoin(MergeJoin *node, EState *estate, int ef
 extern void ExecEndMergeJoin(MergeJoinState *node);
 extern void ExecReScanMergeJoin(MergeJoinState *node);
 
-#endif                            /* NODEMERGEJOIN_H */
+#endif							/* NODEMERGEJOIN_H */

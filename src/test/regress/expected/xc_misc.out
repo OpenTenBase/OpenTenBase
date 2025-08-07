@@ -55,8 +55,11 @@ SET check_function_bodies = false;
 create function f1 () returns setof my_tab1 as $$ create table my_tab2 (a int); select * from my_tab1; $$ language sql;
 ERROR:  function "f1" already exists with same argument types
 select f1();
-ERROR:  Unexpected response from coordinator
-CONTEXT:  SQL function "f1" statement 1
+ f1  
+-----
+ (1)
+(1 row)
+
 SET check_function_bodies = true;
 drop function f1();
 -- Test pl-pgsql functions containing utility statements
@@ -133,14 +136,14 @@ begin;
  insert into my_tbl values(100),(101),(102),(103),(104),(105);
 end;
 select cmin, cmax, * from my_tbl order by f1; -- command id should be in sequence and increasing
- cmin | cmax | f1  
-------+------+-----
-    0 |    0 | 100
-    0 |    0 | 101
-    0 |    0 | 102
-    0 |    0 | 103
-    0 |    0 | 104
-    0 |    0 | 105
+ cmin |    cmax    | f1  
+------+------------+-----
+    0 | 4294967295 | 100
+    0 | 4294967295 | 101
+    0 | 4294967295 | 102
+    0 | 4294967295 | 103
+    0 | 4294967295 | 104
+    0 | 4294967295 | 105
 (6 rows)
 
 ---------------------------------
@@ -150,9 +153,9 @@ begin;
  DECLARE c1 CURSOR FOR SELECT * FROM my_tbl;
  INSERT INTO my_tbl VALUES (200);
  select cmin, cmax,* from my_tbl where f1 = 200; -- should give 1 as command id of row containing 200
- cmin | cmax | f1  
-------+------+-----
-    1 |    1 | 200
+ cmin |    cmax    | f1  
+------+------------+-----
+    1 | 4294967295 | 200
 (1 row)
 
 end;

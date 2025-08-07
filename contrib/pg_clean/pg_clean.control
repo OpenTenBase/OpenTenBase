@@ -1,9 +1,7 @@
 # 2PC transaction recovering extention
-#
-# This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
-# All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
-#
 comment = 'tools for clean all the remaining 2PC transactions'
 default_version = '1.0'
 module_pathname = '$libdir/pg_clean'
 relocatable = true
+# sql_mode can be opentenbase_ora, postgresql, all
+sql_mode = 'all'

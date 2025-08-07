@@ -43,6 +43,16 @@ function print_values
 	echo configBackupDir $configBackupDir
 	echo configBackupFile $configBackupFile
 
+	if [ "0$clusterMaxMachine" != "0" ]
+	then
+		echo clusterMaxMachine $clusterMaxMachine
+	fi
+
+	if [ "0$clusterMaxParallelQuery" != "0" ]
+	then
+		echo clusterMaxParallelQuery $clusterMaxParallelQuery
+	fi
+
 	# GTM overall
 	echo gtmName $gtmName
 
@@ -73,6 +83,7 @@ function print_values
 	# Coordinators overall
 	print_array coordNames
 	print_array coordPorts
+	print_array coordForwardPorts
 	print_array poolerPorts
 	print_array coordPgHbaEntries
 
@@ -88,6 +99,7 @@ function print_values
 	print_array coordSlaveServers
 	print_array coordSlaveCluster
 	print_array coordSlavePorts
+	print_array coordSlaveForwardPorts
 	print_array coordSlavePoolerPorts
 	print_array coordSlaveDirs
 	print_array coordArchLogDirs
@@ -117,6 +129,7 @@ function print_values
 	print_array datanodeNames
 	print_array datanodePorts
 #ifdef XCP
+	print_array datanodeForwardPorts
 	print_array datanodePoolerPorts
 #endif
 	print_array datanodePgHbaEntries
@@ -135,6 +148,7 @@ function print_values
 	print_array datanodeSlaveCluster
 	print_array datanodeSlavePorts
 #ifdef XCP
+	print_array datanodeSlaveForwardPorts
 	print_array datanodeSlavePoolerPorts
 #endif
 	print_array datanodeSlaveDirs

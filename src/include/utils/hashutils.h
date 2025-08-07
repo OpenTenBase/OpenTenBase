@@ -2,10 +2,6 @@
  * Utilities for working with hash values.
  *
  * Portions Copyright (c) 2017, PostgreSQL Global Development Group
- * 
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- * 
  */
 
 #ifndef HASHUTILS_H
@@ -42,15 +38,26 @@ hash_combine64(uint64 a, uint64 b)
  * performance.
  */
 static inline uint32
-murmurhash32(uint32 data)
+murmurhash32(uint32 h)
 {
-	uint32		h = data;
-
 	h ^= h >> 16;
 	h *= 0x85ebca6b;
 	h ^= h >> 13;
 	h *= 0xc2b2ae35;
 	h ^= h >> 16;
+
+	return h;
+}
+
+static inline uint64
+murmurhash64(uint64 h)
+{
+	h ^= h >> 33;
+	h *= 0xff51afd7ed558ccdLLU;
+	h ^= h >> 33;
+	h *= 0xc4ceb9fe1a85ec53LLU;
+	h ^= h >> 33;
+
 	return h;
 }
 

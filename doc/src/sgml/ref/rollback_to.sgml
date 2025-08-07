@@ -141,7 +141,7 @@ COMMIT;
   <para>
    The <acronym>SQL</> standard specifies that the key word
    <literal>SAVEPOINT</> is mandatory, but <productname>PostgreSQL</>
-   and <productname>Oracle</> allow it to be omitted.  SQL allows
+   and <productname>OpenTenBase_Ora</> allow it to be omitted.  SQL allows
    only <literal>WORK</>, not <literal>TRANSACTION</>, as a noise word
    after <literal>ROLLBACK</>.  Also, SQL has an optional clause
    <literal>AND [ NO ] CHAIN</> which is not currently supported by

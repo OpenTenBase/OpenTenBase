@@ -17,9 +17,9 @@ extern PyObject *PLy_interp_globals;
  */
 typedef struct PLyExecutionContext
 {
-    PLyProcedure *curr_proc;    /* the currently executing procedure */
-    MemoryContext scratch_ctx;    /* a context for things like type I/O */
-    struct PLyExecutionContext *next;    /* previous stack level */
+	PLyProcedure *curr_proc;	/* the currently executing procedure */
+	MemoryContext scratch_ctx;	/* a context for things like type I/O */
+	struct PLyExecutionContext *next;	/* previous stack level */
 } PLyExecutionContext;
 
 /* Get the current execution context */
@@ -28,4 +28,4 @@ extern PLyExecutionContext *PLy_current_execution_context(void);
 /* Get the scratch memory context for specified execution context */
 extern MemoryContext PLy_get_scratch_context(PLyExecutionContext *context);
 
-#endif                            /* PLPY_MAIN_H */
+#endif							/* PLPY_MAIN_H */

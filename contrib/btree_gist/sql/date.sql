@@ -1,5 +1,5 @@
 -- date check
-
+SET datestyle TO ISO;
 CREATE TABLE datetmp (a date);
 
 \copy datetmp from 'data/date.data'
@@ -32,6 +32,6 @@ SELECT count(*) FROM datetmp WHERE a >= '2001-02-13'::date;
 
 SELECT count(*) FROM datetmp WHERE a >  '2001-02-13'::date;
 
-EXPLAIN (COSTS OFF)
+EXPLAIN (COSTS OFF, NODES OFF)
 SELECT a, a <-> '2001-02-13' FROM datetmp ORDER BY a <-> '2001-02-13' LIMIT 3;
 SELECT a, a <-> '2001-02-13' FROM datetmp ORDER BY a <-> '2001-02-13' LIMIT 3;

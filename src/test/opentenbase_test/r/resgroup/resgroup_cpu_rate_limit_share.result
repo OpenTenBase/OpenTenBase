@@ -1,0 +1,559 @@
+CREATE LANGUAGE plpython3u;
+CREATE LANGUAGE
+show resource_group_cpu_ceiling_enforcement;
+ resource_group_cpu_ceiling_enforcement 
+----------------------------------------
+ off
+(1 row)
+
+create default node group default_group with ("dn1", "dn2");
+CREATE NODE GROUP
+create sharding group to group default_group;
+CREATE SHARDING GROUP
+clean sharding;
+CLEAN SHARDING
+CREATE TABLE bigtable AS
+    SELECT i AS c1, 'abc' AS c2
+    FROM generate_series(1,50000) i;
+INSERT 0 50000
+CREATE OR REPLACE FUNCTION complex_compute(i int)
+RETURNS int AS $$
+    results = 1
+    for j in range(1, 10000 + i):
+        results = (results * j) % 35969
+    return results
+$$ LANGUAGE plpython3u;
+CREATE FUNCTION
+CREATE VIEW busy AS
+    WITH t1 as (select random(), complex_compute(c1) from bigtable),
+    t2 as (select random(), complex_compute(c1) from bigtable),
+    t3 as (select random(), complex_compute(c1) from bigtable),
+    t4 as (select random(), complex_compute(c1) from bigtable),
+    t5 as (select random(), complex_compute(c1) from bigtable)
+    SELECT count(*)
+    FROM
+    t1, t2, t3, t4, t5;
+CREATE VIEW
+CREATE VIEW cancel_all AS
+    select distinct(ret) from (SELECT pg_cancel_backend(pid) ret
+    FROM pg_stat_activity
+    WHERE query LIKE 'SELECT * FROM busy%');
+CREATE VIEW
+CREATE TABLE cpu_usage_samples (groupname varchar(64), nodename varchar(64), cpu_usage float);
+CREATE TABLE
+CREATE OR REPLACE FUNCTION fetch_sample() RETURNS BOOL AS $$
+    import json
+    group_cpus = plpy.execute("select groupname,(json_each(xx)).key as nodename, ((json_each(xx)).value)::text::float  from (" +
+            "SELECT groupname,(json_array_elements(cpu_usage))  as xx FROM pg_resgroup_get_status(null));")
+    for r in group_cpus:
+        sql = "insert into cpu_usage_samples values ('" + r['groupname'] + "', '" + r['nodename'] + "', " + str(r['value']) +")"
+        plpy.execute(sql);
+    return True
+$$ LANGUAGE plpython3u;
+CREATE FUNCTION
+CREATE OR REPLACE FUNCTION verify_cpu_usage(groupname TEXT, expect_cpu_usage INT, err_rate INT)
+RETURNS BOOL AS $$
+    sql = "select avg(cpu_usage) result from cpu_usage_samples where groupname ='" + groupname + "'";
+    all_info = plpy.execute(sql)
+    usage = float(all_info[0]['result'])
+    return abs(usage - expect_cpu_usage) <= err_rate
+$$ LANGUAGE plpython3u;
+CREATE FUNCTION
+CREATE OR REPLACE FUNCTION check_cgroup_configuration() RETURNS BOOL AS $$
+    import os
+    root = '/sys/fs/cgroup/'
+    def get_cgroup_prop(prop):
+        fullpath = os.path.join(root, prop)
+        return int(open(fullpath).readline())
+    def show_guc(guc):
+        return plpy.execute('SHOW {}'.format(guc))[0][guc]
+    cfs_quota_us = get_cgroup_prop('cpu/opentenbase/cpu.cfs_quota_us')
+    cfs_period_us = get_cgroup_prop('cpu/opentenbase/cpu.cfs_period_us')
+    shares = get_cgroup_prop('cpu/opentenbase/cpu.shares')
+    plpy.warning('cfs_period_us {}'.format(cfs_period_us))
+    plpy.warning('shares {}'.format(shares))
+    ncores = os.cpu_count()
+    resource_group_cpu_ceiling_enforcement = str(show_guc('resource_group_cpu_ceiling_enforcement'))
+    resource_group_cpu_limit = float(show_guc('resource_group_cpu_limit'))
+    resource_group_cpu_priority = int(show_guc('resource_group_cpu_priority'))
+    plpy.warning('resource_group_cpu_ceiling_enforcement {}'.format(resource_group_cpu_ceiling_enforcement))
+    plpy.warning('resource_group_cpu_limit {}'.format(resource_group_cpu_limit))
+    plpy.warning('resource_group_cpu_priority {}'.format(resource_group_cpu_priority))
+    if resource_group_cpu_ceiling_enforcement == 'on':
+        plpy.warning('cfs_quota_us == cfs_period_us * ncores * resource_group_cpu_limit : {}'.format(cfs_quota_us == cfs_period_us * ncores * resource_group_cpu_limit))
+        assert cfs_quota_us == cfs_period_us * ncores * resource_group_cpu_limit
+    else:
+        plpy.warning('shares == 1024 * resource_group_cpu_priority : {}'.format(shares == 1024 * resource_group_cpu_priority))
+        assert shares == 1024 * resource_group_cpu_priority
+    def check_group_shares(name):
+        cpu_rate_limit = int(plpy.execute('''
+                SELECT value
+                  FROM pg_resgroupcapability c, pg_resgroup g
+                 WHERE c.resgroupid=g.oid
+                   AND reslimittype=2
+                   AND g.rsgname='{}'
+            '''.format(name))[0]['value'])
+        sub_cfs_quota_us = get_cgroup_prop('cpu/opentenbase/{}/cpu.cfs_quota_us'.format(name))
+        sub_shares = get_cgroup_prop('cpu/opentenbase/{}/cpu.shares'.format(name))
+        if resource_group_cpu_ceiling_enforcement == 'on':
+            if int(sub_cfs_quota_us) != -1:
+                plpy.warning('sub_cfs_quota_us == cfs_period_us * ncores * cpu_rate_limit / 100 : {}'.format(sub_cfs_quota_us == cfs_period_us * ncores * cpu_rate_limit / 100))
+                plpy.warning('sub_shares {}'.format(sub_shares))
+                assert sub_cfs_quota_us == cfs_period_us * ncores * cpu_rate_limit / 100
+        else:
+            if int(sub_shares) != -1:
+                plpy.warning('sub_shares == int(cpu_rate_limit * 1024 / 10) : {}'.format(sub_shares == int(cpu_rate_limit * 1024 / 10)))
+                plpy.warning('sub_cfs_quota_us {}'.format(sub_cfs_quota_us))
+                assert sub_shares == int(cpu_rate_limit * 1024 / 10)
+    check_group_shares('default_group')
+    check_group_shares('admin_group')
+    check_group_shares('rg1_cpu_test')
+    check_group_shares('rg2_cpu_test')
+    return True
+$$ LANGUAGE plpython3u;
+CREATE FUNCTION
+-- The test cases for the value of resource_group_cpu_limit equals 0.9, 
+-- do not change it during the test.
+show resource_group_cpu_limit;
+ resource_group_cpu_limit 
+--------------------------
+ 0.9
+(1 row)
+
+-- lower admin_group's cpu_rate_limit to minimize its side effect
+ALTER RESOURCE GROUP admin_group SET cpu_rate_limit 1;
+ALTER RESOURCE GROUP
+-- lower default_group's cpu_rate_limit to minimize its side effect
+ALTER RESOURCE GROUP default_group SET cpu_rate_limit 1;
+ALTER RESOURCE GROUP
+CREATE RESOURCE GROUP rg1_cpu_test WITH concurrency 20 cpu_rate_limit 10;
+CREATE RESOURCE GROUP
+CREATE RESOURCE GROUP rg2_cpu_test WITH concurrency 20 cpu_rate_limit 20;
+CREATE RESOURCE GROUP
+select check_cgroup_configuration();
+ check_cgroup_configuration 
+----------------------------
+ t
+(1 row)
+
+WARNING:  (01000) cfs_period_us 100000
+WARNING:  (01000) shares 10240
+WARNING:  (01000) resource_group_cpu_ceiling_enforcement off
+WARNING:  (01000) resource_group_cpu_limit 0.9
+WARNING:  (01000) resource_group_cpu_priority 10
+WARNING:  (01000) shares == 1024 * resource_group_cpu_priority : True
+WARNING:  (01000) sub_shares == int(cpu_rate_limit * 1024 / 10) : True
+WARNING:  (01000) sub_cfs_quota_us -1
+WARNING:  (01000) sub_shares == int(cpu_rate_limit * 1024 / 10) : True
+WARNING:  (01000) sub_cfs_quota_us -1
+WARNING:  (01000) sub_shares == int(cpu_rate_limit * 1024 / 10) : True
+WARNING:  (01000) sub_cfs_quota_us -1
+WARNING:  (01000) sub_shares == int(cpu_rate_limit * 1024 / 10) : True
+WARNING:  (01000) sub_cfs_quota_us -1
+select groupname, concurrency, cpu_rate_limit, memory_limit, cpuset  from pg_resgroup_config;
+   groupname   | concurrency | cpu_rate_limit | memory_limit | cpuset 
+---------------+-------------+----------------+--------------+--------
+ default_group | 20          | 1              | -1           | -1
+ admin_group   | 10          | 1              | -1           | -1
+ rg1_cpu_test  | 20          | 10             | -1           | -1
+ rg2_cpu_test  | 20          | 20             | -1           | -1
+(4 rows)
+
+-- create two roles and assign them to above groups
+CREATE ROLE role1_cpu_test RESOURCE GROUP rg1_cpu_test;
+CREATE ROLE
+CREATE ROLE role2_cpu_test RESOURCE GROUP rg2_cpu_test;
+CREATE ROLE
+GRANT ALL ON FUNCTION complex_compute(int) TO role1_cpu_test;
+GRANT
+GRANT ALL ON FUNCTION complex_compute(int) TO role2_cpu_test;
+GRANT
+GRANT ALL ON busy TO role1_cpu_test;
+GRANT
+GRANT ALL ON busy TO role2_cpu_test;
+GRANT
+SET ROLE TO role1_cpu_test;
+SET
+ SELECT * FROM busy;
+SET ROLE TO role1_cpu_test;
+SET
+ SELECT * FROM busy;
+SET ROLE TO role1_cpu_test;
+SET
+ SELECT * FROM busy;
+SET ROLE TO role1_cpu_test;
+SET
+ SELECT * FROM busy;
+SET ROLE TO role1_cpu_test;
+SET
+ SELECT * FROM busy;
+SET ROLE TO role1_cpu_test;
+SET
+ SELECT * FROM busy;
+SET ROLE TO role1_cpu_test;
+SET
+ SELECT * FROM busy;
+SET ROLE TO role1_cpu_test;
+SET
+ SELECT * FROM busy;
+SET ROLE TO role1_cpu_test;
+SET
+ SELECT * FROM busy;
+SET ROLE TO role1_cpu_test;
+SET
+ SELECT * FROM busy;
+SET ROLE TO role1_cpu_test;
+SET
+ SELECT * FROM busy;
+SET ROLE TO role1_cpu_test;
+SET
+ SELECT * FROM busy;
+SET ROLE TO role1_cpu_test;
+SET
+ SELECT * FROM busy;
+SET ROLE TO role1_cpu_test;
+SET
+ SELECT * FROM busy;
+SET ROLE TO role1_cpu_test;
+SET
+ SELECT * FROM busy;
+SET ROLE TO role1_cpu_test;
+SET
+ SELECT * FROM busy;
+TRUNCATE TABLE cpu_usage_samples;
+TRUNCATE TABLE
+SELECT pg_sleep(1.7);
+ pg_sleep 
+----------
+ 
+(1 row)
+
+SELECT fetch_sample();
+ fetch_sample 
+--------------
+ t
+(1 row)
+
+SELECT pg_sleep(1.7);
+ pg_sleep 
+----------
+ 
+(1 row)
+
+SELECT fetch_sample();
+ fetch_sample 
+--------------
+ t
+(1 row)
+
+SELECT pg_sleep(1.7);
+ pg_sleep 
+----------
+ 
+(1 row)
+
+SELECT fetch_sample();
+ fetch_sample 
+--------------
+ t
+(1 row)
+
+SELECT pg_sleep(1.7);
+ pg_sleep 
+----------
+ 
+(1 row)
+
+SELECT fetch_sample();
+ fetch_sample 
+--------------
+ t
+(1 row)
+
+SELECT pg_sleep(1.7);
+ pg_sleep 
+----------
+ 
+(1 row)
+
+SELECT fetch_sample();
+ fetch_sample 
+--------------
+ t
+(1 row)
+
+SELECT verify_cpu_usage('rg1_cpu_test', 90, 10);
+ verify_cpu_usage 
+------------------
+ t
+(1 row)
+
+TRUNCATE TABLE cpu_usage_samples;
+TRUNCATE TABLE
+SELECT pg_sleep(1.7);
+ pg_sleep 
+----------
+ 
+(1 row)
+
+SELECT fetch_sample();
+ fetch_sample 
+--------------
+ t
+(1 row)
+
+SELECT pg_sleep(1.7);
+ pg_sleep 
+----------
+ 
+(1 row)
+
+SELECT fetch_sample();
+ fetch_sample 
+--------------
+ t
+(1 row)
+
+SELECT pg_sleep(1.7);
+ pg_sleep 
+----------
+ 
+(1 row)
+
+SELECT fetch_sample();
+ fetch_sample 
+--------------
+ t
+(1 row)
+
+SELECT pg_sleep(1.7);
+ pg_sleep 
+----------
+ 
+(1 row)
+
+SELECT fetch_sample();
+ fetch_sample 
+--------------
+ t
+(1 row)
+
+SELECT pg_sleep(1.7);
+ pg_sleep 
+----------
+ 
+(1 row)
+
+SELECT fetch_sample();
+ fetch_sample 
+--------------
+ t
+(1 row)
+
+SELECT verify_cpu_usage('rg1_cpu_test', 90, 10);
+ verify_cpu_usage 
+------------------
+ t
+(1 row)
+
+SET ROLE TO role2_cpu_test;
+SET
+ SELECT * FROM busy;
+SET ROLE TO role2_cpu_test;
+SET
+ SELECT * FROM busy;
+SET ROLE TO role2_cpu_test;
+SET
+ SELECT * FROM busy;
+SET ROLE TO role2_cpu_test;
+SET
+ SELECT * FROM busy;
+SET ROLE TO role2_cpu_test;
+SET
+ SELECT * FROM busy;
+SET ROLE TO role2_cpu_test;
+SET
+ SELECT * FROM busy;
+SET ROLE TO role2_cpu_test;
+SET
+ SELECT * FROM busy;
+SET ROLE TO role2_cpu_test;
+SET
+ SELECT * FROM busy;
+SET ROLE TO role2_cpu_test;
+SET
+ SELECT * FROM busy;
+SET ROLE TO role2_cpu_test;
+SET
+ SELECT * FROM busy;
+SET ROLE TO role2_cpu_test;
+SET
+ SELECT * FROM busy;
+SET ROLE TO role2_cpu_test;
+SET
+ SELECT * FROM busy;
+SET ROLE TO role2_cpu_test;
+SET
+ SELECT * FROM busy;
+SET ROLE TO role2_cpu_test;
+SET
+ SELECT * FROM busy;
+SET ROLE TO role2_cpu_test;
+SET
+ SELECT * FROM busy;
+SET ROLE TO role2_cpu_test;
+SET
+ SELECT * FROM busy;
+TRUNCATE TABLE cpu_usage_samples;
+TRUNCATE TABLE
+SELECT pg_sleep(1.7);
+ pg_sleep 
+----------
+ 
+(1 row)
+
+SELECT fetch_sample();
+ fetch_sample 
+--------------
+ t
+(1 row)
+
+SELECT pg_sleep(1.7);
+ pg_sleep 
+----------
+ 
+(1 row)
+
+SELECT fetch_sample();
+ fetch_sample 
+--------------
+ t
+(1 row)
+
+SELECT pg_sleep(1.7);
+ pg_sleep 
+----------
+ 
+(1 row)
+
+SELECT fetch_sample();
+ fetch_sample 
+--------------
+ t
+(1 row)
+
+SELECT pg_sleep(1.7);
+ pg_sleep 
+----------
+ 
+(1 row)
+
+SELECT fetch_sample();
+ fetch_sample 
+--------------
+ t
+(1 row)
+
+SELECT pg_sleep(1.7);
+ pg_sleep 
+----------
+ 
+(1 row)
+
+SELECT fetch_sample();
+ fetch_sample 
+--------------
+ t
+(1 row)
+
+SELECT verify_cpu_usage('rg1_cpu_test', 30, 10);
+ verify_cpu_usage 
+------------------
+ t
+(1 row)
+
+SELECT verify_cpu_usage('rg2_cpu_test', 60, 10);
+ verify_cpu_usage 
+------------------
+ t
+(1 row)
+
+TRUNCATE TABLE cpu_usage_samples;
+TRUNCATE TABLE
+SELECT pg_sleep(1.7);
+ pg_sleep 
+----------
+ 
+(1 row)
+
+SELECT fetch_sample();
+ fetch_sample 
+--------------
+ t
+(1 row)
+
+SELECT pg_sleep(1.7);
+ pg_sleep 
+----------
+ 
+(1 row)
+
+SELECT fetch_sample();
+ fetch_sample 
+--------------
+ t
+(1 row)
+
+SELECT pg_sleep(1.7);
+ pg_sleep 
+----------
+ 
+(1 row)
+
+SELECT fetch_sample();
+ fetch_sample 
+--------------
+ t
+(1 row)
+
+SELECT pg_sleep(1.7);
+ pg_sleep 
+----------
+ 
+(1 row)
+
+SELECT fetch_sample();
+ fetch_sample 
+--------------
+ t
+(1 row)
+
+SELECT pg_sleep(1.7);
+ pg_sleep 
+----------
+ 
+(1 row)
+
+SELECT fetch_sample();
+ fetch_sample 
+--------------
+ t
+(1 row)
+
+SELECT verify_cpu_usage('rg1_cpu_test', 30, 10);
+ verify_cpu_usage 
+------------------
+ t
+(1 row)
+
+SELECT verify_cpu_usage('rg2_cpu_test', 60, 10);
+ verify_cpu_usage 
+------------------
+ t
+(1 row)
+
+SELECT * FROM cancel_all;
+ ret 
+-----
+ t
+(1 row)

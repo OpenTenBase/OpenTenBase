@@ -1,14 +1,14 @@
 /*-------------------------------------------------------------------------
  *
  * random.c
- *      random() wrapper
+ *	  random() wrapper
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
  * IDENTIFICATION
- *      src/port/random.c
+ *	  src/port/random.c
  *
  *-------------------------------------------------------------------------
  */
@@ -21,5 +21,5 @@
 long
 random()
 {
-    return pg_lrand48();
+	return pg_lrand48();
 }

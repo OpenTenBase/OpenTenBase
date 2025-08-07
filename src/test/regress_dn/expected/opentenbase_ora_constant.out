@@ -1,0 +1,641 @@
+/*
+	Test Specification
+	The file is mainly used to test constant type of opentenbase_ora.
+	Including:
+    1. q quoted string
+	2. treat '' as null
+*/
+-- need to use opentenbase_ora mode to test these test case.
+\c regression_ora
+-- 1. q quoted string
+-- 1.1 test q quoted string, should pass
+select q'<what's your name?>' from dual;
+     ?column?      
+-------------------
+ what's your name?
+(1 row)
+
+select q'(what's your name?)' from dual;
+     ?column?      
+-------------------
+ what's your name?
+(1 row)
+
+select q'[what's your name?]' from dual;
+     ?column?      
+-------------------
+ what's your name?
+(1 row)
+
+select q'{what's your name?}' from dual;
+     ?column?      
+-------------------
+ what's your name?
+(1 row)
+
+select q'~what's your name?~' from dual;
+     ?column?      
+-------------------
+ what's your name?
+(1 row)
+
+select q'`what's your name?`' from dual;
+     ?column?      
+-------------------
+ what's your name?
+(1 row)
+
+select q'@what's your name?@' from dual;
+     ?column?      
+-------------------
+ what's your name?
+(1 row)
+
+select q'#what's your name?#' from dual;
+     ?column?      
+-------------------
+ what's your name?
+(1 row)
+
+select q'$what's your name?$' from dual;
+     ?column?      
+-------------------
+ what's your name?
+(1 row)
+
+select q'%what's your name?%' from dual;
+     ?column?      
+-------------------
+ what's your name?
+(1 row)
+
+select q'^what's your name?^' from dual;
+     ?column?      
+-------------------
+ what's your name?
+(1 row)
+
+select q'&what's your name?&' from dual;
+     ?column?      
+-------------------
+ what's your name?
+(1 row)
+
+select q'*what's your name?*' from dual;
+     ?column?      
+-------------------
+ what's your name?
+(1 row)
+
+select q'-what's your name?-' from dual;
+     ?column?      
+-------------------
+ what's your name?
+(1 row)
+
+select q'_what's your name?_' from dual;
+     ?column?      
+-------------------
+ what's your name?
+(1 row)
+
+select q'+what's your name?+' from dual;
+     ?column?      
+-------------------
+ what's your name?
+(1 row)
+
+select q'=what's your name?=' from dual;
+     ?column?      
+-------------------
+ what's your name?
+(1 row)
+
+select q'|what's your name?|' from dual;
+     ?column?      
+-------------------
+ what's your name?
+(1 row)
+
+select q'\what's your name?\' from dual;
+     ?column?      
+-------------------
+ what's your name?
+(1 row)
+
+select q'"what's your name?"' from dual;
+     ?column?      
+-------------------
+ what's your name?
+(1 row)
+
+select q':what's your name?:' from dual;
+     ?column?      
+-------------------
+ what's your name?
+(1 row)
+
+select q';what's your name?;' from dual;
+     ?column?      
+-------------------
+ what's your name?
+(1 row)
+
+select q'?what's your name??' from dual;
+     ?column?      
+-------------------
+ what's your name?
+(1 row)
+
+select q'/what's your name?/' from dual;
+     ?column?      
+-------------------
+ what's your name?
+(1 row)
+
+select q',what's your name?,' from dual;
+     ?column?      
+-------------------
+ what's your name?
+(1 row)
+
+select q'.what's your name?.' from dual;
+     ?column?      
+-------------------
+ what's your name?
+(1 row)
+
+select q''what's your name?'' from dual;
+     ?column?      
+-------------------
+ what's your name?
+(1 row)
+
+select q'!what's your name?!' from dual;
+     ?column?      
+-------------------
+ what's your name?
+(1 row)
+
+select q'Qwhat's your name?Q' from dual;
+     ?column?      
+-------------------
+ what's your name?
+(1 row)
+
+select q'awhat's your name?a' from dual;
+     ?column?      
+-------------------
+ what's your name?
+(1 row)
+
+select q'3what's your name?3' from dual;
+     ?column?      
+-------------------
+ what's your name?
+(1 row)
+
+select q'[~!@#$%^&*()__+<>?:"{{{}|}}]' from dual;
+          ?column?          
+----------------------------
+ ~!@#$%^&*()__+<>?:"{{{}|}}
+(1 row)
+
+select q'[ï Ÿ1234 ï]' from dual;
+ ?column?  
+-----------
+ ï Ÿ1234 ï
+(1 row)
+
+select q'[what's your name?['my name is opentenbase_ora!]' from dual;
+                    ?column?                    
+------------------------------------------------
+ what's your name?['my name is opentenbase_ora!
+(1 row)
+
+select q'(what's your name?('my name is opentenbase_ora!)' from dual;
+                    ?column?                    
+------------------------------------------------
+ what's your name?('my name is opentenbase_ora!
+(1 row)
+
+select q'<what's your name?<'my name is opentenbase_ora!>' from dual;
+                    ?column?                    
+------------------------------------------------
+ what's your name?<'my name is opentenbase_ora!
+(1 row)
+
+select q'{what's your name?{'my name is opentenbase_ora!}' from dual;
+                    ?column?                    
+------------------------------------------------
+ what's your name?{'my name is opentenbase_ora!
+(1 row)
+
+select q'<>' from dual;
+ ?column? 
+----------
+ 
+(1 row)
+
+select q'()' from dual;
+ ?column? 
+----------
+ 
+(1 row)
+
+select q'[]' from dual;
+ ?column? 
+----------
+ 
+(1 row)
+
+select q'{}' from dual;
+ ?column? 
+----------
+ 
+(1 row)
+
+select q'~~' from dual;
+ ?column? 
+----------
+ 
+(1 row)
+
+select q'``' from dual;
+ ?column? 
+----------
+ 
+(1 row)
+
+select q'@@' from dual;
+ ?column? 
+----------
+ 
+(1 row)
+
+select q'##' from dual;
+ ?column? 
+----------
+ 
+(1 row)
+
+select q'$$' from dual;
+ ?column? 
+----------
+ 
+(1 row)
+
+select q'%%' from dual;
+ ?column? 
+----------
+ 
+(1 row)
+
+select q'^^' from dual;
+ ?column? 
+----------
+ 
+(1 row)
+
+select q'&&' from dual;
+ ?column? 
+----------
+ 
+(1 row)
+
+select q'**' from dual;
+ ?column? 
+----------
+ 
+(1 row)
+
+select q'--' from dual;
+ ?column? 
+----------
+ 
+(1 row)
+
+select q'__' from dual;
+ ?column? 
+----------
+ 
+(1 row)
+
+select q'++' from dual;
+ ?column? 
+----------
+ 
+(1 row)
+
+select q'==' from dual;
+ ?column? 
+----------
+ 
+(1 row)
+
+select q'||' from dual;
+ ?column? 
+----------
+ 
+(1 row)
+
+select q'\\' from dual;
+ ?column? 
+----------
+ 
+(1 row)
+
+select q'""' from dual;
+ ?column? 
+----------
+ 
+(1 row)
+
+select q'::' from dual;
+ ?column? 
+----------
+ 
+(1 row)
+
+select q';;' from dual;
+ ?column? 
+----------
+ 
+(1 row)
+
+select q'??' from dual;
+ ?column? 
+----------
+ 
+(1 row)
+
+select q'//' from dual;
+ ?column? 
+----------
+ 
+(1 row)
+
+select q',,' from dual;
+ ?column? 
+----------
+ 
+(1 row)
+
+select q'..' from dual;
+ ?column? 
+----------
+ 
+(1 row)
+
+select q'''' from dual;
+ ?column? 
+----------
+ 
+(1 row)
+
+select q'!!' from dual;
+ ?column? 
+----------
+ 
+(1 row)
+
+select q'QQ' from dual;
+ ?column? 
+----------
+ 
+(1 row)
+
+select q'aa' from dual;
+ ?column? 
+----------
+ 
+(1 row)
+
+select q'33' from dual;
+ ?column? 
+----------
+ 
+(1 row)
+
+SELECT q'['first line';
+'next line';
+'third line';]' AS "Three lines";
+  Three lines  
+---------------
+ 'first line';+
+ 'next line'; +
+ 'third line';
+(1 row)
+
+select q']what's your name?]' from dual;
+     ?column?      
+-------------------
+ what's your name?
+(1 row)
+
+select q'>what's your name?>' from dual;
+     ?column?      
+-------------------
+ what's your name?
+(1 row)
+
+select q'}what's your name?}' from dual;
+     ?column?      
+-------------------
+ what's your name?
+(1 row)
+
+select q')what's your name?)' from dual;
+     ?column?      
+-------------------
+ what's your name?
+(1 row)
+
+-- 1.2 noascii char or unsupported char as delimeter, should fail
+select q'ï Ÿ1234 ï' from dual;
+ERROR:  syntax error at or near "q"
+LINE 1: select q'ï Ÿ1234 ï' from dual;
+               ^
+select q' Ÿ1234 ' from dual;
+ERROR:  syntax error at or near "q"
+LINE 1: select q' Ÿ1234 ' from dual;
+               ^
+-- 1.3 q' string in dml
+create table qtest(id int, qval varchar2(100));
+insert into qtest values (1,q'[what's your name?]');
+insert into qtest values (2,q'<q'<>');
+insert into qtest values (3,q'{q'{}}');
+delete from qtest where qval = q'<q'<>';
+update qtest set qval = q'*q'***' where id=3;
+select * from qtest;
+ ID |       QVAL        
+----+-------------------
+  1 | what's your name?
+  3 | q'**
+(2 rows)
+
+drop table qtest;
+-- 2.1 is null / is not null
+drop table if exists null_test;
+NOTICE:  table "NULL_TEST" does not exist, skipping
+create table null_test (c1 char(10), c2 varchar(20), c3 varchar2(10), c4 number(2,0));
+insert into null_test values('20230301','','',1);
+insert into null_test values('','20230301','',2);
+insert into null_test values('','','20230301',3);
+insert into null_test values('20230301','20230301','20230301',4);
+select * from null_test where c1 is null or c2 is null or c3 is null order by 1,2,3,4;
+     C1     |    C2    |    C3    | C4 
+------------+----------+----------+----
+ 20230301   |          |          |  1
+            | 20230301 |          |  2
+            |          | 20230301 |  3
+(3 rows)
+
+select * from null_test where c1 is not null and c2 is not null and c3 is not null;
+     C1     |    C2    |    C3    | C4 
+------------+----------+----------+----
+ 20230301   | 20230301 | 20230301 |  4
+(1 row)
+
+-- 2.2 order by
+select * from null_test order by c3;
+     C1     |    C2    |    C3    | C4 
+------------+----------+----------+----
+            |          | 20230301 |  3
+ 20230301   | 20230301 | 20230301 |  4
+ 20230301   |          |          |  1
+            | 20230301 |          |  2
+(4 rows)
+
+-- 2.3 '' as opertor l/r values
+select '' + 1, '' - 1, '' * 1, '' / 1 from dual;
+ ?column? | ?column? | ?column? | ?column? 
+----------+----------+----------+----------
+          |          |          |         
+(1 row)
+
+select * from null_test where '' >= 'a' or '' <= 'a';
+ C1 | C2 | C3 | C4 
+----+----+----+----
+(0 rows)
+
+select * from null_test where '' > 'a' or '' < 'a' or '' = 'a' or '' != 'a' or '' <> 'a';
+ C1 | C2 | C3 | C4 
+----+----+----+----
+(0 rows)
+
+select * from null_test where c3 >= 'a' or c3 <= 'a';
+     C1     |    C2    |    C3    | C4 
+------------+----------+----------+----
+            |          | 20230301 |  3
+ 20230301   | 20230301 | 20230301 |  4
+(2 rows)
+
+select * from null_test where c3 > 'a' or c3 < 'a' or c3 = 'a' or c3 != 'a';
+     C1     |    C2    |    C3    | C4 
+------------+----------+----------+----
+            |          | 20230301 |  3
+ 20230301   | 20230301 | 20230301 |  4
+(2 rows)
+
+drop table null_test;
+-- 2.5 '' as partition key
+drop table if exists list_partition;
+NOTICE:  table "LIST_PARTITION" does not exist, skipping
+drop type if exists week;
+NOTICE:  type "WEEK" does not exist, skipping
+drop type if exists p_gender;
+NOTICE:  type "P_GENDER" does not exist, skipping
+create type p_gender as enum ('male', 'female', '');
+create type week as enum ('1','2','3','4','5','6','7');
+create table list_partition(
+id int,
+name varchar,
+gender p_gender,
+birth_week week
+)partition by list (gender);
+create index list_index on list_partition(id);
+create table part_men partition of list_partition for values in('male');
+create table part_women partition of list_partition for values in('female');
+create table part_null partition of list_partition for values in('') ;
+insert into list_partition values
+(1, 'zhang', 'male','1'),
+(2, 'zhan', 'female','1'),
+(3,'wang', 'male','3'),
+(4,'li', '', '6'),
+(5,'tian', 'female','4'),
+(6,'su', '','7'),
+(7,'liu', 'female','2'),
+(8,'qin', '','3');
+select * from part_men order by id;
+ ID | NAME  | GENDER | BIRTH_WEEK 
+----+-------+--------+------------
+  1 | zhang | male   | 1
+  3 | wang  | male   | 3
+(2 rows)
+
+select * from part_women order by id;
+ ID | NAME | GENDER | BIRTH_WEEK 
+----+------+--------+------------
+  2 | zhan | female | 1
+  5 | tian | female | 4
+  7 | liu  | female | 2
+(3 rows)
+
+select * from part_null order by id;
+ ID | NAME | GENDER | BIRTH_WEEK 
+----+------+--------+------------
+  4 | li   |        | 6
+  6 | su   |        | 7
+  8 | qin  |        | 3
+(3 rows)
+
+drop table part_men;
+drop table part_women;
+drop table part_null;
+drop table list_partition;
+drop type week;
+drop type p_gender;
+--2.6 copy treat '' as null
+drop table if exists t1;
+NOTICE:  table "T1" does not exist, skipping
+create table t1(f1 number(2,0), f2 varchar(10), f3 varchar2(10), f4 text);
+insert into t1 values(1, '', '', '');
+insert into t1 values(2, null, null, null);
+copy t1 from stdin;
+select length(f2), length(f3), length(f4), * from t1 order by f1;
+ LENGTH | LENGTH | LENGTH | F1 | F2 | F3 | F4 
+--------+--------+--------+----+----+----+----
+        |        |        |  1 |    |    | 
+        |        |        |  2 |    |    | 
+        |        |        |  3 |    |    | 
+        |        |        |  4 |    |    | 
+(4 rows)
+
+drop table t1;
+CREATE OR REPLACE FUNCTION foo(a VARCHAR) RETURNS VARCHAR
+AS
+$$
+BEGIN
+	RETURN a || ' END!';
+END;
+$$ LANGUAGE default_plsql;
+SELECT foo('abc');
+   FOO    
+----------
+ abc END!
+(1 row)
+
+SELECT foo(q'#abc#');
+   FOO    
+----------
+ abc END!
+(1 row)
+
+SELECT foo(q'#a'b'c#');
+    FOO     
+------------
+ a'b'c END!
+(1 row)
+
+\c regression

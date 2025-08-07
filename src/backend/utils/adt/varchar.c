@@ -1,21 +1,18 @@
 /*-------------------------------------------------------------------------
  *
  * varchar.c
- *      Functions for the built-in types char(n) and varchar(n).
+ *	  Functions for the built-in types char(n) and varchar(n).
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  * IDENTIFICATION
- *      src/backend/utils/adt/varchar.c
+ *	  src/backend/utils/adt/varchar.c
  *
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
-
 
 #include "access/hash.h"
 #include "access/tuptoaster.h"
@@ -27,58 +24,61 @@
 #include "utils/varlena.h"
 #include "mb/pg_wchar.h"
 
+#ifdef _PG_ORCL_
+#include "utils/guc.h"
+#endif
 
 /* common code for bpchartypmodin and varchartypmodin */
-static int32
-anychar_typmodin(ArrayType *ta, const char *typename)
+int32
+anychar_typmodin(ArrayType *ta, const char *typname)
 {
-    int32        typmod;
-    int32       *tl;
-    int            n;
+	int32		typmod;
+	int32	   *tl;
+	int			n;
 
-    tl = ArrayGetIntegerTypmods(ta, &n);
+	tl = ArrayGetIntegerTypmods(ta, &n);
 
-    /*
-     * we're not too tense about good error message here because grammar
-     * shouldn't allow wrong number of modifiers for CHAR
-     */
-    if (n != 1)
-        ereport(ERROR,
-                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-                 errmsg("invalid type modifier")));
+	/*
+	 * we're not too tense about good error message here because grammar
+	 * shouldn't allow wrong number of modifiers for CHAR
+	 */
+	if (n != 1)
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				 errmsg("invalid type modifier")));
 
-    if (*tl < 1)
-        ereport(ERROR,
-                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-                 errmsg("length for type %s must be at least 1", typename)));
-    if (*tl > MaxAttrSize)
-        ereport(ERROR,
-                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-                 errmsg("length for type %s cannot exceed %d",
-                        typename, MaxAttrSize)));
+	if (*tl < 1)
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				 errmsg("length for type %s must be at least 1", typname)));
+	if (*tl > MaxAttrSize)
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				 errmsg("length for type %s cannot exceed %d",
+						typname, MaxAttrSize)));
 
-    /*
-     * For largely historical reasons, the typmod is VARHDRSZ plus the number
-     * of characters; there is enough client-side code that knows about that
-     * that we'd better not change it.
-     */
-    typmod = VARHDRSZ + *tl;
+	/*
+	 * For largely historical reasons, the typmod is VARHDRSZ plus the number
+	 * of characters; there is enough client-side code that knows about that
+	 * that we'd better not change it.
+	 */
+	typmod = VARHDRSZ + *tl;
 
-    return typmod;
+	return typmod;
 }
 
 /* common code for bpchartypmodout and varchartypmodout */
-static char *
+char *
 anychar_typmodout(int32 typmod)
 {
-    char       *res = (char *) palloc(64);
+	char	   *res = (char *) palloc(64);
 
-    if (typmod > VARHDRSZ)
-        snprintf(res, 64, "(%d)", (int) (typmod - VARHDRSZ));
-    else
-        *res = '\0';
+	if (typmod > VARHDRSZ)
+		snprintf(res, 64, "(%d)", (int) (typmod - VARHDRSZ));
+	else
+		*res = '\0';
 
-    return res;
+	return res;
 }
 
 
@@ -102,12 +102,12 @@ anychar_typmodout(int32 typmod)
  * types and "text" is that we truncate and possibly blank-pad the string
  * at insertion time.)
  *
- *                                                              - ay 6/95
+ *															  - ay 6/95
  */
 
 
 /*****************************************************************************
- *     bpchar - char()                                                         *
+ *	 bpchar - char()														 *
  *****************************************************************************/
 
 /*
@@ -125,65 +125,78 @@ anychar_typmodout(int32 typmod)
 static BpChar *
 bpchar_input(const char *s, size_t len, int32 atttypmod)
 {
-    BpChar       *result;
-    char       *r;
-    size_t        maxlen;
+	BpChar	   *result;
+	char	   *r;
+	size_t		maxlen;
 
-    /* If typmod is -1 (or invalid), use the actual string length */
-    if (atttypmod < (int32) VARHDRSZ)
-        maxlen = len;
-    else
-    {
-        size_t        charlen;    /* number of CHARACTERS in the input */
+	/* If typmod is -1 (or invalid), use the actual string length */
+	if (atttypmod < (int32) VARHDRSZ)
+		maxlen = len;
+	else
+	{
+		size_t		charlen;	/* number of CHARACTERS in the input */
 
-        maxlen = atttypmod - VARHDRSZ;
-        charlen = pg_mbstrlen_with_len(s, len);
-        if (charlen > maxlen)
-        {
-            /* Verify that extra characters are spaces, and clip them off */
-            size_t        mbmaxlen = pg_mbcharcliplen(s, len, maxlen);
-            size_t        j;
+		maxlen = atttypmod - VARHDRSZ;
+		charlen = pg_mbstrlen_with_len(s, len);
+		if (charlen > maxlen)
+		{
+			/* Verify that extra characters are spaces, and clip them off */
+			size_t		mbmaxlen = pg_mbcharcliplen(s, len, maxlen);
+			size_t		j;
 
-            /*
-             * at this point, len is the actual BYTE length of the input
-             * string, maxlen is the max number of CHARACTERS allowed for this
-             * bpchar type, mbmaxlen is the length in BYTES of those chars.
-             */
-            for (j = mbmaxlen; j < len; j++)
-            {
-                if (s[j] != ' ')
-                    ereport(ERROR,
-                            (errcode(ERRCODE_STRING_DATA_RIGHT_TRUNCATION),
-                             errmsg("value too long for type character(%d)",
-                                    (int) maxlen)));
-            }
+#ifdef _PG_ORCL_
+			if (ORA_MODE)
+			{
+			    /*
+			     * Under opentenbase_ora_compatible mode, Throw Error even if extra characters were spaces.
+			     */
+			    ereport(ERROR,
+			            (errcode(ERRCODE_STRING_DATA_RIGHT_TRUNCATION),
+			                    errmsg("value too long for type character(%d), actual(%d)",
+			                            (int) maxlen, (int) charlen)));
+			}
+#endif
 
-            /*
-             * Now we set maxlen to the necessary byte length, not the number
-             * of CHARACTERS!
-             */
-            maxlen = len = mbmaxlen;
-        }
-        else
-        {
-            /*
-             * Now we set maxlen to the necessary byte length, not the number
-             * of CHARACTERS!
-             */
-            maxlen = len + (maxlen - charlen);
-        }
-    }
+			/*
+			 * at this point, len is the actual BYTE length of the input
+			 * string, maxlen is the max number of CHARACTERS allowed for this
+			 * bpchar type, mbmaxlen is the length in BYTES of those chars.
+			 */
+			for (j = mbmaxlen; j < len; j++)
+			{
+				if (s[j] != ' ')
+					ereport(ERROR,
+							(errcode(ERRCODE_STRING_DATA_RIGHT_TRUNCATION),
+							 errmsg("value too long for type character(%d)",
+									(int) maxlen)));
+			}
 
-    result = (BpChar *) palloc(maxlen + VARHDRSZ);
-    SET_VARSIZE(result, maxlen + VARHDRSZ);
-    r = VARDATA(result);
-    memcpy(r, s, len);
+			/*
+			 * Now we set maxlen to the necessary byte length, not the number
+			 * of CHARACTERS!
+			 */
+			maxlen = len = mbmaxlen;
+		}
+		else
+		{
+			/*
+			 * Now we set maxlen to the necessary byte length, not the number
+			 * of CHARACTERS!
+			 */
+			maxlen = len + (maxlen - charlen);
+		}
+	}
 
-    /* blank pad the string if necessary */
-    if (maxlen > len)
-        memset(r + len, ' ', maxlen - len);
+	result = (BpChar *) palloc(maxlen + VARHDRSZ);
+	SET_VARSIZE(result, maxlen + VARHDRSZ);
+	r = VARDATA(result);
+	memcpy(r, s, len);
 
-    return result;
+	/* blank pad the string if necessary */
+	if (maxlen > len)
+		memset(r + len, ' ', maxlen - len);
+
+	return result;
 }
 
 /*
@@ -193,16 +206,16 @@ bpchar_input(const char *s, size_t len, int32 atttypmod)
 Datum
 bpcharin(PG_FUNCTION_ARGS)
 {
-    char       *s = PG_GETARG_CSTRING(0);
+	char	   *s = PG_GETARG_CSTRING(0);
 
 #ifdef NOT_USED
-    Oid            typelem = PG_GETARG_OID(1);
+	Oid			typelem = PG_GETARG_OID(1);
 #endif
-    int32        atttypmod = PG_GETARG_INT32(2);
-    BpChar       *result;
+	int32		atttypmod = PG_GETARG_INT32(2);
+	BpChar	   *result;
 
-    result = bpchar_input(s, strlen(s), atttypmod);
-    PG_RETURN_BPCHAR_P(result);
+	result = bpchar_input(s, strlen(s), atttypmod);
+	PG_RETURN_BPCHAR_P(result);
 }
 
 
@@ -215,41 +228,41 @@ bpcharin(PG_FUNCTION_ARGS)
 Datum
 bpcharout(PG_FUNCTION_ARGS)
 {
-    Datum        txt = PG_GETARG_DATUM(0);
+	Datum		txt = PG_GETARG_DATUM(0);
 
-    PG_RETURN_CSTRING(TextDatumGetCString(txt));
+	PG_RETURN_CSTRING(TextDatumGetCString(txt));
 }
 
 /*
- *        bpcharrecv            - converts external binary format to bpchar
+ *		bpcharrecv			- converts external binary format to bpchar
  */
 Datum
 bpcharrecv(PG_FUNCTION_ARGS)
 {
-    StringInfo    buf = (StringInfo) PG_GETARG_POINTER(0);
+	StringInfo	buf = (StringInfo) PG_GETARG_POINTER(0);
 
 #ifdef NOT_USED
-    Oid            typelem = PG_GETARG_OID(1);
+	Oid			typelem = PG_GETARG_OID(1);
 #endif
-    int32        atttypmod = PG_GETARG_INT32(2);
-    BpChar       *result;
-    char       *str;
-    int            nbytes;
+	int32		atttypmod = PG_GETARG_INT32(2);
+	BpChar	   *result;
+	char	   *str;
+	int			nbytes;
 
-    str = pq_getmsgtext(buf, buf->len - buf->cursor, &nbytes);
-    result = bpchar_input(str, nbytes, atttypmod);
-    pfree(str);
-    PG_RETURN_BPCHAR_P(result);
+	str = pq_getmsgtext(buf, buf->len - buf->cursor, &nbytes);
+	result = bpchar_input(str, nbytes, atttypmod);
+	pfree(str);
+	PG_RETURN_BPCHAR_P(result);
 }
 
 /*
- *        bpcharsend            - converts bpchar to binary format
+ *		bpcharsend			- converts bpchar to binary format
  */
 Datum
 bpcharsend(PG_FUNCTION_ARGS)
 {
-    /* Exactly the same as textsend, so share code */
-    return textsend(fcinfo);
+	/* Exactly the same as textsend, so share code */
+	return textsend(fcinfo);
 }
 
 
@@ -267,80 +280,93 @@ bpcharsend(PG_FUNCTION_ARGS)
  */
 Datum
 bpchar(PG_FUNCTION_ARGS)
-{// #lizard forgives
-    BpChar       *source = PG_GETARG_BPCHAR_PP(0);
-    int32        maxlen = PG_GETARG_INT32(1);
-    bool        isExplicit = PG_GETARG_BOOL(2);
-    BpChar       *result;
-    int32        len;
-    char       *r;
-    char       *s;
-    int            i;
-    int            charlen;        /* number of characters in the input string +
-                                 * VARHDRSZ */
+{
+	BpChar	   *source = PG_GETARG_BPCHAR_PP(0);
+	int32		maxlen = PG_GETARG_INT32(1);
+	bool		isExplicit = PG_GETARG_BOOL(2);
+	BpChar	   *result;
+	int32		len;
+	char	   *r;
+	char	   *s;
+	int			i;
+	int			charlen;		/* number of characters in the input string +
+								 * VARHDRSZ */
 
-    /* No work if typmod is invalid */
-    if (maxlen < (int32) VARHDRSZ)
-        PG_RETURN_BPCHAR_P(source);
+	/* No work if typmod is invalid */
+	if (maxlen < (int32) VARHDRSZ)
+		PG_RETURN_BPCHAR_P(source);
 
-    maxlen -= VARHDRSZ;
+	maxlen -= VARHDRSZ;
 
-    len = VARSIZE_ANY_EXHDR(source);
-    s = VARDATA_ANY(source);
+	len = VARSIZE_ANY_EXHDR(source);
+	s = VARDATA_ANY(source);
 
-    charlen = pg_mbstrlen_with_len(s, len);
+	charlen = pg_mbstrlen_with_len(s, len);
 
-    /* No work if supplied data matches typmod already */
-    if (charlen == maxlen)
-        PG_RETURN_BPCHAR_P(source);
+	/* No work if supplied data matches typmod already */
+	if (charlen == maxlen)
+		PG_RETURN_BPCHAR_P(source);
 
-    if (charlen > maxlen)
-    {
-        /* Verify that extra characters are spaces, and clip them off */
-        size_t        maxmblen;
+	if (charlen > maxlen)
+	{
+		/* Verify that extra characters are spaces, and clip them off */
+		size_t		maxmblen;
 
-        maxmblen = pg_mbcharcliplen(s, len, maxlen);
+		maxmblen = pg_mbcharcliplen(s, len, maxlen);
 
-        if (!isExplicit)
-        {
-            for (i = maxmblen; i < len; i++)
-                if (s[i] != ' ')
-                    ereport(ERROR,
-                            (errcode(ERRCODE_STRING_DATA_RIGHT_TRUNCATION),
-                             errmsg("value too long for type character(%d)",
-                                    maxlen)));
-        }
+		if (!isExplicit)
+		{
+#ifdef _PG_ORCL_
+		    if (ORA_MODE)
+		    {
+		        /*
+		         * Under opentenbase_ora_compatible mode, Throw Error even if extra characters were spaces.
+		         */
+		        ereport(ERROR,
+		                (errcode(ERRCODE_STRING_DATA_RIGHT_TRUNCATION),
+		                        errmsg("value too long for type character(%d), actual(%d)",
+		                                (int) maxlen, (int) charlen)));
+		    }
+#endif
 
-        len = maxmblen;
+			for (i = maxmblen; i < len; i++)
+				if (s[i] != ' ')
+					ereport(ERROR,
+							(errcode(ERRCODE_STRING_DATA_RIGHT_TRUNCATION),
+							 errmsg("value too long for type character(%d)",
+									maxlen)));
+		}
 
-        /*
-         * At this point, maxlen is the necessary byte length, not the number
-         * of CHARACTERS!
-         */
-        maxlen = len;
-    }
-    else
-    {
-        /*
-         * At this point, maxlen is the necessary byte length, not the number
-         * of CHARACTERS!
-         */
-        maxlen = len + (maxlen - charlen);
-    }
+		len = maxmblen;
 
-    Assert(maxlen >= len);
+		/*
+		 * At this point, maxlen is the necessary byte length, not the number
+		 * of CHARACTERS!
+		 */
+		maxlen = len;
+	}
+	else
+	{
+		/*
+		 * At this point, maxlen is the necessary byte length, not the number
+		 * of CHARACTERS!
+		 */
+		maxlen = len + (maxlen - charlen);
+	}
 
-    result = palloc(maxlen + VARHDRSZ);
-    SET_VARSIZE(result, maxlen + VARHDRSZ);
-    r = VARDATA(result);
+	Assert(maxlen >= len);
 
-    memcpy(r, s, len);
+	result = palloc(maxlen + VARHDRSZ);
+	SET_VARSIZE(result, maxlen + VARHDRSZ);
+	r = VARDATA(result);
 
-    /* blank pad the string if necessary */
-    if (maxlen > len)
-        memset(r + len, ' ', maxlen - len);
+	memcpy(r, s, len);
 
-    PG_RETURN_BPCHAR_P(result);
+	/* blank pad the string if necessary */
+	if (maxlen > len)
+		memset(r + len, ' ', maxlen - len);
+
+	PG_RETURN_BPCHAR_P(result);
 }
 
 
@@ -350,15 +376,15 @@ bpchar(PG_FUNCTION_ARGS)
 Datum
 char_bpchar(PG_FUNCTION_ARGS)
 {
-    char        c = PG_GETARG_CHAR(0);
-    BpChar       *result;
+	char		c = PG_GETARG_CHAR(0);
+	BpChar	   *result;
 
-    result = (BpChar *) palloc(VARHDRSZ + 1);
+	result = (BpChar *) palloc(VARHDRSZ + 1);
 
-    SET_VARSIZE(result, VARHDRSZ + 1);
-    *(VARDATA(result)) = c;
+	SET_VARSIZE(result, VARHDRSZ + 1);
+	*(VARDATA(result)) = c;
 
-    PG_RETURN_BPCHAR_P(result);
+	PG_RETURN_BPCHAR_P(result);
 }
 
 
@@ -368,31 +394,31 @@ char_bpchar(PG_FUNCTION_ARGS)
 Datum
 bpchar_name(PG_FUNCTION_ARGS)
 {
-    BpChar       *s = PG_GETARG_BPCHAR_PP(0);
-    char       *s_data;
-    Name        result;
-    int            len;
+	BpChar	   *s = PG_GETARG_BPCHAR_PP(0);
+	char	   *s_data;
+	Name		result;
+	int			len;
 
-    len = VARSIZE_ANY_EXHDR(s);
-    s_data = VARDATA_ANY(s);
+	len = VARSIZE_ANY_EXHDR(s);
+	s_data = VARDATA_ANY(s);
 
-    /* Truncate oversize input */
-    if (len >= NAMEDATALEN)
-        len = pg_mbcliplen(s_data, len, NAMEDATALEN - 1);
+	/* Truncate oversize input */
+	if (len >= NAMEDATALEN)
+		len = pg_mbcliplen(s_data, len, NAMEDATALEN - 1);
 
-    /* Remove trailing blanks */
-    while (len > 0)
-    {
-        if (s_data[len - 1] != ' ')
-            break;
-        len--;
-    }
+	/* Remove trailing blanks */
+	while (len > 0)
+	{
+		if (s_data[len - 1] != ' ')
+			break;
+		len--;
+	}
 
-    /* We use palloc0 here to ensure result is zero-padded */
-    result = (Name) palloc0(NAMEDATALEN);
-    memcpy(NameStr(*result), s_data, len);
+	/* We use palloc0 here to ensure result is zero-padded */
+	result = (Name) palloc0(NAMEDATALEN);
+	memcpy(NameStr(*result), s_data, len);
 
-    PG_RETURN_NAME(result);
+	PG_RETURN_NAME(result);
 }
 
 /* name_bpchar()
@@ -404,32 +430,32 @@ bpchar_name(PG_FUNCTION_ARGS)
 Datum
 name_bpchar(PG_FUNCTION_ARGS)
 {
-    Name        s = PG_GETARG_NAME(0);
-    BpChar       *result;
+	Name		s = PG_GETARG_NAME(0);
+	BpChar	   *result;
 
-    result = (BpChar *) cstring_to_text(NameStr(*s));
-    PG_RETURN_BPCHAR_P(result);
+	result = (BpChar *) cstring_to_text(NameStr(*s));
+	PG_RETURN_BPCHAR_P(result);
 }
 
 Datum
 bpchartypmodin(PG_FUNCTION_ARGS)
 {
-    ArrayType  *ta = PG_GETARG_ARRAYTYPE_P(0);
+	ArrayType  *ta = PG_GETARG_ARRAYTYPE_P(0);
 
-    PG_RETURN_INT32(anychar_typmodin(ta, "char"));
+	PG_RETURN_INT32(anychar_typmodin(ta, "char"));
 }
 
 Datum
 bpchartypmodout(PG_FUNCTION_ARGS)
 {
-    int32        typmod = PG_GETARG_INT32(0);
+	int32		typmod = PG_GETARG_INT32(0);
 
-    PG_RETURN_CSTRING(anychar_typmodout(typmod));
+	PG_RETURN_CSTRING(anychar_typmodout(typmod));
 }
 
 
 /*****************************************************************************
- *     varchar - varchar(n)
+ *	 varchar - varchar(n)
  *
  * Note: varchar piggybacks on type text for most operations, and so has no
  * C-coded functions except for I/O and typmod checking.
@@ -453,31 +479,55 @@ bpchartypmodout(PG_FUNCTION_ARGS)
 static VarChar *
 varchar_input(const char *s, size_t len, int32 atttypmod)
 {
-    VarChar    *result;
-    size_t        maxlen;
+	VarChar    *result;
+	size_t		maxlen;
 
-    maxlen = atttypmod - VARHDRSZ;
+	maxlen = atttypmod - VARHDRSZ;
 
-    if (atttypmod >= (int32) VARHDRSZ && len > maxlen)
-    {
-        /* Verify that extra characters are spaces, and clip them off */
-        size_t        mbmaxlen = pg_mbcharcliplen(s, len, maxlen);
-        size_t        j;
+	if (atttypmod >= (int32) VARHDRSZ && len > maxlen)
+	{
+		/* Verify that extra characters are spaces, and clip them off */
+		size_t		mbmaxlen = pg_mbcharcliplen(s, len, maxlen);
+		size_t		j;
 
-        for (j = mbmaxlen; j < len; j++)
+#ifdef _PG_ORCL_
+		if (ORA_MODE)
         {
-            if (s[j] != ' ')
-                ereport(ERROR,
-                        (errcode(ERRCODE_STRING_DATA_RIGHT_TRUNCATION),
-                         errmsg("value too long for type character varying(%d)",
-                                (int) maxlen)));
+            /* 
+			 * Verify that input length is within typmod limit.
+			 * NOTE: blankspace is not truncated
+			 */
+			int mbstrlen = pg_mbstrlen_with_len(s, len);
+
+			if (mbstrlen > maxlen)
+			{
+				/*
+				 * Under opentenbase_ora_compatible mode, Throw Error even if extra
+				 * characters were spaces.
+				 */
+				ereport(ERROR,
+						(errcode(ERRCODE_STRING_DATA_RIGHT_TRUNCATION),
+								errmsg("value too long for type character(%d), actual(%d)",
+									(int) maxlen, mbstrlen)));
+			}
+
         }
+#endif
 
-        len = mbmaxlen;
-    }
+		for (j = mbmaxlen; j < len; j++)
+		{
+			if (s[j] != ' ')
+				ereport(ERROR,
+						(errcode(ERRCODE_STRING_DATA_RIGHT_TRUNCATION),
+						 errmsg("value too long for type character varying(%d)",
+								(int) maxlen)));
+		}
 
-    result = (VarChar *) cstring_to_text_with_len(s, len);
-    return result;
+		len = mbmaxlen;
+	}
+
+	result = (VarChar *) cstring_to_text_with_len(s, len);
+	return result;
 }
 
 /*
@@ -487,16 +537,16 @@ varchar_input(const char *s, size_t len, int32 atttypmod)
 Datum
 varcharin(PG_FUNCTION_ARGS)
 {
-    char       *s = PG_GETARG_CSTRING(0);
+	char	   *s = PG_GETARG_CSTRING(0);
 
 #ifdef NOT_USED
-    Oid            typelem = PG_GETARG_OID(1);
+	Oid			typelem = PG_GETARG_OID(1);
 #endif
-    int32        atttypmod = PG_GETARG_INT32(2);
-    VarChar    *result;
+	int32		atttypmod = PG_GETARG_INT32(2);
+	VarChar    *result;
 
-    result = varchar_input(s, strlen(s), atttypmod);
-    PG_RETURN_VARCHAR_P(result);
+	result = varchar_input(s, strlen(s), atttypmod);
+	PG_RETURN_VARCHAR_P(result);
 }
 
 
@@ -509,41 +559,41 @@ varcharin(PG_FUNCTION_ARGS)
 Datum
 varcharout(PG_FUNCTION_ARGS)
 {
-    Datum        txt = PG_GETARG_DATUM(0);
+	Datum		txt = PG_GETARG_DATUM(0);
 
-    PG_RETURN_CSTRING(TextDatumGetCString(txt));
+	PG_RETURN_CSTRING(TextDatumGetCString(txt));
 }
 
 /*
- *        varcharrecv            - converts external binary format to varchar
+ *		varcharrecv			- converts external binary format to varchar
  */
 Datum
 varcharrecv(PG_FUNCTION_ARGS)
 {
-    StringInfo    buf = (StringInfo) PG_GETARG_POINTER(0);
+	StringInfo	buf = (StringInfo) PG_GETARG_POINTER(0);
 
 #ifdef NOT_USED
-    Oid            typelem = PG_GETARG_OID(1);
+	Oid			typelem = PG_GETARG_OID(1);
 #endif
-    int32        atttypmod = PG_GETARG_INT32(2);
-    VarChar    *result;
-    char       *str;
-    int            nbytes;
+	int32		atttypmod = PG_GETARG_INT32(2);
+	VarChar    *result;
+	char	   *str;
+	int			nbytes;
 
-    str = pq_getmsgtext(buf, buf->len - buf->cursor, &nbytes);
-    result = varchar_input(str, nbytes, atttypmod);
-    pfree(str);
-    PG_RETURN_VARCHAR_P(result);
+	str = pq_getmsgtext(buf, buf->len - buf->cursor, &nbytes);
+	result = varchar_input(str, nbytes, atttypmod);
+	pfree(str);
+	PG_RETURN_VARCHAR_P(result);
 }
 
 /*
- *        varcharsend            - converts varchar to binary format
+ *		varcharsend			- converts varchar to binary format
  */
 Datum
 varcharsend(PG_FUNCTION_ARGS)
 {
-    /* Exactly the same as textsend, so share code */
-    return textsend(fcinfo);
+	/* Exactly the same as textsend, so share code */
+	return textsend(fcinfo);
 }
 
 
@@ -556,27 +606,27 @@ varcharsend(PG_FUNCTION_ARGS)
 Datum
 varchar_transform(PG_FUNCTION_ARGS)
 {
-    FuncExpr   *expr = castNode(FuncExpr, PG_GETARG_POINTER(0));
-    Node       *ret = NULL;
-    Node       *typmod;
+	FuncExpr   *expr = castNode(FuncExpr, PG_GETARG_POINTER(0));
+	Node	   *ret = NULL;
+	Node	   *typmod;
 
-    Assert(list_length(expr->args) >= 2);
+	Assert(list_length(expr->args) >= 2);
 
-    typmod = (Node *) lsecond(expr->args);
+	typmod = (Node *) lsecond(expr->args);
 
-    if (IsA(typmod, Const) &&!((Const *) typmod)->constisnull)
-    {
-        Node       *source = (Node *) linitial(expr->args);
-        int32        old_typmod = exprTypmod(source);
-        int32        new_typmod = DatumGetInt32(((Const *) typmod)->constvalue);
-        int32        old_max = old_typmod - VARHDRSZ;
-        int32        new_max = new_typmod - VARHDRSZ;
+	if (IsA(typmod, Const) &&!((Const *) typmod)->constisnull)
+	{
+		Node	   *source = (Node *) linitial(expr->args);
+		int32		old_typmod = exprTypmod(source);
+		int32		new_typmod = DatumGetInt32(((Const *) typmod)->constvalue);
+		int32		old_max = old_typmod - VARHDRSZ;
+		int32		new_max = new_typmod - VARHDRSZ;
 
-        if (new_typmod < 0 || (old_typmod >= 0 && old_max <= new_max))
-            ret = relabel_to_typmod(source, new_typmod);
-    }
+		if (new_typmod < 0 || (old_typmod >= 0 && old_max <= new_max))
+			ret = relabel_to_typmod(source, new_typmod);
+	}
 
-    PG_RETURN_POINTER(ret);
+	PG_RETURN_POINTER(ret);
 }
 
 /*
@@ -594,56 +644,79 @@ varchar_transform(PG_FUNCTION_ARGS)
 Datum
 varchar(PG_FUNCTION_ARGS)
 {
-    VarChar    *source = PG_GETARG_VARCHAR_PP(0);
-    int32        typmod = PG_GETARG_INT32(1);
-    bool        isExplicit = PG_GETARG_BOOL(2);
-    int32        len,
-                maxlen;
-    size_t        maxmblen;
-    int            i;
-    char       *s_data;
+	VarChar    *source = PG_GETARG_VARCHAR_PP(0);
+	int32		typmod = PG_GETARG_INT32(1);
+	bool		isExplicit = PG_GETARG_BOOL(2);
+	int32		len,
+				maxlen;
+	size_t		maxmblen;
+	int			i;
+	char	   *s_data;
 
-    len = VARSIZE_ANY_EXHDR(source);
-    s_data = VARDATA_ANY(source);
-    maxlen = typmod - VARHDRSZ;
+	len = VARSIZE_ANY_EXHDR(source);
+	s_data = VARDATA_ANY(source);
+	maxlen = typmod - VARHDRSZ;
 
-    /* No work if typmod is invalid or supplied data fits it already */
-    if (maxlen < 0 || len <= maxlen)
-        PG_RETURN_VARCHAR_P(source);
+	/* No work if typmod is invalid or supplied data fits it already */
+	if (maxlen < 0 || len <= maxlen)
+		PG_RETURN_VARCHAR_P(source);
 
-    /* only reach here if string is too long... */
+	/* only reach here if string is too long... */
 
-    /* truncate multibyte string preserving multibyte boundary */
-    maxmblen = pg_mbcharcliplen(s_data, len, maxlen);
+	/* truncate multibyte string preserving multibyte boundary */
+	maxmblen = pg_mbcharcliplen(s_data, len, maxlen);
 
-    if (!isExplicit)
-    {
-        for (i = maxmblen; i < len; i++)
-            if (s_data[i] != ' ')
-                ereport(ERROR,
-                        (errcode(ERRCODE_STRING_DATA_RIGHT_TRUNCATION),
-                         errmsg("value too long for type character varying(%d)",
-                                maxlen)));
-    }
+	if (!isExplicit)
+	{
+#ifdef _PG_ORCL_
+        if (ORA_MODE)
+        {
+			/* 
+			 * Verify that input length is within typmod limit.
+			 * NOTE: blankspace is not truncated
+			 */
+			int mbstrlen = pg_mbstrlen_with_len(s_data, len);
 
-    PG_RETURN_VARCHAR_P((VarChar *) cstring_to_text_with_len(s_data,
-                                                             maxmblen));
+			if (mbstrlen > maxlen)
+			{
+				/*
+				 * Under opentenbase_ora_compatible mode, Throw Error even if extra
+				 * characters were spaces.
+				 */
+				ereport(ERROR,
+						(errcode(ERRCODE_STRING_DATA_RIGHT_TRUNCATION),
+								errmsg("value too long for type character(%d), actual(%d)",
+									(int) maxlen, mbstrlen)));
+			}
+        }
+#endif
+
+		for (i = maxmblen; i < len; i++)
+			if (s_data[i] != ' ')
+				ereport(ERROR,
+						(errcode(ERRCODE_STRING_DATA_RIGHT_TRUNCATION),
+						 errmsg("value too long for type character varying(%d)",
+								maxlen)));
+	}
+
+	PG_RETURN_VARCHAR_P((VarChar *) cstring_to_text_with_len(s_data,
+															 maxmblen));
 }
 
 Datum
 varchartypmodin(PG_FUNCTION_ARGS)
 {
-    ArrayType  *ta = PG_GETARG_ARRAYTYPE_P(0);
+	ArrayType  *ta = PG_GETARG_ARRAYTYPE_P(0);
 
-    PG_RETURN_INT32(anychar_typmodin(ta, "varchar"));
+	PG_RETURN_INT32(anychar_typmodin(ta, "varchar"));
 }
 
 Datum
 varchartypmodout(PG_FUNCTION_ARGS)
 {
-    int32        typmod = PG_GETARG_INT32(0);
+	int32		typmod = PG_GETARG_INT32(0);
 
-    PG_RETURN_CSTRING(anychar_typmodout(typmod));
+	PG_RETURN_CSTRING(anychar_typmodout(typmod));
 }
 
 
@@ -655,54 +728,102 @@ varchartypmodout(PG_FUNCTION_ARGS)
 static inline int
 bcTruelen(BpChar *arg)
 {
-    return bpchartruelen(VARDATA_ANY(arg), VARSIZE_ANY_EXHDR(arg));
+	return bpchartruelen(VARDATA_ANY(arg), VARSIZE_ANY_EXHDR(arg));
 }
 
 int
 bpchartruelen(char *s, int len)
 {
-    int            i;
+	int			i;
 
-    /*
-     * Note that we rely on the assumption that ' ' is a singleton unit on
-     * every supported multibyte server encoding.
-     */
-    for (i = len - 1; i >= 0; i--)
-    {
-        if (s[i] != ' ')
-            break;
-    }
-    return i + 1;
+	/*
+	 * Note that we rely on the assumption that ' ' is a singleton unit on
+	 * every supported multibyte server encoding.
+	 */
+#if defined(__AVX512F__) || defined(__AVX2__)
+	/* The size of bpchar may not be that large, so choose 16 byes for simd each time instead of 32 or more */
+	__m128i tocmp = _mm_set1_epi8(' ');
+	int mod16 = len % 16;
+	uint16 flag = 0;
+	int j;
+	for (i = len - 16; i >= 0; i -= 16)
+	{
+		flag = _mm_movemask_epi8(_mm_cmpeq_epi8(_mm_loadu_si128((__m128i *) &s[i]), tocmp));
+		flag = ~flag;
+
+		if (flag != 0)
+		{
+			for (j = 15; j >= 0; j--)
+			{
+				if ((flag & (1 << j)) != 0)
+					break;
+			}
+			break;
+		}
+	}
+
+	if (flag == 0)
+	{
+		if (mod16 != 0)
+		{
+			for (i = mod16 - 1; i >= 0; i--)
+			{
+				if (s[i] != ' ')
+					break;
+			}
+			return i + 1;
+		}
+		else
+			return 0;
+	}
+	else
+		return i + (j + 1);
+#else
+	for (i = len - 1; i >= 0; i--)
+	{
+		if (s[i] != ' ')
+			break;
+	}
+	return i + 1;
+#endif
 }
 
 Datum
 bpcharlen(PG_FUNCTION_ARGS)
 {
-    BpChar       *arg = PG_GETARG_BPCHAR_PP(0);
-    int            len;
+	BpChar	   *arg = PG_GETARG_BPCHAR_PP(0);
+	int			len;
 
-    /* get number of bytes, ignoring trailing spaces */
-    len = bcTruelen(arg);
+#ifdef _PG_ORCL_
+	if (ORA_MODE)
+	{
+	    /* get number of bytes, including trailing spaces */
+	    len = VARSIZE_ANY_EXHDR(arg);
+	}
+	else
+#endif
+	/* get number of bytes, ignoring trailing spaces */
+	len = bcTruelen(arg);
 
-    /* in multibyte encoding, convert to number of characters */
-    if (pg_database_encoding_max_length() != 1)
-        len = pg_mbstrlen_with_len(VARDATA_ANY(arg), len);
+	/* in multibyte encoding, convert to number of characters */
+	if (pg_database_encoding_max_length() != 1)
+		len = pg_mbstrlen_with_len(VARDATA_ANY(arg), len);
 
-    PG_RETURN_INT32(len);
+	PG_RETURN_INT32(len);
 }
 
 Datum
 bpcharoctetlen(PG_FUNCTION_ARGS)
 {
-    Datum        arg = PG_GETARG_DATUM(0);
+	Datum		arg = PG_GETARG_DATUM(0);
 
-    /* We need not detoast the input at all */
-    PG_RETURN_INT32(toast_raw_datum_size(arg) - VARHDRSZ);
+	/* We need not detoast the input at all */
+	PG_RETURN_INT32(toast_raw_datum_size(arg) - VARHDRSZ);
 }
 
 
 /*****************************************************************************
- *    Comparison Functions used for bpchar
+ *	Comparison Functions used for bpchar
  *
  * Note: btree indexes need these routines not to leak memory; therefore,
  * be careful to free working copies of toasted datums.  Most places don't
@@ -712,213 +833,213 @@ bpcharoctetlen(PG_FUNCTION_ARGS)
 Datum
 bpchareq(PG_FUNCTION_ARGS)
 {
-    BpChar       *arg1 = PG_GETARG_BPCHAR_PP(0);
-    BpChar       *arg2 = PG_GETARG_BPCHAR_PP(1);
-    int            len1,
-                len2;
-    bool        result;
+	BpChar	   *arg1 = PG_GETARG_BPCHAR_PP(0);
+	BpChar	   *arg2 = PG_GETARG_BPCHAR_PP(1);
+	int			len1,
+				len2;
+	bool		result;
 
-    len1 = bcTruelen(arg1);
-    len2 = bcTruelen(arg2);
+	len1 = bcTruelen(arg1);
+	len2 = bcTruelen(arg2);
 
-    /*
-     * Since we only care about equality or not-equality, we can avoid all the
-     * expense of strcoll() here, and just do bitwise comparison.
-     */
-    if (len1 != len2)
-        result = false;
-    else
-        result = (memcmp(VARDATA_ANY(arg1), VARDATA_ANY(arg2), len1) == 0);
+	/*
+	 * Since we only care about equality or not-equality, we can avoid all the
+	 * expense of strcoll() here, and just do bitwise comparison.
+	 */
+	if (len1 != len2)
+		result = false;
+	else
+		result = (memcmp(VARDATA_ANY(arg1), VARDATA_ANY(arg2), len1) == 0);
 
-    PG_FREE_IF_COPY(arg1, 0);
-    PG_FREE_IF_COPY(arg2, 1);
+	PG_FREE_IF_COPY(arg1, 0);
+	PG_FREE_IF_COPY(arg2, 1);
 
-    PG_RETURN_BOOL(result);
+	PG_RETURN_BOOL(result);
 }
 
 Datum
 bpcharne(PG_FUNCTION_ARGS)
 {
-    BpChar       *arg1 = PG_GETARG_BPCHAR_PP(0);
-    BpChar       *arg2 = PG_GETARG_BPCHAR_PP(1);
-    int            len1,
-                len2;
-    bool        result;
+	BpChar	   *arg1 = PG_GETARG_BPCHAR_PP(0);
+	BpChar	   *arg2 = PG_GETARG_BPCHAR_PP(1);
+	int			len1,
+				len2;
+	bool		result;
 
-    len1 = bcTruelen(arg1);
-    len2 = bcTruelen(arg2);
+	len1 = bcTruelen(arg1);
+	len2 = bcTruelen(arg2);
 
-    /*
-     * Since we only care about equality or not-equality, we can avoid all the
-     * expense of strcoll() here, and just do bitwise comparison.
-     */
-    if (len1 != len2)
-        result = true;
-    else
-        result = (memcmp(VARDATA_ANY(arg1), VARDATA_ANY(arg2), len1) != 0);
+	/*
+	 * Since we only care about equality or not-equality, we can avoid all the
+	 * expense of strcoll() here, and just do bitwise comparison.
+	 */
+	if (len1 != len2)
+		result = true;
+	else
+		result = (memcmp(VARDATA_ANY(arg1), VARDATA_ANY(arg2), len1) != 0);
 
-    PG_FREE_IF_COPY(arg1, 0);
-    PG_FREE_IF_COPY(arg2, 1);
+	PG_FREE_IF_COPY(arg1, 0);
+	PG_FREE_IF_COPY(arg2, 1);
 
-    PG_RETURN_BOOL(result);
+	PG_RETURN_BOOL(result);
 }
 
 Datum
 bpcharlt(PG_FUNCTION_ARGS)
 {
-    BpChar       *arg1 = PG_GETARG_BPCHAR_PP(0);
-    BpChar       *arg2 = PG_GETARG_BPCHAR_PP(1);
-    int            len1,
-                len2;
-    int            cmp;
+	BpChar	   *arg1 = PG_GETARG_BPCHAR_PP(0);
+	BpChar	   *arg2 = PG_GETARG_BPCHAR_PP(1);
+	int			len1,
+				len2;
+	int			cmp;
 
-    len1 = bcTruelen(arg1);
-    len2 = bcTruelen(arg2);
+	len1 = bcTruelen(arg1);
+	len2 = bcTruelen(arg2);
 
-    cmp = varstr_cmp(VARDATA_ANY(arg1), len1, VARDATA_ANY(arg2), len2,
-                     PG_GET_COLLATION());
+	cmp = varstr_cmp(VARDATA_ANY(arg1), len1, VARDATA_ANY(arg2), len2,
+					 PG_GET_COLLATION());
 
-    PG_FREE_IF_COPY(arg1, 0);
-    PG_FREE_IF_COPY(arg2, 1);
+	PG_FREE_IF_COPY(arg1, 0);
+	PG_FREE_IF_COPY(arg2, 1);
 
-    PG_RETURN_BOOL(cmp < 0);
+	PG_RETURN_BOOL(cmp < 0);
 }
 
 Datum
 bpcharle(PG_FUNCTION_ARGS)
 {
-    BpChar       *arg1 = PG_GETARG_BPCHAR_PP(0);
-    BpChar       *arg2 = PG_GETARG_BPCHAR_PP(1);
-    int            len1,
-                len2;
-    int            cmp;
+	BpChar	   *arg1 = PG_GETARG_BPCHAR_PP(0);
+	BpChar	   *arg2 = PG_GETARG_BPCHAR_PP(1);
+	int			len1,
+				len2;
+	int			cmp;
 
-    len1 = bcTruelen(arg1);
-    len2 = bcTruelen(arg2);
+	len1 = bcTruelen(arg1);
+	len2 = bcTruelen(arg2);
 
-    cmp = varstr_cmp(VARDATA_ANY(arg1), len1, VARDATA_ANY(arg2), len2,
-                     PG_GET_COLLATION());
+	cmp = varstr_cmp(VARDATA_ANY(arg1), len1, VARDATA_ANY(arg2), len2,
+					 PG_GET_COLLATION());
 
-    PG_FREE_IF_COPY(arg1, 0);
-    PG_FREE_IF_COPY(arg2, 1);
+	PG_FREE_IF_COPY(arg1, 0);
+	PG_FREE_IF_COPY(arg2, 1);
 
-    PG_RETURN_BOOL(cmp <= 0);
+	PG_RETURN_BOOL(cmp <= 0);
 }
 
 Datum
 bpchargt(PG_FUNCTION_ARGS)
 {
-    BpChar       *arg1 = PG_GETARG_BPCHAR_PP(0);
-    BpChar       *arg2 = PG_GETARG_BPCHAR_PP(1);
-    int            len1,
-                len2;
-    int            cmp;
+	BpChar	   *arg1 = PG_GETARG_BPCHAR_PP(0);
+	BpChar	   *arg2 = PG_GETARG_BPCHAR_PP(1);
+	int			len1,
+				len2;
+	int			cmp;
 
-    len1 = bcTruelen(arg1);
-    len2 = bcTruelen(arg2);
+	len1 = bcTruelen(arg1);
+	len2 = bcTruelen(arg2);
 
-    cmp = varstr_cmp(VARDATA_ANY(arg1), len1, VARDATA_ANY(arg2), len2,
-                     PG_GET_COLLATION());
+	cmp = varstr_cmp(VARDATA_ANY(arg1), len1, VARDATA_ANY(arg2), len2,
+					 PG_GET_COLLATION());
 
-    PG_FREE_IF_COPY(arg1, 0);
-    PG_FREE_IF_COPY(arg2, 1);
+	PG_FREE_IF_COPY(arg1, 0);
+	PG_FREE_IF_COPY(arg2, 1);
 
-    PG_RETURN_BOOL(cmp > 0);
+	PG_RETURN_BOOL(cmp > 0);
 }
 
 Datum
 bpcharge(PG_FUNCTION_ARGS)
 {
-    BpChar       *arg1 = PG_GETARG_BPCHAR_PP(0);
-    BpChar       *arg2 = PG_GETARG_BPCHAR_PP(1);
-    int            len1,
-                len2;
-    int            cmp;
+	BpChar	   *arg1 = PG_GETARG_BPCHAR_PP(0);
+	BpChar	   *arg2 = PG_GETARG_BPCHAR_PP(1);
+	int			len1,
+				len2;
+	int			cmp;
 
-    len1 = bcTruelen(arg1);
-    len2 = bcTruelen(arg2);
+	len1 = bcTruelen(arg1);
+	len2 = bcTruelen(arg2);
 
-    cmp = varstr_cmp(VARDATA_ANY(arg1), len1, VARDATA_ANY(arg2), len2,
-                     PG_GET_COLLATION());
+	cmp = varstr_cmp(VARDATA_ANY(arg1), len1, VARDATA_ANY(arg2), len2,
+					 PG_GET_COLLATION());
 
-    PG_FREE_IF_COPY(arg1, 0);
-    PG_FREE_IF_COPY(arg2, 1);
+	PG_FREE_IF_COPY(arg1, 0);
+	PG_FREE_IF_COPY(arg2, 1);
 
-    PG_RETURN_BOOL(cmp >= 0);
+	PG_RETURN_BOOL(cmp >= 0);
 }
 
 Datum
 bpcharcmp(PG_FUNCTION_ARGS)
 {
-    BpChar       *arg1 = PG_GETARG_BPCHAR_PP(0);
-    BpChar       *arg2 = PG_GETARG_BPCHAR_PP(1);
-    int            len1,
-                len2;
-    int            cmp;
+	BpChar	   *arg1 = PG_GETARG_BPCHAR_PP(0);
+	BpChar	   *arg2 = PG_GETARG_BPCHAR_PP(1);
+	int			len1,
+				len2;
+	int			cmp;
 
-    len1 = bcTruelen(arg1);
-    len2 = bcTruelen(arg2);
+	len1 = bcTruelen(arg1);
+	len2 = bcTruelen(arg2);
 
-    cmp = varstr_cmp(VARDATA_ANY(arg1), len1, VARDATA_ANY(arg2), len2,
-                     PG_GET_COLLATION());
+	cmp = varstr_cmp(VARDATA_ANY(arg1), len1, VARDATA_ANY(arg2), len2,
+					 PG_GET_COLLATION());
 
-    PG_FREE_IF_COPY(arg1, 0);
-    PG_FREE_IF_COPY(arg2, 1);
+	PG_FREE_IF_COPY(arg1, 0);
+	PG_FREE_IF_COPY(arg2, 1);
 
-    PG_RETURN_INT32(cmp);
+	PG_RETURN_INT32(cmp);
 }
 
 Datum
 bpchar_sortsupport(PG_FUNCTION_ARGS)
 {
-    SortSupport ssup = (SortSupport) PG_GETARG_POINTER(0);
-    Oid            collid = ssup->ssup_collation;
-    MemoryContext oldcontext;
+	SortSupport ssup = (SortSupport) PG_GETARG_POINTER(0);
+	Oid			collid = ssup->ssup_collation;
+	MemoryContext oldcontext;
 
-    oldcontext = MemoryContextSwitchTo(ssup->ssup_cxt);
+	oldcontext = MemoryContextSwitchTo(ssup->ssup_cxt);
 
-    /* Use generic string SortSupport */
-    varstr_sortsupport(ssup, collid, true);
+	/* Use generic string SortSupport */
+	varstr_sortsupport(ssup, collid, true);
 
-    MemoryContextSwitchTo(oldcontext);
+	MemoryContextSwitchTo(oldcontext);
 
-    PG_RETURN_VOID();
+	PG_RETURN_VOID();
 }
 
 Datum
 bpchar_larger(PG_FUNCTION_ARGS)
 {
-    BpChar       *arg1 = PG_GETARG_BPCHAR_PP(0);
-    BpChar       *arg2 = PG_GETARG_BPCHAR_PP(1);
-    int            len1,
-                len2;
-    int            cmp;
+	BpChar	   *arg1 = PG_GETARG_BPCHAR_PP(0);
+	BpChar	   *arg2 = PG_GETARG_BPCHAR_PP(1);
+	int			len1,
+				len2;
+	int			cmp;
 
-    len1 = bcTruelen(arg1);
-    len2 = bcTruelen(arg2);
+	len1 = bcTruelen(arg1);
+	len2 = bcTruelen(arg2);
 
-    cmp = varstr_cmp(VARDATA_ANY(arg1), len1, VARDATA_ANY(arg2), len2,
-                     PG_GET_COLLATION());
+	cmp = varstr_cmp(VARDATA_ANY(arg1), len1, VARDATA_ANY(arg2), len2,
+					 PG_GET_COLLATION());
 
-    PG_RETURN_BPCHAR_P((cmp >= 0) ? arg1 : arg2);
+	PG_RETURN_BPCHAR_P((cmp >= 0) ? arg1 : arg2);
 }
 
 Datum
 bpchar_smaller(PG_FUNCTION_ARGS)
 {
-    BpChar       *arg1 = PG_GETARG_BPCHAR_PP(0);
-    BpChar       *arg2 = PG_GETARG_BPCHAR_PP(1);
-    int            len1,
-                len2;
-    int            cmp;
+	BpChar	   *arg1 = PG_GETARG_BPCHAR_PP(0);
+	BpChar	   *arg2 = PG_GETARG_BPCHAR_PP(1);
+	int			len1,
+				len2;
+	int			cmp;
 
-    len1 = bcTruelen(arg1);
-    len2 = bcTruelen(arg2);
+	len1 = bcTruelen(arg1);
+	len2 = bcTruelen(arg2);
 
-    cmp = varstr_cmp(VARDATA_ANY(arg1), len1, VARDATA_ANY(arg2), len2,
-                     PG_GET_COLLATION());
+	cmp = varstr_cmp(VARDATA_ANY(arg1), len1, VARDATA_ANY(arg2), len2,
+					 PG_GET_COLLATION());
 
-    PG_RETURN_BPCHAR_P((cmp <= 0) ? arg1 : arg2);
+	PG_RETURN_BPCHAR_P((cmp <= 0) ? arg1 : arg2);
 }
 
 
@@ -933,20 +1054,39 @@ bpchar_smaller(PG_FUNCTION_ARGS)
 Datum
 hashbpchar(PG_FUNCTION_ARGS)
 {
-    BpChar       *key = PG_GETARG_BPCHAR_PP(0);
-    char       *keydata;
-    int            keylen;
-    Datum        result;
+	BpChar	   *key = PG_GETARG_BPCHAR_PP(0);
+	char	   *keydata;
+	int			keylen;
+	Datum		result;
 
-    keydata = VARDATA_ANY(key);
-    keylen = bcTruelen(key);
+	keydata = VARDATA_ANY(key);
+	keylen = bcTruelen(key);
 
-    result = hash_any((unsigned char *) keydata, keylen);
+	result = hash_any((unsigned char *) keydata, keylen);
 
-    /* Avoid leaking memory for toasted inputs */
-    PG_FREE_IF_COPY(key, 0);
+	/* Avoid leaking memory for toasted inputs */
+	PG_FREE_IF_COPY(key, 0);
 
-    return result;
+	return result;
+}
+
+Datum
+hashbpcharnew(PG_FUNCTION_ARGS)
+{
+	BpChar	   *key = PG_GETARG_BPCHAR_PP(0);
+	char	   *keydata;
+	int			keylen;
+	Datum		result;
+
+	keydata = VARDATA_ANY(key);
+	keylen = bcTruelen(key);
+
+	result = hash_any_new((unsigned char *) keydata, keylen);
+
+	/* Avoid leaking memory for toasted inputs */
+	PG_FREE_IF_COPY(key, 0);
+
+	return result;
 }
 
 Datum
@@ -979,123 +1119,122 @@ hashbpcharextended(PG_FUNCTION_ARGS)
 static int
 internal_bpchar_pattern_compare(BpChar *arg1, BpChar *arg2)
 {
-    int            result;
-    int            len1,
-                len2;
+	int			result;
+	int			len1,
+				len2;
 
-    len1 = bcTruelen(arg1);
-    len2 = bcTruelen(arg2);
+	len1 = bcTruelen(arg1);
+	len2 = bcTruelen(arg2);
 
-    result = memcmp(VARDATA_ANY(arg1), VARDATA_ANY(arg2), Min(len1, len2));
-    if (result != 0)
-        return result;
-    else if (len1 < len2)
-        return -1;
-    else if (len1 > len2)
-        return 1;
-    else
-        return 0;
+	result = memcmp(VARDATA_ANY(arg1), VARDATA_ANY(arg2), Min(len1, len2));
+	if (result != 0)
+		return result;
+	else if (len1 < len2)
+		return -1;
+	else if (len1 > len2)
+		return 1;
+	else
+		return 0;
 }
 
 
 Datum
 bpchar_pattern_lt(PG_FUNCTION_ARGS)
 {
-    BpChar       *arg1 = PG_GETARG_BPCHAR_PP(0);
-    BpChar       *arg2 = PG_GETARG_BPCHAR_PP(1);
-    int            result;
+	BpChar	   *arg1 = PG_GETARG_BPCHAR_PP(0);
+	BpChar	   *arg2 = PG_GETARG_BPCHAR_PP(1);
+	int			result;
 
-    result = internal_bpchar_pattern_compare(arg1, arg2);
+	result = internal_bpchar_pattern_compare(arg1, arg2);
 
-    PG_FREE_IF_COPY(arg1, 0);
-    PG_FREE_IF_COPY(arg2, 1);
+	PG_FREE_IF_COPY(arg1, 0);
+	PG_FREE_IF_COPY(arg2, 1);
 
-    PG_RETURN_BOOL(result < 0);
+	PG_RETURN_BOOL(result < 0);
 }
 
 
 Datum
 bpchar_pattern_le(PG_FUNCTION_ARGS)
 {
-    BpChar       *arg1 = PG_GETARG_BPCHAR_PP(0);
-    BpChar       *arg2 = PG_GETARG_BPCHAR_PP(1);
-    int            result;
+	BpChar	   *arg1 = PG_GETARG_BPCHAR_PP(0);
+	BpChar	   *arg2 = PG_GETARG_BPCHAR_PP(1);
+	int			result;
 
-    result = internal_bpchar_pattern_compare(arg1, arg2);
+	result = internal_bpchar_pattern_compare(arg1, arg2);
 
-    PG_FREE_IF_COPY(arg1, 0);
-    PG_FREE_IF_COPY(arg2, 1);
+	PG_FREE_IF_COPY(arg1, 0);
+	PG_FREE_IF_COPY(arg2, 1);
 
-    PG_RETURN_BOOL(result <= 0);
+	PG_RETURN_BOOL(result <= 0);
 }
 
 
 Datum
 bpchar_pattern_ge(PG_FUNCTION_ARGS)
 {
-    BpChar       *arg1 = PG_GETARG_BPCHAR_PP(0);
-    BpChar       *arg2 = PG_GETARG_BPCHAR_PP(1);
-    int            result;
+	BpChar	   *arg1 = PG_GETARG_BPCHAR_PP(0);
+	BpChar	   *arg2 = PG_GETARG_BPCHAR_PP(1);
+	int			result;
 
-    result = internal_bpchar_pattern_compare(arg1, arg2);
+	result = internal_bpchar_pattern_compare(arg1, arg2);
 
-    PG_FREE_IF_COPY(arg1, 0);
-    PG_FREE_IF_COPY(arg2, 1);
+	PG_FREE_IF_COPY(arg1, 0);
+	PG_FREE_IF_COPY(arg2, 1);
 
-    PG_RETURN_BOOL(result >= 0);
+	PG_RETURN_BOOL(result >= 0);
 }
 
 
 Datum
 bpchar_pattern_gt(PG_FUNCTION_ARGS)
 {
-    BpChar       *arg1 = PG_GETARG_BPCHAR_PP(0);
-    BpChar       *arg2 = PG_GETARG_BPCHAR_PP(1);
-    int            result;
+	BpChar	   *arg1 = PG_GETARG_BPCHAR_PP(0);
+	BpChar	   *arg2 = PG_GETARG_BPCHAR_PP(1);
+	int			result;
 
-    result = internal_bpchar_pattern_compare(arg1, arg2);
+	result = internal_bpchar_pattern_compare(arg1, arg2);
 
-    PG_FREE_IF_COPY(arg1, 0);
-    PG_FREE_IF_COPY(arg2, 1);
+	PG_FREE_IF_COPY(arg1, 0);
+	PG_FREE_IF_COPY(arg2, 1);
 
-    PG_RETURN_BOOL(result > 0);
+	PG_RETURN_BOOL(result > 0);
 }
 
 
 Datum
 btbpchar_pattern_cmp(PG_FUNCTION_ARGS)
 {
-    BpChar       *arg1 = PG_GETARG_BPCHAR_PP(0);
-    BpChar       *arg2 = PG_GETARG_BPCHAR_PP(1);
-    int            result;
+	BpChar	   *arg1 = PG_GETARG_BPCHAR_PP(0);
+	BpChar	   *arg2 = PG_GETARG_BPCHAR_PP(1);
+	int			result;
 
-    result = internal_bpchar_pattern_compare(arg1, arg2);
+	result = internal_bpchar_pattern_compare(arg1, arg2);
 
-    PG_FREE_IF_COPY(arg1, 0);
-    PG_FREE_IF_COPY(arg2, 1);
+	PG_FREE_IF_COPY(arg1, 0);
+	PG_FREE_IF_COPY(arg2, 1);
 
-    PG_RETURN_INT32(result);
+	PG_RETURN_INT32(result);
 }
 
 
 Datum
 btbpchar_pattern_sortsupport(PG_FUNCTION_ARGS)
 {
-    SortSupport ssup = (SortSupport) PG_GETARG_POINTER(0);
-    MemoryContext oldcontext;
+	SortSupport ssup = (SortSupport) PG_GETARG_POINTER(0);
+	MemoryContext oldcontext;
 
-    oldcontext = MemoryContextSwitchTo(ssup->ssup_cxt);
+	oldcontext = MemoryContextSwitchTo(ssup->ssup_cxt);
 
-    /* Use generic string SortSupport, forcing "C" collation */
-    varstr_sortsupport(ssup, C_COLLATION_OID, true);
+	/* Use generic string SortSupport, forcing "C" collation */
+	varstr_sortsupport(ssup, C_COLLATION_OID, true);
 
-    MemoryContextSwitchTo(oldcontext);
+	MemoryContextSwitchTo(oldcontext);
 
-    PG_RETURN_VOID();
+	PG_RETURN_VOID();
 }
 
 #ifdef _PG_ORCL_
-
 /*
  * varchar2_input -- common guts of varchar2in and varchar2recv
  *
@@ -1107,26 +1246,25 @@ btbpchar_pattern_sortsupport(PG_FUNCTION_ARGS)
  * Uses the C string to text conversion function, which is only appropriate
  * if VarChar and text are equivalent types.
  */
-
 static VarChar *
 varchar2_input(const char *s, size_t len, int32 atttypmod)
 {
-    VarChar        *result;        /* input data */
-    size_t        maxlen;
+	VarChar		*result;		/* input data */
+	size_t		maxlen;
 
-    maxlen = atttypmod - VARHDRSZ;
+	maxlen = atttypmod - VARHDRSZ;
 
-    /*
-     * Perform the typmod check; error out if value too long for VARCHAR2
-     */
-    if (atttypmod >= (int32) VARHDRSZ && len > maxlen)
-        if (len > maxlen)
-            ereport(ERROR,
-                    (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-                        errmsg("input value length is %zd; too long for type varchar2(%zd)", len , maxlen)));
+	/*
+	 * Perform the typmod check; error out if value too long for VARCHAR2
+	 */
+	if (atttypmod >= (int32) VARHDRSZ && len > maxlen)
+		if (len > maxlen)
+			ereport(ERROR,
+					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+						errmsg("input value length is %zd; too long for type varchar2(%zd)", len , maxlen)));
 
-    result = (VarChar *) cstring_to_text_with_len(s, len);
-    return  result;
+	result = (VarChar *) cstring_to_text_with_len(s, len);
+	return  result;
 }
 
 /*
@@ -1136,17 +1274,16 @@ varchar2_input(const char *s, size_t len, int32 atttypmod)
 Datum
 varchar2in(PG_FUNCTION_ARGS)
 {
-    char    *s = PG_GETARG_CSTRING(0);
+	char	*s = PG_GETARG_CSTRING(0);
 #ifdef NOT_USED
-    Oid        typelem = PG_GETARG_OID(1);
+	Oid		typelem = PG_GETARG_OID(1);
 #endif
-    int32    atttypmod = PG_GETARG_INT32(2);
-    VarChar    *result;
+	int32	atttypmod = PG_GETARG_INT32(2);
+	VarChar	*result;
 
-    result = varchar2_input(s, strlen(s), atttypmod);
-    PG_RETURN_VARCHAR_P(result);
+	result = varchar2_input(s, strlen(s), atttypmod);
+	PG_RETURN_VARCHAR_P(result);
 }
-
 
 /*
  * converts a VARCHAR2 value to a C string.
@@ -1157,9 +1294,9 @@ varchar2in(PG_FUNCTION_ARGS)
 Datum
 varchar2out(PG_FUNCTION_ARGS)
 {
-    Datum   txt = PG_GETARG_DATUM(0);
+	Datum   txt = PG_GETARG_DATUM(0);
 
-    PG_RETURN_CSTRING(TextDatumGetCString(txt));
+	PG_RETURN_CSTRING(TextDatumGetCString(txt));
 }
 
 /*
@@ -1170,9 +1307,9 @@ varchar2out(PG_FUNCTION_ARGS)
 Datum
 varchar2typmodin(PG_FUNCTION_ARGS)
 {
-    ArrayType  *ta = PG_GETARG_ARRAYTYPE_P(0);
+	ArrayType  *ta = PG_GETARG_ARRAYTYPE_P(0);
 
-    PG_RETURN_INT32(anychar_typmodin(ta, "varchar2"));
+	PG_RETURN_INT32(anychar_typmodin(ta, "varchar2"));
 }
 
 /*
@@ -1183,9 +1320,9 @@ varchar2typmodin(PG_FUNCTION_ARGS)
 Datum
 varchar2typmodout(PG_FUNCTION_ARGS)
 {
-    int32        typmod = PG_GETARG_INT32(0);
+	int32		typmod = PG_GETARG_INT32(0);
 
-    PG_RETURN_CSTRING(anychar_typmodout(typmod));
+	PG_RETURN_CSTRING(anychar_typmodout(typmod));
 }
 
 /*
@@ -1194,20 +1331,20 @@ varchar2typmodout(PG_FUNCTION_ARGS)
 Datum
 varchar2recv(PG_FUNCTION_ARGS)
 {
-    StringInfo    buf = (StringInfo) PG_GETARG_POINTER(0);
+	StringInfo	buf = (StringInfo) PG_GETARG_POINTER(0);
 
 #ifdef NOT_USED
-    Oid            typelem = PG_GETARG_OID(1);
+	Oid			typelem = PG_GETARG_OID(1);
 #endif
-    int32        atttypmod = PG_GETARG_INT32(2);    /* typmod of the receiving column */
-    VarChar        *result;
-    char        *str;                            /* received data */
-    int            nbytes;                            /* length in bytes of recived data */
+	int32		atttypmod = PG_GETARG_INT32(2);	/* typmod of the receiving column */
+	VarChar		*result;
+	char		*str;							/* received data */
+	int			nbytes;							/* length in bytes of recived data */
 
-    str = pq_getmsgtext(buf, buf->len - buf->cursor, &nbytes);
-    result = varchar2_input(str, nbytes, atttypmod);
-    pfree(str);
-    PG_RETURN_VARCHAR_P(result);
+	str = pq_getmsgtext(buf, buf->len - buf->cursor, &nbytes);
+	result = varchar2_input(str, nbytes, atttypmod);
+	pfree(str);
+	PG_RETURN_VARCHAR_P(result);
 }
 
 /*
@@ -1218,7 +1355,7 @@ varchar2recv(PG_FUNCTION_ARGS)
 Datum
 varchar2send(PG_FUNCTION_ARGS)
 {
-    return varcharsend(fcinfo);
+	return varcharsend(fcinfo);
 }
 
 /*
@@ -1242,31 +1379,31 @@ varchar2send(PG_FUNCTION_ARGS)
 Datum
 varchar2(PG_FUNCTION_ARGS)
 {
-    VarChar        *source = PG_GETARG_VARCHAR_PP(0);
-    int32        typmod = PG_GETARG_INT32(1);
-    bool        isExplicit = PG_GETARG_BOOL(2);
-    int32        len,
-                maxlen;
-    char        *s_data;
+	VarChar		*source = PG_GETARG_VARCHAR_PP(0);
+	int32		typmod = PG_GETARG_INT32(1);
+	bool		isExplicit = PG_GETARG_BOOL(2);
+	int32		len,
+				maxlen;
+	char		*s_data;
 
-    len = VARSIZE_ANY_EXHDR(source);
-    s_data = VARDATA_ANY(source);
-    maxlen = typmod - VARHDRSZ;
+	len = VARSIZE_ANY_EXHDR(source);
+	s_data = VARDATA_ANY(source);
+	maxlen = typmod - VARHDRSZ;
 
-    /* No work if typmod is invalid or supplied data fits it already */
-    if (maxlen < 0 || len <= maxlen)
-        PG_RETURN_VARCHAR_P(source);
+	/* No work if typmod is invalid or supplied data fits it already */
+	if (maxlen < 0 || len <= maxlen)
+		PG_RETURN_VARCHAR_P(source);
 
-    /* error out if value too long unless it's an explicit cast */
-    if (!isExplicit)
-    {
-        if (len > maxlen)
-            ereport(ERROR,
-                    (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-                        errmsg("input value length is %d; too long for type varchar2(%d)",len ,maxlen)));
-    }
+	/* error out if value too long unless it's an explicit cast */
+	if (!isExplicit)
+	{
+		if (len > maxlen)
+			ereport(ERROR,
+					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+						errmsg("input value length is %d; too long for type varchar2(%d)",len ,maxlen)));
+	}
 
-    PG_RETURN_VARCHAR_P((VarChar *) cstring_to_text_with_len(s_data,maxlen));
+	PG_RETURN_VARCHAR_P((VarChar *) cstring_to_text_with_len(s_data,maxlen));
 }
 
 /*
@@ -1284,30 +1421,30 @@ varchar2(PG_FUNCTION_ARGS)
 static VarChar *
 nvarchar2_input(const char *s, size_t len, int32 atttypmod)
 {
-    VarChar        *result;        /* input data */
-    size_t        maxlen;
+	VarChar		*result;		/* input data */
+	size_t		maxlen;
 
-    maxlen = atttypmod - VARHDRSZ;
+	maxlen = atttypmod - VARHDRSZ;
 
-    /*
-     * Perform the typmod check; error out if value too long for NVARCHAR2
-     */
-    if (atttypmod >= (int32) VARHDRSZ && len > maxlen)
-    {
-        /* Verify that input length is within typmod limit.
-         *
-         * NOTE: blankspace is not truncated
-         */
-        size_t        mbmaxlen = pg_mbstrlen(s);
+	/*
+	 * Perform the typmod check; error out if value too long for NVARCHAR2
+	 */
+	if (atttypmod >= (int32) VARHDRSZ && len > maxlen)
+	{
+		/* Verify that input length is within typmod limit.
+		 *
+		 * NOTE: blankspace is not truncated
+		 */
+		size_t		mbmaxlen = pg_mbstrlen(s);
 
-        if (mbmaxlen > maxlen)
-            ereport(ERROR,
-                    (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-                        errmsg("input value length is %zd; too long for type nvarchar2(%zd)", mbmaxlen , maxlen)));
-    }
+		if (mbmaxlen > maxlen)
+			ereport(ERROR,
+					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+						errmsg("input value length is %zd; too long for type nvarchar2(%zd)", mbmaxlen , maxlen)));
+	}
 
-    result = (VarChar *) cstring_to_text_with_len(s, len);
-    return  result;
+	result = (VarChar *) cstring_to_text_with_len(s, len);
+	return  result;
 }
 
 /*
@@ -1317,17 +1454,16 @@ nvarchar2_input(const char *s, size_t len, int32 atttypmod)
 Datum
 nvarchar2in(PG_FUNCTION_ARGS)
 {
-    char    *s = PG_GETARG_CSTRING(0);
+	char	*s = PG_GETARG_CSTRING(0);
 #ifdef NOT_USED
-    Oid        typelem = PG_GETARG_OID(1);
+	Oid		typelem = PG_GETARG_OID(1);
 #endif
-    int32    atttypmod = PG_GETARG_INT32(2);
-    VarChar    *result;
+	int32	atttypmod = PG_GETARG_INT32(2);
+	VarChar	*result;
 
-    result = nvarchar2_input(s, strlen(s), atttypmod);
-    PG_RETURN_VARCHAR_P(result);
+	result = nvarchar2_input(s, strlen(s), atttypmod);
+	PG_RETURN_VARCHAR_P(result);
 }
-
 
 /*
  * converts a NVARCHAR2 value to a C string.
@@ -1338,9 +1474,9 @@ nvarchar2in(PG_FUNCTION_ARGS)
 Datum
 nvarchar2out(PG_FUNCTION_ARGS)
 {
-    Datum   txt = PG_GETARG_DATUM(0);
+	Datum   txt = PG_GETARG_DATUM(0);
 
-    PG_RETURN_CSTRING(TextDatumGetCString(txt));
+	PG_RETURN_CSTRING(TextDatumGetCString(txt));
 }
 
 /*
@@ -1351,9 +1487,9 @@ nvarchar2out(PG_FUNCTION_ARGS)
 Datum
 nvarchar2typmodin(PG_FUNCTION_ARGS)
 {
-    ArrayType  *ta = PG_GETARG_ARRAYTYPE_P(0);
+	ArrayType  *ta = PG_GETARG_ARRAYTYPE_P(0);
 
-    PG_RETURN_INT32(anychar_typmodin(ta, "nvarchar2"));
+	PG_RETURN_INT32(anychar_typmodin(ta, "nvarchar2"));
 }
 
 /*
@@ -1364,9 +1500,9 @@ nvarchar2typmodin(PG_FUNCTION_ARGS)
 Datum
 nvarchar2typmodout(PG_FUNCTION_ARGS)
 {
-    int32        typmod = PG_GETARG_INT32(0);
+	int32		typmod = PG_GETARG_INT32(0);
 
-    PG_RETURN_CSTRING(anychar_typmodout(typmod));
+	PG_RETURN_CSTRING(anychar_typmodout(typmod));
 }
 
 /*
@@ -1375,20 +1511,20 @@ nvarchar2typmodout(PG_FUNCTION_ARGS)
 Datum
 nvarchar2recv(PG_FUNCTION_ARGS)
 {
-    StringInfo    buf = (StringInfo) PG_GETARG_POINTER(0);
+	StringInfo	buf = (StringInfo) PG_GETARG_POINTER(0);
 
 #ifdef NOT_USED
-    Oid            typelem = PG_GETARG_OID(1);
+	Oid			typelem = PG_GETARG_OID(1);
 #endif
-    int32        atttypmod = PG_GETARG_INT32(2);    /* typmod of the receiving column */
-    VarChar        *result;
-    char        *str;                            /* received data */
-    int            nbytes;                            /* length in bytes of recived data */
+	int32		atttypmod = PG_GETARG_INT32(2);	/* typmod of the receiving column */
+	VarChar		*result;
+	char		*str;							/* received data */
+	int			nbytes;							/* length in bytes of recived data */
 
-    str = pq_getmsgtext(buf, buf->len - buf->cursor, &nbytes);
-    result = nvarchar2_input(str, nbytes, atttypmod);
-    pfree(str);
-    PG_RETURN_VARCHAR_P(result);
+	str = pq_getmsgtext(buf, buf->len - buf->cursor, &nbytes);
+	result = nvarchar2_input(str, nbytes, atttypmod);
+	pfree(str);
+	PG_RETURN_VARCHAR_P(result);
 }
 
 /*
@@ -1399,7 +1535,7 @@ nvarchar2recv(PG_FUNCTION_ARGS)
 Datum
 nvarchar2send(PG_FUNCTION_ARGS)
 {
-    return varcharsend(fcinfo);
+	return varcharsend(fcinfo);
 }
 
 /*
@@ -1423,42 +1559,40 @@ nvarchar2send(PG_FUNCTION_ARGS)
 Datum
 nvarchar2(PG_FUNCTION_ARGS)
 {
-    VarChar        *source = PG_GETARG_VARCHAR_PP(0);
-    int32        typmod = PG_GETARG_INT32(1);
-    bool        isExplicit = PG_GETARG_BOOL(2);
-    int32        len,
-                maxlen;
-    size_t        maxmblen;
-    char        *s_data;
+	VarChar		*source = PG_GETARG_VARCHAR_PP(0);
+	int32		typmod = PG_GETARG_INT32(1);
+	bool		isExplicit = PG_GETARG_BOOL(2);
+	int32		len,
+				maxlen;
+	size_t		maxmblen;
+	char		*s_data;
 
-    len = VARSIZE_ANY_EXHDR(source);
-    s_data = VARDATA_ANY(source);
-    maxlen = typmod - VARHDRSZ;
+	len = VARSIZE_ANY_EXHDR(source);
+	s_data = VARDATA_ANY(source);
+	maxlen = typmod - VARHDRSZ;
 
-    /* No work if typmod is invalid or supplied data fits it already */
-    if (maxlen < 0 || len <= maxlen)
-        PG_RETURN_VARCHAR_P(source);
+	/* No work if typmod is invalid or supplied data fits it already */
+	if (maxlen < 0 || len <= maxlen)
+		PG_RETURN_VARCHAR_P(source);
 
-    /* only reach here if string is too long... */
+	/* only reach here if string is too long... */
 
-    /* truncate multibyte string preserving multibyte boundary */
-    maxmblen = pg_mbcharcliplen(s_data, len, maxlen);
+	/* truncate multibyte string preserving multibyte boundary */
+	maxmblen = pg_mbcharcliplen(s_data, len, maxlen);
 
-    /* error out if value too long unless it's an explicit cast */
-    if (!isExplicit)
-    {
-        /* if there is still data beyond maxmblen, error out
-         *
-         * Remember - no blankspace truncation on implicit cast
-         */
-        if (len > maxmblen)
-            ereport(ERROR,
-                    (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-                        errmsg("input value too long for type nvarchar2(%d)", maxlen)));
-    }
+	/* error out if value too long unless it's an explicit cast */
+	if (!isExplicit)
+	{
+		/* if there is still data beyond maxmblen, error out
+		 *
+		 * Remember - no blankspace truncation on implicit cast
+		 */
+		if (len > maxmblen)
+			ereport(ERROR,
+					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+						errmsg("input value too long for type nvarchar2(%d)", maxlen)));
+	}
 
-    PG_RETURN_VARCHAR_P((VarChar *) cstring_to_text_with_len(s_data, maxmblen));
+	PG_RETURN_VARCHAR_P((VarChar *) cstring_to_text_with_len(s_data, maxmblen));
 }
-
 #endif
-

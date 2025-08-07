@@ -66,8 +66,8 @@ if (sqlca.sqlcode < 0) sqlprint();}
 
   { ECPGdo(__LINE__, 0, 1, NULL, 0, ECPGst_normal, "create function My_Table_Check ( ) returns trigger as $test$\
     BEGIN\
-    INSERT INTO Log VALUES(TG_NAME, TG_WHEN);\
-    RETURN NEW;\
+	INSERT INTO Log VALUES(TG_NAME, TG_WHEN);\
+	RETURN NEW;\
     END; $test$ language plpgsql", ECPGt_EOIT, ECPGt_EORT);
 #line 26 "func.pgc"
 
@@ -107,8 +107,8 @@ if (sqlca.sqlcode < 0) sqlprint();}
 #line 35 "func.pgc"
 
   { ECPGdo(__LINE__, 0, 1, NULL, 0, ECPGst_normal, "select name from Log limit 1", ECPGt_EOIT, 
-    ECPGt_char,(text),(long)25,(long)1,(25)*sizeof(char), 
-    ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EORT);
+	ECPGt_char,(text),(long)25,(long)1,(25)*sizeof(char), 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EORT);
 #line 36 "func.pgc"
 
 if (sqlca.sqlwarn[0] == 'W') sqlprint();

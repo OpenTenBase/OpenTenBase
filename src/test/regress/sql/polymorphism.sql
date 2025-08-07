@@ -1,8 +1,62 @@
--- Currently this tests polymorphic aggregates and indirectly does some
--- testing of polymorphic SQL functions.  It ought to be extended.
+--
+-- Tests for polymorphic SQL functions and aggregates based on them.
 -- Tests for other features related to function-calling have snuck in, too.
+--
+
+create function polyf(x anyelement) returns anyelement as $$
+  select x + 1
+$$ language sql;
+
+select polyf(42) as int, polyf(4.5) as num;
+select polyf(point(3,4));  -- fail for lack of + operator
+
+drop function polyf(x anyelement);
+
+create function polyf(x anyelement) returns anyarray as $$
+  select array[x + 1, x + 2]
+$$ language sql;
+
+select polyf(42) as int, polyf(4.5) as num;
+
+drop function polyf(x anyelement);
+
+create function polyf(x anyarray) returns anyelement as $$
+  select x[1]
+$$ language sql;
+
+select polyf(array[2,4]) as int, polyf(array[4.5, 7.7]) as num;
+
+select polyf(stavalues1) from pg_statistic;  -- fail, can't infer element type
+
+drop function polyf(x anyarray);
+
+create function polyf(x anyarray) returns anyarray as $$
+  select x
+$$ language sql;
+
+select polyf(array[2,4]) as int, polyf(array[4.5, 7.7]) as num;
+
+select polyf(stavalues1) from pg_statistic;  -- fail, can't infer element type
+
+drop function polyf(x anyarray);
+
+-- fail, can't infer type:
+create function polyf(x anyelement) returns anyrange as $$
+  select array[x + 1, x + 2]
+$$ language sql;
+
+create function polyf(x anyrange) returns anyarray as $$
+  select array[lower(x), upper(x)]
+$$ language sql;
+
+select polyf(int4range(42, 49)) as int, polyf(float8range(4.5, 7.8)) as num;
+
+drop function polyf(x anyrange);
 
 
+--
+-- Polymorphic aggregate tests
+--
 -- Legend:
 -----------
 -- A = type is ANY
@@ -799,3 +853,336 @@ select * from dfview order by 1,2,3,4;
 
 drop view dfview;
 drop function dfunc(anyelement, anyelement, bool);
+
+\c regression_ora
+-- check all the arguments are IN arguments
+drop procedure tp11;
+CREATE or replace PROCEDURE tp11(
+  a in integer, 
+  b in integer,
+  c in integer default 320,
+  d in integer,
+  e in integer default 500,
+  f in integer)
+LANGUAGE default_plsql
+AS $$
+BEGIN
+  raise notice 'a: %', a;
+  raise notice 'b: %', b;
+  raise notice 'c: %', c;
+  raise notice 'd: %', d;
+  raise notice 'e: %', e;
+  raise notice 'f: %', f;
+END;
+$$;
+
+call tp11(1,2,3,4,5,6);
+call tp11(1,2,3,4,5);
+call tp11(1,2,3,4);
+call tp11(1,2,3);
+call tp11(1,2);
+call tp11(1);
+
+call tp11(1,2,3,4,5,f=>610);
+call tp11(1,2,3,4,f=>610);
+call tp11(1,2,3,f=>610);
+call tp11(1,2,3,d=>410,f=>610);
+call tp11(1,2,3,d=>410,500,f=>610);  -- failed
+call tp11(1,2,c=>300,d=>400,f=>600);
+call tp11(1,2,c=>300,d=>400,e=>500,f=>600);
+call tp11(1,b=>200,c=>300,d=>400,e=>500,f=>600);
+call tp11(a=>100,b=>200,c=>300,d=>400,e=>500,f=>600);
+
+select proname, pronargdefaults, proargdefaults, pg_get_function_arguments(oid)
+from pg_proc
+where proname = 'TP11';
+-- check all the arguments are IN arguments, all default but last
+drop procedure tp11;
+CREATE or replace PROCEDURE tp11(
+  a in integer default 120, 
+  b in integer default 220,
+  c in integer default 320,
+  d in integer default 420,
+  e in integer default 500,
+  f in integer)
+LANGUAGE default_plsql
+AS $$
+BEGIN
+  raise notice 'a: %', a;
+  raise notice 'b: %', b;
+  raise notice 'c: %', c;
+  raise notice 'd: %', d;
+  raise notice 'e: %', e;
+  raise notice 'f: %', f;
+END;
+$$;
+
+call tp11(1,2,3,4,5,6);
+call tp11(1,2,3,4,5);
+call tp11(1,2,3,4);
+call tp11(1,2,3);
+call tp11(1,2);
+call tp11(1);
+
+call tp11(1,2,3,4,5,f=>610);
+call tp11(1,2,3,4,f=>610);
+call tp11(1,2,3,f=>610);
+call tp11(1,2,f=>610);
+call tp11(1,f=>610);
+call tp11(f=>610);
+
+select proname, pronargdefaults, proargdefaults, pg_get_function_arguments(oid)
+from pg_proc
+where proname = 'TP11';
+-- check all the arguments are IN arguments, all default
+drop procedure tp11;
+CREATE or replace PROCEDURE tp11(
+  a in integer default 120, 
+  b in integer default 220,
+  c in integer default 320,
+  d in integer default 420,
+  e in integer default 500,
+  f in integer default 640)
+LANGUAGE default_plsql
+AS $$
+BEGIN
+  raise notice 'a: %', a;
+  raise notice 'b: %', b;
+  raise notice 'c: %', c;
+  raise notice 'd: %', d;
+  raise notice 'e: %', e;
+  raise notice 'f: %', f;
+END;
+$$;
+
+call tp11(1,2,3,4,5,6);
+call tp11(1,2,3,4,5);
+call tp11(1,2,3,4);
+call tp11(1,2,3);
+call tp11(1,2);
+call tp11(1);
+
+call tp11(1,2,3,4,5,f=>610);
+call tp11(1,2,3,4,f=>610);
+call tp11(1,2,3,f=>610);
+call tp11(1,2,f=>610);
+call tp11(1,f=>610);
+call tp11(f=>610);
+call tp11(b=>210);
+call tp11(b=>210,f=>690);
+
+select proname, pronargdefaults, proargdefaults, pg_get_function_arguments(oid)
+from pg_proc
+where proname = 'TP11';
+-- check IN OUT arguments
+drop procedure tp11;
+CREATE or replace PROCEDURE tp11(
+  a out integer, 
+  b in  integer, 
+  c out integer,
+  d in integer default 410,
+  e in integer default 510,
+  f out integer)
+LANGUAGE default_plsql
+AS $$
+BEGIN
+  raise notice 'b: %', b;
+  raise notice 'd: %', d;
+  raise notice 'e: %', e;
+  a := 1322;
+  c := 2211;
+  f := 6300;
+END;
+$$;
+
+call tp11(1,2,3,4,5); -- ok
+call tp11(1,2,3,4);   -- ok
+call tp11(1,2,3);     -- failed
+
+select proname, pronargdefaults, proargdefaults, pg_get_function_arguments(oid)
+from pg_proc
+where proname = 'TP11';
+-- check INOUT arguments
+drop procedure tp11;
+CREATE or replace PROCEDURE tp11(
+  a inout integer, 
+  b in    integer, 
+  c in    integer,
+  d inout integer,
+  e in    integer default 510,
+  f out   integer)
+LANGUAGE default_plsql
+AS $$
+BEGIN
+  raise notice 'a: %', a;
+  raise notice 'b: %', b;
+  raise notice 'c: %', c;
+  raise notice 'd: %', d;
+  raise notice 'e: %', e;
+  b := 2322;
+  c := 3211;
+  f := 6300;
+END;
+$$;
+
+call tp11(1,2,3,4,5,6);   -- ok
+call tp11(1,2,3,4,6);     -- ok
+call tp11(1,2,3,4);       -- failed
+
+select proname, pronargdefaults, proargdefaults, pg_get_function_arguments(oid)
+from pg_proc
+where proname = 'TP11';
+
+drop procedure tp11;
+
+-- check INOUT arguments for functions
+drop function tp11;
+CREATE or replace function tp11(
+  a in integer, 
+  b in integer,
+  c in integer default 320,
+  d in integer,
+  e in integer default 500,
+  f in integer)
+RETURN void
+LANGUAGE default_plsql
+AS $$
+BEGIN
+  raise notice 'a: %', a;
+  raise notice 'b: %', b;
+  raise notice 'c: %', c;
+  raise notice 'd: %', d;
+  raise notice 'e: %', e;
+  raise notice 'f: %', f;
+END;
+$$;
+
+select  tp11(1,2,3,4,5,6);
+select  tp11(1,2,3,4,5);
+select  tp11(1,2,3,4);
+select  tp11(1,2,3);
+select  tp11(1,2);
+select  tp11(1);
+
+select  tp11(1,2,3,4,5,f=>610);
+select  tp11(1,2,3,4,f=>610);
+select  tp11(1,2,3,f=>610);
+select  tp11(1,2,3,d=>410,f=>610);
+select  tp11(1,2,3,d=>410,500,f=>610);  -- failed
+select  tp11(1,2,c=>300,d=>400,f=>600);
+select  tp11(1,2,c=>300,d=>400,e=>500,f=>600);
+select  tp11(1,b=>200,c=>300,d=>400,e=>500,f=>600);
+select  tp11(a=>100,b=>200,c=>300,d=>400,e=>500,f=>600);
+
+select proname, pronargdefaults, proargdefaults, pg_get_function_arguments(oid)
+from pg_proc
+where proname = 'TP11';
+
+drop function tp1121;
+drop procedure tp1121;
+-- type-location-mixed scenario
+drop function tf13;
+CREATE or replace function tf13(
+  a in integer, 
+  b in text default 'bbb',
+  c in integer,
+  d in text default 'ddd',
+  e in integer)
+RETURNS void
+LANGUAGE default_plsql 
+AS $$
+BEGIN
+  raise notice 'a: %', a;
+  raise notice 'b: %', b;
+  raise notice 'c: %', c;
+  raise notice 'd: %', d;
+  raise notice 'e: %', e;
+  return;
+END;
+$$;
+select tf13(1,'b',3,'d',5);
+select tf13(1,'b',3,'d',e=>5);
+select tf13(1,'b',3,e=>5);
+select tf13(1,'b',3,d=>'d',e=>5);
+select tf13(1,'b',c=>3,d=>'d',e=>5);
+select tf13(1,b=>'b',c=>3,d=>'d',e=>5);
+select tf13(a=>1,b=>'b',c=>3,d=>'d',e=>5);
+select tf13(1,c=>3,e=>5);
+select tf13(1,b=>'bbb',c=>3,e=>5);
+-- failed
+select tf13(a=>'a',b=>'b',c=>3,d=>'d',e=>5);
+select tf13(a=>1,b=>'b',c=>'c',d=>'d',e=>5);
+select tf13(a=>1,b=>'b',c=>3,d=>'d',e=>'e');
+select tf13(1,b=>'bbb',c=>'ccc',e=>5);
+select tf13(1,c=>3,e=>'eee');
+-- type-location-out-mixed scenario
+drop function tf13;
+CREATE or replace function tf13(
+  a in integer, 
+  b in text default 'bbb',
+  c out integer,
+  d in text default 'ddd',
+  e in integer)
+RETURNS void
+LANGUAGE default_plsql 
+AS $$
+BEGIN
+  raise notice 'a: %', a;
+  raise notice 'b: %', b;
+  raise notice 'c: %', c;
+  raise notice 'd: %', d;
+  raise notice 'e: %', e;
+  return;
+END;
+$$;
+select tf13(1,'b',3,'d',5);
+select tf13(1,'b',3,'d',e=>5);
+-- enable_opentenbase_ora_compatible = off scenario
+\c regression
+CREATE or replace PROCEDURE tp1121(
+  a in integer, 
+  b in integer,
+  c in integer default 320,
+  d in integer default 420,
+  e in integer default 500,
+  f in integer default 600)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  raise notice 'a: %', a;
+  raise notice 'b: %', b;
+  raise notice 'c: %', c;
+  raise notice 'd: %', d;
+  raise notice 'e: %', e;
+  raise notice 'f: %', f;
+END;
+$$;
+
+select proname, pronargdefaults, proargdefaults, pg_get_function_arguments(oid)
+from pg_proc
+where proname = 'tp1121';
+drop procedure tp1121;
+
+CREATE or replace PROCEDURE tp1122(
+  a in integer, 
+  b in integer,
+  c in integer default 320,
+  d in integer default 420,
+  e in integer default 500,
+  f out integer)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  raise notice 'a: %', a;
+  raise notice 'b: %', b;
+  raise notice 'c: %', c;
+  raise notice 'd: %', d;
+  raise notice 'e: %', e;
+  raise notice 'f: %', f;
+END;
+$$;
+
+select proname, pronargdefaults, proargdefaults, pg_get_function_arguments(oid)
+from pg_proc
+where proname = 'tp1122';
+drop procedure tp1122;

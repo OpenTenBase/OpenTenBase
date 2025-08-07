@@ -1,0 +1,612 @@
+\c opentenbase_ora_package_function_regression_ora
+\set ECHO none
+NOTICE:  extension "opentenbase_ora_package_function" already exists, skipping
+output my_varchar2 stringval: <root><element1>XMLType VARCHAR2</element1><element2>XMLType VARCHAR2</element2></root>
+output my_varchar2 clobval: <root><element1>XMLType VARCHAR2</element1><element2>XMLType VARCHAR2</element2></root>
+output my_clob stringval: <root><element1>XMLType CLOB</element1><element2>XMLType CLOB</element2></root>
+output my_clob clobval: <root><element1>XMLType CLOB</element1><element2>XMLType CLOB</element2></root>
+output raw string: <root>raw string</root>
+                 XMLTYPE                  
+------------------------------------------
+ <NODE2><NODE><ele>1</ele></NODE></NODE2>
+(1 row)
+
+                 XMLTYPE                  
+------------------------------------------
+ <NODE2><NODE><ele>1</ele></NODE></NODE2>
+(1 row)
+
+             ?column?             
+----------------------------------
+ <NODE2><NODE><ele>1</ele></NODE>
+(1 row)
+
+ LENGTH 
+--------
+     25
+(1 row)
+
+ LENGTH 
+--------
+     74
+(1 row)
+
+ LENGTH 
+--------
+     89
+(1 row)
+
+ SUBSTR 
+--------
+ <NODE
+(1 row)
+
+   NAME   
+----------
+ John Doe
+(1 row)
+
+John Doe
+         EMPLOYEE_DATA         
+-------------------------------
+ <employee>                   +
+   <name>John</name>          +
+   <age>30</age>              +
+   <department>IT</department>+
+ </employee><employee>        +
+   <name>Jane</name>          +
+   <age>28</age>              +
+   <department>HR</department>+
+ </employee>
+(1 row)
+
+<employee>
+  <name>John</name>
+  <age>30</age>
+  <department>IT</department>
+</employee><employee>
+  <name>Jane</name>
+  <age>28</age>
+  <department>HR</department>
+</employee>
+ NAME_ID 
+---------
+ 1
+(1 row)
+
+<employee>
+  <name>John</name>
+  <age>30</age>
+  <department>IT</department>
+</employee><employee>
+  <name>Jane</name>
+  <age>28</age>
+  <department>HR</department>
+</employee>
+<f b1="b1" b2="b2">bbb1</f>
+ NAME_ID 
+---------
+ 1
+(1 row)
+
+   NAME   
+----------
+ John Doe
+(1 row)
+
+ERROR:  EXTRACTVALUE can only retrieve value of leaf node
+ NAME_ID 
+---------
+ 1
+(1 row)
+
+ NAME_ID 
+---------
+ 1
+(1 row)
+
+John Doe
+Employee count: 2
+Length of Employee 1: 94
+Employee 1: <employee>
+  <name>Jane Smith</name>
+  <age>28</age>
+  <department>HR</department>
+</employee>
+Length of Employee 2: 92
+Employee 2: <employee>
+  <name>John Doe</name>
+  <age>30</age>
+  <department>IT</department>
+</employee>
+ EMPLOYEE_NAME 
+---------------
+ John Doe
+ Jane Smith
+(2 rows)
+
+ EMPLOYEE_NAME 
+---------------
+ John Doe
+ Jane Smith
+(2 rows)
+
+Employee Name: John Doe
+Employee Name: Jane Smith
+          XML_OUTPUT           
+-------------------------------
+ <employee>John Doe</employee>
+(1 row)
+
+              XML_OUTPUT              
+--------------------------------------
+ <employee id="1">John Doe</employee>
+(1 row)
+
+                                        XML_OUTPUT                                         
+-------------------------------------------------------------------------------------------
+ <employee id="1"><name>John Doe</name><age>30</age><department>IT</department></employee>
+(1 row)
+
+<employee>John Doe</employee>
+<employee id="1">John Doe</employee>
+<employee id="1"><name>John Doe</name><age>30</age><department>IT</department></employee>
+                                     XML_OUTPUT                                     
+------------------------------------------------------------------------------------
+ <employee><name>John Doe</name><age>30</age><department>IT</department></employee>
+(1 row)
+
+                                                XML_OUTPUT                                                 
+-----------------------------------------------------------------------------------------------------------
+ <employees><employee><name>John Doe</name><age>30</age><department>IT</department></employee></employees>
+(1 row)
+
+                                                                                          XML_OUTPUT                                                                                           
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ <employees><employee><name>John Doe</name><age>30</age><department>IT</department></employee><employee><name>Jane Smith</name><age>28</age><department>HR</department></employee></employees>
+(1 row)
+
+employee1: <employee><name>John Doe</name><age>30</age><department>IT</department></employee>
+employee2: <employee><name>Jane Smith</name><age>28</age><department>HR</department></employee>
+Aggregated XML: <employees><employee><name>John Doe</name><age>30</age><department>IT</department></employee><employee><name>Jane Smith</name><age>28</age><department>HR</department></employee></employees>
+John Doe
+                                                                                                                     Dept_list                                                                                                                      
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ <Department><Employee>PU_CLERK Baida</Employee><Employee>PU_CLERK Colmenares</Employee><Employee>PU_CLERK Himuro</Employee><Employee>PU_CLERK Khoo</Employee><Employee>PU_MAN Raphaely</Employee><Employee>PU_CLERK Tobias</Employee></Department>
+(1 row)
+
+                                                                                                                     Dept_list                                                                                                                      
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ <Department><Employee>AD_ASST Whalen</Employee></Department>
+ <Department><Employee>PU_CLERK Baida</Employee><Employee>PU_CLERK Himuro</Employee><Employee>PU_CLERK Tobias</Employee><Employee>PU_MAN Raphaely</Employee><Employee>PU_CLERK Colmenares</Employee><Employee>PU_CLERK Khoo</Employee></Department>
+ <Department><Employee>MK_REP Fay</Employee><Employee>MK_MAN Hartstein</Employee></Department>
+(3 rows)
+
+Baida,Himuro,Tobias,Raphaely,Colmenares,Khoo,Whalen,Fay,Hartstein,
+Baida,Himuro,Tobias,Raphaely,Colmenares,Khoo,Whalen,Fay,Hartstein,
+ERROR:  invalid XML document
+DETAIL:  line 1: Start tag expected, '<' not found
+Baida,
+^
+CONTEXT:  SQL statement "SELECT XMLAGG(XMLPARSE(DOCUMENT t.last_name || ',' WELLFORMED) ORDER BY t.department_id)                 FROM xmlagg_test_20240712 t"
+PL/pgSQL function inline_code_block line 4 at SQL statement
+ERROR:  invalid XML document
+DETAIL:  line 1: Start tag expected, '<' not found
+Baida,
+^
+CONTEXT:  SQL statement "SELECT XMLAGG(XMLPARSE(DOCUMENT t.last_name || ',') ORDER BY t.department_id)                 FROM xmlagg_test_20240712 t"
+PL/pgSQL function inline_code_block line 4 at SQL statement
+ EMPLOYEE_ID | EMPLOYEE_NAME | POSITION  | SALARY 
+-------------+---------------+-----------+--------
+           1 | John Doe      | Developer |   5000
+           2 | Jane Smith    | Manager   |   6500
+(2 rows)
+
+Employee Name: John Doe
+Employee Name: Jane Smith
+             RES             
+-----------------------------
+ <f b1="b1" b2="b2">bbb1</f>
+(1 row)
+
+       COLUMN_VALUE        
+---------------------------
+ <employee>               +
+   <id>1</id>             +
+   <name>John Doe</name>  +
+   <salary>50000</salary> +
+ </employee><employee>    +
+   <id>2</id>             +
+   <name>Jane Smith</name>+
+   <salary>60000</salary> +
+ </employee>
+(1 row)
+
+ ID | NAME | SCORE 
+----+------+-------
+  1 | Tom  |    99
+  2 | Jim  |    77
+(2 rows)
+
+Employee <employee>
+  <name>John Doe</name>
+  <salary>50000</salary>
+</employee>
+Employee <employee>
+  <name>Jane Smith</name>
+  <salary>60000</salary>
+</employee>
+
+
+
+
+ AUTH_TYPE |     CERTI_CODE     | REAL_NAME | ORGAN_ID | BS_APPLY_ID |  USER_ID  | AUTH_ID | CERTI_TYPE 
+-----------+--------------------+-----------+----------+-------------+-----------+---------+------------
+ 3         | 310107201312055718 | 45441089  |          | 13277767    | 180121548 | 2784626 | 1
+(1 row)
+
+ EMPLOYEE_ID |      EMPLOYEE_NAME      
+-------------+-------------------------
+ <id>1</id>  | <name>John Doe</name>
+ <id>2</id>  | <name>Jane Smith</name>
+(2 rows)
+
+ EMPLOYEE_ID | EMPLOYEE_NAME 
+-------------+---------------
+ 1           | John Doe
+ 2           | Jane Smith
+(2 rows)
+
+ LIST_ROW 
+----------
+(0 rows)
+
+ COLUMN_VALUE 
+--------------
+(0 rows)
+
+ COLUMN_VALUE 
+--------------
+(0 rows)
+
+ VAL 
+-----
+ {}
+(1 row)
+
+ LIST_ROW 
+----------
+(0 rows)
+
+ERROR:  method dispatch on NULL SELF argument is disallowed
+CONTEXT:  SQL statement "CALL DBMS_OUTPUT.PUT_LINE(xdata.getStringVal())"
+PL/pgSQL function inline_code_block line 5 at CALL
+ERROR:  method dispatch on NULL SELF argument is disallowed
+CONTEXT:  SQL statement "CALL DBMS_OUTPUT.PUT_LINE(xdata.getClobVal())"
+PL/pgSQL function inline_code_block line 5 at CALL
+ BTRIM  
+--------
+ 900002
+(1 row)
+
+ ORCL_EXTRACT 
+--------------
+ 
+(1 row)
+
+ EXTRACTVALUE 
+--------------
+ 900002
+(1 row)
+
+ COLUMN_VALUE 
+--------------
+ 1234
+(1 row)
+
+ XMLSEQUENCE 
+-------------
+ {1234}
+(1 row)
+
+ ORCL_EXTRACT 
+--------------
+ 1234
+(1 row)
+
+ XMLSEQUENCE 
+-------------
+ {1234}
+(1 row)
+
+                                                                                              ORCL_EXTRACT                                                                                              
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ <parent_1 gid="1" id="1">parent<idx>1</idx><parent_2 gid="2" id="2"><idx>2</idx><parent_3 gid="3" id="3"><idx>3</idx><parent_4 gid="4" id="4"><idx>4</idx></parent_4></parent_3></parent_2></parent_1>
+(1 row)
+
+                                                            XMLSEQUENCE                                                             
+------------------------------------------------------------------------------------------------------------------------------------
+ {root,"<parent_1 gid=\"1\" id=\"1\">parent1<idx>1</idx></parent_1>","<parent_2 gid=\"2\" id=\"2\"><idx>2</idx>parent2</parent_2>"}
+(1 row)
+
+                      COLUMN_VALUE                       
+---------------------------------------------------------
+ root
+ <parent_1 gid="1" id="1">parent1<idx>1</idx></parent_1>
+ <parent_2 gid="2" id="2"><idx>2</idx>parent2</parent_2>
+(3 rows)
+
+ COUNT 
+-------
+     1
+(1 row)
+
+ attribute Val List 
+--------------------
+ 1234
+(1 row)
+
+ attribute Val 
+---------------
+ 1234
+(1 row)
+
+              VAL              
+-------------------------------
+ value 腾讯<"北京" & "成都" > 
+(1 row)
+
+              VAL              
+-------------------------------
+ value 腾讯<"北京" & "成都" > 
+(1 row)
+
+              VAL              
+-------------------------------
+ value 腾讯<"北京" & "成都" > 
+(1 row)
+
+               VAL                
+----------------------------------
+ value 腾讯<"北京" & "成都" > 123
+(1 row)
+
+ VAL  
+------
+ home
+(1 row)
+
+      VAL      
+---------------
+ 1mictmystring
+(1 row)
+
+   VAL    
+----------
+ mystring
+(1 row)
+
+                               VAL                               
+-----------------------------------------------------------------
+ 1value 腾讯<"北京" & "成都" > 123value 腾讯<"北京" & "成 都" > 
+(1 row)
+
+                               VAL                               
+-----------------------------------------------------------------
+ 1value 腾讯<"北京" & "成都" > 123value 腾讯<"北京" & "成 都" > 
+(1 row)
+
+           VAL           
+-------------------------
+ 1tencentvalue<beijing> 
+(1 row)
+
+                    VAL                     
+--------------------------------------------
+ 2attrvalue<beijing> tencentvalue<beijing> 
+(1 row)
+
+     VAL      
+--------------
+ Text content
+(1 row)
+
+ VAL  
+------
+ 1sxa
+(1 row)
+
+ERROR:  EXTRACTVALUE returns value of only one node
+ VAL 
+-----
+ 
+(1 row)
+
+      VAL       
+----------------
+ Peace and Love
+(1 row)
+
+ERROR:  EXTRACTVALUE can only retrieve value of leaf node
+ VAL 
+-----
+ 
+(1 row)
+
+    VAL    
+-----------
+ Lake Wall
+(1 row)
+
+ COLUMN_VALUE 
+--------------
+ <idx>1</idx>
+ <idx>2</idx>
+(2 rows)
+
+ val 
+-----
+ 1
+ 2
+(2 rows)
+
+ TRANSAMT | ACCOUNTNAME |     ACCOUNTNO      
+----------+-------------+--------------------
+ 2000     | 下山        | 621152625152458456
+(1 row)
+
+   ORCL_EXTRACT    
+-------------------
+ <head>你好</head>
+(1 row)
+
+   ORCL_EXTRACT    
+-------------------
+ <head>你好</head>
+(1 row)
+
+   ORCL_EXTRACT    
+-------------------
+ <head>你好</head>
+(1 row)
+
+   ORCL_EXTRACT    
+-------------------
+ <head>你好</head>
+(1 row)
+
+   ORCL_EXTRACT    
+-------------------
+ <head>你好</head>
+(1 row)
+
+ ---- TABLE ----  
+1 ---- CSIG : eid:1 ename:W
+1 ---- CSIG : eid:2 ename:w2
+a<
+error out (Expected)invalid XML content
+Element:id   Value: 1
+ ----  
+Element:f_name   Value: W_1
+ ----  
+Element:l_name   Value: Q_1
+ ----  
+Element:GENDER   Value: F
+ ----  
+
+ LENGTH 
+--------
+     81
+(1 row)
+
+ERROR:  table "TEST_TABLE_128320931" does not exist
+ERROR:  function XMLDOM.GETDOCUMENTELEMENT(XML) does not exist
+LINE 1: SELECT xmldom.getDocumentElement(doc)
+               ^
+HINT:  No function matches the given name and argument types. You might need to add explicit type casts.
+QUERY:  SELECT xmldom.getDocumentElement(doc)
+CONTEXT:  PL/pgSQL function inline_code_block line 36 at assignment
+______________________
+Extract:200500
+# of xmlsequence:2
+XmlSequence(1): <code>200</code>
+XmlSequence(2): <code>500</code>
+# of xmlsequence:1
+XmlSequence(1): 200500
+# of author:3
+value of author[0]:
+（OpenTenBase_Ora) value of author[0]:Author 1
+        xmlelement        
+--------------------------
+ <ro<or>value&lt;</ro<or>
+(1 row)
+
+ERROR:  table "TESTXML_20240809" does not exist
+ERROR:  invalid XML document
+DETAIL:  line 1: error parsing attribute name
+<ro<or>value</ro<or>
+   ^
+line 1: attributes construct error
+<ro<or>value</ro<or>
+   ^
+line 1: Couldn't find end of Start Tag ro line 1
+<ro<or>value</ro<or>
+   ^
+line 1: Extra content at the end of the document
+<ro<or>value</ro<or>
+   ^
+ERROR:  invalid XML document
+DETAIL:  line 1: error parsing attribute name
+<ro<or>value</ro<or>
+   ^
+line 1: attributes construct error
+<ro<or>value</ro<or>
+   ^
+line 1: Couldn't find end of Start Tag ro line 1
+<ro<or>value</ro<or>
+   ^
+line 1: Extra content at the end of the document
+<ro<or>value</ro<or>
+   ^
+CONTEXT:  PL/pgSQL function XMLTYPE.XMLTYPE(XMLTYPE,VARCHAR2) line 3 at assignment
+ X_ID | X_XML 
+------+-------
+(0 rows)
+
+开始解析XML
+解析head节点
+<info>
+  <name>1</name>
+  <age>2</age>
+</info><info>
+  <name>3</name>
+  <age>4</age>
+</info>
+解析name/age节点
+姓名: 1
+年龄: 2
+解析name/age节点
+姓名: 3
+年龄: 4
+XML解析完成
+        SUBSTR        
+----------------------
+ This is a CDATA sect
+(1 row)
+
+Length: 3
+Text node value: Sample text
+    
+CDATA node value: 
+Comment node value: 
+Element node value: 
+ d_id | d_name |                                                             EMPLOYEES                                                             
+------+--------+-----------------------------------------------------------------------------------------------------------------------------------
+ 1    | CSIG   | <employees>   <employee>   <id>1</id>   <name>W</name></employee><employee>   <id>2</id>   <name>w2</name></employee></employees>
+(1 row)
+
+ empId 
+-------
+ 1
+ 2
+(2 rows)
+
+               ?column?               
+--------------------------------------
+ <root>value</root><root>value</root>
+(1 row)
+
+ERROR:  operator does not exist: XML || XML
+LINE 1: SELECT '<root>value</root>'::XML || '<root>value</root>'::XM...
+                                         ^
+HINT:  No operator matches the given name and argument type(s). You might need to add explicit type casts.
+               ?column?               
+--------------------------------------
+ <root>value</root><root>value</root>
+(1 row)
+
+1<2<3<4<5<6<7<8<9<
+aaaaaaaaa
+<emp id="1" gid="1"><id>1</id><f_name>W_1</f_name><l_name>Q_1</l_name><GENDER>F</GENDER></emp><emp id="2" gid="2"><id>2</id><f_name>W_2</f_name><l_name>Q_2</l_name><GENDER>M</GENDER></emp>
+<f_name>W_1</f_name><l_name>Q_1</l_name><f_name>W_2</f_name><l_name>Q_2</l_name>
+<emp id="1" gid="1"><id>1</id><f_name>W_1</f_name><l_name>Q_1</l_name><GENDER>F</GENDER></emp><emp id="2" gid="2"><id>2</id><f_name>W_2</f_name><l_name>Q_2</l_name><GENDER>M</GENDER></emp>

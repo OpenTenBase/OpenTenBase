@@ -16,127 +16,127 @@ pthread_key_t     threadinfo_key;
 void
 setUp()
 {
-    connect1();
+	connect1();
 }
 
 void
 tearDown()
 {
-    GTMPQfinish(conn);
+	GTMPQfinish(conn);
 }
 
 void
 test_node_01()
 {
-    int rc;
+	int rc;
 
-    SETUP();
+	SETUP();
 
-    rc = node_register(conn, GTM_NODE_DATANODE,  6666, "one", "/tmp/pgxc/data/gtm");
-    _ASSERT( rc >= 0 );
+	rc = node_register(conn, GTM_NODE_DATANODE,  6666, "one", "/tmp/pgxc/data/gtm");
+	_ASSERT( rc >= 0 );
 
-    TEARDOWN();
+	TEARDOWN();
 }
 
 void
 test_node_02()
 {
-    int rc;
+	int rc;
 
-    SETUP();
+	SETUP();
 
-    rc = node_unregister(conn, GTM_NODE_DATANODE, "One");
-    _ASSERT( rc >= 0 );
+	rc = node_unregister(conn, GTM_NODE_DATANODE, "One");
+	_ASSERT( rc >= 0 );
 
-    TEARDOWN();
+	TEARDOWN();
 }
 
 void
 test_node_03()
 {
-    GTM_PGXCNodeInfo *data;
-    int rc, i;
+	GTM_PGXCNodeInfo *data;
+	int rc, i;
 
-    SETUP();
+	SETUP();
 
-    data = (GTM_PGXCNodeInfo *)malloc( sizeof(GTM_PGXCNodeInfo)*128 );
-    memset(data, 0, sizeof(GTM_PGXCNodeInfo)*128);
+	data = (GTM_PGXCNodeInfo *)malloc( sizeof(GTM_PGXCNodeInfo)*128 );
+	memset(data, 0, sizeof(GTM_PGXCNodeInfo)*128);
 
-    rc = get_node_list(conn, data, 128);
-    _ASSERT( rc>=0 );
+	rc = get_node_list(conn, data, 128);
+	_ASSERT( rc>=0 );
 
-    for (i=0 ; i<rc ; i++)
-    {
-        print_nodeinfo(data[i]);
-    }
+	for (i=0 ; i<rc ; i++)
+	{
+		print_nodeinfo(data[i]);
+	}
 
-    free(data);
+	free(data);
 
-    TEARDOWN();
+	TEARDOWN();
 }
 
 void
 test_node_04()
 {
-    GTM_PGXCNodeInfo *data;
-    int rc, i;
+	GTM_PGXCNodeInfo *data;
+	int rc, i;
 
-    SETUP();
+	SETUP();
 
-    data = (GTM_PGXCNodeInfo *)malloc( sizeof(GTM_PGXCNodeInfo)*128 );
-    memset(data, 0, sizeof(GTM_PGXCNodeInfo)*128);
+	data = (GTM_PGXCNodeInfo *)malloc( sizeof(GTM_PGXCNodeInfo)*128 );
+	memset(data, 0, sizeof(GTM_PGXCNodeInfo)*128);
 
-    rc = node_register(conn, GTM_NODE_DATANODE, 6666, "one", "/tmp/pgxc/data/gtm");
-    _ASSERT( rc>=0 );
+	rc = node_register(conn, GTM_NODE_DATANODE, 6666, "one", "/tmp/pgxc/data/gtm");
+	_ASSERT( rc>=0 );
 
-    rc = get_node_list(conn, data, 128);
-    _ASSERT( rc>=0 );
+	rc = get_node_list(conn, data, 128);
+	_ASSERT( rc>=0 );
 
-    for (i=0 ; i<rc ; i++)
-    {
-        print_nodeinfo(data[i]);
-    }
+	for (i=0 ; i<rc ; i++)
+	{
+		print_nodeinfo(data[i]);
+	}
 
-    free(data);
+	free(data);
 
-    TEARDOWN();
+	TEARDOWN();
 }
 
 
 void
 test_node_05()
 {
-    int rc, i;
+	int rc, i;
 
-    SETUP();
+	SETUP();
 
-    rc = node_unregister(conn, GTM_NODE_DATANODE, "One zero one");
+	rc = node_unregister(conn, GTM_NODE_DATANODE, "One zero one");
 
-    rc = node_register(conn, GTM_NODE_DATANODE, 6666, "One zero one", "/tmp/pgxc/data/gtm");
-    _ASSERT( rc>=0 );
+	rc = node_register(conn, GTM_NODE_DATANODE, 6666, "One zero one", "/tmp/pgxc/data/gtm");
+	_ASSERT( rc>=0 );
 
-    sleep(5);
+	sleep(5);
 
-    rc = backend_disconnect(conn, true, GTM_NODE_DATANODE, "One Zero one");
-    _ASSERT( rc>=0 );
+	rc = backend_disconnect(conn, true, GTM_NODE_DATANODE, "One Zero one");
+	_ASSERT( rc>=0 );
 
-    rc = node_unregister(conn, GTM_NODE_DATANODE, "One zero one");
-    _ASSERT( rc>=0 );
+	rc = node_unregister(conn, GTM_NODE_DATANODE, "One zero one");
+	_ASSERT( rc>=0 );
 
-    TEARDOWN();
+	TEARDOWN();
 }
 
 
 int
 main(int argc, char *argv[])
 {
-    test_node_01();
-    test_node_02();
+	test_node_01();
+	test_node_02();
 
-    test_node_03();
-    test_node_04();
+	test_node_03();
+	test_node_04();
 
-    test_node_05();
+	test_node_05();
 
-    return 0;
+	return 0;
 }

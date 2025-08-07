@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * toasting.h
- *      This file provides some definitions to support creation of toast tables
+ *	  This file provides some definitions to support creation of toast tables
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -21,11 +21,11 @@
  */
 extern void NewRelationCreateToastTable(Oid relOid, Datum reloptions);
 extern void NewHeapCreateToastTable(Oid relOid, Datum reloptions,
-                        LOCKMODE lockmode);
+						LOCKMODE lockmode);
 extern void AlterTableCreateToastTable(Oid relOid, Datum reloptions,
-                           LOCKMODE lockmode);
+						   LOCKMODE lockmode);
 extern void BootstrapToastTable(char *relName,
-                    Oid toastOid, Oid toastIndexOid);
+					Oid toastOid, Oid toastIndexOid);
 
 
 /*
@@ -56,6 +56,19 @@ DECLARE_TOAST(pg_statistic, 2840, 2841);
 DECLARE_TOAST(pg_statistic_ext, 3439, 3440);
 DECLARE_TOAST(pg_trigger, 2336, 2337);
 
+/* opentenbase_ora package */
+DECLARE_TOAST(pg_package, 4218, 5105);
+
+DECLARE_TOAST(pg_compile, 5009, 5010);
+
+DECLARE_TOAST(pg_type_object, 5017, 5018);
+
+DECLARE_TOAST(pg_directory, 4810, 4811);
+
+/* spm plan */
+DECLARE_TOAST(pg_spm_plan, 4226, 5110);
+DECLARE_TOAST(pg_spm_plan_history, 4231, 5115);
+
 /* shared catalogs */
 DECLARE_TOAST(pg_shdescription, 2846, 2847);
 #define PgShdescriptionToastTable 2846
@@ -66,5 +79,8 @@ DECLARE_TOAST(pg_db_role_setting, 2966, 2967);
 DECLARE_TOAST(pg_shseclabel, 4060, 4061);
 #define PgShseclabelToastTable 4060
 #define PgShseclabelToastIndex 4061
+DECLARE_TOAST(pg_dbms_job, 9424, 9425);
+#define PgDbmsJobToastTable 9424
+#define PgDbmsJobToastIndex 9425
 
-#endif                            /* TOASTING_H */
+#endif							/* TOASTING_H */

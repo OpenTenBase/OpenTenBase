@@ -1,0 +1,42 @@
+%cn 3
+%cn_slave 1
+%dn 3
+%dn_slave1
+%gtm 1
+%gtm_slave 1
+
+connect conncn1 cn1
+
+connection conncn1
+
+create default node group default_group with ("dn1", "dn2", "dn3");
+
+create sharding group to group default_group;
+
+clean sharding;
+
+create table t(a int, b int);
+insert into t select
+generate_series(200,210);
+update
+t set b=a*a;
+
+select * from t order by a;
+
+send select * from t where a < 150 order by a;
+
+connect conncn1_2 cn1
+
+connection conncn1_2
+
+create table x(a int, b int);
+insert into x select generate_series(1,10);
+
+select * from x order by a;
+
+send select * from x where a > 5 order by a;
+
+reap conncn1
+
+
+reap conncn1_2

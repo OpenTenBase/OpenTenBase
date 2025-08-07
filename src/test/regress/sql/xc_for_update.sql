@@ -929,10 +929,131 @@ execute my_plan(1);
 
 -- ****  
 
+drop table if exists test_rr_for_update_share_shard_1 cascade;
+create table test_rr_for_update_share_shard_1 (id int, ename varchar, address text, score float, dt date, pt timestamp, creation_date timestamp default current_timestamp, primary key(id, ename));
+insert into test_rr_for_update_share_shard_1 select i, 'opentenbase'||i%2000, '深圳'||i%20, i, date'2020-01-01'+i*interval '1 hour', timestamp'2020-01-01 09:00:00'+i*interval '1 second' from generate_series(1, 10000) i;
+
+drop table if exists test_rr_for_update_share_replication_1 cascade;
+create table test_rr_for_update_share_replication_1(id int, ename varchar, address text, score float, dt date, pt timestamp, creation_date timestamp default current_timestamp) distribute by replication;
+insert into test_rr_for_update_share_replication_1 select i, 'opentenbase'||i%2000, '深圳'||i%20, i, date'2020-01-01'+i*interval '1 hour', timestamp'2020-01-01 09:00:00'+i*interval '1 second' from generate_series(100, 5000) i;
+
+drop table if exists test_rr_for_update_share_multi_shard_1 cascade;
+create table test_rr_for_update_share_multi_shard_1(id int, ename varchar, address text, score float, dt date, pt timestamp, creation_date timestamp default current_timestamp) distribute by shard(id,ename,pt);
+insert into test_rr_for_update_share_multi_shard_1 select i, 'opentenbase'||i%2000, '深圳'||i%20, i, date'2020-01-01'+i*interval '1 hour', timestamp'2020-01-01 09:00:00'+i*interval '1 second' from generate_series(200, 20000) i;
+
+drop table if exists test_rr_for_update_share_par_hash_1 cascade;
+create table test_rr_for_update_share_par_hash_1(id int, ename varchar, address text, score float, dt date, pt timestamp, creation_date timestamp default current_timestamp) partition by hash(pt) distribute by shard(id,ename,pt);
+create table test_rr_for_update_share_par_hash_1_part_0 partition of test_rr_for_update_share_par_hash_1 for values with (modulus 5, remainder 0);
+create table test_rr_for_update_share_par_hash_1_part_1 partition of test_rr_for_update_share_par_hash_1 for values with (modulus 5, remainder 1);
+create table test_rr_for_update_share_par_hash_1_part_2 partition of test_rr_for_update_share_par_hash_1 for values with (modulus 5, remainder 2);
+create table test_rr_for_update_share_par_hash_1_part_3 partition of test_rr_for_update_share_par_hash_1 for values with (modulus 5, remainder 3);
+create table test_rr_for_update_share_par_hash_1_part_4 partition of test_rr_for_update_share_par_hash_1 for values with (modulus 5, remainder 4);
+insert into test_rr_for_update_share_par_hash_1 select i, 'opentenbase'||i%2000, '深圳'||i%20, i, date'2020-01-01'+i*interval '1 hour', timestamp'2020-01-01 09:00:00'+i*interval '1 second' from generate_series(100, 22000) i;
+
+ -- error 2 for update
+ with cte_sub1 as (
+ select * from test_rr_for_update_share_multi_shard_1 where score <= 100 for update
+ ), cte_sub2 as (
+ select * from test_rr_for_update_share_par_hash_1 where id <= 500 for update
+ ) select count(1) from cte_sub1, cte_sub2 where cte_sub1.id = cte_sub2.id;
+
+-- ok for update
+ with cte_sub1 as (
+ select * from test_rr_for_update_share_multi_shard_1 where score <= 100
+ ), cte_sub2 as (
+ select * from test_rr_for_update_share_par_hash_1 where id <= 500 for update
+ ) select count(1) from cte_sub1, cte_sub2 where cte_sub1.id = cte_sub2.id;
+
+-- ok update with for update
+update test_rr_for_update_share_multi_shard_1 t1 set address=(select address from test_rr_for_update_share_par_hash_1 t2 where t1.id=t2.id for update) where id<=200;
+
 -- drop objects created
+drop table if exists test_rr_for_update_share_shard_1 cascade;
+drop table if exists test_rr_for_update_share_replication_1 cascade;
+drop table if exists test_rr_for_update_share_multi_shard_1 cascade;
+drop table if exists test_rr_for_update_share_par_hash_1 cascade;
+
 drop table c1;
 drop table p1;
 drop table t1;
 drop table t2;
 drop table t3;
 
+drop table if exists test_for_update_replication_1 cascade;
+create table test_for_update_replication_1(id int, ename varchar, address text, score float, dt date, pt timestamp, creation_date timestamp default current_timestamp) distribute by replication;
+insert into test_for_update_replication_1 select i, 'opentenbase'||i%2000, '深圳'||i%20, i, date'2020-01-01'+i*interval '1 hour', timestamp'2020-01-01 09:00:00'+i*interval '1 second' from generate_series(100, 105) i;
+-- expected send all dn
+explain select id,ename from test_for_update_replication_1 where id=100 for update;
+select id,ename from test_for_update_replication_1 where id=100 for update;
+
+create table test_replication_2 (id int, ename varchar, address text, score float, dt date, pt timestamp, creation_date timestamp default current_timestamp) distribute by replication;
+insert into test_replication_2 select i, 'opentenbase'||i%2000, '深圳'||i%20, i, date'2020-01-01'+i*interval '1 hour', timestamp'2020-01-01 09:00:00'+i*interval '1 second' from generate_series(100, 103) i;
+select ename,sum(score) from test_replication_2 t1 where exists (select 1 from (select * from test_for_update_replication_1 for update) t2 where t1.id=t2.id) group by ename order by 1;
+
+create table test_shard_1(id int, ename varchar, address text, score float, dt date, pt timestamp, creation_date timestamp default current_timestamp) distribute by shard(id);
+insert into test_shard_1 select i, 'opentenbase'||i%2000, '深圳'||i%20, i, date'2020-01-01'+i*interval '1 hour', timestamp'2020-01-01 09:00:00'+i*interval '1 second' from generate_series(100, 103) i;
+select ename,sum(score) from test_shard_1 t1 where exists (select 1 from (select * from test_for_update_replication_1 for update) t2 where t1.id=t2.id) group by ename order by 1;
+
+drop table test_for_update_replication_1;
+drop table test_replication_2;
+drop table test_shard_1;
+
+drop table if exists test_replication_union;
+create table test_replication_union(a int, b varchar(30)) distribute by replication;
+
+insert into test_replication_union values(1, 'xxx');
+insert into test_replication_union values(2, 'yyy');
+
+select b from (select b from test_replication_union for update) union select b from test_replication_union order by 1;
+select b from test_replication_union union select b from  (select b from test_replication_union for update) order by 1;
+select b from (select b from test_replication_union for update) union all select b from test_replication_union order by 1;
+select b from test_replication_union union all select b from  (select b from test_replication_union for update) order by 1;
+select b from (select b from test_replication_union for update) intersect select b from test_replication_union order by 1;
+select b from test_replication_union intersect select b from  (select b from test_replication_union for update) order by 1;
+
+create table test_shard_union(a int, b varchar(30)) distribute by shard(a);
+insert into test_shard_union values(1, 'aaa');
+insert into test_shard_union values(2, 'bbb');
+select b from (select b from test_shard_union for update) union select b from test_replication_union order by 1;
+select b from test_shard_union union select b from  (select b from test_replication_union for update) order by 1;
+select b from (select b from test_shard_union for update) union all select b from test_replication_union order by 1;
+select b from test_shard_union union all select b from  (select b from test_replication_union for update) order by 1;
+select b from (select b from test_shard_union for update) intersect select b from test_replication_union order by 1;
+select b from test_shard_union intersect select b from  (select b from test_replication_union for update) order by 1;
+
+drop table test_replication_union;
+drop table test_shard_union;
+
+drop table if exists t_student_20221113;
+create table t_student_20221113(id int primary key, name varchar(20), age int, sex int, point int) distribute by replication;
+insert into t_student_20221113 values(1, '张三', 15, 1, 93);
+insert into t_student_20221113 values(2, '李四', 20, 2, 90);
+insert into t_student_20221113 values(3, '王五', 19, 2, 85);
+insert into t_student_20221113 values(4, '李六', 30, 1, 73);
+insert into t_student_20221113 values(5, '李六', 20, 1, 88);
+insert into t_student_20221113 values(6, '赵六', 19, 2, 63);
+explain select * from t_student_20221113 order by id offset 2 rows fetch next 2 rows only for update;
+select * from t_student_20221113 order by id offset 2 rows fetch next 2 rows only for update;
+drop table t_student_20221113;
+
+drop table if exists subselect_tbl;
+CREATE TABLE subselect_tbl (f1 integer,f2 integer,f3 float) distribute by replication;
+
+INSERT INTO subselect_tbl VALUES (1, 2, 3);
+INSERT INTO subselect_tbl VALUES (2, 3, 4);
+INSERT INTO subselect_tbl VALUES (3, 4, 5);
+INSERT INTO subselect_tbl VALUES (1, 1, 1);
+INSERT INTO subselect_tbl VALUES (2, 2, 2);
+INSERT INTO subselect_tbl VALUES (3, 3, 3);
+INSERT INTO subselect_tbl VALUES (6, 7, 8);
+INSERT INTO subselect_tbl VALUES (8, 9, NULL);
+explain (verbose, costs off,nodes off)
+with x as (select * from (select f1 from subselect_tbl for update) ss)
+select * from x where f1 = 1;
+with x as (select * from (select f1 from subselect_tbl for update) ss)
+select * from x where f1 = 1;
+
+explain (verbose, costs off,nodes off)
+with x as (select * from subselect_tbl order by 1,2) select * from x for update;
+with x as (select * from subselect_tbl order by 1,2) select * from x for update;
+drop table subselect_tbl;

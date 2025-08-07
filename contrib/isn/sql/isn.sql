@@ -9,7 +9,7 @@ CREATE EXTENSION isn;
 SELECT amname, opcname
 FROM (SELECT amname, opcname, opc.oid
       FROM pg_opclass opc LEFT JOIN pg_am am ON am.oid = opcmethod
-      WHERE opc.oid >= 16384
+      WHERE opc.oid >= 32768
       ORDER BY 1, 2 OFFSET 0) ss
 WHERE NOT amvalidate(oid);
 

@@ -1,0 +1,37 @@
+%cn 1
+%cn_slave 0
+%dn 2
+%dn_slave 0
+%gtm 1
+%gtm_slave 0
+
+connect conn cn1
+connection conn
+
+create extension pg_clean;
+
+create resource group rgroup_seg_down with cpu_rate_limit 10 CONCURRENCY 10;
+
+set opentenbase_test_flag='resgroup_dn_down_2pc';
+
+sendblock alter resource group rgroup_seg_down set CONCURRENCY 20;
+
+sleep 3
+kill dn1
+
+reap conn
+
+start dn1
+
+sleep 10
+
+disconnect conn
+
+connect conn cn1
+connection conn
+
+select pg_clean_execute(10);
+
+select groupname, concurrency, cpu_rate_limit, memory_limit, cpuset from pg_resgroup_config;
+
+execute direct on(dn1) 'select groupname, concurrency, cpu_rate_limit, memory_limit, cpuset from pg_resgroup_config;';

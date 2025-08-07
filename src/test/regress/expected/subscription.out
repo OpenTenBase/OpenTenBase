@@ -176,6 +176,13 @@ COMMIT;
 ALTER SUBSCRIPTION testsub SET (slot_name = NONE);
 ERROR:  COORDINATOR only supports ALTER OPENTENBASE SUBSCRIPTION
 DETAIL:  The feature is not currently supported
+\dRs+
+                                              List of subscriptions
+  Name   |           Owner            | Enabled |     Publication     | Synchronous commit |       Conninfo       
+---------+----------------------------+---------+---------------------+--------------------+----------------------
+ testsub | regress_subscription_user2 | f       | {testpub2,testpub3} | local              | dbname=doesnotexist2
+(1 row)
+
 -- now it works
 BEGIN;
 DROP SUBSCRIPTION testsub;

@@ -1,15 +1,12 @@
 /*-------------------------------------------------------------------------
  *
  * bootstrap.h
- *      include file for the bootstrapping code
+ *	  include file for the bootstrapping code
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  * Portions Copyright (c) 2010-2012 Postgres-XC Development Group
- *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  * src/include/bootstrap/bootstrap.h
  *
@@ -25,10 +22,10 @@
  * MAXATTR is the maximum number of attributes in a relation supported
  * at bootstrap time (i.e., the max possible in a system table).
  */
-#define MAXATTR 40
+#define MAXATTR 45
 
-#define BOOTCOL_NULL_AUTO            1
-#define BOOTCOL_NULL_FORCE_NULL        2
+#define BOOTCOL_NULL_AUTO			1
+#define BOOTCOL_NULL_FORCE_NULL		2
 #define BOOTCOL_NULL_FORCE_NOT_NULL 3
 
 extern Relation boot_reldesc;
@@ -55,17 +52,20 @@ extern void index_register(Oid heap, Oid ind, IndexInfo *indexInfo);
 extern void build_indices(void);
 
 extern void boot_get_type_io_data(Oid typid,
-                      int16 *typlen,
-                      bool *typbyval,
-                      char *typalign,
-                      char *typdelim,
-                      Oid *typioparam,
-                      Oid *typinput,
-                      Oid *typoutput);
+					  int16 *typlen,
+					  bool *typbyval,
+					  char *typalign,
+					  char *typdelim,
+					  Oid *typioparam,
+					  Oid *typinput,
+					  Oid *typoutput);
 
-extern int    boot_yyparse(void);
+extern int	boot_yyparse(void);
 
-extern int    boot_yylex(void);
+extern int	boot_yylex(void);
 extern void boot_yyerror(const char *str) pg_attribute_noreturn();
+#ifdef __OPENTENBASE_C__
+extern void gettype_info(int num, Oid *oids, int16 *lens, bool *byvals);
+#endif
 
-#endif                            /* BOOTSTRAP_H */
+#endif							/* BOOTSTRAP_H */

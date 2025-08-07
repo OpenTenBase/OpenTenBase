@@ -1,0 +1,673 @@
+--
+-- COPY
+--
+-- CLASS POPULATION
+--	(any resemblance to real life is purely coincidental)
+--
+COPY aggtest FROM '@abs_srcdir@/data/agg.data';
+COPY onek FROM '@abs_srcdir@/data/onek.data';
+COPY onek TO '@abs_builddir@/results/onek.data';
+DELETE FROM onek;
+COPY onek FROM '@abs_builddir@/results/onek.data';
+COPY tenk1 FROM '@abs_srcdir@/data/tenk.data';
+COPY slow_emp4000 FROM '@abs_srcdir@/data/rect.data';
+COPY person FROM '@abs_srcdir@/data/person.data';
+COPY emp FROM '@abs_srcdir@/data/emp.data';
+COPY student FROM '@abs_srcdir@/data/student.data';
+COPY stud_emp FROM '@abs_srcdir@/data/stud_emp.data';
+COPY road FROM '@abs_srcdir@/data/streets.data';
+COPY real_city FROM '@abs_srcdir@/data/real_city.data';
+COPY hash_i4_heap FROM '@abs_srcdir@/data/hash.data';
+COPY hash_name_heap FROM '@abs_srcdir@/data/hash.data';
+COPY hash_txt_heap FROM '@abs_srcdir@/data/hash.data';
+COPY hash_f8_heap FROM '@abs_srcdir@/data/hash.data';
+COPY test_tsvector FROM '@abs_srcdir@/data/tsearch.data';
+COPY testjsonb FROM '@abs_srcdir@/data/jsonb.data';
+-- the data in this file has a lot of duplicates in the index key
+-- fields, leading to long bucket chains and lots of table expansion.
+-- this is therefore a stress test of the bucket overflow code (unlike
+-- the data in hash.data, which has unique index keys).
+--
+-- COPY hash_ovfl_heap FROM '@abs_srcdir@/data/hashovfl.data';
+COPY bt_i4_heap FROM '@abs_srcdir@/data/desc.data';
+COPY bt_name_heap FROM '@abs_srcdir@/data/hash.data';
+COPY bt_txt_heap FROM '@abs_srcdir@/data/desc.data';
+COPY bt_f8_heap FROM '@abs_srcdir@/data/hash.data';
+COPY array_op_test FROM '@abs_srcdir@/data/array.data';
+COPY array_index_op_test FROM '@abs_srcdir@/data/array.data';
+-- analyze all the data we just loaded, to ensure plan consistency
+-- in later tests
+ANALYZE aggtest;
+ANALYZE onek;
+ANALYZE tenk1;
+ANALYZE slow_emp4000;
+ANALYZE person;
+ANALYZE emp;
+ANALYZE student;
+ANALYZE stud_emp;
+ANALYZE road;
+ANALYZE real_city;
+ANALYZE hash_i4_heap;
+ANALYZE hash_name_heap;
+ANALYZE hash_txt_heap;
+ANALYZE hash_f8_heap;
+ANALYZE test_tsvector;
+ANALYZE bt_i4_heap;
+ANALYZE bt_name_heap;
+ANALYZE bt_txt_heap;
+ANALYZE bt_f8_heap;
+ANALYZE array_op_test;
+ANALYZE array_index_op_test;
+--- test copying in CSV mode with various styles
+--- of embedded line ending characters
+create temp table copytest (
+	style	text,
+	test 	text,
+	filler	int);
+insert into copytest values('DOS',E'abc\r\ndef',1);
+insert into copytest values('Unix',E'abc\ndef',2);
+insert into copytest values('Mac',E'abc\rdef',3);
+insert into copytest values(E'esc\\ape',E'a\\r\\\r\\\n\\nb',4);
+copy copytest to '@abs_builddir@/results/copytest.csv' csv;
+create temp table copytest2 (
+	style	text,
+	test 	text,
+	filler	int);
+copy copytest2 from '@abs_builddir@/results/copytest.csv' csv;
+select * from copytest except select * from copytest2;
+ style | test | filler 
+-------+------+--------
+(0 rows)
+
+truncate copytest2;
+--- same test but with an escape char different from quote char
+copy copytest to '@abs_builddir@/results/copytest.csv' csv quote '''' escape E'\\';
+copy copytest2 from '@abs_builddir@/results/copytest.csv' csv quote '''' escape E'\\';
+select * from copytest except select * from copytest2;
+ style | test | filler 
+-------+------+--------
+(0 rows)
+
+-- test header line feature
+create temp table copytest3 (
+	c1 int,
+	"col with , comma" text,
+	"col with "" quote"  int);
+copy copytest3 from stdin csv header;
+copy copytest3 to stdout csv header;
+c1,"col with , comma","col with "" quote"
+1,a,1
+2,b,2
+\c regression_ora
+-- copy with fault tolerance
+create table test_cp(f1 smallint, f2 integer, f3 bigint, f4 decimal, f5 numeric, f6 numeric(10), f7 numeric(10,5), f8 real ,f9 double precision, f10 money, f11 varchar(10), f12 char(15), f13 text, f14 timestamp without time zone, f15 boolean, f16 varchar(15));
+copy test_cp from '@abs_srcdir@/data/copy_utf8.data' encoding 'UTF8' delimiter ',';
+ERROR:  invalid byte sequence for encoding "UTF8": 0xe4 0xf0 0xe0
+CONTEXT:  COPY TEST_CP, line 1, nodetype:0(1:cn,0:dn)
+select * from test_cp order by 1, 2, 3, 4;
+ F1 | F2 | F3 | F4 | F5 | F6 | F7 | F8 | F9 | F10 | F11 | F12 | F13 | F14 | F15 | F16 
+----+----+----+----+----+----+----+----+----+-----+-----+-----+-----+-----+-----+-----
+(0 rows)
+
+copy test_cp from '@abs_srcdir@/data/copy_utf8.data' encoding 'UTF8' delimiter ',' COMPATIBLE_ILLEGAL_CHARS;
+ERROR:  missing data for column "F13"
+CONTEXT:  COPY TEST_CP, line 2: "11,22,33,44,55,12345.6789,12345.6789,12345.6789,12345.6789,12345.67,a???国c,?cccc", nodetype:0(1:cn,0:dn)
+select * from test_cp order by 1, 2, 3, 4;
+ F1 | F2 | F3 | F4 | F5 | F6 | F7 | F8 | F9 | F10 | F11 | F12 | F13 | F14 | F15 | F16 
+----+----+----+----+----+----+----+----+----+-----+-----+-----+-----+-----+-----+-----
+(0 rows)
+
+copy test_cp from '@abs_srcdir@/data/copy_utf8.data' encoding 'UTF8' delimiter ',' COMPATIBLE_ILLEGAL_CHARS FILL_MISSING_FIELDS ;
+ERROR:  extra data after last expected column
+CONTEXT:  COPY TEST_CP, line 3: "111,222,3,4,5,12345.6789,12345.6789,12345.6789,12345.6789,12345.67,a???国c,?cccc,ddddddd,2023-05-01...", nodetype:0(1:cn,0:dn)
+select * from test_cp order by 1, 2, 3, 4;
+ F1 | F2 | F3 | F4 | F5 | F6 | F7 | F8 | F9 | F10 | F11 | F12 | F13 | F14 | F15 | F16 
+----+----+----+----+----+----+----+----+----+-----+-----+-----+-----+-----+-----+-----
+(0 rows)
+
+copy test_cp from '@abs_srcdir@/data/copy_utf8.data' encoding 'UTF8' delimiter ',' COMPATIBLE_ILLEGAL_CHARS IGNORE_EXTRA_DATA FILL_MISSING_FIELDS;
+select * from test_cp order by 1, 2, 3, 4;
+ F1  | F2  | F3 | F4 | F5 |  F6   |     F7     |    F8     |     F9     |    F10     |   F11   |       F12       |   F13   |           F14            | F15 |    F16     
+-----+-----+----+----+----+-------+------------+-----------+------------+------------+---------+-----------------+---------+--------------------------+-----+------------
+   1 |   2 |  3 |  4 |  5 | 12346 | 12345.6789 | 12345.679 | 12345.6789 | $12,345.67 | a???国c | ?cccc           | ddddddd | Mon May 01 10:10:10 2023 | t   | eeeeeeeeee
+  11 |  22 | 33 | 44 | 55 | 12346 | 12345.6789 | 12345.679 | 12345.6789 | $12,345.67 | a???国c | ?cccc           |         |                          |     | 
+ 111 | 222 |  3 |  4 |  5 | 12346 | 12345.6789 | 12345.679 | 12345.6789 | $12,345.67 | a???国c | ?cccc           | ddddddd | Mon May 01 10:10:10 2023 | t   | eeeeeeeeee
+(3 rows)
+
+truncate test_cp;
+copy test_cp from '@abs_srcdir@/data/copy_utf8.data' encoding 'UTF8' delimiter ',' COMPATIBLE_ILLEGAL_CHARS '%' IGNORE_EXTRA_DATA FILL_MISSING_FIELDS;
+select * from test_cp order by 1, 2, 3, 4;
+ F1  | F2  | F3 | F4 | F5 |  F6   |     F7     |    F8     |     F9     |    F10     |   F11   |       F12       |   F13   |           F14            | F15 |    F16     
+-----+-----+----+----+----+-------+------------+-----------+------------+------------+---------+-----------------+---------+--------------------------+-----+------------
+   1 |   2 |  3 |  4 |  5 | 12346 | 12345.6789 | 12345.679 | 12345.6789 | $12,345.67 | a%%%国c | %cccc           | ddddddd | Mon May 01 10:10:10 2023 | t   | eeeeeeeeee
+  11 |  22 | 33 | 44 | 55 | 12346 | 12345.6789 | 12345.679 | 12345.6789 | $12,345.67 | a%%%国c | %cccc           |         |                          |     | 
+ 111 | 222 |  3 |  4 |  5 | 12346 | 12345.6789 | 12345.679 | 12345.6789 | $12,345.67 | a%%%国c | %cccc           | ddddddd | Mon May 01 10:10:10 2023 | t   | eeeeeeeeee
+(3 rows)
+
+truncate test_cp;
+copy test_cp from '@abs_srcdir@/data/copy_utf8.data' (encoding 'UTF8', delimiter ',', COMPATIBLE_ILLEGAL_CHARS 'on', IGNORE_EXTRA_DATA on, FILL_MISSING_FIELDS on);
+select * from test_cp order by 1, 2, 3, 4;
+ F1  | F2  | F3 | F4 | F5 |  F6   |     F7     |    F8     |     F9     |    F10     |   F11   |       F12       |   F13   |           F14            | F15 |    F16     
+-----+-----+----+----+----+-------+------------+-----------+------------+------------+---------+-----------------+---------+--------------------------+-----+------------
+   1 |   2 |  3 |  4 |  5 | 12346 | 12345.6789 | 12345.679 | 12345.6789 | $12,345.67 | a???国c | ?cccc           | ddddddd | Mon May 01 10:10:10 2023 | t   | eeeeeeeeee
+  11 |  22 | 33 | 44 | 55 | 12346 | 12345.6789 | 12345.679 | 12345.6789 | $12,345.67 | a???国c | ?cccc           |         |                          |     | 
+ 111 | 222 |  3 |  4 |  5 | 12346 | 12345.6789 | 12345.679 | 12345.6789 | $12,345.67 | a???国c | ?cccc           | ddddddd | Mon May 01 10:10:10 2023 | t   | eeeeeeeeee
+(3 rows)
+
+truncate test_cp;
+copy test_cp from '@abs_srcdir@/data/copy_utf8.data' (encoding 'UTF8', delimiter ',', COMPATIBLE_ILLEGAL_CHARS 'off', IGNORE_EXTRA_DATA on, FILL_MISSING_FIELDS on);
+ERROR:  invalid byte sequence for encoding "UTF8": 0xe4 0xf0 0xe0
+CONTEXT:  COPY TEST_CP, line 1, nodetype:0(1:cn,0:dn)
+select * from test_cp order by 1, 2, 3, 4;
+ F1 | F2 | F3 | F4 | F5 | F6 | F7 | F8 | F9 | F10 | F11 | F12 | F13 | F14 | F15 | F16 
+----+----+----+----+----+----+----+----+----+-----+-----+-----+-----+-----+-----+-----
+(0 rows)
+
+truncate test_cp;
+copy test_cp from '@abs_srcdir@/data/copy_utf8.data' (encoding 'UTF8', delimiter ',', COMPATIBLE_ILLEGAL_CHARS 'true', IGNORE_EXTRA_DATA on, FILL_MISSING_FIELDS on);
+select * from test_cp order by 1, 2, 3, 4;
+ F1  | F2  | F3 | F4 | F5 |  F6   |     F7     |    F8     |     F9     |    F10     |   F11   |       F12       |   F13   |           F14            | F15 |    F16     
+-----+-----+----+----+----+-------+------------+-----------+------------+------------+---------+-----------------+---------+--------------------------+-----+------------
+   1 |   2 |  3 |  4 |  5 | 12346 | 12345.6789 | 12345.679 | 12345.6789 | $12,345.67 | a???国c | ?cccc           | ddddddd | Mon May 01 10:10:10 2023 | t   | eeeeeeeeee
+  11 |  22 | 33 | 44 | 55 | 12346 | 12345.6789 | 12345.679 | 12345.6789 | $12,345.67 | a???国c | ?cccc           |         |                          |     | 
+ 111 | 222 |  3 |  4 |  5 | 12346 | 12345.6789 | 12345.679 | 12345.6789 | $12,345.67 | a???国c | ?cccc           | ddddddd | Mon May 01 10:10:10 2023 | t   | eeeeeeeeee
+(3 rows)
+
+truncate test_cp;
+copy test_cp from '@abs_srcdir@/data/copy_utf8.data' (encoding 'UTF8', delimiter ',', COMPATIBLE_ILLEGAL_CHARS 'false', IGNORE_EXTRA_DATA on, FILL_MISSING_FIELDS on);
+ERROR:  invalid byte sequence for encoding "UTF8": 0xe4 0xf0 0xe0
+CONTEXT:  COPY TEST_CP, line 1, nodetype:0(1:cn,0:dn)
+select * from test_cp order by 1, 2, 3, 4;
+ F1 | F2 | F3 | F4 | F5 | F6 | F7 | F8 | F9 | F10 | F11 | F12 | F13 | F14 | F15 | F16 
+----+----+----+----+----+----+----+----+----+-----+-----+-----+-----+-----+-----+-----
+(0 rows)
+
+copy test_cp from '@abs_srcdir@/data/copy_gb18030.data' fixed formatter(f1(5), f2(5), f3(5), f4(5), f5(6), f6(6), f7 with truncate(6), f8(7), f9 with truncate(7), f10 with truncate(8), f13 with truncate(2), f14 with truncate(10), f15(8)) encoding 'GB18030';
+select * from test_cp order by 1, 2, 3, 4;
+ F1 | F2 | F3 | F4 | F5 |  F6   |  F7   |   F8    |   F9    |    F10     |   F11   |       F12       | F13 |           F14            | F15 |    F16     
+----+----+----+----+----+-------+-------+---------+---------+------------+---------+-----------------+-----+--------------------------+-----+------------
+  1 |  2 |  3 |  4 |  5 | 12346 | 12345 | 12345.7 | 12345.6 | $12,345.00 | a腾讯c  | cc c            | d   | Mon May 01 00:00:00 2023 | t   | eeeeeeeeee
+  1 |  2 |  3 |  4 |  5 | 12346 | 12345 | 12345.7 | 12345.6 | $12,345.00 | a c阿里 | cc c            | d   | Mon May 01 00:00:00 2023 | t   | eeeeeeeeee
+(2 rows)
+
+drop table test_cp;
+drop table if exists data_2023_0613_33 cascade ;
+NOTICE:  table "DATA_2023_0613_33" does not exist, skipping
+drop table if exists test_2023_0613_33 cascade ;
+NOTICE:  table "TEST_2023_0613_33" does not exist, skipping
+create table data_2023_0613_33(data text);
+create table test_2023_0613_33(test text);
+insert into data_2023_0613_33 values('中华人民共和国'), ('祖国统一'), ('台湾省回归');
+select *, length(data) from data_2023_0613_33 order by 1;
+      DATA      | LENGTH 
+----------------+--------
+ 中华人民共和国 |      7
+ 台湾省回归     |      5
+ 祖国统一       |      4
+(3 rows)
+
+-- gbk，使用定长导入
+\copy data_2023_0613_33 to '@abs_srcdir@/results/data_2023_0613_33.csv' fixed encoding 'gbk' formatter(data with truncate (10));
+\copy test_2023_0613_33 from  '@abs_srcdir@/results/data_2023_0613_33.csv' fixed compatible_illegal_chars encoding 'gbk' formatter(test (10));
+select * from test_2023_0613_33 order by 1;
+      TEST      
+----------------
+ 中华人民共和国
+ 台湾省回归
+ 祖国统一
+(3 rows)
+
+select *, length(test) from test_2023_0613_33 order by 1;
+      TEST      | LENGTH 
+----------------+--------
+ 中华人民共和国 |      7
+ 台湾省回归     |      5
+ 祖国统一       |      4
+(3 rows)
+
+-- gbk，不使用定长导入
+truncate table test_2023_0613_33;
+\copy test_2023_0613_33 from  '@abs_srcdir@/results/data_2023_0613_33.csv' compatible_illegal_chars encoding 'gbk';
+select * from test_2023_0613_33 order by 1;
+       TEST        
+-------------------
+ 中华人民共和国   
+ 台湾省回归     
+ 祖国统一      
+(3 rows)
+
+select *, length(test) from test_2023_0613_33 order by 1;
+       TEST        | LENGTH 
+-------------------+--------
+ 中华人民共和国    |     10
+ 台湾省回归        |     10
+ 祖国统一          |     10
+(3 rows)
+
+drop table if exists data_2023_0613_33 cascade ;
+drop table if exists test_2023_0613_33 cascade ;
+drop table if exists data_20230613_34 cascade ;
+NOTICE:  table "DATA_20230613_34" does not exist, skipping
+drop table if exists test_20230613_34 cascade ;
+NOTICE:  table "TEST_20230613_34" does not exist, skipping
+create table data_20230613_34(id int, f1 char(10), f2 varchar(10), f3 numeric(10,5));
+create table test_20230613_34(id int, f1 char(10), f2 varchar(10), f3 numeric(10,5)) distribute by replication;
+insert into data_20230613_34 values (222222, 'hijkkkkkkk', 'h', 2333.12345);
+insert into data_20230613_34 values (1111, 'hijkkkk', 'hijkllllll', 2333.12345);
+insert into data_20230613_34 values (444444, 'hijkkkkkkk', 'hijklll', 2333.12345);
+\copy data_20230613_34 to '@abs_srcdir@/results/data_20230613_34.csv' fixed formatter(id with truncate(3),f2 with truncate (8), f3 with truncate (8)) ;
+CREATE OR REPLACE PROCEDURE position_pro_2023_0613_34() LANGUAGE SQL as $$
+    copy test_20230613_34 from '@abs_srcdir@/results/data_20230613_34.csv'  fixed formatter(id with truncate(3),f2 with truncate (8), f3 with truncate (8));
+$$;
+call position_pro_2023_0613_34();
+select * from test_20230613_34 order by 1,2,3,4;
+ ID  |     F1     |    F2    |    F3    
+-----+------------+----------+----------
+ 111 | hijkkkk    | hijkllll | 2333.123
+ 222 | hijkkkkkkk | h        | 2333.123
+ 444 | hijkkkkkkk | hijklll  | 2333.123
+(3 rows)
+
+drop table data_20230613_34 cascade ;
+drop table test_20230613_34 cascade ;
+-- delimiter加测
+drop table if exists data_2023_0607_5 cascade ;
+NOTICE:  table "DATA_2023_0607_5" does not exist, skipping
+drop table test_2023_0607_5 cascade ;
+ERROR:  table "TEST_2023_0607_5" does not exist
+create table data_2023_0607_5(data text);
+create table test_2023_0607_5(test text);
+insert into data_2023_0607_5 values('中华人民共和国'), ('祖国统一'), ('台湾省回归');
+set client_encoding TO 'gbk';
+\copy data_2023_0607_5 to '@abs_srcdir@/data/data_2023_0607_5.csv' (format csv, encoding gbk, delimiter '??');
+reset client_encoding;
+-- 不加容错参数，报错
+\copy test_2023_0607_5 from  '@abs_srcdir@/data/data_2023_0607_5.csv' (format csv, delimiter '??');
+ERROR:  invalid byte sequence for encoding "UTF8": 0xd6 0xd0
+CONTEXT:  COPY TEST_2023_0607_5, line 1, nodetype:0(1:cn,0:dn)
+-- 加容错参数，导入成功
+\copy test_2023_0607_5 from  '@abs_srcdir@/data/data_2023_0607_5.csv' (format csv, delimiter '??', compatible_illegal_chars '@');
+select count(1) from test_2023_0607_5 order by 1;
+ COUNT 
+-------
+     3
+(1 row)
+
+-- 加容错参数，指定替换符'?'，delimiter'??'，不报错，但是导入失败
+truncate table test_2023_0607_5;
+\copy test_2023_0607_5 from  '@abs_srcdir@/data/data_2023_0607_5.csv'  (format csv, compatible_illegal_chars '?', delimiter '??');
+ERROR:  illegal chars conversion may confuse COPY delimiter 0x3f
+select * from test_2023_0607_5 order by 1;
+ TEST 
+------
+(0 rows)
+
+\copy test_2023_0607_5 from  '@abs_srcdir@/data/data_2023_0607_5.csv'  (format csv, compatible_illegal_chars '?', delimiter '?');
+ERROR:  illegal chars conversion may confuse COPY delimiter 0x3f
+drop table data_2023_0607_5 cascade ;
+drop table test_2023_0607_5 cascade ;
+-- fix 'there is another connection from coordinator running', Global_session clearing is performed for connections in the error state, and default clearing is performed for normal connections
+\c regression_ora
+drop table if exists pre_position_pck;
+NOTICE:  table "PRE_POSITION_PCK" does not exist, skipping
+create table pre_position_pck(text varchar);
+insert into pre_position_pck values ('测试4567892020801'), ('中文bcdefghi2020601'), ('英语EFGHI202070100');
+copy (select * from pre_position_pck) to '@abs_srcdir@/data/pre_position_pck.csv';
+drop table if exists copy_pck_tb1;
+NOTICE:  table "COPY_PCK_TB1" does not exist, skipping
+create table copy_pck_tb1(f1 varchar(3) primary key,f2 varchar(3),f3 varchar(30));
+drop package copy_pck;
+ERROR:  package corresponding namespace "COPY_PCK" does not exist
+HINT:  Please check catalog.
+CREATE OR REPLACE PACKAGE copy_pck AUTHID DEFINER AS
+  PROCEDURE p1 ;
+end;
+/
+CREATE OR REPLACE PACKAGE body copy_pck AS
+  PROCEDURE p1 ()
+  IS
+  BEGIN
+    copy copy_pck_tb1(f1 position(1:3),f2 position (4:6),f3 position (7:30)) from '/data/opentenbase/OpenTenBase-V3.0/src/test/regress_dn/data/pre_position_pck.csv' encoding 'UTF8';
+  EXCEPTION
+    WHEN others THEN
+     truncate table copy_pck_tb1;
+     copy copy_pck_tb1(f1 position(1:3),f2 position (4:6),f3 position (9:30)) from '/data/opentenbase/OpenTenBase-V3.0/src/test/regress_dn/data/pre_position_pck.csv' encoding 'UTF8';
+  END;
+end;
+/
+declare
+begin
+call copy_pck.p1();
+end;
+/
+--copy_package2.sql
+select * from copy_pck_tb1 order by f1;
+ F1 | F2 |       F3        
+----+----+-----------------
+ 中 | 文 | bcdefghi2020601
+ 测 | 试 | 4567892020801
+ 英 | 语 | EFGHI202070100
+(3 rows)
+
+declare
+begin
+call copy_pck.p1();
+end;
+/
+select * from copy_pck_tb1 order by f3;
+ F1 | F2 |      F3       
+----+----+---------------
+ 测 | 试 | 67892020801
+ 中 | 文 | defghi2020601
+ 英 | 语 | GHI202070100
+(3 rows)
+
+drop package copy_pck;
+drop table copy_pck_tb1;
+drop table pre_position_pck;
+--copy position, fixed core in enlargeStringInfo function
+DROP TABLE if exists cr_info_jb2_tmp;
+NOTICE:  table "CR_INFO_JB2_TMP" does not exist, skipping
+CREATE TABLE cr_info_jb2_tmp (
+    insttu_code character varying(2) NOT NULL,
+    credit_no character varying(20),
+    cr_type character varying(5),
+    cr_purpose_code character varying(5),
+    cr_limit_amt numeric(15,2),
+    lmt_no character varying(30),
+    eff_bdt timestamp(0) without time zone,
+    end_bdt timestamp(0) without time zone,
+    cr_tnr_mth_num numeric(4,0),
+    revv_ind character varying(1),
+    cr_stat character varying(1),
+    crd_sdt timestamp(0) without time zone,
+    rate_mode_code character varying(2),
+    next_repc_code character varying(3),
+    fix_next_repc_bdt character varying(10),
+    next_rate_freq_num numeric(2,0),
+    next_rate_freq_unit_code character varying(1),
+    rate_type character varying(2),
+    base_rate numeric(9,7),
+    rate_sprd_num numeric(8,6),
+    mg_bch_code character varying(7),
+    int_adj_pct numeric(8,6),
+    od_int_adj_pct numeric(8,6),
+    od_int_sprd_rate numeric(8,6),
+    cr_end_desc character varying(100),
+    disb_acct_no character varying(18),
+    disb_name character varying(120),
+    disb_bch_code character varying(7),
+    disb_acct_type character varying(2),
+    paym_acct_no character varying(18),
+    paym_name character varying(120),
+    paym_bch_code character varying(7),
+    paym_acct_type character varying(2),
+    paym_freq_num numeric(3,0),
+    paym_freq_unit_code character varying(1),
+    proj_code character varying(12),
+    main_guar_type character varying(1),
+    self_amt numeric(15,2),
+    cust_no character varying(30),
+    self_eff_bdt timestamp(0) without time zone,
+    self_tnr_mth_num numeric(3,0),
+    due_day_num numeric(2,0),
+    short_self_ind character varying(1),
+    short_paym_type character varying(1),
+    cr_src_flag character varying(3),
+    cust_mgr_code character varying(30),
+    bch_community_code character varying(7),
+    book_amt numeric(15,2),
+    utlz_amt numeric(15,2),
+    book_self_amt numeric(15,2),
+    utlz_self_amt numeric(15,2),
+    tx_rmk character varying(100),
+    ver numeric(3,0),
+    last_altr_date timestamp(0) without time zone,
+    last_altr_user character varying(50),
+        cr_appl_no character varying(80),
+    enbd_exp_sdt timestamp(0) without time zone,
+    core_flag character varying(1),
+    mv_sdt timestamp(0) without time zone,
+    core_eff_sdt timestamp(0) without time zone,
+    cntl_sdt timestamp(0) without time zone
+)
+DISTRIBUTE BY SHARD (insttu_code);
+\copy CR_INFO_JB2_TMP(INSTTU_CODE position(1:2) trim($1), CREDIT_NO position(3:22) trim($2), CR_TYPE position(23:27) trim($3), CR_PURPOSE_CODE position(28:32) trim($4), CR_LIMIT_AMT position(33:49) (trim($5)::decimal), EFF_BDT position(50:63) to_date(trim($6), 'yyyymmddhh24miss'), END_BDT position(64:77) to_date(trim($7), 'yyyymmddhh24miss'), CR_TNR_MTH_NUM position(78:83) (trim($8)::decimal), REVV_IND position(84:84) trim($9), CR_STAT position(85:85) trim($10), CRD_SDT position(86:99) to_date(trim($11), 'yyyymmddhh24miss'), RATE_MODE_CODE position(100:101) trim($12), NEXT_REPC_CODE position(102:104) trim($13), FIX_NEXT_REPC_BDT position(105:118) to_date(trim($14), 'yyyymmddhh24miss'), NEXT_RATE_FREQ_NUM position(119:122) cast(nullif(trim($15),'') as decimal), NEXT_RATE_FREQ_UNIT_CODE position(123:123) trim($16), RATE_TYPE position(124:125) trim($17), BASE_RATE position(126:136) (trim($18)::decimal), RATE_SPRD_NUM position(137:146) (trim($19)::decimal), MG_BCH_CODE position(147:153) trim($20), INT_ADJ_PCT position(154:163) (trim($21)::decimal), OD_INT_ADJ_PCT position(164:173) (trim($22)::decimal), OD_INT_SPRD_RATE position(174:183) (trim($23)::decimal), CR_END_DESC position(184:283) trim($24), DISB_ACCT_NO position(284:301) trim($25), DISB_NAME position(302:361) trim($26), DISB_BCH_CODE position(362:368) trim($27), DISB_ACCT_TYPE position(369:370) trim($28), PAYM_ACCT_NO position(371:388) trim($29), PAYM_NAME position(389:508) trim($30), PAYM_BCH_CODE position(509:515) trim($31), PAYM_ACCT_TYPE position(516:517) trim($32), PAYM_FREQ_NUM position(518:522) cast(nullif(trim($33),'') as decimal), PAYM_FREQ_UNIT_CODE position(523:523) trim($34), PROJ_CODE position(524:535) trim($35), MAIN_GUAR_TYPE position(536:536) trim($36), SELF_AMT position(537:553) (trim($37)::decimal), CUST_NO position(554:583) trim($38), SELF_EFF_BDT position(584:597) to_date(trim($39), 'yyyymmddhh24miss'), SELF_TNR_MTH_NUM position(598:602) (trim($40)::decimal), DUE_DAY_NUM position(603:606) (trim($41)::decimal), SHORT_SELF_IND position(607:607) trim($42), SHORT_PAYM_TYPE position(608:608) trim($43), CR_SRC_FLAG position(609:611) trim($44), CUST_MGR_CODE position(612:641) trim($45), BCH_COMMUNITY_CODE position(642:648) trim($46), BOOK_AMT position(649:665) (trim($47)::decimal), UTLZ_AMT position(666:682) (trim($48)::decimal), BOOK_SELF_AMT position(683:699) (trim($49)::decimal), UTLZ_SELF_AMT position(700:716) (trim($50)::decimal), TX_RMK position(717:816) trim($51), VER position(817:821) (trim($52)::decimal), LAST_ALTR_DATE position(822:835) to_date(trim($53), 'yyyymmddhh24miss'), LAST_ALTR_USER position(836:865) trim($54), CR_APPL_NO position(866:929) trim($55), ENBD_EXP_SDT position(930:943) to_date(trim($56), 'yyyymmddhh24miss'), CORE_FLAG position(944:944) trim($57), MV_SDT position(945:958) to_date(trim($58), 'yyyymmddhh24miss'), CORE_EFF_SDT position(959:972) to_date(trim($59), 'yyyymmddhh24miss'), CNTL_SDT position(973:986) to_date(trim($60), 'yyyymmddhh24miss')) from '@abs_srcdir@/data/CR_INFO.20220803.000000.0000.dat' encoding 'gbk';
+select count(1) from CR_INFO_JB2_TMP;
+ COUNT 
+-------
+    21
+(1 row)
+
+truncate cr_info_jb2_tmp;
+-- test csv
+\copy CR_INFO_JB2_TMP(INSTTU_CODE position(1:2) trim($1), CREDIT_NO position(3:22) trim($2), CR_TYPE position(23:27) trim($3), CR_PURPOSE_CODE position(28:32) trim($4), CR_LIMIT_AMT position(33:49) (trim($5)::decimal), EFF_BDT position(50:63) to_date(trim($6), 'yyyymmddhh24miss'), END_BDT position(64:77) to_date(trim($7), 'yyyymmddhh24miss'), CR_TNR_MTH_NUM position(78:83) (trim($8)::decimal), REVV_IND position(84:84) trim($9), CR_STAT position(85:85) trim($10), CRD_SDT position(86:99) to_date(trim($11), 'yyyymmddhh24miss'), RATE_MODE_CODE position(100:101) trim($12), NEXT_REPC_CODE position(102:104) trim($13), FIX_NEXT_REPC_BDT position(105:118) to_date(trim($14), 'yyyymmddhh24miss'), NEXT_RATE_FREQ_NUM position(119:122) cast(nullif(trim($15),'') as decimal), NEXT_RATE_FREQ_UNIT_CODE position(123:123) trim($16), RATE_TYPE position(124:125) trim($17), BASE_RATE position(126:136) (trim($18)::decimal), RATE_SPRD_NUM position(137:146) (trim($19)::decimal), MG_BCH_CODE position(147:153) trim($20), INT_ADJ_PCT position(154:163) (trim($21)::decimal), OD_INT_ADJ_PCT position(164:173) (trim($22)::decimal), OD_INT_SPRD_RATE position(174:183) (trim($23)::decimal), CR_END_DESC position(184:283) trim($24), DISB_ACCT_NO position(284:301) trim($25), DISB_NAME position(302:361) trim($26), DISB_BCH_CODE position(362:368) trim($27), DISB_ACCT_TYPE position(369:370) trim($28), PAYM_ACCT_NO position(371:388) trim($29), PAYM_NAME position(389:508) trim($30), PAYM_BCH_CODE position(509:515) trim($31), PAYM_ACCT_TYPE position(516:517) trim($32), PAYM_FREQ_NUM position(518:522) cast(nullif(trim($33),'') as decimal), PAYM_FREQ_UNIT_CODE position(523:523) trim($34), PROJ_CODE position(524:535) trim($35), MAIN_GUAR_TYPE position(536:536) trim($36), SELF_AMT position(537:553) (trim($37)::decimal), CUST_NO position(554:583) trim($38), SELF_EFF_BDT position(584:597) to_date(trim($39), 'yyyymmddhh24miss'), SELF_TNR_MTH_NUM position(598:602) (trim($40)::decimal), DUE_DAY_NUM position(603:606) (trim($41)::decimal), SHORT_SELF_IND position(607:607) trim($42), SHORT_PAYM_TYPE position(608:608) trim($43), CR_SRC_FLAG position(609:611) trim($44), CUST_MGR_CODE position(612:641) trim($45), BCH_COMMUNITY_CODE position(642:648) trim($46), BOOK_AMT position(649:665) (trim($47)::decimal), UTLZ_AMT position(666:682) (trim($48)::decimal), BOOK_SELF_AMT position(683:699) (trim($49)::decimal), UTLZ_SELF_AMT position(700:716) (trim($50)::decimal), TX_RMK position(717:816) trim($51), VER position(817:821) (trim($52)::decimal), LAST_ALTR_DATE position(822:835) to_date(trim($53), 'yyyymmddhh24miss'), LAST_ALTR_USER position(836:865) trim($54), CR_APPL_NO position(866:929) trim($55), ENBD_EXP_SDT position(930:943) to_date(trim($56), 'yyyymmddhh24miss'), CORE_FLAG position(944:944) trim($57), MV_SDT position(945:958) to_date(trim($58), 'yyyymmddhh24miss'), CORE_EFF_SDT position(959:972) to_date(trim($59), 'yyyymmddhh24miss'), CNTL_SDT position(973:986) to_date(trim($60), 'yyyymmddhh24miss')) from '@abs_srcdir@/data/CR_INFO.20220803.000000.0000.dat' csv encoding 'gbk';
+select count(1) from CR_INFO_JB2_TMP;
+ COUNT 
+-------
+    21
+(1 row)
+
+DROP TABLE cr_info_jb2_tmp;
+\c regression
+create temp table binary_format_test (
+    seqno		int4,
+    i			int4[],
+    t			text[]
+);
+copy array_op_test to '@abs_srcdir@/data/array.binary' (format binary);
+copy binary_format_test from '@abs_srcdir@/data/array.binary' (format binary);
+select count(1) from binary_format_test;
+ count 
+-------
+   103
+(1 row)
+
+select count(1) from array_op_test;
+ count 
+-------
+   103
+(1 row)
+
+select * from binary_format_test where seqno = 33;
+ seqno |    i    |                                                        t                                                         
+-------+---------+------------------------------------------------------------------------------------------------------------------
+    33 | {74,73} | {A85417,AAAAAAA56483,AAAAA17383,AAAAAAAAAAAAA62159,AAAAAAAAAAAA52814,AAAAAAAAAAAAA85723,AAAAAAAAAAAAAAAAAA55796}
+(1 row)
+
+select * from array_op_test where seqno = 33;
+ seqno |    i    |                                                        t                                                         
+-------+---------+------------------------------------------------------------------------------------------------------------------
+    33 | {74,73} | {A85417,AAAAAAA56483,AAAAA17383,AAAAAAAAAAAAA62159,AAAAAAAAAAAA52814,AAAAAAAAAAAAA85723,AAAAAAAAAAAAAAAAAA55796}
+(1 row)
+
+select * from binary_format_test where seqno = 97;
+ seqno |      i       |                                                                              t                                                                              
+-------+--------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------
+    97 | {54,2,86,65} | {47735,AAAAAAA99836,AAAAAAAAAAAAAAAAA6897,AAAAAAAAAAAAAAAA29150,AAAAAAA80240,AAAAAAAAAAAAAAAA98414,AAAAAAA56483,AAAAAAAAAAAAAAAA29150,AAAAAAA39692,AA21643}
+(1 row)
+
+select * from array_op_test where seqno = 97;
+ seqno |      i       |                                                                              t                                                                              
+-------+--------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------
+    97 | {54,2,86,65} | {47735,AAAAAAA99836,AAAAAAAAAAAAAAAAA6897,AAAAAAAAAAAAAAAA29150,AAAAAAA80240,AAAAAAAAAAAAAAAA98414,AAAAAAA56483,AAAAAAAAAAAAAAAA29150,AAAAAAA39692,AA21643}
+(1 row)
+
+-- copy with fault tolerance
+\c regression_ora
+create table test_cp(f1 smallint, f2 integer, f3 bigint, f4 decimal, f5 numeric, f6 numeric(10), f7 numeric(10,5), f8 real ,f9 double precision, f10 money, f11 varchar(10), f12 char(15), f13 text, f14 timestamp without time zone, f15 boolean, f16 varchar2(15));
+copy test_cp from '@abs_srcdir@/data/copy_utf8.data' encoding 'UTF8' delimiter ',';
+ERROR:  invalid byte sequence for encoding "UTF8": 0xe4 0xf0 0xe0
+CONTEXT:  COPY TEST_CP, line 1, nodetype:0(1:cn,0:dn)
+select * from test_cp;
+ F1 | F2 | F3 | F4 | F5 | F6 | F7 | F8 | F9 | F10 | F11 | F12 | F13 | F14 | F15 | F16 
+----+----+----+----+----+----+----+----+----+-----+-----+-----+-----+-----+-----+-----
+(0 rows)
+
+copy test_cp from '@abs_srcdir@/data/copy_utf8.data' encoding 'UTF8' delimiter ',' COMPATIBLE_ILLEGAL_CHARS;
+ERROR:  missing data for column "F13"
+CONTEXT:  COPY TEST_CP, line 2: "11,22,33,44,55,12345.6789,12345.6789,12345.6789,12345.6789,12345.67,a???国c,?cccc", nodetype:0(1:cn,0:dn)
+select * from test_cp;
+ F1 | F2 | F3 | F4 | F5 | F6 | F7 | F8 | F9 | F10 | F11 | F12 | F13 | F14 | F15 | F16 
+----+----+----+----+----+----+----+----+----+-----+-----+-----+-----+-----+-----+-----
+(0 rows)
+
+copy test_cp from '@abs_srcdir@/data/copy_utf8.data' encoding 'UTF8' delimiter ',' COMPATIBLE_ILLEGAL_CHARS FILL_MISSING_FIELDS ;
+ERROR:  extra data after last expected column
+CONTEXT:  COPY TEST_CP, line 3: "111,222,3,4,5,12345.6789,12345.6789,12345.6789,12345.6789,12345.67,a???国c,?cccc,ddddddd,2023-05-01...", nodetype:0(1:cn,0:dn)
+select * from test_cp;
+ F1 | F2 | F3 | F4 | F5 | F6 | F7 | F8 | F9 | F10 | F11 | F12 | F13 | F14 | F15 | F16 
+----+----+----+----+----+----+----+----+----+-----+-----+-----+-----+-----+-----+-----
+(0 rows)
+
+copy test_cp from '@abs_srcdir@/data/copy_utf8.data' encoding 'UTF8' delimiter ',' COMPATIBLE_ILLEGAL_CHARS IGNORE_EXTRA_DATA FILL_MISSING_FIELDS;
+select * from test_cp;
+ F1  | F2  | F3 | F4 | F5 |  F6   |     F7     |    F8     |     F9     |    F10     |   F11   |       F12       |   F13   |           F14            | F15 |    F16     
+-----+-----+----+----+----+-------+------------+-----------+------------+------------+---------+-----------------+---------+--------------------------+-----+------------
+   1 |   2 |  3 |  4 |  5 | 12346 | 12345.6789 | 12345.679 | 12345.6789 | $12,345.67 | a???国c | ?cccc           | ddddddd | Mon May 01 10:10:10 2023 | t   | eeeeeeeeee
+  11 |  22 | 33 | 44 | 55 | 12346 | 12345.6789 | 12345.679 | 12345.6789 | $12,345.67 | a???国c | ?cccc           |         |                          |     | 
+ 111 | 222 |  3 |  4 |  5 | 12346 | 12345.6789 | 12345.679 | 12345.6789 | $12,345.67 | a???国c | ?cccc           | ddddddd | Mon May 01 10:10:10 2023 | t   | eeeeeeeeee
+(3 rows)
+
+truncate test_cp;
+copy test_cp from '@abs_srcdir@/data/copy_utf8.data' encoding 'UTF8' delimiter ',' COMPATIBLE_ILLEGAL_CHARS '%' IGNORE_EXTRA_DATA FILL_MISSING_FIELDS;
+select * from test_cp;
+ F1  | F2  | F3 | F4 | F5 |  F6   |     F7     |    F8     |     F9     |    F10     |   F11   |       F12       |   F13   |           F14            | F15 |    F16     
+-----+-----+----+----+----+-------+------------+-----------+------------+------------+---------+-----------------+---------+--------------------------+-----+------------
+   1 |   2 |  3 |  4 |  5 | 12346 | 12345.6789 | 12345.679 | 12345.6789 | $12,345.67 | a%%%国c | %cccc           | ddddddd | Mon May 01 10:10:10 2023 | t   | eeeeeeeeee
+  11 |  22 | 33 | 44 | 55 | 12346 | 12345.6789 | 12345.679 | 12345.6789 | $12,345.67 | a%%%国c | %cccc           |         |                          |     | 
+ 111 | 222 |  3 |  4 |  5 | 12346 | 12345.6789 | 12345.679 | 12345.6789 | $12,345.67 | a%%%国c | %cccc           | ddddddd | Mon May 01 10:10:10 2023 | t   | eeeeeeeeee
+(3 rows)
+
+copy test_cp from '@abs_srcdir@/data/copy_gb18030.data' fixed formatter(f1(5), f2(5), f3(5), f4(5), f5(6), f6(6), f7 with truncate(6), f8(7), f9 with truncate(7), f10 with truncate(8), f13 with truncate(2), f14 with truncate(10), f15(8)) encoding 'GB18030';
+select * from test_cp order by 1,2,3;
+ F1  | F2  | F3 | F4 | F5 |  F6   |     F7     |    F8     |     F9     |    F10     |   F11   |       F12       |   F13   |           F14            | F15 |    F16     
+-----+-----+----+----+----+-------+------------+-----------+------------+------------+---------+-----------------+---------+--------------------------+-----+------------
+   1 |   2 |  3 |  4 |  5 | 12346 | 12345.6789 | 12345.679 | 12345.6789 | $12,345.67 | a%%%国c | %cccc           | ddddddd | Mon May 01 10:10:10 2023 | t   | eeeeeeeeee
+   1 |   2 |  3 |  4 |  5 | 12346 |      12345 |   12345.7 |    12345.6 | $12,345.00 | a腾讯c  | cc c            | d       | Mon May 01 00:00:00 2023 | t   | eeeeeeeeee
+   1 |   2 |  3 |  4 |  5 | 12346 |      12345 |   12345.7 |    12345.6 | $12,345.00 | a c阿里 | cc c            | d       | Mon May 01 00:00:00 2023 | t   | eeeeeeeeee
+  11 |  22 | 33 | 44 | 55 | 12346 | 12345.6789 | 12345.679 | 12345.6789 | $12,345.67 | a%%%国c | %cccc           |         |                          |     | 
+ 111 | 222 |  3 |  4 |  5 | 12346 | 12345.6789 | 12345.679 | 12345.6789 | $12,345.67 | a%%%国c | %cccc           | ddddddd | Mon May 01 10:10:10 2023 | t   | eeeeeeeeee
+(5 rows)
+
+drop table test_cp;
+drop table if exists data_2023_0613_33 cascade ;
+NOTICE:  table "DATA_2023_0613_33" does not exist, skipping
+drop table if exists test_2023_0613_33 cascade ;
+NOTICE:  table "TEST_2023_0613_33" does not exist, skipping
+create table data_2023_0613_33(data text);
+create table test_2023_0613_33(test text);
+insert into data_2023_0613_33 values('中华人民共和国'), ('祖国统一'), ('台湾省回归');
+select *, length(data) from data_2023_0613_33 order by 1;
+      DATA      | LENGTH 
+----------------+--------
+ 中华人民共和国 |      7
+ 台湾省回归     |      5
+ 祖国统一       |      4
+(3 rows)
+
+-- gbk，使用定长导入
+\copy data_2023_0613_33 to '@abs_srcdir@/results/data_2023_0613_33.csv' fixed encoding 'gbk' formatter(data with truncate (10));
+\copy test_2023_0613_33 from  '@abs_srcdir@/results/data_2023_0613_33.csv' fixed compatible_illegal_chars encoding 'gbk' formatter(test (10));
+select * from test_2023_0613_33 order by 1;
+      TEST      
+----------------
+ 中华人民共和国
+ 台湾省回归
+ 祖国统一
+(3 rows)
+
+select *, length(test) from test_2023_0613_33 order by 1;
+      TEST      | LENGTH 
+----------------+--------
+ 中华人民共和国 |      7
+ 台湾省回归     |      5
+ 祖国统一       |      4
+(3 rows)
+
+-- gbk，不使用定长导入
+truncate table test_2023_0613_33;
+\copy test_2023_0613_33 from  '@abs_srcdir@/results/data_2023_0613_33.csv' compatible_illegal_chars encoding 'gbk';
+select * from test_2023_0613_33 order by 1;
+       TEST        
+-------------------
+ 中华人民共和国   
+ 台湾省回归     
+ 祖国统一      
+(3 rows)
+
+select *, length(test) from test_2023_0613_33 order by 1;
+       TEST        | LENGTH 
+-------------------+--------
+ 中华人民共和国    |     10
+ 台湾省回归        |     10
+ 祖国统一          |     10
+(3 rows)
+
+drop table if exists data_2023_0613_33 cascade ;
+drop table if exists test_2023_0613_33 cascade ;
+drop table if exists data_20230613_34 cascade ;
+NOTICE:  table "DATA_20230613_34" does not exist, skipping
+drop table if exists test_20230613_34 cascade ;
+NOTICE:  table "TEST_20230613_34" does not exist, skipping
+create table data_20230613_34(id int, f1 char(10), f2 varchar(10), f3 numeric(10,5));
+create table test_20230613_34(id int, f1 char(10), f2 varchar(10), f3 numeric(10,5)) distribute by replication;
+insert into data_20230613_34 values (222222, 'hijkkkkkkk', 'h', 2333.12345);
+insert into data_20230613_34 values (1111, 'hijkkkk', 'hijkllllll', 2333.12345);
+insert into data_20230613_34 values (444444, 'hijkkkkkkk', 'hijklll', 2333.12345);
+CREATE OR REPLACE PROCEDURE position_pro_2023_0613_34() is
+BEGIN
+    \copy data_20230613_34 to '@abs_srcdir@/results/data_20230613_34.csv' fixed formatter(id with truncate(3),f2 with truncate (8), f3 with truncate (8)) ;
+    copy test_20230613_34 from '@abs_srcdir@/results/data_20230613_34.csv'  fixed formatter(id with truncate(3),f2 with truncate (8), f3 with truncate (8));
+END;
+/
+call position_pro_2023_0613_34();
+select * from test_20230613_34 order by 1,2,3,4;
+ ID  |     F1     |    F2    |    F3    
+-----+------------+----------+----------
+ 111 | hijkkkk    | hijkllll | 2333.123
+ 222 | hijkkkkkkk | h        | 2333.123
+ 444 | hijkkkkkkk | hijklll  | 2333.123
+(3 rows)
+
+drop table data_20230613_34 cascade ;
+drop table test_20230613_34 cascade ;
+-- delimiter加测
+drop table if exists data_2023_0607_5 cascade ;
+NOTICE:  table "DATA_2023_0607_5" does not exist, skipping
+drop table test_2023_0607_5 cascade ;
+ERROR:  table "TEST_2023_0607_5" does not exist
+create table data_2023_0607_5(data text);
+create table test_2023_0607_5(test text);
+insert into data_2023_0607_5 values('中华人民共和国'), ('祖国统一'), ('台湾省回归');
+set client_encoding TO 'gbk';
+\copy data_2023_0607_5 to '@abs_srcdir@/data/data_2023_0607_5.csv' (format csv, encoding gbk, delimiter '??');
+reset client_encoding;
+-- 不加容错参数，报错
+\copy test_2023_0607_5 from  '@abs_srcdir@/data/data_2023_0607_5.csv' (format csv, delimiter '??');
+ERROR:  invalid byte sequence for encoding "UTF8": 0xd6 0xd0
+CONTEXT:  COPY TEST_2023_0607_5, line 1, nodetype:0(1:cn,0:dn)
+-- 加容错参数，导入成功
+\copy test_2023_0607_5 from  '@abs_srcdir@/data/data_2023_0607_5.csv' (format csv, delimiter '??', compatible_illegal_chars '@');
+select * from test_2023_0607_5 order by test COLLATE "C";
+   TEST    
+-----------
+ @@@@ͳһ
+ @л@@@@񹲺͹@
+ ̨@@ʡ@ع@
+(3 rows)
+
+-- 加容错参数，指定替换符'?'，delimiter'??'，不报错，但是导入失败
+truncate table test_2023_0607_5;
+\copy test_2023_0607_5 from  '@abs_srcdir@/data/data_2023_0607_5.csv'  (format csv, compatible_illegal_chars '?', delimiter '??');
+ERROR:  illegal chars conversion may confuse COPY delimiter 0x3f
+select * from test_2023_0607_5 order by 1;
+ TEST 
+------
+(0 rows)
+
+\copy test_2023_0607_5 from  '@abs_srcdir@/data/data_2023_0607_5.csv'  (format csv, compatible_illegal_chars '?', delimiter '?');
+ERROR:  illegal chars conversion may confuse COPY delimiter 0x3f
+drop table data_2023_0607_5 cascade ;
+drop table test001_2023_0607_5 cascade ;
+ERROR:  table "TEST001_2023_0607_5" does not exist

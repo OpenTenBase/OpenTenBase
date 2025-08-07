@@ -1,7 +1,5 @@
 # -*-perl-*- hey - emacs - this is a perl file
 
-# This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
-# All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
 # src/tools/msvc/build.pl
 
 use strict;

@@ -655,18 +655,18 @@ create function tg_backlink_set(myname bpchar, blname bpchar)
 returns integer as '
 declare
     mytype	char(2);
-    link	char(4);
+    ilink	char(4);
     rec		record;
 begin
     mytype := substr(myname, 1, 2);
-    link := mytype || substr(blname, 1, 2);
-    if link = ''PLPL'' then
+    ilink := mytype || substr(blname, 1, 2);
+    if ilink = ''PLPL'' then
         raise exception
 		''backlink between two phone lines does not make sense'';
     end if;
-    if link in (''PLWS'', ''WSPL'') then
+    if ilink in (''PLWS'', ''WSPL'') then
         raise exception
-		''direct link of phone line to wall slot not permitted'';
+		''direct ilink of phone line to wall slot not permitted'';
     end if;
     if mytype = ''PS'' then
         select into rec * from PSlot where slotname = myname;
@@ -813,24 +813,24 @@ declare
     myname	alias for $1;
     blname	alias for $2;
     mytype	char(2);
-    link	char(4);
+    ilink	char(4);
     rec		record;
 begin
     mytype := substr(myname, 1, 2);
-    link := mytype || substr(blname, 1, 2);
-    if link = ''PHPH'' then
+    ilink := mytype || substr(blname, 1, 2);
+    if ilink = ''PHPH'' then
         raise exception
 		''slotlink between two phones does not make sense'';
     end if;
-    if link in (''PHHS'', ''HSPH'') then
+    if liink in (''PHHS'', ''HSPH'') then
         raise exception
-		''link of phone to hub does not make sense'';
+		''ilink of phone to hub does not make sense'';
     end if;
-    if link in (''PHIF'', ''IFPH'') then
+    if ilink in (''PHIF'', ''IFPH'') then
         raise exception
-		''link of phone to hub does not make sense'';
+		''ilink of phone to hub does not make sense'';
     end if;
-    if link in (''PSWS'', ''WSPS'') then
+    if ilink in (''PSWS'', ''WSPS'') then
         raise exception
 		''slotlink from patchslot to wallslot not permitted'';
     end if;
@@ -1548,26 +1548,26 @@ update PSlot set slotlink = 'HS.base.hub1.1' where slotname = 'PS.base.b2';
 --
 -- PGXCTODO: This is failing due to issue 3522907, complicated SELECT queries in plpgsql functions
 select * from PField_v1 where pfname = 'PF0_1' order by slotname;
- pfname |       slotname       |          backside          |      patch       
---------+----------------------+----------------------------+------------------
- PF0_1  | PS.base.a1           | WS.001.1a in room 001 -> - | PS.base.ta1 -> -
- PF0_1  | PS.base.a2           | WS.001.1b in room 001 -> - | -
- PF0_1  | PS.base.a3           | WS.001.2a in room 001 -> - | PS.base.ta2 -> -
+ pfname |       slotname       |          backside          |      patch      
+--------+----------------------+----------------------------+-----------------
+ PF0_1  | PS.base.a1           | WS.001.1a in room 001 -> - | PS.base.ta1 -> 
+ PF0_1  | PS.base.a2           |                            | -
+ PF0_1  | PS.base.a3           | WS.001.2a in room 001 -> - | PS.base.ta2 -> 
  PF0_1  | PS.base.a4           | -                          | -
  PF0_1  | PS.base.a5           | -                          | -
  PF0_1  | PS.base.a6           | -                          | -
- PF0_1  | PS.base.b1           | WS.002.1a in room 002 -> - | PS.base.ta5 -> -
- PF0_1  | PS.base.b2           | WS.002.1b in room 002 -> - | 
- PF0_1  | PS.base.b3           | WS.002.2a in room 002 -> - | PS.base.tb2 -> -
- PF0_1  | PS.base.b4           | WS.002.2b in room 002 -> - | -
+ PF0_1  | PS.base.b1           |                            | PS.base.ta5 -> 
+ PF0_1  | PS.base.b2           |                            | 
+ PF0_1  | PS.base.b3           |                            | PS.base.tb2 -> 
+ PF0_1  | PS.base.b4           |                            | -
  PF0_1  | PS.base.b5           | WS.002.3a in room 002 -> - | -
- PF0_1  | PS.base.b6           | WS.002.3b in room 002 -> - | -
+ PF0_1  | PS.base.b6           |                            | -
  PF0_1  | PS.base.c1           | WS.003.1a in room 003 -> - | -
  PF0_1  | PS.base.c2           | WS.003.1b in room 003 -> - | -
  PF0_1  | PS.base.c3           | WS.003.2a in room 003 -> - | -
- PF0_1  | PS.base.c4           | WS.003.2b in room 003 -> - | -
+ PF0_1  | PS.base.c4           |                            | -
  PF0_1  | PS.base.c5           | WS.003.3a in room 003 -> - | -
- PF0_1  | PS.base.c6           | WS.003.3b in room 003 -> - | -
+ PF0_1  | PS.base.c6           |                            | -
 (18 rows)
 
 select * from PField_v1 where pfname = 'PF0_2' order by slotname;
@@ -2293,6 +2293,30 @@ drop function sp_id_user(text);
 --
 create table rc_test (a int, b int);
 copy rc_test from stdin;
+create function return_unnamed_refcursor() returns refcursor as $$
+declare
+    rc refcursor;
+begin
+    open rc for select a from rc_test;
+    return rc;
+end
+$$ language plpgsql;
+create function use_refcursor(rc refcursor) returns int as $$
+declare
+    rc refcursor;
+    x record;
+begin
+    rc := return_unnamed_refcursor();
+    fetch next from rc into x;
+    return x.a;
+end
+$$ language plpgsql;
+select use_refcursor(return_unnamed_refcursor());
+ use_refcursor 
+---------------
+             5
+(1 row)
+
 create function return_refcursor(rc refcursor) returns refcursor as $$
 begin
     open rc for select a from rc_test;
@@ -2464,6 +2488,7 @@ begin
 end $$ language plpgsql;
 select namedparmcursor_test7();
 ERROR:  division by zero
+HINT:   while processing column p1
 CONTEXT:  SQL statement "SELECT 42/0 AS p1, 77 AS p2;"
 PL/pgSQL function namedparmcursor_test7() line 6 at OPEN
 -- check that line comments work correctly within the argument list (there
@@ -2540,7 +2565,7 @@ NOTICE:  This message has no parameters (despite having % signs in it)!
 (1 row)
 
 -- Test re-RAISE inside a nested exception block.  This case is allowed
--- by Oracle's PL/SQL but was handled differently by PG before 9.1.
+-- by opentenbase_ora's PL/SQL but was handled differently by PG before 9.1.
 CREATE FUNCTION reraise_test() RETURNS void AS $$
 BEGIN
    BEGIN
@@ -3169,7 +3194,7 @@ NOTICE:  x.f1 = 9, x.f2 = 10
  
 (1 row)
 
-select * from foo order by f1,f2;
+select * from foo order by 1, 2;
  f1 | f2 
 ----+----
   1 |  2
@@ -3492,14 +3517,14 @@ begin
   close c;
 end;
 $$ language plpgsql;
-select * from sc_test() order by 1;
+select * from sc_test();
    sc_test   
 -------------
- -2147483647
-     -123456
-           0
-      123456
   2147483647
+      123456
+           0
+     -123456
+ -2147483647
 (5 rows)
 
 create or replace function sc_test() returns setof integer as $$
@@ -3516,7 +3541,7 @@ begin
   close c;
 end;
 $$ language plpgsql;
-select * from sc_test() order by 1;  -- fails because of NO SCROLL specification
+select * from sc_test();  -- fails because of NO SCROLL specification
 ERROR:  cursor can only scan forward
 HINT:  Declare it with SCROLL option to enable backward scan.
 CONTEXT:  PL/pgSQL function sc_test() line 7 at FETCH
@@ -3534,14 +3559,14 @@ begin
   close c;
 end;
 $$ language plpgsql;
-select * from sc_test() order by 1;
+select * from sc_test();
    sc_test   
 -------------
- -2147483647
-     -123456
-           0
-      123456
   2147483647
+      123456
+           0
+     -123456
+ -2147483647
 (5 rows)
 
 create or replace function sc_test() returns setof integer as $$
@@ -3558,12 +3583,12 @@ begin
   close c;
 end;
 $$ language plpgsql;
-select * from sc_test() order by 1;
+select * from sc_test();
    sc_test   
 -------------
- -2147483647
-           0
   2147483647
+           0
+ -2147483647
 (3 rows)
 
 create or replace function sc_test() returns setof integer as $$
@@ -3581,11 +3606,11 @@ begin
   close c;
 end;
 $$ language plpgsql;
-select * from sc_test() order by 1;
+select * from sc_test();
   sc_test   
 ------------
-    -123456
  2147483647
+    -123456
 (2 rows)
 
 create or replace function sc_test() returns setof integer as $$
@@ -3607,7 +3632,7 @@ begin
   close c;
 end;
 $$ language plpgsql;
-select * from sc_test() order by 1;
+select * from sc_test();
  sc_test 
 ---------
        3
@@ -3629,7 +3654,7 @@ begin
   close c;
 end;
 $$ language plpgsql;
-select * from sc_test() order by 1;
+select * from sc_test();
  sc_test 
 ---------
       10
@@ -4475,6 +4500,7 @@ select case_test(12);
 select case_test(13); -- fails
 ERROR:  case not found
 HINT:  CASE statement is missing ELSE part.
+ while processing column case_test
 CONTEXT:  PL/pgSQL function case_test(bigint) line 5 at CASE
 create or replace function catch() returns void as $$
 begin
@@ -5059,6 +5085,33 @@ select scope_test();
 (1 row)
 
 drop function scope_test();
+-- Check that variables are reinitialized on block re-entry.
+do $$
+begin
+  for i in 1..3 loop
+    declare
+      x int;
+      y int := i;
+      r record;
+    begin
+      if i = 1 then
+        x := 42;
+        r := row(i, i+1);
+      end if;
+      raise notice 'x = %', x;
+      raise notice 'y = %', y;
+      raise notice 'r = %', r;
+    end;
+  end loop;
+end$$;
+NOTICE:  x = 42
+NOTICE:  y = 1
+NOTICE:  r = (1,2)
+NOTICE:  x = <NULL>
+NOTICE:  y = 2
+ERROR:  record "r" is not assigned yet
+DETAIL:  The tuple structure of a not-yet-assigned record is indeterminate.
+CONTEXT:  PL/pgSQL function inline_code_block line 15 at RAISE
 -- Check handling of conflicts between plpgsql vars and table columns.
 set plpgsql.variable_conflict = error;
 create function conflict_test() returns setof int8_tbl as $$
@@ -5942,10 +5995,10 @@ CREATE TABLE transition_table_level2
 ) WITHOUT OIDS;
 CREATE TABLE transition_table_status
 (
-      level int NOT NULL,
+      trs_level int NOT NULL,
       node_no int NOT NULL,
       status int,
-       PRIMARY KEY (level, node_no)
+       PRIMARY KEY (trs_level, node_no)
 ) WITHOUT OIDS;
 CREATE FUNCTION transition_table_level1_ri_parent_del_func()
   RETURNS TRIGGER
@@ -6033,9 +6086,9 @@ INSERT INTO transition_table_level2 (level2_no, parent_no)
   SELECT level2_no, level2_no / 50 + 1 AS parent_no
     FROM generate_series(1,9999) level2_no;
 ANALYZE transition_table_level2;
-INSERT INTO transition_table_status (level, node_no, status)
+INSERT INTO transition_table_status (trs_level, node_no, status)
   SELECT 1, level1_no, 0 FROM transition_table_level1;
-INSERT INTO transition_table_status (level, node_no, status)
+INSERT INTO transition_table_status (trs_level, node_no, status)
   SELECT 2, level2_no, 0 FROM transition_table_level2;
 ANALYZE transition_table_status;
 INSERT INTO transition_table_level1(level1_no)
@@ -6184,50 +6237,523 @@ SELECT * FROM list_partitioned_table() AS t;
  2
 (2 rows)
 
-set transform_insert_to_copy to on;
-create table multi_itb(f1 int,f2 int);
-create or replace function insert_mul () returns text as
-$$
+-- 
+-- check opentenbase_ora compatible anonymous code block
+-- 
+\c regression_ora
+create table opentenbase_ora_pl_t1(f1 int not null,f2 varchar2(100),primary key (f1));
+INSERT INTO opentenbase_ora_pl_t1 VALUES (1, 'ONE');  
+INSERT INTO opentenbase_ora_pl_t1 VALUES (2, 'TWO');  
+INSERT INTO opentenbase_ora_pl_t1 VALUES (3, 'THREE');
+declare
+    v_f1 int;
+    v_rec record;
 begin
-  insert into multi_itb values(1,1),(2,2);
-  return 'ok';
+    insert into opentenbase_ora_pl_t1 values(4,'four') returning f1 into v_f1;   
+    raise notice 'v_f1 = %',v_f1;
+    update opentenbase_ora_pl_t1 set f2='ONE' WHERE f2='ONE' returning f1 into v_f1;  
+    raise notice 'v_f1 = %',v_f1;  
+    DELETE FROM opentenbase_ora_pl_t1 WHERE f2='THREE' returning f1 into v_f1;  
+    raise notice 'v_f1 = %',v_f1;
 end;
-$$
-language plpgsql;
-create or replace function insert_mul_null () returns text as
-$$
+/
+NOTICE:  v_f1 = 4
+NOTICE:  v_f1 = 1
+NOTICE:  v_f1 = 3
+select * from opentenbase_ora_pl_t1 order by f1;
+ f1 |  f2  
+----+------
+  1 | ONE
+  2 | TWO
+  4 | four
+(3 rows)
+
+begin 
+    update opentenbase_ora_pl_t1 set f2='TWOOOOOOOOO' where f1=2;
+    insert into opentenbase_ora_pl_t1 values(5,'five');
+    delete from opentenbase_ora_pl_t1 where f1=4;
+end;
+/
+select * from opentenbase_ora_pl_t1 order by f1;
+ f1 |     f2      
+----+-------------
+  1 | ONE
+  2 | TWOOOOOOOOO
+  5 | five
+(3 rows)
+
+-- 
+-- check opentenbase_ora compatible function/procedure head and tail format
+-- 
+CREATE OR REPLACE function opentenbase_ora_func_1() returns void as 
+    i int:= 0;
 begin
-    insert into multi_itb values(1,null),(2,null);
-        return 'ok';
+    <<top>>
+    LOOP
+        i = i + 1;  
+        IF i > 10 THEN
+		    raise notice ' > 10 value: %',i;
+            exit;
+        END IF;
+        IF i > 5 THEN
+		    CONTINUE top;
+        END IF;
+        raise notice '%',i;
+    END LOOP;	
+    raise notice 'last value: %',i;
 end;
-$$
-language plpgsql;
-select insert_mul();
- insert_mul 
-------------
- ok
+/
+select opentenbase_ora_func_1();
+NOTICE:  1
+NOTICE:  2
+NOTICE:  3
+NOTICE:  4
+NOTICE:  5
+NOTICE:   > 10 value: 11
+NOTICE:  last value: 11
+ opentenbase_ora_func_1 
+---------------
+ 
 (1 row)
 
-select * from multi_itb order by f1;
- f1 | f2 
-----+----
-  1 |  1
-  2 |  2
-(2 rows)
-
-truncate multi_itb;
-select insert_mul_null();
- insert_mul_null 
------------------
- ok
+CREATE OR REPLACE function opentenbase_ora_func_2(i integer) returns void as
+begin
+    <<top>>
+    LOOP
+        i = i + 1;  
+        IF i > 10 THEN
+		    raise notice ' > 10 value: %',i;
+            exit;
+        END IF;
+        IF i > 5 THEN
+		    CONTINUE top;
+        END IF;
+        raise notice '%',i;
+    END LOOP;	
+    raise notice 'last value: %',i;
+end;
+/
+select opentenbase_ora_func_2(2);
+NOTICE:  3
+NOTICE:  4
+NOTICE:  5
+NOTICE:   > 10 value: 11
+NOTICE:  last value: 11
+ opentenbase_ora_func_2 
+---------------
+ 
 (1 row)
 
-select * from multi_itb order by f1;
- f1 | f2 
-----+----
-  1 |   
-  2 |   
-(2 rows)
+CREATE OR REPLACE PROCEDURE opentenbase_ora_proc_1() as 
+    i int:= 10;
+begin
+    <<top>>
+    LOOP
+        i = i + 1;  
+        IF i > 20 THEN
+		    raise notice ' > 10 value: %',i;
+            exit;
+        END IF;
+        IF i > 15 THEN
+		    CONTINUE top;
+        END IF;
+        raise notice '%',i;
+    END LOOP;	
+    raise notice 'last value: %',i;
+end;
+/
+call opentenbase_ora_proc_1();
+NOTICE:  11
+NOTICE:  12
+NOTICE:  13
+NOTICE:  14
+NOTICE:  15
+NOTICE:   > 10 value: 21
+NOTICE:  last value: 21
+CREATE OR REPLACE procedure opentenbase_ora_proc_2(i integer) as
+begin
+    <<top>>
+    LOOP
+        i = i + 1;  
+        IF i > 10 THEN
+		    raise notice ' > 10 value: %',i;
+            exit;
+        END IF;
+        IF i > 5 THEN
+		    CONTINUE top;
+        END IF;
+        raise notice '%',i;
+    END LOOP;	
+    raise notice 'last value: %',i;
+end;
+/
+call opentenbase_ora_proc_2(4);
+NOTICE:  5
+NOTICE:   > 10 value: 11
+NOTICE:  last value: 11
+-- 
+-- check opentenbase_ora compatible label + goto grammar
+-- 
+-- goto mysqlself sub block 
+CREATE OR REPLACE PROCEDURE opentenbase_ora_goto_1() as
+$$
+DECLARE
+      v_last_name  VARCHAR(25) := 'abc' ;
+      v_emp_id     int := 100;
+BEGIN
+    <<get_name>>
+    v_last_name := 'jenny';      
+    raise notice 'abc';
+    raise notice '%',v_last_name;
+   
+    <<sub_block>>
+    BEGIN
+        raise notice '%',v_emp_id;
+        v_emp_id := v_emp_id + 5;
 
-drop table multi_itb;
-set transform_insert_to_copy to off;
+        <<if_block>>
+        IF v_emp_id < 120 THEN
+          GOTO sub_block;
+        END IF;
+            raise notice '----------';
+    END;
+END;    
+$$ language ora_plsql;
+call opentenbase_ora_goto_1();
+NOTICE:  abc
+NOTICE:  jenny
+NOTICE:  100
+NOTICE:  105
+NOTICE:  110
+NOTICE:  115
+NOTICE:  ----------
+-- goto outer block 
+CREATE OR REPLACE PROCEDURE opentenbase_ora_goto_2() as
+$$
+DECLARE
+      v_last_name  VARCHAR(25) := 'abc' ;
+      v_emp_id     int := 100;
+BEGIN
+    <<get_name>>
+    v_last_name := 'jenny';      
+    raise notice 'abc';
+    raise notice '%',v_last_name;
+   
+    <<sub_block>>
+    BEGIN
+        raise notice '%',v_emp_id;
+        v_emp_id := v_emp_id + 5;
+
+        <<if_block>>
+        IF v_emp_id < 120 THEN
+          GOTO get_name;
+        END IF;
+        raise notice '----------';
+    END;
+END;    
+$$ language ora_plsql;
+call opentenbase_ora_goto_2();
+NOTICE:  abc
+NOTICE:  jenny
+NOTICE:  100
+NOTICE:  abc
+NOTICE:  jenny
+NOTICE:  105
+NOTICE:  abc
+NOTICE:  jenny
+NOTICE:  110
+NOTICE:  abc
+NOTICE:  jenny
+NOTICE:  115
+NOTICE:  ----------
+      
+-- label statment is the after goto statment 
+CREATE OR REPLACE PROCEDURE opentenbase_ora_goto_3(n int) as
+$$
+DECLARE
+  p  VARCHAR2(30);
+BEGIN
+    IF n%2 = 1 THEN
+      p := ' is a odd numbers';
+      GOTO print_now;
+    END IF;
+
+  p := ' is a even numbers';
+  
+  <<print_now>>
+  raise notice '% %',n,p;
+END;   
+$$ language ora_plsql;
+      
+call opentenbase_ora_goto_3(36);
+NOTICE:  36  is a even numbers
+call opentenbase_ora_goto_3(35);
+NOTICE:  35  is a odd numbers
+--goto loop label
+CREATE OR REPLACE function opentenbase_ora_goto_4() returns void as
+$$
+<<top>>
+declare
+    i int:= 0;
+begin
+    <<loop_label>>
+    LOOP
+        <<stmt_label>>
+        i = i + 1;  
+        IF i > 10 THEN
+            raise notice ' > 10 v: %',i;
+            exit;
+        END IF;
+
+        IF i > 5 THEN
+            GOTO loop_label;
+        END IF;
+            
+        raise notice '%',i;
+
+    END LOOP;
+            
+    raise notice 'last v: %',i;
+end;
+$$ language ora_plsql;
+select opentenbase_ora_goto_4();
+NOTICE:  1
+NOTICE:  2
+NOTICE:  3
+NOTICE:  4
+NOTICE:  5
+NOTICE:   > 10 v: 11
+NOTICE:  last v: 11
+ opentenbase_ora_goto_4 
+---------------
+ 
+(1 row)
+
+--goto loop inside label
+CREATE OR REPLACE function opentenbase_ora_goto_5() returns void as
+$$
+<<top>>
+declare
+    i int:= 0;
+begin
+    <<loop_label>>
+    LOOP
+        <<stmt_label>>
+        i = i + 1;  
+        IF i > 10 THEN
+            raise notice ' > 10 v: %',i;
+            exit;
+        END IF;
+
+        IF i > 5 THEN
+            GOTO stmt_label;
+        END IF;
+            
+        raise notice '%',i;
+
+    END LOOP;
+            
+    raise notice 'last v: %',i;
+end;
+$$ language ora_plsql;
+select opentenbase_ora_goto_5();
+NOTICE:  1
+NOTICE:  2
+NOTICE:  3
+NOTICE:  4
+NOTICE:  5
+NOTICE:   > 10 v: 11
+NOTICE:  last v: 11
+ opentenbase_ora_goto_5 
+---------------
+ 
+(1 row)
+
+--goto enclosing block from exception
+CREATE OR REPLACE function opentenbase_ora_goto_6(n int) returns void as
+$$
+DECLARE
+  p  VARCHAR(30);
+BEGIN
+  begin
+    n := round(1/n);
+    p := ' is a prime number';
+    
+  exception
+      when others then
+          p:= ' from exception!';
+          goto print_now; 
+  end;
+  
+  <<print_now>>
+  raise notice '% %',n,p;
+END;
+$$ language ora_plsql;
+select opentenbase_ora_goto_6(0);
+NOTICE:  0  from exception!
+ opentenbase_ora_goto_6 
+---------------
+ 
+(1 row)
+
+select opentenbase_ora_goto_6(10);
+NOTICE:  0  is a prime number
+ opentenbase_ora_goto_6 
+---------------
+ 
+(1 row)
+
+-- forbid : goto if condition inside
+CREATE OR REPLACE PROCEDURE opentenbase_ora_goto_7(n int) as
+$$
+DECLARE
+  p  VARCHAR2(30);
+BEGIN
+    IF n%2 = 1 THEN
+      p := ' is a odd numbers';
+      GOTO print_now;
+    END IF;
+
+    p := ' is a even number';
+      
+    if 1=1 then
+      <<print_now>>
+      raise notice '% %',n,p;
+    end if;
+END;
+$$ language ora_plsql;
+call opentenbase_ora_goto_7(3);
+ERROR:  illegal GOTO statement; this GOTO cannot branch to label: 'print_now'
+CONTEXT:  PL/pgSQL function opentenbase_ora_goto_7(integer) line 7 at GOTO
+call opentenbase_ora_goto_7(4);
+NOTICE:  4  is a even number
+   
+-- forbid : goto case-when condition inside  
+CREATE OR REPLACE PROCEDURE opentenbase_ora_goto_8(n int) as
+$$
+DECLARE
+  p  VARCHAR2(30);
+BEGIN
+    IF n%2 = 1 THEN
+      p := ' is a odd numbers';
+      GOTO print_now;
+    END IF;
+
+    p := ' is a even number';
+      
+    case when 1=1 then
+      <<print_now>>
+      raise notice '% %',n,p;
+    end case;
+END;
+$$ language ora_plsql;
+call opentenbase_ora_goto_8(3);
+ERROR:  illegal GOTO statement; this GOTO cannot branch to label: 'print_now'
+CONTEXT:  PL/pgSQL function opentenbase_ora_goto_8(integer) line 7 at GOTO
+call opentenbase_ora_goto_8(4);
+NOTICE:  4  is a even number
+-- forbid : goto loop condition inside  
+CREATE OR REPLACE PROCEDURE opentenbase_ora_goto_9(n int) as
+$$
+DECLARE
+  p  VARCHAR2(30);
+BEGIN
+    IF n%2 = 1 THEN
+      p := ' is a odd numbers';
+      GOTO print_now;
+    END IF;
+
+    p := ' is a even number';
+      
+    for i in 1..3 loop
+      <<print_now>>
+      raise notice '% %',n,p;
+    end loop;
+END;
+$$ language ora_plsql;
+call opentenbase_ora_goto_9(1);
+ERROR:  illegal GOTO statement; this GOTO cannot branch to label: 'print_now'
+CONTEXT:  PL/pgSQL function opentenbase_ora_goto_9(integer) line 7 at GOTO
+-- forbid : goto other sub block inside  
+CREATE OR REPLACE PROCEDURE opentenbase_ora_goto_10(n int) as
+$$
+DECLARE
+  p  VARCHAR2(30);
+BEGIN
+    IF n%2 = 1 THEN
+      p := ' is a odd numbers';
+      GOTO print_now;
+    END IF;
+
+    p := ' is a even number';
+      
+    begin
+      <<print_now>>
+      raise notice '% %',n,p;
+    end;
+END;
+$$ language ora_plsql; 
+call opentenbase_ora_goto_10(1);
+ERROR:  illegal GOTO statement; this GOTO cannot branch to label: 'print_now'
+CONTEXT:  PL/pgSQL function opentenbase_ora_goto_10(integer) line 7 at GOTO
+-- forbid : goto out of a subprogram
+create or replace procedure opentenbase_ora_goto_11 (in_value int) as
+$$
+begin
+  if in_value=1 then
+    goto print_now;
+  else
+     raise notice 'NORMAL';
+  end if;
+end;
+$$ language ora_plsql; 
+call opentenbase_ora_goto_11(1);
+ERROR:  illegal GOTO statement; this GOTO cannot branch to label: 'print_now'
+CONTEXT:  PL/pgSQL function opentenbase_ora_goto_11(integer) line 4 at GOTO
+-- forbid : goto exception
+create or replace procedure opentenbase_ora_goto_12 (n int) as
+$$
+DECLARE
+  p  VARCHAR(30);
+BEGIN
+    IF n%2 = 1 THEN
+      p := ' is a odd numbers';
+      GOTO print_now;
+    END IF;
+
+    p := ' is a even number';
+ 
+exception
+    when others then
+        <<print_now>>
+        raise notice '% %',n,p;
+END;
+$$ language ora_plsql;
+call opentenbase_ora_goto_12(1);
+ERROR:  illegal GOTO statement; this GOTO cannot branch to label: 'print_now'
+CONTEXT:  PL/pgSQL function opentenbase_ora_goto_12(integer) line 7 at GOTO
+-- forbid : goto current block from an exception handler
+create or replace procedure opentenbase_ora_goto_13 (n int) as
+$$
+DECLARE
+  p  VARCHAR2(30);
+BEGIN
+    n := round(1/n);
+    p := ' is a prime number';
+ 
+    <<print_now>>
+    raise notice '% %',n,p;
+
+exception
+    when others then
+        goto print_now;
+END;
+$$ language ora_plsql;
+call opentenbase_ora_goto_13(0);
+ERROR:  illegal GOTO statement; this GOTO cannot branch to label: 'print_now'
+CONTEXT:  PL/pgSQL function opentenbase_ora_goto_13(integer) line 13 at GOTO
+call opentenbase_ora_goto_13(1);
+NOTICE:  1  is a prime number
+-- use "exec" to call procedure
+exec opentenbase_ora_goto_13(1);
+NOTICE:  1  is a prime number

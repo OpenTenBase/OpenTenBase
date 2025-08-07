@@ -1,12 +1,12 @@
 /*-------------------------------------------------------------------------
  *
  * compat.c
- *        Reimplementations of various backend functions.
+ *		Reimplementations of various backend functions.
  *
  * Portions Copyright (c) 2013-2017, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *        src/bin/pg_waldump/compat.c
+ *		src/bin/pg_waldump/compat.c
  *
  * This file contains client-side implementations for various backend
  * functions that the rm_desc functions in *desc.c files rely on.
@@ -27,11 +27,11 @@
 pg_time_t
 timestamptz_to_time_t(TimestampTz t)
 {
-    pg_time_t    result;
+	pg_time_t	result;
 
-    result = (pg_time_t) (t / USECS_PER_SEC +
-                          ((POSTGRES_EPOCH_JDATE - UNIX_EPOCH_JDATE) * SECS_PER_DAY));
-    return result;
+	result = (pg_time_t) (t / USECS_PER_SEC +
+						  ((POSTGRES_EPOCH_JDATE - UNIX_EPOCH_JDATE) * SECS_PER_DAY));
+	return result;
 }
 
 /*
@@ -49,18 +49,18 @@ timestamptz_to_time_t(TimestampTz t)
 const char *
 timestamptz_to_str(TimestampTz dt)
 {
-    static char buf[MAXDATELEN + 1];
-    char        ts[MAXDATELEN + 1];
-    char        zone[MAXDATELEN + 1];
-    time_t        result = (time_t) timestamptz_to_time_t(dt);
-    struct tm  *ltime = localtime(&result);
+	static char buf[MAXDATELEN * 2 + 12]; /* avoid compiler warning */
+	char		ts[MAXDATELEN + 1];
+	char		zone[MAXDATELEN + 1];
+	time_t		result = (time_t) timestamptz_to_time_t(dt);
+	struct tm  *ltime = localtime(&result);
 
-    strftime(ts, sizeof(ts), "%Y-%m-%d %H:%M:%S", ltime);
-    strftime(zone, sizeof(zone), "%Z", ltime);
+	strftime(ts, sizeof(ts), "%Y-%m-%d %H:%M:%S", ltime);
+	strftime(zone, sizeof(zone), "%Z", ltime);
 
-    sprintf(buf, "%s.%06d %s", ts, (int) (dt % USECS_PER_SEC), zone);
+	sprintf(buf, "%s.%06d %s", ts, (int) (dt % USECS_PER_SEC), zone);
 
-    return buf;
+	return buf;
 }
 
 /*
@@ -70,21 +70,21 @@ timestamptz_to_str(TimestampTz dt)
 void
 appendStringInfo(StringInfo str, const char *fmt,...)
 {
-    va_list        args;
+	va_list		args;
 
-    va_start(args, fmt);
-    vprintf(fmt, args);
-    va_end(args);
+	va_start(args, fmt);
+	vprintf(fmt, args);
+	va_end(args);
 }
 
 void
 appendStringInfoString(StringInfo str, const char *string)
 {
-    appendStringInfo(str, "%s", string);
+	appendStringInfo(str, "%s", string);
 }
 
 void
 appendStringInfoChar(StringInfo str, char ch)
 {
-    appendStringInfo(str, "%c", ch);
+	appendStringInfo(str, "%c", ch);
 }

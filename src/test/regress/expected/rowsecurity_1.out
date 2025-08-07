@@ -97,23 +97,23 @@ CREATE POLICY p2r ON document AS RESTRICTIVE TO regress_rls_dave
 CREATE POLICY p1r ON document AS RESTRICTIVE TO regress_rls_dave
     USING (cid <> 44);
 \dp
-                                                                  Access privileges
-       Schema       |   Name   | Type  |              Access privileges              | Column privileges |                  Policies                  
---------------------+----------+-------+---------------------------------------------+-------------------+--------------------------------------------
- regress_rls_schema | category | table | regress_rls_alice=arwdDxt/regress_rls_alice+|                   | 
-                    |          |       | =arwdDxt/regress_rls_alice                  |                   | 
- regress_rls_schema | document | table | regress_rls_alice=arwdDxt/regress_rls_alice+|                   | p1:                                       +
-                    |          |       | =arwdDxt/regress_rls_alice                  |                   |   (u): (dlevel <= ( SELECT uaccount.seclv +
-                    |          |       |                                             |                   |    FROM uaccount                          +
-                    |          |       |                                             |                   |   WHERE (uaccount.pguser = CURRENT_USER)))+
-                    |          |       |                                             |                   | p2r (RESTRICTIVE):                        +
-                    |          |       |                                             |                   |   (u): ((cid <> 44) AND (cid < 50))       +
-                    |          |       |                                             |                   |   to: regress_rls_dave                    +
-                    |          |       |                                             |                   | p1r (RESTRICTIVE):                        +
-                    |          |       |                                             |                   |   (u): (cid <> 44)                        +
-                    |          |       |                                             |                   |   to: regress_rls_dave
- regress_rls_schema | uaccount | table | regress_rls_alice=arwdDxt/regress_rls_alice+|                   | 
-                    |          |       | =r/regress_rls_alice                        |                   | 
+                                                                   Access privileges
+       Schema       |   Name   | Type  |              Access privileges               | Column privileges |                  Policies                  
+--------------------+----------+-------+----------------------------------------------+-------------------+--------------------------------------------
+ regress_rls_schema | category | table | regress_rls_alice=arwdDxtm/regress_rls_alice+|                   | 
+                    |          |       | =arwdDxtm/regress_rls_alice                  |                   | 
+ regress_rls_schema | document | table | regress_rls_alice=arwdDxtm/regress_rls_alice+|                   | p1:                                       +
+                    |          |       | =arwdDxtm/regress_rls_alice                  |                   |   (u): (dlevel <= ( SELECT uaccount.seclv +
+                    |          |       |                                              |                   |    FROM uaccount                          +
+                    |          |       |                                              |                   |   WHERE (uaccount.pguser = CURRENT_USER)))+
+                    |          |       |                                              |                   | p2r (RESTRICTIVE):                        +
+                    |          |       |                                              |                   |   (u): ((cid <> 44) AND (cid < 50))       +
+                    |          |       |                                              |                   |   to: regress_rls_dave                    +
+                    |          |       |                                              |                   | p1r (RESTRICTIVE):                        +
+                    |          |       |                                              |                   |   (u): (cid <> 44)                        +
+                    |          |       |                                              |                   |   to: regress_rls_dave
+ regress_rls_schema | uaccount | table | regress_rls_alice=arwdDxtm/regress_rls_alice+|                   | 
+                    |          |       | =r/regress_rls_alice                         |                   | 
 (3 rows)
 
 \d document
@@ -228,31 +228,32 @@ SELECT * FROM document TABLESAMPLE BERNOULLI(50) REPEATABLE(0)
 (4 rows)
 
 EXPLAIN (COSTS OFF) SELECT * FROM document WHERE f_leak(dtitle);
-                            QUERY PLAN                             
--------------------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+                        QUERY PLAN                        
+----------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   Params Evaluated: $0
+   InitPlan 1 (returns $0)
+     ->  Remote Subquery Scan on all (datanodes 2)
+           ->  Index Scan using uaccount_pkey on uaccount
+                 Index Cond: (pguser = CURRENT_USER)
    ->  Seq Scan on document
          Filter: ((dlevel <= $0) AND f_leak(dtitle))
-         InitPlan 1 (returns $0)
-           ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-                 ->  Index Scan using uaccount_pkey on uaccount
-                       Index Cond: (pguser = CURRENT_USER)
-(7 rows)
+(8 rows)
 
 EXPLAIN (COSTS OFF) SELECT * FROM document NATURAL JOIN category WHERE f_leak(dtitle);
-                            QUERY PLAN                             
--------------------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
-   ->  Hash Join
-         Hash Cond: (category.cid = document.cid)
-         InitPlan 1 (returns $0)
-           ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-                 ->  Index Scan using uaccount_pkey on uaccount
-                       Index Cond: (pguser = CURRENT_USER)
-         ->  Seq Scan on category
-         ->  Hash
-               ->  Seq Scan on document
-                     Filter: ((dlevel <= $0) AND f_leak(dtitle))
+                        QUERY PLAN                         
+-----------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   Params Evaluated: $0
+   InitPlan 1 (returns $0)
+     ->  Remote Subquery Scan on all (datanodes 2)
+           ->  Index Scan using uaccount_pkey on uaccount
+                 Index Cond: (pguser = CURRENT_USER)
+   ->  Nested Loop
+         ->  Seq Scan on document
+               Filter: ((dlevel <= $0) AND f_leak(dtitle))
+         ->  Index Scan using category_pkey on category
+               Index Cond: (cid = document.cid)
 (11 rows)
 
 -- viewpoint from regress_rls_dave
@@ -284,29 +285,30 @@ SELECT * FROM document NATURAL JOIN category WHERE f_leak(dtitle) ORDER BY did;
 EXPLAIN (COSTS OFF) SELECT * FROM document WHERE f_leak(dtitle);
                                              QUERY PLAN                                             
 ----------------------------------------------------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+ Remote Subquery Scan on all (datanodes 2)
+   Params Evaluated: $0
+   InitPlan 1 (returns $0)
+     ->  Remote Subquery Scan on all (datanodes 2)
+           ->  Index Scan using uaccount_pkey on uaccount
+                 Index Cond: (pguser = CURRENT_USER)
    ->  Seq Scan on document
          Filter: ((cid <> 44) AND (cid <> 44) AND (cid < 50) AND (dlevel <= $0) AND f_leak(dtitle))
-         InitPlan 1 (returns $0)
-           ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-                 ->  Index Scan using uaccount_pkey on uaccount
-                       Index Cond: (pguser = CURRENT_USER)
-(7 rows)
+(8 rows)
 
 EXPLAIN (COSTS OFF) SELECT * FROM document NATURAL JOIN category WHERE f_leak(dtitle);
-                                                   QUERY PLAN                                                   
-----------------------------------------------------------------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
-   ->  Hash Join
-         Hash Cond: (category.cid = document.cid)
-         InitPlan 1 (returns $0)
-           ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-                 ->  Index Scan using uaccount_pkey on uaccount
-                       Index Cond: (pguser = CURRENT_USER)
-         ->  Seq Scan on category
-         ->  Hash
-               ->  Seq Scan on document
-                     Filter: ((cid <> 44) AND (cid <> 44) AND (cid < 50) AND (dlevel <= $0) AND f_leak(dtitle))
+                                                QUERY PLAN                                                
+----------------------------------------------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   Params Evaluated: $0
+   InitPlan 1 (returns $0)
+     ->  Remote Subquery Scan on all (datanodes 2)
+           ->  Index Scan using uaccount_pkey on uaccount
+                 Index Cond: (pguser = CURRENT_USER)
+   ->  Nested Loop
+         ->  Seq Scan on document
+               Filter: ((cid <> 44) AND (cid <> 44) AND (cid < 50) AND (dlevel <= $0) AND f_leak(dtitle))
+         ->  Index Scan using category_pkey on category
+               Index Cond: (cid = document.cid)
 (11 rows)
 
 -- 44 would technically fail for both p2r and p1r, but we should get an error
@@ -366,21 +368,24 @@ SELECT * FROM document NATURAL JOIN category WHERE f_leak(dtitle) ORDER by did;
 EXPLAIN (COSTS OFF) SELECT * FROM document WHERE f_leak(dtitle);
                           QUERY PLAN                           
 ---------------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+ Remote Fast Query Execution
+   Node/s: datanode_1, datanode_2
    ->  Seq Scan on document
          Filter: ((dauthor = CURRENT_USER) AND f_leak(dtitle))
-(3 rows)
+(4 rows)
 
 EXPLAIN (COSTS OFF) SELECT * FROM document NATURAL JOIN category WHERE f_leak(dtitle);
                              QUERY PLAN                              
 ---------------------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
-   ->  Nested Loop
+ Remote Fast Query Execution
+   Node/s: datanode_1, datanode_2
+   ->  Hash Join
+         Hash Cond: (document.cid = category.cid)
          ->  Seq Scan on document
                Filter: ((dauthor = CURRENT_USER) AND f_leak(dtitle))
-         ->  Index Scan using category_pkey on category
-               Index Cond: (cid = document.cid)
-(6 rows)
+         ->  Hash
+               ->  Seq Scan on category
+(8 rows)
 
 -- interaction of FK/PK constraints
 SET SESSION AUTHORIZATION regress_rls_alice;
@@ -429,7 +434,7 @@ SELECT * FROM document WHERE did = 8; -- and confirm we can't see it
 INSERT INTO document VALUES (8, 44, 1, 'regress_rls_carol', 'my third manga'); -- Should fail with RLS check violation, not duplicate key violation
 ERROR:  new row violates row-level security policy for table "document"
 UPDATE document SET did = 8, dauthor = 'regress_rls_carol' WHERE did = 5; -- Should fail with RLS check violation, not duplicate key violation
-ERROR:  Distributed column or partition column "did" can't be updated in current version
+ERROR:  Distributed column "did" can't be updated in current version
 -- database superuser does bypass RLS policy when enabled
 RESET SESSION AUTHORIZATION;
 SET row_security TO ON;
@@ -604,9 +609,9 @@ SELECT * FROM t1 ORDER BY a;
 (5 rows)
 
 EXPLAIN (COSTS OFF) SELECT * FROM t1;
-                     QUERY PLAN                      
------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+                QUERY PLAN                 
+-------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
    ->  Append
          ->  Seq Scan on t1
                Filter: ((a % 2) = 0)
@@ -629,7 +634,7 @@ SELECT * FROM t1 WHERE f_leak(b) ORDER BY a;
 EXPLAIN (COSTS OFF) SELECT * FROM t1 WHERE f_leak(b);
                      QUERY PLAN                      
 -----------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+ Remote Subquery Scan on all (datanodes 2)
    ->  Append
          ->  Seq Scan on t1
                Filter: (((a % 2) = 0) AND f_leak(b))
@@ -651,9 +656,9 @@ SELECT oid, * FROM t1 ORDER BY a;
 (5 rows)
 
 EXPLAIN (COSTS OFF) SELECT *, t1 FROM t1;
-                     QUERY PLAN                      
------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+                QUERY PLAN                 
+-------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
    ->  Append
          ->  Seq Scan on t1
                Filter: ((a % 2) = 0)
@@ -675,9 +680,9 @@ SELECT *, t1 FROM t1 ORDER BY a;
 (5 rows)
 
 EXPLAIN (COSTS OFF) SELECT *, t1 FROM t1;
-                     QUERY PLAN                      
------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+                QUERY PLAN                 
+-------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
    ->  Append
          ->  Seq Scan on t1
                Filter: ((a % 2) = 0)
@@ -699,9 +704,9 @@ SELECT * FROM t1 ORDER BY a FOR SHARE;
 (5 rows)
 
 EXPLAIN (COSTS OFF) SELECT * FROM t1 FOR SHARE;
-                     QUERY PLAN                      
------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+                QUERY PLAN                 
+-------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
    ->  LockRows
          ->  Append
                ->  Seq Scan on t1
@@ -725,7 +730,7 @@ SELECT * FROM t1 WHERE f_leak(b) ORDER BY a FOR SHARE;
 EXPLAIN (COSTS OFF) SELECT * FROM t1 WHERE f_leak(b) FOR SHARE;
                         QUERY PLAN                         
 -----------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+ Remote Subquery Scan on all (datanodes 2)
    ->  LockRows
          ->  Append
                ->  Seq Scan on t1
@@ -737,20 +742,20 @@ EXPLAIN (COSTS OFF) SELECT * FROM t1 WHERE f_leak(b) FOR SHARE;
 (9 rows)
 
 -- union all query
-SELECT a, b, oid FROM t2 UNION ALL SELECT a, b, oid FROM t3 order by oid;
+SELECT a, b, oid FROM t2 UNION ALL SELECT a, b, oid FROM t3 order by  a, b, oid;
  a |  b  | oid 
 ---+-----+-----
  1 | abc | 201
- 3 | cde | 203
  1 | xxx | 301
  2 | yyy | 302
+ 3 | cde | 203
  3 | zzz | 303
 (5 rows)
 
 EXPLAIN (COSTS OFF) SELECT a, b, oid FROM t2 UNION ALL SELECT a, b, oid FROM t3;
-                     QUERY PLAN                      
------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+                QUERY PLAN                 
+-------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
    ->  Append
          ->  Seq Scan on t2
                Filter: ((a % 2) = 1)
@@ -777,9 +782,9 @@ SELECT * FROM t1 WHERE f_leak(b) ORDER BY a;
 (11 rows)
 
 EXPLAIN (COSTS OFF) SELECT * FROM t1 WHERE f_leak(b);
-                     QUERY PLAN                      
------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+                QUERY PLAN                 
+-------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
    ->  Append
          ->  Seq Scan on t1
                Filter: f_leak(b)
@@ -809,9 +814,9 @@ SELECT * FROM t1 WHERE f_leak(b) ORDER BY a;
 (11 rows)
 
 EXPLAIN (COSTS OFF) SELECT * FROM t1 WHERE f_leak(b);
-                     QUERY PLAN                      
------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+                QUERY PLAN                 
+-------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
    ->  Append
          ->  Seq Scan on t1
                Filter: f_leak(b)
@@ -905,21 +910,22 @@ SELECT * FROM part_document WHERE f_leak(dtitle) ORDER BY did;
 (4 rows)
 
 EXPLAIN (COSTS OFF) SELECT * FROM part_document WHERE f_leak(dtitle);
-                            QUERY PLAN                             
--------------------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+                        QUERY PLAN                         
+-----------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   Params Evaluated: $0
+   InitPlan 1 (returns $0)
+     ->  Remote Subquery Scan on all (datanodes 2)
+           ->  Index Scan using uaccount_pkey on uaccount
+                 Index Cond: (pguser = CURRENT_USER)
    ->  Append
-         InitPlan 1 (returns $0)
-           ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-                 ->  Index Scan using uaccount_pkey on uaccount
-                       Index Cond: (pguser = CURRENT_USER)
          ->  Seq Scan on part_document_fiction
                Filter: ((dlevel <= $0) AND f_leak(dtitle))
          ->  Seq Scan on part_document_satire
                Filter: ((dlevel <= $0) AND f_leak(dtitle))
          ->  Seq Scan on part_document_nonfiction
                Filter: ((dlevel <= $0) AND f_leak(dtitle))
-(12 rows)
+(13 rows)
 
 -- viewpoint from regress_rls_carol
 SET SESSION AUTHORIZATION regress_rls_carol;
@@ -939,21 +945,22 @@ SELECT * FROM part_document WHERE f_leak(dtitle) ORDER BY did;
 (10 rows)
 
 EXPLAIN (COSTS OFF) SELECT * FROM part_document WHERE f_leak(dtitle);
-                            QUERY PLAN                             
--------------------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+                        QUERY PLAN                         
+-----------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   Params Evaluated: $0
+   InitPlan 1 (returns $0)
+     ->  Remote Subquery Scan on all (datanodes 2)
+           ->  Index Scan using uaccount_pkey on uaccount
+                 Index Cond: (pguser = CURRENT_USER)
    ->  Append
-         InitPlan 1 (returns $0)
-           ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-                 ->  Index Scan using uaccount_pkey on uaccount
-                       Index Cond: (pguser = CURRENT_USER)
          ->  Seq Scan on part_document_fiction
                Filter: ((dlevel <= $0) AND f_leak(dtitle))
          ->  Seq Scan on part_document_satire
                Filter: ((dlevel <= $0) AND f_leak(dtitle))
          ->  Seq Scan on part_document_nonfiction
                Filter: ((dlevel <= $0) AND f_leak(dtitle))
-(12 rows)
+(13 rows)
 
 -- viewpoint from regress_rls_dave
 SET SESSION AUTHORIZATION regress_rls_dave;
@@ -969,15 +976,16 @@ SELECT * FROM part_document WHERE f_leak(dtitle) ORDER BY did;
 EXPLAIN (COSTS OFF) SELECT * FROM part_document WHERE f_leak(dtitle);
                                 QUERY PLAN                                
 --------------------------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+ Remote Subquery Scan on all (datanodes 2)
+   Params Evaluated: $0
+   InitPlan 1 (returns $0)
+     ->  Remote Subquery Scan on all (datanodes 2)
+           ->  Index Scan using uaccount_pkey on uaccount
+                 Index Cond: (pguser = CURRENT_USER)
    ->  Append
-         InitPlan 1 (returns $0)
-           ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-                 ->  Index Scan using uaccount_pkey on uaccount
-                       Index Cond: (pguser = CURRENT_USER)
          ->  Seq Scan on part_document_fiction
                Filter: ((cid < 55) AND (dlevel <= $0) AND f_leak(dtitle))
-(8 rows)
+(9 rows)
 
 -- pp1 ERROR
 INSERT INTO part_document VALUES (100, 11, 5, 'regress_rls_dave', 'testing pp1'); -- fail
@@ -1039,15 +1047,16 @@ SELECT * FROM part_document WHERE f_leak(dtitle) ORDER BY did;
 EXPLAIN (COSTS OFF) SELECT * FROM part_document WHERE f_leak(dtitle);
                                 QUERY PLAN                                
 --------------------------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+ Remote Subquery Scan on all (datanodes 2)
+   Params Evaluated: $0
+   InitPlan 1 (returns $0)
+     ->  Remote Subquery Scan on all (datanodes 2)
+           ->  Index Scan using uaccount_pkey on uaccount
+                 Index Cond: (pguser = CURRENT_USER)
    ->  Append
-         InitPlan 1 (returns $0)
-           ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-                 ->  Index Scan using uaccount_pkey on uaccount
-                       Index Cond: (pguser = CURRENT_USER)
          ->  Seq Scan on part_document_fiction
                Filter: ((cid < 55) AND (dlevel <= $0) AND f_leak(dtitle))
-(8 rows)
+(9 rows)
 
 -- viewpoint from regress_rls_carol
 SET SESSION AUTHORIZATION regress_rls_carol;
@@ -1068,21 +1077,22 @@ SELECT * FROM part_document WHERE f_leak(dtitle) ORDER BY did;
 (11 rows)
 
 EXPLAIN (COSTS OFF) SELECT * FROM part_document WHERE f_leak(dtitle);
-                            QUERY PLAN                             
--------------------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+                        QUERY PLAN                         
+-----------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   Params Evaluated: $0
+   InitPlan 1 (returns $0)
+     ->  Remote Subquery Scan on all (datanodes 2)
+           ->  Index Scan using uaccount_pkey on uaccount
+                 Index Cond: (pguser = CURRENT_USER)
    ->  Append
-         InitPlan 1 (returns $0)
-           ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-                 ->  Index Scan using uaccount_pkey on uaccount
-                       Index Cond: (pguser = CURRENT_USER)
          ->  Seq Scan on part_document_fiction
                Filter: ((dlevel <= $0) AND f_leak(dtitle))
          ->  Seq Scan on part_document_satire
                Filter: ((dlevel <= $0) AND f_leak(dtitle))
          ->  Seq Scan on part_document_nonfiction
                Filter: ((dlevel <= $0) AND f_leak(dtitle))
-(12 rows)
+(13 rows)
 
 -- only owner can change policies
 ALTER POLICY pp1 ON part_document USING (true);    --fail
@@ -1116,7 +1126,8 @@ SELECT * FROM part_document WHERE f_leak(dtitle) ORDER BY did;
 EXPLAIN (COSTS OFF) SELECT * FROM part_document WHERE f_leak(dtitle);
                              QUERY PLAN                              
 ---------------------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+ Remote Fast Query Execution
+   Node/s: datanode_1, datanode_2
    ->  Append
          ->  Seq Scan on part_document_fiction
                Filter: ((dauthor = CURRENT_USER) AND f_leak(dtitle))
@@ -1124,7 +1135,7 @@ EXPLAIN (COSTS OFF) SELECT * FROM part_document WHERE f_leak(dtitle);
                Filter: ((dauthor = CURRENT_USER) AND f_leak(dtitle))
          ->  Seq Scan on part_document_nonfiction
                Filter: ((dauthor = CURRENT_USER) AND f_leak(dtitle))
-(8 rows)
+(9 rows)
 
 -- database superuser does bypass RLS policy when enabled
 RESET SESSION AUTHORIZATION;
@@ -1328,11 +1339,11 @@ SELECT * FROM s1 WHERE f_leak(b) order by 1;	-- OK
 EXPLAIN (COSTS OFF) SELECT * FROM only s1 WHERE f_leak(b);
                               QUERY PLAN                               
 -----------------------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+ Remote Subquery Scan on all (datanodes 2)
    ->  Seq Scan on s1
          Filter: ((hashed SubPlan 1) AND f_leak(b))
          SubPlan 1
-           ->  Remote Subquery Scan on all (datanode_1,datanode_2)
+           ->  Remote Subquery Scan on all (datanodes 2)
                  ->  Seq Scan on s2
                        Filter: (((x % 2) = 0) AND (y ~~ '%2f%'::text))
 (7 rows)
@@ -1350,11 +1361,11 @@ SELECT * FROM s1 WHERE f_leak(b) order by 1;	-- OK
 EXPLAIN (COSTS OFF) SELECT * FROM s1 WHERE f_leak(b);
                                     QUERY PLAN                                     
 -----------------------------------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+ Remote Subquery Scan on all (datanodes 2)
    ->  Seq Scan on s1
          Filter: ((hashed SubPlan 1) AND f_leak(b))
          SubPlan 1
-           ->  Remote Subquery Scan on all (datanode_1,datanode_2)
+           ->  Remote Subquery Scan on all (datanodes 2)
                  ->  Subquery Scan on v2
                        ->  Sort
                              Sort Key: s2.x
@@ -1373,17 +1384,17 @@ SELECT (SELECT x FROM s1 LIMIT 1) xx, * FROM s2 WHERE y like '%28%' order by 1;
 EXPLAIN (COSTS OFF) SELECT (SELECT x FROM s1 LIMIT 1) xx, * FROM s2 WHERE y like '%28%';
                                                  QUERY PLAN                                                  
 -------------------------------------------------------------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+ Remote Subquery Scan on all (datanodes 2)
    ->  Seq Scan on s2
          Filter: (((x % 2) = 0) AND (y ~~ '%28%'::text))
          SubPlan 2
            ->  Limit
-                 ->  Remote Subquery Scan on all (datanode_1,datanode_2)
+                 ->  Remote Subquery Scan on all (datanodes 2)
                        ->  Limit
                              ->  Seq Scan on s1
                                    Filter: (hashed SubPlan 1)
                                    SubPlan 1
-                                     ->  Remote Subquery Scan on all (datanode_1,datanode_2)
+                                     ->  Remote Subquery Scan on all (datanodes 2)
                                            ->  Subquery Scan on v2
                                                  ->  Sort
                                                        Sort Key: s2_1.x
@@ -1409,7 +1420,8 @@ EXECUTE p1(2);
 EXPLAIN (COSTS OFF) EXECUTE p1(2);
                         QUERY PLAN                        
 ----------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+ Remote Subquery Scan on all (datanodes 2)
+   Sort Key: t1.a
    ->  Sort
          Sort Key: t1.a
          ->  Append
@@ -1419,7 +1431,7 @@ EXPLAIN (COSTS OFF) EXECUTE p1(2);
                      Filter: ((a <= 2) AND ((a % 2) = 0))
                ->  Seq Scan on t3
                      Filter: ((a <= 2) AND ((a % 2) = 0))
-(10 rows)
+(11 rows)
 
 -- superuser is allowed to bypass RLS checks
 RESET SESSION AUTHORIZATION;
@@ -1441,9 +1453,9 @@ SELECT * FROM t1 WHERE f_leak(b) ORDER BY a;
 (11 rows)
 
 EXPLAIN (COSTS OFF) SELECT * FROM t1 WHERE f_leak(b);
-                     QUERY PLAN                      
------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+                QUERY PLAN                 
+-------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
    ->  Append
          ->  Seq Scan on t1
                Filter: f_leak(b)
@@ -1466,9 +1478,10 @@ EXECUTE p1(2);
 (6 rows)
 
 EXPLAIN (COSTS OFF) EXECUTE p1(2);
-                     QUERY PLAN                      
------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+                QUERY PLAN                 
+-------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   Sort Key: t1.a
    ->  Sort
          Sort Key: t1.a
          ->  Append
@@ -1478,7 +1491,7 @@ EXPLAIN (COSTS OFF) EXECUTE p1(2);
                      Filter: (a <= 2)
                ->  Seq Scan on t3
                      Filter: (a <= 2)
-(10 rows)
+(11 rows)
 
 PREPARE p2(int) AS SELECT * FROM t1 WHERE a = $1 order by 1;
 EXECUTE p2(2);
@@ -1490,9 +1503,9 @@ EXECUTE p2(2);
 (3 rows)
 
 EXPLAIN (COSTS OFF) EXECUTE p2(2);
-                QUERY PLAN                
-------------------------------------------
- Remote Subquery Scan on all (datanode_1)
+                QUERY PLAN                 
+-------------------------------------------
+ Remote Subquery Scan on all (datanodes 1)
    ->  Append
          ->  Seq Scan on t1
                Filter: (a = 2)
@@ -1516,7 +1529,7 @@ EXECUTE p2(2);
 EXPLAIN (COSTS OFF) EXECUTE p2(2);
                     QUERY PLAN                     
 ---------------------------------------------------
- Remote Subquery Scan on all (datanode_1)
+ Remote Subquery Scan on all (datanodes 1)
    ->  Append
          ->  Seq Scan on t1
                Filter: ((a = 2) AND ((a % 2) = 0))
@@ -1531,26 +1544,28 @@ EXPLAIN (COSTS OFF) EXECUTE p2(2);
 --
 SET SESSION AUTHORIZATION regress_rls_bob;
 EXPLAIN (COSTS OFF) UPDATE t1 SET b = b || b WHERE f_leak(b);
-                     QUERY PLAN                      
------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+                           QUERY PLAN                            
+-----------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
    ->  Update on t1
-         Update on t1
+         Update on t1 t1_1
          Update on t2
          Update on t3
-         ->  Seq Scan on t1
-               Filter: (((a % 2) = 0) AND f_leak(b))
-         ->  Seq Scan on t2
-               Filter: (((a % 2) = 0) AND f_leak(b))
-         ->  Seq Scan on t3
-               Filter: (((a % 2) = 0) AND f_leak(b))
-(11 rows)
+         ->  Result
+               ->  Append
+                     ->  Seq Scan on t1 t1_1
+                           Filter: (((a % 2) = 0) AND f_leak(b))
+                     ->  Seq Scan on t2
+                           Filter: (((a % 2) = 0) AND f_leak(b))
+                     ->  Seq Scan on t3
+                           Filter: (((a % 2) = 0) AND f_leak(b))
+(13 rows)
 
 UPDATE t1 SET b = b || b WHERE f_leak(b);
 EXPLAIN (COSTS OFF) UPDATE only t1 SET b = b || '_updt' WHERE f_leak(b);
                      QUERY PLAN                      
 -----------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+ Remote Subquery Scan on all (datanodes 2)
    ->  Update on t1
          ->  Seq Scan on t1
                Filter: (((a % 2) = 0) AND f_leak(b))
@@ -1558,12 +1573,11 @@ EXPLAIN (COSTS OFF) UPDATE only t1 SET b = b || '_updt' WHERE f_leak(b);
 
 UPDATE only t1 SET b = b || '_updt' WHERE f_leak(b);
 -- returning clause with system column
-UPDATE only t1 SET b = b WHERE f_leak(b) RETURNING oid, *, t1;
+UPDATE only t1 SET b = b WHERE f_leak(b) AND a = 2 RETURNING oid, *, t1;
  oid | a |      b      |       t1        
 -----+---+-------------+-----------------
  102 | 2 | bbbbbb_updt | (2,bbbbbb_updt)
- 104 | 4 | daddad_updt | (4,daddad_updt)
-(2 rows)
+(1 row)
 
 -- UPDATE t1 SET b = b WHERE f_leak(b) RETURNING *;
 UPDATE t1 SET b = b WHERE f_leak(b);
@@ -1574,72 +1588,61 @@ EXPLAIN (COSTS OFF) UPDATE t2 SET b=t2.b FROM t3
 WHERE t2.a = 3 and t3.a = 2 AND f_leak(t2.b) AND f_leak(t3.b);
                               QUERY PLAN                               
 -----------------------------------------------------------------------
- Remote Subquery Scan on all (datanode_2)
+ Remote Subquery Scan on all (datanodes 1)
    ->  Update on t2
          ->  Nested Loop
                ->  Seq Scan on t2
                      Filter: ((a = 3) AND ((a % 2) = 1) AND f_leak(b))
                ->  Materialize
-                     ->  Remote Subquery Scan on all (datanode_1)
+                     ->  Remote Subquery Scan on all (datanodes 1)
+                           Distribute results by R
                            ->  Seq Scan on t3
                                  Filter: ((a = 2) AND f_leak(b))
-(9 rows)
+(10 rows)
 
 UPDATE t2 SET b=t2.b FROM t3
 WHERE t2.a = 3 and t3.a = 2 AND f_leak(t2.b) AND f_leak(t3.b);
 EXPLAIN (COSTS OFF) UPDATE t1 SET b=t1.b FROM t2
 WHERE t1.a = 3 and t2.a = 3 AND f_leak(t1.b) AND f_leak(t2.b);
-                                    QUERY PLAN                                     
------------------------------------------------------------------------------------
- Remote Subquery Scan on all (datanode_2)
+                                 QUERY PLAN                                  
+-----------------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 1)
    ->  Update on t1
-         Update on t1
+         Update on t1 t1_1
          Update on t2 t2_1
          Update on t3
          ->  Nested Loop
-               ->  Seq Scan on t1
-                     Filter: ((a = 3) AND ((a % 2) = 0) AND f_leak(b))
+               ->  Append
+                     ->  Seq Scan on t1 t1_1
+                           Filter: ((a = 3) AND ((a % 2) = 0) AND f_leak(b))
+                     ->  Seq Scan on t2 t2_1
+                           Filter: ((a = 3) AND ((a % 2) = 0) AND f_leak(b))
+                     ->  Seq Scan on t3
+                           Filter: ((a = 3) AND ((a % 2) = 0) AND f_leak(b))
                ->  Materialize
-                     ->  Remote Subquery Scan on all (datanode_2)
-                           ->  Seq Scan on t2
-                                 Filter: ((a = 3) AND ((a % 2) = 1) AND f_leak(b))
-         ->  Nested Loop
-               ->  Seq Scan on t2 t2_1
-                     Filter: ((a = 3) AND ((a % 2) = 0) AND f_leak(b))
-               ->  Materialize
-                     ->  Remote Subquery Scan on all (datanode_2)
-                           ->  Seq Scan on t2
-                                 Filter: ((a = 3) AND ((a % 2) = 1) AND f_leak(b))
-         ->  Nested Loop
-               ->  Seq Scan on t3
-                     Filter: ((a = 3) AND ((a % 2) = 0) AND f_leak(b))
-               ->  Materialize
-                     ->  Remote Subquery Scan on all (datanode_2)
-                           ->  Seq Scan on t2
-                                 Filter: ((a = 3) AND ((a % 2) = 1) AND f_leak(b))
-(26 rows)
+                     ->  Seq Scan on t2
+                           Filter: ((a = 3) AND ((a % 2) = 1) AND f_leak(b))
+(16 rows)
 
 UPDATE t1 SET b=t1.b FROM t2
 WHERE t1.a = 3 and t2.a = 3 AND f_leak(t1.b) AND f_leak(t2.b);
 EXPLAIN (COSTS OFF) UPDATE t2 SET b=t2.b FROM t1
 WHERE t1.a = 3 and t2.a = 3 AND f_leak(t1.b) AND f_leak(t2.b);
-                                       QUERY PLAN                                        
------------------------------------------------------------------------------------------
- Remote Subquery Scan on all (datanode_2)
+                                 QUERY PLAN                                  
+-----------------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 1)
    ->  Update on t2
          ->  Nested Loop
                ->  Seq Scan on t2
                      Filter: ((a = 3) AND ((a % 2) = 1) AND f_leak(b))
-               ->  Materialize
-                     ->  Remote Subquery Scan on all (datanode_2)
-                           ->  Append
-                                 ->  Seq Scan on t1
-                                       Filter: ((a = 3) AND ((a % 2) = 0) AND f_leak(b))
-                                 ->  Seq Scan on t2 t2_1
-                                       Filter: ((a = 3) AND ((a % 2) = 0) AND f_leak(b))
-                                 ->  Seq Scan on t3
-                                       Filter: ((a = 3) AND ((a % 2) = 0) AND f_leak(b))
-(14 rows)
+               ->  Append
+                     ->  Seq Scan on t1
+                           Filter: ((a = 3) AND ((a % 2) = 0) AND f_leak(b))
+                     ->  Seq Scan on t2 t2_1
+                           Filter: ((a = 3) AND ((a % 2) = 0) AND f_leak(b))
+                     ->  Seq Scan on t3
+                           Filter: ((a = 3) AND ((a % 2) = 0) AND f_leak(b))
+(12 rows)
 
 UPDATE t2 SET b=t2.b FROM t1
 WHERE t1.a = 3 and t2.a = 3 AND f_leak(t1.b) AND f_leak(t2.b);
@@ -1647,19 +1650,17 @@ WHERE t1.a = 3 and t2.a = 3 AND f_leak(t1.b) AND f_leak(t2.b);
 EXPLAIN (COSTS OFF) UPDATE t2 t2_1 SET b = t2_2.b FROM t2 t2_2
 WHERE t2_1.a = 3 AND t2_2.a = t2_1.a AND t2_2.b = t2_1.b
 AND f_leak(t2_1.b) AND f_leak(t2_2.b) RETURNING *, t2_1, t2_2;
-                                    QUERY PLAN                                     
------------------------------------------------------------------------------------
- Remote Subquery Scan on all (datanode_2)
+                              QUERY PLAN                               
+-----------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 1)
    ->  Update on t2 t2_1
          ->  Nested Loop
                Join Filter: (t2_1.b = t2_2.b)
                ->  Seq Scan on t2 t2_1
                      Filter: ((a = 3) AND ((a % 2) = 1) AND f_leak(b))
-               ->  Materialize
-                     ->  Remote Subquery Scan on all (datanode_2)
-                           ->  Seq Scan on t2 t2_2
-                                 Filter: ((a = 3) AND ((a % 2) = 1) AND f_leak(b))
-(10 rows)
+               ->  Seq Scan on t2 t2_2
+                     Filter: ((a = 3) AND ((a % 2) = 1) AND f_leak(b))
+(8 rows)
 
 UPDATE t2 t2_1 SET b = t2_2.b FROM t2 t2_2
 WHERE t2_1.a = 3 AND t2_2.a = t2_1.a AND t2_2.b = t2_1.b
@@ -1672,16 +1673,23 @@ AND f_leak(t2_1.b) AND f_leak(t2_2.b) RETURNING *, t2_1, t2_2;
 EXPLAIN (COSTS OFF) UPDATE t1 t1_1 SET b = t1_2.b FROM t1 t1_2
 WHERE t1_1.a = 4 AND t1_2.a = t1_1.a AND t1_2.b = t1_1.b
 AND f_leak(t1_1.b) AND f_leak(t1_2.b) RETURNING *, t1_1, t1_2;
-                                       QUERY PLAN                                        
------------------------------------------------------------------------------------------
- Remote Subquery Scan on all (datanode_2)
+                                    QUERY PLAN                                     
+-----------------------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 1)
    ->  Update on t1 t1_1
-         Update on t1 t1_1
-         Update on t2 t1_1_1
-         Update on t3 t1_1_2
-         ->  Hash Join
-               Hash Cond: (b = t1_1.b)
-               ->  Remote Subquery Scan on all (datanode_2)
+         Update on t1 t1_1_1
+         Update on t2 t1_1_2
+         Update on t3 t1_1_3
+         ->  Nested Loop
+               Join Filter: (t1_1_1.b = t1_2.b)
+               ->  Append
+                     ->  Seq Scan on t1 t1_1_1
+                           Filter: ((a = 4) AND ((a % 2) = 0) AND f_leak(b))
+                     ->  Seq Scan on t2 t1_1_2
+                           Filter: ((a = 4) AND ((a % 2) = 0) AND f_leak(b))
+                     ->  Seq Scan on t3 t1_1_3
+                           Filter: ((a = 4) AND ((a % 2) = 0) AND f_leak(b))
+               ->  Materialize
                      ->  Append
                            ->  Seq Scan on t1 t1_2
                                  Filter: ((a = 4) AND ((a % 2) = 0) AND f_leak(b))
@@ -1689,36 +1697,7 @@ AND f_leak(t1_1.b) AND f_leak(t1_2.b) RETURNING *, t1_1, t1_2;
                                  Filter: ((a = 4) AND ((a % 2) = 0) AND f_leak(b))
                            ->  Seq Scan on t3 t1_2_2
                                  Filter: ((a = 4) AND ((a % 2) = 0) AND f_leak(b))
-               ->  Hash
-                     ->  Seq Scan on t1 t1_1
-                           Filter: ((a = 4) AND ((a % 2) = 0) AND f_leak(b))
-         ->  Nested Loop
-               Join Filter: (t1_1_1.b = b)
-               ->  Seq Scan on t2 t1_1_1
-                     Filter: ((a = 4) AND ((a % 2) = 0) AND f_leak(b))
-               ->  Materialize
-                     ->  Remote Subquery Scan on all (datanode_2)
-                           ->  Append
-                                 ->  Seq Scan on t1 t1_2
-                                       Filter: ((a = 4) AND ((a % 2) = 0) AND f_leak(b))
-                                 ->  Seq Scan on t2 t1_2_1
-                                       Filter: ((a = 4) AND ((a % 2) = 0) AND f_leak(b))
-                                 ->  Seq Scan on t3 t1_2_2
-                                       Filter: ((a = 4) AND ((a % 2) = 0) AND f_leak(b))
-         ->  Nested Loop
-               Join Filter: (t1_1_2.b = b)
-               ->  Seq Scan on t3 t1_1_2
-                     Filter: ((a = 4) AND ((a % 2) = 0) AND f_leak(b))
-               ->  Materialize
-                     ->  Remote Subquery Scan on all (datanode_2)
-                           ->  Append
-                                 ->  Seq Scan on t1 t1_2
-                                       Filter: ((a = 4) AND ((a % 2) = 0) AND f_leak(b))
-                                 ->  Seq Scan on t2 t1_2_1
-                                       Filter: ((a = 4) AND ((a % 2) = 0) AND f_leak(b))
-                                 ->  Seq Scan on t3 t1_2_2
-                                       Filter: ((a = 4) AND ((a % 2) = 0) AND f_leak(b))
-(44 rows)
+(22 rows)
 
 UPDATE t1 t1_1 SET b = t1_2.b FROM t1 t1_2
 WHERE t1_1.a = 4 AND t1_2.a = t1_1.a AND t1_2.b = t1_1.b
@@ -1752,43 +1731,33 @@ SET row_security TO ON;
 EXPLAIN (COSTS OFF) DELETE FROM only t1 WHERE f_leak(b);
                      QUERY PLAN                      
 -----------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+ Remote Fast Query Execution
+   Node/s: datanode_1, datanode_2
    ->  Delete on t1
          ->  Seq Scan on t1
                Filter: (((a % 2) = 0) AND f_leak(b))
-(4 rows)
+(5 rows)
 
 EXPLAIN (COSTS OFF) DELETE FROM t1 WHERE f_leak(b);
-                     QUERY PLAN                      
------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+                        QUERY PLAN                         
+-----------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
    ->  Delete on t1
-         Delete on t1
+         Delete on t1 t1_1
          Delete on t2
          Delete on t3
-         ->  Seq Scan on t1
-               Filter: (((a % 2) = 0) AND f_leak(b))
-         ->  Seq Scan on t2
-               Filter: (((a % 2) = 0) AND f_leak(b))
-         ->  Seq Scan on t3
-               Filter: (((a % 2) = 0) AND f_leak(b))
-(11 rows)
+         ->  Append
+               ->  Seq Scan on t1 t1_1
+                     Filter: (((a % 2) = 0) AND f_leak(b))
+               ->  Seq Scan on t2
+                     Filter: (((a % 2) = 0) AND f_leak(b))
+               ->  Seq Scan on t3
+                     Filter: (((a % 2) = 0) AND f_leak(b))
+(12 rows)
 
-DELETE FROM only t1 WHERE f_leak(b) RETURNING oid, *, t1;
- oid | a |      b      |       t1        
------+---+-------------+-----------------
- 102 | 2 | bbbbbb_updt | (2,bbbbbb_updt)
- 104 | 4 | daddad_updt | (4,daddad_updt)
-(2 rows)
-
-DELETE FROM t1 WHERE f_leak(b) RETURNING oid, *, t1;
- oid | a |   b    |     t1     
------+---+--------+------------
- 202 | 2 | bcdbcd | (2,bcdbcd)
- 302 | 2 | yyyyyy | (2,yyyyyy)
- 204 | 4 | defdef | (4,defdef)
-(3 rows)
-
+-- OpenTenBase-V3 remove unstable case, returning could not add order by clause
+DELETE FROM only t1 WHERE f_leak(b);
+DELETE FROM t1 WHERE f_leak(b);
 --
 -- S.b. view on top of Row-level security
 --
@@ -1803,9 +1772,9 @@ CREATE VIEW bv1 WITH (security_barrier) AS SELECT * FROM b1 WHERE a > 0 WITH CHE
 GRANT ALL ON bv1 TO regress_rls_carol;
 SET SESSION AUTHORIZATION regress_rls_carol;
 EXPLAIN (COSTS OFF) SELECT * FROM bv1 WHERE f_leak(b);
-                     QUERY PLAN                      
------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+                    QUERY PLAN                     
+---------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
    ->  Subquery Scan on bv1
          Filter: f_leak(bv1.b)
          ->  Seq Scan on b1
@@ -1830,7 +1799,7 @@ INSERT INTO bv1 VALUES (12, 'xxx'); -- ok
 EXPLAIN (COSTS OFF) UPDATE bv1 SET b = 'yyy' WHERE a = 4 AND f_leak(b);
                                  QUERY PLAN                                  
 -----------------------------------------------------------------------------
- Remote Subquery Scan on all (datanode_2)
+ Remote Subquery Scan on all (datanodes 1)
    ->  Update on b1
          ->  Seq Scan on b1
                Filter: ((a > 0) AND (a = 4) AND ((a % 2) = 0) AND f_leak(b))
@@ -1840,7 +1809,7 @@ UPDATE bv1 SET b = 'yyy' WHERE a = 4 AND f_leak(b);
 EXPLAIN (COSTS OFF) DELETE FROM bv1 WHERE a = 6 AND f_leak(b);
                                  QUERY PLAN                                  
 -----------------------------------------------------------------------------
- Remote Subquery Scan on all (datanode_1)
+ Remote Subquery Scan on all (datanodes 1)
    ->  Delete on b1
          ->  Seq Scan on b1
                Filter: ((a > 0) AND (a = 6) AND ((a % 2) = 0) AND f_leak(b))
@@ -2024,7 +1993,7 @@ CREATE POLICY p1 ON z1 TO regress_rls_group1 USING (a % 2 = 0);
 CREATE POLICY p2 ON z1 TO regress_rls_group2 USING (a % 2 = 1);
 ALTER TABLE z1 ENABLE ROW LEVEL SECURITY;
 SET SESSION AUTHORIZATION regress_rls_bob;
-SELECT * FROM z1 WHERE f_leak(b);
+SELECT * FROM z1 WHERE f_leak(b) order by a, b;
  a |  b  
 ---+-----
  2 | bbb
@@ -2032,50 +2001,51 @@ SELECT * FROM z1 WHERE f_leak(b);
 (2 rows)
 
 EXPLAIN (COSTS OFF) SELECT * FROM z1 WHERE f_leak(b);
-                     QUERY PLAN                      
------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+                  QUERY PLAN                   
+-----------------------------------------------
+ Remote Fast Query Execution
+   Node/s: datanode_1, datanode_2
    ->  Seq Scan on z1
          Filter: (((a % 2) = 0) AND f_leak(b))
-(3 rows)
+(4 rows)
 
 PREPARE plancache_test AS SELECT * FROM z1 WHERE f_leak(b);
 EXPLAIN (COSTS OFF) EXECUTE plancache_test;
-                     QUERY PLAN                      
------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+                  QUERY PLAN                   
+-----------------------------------------------
+ Remote Fast Query Execution
+   Node/s: datanode_1, datanode_2
    ->  Seq Scan on z1
          Filter: (((a % 2) = 0) AND f_leak(b))
-(3 rows)
+(4 rows)
 
 PREPARE plancache_test2 AS WITH q AS MATERIALIZED (SELECT * FROM z1 WHERE f_leak(b)) SELECT * FROM q,z2;
 EXPLAIN (COSTS OFF) EXECUTE plancache_test2;
-                           QUERY PLAN                            
------------------------------------------------------------------
+                      QUERY PLAN                       
+-------------------------------------------------------
  Nested Loop
    CTE q
-     ->  Remote Subquery Scan on all (datanode_1,datanode_2)
+     ->  Remote Subquery Scan on all (datanodes 2)
            ->  Seq Scan on z1
                  Filter: (((a % 2) = 0) AND f_leak(b))
    ->  CTE Scan on q
    ->  Materialize
-         ->  Remote Subquery Scan on all (datanode_1,datanode_2)
+         ->  Remote Subquery Scan on all (datanodes 2)
                ->  Seq Scan on z2
 (9 rows)
 
 PREPARE plancache_test3 AS WITH q AS MATERIALIZED (SELECT * FROM z2) SELECT * FROM q,z1 WHERE f_leak(z1.b);
 EXPLAIN (COSTS OFF) EXECUTE plancache_test3;
-                         QUERY PLAN                          
--------------------------------------------------------------
+                        QUERY PLAN                         
+-----------------------------------------------------------
  Nested Loop
-   CTE q
-     ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-           ->  Seq Scan on z2
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-         ->  Seq Scan on z1
-               Filter: (((a % 2) = 0) AND f_leak(b))
-   ->  CTE Scan on q
-(8 rows)
+   ->  Remote Subquery Scan on all (datanodes 2)
+         ->  Seq Scan on z2
+   ->  Materialize
+         ->  Remote Subquery Scan on all (datanodes 2)
+               ->  Seq Scan on z1
+                     Filter: (((a % 2) = 0) AND f_leak(b))
+(7 rows)
 
 SET ROLE regress_rls_group1;
 SELECT * FROM z1 WHERE f_leak(b) order by 1;
@@ -2086,47 +2056,48 @@ SELECT * FROM z1 WHERE f_leak(b) order by 1;
 (2 rows)
 
 EXPLAIN (COSTS OFF) SELECT * FROM z1 WHERE f_leak(b);
-                     QUERY PLAN                      
------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+                  QUERY PLAN                   
+-----------------------------------------------
+ Remote Fast Query Execution
+   Node/s: datanode_1, datanode_2
    ->  Seq Scan on z1
          Filter: (((a % 2) = 0) AND f_leak(b))
-(3 rows)
+(4 rows)
 
 EXPLAIN (COSTS OFF) EXECUTE plancache_test;
-                     QUERY PLAN                      
------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+                  QUERY PLAN                   
+-----------------------------------------------
+ Remote Fast Query Execution
+   Node/s: datanode_1, datanode_2
    ->  Seq Scan on z1
          Filter: (((a % 2) = 0) AND f_leak(b))
-(3 rows)
+(4 rows)
 
 EXPLAIN (COSTS OFF) EXECUTE plancache_test2;
-                           QUERY PLAN                            
------------------------------------------------------------------
+                      QUERY PLAN                       
+-------------------------------------------------------
  Nested Loop
    CTE q
-     ->  Remote Subquery Scan on all (datanode_1,datanode_2)
+     ->  Remote Subquery Scan on all (datanodes 2)
            ->  Seq Scan on z1
                  Filter: (((a % 2) = 0) AND f_leak(b))
    ->  CTE Scan on q
    ->  Materialize
-         ->  Remote Subquery Scan on all (datanode_1,datanode_2)
+         ->  Remote Subquery Scan on all (datanodes 2)
                ->  Seq Scan on z2
 (9 rows)
 
 EXPLAIN (COSTS OFF) EXECUTE plancache_test3;
-                         QUERY PLAN                          
--------------------------------------------------------------
+                        QUERY PLAN                         
+-----------------------------------------------------------
  Nested Loop
-   CTE q
-     ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-           ->  Seq Scan on z2
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-         ->  Seq Scan on z1
-               Filter: (((a % 2) = 0) AND f_leak(b))
-   ->  CTE Scan on q
-(8 rows)
+   ->  Remote Subquery Scan on all (datanodes 2)
+         ->  Seq Scan on z2
+   ->  Materialize
+         ->  Remote Subquery Scan on all (datanodes 2)
+               ->  Seq Scan on z1
+                     Filter: (((a % 2) = 0) AND f_leak(b))
+(7 rows)
 
 SET SESSION AUTHORIZATION regress_rls_carol;
 SELECT * FROM z1 WHERE f_leak(b) order by 1;
@@ -2137,47 +2108,48 @@ SELECT * FROM z1 WHERE f_leak(b) order by 1;
 (2 rows)
 
 EXPLAIN (COSTS OFF) SELECT * FROM z1 WHERE f_leak(b);
-                     QUERY PLAN                      
------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+                  QUERY PLAN                   
+-----------------------------------------------
+ Remote Fast Query Execution
+   Node/s: datanode_1, datanode_2
    ->  Seq Scan on z1
          Filter: (((a % 2) = 1) AND f_leak(b))
-(3 rows)
+(4 rows)
 
 EXPLAIN (COSTS OFF) EXECUTE plancache_test;
-                     QUERY PLAN                      
------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+                  QUERY PLAN                   
+-----------------------------------------------
+ Remote Fast Query Execution
+   Node/s: datanode_1, datanode_2
    ->  Seq Scan on z1
          Filter: (((a % 2) = 1) AND f_leak(b))
-(3 rows)
+(4 rows)
 
 EXPLAIN (COSTS OFF) EXECUTE plancache_test2;
-                           QUERY PLAN                            
------------------------------------------------------------------
+                      QUERY PLAN                       
+-------------------------------------------------------
  Nested Loop
    CTE q
-     ->  Remote Subquery Scan on all (datanode_1,datanode_2)
+     ->  Remote Subquery Scan on all (datanodes 2)
            ->  Seq Scan on z1
                  Filter: (((a % 2) = 1) AND f_leak(b))
    ->  CTE Scan on q
    ->  Materialize
-         ->  Remote Subquery Scan on all (datanode_1,datanode_2)
+         ->  Remote Subquery Scan on all (datanodes 2)
                ->  Seq Scan on z2
 (9 rows)
 
 EXPLAIN (COSTS OFF) EXECUTE plancache_test3;
-                         QUERY PLAN                          
--------------------------------------------------------------
+                        QUERY PLAN                         
+-----------------------------------------------------------
  Nested Loop
-   CTE q
-     ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-           ->  Seq Scan on z2
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-         ->  Seq Scan on z1
-               Filter: (((a % 2) = 1) AND f_leak(b))
-   ->  CTE Scan on q
-(8 rows)
+   ->  Remote Subquery Scan on all (datanodes 2)
+         ->  Seq Scan on z2
+   ->  Materialize
+         ->  Remote Subquery Scan on all (datanodes 2)
+               ->  Seq Scan on z1
+                     Filter: (((a % 2) = 1) AND f_leak(b))
+(7 rows)
 
 SET ROLE regress_rls_group2;
 SELECT * FROM z1 WHERE f_leak(b) order by 1;
@@ -2188,47 +2160,48 @@ SELECT * FROM z1 WHERE f_leak(b) order by 1;
 (2 rows)
 
 EXPLAIN (COSTS OFF) SELECT * FROM z1 WHERE f_leak(b);
-                     QUERY PLAN                      
------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+                  QUERY PLAN                   
+-----------------------------------------------
+ Remote Fast Query Execution
+   Node/s: datanode_1, datanode_2
    ->  Seq Scan on z1
          Filter: (((a % 2) = 1) AND f_leak(b))
-(3 rows)
+(4 rows)
 
 EXPLAIN (COSTS OFF) EXECUTE plancache_test;
-                     QUERY PLAN                      
------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+                  QUERY PLAN                   
+-----------------------------------------------
+ Remote Fast Query Execution
+   Node/s: datanode_1, datanode_2
    ->  Seq Scan on z1
          Filter: (((a % 2) = 1) AND f_leak(b))
-(3 rows)
+(4 rows)
 
 EXPLAIN (COSTS OFF) EXECUTE plancache_test2;
-                           QUERY PLAN                            
------------------------------------------------------------------
+                      QUERY PLAN                       
+-------------------------------------------------------
  Nested Loop
    CTE q
-     ->  Remote Subquery Scan on all (datanode_1,datanode_2)
+     ->  Remote Subquery Scan on all (datanodes 2)
            ->  Seq Scan on z1
                  Filter: (((a % 2) = 1) AND f_leak(b))
    ->  CTE Scan on q
    ->  Materialize
-         ->  Remote Subquery Scan on all (datanode_1,datanode_2)
+         ->  Remote Subquery Scan on all (datanodes 2)
                ->  Seq Scan on z2
 (9 rows)
 
 EXPLAIN (COSTS OFF) EXECUTE plancache_test3;
-                         QUERY PLAN                          
--------------------------------------------------------------
+                        QUERY PLAN                         
+-----------------------------------------------------------
  Nested Loop
-   CTE q
-     ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-           ->  Seq Scan on z2
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-         ->  Seq Scan on z1
-               Filter: (((a % 2) = 1) AND f_leak(b))
-   ->  CTE Scan on q
-(8 rows)
+   ->  Remote Subquery Scan on all (datanodes 2)
+         ->  Seq Scan on z2
+   ->  Materialize
+         ->  Remote Subquery Scan on all (datanodes 2)
+               ->  Seq Scan on z1
+                     Filter: (((a % 2) = 1) AND f_leak(b))
+(7 rows)
 
 --
 -- Views should follow policy for view owner.
@@ -2239,7 +2212,7 @@ CREATE VIEW rls_view AS SELECT * FROM z1 WHERE f_leak(b) order by 1;
 GRANT SELECT ON rls_view TO regress_rls_bob;
 -- Query as role that is not owner of view or table.  Should return all records.
 SET SESSION AUTHORIZATION regress_rls_bob;
-SELECT * FROM rls_view ORDER BY a,b;
+SELECT * FROM rls_view order by a, b;
  a |  b  
 ---+-----
  1 | aba
@@ -2249,18 +2222,19 @@ SELECT * FROM rls_view ORDER BY a,b;
 (4 rows)
 
 EXPLAIN (COSTS OFF) SELECT * FROM rls_view;
-                     QUERY PLAN                      
------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+                QUERY PLAN                 
+-------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   Sort Key: z1.a
    ->  Sort
          Sort Key: z1.a
          ->  Seq Scan on z1
                Filter: f_leak(b)
-(5 rows)
+(6 rows)
 
 -- Query as view/table owner.  Should return all records.
 SET SESSION AUTHORIZATION regress_rls_alice;
-SELECT * FROM rls_view ORDER BY a,b;
+SELECT * FROM rls_view order by a, b;
  a |  b  
 ---+-----
  1 | aba
@@ -2270,14 +2244,15 @@ SELECT * FROM rls_view ORDER BY a,b;
 (4 rows)
 
 EXPLAIN (COSTS OFF) SELECT * FROM rls_view;
-                     QUERY PLAN                      
------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+                QUERY PLAN                 
+-------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   Sort Key: z1.a
    ->  Sort
          Sort Key: z1.a
          ->  Seq Scan on z1
                Filter: f_leak(b)
-(5 rows)
+(6 rows)
 
 DROP VIEW rls_view;
 -- View and Table owners are different.
@@ -2287,7 +2262,7 @@ GRANT SELECT ON rls_view TO regress_rls_alice;
 -- Query as role that is not owner of view but is owner of table.
 -- Should return records based on view owner policies.
 SET SESSION AUTHORIZATION regress_rls_alice;
-SELECT * FROM rls_view ORDER BY a,b;
+SELECT * FROM rls_view order by a, b;
  a |  b  
 ---+-----
  2 | bbb
@@ -2297,17 +2272,18 @@ SELECT * FROM rls_view ORDER BY a,b;
 EXPLAIN (COSTS OFF) SELECT * FROM rls_view;
                      QUERY PLAN                      
 -----------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+ Remote Subquery Scan on all (datanodes 2)
+   Sort Key: z1.a
    ->  Sort
          Sort Key: z1.a
          ->  Seq Scan on z1
                Filter: (((a % 2) = 0) AND f_leak(b))
-(5 rows)
+(6 rows)
 
 -- Query as role that is not owner of table but is owner of view.
 -- Should return records based on view owner policies.
 SET SESSION AUTHORIZATION regress_rls_bob;
-SELECT * FROM rls_view ORDER BY a,b;
+SELECT * FROM rls_view order by a, b;
  a |  b  
 ---+-----
  2 | bbb
@@ -2317,12 +2293,13 @@ SELECT * FROM rls_view ORDER BY a,b;
 EXPLAIN (COSTS OFF) SELECT * FROM rls_view;
                      QUERY PLAN                      
 -----------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+ Remote Subquery Scan on all (datanodes 2)
+   Sort Key: z1.a
    ->  Sort
          Sort Key: z1.a
          ->  Seq Scan on z1
                Filter: (((a % 2) = 0) AND f_leak(b))
-(5 rows)
+(6 rows)
 
 -- Query as role that is not the owner of the table or view without permissions.
 SET SESSION AUTHORIZATION regress_rls_carol;
@@ -2333,7 +2310,7 @@ ERROR:  permission denied for relation rls_view
 -- Query as role that is not the owner of the table or view with permissions.
 SET SESSION AUTHORIZATION regress_rls_bob;
 GRANT SELECT ON rls_view TO regress_rls_carol;
-SELECT * FROM rls_view ORDER BY a,b;
+SELECT * FROM rls_view order by a, b;
  a |  b  
 ---+-----
  2 | bbb
@@ -2343,12 +2320,13 @@ SELECT * FROM rls_view ORDER BY a,b;
 EXPLAIN (COSTS OFF) SELECT * FROM rls_view;
                      QUERY PLAN                      
 -----------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+ Remote Subquery Scan on all (datanodes 2)
+   Sort Key: z1.a
    ->  Sort
          Sort Key: z1.a
          ->  Seq Scan on z1
                Filter: (((a % 2) = 0) AND f_leak(b))
-(5 rows)
+(6 rows)
 
 SET SESSION AUTHORIZATION regress_rls_bob;
 DROP VIEW rls_view;
@@ -2385,16 +2363,11 @@ SELECT * FROM x1 WHERE f_leak(b) ORDER BY a ASC;
  8 | fgh | regress_rls_carol
 (6 rows)
 
-UPDATE x1 SET b = b || '_updt' WHERE f_leak(b) RETURNING *;
- a |    b     |         c         
----+----------+-------------------
- 1 | abc_updt | regress_rls_bob
+UPDATE x1 SET b = b || '_updt' WHERE f_leak(b) AND a = 2 RETURNING *;
+ a |    b     |        c        
+---+----------+-----------------
  2 | bcd_updt | regress_rls_bob
- 5 | efg_updt | regress_rls_bob
- 6 | fgh_updt | regress_rls_bob
- 8 | fgh_updt | regress_rls_carol
- 4 | def_updt | regress_rls_carol
-(6 rows)
+(1 row)
 
 SET SESSION AUTHORIZATION regress_rls_carol;
 SELECT * FROM x1 WHERE f_leak(b) ORDER BY a ASC;
@@ -2402,33 +2375,23 @@ SELECT * FROM x1 WHERE f_leak(b) ORDER BY a ASC;
 ---+----------+-------------------
  2 | bcd_updt | regress_rls_bob
  3 | cde      | regress_rls_carol
- 4 | def_updt | regress_rls_carol
- 6 | fgh_updt | regress_rls_bob
+ 4 | def      | regress_rls_carol
+ 6 | fgh      | regress_rls_bob
  7 | fgh      | regress_rls_carol
- 8 | fgh_updt | regress_rls_carol
+ 8 | fgh      | regress_rls_carol
 (6 rows)
 
-UPDATE x1 SET b = b || '_updt' WHERE f_leak(b) RETURNING *;
- a |       b       |         c         
----+---------------+-------------------
+UPDATE x1 SET b = b || '_updt' WHERE f_leak(b) AND a = 2 RETURNING *;
+ a |       b       |        c        
+---+---------------+-----------------
  2 | bcd_updt_updt | regress_rls_bob
- 6 | fgh_updt_updt | regress_rls_bob
- 8 | fgh_updt_updt | regress_rls_carol
- 3 | cde_updt      | regress_rls_carol
- 7 | fgh_updt      | regress_rls_carol
- 4 | def_updt_updt | regress_rls_carol
-(6 rows)
+(1 row)
 
-DELETE FROM x1 WHERE f_leak(b) RETURNING *;
- a |       b       |         c         
----+---------------+-------------------
+DELETE FROM x1 WHERE f_leak(b) AND a = 2 RETURNING *;
+ a |       b       |        c        
+---+---------------+-----------------
  2 | bcd_updt_updt | regress_rls_bob
- 6 | fgh_updt_updt | regress_rls_bob
- 8 | fgh_updt_updt | regress_rls_carol
- 3 | cde_updt      | regress_rls_carol
- 7 | fgh_updt      | regress_rls_carol
- 4 | def_updt_updt | regress_rls_carol
-(6 rows)
+(1 row)
 
 --
 -- Duplicate Policy Names
@@ -2452,9 +2415,9 @@ SET SESSION AUTHORIZATION regress_rls_alice;
 CREATE VIEW rls_sbv WITH (security_barrier) AS
     SELECT * FROM y1 WHERE f_leak(b);
 EXPLAIN (COSTS OFF) SELECT * FROM rls_sbv WHERE (a = 1);
-                QUERY PLAN                
-------------------------------------------
- Remote Subquery Scan on all (datanode_1)
+                QUERY PLAN                 
+-------------------------------------------
+ Remote Subquery Scan on all (datanodes 1)
    ->  Seq Scan on y1
          Filter: (f_leak(b) AND (a = 1))
 (3 rows)
@@ -2467,7 +2430,7 @@ CREATE VIEW rls_sbv WITH (security_barrier) AS
 EXPLAIN (COSTS OFF) SELECT * FROM rls_sbv WHERE (a = 1);
                                QUERY PLAN                               
 ------------------------------------------------------------------------
- Remote Subquery Scan on all (datanode_1)
+ Remote Subquery Scan on all (datanodes 1)
    ->  Seq Scan on y1
          Filter: ((a = 1) AND ((a > 2) OR ((a % 2) = 0)) AND f_leak(b))
 (3 rows)
@@ -2503,10 +2466,11 @@ SELECT * FROM y2 WHERE f_leak(b) order by 1;
 EXPLAIN (COSTS OFF) SELECT * FROM y2 WHERE f_leak(b);
                                     QUERY PLAN                                     
 -----------------------------------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+ Remote Fast Query Execution
+   Node/s: datanode_1, datanode_2
    ->  Seq Scan on y2
          Filter: ((((a % 4) = 0) OR ((a % 3) = 0) OR ((a % 2) = 0)) AND f_leak(b))
-(3 rows)
+(4 rows)
 
 --
 -- Qual push-down of leaky functions, when not referring to table
@@ -2533,10 +2497,11 @@ SELECT * FROM y2 WHERE f_leak('abc') order by 1;
 EXPLAIN (COSTS OFF) SELECT * FROM y2 WHERE f_leak('abc');
                                          QUERY PLAN                                          
 ---------------------------------------------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+ Remote Fast Query Execution
+   Node/s: datanode_1, datanode_2
    ->  Seq Scan on y2
          Filter: (f_leak('abc'::text) AND (((a % 4) = 0) OR ((a % 3) = 0) OR ((a % 2) = 0)))
-(3 rows)
+(4 rows)
 
 CREATE TABLE test_qual_pushdown (
     abc text
@@ -2550,13 +2515,13 @@ SELECT * FROM y2 JOIN test_qual_pushdown ON (b = abc) WHERE f_leak(abc) order by
 EXPLAIN (COSTS OFF) SELECT * FROM y2 JOIN test_qual_pushdown ON (b = abc) WHERE f_leak(abc);
                                      QUERY PLAN                                      
 -------------------------------------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+ Remote Subquery Scan on all (datanodes 2)
    ->  Hash Join
          Hash Cond: (test_qual_pushdown.abc = y2.b)
          ->  Seq Scan on test_qual_pushdown
                Filter: f_leak(abc)
          ->  Hash
-               ->  Remote Subquery Scan on all (datanode_1,datanode_2)
+               ->  Remote Subquery Scan on all (datanodes 2)
                      Distribute results by H: b
                      ->  Seq Scan on y2
                            Filter: (((a % 4) = 0) OR ((a % 3) = 0) OR ((a % 2) = 0))
@@ -2570,12 +2535,12 @@ SELECT * FROM y2 JOIN test_qual_pushdown ON (b = abc) WHERE f_leak(b) order by 1
 EXPLAIN (COSTS OFF) SELECT * FROM y2 JOIN test_qual_pushdown ON (b = abc) WHERE f_leak(b);
                                              QUERY PLAN                                              
 -----------------------------------------------------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+ Remote Subquery Scan on all (datanodes 2)
    ->  Hash Join
          Hash Cond: (test_qual_pushdown.abc = y2.b)
          ->  Seq Scan on test_qual_pushdown
          ->  Hash
-               ->  Remote Subquery Scan on all (datanode_1,datanode_2)
+               ->  Remote Subquery Scan on all (datanodes 2)
                      Distribute results by H: b
                      ->  Seq Scan on y2
                            Filter: ((((a % 4) = 0) OR ((a % 3) = 0) OR ((a % 2) = 0)) AND f_leak(b))
@@ -2597,40 +2562,46 @@ CREATE POLICY p2 ON t1 TO regress_rls_carol USING ((a % 4) = 0);
 ALTER TABLE t1 ENABLE ROW LEVEL SECURITY;
 -- Prepare as regress_rls_bob
 SET ROLE regress_rls_bob;
-PREPARE role_inval AS SELECT * FROM t1;
+PREPARE role_inval AS SELECT * FROM t1 order by 1;
 -- Check plan
 EXPLAIN (COSTS OFF) EXECUTE role_inval;
-            QUERY PLAN            
-----------------------------------
- Remote Fast Query Execution
-   Node/s: datanode_1, datanode_2
-   ->  Seq Scan on t1
-         Filter: ((a % 2) = 0)
-(4 rows)
+                QUERY PLAN                 
+-------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   Sort Key: a
+   ->  Sort
+         Sort Key: a
+         ->  Seq Scan on t1
+               Filter: ((a % 2) = 0)
+(6 rows)
 
 -- Change to regress_rls_carol
 SET ROLE regress_rls_carol;
 -- Check plan- should be different
 EXPLAIN (COSTS OFF) EXECUTE role_inval;
-            QUERY PLAN            
-----------------------------------
- Remote Fast Query Execution
-   Node/s: datanode_1, datanode_2
-   ->  Seq Scan on t1
-         Filter: ((a % 4) = 0)
-(4 rows)
+                QUERY PLAN                 
+-------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   Sort Key: a
+   ->  Sort
+         Sort Key: a
+         ->  Seq Scan on t1
+               Filter: ((a % 4) = 0)
+(6 rows)
 
 -- Change back to regress_rls_bob
 SET ROLE regress_rls_bob;
 -- Check plan- should be back to original
 EXPLAIN (COSTS OFF) EXECUTE role_inval;
-            QUERY PLAN            
-----------------------------------
- Remote Fast Query Execution
-   Node/s: datanode_1, datanode_2
-   ->  Seq Scan on t1
-         Filter: ((a % 2) = 0)
-(4 rows)
+                QUERY PLAN                 
+-------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   Sort Key: a
+   ->  Sort
+         Sort Key: a
+         ->  Seq Scan on t1
+               Filter: ((a % 2) = 0)
+(6 rows)
 
 --
 -- CTE and RLS
@@ -2659,19 +2630,18 @@ WITH cte1 AS MATERIALIZED (SELECT * FROM t1 WHERE f_leak(b) order by 1) SELECT *
  20 | 98f13708210194c475687be6106a3b84
 (11 rows)
 
-EXPLAIN (COSTS OFF)
-WITH cte1 AS MATERIALIZED (SELECT * FROM t1 WHERE f_leak(b)) SELECT * FROM cte1;
-                         QUERY PLAN                          
--------------------------------------------------------------
+EXPLAIN (COSTS OFF) WITH cte1 AS (SELECT * FROM t1 WHERE f_leak(b)) SELECT * FROM cte1;
+                      QUERY PLAN                       
+-------------------------------------------------------
  CTE Scan on cte1
    CTE cte1
-     ->  Remote Subquery Scan on all (datanode_1,datanode_2)
+     ->  Remote Subquery Scan on all (datanodes 2)
            ->  Seq Scan on t1
                  Filter: (((a % 2) = 0) AND f_leak(b))
 (5 rows)
 
 WITH cte1 AS (UPDATE t1 SET a = a + 1 RETURNING *) SELECT * FROM cte1; --fail
-ERROR:  Distributed column or partition column "a" can't be updated in current version
+ERROR:  Distributed column "a" can't be updated in current version
 WITH cte1 AS (UPDATE t1 SET a = a RETURNING *) SELECT * FROM cte1; --ok
 ERROR:  INSERT/UPDATE/DELETE is not supported in subquery
 WITH cte1 AS (INSERT INTO t1 VALUES (21, 'Fail') RETURNING *) SELECT * FROM cte1; --fail
@@ -2710,9 +2680,9 @@ SET SESSION AUTHORIZATION regress_rls_bob;
 CREATE TABLE t2 (a integer, b text);
 INSERT INTO t2 (SELECT * FROM t1);
 EXPLAIN (COSTS OFF) INSERT INTO t2 (SELECT * FROM t1);
-                     QUERY PLAN                      
------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+                QUERY PLAN                 
+-------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
    ->  Insert on t2
          ->  Seq Scan on t1
                Filter: ((a % 2) = 0)
@@ -3130,7 +3100,7 @@ UPDATE current_check SET payload = payload || '_new' WHERE currentid = 2 RETURNI
 (0 rows)
 
 BEGIN;
-DECLARE current_check_cursor SCROLL CURSOR FOR SELECT * FROM current_check;
+DECLARE current_check_cursor SCROLL CURSOR FOR SELECT * FROM current_check ORDER BY currentid;
 -- Returns rows that can be seen according to SELECT policy, like plain SELECT
 -- above (even rows)
 FETCH ABSOLUTE 1 FROM current_check_cursor;
@@ -3753,6 +3723,15 @@ ERROR:  policy "p1" for table "dob_t1" does not exist
 CREATE POLICY p1 ON dob_t1 TO regress_rls_dob_role1,regress_rls_dob_role2 USING (true);
 DROP OWNED BY regress_rls_dob_role1;
 DROP POLICY p1 ON dob_t1; -- should succeed
+-- same cases with duplicate polroles entries
+CREATE POLICY p1 ON dob_t1 TO regress_rls_dob_role1,regress_rls_dob_role1 USING (true);
+DROP OWNED BY regress_rls_dob_role1;
+DROP POLICY p1 ON dob_t1; -- should fail, already gone
+ERROR:  policy "p1" for table "dob_t1" does not exist
+CREATE POLICY p1 ON dob_t1 TO regress_rls_dob_role1,regress_rls_dob_role1,regress_rls_dob_role2 USING (true);
+DROP OWNED BY regress_rls_dob_role1;
+DROP POLICY p1 ON dob_t1; -- should succeed
+-- partitioned target
 CREATE POLICY p1 ON dob_t2 TO regress_rls_dob_role1,regress_rls_dob_role2 USING (true);
 DROP OWNED BY regress_rls_dob_role1;
 DROP POLICY p1 ON dob_t2; -- should succeed

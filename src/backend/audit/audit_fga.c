@@ -1,29 +1,3 @@
-/*
- * Copyright (c) 2023 THL A29 Limited, a Tencent company.
- *
- * This source code file is licensed under the BSD 3-Clause License,
- * you may obtain a copy of the License at http://opensource.org/license/bsd-3-clause/
- * 
- * Terms of the BSD 3-Clause License:
- * --------------------------------------------------------------------
- * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
- * 
- * 1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
- * 
- * 2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation 
- * and/or other materials provided with the distribution.
- * 
- * 3. Neither the name of THL A29 Limited nor the names of its contributors may be used to endorse or promote products derived from this software without 
- * specific prior written permission.
- * 
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, 
- * THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS 
- * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE 
- * GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT 
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH 
- * DAMAGE.
- * 
- */
 #include "postgres.h"
 #include "fmgr.h"
 #include "audit/audit_fga.h"
@@ -89,7 +63,7 @@ bool enable_fga    = false;
 
 #define TEXTOID 25
 #define FORMATTED_TS_LEN 128
-#define    FGA_LATCH_MICROSEC    5000000L
+#define	FGA_LATCH_MICROSEC	5000000L
 #define num_audit_fga_tigger_info MaxBackends
 
 
@@ -100,11 +74,11 @@ static char formatted_log_time[FORMATTED_TS_LEN];
 /*
  * Flags set by interrupt handlers for later service in the main loop.
  */
-static volatile sig_atomic_t fga_gotSIGHUP = false;            /* pg_ctl reload */
-static volatile sig_atomic_t fga_gotSIGTERM = false;        /* pg_ctl stop -m smart */
-static volatile sig_atomic_t fga_gotSIGUSR1= false;            /* wakeup */
+static volatile sig_atomic_t fga_gotSIGHUP = false;			/* pg_ctl reload */
+static volatile sig_atomic_t fga_gotSIGTERM = false;		/* pg_ctl stop -m smart */
+static volatile sig_atomic_t fga_gotSIGUSR1= false;			/* wakeup */
 
-static volatile sig_atomic_t fga_consume_requested = false;    /* SIGUSR1, killed by write_trigger_handle_to_shmem() */
+static volatile sig_atomic_t fga_consume_requested = false;	/* SIGUSR1, killed by write_trigger_handle_to_shmem() */
 
 static audit_fga_tigger_info *BackendAuditFgaArray = NULL;
 
@@ -119,7 +93,7 @@ static char *func_rtrim(char *str);
 static char *func_trim(char *str);
 static void setup_formatted_log_time(void);
 
-static void    worker_audit_fga_sighup(SIGNAL_ARGS);
+static void	worker_audit_fga_sighup(SIGNAL_ARGS);
 static void worker_audit_fga_wakeup(SIGNAL_ARGS);
 static void process_fga_trigger(bool timeout);
 static void reset_shem_info(int);
@@ -182,7 +156,12 @@ text_2_namedata_datum(text *in_string)
 
     if ( VARSIZE_ANY_EXHDR(in_string) < NAMEDATALEN)
     {
-        str = pnstrdup(VARDATA_ANY(in_string), VARSIZE_ANY_EXHDR(in_string));
+        /*
+         * In order to access the address of the name correctly,
+         * The name_str must be alloced with NAMEDATALEN.
+         */
+        str = (char *) palloc0(NAMEDATALEN);
+        strncpy(str, VARDATA_ANY(in_string), Min(NAMEDATALEN, VARSIZE_ANY_EXHDR(in_string)));
         low_str = lowerstr(str);
         value = CStringGetDatum(low_str);
     }
@@ -193,7 +172,8 @@ text_2_namedata_datum(text *in_string)
         value = CStringGetDatum(low_str);
     }
 
-    pfree(str);
+    if (str)
+        pfree(str);
 
     return value;
 }
@@ -204,21 +184,21 @@ text_2_namedata_datum(text *in_string)
 static char *
 pg_strdup(const char *in)
 {
-    char       *tmp;
+	char	   *tmp;
 
-    if (!in)
-    {
-        fprintf(stderr,
-                _("cannot duplicate null pointer (internal error)\n"));
-        exit(EXIT_FAILURE);
-    }
-    tmp = strdup(in);
-    if (!tmp)
-    {
-        fprintf(stderr, _("out of memory\n"));
-        exit(EXIT_FAILURE);
-    }
-    return tmp;
+	if (!in)
+	{
+		fprintf(stderr,
+				_("cannot duplicate null pointer (internal error)\n"));
+		exit(EXIT_FAILURE);
+	}
+	tmp = strdup(in);
+	if (!tmp)
+	{
+		fprintf(stderr, _("out of memory\n"));
+		exit(EXIT_FAILURE);
+	}
+	return tmp;
 }
 
 static char *
@@ -279,53 +259,53 @@ func_trim(char *str)
 #if 0
 static char *GetUserName(void)
 {
-    struct passwd *passwd;
+	struct passwd *passwd;
 
-    passwd = getpwuid(getuid());
-    if (passwd)
-        return(strdup(passwd->pw_name));
-    else
-    {
-        fprintf(stderr, "%s: could not get current user name: %s\n", progname, strerror(errno));
-        exit(1);
-    }
-    return NULL;
+	passwd = getpwuid(getuid());
+	if (passwd)
+		return(strdup(passwd->pw_name));
+	else
+	{
+		fprintf(stderr, "%s: could not get current user name: %s\n", progname, strerror(errno));
+		exit(1);
+	}
+	return NULL;
 }
 #endif
 
 static PGconn *
 conn_database(char *host, char *port, char *user, char *dbname)
 {
-    PGconn *coord_conn;
+	PGconn *coord_conn;
 #define PARAMS_ARRAY_SIZE 7
-    const char *keywords[PARAMS_ARRAY_SIZE];
-    const char *values[PARAMS_ARRAY_SIZE];
+	const char *keywords[PARAMS_ARRAY_SIZE];
+	const char *values[PARAMS_ARRAY_SIZE];
 
 
-    keywords[0] = "host";
-    values[0] = host;
-    keywords[1] = "port";
-    values[1] = port;
-    keywords[2] = "user";
-    values[2] = user;
+	keywords[0] = "host";
+	values[0] = host;
+	keywords[1] = "port";
+	values[1] = port;
+	keywords[2] = "user";
+	values[2] = user;
     keywords[3] = "password";
     values[3] = NULL;
-    keywords[4] = "dbname";
-    values[4] = dbname;
+	keywords[4] = "dbname";
+	values[4] = dbname;
     keywords[5] = "fallback_application_name";
-    values[5] = "test policy";
-    keywords[6] = NULL;
-    values[6] = NULL;
+	values[5] = "test policy";
+	keywords[6] = NULL;
+	values[6] = NULL;
 
-    coord_conn = PQconnectdbParams(keywords, values, true);
+	coord_conn = PQconnectdbParams(keywords, values, true);
 
-    if (PQstatus(coord_conn) == CONNECTION_BAD)
-    {
-        PQfinish(coord_conn);
+	if (PQstatus(coord_conn) == CONNECTION_BAD)
+	{
+		PQfinish(coord_conn);
         return NULL;
-    }
+	}
 
-    return coord_conn;
+	return coord_conn;
 }
 
 
@@ -335,19 +315,19 @@ conn_database(char *host, char *port, char *user, char *dbname)
 static void
 add_stringlist_item(_stringlist **listhead, const char *str)
 {
-    _stringlist *newentry = palloc(sizeof(_stringlist));
-    _stringlist *oldentry;
+	_stringlist *newentry = palloc(sizeof(_stringlist));
+	_stringlist *oldentry;
 
-    newentry->str = pstrdup(str);
-    newentry->next = NULL;
-    if (*listhead == NULL)
-        *listhead = newentry;
-    else
-    {
-        for (oldentry = *listhead; oldentry->next; oldentry = oldentry->next)
-             /* skip */ ;
-        oldentry->next = newentry;
-    }
+	newentry->str = pstrdup(str);
+	newentry->next = NULL;
+	if (*listhead == NULL)
+		*listhead = newentry;
+	else
+	{
+		for (oldentry = *listhead; oldentry->next; oldentry = oldentry->next)
+			 /* skip */ ;
+		oldentry->next = newentry;
+	}
 }
 
 /*
@@ -356,13 +336,13 @@ add_stringlist_item(_stringlist **listhead, const char *str)
 static void
 free_stringlist(_stringlist **listhead)
 {
-    if (listhead == NULL || *listhead == NULL)
-        return;
-    if ((*listhead)->next != NULL)
-        free_stringlist(&((*listhead)->next));
-    pfree((*listhead)->str);
-    pfree(*listhead);
-    *listhead = NULL;
+	if (listhead == NULL || *listhead == NULL)
+		return;
+	if ((*listhead)->next != NULL)
+		free_stringlist(&((*listhead)->next));
+	pfree((*listhead)->str);
+	pfree(*listhead);
+	*listhead = NULL;
 }
 
 /*
@@ -371,19 +351,19 @@ free_stringlist(_stringlist **listhead)
 static void
 split_to_stringlist(const char *s, const char *delim, _stringlist **listhead)
 {
-    char       *sc = pg_strdup(s);
-    char       *token = strtok(sc, delim);
+	char	   *sc = pg_strdup(s);
+	char	   *token = strtok(sc, delim);
 
-    while (token)
-    {
-        add_stringlist_item(listhead, token);
-        token = strtok(NULL, delim);
-    }
-    free(sc);
+	while (token)
+	{
+		add_stringlist_item(listhead, token);
+		token = strtok(NULL, delim);
+	}
+	free(sc);
 }
 
 void
-exec_policy_funct_on_other_node(char *query_string)
+exec_policy_function_on_othter_nodes(char *query_string)
 {
     Oid     *cn_node_list = NULL;
     Oid     *dn_node_list = NULL;
@@ -426,21 +406,21 @@ exec_policy_funct_on_other_node(char *query_string)
 static void
 setup_formatted_log_time(void)
 {
-    struct timeval tv;
-    time_t    stamp_time;
-    char        msbuf[8];
+	struct timeval tv;
+	time_t	stamp_time;
+	char		msbuf[8];
 
-    gettimeofday(&tv, NULL);
-    stamp_time = (time_t) tv.tv_sec;
+	gettimeofday(&tv, NULL);
+	stamp_time = (time_t) tv.tv_sec;
 
-    strftime(formatted_log_time, FORMATTED_TS_LEN,
-                /* leave room for milliseconds... */
-                "%Y-%m-%d %H:%M:%S     %Z",
-                localtime(&stamp_time));
+	strftime(formatted_log_time, FORMATTED_TS_LEN,
+				/* leave room for milliseconds... */
+				"%Y-%m-%d %H:%M:%S     %Z",
+				localtime(&stamp_time));
 
-    /* 'paste' milliseconds into place... */
-    sprintf(msbuf, ".%03d", (int) (tv.tv_usec / 1000));
-    strncpy(formatted_log_time + 19, msbuf, 4);
+	/* 'paste' milliseconds into place... */
+	sprintf(msbuf, ".%03d", (int) (tv.tv_usec / 1000));
+	strncpy(formatted_log_time + 19, msbuf, 4);
 }
 
 /*
@@ -449,153 +429,153 @@ setup_formatted_log_time(void)
 static void
 setup_formatted_start_time(void)
 {
-    pg_time_t    stamp_time = (pg_time_t) MyStartTime;
+	pg_time_t	stamp_time = (pg_time_t) MyStartTime;
 
-    /*
-     * Note: we expect that guc.c will ensure that log_timezone is set up (at
-     * least with a minimal GMT value) before Log_line_prefix can become
-     * nonempty or CSV mode can be selected.
-     */
-    pg_strftime(formatted_start_time, FORMATTED_TS_LEN,
-                "%Y-%m-%d %H:%M:%S %Z",
-                pg_localtime(&stamp_time, log_timezone));
+	/*
+	 * Note: we expect that guc.c will ensure that log_timezone is set up (at
+	 * least with a minimal GMT value) before Log_line_prefix can become
+	 * nonempty or CSV mode can be selected.
+	 */
+	pg_strftime(formatted_start_time, FORMATTED_TS_LEN,
+				"%Y-%m-%d %H:%M:%S %Z",
+				pg_localtime(&stamp_time, log_timezone));
 }
 
 static inline void
 appendCSVLiteral(StringInfo buf, const char *data)
 {
-    const char *p = data;
-    char        c;
+	const char *p = data;
+	char		c;
 
-    /* avoid confusing an empty string with NULL */
-    if (p == NULL)
-        return;
+	/* avoid confusing an empty string with NULL */
+	if (p == NULL)
+		return;
 
-    appendStringInfoCharMacro(buf, '"');
-    while ((c = *p++) != '\0')
-    {
-        if (c == '"')
-            appendStringInfoCharMacro(buf, '"');
-        appendStringInfoCharMacro(buf, c);
-    }
-    appendStringInfoCharMacro(buf, '"');
+	appendStringInfoCharMacro(buf, '"');
+	while ((c = *p++) != '\0')
+	{
+		if (c == '"')
+			appendStringInfoCharMacro(buf, '"');
+		appendStringInfoCharMacro(buf, c);
+	}
+	appendStringInfoCharMacro(buf, '"');
 }
 
 
 void audit_fga_log_prefix(StringInfoData *buf)
-{// #lizard forgives
+{
     initStringInfo(buf);
 
     if (formatted_log_time[0] == '\0')
-        setup_formatted_log_time();
+		setup_formatted_log_time();
 
     appendStringInfoString(buf, formatted_log_time);
     appendStringInfoChar(buf, ',');
 
     /* username */
-    if (MyProcPort)
-        appendCSVLiteral(buf, MyProcPort->user_name);
-    appendStringInfoChar(buf, ',');
+	if (MyProcPort)
+		appendCSVLiteral(buf, MyProcPort->user_name);
+	appendStringInfoChar(buf, ',');
 
-    /* database name */
-    if (MyProcPort)
-        appendCSVLiteral(buf, MyProcPort->database_name);
-    appendStringInfoChar(buf, ',');
+	/* database name */
+	if (MyProcPort)
+		appendCSVLiteral(buf, MyProcPort->database_name);
+	appendStringInfoChar(buf, ',');
 
-    /* Process id  */
-    if (MyProcPid != 0)
-        appendStringInfo(buf, "%d", MyProcPid);
-    appendStringInfoChar(buf, ',');
+	/* Process id  */
+	if (MyProcPid != 0)
+		appendStringInfo(buf, "%d", MyProcPid);
+	appendStringInfoChar(buf, ',');
 
-    /* Remote host and port */
-    if (MyProcPort && MyProcPort->remote_host)
-    {
-        appendStringInfoChar(buf, '"');
-        appendStringInfoString(buf, MyProcPort->remote_host);
-        if (MyProcPort->remote_port && MyProcPort->remote_port[0] != '\0')
-        {
-            appendStringInfoChar(buf, ':');
-            appendStringInfoString(buf, MyProcPort->remote_port);
-        }
-        appendStringInfoChar(buf, '"');
-    }
-    appendStringInfoChar(buf, ',');
+	/* Remote host and port */
+	if (MyProcPort && MyProcPort->remote_host)
+	{
+		appendStringInfoChar(buf, '"');
+		appendStringInfoString(buf, MyProcPort->remote_host);
+		if (MyProcPort->remote_port && MyProcPort->remote_port[0] != '\0')
+		{
+			appendStringInfoChar(buf, ':');
+			appendStringInfoString(buf, MyProcPort->remote_port);
+		}
+		appendStringInfoChar(buf, '"');
+	}
+	appendStringInfoChar(buf, ',');
 
     /* node name */
     if (PGXCNodeName)
-        appendCSVLiteral(buf, PGXCNodeName);
-    appendStringInfoChar(buf, ',');
+		appendCSVLiteral(buf, PGXCNodeName);
+	appendStringInfoChar(buf, ',');
 
     /* session start timestamp */
-    if (formatted_start_time[0] == '\0')
-        setup_formatted_start_time();
-    appendStringInfoString(buf, formatted_start_time);
-    appendStringInfoChar(buf, ',');  
+	if (formatted_start_time[0] == '\0')
+		setup_formatted_start_time();
+	appendStringInfoString(buf, formatted_start_time);
+	appendStringInfoChar(buf, ',');  
 }
 
 
 void audit_fga_log_prefix_json(StringInfoData *buf)
-{// #lizard forgives
+{
     initStringInfo(buf);
 
     /*log time */
     appendStringInfoString(buf, "LogTime: ");
 
     if (formatted_log_time[0] == '\0')
-        setup_formatted_log_time();
+		setup_formatted_log_time();
 
     appendCSVLiteral(buf, formatted_log_time);
     appendStringInfoChar(buf, ',');
 
     /* username */
     appendStringInfoString(buf, "UserName: ");
-    if (MyProcPort)
-        appendCSVLiteral(buf, MyProcPort->user_name);
-    appendStringInfoChar(buf, ',');
+	if (MyProcPort)
+		appendCSVLiteral(buf, MyProcPort->user_name);
+	appendStringInfoChar(buf, ',');
 
-    /* database name */
+	/* database name */
     appendStringInfoString(buf, "DatabaseName: ");
-    if (MyProcPort)
-        appendCSVLiteral(buf, MyProcPort->database_name);
-    appendStringInfoChar(buf, ',');
+	if (MyProcPort)
+		appendCSVLiteral(buf, MyProcPort->database_name);
+	appendStringInfoChar(buf, ',');
 
-    /* Process id  */
+	/* Process id  */
     appendStringInfoString(buf, "ProcessPid: ");
-    if (MyProcPid != 0)
-        appendStringInfo(buf, "%d", MyProcPid);
-    appendStringInfoChar(buf, ',');
+	if (MyProcPid != 0)
+		appendStringInfo(buf, "%d", MyProcPid);
+	appendStringInfoChar(buf, ',');
 
-    /* Remote host and port */
+	/* Remote host and port */
     appendStringInfoString(buf, "RemoteIpPort: ");
-    if (MyProcPort && MyProcPort->remote_host)
-    {
-        appendStringInfoChar(buf, '"');
-        appendStringInfoString(buf, MyProcPort->remote_host);
-        if (MyProcPort->remote_port && MyProcPort->remote_port[0] != '\0')
-        {
-            appendStringInfoChar(buf, ':');
-            appendStringInfoString(buf, MyProcPort->remote_port);
-        }
-        appendStringInfoChar(buf, '"');
-    }
-    appendStringInfoChar(buf, ',');
+	if (MyProcPort && MyProcPort->remote_host)
+	{
+		appendStringInfoChar(buf, '"');
+		appendStringInfoString(buf, MyProcPort->remote_host);
+		if (MyProcPort->remote_port && MyProcPort->remote_port[0] != '\0')
+		{
+			appendStringInfoChar(buf, ':');
+			appendStringInfoString(buf, MyProcPort->remote_port);
+		}
+		appendStringInfoChar(buf, '"');
+	}
+	appendStringInfoChar(buf, ',');
 
     /* node name */
     appendStringInfoString(buf, "NodeName: ");
     if (PGXCNodeName)
-        appendCSVLiteral(buf, PGXCNodeName);
-    appendStringInfoChar(buf, ',');
+		appendCSVLiteral(buf, PGXCNodeName);
+	appendStringInfoChar(buf, ',');
 
     /* session start timestamp */
     appendStringInfoString(buf, "SessionStartTime: ");
-    if (formatted_start_time[0] == '\0')
-        setup_formatted_start_time();
-    appendCSVLiteral(buf, formatted_start_time);
-    appendStringInfoChar(buf, ',');
+	if (formatted_start_time[0] == '\0')
+		setup_formatted_start_time();
+	appendCSVLiteral(buf, formatted_start_time);
+	appendStringInfoChar(buf, ',');
 }
 
 void audit_fga_log_policy_info(AuditFgaPolicy *policy_s, char * cmd_type)
-{// #lizard forgives
+{
     char        *null_str = "null";
     Oid         schema_oid;
     Oid         object_oid; 
@@ -603,12 +583,12 @@ void audit_fga_log_policy_info(AuditFgaPolicy *policy_s, char * cmd_type)
     char        *schema_name;
     char        *object_name;
 
-    Relation    audit_fga_rel;
-    HeapTuple    policy_tuple;
-    Datum        schema_datum;
-    Datum        object_datum;
+    Relation	audit_fga_rel;
+	HeapTuple	policy_tuple;
+    Datum		schema_datum;
+    Datum		object_datum;
     Datum       handler_module_datum;
-    bool        schema_is_null;
+    bool		schema_is_null;
     bool        object_is_null;
     bool        handler_module_is_null;
 
@@ -619,15 +599,15 @@ void audit_fga_log_policy_info(AuditFgaPolicy *policy_s, char * cmd_type)
     if (policy_s && policy_s->policy_name)
     {
         audit_fga_rel = heap_open(PgAuditFgaConfRelationId, RowExclusiveLock);
-        policy_tuple = SearchSysCache1(AUDITFGAPOLICYCONF, CStringGetDatum(policy_s->policy_name));
+	    policy_tuple = SearchSysCache1(AUDITFGAPOLICYCONF, CStringGetDatum(policy_s->policy_name));
 
         
         schema_datum = heap_getattr(policy_tuple, Anum_audit_fga_conf_object_schema,
-                            RelationGetDescr(audit_fga_rel), &schema_is_null);
+							RelationGetDescr(audit_fga_rel), &schema_is_null);
         object_datum = heap_getattr(policy_tuple, Anum_audit_fga_conf_object_id,
-                            RelationGetDescr(audit_fga_rel), &object_is_null);
+							RelationGetDescr(audit_fga_rel), &object_is_null);
         handler_module_datum = heap_getattr(policy_tuple, Anum_audit_fga_conf_handler_module,
-                            RelationGetDescr(audit_fga_rel), &handler_module_is_null);
+							RelationGetDescr(audit_fga_rel), &handler_module_is_null);
 
         if (!handler_module_is_null)
         {
@@ -654,7 +634,7 @@ void audit_fga_log_policy_info(AuditFgaPolicy *policy_s, char * cmd_type)
         appendStringInfoChar(&buf, ',');       
 
         ReleaseSysCache(policy_tuple);
-        heap_close(audit_fga_rel, RowExclusiveLock);
+	    heap_close(audit_fga_rel, RowExclusiveLock);
     }
 
     //policy name
@@ -681,12 +661,19 @@ void audit_fga_log_policy_info(AuditFgaPolicy *policy_s, char * cmd_type)
     if (cmd_type)
         appendCSVLiteral(&buf, cmd_type);
 
-    audit_log_fga("%s", buf.data);
-    pfree(buf.data);
+    if (buf.data != NULL)
+    {
+        
+        audit_log_fga("%s", buf.data);
+
+        pfree(buf.data);
+    }
+    else
+        audit_log_fga("AUDIT FGA: NO audit info");
 }
 
 void audit_fga_log_policy_info_2(audit_fga_policy_state *policy_s, char * cmd_type)
-{// #lizard forgives
+{
     char        *null_str = "null";
     Oid         schema_oid;
     Oid         object_oid;
@@ -694,12 +681,12 @@ void audit_fga_log_policy_info_2(audit_fga_policy_state *policy_s, char * cmd_ty
     char        *schema_name;
     char        *object_name;
 
-    Relation    audit_fga_rel;
-    HeapTuple    policy_tuple;
-    Datum        schema_datum;
-    Datum        object_datum;
+    Relation	audit_fga_rel;
+	HeapTuple	policy_tuple;
+    Datum		schema_datum;
+    Datum		object_datum;
     Datum       handler_module_datum;
-    bool        schema_is_null;
+    bool		schema_is_null;
     bool        object_is_null;
     bool        handler_module_is_null;
 
@@ -710,21 +697,21 @@ void audit_fga_log_policy_info_2(audit_fga_policy_state *policy_s, char * cmd_ty
     if (policy_s && policy_s->policy_name)
     {
         audit_fga_rel = heap_open(PgAuditFgaConfRelationId, RowExclusiveLock);
-        policy_tuple = SearchSysCache1(AUDITFGAPOLICYCONF, CStringGetDatum(policy_s->policy_name));
+	    policy_tuple = SearchSysCache1(AUDITFGAPOLICYCONF, CStringGetDatum(policy_s->policy_name));
 
-        if (!policy_tuple)
-        {
-            heap_close(audit_fga_rel, RowExclusiveLock);
-            pfree(buf.data);
-            return;
-        }
-        
-        object_datum = heap_getattr(policy_tuple, Anum_audit_fga_conf_object_id,
-                            RelationGetDescr(audit_fga_rel), &object_is_null);
+		if (!policy_tuple)
+		{
+			heap_close(audit_fga_rel, RowExclusiveLock);
+			pfree(buf.data);
+			return;
+		}
+		
         schema_datum = heap_getattr(policy_tuple, Anum_audit_fga_conf_object_schema,
-                            RelationGetDescr(audit_fga_rel), &schema_is_null);
+							RelationGetDescr(audit_fga_rel), &schema_is_null);
+        object_datum = heap_getattr(policy_tuple, Anum_audit_fga_conf_object_id,
+							RelationGetDescr(audit_fga_rel), &object_is_null);
         handler_module_datum = heap_getattr(policy_tuple, Anum_audit_fga_conf_handler_module,
-                            RelationGetDescr(audit_fga_rel), &handler_module_is_null);
+							RelationGetDescr(audit_fga_rel), &handler_module_is_null);
 
         if (!handler_module_is_null)
         {
@@ -733,8 +720,8 @@ void audit_fga_log_policy_info_2(audit_fga_policy_state *policy_s, char * cmd_ty
             write_trigger_handle_to_shmem(handler_module_oid);
         }
 
-        object_oid = DatumGetObjectId(object_datum);
         schema_oid = DatumGetObjectId(schema_datum);
+        object_oid = DatumGetObjectId(object_datum);
 
         //table schema name
         appendStringInfoString(&buf, "TableSchema: ");
@@ -747,11 +734,11 @@ void audit_fga_log_policy_info_2(audit_fga_policy_state *policy_s, char * cmd_ty
         appendStringInfoString(&buf, "TableName: ");
 
         object_name = get_rel_name(object_oid);
-        appendCSVLiteral(&buf, (object_name != NULL)  ?  object_name : null_str);
+        appendCSVLiteral(&buf, (object_name != NULL) ? object_name : null_str);
         appendStringInfoChar(&buf, ',');       
 
         ReleaseSysCache(policy_tuple);
-        heap_close(audit_fga_rel,  RowExclusiveLock);
+	    heap_close(audit_fga_rel, RowExclusiveLock);
     }
 
     //policy name
@@ -759,7 +746,7 @@ void audit_fga_log_policy_info_2(audit_fga_policy_state *policy_s, char * cmd_ty
 
     if (policy_s && policy_s->policy_name)
     {
-        appendCSVLiteral(&buf,  policy_s->policy_name);
+        appendCSVLiteral(&buf, policy_s->policy_name);
     }
     appendStringInfoChar(&buf, ',');
 
@@ -768,7 +755,7 @@ void audit_fga_log_policy_info_2(audit_fga_policy_state *policy_s, char * cmd_ty
 
     if (policy_s && policy_s->query_string)
     {
-        appendCSVLiteral(&buf,  policy_s->query_string);
+        appendCSVLiteral(&buf, policy_s->query_string);
     }
     appendStringInfoChar(&buf, ',');
 
@@ -776,12 +763,17 @@ void audit_fga_log_policy_info_2(audit_fga_policy_state *policy_s, char * cmd_ty
     appendStringInfoString(&buf, "CommandType: ");
 
     if (cmd_type)
-    {
         appendCSVLiteral(&buf, cmd_type);
-    }
 
-    audit_log_fga("%s", buf.data);
-    pfree(buf.data);
+    if (buf.data != NULL)
+    {
+        
+        audit_log_fga("%s", buf.data);
+
+        pfree(buf.data);
+    }
+    else
+        audit_log_fga("AUDIT FGA: NO audit info");
 }
 
 /*
@@ -810,7 +802,7 @@ bool is_single_cmd(char * cmd)
 
 Datum
 add_policy(PG_FUNCTION_ARGS)
-{// #lizard forgives
+{
     Datum       values[Natts_audit_fga_conf];
     bool        nulls[Natts_audit_fga_conf];
     int         i;
@@ -820,7 +812,7 @@ add_policy(PG_FUNCTION_ARGS)
     Oid         handler_schema_oid;
     Relation    rel;
     HeapTuple   tup;
-    Oid            *inTypes;
+    Oid		    *inTypes;
     oidvector   *nodes_array;
 
     _stringlist *col_list = NULL;
@@ -828,7 +820,7 @@ add_policy(PG_FUNCTION_ARGS)
     //char        *delim = ',';
     char        *input_columns;
     int         input_column_cnt = 0;
-    HeapTuple    atttuple;
+    HeapTuple	atttuple;
 
     char parse_sql[AUDIT_FGA_SQL_LEN];
     char *schema_name;
@@ -922,7 +914,7 @@ add_policy(PG_FUNCTION_ARGS)
             atttuple = SearchSysCacheAttName(object_oid, func_trim(sl->str));
             if (!HeapTupleIsValid(atttuple))
             {
-                free_stringlist(&col_list);
+				free_stringlist(&col_list);
                 elog(ERROR, "Error column: %s", sl->str);
             }
             
@@ -980,8 +972,8 @@ add_policy(PG_FUNCTION_ARGS)
         
         target_table = relation_open(object_oid, NoLock);
         rte = addRangeTableEntryForRelation(parsestate, target_table,
-                                        NULL, false, false);
-        addRTEtoQuery(parsestate, rte, false, true, true);
+										NULL, false, false);
+	    addRTEtoQuery(parsestate, rte, false, true, true);
         
         parsetree_list = pg_parse_query(parse_sql);
         
@@ -1092,18 +1084,18 @@ add_policy(PG_FUNCTION_ARGS)
     
     CatalogTupleInsert(rel, tup);
 
-    heap_close(rel, RowExclusiveLock);
+	heap_close(rel, RowExclusiveLock);
 
-    exec_policy_funct_on_other_node(sql_cmd);
+    exec_policy_function_on_othter_nodes(sql_cmd);
 
-    PG_RETURN_BOOL(true);
+	PG_RETURN_BOOL(true);
 }
 
 Datum
 drop_policy(PG_FUNCTION_ARGS)
 {
-    Relation    rel;
-    HeapTuple   tup;
+	Relation    rel;
+	HeapTuple   tup;
     char        *policy_name;
     text        *in_string;
 
@@ -1144,25 +1136,25 @@ drop_policy(PG_FUNCTION_ARGS)
     }
 
     rel = heap_open(PgAuditFgaConfRelationId, RowExclusiveLock);
-    tup = SearchSysCache1(AUDITFGAPOLICYCONF, CStringGetDatum(policy_name));
+	tup = SearchSysCache1(AUDITFGAPOLICYCONF, CStringGetDatum(policy_name));
 
     if(!HeapTupleIsValid(tup))
-        elog(ERROR,"policy[%s] is not exist", policy_name);
+		elog(ERROR,"policy[%s] is not exist", policy_name);
 
-    simple_heap_delete(rel, &tup->t_self);
-    ReleaseSysCache(tup);
-    heap_close(rel, RowExclusiveLock);
+	simple_heap_delete(rel, &tup->t_self);
+	ReleaseSysCache(tup);
+	heap_close(rel, RowExclusiveLock);
 
-    exec_policy_funct_on_other_node(sql_cmd);
+    exec_policy_function_on_othter_nodes(sql_cmd);
   
-    PG_RETURN_BOOL(true);
+	PG_RETURN_BOOL(true);
 }
 
 Datum
 enable_policy(PG_FUNCTION_ARGS)
 {
     Relation    rel;
-    HeapTuple   tup;
+	HeapTuple   tup;
     HeapTuple   new_tup;
     char        *policy_name;
     text        *in_string;
@@ -1175,70 +1167,70 @@ enable_policy(PG_FUNCTION_ARGS)
 
     if (!is_single_cmd(sql_cmd))
     {
-        elog(ERROR, "enable_policy function cannot used with other command; ");
+        elog(ERROR, "enable_policy function cannot used with other command;");
     }
 
     /* only adt_admin can add policy */
-    if ( (Oid)DEFAULT_ROLE_AUDIT_SYS_USERID != GetUserId() )
+    if ((Oid)DEFAULT_ROLE_AUDIT_SYS_USERID != GetUserId())
     {
-        elog(ERROR, "Only audit admin can do this ");
+        elog(ERROR, "Only audit admin can do this");
     }
     
     // check object_schema
-    if (PG_ARGISNULL(0))
+    if ( PG_ARGISNULL(0) )
     {
         elog(ERROR, "missing object schema name");
     }
 
     // check object_name
-    if (PG_ARGISNULL(1))
+    if ( PG_ARGISNULL(1) )
     {
         elog(ERROR, "missing object name");
     }
 
     // check policy_name
-    if (!PG_ARGISNULL(2))
+    if ( !PG_ARGISNULL(2) )
     {
         in_string = PG_GETARG_TEXT_PP(2);
         policy_name = pnstrdup(VARDATA_ANY(in_string), VARSIZE_ANY_EXHDR(in_string));         
     }
     else
     {
-        elog(ERROR,  "missing policy name");
+        elog(ERROR, "missing policy name");
     }
 
     rel = heap_open(PgAuditFgaConfRelationId, RowExclusiveLock);
-    tup = SearchSysCache1(AUDITFGAPOLICYCONF, CStringGetDatum(policy_name));
+	tup = SearchSysCache1(AUDITFGAPOLICYCONF, CStringGetDatum(policy_name));
 
     if(!HeapTupleIsValid(tup))
-        elog(ERROR,"policy[%s] is not exist!", policy_name);
+		elog(ERROR,"policy[%s] is not exist", policy_name);
 
     MemSet(values, 0, sizeof(values));
-    MemSet(nulls, false, sizeof(nulls));
-    MemSet(replaces, false, sizeof(replaces));
+	MemSet(nulls, false, sizeof(nulls));
+	MemSet(replaces, false, sizeof(replaces));
 
     replaces[Anum_audit_fga_conf_audit_enable - 1] = true;
     values[Anum_audit_fga_conf_audit_enable - 1] = BoolGetDatum(true);
 
     new_tup = heap_modify_tuple(tup, RelationGetDescr(rel), values,
-                                 nulls, replaces);
+    							 nulls, replaces);
 
     CatalogTupleUpdate(rel, &new_tup->t_self, new_tup);
 
-    ReleaseSysCache(tup);
+	ReleaseSysCache(tup);
     
-    heap_close(rel, RowExclusiveLock);
+	heap_close(rel, RowExclusiveLock);
 
-    exec_policy_funct_on_other_node(sql_cmd);
+    exec_policy_function_on_othter_nodes(sql_cmd);
 
-    PG_RETURN_BOOL(true);
+	PG_RETURN_BOOL(true);
 }
 
 Datum
 disable_policy(PG_FUNCTION_ARGS)
 {
     Relation    rel;
-    HeapTuple   tup;
+	HeapTuple   tup;
     HeapTuple   new_tup;
     char        *object_schema;
     char        *object_name;
@@ -1291,45 +1283,45 @@ disable_policy(PG_FUNCTION_ARGS)
     {
         in_string = PG_GETARG_TEXT_PP(2);
         policy_name = pnstrdup(VARDATA_ANY(in_string), VARSIZE_ANY_EXHDR(in_string));
-        elog(LOG,  "str = \"%s\"",  policy_name);            
+        elog(LOG, "str = \"%s\"", policy_name);            
     }
     else
     {
-        elog(ERROR,  "missing policy name");
+        elog(ERROR, "missing policy name");
     }
 
     rel = heap_open(PgAuditFgaConfRelationId, RowExclusiveLock);
-    tup = SearchSysCache1(AUDITFGAPOLICYCONF, CStringGetDatum(policy_name));
+	tup = SearchSysCache1(AUDITFGAPOLICYCONF, CStringGetDatum(policy_name));
 
     if(!HeapTupleIsValid(tup))
-        elog(ERROR,"policy[%s] is not exist!", policy_name);
+		elog(ERROR,"policy[%s] is not exist", policy_name);
 
-    MemSet(nulls, false, sizeof(nulls));
     MemSet(values, 0, sizeof(values));
-    MemSet(replaces, false, sizeof(replaces));
+	MemSet(nulls, false, sizeof(nulls));
+	MemSet(replaces, false, sizeof(replaces));
 
     replaces[Anum_audit_fga_conf_audit_enable - 1] = true;
     values[Anum_audit_fga_conf_audit_enable - 1] = BoolGetDatum(false);
 
     new_tup = heap_modify_tuple(tup, RelationGetDescr(rel), values,
-                                 nulls, replaces);
+    							 nulls, replaces);
 
     CatalogTupleUpdate(rel, &new_tup->t_self, new_tup);
 
-    ReleaseSysCache(tup);
+	ReleaseSysCache(tup);
     
-    heap_close(rel, RowExclusiveLock);
+	heap_close(rel, RowExclusiveLock);
 
-    exec_policy_funct_on_other_node(sql_cmd);
+    exec_policy_function_on_othter_nodes(sql_cmd);
 
-    PG_RETURN_BOOL(true);
+	PG_RETURN_BOOL(true);
 }
 
 Datum
 enable_all_policy(PG_FUNCTION_ARGS)
 {
     Relation    rel;
-    HeapTuple   tup;
+	HeapTuple   tup;
     HeapTuple   new_tup;
 
     SysScanDesc scan;
@@ -1351,22 +1343,22 @@ enable_all_policy(PG_FUNCTION_ARGS)
         elog(ERROR, "Only audit admin can do this");
     }
 
-    rel = heap_open(PgAuditFgaConfRelationId, RowExclusiveLock);    
-    scan = systable_beginscan(rel, InvalidOid, false, NULL, 0, NULL);
+    rel = heap_open(PgAuditFgaConfRelationId, RowExclusiveLock);	
+	scan = systable_beginscan(rel, InvalidOid, false, NULL, 0, NULL);
 
-    tup = systable_getnext(scan);
+	tup = systable_getnext(scan);
 
-    while(HeapTupleIsValid(tup))
+	while(HeapTupleIsValid(tup))
     {
         MemSet(values, 0, sizeof(values));
-        MemSet(nulls, false, sizeof(nulls));
-        MemSet(replaces, false, sizeof(replaces));
+    	MemSet(nulls, false, sizeof(nulls));
+    	MemSet(replaces, false, sizeof(replaces));
 
         replaces[Anum_audit_fga_conf_audit_enable - 1] = true;
         values[Anum_audit_fga_conf_audit_enable - 1] = BoolGetDatum(true);
 
         new_tup = heap_modify_tuple(tup, RelationGetDescr(rel), values,
-                                     nulls, replaces);
+        							 nulls, replaces);
 
         CatalogTupleUpdate(rel, &new_tup->t_self, new_tup);
 
@@ -1375,18 +1367,18 @@ enable_all_policy(PG_FUNCTION_ARGS)
     
     systable_endscan(scan);
     
-    heap_close(rel, RowExclusiveLock);
+	heap_close(rel, RowExclusiveLock);
 
-    exec_policy_funct_on_other_node(sql_cmd);
+    exec_policy_function_on_othter_nodes(sql_cmd);
 
-    PG_RETURN_BOOL(true);
+	PG_RETURN_BOOL(true);
 }
 
 Datum
 disable_all_policy(PG_FUNCTION_ARGS)
 {
     Relation    rel;
-    HeapTuple   tup;
+	HeapTuple   tup;
     HeapTuple   new_tup;
 
     SysScanDesc scan;
@@ -1409,21 +1401,21 @@ disable_all_policy(PG_FUNCTION_ARGS)
     }
 
     rel = heap_open(PgAuditFgaConfRelationId, RowExclusiveLock);
-    scan = systable_beginscan(rel, InvalidOid, false, NULL, 0, NULL);
+	scan = systable_beginscan(rel, InvalidOid, false, NULL, 0, NULL);
 
     tup = systable_getnext(scan);
 
-    while(HeapTupleIsValid(tup))
+	while(HeapTupleIsValid(tup))
     {
         MemSet(values, 0, sizeof(values));
-        MemSet(nulls, false, sizeof(nulls));
-        MemSet(replaces, false, sizeof(replaces));
+    	MemSet(nulls, false, sizeof(nulls));
+    	MemSet(replaces, false, sizeof(replaces));
 
         replaces[Anum_audit_fga_conf_audit_enable - 1] = true;
         values[Anum_audit_fga_conf_audit_enable - 1] = BoolGetDatum(false);
 
         new_tup = heap_modify_tuple(tup, RelationGetDescr(rel), values,
-                                     nulls, replaces);
+        							 nulls, replaces);
 
         CatalogTupleUpdate(rel, &new_tup->t_self, new_tup);
 
@@ -1432,18 +1424,18 @@ disable_all_policy(PG_FUNCTION_ARGS)
 
     systable_endscan(scan);
 
-    heap_close(rel, RowExclusiveLock);
+	heap_close(rel, RowExclusiveLock);
 
-    exec_policy_funct_on_other_node(sql_cmd);
+    exec_policy_function_on_othter_nodes(sql_cmd);
 
-    PG_RETURN_BOOL(true);
+	PG_RETURN_BOOL(true);
 }
 
 Datum
 drop_all_policy(PG_FUNCTION_ARGS)
 {
     Relation    rel;
-    HeapTuple   tup;
+	HeapTuple   tup;
     SysScanDesc scan;
 
     char *sql_cmd = pstrdup(debug_query_string);
@@ -1460,11 +1452,11 @@ drop_all_policy(PG_FUNCTION_ARGS)
     }
 
     rel = heap_open(PgAuditFgaConfRelationId, RowExclusiveLock);
-    scan = systable_beginscan(rel, InvalidOid, false, NULL, 0, NULL);
+	scan = systable_beginscan(rel, InvalidOid, false, NULL, 0, NULL);
 
     tup = systable_getnext(scan);
 
-    while(HeapTupleIsValid(tup))
+	while(HeapTupleIsValid(tup))
     {
         simple_heap_delete(rel, &tup->t_self);
 
@@ -1473,18 +1465,18 @@ drop_all_policy(PG_FUNCTION_ARGS)
 
     systable_endscan(scan);
 
-    heap_close(rel, RowExclusiveLock);
+	heap_close(rel, RowExclusiveLock);
 
-    exec_policy_funct_on_other_node(sql_cmd);
+    exec_policy_function_on_othter_nodes(sql_cmd);
 
-    PG_RETURN_BOOL(true);
+	PG_RETURN_BOOL(true);
 }
 
 
 bool 
 has_policy_matched_cmd(char * cmd_type, Datum statement_types_datum, bool is_null)
 {
-    bool        ret = false;
+    bool		ret = false;
     char        *statement_types;
     char        *default_type = "select";
 
@@ -1506,8 +1498,8 @@ has_policy_matched_cmd(char * cmd_type, Datum statement_types_datum, bool is_nul
 
 bool 
 has_policy_matched_columns(List * tlist, oidvector *audit_column_oids, bool audit_column_opts)
-{// #lizard forgives
-    bool        ret = false;
+{
+    bool		ret = false;
     ListCell    *target_column;
     TargetEntry * col_expr;
     Var * expr;
@@ -1529,10 +1521,10 @@ has_policy_matched_columns(List * tlist, oidvector *audit_column_oids, bool audi
 
             expr = (Var *)col_expr->expr;
             if (!IsA(expr, Var))
-            {
-                ret = false;
-                break;
-            }
+    		{
+    			ret = false;
+    			break;
+    		}
 
             if (!oidvector_member( audit_column_oids, (Oid) expr->varattno))
             {
@@ -1549,10 +1541,10 @@ has_policy_matched_columns(List * tlist, oidvector *audit_column_oids, bool audi
 
             expr = (Var *)col_expr->expr;
             if (!IsA(expr, Var))
-            {
-                ret = false;
-                break;
-            }
+    		{
+    			ret = false;
+    			break;
+    		}
             if (oidvector_member( audit_column_oids, (Oid) expr->varattno))
                 ret = true;
         }
@@ -1564,11 +1556,11 @@ has_policy_matched_columns(List * tlist, oidvector *audit_column_oids, bool audi
 
 bool  
 get_audit_fga_quals(Oid rel, char * cmd_type, List *tlist, List **audit_fga_policy_list)
-{// #lizard forgives
-    Relation    audit_fga_rel;
+{
+    Relation	audit_fga_rel;
     ScanKeyData skey[3];
     SysScanDesc sscan;
-    HeapTuple    policy_tuple;
+	HeapTuple	policy_tuple;
     
     AuditFgaPolicy * audit_fga_policy_item;
     Expr *      qual_expr = NULL;
@@ -1579,63 +1571,63 @@ get_audit_fga_quals(Oid rel, char * cmd_type, List *tlist, List **audit_fga_poli
     audit_fga_rel = heap_open(PgAuditFgaConfRelationId, AccessShareLock);
 
     /* Add key - policy's relation id. */
-    ScanKeyInit(&skey[0],
-                Anum_audit_fga_conf_object_schema,
-                BTEqualStrategyNumber, F_OIDEQ,
-                ObjectIdGetDatum(get_rel_namespace(rel)));
+	ScanKeyInit(&skey[0],
+				Anum_audit_fga_conf_object_schema,
+				BTEqualStrategyNumber, F_OIDEQ,
+				ObjectIdGetDatum(get_rel_namespace(rel)));
 
-    /* Add key - policy's name. */
-    ScanKeyInit(&skey[1],
-                Anum_audit_fga_conf_object_id,
-                BTEqualStrategyNumber, F_OIDEQ, 
-                ObjectIdGetDatum(rel));
+	/* Add key - policy's name. */
+	ScanKeyInit(&skey[1],
+				Anum_audit_fga_conf_object_id,
+				BTEqualStrategyNumber, F_OIDEQ, 
+				ObjectIdGetDatum(rel));
 
     ScanKeyInit(&skey[2],
-                Anum_audit_fga_conf_audit_enable,
-                BTEqualStrategyNumber, F_BOOLEQ, 
-                BoolGetDatum(true));
+				Anum_audit_fga_conf_audit_enable,
+				BTEqualStrategyNumber, F_BOOLEQ, 
+				BoolGetDatum(true));
     
     sscan = systable_beginscan(audit_fga_rel,
-                               AuditFgaConfObjschOjbPolicyNameIndexID, false, NULL, 3,
-                               skey);
+							   AuditFgaConfObjschOjbPolicyNameIndexID, false, NULL, 3,
+							   skey);
 
     /*
-     * If we don't find a valid HeapTuple, it must mean No policy
-     * exist for object
-     */
-    while (HeapTupleIsValid(policy_tuple = systable_getnext(sscan)))
-    {
-        Datum        statement_types_datum;
-        bool        isNull;
+	 * If we don't find a valid HeapTuple, it must mean No policy
+	 * exist for object
+	 */
+	while (HeapTupleIsValid(policy_tuple = systable_getnext(sscan)))
+	{
+		Datum		statement_types_datum;
+        bool		isNull;
 
-        Datum        qual_datum;
+        Datum		qual_datum;
         Datum       policy_name_datum;
         char        *qual_value;
         char        *policy_name;
-        bool        qual_is_null;
+        bool		qual_is_null;
         bool        policy_name_is_null;
 
-        Datum        column_datum;
-        Datum        column_opts_datum;
-        bool        column_is_null;
-        bool        column_opts_is_null;
+        Datum		column_datum;
+        Datum		column_opts_datum;
+		bool		column_is_null;
+        bool		column_opts_is_null;
         oidvector   *audit_column_oids = NULL;
         bool        audit_column_opts = true;
         
         /* get audit_columns  */
-        statement_types_datum = heap_getattr(policy_tuple, Anum_audit_fga_conf_statement_types,
-                            RelationGetDescr(audit_fga_rel), &isNull);
+		statement_types_datum = heap_getattr(policy_tuple, Anum_audit_fga_conf_statement_types,
+							RelationGetDescr(audit_fga_rel), &isNull);
 
         column_datum = heap_getattr(policy_tuple, Anum_audit_fga_conf_audit_column_ids,
-                            RelationGetDescr(audit_fga_rel), &column_is_null);
+							RelationGetDescr(audit_fga_rel), &column_is_null);
         column_opts_datum = heap_getattr(policy_tuple, Anum_audit_fga_conf_audit_column_opts,
                                         RelationGetDescr(audit_fga_rel), &column_opts_is_null);
 
         qual_datum = heap_getattr(policy_tuple, Anum_audit_fga_conf_audit_condition,
-                            RelationGetDescr(audit_fga_rel), &qual_is_null);
+							RelationGetDescr(audit_fga_rel), &qual_is_null);
         
         policy_name_datum = heap_getattr(policy_tuple, Anum_audit_fga_conf_policy_name,
-                            RelationGetDescr(audit_fga_rel), &policy_name_is_null);
+							RelationGetDescr(audit_fga_rel), &policy_name_is_null);
                    
         /*  check command type */
         need_audit_fga_quals = has_policy_matched_cmd(cmd_type, statement_types_datum, isNull);
@@ -1685,7 +1677,7 @@ get_audit_fga_quals(Oid rel, char * cmd_type, List *tlist, List **audit_fga_poli
     }
 
     systable_endscan(sscan);
-    heap_close(audit_fga_rel, AccessShareLock);
+	heap_close(audit_fga_rel, AccessShareLock);
 
     if (nfga > 0)
         return true;
@@ -1696,30 +1688,30 @@ get_audit_fga_quals(Oid rel, char * cmd_type, List *tlist, List **audit_fga_poli
 
 /*
  * Signal handler for SIGHUP
- *        Set a flag to tell the main loop to reread the config file, and set
- *        our latch to wake it up.
+ *		Set a flag to tell the main loop to reread the config file, and set
+ *		our latch to wake it up.
  */
 void
 worker_audit_fga_sighup(SIGNAL_ARGS)
 {
-    int            save_errno = errno;
+	int			save_errno = errno;
 
-    fga_gotSIGHUP = true;
-    SetLatch(MyLatch);
+	fga_gotSIGHUP = true;
+	SetLatch(MyLatch);
 
-    errno = save_errno;
+	errno = save_errno;
 }
 
 void
 worker_audit_fga_wakeup(SIGNAL_ARGS)
 {
-    int            save_errno = errno;
+	int			save_errno = errno;
 
-    fga_gotSIGUSR1 = true;
+	fga_gotSIGUSR1 = true;
     fga_consume_requested = true;
-    SetLatch(MyLatch);
+	SetLatch(MyLatch);
 
-    errno = save_errno;
+	errno = save_errno;
 }
 
 
@@ -1741,8 +1733,8 @@ void reset_shem_info(int i)
   */
 void 
 process_fga_trigger(bool timeout)
-{// #lizard forgives
-    PGconn         *conn;
+{
+    PGconn 	    *conn;
     audit_fga_tigger_info func_info;
     PGresult *res;
     int i;
@@ -1777,7 +1769,7 @@ process_fga_trigger(bool timeout)
                     else
                     {
                         BackendAuditFgaArray[i].status = FGA_STATUS_OK;
-                        strncpy(BackendAuditFgaArray[i].exec_feedback, "succeed",AUDIT_TRIGGER_FEEDBACK_LEN-1);
+                        strcpy(BackendAuditFgaArray[i].exec_feedback, "succeed");
                     }
 
                     PQclear(res);
@@ -1820,32 +1812,32 @@ ApplyAuditFgaMain(Datum main_arg)
     /* Enter main loop */
     while(PostmasterIsAlive())
     {
-        int    rc = 0;
+        int	rc = 0;
 
         CHECK_FOR_INTERRUPTS();
 
-        /* Clear any already-pending wakeups */
-        ResetLatch(MyLatch);
+		/* Clear any already-pending wakeups */
+		ResetLatch(MyLatch);
         
-        process_fga_trigger(true);
+		process_fga_trigger(true);
         fga_consume_requested = false;
 
-        rc = WaitLatch(MyLatch,
-                       WL_LATCH_SET | WL_TIMEOUT | WL_POSTMASTER_DEATH,
-                       FGA_LATCH_MICROSEC,
-                       WAIT_EVENT_AUDIT_FGA_MAIN);
+		rc = WaitLatch(MyLatch,
+					   WL_LATCH_SET | WL_TIMEOUT | WL_POSTMASTER_DEATH,
+					   FGA_LATCH_MICROSEC,
+					   WAIT_EVENT_AUDIT_FGA_MAIN);
 
-        if (rc & WL_POSTMASTER_DEATH)
-        {
-            ereport(ERROR,
-                    (errcode(ERRCODE_INTERNAL_ERROR),
-                     errmsg("audit fga worker exit after postmaster die")));
-            exit(6);
-        }
-        else if (rc & WL_TIMEOUT)
-        {
-            process_fga_trigger(false);
-        }
+		if (rc & WL_POSTMASTER_DEATH)
+		{
+			ereport(ERROR,
+					(errcode(ERRCODE_INTERNAL_ERROR),
+					 errmsg("audit fga worker exit after postmaster die")));
+			exit(6);
+		}
+		else if (rc & WL_TIMEOUT)
+		{
+			process_fga_trigger(false);
+		}
     }
     /* Not reachable */
 }
@@ -1853,37 +1845,39 @@ ApplyAuditFgaMain(Datum main_arg)
 
 /*
  * ApplyAuditFgaRegister
- *        Register a background worker running the Audit FGA warning.
+ *		Register a background worker running the Audit FGA warning.
  */
-
 void
 ApplyAuditFgaRegister(void)
 {
     BackgroundWorker bgw;
 
-    memset(&bgw, 0, sizeof(bgw));
-    bgw.bgw_flags = BGWORKER_CLASS_AUDIT_FGA | BGWORKER_SHMEM_ACCESS |
-        BGWORKER_BACKEND_DATABASE_CONNECTION;
-    bgw.bgw_start_time = BgWorkerStart_RecoveryFinished;
-    snprintf(bgw.bgw_library_name, BGW_MAXLEN, "postgres");
-    snprintf(bgw.bgw_function_name, BGW_MAXLEN, "ApplyAuditFgaMain");
-    snprintf(bgw.bgw_name, BGW_MAXLEN,
-             "audit fga worker");
-    bgw.bgw_restart_time = 5;
-    bgw.bgw_notify_pid = 0;
-    bgw.bgw_main_arg = (Datum) 0;
+	if (!enable_fga)
+		return;
 
-    RegisterBackgroundWorker(&bgw);
+	memset(&bgw, 0, sizeof(bgw));
+	bgw.bgw_flags = BGWORKER_CLASS_AUDIT_FGA | BGWORKER_SHMEM_ACCESS |
+		BGWORKER_BACKEND_DATABASE_CONNECTION;
+	bgw.bgw_start_time = BgWorkerStart_RecoveryFinished;
+	snprintf(bgw.bgw_library_name, BGW_MAXLEN, "postgres");
+	snprintf(bgw.bgw_function_name, BGW_MAXLEN, "ApplyAuditFgaMain");
+	snprintf(bgw.bgw_name, BGW_MAXLEN,
+			 "audit fga worker");
+	bgw.bgw_restart_time = 5;
+	bgw.bgw_notify_pid = 0;
+	bgw.bgw_main_arg = (Datum) 0;
+
+	RegisterBackgroundWorker(&bgw);
 }
 
 Size
 AuditFgaShmemSize(void)
 {
-    Size        size;
+    Size		size;
 
-    size = mul_size(sizeof(audit_fga_tigger_info), num_audit_fga_tigger_info);
+	size = mul_size(sizeof(audit_fga_tigger_info), num_audit_fga_tigger_info);
 
-    return size;
+	return size;
 }
 
 void
@@ -1914,16 +1908,16 @@ write_trigger_handle_to_shmem(Oid func_oid)
     char port_s[32];
     int idx = -1;
     
-    snprintf(port_s, 32, "%d", get_pgxc_nodeport(MyCoordId));
+    sprintf(port_s, "%d", get_pgxc_nodeport(MyCoordId));
     
     func_info.backend_pid = MyProcPid;
     func_info.handler_module = func_oid;
     func_info.status = FGA_STATUS_INIT; 
-    strncpy(func_info.db_name, get_database_name(MyDatabaseId),NAMEDATALEN);
-    strncpy(func_info.user_name, GetUserNameFromId(GetSessionUserId(), false),NAMEDATALEN);
-    strncpy(func_info.func_name, get_func_name(func_oid),NAMEDATALEN);
-    strncpy(func_info.host, get_pgxc_nodehost(MyCoordId),32);
-    strncpy(func_info.port, port_s,32);
+    strcpy(func_info.db_name, get_database_name(MyDatabaseId));
+    strcpy(func_info.user_name, GetUserNameFromId(GetSessionUserId(), false));
+    strcpy(func_info.func_name, get_func_name(func_oid));
+    strcpy(func_info.host, get_pgxc_nodehost(MyCoordId));
+    strcpy(func_info.port, port_s);
     
     MemSet(func_info.exec_feedback, 0, AUDIT_TRIGGER_FEEDBACK_LEN);
 

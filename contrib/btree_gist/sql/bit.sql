@@ -32,5 +32,5 @@ SELECT count(*) FROM bittmp WHERE a >   '011011000100010111011000110000100';
 
 -- Test index-only scans
 SET enable_bitmapscan=off;
-EXPLAIN (COSTS OFF)
+EXPLAIN (COSTS OFF, NODES OFF)
 SELECT a FROM bittmp WHERE a BETWEEN '1000000' and '1000001';

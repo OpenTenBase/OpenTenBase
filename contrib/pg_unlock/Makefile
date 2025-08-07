@@ -1,16 +1,10 @@
 # contrib/pg_unlock/Makefile
-#
-# Copyright (c) 2023 THL A29 Limited, a Tencent company.
-#
-# This source code file is licensed under the BSD 3-Clause License,
-# you may obtain a copy of the License at http://opensource.org/license/bsd-3-clause/
-#
 
 MODULE_big = pg_unlock
 OBJS = pg_unlock.o
 
 EXTENSION = pg_unlock
-DATA = pg_unlock--1.0.sql pg_unlock--unpackaged--1.0.sql
+DATA = pg_unlock--1.0.sql pg_unlock--unpackaged--1.0.sql pg_unlock--1.0--1.1.sql
 
 ifdef USE_PGXS
 PG_CONFIG = pg_config

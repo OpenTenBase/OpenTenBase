@@ -25,17 +25,17 @@
 void
 simple_oid_list_append(SimpleOidList *list, Oid val)
 {
-    SimpleOidListCell *cell;
+	SimpleOidListCell *cell;
 
-    cell = (SimpleOidListCell *) pg_malloc(sizeof(SimpleOidListCell));
-    cell->next = NULL;
-    cell->val = val;
+	cell = (SimpleOidListCell *) pg_malloc(sizeof(SimpleOidListCell));
+	cell->next = NULL;
+	cell->val = val;
 
-    if (list->tail)
-        list->tail->next = cell;
-    else
-        list->head = cell;
-    list->tail = cell;
+	if (list->tail)
+		list->tail->next = cell;
+	else
+		list->head = cell;
+	list->tail = cell;
 }
 
 /*
@@ -44,14 +44,14 @@ simple_oid_list_append(SimpleOidList *list, Oid val)
 bool
 simple_oid_list_member(SimpleOidList *list, Oid val)
 {
-    SimpleOidListCell *cell;
+	SimpleOidListCell *cell;
 
-    for (cell = list->head; cell; cell = cell->next)
-    {
-        if (cell->val == val)
-            return true;
-    }
-    return false;
+	for (cell = list->head; cell; cell = cell->next)
+	{
+		if (cell->val == val)
+			return true;
+	}
+	return false;
 }
 
 /*
@@ -62,20 +62,20 @@ simple_oid_list_member(SimpleOidList *list, Oid val)
 void
 simple_string_list_append(SimpleStringList *list, const char *val)
 {
-    SimpleStringListCell *cell;
+	SimpleStringListCell *cell;
 
-    cell = (SimpleStringListCell *)
-        pg_malloc(offsetof(SimpleStringListCell, val) + strlen(val) + 1);
+	cell = (SimpleStringListCell *)
+		pg_malloc(offsetof(SimpleStringListCell, val) + strlen(val) + 1);
 
-    cell->next = NULL;
-    cell->touched = false;
-    strcpy(cell->val, val);
+	cell->next = NULL;
+	cell->touched = false;
+	strcpy(cell->val, val);
 
-    if (list->tail)
-        list->tail->next = cell;
-    else
-        list->head = cell;
-    list->tail = cell;
+	if (list->tail)
+		list->tail->next = cell;
+	else
+		list->head = cell;
+	list->tail = cell;
 }
 
 /*
@@ -86,17 +86,17 @@ simple_string_list_append(SimpleStringList *list, const char *val)
 bool
 simple_string_list_member(SimpleStringList *list, const char *val)
 {
-    SimpleStringListCell *cell;
+	SimpleStringListCell *cell;
 
-    for (cell = list->head; cell; cell = cell->next)
-    {
-        if (strcmp(cell->val, val) == 0)
-        {
-            cell->touched = true;
-            return true;
-        }
-    }
-    return false;
+	for (cell = list->head; cell; cell = cell->next)
+	{
+		if (strcmp(cell->val, val) == 0)
+		{
+			cell->touched = true;
+			return true;
+		}
+	}
+	return false;
 }
 
 /*
@@ -105,12 +105,12 @@ simple_string_list_member(SimpleStringList *list, const char *val)
 const char *
 simple_string_list_not_touched(SimpleStringList *list)
 {
-    SimpleStringListCell *cell;
+	SimpleStringListCell *cell;
 
-    for (cell = list->head; cell; cell = cell->next)
-    {
-        if (!cell->touched)
-            return cell->val;
-    }
-    return NULL;
+	for (cell = list->head; cell; cell = cell->next)
+	{
+		if (!cell->touched)
+			return cell->val;
+	}
+	return NULL;
 }

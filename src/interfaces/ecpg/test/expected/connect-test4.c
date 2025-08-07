@@ -26,19 +26,19 @@
 int
 main(void)
 {
-    ECPGdebug(1, stderr);
+	ECPGdebug(1, stderr);
 
-    { ECPGconnect(__LINE__, 0, "ecpg1_regression" , NULL, NULL , "main", 0); }
+	{ ECPGconnect(__LINE__, 0, "ecpg1_regression" , NULL, NULL , "main", 0); }
 #line 13 "test4.pgc"
 
 
-    { ECPGsetconn(__LINE__, "main");}
+	{ ECPGsetconn(__LINE__, "main");}
 #line 15 "test4.pgc"
 
 
-    { ECPGdisconnect(__LINE__, "DEFAULT");}
+	{ ECPGdisconnect(__LINE__, "DEFAULT");}
 #line 17 "test4.pgc"
 
 
-    return (0);
+	return (0);
 }

@@ -56,7 +56,7 @@ pgxcOwner=$USER			# owner of the Postgres-XC databaseo cluster.  Here, we use th
 						# the super user of each coordinator and datanode.
 pgxcUser=$pgxcOwner		# OS user of Postgres-XC owner
 multiCluster=y
-pgxcMainClusterName=cluster1
+pgxcMainClusterName=opentenbase_cluster	# Valid values are ( opentenbase_cluster or opentenbase_cluster_01/opentenbase_cluster_02/.../opentenbase_cluster_14/opentenbase_cluster_15 )
 tmpDir=/tmp					# temporary dir used in XC servers
 localTmpDir=$tmpDir			# temporary dir used here locally
 
@@ -171,7 +171,7 @@ coordSlave=y			# Specify y if you configure at least one coordiantor slave.  Oth
 						# empty values.
 coordSlaveSync=y		# Specify to connect with synchronized mode.
 coordSlaveServers=(node07 node08 node09 node06)			# none means this slave is not available
-coordSlaveCluster=(cluster2 cluster2 cluster2 cluster2)
+coordSlaveCluster=(opentenbase_cluster_01 opentenbase_cluster_01 opentenbase_cluster_01 opentenbase_cluster_01)	# Valid values are ( opentenbase_cluster or opentenbase_cluster_01/opentenbase_cluster_02/.../opentenbase_cluster_14/opentenbase_cluster_15 )
 coordSlavePorts=(20004 20005 20004 20005)			# Master ports
 coordSlavePoolerPorts=(20010 20011 20010 20011)			# Master pooler ports
 coordSlaveDirs=($coordSlaveDir $coordSlaveDir $coordSlaveDir $coordSlaveDir)
@@ -271,7 +271,7 @@ datanodeSlave=y			# Specify y if you configure at least one coordiantor slave.  
 						# then datanodeSlave value will be set to n and all the following values will be set to
 						# empty values.
 datanodeSlaveServers=(node07 node08 node09 node06)	# value none means this slave is not available
-datanodeSlaveCluster=(cluster2 cluster2 cluster2 cluster2)	
+datanodeSlaveCluster=(opentenbase_cluster_01 opentenbase_cluster_01 opentenbase_cluster_01 opentenbase_cluster_01)	# Valid values are ( opentenbase_cluster or opentenbase_cluster_01/opentenbase_cluster_02/.../opentenbase_cluster_14/opentenbase_cluster_15 )
 datanodeSlavePorts=(20008 20009 20008 20009)	# value none means this slave is not available
 datanodeSlavePoolerPorts=(20012 20013 20012 20013)	# value none means this slave is not available
 datanodeSlaveSync=y		# If datanode slave is connected in synchronized mode

@@ -207,7 +207,11 @@ $$ LANGUAGE plpythonu;
    <literal>yield</literal> (in case of a result-set statement).  If
    you do not provide a return value, Python returns the default
    <symbol>None</symbol>. <application>PL/Python</application> translates
-   Python's <symbol>None</symbol> into the SQL null value.
+   Python's <symbol>None</symbol> into the SQL null value.  In a procedure,
+   the result from the Python code must be <symbol>None</symbol> (typically
+   achieved by ending the procedure without a <literal>return</literal>
+   statement or by using a <literal>return</literal> statement without
+   argument); otherwise, an error will be raised.
   </para>
 
   <para>
@@ -645,6 +649,17 @@ return (1, 2)
 $$ LANGUAGE plpythonu;
 
 SELECT * FROM multiout_simple();
+</programlisting>
+   </para>
+
+   <para>
+    Output parameters of procedures are passed back the same way.  For example:
+<programlisting>
+CREATE PROCEDURE python_triple(INOUT a integer, INOUT b integer) AS $$
+return (a * 3, b * 3)
+$$ LANGUAGE plpythonu;
+
+CALL python_triple(5, 10);
 </programlisting>
    </para>
   </sect2>
@@ -1364,6 +1379,45 @@ $$ LANGUAGE plpythonu;
     </para>
    </note>
   </sect2>
+ </sect1>
+
+ <sect1 id="plpython-transactions">
+  <title>Transaction Management</title>
+
+  <para>
+   In a procedure called from the top level or an anonymous code block
+   (<command>DO</command> command) called from the top level it is possible to
+   control transactions.  To commit the current transaction, call
+   <literal>plpy.commit()</literal>.  To roll back the current transaction,
+   call <literal>plpy.rollback()</literal>.  (Note that it is not possible to
+   run the SQL commands <command>COMMIT</command> or
+   <command>ROLLBACK</command> via <function>plpy.execute</function> or
+   similar.  It has to be done using these functions.)  After a transaction is
+   ended, a new transaction is automatically started, so there is no separate
+   function for that.
+  </para>
+
+  <para>
+   Here is an example:
+<programlisting>
+CREATE PROCEDURE transaction_test1()
+LANGUAGE plpythonu
+AS $$
+for i in range(0, 10):
+    plpy.execute("INSERT INTO test1 (a) VALUES (%d)" % i)
+    if i % 2 == 0:
+        plpy.commit()
+    else:
+        plpy.rollback()
+$$;
+
+CALL transaction_test1();
+</programlisting>
+  </para>
+
+  <para>
+   Transactions cannot be ended when an explicit subtransaction is active.
+  </para>
  </sect1>
 
  <sect1 id="plpython-util">

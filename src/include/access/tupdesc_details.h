@@ -1,16 +1,12 @@
 /*-------------------------------------------------------------------------
  *
  * tupdesc_details.h
- *      POSTGRES tuple descriptor definitions we can't include everywhere
+ *	  POSTGRES tuple descriptor definitions we can't include everywhere
  *
- * Copyright (c) 2023 THL A29 Limited, a Tencent company.
  *
- * This source code file is licensed under the BSD 3-Clause License,
- * you may obtain a copy of the License at http://opensource.org/license/bsd-3-clause/
+ * Portions Copyright (c) 1996-2018, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- * 
  * src/include/access/tupdesc_details.h
  *
  *-------------------------------------------------------------------------
@@ -26,8 +22,8 @@
 
 typedef struct attrMissing
 {
-    bool        ammissingPresent;    /* true if non-NULL missing value exists */
-    Datum        ammissing;        /* value when attribute is missing */
+	bool		ammissingPresent;	/* true if non-NULL missing value exists */
+	Datum		ammissing;		/* value when attribute is missing */
 } AttrMissing;
 
-#endif                            /* TUPDESC_DETAILS_H */
+#endif							/* TUPDESC_DETAILS_H */

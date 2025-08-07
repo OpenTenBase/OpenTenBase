@@ -151,79 +151,79 @@ explain (costs off)
 -------------------------------------------------------------------------
  Nested Loop
    Join Filter: (ec1.ff = ec2.x1)
-   ->  Remote Subquery Scan on all (datanode_1)
+   ->  Remote Subquery Scan on all (datanodes 1)
          ->  Index Scan using ec1_pkey on ec1
                Index Cond: ((ff = '42'::bigint) AND (ff = '42'::bigint))
    ->  Materialize
-         ->  Remote Subquery Scan on all (datanode_1,datanode_2)
+         ->  Remote Subquery Scan on all (datanodes 2)
                ->  Seq Scan on ec2
 (8 rows)
 
 explain (costs off)
   select * from ec1, ec2 where ff = x1 and ff = '42'::int8alias1;
-                           QUERY PLAN                            
------------------------------------------------------------------
+                       QUERY PLAN                        
+---------------------------------------------------------
  Nested Loop
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-         ->  Index Scan using ec1_pkey on ec1
-               Index Cond: (ff = '42'::int8alias1)
+   ->  Remote Subquery Scan on all (datanodes 2)
+         ->  Seq Scan on ec2
+               Filter: (x1 = '42'::int8alias1)
    ->  Materialize
-         ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-               ->  Seq Scan on ec2
-                     Filter: (x1 = '42'::int8alias1)
+         ->  Remote Subquery Scan on all (datanodes 2)
+               ->  Index Scan using ec1_pkey on ec1
+                     Index Cond: (ff = '42'::int8alias1)
 (8 rows)
 
 explain (costs off)
   select * from ec1, ec2 where ff = x1 and '42'::int8 = x1;
-                           QUERY PLAN                            
------------------------------------------------------------------
+                      QUERY PLAN                       
+-------------------------------------------------------
  Nested Loop
    Join Filter: (ec1.ff = ec2.x1)
-   ->  Remote Subquery Scan on all (datanode_1)
+   ->  Remote Subquery Scan on all (datanodes 1)
          ->  Index Scan using ec1_pkey on ec1
                Index Cond: (ff = '42'::bigint)
    ->  Materialize
-         ->  Remote Subquery Scan on all (datanode_1,datanode_2)
+         ->  Remote Subquery Scan on all (datanodes 2)
                ->  Seq Scan on ec2
                      Filter: ('42'::bigint = x1)
 (9 rows)
 
 explain (costs off)
   select * from ec1, ec2 where ff = x1 and x1 = '42'::int8alias1;
-                           QUERY PLAN                            
------------------------------------------------------------------
+                       QUERY PLAN                        
+---------------------------------------------------------
  Nested Loop
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-         ->  Index Scan using ec1_pkey on ec1
-               Index Cond: (ff = '42'::int8alias1)
+   ->  Remote Subquery Scan on all (datanodes 2)
+         ->  Seq Scan on ec2
+               Filter: (x1 = '42'::int8alias1)
    ->  Materialize
-         ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-               ->  Seq Scan on ec2
-                     Filter: (x1 = '42'::int8alias1)
+         ->  Remote Subquery Scan on all (datanodes 2)
+               ->  Index Scan using ec1_pkey on ec1
+                     Index Cond: (ff = '42'::int8alias1)
 (8 rows)
 
 explain (costs off)
   select * from ec1, ec2 where ff = x1 and x1 = '42'::int8alias2;
-                           QUERY PLAN                            
------------------------------------------------------------------
+                      QUERY PLAN                       
+-------------------------------------------------------
  Nested Loop
    Join Filter: (ec1.ff = ec2.x1)
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
+   ->  Remote Subquery Scan on all (datanodes 2)
          ->  Seq Scan on ec1
    ->  Materialize
-         ->  Remote Subquery Scan on all (datanode_1,datanode_2)
+         ->  Remote Subquery Scan on all (datanodes 2)
                ->  Seq Scan on ec2
                      Filter: (x1 = '42'::int8alias2)
 (8 rows)
 
 create unique index ec1_expr1 on ec1((ff + 1));
-ERROR:  Unique index of partitioned table must contain the hash/modulo distribution column.
+ERROR:  Unique index of distributed table must contain the distribution column.
 create unique index ec1_expr2 on ec1((ff + 2 + 1));
-ERROR:  Unique index of partitioned table must contain the hash/modulo distribution column.
+ERROR:  Unique index of distributed table must contain the distribution column.
 create unique index ec1_expr3 on ec1((ff + 3 + 1));
-ERROR:  Unique index of partitioned table must contain the hash/modulo distribution column.
+ERROR:  Unique index of distributed table must contain the distribution column.
 create unique index ec1_expr4 on ec1((ff + 4));
-ERROR:  Unique index of partitioned table must contain the hash/modulo distribution column.
+ERROR:  Unique index of distributed table must contain the distribution column.
 explain (costs off)
   select * from ec1,
     (select ff + 1 as x from
@@ -233,15 +233,15 @@ explain (costs off)
      union all
      select ff + 4 as x from ec1) as ss1
   where ss1.x = ec1.f1 and ec1.ff = 42::int8;
-                           QUERY PLAN                            
------------------------------------------------------------------
+                      QUERY PLAN                       
+-------------------------------------------------------
  Nested Loop
-   Join Filter: (x = ec1.f1)
-   ->  Remote Subquery Scan on all (datanode_1)
+   Join Filter: ((((ec1_1.ff + 2) + 1)) = ec1.f1)
+   ->  Remote Subquery Scan on all (datanodes 1)
          ->  Index Scan using ec1_pkey on ec1
                Index Cond: (ff = '42'::bigint)
    ->  Materialize
-         ->  Remote Subquery Scan on all (datanode_1,datanode_2)
+         ->  Remote Subquery Scan on all (datanodes 2)
                ->  Append
                      ->  Seq Scan on ec1 ec1_1
                      ->  Seq Scan on ec1 ec1_2
@@ -260,13 +260,13 @@ explain (costs off)
                                QUERY PLAN                                
 -------------------------------------------------------------------------
  Nested Loop
-   Join Filter: (x = ec1.f1)
-   ->  Remote Subquery Scan on all (datanode_1)
+   Join Filter: ((((ec1_1.ff + 2) + 1)) = ec1.f1)
+   ->  Remote Subquery Scan on all (datanodes 1)
          ->  Index Scan using ec1_pkey on ec1
                Index Cond: ((ff = '42'::bigint) AND (ff = '42'::bigint))
                Filter: (ff = f1)
    ->  Materialize
-         ->  Remote Subquery Scan on all (datanode_1,datanode_2)
+         ->  Remote Subquery Scan on all (datanodes 2)
                ->  Append
                      ->  Seq Scan on ec1 ec1_1
                            Filter: (((ff + 2) + 1) = '42'::bigint)
@@ -291,23 +291,23 @@ explain (costs off)
      union all
      select ff + 4 as x from ec1) as ss2
   where ss1.x = ec1.f1 and ss1.x = ss2.x and ec1.ff = 42::int8;
-                                 QUERY PLAN                                  
------------------------------------------------------------------------------
+                            QUERY PLAN                             
+-------------------------------------------------------------------
  Nested Loop
-   Join Filter: (x = x)
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
+   Join Filter: ((((ec1_1.ff + 2) + 1)) = (((ec1_4.ff + 2) + 1)))
+   ->  Remote Subquery Scan on all (datanodes 2)
          ->  Append
                ->  Seq Scan on ec1 ec1_4
                ->  Seq Scan on ec1 ec1_5
                ->  Seq Scan on ec1 ec1_6
    ->  Materialize
          ->  Nested Loop
-               Join Filter: (x = ec1.f1)
-               ->  Remote Subquery Scan on all (datanode_1)
+               Join Filter: ((((ec1_1.ff + 2) + 1)) = ec1.f1)
+               ->  Remote Subquery Scan on all (datanodes 1)
                      ->  Index Scan using ec1_pkey on ec1
                            Index Cond: (ff = '42'::bigint)
                ->  Materialize
-                     ->  Remote Subquery Scan on all (datanode_1,datanode_2)
+                     ->  Remote Subquery Scan on all (datanodes 2)
                            ->  Append
                                  ->  Seq Scan on ec1 ec1_1
                                  ->  Seq Scan on ec1 ec1_2
@@ -333,15 +333,15 @@ explain (costs off)
      union all
      select ff + 4 as x from ec1) as ss1
   where ss1.x = ec1.f1 and ec1.ff = 42::int8;
-                           QUERY PLAN                            
------------------------------------------------------------------
+                      QUERY PLAN                       
+-------------------------------------------------------
  Nested Loop
-   Join Filter: (x = ec1.f1)
-   ->  Remote Subquery Scan on all (datanode_1)
+   Join Filter: ((((ec1_1.ff + 2) + 1)) = ec1.f1)
+   ->  Remote Subquery Scan on all (datanodes 1)
          ->  Index Scan using ec1_pkey on ec1
                Index Cond: (ff = '42'::bigint)
    ->  Materialize
-         ->  Remote Subquery Scan on all (datanode_1,datanode_2)
+         ->  Remote Subquery Scan on all (datanodes 2)
                ->  Append
                      ->  Seq Scan on ec1 ec1_1
                      ->  Seq Scan on ec1 ec1_2
@@ -360,23 +360,20 @@ explain (costs off)
      union all
      select ff + 4 as x from ec1) as ss1
   where ss1.x = ec1.f1 and ec1.ff = 42::int8;
-                        QUERY PLAN                         
------------------------------------------------------------
- Merge Join
-   Merge Cond: (x = ec1.f1)
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-         ->  Sort
-               Sort Key: (((ec1_1.ff + 2) + 1))
+                      QUERY PLAN                       
+-------------------------------------------------------
+ Nested Loop
+   Join Filter: ((((ec1_1.ff + 2) + 1)) = ec1.f1)
+   ->  Remote Subquery Scan on all (datanodes 1)
+         ->  Index Scan using ec1_pkey on ec1
+               Index Cond: (ff = '42'::bigint)
+   ->  Materialize
+         ->  Remote Subquery Scan on all (datanodes 2)
                ->  Append
                      ->  Seq Scan on ec1 ec1_1
                      ->  Seq Scan on ec1 ec1_2
                      ->  Seq Scan on ec1 ec1_3
-   ->  Remote Subquery Scan on all (datanode_1)
-         ->  Sort
-               Sort Key: ec1.f1 USING <
-               ->  Index Scan using ec1_pkey on ec1
-                     Index Cond: (ff = '42'::bigint)
-(14 rows)
+(11 rows)
 
 -- check effects of row-level security
 set enable_nestloop = on;
@@ -424,3 +421,25 @@ reset session authorization;
 revoke select on ec0 from regress_user_ectest;
 revoke select on ec1 from regress_user_ectest;
 drop user regress_user_ectest;
+-- check that X=X is converted to X IS NOT NULL when appropriate
+explain (costs off)
+  select * from tenk1 where unique1 = unique1 and unique2 = unique2;
+                            QUERY PLAN                             
+-------------------------------------------------------------------
+ Remote Fast Query Execution
+   Node/s: datanode_1, datanode_2
+   ->  Seq Scan on tenk1
+         Filter: ((unique1 IS NOT NULL) AND (unique2 IS NOT NULL))
+(4 rows)
+
+-- this could be converted, but isn't at present
+explain (costs off)
+  select * from tenk1 where unique1 = unique1 or unique2 = unique2;
+                          QUERY PLAN                          
+--------------------------------------------------------------
+ Remote Fast Query Execution
+   Node/s: datanode_1, datanode_2
+   ->  Seq Scan on tenk1
+         Filter: ((unique1 = unique1) OR (unique2 = unique2))
+(4 rows)
+

@@ -1,22 +1,22 @@
 /*-------------------------------------------------------------------------
  *
  * dest.h
- *      support for communication destinations
+ *	  support for communication destinations
  *
  * Whenever the backend executes a query that returns tuples, the results
  * have to go someplace.  For example:
  *
- *      - stdout is the destination only when we are running a
- *        standalone backend (no postmaster) and are returning results
- *        back to an interactive user.
+ *	  - stdout is the destination only when we are running a
+ *		standalone backend (no postmaster) and are returning results
+ *		back to an interactive user.
  *
- *      - a remote process is the destination when we are
- *        running a backend with a frontend and the frontend executes
- *        PQexec() or PQfn().  In this case, the results are sent
- *        to the frontend via the functions in backend/libpq.
+ *	  - a remote process is the destination when we are
+ *		running a backend with a frontend and the frontend executes
+ *		PQexec() or PQfn().  In this case, the results are sent
+ *		to the frontend via the functions in backend/libpq.
  *
- *      - DestNone is the destination when the system executes
- *        a query internally.  The results are discarded.
+ *	  - DestNone is the destination when the system executes
+ *		a query internally.  The results are discarded.
  *
  * dest.c defines three functions that implement destination management:
  *
@@ -60,9 +60,6 @@
  * Portions Copyright (c) 2012-2014, TransLattice, Inc.
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
- * 
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  * src/include/tcop/dest.h
  *
@@ -75,12 +72,12 @@
 
 
 /* buffer size to use for command completion tags */
-#define COMPLETION_TAG_BUFSIZE    64
+#define COMPLETION_TAG_BUFSIZE	64
 
 
 /* ----------------
- *        CommandDest is a simplistic means of identifying the desired
- *        destination.  Someday this will probably need to be improved.
+ *		CommandDest is a simplistic means of identifying the desired
+ *		destination.  Someday this will probably need to be improved.
  *
  * Note: only the values DestNone, DestDebug, DestRemote are legal for the
  * global variable whereToSendOutput.   The other values may be used
@@ -89,30 +86,24 @@
  */
 typedef enum
 {
-    DestNone,                    /* results are discarded */
-    DestDebug,                    /* results go to debugging output */
-    DestRemote,                    /* results sent to frontend process */
-    DestRemoteExecute,            /* sent to frontend, in Execute command */
-    DestRemoteSimple,            /* sent to frontend, w/no catalog access */
-    DestSPI,                    /* results sent to SPI manager */
-    DestTuplestore,                /* results sent to Tuplestore */
-    DestIntoRel,                /* results sent to relation (SELECT INTO) */
-    DestCopyOut,                /* results sent to COPY TO code */
-    DestSQLFunction,            /* results sent to SQL-language func mgr */
-#ifdef XCP
-    DestProducer,                /* results sent to a SharedQueue */
-#ifdef __OPENTENBASE__
-    DestParallelSend,           /* results send to data buffers */
-#endif
-#endif
-    DestTransientRel,            /* results sent to transient relation */
-    DestTupleQueue                /* results sent to tuple queue */
+	DestNone,					/* results are discarded */
+	DestDebug,					/* results go to debugging output */
+	DestRemote,					/* results sent to frontend process */
+	DestRemoteExecute,			/* sent to frontend, in Execute command */
+	DestRemoteSimple,			/* sent to frontend, w/no catalog access */
+	DestSPI,					/* results sent to SPI manager */
+	DestTuplestore,				/* results sent to Tuplestore */
+	DestIntoRel,				/* results sent to relation (SELECT INTO) */
+	DestCopyOut,				/* results sent to COPY TO code */
+	DestSQLFunction,			/* results sent to SQL-language func mgr */
+	DestTransientRel,			/* results sent to transient relation */
+	DestTupleQueue				/* results sent to tuple queue */
 } CommandDest;
 
 /* ----------------
- *        DestReceiver is a base type for destination-specific local state.
- *        In the simplest cases, there is no state info, just the function
- *        pointers that the executor must call.
+ *		DestReceiver is a base type for destination-specific local state.
+ *		In the simplest cases, there is no state info, just the function
+ *		pointers that the executor must call.
  *
  * Note: the receiveSlot routine must be passed a slot containing a TupleDesc
  * identical to the one given to the rStartup routine.  It returns bool where
@@ -124,22 +115,23 @@ typedef struct _DestReceiver DestReceiver;
 
 struct _DestReceiver
 {
-    /* Called for each tuple to be output: */
-    bool        (*receiveSlot) (TupleTableSlot *slot,
-                                DestReceiver *self);
-    /* Per-executor-run initialization and shutdown: */
-    void        (*rStartup) (DestReceiver *self,
-                             int operation,
-                             TupleDesc typeinfo);
-    void        (*rShutdown) (DestReceiver *self);
-    /* Destroy the receiver object itself (if dynamically allocated) */
-    void        (*rDestroy) (DestReceiver *self);
-    /* CommandDest code for this receiver */
-    CommandDest mydest;
-    /* Private fields might appear beyond this point... */
+	/* Called for each tuple to be output: */
+	bool		(*receiveSlot) (TupleTableSlot *slot,
+								DestReceiver *self);
+	/* Per-executor-run initialization and shutdown: */
+	void		(*rStartup) (DestReceiver *self,
+							 int operation,
+							 TupleDesc typeinfo);
+	void		(*rShutdown) (DestReceiver *self);
+	/* Destroy the receiver object itself (if dynamically allocated) */
+	void		(*rDestroy) (DestReceiver *self);
+	/* CommandDest code for this receiver */
+	CommandDest mydest;
+	/* Private fields might appear beyond this point... */
 };
 
-extern DestReceiver *None_Receiver; /* permanent receiver for DestNone */
+extern PGDLLIMPORT DestReceiver *None_Receiver; /* permanent receiver for
+												 * DestNone */
 
 /* The primary destination management functions */
 
@@ -156,4 +148,4 @@ extern void
 ReadyForCommit(CommandDest dest);
 #endif
 
-#endif                            /* DEST_H */
+#endif							/* DEST_H */

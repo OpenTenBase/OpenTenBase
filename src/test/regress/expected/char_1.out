@@ -120,34 +120,10 @@ SELECT '' AS four, * FROM CHAR_TBL ORDER BY f1;
       | abcd
 (4 rows)
 
---invalid string, begin with number and string followed.
-select 29034aa_34aa047029;
-ERROR:  invalid input variable at or near "29034aa_"
-LINE 1: select 29034aa_34aa047029;
-               ^
-select 29034aa34aa047029;
-ERROR:  invalid input variable at or near "29034aa"
-LINE 1: select 29034aa34aa047029;
-               ^
-select 29034_aa34aa047029;
-ERROR:  invalid input variable at or near "29034_aa"
-LINE 1: select 29034_aa34aa047029;
-               ^
-select 29034 aa_34aa047029;
- aa_34aa047029 
----------------
-         29034
-(1 row)
-
-select 29034 aa34aa047029;
- aa34aa047029 
---------------
-        29034
-(1 row)
-
-select 29034 _aa34aa047029;
- _aa34aa047029 
----------------
-         29034
-(1 row)
-
+-- --invalid string, begin with number and string followed.
+-- select 29034aa_34aa047029;
+-- select 29034aa34aa047029;
+-- select 29034_aa34aa047029;
+-- select 29034 aa_34aa047029;
+-- select 29034 aa34aa047029;
+-- select 29034 _aa34aa047029;

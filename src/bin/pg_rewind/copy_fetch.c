@@ -1,12 +1,9 @@
 /*-------------------------------------------------------------------------
  *
  * copy_fetch.c
- *      Functions for using a data directory as the source.
+ *	  Functions for using a data directory as the source.
  *
  * Portions Copyright (c) 2013-2017, PostgreSQL Global Development Group
- *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  *-------------------------------------------------------------------------
  */
@@ -23,22 +20,19 @@
 #include "filemap.h"
 #include "logging.h"
 #include "pg_rewind.h"
+#include "disk_verify.h"
 
 #include "catalog/catalog.h"
 
-static void recurse_dir(const char *datadir, const char *path,
-            process_file_callback_t callback);
-
 static void execute_pagemap(datapagemap_t *pagemap, const char *path);
-
 /*
  * Traverse through all files in a data directory, calling 'callback'
  * for each file.
  */
-void
+void 
 traverse_datadir(const char *datadir, process_file_callback_t callback)
 {
-    recurse_dir(datadir, NULL, callback);
+	recurse_dir(datadir, NULL, callback);
 }
 
 /*
@@ -47,110 +41,110 @@ traverse_datadir(const char *datadir, process_file_callback_t callback)
  * parentpath is the current subdirectory's path relative to datadir,
  * or NULL at the top level.
  */
-static void
+void
 recurse_dir(const char *datadir, const char *parentpath,
-            process_file_callback_t callback)
-{// #lizard forgives
-    DIR           *xldir;
-    struct dirent *xlde;
-    char        fullparentpath[MAXPGPATH];
+			process_file_callback_t callback)
+{
+	DIR *xldir;
+	struct dirent *xlde;
+	char fullparentpath[MAXPGPATH];
 
-    if (parentpath)
-        snprintf(fullparentpath, MAXPGPATH, "%s/%s", datadir, parentpath);
-    else
-        snprintf(fullparentpath, MAXPGPATH, "%s", datadir);
+	if (parentpath)
+		snprintf(fullparentpath, MAXPGPATH, "%s/%s", datadir, parentpath);
+	else
+		snprintf(fullparentpath, MAXPGPATH, "%s", datadir);
 
-    xldir = opendir(fullparentpath);
-    if (xldir == NULL)
-        pg_fatal("could not open directory \"%s\": %s\n",
-                 fullparentpath, strerror(errno));
+	xldir = opendir(fullparentpath);
+	if (xldir == NULL)
+		pg_fatal("could not open directory \"%s\": %s\n",
+				 fullparentpath, strerror(errno));
 
-    while (errno = 0, (xlde = readdir(xldir)) != NULL)
-    {
-        struct stat fst;
-        char        fullpath[MAXPGPATH * 2];
-        char        path[MAXPGPATH * 2];
+	while (errno = 0, (xlde = readdir(xldir)) != NULL)
+	{
+		struct stat fst;
+		char fullpath[MAXPGPATH * 2];
+		char path[MAXPGPATH * 2];
 
-        if (strcmp(xlde->d_name, ".") == 0 ||
-            strcmp(xlde->d_name, "..") == 0)
-            continue;
+		if (strcmp(xlde->d_name, ".") == 0 ||
+			strcmp(xlde->d_name, "..") == 0)
+			continue;
 
-        snprintf(fullpath, sizeof(fullpath), "%s/%s", fullparentpath, xlde->d_name);
+		snprintf(fullpath, sizeof(fullpath), "%s/%s", fullparentpath, xlde->d_name);
 
-        if (lstat(fullpath, &fst) < 0)
-        {
-            if (errno == ENOENT)
-            {
-                /*
-                 * File doesn't exist anymore. This is ok, if the new master
-                 * is running and the file was just removed. If it was a data
-                 * file, there should be a WAL record of the removal. If it
-                 * was something else, it couldn't have been anyway.
-                 *
-                 * TODO: But complain if we're processing the target dir!
-                 */
-            }
-            else
-                pg_fatal("could not stat file \"%s\": %s\n",
-                         fullpath, strerror(errno));
-        }
+		if (lstat(fullpath, &fst) < 0)
+		{
+			if (errno == ENOENT)
+			{
+				/*
+				 * File doesn't exist anymore. This is ok, if the new master
+				 * is running and the file was just removed. If it was a data
+				 * file, there should be a WAL record of the removal. If it
+				 * was something else, it couldn't have been anyway.
+				 *
+				 * TODO: But complain if we're processing the target dir!
+				 */
+			}
+			else
+				pg_fatal("could not stat file \"%s\": %s\n",
+						 fullpath, strerror(errno));
+		}
 
-        if (parentpath)
-            snprintf(path, sizeof(path), "%s/%s", parentpath, xlde->d_name);
-        else
-            snprintf(path, sizeof(path), "%s", xlde->d_name);
+		if (parentpath)
+			snprintf(path, sizeof(path), "%s/%s", parentpath, xlde->d_name);
+		else
+			snprintf(path, sizeof(path), "%s", xlde->d_name);
 
-        if (S_ISREG(fst.st_mode))
-            callback(path, FILE_TYPE_REGULAR, fst.st_size, NULL);
-        else if (S_ISDIR(fst.st_mode))
-        {
-            callback(path, FILE_TYPE_DIRECTORY, 0, NULL);
-            /* recurse to handle subdirectories */
-            recurse_dir(datadir, path, callback);
-        }
+		if (S_ISREG(fst.st_mode))
+			callback(datadir, path, FILE_TYPE_REGULAR, fst.st_size, NULL);
+		else if (S_ISDIR(fst.st_mode))
+		{
+			callback(datadir, path, FILE_TYPE_DIRECTORY, 0, NULL);
+			/* recurse to handle subdirectories */
+			recurse_dir(datadir, path, callback);
+		}
 #ifndef WIN32
-        else if (S_ISLNK(fst.st_mode))
+		else if (S_ISLNK(fst.st_mode))
 #else
-        else if (pgwin32_is_junction(fullpath))
+		else if (pgwin32_is_junction(fullpath))
 #endif
-        {
+		{
 #if defined(HAVE_READLINK) || defined(WIN32)
-            char        link_target[MAXPGPATH];
-            int            len;
+			char link_target[MAXPGPATH];
+			int len;
 
-            len = readlink(fullpath, link_target, sizeof(link_target));
-            if (len < 0)
-                pg_fatal("could not read symbolic link \"%s\": %s\n",
-                         fullpath, strerror(errno));
-            if (len >= sizeof(link_target))
-                pg_fatal("symbolic link \"%s\" target is too long\n",
-                         fullpath);
-            link_target[len] = '\0';
+			len = readlink(fullpath, link_target, sizeof(link_target));
+			if (len < 0)
+				pg_fatal("could not read symbolic link \"%s\": %s\n",
+						 fullpath, strerror(errno));
+			if (len >= sizeof(link_target))
+				pg_fatal("symbolic link \"%s\" target is too long\n",
+						 fullpath);
+			link_target[len] = '\0';
 
-            callback(path, FILE_TYPE_SYMLINK, 0, link_target);
+			callback(datadir, path, FILE_TYPE_SYMLINK, 0, link_target);
 
-            /*
-             * If it's a symlink within pg_tblspc, we need to recurse into it,
-             * to process all the tablespaces.  We also follow a symlink if
-             * it's for pg_wal.  Symlinks elsewhere are ignored.
-             */
-            if ((parentpath && strcmp(parentpath, "pg_tblspc") == 0) ||
-                strcmp(path, "pg_wal") == 0)
-                recurse_dir(datadir, path, callback);
+			/*
+			 * If it's a symlink within pg_tblspc, we need to recurse into it,
+			 * to process all the tablespaces.  We also follow a symlink if
+			 * it's for pg_wal.  Symlinks elsewhere are ignored.
+			 */
+			if ((parentpath && strcmp(parentpath, "pg_tblspc") == 0) ||
+				strcmp(path, "pg_wal") == 0)
+				recurse_dir(datadir, path, callback);
 #else
-            pg_fatal("\"%s\" is a symbolic link, but symbolic links are not supported on this platform\n",
-                     fullpath);
-#endif                            /* HAVE_READLINK */
-        }
-    }
+			pg_fatal("\"%s\" is a symbolic link, but symbolic links are not supported on this platform\n",
+					 fullpath);
+#endif /* HAVE_READLINK */
+		}
+	}
 
-    if (errno)
-        pg_fatal("could not read directory \"%s\": %s\n",
-                 fullparentpath, strerror(errno));
+	if (errno)
+		pg_fatal("could not read directory \"%s\": %s\n",
+				 fullparentpath, strerror(errno));
 
-    if (closedir(xldir))
-        pg_fatal("could not close directory \"%s\": %s\n",
-                 fullparentpath, strerror(errno));
+	if (closedir(xldir))
+		pg_fatal("could not close directory \"%s\": %s\n",
+				 fullparentpath, strerror(errno));
 }
 
 /*
@@ -159,109 +153,129 @@ recurse_dir(const char *datadir, const char *parentpath,
  * If 'trunc' is true, any existing file with the same name is truncated.
  */
 static void
-opentenbase_copy_file_range(const char *path, off_t begin, off_t end, bool trunc)
+pg_copy_file_range(const char *path, off_t begin, off_t end, bool trunc, bool missing_ok)
 {
-    char        buf[BLCKSZ];
-    char        srcpath[MAXPGPATH];
-    int            srcfd;
+	char buf[BLCKSZ];
+	char srcpath[MAXPGPATH];
+	int srcfd;
 
-    snprintf(srcpath, sizeof(srcpath), "%s/%s", datadir_source, path);
+	snprintf(srcpath, sizeof(srcpath), "%s/%s", datadir_source, path);
 
-    srcfd = open(srcpath, O_RDONLY | PG_BINARY, 0);
-    if (srcfd < 0)
-        pg_fatal("could not open source file \"%s\": %s\n",
-                 srcpath, strerror(errno));
+	srcfd = open(srcpath, O_RDONLY | PG_BINARY, 0);
+	if (srcfd < 0)
+	{
+		if (missing_ok)
+		{
+			pg_log(PG_DEBUG, "maybe \"%s\" not exists in source, wal will deal it", path);
+			return;
+		}
+		pg_fatal("could not open source file \"%s\": %s\n",
+				 srcpath, strerror(errno));
+	}
 
-    if (lseek(srcfd, begin, SEEK_SET) == -1)
-        pg_fatal("could not seek in source file: %s\n", strerror(errno));
+	if (lseek(srcfd, begin, SEEK_SET) == -1)
+	{
+		if (missing_ok)
+		{
+			pg_log(PG_DEBUG, "maybe source truncate \"%s\" , wal will deal it", path);
+			return;
+		}
+		pg_fatal("could not seek in source file: %s\n", strerror(errno));
+	}
 
-    open_target_file(path, trunc);
+	open_target_file(path, trunc);
 
-    while (end - begin > 0)
-    {
-        int            readlen;
-        int            len;
+	while (end - begin > 0)
+	{
+		int readlen;
+		int len;
 
-        if (end - begin > sizeof(buf))
-            len = sizeof(buf);
-        else
-            len = end - begin;
+		if (end - begin > sizeof(buf))
+			len = sizeof(buf);
+		else
+			len = end - begin;
 
-        readlen = read(srcfd, buf, len);
+		readlen = read(srcfd, buf, len);
 
-        if (readlen < 0)
-            pg_fatal("could not read file \"%s\": %s\n",
-                     srcpath, strerror(errno));
-        else if (readlen == 0)
-            pg_fatal("unexpected EOF while reading file \"%s\"\n", srcpath);
+		if (readlen < 0)
+			pg_fatal("could not read file \"%s\": %s\n",
+					 srcpath, strerror(errno));
+		else if (readlen == 0)
+			pg_fatal("unexpected EOF while reading file \"%s\"\n", srcpath);
 
-        write_target_range(buf, begin, readlen);
-        begin += readlen;
-    }
+		write_target_range(buf, begin, readlen);
+		begin += readlen;
+	}
 
-    if (close(srcfd) != 0)
-        pg_fatal("could not close file \"%s\": %s\n", srcpath, strerror(errno));
+	if (close(srcfd) != 0)
+		pg_fatal("could not close file \"%s\": %s\n", srcpath, strerror(errno));
 }
 
 /*
  * Copy all relation data files from datadir_source to datadir_target, which
  * are marked in the given data page map.
  */
-void
+void 
 copy_executeFileMap(filemap_t *map)
-{// #lizard forgives
-    file_entry_t *entry;
-    int            i;
+{
+	file_entry_t *entry;
+	int i;
 
-    for (i = 0; i < map->narray; i++)
-    {
-        entry = map->array[i];
-        execute_pagemap(&entry->pagemap, entry->path);
+	for (i = 0; i < map->narray; i++)
+	{
+		entry = map->array[i];
+		execute_pagemap(&entry->pagemap, entry->path);
 
-        switch (entry->action)
-        {
-            case FILE_ACTION_NONE:
-                /* ok, do nothing.. */
-                break;
+		switch (entry->action)
+		{
+		case FILE_ACTION_NONE:
+			/* ok, do nothing.. */
+			break;
 
-            case FILE_ACTION_COPY:
-				opentenbase_copy_file_range(entry->path, 0, entry->newsize, true);
-                break;
+			case FILE_ACTION_COPY:
+				pg_copy_file_range(entry->path, 0, entry->newsize, true, false);
+				break;
 
-            case FILE_ACTION_TRUNCATE:
-                truncate_target_file(entry->path, entry->newsize);
-                break;
+		case FILE_ACTION_TRUNCATE:
+			truncate_target_file(entry->path, entry->newsize);
+			break;
 
-            case FILE_ACTION_COPY_TAIL:
-				opentenbase_copy_file_range(entry->path, entry->oldsize, entry->newsize, false);
-                break;
+			case FILE_ACTION_COPY_TAIL:
+				pg_copy_file_range(entry->path, entry->oldsize, entry->newsize, false, false);
+				break;
 
-            case FILE_ACTION_CREATE:
-                create_target(entry);
-                break;
+		case FILE_ACTION_CREATE:
+			create_target(entry);
+			break;
 
-            case FILE_ACTION_REMOVE:
-                remove_target(entry);
-                break;
-        }
-    }
+		case FILE_ACTION_REMOVE:
+			remove_target(entry);
+			break;
+		}
+	}
 
-    close_target_file();
+	close_target_file();
 }
 
 static void
 execute_pagemap(datapagemap_t *pagemap, const char *path)
 {
-    datapagemap_iterator_t *iter;
-    BlockNumber blkno;
-    off_t        offset;
+	datapagemap_iterator_t *iter;
+	BlockNumber blkno;
+	off_t           offset;
 
-    iter = datapagemap_iterate(pagemap);
-    while (datapagemap_next(iter, &blkno))
-    {
-        offset = blkno * BLCKSZ;
-		opentenbase_copy_file_range(path, offset, offset + BLCKSZ, false);
-        /* Ok, this block has now been copied from new data dir to old */
-    }
-    pg_free(iter);
+	iter = datapagemap_iterate(pagemap);
+	while (datapagemap_next(iter, &blkno))
+	{
+		offset = blkno * BLCKSZ;
+		pg_copy_file_range(path, offset, offset + BLCKSZ, false, false);
+		/* Ok, this block has now been copied from new data dir to old */
+	}
+	pg_free(iter);
+}
+
+void
+copy_crackedpage(const char *path, uint32 offset, uint32 size)
+{
+	pg_copy_file_range(path, offset, offset + size, false, true);
 }

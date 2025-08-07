@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * json.h
- *      Declarations for JSON data type support.
+ *	  Declarations for JSON data type support.
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -19,4 +19,4 @@
 /* functions in json.c */
 extern void escape_json(StringInfo buf, const char *str);
 
-#endif                            /* JSON_H */
+#endif							/* JSON_H */

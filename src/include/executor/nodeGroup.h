@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * nodeGroup.h
- *      prototypes for nodeGroup.c
+ *	  prototypes for nodeGroup.c
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -20,4 +20,4 @@ extern GroupState *ExecInitGroup(Group *node, EState *estate, int eflags);
 extern void ExecEndGroup(GroupState *node);
 extern void ExecReScanGroup(GroupState *node);
 
-#endif                            /* NODEGROUP_H */
+#endif							/* NODEGROUP_H */

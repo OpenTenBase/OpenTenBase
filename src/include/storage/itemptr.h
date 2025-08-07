@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * itemptr.h
- *      POSTGRES disk item pointer definitions.
+ *	  POSTGRES disk item pointer definitions.
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -35,8 +35,8 @@
  */
 typedef struct ItemPointerData
 {
-    BlockIdData ip_blkid;
-    OffsetNumber ip_posid;
+	BlockIdData ip_blkid;
+	OffsetNumber ip_posid;
 }
 
 /* If compiler understands packed and aligned pragmas, use those */
@@ -49,117 +49,172 @@ ItemPointerData;
 typedef ItemPointerData *ItemPointer;
 
 /* ----------------
- *        support macros
+ *		support macros
  * ----------------
  */
 
+#define INDEX_ALT_TID_MASK			INDEX_AM_RESERVED_BIT
+#define BT_RESERVED_OFFSET_MASK		0xF000
+#define BT_N_KEYS_OFFSET_MASK		0x0FFF
+
+/* Acess to downlink block number */
+#define BTreeInnerTupleGetDownLink(itup) \
+	ItemPointerGetBlockNumberNoCheck(&((itup)->t_tid))
+
+
+/*
+ * Get/set leaf page highkey's link. During the second phase of deletion, the
+ * target leaf page's high key may point to an ancestor page (at all other
+ * times, the leaf level high key's link is not used).  See the nbtree README
+ * for full details.
+ */
+#define BTreeTupleGetTopParent(itup) \
+	ItemPointerGetBlockNumberNoCheck(&((itup)->t_tid))
+
 /*
  * ItemPointerIsValid
- *        True iff the disk item pointer is not NULL.
+ *		True iff the disk item pointer is not NULL.
  */
 #define ItemPointerIsValid(pointer) \
-    ((bool) (PointerIsValid(pointer) && ((pointer)->ip_posid != 0)))
+	((bool) (PointerIsValid(pointer) && ((pointer)->ip_posid != 0)))
 
 /*
  * ItemPointerGetBlockNumberNoCheck
- *        Returns the block number of a disk item pointer.
+ *		Returns the block number of a disk item pointer.
  */
 #define ItemPointerGetBlockNumberNoCheck(pointer) \
 ( \
-    BlockIdGetBlockNumber(&(pointer)->ip_blkid) \
+	BlockIdGetBlockNumber(&(pointer)->ip_blkid) \
 )
 
 /*
  * ItemPointerGetBlockNumber
- *        As above, but verifies that the item pointer looks valid.
+ *		As above, but verifies that the item pointer looks valid.
  */
 #define ItemPointerGetBlockNumber(pointer) \
 ( \
-    AssertMacro(ItemPointerIsValid(pointer)), \
-    ItemPointerGetBlockNumberNoCheck(pointer) \
+	AssertMacro(ItemPointerIsValid(pointer)), \
+	ItemPointerGetBlockNumberNoCheck(pointer) \
 )
 
 /*
  * ItemPointerGetOffsetNumberNoCheck
- *        Returns the offset number of a disk item pointer.
+ *		Returns the offset number of a disk item pointer.
  */
 #define ItemPointerGetOffsetNumberNoCheck(pointer) \
 ( \
-    (pointer)->ip_posid \
+	(pointer)->ip_posid \
 )
 
 /*
  * ItemPointerGetOffsetNumber
- *        As above, but verifies that the item pointer looks valid.
+ *		As above, but verifies that the item pointer looks valid.
  */
 #define ItemPointerGetOffsetNumber(pointer) \
 ( \
-    AssertMacro(ItemPointerIsValid(pointer)), \
-    ItemPointerGetOffsetNumberNoCheck(pointer) \
+	AssertMacro(ItemPointerIsValid(pointer)), \
+	ItemPointerGetOffsetNumberNoCheck(pointer) \
 )
 
 /*
  * ItemPointerSet
- *        Sets a disk item pointer to the specified block and offset.
+ *		Sets a disk item pointer to the specified block and offset.
  */
 #define ItemPointerSet(pointer, blockNumber, offNum) \
 ( \
-    AssertMacro(PointerIsValid(pointer)), \
-    BlockIdSet(&((pointer)->ip_blkid), blockNumber), \
-    (pointer)->ip_posid = offNum \
+	AssertMacro(PointerIsValid(pointer)), \
+	BlockIdSet(&((pointer)->ip_blkid), blockNumber), \
+	(pointer)->ip_posid = offNum \
 )
 
 /*
  * ItemPointerSetBlockNumber
- *        Sets a disk item pointer to the specified block.
+ *		Sets a disk item pointer to the specified block.
  */
 #define ItemPointerSetBlockNumber(pointer, blockNumber) \
 ( \
-    AssertMacro(PointerIsValid(pointer)), \
-    BlockIdSet(&((pointer)->ip_blkid), blockNumber) \
+	AssertMacro(PointerIsValid(pointer)), \
+	BlockIdSet(&((pointer)->ip_blkid), blockNumber) \
 )
 
 /*
  * ItemPointerSetOffsetNumber
- *        Sets a disk item pointer to the specified offset.
+ *		Sets a disk item pointer to the specified offset.
  */
 #define ItemPointerSetOffsetNumber(pointer, offsetNumber) \
 ( \
-    AssertMacro(PointerIsValid(pointer)), \
-    (pointer)->ip_posid = (offsetNumber) \
+	AssertMacro(PointerIsValid(pointer)), \
+	(pointer)->ip_posid = (offsetNumber) \
 )
 
 /*
  * ItemPointerCopy
- *        Copies the contents of one disk item pointer to another.
+ *		Copies the contents of one disk item pointer to another.
  *
  * Should there ever be padding in an ItemPointer this would need to be handled
  * differently as it's used as hash key.
  */
 #define ItemPointerCopy(fromPointer, toPointer) \
 ( \
-    AssertMacro(PointerIsValid(toPointer)), \
-    AssertMacro(PointerIsValid(fromPointer)), \
-    *(toPointer) = *(fromPointer) \
+	AssertMacro(PointerIsValid(toPointer)), \
+	AssertMacro(PointerIsValid(fromPointer)), \
+	*(toPointer) = *(fromPointer) \
 )
 
 /*
  * ItemPointerSetInvalid
- *        Sets a disk item pointer to be invalid.
+ *		Sets a disk item pointer to be invalid.
  */
 #define ItemPointerSetInvalid(pointer) \
 ( \
-    AssertMacro(PointerIsValid(pointer)), \
-    BlockIdSet(&((pointer)->ip_blkid), InvalidBlockNumber), \
-    (pointer)->ip_posid = InvalidOffsetNumber \
+	AssertMacro(PointerIsValid(pointer)), \
+	BlockIdSet(&((pointer)->ip_blkid), InvalidBlockNumber), \
+	(pointer)->ip_posid = InvalidOffsetNumber \
 )
 
+/*
+ * ItemPointerIndicatesMovedPartitions
+ *		True iff the block number indicates the tuple has moved to another
+ *		partition.
+ */
+#define ItemPointerIndicatesMovedPartitions(pointer) \
+	!BlockNumberIsValid(ItemPointerGetBlockNumberNoCheck(pointer))
+
+/*
+ * ItemPointerSetMovedPartitions
+ *		Indicate that the item referenced by the itempointer has moved into a
+ *		different partition.
+ */
+#define ItemPointerSetMovedPartitions(pointer) \
+	ItemPointerSetBlockNumber((pointer), InvalidBlockNumber)
+
+/*
+ * check ctid is from stash or silo
+*/
+#define ItemPointerFromStash(pointer) (ItemPointerGetBlockNumber(pointer) < FirstSiloID)
+
 /* ----------------
- *        externs
+ *		externs
  * ----------------
  */
+
+/*
+ * TupleHeader only stores 'tuple_id', instead of OpenTenBaseOraRowID, to reduce the
+ * overhead of storage.
+ */
+typedef struct OpenTenBaseOraRowID
+{
+	RowId	tuple_id;  // uint64
+	Oid 	reloid;
+	uint32	gx_node_id;
+} OpenTenBaseOraRowID;
 
 extern bool ItemPointerEquals(ItemPointer pointer1, ItemPointer pointer2);
 extern int32 ItemPointerCompare(ItemPointer arg1, ItemPointer arg2);
 
-#endif                            /* ITEMPTR_H */
+#ifdef _PG_ORCL_
+/* in rowid.c */
+extern Datum rowid_make(uint32 node_id, Oid reloid, RowId tid);
+#endif /* ADB */
+
+#endif							/* ITEMPTR_H */

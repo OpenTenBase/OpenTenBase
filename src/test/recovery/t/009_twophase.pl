@@ -25,18 +25,24 @@ sub configure_and_reload
 # Set up two nodes, which will alternately be master and replication standby.
 
 # Setup london node
-my $node_london = get_new_node("london");
-$node_london->init(allows_streaming => 1);
+my $node_london = get_new_node("london", 'datanode');
+# There is no gtm in centralized mode, so it doesn’t matter what
+# the master gtm IP and port are
+$node_london->init(allows_streaming => 1,
+                   extra => ['--master_gtm_nodename', 'no_gtm',
+                             '--master_gtm_ip', '127.0.0.1',
+                             '--master_gtm_port', '25001']);
 $node_london->append_conf(
 	'postgresql.conf', qq(
-	max_prepared_transactions = 10
 	log_checkpoints = true
+	allow_dml_on_datanode = on
+	is_centralized_mode = on
 ));
 $node_london->start;
 $node_london->backup('london_backup');
 
 # Setup paris node
-my $node_paris = get_new_node('paris');
+my $node_paris = get_new_node('paris', 'datanode');
 $node_paris->init_from_backup($node_london, 'london_backup',
 	has_streaming => 1);
 $node_paris->start;

@@ -7,11 +7,9 @@
  * Portions Copyright (c) 1994, Regents of the University of California
  * Portions Copyright (c) 2010-2012 Postgres-XC Development Group
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  * IDENTIFICATION
- *      $PostgreSQL$
+ *	  $PostgreSQL$
  *
  *-------------------------------------------------------------------------
  */
@@ -63,6 +61,10 @@
 #include "gtm/gtm_stat_error.h"
 #include "gtm/syslogger.h"
 
+#ifdef __OPENTENBASE_C__
+#include "gtm/gtm_fid.h"
+#endif
+
 #ifdef __OPENTENBASE__
 #include "gtm/gtm_store.h"
 #endif
@@ -71,38 +73,38 @@
 #include "gtm/gtm_xlog.h"
 #endif
 
-extern int    optind;
+extern int	optind;
 extern char *optarg;
 
-#define GTM_MAX_PATH            1024
-#define GTM_DEFAULT_HOSTNAME    "*"
-#define GTM_DEFAULT_PORT        6666
-#define GTM_PID_FILE            "gtm.pid"
-#define GTM_LOG_FILE            "gtm.log"
+#define GTM_MAX_PATH			1024
+#define GTM_DEFAULT_HOSTNAME	"*"
+#define GTM_DEFAULT_PORT		6666
+#define GTM_PID_FILE			"gtm.pid"
+#define GTM_LOG_FILE			"gtm.log"
 #define GTM_LOG_FILE_DIR		"gtm_log"
 
-#define LOOPS_UNTIL_HIBERNATE        50
-#define HIBERNATE_FACTOR        25
+#define LOOPS_UNTIL_HIBERNATE		50
+#define HIBERNATE_FACTOR		25
 
 #define GTM_STARTUP_CONNECT_ACTIVE_TIMEOUT	(2)
 
 static char *progname = "gtm";
-char       *ListenAddresses;
-int            GTMPortNumber;
-char        *GTMDataDir;
-char        *NodeName;
-int            GTM_Standby_Connetion_Timeout = 30;
-bool        Backup_synchronously = false;
-char         *active_addr;
-int         active_port;
-int            tcp_keepalives_idle;
-int            tcp_keepalives_interval;
-int            tcp_keepalives_count;
-char        *error_reporter;
-char        *status_reader;
-bool        isStartUp;
-int            scale_factor_threads = 1;
-int            worker_thread_number = 2;
+char	   *ListenAddresses;
+int			GTMPortNumber;
+char		*GTMDataDir;
+char		*NodeName;
+int			GTM_Standby_Connetion_Timeout = 30;
+bool		Backup_synchronously = false;
+char 		*active_addr;
+int 		active_port;
+int			tcp_keepalives_idle;
+int			tcp_keepalives_interval;
+int			tcp_keepalives_count;
+char		*error_reporter;
+char		*status_reader;
+bool		isStartUp;
+int			scale_factor_threads = 1;
+int			worker_thread_number = 2;
 #ifdef __OPENTENBASE__
 int         wal_writer_delay;
 int         checkpoint_interval;
@@ -123,25 +125,31 @@ char        *GTMStartupGTSSet;
 int         GTMGTSFreezeLimit;
 int         GTMStartupGTSDelta;
 char	    *unix_socket_directory = NULL;
-
+int         standby_connect_timeout;
 #endif
 GTM_MutexLock   control_lock;
 
 #ifdef __OPENTENBASE__
-bool        enable_gtm_sequence_debug = false;
+bool		enable_gtm_sequence_debug = false;
 bool        enalbe_gtm_xlog_debug = false;
-bool        enable_gtm_debug   = false;
-bool        enable_sync_commit = false;
+bool		enable_gtm_debug   = false;
+bool		enable_sync_commit = false;
 int         warnning_time_cost = 0;
 
+int			gtm_walreceiver_timeout;
+int			gtm_walsender_timeout;
+
+#ifdef __RESOURCE_QUEUE__
+bool		enable_gtm_resqueue_debug = false;
+#endif
 
 GTM_TimerEntry *g_timer_entry;
-int32              g_used_entry = 0;
+int32  			g_used_entry = 0;
 GTM_RWLock      g_timer_lock; /* We don't expect too much concurrency, so use only a big lock. */
-int                g_max_lock_number = 6000; /* max lock per thread can hold. init value is for main thread. it will be changed after initlize.*/
+int				g_max_lock_number = 6000; /* max lock per thread can hold. init value is for main thread. it will be changed after initlize.*/
 int             g_max_thread_number = 512; /* max thread number of gtm. */
 GTM_ThreadInfo  *g_timekeeper_thread = NULL;
-GTM_ThreadInfo    *g_timebackup_thread = NULL;
+GTM_ThreadInfo	*g_timebackup_thread = NULL;
 GTM_ThreadInfo  *g_timer_thread = NULL;
 GTM_ThreadInfo  *g_logcollector_thread = NULL;
 GTM_ThreadInfo  *g_syslogger_thread = NULL;
@@ -171,6 +179,15 @@ s_lock_t          g_last_sync_gts_lock;
 #endif
 
 static long long getSystemTime();
+
+#ifdef __OPENTENBASE_C__
+GTM_ThreadInfo  *g_fid_checker_thread = NULL;
+#endif
+
+#ifdef __RESOURCE_QUEUE__
+GTM_ThreadInfo	*g_resq_manager_thread = NULL;
+#endif
+
 static void  *GTM_TimerThread(void *argp);
 static void   GTM_TimerRun(void);
 static int    GTM_TimerInit(void);
@@ -186,19 +203,19 @@ extern size_t g_GTMStoreSize;
  * If it is in GTM, we should consider to flush GTM_Conn before
  * writing anything to Port.
  */
-bool        isGTM = true;
+bool		isGTM = true;
 
-GTM_ThreadID    TopMostThreadID;
+GTM_ThreadID	TopMostThreadID;
 
-enum GTM_PromoteStatus promote_status = GTM_PRPMOTE_INIT;
+enum GTM_PromoteStatus promote_status = GTM_PRPMOTE_NONE;
 s_lock_t promote_status_lck;
 
 /* The socket(s) we're listening to. */
-#define MAXLISTEN    64
-static int    ListenSocket[MAXLISTEN];
+#define MAXLISTEN	64
+static int	ListenSocket[MAXLISTEN];
 
-pthread_key_t    threadinfo_key;
-static bool        GTMAbortPending = false;
+pthread_key_t	threadinfo_key;
+static bool		GTMAbortPending = false;
 
 static void GTM_SaveVersion(FILE *ctlf);
 
@@ -239,6 +256,11 @@ static void ProcessSnapshotCommand(Port *myport, GTM_MessageType mtype, StringIn
 static void ProcessSequenceCommand(Port *myport, GTM_MessageType mtype, StringInfo message);
 static void ProcessQueryCommand(Port *myport, GTM_MessageType mtype, StringInfo message);
 
+#ifdef __RESOURCE_QUEUE__
+static void ProcessResQueueRequest(Port *myport, StringInfo input_message);	/* request proecces by ThreadResQueueManager */
+static void ProcessResQueueCommand(Port *myport, GTM_MessageType mtype, StringInfo message); /* request proecces by ThreadMain */
+#endif
+
 static void GTM_RegisterPGXCNode(Port *myport, char *PGXCNodeName);
 
 static bool CreateOptsFile(int argc, char *argv[]);
@@ -261,11 +283,17 @@ static void gtm_standby_pre_server_loop(char *data_dir);
 
 #ifdef __XLOG__
 static void thread_replication_clean(GTM_StandbyReplication *replication);
-void SendXLogSyncStatus(GTM_Conn *conn);
+void SendXLogSyncStatus(GTM_Conn *conn, bool first_msg);
 static void WaitRedoertoExit(void);
 static void GTMSigHupHandler(void);
 #endif
+#ifdef __OPENTENBASE_C__
+static void *GTM_ThreadFidChecker(void *argp);
+#endif
 
+#ifdef __RESOURCE_QUEUE__
+static void * GTM_ThreadResQueueManager(void *argp);
+#endif
 void GTM_Exit(void);
 
 /*
@@ -275,88 +303,72 @@ void GTM_Exit(void);
 static GTM_ThreadInfo *
 MainThreadInit()
 {
-    GTM_ThreadInfo *thrinfo;
+	GTM_ThreadInfo *thrinfo;
 
-    pthread_key_create(&threadinfo_key, NULL);
+	pthread_key_create(&threadinfo_key, NULL);
 
-    /*
-     * Initialize the lock protecting the global threads info and backup lock info.
-     */
-    GTM_RWLockInit(&GTMThreads->gt_lock);
-    GTM_RWLockInit(&gtm_bkup_lock);
+	/*
+	 * Initialize the lock protecting the global threads info and backup lock info.
+	 */
+	GTM_RWLockInit(&GTMThreads->gt_lock);
+	GTM_RWLockInit(&gtm_bkup_lock);
 
-    /*
-     * Set the next client identifier to be issued after connection
-     * establishment
-     */
-    GTMThreads->gt_starting_client_id = 0;
-    GTMThreads->gt_next_client_id = 1;
+	/*
+	 * Set the next client identifier to be issued after connection
+	 * establishment
+	 */
+	GTMThreads->gt_starting_client_id = 0;
+	GTMThreads->gt_next_client_id = 1;
 
-    GTMThreads->gt_block_new_connection = false;
+	GTMThreads->gt_block_new_connection = false;
 
-    /*
-     * We are called even before memory context management is setup. We must
-     * use malloc
-     */
-    thrinfo = (GTM_ThreadInfo *)malloc(sizeof (GTM_ThreadInfo));
+	/*
+	 * We are called even before memory context management is setup. We must
+	 * use malloc
+	 */
+	thrinfo = (GTM_ThreadInfo *)pg_malloc(sizeof (GTM_ThreadInfo));
 
-    if (thrinfo == NULL)
-    {
-        fprintf(stderr, "malloc failed: %d", errno);
-        fflush(stdout);
-        fflush(stderr);
-        exit(1);
-    }
+	memset(thrinfo, 0, sizeof(GTM_ThreadInfo));
 
-    memset(thrinfo, 0, sizeof(GTM_ThreadInfo));
+	thrinfo->is_main_thread = true;
+	if (SetMyThreadInfo(thrinfo))
+	{
+		fprintf(stderr, "SetMyThreadInfo failed: %d", errno);
+		fflush(stdout);
+		fflush(stderr);
+		exit(1);
+	}
 
-    thrinfo->is_main_thread = true;
-    if (SetMyThreadInfo(thrinfo))
-    {
-        fprintf(stderr, "SetMyThreadInfo failed: %d", errno);
-        fflush(stdout);
-        fflush(stderr);
-        exit(1);
-    }
-
-    
+	
 #ifdef __OPENTENBASE__
-    /* use init value of g_max_lock_number for main thread. */
-    if (!g_max_lock_number)
-    {
-        abort();
-    }
-    thrinfo->max_lock_number     = g_max_lock_number;
-    thrinfo->backup_timer_handle = INVALID_TIMER_HANDLE;
-    thrinfo->locks_hold = (GTM_RWLock**)malloc(sizeof(void*) * g_max_lock_number);
+	/* use init value of g_max_lock_number for main thread. */
+	if (!g_max_lock_number)
+	{
+		abort();
+	}
+	thrinfo->max_lock_number     = g_max_lock_number;
+	thrinfo->backup_timer_handle = INVALID_TIMER_HANDLE;
+	thrinfo->locks_hold = (GTM_RWLock**)pg_malloc(sizeof(void*) * g_max_lock_number);
 #ifdef __XLOG__
-    thrinfo->write_locks_hold = (GTM_RWLock**)malloc(sizeof(void*) * g_max_lock_number);
-    thrinfo->current_write_number = 0;
-    thrinfo->xlog_inserting = false;
-
+	thrinfo->write_locks_hold = (GTM_RWLock**)pg_malloc(sizeof(void*) * g_max_lock_number);
+	thrinfo->current_write_number = 0;
+	thrinfo->xlog_inserting = false;
     thrinfo->xlog_waiter.pos      = InvalidXLogRecPtr;
     thrinfo->xlog_waiter.finished = false;
     GTM_MutexLockInit(&thrinfo->xlog_waiter.lock);
     GTM_CVInit(&thrinfo->xlog_waiter.cv);
 #endif
-    if (NULL == thrinfo->locks_hold)
-    {
-        fprintf(stderr, "out of memory when init main thread");
-        fflush(stdout);
-        fflush(stderr);
-        exit(1);
-    }
-    memset(thrinfo->locks_hold, 0x00, sizeof(void*) * g_max_lock_number);
+	memset(thrinfo->locks_hold, 0x00, sizeof(void*) * g_max_lock_number);
 #endif
 
 	/* thread main is syslogger before syslogger thread create */
     thrinfo->am_syslogger = true;
-    GTM_RWLockInit(&thrinfo->thr_lock);
-    GTM_RWLockAcquire(&thrinfo->thr_lock, GTM_LOCKMODE_WRITE);    
+	GTM_RWLockInit(&thrinfo->thr_lock);
+	GTM_RWLockAcquire(&thrinfo->thr_lock, GTM_LOCKMODE_WRITE);	
 
-    TopMostThreadID = pthread_self();
+	TopMostThreadID = pthread_self();
 
-    return thrinfo;
+	return thrinfo;
 }
 
 /*
@@ -366,30 +378,30 @@ MainThreadInit()
 static void
 InitGTMProcess()
 {
-    MainThreadInit();
-    MyThreadID = pthread_self();
-    MemoryContextInit();
+	MainThreadInit();
+	MyThreadID = pthread_self();
+	MemoryContextInit();
 
-    /*
-     * The memory context is now set up.
-     * Add the thrinfo structure in the global array
-     */
-    GTM_MutexLockInit(&control_lock);
+	/*
+	 * The memory context is now set up.
+	 * Add the thrinfo structure in the global array
+	 */
+	GTM_MutexLockInit(&control_lock);
 }
 
 static void
 BaseInit(char *data_dir)
 {
-    /* Initialize standby lock before doing anything else */
-    Recovery_InitStandbyLock();
+	/* Initialize standby lock before doing anything else */
+	Recovery_InitStandbyLock();
     
-    checkDataDir();
-    SetDataDir();
-    ChangeToDataDir();
-    CreateDataDirLockFile();
-    
-#ifdef __OPENTENBASE__    
-    if(GTM_ControlDataInit() != GTM_STORE_OK)
+	checkDataDir();
+	SetDataDir();
+	ChangeToDataDir();
+	CreateDataDirLockFile();
+	
+#ifdef __OPENTENBASE__	
+	if(GTM_ControlDataInit() != GTM_STORE_OK)
         exit(1);    
 #endif
 
@@ -397,106 +409,111 @@ BaseInit(char *data_dir)
     GTM_StoreSizeInit();
     GTM_StandbyBaseinit();
     GTM_XLogCtlDataInit();
-
     SpinLockInit(&g_last_sync_gts_lock);
 #endif
 
     if (Log_directory == NULL)
     {
-        Log_directory = (char *) malloc(GTM_MAX_PATH);
+        Log_directory = (char *) pg_malloc(GTM_MAX_PATH);
         sprintf(Log_directory, "%s/%s", GTMDataDir, GTM_LOG_FILE_DIR);
     }
 
     if (GTMLogFile == NULL)
     {
-        GTMLogFile = (char *) malloc(GTM_MAX_PATH);
+        GTMLogFile = (char *) pg_malloc(GTM_MAX_PATH);
         sprintf(GTMLogFile, "%s/%s", Log_directory, GTM_LOG_FILE);
     }
 
-    /* Save Node Register File in register.c */
-    Recovery_SaveRegisterFileName(GTMDataDir);
-
+	/* Save Node Register File in register.c */
+	Recovery_SaveRegisterFileName(GTMDataDir);
+    
 	GTM_LogFileInit();
 
-    GTM_InitTxnManager();
-    GTM_InitSeqManager();
-    GTM_InitNodeManager();
+	GTM_InitTxnManager();
+	GTM_InitSeqManager();
+	GTM_InitNodeManager();
+#ifdef __OPENTENBASE_C__
+	GTM_InitFidManager();
+#endif
+#ifdef __RESOURCE_QUEUE__
+	GTM_InitResourceQueueManager();
+#endif
 }
 
 /*
  * SIGHUP: set flag to re-read config file at next convenient time.
  *
  * Sets the ConfigReloadPending flag, which should be checked at convenient
- * places
+ * places 
  */
 void
 GTMSigHupHandler(void)
 {
-       int                     save_errno = errno;
+	int			save_errno = errno;
 
-       ConfigReloadPending = true;
+	ConfigReloadPending = true;
 
-       errno = save_errno;
+	errno = save_errno;
 }
 
 static void
 GTM_SigleHandler(int signal)
-{// #lizard forgives
-    fprintf(stderr, "Received signal %d\n", signal);
+{
+	fprintf(stderr, "Received signal %d\n", signal);
 
-    switch (signal)
-    {
-        case SIGKILL:
-        case SIGTERM:
-        case SIGQUIT:
-        case SIGINT:
-            break;
+	switch (signal)
+	{
+		case SIGKILL:
+		case SIGTERM:
+		case SIGQUIT:
+		case SIGINT:
+			break;
 		
 		case SIGHUP:
 			GTMSigHupHandler();
 			return ;
 
-        case SIGUSR1:
-            if (Recovery_IsStandby())
-                PromoteToActive();
-            return;
+		case SIGUSR1:
+			if (Recovery_IsStandby())
+				PromoteToActive();
+			return;
 
-        default:
-            fprintf(stderr, "Unknown signal %d\n", signal);
-            return;
-    }
+		default:
+			fprintf(stderr, "Unknown signal %d\n", signal);
+			return;
+	}
 
-    /*
-     * XXX We should do a clean shutdown here.
-     */
+	/*
+	 * XXX We should do a clean shutdown here.
+	 */
 
-    /* Rewrite Register Information (clean up unregister records) */
-    Recovery_SaveRegisterInfo();
+	/* Rewrite Register Information (clean up unregister records) */
+	Recovery_SaveRegisterInfo();
 
 #ifndef __XLOG__
-    /* Delete pid file before shutting down */
-    DeleteLockFile(GTM_PID_FILE);
+	/* Delete pid file before shutting down */
+	DeleteLockFile(GTM_PID_FILE);
 #endif
 
-    PG_SETMASK(&BlockSig);
-    GTMAbortPending = true;
+	PG_SETMASK(&BlockSig);
+	GTMAbortPending = true;
 
-    return;
+	return;
 }
 
 static void
 GTM_ThreadSigHandler(int signal)
 {
-    switch (signal)
-    {    
-        case SIGQUIT:
-            pthread_exit(NULL);        
+	switch (signal)
+	{	
+		case SIGQUIT:
+			pthread_exit(NULL);		
 
-        default:
-            fprintf(stderr, "Unknown signal %d\n", signal);
-            return;
-    }
-    return;
+		default:
+			fprintf(stderr, "Unknown signal %d\n", signal);
+			return;
+	}
+	return;
 }
 
 
@@ -506,35 +523,35 @@ GTM_ThreadSigHandler(int signal)
 static void
 help(const char *progname)
 {
-    printf(_("This is the GTM server.\n\n"));
-    printf(_("Usage:\n  %s [OPTION]...\n\n"), progname);
-    printf(_("Options:\n"));
-    printf(_("  -h hostname     GTM server hostname/IP to listen.\n"));
-    printf(_("  -p port         GTM server port number to listen.\n"));
-    printf(_("  -n nodename     Node name for GTM server.\n"));
-    printf(_("  -x xid          Starting GXID \n"));
-    printf(_("  -D directory    GTM working directory\n"));
-    printf(_("  -l filename     GTM server log file name \n"));
-    printf(_("  -c              Show server status, then exit\n"));
-    printf(_("  -f              Force start GTM with starting XID specified by -x option\n"));
-    printf(_("  -g              Force start GTM with starting GTS specified by -g option\n"));
-    printf(_("  -r              Nodes connected with GTM will be readonly\n"));
-    printf(_("  -T              Refuse to start GTM when GTS has no more than -T days left,100 years by default\n"));
-    printf(_("  -d              Add -d seconds to GTS when started\n"));
-    printf(_("  --help          Show this help, then exit\n"));
-    printf(_("\n"));
-    printf(_("Options for Standby mode:\n"));
-    printf(_("  -s              Start as a GTM standby server.\n"));
-    printf(_("  -i hostname     Active GTM server hostname/IP to connect.\n"));
-    printf(_("  -q port         Active GTM server port number to connect.\n"));
-    printf(_("\n"));
+	printf(_("This is the GTM server.\n\n"));
+	printf(_("Usage:\n  %s [OPTION]...\n\n"), progname);
+	printf(_("Options:\n"));
+	printf(_("  -h hostname     GTM server hostname/IP to listen.\n"));
+	printf(_("  -p port         GTM server port number to listen.\n"));
+	printf(_("  -n nodename     Node name for GTM server.\n"));
+	printf(_("  -x xid          Starting GXID \n"));
+	printf(_("  -D directory    GTM working directory\n"));
+	printf(_("  -l filename     GTM server log file name \n"));
+	printf(_("  -c              Show server status, then exit\n"));
+	printf(_("  -f              Force start GTM with starting XID specified by -x option\n"));
+	printf(_("  -g              Force start GTM with starting GTS specified by -g option\n"));
+	printf(_("  -r              Nodes connected with GTM will be readonly\n"));
+	printf(_("  -T              Refuse to start GTM when GTS has no more than -T days left,100 years by default\n"));
+	printf(_("  -d              Add -d seconds to GTS when started\n"));
+	printf(_("  --help          Show this help, then exit\n"));
+	printf(_("\n"));
+	printf(_("Options for Standby mode:\n"));
+	printf(_("  -s              Start as a GTM standby server.\n"));
+	printf(_("  -i hostname     Active GTM server hostname/IP to connect.\n"));
+	printf(_("  -q port         Active GTM server port number to connect.\n"));
+	printf(_("\n"));
 }
 
 static void
 gtm_status()
 {
-    fprintf(stderr, "gtm_status(): must be implemented to scan the shmem.\n");
-    exit(0);
+	fprintf(stderr, "gtm_status(): must be implemented to scan the shmem.\n");
+	exit(0);
 }
 
 #ifndef __OPENTENBASE__
@@ -544,28 +561,28 @@ gtm_status()
 void
 SaveControlInfo(void)
 {
-    FILE       *ctlf;
+	FILE	   *ctlf;
 
-    GTM_MutexLockAcquire(&control_lock);
+	GTM_MutexLockAcquire(&control_lock);
 
-    ctlf = fopen(GTMControlFileTmp, "w");
+	ctlf = fopen(GTMControlFileTmp, "w");
 
-    if (ctlf == NULL)
-    {
-        fprintf(stderr, "Failed to create/open the control file\n");
-        GTM_MutexLockRelease(&control_lock);
-        return;
-    }
+	if (ctlf == NULL)
+	{
+		fprintf(stderr, "Failed to create/open the control file\n");
+		GTM_MutexLockRelease(&control_lock);
+		return;
+	}
 
-    GTM_SaveVersion(ctlf);
-    GTM_SaveTxnInfo(ctlf);
-    GTM_SaveSeqInfo(ctlf);
-    fclose(ctlf);
+	GTM_SaveVersion(ctlf);
+	GTM_SaveTxnInfo(ctlf);
+	GTM_SaveSeqInfo(ctlf);
+	fclose(ctlf);
 
-    remove(GTMControlFile);
-    rename(GTMControlFileTmp, GTMControlFile);
+	remove(GTMControlFile);
+	rename(GTMControlFileTmp, GTMControlFile);
 
-    GTM_MutexLockRelease(&control_lock);
+	GTM_MutexLockRelease(&control_lock);
 }
 
 #endif
@@ -577,407 +594,439 @@ static bool CheckClockSource(void);
 
 static int CheckTscFeatures(char *cmd)
 {
-    FILE *file = popen(cmd, "r");
-    int count;
-    
-    if (file == NULL)
-        return false;
+	FILE *file = popen(cmd, "r");
+	int count;
+	
+	if (file == NULL)
+		return false;
 
 	if (fscanf(file, "%d", &count) == EOF)
     {
 	    count = 0;
     }
-    pclose(file);
-    
-    return count;
+	pclose(file);
+	
+	return count;
 }
 
 static bool CheckClockSource(void)
 {
-    int count1, count2, count3;
+	int count1, count2, count3;
 
-    count1 = CheckTscFeatures("grep 'constant_tsc' /proc/cpuinfo |wc -l");
-    count2 = CheckTscFeatures("grep 'nonstop_tsc' /proc/cpuinfo |wc -l");
-    count3 = CheckTscFeatures("grep 'processor' /proc/cpuinfo |wc -l");
+	count1 = CheckTscFeatures("grep 'constant_tsc' /proc/cpuinfo |wc -l");
+	count2 = CheckTscFeatures("grep 'nonstop_tsc' /proc/cpuinfo |wc -l");
+	count3 = CheckTscFeatures("grep 'processor' /proc/cpuinfo |wc -l");
 
-    if(0 == count1)
-    {
-        elog(LOG, "Processors do not support constant tsc which may cause undefined behavior of distributed transactions");
-        return false;
-    }
-    
-    if(0 == count2)
-    {
-        elog(LOG, "Processors do not support nonstop tsc which may cause undefined behavior of distributed transactions");
-        return false;
-    }
+	if(0 == count1)
+	{
+		elog(LOG, "Processors do not support constant tsc which may cause undefined behavior of distributed transactions");
+		return false;
+	}
+	
+	if(0 == count2)
+	{
+		elog(LOG, "Processors do not support nonstop tsc which may cause undefined behavior of distributed transactions");
+		return false;
+	}
 
-    if(count1 != count3 || count2 != count3)
-    {
-        elog(LOG, "Not all processors support constant and nonstop tsc which may cause undefined behavior of distributed transactions");
-        return false;
-    }
+	if(count1 != count3 || count2 != count3)
+	{
+		elog(LOG, "Not all processors support constant and nonstop tsc which may cause undefined behavior of distributed transactions");
+		return false;
+	}
 
-    count1 = CheckTscFeatures("grep 'tsc' /sys/devices/system/clocksource/clocksource0/current_clocksource |wc -l");
-    if(count1 != 1)
-    {
-        elog(LOG, "OS does not choose TSC as clocksource which may cause undefined behavier of distributed transactions");
-        return false;
-    }
-    
-    return true;
+	count1 = CheckTscFeatures("grep 'tsc' /sys/devices/system/clocksource/clocksource0/current_clocksource |wc -l");
+	if(count1 != 1)
+	{
+		elog(LOG, "OS does not choose TSC as clocksource which may cause undefined behavier of distributed transactions");
+		return false;
+	}
+	
+	return true;
 }
 
 #endif
 
-static void GTM_XLogRecoveryIfNeed(char *data_dir)
+static void
+GTM_XLogRecoveryIfNeed(char *data_dir)
 {
     Assert(ControlData != NULL);
 
     switch(ControlData->state)
     {
-        case DB_SHUTDOWNED_IN_RECOVERY:
-        case DB_SHUTDOWNING:
-        case DB_STARTUP:
-        case DB_IN_CRASH_RECOVERY:
-        case DB_IN_ARCHIVE_RECOVERY:
-        case DB_IN_PRODUCTION:
-            elog(LOG, "Detect GTM server crash.");
-            GTM_XLogRecovery(ControlData->checkPoint,data_dir);
+        case GTM_IN_OVERWRITING_STORE:
+            elog(LOG, "GTM server crashed while copy data fromm primary");
+            if (!GTM_RecoveyFromOverwriting(g_GTMStoreSize))
+            {
+                break;
+            }
+            /* copy ok, we can go back to recovery ,so just go through */
+        case GTM_STARTUP:
+        case GTM_IN_RECOVERY:
+        case GTM_IN_PRODUCTION:
+            elog(LOG, "Detect GTM server crash, last state:%s", g_gtm_state_string[(int)ControlData->state]);
+            GTM_XLogRecovery(ControlData->checkPoint, data_dir, ControlData->state == GTM_IN_OVERWRITING_STORE);
+            ControlData->state = GTM_IN_RECOVERY;
+            ControlDataSync(false);
             break;
-        case DB_SHUTDOWNED:
+        case GTM_SHUTDOWNED:
+        case GTM_IN_OVERWRITE_DONE:
+            elog(LOG, " GTM server close safely, last state:%s", g_gtm_state_string[(int)ControlData->state]);
             break;
+        default:
+            elog(WARNING, "GTM server state is unkown:%d.", (int)ControlData->state);
     }
+}
+
+static void GTM_RestoreGtsAtStartup()
+{
+	int32 ret = 0;
+	GlobalTransactionId saved_gxid = InvalidGlobalTransactionId;
+	GlobalTransactionId saved_global_xmin = InvalidGlobalTransactionId;
+	GlobalTimestamp saved_gts = 0;
+	GlobalTimestamp recovered_gts = 0;
+	ret = GTM_StoreRestore(&saved_gts, &saved_gxid, &saved_global_xmin);
+	if (ret)
+	{
+		elog(FATAL, "GTM_RestoreStoreInfo restore data file failed");
+		return;
+	}
+	recovered_gts = saved_gts + GTMStartupGTSDelta * GTM_GTS_ONE_SECOND;
+	SetNextGlobalTimestamp(recovered_gts);
+	XLogCtl->segment_max_gts = recovered_gts;
+	XLogCtl->segment_max_timestamp = time(NULL);
+	elog(LOG, "Restoring gts to " UINT64_FORMAT "\n",
+		 saved_gts + GTMStartupGTSDelta * GTM_GTS_ONE_SECOND);
 }
 
 int
 main(int argc, char *argv[])
-{// #lizard forgives
-    int            opt;
-    int            status;
-    int            i;
-    GlobalTransactionId next_gxid = InvalidGlobalTransactionId;
+{
+	int			opt;
+	int			status;
+	int			i;
+	GlobalTransactionId next_gxid = InvalidGlobalTransactionId;
 #ifndef __OPENTENBASE__
-    FILE       *ctlf = NULL;    
+	FILE	   *ctlf = NULL;	
 #else
-    int            ret;
+	int			ret;
 #endif
-    bool        force_xid = false;
+	bool		force_xid = false;
 
 	int			process_thread_num = 0;
     bool        do_basebackup = false;
-    /*
-     * Local variable to hold command line options.
-     *
-     * if -c option is specified, then only -D option will be taken to locate
-     * GTM data directory.   All the other options are ignored.   GTM status
-     * will be printed out based on the specified data directory and GTM will
-     * simply exit.   If -D option is not specified in this case, current directory
-     * will be used.
-     *
-     * In other case, all the command line options are analyzed.
-     *
-     * They're first analyzed and then -D option are used to locate configuration file.
-     * If -D option is not specified, then the default value will be used.
-     *
-     * Please note that configuration specified in the configuration file (gtm.conf)
-     * will be analyzed first and then will be overridden by the value specified
-     * in command line options.   -D and -C options are handled separately and used
-     * to determine configuration file location.
-     *
-     * Please also note that -x option (startup GXID) will be handled in this section.
-     * It has no corresponding configuration from the configuration file.
-     */
+	/*
+	 * Local variable to hold command line options.
+	 *
+	 * if -c option is specified, then only -D option will be taken to locate
+	 * GTM data directory.   All the other options are ignored.   GTM status
+	 * will be printed out based on the specified data directory and GTM will
+	 * simply exit.   If -D option is not specified in this case, current directory
+	 * will be used.
+	 *
+	 * In other case, all the command line options are analyzed.
+	 *
+	 * They're first analyzed and then -D option are used to locate configuration file.
+	 * If -D option is not specified, then the default value will be used.
+	 *
+	 * Please note that configuration specified in the configuration file (gtm.conf)
+	 * will be analyzed first and then will be overridden by the value specified
+	 * in command line options.   -D and -C options are handled separately and used
+	 * to determine configuration file location.
+	 *
+	 * Please also note that -x option (startup GXID) will be handled in this section.
+	 * It has no corresponding configuration from the configuration file.
+	 */
 
-    bool     is_gtm_status = false;        /* "false" means no -c option was found */
-    char     *listen_addresses = NULL;
-    char    *node_name = NULL;
-    char    *port_number = NULL;
-    char    *data_dir = NULL;
-    char    *log_file = NULL;
-    char    *is_standby_mode = NULL;
-    char    *dest_addr = NULL;
-    char    *dest_port = NULL;
+	bool 	is_gtm_status = false;		/* "false" means no -c option was found */
+	char 	*listen_addresses = NULL;
+	char	*node_name = NULL;
+	char	*port_number = NULL;
+	char	*data_dir = NULL;
+	char	*log_file = NULL;
+	char	*is_standby_mode = NULL;
+	char	*dest_addr = NULL;
+	char	*dest_port = NULL;
     char    *gtm_freeze_time_limit = NULL;
-    char    *gtm_startup_gts_delta = NULL;
-    char    *gtm_startup_gts_set   = NULL;
-    char    *gtm_cluster_read_only = NULL;
-    int     util_thread_cnt = 0;
+	char    *gtm_startup_gts_delta = NULL;
+	char    *gtm_startup_gts_set   = NULL;
+	char    *gtm_cluster_read_only = NULL;
+	int     util_thread_cnt = 0;
 
-    isStartUp = true;
+	isStartUp = true;
     SpinLockInit(&promote_status_lck);
-    promote_status = GTM_PRPMOTE_INIT;
 
-    /*
-     * At first, initialize options.  Also moved something from BaseInit() here.
-     */
-    InitializeGTMOptions();
+	/*
+	 * At first, initialize options.  Also moved something from BaseInit() here.
+	 */
+	InitializeGTMOptions();
 
-    /* 
-     * Also initialize bare minimum supporting infrastructure such as memory
-     * context and thread control structure
-     */
-    InitGTMProcess();
+	/* 
+	 * Also initialize bare minimum supporting infrastructure such as memory
+	 * context and thread control structure
+	 */
+	InitGTMProcess();
 
-    /*
-     * Catch standard options before doing much else
-     */
-    if (argc > 1)
-    {
-        if (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-?") == 0)
-        {
-            help(argv[0]);
-            exit(0);
-        }
-    }
+	/*
+	 * Catch standard options before doing much else
+	 */
+	if (argc > 1)
+	{
+		if (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-?") == 0)
+		{
+			help(argv[0]);
+			exit(0);
+		}
+	}
 
-    ListenAddresses = strdup(GTM_DEFAULT_HOSTNAME);
-    GTMPortNumber = GTM_DEFAULT_PORT;
+	ListenAddresses = strdup(GTM_DEFAULT_HOSTNAME);
+	GTMPortNumber = GTM_DEFAULT_PORT;
 
-    /*
-     * Parse the command like options and set variables
-     */
-    while ((opt = getopt(argc, argv, "ch:n:p:x:D:l:si:q:f:bT:g:r")) != -1)
-    {
-        switch (opt)
-        {
-            case 'c':
-                gtm_status();
-                break; /* never reach here. */
+	/*
+	 * Parse the command like options and set variables
+	 */
+	while ((opt = getopt(argc, argv, "ch:n:p:x:D:l:si:q:f:bT:g:r")) != -1)
+	{
+		switch (opt)
+		{
+			case 'c':
+				gtm_status();
+				break; /* never reach here. */
 
-            case 'h':
-                if (listen_addresses)
-                    free(listen_addresses);
-                listen_addresses = strdup(optarg);
-                break;
+			case 'h':
+				if (listen_addresses)
+					free(listen_addresses);
+				listen_addresses = strdup(optarg);
+				break;
 
-            case 'n':
-                if (NodeName)
-                    free(NodeName);
-                NodeName = strdup(optarg);
-                break;
+			case 'n':
+				if (NodeName)
+					free(NodeName);
+				NodeName = strdup(optarg);
+				break;
 
-            case 'p':
-                if (port_number)
-                    free(port_number);
-                port_number = strdup(optarg);
-                break;
+			case 'p':
+				if (port_number)
+					free(port_number);
+				port_number = strdup(optarg);
+				break;
 
-            case 'x':
-                next_gxid = (GlobalTransactionId)atoll(optarg);
-                break;
+			case 'x':
+				next_gxid = (GlobalTransactionId)atoll(optarg);
+				break;
 
-            case 'D':
-                if (data_dir)
-                    free(data_dir);
-                data_dir = strdup(optarg);
-                canonicalize_path(data_dir);
-                break;
+			case 'D':
+				if (data_dir)
+					free(data_dir);
+				data_dir = strdup(optarg);
+				canonicalize_path(data_dir);
+				break;
 
-            case 'l':
-                if (log_file)
-                    free(log_file);
-                log_file = strdup(optarg);
-                break;
+			case 'l':
+				if (log_file)
+					free(log_file);
+				log_file = strdup(optarg);
+				break;
 
-            case 's':
-                if (is_standby_mode)
-                    free(is_standby_mode);
-                is_standby_mode = strdup("standby");
-                break;
+			case 's':
+				if (is_standby_mode)
+					free(is_standby_mode);
+				is_standby_mode = strdup("standby");
+				break;
 
-            case 'i':
-                if (dest_addr)
-                    free(dest_addr);
-                dest_addr = strdup(optarg);
-                break;
+			case 'i':
+				if (dest_addr)
+					free(dest_addr);
+				dest_addr = strdup(optarg);
+				break;
 
-            case 'q':
-                if (dest_port)
-                    free(dest_port);
-                dest_port = strdup(optarg);
-                break;
-            case 'f':
-                force_xid = true;
-                break;
-            case 'b':
-                do_basebackup = true;
-                break;
-            case 'r':
+			case 'q':
+				if (dest_port)
+					free(dest_port);
+				dest_port = strdup(optarg);
+				break;
+
+			case 'f':
+				force_xid = true;
+				break;
+			case 'b':
+				do_basebackup = true;
+				break;
+			case 'r':
                 if (gtm_cluster_read_only)
                     free(gtm_cluster_read_only);
                 gtm_cluster_read_only = strdup(optarg);
                 break;
-            case 'T':
-                if (gtm_freeze_time_limit)
-                    free(gtm_freeze_time_limit);
-                gtm_freeze_time_limit = strdup(optarg);
-                break;
+			case 'T':
+				if (gtm_freeze_time_limit)
+					free(gtm_freeze_time_limit);
+				gtm_freeze_time_limit = strdup(optarg);
+				break;
             case 'd':
-                if (gtm_startup_gts_delta)
-                    free(gtm_startup_gts_delta);
-                gtm_startup_gts_delta = strdup(optarg);
-                break;
+				if (gtm_startup_gts_delta)
+					free(gtm_startup_gts_delta);
+				gtm_startup_gts_delta = strdup(optarg);
+				break;
             case 'g':
-                if (gtm_startup_gts_set)
-                    free(gtm_startup_gts_set);
-                gtm_startup_gts_set = strdup(optarg);
-                break;
+				if (gtm_startup_gts_set)
+					free(gtm_startup_gts_set);
+				gtm_startup_gts_set = strdup(optarg);
+				break;
 
-            default:
-                write_stderr("Try \"%s --help\" for more information.\n",
-                             progname);
-        }
-    }
+			default:
+				write_stderr("Try \"%s --help\" for more information.\n",
+							 progname);
+		}
+	}
 
-    /*
-     * Handle status, if any
-     */
-    if (is_gtm_status)
-        gtm_status();
-    /* Never reach beyond here */
+	/*
+	 * Handle status, if any
+	 */
+	if (is_gtm_status)
+		gtm_status();
+	/* Never reach beyond here */
 
-    /*
-     * Setup work directory
-     */
-    if (data_dir)
-        SetConfigOption(GTM_OPTNAME_DATA_DIR, data_dir, GTMC_STARTUP, GTMC_S_OVERRIDE);
+	/*
+	 * Setup work directory
+	 */
+	if (data_dir)
+		SetConfigOption(GTM_OPTNAME_DATA_DIR, data_dir, GTMC_STARTUP, GTMC_S_OVERRIDE);
 
-    /*
-     * Setup configuration file
-     */
-    if (!SelectConfigFiles(data_dir, progname))
-        exit(1);
+	/*
+	 * Setup configuration file
+	 */
+	if (!SelectConfigFiles(data_dir, progname))
+		exit(1);
 
-    /*
-     * Parse config file
-     */
-    if(ProcessConfigFile(GTMC_STARTUP) == false)
-    {
-        elog(LOG,"configure file gtm.conf parse fails");
-        exit(2);
-    }
-    /*
-     * Override with command line options
-     */
-    if (log_file)
-    {
-        SetConfigOption(GTM_OPTNAME_LOG_FILE, log_file, GTMC_STARTUP, GTMC_S_OVERRIDE);
-        free(log_file);
-        log_file = NULL;
-    }
-    if (listen_addresses)
-    {
-        SetConfigOption(GTM_OPTNAME_LISTEN_ADDRESSES,
-                        listen_addresses, GTMC_STARTUP, GTMC_S_OVERRIDE);
-        free(listen_addresses);
-        listen_addresses = NULL;
-    }
-    if (node_name)
-    {
-        SetConfigOption(GTM_OPTNAME_NODENAME, node_name, GTMC_STARTUP, GTMC_S_OVERRIDE);
-        free(node_name);
-        node_name = NULL;
-    }
-    if (port_number)
-    {
-        SetConfigOption(GTM_OPTNAME_PORT, port_number, GTMC_STARTUP, GTMC_S_OVERRIDE);
-        free(port_number);
-        port_number = NULL;
-    }
-    if (is_standby_mode)
-    {
-        SetConfigOption(GTM_OPTNAME_STARTUP, is_standby_mode, GTMC_STARTUP, GTMC_S_OVERRIDE);
-        free(is_standby_mode);
-        is_standby_mode = NULL;
-    }
-    if (dest_addr)
-    {
-        SetConfigOption(GTM_OPTNAME_ACTIVE_HOST, dest_addr, GTMC_STARTUP, GTMC_S_OVERRIDE);
-        free(dest_addr);
-        dest_addr = NULL;
-    }
-    if (dest_port)
-    {
-        SetConfigOption(GTM_OPTNAME_ACTIVE_PORT, dest_port, GTMC_STARTUP, GTMC_S_OVERRIDE);
-        free(dest_port);
-        dest_port = NULL;
-    }
-    if (gtm_freeze_time_limit)
-    {
-        SetConfigOption(GTM_OPTNAME_GTS_FREEZE_TIME_LIMIT, gtm_freeze_time_limit, GTMC_STARTUP, GTMC_S_OVERRIDE);
-        free(gtm_freeze_time_limit);
-        dest_port = NULL;
-    }
+	/*
+	 * Parse config file
+	 */
+	if(ProcessConfigFile(GTMC_STARTUP) == false)
+	{
+		elog(LOG,"configure file gtm.conf parse fails");
+		exit(2);
+	}
+	/*
+	 * Override with command line options
+	 */
+	if (log_file)
+	{
+		SetConfigOption(GTM_OPTNAME_LOG_FILE, log_file, GTMC_STARTUP, GTMC_S_OVERRIDE);
+		free(log_file);
+		log_file = NULL;
+	}
+	if (listen_addresses)
+	{
+		SetConfigOption(GTM_OPTNAME_LISTEN_ADDRESSES,
+						listen_addresses, GTMC_STARTUP, GTMC_S_OVERRIDE);
+		free(listen_addresses);
+		listen_addresses = NULL;
+	}
+	if (node_name)
+	{
+		SetConfigOption(GTM_OPTNAME_NODENAME, node_name, GTMC_STARTUP, GTMC_S_OVERRIDE);
+		free(node_name);
+		node_name = NULL;
+	}
+	if (port_number)
+	{
+		SetConfigOption(GTM_OPTNAME_PORT, port_number, GTMC_STARTUP, GTMC_S_OVERRIDE);
+		free(port_number);
+		port_number = NULL;
+	}
+	if (is_standby_mode)
+	{
+		SetConfigOption(GTM_OPTNAME_STARTUP, is_standby_mode, GTMC_STARTUP, GTMC_S_OVERRIDE);
+		free(is_standby_mode);
+		is_standby_mode = NULL;
+	}
+	if (dest_addr)
+	{
+		SetConfigOption(GTM_OPTNAME_ACTIVE_HOST, dest_addr, GTMC_STARTUP, GTMC_S_OVERRIDE);
+		free(dest_addr);
+		dest_addr = NULL;
+	}
+	if (dest_port)
+	{
+		SetConfigOption(GTM_OPTNAME_ACTIVE_PORT, dest_port, GTMC_STARTUP, GTMC_S_OVERRIDE);
+		free(dest_port);
+		dest_port = NULL;
+	}
+	if (gtm_freeze_time_limit)
+	{
+		SetConfigOption(GTM_OPTNAME_GTS_FREEZE_TIME_LIMIT, gtm_freeze_time_limit, GTMC_STARTUP, GTMC_S_OVERRIDE);
+		free(gtm_freeze_time_limit);
+		dest_port = NULL;
+	}
     if (gtm_startup_gts_delta)
-    {
-        SetConfigOption(GTM_OPTNAME_STARTUP_GTS_DELTA, gtm_startup_gts_delta, GTMC_STARTUP, GTMC_S_OVERRIDE);
-        free(gtm_startup_gts_delta);
-        dest_port = NULL;
-    }
-    if (gtm_startup_gts_set)
-    {
-        SetConfigOption(GTM_OPTNAME_STARTUP_GTS_SET, gtm_startup_gts_set, GTMC_STARTUP, GTMC_S_OVERRIDE);
-        free(gtm_startup_gts_set);
-        dest_port = NULL;
-    }
-    if (gtm_cluster_read_only)
-    {
-        SetConfigOption(GTM_OPTNAME_CLUSTER_READ_ONLY, gtm_cluster_read_only, GTMC_STARTUP, GTMC_S_OVERRIDE);
-        free(gtm_cluster_read_only);
-        dest_port = NULL;
-    }
+	{
+		SetConfigOption(GTM_OPTNAME_STARTUP_GTS_DELTA, gtm_startup_gts_delta, GTMC_STARTUP, GTMC_S_OVERRIDE);
+		free(gtm_startup_gts_delta);
+		dest_port = NULL;
+	}
+	if (gtm_startup_gts_set)
+	{
+		SetConfigOption(GTM_OPTNAME_STARTUP_GTS_SET, gtm_startup_gts_set, GTMC_STARTUP, GTMC_S_OVERRIDE);
+		free(gtm_startup_gts_set);
+		dest_port = NULL;
+	}
+	if (gtm_cluster_read_only)
+	{
+		SetConfigOption(GTM_OPTNAME_CLUSTER_READ_ONLY, gtm_cluster_read_only, GTMC_STARTUP, GTMC_S_OVERRIDE);
+		free(gtm_cluster_read_only);
+		dest_port = NULL;
+	}
 
-    if (GTMDataDir == NULL)
-    {
-        write_stderr("GTM data directory must be specified\n");
-        write_stderr("Try \"%s --help\" for more information.\n",
-                     progname);
-        exit(1);
-    }
+	if (GTMDataDir == NULL)
+	{
+		write_stderr("GTM data directory must be specified\n");
+		write_stderr("Try \"%s --help\" for more information.\n",
+					 progname);
+		exit(1);
+	}
 
-    if (NodeName == NULL || NodeName[0] == 0)
-    {
-        write_stderr("Nodename must be specified\n");
-        write_stderr("Try \"%s --help\" for more information.\n",
-                     progname);
-        exit(1);
-    }
+	if (NodeName == NULL || NodeName[0] == 0)
+	{
+		write_stderr("Nodename must be specified\n");
+		write_stderr("Try \"%s --help\" for more information.\n",
+					 progname);
+		exit(1);
+	}
 
-    if (ListenAddresses == NULL || ListenAddresses[0] == 0)
-    {
-        write_stderr("Listen_addresses must be specified\n");
-        write_stderr("Try \"%s --help\" for more information.\n",
-                     progname);
-        exit(1);
-    }
+	if (ListenAddresses == NULL || ListenAddresses[0] == 0)
+	{
+		write_stderr("Listen_addresses must be specified\n");
+		write_stderr("Try \"%s --help\" for more information.\n",
+					 progname);
+		exit(1);
+	}
 
-    if(enable_sync_commit == true  && synchronous_standby_names == NULL)
-    {
-        write_stderr("You have to provide synchronous_standby_names to enable sync_commit");
-        write_stderr("Try \"%s --help\" for more information.\n",
-                     progname);
-        exit(1);
-    }
+	if(enable_sync_commit == true  && synchronous_standby_names == NULL)
+	{
+		write_stderr("You have to provide synchronous_standby_names to enable sync_commit");
+		write_stderr("Try \"%s --help\" for more information.\n",
+					 progname);
+		exit(1);
+	}
 
 	if( (synchronous_standby_names != NULL && strlen(synchronous_standby_names) > 0) && enable_sync_commit == false)
-    {
-        write_stderr("synchronous_standby_names is not allow to set in async commit mode");
-        write_stderr("Try \"%s --help\" for more information.\n",
-                     progname);
-    }
+	{
+		write_stderr("synchronous_standby_names is not allow to set in async commit mode");
+		write_stderr("Try \"%s --help\" for more information.\n",
+					 progname);
+	}
 
-    /*
-     * GTM accepts no non-option switch arguments.
-     */
-    if (optind < argc)
-    {
-        write_stderr("%s: invalid argument: \"%s\"\n",
-                     progname, argv[optind]);
-        write_stderr("Try \"%s --help\" for more information.\n",
-                     progname);
-        exit(1);
-    }
+	/*
+	 * GTM accepts no non-option switch arguments.
+	 */
+	if (optind < argc)
+	{
+		write_stderr("%s: invalid argument: \"%s\"\n",
+					 progname, argv[optind]);
+		write_stderr("Try \"%s --help\" for more information.\n",
+					 progname);
+		exit(1);
+	}
 
     /*
      * Establish input sockets.
@@ -1023,57 +1072,58 @@ main(int argc, char *argv[])
 #endif
 #endif
 
-    /*
-     * check that we have some socket to listen on
-     */
-    if (ListenSocket[0] == -1)
-        ereport(FATAL,
-                (errmsg("no socket created for listening")));
+	/*
+	 * check that we have some socket to listen on
+	 */
+	if (ListenSocket[0] == -1)
+		ereport(FATAL,
+				(errmsg("no socket created for listening")));
 
-    /*
-     * Some basic initialization must happen before we do anything
-     * useful
-     */
-    BaseInit(data_dir);
+	/*
+	 * Some basic initialization must happen before we do anything
+	 * useful
+	 */
+	BaseInit(data_dir);
 
-    /*
-     * Check options for the standby mode. Do it after StandbyLock has been
-     * initialised in BaseInit()
-     */
-    if (Recovery_IsStandby())
-    {
-        if (active_addr == NULL || active_port < 1)
-        {
-            help(argv[0]);
-            exit(1);
-        }
-        Recovery_StandbySetConnInfo(active_addr, active_port);
-    }
+	/*
+	 * Check options for the standby mode. Do it after StandbyLock has been
+	 * initialised in BaseInit()
+	 */
+	if (Recovery_IsStandby())
+	{
+		if (active_addr == NULL || active_port < 1)
+		{
+		    elog(LOG,"as standby, %s or %s is not configured", GTM_OPTNAME_ACTIVE_HOST, GTM_OPTNAME_ACTIVE_PORT);
+			help(argv[0]);
+			exit(1);
+		}
+		Recovery_StandbySetConnInfo(active_addr, active_port);
+	}
 
 #ifdef __XLOG__
 
-    if(access(RECOVERY_CONF_NAME,F_OK) == 0)
-    {
-        recovery_pitr_mode = true;
+	if(access(RECOVERY_CONF_NAME,F_OK) == 0)
+	{
+		recovery_pitr_mode = true;
 
-        ValidXLogRecoveryCondition();
-        GTM_XLogRecovery(ControlData->checkPoint,data_dir);
+		ValidXLogRecoveryCondition();
+		GTM_XLogRecovery(ControlData->checkPoint, data_dir, false);
         elog(LOG,"recovery finish,please start gtm");
 
-        ControlData->state = DB_SHUTDOWNED;
+        ControlData->state = GTM_SHUTDOWNED;
         ControlDataSync(false);
 
-        rename(RECOVERY_CONF_NAME,RECOVERY_CONF_NAME_DONE);
-        exit(1);
-    }
-    else
-    {
-        recovery_pitr_mode = false;
-        recovery_timestamp = InvalidGTS;
-    }
+		rename(RECOVERY_CONF_NAME,RECOVERY_CONF_NAME_DONE);
+		exit(1);
+	}
+	else
+	{
+		recovery_pitr_mode = false;
+		recovery_timestamp = InvalidGTS;
+	}
 
-    if(Recovery_IsStandby() == false)
-    {
+	if(Recovery_IsStandby() == false)
+	{
         GTM_XLogRecoveryIfNeed(data_dir);
 	}
 
@@ -1101,7 +1151,7 @@ main(int argc, char *argv[])
      */
     if (Recovery_IsStandby())
     {
-        if (!gtm_standby_start_startup(GTM_STARTUP_CONNECT_ACTIVE_TIMEOUT))
+        if (!gtm_standby_start_startup(standby_connect_timeout))
         {
 #ifdef __OPENTENBASE__
             elog(LOG, "Failed to establish a connection to active-GTM.");
@@ -1122,231 +1172,207 @@ main(int argc, char *argv[])
     }
 
     SpinLockAcquire(&promote_status_lck);
-    if (promote_status == GTM_PRPMOTE_INIT)
+    if (promote_status == GTM_PRPMOTE_INIT || promote_status == GTM_PRPMOTE_NONE)
     {
         promote_status = GTM_PRPMOTE_CONNED;
     }
     SpinLockRelease(&promote_status_lck);
 
 #ifdef __XLOG__
-    GTM_XLogFileInit(data_dir);
-
-    GTM_RWLockAcquire(&ControlDataLock,GTM_LOCKMODE_WRITE);
-    
-    ControlData->state = DB_IN_PRODUCTION;
-    ControlDataSync(false);
-    
-    GTM_RWLockRelease(&ControlDataLock);
-
+	GTM_XLogFileInit(data_dir);
 #endif
-    
-    /*
-     * Read the last GXID and start from there
-     */
-    if (Recovery_IsStandby())
-    {
+
+	/*
+	 * Read the last GXID and start from there
+	 */
+	if (Recovery_IsStandby())
+	{
 #ifdef __OPENTENBASE__
-        bool  bret = false;
-        int32 ret;
-        int64 identifier = 0;
-        int64 lsn = 0;
-        GlobalTimestamp gts = 0;
-        int  max_retry_times = 10;
-        
-        system("rm -rf gtm_xlog/*");
+		bool  bret = false;
+		int32 ret;
+		int64 identifier = 0;
+		int64 lsn = 0;
+		GlobalTimestamp gts = 0;
+		int  max_retry_times = 10;
 
         bret = GTM_StoreGetSysInfo(&identifier, &lsn, &gts);
-        if (!bret)
-        {
-            elog(LOG, "GTM get storage identifier and lsn failed.");
-            identifier = 0;
-            lsn = 0;
-        }
+		if (!bret)
+		{
+			elog(LOG, "GTM get storage identifier and lsn failed.");
+			identifier = 0;
+			lsn = 0;
+		}
 
-        if (!gtm_standby_begin_backup(identifier, lsn, gts))
-        {
-            elog(LOG, "Failed to set begin_backup status to the active-GTM.");
-            exit(1);
-        }
+		if (!gtm_standby_begin_backup(identifier, lsn, gts))
+		{
+			elog(LOG, "Failed to set begin_backup status to the active-GTM.");
+			exit(1);
+		}
 
-        do
-        {
-            ret = GTM_StoreStandbyInitFromMaster(GTMDataDir);
-            if (ret)
-            {
-                elog(LOG, "GTM_StoreMasterInit failed for %s.retry", strerror(errno));
-                max_retry_times--;
-                sleep(3);
-            }
+		do
+		{
+    		ret = GTM_StoreStandbyInitFromMaster(GTMDataDir);
+    		if (ret)
+    		{
+    			elog(LOG, "GTM_StoreMasterInit failed for %s.retry", strerror(errno));
+    			max_retry_times--;
+    			sleep(3);
+    		}
             else 
             {
                 break;
             }
-        } while(max_retry_times > 0);
+		} while(max_retry_times > 0);
 
 		if(ret)
 		{
     		elog(FATAL, "GTM_StoreMasterInit failed too many times \"%s\", exit", strerror(errno));
 		}
-		
+
+		GTM_RestoreGtsAtStartup();
+
+#else
+		if (!gtm_standby_begin_backup(0, 0, 0))
+		{
+			elog(ERROR, "Failed to set begin_backup satatus to the active-GTM.");
+			exit(1);
+		}
 		if (!gtm_standby_restore_next_gxid())
 		{
-			elog(FATAL, "Failed to restore next/last gxid from the active-GTM.");
+			elog(ERROR, "Failed to restore next/last gxid from the active-GTM.");
+			exit(1);
 		}
 		elog(LOG, "Restoring next/last gxid from the active-GTM succeeded.");
 
 		if (!gtm_standby_restore_gxid())
 		{
-			elog(FATAL, "Failed to restore all of gxid(s) from the active-GTM.");
+			elog(ERROR, "Failed to restore all of gxid(s) from the active-GTM.");
+			exit(1);
 		}
 		elog(LOG, "Restoring all of gxid(s) from the active-GTM succeeded.");
 
 		if (!gtm_standby_restore_sequence())
 		{
-			elog(FATAL, "Failed to restore sequences from the active-GTM.");
+			elog(ERROR, "Failed to restore sequences from the active-GTM.");
+			exit(1);
 		}
 		elog(LOG, "Restoring sequences from the active-GTM succeeded.");
 
-
-#else
-        if (!gtm_standby_begin_backup(0, 0, 0))
-        {
-            elog(ERROR, "Failed to set begin_backup satatus to the active-GTM.");
-            exit(1);
-        }
-        if (!gtm_standby_restore_next_gxid())
-        {
-            elog(ERROR, "Failed to restore next/last gxid from the active-GTM.");
-            exit(1);
-        }
-        elog(LOG, "Restoring next/last gxid from the active-GTM succeeded.");
-
-        if (!gtm_standby_restore_gxid())
-        {
-            elog(ERROR, "Failed to restore all of gxid(s) from the active-GTM.");
-            exit(1);
-        }
-        elog(LOG, "Restoring all of gxid(s) from the active-GTM succeeded.");
-
-        if (!gtm_standby_restore_sequence())
-        {
-            elog(ERROR, "Failed to restore sequences from the active-GTM.");
-            exit(1);
-        }
-        elog(LOG, "Restoring sequences from the active-GTM succeeded.");
-
-        
-    
+		
+	
 #endif
-    }    
+	}	
 #ifdef __OPENTENBASE__
-    else
-    {    
-        int32 ret = 0;
-        ret = GTM_StoreMasterInit(GTMDataDir);
-        if (ret)
-        {
-            elog(ERROR, "GTM_StoreMasterInit failed for %s.", strerror(errno));
-            exit(1);
-        }
-        GTM_RestoreStoreInfo(next_gxid, force_xid);
-    }
+	else
+	{	
+		int32 ret = 0;
+		ret = GTM_StoreMasterInit(GTMDataDir);
+		if (ret)
+		{
+			elog(ERROR, "GTM_StoreMasterInit failed for %s.", strerror(errno));
+			exit(1);
+		}
+		GTM_RestoreStoreInfo(next_gxid, force_xid);
+#ifdef __OPENTENBASE_C__
+		GTM_RestoreStoreFidManager();
+#endif
+	}
 #else
-    else
-    {
-        GTM_RestoreContext restoreContext;
+	else
+	{
+		GTM_RestoreContext restoreContext;
 
-        GTM_MutexLockAcquire(&control_lock);
+		GTM_MutexLockAcquire(&control_lock);
 
-        ctlf = fopen(GTMControlFile, "r");
+		ctlf = fopen(GTMControlFile, "r");
 
-        /*
-         * When the GTMControlFile file is updated, we first write the updated
-         * contents to a GTMControlFileTmp, delete the original GTMControlFile
-         * and then rename the GTMControlFileTmp file to GTMControlFile
-         *
-         * In a rare situation, the GTMControlFile may get deleted, but the
-         * GTMControlFileTmp may not get renamed. If we don't find the
-         * GTMControlFile file, then look for the GTMControlFileTmp file. If
-         * none exists, then its an error condition and we must not start.
-         */
-        if (ctlf == NULL)
-        {
-            switch (errno)
-            {
-                case ENOENT:
-                    elog(WARNING, "%s not found, now looking for %s",
-                            GTMControlFile, GTMControlFileTmp);
-                    break;
-                default:
-                    elog(ERROR, "Could not open %s, errno %d - aborting GTM start",
-                            GTMControlFile, errno);
-            }
-            ctlf = fopen(GTMControlFileTmp, "r");
-            if (ctlf == NULL)
-                elog(ERROR, "Could not open %s, errno %d - aborting GTM start",
-                        GTMControlFileTmp, errno);
+		/*
+		 * When the GTMControlFile file is updated, we first write the updated
+		 * contents to a GTMControlFileTmp, delete the original GTMControlFile
+		 * and then rename the GTMControlFileTmp file to GTMControlFile
+		 *
+		 * In a rare situation, the GTMControlFile may get deleted, but the
+		 * GTMControlFileTmp may not get renamed. If we don't find the
+		 * GTMControlFile file, then look for the GTMControlFileTmp file. If
+		 * none exists, then its an error condition and we must not start.
+		 */
+		if (ctlf == NULL)
+		{
+			switch (errno)
+			{
+				case ENOENT:
+					elog(WARNING, "%s not found, now looking for %s",
+							GTMControlFile, GTMControlFileTmp);
+					break;
+				default:
+					elog(ERROR, "Could not open %s, errno %d - aborting GTM start",
+							GTMControlFile, errno);
+			}
+			ctlf = fopen(GTMControlFileTmp, "r");
+			if (ctlf == NULL)
+				elog(ERROR, "Could not open %s, errno %d - aborting GTM start",
+						GTMControlFileTmp, errno);
 
-            /*
-             * Ok, so the GTMControlFileTmp exists. Just rename it to the
-             * GTMControlFile and open again with the new name
-             */
-            elog(WARNING, "Renaming %s to %s", GTMControlFileTmp,
-                    GTMControlFile);
-            fclose(ctlf);
-            rename(GTMControlFileTmp, GTMControlFile);
-            ctlf = fopen(GTMControlFile, "r");
-            if (ctlf == NULL)
-                elog(ERROR, "Could not open %s, errno %d - aborting GTM start",
-                        GTMControlFile, errno);
-        }
+			/*
+			 * Ok, so the GTMControlFileTmp exists. Just rename it to the
+			 * GTMControlFile and open again with the new name
+			 */
+			elog(WARNING, "Renaming %s to %s", GTMControlFileTmp,
+					GTMControlFile);
+			fclose(ctlf);
+			rename(GTMControlFileTmp, GTMControlFile);
+			ctlf = fopen(GTMControlFile, "r");
+			if (ctlf == NULL)
+				elog(ERROR, "Could not open %s, errno %d - aborting GTM start",
+						GTMControlFile, errno);
+		}
 
-        GTM_RestoreStart(ctlf, &restoreContext);
-        GTM_RestoreTxnInfo(ctlf, next_gxid, &restoreContext, force_xid);
-        GTM_RestoreSeqInfo(ctlf, &restoreContext);
-        if (ctlf)
-            fclose(ctlf);
+		GTM_RestoreStart(ctlf, &restoreContext);
+		GTM_RestoreTxnInfo(ctlf, next_gxid, &restoreContext, force_xid);
+		GTM_RestoreSeqInfo(ctlf, &restoreContext);
+		if (ctlf)
+			fclose(ctlf);
 
-        GTM_MutexLockRelease(&control_lock);
-    }
+		GTM_MutexLockRelease(&control_lock);
+	}
 #endif
 
 #ifndef __OPENTENBASE__
-    /* Backup the restore point */
-    GTM_SetNeedBackup();
-    GTM_WriteRestorePoint();
+	/* Backup the restore point */
+	GTM_SetNeedBackup();
+	GTM_WriteRestorePoint();
 #endif
 
-    if (Recovery_IsStandby())
-    {
-        elog(DEBUG8, "register node name %s port %d", NodeName, GTMPortNumber);
-        if (!gtm_standby_register_self(NodeName, GTMPortNumber, GTMDataDir))
-        {
-            elog(ERROR, "Failed to register myself on the active-GTM as a GTM node.");
-            exit(1);
-        }
-        elog(LOG, "Registering myself to the active-GTM as a GTM node succeeded.");
-    }
+	if (Recovery_IsStandby())
+	{
+		elog(DEBUG8, "register node name %s port %d", NodeName, GTMPortNumber);
+		if (!gtm_standby_register_self(NodeName, GTMPortNumber, GTMDataDir))
+		{
+			elog(ERROR, "Failed to register myself on the active-GTM as a GTM node.");
+			exit(1);
+		}
+		elog(LOG, "Registering myself to the active-GTM as a GTM node succeeded.");
+	}
 
-    /* Recover Data of Registered nodes. */
-    if (Recovery_IsStandby())
-    {
-        if (!gtm_standby_restore_node())
-        {
-            elog(ERROR, "Failed to restore node information from the active-GTM.");
-            exit(1);
-        }
-        elog(LOG, "Restoring node information from the active-GTM succeeded.");
-    }
-    else
-        elog(LOG, "Started to run as GTM-Active.");
+	/* Recover Data of Registered nodes. */
+	if (Recovery_IsStandby())
+	{
+		if (!gtm_standby_restore_node())
+		{
+			elog(ERROR, "Failed to restore node information from the active-GTM.");
+			exit(1);
+		}
+		elog(LOG, "Restoring node information from the active-GTM succeeded.");
+	}
+	else
+		elog(LOG, "Started to run as GTM-Active.");
 
-    /*
-     * Record gtm options.  We delay this till now to avoid recording
-     * bogus options
-     */
-    if (!CreateOptsFile(argc, argv))
-        exit(1);
+	/*
+	 * Record gtm options.  We delay this till now to avoid recording
+	 * bogus options
+	 */
+	if (!CreateOptsFile(argc, argv))
+		exit(1);
 
     SpinLockAcquire(&promote_status_lck);
     /*
@@ -1364,93 +1390,88 @@ main(int argc, char *argv[])
     promote_status = GTM_PRPMOTE_NORMAL;
     SpinLockRelease(&promote_status_lck);
 
-    /*
-     * Now, activating a standby GTM...
-     */
-    if (Recovery_IsStandby())
-    {
-        /*
-         * Before ending the backup, inform the GTM master that we are now
-         * ready to accept connections and mark ourselves as CONNECTED. All GTM
-         * threads are still blocked at this point and when they are unlocked,
-         * we will be ready to accept new connections
-         */
-        if (!gtm_standby_activate_self())
-        {
-            elog(ERROR, "Failed to update the standby-GTM status as \"CONNECTED\".");
-            exit(1);
-        }
-        elog(LOG, "Updating the standby-GTM status as \"CONNECTED\" succeeded.");
+	/*
+	 * Now, activating a standby GTM...
+	 */
+	if (Recovery_IsStandby())
+	{
+		/*
+		 * Before ending the backup, inform the GTM master that we are now
+		 * ready to accept connections and mark ourselves as CONNECTED. All GTM
+		 * threads are still blocked at this point and when they are unlocked,
+		 * we will be ready to accept new connections
+		 */
+		if (!gtm_standby_activate_self())
+		{
+			elog(ERROR, "Failed to update the standby-GTM status as \"CONNECTED\".");
+			exit(1);
+		}
+		elog(LOG, "Updating the standby-GTM status as \"CONNECTED\" succeeded.");
 
-        /*
-         * GTM master can now start serving incoming requests. Before it serves
-         * any request, it will open a connection with us and start copying all
-         * those messages. So we are guaranteed to see each operation, either
-         * in the backup we took or as GTM master copies those messages
-         */
-        if (!gtm_standby_end_backup())
-        {
-            elog(ERROR, "Failed to setup normal standby mode to the active-GTM.");
-            exit(1);
-        }
-        elog(LOG, "Started to run as GTM-Standby.");
+		if (!gtm_standby_finish_startup())
+		{
+			elog(ERROR, "Failed to close the initial connection to the active-GTM.");
+			exit(1);
+		}
 
-        if (!gtm_standby_finish_startup())
-        {
-            elog(ERROR, "Failed to close the initial connection to the active-GTM.");
-            exit(1);
-        }
-
-        elog(DEBUG1, "Startup connection with the active-GTM closed.");
-    }
+		elog(DEBUG1, "Startup connection with the active-GTM closed.");
+	}
 
 #ifdef __XLOG__
-    if(Recovery_IsStandby() && do_basebackup)
-    {
-        elog(LOG,"Do basebackup success");
+	if(Recovery_IsStandby() && do_basebackup)
+	{
+		elog(LOG,"Do basebackup success");
 
-        ControlData->state = DB_SHUTDOWNED;
+        ControlData->state = GTM_SHUTDOWNED;
         ControlDataSync(false);
-        exit(0);
-    }
+		exit(0);
+	}
 
-    if(!Recovery_IsStandby() && ControlData->checkPoint == FIRST_XLOG_REC)
+    if(!Recovery_IsStandby())
     {
-        DoCheckPoint(false);
-    }
+        if (ControlData->checkPoint == FIRST_XLOG_REC || ControlData->state == GTM_IN_OVERWRITE_DONE)
+            DoCheckPoint(false);
+
+        GTM_RWLockAcquire(&ControlDataLock, GTM_LOCKMODE_WRITE);
+        ControlData->state = GTM_IN_PRODUCTION;
+        ControlDataSync(false);
+        
+        GTM_RWLockRelease(&ControlDataLock);
+	}
+#endif
+
+#ifdef __RESOURCE_QUEUE__
+	GTM_ResourceQueueOpenDefault();
 #endif
 
 #ifdef __OPENTENBASE__
-    if(false == CheckClockSource())
-    {
-        elog(LOG, "constant and nonstop TSC is needed.\n");
-    }
-    else
-    {
-        elog(LOG, "constant and nonstop TSC is available.\n");
-    }
+	if(false == CheckClockSource())
+	{
+		elog(LOG, "constant and nonstop TSC is needed.\n");
+	}
+	else
+	{
+		elog(LOG, "constant and nonstop TSC is available.\n");
+	}
 #endif
 
-    bind_service_threads();
+	bind_service_threads();
 #ifdef __OPENTENBASE__
 
     if(GTMStartupGTSSet != NULL)
     {
-    
         GTM_Timestamp gts = atoll(GTMStartupGTSSet);
-        GTM_Timestamp current_gts = GetNextGlobalTimestamp();
+		GTM_Timestamp current_gts = GetNextGlobalTimestamp();
         if (gts == 0)
         {
             elog(ERROR,"%s is a invalid gts",GTMStartupGTSSet);
             exit(1);
         }
-
-        if(current_gts > gts)
-        {
-            elog(ERROR,"Can't set gts to %s which is lower than current gts "INT64_FORMAT"",GTMStartupGTSSet,current_gts);
+		if(current_gts > gts)
+		{
+			elog(ERROR,"Can't set gts to %s which is lower than current gts "INT64_FORMAT"",GTMStartupGTSSet,current_gts);
             exit(1);
-        }
-        
+		}
         SetNextGlobalTimestamp(gts);
     }
 
@@ -1459,27 +1480,25 @@ main(int argc, char *argv[])
         elog(LOG,"Global timestamp has less then %d days left,refuse to start.",GTMGTSFreezeLimit);
         exit(1);
     }
+	/* calculate worker thread number. */
+	if (scale_factor_threads > 0)
+	{
+		process_thread_num = (get_nprocs() - 1) * scale_factor_threads;
+	    
+	}
+	else if (worker_thread_number > 0)
+	{
+		process_thread_num = worker_thread_number;
+	}
 
-    /* calculate worker thread number. */
-    if (scale_factor_threads > 0)
-    {
-        process_thread_num = (get_nprocs() - 1) * scale_factor_threads;
-        
-    }
-    else if (worker_thread_number > 0)
-    {
-        process_thread_num = worker_thread_number;
-    }
-
-    if(0 == process_thread_num)
-    {
-        process_thread_num = 2;
-    }
-    else
-    {
-        process_thread_num = g_max_thread_number < process_thread_num ? g_max_thread_number : process_thread_num;
-    }
-
+	if(0 == process_thread_num)
+	{
+		process_thread_num = 2;
+	}
+	else
+	{
+		process_thread_num = g_max_thread_number < process_thread_num ? g_max_thread_number : process_thread_num;
+	}
 	/* start syslogger thread to handle log */
     if (!GTM_SysLoggerStart())
     {
@@ -1488,14 +1507,14 @@ main(int argc, char *argv[])
     }
     util_thread_cnt++;
 
-    /* Create GTM threads handling requests */
-    g_timekeeper_thread = GTM_ThreadCreate(GTM_ThreadTimeKeeper, g_max_lock_number);
-    if (NULL == g_timekeeper_thread)
-    {
-        elog(ERROR, "Failed to create timekeeper thread.");
-        exit(1);
-    }
-    util_thread_cnt++;
+	/* Create GTM threads handling requests */
+	g_timekeeper_thread = GTM_ThreadCreate(GTM_ThreadTimeKeeper, g_max_lock_number);
+	if (NULL == g_timekeeper_thread)
+	{
+		elog(ERROR, "Failed to create timekeeper thread.");
+		exit(1);
+	}
+	util_thread_cnt++;
 
 #ifdef __XLOG__
     g_basebackup_thread = GTM_ThreadCreate(GTM_ThreadBasebackup, -1);
@@ -1508,36 +1527,36 @@ main(int argc, char *argv[])
 #endif
 
 #ifndef __XLOG__
-    g_timebackup_thread = GTM_ThreadCreate(GTM_ThreadTimeBackup, g_max_lock_number);
-    if (NULL == g_timebackup_thread)
-    {
-        elog(ERROR, "Failed to create timebackup thread.");
-        exit(1);
-    }
-    util_thread_cnt++;
+	g_timebackup_thread = GTM_ThreadCreate(GTM_ThreadTimeBackup, g_max_lock_number);
+	if (NULL == g_timebackup_thread)
+	{
+		elog(ERROR, "Failed to create timebackup thread.");
+		exit(1);
+	}
+	util_thread_cnt++;
 #endif
 
-    ret = GTM_TimerInit();
-    if (ret)
-    {
-        elog(ERROR, "Failed to init timer.");
-    }
+	ret = GTM_TimerInit();
+	if (ret)
+	{
+		elog(ERROR, "Failed to init timer.");
+	}
 
-    g_timer_thread = GTM_ThreadCreate(GTM_TimerThread, g_max_lock_number);
-    if (NULL == g_timer_thread)
-    {
-        elog(ERROR, "Failed to create gtm timer thread.");
-        exit(1);
-    }
-    util_thread_cnt++;
+	g_timer_thread = GTM_ThreadCreate(GTM_TimerThread, g_max_lock_number);
+	if (NULL == g_timer_thread)
+	{
+		elog(ERROR, "Failed to create gtm timer thread.");
+		exit(1);
+	}
+	util_thread_cnt++;
 
-    g_archiver_thread = GTM_ThreadCreate(GTM_ThreadArchiver, g_max_lock_number);
-    if (NULL == g_archiver_thread)
-    {
-        elog(ERROR, "Failed to create archiver thread");
-        exit(1);
-    }
-    util_thread_cnt++;
+	g_archiver_thread = GTM_ThreadCreate(GTM_ThreadArchiver, g_max_lock_number);
+	if (NULL == g_archiver_thread)
+	{
+		elog(ERROR, "Failed to create archiver thread");
+		exit(1);
+	}
+	util_thread_cnt++;
 
     GTM_MutexLockInit(&g_checkpointer_blocker)  ;
     if(Recovery_IsStandby())
@@ -1549,7 +1568,7 @@ main(int argc, char *argv[])
     if (NULL == g_checkpoint_thread)
     {
         elog(ERROR, "Failed to create gtm checkpointer thread.");
-        exit(1);
+		exit(1);
     }
     util_thread_cnt++;
     
@@ -1560,7 +1579,7 @@ main(int argc, char *argv[])
         if (NULL == g_walreceiver_thread)
         {
             elog(ERROR, "Failed to create gtm walreceiver thread.");
-            exit(1);
+    		exit(1);
         }
         util_thread_cnt++;
 
@@ -1572,20 +1591,37 @@ main(int argc, char *argv[])
         }
         util_thread_cnt++;
     }
-    
+#ifdef __OPENTENBASE_C__
+	g_fid_checker_thread = GTM_ThreadCreate(GTM_ThreadFidChecker, g_max_lock_number);
+	if (NULL == g_fid_checker_thread)
+	{
+		elog(ERROR, "Failed to create gtm fidchecker thread.");
+        exit(1);
+	}
+#endif
+
+#ifdef __RESOURCE_QUEUE__
+	g_resq_manager_thread = GTM_ThreadCreate(GTM_ThreadResQueueManager, g_max_lock_number);
+	if (NULL == g_resq_manager_thread)
+	{
+		elog(ERROR, "Failed to create gtm resource queue manager thread.");
+		exit(1);
+	}
+#endif
+
     /*
      * maybe one GTM_ThreadMain create as g_standby_pre_server_thread before
      */
     i = (g_standby_pre_server_thread == NULL) ? 0 : 1;
 	for(; i < process_thread_num; i++)
-    {
-        elog(DEBUG8, "Create thread %d.\n", i);
-        if (NULL == GTM_ThreadCreate(GTM_ThreadMain, g_max_lock_number))
-        {
-            elog(ERROR, "Failed to create gtm thread.");
-            exit(1);
-        }
-    }
+	{
+		elog(DEBUG8, "Create thread %d.\n", i);
+		if (NULL == GTM_ThreadCreate(GTM_ThreadMain, g_max_lock_number))
+		{
+			elog(ERROR, "Failed to create gtm thread.");
+			exit(1);
+		}
+	}
 
     for(i = 0; i < max_wal_sender; i++)
 	{
@@ -1624,19 +1660,19 @@ main(int argc, char *argv[])
     errlog_collection_func = GTM_ErrorLogCollector;
 
 #endif
-    fprintf(stdout, "OpenTenBase GTM is ready to go!!\n");
-    /*
-     * Accept any new connections. Fork a new thread for each incoming
-     * connection
-     */
-    status = ServerLoop();
+	fprintf(stdout, "OpenTenBase GTM is ready to go!!\n");
+	/*
+	 * Accept any new connections. Fork a new thread for each incoming
+	 * connection
+	 */
+	status = ServerLoop();
 
-    /*
-     * ServerLoop probably shouldn't ever return, but if it does, close down.
-     */
-    exit(status != STATUS_OK);
+	/*
+	 * ServerLoop probably shouldn't ever return, but if it does, close down.
+	 */
+	exit(status != STATUS_OK);
 
-    return 0;                    /* not reached */
+	return 0;					/* not reached */
 }
 
 /*
@@ -1645,26 +1681,26 @@ main(int argc, char *argv[])
 static Port *
 ConnCreate(int serverFd)
 {
-    Port       *port;
+	Port	   *port;
 
-    if (!(port = (Port *) calloc(1, sizeof(Port))))
-    {
-        ereport(LOG,
-                (ENOMEM,
-                 errmsg("out of memory")));
-        exit(1);
-    }
+	if (!(port = (Port *) calloc(1, sizeof(Port))))
+	{
+		ereport(LOG,
+				(ENOMEM,
+				 errmsg("out of memory")));
+		exit(1);
+	}
 
-    if (StreamConnection(serverFd, port) != STATUS_OK)
-    {
-        if (port->sock >= 0)
-            StreamClose(port->sock);
-        ConnFree(port);
-        return NULL;
-    }
+	if (StreamConnection(serverFd, port) != STATUS_OK)
+	{
+		if (port->sock >= 0)
+			StreamClose(port->sock);
+		ConnFree(port);
+		return NULL;
+	}
 
-    port->conn_id = InvalidGTMProxyConnID;
-    return port;
+	port->conn_id = InvalidGTMProxyConnID;
+	return port;
 }
 
 /*
@@ -1673,7 +1709,7 @@ ConnCreate(int serverFd)
 void
 ConnFree(Port *conn)
 {
-    free(conn);
+	free(conn);
 }
 
 /*
@@ -1681,91 +1717,89 @@ ConnFree(Port *conn)
  */
 static int
 ServerLoop(void)
-{// #lizard forgives
-    fd_set        readmask;
-    int            nSockets;
-    sigjmp_buf  local_sigjmp_buf;
-    GTM_ThreadInfo *my_threadinfo = GetMyThreadInfo;
+{
+	fd_set		readmask;
+	int			nSockets;
+	sigjmp_buf  local_sigjmp_buf;
+	GTM_ThreadInfo *my_threadinfo = GetMyThreadInfo;
 
-    /* Release the lock we acquire in MainThreadInit. */    
-    GTM_RWLockRelease(&my_threadinfo->thr_lock);
-    if (sigsetjmp(local_sigjmp_buf, 1) != 0)
-    {
-        RWLockCleanUp();
-        /* Report the error to the server log */
-        EmitErrorReport(NULL);
+	/* Release the lock we acquire in MainThreadInit. */	
+	GTM_RWLockRelease(&my_threadinfo->thr_lock);
+	if (sigsetjmp(local_sigjmp_buf, 1) != 0)
+	{
+		RWLockCleanUp();
+		/* Report the error to the server log */
+		EmitErrorReport(NULL);
 
-        /*
-         * Now return to normal top-level context and clear ErrorContext for
-         * next time.
-         */        
-        FlushErrorState();
-    }
+		/*
+		 * Now return to normal top-level context and clear ErrorContext for
+		 * next time.
+		 */		
+		FlushErrorState();
+	}
 
-    
-    
-    /* We can now handle ereport(ERROR) */
-    PG_exception_stack = &local_sigjmp_buf;
+	
+	
+	/* We can now handle ereport(ERROR) */
+	PG_exception_stack = &local_sigjmp_buf;
 
-    nSockets = initMasks(&readmask);
-    for (;;)
-    {
-        fd_set        rmask;
-        int            selres;
+	nSockets = initMasks(&readmask);
+	for (;;)
+	{
+		fd_set		rmask;
+		int			selres;
 
-        //MemoryContextStats(TopMostMemoryContext);
+		//MemoryContextStats(TopMostMemoryContext);
 
-        /*
-         * Wait for a connection request to arrive.
-         *
-         * We wait at most one minute, to ensure that the other background
-         * tasks handled below get done even when no requests are arriving.
-         */
-        memcpy((char *) &rmask, (char *) &readmask, sizeof(fd_set));
+		/*
+		 * Wait for a connection request to arrive.
+		 *
+		 * We wait at most one minute, to ensure that the other background
+		 * tasks handled below get done even when no requests are arriving.
+		 */
+		memcpy((char *) &rmask, (char *) &readmask, sizeof(fd_set));
 
-        PG_SETMASK(&UnBlockSig);
+		PG_SETMASK(&UnBlockSig);
 
-        /* if timekeeper thread exit, main thread should prepare to exit. */
-        if (GTMAbortPending || NULL == g_timekeeper_thread || NULL == g_checkpoint_thread)
-        {
-            /*
-             * XXX We should do a clean shutdown here. For the time being, just
-             * write the next GXID to be issued in the control file and exit
-             * gracefully
-             */
+		/* if timekeeper thread exit, main thread should prepare to exit. */
+		if (GTMAbortPending || NULL == g_timekeeper_thread || NULL == g_checkpoint_thread)
+		{
+			/*
+			 * XXX We should do a clean shutdown here. For the time being, just
+			 * write the next GXID to be issued in the control file and exit
+			 * gracefully
+			 */
 
-            elog(LOG, "GTM shutting down.");
+			elog(LOG, "GTM shutting down.");
             
-            /*
-             * Tell GTM that we are shutting down so that no new GXIDs are
-             * issued this point onwards
-             */
-            GTM_SetShuttingDown();            
+			/*
+			 * Tell GTM that we are shutting down so that no new GXIDs are
+			 * issued this point onwards
+			 */
+			GTM_SetShuttingDown();			
 
-            elog(LOG, "GTM timer thread exit.");
+			elog(LOG, "GTM timer thread exit.");
 #ifdef __OPENTENBASE__
 
 #ifdef __XLOG__
-            if(Recovery_IsStandby())
-                WaitRedoertoExit();
-            else
-                DoCheckPoint(true);
+			if(Recovery_IsStandby())
+				WaitRedoertoExit();
+			else
+            	DoCheckPoint(true);
 
             GTM_RWLockAcquire(&ControlDataLock,GTM_LOCKMODE_WRITE);
-            ControlData->state = DB_SHUTDOWNED;
+            ControlData->state = GTM_SHUTDOWNED;
             XLogCtlShutDown();
             ControlDataSync(true);
 #else
-            GTM_StoreShutDown();
+			GTM_StoreShutDown();
 #endif
 
-#else            
-            SaveControlInfo();
+#else			
+			SaveControlInfo();
 #endif
-
 #ifdef __XLOG__
-            /* Delete pid file */
-            DeleteLockFile(GTM_PID_FILE);
+        	DeleteLockFile(GTM_PID_FILE);
 #endif
 
 #ifdef __OPENTENBASE__
@@ -1773,94 +1807,92 @@ ServerLoop(void)
             RemoveSocketFile();
 #endif
 #endif
-            elog(LOG, "GTM exits");
-            exit(1);
-        }
+			elog(LOG, "GTM exits");
+			exit(1);
+		}
 
-		if(ConfigReloadPending)
+		if (ConfigReloadPending)
 		{
 			ConfigReloadPending = false;
 			ProcessConfigFile(GTMC_SIGHUP);
 			load_sync_structures();
 		}
 
+		{
+			/* must set timeout each time; some OSes change it! */
+			struct timeval timeout;		
 
-        {
-            /* must set timeout each time; some OSes change it! */
-            struct timeval timeout;        
 
-
-            timeout.tv_sec = 60;
-            timeout.tv_usec = 0;
-            /* No need to take the lock now. */
+			timeout.tv_sec = 60;
+			timeout.tv_usec = 0;
+			/* No need to take the lock now. */
 #if 0
-            /*
-             * Now GTM-Standby can backup current status during this region
-             */
-            GTM_RWLockRelease(&my_threadinfo->thr_lock);
+			/*
+			 * Now GTM-Standby can backup current status during this region
+			 */
+			GTM_RWLockRelease(&my_threadinfo->thr_lock);
 #endif
 
-            selres = select(nSockets, &rmask, NULL, NULL, &timeout);
+			selres = select(nSockets, &rmask, NULL, NULL, &timeout);
 #if 0
 
-            /*
-             * Prohibit GTM-Standby backup from here.
-             */
-            GTM_RWLockAcquire(&my_threadinfo->thr_lock, GTM_LOCKMODE_WRITE);
+			/*
+			 * Prohibit GTM-Standby backup from here.
+			 */
+			GTM_RWLockAcquire(&my_threadinfo->thr_lock, GTM_LOCKMODE_WRITE);
 #endif
-        }
+		}
 
-        /*
-         * Block all signals until we wait again.  (This makes it safe for our
-         * signal handlers to do nontrivial work.)
-         */
-        PG_SETMASK(&BlockSig);
+		/*
+		 * Block all signals until we wait again.  (This makes it safe for our
+		 * signal handlers to do nontrivial work.)
+		 */
+		PG_SETMASK(&BlockSig);
 
+		/* Now check the select() result */
+		if (selres < 0)
+		{
+			if (errno != EINTR && errno != EWOULDBLOCK)
+			{
+				ereport(LOG,
+						(EACCES,
+						 errmsg("select() failed in main thread: %m")));
+				return STATUS_ERROR;
+			}
+		}
+		
+		/*
+		 * New connection pending on any of our sockets? If so, fork a child
+		 * process to deal with it.
+		 */
+		if (selres > 0)
+		{
+			int			i;
 
-        /* Now check the select() result */
-        if (selres < 0)
-        {
-            if (errno != EINTR && errno != EWOULDBLOCK)
-            {
-                ereport(LOG,
-                        (EACCES,
-                         errmsg("select() failed in main thread: %m")));
-                return STATUS_ERROR;
-            }
-        }
-        
-        /*
-         * New connection pending on any of our sockets? If so, fork a child
-         * process to deal with it.
-         */
-        if (selres > 0)
-        {
-            int            i;
+			for (i = 0; i < MAXLISTEN; i++)
+			{
+				if (ListenSocket[i] == -1)
+				{
+					break;
+				}
+				
+				if (FD_ISSET(ListenSocket[i], &rmask))
+				{
+					Port	   *port;
 
-            for (i = 0; i < MAXLISTEN; i++)
-            {
-                if (ListenSocket[i] == -1)
-                {
-                    break;
-                }
-                
-                if (FD_ISSET(ListenSocket[i], &rmask))
-                {
-                    Port       *port;
-
-                    port = ConnCreate(ListenSocket[i]);
-                    if (port)
-                    {
-                        if (GTMAddConnection(port, NULL) != STATUS_OK)
-                        {
-                            StreamClose(port->sock);
-                            ConnFree(port);
-                        }
-                    }
-                }
-            }
-        }
-    }
+					port = ConnCreate(ListenSocket[i]);
+					if (port)
+					{
+						if (GTMAddConnection(port, NULL) != STATUS_OK)
+						{
+							StreamClose(port->sock);
+							ConnFree(port);
+						}
+					}
+				}
+			}
+		}
+	}
 }
 
 /*
@@ -1912,6 +1944,11 @@ gtm_standby_pre_server_loop(char *data_dir)
      * recovery here first
      */
     GTM_XLogRecoveryIfNeed(data_dir);
+
+    if (ControlData->state != GTM_IN_OVERWRITING_STORE)
+    {
+        promote_status = GTM_PRPMOTE_INIT;
+    }
 
     /*
      * start GTM_ThreadMain to support get gtm status command
@@ -1973,7 +2010,7 @@ gtm_standby_pre_server_loop(char *data_dir)
             GTM_SetShuttingDown();
 
             GTM_RWLockAcquire(&ControlDataLock,GTM_LOCKMODE_WRITE);
-            ControlData->state = DB_SHUTDOWNED;
+            ControlData->state = GTM_SHUTDOWNED;
             ControlDataSync(false);
             GTM_RWLockRelease(&ControlDataLock);
 
@@ -2050,7 +2087,7 @@ gtm_standby_pre_server_loop(char *data_dir)
          * retry establish a connection between the active and standby,
          * controlling frequency with select timeout
          */
-        if (gtm_standby_start_startup(GTM_STARTUP_CONNECT_ACTIVE_TIMEOUT))
+        if (gtm_standby_start_startup(standby_connect_timeout))
         {
             elog(LOG, "Standby GTM Startup connection established with active-GTM.");
             break;
@@ -2071,92 +2108,92 @@ gtm_standby_pre_server_loop(char *data_dir)
 static int
 initMasks(fd_set *rmask)
 {
-    int            maxsock = -1;
-    int            i;
+	int			maxsock = -1;
+	int			i;
 
-    FD_ZERO(rmask);
+	FD_ZERO(rmask);
 
-    for (i = 0; i < MAXLISTEN; i++)
-    {
-        int            fd = ListenSocket[i];
+	for (i = 0; i < MAXLISTEN; i++)
+	{
+		int			fd = ListenSocket[i];
 
-        if (fd == -1)
-            break;
-        FD_SET(fd, rmask);
-        if (fd > maxsock)
-            maxsock = fd;
-    }
+		if (fd == -1)
+			break;
+		FD_SET(fd, rmask);
+		if (fd > maxsock)
+			maxsock = fd;
+	}
 
-    return maxsock + 1;
+	return maxsock + 1;
 }
 
 void
 GTM_PortCleanup(Port *con_port)
 {
-    if (!con_port)
-    {
-        return;
-    }
-    
-    StreamClose(con_port->sock);
+	if (!con_port)
+	{
+		return;
+	}
+	
+	StreamClose(con_port->sock);
 
-    /* Free the node_name in the port */
-    if (con_port->node_name != NULL)
-        /*
+	/* Free the node_name in the port */
+	if (con_port->node_name != NULL)
+		/*
          * We don't have to reset pointer to NULL her because ConnFree()
          * frees this structure next.
          */
-        pfree(con_port->node_name);
+		pfree(con_port->node_name);
 
 #ifndef __OPENTENBASE__
-    if(con_port->remote_host)
-    {
-        free(con_port->remote_host);
-    }
+	if(con_port->remote_host)
+	{
+		free(con_port->remote_host);
+	}
 
-    if(con_port->remote_port)
-    {
-        free(con_port->remote_port);
-    }
+	if(con_port->remote_port)
+	{
+		free(con_port->remote_port);
+	}
 #endif
 
-    /* Free the port */
-    ConnFree(con_port);
+	/* Free the port */
+	ConnFree(con_port);
 }
 
 void
 GTM_ConnCleanup(GTM_ConnectionInfo *conn)
 {
-    MemoryContext oldContext;
-    
-    if(NULL == conn)
-    {
-        return;
-    }
-    /*
-     * Close a connection to GTM standby.
-     */
-    oldContext = MemoryContextSwitchTo(TopMemoryContext);
+	MemoryContext oldContext;
+	
+	if(NULL == conn)
+	{
+		return;
+	}
+	/*
+	 * Close a connection to GTM standby.
+	 */
+	oldContext = MemoryContextSwitchTo(TopMemoryContext);
 
 #ifndef __XLOG__
-    if (conn->standby)
-    {
-        elog(DEBUG1, "Closing a connection to the GTM standby.");
-    
-        GTMPQfinish(conn->standby);
-        conn->standby = NULL;
-    }
+	if (conn->standby)
+	{
+		elog(DEBUG1, "Closing a connection to the GTM standby.");
+	
+		GTMPQfinish(conn->standby);
+		conn->standby = NULL;
+	}
 #endif
 
-    if (conn->con_port)
-    {
-        GTM_PortCleanup(conn->con_port);
-        conn->con_port = NULL;
-    }
-    /* Free the connection info structure */
-    pfree(conn);
-    
-    MemoryContextSwitchTo(oldContext);
+	if (conn->con_port)
+	{
+	    GTM_PortCleanup(conn->con_port);
+	    conn->con_port = NULL;
+	}
+	/* Free the connection info structure */
+	pfree(conn);
+	
+	MemoryContextSwitchTo(oldContext);
 }
 
 void
@@ -2164,8 +2201,8 @@ GTM_RemoveConnection(GTM_ConnectionInfo *conn)
 {
     epoll_ctl(GetMyThreadInfo->thr_efd,EPOLL_CTL_DEL,conn->con_port->sock,NULL);
 
-    Recovery_PGXCNodeDisconnect(conn->con_port);
-    GTM_ConnCleanup(conn);
+	Recovery_PGXCNodeDisconnect(conn->con_port);
+	GTM_ConnCleanup(conn);
 }
 
 void bind_thread_to_cores (cpu_set_t cpuset) 
@@ -2176,161 +2213,169 @@ void bind_thread_to_cores (cpu_set_t cpuset)
 
    if((r = pthread_setaffinity_np(current_thread, sizeof(cpu_set_t), &cpuset)))
    {
-        elog(ERROR, "binding threads failed for %d", r);
+		elog(ERROR, "binding threads failed for %d", r);
    }
 }
 
 void bind_timekeeper_thread(void)
 {
-    cpu_set_t cpuset;
-    
-    
-    CPU_ZERO(&cpuset);
-    CPU_SET(0, &cpuset); /* dedicate cpu 0 to the timekeeper thread */
-    
-    bind_thread_to_cores(cpuset);
+	cpu_set_t cpuset;
+	
+	
+	CPU_ZERO(&cpuset);
+	/*
+	 * cpu 0 is reserved for OSS, to ensure that the timekeeper
+	 * can handle it in a timely manner dedicate cpu 1 to the
+	 * timekeeper thread
+	 */
+	CPU_SET(1, &cpuset);
+
+	bind_thread_to_cores(cpuset);
 }
 
 void bind_service_threads(void)
 {
-    int cpu_num = get_nprocs();
-    int cpu;
-    cpu_set_t cpuset;
-    
-    
-    CPU_ZERO(&cpuset);
-    for(cpu = 1; cpu < cpu_num; cpu++)
-    {
-        CPU_SET(cpu, &cpuset);
-    }
-    
-    bind_thread_to_cores(cpuset);
+	int cpu_num = get_nprocs();
+	int cpu;
+	cpu_set_t cpuset;
+	
+	
+	CPU_ZERO(&cpuset);
+	for(cpu = 2; cpu < cpu_num; cpu++)
+	{
+		CPU_SET(cpu, &cpuset);
+	}
+	
+	bind_thread_to_cores(cpuset);
 }
 
 /* time keeper thread will not handle any signal, any signal will cause the thread exit. */
 void 
 *
 GTM_ThreadTimeKeeper(void *argp)
-{// #lizard forgives
-    GTM_ThreadInfo *my_threadinfo = (GTM_ThreadInfo *)argp;
-    sigjmp_buf  local_sigjmp_buf;
-    time_t      last;
-    time_t        now;
-    int ret;
-    struct sigaction    action;  
+{
+	GTM_ThreadInfo *my_threadinfo = (GTM_ThreadInfo *)argp;
+	sigjmp_buf  local_sigjmp_buf;
+	time_t      last;
+	time_t		now;
+	int ret;
+	struct sigaction    action;  
+
+#ifdef __RESOURCE_QUEUE__
+	GTM_ThreadSetName("TimeKeeper");
+#endif
        
+	my_threadinfo->handle_standby = true;       
     action.sa_flags = 0;  
-    action.sa_handler = GTM_ThreadSigHandler;  
-	sigemptyset(&action.sa_mask);
+    action.sa_handler = GTM_ThreadSigHandler;
+	sigemptyset(&action.sa_mask);  
          
     ret = sigaction(SIGQUIT, &action, NULL);  
-    if (ret)
-    {
-        elog(LOG, "register thread quit handler failed");
-    }
+	if (ret)
+	{
+		elog(LOG, "register thread quit handler failed");
+	}
 
-    elog(DEBUG8, "Starting the time keeper thread");
-    bind_timekeeper_thread();
+	elog(LOG, "Starting the time keeper thread");
+	bind_timekeeper_thread();
 
-    MessageContext = AllocSetContextCreate(TopMemoryContext,
-                                       "MessageContext",
-                                       ALLOCSET_DEFAULT_MINSIZE,
-                                       ALLOCSET_DEFAULT_INITSIZE,
-                                       ALLOCSET_DEFAULT_MAXSIZE,
-                                       false);
+	MessageContext = AllocSetContextCreate(TopMemoryContext,
+									   "MessageContext",
+									   ALLOCSET_DEFAULT_MINSIZE,
+									   ALLOCSET_DEFAULT_INITSIZE,
+									   ALLOCSET_DEFAULT_MAXSIZE,
+									   false);
 
-    /*
-     * POSTGRES main processing loop begins here
-     *
-     * If an exception is encountered, processing resumes here so we abort the
-     * current transaction and start a new one.
-     *
-     * You might wonder why this isn't coded as an infinite loop around a
-     * PG_TRY construct.  The reason is that this is the bottom of the
-     * exception stack, and so with PG_TRY there would be no exception handler
-     * in force at all during the CATCH part.  By leaving the outermost setjmp
-     * always active, we have at least some chance of recovering from an error
-     * during error recovery.  (If we get into an infinite loop thereby, it
-     * will soon be stopped by overflow of elog.c's internal state stack.)
-     */
+	/*
+	 * POSTGRES main processing loop begins here
+	 *
+	 * If an exception is encountered, processing resumes here so we abort the
+	 * current transaction and start a new one.
+	 *
+	 * You might wonder why this isn't coded as an infinite loop around a
+	 * PG_TRY construct.  The reason is that this is the bottom of the
+	 * exception stack, and so with PG_TRY there would be no exception handler
+	 * in force at all during the CATCH part.  By leaving the outermost setjmp
+	 * always active, we have at least some chance of recovering from an error
+	 * during error recovery.  (If we get into an infinite loop thereby, it
+	 * will soon be stopped by overflow of elog.c's internal state stack.)
+	 */
 
-    if (sigsetjmp(local_sigjmp_buf, 1) != 0)
-    {
+	if (sigsetjmp(local_sigjmp_buf, 1) != 0)
+	{
 #ifdef __OPENTENBASE__
-        RWLockCleanUp();
+		RWLockCleanUp();
 #endif
-        EmitErrorReport(NULL);
-        
-        /*
-         * Now return to normal top-level context and clear ErrorContext for
-         * next time.
-         */
-        MemoryContextSwitchTo(TopMemoryContext);
-        FlushErrorState();
-    }
+		EmitErrorReport(NULL);
+		
+		/*
+		 * Now return to normal top-level context and clear ErrorContext for
+		 * next time.
+		 */
+		MemoryContextSwitchTo(TopMemoryContext);
+		FlushErrorState();
+	}
 
-    /* We can now handle ereport(ERROR) */
-    PG_exception_stack = &local_sigjmp_buf;
+	/* We can now handle ereport(ERROR) */
+	PG_exception_stack = &local_sigjmp_buf;
 
-    for(;;)
-    {
-        GlobalTimestamp latestGlobalTimestamp;            
-        
-        MemoryContextSwitchTo(MessageContext);
-        MemoryContextResetAndDeleteChildren(MessageContext);
-        
-        /*
-         * Sync timestamp to standby.
-         * Use lock to protect standby connection, in case gtm standby reconnect.
-         * Also timestamp to be flushed to disk.
-         */        
+	for(;;)
+	{
+		GlobalTimestamp latestGlobalTimestamp;			
+		
+		MemoryContextSwitchTo(MessageContext);
+		MemoryContextResetAndDeleteChildren(MessageContext);
+		
+		/*
+		 * Sync timestamp to standby.
+		 * Use lock to protect standby connection, in case gtm standby reconnect.
+		 * Also timestamp to be flushed to disk.
+		 */		
 
-        /* no need to lock here. */
-        if(GTM_SHUTTING_DOWN == GTMTransactions.gt_gtm_state)
-        {
-            goto shutdown;
-        }
+		/* no need to lock here. */
+		if(GTM_SHUTTING_DOWN == GTMTransactions.gt_gtm_state)
+		{
+			goto shutdown;
+		}
 
 #ifdef __XLOG__
-        if(Recovery_IsStandby())
-        {
-            /* we save g_last_sync_gts here because get gts command is still used when role is standby*/
-            SpinLockAcquire(&g_last_sync_gts_lock);
-            g_last_sync_gts = GTM_TimestampGetMonotonicRaw();
-            SpinLockRelease(&g_last_sync_gts_lock);
-
-            usleep(GTM_SYNC_CYCLE);
-            continue;
-        }
+		if(Recovery_IsStandby())
+		{
+			usleep(GTM_SYNC_CYCLE);
+			continue;
+		}
 #endif
+        GTM_RWLockAcquire(&my_threadinfo->thr_lock, GTM_LOCKMODE_WRITE);
 
-        latestGlobalTimestamp = SyncGlobalTimestamp();
+		latestGlobalTimestamp = SyncGlobalTimestamp();
         last = GTM_TimestampGetMonotonicRaw();
 
-        if(GTM_StoreGlobalTimestamp(latestGlobalTimestamp))
-        {
-            elog(LOG, "storing global timestamp failed, going to exit!!");
+		if(GTM_StoreGlobalTimestamp(latestGlobalTimestamp))
+		{
+			elog(LOG, "storing global timestamp failed, going to exit!!");
+            GTM_RWLockRelease(&my_threadinfo->thr_lock);
             exit(1);
-        }
+		}
 
+        GTM_RWLockRelease(&my_threadinfo->thr_lock);
 #ifdef __XLOG__
-        SpinLockAcquire(&g_last_sync_gts_lock);
-        g_last_sync_gts = last;
+		SpinLockAcquire(&g_last_sync_gts_lock);
+		g_last_sync_gts = last;
         SpinLockRelease(&g_last_sync_gts_lock);
 #endif
 
-        usleep(GTM_SYNC_CYCLE);
+		usleep(GTM_SYNC_CYCLE);
 
-        now = GTM_TimestampGetMonotonicRaw();    
-        if((now - last) > GTM_SYNC_TIME_LIMIT)
-        {
-            elog(LOG, "The timekeeper thread takes too long "INT64_FORMAT " seconds to complete", (now - last)/1000000);
-        }
-    }
+		now = GTM_TimestampGetMonotonicRaw();	
+		if((now - last) > GTM_SYNC_TIME_LIMIT)
+		{
+			elog(LOG, "The timekeeper thread takes too long "INT64_FORMAT " seconds to complete", (now - last)/1000000);
+		}
+	}
 shutdown:
-    g_timekeeper_thread = NULL;
-    elog(LOG, "GTM is shutting down, timekeeper exits!");
-    return my_threadinfo;    
+	g_timekeeper_thread = NULL;
+	elog(LOG, "GTM is shutting down, timekeeper exits!");
+	return my_threadinfo;	
 }
 
 #ifndef __XLOG__
@@ -2338,137 +2383,141 @@ shutdown:
 void 
 *
 GTM_ThreadTimeBackup(void *argp)
-{// #lizard forgives
-    GTM_ThreadInfo *my_threadinfo = (GTM_ThreadInfo *)argp;
-    sigjmp_buf  local_sigjmp_buf;
-    time_t      last;
-    time_t        now;    
-    int ret;
-    struct sigaction    action;  
+{
+	GTM_ThreadInfo *my_threadinfo = (GTM_ThreadInfo *)argp;
+	sigjmp_buf  local_sigjmp_buf;
+	time_t      last;
+	time_t		now;	
+	int ret;
+	struct sigaction    action;  
 #ifdef __OPENTENBASE__
-    GTM_ConnectionInfo  fake_conn;
-    GTM_ConnectionInfo *conn;
-    memset(&fake_conn, 0X00, sizeof(GTM_ConnectionInfo));
-    conn = &fake_conn;     
+	GTM_ConnectionInfo  fake_conn;
+	GTM_ConnectionInfo *conn;
+	memset(&fake_conn, 0X00, sizeof(GTM_ConnectionInfo));
+	conn = &fake_conn; 	
 #endif
 
-       
+#ifdef __RESOURCE_QUEUE__
+	GTM_ThreadSetName("TimeBackup");
+#endif
+   
     action.sa_flags = 0;  
     action.sa_handler = GTM_ThreadSigHandler;  
+	sigemptyset(&action.sa_mask); 
          
     ret = sigaction(SIGQUIT, &action, NULL);  
-    if (ret)
-    {
-        elog(LOG, "register thread quit handler failed");
-    }
+	if (ret)
+	{
+		elog(LOG, "register thread quit handler failed");
+	}
 
 
-    elog(DEBUG8, "Starting the time backup thread");
-    bind_timekeeper_thread();
+	elog(LOG, "Starting the time backup thread");
+	bind_timekeeper_thread();
 
-    MessageContext = AllocSetContextCreate(TopMemoryContext,
-                                       "MessageContext",
-                                       ALLOCSET_DEFAULT_MINSIZE,
-                                       ALLOCSET_DEFAULT_INITSIZE,
-                                       ALLOCSET_DEFAULT_MAXSIZE,
-                                       false);
+	MessageContext = AllocSetContextCreate(TopMemoryContext,
+									   "MessageContext",
+									   ALLOCSET_DEFAULT_MINSIZE,
+									   ALLOCSET_DEFAULT_INITSIZE,
+									   ALLOCSET_DEFAULT_MAXSIZE,
+									   false);
 
-    /*
-     * POSTGRES main processing loop begins here
-     *
-     * If an exception is encountered, processing resumes here so we abort the
-     * current transaction and start a new one.
-     *
-     * You might wonder why this isn't coded as an infinite loop around a
-     * PG_TRY construct.  The reason is that this is the bottom of the
-     * exception stack, and so with PG_TRY there would be no exception handler
-     * in force at all during the CATCH part.  By leaving the outermost setjmp
-     * always active, we have at least some chance of recovering from an error
-     * during error recovery.  (If we get into an infinite loop thereby, it
-     * will soon be stopped by overflow of elog.c's internal state stack.)
-     */
+	/*
+	 * POSTGRES main processing loop begins here
+	 *
+	 * If an exception is encountered, processing resumes here so we abort the
+	 * current transaction and start a new one.
+	 *
+	 * You might wonder why this isn't coded as an infinite loop around a
+	 * PG_TRY construct.  The reason is that this is the bottom of the
+	 * exception stack, and so with PG_TRY there would be no exception handler
+	 * in force at all during the CATCH part.  By leaving the outermost setjmp
+	 * always active, we have at least some chance of recovering from an error
+	 * during error recovery.  (If we get into an infinite loop thereby, it
+	 * will soon be stopped by overflow of elog.c's internal state stack.)
+	 */
 
-    if (sigsetjmp(local_sigjmp_buf, 1) != 0)
-    {
+	if (sigsetjmp(local_sigjmp_buf, 1) != 0)
+	{
 #ifdef __OPENTENBASE__
-        RWLockCleanUp();
+		RWLockCleanUp();
 #endif
-        EmitErrorReport(NULL);
-        
-        /*
-         * Now return to normal top-level context and clear ErrorContext for
-         * next time.
-         */
-        MemoryContextSwitchTo(TopMemoryContext);
-        FlushErrorState();
-    }
+		EmitErrorReport(NULL);
+		
+		/*
+		 * Now return to normal top-level context and clear ErrorContext for
+		 * next time.
+		 */
+		MemoryContextSwitchTo(TopMemoryContext);
+		FlushErrorState();
+	}
 
-    /* We can now handle ereport(ERROR) */
-    PG_exception_stack = &local_sigjmp_buf;
+	/* We can now handle ereport(ERROR) */
+	PG_exception_stack = &local_sigjmp_buf;
 
-    for(;;)
-    {
-        bool            lock_result = false;
-        GlobalTimestamp latestGlobalTimestamp;            
-        
-        MemoryContextSwitchTo(MessageContext);
-        MemoryContextResetAndDeleteChildren(MessageContext);
-        
-        /*
-         * Sync timestamp to standby.
-         * Use lock to protect standby connection, in case gtm standby reconnect.
-         * Also timestamp to be flushed to disk.
-         */        
-        latestGlobalTimestamp = GetNextGlobalTimestamp();
-        last = GTM_TimestampGetMonotonicRaw();                
-        
-        /* no need to lock here. */
-        if(GTM_SHUTTING_DOWN == GTMTransactions.gt_gtm_state)
-        {
-            goto shutdown;
-        }
+	for(;;)
+	{
+		bool			lock_result = false;
+		GlobalTimestamp latestGlobalTimestamp;			
+		
+		MemoryContextSwitchTo(MessageContext);
+		MemoryContextResetAndDeleteChildren(MessageContext);
+		
+		/*
+		 * Sync timestamp to standby.
+		 * Use lock to protect standby connection, in case gtm standby reconnect.
+		 * Also timestamp to be flushed to disk.
+		 */		
+		latestGlobalTimestamp = GetNextGlobalTimestamp();
+		last = GTM_TimestampGetMonotonicRaw();				
+		
+		/* no need to lock here. */
+		if(GTM_SHUTTING_DOWN == GTMTransactions.gt_gtm_state)
+		{
+			goto shutdown;
+		}
 
-        /* check standby connection before we get lock. */
-        CheckStandbyConnect(my_threadinfo, conn);
-        lock_result = GTM_RWLockConditionalAcquire(&my_threadinfo->thr_lock, GTM_LOCKMODE_WRITE);            
-        if (lock_result)
-        {
-            if (conn->standby)
-            {
-                if(bkup_global_timestamp(conn->standby, latestGlobalTimestamp + GTM_GLOBAL_TIME_DELTA))
-                {
-                    /* close standby connection. */
-                    gtm_standby_disconnect_from_standby(conn->standby);
-                    conn->standby = NULL;
-                    GTM_RWLockRelease(&my_threadinfo->thr_lock);
-                    elog(LOG, "bkup timestamp to standby failed!!");
-                    continue;
-                }
-                /* Sync with standby */
-                gtm_sync_standby(conn->standby);
-            }
+		/* check standby connection before we get lock. */
+		CheckStandbyConnect(my_threadinfo, conn);
+		lock_result = GTM_RWLockConditionalAcquire(&my_threadinfo->thr_lock, GTM_LOCKMODE_WRITE);			
+		if (lock_result)
+		{
+			if (conn->standby)
+			{
+				if(bkup_global_timestamp(conn->standby, latestGlobalTimestamp + GTM_GLOBAL_TIME_DELTA))
+				{
+					/* close standby connection. */
+					gtm_standby_disconnect_from_standby(conn->standby);
+					conn->standby = NULL;
+					GTM_RWLockRelease(&my_threadinfo->thr_lock);
+					elog(LOG, "bkup timestamp to standby failed!!");
+					continue;
+				}
+				/* Sync with standby */
+				gtm_sync_standby(conn->standby);
+			}
 
-            /*
-             * Now GTM-Standby can backup current status during this region
-             */
-            GTM_RWLockRelease(&my_threadinfo->thr_lock);
-        }
-        else
-        {
-            elog(LOG, "Time backup lock thread failed!!");
-        }        
-        usleep(GTM_SYNC_CYCLE);        
+			/*
+			 * Now GTM-Standby can backup current status during this region
+			 */
+			GTM_RWLockRelease(&my_threadinfo->thr_lock);
+		}
+		else
+		{
+			elog(LOG, "Time backup lock thread failed!!");
+		}		
+		usleep(GTM_SYNC_CYCLE);		
 
-        now = GTM_TimestampGetMonotonicRaw();        
-        if((now - last) > GTM_SYNC_TIME_LIMIT)
-        {
-            elog(LOG, "The timebackup thread takes too long "INT64_FORMAT " seconds to complete.", now - last);
-        }
-    }
+		now = GTM_TimestampGetMonotonicRaw();		
+		if((now - last) > GTM_SYNC_TIME_LIMIT)
+		{
+			elog(LOG, "The timebackup thread takes too long "INT64_FORMAT " seconds to complete.", now - last);
+		}
+	}
 shutdown:
-    g_timebackup_thread = NULL;
-    elog(LOG, "GTM is shuting down, timebackup thread exits!");
-    return my_threadinfo;    
+	g_timebackup_thread = NULL;
+	elog(LOG, "GTM is shuting down, timebackup thread exits!");
+	return my_threadinfo;	
 }
 #endif
 
@@ -2480,10 +2529,15 @@ GTM_ThreadCheckPointer(void *argp)
     sigjmp_buf  local_sigjmp_buf;
     int ret;
     struct sigaction    action;  
-       
+
+#ifdef __RESOURCE_QUEUE__
+	GTM_ThreadSetName("CheckPointer");
+#endif
+
     action.sa_flags = 0;  
     action.sa_handler = GTM_ThreadSigHandler;  
-	sigemptyset(&action.sa_mask);
+	sigemptyset(&action.sa_mask);  
+         
     ret = sigaction(SIGQUIT, &action, NULL);  
     if (ret)
     {
@@ -2565,41 +2619,61 @@ shutdown:
     return my_threadinfo;    
 }
 
-static void thread_replication_clean(GTM_StandbyReplication *replication)
+static void
+thread_replication_clean(GTM_StandbyReplication *replication)
 {
-    elog(LOG,"Replication exits %s",replication->application_name);
+	elog(LOG,"Replication exits %s",replication->application_name);
 
-    if(replication->is_sync)
-    {
-    	GTM_MutexLockAcquire(&XLogSync->check_mutex);
-        RemoveSyncStandby(replication);
+	if(replication->is_sync)
+	{
+		GTM_MutexLockAcquire(&XLogSync->check_mutex);
+		RemoveSyncStandby(replication);
 		GTM_MutexLockRelease(&XLogSync->check_mutex);
 		 
-        elog(LOG,"sync standby disconnected");
-    }
+		elog(LOG,"sync standby disconnected");
+	}
 
-    if(replication->port != NULL)
-        epoll_ctl(GetMyThreadInfo->thr_efd,EPOLL_CTL_DEL,replication->port->sock,NULL);
+	if(replication->port != NULL)
+		epoll_ctl(GetMyThreadInfo->thr_efd,EPOLL_CTL_DEL,replication->port->sock,NULL);
 
-    gtm_close_replication(replication);
-    GTM_PortCleanup(replication->port);
+	gtm_close_replication(replication);
+	GTM_PortCleanup(replication->port);
+}
+
+static void
+gtm_check_wal_timeout(int timeout, time_t last_tm, char *appname)
+{
+	time_t	now;
+
+	if (last_tm <= 0 || timeout <= 0)
+		return;
+
+	now = time(NULL);
+	if (now >= last_tm + timeout)
+		ereport(ERROR,
+				(errmsg("terminating replication thread due to timeout: %s", appname)));
 }
 
 void *
 GTM_ThreadWalSender(void *argp)
-{// #lizard forgives
-    GTM_ThreadInfo *       my_threadinfo = (GTM_ThreadInfo *)argp;
+{
+	GTM_ThreadInfo *       my_threadinfo = (GTM_ThreadInfo *)argp;
     sigjmp_buf             local_sigjmp_buf;
     struct sigaction       action;
     
     GTM_StandbyReplication *replication = NULL;
     Port                   *standby;
     int                     efd,ret;
-    struct epoll_event ev;
+	struct epoll_event ev;
+	time_t	last_reply_timestamp;
+
+#ifdef __RESOURCE_QUEUE__
+	GTM_ThreadSetName("WalSender");
+#endif
 
     action.sa_flags = 0;
     action.sa_handler = GTM_ThreadSigHandler;  
-	sigemptyset(&action.sa_mask);
+	sigemptyset(&action.sa_mask); 
     ret = sigaction(SIGQUIT, &action, NULL);  
     
     if (ret)
@@ -2607,16 +2681,16 @@ GTM_ThreadWalSender(void *argp)
         elog(LOG, "register thread quit handler failed");
     }
 
-    efd  = epoll_create1(0);
-    if(efd == -1)
-    {
-        elog(LOG,"epoll create fail %s",strerror(errno));
-        exit(1);
-    }
+	efd  = epoll_create1(0);
+	if(efd == -1)
+	{
+		elog(LOG,"epoll create fail %s",strerror(errno));
+		exit(1);
+	}
 
-    my_threadinfo->thr_efd      = efd;
+	my_threadinfo->thr_efd      = efd;
 
-    replication = register_self_to_standby_replication();
+	replication = register_self_to_standby_replication();
     Assert(replication);
 
     MessageContext = AllocSetContextCreate(TopMemoryContext,
@@ -2636,49 +2710,58 @@ GTM_ThreadWalSender(void *argp)
     }
     
     PG_exception_stack = &local_sigjmp_buf;
+
+    elog(LOG, "Starting the wal sender");
     for(;;)
     {
         /* wait for communication */
         for(;;)
         {
             GTM_MutexLockAcquire(&replication->lock);
-            if(replication->is_use)
-            {
-                elog(LOG,"Acquire one standby %s",replication->application_name);
-                GTM_MutexLockRelease(&replication->lock);
-                break;
-            }
+			if(replication->is_use)
+			{
+				elog(LOG,"Acquire one standby %s",replication->application_name);
+				GTM_MutexLockRelease(&replication->lock);
+				break;
+			}
             GTM_MutexLockRelease(&replication->lock);
 
-            pg_usleep(GTMArchiverCheckInterval);
-        }
+			pg_usleep(GTMArchiverCheckInterval);
+		}
 
         standby = replication->port;
 
-        ev.data.fd = standby->sock;
-        ev.events  = EPOLLIN | EPOLLERR | EPOLLHUP;
+		ev.data.fd = standby->sock;
+		ev.events  = EPOLLIN | EPOLLERR | EPOLLHUP;
 
-        if(epoll_ctl(efd,EPOLL_CTL_ADD,standby->sock,&ev) == -1)
-            elog(ERROR,"epoll fails %s",strerror(errno));
+		if(epoll_ctl(efd,EPOLL_CTL_ADD,standby->sock,&ev) == -1)
+			elog(ERROR,"epoll fails %s",strerror(errno));
 
+		last_reply_timestamp = time(NULL);
         for(;;)
         {        
             MemoryContextSwitchTo(MessageContext);
             MemoryContextResetAndDeleteChildren(MessageContext);
-            
+
+			gtm_check_wal_timeout(gtm_walsender_timeout, last_reply_timestamp,
+								  replication->application_name);
+
             if(GTM_SHUTTING_DOWN == GTMTransactions.gt_gtm_state)
                 goto shutdown;
 
             while((ret = GTM_GetReplicationResultIfAny(replication,standby)) == 1)
-                continue;
+			{
+				last_reply_timestamp = time(NULL);
+				continue;
+			}
 
             if(ret == EOF)
-                elog(ERROR, "Replication connection fault");
+				elog(ERROR, "Replication connection fault");
 
             if(GTM_HasXLogToSend(replication))
             {
                 if(SendXLogContext(replication,standby) == false)
-                    elog(ERROR,"Replication connection fault");
+					elog(ERROR,"Replication connection fault");
             }
         }
     }
@@ -2699,8 +2782,14 @@ GTM_ThreadLogCollector(void *argp)
     sigjmp_buf  local_sigjmp_buf;
     struct sigaction action;
     int ret = 0;
+
+#ifdef __RESOURCE_QUEUE__
+	GTM_ThreadSetName("Logcollector");
+#endif
+
     action.sa_flags = 0;
     action.sa_handler = GTM_ThreadSigHandler;
+	sigemptyset(&action.sa_mask);
 
     ret = sigaction(SIGQUIT, &action, NULL);
     if (ret)
@@ -2754,7 +2843,7 @@ GTM_ThreadLogCollector(void *argp)
         elog(ERROR, "Failed to Init LogCollector.");
         exit(1);
     }
-
+    elog(LOG, "Starting the LogCollector");
     for(;;)
     {
         /* no need to lock here. */
@@ -2774,77 +2863,90 @@ GTM_ThreadLogCollector(void *argp)
 }
 
 void
-SendXLogSyncStatus(GTM_Conn *conn)
-{// #lizard forgives
-    XLogwrtResult result;
-    XLogRecPtr    apply;
-    
-    if (gtmpqPutMsgStart('C', true, conn) ||
-        gtmpqPutInt(MSG_GET_REPLICATION_STATUS, sizeof (GTM_MessageType), conn))
-        goto send_failed;
+SendXLogSyncStatus(GTM_Conn *conn, bool first_msg)
+{
+	XLogwrtResult result;
+	XLogRecPtr    apply;
 
-    /* we acquire locks once at a time to avoid dead lock */
-    SpinLockAcquire(&XLogCtl->walwirte_info_lck);
-    result = XLogCtl->LogwrtResult;
-    SpinLockRelease(&XLogCtl->walwirte_info_lck);
+	if (gtmpqPutMsgStart('C', true, conn) ||
+		gtmpqPutInt(MSG_GET_REPLICATION_STATUS, sizeof (GTM_MessageType), conn))
+		goto send_failed;
 
-    GTM_RWLockAcquire(&XLogCtl->standby_info_lck,GTM_LOCKMODE_READ);
-    apply  = XLogCtl->apply;
-    GTM_RWLockRelease(&XLogCtl->standby_info_lck);
+	/* we acquire locks once at a time to avoid dead lock */
+	SpinLockAcquire(&XLogCtl->walwirte_info_lck);
+	result = XLogCtl->LogwrtResult;
+	SpinLockRelease(&XLogCtl->walwirte_info_lck);
 
-    if(gtmpqPutInt64(result.Write,conn))
-        goto send_failed;
-    if(gtmpqPutInt64(result.Flush,conn))
-        goto send_failed;
-    if(gtmpqPutInt64(apply,conn))
-        goto send_failed;
-    if(gtmpqPutInt(GetCurrentTimeLineID(),sizeof(TimeLineID),conn))
-        goto send_failed;
-                
-    if (gtmpqPutMsgEnd(conn))
-        goto send_failed;
-    if (gtmpqFlush(conn))
-        goto send_failed;
+	GTM_RWLockAcquire(&XLogCtl->standby_info_lck, GTM_LOCKMODE_READ);
+	apply  = XLogCtl->apply;
+	GTM_RWLockRelease(&XLogCtl->standby_info_lck);
 
-    if(enalbe_gtm_xlog_debug)
-        elog(LOG,"send xlog sync staus write : %X/%X,flush : %X/%X, apply: %X/%X timeline: %d",
-             (uint32_t)(result.Write >> 32),
-             (uint32_t)(result.Write),
-             (uint32_t)(result.Flush >> 32),
-             (uint32_t)(result.Flush),
-             (uint32_t)(apply>> 32),
-             (uint32_t)(apply),GetCurrentTimeLineID());
-        
-    return ;
+	if (!first_msg)
+	{
+	    if(gtmpqPutInt64(result.Write,conn))
+    		goto send_failed;
+    	if(gtmpqPutInt64(result.Flush,conn))
+    		goto send_failed;
+    	if(gtmpqPutInt64(apply,conn))
+    		goto send_failed;
+    }
+	else
+	{
+	    XLogRecPtr start_pos = result.Write - result.Write % GTM_XLOG_SEG_SIZE;
+	    if(gtmpqPutInt64(start_pos, conn))
+    		goto send_failed;
+    	if(gtmpqPutInt64(start_pos, conn))
+    		goto send_failed;
+    	if(gtmpqPutInt64(start_pos, conn))
+    		goto send_failed;
+	}
+	if(gtmpqPutInt(GetCurrentTimeLineID(), sizeof(TimeLineID), conn))
+		goto send_failed;
+
+	if (gtmpqPutMsgEnd(conn))
+		goto send_failed;
+	if (gtmpqFlush(conn))
+		goto send_failed;
+
+	if(enalbe_gtm_xlog_debug)
+		elog(LOG,"send xlog sync staus write : %X/%X,flush : %X/%X, apply: %X/%X timeline: %d",
+			 (uint32_t)(result.Write >> 32),
+			 (uint32_t)(result.Write),
+			 (uint32_t)(result.Flush >> 32),
+			 (uint32_t)(result.Flush),
+			 (uint32_t)(apply>> 32),
+			 (uint32_t)(apply),GetCurrentTimeLineID());
+
+	return;
 send_failed:
-    elog(LOG,"send xlog status to gtm master fails");
+	elog(LOG,"send xlog status to gtm master fails");
 }
 
 static bool StringEndWith(const char *str,const char *pattern)
 {
-    int str_len ,pattern_len;
+	int str_len ,pattern_len;
 
-    str_len = strlen(str);
-    pattern_len = strlen(pattern);
+	str_len = strlen(str);
+	pattern_len = strlen(pattern);
 
-    if(str_len < pattern_len)
-        return false;
+	if(str_len < pattern_len)
+		return false;
 
-    if(strncmp(str + str_len - pattern_len,pattern,pattern_len) == 0)
-        return true;
-    return false;
+	if(strncmp(str + str_len - pattern_len,pattern,pattern_len) == 0)
+		return true;
+	return false;
 }
 
 static bool IsValidXLogStatusFile(const char *str,XLogSegNo *no,TimeLineID *timeline)
 {
-    int tmp = 0;
-    char data[9] = {0};
-    int i;
-    
+	int tmp = 0;
+	char data[9] = {0};
+	int i;
+	
 #define XLOG_NAME_LENGTH 24
 
-    if(strlen(str) < XLOG_NAME_LENGTH)
-        return false;
+	if(strlen(str) < XLOG_NAME_LENGTH)
+    	return false;
 
     for (i = 0 ; i < XLOG_NAME_LENGTH ; i++)
     {
@@ -2852,73 +2954,78 @@ static bool IsValidXLogStatusFile(const char *str,XLogSegNo *no,TimeLineID *time
             return false;
     }
 
-    memcpy(data,str,8);
-    sscanf(data,"%X",timeline);
+	memcpy(data,str,8);
+	sscanf(data,"%X",timeline);
 
     *no = 0;
-    memcpy(data,str + 8 ,8);
-    sscanf(data,"%X",&tmp);
+	memcpy(data,str + 8 ,8);
+	sscanf(data,"%X",&tmp);
 
-    *no = tmp * GTMXLogSegmentsPerXLogId;
-    memcpy(data,str + 8 + 8 ,8);
-    sscanf(data,"%X",&tmp);
+	*no = tmp * GTMXLogSegmentsPerXLogId;
+	memcpy(data,str + 8 + 8 ,8);
+	sscanf(data,"%X",&tmp);
 
-    *no += tmp;
+	*no += tmp;
 
-    elog(LOG,"IsValidXLogStatusFile %s %ld",str,*no);
+	elog(LOG,"IsValidXLogStatusFile %s %ld",str,*no);
 
-    return true;
+	return true;
 }
 
 void *
 GTM_ThreadArchiver(void *argp)
-{// #lizard forgives
+{
     GTM_ThreadInfo *       my_threadinfo = (GTM_ThreadInfo *)argp;
-    sigjmp_buf  local_sigjmp_buf;
-    int ret;
-    struct sigaction    action;
-    char command[MAX_COMMAND_LEN];
-    char file_name[MAXFNAMELEN];
+	sigjmp_buf  local_sigjmp_buf;
+	int ret;
+	struct sigaction    action;
+	char command[MAX_COMMAND_LEN];
+	char file_name[MAXFNAMELEN];
     char file_name_no_dirname[MAXFNAMELEN];
     char file_xlog_status[MAXFNAMELEN];
-    XLogSegNo   segment_no = 0;
-    TimeLineID  timeLine   = FIRST_TIMELINE_ID;
+	XLogSegNo   segment_no = 0;
+	TimeLineID  timeLine   = FIRST_TIMELINE_ID;
 
-    XLogSegNo   delete_segment_no = 0;
-    TimeLineID  delete_timeLine   = FIRST_TIMELINE_ID;
+	XLogSegNo   delete_segment_no = 0;
+	TimeLineID  delete_timeLine   = FIRST_TIMELINE_ID;
 
-    XLogRecPtr  min_replication_pos = InvalidXLogRecPtr;
+	XLogRecPtr  min_replication_pos = InvalidXLogRecPtr;
 
-    action.sa_flags = 0;
-    action.sa_handler = GTM_ThreadSigHandler;
+#ifdef __RESOURCE_QUEUE__
+	GTM_ThreadSetName("Archiver");
+#endif
+
+	action.sa_flags = 0;
+	action.sa_handler = GTM_ThreadSigHandler;
 	sigemptyset(&action.sa_mask);
 
-    ret = sigaction(SIGQUIT, &action, NULL);
+	ret = sigaction(SIGQUIT, &action, NULL);
 
-    if (ret)
-    {
-        elog(LOG, "register thread quit handler failed");
-    }
+	if (ret)
+	{
+		elog(LOG, "register thread quit handler failed");
+	}
 
-    MessageContext = AllocSetContextCreate(TopMemoryContext,
-                                           "MessageContext",
-                                           ALLOCSET_DEFAULT_MINSIZE,
-                                           ALLOCSET_DEFAULT_INITSIZE,
-                                           ALLOCSET_DEFAULT_MAXSIZE,
-                                           false);
+	MessageContext = AllocSetContextCreate(TopMemoryContext,
+										   "MessageContext",
+										   ALLOCSET_DEFAULT_MINSIZE,
+										   ALLOCSET_DEFAULT_INITSIZE,
+										   ALLOCSET_DEFAULT_MAXSIZE,
+										   false);
 
-    if (sigsetjmp(local_sigjmp_buf, 1) != 0)
-    {
-        RWLockCleanUp();
-        EmitErrorReport(NULL);
-        MemoryContextSwitchTo(TopMemoryContext);
-        FlushErrorState();
-    }
+	if (sigsetjmp(local_sigjmp_buf, 1) != 0)
+	{
+		RWLockCleanUp();
+		EmitErrorReport(NULL);
+		MemoryContextSwitchTo(TopMemoryContext);
+		FlushErrorState();
+	}
 
-    PG_exception_stack = &local_sigjmp_buf;
-
-    system("mkdir -p gtm_xlog/archive_status");
-
+	PG_exception_stack = &local_sigjmp_buf;
+    elog(LOG, "GTM Archiver thread start.");
+	system("mkdir -p gtm_xlog/archive_status");
+	MemoryContextSwitchTo(MessageContext);
+    MemoryContextResetAndDeleteChildren(MessageContext);
     /* 
      * sleep 60 seconds before backend replication reconnects 
      * use while to avoid signal interrupt
@@ -2930,188 +3037,195 @@ GTM_ThreadArchiver(void *argp)
         {
             sleep(1);
         }
-    }
-    {
-        DIR *dp                = NULL;
-        struct dirent* ep      = NULL;
-        bool ready_found = false;
-        bool done_found  = false;
-        XLogSegNo  c_no;
-        TimeLineID c_timeline;
+	}
+	{
+		DIR *dp                = NULL;
+		struct dirent* ep      = NULL;
+		bool ready_found = false;
+		bool done_found  = false;
+		XLogSegNo  c_no;
+		TimeLineID c_timeline;
 
-        dp = opendir("gtm_xlog/archive_status/");
-        if(dp != NULL)
-        {
+		dp = opendir("gtm_xlog/archive_status/");
+		if(dp != NULL)
+		{
 
-            while((ep = readdir(dp)))
-            {
-                if(StringEndWith(ep->d_name,".ready") && IsValidXLogStatusFile(ep->d_name,&c_no,&c_timeline))
-                {
-                    if(c_no < segment_no || ready_found == false)
-                    {
-                        segment_no = c_no ;
-                        timeLine   = c_timeline;
-                        ready_found = true;
-                    }
-                }
-                else if(StringEndWith(ep->d_name,".done") && IsValidXLogStatusFile(ep->d_name,&c_no,&c_timeline))
-                {
-                    if(c_no < delete_segment_no || done_found == false)
-                    {
-                        delete_segment_no = c_no ;
-                        delete_timeLine   = c_timeline;
-                        done_found = true;
-                    }
-                }
-            }
-            closedir(dp);
-        }
-        else
-        {
-            elog(LOG,"couldn't open xlog dir");
-            exit(1);
-        }
+			while((ep = readdir(dp)))
+			{
+				if(StringEndWith(ep->d_name,".ready") && IsValidXLogStatusFile(ep->d_name,&c_no,&c_timeline))
+				{
+					if(c_no < segment_no || ready_found == false)
+					{
+						segment_no = c_no ;
+						timeLine   = c_timeline;
+						ready_found = true;
+					}
+				}
+				else if(StringEndWith(ep->d_name,".done") && IsValidXLogStatusFile(ep->d_name,&c_no,&c_timeline))
+				{
+					if(c_no < delete_segment_no || done_found == false)
+					{
+						delete_segment_no = c_no ;
+						delete_timeLine   = c_timeline;
+						done_found = true;
+					}
+				}
+			}
+			closedir(dp);
+		}
+		else
+		{
+			elog(LOG,"couldn't open xlog dir");
+			exit(1);
+		}
 
-        if(!ready_found)
-        {
-            dp = opendir("gtm_xlog");
-            if(dp == NULL)
-            {
-                elog(LOG,"couldn't open xlog dir");
-                exit(1);
-            }
+		if(!ready_found)
+		{
+			dp = opendir("gtm_xlog");
+			if(dp == NULL)
+			{
+				elog(LOG,"couldn't open xlog dir");
+				exit(1);
+			}
 
-            while ((ep = readdir(dp)))
-            {
-                if (IsValidXLogStatusFile(ep->d_name, &c_no, &c_timeline))
-                {
-                    if (c_no < segment_no || ready_found == false)
-                    {
-                        segment_no = c_no;
-                        timeLine = c_timeline;
-                        ready_found = true;
-                    }
-                }
-            }
-            closedir(dp);
-        }
+			while ((ep = readdir(dp)))
+			{
+				if (IsValidXLogStatusFile(ep->d_name, &c_no, &c_timeline))
+				{
+					if (c_no < segment_no || ready_found == false)
+					{
+						segment_no = c_no;
+						timeLine = c_timeline;
+						ready_found = true;
+					}
+				}
+			}
+			closedir(dp);
+		}
 
-        if(!done_found)
-        {
-            delete_segment_no = segment_no;
-            delete_timeLine   = timeLine;
-        }
-    }
+		if(!done_found)
+		{
+			delete_segment_no = segment_no;
+			delete_timeLine   = timeLine;
+		}
+	}
 
-    if(enalbe_gtm_xlog_debug)
-        elog(LOG,"start archive segment no :%ld timeline: %d delete no:%ld timeline: %d"
-                ,segment_no,timeLine
-                ,delete_segment_no,delete_timeLine);
+	if(enalbe_gtm_xlog_debug)
+		elog(LOG,"start archive segment no :%ld timeline: %d delete no:%ld timeline: %d"
+				,segment_no,timeLine
+				,delete_segment_no,delete_timeLine);
 
-    if(archive_command == NULL)
-        archive_mode = false;
+	if(archive_command == NULL)
+		archive_mode = false;
 
-    for(;;)
-    {
-        if(archive_mode == false || delete_segment_no < segment_no)
-        {
-            XLogSegNo min_delete_segment_no;
-            char      gts_file[MAXFNAMELEN];
+	for(;;)
+	{
+	    bool not_archive = !(archive_mode || Recovery_IsStandby());  /* not to do achive */
 
-            GTM_RWLockAcquire(&ControlDataLock,GTM_LOCKMODE_READ);
-            min_delete_segment_no = GetSegmentNo(ControlData->checkPoint);
+        if(not_archive || delete_segment_no < segment_no)
+		{
+			XLogSegNo min_delete_segment_no;
+			char      gts_file[MAXFNAMELEN];
+
+			GTM_RWLockAcquire(&ControlDataLock, GTM_LOCKMODE_READ);
+			min_delete_segment_no = GetSegmentNo(ControlData->prevCheckPoint);
             GTM_RWLockRelease(&ControlDataLock);
 
-            min_replication_pos = GetMinReplicationRequiredLocation();
+			min_replication_pos = GetMinReplicationRequiredLocation();
 
-            if(min_replication_pos != InvalidXLogRecPtr && GetSegmentNo(min_replication_pos) < min_delete_segment_no)
-                min_delete_segment_no = GetSegmentNo(min_replication_pos);
+			if(min_replication_pos != InvalidXLogRecPtr && GetSegmentNo(min_replication_pos) < min_delete_segment_no)
+				min_delete_segment_no = GetSegmentNo(min_replication_pos);
 
-            if(min_delete_segment_no > delete_segment_no)
-            {
-                GTMXLogFileName(file_name,delete_timeLine,delete_segment_no);
-                if(IsXLogFileExist(file_name) == false)
-                {
-                    pg_usleep(GTMArchiverCheckInterval);
-                    delete_timeLine++;
-                    continue;
-                }
+			if(min_delete_segment_no > delete_segment_no)
+			{
+				GTMXLogFileName(file_name,delete_timeLine,delete_segment_no);
+				if(IsXLogFileExist(file_name) == false)
+				{
+					pg_usleep(GTMArchiverCheckInterval);
+					delete_timeLine++;
+					continue;
+				}
 
-                GTMXLogFileGtsName(gts_file,delete_timeLine,delete_segment_no);
-                if(archive_command)
-                    GTMXLogFileStatusDoneName(file_xlog_status,delete_timeLine,delete_segment_no);
-                else
-                    GTMXLogFileStatusReadyName(file_xlog_status,delete_timeLine,delete_segment_no);
+				GTMXLogFileGtsName(gts_file,delete_timeLine,delete_segment_no);
+				if(archive_command)
+					GTMXLogFileStatusDoneName(file_xlog_status,delete_timeLine,delete_segment_no);
+				else
+					GTMXLogFileStatusReadyName(file_xlog_status,delete_timeLine,delete_segment_no);
 
-                snprintf(command,MAX_COMMAND_LEN,"rm -rf %s %s %s",file_name,gts_file,file_xlog_status);
+				snprintf(command,MAX_COMMAND_LEN,"rm -rf %s %s %s",file_name,gts_file,file_xlog_status);
 
-                if(enalbe_gtm_xlog_debug)
-                    elog(LOG,"delete %s",command);
+				if(enalbe_gtm_xlog_debug)
+					elog(LOG,"delete %s",command);
 
-                system(command);
-                delete_segment_no++;
-            }
-        }
+				system(command);
+				delete_segment_no++;
+			}
+		}
 
-        /* archive xlog file */
-        if(archive_mode == false || Recovery_IsStandby() == true)
-        {
+		/* archive xlog file */
+		if(not_archive)
+		{
             pg_usleep(GTMArchiverCheckInterval);
-            continue;
-        }
+			continue;
+		}
 
-        if(GetCurrentTimeLineID() == timeLine && segment_no == GetCurrentSegmentNo())
-        {
-            pg_usleep(GTMArchiverCheckInterval);
-            continue;
-        }
+		if(GetCurrentTimeLineID() == timeLine && segment_no == GetCurrentSegmentNo())
+		{
+			pg_usleep(GTMArchiverCheckInterval);
+			continue;
+		}
 
-        GTMXLogFileName(file_name,timeLine,segment_no);
+		GTMXLogFileName(file_name,timeLine,segment_no);
         GTMXLogFileNameWithoutGtmDir(file_name_no_dirname,timeLine,segment_no);
-        GTMXLogFileStatusReadyName(file_xlog_status,timeLine,segment_no);
+		GTMXLogFileStatusReadyName(file_xlog_status,timeLine,segment_no);
 
-        if(IsXLogFileExist(file_xlog_status) == false)
-        {
-            segment_no++;
-            continue;
-        }
 
-        GetFormatedCommandLine(command,MAX_COMMAND_LEN,archive_command,file_name_no_dirname,file_name);
+		if(IsXLogFileExist(file_xlog_status) == false)
+		{
+			segment_no++;
+			continue;
+		}
 
-        ret = system(command);
+        GetFormatedCommandLine(command, MAX_COMMAND_LEN, archive_command, file_name_no_dirname, file_name);
 
-        if(enalbe_gtm_xlog_debug)
-            elog(LOG,"%s",command);
+		ret = system(command);
 
-        if(ret != -1 && WIFEXITED(ret) && WEXITSTATUS(ret) == 0)
-        {
-            char done_file_name[MAXFNAMELEN];
+		if(enalbe_gtm_xlog_debug)
+			elog(LOG,"%s",command);
 
-            GTMXLogFileStatusDoneName(done_file_name,timeLine,segment_no);
-            rename(file_xlog_status,done_file_name);
-            segment_no++;
-        }
+		if(ret != -1 && WIFEXITED(ret) && WEXITSTATUS(ret) == 0)
+		{
+		    char done_file_name[MAXFNAMELEN];
+
+		    GTMXLogFileStatusDoneName(done_file_name,timeLine,segment_no);
+		    rename(file_xlog_status,done_file_name);
+			segment_no++;
+		}
         else
-        {
-            elog(LOG, "archive command %s fails,retry", command);
-            sleep(20);
-        }
+		{
+			elog(LOG, "archive command %s fails,retry", command);
+			sleep(20);
+		}
 
-        pg_usleep(GTMArchiverCheckInterval);
-    }
+		pg_usleep(GTMArchiverCheckInterval);
+	}
 
-    g_archiver_thread = NULL;
-    elog(LOG, "GTM is shutting down, archiver exits!");
-    return my_threadinfo;
+	g_archiver_thread = NULL;
+	elog(LOG, "GTM is shutting down, archiver exits!");
+	return my_threadinfo;
 }
 
 void *
 GTM_ThreadWalRedoer(void *argp)
 {
-    GTM_ThreadInfo *my_threadinfo = (GTM_ThreadInfo *)argp;
+	GTM_ThreadInfo *my_threadinfo = (GTM_ThreadInfo *)argp;
     sigjmp_buf  local_sigjmp_buf;
     int ret;
     struct sigaction    action;  
+
+#ifdef __RESOURCE_QUEUE__
+	GTM_ThreadSetName("WalRedoer");
+#endif
 
     action.sa_flags = 0;
     action.sa_handler = GTM_ThreadSigHandler;  
@@ -3139,8 +3253,20 @@ GTM_ThreadWalRedoer(void *argp)
     }
     
     PG_exception_stack = &local_sigjmp_buf;
+    elog(LOG, "Starting the wal redoer");
 
+    MemoryContextSwitchTo(MessageContext);
+    MemoryContextResetAndDeleteChildren(MessageContext);
     GTM_ThreadWalRedoer_Internal();
+
+    GTM_RWLockAcquire(&ControlDataLock, GTM_LOCKMODE_WRITE);
+    ControlData->state = GTM_IN_PRODUCTION;
+    ControlDataSync(false);
+    GTM_RWLockRelease(&ControlDataLock);
+
+    SpinLockAcquire(&promote_status_lck);
+    promote_status = GTM_PRPMOTE_NORMAL;
+    SpinLockRelease(&promote_status_lck);
 
     g_redoer_thread = NULL;
     elog(LOG, "GTM is shutting down, redoer exits!");
@@ -3149,10 +3275,10 @@ GTM_ThreadWalRedoer(void *argp)
 
 static void WaitRedoertoExit(void)
 {
-    while(g_redoer_thread)
-    {
-        pg_usleep(1000);
-    }
+	while(g_redoer_thread)
+	{
+		pg_usleep(1000);
+	}
 }
 
 static long long getSystemTime() 
@@ -3164,28 +3290,32 @@ static long long getSystemTime()
 
 void *
 GTM_ThreadWalReceiver(void *argp)
-{// #lizard forgives
-    GTM_ThreadInfo *my_threadinfo = (GTM_ThreadInfo *)argp;
+{
+	GTM_ThreadInfo *my_threadinfo = (GTM_ThreadInfo *)argp;
     sigjmp_buf  local_sigjmp_buf;
     int ret;
     struct sigaction    action;  
     GTM_Result     *res = NULL;
 
     int                efd  = -1;
-    struct epoll_event event;
+	struct epoll_event event;
 
-    XLogRecPtr    start_pos = InvalidXLogRecPtr;
-    XLogRecPtr    end_pos   = InvalidXLogRecPtr;
+	XLogRecPtr    start_pos = InvalidXLogRecPtr;
+	XLogRecPtr    end_pos   = InvalidXLogRecPtr;
     XLogRecPtr    flush_pos = InvalidXLogRecPtr;
-    int           size      = 0;
-    int           n         = 0;
+	int           size      = 0;
+	int           n         = 0;
     time_t        next_send_time = 0;
     long long     t_start,t_end;
-    
+	time_t		  last_recv_timestamp;
+
+#ifdef __RESOURCE_QUEUE__
+	GTM_ThreadSetName("WalReceiver");
+#endif
+	
     action.sa_flags = 0;  
     action.sa_handler = GTM_ThreadSigHandler;  
 	sigemptyset(&action.sa_mask);
-
     ret = sigaction(SIGQUIT, &action, NULL);
 
     if (ret)
@@ -3201,14 +3331,14 @@ GTM_ThreadWalReceiver(void *argp)
                                        false);
 
 
-    efd  = epoll_create1(0);
-    if(efd == -1)
-    {
-        elog(LOG,"epoll create fail %s",strerror(errno));
-        exit(1);
-    }
+	efd  = epoll_create1(0);
+	if(efd == -1)
+	{
+		elog(LOG,"epoll create fail %s",strerror(errno));
+		exit(1);
+	}
 
-    my_threadinfo->thr_efd      = efd;
+	my_threadinfo->thr_efd      = efd;
 
     if (sigsetjmp(local_sigjmp_buf, 1) != 0)
     {
@@ -3219,22 +3349,22 @@ GTM_ThreadWalReceiver(void *argp)
     }
     
     PG_exception_stack = &local_sigjmp_buf;
-
+    elog(LOG, "Starting the wal receiver");
 reconnect:
 
-    if(GTM_SHUTTING_DOWN == GTMTransactions.gt_gtm_state)
-        goto shutdown;
+	if(GTM_SHUTTING_DOWN == GTMTransactions.gt_gtm_state)
+		goto shutdown;
 
-    if(!Recovery_IsStandby())
+	if(!Recovery_IsStandby())
         goto promote;
 
-    if(GTM_ActiveConn)
+	if(GTM_ActiveConn)
     {
         GTMPQfinish(GTM_ActiveConn);
         GTM_ActiveConn = NULL;
     }
 
-    sleep(1);
+	sleep(1);
 
 	if (!gtm_standby_start_startup(0))
     {
@@ -3249,69 +3379,76 @@ reconnect:
         goto reconnect;
     }
 
-    event.data.fd  = GTM_ActiveConn->sock;
-    event.events   = EPOLLIN | EPOLLHUP | EPOLLERR;
+	event.data.fd  = GTM_ActiveConn->sock;
+	event.events   = EPOLLIN | EPOLLHUP | EPOLLERR;
 
-    if(epoll_ctl(efd,EPOLL_CTL_ADD,GTM_ActiveConn->sock,&event) < 0)
+	if(epoll_ctl(efd,EPOLL_CTL_ADD,GTM_ActiveConn->sock,&event) < 0)
     {
         elog(LOG, "epoll fails %s", strerror(errno));
         goto reconnect;
     }
 
+    MemoryContextSwitchTo(MessageContext);
+    SendXLogSyncStatus(GTM_ActiveConn, true);
+
     next_send_time = time(NULL);
+
+	last_recv_timestamp = time(NULL);
 
     for(;;)
     {
         t_start = getSystemTime();
-        MemoryContextSwitchTo(MessageContext);
+        
         MemoryContextResetAndDeleteChildren(MessageContext);
 
         if(time(NULL) >= next_send_time)
         {
-            SendXLogSyncStatus(GTM_ActiveConn);
+            SendXLogSyncStatus(GTM_ActiveConn, false);
             next_send_time = time(NULL) + XLOG_KEEP_ALIVE_TIME;
         }
 
-        if(!Recovery_IsStandby())
-            goto promote;
+		if(!Recovery_IsStandby())
+			goto promote;
 
-        if(gtmpqHasDataLeft(GTM_ActiveConn) == false)
+		if(gtmpqHasDataLeft(GTM_ActiveConn) == false)
+		{
+			n = epoll_wait(efd,&event,1,100);
+
+			if(GTM_SHUTTING_DOWN == GTMTransactions.gt_gtm_state || Recovery_IsStandby() == false)
+				break;
+
+			if(n == 0)
+			{
+				if(enalbe_gtm_xlog_debug)
+					elog(LOG,"no data to read");
+
+				gtm_check_wal_timeout(gtm_walreceiver_timeout, last_recv_timestamp, application_name);
+				continue;
+			}
+
+			if(!(event.events & EPOLLIN))
+			{
+				elog(LOG,"replication terminated.");
+				goto reconnect;
+			}
+
+			if(gtmpqReadData(GTM_ActiveConn) < 0)
+			{
+				elog(LOG,"replication terminated.");
+				goto reconnect;
+			}
+		}
+
+		if((res = GTMPQgetResult(GTM_ActiveConn)) == NULL)
         {
-            n = epoll_wait(efd,&event,1,100);
-
-            if(GTM_SHUTTING_DOWN == GTMTransactions.gt_gtm_state || Recovery_IsStandby() == false)
-                break;
-
-            if(n == 0)
-            {
-                if(enalbe_gtm_xlog_debug)
-                    elog(LOG,"no data to read");
-                continue;
-            }
-
-            if(!(event.events & EPOLLIN))
-            {
-                elog(LOG,"replication terminated.");
-                goto reconnect;
-            }
-
-            if(gtmpqReadData(GTM_ActiveConn) < 0)
-            {
-                elog(LOG,"replication terminated.");
-                goto reconnect;
-            }
-        }
-
-        if((res = GTMPQgetResult(GTM_ActiveConn)) == NULL)
-        {
-            GTM_ActiveConn->result->gr_status = GTM_RESULT_COMM_ERROR;
-            elog(LOG,"replication terminated.");
+        	GTM_ActiveConn->result->gr_status = GTM_RESULT_COMM_ERROR;
+        	elog(LOG,"replication terminated.");
             goto reconnect;
-        }
+		}
 
         Assert(res->gr_status == GTM_RESULT_OK);
         Assert(res->gr_type   == MSG_REPLICATION_CONTENT);
-            
+
         if (res->gr_resdata.grd_xlog_data.status != Send_OK)
         {
             Assert(res->gr_resdata.grd_xlog_data.status == Send_XlogFile_Not_Found);
@@ -3334,41 +3471,43 @@ reconnect:
 
         /* write data to xlog buff */
         if(size != 0)
-        {
+		{
+			last_recv_timestamp = time(NULL);
             if(XLogInCurrentSegment(start_pos) == false)
             {
                 if(start_pos % GTM_XLOG_SEG_SIZE != 0)
-                    elog(LOG,"invalid switch from remote");
+                    elog(LOG, "invalid switch from remote %lu", start_pos);
 
                 XLogFlush(GetStandbyWriteBuffPos());
                 SwitchXLogFile();
             }
 
-            CopyXLogRecordToBuff(res->gr_resdata.grd_xlog_data.xlog_data,start_pos,end_pos,(uint64)size);
+			CopyXLogRecordToBuff(res->gr_resdata.grd_xlog_data.xlog_data,start_pos,end_pos,(uint64)size);
             NotifyReplication(end_pos);
-            UpdateStandbyWriteBuffPos(end_pos);
+			UpdateStandbyWriteBuffPos(end_pos);
+
 			XLogFlush(end_pos);
         }
-
+            
         if(res->gr_resdata.grd_xlog_data.reply)
         {
             WaitSyncComplete(flush_pos);
-            SendXLogSyncStatus(GTM_ActiveConn);
+            SendXLogSyncStatus(GTM_ActiveConn, false);
         }
 
         t_end = getSystemTime();
 
         if(enalbe_gtm_xlog_debug)
-            elog(LOG,"cost time %lld ms",t_end - t_start);
+			elog(LOG,"cost time %lld ms, end pos:%lu", t_end - t_start, end_pos);
     }
 
 promote:
-    if(Recovery_IsStandby() == false)
-    {
-        gtm_standby_finish_startup();
-        elog(LOG, "Promoting slave to master,walreceiver exits");
-        return my_threadinfo;
-    }
+	if(Recovery_IsStandby() == false)
+	{
+		gtm_standby_finish_startup();
+		elog(LOG, "Promoting slave to master,walreceiver exits");
+		return my_threadinfo;
+	}
 
 shutdown:
     g_walreceiver_thread = NULL;
@@ -3378,22 +3517,364 @@ shutdown:
 
 #endif
 
+#ifdef __OPENTENBASE_C__
+void *
+GTM_ThreadFidChecker(void *argp)
+{
+	GTM_ThreadInfo *my_threadinfo = (GTM_ThreadInfo *)argp;
+    sigjmp_buf  local_sigjmp_buf;
+    int ret;
+    int i;
+    struct sigaction    action;  
+
+#ifdef __RESOURCE_QUEUE__
+	GTM_ThreadSetName("FidChecker");
+#endif
+
+	my_threadinfo->handle_standby = true;
+    action.sa_flags = 0;
+    action.sa_handler = GTM_ThreadSigHandler;  
+	sigemptyset(&action.sa_mask);
+    ret = sigaction(SIGQUIT, &action, NULL);  
+    
+    if (ret)
+    {
+        elog(LOG, "register thread quit handler failed");
+    }
+    
+    MessageContext = AllocSetContextCreate(TopMemoryContext,
+                                       "MessageContext",
+                                       ALLOCSET_DEFAULT_MINSIZE,
+                                       ALLOCSET_DEFAULT_INITSIZE,
+                                       ALLOCSET_DEFAULT_MAXSIZE,
+                                       false);
+                                       
+    if (sigsetjmp(local_sigjmp_buf, 1) != 0)
+    {
+        RWLockCleanUp();
+        EmitErrorReport(NULL);
+        MemoryContextSwitchTo(TopMemoryContext);
+        FlushErrorState();
+    }
+    
+    PG_exception_stack = &local_sigjmp_buf;
+    elog(LOG, "Starting the fid checker");
+    for(;;)
+	{		
+		MemoryContextSwitchTo(MessageContext);
+		MemoryContextResetAndDeleteChildren(MessageContext);				
+		
+		/* no need to lock here. */
+		if(GTM_SHUTTING_DOWN == GTMTransactions.gt_gtm_state)
+		{
+			goto shutdown;
+		}
+		if(Recovery_IsStandby() == false)
+		{
+		    GTM_RWLockAcquire(&my_threadinfo->thr_lock, GTM_LOCKMODE_WRITE);
+			MemoryContextSwitchTo(TopMostMemoryContext);
+
+			for (i = 0; i < MAX_NODES; i++)
+			{
+				GlobalTimestamp now = GTM_TimestampGetMonotonicRaw();
+
+                XLogBeginInsert();
+			    GTM_MutexLockAcquire(&GTMFidManager.FidLock);
+
+				if (NULL != GTMFidManager.FidNodes[i].fids &&
+					now - GTMFidManager.FidNodes[i].time > GTM_FID_TIME_LIMIT)
+				{
+					int j;
+					for (j = 0; j < GTM_MAX_FRAGMENTS; j++)
+					{
+						if (GTMFidManager.FidNodes[i].fids[j] != 0)
+						{
+							GTM_Fid *fid = &GTMFidManager.Fids[j];
+							fid->nodeId = INVALID_NODE_ID;
+							elog(LOG, "Fid %d on %lld timeout release from node %d.",
+								fid->fidnum, (long long int)GTMFidManager.FidNodes[i].time, i);
+							GTMFidManager.FidNodes[i].fids[j] = 0;
+							GTMFidManager.Freelist = gtm_lappend(GTMFidManager.Freelist, fid);
+							ret = GTM_StoreSyncFid(fid->fidnum, INVALID_NODE_ID);
+							if (ret < 0)
+							{
+								elog(LOG, "Release sync fid %d error for %s", fid->fidnum, strerror(errno));
+							}
+						}
+					}
+				}
+
+				GTM_MutexLockRelease(&GTMFidManager.FidLock);
+				BeforeReplyToClientXLogTrigger();
+			}
+
+			GTM_RWLockRelease(&my_threadinfo->thr_lock);
+		}
+
+		usleep(GTM_SYNC_CYCLE);		
+	}
+shutdown:
+	g_fid_checker_thread = NULL;
+	elog(LOG, "GTM is shuting down, fid check thread exits!");
+	return my_threadinfo;	  
+}
+
+#endif
+
+#ifdef __RESOURCE_QUEUE__
+static void *
+GTM_ThreadResQueueManager(void *argp)
+{
+	GTM_ThreadInfo *thrinfo = (GTM_ThreadInfo *)argp;
+	int				ret  = 0;
+	int 			qtype = -1;
+	StringInfoData 	input_message;
+	sigjmp_buf  	local_sigjmp_buf;
+	int 			efd = -1;
+ 	struct epoll_event events[GTM_MAX_CONNECTIONS_PER_THREAD];
+	struct sigaction    action;
+
+#ifdef __RESOURCE_QUEUE__
+	GTM_ThreadSetName("ResQueueMgr");
+#endif
+
+    action.sa_flags = 0;
+    action.sa_handler = GTM_ThreadSigHandler;
+	sigemptyset(&action.sa_mask);
+
+    ret = sigaction(SIGQUIT, &action, NULL);
+	if (ret)
+	{
+		elog(LOG, "register thread quit handler failed");
+	}
+
+	/*
+	 * Create the memory context we will use in the main loop.
+	 *
+	 * MessageContext is reset once per iteration of the main loop, ie, upon
+	 * completion of processing of each command message from the client.
+	 *
+	 * This context is thread-specific
+	 */
+	MessageContext = AllocSetContextCreate(TopMemoryContext,
+										   "MessageContext",
+										   ALLOCSET_DEFAULT_MINSIZE,
+										   ALLOCSET_DEFAULT_INITSIZE,
+										   ALLOCSET_DEFAULT_MAXSIZE,
+										   false);
+
+	efd = epoll_create1(0);
+	if(efd == -1)
+	{
+		elog(ERROR, "failed to create epoll");
+	}
+	thrinfo->thr_efd = efd;
+    /* not allow outer connections */
+	thrinfo->thr_epoll_ok = false;
+
+	MemSet(&input_message, 0, sizeof(input_message));
+	initStringInfo(&input_message);
+
+	/*
+	 * If an exception is encountered, processing resumes here so we abort the
+	 * current transaction and start a new one.
+	 *
+	 * You might wonder why this isn't coded as an infinite loop around a
+	 * PG_TRY construct.  The reason is that this is the bottom of the
+	 * exception stack, and so with PG_TRY there would be no exception handler
+	 * in force at all during the CATCH part.  By leaving the outermost setjmp
+	 * always active, we have at least some chance of recovering from an error
+	 * during error recovery.  (If we get into an infinite loop thereby, it
+	 * will soon be stopped by overflow of elog.c's internal state stack.)
+	 */
+
+	if (sigsetjmp(local_sigjmp_buf, 1) != 0)
+	{
+		bool	report = false;
+
+#ifdef __OPENTENBASE__
+		RWLockCleanUp();
+#endif
+		
+		/*
+		 * NOTE: if you are tempted to add more code in this if-block,
+		 * consider the high probability that it should be in
+		 * AbortTransaction() instead.	The only stuff done directly here
+		 * should be stuff that is guaranteed to apply *only* for outer-level
+		 * error recovery, such as adjusting the FE/BE protocol status.
+		 */
+
+		/* Report the error to the client and/or server log */
+		if(!report)
+		{
+			report = true;
+			if(thrinfo->thr_conn)
+			{
+				EmitErrorReport(thrinfo->thr_conn->con_port);
+			}
+			else
+			{
+				EmitErrorReport(NULL);
+			}
+		}
+
+		/*
+		 * Now return to normal top-level context and clear ErrorContext for
+		 * next time.
+		 */
+		MemoryContextSwitchTo(TopMemoryContext);
+		FlushErrorState();
+	}
+
+	/* We can now handle ereport(ERROR) */
+	PG_exception_stack = &local_sigjmp_buf;
+    elog(LOG, "Starting the ResQueueManager");
+	for (;;)
+	{
+		int i = 0, n = 0;
+
+		/* Put all queued connections to local connection array */
+
+		/* Wait for available event */
+		n = epoll_wait (efd, events, GTM_MAX_CONNECTIONS_PER_THREAD, -1);
+
+		for(i = 0; i < n; i++)
+		{
+			GTM_ConnectionInfo *conn = NULL;
+
+			thrinfo->thr_conn = NULL;
+			/*
+			 * Just reset the input buffer to avoid repeated palloc/pfrees
+			 *
+			 * XXX We should consider resetting the MessageContext periodically to
+			 * handle any memory leaks
+			 */
+			MemoryContextSwitchTo(MessageContext);
+			MemoryContextResetAndDeleteChildren(MessageContext);
+			resetStringInfo(&input_message);
+
+			if ((events[i].events & EPOLLERR) ||
+				(events[i].events & EPOLLHUP) ||
+				(events[i].events & EPOLLRDHUP))
+			{
+				conn = events[i].data.ptr;
+
+				if (conn->con_port != NULL)
+				{
+					/* Connection exception, clean up resource queue */
+					if (conn->con_resq_info != NULL)
+					{
+						GTM_ResourceQueueClean(conn->con_port);
+					}
+
+					/* Disconnect node if necessary */
+					GTM_RemoveConnection(conn);
+				}
+
+				continue;
+			}
+			else if(!(events[i].events & EPOLLIN))
+			{
+				elog(DEBUG8, "no read data");
+				continue;
+			}
+
+			conn = events[i].data.ptr;
+			elog(DEBUG8, "read command");
+			thrinfo->thr_conn = conn;
+
+            if(conn->con_port == NULL)
+                continue;
+
+			/*
+			 * (3) read a command (loop blocks here)
+			 */
+			qtype = ReadCommand(conn->con_port, &input_message);
+			elog(DEBUG8, "read command qtype %c", qtype);
+
+			/*
+			 * Check if GTM Standby info is upadted
+			 * Maybe the following lines can be a separate function.   At present, this is done only here so
+			 * I'll leave them here.   K.Suzuki, Nov.29, 2011
+			 * Please note that we don't check if it is not in the standby mode to allow cascased standby.
+			 *
+			 * Also ensure that we don't try to connect just yet if we are
+			 * responsible for serving the BACKUP request from the standby.
+			 * Otherwise, this will lead to a deadlock
+			 */
+			elog(DEBUG8, "resource queue manager checked %c", qtype);
+			switch(qtype)
+			{
+				case 'C':
+					ProcessResQueueRequest(conn->con_port, &input_message);
+					elog(DEBUG8, "complete command %c", qtype);
+					break;
+
+				case 'X':
+					/* Connection exception, clean up resource queue */
+					if (conn->con_resq_info != NULL)
+					{
+						GTM_ResourceQueueClean(conn->con_port);
+					}
+
+					/* Disconnect node if necessary */
+					GTM_RemoveConnection(conn);
+					break;
+
+				case EOF:
+					/* Connection exception, clean up resource queue */
+					if (conn->con_resq_info != NULL)
+					{
+						GTM_ResourceQueueClean(conn->con_port);
+					}
+
+					/* Disconnect node if necessary */
+					GTM_RemoveConnection(conn);
+					break;
+
+				default:
+					/* Connection exception, clean up resource queue */
+					if (conn->con_resq_info != NULL)
+					{
+						GTM_ResourceQueueClean(conn->con_port);
+					}
+
+					/* Disconnect node if necessary */
+					GTM_RemoveConnection(conn);
+                    elog(LOG,"invalid message");
+			}
+			/* no need to lock here. */
+			if(GTM_SHUTTING_DOWN == GTMTransactions.gt_gtm_state)
+			{
+				break;
+			}
+		}
+	}
+
+	return thrinfo;
+}
+#endif
+
 /* main thread handle SIGQUIT as the thread exit signal. */
 void *
 GTM_ThreadMain(void *argp)
-{// #lizard forgives
-    GTM_ThreadInfo *thrinfo = (GTM_ThreadInfo *)argp;
-    int        ret  = 0;
-    int     qtype;
-    StringInfoData input_message;
-    sigjmp_buf  local_sigjmp_buf;
-    int         efd;
-     struct epoll_event events[GTM_MAX_CONNECTIONS_PER_THREAD];
-    struct sigaction    action;  
-       
+{
+	GTM_ThreadInfo *thrinfo = (GTM_ThreadInfo *)argp;
+	int		ret  = 0;
+	int 	qtype;
+	StringInfoData input_message;
+	sigjmp_buf  local_sigjmp_buf;
+	int 		efd;
+ 	struct epoll_event events[GTM_MAX_CONNECTIONS_PER_THREAD];
+	struct sigaction    action;  
+
+#ifdef __RESOURCE_QUEUE__
+	GTM_ThreadSetName("ThreadMain");
+#endif
+	   
     action.sa_flags = 0;  
-    action.sa_handler = GTM_ThreadSigHandler;  
-	sigemptyset(&action.sa_mask);
+    action.sa_handler = GTM_ThreadSigHandler; 
+	sigemptyset(&action.sa_mask); 
          
     ret = sigaction(SIGQUIT, &action, NULL);  
 	if (ret)
@@ -3405,15 +3886,14 @@ GTM_ThreadMain(void *argp)
 	bind_service_threads();
 
     GTM_InitStatisticsHandle();
-
-    /*
-     * Create the memory context we will use in the main loop.
-     *
-     * MessageContext is reset once per iteration of the main loop, ie, upon
-     * completion of processing of each command message from the client.
-     *
-     * This context is thread-specific
-     */
+	/*
+	 * Create the memory context we will use in the main loop.
+	 *
+	 * MessageContext is reset once per iteration of the main loop, ie, upon
+	 * completion of processing of each command message from the client.
+	 *
+	 * This context is thread-specific
+	 */
 	MessageContext = AllocSetContextCreate(TopMemoryContext,
 										   "MessageContext",
 										   ALLOCSET_DEFAULT_MINSIZE,
@@ -3427,6 +3907,7 @@ GTM_ThreadMain(void *argp)
 		elog(ERROR, "failed to create epoll");
 	}
 	thrinfo->thr_efd = efd;
+	pg_write_barrier();
 	thrinfo->thr_epoll_ok = true;
 	
 	/*
@@ -3460,369 +3941,377 @@ GTM_ThreadMain(void *argp)
 	if (sigsetjmp(local_sigjmp_buf, 1) != 0)
 	{
 		bool	report = false;
+		thrinfo->may_wait_sync = false;
 #ifdef __OPENTENBASE__
-        RWLockCleanUp();
+		RWLockCleanUp();
 #endif
-        /*
-         * NOTE: if you are tempted to add more code in this if-block,
-         * consider the high probability that it should be in
-         * AbortTransaction() instead.    The only stuff done directly here
-         * should be stuff that is guaranteed to apply *only* for outer-level
-         * error recovery, such as adjusting the FE/BE protocol status.
-         */
+		/*
+		 * NOTE: if you are tempted to add more code in this if-block,
+		 * consider the high probability that it should be in
+		 * AbortTransaction() instead.	The only stuff done directly here
+		 * should be stuff that is guaranteed to apply *only* for outer-level
+		 * error recovery, such as adjusting the FE/BE protocol status.
+		 */
 
-        /* Report the error to the client and/or server log */
-        if(!report)
-        {
-            report = true;
-            if(thrinfo->thr_conn)
-            {
-                EmitErrorReport(thrinfo->thr_conn->con_port);
-            }
-            else
-            {
-                EmitErrorReport(NULL);
-            }
-        }
+		/* Report the error to the client and/or server log */
+		if(!report)
+		{
+			report = true;
+			if(thrinfo->thr_conn)
+			{
+				EmitErrorReport(thrinfo->thr_conn->con_port);
+			}
+			else
+			{
+				EmitErrorReport(NULL);
+			}
+		}
 
-        /*
-         * Now return to normal top-level context and clear ErrorContext for
-         * next time.
-         */
-        MemoryContextSwitchTo(TopMemoryContext);
-        FlushErrorState();
-    }
+		/*
+		 * Now return to normal top-level context and clear ErrorContext for
+		 * next time.
+		 */
+		MemoryContextSwitchTo(TopMemoryContext);
+		FlushErrorState();
+	}
 
-    /* We can now handle ereport(ERROR) */
-    PG_exception_stack = &local_sigjmp_buf;
+	/* We can now handle ereport(ERROR) */
+	PG_exception_stack = &local_sigjmp_buf;
 
-    for (;;)
-    {
-        int         i, n;
+	for (;;)
+	{
+		int 		i, n;
 
-        elog(DEBUG8, "for loop");        
-        
-        /* Put all queued connections to local connection array */
-        elog(DEBUG8, "get new conns");
+		elog(DEBUG8, "for loop");		
+		
+		/* Put all queued connections to local connection array */
+		elog(DEBUG8, "get new conns");
 
-        /* Wait for available event */
-        n = epoll_wait (efd, events, GTM_MAX_CONNECTIONS_PER_THREAD, -1);
+		/* Wait for available event */
+		n = epoll_wait (efd, events, GTM_MAX_CONNECTIONS_PER_THREAD, -1);
 
-        elog(DEBUG8, "epoll_wait wakeup %d", n);
-        
-        for(i = 0; i < n; i++)
-        {
-            GTM_ConnectionInfo *conn;
+		elog(DEBUG8, "epoll_wait wakeup %d", n);
+		
+		for(i = 0; i < n; i++)
+		{
+			GTM_ConnectionInfo *conn;
 
-            thrinfo->thr_conn = NULL;
-            /*
-             * Just reset the input buffer to avoid repeated palloc/pfrees
-             *
-             * XXX We should consider resetting the MessageContext periodically to
-             * handle any memory leaks
-             */
-            MemoryContextSwitchTo(MessageContext);
-            MemoryContextResetAndDeleteChildren(MessageContext);
-            resetStringInfo(&input_message);
-            
-            if(!(events[i].events & EPOLLIN))
-            {
-                elog(DEBUG8, "no read data");
-                continue;
-            }
-            
-            conn = events[i].data.ptr;
-            elog(DEBUG8, "read command");
-            thrinfo->thr_conn = conn;
+			thrinfo->thr_conn = NULL;
+			/*
+			 * Just reset the input buffer to avoid repeated palloc/pfrees
+			 *
+			 * XXX We should consider resetting the MessageContext periodically to
+			 * handle any memory leaks
+			 */
+			MemoryContextSwitchTo(MessageContext);
+			MemoryContextResetAndDeleteChildren(MessageContext);
+			resetStringInfo(&input_message);
+			
+			if(!(events[i].events & EPOLLIN))
+			{
+				elog(DEBUG8, "no read data");
+				continue;
+			}
+			
+			conn = events[i].data.ptr;
+			elog(DEBUG8, "read command");
+			thrinfo->thr_conn = conn;
 
             if(conn->con_port == NULL)
                 continue;
 
-            if(false == conn->con_init)
-            {
-                if(GTMInitConnection(conn) != STATUS_OK)
-                {
-                    elog(LOG, "initiating connection failed");
-                    GTM_RemoveConnection(conn);    
-                    thrinfo->thr_conn = NULL;
-                    continue;
-                }
+			if(false == conn->con_init)
+			{
+				if(GTMInitConnection(conn) != STATUS_OK)
+				{
+					elog(LOG, "initiating connection failed");
+					GTM_RemoveConnection(conn);	
+					thrinfo->thr_conn = NULL;
+					continue;
+				}
+				continue;
+			}
 
-                continue;
-            }
+			/*
+			 * (3) read a command (loop blocks here)
+			 */
+			qtype = ReadCommand(conn->con_port, &input_message);
+			elog(DEBUG8, "read command qtype %c", qtype);
+			
+			/*
+			 * Check if GTM Standby info is upadted
+			 * Maybe the following lines can be a separate function.   At present, this is done only here so
+			 * I'll leave them here.   K.Suzuki, Nov.29, 2011
+			 * Please note that we don't check if it is not in the standby mode to allow cascased standby.
+			 *
+			 * Also ensure that we don't try to connect just yet if we are
+			 * responsible for serving the BACKUP request from the standby.
+			 * Otherwise, this will lead to a deadlock
+			 */
+			elog(DEBUG8, "standby checked %c", qtype);
+			switch(qtype)
+			{
+				case 'C':
+					ProcessCommand(conn->con_port, &input_message);
+					elog(DEBUG8, "complete command %c", qtype);
+					break;
 
-            /*
-             * (3) read a command (loop blocks here)
-             */
-            qtype = ReadCommand(conn->con_port, &input_message);
-            elog(DEBUG8, "read command qtype %c", qtype);
-            
-            /*
-             * Check if GTM Standby info is upadted
-             * Maybe the following lines can be a separate function.   At present, this is done only here so
-             * I'll leave them here.   K.Suzuki, Nov.29, 2011
-             * Please note that we don't check if it is not in the standby mode to allow cascased standby.
-             *
-             * Also ensure that we don't try to connect just yet if we are
-             * responsible for serving the BACKUP request from the standby.
-             * Otherwise, this will lead to a deadlock
-             */
-            elog(DEBUG8, "standby checked %c", qtype);
-            switch(qtype)
-            {
-                case 'C':
-                    ProcessCommand(conn->con_port, &input_message);
-                    elog(DEBUG8, "complete command %c", qtype);
-                    break;
+				case 'X':
+					elog(DEBUG8, "Removing all transaction infos - qtype:X");
+					
+				case EOF:
+					/*
+					 * Connection termination request
+					 * Remove all transactions opened within the thread. Note that
+					 * we don't remove transaction infos if we are a standby and
+					 * the transaction infos actually correspond to in-progress
+					 * transactions on the master
+					 */
+					elog(DEBUG8, "Removing all transaction infos - qtype:EOF");
+					if (!Recovery_IsStandby())
+						GTM_RemoveAllTransInfos(conn->con_client_id, -1);
 
-                case 'X':
-                    elog(DEBUG8, "Removing all transaction infos - qtype:X");
-                    
-                case EOF:
-                    /*
-                     * Connection termination request
-                     * Remove all transactions opened within the thread. Note that
-                     * we don't remove transaction infos if we are a standby and
-                     * the transaction infos actually correspond to in-progress
-                     * transactions on the master
-                     */
-                    elog(DEBUG8, "Removing all transaction infos - qtype:EOF");
-                    if (!Recovery_IsStandby())
-                        GTM_RemoveAllTransInfos(conn->con_client_id, -1);
+					/* Disconnect node if necessary */					
+					GTM_RemoveConnection(conn);
+					break;
 
-                    /* Disconnect node if necessary */                    
-                    GTM_RemoveConnection(conn);
-                    break;
-
-                case 'F':
-                    elog(DEBUG8, "Flush");
-                    /*
-                     * Flush all the outgoing data on the wire. Consume the message
-                     * type field for sanity
-                     */
-                    /* Sync with standby first */
+				case 'F':
+					elog(DEBUG8, "Flush");
+					/*
+					 * Flush all the outgoing data on the wire. Consume the message
+					 * type field for sanity
+					 */
+					/* Sync with standby first */
 #ifndef __XLOG__
-                    if (conn->standby)
-                    {
-                        if (Backup_synchronously)
-                            gtm_sync_standby(conn->standby);
-                        else
-                            gtmpqFlush(conn->standby);
-                    }
-                    pq_getmsgint(&input_message, sizeof (GTM_MessageType));
-                    pq_getmsgend(&input_message);
-                    pq_flush(conn->con_port);
+					if (conn->standby)
+					{
+						if (Backup_synchronously)
+							gtm_sync_standby(conn->standby);
+						else
+							gtmpqFlush(conn->standby);
+					}
+					pq_getmsgint(&input_message, sizeof (GTM_MessageType));
+					pq_getmsgend(&input_message);
+					pq_flush(conn->con_port);
 #endif
-                    break;
+					break;
 
-                default:
-                    elog(DEBUG8, "Remove transactions");
-                    /*
-                     * Remove all transactions opened by the client
-                     */
-                    GTM_RemoveAllTransInfos(conn->con_client_id, -1);
+				default:
+					elog(DEBUG8, "Remove transactions");
+					/*
+					 * Remove all transactions opened by the client
+					 */
+					GTM_RemoveAllTransInfos(conn->con_client_id, -1);
 
-                    /* Disconnect node if necessary */
-                    GTM_RemoveConnection(conn);
-                    ereport(FATAL,
-                            (EPROTO,
-                             errmsg("invalid frontend message type %d",
-                                    qtype)));
-                    break;
-            }
+					/* Disconnect node if necessary */
+					GTM_RemoveConnection(conn);
+					ereport(FATAL,
+							(EPROTO,
+							 errmsg("invalid frontend message type %d",
+									qtype)));
+					break;
+			}
 
-            /* no need to lock here. */
-            if(GTM_SHUTTING_DOWN == GTMTransactions.gt_gtm_state)
-            {
-                break;
-            }
-        }
-    }
+			/* no need to lock here. */
+			if(GTM_SHUTTING_DOWN == GTMTransactions.gt_gtm_state)
+			{
+				break;
+			}
+		}
+	}
 
-    return thrinfo;
+	return thrinfo;
 }
-
 
 void *
 GTM_ThreadBasebackup(void *argp)
-{// #lizard forgives
-       GTM_ThreadInfo *thrinfo = (GTM_ThreadInfo *)argp;
-    int        ret  = 0;
-    int     qtype;
-    StringInfoData input_message;
-    sigjmp_buf  local_sigjmp_buf;
-    int         efd;
-     struct epoll_event events[GTM_MAX_CONNECTIONS_PER_THREAD];
-    struct sigaction    action;
+{
+   	GTM_ThreadInfo *thrinfo = (GTM_ThreadInfo *)argp;
+	int 	qtype;
+	StringInfoData input_message;
+	sigjmp_buf  local_sigjmp_buf;
+	int 		efd;
+ 	struct epoll_event events[GTM_MAX_CONNECTIONS_PER_THREAD];
 
-    action.sa_flags = 0;
-    action.sa_handler = GTM_ThreadSigHandler;
-	sigemptyset(&action.sa_mask);
+#ifdef __RESOURCE_QUEUE__
+	GTM_ThreadSetName("Basebackup");
+#endif
 
-    ret = sigaction(SIGQUIT, &action, NULL);
-    if (ret)
-    {
-        elog(LOG, "register thread quit handler failed");
-    }
+    pqsignal(SIGQUIT, GTM_ThreadSigHandler);
 
-    /*
-     * Create the memory context we will use in the main loop.
-     *
-     * MessageContext is reset once per iteration of the main loop, ie, upon
-     * completion of processing of each command message from the client.
-     *
-     * This context is thread-specific
-     */
-    MessageContext = AllocSetContextCreate(TopMemoryContext,
-                                           "MessageContext",
-                                           ALLOCSET_DEFAULT_MINSIZE,
-                                           ALLOCSET_DEFAULT_INITSIZE,
-                                           ALLOCSET_DEFAULT_MAXSIZE,
-                                           false);
+	/*
+	 * Create the memory context we will use in the main loop.
+	 *
+	 * MessageContext is reset once per iteration of the main loop, ie, upon
+	 * completion of processing of each command message from the client.
+	 *
+	 * This context is thread-specific
+	 */
+	MessageContext = AllocSetContextCreate(TopMemoryContext,
+										   "MessageContext",
+										   ALLOCSET_DEFAULT_MINSIZE,
+										   ALLOCSET_DEFAULT_INITSIZE,
+										   ALLOCSET_DEFAULT_MAXSIZE,
+										   false);
 
-    efd = epoll_create1(0);
-    if(efd == -1)
-    {
-        elog(ERROR, "failed to create epoll");
-    }
-    thrinfo->thr_efd = efd;
+	efd = epoll_create1(0);
+	if(efd == -1)
+	{
+		elog(ERROR, "failed to create epoll");
+	}
+	thrinfo->thr_efd = efd;
     /* not allow outer connections */
-    thrinfo->thr_epoll_ok = false;
+	thrinfo->thr_epoll_ok = false;
+	thrinfo->store_locked = false;
+	initStringInfo(&input_message);
 
-    initStringInfo(&input_message);
+	/*
+	 * If an exception is encountered, processing resumes here so we abort the
+	 * current transaction and start a new one.
+	 *
+	 * You might wonder why this isn't coded as an infinite loop around a
+	 * PG_TRY construct.  The reason is that this is the bottom of the
+	 * exception stack, and so with PG_TRY there would be no exception handler
+	 * in force at all during the CATCH part.  By leaving the outermost setjmp
+	 * always active, we have at least some chance of recovering from an error
+	 * during error recovery.  (If we get into an infinite loop thereby, it
+	 * will soon be stopped by overflow of elog.c's internal state stack.)
+	 */
 
-    /*
-     * If an exception is encountered, processing resumes here so we abort the
-     * current transaction and start a new one.
-     *
-     * You might wonder why this isn't coded as an infinite loop around a
-     * PG_TRY construct.  The reason is that this is the bottom of the
-     * exception stack, and so with PG_TRY there would be no exception handler
-     * in force at all during the CATCH part.  By leaving the outermost setjmp
-     * always active, we have at least some chance of recovering from an error
-     * during error recovery.  (If we get into an infinite loop thereby, it
-     * will soon be stopped by overflow of elog.c's internal state stack.)
-     */
-
-    if (sigsetjmp(local_sigjmp_buf, 1) != 0)
-    {
-        bool    report = false;
+	if (sigsetjmp(local_sigjmp_buf, 1) != 0)
+	{
+		bool	report = false;
 #ifdef __OPENTENBASE__
+		if (thrinfo->store_locked)
+		{
+			GTM_StoreUnLock();
+			thrinfo->store_locked = false;
+		}
         RWLockCleanUp();
 #endif
-        /*
-         * NOTE: if you are tempted to add more code in this if-block,
-         * consider the high probability that it should be in
-         * AbortTransaction() instead.    The only stuff done directly here
-         * should be stuff that is guaranteed to apply *only* for outer-level
-         * error recovery, such as adjusting the FE/BE protocol status.
-         */
+		/*
+		 * NOTE: if you are tempted to add more code in this if-block,
+		 * consider the high probability that it should be in
+		 * AbortTransaction() instead.	The only stuff done directly here
+		 * should be stuff that is guaranteed to apply *only* for outer-level
+		 * error recovery, such as adjusting the FE/BE protocol status.
+		 */
 
-        /* Report the error to the client and/or server log */
-        if(!report)
+		/* Report the error to the client and/or server log */
+		if(!report)
+		{
+			report = true;
+			if(thrinfo->thr_conn)
+			{
+				EmitErrorReport(thrinfo->thr_conn->con_port);
+			}
+			else
+			{
+				EmitErrorReport(NULL);
+			}
+		}
+
+		/*
+		 * Now return to normal top-level context and clear ErrorContext for
+		 * next time.
+		 */
+		MemoryContextSwitchTo(TopMemoryContext);
+		FlushErrorState();
+	}
+
+	/* We can now handle ereport(ERROR) */
+	PG_exception_stack = &local_sigjmp_buf;
+
+    elog(LOG, "GTM base backup thread start.");
+	for (;;)
+	{
+		int 		i, n;
+
+		/* Put all queued connections to local connection array */
+
+		/* Wait for available event */
+		n = epoll_wait (efd, events, GTM_MAX_CONNECTIONS_PER_THREAD, -1);
+
+		if (n < 0)
         {
-            report = true;
-            if(thrinfo->thr_conn)
-            {
-                EmitErrorReport(thrinfo->thr_conn->con_port);
+            if (errno != EINTR && errno != EWOULDBLOCK) {
+                elog(WARNING, "epoll failed:%s", strerror(errno));
             }
-            else
-            {
-                EmitErrorReport(NULL);
-            }
+
+            continue;
         }
 
-        /*
-         * Now return to normal top-level context and clear ErrorContext for
-         * next time.
-         */
-        MemoryContextSwitchTo(TopMemoryContext);
-        FlushErrorState();
-    }
+		for(i = 0; i < n; i++)
+		{
+			GTM_ConnectionInfo *conn;
 
-    /* We can now handle ereport(ERROR) */
-    PG_exception_stack = &local_sigjmp_buf;
+			thrinfo->thr_conn = NULL;
+			/*
+			 * Just reset the input buffer to avoid repeated palloc/pfrees
+			 *
+			 * XXX We should consider resetting the MessageContext periodically to
+			 * handle any memory leaks
+			 */
+			MemoryContextSwitchTo(MessageContext);
+			MemoryContextResetAndDeleteChildren(MessageContext);
+			resetStringInfo(&input_message);
 
-    for (;;)
-    {
-        int         i, n;
+			if(!(events[i].events & EPOLLIN))
+			{
+				elog(DEBUG8, "no read data");
+				continue;
+			}
 
-        /* Put all queued connections to local connection array */
-
-        /* Wait for available event */
-        n = epoll_wait (efd, events, GTM_MAX_CONNECTIONS_PER_THREAD, -1);
-
-        for(i = 0; i < n; i++)
-        {
-            GTM_ConnectionInfo *conn;
-
-            thrinfo->thr_conn = NULL;
-            /*
-             * Just reset the input buffer to avoid repeated palloc/pfrees
-             *
-             * XXX We should consider resetting the MessageContext periodically to
-             * handle any memory leaks
-             */
-            MemoryContextSwitchTo(MessageContext);
-            MemoryContextResetAndDeleteChildren(MessageContext);
-            resetStringInfo(&input_message);
-
-            if(!(events[i].events & EPOLLIN))
-            {
-                elog(DEBUG8, "no read data");
-                continue;
-            }
-
-            conn = events[i].data.ptr;
-            elog(DEBUG8, "read command");
-            thrinfo->thr_conn = conn;
+			conn = events[i].data.ptr;
+			elog(DEBUG8, "read command");
+			thrinfo->thr_conn = conn;
 
             if(conn->con_port == NULL)
                 continue;
 
-            /*
-             * (3) read a command (loop blocks here)
-             */
-            qtype = ReadCommand(conn->con_port, &input_message);
-            elog(DEBUG8, "read command qtype %c", qtype);
+			/*
+			 * (3) read a command (loop blocks here)
+			 */
+			qtype = ReadCommand(conn->con_port, &input_message);
+			elog(DEBUG8, "read command qtype %c", qtype);
 
-            /*
-             * Check if GTM Standby info is upadted
-             * Maybe the following lines can be a separate function.   At present, this is done only here so
-             * I'll leave them here.   K.Suzuki, Nov.29, 2011
-             * Please note that we don't check if it is not in the standby mode to allow cascased standby.
-             *
-             * Also ensure that we don't try to connect just yet if we are
-             * responsible for serving the BACKUP request from the standby.
-             * Otherwise, this will lead to a deadlock
-             */
-            elog(DEBUG8, "standby checked %c", qtype);
-            switch(qtype)
-            {
-                case 'C':
-                    ProcessBasebackupCommand(conn->con_port, &input_message);
-                    elog(DEBUG8, "complete command %c", qtype);
-                    break;
+			/*
+			 * Check if GTM Standby info is upadted
+			 * Maybe the following lines can be a separate function.   At present, this is done only here so
+			 * I'll leave them here.   K.Suzuki, Nov.29, 2011
+			 * Please note that we don't check if it is not in the standby mode to allow cascased standby.
+			 *
+			 * Also ensure that we don't try to connect just yet if we are
+			 * responsible for serving the BACKUP request from the standby.
+			 * Otherwise, this will lead to a deadlock
+			 */
+			elog(DEBUG8, "standby checked %c", qtype);
+			switch(qtype)
+			{
+				case 'C':
+					ProcessBasebackupCommand(conn->con_port, &input_message);
+					elog(DEBUG8, "complete command %c", qtype);
+					break;
 
-                case EOF:
-                    /* Disconnect node if necessary */
-                    GTM_RemoveConnection(conn);
-                    break;
+				case EOF:
+					/* Disconnect node if necessary */
+					GTM_RemoveConnection(conn);
+					break;
 
-                default:
-                    /* Disconnect node if necessary */
-                    GTM_RemoveConnection(conn);
+				default:
+					/* Disconnect node if necessary */
+					GTM_RemoveConnection(conn);
                     elog(LOG,"invalid message");
-            }
-            /* no need to lock here. */
-            if(GTM_SHUTTING_DOWN == GTMTransactions.gt_gtm_state)
-            {
-                break;
-            }
-        }
-    }
+			}
+			/* no need to lock here. */
+			if(GTM_SHUTTING_DOWN == GTMTransactions.gt_gtm_state)
+			{
+				break;
+			}
+		}
+	}
 
-    return thrinfo;
+	return thrinfo;
 }
 
 void
@@ -3862,7 +4351,7 @@ ProcessBasebackupCommand(Port *myport, StringInfo input_message)
 }
 void
 ProcessCommand(Port *myport, StringInfo input_message)
-{// #lizard forgives
+{
     GTM_MessageType    mtype;
     GTM_ProxyMsgHeader proxyhdr;
 
@@ -3873,7 +4362,7 @@ ProcessCommand(Port *myport, StringInfo input_message)
     my_threadinfo = GetMyThreadInfo;
 #ifndef __XLOG__
     GTM_ConnectionInfo *conn;
-    conn = my_threadinfo->thr_conn;
+	conn = my_threadinfo->thr_conn;
 #endif
 #endif
 
@@ -3894,7 +4383,6 @@ ProcessCommand(Port *myport, StringInfo input_message)
      * compile option.
      */
     elog(DEBUG1, "mtype = %s (%d).", gtm_util_message_name(mtype), (int)mtype);
-
 #ifdef __OPENTENBASE__
     if (promote_status != GTM_PRPMOTE_NORMAL)
     {
@@ -3919,6 +4407,11 @@ ProcessCommand(Port *myport, StringInfo input_message)
                       mtype != MSG_LIST_GTM_STORE &&
                       mtype != MSG_LIST_GTM_STORE_SEQ &&
                       mtype != MSG_LIST_GTM_STORE_TXN &&
+#ifdef __RESOURCE_QUEUE__
+					  mtype != MSG_LIST_GTM_STORE_RESQUEUE &&
+					  mtype != MSG_CHECK_GTM_STORE_RESQUEUE && 
+					  mtype != MSG_LIST_RESQUEUE_USAGE &&
+#endif
                       mtype != MSG_CHECK_GTM_STORE_SEQ &&
                       mtype != MSG_CHECK_GTM_STORE_TXN &&
                       mtype != MSG_CHECK_GTM_STATUS
@@ -3928,7 +4421,7 @@ ProcessCommand(Port *myport, StringInfo input_message)
     {
 #ifndef __XLOG__
         /* Handle standby connecion staff. */
-        CheckStandbyConnect(my_threadinfo, conn);
+		CheckStandbyConnect(my_threadinfo, conn);
 #endif
         /* Hold the lock, in case reset all standby connections. */
         GTM_RWLockAcquire(&my_threadinfo->thr_lock, GTM_LOCKMODE_WRITE);
@@ -3943,8 +4436,8 @@ ProcessCommand(Port *myport, StringInfo input_message)
     {
 #ifndef __XLOG__
         case MSG_SYNC_STANDBY:
-            ProcessSyncStandbyCommand(myport, mtype, input_message);
-            break;
+			ProcessSyncStandbyCommand(myport, mtype, input_message);
+			break;
 #endif
         case MSG_NODE_REGISTER:
         case MSG_BKUP_NODE_REGISTER:
@@ -3994,7 +4487,7 @@ ProcessCommand(Port *myport, StringInfo input_message)
         case MSG_TXN_GXID_LIST:
 #ifdef XCP
             case MSG_REPORT_XMIN:
-        case MSG_BKUP_REPORT_XMIN:
+		case MSG_BKUP_REPORT_XMIN:
 #endif
 #ifdef __OPENTENBASE__
         case MSG_TXN_FINISH_GID:
@@ -4035,13 +4528,37 @@ ProcessCommand(Port *myport, StringInfo input_message)
         case MSG_SEQUENCE_LIST:
         case MSG_CLEAN_SESSION_SEQ:
 #ifdef __OPENTENBASE__
-        case MSG_DB_SEQUENCE_RENAME:
-        case MSG_BKUP_DB_SEQUENCE_RENAME:    
+		case MSG_DB_SEQUENCE_RENAME:
+		case MSG_BKUP_DB_SEQUENCE_RENAME:
 		case MSG_SEQUENCE_COPY:
 #endif
             ProcessSequenceCommand(myport, mtype, input_message);
             break;
+#ifdef __RESOURCE_QUEUE__
+		case MSG_RESQUEUE_INIT:			/* Initialize a new global resqueue */
+		case MSG_RESQUEUE_CLOSE:			/* Close a previously inited resqueue */
+		case MSG_RESQUEUE_ALTER:			/* Alter a resqueue */
+		case MSG_RESQUEUE_LIST:			/* Get a list of resqueues */
+		case MSG_RESQUEUE_MOVE_CONN:		/* Just dispatch connect to ResourceQueueManager  */
+		case MSG_RESQUEUE_IF_EXISTS:	/* Check whether the resource queue exists */
 
+		case MSG_LIST_GTM_STORE_RESQUEUE:			/* List  gtm running resqueue info */
+		case MSG_CHECK_GTM_STORE_RESQUEUE:			/* Check gtm resqueue usage info */
+		case MSG_LIST_RESQUEUE_USAGE:				/* list usage info of resource queue */
+		{
+			ProcessResQueueCommand(myport, mtype, input_message);
+			break;
+		}
+		case MSG_RESQUEUE_ACQUIRE:	/* Acqurie resource from resqueue, Do real acquire resource from ResourceQueueManager */
+		case MSG_RESQUEUE_RELEASE:	/* Release resource back to resqueue */
+		{
+			ereport(FATAL,
+                    (EPROTO,
+                            errmsg("invalid frontend message type %d",
+                                   mtype)));
+			break;
+		}
+#endif
         case MSG_TXN_GET_STATUS:
         case MSG_TXN_GET_ALL_PREPARED:
             ProcessQueryCommand(myport, mtype, input_message);
@@ -4073,22 +4590,22 @@ ProcessCommand(Port *myport, StringInfo input_message)
             ProcessGetGTMHeaderCommand(myport, input_message);
             break;
         }
-        case MSG_LIST_GTM_STORE_SEQ:            /* List  gtm running sequence info */
+        case MSG_LIST_GTM_STORE_SEQ:			/* List  gtm running sequence info */
         {
             ProcessListStorageSequenceCommand(myport, input_message);
             break;
         }
-        case MSG_LIST_GTM_STORE_TXN:            /* List  gtm running transaction info */
+        case MSG_LIST_GTM_STORE_TXN:			/* List  gtm running transaction info */
         {
             ProcessListStorageTransactionCommand(myport, input_message);
             break;
         }
-        case MSG_CHECK_GTM_STORE_SEQ:            /* Check gtm sequence usage info */
+        case MSG_CHECK_GTM_STORE_SEQ:			/* Check gtm sequence usage info */
         {
             ProcessCheckStorageSequenceCommand(myport, input_message);
             break;
         }
-        case MSG_CHECK_GTM_STORE_TXN:            /* Check gtm transaction usage info */
+        case MSG_CHECK_GTM_STORE_TXN:			/* Check gtm transaction usage info */
         {
             ProcessCheckStorageTransactionCommand(myport, input_message);
             break;
@@ -4110,9 +4627,47 @@ ProcessCommand(Port *myport, StringInfo input_message)
             ProcessGetErrorlogCommand(myport,input_message);
             break;
         }
+
+#ifdef __OPENTENBASE_C__
+		case MSG_ACQUIRE_FID:
+		{
+			ProcessFidAcquireCommand(myport, input_message);
+			break;
+		}
+		case MSG_RELEASE_FID:
+		{
+			ProcessFidReleaseCommand(myport, input_message);
+			break;
+		}
+		case MSG_RELEASE_NODE_FID:
+		{
+			ProcessFidReleaseNodeCommand(myport, input_message);
+			break;
+		}
+		case MSG_KEEPALIVE_FID:
+		{
+			ProcessFidKeepAliveCommand(myport, input_message);
+			break;
+		}
+		case MSG_LIST_FID:
+		{
+			ProcessFidListCommand(myport, input_message);
+			break;
+		}
+		case MSG_LIST_ALIVE_FID:
+		{
+			ProcessFidListAliveCommand(myport, input_message);
+			break;
+		}
+		case MSG_LIST_ALL_FID:
+		{
+			ProcessFidListAllCommand(myport, input_message);
+			break;
+		}
+#endif
 #endif
         default:
-            ereport(FATAL,
+            ereport(ERROR,
                     (EPROTO,
                             errmsg("invalid frontend message type %d",
                                    mtype)));
@@ -4135,15 +4690,15 @@ ProcessCommand(Port *myport, StringInfo input_message)
 
 #ifndef __OPENTENBASE__
     if (GTM_NeedBackup())
-    {
-        GTM_WriteRestorePoint();
-    }
+	{
+		GTM_WriteRestorePoint();
+	}
 #endif
 }
 
 static int
 GTMInitConnection(GTM_ConnectionInfo *conninfo)
-{// #lizard forgives
+{
     int ret = STATUS_OK;
 
     conninfo->con_init = true;
@@ -4262,12 +4817,12 @@ SetNonBlockConnection(GTM_ConnectionInfo *conninfo)
 
 static int
 GTMAddConnection(Port *port, GTM_Conn *standby)
-{// #lizard forgives
+{
     GTM_ConnectionInfo *conninfo = NULL;
-    int             i;
-    GTM_ThreadInfo        *thrinfo;
+    int 			i;
+    GTM_ThreadInfo		*thrinfo;
     struct epoll_event event;
-
+	int may_wait_sync_count = 0;
 
     conninfo = (GTM_ConnectionInfo *)palloc0(sizeof (GTM_ConnectionInfo));
     elog(DEBUG8, "Started new connection");
@@ -4277,10 +4832,14 @@ GTMAddConnection(Port *port, GTM_Conn *standby)
 
 #ifndef __XLOG__
     /*
-     * Add a connection to the standby.
-     */
-    if (standby != NULL)
-        conninfo->standby = standby;
+	 * Add a connection to the standby.
+	 */
+	if (standby != NULL)
+		conninfo->standby = standby;
+#endif
+
+#ifdef __RESOURCE_QUEUE__
+	conninfo->con_resq_info = NULL;
 #endif
 
     /* Set conn to non-blocking mode for epoll wait */
@@ -4329,13 +4888,21 @@ GTMAddConnection(Port *port, GTM_Conn *standby)
             continue;
         }
 
+		if (!Recovery_IsStandby() && enable_sync_commit && !SyncReady &&
+			thrinfo->may_wait_sync && may_wait_sync_count < GTMThreads->gt_start_thread_count)
+		{
+			elog(LOG, "thread %d may wait sync, can't dispatch new connection to it.", (int)thrinfo->thr_id);
+			may_wait_sync_count++;
+			continue;
+		}
+
         if(NULL == g_timekeeper_thread || NULL == g_checkpoint_thread)
         {
             elog(LOG, "timekeeper or checkpoint thread exited, should not add new connections.");
 
             return STATUS_ERROR;
         }
-
+        pg_read_barrier();
         conninfo->con_thrinfo = thrinfo;
         event.data.ptr = conninfo;
         event.events = EPOLLIN | EPOLLERR | EPOLLHUP | EPOLLRDHUP;
@@ -4350,23 +4917,23 @@ GTMAddConnection(Port *port, GTM_Conn *standby)
 }
 
 /* ----------------
- *        ReadCommand reads a command from either the frontend or
- *        standard input, places it in inBuf, and returns the
- *        message type code (first byte of the message).
- *        EOF is returned if end of file.
+ *		ReadCommand reads a command from either the frontend or
+ *		standard input, places it in inBuf, and returns the
+ *		message type code (first byte of the message).
+ *		EOF is returned if end of file.
  * ----------------
  */
 static int
 ReadCommand(Port *myport, StringInfo inBuf)
 {
-    int             qtype;
+    int 			qtype;
 
     /*
      * Get message type code from the frontend.
      */
     qtype = pq_getbyte(myport);
 
-    if (qtype == EOF)            /* frontend disconnected */
+    if (qtype == EOF)			/* frontend disconnected */
     {
         /* don't fill up the proxy log with client disconnect messages */
         ereport(DEBUG1,
@@ -4397,7 +4964,7 @@ ReadCommand(Port *myport, StringInfo inBuf)
         default:
 
             /*
-             * Otherwise we got garbage from the frontend.    We treat this as
+             * Otherwise we got garbage from the frontend.	We treat this as
              * fatal because we have probably lost message boundary sync, and
              * there's no good way to recover.
              */
@@ -4414,7 +4981,7 @@ ReadCommand(Port *myport, StringInfo inBuf)
      * the type.
      */
     if (pq_getmessage(myport, inBuf, 0))
-        return EOF;            /* suitable message already logged */
+        return EOF;			/* suitable message already logged */
 
     return qtype;
 }
@@ -4426,17 +4993,17 @@ ReadCommand(Port *myport, StringInfo inBuf)
 static void
 ProcessSyncStandbyCommand(Port *myport, GTM_MessageType mtype, StringInfo message)
 {
-    StringInfoData    buf;
+	StringInfoData	buf;
 
-    pq_getmsgend(message);
+	pq_getmsgend(message);
 
-    pq_beginmessage(&buf, 'S');
-    pq_sendint(&buf, SYNC_STANDBY_RESULT, 4);
-    pq_endmessage(myport, &buf);
-    /* Sync standby first */
-    if (GetMyConnection(myport)->standby)
-        gtm_sync_standby(GetMyConnection(myport)->standby);
-    pq_flush(myport);
+	pq_beginmessage(&buf, 'S');
+	pq_sendint(&buf, SYNC_STANDBY_RESULT, 4);
+	pq_endmessage(myport, &buf);
+	/* Sync standby first */
+	if (GetMyConnection(myport)->standby)
+		gtm_sync_standby(GetMyConnection(myport)->standby);
+	pq_flush(myport);
 }
 #endif
 
@@ -4451,8 +5018,8 @@ ProcessPGXCNodeCommand(Port *myport, GTM_MessageType mtype, StringInfo message)
             break;
 #ifndef __XLOG__
         case MSG_BKUP_NODE_REGISTER:
-            ProcessPGXCNodeRegister(myport, message, true);
-            break;
+			ProcessPGXCNodeRegister(myport, message, true);
+			break;
 #endif
 
         case MSG_NODE_UNREGISTER:
@@ -4461,8 +5028,8 @@ ProcessPGXCNodeCommand(Port *myport, GTM_MessageType mtype, StringInfo message)
 
 #ifndef __XLOG__
         case MSG_BKUP_NODE_UNREGISTER:
-            ProcessPGXCNodeUnregister(myport, message, true);
-            break;
+			ProcessPGXCNodeUnregister(myport, message, true);
+			break;
 #endif
 
         case MSG_NODE_LIST:
@@ -4474,23 +5041,23 @@ ProcessPGXCNodeCommand(Port *myport, GTM_MessageType mtype, StringInfo message)
             break;
 
         default:
-            Assert(0);            /* Shouldn't come here.. keep compiler quite */
+            Assert(0);			/* Shouldn't come here.. keep compiler quite */
     }
 }
 
 static void
 ProcessTransactionCommand(Port *myport, GTM_MessageType mtype, StringInfo message)
-{// #lizard forgives
+{
     elog(DEBUG1, "ProcessTransactionCommand: mtype:%d", mtype);
 
     switch (mtype)
     {
         case MSG_NODE_BEGIN_REPLICATION_INIT:
-            ProcessBeginReplicaInitSyncRequest(myport, message);
+            ProcessBeginReplicationInitialSyncRequest(myport, message);
             break;
 
         case MSG_NODE_END_REPLICATION_INIT:
-            ProcessEndReplicaInitSyncRequest(myport, message);
+            ProcessEndReplicationInitialSyncRequest(myport, message);
             break;
 
         case MSG_TXN_BEGIN:
@@ -4499,15 +5066,15 @@ ProcessTransactionCommand(Port *myport, GTM_MessageType mtype, StringInfo messag
 
 #ifndef __XLOG__
         case MSG_BKUP_TXN_BEGIN:
-            ProcessBkupBeginTransactionCommand(myport, message);
-            break;
+			ProcessBkupBeginTransactionCommand(myport, message);
+			break;
 #endif
 
 #ifdef __OPENTENBASE__
 #ifndef __XLOG__
         case MSG_BKUP_GLOBAL_TIMESTAMP:
-            ProcessBkupGlobalTimestamp(myport, message);
-            break;
+			ProcessBkupGlobalTimestamp(myport, message);
+			break;
 #endif
 
         case MSG_GETGTS:
@@ -4528,8 +5095,8 @@ ProcessTransactionCommand(Port *myport, GTM_MessageType mtype, StringInfo messag
 
 #ifndef __XLOG__
         case MSG_BKUP_TXN_BEGIN_GETGXID:
-            ProcessBkupBeginTransactionGetGXIDCommand(myport, message);
-            break;
+			ProcessBkupBeginTransactionGetGXIDCommand(myport, message);
+			break;
 #endif
 
         case MSG_TXN_BEGIN_GETGXID_AUTOVACUUM:
@@ -4538,8 +5105,8 @@ ProcessTransactionCommand(Port *myport, GTM_MessageType mtype, StringInfo messag
 
 #ifndef __XLOG__
         case MSG_BKUP_TXN_BEGIN_GETGXID_AUTOVACUUM:
-            ProcessBkupBeginTransactionGetGXIDAutovacuumCommand(myport, message);
-            break;
+			ProcessBkupBeginTransactionGetGXIDAutovacuumCommand(myport, message);
+			break;
 #endif
 
         case MSG_TXN_BEGIN_GETGXID_MULTI:
@@ -4547,8 +5114,8 @@ ProcessTransactionCommand(Port *myport, GTM_MessageType mtype, StringInfo messag
             break;
 #ifndef __XLOG__
         case MSG_BKUP_TXN_BEGIN_GETGXID_MULTI:
-            ProcessBkupBeginTransactionGetGXIDCommandMulti(myport, message);
-            break;
+			ProcessBkupBeginTransactionGetGXIDCommandMulti(myport, message);
+			break;
 #endif
 
         case MSG_TXN_START_PREPARED:
@@ -4557,8 +5124,8 @@ ProcessTransactionCommand(Port *myport, GTM_MessageType mtype, StringInfo messag
 
 #ifndef __XLOG__
         case MSG_BKUP_TXN_START_PREPARED:
-            ProcessStartPreparedTransactionCommand(myport, message, true);
-            break;
+			ProcessStartPreparedTransactionCommand(myport, message, true);
+			break;
 #endif
 
         case MSG_TXN_PREPARE:
@@ -4567,8 +5134,8 @@ ProcessTransactionCommand(Port *myport, GTM_MessageType mtype, StringInfo messag
 
 #ifndef __XLOG__
         case MSG_BKUP_TXN_PREPARE:
-            ProcessPrepareTransactionCommand(myport, message, true);
-            break;
+			ProcessPrepareTransactionCommand(myport, message, true);
+			break;
 #endif
 
         case MSG_TXN_COMMIT:
@@ -4577,8 +5144,8 @@ ProcessTransactionCommand(Port *myport, GTM_MessageType mtype, StringInfo messag
 
 #ifndef __XLOG__
         case MSG_BKUP_TXN_COMMIT:
-            ProcessCommitTransactionCommand(myport, message, true);
-            break;
+			ProcessCommitTransactionCommand(myport, message, true);
+			break;
 #endif
 
         case MSG_TXN_COMMIT_PREPARED:
@@ -4587,8 +5154,8 @@ ProcessTransactionCommand(Port *myport, GTM_MessageType mtype, StringInfo messag
 
 #ifndef __XLOG__
         case MSG_BKUP_TXN_COMMIT_PREPARED:
-            ProcessCommitPreparedTransactionCommand(myport, message, true);
-            break;
+			ProcessCommitPreparedTransactionCommand(myport, message, true);
+			break;
 #endif
 
         case MSG_TXN_ROLLBACK:
@@ -4597,8 +5164,8 @@ ProcessTransactionCommand(Port *myport, GTM_MessageType mtype, StringInfo messag
 
 #ifndef __XLOG__
         case MSG_BKUP_TXN_ROLLBACK:
-            ProcessRollbackTransactionCommand(myport, message, true);
-            break;
+			ProcessRollbackTransactionCommand(myport, message, true);
+			break;
 #endif
 
         case MSG_TXN_COMMIT_MULTI:
@@ -4607,8 +5174,8 @@ ProcessTransactionCommand(Port *myport, GTM_MessageType mtype, StringInfo messag
 
 #ifndef __XLOG__
         case MSG_BKUP_TXN_COMMIT_MULTI:
-            ProcessCommitTransactionCommandMulti(myport, message, true);
-            break;
+			ProcessCommitTransactionCommandMulti(myport, message, true);
+			break;
 #endif
 
         case MSG_TXN_ROLLBACK_MULTI:
@@ -4617,8 +5184,8 @@ ProcessTransactionCommand(Port *myport, GTM_MessageType mtype, StringInfo messag
 
 #ifndef __XLOG__
         case MSG_BKUP_TXN_ROLLBACK_MULTI:
-            ProcessRollbackTransactionCommandMulti(myport, message, true);
-            break;
+			ProcessRollbackTransactionCommandMulti(myport, message, true);
+			break;
 #endif
 
         case MSG_TXN_GET_GXID:
@@ -4671,7 +5238,7 @@ ProcessTransactionCommand(Port *myport, GTM_MessageType mtype, StringInfo messag
             break;
 
         default:
-            Assert(0);            /* Shouldn't come here.. keep compiler quite */
+            Assert(0);			/* Shouldn't come here.. keep compiler quite */
     }
 }
 
@@ -4693,19 +5260,25 @@ ProcessSnapshotCommand(Port *myport, GTM_MessageType mtype, StringInfo message)
             break;
 
         default:
-            Assert(0);            /* Shouldn't come here.. keep compiler quite */
+            Assert(0);			/* Shouldn't come here.. keep compiler quite */
     }
 
 }
 
 static void
 ProcessSequenceCommand(Port *myport, GTM_MessageType mtype, StringInfo message)
-{// #lizard forgives
+{
     /* We refuse all sequence command when sync commit is on and standby is not connected. */
-    if (!Recovery_IsStandby() && enable_sync_commit && !SyncReady)
-    {
-        elog(ERROR, "synchronous commit is on, synchronous standby is not ready");
-    }
+	if (!Recovery_IsStandby() && enable_sync_commit)
+	{
+		if (!SyncReady)
+			elog(ERROR, "synchronous commit is on, synchronous standby is not ready");
+		else
+		{
+			GTM_ThreadInfo *thr = GetMyThreadInfo;
+			thr->may_wait_sync = true;
+		}
+	}
 
     switch (mtype)
     {
@@ -4715,8 +5288,8 @@ ProcessSequenceCommand(Port *myport, GTM_MessageType mtype, StringInfo message)
 
 #ifndef __XLOG__
         case MSG_BKUP_SEQUENCE_INIT:
-            ProcessSequenceInitCommand(myport, message, true);
-            break;
+			ProcessSequenceInitCommand(myport, message, true);
+			break;
 #endif
 
         case MSG_SEQUENCE_ALTER:
@@ -4725,8 +5298,8 @@ ProcessSequenceCommand(Port *myport, GTM_MessageType mtype, StringInfo message)
 
 #ifndef __XLOG__
         case MSG_BKUP_SEQUENCE_ALTER:
-            ProcessSequenceAlterCommand(myport, message, true);
-            break;
+			ProcessSequenceAlterCommand(myport, message, true);
+			break;
 #endif
 
         case MSG_SEQUENCE_GET_CURRENT:
@@ -4739,8 +5312,8 @@ ProcessSequenceCommand(Port *myport, GTM_MessageType mtype, StringInfo message)
 
 #ifndef __XLOG__
         case MSG_BKUP_SEQUENCE_GET_NEXT:
-            ProcessSequenceGetNextCommand(myport, message, true);
-            break;
+			ProcessSequenceGetNextCommand(myport, message, true);
+			break;
 #endif
 
         case MSG_SEQUENCE_SET_VAL:
@@ -4749,8 +5322,8 @@ ProcessSequenceCommand(Port *myport, GTM_MessageType mtype, StringInfo message)
 
 #ifndef __XLOG__
         case MSG_BKUP_SEQUENCE_SET_VAL:
-            ProcessSequenceSetValCommand(myport, message, true);
-            break;
+			ProcessSequenceSetValCommand(myport, message, true);
+			break;
 #endif
 
         case MSG_SEQUENCE_RESET:
@@ -4759,8 +5332,8 @@ ProcessSequenceCommand(Port *myport, GTM_MessageType mtype, StringInfo message)
 
 #ifndef __XLOG__
         case MSG_BKUP_SEQUENCE_RESET:
-            ProcessSequenceResetCommand(myport, message, true);
-            break;
+			ProcessSequenceResetCommand(myport, message, true);
+			break;
 #endif
 
         case MSG_SEQUENCE_CLOSE:
@@ -4769,27 +5342,27 @@ ProcessSequenceCommand(Port *myport, GTM_MessageType mtype, StringInfo message)
 
 #ifndef __XLOG__
         case MSG_BKUP_SEQUENCE_CLOSE:
-            ProcessSequenceCloseCommand(myport, message, true);
-            break;
+			ProcessSequenceCloseCommand(myport, message, true);
+			break;
 #endif
 
         case MSG_SEQUENCE_RENAME:
             ProcessSequenceRenameCommand(myport, message, false);
             break;
-#ifdef __OPENTENBASE__        
-        case MSG_DB_SEQUENCE_RENAME:
-            ProcessDBSequenceRenameCommand(myport, message, false);
-            break;
+#ifdef __OPENTENBASE__		
+		case MSG_DB_SEQUENCE_RENAME:
+			ProcessDBSequenceRenameCommand(myport, message, false);
+			break;
 
-         case MSG_BKUP_DB_SEQUENCE_RENAME:
-            ProcessDBSequenceRenameCommand(myport, message, true);
-            break;
+		 case MSG_BKUP_DB_SEQUENCE_RENAME:
+			ProcessDBSequenceRenameCommand(myport, message, true);
+			break;
 #endif
 
 #ifndef __XLOG__
         case MSG_BKUP_SEQUENCE_RENAME:
-            ProcessSequenceRenameCommand(myport, message, true);
-            break;
+			ProcessSequenceRenameCommand(myport, message, true);
+			break;
 #endif
 
         case MSG_SEQUENCE_LIST:
@@ -4804,9 +5377,90 @@ ProcessSequenceCommand(Port *myport, GTM_MessageType mtype, StringInfo message)
             ProcessCopyDataBaseSequenceCommand(myport, message);
             break;
         default:
-            Assert(0);            /* Shouldn't come here.. keep compiler quite */
+            Assert(0);			/* Shouldn't come here.. keep compiler quite */
     }
 }
+
+#ifdef __RESOURCE_QUEUE__
+/*
+ * request proecces by ThreadResQueueManager
+ */
+static void
+ProcessResQueueRequest(Port *myport, StringInfo input_message)
+{
+    GTM_MessageType mtype = MSG_TYPE_INVALID;
+
+    myport->conn_id = InvalidGTMProxyConnID;
+    mtype = pq_getmsgint(input_message, sizeof (GTM_MessageType));
+
+    elog(LOG, "mtype = %s (%d).", gtm_util_message_name(mtype), (int)mtype);
+
+    switch (mtype)
+    {
+        case MSG_RESQUEUE_ACQUIRE:
+			ProcessResourceQueueAcquireCommand(myport, input_message);
+            break;
+        case MSG_RESQUEUE_RELEASE:
+			ProcessResourceQueueReleaseCommand(myport, input_message);
+            break;
+        default:
+            ereport(ERROR,
+                    (EPROTO,
+	                    errmsg("invalid frontend message type %d",
+	                           mtype)));
+    }
+}
+
+/*
+ * command processed by ThreadMain
+ */
+static void ProcessResQueueCommand(Port *myport, GTM_MessageType mtype, StringInfo message)
+{
+	/* We refuse all resource command when sync commit is on and standby is not connected. */
+	if (!Recovery_IsStandby() && enable_sync_commit)
+	{
+		if (!SyncReady)
+			elog(ERROR, "synchronous commit is on, synchronous standby is not ready");
+		else
+		{
+			GTM_ThreadInfo *thr = GetMyThreadInfo;
+			thr->may_wait_sync = true;
+		}
+	}
+
+    switch (mtype)
+    {
+		case MSG_RESQUEUE_INIT:			/* Initialize a new global resqueue */
+			ProcessResourceQueueInitCommand(myport, message, false);
+			break;
+		case MSG_RESQUEUE_CLOSE:			/* Close a previously inited resqueue */
+			ProcessResourceQueueCloseCommand(myport, message, false);
+			break;
+		case MSG_RESQUEUE_ALTER:			/* Alter a resqueue */
+			ProcessResourceQueueAlterCommand(myport, message, false);
+			break;
+		case MSG_RESQUEUE_LIST:			/* Get a list of resqueues */
+			ProcessResourceQueueListCommand(myport, message);
+			break;
+		case MSG_RESQUEUE_MOVE_CONN:		/* Just dispatch connect to ResourceQueueManager  */
+			ProcessResourceQueueMoveConnCommand(myport, message);
+			break;
+		case MSG_RESQUEUE_IF_EXISTS:	/* Check whether the resource queue exists */
+			ProcessResourceQueueCheckIfExistsCommand(myport, message);
+			break;
+		case MSG_LIST_GTM_STORE_RESQUEUE:			/* List  gtm running resqueue info */
+			ProcessListStorageResQueueCommand(myport, message);
+			break;
+		case MSG_CHECK_GTM_STORE_RESQUEUE:			/* Check gtm resqueue usage info */
+			ProcessCheckStorageResQueueCommand(myport, message);
+			break;
+		case MSG_LIST_RESQUEUE_USAGE:		/* list usage info of resource queue */
+			ProcessResourceQueueListUsageCommand(myport, message);
+        default:
+            Assert(0);			/* Shouldn't come here.. keep compiler quite */
+    }
+}
+#endif
 
 static void
 ProcessQueryCommand(Port *myport, GTM_MessageType mtype, StringInfo message)
@@ -4818,7 +5472,7 @@ ProcessQueryCommand(Port *myport, GTM_MessageType mtype, StringInfo message)
             break;
 
         default:
-            Assert(0);            /* Shouldn't come here.. keep compiler quite */
+            Assert(0);			/* Shouldn't come here.. keep compiler quite */
     }
 
 }
@@ -4946,6 +5600,35 @@ CreateDataDirLockFile()
 }
 
 /*
+ * check if the other_pid is the gtm process
+ */
+static bool
+is_gtm(pid_t other_pid)
+{
+#define BUFFER_SIZE (MAXPGPATH + 100)
+	char		cmd[BUFFER_SIZE];
+	FILE *      fp;
+	int 		count = 0;
+
+	snprintf(cmd, BUFFER_SIZE, "ps -ef | grep %d | grep %s | grep -v grep | wc -l", other_pid, GTMDataDir);
+
+	fp = popen(cmd, "r");
+	if (NULL == fp)
+	{
+		elog(LOG, "fail to read popen, cmd:%s", cmd);
+		return false;
+	}
+
+	if ((fgets(cmd, BUFFER_SIZE, fp)) != NULL)
+	{
+		count = atoi(cmd);
+	}
+
+	pclose(fp);
+	return (count != 0);
+}
+
+/*
  * Create a lockfile.
  *
  * filename is the name of the lockfile to create.
@@ -4954,17 +5637,17 @@ CreateDataDirLockFile()
  */
 void
 CreateLockFile(const char *filename, const char *refName)
-{// #lizard forgives
-    int            fd;
-    char        buffer[MAXPGPATH + 100];
-    int            ntries;
-    int            len;
-    int            encoded_pid;
-    pid_t        other_pid;
-    pid_t        my_pid = getpid();
+{
+    int			fd;
+    char		buffer[MAXPGPATH + 100];
+    int			ntries;
+    int			len;
+    int			encoded_pid;
+    pid_t		other_pid;
+    pid_t		my_pid = getpid();
 
     /*
-     * We need a loop here because of race conditions.    But don't loop forever
+     * We need a loop here because of race conditions.	But don't loop forever
      * (for example, a non-writable $PGDATA directory might cause a failure
      * that won't go away).  100 tries seems like plenty.
      */
@@ -4973,12 +5656,12 @@ CreateLockFile(const char *filename, const char *refName)
         /*
          * Try to create the lock file --- O_EXCL makes this atomic.
          *
-         * Think not to make the file protection weaker than 0600.    See
+         * Think not to make the file protection weaker than 0600.	See
          * comments below.
          */
         fd = open(filename, O_RDWR | O_CREAT | O_EXCL, 0600);
         if (fd >= 0)
-            break;                /* Success; exit the retry loop */
+            break;				/* Success; exit the retry loop */
 
         /*
          * Couldn't create the pid file. Probably it already exists.
@@ -4997,7 +5680,7 @@ CreateLockFile(const char *filename, const char *refName)
         if (fd < 0)
         {
             if (errno == ENOENT)
-                continue;        /* race condition; try again */
+                continue;		/* race condition; try again */
             ereport(FATAL,
                     (EINVAL,
                             errmsg("could not open lock file \"%s\": %m",
@@ -5025,10 +5708,10 @@ CreateLockFile(const char *filename, const char *refName)
          * the file must be stale (probably left over from a previous system
          * boot cycle).  We need this test because of the likelihood that a
          * reboot will assign exactly the same PID as we had in the previous
-         * reboot.    Also, if there is just one more process launch in this
+         * reboot.	Also, if there is just one more process launch in this
          * reboot than in the previous one, the lockfile might mention our
          * parent's PID.  We can reject that since we'd never be launched
-         * directly by a competing postmaster.    We can't detect grandparent
+         * directly by a competing postmaster.	We can't detect grandparent
          * processes unfortunately, but if the init script is written
          * carefully then all but the immediate parent shell will be
          * root-owned processes and so the kill test will fail with EPERM.
@@ -5037,7 +5720,7 @@ CreateLockFile(const char *filename, const char *refName)
          * implies that the existing process has a different userid than we
          * do, which means it cannot be a competing postmaster.  A postmaster
          * cannot successfully attach to a data directory owned by a userid
-         * other than its own.    (This is now checked directly in
+         * other than its own.	(This is now checked directly in
          * checkDataDir(), but has been true for a long time because of the
          * restriction that the data directory isn't group- or
          * world-accessible.)  Also, since we create the lockfiles mode 600,
@@ -5064,19 +5747,20 @@ CreateLockFile(const char *filename, const char *refName)
             if (kill(other_pid, 0) == 0 ||
                 (errno != ESRCH && errno != EPERM))
             {
-                /* lockfile belongs to a live process */
-                ereport(FATAL,
-                        (EINVAL,
-                                errmsg("lock file \"%s\" already exists",
-                                       filename),
-                                errhint("Is another GTM (PID %d) running in data directory \"%s\"?",
-                                        (int) other_pid, refName)));
+				/* lockfile belongs to a live process */
+				if (is_gtm(other_pid))
+					ereport(FATAL,
+							(EINVAL,
+									errmsg("lock file \"%s\" already exists",
+										   filename),
+									errhint("Is another GTM (PID %d) running in data directory \"%s\"?",
+											(int) other_pid, refName)));
             }
         }
 
         /*
          * Looks like nobody's home.  Unlink the file and try again to create
-         * it.    Need a loop because of possible race condition against other
+         * it.	Need a loop because of possible race condition against other
          * would-be creators.
          */
         if (unlink(filename) < 0)
@@ -5097,7 +5781,7 @@ CreateLockFile(const char *filename, const char *refName)
     errno = 0;
     if (write(fd, buffer, strlen(buffer)) != strlen(buffer))
     {
-        int            save_errno = errno;
+        int			save_errno = errno;
 
         close(fd);
         unlink(filename);
@@ -5109,7 +5793,7 @@ CreateLockFile(const char *filename, const char *refName)
     }
     if (close(fd))
     {
-        int            save_errno = errno;
+        int			save_errno = errno;
 
         unlink(filename);
         errno = save_errno;
@@ -5125,10 +5809,10 @@ CreateLockFile(const char *filename, const char *refName)
 static bool
 CreateOptsFile(int argc, char *argv[])
 {
-    FILE       *fp;
-    int            i;
+    FILE	   *fp;
+    int			i;
 
-#define OPTS_FILE    "gtm.opts"
+#define OPTS_FILE	"gtm.opts"
 
     if ((fp = fopen(OPTS_FILE, "w")) == NULL)
     {
@@ -5137,16 +5821,16 @@ CreateOptsFile(int argc, char *argv[])
     }
 
 
-    /* skip -D data args ,in case of rebooting will result in repeated parameters*/
+	/* skip -D data args ,in case of rebooting will result in repeated parameters*/
     for (i = 1; i < argc; i++)
-    {
-        if(strcmp(argv[i],"-D") == 0)
-            i++;
-        if(strcmp(argv[i],"-g") == 0)
-            i++;
-        else
-            fprintf(fp, " \"%s\"", argv[i]);
-    }
+	{
+		if(strcmp(argv[i],"-D") == 0)
+			i++;
+		if(strcmp(argv[i],"-g") == 0)
+			i++;
+		else
+			fprintf(fp, " \"%s\"", argv[i]);
+	}
     fputs("\n", fp);
 
     if (fclose(fp))
@@ -5183,14 +5867,14 @@ static void
 PromoteToActive(void)
 {
     const char *conf_file;
-    FILE       *fp;
+    FILE	   *fp;
 
     elog(LOG, "Promote signal received. Becoming an active...");
 
     /*
      * Set starting and next client idendifier before promotion is complete
      */
-//    GTM_SetInitialAndNextClientIdentifierAtPromote();
+//	GTM_SetInitialAndNextClientIdentifierAtPromote();
 
     SpinLockAcquire(&promote_status_lck);
     if (promote_status != GTM_PRPMOTE_INIT && promote_status != GTM_PRPMOTE_NORMAL)
@@ -5207,7 +5891,7 @@ PromoteToActive(void)
      */
     if (promote_status == GTM_PRPMOTE_NORMAL)
     {
-    SetCurrentTimeLineID(GetCurrentTimeLineID() + 1);
+        SetCurrentTimeLineID(GetCurrentTimeLineID() + 1);
     }
     else
     {
@@ -5234,12 +5918,11 @@ PromoteToActive(void)
     }
     else
     {
-        time_t        stamp_time = (time_t) time(NULL);
-        char        strfbuf[128];
+        time_t		stamp_time = (time_t) time(NULL);
+        char		strfbuf[128];
         struct tm   timeinfo;
 
         localtime_r(&stamp_time,&timeinfo);
-        
         strftime(strfbuf, sizeof(strfbuf),
                  "%Y-%m-%d %H:%M:%S %Z",
                  &timeinfo);
@@ -5258,18 +5941,18 @@ PromoteToActive(void)
 
 #ifndef __OPENTENBASE__
     GTM_SetNeedBackup();
-    GTM_WriteRestorePoint();
+	GTM_WriteRestorePoint();
 #endif
     return;
 }
 
 static void ProcessBarrierCommand(Port *myport, GTM_MessageType mtype, StringInfo message)
-{// #lizard forgives
+{
     int barrier_id_len;
     char *barrier_id;
 #ifndef __XLOG__
     int count = 0;
-    GTM_Conn *oldconn = GetMyConnection(myport)->standby;
+	GTM_Conn *oldconn = GetMyConnection(myport)->standby;
 #endif
     StringInfoData buf;
 
@@ -5289,15 +5972,15 @@ static void ProcessBarrierCommand(Port *myport, GTM_MessageType mtype, StringInf
 
 #ifndef __XLOG__
     if ((mtype == MSG_BARRIER) && GetMyConnection(myport)->standby)
-    {
-    retry:
-        bkup_report_barrier(GetMyConnection(myport)->standby, barrier_id);
-        if (gtm_standby_check_communication_error(myport, &count, oldconn))
-            goto retry;
+	{
+	retry:
+		bkup_report_barrier(GetMyConnection(myport)->standby, barrier_id);
+		if (gtm_standby_check_communication_error(myport, &count, oldconn))
+			goto retry;
 
-        if (Backup_synchronously && (myport->remote_type != GTM_NODE_GTM_PROXY))
-            gtm_sync_standby(GetMyConnection(myport)->standby);
-    }
+		if (Backup_synchronously && (myport->remote_type != GTM_NODE_GTM_PROXY))
+			gtm_sync_standby(GetMyConnection(myport)->standby);
+	}
 #endif
 
     GTM_WriteBarrierBackup(barrier_id);
@@ -5321,8 +6004,8 @@ static void ProcessBarrierCommand(Port *myport, GTM_MessageType mtype, StringInf
         {
 #ifndef __XLOG__
             /* Flush standby first */
-            if (GetMyConnection(myport)->standby)
-                gtmpqFlush(GetMyConnection(myport)->standby);
+			if (GetMyConnection(myport)->standby)
+				gtmpqFlush(GetMyConnection(myport)->standby);
 #endif
             pq_flush(myport);
         }
@@ -5395,7 +6078,7 @@ GTM_RestoreTxnInfo(FILE *ctlf, GlobalTransactionId next_gxid,
     elog(LOG, "Restoring last GXID to %u\n", next_gxid);
     elog(LOG, "Restoring global xmin to %u\n",
          GTMTransactions.gt_recent_global_xmin);
-    elog(LOG, "Restoring gts to " INT64_FORMAT "\n",
+    elog(LOG, "Restoring gts to " UINT64_FORMAT "\n",
          saved_gts + GTM_GTS_ONE_SECOND * GTMStartupGTSDelta);
 
     /* Set this otherwise a strange snapshot might be returned for the first one */
@@ -5413,7 +6096,7 @@ GTM_SaveTxnInfo(FILE *ctlf)
 {
     GlobalTransactionId next_gxid;
     GlobalTransactionId global_xmin = GTMTransactions.gt_recent_global_xmin;
-    GlobalTimestamp     next_gts;
+    GlobalTimestamp 	next_gts;
     next_gts = GetNextGlobalTimestamp();
     next_gxid = ReadNewGlobalTransactionId();
 
@@ -5445,7 +6128,7 @@ GTM_WriteRestorePointVersion(FILE *f)
 
 void
 GTM_RestoreSeqInfo(FILE *ctlf, struct GTM_RestoreContext *context)
-{// #lizard forgives
+{
     char seqname[1024];
 
     if (ctlf == NULL)
@@ -5520,13 +6203,14 @@ GTM_RestoreSeqInfo(FILE *ctlf, struct GTM_RestoreContext *context)
 }
 
 #ifdef __OPENTENBASE__
+
 void
 GTM_RestoreStoreInfo(GlobalTransactionId next_gxid, bool force_xid)
-{// #lizard forgives
+{
     int32 ret = 0;
-    GlobalTransactionId saved_gxid            = InvalidGlobalTransactionId;
-    GlobalTransactionId saved_global_xmin    = InvalidGlobalTransactionId;
-    GlobalTimestamp        saved_gts            = 0;
+    GlobalTransactionId saved_gxid			= InvalidGlobalTransactionId;
+    GlobalTransactionId saved_global_xmin	= InvalidGlobalTransactionId;
+    GlobalTimestamp		saved_gts			= 0;
 
     ret = GTM_StoreRestore(&saved_gts, &saved_gxid, &saved_global_xmin);
     if (ret)
@@ -5536,87 +6220,117 @@ GTM_RestoreStoreInfo(GlobalTransactionId next_gxid, bool force_xid)
     }
 #ifndef __OPENTENBASE__
     /*
-     * If the caller has supplied an explicit XID to restore, just use that.
-     * This is typically only be used during initdb and in some exception
-     * circumstances to recover from failures. But otherwise we must start with
-     * the XIDs saved in the control file
-     *
-     * If the global_xmin was saved (which should be unless we are dealing with
-     * an old control file), use that. Otherwise set it saved_gxid/next_xid
-     * whatever is available. If we don't used the value incremented by
-     * CONTROL_INTERVAL because its better to start with a conservative value
-     * for the GlobalXmin
-     */
-    if (!GlobalTransactionIdIsValid(next_gxid))
-    {
-        if (GlobalTransactionIdIsValid(saved_gxid))
-        {
-            /* 
-             * Add in extra amount in case we had not gracefully stopped
-             */
-            next_gxid = saved_gxid + CONTROL_INTERVAL;
-            ret =  GTM_StoreReserveXid(CONTROL_INTERVAL);
-            if (ret)
-            {
-                elog(FATAL, "GTM_RestoreStoreInfo reserved gxid failed");
-            }
-            SetControlXid(next_gxid);
-        }
-        else
-        {
-            saved_gxid = next_gxid = InitialGXIDValue_Default;
-            ret =  GTM_StoreReserveXid(CONTROL_INTERVAL + InitialGXIDValue_Default);
-            if (ret)
-            {
-                elog(FATAL, "GTM_RestoreStoreInfo reserved gxid failed");
-            }
-        }
+	 * If the caller has supplied an explicit XID to restore, just use that.
+	 * This is typically only be used during initdb and in some exception
+	 * circumstances to recover from failures. But otherwise we must start with
+	 * the XIDs saved in the control file
+	 *
+	 * If the global_xmin was saved (which should be unless we are dealing with
+	 * an old control file), use that. Otherwise set it saved_gxid/next_xid
+	 * whatever is available. If we don't used the value incremented by
+	 * CONTROL_INTERVAL because its better to start with a conservative value
+	 * for the GlobalXmin
+	 */
+	if (!GlobalTransactionIdIsValid(next_gxid))
+	{
+		if (GlobalTransactionIdIsValid(saved_gxid))
+		{
+			/* 
+			 * Add in extra amount in case we had not gracefully stopped
+			 */
+			next_gxid = saved_gxid + CONTROL_INTERVAL;
+			ret =  GTM_StoreReserveXid(CONTROL_INTERVAL);
+			if (ret)
+			{
+				elog(FATAL, "GTM_RestoreStoreInfo reserved gxid failed");
+			}
+			SetControlXid(next_gxid);
+		}
+		else
+		{
+			saved_gxid = next_gxid = InitialGXIDValue_Default;
+			ret =  GTM_StoreReserveXid(CONTROL_INTERVAL + InitialGXIDValue_Default);
+			if (ret)
+			{
+				elog(FATAL, "GTM_RestoreStoreInfo reserved gxid failed");
+			}
+		}
 
-        if (GlobalTransactionIdIsValid(saved_global_xmin))
-        {
-            GTMTransactions.gt_recent_global_xmin = saved_global_xmin;
-        }
-        else
-        {
-            GTMTransactions.gt_recent_global_xmin = saved_gxid;
-        }
-    }
-    else
-    {
-        if (GlobalTransactionIdIsValid(saved_gxid) &&
-            GlobalTransactionIdPrecedes(next_gxid, saved_gxid) && !force_xid)
-            ereport(FATAL,
-                    (EINVAL,
-                     errmsg("Requested to start GTM with starting xid %d, "
-                         "which is lower than gxid saved in control file %d. Refusing to start",
-                         next_gxid, saved_gxid),
-                     errhint("If you must force start GTM with a lower xid, please"
-                         " use -f option")));
-        GTMTransactions.gt_recent_global_xmin = next_gxid;
-    }
-    
-    SetNextGlobalTransactionId(next_gxid);
+		if (GlobalTransactionIdIsValid(saved_global_xmin))
+		{
+			GTMTransactions.gt_recent_global_xmin = saved_global_xmin;
+		}
+		else
+		{
+			GTMTransactions.gt_recent_global_xmin = saved_gxid;
+		}
+	}
+	else
+	{
+		if (GlobalTransactionIdIsValid(saved_gxid) &&
+			GlobalTransactionIdPrecedes(next_gxid, saved_gxid) && !force_xid)
+			ereport(FATAL,
+					(EINVAL,
+					 errmsg("Requested to start GTM with starting xid %d, "
+						 "which is lower than gxid saved in control file %d. Refusing to start",
+						 next_gxid, saved_gxid),
+					 errhint("If you must force start GTM with a lower xid, please"
+						 " use -f option")));
+		GTMTransactions.gt_recent_global_xmin = next_gxid;
+	}
+	
+	SetNextGlobalTransactionId(next_gxid);
 #endif
 
-    {
-        GlobalTimestamp recovered_gts = saved_gts + GTMStartupGTSDelta * GTM_GTS_ONE_SECOND;
-           SetNextGlobalTimestamp(recovered_gts);
-        XLogCtl->segment_max_gts = recovered_gts;
-        XLogCtl->segment_max_timestamp = time(NULL);
-    }
-        
-    elog(LOG, "Restoring gts to " INT64_FORMAT "\n",
+	{
+		GlobalTimestamp recovered_gts = saved_gts + GTMStartupGTSDelta * GTM_GTS_ONE_SECOND;
+   		SetNextGlobalTimestamp(recovered_gts);
+		XLogCtl->segment_max_gts = recovered_gts;
+		XLogCtl->segment_max_timestamp = time(NULL);
+	}
+    elog(LOG, "Restoring gts to " UINT64_FORMAT "\n",
          saved_gts + GTMStartupGTSDelta * GTM_GTS_ONE_SECOND);
 #ifndef __OPENTENBASE__
     elog(LOG, "Restoring last GXID to %u\n", next_gxid);
-    elog(LOG, "Restoring global xmin to %u\n",
-            GTMTransactions.gt_recent_global_xmin);
+	elog(LOG, "Restoring global xmin to %u\n",
+			GTMTransactions.gt_recent_global_xmin);
 
-    /* Set this otherwise a strange snapshot might be returned for the first one */
-    GTMTransactions.gt_latestCompletedXid = next_gxid - 1;
+	/* Set this otherwise a strange snapshot might be returned for the first one */
+	GTMTransactions.gt_latestCompletedXid = next_gxid - 1;
 #endif
     return;
 }
+
+#ifdef __OPENTENBASE_C__
+void GTM_RestoreStoreFidManager(void)
+{
+	int ii;
+	int *fidarray = GTM_StoreRestoreFidArray();
+	MemoryContext oldContext;
+	
+	oldContext = MemoryContextSwitchTo(TopMostMemoryContext);
+	elog(LOG, "fidarray: %d %d %d %d %d %d", fidarray[0], fidarray[1], fidarray[2], fidarray[3], fidarray[4], fidarray[5]);
+	GTM_MutexLockAcquire(&GTMFidManager.FidLock);
+	for (ii = 0; ii < GTM_MAX_FRAGMENTS; ii++)
+	{
+		if (fidarray[ii] != INVALID_NODE_ID)
+		{
+			GTMFidManager.Fids[ii].nodeId = fidarray[ii];
+			GTMFidManager.Freelist = gtm_list_delete(GTMFidManager.Freelist, &GTMFidManager.Fids[ii]);
+			if (NULL == GTMFidManager.FidNodes[fidarray[ii]].fids)
+			{
+				GTMFidManager.FidNodes[fidarray[ii]].fids = palloc0(sizeof(int8) * GTM_MAX_FRAGMENTS);
+			}
+			
+			GTMFidManager.FidNodes[fidarray[ii]].fids[ii] = 1;
+			GTMFidManager.FidNodes[fidarray[ii]].time = GTM_TimestampGetMonotonicRaw();
+		}
+	}
+	GTM_MutexLockRelease(&GTMFidManager.FidLock);
+	MemoryContextSwitchTo(oldContext);
+	return;
+}
+#endif
 
 int GTM_TimerInit(void)
 {
@@ -5641,7 +6355,7 @@ int GTM_TimerInit(void)
 
 /* Add a timer into the timer entries. */
 GTM_TimerHandle GTM_AddTimer(void *(* func)(void*), GTM_TIMER_TYPE type, time_t interval, void *para)
-{// #lizard forgives
+{
     bool bret  = false;
     bool found = false;
     int  i    = 0;
@@ -5778,7 +6492,7 @@ int GTM_DeactiveTimer(GTM_TimerHandle handle)
 
 /* Run the timer entries. */
 void GTM_TimerRun(void)
-{// #lizard forgives
+{
     bool bret  = false;
     int  i    = 0;
     time_t now = 0;
@@ -5864,13 +6578,17 @@ GTM_TimerThread(void *argp)
     GTM_ThreadInfo *thrinfo = (GTM_ThreadInfo *)argp;
     sigjmp_buf  local_sigjmp_buf;
 
+#ifdef __RESOURCE_QUEUE__
+	GTM_ThreadSetName("TimerThread");
+#endif
+
     MessageContext = AllocSetContextCreate(TopMemoryContext,
                                            "MessageContext",
                                            ALLOCSET_DEFAULT_MINSIZE,
                                            ALLOCSET_DEFAULT_INITSIZE,
                                            ALLOCSET_DEFAULT_MAXSIZE,
                                            false);
-
+    elog(LOG, "GTM timer thread start.");
     /*
      * POSTGRES main processing loop begins here
      *
@@ -5929,25 +6647,25 @@ GTM_TimerThread(void *argp)
  */
 void CheckStandbyConnect(GTM_ThreadInfo *my_threadinfo, GTM_ConnectionInfo *conn)
 {
-    if (GTMThreads->gt_standby_ready     &&
-            NULL == conn->standby        &&
-            my_threadinfo->thr_status != GTM_THREAD_BACKUP)
-    {
-        /* Connect to GTM-Standby */
-        conn->standby = gtm_standby_connect_to_standby();
-        if (NULL == conn->standby)
-        {    
-            elog(LOG, "Connect standby node failed!!\n"); 
-            GTMThreads->gt_standby_ready = false;    /* This will make other threads to disconnect from
-                                                     * the standby, if needed.*/
-        }
-    }
-    else if (!GTMThreads->gt_standby_ready && conn->standby)
-    {
-        /* Disconnect from GTM-Standby */
-        gtm_standby_disconnect_from_standby(conn->standby);
-        conn->standby = NULL;
-    }    
+	if (GTMThreads->gt_standby_ready     &&
+			NULL == conn->standby        &&
+			my_threadinfo->thr_status != GTM_THREAD_BACKUP)
+	{
+		/* Connect to GTM-Standby */
+		conn->standby = gtm_standby_connect_to_standby();
+		if (NULL == conn->standby)
+		{	
+			elog(LOG, "Connect standby node failed!!\n"); 
+			GTMThreads->gt_standby_ready = false;	/* This will make other threads to disconnect from
+													 * the standby, if needed.*/
+		}
+	}
+	else if (!GTMThreads->gt_standby_ready && conn->standby)
+	{
+		/* Disconnect from GTM-Standby */
+		gtm_standby_disconnect_from_standby(conn->standby);
+		conn->standby = NULL;
+	}	
 }
 
 #endif

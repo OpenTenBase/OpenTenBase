@@ -3,7 +3,7 @@
  *
  *
  * Copyright (c) 1989, 1993
- *    The Regents of the University of California.  All rights reserved.
+ *	The Regents of the University of California.  All rights reserved.
  *
  * This code is derived from FreeBSD 2.2.1-RELEASE software.
  *
@@ -11,13 +11,13 @@
  * modification, are permitted provided that the following conditions
  * are met:
  * 1. Redistributions of source code must retain the above copyright
- *      notice, this list of conditions and the following disclaimer.
+ *	  notice, this list of conditions and the following disclaimer.
  * 2. Redistributions in binary form must reproduce the above copyright
- *      notice, this list of conditions and the following disclaimer in the
- *      documentation and/or other materials provided with the distribution.
+ *	  notice, this list of conditions and the following disclaimer in the
+ *	  documentation and/or other materials provided with the distribution.
  * 3. Neither the name of the University nor the names of its contributors
- *      may be used to endorse or promote products derived from this software
- *      without specific prior written permission.
+ *	  may be used to endorse or promote products derived from this software
+ *	  without specific prior written permission.
  *
  * THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -39,39 +39,39 @@
 int
 pg_wchar_strncmp(const pg_wchar *s1, const pg_wchar *s2, size_t n)
 {
-    if (n == 0)
-        return 0;
-    do
-    {
-        if (*s1 != *s2++)
-            return (*s1 - *(s2 - 1));
-        if (*s1++ == 0)
-            break;
-    } while (--n != 0);
-    return 0;
+	if (n == 0)
+		return 0;
+	do
+	{
+		if (*s1 != *s2++)
+			return (*s1 - *(s2 - 1));
+		if (*s1++ == 0)
+			break;
+	} while (--n != 0);
+	return 0;
 }
 
 int
 pg_char_and_wchar_strncmp(const char *s1, const pg_wchar *s2, size_t n)
 {
-    if (n == 0)
-        return 0;
-    do
-    {
-        if ((pg_wchar) ((unsigned char) *s1) != *s2++)
-            return ((pg_wchar) ((unsigned char) *s1) - *(s2 - 1));
-        if (*s1++ == 0)
-            break;
-    } while (--n != 0);
-    return 0;
+	if (n == 0)
+		return 0;
+	do
+	{
+		if ((pg_wchar) ((unsigned char) *s1) != *s2++)
+			return ((pg_wchar) ((unsigned char) *s1) - *(s2 - 1));
+		if (*s1++ == 0)
+			break;
+	} while (--n != 0);
+	return 0;
 }
 
 size_t
 pg_wchar_strlen(const pg_wchar *str)
 {
-    const pg_wchar *s;
+	const pg_wchar *s;
 
-    for (s = str; *s; ++s)
-        ;
-    return (s - str);
+	for (s = str; *s; ++s)
+		;
+	return (s - str);
 }

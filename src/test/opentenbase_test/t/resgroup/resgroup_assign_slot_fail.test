@@ -1,0 +1,54 @@
+%cn 1
+%cn_slave 0
+%dn 2
+%dn_slave 0
+%gtm 1
+%gtm_slave 0
+
+connect conn cn1
+connection conn
+
+create default node group default_group with ("dn1", "dn2");
+create sharding group to group default_group;
+clean sharding;
+create table t(a int, b int);
+grant all on t to public;
+
+DROP ROLE IF EXISTS role_test;
+DROP RESOURCE GROUP rg_test;
+
+CREATE RESOURCE GROUP rg_test WITH concurrency 2 CPU_RATE_LIMIT 10;
+CREATE ROLE role_test RESOURCE GROUP rg_test;
+
+connect 1 cn1
+connection 1
+
+SET ROLE role_test;
+set opentenbase_test_flag='suspend_after_resgroup_assigned1';
+sendblock select count(*) from t;
+
+
+connect 2 cn1
+connection 2
+
+SET ROLE role_test;
+
+set opentenbase_test_flag = 'resgroup_assigned_failed';
+show opentenbase_test_flag;
+
+-- session 2 should failed, res slot should be freed
+set opentenbase_test_flag='+suspend_after_resgroup_assigned2';
+select count(*) from t;
+
+
+set opentenbase_test_flag = 'placeholder';
+show opentenbase_test_flag;
+
+-- session 2, should success
+select count(*) from t;
+
+-- result of session 1
+execute_shell_cmd rm /tmp/suspend_after_resgroup_assigned1
+reap 1
+
+execute_shell_cmd rm /tmp/suspend_after_resgroup_assigned2

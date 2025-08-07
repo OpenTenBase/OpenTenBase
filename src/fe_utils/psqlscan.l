@@ -36,10 +36,15 @@
 #include "fe_utils/psqlscan.h"
 
 #include "libpq-fe.h"
+
+#include <ctype.h>
+
+#include <string.h>
 }
 
 %{
 #include "fe_utils/psqlscan_int.h"
+#include "common/opentenbase_ora.h"
 
 /*
  * We must have a typedef YYSTYPE for yylex's first argument, but this lexer
@@ -59,8 +64,11 @@ typedef int YYSTYPE;
 #define LEXRES_SEMI			1	/* command-terminating semicolon found */
 #define LEXRES_BACKSLASH	2	/* backslash command start */
 
-
+#ifdef _PG_ORCL_
+#define ECHO psqlscan_emit_yystate(cur_state, yytext, yyleng, YY_START)
+#else
 #define ECHO psqlscan_emit(cur_state, yytext, yyleng)
+#endif
 
 /*
  * Work around a bug in flex 2.5.35: it emits a couple of functions that
@@ -71,6 +79,9 @@ typedef int YYSTYPE;
 extern int	psql_yyget_column(yyscan_t yyscanner);
 extern void psql_yyset_column(int column_no, yyscan_t yyscanner);
 
+#ifdef _PG_ORCL_
+static void psqlscan_emit_yystate(PsqlScanState state, const char *txt, int len, int yystart);
+#endif
 %}
 
 %option reentrant
@@ -952,7 +963,8 @@ psql_scan_set_passthrough(PsqlScanState state, void *passthrough)
 void
 psql_scan_setup(PsqlScanState state,
 				const char *line, int line_len,
-				int encoding, bool std_strings)
+				int encoding, bool std_strings,
+				bool send_extra_lines)
 {
 	/* Mustn't be scanning already */
 	Assert(state->scanbufhandle == NULL);
@@ -973,6 +985,21 @@ psql_scan_setup(PsqlScanState state,
 	/* Set lookaside data in case we have to map unsafe encoding */
 	state->curline = state->scanbuf;
 	state->refline = state->scanline;
+
+	state->send_extra_lines = send_extra_lines;
+}
+
+static bool
+ch_is_space(char ch)
+{
+	if (ch == ' ' || ch == '\n' || ch == '\t' || ch == '\r' || ch == '\f')
+	{
+	    return true;
+	}
+	else
+	{
+		return false;
+	}
 }
 
 /*
@@ -1015,6 +1042,12 @@ psql_scan(PsqlScanState state,
 	PsqlScanResult result;
 	int			lexresult;
 
+#ifdef _PG_ORCL_
+	int skip_len = 0;
+	bool need_end = false;
+	char *tmp_char = NULL;
+#endif
+
 	/* Must be scanning already */
 	Assert(state->scanbufhandle != NULL);
 
@@ -1023,12 +1056,12 @@ psql_scan(PsqlScanState state,
 
 	/* Set input source */
 	if (state->buffer_stack != NULL)
-		yy_switch_to_buffer(state->buffer_stack->buf, state->scanner);
+		psql_yy_switch_to_buffer(state->buffer_stack->buf,state->scanner);
 	else
-		yy_switch_to_buffer(state->scanbufhandle, state->scanner);
+		psql_yy_switch_to_buffer(state->scanbufhandle,state->scanner);
 
 	/* And lex. */
-	lexresult = yylex(NULL, state->scanner);
+	lexresult = psql_yylex(NULL,state->scanner);
 
 	/*
 	 * Check termination state and return appropriate result info.
@@ -1048,8 +1081,44 @@ psql_scan(PsqlScanState state,
 					}
 					else if (query_buf->len > 0)
 					{
+#ifdef _PG_ORCL_
+						skip_len = 0;
+						need_end = false;
+						tmp_char = query_buf->data + query_buf->len - 1;
+						while (tmp_char != query_buf->data)
+						{
+							if (ch_is_space(*tmp_char))
+							{
+								tmp_char--;
+								skip_len++;
+							}
+							else if (*tmp_char == '/' && *(tmp_char-1) == '\n')
+							{
+								need_end = true;
+								*tmp_char = '\0';
+								query_buf->len = query_buf->len - skip_len - 1;
+								break;
+							}
+							else
+							{
+								break;
+							}
+						}
+
+						if (need_end)
+						{
+							result = PSCAN_SEMICOLON;
+							*prompt = PROMPT_READY;
+						}
+						else
+						{
+							result = PSCAN_EOL;
+							*prompt = PROMPT_CONTINUE;
+						}
+#else
 						result = PSCAN_EOL;
 						*prompt = PROMPT_CONTINUE;
+#endif
 					}
 					else
 					{
@@ -1110,7 +1179,7 @@ psql_scan(PsqlScanState state,
 			break;
 		default:
 			/* can't get here */
-			fprintf(stderr, "invalid yylex result\n");
+			fprintf(stderr, "invalid psql_yylex result\n");
 			exit(1);
 	}
 
@@ -1162,6 +1231,7 @@ psql_scan_reset(PsqlScanState state)
 	if (state->dolqstart)
 		free(state->dolqstart);
 	state->dolqstart = NULL;
+	psql_scan_slash_reset(state);
 }
 
 /*
@@ -1348,6 +1418,11 @@ psqlscan_prepare_buffer(PsqlScanState state, const char *txt, int len,
  */
 void
 psqlscan_emit(PsqlScanState state, const char *txt, int len)
+{
+	psqlscan_emit_yystate(state, txt, len, -1);
+}
+static void
+psqlscan_emit_yystate(PsqlScanState state, const char *txt, int len, int yystart)
 {
 	PQExpBuffer output_buf = state->output_buf;
 

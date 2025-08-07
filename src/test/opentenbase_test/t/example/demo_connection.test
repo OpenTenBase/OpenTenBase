@@ -1,0 +1,98 @@
+%cn 3
+%cn_slave 1
+%dn 3
+%dn_slave1
+%gtm 1
+%gtm_slave 1
+
+connect conncn1 cn1
+
+connection conncn1
+
+create default node group default_group with ("dn1", "dn2", "dn3");
+
+create sharding group to group default_group;
+
+clean sharding;
+
+create table t(a int, b int);
+insert into t select
+generate_series(1,100);
+update
+t set b=a*a;
+
+select * from t order by a;
+
+
+connect conncn2 cn2
+connection conncn2
+
+select *
+ from t order by a;
+
+connect conncn3 cn3
+connection conncn3
+
+select *
+ from t order by a;
+
+connect conndn1 dn1
+connection conndn1
+
+select *
+ from t order by a;
+
+
+connect conndn2 dn2
+connection conndn2
+
+select *
+ from t order by a;
+
+connect conndn3 dn3
+connection conndn3
+
+select *
+ from t order by a;
+
+
+connect conncn1slave1 cn1_slave1
+connection conncn1slave1
+
+select *
+ from t order by a;
+
+
+connect conncn2slave1 cn2_slave1
+connection conncn2slave1
+
+select *
+ from t order by a;
+
+connect conncn3slave1 cn3_slave1
+connection conncn3slave1
+
+select *
+ from t order by a;
+
+
+
+
+connect conndn1slave1 dn1_slave1
+connection conndn1slave1
+
+select *
+ from t order by a;
+
+
+connect conndn2slave1 dn2_slave1
+connection conndn2slave1
+
+select *
+ from t order by a;
+
+ connect conndn3slave1 dn3_slave1
+connection conndn3slave1
+
+select *
+ from t order by a;

@@ -18,10 +18,10 @@
 #define PGDLLIMPORT __declspec (dllimport)
 #else
 #define PGDLLIMPORT
-#endif                            /* __CYGWIN__ */
-#endif                            /* PGDLLIMPORT */
+#endif							/* __CYGWIN__ */
+#endif							/* PGDLLIMPORT */
 
-#define SQLERRMC_LEN    150
+#define SQLERRMC_LEN	150
 
 #ifdef __cplusplus
 extern "C"
@@ -30,39 +30,39 @@ extern "C"
 
 struct sqlca_t
 {
-    char        sqlcaid[8];
-    long        sqlabc;
-    long        sqlcode;
-    struct
-    {
-        int            sqlerrml;
-        char        sqlerrmc[SQLERRMC_LEN];
-    }            sqlerrm;
-    char        sqlerrp[8];
-    long        sqlerrd[6];
-    /* Element 0: empty                        */
-    /* 1: OID of processed tuple if applicable            */
-    /* 2: number of rows processed                */
-    /* after an INSERT, UPDATE or                */
-    /* DELETE statement                    */
-    /* 3: empty                        */
-    /* 4: empty                        */
-    /* 5: empty                        */
-    char        sqlwarn[8];
-    /* Element 0: set to 'W' if at least one other is 'W'    */
-    /* 1: if 'W' at least one character string        */
-    /* value was truncated when it was            */
-    /* stored into a host variable.             */
+	char		sqlcaid[8];
+	long		sqlabc;
+	long		sqlcode;
+	struct
+	{
+		int			sqlerrml;
+		char		sqlerrmc[SQLERRMC_LEN];
+	}			sqlerrm;
+	char		sqlerrp[8];
+	long		sqlerrd[6];
+	/* Element 0: empty						*/
+	/* 1: OID of processed tuple if applicable			*/
+	/* 2: number of rows processed				*/
+	/* after an INSERT, UPDATE or				*/
+	/* DELETE statement					*/
+	/* 3: empty						*/
+	/* 4: empty						*/
+	/* 5: empty						*/
+	char		sqlwarn[8];
+	/* Element 0: set to 'W' if at least one other is 'W'	*/
+	/* 1: if 'W' at least one character string		*/
+	/* value was truncated when it was			*/
+	/* stored into a host variable.             */
 
-    /*
-     * 2: if 'W' a (hopefully) non-fatal notice occurred
-     */    /* 3: empty */
-    /* 4: empty                        */
-    /* 5: empty                        */
-    /* 6: empty                        */
-    /* 7: empty                        */
+	/*
+	 * 2: if 'W' a (hopefully) non-fatal notice occurred
+	 */	/* 3: empty */
+	/* 4: empty						*/
+	/* 5: empty						*/
+	/* 6: empty						*/
+	/* 7: empty						*/
 
-    char        sqlstate[5];
+	char		sqlstate[5];
 };
 
 struct sqlca_t *ECPGget_sqlca(void);
@@ -210,16 +210,16 @@ if (sqlca.sqlcode < 0) sqlprint ( );
 #line 41 "dynalloc.pgc"
 
    { ECPGdo(__LINE__, 0, 1, NULL, 0, ECPGst_normal, "select a , b , c , d , e , f , g , h , i from test order by a", ECPGt_EOIT, 
-    ECPGt_descriptor, "mydesc", 1L, 1L, 1L, 
-    ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EORT);
+	ECPGt_descriptor, "mydesc", 1L, 1L, 1L, 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EORT);
 #line 42 "dynalloc.pgc"
 
 if (sqlca.sqlcode < 0) sqlprint ( );}
 #line 42 "dynalloc.pgc"
 
    { ECPGget_desc(__LINE__, "mydesc", 1,ECPGd_indicator,
-    ECPGt_int,&(i1),(long)1,(long)0,sizeof(int), ECPGd_data,
-    ECPGt_int,&(d1),(long)1,(long)0,sizeof(int), ECPGd_EODT);
+	ECPGt_int,&(i1),(long)1,(long)0,sizeof(int), ECPGd_data,
+	ECPGt_int,&(d1),(long)1,(long)0,sizeof(int), ECPGd_EODT);
 
 #line 43 "dynalloc.pgc"
 
@@ -227,8 +227,8 @@ if (sqlca.sqlcode < 0) sqlprint ( );}
 #line 43 "dynalloc.pgc"
 
    { ECPGget_desc(__LINE__, "mydesc", 2,ECPGd_indicator,
-    ECPGt_int,&(i2),(long)1,(long)0,sizeof(int), ECPGd_data,
-    ECPGt_double,&(d2),(long)1,(long)0,sizeof(double), ECPGd_EODT);
+	ECPGt_int,&(i2),(long)1,(long)0,sizeof(int), ECPGd_data,
+	ECPGt_double,&(d2),(long)1,(long)0,sizeof(double), ECPGd_EODT);
 
 #line 44 "dynalloc.pgc"
 
@@ -236,8 +236,8 @@ if (sqlca.sqlcode < 0) sqlprint ( );}
 #line 44 "dynalloc.pgc"
 
    { ECPGget_desc(__LINE__, "mydesc", 3,ECPGd_indicator,
-    ECPGt_int,&(i3),(long)1,(long)0,sizeof(int), ECPGd_data,
-    ECPGt_char,&(d3),(long)0,(long)0,(1)*sizeof(char), ECPGd_EODT);
+	ECPGt_int,&(i3),(long)1,(long)0,sizeof(int), ECPGd_data,
+	ECPGt_char,&(d3),(long)0,(long)0,(1)*sizeof(char), ECPGd_EODT);
 
 #line 45 "dynalloc.pgc"
 
@@ -245,8 +245,8 @@ if (sqlca.sqlcode < 0) sqlprint ( );}
 #line 45 "dynalloc.pgc"
 
    { ECPGget_desc(__LINE__, "mydesc", 4,ECPGd_indicator,
-    ECPGt_int,&(i4),(long)1,(long)0,sizeof(int), ECPGd_data,
-    ECPGt_char,&(d4),(long)0,(long)0,(1)*sizeof(char), ECPGd_EODT);
+	ECPGt_int,&(i4),(long)1,(long)0,sizeof(int), ECPGd_data,
+	ECPGt_char,&(d4),(long)0,(long)0,(1)*sizeof(char), ECPGd_EODT);
 
 #line 46 "dynalloc.pgc"
 
@@ -254,8 +254,8 @@ if (sqlca.sqlcode < 0) sqlprint ( );}
 #line 46 "dynalloc.pgc"
 
    { ECPGget_desc(__LINE__, "mydesc", 5,ECPGd_indicator,
-    ECPGt_int,&(i5),(long)1,(long)0,sizeof(int), ECPGd_data,
-    ECPGt_char,&(d5),(long)0,(long)0,(1)*sizeof(char), ECPGd_EODT);
+	ECPGt_int,&(i5),(long)1,(long)0,sizeof(int), ECPGd_data,
+	ECPGt_char,&(d5),(long)0,(long)0,(1)*sizeof(char), ECPGd_EODT);
 
 #line 47 "dynalloc.pgc"
 
@@ -263,8 +263,8 @@ if (sqlca.sqlcode < 0) sqlprint ( );}
 #line 47 "dynalloc.pgc"
 
    { ECPGget_desc(__LINE__, "mydesc", 6,ECPGd_indicator,
-    ECPGt_int,&(i6),(long)1,(long)0,sizeof(int), ECPGd_data,
-    ECPGt_char,&(d6),(long)0,(long)0,(1)*sizeof(char), ECPGd_EODT);
+	ECPGt_int,&(i6),(long)1,(long)0,sizeof(int), ECPGd_data,
+	ECPGt_char,&(d6),(long)0,(long)0,(1)*sizeof(char), ECPGd_EODT);
 
 #line 48 "dynalloc.pgc"
 
@@ -272,8 +272,8 @@ if (sqlca.sqlcode < 0) sqlprint ( );}
 #line 48 "dynalloc.pgc"
 
    { ECPGget_desc(__LINE__, "mydesc", 7,ECPGd_indicator,
-    ECPGt_int,&(i7),(long)1,(long)0,sizeof(int), ECPGd_data,
-    ECPGt_char,&(d7),(long)0,(long)0,(1)*sizeof(char), ECPGd_EODT);
+	ECPGt_int,&(i7),(long)1,(long)0,sizeof(int), ECPGd_data,
+	ECPGt_char,&(d7),(long)0,(long)0,(1)*sizeof(char), ECPGd_EODT);
 
 #line 49 "dynalloc.pgc"
 
@@ -283,8 +283,8 @@ if (sqlca.sqlcode < 0) sqlprint ( );}
    /* skip box for now */
    /* exec sql get descriptor mydesc value 8 :d8=DATA, :i8=INDICATOR; */
    { ECPGget_desc(__LINE__, "mydesc", 9,ECPGd_indicator,
-    ECPGt_int,&(i9),(long)1,(long)0,sizeof(int), ECPGd_data,
-    ECPGt_char,&(d9),(long)0,(long)0,(1)*sizeof(char), ECPGd_EODT);
+	ECPGt_int,&(i9),(long)1,(long)0,sizeof(int), ECPGd_data,
+	ECPGt_char,&(d9),(long)0,(long)0,(1)*sizeof(char), ECPGd_EODT);
 
 #line 52 "dynalloc.pgc"
 

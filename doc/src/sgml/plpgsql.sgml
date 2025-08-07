@@ -19,7 +19,7 @@
     <itemizedlist>
      <listitem>
       <para>
-       can be used to create functions and trigger procedures,
+       can be used to create functions and triggers,
       </para>
      </listitem>
      <listitem>
@@ -128,7 +128,9 @@
      and they can return a result of any of these types.  They can also
      accept or return any composite type (row type) specified by name.
      It is also possible to declare a <application>PL/pgSQL</application>
-     function as returning <type>record</>, which means that the result
+     function as accepting <type>record</type>, which means that any
+     composite type will do as input, or
+     as returning <type>record</type>, which means that the result
      is a row type whose columns are determined by specification in the
      calling query, as discussed in <xref linkend="queries-tablefunctions">.
     </para>
@@ -581,7 +583,7 @@ $$ LANGUAGE plpgsql;
     function parameters.  The main practical use for this is to assign
     a different name for variables with predetermined names, such as
     <varname>NEW</varname> or <varname>OLD</varname> within
-    a trigger procedure.
+    a trigger function.
    </para>
 
    <para>
@@ -684,8 +686,8 @@ user_id users.user_id%TYPE;
    </para>
 
    <para>
-    Here is an example of using composite types.  <structname>table1</>
-    and <structname>table2</> are existing tables having at least the
+    Here is an example of using composite types.  <structname>table1</structname>
+    and <structname>table2</structname> are existing tables having at least the
     mentioned fields:
 
 <programlisting>
@@ -1151,7 +1153,7 @@ CONTEXT:  PL/pgSQL function get_userid(text) line 6 at SQL statement
     <note>
      <para>
       The <literal>STRICT</> option matches the behavior of
-      Oracle PL/SQL's <command>SELECT INTO</command> and related statements.
+      OpenTenBase_Ora PL/SQL's <command>SELECT INTO</command> and related statements.
      </para>
     </note>
 
@@ -1634,7 +1636,7 @@ END;
 
     <note>
      <para>
-      In Oracle's PL/SQL, empty statement lists are not allowed, and so
+      In OpenTenBase_Ora's PL/SQL, empty statement lists are not allowed, and so
       <command>NULL</> statements are <emphasis>required</> for situations
       such as this.  <application>PL/pgSQL</application> allows you to
       just write nothing, instead.
@@ -1873,6 +1875,54 @@ SELECT * FROM get_available_flightid(CURRENT_DATE);
       </para>
      </note>
     </sect3>
+   </sect2>
+
+   <sect2 id="plpgsql-statements-returning-procedure">
+    <title>Returning From a Procedure</title>
+
+    <para>
+     A procedure does not have a return value.  A procedure can therefore end
+     without a <command>RETURN</command> statement.  If you wish to use
+     a <command>RETURN</command> statement to exit the code early, write
+     just <command>RETURN</command> with no expression.
+    </para>
+
+    <para>
+     If the procedure has output parameters, the final values of the output
+     parameter variables will be returned to the caller.
+    </para>
+   </sect2>
+
+   <sect2 id="plpgsql-statements-calling-procedure">
+    <title>Calling a Procedure</title>
+
+    <para>
+     A <application>PL/pgSQL</application> function, procedure,
+     or <command>DO</command> block can call a procedure
+     using <command>CALL</command>.  Output parameters are handled
+     differently from the way that <command>CALL</command> works in plain
+     SQL.  Each <literal>INOUT</literal> parameter of the procedure must
+     correspond to a variable in the <command>CALL</command> statement, and
+     whatever the procedure returns is assigned back to that variable after
+     it returns.  For example:
+<programlisting>
+CREATE PROCEDURE triple(INOUT x int)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    x := x * 3;
+END;
+$$;
+
+DO $$
+DECLARE myvar int := 5;
+BEGIN
+  CALL triple(myvar);
+  RAISE NOTICE 'myvar = %', myvar;  -- prints 15
+END
+$$;
+</programlisting>
+    </para>
    </sect2>
 
    <sect2 id="plpgsql-conditionals">
@@ -2942,7 +2992,7 @@ CONTEXT:  PL/pgSQL function outer_func() line 3 at RETURN
 <replaceable>name</replaceable> <optional> <optional> NO </optional> SCROLL </optional> CURSOR <optional> ( <replaceable>arguments</replaceable> ) </optional> FOR <replaceable>query</replaceable>;
 </synopsis>
      (<literal>FOR</> can be replaced by <literal>IS</> for
-     <productname>Oracle</productname> compatibility.)
+     <productname>OpenTenBase_Ora</productname> compatibility.)
      If <literal>SCROLL</> is specified, the cursor will be capable of
      scrolling backward; if <literal>NO SCROLL</> is specified, backward
      fetches will be rejected; if neither specification appears, it is
@@ -2970,6 +3020,15 @@ DECLARE
      The variable <literal>curs1</>
      is said to be <firstterm>unbound</> since it is not bound to
      any particular query.
+    </para>
+
+    <para>
+     The <literal>SCROLL</literal> option cannot be used when the cursor's
+     query uses <literal>FOR UPDATE/SHARE</literal>.  Also, it is
+     best to use <literal>NO SCROLL</literal> with a query that involves
+     volatile functions.  The implementation of <literal>SCROLL</literal>
+     assumes that re-reading the query's output will give consistent
+     results, which a volatile function might not do.
     </para>
    </sect2>
 
@@ -3446,6 +3505,95 @@ END LOOP <optional> <replaceable>label</replaceable> </optional>;
 
   </sect1>
 
+  <sect1 id="plpgsql-transactions">
+   <title>Transaction Management</title>
+
+   <para>
+    In procedures invoked by the <command>CALL</command> command
+    as well as in anonymous code blocks (<command>DO</command> command),
+    it is possible to end transactions using the
+    commands <command>COMMIT</command> and <command>ROLLBACK</command>.  A new
+    transaction is started automatically after a transaction is ended using
+    these commands, so there is no separate <command>START
+    TRANSACTION</command> command.  (Note that <command>BEGIN</command> and
+    <command>END</command> have different meanings in PL/pgSQL.)
+   </para>
+
+   <para>
+    Here is a simple example:
+<programlisting>
+CREATE PROCEDURE transaction_test1()
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    FOR i IN 0..9 LOOP
+        INSERT INTO test1 (a) VALUES (i);
+        IF i % 2 = 0 THEN
+            COMMIT;
+        ELSE
+            ROLLBACK;
+        END IF;
+    END LOOP;
+END
+$$;
+
+CALL transaction_test1();
+</programlisting>
+   </para>
+
+   <para>
+    Transaction control is only possible in <command>CALL</command> or
+    <command>DO</command> invocations from the top level or nested
+    <command>CALL</command> or <command>DO</command> invocations without any
+    other intervening command.  For example, if the call stack is
+    <command>CALL proc1()</command> &rarr; <command>CALL proc2()</command>
+    &rarr; <command>CALL proc3()</command>, then the second and third
+    procedures can perform transaction control actions.  But if the call stack
+    is <command>CALL proc1()</command> &rarr; <command>SELECT
+    func2()</command> &rarr; <command>CALL proc3()</command>, then the last
+    procedure cannot do transaction control, because of the
+    <command>SELECT</command> in between.
+   </para>
+
+   <para>
+    Special considerations apply to cursor loops.  Consider this example:
+<programlisting>
+CREATE PROCEDURE transaction_test2()
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN SELECT * FROM test2 ORDER BY x LOOP
+        INSERT INTO test1 (a) VALUES (r.x);
+        COMMIT;
+    END LOOP;
+END;
+$$;
+
+CALL transaction_test2();
+</programlisting>
+    Normally, cursors are automatically closed at transaction commit.
+    However, a cursor created as part of a loop like this is automatically
+    converted to a holdable cursor by the first <command>COMMIT</command> or
+    <command>ROLLBACK</command>.  That means that the cursor is fully
+    evaluated at the first <command>COMMIT</command> or
+    <command>ROLLBACK</command> rather than row by row.  The cursor is still
+    removed automatically after the loop, so this is mostly invisible to the
+    user.
+   </para>
+
+   <para>
+    Transaction commands are not allowed in cursor loops driven by commands
+    that are not read-only (for example <command>UPDATE
+    ... RETURNING</command>).
+   </para>
+
+   <para>
+    A transaction cannot be ended inside a block with exception handlers.
+   </para>
+  </sect1>
+
   <sect1 id="plpgsql-errors-and-messages">
    <title>Errors and Messages</title>
 
@@ -3622,7 +3770,7 @@ RAISE unique_violation USING MESSAGE = 'Duplicate user ID: ' || user_id;
      clause nested within that handler could not catch it, even if the
      <command>RAISE</> was within the nested <literal>EXCEPTION</> clause's
      block. This was deemed surprising as well as being incompatible with
-     Oracle's PL/SQL.
+     OpenTenBase_Ora's PL/SQL.
     </para>
    </note>
 
@@ -3710,7 +3858,7 @@ ASSERT <replaceable class="parameter">condition</replaceable> <optional> , <repl
  </sect1>
 
  <sect1 id="plpgsql-trigger">
-  <title>Trigger Procedures</title>
+  <title>Trigger Functions</title>
 
   <indexterm zone="plpgsql-trigger">
    <primary>trigger</primary>
@@ -3860,7 +4008,7 @@ ASSERT <replaceable class="parameter">condition</replaceable> <optional> , <repl
      <listitem>
       <para>
        Data type <type>integer</type>; the number of arguments given to the trigger
-       procedure in the <command>CREATE TRIGGER</command> statement.
+       function in the <command>CREATE TRIGGER</command> statement.
       </para>
      </listitem>
     </varlistentry>
@@ -3983,7 +4131,7 @@ CREATE FUNCTION emp_stamp() RETURNS trigger AS $emp_stamp$
 $emp_stamp$ LANGUAGE plpgsql;
 
 CREATE TRIGGER emp_stamp BEFORE INSERT OR UPDATE ON emp
-    FOR EACH ROW EXECUTE PROCEDURE emp_stamp();
+    FOR EACH ROW EXECUTE FUNCTION emp_stamp();
 </programlisting>
    </example>
 
@@ -4038,7 +4186,7 @@ $emp_audit$ LANGUAGE plpgsql;
 
 CREATE TRIGGER emp_audit
 AFTER INSERT OR UPDATE OR DELETE ON emp
-    FOR EACH ROW EXECUTE PROCEDURE process_emp_audit();
+    FOR EACH ROW EXECUTE FUNCTION process_emp_audit();
 </programlisting>
    </example>
 
@@ -4053,7 +4201,7 @@ AFTER INSERT OR UPDATE OR DELETE ON emp
    </para>
 
    <example id="plpgsql-view-trigger-audit-example">
-    <title>A <application>PL/pgSQL</application> View Trigger Procedure For Auditing</title>
+    <title>A <application>PL/pgSQL</application> View Trigger Function For Auditing</title>
 
     <para>
      This example uses a trigger on the view to make it updatable, and
@@ -4117,7 +4265,7 @@ $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER emp_audit
 INSTEAD OF INSERT OR UPDATE OR DELETE ON emp_view
-    FOR EACH ROW EXECUTE PROCEDURE update_emp_view();
+    FOR EACH ROW EXECUTE FUNCTION update_emp_view();
 </programlisting>
    </example>
 
@@ -4262,7 +4410,7 @@ $maint_sales_summary_bytime$ LANGUAGE plpgsql;
 
 CREATE TRIGGER maint_sales_summary_bytime
 AFTER INSERT OR UPDATE OR DELETE ON sales_fact
-    FOR EACH ROW EXECUTE PROCEDURE maint_sales_summary_bytime();
+    FOR EACH ROW EXECUTE FUNCTION maint_sales_summary_bytime();
 
 INSERT INTO sales_fact VALUES(1,1,1,10,3,15);
 INSERT INTO sales_fact VALUES(1,2,1,20,5,35);
@@ -4336,7 +4484,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE EVENT TRIGGER snitch ON ddl_command_start EXECUTE PROCEDURE snitch();
+CREATE EVENT TRIGGER snitch ON ddl_command_start EXECUTE FUNCTION snitch();
 </programlisting>
    </example>
   </sect2>
@@ -4439,7 +4587,7 @@ BEGIN
     as the variable (which is compatible with <application>PL/pgSQL</>'s
     behavior before <productname>PostgreSQL</productname> 9.0), or as the
     table column (which is compatible with some other systems such as
-    <productname>Oracle</productname>).
+    <productname>OpenTenBase_Ora</productname>).
    </para>
 
    <indexterm>
@@ -4923,27 +5071,27 @@ CREATE FUNCTION
  </sect2>
  </sect1>
 
-  <!-- **** Porting from Oracle PL/SQL **** -->
+  <!-- **** Porting from OpenTenBase_Ora PL/SQL **** -->
 
  <sect1 id="plpgsql-porting">
-  <title>Porting from <productname>Oracle</productname> PL/SQL</title>
+  <title>Porting from <productname>OpenTenBase_Ora</productname> PL/SQL</title>
 
   <indexterm zone="plpgsql-porting">
-   <primary>Oracle</primary>
+   <primary>OpenTenBase_Ora</primary>
    <secondary>porting from PL/SQL to PL/pgSQL</secondary>
   </indexterm>
 
   <indexterm zone="plpgsql-porting">
-   <primary>PL/SQL (Oracle)</primary>
+   <primary>PL/SQL (OpenTenBase_Ora)</primary>
    <secondary>porting to PL/pgSQL</secondary>
   </indexterm>
 
   <para>
    This section explains differences between
    <productname>PostgreSQL</>'s <application>PL/pgSQL</application>
-   language and Oracle's <application>PL/SQL</application> language,
+   language and OpenTenBase_Ora's <application>PL/SQL</application> language,
    to help developers who port applications from
-   <trademark class="registered">Oracle</> to <productname>PostgreSQL</>.
+   <trademark class="registered">OpenTenBase_Ora</> to <productname>PostgreSQL</>.
   </para>
 
   <para>
@@ -4982,7 +5130,7 @@ CREATE FUNCTION
 
      <listitem>
       <para>
-       Data type names often need translation.  For example, in Oracle string
+       Data type names often need translation.  For example, in OpenTenBase_Ora string
        values are commonly declared as being of type <type>varchar2</>, which
        is a non-SQL-standard type.  In <productname>PostgreSQL</productname>,
        use type <type>varchar</> or <type>text</> instead.  Similarly, replace
@@ -5050,7 +5198,7 @@ CREATE FUNCTION
     <title>Porting a Simple Function from <application>PL/SQL</> to <application>PL/pgSQL</></title>
 
     <para>
-     Here is an <productname>Oracle</productname> <application>PL/SQL</> function:
+     Here is an <productname>OpenTenBase_Ora</productname> <application>PL/SQL</> function:
 <programlisting>
 CREATE OR REPLACE FUNCTION cs_fmt_browser_version(v_name varchar2,
                                                   v_version varchar2)
@@ -5097,7 +5245,7 @@ show errors;
         In <productname>PostgreSQL</>, the function body is considered
         to be a string literal, so you need to use quote marks or dollar
         quotes around it.  This substitutes for the terminating <literal>/</>
-        in the Oracle approach.
+        in the OpenTenBase_Ora approach.
        </para>
       </listitem>
 
@@ -5147,7 +5295,7 @@ $$ LANGUAGE plpgsql;
     </para>
 
     <para>
-     This is the Oracle version:
+     This is the OpenTenBase_Ora version:
 <programlisting>
 CREATE OR REPLACE PROCEDURE cs_update_referrer_type_proc IS
     CURSOR referrer_keys IS
@@ -5219,7 +5367,7 @@ $func$ LANGUAGE plpgsql;
      trusted to always be <literal>host</>, <literal>domain</>, or
      <literal>url</>, but <structfield>referrer_key.key_string</> might be
      anything, in particular it might contain dollar signs.) This function
-     is actually an improvement on the Oracle original, because it will
+     is actually an improvement on the OpenTenBase_Ora original, because it will
      not generate broken code when <structfield>referrer_key.key_string</> or
      <structfield>referrer_key.referrer_type</> contain quote marks.
     </para>
@@ -5243,12 +5391,12 @@ $func$ LANGUAGE plpgsql;
     <application>PL/pgSQL</></title>
 
     <para>
-     The following <productname>Oracle</productname> PL/SQL procedure is used
+     The following <productname>OpenTenBase_Ora</productname> PL/SQL procedure is used
      to parse a URL and return several elements (host, path, and query).
     </para>
 
     <para>
-     This is the Oracle version:
+     This is the OpenTenBase_Ora version:
 <programlisting>
 CREATE OR REPLACE PROCEDURE cs_parse_url(
     v_url IN VARCHAR2,
@@ -5341,14 +5489,14 @@ SELECT * FROM cs_parse_url('http://foobar.com/query.cgi?baz');
 
    <para>
     <xref linkend="plpgsql-porting-ex4"> shows how to port a procedure
-    that uses numerous features that are specific to Oracle.
+    that uses numerous features that are specific to OpenTenBase_Ora.
    </para>
 
    <example id="plpgsql-porting-ex4">
     <title>Porting a Procedure from <application>PL/SQL</> to <application>PL/pgSQL</></title>
 
     <para>
-     The Oracle version:
+     The OpenTenBase_Ora version:
 
 <programlisting>
 CREATE OR REPLACE PROCEDURE cs_create_job(v_job_id IN INTEGER) IS
@@ -5447,7 +5595,7 @@ $$ LANGUAGE plpgsql;
      <callout arearefs="co.plpgsql-porting-raise">
       <para>
        The syntax of <literal>RAISE</> is considerably different from
-       Oracle's statement, although the basic case <literal>RAISE</>
+       OpenTenBase_Ora's statement, although the basic case <literal>RAISE</>
        <replaceable class="parameter">exception_name</replaceable> works
        similarly.
       </para>
@@ -5455,7 +5603,7 @@ $$ LANGUAGE plpgsql;
      <callout arearefs="co.plpgsql-porting-exception">
       <para>
        The exception names supported by <application>PL/pgSQL</> are
-       different from Oracle's.  The set of built-in exception names
+       different from OpenTenBase_Ora's.  The set of built-in exception names
        is much larger (see <xref linkend="errcodes-appendix">).  There
        is not currently a way to declare user-defined exception names,
        although you can throw user-chosen SQLSTATE values instead.
@@ -5464,7 +5612,7 @@ $$ LANGUAGE plpgsql;
     </calloutlist>
 
     The main functional difference between this procedure and the
-    Oracle equivalent is that the exclusive lock on the <literal>cs_jobs</>
+    OpenTenBase_Ora equivalent is that the exclusive lock on the <literal>cs_jobs</>
     table will be held until the calling transaction completes.  Also, if
     the caller later aborts (for example due to an error), the effects of
     this procedure will be rolled back.
@@ -5477,7 +5625,7 @@ $$ LANGUAGE plpgsql;
 
    <para>
     This section explains a few other things to watch for when porting
-    Oracle <application>PL/SQL</> functions to
+    OpenTenBase_Ora <application>PL/SQL</> functions to
     <productname>PostgreSQL</productname>.
    </para>
 
@@ -5488,7 +5636,7 @@ $$ LANGUAGE plpgsql;
      In <application>PL/pgSQL</>, when an exception is caught by an
      <literal>EXCEPTION</> clause, all database changes since the block's
      <literal>BEGIN</> are automatically rolled back.  That is, the behavior
-     is equivalent to what you'd get in Oracle with:
+     is equivalent to what you'd get in OpenTenBase_Ora with:
 
 <programlisting>
 BEGIN
@@ -5504,7 +5652,7 @@ EXCEPTION
 END;
 </programlisting>
 
-     If you are translating an Oracle procedure that uses
+     If you are translating an OpenTenBase_Ora procedure that uses
      <command>SAVEPOINT</> and <command>ROLLBACK TO</> in this style,
      your task is easy: just omit the <command>SAVEPOINT</> and
      <command>ROLLBACK TO</>.  If you have a procedure that uses
@@ -5559,7 +5707,7 @@ $$ LANGUAGE plpgsql STRICT IMMUTABLE;
    <title>Appendix</title>
 
    <para>
-    This section contains the code for a set of Oracle-compatible
+    This section contains the code for a set of OpenTenBase_Ora-compatible
     <function>instr</function> functions that you can use to simplify
     your porting efforts.
    </para>
@@ -5570,7 +5718,7 @@ $$ LANGUAGE plpgsql STRICT IMMUTABLE;
 
 <programlisting>
 --
--- instr functions that mimic Oracle's counterpart
+-- instr functions that mimic OpenTenBase_Ora's counterpart
 -- Syntax: instr(string1, string2, [n], [m]) where [] denotes optional parameters.
 --
 -- Searches string1 beginning at the nth character for the mth occurrence

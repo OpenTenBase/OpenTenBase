@@ -1,5 +1,5 @@
-/*    contrib/pgcrypto/md5.h */
-/*       $KAME: md5.h,v 1.3 2000/02/22 14:01:18 itojun Exp $       */
+/*	contrib/pgcrypto/md5.h */
+/*	   $KAME: md5.h,v 1.3 2000/02/22 14:01:18 itojun Exp $	   */
 
 /*
  * Copyright (C) 1995, 1996, 1997, and 1998 WIDE Project.
@@ -9,13 +9,13 @@
  * modification, are permitted provided that the following conditions
  * are met:
  * 1. Redistributions of source code must retain the above copyright
- *      notice, this list of conditions and the following disclaimer.
+ *	  notice, this list of conditions and the following disclaimer.
  * 2. Redistributions in binary form must reproduce the above copyright
- *      notice, this list of conditions and the following disclaimer in the
- *      documentation and/or other materials provided with the distribution.
+ *	  notice, this list of conditions and the following disclaimer in the
+ *	  documentation and/or other materials provided with the distribution.
  * 3. Neither the name of the project nor the names of its contributors
- *      may be used to endorse or promote products derived from this software
- *      without specific prior written permission.
+ *	  may be used to endorse or promote products derived from this software
+ *	  without specific prior written permission.
  *
  * THIS SOFTWARE IS PROVIDED BY THE PROJECT AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -33,32 +33,32 @@
 #ifndef _NETINET6_MD5_H_
 #define _NETINET6_MD5_H_
 
-#define MD5_BUFLEN    64
+#define MD5_BUFLEN 64
 
 typedef struct
 {
-    union
-    {
-        uint32        md5_state32[4];
-        uint8        md5_state8[16];
-    }            md5_st;
+	union
+	{
+		uint32 md5_state32[4];
+		uint8 md5_state8[16];
+	} md5_st;
 
-#define md5_sta        md5_st.md5_state32[0]
-#define md5_stb        md5_st.md5_state32[1]
-#define md5_stc        md5_st.md5_state32[2]
-#define md5_std        md5_st.md5_state32[3]
-#define md5_st8        md5_st.md5_state8
+#define md5_sta md5_st.md5_state32[0]
+#define md5_stb md5_st.md5_state32[1]
+#define md5_stc md5_st.md5_state32[2]
+#define md5_std md5_st.md5_state32[3]
+#define md5_st8 md5_st.md5_state8
 
-    union
-    {
-        uint64        md5_count64;
-        uint8        md5_count8[8];
-    }            md5_count;
-#define md5_n    md5_count.md5_count64
-#define md5_n8    md5_count.md5_count8
+	union
+	{
+		uint64 md5_count64;
+		uint8 md5_count8[8];
+	} md5_count;
+#define md5_n md5_count.md5_count64
+#define md5_n8 md5_count.md5_count8
 
-    unsigned int md5_i;
-    uint8        md5_buf[MD5_BUFLEN];
+	unsigned int md5_i;
+	uint8 md5_buf[MD5_BUFLEN];
 } md5_ctxt;
 
 extern void md5_init(md5_ctxt *);
@@ -67,13 +67,14 @@ extern void md5_pad(md5_ctxt *);
 extern void md5_result(uint8 *, md5_ctxt *);
 
 /* compatibility */
-#define MD5_CTX        md5_ctxt
-#define MD5Init(x)    md5_init((x))
-#define MD5Update(x, y, z)    md5_loop((x), (y), (z))
-#define MD5Final(x, y) \
-do {                \
-    md5_pad((y));        \
-    md5_result((x), (y));    \
-} while (0)
+#define MD5_CTX md5_ctxt
+#define MD5Init(x) md5_init((x))
+#define MD5Update(x, y, z) md5_loop((x), (y), (z))
+#define MD5Final(x, y)        \
+	do                        \
+	{                         \
+		md5_pad((y));         \
+		md5_result((x), (y)); \
+	} while (0)
 
-#endif   /* ! _NETINET6_MD5_H_ */
+#endif /* ! _NETINET6_MD5_H_ */

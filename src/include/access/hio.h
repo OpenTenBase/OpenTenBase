@@ -1,15 +1,12 @@
 /*-------------------------------------------------------------------------
  *
  * hio.h
- *      POSTGRES heap access method input/output definitions.
+ *	  POSTGRES heap access method input/output definitions.
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- * 
  * src/include/access/hio.h
  *
  *-------------------------------------------------------------------------
@@ -33,28 +30,28 @@
  */
 typedef struct BulkInsertStateData
 {
-    BufferAccessStrategy strategy;    /* our BULKWRITE strategy object */
-    Buffer        current_buf;    /* current insertion target page */
+	BufferAccessStrategy strategy;	/* our BULKWRITE strategy object */
+	Buffer		current_buf;	/* current insertion target page */
 #ifdef _SHARDING_
-    ShardID        sid;
+	ShardID		sid;
 #endif
-}            BulkInsertStateData;
+}			BulkInsertStateData;
 
 
 extern void RelationPutHeapTuple(Relation relation, Buffer buffer,
-                     HeapTuple tuple, bool token);
+					 HeapTuple tuple, bool token);
 
 #define RelationGetBufferForTuple(relation, len, otherBuffer, options, bistate, vmbuffer, vmbuffer_other) \
-    RelationGetBufferForTuple_shard(relation, InvalidShardID, len, \
-                          otherBuffer, options, bistate, \
-                          vmbuffer, vmbuffer_other);
+	RelationGetBufferForTuple_shard(relation, InvalidShardID, len, \
+						  otherBuffer, options, bistate, \
+						  vmbuffer, vmbuffer_other);
 
 extern Buffer RelationGetBufferForTuple_shard(Relation relation, ShardID sid, Size len,
-                          Buffer otherBuffer, int options,
-                          BulkInsertState bistate,
-                          Buffer *vmbuffer, Buffer *vmbuffer_other);
+						  Buffer otherBuffer, int options,
+						  BulkInsertState bistate,
+						  Buffer *vmbuffer, Buffer *vmbuffer_other);
 #ifdef _SHARDING_
-extern void RelationExtendHeapForRedo(RelFileNode rnode, ExtentID eid, ShardID sid);
+extern void RelationExtendHeapForRedo(RelFileNode rnode, ExtentID eid, ShardID sid, bool checksum_enabled);
 #endif
 
-#endif                            /* HIO_H */
+#endif							/* HIO_H */

@@ -67,7 +67,7 @@
 
      <row>
       <entry><link linkend="catalog-pg-amproc"><structname>pg_amproc</structname></link></entry>
-      <entry>access method support procedures</entry>
+      <entry>access method support functions</entry>
      </row>
 
      <row>
@@ -509,6 +509,26 @@
       <entry>True to pass extra dummy arguments to <structfield>aggmfinalfn</structfield></entry>
      </row>
      <row>
+      <entry><structfield>aggfinalmodify</structfield></entry>
+      <entry><type>char</type></entry>
+      <entry></entry>
+      <entry>Whether <structfield>aggfinalfn</structfield> modifies the
+       transition state value:
+       <literal>r</literal> if it is read-only,
+       <literal>s</literal> if the <structfield>aggtransfn</structfield>
+       cannot be applied after the <structfield>aggfinalfn</structfield>, or
+       <literal>w</literal> if it writes on the value
+      </entry>
+     </row>
+     <row>
+      <entry><structfield>aggmfinalmodify</structfield></entry>
+      <entry><type>char</type></entry>
+      <entry></entry>
+      <entry>Like <structfield>aggfinalmodify</structfield>, but for
+       the <structfield>aggmfinalfn</structfield>
+      </entry>
+     </row>
+     <row>
       <entry><structfield>aggsortop</structfield></entry>
       <entry><type>oid</type></entry>
       <entry><literal><link linkend="catalog-pg-operator"><structname>pg_operator</structname></link>.oid</literal></entry>
@@ -827,8 +847,8 @@
 
   <para>
    The catalog <structname>pg_amproc</structname> stores information about
-   support procedures associated with access method operator families.  There
-   is one row for each support procedure belonging to an operator family.
+   support functions associated with access method operator families.  There
+   is one row for each support function belonging to an operator family.
   </para>
 
   <table>
@@ -877,14 +897,14 @@
       <entry><structfield>amprocnum</structfield></entry>
       <entry><type>int2</type></entry>
       <entry></entry>
-      <entry>Support procedure number</entry>
+      <entry>Support function number</entry>
      </row>
 
      <row>
       <entry><structfield>amproc</structfield></entry>
       <entry><type>regproc</type></entry>
       <entry><literal><link linkend="catalog-pg-proc"><structname>pg_proc</structname></link>.oid</literal></entry>
-      <entry>OID of the procedure</entry>
+      <entry>OID of the function</entry>
      </row>
 
     </tbody>
@@ -1756,6 +1776,10 @@ SCRAM-SHA-256$<replaceable>&lt;iteration count&gt;</>:<replaceable>&lt;salt&gt;<
        the planner.  It is updated by <command>VACUUM</command>,
        <command>ANALYZE</command>, and a few DDL commands such as
        <command>CREATE INDEX</command>.
+       If the table has never yet been vacuumed or
+       analyzed, <structfield>reltuples</structfield>
+       contains <literal>-1</literal> indicating that the row count is
+       unknown.
       </entry>
      </row>
 
@@ -2503,7 +2527,7 @@ SCRAM-SHA-256$<replaceable>&lt;iteration count&gt;</>:<replaceable>&lt;salt&gt;<
       <entry><structfield>conproc</structfield></entry>
       <entry><type>regproc</type></entry>
       <entry><literal><link linkend="catalog-pg-proc"><structname>pg_proc</structname></link>.oid</literal></entry>
-      <entry>Conversion procedure</entry>
+      <entry>Conversion function</entry>
      </row>
 
      <row>
@@ -3008,7 +3032,7 @@ SCRAM-SHA-256$<replaceable>&lt;iteration count&gt;</>:<replaceable>&lt;salt&gt;<
      </listitem>
     </varlistentry>
 
-    <varlistentry>
+     <varlistentry>
       <term><symbol>DEPENDENCY_INTERNAL_AUTO</symbol> (<literal>I</literal>)</term>
       <listitem>
        <para>
@@ -5075,15 +5099,17 @@ SCRAM-SHA-256$<replaceable>&lt;iteration count&gt;</>:<replaceable>&lt;salt&gt;<
   </indexterm>
 
   <para>
-   The catalog <structname>pg_proc</> stores information about functions (or procedures).
-   See <xref linkend="sql-createfunction">
-   and <xref linkend="xfunc"> for more information.
+   The catalog <structname>pg_proc</structname> stores information about
+   functions, procedures, aggregate functions, and window functions
+   (collectively also known as routines).  See <xref
+   linkend="sql-createfunction"/>, <xref linkend="sql-createprocedure"/>, and
+   <xref linkend="xfunc"/> for more information.
   </para>
 
   <para>
-   The table contains data for aggregate functions as well as plain functions.
-   If <structfield>proisagg</structfield> is true, there should be a matching
-   row in <structfield>pg_aggregate</structfield>.
+   If <structfield>prokind</structfield> indicates that the entry is for an
+   aggregate function, there should be a matching row in
+   <structfield>pg_aggregate</structfield>.
   </para>
 
   <table>
@@ -5170,17 +5196,12 @@ SCRAM-SHA-256$<replaceable>&lt;iteration count&gt;</>:<replaceable>&lt;salt&gt;<
      </row>
 
      <row>
-      <entry><structfield>proisagg</structfield></entry>
-      <entry><type>bool</type></entry>
+      <entry><structfield>prokind</structfield></entry>
+      <entry><type>char</type></entry>
       <entry></entry>
-      <entry>Function is an aggregate function</entry>
-     </row>
-
-     <row>
-      <entry><structfield>proiswindow</structfield></entry>
-      <entry><type>bool</type></entry>
-      <entry></entry>
-      <entry>Function is a window function</entry>
+      <entry><literal>f</literal> for a normal function, <literal>p</literal>
+      for a procedure, <literal>a</literal> for an aggregate function, or
+      <literal>w</literal> for a window function</entry>
      </row>
 
      <row>
@@ -9169,7 +9190,8 @@ SCRAM-SHA-256$<replaceable>&lt;iteration count&gt;</>:<replaceable>&lt;salt&gt;<
    and general database objects (identified by class OID and object OID,
    in the same way as in <structname>pg_description</structname> or
    <structname>pg_depend</structname>).  Also, the right to extend a
-   relation is represented as a separate lockable object.
+   relation is represented as a separate lockable object, as is the right to
+   update <structname>pg_database</structname>.<structfield>datfrozenxid</structfield>.
    Also, <quote>advisory</> locks can be taken on numbers that have
    user-defined meanings.
   </para>
@@ -9195,6 +9217,7 @@ SCRAM-SHA-256$<replaceable>&lt;iteration count&gt;</>:<replaceable>&lt;salt&gt;<
        Type of the lockable object:
        <literal>relation</>,
        <literal>extend</>,
+       <literal>frozenid</literal>,
        <literal>page</>,
        <literal>tuple</>,
        <literal>transactionid</>,

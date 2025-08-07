@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * nodeWindowAgg.h
- *      prototypes for nodeWindowAgg.c
+ *	  prototypes for nodeWindowAgg.c
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -20,4 +20,4 @@ extern WindowAggState *ExecInitWindowAgg(WindowAgg *node, EState *estate, int ef
 extern void ExecEndWindowAgg(WindowAggState *node);
 extern void ExecReScanWindowAgg(WindowAggState *node);
 
-#endif                            /* NODEWINDOWAGG_H */
+#endif							/* NODEWINDOWAGG_H */

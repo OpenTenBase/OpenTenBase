@@ -1,12 +1,12 @@
 /*-------------------------------------------------------------------------
  *
  * win32_shmem.c
- *      Implement shared memory using win32 facilities
+ *	  Implement shared memory using win32 facilities
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *      src/backend/port/win32_shmem.c
+ *	  src/backend/port/win32_shmem.c
  *
  *-------------------------------------------------------------------------
  */
@@ -17,8 +17,8 @@
 #include "storage/ipc.h"
 #include "storage/pg_shmem.h"
 
-HANDLE        UsedShmemSegID = INVALID_HANDLE_VALUE;
-void       *UsedShmemSegAddr = NULL;
+HANDLE		UsedShmemSegID = INVALID_HANDLE_VALUE;
+void	   *UsedShmemSegAddr = NULL;
 static Size UsedShmemSegSize = 0;
 
 static void pgwin32_SharedMemoryDelete(int status, Datum shmId);
@@ -33,43 +33,43 @@ static void pgwin32_SharedMemoryDelete(int status, Datum shmId);
  * open two postmasters in different sessions against the same data directory.
  *
  * XXX: What happens with junctions? It's only someone breaking things on purpose,
- *        and this is still better than before, but we might want to do something about
- *        that sometime in the future.
+ *		and this is still better than before, but we might want to do something about
+ *		that sometime in the future.
  */
 static char *
 GetSharedMemName(void)
 {
-    char       *retptr;
-    DWORD        bufsize;
-    DWORD        r;
-    char       *cp;
+	char	   *retptr;
+	DWORD		bufsize;
+	DWORD		r;
+	char	   *cp;
 
-    bufsize = GetFullPathName(DataDir, 0, NULL, NULL);
-    if (bufsize == 0)
-        elog(FATAL, "could not get size for full pathname of datadir %s: error code %lu",
-             DataDir, GetLastError());
+	bufsize = GetFullPathName(DataDir, 0, NULL, NULL);
+	if (bufsize == 0)
+		elog(FATAL, "could not get size for full pathname of datadir %s: error code %lu",
+			 DataDir, GetLastError());
 
-    retptr = malloc(bufsize + 18);    /* 18 for Global\PostgreSQL: */
-    if (retptr == NULL)
-        elog(FATAL, "could not allocate memory for shared memory name");
+	retptr = malloc(bufsize + 18);	/* 18 for Global\PostgreSQL: */
+	if (retptr == NULL)
+		elog(FATAL, "could not allocate memory for shared memory name");
 
-    strcpy(retptr, "Global\\PostgreSQL:");
-    r = GetFullPathName(DataDir, bufsize, retptr + 18, NULL);
-    if (r == 0 || r > bufsize)
-        elog(FATAL, "could not generate full pathname for datadir %s: error code %lu",
-             DataDir, GetLastError());
+	strcpy(retptr, "Global\\PostgreSQL:");
+	r = GetFullPathName(DataDir, bufsize, retptr + 18, NULL);
+	if (r == 0 || r > bufsize)
+		elog(FATAL, "could not generate full pathname for datadir %s: error code %lu",
+			 DataDir, GetLastError());
 
-    /*
-     * XXX: Intentionally overwriting the Global\ part here. This was not the
-     * original approach, but putting it in the actual Global\ namespace
-     * causes permission errors in a lot of cases, so we leave it in the
-     * default namespace for now.
-     */
-    for (cp = retptr; *cp; cp++)
-        if (*cp == '\\')
-            *cp = '/';
+	/*
+	 * XXX: Intentionally overwriting the Global\ part here. This was not the
+	 * original approach, but putting it in the actual Global\ namespace
+	 * causes permission errors in a lot of cases, so we leave it in the
+	 * default namespace for now.
+	 */
+	for (cp = retptr; *cp; cp++)
+		if (*cp == '\\')
+			*cp = '/';
 
-    return retptr;
+	return retptr;
 }
 
 
@@ -87,20 +87,20 @@ GetSharedMemName(void)
 bool
 PGSharedMemoryIsInUse(unsigned long id1, unsigned long id2)
 {
-    char       *szShareMem;
-    HANDLE        hmap;
+	char	   *szShareMem;
+	HANDLE		hmap;
 
-    szShareMem = GetSharedMemName();
+	szShareMem = GetSharedMemName();
 
-    hmap = OpenFileMapping(FILE_MAP_READ, FALSE, szShareMem);
+	hmap = OpenFileMapping(FILE_MAP_READ, FALSE, szShareMem);
 
-    free(szShareMem);
+	free(szShareMem);
 
-    if (hmap == NULL)
-        return false;
+	if (hmap == NULL)
+		return false;
 
-    CloseHandle(hmap);
-    return true;
+	CloseHandle(hmap);
+	return true;
 }
 
 
@@ -117,143 +117,143 @@ PGSharedMemoryIsInUse(unsigned long id1, unsigned long id2)
  */
 PGShmemHeader *
 PGSharedMemoryCreate(Size size, bool makePrivate, int port,
-                     PGShmemHeader **shim)
-{// #lizard forgives
-    void       *memAddress;
-    PGShmemHeader *hdr;
-    HANDLE        hmap,
-                hmap2;
-    char       *szShareMem;
-    int            i;
-    DWORD        size_high;
-    DWORD        size_low;
+					 PGShmemHeader **shim)
+{
+	void	   *memAddress;
+	PGShmemHeader *hdr;
+	HANDLE		hmap,
+				hmap2;
+	char	   *szShareMem;
+	int			i;
+	DWORD		size_high;
+	DWORD		size_low;
 
-    if (huge_pages == HUGE_PAGES_ON)
-        ereport(ERROR,
-                (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-                 errmsg("huge pages not supported on this platform")));
+	if (huge_pages == HUGE_PAGES_ON)
+		ereport(ERROR,
+				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+				 errmsg("huge pages not supported on this platform")));
 
-    /* Room for a header? */
-    Assert(size > MAXALIGN(sizeof(PGShmemHeader)));
+	/* Room for a header? */
+	Assert(size > MAXALIGN(sizeof(PGShmemHeader)));
 
-    szShareMem = GetSharedMemName();
+	szShareMem = GetSharedMemName();
 
-    UsedShmemSegAddr = NULL;
+	UsedShmemSegAddr = NULL;
 
 #ifdef _WIN64
-    size_high = size >> 32;
+	size_high = size >> 32;
 #else
-    size_high = 0;
+	size_high = 0;
 #endif
-    size_low = (DWORD) size;
+	size_low = (DWORD) size;
 
-    /*
-     * When recycling a shared memory segment, it may take a short while
-     * before it gets dropped from the global namespace. So re-try after
-     * sleeping for a second, and continue retrying 10 times. (both the 1
-     * second time and the 10 retries are completely arbitrary)
-     */
-    for (i = 0; i < 10; i++)
-    {
-        /*
-         * In case CreateFileMapping() doesn't set the error code to 0 on
-         * success
-         */
-        SetLastError(0);
+	/*
+	 * When recycling a shared memory segment, it may take a short while
+	 * before it gets dropped from the global namespace. So re-try after
+	 * sleeping for a second, and continue retrying 10 times. (both the 1
+	 * second time and the 10 retries are completely arbitrary)
+	 */
+	for (i = 0; i < 10; i++)
+	{
+		/*
+		 * In case CreateFileMapping() doesn't set the error code to 0 on
+		 * success
+		 */
+		SetLastError(0);
 
-        hmap = CreateFileMapping(INVALID_HANDLE_VALUE,    /* Use the pagefile */
-                                 NULL,    /* Default security attrs */
-                                 PAGE_READWRITE,    /* Memory is Read/Write */
-                                 size_high, /* Size Upper 32 Bits    */
-                                 size_low,    /* Size Lower 32 bits */
-                                 szShareMem);
+		hmap = CreateFileMapping(INVALID_HANDLE_VALUE,	/* Use the pagefile */
+								 NULL,	/* Default security attrs */
+								 PAGE_READWRITE,	/* Memory is Read/Write */
+								 size_high, /* Size Upper 32 Bits	*/
+								 size_low,	/* Size Lower 32 bits */
+								 szShareMem);
 
-        if (!hmap)
-            ereport(FATAL,
-                    (errmsg("could not create shared memory segment: error code %lu", GetLastError()),
-                     errdetail("Failed system call was CreateFileMapping(size=%zu, name=%s).",
-                               size, szShareMem)));
+		if (!hmap)
+			ereport(FATAL,
+					(errmsg("could not create shared memory segment: error code %lu", GetLastError()),
+					 errdetail("Failed system call was CreateFileMapping(size=%zu, name=%s).",
+							   size, szShareMem)));
 
-        /*
-         * If the segment already existed, CreateFileMapping() will return a
-         * handle to the existing one and set ERROR_ALREADY_EXISTS.
-         */
-        if (GetLastError() == ERROR_ALREADY_EXISTS)
-        {
-            CloseHandle(hmap);    /* Close the handle, since we got a valid one
-                                 * to the previous segment. */
-            hmap = NULL;
-            Sleep(1000);
-            continue;
-        }
-        break;
-    }
+		/*
+		 * If the segment already existed, CreateFileMapping() will return a
+		 * handle to the existing one and set ERROR_ALREADY_EXISTS.
+		 */
+		if (GetLastError() == ERROR_ALREADY_EXISTS)
+		{
+			CloseHandle(hmap);	/* Close the handle, since we got a valid one
+								 * to the previous segment. */
+			hmap = NULL;
+			Sleep(1000);
+			continue;
+		}
+		break;
+	}
 
-    /*
-     * If the last call in the loop still returned ERROR_ALREADY_EXISTS, this
-     * shared memory segment exists and we assume it belongs to somebody else.
-     */
-    if (!hmap)
-        ereport(FATAL,
-                (errmsg("pre-existing shared memory block is still in use"),
-                 errhint("Check if there are any old server processes still running, and terminate them.")));
+	/*
+	 * If the last call in the loop still returned ERROR_ALREADY_EXISTS, this
+	 * shared memory segment exists and we assume it belongs to somebody else.
+	 */
+	if (!hmap)
+		ereport(FATAL,
+				(errmsg("pre-existing shared memory block is still in use"),
+				 errhint("Check if there are any old server processes still running, and terminate them.")));
 
-    free(szShareMem);
+	free(szShareMem);
 
-    /*
-     * Make the handle inheritable
-     */
-    if (!DuplicateHandle(GetCurrentProcess(), hmap, GetCurrentProcess(), &hmap2, 0, TRUE, DUPLICATE_SAME_ACCESS))
-        ereport(FATAL,
-                (errmsg("could not create shared memory segment: error code %lu", GetLastError()),
-                 errdetail("Failed system call was DuplicateHandle.")));
+	/*
+	 * Make the handle inheritable
+	 */
+	if (!DuplicateHandle(GetCurrentProcess(), hmap, GetCurrentProcess(), &hmap2, 0, TRUE, DUPLICATE_SAME_ACCESS))
+		ereport(FATAL,
+				(errmsg("could not create shared memory segment: error code %lu", GetLastError()),
+				 errdetail("Failed system call was DuplicateHandle.")));
 
-    /*
-     * Close the old, non-inheritable handle. If this fails we don't really
-     * care.
-     */
-    if (!CloseHandle(hmap))
-        elog(LOG, "could not close handle to shared memory: error code %lu", GetLastError());
-
-
-    /*
-     * Get a pointer to the new shared memory segment. Map the whole segment
-     * at once, and let the system decide on the initial address.
-     */
-    memAddress = MapViewOfFileEx(hmap2, FILE_MAP_WRITE | FILE_MAP_READ, 0, 0, 0, NULL);
-    if (!memAddress)
-        ereport(FATAL,
-                (errmsg("could not create shared memory segment: error code %lu", GetLastError()),
-                 errdetail("Failed system call was MapViewOfFileEx.")));
+	/*
+	 * Close the old, non-inheritable handle. If this fails we don't really
+	 * care.
+	 */
+	if (!CloseHandle(hmap))
+		elog(LOG, "could not close handle to shared memory: error code %lu", GetLastError());
 
 
+	/*
+	 * Get a pointer to the new shared memory segment. Map the whole segment
+	 * at once, and let the system decide on the initial address.
+	 */
+	memAddress = MapViewOfFileEx(hmap2, FILE_MAP_WRITE | FILE_MAP_READ, 0, 0, 0, NULL);
+	if (!memAddress)
+		ereport(FATAL,
+				(errmsg("could not create shared memory segment: error code %lu", GetLastError()),
+				 errdetail("Failed system call was MapViewOfFileEx.")));
 
-    /*
-     * OK, we created a new segment.  Mark it as created by this process. The
-     * order of assignments here is critical so that another Postgres process
-     * can't see the header as valid but belonging to an invalid PID!
-     */
-    hdr = (PGShmemHeader *) memAddress;
-    hdr->creatorPID = getpid();
-    hdr->magic = PGShmemMagic;
 
-    /*
-     * Initialize space allocation status for segment.
-     */
-    hdr->totalsize = size;
-    hdr->freeoffset = MAXALIGN(sizeof(PGShmemHeader));
-    hdr->dsm_control = 0;
 
-    /* Save info for possible future use */
-    UsedShmemSegAddr = memAddress;
-    UsedShmemSegSize = size;
-    UsedShmemSegID = hmap2;
+	/*
+	 * OK, we created a new segment.  Mark it as created by this process. The
+	 * order of assignments here is critical so that another Postgres process
+	 * can't see the header as valid but belonging to an invalid PID!
+	 */
+	hdr = (PGShmemHeader *) memAddress;
+	hdr->creatorPID = getpid();
+	hdr->magic = PGShmemMagic;
 
-    /* Register on-exit routine to delete the new segment */
-    on_shmem_exit(pgwin32_SharedMemoryDelete, PointerGetDatum(hmap2));
+	/*
+	 * Initialize space allocation status for segment.
+	 */
+	hdr->totalsize = size;
+	hdr->freeoffset = MAXALIGN(sizeof(PGShmemHeader));
+	hdr->dsm_control = 0;
 
-    *shim = hdr;
-    return hdr;
+	/* Save info for possible future use */
+	UsedShmemSegAddr = memAddress;
+	UsedShmemSegSize = size;
+	UsedShmemSegID = hmap2;
+
+	/* Register on-exit routine to delete the new segment */
+	on_shmem_exit(pgwin32_SharedMemoryDelete, PointerGetDatum(hmap2));
+
+	*shim = hdr;
+	return hdr;
 }
 
 /*
@@ -270,31 +270,31 @@ PGSharedMemoryCreate(Size size, bool makePrivate, int port,
 void
 PGSharedMemoryReAttach(void)
 {
-    PGShmemHeader *hdr;
-    void       *origUsedShmemSegAddr = UsedShmemSegAddr;
+	PGShmemHeader *hdr;
+	void	   *origUsedShmemSegAddr = UsedShmemSegAddr;
 
-    Assert(UsedShmemSegAddr != NULL);
-    Assert(IsUnderPostmaster);
+	Assert(UsedShmemSegAddr != NULL);
+	Assert(IsUnderPostmaster);
 
-    /*
-     * Release memory region reservation that was made by the postmaster
-     */
-    if (VirtualFree(UsedShmemSegAddr, 0, MEM_RELEASE) == 0)
-        elog(FATAL, "failed to release reserved memory region (addr=%p): error code %lu",
-             UsedShmemSegAddr, GetLastError());
+	/*
+	 * Release memory region reservation that was made by the postmaster
+	 */
+	if (VirtualFree(UsedShmemSegAddr, 0, MEM_RELEASE) == 0)
+		elog(FATAL, "failed to release reserved memory region (addr=%p): error code %lu",
+			 UsedShmemSegAddr, GetLastError());
 
-    hdr = (PGShmemHeader *) MapViewOfFileEx(UsedShmemSegID, FILE_MAP_READ | FILE_MAP_WRITE, 0, 0, 0, UsedShmemSegAddr);
-    if (!hdr)
-        elog(FATAL, "could not reattach to shared memory (key=%p, addr=%p): error code %lu",
-             UsedShmemSegID, UsedShmemSegAddr, GetLastError());
-    if (hdr != origUsedShmemSegAddr)
-        elog(FATAL, "reattaching to shared memory returned unexpected address (got %p, expected %p)",
-             hdr, origUsedShmemSegAddr);
-    if (hdr->magic != PGShmemMagic)
-        elog(FATAL, "reattaching to shared memory returned non-PostgreSQL memory");
-    dsm_set_control_handle(hdr->dsm_control);
+	hdr = (PGShmemHeader *) MapViewOfFileEx(UsedShmemSegID, FILE_MAP_READ | FILE_MAP_WRITE, 0, 0, 0, UsedShmemSegAddr);
+	if (!hdr)
+		elog(FATAL, "could not reattach to shared memory (key=%p, addr=%p): error code %lu",
+			 UsedShmemSegID, UsedShmemSegAddr, GetLastError());
+	if (hdr != origUsedShmemSegAddr)
+		elog(FATAL, "reattaching to shared memory returned unexpected address (got %p, expected %p)",
+			 hdr, origUsedShmemSegAddr);
+	if (hdr->magic != PGShmemMagic)
+		elog(FATAL, "reattaching to shared memory returned non-PostgreSQL memory");
+	dsm_set_control_handle(hdr->dsm_control);
 
-    UsedShmemSegAddr = hdr;        /* probably redundant */
+	UsedShmemSegAddr = hdr;		/* probably redundant */
 }
 
 /*
@@ -314,21 +314,21 @@ PGSharedMemoryReAttach(void)
 void
 PGSharedMemoryNoReAttach(void)
 {
-    Assert(UsedShmemSegAddr != NULL);
-    Assert(IsUnderPostmaster);
+	Assert(UsedShmemSegAddr != NULL);
+	Assert(IsUnderPostmaster);
 
-    /*
-     * Under Windows we will not have mapped the segment, so we don't need to
-     * un-map it.  Just reset UsedShmemSegAddr to show we're not attached.
-     */
-    UsedShmemSegAddr = NULL;
+	/*
+	 * Under Windows we will not have mapped the segment, so we don't need to
+	 * un-map it.  Just reset UsedShmemSegAddr to show we're not attached.
+	 */
+	UsedShmemSegAddr = NULL;
 
-    /*
-     * We *must* close the inherited shmem segment handle, else Windows will
-     * consider the existence of this process to mean it can't release the
-     * shmem segment yet.  We can now use PGSharedMemoryDetach to do that.
-     */
-    PGSharedMemoryDetach();
+	/*
+	 * We *must* close the inherited shmem segment handle, else Windows will
+	 * consider the existence of this process to mean it can't release the
+	 * shmem segment yet.  We can now use PGSharedMemoryDetach to do that.
+	 */
+	PGSharedMemoryDetach();
 }
 
 /*
@@ -346,25 +346,25 @@ PGSharedMemoryNoReAttach(void)
 void
 PGSharedMemoryDetach(void)
 {
-    /* Unmap the view, if it's mapped */
-    if (UsedShmemSegAddr != NULL)
-    {
-        if (!UnmapViewOfFile(UsedShmemSegAddr))
-            elog(LOG, "could not unmap view of shared memory: error code %lu",
-                 GetLastError());
+	/* Unmap the view, if it's mapped */
+	if (UsedShmemSegAddr != NULL)
+	{
+		if (!UnmapViewOfFile(UsedShmemSegAddr))
+			elog(LOG, "could not unmap view of shared memory: error code %lu",
+				 GetLastError());
 
-        UsedShmemSegAddr = NULL;
-    }
+		UsedShmemSegAddr = NULL;
+	}
 
-    /* And close the shmem handle, if we have one */
-    if (UsedShmemSegID != INVALID_HANDLE_VALUE)
-    {
-        if (!CloseHandle(UsedShmemSegID))
-            elog(LOG, "could not close handle to shared memory: error code %lu",
-                 GetLastError());
+	/* And close the shmem handle, if we have one */
+	if (UsedShmemSegID != INVALID_HANDLE_VALUE)
+	{
+		if (!CloseHandle(UsedShmemSegID))
+			elog(LOG, "could not close handle to shared memory: error code %lu",
+				 GetLastError());
 
-        UsedShmemSegID = INVALID_HANDLE_VALUE;
-    }
+		UsedShmemSegID = INVALID_HANDLE_VALUE;
+	}
 }
 
 
@@ -377,8 +377,8 @@ PGSharedMemoryDetach(void)
 static void
 pgwin32_SharedMemoryDelete(int status, Datum shmId)
 {
-    Assert(DatumGetPointer(shmId) == UsedShmemSegID);
-    PGSharedMemoryDetach();
+	Assert(DatumGetPointer(shmId) == UsedShmemSegID);
+	PGSharedMemoryDetach();
 }
 
 /*
@@ -401,33 +401,33 @@ pgwin32_SharedMemoryDelete(int status, Datum shmId)
 int
 pgwin32_ReserveSharedMemoryRegion(HANDLE hChild)
 {
-    void       *address;
+	void	   *address;
 
-    Assert(UsedShmemSegAddr != NULL);
-    Assert(UsedShmemSegSize != 0);
+	Assert(UsedShmemSegAddr != NULL);
+	Assert(UsedShmemSegSize != 0);
 
-    address = VirtualAllocEx(hChild, UsedShmemSegAddr, UsedShmemSegSize,
-                             MEM_RESERVE, PAGE_READWRITE);
-    if (address == NULL)
-    {
-        /* Don't use FATAL since we're running in the postmaster */
-        elog(LOG, "could not reserve shared memory region (addr=%p) for child %p: error code %lu",
-             UsedShmemSegAddr, hChild, GetLastError());
-        return false;
-    }
-    if (address != UsedShmemSegAddr)
-    {
-        /*
-         * Should never happen - in theory if allocation granularity causes
-         * strange effects it could, so check just in case.
-         *
-         * Don't use FATAL since we're running in the postmaster.
-         */
-        elog(LOG, "reserved shared memory region got incorrect address %p, expected %p",
-             address, UsedShmemSegAddr);
-        VirtualFreeEx(hChild, address, 0, MEM_RELEASE);
-        return false;
-    }
+	address = VirtualAllocEx(hChild, UsedShmemSegAddr, UsedShmemSegSize,
+							 MEM_RESERVE, PAGE_READWRITE);
+	if (address == NULL)
+	{
+		/* Don't use FATAL since we're running in the postmaster */
+		elog(LOG, "could not reserve shared memory region (addr=%p) for child %p: error code %lu",
+			 UsedShmemSegAddr, hChild, GetLastError());
+		return false;
+	}
+	if (address != UsedShmemSegAddr)
+	{
+		/*
+		 * Should never happen - in theory if allocation granularity causes
+		 * strange effects it could, so check just in case.
+		 *
+		 * Don't use FATAL since we're running in the postmaster.
+		 */
+		elog(LOG, "reserved shared memory region got incorrect address %p, expected %p",
+			 address, UsedShmemSegAddr);
+		VirtualFreeEx(hChild, address, 0, MEM_RELEASE);
+		return false;
+	}
 
-    return true;
+	return true;
 }

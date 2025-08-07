@@ -13,7 +13,7 @@
 #define read(a,b,c) _read(a,b,c)
 #define write(a,b,c) _write(a,b,c)
 
-#undef EAGAIN                    /* doesn't apply on sockets */
+#undef EAGAIN					/* doesn't apply on sockets */
 #undef EINTR
 #define EINTR WSAEINTR
 #ifndef EWOULDBLOCK

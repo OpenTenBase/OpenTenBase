@@ -79,8 +79,8 @@ main (void)
      
    
   
-     
-     
+	 
+	 
    
   
 #line 29 "type.pgc"
@@ -138,20 +138,20 @@ main (void)
     }
 
   { ECPGdo(__LINE__, 0, 1, NULL, 0, ECPGst_normal, "select idnum , name , accs , string1 , string2 , string3 from empl where idnum = $1 ", 
-    ECPGt_long,&(empl.idnum),(long)1,(long)1,sizeof(long), 
-    ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EOIT, 
-    ECPGt_long,&(empl.idnum),(long)1,(long)1,sizeof( struct TBempl ), 
-    ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, 
-    ECPGt_char,&(empl.name),(long)21,(long)1,sizeof( struct TBempl ), 
-    ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, 
-    ECPGt_short,&(empl.accs),(long)1,(long)1,sizeof( struct TBempl ), 
-    ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, 
-    ECPGt_char,(str),(long)11,(long)1,(11)*sizeof(char), 
-    ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, 
-    ECPGt_char,&(ptr),(long)0,(long)1,(1)*sizeof(char), 
-    ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, 
-    ECPGt_varchar,&(vc),(long)10,(long)1,sizeof(struct varchar), 
-    ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EORT);}
+	ECPGt_long,&(empl.idnum),(long)1,(long)1,sizeof(long), 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EOIT, 
+	ECPGt_long,&(empl.idnum),(long)1,(long)1,sizeof( struct TBempl ), 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, 
+	ECPGt_char,&(empl.name),(long)21,(long)1,sizeof( struct TBempl ), 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, 
+	ECPGt_short,&(empl.accs),(long)1,(long)1,sizeof( struct TBempl ), 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, 
+	ECPGt_char,(str),(long)11,(long)1,(11)*sizeof(char), 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, 
+	ECPGt_char,&(ptr),(long)0,(long)1,(1)*sizeof(char), 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, 
+	ECPGt_varchar,&(vc),(long)10,(long)1,sizeof(struct varchar), 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EORT);}
 #line 68 "type.pgc"
 
   if (sqlca.sqlcode)

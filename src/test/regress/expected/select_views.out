@@ -1252,8 +1252,10 @@ SELECT * FROM toyemp WHERE name = 'sharon';
 --
 CREATE ROLE regress_alice;
 CREATE FUNCTION f_leak (text)
-       RETURNS bool LANGUAGE 'plpgsql' COST 0.0000001 pushdown
+       RETURNS bool LANGUAGE 'plpgsql' pushdown COST 0.0000001
        AS 'BEGIN RAISE NOTICE ''f_leak => %'', $1; RETURN true; END';
+WARNING:  You are pushing function down to datanode for execution
+HINT:  Make sure it's not attempt to access any other datanode OR YOU MAY SUFFER DATA LOSE !!
 CREATE TABLE customer (
        cid      int primary key,
        name     text not null,
@@ -1325,7 +1327,7 @@ SELECT * FROM my_property_normal WHERE f_leak(passwd);
 EXPLAIN (COSTS OFF) SELECT * FROM my_property_normal WHERE f_leak(passwd);
                              QUERY PLAN                             
 --------------------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+ Remote Subquery Scan on all (datanodes 2)
    ->  Seq Scan on customer
          Filter: (f_leak(passwd) AND (name = (CURRENT_USER)::text))
 (3 rows)
@@ -1339,7 +1341,7 @@ SELECT * FROM my_property_secure WHERE f_leak(passwd);
 EXPLAIN (COSTS OFF) SELECT * FROM my_property_secure WHERE f_leak(passwd);
                      QUERY PLAN                      
 -----------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+ Remote Subquery Scan on all (datanodes 2)
    ->  Subquery Scan on my_property_secure
          Filter: f_leak(my_property_secure.passwd)
          ->  Seq Scan on customer
@@ -1361,7 +1363,7 @@ EXPLAIN (COSTS OFF) SELECT * FROM my_property_normal v
 		WHERE f_leak('passwd') AND f_leak(passwd);
                                           QUERY PLAN                                           
 -----------------------------------------------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+ Remote Subquery Scan on all (datanodes 2)
    ->  Seq Scan on customer
          Filter: (f_leak('passwd'::text) AND f_leak(passwd) AND (name = (CURRENT_USER)::text))
 (3 rows)
@@ -1377,7 +1379,7 @@ EXPLAIN (COSTS OFF) SELECT * FROM my_property_secure v
 		WHERE f_leak('passwd') AND f_leak(passwd);
                                     QUERY PLAN                                    
 ----------------------------------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+ Remote Subquery Scan on all (datanodes 2)
    ->  Subquery Scan on v
          Filter: f_leak(v.passwd)
          ->  Seq Scan on customer
@@ -1398,7 +1400,7 @@ SELECT * FROM my_credit_card_normal WHERE f_leak(cnum);
 EXPLAIN (COSTS OFF) SELECT * FROM my_credit_card_normal WHERE f_leak(cnum);
                         QUERY PLAN                         
 -----------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+ Remote Subquery Scan on all (datanodes 2)
    ->  Hash Join
          Hash Cond: (r.cid = l.cid)
          ->  Seq Scan on credit_card r
@@ -1417,7 +1419,7 @@ SELECT * FROM my_credit_card_secure WHERE f_leak(cnum);
 EXPLAIN (COSTS OFF) SELECT * FROM my_credit_card_secure WHERE f_leak(cnum);
                            QUERY PLAN                            
 -----------------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+ Remote Subquery Scan on all (datanodes 2)
    ->  Subquery Scan on my_credit_card_secure
          Filter: f_leak(my_credit_card_secure.cnum)
          ->  Hash Join
@@ -1434,61 +1436,72 @@ EXPLAIN (COSTS OFF) SELECT * FROM my_credit_card_secure WHERE f_leak(cnum);
 --           implemented with leakproof functions.
 --
 SELECT * FROM my_credit_card_usage_normal
-       WHERE f_leak(cnum) AND ymd >= '2011-10-01' AND ymd < '2011-11-01';
+       WHERE f_leak(cnum) AND ymd >= '2011-10-01' AND ymd < '2011-11-01'
+	ORDER BY 8;
  cid |     name      |       tel        |  passwd   |        cnum         | climit |    ymd     | usage 
 -----+---------------+------------------+-----------+---------------------+--------+------------+-------
- 101 | regress_alice | +81-12-3456-7890 | passwd123 | 1111-2222-3333-4444 |   4000 | 2011-10-05 |    90
- 101 | regress_alice | +81-12-3456-7890 | passwd123 | 1111-2222-3333-4444 |   4000 | 2011-10-18 |   110
- 101 | regress_alice | +81-12-3456-7890 | passwd123 | 1111-2222-3333-4444 |   4000 | 2011-10-21 |   200
+ 101 | regress_alice | +81-12-3456-7890 | passwd123 | 1111-2222-3333-4444 |   4000 | 10-05-2011 |    90
+ 101 | regress_alice | +81-12-3456-7890 | passwd123 | 1111-2222-3333-4444 |   4000 | 10-18-2011 |   110
+ 101 | regress_alice | +81-12-3456-7890 | passwd123 | 1111-2222-3333-4444 |   4000 | 10-21-2011 |   200
 (3 rows)
 
 EXPLAIN (COSTS OFF) SELECT * FROM my_credit_card_usage_normal
-       WHERE f_leak(cnum) AND ymd >= '2011-10-01' AND ymd < '2011-11-01';
-                                     QUERY PLAN                                     
-------------------------------------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
-   ->  Nested Loop
-         Join Filter: (l.cid = r.cid)
-         ->  Subquery Scan on l
-               Filter: f_leak(l.cnum)
-               ->  Hash Join
-                     Hash Cond: (r_1.cid = l_1.cid)
-                     ->  Seq Scan on credit_card r_1
-                     ->  Hash
-                           ->  Seq Scan on customer l_1
-                                 Filter: (name = (CURRENT_USER)::text)
-         ->  Seq Scan on credit_usage r
-               Filter: ((ymd >= '10-01-2011'::date) AND (ymd < '11-01-2011'::date))
-(13 rows)
+       WHERE f_leak(cnum) AND ymd >= '2011-10-01' AND ymd < '2011-11-01'
+	ORDER BY 8;
+                                           QUERY PLAN                                           
+------------------------------------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   Sort Key: r.usage
+   ->  Sort
+         Sort Key: r.usage
+         ->  Hash Join
+               Hash Cond: (l.cid = r.cid)
+               ->  Subquery Scan on l
+                     Filter: f_leak(l.cnum)
+                     ->  Hash Join
+                           Hash Cond: (r_1.cid = l_1.cid)
+                           ->  Seq Scan on credit_card r_1
+                           ->  Hash
+                                 ->  Seq Scan on customer l_1
+                                       Filter: (name = (CURRENT_USER)::text)
+               ->  Hash
+                     ->  Seq Scan on credit_usage r
+                           Filter: ((ymd >= '10-01-2011'::date) AND (ymd < '11-01-2011'::date))
+(17 rows)
 
 SELECT * FROM my_credit_card_usage_secure
-       WHERE f_leak(cnum) AND ymd >= '2011-10-01' AND ymd < '2011-11-01';
+       WHERE f_leak(cnum) AND ymd >= '2011-10-01' AND ymd < '2011-11-01'
+	ORDER BY 8;
  cid |     name      |       tel        |  passwd   |        cnum         | climit |    ymd     | usage 
 -----+---------------+------------------+-----------+---------------------+--------+------------+-------
- 101 | regress_alice | +81-12-3456-7890 | passwd123 | 1111-2222-3333-4444 |   4000 | 2011-10-05 |    90
- 101 | regress_alice | +81-12-3456-7890 | passwd123 | 1111-2222-3333-4444 |   4000 | 2011-10-18 |   110
- 101 | regress_alice | +81-12-3456-7890 | passwd123 | 1111-2222-3333-4444 |   4000 | 2011-10-21 |   200
+ 101 | regress_alice | +81-12-3456-7890 | passwd123 | 1111-2222-3333-4444 |   4000 | 10-05-2011 |    90
+ 101 | regress_alice | +81-12-3456-7890 | passwd123 | 1111-2222-3333-4444 |   4000 | 10-18-2011 |   110
+ 101 | regress_alice | +81-12-3456-7890 | passwd123 | 1111-2222-3333-4444 |   4000 | 10-21-2011 |   200
 (3 rows)
 
 EXPLAIN (COSTS OFF) SELECT * FROM my_credit_card_usage_secure
-       WHERE f_leak(cnum) AND ymd >= '2011-10-01' AND ymd < '2011-11-01';
-                                        QUERY PLAN                                        
-------------------------------------------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
-   ->  Subquery Scan on my_credit_card_usage_secure
-         Filter: f_leak(my_credit_card_usage_secure.cnum)
-         ->  Nested Loop
-               Join Filter: (l.cid = r.cid)
-               ->  Seq Scan on credit_usage r
-                     Filter: ((ymd >= '10-01-2011'::date) AND (ymd < '11-01-2011'::date))
-               ->  Materialize
+       WHERE f_leak(cnum) AND ymd >= '2011-10-01' AND ymd < '2011-11-01'
+	ORDER BY 8;
+                                              QUERY PLAN                                              
+------------------------------------------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   Sort Key: my_credit_card_usage_secure.usage
+   ->  Sort
+         Sort Key: my_credit_card_usage_secure.usage
+         ->  Subquery Scan on my_credit_card_usage_secure
+               Filter: f_leak(my_credit_card_usage_secure.cnum)
+               ->  Hash Join
+                     Hash Cond: (l.cid = r.cid)
                      ->  Hash Join
                            Hash Cond: (r_1.cid = l.cid)
                            ->  Seq Scan on credit_card r_1
                            ->  Hash
                                  ->  Seq Scan on customer l
                                        Filter: (name = (CURRENT_USER)::text)
-(14 rows)
+                     ->  Hash
+                           ->  Seq Scan on credit_usage r
+                                 Filter: ((ymd >= '10-01-2011'::date) AND (ymd < '11-01-2011'::date))
+(17 rows)
 
 --
 -- Test for the case when security_barrier gets changed between rewriter

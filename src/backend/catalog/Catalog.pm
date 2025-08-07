@@ -36,9 +36,15 @@ sub Catalogs
 		'int64'         => 'int8',
 		'Oid'           => 'oid',
 		'NameData'      => 'name',
-		'TransactionId' => 'xid');
+		'TransactionId' => 'xid',
+		'NumericData'	=> 'numeric');
 
-	foreach my $input_file (@_)
+
+	my ($type,$files) = @_;
+
+	print "type: $$type\n";
+
+	foreach my $input_file (@$files)
 	{
 		my %catalog;
 		$catalog{columns} = [];
@@ -75,20 +81,32 @@ sub Catalogs
 			s/;\s*$//;
 			s/\s+/ /g;
 
+			my $extra;
+			if ($$type eq "postgres")
+			{
+				$extra="(PG|)";
+			}
+			elsif ($$type eq "opentenbase_ora")
+			{
+				$extra="(ORA|)";
+			}
+			else
+			{
+				$extra="(PG|ORA|)";
+			}
+
 			# Push the data into the appropriate data structure.
 			if (/$natts_pat\s+(\d+)/)
 			{
 				$catalog{natts} = $1;
 			}
-			elsif (
-				/^DATA\(insert(\s+OID\s+=\s+(\d+))?\s+\(\s*(.*)\s*\)\s*\)$/)
+			elsif (/^${extra}DATA\(insert(\s+OID\s+=\s+(\d+))?\s+\(\s*(.*)\s*\)\s*\)$/)
 			{
-				check_natts($filename, $catalog{natts}, $3, $input_file,
+				check_natts($filename, $catalog{natts}, $4, $input_file,
 					$input_line_number);
-
-				push @{ $catalog{data} }, { oid => $2, bki_values => $3 };
+				push @{ $catalog{data} }, { oid => $3, bki_values => $4 };
 			}
-			elsif (/^DESCR\(\"(.*)\"\)$/)
+			elsif (/^${extra}DESCR\(\"(.*)\"\)$/)
 			{
 				$most_recent = $catalog{data}->[-1];
 
@@ -101,12 +119,12 @@ sub Catalogs
 				{
 					die "DESCR() does not apply to any oid ($input_file)";
 				}
-				elsif ($1 ne '')
+				elsif ($2 ne '')
 				{
-					$most_recent->{descr} = $1;
+					$most_recent->{descr} = $2;
 				}
 			}
-			elsif (/^SHDESCR\(\"(.*)\"\)$/)
+			elsif (/^${extra}SHDESCR\(\"(.*)\"\)$/)
 			{
 				$most_recent = $catalog{data}->[-1];
 
@@ -120,23 +138,23 @@ sub Catalogs
 				{
 					die "SHDESCR() does not apply to any oid ($input_file)";
 				}
-				elsif ($1 ne '')
+				elsif ($2 ne '')
 				{
-					$most_recent->{shdescr} = $1;
+					$most_recent->{shdescr} = $2;
 				}
 			}
-			elsif (/^DECLARE_TOAST\(\s*(\w+),\s*(\d+),\s*(\d+)\)/)
+			elsif (/^${extra}DECLARE_TOAST\(\s*(\w+),\s*(\d+),\s*(\d+)\)/)
 			{
 				$catname = 'toasting';
-				my ($toast_name, $toast_oid, $index_oid) = ($1, $2, $3);
+				my ($toast_name, $toast_oid, $index_oid) = ($2, $3, $4);
 				push @{ $catalog{data} },
 				  "declare toast $toast_oid $index_oid on $toast_name\n";
 			}
-			elsif (/^DECLARE_(UNIQUE_)?INDEX\(\s*(\w+),\s*(\d+),\s*(.+)\)/)
+			elsif (/^${extra}DECLARE_(UNIQUE_)?INDEX\(\s*(\w+),\s*(\d+),\s*(.+)\)/)
 			{
 				$catname = 'indexing';
 				my ($is_unique, $index_name, $index_oid, $using) =
-				  ($1, $2, $3, $4);
+				  ($2, $3, $4, $5);
 				push @{ $catalog{data} },
 				  sprintf(
 					"declare %sindex %s %s %s\n",

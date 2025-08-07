@@ -2,10 +2,10 @@
  *
  * gtm_checkpoint.h
  *
- * Copyright (c) 2023 THL A29 Limited, a Tencent company.
  *
- * This source code file is licensed under the BSD 3-Clause License,
- * you may obtain a copy of the License at http://opensource.org/license/bsd-3-clause/
+ * Portions Copyright (c) 1996-2010, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1994, Regents of the University of California
+ * Portions Copyright (c) 2010-2012 Postgres-XC Development Group
  *
  * src/include/gtm/gtm_checkpoint.h
  *
@@ -20,16 +20,17 @@
 
 typedef int64 pg_time_t;
 
-typedef enum DBState
+typedef enum _GtmState
 {
-    DB_STARTUP = 0,
-    DB_SHUTDOWNED,
-    DB_SHUTDOWNED_IN_RECOVERY,
-    DB_SHUTDOWNING,
-    DB_IN_CRASH_RECOVERY,
-    DB_IN_ARCHIVE_RECOVERY,
-    DB_IN_PRODUCTION
-} DBState;
+    GTM_STARTUP = 0,
+    GTM_SHUTDOWNED,
+    GTM_IN_RECOVERY,
+    GTM_IN_OVERWRITING_STORE,       /* Overwrite local data with data from the host. */
+    GTM_IN_OVERWRITE_DONE,
+    GTM_IN_ARCHIVE_RECOVERY,        /* not used */
+    GTM_IN_PRODUCTION,
+    GTM_STATE_NUM,
+} GtmState;
 
 typedef struct ControlFileData
 {
@@ -44,7 +45,7 @@ typedef struct ControlFileData
     /*
      * System status data
      */
-    DBState        state;            /* see enum above */
+    GtmState        state;            /* see enum above */
     GlobalTimestamp gts;
     pg_time_t    time;            /* time stamp of last gtm_control update */
     XLogRecPtr    checkPoint;        /* last check point record ptr */

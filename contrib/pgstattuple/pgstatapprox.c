@@ -5,9 +5,6 @@
  *
  * Copyright (c) 2014-2017, PostgreSQL Global Development Group
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * IDENTIFICATION
  *		  contrib/pgstattuple/pgstatapprox.c
  *
@@ -193,8 +190,11 @@ statapprox_heap(Relation rel, output_type *stat)
 	 * tuples in all-visible pages, so no correction is needed for that, and
 	 * we already accounted for the space in those pages, too.
 	 */
-	stat->tuple_count = vac_estimate_reltuples(rel, false, nblocks, scanned,
-	                                           stat->tuple_count);
+	stat->tuple_count = vac_estimate_reltuples(rel, nblocks, scanned,
+											   stat->tuple_count);
+
+	/* It's not clear if we could get -1 here, but be safe. */
+	stat->tuple_count = Max(stat->tuple_count, 0);
 
 	/*
 	 * Calculate percentages if the relation has one or more pages.

@@ -80,7 +80,7 @@ SELECT pubname, puballtables FROM pg_publication WHERE pubname = 'testpub_forall
  id     | integer |           | not null | nextval('testpub_tbl2_id_seq'::regclass) | plain    |              | 
  data   | text    |           |          |                                          | extended |              | 
 Indexes:
-    "testpub_tbl2_pkey" PRIMARY KEY, btree (id)
+    "testpub_tbl2_pkey" PRIMARY KEY, btree (id) WITH (checksum='on')
 Distribute By: HASH(id)
 Location Nodes: ALL DATANODES
 
@@ -153,7 +153,7 @@ Location Nodes: ALL DATANODES
  id     | integer |           | not null | nextval('testpub_tbl1_id_seq'::regclass) | plain    |              | 
  data   | text    |           |          |                                          | extended |              | 
 Indexes:
-    "testpub_tbl1_pkey" PRIMARY KEY, btree (id)
+    "testpub_tbl1_pkey" PRIMARY KEY, btree (id) WITH (checksum='on')
 Distribute By: HASH(id)
 Location Nodes: ALL DATANODES
 
@@ -172,7 +172,7 @@ DETAIL:  The feature is not currently supported
  id     | integer |           | not null | nextval('testpub_tbl1_id_seq'::regclass) | plain    |              | 
  data   | text    |           |          |                                          | extended |              | 
 Indexes:
-    "testpub_tbl1_pkey" PRIMARY KEY, btree (id)
+    "testpub_tbl1_pkey" PRIMARY KEY, btree (id) WITH (checksum='on')
 Distribute By: HASH(id)
 Location Nodes: ALL DATANODES
 

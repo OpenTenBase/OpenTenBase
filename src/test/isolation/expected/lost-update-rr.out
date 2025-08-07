@@ -1,0 +1,16 @@
+Parsed test spec with 3 sessions
+
+starting permutation: s1u s2u s3r s1c s2c s3c
+step s1u: UPDATE products SET quantity = quantity - 20 WHERE id = 1;
+step s2u: UPDATE products SET quantity = quantity - 30 WHERE id = 1; <waiting ...>
+step s3r: SELECT * FROM products WHERE id = 1;
+id|name     |quantity
+--+---------+--------
+ 1|Product X|     100
+(1 row)
+
+step s1c: COMMIT;
+step s2u: <... completed>
+ERROR:  could not serialize access due to concurrent update
+step s2c: COMMIT;
+step s3c: COMMIT;

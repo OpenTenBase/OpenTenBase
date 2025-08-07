@@ -1,0 +1,46 @@
+create database opentenbase_ora_profile_20231229 sql mode opentenbase_ora;
+\c opentenbase_ora_profile_20231229
+-- test profile resource
+-- cpu_per_call
+create user cpu_call password '123';
+create profile profile_cpu_call limit cpu_per_call 1;
+alter user cpu_call profile profile_cpu_call;
+drop user cpu_call;
+drop profile profile_cpu_call;
+
+-- logical_reads_per_call
+create user blk_call password '123';
+create profile profile_blk_call limit logical_reads_per_call 10;
+alter user blk_call profile profile_blk_call;
+drop user blk_call;
+drop profile profile_blk_call;
+
+\c "regression_ora"
+clean connection to all for database "opentenbase_ora_profile_20231229";
+select pg_sleep(3);
+drop database "opentenbase_ora_profile_20231229"(force);
+
+-- test function password verify
+CREATE OR REPLACE FUNCTION func_passwd_verify (username varchar2, new_password varchar2, old_password varchar2)
+RETURNS boolean IMMUTABLE
+as
+$$
+BEGIN
+if ( length (new_password) < 5 )
+then
+raise exception 'The new password length is too short!';
+end if;
+return true;
+END;
+$$
+language default_plsql;
+
+CREATE PROFILE user_profile LIMIT FAILED_LOGIN_ATTEMPTS 10 PASSWORD_LOCK_TIME 0.042 PASSWORD_LIFE_TIME 90
+PASSWORD_GRACE_TIME DEFAULT PASSWORD_REUSE_TIME DEFAULT
+PASSWORD_REUSE_MAX 5  PASSWORD_VERIFY_FUNCTION func_passwd_verify;
+
+CREATE USER test_user_profile with password '12e' profile user_profile;
+CREATE USER test_user_profile with password '12d45e' profile user_profile;
+DROP USER test_user_profile;
+DROP PROFILE user_profile;
+DROP FUNCTION func_passwd_verify;

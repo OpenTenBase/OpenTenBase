@@ -1,13 +1,13 @@
 /*-------------------------------------------------------------------------
  *
  * windowfuncs.c
- *      Standard window functions defined in SQL spec.
+ *	  Standard window functions defined in SQL spec.
  *
  * Portions Copyright (c) 2000-2017, PostgreSQL Global Development Group
  *
  *
  * IDENTIFICATION
- *      src/backend/utils/adt/windowfuncs.c
+ *	  src/backend/utils/adt/windowfuncs.c
  *
  *-------------------------------------------------------------------------
  */
@@ -21,7 +21,7 @@
  */
 typedef struct rank_context
 {
-    int64        rank;            /* current rank */
+	int64		rank;			/* current rank */
 } rank_context;
 
 /*
@@ -29,15 +29,15 @@ typedef struct rank_context
  */
 typedef struct
 {
-    int32        ntile;            /* current result */
-    int64        rows_per_bucket;    /* row number of current bucket */
-    int64        boundary;        /* how many rows should be in the bucket */
-    int64        remainder;        /* (total rows) % (bucket num) */
+	int32		ntile;			/* current result */
+	int64		rows_per_bucket;	/* row number of current bucket */
+	int64		boundary;		/* how many rows should be in the bucket */
+	int64		remainder;		/* (total rows) % (bucket num) */
 } ntile_context;
 
 static bool rank_up(WindowObject winobj);
 static Datum leadlag_common(FunctionCallInfo fcinfo,
-               bool forward, bool withoffset, bool withdefault);
+			   bool forward, bool withoffset, bool withdefault);
 
 
 /*
@@ -46,31 +46,31 @@ static Datum leadlag_common(FunctionCallInfo fcinfo,
 static bool
 rank_up(WindowObject winobj)
 {
-    bool        up = false;        /* should rank increase? */
-    int64        curpos = WinGetCurrentPosition(winobj);
-    rank_context *context;
+	bool		up = false;		/* should rank increase? */
+	int64		curpos = WinGetCurrentPosition(winobj);
+	rank_context *context;
 
-    context = (rank_context *)
-        WinGetPartitionLocalMemory(winobj, sizeof(rank_context));
+	context = (rank_context *)
+		WinGetPartitionLocalMemory(winobj, sizeof(rank_context));
 
-    if (context->rank == 0)
-    {
-        /* first call: rank of first row is always 1 */
-        Assert(curpos == 0);
-        context->rank = 1;
-    }
-    else
-    {
-        Assert(curpos > 0);
-        /* do current and prior tuples match by ORDER BY clause? */
-        if (!WinRowsArePeers(winobj, curpos - 1, curpos))
-            up = true;
-    }
+	if (context->rank == 0)
+	{
+		/* first call: rank of first row is always 1 */
+		Assert(curpos == 0);
+		context->rank = 1;
+	}
+	else
+	{
+		Assert(curpos > 0);
+		/* do current and prior tuples match by ORDER BY clause? */
+		if (!WinRowsArePeers(winobj, curpos - 1, curpos))
+			up = true;
+	}
 
-    /* We can advance the mark, but only *after* access to prior row */
-    WinSetMarkPosition(winobj, curpos);
+	/* We can advance the mark, but only *after* access to prior row */
+	WinSetMarkPosition(winobj, curpos);
 
-    return up;
+	return up;
 }
 
 
@@ -81,11 +81,11 @@ rank_up(WindowObject winobj)
 Datum
 window_row_number(PG_FUNCTION_ARGS)
 {
-    WindowObject winobj = PG_WINDOW_OBJECT();
-    int64        curpos = WinGetCurrentPosition(winobj);
+	WindowObject winobj = PG_WINDOW_OBJECT();
+	int64		curpos = WinGetCurrentPosition(winobj);
 
-    WinSetMarkPosition(winobj, curpos);
-    PG_RETURN_INT64(curpos + 1);
+	WinSetMarkPosition(winobj, curpos);
+	PG_RETURN_INT64(curpos + 1);
 }
 
 
@@ -97,17 +97,17 @@ window_row_number(PG_FUNCTION_ARGS)
 Datum
 window_rank(PG_FUNCTION_ARGS)
 {
-    WindowObject winobj = PG_WINDOW_OBJECT();
-    rank_context *context;
-    bool        up;
+	WindowObject winobj = PG_WINDOW_OBJECT();
+	rank_context *context;
+	bool		up;
 
-    up = rank_up(winobj);
-    context = (rank_context *)
-        WinGetPartitionLocalMemory(winobj, sizeof(rank_context));
-    if (up)
-        context->rank = WinGetCurrentPosition(winobj) + 1;
+	up = rank_up(winobj);
+	context = (rank_context *)
+		WinGetPartitionLocalMemory(winobj, sizeof(rank_context));
+	if (up)
+		context->rank = WinGetCurrentPosition(winobj) + 1;
 
-    PG_RETURN_INT64(context->rank);
+	PG_RETURN_INT64(context->rank);
 }
 
 /*
@@ -117,17 +117,17 @@ window_rank(PG_FUNCTION_ARGS)
 Datum
 window_dense_rank(PG_FUNCTION_ARGS)
 {
-    WindowObject winobj = PG_WINDOW_OBJECT();
-    rank_context *context;
-    bool        up;
+	WindowObject winobj = PG_WINDOW_OBJECT();
+	rank_context *context;
+	bool		up;
 
-    up = rank_up(winobj);
-    context = (rank_context *)
-        WinGetPartitionLocalMemory(winobj, sizeof(rank_context));
-    if (up)
-        context->rank++;
+	up = rank_up(winobj);
+	context = (rank_context *)
+		WinGetPartitionLocalMemory(winobj, sizeof(rank_context));
+	if (up)
+		context->rank++;
 
-    PG_RETURN_INT64(context->rank);
+	PG_RETURN_INT64(context->rank);
 }
 
 /*
@@ -139,24 +139,44 @@ window_dense_rank(PG_FUNCTION_ARGS)
 Datum
 window_percent_rank(PG_FUNCTION_ARGS)
 {
-    WindowObject winobj = PG_WINDOW_OBJECT();
-    rank_context *context;
-    bool        up;
-    int64        totalrows = WinGetPartitionRowCount(winobj);
+	WindowObject winobj = PG_WINDOW_OBJECT();
+	rank_context *context;
+	bool		up;
+	int64		totalrows = WinGetPartitionRowCount(winobj);
 
-    Assert(totalrows > 0);
+	Assert(totalrows > 0);
 
-    up = rank_up(winobj);
-    context = (rank_context *)
-        WinGetPartitionLocalMemory(winobj, sizeof(rank_context));
-    if (up)
-        context->rank = WinGetCurrentPosition(winobj) + 1;
+	up = rank_up(winobj);
+	context = (rank_context *)
+		WinGetPartitionLocalMemory(winobj, sizeof(rank_context));
+	if (up)
+		context->rank = WinGetCurrentPosition(winobj) + 1;
 
-    /* return zero if there's only one row, per spec */
-    if (totalrows <= 1)
-        PG_RETURN_FLOAT8(0.0);
+	/* return zero if there's only one row, per spec */
+	if (totalrows <= 1)
+		PG_RETURN_FLOAT8(0.0);
 
-    PG_RETURN_FLOAT8((float8) (context->rank - 1) / (float8) (totalrows - 1));
+	PG_RETURN_FLOAT8((float8) (context->rank - 1) / (float8) (totalrows - 1));
+}
+
+/*
+ * window_ratio_to_report
+ * Returns the proportion of the current value in the total
+ * int this partition.
+ */
+Datum
+window_ratio_to_report(PG_FUNCTION_ARGS)
+{
+	WindowObject winobj = PG_WINDOW_OBJECT();
+	Datum		 result;
+	bool		 isnull;
+
+	result = WinRatioToReportImpl(winobj, &isnull);
+
+	if (isnull)
+		PG_RETURN_NULL();
+
+	PG_RETURN_DATUM(result);
 }
 
 /*
@@ -168,38 +188,38 @@ window_percent_rank(PG_FUNCTION_ARGS)
 Datum
 window_cume_dist(PG_FUNCTION_ARGS)
 {
-    WindowObject winobj = PG_WINDOW_OBJECT();
-    rank_context *context;
-    bool        up;
-    int64        totalrows = WinGetPartitionRowCount(winobj);
+	WindowObject winobj = PG_WINDOW_OBJECT();
+	rank_context *context;
+	bool		up;
+	int64		totalrows = WinGetPartitionRowCount(winobj);
 
-    Assert(totalrows > 0);
+	Assert(totalrows > 0);
 
-    up = rank_up(winobj);
-    context = (rank_context *)
-        WinGetPartitionLocalMemory(winobj, sizeof(rank_context));
-    if (up || context->rank == 1)
-    {
-        /*
-         * The current row is not peer to prior row or is just the first, so
-         * count up the number of rows that are peer to the current.
-         */
-        int64        row;
+	up = rank_up(winobj);
+	context = (rank_context *)
+		WinGetPartitionLocalMemory(winobj, sizeof(rank_context));
+	if (up || context->rank == 1)
+	{
+		/*
+		 * The current row is not peer to prior row or is just the first, so
+		 * count up the number of rows that are peer to the current.
+		 */
+		int64		row;
 
-        context->rank = WinGetCurrentPosition(winobj) + 1;
+		context->rank = WinGetCurrentPosition(winobj) + 1;
 
-        /*
-         * start from current + 1
-         */
-        for (row = context->rank; row < totalrows; row++)
-        {
-            if (!WinRowsArePeers(winobj, row - 1, row))
-                break;
-            context->rank++;
-        }
-    }
+		/*
+		 * start from current + 1
+		 */
+		for (row = context->rank; row < totalrows; row++)
+		{
+			if (!WinRowsArePeers(winobj, row - 1, row))
+				break;
+			context->rank++;
+		}
+	}
 
-    PG_RETURN_FLOAT8((float8) context->rank / (float8) totalrows);
+	PG_RETURN_FLOAT8((float8) context->rank / (float8) totalrows);
 }
 
 /*
@@ -209,70 +229,70 @@ window_cume_dist(PG_FUNCTION_ARGS)
  */
 Datum
 window_ntile(PG_FUNCTION_ARGS)
-{// #lizard forgives
-    WindowObject winobj = PG_WINDOW_OBJECT();
-    ntile_context *context;
+{
+	WindowObject winobj = PG_WINDOW_OBJECT();
+	ntile_context *context;
 
-    context = (ntile_context *)
-        WinGetPartitionLocalMemory(winobj, sizeof(ntile_context));
+	context = (ntile_context *)
+		WinGetPartitionLocalMemory(winobj, sizeof(ntile_context));
 
-    if (context->ntile == 0)
-    {
-        /* first call */
-        int64        total;
-        int32        nbuckets;
-        bool        isnull;
+	if (context->ntile == 0)
+	{
+		/* first call */
+		int64		total;
+		int32		nbuckets;
+		bool		isnull;
 
-        total = WinGetPartitionRowCount(winobj);
-        nbuckets = DatumGetInt32(WinGetFuncArgCurrent(winobj, 0, &isnull));
+		total = WinGetPartitionRowCount(winobj);
+		nbuckets = DatumGetInt32(WinGetFuncArgCurrent(winobj, 0, &isnull));
 
-        /*
-         * per spec: If NT is the null value, then the result is the null
-         * value.
-         */
-        if (isnull)
-            PG_RETURN_NULL();
+		/*
+		 * per spec: If NT is the null value, then the result is the null
+		 * value.
+		 */
+		if (isnull)
+			PG_RETURN_NULL();
 
-        /*
-         * per spec: If NT is less than or equal to 0 (zero), then an
-         * exception condition is raised.
-         */
-        if (nbuckets <= 0)
-            ereport(ERROR,
-                    (errcode(ERRCODE_INVALID_ARGUMENT_FOR_NTILE),
-                     errmsg("argument of ntile must be greater than zero")));
+		/*
+		 * per spec: If NT is less than or equal to 0 (zero), then an
+		 * exception condition is raised.
+		 */
+		if (nbuckets <= 0)
+			ereport(ERROR,
+					(errcode(ERRCODE_INVALID_ARGUMENT_FOR_NTILE),
+					 errmsg("argument of ntile must be greater than zero")));
 
-        context->ntile = 1;
-        context->rows_per_bucket = 0;
-        context->boundary = total / nbuckets;
-        if (context->boundary <= 0)
-            context->boundary = 1;
-        else
-        {
-            /*
-             * If the total number is not divisible, add 1 row to leading
-             * buckets.
-             */
-            context->remainder = total % nbuckets;
-            if (context->remainder != 0)
-                context->boundary++;
-        }
-    }
+		context->ntile = 1;
+		context->rows_per_bucket = 0;
+		context->boundary = total / nbuckets;
+		if (context->boundary <= 0)
+			context->boundary = 1;
+		else
+		{
+			/*
+			 * If the total number is not divisible, add 1 row to leading
+			 * buckets.
+			 */
+			context->remainder = total % nbuckets;
+			if (context->remainder != 0)
+				context->boundary++;
+		}
+	}
 
-    context->rows_per_bucket++;
-    if (context->boundary < context->rows_per_bucket)
-    {
-        /* ntile up */
-        if (context->remainder != 0 && context->ntile == context->remainder)
-        {
-            context->remainder = 0;
-            context->boundary -= 1;
-        }
-        context->ntile += 1;
-        context->rows_per_bucket = 1;
-    }
+	context->rows_per_bucket++;
+	if (context->boundary < context->rows_per_bucket)
+	{
+		/* ntile up */
+		if (context->remainder != 0 && context->ntile == context->remainder)
+		{
+			context->remainder = 0;
+			context->boundary -= 1;
+		}
+		context->ntile += 1;
+		context->rows_per_bucket = 1;
+	}
 
-    PG_RETURN_INT32(context->ntile);
+	PG_RETURN_INT32(context->ntile);
 }
 
 /*
@@ -284,48 +304,48 @@ window_ntile(PG_FUNCTION_ARGS)
  */
 static Datum
 leadlag_common(FunctionCallInfo fcinfo,
-               bool forward, bool withoffset, bool withdefault)
+			   bool forward, bool withoffset, bool withdefault)
 {
-    WindowObject winobj = PG_WINDOW_OBJECT();
-    int32        offset;
-    bool        const_offset;
-    Datum        result;
-    bool        isnull;
-    bool        isout;
+	WindowObject winobj = PG_WINDOW_OBJECT();
+	int32		offset;
+	bool		const_offset;
+	Datum		result;
+	bool		isnull;
+	bool		isout;
 
-    if (withoffset)
-    {
-        offset = DatumGetInt32(WinGetFuncArgCurrent(winobj, 1, &isnull));
-        if (isnull)
-            PG_RETURN_NULL();
-        const_offset = get_fn_expr_arg_stable(fcinfo->flinfo, 1);
-    }
-    else
-    {
-        offset = 1;
-        const_offset = true;
-    }
+	if (withoffset)
+	{
+		offset = DatumGetInt32(WinGetFuncArgCurrent(winobj, 1, &isnull));
+		if (isnull)
+			PG_RETURN_NULL();
+		const_offset = get_fn_expr_arg_stable(fcinfo->flinfo, 1);
+	}
+	else
+	{
+		offset = 1;
+		const_offset = true;
+	}
 
-    result = WinGetFuncArgInPartition(winobj, 0,
-                                      (forward ? offset : -offset),
-                                      WINDOW_SEEK_CURRENT,
-                                      const_offset,
-                                      &isnull, &isout);
+	result = WinGetFuncArgInPartition(winobj, 0,
+									  (forward ? offset : -offset),
+									  WINDOW_SEEK_CURRENT,
+									  const_offset,
+									  &isnull, &isout);
 
-    if (isout)
-    {
-        /*
-         * target row is out of the partition; supply default value if
-         * provided.  otherwise it'll stay NULL
-         */
-        if (withdefault)
-            result = WinGetFuncArgCurrent(winobj, 2, &isnull);
-    }
+	if (isout)
+	{
+		/*
+		 * target row is out of the partition; supply default value if
+		 * provided.  otherwise it'll stay NULL
+		 */
+		if (withdefault)
+			result = WinGetFuncArgCurrent(winobj, 2, &isnull);
+	}
 
-    if (isnull)
-        PG_RETURN_NULL();
+	if (isnull)
+		PG_RETURN_NULL();
 
-    PG_RETURN_DATUM(result);
+	PG_RETURN_DATUM(result);
 }
 
 /*
@@ -337,7 +357,7 @@ leadlag_common(FunctionCallInfo fcinfo,
 Datum
 window_lag(PG_FUNCTION_ARGS)
 {
-    return leadlag_common(fcinfo, false, false, false);
+	return leadlag_common(fcinfo, false, false, false);
 }
 
 /*
@@ -349,7 +369,7 @@ window_lag(PG_FUNCTION_ARGS)
 Datum
 window_lag_with_offset(PG_FUNCTION_ARGS)
 {
-    return leadlag_common(fcinfo, false, true, false);
+	return leadlag_common(fcinfo, false, true, false);
 }
 
 /*
@@ -360,7 +380,7 @@ window_lag_with_offset(PG_FUNCTION_ARGS)
 Datum
 window_lag_with_offset_and_default(PG_FUNCTION_ARGS)
 {
-    return leadlag_common(fcinfo, false, true, true);
+	return leadlag_common(fcinfo, false, true, true);
 }
 
 /*
@@ -372,7 +392,7 @@ window_lag_with_offset_and_default(PG_FUNCTION_ARGS)
 Datum
 window_lead(PG_FUNCTION_ARGS)
 {
-    return leadlag_common(fcinfo, true, false, false);
+	return leadlag_common(fcinfo, true, false, false);
 }
 
 /*
@@ -384,7 +404,7 @@ window_lead(PG_FUNCTION_ARGS)
 Datum
 window_lead_with_offset(PG_FUNCTION_ARGS)
 {
-    return leadlag_common(fcinfo, true, true, false);
+	return leadlag_common(fcinfo, true, true, false);
 }
 
 /*
@@ -395,7 +415,7 @@ window_lead_with_offset(PG_FUNCTION_ARGS)
 Datum
 window_lead_with_offset_and_default(PG_FUNCTION_ARGS)
 {
-    return leadlag_common(fcinfo, true, true, true);
+	return leadlag_common(fcinfo, true, true, true);
 }
 
 /*
@@ -406,17 +426,17 @@ window_lead_with_offset_and_default(PG_FUNCTION_ARGS)
 Datum
 window_first_value(PG_FUNCTION_ARGS)
 {
-    WindowObject winobj = PG_WINDOW_OBJECT();
-    Datum        result;
-    bool        isnull;
+	WindowObject winobj = PG_WINDOW_OBJECT();
+	Datum		result;
+	bool		isnull;
 
-    result = WinGetFuncArgInFrame(winobj, 0,
-                                  0, WINDOW_SEEK_HEAD, true,
-                                  &isnull, NULL);
-    if (isnull)
-        PG_RETURN_NULL();
+	result = WinGetFuncArgInFrame(winobj, 0,
+								  0, WINDOW_SEEK_HEAD, true,
+								  &isnull, NULL);
+	if (isnull)
+		PG_RETURN_NULL();
 
-    PG_RETURN_DATUM(result);
+	PG_RETURN_DATUM(result);
 }
 
 /*
@@ -427,17 +447,17 @@ window_first_value(PG_FUNCTION_ARGS)
 Datum
 window_last_value(PG_FUNCTION_ARGS)
 {
-    WindowObject winobj = PG_WINDOW_OBJECT();
-    Datum        result;
-    bool        isnull;
+	WindowObject winobj = PG_WINDOW_OBJECT();
+	Datum		result;
+	bool		isnull;
 
-    result = WinGetFuncArgInFrame(winobj, 0,
-                                  0, WINDOW_SEEK_TAIL, true,
-                                  &isnull, NULL);
-    if (isnull)
-        PG_RETURN_NULL();
+	result = WinGetFuncArgInFrame(winobj, 0,
+								  0, WINDOW_SEEK_TAIL, true,
+								  &isnull, NULL);
+	if (isnull)
+		PG_RETURN_NULL();
 
-    PG_RETURN_DATUM(result);
+	PG_RETURN_DATUM(result);
 }
 
 /*
@@ -448,27 +468,27 @@ window_last_value(PG_FUNCTION_ARGS)
 Datum
 window_nth_value(PG_FUNCTION_ARGS)
 {
-    WindowObject winobj = PG_WINDOW_OBJECT();
-    bool        const_offset;
-    Datum        result;
-    bool        isnull;
-    int32        nth;
+	WindowObject winobj = PG_WINDOW_OBJECT();
+	bool		const_offset;
+	Datum		result;
+	bool		isnull;
+	int32		nth;
 
-    nth = DatumGetInt32(WinGetFuncArgCurrent(winobj, 1, &isnull));
-    if (isnull)
-        PG_RETURN_NULL();
-    const_offset = get_fn_expr_arg_stable(fcinfo->flinfo, 1);
+	nth = DatumGetInt32(WinGetFuncArgCurrent(winobj, 1, &isnull));
+	if (isnull)
+		PG_RETURN_NULL();
+	const_offset = get_fn_expr_arg_stable(fcinfo->flinfo, 1);
 
-    if (nth <= 0)
-        ereport(ERROR,
-                (errcode(ERRCODE_INVALID_ARGUMENT_FOR_NTH_VALUE),
-                 errmsg("argument of nth_value must be greater than zero")));
+	if (nth <= 0)
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_ARGUMENT_FOR_NTH_VALUE),
+				 errmsg("argument of nth_value must be greater than zero")));
 
-    result = WinGetFuncArgInFrame(winobj, 0,
-                                  nth - 1, WINDOW_SEEK_HEAD, const_offset,
-                                  &isnull, NULL);
-    if (isnull)
-        PG_RETURN_NULL();
+	result = WinGetFuncArgInFrame(winobj, 0,
+								  nth - 1, WINDOW_SEEK_HEAD, const_offset,
+								  &isnull, NULL);
+	if (isnull)
+		PG_RETURN_NULL();
 
-    PG_RETURN_DATUM(result);
+	PG_RETURN_DATUM(result);
 }

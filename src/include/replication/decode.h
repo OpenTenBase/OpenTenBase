@@ -1,11 +1,8 @@
 /*-------------------------------------------------------------------------
  * decode.h
- *       PostgreSQL WAL to logical transformation
+ *	   PostgreSQL WAL to logical transformation
  *
  * Portions Copyright (c) 2012-2017, PostgreSQL Global Development Group
- *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  *-------------------------------------------------------------------------
  */
@@ -25,6 +22,6 @@ void LogicalDecoding_XLR_InfoMask_Clear(uint8 infoMask);
 #endif
 
 void LogicalDecodingProcessRecord(LogicalDecodingContext *ctx,
-                             XLogReaderState *record);
+							 XLogReaderState *record);
 
 #endif

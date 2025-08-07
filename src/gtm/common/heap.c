@@ -1,9 +1,3 @@
-/*
- * Copyright (c) 2023 THL A29 Limited, a Tencent company.
- *
- * This source code file is licensed under the BSD 3-Clause License,
- * you may obtain a copy of the License at http://opensource.org/license/bsd-3-clause/
- */
 /**
  * This file defines the methods declared in heap.h
  * These are used to create and manipulate a heap
@@ -16,6 +10,7 @@
 #include <strings.h>
 #include <string.h>
 #include "gtm/heap.h"
+#include "gtm/elog.h"
 
 // Helpful Macros
 #define LEFT_CHILD(i)   ((i<<1)+1)
@@ -62,10 +57,13 @@ static void* map_in_pages(int page_count) {
     // Call mmmap to get the pages
 
     addr = mmap(NULL, page_count*PAGE_SIZE, PROT_READ|PROT_WRITE, MAP_ANON|MAP_PRIVATE, -1, 0);
-
     if (addr == MAP_FAILED)
-        return NULL;
-    else {
+    {
+        elog(LOG, "failed to mmap in map_in_pages, allocsize:%d errno:%d %s", page_count*PAGE_SIZE, errno, strerror(errno));
+        exit(1);
+    }
+    else
+    {
         // Clear the memory
         bzero(addr,page_count*PAGE_SIZE);
         

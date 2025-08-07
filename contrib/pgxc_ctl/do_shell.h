@@ -32,49 +32,49 @@ extern FILE *pgxc_popen_w(char *host, const char *cmd_fmt, ...) __attribute__((f
 /*
  * Flags
  */
-#define PrintLog    0x01
-#define PrintErr    0x02
+#define PrintLog	0x01
+#define PrintErr	0x02
 #define LogOnly PrintLog
 #define ErrOnly PrintErr
 #define LogErr (PrintLog | PrintErr)
-#define LeaveRemoteStdin    0x04
-#define LeaveLocalStdin        0x08
-#define LeaveStdout    0x10
+#define LeaveRemoteStdin	0x04
+#define LeaveLocalStdin		0x08
+#define LeaveStdout	0x10
 #define InternalFunc(cmd, func, parm) \
-    do \
-        {(cmd)->isInternal = TRUE; (cmd)->callback = (func); (cmd)->callback_parm = (parm);} \
-    while(0)
+	do \
+	    {(cmd)->isInternal = TRUE; (cmd)->callback = (func); (cmd)->callback_parm = (parm);} \
+	while(0)
 #define ShellCall(cmd) \
-    do \
+	do \
         {(cmd)->isInternal = FALSE; (cmd)->callback = NULL; (cmd)->callback_parm = NULL;} \
-    while(0)
+	while(0)
 
 
 
 typedef struct cmd_t
 {
-    struct cmd_t *next;    /* Next to do --> done in the same shell */
-    int  isInternal;    /* If true, do not invoke shell.  Call internal function */
-    void (*callback)(char *line);    /* Callback function */
-    char *callback_parm;/* Argument to the callback function.  Will be freed here. */
-    char *host;            /* target host  -> If null, then local command */
-    char *command;        /* Will be double-quoted.   Double-quote has to be escaped by the caller */
-    char *localStdin;    /* Local stdin name --> Supplied by the caller. */
-    char *actualCmd;    /* internal use --> local ssh full command. */
-    char *localStdout;    /* internal use, local stdout name --> Generated. Stderr will be copied here too */
-                        /* Messages from the child process may be printed to this file too. */
-    pid_t pid;            /* internal use: valid only for cmd at the head of the list */
-    int    flag;            /* flags */
-    int excode;            /* exit code -> not used in parallel execution.  */
-    char *msg;            /* internal use: messages to write.  Has to be comsumed only by child process. */
-    char *remoteStdout;    /* internal use: remote stdout name.  Generated for remote case */
+	struct cmd_t *next;	/* Next to do --> done in the same shell */
+	int  isInternal;	/* If true, do not invoke shell.  Call internal function */
+	void (*callback)(char *line);	/* Callback function */
+	char *callback_parm;/* Argument to the callback function.  Will be freed here. */
+	char *host;			/* target host  -> If null, then local command */
+	char *command;		/* Will be double-quoted.   Double-quote has to be escaped by the caller */
+	char *localStdin;	/* Local stdin name --> Supplied by the caller. */
+	char *actualCmd;	/* internal use --> local ssh full command. */
+	char *localStdout;	/* internal use, local stdout name --> Generated. Stderr will be copied here too */
+						/* Messages from the child process may be printed to this file too. */
+	pid_t pid;			/* internal use: valid only for cmd at the head of the list */
+	int	flag;			/* flags */
+	int excode;			/* exit code -> not used in parallel execution.  */
+	char *msg;			/* internal use: messages to write.  Has to be comsumed only by child process. */
+	char *remoteStdout;	/* internal use: remote stdout name.  Generated for remote case */
 } cmd_t;
 
 typedef struct cmdList_t
 {
-    int        allocated;
-    int        used;
-    cmd_t     **cmds;
+	int		allocated;
+	int		used;
+	cmd_t 	**cmds;
 } cmdList_t;
 
 extern cmdList_t *initCmdList(void);

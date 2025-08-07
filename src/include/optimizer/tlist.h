@@ -7,9 +7,6 @@
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * src/include/optimizer/tlist.h
  *
  *-------------------------------------------------------------------------
@@ -44,10 +41,6 @@ extern Node *get_sortgroupclause_expr(SortGroupClause *sgClause,
 						 List *targetList);
 extern List *get_sortgrouplist_exprs(List *sgClauses,
 						List *targetList);
-
-#ifdef __OPENTENBASE__
-extern Aggref *get_optimize_distinct_agg(PathTarget *pathtarget);
-#endif
 
 extern SortGroupClause *get_sortgroupref_clause(Index sortref,
 						List *clauses);

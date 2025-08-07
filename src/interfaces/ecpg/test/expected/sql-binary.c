@@ -97,8 +97,8 @@ main (void)
     }
 
   { ECPGdo(__LINE__, 0, 1, NULL, 0, ECPGst_normal, "insert into empl values ( 1 , 'first user' , 320 , $1  )", 
-    ECPGt_char,&(data),(long)0,(long)1,(1)*sizeof(char), 
-    ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EOIT, ECPGt_EORT);}
+	ECPGt_char,&(data),(long)0,(long)1,(1)*sizeof(char), 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EOIT, ECPGt_EORT);}
 #line 51 "binary.pgc"
 
   if (sqlca.sqlcode)
@@ -112,17 +112,17 @@ main (void)
 #line 58 "binary.pgc"
 
   { ECPGdo(__LINE__, 0, 1, NULL, 0, ECPGst_normal, "declare C cursor for select name , accs , byte from empl where idnum = $1 ", 
-    ECPGt_long,&(empl.idnum),(long)1,(long)1,sizeof(long), 
-    ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EOIT, ECPGt_EORT);}
+	ECPGt_long,&(empl.idnum),(long)1,(long)1,sizeof(long), 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EOIT, ECPGt_EORT);}
 #line 59 "binary.pgc"
 
   { ECPGdo(__LINE__, 0, 1, NULL, 0, ECPGst_normal, "fetch C", ECPGt_EOIT, 
-    ECPGt_char,(empl.name),(long)21,(long)1,(21)*sizeof(char), 
-    ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, 
-    ECPGt_short,&(empl.accs),(long)1,(long)1,sizeof(short), 
-    ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, 
-    ECPGt_char,(empl.byte),(long)20,(long)1,(20)*sizeof(char), 
-    ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EORT);}
+	ECPGt_char,(empl.name),(long)21,(long)1,(21)*sizeof(char), 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, 
+	ECPGt_short,&(empl.accs),(long)1,(long)1,sizeof(short), 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, 
+	ECPGt_char,(empl.byte),(long)20,(long)1,(20)*sizeof(char), 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EORT);}
 #line 60 "binary.pgc"
 
   if (sqlca.sqlcode)
@@ -143,17 +143,17 @@ main (void)
 #line 72 "binary.pgc"
 
   { ECPGdo(__LINE__, 0, 1, NULL, 0, ECPGst_normal, "declare B binary cursor for select name , accs , byte from empl where idnum = $1 ", 
-    ECPGt_long,&(empl.idnum),(long)1,(long)1,sizeof(long), 
-    ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EOIT, ECPGt_EORT);}
+	ECPGt_long,&(empl.idnum),(long)1,(long)1,sizeof(long), 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EOIT, ECPGt_EORT);}
 #line 73 "binary.pgc"
 
   { ECPGdo(__LINE__, 0, 1, NULL, 0, ECPGst_normal, "fetch B", ECPGt_EOIT, 
-    ECPGt_char,(empl.name),(long)21,(long)1,(21)*sizeof(char), 
-    ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, 
-    ECPGt_short,&(empl.accs),(long)1,(long)1,sizeof(short), 
-    ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, 
-    ECPGt_char,(empl.byte),(long)20,(long)1,(20)*sizeof(char), 
-    ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EORT);}
+	ECPGt_char,(empl.name),(long)21,(long)1,(21)*sizeof(char), 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, 
+	ECPGt_short,&(empl.accs),(long)1,(long)1,sizeof(short), 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, 
+	ECPGt_char,(empl.byte),(long)20,(long)1,(20)*sizeof(char), 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EORT);}
 #line 74 "binary.pgc"
 
   if (sqlca.sqlcode)
@@ -169,7 +169,7 @@ main (void)
   /* do not print a.accs because big/little endian will have different outputs here */
   printf ("name=%s, byte=", empl.name);
   for (i=0; i<4; i++)
-    printf("(%o)", (unsigned char)empl.byte[i]);
+	printf("(%o)", (unsigned char)empl.byte[i]);
   printf("\n");
 
   ECPGset_var( 2, &( empl.idnum ), __LINE__);\
@@ -177,13 +177,13 @@ main (void)
 #line 89 "binary.pgc"
 
   { ECPGdo(__LINE__, 0, 1, NULL, 0, ECPGst_normal, "declare A binary cursor for select byte from empl where idnum = $1 ", 
-    ECPGt_long,&(empl.idnum),(long)1,(long)1,sizeof(long), 
-    ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EOIT, ECPGt_EORT);}
+	ECPGt_long,&(empl.idnum),(long)1,(long)1,sizeof(long), 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EOIT, ECPGt_EORT);}
 #line 90 "binary.pgc"
 
   { ECPGdo(__LINE__, 0, 1, NULL, 0, ECPGst_normal, "fetch A", ECPGt_EOIT, 
-    ECPGt_char,&(pointer),(long)0,(long)1,(1)*sizeof(char), 
-    ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EORT);}
+	ECPGt_char,&(pointer),(long)0,(long)1,(1)*sizeof(char), 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EORT);}
 #line 91 "binary.pgc"
 
   if (sqlca.sqlcode)
@@ -198,7 +198,7 @@ main (void)
 
   printf ("pointer=");
   for (i=0; i<4; i++)
-    printf("(%o)", (unsigned char)pointer[i]);
+	printf("(%o)", (unsigned char)pointer[i]);
   printf("\n");
   free(pointer);
 

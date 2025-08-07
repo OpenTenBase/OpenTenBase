@@ -7,9 +7,6 @@
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * src/include/access/printtup.h
  *
  *-------------------------------------------------------------------------
@@ -23,20 +20,21 @@ extern DestReceiver *printtup_create_DR(CommandDest dest);
 
 extern void SetRemoteDestReceiverParams(DestReceiver *self, Portal portal);
 
-extern void SendRowDescriptionMessage(TupleDesc typeinfo, List *targetlist,
-                          int16 *formats);
-#ifdef __OPENTENBASE__
-extern void FormRowDescriptionMessage(TupleDesc typeinfo, List *targetlist, 
-                          int16 *formats, StringInfo buf);
-#endif
-
+extern void SendRowDescriptionMessage(StringInfo buf,
+						  TupleDesc typeinfo, List *targetlist, int16 *formats,
+						  DestReceiver *self);
 extern void debugStartup(DestReceiver *self, int operation,
-             TupleDesc typeinfo);
+			 TupleDesc typeinfo);
 extern bool debugtup(TupleTableSlot *slot, DestReceiver *self);
 
 /* XXX these are really in executor/spi.c */
 extern void spi_dest_startup(DestReceiver *self, int operation,
-                 TupleDesc typeinfo);
+				 TupleDesc typeinfo);
 extern bool spi_printtup(TupleTableSlot *slot, DestReceiver *self);
+extern char* SlotToString(TupleTableSlot *slot);
+#ifdef __OPENTENBASE_C__
+extern void SetRemoteDestReceiverResultCache(DestReceiver *self, Oid *relids, uint32 queryid);
+extern bool printtup_resultcache(char *result);
+#endif
 
-#endif                            /* PRINTTUP_H */
+#endif							/* PRINTTUP_H */

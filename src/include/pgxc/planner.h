@@ -1,15 +1,12 @@
 /*-------------------------------------------------------------------------
  *
  * planner.h
- *        Externally declared locator functions
+ *		Externally declared locator functions
  *
  *
  * Portions Copyright (c) 2012-2014, TransLattice, Inc.
  * Portions Copyright (c) 1996-2011, PostgreSQL Global Development Group
  * Portions Copyright (c) 2010-2012 Postgres-XC Development Group
- *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  * src/include/pgxc/planner.h
  *
@@ -28,13 +25,12 @@
 #include "tcop/dest.h"
 #include "nodes/relation.h"
 
-
 typedef enum
 {
-    COMBINE_TYPE_NONE,            /* it is known that no row count, do not parse */
-    COMBINE_TYPE_SUM,            /* sum row counts (partitioned, round robin) */
-    COMBINE_TYPE_SAME            /* expect all row counts to be the same (replicated write) */
-}    CombineType;
+	COMBINE_TYPE_NONE,			/* it is known that no row count, do not parse */
+	COMBINE_TYPE_SUM,			/* sum row counts (partitioned, round robin) */
+	COMBINE_TYPE_SAME			/* expect all row counts to be the same (replicated write) */
+}	CombineType;
 
 /* For sorting within RemoteQuery handling */
 /*
@@ -42,12 +38,12 @@ typedef enum
  */
 typedef struct
 {
-    NodeTag        type;
-    int            numCols;        /* number of sort-key columns */
-    AttrNumber *sortColIdx;        /* their indexes in the target list */
-    Oid           *sortOperators;    /* OIDs of operators to sort them by */
-    Oid           *sortCollations;
-    bool       *nullsFirst;        /* NULLS FIRST/LAST directions */
+	NodeTag		type;
+	int			numCols;		/* number of sort-key columns */
+	AttrNumber *sortColIdx;		/* their indexes in the target list */
+	Oid		   *sortOperators;	/* OIDs of operators to sort them by */
+	Oid		   *sortCollations;
+	bool	   *nullsFirst;		/* NULLS FIRST/LAST directions */
 } SimpleSort;
 
 /*
@@ -58,34 +54,44 @@ typedef struct
  */
 typedef enum
 {
-    EXEC_ON_CURRENT,
-    EXEC_ON_DATANODES,
-    EXEC_ON_COORDS,
-    EXEC_ON_ALL_NODES,
-    EXEC_ON_NONE
+	EXEC_ON_CURRENT,
+	EXEC_ON_DATANODES,
+	EXEC_ON_COORDS,
+	EXEC_ON_ALL_NODES,
+	EXEC_ON_CURRENT_TXN,
+	EXEC_ON_NONE
 } RemoteQueryExecType;
 
 typedef enum
 {
-    EXEC_DIRECT_NONE,
-    EXEC_DIRECT_LOCAL,
-    EXEC_DIRECT_LOCAL_UTILITY,
-    EXEC_DIRECT_UTILITY,
-    EXEC_DIRECT_SELECT,
-    EXEC_DIRECT_INSERT,
-    EXEC_DIRECT_UPDATE,
-    EXEC_DIRECT_DELETE
+	EXEC_DIRECT_NONE,
+	EXEC_DIRECT_LOCAL,
+	EXEC_DIRECT_LOCAL_UTILITY,
+	EXEC_DIRECT_LOCAL_NOTHING,
+	EXEC_DIRECT_UTILITY,
+	EXEC_DIRECT_SELECT,
+	EXEC_DIRECT_INSERT,
+	EXEC_DIRECT_UPDATE,
+	EXEC_DIRECT_DELETE
 } ExecDirectType;
 
 #ifdef __OPENTENBASE__
 typedef enum UPSERT_ACTION
 {
-    UPSERT_NONE,
-    UPSERT_SELECT,
-    UPSERT_INSERT,
-    UPSERT_UPDATE
+	UPSERT_NONE,
+	UPSERT_SELECT,
+	UPSERT_INSERT,
+	UPSERT_UPDATE
 } UPSERT_ACTION;
 #endif
+
+typedef enum FQS_MODE
+{
+	FQS_MODE_FQS_PLANER,
+	FQS_MODE_STD_PLANER
+} FQS_MODE;
+
+extern char* fqs_mode_string[];
 /*
  * Contains instructions on processing a step of a query.
  * In the prototype this will be simple, but it will eventually
@@ -93,113 +99,173 @@ typedef enum UPSERT_ACTION
  */
 typedef struct
 {
-    Scan            scan;
-    ExecDirectType        exec_direct_type;    /* track if remote query is execute direct and what type it is */
-    char            *sql_statement;
-    ExecNodes        *exec_nodes;        /* List of Datanodes where to launch query */
-    CombineType        combine_type;
-    SimpleSort        *sort;
-    bool            read_only;        /* do not use 2PC when committing read only steps */
-    bool            force_autocommit;    /* some commands like VACUUM require autocommit mode */
-    char            *statement;        /* if specified use it as a PreparedStatement name on Datanodes */
-    char            *cursor;        /* if specified use it as a Portal name on Datanodes */
-    int             rq_num_params;      /* number of parameters present in
-                                           remote statement */
-    Oid             *rq_param_types;    /* parameter types for the remote
-                                           statement */
-    RemoteQueryExecType    exec_type;
-    int            reduce_level;        /* in case of reduced JOIN, it's level    */
-    char            *outer_alias;
-    char            *inner_alias;
-    int            outer_reduce_level;
-    int            inner_reduce_level;
-    Relids            outer_relids;
-    Relids            inner_relids;
-    char            *inner_statement;
-    char            *outer_statement;
-    char            *join_condition;
-    bool            has_row_marks;        /* Did SELECT had FOR UPDATE/SHARE? */
-    bool            has_ins_child_sel_parent;    /* This node is part of an INSERT SELECT that
-                                 * inserts into child by selecting from its parent */
+	Scan			scan;
+	ExecDirectType		exec_direct_type;	/* track if remote query is execute direct and what type it is */
+	bool			exec_direct_dn_allow;
+	char			*sql_statement;
+	ExecNodes		*exec_nodes;		/* List of Datanodes where to launch query */
+	CombineType		combine_type;
+	SimpleSort		*sort;
+	bool			read_only;		/* do not use 2PC when committing read only steps */
+	bool			force_autocommit;	/* some commands like VACUUM require autocommit mode */
+	char			*statement;		/* if specified use it as a PreparedStatement name on Datanodes */
+	char			*cursor;		/* if specified use it as a Portal name on Datanodes */
+	int             rq_num_params;      /* number of parameters present in
+										   remote statement */
+	Oid             *rq_param_types;    /* parameter types for the remote
+										   statement */
+	RemoteQueryExecType	exec_type;
+	int			reduce_level;		/* in case of reduced JOIN, it's level    */
+	char			*outer_alias;
+	char			*inner_alias;
+	int			outer_reduce_level;
+	int			inner_reduce_level;
+	Relids			outer_relids;
+	Relids			inner_relids;
+	char			*inner_statement;
+	char			*outer_statement;
+	char			*join_condition;
+	bool			has_row_marks;		/* Did SELECT had FOR UPDATE/SHARE? */
+	bool			has_ins_child_sel_parent;	/* This node is part of an INSERT SELECT that
+								 * inserts into child by selecting from its parent */
 
-    bool            rq_finalise_aggs;   /* Aggregates should be finalised at
-                                           the 
-                                         * Datanode */
-    bool            rq_sortgroup_colno; /* Use resno for sort group references
-                                         * instead of expressions */
-    Query           *remote_query;  /* Query structure representing the query
-                                       to be
-                                     * sent to the datanodes */
-    List            *base_tlist;    /* the targetlist representing the result
-                                       of 
-                                     * the query to be sent to the datanode */
+	bool            rq_finalise_aggs;   /* Aggregates should be finalised at
+										   the 
+										 * Datanode */
+	bool            rq_sortgroup_colno; /* Use resno for sort group references
+										 * instead of expressions */
+	Query           *remote_query;  /* Query structure representing the query
+									   to be
+									 * sent to the datanodes */
+	List            *base_tlist;    /* the targetlist representing the result
+									   of 
+									 * the query to be sent to the datanode */
 
-    /*
-     * Reference targetlist of Vars to match the Vars in the plan nodes on
-     * coordinator to the corresponding Vars in the remote_query.  These
-     * targetlists are used to while replacing/adding targetlist and quals in
-     * the remote_query.
-     */ 
-    List            *coord_var_tlist;
-    List            *query_var_tlist;
-    bool            is_temp;
+	/*
+	 * Reference targetlist of Vars to match the Vars in the plan nodes on
+	 * coordinator to the corresponding Vars in the remote_query.  These
+	 * targetlists are used to while replacing/adding targetlist and quals in
+	 * the remote_query.
+	 */ 
+	List            *coord_var_tlist;
+	List            *query_var_tlist;
+	bool			is_temp;
 #ifdef __OPENTENBASE__
-    /*
-      * This part is used for 'insert...on onconflict do update' while the target
-      * relation has unshippable triggers, we have to do the UPSERT on coordinator with
-      * triggers. In order to make triggers work, we separate UPSERT into INSERT and
-      * UPDATE.
-         */
-	Query           *forDeparse;      /* function statement */
-    char            *sql_select;      /* select statement */
-    char            *sql_select_base;
-    bool            forUpadte;
-    int             ss_num_params;
-    Oid             *ss_param_types;
-    char            *select_cursor;
-    char            *sql_update;      /* update statement */
-    int             su_num_params;
-    Oid             *su_param_types;
-    char            *update_cursor;
-    UPSERT_ACTION   action;
-    bool            dml_on_coordinator;
-    AttrNumber        jf_ctid;
-    AttrNumber        jf_xc_node_id;
-    AttrNumber        jf_xc_wholerow;
-    Bitmapset       *conflict_cols;
+	/*
+	  * This part is used for 'insert...on onconflict do update' while the target
+	  * relation has unshippable triggers, we have to do the UPSERT on coordinator with
+	  * triggers. In order to make triggers work, we separate UPSERT into INSERT and
+	  * UPDATE.
+      */
+	char			*sql_select;      /* select statement */
+	char            *sql_select_base;
+	bool            forUpadte;
+	int             ss_num_params;
+	Oid 			*ss_param_types;
+	char            *select_cursor;
+	char			*sql_update;      /* update statement */
+	int             su_num_params;
+	Oid 			*su_param_types;
+	char            *update_cursor;
+	UPSERT_ACTION   action;
+	bool            dml_on_coordinator;
+	AttrNumber	    jf_ctid;
+	AttrNumber	    jf_xc_node_id;
+	AttrNumber	    jf_xc_wholerow;
+	Bitmapset       *conflict_cols;
 
 	Node			*parsetree;  /* to recognize subtxn cmds (savepoint, rollback to, release savepoint) */
 	bool            is_set;      /* is SET statement ? */
-	bool            ignore_tuple_desc; /* should ignore received tuple slot desc ? */
 #endif
+	ModifyTable     *remote_mt;     /* DML plan generated by standard planner */
+	List            *remote_target; /* remote lock projection result */
+	List            *remote_quals;  /* remote lock qualifications */
+	RCmdType         rcmdtype;       /* this remote query for ... */
+	bool             ignore_tuple_desc; /* should ignore received tuple slot desc ? */
+	FQS_MODE         fqs_mode;          /* this remote query for ... */
+	bool             is_node_stmt;
 } RemoteQuery;
+
+#define CoordinatorNode  0
+#define DataNode 1
+
+typedef struct RemoteParam
+{
+	ParamKind 	paramkind;		/* kind of parameter */
+	int			paramid;		/* numeric ID for parameter */
+	Oid			paramtype;		/* pg_type OID of parameter's datatype */
+	int			paramused;		/* is param used */
+} RemoteParam;
+
+typedef enum Protocol
+{
+	ProtocolFN,
+	ProtocolPQ
+} Protocol;
 
 /*
  * Going to be a RemoteQuery replacement.
  * Submit left subplan to the nodes defined by the Distribution and combine
  * results.
  */
-typedef struct
+typedef struct 
 {
-    Scan        scan;
-    char         distributionType;
-    AttrNumber    distributionKey;
-    List        *distributionNodes;
-    List        *distributionRestrict;
-    List        *nodeList;
-    bool         execOnAll;
-    SimpleSort *sort;
-    char       *cursor;
-    int64       unique;
-#ifdef __OPENTENBASE__
-    /*
-      * if gather is under remotesubplan, parallel worker can send tuples 
-      * directly without gather node?
-     */
-    bool        parallelWorkerSendTuple; 
-	/* params that generated by initplan */
-	Bitmapset  *initPlanParams;
+	Scan		scan;
+#ifdef __OPENTENBASE_C__
+	int			fid;		/* Fragment Id */
+	int			param_fid;	/* fid for sending/receiving params */
+	int			flevel;	/* Fragment level from root fragment */
+	List		*targetNodes;	/* for non-redistribution type remote subplan */
+	int			targetNodeType;	/* CN or DN */
+	Protocol	protocol;
+	bool        localSend; /* send tuple to self in broadcast */
+	bool        under_subplan; /* is under subplan? */
+	int         nparams;       /* number of remote params */
+	RemoteParam *remoteparams; /* remote params */
 #endif
+	char 		distributionType;
+#ifdef __OPENTENBASE_C__
+	int         ndiskeys;
+	AttrNumber  *diskeys;
+#endif
+	List 	   *distributionNodes;
+	List 	   *distributionRestrict;
+	List 	   *nodeList;
+	bool 		execOnAll;
+	SimpleSort *sort;
+	char	   *cursor;
+
+	bool		roundrobin_distributed;	/* roundrobin distributed side */
+	bool		roundrobin_replicate;	/* roundrobin replicate side */
+	List	   *retain_list;		/* retain list for data skew */
+	List	   *replicated_list;    /* replicate list for data skew */
+#ifdef __OPENTENBASE__
+	int			num_workers;	/* planned number of worker processes */
+	uint8		num_virtualdop;	/* planned number of virtual dop for upper node,
+								   0 means no virtual dop optimization */
+	uint8 		dop_flags;		/* set by virtual dop optimization */
+	bool 		cacheSend;		/* cache send data */
+
+	bool		transfer_datarow;
+
+	/* for initplans of this fragment */
+	Bitmapset  *initParam;		/* paramid of initplans that this fragment needs to receive */
+	List	   *dests;			/* FragmentDest for fragment who sending result of a initplan */
+#endif
+	/* begin ora_compatible */
+	/*
+	 * For LOCATOR_TYPE_EXPR, the 'multi_dist' is a list of distribution
+	 * to determine the source tuple routine. Currently is a list of the
+	 * dummy RemoteSubplan node.
+	 */
+	List	   *multi_dist;
+
+	/* copied from MultiModifyTable */
+	int			startno;
+	int			endno;
+	bool		has_else;	/* endno is ELSE target */
+	bool		only_one_send_tuple;
+	/* end ora_compatible */
 
 } RemoteSubplan;
 
@@ -210,45 +276,47 @@ typedef struct
  */
 typedef struct
 {
-    bool        sc_for_expr;        /* if false, the we are checking shippability
-                                     * of the Query, otherwise, we are checking
-                                     * shippability of a stand-alone expression.
-                                     */
-    Bitmapset    *sc_shippability;    /* The conditions for (un)shippability of the
-                                     * query.
-                                     */
-    Query        *sc_query;            /* the query being analysed for FQS */
-    int            sc_query_level;        /* level of the query */
-    int            sc_max_varlevelsup;    /* maximum upper level referred to by any
-                                     * variable reference in the query. If this
-                                     * value is greater than 0, the query is not
-                                     * shippable, if shipped alone.
-                                     */
-    ExecNodes    *sc_exec_nodes;        /* nodes where the query should be executed */
-    ExecNodes    *sc_subquery_en;    /* ExecNodes produced by merging the ExecNodes
-                                     * for individual subqueries. This gets
-                                     * ultimately merged with sc_exec_nodes.
-                                     */
+	bool		sc_for_expr;		/* if false, the we are checking shippability
+									 * of the Query, otherwise, we are checking
+									 * shippability of a stand-alone expression.
+									 */
+	Bitmapset	*sc_shippability;	/* The conditions for (un)shippability of the
+									 * query.
+									 */
+	Query		*sc_query;			/* the query being analysed for FQS */
+	int			sc_query_level;		/* level of the query */
+	int			sc_max_varlevelsup;	/* maximum upper level referred to by any
+									 * variable reference in the query. If this
+									 * value is greater than 0, the query is not
+									 * shippable, if shipped alone.
+									 */
+	ExecNodes	*sc_exec_nodes;		/* nodes where the query should be executed */
+	ExecNodes	*sc_subquery_en;	/* ExecNodes produced by merging the ExecNodes
+									 * for individual subqueries. This gets
+									 * ultimately merged with sc_exec_nodes.
+									 */
 } Shippability_context;
 
 extern PlannedStmt *pgxc_direct_planner(Query *query, int cursorOptions,
-                                        ParamListInfo boundParams);
+										ParamListInfo boundParams);
 extern List *AddRemoteQueryNode(List *stmts, const char *queryString,
-                                RemoteQueryExecType remoteExecType);
+								RemoteQueryExecType remoteExecType);
 extern PlannedStmt *pgxc_planner(Query *query, int cursorOptions,
-                                         ParamListInfo boundParams);
-extern ExecNodes *pgxc_is_query_shippable(Query *query, int query_level);
+									ParamListInfo boundParams, 
+									int cached_param_num, bool explain);
 
 #ifdef __OPENTENBASE__
 extern RangeTblEntry *make_dummy_remote_rte(char *relname, Alias *alias);
 extern void pgxc_add_returning_list(RemoteQuery *rq, List *ret_list, int rel_index);
 
 extern void pgxc_build_dml_statement(PlannerInfo *root, CmdType cmdtype,
-                        Index resultRelationIndex, RemoteQuery *rqplan,
-                        List *sourceTargetList, bool interval);
-extern Expr *pgxc_set_en_expr(Oid tableoid, Index resultRelationIndex);
+						Index resultRelationIndex, RemoteQuery *rqplan,
+						List *sourceTargetList, bool interval, RCmdType rcmdtype);
+extern Expr **pgxc_set_en_disExprs(Oid tableoid, Index resultRelationIndex, int *nExprs);
 
-extern Expr *pgxc_set_sec_en_expr(Oid tableoid, Index resultRelationIndex);
+extern char *pgxc_build_remote_tidscan_statement(RangeTblEntry *from_rte, List *tlist, List *quals, bool for_update);
+extern RemoteQuery *pgxc_FQS_create_remote_plan(Query *query, ExecNodes *exec_nodes,
+                                                bool is_exec_direct, FQS_MODE mode);
 #endif
 
 #endif   /* PGXCPLANNER_H */

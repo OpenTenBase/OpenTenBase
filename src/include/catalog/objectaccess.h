@@ -1,7 +1,7 @@
 /*
  * objectaccess.h
  *
- *        Object access hooks.
+ *		Object access hooks.
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -41,11 +41,11 @@
  */
 typedef enum ObjectAccessType
 {
-    OAT_POST_CREATE,
-    OAT_DROP,
-    OAT_POST_ALTER,
-    OAT_NAMESPACE_SEARCH,
-    OAT_FUNCTION_EXECUTE
+	OAT_POST_CREATE,
+	OAT_DROP,
+	OAT_POST_ALTER,
+	OAT_NAMESPACE_SEARCH,
+	OAT_FUNCTION_EXECUTE
 } ObjectAccessType;
 
 /*
@@ -53,12 +53,12 @@ typedef enum ObjectAccessType
  */
 typedef struct
 {
-    /*
-     * This flag informs extensions whether the context of this creation is
-     * invoked by user's operations, or not. E.g, it shall be dealt as
-     * internal stuff on toast tables or indexes due to type changes.
-     */
-    bool        is_internal;
+	/*
+	 * This flag informs extensions whether the context of this creation is
+	 * invoked by user's operations, or not. E.g, it shall be dealt as
+	 * internal stuff on toast tables or indexes due to type changes.
+	 */
+	bool		is_internal;
 } ObjectAccessPostCreate;
 
 /*
@@ -66,11 +66,11 @@ typedef struct
  */
 typedef struct
 {
-    /*
-     * Flags to inform extensions the context of this deletion. Also see
-     * PERFORM_DELETION_* in dependency.h
-     */
-    int            dropflags;
+	/*
+	 * Flags to inform extensions the context of this deletion. Also see
+	 * PERFORM_DELETION_* in dependency.h
+	 */
+	int			dropflags;
 } ObjectAccessDrop;
 
 /*
@@ -78,21 +78,21 @@ typedef struct
  */
 typedef struct
 {
-    /*
-     * This identifier is used when system catalog takes two IDs to identify a
-     * particular tuple of the catalog. It is only used when the caller want
-     * to identify an entry of pg_inherits, pg_db_role_setting or
-     * pg_user_mapping. Elsewhere, InvalidOid should be set.
-     */
-    Oid            auxiliary_id;
+	/*
+	 * This identifier is used when system catalog takes two IDs to identify a
+	 * particular tuple of the catalog. It is only used when the caller want
+	 * to identify an entry of pg_inherits, pg_db_role_setting or
+	 * pg_user_mapping. Elsewhere, InvalidOid should be set.
+	 */
+	Oid			auxiliary_id;
 
-    /*
-     * If this flag is set, the user hasn't requested that the object be
-     * altered, but we're doing it anyway for some internal reason.
-     * Permissions-checking hooks may want to skip checks if, say, we're alter
-     * the constraints of a temporary heap during CLUSTER.
-     */
-    bool        is_internal;
+	/*
+	 * If this flag is set, the user hasn't requested that the object be
+	 * altered, but we're doing it anyway for some internal reason.
+	 * Permissions-checking hooks may want to skip checks if, say, we're alter
+	 * the constraints of a temporary heap during CLUSTER.
+	 */
+	bool		is_internal;
 } ObjectAccessPostAlter;
 
 /*
@@ -100,39 +100,39 @@ typedef struct
  */
 typedef struct
 {
-    /*
-     * If true, hook should report an error when permission to search this
-     * schema is denied.
-     */
-    bool        ereport_on_violation;
+	/*
+	 * If true, hook should report an error when permission to search this
+	 * schema is denied.
+	 */
+	bool		ereport_on_violation;
 
-    /*
-     * This is, in essence, an out parameter.  Core code should initialize
-     * this to true, and any extension that wants to deny access should reset
-     * it to false.  But an extension should be careful never to store a true
-     * value here, so that in case there are multiple extensions access is
-     * only allowed if all extensions agree.
-     */
-    bool        result;
+	/*
+	 * This is, in essence, an out parameter.  Core code should initialize
+	 * this to true, and any extension that wants to deny access should reset
+	 * it to false.  But an extension should be careful never to store a true
+	 * value here, so that in case there are multiple extensions access is
+	 * only allowed if all extensions agree.
+	 */
+	bool		result;
 } ObjectAccessNamespaceSearch;
 
 /* Plugin provides a hook function matching this signature. */
 typedef void (*object_access_hook_type) (ObjectAccessType access,
-                                         Oid classId,
-                                         Oid objectId,
-                                         int subId,
-                                         void *arg);
+										 Oid classId,
+										 Oid objectId,
+										 int subId,
+										 void *arg);
 
 /* Plugin sets this variable to a suitable hook function. */
 extern PGDLLIMPORT object_access_hook_type object_access_hook;
 
 /* Core code uses these functions to call the hook (see macros below). */
 extern void RunObjectPostCreateHook(Oid classId, Oid objectId, int subId,
-                        bool is_internal);
+						bool is_internal);
 extern void RunObjectDropHook(Oid classId, Oid objectId, int subId,
-                  int dropflags);
+				  int dropflags);
 extern void RunObjectPostAlterHook(Oid classId, Oid objectId, int subId,
-                       Oid auxiliaryId, bool is_internal);
+					   Oid auxiliaryId, bool is_internal);
 extern bool RunNamespaceSearchHook(Oid objectId, bool ereport_on_volation);
 extern void RunFunctionExecuteHook(Oid objectId);
 
@@ -142,44 +142,44 @@ extern void RunFunctionExecuteHook(Oid objectId);
  * directly.
  */
 
-#define InvokeObjectPostCreateHook(classId,objectId,subId)            \
-    InvokeObjectPostCreateHookArg((classId),(objectId),(subId),false)
+#define InvokeObjectPostCreateHook(classId,objectId,subId)			\
+	InvokeObjectPostCreateHookArg((classId),(objectId),(subId),false)
 #define InvokeObjectPostCreateHookArg(classId,objectId,subId,is_internal) \
-    do {                                                            \
-        if (object_access_hook)                                        \
-            RunObjectPostCreateHook((classId),(objectId),(subId),    \
-                                    (is_internal));                    \
-    } while(0)
+	do {															\
+		if (object_access_hook)										\
+			RunObjectPostCreateHook((classId),(objectId),(subId),	\
+									(is_internal));					\
+	} while(0)
 
-#define InvokeObjectDropHook(classId,objectId,subId)                \
-    InvokeObjectDropHookArg((classId),(objectId),(subId),0)
-#define InvokeObjectDropHookArg(classId,objectId,subId,dropflags)    \
-    do {                                                            \
-        if (object_access_hook)                                        \
-            RunObjectDropHook((classId),(objectId),(subId),            \
-                              (dropflags));                            \
-    } while(0)
+#define InvokeObjectDropHook(classId,objectId,subId)				\
+	InvokeObjectDropHookArg((classId),(objectId),(subId),0)
+#define InvokeObjectDropHookArg(classId,objectId,subId,dropflags)	\
+	do {															\
+		if (object_access_hook)										\
+			RunObjectDropHook((classId),(objectId),(subId),			\
+							  (dropflags));							\
+	} while(0)
 
-#define InvokeObjectPostAlterHook(classId,objectId,subId)            \
-    InvokeObjectPostAlterHookArg((classId),(objectId),(subId),        \
-                                 InvalidOid,false)
-#define InvokeObjectPostAlterHookArg(classId,objectId,subId,        \
-                                     auxiliaryId,is_internal)        \
-    do {                                                            \
-        if (object_access_hook)                                        \
-            RunObjectPostAlterHook((classId),(objectId),(subId),    \
-                                   (auxiliaryId),(is_internal));    \
-    } while(0)
+#define InvokeObjectPostAlterHook(classId,objectId,subId)			\
+	InvokeObjectPostAlterHookArg((classId),(objectId),(subId),		\
+								 InvalidOid,false)
+#define InvokeObjectPostAlterHookArg(classId,objectId,subId,		\
+									 auxiliaryId,is_internal)		\
+	do {															\
+		if (object_access_hook)										\
+			RunObjectPostAlterHook((classId),(objectId),(subId),	\
+								   (auxiliaryId),(is_internal));	\
+	} while(0)
 
-#define InvokeNamespaceSearchHook(objectId, ereport_on_violation)    \
-    (!object_access_hook                                            \
-     ? true                                                            \
-     : RunNamespaceSearchHook((objectId), (ereport_on_violation)))
+#define InvokeNamespaceSearchHook(objectId, ereport_on_violation)	\
+	(!object_access_hook											\
+	 ? true															\
+	 : RunNamespaceSearchHook((objectId), (ereport_on_violation)))
 
-#define InvokeFunctionExecuteHook(objectId)        \
-    do {                                        \
-        if (object_access_hook)                    \
-            RunFunctionExecuteHook(objectId);    \
-    } while(0)
+#define InvokeFunctionExecuteHook(objectId)		\
+	do {										\
+		if (object_access_hook)					\
+			RunFunctionExecuteHook(objectId);	\
+	} while(0)
 
-#endif                            /* OBJECTACCESS_H */
+#endif							/* OBJECTACCESS_H */

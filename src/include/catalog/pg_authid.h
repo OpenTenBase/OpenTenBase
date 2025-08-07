@@ -1,23 +1,20 @@
 /*-------------------------------------------------------------------------
  *
  * pg_authid.h
- *      definition of the system "authorization identifier" relation (pg_authid)
- *      along with the relation's initial contents.
+ *	  definition of the system "authorization identifier" relation (pg_authid)
+ *	  along with the relation's initial contents.
  *
- *      pg_shadow and pg_group are now publicly accessible views on pg_authid.
+ *	  pg_shadow and pg_group are now publicly accessible views on pg_authid.
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *  
  * src/include/catalog/pg_authid.h
  *
  * NOTES
- *      the genbki.pl script reads this file and generates .bki
- *      information from the DATA() statements.
+ *	  the genbki.pl script reads this file and generates .bki
+ *	  information from the DATA() statements.
  *
  *-------------------------------------------------------------------------
  */
@@ -38,61 +35,76 @@
 
 
 /* ----------------
- *        pg_authid definition.  cpp turns this into
- *        typedef struct FormData_pg_authid
+ *		pg_authid definition.  cpp turns this into
+ *		typedef struct FormData_pg_authid
  * ----------------
  */
-#define AuthIdRelationId    1260
-#define AuthIdRelation_Rowtype_Id    2842
+#define AuthIdRelationId	1260
+#define AuthIdRelation_Rowtype_Id	2842
 
 CATALOG(pg_authid,1260) BKI_SHARED_RELATION BKI_ROWTYPE_OID(2842) BKI_SCHEMA_MACRO
 {
-    NameData    rolname;        /* name of role */
-    bool        rolsuper;        /* read this field via superuser() only! */
-    bool        rolinherit;        /* inherit privileges from other roles? */
-    bool        rolcreaterole;    /* allowed to create more roles? */
-    bool        rolcreatedb;    /* allowed to create databases? */
-    bool        rolcanlogin;    /* allowed to log in as session user? */
-    bool        rolreplication; /* role used for streaming replication */
-    bool        rolbypassrls;    /* bypasses row level security? */
-    int32        rolconnlimit;    /* max connections allowed (-1=no limit) */
-
-    /* remaining fields may be null; use heap_getattr to read them! */
-#ifdef CATALOG_VARLEN            /* variable-length fields start here */
-    text        rolpassword;    /* password, if any */
-    timestamptz rolvaliduntil;    /* password expiration time, if any */
+	NameData	rolname;		/* name of role */
+	bool		rolsuper;		/* read this field via superuser() only! */
+	bool		rolinherit;		/* inherit privileges from other roles? */
+	bool		rolcreaterole;	/* allowed to create more roles? */
+	bool		rolcreatedb;	/* allowed to create databases? */
+	bool		rolcanlogin;	/* allowed to log in as session user? */
+	bool		rolreplication; /* role used for streaming replication */
+	bool		rolbypassrls;	/* bypasses row level security? */
+#ifdef _PG_ORCL_
+    bool        rolcreateprof;  /* allowed to create profiles? */
+    Oid         rolprofile;     /* oid of profile applied to current role */
 #endif
+	int32		rolconnlimit;	/* max connections allowed (-1=no limit) */
+
+#ifdef __RESOURCE_QUEUE__
+	NameData	rolresqueue;	/* name of resource queue for this role */
+#endif
+
+	/* remaining fields may be null; use heap_getattr to read them! */
+#ifdef CATALOG_VARLEN			/* variable-length fields start here */
+	text		rolpassword;	/* password, if any */
+	timestamptz rolvaliduntil;	/* password expiration time, if any */
+#endif
+	NameData	rolresgroup;	/* name of resource group for this role */
+	text		rolpriority;	/* priority of role, can be specified as "high", "medium" or "low" */
 } FormData_pg_authid;
 
 #undef timestamptz
 
 
 /* ----------------
- *        Form_pg_authid corresponds to a pointer to a tuple with
- *        the format of pg_authid relation.
+ *		Form_pg_authid corresponds to a pointer to a tuple with
+ *		the format of pg_authid relation.
  * ----------------
  */
 typedef FormData_pg_authid *Form_pg_authid;
 
 /* ----------------
- *        compiler constants for pg_authid
+ *		compiler constants for pg_authid
  * ----------------
  */
-#define Natts_pg_authid                    11
-#define Anum_pg_authid_rolname            1
-#define Anum_pg_authid_rolsuper            2
-#define Anum_pg_authid_rolinherit        3
-#define Anum_pg_authid_rolcreaterole    4
-#define Anum_pg_authid_rolcreatedb        5
-#define Anum_pg_authid_rolcanlogin        6
-#define Anum_pg_authid_rolreplication    7
-#define Anum_pg_authid_rolbypassrls        8
-#define Anum_pg_authid_rolconnlimit        9
-#define Anum_pg_authid_rolpassword        10
-#define Anum_pg_authid_rolvaliduntil    11
+#define Natts_pg_authid					16
+#define Anum_pg_authid_rolname			1
+#define Anum_pg_authid_rolsuper			2
+#define Anum_pg_authid_rolinherit		3
+#define Anum_pg_authid_rolcreaterole	4
+#define Anum_pg_authid_rolcreatedb		5
+#define Anum_pg_authid_rolcanlogin		6
+#define Anum_pg_authid_rolreplication	7
+#define Anum_pg_authid_rolbypassrls		8
+#define Anum_pg_authid_rolcreateprof    9
+#define Anum_pg_authid_rolprofile       10
+#define Anum_pg_authid_rolconnlimit		11
+#define Anum_pg_authid_rolresqueue		12
+#define Anum_pg_authid_rolpassword		13
+#define Anum_pg_authid_rolvaliduntil	14
+#define Anum_pg_authid_rolresgroup		15
+#define Anum_pg_authid_rolpriority		16
 
 /* ----------------
- *        initial contents of pg_authid
+ *		initial contents of pg_authid
  *
  * The uppercase quantities will be replaced at initdb time with
  * user choices.
@@ -101,26 +113,25 @@ typedef FormData_pg_authid *Form_pg_authid;
  * so be sure to keep those in sync with the DATA lines.
  * ----------------
  */
-DATA(insert OID = 10 ( "POSTGRES" t t t t t t t -1 _null_ _null_));
-#define BOOTSTRAP_SUPERUSERID            10
-DATA(insert OID = 3373 ( "pg_monitor" f t f f f f f -1 _null_ _null_));
-#define DEFAULT_ROLE_MONITOR        3373
-DATA(insert OID = 3374 ( "pg_read_all_settings" f t f f f f f -1 _null_ _null_));
-#define DEFAULT_ROLE_READ_ALL_SETTINGS    3374
-DATA(insert OID = 3375 ( "pg_read_all_stats" f t f f f f f -1 _null_ _null_));
+PGDATA(insert OID = 10 ( "POSTGRES" t t t t t t t t 0 -1 "pg_default_resqueue" _null_ _null_ "admin_group" "high"));
+#define BOOTSTRAP_SUPERUSERID			10
+PGDATA(insert OID = 3373 ( "pg_monitor" f t f f f f f f 0 -1 "pg_default_resqueue" _null_ _null_ "admin_group" "low"));
+#define DEFAULT_ROLE_MONITOR		3373
+PGDATA(insert OID = 3374 ( "pg_read_all_settings" f t f f f f f f 0 -1 "pg_default_resqueue" _null_ _null_ "admin_group" "low"));
+#define DEFAULT_ROLE_READ_ALL_SETTINGS	3374
+PGDATA(insert OID = 3375 ( "pg_read_all_stats" f t f f f f f f 0 -1 "pg_default_resqueue" _null_ _null_ "admin_group" "low"));
 #define DEFAULT_ROLE_READ_ALL_STATS 3375
-DATA(insert OID = 3377 ( "pg_stat_scan_tables" f t f f f f f -1 _null_ _null_));
-#define DEFAULT_ROLE_STAT_SCAN_TABLES    3377
-DATA(insert OID = 4200 ( "pg_signal_backend" f t f f f f f -1 _null_ _null_));
-#define DEFAULT_ROLE_SIGNAL_BACKENDID    4200
+PGDATA(insert OID = 3377 ( "pg_stat_scan_tables" f t f f f f f f 0 -1 "pg_default_resqueue" _null_ _null_ "admin_group" "low"));
+#define DEFAULT_ROLE_STAT_SCAN_TABLES	3377
+PGDATA(insert OID = 4200 ( "pg_signal_backend" f t f f f f f f 0 -1 "pg_default_resqueue" _null_ _null_ "admin_group" "low"));
+#define DEFAULT_ROLE_SIGNAL_BACKENDID	4200
+PGDATA(insert OID = 4549 ( "pg_maintain" f t f f f f f f 0 -1 "pg_default_resqueue" _null_ _null_ "admin_group" "low"));
+#define ROLE_PG_MAINTAIN 4549
 #ifdef _MLS_
-DATA(insert OID = 4565 ( "mls_admin" f f t f t f f -1 md5c9952291f36f276ac60ab76218973bbd _null_));
-#define DEFAULT_ROLE_MLS_SYS_USERID 4565
-DATA(insert OID = 6116 ( "audit_admin" f f f f t f f -1 md535964be9ee19e31738175cf766ff7ca4 _null_));
-#define DEFAULT_ROLE_AUDIT_SYS_USERID 6116
-
-#define MLS_USER_DEFAULT_PASSWD     "SecurityAdmin@OpenTenBasev2"
-#define AUDIT_USER_DEFAULT_PASSWD   "AuditAdmin@OpenTenBasev2"
+PGDATA(insert OID = 8010 ( "mls_admin" f f f f t f f f 0 -1 "pg_default_resqueue" _null_ _null_ "admin_group" "low"));
+#define DEFAULT_ROLE_MLS_SYS_USERID 8010
+PGDATA(insert OID = 8011 ( "audit_admin" f f f f t f f f 0 -1 "pg_default_resqueue" _null_ _null_ "admin_group" "low"));
+#define DEFAULT_ROLE_AUDIT_SYS_USERID 8011
 
 #define MLS_USER        "mls_admin"
 #define AUDIT_USER      "audit_admin"
@@ -130,5 +141,4 @@ DATA(insert OID = 6116 ( "audit_admin" f f f f t f f -1 md535964be9ee19e31738175
 #define ROLE_MLS_USER       's'
 #define ROLE_AUDIT_USER     'a'
 #endif
-
-#endif                            /* PG_AUTHID_H */
+#endif							/* PG_AUTHID_H */

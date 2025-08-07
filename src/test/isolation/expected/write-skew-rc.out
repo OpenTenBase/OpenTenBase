@@ -1,0 +1,43 @@
+Parsed test spec with 2 sessions
+
+starting permutation: t1r1 t1r2 t2r1 t2r2 t1u1 t2u1 t1c t2c t1r2 t2r2
+step t1r1: SELECT amount FROM accounts WHERE id = 'x';
+amount
+------
+    50
+(1 row)
+
+step t1r2: SELECT (SELECT amount FROM accounts WHERE id = 'x') + (SELECT amount FROM accounts WHERE id = 'y') >= 60 AS check_constraint;
+check_constraint
+----------------
+t               
+(1 row)
+
+step t2r1: SELECT amount FROM accounts WHERE id = 'y';
+amount
+------
+    50
+(1 row)
+
+step t2r2: SELECT (SELECT amount FROM accounts WHERE id = 'x') + (SELECT amount FROM accounts WHERE id = 'y') >= 60 AS check_constraint;
+check_constraint
+----------------
+t               
+(1 row)
+
+step t1u1: UPDATE accounts SET amount = amount - 40 WHERE id = 'y';
+step t2u1: UPDATE accounts SET amount = amount - 40 WHERE id = 'x';
+step t1c: COMMIT;
+step t2c: COMMIT;
+step t1r2: SELECT (SELECT amount FROM accounts WHERE id = 'x') + (SELECT amount FROM accounts WHERE id = 'y') >= 60 AS check_constraint;
+check_constraint
+----------------
+f               
+(1 row)
+
+step t2r2: SELECT (SELECT amount FROM accounts WHERE id = 'x') + (SELECT amount FROM accounts WHERE id = 'y') >= 60 AS check_constraint;
+check_constraint
+----------------
+f               
+(1 row)
+

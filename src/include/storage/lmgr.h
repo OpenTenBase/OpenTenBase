@@ -1,15 +1,12 @@
 /*-------------------------------------------------------------------------
  *
  * lmgr.h
- *      POSTGRES lock manager definitions.
+ *	  POSTGRES lock manager definitions.
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- * 
  * src/include/storage/lmgr.h
  *
  *-------------------------------------------------------------------------
@@ -26,15 +23,15 @@
 /* XactLockTableWait operations */
 typedef enum XLTW_Oper
 {
-    XLTW_None,
-    XLTW_Update,
-    XLTW_Delete,
-    XLTW_Lock,
-    XLTW_LockUpdated,
-    XLTW_InsertIndex,
-    XLTW_InsertIndexUnique,
-    XLTW_FetchUpdated,
-    XLTW_RecheckExclusionConstr
+	XLTW_None,
+	XLTW_Update,
+	XLTW_Delete,
+	XLTW_Lock,
+	XLTW_LockUpdated,
+	XLTW_InsertIndex,
+	XLTW_InsertIndexUnique,
+	XLTW_FetchUpdated,
+	XLTW_RecheckExclusionConstr
 } XLTW_Oper;
 
 extern void RelationInitLockInfo(Relation relation);
@@ -57,8 +54,11 @@ extern void UnlockRelationIdForSession(LockRelId *relid, LOCKMODE lockmode);
 extern void LockRelationForExtension(Relation relation, LOCKMODE lockmode);
 extern void UnlockRelationForExtension(Relation relation, LOCKMODE lockmode);
 extern bool ConditionalLockRelationForExtension(Relation relation,
-                                    LOCKMODE lockmode);
-extern int    RelationExtensionLockWaiterCount(Relation relation);
+									LOCKMODE lockmode);
+extern int	RelationExtensionLockWaiterCount(Relation relation);
+
+/* Lock to recompute pg_database.datfrozenxid in the current database */
+extern void LockDatabaseFrozenIds(LOCKMODE lockmode);
 
 /* Lock a page (currently only used within indexes) */
 extern void LockPage(Relation relation, BlockNumber blkno, LOCKMODE lockmode);
@@ -68,14 +68,14 @@ extern void UnlockPage(Relation relation, BlockNumber blkno, LOCKMODE lockmode);
 /* Lock a tuple (see heap_lock_tuple before assuming you understand this) */
 extern void LockTuple(Relation relation, ItemPointer tid, LOCKMODE lockmode);
 extern bool ConditionalLockTuple(Relation relation, ItemPointer tid,
-                     LOCKMODE lockmode);
+					 LOCKMODE lockmode);
 extern void UnlockTuple(Relation relation, ItemPointer tid, LOCKMODE lockmode);
 
 /* Lock an XID (used to wait for a transaction to finish) */
 extern void XactLockTableInsert(TransactionId xid);
 extern void XactLockTableDelete(TransactionId xid);
 extern void XactLockTableWait(TransactionId xid, Relation rel,
-                  ItemPointer ctid, XLTW_Oper oper);
+				  ItemPointer ctid, XLTW_Oper oper);
 extern bool ConditionalXactLockTableWait(TransactionId xid);
 
 /* Lock VXIDs, specified by conflicting locktags */
@@ -89,20 +89,21 @@ extern void SpeculativeInsertionWait(TransactionId xid, uint32 token);
 
 /* Lock a general object (other than a relation) of the current database */
 extern void LockDatabaseObject(Oid classid, Oid objid, uint16 objsubid,
-                   LOCKMODE lockmode);
+				   LOCKMODE lockmode);
+extern bool ConditionalLockDatabaseObject(Oid classid, Oid objid, uint16 objsubid, LOCKMODE lockmode);
 extern void UnlockDatabaseObject(Oid classid, Oid objid, uint16 objsubid,
-                     LOCKMODE lockmode);
+					 LOCKMODE lockmode);
 
 /* Lock a shared-across-databases object (other than a relation) */
 extern void LockSharedObject(Oid classid, Oid objid, uint16 objsubid,
-                 LOCKMODE lockmode);
+				 LOCKMODE lockmode);
 extern void UnlockSharedObject(Oid classid, Oid objid, uint16 objsubid,
-                   LOCKMODE lockmode);
+				   LOCKMODE lockmode);
 
 extern void LockSharedObjectForSession(Oid classid, Oid objid, uint16 objsubid,
-                           LOCKMODE lockmode);
+						   LOCKMODE lockmode);
 extern void UnlockSharedObjectForSession(Oid classid, Oid objid, uint16 objsubid,
-                             LOCKMODE lockmode);
+							 LOCKMODE lockmode);
 #ifdef _SHARDING_
 extern void LockShard(Relation relation, uint32 shardid, LOCKMODE lockmode);
 extern void UnlockShard(Relation relation, uint32 shardid, LOCKMODE lockmode);
@@ -113,4 +114,4 @@ extern void DescribeLockTag(StringInfo buf, const LOCKTAG *tag);
 
 extern const char *GetLockNameFromTagType(uint16 locktag_type);
 
-#endif                            /* LMGR_H */
+#endif							/* LMGR_H */

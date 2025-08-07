@@ -183,7 +183,7 @@ SELECT dblink_close('rmt_foo_cursor',false);
 (1 row)
 
 -- open the cursor again
-SELECT dblink_open('rmt_foo_cursor','SELECT * FROM foo');
+SELECT dblink_open('rmt_foo_cursor','SELECT * FROM foo order by 1');
  dblink_open 
 -------------
  OK
@@ -295,7 +295,7 @@ SELECT substr(dblink_exec('INSERT INTO foo VALUES(11,''l'',''{"a11","b11","c11"}
 
 -- let's see it
 SELECT *
-FROM dblink('SELECT * FROM foo') AS t(a int, b text, c text[]);
+FROM dblink('SELECT * FROM foo order by 1') AS t(a int, b text, c text[]);
  a  | b |       c       
 ----+---+---------------
   0 | a | {a0,b0,c0}
@@ -419,7 +419,7 @@ SELECT dblink_connect('myconn2',connection_parameters());
 -- use the second named persistent connection
 SELECT *
 FROM dblink('myconn2','SELECT * FROM foo') AS t(a int, b text, c text[])
-WHERE t.a > 7;
+WHERE t.a > 7 order by 1;
  a  | b |       c       
 ----+---+---------------
   8 | i | {a8,b8,c8}
@@ -532,7 +532,7 @@ SELECT dblink_exec('myconn','ABORT');
 (1 row)
 
 -- open a cursor
-SELECT dblink_open('myconn','rmt_foo_cursor','SELECT * FROM foo');
+SELECT dblink_open('myconn','rmt_foo_cursor','SELECT * FROM foo order by 1');
  dblink_open 
 -------------
  OK
@@ -620,7 +620,7 @@ SELECT substr(dblink_exec('myconn','INSERT INTO foo VALUES(11,''l'',''{"a11","b1
 
 -- let's see it
 SELECT *
-FROM dblink('myconn','SELECT * FROM foo') AS t(a int, b text, c text[]);
+FROM dblink('myconn','SELECT * FROM foo order by 1') AS t(a int, b text, c text[]);
  a  | b |       c       
 ----+---+---------------
   0 | a | {a0,b0,c0}
@@ -726,6 +726,28 @@ UNION
 UNION
 (SELECT * from dblink_get_result('dtest3') as t3(f1 int, f2 text, f3 text[]))
 ORDER by f1;
+ERROR:  connection "dtest1" not available
+(SELECT * from dblink_get_result('dtest1') as t1(f1 int, f2 text, f3 text[]))
+UNION
+(SELECT * from dblink_get_result('dtest2') as t2(f1 int, f2 text, f3 text[]))
+UNION
+(SELECT * from dblink_get_result('dtest3') as t3(f1 int, f2 text, f3 text[]))
+ORDER by f1;
+ f1 | f2 |      f3       
+----+----+---------------
+  0 | a  | {a0,b0,c0}
+  1 | b  | {a1,b1,c1}
+  2 | c  | {a2,b2,c2}
+  3 | d  | {a3,b3,c3}
+  4 | e  | {a4,b4,c4}
+  5 | f  | {a5,b5,c5}
+  6 | g  | {a6,b6,c6}
+  7 | h  | {a7,b7,c7}
+  8 | i  | {a8,b8,c8}
+  9 | j  | {a9,b9,c9}
+ 10 | k  | {a10,b10,c10}
+(11 rows)
+
 -- dblink_get_connections returns an array with elements in a machine-dependent
 -- ordering, so we must resort to unnesting and sorting for a stable result
 create function unnest(anyarray) returns setof anyelement
@@ -765,21 +787,9 @@ SELECT dblink_disconnect('dtest3');
 (1 row)
 
 SELECT * from result;
- f1 | f2 |      f3       
-----+----+---------------
-  0 | a  | {a0,b0,c0}
-  1 | b  | {a1,b1,c1}
-  2 | c  | {a2,b2,c2}
-  3 | d  | {a3,b3,c3}
-  4 | e  | {a4,b4,c4}
-  5 | f  | {a5,b5,c5}
-  6 | g  | {a6,b6,c6}
-  7 | h  | {a7,b7,c7}
-  8 | i  | {a8,b8,c8}
-  9 | j  | {a9,b9,c9}
- 10 | k  | {a10,b10,c10}
-(11 rows)
-
+ERROR:  relation "result" does not exist
+LINE 1: SELECT * from result;
+                      ^
 SELECT dblink_connect('dtest1', connection_parameters());
  dblink_connect 
 ----------------
@@ -840,7 +850,7 @@ SELECT dblink_connect_u('myconn', 'fdtest');
  OK
 (1 row)
 
-SELECT * FROM dblink('myconn','SELECT * FROM foo') AS t(a int, b text, c text[]);
+SELECT * FROM dblink('myconn','SELECT * FROM foo order by 1') AS t(a int, b text, c text[]);
  a  | b |       c       
 ----+---+---------------
   0 | a | {a0,b0,c0}
@@ -1001,13 +1011,21 @@ CREATE TEMPORARY TABLE result AS
 (SELECT * from dblink_get_result('myconn') as t(t timestamptz))
 UNION ALL
 (SELECT * from dblink_get_result('myconn') as t(t timestamptz));
+ERROR:  connection "myconn" not available
 SELECT * FROM result;
+ERROR:  relation "result" does not exist
+LINE 1: SELECT * FROM result;
+                      ^
+DROP TABLE result;
+ERROR:  table "result" does not exist
+(SELECT * from dblink_get_result('myconn') as t(t timestamptz))
+UNION ALL
+(SELECT * from dblink_get_result('myconn') as t(t timestamptz));
            t            
 ------------------------
  2013-03-12 00:00:00+00
 (1 row)
 
-DROP TABLE result;
 -- multi-row asynchronous case
 SELECT *
 FROM dblink_send_query('myconn',
@@ -1025,14 +1043,24 @@ UNION ALL
 (SELECT * from dblink_get_result('myconn') as t(t timestamptz))
 UNION ALL
 (SELECT * from dblink_get_result('myconn') as t(t timestamptz));
+ERROR:  connection "myconn" not available
 SELECT * FROM result;
+ERROR:  relation "result" does not exist
+LINE 1: SELECT * FROM result;
+                      ^
+DROP TABLE result;
+ERROR:  table "result" does not exist
+(SELECT * from dblink_get_result('myconn') as t(t timestamptz))
+UNION ALL
+(SELECT * from dblink_get_result('myconn') as t(t timestamptz))
+UNION ALL
+(SELECT * from dblink_get_result('myconn') as t(t timestamptz));
            t            
 ------------------------
  2013-03-12 00:00:00+00
  2013-03-12 00:00:00+00
 (2 rows)
 
-DROP TABLE result;
 -- Try an ambiguous interval
 SELECT dblink_exec('myconn', 'SET intervalstyle = sql_standard;');
  dblink_exec 
@@ -1063,6 +1091,8 @@ INSERT INTO result
   FROM dblink('myconn',
               'SELECT * FROM (VALUES (''03.12.2013 00:00:00+00'')) t')
     AS t(a timestamptz);
+ERROR:  could not establish connection
+DETAIL:  missing "=" after "myconn" in connection info string
 SELECT dblink_exec('myconn', 'SET datestyle = GERMAN, DMY;');
  dblink_exec 
 -------------
@@ -1074,12 +1104,12 @@ INSERT INTO result
   FROM dblink('myconn',
               'SELECT * FROM (VALUES (''12.03.2013 00:00:00+00'')) t')
     AS t(a timestamptz);
+ERROR:  could not establish connection
+DETAIL:  missing "=" after "myconn" in connection info string
 SELECT * FROM result;
-           t            
-------------------------
- 2013-03-12 00:00:00+00
- 2013-03-12 00:00:00+00
-(2 rows)
+ t 
+---
+(0 rows)
 
 DROP TABLE result;
 -- Check error throwing in dblink_fetch

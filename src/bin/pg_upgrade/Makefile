@@ -7,7 +7,7 @@ subdir = src/bin/pg_upgrade
 top_builddir = ../../..
 include $(top_builddir)/src/Makefile.global
 
-OBJS = check.o controldata.o dump.o exec.o file.o function.o info.o \
+OBJS = check.o controldata.o csnupgrade.o dump.o exec.o file.o function.o info.o \
        option.o parallel.o pg_upgrade.o relfilenode.o server.o \
        tablespace.o util.o version.o $(WIN32RES)
 

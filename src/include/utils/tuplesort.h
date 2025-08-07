@@ -14,9 +14,6 @@
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * src/include/utils/tuplesort.h
  *
  *-------------------------------------------------------------------------
@@ -31,6 +28,10 @@
 
 #ifdef XCP
 struct ResponseCombiner;
+#endif
+
+#ifdef __OPENTENBASE_C__
+struct RemoteFragmentState;
 #endif
 
 /* Tuplesortstate is an opaque type whose details are not known outside
@@ -49,14 +50,19 @@ typedef enum
 	SORT_TYPE_TOP_N_HEAPSORT,
 	SORT_TYPE_QUICKSORT,
 	SORT_TYPE_EXTERNAL_SORT,
-	SORT_TYPE_EXTERNAL_MERGE
+	SORT_TYPE_EXTERNAL_MERGE,
+	SORT_TYPE_HYBRID_SORT
 } TuplesortMethod;
+
+#define NUM_TUPLESORTMETHODS 5
 
 typedef enum
 {
 	SORT_SPACE_TYPE_DISK,
 	SORT_SPACE_TYPE_MEMORY
 } TuplesortSpaceType;
+
+#define NUM_TUPLESORTSPACETYPE 2
 
 typedef struct TuplesortInstrumentation
 {
@@ -122,7 +128,14 @@ extern Tuplesortstate *tuplesort_begin_merge(TupleDesc tupDesc,
 					 struct ResponseCombiner *combiner,
 					 int workMem);
 #endif
-
+#ifdef __OPENTENBASE_C__
+extern Tuplesortstate *
+tuplesort_begin_merge_remote(TupleDesc tupDesc,
+					 int nkeys, AttrNumber *attNums,
+					 Oid *sortOperators, Oid *sortCollations, bool *nullsFirstFlags,
+					 struct RemoteFragmentState *fstate,
+					 int workMem);
+#endif
 extern void tuplesort_set_bound(Tuplesortstate *state, int64 bound);
 
 extern void tuplesort_puttupleslot(Tuplesortstate *state,

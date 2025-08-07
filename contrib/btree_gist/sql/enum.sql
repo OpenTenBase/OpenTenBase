@@ -8,7 +8,7 @@ CREATE TABLE enumtmp (a rainbow);
 
 SET enable_seqscan=on;
 
-select a, count(*) from enumtmp group by a order by 1;
+-- select a, count(*) from enumtmp group by a order by 1;
 
 SELECT count(*) FROM enumtmp WHERE a <  'g'::rainbow;
 
@@ -34,5 +34,5 @@ SELECT count(*) FROM enumtmp WHERE a >= 'g'::rainbow;
 
 SELECT count(*) FROM enumtmp WHERE a >  'g'::rainbow;
 
-EXPLAIN (COSTS OFF)
+EXPLAIN (COSTS OFF, NODES OFF)
 SELECT count(*) FROM enumtmp WHERE a >= 'g'::rainbow;

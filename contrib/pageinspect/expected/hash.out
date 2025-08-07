@@ -1,162 +1,278 @@
-CREATE TABLE test_hash (a int, b text);
+CREATE TABLE test_hash (a int, b text) DISTRIBUTE BY REPLICATION;
 INSERT INTO test_hash VALUES (1, 'one');
 CREATE INDEX test_hash_a_idx ON test_hash USING hash (a);
 \x
-SELECT hash_page_type(get_raw_page('test_hash_a_idx', 0));
+execute direct on (datanode_1) 'SELECT hash_page_type(get_raw_page(''test_hash_a_idx'', 0))';
 -[ RECORD 1 ]--+---------
 hash_page_type | metapage
 
-SELECT hash_page_type(get_raw_page('test_hash_a_idx', 1));
+execute direct on (datanode_1) 'SELECT hash_page_type(get_raw_page(''test_hash_a_idx'', 1))';
 -[ RECORD 1 ]--+-------
 hash_page_type | bucket
 
-SELECT hash_page_type(get_raw_page('test_hash_a_idx', 2));
+execute direct on (datanode_1) 'SELECT hash_page_type(get_raw_page(''test_hash_a_idx'', 2))';
 -[ RECORD 1 ]--+-------
 hash_page_type | bucket
 
-SELECT hash_page_type(get_raw_page('test_hash_a_idx', 3));
--[ RECORD 1 ]--+-------
-hash_page_type | bucket
-
-SELECT hash_page_type(get_raw_page('test_hash_a_idx', 4));
--[ RECORD 1 ]--+-------
-hash_page_type | bucket
-
-SELECT hash_page_type(get_raw_page('test_hash_a_idx', 5));
+execute direct on (datanode_1) 'SELECT hash_page_type(get_raw_page(''test_hash_a_idx'', 3))';
 -[ RECORD 1 ]--+-------
 hash_page_type | bitmap
 
-SELECT hash_page_type(get_raw_page('test_hash_a_idx', 6));
+execute direct on (datanode_1) 'SELECT hash_page_type(get_raw_page(''test_hash_a_idx'', 4))';
+ERROR:  block number 4 is out of range for relation "test_hash_a_idx"
+execute direct on (datanode_1) 'SELECT hash_page_type(get_raw_page(''test_hash_a_idx'', 5))';
+ERROR:  block number 5 is out of range for relation "test_hash_a_idx"
+execute direct on (datanode_1) 'SELECT hash_page_type(get_raw_page(''test_hash_a_idx'', 6))';
 ERROR:  block number 6 is out of range for relation "test_hash_a_idx"
-SELECT * FROM hash_bitmap_info('test_hash_a_idx', 0);
+execute direct on (datanode_1) 'SELECT * FROM hash_bitmap_info(''test_hash_a_idx'', 0)';
 ERROR:  invalid overflow block number 0
-SELECT * FROM hash_bitmap_info('test_hash_a_idx', 1);
+execute direct on (datanode_1) 'SELECT * FROM hash_bitmap_info(''test_hash_a_idx'', 1)';
 ERROR:  invalid overflow block number 1
-SELECT * FROM hash_bitmap_info('test_hash_a_idx', 2);
+execute direct on (datanode_1) 'SELECT * FROM hash_bitmap_info(''test_hash_a_idx'', 2)';
 ERROR:  invalid overflow block number 2
-SELECT * FROM hash_bitmap_info('test_hash_a_idx', 3);
+execute direct on (datanode_1) 'SELECT * FROM hash_bitmap_info(''test_hash_a_idx'', 3)';
 ERROR:  invalid overflow block number 3
-SELECT * FROM hash_bitmap_info('test_hash_a_idx', 4);
-ERROR:  invalid overflow block number 4
-SELECT * FROM hash_bitmap_info('test_hash_a_idx', 5);
-ERROR:  invalid overflow block number 5
-SELECT magic, version, ntuples, bsize, bmsize, bmshift, maxbucket, highmask,
+execute direct on (datanode_1) 'SELECT * FROM hash_bitmap_info(''test_hash_a_idx'', 4)';
+ERROR:  block number 4 is out of range for relation "test_hash_a_idx"
+execute direct on (datanode_1) 'SELECT * FROM hash_bitmap_info(''test_hash_a_idx'', 5)';
+ERROR:  block number 5 is out of range for relation "test_hash_a_idx"
+execute direct on (datanode_1) 'SELECT magic, version, ntuples, bsize, bmsize, bmshift, maxbucket, highmask,
 lowmask, ovflpoint, firstfree, nmaps, procid, spares, mapp FROM
-hash_metapage_info(get_raw_page('test_hash_a_idx', 0));
+hash_metapage_info(get_raw_page(''test_hash_a_idx'', 0))';
 -[ RECORD 1 ]--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 magic     | 105121344
 version   | 4
 ntuples   | 1
-bsize     | 8152
+bsize     | 8128
 bmsize    | 4096
 bmshift   | 15
-maxbucket | 3
-highmask  | 7
-lowmask   | 3
-ovflpoint | 2
+maxbucket | 1
+highmask  | 3
+lowmask   | 1
+ovflpoint | 1
 firstfree | 0
 nmaps     | 1
 procid    | 450
-spares    | {0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
-mapp      | {5,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
+spares    | {0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
+mapp      | {3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
 
-SELECT magic, version, ntuples, bsize, bmsize, bmshift, maxbucket, highmask,
+execute direct on (datanode_1) 'SELECT magic, version, ntuples, bsize, bmsize, bmshift, maxbucket, highmask,
 lowmask, ovflpoint, firstfree, nmaps, procid, spares, mapp FROM
-hash_metapage_info(get_raw_page('test_hash_a_idx', 1));
+hash_metapage_info(get_raw_page(''test_hash_a_idx'', 1))';
 ERROR:  page is not a hash meta page
-SELECT magic, version, ntuples, bsize, bmsize, bmshift, maxbucket, highmask,
+execute direct on (datanode_1) 'SELECT magic, version, ntuples, bsize, bmsize, bmshift, maxbucket, highmask,
 lowmask, ovflpoint, firstfree, nmaps, procid, spares, mapp FROM
-hash_metapage_info(get_raw_page('test_hash_a_idx', 2));
+hash_metapage_info(get_raw_page(''test_hash_a_idx'', 2))';
 ERROR:  page is not a hash meta page
-SELECT magic, version, ntuples, bsize, bmsize, bmshift, maxbucket, highmask,
+execute direct on (datanode_1) 'SELECT magic, version, ntuples, bsize, bmsize, bmshift, maxbucket, highmask,
 lowmask, ovflpoint, firstfree, nmaps, procid, spares, mapp FROM
-hash_metapage_info(get_raw_page('test_hash_a_idx', 3));
+hash_metapage_info(get_raw_page(''test_hash_a_idx'', 3))';
 ERROR:  page is not a hash meta page
-SELECT magic, version, ntuples, bsize, bmsize, bmshift, maxbucket, highmask,
+execute direct on (datanode_1) 'SELECT magic, version, ntuples, bsize, bmsize, bmshift, maxbucket, highmask,
 lowmask, ovflpoint, firstfree, nmaps, procid, spares, mapp FROM
-hash_metapage_info(get_raw_page('test_hash_a_idx', 4));
-ERROR:  page is not a hash meta page
-SELECT magic, version, ntuples, bsize, bmsize, bmshift, maxbucket, highmask,
+hash_metapage_info(get_raw_page(''test_hash_a_idx'', 4))';
+ERROR:  block number 4 is out of range for relation "test_hash_a_idx"
+execute direct on (datanode_1) 'SELECT magic, version, ntuples, bsize, bmsize, bmshift, maxbucket, highmask,
 lowmask, ovflpoint, firstfree, nmaps, procid, spares, mapp FROM
-hash_metapage_info(get_raw_page('test_hash_a_idx', 5));
-ERROR:  page is not a hash meta page
-SELECT live_items, dead_items, page_size, hasho_prevblkno, hasho_nextblkno,
+hash_metapage_info(get_raw_page(''test_hash_a_idx'', 5))';
+ERROR:  block number 5 is out of range for relation "test_hash_a_idx"
+execute direct on (datanode_1) 'SELECT live_items, dead_items, page_size, hasho_prevblkno, hasho_nextblkno,
 hasho_bucket, hasho_flag, hasho_page_id FROM
-hash_page_stats(get_raw_page('test_hash_a_idx', 0));
+hash_page_stats(get_raw_page(''test_hash_a_idx'', 0))';
 ERROR:  page is not a hash bucket or overflow page
-SELECT live_items, dead_items, page_size, hasho_prevblkno, hasho_nextblkno,
+execute direct on (datanode_1) 'SELECT live_items, dead_items, page_size, hasho_prevblkno, hasho_nextblkno,
 hasho_bucket, hasho_flag, hasho_page_id FROM
-hash_page_stats(get_raw_page('test_hash_a_idx', 1));
+hash_page_stats(get_raw_page(''test_hash_a_idx'', 1))';
 -[ RECORD 1 ]---+-----------
-live_items      | 0
+live_items      | 1
 dead_items      | 0
 page_size       | 8192
-hasho_prevblkno | 3
+hasho_prevblkno | 1
 hasho_nextblkno | 4294967295
 hasho_bucket    | 0
 hasho_flag      | 2
 hasho_page_id   | 65408
 
-SELECT live_items, dead_items, page_size, hasho_prevblkno, hasho_nextblkno,
+execute direct on (datanode_1) 'SELECT live_items, dead_items, page_size, hasho_prevblkno, hasho_nextblkno,
 hasho_bucket, hasho_flag, hasho_page_id FROM
-hash_page_stats(get_raw_page('test_hash_a_idx', 2));
+hash_page_stats(get_raw_page(''test_hash_a_idx'', 2))';
 -[ RECORD 1 ]---+-----------
 live_items      | 0
 dead_items      | 0
 page_size       | 8192
-hasho_prevblkno | 3
+hasho_prevblkno | 1
 hasho_nextblkno | 4294967295
 hasho_bucket    | 1
 hasho_flag      | 2
 hasho_page_id   | 65408
 
-SELECT live_items, dead_items, page_size, hasho_prevblkno, hasho_nextblkno,
+execute direct on (datanode_1) 'SELECT live_items, dead_items, page_size, hasho_prevblkno, hasho_nextblkno,
 hasho_bucket, hasho_flag, hasho_page_id FROM
-hash_page_stats(get_raw_page('test_hash_a_idx', 3));
--[ RECORD 1 ]---+-----------
-live_items      | 1
-dead_items      | 0
-page_size       | 8192
-hasho_prevblkno | 3
-hasho_nextblkno | 4294967295
-hasho_bucket    | 2
-hasho_flag      | 2
-hasho_page_id   | 65408
-
-SELECT live_items, dead_items, page_size, hasho_prevblkno, hasho_nextblkno,
-hasho_bucket, hasho_flag, hasho_page_id FROM
-hash_page_stats(get_raw_page('test_hash_a_idx', 4));
--[ RECORD 1 ]---+-----------
-live_items      | 0
-dead_items      | 0
-page_size       | 8192
-hasho_prevblkno | 3
-hasho_nextblkno | 4294967295
-hasho_bucket    | 3
-hasho_flag      | 2
-hasho_page_id   | 65408
-
-SELECT live_items, dead_items, page_size, hasho_prevblkno, hasho_nextblkno,
-hasho_bucket, hasho_flag, hasho_page_id FROM
-hash_page_stats(get_raw_page('test_hash_a_idx', 5));
+hash_page_stats(get_raw_page(''test_hash_a_idx'', 3))';
 ERROR:  page is not a hash bucket or overflow page
-SELECT * FROM hash_page_items(get_raw_page('test_hash_a_idx', 0));
+execute direct on (datanode_1) 'SELECT live_items, dead_items, page_size, hasho_prevblkno, hasho_nextblkno,
+hasho_bucket, hasho_flag, hasho_page_id FROM
+hash_page_stats(get_raw_page(''test_hash_a_idx'', 4))';
+ERROR:  block number 4 is out of range for relation "test_hash_a_idx"
+execute direct on (datanode_1) 'SELECT live_items, dead_items, page_size, hasho_prevblkno, hasho_nextblkno,
+hasho_bucket, hasho_flag, hasho_page_id FROM
+hash_page_stats(get_raw_page(''test_hash_a_idx'', 5))';
+ERROR:  block number 5 is out of range for relation "test_hash_a_idx"
+execute direct on (datanode_1) 'SELECT * FROM hash_page_items(get_raw_page(''test_hash_a_idx'', 0))';
 ERROR:  page is not a hash bucket or overflow page
-SELECT * FROM hash_page_items(get_raw_page('test_hash_a_idx', 1));
-(0 rows)
-
-SELECT * FROM hash_page_items(get_raw_page('test_hash_a_idx', 2));
-(0 rows)
-
-SELECT * FROM hash_page_items(get_raw_page('test_hash_a_idx', 3));
+execute direct on (datanode_1) 'SELECT * FROM hash_page_items(get_raw_page(''test_hash_a_idx'', 1))';
 -[ RECORD 1 ]----------
 itemoffset | 1
 ctid       | (0,1)
 data       | 2389907270
 
-SELECT * FROM hash_page_items(get_raw_page('test_hash_a_idx', 4));
+execute direct on (datanode_1) 'SELECT * FROM hash_page_items(get_raw_page(''test_hash_a_idx'', 2))';
 (0 rows)
 
-SELECT * FROM hash_page_items(get_raw_page('test_hash_a_idx', 5));
+execute direct on (datanode_1) 'SELECT * FROM hash_page_items(get_raw_page(''test_hash_a_idx'', 3))';
 ERROR:  page is not a hash bucket or overflow page
+execute direct on (datanode_1) 'SELECT * FROM hash_page_items(get_raw_page(''test_hash_a_idx'', 4))';
+ERROR:  block number 4 is out of range for relation "test_hash_a_idx"
+execute direct on (datanode_1) 'SELECT * FROM hash_page_items(get_raw_page(''test_hash_a_idx'', 5))';
+ERROR:  block number 5 is out of range for relation "test_hash_a_idx"
+DROP TABLE test_hash;
+create database contrib_ora_pageinspect sql mode opentenbase_ora;
+ERROR:  database "contrib_ora_pageinspect" already exists
+\c contrib_ora_pageinspect
+CREATE TABLE test_hash (a int, b text) DISTRIBUTE BY REPLICATION;
+INSERT INTO test_hash VALUES (1, 'one');
+CREATE INDEX test_hash_a_idx ON test_hash USING hash (a);
+execute direct on (datanode_1) 'SELECT hash_page_type(get_raw_page(''TEST_HASH_A_IDX'', 0))';
+-[ RECORD 1 ]--+---------
+HASH_PAGE_TYPE | metapage
+
+execute direct on (datanode_1) 'SELECT hash_page_type(get_raw_page(''TEST_HASH_A_IDX'', 1))';
+-[ RECORD 1 ]--+-------
+HASH_PAGE_TYPE | bucket
+
+execute direct on (datanode_1) 'SELECT hash_page_type(get_raw_page(''TEST_HASH_A_IDX'', 2))';
+-[ RECORD 1 ]--+-------
+HASH_PAGE_TYPE | bucket
+
+execute direct on (datanode_1) 'SELECT hash_page_type(get_raw_page(''TEST_HASH_A_IDX'', 3))';
+-[ RECORD 1 ]--+-------
+HASH_PAGE_TYPE | bitmap
+
+execute direct on (datanode_1) 'SELECT hash_page_type(get_raw_page(''TEST_HASH_A_IDX'', 4))';
+ERROR:  block number 4 is out of range for relation "TEST_HASH_A_IDX"
+execute direct on (datanode_1) 'SELECT hash_page_type(get_raw_page(''TEST_HASH_A_IDX'', 5))';
+ERROR:  block number 5 is out of range for relation "TEST_HASH_A_IDX"
+execute direct on (datanode_1) 'SELECT hash_page_type(get_raw_page(''TEST_HASH_A_IDX'', 6))';
+ERROR:  block number 6 is out of range for relation "TEST_HASH_A_IDX"
+execute direct on (datanode_1) 'SELECT * FROM hash_bitmap_info(''TEST_HASH_A_IDX'', 0)';
+ERROR:  invalid overflow block number 0
+execute direct on (datanode_1) 'SELECT * FROM hash_bitmap_info(''TEST_HASH_A_IDX'', 1)';
+ERROR:  invalid overflow block number 1
+execute direct on (datanode_1) 'SELECT * FROM hash_bitmap_info(''TEST_HASH_A_IDX'', 2)';
+ERROR:  invalid overflow block number 2
+execute direct on (datanode_1) 'SELECT * FROM hash_bitmap_info(''TEST_HASH_A_IDX'', 3)';
+ERROR:  invalid overflow block number 3
+execute direct on (datanode_1) 'SELECT * FROM hash_bitmap_info(''TEST_HASH_A_IDX'', 4)';
+ERROR:  block number 4 is out of range for relation "TEST_HASH_A_IDX"
+execute direct on (datanode_1) 'SELECT * FROM hash_bitmap_info(''TEST_HASH_A_IDX'', 5)';
+ERROR:  block number 5 is out of range for relation "TEST_HASH_A_IDX"
+execute direct on (datanode_1) 'SELECT magic, version, ntuples, bsize, bmsize, bmshift, maxbucket, highmask,
+lowmask, ovflpoint, firstfree, nmaps, procid, spares, mapp FROM
+hash_metapage_info(get_raw_page(''TEST_HASH_A_IDX'', 0))';
+-[ RECORD 1 ]--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+MAGIC     | 105121344
+VERSION   | 4
+NTUPLES   | 1
+BSIZE     | 8128
+BMSIZE    | 4096
+BMSHIFT   | 15
+MAXBUCKET | 1
+HIGHMASK  | 3
+LOWMASK   | 1
+OVFLPOINT | 1
+FIRSTFREE | 0
+NMAPS     | 1
+PROCID    | 450
+SPARES    | {0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
+MAPP      | {3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
+
+execute direct on (datanode_1) 'SELECT magic, version, ntuples, bsize, bmsize, bmshift, maxbucket, highmask,
+lowmask, ovflpoint, firstfree, nmaps, procid, spares, mapp FROM
+hash_metapage_info(get_raw_page(''TEST_HASH_A_IDX'', 1))';
+ERROR:  page is not a hash meta page
+execute direct on (datanode_1) 'SELECT magic, version, ntuples, bsize, bmsize, bmshift, maxbucket, highmask,
+lowmask, ovflpoint, firstfree, nmaps, procid, spares, mapp FROM
+hash_metapage_info(get_raw_page(''TEST_HASH_A_IDX'', 2))';
+ERROR:  page is not a hash meta page
+execute direct on (datanode_1) 'SELECT magic, version, ntuples, bsize, bmsize, bmshift, maxbucket, highmask,
+lowmask, ovflpoint, firstfree, nmaps, procid, spares, mapp FROM
+hash_metapage_info(get_raw_page(''TEST_HASH_A_IDX'', 3))';
+ERROR:  page is not a hash meta page
+execute direct on (datanode_1) 'SELECT magic, version, ntuples, bsize, bmsize, bmshift, maxbucket, highmask,
+lowmask, ovflpoint, firstfree, nmaps, procid, spares, mapp FROM
+hash_metapage_info(get_raw_page(''TEST_HASH_A_IDX'', 4))';
+ERROR:  block number 4 is out of range for relation "TEST_HASH_A_IDX"
+execute direct on (datanode_1) 'SELECT magic, version, ntuples, bsize, bmsize, bmshift, maxbucket, highmask,
+lowmask, ovflpoint, firstfree, nmaps, procid, spares, mapp FROM
+hash_metapage_info(get_raw_page(''TEST_HASH_A_IDX'', 5))';
+ERROR:  block number 5 is out of range for relation "TEST_HASH_A_IDX"
+execute direct on (datanode_1) 'SELECT live_items, dead_items, page_size, hasho_prevblkno, hasho_nextblkno,
+hasho_bucket, hasho_flag, hasho_page_id FROM
+hash_page_stats(get_raw_page(''TEST_HASH_A_IDX'', 0))';
+ERROR:  page is not a hash bucket or overflow page
+execute direct on (datanode_1) 'SELECT live_items, dead_items, page_size, hasho_prevblkno, hasho_nextblkno,
+hasho_bucket, hasho_flag, hasho_page_id FROM
+hash_page_stats(get_raw_page(''TEST_HASH_A_IDX'', 1))';
+-[ RECORD 1 ]---+-----------
+LIVE_ITEMS      | 1
+DEAD_ITEMS      | 0
+PAGE_SIZE       | 8192
+HASHO_PREVBLKNO | 1
+HASHO_NEXTBLKNO | 4294967295
+HASHO_BUCKET    | 0
+HASHO_FLAG      | 2
+HASHO_PAGE_ID   | 65408
+
+execute direct on (datanode_1) 'SELECT live_items, dead_items, page_size, hasho_prevblkno, hasho_nextblkno,
+hasho_bucket, hasho_flag, hasho_page_id FROM
+hash_page_stats(get_raw_page(''TEST_HASH_A_IDX'', 2))';
+-[ RECORD 1 ]---+-----------
+LIVE_ITEMS      | 0
+DEAD_ITEMS      | 0
+PAGE_SIZE       | 8192
+HASHO_PREVBLKNO | 1
+HASHO_NEXTBLKNO | 4294967295
+HASHO_BUCKET    | 1
+HASHO_FLAG      | 2
+HASHO_PAGE_ID   | 65408
+
+execute direct on (datanode_1) 'SELECT live_items, dead_items, page_size, hasho_prevblkno, hasho_nextblkno,
+hasho_bucket, hasho_flag, hasho_page_id FROM
+hash_page_stats(get_raw_page(''TEST_HASH_A_IDX'', 3))';
+ERROR:  page is not a hash bucket or overflow page
+execute direct on (datanode_1) 'SELECT live_items, dead_items, page_size, hasho_prevblkno, hasho_nextblkno,
+hasho_bucket, hasho_flag, hasho_page_id FROM
+hash_page_stats(get_raw_page(''TEST_HASH_A_IDX'', 4))';
+ERROR:  block number 4 is out of range for relation "TEST_HASH_A_IDX"
+execute direct on (datanode_1) 'SELECT live_items, dead_items, page_size, hasho_prevblkno, hasho_nextblkno,
+hasho_bucket, hasho_flag, hasho_page_id FROM
+hash_page_stats(get_raw_page(''TEST_HASH_A_IDX'', 5))';
+ERROR:  block number 5 is out of range for relation "TEST_HASH_A_IDX"
+execute direct on (datanode_1) 'SELECT * FROM hash_page_items(get_raw_page(''TEST_HASH_A_IDX'', 0))';
+ERROR:  page is not a hash bucket or overflow page
+execute direct on (datanode_1) 'SELECT * FROM hash_page_items(get_raw_page(''TEST_HASH_A_IDX'', 1))';
+-[ RECORD 1 ]----------
+ITEMOFFSET | 1
+CTID       | (0,1)
+DATA       | 2389907270
+
+execute direct on (datanode_1) 'SELECT * FROM hash_page_items(get_raw_page(''TEST_HASH_A_IDX'', 2))';
+(0 rows)
+
+execute direct on (datanode_1) 'SELECT * FROM hash_page_items(get_raw_page(''TEST_HASH_A_IDX'', 3))';
+ERROR:  page is not a hash bucket or overflow page
+execute direct on (datanode_1) 'SELECT * FROM hash_page_items(get_raw_page(''TEST_HASH_A_IDX'', 4))';
+ERROR:  block number 4 is out of range for relation "TEST_HASH_A_IDX"
+execute direct on (datanode_1) 'SELECT * FROM hash_page_items(get_raw_page(''TEST_HASH_A_IDX'', 5))';
+ERROR:  block number 5 is out of range for relation "TEST_HASH_A_IDX"
 DROP TABLE test_hash;

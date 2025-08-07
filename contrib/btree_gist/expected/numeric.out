@@ -188,16 +188,17 @@ SELECT count(*) FROM numerictmp WHERE a >  0 ;
 
 -- Test index-only scans
 SET enable_bitmapscan=off;
-EXPLAIN (COSTS OFF)
+EXPLAIN (COSTS OFF, NODES OFF)
 SELECT * FROM numerictmp WHERE a BETWEEN 1 AND 300 ORDER BY a;
                                 QUERY PLAN                                 
 ---------------------------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+ Remote Subquery Scan on all (datanodes 2)
+   Sort Key: a
    ->  Sort
          Sort Key: a
          ->  Index Only Scan using numericidx on numerictmp
                Index Cond: ((a >= '1'::numeric) AND (a <= '300'::numeric))
-(5 rows)
+(6 rows)
 
 SELECT * FROM numerictmp WHERE a BETWEEN 1 AND 300 ORDER BY a;
      a      

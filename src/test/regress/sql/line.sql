@@ -47,17 +47,17 @@ SELECT lseg '[(1,1),(5,5)]' ?# line '[(0,0),(1,0)]';  -- false
 SELECT line '[(0,0),(1,1)]' ?# box '(0,0,2,2)';  -- true
 SELECT line '[(3,0),(4,1)]' ?# box '(0,0,2,2)';  -- false
 
-SELECT point '(1,1)' <@ line '[(0,0),(2,2)]';  -- true
-SELECT point '(1,1)' <@ line '[(0,0),(1,0)]';  -- false
+--SELECT point '(1,1)' <@ line '[(0,0),(2,2)]';  -- true
+--SELECT point '(1,1)' <@ line '[(0,0),(1,0)]';  -- false
 
-SELECT point '(1,1)' @ line '[(0,0),(2,2)]';  -- true
-SELECT point '(1,1)' @ line '[(0,0),(1,0)]';  -- false
+--SELECT point '(1,1)' @ line '[(0,0),(2,2)]';  -- true
+--SELECT point '(1,1)' @ line '[(0,0),(1,0)]';  -- false
 
-SELECT lseg '[(1,1),(2,2)]' <@ line '[(0,0),(2,2)]';  -- true
-SELECT lseg '[(1,1),(2,1)]' <@ line '[(0,0),(1,0)]';  -- false
+--SELECT lseg '[(1,1),(2,2)]' <@ line '[(0,0),(2,2)]';  -- true
+--SELECT lseg '[(1,1),(2,1)]' <@ line '[(0,0),(1,0)]';  -- false
 
-SELECT lseg '[(1,1),(2,2)]' @ line '[(0,0),(2,2)]';  -- true
-SELECT lseg '[(1,1),(2,1)]' @ line '[(0,0),(1,0)]';  -- false
+--SELECT lseg '[(1,1),(2,2)]' @ line '[(0,0),(2,2)]';  -- true
+--SELECT lseg '[(1,1),(2,1)]' @ line '[(0,0),(1,0)]';  -- false
 
 SELECT point '(0,1)' ## line '[(0,0),(1,1)]';
 

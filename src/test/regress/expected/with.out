@@ -157,16 +157,18 @@ SELECT n, n IS OF (text) as is_text FROM t ORDER BY n;
 
 -- In a perfect world, this would work and resolve the literal as int ...
 -- but for now, we have to be content with resolving to text too soon.
+set enable_lightweight_ora_syntax to on;
 WITH RECURSIVE t(n) AS (
     SELECT '7'
 UNION ALL
     SELECT n+1 FROM t WHERE n < 10
 )
 SELECT n, n IS OF (int) AS is_int FROM t;
-ERROR:  operator does not exist: text + integer
-LINE 4:     SELECT n+1 FROM t WHERE n < 10
-                    ^
-HINT:  No operator matches the given name and argument type(s). You might need to add explicit type casts.
+ERROR:  recursive query "t" column 1 has type text in non-recursive term but type bigint overall
+LINE 2:     SELECT '7'
+                   ^
+HINT:  Cast the output of the non-recursive term to the correct type.
+set enable_lightweight_ora_syntax to off;
 --
 -- Some examples with a tree
 --
@@ -210,43 +212,43 @@ SELECT * FROM subdepartment ORDER BY name;
 (5 rows)
 
 -- extract all departments under 'A' with "level" number
-WITH RECURSIVE subdepartment(level, id, parent_department, name) AS
+WITH RECURSIVE subdepartment(level1, id, parent_department, name) AS
 (
 	-- non recursive term
 	SELECT 1, * FROM department WHERE name = 'A'
 	UNION ALL
 	-- recursive term
-	SELECT sd.level + 1, d.* FROM department AS d, subdepartment AS sd
+	SELECT sd.level1 + 1, d.* FROM department AS d, subdepartment AS sd
 		WHERE d.parent_department = sd.id
 )
 SELECT * FROM subdepartment ORDER BY name;
- level | id | parent_department | name 
--------+----+-------------------+------
-     1 |  1 |                 0 | A
-     2 |  2 |                 1 | B
-     3 |  3 |                 2 | C
-     3 |  4 |                 2 | D
-     4 |  6 |                 4 | F
+ level1 | id | parent_department | name 
+--------+----+-------------------+------
+      1 |  1 |                 0 | A
+      2 |  2 |                 1 | B
+      3 |  3 |                 2 | C
+      3 |  4 |                 2 | D
+      4 |  6 |                 4 | F
 (5 rows)
 
 -- extract all departments under 'A' with "level" number.
 -- Only shows level 2 or more
-WITH RECURSIVE subdepartment(level, id, parent_department, name) AS
+WITH RECURSIVE subdepartment(level1, id, parent_department, name) AS
 (
 	-- non recursive term
 	SELECT 1, * FROM department WHERE name = 'A'
 	UNION ALL
 	-- recursive term
-	SELECT sd.level + 1, d.* FROM department AS d, subdepartment AS sd
+	SELECT sd.level1 + 1, d.* FROM department AS d, subdepartment AS sd
 		WHERE d.parent_department = sd.id
 )
-SELECT * FROM subdepartment WHERE level >= 2 ORDER BY name;
- level | id | parent_department | name 
--------+----+-------------------+------
-     2 |  2 |                 1 | B
-     3 |  3 |                 2 | C
-     3 |  4 |                 2 | D
-     4 |  6 |                 4 | F
+SELECT * FROM subdepartment WHERE level1 >= 2 ORDER BY name;
+ level1 | id | parent_department | name 
+--------+----+-------------------+------
+      2 |  2 |                 1 | B
+      3 |  3 |                 2 | C
+      3 |  4 |                 2 | D
+      4 |  6 |                 4 | F
 (4 rows)
 
 -- "RECURSIVE" is ignored if the query has no self-reference
@@ -382,52 +384,24 @@ View definition:
    FROM t;
 
 -- corner case in which sub-WITH gets initialized first
-with recursive q as (
-      select * from department
-    union all
-      (with x as (select * from q)
-       select * from x)
-    )
-select * from q limit 24;
- id | parent_department | name 
-----+-------------------+------
-  0 |                   | ROOT
-  1 |                 0 | A
-  2 |                 1 | B
-  3 |                 2 | C
-  4 |                 2 | D
-  5 |                 0 | E
-  6 |                 4 | F
-  7 |                 5 | G
-  0 |                   | ROOT
-  1 |                 0 | A
-  2 |                 1 | B
-  3 |                 2 | C
-  4 |                 2 | D
-  5 |                 0 | E
-  6 |                 4 | F
-  7 |                 5 | G
-  0 |                   | ROOT
-  1 |                 0 | A
-  2 |                 1 | B
-  3 |                 2 | C
-  4 |                 2 | D
-  5 |                 0 | E
-  6 |                 4 | F
-  7 |                 5 | G
-(24 rows)
-
-with recursive q as (
-      select * from department
-    union all
-      (with recursive x as (
-           select * from department
-         union all
-           (select * from q union all select * from x)
-        )
-       select * from x)
-    )
-select * from q order by 1, 2, 3 limit 32;
+--with recursive q as (
+--      select * from department
+--    union all
+--      (with x as (select * from q)
+--       select * from x)
+--    )
+--select * from q limit 24;
+--with recursive q as (
+--      select * from department
+--    union all
+--      (with recursive x as (
+--           select * from department
+--         union all
+--           (select * from q union all select * from x)
+--        )
+--       select * from x)
+--    )
+--select * from q order by 1, 2, 3 limit 32;
 -- recursive term has sub-UNION
 WITH RECURSIVE t(i,j) AS (
 	VALUES (1,2)
@@ -550,8 +524,36 @@ with recursive search_graph(f, t, label, path, cycle) as (
 	from graph g, search_graph sg
 	where g.f = sg.t and not cycle
 )
-select * from search_graph order by path;
-ERROR:  input of anonymous composite types is not implemented
+select * from search_graph order by path,1,2;
+ f | t |   label    |                   path                    | cycle 
+---+---+------------+-------------------------------------------+-------
+ 1 | 2 | arc 1 -> 2 | {"(1,2)"}                                 | f
+ 2 | 3 | arc 2 -> 3 | {"(1,2)","(2,3)"}                         | f
+ 1 | 3 | arc 1 -> 3 | {"(1,3)"}                                 | f
+ 1 | 4 | arc 1 -> 4 | {"(1,4)"}                                 | f
+ 4 | 5 | arc 4 -> 5 | {"(1,4)","(4,5)"}                         | f
+ 5 | 1 | arc 5 -> 1 | {"(1,4)","(4,5)","(5,1)"}                 | f
+ 1 | 2 | arc 1 -> 2 | {"(1,4)","(4,5)","(5,1)","(1,2)"}         | f
+ 2 | 3 | arc 2 -> 3 | {"(1,4)","(4,5)","(5,1)","(1,2)","(2,3)"} | f
+ 1 | 3 | arc 1 -> 3 | {"(1,4)","(4,5)","(5,1)","(1,3)"}         | f
+ 1 | 4 | arc 1 -> 4 | {"(1,4)","(4,5)","(5,1)","(1,4)"}         | t
+ 2 | 3 | arc 2 -> 3 | {"(2,3)"}                                 | f
+ 4 | 5 | arc 4 -> 5 | {"(4,5)"}                                 | f
+ 5 | 1 | arc 5 -> 1 | {"(4,5)","(5,1)"}                         | f
+ 1 | 2 | arc 1 -> 2 | {"(4,5)","(5,1)","(1,2)"}                 | f
+ 2 | 3 | arc 2 -> 3 | {"(4,5)","(5,1)","(1,2)","(2,3)"}         | f
+ 1 | 3 | arc 1 -> 3 | {"(4,5)","(5,1)","(1,3)"}                 | f
+ 1 | 4 | arc 1 -> 4 | {"(4,5)","(5,1)","(1,4)"}                 | f
+ 4 | 5 | arc 4 -> 5 | {"(4,5)","(5,1)","(1,4)","(4,5)"}         | t
+ 5 | 1 | arc 5 -> 1 | {"(5,1)"}                                 | f
+ 1 | 2 | arc 1 -> 2 | {"(5,1)","(1,2)"}                         | f
+ 2 | 3 | arc 2 -> 3 | {"(5,1)","(1,2)","(2,3)"}                 | f
+ 1 | 3 | arc 1 -> 3 | {"(5,1)","(1,3)"}                         | f
+ 1 | 4 | arc 1 -> 4 | {"(5,1)","(1,4)"}                         | f
+ 4 | 5 | arc 4 -> 5 | {"(5,1)","(1,4)","(4,5)"}                 | f
+ 5 | 1 | arc 5 -> 1 | {"(5,1)","(1,4)","(4,5)","(5,1)"}         | t
+(25 rows)
+
 -- ordering by the path column has same effect as SEARCH DEPTH FIRST
 with recursive search_graph(f, t, label, path, cycle) as (
 	select *, array[row(g.f, g.t)], false from graph g
@@ -560,8 +562,36 @@ with recursive search_graph(f, t, label, path, cycle) as (
 	from graph g, search_graph sg
 	where g.f = sg.t and not cycle
 )
-select * from search_graph order by path;
-ERROR:  input of anonymous composite types is not implemented
+select * from search_graph order by path,1,2;
+ f | t |   label    |                   path                    | cycle 
+---+---+------------+-------------------------------------------+-------
+ 1 | 2 | arc 1 -> 2 | {"(1,2)"}                                 | f
+ 2 | 3 | arc 2 -> 3 | {"(1,2)","(2,3)"}                         | f
+ 1 | 3 | arc 1 -> 3 | {"(1,3)"}                                 | f
+ 1 | 4 | arc 1 -> 4 | {"(1,4)"}                                 | f
+ 4 | 5 | arc 4 -> 5 | {"(1,4)","(4,5)"}                         | f
+ 5 | 1 | arc 5 -> 1 | {"(1,4)","(4,5)","(5,1)"}                 | f
+ 1 | 2 | arc 1 -> 2 | {"(1,4)","(4,5)","(5,1)","(1,2)"}         | f
+ 2 | 3 | arc 2 -> 3 | {"(1,4)","(4,5)","(5,1)","(1,2)","(2,3)"} | f
+ 1 | 3 | arc 1 -> 3 | {"(1,4)","(4,5)","(5,1)","(1,3)"}         | f
+ 1 | 4 | arc 1 -> 4 | {"(1,4)","(4,5)","(5,1)","(1,4)"}         | t
+ 2 | 3 | arc 2 -> 3 | {"(2,3)"}                                 | f
+ 4 | 5 | arc 4 -> 5 | {"(4,5)"}                                 | f
+ 5 | 1 | arc 5 -> 1 | {"(4,5)","(5,1)"}                         | f
+ 1 | 2 | arc 1 -> 2 | {"(4,5)","(5,1)","(1,2)"}                 | f
+ 2 | 3 | arc 2 -> 3 | {"(4,5)","(5,1)","(1,2)","(2,3)"}         | f
+ 1 | 3 | arc 1 -> 3 | {"(4,5)","(5,1)","(1,3)"}                 | f
+ 1 | 4 | arc 1 -> 4 | {"(4,5)","(5,1)","(1,4)"}                 | f
+ 4 | 5 | arc 4 -> 5 | {"(4,5)","(5,1)","(1,4)","(4,5)"}         | t
+ 5 | 1 | arc 5 -> 1 | {"(5,1)"}                                 | f
+ 1 | 2 | arc 1 -> 2 | {"(5,1)","(1,2)"}                         | f
+ 2 | 3 | arc 2 -> 3 | {"(5,1)","(1,2)","(2,3)"}                 | f
+ 1 | 3 | arc 1 -> 3 | {"(5,1)","(1,3)"}                         | f
+ 1 | 4 | arc 1 -> 4 | {"(5,1)","(1,4)"}                         | f
+ 4 | 5 | arc 4 -> 5 | {"(5,1)","(1,4)","(4,5)"}                 | f
+ 5 | 1 | arc 5 -> 1 | {"(5,1)","(1,4)","(4,5)","(5,1)"}         | t
+(25 rows)
+
 --
 -- test multiple WITH queries
 --
@@ -743,6 +773,20 @@ WITH t AS (
 )
 INSERT INTO y
 SELECT a+20 FROM t RETURNING *;
+ a  
+----
+ 21
+ 22
+ 23
+ 24
+ 25
+ 26
+ 27
+ 28
+ 29
+ 30
+(10 rows)
+
 SELECT * FROM y order by 1;
  a  
 ----
@@ -756,14 +800,36 @@ SELECT * FROM y order by 1;
   8
   9
  10
-(10 rows)
+ 21
+ 22
+ 23
+ 24
+ 25
+ 26
+ 27
+ 28
+ 29
+ 30
+(20 rows)
 
 WITH t AS (
 	SELECT a FROM y
 )
 UPDATE y SET a = y.a-10 FROM t WHERE y.a > 20 AND t.a = y.a RETURNING y.a;
-ERROR:  could not plan this distributed update
-DETAIL:  correlated UPDATE or updating distribution column currently not supported in Postgres-XL.
+ a  
+----
+ 11
+ 12
+ 13
+ 14
+ 15
+ 16
+ 17
+ 18
+ 19
+ 20
+(10 rows)
+
 SELECT * FROM y order by 1;
  a  
 ----
@@ -777,7 +843,17 @@ SELECT * FROM y order by 1;
   8
   9
  10
-(10 rows)
+ 11
+ 12
+ 13
+ 14
+ 15
+ 16
+ 17
+ 18
+ 19
+ 20
+(20 rows)
 
 WITH RECURSIVE t(a) AS (
 	SELECT 11
@@ -785,8 +861,20 @@ WITH RECURSIVE t(a) AS (
 	SELECT a+1 FROM t WHERE a < 50
 )
 DELETE FROM y USING t WHERE t.a = y.a RETURNING y.a;
-ERROR:  could not plan this distributed delete
-DETAIL:  correlated or complex DELETE is currently not supported in Postgres-XL.
+ a  
+----
+ 11
+ 12
+ 13
+ 14
+ 15
+ 16
+ 17
+ 18
+ 19
+ 20
+(10 rows)
+
 SELECT * FROM y order by 1;
  a  
 ----
@@ -1173,22 +1261,22 @@ select * from C;
 -- Test CTEs read in non-initialization orders
 --
 WITH RECURSIVE
-  tab(id_key,link) AS (VALUES (1,17), (2,17), (3,17), (4,17), (6,17), (5,17)),
-  iter (id_key, row_type, link) AS (
+  tab(id_key,link1) AS (VALUES (1,17), (2,17), (3,17), (4,17), (6,17), (5,17)),
+  iter (id_key, row_type, link1) AS (
       SELECT 0, 'base', 17
     UNION ALL (
-      WITH remaining(id_key, row_type, link, min) AS (
-        SELECT tab.id_key, 'true'::text, iter.link, MIN(tab.id_key) OVER ()
-        FROM tab INNER JOIN iter USING (link)
+      WITH remaining(id_key, row_type, link1, min) AS (
+        SELECT tab.id_key, 'true'::text, iter.link1, MIN(tab.id_key) OVER ()
+        FROM tab INNER JOIN iter USING (link1)
         WHERE tab.id_key > iter.id_key
       ),
       first_remaining AS (
-        SELECT id_key, row_type, link
+        SELECT id_key, row_type, link1
         FROM remaining
         WHERE id_key=min
       ),
       effect AS (
-        SELECT tab.id_key, 'new'::text, tab.link
+        SELECT tab.id_key, 'new'::text, tab.link1
         FROM first_remaining e INNER JOIN tab ON e.id_key=tab.id_key
         WHERE e.row_type = 'false'
       )
@@ -1197,34 +1285,34 @@ WITH RECURSIVE
     )
   )
 SELECT * FROM iter;
- id_key | row_type | link 
---------+----------+------
-      0 | base     |   17
-      1 | true     |   17
-      2 | true     |   17
-      3 | true     |   17
-      4 | true     |   17
-      5 | true     |   17
-      6 | true     |   17
+ id_key | row_type | link1 
+--------+----------+-------
+      0 | base     |    17
+      1 | true     |    17
+      2 | true     |    17
+      3 | true     |    17
+      4 | true     |    17
+      5 | true     |    17
+      6 | true     |    17
 (7 rows)
 
 WITH RECURSIVE
-  tab(id_key,link) AS (VALUES (1,17), (2,17), (3,17), (4,17), (6,17), (5,17)),
-  iter (id_key, row_type, link) AS (
+  tab(id_key,link1) AS (VALUES (1,17), (2,17), (3,17), (4,17), (6,17), (5,17)),
+  iter (id_key, row_type, link1) AS (
       SELECT 0, 'base', 17
     UNION (
-      WITH remaining(id_key, row_type, link, min) AS (
-        SELECT tab.id_key, 'true'::text, iter.link, MIN(tab.id_key) OVER ()
-        FROM tab INNER JOIN iter USING (link)
+      WITH remaining(id_key, row_type, link1, min) AS (
+        SELECT tab.id_key, 'true'::text, iter.link1, MIN(tab.id_key) OVER ()
+        FROM tab INNER JOIN iter USING (link1)
         WHERE tab.id_key > iter.id_key
       ),
       first_remaining AS (
-        SELECT id_key, row_type, link
+        SELECT id_key, row_type, link1
         FROM remaining
         WHERE id_key=min
       ),
       effect AS (
-        SELECT tab.id_key, 'new'::text, tab.link
+        SELECT tab.id_key, 'new'::text, tab.link1
         FROM first_remaining e INNER JOIN tab ON e.id_key=tab.id_key
         WHERE e.row_type = 'false'
       )
@@ -1233,15 +1321,15 @@ WITH RECURSIVE
     )
   )
 SELECT * FROM iter;
- id_key | row_type | link 
---------+----------+------
-      0 | base     |   17
-      1 | true     |   17
-      2 | true     |   17
-      3 | true     |   17
-      4 | true     |   17
-      5 | true     |   17
-      6 | true     |   17
+ id_key | row_type | link1 
+--------+----------+-------
+      0 | base     |    17
+      1 | true     |    17
+      2 | true     |    17
+      3 | true     |    17
+      4 | true     |    17
+      5 | true     |    17
+      6 | true     |    17
 (7 rows)
 
 --
@@ -1419,6 +1507,78 @@ SELECT * FROM bug6051_2;
 ---
 (0 rows)
 
+-- check case where CTE reference is removed due to optimization
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT q1 FROM
+(
+  WITH t_cte AS (SELECT * FROM int8_tbl t)
+  SELECT q1, (SELECT q2 FROM t_cte WHERE t_cte.q1 = i8.q1) AS t_sub
+  FROM int8_tbl i8
+) ss;
+                                                                                            QUERY PLAN                                                                                             
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Remote Fast Query Execution
+   Output: ss.q1
+   Node/s: datanode_1
+   Remote query: SELECT q1 FROM (WITH t_cte AS (SELECT t.q1, t.q2 FROM public.int8_tbl t) SELECT i8.q1, (SELECT t_cte.q2 FROM t_cte WHERE (t_cte.q1 = i8.q1)) AS t_sub FROM public.int8_tbl i8) ss
+   ->  Subquery Scan on ss
+         Output: ss.q1
+         ->  Seq Scan on public.int8_tbl i8
+               Output: i8.q1, NULL::bigint
+(8 rows)
+
+SELECT q1 FROM
+(
+  WITH t_cte AS (SELECT * FROM int8_tbl t)
+  SELECT q1, (SELECT q2 FROM t_cte WHERE t_cte.q1 = i8.q1) AS t_sub
+  FROM int8_tbl i8
+) ss;
+        q1        
+------------------
+              123
+              123
+ 4567890123456789
+ 4567890123456789
+ 4567890123456789
+(5 rows)
+
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT q1 FROM
+(
+  WITH t_cte AS MATERIALIZED (SELECT * FROM int8_tbl t)
+  SELECT q1, (SELECT q2 FROM t_cte WHERE t_cte.q1 = i8.q1) AS t_sub
+  FROM int8_tbl i8
+) ss;
+                                                                                                   QUERY PLAN                                                                                                   
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Remote Fast Query Execution
+   Output: ss.q1
+   Node/s: datanode_1
+   Remote query: SELECT q1 FROM (WITH t_cte AS MATERIALIZED (SELECT t.q1, t.q2 FROM public.int8_tbl t) SELECT i8.q1, (SELECT t_cte.q2 FROM t_cte WHERE (t_cte.q1 = i8.q1)) AS t_sub FROM public.int8_tbl i8) ss
+   ->  Subquery Scan on ss
+         Output: ss.q1
+         ->  Seq Scan on public.int8_tbl i8
+               Output: i8.q1, NULL::bigint
+               CTE t_cte
+                 ->  Seq Scan on public.int8_tbl t
+                       Output: t.q1, t.q2
+(11 rows)
+
+SELECT q1 FROM
+(
+  WITH t_cte AS MATERIALIZED (SELECT * FROM int8_tbl t)
+  SELECT q1, (SELECT q2 FROM t_cte WHERE t_cte.q1 = i8.q1) AS t_sub
+  FROM int8_tbl i8
+) ss;
+        q1        
+------------------
+              123
+              123
+ 4567890123456789
+ 4567890123456789
+ 4567890123456789
+(5 rows)
+
 -- a truly recursive CTE in the same list
 WITH RECURSIVE t(a) AS (
 	SELECT 0
@@ -1551,7 +1711,7 @@ upsert_cte AS (
 INSERT INTO z VALUES(2, 'Red') ON CONFLICT (k) DO
 UPDATE SET (k, v) = (SELECT k, v FROM upsert_cte WHERE upsert_cte.k = z.k)
 RETURNING k, v;
-ERROR:  INSERT/UPDATE/DELETE is not supported in subquery
+ERROR:  Distributed column "k" can't be updated in current version
 DROP TABLE z;
 -- check that run to completion happens in proper ordering
 TRUNCATE TABLE y;
@@ -1719,16 +1879,14 @@ INSERT INTO child1 VALUES ( 11, 'c11' ),( 12, 'c12' );
 INSERT INTO child2 VALUES ( 23, 'c21' ),( 24, 'c22' );
 WITH rcte AS ( SELECT sum(id) AS totalid FROM parent )
 UPDATE parent SET id = id + totalid FROM rcte;
-ERROR:  could not plan this distributed update
-DETAIL:  correlated UPDATE or updating distribution column currently not supported in Postgres-XL.
 SELECT * FROM parent ORDER BY id;
  id | val 
 ----+-----
-  1 | p1
- 11 | c11
- 12 | c12
- 23 | c21
- 24 | c22
+ 72 | p1
+ 82 | c11
+ 83 | c12
+ 94 | c21
+ 95 | c22
 (5 rows)
 
 WITH wcte AS ( INSERT INTO child1 VALUES ( 42, 'new' ) RETURNING id AS newid )
@@ -1737,26 +1895,23 @@ ERROR:  INSERT/UPDATE/DELETE is not supported in subquery
 SELECT * FROM parent ORDER BY id;
  id | val 
 ----+-----
-  1 | p1
- 11 | c11
- 12 | c12
- 23 | c21
- 24 | c22
+ 72 | p1
+ 82 | c11
+ 83 | c12
+ 94 | c21
+ 95 | c22
 (5 rows)
 
 WITH rcte AS ( SELECT max(id) AS maxid FROM parent )
 DELETE FROM parent USING rcte WHERE id = maxid;
-ERROR:  could not plan this distributed delete
-DETAIL:  correlated or complex DELETE is currently not supported in Postgres-XL.
 SELECT * FROM parent ORDER BY id;
  id | val 
 ----+-----
-  1 | p1
- 11 | c11
- 12 | c12
- 23 | c21
- 24 | c22
-(5 rows)
+ 72 | p1
+ 82 | c11
+ 83 | c12
+ 94 | c21
+(4 rows)
 
 WITH wcte AS ( INSERT INTO child2 VALUES ( 42, 'new2' ) RETURNING id AS newid )
 DELETE FROM parent USING wcte WHERE id = newid;
@@ -1764,12 +1919,11 @@ ERROR:  INSERT/UPDATE/DELETE is not supported in subquery
 SELECT * FROM parent ORDER BY id;
  id | val 
 ----+-----
-  1 | p1
- 11 | c11
- 12 | c12
- 23 | c21
- 24 | c22
-(5 rows)
+ 72 | p1
+ 82 | c11
+ 83 | c12
+ 94 | c21
+(4 rows)
 
 -- check EXPLAIN VERBOSE for a wCTE with RETURNING
 EXPLAIN (VERBOSE, COSTS OFF, NODES OFF, NUM_NODES OFF)
@@ -1826,5 +1980,875 @@ with ordinality as (select 1 as x) select * from ordinality;
 (1 row)
 
 -- check sane response to attempt to modify CTE relation
-WITH d AS (SELECT 42) INSERT INTO d VALUES (1);
-ERROR:  relation "d" cannot be the target of a modifying statement
+WITH test AS (SELECT 42) INSERT INTO test VALUES (1);
+ERROR:  relation "test" does not exist
+LINE 1: WITH test AS (SELECT 42) INSERT INTO test VALUES (1);
+                                             ^
+-- check response to attempt to modify table with same name as a CTE (perhaps
+-- surprisingly it works, because CTEs don't hide tables from data-modifying
+-- statements)
+create table test (i int);
+with test as (select 42) insert into test select * from test;
+select * from test;
+ i  
+----
+ 42
+(1 row)
+
+drop table test;
+explain(verbose ,costs off, nodes off) with t as not materialized(select * from dual union select * from dual) select * from t;
+                     QUERY PLAN                     
+----------------------------------------------------
+ Unique
+   Output: ('X'::character varying)
+   ->  Sort
+         Output: ('X'::character varying)
+         Sort Key: ('X'::character varying)
+         ->  Append
+               ->  Result
+                     Output: 'X'::character varying
+               ->  Result
+                     Output: 'X'::character varying
+(10 rows)
+
+explain(verbose ,costs off, nodes off) with t as  materialized(select * from dual union select * from dual) select * from t;
+                         QUERY PLAN                         
+------------------------------------------------------------
+ CTE Scan on t
+   Output: t.dummy
+   CTE t
+     ->  Unique
+           Output: ('X'::character varying)
+           ->  Sort
+                 Output: ('X'::character varying)
+                 Sort Key: ('X'::character varying)
+                 ->  Append
+                       ->  Result
+                             Output: 'X'::character varying
+                       ->  Result
+                             Output: 'X'::character varying
+(13 rows)
+
+explain(verbose ,costs off, nodes off) with t as (select * from dual union select * from dual) select * from t;
+                     QUERY PLAN                     
+----------------------------------------------------
+ Unique
+   Output: ('X'::character varying)
+   ->  Sort
+         Output: ('X'::character varying)
+         Sort Key: ('X'::character varying)
+         ->  Append
+               ->  Result
+                     Output: 'X'::character varying
+               ->  Result
+                     Output: 'X'::character varying
+(10 rows)
+
+explain(verbose ,costs off, nodes off) with recursive t as not materialized(select * from dual union select * from t) select * from t;
+                   QUERY PLAN                   
+------------------------------------------------
+ CTE Scan on t
+   Output: t.dummy
+   CTE t
+     ->  Recursive Union
+           ->  Result
+                 Output: 'X'::character varying
+           ->  WorkTable Scan on t t_1
+                 Output: t_1.dummy
+(8 rows)
+
+explain(verbose ,costs off, nodes off) with recursive t as materialized(select * from dual union select * from t) select * from t;
+                   QUERY PLAN                   
+------------------------------------------------
+ CTE Scan on t
+   Output: t.dummy
+   CTE t
+     ->  Recursive Union
+           ->  Result
+                 Output: 'X'::character varying
+           ->  WorkTable Scan on t t_1
+                 Output: t_1.dummy
+(8 rows)
+
+explain(verbose ,costs off, nodes off) with recursive t as (select * from dual union select * from t) select * from t;
+                   QUERY PLAN                   
+------------------------------------------------
+ CTE Scan on t
+   Output: t.dummy
+   CTE t
+     ->  Recursive Union
+           ->  Result
+                 Output: 'X'::character varying
+           ->  WorkTable Scan on t t_1
+                 Output: t_1.dummy
+(8 rows)
+
+drop view if exists dual_view;
+NOTICE:  view "dual_view" does not exist, skipping
+create view dual_view as with t as not materialized(select * from dual union select * from dual) select * from t;
+explain(verbose, costs off, nodes off) select * from dual_view;
+                     QUERY PLAN                     
+----------------------------------------------------
+ Unique
+   Output: ('X'::character varying)
+   ->  Sort
+         Output: ('X'::character varying)
+         Sort Key: ('X'::character varying)
+         ->  Append
+               ->  Result
+                     Output: 'X'::character varying
+               ->  Result
+                     Output: 'X'::character varying
+(10 rows)
+
+drop view dual_view;
+drop view if exists dual_view;
+NOTICE:  view "dual_view" does not exist, skipping
+create view dual_view as with t as materialized(select * from dual union select * from dual) select * from t;
+explain(verbose, costs off, nodes off) select * from dual_view;
+                         QUERY PLAN                         
+------------------------------------------------------------
+ CTE Scan on t
+   Output: t.dummy
+   CTE t
+     ->  Unique
+           Output: ('X'::character varying)
+           ->  Sort
+                 Output: ('X'::character varying)
+                 Sort Key: ('X'::character varying)
+                 ->  Append
+                       ->  Result
+                             Output: 'X'::character varying
+                       ->  Result
+                             Output: 'X'::character varying
+(13 rows)
+
+drop view dual_view;
+drop view if exists dual_view;
+NOTICE:  view "dual_view" does not exist, skipping
+create view dual_view as with t as (select * from dual union select * from dual) select * from t;
+explain(verbose, costs off, nodes off) select * from dual_view;
+                     QUERY PLAN                     
+----------------------------------------------------
+ Unique
+   Output: ('X'::character varying)
+   ->  Sort
+         Output: ('X'::character varying)
+         Sort Key: ('X'::character varying)
+         ->  Append
+               ->  Result
+                     Output: 'X'::character varying
+               ->  Result
+                     Output: 'X'::character varying
+(10 rows)
+
+drop view dual_view;
+drop view if exists dual_view;
+NOTICE:  view "dual_view" does not exist, skipping
+create view dual_view as with recursive t as not materialized(select * from dual union select * from t) select * from t;
+explain(verbose, costs off, nodes off) select * from dual_view;
+                   QUERY PLAN                   
+------------------------------------------------
+ CTE Scan on t
+   Output: t.dummy
+   CTE t
+     ->  Recursive Union
+           ->  Result
+                 Output: 'X'::character varying
+           ->  WorkTable Scan on t t_1
+                 Output: t_1.dummy
+(8 rows)
+
+drop view dual_view;
+drop view if exists dual_view;
+NOTICE:  view "dual_view" does not exist, skipping
+create view dual_view as with recursive t as materialized(select * from dual union select * from t) select * from t;
+explain(verbose, costs off, nodes off) select * from dual_view;
+                   QUERY PLAN                   
+------------------------------------------------
+ CTE Scan on t
+   Output: t.dummy
+   CTE t
+     ->  Recursive Union
+           ->  Result
+                 Output: 'X'::character varying
+           ->  WorkTable Scan on t t_1
+                 Output: t_1.dummy
+(8 rows)
+
+drop view dual_view;
+drop view if exists dual_view;
+NOTICE:  view "dual_view" does not exist, skipping
+create view dual_view as with recursive t as (select * from dual union select * from t) select * from t;
+explain(verbose, costs off, nodes off) select * from dual_view;
+                   QUERY PLAN                   
+------------------------------------------------
+ CTE Scan on t
+   Output: t.dummy
+   CTE t
+     ->  Recursive Union
+           ->  Result
+                 Output: 'X'::character varying
+           ->  WorkTable Scan on t t_1
+                 Output: t_1.dummy
+(8 rows)
+
+drop view dual_view;
+explain(verbose ,costs off, nodes off) with t as not materialized(select * from dual union select * from dual) select * from t;
+                     QUERY PLAN                     
+----------------------------------------------------
+ Unique
+   Output: ('X'::character varying)
+   ->  Sort
+         Output: ('X'::character varying)
+         Sort Key: ('X'::character varying)
+         ->  Append
+               ->  Result
+                     Output: 'X'::character varying
+               ->  Result
+                     Output: 'X'::character varying
+(10 rows)
+
+explain(verbose ,costs off, nodes off) with t as  materialized(select * from dual union select * from dual) select * from t;
+                         QUERY PLAN                         
+------------------------------------------------------------
+ CTE Scan on t
+   Output: t.dummy
+   CTE t
+     ->  Unique
+           Output: ('X'::character varying)
+           ->  Sort
+                 Output: ('X'::character varying)
+                 Sort Key: ('X'::character varying)
+                 ->  Append
+                       ->  Result
+                             Output: 'X'::character varying
+                       ->  Result
+                             Output: 'X'::character varying
+(13 rows)
+
+explain(verbose ,costs off, nodes off) with t as (select * from dual union select * from dual) select * from t;
+                     QUERY PLAN                     
+----------------------------------------------------
+ Unique
+   Output: ('X'::character varying)
+   ->  Sort
+         Output: ('X'::character varying)
+         Sort Key: ('X'::character varying)
+         ->  Append
+               ->  Result
+                     Output: 'X'::character varying
+               ->  Result
+                     Output: 'X'::character varying
+(10 rows)
+
+explain(verbose ,costs off, nodes off) with recursive t as not materialized(select * from dual union select * from t) select * from t;
+                   QUERY PLAN                   
+------------------------------------------------
+ CTE Scan on t
+   Output: t.dummy
+   CTE t
+     ->  Recursive Union
+           ->  Result
+                 Output: 'X'::character varying
+           ->  WorkTable Scan on t t_1
+                 Output: t_1.dummy
+(8 rows)
+
+explain(verbose ,costs off, nodes off) with recursive t as materialized(select * from dual union select * from t) select * from t;
+                   QUERY PLAN                   
+------------------------------------------------
+ CTE Scan on t
+   Output: t.dummy
+   CTE t
+     ->  Recursive Union
+           ->  Result
+                 Output: 'X'::character varying
+           ->  WorkTable Scan on t t_1
+                 Output: t_1.dummy
+(8 rows)
+
+explain(verbose ,costs off, nodes off) with recursive t as (select * from dual union select * from t) select * from t;
+                   QUERY PLAN                   
+------------------------------------------------
+ CTE Scan on t
+   Output: t.dummy
+   CTE t
+     ->  Recursive Union
+           ->  Result
+                 Output: 'X'::character varying
+           ->  WorkTable Scan on t t_1
+                 Output: t_1.dummy
+(8 rows)
+
+drop view if exists dual_view;
+NOTICE:  view "dual_view" does not exist, skipping
+create view dual_view as with t as not materialized(select * from dual union select * from dual) select * from t;
+explain(verbose, costs off, nodes off) select * from dual_view;
+                     QUERY PLAN                     
+----------------------------------------------------
+ Unique
+   Output: ('X'::character varying)
+   ->  Sort
+         Output: ('X'::character varying)
+         Sort Key: ('X'::character varying)
+         ->  Append
+               ->  Result
+                     Output: 'X'::character varying
+               ->  Result
+                     Output: 'X'::character varying
+(10 rows)
+
+drop view dual_view;
+drop view if exists dual_view;
+NOTICE:  view "dual_view" does not exist, skipping
+create view dual_view as with t as materialized(select * from dual union select * from dual) select * from t;
+explain(verbose, costs off, nodes off) select * from dual_view;
+                         QUERY PLAN                         
+------------------------------------------------------------
+ CTE Scan on t
+   Output: t.dummy
+   CTE t
+     ->  Unique
+           Output: ('X'::character varying)
+           ->  Sort
+                 Output: ('X'::character varying)
+                 Sort Key: ('X'::character varying)
+                 ->  Append
+                       ->  Result
+                             Output: 'X'::character varying
+                       ->  Result
+                             Output: 'X'::character varying
+(13 rows)
+
+drop view dual_view;
+drop view if exists dual_view;
+NOTICE:  view "dual_view" does not exist, skipping
+create view dual_view as with t as (select * from dual union select * from dual) select * from t;
+explain(verbose, costs off, nodes off) select * from dual_view;
+                     QUERY PLAN                     
+----------------------------------------------------
+ Unique
+   Output: ('X'::character varying)
+   ->  Sort
+         Output: ('X'::character varying)
+         Sort Key: ('X'::character varying)
+         ->  Append
+               ->  Result
+                     Output: 'X'::character varying
+               ->  Result
+                     Output: 'X'::character varying
+(10 rows)
+
+drop view dual_view;
+drop view if exists dual_view;
+NOTICE:  view "dual_view" does not exist, skipping
+create view dual_view as with recursive t as not materialized(select * from dual union select * from t) select * from t;
+explain(verbose, costs off, nodes off) select * from dual_view;
+                   QUERY PLAN                   
+------------------------------------------------
+ CTE Scan on t
+   Output: t.dummy
+   CTE t
+     ->  Recursive Union
+           ->  Result
+                 Output: 'X'::character varying
+           ->  WorkTable Scan on t t_1
+                 Output: t_1.dummy
+(8 rows)
+
+drop view dual_view;
+drop view if exists dual_view;
+NOTICE:  view "dual_view" does not exist, skipping
+create view dual_view as with recursive t as materialized(select * from dual union select * from t) select * from t;
+explain(verbose, costs off, nodes off) select * from dual_view;
+                   QUERY PLAN                   
+------------------------------------------------
+ CTE Scan on t
+   Output: t.dummy
+   CTE t
+     ->  Recursive Union
+           ->  Result
+                 Output: 'X'::character varying
+           ->  WorkTable Scan on t t_1
+                 Output: t_1.dummy
+(8 rows)
+
+drop view dual_view;
+drop view if exists dual_view;
+NOTICE:  view "dual_view" does not exist, skipping
+create view dual_view as with recursive t as (select * from dual union select * from t) select * from t;
+explain(verbose, costs off, nodes off) select * from dual_view;
+                   QUERY PLAN                   
+------------------------------------------------
+ CTE Scan on t
+   Output: t.dummy
+   CTE t
+     ->  Recursive Union
+           ->  Result
+                 Output: 'X'::character varying
+           ->  WorkTable Scan on t t_1
+                 Output: t_1.dummy
+(8 rows)
+
+drop view dual_view;
+--test FQS with as mat/not mat
+set enable_fast_query_shipping to on;
+set enable_mergejoin to off;
+set enable_nestloop to off;
+drop table if exists test_fqs;
+NOTICE:  table "test_fqs" does not exist, skipping
+create table test_fqs(i int, j int) distribute by replication;
+insert into test_fqs select i, i+1 from generate_series(1,10) t(i);
+explain (verbose, costs off)
+with t(i) as materialized
+    (select case  when i > 4 then i else 4 end from test_fqs)
+select * from t natural join test_fqs
+    union
+select * from test_fqs where exists(select 1 from t where t.i = test_fqs.i);
+                                                                                                                                                        QUERY PLAN                                                                                                                                                         
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Remote Fast Query Execution
+   Output: "*SELECT* 1".i, "*SELECT* 1".j
+   Node/s: datanode_1
+   Remote query: WITH t(i) AS MATERIALIZED (SELECT CASE WHEN (test_fqs.i > 4) THEN test_fqs.i ELSE 4 END AS "case" FROM public.test_fqs) SELECT t.i, test_fqs.j FROM (t JOIN public.test_fqs USING (i)) UNION SELECT test_fqs.i, test_fqs.j FROM public.test_fqs WHERE (EXISTS (SELECT 1 FROM t WHERE (t.i = test_fqs.i)))
+   ->  HashAggregate
+         Output: t.i, test_fqs.j
+         Group Key: t.i, test_fqs.j
+         CTE t
+           ->  Seq Scan on public.test_fqs test_fqs_2
+                 Output: CASE WHEN (test_fqs_2.i > 4) THEN test_fqs_2.i ELSE 4 END
+         ->  Append
+               ->  Hash Join
+                     Output: t.i, test_fqs.j
+                     Hash Cond: (t.i = test_fqs.i)
+                     ->  CTE Scan on t
+                           Output: t.i
+                     ->  Hash
+                           Output: test_fqs.j, test_fqs.i
+                           ->  Seq Scan on public.test_fqs
+                                 Output: test_fqs.j, test_fqs.i
+               ->  Hash Join
+                     Output: test_fqs_1.i, test_fqs_1.j
+                     Inner Unique: true
+                     Hash Cond: (test_fqs_1.i = t_1.i)
+                     ->  Seq Scan on public.test_fqs test_fqs_1
+                           Output: test_fqs_1.i, test_fqs_1.j
+                     ->  Hash
+                           Output: t_1.i
+                           ->  HashAggregate
+                                 Output: t_1.i
+                                 Group Key: t_1.i
+                                 ->  CTE Scan on t t_1
+                                       Output: t_1.i
+(33 rows)
+
+explain (verbose, costs off)
+with t(i) as not materialized
+    (select case  when i > 4 then i else 4 end from test_fqs)
+select * from t natural join test_fqs
+    union
+select * from test_fqs where exists(select 1 from t where t.i = test_fqs.i);
+                                                                                                                                                          QUERY PLAN                                                                                                                                                           
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Remote Fast Query Execution
+   Output: "*SELECT* 1".i, "*SELECT* 1".j
+   Node/s: datanode_1
+   Remote query: WITH t(i) AS NOT MATERIALIZED (SELECT CASE WHEN (test_fqs.i > 4) THEN test_fqs.i ELSE 4 END AS "case" FROM public.test_fqs) SELECT t.i, test_fqs.j FROM (t JOIN public.test_fqs USING (i)) UNION SELECT test_fqs.i, test_fqs.j FROM public.test_fqs WHERE (EXISTS (SELECT 1 FROM t WHERE (t.i = test_fqs.i)))
+   ->  HashAggregate
+         Output: (CASE WHEN (test_fqs_1.i > 4) THEN test_fqs_1.i ELSE 4 END), test_fqs.j
+         Group Key: (CASE WHEN (test_fqs_1.i > 4) THEN test_fqs_1.i ELSE 4 END), test_fqs.j
+         ->  Append
+               ->  Hash Join
+                     Output: CASE WHEN (test_fqs_1.i > 4) THEN test_fqs_1.i ELSE 4 END, test_fqs.j
+                     Hash Cond: (CASE WHEN (test_fqs_1.i > 4) THEN test_fqs_1.i ELSE 4 END = test_fqs.i)
+                     ->  Seq Scan on public.test_fqs test_fqs_1
+                           Output: test_fqs_1.i, test_fqs_1.j
+                     ->  Hash
+                           Output: test_fqs.j, test_fqs.i
+                           ->  Seq Scan on public.test_fqs
+                                 Output: test_fqs.j, test_fqs.i
+               ->  Hash Join
+                     Output: test_fqs_2.i, test_fqs_2.j
+                     Inner Unique: true
+                     Hash Cond: (test_fqs_2.i = (CASE WHEN (test_fqs_3.i > 4) THEN test_fqs_3.i ELSE 4 END))
+                     ->  Seq Scan on public.test_fqs test_fqs_2
+                           Output: test_fqs_2.i, test_fqs_2.j
+                     ->  Hash
+                           Output: test_fqs_3.i, (CASE WHEN (test_fqs_3.i > 4) THEN test_fqs_3.i ELSE 4 END)
+                           ->  HashAggregate
+                                 Output: test_fqs_3.i, (CASE WHEN (test_fqs_3.i > 4) THEN test_fqs_3.i ELSE 4 END)
+                                 Group Key: CASE WHEN (test_fqs_3.i > 4) THEN test_fqs_3.i ELSE 4 END
+                                 ->  Seq Scan on public.test_fqs test_fqs_3
+                                       Output: test_fqs_3.i, CASE WHEN (test_fqs_3.i > 4) THEN test_fqs_3.i ELSE 4 END
+(30 rows)
+
+explain (verbose, costs off)
+with t(i) as
+    (select case  when i > 4 then i else 4 end from test_fqs)
+select * from t natural join test_fqs
+    union
+select * from test_fqs where exists(select 1 from t where t.i = test_fqs.i);
+                                                                                                                                                  QUERY PLAN                                                                                                                                                  
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Remote Fast Query Execution
+   Output: "*SELECT* 1".i, "*SELECT* 1".j
+   Node/s: datanode_1
+   Remote query: WITH t(i) AS (SELECT CASE WHEN (test_fqs.i > 4) THEN test_fqs.i ELSE 4 END AS "case" FROM public.test_fqs) SELECT t.i, test_fqs.j FROM (t JOIN public.test_fqs USING (i)) UNION SELECT test_fqs.i, test_fqs.j FROM public.test_fqs WHERE (EXISTS (SELECT 1 FROM t WHERE (t.i = test_fqs.i)))
+   ->  HashAggregate
+         Output: t.i, test_fqs.j
+         Group Key: t.i, test_fqs.j
+         CTE t
+           ->  Seq Scan on public.test_fqs test_fqs_2
+                 Output: CASE WHEN (test_fqs_2.i > 4) THEN test_fqs_2.i ELSE 4 END
+         ->  Append
+               ->  Hash Join
+                     Output: t.i, test_fqs.j
+                     Hash Cond: (t.i = test_fqs.i)
+                     ->  CTE Scan on t
+                           Output: t.i
+                     ->  Hash
+                           Output: test_fqs.j, test_fqs.i
+                           ->  Seq Scan on public.test_fqs
+                                 Output: test_fqs.j, test_fqs.i
+               ->  Hash Join
+                     Output: test_fqs_1.i, test_fqs_1.j
+                     Inner Unique: true
+                     Hash Cond: (test_fqs_1.i = t_1.i)
+                     ->  Seq Scan on public.test_fqs test_fqs_1
+                           Output: test_fqs_1.i, test_fqs_1.j
+                     ->  Hash
+                           Output: t_1.i
+                           ->  HashAggregate
+                                 Output: t_1.i
+                                 Group Key: t_1.i
+                                 ->  CTE Scan on t t_1
+                                       Output: t_1.i
+(33 rows)
+
+-- test result,expect empty
+(with t(i) as not materialized
+    (select case  when i > 4 then i else 4 end from test_fqs)
+select * from t natural join test_fqs
+    union
+select * from test_fqs where exists(select 1 from t where t.i = test_fqs.i))
+except
+(with t(i) as materialized
+    (select case  when i > 4 then i else 4 end from test_fqs)
+select * from t natural join test_fqs
+    union
+select * from test_fqs where exists( select 1 from t where t.i = test_fqs.i));
+ i | j 
+---+---
+(0 rows)
+
+(with t(i) as
+    (select case  when i > 4 then i else 4 end from test_fqs)
+select * from t natural join test_fqs
+    union
+select * from test_fqs where exists(select 1 from t where t.i = test_fqs.i))
+except
+(with t(i) as materialized
+    (select case  when i > 4 then i else 4 end from test_fqs)
+select * from t natural join test_fqs
+    union
+select * from test_fqs where exists( select 1 from t where t.i = test_fqs.i));
+ i | j 
+---+---
+(0 rows)
+
+set enable_fast_query_shipping to off;
+explain (verbose, costs off)
+with t(i) as materialized
+    (select case  when i > 4 then i else 4 end from test_fqs)
+select * from t natural join test_fqs
+    union
+select * from test_fqs where exists(select 1 from t where t.i = test_fqs.i);
+                                    QUERY PLAN                                     
+-----------------------------------------------------------------------------------
+ HashAggregate
+   Output: t.i, test_fqs.j
+   Group Key: t.i, test_fqs.j
+   CTE t
+     ->  Remote Subquery Scan[3] on all (datanode_1)
+           Output: (CASE WHEN (test_fqs_2.i > 4) THEN test_fqs_2.i ELSE 4 END)
+           ->  Seq Scan on public.test_fqs test_fqs_2
+                 Output: CASE WHEN (test_fqs_2.i > 4) THEN test_fqs_2.i ELSE 4 END
+   ->  Append
+         ->  Hash Join
+               Output: t.i, test_fqs.j
+               Hash Cond: (test_fqs.i = t.i)
+               ->  Remote Subquery Scan[1] on all (datanode_1)
+                     Output: test_fqs.j, test_fqs.i
+                     ->  Seq Scan on public.test_fqs
+                           Output: test_fqs.j, test_fqs.i
+               ->  Hash
+                     Output: t.i
+                     ->  CTE Scan on t
+                           Output: t.i
+         ->  Hash Join
+               Output: test_fqs_1.i, test_fqs_1.j
+               Inner Unique: true
+               Hash Cond: (test_fqs_1.i = t_1.i)
+               ->  Remote Subquery Scan[2] on all (datanode_1)
+                     Output: test_fqs_1.i, test_fqs_1.j
+                     ->  Seq Scan on public.test_fqs test_fqs_1
+                           Output: test_fqs_1.i, test_fqs_1.j
+               ->  Hash
+                     Output: t_1.i
+                     ->  HashAggregate
+                           Output: t_1.i
+                           Group Key: t_1.i
+                           ->  CTE Scan on t t_1
+                                 Output: t_1.i
+(35 rows)
+
+explain (verbose, costs off)
+with t(i) as not materialized
+    (select case  when i > 4 then i else 4 end from test_fqs)
+select * from t natural join test_fqs
+    union
+select * from test_fqs where exists(select 1 from t where t.i = test_fqs.i);
+                                                      QUERY PLAN                                                       
+-----------------------------------------------------------------------------------------------------------------------
+ Remote Subquery Scan[1] on all (datanode_1)
+   Output: (CASE WHEN (test_fqs_1.i > 4) THEN test_fqs_1.i ELSE 4 END), test_fqs.j
+   ->  HashAggregate
+         Output: (CASE WHEN (test_fqs_1.i > 4) THEN test_fqs_1.i ELSE 4 END), test_fqs.j
+         Group Key: (CASE WHEN (test_fqs_1.i > 4) THEN test_fqs_1.i ELSE 4 END), test_fqs.j
+         ->  Append
+               ->  Hash Join
+                     Output: CASE WHEN (test_fqs_1.i > 4) THEN test_fqs_1.i ELSE 4 END, test_fqs.j
+                     Hash Cond: (CASE WHEN (test_fqs_1.i > 4) THEN test_fqs_1.i ELSE 4 END = test_fqs.i)
+                     ->  Seq Scan on public.test_fqs test_fqs_1
+                           Output: test_fqs_1.i, test_fqs_1.j
+                     ->  Hash
+                           Output: test_fqs.j, test_fqs.i
+                           ->  Seq Scan on public.test_fqs
+                                 Output: test_fqs.j, test_fqs.i
+               ->  Hash Join
+                     Output: test_fqs_2.i, test_fqs_2.j
+                     Inner Unique: true
+                     Hash Cond: (test_fqs_2.i = (CASE WHEN (test_fqs_3.i > 4) THEN test_fqs_3.i ELSE 4 END))
+                     ->  Seq Scan on public.test_fqs test_fqs_2
+                           Output: test_fqs_2.i, test_fqs_2.j
+                     ->  Hash
+                           Output: test_fqs_3.i, (CASE WHEN (test_fqs_3.i > 4) THEN test_fqs_3.i ELSE 4 END)
+                           ->  HashAggregate
+                                 Output: test_fqs_3.i, (CASE WHEN (test_fqs_3.i > 4) THEN test_fqs_3.i ELSE 4 END)
+                                 Group Key: CASE WHEN (test_fqs_3.i > 4) THEN test_fqs_3.i ELSE 4 END
+                                 ->  Seq Scan on public.test_fqs test_fqs_3
+                                       Output: test_fqs_3.i, CASE WHEN (test_fqs_3.i > 4) THEN test_fqs_3.i ELSE 4 END
+(28 rows)
+
+explain (verbose, costs off)
+with t(i) as
+    (select case  when i > 4 then i else 4 end from test_fqs)
+select * from t natural join test_fqs
+    union
+select * from test_fqs where exists(select 1 from t where t.i = test_fqs.i);
+                                    QUERY PLAN                                     
+-----------------------------------------------------------------------------------
+ HashAggregate
+   Output: t.i, test_fqs.j
+   Group Key: t.i, test_fqs.j
+   CTE t
+     ->  Remote Subquery Scan[3] on all (datanode_1)
+           Output: (CASE WHEN (test_fqs_2.i > 4) THEN test_fqs_2.i ELSE 4 END)
+           ->  Seq Scan on public.test_fqs test_fqs_2
+                 Output: CASE WHEN (test_fqs_2.i > 4) THEN test_fqs_2.i ELSE 4 END
+   ->  Append
+         ->  Hash Join
+               Output: t.i, test_fqs.j
+               Hash Cond: (test_fqs.i = t.i)
+               ->  Remote Subquery Scan[1] on all (datanode_1)
+                     Output: test_fqs.j, test_fqs.i
+                     ->  Seq Scan on public.test_fqs
+                           Output: test_fqs.j, test_fqs.i
+               ->  Hash
+                     Output: t.i
+                     ->  CTE Scan on t
+                           Output: t.i
+         ->  Hash Join
+               Output: test_fqs_1.i, test_fqs_1.j
+               Inner Unique: true
+               Hash Cond: (test_fqs_1.i = t_1.i)
+               ->  Remote Subquery Scan[2] on all (datanode_1)
+                     Output: test_fqs_1.i, test_fqs_1.j
+                     ->  Seq Scan on public.test_fqs test_fqs_1
+                           Output: test_fqs_1.i, test_fqs_1.j
+               ->  Hash
+                     Output: t_1.i
+                     ->  HashAggregate
+                           Output: t_1.i
+                           Group Key: t_1.i
+                           ->  CTE Scan on t t_1
+                                 Output: t_1.i
+(35 rows)
+
+-- test result,expect empty
+(with t(i) as not materialized
+    (select case  when i > 4 then i else 4 end from test_fqs)
+select * from t natural join test_fqs
+    union
+select * from test_fqs where exists(select 1 from t where t.i = test_fqs.i))
+except
+(with t(i) as materialized
+    (select case  when i > 4 then i else 4 end from test_fqs)
+select * from t natural join test_fqs
+    union
+select * from test_fqs where exists( select 1 from t where t.i = test_fqs.i));
+ i | j 
+---+---
+(0 rows)
+
+(with t(i) as
+    (select case  when i > 4 then i else 4 end from test_fqs)
+select * from t natural join test_fqs
+    union
+select * from test_fqs where exists(select 1 from t where t.i = test_fqs.i))
+except
+(with t(i) as materialized
+    (select case  when i > 4 then i else 4 end from test_fqs)
+select * from t natural join test_fqs
+    union
+select * from test_fqs where exists( select 1 from t where t.i = test_fqs.i));
+ i | j 
+---+---
+(0 rows)
+
+reset enable_fast_query_shipping;
+reset enable_mergejoin;
+reset enable_nestloop;
+drop table test_fqs;
+-- Cancel with recursive error alarm and verify
+-- https://git.woa.com/OpenTenBase/OpenTenBase-V3.0/merge_requests/4337/checkers
+create table test1 (id1 character varying) distribute by replication;
+create table test2 (id2 int) distribute by shard(id2);
+INSERT INTO test1 (id1) SELECT id FROM generate_series(1, 1000) AS id;
+INSERT INTO test2 (id2) SELECT id FROM generate_series(1, 1000) AS id;
+WITH RECURSIVE recursive_query_test1 (level, id1)
+AS (
+    SELECT 1, id1
+    FROM test1
+    WHERE id1 = '1'
+    UNION ALL
+    SELECT r.level + 1, t.id1
+    FROM test1 t
+    INNER JOIN recursive_query_test1 r ON t.id1::int = r.id1::int + 1
+    WHERE t.id1::int <= 10
+)
+SELECT * FROM recursive_query_test1;
+ level | id1 
+-------+-----
+     1 | 1
+     2 | 2
+     3 | 3
+     4 | 4
+     5 | 5
+     6 | 6
+     7 | 7
+     8 | 8
+     9 | 9
+    10 | 10
+(10 rows)
+
+WITH RECURSIVE recursive_query_test2 (level, id2)
+AS (
+    SELECT 1, id2
+    FROM test2
+    WHERE id2 = 1
+    UNION ALL
+    SELECT r.level + 1, t.id2
+    FROM test2 t
+    INNER JOIN recursive_query_test2 r ON t.id2 = r.id2 + 1
+    WHERE t.id2 <= 10
+)
+SELECT * FROM recursive_query_test2;
+ level | id2 
+-------+-----
+     1 |   1
+     2 |   2
+     3 |   3
+     4 |   4
+     5 |   5
+     6 |   6
+     7 |   7
+     8 |   8
+     9 |   9
+    10 |  10
+(10 rows)
+
+DROP TABLE test1;
+DROP TABLE test2;
+-- OpenTenBase: rescan shared cte under subquery
+create table with_t1(id int, age int, name text, score numeric);
+create table with_t2(id int, age int, name text, score numeric);
+insert into with_t1 values(generate_series(1,10), 10, 'abc', generate_series(1,10));
+insert into with_t2 values(generate_series(1,10), 20, 'xyz', generate_series(1,10));
+explain (costs off)
+update with_t2 set age =
+(select age+1 from
+(
+with ctetmp as (select age, avg(score) as score from with_t1 group by age)
+ select * from ctetmp where with_t2.id >
+ (select with_t1.id from with_t1, ctetmp where with_t1.score > ctetmp.score and with_t2.score > ctetmp.score order by 1 limit 1)
+) c);
+                                             QUERY PLAN                                              
+-----------------------------------------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   Params Evaluated: $0, $2
+   ->  Update on with_t2
+         ->  Seq Scan on with_t2
+               SubPlan 3
+                 ->  Subquery Scan on c
+                       ->  Result
+                             One-Time Filter: (with_t2.id > $2)
+                             CTE ctetmp
+                               ->  Remote Subquery Scan on all (datanodes 2)
+                                     Sort Key: with_t1.age
+                                     ->  Finalize HashAggregate
+                                           Group Key: with_t1.age
+                                           ->  Remote Subquery Scan on all (datanodes 2)
+                                                 Distribute results by S: age
+                                                 ->  Partial HashAggregate
+                                                       Group Key: with_t1.age
+                                                       ->  Seq Scan on with_t1
+                             InitPlan 2 (returns $2)
+                               ->  Limit
+                                     ->  Sort
+                                           Sort Key: with_t1_1.id
+                                           ->  Nested Loop
+                                                 Join Filter: (with_t1_1.score > ctetmp.score)
+                                                 ->  CTE Scan on ctetmp
+                                                       Filter: (with_t2.score > score)
+                                                 ->  Materialize
+                                                       ->  Remote Subquery Scan on all (datanodes 2)
+                                                             ->  Seq Scan on with_t1 with_t1_1
+                             ->  CTE Scan on ctetmp ctetmp_1
+(30 rows)
+
+update with_t2 set age =
+(select age+1 from
+(
+with ctetmp as (select age, avg(score) as score from with_t1 group by age)
+ select * from ctetmp where with_t2.id >
+ (select with_t1.id from with_t1, ctetmp where with_t1.score > ctetmp.score and with_t2.score > ctetmp.score order by 1 limit 1)
+) c);
+select * from with_t2 order by id;
+ id | age | name | score 
+----+-----+------+-------
+  1 |     | xyz  |     1
+  2 |     | xyz  |     2
+  3 |     | xyz  |     3
+  4 |     | xyz  |     4
+  5 |     | xyz  |     5
+  6 |     | xyz  |     6
+  7 |  11 | xyz  |     7
+  8 |  11 | xyz  |     8
+  9 |  11 | xyz  |     9
+ 10 |  11 | xyz  |    10
+(10 rows)
+
+drop table with_t1;
+drop table with_t2;

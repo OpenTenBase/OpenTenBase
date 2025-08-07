@@ -1,13 +1,13 @@
 /*-------------------------------------------------------------------------
  *
  * discard.c
- *      The implementation of the DISCARD command
+ *	  The implementation of the DISCARD command
  *
  * Copyright (c) 1996-2017, PostgreSQL Global Development Group
  *
  *
  * IDENTIFICATION
- *      src/backend/commands/discard.c
+ *	  src/backend/commands/discard.c
  *
  *-------------------------------------------------------------------------
  */
@@ -30,49 +30,49 @@ static void DiscardAll(bool isTopLevel);
 void
 DiscardCommand(DiscardStmt *stmt, bool isTopLevel)
 {
-    switch (stmt->target)
-    {
-        case DISCARD_ALL:
-            DiscardAll(isTopLevel);
-            break;
+	switch (stmt->target)
+	{
+		case DISCARD_ALL:
+			DiscardAll(isTopLevel);
+			break;
 
-        case DISCARD_PLANS:
-            ResetPlanCache();
-            break;
+		case DISCARD_PLANS:
+			ResetPlanCache();
+			break;
 
-        case DISCARD_SEQUENCES:
-            ResetSequenceCaches();
-            break;
+		case DISCARD_SEQUENCES:
+			ResetSequenceCaches();
+			break;
 
-        case DISCARD_TEMP:
-            ResetTempTableNamespace();
-            break;
+		case DISCARD_TEMP:
+			ResetTempTableNamespace();
+			break;
 
-        default:
-            elog(ERROR, "unrecognized DISCARD target: %d", stmt->target);
-    }
+		default:
+			elog(ERROR, "unrecognized DISCARD target: %d", stmt->target);
+	}
 }
 
 static void
 DiscardAll(bool isTopLevel)
 {
-    /*
-     * Disallow DISCARD ALL in a transaction block. This is arguably
-     * inconsistent (we don't make a similar check in the command sequence
-     * that DISCARD ALL is equivalent to), but the idea is to catch mistakes:
-     * DISCARD ALL inside a transaction block would leave the transaction
-     * still uncommitted.
-     */
-    PreventTransactionChain(isTopLevel, "DISCARD ALL");
+	/*
+	 * Disallow DISCARD ALL in a transaction block. This is arguably
+	 * inconsistent (we don't make a similar check in the command sequence
+	 * that DISCARD ALL is equivalent to), but the idea is to catch mistakes:
+	 * DISCARD ALL inside a transaction block would leave the transaction
+	 * still uncommitted.
+	 */
+	PreventTransactionChain(isTopLevel, "DISCARD ALL");
 
-    /* Closing portals might run user-defined code, so do that first. */
-    PortalHashTableDeleteAll();
-    SetPGVariable("session_authorization", NIL, false);
-    ResetAllOptions();
-    DropAllPreparedStatements();
-    Async_UnlistenAll();
-    LockReleaseAll(USER_LOCKMETHOD, true);
-    ResetPlanCache();
-    ResetTempTableNamespace();
-    ResetSequenceCaches();
+	/* Closing portals might run user-defined code, so do that first. */
+	PortalHashTableDeleteAll();
+	SetPGVariable("session_authorization", NIL, false);
+	ResetAllOptions(false, true);
+	DropAllPreparedStatements();
+	Async_UnlistenAll();
+	LockReleaseAll(USER_LOCKMETHOD, true);
+	ResetPlanCache();
+	ResetTempTableNamespace();
+	ResetSequenceCaches();
 }

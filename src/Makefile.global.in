@@ -172,6 +172,7 @@ endif # PGXS
 includedir_server = $(pkgincludedir)/server
 includedir_internal = $(pkgincludedir)/internal
 pgxsdir = $(pkglibdir)/pgxs
+bitcodedir = $(pkglibdir)/bitcode
 
 
 ##########################################################################
@@ -185,10 +186,14 @@ with_perl	= @with_perl@
 with_python	= @with_python@
 with_tcl	= @with_tcl@
 with_openssl	= @with_openssl@
+with_3rdpartydir	= @with_3rdpartydir@
 with_selinux	= @with_selinux@
 with_systemd	= @with_systemd@
 with_libxml	= @with_libxml@
 with_libxslt	= @with_libxslt@
+with_llvm	= @with_llvm@
+with_kms       = @with_kms@
+with_sm		= @with_sm@
 with_system_tzdata = @with_system_tzdata@
 with_uuid	= @with_uuid@
 with_zlib	= @with_zlib@
@@ -197,9 +202,12 @@ enable_nls	= @enable_nls@
 enable_debug	= @enable_debug@
 enable_dtrace	= @enable_dtrace@
 enable_coverage	= @enable_coverage@
+enable_simd	= @enable_simd@
+enable_regress = @enable_regress@
 enable_tap_tests	= @enable_tap_tests@
 enable_thread_safety	= @enable_thread_safety@
 enable_strong_random	= @enable_strong_random@
+enable_tdx	= @enable_tdx@
 
 python_includespec	= @python_includespec@
 python_libdir		= @python_libdir@
@@ -207,6 +215,7 @@ python_libspec		= @python_libspec@
 python_additional_libs	= @python_additional_libs@
 python_majorversion	= @python_majorversion@
 python_version		= @python_version@
+enable_memory_check	= @enable_memory_check@
 
 krb_srvtab = @krb_srvtab@
 
@@ -223,6 +232,11 @@ TCL_SHLIB_LD_LIBS	= @TCL_SHLIB_LD_LIBS@
 PTHREAD_CFLAGS		= @PTHREAD_CFLAGS@
 PTHREAD_LIBS		= @PTHREAD_LIBS@
 
+LLVM_CONFIG = @LLVM_CONFIG@
+LLVM_BINPATH = @LLVM_BINPATH@
+CLANG = @CLANG@
+BITCODE_CFLAGS = @BITCODE_CFLAGS@
+BITCODE_CXXFLAGS = @BITCODE_CXXFLAGS@
 
 ##########################################################################
 #
@@ -238,7 +252,7 @@ override CPPFLAGS := $(ICU_CFLAGS) $(CPPFLAGS)
 ifdef PGXS
 override CPPFLAGS := -I$(includedir_server) -I$(includedir_internal) $(CPPFLAGS)
 else # not PGXS
-override CPPFLAGS := -I$(top_srcdir)/src/include $(CPPFLAGS)
+override CPPFLAGS := -I$(top_srcdir)/src/include $(CPPFLAGS) -I$(top_srcdir)/src/pl/plpgsql/src
 ifdef VPATH
 override CPPFLAGS := -I$(top_builddir)/src/include $(CPPFLAGS)
 endif
@@ -247,9 +261,19 @@ endif # not PGXS
 CC = @CC@
 GCC = @GCC@
 SUN_STUDIO_CC = @SUN_STUDIO_CC@
+CXX = @CXX@
 CFLAGS = @CFLAGS@
 CFLAGS_VECTOR = @CFLAGS_VECTOR@
 CFLAGS_SSE42 = @CFLAGS_SSE42@
+CFLAGS_ARMV8_CRC32C = @CFLAGS_ARMV8_CRC32C@
+PERMIT_DECLARATION_AFTER_STATEMENT = @PERMIT_DECLARATION_AFTER_STATEMENT@
+CXXFLAGS = @CXXFLAGS@
+
+LLVM_CPPFLAGS = @LLVM_CPPFLAGS@
+LLVM_CFLAGS = @LLVM_CFLAGS@
+LLVM_CXXFLAGS = @LLVM_CXXFLAGS@
+
+KMS_CXXFLAGS = @KMS_CXXFLAGS@
 
 # Kind-of compilers
 
@@ -271,6 +295,8 @@ LDAP_LIBS_FE = @LDAP_LIBS_FE@
 LDAP_LIBS_BE = @LDAP_LIBS_BE@
 UUID_LIBS = @UUID_LIBS@
 UUID_EXTRA_OBJS = @UUID_EXTRA_OBJS@
+LLVM_LIBS=@LLVM_LIBS@
+KMS_LIBS=@KMS_LIBS@
 LD = @LD@
 with_gnu_ld = @with_gnu_ld@
 
@@ -328,8 +354,9 @@ BZIP2	= bzip2
 
 check: temp-install
 
-#EXTRA_INSTALL+=contrib/opentenbase_mls
-#EXTRA_INSTALL+=contrib/pg_fga
+EXTRA_INSTALL+=contrib/opentenbase_mls
+EXTRA_INSTALL+=contrib/btree_gin
+EXTRA_INSTALL+=contrib/btree_gist
 
 .PHONY: temp-install
 temp-install:
@@ -484,6 +511,8 @@ libpq_srcdir = $(top_srcdir)/src/interfaces/libpq
 libpq_builddir = $(top_builddir)/src/interfaces/libpq
 endif
 
+override CPPFLAGS := -I$(libpq_srcdir) $(CPPFLAGS)
+
 # This macro is for use by libraries linking to libpq.  (Because libpgport
 # isn't created with the same link flags as libpq, it can't be used.)
 libpq = -L$(libpq_builddir) -lpq
@@ -558,33 +587,133 @@ endif
 pg_regress_locale_flags = $(if $(ENCODING),--encoding=$(ENCODING)) $(NOLOCALE)
 pg_regress_clean_files = results/ regression.diffs regression.out tmp_check/ tmp_check_iso/ log/ output_iso/
 
-pg_regress_check = \
-    $(with_temp_install) \
-    $(top_builddir)/src/test/regress/pg_regress \
-    --temp-instance=./tmp_check \
-    --inputdir=$(srcdir) \
-    --bindir= \
-    $(TEMP_CONF) \
-    $(pg_regress_locale_flags) $(EXTRA_REGRESS_OPTS)
-pg_regress_installcheck = \
-    $(top_builddir)/src/test/regress/pg_regress \
-    --inputdir=$(srcdir) \
-    --bindir='$(bindir)' \
-    $(pg_regress_locale_flags) $(EXTRA_REGRESS_OPTS)
+ifeq ($(enable_memory_check), yes)
+	pg_regress_check = \
+		export ASAN_OPTIONS='detect_leaks=1:force_check_leak=1:abort_on_error=0:disable_coredump=1:unmap_shadow_on_exit=0:allocator_may_return_null=1:halt_on_error=0:alloc_dealloc_mismatch=0:log_path=$(abs_top_builddir)/src/test/regress/memcheck/asan/runlog/asan.log' && \
+		export LSAN_OPTIONS='exitcode=0:suppressions=$(abs_top_builddir)/src/test/regress/memcheck/asan/suppressions/memleak_ignore:print_suppressions=0' && \
+		$(with_temp_install) \
+		$(top_builddir)/src/test/regress/pg_regress \
+		--temp-instance=./tmp_check \
+		--inputdir=$(srcdir) \
+		--bindir= \
+		$(TEMP_CONF) \
+		$(pg_regress_locale_flags) $(EXTRA_REGRESS_OPTS)
+	pg_regress_installcheck = \
+		export ASAN_OPTIONS='detect_leaks=1:force_check_leak=1:abort_on_error=0:disable_coredump=1:unmap_shadow_on_exit=0:allocator_may_return_null=1:halt_on_error=0:alloc_dealloc_mismatch=0:log_path=$(abs_top_builddir)/src/test/regress/memcheck/asan/runlog/asan.log' && \
+		export LSAN_OPTIONS='exitcode=0:suppressions=$(abs_top_builddir)/src/test/regress/memcheck/asan/suppressions/memleak_ignore:print_suppressions=0' && \
+		$(top_builddir)/src/test/regress/pg_regress \
+		--inputdir=$(srcdir) \
+		--bindir='$(bindir)' \
+		$(pg_regress_locale_flags) $(EXTRA_REGRESS_OPTS)
 
-pg_isolation_regress_check = \
-    $(with_temp_install) \
-    $(top_builddir)/src/test/isolation/pg_isolation_regress \
-    --temp-instance=./tmp_check_iso \
-    --inputdir=$(srcdir) --outputdir=output_iso \
-    --bindir= \
-    $(TEMP_CONF) \
-    $(pg_regress_locale_flags) $(EXTRA_REGRESS_OPTS)
-pg_isolation_regress_installcheck = \
-    $(top_builddir)/src/test/isolation/pg_isolation_regress \
-    --inputdir=$(srcdir) --outputdir=output_iso \
-    --bindir='$(bindir)' \
-    $(pg_regress_locale_flags) $(EXTRA_REGRESS_OPTS)
+	pg_regress_check_dn = \
+		export ASAN_OPTIONS='detect_leaks=1:force_check_leak=1:abort_on_error=0:disable_coredump=1:unmap_shadow_on_exit=0:allocator_may_return_null=1:halt_on_error=0:alloc_dealloc_mismatch=0:log_path=$(abs_top_builddir)/src/test/regress_dn/memcheck/asan/runlog/asan.log' && \
+		export LSAN_OPTIONS='exitcode=0:suppressions=$(abs_top_builddir)/src/test/regress_dn/memcheck/asan/suppressions/memleak_ignore:print_suppressions=0' && \
+		$(with_temp_install) \
+		$(top_builddir)/src/test/regress_dn/pg_regress \
+		--temp-instance=./tmp_check \
+		--inputdir=$(srcdir) \
+		--bindir= \
+		$(TEMP_CONF) \
+		$(pg_regress_locale_flags) $(EXTRA_REGRESS_OPTS)
+	pg_regress_installcheck_dn = \
+		export ASAN_OPTIONS='detect_leaks=1:force_check_leak=1:abort_on_error=0:disable_coredump=1:unmap_shadow_on_exit=0:allocator_may_return_null=1:halt_on_error=0:alloc_dealloc_mismatch=0:log_path=$(abs_top_builddir)/src/test/regress_dn/memcheck/asan/runlog/asan.log' && \
+		export LSAN_OPTIONS='exitcode=0:suppressions=$(abs_top_builddir)/src/test/regress_dn/memcheck/asan/suppressions/memleak_ignore:print_suppressions=0' && \
+		$(top_builddir)/src/test/regress_dn/pg_regress \
+		--inputdir=$(srcdir) \
+		--bindir='$(bindir)' \
+		$(pg_regress_locale_flags) $(EXTRA_REGRESS_OPTS)
+
+	pg_isolation_regress_check = \
+		$(with_temp_install) \
+		$(top_builddir)/src/test/isolation/pg_isolation_regress \
+		--temp-instance=./tmp_check_iso \
+		--inputdir=$(srcdir) --outputdir=output_iso \
+		--bindir= \
+		$(TEMP_CONF) \
+		$(pg_regress_locale_flags) $(EXTRA_REGRESS_OPTS)
+	pg_isolation_regress_dn_check = \
+		$(with_temp_install) \
+		$(top_builddir)/src/test/isolation/pg_isolation_regress \
+		--temp-instance=./regress_dn/tmp_check_iso \
+		--inputdir=$(srcdir)/regress_dn/ --outputdir=regress_dn/output_iso \
+		--bindir= \
+		$(TEMP_CONF) \
+		$(pg_regress_locale_flags) $(EXTRA_REGRESS_OPTS)
+	pg_isolation_regress_installcheck = \
+		$(with_temp_install) \
+		$(top_builddir)/src/test/isolation/pg_isolation_regress \
+		--inputdir=$(srcdir) --outputdir=output_iso \
+		--bindir='$(bindir)' \
+		$(TEMP_CONF) \
+		$(pg_regress_locale_flags) $(EXTRA_REGRESS_OPTS)
+	pg_isolation_regress_dn_installcheck = \
+		$(with_temp_install) \
+		$(top_builddir)/src/test/isolation/pg_isolation_regress \
+		--inputdir=$(srcdir)/regress_dn/ --outputdir=regress_dn/output_iso \
+		--bindir='$(bindir)' \
+		$(TEMP_CONF) \
+		$(pg_regress_locale_flags) $(EXTRA_REGRESS_OPTS)
+else
+	pg_regress_check = \
+		$(with_temp_install) \
+		$(top_builddir)/src/test/regress/pg_regress \
+		--temp-instance=./tmp_check \
+		--inputdir=$(srcdir) \
+		--bindir= \
+		$(TEMP_CONF) \
+		$(pg_regress_locale_flags) $(EXTRA_REGRESS_OPTS)
+	pg_regress_installcheck = \
+		$(top_builddir)/src/test/regress/pg_regress \
+		--inputdir=$(srcdir) \
+		--bindir='$(bindir)' \
+		$(pg_regress_locale_flags) $(EXTRA_REGRESS_OPTS)
+
+	pg_regress_check_dn = \
+		$(with_temp_install) \
+		$(top_builddir)/src/test/regress_dn/pg_regress \
+		--temp-instance=./tmp_check \
+		--inputdir=$(srcdir) \
+		--bindir= \
+		$(TEMP_CONF) \
+		$(pg_regress_locale_flags) $(EXTRA_REGRESS_OPTS)
+	pg_regress_installcheck_dn = \
+		$(top_builddir)/src/test/regress_dn/pg_regress \
+		--inputdir=$(srcdir) \
+		--bindir='$(bindir)' \
+		$(pg_regress_locale_flags) $(EXTRA_REGRESS_OPTS)
+
+	pg_isolation_regress_check = \
+		$(with_temp_install) \
+		$(top_builddir)/src/test/isolation/pg_isolation_regress \
+		--temp-instance=./tmp_check_iso \
+		--inputdir=$(srcdir) --outputdir=output_iso \
+		--bindir= \
+		$(TEMP_CONF) \
+		$(pg_regress_locale_flags) $(EXTRA_REGRESS_OPTS)
+	pg_isolation_regress_dn_check = \
+		$(with_temp_install) \
+		$(top_builddir)/src/test/isolation/pg_isolation_regress \
+		--temp-instance=./regress_dn/tmp_check_iso \
+		--inputdir=$(srcdir)/regress_dn/ --outputdir=regress_dn/output_iso \
+		--bindir= \
+		$(TEMP_CONF) \
+		$(pg_regress_locale_flags) $(EXTRA_REGRESS_OPTS)
+	pg_isolation_regress_installcheck = \
+		$(with_temp_install) \
+		$(top_builddir)/src/test/isolation/pg_isolation_regress \
+		--inputdir=$(srcdir) --outputdir=output_iso \
+		--bindir='$(bindir)' \
+		$(TEMP_CONF) \
+		$(pg_regress_locale_flags) $(EXTRA_REGRESS_OPTS)
+	pg_isolation_regress_dn_installcheck = \
+		$(with_temp_install) \
+		$(top_builddir)/src/test/isolation/pg_isolation_regress \
+		--inputdir=$(srcdir)/regress_dn/ --outputdir=regress_dn/output_iso \
+		--bindir='$(bindir)' \
+		$(TEMP_CONF) \
+		$(pg_regress_locale_flags) $(EXTRA_REGRESS_OPTS)
+endif
 
 ##########################################################################
 #
@@ -629,6 +758,15 @@ ifdef PROFILE
    LDFLAGS += $(PROFILE)
 endif
 
+ifeq ($(DISABLE_WERROR), yes)
+	CFLAGS := $(filter-out -Werror, $(CFLAGS))
+else
+	CFLAGS += -Werror
+endif
+
+ifeq ($(enable_simd), yes)
+   CFLAGS += -O3 -ftree-vectorize -fopt-info-vec-optimized -funroll-loops -mavx2
+endif
 
 ##########################################################################
 #
@@ -815,6 +953,10 @@ ifndef COMPILE.c
 COMPILE.c = $(CC) $(CFLAGS) $(CPPFLAGS) -c
 endif
 
+ifndef COMPILE.cc
+COMPILE.cc = $(CXX) $(CXXFLAGS) $(CPPFLAGS) -c
+endif
+
 DEPDIR = .deps
 
 ifeq ($(GCC), yes)
@@ -823,6 +965,10 @@ ifeq ($(GCC), yes)
 %.o : %.c
 	@if test ! -d $(DEPDIR); then mkdir -p $(DEPDIR); fi
 	$(COMPILE.c) -o $@ $< -MMD -MP -MF $(DEPDIR)/$(*F).Po
+
+%.o : %.cpp
+	@if test ! -d $(DEPDIR); then mkdir -p $(DEPDIR); fi
+	$(COMPILE.cc) -o $@ $< -MMD -MP -MF $(DEPDIR)/$(*F).Po
 
 endif # GCC
 
@@ -855,6 +1001,14 @@ include $(top_srcdir)/src/nls-global.mk
 
 endif # nls.mk
 endif # enable_nls
+
+%.o : %.c
+    ifeq ($(enable_simd), yes)
+	 $(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $@ 2>&1 | tee $*.log
+	 [ ! -f $(top_srcdir)/src/vectorize_check.sh ] || $(top_srcdir)/src/vectorize_check.sh $< $*.log
+    else	
+	 $(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $@ 
+    endif
 
 
 ##########################################################################
@@ -912,6 +1066,59 @@ coverage-clean:
 	rm -f `find . -name '*.gcda' -print`
 
 endif # enable_coverage
+
+##########################################################################
+#
+# LLVM support
+#
+
+ifndef COMPILE.c.bc
+# -Wno-ignored-attributes added so gnu_printf doesn't trigger
+# warnings, when the main binary is compiled with C.
+COMPILE.c.bc = $(CLANG) -Wno-ignored-attributes $(BITCODE_CFLAGS) $(CPPFLAGS) -flto=thin -emit-llvm -c
+endif
+
+ifndef COMPILE.cxx.bc
+COMPILE.cxx.bc = $(CLANG) -xc++ -Wno-ignored-attributes $(BITCODE_CXXFLAGS) $(CPPFLAGS) -flto=thin -emit-llvm -c
+endif
+
+%.bc : %.c
+	$(COMPILE.c.bc) -o $@ $<
+
+%.bc : %.cpp
+	$(COMPILE.cxx.bc) -o $@ $<
+
+# Install LLVM bitcode module (for JITing).
+#
+# The arguments are:
+# $(1) name of the module (e.g. an extension's name or postgres for core code)
+# $(2) source objects, with .o suffix
+#
+# The many INSTALL_DATA invocations aren't particularly fast, it'd be
+# good if we could coalesce them, but I didn't find a good way.
+#
+# Note: blank line at end of macro is necessary to let it be used in foreach
+define install_llvm_module
+$(MKDIR_P) '$(DESTDIR)${bitcodedir}/$(1)'
+$(MKDIR_P) $(sort $(dir $(addprefix '$(DESTDIR)${bitcodedir}'/$(1)/, $(2))))
+$(foreach obj, ${2}, $(INSTALL_DATA) $(patsubst %.o,%.bc, $(obj)) '$(DESTDIR)${bitcodedir}'/$(1)/$(dir $(obj))
+)
+cd '$(DESTDIR)${bitcodedir}' && $(LLVM_BINPATH)/llvm-lto -thinlto -thinlto-action=thinlink -o $(1).index.bc $(addprefix $(1)/,$(patsubst %.o,%.bc, $(2)))
+
+endef
+
+# Uninstall LLVM bitcode module.
+#
+# The arguments are:
+# $(1) name of the module (e.g. an extension's name or postgres for core code)
+#
+# This intentionally doesn't use the explicit installed file list,
+# seems too likely to change regularly.
+define uninstall_llvm_module
+rm -rf '$(DESTDIR)${bitcodedir}/$(1)/'
+rm -f '$(DESTDIR)${bitcodedir}/$(1).index.bc'
+
+endef
 
 genmsgids = @genmsgids@
 

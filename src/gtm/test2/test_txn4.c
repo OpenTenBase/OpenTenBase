@@ -16,72 +16,72 @@ pthread_key_t     threadinfo_key;
 void
 setUp()
 {
-    connect1();
+	connect1();
 }
 
 void
 tearDown()
 {
-    GTMPQfinish(conn);
+	GTMPQfinish(conn);
 }
 
 void
 test_txn4_01()
 {
-    GlobalTransactionId gxid;
-    int rc;
+	GlobalTransactionId gxid;
+	int rc;
 
-    SETUP();
+	SETUP();
 
-    gxid = begin_transaction(conn, GTM_ISOLATION_SERIALIZABLE, timestamp);
-    _ASSERT( gxid != InvalidGlobalTransactionId );
+	gxid = begin_transaction(conn, GTM_ISOLATION_SERIALIZABLE, timestamp);
+	_ASSERT( gxid != InvalidGlobalTransactionId );
 
-    rc = prepare_transaction(conn, gxid);
-    _ASSERT( rc>=0 );
+	rc = prepare_transaction(conn, gxid);
+	_ASSERT( rc>=0 );
 
-    rc = commit_transaction(conn, gxid);
-    _ASSERT( rc>=0 );
+	rc = commit_transaction(conn, gxid);
+	_ASSERT( rc>=0 );
 
-    _ASSERT( grep_count(LOG_STANDBY, "Sending transaction id 3")==1 );
-    _ASSERT( grep_count(LOG_STANDBY, "Preparing transaction id 3")==1 );
-    _ASSERT( grep_count(LOG_STANDBY, "Committing transaction id 3")==1 );
+	_ASSERT( grep_count(LOG_STANDBY, "Sending transaction id 3")==1 );
+	_ASSERT( grep_count(LOG_STANDBY, "Preparing transaction id 3")==1 );
+	_ASSERT( grep_count(LOG_STANDBY, "Committing transaction id 3")==1 );
 
-    TEARDOWN();
+	TEARDOWN();
 }
 
 void
 test_txn4_02()
 {
-    GlobalTransactionId gxid;
-    int rc;
+	GlobalTransactionId gxid;
+	int rc;
 
-    SETUP();
+	SETUP();
 
-    gxid = begin_transaction(conn, GTM_ISOLATION_SERIALIZABLE, timestamp);
-    _ASSERT( gxid != InvalidGlobalTransactionId );
+	gxid = begin_transaction(conn, GTM_ISOLATION_SERIALIZABLE, timestamp);
+	_ASSERT( gxid != InvalidGlobalTransactionId );
 
-    rc = prepare_transaction(conn, gxid);
-    _ASSERT( rc>=0 );
+	rc = prepare_transaction(conn, gxid);
+	_ASSERT( rc>=0 );
 
-    rc = abort_transaction(conn, gxid);
-    _ASSERT( rc>=0 );
+	rc = abort_transaction(conn, gxid);
+	_ASSERT( rc>=0 );
 
-    _ASSERT( grep_count(LOG_STANDBY, "Sending transaction id 4")==1 );
-    _ASSERT( grep_count(LOG_STANDBY, "Preparing transaction id 4")==1 );
-    _ASSERT( grep_count(LOG_STANDBY, "Cancelling transaction id 4")==1 );
+	_ASSERT( grep_count(LOG_STANDBY, "Sending transaction id 4")==1 );
+	_ASSERT( grep_count(LOG_STANDBY, "Preparing transaction id 4")==1 );
+	_ASSERT( grep_count(LOG_STANDBY, "Cancelling transaction id 4")==1 );
 
-    TEARDOWN();
+	TEARDOWN();
 }
 
 int
 main(int argc, char *argv[])
 {
-    system("./stop.sh");
-    system("./clean.sh");
-    system("./start.sh");
+	system("./stop.sh");
+	system("./clean.sh");
+	system("./start.sh");
 
-    test_txn4_01();
-    test_txn4_02();
+	test_txn4_01();
+	test_txn4_02();
 
-    return 0;
+	return 0;
 }

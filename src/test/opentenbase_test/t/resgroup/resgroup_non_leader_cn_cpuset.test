@@ -1,0 +1,321 @@
+%cn 2
+%cn_slave 0
+%dn 2
+%dn_slave 0
+%gtm 1
+%gtm_slave 0
+
+connect conn cn2
+connection conn
+
+
+CREATE LANGUAGE plpython3u;
+
+create default node group default_group with ("dn1", "dn2");
+create sharding group to group default_group;
+clean sharding;
+
+
+-- added by opentenbase. there is no session info in the output of ps on opentenbase. so we changed check_cpuset and other related
+-- functions. we use a special database name to distinguish the processes.
+
+-- check whether the queries running on the specific core set
+-- @param grp: the resource group name queries running in
+-- @param cpuset: cpu cores which the queries should only be run on them, e.g. 0,1
+-- @return bool: true/false indicating whether it corresponds to the rule
+CREATE  OR REPLACE FUNCTION check_cpuset(cpuset TEXT) RETURNS BOOL AS $$
+    import subprocess
+    import time
+
+    def check(expect_cpus):
+        # use ps -eLF to find all processes which belongs to postgres and in the given sessions
+        procs = subprocess.check_output(['ps', '-eLF']).decode().split('\n')
+        head, proc_stats = procs[0], procs[1:]
+        PSR = [id for id, attr in enumerate(head.split()) if attr.strip() == 'PSR'][0]
+        cpus = [proc_stat.split()[PSR].strip() for proc_stat in proc_stats if 'postgres' in proc_stat and
+                'cpuset_db' in proc_stat and 'idle' not in proc_stat and
+                ('SELECT' in proc_stat or 'DProcess' in proc_stat)]
+        ret = set(cpus).issubset(set(expect_cpus))
+
+        if not ret:
+            filtered = [proc_stat for proc_stat in proc_stats if 'postgres' in proc_stat and
+                'cpuset_db' in proc_stat and 'idle' not in proc_stat]
+            for p in filtered:
+                plpy.warning(p)
+        return ret
+
+    conf = cpuset
+    if conf == '':
+        fd = open("/sys/fs/cgroup/cpuset/opentenbase/cpuset.cpus")
+        line = fd.readline()
+        fd.close()
+        conf = line.strip('\n')
+
+    tokens = conf.split(",")
+
+    expect_cpu = []
+
+    for token in tokens:
+        if token.find('-') != -1:
+            interval = token.split("-")
+            num1 = interval[0]
+            num2 = interval[1]
+            for num in range(int(num1), int(num2) + 1):
+                expect_cpu.append(str(num))
+        else:
+            expect_cpu.append(token)
+
+    for i in range(1000):
+        time.sleep(0.01)
+        if not check(expect_cpu):
+            return False
+
+    return True
+$$ LANGUAGE plpython3u;
+
+
+CREATE VIEW cancel_all AS
+    SELECT pg_cancel_backend(pid)
+    FROM pg_stat_activity
+    WHERE query LIKE 'SELECT * FROM busy%';
+
+create database cpuset_db;
+\c cpuset_db
+
+
+DROP VIEW IF EXISTS busy;
+DROP TABLE IF EXISTS bigtable;
+
+CREATE TABLE bigtable AS
+    SELECT i AS c1, 'abc' AS c2
+    FROM generate_series(1,50000) i;
+
+CREATE VIEW busy AS
+    SELECT count(*)
+    FROM
+    bigtable t1,
+    bigtable t2,
+    bigtable t3,
+    bigtable t4,
+    bigtable t5
+    WHERE 0 = (t1.c1 % 2 + 10000)!
+      AND 0 = (t2.c1 % 2 + 10000)!
+      AND 0 = (t3.c1 % 2 + 10000)!
+      AND 0 = (t4.c1 % 2 + 10000)!
+      AND 0 = (t5.c1 % 2 + 10000)!
+    ;
+
+
+-- The test cases for the value of resource_group_cpu_limit equals 0.9, 
+-- do not change it during the test.
+show resource_group_cpu_limit;
+
+CREATE RESOURCE GROUP rg1_cpuset_test WITH cpuset '0';
+CREATE ROLE role1_cpuset_test RESOURCE GROUP rg1_cpuset_test;
+
+GRANT ALL ON busy TO role1_cpuset_test;
+
+\c postgres
+
+
+connect conn10 cn2
+connection conn10
+\c cpuset_db
+-- we suppose core 0 & 1 are available
+SET ROLE TO role1_cpuset_test;
+sendblock SELECT * FROM busy;
+
+sleep 2
+
+connect conn11 cn2
+connection conn11
+SELECT check_cpuset('0');
+
+connection conn
+ALTER RESOURCE GROUP rg1_cpuset_test SET cpuset '1';
+select pg_sleep(2);
+
+connection conn11
+SELECT check_cpuset('1');
+
+connection conn
+ALTER RESOURCE GROUP rg1_cpuset_test SET cpuset '0,1';
+select pg_sleep(2);
+
+connection conn11
+SELECT check_cpuset('0,1');
+
+connection conn
+alter RESOURCE GROUP admin_group set cpu_rate_limit 1;
+alter RESOURCE GROUP default_group set cpu_rate_limit 1;
+
+-- change to cpu_rate_limit while the transaction is running
+ALTER RESOURCE GROUP rg1_cpuset_test SET cpu_rate_limit 70;
+
+-- cancel the transaction
+
+select * from cancel_all;
+
+reap conn10
+disconnect conn10
+disconnect conn11
+
+connect conn10 cn2
+connection conn10
+\c cpuset_db
+-- test whether the cpu_rate_limit had taken effect
+SET ROLE TO role1_cpuset_test;
+sendblock SELECT * FROM busy;
+
+sleep 2
+
+connect conn11 cn2
+connection conn11
+SELECT check_cpuset('');
+
+connection conn
+-- cancel the transaction
+select * from cancel_all;
+
+reap conn10
+
+disconnect conn10
+disconnect conn11
+
+connect conn10 cn2
+connection conn10
+\c cpuset_db
+-- test whether the cpu_rate_limit had taken effect
+SET ROLE TO role1_cpuset_test;
+sendblock SELECT * FROM busy;
+
+sleep 5
+
+connect conn11 cn2
+connection conn11
+select max(cpu_usage)::float >= 65 * 0.9 from (
+     select groupname,(json_each(xx)).key as nodename, ((json_each(xx)).value)::text::float cpu_usage from (
+        SELECT groupname,(json_array_elements(cpu_usage))  as xx FROM pg_resgroup_get_status(null)  ));
+
+connection conn
+-- cancel the transaction
+select * from cancel_all;
+
+reap conn10
+
+disconnect conn10
+disconnect conn11
+
+
+connection conn
+
+-- check whether the cpuset value in cgroup is valid according to the rule
+CREATE OR REPLACE FUNCTION check_cpuset_rules() RETURNS BOOL AS $$
+    def get_all_group_which_cpuset_is_set():
+        sql = "select groupname,cpuset from pg_resgroup_config where cpuset != '-1'"
+        result = plpy.execute(sql)
+        return result
+
+    def parse_cpuset(line):
+        line = line.strip('\n')
+        if len(line) == 0:
+            return set([])
+        tokens = line.split(",")
+        cpuset = []
+        for token in tokens:
+            if token.find('-') != -1:
+                interval = token.split("-")
+                num1 = interval[0]
+                num2 = interval[1]
+                for num in range(int(num1), int(num2) + 1):
+                    cpuset.append(str(num))
+            else:
+                cpuset.append(token)
+        return set(cpuset)
+
+    def get_cgroup_cpuset(group):
+        if group == '':
+            file = "/sys/fs/cgroup/cpuset/opentenbase/cpuset.cpus"
+        else:
+            file = "/sys/fs/cgroup/cpuset/opentenbase/" + group + "/cpuset.cpus"
+        fd = open(file)
+        line = fd.readline()
+        fd.close()
+        return parse_cpuset(line)
+
+    config_groups = get_all_group_which_cpuset_is_set()
+    groups_cpuset = set([])
+
+    # check whether cpuset in config and cgroup are same, and have no overlap
+    for config_group in config_groups:
+        groupname = config_group['groupname']
+        cpuset_value = config_group['cpuset']
+        config_cpuset = parse_cpuset(cpuset_value)
+        cgroup_cpuset = get_cgroup_cpuset(groupname)
+        if len(groups_cpuset & cgroup_cpuset) > 0:
+            return False
+        groups_cpuset |= cgroup_cpuset
+
+        if not (config_cpuset.issubset(cgroup_cpuset) and cgroup_cpuset.issubset(config_cpuset)):
+            return False
+
+    # todo: added by opentenbase. from here to the end, the codes are useless. Because opentenbase is not the same with GP.
+    # default_group on opentenbase use all cpus.
+
+    # check whether cpuset in resource group union default group is universal set
+    default_cpuset = get_cgroup_cpuset('default_group')
+    all_cpuset = get_cgroup_cpuset('')
+    if not (default_cpuset | groups_cpuset).issubset(all_cpuset):
+        return False
+    if not all_cpuset.issubset(default_cpuset | groups_cpuset):
+        return False
+
+    #todo: this is not true on opentenbase, comment it now.
+    # if all the cores are allocated to resource group, default group must has a core left
+    #if len(default_cpuset & groups_cpuset) > 0 and (len(default_cpuset) != 1 or (not default_cpuset.issubset(all_cpuset))):
+    #    return False
+
+    return True
+$$ LANGUAGE plpython3u;
+
+-- positive: cgroup cpuset must correspond to config cpuset
+-- default group value must be valid
+-- suppose the cores numbered 0 & 1 are available
+SELECT check_cpuset_rules();
+CREATE RESOURCE GROUP rg1_test_group WITH cpuset '0';
+SELECT check_cpuset_rules();
+CREATE RESOURCE GROUP rg2_test_group WITH cpuset '1';
+SELECT check_cpuset_rules();
+ALTER RESOURCE GROUP rg1_test_group SET cpu_rate_limit 1;
+SELECT check_cpuset_rules();
+ALTER RESOURCE GROUP rg1_test_group SET cpuset '0';
+SELECT check_cpuset_rules();
+ALTER RESOURCE GROUP rg1_test_group SET cpu_rate_limit 1;
+SELECT check_cpuset_rules();
+DROP RESOURCE GROUP rg1_test_group;
+SELECT check_cpuset_rules();
+DROP RESOURCE GROUP rg2_test_group;
+SELECT check_cpuset_rules();
+-- positive: create a resource group contains all cpu core
+-- the minimum numbered core left in default cpuset group
+
+call_function_in_opentenbase_test get_all_opentenbase_cpuset
+replace_then_send_wait_result all_opentenbase_cpuset CREATE RESOURCE GROUP rg1_test_group WITH cpuset 'all_opentenbase_cpuset';
+
+SELECT check_cpuset_rules();
+DROP RESOURCE GROUP rg1_test_group;
+SELECT check_cpuset_rules();
+
+select groupname, concurrency, cpu_rate_limit, memory_limit, cpuset  from pg_resgroup_config;
+
+-- negative: simulate DDL fail
+-- create fail
+set opentenbase_test_flag = 'create_resource_group_fail';
+CREATE RESOURCE GROUP rg1_test_group WITH cpuset '0';
+set opentenbase_test_flag = '-create_resource_group_fail';
+
+SELECT groupid, groupname, cpuset
+	FROM pg_resgroup_config
+	WHERE cpuset != '-1';
+SELECT check_cpuset_rules();
+DROP RESOURCE GROUP rg1_test_group;

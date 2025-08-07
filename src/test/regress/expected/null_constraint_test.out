@@ -1,0 +1,86 @@
+--
+-- Test constraint default null and not null.
+--
+drop table if exists constraint_null_test;
+NOTICE:  table "constraint_null_test" does not exist, skipping
+drop table if exists constraint_empty_test;
+NOTICE:  table "constraint_empty_test" does not exist, skipping
+--test null
+create table constraint_null_test(f0 int, f1 int not null default null, f2 char(1) , f3 varchar(16), f4 text);
+ERROR:  Constraint conflict for column "f1" of table "constraint_null_test", default value is null, but column is not null
+create table constraint_null_test(f0 int, f1 int, f2 char(1) not null default null, f3 varchar(16), f4 text);
+ERROR:  Constraint conflict for column "f2" of table "constraint_null_test", default value is null, but column is not null
+create table constraint_null_test(f0 int, f1 int, f2 char(1), f3 varchar(16) not null default null, f4 text);
+ERROR:  Constraint conflict for column "f3" of table "constraint_null_test", default value is null, but column is not null
+create table constraint_null_test(f0 int, f1 int, f2 char(1), f3 varchar(16), f4 text not null default null);
+ERROR:  Constraint conflict for column "f4" of table "constraint_null_test", default value is null, but column is not null
+create table constraint_null_test(f0 int, f1 int not null default 1, f2 char(1) not null default '1', f3 varchar(16) not null default '123', f4 text not null default '123');
+alter table constraint_null_test alter column f1 set default null;
+ERROR:  Constraint conflict for column "f1", column is not null, can't set default value to null
+alter table constraint_null_test alter column f2 set default null;
+ERROR:  Constraint conflict for column "f2", column is not null, can't set default value to null
+alter table constraint_null_test alter column f3 set default null;
+ERROR:  Constraint conflict for column "f3", column is not null, can't set default value to null
+alter table constraint_null_test alter column f4 set default null;
+ERROR:  Constraint conflict for column "f4", column is not null, can't set default value to null
+alter table constraint_null_test alter column f1 drop not null;
+alter table constraint_null_test alter column f2 drop not null;
+alter table constraint_null_test alter column f3 drop not null;
+alter table constraint_null_test alter column f4 drop not null;
+alter table constraint_null_test alter column f1 set default null;  -- default is empty
+alter table constraint_null_test alter column f2 set default null;
+alter table constraint_null_test alter column f3 set default null;
+alter table constraint_null_test alter column f4 set default null;  -- default is empty
+alter table constraint_null_test alter column f1 set not null;
+alter table constraint_null_test alter column f2 set not null;
+ERROR:  Constraint conflict for column "f2", column's default value is null, can't set column to not null
+alter table constraint_null_test alter column f3 set not null;
+ERROR:  Constraint conflict for column "f3", column's default value is null, can't set column to not null
+alter table constraint_null_test alter column f4 set not null;
+alter table constraint_null_test add column f5 varchar(5) not null default null;
+ERROR:  Constraint conflict for column "f5" of table "constraint_null_test", default value is null, but column is not null
+drop table constraint_null_test;
+--test ''
+\c regression_ora
+create table constraint_empty_test(f0 int, f1 int not null default '', f2 char(1) , f3 varchar(16), f4 text);
+ERROR:  Constraint conflict for column "f1" of table "constraint_empty_test", default value is null, but column is not null
+drop table if exists constraint_empty_test;
+NOTICE:  table "constraint_empty_test" does not exist, skipping
+create table constraint_empty_test(f0 int, f1 int, f2 char(1) not null default '', f3 varchar(16), f4 text);
+ERROR:  Constraint conflict for column "f2" of table "constraint_empty_test", default value is null, but column is not null
+drop table if exists constraint_empty_test;
+NOTICE:  table "constraint_empty_test" does not exist, skipping
+create table constraint_empty_test(f0 int, f1 int, f2 char(1), f3 varchar(16) not null default '', f4 text);
+ERROR:  Constraint conflict for column "f3" of table "constraint_empty_test", default value is null, but column is not null
+drop table if exists constraint_empty_test;
+NOTICE:  table "constraint_empty_test" does not exist, skipping
+create table constraint_empty_test(f0 int, f1 int, f2 char(1), f3 varchar(16), f4 text not null default '');
+ERROR:  Constraint conflict for column "f4" of table "constraint_empty_test", default value is null, but column is not null
+drop table if exists constraint_empty_test;
+NOTICE:  table "constraint_empty_test" does not exist, skipping
+create table constraint_empty_test(f0 int, f1 int not null default 1, f2 char(1) not null default '1', f3 varchar(16) not null default '123', f4 text not null default '123');
+alter table constraint_empty_test alter column f1 set default '';
+ERROR:  Constraint conflict for column "f1", column is not null, can't set default value to null
+alter table constraint_empty_test alter column f2 set default '';
+ERROR:  Constraint conflict for column "f2", column is not null, can't set default value to null
+alter table constraint_empty_test alter column f3 set default '';
+ERROR:  Constraint conflict for column "f3", column is not null, can't set default value to null
+alter table constraint_empty_test alter column f4 set default '';
+ERROR:  Constraint conflict for column "f4", column is not null, can't set default value to null
+alter table constraint_empty_test alter column f1 drop not null;
+alter table constraint_empty_test alter column f2 drop not null;
+alter table constraint_empty_test alter column f3 drop not null;
+alter table constraint_empty_test alter column f4 drop not null;
+alter table constraint_empty_test alter column f1 set default '';  -- default is empty
+alter table constraint_empty_test alter column f2 set default '';
+alter table constraint_empty_test alter column f3 set default '';
+alter table constraint_empty_test alter column f4 set default '';  -- default is empty
+alter table constraint_empty_test alter column f1 set not null;
+alter table constraint_empty_test alter column f2 set not null;
+ERROR:  Constraint conflict for column "f2", column's default value is null, can't set column to not null
+alter table constraint_empty_test alter column f3 set not null;
+ERROR:  Constraint conflict for column "f3", column's default value is null, can't set column to not null
+alter table constraint_empty_test alter column f4 set not null;
+alter table constraint_null_test add column f5 varchar(5) not null default '';
+ERROR:  relation "constraint_null_test" does not exist
+drop table constraint_empty_test;

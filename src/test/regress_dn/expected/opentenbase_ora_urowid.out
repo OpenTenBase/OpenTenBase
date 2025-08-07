@@ -1,0 +1,164 @@
+/*
+ * test cases for urowid.
+ * 1. create table
+ *  1.1 create btree index
+ *  1.2 create hash index
+ *  1.3 search using btree/hash index/scan seq
+ *  1.4 create table with urowid(n)
+ * 2. rowid/text can be saved in urowid
+ *  2.1 search urowid = rowid
+ * 3. using in plsql - select rowid into urowid
+ * 4. min/max
+ */
+create database urowid_test sql mode opentenbase_ora;
+\c urowid_test
+-- 1. create table
+create table urid_tbl(k int, k2 urowid);
+insert into urid_tbl values(1, 'urowid');
+select * from urid_tbl;
+ K |   K2   
+---+--------
+ 1 | urowid
+(1 row)
+
+drop table urid_tbl;
+-- urowid as disk
+create table urid_tbl(k urowid, k2 urowid);
+insert into urid_tbl values('urowid', 'urowid');
+select * from urid_tbl;
+   K    |   K2   
+--------+--------
+ urowid | urowid
+(1 row)
+
+select * from urid_tbl where k2 = 'urowid';
+   K    |   K2   
+--------+--------
+ urowid | urowid
+(1 row)
+
+drop table urid_tbl;
+set enable_seqscan to off;
+set enable_bitmapscan to off;
+--  1.1 create btree index
+create table ur_t(k int, k2 urowid);
+create index ik2 on ur_t using btree(k2);
+insert into ur_t values(1, '123');
+insert into ur_t values(1, '123');
+explain (costs off) select * from ur_t where k2 = '123';
+             QUERY PLAN             
+------------------------------------
+ Index Scan using IK2 on UR_T
+   Index Cond: (K2 = '123'::UROWID)
+(2 rows)
+
+select * from ur_t where k2 = '123';
+ K | K2  
+---+-----
+ 1 | 123
+ 1 | 123
+(2 rows)
+
+drop table ur_t;
+--  1.2 create hash index
+create table ur_t(k int, k2 urowid);
+create index ik2 on ur_t using hash(k2);
+insert into ur_t values(1, '123');
+insert into ur_t values(1, '123');
+explain (costs off) select * from ur_t where k2 = '123';
+             QUERY PLAN             
+------------------------------------
+ Index Scan using IK2 on UR_T
+   Index Cond: (K2 = '123'::UROWID)
+(2 rows)
+
+select * from ur_t where k2 = '123';
+ K | K2  
+---+-----
+ 1 | 123
+ 1 | 123
+(2 rows)
+
+drop table ur_t;
+--  1.3 search using btree/hash index/scan seq
+-- tested above
+--  1.4 create table with urowid(n)
+create table rt(a int, b urowid(2));
+insert into rt values(1, '12');
+insert into rt values(1, '123');
+ERROR:  value too long for type urowid(2)
+insert into rt values(1, '123'::urowid(2));
+drop table rt;
+-- 2. rowid/text can be saved in urowid
+create table rtbl(a int);
+insert into rtbl values(1);
+create table utbl(a int, b urowid);
+--  2.1 search urowid = rowid
+-- tested above
+-- 3. using in plsql - select rowid into urowid
+create or replace function sc_test() returns text as $$
+declare
+r	rowid;
+	ur	urowid;
+begin
+select rowid into r from rtbl;
+raise notice '%s',substr(r::text, 17, 12);
+select rowid into ur from rtbl;
+raise notice '%s',substr(ur::text, 17, 12);
+select b into ur from utbl;
+raise notice '%s',substr(ur::text, 17, 12);
+select b into r from utbl;
+raise notice '%s',substr(r::text, 17, 12);
+RETURN 'OK';
+end;
+$$ language default_plsql;
+-- 4. min/max
+-- 5. cast to urowid
+create or replace function test_cast_to_urid_f(u urowid) returns urowid
+as $$
+begin
+return u;
+end;
+$$ language default_plsql;
+select test_cast_to_urid_f('111'::text);
+ TEST_CAST_TO_URID_F 
+---------------------
+ 111
+(1 row)
+
+select test_cast_to_urid_f('ASDF'::varchar);
+ TEST_CAST_TO_URID_F 
+---------------------
+ ASDF
+(1 row)
+
+select test_cast_to_urid_f('===F'::varchar2);
+ TEST_CAST_TO_URID_F 
+---------------------
+ ===F
+(1 row)
+
+select test_cast_to_urid_f('===F'::nvarchar2);
+ TEST_CAST_TO_URID_F 
+---------------------
+ ===F
+(1 row)
+
+select test_cast_to_urid_f('FoeOwQ==P0AAAA==AgAAAAAAAAA='::rowid);
+     TEST_CAST_TO_URID_F      
+------------------------------
+ FoeOwQ==P0AAAA==AgAAAAAAAAA=
+(1 row)
+
+drop function test_cast_to_urid_f;
+drop table rtbl;
+drop table utbl;
+\c postgres
+clean connection to all for database urowid_test;
+select pg_sleep(3);
+ pg_sleep 
+----------
+ 
+(1 row)
+
+drop database urowid_test;

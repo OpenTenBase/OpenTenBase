@@ -1,6 +1,6 @@
 /*
  * internal.c
- *        Wrapper for builtin functions
+ *		Wrapper for builtin functions
  *
  * Copyright (c) 2001 Marko Kreen
  * All rights reserved.
@@ -9,10 +9,10 @@
  * modification, are permitted provided that the following conditions
  * are met:
  * 1. Redistributions of source code must retain the above copyright
- *      notice, this list of conditions and the following disclaimer.
+ *	  notice, this list of conditions and the following disclaimer.
  * 2. Redistributions in binary form must reproduce the above copyright
- *      notice, this list of conditions and the following disclaimer in the
- *      documentation and/or other materials provided with the distribution.
+ *	  notice, this list of conditions and the following disclaimer in the
+ *	  documentation and/or other materials provided with the distribution.
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -26,9 +26,6 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- * 
  * contrib/pgcrypto/internal-sha2.c
  */
 
@@ -37,59 +34,59 @@
 #include <time.h>
 
 #include "contrib/pgcrypto/px.h"
-#include "contrib/pgcrypto/sha2.h"
+#include "common/sha2.h"
 
-void        init_sha224(PX_MD *h);
-void        init_sha256(PX_MD *h);
-void        init_sha384(PX_MD *h);
-void        init_sha512(PX_MD *h);
+void init_sha224(PX_MD *h);
+void init_sha256(PX_MD *h);
+void init_sha384(PX_MD *h);
+void init_sha512(PX_MD *h);
 
 /* SHA224 */
 
 static unsigned
 int_sha224_len(PX_MD *h)
 {
-    return SHA224_DIGEST_LENGTH;
+	return PG_SHA224_DIGEST_LENGTH;
 }
 
 static unsigned
 int_sha224_block_len(PX_MD *h)
 {
-    return SHA224_BLOCK_LENGTH;
+	return PG_SHA224_BLOCK_LENGTH;
 }
 
 static void
 int_sha224_update(PX_MD *h, const uint8 *data, unsigned dlen)
 {
-    SHA224_CTX *ctx = (SHA224_CTX *) h->p.ptr;
+	pg_sha224_ctx *ctx = (pg_sha224_ctx *)h->p.ptr;
 
-    SHA224_Update(ctx, data, dlen);
+	pg_sha224_update(ctx, data, dlen);
 }
 
 static void
 int_sha224_reset(PX_MD *h)
 {
-    SHA224_CTX *ctx = (SHA224_CTX *) h->p.ptr;
+	pg_sha224_ctx *ctx = (pg_sha224_ctx *)h->p.ptr;
 
-    SHA224_Init(ctx);
+	pg_sha224_init(ctx);
 }
 
 static void
 int_sha224_finish(PX_MD *h, uint8 *dst)
 {
-    SHA224_CTX *ctx = (SHA224_CTX *) h->p.ptr;
+	pg_sha224_ctx *ctx = (pg_sha224_ctx *)h->p.ptr;
 
-    SHA224_Final(dst, ctx);
+	pg_sha224_final(ctx, dst);
 }
 
 static void
 int_sha224_free(PX_MD *h)
 {
-    SHA224_CTX *ctx = (SHA224_CTX *) h->p.ptr;
+	pg_sha224_ctx *ctx = (pg_sha224_ctx *)h->p.ptr;
 
-    crypt_memset(ctx, 0, sizeof(*ctx));
-    crypt_free(ctx);
-    crypt_free(h);
+	px_memset(ctx, 0, sizeof(*ctx));
+	px_free(ctx);
+	px_free(h);
 }
 
 /* SHA256 */
@@ -97,47 +94,47 @@ int_sha224_free(PX_MD *h)
 static unsigned
 int_sha256_len(PX_MD *h)
 {
-    return SHA256_DIGEST_LENGTH;
+	return PG_SHA256_DIGEST_LENGTH;
 }
 
 static unsigned
 int_sha256_block_len(PX_MD *h)
 {
-    return SHA256_BLOCK_LENGTH;
+	return PG_SHA256_BLOCK_LENGTH;
 }
 
 static void
 int_sha256_update(PX_MD *h, const uint8 *data, unsigned dlen)
 {
-    SHA256_CTX *ctx = (SHA256_CTX *) h->p.ptr;
+	pg_sha256_ctx *ctx = (pg_sha256_ctx *)h->p.ptr;
 
-    SHA256_Update(ctx, data, dlen);
+	pg_sha256_update(ctx, data, dlen);
 }
 
 static void
 int_sha256_reset(PX_MD *h)
 {
-    SHA256_CTX *ctx = (SHA256_CTX *) h->p.ptr;
+	pg_sha256_ctx *ctx = (pg_sha256_ctx *)h->p.ptr;
 
-    SHA256_Init(ctx);
+	pg_sha256_init(ctx);
 }
 
 static void
 int_sha256_finish(PX_MD *h, uint8 *dst)
 {
-    SHA256_CTX *ctx = (SHA256_CTX *) h->p.ptr;
+	pg_sha256_ctx *ctx = (pg_sha256_ctx *)h->p.ptr;
 
-    SHA256_Final(dst, ctx);
+	pg_sha256_final(ctx, dst);
 }
 
 static void
 int_sha256_free(PX_MD *h)
 {
-    SHA256_CTX *ctx = (SHA256_CTX *) h->p.ptr;
+	pg_sha256_ctx *ctx = (pg_sha256_ctx *)h->p.ptr;
 
-    crypt_memset(ctx, 0, sizeof(*ctx));
-    crypt_free(ctx);
-    crypt_free(h);
+	px_memset(ctx, 0, sizeof(*ctx));
+	px_free(ctx);
+	px_free(h);
 }
 
 /* SHA384 */
@@ -145,47 +142,47 @@ int_sha256_free(PX_MD *h)
 static unsigned
 int_sha384_len(PX_MD *h)
 {
-    return SHA384_DIGEST_LENGTH;
+	return PG_SHA384_DIGEST_LENGTH;
 }
 
 static unsigned
 int_sha384_block_len(PX_MD *h)
 {
-    return SHA384_BLOCK_LENGTH;
+	return PG_SHA384_BLOCK_LENGTH;
 }
 
 static void
 int_sha384_update(PX_MD *h, const uint8 *data, unsigned dlen)
 {
-    SHA384_CTX *ctx = (SHA384_CTX *) h->p.ptr;
+	pg_sha384_ctx *ctx = (pg_sha384_ctx *)h->p.ptr;
 
-    SHA384_Update(ctx, data, dlen);
+	pg_sha384_update(ctx, data, dlen);
 }
 
 static void
 int_sha384_reset(PX_MD *h)
 {
-    SHA384_CTX *ctx = (SHA384_CTX *) h->p.ptr;
+	pg_sha384_ctx *ctx = (pg_sha384_ctx *)h->p.ptr;
 
-    SHA384_Init(ctx);
+	pg_sha384_init(ctx);
 }
 
 static void
 int_sha384_finish(PX_MD *h, uint8 *dst)
 {
-    SHA384_CTX *ctx = (SHA384_CTX *) h->p.ptr;
+	pg_sha384_ctx *ctx = (pg_sha384_ctx *)h->p.ptr;
 
-    SHA384_Final(dst, ctx);
+	pg_sha384_final(ctx, dst);
 }
 
 static void
 int_sha384_free(PX_MD *h)
 {
-    SHA384_CTX *ctx = (SHA384_CTX *) h->p.ptr;
+	pg_sha384_ctx *ctx = (pg_sha384_ctx *)h->p.ptr;
 
-    crypt_memset(ctx, 0, sizeof(*ctx));
-    crypt_free(ctx);
-    crypt_free(h);
+	px_memset(ctx, 0, sizeof(*ctx));
+	px_free(ctx);
+	px_free(h);
 }
 
 /* SHA512 */
@@ -193,127 +190,123 @@ int_sha384_free(PX_MD *h)
 static unsigned
 int_sha512_len(PX_MD *h)
 {
-    return SHA512_DIGEST_LENGTH;
+	return PG_SHA512_DIGEST_LENGTH;
 }
 
 static unsigned
 int_sha512_block_len(PX_MD *h)
 {
-    return SHA512_BLOCK_LENGTH;
+	return PG_SHA512_BLOCK_LENGTH;
 }
 
 static void
 int_sha512_update(PX_MD *h, const uint8 *data, unsigned dlen)
 {
-    SHA512_CTX *ctx = (SHA512_CTX *) h->p.ptr;
+	pg_sha512_ctx *ctx = (pg_sha512_ctx *)h->p.ptr;
 
-    SHA512_Update(ctx, data, dlen);
+	pg_sha512_update(ctx, data, dlen);
 }
 
 static void
 int_sha512_reset(PX_MD *h)
 {
-    SHA512_CTX *ctx = (SHA512_CTX *) h->p.ptr;
+	pg_sha512_ctx *ctx = (pg_sha512_ctx *)h->p.ptr;
 
-    SHA512_Init(ctx);
+	pg_sha512_init(ctx);
 }
 
 static void
 int_sha512_finish(PX_MD *h, uint8 *dst)
 {
-    SHA512_CTX *ctx = (SHA512_CTX *) h->p.ptr;
+	pg_sha512_ctx *ctx = (pg_sha512_ctx *)h->p.ptr;
 
-    SHA512_Final(dst, ctx);
+	pg_sha512_final(ctx, dst);
 }
 
 static void
 int_sha512_free(PX_MD *h)
 {
-    SHA512_CTX *ctx = (SHA512_CTX *) h->p.ptr;
+	pg_sha512_ctx *ctx = (pg_sha512_ctx *)h->p.ptr;
 
-    crypt_memset(ctx, 0, sizeof(*ctx));
-    crypt_free(ctx);
-    crypt_free(h);
+	px_memset(ctx, 0, sizeof(*ctx));
+	px_free(ctx);
+	px_free(h);
 }
 
 /* init functions */
 
-void
-init_sha224(PX_MD *md)
+void init_sha224(PX_MD *md)
 {
-    SHA224_CTX *ctx;
+	pg_sha224_ctx *ctx;
 
-    ctx = crypt_alloc(sizeof(*ctx));
-    memset(ctx, 0, sizeof(*ctx));
+	ctx = px_alloc(sizeof(*ctx));
+	memset(ctx, 0, sizeof(*ctx));
 
-    md->p.ptr = ctx;
+	md->p.ptr = ctx;
 
-    md->result_size = int_sha224_len;
-    md->block_size = int_sha224_block_len;
-    md->reset = int_sha224_reset;
-    md->update = int_sha224_update;
-    md->finish = int_sha224_finish;
-    md->free = int_sha224_free;
+	md->result_size = int_sha224_len;
+	md->block_size = int_sha224_block_len;
+	md->reset = int_sha224_reset;
+	md->update = int_sha224_update;
+	md->finish = int_sha224_finish;
+	md->free = int_sha224_free;
 
-    md->reset(md);
+	md->reset(md);
 }
 
-void
-init_sha256(PX_MD *md)
+void init_sha256(PX_MD *md)
 {
-    SHA256_CTX *ctx;
+	pg_sha256_ctx *ctx;
 
-    ctx = crypt_alloc(sizeof(*ctx));
-    memset(ctx, 0, sizeof(*ctx));
+	ctx = px_alloc(sizeof(*ctx));
+	memset(ctx, 0, sizeof(*ctx));
 
-    md->p.ptr = ctx;
+	md->p.ptr = ctx;
 
-    md->result_size = int_sha256_len;
-    md->block_size = int_sha256_block_len;
-    md->reset = int_sha256_reset;
-    md->update = int_sha256_update;
-    md->finish = int_sha256_finish;
-    md->free = int_sha256_free;
+	md->result_size = int_sha256_len;
+	md->block_size = int_sha256_block_len;
+	md->reset = int_sha256_reset;
+	md->update = int_sha256_update;
+	md->finish = int_sha256_finish;
+	md->free = int_sha256_free;
 
-    md->reset(md);
+	md->reset(md);
 }
 
-void
-init_sha384(PX_MD *md)
+void init_sha384(PX_MD *md)
 {
-    SHA384_CTX *ctx;
+	pg_sha384_ctx *ctx;
 
-    ctx = crypt_alloc(sizeof(*ctx));
-    memset(ctx, 0, sizeof(*ctx));
+	ctx = px_alloc(sizeof(*ctx));
+	memset(ctx, 0, sizeof(*ctx));
 
-    md->p.ptr = ctx;
+	md->p.ptr = ctx;
 
-    md->result_size = int_sha384_len;
-    md->block_size = int_sha384_block_len;
-    md->reset = int_sha384_reset;
-    md->update = int_sha384_update;
-    md->finish = int_sha384_finish;
-    md->free = int_sha384_free;
+	md->result_size = int_sha384_len;
+	md->block_size = int_sha384_block_len;
+	md->reset = int_sha384_reset;
+	md->update = int_sha384_update;
+	md->finish = int_sha384_finish;
+	md->free = int_sha384_free;
 
-    md->reset(md);
+	md->reset(md);
 }
 
-void
-init_sha512(PX_MD *md)
+void init_sha512(PX_MD *md)
 {
-    SHA512_CTX *ctx;
+	pg_sha512_ctx *ctx;
 
-    ctx = crypt_alloc(sizeof(*ctx));
-    memset(ctx, 0, sizeof(*ctx));
+	ctx = px_alloc(sizeof(*ctx));
+	memset(ctx, 0, sizeof(*ctx));
 
-    md->p.ptr = ctx;
+	md->p.ptr = ctx;
 
-    md->result_size = int_sha512_len;
-    md->block_size = int_sha512_block_len;
-    md->reset = int_sha512_reset;
-    md->update = int_sha512_update;
-    md->finish = int_sha512_finish;
-    md->free = int_sha512_free;
+	md->result_size = int_sha512_len;
+	md->block_size = int_sha512_block_len;
+	md->reset = int_sha512_reset;
+	md->update = int_sha512_update;
+	md->finish = int_sha512_finish;
+	md->free = int_sha512_free;
 
-    md->reset(md);
+	md->reset(md);
 }

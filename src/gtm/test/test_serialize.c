@@ -46,7 +46,7 @@ test_snapshotdata_1(void)
   data->sn_xip  = 2048;
 
   printf("sn_xmin=%d, sn_xmax=%d, sn_xcnt=%d, sn_xip=%d\n",
-     data->sn_xmin, data->sn_xmax, data->sn_xcnt, data->sn_xip);
+	 data->sn_xmin, data->sn_xmax, data->sn_xcnt, data->sn_xip);
 
   /* serialize */
   buflen = sizeof(GTM_SnapshotData);
@@ -61,7 +61,7 @@ test_snapshotdata_1(void)
   data2 = (GTM_SnapshotData *)malloc(sizeof(GTM_SnapshotData));
   gtm_deserialize_snapshotdata(data2, buf, buflen);
   printf("sn_xmin=%d, sn_xmax=%d, sn_xcnt=%d, sn_xip=%d\n",
-     data2->sn_xmin, data2->sn_xmax, data2->sn_xcnt, data2->sn_xip);
+	 data2->sn_xmin, data2->sn_xmax, data2->sn_xcnt, data2->sn_xip);
 
   TEARDOWN();
 
@@ -193,7 +193,7 @@ test_transactions_1(void)
   memcpy(&data->gt_transactions_array[0], d, sizeof(data->gt_transactions_array[0]));
 
   printf("gt_lastslot=%d\n",
-     data->gt_lastslot);
+	 data->gt_lastslot);
 
   /* serialize */
   buflen = gtm_get_transactions_size( data );
@@ -216,11 +216,11 @@ test_transactions_1(void)
   printf("deserialized.\n");
 
   printf("gt_lastslot=%d\n",
-     data2->gt_lastslot);
+	 data2->gt_lastslot);
 
   printf("gti_handle=%d, gti_proxy_client_id=%d\n", 
-     data2->gt_transactions_array[0].gti_handle,
-     data2->gt_transactions_array[0].gti_proxy_client_id);
+	 data2->gt_transactions_array[0].gti_handle,
+	 data2->gt_transactions_array[0].gti_proxy_client_id);
 
   TEARDOWN();
 
@@ -245,8 +245,8 @@ test_pgxcnodeinfo_1()
   data->datafolder = "bar";
 
   printf("type=%d, nodename=%s, port=%d, ipaddress=%s, datafolder=%s\n",
-     data->type, data->nodename, data->port,
-     data->ipaddress, data->datafolder);
+	 data->type, data->nodename, data->port,
+	 data->ipaddress, data->datafolder);
 
   /* serialize */
   buflen = gtm_get_pgxcnodeinfo_size( data );
@@ -269,8 +269,8 @@ test_pgxcnodeinfo_1()
   printf("deserialized.\n");
 
   printf("type=%d, nodename=%s, port=%d, ipaddress=%s, datafolder=%s\n",
-     data2->type, data2->nodename, data2->port,
-     data2->ipaddress, data2->datafolder);
+	 data2->type, data2->nodename, data2->port,
+	 data2->ipaddress, data2->datafolder);
 
   TEARDOWN();
 

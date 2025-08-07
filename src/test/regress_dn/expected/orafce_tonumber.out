@@ -1,0 +1,86 @@
+/*
+ * test for to_number with 'x' format
+ */
+\c regression
+select to_number('ff', 'xx');
+ERROR:  invalid input syntax for type numeric: " "
+\c regression_ora
+select to_number('ff', 'xx');
+ TO_NUMBER 
+-----------
+       255
+(1 row)
+
+/* 15 character */
+select to_number('fffffffffffffff', 'xxxxxxxxxxxxxxxxxxx');
+      TO_NUMBER      
+---------------------
+ 1152921504606846975
+(1 row)
+
+select to_number('123456789012345', 'xxxxxxxxxxxxxxxxxxx');
+     TO_NUMBER     
+-------------------
+ 81985529205302085
+(1 row)
+
+/* 16 character */
+select to_number('ffffffffffffffff', 'xxxxxxxxxxxxxxxxxxx');
+      TO_NUMBER       
+----------------------
+ 18446744073709551615
+(1 row)
+
+select to_number('f123456789012345', 'xxxxxxxxxxxxxxxxxxxx');
+      TO_NUMBER       
+----------------------
+ 17375808098308006725
+(1 row)
+
+/* with scale */
+select to_number('124.36', 'xxxxxxx');
+ERROR:  invalid number, contain illegal character:.
+select to_number('124.66', 'xxxxxxx');
+ERROR:  invalid number, contain illegal character:.
+/* with space */
+select to_number('fff ', 'xxxxxx');
+ERROR:  invalid number, contain illegal character: 
+select to_number('f f', 'xxxxxx');
+ERROR:  invalid number, contain illegal character: 
+/* max values support , opentenbase_ora is 63 digits */
+select to_number('fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff', 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx');
+ERROR:  invalid number format model
+select to_number('ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff', 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx');
+ERROR:  invalid number
+-- TODO: The result is different with opentenbase_ora.
+-- opentenbase_ora: 7237005577332262213973186563042994240829000000000000000000000000000000000000
+select to_number('fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff', 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx');
+                                  TO_NUMBER                                   
+------------------------------------------------------------------------------
+ 7237005577332262213973186563042994240831000000000000000000000000000000000000
+(1 row)
+
+/* minus */
+select to_number('-f123456d789012345', 'xxxxxxxxxxxxxxxxxxxx');
+ERROR:  invalid number, contain illegal character:-
+/* with scale */
+select to_number('-f123456d789012345.314', 'xxxxxxxxxxxxxxxxxxxxxxxxx');
+ERROR:  invalid number, contain illegal character:-
+/* with illegal character */
+select to_number('uf123456789012345', 'xxxxxxxxxxxxxxxxxxxx');
+ERROR:  invalid number, contain illegal character:u
+select to_number('f1234567u89012345', 'xxxxxxxxxxxxxxxxxxxx');
+ERROR:  invalid number, contain illegal character:u
+/* fmt is less than str */
+select to_number('ff', 'x');
+ERROR:  invalid number
+select to_number('ffffffffffffffff', 'xxxxxxxxx');
+ERROR:  invalid number
+/* invalid fromat mode */
+select to_number('ff', ' xx');
+ERROR:  Invalid number format model
+select to_number('ff', 'x x');
+ERROR:  Invalid number format model
+\c regression
+select to_number('ff', 'xx')
+ERROR:  invalid input syntax for type numeric: " "

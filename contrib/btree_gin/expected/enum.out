@@ -45,17 +45,18 @@ SELECT * FROM test_enum WHERE i>'g'::rainbow ORDER BY i;
  v
 (3 rows)
 
-explain (costs off) SELECT * FROM test_enum WHERE i>='g'::rainbow ORDER BY i;
+explain (costs off, nodes off) SELECT * FROM test_enum WHERE i>='g'::rainbow ORDER BY i;
                      QUERY PLAN                      
 -----------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+ Remote Subquery Scan on all (datanodes 2)
+   Sort Key: i
    ->  Sort
          Sort Key: i
          ->  Bitmap Heap Scan on test_enum
                Recheck Cond: (i >= 'g'::rainbow)
                ->  Bitmap Index Scan on idx_enum
                      Index Cond: (i >= 'g'::rainbow)
-(7 rows)
+(8 rows)
 
 -- make sure we handle the non-evenly-numbered oid case for enums
 create type e as enum ('0', '2', '3');

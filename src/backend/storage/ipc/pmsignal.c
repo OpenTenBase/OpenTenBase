@@ -1,14 +1,14 @@
 /*-------------------------------------------------------------------------
  *
  * pmsignal.c
- *      routines for signaling the postmaster from its child processes
+ *	  routines for signaling the postmaster from its child processes
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *      src/backend/storage/ipc/pmsignal.c
+ *	  src/backend/storage/ipc/pmsignal.c
  *
  *-------------------------------------------------------------------------
  */
@@ -53,20 +53,20 @@
  * start streaming the WAL (and they never go back to ACTIVE after that).
  */
 
-#define PM_CHILD_UNUSED        0    /* these values must fit in sig_atomic_t */
-#define PM_CHILD_ASSIGNED    1
-#define PM_CHILD_ACTIVE        2
-#define PM_CHILD_WALSENDER    3
+#define PM_CHILD_UNUSED		0	/* these values must fit in sig_atomic_t */
+#define PM_CHILD_ASSIGNED	1
+#define PM_CHILD_ACTIVE		2
+#define PM_CHILD_WALSENDER	3
 
 /* "typedef struct PMSignalData PMSignalData" appears in pmsignal.h */
 struct PMSignalData
 {
-    /* per-reason flags */
-    sig_atomic_t PMSignalFlags[NUM_PMSIGNALS];
-    /* per-child-process flags */
-    int            num_child_flags;    /* # of entries in PMChildFlags[] */
-    int            next_child_flag;    /* next slot to try to assign */
-    sig_atomic_t PMChildFlags[FLEXIBLE_ARRAY_MEMBER];
+	/* per-reason flags */
+	sig_atomic_t PMSignalFlags[NUM_PMSIGNALS];
+	/* per-child-process flags */
+	int			num_child_flags;	/* # of entries in PMChildFlags[] */
+	int			next_child_flag;	/* next slot to try to assign */
+	sig_atomic_t PMChildFlags[FLEXIBLE_ARRAY_MEMBER];
 };
 
 NON_EXEC_STATIC volatile PMSignalData *PMSignalState = NULL;
@@ -74,18 +74,18 @@ NON_EXEC_STATIC volatile PMSignalData *PMSignalState = NULL;
 
 /*
  * PMSignalShmemSize
- *        Compute space needed for pmsignal.c's shared memory
+ *		Compute space needed for pmsignal.c's shared memory
  */
 Size
 PMSignalShmemSize(void)
 {
-    Size        size;
+	Size		size;
 
-    size = offsetof(PMSignalData, PMChildFlags);
-    size = add_size(size, mul_size(MaxLivePostmasterChildren(),
-                                   sizeof(sig_atomic_t)));
+	size = offsetof(PMSignalData, PMChildFlags);
+	size = add_size(size, mul_size(MaxLivePostmasterChildren(),
+								   sizeof(sig_atomic_t)));
 
-    return size;
+	return size;
 }
 
 /*
@@ -94,16 +94,16 @@ PMSignalShmemSize(void)
 void
 PMSignalShmemInit(void)
 {
-    bool        found;
+	bool		found;
 
-    PMSignalState = (PMSignalData *)
-        ShmemInitStruct("PMSignalState", PMSignalShmemSize(), &found);
+	PMSignalState = (PMSignalData *)
+		ShmemInitStruct("PMSignalState", PMSignalShmemSize(), &found);
 
-    if (!found)
-    {
-        MemSet(PMSignalState, 0, PMSignalShmemSize());
-        PMSignalState->num_child_flags = MaxLivePostmasterChildren();
-    }
+	if (!found)
+	{
+		MemSet(PMSignalState, 0, PMSignalShmemSize());
+		PMSignalState->num_child_flags = MaxLivePostmasterChildren();
+	}
 }
 
 /*
@@ -112,13 +112,13 @@ PMSignalShmemInit(void)
 void
 SendPostmasterSignal(PMSignalReason reason)
 {
-    /* If called in a standalone backend, do nothing */
-    if (!IsUnderPostmaster)
-        return;
-    /* Atomically set the proper flag */
-    PMSignalState->PMSignalFlags[reason] = true;
-    /* Send signal to postmaster */
-    kill(PostmasterPid, SIGUSR1);
+	/* If called in a standalone backend, do nothing */
+	if (!IsUnderPostmaster)
+		return;
+	/* Atomically set the proper flag */
+	PMSignalState->PMSignalFlags[reason] = true;
+	/* Send signal to postmaster */
+	kill(PostmasterPid, SIGUSR1);
 }
 
 /*
@@ -129,13 +129,13 @@ SendPostmasterSignal(PMSignalReason reason)
 bool
 CheckPostmasterSignal(PMSignalReason reason)
 {
-    /* Careful here --- don't clear flag if we haven't seen it set */
-    if (PMSignalState->PMSignalFlags[reason])
-    {
-        PMSignalState->PMSignalFlags[reason] = false;
-        return true;
-    }
-    return false;
+	/* Careful here --- don't clear flag if we haven't seen it set */
+	if (PMSignalState->PMSignalFlags[reason])
+	{
+		PMSignalState->PMSignalFlags[reason] = false;
+		return true;
+	}
+	return false;
 }
 
 
@@ -150,28 +150,28 @@ CheckPostmasterSignal(PMSignalReason reason)
 int
 AssignPostmasterChildSlot(void)
 {
-    int            slot = PMSignalState->next_child_flag;
-    int            n;
+	int			slot = PMSignalState->next_child_flag;
+	int			n;
 
-    /*
-     * Scan for a free slot.  We track the last slot assigned so as not to
-     * waste time repeatedly rescanning low-numbered slots.
-     */
-    for (n = PMSignalState->num_child_flags; n > 0; n--)
-    {
-        if (--slot < 0)
-            slot = PMSignalState->num_child_flags - 1;
-        if (PMSignalState->PMChildFlags[slot] == PM_CHILD_UNUSED)
-        {
-            PMSignalState->PMChildFlags[slot] = PM_CHILD_ASSIGNED;
-            PMSignalState->next_child_flag = slot;
-            return slot + 1;
-        }
-    }
+	/*
+	 * Scan for a free slot.  We track the last slot assigned so as not to
+	 * waste time repeatedly rescanning low-numbered slots.
+	 */
+	for (n = PMSignalState->num_child_flags; n > 0; n--)
+	{
+		if (--slot < 0)
+			slot = PMSignalState->num_child_flags - 1;
+		if (PMSignalState->PMChildFlags[slot] == PM_CHILD_UNUSED)
+		{
+			PMSignalState->PMChildFlags[slot] = PM_CHILD_ASSIGNED;
+			PMSignalState->next_child_flag = slot;
+			return slot + 1;
+		}
+	}
 
-    /* Out of slots ... should never happen, else postmaster.c messed up */
-    elog(FATAL, "no free slots in PMChildFlags array");
-    return 0;                    /* keep compiler quiet */
+	/* Out of slots ... should never happen, else postmaster.c messed up */
+	elog(FATAL, "no free slots in PMChildFlags array");
+	return 0;					/* keep compiler quiet */
 }
 
 /*
@@ -184,19 +184,19 @@ AssignPostmasterChildSlot(void)
 bool
 ReleasePostmasterChildSlot(int slot)
 {
-    bool        result;
+	bool		result;
 
-    Assert(slot > 0 && slot <= PMSignalState->num_child_flags);
-    slot--;
+	Assert(slot > 0 && slot <= PMSignalState->num_child_flags);
+	slot--;
 
-    /*
-     * Note: the slot state might already be unused, because the logic in
-     * postmaster.c is such that this might get called twice when a child
-     * crashes.  So we don't try to Assert anything about the state.
-     */
-    result = (PMSignalState->PMChildFlags[slot] == PM_CHILD_ASSIGNED);
-    PMSignalState->PMChildFlags[slot] = PM_CHILD_UNUSED;
-    return result;
+	/*
+	 * Note: the slot state might already be unused, because the logic in
+	 * postmaster.c is such that this might get called twice when a child
+	 * crashes.  So we don't try to Assert anything about the state.
+	 */
+	result = (PMSignalState->PMChildFlags[slot] == PM_CHILD_ASSIGNED);
+	PMSignalState->PMChildFlags[slot] = PM_CHILD_UNUSED;
+	return result;
 }
 
 /*
@@ -206,13 +206,13 @@ ReleasePostmasterChildSlot(int slot)
 bool
 IsPostmasterChildWalSender(int slot)
 {
-    Assert(slot > 0 && slot <= PMSignalState->num_child_flags);
-    slot--;
+	Assert(slot > 0 && slot <= PMSignalState->num_child_flags);
+	slot--;
 
-    if (PMSignalState->PMChildFlags[slot] == PM_CHILD_WALSENDER)
-        return true;
-    else
-        return false;
+	if (PMSignalState->PMChildFlags[slot] == PM_CHILD_WALSENDER)
+		return true;
+	else
+		return false;
 }
 
 /*
@@ -222,12 +222,12 @@ IsPostmasterChildWalSender(int slot)
 void
 MarkPostmasterChildActive(void)
 {
-    int            slot = MyPMChildSlot;
+	int			slot = MyPMChildSlot;
 
-    Assert(slot > 0 && slot <= PMSignalState->num_child_flags);
-    slot--;
-    Assert(PMSignalState->PMChildFlags[slot] == PM_CHILD_ASSIGNED);
-    PMSignalState->PMChildFlags[slot] = PM_CHILD_ACTIVE;
+	Assert(slot > 0 && slot <= PMSignalState->num_child_flags);
+	slot--;
+	Assert(PMSignalState->PMChildFlags[slot] == PM_CHILD_ASSIGNED);
+	PMSignalState->PMChildFlags[slot] = PM_CHILD_ACTIVE;
 }
 
 /*
@@ -238,14 +238,14 @@ MarkPostmasterChildActive(void)
 void
 MarkPostmasterChildWalSender(void)
 {
-    int            slot = MyPMChildSlot;
+	int			slot = MyPMChildSlot;
 
-    Assert(am_walsender);
+	Assert(am_walsender);
 
-    Assert(slot > 0 && slot <= PMSignalState->num_child_flags);
-    slot--;
-    Assert(PMSignalState->PMChildFlags[slot] == PM_CHILD_ACTIVE);
-    PMSignalState->PMChildFlags[slot] = PM_CHILD_WALSENDER;
+	Assert(slot > 0 && slot <= PMSignalState->num_child_flags);
+	slot--;
+	Assert(PMSignalState->PMChildFlags[slot] == PM_CHILD_ACTIVE);
+	PMSignalState->PMChildFlags[slot] = PM_CHILD_WALSENDER;
 }
 
 /*
@@ -255,13 +255,13 @@ MarkPostmasterChildWalSender(void)
 void
 MarkPostmasterChildInactive(void)
 {
-    int            slot = MyPMChildSlot;
+	int			slot = MyPMChildSlot;
 
-    Assert(slot > 0 && slot <= PMSignalState->num_child_flags);
-    slot--;
-    Assert(PMSignalState->PMChildFlags[slot] == PM_CHILD_ACTIVE ||
-           PMSignalState->PMChildFlags[slot] == PM_CHILD_WALSENDER);
-    PMSignalState->PMChildFlags[slot] = PM_CHILD_ASSIGNED;
+	Assert(slot > 0 && slot <= PMSignalState->num_child_flags);
+	slot--;
+	Assert(PMSignalState->PMChildFlags[slot] == PM_CHILD_ACTIVE ||
+		   PMSignalState->PMChildFlags[slot] == PM_CHILD_WALSENDER);
+	PMSignalState->PMChildFlags[slot] = PM_CHILD_ASSIGNED;
 }
 
 
@@ -272,22 +272,22 @@ bool
 PostmasterIsAlive(void)
 {
 #ifndef WIN32
-    char        c;
-    ssize_t        rc;
+	char		c;
+	ssize_t		rc;
 
-    rc = read(postmaster_alive_fds[POSTMASTER_FD_WATCH], &c, 1);
-    if (rc < 0)
-    {
-        if (errno == EAGAIN || errno == EWOULDBLOCK)
-            return true;
-        else
-            elog(FATAL, "read on postmaster death monitoring pipe failed: %m");
-    }
-    else if (rc > 0)
-        elog(FATAL, "unexpected data in postmaster death monitoring pipe");
+	rc = read(postmaster_alive_fds[POSTMASTER_FD_WATCH], &c, 1);
+	if (rc < 0)
+	{
+		if (errno == EAGAIN || errno == EWOULDBLOCK)
+			return true;
+		else
+			elog(FATAL, "read on postmaster death monitoring pipe failed: %m");
+	}
+	else if (rc > 0)
+		elog(FATAL, "unexpected data in postmaster death monitoring pipe");
 
-    return false;
-#else                            /* WIN32 */
-    return (WaitForSingleObject(PostmasterHandle, 0) == WAIT_TIMEOUT);
-#endif                            /* WIN32 */
+	return false;
+#else							/* WIN32 */
+	return (WaitForSingleObject(PostmasterHandle, 0) == WAIT_TIMEOUT);
+#endif							/* WIN32 */
 }

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * extended_stats.c
- *      POSTGRES extended statistics
+ *	  POSTGRES extended statistics
  *
  * Generic code supporting statistics objects created via CREATE STATISTICS.
  *
@@ -9,11 +9,8 @@
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * IDENTIFICATION
- *      src/backend/statistics/extended_stats.c
+ *	  src/backend/statistics/extended_stats.c
  *
  *-------------------------------------------------------------------------
  */
@@ -26,6 +23,7 @@
 #include "catalog/pg_collation.h"
 #include "catalog/pg_statistic_ext.h"
 #include "nodes/relation.h"
+#include "parser/parsetree.h"
 #include "postmaster/autovacuum.h"
 #include "statistics/extended_stats_internal.h"
 #include "statistics/statistics.h"
@@ -48,21 +46,18 @@ typedef struct StatExtEntry
 	char	   *name;			/* statistics object's name */
 	Bitmapset  *columns;		/* attribute numbers covered by the object */
 	List	   *types;			/* 'char' list of enabled statistic kinds */
-#ifdef __OPENTENBASE__
-	List	   *orderedColumns;	/* attribute numbers in order of dependency */
-#endif
 } StatExtEntry;
 
 
 static List *fetch_statentries_for_relation(Relation pg_statext, Oid relid);
 static VacAttrStats **lookup_var_attr_stats(Relation rel, Bitmapset *attrs,
-                      int nvacatts, VacAttrStats **vacatts);
-static void statext_store(Relation pg_stext, Oid relid,
+					  int nvacatts, VacAttrStats **vacatts);
+static void
+statext_store(Relation pg_stext, Oid statOid,
 			  MVNDistinct *ndistinct, MVDependencies *dependencies,
-#ifdef __OPENTENBASE__
-			  MVDependencies *subset,
-#endif
-			  VacAttrStats **stats);
+			  AnalyzeRelStats *analyzeStat, int idx, MemoryContext oldcxt,
+			  MemoryContext extcxt);
+
 
 
 /*
@@ -74,30 +69,38 @@ static void statext_store(Relation pg_stext, Oid relid,
  */
 void
 BuildRelationExtStatistics(Relation onerel, double totalrows,
-                           int numrows, HeapTuple *rows,
-                           int natts, VacAttrStats **vacattrstats)
+						int numrows, HeapTuple *rows, TupleTableSlot *slot,
+						int natts, VacAttrStats **vacattrstats,
+						AnalyzeRelStats *analyzeStat)
 {
 	Relation	pg_stext;
 	ListCell   *lc;
 	List	   *stats;
 	MemoryContext cxt;
 	MemoryContext oldcxt;
+	int			statidx = 0;
 
-	cxt = AllocSetContextCreate(CurrentMemoryContext, "stats ext",
+	cxt = AllocSetContextCreate(CurrentMemoryContext,
+								"BuildRelationExtStatistics",
 								ALLOCSET_DEFAULT_SIZES);
 	oldcxt = MemoryContextSwitchTo(cxt);
 
 	pg_stext = heap_open(StatisticExtRelationId, RowExclusiveLock);
 	stats = fetch_statentries_for_relation(pg_stext, RelationGetRelid(onerel));
 
+	if (analyzeStat != NULL && stats != NULL && stats->length > 0)
+	{
+		MemoryContextSwitchTo(oldcxt);
+		analyzeStat->ext_info_num = 0;
+		analyzeStat->pgstatext = (AnalyzeExtStats*)palloc0(sizeof(AnalyzeExtStats) * stats->length);
+		MemoryContextSwitchTo(cxt);
+	}
+
 	foreach(lc, stats)
 	{
 		StatExtEntry *stat = (StatExtEntry *) lfirst(lc);
 		MVNDistinct *ndistinct = NULL;
 		MVDependencies *dependencies = NULL;
-#ifdef __OPENTENBASE__
-		MVDependencies *subset = NULL;
-#endif
 		VacAttrStats **stats;
 		ListCell   *lc2;
 
@@ -107,6 +110,10 @@ BuildRelationExtStatistics(Relation onerel, double totalrows,
 		 */
 		stats = lookup_var_attr_stats(onerel, stat->columns,
 									  natts, vacattrstats);
+		/*
+		 * autovacuum should skip the warning, as analyze called
+		 * their process are not invoked by user directly.
+		 */
 		if (!stats && !IsAutoVacuumWorkerProcess())
 		{
 			ereport(WARNING,
@@ -129,27 +136,27 @@ BuildRelationExtStatistics(Relation onerel, double totalrows,
 			char		t = (char) lfirst_int(lc2);
 
 			if (t == STATS_EXT_NDISTINCT)
-				ndistinct = statext_ndistinct_build(totalrows, numrows, rows,
+				ndistinct = statext_ndistinct_build(totalrows, numrows, rows, slot,
 													stat->columns, stats);
 			else if (t == STATS_EXT_DEPENDENCIES)
-				dependencies = statext_dependencies_build(numrows, rows,
+				dependencies = statext_dependencies_build(numrows, rows, slot,
 														  stat->columns, stats);
-#ifdef __OPENTENBASE__
-			else if (t == STATS_EXT_SUBSET)
-				subset = statext_subset_build(numrows, stat->orderedColumns);
-#endif
 		}
 
 		/* store the statistics in the catalog */
-#ifdef __OPENTENBASE__
-		statext_store(pg_stext, stat->statOid,
-					  ndistinct, dependencies,
-					  subset, stats);
-#else
-		statext_store(pg_stext, stat->statOid, ndistinct, dependencies, stats);
-#endif
+		statext_store(pg_stext, stat->statOid, ndistinct, dependencies, analyzeStat, statidx, oldcxt, cxt);
+		
+		if (analyzeStat != NULL)
+		{
+			MemoryContextSwitchTo(oldcxt);
+			analyzeStat->pgstatext[statidx].statname = palloc0(strlen(stat->name) + 1);
+			memcpy(analyzeStat->pgstatext[statidx].statname, stat->name, strlen(stat->name));
+			statidx++;
+			MemoryContextSwitchTo(cxt);
+		}
 	}
-
+	if (analyzeStat != NULL)
+		analyzeStat->ext_info_num = statidx;
 	heap_close(pg_stext, RowExclusiveLock);
 
 	MemoryContextSwitchTo(oldcxt);
@@ -158,34 +165,28 @@ BuildRelationExtStatistics(Relation onerel, double totalrows,
 
 /*
  * statext_is_kind_built
- *        Is this stat kind built in the given pg_statistic_ext tuple?
+ *		Is this stat kind built in the given pg_statistic_ext tuple?
  */
 bool
 statext_is_kind_built(HeapTuple htup, char type)
 {
-    AttrNumber    attnum;
+	AttrNumber	attnum;
 
-    switch (type)
-    {
-        case STATS_EXT_NDISTINCT:
-            attnum = Anum_pg_statistic_ext_stxndistinct;
-            break;
-
-        case STATS_EXT_DEPENDENCIES:
-            attnum = Anum_pg_statistic_ext_stxdependencies;
-            break;
-
-#ifdef __OPENTENBASE__
-		case STATS_EXT_SUBSET:
-			attnum = Anum_pg_statistic_ext_stxsubset;
+	switch (type)
+	{
+		case STATS_EXT_NDISTINCT:
+			attnum = Anum_pg_statistic_ext_stxndistinct;
 			break;
-#endif
+
+		case STATS_EXT_DEPENDENCIES:
+			attnum = Anum_pg_statistic_ext_stxdependencies;
+			break;
 
 		default:
 			elog(ERROR, "unexpected statistics type requested: %d", type);
 	}
 
-    return !heap_attisnull(htup, attnum, NULL);
+	return !heap_attisnull(htup, attnum, NULL);
 }
 
 /*
@@ -220,9 +221,6 @@ fetch_statentries_for_relation(Relation pg_statext, Oid relid)
 		ArrayType  *arr;
 		char	   *enabled;
 		Form_pg_statistic_ext staForm;
-#ifdef __OPENTENBASE__
-		bool		need_column_order = false;
-#endif
 
 		entry = palloc0(sizeof(StatExtEntry));
 		entry->statOid = HeapTupleGetOid(htup);
@@ -248,30 +246,8 @@ fetch_statentries_for_relation(Relation pg_statext, Oid relid)
 		for (i = 0; i < ARR_DIMS(arr)[0]; i++)
 		{
 			Assert((enabled[i] == STATS_EXT_NDISTINCT) ||
-				   (enabled[i] == STATS_EXT_DEPENDENCIES) ||
-				   (enabled[i] == STATS_EXT_SUBSET));
+				   (enabled[i] == STATS_EXT_DEPENDENCIES));
 			entry->types = lappend_int(entry->types, (int) enabled[i]);
-#ifdef __OPENTENBASE__
-
-			if (enabled[i] == STATS_EXT_SUBSET)
-			{
-				/* Currently we only support subset of two columns */
-				Assert(staForm->stxkeys.dim1 == 2);
-
-				/* Order of column defined indicates the subset relation */
-				need_column_order = true;
-			}
-		}
-
-		/* Build the list of columns with the original order */
-		if (need_column_order)
-		{
-			for (i = 0; i < staForm->stxkeys.dim1; i++)
-			{
-				entry->orderedColumns = lappend_int(entry->orderedColumns,
-													staForm->stxkeys.values[i]);
-			}
-#endif
 		}
 
 		result = lappend(result, entry);
@@ -291,64 +267,62 @@ fetch_statentries_for_relation(Relation pg_statext, Oid relid)
  */
 static VacAttrStats **
 lookup_var_attr_stats(Relation rel, Bitmapset *attrs,
-                      int nvacatts, VacAttrStats **vacatts)
+					  int nvacatts, VacAttrStats **vacatts)
 {
-    int            i = 0;
-    int            x = -1;
-    VacAttrStats **stats;
+	int			i = 0;
+	int			x = -1;
+	VacAttrStats **stats;
 
-    stats = (VacAttrStats **)
-        palloc(bms_num_members(attrs) * sizeof(VacAttrStats *));
+	stats = (VacAttrStats **)
+		palloc(bms_num_members(attrs) * sizeof(VacAttrStats *));
 
-    /* lookup VacAttrStats info for the requested columns (same attnum) */
-    while ((x = bms_next_member(attrs, x)) >= 0)
-    {
-        int            j;
+	/* lookup VacAttrStats info for the requested columns (same attnum) */
+	while ((x = bms_next_member(attrs, x)) >= 0)
+	{
+		int			j;
 
-        stats[i] = NULL;
-        for (j = 0; j < nvacatts; j++)
-        {
-            if (x == vacatts[j]->tupattnum)
-            {
-                stats[i] = vacatts[j];
-                break;
-            }
-        }
+		stats[i] = NULL;
+		for (j = 0; j < nvacatts; j++)
+		{
+			if (x == vacatts[j]->tupattnum)
+			{
+				stats[i] = vacatts[j];
+				break;
+			}
+		}
 
-        if (!stats[i])
-        {
-            /*
-             * Looks like stats were not gathered for one of the columns
-             * required. We'll be unable to build the extended stats without
-             * this column.
-             */
-            pfree(stats);
-            return NULL;
-        }
+		if (!stats[i])
+		{
+			/*
+			 * Looks like stats were not gathered for one of the columns
+			 * required. We'll be unable to build the extended stats without
+			 * this column.
+			 */
+			pfree(stats);
+			return NULL;
+		}
 
-        /*
-         * Sanity check that the column is not dropped - stats should have
-         * been removed in this case.
-         */
-        Assert(!stats[i]->attr->attisdropped);
+		/*
+		 * Sanity check that the column is not dropped - stats should have
+		 * been removed in this case.
+		 */
+		Assert(!stats[i]->attr->attisdropped);
 
-        i++;
-    }
+		i++;
+	}
 
-    return stats;
+	return stats;
 }
 
 /*
  * statext_store
- *    Serializes the statistics and stores them into the pg_statistic_ext tuple.
+ *	Serializes the statistics and stores them into the pg_statistic_ext tuple.
  */
 static void
 statext_store(Relation pg_stext, Oid statOid,
 			  MVNDistinct *ndistinct, MVDependencies *dependencies,
-#ifdef __OPENTENBASE__
-			  MVDependencies *subset,
-#endif
-			  VacAttrStats **stats)
+			  AnalyzeRelStats *analyzeStat, int idx, MemoryContext oldcxt,
+			  MemoryContext extcxt)
 {
 	HeapTuple	stup,
 				oldtup;
@@ -365,36 +339,50 @@ statext_store(Relation pg_stext, Oid statOid,
 	 */
 	if (ndistinct != NULL)
 	{
-		bytea	   *data = statext_ndistinct_serialize(ndistinct);
+		bytea* data = statext_ndistinct_serialize(ndistinct);
 
 		nulls[Anum_pg_statistic_ext_stxndistinct - 1] = (data == NULL);
 		values[Anum_pg_statistic_ext_stxndistinct - 1] = PointerGetDatum(data);
+		if (analyzeStat != NULL && data != NULL)
+		{
+			MemoryContextSwitchTo(oldcxt);
+			analyzeStat->pgstatext[idx].distinct = (char*)palloc0(VARSIZE(data) - VARHDRSZ);
+			memcpy(analyzeStat->pgstatext[idx].distinct, VARDATA(data), VARSIZE(data) - VARHDRSZ);
+			analyzeStat->pgstatext[idx].distinct_len = VARSIZE(data) - VARHDRSZ;
+			MemoryContextSwitchTo(extcxt);
+		}
+		else if (analyzeStat != NULL)
+		{
+			analyzeStat->pgstatext[idx].distinct = NULL;
+			analyzeStat->pgstatext[idx].distinct_len = 0;
+		}
 	}
 
 	if (dependencies != NULL)
 	{
-		bytea	   *data = statext_dependencies_serialize(dependencies);
+		bytea* data = statext_dependencies_serialize(dependencies);
 
 		nulls[Anum_pg_statistic_ext_stxdependencies - 1] = (data == NULL);
 		values[Anum_pg_statistic_ext_stxdependencies - 1] = PointerGetDatum(data);
-	}
 
-#ifdef __OPENTENBASE__
-	if (subset != NULL)
-	{
-		bytea	   *data = statext_dependencies_serialize(subset);
-
-		nulls[Anum_pg_statistic_ext_stxsubset - 1] = (data == NULL);
-		values[Anum_pg_statistic_ext_stxsubset - 1] = PointerGetDatum(data);
+		if (analyzeStat != NULL && data != NULL)
+		{
+			MemoryContextSwitchTo(oldcxt);
+			analyzeStat->pgstatext[idx].depend = (char*)palloc0(VARSIZE(data) - VARHDRSZ);
+			memcpy(analyzeStat->pgstatext[idx].depend, VARDATA(data), VARSIZE(data) - VARHDRSZ);
+			analyzeStat->pgstatext[idx].depend_len = VARSIZE(data) - VARHDRSZ;
+			MemoryContextSwitchTo(extcxt);
+		}
+		else if (analyzeStat != NULL)
+		{
+			analyzeStat->pgstatext[idx].depend = NULL;
+			analyzeStat->pgstatext[idx].depend_len = 0;
+		}
 	}
-#endif
 
 	/* always replace the value (either by bytea or NULL) */
 	replaces[Anum_pg_statistic_ext_stxndistinct - 1] = true;
 	replaces[Anum_pg_statistic_ext_stxdependencies - 1] = true;
-#ifdef __OPENTENBASE__
-	replaces[Anum_pg_statistic_ext_stxsubset - 1] = true;
-#endif
 
 	/* there should already be a pg_statistic_ext tuple */
 	oldtup = SearchSysCache1(STATEXTOID, ObjectIdGetDatum(statOid));
@@ -417,16 +405,16 @@ statext_store(Relation pg_stext, Oid statOid,
 MultiSortSupport
 multi_sort_init(int ndims)
 {
-    MultiSortSupport mss;
+	MultiSortSupport mss;
 
-    Assert(ndims >= 2);
+	Assert(ndims >= 2);
 
-    mss = (MultiSortSupport) palloc0(offsetof(MultiSortSupportData, ssup)
-                                     + sizeof(SortSupportData) * ndims);
+	mss = (MultiSortSupport) palloc0(offsetof(MultiSortSupportData, ssup)
+									 + sizeof(SortSupportData) * ndims);
 
-    mss->ndims = ndims;
+	mss->ndims = ndims;
 
-    return mss;
+	return mss;
 }
 
 /*
@@ -436,96 +424,96 @@ multi_sort_init(int ndims)
 void
 multi_sort_add_dimension(MultiSortSupport mss, int sortdim, Oid oper)
 {
-    SortSupport ssup = &mss->ssup[sortdim];
+	SortSupport ssup = &mss->ssup[sortdim];
 
-    ssup->ssup_cxt = CurrentMemoryContext;
-    ssup->ssup_collation = DEFAULT_COLLATION_OID;
-    ssup->ssup_nulls_first = false;
-    ssup->ssup_cxt = CurrentMemoryContext;
+	ssup->ssup_cxt = CurrentMemoryContext;
+	ssup->ssup_collation = DEFAULT_COLLATION_OID;
+	ssup->ssup_nulls_first = false;
+	ssup->ssup_cxt = CurrentMemoryContext;
 
-    PrepareSortSupportFromOrderingOp(oper, ssup);
+	PrepareSortSupportFromOrderingOp(oper, ssup);
 }
 
 /* compare all the dimensions in the selected order */
 int
 multi_sort_compare(const void *a, const void *b, void *arg)
 {
-    MultiSortSupport mss = (MultiSortSupport) arg;
-    SortItem   *ia = (SortItem *) a;
-    SortItem   *ib = (SortItem *) b;
-    int            i;
+	MultiSortSupport mss = (MultiSortSupport) arg;
+	SortItem   *ia = (SortItem *) a;
+	SortItem   *ib = (SortItem *) b;
+	int			i;
 
-    for (i = 0; i < mss->ndims; i++)
-    {
-        int            compare;
+	for (i = 0; i < mss->ndims; i++)
+	{
+		int			compare;
 
-        compare = ApplySortComparator(ia->values[i], ia->isnull[i],
-                                      ib->values[i], ib->isnull[i],
-                                      &mss->ssup[i]);
+		compare = ApplySortComparator(ia->values[i], ia->isnull[i],
+									  ib->values[i], ib->isnull[i],
+									  &mss->ssup[i]);
 
-        if (compare != 0)
-            return compare;
-    }
+		if (compare != 0)
+			return compare;
+	}
 
-    /* equal by default */
-    return 0;
+	/* equal by default */
+	return 0;
 }
 
 /* compare selected dimension */
 int
 multi_sort_compare_dim(int dim, const SortItem *a, const SortItem *b,
-                       MultiSortSupport mss)
+					   MultiSortSupport mss)
 {
-    return ApplySortComparator(a->values[dim], a->isnull[dim],
-                               b->values[dim], b->isnull[dim],
-                               &mss->ssup[dim]);
+	return ApplySortComparator(a->values[dim], a->isnull[dim],
+							   b->values[dim], b->isnull[dim],
+							   &mss->ssup[dim]);
 }
 
 int
 multi_sort_compare_dims(int start, int end,
-                        const SortItem *a, const SortItem *b,
-                        MultiSortSupport mss)
+						const SortItem *a, const SortItem *b,
+						MultiSortSupport mss)
 {
-    int            dim;
+	int			dim;
 
-    for (dim = start; dim <= end; dim++)
-    {
-        int            r = ApplySortComparator(a->values[dim], a->isnull[dim],
-                                            b->values[dim], b->isnull[dim],
-                                            &mss->ssup[dim]);
+	for (dim = start; dim <= end; dim++)
+	{
+		int			r = ApplySortComparator(a->values[dim], a->isnull[dim],
+											b->values[dim], b->isnull[dim],
+											&mss->ssup[dim]);
 
-        if (r != 0)
-            return r;
-    }
+		if (r != 0)
+			return r;
+	}
 
-    return 0;
+	return 0;
 }
 
 /*
  * has_stats_of_kind
- *        Check whether the list contains statistic of a given kind
+ *		Check whether the list contains statistic of a given kind
  */
 bool
 has_stats_of_kind(List *stats, char requiredkind)
 {
-    ListCell   *l;
+	ListCell   *l;
 
-    foreach(l, stats)
-    {
-        StatisticExtInfo *stat = (StatisticExtInfo *) lfirst(l);
+	foreach(l, stats)
+	{
+		StatisticExtInfo *stat = (StatisticExtInfo *) lfirst(l);
 
-        if (stat->kind == requiredkind)
-            return true;
-    }
+		if (stat->kind == requiredkind)
+			return true;
+	}
 
-    return false;
+	return false;
 }
 
 /*
  * choose_best_statistics
- *        Look for and return statistics with the specified 'requiredkind' which
- *        have keys that match at least two of the given attnums.  Return NULL if
- *        there's no match.
+ *		Look for and return statistics with the specified 'requiredkind' which
+ *		have keys that match at least two of the given attnums.  Return NULL if
+ *		there's no match.
  *
  * The current selection criteria is very simple - we choose the statistics
  * object referencing the most of the requested attributes, breaking ties
@@ -538,46 +526,46 @@ has_stats_of_kind(List *stats, char requiredkind)
 StatisticExtInfo *
 choose_best_statistics(List *stats, Bitmapset *attnums, char requiredkind)
 {
-    ListCell   *lc;
-    StatisticExtInfo *best_match = NULL;
-    int            best_num_matched = 2;    /* goal #1: maximize */
-    int            best_match_keys = (STATS_MAX_DIMENSIONS + 1);    /* goal #2: minimize */
+	ListCell   *lc;
+	StatisticExtInfo *best_match = NULL;
+	int			best_num_matched = 2;	/* goal #1: maximize */
+	int			best_match_keys = (STATS_MAX_DIMENSIONS + 1);	/* goal #2: minimize */
 
-    foreach(lc, stats)
-    {
-        StatisticExtInfo *info = (StatisticExtInfo *) lfirst(lc);
-        int            num_matched;
-        int            numkeys;
-        Bitmapset  *matched;
+	foreach(lc, stats)
+	{
+		StatisticExtInfo *info = (StatisticExtInfo *) lfirst(lc);
+		int			num_matched;
+		int			numkeys;
+		Bitmapset  *matched;
 
-        /* skip statistics that are not of the correct type */
-        if (info->kind != requiredkind)
-            continue;
+		/* skip statistics that are not of the correct type */
+		if (info->kind != requiredkind)
+			continue;
 
-        /* determine how many attributes of these stats can be matched to */
-        matched = bms_intersect(attnums, info->keys);
-        num_matched = bms_num_members(matched);
-        bms_free(matched);
+		/* determine how many attributes of these stats can be matched to */
+		matched = bms_intersect(attnums, info->keys);
+		num_matched = bms_num_members(matched);
+		bms_free(matched);
 
-        /*
-         * save the actual number of keys in the stats so that we can choose
-         * the narrowest stats with the most matching keys.
-         */
-        numkeys = bms_num_members(info->keys);
+		/*
+		 * save the actual number of keys in the stats so that we can choose
+		 * the narrowest stats with the most matching keys.
+		 */
+		numkeys = bms_num_members(info->keys);
 
-        /*
-         * Use this object when it increases the number of matched clauses or
-         * when it matches the same number of attributes but these stats have
-         * fewer keys than any previous match.
-         */
-        if (num_matched > best_num_matched ||
-            (num_matched == best_num_matched && numkeys < best_match_keys))
-        {
-            best_match = info;
-            best_num_matched = num_matched;
-            best_match_keys = numkeys;
-        }
-    }
+		/*
+		 * Use this object when it increases the number of matched clauses or
+		 * when it matches the same number of attributes but these stats have
+		 * fewer keys than any previous match.
+		 */
+		if (num_matched > best_num_matched ||
+			(num_matched == best_num_matched && numkeys < best_match_keys))
+		{
+			best_match = info;
+			best_num_matched = num_matched;
+			best_match_keys = numkeys;
+		}
+	}
 
-    return best_match;
+	return best_match;
 }

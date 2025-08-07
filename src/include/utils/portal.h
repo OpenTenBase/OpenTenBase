@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * portal.h
- *      POSTGRES portal definitions.
+ *	  POSTGRES portal definitions.
  *
  * A portal is an abstraction which represents the execution state of
  * a running or runnable query.  Portals support both SQL-level CURSORs
@@ -9,7 +9,7 @@
  *
  * Scrolling (nonsequential access) and suspension of execution are allowed
  * only for portals that contain a single SELECT-type query.  We do not want
- * to let the client suspend an update-type query partway through!    Because
+ * to let the client suspend an update-type query partway through!	Because
  * the query rewriter does not allow arbitrary ON SELECT rewrite rules,
  * only queries that were originally update-type could produce multiple
  * plan trees; so the restriction to a single query is not a problem
@@ -18,14 +18,14 @@
  * For SQL cursors, we support three kinds of scroll behavior:
  *
  * (1) Neither NO SCROLL nor SCROLL was specified: to remain backward
- *       compatible, we allow backward fetches here, unless it would
- *       impose additional runtime overhead to do so.
+ *	   compatible, we allow backward fetches here, unless it would
+ *	   impose additional runtime overhead to do so.
  *
  * (2) NO SCROLL was specified: don't allow any backward fetches.
  *
  * (3) SCROLL was specified: allow all kinds of backward fetches, even
- *       if we need to take a performance hit to do so.  (The planner sticks
- *       a Materialize node atop the query plan if needed.)
+ *	   if we need to take a performance hit to do so.  (The planner sticks
+ *	   a Materialize node atop the query plan if needed.)
  *
  * Case #1 is converted to #2 or #3 by looking at the query itself and
  * determining if scrollability can be supported without additional
@@ -39,9 +39,6 @@
  * Portions Copyright (c) 2012-2014, TransLattice, Inc.
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
- *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  * src/include/utils/portal.h
  *
@@ -91,15 +88,11 @@
  */
 typedef enum PortalStrategy
 {
-    PORTAL_ONE_SELECT,
-    PORTAL_ONE_RETURNING,
-    PORTAL_ONE_MOD_WITH,
-    PORTAL_UTIL_SELECT,
-    PORTAL_MULTI_QUERY
-#ifdef XCP
-    ,
-    PORTAL_DISTRIBUTED
-#endif
+	PORTAL_ONE_SELECT,
+	PORTAL_ONE_RETURNING,
+	PORTAL_ONE_MOD_WITH,
+	PORTAL_UTIL_SELECT,
+	PORTAL_MULTI_QUERY
 } PortalStrategy;
 
 /*
@@ -109,144 +102,141 @@ typedef enum PortalStrategy
  */
 typedef enum PortalStatus
 {
-    PORTAL_NEW,                    /* freshly created */
-    PORTAL_DEFINED,                /* PortalDefineQuery done */
-    PORTAL_READY,                /* PortalStart complete, can run it */
-    PORTAL_ACTIVE,                /* portal is running (can't delete it) */
-    PORTAL_DONE,                /* portal is finished (don't re-run it) */
-    PORTAL_FAILED                /* portal got error (can't re-run it) */
+	PORTAL_NEW,					/* freshly created */
+	PORTAL_DEFINED,				/* PortalDefineQuery done */
+	PORTAL_READY,				/* PortalStart complete, can run it */
+	PORTAL_ACTIVE,				/* portal is running (can't delete it) */
+	PORTAL_DONE,				/* portal is finished (don't re-run it) */
+	PORTAL_FAILED				/* portal got error (can't re-run it) */
 } PortalStatus;
 
 typedef struct PortalData *Portal;
 
 typedef struct PortalData
 {
-    /* Bookkeeping data */
-    const char *name;            /* portal's name */
-    const char *prepStmtName;    /* source prepared statement (NULL if none) */
-    MemoryContext heap;            /* subsidiary memory for portal */
-    ResourceOwner resowner;        /* resources owned by portal */
-    void        (*cleanup) (Portal portal); /* cleanup hook */
+	/* Bookkeeping data */
+	const char *name;			/* portal's name */
+	const char *prepStmtName;	/* source prepared statement (NULL if none) */
+	MemoryContext portalContext;/* subsidiary memory for portal */
+	ResourceOwner resowner;		/* resources owned by portal */
+	void		(*cleanup) (Portal portal); /* cleanup hook */
 
-    /*
-     * State data for remembering which subtransaction(s) the portal was
-     * created or used in.  If the portal is held over from a previous
-     * transaction, both subxids are InvalidSubTransactionId.  Otherwise,
-     * createSubid is the creating subxact and activeSubid is the last subxact
-     * in which we ran the portal.
-     */
-    SubTransactionId createSubid;    /* the creating subxact */
-    SubTransactionId activeSubid;    /* the last subxact with activity */
+	/*
+	 * State data for remembering which subtransaction(s) the portal was
+	 * created or used in.  If the portal is held over from a previous
+	 * transaction, both subxids are InvalidSubTransactionId.  Otherwise,
+	 * createSubid is the creating subxact and activeSubid is the last subxact
+	 * in which we ran the portal.
+	 */
+	SubTransactionId createSubid;	/* the creating subxact */
+	SubTransactionId activeSubid;	/* the last subxact with activity */
 
-    /* The query or queries the portal will execute */
-    const char *sourceText;        /* text of query (as of 8.4, never NULL) */
-    const char *commandTag;        /* command tag for original query */
-    List       *stmts;            /* list of PlannedStmts */
-    CachedPlan *cplan;            /* CachedPlan, if stmts are from one */
+	/* The query or queries the portal will execute */
+	const char *sourceText;		/* text of query (as of 8.4, never NULL) */
+	const char *commandTag;		/* command tag for original query */
+	List	   *stmts;			/* list of PlannedStmts */
+	CachedPlan *cplan;			/* CachedPlan, if stmts are from one */
 
-    ParamListInfo portalParams; /* params to pass to query */
-    QueryEnvironment *queryEnv; /* environment for query */
+	ParamListInfo portalParams; /* params to pass to query */
+	QueryEnvironment *queryEnv; /* environment for query */
 
-    /* Features/options */
-    PortalStrategy strategy;    /* see above */
-    int            cursorOptions;    /* DECLARE CURSOR option bits */
-    bool        run_once;        /* portal will only be run once */
+	/* Features/options */
+	PortalStrategy strategy;	/* see above */
+	int			cursorOptions;	/* DECLARE CURSOR option bits */
+	bool		run_once;		/* portal will only be run once */
 
-    /* Status data */
-    PortalStatus status;        /* see above */
-    bool        portalPinned;    /* a pinned portal can't be dropped */
+	/* Status data */
+	PortalStatus status;		/* see above */
+	bool		portalPinned;	/* a pinned portal can't be dropped */
+	bool		autoHeld;		/* was automatically converted from pinned to
+								 * held (see HoldPinnedPortals()) */
 
-    /* If not NULL, Executor is active; call ExecutorEnd eventually: */
-    QueryDesc  *queryDesc;        /* info needed for executor invocation */
+	/* If not NULL, Executor is active; call ExecutorEnd eventually: */
+	QueryDesc  *queryDesc;		/* info needed for executor invocation */
 
-    /* If portal returns tuples, this is their tupdesc: */
-    TupleDesc    tupDesc;        /* descriptor for result tuples */
-    /* and these are the format codes to use for the columns: */
-    int16       *formats;        /* a format code for each column */
+	/* If portal returns tuples, this is their tupdesc: */
+	TupleDesc	tupDesc;		/* descriptor for result tuples */
+	/* and these are the format codes to use for the columns: */
+	int16	   *formats;		/* a format code for each column */
 
-    /*
-     * Where we store tuples for a held cursor or a PORTAL_ONE_RETURNING or
-     * PORTAL_UTIL_SELECT query.  (A cursor held past the end of its
-     * transaction no longer has any active executor state.)
-     */
-    Tuplestorestate *holdStore; /* store for holdable cursors */
-    MemoryContext holdContext;    /* memory containing holdStore */
-#ifdef XCP
-    MemoryContext tmpContext;    /* temporary memory */
-#endif
+	/*
+	 * Where we store tuples for a held cursor or a PORTAL_ONE_RETURNING or
+	 * PORTAL_UTIL_SELECT query.  (A cursor held past the end of its
+	 * transaction no longer has any active executor state.)
+	 */
+	Tuplestorestate *holdStore; /* store for holdable cursors */
+	MemoryContext holdContext;	/* memory containing holdStore */
 
-    /*
-     * Snapshot under which tuples in the holdStore were read.  We must keep a
-     * reference to this snapshot if there is any possibility that the tuples
-     * contain TOAST references, because releasing the snapshot could allow
-     * recently-dead rows to be vacuumed away, along with any toast data
-     * belonging to them.  In the case of a held cursor, we avoid needing to
-     * keep such a snapshot by forcibly detoasting the data.
-     */
-    Snapshot    holdSnapshot;    /* registered snapshot, or NULL if none */
+	/*
+	 * Snapshot under which tuples in the holdStore were read.  We must keep a
+	 * reference to this snapshot if there is any possibility that the tuples
+	 * contain TOAST references, because releasing the snapshot could allow
+	 * recently-dead rows to be vacuumed away, along with any toast data
+	 * belonging to them.  In the case of a held cursor, we avoid needing to
+	 * keep such a snapshot by forcibly detoasting the data.
+	 */
+	Snapshot	holdSnapshot;	/* registered snapshot, or NULL if none */
 
-    /*
-     * atStart, atEnd and portalPos indicate the current cursor position.
-     * portalPos is zero before the first row, N after fetching N'th row of
-     * query.  After we run off the end, portalPos = # of rows in query, and
-     * atEnd is true.  Note that atStart implies portalPos == 0, but not the
-     * reverse: we might have backed up only as far as the first row, not to
-     * the start.  Also note that various code inspects atStart and atEnd, but
-     * only the portal movement routines should touch portalPos.
-     */
-    bool        atStart;
-    bool        atEnd;
-    uint64        portalPos;
+	/*
+	 * atStart, atEnd and portalPos indicate the current cursor position.
+	 * portalPos is zero before the first row, N after fetching N'th row of
+	 * query.  After we run off the end, portalPos = # of rows in query, and
+	 * atEnd is true.  Note that atStart implies portalPos == 0, but not the
+	 * reverse: we might have backed up only as far as the first row, not to
+	 * the start.  Also note that various code inspects atStart and atEnd, but
+	 * only the portal movement routines should touch portalPos.
+	 */
+	bool		atStart;
+	bool		atEnd;
+	uint64		portalPos;
 
-    /* Presentation data, primarily used by the pg_cursors system view */
-    TimestampTz creation_time;    /* time at which this portal was defined */
-    bool        visible;        /* include this portal in pg_cursors? */
+	/* Presentation data, primarily used by the pg_cursors system view */
+	TimestampTz creation_time;	/* time at which this portal was defined */
+	bool		visible;		/* include this portal in pg_cursors? */
 #ifdef __OPENTENBASE__
-    bool        failed_in_sub;  /* 
-                                 * portal marked failed in subtransaction 
-                                 * in AtSubAbort_Portals
-                                 */
-	
-	/* information about EvalPlanQual, pass it to queryDesc */
-	RemoteEPQContext *epqContext;
+	bool		failed_in_sub;	/* portal marked failed in subtransaction 
+								 * in AtSubAbort_Portals */
+#endif
+#ifdef __OPENTENBASE_C__
 	int			up_instrument;	/* explain analyze option from cn */
 #endif
-}            PortalData;
+	/*
+	 * when there has a CachedPlanSource, and cn only transparently transmits tuples,
+	 * use it to pass the tupleDesc of CachedPlanSource
+	 */
+	TupleDesc cn_penetrate_tupleDesc;
+
+#ifdef _PG_ORCL_
+	uint64		last_fetched;	/* Last rowcount to fetch */
+
+	bool		paused; /* If paused by auto-xact */
+	bool		cursor; /* true if created by cursor */
+#endif
+}			PortalData;
 
 /*
  * PortalIsValid
- *        True iff portal is valid.
+ *		True iff portal is valid.
  */
 #define PortalIsValid(p) PointerIsValid(p)
-
-/*
- * Access macros for Portal ... use these in preference to field access.
- */
-#define PortalGetQueryDesc(portal)    ((portal)->queryDesc)
-#define PortalGetHeapMemory(portal) ((portal)->heap)
-
-/* Hook for plugins to get control after PortalStart() */
-typedef void (*PortalStart_hook_type) (Portal portal);
-extern PGDLLIMPORT PortalStart_hook_type PortalStart_hook;
-/* Hook for plugins to get control before PortalDrop() */
-typedef void (*PortalDrop_hook_type) (Portal portal);
-extern PGDLLIMPORT PortalDrop_hook_type PortalDrop_hook;
+#define PortalGetMemory(portal) ((portal)->portalContext)
 
 /* Prototypes for functions in utils/mmgr/portalmem.c */
 extern void EnablePortalManager(void);
 extern bool PreCommit_Portals(bool isPrepare);
 extern void AtAbort_Portals(void);
 extern void AtCleanup_Portals(void);
+extern void PortalErrorCleanup(void);
 extern void AtSubCommit_Portals(SubTransactionId mySubid,
-                    SubTransactionId parentSubid,
-                    ResourceOwner parentXactOwner);
+					SubTransactionId parentSubid,
+					ResourceOwner parentXactOwner);
 extern void AtSubAbort_Portals(SubTransactionId mySubid,
-                   SubTransactionId parentSubid,
-                   ResourceOwner myXactOwner,
-                   ResourceOwner parentXactOwner);
+				   SubTransactionId parentSubid,
+				   ResourceOwner myXactOwner,
+				   ResourceOwner parentXactOwner);
 extern void AtSubCleanup_Portals(SubTransactionId mySubid);
-extern Portal CreatePortal(const char *name, bool allowDup, bool dupSilent);
-extern Portal CreateNewPortal(void);
+extern Portal CreatePortal(const char *name, bool allowDup, bool dupSilent, bool cursor, Node *parsetree);
+extern Portal CreateNewPortal(bool cursor);
 extern void PinPortal(Portal portal);
 extern void UnpinPortal(Portal portal);
 extern void MarkPortalActive(Portal portal);
@@ -255,21 +245,17 @@ extern void MarkPortalFailed(Portal portal);
 extern void PortalDrop(Portal portal, bool isTopCommit);
 extern Portal GetPortalByName(const char *name);
 extern void PortalDefineQuery(Portal portal,
-                  const char *prepStmtName,
-                  const char *sourceText,
-                  const char *commandTag,
-                  List *stmts,
-                  CachedPlan *cplan);
+				  const char *prepStmtName,
+				  const char *sourceText,
+				  const char *commandTag,
+				  List *stmts,
+				  CachedPlan *cplan);
 extern PlannedStmt *PortalGetPrimaryStmt(Portal portal);
 extern void PortalCreateHoldStore(Portal portal);
 extern void PortalHashTableDeleteAll(void);
-#ifdef XCP
-extern void PortalCreateProducerStore(Portal portal);
-extern List *getProducingPortals(void);
-extern void addProducingPortal(Portal portal);
-extern void removeProducingPortal(Portal portal);
-extern bool portalIsProducing(Portal portal);
-#endif
 extern bool ThereAreNoReadyPortals(void);
+extern void HoldPinnedPortals(void);
+extern void UpdateRollbackPortal(void);
+extern void RestoreActivePortal(void);
 
-#endif                            /* PORTAL_H */
+#endif							/* PORTAL_H */

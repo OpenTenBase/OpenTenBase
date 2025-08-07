@@ -227,10 +227,12 @@ select unique2 from onek2 where unique2 = 11 and stringu1 < 'C';
 select unique2 from onek2 where unique2 = 11 and stringu1 < 'C';
 -- partial index implies clause, but bitmap scan must recheck predicate anyway
 SET enable_indexscan TO off;
+SET enable_bitmapscan TO off;
 explain (costs off)
 select unique2 from onek2 where unique2 = 11 and stringu1 < 'B';
 select unique2 from onek2 where unique2 = 11 and stringu1 < 'B';
 RESET enable_indexscan;
+RESET enable_bitmapscan;
 -- check multi-index cases too
 explain (costs off)
 select unique1, unique2 from onek2
@@ -263,3 +265,396 @@ drop function sillysrf(int);
 -- (see bug #5084)
 select * from (values (2),(null),(1)) v(k) where k = k order by k;
 select * from (values (2),(null),(1)) v(k) where k = k order by k desc;
+
+-- Test partitioned tables with no partitions, which should be handled the
+-- same as the non-inheritance case when expanding its RTE.
+create table list_parted_tbl (a int,b int) partition by list (a);
+create table list_parted_tbl1 partition of list_parted_tbl
+  for values in (1) partition by list(b);
+explain (costs off) select * from list_parted_tbl;
+drop table list_parted_tbl;
+
+create table tt1 (
+    c11 integer,
+    c12 integer,
+    c13 integer,
+    c14 integer,
+    c15 integer
+);
+
+insert into tt1
+select  i,i,i,i,i
+from generate_series(1, 50) as i;
+
+explain
+select c12
+from tt1
+order by c12
+for update
+limit 10;
+
+select c12
+from tt1
+order by c12
+for update
+limit 10;
+
+drop table tt1;
+
+create table tt1
+(
+c1 int,
+c2 int,
+c3 int
+);
+
+insert into tt1 values(1,1,1);
+insert into tt1 values(1,2,1);
+
+select distinct max(c3) over(partition by c2) from tt1 order by 1;
+
+drop table tt1;
+
+explain (costs off, verbose) select distinct(1,'a');
+select distinct(1,'a');
+
+set enable_hashagg = off;
+
+create table tt1(site text, pt_d text, cnty_code text) DISTRIBUTE BY SHARD (pt_d,cnty_code);
+create table tt2(site text, pt_d text, cnty_code text) DISTRIBUTE BY SHARD (pt_d,cnty_code);
+
+explain (costs off, verbose)
+select t3.site
+from (select site, pt_d  from tt1 group by 1,2) as t3
+left outer join
+     (select pt_d, site  from tt2 group by 1,2) as t4
+on t3.site=t4.site and t3.pt_d=t4.pt_d
+group by 1;
+
+drop table tt1;
+drop table tt2;
+
+set enable_hashagg = on;
+
+CREATE TABLE tt1 (
+c0 int not null,
+c1 int,
+c2 text,
+c3 text,
+c4 date,
+c5 date
+);
+
+CREATE TABLE tt2 (
+c0 int,
+c1 int,
+c2 text,
+c3 text,
+c4 date,
+c5 date);
+
+INSERT INTO tt1 VALUES  (9, 2, NULL, 'bar', '1993-04-07', '2022-04-09');
+INSERT INTO tt1 VALUES  (8, 2, NULL, 'bar', '1993-04-07', '2022-04-09');
+
+SELECT DISTINCT a1.c0
+FROM ( tt1 a1 
+       LEFT JOIN tt2 a2
+       ON ( NOT ( a2.c5 >= a1.c4 ) AND ( a1.c0 = a2.c1 ) ) )
+     RIGHT JOIN tt1 a3
+     ON ( ( NOT ( a3.c1 = 9 )
+      AND ( a1.c0 = a3.c1 ) )
+      AND ( a3.c2 LIKE 'C%' ) )
+WHERE a1.c0 IS NULL;
+
+drop table tt1;
+drop table tt2;
+
+\c regression_ora
+-- test 'select unique xxx from table'
+create table t_unique(f1 varchar(10),f2 int);
+insert into t_unique values('test1',1);
+insert into t_unique values('test2',1);
+insert into t_unique values('test1',1);
+insert into t_unique values('test3',1);
+insert into t_unique values('test2',1);
+select unique f1 from t_unique order by 1;
+select count(unique f1) from t_unique;
+drop table t_unique;
+
+create table test_unique1(id int, c0 int, c1 number , c2 varchar(100), c3 varchar2(100));
+insert into test_unique1(id, c0, c1, c2, c3) values(1,123, 123.123, 'abc', '123');
+insert into test_unique1(id, c0, c1, c2, c3) values(2,234, 234.234, 'bcd', '234');
+insert into test_unique1(id, c0, c1, c2, c3) values(3,345, 345.345, 'cde', '345');
+insert into test_unique1(id, c0, c1, c2, c3) values(4,456, 234.234, 'def', '456');
+insert into test_unique1(id, c0, c1, c2, c3) values(5,567, 567.567, 'efg', '567');
+insert into test_unique1(id, c0, c1, c2, c3) values(6,567, 567.567, 'fgh', '567');
+insert into test_unique1(id, c0, c1, c2, c3) values(7,678, 678.678, 'ghi', '789');
+insert into test_unique1(id, c0, c1, c2, c3) values(8,678, 678.678, '', '789');
+insert into test_unique1(id, c0, c1, c2, c3) values(9,678, 678678.8123, '', '8423');
+insert into test_unique1(id, c0, c1, c2) values(10,789, 789.789, 'hij');
+insert into test_unique1(id, c0, c1, c2) values(11,890, 123.123, 'ijk');
+insert into test_unique1(id, c0, c1, c2) values(12,901, 901.901, 'abc');
+create table test_unique2(id int, c0 int, c1 number , c2 varchar(100), c3 varchar2(100));
+insert into test_unique2(id, c0, c1, c2, c3) values(1,123, 123.123, 'abc', '123');
+insert into test_unique2(id, c0, c1, c2, c3) values(2,234, 234.234, 'bcd', '234');
+insert into test_unique2(id, c0, c1, c2, c3) values(3,345, 345.345, 'cde', '345');
+insert into test_unique2(id, c0, c1, c2, c3) values(4,456, 234.234, 'def', '456');
+insert into test_unique2(id, c0, c1, c2, c3) values(5,567, 567.567, 'efg', '567');
+insert into test_unique2(id, c0, c1, c2, c3) values(6,567, 567.567, 'fgh', '567');
+insert into test_unique2(id, c0, c1, c2, c3) values(7,678, 678.678, 'ghi', '789');
+insert into test_unique2(id, c0, c1, c2, c3) values(8,678, 678.678, '', '789');
+insert into test_unique2(id, c0, c1, c2, c3) values(9,678, 678678.8123, '', '8423');
+insert into test_unique2(id, c0, c1, c2) values(10,789, 789.789, 'hij');
+insert into test_unique2(id, c0, c1, c2) values(11,890, 123.123, 'ijk');
+insert into test_unique2(id, c0, c1, c2) values(12,901, 901.901, 'abc');
+select * from test_unique2 where c3 in (select unique c3 from test_unique1) order by id;
+select unique sin(c3) from (select unique c3 from test_unique1) order by 1;
+drop table test_unique1;
+drop table test_unique2;
+
+-- Test partitioned tables with no partitions, which should be handled the
+-- same as the non-inheritance case when expanding its RTE.
+create table list_parted_tbl (a int,b int) partition by list (a);
+create table list_parted_tbl1 partition of list_parted_tbl
+  for values in (1) partition by list(b);
+explain (costs off) select * from list_parted_tbl;
+drop table list_parted_tbl;
+
+create table k(k1 int, k2 varchar(10));
+create index on k((k2::numeric));
+insert into k values(1, 2);
+insert into k select * from k;
+insert into k select * from k;
+insert into k select * from k;
+insert into k select * from k;
+insert into k select * from k;
+insert into k select * from k;
+insert into k select * from k;
+insert into k select * from k;
+analyze k;
+explain (costs off) 
+select * from k where k2 = 1;
+
+create table u(h1 numeric, u2 numeric);
+insert into u select * from k;
+analyze u;
+explain (costs off) 
+select * from u, k where k2 = u2;
+drop table k;
+drop table u;
+
+BEGIN;
+
+CREATE TYPE casetestenum AS ENUM ('e');
+
+SELECT
+  CASE 'foo'::text
+    WHEN 'foo' THEN enum_range(NULL::casetestenum)::text[]
+    ELSE ARRAY['x']
+    END;
+
+ROLLBACK;
+
+CREATE TABLE FEE (
+FEE_C1 NUMERIC(10, 0) NOT NULL,
+FEE_C2 CHARACTER(1),
+FEE_C3 NUMERIC(10,0) NOT NULL
+);
+
+
+CREATE TABLE TT (
+TT_C1 NUMERIC(2,0) NOT NULL,
+TT_C2 CHARACTER VARYING(90) NOT NULL
+);
+
+CREATE TABLE TP (
+T_C1 CHARACTER VARYING(100),
+T_C2 CHARACTER(1) NOT NULL
+);
+
+
+select
+count(*)
+from
+(
+select *
+from
+(
+select
+(case when F.TT_C2='aa' then null
+      else(select distinct T.T_C1
+           from FEE FEE,
+                TT TT,
+                TP T
+            where FEE.FEE_C2 = T.T_C2
+              and FEE.FEE_C1=TT.TT_C1
+              and TT.TT_C2 = F.TT_C2)
+      end)period
+from
+( select A.*
+  from (select FIT.TT_C2
+        from TT FIT)A
+  union select B.*
+         from (select FIT.TT_C2
+               from TT FIT) B) F) T);
+
+explain (costs off, nodes off)
+select
+count(*)
+from
+(
+select *
+from
+(
+select
+(case when F.TT_C2='aa' then null
+      else(select distinct T.T_C1
+           from FEE FEE,
+                TT TT,
+                TP T
+            where FEE.FEE_C2 = T.T_C2
+              and FEE.FEE_C1=TT.TT_C1
+              and TT.TT_C2 = F.TT_C2)
+      end)period
+from
+( select A.*
+  from (select FIT.TT_C2
+        from TT FIT)A
+  union select B.*
+         from (select FIT.TT_C2
+               from TT FIT) B) F) T);
+
+drop table FEE;
+drop table TT;
+drop table TP;
+
+drop table if exists ut1;
+drop table if exists ut2;
+drop table if exists ut3;
+drop table if exists ut4;
+create table ut1(c0 int, c1 int, c2 int);
+create table ut2(c0 int, c1 int, c2 int);
+create table ut3(c0 int, c1 int, c2 int);
+create table ut4(c0 int, c1 int, c2 int);
+explain (costs off)
+SELECT DISTINCT 
+    c0, c1
+    FROM ut1 t1
+WHERE exists
+    (SELECT c0 FROM ut2 t2)
+UNION
+SELECT DISTINCT c0, c1 FROM ut3 t1
+UNION 
+SELECT  c0,
+        c1::int8
+FROM ut4
+    GROUP BY  c0, c1;
+
+drop table if exists ut1;
+drop table if exists ut2;
+drop table if exists ut3;
+drop table if exists ut4;
+
+CREATE TABLE rqg_table10 (
+c0 int,
+c1 int,
+pk int)    PARTITION BY hash(pk) ;
+create TABLE rqg_table10_p0 partition of rqg_table10 for values with(modulus 4,remainder 0);
+create TABLE rqg_table10_p1 partition of rqg_table10 for values with(modulus 4,remainder 1);
+create TABLE rqg_table10_p2 partition of rqg_table10 for values with(modulus 4,remainder 2);
+create TABLE rqg_table10_p3 partition of rqg_table10 for values with(modulus 4,remainder 3);
+
+select t1.c0, t1.c1
+from rqg_table10 t1
+left outer join rqg_table10 t2
+on t1.c1 = t2.c1
+group by t1.c0, t1.c1;
+
+DROP TABLE rqg_table10;
+
+-- join two tables with FOR UPDATE clause
+-- tests whole-row reference for row marks
+create table rel1_for_update_with_join(c1 int, c3 int);
+create table rel2_for_update_with_join(c1 int);
+insert into rel1_for_update_with_join values (50, 60);
+insert into rel2_for_update_with_join values (50);
+
+SELECT t1.c1, t2.c1 FROM rel1_for_update_with_join t1 JOIN rel2_for_update_with_join t2
+    ON (t1.c1 = t2.c1) ORDER BY t1.c3, t1.c1 OFFSET 0 LIMIT 10 FOR UPDATE OF t1;
+
+-- test deparsing rowmarked relations as subqueries
+SELECT t1.c1, ss.a, ss.b FROM (SELECT c1 FROM rel1_for_update_with_join WHERE c1 = 50) t1
+    INNER JOIN (SELECT t2.c1, t3.c1 FROM (SELECT c1 FROM rel1_for_update_with_join WHERE c1 between 50 and 60) t2
+    FULL JOIN (SELECT c1 FROM rel2_for_update_with_join WHERE c1 between 50 and 60) t3
+    ON (t2.c1 = t3.c1) WHERE t2.c1 IS NULL OR t2.c1 IS NOT NULL) ss(a, b) ON (TRUE)
+    ORDER BY t1.c1, ss.a, ss.b FOR UPDATE OF t1;
+
+drop table rel1_for_update_with_join;
+drop table rel2_for_update_with_join;
+
+create table t1_function(c1 int);
+
+insert into t1_function
+select 1
+from generate_series(1, 100) as i;
+
+SELECT pg_catalog.regr_sxx(5, 3.14) as c1 from t1_function;
+SELECT pg_catalog.regr_syy(5, 3.14) as c1 from t1_function;
+SELECT pg_catalog.regr_sxy(5, 3.14) as c1 from t1_function;
+SELECT pg_catalog.regr_avgx(5, 3.14) as c1 from t1_function;
+SELECT pg_catalog.regr_avgy(5, 3.14) as c1 from t1_function;
+SELECT pg_catalog.regr_r2(5, 3.14) as c1 from t1_function;
+SELECT pg_catalog.regr_slope(5, 3.14) as c1 from t1_function;
+SELECT pg_catalog.regr_intercept(5, 3.14) as c1 from t1_function;
+SELECT pg_catalog.covar_pop(5, 3.14) as c1 from t1_function;
+SELECT pg_catalog.covar_samp(5, 3.14) as c1 from t1_function;
+SELECT pg_catalog.corr(5, 3.14) as c1 from t1_function;
+
+drop table t1_function;
+
+drop table if exists t1_row_c;
+create table t1_row_c(c0 int, c1 text);
+insert into t1_row_c values(1, '(1,0)'),(2, '(1,1)');
+reset enable_hashjoin;
+reset enable_nestloop;
+drop table if exists t1_row_c;
+
+CREATE TABLE rqg_table4 (
+c0 int,
+c1 int,
+c2 text,
+c3 text,
+c4 date,
+c5 date);
+
+CREATE TABLE rqg_table1 (
+c0 int,
+c1 int,
+c2 text,
+c3 text,
+c4 date,
+c5 date);
+
+
+CREATE TABLE rqg_table5 (
+c0 int,
+c1 int,
+c2 text,
+c3 text,
+c4 date,
+c5 date);
+
+explain (costs off, verbose) 
+select * from rqg_table4 tt1 where 
+c1=( select (c1+1) from ( SELECT DISTINCT a2.c0, a1.c1
+                                            FROM  rqg_table1 a1 INNER JOIN
+                                                  rqg_table5 a2 ON   a1.c0 = a2.c0 +1  AND  a2.c5 = a2.c5  order by 2) tt2
+           where tt1.c0=tt2.c0 and tt1.c1=1 ) ;
+
+DROP TABLE rqg_table1;
+DROP TABLE rqg_table4;
+DROP TABLE rqg_table5;
+
+create table tt1(c1 int, c2 int, c3 int);
+select c1 from tt1 union select all 29 from tt1 a left join tt1 b on a.c2 = b.c2 or a.c1 is not null ;
+drop table tt1;

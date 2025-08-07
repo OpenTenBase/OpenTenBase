@@ -8,9 +8,6 @@
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * src/include/utils/varbit.h
  *
  *-------------------------------------------------------------------------
@@ -19,8 +16,6 @@
 #define VARBIT_H
 
 #include <limits.h>
-
-#include "fmgr.h"
 
 /*
  * Modeled on struct varlena from postgres.h, but data type is bits8.
@@ -69,6 +64,8 @@ typedef struct
 /* Mask that will cover exactly one byte, i.e. BITS_PER_BYTE bits */
 #define BITMASK 0xFF
 
-extern Datum bithash(PG_FUNCTION_ARGS);
-
 #endif
+extern int32 bit_cmp(VarBit *arg1, VarBit *arg2);
+extern VarBit *bit_catenate(VarBit *arg1, VarBit *arg2);
+extern VarBit *bitsubstring(VarBit *arg, int32 s, int32 l, bool length_not_specified);
+extern VarBit *bit_overlay(VarBit *t1, VarBit *t2, int sp, int sl);

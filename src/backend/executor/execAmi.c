@@ -1,13 +1,13 @@
 /*-------------------------------------------------------------------------
  *
  * execAmi.c
- *      miscellaneous executor access method routines
+ *	  miscellaneous executor access method routines
  *
  * Portions Copyright (c) 2012-2014, TransLattice, Inc.
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- *    src/backend/executor/execAmi.c
+ *	src/backend/executor/execAmi.c
  *
  *-------------------------------------------------------------------------
  */
@@ -27,6 +27,7 @@
 #include "executor/nodeForeignscan.h"
 #include "executor/nodeFunctionscan.h"
 #include "executor/nodeGather.h"
+#include "executor/nodeGatherMerge.h"
 #include "executor/nodeGroup.h"
 #include "executor/nodeGroup.h"
 #include "executor/nodeHash.h"
@@ -39,10 +40,12 @@
 #include "executor/nodeMergeAppend.h"
 #include "executor/nodeMergejoin.h"
 #include "executor/nodeModifyTable.h"
+#include "executor/nodeMultiModifyTable.h"	/* ora_compatible */
 #include "executor/nodeNamedtuplestorescan.h"
 #include "executor/nodeNestloop.h"
 #include "executor/nodeProjectSet.h"
 #include "executor/nodeRecursiveunion.h"
+#include "executor/nodeRemoteModifyTable.h"
 #include "executor/nodeResult.h"
 #include "executor/nodeSamplescan.h"
 #include "executor/nodeSeqscan.h"
@@ -56,6 +59,7 @@
 #include "executor/nodeValuesscan.h"
 #include "executor/nodeWindowAgg.h"
 #include "executor/nodeWorktablescan.h"
+#include "executor/nodePartIterator.h"
 #include "nodes/nodeFuncs.h"
 #include "nodes/relation.h"
 #include "utils/rel.h"
@@ -63,245 +67,272 @@
 #ifdef PGXC
 #include "pgxc/execRemote.h"
 #endif
+#ifdef __OPENTENBASE_C__
+#include "executor/execFragment.h"
+#include "executor/nodeConnectBy.h"
+#endif
 
 
 static bool IndexSupportsBackwardScan(Oid indexid);
-
+static void ReScanRownum(ExprState *state);
 
 /*
  * ExecReScan
- *        Reset a plan node so that its output can be re-scanned.
+ *		Reset a plan node so that its output can be re-scanned.
  *
  * Note that if the plan node has parameters that have changed value,
  * the output might be different from last time.
  */
 void
 ExecReScan(PlanState *node)
-{// #lizard forgives
-    /* If collecting timing stats, update them */
-    if (node->instrument)
-        InstrEndLoop(node->instrument);
+{
+	/* If collecting timing stats, update them */
+	if (node->instrument)
+		InstrEndLoop(node->instrument);
 
-    /*
-     * If we have changed parameters, propagate that info.
-     *
-     * Note: ExecReScanSetParamPlan() can add bits to node->chgParam,
-     * corresponding to the output param(s) that the InitPlan will update.
-     * Since we make only one pass over the list, that means that an InitPlan
-     * can depend on the output param(s) of a sibling InitPlan only if that
-     * sibling appears earlier in the list.  This is workable for now given
-     * the limited ways in which one InitPlan could depend on another, but
-     * eventually we might need to work harder (or else make the planner
-     * enlarge the extParam/allParam sets to include the params of depended-on
-     * InitPlans).
-     */
-    if (node->chgParam != NULL)
-    {
-        ListCell   *l;
+	/*
+	 * If we have changed parameters, propagate that info.
+	 *
+	 * Note: ExecReScanSetParamPlan() can add bits to node->chgParam,
+	 * corresponding to the output param(s) that the InitPlan will update.
+	 * Since we make only one pass over the list, that means that an InitPlan
+	 * can depend on the output param(s) of a sibling InitPlan only if that
+	 * sibling appears earlier in the list.  This is workable for now given
+	 * the limited ways in which one InitPlan could depend on another, but
+	 * eventually we might need to work harder (or else make the planner
+	 * enlarge the extParam/allParam sets to include the params of depended-on
+	 * InitPlans).
+	 */
+	if (node->chgParam != NULL)
+	{
+		ListCell   *l;
 
-        foreach(l, node->initPlan)
-        {
-            SubPlanState *sstate = (SubPlanState *) lfirst(l);
-            PlanState  *splan = sstate->planstate;
+		foreach(l, node->initPlan)
+		{
+			SubPlanState *sstate = (SubPlanState *) lfirst(l);
+			PlanState  *splan = sstate->planstate;
 
-            if (splan->plan->extParam != NULL)    /* don't care about child
-                                                 * local Params */
-                UpdateChangedParamSet(splan, node->chgParam);
-            if (splan->chgParam != NULL)
-                ExecReScanSetParamPlan(sstate, node);
-        }
-        foreach(l, node->subPlan)
-        {
-            SubPlanState *sstate = (SubPlanState *) lfirst(l);
-            PlanState  *splan = sstate->planstate;
+			if (splan == NULL)
+			{
+				Assert(sstate->subplan->subLinkType == CTE_SUBLINK &&
+					   bms_is_member(sstate->subplan->plan_id,
+									 node->state->es_plannedstmt->sharedCtePlanIds));
+				continue;
+			}
 
-            if (splan->plan->extParam != NULL)
-                UpdateChangedParamSet(splan, node->chgParam);
-        }
-        /* Well. Now set chgParam for left/right trees. */
-        if (node->lefttree != NULL)
-            UpdateChangedParamSet(node->lefttree, node->chgParam);
-        if (node->righttree != NULL)
-            UpdateChangedParamSet(node->righttree, node->chgParam);
-    }
+			if (splan->plan->extParam != NULL)	/* don't care about child
+												 * local Params */
+				UpdateChangedParamSet(splan, node->chgParam);
+			if (splan->chgParam != NULL)
+				ExecReScanSetParamPlan(sstate, node);
+		}
+		foreach(l, node->subPlan)
+		{
+			SubPlanState *sstate = (SubPlanState *) lfirst(l);
+			PlanState  *splan = sstate->planstate;
 
-    /* Call expression callbacks */
-    if (node->ps_ExprContext)
-        ReScanExprContext(node->ps_ExprContext);
+			if (splan->plan->extParam != NULL)
+				UpdateChangedParamSet(splan, node->chgParam);
+		}
+		/* Well. Now set chgParam for left/right trees. */
+		if (node->lefttree != NULL)
+			UpdateChangedParamSet(node->lefttree, node->chgParam);
+		if (node->righttree != NULL)
+			UpdateChangedParamSet(node->righttree, node->chgParam);
+	}
 
-    /* And do node-type-specific processing */
-    switch (nodeTag(node))
-    {
-        case T_ResultState:
-            ExecReScanResult((ResultState *) node);
-            break;
+	/* Call expression callbacks */
+	if (node->ps_ExprContext)
+		ReScanExprContext(node->ps_ExprContext);
 
-        case T_ProjectSetState:
-            ExecReScanProjectSet((ProjectSetState *) node);
-            break;
+	if (node->ps_ProjInfo)
+		ReScanRownum(&node->ps_ProjInfo->pi_state);
+	ReScanRownum(node->qual);
 
-        case T_ModifyTableState:
-            ExecReScanModifyTable((ModifyTableState *) node);
-            break;
+	/* And do node-type-specific processing */
+	switch (nodeTag(node))
+	{
+		case T_ResultState:
+			ExecReScanResult((ResultState *) node);
+			break;
 
-        case T_AppendState:
-            ExecReScanAppend((AppendState *) node);
-            break;
+		case T_ProjectSetState:
+			ExecReScanProjectSet((ProjectSetState *) node);
+			break;
+		case T_ModifyTableState:
+			ExecReScanModifyTable((ModifyTableState *) node);
+			break;
 
-        case T_MergeAppendState:
-            ExecReScanMergeAppend((MergeAppendState *) node);
-            break;
+		case T_RemoteModifyTableState:
+			ExecReScanRemoteModifyTable((RemoteModifyTableState *) node);
+			break;
 
-        case T_RecursiveUnionState:
-            ExecReScanRecursiveUnion((RecursiveUnionState *) node);
-            break;
+		case T_AppendState:
+			ExecReScanAppend((AppendState *) node);
+			break;
 
-        case T_BitmapAndState:
-            ExecReScanBitmapAnd((BitmapAndState *) node);
-            break;
+		case T_MergeAppendState:
+			ExecReScanMergeAppend((MergeAppendState *) node);
+			break;
 
-        case T_BitmapOrState:
-            ExecReScanBitmapOr((BitmapOrState *) node);
-            break;
+		case T_RecursiveUnionState:
+			ExecReScanRecursiveUnion((RecursiveUnionState *) node);
+			break;
 
-        case T_SeqScanState:
-            ExecReScanSeqScan((SeqScanState *) node);
-            break;
+		case T_BitmapAndState:
+			ExecReScanBitmapAnd((BitmapAndState *) node);
+			break;
 
-        case T_SampleScanState:
-            ExecReScanSampleScan((SampleScanState *) node);
-            break;
+		case T_BitmapOrState:
+			ExecReScanBitmapOr((BitmapOrState *) node);
+			break;
 
-        case T_GatherState:
-            ExecReScanGather((GatherState *) node);
-            break;
+		case T_SeqScanState:
+			ExecReScanSeqScan((SeqScanState *) node);
+			break;
+		
+		case T_SampleScanState:
+			ExecReScanSampleScan((SampleScanState *) node);
+			break;
 
-        case T_IndexScanState:
-            ExecReScanIndexScan((IndexScanState *) node);
-            break;
+		case T_GatherState:
+			ExecReScanGather((GatherState *) node);
+			break;
 
-        case T_IndexOnlyScanState:
-            ExecReScanIndexOnlyScan((IndexOnlyScanState *) node);
-            break;
+		case T_GatherMergeState:
+			ExecReScanGatherMerge((GatherMergeState *) node);
+			break;
 
-        case T_BitmapIndexScanState:
-            ExecReScanBitmapIndexScan((BitmapIndexScanState *) node);
-            break;
+		case T_IndexScanState:
+			ExecReScanIndexScan((IndexScanState *) node);
+			break;
 
-        case T_BitmapHeapScanState:
-            ExecReScanBitmapHeapScan((BitmapHeapScanState *) node);
-            break;
+		case T_IndexOnlyScanState:
+			ExecReScanIndexOnlyScan((IndexOnlyScanState *) node);
+			break;
 
-        case T_TidScanState:
-            ExecReScanTidScan((TidScanState *) node);
-            break;
+		case T_BitmapIndexScanState:
+			ExecReScanBitmapIndexScan((BitmapIndexScanState *) node);
+			break;
 
-        case T_SubqueryScanState:
-            ExecReScanSubqueryScan((SubqueryScanState *) node);
-            break;
+		case T_BitmapHeapScanState:
+			ExecReScanBitmapHeapScan((BitmapHeapScanState *) node);
+			break;
 
-        case T_FunctionScanState:
-            ExecReScanFunctionScan((FunctionScanState *) node);
-            break;
+		case T_TidScanState:
+			ExecReScanTidScan((TidScanState *) node);
+			break;
 
-        case T_TableFuncScanState:
-            ExecReScanTableFuncScan((TableFuncScanState *) node);
-            break;
+		case T_SubqueryScanState:
+			ExecReScanSubqueryScan((SubqueryScanState *) node);
+			break;
 
-        case T_ValuesScanState:
-            ExecReScanValuesScan((ValuesScanState *) node);
-            break;
+		case T_FunctionScanState:
+			ExecReScanFunctionScan((FunctionScanState *) node);
+			break;
 
-        case T_CteScanState:
-            ExecReScanCteScan((CteScanState *) node);
-            break;
+		case T_TableFuncScanState:
+			ExecReScanTableFuncScan((TableFuncScanState *) node);
+			break;
 
-        case T_NamedTuplestoreScanState:
-            ExecReScanNamedTuplestoreScan((NamedTuplestoreScanState *) node);
-            break;
+		case T_ValuesScanState:
+			ExecReScanValuesScan((ValuesScanState *) node);
+			break;
 
-        case T_WorkTableScanState:
-            ExecReScanWorkTableScan((WorkTableScanState *) node);
-            break;
+		case T_CteScanState:
+			ExecReScanCteScan((CteScanState *) node);
+			break;
 
-        case T_ForeignScanState:
-            ExecReScanForeignScan((ForeignScanState *) node);
-            break;
+		case T_NamedTuplestoreScanState:
+			ExecReScanNamedTuplestoreScan((NamedTuplestoreScanState *) node);
+			break;
 
-#ifdef PGXC
-        case T_RemoteSubplanState:
-            ExecReScanRemoteSubplan((RemoteSubplanState *) node);
-            break;
-        case T_RemoteQueryState:
-            ExecReScanRemoteQuery((RemoteQueryState *) node);
-            break;
+		case T_WorkTableScanState:
+			ExecReScanWorkTableScan((WorkTableScanState *) node);
+			break;
+
+		case T_ForeignScanState:
+			ExecReScanForeignScan((ForeignScanState *) node);
+			break;
+#ifdef __OPENTENBASE_C__
+		case T_RemoteFragmentState:
+			ExecReScanRemoteFragment((RemoteFragmentState *) node);
+			break;
 #endif
-        case T_CustomScanState:
-            ExecReScanCustomScan((CustomScanState *) node);
-            break;
+#ifdef PGXC
+		case T_RemoteQueryState:
+			ExecReScanRemoteQuery((RemoteQueryState *) node);
+			break;
+#endif
+		case T_CustomScanState:
+			ExecReScanCustomScan((CustomScanState *) node);
+			break;
 
-        case T_NestLoopState:
-            ExecReScanNestLoop((NestLoopState *) node);
-            break;
+		case T_NestLoopState:
+			ExecReScanNestLoop((NestLoopState *) node);
+			break;
 
-        case T_MergeJoinState:
-            ExecReScanMergeJoin((MergeJoinState *) node);
-            break;
+		case T_MergeJoinState:
+			ExecReScanMergeJoin((MergeJoinState *) node);
+			break;
 
-        case T_HashJoinState:
-            ExecReScanHashJoin((HashJoinState *) node);
-            break;
+		case T_HashJoinState:
+			ExecReScanHashJoin((HashJoinState *) node);
+			break;
 
-        case T_MaterialState:
-            ExecReScanMaterial((MaterialState *) node);
-            break;
+		case T_MaterialState:
+			ExecReScanMaterial((MaterialState *) node);
+			break;
 
-        case T_SortState:
-            ExecReScanSort((SortState *) node);
-            break;
+		case T_SortState:
+			ExecReScanSort((SortState *) node);
+			break;
 
-        case T_GroupState:
-            ExecReScanGroup((GroupState *) node);
-            break;
+		case T_GroupState:
+			ExecReScanGroup((GroupState *) node);
+			break;
 
-        case T_AggState:
-            ExecReScanAgg((AggState *) node);
-            break;
+		case T_AggState:
+			ExecReScanAgg((AggState *) node);
+			break;
 
-        case T_WindowAggState:
-            ExecReScanWindowAgg((WindowAggState *) node);
-            break;
+		case T_WindowAggState:
+			ExecReScanWindowAgg((WindowAggState *) node);
+			break;
 
-        case T_UniqueState:
-            ExecReScanUnique((UniqueState *) node);
-            break;
+		case T_UniqueState:
+			ExecReScanUnique((UniqueState *) node);
+			break;
 
-        case T_HashState:
-            ExecReScanHash((HashState *) node);
-            break;
+		case T_HashState:
+			ExecReScanHash((HashState *) node);
+			break;
 
-        case T_SetOpState:
-            ExecReScanSetOp((SetOpState *) node);
-            break;
+		case T_SetOpState:
+			ExecReScanSetOp((SetOpState *) node);
+			break;
 
-        case T_LockRowsState:
-            ExecReScanLockRows((LockRowsState *) node);
-            break;
+		case T_LockRowsState:
+			ExecReScanLockRows((LockRowsState *) node);
+			break;
 
-        case T_LimitState:
-            ExecReScanLimit((LimitState *) node);
-            break;
+		case T_LimitState:
+			ExecReScanLimit((LimitState *) node);
+			break;
+		case T_PartIteratorState:
+			ExecReScanPartIterator((PartIteratorState *) node);
+			break;
 
-        default:
-            elog(ERROR, "unrecognized node type: %d", (int) nodeTag(node));
-            break;
-    }
+		default:
+			elog(ERROR, "unrecognized node type: %d", (int) nodeTag(node));
+			break;
+	}
 
-    if (node->chgParam != NULL)
-    {
-        bms_free(node->chgParam);
-        node->chgParam = NULL;
-    }
+	if (node->chgParam != NULL)
+	{
+		bms_free(node->chgParam);
+		node->chgParam = NULL;
+	}
 }
 
 /*
@@ -320,37 +351,37 @@ ExecReScan(PlanState *node)
 void
 ExecMarkPos(PlanState *node)
 {
-    switch (nodeTag(node))
-    {
-        case T_IndexScanState:
-            ExecIndexMarkPos((IndexScanState *) node);
-            break;
+	switch (nodeTag(node))
+	{
+		case T_IndexScanState:
+			ExecIndexMarkPos((IndexScanState *) node);
+			break;
 
-        case T_IndexOnlyScanState:
-            ExecIndexOnlyMarkPos((IndexOnlyScanState *) node);
-            break;
+		case T_IndexOnlyScanState:
+			ExecIndexOnlyMarkPos((IndexOnlyScanState *) node);
+			break;
 
-        case T_CustomScanState:
-            ExecCustomMarkPos((CustomScanState *) node);
-            break;
+		case T_CustomScanState:
+			ExecCustomMarkPos((CustomScanState *) node);
+			break;
 
-        case T_MaterialState:
-            ExecMaterialMarkPos((MaterialState *) node);
-            break;
+		case T_MaterialState:
+			ExecMaterialMarkPos((MaterialState *) node);
+			break;
 
-        case T_SortState:
-            ExecSortMarkPos((SortState *) node);
-            break;
+		case T_SortState:
+			ExecSortMarkPos((SortState *) node);
+			break;
 
-        case T_ResultState:
-            ExecResultMarkPos((ResultState *) node);
-            break;
+		case T_ResultState:
+			ExecResultMarkPos((ResultState *) node);
+			break;
 
-        default:
-            /* don't make hard error unless caller asks to restore... */
-            elog(DEBUG2, "unrecognized node type: %d", (int) nodeTag(node));
-            break;
-    }
+		default:
+			/* don't make hard error unless caller asks to restore... */
+			elog(DEBUG2, "unrecognized node type: %d", (int) nodeTag(node));
+			break;
+	}
 }
 
 /*
@@ -363,42 +394,42 @@ ExecMarkPos(PlanState *node)
  * the mark operation.  It is unspecified what happens to the plan node's
  * result TupleTableSlot.  (In most cases the result slot is unchanged by
  * a restore, but the node may choose to clear it or to load it with the
- * restored-to tuple.)    Hence the caller should discard any previously
+ * restored-to tuple.)	Hence the caller should discard any previously
  * returned TupleTableSlot after doing a restore.
  */
 void
 ExecRestrPos(PlanState *node)
 {
-    switch (nodeTag(node))
-    {
-        case T_IndexScanState:
-            ExecIndexRestrPos((IndexScanState *) node);
-            break;
+	switch (nodeTag(node))
+	{
+		case T_IndexScanState:
+			ExecIndexRestrPos((IndexScanState *) node);
+			break;
 
-        case T_IndexOnlyScanState:
-            ExecIndexOnlyRestrPos((IndexOnlyScanState *) node);
-            break;
+		case T_IndexOnlyScanState:
+			ExecIndexOnlyRestrPos((IndexOnlyScanState *) node);
+			break;
 
-        case T_CustomScanState:
-            ExecCustomRestrPos((CustomScanState *) node);
-            break;
+		case T_CustomScanState:
+			ExecCustomRestrPos((CustomScanState *) node);
+			break;
 
-        case T_MaterialState:
-            ExecMaterialRestrPos((MaterialState *) node);
-            break;
+		case T_MaterialState:
+			ExecMaterialRestrPos((MaterialState *) node);
+			break;
 
-        case T_SortState:
-            ExecSortRestrPos((SortState *) node);
-            break;
+		case T_SortState:
+			ExecSortRestrPos((SortState *) node);
+			break;
 
-        case T_ResultState:
-            ExecResultRestrPos((ResultState *) node);
-            break;
+		case T_ResultState:
+			ExecResultRestrPos((ResultState *) node);
+			break;
 
-        default:
-            elog(ERROR, "unrecognized node type: %d", (int) nodeTag(node));
-            break;
-    }
+		default:
+			elog(ERROR, "unrecognized node type: %d", (int) nodeTag(node));
+			break;
+	}
 }
 
 /*
@@ -410,51 +441,51 @@ ExecRestrPos(PlanState *node)
  */
 bool
 ExecSupportsMarkRestore(Path *pathnode)
-{// #lizard forgives
-    /*
-     * For consistency with the routines above, we do not examine the nodeTag
-     * but rather the pathtype, which is the Plan node type the Path would
-     * produce.
-     */
-    switch (pathnode->pathtype)
-    {
-        case T_IndexScan:
-        case T_IndexOnlyScan:
-        case T_Material:
-        case T_Sort:
-            return true;
+{
+	/*
+	 * For consistency with the routines above, we do not examine the nodeTag
+	 * but rather the pathtype, which is the Plan node type the Path would
+	 * produce.
+	 */
+	switch (pathnode->pathtype)
+	{
+		case T_IndexScan:
+		case T_IndexOnlyScan:
+		case T_Material:
+		case T_Sort:
+			return true;
 
-        case T_CustomScan:
-            {
-                CustomPath *customPath = castNode(CustomPath, pathnode);
+		case T_CustomScan:
+			{
+				CustomPath *customPath = castNode(CustomPath, pathnode);
 
-                if (customPath->flags & CUSTOMPATH_SUPPORT_MARK_RESTORE)
-                    return true;
-                return false;
-            }
-        case T_Result:
+				if (customPath->flags & CUSTOMPATH_SUPPORT_MARK_RESTORE)
+					return true;
+				return false;
+			}
+		case T_Result:
 
-            /*
-             * Result supports mark/restore iff it has a child plan that does.
-             *
-             * We have to be careful here because there is more than one Path
-             * type that can produce a Result plan node.
-             */
-            if (IsA(pathnode, ProjectionPath))
-                return ExecSupportsMarkRestore(((ProjectionPath *) pathnode)->subpath);
-            else if (IsA(pathnode, MinMaxAggPath))
-                return false;    /* childless Result */
-            else
-            {
-                Assert(IsA(pathnode, ResultPath));
-                return false;    /* childless Result */
-            }
+			/*
+			 * Result supports mark/restore iff it has a child plan that does.
+			 *
+			 * We have to be careful here because there is more than one Path
+			 * type that can produce a Result plan node.
+			 */
+			if (IsA(pathnode, ProjectionPath))
+				return ExecSupportsMarkRestore(((ProjectionPath *) pathnode)->subpath);
+			else if (IsA(pathnode, MinMaxAggPath))
+				return false;	/* childless Result */
+			else
+			{
+				Assert(IsA(pathnode, ResultPath) || IsA(pathnode, QualPath));
+				return false;	/* childless Result */
+			}
 
-        default:
-            break;
-    }
+		default:
+			break;
+	}
 
-    return false;
+	return false;
 }
 
 /*
@@ -467,80 +498,80 @@ ExecSupportsMarkRestore(Path *pathnode)
  */
 bool
 ExecSupportsBackwardScan(Plan *node)
-{// #lizard forgives
-    if (node == NULL)
-        return false;
+{
+	if (node == NULL)
+		return false;
 
-    /*
-     * Parallel-aware nodes return a subset of the tuples in each worker, and
-     * in general we can't expect to have enough bookkeeping state to know
-     * which ones we returned in this worker as opposed to some other worker.
-     */
-    if (node->parallel_aware)
-        return false;
+	/*
+	 * Parallel-aware nodes return a subset of the tuples in each worker, and
+	 * in general we can't expect to have enough bookkeeping state to know
+	 * which ones we returned in this worker as opposed to some other worker.
+	 */
+	if (node->parallel_aware)
+		return false;
 
-    switch (nodeTag(node))
-    {
-        case T_Result:
-            if (outerPlan(node) != NULL)
-                return ExecSupportsBackwardScan(outerPlan(node));
-            else
-                return false;
+	switch (nodeTag(node))
+	{
+		case T_Result:
+			if (outerPlan(node) != NULL)
+				return ExecSupportsBackwardScan(outerPlan(node));
+			else
+				return false;
 
-        case T_Append:
-            {
-                ListCell   *l;
+		case T_Append:
+			{
+				ListCell   *l;
 
-                foreach(l, ((Append *) node)->appendplans)
-                {
-                    if (!ExecSupportsBackwardScan((Plan *) lfirst(l)))
-                        return false;
-                }
-                /* need not check tlist because Append doesn't evaluate it */
-                return true;
-            }
+				foreach(l, ((Append *) node)->appendplans)
+				{
+					if (!ExecSupportsBackwardScan((Plan *) lfirst(l)))
+						return false;
+				}
+				/* need not check tlist because Append doesn't evaluate it */
+				return true;
+			}
 
-        case T_SampleScan:
-            /* Simplify life for tablesample methods by disallowing this */
-            return false;
+		case T_SampleScan:
+			/* Simplify life for tablesample methods by disallowing this */
+			return false;
 
-        case T_Gather:
-            return false;
+		case T_Gather:
+			return false;
 
-        case T_IndexScan:
-            return IndexSupportsBackwardScan(((IndexScan *) node)->indexid);
+		case T_IndexScan:
+			return IndexSupportsBackwardScan(((IndexScan *) node)->indexid);
 
-        case T_IndexOnlyScan:
-            return IndexSupportsBackwardScan(((IndexOnlyScan *) node)->indexid);
+		case T_IndexOnlyScan:
+			return IndexSupportsBackwardScan(((IndexOnlyScan *) node)->indexid);
 
-        case T_SubqueryScan:
-            return ExecSupportsBackwardScan(((SubqueryScan *) node)->subplan);
+		case T_SubqueryScan:
+			return ExecSupportsBackwardScan(((SubqueryScan *) node)->subplan);
 
-        case T_CustomScan:
-            {
-                uint32        flags = ((CustomScan *) node)->flags;
+		case T_CustomScan:
+			{
+				uint32		flags = ((CustomScan *) node)->flags;
 
-                if (flags & CUSTOMPATH_SUPPORT_BACKWARD_SCAN)
-                    return true;
-            }
-            return false;
+				if (flags & CUSTOMPATH_SUPPORT_BACKWARD_SCAN)
+					return true;
+			}
+			return false;
 
-        case T_SeqScan:
-        case T_TidScan:
-        case T_FunctionScan:
-        case T_ValuesScan:
-        case T_CteScan:
-        case T_Material:
-        case T_Sort:
-            return true;
+		case T_SeqScan:
+		case T_TidScan:
+		case T_FunctionScan:
+		case T_ValuesScan:
+		case T_CteScan:
+		case T_Material:
+		case T_Sort:
+			return true;
 
-        case T_LockRows:
-        case T_Limit:
-            return ExecSupportsBackwardScan(outerPlan(node));
+		case T_LockRows:
+		case T_Limit:
+			return ExecSupportsBackwardScan(outerPlan(node));
 
-        default:
-            return false;
-    }
+		default:
+			return false;
+	}
 }
 
 /*
@@ -550,26 +581,26 @@ ExecSupportsBackwardScan(Plan *node)
 static bool
 IndexSupportsBackwardScan(Oid indexid)
 {
-    bool        result;
-    HeapTuple    ht_idxrel;
-    Form_pg_class idxrelrec;
-    IndexAmRoutine *amroutine;
+	bool		result;
+	HeapTuple	ht_idxrel;
+	Form_pg_class idxrelrec;
+	IndexAmRoutine *amroutine;
 
-    /* Fetch the pg_class tuple of the index relation */
-    ht_idxrel = SearchSysCache1(RELOID, ObjectIdGetDatum(indexid));
-    if (!HeapTupleIsValid(ht_idxrel))
-        elog(ERROR, "cache lookup failed for relation %u", indexid);
-    idxrelrec = (Form_pg_class) GETSTRUCT(ht_idxrel);
+	/* Fetch the pg_class tuple of the index relation */
+	ht_idxrel = SearchSysCache1(RELOID, ObjectIdGetDatum(indexid));
+	if (!HeapTupleIsValid(ht_idxrel))
+		elog(ERROR, "cache lookup failed for relation %u", indexid);
+	idxrelrec = (Form_pg_class) GETSTRUCT(ht_idxrel);
 
-    /* Fetch the index AM's API struct */
-    amroutine = GetIndexAmRoutineByAmId(idxrelrec->relam, false);
+	/* Fetch the index AM's API struct */
+	amroutine = GetIndexAmRoutineByAmId(idxrelrec->relam, false);
 
-    result = amroutine->amcanbackward;
+	result = amroutine->amcanbackward;
 
-    pfree(amroutine);
-    ReleaseSysCache(ht_idxrel);
+	pfree(amroutine);
+	ReleaseSysCache(ht_idxrel);
 
-    return result;
+	return result;
 }
 
 /*
@@ -582,21 +613,32 @@ IndexSupportsBackwardScan(Oid indexid)
  */
 bool
 ExecMaterializesOutput(NodeTag plantype)
-{// #lizard forgives
-    switch (plantype)
-    {
-        case T_Material:
-        case T_FunctionScan:
-        case T_TableFuncScan:
-        case T_CteScan:
-        case T_NamedTuplestoreScan:
-        case T_WorkTableScan:
-        case T_Sort:
-            return true;
+{
+	switch (plantype)
+	{
+		case T_Material:
+		case T_FunctionScan:
+		case T_TableFuncScan:
+		case T_CteScan:
+		case T_NamedTuplestoreScan:
+		case T_WorkTableScan:
+		case T_Sort:
+			return true;
 
-        default:
-            break;
-    }
+		default:
+			break;
+	}
 
-    return false;
+	return false;
+}
+
+/*
+ * Rownum in sublink's targetlist need to be "Rescan"
+ * compatible to opentenbase_ora.
+ */
+static void
+ReScanRownum(ExprState *state)
+{
+	if (state && state->rownum > 1)
+		state->rownum = 1;
 }

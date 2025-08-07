@@ -31,94 +31,94 @@ extern char *GTMProxyLogFile;
 
 typedef enum GTMProxy_ThreadStatus
 {
-    GTM_PROXY_THREAD_STARTING,
-    GTM_PROXY_THREAD_RUNNING,
-    GTM_PROXY_THREAD_EXITING,
-    /* Must be the last */
-    GTM_PROXY_THREAD_INVALID
+	GTM_PROXY_THREAD_STARTING,
+	GTM_PROXY_THREAD_RUNNING,
+	GTM_PROXY_THREAD_EXITING,
+	/* Must be the last */
+	GTM_PROXY_THREAD_INVALID
 } GTMProxy_ThreadStatus;
 
 typedef struct GTMProxy_ConnectionInfo
 {
-    /* Port contains all the vital information about this connection */
-    Port                *con_port;
-    struct GTMProxy_ThreadInfo    *con_thrinfo;
-    bool                con_authenticated;
-    bool                con_disconnected;
-    GTMProxy_ConnID            con_id;
+	/* Port contains all the vital information about this connection */
+	Port				*con_port;
+	struct GTMProxy_ThreadInfo	*con_thrinfo;
+	bool				con_authenticated;
+	bool				con_disconnected;
+	GTMProxy_ConnID			con_id;
 
-    GTM_MessageType            con_pending_msg;
-    GlobalTransactionId         con_txid;
-    GTM_TransactionHandle        con_handle;
+	GTM_MessageType			con_pending_msg;
+	GlobalTransactionId 		con_txid;
+	GTM_TransactionHandle		con_handle;
 } GTMProxy_ConnectionInfo;
 
 typedef struct GTMProxy_Connections
 {
-    uint32                    gc_conn_count;
-    uint32                    gc_array_size;
-    GTMProxy_ConnectionInfo    *gc_connections;
-    GTM_RWLock                gc_lock;
+	uint32					gc_conn_count;
+	uint32					gc_array_size;
+	GTMProxy_ConnectionInfo	*gc_connections;
+	GTM_RWLock				gc_lock;
 } GTMProxy_Connections;
 
 #define ERRORDATA_STACK_SIZE  20
-#define GTM_PROXY_MAX_CONNECTIONS    1024
+#define GTM_PROXY_MAX_CONNECTIONS	1024
 
 typedef struct GTMProxy_ThreadInfo
 {
-    /*
-     * Initial few members get includes from gtm_common.h. This is to make sure
-     * that the GTMProxy_ThreadInfo and GTM_ThreadInfo structure can be
-     * typecasted to each other and these initial members can be safely
-     * accessed. If you need a member which should be common to both
-     * structures, consider adding them to GTM_COMMON_THREAD_INFO
-     */
-    GTM_COMMON_THREAD_INFO
+	/*
+	 * Initial few members get includes from gtm_common.h. This is to make sure
+	 * that the GTMProxy_ThreadInfo and GTM_ThreadInfo structure can be
+	 * typecasted to each other and these initial members can be safely
+	 * accessed. If you need a member which should be common to both
+	 * structures, consider adding them to GTM_COMMON_THREAD_INFO
+	 */
+	GTM_COMMON_THREAD_INFO
 
-    GTMProxy_ThreadStatus    thr_status;
-    GTMProxy_ConnectionInfo    *thr_conn;        /* Current set of connections from clients */
-    uint32                    thr_conn_count;    /* number of connections served by this thread */
+	GTMProxy_ThreadStatus	thr_status;
+	GTMProxy_ConnectionInfo	*thr_conn;		/* Current set of connections from clients */
+	uint32					thr_conn_count;	/* number of connections served by this thread */
 
-    GTM_MutexLock            thr_lock;
-    GTM_CV                    thr_cv;
+	GTM_MutexLock			thr_lock;
+	GTM_CV					thr_cv;
 
-    /*
-     * We use a sequence number to track the state of connection/fd array.
-     * Whenever a new connection is added or an existing connection is deleted
-     * from the connection array, the sequence number is incremented. The
-     * thread main routine can then reconstruct the fd array again.
-     */
-    int32                    thr_seqno;
+	/*
+	 * We use a sequence number to track the state of connection/fd array.
+	 * Whenever a new connection is added or an existing connection is deleted
+	 * from the connection array, the sequence number is incremented. The
+	 * thread main routine can then reconstruct the fd array again.
+	 */
+	int32					thr_seqno;
 
-    /* connection array */
-    GTMProxy_ConnectionInfo    *thr_all_conns[GTM_PROXY_MAX_CONNECTIONS];
-    int                        thr_conn_map[GTM_PROXY_MAX_CONNECTIONS];
-    struct pollfd            thr_poll_fds[GTM_PROXY_MAX_CONNECTIONS];
+	/* connection array */
+	GTMProxy_ConnectionInfo	*thr_all_conns[GTM_PROXY_MAX_CONNECTIONS];
+	int						thr_conn_map[GTM_PROXY_MAX_CONNECTIONS];
+	struct pollfd			thr_poll_fds[GTM_PROXY_MAX_CONNECTIONS];
 
-    /* Command backup */
-    short                    thr_any_backup[GTM_PROXY_MAX_CONNECTIONS];
-    int                        thr_qtype[GTM_PROXY_MAX_CONNECTIONS];
-    StringInfoData            thr_inBufData[GTM_PROXY_MAX_CONNECTIONS];
+	/* Command backup */
+	short					thr_any_backup[GTM_PROXY_MAX_CONNECTIONS];
+	int						thr_qtype[GTM_PROXY_MAX_CONNECTIONS];
+	StringInfoData			thr_inBufData[GTM_PROXY_MAX_CONNECTIONS];
 
-    gtm_List                     *thr_processed_commands;
-    gtm_List                     *thr_pending_commands[MSG_TYPE_COUNT];
+	gtm_List 					*thr_processed_commands;
+	gtm_List 					*thr_pending_commands[MSG_TYPE_COUNT];
 
-    GTM_Conn                *thr_gtm_conn;        /* Connection to GTM */
+	GTM_Conn				*thr_gtm_conn;		/* Connection to GTM */
 
-    /* Reconnect Info */
-    int                        can_accept_SIGUSR2;
-    int                        reconnect_issued;
-    int                        can_longjmp;
-    sigjmp_buf                longjmp_env;
+	/* Reconnect Info */
+	int						can_accept_SIGUSR2;
+	int						reconnect_issued;
+	int						can_longjmp;
+	sigjmp_buf				longjmp_env;
 
 } GTMProxy_ThreadInfo;
 
 typedef struct GTMProxy_Threads
 {
-    uint32                    gt_thread_count;
-    uint32                    gt_array_size;
-    uint32                    gt_next_worker;
-    GTMProxy_ThreadInfo        **gt_threads;
-    GTM_RWLock                gt_lock;
+	uint32					gt_thread_count;
+	uint32					gt_array_size;
+	uint32					gt_next_worker;
+	GTMProxy_ThreadInfo		**gt_threads;
+	GTM_RWLock				gt_lock;
 } GTMProxy_Threads;
 
 extern GTMProxy_Threads *GTMProxyThreads;
@@ -132,7 +132,7 @@ extern GTMProxy_ThreadInfo *GTMProxy_ThreadCreate(void *(* startroutine)(void *)
 extern GTMProxy_ThreadInfo * GTMProxy_GetThreadInfo(GTM_ThreadID thrid);
 extern GTMProxy_ThreadInfo *GTMProxy_ThreadAddConnection(GTMProxy_ConnectionInfo *conninfo);
 extern int GTMProxy_ThreadRemoveConnection(GTMProxy_ThreadInfo *thrinfo,
-        GTMProxy_ConnectionInfo *conninfo);
+		GTMProxy_ConnectionInfo *conninfo);
 
 /*
  * Command data - the only relevant information right now is the XID
@@ -140,33 +140,33 @@ extern int GTMProxy_ThreadRemoveConnection(GTMProxy_ThreadInfo *thrinfo,
  */
 typedef union GTMProxy_CommandData
 {
-    struct
-    {
-        bool            rdonly;
-        GTM_IsolationLevel    iso_level;
-        char            global_sessionid[GTM_MAX_SESSION_ID_LEN];
-    } cd_beg;
+	struct
+	{
+		bool			rdonly;
+		GTM_IsolationLevel	iso_level;
+		char			global_sessionid[GTM_MAX_SESSION_ID_LEN];
+	} cd_beg;
 
-    struct
-    {
-        GlobalTransactionId    gxid;
-    } cd_rc;
+	struct
+	{
+		GlobalTransactionId	gxid;
+	} cd_rc;
 
-    struct
-    {
-        GlobalTransactionId    gxid;
-    } cd_snap;
+	struct
+	{
+		GlobalTransactionId	gxid;
+	} cd_snap;
 
-    struct
-    {
-        GTM_PGXCNodeType    type;
-        char            *nodename;
-        GTM_PGXCNodePort    port;
-        char            *gtm_proxy_nodename;
-        char            *datafolder;
-        char            *ipaddress;
-        GTM_PGXCNodeStatus    status;
-    } cd_reg;
+	struct
+	{
+		GTM_PGXCNodeType	type;
+		char			*nodename;
+		GTM_PGXCNodePort	port;
+		char			*gtm_proxy_nodename;
+		char			*datafolder;
+		char			*ipaddress;
+		GTM_PGXCNodeStatus	status;
+	} cd_reg;
 } GTMProxy_CommandData;
 
 /*
@@ -181,47 +181,47 @@ typedef union GTMProxy_CommandData
  */
 typedef struct GTMProxy_CommandInfo
 {
-    GTM_MessageType            ci_mtype;
-    int                        ci_res_index;
-    GTMProxy_CommandData    ci_data;
-    GTMProxy_ConnectionInfo    *ci_conn;
+	GTM_MessageType			ci_mtype;
+	int						ci_res_index;
+	GTMProxy_CommandData	ci_data;
+	GTMProxy_ConnectionInfo	*ci_conn;
 } GTMProxy_CommandInfo;
 
 /*
  * pthread keys to get thread specific information
  */
-extern pthread_key_t                    threadinfo_key;
-extern MemoryContext                    TopMostMemoryContext;
-extern char                                *GTMLogFile;
-extern GTM_ThreadID                        TopMostThreadID;
+extern pthread_key_t					threadinfo_key;
+extern MemoryContext					TopMostMemoryContext;
+extern char								*GTMLogFile;
+extern GTM_ThreadID						TopMostThreadID;
 
-#define SetMyThreadInfo(thrinfo)        pthread_setspecific(threadinfo_key, (thrinfo))
-#define GetMyThreadInfo                    ((GTMProxy_ThreadInfo *)pthread_getspecific(threadinfo_key))
+#define SetMyThreadInfo(thrinfo)		pthread_setspecific(threadinfo_key, (thrinfo))
+#define GetMyThreadInfo					((GTMProxy_ThreadInfo *)pthread_getspecific(threadinfo_key))
 
-#define TopMemoryContext        (GetMyThreadInfo->thr_thread_context)
-#define ThreadTopContext        (GetMyThreadInfo->thr_thread_context)
-#define MessageContext            (GetMyThreadInfo->thr_message_context)
-#define CurrentMemoryContext    (GetMyThreadInfo->thr_current_context)
-#define ErrorContext            (GetMyThreadInfo->thr_error_context)
-#define errordata                (GetMyThreadInfo->thr_error_data)
-#define recursion_depth            (GetMyThreadInfo->thr_error_recursion_depth)
-#define errordata_stack_depth    (GetMyThreadInfo->thr_error_stack_depth)
-#define CritSectionCount        (GetMyThreadInfo->thr_criticalsec_count)
+#define TopMemoryContext		(GetMyThreadInfo->thr_thread_context)
+#define ThreadTopContext		(GetMyThreadInfo->thr_thread_context)
+#define MessageContext			(GetMyThreadInfo->thr_message_context)
+#define CurrentMemoryContext	(GetMyThreadInfo->thr_current_context)
+#define ErrorContext			(GetMyThreadInfo->thr_error_context)
+#define errordata				(GetMyThreadInfo->thr_error_data)
+#define recursion_depth			(GetMyThreadInfo->thr_error_recursion_depth)
+#define errordata_stack_depth	(GetMyThreadInfo->thr_error_stack_depth)
+#define CritSectionCount		(GetMyThreadInfo->thr_criticalsec_count)
 
-#define PG_exception_stack        (GetMyThreadInfo->thr_sigjmp_buf)
-#define MyConnection            (GetMyThreadInfo->thr_conn)
-#define MyPort                    ((GetMyThreadInfo->thr_conn != NULL) ?    \
-                                    GetMyThreadInfo->thr_conn->con_port :    \
-                                    NULL)
-#define MyThreadID                (GetMyThreadInfo->thr_id)
+#define PG_exception_stack		(GetMyThreadInfo->thr_sigjmp_buf)
+#define MyConnection			(GetMyThreadInfo->thr_conn)
+#define MyPort					((GetMyThreadInfo->thr_conn != NULL) ?	\
+									GetMyThreadInfo->thr_conn->con_port :	\
+									NULL)
+#define MyThreadID				(GetMyThreadInfo->thr_id)
 
 #define START_CRIT_SECTION()  (CritSectionCount++)
 
 #define END_CRIT_SECTION() \
-    do { \
-            Assert(CritSectionCount > 0); \
-            CritSectionCount--; \
-    } while(0)
+	do { \
+		    Assert(CritSectionCount > 0); \
+		    CritSectionCount--; \
+	} while(0)
 
 /* Signal Handler controller */
 #define SIGUSR2DETECTED() (GetMyThreadInfo->reconnect_issued == TRUE)
@@ -229,14 +229,14 @@ extern GTM_ThreadID                        TopMostThreadID;
 #if 1
 #define Disable_Longjmp() do{GetMyThreadInfo->can_longjmp = FALSE;}while(0)
 #define Enable_Longjmp() \
-    do{                         \
-        if (SIGUSR2DETECTED()) { \
-            RECONNECT_LONGJMP(); \
-        } \
-        else { \
-            GetMyThreadInfo->can_longjmp = TRUE;    \
-        } \
-    } while(0)
+	do{						 \
+		if (SIGUSR2DETECTED()) { \
+			RECONNECT_LONGJMP(); \
+		} \
+		else { \
+			GetMyThreadInfo->can_longjmp = TRUE;	\
+		} \
+	} while(0)
 #else
 #define Disable_Longjmp()
 #define Enable_Longjmp()

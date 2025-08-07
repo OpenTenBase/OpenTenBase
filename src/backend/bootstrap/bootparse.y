@@ -7,8 +7,6 @@
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  * IDENTIFICATION
  *	  src/backend/bootstrap/bootparse.y
@@ -199,7 +197,8 @@ Boot_CreateStmt:
 
 					do_start();
 
-					tupdesc = CreateTupleDesc(numattr, !($6), attrtypes);
+					tupdesc = CreateTupleDesc(numattr, !($6),
+											attrtypes);
 
 					shared_relation = $5;
 
@@ -232,7 +231,8 @@ Boot_CreateStmt:
 												   RELPERSISTENCE_PERMANENT,
 												   shared_relation,
 												   mapped_relation,
-												   true);
+												   true,
+												   REL_IS_NOT_GTT);
 						elog(DEBUG4, "bootstrap relation created");
 					}
 					else
@@ -262,6 +262,9 @@ Boot_CreateStmt:
 /* _SHARDING_ BEGIN */
 													  false,
 /* _SHARDING_ END */
+/* __OPENTENBASE_C__ BEGIN */
+													  RELSTORE_ROW,
+/* __OPENTENBASE_C__ END */
 													  NULL);
 						elog(DEBUG4, "relation created with OID %u", id);
 					}
@@ -333,7 +336,9 @@ Boot_DeclareIndexStmt:
 								false,
 								false,
 								true, /* skip_build */
-								false);
+								false,
+								NULL,
+								NULL);
 					do_end();
 				}
 		;
@@ -380,7 +385,9 @@ Boot_DeclareUniqueIndexStmt:
 								false,
 								false,
 								true, /* skip_build */
-								false);
+								false,
+								NULL,
+								NULL);
 					do_end();
 				}
 		;

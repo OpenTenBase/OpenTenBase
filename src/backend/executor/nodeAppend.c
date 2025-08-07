@@ -1,311 +1,700 @@
 /*-------------------------------------------------------------------------
  *
  * nodeAppend.c
- *      routines to handle append nodes.
+ *	  routines to handle append nodes.
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
  * IDENTIFICATION
- *      src/backend/executor/nodeAppend.c
- *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
+ *	  src/backend/executor/nodeAppend.c
  *
  *-------------------------------------------------------------------------
  */
 /* INTERFACE ROUTINES
- *        ExecInitAppend    - initialize the append node
- *        ExecAppend        - retrieve the next tuple from the node
- *        ExecEndAppend    - shut down the append node
- *        ExecReScanAppend - rescan the append node
+ *		ExecInitAppend	- initialize the append node
+ *		ExecAppend		- retrieve the next tuple from the node
+ *		ExecEndAppend	- shut down the append node
+ *		ExecReScanAppend - rescan the append node
  *
- *     NOTES
- *        Each append node contains a list of one or more subplans which
- *        must be iteratively processed (forwards or backwards).
- *        Tuples are retrieved by executing the 'whichplan'th subplan
- *        until the subplan stops returning tuples, at which point that
- *        plan is shut down and the next started up.
+ *	 NOTES
+ *		Each append node contains a list of one or more subplans which
+ *		must be iteratively processed (forwards or backwards).
+ *		Tuples are retrieved by executing the 'whichplan'th subplan
+ *		until the subplan stops returning tuples, at which point that
+ *		plan is shut down and the next started up.
  *
- *        Append nodes don't make use of their left and right
- *        subtrees, rather they maintain a list of subplans so
- *        a typical append node looks like this in the plan tree:
+ *		Append nodes don't make use of their left and right
+ *		subtrees, rather they maintain a list of subplans so
+ *		a typical append node looks like this in the plan tree:
  *
- *                   ...
- *                   /
- *                Append -------+------+------+--- nil
- *                /    \          |         |        |
- *              nil    nil         ...    ...    ...
- *                                 subplans
+ *				   ...
+ *				   /
+ *				Append -------+------+------+--- nil
+ *				/	\		  |		 |		|
+ *			  nil	nil		 ...    ...    ...
+ *								 subplans
  *
- *        Append nodes are currently used for unions, and to support
- *        inheritance queries, where several relations need to be scanned.
- *        For example, in our standard person/student/employee/student-emp
- *        example, where student and employee inherit from person
- *        and student-emp inherits from student and employee, the
- *        query:
+ *		Append nodes are currently used for unions, and to support
+ *		inheritance queries, where several relations need to be scanned.
+ *		For example, in our standard person/student/employee/student-emp
+ *		example, where student and employee inherit from person
+ *		and student-emp inherits from student and employee, the
+ *		query:
  *
- *                select name from person
+ *				select name from person
  *
- *        generates the plan:
+ *		generates the plan:
  *
- *                  |
- *                Append -------+-------+--------+--------+
- *                /    \          |          |           |        |
- *              nil    nil         Scan     Scan      Scan       Scan
- *                              |          |           |        |
- *                            person employee student student-emp
+ *				  |
+ *				Append -------+-------+--------+--------+
+ *				/	\		  |		  |		   |		|
+ *			  nil	nil		 Scan	 Scan	  Scan	   Scan
+ *							  |		  |		   |		|
+ *							person employee student student-emp
  */
 
 #include "postgres.h"
 
+#include "executor/execPartition.h"
 #include "executor/execdebug.h"
 #include "executor/nodeAppend.h"
 #include "miscadmin.h"
 
-static TupleTableSlot *ExecAppend(PlanState *pstate);
-static bool exec_append_initialize_next(AppendState *appendstate);
+#ifdef __OPENTENBASE_C__
+#include "pgxc/planner.h"
+#include "optimizer/planmain.h"
+#endif
 
+#define NO_MATCHING_SUBPLANS		-2
 
-/* ----------------------------------------------------------------
- *        exec_append_initialize_next
- *
- *        Sets up the append state node for the "next" scan.
- *
- *        Returns t iff there is a "next" scan to process.
- * ----------------------------------------------------------------
- */
-static bool
-exec_append_initialize_next(AppendState *appendstate)
+/* Shared state for parallel-aware Append. */
+struct ParallelAppendState
 {
-    int            whichplan;
+	LWLock		pa_lock;		/* mutual exclusion to choose next subplan */
+	int			pa_next_plan;	/* next plan to choose by any worker */
 
-    /*
-     * get information from the append node
-     */
-    whichplan = appendstate->as_whichplan;
+	/*
+	 * pa_finished[i] should be true if no more workers should select subplan
+	 * i.  for a non-partial plan, this should be set to true as soon as a
+	 * worker selects the plan; for a partial plan, it remains false until
+	 * some worker executes the plan to completion.
+	 */
+	bool		pa_finished[FLEXIBLE_ARRAY_MEMBER];
+};
 
-    if (whichplan < 0)
-    {
-        /*
-         * if scanning in reverse, we start at the last scan in the list and
-         * then proceed back to the first.. in any case we inform ExecAppend
-         * that we are at the end of the line by returning FALSE
-         */
-        appendstate->as_whichplan = 0;
-        return FALSE;
-    }
-    else if (whichplan >= appendstate->as_nplans)
-    {
-        /*
-         * as above, end the scan if we go beyond the last scan in our list..
-         */
-        appendstate->as_whichplan = appendstate->as_nplans - 1;
-        return FALSE;
-    }
-    else
-    {
-        return TRUE;
-    }
-}
+#define INVALID_SUBPLAN_INDEX		-1
+
+static TupleTableSlot *ExecAppend(PlanState *pstate);
+static bool choose_next_subplan_locally(AppendState *node);
+static bool choose_next_subplan_for_leader(AppendState *node);
+static bool choose_next_subplan_for_worker(AppendState *node);
+
+#ifdef __OPENTENBASE_C__
+static bool choose_next_subplan_for_remote(AppendState *node);
+#endif
 
 /* ----------------------------------------------------------------
- *        ExecInitAppend
+ *		ExecInitAppend
  *
- *        Begin all of the subscans of the append node.
+ *		Begin all of the subscans of the append node.
  *
- *       (This is potentially wasteful, since the entire result of the
- *        append node may not be scanned, but this way all of the
- *        structures get allocated in the executor's top level memory
- *        block instead of that of the call to ExecAppend.)
+ *	   (This is potentially wasteful, since the entire result of the
+ *		append node may not be scanned, but this way all of the
+ *		structures get allocated in the executor's top level memory
+ *		block instead of that of the call to ExecAppend.)
  * ----------------------------------------------------------------
  */
 AppendState *
 ExecInitAppend(Append *node, EState *estate, int eflags)
 {
-    AppendState *appendstate = makeNode(AppendState);
-    PlanState **appendplanstates;
-    int            nplans;
-    int            i;
-    ListCell   *lc;
+	AppendState *appendstate = makeNode(AppendState);
+	PlanState **appendplanstates;
+	Bitmapset  *validsubplans;
+	int			nplans;
+	int			i, j;
+	ListCell   *lc;
 
-    /* check for unsupported flags */
-    Assert(!(eflags & EXEC_FLAG_MARK));
+	/* check for unsupported flags */
+	Assert(!(eflags & EXEC_FLAG_MARK));
 
-    /*
-     * Lock the non-leaf tables in the partition tree controlled by this node.
-     * It's a no-op for non-partitioned parent tables.
-     */
-    ExecLockNonLeafAppendTables(node->partitioned_rels, estate);
+	/*
+	 * create new AppendState for our append node
+	 */
+	appendstate->ps.plan = (Plan *) node;
+	appendstate->ps.state = estate;
+	appendstate->ps.ExecProcNode = ExecAppend;
 
-    /*
-     * Set up empty vector of subplan states
-     */
-    nplans = list_length(node->appendplans);
+	/*
+	 * Lock the non-leaf tables in the partition tree controlled by this node.
+	 * It's a no-op for non-partitioned parent tables.
+	 */
+	ExecLockNonLeafAppendTables(node->partitioned_rels, estate);
 
-    appendplanstates = (PlanState **) palloc0(nplans * sizeof(PlanState *));
+	/*
+	 * initialize to scan first subplan
+	 */
+	appendstate->as_whichplan = 0;
 
-    /*
-     * create new AppendState for our append node
-     */
-    appendstate->ps.plan = (Plan *) node;
-    appendstate->ps.state = estate;
-    appendstate->ps.ExecProcNode = ExecAppend;
-    appendstate->appendplans = appendplanstates;
-    appendstate->as_nplans = nplans;
+	/* If run-time partition pruning is enabled, then set that up now */
+	if (node->part_prune_info != NULL)
+	{
+		PartitionPruneState *prunestate;
 
-    /*
-     * Miscellaneous initialization
-     *
-     * Append plans don't have expression contexts because they never call
-     * ExecQual or ExecProject.
-     */
+		/* We may need an expression context to evaluate partition exprs */
+		ExecAssignExprContext(estate, &appendstate->ps);
 
-    /*
-     * append nodes still have Result slots, which hold pointers to tuples, so
-     * we have to initialize them.
-     */
-    ExecInitResultTupleSlot(estate, &appendstate->ps);
+		/* Create the working data structure for pruning. */
+		prunestate = ExecCreatePartitionPruneState(&appendstate->ps,
+												   node->part_prune_info);
+		appendstate->as_prune_state = prunestate;
 
-    /*
-     * call ExecInitNode on each of the plans to be executed and save the
-     * results into the array "appendplans".
-     */
-    i = 0;
-    foreach(lc, node->appendplans)
-    {
-        Plan       *initNode = (Plan *) lfirst(lc);
-
-		PlanState *ret = ExecInitNode(initNode, estate, eflags);
-		if (ret)
+		/* Perform an initial partition prune, if required. */
+		if (prunestate->do_initial_prune)
 		{
-			appendplanstates[i] = ret;
-			i++;
+			/* Determine which subplans survive initial pruning */
+			validsubplans = ExecFindInitialMatchingSubPlans(prunestate,
+															list_length(node->appendplans));
+
+			/*
+			 * The case where no subplans survive pruning must be handled
+			 * specially.  The problem here is that code in explain.c requires
+			 * an Append to have at least one subplan in order for it to
+			 * properly determine the Vars in that subplan's targetlist.  We
+			 * sidestep this issue by just initializing the first subplan and
+			 * setting as_whichplan to NO_MATCHING_SUBPLANS to indicate that
+			 * we don't really need to scan any subnodes.
+			 */
+			if (bms_is_empty(validsubplans))
+			{
+				appendstate->as_whichplan = NO_MATCHING_SUBPLANS;
+
+				/* Mark the first as valid so that it's initialized below */
+				validsubplans = bms_make_singleton(0);
+			}
+
+			nplans = bms_num_members(validsubplans);
 		}
-    }
-	appendstate->as_nplans = i;
+		else
+		{
+			/* We'll need to initialize all subplans */
+			nplans = list_length(node->appendplans);
+			validsubplans = bms_add_range(NULL, 0, nplans - 1);
+		}
 
-    /*
-     * initialize output tuple type
-     */
-    ExecAssignResultTypeFromTL(&appendstate->ps);
-    appendstate->ps.ps_ProjInfo = NULL;
+		/*
+		 * If no runtime pruning is required, we can fill as_valid_subplans
+		 * immediately, preventing later calls to ExecFindMatchingSubPlans.
+	 	 */
+		if (!prunestate->do_exec_prune)
+			appendstate->as_valid_subplans = bms_add_range(NULL, 0, nplans - 1);
+	}
+	else
+	{
+		nplans = list_length(node->appendplans);
 
-    /*
-     * initialize to scan first subplan
-     */
-    appendstate->as_whichplan = 0;
-    exec_append_initialize_next(appendstate);
+		/*
+		 * When run-time partition pruning is not enabled we can just mark all
+		 * subplans as valid; they must also all be initialized.
+		 */
+		appendstate->as_valid_subplans = validsubplans =
+			bms_add_range(NULL, 0, nplans - 1);
+		appendstate->as_prune_state = NULL;
+	}
 
-    return appendstate;
+	appendplanstates = (PlanState **) palloc0(nplans * sizeof(PlanState *));
+
+	appendstate->appendplans = appendplanstates;
+	appendstate->as_nplans = nplans;
+	appendstate->validsubplans = bms_copy(validsubplans);
+
+	/*
+	 * Initialize result tuple type and slot.
+	 */
+	ExecInitResultTupleSlotTL(&appendstate->ps);
+
+	/*
+	 * call ExecInitNode on each of the plans to be executed and save the
+	 * results into the array "appendplans".
+	 */
+	i = j = 0;
+	foreach(lc, node->appendplans)
+	{
+		Plan	   *initNode = (Plan *) lfirst(lc);
+		PlanState *ret;
+
+		if (bms_is_member(i, validsubplans))
+		{
+			ret = ExecInitNode(initNode, estate, eflags);
+			if (ret)
+			{
+				appendplanstates[j] = ret;
+				j++;
+			}
+		}
+		i++;
+	}
+	appendstate->as_nplans = j;
+
+	/*
+	 * Miscellaneous initialization
+	 *
+	 * Append plans don't have expression contexts because they never call
+	 * ExecQual or ExecProject.
+	 */
+	appendstate->ps.ps_ProjInfo = NULL;
+
+	/*
+	 * Parallel-aware append plans must choose the first subplan to execute by
+	 * looking at shared memory, but non-parallel-aware append plans can
+	 * always start with the first subplan.
+	 */
+	appendstate->as_whichplan =
+		appendstate->ps.plan->parallel_aware ? INVALID_SUBPLAN_INDEX : 0;
+
+	/* For parallel query, this will be overridden later. */
+	appendstate->choose_next_subplan = choose_next_subplan_locally;
+
+	return appendstate;
 }
 
 /* ----------------------------------------------------------------
- *       ExecAppend
+ *	   ExecAppend
  *
- *        Handles iteration over multiple subplans.
+ *		Handles iteration over multiple subplans.
  * ----------------------------------------------------------------
  */
 static TupleTableSlot *
 ExecAppend(PlanState *pstate)
 {
-    AppendState *node = castNode(AppendState, pstate);
+	AppendState *node = castNode(AppendState, pstate);
 
-    for (;;)
-    {
-        PlanState  *subnode;
-        TupleTableSlot *result;
+	/* If no subplan has been chosen, we must choose one before proceeding. */
+	if (node->as_whichplan == INVALID_SUBPLAN_INDEX &&
+		!node->choose_next_subplan(node))
+		return NULL;
 
-        CHECK_FOR_INTERRUPTS();
+	for (;;)
+	{
+		PlanState  *subnode;
+		TupleTableSlot *result;
 
-        /*
-         * figure out which subplan we are currently processing
-         */
-        subnode = node->appendplans[node->as_whichplan];
+#ifdef __OPENTENBASE_C__
+		if (node->as_nplans == 0)
+			return NULL;
+#endif
 
-        /*
-         * get a tuple from the subplan
-         */
-        result = ExecProcNode(subnode);
+		CHECK_FOR_INTERRUPTS();
 
-        if (!TupIsNull(result))
-        {
-            /*
-             * If the subplan gave us something then return it as-is. We do
-             * NOT make use of the result slot that was set up in
-             * ExecInitAppend; there's no need for it.
-             */
-            return result;
-        }
+		/*
+		 * figure out which subplan we are currently processing
+		 */
+		Assert(node->as_whichplan >= 0 && node->as_whichplan < node->as_nplans);
+		subnode = node->appendplans[node->as_whichplan];
 
-        /*
-         * Go on to the "next" subplan in the appropriate direction. If no
-         * more subplans, return the empty slot set up for us by
-         * ExecInitAppend.
-         */
-        if (ScanDirectionIsForward(node->ps.state->es_direction))
-            node->as_whichplan++;
-        else
-            node->as_whichplan--;
-        if (!exec_append_initialize_next(node))
-            return ExecClearTuple(node->ps.ps_ResultTupleSlot);
+		/*
+		 * get a tuple from the subplan
+		 */
+		result = ExecProcNode(subnode);
 
-        /* Else loop back and try to get a tuple from the new subplan */
-    }
+		if (!TupIsNull(result))
+		{
+			/*
+			 * If the subplan gave us something then return it as-is. We do
+			 * NOT make use of the result slot that was set up in
+			 * ExecInitAppend; there's no need for it.
+			 */
+			return result;
+		}
+
+		/* choose new subplan; if none, we're done */
+		if (!node->choose_next_subplan(node))
+			return NULL;
+	}
 }
 
 /* ----------------------------------------------------------------
- *        ExecEndAppend
+ *		ExecEndAppend
  *
- *        Shuts down the subscans of the append node.
+ *		Shuts down the subscans of the append node.
  *
- *        Returns nothing of interest.
+ *		Returns nothing of interest.
  * ----------------------------------------------------------------
  */
 void
 ExecEndAppend(AppendState *node)
 {
-    PlanState **appendplans;
-    int            nplans;
-    int            i;
+	PlanState **appendplans;
+	int			nplans;
+	int			i;
 
-    /*
-     * get information from the node
-     */
-    appendplans = node->appendplans;
-    nplans = node->as_nplans;
+	/*
+	 * get information from the node
+	 */
+	appendplans = node->appendplans;
+	nplans = node->as_nplans;
 
-    /*
-     * shut down each of the subscans
-     */
-    for (i = 0; i < nplans; i++)
-        ExecEndNode(appendplans[i]);
+	/*
+	 * shut down each of the subscans
+	 */
+	for (i = 0; i < nplans; i++)
+		ExecEndNode(appendplans[i]);
+
+	/*
+	 * release any resources associated with run-time pruning
+	 */
+	if (node->as_prune_state)
+		ExecDestroyPartitionPruneState(node->as_prune_state);
 }
 
 void
 ExecReScanAppend(AppendState *node)
 {
-    int            i;
+	int			i;
 
-    for (i = 0; i < node->as_nplans; i++)
-    {
-        PlanState  *subnode = node->appendplans[i];
+	for (i = 0; i < node->as_nplans; i++)
+	{
+		PlanState  *subnode = node->appendplans[i];
 
-        /*
-         * ExecReScan doesn't know about my subplans, so I have to do
-         * changed-parameter signaling myself.
-         */
-        if (node->ps.chgParam != NULL)
-            UpdateChangedParamSet(subnode, node->ps.chgParam);
+		/*
+		 * ExecReScan doesn't know about my subplans, so I have to do
+		 * changed-parameter signaling myself.
+		 */
+		if (node->ps.chgParam != NULL)
+			UpdateChangedParamSet(subnode, node->ps.chgParam);
 
-        /*
-         * If chgParam of subnode is not null then plan will be re-scanned by
-         * first ExecProcNode.
-         */
-        if (subnode->chgParam == NULL)
-            ExecReScan(subnode);
-    }
-    node->as_whichplan = 0;
-    exec_append_initialize_next(node);
+		/*
+		 * If chgParam of subnode is not null then plan will be re-scanned by
+		 * first ExecProcNode.
+		 */
+		if (subnode->chgParam == NULL)
+			ExecReScan(subnode);
+	}
+
+	node->as_whichplan =
+		node->ps.plan->parallel_aware ? INVALID_SUBPLAN_INDEX : 0;
 }
+
+/* ----------------------------------------------------------------
+ *						Parallel Append Support
+ * ----------------------------------------------------------------
+ */
+
+/* ----------------------------------------------------------------
+ *		ExecAppendEstimate
+ *
+ *		Compute the amount of space we'll need in the parallel
+ *		query DSM, and inform pcxt->estimator about our needs.
+ * ----------------------------------------------------------------
+ */
+void
+ExecAppendEstimate(AppendState *node,
+				   ParallelContext *pcxt)
+{
+	node->pstate_len =
+		add_size(offsetof(ParallelAppendState, pa_finished),
+				 sizeof(bool) * node->as_nplans);
+
+	shm_toc_estimate_chunk(&pcxt->estimator, node->pstate_len);
+	shm_toc_estimate_keys(&pcxt->estimator, 1);
+}
+
+
+/* ----------------------------------------------------------------
+ *		ExecAppendInitializeDSM
+ *
+ *		Set up shared state for Parallel Append.
+ * ----------------------------------------------------------------
+ */
+void
+ExecAppendInitializeDSM(AppendState *node,
+						ParallelContext *pcxt)
+{
+	ParallelAppendState *pstate;
+
+	pstate = shm_toc_allocate(pcxt->toc, node->pstate_len);
+	memset(pstate, 0, node->pstate_len);
+	LWLockInitialize(&pstate->pa_lock, LWTRANCHE_PARALLEL_APPEND);
+	shm_toc_insert(pcxt->toc, node->ps.plan->plan_node_id, pstate);
+
+	node->as_pstate = pstate;
+#ifdef __OPENTENBASE_C__
+	if (node->ps.plan->remote_flag == 1)
+		node->choose_next_subplan = choose_next_subplan_for_remote;
+	else
+#endif
+	node->choose_next_subplan = choose_next_subplan_for_leader;
+}
+
+/* ----------------------------------------------------------------
+ *		ExecAppendReInitializeDSM
+ *
+ *		Reset shared state before beginning a fresh scan.
+ * ----------------------------------------------------------------
+ */
+void
+ExecAppendReInitializeDSM(AppendState *node, ParallelContext *pcxt)
+{
+	ParallelAppendState *pstate = node->as_pstate;
+
+	pstate->pa_next_plan = 0;
+	memset(pstate->pa_finished, 0, sizeof(bool) * node->as_nplans);
+}
+
+/* ----------------------------------------------------------------
+ *		ExecAppendInitializeWorker
+ *
+ *		Copy relevant information from TOC into planstate, and initialize
+ *		whatever is required to choose and execute the optimal subplan.
+ * ----------------------------------------------------------------
+ */
+void
+ExecAppendInitializeWorker(AppendState *node, ParallelWorkerContext *pwcxt)
+{
+	node->as_pstate = shm_toc_lookup(pwcxt->toc, node->ps.plan->plan_node_id, false);
+#ifdef __OPENTENBASE_C__
+	if (node->ps.plan->remote_flag == 1)
+		node->choose_next_subplan = choose_next_subplan_for_remote;
+	else
+#endif
+	node->choose_next_subplan = choose_next_subplan_for_worker;
+}
+
+/* ----------------------------------------------------------------
+ *		choose_next_subplan_locally
+ *
+ *		Choose next subplan for a non-parallel-aware Append,
+ *		returning false if there are no more.
+ * ----------------------------------------------------------------
+ */
+static bool
+choose_next_subplan_locally(AppendState *node)
+{
+	int			whichplan = node->as_whichplan;
+
+	if (ScanDirectionIsForward(node->ps.state->es_direction))
+	{
+		/*
+		 * We won't normally see INVALID_SUBPLAN_INDEX in this case, but we
+		 * might if a plan intended to be run in parallel ends up being run
+		 * serially.
+		 */
+		if (whichplan == INVALID_SUBPLAN_INDEX)
+			node->as_whichplan = 0;
+		else
+		{
+			if (whichplan >= node->as_nplans - 1)
+				return false;
+			node->as_whichplan++;
+		}
+	}
+	else
+	{
+		if (whichplan <= 0)
+			return false;
+		node->as_whichplan--;
+	}
+
+	return true;
+}
+
+/* ----------------------------------------------------------------
+ *		choose_next_subplan_for_leader
+ *
+ *      Try to pick a plan which doesn't commit us to doing much
+ *      work locally, so that as much work as possible is done in
+ *      the workers.  Cheapest subplans are at the end.
+ * ----------------------------------------------------------------
+ */
+static bool
+choose_next_subplan_for_leader(AppendState *node)
+{
+	ParallelAppendState *pstate = node->as_pstate;
+	Append	   *append = (Append *) node->ps.plan;
+
+	/* Backward scan is not supported by parallel-aware plans */
+	Assert(ScanDirectionIsForward(node->ps.state->es_direction));
+
+	LWLockAcquire(&pstate->pa_lock, LW_EXCLUSIVE);
+
+	if (node->as_whichplan != INVALID_SUBPLAN_INDEX)
+	{
+		/* Mark just-completed subplan as finished. */
+		node->as_pstate->pa_finished[node->as_whichplan] = true;
+	}
+	else
+	{
+		/* Start with last subplan. */
+		node->as_whichplan = node->as_nplans - 1;
+	}
+
+	/* Loop until we find a subplan to execute. */
+	while (pstate->pa_finished[node->as_whichplan])
+	{
+		if (node->as_whichplan == 0)
+		{
+			pstate->pa_next_plan = INVALID_SUBPLAN_INDEX;
+			node->as_whichplan = INVALID_SUBPLAN_INDEX;
+			LWLockRelease(&pstate->pa_lock);
+			return false;
+		}
+		node->as_whichplan--;
+	}
+
+	/* If non-partial, immediately mark as finished. */
+	if (node->as_whichplan < append->first_partial_plan)
+		node->as_pstate->pa_finished[node->as_whichplan] = true;
+
+	LWLockRelease(&pstate->pa_lock);
+
+	return true;
+}
+
+/* ----------------------------------------------------------------
+ *		choose_next_subplan_for_worker
+ *
+ *		Choose next subplan for a parallel-aware Append, returning
+ *		false if there are no more.
+ *
+ *		We start from the first plan and advance through the list;
+ *		when we get back to the end, we loop back to the first
+ *		partial plan.  This assigns the non-partial plans first in
+ *		order of descending cost and then spreads out the workers
+ *		as evenly as possible across the remaining partial plans.
+ * ----------------------------------------------------------------
+ */
+static bool
+choose_next_subplan_for_worker(AppendState *node)
+{
+	ParallelAppendState *pstate = node->as_pstate;
+	Append	   *append = (Append *) node->ps.plan;
+
+	/* Backward scan is not supported by parallel-aware plans */
+	Assert(ScanDirectionIsForward(node->ps.state->es_direction));
+
+	LWLockAcquire(&pstate->pa_lock, LW_EXCLUSIVE);
+
+	/* Mark just-completed subplan as finished. */
+	if (node->as_whichplan != INVALID_SUBPLAN_INDEX)
+		node->as_pstate->pa_finished[node->as_whichplan] = true;
+
+	/* If all the plans are already done, we have nothing to do */
+	if (pstate->pa_next_plan == INVALID_SUBPLAN_INDEX)
+	{
+		LWLockRelease(&pstate->pa_lock);
+		return false;
+	}
+
+	/* Save the plan from which we are starting the search. */
+	node->as_whichplan = pstate->pa_next_plan;
+
+	/* Loop until we find a subplan to execute. */
+	while (pstate->pa_finished[pstate->pa_next_plan])
+	{
+		if (pstate->pa_next_plan < node->as_nplans - 1)
+		{
+			/* Advance to next plan. */
+			pstate->pa_next_plan++;
+		}
+		else if (node->as_whichplan > append->first_partial_plan)
+		{
+			/* Loop back to first partial plan. */
+			pstate->pa_next_plan = append->first_partial_plan;
+		}
+		else
+		{
+			/*
+			 * At last plan, and either there are no partial plans or we've
+			 * tried them all.  Arrange to bail out.
+			 */
+			pstate->pa_next_plan = node->as_whichplan;
+		}
+
+		if (pstate->pa_next_plan == node->as_whichplan)
+		{
+			/* We've tried everything! */
+			pstate->pa_next_plan = INVALID_SUBPLAN_INDEX;
+			LWLockRelease(&pstate->pa_lock);
+			return false;
+		}
+	}
+
+	/* Pick the plan we found, and advance pa_next_plan one more time. */
+	node->as_whichplan = pstate->pa_next_plan++;
+	if (pstate->pa_next_plan >= node->as_nplans)
+	{
+		if (append->first_partial_plan < node->as_nplans)
+			pstate->pa_next_plan = append->first_partial_plan;
+		else
+		{
+			/*
+			 * We have only non-partial plans, and we already chose the last
+			 * one; so arrange for the other workers to immediately bail out.
+			 */
+			pstate->pa_next_plan = INVALID_SUBPLAN_INDEX;
+		}
+	}
+
+	/* If non-partial, immediately mark as finished. */
+	if (node->as_whichplan < append->first_partial_plan)
+		node->as_pstate->pa_finished[node->as_whichplan] = true;
+
+	LWLockRelease(&pstate->pa_lock);
+
+	return true;
+}
+
+#ifdef __OPENTENBASE_C__
+
+/* ----------------------------------------------------------------
+ *		choose_next_subplan_for_remote
+ *
+ *      If there is any remote fragment under append, every worker
+ *      need to receive its own data, we can not pick subplan for
+ *      worker as choose_next_subplan_for_worker.
+ *      Here we make every worker start from the first plan and
+ *      advance through the list. One subplan will be processed
+ *      by all the workers.
+ * ----------------------------------------------------------------
+ */
+static bool
+choose_next_subplan_for_remote(AppendState *node)
+{
+	ParallelAppendState *pstate = node->as_pstate;
+	Append	   *append = (Append *) node->ps.plan;
+
+	Assert(ScanDirectionIsForward(node->ps.state->es_direction));
+	Assert(node->as_nplans > 0);
+
+	if (node->as_whichplan + 1 >= node->as_nplans)
+		return false;
+
+	node->as_whichplan++;
+
+	if (node->as_whichplan < append->first_partial_plan)
+	{
+		LWLockAcquire(&pstate->pa_lock, LW_EXCLUSIVE);
+
+		/* Loop until we find a subplan to execute. */
+		while (pstate->pa_finished[node->as_whichplan])
+		{
+			if (node->as_whichplan + 1 >= node->as_nplans)
+			{
+				LWLockRelease(&pstate->pa_lock);
+				return false;
+			}
+
+			node->as_whichplan++;
+		}
+
+		/* If non-partial, immediately mark as finished. */
+		if (node->as_whichplan < append->first_partial_plan)
+			pstate->pa_finished[node->as_whichplan] = true;
+
+		LWLockRelease(&pstate->pa_lock);
+	}
+
+	return true;
+}
+#endif

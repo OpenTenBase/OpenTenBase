@@ -1,6 +1,28 @@
 --
 -- FOREIGN KEY
 --
+--test foreign key constraints
+CREATE TABLE users_main (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(50) NOT NULL,
+    age SMALLINT NOT NULL,
+    email VARCHAR(50) UNIQUE,
+    phone VARCHAR(20) NOT NULL
+);
+CREATE TABLE orders_ref (
+    id BIGSERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users_main (id) NOT NULL,
+    amount NUMERIC(10, 2) NOT NULL,
+    status VARCHAR(20) NOT NULL,
+    create_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+INSERT INTO "users_main" (id, name, age, email, phone) SELECT i, 'User ' || i, i % 100, 'user' || i || '@example.com', '139' || i FROM generate_series(1, 10) AS s(i);
+INSERT INTO "orders_ref" (id, user_id, amount, status, create_time, update_time) SELECT i, i + 1, (i * 10)%20000, 'created', now(), now()FROM generate_series(1,12) AS s(i);
+ERROR:  insert or update on table "orders_ref" violates foreign key constraint "orders_ref_user_id_fkey"
+DETAIL:  Key (user_id)=(13) is not present in table "users_main".
+drop table orders_ref;
+drop table users_main;
 -- MATCH FULL
 --
 -- First test, check and cascade
@@ -1152,40 +1174,37 @@ BEGIN;
 INSERT INTO fktable VALUES (0, 20);
 -- UPDATE will be in a subxact
 SAVEPOINT savept1;
-ERROR:  SAVEPOINT is not yet supported.
 -- don't change FK
 UPDATE fktable SET id = id + 1;
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
 -- should catch error from initial INSERT
 COMMIT;
+ERROR:  insert or update on table "fktable" violates foreign key constraint "fktable_fk_fkey"
+DETAIL:  Key (fk)=(20) is not present in table "pktable".
 BEGIN;
 -- INSERT will be in a subxact
 SAVEPOINT savept1;
-ERROR:  SAVEPOINT is not yet supported.
 -- doesn't match PK, but no error yet
 INSERT INTO fktable VALUES (0, 20);
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
 RELEASE SAVEPOINT savept1;
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
 -- don't change FK
 UPDATE fktable SET id = id + 1;
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
 -- should catch error from initial INSERT
 COMMIT;
+ERROR:  insert or update on table "fktable" violates foreign key constraint "fktable_fk_fkey"
+DETAIL:  Key (fk)=(20) is not present in table "pktable".
 BEGIN;
 -- doesn't match PK, but no error yet
 INSERT INTO fktable VALUES (0, 20);
 -- UPDATE will be in a subxact
 SAVEPOINT savept1;
-ERROR:  SAVEPOINT is not yet supported.
 -- don't change FK
 UPDATE fktable SET id = id + 1;
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
 -- Roll back the UPDATE
 ROLLBACK TO savept1;
-ERROR:  no such savepoint
 -- should catch error from initial INSERT
 COMMIT;
+ERROR:  insert or update on table "fktable" violates foreign key constraint "fktable_fk_fkey"
+DETAIL:  Key (fk)=(20) is not present in table "pktable".
 --
 -- check ALTER CONSTRAINT
 --
@@ -1348,26 +1367,26 @@ create temp table cc (f1 int references pp on update no action);
 insert into pp values(12);
 insert into pp values(11);
 update pp set f1=f1+1;
-ERROR:  Distributed column or partition column "f1" can't be updated in current version
+ERROR:  Distributed column "f1" can't be updated in current version
 insert into cc values(13);
 ERROR:  insert or update on table "cc" violates foreign key constraint "cc_f1_fkey"
 DETAIL:  Key (f1)=(13) is not present in table "pp".
 update pp set f1=f1+1;
-ERROR:  Distributed column or partition column "f1" can't be updated in current version
+ERROR:  Distributed column "f1" can't be updated in current version
 update pp set f1=f1+1; -- fail
-ERROR:  Distributed column or partition column "f1" can't be updated in current version
+ERROR:  Distributed column "f1" can't be updated in current version
 drop table pp, cc;
 create temp table pp (f1 int primary key);
 create temp table cc (f1 int references pp on update restrict);
 insert into pp values(12);
 insert into pp values(11);
 update pp set f1=f1+1;
-ERROR:  Distributed column or partition column "f1" can't be updated in current version
+ERROR:  Distributed column "f1" can't be updated in current version
 insert into cc values(13);
 ERROR:  insert or update on table "cc" violates foreign key constraint "cc_f1_fkey"
 DETAIL:  Key (f1)=(13) is not present in table "pp".
 update pp set f1=f1+1; -- fail
-ERROR:  Distributed column or partition column "f1" can't be updated in current version
+ERROR:  Distributed column "f1" can't be updated in current version
 drop table pp, cc;
 --
 -- Test interaction of foreign-key optimization with rules (bug #14219)
@@ -1376,11 +1395,24 @@ create temp table t1 (a integer primary key, b text);
 create temp table t2 (a integer, b integer references t1) distribute by hash (b);
 create rule r1 as on delete to t1 do delete from t2 where t2.b = old.a;
 explain (costs off) delete from t1 where a = 1;
-ERROR:  could not plan this distributed delete
-DETAIL:  correlated or complex DELETE is currently not supported in Postgres-XL.
+                    QUERY PLAN                    
+--------------------------------------------------
+ Remote Subquery Scan on all (datanodes 1)
+   ->  Delete on t2
+         ->  Nested Loop
+               ->  Index Scan using t1_pkey on t1
+                     Index Cond: (a = 1)
+               ->  Seq Scan on t2
+                     Filter: (b = 1)
+ 
+ Remote Fast Query Execution
+   Node/s: datanode_1
+   ->  Delete on t1
+         ->  Index Scan using t1_pkey on t1
+               Index Cond: (a = 1)
+(13 rows)
+
 delete from t1 where a = 1;
-ERROR:  could not plan this distributed delete
-DETAIL:  correlated or complex DELETE is currently not supported in Postgres-XL.
 drop rule r1 on t1;
 explain (costs off, nodes off) delete from t1 where a = 1;
                  QUERY PLAN                 
@@ -1430,26 +1462,124 @@ drop table pktable2, fktable2;
 -- Ensure that works.
 CREATE TABLE fk_notpartitioned_pk (a INT, PRIMARY KEY(a), CHECK (a > 0));
 CREATE TABLE fk_partitioned_fk (a INT REFERENCES fk_notpartitioned_pk(a) PRIMARY KEY) PARTITION BY RANGE(a);
+ERROR:  foreign key constraints are not supported on partitioned tables
+LINE 1: CREATE TABLE fk_partitioned_fk (a INT REFERENCES fk_notparti...
+                                              ^
 CREATE TABLE fk_partitioned_fk_1 PARTITION OF fk_partitioned_fk FOR VALUES FROM (MINVALUE) TO (MAXVALUE);
+ERROR:  relation "fk_partitioned_fk" does not exist
 INSERT INTO fk_notpartitioned_pk VALUES (1);
 INSERT INTO fk_partitioned_fk VALUES (1);
+ERROR:  relation "fk_partitioned_fk" does not exist
+LINE 1: INSERT INTO fk_partitioned_fk VALUES (1);
+                    ^
 ALTER TABLE fk_notpartitioned_pk ALTER COLUMN a TYPE bigint;
 DELETE FROM fk_notpartitioned_pk WHERE a = 1;
-ERROR:  update or delete on table "fk_notpartitioned_pk" violates foreign key constraint "fk_partitioned_fk_a_fkey" on table "fk_partitioned_fk"
-DETAIL:  Key (a)=(1) is still referenced from table "fk_partitioned_fk".
 DROP TABLE fk_notpartitioned_pk, fk_partitioned_fk;
+ERROR:  table "fk_partitioned_fk" does not exist
 -- ensure we check partitions are "not used" when dropping constraints
 CREATE SCHEMA fkpart8
   CREATE TABLE tbl1(f1 int PRIMARY KEY)
   CREATE TABLE tbl2(f1 int REFERENCES tbl1 DEFERRABLE INITIALLY DEFERRED) PARTITION BY RANGE(f1)
   CREATE TABLE tbl2_p1 PARTITION OF tbl2 FOR VALUES FROM (minvalue) TO (maxvalue);
+ERROR:  foreign key constraints are not supported on partitioned tables
+LINE 3:   CREATE TABLE tbl2(f1 int REFERENCES tbl1 DEFERRABLE INITIA...
+                                   ^
 INSERT INTO fkpart8.tbl1 VALUES(1);
+ERROR:  relation "fkpart8.tbl1" does not exist
+LINE 1: INSERT INTO fkpart8.tbl1 VALUES(1);
+                    ^
 BEGIN;
 INSERT INTO fkpart8.tbl2 VALUES(1);
+ERROR:  relation "fkpart8.tbl2" does not exist
+LINE 1: INSERT INTO fkpart8.tbl2 VALUES(1);
+                    ^
 ALTER TABLE fkpart8.tbl2 DROP CONSTRAINT tbl2_f1_fkey;
-ERROR:  cannot ALTER TABLE "tbl2_p1" because it has pending trigger events
+ERROR:  current transaction is aborted, commands ignored until end of transaction block
 COMMIT;
 DROP SCHEMA fkpart8 CASCADE;
-NOTICE:  drop cascades to 2 other objects
-DETAIL:  drop cascades to table fkpart8.tbl1
-drop cascades to table fkpart8.tbl2
+ERROR:  schema "fkpart8" does not exist
+CREATE TABLE IF NOT EXISTS rep_tbl_foreign(
+col_int int not null,
+col_smallint smallint,
+col_bigint bigint check (col_bigint > 0),
+col_nemeric numeric(5,5),
+col_double double precision,
+constraint pk_foreign_col_int primary key (col_int,col_double)
+) DISTRIBUTE BY REPLICATION;
+CREATE TABLE IF NOT EXISTS rep_tbl_constraint(
+col_int int not null,
+col_smallint smallint,
+col_bigint bigint check (col_bigint > 0),
+col_nemeric numeric(5,5),
+col_double double precision,
+col_varchar varchar(50) not null default 'default values',
+col_text text,
+col_timestamp timestamp,
+col_date date,
+col_boolean boolean,
+col_bigserial bigserial,
+constraint pk_constraint_col_int primary key (col_int),
+constraint un_constraint_col_int_bigserial unique (col_int,col_bigserial),
+constraint fk_constraint_col_int_double foreign key(col_int,col_double) references rep_tbl_foreign(col_int,col_double)
+);
+DROP TABLE IF EXISTS rep_tbl_foreign;
+ERROR:  cannot drop table rep_tbl_foreign because other objects depend on it
+DETAIL:  constraint fk_constraint_col_int_double on table rep_tbl_constraint depends on table rep_tbl_foreign
+HINT:  Use DROP ... CASCADE to drop the dependent objects too.
+CREATE TABLE IF NOT EXISTS rep_tbl_foreign(
+col_int int not null,
+col_smallint smallint,
+col_bigint bigint check (col_bigint > 0),
+col_nemeric numeric(5,5),
+col_double double precision,
+constraint pk_foreign_col_int primary key (col_int,col_double)
+);
+NOTICE:  relation "rep_tbl_foreign" already exists, skipping
+DROP TABLE IF EXISTS rep_tbl_constraint;
+CREATE TABLE IF NOT EXISTS rep_tbl_constraint(
+col_int int not null,
+col_smallint smallint,
+col_bigint bigint check (col_bigint > 0),
+col_nemeric numeric(5,5),
+col_double double precision,
+col_varchar varchar(50) not null default 'default values',
+col_text text,
+col_timestamp timestamp,
+col_date date,
+col_boolean boolean,
+col_bigserial bigserial,
+constraint pk_constraint_col_int primary key (col_int),
+constraint un_constraint_col_int_bigserial unique (col_int,col_bigserial),
+constraint fk_constraint_col_int_double foreign key(col_int,col_double) references rep_tbl_foreign(col_int,col_double)
+);
+-- Test inconsistency of distribution keys
+drop table if exists t_copy_tri_20220622_tab1;
+NOTICE:  table "t_copy_tri_20220622_tab1" does not exist, skipping
+create table t_copy_tri_20220622_tab1(id int,id1 int,id2 date);
+insert into t_copy_tri_20220622_tab1 values(1,1,'2020-12-20');
+insert into t_copy_tri_20220622_tab1 values(2,2,NULL);
+insert into t_copy_tri_20220622_tab1 values(3,3,'2021-12-20');
+insert into t_copy_tri_20220622_tab1 values(4,4,null);
+insert into t_copy_tri_20220622_tab1 values(5,5,'2022-12-20');
+drop table if exists t_copy_tri_from_20220622_tb4;
+NOTICE:  table "t_copy_tri_from_20220622_tb4" does not exist, skipping
+create table t_copy_tri_from_20220622_tb4 as select * from t_copy_tri_20220622_tab1;
+alter table t_copy_tri_from_20220622_tb4 add constraint ck1 primary key(id);
+drop table if exists t_copy_tri_from_20220622_tb3;
+NOTICE:  table "t_copy_tri_from_20220622_tb3" does not exist, skipping
+create table t_copy_tri_from_20220622_tb3
+(f1 int, id integer default 10 not null, id1 int, id2 date,
+foreign key (id1) references t_copy_tri_from_20220622_tb4(id)
+);
+alter table t_copy_tri_from_20220622_tb3 drop column id;
+insert into t_copy_tri_from_20220622_tb3(f1,id1,id2) values(4,1,'2020-07-20'),(5,1,'2020-07-20');
+select * from t_copy_tri_from_20220622_tb3 order by 1,2,3;
+ f1 | id1 |    id2     
+----+-----+------------
+  4 |   1 | 07-20-2020
+  5 |   1 | 07-20-2020
+(2 rows)
+
+drop table t_copy_tri_from_20220622_tb3;
+drop table t_copy_tri_from_20220622_tb4;
+drop table t_copy_tri_20220622_tab1;

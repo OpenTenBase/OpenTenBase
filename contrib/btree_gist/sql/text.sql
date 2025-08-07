@@ -35,6 +35,6 @@ SELECT count(*) FROM texttmp WHERE a  =  '2eb2c961c1cbf6 cf8d7b68cb9a2f36 7bbedb
 
 -- Test index-only scans
 SET enable_bitmapscan=off;
-EXPLAIN (COSTS OFF)
+EXPLAIN (COSTS OFF, NODES OFF)
 SELECT * FROM texttmp WHERE a BETWEEN '31a' AND '31c';
 SELECT * FROM texttmp WHERE a BETWEEN '31a' AND '31c';

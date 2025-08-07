@@ -8,37 +8,37 @@
 -- define the GiST support methods
 CREATE FUNCTION gbt_uuid_consistent(internal,uuid,int2,oid,internal)
 RETURNS bool
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_uuid_consistent'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_uuid_fetch(internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_uuid_fetch'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_uuid_compress(internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_uuid_compress'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_uuid_penalty(internal,internal,internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_uuid_penalty'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_uuid_picksplit(internal, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_uuid_picksplit'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_uuid_union(internal, internal)
 RETURNS gbtreekey32
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_uuid_union'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_uuid_same(gbtreekey32, gbtreekey32, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_uuid_same'
 LANGUAGE C IMMUTABLE STRICT;
 
 -- Create the operator class

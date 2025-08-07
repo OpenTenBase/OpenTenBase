@@ -390,7 +390,7 @@ static int r_en_ending(struct SN_env * z) {
     return 1;
 }
 
-static int r_standard_suffix(struct SN_env * z) {// #lizard forgives
+static int r_standard_suffix(struct SN_env * z) {
     int among_var;
     {   int m1 = z->l - z->c; (void)m1; /* do, line 107 */
         z->ket = z->c; /* [, line 108 */

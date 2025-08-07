@@ -16,10 +16,10 @@
 /* Common macros */
 #define MAXPATH (512-1)
 #define PGXC_CTL_HOME "PGXC_CTL_HOME"
-#define HOME    "HOME"
+#define HOME	"HOME"
 #define PGXC_CTL_BASH "pgxc_ctl_bash"
 
-#define MAXLINE (8192-1)
+#define MAXLINE (81920-1)
 #define DEFAULT_CONF_FILE_NAME "pgxc_ctl.conf"
 
 #define pgxc_ctl_home_def "pgxc_ctl"
@@ -48,11 +48,11 @@ extern FILE *outF;
 
 /* My nodename default --> used to ping */
 #define DefaultName "pgxc_ctl"
-extern char *myName;    /* pgxc_ctl name used to ping */
+extern char *myName;	/* pgxc_ctl name used to ping */
 #define DefaultDatabase "postgres"
 extern char *defaultDatabase;
 
 extern void print_simple_node_info(char *nodeName, char *port, char *dir,
-                                   char *extraConfig, char *specificExtraConfig);
+								   char *extraConfig, char *specificExtraConfig);
 
 #endif /* PGXC_CTL_H */

@@ -5,9 +5,6 @@
  *
  * Copyright (c) 2010-2017, PostgreSQL Global Development Group
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * src/include/foreign/fdwapi.h
  *
  *-------------------------------------------------------------------------
@@ -18,6 +15,26 @@
 #include "access/parallel.h"
 #include "nodes/execnodes.h"
 #include "nodes/relation.h"
+#include "executor/tuptable.h"
+
+
+/* DN need to read file info */
+typedef struct FdwFileSegment {
+    NodeTag type;
+    char *filename;		/* remote file's URL */
+    long begin;
+	long end;			/* -1: end of file */
+    long fdwfileSize;	/* remote file's size */
+	List *hudi_delta_log;
+} FdwFileSegment;
+
+/* CN assign to DN task info */
+typedef struct FdwDataNodeTask {
+    NodeTag type;
+    char *dnName;	/* this task owner */
+	char *instant_time;  /* hudi InstantTime */
+    List *task;		/* list of FdwFileSegment */
+} FdwDataNodeTask;
 
 /* To avoid including explain.h here, reference ExplainState thus: */
 struct ExplainState;
@@ -67,7 +84,8 @@ typedef void (*GetForeignUpperPaths_function) (PlannerInfo *root,
 											   RelOptInfo *input_rel,
 											   RelOptInfo *output_rel);
 
-typedef void (*AddForeignUpdateTargets_function) (Query *parsetree,
+typedef void (*AddForeignUpdateTargets_function) (PlannerInfo *root,
+												  Index rtindex,
 												  RangeTblEntry *target_rte,
 												  Relation target_relation);
 
@@ -134,11 +152,9 @@ typedef void (*ExplainForeignModify_function) (ModifyTableState *mtstate,
 typedef void (*ExplainDirectModify_function) (ForeignScanState *node,
 											  struct ExplainState *es);
 
-typedef int (*AcquireSampleRowsFunc) (Relation relation, int elevel,
+typedef int (*AcquireSampleRowsFunc)(Relation relation, int elevel,
 									  HeapTuple *rows, int targrows,
-									  double *totalrows,
-									  double *totaldeadrows);
-
+									  double *totalrows, double *totaldeadrows);
 typedef bool (*AnalyzeForeignTable_function) (Relation relation,
 											  AcquireSampleRowsFunc *func,
 											  BlockNumber *totalpages);
@@ -164,6 +180,12 @@ typedef bool (*IsForeignScanParallelSafe_function) (PlannerInfo *root,
 typedef List *(*ReparameterizeForeignPathByChild_function) (PlannerInfo *root,
 															List *fdw_private,
 															RelOptInfo *child_rel);
+
+#ifdef __FDW__
+typedef bool (*IsForeignRelTransCompitable_function) (void);
+#endif
+
+typedef bool (*IsExternalTable_function) (void);
 
 /*
  * FdwRoutine is the struct returned by a foreign-data wrapper's handler
@@ -237,6 +259,11 @@ typedef struct FdwRoutine
 	InitializeWorkerForeignScan_function InitializeWorkerForeignScan;
 	ShutdownForeignScan_function ShutdownForeignScan;
 
+#ifdef __FDW__
+    IsForeignRelTransCompitable_function IsForeignRelTransCompitable;
+#endif
+
+	IsExternalTable_function IsExternalTable;
         /* Support functions for path reparameterization. */
         ReparameterizeForeignPathByChild_function ReparameterizeForeignPathByChild;
 } FdwRoutine;

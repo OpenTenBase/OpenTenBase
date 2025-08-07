@@ -15,10 +15,10 @@
 ConditionalStack
 conditional_stack_create(void)
 {
-    ConditionalStack cstack = pg_malloc(sizeof(ConditionalStackData));
+	ConditionalStack cstack = pg_malloc(sizeof(ConditionalStackData));
 
-    cstack->head = NULL;
-    return cstack;
+	cstack->head = NULL;
+	return cstack;
 }
 
 /*
@@ -27,9 +27,9 @@ conditional_stack_create(void)
 void
 conditional_stack_destroy(ConditionalStack cstack)
 {
-    while (conditional_stack_pop(cstack))
-        continue;
-    free(cstack);
+	while (conditional_stack_pop(cstack))
+		continue;
+	free(cstack);
 }
 
 /*
@@ -38,13 +38,13 @@ conditional_stack_destroy(ConditionalStack cstack)
 void
 conditional_stack_push(ConditionalStack cstack, ifState new_state)
 {
-    IfStackElem *p = (IfStackElem *) pg_malloc(sizeof(IfStackElem));
+	IfStackElem *p = (IfStackElem *) pg_malloc(sizeof(IfStackElem));
 
-    p->if_state = new_state;
-    p->query_len = -1;
-    p->paren_depth = -1;
-    p->next = cstack->head;
-    cstack->head = p;
+	p->if_state = new_state;
+	p->query_len = -1;
+	p->paren_depth = -1;
+	p->next = cstack->head;
+	cstack->head = p;
 }
 
 /*
@@ -54,13 +54,13 @@ conditional_stack_push(ConditionalStack cstack, ifState new_state)
 bool
 conditional_stack_pop(ConditionalStack cstack)
 {
-    IfStackElem *p = cstack->head;
+	IfStackElem *p = cstack->head;
 
-    if (!p)
-        return false;
-    cstack->head = cstack->head->next;
-    free(p);
-    return true;
+	if (!p)
+		return false;
+	cstack->head = cstack->head->next;
+	free(p);
+	return true;
 }
 
 /*
@@ -69,9 +69,9 @@ conditional_stack_pop(ConditionalStack cstack)
 ifState
 conditional_stack_peek(ConditionalStack cstack)
 {
-    if (conditional_stack_empty(cstack))
-        return IFSTATE_NONE;
-    return cstack->head->if_state;
+	if (conditional_stack_empty(cstack))
+		return IFSTATE_NONE;
+	return cstack->head->if_state;
 }
 
 /*
@@ -81,10 +81,10 @@ conditional_stack_peek(ConditionalStack cstack)
 bool
 conditional_stack_poke(ConditionalStack cstack, ifState new_state)
 {
-    if (conditional_stack_empty(cstack))
-        return false;
-    cstack->head->if_state = new_state;
-    return true;
+	if (conditional_stack_empty(cstack))
+		return false;
+	cstack->head->if_state = new_state;
+	return true;
 }
 
 /*
@@ -93,7 +93,7 @@ conditional_stack_poke(ConditionalStack cstack, ifState new_state)
 bool
 conditional_stack_empty(ConditionalStack cstack)
 {
-    return cstack->head == NULL;
+	return cstack->head == NULL;
 }
 
 /*
@@ -103,9 +103,9 @@ conditional_stack_empty(ConditionalStack cstack)
 bool
 conditional_active(ConditionalStack cstack)
 {
-    ifState        s = conditional_stack_peek(cstack);
+	ifState		s = conditional_stack_peek(cstack);
 
-    return s == IFSTATE_NONE || s == IFSTATE_TRUE || s == IFSTATE_ELSE_TRUE;
+	return s == IFSTATE_NONE || s == IFSTATE_TRUE || s == IFSTATE_ELSE_TRUE;
 }
 
 /*
@@ -114,8 +114,8 @@ conditional_active(ConditionalStack cstack)
 void
 conditional_stack_set_query_len(ConditionalStack cstack, int len)
 {
-    Assert(!conditional_stack_empty(cstack));
-    cstack->head->query_len = len;
+	Assert(!conditional_stack_empty(cstack));
+	cstack->head->query_len = len;
 }
 
 /*
@@ -125,9 +125,9 @@ conditional_stack_set_query_len(ConditionalStack cstack, int len)
 int
 conditional_stack_get_query_len(ConditionalStack cstack)
 {
-    if (conditional_stack_empty(cstack))
-        return -1;
-    return cstack->head->query_len;
+	if (conditional_stack_empty(cstack))
+		return -1;
+	return cstack->head->query_len;
 }
 
 /*
@@ -136,8 +136,8 @@ conditional_stack_get_query_len(ConditionalStack cstack)
 void
 conditional_stack_set_paren_depth(ConditionalStack cstack, int depth)
 {
-    Assert(!conditional_stack_empty(cstack));
-    cstack->head->paren_depth = depth;
+	Assert(!conditional_stack_empty(cstack));
+	cstack->head->paren_depth = depth;
 }
 
 /*
@@ -147,7 +147,7 @@ conditional_stack_set_paren_depth(ConditionalStack cstack, int depth)
 int
 conditional_stack_get_paren_depth(ConditionalStack cstack)
 {
-    if (conditional_stack_empty(cstack))
-        return -1;
-    return cstack->head->paren_depth;
+	if (conditional_stack_empty(cstack))
+		return -1;
+	return cstack->head->paren_depth;
 }

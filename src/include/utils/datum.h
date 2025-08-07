@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * datum.h
- *      POSTGRES Datum (abstract data type) manipulation routines.
+ *	  POSTGRES Datum (abstract data type) manipulation routines.
  *
  * These routines are driven by the 'typbyval' and 'typlen' information,
  * which must previously have been obtained by the caller for the datatype
@@ -29,6 +29,8 @@ extern Size datumGetSize(Datum value, bool typByVal, int typLen);
  * If the datatype is pass-by-reference, memory is obtained with palloc().
  */
 extern Datum datumCopy(Datum value, bool typByVal, int typLen);
+extern Size copyDatum(char* target, Datum value, bool typByVal, int typLen,
+	int size);
 
 /*
  * datumTransfer - transfer a non-NULL datum into the current memory context.
@@ -44,16 +46,16 @@ extern Datum datumTransfer(Datum value, bool typByVal, int typLen);
  * XXX : See comments in the code for restrictions!
  */
 extern bool datumIsEqual(Datum value1, Datum value2,
-             bool typByVal, int typLen);
+			 bool typByVal, int typLen);
 
 /*
  * Serialize and restore datums so that we can transfer them to parallel
  * workers.
  */
 extern Size datumEstimateSpace(Datum value, bool isnull, bool typByVal,
-                   int typLen);
+				   int typLen);
 extern void datumSerialize(Datum value, bool isnull, bool typByVal,
-               int typLen, char **start_address);
+			   int typLen, char **start_address);
 extern Datum datumRestore(char **start_address, bool *isnull);
 
-#endif                            /* DATUM_H */
+#endif							/* DATUM_H */

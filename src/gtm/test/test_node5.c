@@ -16,10 +16,10 @@ pthread_key_t     threadinfo_key;
 void
 setUp()
 {
-    system("./stop.sh");
-    system("./clean.sh");
-    system("./start.sh");
-    sleep(1);
+	system("./stop.sh");
+	system("./clean.sh");
+	system("./start.sh");
+	sleep(1);
 }
 
 void
@@ -30,105 +30,105 @@ tearDown()
 void
 test_node5_01()
 {
-    int rc;
+	int rc;
 
-    SETUP();
+	SETUP();
 
-    /*
-     * active
-     */
-    connect1();
+	/*
+	 * active
+	 */
+	connect1();
 
-    rc = node_register(conn, GTM_NODE_DATANODE,  16666, "One zero zero one", "/tmp/pgxc/data/gtm");
-    _ASSERT( rc >= 0 );
+	rc = node_register(conn, GTM_NODE_DATANODE,  16666, "One zero zero one", "/tmp/pgxc/data/gtm");
+	_ASSERT( rc >= 0 );
 
-    GTMPQfinish(conn);
-    sleep(3);
+	GTMPQfinish(conn);
+	sleep(3);
 
-    /*
-     * standby
-     */
-    connect2();
+	/*
+	 * standby
+	 */
+	connect2();
 
-    rc = node_unregister(conn, GTM_NODE_DATANODE, "One zero zero one");
-    _ASSERT( rc >= 0 );
+	rc = node_unregister(conn, GTM_NODE_DATANODE, "One zero zero one");
+	_ASSERT( rc >= 0 );
 
-    GTMPQfinish(conn);
+	GTMPQfinish(conn);
 
-    TEARDOWN();
+	TEARDOWN();
 }
 
 void
 test_node5_02()
 {
-    int rc;
+	int rc;
 
-    SETUP();
+	SETUP();
 
-    /*
-     * active
-     */
-    connect1();
+	/*
+	 * active
+	 */
+	connect1();
 
-    rc = node_register(conn, GTM_NODE_DATANODE,  16666, "One zero zero one", "/tmp/pgxc/data/gtm");
-    _ASSERT( rc >= 0 );
+	rc = node_register(conn, GTM_NODE_DATANODE,  16666, "One zero zero one", "/tmp/pgxc/data/gtm");
+	_ASSERT( rc >= 0 );
 
-    rc = node_unregister(conn, GTM_NODE_DATANODE, "One zero zero one");
-    _ASSERT( rc >= 0 );
+	rc = node_unregister(conn, GTM_NODE_DATANODE, "One zero zero one");
+	_ASSERT( rc >= 0 );
 
-    GTMPQfinish(conn);
-    sleep(3);
+	GTMPQfinish(conn);
+	sleep(3);
 
-    /*
-     * standby
-     */
-    connect2();
+	/*
+	 * standby
+	 */
+	connect2();
 
-    rc = node_unregister(conn, GTM_NODE_DATANODE, "One zero zero one");
-    _ASSERT( rc<0 );
+	rc = node_unregister(conn, GTM_NODE_DATANODE, "One zero zero one");
+	_ASSERT( rc<0 );
 
-    GTMPQfinish(conn);
+	GTMPQfinish(conn);
 
-    TEARDOWN();
+	TEARDOWN();
 }
 
 void
 test_node5_03()
 {
-    int rc;
+	int rc;
 
-    SETUP();
+	SETUP();
 
-    /*
-     * active
-     */
-    connect1();
+	/*
+	 * active
+	 */
+	connect1();
 
-    rc = node_register(conn, GTM_NODE_DATANODE,  16666, "One zero zero one", "/tmp/pgxc/data/gtm");
-    _ASSERT( rc >= 0 );
+	rc = node_register(conn, GTM_NODE_DATANODE,  16666, "One zero zero one", "/tmp/pgxc/data/gtm");
+	_ASSERT( rc >= 0 );
 
-    system("killall -9 gtm");
-    system("./promote.sh");
-    sleep(1);
+	system("killall -9 gtm");
+	system("./promote.sh");
+	sleep(1);
 
-    GTMPQfinish(conn);
-    connect2();
+	GTMPQfinish(conn);
+	connect2();
 
-    rc = node_unregister(conn, GTM_NODE_DATANODE, "One zero zero one");
-    _ASSERT( rc >= 0 );
+	rc = node_unregister(conn, GTM_NODE_DATANODE, "One zero zero one");
+	_ASSERT( rc >= 0 );
 
-    GTMPQfinish(conn);
+	GTMPQfinish(conn);
 
-    TEARDOWN();
+	TEARDOWN();
 }
 
 int
 main(int argc, char *argv[])
 {
-    test_node5_01();
-    test_node5_02();
+	test_node5_01();
+	test_node5_02();
 
-    test_node5_03();
+	test_node5_03();
 
-    return 0;
+	return 0;
 }

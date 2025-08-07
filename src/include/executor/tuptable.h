@@ -1,15 +1,12 @@
 /*-------------------------------------------------------------------------
  *
  * tuptable.h
- *      tuple table support stuff
+ *	  tuple table support stuff
  *
  *
  * Portions Copyright (c) 2012-2014, TransLattice, Inc.
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
- *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  * src/include/executor/tuptable.h
  *
@@ -21,14 +18,16 @@
 #include "access/htup.h"
 #include "access/tupdesc.h"
 #include "storage/buf.h"
+#ifdef __OPENTENBASE_C__
+#endif
 
 /*----------
  * The executor stores tuples in a "tuple table" which is a List of
  * independent TupleTableSlots.  There are several cases we need to handle:
- *        1. physical tuple in a disk buffer page
- *        2. physical tuple constructed in palloc'ed memory
- *        3. "minimal" physical tuple constructed in palloc'ed memory
- *        4. "virtual" tuple consisting of Datum/isnull arrays
+ *		1. physical tuple in a disk buffer page
+ *		2. physical tuple constructed in palloc'ed memory
+ *		3. "minimal" physical tuple constructed in palloc'ed memory
+ *		4. "virtual" tuple consisting of Datum/isnull arrays
  *
  * The first two cases are similar in that they both deal with "materialized"
  * tuples, but resource management is different.  For a tuple in a disk page
@@ -69,11 +68,11 @@
  * ie, only as needed.  This serves to avoid repeated extraction of data
  * from the physical tuple.
  *
- * A TupleTableSlot can also be "empty", holding no valid data.  This is
- * the only valid state for a freshly-created slot that has not yet had a
- * tuple descriptor assigned to it.  In this state, tts_isempty must be
- * TRUE, tts_shouldFree FALSE, tts_tuple NULL, tts_buffer InvalidBuffer,
- * and tts_nvalid zero.
+ * A TupleTableSlot can also be "empty", indicated by flag TTS_EMPTY set in
+ * tts_flags, holding no valid data.  This is the only valid state for a
+ * freshly-created slot that has not yet had a tuple descriptor assigned to it.
+ * In this state, TTS_SHOULDFREE should not be set in tts_flag, tts_tuple must
+ * be NULL, tts_buffer InvalidBuffer, and tts_nvalid zero.
  *
  * The tupleDescriptor is simply referenced, not copied, by the TupleTableSlot
  * code.  The caller of ExecSetSlotDescriptor() is responsible for providing
@@ -83,8 +82,9 @@
  * mechanism to do more.  However, the slot will increment the tupdesc
  * reference count if a reference-counted tupdesc is supplied.)
  *
- * When tts_shouldFree is true, the physical tuple is "owned" by the slot
- * and should be freed when the slot's reference to the tuple is dropped.
+ * When TTS_SHOULDFREE is set in tts_flags, the physical tuple is "owned" by
+ * the slot and should be freed when the slot's reference to the tuple is
+ * dropped.
  *
  * If tts_buffer is not InvalidBuffer, then the slot is holding a pin
  * on the indicated buffer page; drop the pin when we release the
@@ -110,96 +110,215 @@
  * MINIMAL_TUPLE_OFFSET bytes before tts_mintuple.  This allows column
  * extraction to treat the case identically to regular physical tuples.
  *
- * tts_slow/tts_off are saved state for slot_deform_tuple, and should not
- * be touched by any other code.
+ * TTS_SLOW flag in tts_flags and tts_off are saved state for
+ * slot_deform_tuple, and should not be touched by any other code.
  *----------
  */
+
+/* true = slot is empty */
+#define			TTS_FLAG_EMPTY			(1 << 1)
+#define TTS_EMPTY(slot)	(((slot)->tts_flags & TTS_FLAG_EMPTY) != 0)
+
+/* should pfree tts_tuple? */
+#define			TTS_FLAG_SHOULDFREE		(1 << 2)
+#define TTS_SHOULDFREE(slot) (((slot)->tts_flags & TTS_FLAG_SHOULDFREE) != 0)
+
+/* should pfree tts_mintuple? */
+#define			TTS_FLAG_SHOULDFREEMIN	(1 << 3)
+#define TTS_SHOULDFREEMIN(slot) (((slot)->tts_flags & TTS_FLAG_SHOULDFREEMIN) != 0)
+
+/* saved state for slot_deform_tuple */
+#define			TTS_FLAG_SLOW		(1 << 4)
+#define TTS_SLOW(slot) (((slot)->tts_flags & TTS_FLAG_SLOW) != 0)
+
+/* fixed tuple descriptor */
+#define			TTS_FLAG_FIXED		(1 << 5)
+#define TTS_FIXED(slot) (((slot)->tts_flags & TTS_FLAG_FIXED) != 0)
+
+/* show slot is from remote tid scan when modify table */
+#define			TTS_FLAG_REMOTETID_SCAN		(1 << 6)
+#define TTS_REMOTETID_SCAN(slot) (((slot)->tts_flags & TTS_FLAG_REMOTETID_SCAN) != 0)
+#define SET_TTS_REMOTETID_SCAN(slot) (((slot)->tts_flags |= TTS_FLAG_REMOTETID_SCAN))
+
+#ifdef __OPENTENBASE_C__
+typedef struct VectorPtrData
+{
+#define FIELDNO_VECTORPTRDATA_MIN 0
+	int64 min;
+#define FIELDNO_VECTORPTRDATA_MAX 1
+	int64 max;
+#define FIELDNO_VECTORPTRDATA_PTR 2
+	Datum vector_ptr;
+}VectorPtrData;
+
+#define VectorPtr(vectorPtrData)  ((vectorPtrData).vector_ptr)
+#define VectorMin(vectorPtrData)  ((vectorPtrData).min)
+#define VectorMax(vectorPtrData)  ((vectorPtrData).max)
+
+/* 
+ * m_null_bitmap indicates which attribute is null.
+ */
+typedef struct MemTupleHeaderData
+{
+	char	m_null_bitmap[0];
+	/* MORE DATA FOLLOWS AT END OF STRUCT */
+}MemTupleHeaderData;
+
+typedef MemTupleHeaderData *MemTupleHeader;
+typedef MemTupleHeaderData *MemColumnHeader;
+
+#define MemTupleHeaderSize(slot) \
+	(offsetof(MemTupleHeaderData, m_null_bitmap) + ((slot)->tts_tupleDescriptor->natts + 8 - 1)/8)
+#define MemTupleHeaderGetBitmap(header, size, pos) \
+	(MemTupleHeader)((char *)header + size * pos)
+#define MemColumnHeaderSize(cols) \
+	(offsetof(MemTupleHeaderData, m_null_bitmap) + (cols + 8 - 1)/8)
+#define MemColumnHeaderGetBitmap(header, size, pos) \
+	(MemColumnHeader)((char *)header + size * pos)
+
+#endif
+
 typedef struct TupleTableSlot
 {
-    NodeTag        type;
-    bool        tts_isempty;    /* true = slot is empty */
-    bool        tts_shouldFree; /* should pfree tts_tuple? */
-    bool        tts_shouldFreeMin;    /* should pfree tts_mintuple? */
-    bool        tts_slow;        /* saved state for slot_deform_tuple */
-    HeapTuple    tts_tuple;        /* physical tuple, or NULL if virtual */
+	NodeTag		type;
+#define FIELDNO_TUPLETABLESLOT_FLAGS 1
+	uint16		tts_flags;		/* Boolean states */
+#define FIELDNO_TUPLETABLESLOT_NVALID 2
+	AttrNumber	tts_nvalid;		/* # of valid values in tts_values */
+#define FIELDNO_TUPLETABLESLOT_TUPLE 3
+	HeapTuple	tts_tuple;		/* physical tuple, or NULL if virtual */
+#define FIELDNO_TUPLETABLESLOT_TUPLEDESCRIPTOR 4
+	TupleDesc	tts_tupleDescriptor;	/* slot's tuple descriptor */
+	MemoryContext tts_mcxt;		/* slot itself is in this context */
+	Buffer		tts_buffer;		/* tuple's buffer, or InvalidBuffer */
+#define FIELDNO_TUPLETABLESLOT_OFF 7
+	uint32		tts_off;		/* saved state for slot_deform_tuple */
+#define FIELDNO_TUPLETABLESLOT_VALUES 8
+	Datum	   *tts_values;		/* current per-attribute values */
+#define FIELDNO_TUPLETABLESLOT_ISNULL 9
+	bool	   *tts_isnull;		/* current per-attribute isnull flags */
+#define FIELDNO_TUPLETABLESLOT_MINTUP 10
+	MinimalTuple tts_mintuple;	/* minimal tuple, or NULL if none */
+	HeapTupleData tts_minhdr;	/* workspace for minimal-tuple-only case */
+
 #ifdef PGXC
-    RemoteDataRow tts_datarow;     /* Tuple data in DataRow format */
-    MemoryContext tts_drowcxt;     /* Context to store deformed */
-    bool        tts_shouldFreeRow;    /* should pfree tts_dataRow? */
-    struct AttInMetadata *tts_attinmeta;    /* store here info to extract values from the DataRow */
+	RemoteDataRow tts_datarow;	/* Tuple data in DataRow format */
+	MemoryContext tts_drowcxt;	/* Context to store deformed */
+	bool		tts_shouldFreeRow;	/* should pfree tts_dataRow? */
+	struct AttInMetadata *tts_attinmeta;	/* store here info to extract values from the DataRow */
 #endif
-    TupleDesc    tts_tupleDescriptor;    /* slot's tuple descriptor */
-    MemoryContext tts_mcxt;        /* slot itself is in this context */
-    Buffer        tts_buffer;        /* tuple's buffer, or InvalidBuffer */
-    int            tts_nvalid;        /* # of valid values in tts_values */
-    Datum       *tts_values;        /* current per-attribute values */
-    bool       *tts_isnull;        /* current per-attribute isnull flags */
-    MinimalTuple tts_mintuple;    /* minimal tuple, or NULL if none */
-    HeapTupleData tts_minhdr;    /* workspace for minimal-tuple-only case */
-    long        tts_off;        /* saved state for slot_deform_tuple */
+#ifdef __OPENTENBASE_C__
+	int 		tts_nodebufferindex;				/* which node the current vector result belongs to */
+#endif
 #ifdef _MLS_
-    MemoryContext tts_mls_mcxt;        /* mls feature use to store temporary vars, clear for every new slot */
+	MemoryContext tts_mls_mcxt;		/* mls feature use to store temporary vars, clear for every new slot */
 #endif
 } TupleTableSlot;
 
 #define TTS_HAS_PHYSICAL_TUPLE(slot)  \
-    ((slot)->tts_tuple != NULL && (slot)->tts_tuple != &((slot)->tts_minhdr))
+	((slot)->tts_tuple != NULL && (slot)->tts_tuple != &((slot)->tts_minhdr))
 
 /*
  * TupIsNull -- is a TupleTableSlot empty?
  */
 #define TupIsNull(slot) \
-    ((slot) == NULL || (slot)->tts_isempty)
+	((slot) == NULL || TTS_EMPTY(slot))
 
 /* in executor/execTuples.c */
-extern TupleTableSlot *MakeTupleTableSlot(void);
-extern TupleTableSlot *ExecAllocTableSlot(List **tupleTable);
+extern TupleTableSlot *MakeTupleTableSlot(TupleDesc desc);
+extern TupleTableSlot *ExecAllocTableSlot(List **tupleTable, TupleDesc desc);
 extern void ExecResetTupleTable(List *tupleTable, bool shouldFree);
 extern TupleTableSlot *MakeSingleTupleTableSlot(TupleDesc tupdesc);
 extern void ExecDropSingleTupleTableSlot(TupleTableSlot *slot);
 extern void ExecSetSlotDescriptor(TupleTableSlot *slot, TupleDesc tupdesc);
-extern TupleTableSlot *ExecStoreTuple(HeapTuple tuple,
-               TupleTableSlot *slot,
-               Buffer buffer,
-               bool shouldFree);
+extern TupleTableSlot *ExecStoreHeapTuple(HeapTuple tuple,
+				   TupleTableSlot *slot,
+				   bool shouldFree);
+extern TupleTableSlot *ExecStoreBufferHeapTuple(HeapTuple tuple,
+						 TupleTableSlot *slot,
+						 Buffer buffer);
 extern TupleTableSlot *ExecStoreMinimalTuple(MinimalTuple mtup,
-                      TupleTableSlot *slot,
-                      bool shouldFree);
-#ifdef PGXC
-extern TupleTableSlot *ExecStoreDataRowTuple(RemoteDataRow datarow,
-                      TupleTableSlot *slot,
-                      bool shouldFree);
-#endif
+					  TupleTableSlot *slot,
+					  bool shouldFree);
 extern TupleTableSlot *ExecClearTuple(TupleTableSlot *slot);
 extern TupleTableSlot *ExecStoreVirtualTuple(TupleTableSlot *slot);
 extern TupleTableSlot *ExecStoreAllNullTuple(TupleTableSlot *slot);
-#ifdef _SHARDING_
-#define ExecCopySlotTuple(slot) ExecCopySlotTuple_shard(slot, false, InvalidAttrNumber, InvalidAttrNumber, InvalidOid)
-#endif
-extern HeapTuple ExecCopySlotTuple_shard(TupleTableSlot *slot, bool hasshard, AttrNumber diskey,
-                                 AttrNumber secdiskey, Oid relid);
+extern HeapTuple ExecCopySlotTuple_shard(TupleTableSlot *slot, bool hasshard, AttrNumber *discolnums, int ndiscols, Oid relid);
 extern MinimalTuple ExecCopySlotMinimalTuple(TupleTableSlot *slot);
-#ifdef PGXC
-extern RemoteDataRow ExecCopySlotDatarow(TupleTableSlot *slot,
-                    MemoryContext tmpcxt);
-#endif
-extern HeapTuple ExecFetchSlotTuple(TupleTableSlot *slot);
-extern MinimalTuple ExecFetchSlotMinimalTuple(TupleTableSlot *slot);
-extern Datum ExecFetchSlotTupleDatum(TupleTableSlot *slot);
-#ifdef _SHARDING_
-#define ExecMaterializeSlot(slot) \
-            ExecMaterializeSlot_shard(slot, false, InvalidAttrNumber, InvalidAttrNumber, InvalidOid)
-#endif
-extern HeapTuple ExecMaterializeSlot_shard(TupleTableSlot *slot,
-                        bool hasshard,
-                        AttrNumber diskey, AttrNumber secdiskey, Oid relid);
+extern HeapTuple ExecFetchSlotHeapTuple(TupleTableSlot *slot, bool materialize, bool *shoulFree);
+extern MinimalTuple ExecFetchSlotMinimalTuple(TupleTableSlot *slot,
+						  bool *shouldFree);
+extern Datum ExecFetchSlotHeapTupleDatum(TupleTableSlot *slot);
+extern void ExecMaterializeSlot_shard(TupleTableSlot *slot,
+						bool hasshard, AttrNumber *discolnums, int ndiscols, Oid relid);
 extern TupleTableSlot *ExecCopySlot(TupleTableSlot *dstslot,
-             TupleTableSlot *srcslot);
+			 TupleTableSlot *srcslot);
+extern void slot_getmissingattrs(TupleTableSlot *slot, int startAttNum,
+					 int lastAttNum);
+extern Datum slot_getattr(TupleTableSlot *slot, int attnum,
+			 bool *isnull);
 
 /* in access/common/heaptuple.c */
-extern Datum slot_getattr(TupleTableSlot *slot, int attnum, bool *isnull);
-extern void slot_getallattrs(TupleTableSlot *slot);
-extern void slot_getsomeattrs(TupleTableSlot *slot, int attnum);
 extern bool slot_attisnull(TupleTableSlot *slot, int attnum);
+extern bool slot_getsysattr(TupleTableSlot *slot, int attnum,
+				Datum *value, bool *isnull);
+extern Datum getmissingattr(TupleDesc tupleDesc,
+			   int attnum, bool *isnull);
+extern void slot_getsomeattrs_int(TupleTableSlot *slot, int attnum);
+extern void slot_getsomeattrs_encoding(TupleTableSlot *slot, int attnum);
 
-#endif                            /* TUPTABLE_H */
+#ifdef PGXC
+extern TupleTableSlot *ExecStoreDataRowTuple(RemoteDataRow datarow,
+					  TupleTableSlot *slot,
+					  bool shouldFree);
+extern RemoteDataRow ExecCopySlotDatarow(TupleTableSlot *slot,
+					MemoryContext tmpcxt);
+#endif
+#ifdef _SHARDING_
+#define ExecCopySlotTuple(slot) \
+			ExecCopySlotTuple_shard(slot, false, NULL, 0, InvalidOid)
+#define ExecCopySlotTuple_MatViewOnly(slot) \
+			ExecCopySlotTuple_shard_MatViewOnly(slot, false, NULL, 0, InvalidOid)
+#define ExecMaterializeSlot(slot) \
+			ExecMaterializeSlot_shard(slot, false, NULL, 0, InvalidOid)
+#endif
+#ifdef __OPENTENBASE_C__
+extern void slot_deform_datarow_internal(TupleTableSlot *slot, char *cur, bool encoding);
+extern void slot_deform_datarow(TupleTableSlot *slot);
+extern void slot_deform_datarow_encoding(TupleTableSlot *slot);
+#endif
+
+#ifndef FRONTEND
+
+/*
+ * This function forces the entries of the slot's Datum/isnull arrays to be
+ * valid at least up through the attnum'th entry.
+ */
+static inline void
+slot_getsomeattrs(TupleTableSlot *slot, int attnum)
+{
+	if (slot->tts_nvalid < attnum)
+		slot_getsomeattrs_int(slot, attnum);
+}
+
+/*
+ * slot_getallattrs
+ *		This function forces all the entries of the slot's Datum/isnull
+ *		arrays to be valid.  The caller may then extract data directly
+ *		from those arrays instead of using slot_getattr.
+ */
+static inline void
+slot_getallattrs(TupleTableSlot *slot)
+{
+	slot_getsomeattrs(slot, slot->tts_tupleDescriptor->natts);
+}
+
+static inline void
+slot_getallattrs_encoding(TupleTableSlot *slot)
+{
+	slot_getsomeattrs_encoding(slot, slot->tts_tupleDescriptor->natts);
+}
+
+#endif
+
+#endif							/* TUPTABLE_H */

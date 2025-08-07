@@ -8,9 +8,6 @@
  * Portions Copyright (c) 1996-2011, PostgreSQL Global Development Group
  * Portions Copyright (c) 2010-2012 Postgres-XC Development Group
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * src/include/pgxc/poolmgr.h
  *
  *-------------------------------------------------------------------------
@@ -23,75 +20,20 @@
 #include "pgxcnode.h"
 #include "poolcomm.h"
 #include "storage/pmsignal.h"
+#include "storage/spin.h"
 #include "utils/hsearch.h"
-#include "squeue.h"
 #include "utils/guc.h"
 
 
-#define MAX_IDLE_TIME 60
-
-/*
- * List of flags related to pooler connection clean up when disconnecting
- * a session or relaeasing handles.
- * When Local SET commands (POOL_CMD_LOCAL_SET) are used, local parameter
- * string is cleaned by the node commit itself.
- * When global SET commands (POOL_CMD_GLOBAL_SET) are used, "RESET ALL"
- * command is sent down to activated nodes to at session end. At the end
- * of a transaction, connections using global SET commands are not sent
- * back to pool.
- * When temporary object commands are used (POOL_CMD_TEMP), "DISCARD ALL"
- * query is sent down to nodes whose connection is activated at the end of
- * a session.
- * At the end of a transaction, a session using either temporary objects
- * or global session parameters has its connections not sent back to pool.
- *
- * Local parameters are used to change within current transaction block.
- * They are sent to remote nodes invloved in the transaction after sending
- * BEGIN TRANSACTION using a special firing protocol.
- * They cannot be sent when connections are obtained, making them having no
- * effect as BEGIN is sent by backend after connections are obtained and
- * obtention confirmation has been sent back to backend.
- * SET CONSTRAINT, SET LOCAL commands are in this category.
- *
- * Global parmeters are used to change the behavior of current session.
- * They are sent to the nodes when the connections are obtained.
- * SET GLOBAL, general SET commands are in this category.
- */
-typedef enum
-{
-	POOL_CMD_TEMP,		/* Temporary object flag */
-	POOL_CMD_LOCAL_SET,	/* Local SET flag, current transaction block only */
-	POOL_CMD_GLOBAL_SET	/* Global SET flag */
-} PoolCommandType;
-
-#ifdef __OPENTENBASE__
+#ifdef __OPENTENBASE_C__
 typedef enum
 {
 	SIGNAL_SIGINT   = 0,
 	SIGNAL_SIGUSR2  = 1
 }   SignalType;
-
-/* 
- * pooler error code 
- * corresponding with err_msg in poolmgr.c
- */
-typedef enum
-{
-	POOL_ERR_NONE,
-	POOL_ERR_GET_CONNECTIONS_POOLER_LOCKED,
-	POOL_ERR_GET_CONNECTIONS_TASK_NOT_DONE,
-	POOL_ERR_GET_CONNECTIONS_DISPATCH_FAILED,
-	POOL_ERR_GET_CONNECTIONS_INVALID_ARGUMENT,
-	POOL_ERR_GET_CONNECTIONS_OOM,
-	POOL_ERR_GET_CONNECTIONS_CONNECTION_BAD,
-	POOL_ERR_CANCEL_TASK_NOT_DONE,
-	POOL_ERR_CANCEL_DISPATCH_FAILED,
-	POOL_ERR_CANCEL_SEND_FAILED,
-	NUMBER_POOL_ERRS
-}   PoolErrorCode;
-
-#define PoolErrIsValid(err)    ((bool) (err > POOL_ERR_NONE && err < NUMBER_POOL_ERRS))
 #endif
+
+struct PGXCUserPool;
 
 /* Connection pool entry */
 typedef struct
@@ -101,88 +43,111 @@ typedef struct
 	time_t checked; /* timestamp when the connection last time check */
 	time_t created; /* timestamp when the connection created */
 	bool   bwarmed;
-	
+
+	bool    set4reuse;
+	Oid		user_id;
+	char    *pgoptions;		/* Connection options */
+
 	int32  usecount;
 	NODE_CONNECTION *conn;
 	NODE_CANCEL	*xc_cancelConn;
 
 	/* trace info */	
 	int32  refcount;   /* reference count */
-    int64 m_version;  /* version of node slot */
+	int32  m_version;  /* version of node slot */
 	int32  pid;		   /* agent pid that contains the slot */
 	int32  seqnum;	   /* slot seqnum for the slot, unique for one slot */
 	bool   bdestoryed; /* used to show whether we are destoryed */
 	char   *file;      /* file where destroy the slot */
 	int32  lineno;	   /* lineno where destroy the slot */
 	char   *node_name; /* connection node name , pointer to datanode_pool node_name, no memory allocated*/
+	char   *user_name; /* connection user name , pointer to PGXCUserPool user_name, no memory allocated*/
 	int32  backend_pid;/* backend pid of remote connection */
+	/*
+	 * the connection needs to be moved to the dn_connections_used_pool,
+	 * indicating that the connection has already been used and cannot
+	 * be directly used when obtaining the connection in the future
+	 */
+	bool   need_move_to_usedpool;
+	struct PGXCUserPool *userPool;
 } PGXCNodePoolSlot;
+
+
+typedef struct PGXCNodeConnCounter
+{
+	Oid			nodeoid;	/* Node Oid related to this pool */
+	bool        coord;      /* whether am I coordinator */
+	char		node_name[NAMEDATALEN]; /* name of the node.*/
+	char		node_host[NAMEDATALEN];
+	int			node_port;
+	int			freeSize;	/* available connections */
+	int			size;  		/* total pool size */
+	int 		ref_count;  /* refer count by node pool */
+} PGXCNodeSingletonInfo;
 
 /* Pool of connections to specified pgxc node */
 typedef struct
 {
 	Oid			nodeoid;	/* Node Oid related to this pool */
-	bool        coord;      /* whether am I coordinator */
 	bool        asyncInProgress;/* whether am in asyn building */
 	char	   *connstr;
-	int         nwarming;   /* connection number warming in progress */
 	int         nquery;     /* connection number query memory size in progress */
 	int			freeSize;	/* available connections */
 	int			size;  		/* total pool size */
-
-	char		node_name[NAMEDATALEN]; /* name of the node.*/
-    int64		m_version;	/* version of node pool */
-	PGXCNodePoolSlot **slot;
+	int32       m_version;	/* version of node pool */
+	HTAB	   *userPools; 		/* Hashtable of PGXCUserPool, one entry for each Coordinator or DataNode */
+	struct PGXCUserPool *userPoolListHead;
+	struct PGXCUserPool *userPoolListTail;
+	PGXCNodeSingletonInfo *nodeInfo; /* Node information, db insensitive */
 } PGXCNodePool;
+
+typedef struct PGXCUserPool
+{
+	Oid			 user_id;
+	char		*user_name;
+	char		*pgoptions;		/* default Connection options */
+	char        *connstr;       /* default Connection str */
+	int			 freeSize;	    /* available connections */
+	int			 size;  		/* total pool size */
+	int          refcount;      /* reference by set for reuse tasks count */
+	PGXCNodePool *nodePool;
+	struct PGXCUserPool *prev; 	/* Reference to prev to organize linked list */
+	struct PGXCUserPool *next; 	/* Reference to next to organize linked list */
+	PGXCNodePoolSlot **slot;
+} PGXCUserPool;
 
 /* All pools for specified database */
 typedef struct databasepool
 {
 	char	   *database;
 	char	   *user_name;
+	Oid			user_id;
 	char	   *pgoptions;		/* Connection options */
 	HTAB	   *nodePools; 		/* Hashtable of PGXCNodePool, one entry for each
 								 * Coordinator or DataNode */
 	time_t		oldest_idle;
- 	bool        bneed_warm;
-	bool        bneed_precreate;
 	bool        bneed_pool;		/* check whether need  connect pool */
-    int64		version;        /* used to generate node_pool's version */
+	int64		version;        /* used to generate node_pool's version */
 	MemoryContext mcxt;
+	struct databasepool *prev; 	/* Reference to prev to organize linked list */
 	struct databasepool *next; 	/* Reference to next to organize linked list */
 } DatabasePool;
-#define       PGXC_POOL_ERROR_MSG_LEN  512
-typedef struct PGXCASyncTaskCtl
+
+typedef enum
 {
-	slock_t              m_lock;		 /* common lock */
-	int32                m_status; 		 /* PoolAyncCtlStaus */
-	int32 			     m_mumber_total;
-	int32  				 m_number_done;	
+	RELEASE_NOTHING   = 0,
+	RELEASE_PARTITAL  = 1,
+	RELEASE_ALL       = 2,
+	FORCE_RELEASE_ALL = 3
+} ReleaseType;
 
-	/* acquire connections */
-	int32             	*m_result;       /* fd array */
-	int32				*m_pidresult;	 /* pid array */
-	List 				*m_datanodelist;
-	List 				*m_coordlist;
-	int32  				 m_number_succeed;
-
-	/* set local command */
-	int32                m_res;
-
-	/* set command */
-	char                 *m_command;
-	int32                 m_total;
-	int32                 m_succeed;
-
-	/* last command for 'g' and 's' */
-	CommandId             m_max_command_id;
-
-	/* errmsg and error status. */
-	bool                  m_missing_ok;
-	int32				  m_error_offset;
-	char                  m_error_msg[PGXC_POOL_ERROR_MSG_LEN];
-}PGXCASyncTaskCtl;
-
+typedef struct
+{
+	List   *datanodelist;
+	List   *dn_pidlist;
+	List   *coordlist;
+	int     force;
+} ReleaseContext;
 
 /*
  * Agent of client session (Pool Manager side)
@@ -196,31 +161,36 @@ typedef struct
 	/* communication channel */
 	PoolPort		port;
 	DatabasePool   *pool;
+
+	/* In pooler stateless reuse mode, user_name and pgoptions save in PoolAgent */
+	Oid 		     user_id;
+	char			*user_name;
+	char			*pgoptions;              /* Connection options */
+	char			*set_conn_reuse_sql;
+
 	MemoryContext	mcxt;
 	int				num_dn_connections;
 	int				num_coord_connections;
 	Oid		   	   *dn_conn_oids;		/* one for each Datanode */
 	Oid		   	   *coord_conn_oids;	/* one for each Coordinator */
+
 	PGXCNodePoolSlot **dn_connections; /* one for each Datanode */
 	PGXCNodePoolSlot **coord_connections; /* one for each Coordinator */
-	
-	char		   *session_params;
-	char		   *local_params;
-	List            *session_params_list; /* session param list */
-	List 			*local_params_list;   /* local param list */
-	
-	bool			is_temp; /* Temporary objects used for this pool session? */
-
+	/*
+	 * the connection that has been acquired by the backend,
+	 * there may be multiple connections for the same dn
+	 */
+	HTAB	       *dn_connections_used_pool;
 	int             query_count;   /* query count, if exceed, need to reconnect database */
 	bool            breconnecting; /* whether we are reconnecting */
 	int             agentindex;
 
-	
 	bool            destory_pending; /* whether we have been ordered to destory */
+	bool            locked_pooler;
 	int32			ref_count;		 /* reference count */
-	PGXCASyncTaskCtl *task_control;  /* in error situation, we need to free the task control */
-
-    pg_time_t cmd_start_time;        /* command start time */
+	ReleaseType     release_pending_type; /* whether we have been ordered to release connections */
+	ReleaseContext *release_ctx;
+	uint32			rcv_seq;
 } PoolAgent;
 
 /* Handle to the pool manager (Session's side) */
@@ -230,38 +200,81 @@ typedef struct
 	PoolPort	port;
 } PoolHandle;
 
-typedef struct PoolerCmdStatistics
-{
-    uint64 total_request_times;     /* command total request times */
-    union
-    {
-        uint64 total_costtime;      /* total time spent processing commands */
-        uint64 avg_costtime;        /* avg time spent processing command */
-    };
-    uint64 max_costtime;            /* max time spent processing command */
-    uint64 min_costtime;            /* min time spent processing command */
-} PoolerCmdStatistics;
-
-
-#define POOLER_CMD_COUNT (18)
-
-
-
 #define     POOLER_ERROR_MSG_LEN  256
 
-extern int	MinPoolSize;
+typedef struct
+{
+	char errmsg[POOLER_ERROR_MSG_LEN];
+} BatchTaskErrMsg;
+
+typedef struct
+{
+	char connstr[1024];
+} BatchConnStr;
+
+typedef struct PGXCPoolAsyncBatchTask
+{
+	int32               cmd;  	                 /* refer to handle_agent_input command tag */
+	PoolAgent          *agent;                   /* agent for this batch task */
+	PGXCNodePoolSlot  **m_batch_slot;            /* connection slot , no need to free the slot */
+	int                *m_batch_nodeindex;       /* node index of the remote peer, end_nodeid when end query for batch */
+	int                *m_batch_node_type;       /* PoolNodeTypeEnum node type*/
+	int 			   *m_batch_status;          /* PoolTaskStatusEnum task status for each task */
+	int                 m_task_status;           /* PoolTaskStatusEnum task status for this batch task */
+	int32			    m_batch_count;			 /* number of tasks in this batch task */
+	int 			    m_max_batch_size;        /* the m_batch_XXX array max size */
+
+	/* acquire connections */
+	int32              *m_result;                /* fd array */
+	int32			   *m_pidresult;	         /* pid array */
+	List 			   *m_datanodelist;          /* datanodelist to get connections */
+	List 			   *m_coordlist;             /* coordlist to get connections */
+	PGXCUserPool      **m_batch_userpool;	     /* user pool for each node */
+	char              **m_batch_conninfo;        /* connection info for each node */
+	NODE_CONNECTION	  **m_batch_conn;            /* PGconn for each new connection */
+	int 			    m_need_connect_count;    /* the count we need to build a new connection , we acquire new connections */
+	int                 m_need_set4reuse_count;  /* the count we need to set for reuse */
+	int32			    req_seq;		         /* req sequence number */
+	struct  timeval     start_time;		         /* when acquire conn by sync thread, the time begin request */
+	struct  timeval     end_time;			     /* when acquire conn by sync thread, the time finish request */
+
+	/* end or cancel query */
+	pgsocket 	       *m_batch_sock;            /* batch socket handle for batch operations */
+	int                 signal;                  /* signal type */
+
+	BatchConnStr        *m_batch_connstr_buf;
+	BatchTaskErrMsg     *m_batch_errmsg;         /* errmsg for each task */
+	char                errmsg[POOLER_ERROR_MSG_LEN]; /* errmsg for this batch task */
+} PGXCPoolAsyncBatchTask;
+
+typedef struct
+{
+	Oid			node;	         /* Node Id related to this connection */
+	int32       backend_pid;     /* backend pid of remote connection */
+} DnConnectionKey;
+
+typedef struct
+{
+	DnConnectionKey  key;        /* dn connection key in dn_connections_used_pool */
+	PGXCNodePoolSlot *slot;      /* dn connection in dn_connections_used_pool */
+} DnConnection;
+
 extern int	MaxPoolSize;
-extern int	InitPoolSize;
+extern int	MinFreeSizePerDb;
 extern int	MinFreeSize;
+
+extern bool PoolerStatelessReuse;
 
 extern int	PoolerPort;
 extern int	PoolConnKeepAlive;
 extern int	PoolMaintenanceTimeout;
-extern bool PersistentConnections;
+extern int	PoolCancelQueryTimeout;
 
 extern char *g_PoolerWarmBufferInfo;
 extern char *g_unpooled_database;
 extern char *g_unpooled_user;
+
+extern char *PoolConnectDB;
 
 extern int	PoolSizeCheckGap; 
 extern int	PoolConnMaxLifetime; 
@@ -271,8 +284,10 @@ extern int  PoolScaleFactor;
 extern int  PoolDNSetTimeout;
 extern int  PoolCheckSlotTimeout;
 extern int  PoolPrintStatTimeout;
-extern bool PoolConnectDebugPrint;
+extern bool PoolConnectDebugPrint; 
 extern bool PoolSubThreadLogPrint;
+extern bool PoolSizeCheck;
+
 /* Status inquiry functions */
 extern void PGXCPoolerProcessIam(void);
 extern bool IsPGXCPoolerProcess(void);
@@ -321,20 +336,9 @@ extern void PoolManagerConnect(PoolHandle *handle,
  */
 extern void PoolManagerReconnect(void);
 
-/*
- * Save a SET command in Pooler.
- * This command is run on existent agent connections
- * and stored in pooler agent to be replayed when new connections
- * are requested.
- */
-#define POOL_SET_COMMAND_ALL  -1
-#define POOL_SET_COMMAND_NONE 0
-
-extern int PoolManagerSetCommand(PGXCNodeHandle **connections, int32 count, PoolCommandType command_type, 
-				      			const char *set_command);
-
 /* Get pooled connections */
-extern int *PoolManagerGetConnections(List *datanodelist, List *coordlist, bool raise_error, int **pids);
+extern int *PoolManagerGetConnections(List *datanodelist, List *coordlist, int **pids, StringInfo *error_msg);
+
 
 /* Clean pool connections */
 extern void PoolManagerCleanConnection(List *datanodelist, List *coordlist, char *dbname, char *username);
@@ -349,10 +353,12 @@ extern void PoolManagerReloadConnectionInfo(void);
 extern int	PoolManagerAbortTransactions(char *dbname, char *username, int **proc_pids);
 
 /* Return connections back to the pool, for both Coordinator and Datanode connections */
-extern void PoolManagerReleaseConnections(bool force);
+extern void PoolManagerReleaseAllConnections(bool force);
+
+extern void PoolManagerReleaseConnections(int dn_count, int *dn_list, int *dn_pid_list, int co_count, int *co_list, bool force);
 
 /* Cancel a running query on Datanodes as well as on other Coordinators */
-extern bool PoolManagerCancelQuery(int dn_count, int* dn_list, int co_count, int* co_list, int signal);
+extern bool PoolManagerCancelQuery(int dn_count, int* dn_list, int* dn_pid_list, int co_count, int* co_list, int signal);
 
 /* Lock/unlock pool manager */
 extern void PoolManagerLock(bool is_lock);
@@ -360,22 +366,13 @@ extern void PoolManagerLock(bool is_lock);
 /* Check if pool has a handle */
 extern bool IsPoolHandle(void);
 
-/* Send commands to alter the behavior of current transaction */
-extern int   PoolManagerSendLocalCommand(int dn_count, int* dn_list, int co_count, int* co_list);
-
 /* Do pool health check activity */
 extern void PoolAsyncPingNodes(void);
 extern void PoolPingNodes(void);
-extern void PoolPingNodeRecheck(Oid nodeoid);
-extern bool check_persistent_connections(bool *newval, void **extra,
-		GucSource source);
+extern bool PoolPingNodeRecheck(Oid nodeoid);
 
 /* Refresh connection data in pooler and drop connections of altered nodes in pooler */
 extern int PoolManagerRefreshConnectionInfo(void);
 extern int PoolManagerClosePooledConnections(const char *dbname, const char *username);
-
-extern int PoolManagerGetCmdStatistics(char *s, int size);
-extern void PoolManagerResetCmdStatistics(void);
-extern int PoolManagerGetConnStatistics(StringInfo s);
 
 #endif

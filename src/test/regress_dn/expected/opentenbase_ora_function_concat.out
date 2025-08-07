@@ -1,0 +1,161 @@
+\c regression_ora
+CREATE EXTENSION IF NOT EXISTS opentenbase_ora_package_function;
+create table tbl_test_listagg(cf1 int, cf2 int,  cf3 varchar(32), cf4 varchar(32), cf5 int, cf6 numeric(8,2));
+insert into tbl_test_listagg(cf1, cf2,  cf3, cf4, cf5, cf6) values(1,500, 'China','Guangzhou', 23000, 1981.12);
+insert into tbl_test_listagg(cf1, cf2,  cf3, cf4, cf5, cf6) values(2,1500, 'China', 'Shanghai', 29000, 3094.54);
+insert into tbl_test_listagg(cf1, cf2,  cf3, cf4, cf5, cf6) values(3,1500, 'China', 'Beijing', 25000, 2984.83);
+insert into tbl_test_listagg(cf1, cf2,  cf3, cf4, cf5, cf6) values(4,1000, 'China', 'Shenzhen', 24000, 2172.18);
+insert into tbl_test_listagg(cf1, cf2,  cf3, cf4, cf5, cf6) values(5,1000,'USA','New York', 35000, 10893.39);
+insert into tbl_test_listagg(cf1, cf2,  cf3, cf4, cf5, cf6) values(6,500, 'USA', 'Bostom', 15000, 1349.78);
+insert into tbl_test_listagg(cf1, cf2,  cf3, cf4, cf5, cf6) values(7,500, 'Japan','Tokyo', 40000, 12978.37);
+insert into tbl_test_listagg(cf1, cf2,  cf3, cf4, cf5, cf6) values(8,800, 'China', 'Hongkong', 23500, 3921.56);
+insert into tbl_test_listagg(cf1, cf2,  cf3, cf4, cf5, cf6) values(9,800, 'China', 'Hangzhou', 15500, 1001.09);
+insert into tbl_test_listagg(cf1, cf2,  cf3, cf4, cf5, cf6) values(10,100, 'USA', 'Los Angele', 15500, 5009.43);
+select listagg(cf4) WITHIN GROUP (ORDER BY cf4) from tbl_test_listagg;
+                                    LISTAGG                                    
+-------------------------------------------------------------------------------
+ BeijingBostomGuangzhouHangzhouHongkongLos AngeleNew YorkShanghaiShenzhenTokyo
+(1 row)
+
+select listagg(cf4,',') WITHIN GROUP (ORDER BY cf4) from tbl_test_listagg;
+                                        LISTAGG                                         
+----------------------------------------------------------------------------------------
+ Beijing,Bostom,Guangzhou,Hangzhou,Hongkong,Los Angele,New York,Shanghai,Shenzhen,Tokyo
+(1 row)
+
+select listagg(cf4,',') WITHIN GROUP (ORDER BY cf1) from tbl_test_listagg;
+                                        LISTAGG                                         
+----------------------------------------------------------------------------------------
+ Guangzhou,Shanghai,Beijing,Shenzhen,New York,Bostom,Tokyo,Hongkong,Hangzhou,Los Angele
+(1 row)
+
+select cf3, listagg (cf4,',') WITHIN GROUP (ORDER BY cf4) from tbl_test_listagg group by cf3 ;
+  CF3  |                        LISTAGG                        
+-------+-------------------------------------------------------
+ China | Beijing,Guangzhou,Hangzhou,Hongkong,Shanghai,Shenzhen
+ Japan | Tokyo
+ USA   | Bostom,Los Angele,New York
+(3 rows)
+
+select cf3, listagg(cf4,',') WITHIN GROUP (ORDER BY cf1 desc) cf4, listagg(cf5::text,'+') WITHIN GROUP (ORDER BY cf1) cf5 from tbl_test_listagg group by cf3 ;
+  CF3  |                          CF4                          |                 CF5                 
+-------+-------------------------------------------------------+-------------------------------------
+ China | Hangzhou,Hongkong,Shenzhen,Beijing,Shanghai,Guangzhou | 23000+29000+25000+24000+23500+15500
+ Japan | Tokyo                                                 | 40000
+ USA   | Los Angele,Bostom,New York                            | 35000+15000+15500
+(3 rows)
+
+select listagg(cf2) WITHIN GROUP (ORDER BY cf4) from tbl_test_listagg;
+              LISTAGG               
+------------------------------------
+ 1500500500800800100100015001000500
+(1 row)
+
+select listagg(cf2,',') WITHIN GROUP (ORDER BY cf4) from tbl_test_listagg;
+                   LISTAGG                   
+---------------------------------------------
+ 1500,500,500,800,800,100,1000,1500,1000,500
+(1 row)
+
+select listagg(cf2,',') WITHIN GROUP (ORDER BY cf1) from tbl_test_listagg;
+                   LISTAGG                   
+---------------------------------------------
+ 500,1500,1500,1000,1000,500,500,800,800,100
+(1 row)
+
+select cf3, listagg (cf2,',') WITHIN GROUP (ORDER BY cf4) from tbl_test_listagg group by cf3 ;
+  CF3  |          LISTAGG           
+-------+----------------------------
+ China | 1500,500,800,800,1500,1000
+ Japan | 500
+ USA   | 500,100,1000
+(3 rows)
+
+select cf3, listagg(cf4,',') WITHIN GROUP (ORDER BY cf1 desc) cf4, listagg(cf5,'+') WITHIN GROUP (ORDER BY cf1) cf5 from tbl_test_listagg group by cf3 ;
+  CF3  |                          CF4                          |                 CF5                 
+-------+-------------------------------------------------------+-------------------------------------
+ China | Hangzhou,Hongkong,Shenzhen,Beijing,Shanghai,Guangzhou | 23000+29000+25000+24000+23500+15500
+ Japan | Tokyo                                                 | 40000
+ USA   | Los Angele,Bostom,New York                            | 35000+15000+15500
+(3 rows)
+
+select listagg(cf6) WITHIN GROUP (ORDER BY cf4) from tbl_test_listagg;
+                                 LISTAGG                                  
+--------------------------------------------------------------------------
+ 2984.831349.781981.121001.093921.565009.4310893.393094.542172.1812978.37
+(1 row)
+
+select listagg(cf6,',') WITHIN GROUP (ORDER BY cf4) from tbl_test_listagg;
+                                      LISTAGG                                      
+-----------------------------------------------------------------------------------
+ 2984.83,1349.78,1981.12,1001.09,3921.56,5009.43,10893.39,3094.54,2172.18,12978.37
+(1 row)
+
+select listagg(cf6,',') WITHIN GROUP (ORDER BY cf1) from tbl_test_listagg;
+                                      LISTAGG                                      
+-----------------------------------------------------------------------------------
+ 1981.12,3094.54,2984.83,2172.18,10893.39,1349.78,12978.37,3921.56,1001.09,5009.43
+(1 row)
+
+select cf3, listagg (cf6,',') WITHIN GROUP (ORDER BY cf4) from tbl_test_listagg group by cf3 ;
+  CF3  |                     LISTAGG                     
+-------+-------------------------------------------------
+ China | 2984.83,1981.12,1001.09,3921.56,3094.54,2172.18
+ Japan | 12978.37
+ USA   | 1349.78,5009.43,10893.39
+(3 rows)
+
+select cf3, listagg(cf4,',') WITHIN GROUP (ORDER BY cf1 desc) cf4, listagg(cf5,'+') WITHIN GROUP (ORDER BY cf1) cf5, listagg(cf6,'+') WITHIN GROUP (ORDER BY cf1) cf6 from tbl_test_listagg group by cf3 ;
+  CF3  |                          CF4                          |                 CF5                 |                       CF6                       
+-------+-------------------------------------------------------+-------------------------------------+-------------------------------------------------
+ China | Hangzhou,Hongkong,Shenzhen,Beijing,Shanghai,Guangzhou | 23000+29000+25000+24000+23500+15500 | 1981.12+3094.54+2984.83+2172.18+3921.56+1001.09
+ Japan | Tokyo                                                 | 40000                               | 12978.37
+ USA   | Los Angele,Bostom,New York                            | 35000+15000+15500                   | 10893.39+1349.78+5009.43
+(3 rows)
+
+select wmsys.wm_concat(cf1), cf2 from tbl_test_listagg group by 2 order by 2,1;
+ WM_CONCAT | CF2  
+-----------+------
+ 10        |  100
+ 1,6,7     |  500
+ 8,9       |  800
+ 4,5       | 1000
+ 2,3       | 1500
+(5 rows)
+
+select wmsys.wm_concat(cf3), cf2 from tbl_test_listagg group by 2 order by 2,1;
+    WM_CONCAT    | CF2  
+-----------------+------
+ USA             |  100
+ China,USA,Japan |  500
+ China,China     |  800
+ China,USA       | 1000
+ China,China     | 1500
+(5 rows)
+
+select wmsys.wm_concat(cf6), cf2 from tbl_test_listagg group by 2 order by 2,1;
+        WM_CONCAT         | CF2  
+--------------------------+------
+ 5009.43                  |  100
+ 1981.12,1349.78,12978.37 |  500
+ 3921.56,1001.09          |  800
+ 2172.18,10893.39         | 1000
+ 3094.54,2984.83          | 1500
+(5 rows)
+
+select wmsys.wm_concat(cf1) over (partition by cf1), cf2 from tbl_test_listagg group by cf1, cf2 order by 1,2;
+ WM_CONCAT | CF2  
+-----------+------
+ 1         |  500
+ 10        |  100
+ 2         | 1500
+ 3         | 1500
+ 4         | 1000
+ 5         | 1000
+ 6         |  500
+ 7         |  500
+ 8         |  800
+ 9         |  800
+(10 rows)
+
+drop table if exists tbl_test_listagg;

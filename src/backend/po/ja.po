@@ -15982,9 +15982,9 @@ msgstr "絶対経路はできません"
 msgid "path must be in or below the current directory"
 msgstr "パスはカレントディレクトリもしくはその配下でなければなりません"
 
-#: utils/adt/genfile.c:118 utils/adt/oracle_compat.c:184
-#: utils/adt/oracle_compat.c:282 utils/adt/oracle_compat.c:758
-#: utils/adt/oracle_compat.c:1048
+#: utils/adt/genfile.c:118 utils/adt/opentenbase_ora_compat.c:184
+#: utils/adt/opentenbase_ora_compat.c:282 utils/adt/opentenbase_ora_compat.c:758
+#: utils/adt/opentenbase_ora_compat.c:1048
 #, c-format
 msgid "requested length too large"
 msgstr "要求した長さが長すぎます"
@@ -16695,17 +16695,17 @@ msgstr "値\"%s\"は型oidの範囲外です"
 msgid "invalid oidvector data"
 msgstr "oidvectorデータが無効です"
 
-#: utils/adt/oracle_compat.c:895
+#: utils/adt/opentenbase_ora_compat.c:895
 #, c-format
 msgid "requested character too large"
 msgstr "要求した文字が長すぎます"
 
-#: utils/adt/oracle_compat.c:941 utils/adt/oracle_compat.c:995
+#: utils/adt/opentenbase_ora_compat.c:941 utils/adt/opentenbase_ora_compat.c:995
 #, c-format
 msgid "requested character too large for encoding: %d"
 msgstr "要求した文字は符号化方式では長すぎます: %d"
 
-#: utils/adt/oracle_compat.c:988
+#: utils/adt/opentenbase_ora_compat.c:988
 #, c-format
 msgid "null character not permitted"
 msgstr "NULL文字は許されません"

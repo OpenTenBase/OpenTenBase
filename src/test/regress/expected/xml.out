@@ -32,8 +32,10 @@ SELECT xmlcomment('-test');
 
 SELECT xmlcomment('test-');
 ERROR:  invalid XML comment
+HINT:   while processing column xmlcomment
 SELECT xmlcomment('--test');
 ERROR:  invalid XML comment
+HINT:   while processing column xmlcomment
 SELECT xmlcomment('te st');
   xmlcomment  
 --------------
@@ -670,6 +672,37 @@ SELECT xpath('/nosuchtag', '<root/>');
  {}
 (1 row)
 
+-- Round-trip non-ASCII data through xpath().
+DO $$
+DECLARE
+  xml_declaration text := '<?xml version="1.0" encoding="ISO-8859-1"?>';
+  degree_symbol text;
+  res xml[];
+BEGIN
+  -- Per the documentation, xpath() doesn't work on non-ASCII data when
+  -- the server encoding is not UTF8.  The EXCEPTION block below,
+  -- currently dead code, will be relevant if we remove this limitation.
+  IF current_setting('server_encoding') <> 'UTF8' THEN
+    RAISE LOG 'skip: encoding % unsupported for xml',
+      current_setting('server_encoding');
+    RETURN;
+  END IF;
+
+  degree_symbol := convert_from('\xc2b0', 'UTF8');
+  res := xpath('text()', (xml_declaration ||
+    '<x>' || degree_symbol || '</x>')::xml);
+  IF degree_symbol <> res[1]::text THEN
+    RAISE 'expected % (%), got % (%)',
+      degree_symbol, convert_to(degree_symbol, 'UTF8'),
+      res[1], convert_to(res[1]::text, 'UTF8');
+  END IF;
+EXCEPTION
+  -- character with byte sequence 0xc2 0xb0 in encoding "UTF8" has no equivalent in encoding "LATIN8"
+  WHEN untranslatable_character THEN RAISE LOG 'skip: %', SQLERRM;
+  -- default conversion function for encoding "UTF8" to "MULE_INTERNAL" does not exist
+  WHEN undefined_function THEN RAISE LOG 'skip: %', SQLERRM;
+END
+$$;
 -- Test xmlexists and xpath_exists
 SELECT xmlexists('//town[text() = ''Toronto'']' PASSING BY REF '<towns><town>Bidford-on-Avon</town><town>Cwmbran</town><town>Bristol</town></towns>');
  xmlexists 
@@ -1042,24 +1075,27 @@ CREATE OR REPLACE VIEW public.xmltableview1 AS
            FROM xmldata) x,
     LATERAL XMLTABLE(('/ROWS/ROW'::text) PASSING (x.data) COLUMNS id integer PATH ('@id'::text), _id FOR ORDINALITY, country_name text PATH ('COUNTRY_NAME'::text) NOT NULL, country_id text PATH ('COUNTRY_ID'::text), region_id integer PATH ('REGION_ID'::text), size double precision PATH ('SIZE'::text), unit text PATH ('SIZE/@unit'::text), premier_name text DEFAULT ('not specified'::text) PATH ('PREMIER_NAME'::text))
 EXPLAIN (COSTS OFF) SELECT * FROM xmltableview1;
-               QUERY PLAN                
------------------------------------------
+                   QUERY PLAN                    
+-------------------------------------------------
  Nested Loop
-   ->  Seq Scan on xmldata
+   ->  Remote Subquery Scan on all (datanodes 1)
+         ->  Seq Scan on xmldata
    ->  Table Function Scan on "xmltable"
-(3 rows)
+(4 rows)
 
 EXPLAIN (COSTS OFF, VERBOSE) SELECT * FROM xmltableview1;
                                                                                                                                                                                                                         QUERY PLAN                                                                                                                                                                                                                         
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
  Nested Loop
    Output: "xmltable".id, "xmltable"._id, "xmltable".country_name, "xmltable".country_id, "xmltable".region_id, "xmltable".size, "xmltable".unit, "xmltable".premier_name
-   ->  Seq Scan on public.xmldata
+   ->  Remote Subquery Scan[1] on all (datanode_1)
          Output: xmldata.data
+         ->  Seq Scan on public.xmldata
+               Output: xmldata.data
    ->  Table Function Scan on "xmltable"
          Output: "xmltable".id, "xmltable"._id, "xmltable".country_name, "xmltable".country_id, "xmltable".region_id, "xmltable".size, "xmltable".unit, "xmltable".premier_name
          Table Function Call: XMLTABLE(('/ROWS/ROW'::text) PASSING (xmldata.data) COLUMNS id integer PATH ('@id'::text), _id FOR ORDINALITY, country_name text PATH ('COUNTRY_NAME'::text) NOT NULL, country_id text PATH ('COUNTRY_ID'::text), region_id integer PATH ('REGION_ID'::text), size double precision PATH ('SIZE'::text), unit text PATH ('SIZE/@unit'::text), premier_name text DEFAULT ('not specified'::text) PATH ('PREMIER_NAME'::text))
-(7 rows)
+(9 rows)
 
 -- XMLNAMESPACES tests
 SELECT * FROM XMLTABLE(XMLNAMESPACES('http://x.y' AS zz),
@@ -1222,12 +1258,14 @@ SELECT  xmltable.*
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
  Nested Loop
    Output: "xmltable".id, "xmltable"._id, "xmltable".country_name, "xmltable".country_id, "xmltable".region_id, "xmltable".size, "xmltable".unit, "xmltable".premier_name
-   ->  Seq Scan on public.xmldata
+   ->  Remote Subquery Scan[1] on all (datanode_1)
          Output: xmldata.data
+         ->  Seq Scan on public.xmldata
+               Output: xmldata.data
    ->  Table Function Scan on "xmltable"
          Output: "xmltable".id, "xmltable"._id, "xmltable".country_name, "xmltable".country_id, "xmltable".region_id, "xmltable".size, "xmltable".unit, "xmltable".premier_name
          Table Function Call: XMLTABLE(('/ROWS/ROW'::text) PASSING (xmldata.data) COLUMNS id integer PATH ('@id'::text), _id FOR ORDINALITY, country_name text PATH ('COUNTRY_NAME'::text) NOT NULL, country_id text PATH ('COUNTRY_ID'::text), region_id integer PATH ('REGION_ID'::text), size double precision PATH ('SIZE'::text), unit text PATH ('SIZE/@unit'::text), premier_name text DEFAULT ('not specified'::text) PATH ('PREMIER_NAME'::text))
-(7 rows)
+(9 rows)
 
 -- test qual
 SELECT xmltable.* FROM xmldata, LATERAL xmltable('/ROWS/ROW[COUNTRY_NAME="Japan" or COUNTRY_NAME="India"]' PASSING data COLUMNS "COUNTRY_NAME" text, "REGION_ID" int) WHERE "COUNTRY_NAME" = 'Japan';
@@ -1242,13 +1280,15 @@ SELECT xmltable.* FROM xmldata, LATERAL xmltable('/ROWS/ROW[COUNTRY_NAME="Japan"
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
  Nested Loop
    Output: "xmltable"."COUNTRY_NAME", "xmltable"."REGION_ID"
-   ->  Seq Scan on public.xmldata
+   ->  Remote Subquery Scan[1] on all (datanode_1)
          Output: xmldata.data
+         ->  Seq Scan on public.xmldata
+               Output: xmldata.data
    ->  Table Function Scan on "xmltable"
          Output: "xmltable"."COUNTRY_NAME", "xmltable"."REGION_ID"
          Table Function Call: XMLTABLE(('/ROWS/ROW[COUNTRY_NAME="Japan" or COUNTRY_NAME="India"]'::text) PASSING (xmldata.data) COLUMNS "COUNTRY_NAME" text, "REGION_ID" integer)
          Filter: ("xmltable"."COUNTRY_NAME" = 'Japan'::text)
-(8 rows)
+(10 rows)
 
 -- should to work with more data
 INSERT INTO xmldata VALUES('<ROWS>
@@ -1291,7 +1331,7 @@ SELECT  xmltable.*
                                   region_id int PATH 'REGION_ID',
                                   size float PATH 'SIZE',
                                   unit text PATH 'SIZE/@unit',
-                                  premier_name text PATH 'PREMIER_NAME' DEFAULT 'not specified');
+                                  premier_name text PATH 'PREMIER_NAME' DEFAULT 'not specified') ORDER BY id;
  id | _id |  country_name  | country_id | region_id | size | unit | premier_name  
 ----+-----+----------------+------------+-----------+------+------+---------------
   1 |   1 | Australia      | AU         |         3 |      |      | not specified
@@ -1345,13 +1385,15 @@ SELECT  xmltable.*
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
  Nested Loop
    Output: "xmltable".id, "xmltable"._id, "xmltable".country_name, "xmltable".country_id, "xmltable".region_id, "xmltable".size, "xmltable".unit, "xmltable".premier_name
-   ->  Seq Scan on public.xmldata
+   ->  Remote Subquery Scan[1] on all (datanode_1)
          Output: xmldata.data
+         ->  Seq Scan on public.xmldata
+               Output: xmldata.data
    ->  Table Function Scan on "xmltable"
          Output: "xmltable".id, "xmltable"._id, "xmltable".country_name, "xmltable".country_id, "xmltable".region_id, "xmltable".size, "xmltable".unit, "xmltable".premier_name
          Table Function Call: XMLTABLE(('/ROWS/ROW'::text) PASSING (xmldata.data) COLUMNS id integer PATH ('@id'::text), _id FOR ORDINALITY, country_name text PATH ('COUNTRY_NAME'::text) NOT NULL, country_id text PATH ('COUNTRY_ID'::text), region_id integer PATH ('REGION_ID'::text), size double precision PATH ('SIZE'::text), unit text PATH ('SIZE/@unit'::text), premier_name text DEFAULT ('not specified'::text) PATH ('PREMIER_NAME'::text))
          Filter: ("xmltable".region_id = 2)
-(8 rows)
+(10 rows)
 
 -- should fail, NULL value
 SELECT  xmltable.*
@@ -1425,25 +1467,25 @@ INSERT INTO xmltest2 VALUES('<d><r><ac>1</ac></r></d>', 'A');
 INSERT INTO xmltest2 VALUES('<d><r><bc>2</bc></r></d>', 'B');
 INSERT INTO xmltest2 VALUES('<d><r><cc>3</cc></r></d>', 'C');
 INSERT INTO xmltest2 VALUES('<d><r><dc>2</dc></r></d>', 'D');
-SELECT xmltable.* FROM xmltest2, LATERAL xmltable('/d/r' PASSING x COLUMNS a int PATH '' || lower(_path) || 'c');
+SELECT xmltable.* FROM xmltest2, LATERAL xmltable('/d/r' PASSING x COLUMNS a int PATH '' || lower(_path) || 'c') order by 1;
  a 
 ---
  1
  2
- 3
  2
+ 3
 (4 rows)
 
-SELECT xmltable.* FROM xmltest2, LATERAL xmltable(('/d/r/' || lower(_path) || 'c') PASSING x COLUMNS a int PATH '.');
+SELECT xmltable.* FROM xmltest2, LATERAL xmltable(('/d/r/' || lower(_path) || 'c') PASSING x COLUMNS a int PATH '.') order by 1;
  a 
 ---
  1
  2
- 3
  2
+ 3
 (4 rows)
 
-SELECT xmltable.* FROM xmltest2, LATERAL xmltable(('/d/r/' || lower(_path) || 'c') PASSING x COLUMNS a int PATH 'x' DEFAULT ascii(_path) - 54);
+SELECT xmltable.* FROM xmltest2, LATERAL xmltable(('/d/r/' || lower(_path) || 'c') PASSING x COLUMNS a int PATH 'x' DEFAULT ascii(_path) - 54) order by 1;
  a  
 ----
  11
@@ -1452,3 +1494,206 @@ SELECT xmltable.* FROM xmltest2, LATERAL xmltable(('/d/r/' || lower(_path) || 'c
  14
 (4 rows)
 
+-- test select xmltype null
+\c regression_ora
+drop table if exists test_XMLType;
+NOTICE:  table "TEST_XMLTYPE" does not exist, skipping
+create table test_XMLType(f1 int,f2 XMLType);
+insert into test_XMLType values(1,'<ROW>XMLType2</ROW>');
+select f1, extractvalue(x.f2,'/ROW/text()') as A from test_XMLType x order by f1;
+ F1 |    A     
+----+----------
+  1 | XMLType2
+(1 row)
+
+insert into test_XMLType values(null,null);
+select f1, extractvalue(x.f2,'/ROW/text()') as A from test_XMLType x order by f1;
+ F1 |    A     
+----+----------
+  1 | XMLType2
+    | 
+(2 rows)
+
+drop table test_XMLType;
+-- test xmltable without COLUMNS
+select a.* from xmltable('/ROWS/ROW' passing xmltype('<ROWS><ROW><id>1</id></ROW><ROW><id>2</id></ROW></ROWS>')) a;
+ COLUMN_VALUE 
+--------------
+ <ROW>       +
+   <id>1</id>+
+ </ROW>
+ <ROW>       +
+   <id>2</id>+
+ </ROW>
+(2 rows)
+
+select COLUMN_VALUE from xmltable('/ROWS/ROW' passing xmltype('<ROWS><ROW id="1"><name>"JIM"</name></ROW><ROW id="2"><name>"TOM"</name></ROW></ROWS>')) a;
+     COLUMN_VALUE     
+----------------------
+ <ROW id="1">        +
+   <name>"JIM"</name>+
+ </ROW>
+ <ROW id="2">        +
+   <name>"TOM"</name>+
+ </ROW>
+(2 rows)
+
+select column_value from xmltable('/ROWS/ROW/name' passing xmltype('<ROWS><ROW id="1" type="student"><name>"JIM"</name></ROW><ROW id="2" type="teacher"><name>"TOM"</name></ROW></ROWS>'));
+    COLUMN_VALUE    
+--------------------
+ <name>"JIM"</name>
+ <name>"TOM"</name>
+(2 rows)
+
+CREATE TABLE r_xmltable_20220308(data xml);
+INSERT INTO r_xmltable_20220308 VALUES('<ROWS>
+    <ROW id="1">
+        <COUNTRY_ID>AU</COUNTRY_ID>
+        <COUNTRY_NAME>Australia</COUNTRY_NAME>
+        <REGION_ID>3</REGION_ID>
+    </ROW>
+    <ROW id="2">
+        <COUNTRY_ID>CN</COUNTRY_ID>
+        <COUNTRY_NAME>China</COUNTRY_NAME>
+        <REGION_ID>3</REGION_ID>
+    </ROW>
+    <ROW id="3">
+        <COUNTRY_ID>HK</COUNTRY_ID>
+        <COUNTRY_NAME>HongKong</COUNTRY_NAME>
+        <REGION_ID>3</REGION_ID>
+    </ROW>
+    <ROW id="4">
+        <COUNTRY_ID>IN</COUNTRY_ID>
+        <COUNTRY_NAME>India</COUNTRY_NAME>
+        <REGION_ID>3</REGION_ID>
+    </ROW>
+    <ROW id="5">
+        <COUNTRY_ID>JP</COUNTRY_ID>
+        <COUNTRY_NAME>Japan</COUNTRY_NAME>
+        <REGION_ID>3</REGION_ID><PREMIER_NAME>Sinzo Abe</PREMIER_NAME>
+    </ROW>
+    <ROW id="6">
+        <COUNTRY_ID>SG</COUNTRY_ID>
+        <COUNTRY_NAME>Singapore</COUNTRY_NAME>
+        <REGION_ID>3</REGION_ID><SIZE unit="km">791</SIZE>
+    </ROW>
+</ROWS>');
+select b.* from r_xmltable_20220308, xmltable('/ROWS/ROW' passing r_xmltable_20220308.data) as b;
+                              COLUMN_VALUE                              
+------------------------------------------------------------------------
+ <ROW id="1">                                                          +
+         <COUNTRY_ID>AU</COUNTRY_ID>                                   +
+         <COUNTRY_NAME>Australia</COUNTRY_NAME>                        +
+         <REGION_ID>3</REGION_ID>                                      +
+     </ROW>
+ <ROW id="2">                                                          +
+         <COUNTRY_ID>CN</COUNTRY_ID>                                   +
+         <COUNTRY_NAME>China</COUNTRY_NAME>                            +
+         <REGION_ID>3</REGION_ID>                                      +
+     </ROW>
+ <ROW id="3">                                                          +
+         <COUNTRY_ID>HK</COUNTRY_ID>                                   +
+         <COUNTRY_NAME>HongKong</COUNTRY_NAME>                         +
+         <REGION_ID>3</REGION_ID>                                      +
+     </ROW>
+ <ROW id="4">                                                          +
+         <COUNTRY_ID>IN</COUNTRY_ID>                                   +
+         <COUNTRY_NAME>India</COUNTRY_NAME>                            +
+         <REGION_ID>3</REGION_ID>                                      +
+     </ROW>
+ <ROW id="5">                                                          +
+         <COUNTRY_ID>JP</COUNTRY_ID>                                   +
+         <COUNTRY_NAME>Japan</COUNTRY_NAME>                            +
+         <REGION_ID>3</REGION_ID><PREMIER_NAME>Sinzo Abe</PREMIER_NAME>+
+     </ROW>
+ <ROW id="6">                                                          +
+         <COUNTRY_ID>SG</COUNTRY_ID>                                   +
+         <COUNTRY_NAME>Singapore</COUNTRY_NAME>                        +
+         <REGION_ID>3</REGION_ID><SIZE unit="km">791</SIZE>            +
+     </ROW>
+(6 rows)
+
+select b.* from r_xmltable_20220308, xmltable('/ROWS/ROW/COUNTRY_NAME' passing r_xmltable_20220308.data) as b;
+              COLUMN_VALUE              
+----------------------------------------
+ <COUNTRY_NAME>Australia</COUNTRY_NAME>
+ <COUNTRY_NAME>China</COUNTRY_NAME>
+ <COUNTRY_NAME>HongKong</COUNTRY_NAME>
+ <COUNTRY_NAME>India</COUNTRY_NAME>
+ <COUNTRY_NAME>Japan</COUNTRY_NAME>
+ <COUNTRY_NAME>Singapore</COUNTRY_NAME>
+(6 rows)
+
+select b.* from r_xmltable_20220308, xmltable('/ROWS/ROW[COUNTRY_NAME="Japan" or COUNTRY_NAME="India"]' passing r_xmltable_20220308.data) as b;
+                              COLUMN_VALUE                              
+------------------------------------------------------------------------
+ <ROW id="4">                                                          +
+         <COUNTRY_ID>IN</COUNTRY_ID>                                   +
+         <COUNTRY_NAME>India</COUNTRY_NAME>                            +
+         <REGION_ID>3</REGION_ID>                                      +
+     </ROW>
+ <ROW id="5">                                                          +
+         <COUNTRY_ID>JP</COUNTRY_ID>                                   +
+         <COUNTRY_NAME>Japan</COUNTRY_NAME>                            +
+         <REGION_ID>3</REGION_ID><PREMIER_NAME>Sinzo Abe</PREMIER_NAME>+
+     </ROW>
+(2 rows)
+
+select a.* from xmltable('/ROWS/ROW' passing xmltype('<ROWS><ROW><id>1</id></ROW><ROW><id>2</id></ROW></ROWS>')) a;
+ COLUMN_VALUE 
+--------------
+ <ROW>       +
+   <id>1</id>+
+ </ROW>
+ <ROW>       +
+   <id>2</id>+
+ </ROW>
+(2 rows)
+
+select COLUMN_VALUE from xmltable('/ROWS/ROW' passing xmltype('<ROWS><ROW id="1"><name>"JIM"</name></ROW><ROW id="2"><name>"TOM"</name></ROW></ROWS>')) a;
+     COLUMN_VALUE     
+----------------------
+ <ROW id="1">        +
+   <name>"JIM"</name>+
+ </ROW>
+ <ROW id="2">        +
+   <name>"TOM"</name>+
+ </ROW>
+(2 rows)
+
+select b.* from r_xmltable_20220308, xmltable('/ROWS/ROW' passing r_xmltable_20220308.data) as b;
+                              COLUMN_VALUE                              
+------------------------------------------------------------------------
+ <ROW id="1">                                                          +
+         <COUNTRY_ID>AU</COUNTRY_ID>                                   +
+         <COUNTRY_NAME>Australia</COUNTRY_NAME>                        +
+         <REGION_ID>3</REGION_ID>                                      +
+     </ROW>
+ <ROW id="2">                                                          +
+         <COUNTRY_ID>CN</COUNTRY_ID>                                   +
+         <COUNTRY_NAME>China</COUNTRY_NAME>                            +
+         <REGION_ID>3</REGION_ID>                                      +
+     </ROW>
+ <ROW id="3">                                                          +
+         <COUNTRY_ID>HK</COUNTRY_ID>                                   +
+         <COUNTRY_NAME>HongKong</COUNTRY_NAME>                         +
+         <REGION_ID>3</REGION_ID>                                      +
+     </ROW>
+ <ROW id="4">                                                          +
+         <COUNTRY_ID>IN</COUNTRY_ID>                                   +
+         <COUNTRY_NAME>India</COUNTRY_NAME>                            +
+         <REGION_ID>3</REGION_ID>                                      +
+     </ROW>
+ <ROW id="5">                                                          +
+         <COUNTRY_ID>JP</COUNTRY_ID>                                   +
+         <COUNTRY_NAME>Japan</COUNTRY_NAME>                            +
+         <REGION_ID>3</REGION_ID><PREMIER_NAME>Sinzo Abe</PREMIER_NAME>+
+     </ROW>
+ <ROW id="6">                                                          +
+         <COUNTRY_ID>SG</COUNTRY_ID>                                   +
+         <COUNTRY_NAME>Singapore</COUNTRY_NAME>                        +
+         <REGION_ID>3</REGION_ID><SIZE unit="km">791</SIZE>            +
+     </ROW>
+(6 rows)
+
+drop table r_xmltable_20220308;

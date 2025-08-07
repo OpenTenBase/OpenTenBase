@@ -124,10 +124,6 @@ ALTER TABLE xl_at2h RENAME COLUMN product_id TO product_identifier;
 
 ALTER TABLE xl_at2h RENAME TO xl_at3h;
 
-ALTER TABLE xl_at3h DELETE NODE (datanode_2);
-
-ALTER TABLE xl_at3h ADD NODE (datanode_2);
-
 ALTER TABLE xl_at3h DISTRIBUTE BY REPLICATION; 
 
 -- MODULO Distributed table:
@@ -168,10 +164,6 @@ ALTER TABLE xl_at2m RENAME COLUMN product_no TO product_number;
 ALTER TABLE xl_at2m RENAME COLUMN product_id TO product_identifier;
 
 ALTER TABLE xl_at2m RENAME TO xl_at3m;
-
-ALTER TABLE xl_at3m DELETE NODE (datanode_2);
-
-ALTER TABLE xl_at3m ADD NODE (datanode_2);
 
 ALTER TABLE xl_at3m DISTRIBUTE BY REPLICATION;
 

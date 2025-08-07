@@ -1,0 +1,37 @@
+# pg_regress
+leak:pg_regress.c
+leak:initdb.c
+leak:initgtm.c
+leak:startup.c
+leak:nodemgr.c
+leak:guc.c
+leak:ps_status.c
+leak:ip.c
+leak:poolmgr.c
+leak:mbuf.c
+leak:gram.y
+leak:fe_memutils.c
+leak:fe-connect.c
+leak:fe-exec.c
+leak:mbuf_create
+leak:path.c
+leak:gtm_ctl.c
+leak:confmod.c
+leak:fn_node_register
+# ignore memory leaks from third-party libraries, libxml.so/libclntshcore.so
+leak:libxml*
+leak:libclntshcore*
+leak:proc_exit
+leak:SPI_connect_ext
+leak:stat_transaction
+leak:pgxc_ctl.c
+leak:xmalloc
+leak:plpgsql_estate_setup
+leak:CPLMalloc
+leak:lwgeom_transform.c
+leak:lwgeom_geos.c
+leak:pg_dump.c
+leak:dbms_md_strdup
+leak:basebackup.c
+leak:gtmpqParseSuccess 
+leak:pg_regcomp

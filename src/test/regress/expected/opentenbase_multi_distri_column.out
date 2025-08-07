@@ -1,0 +1,85 @@
+--
+-- MULTIPLE DISTRIBUTIONS
+--
+-- test join plans for multi-distribution
+create table create_test_r (c1 int8, c2 varchar(64) , c3 varchar(64) ,  c4 bigint , c6 int) distribute by shard (c1,c2,c4);
+\d+ create_test_r;
+                                      Table "public.create_test_r"
+ Column |         Type          | Collation | Nullable | Default | Storage  | Stats target | Description 
+--------+-----------------------+-----------+----------+---------+----------+--------------+-------------
+ c1     | bigint                |           |          |         | plain    |              | 
+ c2     | character varying(64) |           |          |         | extended |              | 
+ c3     | character varying(64) |           |          |         | extended |              | 
+ c4     | bigint                |           |          |         | plain    |              | 
+ c6     | integer               |           |          |         | plain    |              | 
+Distribute By: SHARD(c1,c2,c4)
+Location Nodes: ALL DATANODES
+
+insert into create_test_r select i, '2006-02-22', i,  i from generate_series(1, 10) i;
+select * from create_test_r order by c1;
+ c1 |     c2     | c3 | c4 | c6 
+----+------------+----+----+----
+  1 | 2006-02-22 | 1  |  1 |   
+  2 | 2006-02-22 | 2  |  2 |   
+  3 | 2006-02-22 | 3  |  3 |   
+  4 | 2006-02-22 | 4  |  4 |   
+  5 | 2006-02-22 | 5  |  5 |   
+  6 | 2006-02-22 | 6  |  6 |   
+  7 | 2006-02-22 | 7  |  7 |   
+  8 | 2006-02-22 | 8  |  8 |   
+  9 | 2006-02-22 | 9  |  9 |   
+ 10 | 2006-02-22 | 10 | 10 |   
+(10 rows)
+
+-- number of dist-values less than number of distributions.
+explain (costs off) select * from create_test_r where c1 = 5 and c4 = 5 order by c1;
+                      QUERY PLAN                       
+-------------------------------------------------------
+ Remote Fast Query Execution Mode: fqs_mode_std_planer
+   Node/s: datanode_1, datanode_2
+   ->  Seq Scan on create_test_r
+         Filter: ((c1 = 5) AND (c4 = 5))
+(4 rows)
+
+select * from create_test_r where c1 = 5 and c4 = 5 order by c1;
+ c1 |     c2     | c3 | c4 | c6 
+----+------------+----+----+----
+  5 | 2006-02-22 | 5  |  5 |   
+(1 row)
+
+explain (costs off) select * from create_test_r where c1 = 3 and c4 = 3 order by c1;
+                      QUERY PLAN                       
+-------------------------------------------------------
+ Remote Fast Query Execution Mode: fqs_mode_std_planer
+   Node/s: datanode_1, datanode_2
+   ->  Seq Scan on create_test_r
+         Filter: ((c1 = 3) AND (c4 = 3))
+(4 rows)
+
+select * from create_test_r where c1 = 3 and c4 = 3 order by c1;
+ c1 |     c2     | c3 | c4 | c6 
+----+------------+----+----+----
+  3 | 2006-02-22 | 3  |  3 |   
+(1 row)
+
+-- CTAS
+drop table if exists aa;
+NOTICE:  table "aa" does not exist, skipping
+create table aa(id int, name text) distribute by shard(id);
+insert into aa select i, 'opentenbase'||i from generate_series(1, 100) i;
+select count(*) from aa;
+ count 
+-------
+   100
+(1 row)
+
+create table create_test_c distribute by shard(id,name) as select * from aa;
+select count(1) from create_test_c;
+ count 
+-------
+   100
+(1 row)
+
+drop table aa;
+drop table create_test_r;
+drop table create_test_c;

@@ -1,7 +1,3 @@
-/*
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- */
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -58,7 +54,7 @@ clean_location(void)
 
 static const char * 
 elog_level(int level)
-{// #lizard forgives
+{
     const char * ret = NULL;
     switch(level)
     {

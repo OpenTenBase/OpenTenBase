@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * hashfn.c
- *        Hash functions for use in dynahash.c hashtables
+ *		Hash functions for use in dynahash.c hashtables
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -9,13 +9,13 @@
  *
  *
  * IDENTIFICATION
- *      src/backend/utils/hash/hashfn.c
+ *	  src/backend/utils/hash/hashfn.c
  *
  * NOTES
- *      It is expected that every bit of a hash function's 32-bit result is
- *      as random as every other; failure to ensure this is likely to lead
- *      to poor performance of hash tables.  In most cases a hash
- *      function should use hash_any() or its variant hash_uint32().
+ *	  It is expected that every bit of a hash function's 32-bit result is
+ *	  as random as every other; failure to ensure this is likely to lead
+ *	  to poor performance of hash tables.  In most cases a hash
+ *	  function should use hash_any() or its variant hash_uint32().
  *
  *-------------------------------------------------------------------------
  */
@@ -33,16 +33,16 @@
 uint32
 string_hash(const void *key, Size keysize)
 {
-    /*
-     * If the string exceeds keysize-1 bytes, we want to hash only that many,
-     * because when it is copied into the hash table it will be truncated at
-     * that length.
-     */
-    Size        s_len = strlen((const char *) key);
+	/*
+	 * If the string exceeds keysize-1 bytes, we want to hash only that many,
+	 * because when it is copied into the hash table it will be truncated at
+	 * that length.
+	 */
+	Size		s_len = strlen((const char *) key);
 
-    s_len = Min(s_len, keysize - 1);
-    return DatumGetUInt32(hash_any((const unsigned char *) key,
-                                   (int) s_len));
+	s_len = Min(s_len, keysize - 1);
+	return DatumGetUInt32(hash_any((const unsigned char *) key,
+								   (int) s_len));
 }
 
 /*
@@ -51,8 +51,8 @@ string_hash(const void *key, Size keysize)
 uint32
 tag_hash(const void *key, Size keysize)
 {
-    return DatumGetUInt32(hash_any((const unsigned char *) key,
-                                   (int) keysize));
+	return DatumGetUInt32(hash_any((const unsigned char *) key,
+								   (int) keysize));
 }
 
 /*
@@ -63,8 +63,8 @@ tag_hash(const void *key, Size keysize)
 uint32
 uint32_hash(const void *key, Size keysize)
 {
-    Assert(keysize == sizeof(uint32));
-    return DatumGetUInt32(hash_uint32(*((const uint32 *) key)));
+	Assert(keysize == sizeof(uint32));
+	return DatumGetUInt32(hash_uint32(*((const uint32 *) key)));
 }
 
 /*
@@ -75,8 +75,8 @@ uint32_hash(const void *key, Size keysize)
 uint32
 bitmap_hash(const void *key, Size keysize)
 {
-    Assert(keysize == sizeof(Bitmapset *));
-    return bms_hash_value(*((const Bitmapset *const *) key));
+	Assert(keysize == sizeof(Bitmapset *));
+	return bms_hash_value(*((const Bitmapset *const *) key));
 }
 
 /*
@@ -85,7 +85,7 @@ bitmap_hash(const void *key, Size keysize)
 int
 bitmap_match(const void *key1, const void *key2, Size keysize)
 {
-    Assert(keysize == sizeof(Bitmapset *));
-    return !bms_equal(*((const Bitmapset *const *) key1),
-                      *((const Bitmapset *const *) key2));
+	Assert(keysize == sizeof(Bitmapset *));
+	return !bms_equal(*((const Bitmapset *const *) key1),
+					  *((const Bitmapset *const *) key2));
 }

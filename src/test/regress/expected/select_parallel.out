@@ -11,65 +11,215 @@ set parallel_setup_cost=0;
 set parallel_tuple_cost=0;
 set min_parallel_table_scan_size=0;
 set max_parallel_workers_per_gather=4;
+-- OPENTENBASE: increase to encourage use of parallel
+analyze a_star; analyze b_star; analyze c_star; analyze d_star; analyze e_star; analyze f_star;
+update pg_class set relpages=relpages*100, reltuples=reltuples*100 where relname like '%_star';
+-- Parallel Append with partial-subplans
 explain (costs off)
-  select count(*) from a_star;
-                        QUERY PLAN                         
------------------------------------------------------------
+  select round(avg(aa)), sum(aa) from a_star;
+                     QUERY PLAN                      
+-----------------------------------------------------
  Finalize Aggregate
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-         ->  Gather
-               Workers Planned: 1
-               ->  Partial Aggregate
-                     ->  Append
-                           ->  Parallel Seq Scan on a_star
-                           ->  Parallel Seq Scan on b_star
-                           ->  Parallel Seq Scan on c_star
-                           ->  Parallel Seq Scan on d_star
-                           ->  Parallel Seq Scan on e_star
-                           ->  Parallel Seq Scan on f_star
-(12 rows)
+   ->  Remote Subquery Scan on all (datanodes 2)
+         Workers Planned: 4
+         ->  Partial Aggregate
+               ->  Parallel Append
+                     ->  Parallel Seq Scan on a_star
+                     ->  Parallel Seq Scan on c_star
+                     ->  Parallel Seq Scan on e_star
+                     ->  Parallel Seq Scan on b_star
+                     ->  Parallel Seq Scan on d_star
+                     ->  Parallel Seq Scan on f_star
+(11 rows)
 
-select count(*) from a_star;
- count 
--------
-    50
+select round(avg(aa)), sum(aa) from a_star a1;
+ round | sum 
+-------+-----
+    14 | 355
 (1 row)
 
+-- Parallel Append with both partial and non-partial subplans
+alter table c_star set (parallel_workers = 0);
+alter table d_star set (parallel_workers = 0);
+explain (costs off)
+  select round(avg(aa)), sum(aa) from a_star;
+                     QUERY PLAN                      
+-----------------------------------------------------
+ Finalize Aggregate
+   ->  Remote Subquery Scan on all (datanodes 2)
+         Workers Planned: 4
+         ->  Partial Aggregate
+               ->  Parallel Append
+                     ->  Seq Scan on c_star
+                     ->  Seq Scan on d_star
+                     ->  Parallel Seq Scan on a_star
+                     ->  Parallel Seq Scan on e_star
+                     ->  Parallel Seq Scan on b_star
+                     ->  Parallel Seq Scan on f_star
+(11 rows)
+
+select round(avg(aa)), sum(aa) from a_star a2;
+ round | sum 
+-------+-----
+    14 | 355
+(1 row)
+
+-- Parallel Append with only non-partial subplans
+alter table a_star set (parallel_workers = 0);
+alter table b_star set (parallel_workers = 0);
+alter table e_star set (parallel_workers = 0);
+alter table f_star set (parallel_workers = 0);
+explain (costs off)
+  select round(avg(aa)), sum(aa) from a_star;
+                   QUERY PLAN                    
+-------------------------------------------------
+ Finalize Aggregate
+   ->  Remote Subquery Scan on all (datanodes 2)
+         Workers Planned: 4
+         ->  Partial Aggregate
+               ->  Parallel Append
+                     ->  Seq Scan on a_star
+                     ->  Seq Scan on c_star
+                     ->  Seq Scan on e_star
+                     ->  Seq Scan on b_star
+                     ->  Seq Scan on d_star
+                     ->  Seq Scan on f_star
+(11 rows)
+
+select round(avg(aa)), sum(aa) from a_star a3;
+ round | sum 
+-------+-----
+    14 | 355
+(1 row)
+
+-- Disable Parallel Append
+alter table a_star reset (parallel_workers);
+alter table b_star reset (parallel_workers);
+alter table c_star reset (parallel_workers);
+alter table d_star reset (parallel_workers);
+alter table e_star reset (parallel_workers);
+alter table f_star reset (parallel_workers);
+set enable_parallel_append to off;
+explain (costs off)
+  select round(avg(aa)), sum(aa) from a_star;
+                     QUERY PLAN                      
+-----------------------------------------------------
+ Finalize Aggregate
+   ->  Remote Subquery Scan on all (datanodes 2)
+         Workers Planned: 4
+         ->  Partial Aggregate
+               ->  Append
+                     ->  Parallel Seq Scan on a_star
+                     ->  Parallel Seq Scan on b_star
+                     ->  Parallel Seq Scan on c_star
+                     ->  Parallel Seq Scan on d_star
+                     ->  Parallel Seq Scan on e_star
+                     ->  Parallel Seq Scan on f_star
+(11 rows)
+
+select round(avg(aa)), sum(aa) from a_star a4;
+ round | sum 
+-------+-----
+    14 | 355
+(1 row)
+
+reset enable_parallel_append;
+-- OPENTENBASE: reset
+update pg_class set relpages=relpages/2, reltuples=reltuples/2 where relname like '%_star';
+-- Parallel Append that runs serially
+create or replace function foobar() returns setof text as
+$$ select 'foo'::varchar union all select 'bar'::varchar $$
+language sql stable;
+select foobar() order by 1;
+ foobar 
+--------
+ bar
+ foo
+(2 rows)
+
+-- test with leader participation disabled
+set parallel_leader_participation = off;
+WARNING:  The logical code corresponding to the GUC has been removed.
+HINT:  Please remove the parameter settings related to this parameter from your business as soon as possible.
+explain (costs off)
+  select count(*) from tenk1 where stringu1 = 'GRAAAA';
+                          QUERY PLAN                           
+---------------------------------------------------------------
+ Finalize Aggregate
+   ->  Remote Subquery Scan on all (datanodes 2)
+         ->  Partial Aggregate
+               ->  Gather
+                     Workers Planned: 4
+                     ->  Parallel Seq Scan on tenk1
+                           Filter: (stringu1 = 'GRAAAA'::name)
+(7 rows)
+
+select count(*) from tenk1 where stringu1 = 'GRAAAA';
+ count 
+-------
+    15
+(1 row)
+
+-- test with leader participation disabled, but no workers available (so
+-- the leader will have to run the plan despite the setting)
+set max_parallel_workers = 0;
+explain (costs off)
+  select count(*) from tenk1 where stringu1 = 'GRAAAA';
+                          QUERY PLAN                           
+---------------------------------------------------------------
+ Finalize Aggregate
+   ->  Remote Subquery Scan on all (datanodes 2)
+         ->  Partial Aggregate
+               ->  Gather
+                     Workers Planned: 4
+                     ->  Parallel Seq Scan on tenk1
+                           Filter: (stringu1 = 'GRAAAA'::name)
+(7 rows)
+
+select count(*) from tenk1 where stringu1 = 'GRAAAA';
+ count 
+-------
+    15
+(1 row)
+
+reset max_parallel_workers;
+reset parallel_leader_participation;
 -- test that parallel_restricted function doesn't run in worker
 alter table tenk1 set (parallel_workers = 4);
 explain (verbose, costs off)
 select parallel_restricted(unique1) from tenk1
   where stringu1 = 'GRAAAA' order by 1;
-                          QUERY PLAN                           
----------------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
-   Output: parallel_restricted(unique1)
-   Sort Key: parallel_restricted(tenk1.unique1)
-   ->  Sort
-         Output: (parallel_restricted(unique1))
-         Sort Key: (parallel_restricted(tenk1.unique1))
-         ->  Gather
-               Output: parallel_restricted(unique1)
+                             QUERY PLAN                             
+--------------------------------------------------------------------
+ Sort
+   Output: (parallel_restricted(unique1))
+   Sort Key: (parallel_restricted(tenk1.unique1))
+   ->  Result
+         Output: parallel_restricted(unique1)
+         ->  Remote Subquery Scan[1] on all (datanode_1,datanode_2)
+               Output: unique1
                Workers Planned: 4
                ->  Parallel Seq Scan on public.tenk1
                      Output: unique1
                      Filter: (tenk1.stringu1 = 'GRAAAA'::name)
-(12 rows)
+(11 rows)
 
 -- test parallel plan when group by expression is in target list.
 explain (costs off)
 	select length(stringu1) from tenk1 group by length(stringu1);
-                        QUERY PLAN                         
------------------------------------------------------------
- Finalize HashAggregate
-   Group Key: length((stringu1)::text)
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-         ->  Gather
-               Workers Planned: 4
+                            QUERY PLAN                             
+-------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   ->  Finalize HashAggregate
+         Group Key: (length((stringu1)::text))
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by S: (length((stringu1)::text))
                ->  Partial HashAggregate
-                     Group Key: length((stringu1)::text)
-                     ->  Parallel Seq Scan on tenk1
-(8 rows)
+                     Group Key: (length((stringu1)::text))
+                     ->  Gather
+                           Workers Planned: 4
+                           ->  Parallel Seq Scan on tenk1
+(10 rows)
 
 select length(stringu1) from tenk1 group by length(stringu1);
  length 
@@ -79,54 +229,80 @@ select length(stringu1) from tenk1 group by length(stringu1);
 
 explain (costs off)
 	select stringu1, count(*) from tenk1 group by stringu1 order by stringu1;
-                        QUERY PLAN                         
------------------------------------------------------------
- Finalize GroupAggregate
-   Group Key: stringu1
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-         ->  Sort
-               Sort Key: stringu1
-               ->  Partial HashAggregate
-                     Group Key: stringu1
-                     ->  Gather
-                           Workers Planned: 4
-                           ->  Parallel Seq Scan on tenk1
-(10 rows)
+                           QUERY PLAN                           
+----------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   Sort Key: stringu1
+   ->  Sort
+         Sort Key: stringu1
+         ->  Finalize HashAggregate
+               Group Key: stringu1
+               ->  Remote Subquery Scan on all (datanodes 2)
+                     Distribute results by S: stringu1
+                     ->  Partial HashAggregate
+                           Group Key: stringu1
+                           ->  Gather
+                                 Workers Planned: 4
+                                 ->  Parallel Seq Scan on tenk1
+(13 rows)
 
 -- test that parallel plan for aggregates is not selected when
 -- target list contains parallel restricted clause.
+set enable_indexonlyscan to off;
 explain (costs off)
 	select  sum(parallel_restricted(unique1)) from tenk1
 	group by(parallel_restricted(unique1));
-                               QUERY PLAN                                
--------------------------------------------------------------------------
+                      QUERY PLAN                       
+-------------------------------------------------------
  HashAggregate
    Group Key: parallel_restricted(unique1)
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-         ->  Gather
+   ->  Result
+         ->  Remote Subquery Scan on all (datanodes 2)
                Workers Planned: 4
-               ->  Parallel Index Only Scan using tenk1_unique1 on tenk1
+               ->  Parallel Seq Scan on tenk1
 (6 rows)
 
+reset enable_indexonlyscan;
+-- test prepared statement
+prepare tenk1_count(integer) As select  count((unique1)) from tenk1 where hundred > $1;
+explain (costs off) execute tenk1_count(1);
+                   QUERY PLAN                    
+-------------------------------------------------
+ Finalize Aggregate
+   ->  Remote Subquery Scan on all (datanodes 2)
+         Workers Planned: 4
+         ->  Partial Aggregate
+               ->  Parallel Seq Scan on tenk1
+                     Filter: (hundred > 1)
+(6 rows)
+
+execute tenk1_count(1);
+ count 
+-------
+  9800
+(1 row)
+
+deallocate tenk1_count;
 -- test parallel plans for queries containing un-correlated subplans.
 alter table tenk2 set (parallel_workers = 0);
 explain (costs off)
 	select count(*) from tenk1 where (two, four) not in
 	(select hundred, thousand from tenk2 where thousand > 100);
-                                     QUERY PLAN                                      
--------------------------------------------------------------------------------------
+                                QUERY PLAN                                 
+---------------------------------------------------------------------------
  Finalize Aggregate
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-         ->  Gather
-               Workers Planned: 4
-               ->  Partial Aggregate
-                     ->  Parallel Seq Scan on tenk1
-                           Filter: (NOT (hashed SubPlan 1))
-                           SubPlan 1
-                             ->  Remote Subquery Scan on all (datanode_1,datanode_2)
+   ->  Remote Subquery Scan on all (datanodes 2)
+         Params Evaluated: $0, $1
+         ->  Partial Aggregate
+               ->  Seq Scan on tenk1
+                     Filter: (NOT (hashed SubPlan 1))
+                     SubPlan 1
+                       ->  Materialize
+                             ->  Remote Subquery Scan on all (datanodes 2)
+                                   Distribute results by R
                                    ->  Seq Scan on tenk2
                                          Filter: (thousand > 100)
-(11 rows)
+(12 rows)
 
 select count(*) from tenk1 where (two, four) not in
 	(select hundred, thousand from tenk2 where thousand > 100);
@@ -139,32 +315,71 @@ select count(*) from tenk1 where (two, four) not in
 explain (costs off)
 	select * from tenk1 where (unique1 + random())::integer not in
 	(select ten from tenk2);
-                            QUERY PLAN                             
--------------------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+                          QUERY PLAN                           
+---------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   Params Evaluated: $0
    ->  Seq Scan on tenk1
          Filter: (NOT (hashed SubPlan 1))
          SubPlan 1
-           ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-                 ->  Seq Scan on tenk2
-(6 rows)
+           ->  Materialize
+                 ->  Remote Subquery Scan on all (datanodes 2)
+                       Distribute results by R
+                       ->  Seq Scan on tenk2
+(9 rows)
 
+alter table tenk2 reset (parallel_workers);
+-- test parallel plan for a query containing initplan.
+set enable_indexscan = off;
+set enable_indexonlyscan = off;
+set enable_bitmapscan = off;
+alter table tenk2 set (parallel_workers = 2);
+explain (costs off)
+	select count(*) from tenk1
+        where tenk1.unique1 = (Select max(tenk2.unique1) from tenk2);
+                       QUERY PLAN                        
+---------------------------------------------------------
+ Finalize Aggregate
+   InitPlan 1 (returns $1)
+     ->  Finalize Aggregate
+           ->  Remote Subquery Scan on all (datanodes 2)
+                 Workers Planned: 2
+                 Distribute results by R
+                 ->  Partial Aggregate
+                       ->  Parallel Seq Scan on tenk2
+   ->  Remote Subquery Scan on all (datanodes 2)
+         Workers Planned: 4
+         Params Evaluated: $1
+         ->  Partial Aggregate
+               ->  Parallel Seq Scan on tenk1
+                     Filter: (unique1 = $1)
+(14 rows)
+
+select count(*) from tenk1
+    where tenk1.unique1 = (Select max(tenk2.unique1) from tenk2);
+ count 
+-------
+     1
+(1 row)
+
+reset enable_indexscan;
+reset enable_indexonlyscan;
+reset enable_bitmapscan;
 alter table tenk2 reset (parallel_workers);
 -- test parallel index scans.
 set enable_seqscan to off;
 set enable_bitmapscan to off;
 explain (costs off)
 	select  count((unique1)) from tenk1 where hundred > 1;
-                                QUERY PLAN                                
---------------------------------------------------------------------------
+                             QUERY PLAN                             
+--------------------------------------------------------------------
  Finalize Aggregate
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-         ->  Gather
-               Workers Planned: 4
-               ->  Partial Aggregate
-                     ->  Parallel Index Scan using tenk1_hundred on tenk1
-                           Index Cond: (hundred > 1)
-(7 rows)
+   ->  Remote Subquery Scan on all (datanodes 2)
+         Workers Planned: 4
+         ->  Partial Aggregate
+               ->  Parallel Index Scan using tenk1_hundred on tenk1
+                     Index Cond: (hundred > 1)
+(6 rows)
 
 select  count((unique1)) from tenk1 where hundred > 1;
  count 
@@ -175,16 +390,15 @@ select  count((unique1)) from tenk1 where hundred > 1;
 -- test parallel index-only scans.
 explain (costs off)
 	select  count(*) from tenk1 where thousand > 95;
-                                      QUERY PLAN                                      
---------------------------------------------------------------------------------------
+                                   QUERY PLAN                                   
+--------------------------------------------------------------------------------
  Finalize Aggregate
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-         ->  Gather
-               Workers Planned: 4
-               ->  Partial Aggregate
-                     ->  Parallel Index Only Scan using tenk1_thous_tenthous on tenk1
-                           Index Cond: (thousand > 95)
-(7 rows)
+   ->  Remote Subquery Scan on all (datanodes 2)
+         Workers Planned: 4
+         ->  Partial Aggregate
+               ->  Parallel Index Only Scan using tenk1_thous_tenthous on tenk1
+                     Index Cond: (thousand > 95)
+(6 rows)
 
 select  count(*) from tenk1 where thousand > 95;
  count 
@@ -192,8 +406,113 @@ select  count(*) from tenk1 where thousand > 95;
   9040
 (1 row)
 
+-- test rescan cases too
+set enable_material = false;
+explain (costs off)
+select * from
+  (select count(unique1) from tenk1 where hundred > 10) ss
+  right join (values (1),(2),(3)) v(x) on true;
+                                      QUERY PLAN                                      
+--------------------------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 1)
+   ->  Nested Loop Left Join
+         ->  Values Scan on "*VALUES*"
+         ->  Materialize
+               ->  Finalize Aggregate
+                     ->  Remote Subquery Scan on all (datanodes 2)
+                           Workers Planned: 4
+                           Distribute results by R
+                           ->  Partial Aggregate
+                                 ->  Parallel Index Scan using tenk1_hundred on tenk1
+                                       Index Cond: (hundred > 10)
+(11 rows)
+
+select * from
+  (select count(unique1) from tenk1 where hundred > 10) ss
+  right join (values (1),(2),(3)) v(x) on true;
+ count | x 
+-------+---
+  8900 | 1
+  8900 | 2
+  8900 | 3
+(3 rows)
+
+explain (costs off)
+select * from
+  (select count(*) from tenk1 where thousand > 99) ss
+  right join (values (1),(2),(3)) v(x) on true;
+                                            QUERY PLAN                                            
+--------------------------------------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 1)
+   ->  Nested Loop Left Join
+         ->  Values Scan on "*VALUES*"
+         ->  Materialize
+               ->  Finalize Aggregate
+                     ->  Remote Subquery Scan on all (datanodes 2)
+                           Workers Planned: 4
+                           Distribute results by R
+                           ->  Partial Aggregate
+                                 ->  Parallel Index Only Scan using tenk1_thous_tenthous on tenk1
+                                       Index Cond: (thousand > 99)
+(11 rows)
+
+select * from
+  (select count(*) from tenk1 where thousand > 99) ss
+  right join (values (1),(2),(3)) v(x) on true;
+ count | x 
+-------+---
+  9000 | 1
+  9000 | 2
+  9000 | 3
+(3 rows)
+
+-- test rescans for a Limit node with a parallel node beneath it.
 reset enable_seqscan;
+set enable_indexonlyscan to off;
+set enable_indexscan to off;
+alter table tenk1 set (parallel_workers = 0);
+alter table tenk2 set (parallel_workers = 1);
+explain (costs off)
+select count(*) from tenk1
+  left join (select tenk2.unique1 from tenk2 order by 1 limit 1000) ss
+  on tenk1.unique1 < ss.unique1 + 1
+  where tenk1.unique1 < 2;
+                                  QUERY PLAN                                   
+-------------------------------------------------------------------------------
+ Finalize Aggregate
+   ->  Remote Subquery Scan on all (datanodes 2)
+         ->  Partial Aggregate
+               ->  Nested Loop Left Join
+                     Join Filter: (tenk1.unique1 < (tenk2.unique1 + 1))
+                     ->  Seq Scan on tenk1
+                           Filter: (unique1 < 2)
+                     ->  Materialize
+                           ->  Limit
+                                 ->  Remote Subquery Scan on all (datanodes 2)
+                                       Sort Key: tenk2.unique1
+                                       Distribute results by R
+                                       ->  Limit
+                                             ->  Sort
+                                                   Sort Key: tenk2.unique1
+                                                   ->  Seq Scan on tenk2
+(16 rows)
+
+select count(*) from tenk1
+  left join (select tenk2.unique1 from tenk2 order by 1 limit 1000) ss
+  on tenk1.unique1 < ss.unique1 + 1
+  where tenk1.unique1 < 2;
+ count 
+-------
+  1999
+(1 row)
+
+--reset the value of workers for each table as it was before this test.
+alter table tenk1 set (parallel_workers = 4);
+alter table tenk2 reset (parallel_workers);
+reset enable_material;
 reset enable_bitmapscan;
+reset enable_indexonlyscan;
+reset enable_indexscan;
 -- test parallel bitmap heap scan.
 set enable_seqscan to off;
 set enable_indexscan to off;
@@ -204,26 +523,26 @@ set enable_material to off;
 --DO $$
 --BEGIN
 -- SET effective_io_concurrency = 50;
+--EXCEPTION WHEN invalid_parameter_value THEN
 --END $$;
 set work_mem='64kB';  --set small work mem to force lossy pages
 explain (costs off)
 	select count(*) from tenk1, tenk2 where tenk1.hundred > 1 and tenk2.thousand=0;
-                               QUERY PLAN                               
-------------------------------------------------------------------------
+                            QUERY PLAN                            
+------------------------------------------------------------------
  Aggregate
    ->  Nested Loop
-         ->  Remote Subquery Scan on all (datanode_1,datanode_2)
+         ->  Remote Subquery Scan on all (datanodes 2)
                ->  Seq Scan on tenk2
                      Filter: (thousand = 0)
          ->  Materialize
-               ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-                     ->  Gather
-                           Workers Planned: 4
-                           ->  Parallel Bitmap Heap Scan on tenk1
-                                 Recheck Cond: (hundred > 1)
-                                 ->  Bitmap Index Scan on tenk1_hundred
-                                       Index Cond: (hundred > 1)
-(13 rows)
+               ->  Remote Subquery Scan on all (datanodes 2)
+                     Workers Planned: 4
+                     ->  Parallel Bitmap Heap Scan on tenk1
+                           Recheck Cond: (hundred > 1)
+                           ->  Bitmap Index Scan on tenk1_hundred
+                                 Index Cond: (hundred > 1)
+(12 rows)
 
 select count(*) from tenk1, tenk2 where tenk1.hundred > 1 and tenk2.thousand=0;
  count 
@@ -240,32 +559,43 @@ select count(*) from bmscantest where a>1;
  99999
 (1 row)
 
+-- test accumulation of stats for parallel nodes
 reset enable_seqscan;
+reset enable_material;
+alter table tenk2 set (parallel_workers = 0);
+--explain (analyze, timing off, summary off, costs off)
+--   select count(*) from tenk1, tenk2 where tenk1.hundred > 1
+--       and tenk2.thousand=0;
+alter table tenk2 reset (parallel_workers);
+reset work_mem;
+create function explain_parallel_sort_stats() returns setof text
+language plpgsql as
+$$
+declare ln text;
+begin
+    for ln in
+        explain (analyze, timing off, summary off, costs off)
+          select * from
+          (select ten from tenk1 where ten < 100 order by ten) ss
+          right join (values (1),(2),(3)) v(x) on true
+    loop
+        ln := regexp_replace(ln, 'Memory: \S*',  'Memory: xxx');
+        return next ln;
+    end loop;
+end;
+$$;
+--select * from explain_parallel_sort_stats();
 reset enable_indexscan;
 reset enable_hashjoin;
 reset enable_mergejoin;
 reset enable_material;
 reset effective_io_concurrency;
-reset work_mem;
 drop table bmscantest;
+drop function explain_parallel_sort_stats();
 -- test parallel merge join path.
 set enable_hashjoin to off;
 set enable_nestloop to off;
-explain (costs off)
-	select  count(*) from tenk1, tenk2 where tenk1.unique1 = tenk2.unique1;
-                                     QUERY PLAN                                      
--------------------------------------------------------------------------------------
- Finalize Aggregate
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-         ->  Gather
-               Workers Planned: 4
-               ->  Partial Aggregate
-                     ->  Merge Join
-                           Merge Cond: (tenk1.unique1 = tenk2.unique1)
-                           ->  Parallel Index Only Scan using tenk1_unique1 on tenk1
-                           ->  Index Only Scan using tenk2_unique1 on tenk2
-(9 rows)
-
+set enable_indexonlyscan to off;
 select  count(*) from tenk1, tenk2 where tenk1.unique1 = tenk2.unique1;
  count 
 -------
@@ -274,59 +604,344 @@ select  count(*) from tenk1, tenk2 where tenk1.unique1 = tenk2.unique1;
 
 reset enable_hashjoin;
 reset enable_nestloop;
---test gather merge
-set enable_hashagg to off;
+reset enable_indexonlyscan;
+-- test gather merge
+set enable_hashagg = false;
 explain (costs off)
-   select  string4, count((unique2)) from tenk1 group by string4 order by string4;
-                        QUERY PLAN                         
------------------------------------------------------------
- Finalize GroupAggregate
-   Group Key: string4
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-         ->  Gather Merge
+   select count(*) from tenk1 group by twenty;
+                        QUERY PLAN                        
+----------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   Sort Key: twenty
+   ->  Finalize GroupAggregate
+         Group Key: twenty
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Sort Key: twenty
                Workers Planned: 4
+               Distribute results by S: twenty
                ->  Partial GroupAggregate
-                     Group Key: string4
+                     Group Key: twenty
+                     ->  Sort
+                           Sort Key: twenty
+                           ->  Parallel Seq Scan on tenk1
+(13 rows)
+
+select count(*) from tenk1 group by twenty;
+ count 
+-------
+   500
+   500
+   500
+   500
+   500
+   500
+   500
+   500
+   500
+   500
+   500
+   500
+   500
+   500
+   500
+   500
+   500
+   500
+   500
+   500
+(20 rows)
+
+--test expressions in targetlist are pushed down for gather merge
+create or replace function simple_func(var1 integer) returns integer
+as $$
+begin
+        return var1 + 10;
+end;
+$$ language plpgsql PARALLEL SAFE;
+explain (costs off, verbose)
+    select ten, simple_func(ten) from tenk1 where ten < 100 order by ten;
+                             QUERY PLAN                             
+--------------------------------------------------------------------
+ Result
+   Output: ten, simple_func(ten)
+   ->  Sort
+         Output: ten
+         Sort Key: tenk1.ten
+         ->  Remote Subquery Scan[1] on all (datanode_1,datanode_2)
+               Output: ten
+               Workers Planned: 4
+               ->  Parallel Seq Scan on public.tenk1
+                     Output: ten
+                     Filter: (tenk1.ten < 100)
+(11 rows)
+
+drop function simple_func(integer);
+-- test gather merge with parallel leader participation disabled
+set parallel_leader_participation = off;
+WARNING:  The logical code corresponding to the GUC has been removed.
+HINT:  Please remove the parameter settings related to this parameter from your business as soon as possible.
+explain (costs off)
+   select count(*) from tenk1 group by twenty;
+                        QUERY PLAN                        
+----------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   Sort Key: twenty
+   ->  Finalize GroupAggregate
+         Group Key: twenty
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Sort Key: twenty
+               Workers Planned: 4
+               Distribute results by S: twenty
+               ->  Partial GroupAggregate
+                     Group Key: twenty
+                     ->  Sort
+                           Sort Key: twenty
+                           ->  Parallel Seq Scan on tenk1
+(13 rows)
+
+select count(*) from tenk1 group by twenty;
+ count 
+-------
+   500
+   500
+   500
+   500
+   500
+   500
+   500
+   500
+   500
+   500
+   500
+   500
+   500
+   500
+   500
+   500
+   500
+   500
+   500
+   500
+(20 rows)
+
+reset parallel_leader_participation;
+--test rescan behavior of gather merge
+set enable_material = false;
+explain (costs off)
+select * from
+  (select string4, count(unique2)
+   from tenk1 group by string4 order by string4) ss
+  right join (values (1),(2),(3)) v(x) on true;
+                              QUERY PLAN                              
+----------------------------------------------------------------------
+ Nested Loop Left Join
+   ->  Remote Subquery Scan on all (datanodes 1)
+         ->  Values Scan on "*VALUES*"
+   ->  Materialize
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Sort Key: tenk1.string4
+               ->  Finalize GroupAggregate
+                     Group Key: tenk1.string4
+                     ->  Remote Subquery Scan on all (datanodes 2)
+                           Sort Key: tenk1.string4
+                           Workers Planned: 4
+                           Distribute results by S: string4
+                           ->  Partial GroupAggregate
+                                 Group Key: tenk1.string4
+                                 ->  Sort
+                                       Sort Key: tenk1.string4
+                                       ->  Parallel Seq Scan on tenk1
+(17 rows)
+
+select * from
+  (select string4, count(unique2)
+   from tenk1 group by string4 order by string4) ss
+  right join (values (1),(2),(3)) v(x) on true order by 1, 2, 3;
+ string4 | count | x 
+---------+-------+---
+ AAAAxx  |  2500 | 1
+ AAAAxx  |  2500 | 2
+ AAAAxx  |  2500 | 3
+ HHHHxx  |  2500 | 1
+ HHHHxx  |  2500 | 2
+ HHHHxx  |  2500 | 3
+ OOOOxx  |  2500 | 1
+ OOOOxx  |  2500 | 2
+ OOOOxx  |  2500 | 3
+ VVVVxx  |  2500 | 1
+ VVVVxx  |  2500 | 2
+ VVVVxx  |  2500 | 3
+(12 rows)
+
+reset enable_material;
+reset enable_hashagg;
+-- check parallelized int8 aggregate (bug #14897)
+set enable_indexonlyscan to off;
+explain (costs off)
+select avg(unique1::int8) from tenk1;
+                   QUERY PLAN                    
+-------------------------------------------------
+ Finalize Aggregate
+   ->  Remote Subquery Scan on all (datanodes 2)
+         Workers Planned: 4
+         ->  Partial Aggregate
+               ->  Parallel Seq Scan on tenk1
+(5 rows)
+
+select avg(unique1::int8) from tenk1;
+          avg          
+-----------------------
+ 4999.5000000000000000
+(1 row)
+
+reset enable_indexonlyscan;
+-- gather merge test with a LIMIT
+explain (costs off)
+  select fivethous from tenk1 order by fivethous limit 4;
+                        QUERY PLAN                        
+----------------------------------------------------------
+ Limit
+   ->  Remote Subquery Scan on all (datanodes 2)
+         Sort Key: fivethous
+         ->  Limit
+               ->  Gather Merge
+                     Workers Planned: 4
+                     ->  Sort
+                           Sort Key: fivethous
+                           ->  Parallel Seq Scan on tenk1
+(9 rows)
+
+select fivethous from tenk1 order by fivethous limit 4;
+ fivethous 
+-----------
+         0
+         0
+         1
+         1
+(4 rows)
+
+-- gather merge test with 0 worker
+set max_parallel_workers = 0;
+explain (costs off)
+   select string4 from tenk1 order by string4 limit 5;
+                        QUERY PLAN                        
+----------------------------------------------------------
+ Limit
+   ->  Remote Subquery Scan on all (datanodes 2)
+         Sort Key: string4
+         ->  Limit
+               ->  Gather Merge
+                     Workers Planned: 4
                      ->  Sort
                            Sort Key: string4
                            ->  Parallel Seq Scan on tenk1
-(10 rows)
+(9 rows)
 
-select  string4, count((unique2)) from tenk1 group by string4 order by string4;
- string4 | count 
----------+-------
- AAAAxx  |  2500
- HHHHxx  |  2500
- OOOOxx  |  2500
- VVVVxx  |  2500
-(4 rows)
+select string4 from tenk1 order by string4 limit 5;
+ string4 
+---------
+ AAAAxx
+ AAAAxx
+ AAAAxx
+ AAAAxx
+ AAAAxx
+(5 rows)
 
-reset enable_hashagg;
-set force_parallel_mode=1;
+-- gather merge test with 0 workers, with parallel leader
+-- participation disabled (the leader will have to run the plan
+-- despite the setting)
+set parallel_leader_participation = off;
+WARNING:  The logical code corresponding to the GUC has been removed.
+HINT:  Please remove the parameter settings related to this parameter from your business as soon as possible.
+explain (costs off)
+   select string4 from tenk1 order by string4 limit 5;
+                        QUERY PLAN                        
+----------------------------------------------------------
+ Limit
+   ->  Remote Subquery Scan on all (datanodes 2)
+         Sort Key: string4
+         ->  Limit
+               ->  Gather Merge
+                     Workers Planned: 4
+                     ->  Sort
+                           Sort Key: string4
+                           ->  Parallel Seq Scan on tenk1
+(9 rows)
+
+select string4 from tenk1 order by string4 limit 5;
+ string4 
+---------
+ AAAAxx
+ AAAAxx
+ AAAAxx
+ AAAAxx
+ AAAAxx
+(5 rows)
+
+reset parallel_leader_participation;
+reset max_parallel_workers;
+SAVEPOINT settings;
+SET LOCAL force_parallel_mode = 1;
 explain (costs off)
   select stringu1::int2 from tenk1 where unique1 = 1;
-                     QUERY PLAN                      
------------------------------------------------------
- Remote Fast Query Execution
-   Node/s: datanode_1
-   ->  Gather
-         Workers Planned: 1
-         Single Copy: true
-         ->  Index Scan using tenk1_unique1 on tenk1
-               Index Cond: (unique1 = 1)
-(7 rows)
-
--- to increase the parallel query test coverage
-EXPLAIN (timing off, summary off, costs off) SELECT * FROM tenk1;
                QUERY PLAN               
 ----------------------------------------
  Remote Fast Query Execution
-   Node/s: datanode_1, datanode_2
+   Node/s: datanode_1
    ->  Gather
          Workers Planned: 4
          ->  Parallel Seq Scan on tenk1
+               Filter: (unique1 = 1)
+(6 rows)
+
+ROLLBACK TO SAVEPOINT settings;
+-- exercise record typmod remapping between backends
+CREATE OR REPLACE FUNCTION make_record(n int)
+  RETURNS RECORD LANGUAGE plpgsql PARALLEL SAFE AS
+$$
+BEGIN
+  RETURN CASE n
+           WHEN 1 THEN ROW(1)
+           WHEN 2 THEN ROW(1, 2)
+           WHEN 3 THEN ROW(1, 2, 3)
+           WHEN 4 THEN ROW(1, 2, 3, 4)
+           ELSE ROW(1, 2, 3, 4, 5)
+         END;
+END;
+$$;
+SAVEPOINT settings;
+SET LOCAL force_parallel_mode = 1;
+SELECT make_record(x) FROM (SELECT generate_series(1, 5) x) ss ORDER BY x;
+ make_record 
+-------------
+ (1)
+ (1,2)
+ (1,2,3)
+ (1,2,3,4)
+ (1,2,3,4,5)
 (5 rows)
 
+ROLLBACK TO SAVEPOINT settings;
+DROP function make_record(n int);
+-- test the sanity of parallel query after the active role is dropped.
+drop role if exists regress_parallel_worker;
+NOTICE:  role "regress_parallel_worker" does not exist, skipping
+create role regress_parallel_worker;
+set role regress_parallel_worker;
+reset session authorization;
+drop role regress_parallel_worker;
+set force_parallel_mode = 1;
+select count(*) from tenk1;
+ count 
+-------
+ 10000
+(1 row)
+
+reset force_parallel_mode;
+reset role;
+-- to increase the parallel query test coverage
+SAVEPOINT settings;
+SET LOCAL force_parallel_mode = 1;
 EXPLAIN (analyze, timing off, summary off, costs off) SELECT * FROM tenk1;
                        QUERY PLAN                        
 ---------------------------------------------------------
@@ -334,10 +949,13 @@ EXPLAIN (analyze, timing off, summary off, costs off) SELECT * FROM tenk1;
    Node/s: datanode_1, datanode_2
 (2 rows)
 
+ROLLBACK TO SAVEPOINT settings;
 -- provoke error in worker
+SAVEPOINT settings;
+SET LOCAL force_parallel_mode = 1;
 select stringu1::int2 from tenk1 where unique1 = 1;
 ERROR:  invalid input syntax for integer: "BAAAAA"
-CONTEXT:  parallel worker
+ROLLBACK TO SAVEPOINT settings;
 -- test interaction with set-returning functions
 SAVEPOINT settings;
 -- multiple subqueries under a single Gather node
@@ -347,54 +965,65 @@ EXPLAIN (COSTS OFF)
 SELECT unique1 FROM tenk1 WHERE fivethous = tenthous + 1
 UNION ALL
 SELECT unique1 FROM tenk1 WHERE fivethous = tenthous + 1;
-                     QUERY PLAN                     
-----------------------------------------------------
- Gather
-   Workers Planned: 4
-   ->  Parallel Append
-         ->  Parallel Seq Scan on tenk1
-               Filter: (fivethous = (tenthous + 1))
-         ->  Parallel Seq Scan on tenk1 tenk1_1
-               Filter: (fivethous = (tenthous + 1))
-(7 rows)
+                        QUERY PLAN                        
+----------------------------------------------------------
+ Remote Fast Query Execution
+   Node/s: datanode_1, datanode_2
+   ->  Gather
+         Workers Planned: 4
+         ->  Parallel Append
+               ->  Parallel Seq Scan on tenk1
+                     Filter: (fivethous = (tenthous + 1))
+               ->  Parallel Seq Scan on tenk1 tenk1_1
+                     Filter: (fivethous = (tenthous + 1))
+(9 rows)
 
 ROLLBACK TO SAVEPOINT settings;
 -- can't use multiple subqueries under a single Gather node due to initPlans
 EXPLAIN (COSTS OFF)
 SELECT unique1 FROM tenk1 WHERE fivethous =
-   (SELECT unique1 FROM tenk1 WHERE fivethous = 1 LIMIT 1)
+	(SELECT unique1 FROM tenk1 WHERE fivethous = 1 LIMIT 1)
 UNION ALL
 SELECT unique1 FROM tenk1 WHERE fivethous =
-   (SELECT unique2 FROM tenk1 WHERE fivethous = 1 LIMIT 1)
+	(SELECT unique2 FROM tenk1 WHERE fivethous = 1 LIMIT 1)
 ORDER BY 1;
-                             QUERY PLAN                             
---------------------------------------------------------------------
- Sort
+                                      QUERY PLAN                                      
+--------------------------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
    Sort Key: tenk1.unique1
-   ->  Append
-         ->  Gather
-               Workers Planned: 4
-               Params Evaluated: $1
-               InitPlan 1 (returns $1)
-                 ->  Limit
-                       ->  Gather
-                             Workers Planned: 4
-                             ->  Parallel Seq Scan on tenk1 tenk1_2
-                                   Filter: (fivethous = 1)
-               ->  Parallel Seq Scan on tenk1
-                     Filter: (fivethous = $1)
-         ->  Gather
-               Workers Planned: 4
-               Params Evaluated: $3
-               InitPlan 2 (returns $3)
-                 ->  Limit
-                       ->  Gather
-                             Workers Planned: 4
-                             ->  Parallel Seq Scan on tenk1 tenk1_3
-                                   Filter: (fivethous = 1)
-               ->  Parallel Seq Scan on tenk1 tenk1_1
-                     Filter: (fivethous = $3)
-(25 rows)
+   Params Evaluated: $1, $3
+   ->  Sort
+         Sort Key: tenk1.unique1
+         ->  Append
+               ->  Gather
+                     Workers Planned: 4
+                     Params Evaluated: $1
+                     InitPlan 1 (returns $1)
+                       ->  Limit
+                             ->  Remote Subquery Scan on all (datanodes 2)
+                                   Distribute results by R
+                                   ->  Limit
+                                         ->  Gather
+                                               Workers Planned: 4
+                                               ->  Parallel Seq Scan on tenk1 tenk1_2
+                                                     Filter: (fivethous = 1)
+                     ->  Parallel Seq Scan on tenk1
+                           Filter: (fivethous = $1)
+               ->  Gather
+                     Workers Planned: 4
+                     Params Evaluated: $3
+                     InitPlan 2 (returns $3)
+                       ->  Limit
+                             ->  Remote Subquery Scan on all (datanodes 2)
+                                   Distribute results by R
+                                   ->  Limit
+                                         ->  Gather
+                                               Workers Planned: 4
+                                               ->  Parallel Seq Scan on tenk1 tenk1_3
+                                                     Filter: (fivethous = 1)
+                     ->  Parallel Seq Scan on tenk1 tenk1_1
+                           Filter: (fivethous = $3)
+(34 rows)
 
 -- test interaction with SRFs
 SELECT * FROM information_schema.foreign_data_wrapper_options
@@ -403,4 +1032,128 @@ ORDER BY 1, 2, 3;
 ------------------------------+---------------------------+-------------+--------------
 (0 rows)
 
+-- test interation between subquery and partial_paths
+SET LOCAL min_parallel_table_scan_size TO 0;
+CREATE VIEW tenk1_vw_sec WITH (security_barrier) AS SELECT * FROM tenk1;
+EXPLAIN (COSTS OFF)
+SELECT 1 FROM tenk1_vw_sec WHERE EXISTS (SELECT 1 WHERE unique1 = 0);
+                          QUERY PLAN                           
+---------------------------------------------------------------
+ Remote Fast Query Execution
+   Node/s: datanode_1, datanode_2
+   ->  Seq Scan on tenk1
+         Filter: (alternatives: SubPlan 1 or hashed SubPlan 2)
+         SubPlan 1
+           ->  Result
+                 One-Time Filter: (tenk1.unique1 = 0)
+         SubPlan 2
+           ->  Result
+(9 rows)
+
+-- OPENTENBASE
+ROLLBACK TO SAVEPOINT settings;
+explain (costs off)
+	select count(stringu1) as num, (CASE WHEN length(stringu1) > 5 THEN 'LONG' ELSE 'SHORT' END) as islong
+		from tenk1 group by islong order by num;
+                                                            QUERY PLAN                                                            
+----------------------------------------------------------------------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   Sort Key: (count(stringu1))
+   ->  Sort
+         Sort Key: (count(stringu1))
+         ->  Finalize HashAggregate
+               Group Key: (CASE WHEN (length((stringu1)::text) > 5) THEN 'LONG'::text ELSE 'SHORT'::text END)
+               ->  Remote Subquery Scan on all (datanodes 2)
+                     Distribute results by S: (CASE WHEN (length((stringu1)::text) > 5) THEN 'LONG'::text ELSE 'SHORT'::text END)
+                     ->  Partial HashAggregate
+                           Group Key: (CASE WHEN (length((stringu1)::text) > 5) THEN 'LONG'::text ELSE 'SHORT'::text END)
+                           ->  Gather
+                                 Workers Planned: 4
+                                 ->  Parallel Seq Scan on tenk1
+(13 rows)
+
+select count(stringu1) as num, (CASE WHEN length(stringu1) > 5 THEN 'LONG' ELSE 'SHORT' END) as islong
+	from tenk1 group by islong order by num;
+  num  | islong 
+-------+--------
+ 10000 | LONG
+(1 row)
+
+-- make sure identifier was set in workers
+CREATE TABLE t_worker_identifier (a int);
+INSERT INTO t_worker_identifier values(1);
+EXPLAIN (costs off) SELECT xc_node_id != 0 FROM t_worker_identifier;
+                      QUERY PLAN                      
+------------------------------------------------------
+ Remote Fast Query Execution
+   Node/s: datanode_1, datanode_2
+   ->  Gather
+         Workers Planned: 3
+         ->  Parallel Seq Scan on t_worker_identifier
+(5 rows)
+
+SELECT xc_node_id != 0 FROM t_worker_identifier;
+ ?column? 
+----------
+ t
+(1 row)
+
+drop table t_worker_identifier;
 rollback;
+-- Fixing the issue of redundant data returned in concurrent append scenarios with UNION ALL
+DROP TABLE if exists rqg_table6_copy_p cascade;
+NOTICE:  table "rqg_table6_copy_p" does not exist, skipping
+CREATE TABLE rqg_table6_copy_p (
+c0 int,
+c1 int,
+c2 text,
+c3 text,
+c4 date,
+c5 date,
+c6 timestamp,
+c7 timestamp,
+c8 numeric,
+c9 numeric)    PARTITION BY hash( c0) distribute by replication;
+create TABLE rqg_table6_copy_p_p2 partition of rqg_table6_copy_p for values with(modulus 4,remainder 2);
+DROP TABLE if exists rqg_table1_copy cascade;
+NOTICE:  table "rqg_table1_copy" does not exist, skipping
+CREATE TABLE rqg_table1_copy (
+c0 int,
+c1 int,
+c2 text,
+c3 text,
+c4 date,
+c5 date,
+c6 timestamp,
+c7 timestamp,
+c8 numeric,
+c9 numeric)   ;
+INSERT INTO rqg_table1_copy VALUES  (5, 0, 'iqjbwqidqeqffetnvalawyljwrjjoqmyuue', NULL, '2023-07-09', '2000-07-07', '2032-08-21 16:08:36.040014', '1995-01-08 17:12:47.021500', 0.830612182617188, 0.420501708984375) ;
+set parallel_tuple_cost to 0.001;
+set parallel_setup_cost to 1;
+explain (costs off)
+select 1 as t, c0 from rqg_table6_copy_p union all select 2 as t,c0 from rqg_table1_copy where c0>2;
+                         QUERY PLAN                          
+-------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   ->  Gather
+         Workers Planned: 2
+         ->  Parallel Append
+               ->  Remote Subquery Scan on all (datanodes 1)
+                     Distribute results by S: 1
+                     ->  PartIterator
+                           ->  Seq Scan on rqg_table6_copy_p
+               ->  Seq Scan on rqg_table1_copy
+                     Filter: (c0 > 2)
+(10 rows)
+
+select 1 as t, c0 from rqg_table6_copy_p union all select 2 as t,c0 from rqg_table1_copy where c0>2;
+ t | c0 
+---+----
+ 2 |  5
+(1 row)
+
+reset parallel_tuple_cost;
+reset parallel_setup_cost;
+DROP TABLE rqg_table6_copy_p cascade;
+DROP TABLE rqg_table1_copy cascade;

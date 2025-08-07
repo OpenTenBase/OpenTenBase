@@ -7,7 +7,7 @@ CREATE EXTENSION cube;
 -- Check whether any of our opclasses fail amvalidate
 SELECT amname, opcname
 FROM pg_opclass opc LEFT JOIN pg_am am ON am.oid = opcmethod
-WHERE opc.oid >= 16384 AND NOT amvalidate(opc.oid);
+WHERE opc.oid >= 32768 AND NOT amvalidate(opc.oid);
 
 --
 -- testing the input and output functions
@@ -335,10 +335,12 @@ SELECT cube_inter('(1,2,3)'::cube, '(5,6,3)'::cube); -- point args
 SELECT cube_size('(4,8),(15,16)'::cube);
 SELECT cube_size('(42,137)'::cube);
 
--- Test of distances
+-- Test of distances (euclidean distance may not be bit-exact)
 --
+SET extra_float_digits = 0;
 SELECT cube_distance('(1,1)'::cube, '(4,5)'::cube);
 SELECT '(1,1)'::cube <-> '(4,5)'::cube as d_e;
+RESET extra_float_digits;
 SELECT distance_chebyshev('(1,1)'::cube, '(4,5)'::cube);
 SELECT '(1,1)'::cube <=> '(4,5)'::cube as d_c;
 SELECT distance_taxicab('(1,1)'::cube, '(4,5)'::cube);
@@ -383,7 +385,9 @@ SELECT * FROM test_cube WHERE c && '(3000,1000),(0,0)' ORDER BY c;
 SELECT * FROM test_cube WHERE c && '(3000,1000),(0,0)' GROUP BY c ORDER BY c;
 
 -- kNN with index
+SET extra_float_digits = 0;
 SELECT *, c <-> '(100, 100),(500, 500)'::cube as dist FROM test_cube ORDER BY c <-> '(100, 100),(500, 500)'::cube LIMIT 5;
+RESET extra_float_digits;
 SELECT *, c <=> '(100, 100),(500, 500)'::cube as dist FROM test_cube ORDER BY c <=> '(100, 100),(500, 500)'::cube LIMIT 5;
 SELECT *, c <#> '(100, 100),(500, 500)'::cube as dist FROM test_cube ORDER BY c <#> '(100, 100),(500, 500)'::cube LIMIT 5;
 

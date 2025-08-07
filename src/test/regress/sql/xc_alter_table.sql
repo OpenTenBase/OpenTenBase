@@ -190,3 +190,46 @@ SELECT * FROM xc_alter_table_3_v;
 ALTER TABLE xc_alter_table_3 ADD COLUMN b int, DISTRIBUTE BY HASH(a);
 -- Clean up
 DROP TABLE xc_alter_table_3 CASCADE;
+
+-- bugs for alter table .... reference
+
+create schema dwrpt;
+set search_path to 'dwrpt';
+CREATE TABLE dwrpt.act_ru_execution (
+    id_ varchar(64),
+    rev_ numeric,
+    proc_inst_id_ varchar(64),
+    business_key_ varchar(255),
+    parent_id_ varchar(64),
+    proc_def_id_ varchar(64),
+    super_exec_ varchar(64),
+    act_id_ varchar(255),
+    is_active_ numeric(1, 0),
+    is_concurrent_ numeric(1, 0),
+    is_scope_ numeric(1, 0),
+    suspension_state_ numeric,
+    PRIMARY KEY (id_)
+) DISTRIBUTE BY SHARD(ID_);
+
+alter table act_ru_execution add constraint act_fk_exe_procinst foreign key (proc_inst_id_) references dwrpt.act_ru_execution (id_) on delete NO ACTION;
+drop schema dwrpt cascade;
+\c
+
+drop schema dwrpt cascade;
+CREATE TABLE act_ru_execution (
+    id_ varchar(64),
+    rev_ numeric,
+    proc_inst_id_ varchar(64),
+    business_key_ varchar(255),
+    parent_id_ varchar(64),
+    proc_def_id_ varchar(64),
+    super_exec_ varchar(64),
+    act_id_ varchar(255),
+    is_active_ numeric(1, 0),
+    is_concurrent_ numeric(1, 0),
+    is_scope_ numeric(1, 0),
+    suspension_state_ numeric,
+    PRIMARY KEY (id_)
+) DISTRIBUTE BY SHARD(ID_);
+alter table act_ru_execution add constraint act_fk_exe_procinst foreign key (proc_inst_id_) references act_ru_execution (id_) on delete NO ACTION;
+drop table act_ru_execution;

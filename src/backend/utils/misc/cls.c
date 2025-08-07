@@ -1,9 +1,3 @@
-/*
- * Copyright (c) 2023 THL A29 Limited, a Tencent company.
- *
- * This source code file is licensed under the BSD 3-Clause License,
- * you may obtain a copy of the License at http://opensource.org/license/bsd-3-clause/
- */
 #include "postgres.h"
 #include "postgres_ext.h"
 #include "access/genam.h"
@@ -122,7 +116,7 @@ static List * cls_parse_compartment(Datum compartment_datum);
 static List * cls_parse_group(Datum group_datum);
 static int list_compare_int(List * list1, List * list2);
 static bool cls_group_node_match_child_and_parent(int polid, int childid, int parentid);
-static int cls_get_clscol_from_pg_attribute(Form_pg_attribute *attrs, int natts);
+static int cls_get_clscol_from_pg_attribute(FormData_pg_attribute *attrs, int natts);
 static List * array_datum_convert_to_int2_list(Datum datum);
 static bool cls_group_compare(int polid, List * rowgrouplist, List * usergrouplist);
 static bool cls_compartment_compare(List * rowcompartmentlist, List * usercompartmentlist);
@@ -137,9 +131,9 @@ Datum clsitemout(PG_FUNCTION_ARGS);
  * else -1.
  */
 static int list_compare_int(List * list1, List * list2)
-{// #lizard forgives
+{
     ListCell   *cell1;
-    ListCell   *cell2;
+	ListCell   *cell2;
     
     /* no care list2 is null or not */
     if (NULL == list1)
@@ -162,10 +156,10 @@ static int list_compare_int(List * list1, List * list2)
     }
 
     /* compare elements one by one */
-    for ((cell1) = list_head(list1), (cell2) = list_head(list2);        
-         (cell1) != NULL && (cell2) != NULL;                
-         )
-    {
+    for ((cell1) = list_head(list1), (cell2) = list_head(list2);		
+		 (cell1) != NULL && (cell2) != NULL;				
+		 )
+	{
         /* the front ones are the same, both step to the next */
         if (lfirst_int(cell1) == lfirst_int(cell2))
         {
@@ -217,25 +211,25 @@ static List * array_datum_convert_to_int2_list(Datum datum)
     dims     =  ARR_DIMS(array)[0];
     elements =  (int16*)ARR_DATA_PTR(array);
 
-    for (i = 0; i < dims; i++)
-    {
-        element = elements[i];
-        list = list_append_unique_int(list, element);    
-    }
+	for (i = 0; i < dims; i++)
+	{
+		element = elements[i];
+        list = list_append_unique_int(list, element);	
+	}
     
     return list;
 }
 /*
  * check attr if cls column exists
  */
-static int cls_get_clscol_from_pg_attribute(Form_pg_attribute *attrs, int natts)
+static int cls_get_clscol_from_pg_attribute(FormData_pg_attribute *attrs, int natts)
 {
     int i;
     int clscol = InvalidAttrNumber;
 
     for (i = 0; i < natts; i++)
     {
-        if (CLSITEM_OID == attrs[i]->atttypid)
+        if (CLSITEM_OID == attrs[i].atttypid)
         {
             clscol = i + 1;
         }
@@ -247,8 +241,11 @@ static int cls_get_clscol_from_pg_attribute(Form_pg_attribute *attrs, int natts)
 static void cls_parse_clsitem_and_assign(const char * str, ClsItem * clstiem)
 {
     //elog(LOG, "[neoqguo]cls_parse_clsitem_and_assign get str arg:%s", str);
-    
-    sscanf(str, "%hd:%hd", &clstiem->polid, &clstiem->labelid);
+
+    if (sscanf(str, "%hd:%hd", &clstiem->polid, &clstiem->labelid) != 2)
+    {
+        elog(ERROR, "input is illegal when parse ClsItem");
+    }
 
     return;
 }
@@ -258,30 +255,30 @@ static void cls_parse_clsitem_and_assign(const char * str, ClsItem * clstiem)
 static bool cls_get_group_info(int polid, int groupid, ClsGroupInfo * group_info)
 {
     bool        ret;
-    Relation    rel;
-    SysScanDesc scan;
-    HeapTuple    tup;
+    Relation	rel;
+	SysScanDesc scan;
+	HeapTuple	tup;
     ScanKeyData key[2];
     Form_pg_cls_group group_form;
 
     ScanKeyInit(&key[0],
-                Anum_pg_cls_group_polid,
-                BTEqualStrategyNumber, 
-                F_OIDEQ,
-                ObjectIdGetDatum(polid));
+				Anum_pg_cls_group_polid,
+				BTEqualStrategyNumber, 
+				F_OIDEQ,
+				ObjectIdGetDatum(polid));
     ScanKeyInit(&key[1],
-                Anum_pg_cls_group_groupid,
-                BTEqualStrategyNumber, 
-                F_OIDEQ,
-                ObjectIdGetDatum(groupid));
+				Anum_pg_cls_group_groupid,
+				BTEqualStrategyNumber, 
+				F_OIDEQ,
+				ObjectIdGetDatum(groupid));
 
     ret = false;
-    rel = heap_open(ClsGroupRelationId, AccessShareLock);
+	rel = heap_open(ClsGroupRelationId, AccessShareLock);
 
-    scan = systable_beginscan(rel, PgClsGroupPolidGroupidIndexId, true, NULL, 2, key);
+	scan = systable_beginscan(rel, PgClsGroupPolidGroupidIndexId, true, NULL, 2, key);
 
-    if (HeapTupleIsValid(tup = systable_getnext(scan)))
-    {
+	if (HeapTupleIsValid(tup = systable_getnext(scan)))
+	{
         group_form = (Form_pg_cls_group) GETSTRUCT(tup);
         
         if (group_info)
@@ -291,9 +288,9 @@ static bool cls_get_group_info(int polid, int groupid, ClsGroupInfo * group_info
 
             if (HeapTupleHasNulls(tup) 
                 && att_isnull(Anum_pg_cls_group_longname, tup->t_data->t_bits))
-            {
-                group_info->valid = false;
-            }
+    		{
+    			group_info->valid = false;
+    		}
             else
             {
                 group_info->valid = true;
@@ -301,11 +298,11 @@ static bool cls_get_group_info(int polid, int groupid, ClsGroupInfo * group_info
         }
 
         ret = true;
-    }
+	}
 
-    systable_endscan(scan);
+	systable_endscan(scan);
 
-    heap_close(rel, AccessShareLock);
+	heap_close(rel, AccessShareLock);
     
     return ret;
 }
@@ -424,7 +421,8 @@ static bool cls_group_compare(int polid, List * rowgrouplist, List * usergroupli
 /*
  * check if table was binding cls policy, return _cls attnum if exists, else InvalidAttrNumber.
  */
-static int16 cls_check_table_has_cls_policy(Oid relid)
+static int16
+cls_check_table_has_cls_policy(Oid relid)
 {
     SysScanDesc scan;
     ScanKeyData skey[1];
@@ -468,10 +466,12 @@ static int16 cls_check_table_has_cls_policy(Oid relid)
 
     return attnum;
 }
+
 /*
  * go through the parse routine and get the clause node tree.
  */
-static ClsExprStruct * cls_create_func_expr(Relation rel)
+static ClsExprStruct *
+cls_create_func_expr(Relation rel)
 {
 #define PARSE_SQL_LEN 256    
     ParseState *parsestate;
@@ -486,10 +486,11 @@ static ClsExprStruct * cls_create_func_expr(Relation rel)
     MemoryContext   oldcxt;
     
     tempctx = AllocSetContextCreate(CacheMemoryContext,
-                                       RelationGetRelationName(rel),
-                                       ALLOCSET_SMALL_SIZES);
+                                    "ClsExprStruct mctx",
+                                    ALLOCSET_DEFAULT_SIZES);
+    MemoryContextCopyAndSetIdentifier(tempctx, RelationGetRelationName(rel));
 
-    oldcxt = MemoryContextSwitchTo(tempctx);
+	oldcxt = MemoryContextSwitchTo(tempctx);
     
     cls_struct = palloc(sizeof(ClsExprStruct));
 
@@ -526,12 +527,14 @@ static ClsExprStruct * cls_create_func_expr(Relation rel)
 /* 
  * parse
  */
-static List * cls_parse_compartment(Datum compartment_datum)
+static List *
+cls_parse_compartment(Datum compartment_datum)
 {
     return array_datum_convert_to_int2_list(compartment_datum);
 }
 
-static List * cls_parse_group(Datum group_datum)
+static List *
+cls_parse_group(Datum group_datum)
 {
     return array_datum_convert_to_int2_list(group_datum);
 }
@@ -539,7 +542,8 @@ static List * cls_parse_group(Datum group_datum)
 /*
  * get clslabel according to policy id and label id.
  */
-static ClsLabel * cls_get_label(int16 polid, int16 labelid)
+static ClsLabel *
+cls_get_label(int16 polid, int16 labelid)
 {
     HeapTuple   tp;
     bool        is_null;
@@ -551,9 +555,9 @@ static ClsLabel * cls_get_label(int16 polid, int16 labelid)
     
     tp = SearchSysCache2(CLSLABELOID, ObjectIdGetDatum(polid), ObjectIdGetDatum(labelid));
     
-    if (HeapTupleIsValid(tp))
-    {
-        Form_pg_cls_label label_tup = (Form_pg_cls_label) GETSTRUCT(tp);
+	if (HeapTupleIsValid(tp))
+	{
+		Form_pg_cls_label label_tup = (Form_pg_cls_label) GETSTRUCT(tp);
 
         /* get level */
         clslabel->levelid = label_tup->levelid;
@@ -571,7 +575,7 @@ static ClsLabel * cls_get_label(int16 polid, int16 labelid)
         {
             clslabel->grouptree = cls_parse_group(group_datum);
         }
-    }
+	}
     
     if (NULL != tp)
     {
@@ -587,8 +591,9 @@ static ClsLabel * cls_get_label(int16 polid, int16 labelid)
 /*
  * cls checking in WRITE action procedure.
  */
-static bool  cls_check_write(ClsItem *arg)
-{// #lizard forgives
+static bool
+cls_check_write(ClsItem *arg)
+{
     ClsLabel * rowclslabel;
     ClsLabel * userclslabel;
     int16      polid;
@@ -654,7 +659,8 @@ static bool  cls_check_write(ClsItem *arg)
 /*
  * cls checking in READ action procedure.
  */
-static bool  cls_check_read(ClsItem *arg)
+static bool
+cls_check_read(ClsItem *arg)
 {
     ClsLabel * rowclslabel;
     ClsLabel * userclslabel;
@@ -811,6 +817,8 @@ void mls_update_cls_with_current_user(TupleTableSlot *slot)
         return;
     }
 
+	elog(DEBUG5, "mls_update_cls_with_current_user from lable %d to lable %d roleid %d", clsitem->labelid, g_user_cls_priv.default_row_label, GetAuthenticatedUserId());
+
     /* update tts_values with user */
     clsitem->polid   = g_user_cls_priv.polid;
     clsitem->labelid = g_user_cls_priv.default_row_label;
@@ -846,7 +854,7 @@ void mls_reset_command_tag(void)
  * assign user clsitem infos, hold all memory allocated in "user clsitem info" memory context.
  * skip if system users.
  */
-void mls_assign_user_clsitem(void)
+void mls_assign_user_clsitem(bool user_updated)
 {   
     int16         polid;
     MemoryContext oldcontext;
@@ -864,14 +872,23 @@ void mls_assign_user_clsitem(void)
     if (NULL == g_user_cls_priv.mctx)
     {
         g_user_cls_priv.mctx = AllocSetContextCreate(TopMemoryContext,
-                              "user clsitem info",
-                              ALLOCSET_DEFAULT_SIZES);
+							  "user clsitem info",
+							  ALLOCSET_DEFAULT_SIZES);
     }
     else
     {
         /* delete memory context to free all the labels */
         MemoryContextResetAndDeleteChildren(g_user_cls_priv.mctx);
     }
+
+	if (user_updated)
+	{
+		g_user_cls_priv.polid               = 0;
+		g_user_cls_priv.privilege           = 0;
+		g_user_cls_priv.default_read_label  = 0;
+		g_user_cls_priv.default_write_label = 0;
+		g_user_cls_priv.default_row_label   = 0;
+	}
 
     /* STEP 1. get the label values of current user */
     ScanKeyInit(&skey[0],
@@ -985,7 +1002,7 @@ void mls_create_cls_check_expr(Relation rel)
 /*
  * in procedure of copy to, filter hidden rows.
  */
-bool mls_cls_check_row_validation_in_cp(Datum datum)
+bool mls_cls_check_row_validation_in_copy(Datum datum)
 {
     ClsItem * clsitem;
 
@@ -1021,15 +1038,15 @@ bool mls_cls_column_add_check(char * colname, Oid typoid)
         if (false == is_mls_user())
         {
             ereport(ERROR,
-                    (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-                     errmsg("keywords _cls is reserverd")));
+					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+					 errmsg("keywords _cls is reserverd")));
         }
         
         if (CLSITEM_OID != typoid)
         {
             ereport(ERROR,
-                    (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-                     errmsg("type for _cls column should be clsitem")));
+					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+					 errmsg("type for _cls column should be clsitem")));
         }
     }
     return true;
@@ -1048,8 +1065,8 @@ bool cls_check_table_col_has_policy(Oid relid, int attnum)
     if (is_mls_user())
     {
         ereport(ERROR,
-                    (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-                     errmsg("mls_admin could not do this")));
+					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+					 errmsg("mls_admin could not do this")));
     }
     
     return false;

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * scanner.h
- *        API for the core scanner (flex machine)
+ *		API for the core scanner (flex machine)
  *
  * The core scanner is also used by PL/pgSQL, so we provide a public API
  * for it.  However, the rest of the backend is only expected to use the
@@ -28,9 +28,9 @@
  */
 typedef union core_YYSTYPE
 {
-    int            ival;            /* for integer literals */
-    char       *str;            /* for identifiers and non-integer literals */
-    const char *keyword;        /* canonical spelling of keywords */
+	int			ival;			/* for integer literals */
+	char	   *str;			/* for identifiers and non-integer literals */
+	const char *keyword;		/* canonical spelling of keywords */
 } core_YYSTYPE;
 
 /*
@@ -48,10 +48,10 @@ typedef union core_YYSTYPE
  * However, those are not defined in this file, because bison insists on
  * defining them for itself.  The token codes used by the core scanner are
  * the ASCII characters plus these:
- *    %token <str>    IDENT FCONST SCONST BCONST XCONST Op
- *    %token <ival>    ICONST PARAM
- *    %token            TYPECAST DOT_DOT COLON_EQUALS EQUALS_GREATER
- *    %token            LESS_EQUALS GREATER_EQUALS NOT_EQUALS
+ *	%token <str>	IDENT FCONST SCONST BCONST XCONST Op
+ *	%token <ival>	ICONST PARAM
+ *	%token			TYPECAST DOT_DOT COLON_EQUALS EQUALS_GREATER
+ *	%token			LESS_EQUALS GREATER_EQUALS NOT_EQUALS
  * The above token definitions *must* be the first ones declared in any
  * bison parser built atop this scanner, so that they will have consistent
  * numbers assigned to them (specifically, IDENT = 258 and so on).
@@ -65,49 +65,55 @@ typedef union core_YYSTYPE
  */
 typedef struct core_yy_extra_type
 {
-    /*
-     * The string the scanner is physically scanning.  We keep this mainly so
-     * that we can cheaply compute the offset of the current token (yytext).
-     */
-    char       *scanbuf;
-    Size        scanbuflen;
+	/*
+	 * The string the scanner is physically scanning.  We keep this mainly so
+	 * that we can cheaply compute the offset of the current token (yytext).
+	 */
+	char	   *scanbuf;
+	Size		scanbuflen;
 
-    /*
-     * The keyword list to use.
-     */
-    const ScanKeyword *keywords;
-    int            num_keywords;
+	/*
+	 * The keyword list to use.
+	 */
+	const ScanKeyword *keywords;
+	int			num_keywords;
 
-    /*
-     * Scanner settings to use.  These are initialized from the corresponding
-     * GUC variables by scanner_init().  Callers can modify them after
-     * scanner_init() if they don't want the scanner's behavior to follow the
-     * prevailing GUC settings.
-     */
-    int            backslash_quote;
-    bool        escape_string_warning;
-    bool        standard_conforming_strings;
+	/*
+	 * Scanner settings to use.  These are initialized from the corresponding
+	 * GUC variables by scanner_init().  Callers can modify them after
+	 * scanner_init() if they don't want the scanner's behavior to follow the
+	 * prevailing GUC settings.
+	 */
+	int			backslash_quote;
+	bool		escape_string_warning;
+	bool		standard_conforming_strings;
 
-    /*
-     * literalbuf is used to accumulate literal values when multiple rules are
-     * needed to parse a single literal.  Call startlit() to reset buffer to
-     * empty, addlit() to add text.  NOTE: the string in literalbuf is NOT
-     * necessarily null-terminated, but there always IS room to add a trailing
-     * null at offset literallen.  We store a null only when we need it.
-     */
-    char       *literalbuf;        /* palloc'd expandable buffer */
-    int            literallen;        /* actual current string length */
-    int            literalalloc;    /* current allocated buffer size */
+	/*
+	 * literalbuf is used to accumulate literal values when multiple rules are
+	 * needed to parse a single literal.  Call startlit() to reset buffer to
+	 * empty, addlit() to add text.  NOTE: the string in literalbuf is NOT
+	 * necessarily null-terminated, but there always IS room to add a trailing
+	 * null at offset literallen.  We store a null only when we need it.
+	 */
+	char	   *literalbuf;		/* palloc'd expandable buffer */
+	int			literallen;		/* actual current string length */
+	int			literalalloc;	/* current allocated buffer size */
 
-    int            xcdepth;        /* depth of nesting in slash-star comments */
-    char       *dolqstart;        /* current $foo$ quote start string */
+	int			xcdepth;		/* depth of nesting in slash-star comments */
+	char	   *dolqstart;		/* current $foo$ quote start string */
+	/* ora_compatible:support q quoted string */
+	char	   *oraqstart;		/* current q'[ q quoted start string */
 
-    /* first part of UTF16 surrogate pair for Unicode escapes */
-    int32        utf16_first_part;
+	/* first part of UTF16 surrogate pair for Unicode escapes */
+	int32		utf16_first_part;
 
-    /* state variables for literal-lexing warnings */
-    bool        warn_on_first_escape;
-    bool        saw_non_ascii;
+	/* state variables for literal-lexing warnings */
+	bool		warn_on_first_escape;
+	bool		saw_non_ascii;
+
+	bool		has_cc_hint;	/* c style comment hint */
+	int			cc_hint_sloc;	/* hint start location */
+	int			cc_hint_eloc;	/* hint end location */
 } core_yy_extra_type;
 
 /*
@@ -115,16 +121,39 @@ typedef struct core_yy_extra_type
  */
 typedef void *core_yyscan_t;
 
-
-/* Entry points in parser/scan.l */
+/* Entry points */
 extern core_yyscan_t scanner_init(const char *str,
-             core_yy_extra_type *yyext,
-             const ScanKeyword *keywords,
-             int num_keywords);
+			 core_yy_extra_type *yyext,
+			 const ScanKeyword *keywords,
+			 int num_keywords);
 extern void scanner_finish(core_yyscan_t yyscanner);
 extern int core_yylex(core_YYSTYPE *lvalp, YYLTYPE *llocp,
-           core_yyscan_t yyscanner);
-extern int    scanner_errposition(int location, core_yyscan_t yyscanner);
+		   core_yyscan_t yyscanner);
+extern int	scanner_errposition(int location, core_yyscan_t yyscanner);
 extern void scanner_yyerror(const char *message, core_yyscan_t yyscanner) pg_attribute_noreturn();
 
-#endif                            /* SCANNER_H */
+/* Entry points in parser/scan.l */
+extern core_yyscan_t pg_scanner_init(const char *str,
+                                     core_yy_extra_type *yyext,
+                                     const ScanKeyword *keywords,
+                                     int num_keywords);
+extern void pg_scanner_finish(core_yyscan_t yyscanner);
+extern int pg_core_yylex(core_YYSTYPE *lvalp, YYLTYPE *llocp,
+                         core_yyscan_t yyscanner);
+extern int	pg_scanner_errposition(int location, core_yyscan_t yyscanner);
+extern void pg_scanner_yyerror(const char *message, core_yyscan_t yyscanner) pg_attribute_noreturn();
+
+/* Entry points in opentenbase_ora/scan_ora.l */
+extern core_yyscan_t ora_scanner_init(const char *str,
+                                      core_yy_extra_type *yyext,
+                                      const ScanKeyword *keywords,
+                                      int num_keywords);
+extern void ora_scanner_finish(core_yyscan_t yyscanner);
+extern int ora_core_yylex(core_YYSTYPE *lvalp, YYLTYPE *llocp,
+                          core_yyscan_t yyscanner);
+extern int	ora_scanner_errposition(int location, core_yyscan_t yyscanner);
+extern void ora_scanner_yyerror(const char *message, core_yyscan_t yyscanner) pg_attribute_noreturn();
+
+extern bool has_colon_new_old;
+extern bool plpgsql_token;
+#endif							/* SCANNER_H */

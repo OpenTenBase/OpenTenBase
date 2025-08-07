@@ -22,28 +22,28 @@
 void *
 pg_dlopen(char *filename)
 {
-    return dlopen(filename, RTLD_NOW | RTLD_GLOBAL);
+	return dlopen(filename, RTLD_NOW | RTLD_GLOBAL);
 }
 
 void
 pg_dlclose(void *handle)
 {
-    dlclose(handle);
+	dlclose(handle);
 }
 
 PGFunction
 pg_dlsym(void *handle, char *funcname)
 {
-    /* Do not prepend an underscore: see dlopen(3) */
-    return dlsym(handle, funcname);
+	/* Do not prepend an underscore: see dlopen(3) */
+	return dlsym(handle, funcname);
 }
 
 char *
 pg_dlerror(void)
 {
-    return dlerror();
+	return dlerror();
 }
-#else                            /* !HAVE_DLOPEN */
+#else							/* !HAVE_DLOPEN */
 
 /*
  * These routines were taken from the Apache source, but were made
@@ -56,83 +56,83 @@ static NSObjectFileImageReturnCode cofiff_result = NSObjectFileImageFailure;
 void *
 pg_dlopen(char *filename)
 {
-    NSObjectFileImage image;
+	NSObjectFileImage image;
 
-    cofiff_result = NSCreateObjectFileImageFromFile(filename, &image);
-    if (cofiff_result != NSObjectFileImageSuccess)
-        return NULL;
-    return NSLinkModule(image, filename,
-                        NSLINKMODULE_OPTION_BINDNOW |
-                        NSLINKMODULE_OPTION_RETURN_ON_ERROR);
+	cofiff_result = NSCreateObjectFileImageFromFile(filename, &image);
+	if (cofiff_result != NSObjectFileImageSuccess)
+		return NULL;
+	return NSLinkModule(image, filename,
+						NSLINKMODULE_OPTION_BINDNOW |
+						NSLINKMODULE_OPTION_RETURN_ON_ERROR);
 }
 
 void
 pg_dlclose(void *handle)
 {
-    NSUnLinkModule(handle, FALSE);
+	NSUnLinkModule(handle, FALSE);
 }
 
 PGFunction
 pg_dlsym(void *handle, char *funcname)
 {
-    NSSymbol symbol;
-    char       *symname = (char *) malloc(strlen(funcname) + 2);
+	NSSymbol symbol;
+	char	   *symname = (char *) malloc(strlen(funcname) + 2);
 
-    if (!symname)
-        return NULL;
+	if (!symname)
+		return NULL;
 
-    sprintf(symname, "_%s", funcname);
-    if (NSIsSymbolNameDefined(symname))
-    {
-        symbol = NSLookupAndBindSymbol(symname);
+	sprintf(symname, "_%s", funcname);
+	if (NSIsSymbolNameDefined(symname))
+	{
+		symbol = NSLookupAndBindSymbol(symname);
 
-        free(symname);
-        return (PGFunction) NSAddressOfSymbol(symbol);
-    }
-    else
-    {
-        free(symname);
-        return NULL;
-    }
+		free(symname);
+		return (PGFunction) NSAddressOfSymbol(symbol);
+	}
+	else
+	{
+		free(symname);
+		return NULL;
+	}
 }
 
 char *
 pg_dlerror(void)
 {
-    NSLinkEditErrors c;
-    int            errorNumber;
-    const char *fileName;
-    const char *errorString = NULL;
+	NSLinkEditErrors c;
+	int			errorNumber;
+	const char *fileName;
+	const char *errorString = NULL;
 
-    switch (cofiff_result)
-    {
-        case NSObjectFileImageSuccess:
-            /* must have failed in NSLinkModule */
-            NSLinkEditError(&c, &errorNumber, &fileName, &errorString);
-            if (errorString == NULL || *errorString == '\0')
-                errorString = "unknown link-edit failure";
-            break;
-        case NSObjectFileImageFailure:
-            errorString = "failed to open object file";
-            break;
-        case NSObjectFileImageInappropriateFile:
-            errorString = "inappropriate object file";
-            break;
-        case NSObjectFileImageArch:
-            errorString = "object file is for wrong architecture";
-            break;
-        case NSObjectFileImageFormat:
-            errorString = "object file has wrong format";
-            break;
-        case NSObjectFileImageAccess:
-            errorString = "insufficient permissions for object file";
-            break;
-        default:
-            errorString = "unknown failure to open object file";
-            break;
-    }
+	switch (cofiff_result)
+	{
+		case NSObjectFileImageSuccess:
+			/* must have failed in NSLinkModule */
+			NSLinkEditError(&c, &errorNumber, &fileName, &errorString);
+			if (errorString == NULL || *errorString == '\0')
+				errorString = "unknown link-edit failure";
+			break;
+		case NSObjectFileImageFailure:
+			errorString = "failed to open object file";
+			break;
+		case NSObjectFileImageInappropriateFile:
+			errorString = "inappropriate object file";
+			break;
+		case NSObjectFileImageArch:
+			errorString = "object file is for wrong architecture";
+			break;
+		case NSObjectFileImageFormat:
+			errorString = "object file has wrong format";
+			break;
+		case NSObjectFileImageAccess:
+			errorString = "insufficient permissions for object file";
+			break;
+		default:
+			errorString = "unknown failure to open object file";
+			break;
+	}
 
-    return (char *) errorString;
+	return (char *) errorString;
 }
 
-#endif                            /* HAVE_DLOPEN */
+#endif							/* HAVE_DLOPEN */

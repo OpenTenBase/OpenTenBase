@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * skey.h
- *      POSTGRES scan key definitions.
+ *	  POSTGRES scan key definitions.
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -63,13 +63,14 @@
  */
 typedef struct ScanKeyData
 {
-    int            sk_flags;        /* flags, see below */
-    AttrNumber    sk_attno;        /* table or index column number */
-    StrategyNumber sk_strategy; /* operator strategy number */
-    Oid            sk_subtype;        /* strategy subtype */
-    Oid            sk_collation;    /* collation to use, if needed */
-    FmgrInfo    sk_func;        /* lookup info for function to call */
-    Datum        sk_argument;    /* data to compare */
+	int			sk_flags;		/* flags, see below */
+	AttrNumber	sk_attno;		/* table or index column number */
+	StrategyNumber sk_strategy; /* operator strategy number */
+	Oid			sk_subtype;		/* strategy subtype */
+	Oid			sk_collation;	/* collation to use, if needed */
+	FmgrInfo	sk_func;		/* lookup info for function to call */
+	Datum		sk_argument;	/* data to compare */
+	Oid 		left_type;
 } ScanKeyData;
 
 typedef ScanKeyData *ScanKey;
@@ -84,22 +85,22 @@ typedef ScanKeyData *ScanKey;
  * type.  A row comparison is represented by a "header" ScanKey entry plus
  * a separate array of ScanKeys, one for each column of the row comparison.
  * The header entry has these properties:
- *        sk_flags = SK_ROW_HEADER
- *        sk_attno = index column number for leading column of row comparison
- *        sk_strategy = btree strategy code for semantics of row comparison
- *                (ie, < <= > or >=)
- *        sk_subtype, sk_collation, sk_func: not used
- *        sk_argument: pointer to subsidiary ScanKey array
+ *		sk_flags = SK_ROW_HEADER
+ *		sk_attno = index column number for leading column of row comparison
+ *		sk_strategy = btree strategy code for semantics of row comparison
+ *				(ie, < <= > or >=)
+ *		sk_subtype, sk_collation, sk_func: not used
+ *		sk_argument: pointer to subsidiary ScanKey array
  * If the header is part of a ScanKey array that's sorted by attno, it
  * must be sorted according to the leading column number.
  *
  * The subsidiary ScanKey array appears in logical column order of the row
  * comparison, which may be different from index column order.  The array
  * elements are like a normal ScanKey array except that:
- *        sk_flags must include SK_ROW_MEMBER, plus SK_ROW_END in the last
- *                element (needed since row header does not include a count)
- *        sk_func points to the btree comparison support function for the
- *                opclass, NOT the operator's implementation function.
+ *		sk_flags must include SK_ROW_MEMBER, plus SK_ROW_END in the last
+ *				element (needed since row header does not include a count)
+ *		sk_func points to the btree comparison support function for the
+ *				opclass, NOT the operator's implementation function.
  * sk_strategy must be the same in all elements of the subsidiary array,
  * that is, the same as in the header entry.
  * SK_SEARCHARRAY, SK_SEARCHNULL, SK_SEARCHNOTNULL cannot be used here.
@@ -112,40 +113,41 @@ typedef ScanKeyData *ScanKey;
  * bits should be defined here).  Bits 16-31 are reserved for use within
  * individual index access methods.
  */
-#define SK_ISNULL            0x0001    /* sk_argument is NULL */
-#define SK_UNARY            0x0002    /* unary operator (not supported!) */
-#define SK_ROW_HEADER        0x0004    /* row comparison header (see above) */
-#define SK_ROW_MEMBER        0x0008    /* row comparison member (see above) */
-#define SK_ROW_END            0x0010    /* last row comparison member */
-#define SK_SEARCHARRAY        0x0020    /* scankey represents ScalarArrayOp */
-#define SK_SEARCHNULL        0x0040    /* scankey represents "col IS NULL" */
-#define SK_SEARCHNOTNULL    0x0080    /* scankey represents "col IS NOT NULL" */
-#define SK_ORDER_BY            0x0100    /* scankey is for ORDER BY op */
+#define SK_ISNULL			0x0001	/* sk_argument is NULL */
+#define SK_UNARY			0x0002	/* unary operator (not supported!) */
+#define SK_ROW_HEADER		0x0004	/* row comparison header (see above) */
+#define SK_ROW_MEMBER		0x0008	/* row comparison member (see above) */
+#define SK_ROW_END			0x0010	/* last row comparison member */
+#define SK_SEARCHARRAY		0x0020	/* scankey represents ScalarArrayOp */
+#define SK_SEARCHNULL		0x0040	/* scankey represents "col IS NULL" */
+#define SK_SEARCHNOTNULL	0x0080	/* scankey represents "col IS NOT NULL" */
+#define SK_ORDER_BY			0x0100	/* scankey is for ORDER BY op */
 
 
 /*
  * prototypes for functions in access/common/scankey.c
  */
 extern void ScanKeyInit(ScanKey entry,
-            AttrNumber attributeNumber,
-            StrategyNumber strategy,
-            RegProcedure procedure,
-            Datum argument);
+			AttrNumber attributeNumber,
+			StrategyNumber strategy,
+			RegProcedure procedure,
+			Datum argument);
+extern void ScanKeyInitLeftTypeIfNeeded(ScanKey entry, Oid left_type);
 extern void ScanKeyEntryInitialize(ScanKey entry,
-                       int flags,
-                       AttrNumber attributeNumber,
-                       StrategyNumber strategy,
-                       Oid subtype,
-                       Oid collation,
-                       RegProcedure procedure,
-                       Datum argument);
+					   int flags,
+					   AttrNumber attributeNumber,
+					   StrategyNumber strategy,
+					   Oid subtype,
+					   Oid collation,
+					   RegProcedure procedure,
+					   Datum argument);
 extern void ScanKeyEntryInitializeWithInfo(ScanKey entry,
-                               int flags,
-                               AttrNumber attributeNumber,
-                               StrategyNumber strategy,
-                               Oid subtype,
-                               Oid collation,
-                               FmgrInfo *finfo,
-                               Datum argument);
+							   int flags,
+							   AttrNumber attributeNumber,
+							   StrategyNumber strategy,
+							   Oid subtype,
+							   Oid collation,
+							   FmgrInfo *finfo,
+							   Datum argument);
 
-#endif                            /* SKEY_H */
+#endif							/* SKEY_H */

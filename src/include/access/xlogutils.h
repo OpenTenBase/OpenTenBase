@@ -21,38 +21,40 @@ extern void XLogCheckInvalidPages(void);
 extern void XLogDropRelation(RelFileNode rnode, ForkNumber forknum);
 extern void XLogDropDatabase(Oid dbid);
 extern void XLogTruncateRelation(RelFileNode rnode, ForkNumber forkNum,
-                     BlockNumber nblocks);
+					 BlockNumber nblocks);
 
 /* Result codes for XLogReadBufferForRedo[Extended] */
 typedef enum
 {
-    BLK_NEEDS_REDO,                /* changes from WAL record need to be applied */
-    BLK_DONE,                    /* block is already up-to-date */
-    BLK_RESTORED,                /* block was restored from a full-page image */
-    BLK_NOTFOUND                /* block was not found (and hence does not
-                                 * need to be replayed) */
+	BLK_NEEDS_REDO,				/* changes from WAL record need to be applied */
+	BLK_DONE,					/* block is already up-to-date */
+	BLK_RESTORED,				/* block was restored from a full-page image */
+	BLK_NOTFOUND				/* block was not found (and hence does not
+								 * need to be replayed) */
 } XLogRedoAction;
 
 extern XLogRedoAction XLogReadBufferForRedo(XLogReaderState *record,
-                      uint8 buffer_id, Buffer *buf);
+					  uint8 buffer_id, Buffer *buf);
 extern Buffer XLogInitBufferForRedo(XLogReaderState *record, uint8 block_id);
 extern XLogRedoAction XLogReadBufferForRedoExtended(XLogReaderState *record,
-                              uint8 buffer_id,
-                              ReadBufferMode mode, bool get_cleanup_lock,
-                              Buffer *buf);
+							  uint8 buffer_id,
+							  ReadBufferMode mode, bool get_cleanup_lock,
+							  Buffer *buf);
 
-extern Buffer XLogReadBufferExtended(RelFileNode rnode, ForkNumber forknum,
-                       BlockNumber blkno, ReadBufferMode mode);
-
+#define XLogReadBufferExtended(rnode, forknum, blkno, mode, checksum_enabled)	\
+	XLogReadBufferExtended_TDE(rnode, forknum, blkno, mode, false, checksum_enabled)
+extern Buffer XLogReadBufferExtended_TDE(RelFileNode rnode, ForkNumber forknum,
+					   BlockNumber blkno, ReadBufferMode mode, bool istde,
+					   bool checksum_enabled);
 extern Relation CreateFakeRelcacheEntry(RelFileNode rnode);
 extern void FreeFakeRelcacheEntry(Relation fakerel);
 
 extern int read_local_xlog_page(XLogReaderState *state,
-                     XLogRecPtr targetPagePtr, int reqLen,
-                     XLogRecPtr targetRecPtr, char *cur_page,
-                     TimeLineID *pageTLI);
+					 XLogRecPtr targetPagePtr, int reqLen,
+					 XLogRecPtr targetRecPtr, char *cur_page,
+					 TimeLineID *pageTLI);
 
 extern void XLogReadDetermineTimeline(XLogReaderState *state,
-                          XLogRecPtr wantPage, uint32 wantLength);
+						  XLogRecPtr wantPage, uint32 wantLength);
 
 #endif

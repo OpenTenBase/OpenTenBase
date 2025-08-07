@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * pg_shmem.h
- *      Platform-independent API for shared memory support.
+ *	  Platform-independent API for shared memory support.
  *
  * Every port is expected to support shared memory with approximately
  * SysV-ish semantics; in particular, a memory block is not anonymous
@@ -26,31 +26,31 @@
 
 #include "storage/dsm_impl.h"
 
-typedef struct PGShmemHeader    /* standard header for all Postgres shmem */
+typedef struct PGShmemHeader	/* standard header for all Postgres shmem */
 {
-    int32        magic;            /* magic # to identify Postgres segments */
+	int32		magic;			/* magic # to identify Postgres segments */
 #define PGShmemMagic  679834894
-    pid_t        creatorPID;        /* PID of creating process */
-    Size        totalsize;        /* total size of segment */
-    Size        freeoffset;        /* offset to first free space */
-    dsm_handle    dsm_control;    /* ID of dynamic shared memory control seg */
-    void       *index;            /* pointer to ShmemIndex table */
-#ifndef WIN32                    /* Windows doesn't have useful inode#s */
-    dev_t        device;            /* device data directory is on */
-    ino_t        inode;            /* inode number of data directory */
+	pid_t		creatorPID;		/* PID of creating process */
+	Size		totalsize;		/* total size of segment */
+	Size		freeoffset;		/* offset to first free space */
+	dsm_handle	dsm_control;	/* ID of dynamic shared memory control seg */
+	void	   *index;			/* pointer to ShmemIndex table */
+#ifndef WIN32					/* Windows doesn't have useful inode#s */
+	dev_t		device;			/* device data directory is on */
+	ino_t		inode;			/* inode number of data directory */
 #endif
 } PGShmemHeader;
 
 /* GUC variable */
-extern int    huge_pages;
+extern int	huge_pages;
 
 /* Possible values for huge_pages */
 typedef enum
 {
-    HUGE_PAGES_OFF,
-    HUGE_PAGES_ON,
-    HUGE_PAGES_TRY
-}            HugePagesType;
+	HUGE_PAGES_OFF,
+	HUGE_PAGES_ON,
+	HUGE_PAGES_TRY
+}			HugePagesType;
 
 #ifndef WIN32
 extern unsigned long UsedShmemSegID;
@@ -65,8 +65,8 @@ extern void PGSharedMemoryNoReAttach(void);
 #endif
 
 extern PGShmemHeader *PGSharedMemoryCreate(Size size, bool makePrivate,
-                     int port, PGShmemHeader **shim);
+					 int port, PGShmemHeader **shim);
 extern bool PGSharedMemoryIsInUse(unsigned long id1, unsigned long id2);
 extern void PGSharedMemoryDetach(void);
 
-#endif                            /* PG_SHMEM_H */
+#endif							/* PG_SHMEM_H */

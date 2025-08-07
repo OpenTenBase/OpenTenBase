@@ -47,7 +47,7 @@ SELECT * FROM fast_emp4000
     ORDER BY (home_base[0])[0];
                               QUERY PLAN                              
 ----------------------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+ Remote Subquery Scan on all (datanodes 2)
    ->  Sort
          Sort Key: ((home_base[0])[0])
          ->  Index Only Scan using grect2ind2 on fast_emp4000
@@ -68,7 +68,7 @@ SELECT count(*) FROM fast_emp4000 WHERE home_base && '(1000,1000,0,0)'::box;
                                QUERY PLAN                                
 -------------------------------------------------------------------------
  Finalize Aggregate
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
+   ->  Remote Subquery Scan on all (datanodes 2)
          ->  Partial Aggregate
                ->  Index Only Scan using grect2ind2 on fast_emp4000
                      Index Cond: (home_base && '(1000,1000),(0,0)'::box)
@@ -85,7 +85,7 @@ SELECT count(*) FROM fast_emp4000 WHERE home_base IS NULL;
                              QUERY PLAN                             
 --------------------------------------------------------------------
  Finalize Aggregate
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
+   ->  Remote Subquery Scan on all (datanodes 2)
          ->  Partial Aggregate
                ->  Index Only Scan using grect2ind2 on fast_emp4000
                      Index Cond: (home_base IS NULL)

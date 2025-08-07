@@ -8,15 +8,13 @@
  * Copyright (c) 2000-2017, PostgreSQL Global Development Group
  * Written by Peter Eisentraut <peter_e@gmx.net>.
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * src/include/utils/guc.h
  *--------------------------------------------------------------------
  */
 #ifndef GUC_H
 #define GUC_H
 
+#include "common/opentenbase_ora.h"
 #include "nodes/parsenodes.h"
 #include "tcop/dest.h"
 #include "utils/array.h"
@@ -25,9 +23,9 @@
 /* upper limit for GUC variables measured in kilobytes of memory */
 /* note that various places assume the byte size fits in a "long" variable */
 #if SIZEOF_SIZE_T > 4 && SIZEOF_LONG > 4
-#define MAX_KILOBYTES    INT_MAX
+#define MAX_KILOBYTES	INT_MAX
 #else
-#define MAX_KILOBYTES    (INT_MAX / 1024)
+#define MAX_KILOBYTES	(INT_MAX / 1024)
 #endif
 
 /*
@@ -35,7 +33,7 @@
  * This file will be used to store values of configuration parameters
  * set by ALTER SYSTEM command.
  */
-#define PG_AUTOCONF_FILENAME        "postgresql.auto.conf"
+#define PG_AUTOCONF_FILENAME		"postgresql.auto.conf"
 
 /*
  * Certain options can only be set at certain times. The rules are
@@ -71,13 +69,13 @@
  */
 typedef enum
 {
-    PGC_INTERNAL,
-    PGC_POSTMASTER,
-    PGC_SIGHUP,
-    PGC_SU_BACKEND,
-    PGC_BACKEND,
-    PGC_SUSET,
-    PGC_USERSET
+	PGC_INTERNAL,
+	PGC_POSTMASTER,
+	PGC_SIGHUP,
+	PGC_SU_BACKEND,
+	PGC_BACKEND,
+	PGC_SUSET,
+	PGC_USERSET
 } GucContext;
 
 /*
@@ -108,20 +106,21 @@ typedef enum
  */
 typedef enum
 {
-    PGC_S_DEFAULT,                /* hard-wired default ("boot_val") */
-    PGC_S_DYNAMIC_DEFAULT,        /* default computed during initialization */
-    PGC_S_ENV_VAR,                /* postmaster environment variable */
-    PGC_S_FILE,                    /* postgresql.conf */
-    PGC_S_ARGV,                    /* postmaster command line */
-    PGC_S_GLOBAL,                /* global in-database setting */
-    PGC_S_DATABASE,                /* per-database setting */
-    PGC_S_USER,                    /* per-user setting */
-    PGC_S_DATABASE_USER,        /* per-user-and-database setting */
-    PGC_S_CLIENT,                /* from client connection request */
-    PGC_S_OVERRIDE,                /* special case to forcibly set default */
-    PGC_S_INTERACTIVE,            /* dividing line for error reporting */
-    PGC_S_TEST,                    /* test per-database or per-user setting */
-    PGC_S_SESSION                /* SET command */
+	PGC_S_DEFAULT,				/* hard-wired default ("boot_val") */
+	PGC_S_DYNAMIC_DEFAULT,		/* default computed during initialization */
+	PGC_S_ENV_VAR,				/* postmaster environment variable */
+	PGC_S_FILE,					/* postgresql.conf */
+	PGC_S_ARGV,					/* postmaster command line */
+	PGC_S_GLOBAL,				/* global in-database setting */
+	PGC_S_DATABASE,				/* per-database setting */
+	PGC_S_USER,					/* per-user setting */
+	PGC_S_DATABASE_USER,		/* per-user-and-database setting */
+	PGC_S_CLIENT,				/* from client connection request */
+	PGC_S_RESGROUP,				/* per-resgroup setting */
+	PGC_S_OVERRIDE,				/* special case to forcibly set default */
+	PGC_S_INTERACTIVE,			/* dividing line for error reporting */
+	PGC_S_TEST,					/* test per-database or per-user setting */
+	PGC_S_SESSION				/* SET command */
 } GucSource;
 
 /*
@@ -136,28 +135,28 @@ typedef enum
  */
 typedef struct ConfigVariable
 {
-    char       *name;
-    char       *value;
-    char       *errmsg;
-    char       *filename;
-    int            sourceline;
-    bool        ignore;
-    bool        applied;
-    struct ConfigVariable *next;
+	char	   *name;
+	char	   *value;
+	char	   *errmsg;
+	char	   *filename;
+	int			sourceline;
+	bool		ignore;
+	bool		applied;
+	struct ConfigVariable *next;
 } ConfigVariable;
 
 extern bool ParseConfigFile(const char *config_file, bool strict,
-                const char *calling_file, int calling_lineno,
-                int depth, int elevel,
-                ConfigVariable **head_p, ConfigVariable **tail_p);
+				const char *calling_file, int calling_lineno,
+				int depth, int elevel,
+				ConfigVariable **head_p, ConfigVariable **tail_p);
 extern bool ParseConfigFp(FILE *fp, const char *config_file,
-              int depth, int elevel,
-              ConfigVariable **head_p, ConfigVariable **tail_p);
+			  int depth, int elevel,
+			  ConfigVariable **head_p, ConfigVariable **tail_p);
 extern bool ParseConfigDirectory(const char *includedir,
-                     const char *calling_file, int calling_lineno,
-                     int depth, int elevel,
-                     ConfigVariable **head_p,
-                     ConfigVariable **tail_p);
+					 const char *calling_file, int calling_lineno,
+					 int depth, int elevel,
+					 ConfigVariable **head_p,
+					 ConfigVariable **tail_p);
 extern void FreeConfigVariables(ConfigVariable *list);
 
 /*
@@ -167,9 +166,9 @@ extern void FreeConfigVariables(ConfigVariable *list);
  */
 struct config_enum_entry
 {
-    const char *name;
-    int            val;
-    bool        hidden;
+	const char *name;
+	int			val;
+	bool		hidden;
 };
 
 /*
@@ -196,10 +195,10 @@ typedef const char *(*GucShowHook) (void);
  */
 typedef enum
 {
-    /* Types of set_config_option actions */
-    GUC_ACTION_SET,                /* regular SET command */
-    GUC_ACTION_LOCAL,            /* SET LOCAL command */
-    GUC_ACTION_SAVE                /* function SET option, or temp assignment */
+	/* Types of set_config_option actions */
+	GUC_ACTION_SET,				/* regular SET command */
+	GUC_ACTION_LOCAL,			/* SET LOCAL command */
+	GUC_ACTION_SAVE				/* function SET option, or temp assignment */
 } GucAction;
 
 #define GUC_QUALIFIER_SEPARATOR '.'
@@ -207,40 +206,51 @@ typedef enum
 /*
  * bit values in "flags" of a GUC variable
  */
-#define GUC_LIST_INPUT            0x0001    /* input can be list format */
-#define GUC_LIST_QUOTE            0x0002    /* double-quote list elements */
-#define GUC_NO_SHOW_ALL            0x0004    /* exclude from SHOW ALL */
-#define GUC_NO_RESET_ALL        0x0008    /* exclude from RESET ALL */
-#define GUC_REPORT                0x0010    /* auto-report changes to client */
-#define GUC_NOT_IN_SAMPLE        0x0020    /* not in postgresql.conf.sample */
-#define GUC_DISALLOW_IN_FILE    0x0040    /* can't set in postgresql.conf */
-#define GUC_CUSTOM_PLACEHOLDER    0x0080    /* placeholder for custom variable */
-#define GUC_SUPERUSER_ONLY        0x0100    /* show only to superusers */
-#define GUC_IS_NAME                0x0200    /* limit string to NAMEDATALEN-1 */
-#define GUC_NOT_WHILE_SEC_REST    0x0400    /* can't set if security restricted */
-#define GUC_DISALLOW_IN_AUTO_FILE 0x0800    /* can't set in
-                                             * PG_AUTOCONF_FILENAME */
+#define GUC_LIST_INPUT			0x0001	/* input can be list format */
+#define GUC_LIST_QUOTE			0x0002	/* double-quote list elements */
+#define GUC_NO_SHOW_ALL			0x0004	/* exclude from SHOW ALL */
+#define GUC_NO_RESET_ALL		0x0008	/* exclude from RESET ALL */
+#define GUC_REPORT				0x0010	/* auto-report changes to client */
+#define GUC_NOT_IN_SAMPLE		0x0020	/* not in postgresql.conf.sample */
+#define GUC_DISALLOW_IN_FILE	0x0040	/* can't set in postgresql.conf */
+#define GUC_CUSTOM_PLACEHOLDER	0x0080	/* placeholder for custom variable */
+#define GUC_SUPERUSER_ONLY		0x0100	/* show only to superusers */
+#define GUC_IS_NAME				0x0200	/* limit string to NAMEDATALEN-1 */
+#define GUC_NOT_WHILE_SEC_REST	0x0400	/* can't set if security restricted */
+#define GUC_DISALLOW_IN_AUTO_FILE 0x0800	/* can't set in
+											 * PG_AUTOCONF_FILENAME */
 
-#define GUC_UNIT_KB                0x1000    /* value is in kilobytes */
-#define GUC_UNIT_BLOCKS            0x2000    /* value is in blocks */
-#define GUC_UNIT_XBLOCKS        0x3000    /* value is in xlog blocks */
-#define GUC_UNIT_MB                0x4000    /* value is in megabytes */
-#define GUC_UNIT_MEMORY            0xF000    /* mask for size-related units */
+#define GUC_UNIT_KB				0x1000	/* value is in kilobytes */
+#define GUC_UNIT_BLOCKS			0x2000	/* value is in blocks */
+#define GUC_UNIT_XBLOCKS		0x3000	/* value is in xlog blocks */
+#define GUC_UNIT_MB				0x4000	/* value is in megabytes */
+#define GUC_UNIT_BYTE		 	0x0500	/* value is in bytes */
+#ifdef __OPENTENBASE_C__
+#define GUC_UNIT_COLBLOCKS			0x5000	/* value is in blocks */
+#endif
+#define GUC_UNIT_MEMORY			0xF000	/* mask for size-related units */
 
-#define GUC_UNIT_MS               0x10000    /* value is in milliseconds */
-#define GUC_UNIT_S               0x20000    /* value is in seconds */
-#define GUC_UNIT_MIN           0x30000    /* value is in minutes */
-#define GUC_UNIT_TIME           0xF0000    /* mask for time-related units */
+#define GUC_UNIT_MS			   0x10000	/* value is in milliseconds */
+#define GUC_UNIT_S			   0x20000	/* value is in seconds */
+#define GUC_UNIT_MIN		   0x30000	/* value is in minutes */
+#define GUC_UNIT_TIME		   0xF0000	/* mask for time-related units */
 
-#define GUC_UNIT                (GUC_UNIT_MEMORY | GUC_UNIT_TIME)
+#define GUC_EXPLAIN			  0x100000	/* include in explain */
 
+#define GUC_UNIT				(GUC_UNIT_MEMORY | GUC_UNIT_TIME)
+
+#define GUC_FOREIGN_REL_KIND	"foreign-table"
 
 /* GUC vars that are actually declared in guc.c, rather than elsewhere */
+extern bool compute_query_id;
 extern bool log_duration;
 extern bool Debug_print_plan;
 extern bool Debug_print_parse;
 extern bool Debug_print_rewritten;
 extern bool Debug_pretty_print;
+#ifdef __OPENTENBASE__
+extern bool	Debug_print_plan_on_error;
+#endif
 
 extern bool log_parser_stats;
 extern bool log_planner_stats;
@@ -254,68 +264,98 @@ extern bool log_remotesubplan_stats;
 #endif
 
 extern PGDLLIMPORT bool check_function_bodies;
+extern PGDLLIMPORT bool enable_plsql_analysis;
+extern PGDLLIMPORT bool plsql_analysis_strictly;
+extern PGDLLIMPORT bool check_function_pludt;
 extern bool default_with_oids;
+extern bool	session_auth_is_superuser;
 
 #ifdef _SHARDING_
 extern bool default_has_extent;
+extern bool	default_with_rowid;
 #endif
 
-#ifdef _PG_ORCL_
-extern bool enable_oracle_compatible;
-#endif
+extern int sql_mode;
+extern bool	datanode_local_plan;
+extern bool	plpgsql_hold_cursor;
+extern bool enable_secfunc_xact;
+extern bool	pullup_outer_agg;
+extern bool	skip_mls_etc;
+extern bool use_coor_format;
+extern bool	atxact_bpe_fqs;
+extern bool	enable_nestedtable_check;
+extern bool default_interval_day_prec;
+extern bool simplify_stable_function;
+extern bool skip_check_same_relname;
+extern bool	enable_inline_target_function;
+extern bool	enable_opentenbase_ora_pkg_nested_table;
+extern bool allow_limit_ident;
+extern bool enable_create_package_rec_typ;
+extern bool	enable_distinct_order_by;
+extern bool check_orderby_distinct;
+extern bool allow_type_nesting_error;
 
-#ifdef __SUPPORT_DISTRIBUTED_TRANSACTION__
-extern bool    support_oracle_compatible;
-#endif
 #ifdef __OPENTENBASE__
 extern int32   g_TransferSpeed;
 /* slicent copy from */
 extern bool g_enable_copy_silence;
-extern bool g_enable_user_authority_force_check;
-extern bool enable_buffer_mprotect;
-extern bool enable_clog_mprotect;
-extern bool enable_tlog_mprotect;
-extern bool enable_xlog_mprotect;
+
 extern int query_delay;
+extern int hash_search_columns_threshold;
+extern bool plpgsql_contenxt_line_num_print;
+extern bool plpgsql_format_procedure_qualified;
 
-extern bool enable_memory_optimization;
-extern int max_relcache_relations;
-extern int number_replaced_relations;
+extern bool tdx_ignore_error_table;
+extern bool experiment_feature;
+extern bool enable_benchmark_execution;
+extern bool enable_experiment_isolation;
 #endif
-extern int    log_min_error_statement;
-extern int    log_min_messages;
-extern int    client_min_messages;
-extern int    log_min_duration_statement;
-extern int    log_temp_files;
+extern int	log_min_error_statement;
+extern PGDLLIMPORT int log_min_messages;
+extern PGDLLIMPORT int client_min_messages;
+extern int	log_min_duration_statement;
+extern int	log_temp_files;
 
-extern int    temp_file_limit;
+extern int	temp_file_limit;
 
-extern int    num_temp_buffers;
+extern int	num_temp_buffers;
+
+extern int	autoxact_mode;
 
 extern char *cluster_name;
-extern char *ConfigFileName;
+extern PGDLLIMPORT char *ConfigFileName;
 extern char *HbaFileName;
 extern char *IdentFileName;
 extern char *external_pid_file;
 
-extern char *application_name;
+extern PGDLLIMPORT char *application_name;
 
 #ifdef _PG_ORCL_
 extern char *nls_date_format;
 extern char *nls_timestamp_format;
 extern char *nls_timestamp_tz_format;
 extern char *nls_sort_locale;
+extern char *nls_date_language;
+
+extern bool disable_empty_to_null;
+extern bool plsql_emptystring_to_blank;
+extern bool plsql_enable_savepoint;
+extern bool plsql_stmt_level_rollback;
+extern bool stmt_level_rollback;
+extern bool select_into_empty;
 #endif
 
-extern int    tcp_keepalives_idle;
-extern int    tcp_keepalives_interval;
-extern int    tcp_keepalives_count;
+extern int	tcp_keepalives_idle;
+extern int	tcp_keepalives_interval;
+extern int	tcp_keepalives_count;
 extern int	tcp_user_timeout;
 
 #ifdef _SHARDING_
 extern bool g_allow_dml_on_datanode;
-extern bool g_allow_force_ddl;
 extern bool g_snapshot_for_analyze;
+extern bool enable_2pc_optimization;
+extern bool debug_message_log;
+extern bool g_dn_direct_printtup;
 extern bool trace_extent;
 #endif
 
@@ -333,119 +373,209 @@ extern bool trace_sort;
 #ifdef _SHARDING_
 extern int g_ShardVisibleMode;
 #endif
+
+extern bool page_checksums;
+extern bool checksum_ddl_default;
+
+#ifdef __OPENTENBASE_C__
+extern int default_rel_store;
+extern int default_rel_compression;
+extern bool analyze_on_datanodes;
+extern bool numeric_optimizer;
+extern bool innerhashjoin_optimizer;
+#endif
+extern bool auto_optimize_sequence_cache;
+
+extern int writable_external_table_bufsize;
+extern int	max_autonomous_xacts;
+
+
+extern int logical_apply_time_delay;
+extern int logical_apply_cache_capacity;
+extern int  advance_verification_action;
+extern bool enable_lightweight_ora_syntax;
+extern bool enable_gts_optimize;
+extern bool enable_opentenbase_ora_column_name;
+extern bool enable_opentenbase_ora_implicit_coercion;
+extern bool enable_type_priority_in_ora_mode;
+extern bool convert_sysview_to_sysclass;
+
+extern List *session_param_list;
+extern uint64 max_session_param_cid;
+
+typedef enum identifier_case
+{
+	CASE_INSENSITIVE,
+	UPPER_CASE,
+	LOWER_CASE,
+	UNKOWN_CASE
+} identifier_case;
+extern identifier_case identifier_case_in_ora_mode;
+extern bool over_as_alias;
+extern bool case_as_alias;
+extern bool do_as_alias;
+extern bool level_as_alias;
+extern bool using_as_column_name;
+extern bool currenttime_as_column_name;
+extern bool enable_opentenbase_ora_pkg_nested_table;
+extern bool	enable_function_overload;
+extern bool plpgsql_format_procedure_qualified;
+extern bool enable_nestedtable_check;
+extern bool	enable_inline_target_function;
+extern bool enable_create_package_rec_typ;
+extern bool only_rename_typobj_metainfo;
+extern bool different_func_argret;
+extern bool allow_unmatched_block_comments;
+extern bool enable_opentenbase_ora_dist_udaf;
+
+extern bool enable_push_pred;
+
+extern bool enable_partition_iterator;
+extern bool allow_plsql_cross_used;
+typedef enum
+{
+	ANALYZE_AFTER_DML = 0,
+	ANALYZE_BEFORE_USE,
+	ANALYZE_TWO_CONDITION
+} AutoAnalyzeOption;
+
+typedef enum
+{
+	NOT_ASSIGN_RESERVED_XID = 0,
+	USER_RUN_SQL,
+	DBA_RUN_FREEZE
+} ForceAssignXidOption;
+
+typedef enum
+{
+    NOT_COMPRESSD = 0,     /* not compress clog/csnlog files */
+    RENAME_FOR_BACKUP,     /* not compressed, just rename files need backup */
+    REMOVED_WHEN_ERROR,    /* compress clog/csnlog files, but if compressed failed, remove origion log file */
+    RENAMED_WHEN_ERROR,    /* compress clog/csnlog files, but if compressed failed, rename origion log file for backup */
+} CsnlogCompressOption;
+
+typedef enum
+{
+	LOCAL_KEY = 0, /* use local key without KMS*/
+	KMS_PRIVATE,   /* use KMS in private cloud */
+	KMS_PUBLIC     /* use KMS in public cloud */
+} TDEKeyTypeOption;
+
+extern bool xact_autoanalyze;
+extern int xact_autoanalyze_naptime;
+extern int xact_autoanalyze_mode;
+
+extern int force_assign_xid;
+extern bool enable_auto_kill_old_trans;
+extern bool enable_threadsafety_check;
+
+extern int compress_config;
+extern bool enable_auto_pushdown_function;
+extern bool enable_unsafe_function_pushdown;
+extern bool enable_unshippable_function_rewrite;
+extern bool enable_opentenbase_ora_return_type;
+extern bool enable_right_nvl_typmod;
+
 /*
  * Functions exported by guc.c
  */
 extern void SetConfigOption(const char *name, const char *value,
-                GucContext context, GucSource source);
+				GucContext context, GucSource source);
 
 extern void DefineCustomBoolVariable(
-                         const char *name,
-                         const char *short_desc,
-                         const char *long_desc,
-                         bool *valueAddr,
-                         bool bootValue,
-                         GucContext context,
-                         int flags,
-                         GucBoolCheckHook check_hook,
-                         GucBoolAssignHook assign_hook,
-                         GucShowHook show_hook);
+						 const char *name,
+						 const char *short_desc,
+						 const char *long_desc,
+						 bool *valueAddr,
+						 bool bootValue,
+						 GucContext context,
+						 int flags,
+						 GucBoolCheckHook check_hook,
+						 GucBoolAssignHook assign_hook,
+						 GucShowHook show_hook);
 
 extern void DefineCustomIntVariable(
-                        const char *name,
-                        const char *short_desc,
-                        const char *long_desc,
-                        int *valueAddr,
-                        int bootValue,
-                        int minValue,
-                        int maxValue,
-                        GucContext context,
-                        int flags,
-                        GucIntCheckHook check_hook,
-                        GucIntAssignHook assign_hook,
-                        GucShowHook show_hook);
-
-extern void DefineCustomUintVariable(
-                        const char *name,
-                        const char *short_desc,
-                        const char *long_desc,
-                        uint *valueAddr,
-                        uint bootValue,
-                        uint minValue,
-                        uint maxValue,
-                        GucContext context,
-                        int flags,
-                        GucUintCheckHook check_hook,
-                        GucUintAssignHook assign_hook,
-                        GucShowHook show_hook);
+						const char *name,
+						const char *short_desc,
+						const char *long_desc,
+						int *valueAddr,
+						int bootValue,
+						int minValue,
+						int maxValue,
+						GucContext context,
+						int flags,
+						GucIntCheckHook check_hook,
+						GucIntAssignHook assign_hook,
+						GucShowHook show_hook);
 
 extern void DefineCustomRealVariable(
-                         const char *name,
-                         const char *short_desc,
-                         const char *long_desc,
-                         double *valueAddr,
-                         double bootValue,
-                         double minValue,
-                         double maxValue,
-                         GucContext context,
-                         int flags,
-                         GucRealCheckHook check_hook,
-                         GucRealAssignHook assign_hook,
-                         GucShowHook show_hook);
+						 const char *name,
+						 const char *short_desc,
+						 const char *long_desc,
+						 double *valueAddr,
+						 double bootValue,
+						 double minValue,
+						 double maxValue,
+						 GucContext context,
+						 int flags,
+						 GucRealCheckHook check_hook,
+						 GucRealAssignHook assign_hook,
+						 GucShowHook show_hook);
 
 extern void DefineCustomStringVariable(
-                           const char *name,
-                           const char *short_desc,
-                           const char *long_desc,
-                           char **valueAddr,
-                           const char *bootValue,
-                           GucContext context,
-                           int flags,
-                           GucStringCheckHook check_hook,
-                           GucStringAssignHook assign_hook,
-                           GucShowHook show_hook);
+						   const char *name,
+						   const char *short_desc,
+						   const char *long_desc,
+						   char **valueAddr,
+						   const char *bootValue,
+						   GucContext context,
+						   int flags,
+						   GucStringCheckHook check_hook,
+						   GucStringAssignHook assign_hook,
+						   GucShowHook show_hook);
 
 extern void DefineCustomEnumVariable(
-                         const char *name,
-                         const char *short_desc,
-                         const char *long_desc,
-                         int *valueAddr,
-                         int bootValue,
-                         const struct config_enum_entry *options,
-                         GucContext context,
-                         int flags,
-                         GucEnumCheckHook check_hook,
-                         GucEnumAssignHook assign_hook,
-                         GucShowHook show_hook);
+						 const char *name,
+						 const char *short_desc,
+						 const char *long_desc,
+						 int *valueAddr,
+						 int bootValue,
+						 const struct config_enum_entry *options,
+						 GucContext context,
+						 int flags,
+						 GucEnumCheckHook check_hook,
+						 GucEnumAssignHook assign_hook,
+						 GucShowHook show_hook);
 
 extern void EmitWarningsOnPlaceholders(const char *className);
 
 extern const char *GetConfigOption(const char *name, bool missing_ok,
-                bool restrict_superuser);
+				bool restrict_superuser);
 extern const char *GetConfigOptionResetString(const char *name);
 extern void ProcessConfigFile(GucContext context);
 extern void InitializeGUCOptions(void);
 extern bool SelectConfigFiles(const char *userDoption, const char *progname);
-extern void ResetAllOptions(void);
+extern void ResetAllOptions(bool is_setting_backend_resue, bool isDiscard);
 extern void AtStart_GUC(void);
-extern int    NewGUCNestLevel(void);
+extern int	NewGUCNestLevel(void);
 extern void AtEOXact_GUC(bool isCommit, int nestLevel);
+extern void AtEOXact_DisGuc(bool isCommit, int nestLevel);
 extern void BeginReportingGUCOptions(void);
 extern void ParseLongOption(const char *string, char **name, char **value);
 extern bool parse_int(const char *value, int *result, int flags,
-          const char **hintmsg);
+		  const char **hintmsg);
 extern bool parse_uint(const char *value, uint *result, int flags,
-          const char **hintmsg);
+		  const char **hintmsg);
 extern bool parse_real(const char *value, double *result);
 extern int set_config_option(const char *name, const char *value,
-                  GucContext context, GucSource source,
-                  GucAction action, bool changeVal, int elevel,
-                  bool is_reload);
+				  GucContext context, GucSource source,
+				  GucAction action, bool changeVal, int elevel,
+				  bool is_reload);
 extern void AlterSystemSetConfigFile(AlterSystemStmt *setstmt);
 extern char *GetConfigOptionByName(const char *name, const char **varname,
-                      bool missing_ok);
+					  bool missing_ok);
 extern void GetConfigOptionByNum(int varnum, const char **values, bool *noshow);
-extern int    GetNumConfigOptions(void);
+extern int	GetNumConfigOptions(void);
 
 extern void SetPGVariable(const char *name, List *args, bool is_local);
 extern void GetPGVariable(const char *name, DestReceiver *dest);
@@ -459,7 +589,7 @@ extern void ExecSetVariableStmt(VariableSetStmt *stmt, bool isTopLevel);
 extern char *ExtractSetVariableArgs(VariableSetStmt *stmt);
 
 extern void ProcessGUCArray(ArrayType *array,
-                GucContext context, GucSource source, GucAction action);
+				GucContext context, GucSource source, GucAction action);
 extern ArrayType *GUCArrayAdd(ArrayType *array, const char *name, const char *value);
 extern ArrayType *GUCArrayDelete(ArrayType *array, const char *name);
 extern ArrayType *GUCArrayReset(ArrayType *array);
@@ -479,20 +609,22 @@ extern void RestoreGUCState(void *gucstate);
 extern PGDLLIMPORT char *GUC_check_errmsg_string;
 extern PGDLLIMPORT char *GUC_check_errdetail_string;
 extern PGDLLIMPORT char *GUC_check_errhint_string;
+extern bool backend_cn;
+extern int savedRemoteConn;
 
 extern void GUC_check_errcode(int sqlerrcode);
 
 #define GUC_check_errmsg \
-    pre_format_elog_string(errno, TEXTDOMAIN), \
-    GUC_check_errmsg_string = format_elog_string
+	pre_format_elog_string(errno, TEXTDOMAIN), \
+	GUC_check_errmsg_string = format_elog_string
 
 #define GUC_check_errdetail \
-    pre_format_elog_string(errno, TEXTDOMAIN), \
-    GUC_check_errdetail_string = format_elog_string
+	pre_format_elog_string(errno, TEXTDOMAIN), \
+	GUC_check_errdetail_string = format_elog_string
 
 #define GUC_check_errhint \
-    pre_format_elog_string(errno, TEXTDOMAIN), \
-    GUC_check_errhint_string = format_elog_string
+	pre_format_elog_string(errno, TEXTDOMAIN), \
+	GUC_check_errhint_string = format_elog_string
 
 
 /*
@@ -513,6 +645,42 @@ extern void assign_search_path(const char *newval, void *extra);
 /* in access/transam/xlog.c */
 extern bool check_wal_buffers(int *newval, void **extra, GucSource source);
 extern void assign_xlog_sync_method(int new_sync_method, void *extra);
-extern const char *quote_guc_value(const char *value, int flags);
+extern const char *quote_guc_value(const char *name, const char *value, int flags);
 
-#endif                            /* GUC_H */
+/* in case when guc check and assign hook is implemented in other files */
+extern void * guc_malloc(int elevel, size_t size);
+extern void * guc_realloc(int elevel, void *old, size_t size);
+extern char * guc_strdup(int elevel, const char *src);
+
+
+#ifdef __OPENTENBASE_C__
+extern bool validate_pgxc_plane_name(const char * value, int * retval);
+#endif
+
+/* Set sql mode and return the origin sql mode, be careful to use it. */
+extern void set_sql_mode(DatabaseSQLMode new_val);
+
+extern int optimizer_capture_sql_plan_baselines;
+extern int spm_plan_capture;
+extern struct config_generic *get_guc_value(const char *name);
+
+#define PARAMDATALEN 1024
+typedef struct paramData
+{
+	char	data[PARAMDATALEN];
+} ParamData;
+
+typedef struct
+{
+	NameData name;
+	ParamData value;
+	int		 flags;
+	bool     local;
+	bool     reset;
+	uint64   guc_cid;
+} ParamEntry;
+
+void get_set_command(List *param_list, StringInfo command, bool *set_search_path, uint64 start_cid);
+List *paramlist_delete_param(List *param_list, const char *name, bool local);
+extern char *getGucVal(struct config_generic *record, bool use_units);
+#endif							/* GUC_H */

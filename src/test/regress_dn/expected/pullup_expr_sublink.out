@@ -1,0 +1,195 @@
+\c regression_ora
+create table tbl1_pullup_20240731(a int , b int);
+create table tbl2_pullup_20240731(a int , b int);
+create index on tbl1_pullup_20240731(a);
+create index on tbl2_pullup_20240731(a);
+set enable_hashjoin TO off;
+set enable_mergejoin TO off;
+set enable_material TO off;
+-- A = 1 should be pushed down
+explain (costs off, nodes off) select * from tbl1_pullup_20240731 t1
+    where t1.a = (select a from tbl2_pullup_20240731 t2 where t2.a = t1.a) and t1.a = 1;
+                QUERY PLAN                 
+-------------------------------------------
+ Nested Loop Inner Scalar Join
+   Join Filter: (T2.A = T1.A)
+   Filter: (T1.A = T2.A)
+   ->  Seq Scan on TBL1_PULLUP_20240731 T1
+         Filter: (A = 1)
+   ->  Seq Scan on TBL2_PULLUP_20240731 T2
+         Filter: (A = 1)
+(7 rows)
+
+explain (costs off, nodes off) select * from tbl1_pullup_20240731 t1
+    where t1.a = (select max(a) from tbl2_pullup_20240731 t2 where t2.a = t1.a) and t1.a = 1;
+                   QUERY PLAN                    
+-------------------------------------------------
+ Nested Loop
+   ->  GroupAggregate
+         Group Key: T2.A
+         Filter: (MAX(T2.A) = 1)
+         ->  Seq Scan on TBL2_PULLUP_20240731 T2
+               Filter: (A = 1)
+   ->  Seq Scan on TBL1_PULLUP_20240731 T1
+         Filter: (A = 1)
+(8 rows)
+
+reset enable_hashjoin;
+reset enable_mergejoin;
+reset enable_material;
+drop table tbl1_pullup_20240731;
+drop table tbl2_pullup_20240731;
+-- bug: https://tapd.woa.com/20385652/prong/stories/view/1020385652117781317
+create table pullup_bug_t1_20240801(c1 int, c2 int);
+create table pullup_bug_t2_20240801(c1 int, c2 int);
+insert into pullup_bug_t1_20240801 values(1, 1);
+insert into pullup_bug_t2_20240801 values(1, 1);
+-- should return one row
+select sum(c1) from pullup_bug_t2_20240801 where pullup_bug_t2_20240801.c2 > 100000 and pullup_bug_t2_20240801.c2 = 100001;
+ SUM 
+-----
+    
+(1 row)
+
+select c1 from pullup_bug_t2_20240801 where pullup_bug_t2_20240801.c2 > 100000 and pullup_bug_t2_20240801.c2 = 100001;
+ C1 
+----
+(0 rows)
+
+select * from pullup_bug_t1_20240801 where pullup_bug_t1_20240801.c1 = nvl((select sum(c1) from pullup_bug_t2_20240801 where pullup_bug_t2_20240801.c2 > 100000 and pullup_bug_t2_20240801.c2 = pullup_bug_t1_20240801.c2), 1);
+ C1 | C2 
+----+----
+  1 |  1
+(1 row)
+
+select * from pullup_bug_t1_20240801 where pullup_bug_t1_20240801.c1 = nvl((select c1 from pullup_bug_t2_20240801 where pullup_bug_t2_20240801.c2 > 100000 and pullup_bug_t2_20240801.c2 = pullup_bug_t1_20240801.c2), 1);
+ C1 | C2 
+----+----
+  1 |  1
+(1 row)
+
+-- test sublink has null results (not empty)
+insert into pullup_bug_t1_20240801 values(NULL, 100001);
+insert into pullup_bug_t2_20240801 values(NULL, 100001);
+select sum(c1) from pullup_bug_t2_20240801 where pullup_bug_t2_20240801.c2 > 100000 and pullup_bug_t2_20240801.c2 = 100001;
+ SUM 
+-----
+    
+(1 row)
+
+select c1 from pullup_bug_t2_20240801 where pullup_bug_t2_20240801.c2 > 100000 and pullup_bug_t2_20240801.c2 = 100001;
+ C1 
+----
+   
+(1 row)
+
+select * from pullup_bug_t1_20240801 where pullup_bug_t1_20240801.c1 = nvl((select sum(c1) from pullup_bug_t2_20240801 where pullup_bug_t2_20240801.c2 > 100000 and pullup_bug_t2_20240801.c2 = pullup_bug_t1_20240801.c2), 1);
+ C1 | C2 
+----+----
+  1 |  1
+(1 row)
+
+select * from pullup_bug_t1_20240801 where pullup_bug_t1_20240801.c1 = nvl((select c1 from pullup_bug_t2_20240801 where pullup_bug_t2_20240801.c2 > 100000 and pullup_bug_t2_20240801.c2 = pullup_bug_t1_20240801.c2), 1);
+ C1 | C2 
+----+----
+  1 |  1
+(1 row)
+
+-- clear
+drop table if exists pullup_bug_t1_20240801;
+drop table if exists pullup_bug_t2_20240801;
+create table pullup_casewhen_sublink1(id int,ENDO_TYPE varchar(20), ENDO_DTL_TYPE varchar(20));
+insert into pullup_casewhen_sublink1 values( 1,'C01' ,'C103'); 
+create table pullup_casewhen_sublink2(id int, CD_DETL_NO varchar(200),CD_DETL_ORGN_NAME1 varchar(500));
+insert into pullup_casewhen_sublink2 values( 1 ,'C103','C01'); 
+set pullup_target_casewhen_filter = 1;
+explain (costs off, nodes off) select  CASE SUBSTR(ENDO_DTL_TYPE, 0, 1) WHEN 'C' THEN 
+	(SELECT T.CD_DETL_ORGN_NAME1 FROM pullup_casewhen_sublink2 T WHERE  T.CD_DETL_NO = ENDO_DTL_TYPE)
+	ELSE
+		ENDO_TYPE
+	END ENDO_TYPE
+	,ENDO_TYPE       
+	,ENDO_DTL_TYPE
+	FROM pullup_casewhen_sublink1;
+                                        QUERY PLAN                                         
+-------------------------------------------------------------------------------------------
+ Hash Left Scalar Join
+   Hash Cond: ((PULLUP_CASEWHEN_SUBLINK1.ENDO_DTL_TYPE)::TEXT = (T.CD_DETL_NO)::TEXT)
+   Join Filter: (SUBSTR((PULLUP_CASEWHEN_SUBLINK1.ENDO_DTL_TYPE)::TEXT, 0, 1) = 'C'::TEXT)
+   ->  Seq Scan on PULLUP_CASEWHEN_SUBLINK1
+   ->  Hash
+         ->  Seq Scan on PULLUP_CASEWHEN_SUBLINK2 T
+(6 rows)
+
+select  CASE SUBSTR(ENDO_DTL_TYPE, 0, 1) WHEN 'C' THEN 
+	(SELECT T.CD_DETL_ORGN_NAME1 FROM pullup_casewhen_sublink2 T WHERE  T.CD_DETL_NO = ENDO_DTL_TYPE)
+	ELSE
+		ENDO_TYPE
+	END ENDO_TYPE
+	,ENDO_TYPE       
+	,ENDO_DTL_TYPE
+	FROM pullup_casewhen_sublink1;
+ ENDO_TYPE | ENDO_TYPE | ENDO_DTL_TYPE 
+-----------+-----------+---------------
+ C01       | C01       | C103
+(1 row)
+
+set pullup_target_casewhen_filter = 2;
+explain (costs off, nodes off) select  CASE SUBSTR(ENDO_DTL_TYPE, 0, 1) WHEN 'C' THEN 
+	(SELECT T.CD_DETL_ORGN_NAME1 FROM pullup_casewhen_sublink2 T WHERE  T.CD_DETL_NO = ENDO_DTL_TYPE)
+	ELSE
+		ENDO_TYPE
+	END ENDO_TYPE
+	,ENDO_TYPE       
+	,ENDO_DTL_TYPE
+	FROM pullup_casewhen_sublink1;
+                                      QUERY PLAN                                      
+--------------------------------------------------------------------------------------
+ Hash Left Scalar Join
+   Hash Cond: ((PULLUP_CASEWHEN_SUBLINK1.ENDO_DTL_TYPE)::TEXT = (T.CD_DETL_NO)::TEXT)
+   ->  Seq Scan on PULLUP_CASEWHEN_SUBLINK1
+   ->  Hash
+         ->  Seq Scan on PULLUP_CASEWHEN_SUBLINK2 T
+(5 rows)
+
+select  CASE SUBSTR(ENDO_DTL_TYPE, 0, 1) WHEN 'C' THEN 
+	(SELECT T.CD_DETL_ORGN_NAME1 FROM pullup_casewhen_sublink2 T WHERE  T.CD_DETL_NO = ENDO_DTL_TYPE)
+	ELSE
+		ENDO_TYPE
+	END ENDO_TYPE
+	,ENDO_TYPE       
+	,ENDO_DTL_TYPE
+	FROM pullup_casewhen_sublink1;
+ ENDO_TYPE | ENDO_TYPE | ENDO_DTL_TYPE 
+-----------+-----------+---------------
+ C01       | C01       | C103
+(1 row)
+
+reset pullup_target_casewhen_filter;
+drop table pullup_casewhen_sublink1;
+drop table pullup_casewhen_sublink2;
+drop table if exists test_casewhen_expr_select_shard_1 cascade;
+NOTICE:  table "TEST_CASEWHEN_EXPR_SELECT_SHARD_1" does not exist, skipping
+create table test_casewhen_expr_select_shard_1 (id int, ename varchar, address text, age int, sal numeric, deptno smallint, mey money, dt date, ts timestamp);
+insert into test_casewhen_expr_select_shard_1 select i, 'opentenbase'||i%212, case when i%111=0 then '北京' when i%112=0 then '深圳' when i%113=0 then '上海' else '广州' end, i%100, 0.998123*i, (i*1.2321)%256, i%599, date'2025-01-01'+i*interval '1 hour',timestamp'2025-01-01 00:00:00'+i*interval '1 min' from generate_series(1, 10000) i;
+drop table if exists test_casewhen_expr_select_replication_1 cascade;
+NOTICE:  table "TEST_CASEWHEN_EXPR_SELECT_REPLICATION_1" does not exist, skipping
+create table test_casewhen_expr_select_replication_1 (id int, ename varchar, address text, age int, sal numeric, deptno smallint, mey money, dt date, ts timestamp);
+insert into test_casewhen_expr_select_replication_1 select i, 'opentenbase'||i%212, case when i%111=0 then '北京' when i%112=0 then '深圳' when i%113=0 then '上海' else '广州' end, i%100, 0.998123*i, (i*1.2321)%256, i%599, date'2025-01-01'+i*interval '1 hour',timestamp'2025-01-01 00:00:00'+i*interval '1 min' from generate_series(1, 8000) i;
+set pullup_target_casewhen_filter = 1;
+select dt,sal,case sum(sal) when sal then (select sal from test_casewhen_expr_select_replication_1 t2 where t1.dt=t2.dt limit 1) else sum(sal) end from test_casewhen_expr_select_shard_1 t1 where address='北京' and deptno=10 group by dt,sal;
+     DT     |     SAL     |     SUM     
+------------+-------------+-------------
+ 07-28-2025 | 4985.624385 | 4982.630016
+(1 row)
+
+set pullup_target_casewhen_filter = 2;
+select dt,sal,case sum(sal) when sal then (select sal from test_casewhen_expr_select_replication_1 t2 where t1.dt=t2.dt limit 1) else sum(sal) end from test_casewhen_expr_select_shard_1 t1 where address='北京' and deptno=10 group by dt,sal;
+     DT     |     SAL     |     SUM     
+------------+-------------+-------------
+ 07-28-2025 | 4985.624385 | 5005.586845
+(1 row)
+
+reset pullup_target_casewhen_filter;
+drop table if exists test_casewhen_expr_select_shard_1 cascade;
+drop table if exists test_casewhen_expr_select_replication_1 cascade;

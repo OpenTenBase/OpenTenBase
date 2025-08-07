@@ -1,17 +1,15 @@
 /*-------------------------------------------------------------------------
  *
  * standby_utils.c
- *    Utilities for GTM standby global values
+ *	Utilities for GTM standby global values
  *
  * Portions Copyright (c) 1996-2010, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  * Portions Copyright (c) 2010-2012 Postgres-XC Development Group
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  * IDENTIFICATION
- *    src/gtm/recovery/standby_utils.c
+ *	src/gtm/recovery/standby_utils.c
  *
  *-------------------------------------------------------------------------
  */
@@ -34,64 +32,64 @@ static GTM_RWLock StandbyLock;
 inline bool
 Recovery_IsStandby(void)
 {
-    bool res;
+	bool res;
 #ifndef __OPENTENBASE__
-    GTM_RWLockAcquire(&StandbyLock, GTM_LOCKMODE_READ);
+	GTM_RWLockAcquire(&StandbyLock, GTM_LOCKMODE_READ);
 #endif
-    res = (GTM_StandbyMode == GTM_STANDBY_MODE);
+	res = (GTM_StandbyMode == GTM_STANDBY_MODE);
 #ifndef __OPENTENBASE__
-    GTM_RWLockRelease(&StandbyLock);
+	GTM_RWLockRelease(&StandbyLock);
 #endif
-    return res;
+	return res;
 }
 
 void
 Recovery_StandbySetStandby(bool standby)
 {
 #ifndef __OPENTENBASE__
-    GTM_RWLockAcquire(&StandbyLock, GTM_LOCKMODE_WRITE);
+	GTM_RWLockAcquire(&StandbyLock, GTM_LOCKMODE_WRITE);
 #endif
-    GTM_StandbyMode = standby;
+	GTM_StandbyMode = standby;
 #ifndef __OPENTENBASE__
-    GTM_RWLockRelease(&StandbyLock);
+	GTM_RWLockRelease(&StandbyLock);
 #endif
 }
 
 void
 Recovery_StandbySetConnInfo(const char *addr, int port)
 {
-    GTM_RWLockAcquire(&StandbyLock, GTM_LOCKMODE_WRITE);
-    GTM_ActiveAddress = strdup(addr);
-    GTM_ActivePort = port;
-    GTM_RWLockRelease(&StandbyLock);
+	GTM_RWLockAcquire(&StandbyLock, GTM_LOCKMODE_WRITE);
+	GTM_ActiveAddress = strdup(addr);
+	GTM_ActivePort = port;
+	GTM_RWLockRelease(&StandbyLock);
 }
 
 int
 Recovery_StandbyGetActivePort(void)
 {
-    int res;
+	int res;
 
-    GTM_RWLockAcquire(&StandbyLock, GTM_LOCKMODE_READ);
-    res = GTM_ActivePort;
-    GTM_RWLockRelease(&StandbyLock);
+	GTM_RWLockAcquire(&StandbyLock, GTM_LOCKMODE_READ);
+	res = GTM_ActivePort;
+	GTM_RWLockRelease(&StandbyLock);
 
-    return res;
+	return res;
 }
 
 char *
 Recovery_StandbyGetActiveAddress(void)
 {
-    char *res;
+	char *res;
 
-    GTM_RWLockAcquire(&StandbyLock, GTM_LOCKMODE_READ);
-    res = GTM_ActiveAddress;
-    GTM_RWLockRelease(&StandbyLock);
+	GTM_RWLockAcquire(&StandbyLock, GTM_LOCKMODE_READ);
+	res = GTM_ActiveAddress;
+	GTM_RWLockRelease(&StandbyLock);
 
-    return res;
+	return res;
 }
 
 void
 Recovery_InitStandbyLock(void)
 {
-    GTM_RWLockInit(&StandbyLock);
+	GTM_RWLockInit(&StandbyLock);
 }

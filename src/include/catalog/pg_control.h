@@ -8,9 +8,6 @@
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * src/include/catalog/pg_control.h
  *
  *-------------------------------------------------------------------------
@@ -58,7 +55,7 @@ typedef struct CheckPoint
 										 * timestamp */
 
 #ifdef __SUPPORT_DISTRIBUTED_TRANSACTION__
-	GlobalTimestamp latestCommitTs;
+	CommitSeqNo latestCommitTs;	/* max commit ts */
 	GlobalTimestamp	latestGTS;
 #endif
 
@@ -86,12 +83,14 @@ typedef struct CheckPoint
 #define XLOG_FPI_FOR_HINT				0xA0
 #define XLOG_FPI						0xB0
 #ifdef __OPENTENBASE__
-#define XLOG_MVCC						0xC0
+#define XLOG_MVCC                       0xC0
 #endif
 /* remove or rename 2pc file when 2pc is cleaned */
-#define XLOG_CLEAN_2PC_FILE       0XD0
-#define XLOG_CREATE_2PC_FILE      0xE0
+#define XLOG_CLEAN_2PC_FILE		0XD0
+#define XLOG_CREATE_2PC_FILE    0xE0
 #define XLOG_RECORD_2PC_TIMESTAMP 0xF0
+
+
 
 /*
  * System status indicator.  Note this is stored in pg_control; if you change

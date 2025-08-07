@@ -23,7 +23,7 @@ use warnings;
 
 use PostgresNode;
 use TestLib;
-use Test::More tests => 13;
+use Test::More tests => 12;
 use RecursiveCopy;
 use File::Copy;
 use IPC::Run ();
@@ -32,8 +32,13 @@ use Scalar::Util qw(blessed);
 my ($stdout, $stderr, $ret);
 
 # Initialize master node
-my $node_master = get_new_node('master');
-$node_master->init(allows_streaming => 1, has_archiving => 1);
+my $node_master = get_new_node('master', 'datanode');
+# There is no gtm in centralized mode, so it doesn’t matter what
+# the master gtm IP and port are
+$node_master->init(allows_streaming => 1, has_archiving => 1,
+                   extra => ['--master_gtm_nodename', 'no_gtm',
+                             '--master_gtm_ip', '127.0.0.1',
+                             '--master_gtm_port', '25001']);
 $node_master->append_conf(
 	'postgresql.conf', q[
 wal_level = 'logical'
@@ -42,6 +47,8 @@ max_wal_senders = 2
 log_min_messages = 'debug2'
 hot_standby_feedback = on
 wal_receiver_status_interval = 1
+allow_dml_on_datanode = on
+is_centralized_mode = on
 ]);
 $node_master->dump_info;
 $node_master->start;
@@ -71,7 +78,7 @@ $node_master->backup_fs_hot($backup_name);
 $node_master->safe_psql('postgres',
 	q[SELECT pg_create_physical_replication_slot('phys_slot');]);
 
-my $node_replica = get_new_node('replica');
+my $node_replica = get_new_node('replica', 'datanode');
 $node_replica->init_from_backup(
 	$node_master, $backup_name,
 	has_streaming => 1,
@@ -102,11 +109,14 @@ $node_master->safe_psql('postgres',
 	"INSERT INTO decoding(blah) VALUES ('afterbb');");
 $node_master->safe_psql('postgres', 'CHECKPOINT;');
 
-# Verify that only the before base_backup slot is on the replica
+# Verify that all of the three slots is on the replica
+my $expected_slot = q(after_basebackup
+before_basebackup
+phys_slot);
 $stdout = $node_replica->safe_psql('postgres',
 	'SELECT slot_name FROM pg_replication_slots ORDER BY slot_name');
-is($stdout, 'before_basebackup',
-	'Expected to find only slot before_basebackup on replica');
+is($stdout, $expected_slot,
+	'Expected to find three slots on replica');
 
 # Examine the physical slot the replica uses to stream changes
 # from the master to make sure its hot_standby_feedback
@@ -140,15 +150,11 @@ $node_replica->promote;
 $node_replica->safe_psql('postgres',
 	"INSERT INTO decoding(blah) VALUES ('after failover');");
 
-# Shouldn't be able to read from slot created after base backup
+# Shouldn be able to read from slot created after base backup
 ($ret, $stdout, $stderr) = $node_replica->psql('postgres',
 "SELECT data FROM pg_logical_slot_peek_changes('after_basebackup', NULL, NULL, 'include-xids', '0', 'skip-empty-xacts', '1');"
 );
-is($ret, 3, 'replaying from after_basebackup slot fails');
-like(
-	$stderr,
-	qr/replication slot "after_basebackup" does not exist/,
-	'after_basebackup slot missing');
+is($ret, 0, 'replay from slot before_basebackup succeeds');
 
 # Should be able to read from slot created before base backup
 ($ret, $stdout, $stderr) = $node_replica->psql(

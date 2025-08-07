@@ -47,5 +47,5 @@ extern int pgxc_check_dir(const char *dir);
 #define expandSval(name) name, sval(name)
 #define avalFormat "%s=( %s )\n"
 #define expandAval(name) name, listValue(name)
-#define fprintAval(f, name) do{ char * __t__ = listValue(name); fprintf(f, avalFormat, name, __t__); Free(__t__); }while(0)
+#define fprintAval(f, name) do{fprintf(f, avalFormat, expandAval(name));}while(0)
 #define fprintSval(f, name) do{fprintf(f, svalFormat, expandSval(name));}while(0)

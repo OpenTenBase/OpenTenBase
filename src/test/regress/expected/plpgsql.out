@@ -20,6 +20,7 @@
 --     you look behind the wall when looking at a patchfield
 --     or into a room.
 --
+set datestyle = 'ISO, YMD';
 create table Room (
     roomno	char(8),
     comment	text
@@ -655,18 +656,18 @@ create function tg_backlink_set(myname bpchar, blname bpchar)
 returns integer as '
 declare
     mytype	char(2);
-    link	char(4);
+    ilink	char(4);
     rec		record;
 begin
     mytype := substr(myname, 1, 2);
-    link := mytype || substr(blname, 1, 2);
-    if link = ''PLPL'' then
+    ilink := mytype || substr(blname, 1, 2);
+    if ilink = ''PLPL'' then
         raise exception
 		''backlink between two phone lines does not make sense'';
     end if;
-    if link in (''PLWS'', ''WSPL'') then
+    if ilink in (''PLWS'', ''WSPL'') then
         raise exception
-		''direct link of phone line to wall slot not permitted'';
+		''direct ilink of phone line to wall slot not permitted'';
     end if;
     if mytype = ''PS'' then
         select into rec * from PSlot where slotname = myname;
@@ -813,24 +814,24 @@ declare
     myname	alias for $1;
     blname	alias for $2;
     mytype	char(2);
-    link	char(4);
+    ilink	char(4);
     rec		record;
 begin
     mytype := substr(myname, 1, 2);
-    link := mytype || substr(blname, 1, 2);
-    if link = ''PHPH'' then
+    ilink := mytype || substr(blname, 1, 2);
+    if ilink = ''PHPH'' then
         raise exception
 		''slotlink between two phones does not make sense'';
     end if;
-    if link in (''PHHS'', ''HSPH'') then
+    if liink in (''PHHS'', ''HSPH'') then
         raise exception
-		''link of phone to hub does not make sense'';
+		''ilink of phone to hub does not make sense'';
     end if;
-    if link in (''PHIF'', ''IFPH'') then
+    if ilink in (''PHIF'', ''IFPH'') then
         raise exception
-		''link of phone to hub does not make sense'';
+		''ilink of phone to hub does not make sense'';
     end if;
-    if link in (''PSWS'', ''WSPS'') then
+    if ilink in (''PSWS'', ''WSPS'') then
         raise exception
 		''slotlink from patchslot to wallslot not permitted'';
     end if;
@@ -1548,26 +1549,26 @@ update PSlot set slotlink = 'HS.base.hub1.1' where slotname = 'PS.base.b2';
 --
 -- PGXCTODO: This is failing due to issue 3522907, complicated SELECT queries in plpgsql functions
 select * from PField_v1 where pfname = 'PF0_1' order by slotname;
- pfname |       slotname       |          backside          |      patch      
---------+----------------------+----------------------------+-----------------
- PF0_1  | PS.base.a1           | WS.001.1a in room 001 -> - | PS.base.ta1 -> 
- PF0_1  | PS.base.a2           |                            | -
- PF0_1  | PS.base.a3           | WS.001.2a in room 001 -> - | PS.base.ta2 -> 
+ pfname |       slotname       |          backside          |      patch       
+--------+----------------------+----------------------------+------------------
+ PF0_1  | PS.base.a1           | WS.001.1a in room 001 -> - | PS.base.ta1 -> -
+ PF0_1  | PS.base.a2           | WS.001.1b in room 001 -> - | -
+ PF0_1  | PS.base.a3           | WS.001.2a in room 001 -> - | PS.base.ta2 -> -
  PF0_1  | PS.base.a4           | -                          | -
  PF0_1  | PS.base.a5           | -                          | -
  PF0_1  | PS.base.a6           | -                          | -
- PF0_1  | PS.base.b1           |                            | PS.base.ta5 -> 
- PF0_1  | PS.base.b2           |                            | 
- PF0_1  | PS.base.b3           |                            | PS.base.tb2 -> 
- PF0_1  | PS.base.b4           |                            | -
+ PF0_1  | PS.base.b1           | WS.002.1a in room 002 -> - | PS.base.ta5 -> -
+ PF0_1  | PS.base.b2           | WS.002.1b in room 002 -> - | 
+ PF0_1  | PS.base.b3           | WS.002.2a in room 002 -> - | PS.base.tb2 -> -
+ PF0_1  | PS.base.b4           | WS.002.2b in room 002 -> - | -
  PF0_1  | PS.base.b5           | WS.002.3a in room 002 -> - | -
- PF0_1  | PS.base.b6           |                            | -
+ PF0_1  | PS.base.b6           | WS.002.3b in room 002 -> - | -
  PF0_1  | PS.base.c1           | WS.003.1a in room 003 -> - | -
  PF0_1  | PS.base.c2           | WS.003.1b in room 003 -> - | -
  PF0_1  | PS.base.c3           | WS.003.2a in room 003 -> - | -
- PF0_1  | PS.base.c4           |                            | -
+ PF0_1  | PS.base.c4           | WS.003.2b in room 003 -> - | -
  PF0_1  | PS.base.c5           | WS.003.3a in room 003 -> - | -
- PF0_1  | PS.base.c6           |                            | -
+ PF0_1  | PS.base.c6           | WS.003.3b in room 003 -> - | -
 (18 rows)
 
 select * from PField_v1 where pfname = 'PF0_2' order by slotname;
@@ -1990,17 +1991,37 @@ begin
 	return x;
 end$$ language plpgsql;
 select trap_zero_divide(50);
-ERROR:  Internal subtransactions not supported in Postgres-XL
-CONTEXT:  PL/pgSQL function trap_zero_divide(integer) line 5 during statement block entry
+NOTICE:  should see this
+NOTICE:  should see this only if 50 <> 0
+NOTICE:  should see this only if 50 fits in smallint
+ trap_zero_divide 
+------------------
+                2
+(1 row)
+
 select trap_zero_divide(0);
-ERROR:  Internal subtransactions not supported in Postgres-XL
-CONTEXT:  PL/pgSQL function trap_zero_divide(integer) line 5 during statement block entry
+NOTICE:  should see this
+NOTICE:  caught division_by_zero
+ trap_zero_divide 
+------------------
+               -1
+(1 row)
+
 select trap_zero_divide(100000);
-ERROR:  Internal subtransactions not supported in Postgres-XL
-CONTEXT:  PL/pgSQL function trap_zero_divide(integer) line 5 during statement block entry
+NOTICE:  should see this
+NOTICE:  should see this only if 100000 <> 0
+NOTICE:  caught numeric_value_out_of_range
+ trap_zero_divide 
+------------------
+               -2
+(1 row)
+
 select trap_zero_divide(-100);
-ERROR:  Internal subtransactions not supported in Postgres-XL
-CONTEXT:  PL/pgSQL function trap_zero_divide(integer) line 5 during statement block entry
+NOTICE:  should see this
+NOTICE:  should see this only if -100 <> 0
+NOTICE:  should see this only if -100 fits in smallint
+ERROR:  -100 is less than zero
+CONTEXT:  PL/pgSQL function trap_zero_divide(integer) line 12 at RAISE
 create function trap_matching_test(int) returns int as $$
 declare x int;
 	sx smallint;
@@ -2023,18 +2044,33 @@ begin
 end$$ language plpgsql;
 -- PGXCTODO: This is failing due to issue 3522907, complicated SELECT queries in plpgsql functions
 select trap_matching_test(50);
-ERROR:  Internal subtransactions not supported in Postgres-XL
-CONTEXT:  PL/pgSQL function trap_matching_test(integer) line 6 during statement block entry
+ trap_matching_test 
+--------------------
+                  2
+(1 row)
+
 select trap_matching_test(0);
-ERROR:  Internal subtransactions not supported in Postgres-XL
-CONTEXT:  PL/pgSQL function trap_matching_test(integer) line 6 during statement block entry
+NOTICE:  caught data_exception
+ trap_matching_test 
+--------------------
+                 -1
+(1 row)
+
 select trap_matching_test(100000);
-ERROR:  Internal subtransactions not supported in Postgres-XL
-CONTEXT:  PL/pgSQL function trap_matching_test(integer) line 6 during statement block entry
+NOTICE:  caught data_exception
+ trap_matching_test 
+--------------------
+                 -1
+(1 row)
+
 -- PGXCTODO: This is failing due to issue 3522907, complicated SELECT queries in plpgsql functions
 select trap_matching_test(1);
-ERROR:  Internal subtransactions not supported in Postgres-XL
-CONTEXT:  PL/pgSQL function trap_matching_test(integer) line 6 during statement block entry
+NOTICE:  caught numeric_value_out_of_range or cardinality_violation
+ trap_matching_test 
+--------------------
+                 -2
+(1 row)
+
 create temp table foo (f1 int);
 create function subxact_rollback_semantics() returns int as $$
 declare x int;
@@ -2053,13 +2089,17 @@ begin
   return x;
 end$$ language plpgsql;
 select subxact_rollback_semantics();
-ERROR:  Internal subtransactions not supported in Postgres-XL
-CONTEXT:  PL/pgSQL function subxact_rollback_semantics() line 6 during statement block entry
+ subxact_rollback_semantics 
+----------------------------
+                         20
+(1 row)
+
 select * from foo;
  f1 
 ----
   1
-(1 row)
+ 20
+(2 rows)
 
 drop table foo;
 create function trap_timeout() returns void as $$
@@ -2081,8 +2121,9 @@ end$$ language plpgsql;
 begin;
 set statement_timeout to 2000;
 select trap_timeout();
-ERROR:  Internal subtransactions not supported in Postgres-XL
-CONTEXT:  PL/pgSQL function trap_timeout() line 4 during statement block entry
+NOTICE:  nyeah nyeah, can't stop me
+ERROR:  end of function
+CONTEXT:  PL/pgSQL function trap_timeout() line 15 at RAISE
 rollback;
 -- Test for pass-by-ref values being stored in proper context
 create function test_variable_storage() returns text as $$
@@ -2100,8 +2141,14 @@ begin
   return x;
 end$$ language plpgsql;
 select test_variable_storage();
-ERROR:  Internal subtransactions not supported in Postgres-XL
-CONTEXT:  PL/pgSQL function test_variable_storage() line 5 during statement block entry
+NOTICE:  should see this
+NOTICE:  should see this only if -100 <> 0
+NOTICE:  should see this only if -100 fits in smallint
+ test_variable_storage 
+-----------------------
+ 123456789012
+(1 row)
+
 --
 -- test foreign key error trapping
 --
@@ -2135,25 +2182,41 @@ begin
 	return 1;
 end$$ language plpgsql;
 select trap_foreign_key(1);
-ERROR:  Internal subtransactions not supported in Postgres-XL
-CONTEXT:  PL/pgSQL function trap_foreign_key(integer) line 3 during statement block entry
+ trap_foreign_key 
+------------------
+                1
+(1 row)
+
 select trap_foreign_key(2);	-- detects FK violation
-ERROR:  Internal subtransactions not supported in Postgres-XL
-CONTEXT:  PL/pgSQL function trap_foreign_key(integer) line 3 during statement block entry
+NOTICE:  caught foreign_key_violation
+ trap_foreign_key 
+------------------
+                0
+(1 row)
+
 begin;
   set constraints all deferred;
   select trap_foreign_key(2);	-- should not detect FK violation
-ERROR:  Internal subtransactions not supported in Postgres-XL
-CONTEXT:  PL/pgSQL function trap_foreign_key(integer) line 3 during statement block entry
+ trap_foreign_key 
+------------------
+                1
+(1 row)
+
   savepoint x;
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
     set constraints all immediate; -- fails
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
+ERROR:  insert or update on table "slave" violates foreign key constraint "slave_f1_fkey"
+DETAIL:  Key (f1)=(2) is not present in table "master".
   rollback to x;
-ERROR:  no such savepoint
   select trap_foreign_key_2();  -- detects FK violation
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
+NOTICE:  caught foreign_key_violation
+ trap_foreign_key_2 
+--------------------
+                  0
+(1 row)
+
 commit;				-- still fails
+ERROR:  insert or update on table "slave" violates foreign key constraint "slave_f1_fkey"
+DETAIL:  Key (f1)=(2) is not present in table "master".
 drop function trap_foreign_key(int);
 drop function trap_foreign_key_2();
 --
@@ -2231,6 +2294,30 @@ drop function sp_id_user(text);
 --
 create table rc_test (a int, b int);
 copy rc_test from stdin;
+create function return_unnamed_refcursor() returns refcursor as $$
+declare
+    rc refcursor;
+begin
+    open rc for select a from rc_test;
+    return rc;
+end
+$$ language plpgsql;
+create function use_refcursor(rc refcursor) returns int as $$
+declare
+    rc refcursor;
+    x record;
+begin
+    rc := return_unnamed_refcursor();
+    fetch next from rc into x;
+    return x.a;
+end
+$$ language plpgsql;
+select use_refcursor(return_unnamed_refcursor());
+ use_refcursor 
+---------------
+             5
+(1 row)
+
 create function return_refcursor(rc refcursor) returns refcursor as $$
 begin
     open rc for select a from rc_test;
@@ -2402,6 +2489,7 @@ begin
 end $$ language plpgsql;
 select namedparmcursor_test7();
 ERROR:  division by zero
+HINT:   while processing column p1
 CONTEXT:  SQL statement "SELECT 42/0 AS p1, 77 AS p2;"
 PL/pgSQL function namedparmcursor_test7() line 6 at OPEN
 -- check that line comments work correctly within the argument list (there
@@ -2478,7 +2566,7 @@ NOTICE:  This message has no parameters (despite having % signs in it)!
 (1 row)
 
 -- Test re-RAISE inside a nested exception block.  This case is allowed
--- by Oracle's PL/SQL but was handled differently by PG before 9.1.
+-- by opentenbase_ora's PL/SQL but was handled differently by PG before 9.1.
 CREATE FUNCTION reraise_test() RETURNS void AS $$
 BEGIN
    BEGIN
@@ -2499,8 +2587,13 @@ EXCEPTION
 END;
 $$ LANGUAGE plpgsql;
 SELECT reraise_test();
-ERROR:  Internal subtransactions not supported in Postgres-XL
-CONTEXT:  PL/pgSQL function reraise_test() line 2 during statement block entry
+NOTICE:  exception syntax_error thrown in inner block, reraising
+NOTICE:  RIGHT - exception syntax_error caught in inner block
+ reraise_test 
+--------------
+ 
+(1 row)
+
 --
 -- reject function definitions that contain malformed SQL queries at
 -- compile-time, where possible
@@ -2590,8 +2683,8 @@ begin
 end; $$ language plpgsql;
 select execute_into_test('eifoo');
 NOTICE:  10 1
-NOTICE:  <NULL> <NULL>
-NOTICE:  <NULL> <NULL> <NULL>
+NOTICE:  10 15
+NOTICE:  10 15 20
  execute_into_test 
 -------------------
  (1,2)
@@ -2649,16 +2742,26 @@ begin
     end;
 end; $$ language plpgsql;
 select excpt_test3();
-ERROR:  Internal subtransactions not supported in Postgres-XL
-CONTEXT:  PL/pgSQL function excpt_test3() line 3 during statement block entry
+NOTICE:  caught exception P0001 user exception
+NOTICE:  P0001 user exception
+NOTICE:  caught exception 22012 division by zero
+NOTICE:  P0001 user exception
+ excpt_test3 
+-------------
+ 
+(1 row)
+
 create function excpt_test4() returns text as $$
 begin
 	begin perform 1/0;
 	exception when others then return sqlerrm; end;
 end; $$ language plpgsql;
 select excpt_test4();
-ERROR:  Internal subtransactions not supported in Postgres-XL
-CONTEXT:  PL/pgSQL function excpt_test4() line 3 during statement block entry
+   excpt_test4    
+------------------
+ division by zero
+(1 row)
+
 drop function excpt_test1();
 drop function excpt_test2();
 drop function excpt_test3();
@@ -3037,7 +3140,7 @@ select multi_datum_use(42);
 -- Note that a data-modifying query is quasi strict (disallow multi rows)
 -- by default in the planned case, but not in EXECUTE.
 --
-create temp table foo (f1 int, f2 int);
+create temp table foo (f1 int, f2 int) distribute by replication;
 insert into foo values (1,2), (3,4);
 create or replace function footest() returns void as $$
 declare x record;
@@ -3061,9 +3164,8 @@ begin
   raise notice 'x.f1 = %, x.f2 = %', x.f1, x.f2;
 end$$ language plpgsql;
 select footest();
-ERROR:  consistency check on SPI tuple count failed
-CONTEXT:  SQL statement "insert into foo values(7,8),(9,10) returning *"
-PL/pgSQL function footest() line 5 at SQL statement
+ERROR:  query returned more than one row
+CONTEXT:  PL/pgSQL function footest() line 5 at SQL statement
 create or replace function footest() returns void as $$
 declare x record;
 begin
@@ -3086,7 +3188,7 @@ begin
   raise notice 'x.f1 = %, x.f2 = %', x.f1, x.f2;
 end$$ language plpgsql;
 select footest();
-NOTICE:  x.f1 = 9, x.f2 = 10
+NOTICE:  x.f1 = 7, x.f2 = 8
  footest 
 ---------
  
@@ -3403,7 +3505,7 @@ select shadowtest(1);
 -- test scrollable cursor support
 create function sc_test() returns setof integer as $$
 declare
-  c scroll cursor for select f1 from int4_tbl;
+  c scroll cursor for select f1 from int4_tbl order by 1;
   x integer;
 begin
   open c;
@@ -3418,16 +3520,16 @@ $$ language plpgsql;
 select * from sc_test();
    sc_test   
 -------------
- -2147483647
   2147483647
-     -123456
       123456
            0
+     -123456
+ -2147483647
 (5 rows)
 
 create or replace function sc_test() returns setof integer as $$
 declare
-  c no scroll cursor for select f1 from int4_tbl;
+  c no scroll cursor for select f1 from int4_tbl order by 1;
   x integer;
 begin
   open c;
@@ -3448,7 +3550,7 @@ declare
   c refcursor;
   x integer;
 begin
-  open c scroll for select f1 from int4_tbl;
+  open c scroll for select f1 from int4_tbl order by 1;
   fetch last from c into x;
   while found loop
     return next x;
@@ -3460,11 +3562,11 @@ $$ language plpgsql;
 select * from sc_test();
    sc_test   
 -------------
- -2147483647
   2147483647
-     -123456
       123456
            0
+     -123456
+ -2147483647
 (5 rows)
 
 create or replace function sc_test() returns setof integer as $$
@@ -3472,7 +3574,7 @@ declare
   c refcursor;
   x integer;
 begin
-  open c scroll for execute 'select f1 from int4_tbl';
+  open c scroll for execute 'select f1 from int4_tbl order by 1';
   fetch last from c into x;
   while found loop
     return next x;
@@ -3484,9 +3586,9 @@ $$ language plpgsql;
 select * from sc_test();
    sc_test   
 -------------
- -2147483647
-     -123456
+  2147483647
            0
+ -2147483647
 (3 rows)
 
 create or replace function sc_test() returns setof integer as $$
@@ -3494,7 +3596,7 @@ declare
   c refcursor;
   x integer;
 begin
-  open c scroll for execute 'select f1 from int4_tbl';
+  open c scroll for execute 'select f1 from int4_tbl order by 1';
   fetch last from c into x;
   while found loop
     return next x;
@@ -3505,10 +3607,10 @@ begin
 end;
 $$ language plpgsql;
 select * from sc_test();
-   sc_test   
--------------
- -2147483647
-      123456
+  sc_test   
+------------
+ 2147483647
+    -123456
 (2 rows)
 
 create or replace function sc_test() returns setof integer as $$
@@ -4091,8 +4193,10 @@ begin
 end;
 $$ language plpgsql;
 select raise_test();
-ERROR:  Internal subtransactions not supported in Postgres-XL
-CONTEXT:  PL/pgSQL function raise_test() line 2 during statement block entry
+NOTICE:  SQLSTATE: 22012 SQLERRM: check me
+ERROR:  check me
+DETAIL:  some detail info
+CONTEXT:  PL/pgSQL function raise_test() line 3 at RAISE
 create or replace function raise_test() returns void as $$
 begin
   raise 'check me'
@@ -4104,8 +4208,10 @@ begin
 end;
 $$ language plpgsql;
 select raise_test();
-ERROR:  Internal subtransactions not supported in Postgres-XL
-CONTEXT:  PL/pgSQL function raise_test() line 2 during statement block entry
+NOTICE:  SQLSTATE: 1234F SQLERRM: check me
+ERROR:  check me
+DETAIL:  some detail info
+CONTEXT:  PL/pgSQL function raise_test() line 3 at RAISE
 -- SQLSTATE specification in WHEN
 create or replace function raise_test() returns void as $$
 begin
@@ -4118,8 +4224,10 @@ begin
 end;
 $$ language plpgsql;
 select raise_test();
-ERROR:  Internal subtransactions not supported in Postgres-XL
-CONTEXT:  PL/pgSQL function raise_test() line 2 during statement block entry
+NOTICE:  SQLSTATE: 1234F SQLERRM: check me
+ERROR:  check me
+DETAIL:  some detail info
+CONTEXT:  PL/pgSQL function raise_test() line 3 at RAISE
 create or replace function raise_test() returns void as $$
 begin
   raise division_by_zero using detail = 'some detail info';
@@ -4130,8 +4238,10 @@ begin
 end;
 $$ language plpgsql;
 select raise_test();
-ERROR:  Internal subtransactions not supported in Postgres-XL
-CONTEXT:  PL/pgSQL function raise_test() line 2 during statement block entry
+NOTICE:  SQLSTATE: 22012 SQLERRM: division_by_zero
+ERROR:  division_by_zero
+DETAIL:  some detail info
+CONTEXT:  PL/pgSQL function raise_test() line 3 at RAISE
 create or replace function raise_test() returns void as $$
 begin
   raise division_by_zero;
@@ -4221,8 +4331,12 @@ exception when others then
 end;
 $$ language plpgsql;
 select stacked_diagnostics_test();
-ERROR:  Internal subtransactions not supported in Postgres-XL
-CONTEXT:  PL/pgSQL function stacked_diagnostics_test() line 5 during statement block entry
+NOTICE:  sqlstate: 22012, message: division by zero, context: [PL/pgSQL function zero_divide() line 4 at RETURN <- SQL statement "SELECT zero_divide()" <- PL/pgSQL function stacked_diagnostics_test() line 6 at PERFORM]
+ stacked_diagnostics_test 
+--------------------------
+ 
+(1 row)
+
 create or replace function stacked_diagnostics_test() returns void as $$
 declare _detail text;
         _hint text;
@@ -4238,8 +4352,12 @@ exception when others then
 end;
 $$ language plpgsql;
 select stacked_diagnostics_test();
-ERROR:  Internal subtransactions not supported in Postgres-XL
-CONTEXT:  PL/pgSQL function stacked_diagnostics_test() line 5 during statement block entry
+NOTICE:  message: custom exception, detail: some detail of custom exception, hint: some hint related to custom exception
+ stacked_diagnostics_test 
+--------------------------
+ 
+(1 row)
+
 -- fail, cannot use stacked diagnostics statement outside handler
 create or replace function stacked_diagnostics_test() returns void as $$
 declare _detail text;
@@ -4270,8 +4388,9 @@ exception
 end;
 $$ language plpgsql;
 select raise_test();
-ERROR:  Internal subtransactions not supported in Postgres-XL
-CONTEXT:  PL/pgSQL function raise_test() line 2 during statement block entry
+NOTICE:  22012
+ERROR:  substitute message
+CONTEXT:  PL/pgSQL function raise_test() line 7 at RAISE
 drop function raise_test();
 -- test passing column_name, constraint_name, datatype_name, table_name
 -- and schema_name error fields
@@ -4300,8 +4419,12 @@ exception when others then
 end;
 $$ language plpgsql;
 select stacked_diagnostics_test();
-ERROR:  Internal subtransactions not supported in Postgres-XL
-CONTEXT:  PL/pgSQL function stacked_diagnostics_test() line 7 during statement block entry
+NOTICE:  column >>some column name<<, constraint >>some constraint name<<, type >>some datatype name<<, table >>some table name<<, schema >>some schema name<<
+ stacked_diagnostics_test 
+--------------------------
+ 
+(1 row)
+
 drop function stacked_diagnostics_test();
 -- test CASE statement
 create or replace function case_test(bigint) returns text as $$
@@ -4377,6 +4500,7 @@ select case_test(12);
 select case_test(13); -- fails
 ERROR:  case not found
 HINT:  CASE statement is missing ELSE part.
+ while processing column case_test
 CONTEXT:  PL/pgSQL function case_test(bigint) line 5 at CASE
 create or replace function catch() returns void as $$
 begin
@@ -4387,8 +4511,12 @@ exception
 end
 $$ language plpgsql;
 select catch();
-ERROR:  Internal subtransactions not supported in Postgres-XL
-CONTEXT:  PL/pgSQL function catch() line 2 during statement block entry
+NOTICE:  caught case_not_found 20000 case not found
+ catch 
+-------
+ 
+(1 row)
+
 -- test the searched variant too, as well as ELSE
 create or replace function case_test(bigint) returns text as $$
 declare a int = 10;
@@ -4611,11 +4739,17 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 SELECT * FROM leaker_1(false);
-ERROR:  Internal subtransactions not supported in Postgres-XL
-CONTEXT:  PL/pgSQL function leaker_1(boolean) line 5 during statement block entry
+ leaker_1 
+----------
+        1
+(1 row)
+
 SELECT * FROM leaker_1(true);
-ERROR:  Internal subtransactions not supported in Postgres-XL
-CONTEXT:  PL/pgSQL function leaker_1(boolean) line 5 during statement block entry
+ leaker_1 
+----------
+        0
+(1 row)
+
 DROP FUNCTION leaker_1(bool);
 DROP FUNCTION leaker_2(bool);
 -- Test for appropriate cleanup of non-simple expression evaluations
@@ -4655,8 +4789,11 @@ begin
 end;
 $$ LANGUAGE plpgsql;
 SELECT nonsimple_expr_test();
-ERROR:  Internal subtransactions not supported in Postgres-XL
-CONTEXT:  PL/pgSQL function nonsimple_expr_test() line 5 during statement block entry
+ nonsimple_expr_test 
+---------------------
+                   1
+(1 row)
+
 DROP FUNCTION nonsimple_expr_test();
 --
 -- Test cases involving recursion and error recovery in simple expressions
@@ -4691,13 +4828,17 @@ end$$;
 BEGIN;
 create table public.stuffs (stuff text);
 SAVEPOINT a;
-ERROR:  SAVEPOINT is not yet supported.
 select error2('nonexistent.stuffs');
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
+ERROR:  schema "nonexistent" does not exist
+CONTEXT:  SQL function "error1" statement 1
+PL/pgSQL function error2(text) line 3 at RETURN
 ROLLBACK TO a;
-ERROR:  no such savepoint
 select error2('public.stuffs');
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
+ error2 
+--------
+ stuffs
+(1 row)
+
 rollback;
 drop function error2(p_name_table text);
 drop function error1(text);
@@ -4713,26 +4854,26 @@ end$$ language plpgsql;
 select cast_invoker(20150717);
  cast_invoker 
 --------------
- 07-17-2015
+ 2015-07-17
 (1 row)
 
 select cast_invoker(20150718);  -- second call crashed in pre-release 9.5
  cast_invoker 
 --------------
- 07-18-2015
+ 2015-07-18
 (1 row)
 
 begin;
 select cast_invoker(20150717);
  cast_invoker 
 --------------
- 07-17-2015
+ 2015-07-17
 (1 row)
 
 select cast_invoker(20150718);
  cast_invoker 
 --------------
- 07-18-2015
+ 2015-07-18
 (1 row)
 
 -- XL does not support savepoint
@@ -4740,20 +4881,20 @@ select cast_invoker(20150718);
 select cast_invoker(20150718);
  cast_invoker 
 --------------
- 07-18-2015
+ 2015-07-18
 (1 row)
 
 -- rollback to savepoint s1;
 select cast_invoker(20150719);
  cast_invoker 
 --------------
- 07-19-2015
+ 2015-07-19
 (1 row)
 
 select cast_invoker(20150720);
  cast_invoker 
 --------------
- 07-20-2015
+ 2015-07-20
 (1 row)
 
 commit;
@@ -4915,8 +5056,16 @@ begin
   end loop;
 end;
 $outer$;
-ERROR:  Internal subtransactions not supported in Postgres-XL
-CONTEXT:  PL/pgSQL function inline_code_block line 4 during statement block entry
+NOTICE:  caught division by zero
+NOTICE:  caught division by zero
+NOTICE:  caught division by zero
+NOTICE:  caught division by zero
+NOTICE:  caught division by zero
+NOTICE:  caught division by zero
+NOTICE:  caught division by zero
+NOTICE:  caught division by zero
+NOTICE:  caught division by zero
+NOTICE:  caught division by zero
 -- Check variable scoping -- a var is not available in its own or prior
 -- default expressions.
 create function scope_test() returns int as $$
@@ -4936,6 +5085,41 @@ select scope_test();
 (1 row)
 
 drop function scope_test();
+-- Check that variables are reinitialized on block re-entry.
+do $$
+begin
+  for i in 1..3 loop
+    declare
+      x int;
+      y int := i;
+      r record;
+      c int8_tbl;
+    begin
+      if i = 1 then
+        x := 42;
+        r := row(i, i+1);
+        c := row(i, i+1);
+      end if;
+      raise notice 'x = %', x;
+      raise notice 'y = %', y;
+      raise notice 'r = %', r;
+      raise notice 'c = %', c;
+    end;
+  end loop;
+end$$;
+NOTICE:  x = 42
+NOTICE:  y = 1
+NOTICE:  r = (1,2)
+NOTICE:  c = (1,2)
+NOTICE:  x = <NULL>
+NOTICE:  y = 2
+NOTICE:  r = <NULL>
+NOTICE:  c = <NULL>
+NOTICE:  x = <NULL>
+NOTICE:  y = 3
+NOTICE:  r = <NULL>
+NOTICE:  c = <NULL>
+\set VERBOSITY default
 -- Check handling of conflicts between plpgsql vars and table columns.
 set plpgsql.variable_conflict = error;
 create function conflict_test() returns setof int8_tbl as $$
@@ -4948,12 +5132,15 @@ begin
 end;
 $$ language plpgsql;
 select * from conflict_test() order by 1,2;
-ERROR:  column reference "q1" is ambiguous
-LINE 1: select q1,q2 from int8_tbl
-               ^
-DETAIL:  It could refer to either a PL/pgSQL variable or a table column.
-QUERY:  select q1,q2 from int8_tbl
-CONTEXT:  PL/pgSQL function conflict_test() line 5 at FOR over SELECT rows
+        q1        |        q2         
+------------------+-------------------
+              123 |               456
+              123 |  4567890123456789
+ 4567890123456789 | -4567890123456789
+ 4567890123456789 |               123
+ 4567890123456789 |  4567890123456789
+(5 rows)
+
 create or replace function conflict_test() returns setof int8_tbl as $$
 #variable_conflict use_variable
 declare r record;
@@ -5586,18 +5773,38 @@ $$ language plpgsql;
 select outer_outer_func(10);
 NOTICE:  calling down into outer_func()
 NOTICE:  calling down into inner_func()
-ERROR:  Internal subtransactions not supported in Postgres-XL
-CONTEXT:  PL/pgSQL function inner_func(integer) line 6 during statement block entry
+NOTICE:  ***PL/pgSQL function inner_func(integer) line 10 at GET DIAGNOSTICS
 PL/pgSQL function outer_func(integer) line 6 at assignment
-PL/pgSQL function outer_outer_func(integer) line 6 at assignment
+PL/pgSQL function outer_outer_func(integer) line 6 at assignment***
+NOTICE:  ***PL/pgSQL function inner_func(integer) line 15 at GET DIAGNOSTICS
+PL/pgSQL function outer_func(integer) line 6 at assignment
+PL/pgSQL function outer_outer_func(integer) line 6 at assignment***
+NOTICE:  lets make sure we didnt break anything
+NOTICE:  inner_func() done
+NOTICE:  outer_func() done
+ outer_outer_func 
+------------------
+               20
+(1 row)
+
 -- repeated call should to work
 select outer_outer_func(20);
 NOTICE:  calling down into outer_func()
 NOTICE:  calling down into inner_func()
-ERROR:  Internal subtransactions not supported in Postgres-XL
-CONTEXT:  PL/pgSQL function inner_func(integer) line 6 during statement block entry
+NOTICE:  ***PL/pgSQL function inner_func(integer) line 10 at GET DIAGNOSTICS
 PL/pgSQL function outer_func(integer) line 6 at assignment
-PL/pgSQL function outer_outer_func(integer) line 6 at assignment
+PL/pgSQL function outer_outer_func(integer) line 6 at assignment***
+NOTICE:  ***PL/pgSQL function inner_func(integer) line 15 at GET DIAGNOSTICS
+PL/pgSQL function outer_func(integer) line 6 at assignment
+PL/pgSQL function outer_outer_func(integer) line 6 at assignment***
+NOTICE:  lets make sure we didnt break anything
+NOTICE:  inner_func() done
+NOTICE:  outer_func() done
+ outer_outer_func 
+------------------
+               40
+(1 row)
+
 drop function outer_outer_func(int);
 drop function outer_func(int);
 drop function inner_func(int);
@@ -5648,8 +5855,8 @@ exception when others then
   null; -- do nothing
 end;
 $$;
-ERROR:  Internal subtransactions not supported in Postgres-XL
-CONTEXT:  PL/pgSQL function inline_code_block line 2 during statement block entry
+ERROR:  unhandled assertion
+CONTEXT:  PL/pgSQL function inline_code_block line 3 at ASSERT
 -- Check parameter handling
 BEGIN;
 DROP TABLE IF EXISTS testcase_13;
@@ -5799,10 +6006,10 @@ CREATE TABLE transition_table_level2
 ) WITHOUT OIDS;
 CREATE TABLE transition_table_status
 (
-      level int NOT NULL,
+      trs_level int NOT NULL,
       node_no int NOT NULL,
       status int,
-       PRIMARY KEY (level, node_no)
+       PRIMARY KEY (trs_level, node_no)
 ) WITHOUT OIDS;
 CREATE FUNCTION transition_table_level1_ri_parent_del_func()
   RETURNS TRIGGER
@@ -5890,9 +6097,9 @@ INSERT INTO transition_table_level2 (level2_no, parent_no)
   SELECT level2_no, level2_no / 50 + 1 AS parent_no
     FROM generate_series(1,9999) level2_no;
 ANALYZE transition_table_level2;
-INSERT INTO transition_table_status (level, node_no, status)
+INSERT INTO transition_table_status (trs_level, node_no, status)
   SELECT 1, level1_no, 0 FROM transition_table_level1;
-INSERT INTO transition_table_status (level, node_no, status)
+INSERT INTO transition_table_status (trs_level, node_no, status)
   SELECT 2, level2_no, 0 FROM transition_table_level2;
 ANALYZE transition_table_status;
 INSERT INTO transition_table_level1(level1_no)
@@ -5904,13 +6111,13 @@ CREATE FUNCTION transition_table_level2_bad_usage_func()
   LANGUAGE plpgsql
 AS $$
   BEGIN
-    INSERT INTO d VALUES (1000000, 1000000, 'x');
+    INSERT INTO dx VALUES (1000000, 1000000, 'x');
     RETURN NULL;
   END;
 $$;
 CREATE TRIGGER transition_table_level2_bad_usage_trigger
   AFTER DELETE ON transition_table_level2
-  REFERENCING OLD TABLE AS d
+  REFERENCING OLD TABLE AS dx
   FOR EACH STATEMENT EXECUTE PROCEDURE
     transition_table_level2_bad_usage_func();
 ERROR:  Postgres-XL does not support TRIGGER yet
@@ -5925,8 +6132,7 @@ DELETE FROM transition_table_level1
   WHERE level1_no = 25;
 UPDATE transition_table_level1 SET level1_no = -1
   WHERE level1_no = 30;
-ERROR:  could not plan this distributed update
-DETAIL:  correlated UPDATE or updating distribution column currently not supported in Postgres-XL.
+ERROR:  Distributed column "level1_no" can't be updated in current version
 INSERT INTO transition_table_level2 (level2_no, parent_no)
   VALUES (10000, 10000);
 UPDATE transition_table_level2 SET parent_no = 2000
@@ -6042,3 +6248,795 @@ SELECT * FROM list_partitioned_table() AS t;
  2
 (2 rows)
 
+-- Supports the syntax for call function, refer to LIGHTWEIGHT_ORA
+DROP FUNCTION IF EXISTS return10();
+NOTICE:  function return10() does not exist, skipping
+CREATE FUNCTION return10()
+RETURNS INTEGER AS $$
+BEGIN
+    RETURN 10;
+END $$ LANGUAGE plpgsql;
+SELECT return10();
+ return10 
+----------
+       10
+(1 row)
+
+CALL return10();
+ERROR:  return10() is not a procedure
+LINE 1: CALL return10();
+             ^
+HINT:  To call a function, use SELECT.
+DROP FUNCTION return10();
+DROP FUNCTION IF EXISTS returnlist(int, int);
+NOTICE:  function returnlist(pg_catalog.int4,pg_catalog.int4) does not exist, skipping
+CREATE FUNCTION returnlist(int, int)
+RETURNS SETOF INT AS $$
+DECLARE
+    i INT;
+BEGIN
+    FOR i IN $1 .. $2 LOOP
+        RETURN NEXT i + 1;
+    END LOOP;
+    RETURN;
+END $$ LANGUAGE plpgsql;
+SELECT returnlist(1, 2);
+ returnlist 
+------------
+          2
+          3
+(2 rows)
+
+CALL returnlist(1, 2);
+ERROR:  returnlist(integer, integer) is not a procedure
+LINE 1: CALL returnlist(1, 2);
+             ^
+HINT:  To call a function, use SELECT.
+DROP FUNCTION returnlist(int, int);
+DROP FUNCTION IF EXISTS add_numbers(a INTEGER, b INTEGER);
+NOTICE:  function add_numbers(pg_catalog.int4,pg_catalog.int4) does not exist, skipping
+CREATE FUNCTION add_numbers(a INTEGER, b INTEGER)
+RETURNS INTEGER AS $$
+BEGIN
+    RETURN a + b;
+END $$ LANGUAGE plpgsql;
+SELECT add_numbers(3, 5);
+ add_numbers 
+-------------
+           8
+(1 row)
+
+CALL add_numbers(3, 5);
+ERROR:  add_numbers(integer, integer) is not a procedure
+LINE 1: CALL add_numbers(3, 5);
+             ^
+HINT:  To call a function, use SELECT.
+DROP FUNCTION add_numbers(a INTEGER, b INTEGER);
+DROP FUNCTION IF EXISTS calculate_total_price(quantity INTEGER, unit_price INTEGER);
+NOTICE:  function calculate_total_price(pg_catalog.int4,pg_catalog.int4) does not exist, skipping
+DROP FUNCTION IF EXISTS multiply_numbers(a INTEGER, b INTEGER);
+NOTICE:  function multiply_numbers(pg_catalog.int4,pg_catalog.int4) does not exist, skipping
+CREATE FUNCTION calculate_total_price(quantity INTEGER, unit_price INTEGER)
+RETURNS INTEGER AS $$
+BEGIN
+    RETURN multiply_numbers(quantity, unit_price);
+END $$ LANGUAGE plpgsql;
+CREATE FUNCTION multiply_numbers(a INTEGER, b INTEGER)
+RETURNS INTEGER AS $$
+BEGIN
+    RETURN a * b;
+END $$ LANGUAGE plpgsql;
+SELECT calculate_total_price(5, 10);
+ calculate_total_price 
+-----------------------
+                    50
+(1 row)
+
+CALL calculate_total_price(5, 10);
+ERROR:  calculate_total_price(integer, integer) is not a procedure
+LINE 1: CALL calculate_total_price(5, 10);
+             ^
+HINT:  To call a function, use SELECT.
+DROP FUNCTION calculate_total_price(quantity INTEGER, unit_price INTEGER);
+DROP FUNCTION multiply_numbers(a INTEGER, b INTEGER);
+DROP FUNCTION IF EXISTS print2();
+NOTICE:  function print2() does not exist, skipping
+DROP FUNCTION IF EXISTS print1();
+NOTICE:  function print1() does not exist, skipping
+CREATE FUNCTION print1()
+RETURNS VOID AS $$
+BEGIN
+    RAISE NOTICE '1';
+END $$ LANGUAGE plpgsql;
+CREATE FUNCTION print2()
+RETURNS VOID AS $$
+BEGIN
+    PERFORM print1();
+    RAISE NOTICE '2';
+END $$ LANGUAGE plpgsql;
+SELECT print2();
+NOTICE:  1
+NOTICE:  2
+ print2 
+--------
+ 
+(1 row)
+
+CALL print2();
+ERROR:  print2() is not a procedure
+LINE 1: CALL print2();
+             ^
+HINT:  To call a function, use SELECT.
+-- Calling functions within anonymous blocks is not supported.
+DO $$
+BEGIN
+	CALL print1();
+END;
+$$ LANGUAGE plpgsql;
+ERROR:  print1() is not a procedure
+LINE 1: CALL print1()
+             ^
+HINT:  To call a function, use SELECT.
+QUERY:  CALL print1()
+CONTEXT:  PL/pgSQL function inline_code_block line 3 at CALL
+DROP FUNCTION print2();
+DROP FUNCTION print1();
+-- adapt to lightweight_ora newparam usage
+-- Usage 1, input parameters with the same name.
+drop table if exists tb1;
+NOTICE:  table "tb1" does not exist, skipping
+drop table if exists tb1_f;
+NOTICE:  table "tb1_f" does not exist, skipping
+create table tb1(id int, a character varying);
+create table tb1_f(id int, a character varying);
+insert into tb1 values(1,'a'),(1,'b');
+insert into tb1_f values(2,'a'),(2,'b');
+select * from tb1 order by 1;
+ id | a 
+----+---
+  1 | a
+  1 | b
+(2 rows)
+
+CREATE FUNCTION job_imp_tb1(a character varying)
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+DECLARE
+BEGIN
+delete from tb1 where a = :a;
+insert into tb1
+select * from tb1_f where a =:a;
+END;
+$$;
+select job_imp_tb1('a');
+ job_imp_tb1 
+-------------
+ 
+(1 row)
+
+select * from tb1 order by 1;
+ id | a 
+----+---
+  1 | b
+  2 | a
+(2 rows)
+
+drop function job_imp_tb1(a character varying);
+drop table tb1;
+drop table tb1_f;
+-- Usage 2, parameters with the same name in anonymous blocks.
+drop table if exists tb1;
+NOTICE:  table "tb1" does not exist, skipping
+drop table if exists tb1_f;
+NOTICE:  table "tb1_f" does not exist, skipping
+create table tb1(id int, a character varying);
+create table tb1_f(id int, a character varying);
+insert into tb1 values(1,'a'),(1,'b');
+insert into tb1_f values(2,'a'),(2,'b');
+select * from tb1 order by 1;
+ id | a 
+----+---
+  1 | a
+  1 | b
+(2 rows)
+
+CREATE FUNCTION job_imp_tb1_2(b character varying)
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    a character varying;
+BEGIN
+a := 'a';
+delete from tb1 where a = :a;
+insert into tb1
+select * from tb1_f where a =:a;
+END;
+$$;
+select job_imp_tb1_2('a');
+ job_imp_tb1_2 
+---------------
+ 
+(1 row)
+
+select * from tb1 order by 1;
+ id | a 
+----+---
+  1 | b
+  2 | a
+(2 rows)
+
+drop function job_imp_tb1_2(b character varying);
+drop table tb1;
+drop table tb1_f;
+-- Usage 3, other cases
+drop table if exists tb1;
+NOTICE:  table "tb1" does not exist, skipping
+drop table if exists tb1_f;
+NOTICE:  table "tb1_f" does not exist, skipping
+create table tb1(id int, a character varying);
+create table tb1_f(id int, a character varying);
+insert into tb1 values(1,'a'),(1,'b');
+insert into tb1_f values(2,'a'),(2,'b');
+select * from tb1 order by 1;
+ id | a 
+----+---
+  1 | a
+  1 | b
+(2 rows)
+
+CREATE FUNCTION job_imp_tb1_2(b character varying)
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    a character varying;
+    action :a%type;
+BEGIN
+a := 'a';
+action := :a;
+delete from tb1 where a = :action;
+insert into tb1
+select * from tb1_f where a =:action;
+END;
+$$;
+select job_imp_tb1_2('a');
+ job_imp_tb1_2 
+---------------
+ 
+(1 row)
+
+select * from tb1 order by 1;
+ id | a 
+----+---
+  1 | b
+  2 | a
+(2 rows)
+
+drop function job_imp_tb1_2(b character varying);
+drop table tb1;
+drop table tb1_f;
+-- test something in opentenbase_ora mode
+\c regression_ora
+-- cherry-pick from f1631ddd95c7219383591be86ee8b89b8089463b
+declare
+v1 number;
+v2 number;
+v3 number;
+begin
+v1:=3;v2:=4; -- test comment
+v3:=5;
+raise notice '%,%,%', v1,v2,v3;
+end;
+/
+NOTICE:  3,4,5
+-- 
+-- check oralce compatible anonymous code block
+-- 
+create table oralce_pl_t1(f1 int not null,f2 varchar2(100),primary key (f1));
+INSERT INTO oralce_pl_t1 VALUES (1, 'ONE');  
+INSERT INTO oralce_pl_t1 VALUES (2, 'TWO');  
+INSERT INTO oralce_pl_t1 VALUES (3, 'THREE');
+declare
+    v_f1 int;
+    v_rec record;
+begin
+    insert into oralce_pl_t1 values(4,'four') returning f1 into v_f1;   
+    raise notice 'v_f1 = %',v_f1;
+    update oralce_pl_t1 set f2='ONE' WHERE f2='ONE' returning f1 into v_f1;  
+    raise notice 'v_f1 = %',v_f1;  
+    DELETE FROM oralce_pl_t1 WHERE f2='THREE' returning f1 into v_f1;  
+    raise notice 'v_f1 = %',v_f1;
+end;
+/
+NOTICE:  v_f1 = 4
+NOTICE:  v_f1 = 1
+NOTICE:  v_f1 = 3
+select * from oralce_pl_t1 order by f1;
+ F1 |  F2  
+----+------
+  1 | ONE
+  2 | TWO
+  4 | four
+(3 rows)
+
+begin 
+    update oralce_pl_t1 set f2='TWOOOOOOOOO' where f1=2;
+    insert into oralce_pl_t1 values(5,'five');
+    delete from oralce_pl_t1 where f1=4;
+end;
+/
+select * from oralce_pl_t1 order by f1;
+ F1 |     F2      
+----+-------------
+  1 | ONE
+  2 | TWOOOOOOOOO
+  5 | five
+(3 rows)
+
+declare
+v1 number;
+v2 number;
+v3 number;
+begin
+v1:=3;v2:=4; -- test comment
+v3:=5;
+raise notice '%,%,%', v1,v2,v3;
+end;
+/
+NOTICE:  3,4,5
+-- 
+-- check oralce compatible function/procedure head and tail format
+-- 
+CREATE OR REPLACE function opentenbase_ora_func_1() returns void as 
+    i int:= 0;
+begin
+    <<top>>
+    LOOP
+        i = i + 1;  
+        IF i > 10 THEN
+		    raise notice ' > 10 value: %',i;
+            exit;
+        END IF;
+        IF i > 5 THEN
+		    CONTINUE top;
+        END IF;
+        raise notice '%',i;
+    END LOOP;	
+    raise notice 'last value: %',i;
+end;
+/
+select opentenbase_ora_func_1();
+NOTICE:  1
+NOTICE:  2
+NOTICE:  3
+NOTICE:  4
+NOTICE:  5
+NOTICE:   > 10 value: 11
+NOTICE:  last value: 11
+ OPENTENBASE_ORA_FUNC_1 
+------------------------
+ 
+(1 row)
+
+CREATE OR REPLACE function opentenbase_ora_func_2(i integer) returns void as
+begin
+    <<top>>
+    LOOP
+        i = i + 1;  
+        IF i > 10 THEN
+		    raise notice ' > 10 value: %',i;
+            exit;
+        END IF;
+        IF i > 5 THEN
+		    CONTINUE top;
+        END IF;
+        raise notice '%',i;
+    END LOOP;	
+    raise notice 'last value: %',i;
+end;
+/
+select opentenbase_ora_func_2(2);
+NOTICE:  3
+NOTICE:  4
+NOTICE:  5
+NOTICE:   > 10 value: 11
+NOTICE:  last value: 11
+ OPENTENBASE_ORA_FUNC_2 
+------------------------
+ 
+(1 row)
+
+CREATE OR REPLACE PROCEDURE opentenbase_ora_proc_1() as 
+    i int:= 10;
+begin
+    <<top>>
+    LOOP
+        i = i + 1;  
+        IF i > 20 THEN
+		    raise notice ' > 10 value: %',i;
+            exit;
+        END IF;
+        IF i > 15 THEN
+		    CONTINUE top;
+        END IF;
+        raise notice '%',i;
+    END LOOP;	
+    raise notice 'last value: %',i;
+end;
+/
+call opentenbase_ora_proc_1();
+NOTICE:  11
+NOTICE:  12
+NOTICE:  13
+NOTICE:  14
+NOTICE:  15
+NOTICE:   > 10 value: 21
+NOTICE:  last value: 21
+CREATE OR REPLACE procedure opentenbase_ora_proc_2(i integer) as
+begin
+    <<top>>
+    LOOP
+        i = i + 1;  
+        IF i > 10 THEN
+		    raise notice ' > 10 value: %',i;
+            exit;
+        END IF;
+        IF i > 5 THEN
+		    CONTINUE top;
+        END IF;
+        raise notice '%',i;
+    END LOOP;	
+    raise notice 'last value: %',i;
+end;
+/
+call opentenbase_ora_proc_2(4);
+NOTICE:  5
+NOTICE:   > 10 value: 11
+NOTICE:  last value: 11
+-- test create interval partition table in function/procedure
+drop table if exists employees;
+NOTICE:  table "EMPLOYEES" does not exist, skipping
+create table employees(last_name varchar2(20), employee_id int, job_id varchar2(30), salary number(10, 3));
+insert into employees values('a', 1, 'ACADFIMKSA_MANGR', 10005.45);
+insert into employees values('b', 2, 'b_M_MANGR', 47956);
+insert into employees values('c', 3, 'c_cursor', 1457.79);
+insert into employees values('d', 4, 'deptcurtyp', 1458.256);
+insert into employees values('e', 5, 'SHT_CLERK', 1458.256);
+insert into employees values('f', 6, 'SH_CLERK', 1458.256);
+insert into employees values('g', 7, 'SA_REP', 1458.256);
+insert into employees values('h', 8, 'AD_REP', 1458.256);
+drop table employees;
+-- test min/max in plpgsql function
+create or replace function cib_get_datemark(v_mark_id character varying)
+returns date
+language default_plsql
+immutable pushdown
+as $function$
+<<CIB_GET_DATEMARK>>
+declare
+ ret_date date;
+begin
+ select nvl(max(t.date_mark),trunc(sysdate -1))
+ into ret_date
+ from cib_datemark_tbl t 
+ where t.mark_id = v_mark_id;
+ return ret_date;
+end CIB_GET_DATEMARK;
+$function$
+/
+WARNING:  You are pushing function down to datanode for execution
+HINT:  Make sure it's not attempt to access any other datanode OR YOU MAY SUFFER DATA LOSE !!
+create table cib_datemark_tbl (
+mark_id varchar(100),
+date_mark date
+) ;
+insert into cib_datemark_tbl(
+mark_id,
+date_mark
+)values ('VTM1','2021-01-01');
+create table cib_rp_15_stat_tbl (
+time               timestamp(0) without time zone,
+object_id          character varying(27),
+av_t_answered      numeric,
+av_t_abandoned     numeric,
+av_t_distributed   numeric,
+max_t_abandoned    integer,
+max_t_answered     integer,
+pc_n_abandoved     numeric,
+pc_n_answered      numeric,
+service_factor     numeric,
+n_abandoned        integer,
+n_answered         integer,
+n_distributed      integer,
+n_distrib_in_tr    integer,
+n_entered          integer,
+n_abandoned_in_tr  integer,
+t_abandoned        integer,
+t_answered         integer,
+t_distributed      integer,
+pc_n_distrib       numeric
+) distribute by shard(object_id);
+insert into cib_rp_15_stat_tbl 
+(
+time               ,
+object_id          ,
+av_t_answered      ,
+av_t_abandoned     ,
+av_t_distributed   ,
+max_t_abandoned    ,
+max_t_answered     ,
+pc_n_abandoved     ,
+pc_n_answered      ,
+service_factor     ,
+n_abandoned        ,
+n_answered         ,
+n_distributed      ,
+n_distrib_in_tr    ,
+n_entered          ,
+n_abandoned_in_tr  ,
+t_abandoned        ,
+t_answered         ,
+t_distributed      ,
+pc_n_distrib  )
+values(
+current_timestamp,
+'abc',
+1000,
+1000,
+1000,
+1000,
+1000,
+1000,
+1000,
+1000,
+1000,
+1000,
+1000,
+1000,
+1000,
+1000,
+1000,
+1000,
+1000,
+1000
+);
+create table cib_cti_rp_tbl (
+object_id          varchar(27),
+confserver_id      varchar(3),
+object_name        varchar(255),
+object_type_id     numeric,
+object_type_name   varchar(255),
+presentation_name  varchar(255),
+tenant_id          varchar(14),
+tenant_name        varchar(255),
+confserver_obj_id  numeric,
+add_time           timestamp(0) without time zone,
+delete_time        timestamp(0) without time zone,
+add_time_gmt       timestamp(0) without time zone,
+delete_time_gmt    timestamp(0) without time zone
+)
+distribute by shard(object_id);
+insert into cib_cti_rp_tbl(
+object_id          ,
+confserver_id      ,
+object_name        ,
+object_type_id     ,
+object_type_name   ,
+presentation_name  ,
+tenant_id          ,
+tenant_name        ,
+confserver_obj_id  ,
+add_time           ,
+delete_time        ,
+add_time_gmt       ,
+delete_time_gmt   )
+values
+(
+'abc',
+'xxx',
+'201121@FZ_Switch',
+1000,
+'1000',
+'1000',
+'1000',
+'1000',
+1000,
+current_timestamp,
+current_timestamp,
+current_timestamp,
+current_timestamp
+);
+create or replace function convert_time(in_date timestamp without time zone)
+returns timestamp without time zone
+language default_plsql
+immutable pushdown
+as $$
+<<convert_time>>
+declare
+result timestamp(0);
+begin
+  case 
+    when to_char(in_date,'MI') = '15'
+    or to_char(in_date,'MI') = '45'
+    then result := in_date - 1/ 96;
+    else result := in_date;
+    end case;
+    return result;
+end convert_time;
+$$
+/
+WARNING:  You are pushing function down to datanode for execution
+HINT:  Make sure it's not attempt to access any other datanode OR YOU MAY SUFFER DATA LOSE !!
+explain
+select convert_time(a."time") as start_time,
+  sum(a.n_entered) as n_entered,
+  sum(a.n_answered) as n_answered,
+  sum(a.t_answered) as t_answered,
+  sum(a.n_abandoned) as n_abandoned,
+  sum(a.t_abandoned) as t_abandoned,
+  sum(a.n_distrib_in_tr) as n_distrib_in_tr,
+  sum(a.n_abandoned_in_tr) as n_abandoned_in_tr
+from cib_rp_15_stat_tbl a,cib_cti_rp_tbl b 
+where a.object_id::text = b.object_id::text and b.object_name::text = '201121@FZ_Switch'::text and a."time" >= cib_get_datemark('VTM1'::character varying)::timestamp with time zone 
+group by (convert_time(a."time"));
+ERROR:  column A.time does not exist
+LINE 11: ....object_name::text = '201121@FZ_Switch'::text and a."time" >...
+                                                              ^
+-- Fix anonymous block replacement comment area recognition
+/*
+ comment...
+ */
+create or replace procedure ref_pro2
+as
+begin
+    null;
+end;
+/
+/*
+注释
+ */
+begin
+  null;
+end;
+/
+-- 
+-- Support result_cache
+-- 
+--TestPoint:1.TAPD
+create or replace function func_func1_20230423(var int) return varchar2 result_cache
+is
+begin
+return 'dadada';
+end;
+/
+select func_func1_20230423(1);
+ FUNC_FUNC1_20230423 
+---------------------
+ dadada
+(1 row)
+
+drop function func_func1_20230423;
+--TestPoint:2.return void
+create or replace function func_func1_20230423(var int) return void result_cache
+is
+begin
+raise notice 'dadada';
+end;
+/
+select func_func1_20230423(1);
+NOTICE:  dadada
+ FUNC_FUNC1_20230423 
+---------------------
+ 
+(1 row)
+
+drop function func_func1_20230423;
+--TestPoint:3. return_cache in package function
+create or replace package pkg_return_cache_20230423 is
+function f() return varchar2 result_cache;
+end;
+/
+create or replace package body pkg_return_cache_20230423 is
+function f() return varchar2 result_cache
+is
+begin
+return 'dadada';
+end;
+end;
+/
+select pkg_return_cache_20230423.f();
+   F    
+--------
+ dadada
+(1 row)
+
+drop package pkg_return_cache_20230423;
+--TestPoint:4. result_cache and authid
+CREATE OR REPLACE FUNCTION fibonacci_20230511 (n NUMBER)
+  RETURN NUMBER
+  RESULT_CACHE
+  AUTHID DEFINER
+IS
+BEGIN
+  IF (n =0) OR (n =1) THEN
+    RETURN 1;
+  ELSE
+    RETURN fibonacci_20230511(n - 1) + fibonacci_20230511(n - 2);
+  END IF;
+END;
+/
+select fibonacci_20230511(2);
+ FIBONACCI_20230511 
+--------------------
+                  2
+(1 row)
+
+drop function fibonacci_20230511;
+-- 
+-- Support sys_refcursor
+-- 
+--TestPoint:1. anonymous block
+declare
+a sys_refcursor;
+begin
+open a for select * from dual;
+close a;
+end;
+/
+--TestPoint:2.function param using sys_refcursor
+create or replace function f_test_refcursor_20230418(a sys_refcursor)
+return integer
+is
+begin
+open a for select * from dual;
+close a;
+  return 1;
+end;
+/
+declare
+	a sys_refcursor;
+	res int;
+begin
+  res := f_test_refcursor_20230418(a);
+end;
+/
+drop function f_test_refcursor_20230418;
+--TestPoint:3. function return type
+create or replace function f_test_refcursor_20230418(a sys_refcursor)
+return sys_refcursor
+is
+begin
+open a for select * from dual;
+close a;
+return a;
+end;
+/
+declare
+	a sys_refcursor;
+	res int;
+begin
+  a := f_test_refcursor_20230418(a);
+end;
+/
+drop function f_test_refcursor_20230418;
+--TestPoint:4. procedure out param
+create or replace procedure f_test_refcursor_20230418(a out sys_refcursor)
+is
+begin
+open a for select * from dual;
+close a;
+end;
+/
+declare
+	a sys_refcursor;
+	res int;
+begin
+ call f_test_refcursor_20230418(a);
+end;
+/
+drop procedure f_test_refcursor_20230418;
+-- 
+-- Over
+--

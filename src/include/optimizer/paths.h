@@ -7,9 +7,6 @@
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * src/include/optimizer/paths.h
  *
  *-------------------------------------------------------------------------
@@ -19,15 +16,60 @@
 
 #include "nodes/relation.h"
 
-
 /*
  * allpaths.c
  */
-extern bool enable_geqo;
-extern int	geqo_threshold;
-extern int	min_parallel_table_scan_size;
-extern int	min_parallel_index_scan_size;
-extern int  min_parallel_rows_size;
+extern PGDLLIMPORT bool enable_geqo;
+extern PGDLLIMPORT int	geqo_threshold;
+extern PGDLLIMPORT int	min_parallel_table_scan_size;
+extern PGDLLIMPORT int	min_parallel_index_scan_size;
+extern PGDLLIMPORT int	parallel_dml_tuple_num_threshold;
+extern PGDLLIMPORT int	planning_dml_sql;
+
+#ifdef __OPENTENBASE_C__
+
+/*
+ * In PostgreSQL, the row count estimate of a base rel scan, like a Seq Scan
+ * or an Index Scan, can be directly copied from RelOptInfo->rows/tuples. In
+ * OpenTenBase, it's not that straightforward as a Scan runs in parallel in the
+ * DNs, and the number of rows scanned by each Scan is RelOptInfo->rows /
+ * number of DN.
+ *
+ * That's pretty straightforward, too, but it means that we'd have to modify
+ * all the cost_seqscan, cost_index, etc. functions to take that into
+ * account. That's prone to bugs, because it is easy to miss references to
+ * rel->rows/tuples/pages. Even if we fix them all now, more can be
+ * introduced in merges with PostgreSQL, and it's not easy to notice because
+ * the only consequence is a bad cost estimate.
+ *
+ * To make that more robust with PostgreSQL merges, we do a little switcheroo
+ * with the RelOptInfo. The RelOptInfoDataNode struct is a "proxy" of
+ * RelOptInfo, containing the same fields, except that the rows/pages/tuple
+ * have already been divided by the number of data nodes. The costing functions
+ * have been modified so that on entry, they construct a RelOptInfoDataNode and
+ * use it in place of the RelOptInfo. That way, the formulas in the costing
+ * functions can still refer to "rel->pages", "rel->tuples" and so forth in
+ * the source code, keeping them unchanged from upstream, but will actually
+ * use the adjusted values.
+ *
+ * The RelOptInfoDataNode struct doesn't contain all the fields from RelOptInfo,
+ * only the ones commonly used in the cost_*() functions. If a reference to a
+ * new field is added in uptream, and it's not handled either by adding it to
+ * the RelOptInfoDataNode, or by modifying the reference to explictly point to
+ * the original RelOptInfo, you'll get a compiler error. That's good: it forces
+ * you to think whether the value needs to be divided by nDNs or not.
+ */
+#define PAGES_PER_DN(pages) \
+	(ceil((double) (pages) / num_nodes))
+
+#define ROWS_PER_DN(rows) \
+	(clamp_row_est((rows) / num_nodes))
+
+#define TUPLES_PER_DN(tuples) \
+	(clamp_row_est((tuples) / num_nodes))
+extern int  max_global_index_scan_rows_size;
+
+#endif
 
 /* Hook for plugins to get control in set_rel_pathlist() */
 typedef void (*set_rel_pathlist_hook_type) (PlannerInfo *root,
@@ -49,22 +91,35 @@ extern PGDLLIMPORT set_join_pathlist_hook_type set_join_pathlist_hook;
 typedef RelOptInfo *(*join_search_hook_type) (PlannerInfo *root,
 											  int levels_needed,
 											  List *initial_rels);
-extern PGDLLIMPORT join_search_hook_type join_search_hook;
 
+/* Hook for plugins to replace set_joinpath_distribution() */
+typedef List * (*set_distribution_hook_type) (PlannerInfo *root, JoinPath *pathnode);
+
+extern PGDLLIMPORT join_search_hook_type join_search_hook;
+extern PGDLLIMPORT set_distribution_hook_type set_distribution_hook;
+
+#ifdef __OPENTENBASE_C__
+/* Hook for plugins to get control in set_rel_size() */
+typedef void (*set_rel_size_hook_type) (PlannerInfo *root,
+											RelOptInfo *rel,
+											Index rti,
+											RangeTblEntry *rte);
+extern PGDLLIMPORT set_rel_size_hook_type set_rel_size_hook;
+#endif
 
 extern RelOptInfo *make_one_rel(PlannerInfo *root, List *joinlist);
 extern void set_dummy_rel_pathlist(RelOptInfo *rel);
 extern RelOptInfo *standard_join_search(PlannerInfo *root, int levels_needed,
 					 List *initial_rels);
 
-extern void generate_gather_paths(PlannerInfo *root, RelOptInfo *rel);
+extern void generate_gather_paths(PlannerInfo *root, RelOptInfo *rel,
+					  bool override_rows);
 extern int compute_parallel_worker(RelOptInfo *rel, double heap_pages,
 						double index_pages);
 extern void create_partial_bitmap_paths(PlannerInfo *root, RelOptInfo *rel,
 							Path *bitmapqual);
-extern void generate_partition_wise_join_paths(PlannerInfo *root,
+extern void generate_partitionwise_join_paths(PlannerInfo *root,
 								   RelOptInfo *rel);
-
 #ifdef OPTIMIZER_DEBUG
 extern void debug_print_rel(PlannerInfo *root, RelOptInfo *rel);
 #endif
@@ -118,8 +173,38 @@ extern bool have_join_order_restriction(PlannerInfo *root,
 extern bool have_dangerous_phv(PlannerInfo *root,
 				   Relids outer_relids, Relids inner_params);
 extern void mark_dummy_rel(RelOptInfo *rel);
-extern bool have_partkey_equi_join(RelOptInfo *rel1, RelOptInfo *rel2,
-					   JoinType jointype, List *restrictlist);
+extern bool have_partkey_equi_join(RelOptInfo *joinrel, RelOptInfo *rel1, RelOptInfo *rel2,
+                                          JoinType jointype, List *restrictlist);
+extern bool have_partkey_in_groupby(PlannerInfo *root, RelOptInfo *rel1, List *groupExprs);
+
+#ifdef __OPENTENBASE_C__
+/*
+ * materialpath.c
+ *	  routines to create materialization paths
+ */
+typedef enum
+{
+	MATERIAL_EQUAL,			/* AttrMasks are identical */
+	MATERIAL_BETTER1,		/* AttrMasks 1 is a superset of AttrMasks 2 */
+	MATERIAL_BETTER2,		/* vice versa */
+	MATERIAL_DIFFERENT		/* neither AttrMasks includes the other */
+} MaterialComparison;
+
+/* Macro for checking whether the path is still not fully materialized */
+#define IS_UNMATERIAL_PATH(path)  \
+	((path)->attr_masks ? TRUE : FALSE)
+
+extern MaterialComparison compare_material_status(RelOptInfo *parent_rel,
+								  	  Path *path1, Path *path2);
+extern int get_path_lm_width(PlannerInfo *root, RelOptInfo *baserel,
+							 AttrMask masks);
+extern List * generate_joinrestrict_satisfied_lm_paths(PlannerInfo *root,
+								List *pathlist, JoinPathExtraData *extra);
+extern AttrMask * create_hashjoin_attr_masks(PlannerInfo *root,
+							 RelOptInfo *joinrel,
+							 Path *inner_path,
+							 Path *outer_path);
+#endif
 
 /*
  * equivclass.c
@@ -131,7 +216,8 @@ typedef bool (*ec_matches_callback_type) (PlannerInfo *root,
 										  EquivalenceMember *em,
 										  void *arg);
 
-extern bool process_equivalence(PlannerInfo *root, RestrictInfo *restrictinfo,
+extern bool process_equivalence(PlannerInfo *root,
+					RestrictInfo **p_restrictinfo,
 					bool below_outer_join);
 extern Expr *canonicalize_ec_expression(Expr *expr,
 						   Oid req_type, Oid req_collation);
@@ -206,8 +292,9 @@ extern List *build_expression_pathkey(PlannerInfo *root, Expr *expr,
 						 Relids nullable_relids, Oid opno,
 						 Relids rel, bool create_it);
 extern List *convert_subquery_pathkeys(PlannerInfo *root, RelOptInfo *rel,
-						  List *subquery_pathkeys,
-						  List *subquery_tlist);
+									   List *subquery_pathkeys,
+									   List *subquery_tlist,
+									   bool create_it);
 extern List *build_join_pathkeys(PlannerInfo *root,
 					RelOptInfo *joinrel,
 					JoinType jointype,
@@ -236,10 +323,18 @@ extern bool has_useful_pathkeys(PlannerInfo *root, RelOptInfo *rel);
 extern PathKey *make_canonical_pathkey(PlannerInfo *root,
 					   EquivalenceClass *eclass, Oid opfamily,
 					   int strategy, bool nulls_first);
+extern void add_paths_to_append_rel(PlannerInfo *root, RelOptInfo *rel,
+									List *live_childrels);
 #ifdef __OPENTENBASE__
 extern double path_count_datanodes(Path *path);
+/*
+ * We think a local agg is possible worth when the input is larger than output,
+ * and we could do agg remove duplicated tuples and reduce amount of data
+ * transferred in network.
+ * But if the data is located on only one node, do re-distribute first to avoid
+ * a potential single-node bottleneck.
+ */
+#define is_local_agg_worth(localrows, path) \
+	((localrows) < (path)->rows && path_count_datanodes(path) > 1)
 #endif
-
-extern void prune_interval_base_rel(PlannerInfo *root);
-
 #endif							/* PATHS_H */

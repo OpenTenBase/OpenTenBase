@@ -1,5 +1,7 @@
 # uuid-ossp extension
 comment = 'generate universally unique identifiers (UUIDs)'
-default_version = '1.1'
+default_version = '1.2'
 module_pathname = '$libdir/uuid-ossp'
 relocatable = true
+# sql_mode can be opentenbase_ora, postgresql, all
+sql_mode = 'all'

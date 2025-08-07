@@ -20,4 +20,4 @@ extern NestLoopState *ExecInitNestLoop(NestLoop *node, EState *estate, int eflag
 extern void ExecEndNestLoop(NestLoopState *node);
 extern void ExecReScanNestLoop(NestLoopState *node);
 
-#endif                            /* NODENESTLOOP_H */
+#endif							/* NODENESTLOOP_H */

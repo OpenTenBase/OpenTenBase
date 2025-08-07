@@ -8,7 +8,7 @@ EXTENSION = opentenbase_gts_tools
 DATA = opentenbase_gts_tools--1.0.sql
 
 ## 扩展描述;
-PGFILEDESC = "opentenbase_gts_tools - GTS wrapper for OpenTnBase"
+PGFILEDESC = "opentenbase_gts_tools - GTS wrapper for OpenTenBase"
 
 ### 以下为Pg构建扩展相关命令;
 ifdef USE_PGXS

@@ -255,7 +255,6 @@ my %pgdump_runs = (
 	test_schema_plus_blobs => {
 		dump_cmd => [
 			'pg_dump', "--file=$tempdir/test_schema_plus_blobs.sql",
-
 			'--schema=dump_test', '-b', '-B', '--no-sync', 'postgres', ], },
 	with_oids => {
 		dump_cmd => [
@@ -1047,8 +1046,8 @@ my %tests = (
 			\QALTER TABLE ONLY dump_test.measurement ATTACH PARTITION measurement_y2006m2 \E
 			\QFOR VALUES FROM ('2006-02-01') TO ('2006-03-01');\E\n
 			/xm,
-		like   => { binary_upgrade => 1, },
-		unlike => {
+		like => {
+			binary_upgrade           => 1,
 			clean                    => 1,
 			clean_if_exists          => 1,
 			createdb                 => 1,
@@ -1057,13 +1056,14 @@ my %tests = (
 			exclude_test_table       => 1,
 			exclude_test_table_data  => 1,
 			no_blobs                 => 1,
-			no_privs                 => 1,
 			no_owner                 => 1,
+			no_privs                 => 1,
 			pg_dumpall_dbprivs       => 1,
 			role                     => 1,
 			schema_only              => 1,
 			section_pre_data         => 1,
-			with_oids                => 1,
+			with_oids                => 1, },
+		unlike => {
 			only_dump_test_schema    => 1,
 			only_dump_test_table     => 1,
 			pg_dumpall_globals       => 1,
@@ -2784,6 +2784,7 @@ qr/CREATE CAST \(timestamp with time zone AS interval\) WITH FUNCTION pg_catalog
 						  basetype = int4,
 						  stype = _int8,
 						  finalfunc = int8_avg,
+						  finalfunc_modify = shareable,
 						  initcond1 = \'{0,0}\'
 					   );',
 		regexp => qr/^
@@ -2791,7 +2792,8 @@ qr/CREATE CAST \(timestamp with time zone AS interval\) WITH FUNCTION pg_catalog
 			\n\s+\QSFUNC = int4_avg_accum,\E
 			\n\s+\QSTYPE = bigint[],\E
 			\n\s+\QINITCOND = '{0,0}',\E
-			\n\s+\QFINALFUNC = int8_avg\E
+			\n\s+\QFINALFUNC = int8_avg,\E
+			\n\s+\QFINALFUNC_MODIFY = SHAREABLE\E
 			\n\);/xm,
 		like => {
 			binary_upgrade          => 1,
@@ -3623,6 +3625,44 @@ qr/^\QCREATE DEFAULT CONVERSION test_conversion FOR 'LATIN1' TO 'UTF8' FROM iso8
 			\QCREATE FUNCTION int42_out(int42) RETURNS cstring\E
 			\n\s+\QLANGUAGE internal IMMUTABLE STRICT\E
 			\n\s+AS\ \$\$int4out\$\$;
+			/xm,
+		like => {
+			binary_upgrade          => 1,
+			clean                   => 1,
+			clean_if_exists         => 1,
+			createdb                => 1,
+			defaults                => 1,
+			exclude_test_table      => 1,
+			exclude_test_table_data => 1,
+			no_blobs                => 1,
+			no_privs                => 1,
+			no_owner                => 1,
+			only_dump_test_schema   => 1,
+			pg_dumpall_dbprivs      => 1,
+			schema_only             => 1,
+			section_pre_data        => 1,
+			test_schema_plus_blobs  => 1,
+			with_oids               => 1, },
+		unlike => {
+			column_inserts           => 1,
+			data_only                => 1,
+			exclude_dump_test_schema => 1,
+			only_dump_test_table     => 1,
+			pg_dumpall_globals       => 1,
+			pg_dumpall_globals_clean => 1,
+			role                     => 1,
+			section_data             => 1,
+			section_post_data        => 1, }, },
+
+	'CREATE PROCEDURE dump_test.ptest1' => {
+		all_runs     => 1,
+		create_order => 41,
+		create_sql   => 'CREATE PROCEDURE dump_test.ptest1(a int)
+					   LANGUAGE SQL AS $$ INSERT INTO dump_test.test_table (col1) VALUES (a) $$;',
+		regexp => qr/^
+			\QCREATE PROCEDURE ptest1(a integer)\E
+			\n\s+\QLANGUAGE sql\E
+			\n\s+AS\ \$\$\Q INSERT INTO dump_test.test_table (col1) VALUES (a) \E\$\$;
 			/xm,
 		like => {
 			binary_upgrade          => 1,
@@ -4778,9 +4818,9 @@ qr/CREATE TRANSFORM FOR integer LANGUAGE sql \(FROM SQL WITH FUNCTION pg_catalog
 		catch_all    => 'CREATE ... commands',
 		create_order => 90,
 		create_sql   => 'CREATE TABLE dump_test.measurement (
-						city_id int not null,
+						city_id serial not null,
 						logdate date not null,
-						peaktemp int,
+						peaktemp int CHECK (peaktemp >= -460),
 						unitsales int
 					   ) PARTITION BY RANGE (logdate);',
 		regexp => qr/^
@@ -4790,7 +4830,8 @@ qr/CREATE TRANSFORM FOR integer LANGUAGE sql \(FROM SQL WITH FUNCTION pg_catalog
 			\s+\Qcity_id integer NOT NULL,\E\n
 			\s+\Qlogdate date NOT NULL,\E\n
 			\s+\Qpeaktemp integer,\E\n
-			\s+\Qunitsales integer\E\n
+			\s+\Qunitsales integer,\E\n
+			\s+\QCONSTRAINT measurement_peaktemp_check CHECK ((peaktemp >= '-460'::integer))\E\n
 			\)\n
 			\QPARTITION BY RANGE (logdate);\E\n
 			/xm,
@@ -4819,19 +4860,25 @@ qr/CREATE TRANSFORM FOR integer LANGUAGE sql \(FROM SQL WITH FUNCTION pg_catalog
 			role                     => 1,
 			section_post_data        => 1, }, },
 
-	'CREATE TABLE measurement_y2006m2 PARTITION OF' => {
+	'Partition measurement_y2006m2 creation' => {
 		all_runs     => 1,
 		catch_all    => 'CREATE ... commands',
 		create_order => 91,
 		create_sql =>
 		  'CREATE TABLE dump_test_second_schema.measurement_y2006m2
-					   PARTITION OF dump_test.measurement FOR VALUES
-					   FROM (\'2006-02-01\') TO (\'2006-03-01\');',
+						PARTITION OF dump_test.measurement (
+						unitsales DEFAULT 0 CHECK (unitsales >= 0)
+						)
+						FOR VALUES FROM (\'2006-02-01\') TO (\'2006-03-01\');',
 		regexp => qr/^
-			\Q-- Name: measurement_y2006m2;\E.*\n
-			\Q--\E\n\n
-			\QCREATE TABLE measurement_y2006m2 PARTITION OF dump_test.measurement\E\n
-			\QFOR VALUES FROM ('2006-02-01') TO ('2006-03-01');\E\n
+			\QCREATE TABLE dump_test_second_schema.measurement_y2006m2 (\E\n
+			\s+\Qcity_id integer DEFAULT nextval('dump_test.measurement_city_id_seq'::regclass) NOT NULL,\E\n
+			\s+\Qlogdate date NOT NULL,\E\n
+			\s+\Qpeaktemp integer,\E\n
+			\s+\Qunitsales integer DEFAULT 0,\E\n
+			\s+\QCONSTRAINT measurement_peaktemp_check CHECK ((peaktemp >= '-460'::integer)),\E\n
+			\s+\QCONSTRAINT measurement_y2006m2_unitsales_check CHECK ((unitsales >= 0))\E\n
+			\);\n
 			/xm,
 		like => {
 			clean                    => 1,
@@ -4846,11 +4893,12 @@ qr/CREATE TRANSFORM FOR integer LANGUAGE sql \(FROM SQL WITH FUNCTION pg_catalog
 			no_owner                 => 1,
 			pg_dumpall_dbprivs       => 1,
 			role                     => 1,
+			role_parallel            => 1,
 			schema_only              => 1,
 			section_pre_data         => 1,
-			with_oids                => 1, },
+			with_oids                => 1,
+			binary_upgrade           => 1, },
 		unlike => {
-			binary_upgrade           => 1,
 			only_dump_test_schema    => 1,
 			only_dump_test_table     => 1,
 			pg_dumpall_globals       => 1,
@@ -4984,6 +5032,84 @@ qr/CREATE TRANSFORM FOR integer LANGUAGE sql \(FROM SQL WITH FUNCTION pg_catalog
 			pg_dumpall_globals       => 1,
 			pg_dumpall_globals_clean => 1,
 			role                     => 1,
+			section_post_data        => 1, }, },
+
+	'CREATE TABLE test_inheritance_parent' => {
+		create_order => 90,
+		create_sql   => 'CREATE TABLE dump_test.test_inheritance_parent (
+						   col1 int NOT NULL,
+						   col2 int CHECK (col2 >= 42)
+						 );',
+		regexp => qr/^
+		\QCREATE TABLE dump_test.test_inheritance_parent (\E\n
+		\s+\Qcol1 integer NOT NULL,\E\n
+		\s+\Qcol2 integer,\E\n
+		\s+\QCONSTRAINT test_inheritance_parent_col2_check CHECK ((col2 >= 42))\E\n
+		\Q);\E\n
+		/xm,
+		like => {
+			clean                   => 1,
+			clean_if_exists         => 1,
+			createdb                => 1,
+			defaults                => 1,
+			exclude_test_table      => 1,
+			exclude_test_table_data => 1,
+			no_blobs                => 1,
+			no_privs                => 1,
+			no_owner                => 1,
+			pg_dumpall_dbprivs      => 1,
+			schema_only             => 1,
+			section_pre_data        => 1,
+			with_oids               => 1,
+			binary_upgrade          => 1,
+			only_dump_test_schema   => 1,
+			test_schema_plus_blobs  => 1, },
+		unlike => {
+			exclude_dump_test_schema => 1,
+			only_dump_test_table     => 1,
+			pg_dumpall_globals       => 1,
+			pg_dumpall_globals_clean => 1,
+			role                     => 1,
+			role_parallel            => 1,
+			section_post_data        => 1, }, },
+
+	'CREATE TABLE test_inheritance_child' => {
+		create_order => 91,
+		create_sql   => 'CREATE TABLE dump_test.test_inheritance_child (
+						    col1 int NOT NULL,
+						    CONSTRAINT test_inheritance_child CHECK (col2 >= 142857)
+						) INHERITS (dump_test.test_inheritance_parent);',
+		regexp => qr/^
+		\QCREATE TABLE dump_test.test_inheritance_child (\E\n
+		\s+\Qcol1 integer,\E\n
+		\s+\QCONSTRAINT test_inheritance_child CHECK ((col2 >= 142857))\E\n
+		\)\n
+		\QINHERITS (dump_test.test_inheritance_parent);\E\n
+		/xm,
+		like => {
+			clean                   => 1,
+			clean_if_exists         => 1,
+			createdb                => 1,
+			defaults                => 1,
+			exclude_test_table      => 1,
+			exclude_test_table_data => 1,
+			no_blobs                => 1,
+			no_privs                => 1,
+			no_owner                => 1,
+			pg_dumpall_dbprivs      => 1,
+			schema_only             => 1,
+			section_pre_data        => 1,
+			with_oids               => 1,
+			only_dump_test_schema   => 1,
+			test_schema_plus_blobs  => 1, },
+		unlike => {
+			binary_upgrade           => 1,
+			exclude_dump_test_schema => 1,
+			only_dump_test_table     => 1,
+			pg_dumpall_globals       => 1,
+			pg_dumpall_globals_clean => 1,
+			role                     => 1,
+			role_parallel            => 1,
 			section_post_data        => 1, }, },
 
 	'CREATE STATISTICS extended_stats_no_options' => {
@@ -6203,8 +6329,7 @@ qr/^GRANT SELECT ON TABLE measurement_y2006m2 TO regress_dump_test_role;/m,
 						   prorows,
 						   provariadic,
 						   protransform,
-						   proisagg,
-						   proiswindow,
+						   prokind,
 						   prosecdef,
 						   proleakproof,
 						   proisstrict,
@@ -6236,8 +6361,7 @@ qr/^GRANT SELECT ON TABLE measurement_y2006m2 TO regress_dump_test_role;/m,
 		\QGRANT SELECT(prorows) ON TABLE pg_proc TO PUBLIC;\E\n.*
 		\QGRANT SELECT(provariadic) ON TABLE pg_proc TO PUBLIC;\E\n.*
 		\QGRANT SELECT(protransform) ON TABLE pg_proc TO PUBLIC;\E\n.*
-		\QGRANT SELECT(proisagg) ON TABLE pg_proc TO PUBLIC;\E\n.*
-		\QGRANT SELECT(proiswindow) ON TABLE pg_proc TO PUBLIC;\E\n.*
+        \QGRANT SELECT(prokind) ON TABLE pg_catalog.pg_proc TO PUBLIC;\E\n.*
 		\QGRANT SELECT(prosecdef) ON TABLE pg_proc TO PUBLIC;\E\n.*
 		\QGRANT SELECT(proleakproof) ON TABLE pg_proc TO PUBLIC;\E\n.*
 		\QGRANT SELECT(proisstrict) ON TABLE pg_proc TO PUBLIC;\E\n.*

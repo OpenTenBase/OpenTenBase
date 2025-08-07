@@ -1,6 +1,20 @@
 --
 -- TRANSACTIONS
 --
+drop table if exists st_tbl2_7 CASCADE;
+create table st_tbl2_7(userid int,createdate timestamp default '2021-01-01', product text) distribute by shard(userid);
+start transaction;
+savepoint s1;
+drop table st_tbl2_7;
+create table st_tbl2_7(userid int,createdate timestamp default '2021-01-01', product text) distribute by shard(userid);
+insert into st_tbl2_7(userid,product) select t,'hello,world' from generate_series(1,200)as t;
+rollback;
+select count(1) from st_tbl2_7;
+
+-- no core
+begin;
+savepoint x;
+end;
 
 BEGIN;
 
@@ -383,12 +397,10 @@ begin
   return 1::float8/$1;
 exception
   when division_by_zero then return 0;
-end$$ language plpgsql volatile;
+end$$ language plpgsql volatile pushdown;
 
 create table revalidate_bug (c float8 unique);
 insert into revalidate_bug values (1);
-insert into revalidate_bug values (inverse(0));
-alter function inverse(int) pushdown;
 insert into revalidate_bug values (inverse(0));
 
 drop table revalidate_bug;
@@ -504,7 +516,6 @@ savepoint s;
 set parallel_setup_cost=0;
 set parallel_tuple_cost=0;
 set min_parallel_table_scan_size=0;
-set min_parallel_rows_size=0;
 set max_parallel_workers_per_gather=2;
 insert into t3_trans select * from t1_trans;
 select count(*) from t3_trans join t1_trans using (f2);
@@ -512,6 +523,66 @@ abort;
 
 drop table t1_trans, t2_trans, t3_trans;
 
+-- Test savepoint for ddl
+drop table if exists t_seq1;
+create table t_seq1(v serial);
+drop table if exists t_seq2;
+create table t_seq2(v serial);
+drop table if exists t_seq3;
+create table t_seq3(v serial);
+begin;
+drop table t_seq1;
+savepoint s1;
+drop table t_seq2;
+savepoint s2;
+drop table t_seq3;
+rollback to s1;
+end;
+select relname from pg_class where relname like 't_seq%' order by 1;
+drop table t_seq2;
+drop table t_seq3;
+
+begin;
+create table t_seq3(v serial);
+savepoint s1;
+create table t_seq4(v serial);
+savepoint s2;
+create table t_seq5(v serial);
+rollback to s1;
+end;
+select relname from pg_class where relname like 't_seq%' order by 1;
+drop table t_seq3;
+
+begin;
+create table t_seq6(v serial);
+alter sequence t_seq6_v_seq rename to t_seq6_v_seq_1;
+savepoint s1;
+alter sequence t_seq6_v_seq_1 rename to t_seq6_v_seq_2;
+savepoint s2;
+alter sequence t_seq6_v_seq_2 rename to t_seq6_v_seq_3;
+rollback to s1;
+end;
+select relname from pg_class where relname like 't_seq%' order by 1;
+drop table t_seq6;
+
+-- Test for global command id
+create table x(x1 int, x2 int);                                                           
+insert into x values(1, 2);    
+  
+begin;                                                                                  
+    declare cb cursor for select x1, x2 from x, pg_class;                                 
+    create temp table a_tamp(a int) on commit drop;                                       
+    fetch in cb;                                                                          
+    insert into a_tamp values(1);                                                         
+commit;
+
+begin;                                                                                  
+    declare cb cursor for select x1, x2 from x, pg_class;                                 
+    create temp table a_tamp(a int) on commit drop;                                       
+    fetch in cb;                                                                          
+    insert into a_tamp values(1);                                                         
+abort;
+drop table x;
 
 -- Test for successful cleanup of an aborted transaction at session exit.
 -- THIS MUST BE THE LAST TEST IN THIS FILE.
@@ -519,5 +590,4 @@ drop table t1_trans, t2_trans, t3_trans;
 begin;
 select 1/0;
 rollback to X;
-
 -- DO NOT ADD ANYTHING HERE.

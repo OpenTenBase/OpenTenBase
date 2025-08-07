@@ -71,6 +71,16 @@ fetch backward all in c4;
 fetch backward 1 in c4;
 fetch all in c4;
 
+declare c5 SCROLL cursor for select * from int8_tbl order by q1 fetch first 2 rows with ties;
+fetch all in c5;
+fetch 1 in c5;
+fetch backward 1 in c5;
+fetch backward 1 in c5;
+fetch all in c5;
+fetch backward all in c5;
+fetch all in c5;
+fetch backward all in c5;
+
 rollback;
 
 -- Stress test for variable LIMIT in conjunction with bounded-heap sorting
@@ -141,3 +151,57 @@ select sum(tenthous) as s1, sum(tenthous) + random()*0 as s2
 
 select sum(tenthous) as s1, sum(tenthous) + random()*0 as s2
   from tenk1 group by thousand order by thousand limit 3;
+
+-- limit all with offset
+create table limit_all_t (id int, num int);
+insert into limit_all_t values (generate_series(1,5),generate_series(1,5));
+explain (costs off) select * from limit_all_t order by 1,2 limit all offset 1;
+select * from limit_all_t order by 1,2 limit all offset 1;
+drop table limit_all_t;
+
+-- limit + offset > INT64_MAX
+DROP TABLE IF EXISTS limit_offset_over_t cascade;
+CREATE TABLE limit_offset_over_t(c0 TEXT) WITH (autovacuum_vacuum_threshold=784680650, autovacuum_vacuum_cost_limit=4969, autovacuum_freeze_min_age=426750238, autovacuum_analyze_threshold=1579189975);
+SELECT DISTINCT ON (FALSE) (t2.c0 COLLATE "C") FROM ONLY limit_offset_over_t t2 WHERE ((t2.c0 COLLATE "C") COLLATE "C") BETWEEN SYMMETRIC ((((((t2.c0 COLLATE "C"))::VARCHAR COLLATE "C") COLLATE "C") COLLATE "C")) AND ((t2.c0 COLLATE "C") COLLATE "C") LIMIT 1879268089421534688 OFFSET 8009103420926229377;
+DROP TABLE limit_offset_over_t cascade;
+--
+-- FETCH FIRST
+-- Check the WITH TIES clause
+--
+
+SELECT  thousand
+		FROM onek WHERE thousand < 5
+		ORDER BY thousand FETCH FIRST 2 ROW WITH TIES;
+
+SELECT  thousand
+		FROM onek WHERE thousand < 5
+		ORDER BY thousand FETCH FIRST 1 ROW WITH TIES;
+
+SELECT  thousand
+		FROM onek WHERE thousand < 5
+		ORDER BY thousand FETCH FIRST 2 ROW ONLY;
+-- should fail
+SELECT ''::text AS two, unique1, unique2, stringu1
+		FROM onek WHERE unique1 > 50
+		FETCH FIRST 2 ROW WITH TIES;
+
+-- test ruleutils
+begin;
+CREATE VIEW limit_thousand_v_1 AS SELECT thousand FROM onek WHERE thousand < 995
+		ORDER BY thousand FETCH FIRST 5 ROWS WITH TIES OFFSET 10;
+\d+ limit_thousand_v_1
+CREATE VIEW limit_thousand_v_2 AS SELECT thousand FROM onek WHERE thousand < 995
+		ORDER BY thousand OFFSET 10 FETCH FIRST 5 ROWS ONLY;
+\d+ limit_thousand_v_2
+rollback;
+CREATE VIEW limit_thousand_v_3 AS SELECT thousand FROM onek WHERE thousand < 995
+		ORDER BY thousand FETCH FIRST NULL ROWS WITH TIES;		-- fails
+begin;
+CREATE VIEW limit_thousand_v_3 AS SELECT thousand FROM onek WHERE thousand < 995
+		ORDER BY thousand FETCH FIRST (NULL+1) ROWS WITH TIES;
+\d+ limit_thousand_v_3
+CREATE VIEW limit_thousand_v_4 AS SELECT thousand FROM onek WHERE thousand < 995
+		ORDER BY thousand FETCH FIRST NULL ROWS ONLY;
+\d+ limit_thousand_v_4
+rollback;
+-- leave these views

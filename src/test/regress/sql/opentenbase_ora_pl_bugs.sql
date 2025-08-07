@@ -1,0 +1,341 @@
+\c regression_ora
+-- Fix the use of 'return;' error in dml trigger
+--
+create table tms_busi_apply_20230406(flow_sts_id numeric(10,0),BUSI_FLOW_ID numeric(10,0)) distribute by shard(flow_sts_id);
+
+insert into tms_busi_apply_20230406(flow_sts_id, BUSI_FLOW_ID) values(1,1);
+--before update
+create or replace trigger tri_tms_20230406
+before update of flow_sts_id on tms_busi_apply_20230406
+for each row
+declare
+ V_COUNT number;
+BEGIN
+ if 1=1 then
+  raise notice 'dadada';
+  return;
+ end if;
+ return;
+end;
+/
+
+update tms_busi_apply_20230406 set flow_sts_id=1 WHERE flow_sts_id=1;
+--before update
+create or replace trigger tri_tms_20230406
+before update of flow_sts_id on tms_busi_apply_20230406
+for each row
+declare
+ V_COUNT number;
+BEGIN
+  raise notice 'dadada';
+  return;
+end;
+/
+
+update tms_busi_apply_20230406 set flow_sts_id=1 WHERE flow_sts_id=1;
+
+--after update
+create or replace trigger tri_tms_20230406
+after update of flow_sts_id on tms_busi_apply_20230406
+for each row
+declare
+ V_COUNT number;
+BEGIN
+  raise notice 'dadada';
+  return;
+end;
+/
+
+update tms_busi_apply_20230406 set flow_sts_id=1 WHERE flow_sts_id=1;
+
+--insert
+create or replace trigger tri_tms_20230406
+before insert on tms_busi_apply_20230406
+declare
+ V_COUNT number;
+BEGIN
+  raise notice 'dadada';
+  return;
+end;
+/
+
+insert into tms_busi_apply_20230406(flow_sts_id, BUSI_FLOW_ID) values(1,1);
+
+--delete
+create or replace trigger tri_tms_20230406
+after delete on tms_busi_apply_20230406
+for each row
+declare
+ V_COUNT number;
+BEGIN
+  raise notice 'dadada';
+  return;
+end;
+/
+
+delete from tms_busi_apply_20230406 where flow_sts_id = 1;
+drop table tms_busi_apply_20230406;
+
+-- trigger with cursor
+set enable_datanode_row_triggers = true;
+drop table if exists DEPT;
+CREATE TABLE DEPT
+       (DEPTNO NUMBER(2) CONSTRAINT PK_DEPT PRIMARY KEY,
+        DNAME VARCHAR2(14) ,
+        LOC VARCHAR2(13));
+INSERT INTO DEPT VALUES (10,'ACCOUNTING','NEW YORK');
+INSERT INTO DEPT VALUES (20,'RESEARCH','DALLAS');
+INSERT INTO DEPT VALUES (30,'SALES','CHICAGO');
+INSERT INTO DEPT VALUES (40,'OPERATIONS','BOSTON');
+
+CREATE TABLE EMP_TRIGGER
+       (EMPNO NUMBER(4) CONSTRAINT PK_EMP PRIMARY KEY,
+        ENAME VARCHAR2(10),
+        JOB VARCHAR2(9),
+        MGR NUMBER(4),
+        HIREDATE DATE,
+        SAL NUMBER(7,2),
+        COMM NUMBER(7,2),
+        DEPTNO NUMBER(2));
+INSERT INTO EMP_TRIGGER VALUES
+(7369,'SMITH','CLERK',7902,to_date('17-12-1980','dd-mm-yyyy'),800,NULL,20);
+INSERT INTO EMP_TRIGGER VALUES
+(7499,'ALLEN','SALESMAN',7698,to_date('20-2-1981','dd-mm-yyyy'),1600,300,30);
+INSERT INTO EMP_TRIGGER VALUES
+(7521,'WARD','SALESMAN',7698,to_date('22-2-1981','dd-mm-yyyy'),1250,500,30);
+INSERT INTO EMP_TRIGGER VALUES
+(7566,'JONES','MANAGER',7839,to_date('2-4-1981','dd-mm-yyyy'),2975,NULL,20);
+INSERT INTO EMP_TRIGGER VALUES
+(7654,'MARTIN','SALESMAN',7698,to_date('28-9-1981','dd-mm-yyyy'),1250,1400,30);
+INSERT INTO EMP_TRIGGER VALUES
+(7698,'BLAKE','MANAGER',7839,to_date('1-5-1981','dd-mm-yyyy'),2850,NULL,30);
+INSERT INTO EMP_TRIGGER VALUES
+(7782,'CLARK','MANAGER',7839,to_date('9-6-1981','dd-mm-yyyy'),2450,NULL,10);
+INSERT INTO EMP_TRIGGER VALUES
+(7788,'SCOTT','ANALYST',7566,to_date('19-04-87','dd-mm-rr'),3000,NULL,20);
+INSERT INTO EMP_TRIGGER VALUES
+(7839,'KING','PRESIDENT',NULL,to_date('17-11-1981','dd-mm-yyyy'),5000,NULL,10);
+INSERT INTO EMP_TRIGGER VALUES
+(7844,'TURNER','SALESMAN',7698,to_date('8-9-1981','dd-mm-yyyy'),1500,0,30);
+INSERT INTO EMP_TRIGGER VALUES
+(7876,'ADAMS','CLERK',7788,to_date('23-05-87', 'dd-mm-rr'),1100,NULL,20);
+INSERT INTO EMP_TRIGGER VALUES
+(7900,'JAMES','CLERK',7698,to_date('3-12-1981','dd-mm-yyyy'),950,NULL,30);
+INSERT INTO EMP_TRIGGER VALUES
+(7902,'FORD','ANALYST',7566,to_date('3-12-1981','dd-mm-yyyy'),3000,NULL,20);
+INSERT INTO EMP_TRIGGER VALUES
+(7934,'MILLER','CLERK',7782,to_date('23-1-1982','dd-mm-yyyy'),1300,NULL,10);
+
+drop table if exists emp1;
+create table emp1 as select * from EMP_TRIGGER;
+drop trigger if exists emp_dept_check on emp1;
+drop function if exists emp_dept_check;
+
+CREATE OR REPLACE TRIGGER emp_dept_check
+  BEFORE INSERT OR UPDATE OF deptno ON emp1
+  FOR EACH ROW WHEN (NEW.Deptno IS NOT NULL)
+
+DECLARE
+  Dummy               INTEGER;  -- Use for cursor fetch
+  Invalid_department  EXCEPTION;
+  Valid_department    EXCEPTION;
+  Mutating_table      EXCEPTION;
+  PRAGMA EXCEPTION_INIT (Invalid_department, -4093);
+  PRAGMA EXCEPTION_INIT (Valid_department, -4092);
+  PRAGMA EXCEPTION_INIT (Mutating_table, -4091);
+
+  CURSOR Dummy_cursor (Dn NUMBER) IS
+    SELECT Deptno FROM dept
+    WHERE Deptno = Dn;
+BEGIN
+  OPEN Dummy_cursor (:NEW.Deptno);
+  FETCH Dummy_cursor INTO Dummy;
+
+  IF Dummy_cursor%NOTFOUND THEN
+    RAISE Invalid_department;
+  ELSE
+    RAISE Valid_department;
+  END IF;
+  CLOSE Dummy_cursor;
+EXCEPTION
+  WHEN Invalid_department THEN
+    CLOSE Dummy_cursor;
+    raise notice 'Invalid_department';
+  WHEN Valid_department THEN
+    CLOSE Dummy_cursor;
+  WHEN Mutating_table THEN
+    NULL;
+END;
+/
+
+insert into emp1(empno,deptno) values(1,50);
+
+-- loop cursor with commit/rollbak
+CREATE or REPLACE PROCEDURE p_econtext32() AS
+DECLARE
+	rec RECORD;
+BEGIN
+	FOR rec IN SELECT t.i as a FROM generate_series(1,10) t(i)
+	LOOP
+		IF rec.a % 2 = 1 THEN
+			commit;
+		ELSE
+			rollback;
+		END IF;
+	END LOOP;
+EXCEPTION WHEN OTHERS THEN
+	raise notice '%', SQLERRM;
+END;
+/
+call p_econtext32();
+drop procedure if exists p_econtext32;
+
+-- rollback cannot drop the portal of the loop statement
+declare
+	rec record;
+begin
+	for rec in select * from generate_series(1,2)
+	loop
+    	raise notice '%', rec;
+        rollback;
+	end loop;
+exception when others then
+	raise notice '%', sqlerrm;
+end;
+/
+
+-- reset _SPI_errstack when MessageContext is reset
+drop package plsql_52180_20240527_pkg2;
+create or replace package plsql_52180_20240527_pkg2
+is
+mergeExcep EXCEPTION;
+procedure mergeOp(opIdx number);
+procedure bootstrap(loops number);
+end plsql_52180_20240527_pkg2;
+/
+
+create or replace package body plsql_52180_20240527_pkg2
+is
+procedure mergeOp(opIdx number)
+is
+  idx number := 0;
+begin
+   if mod(opIdx,1) = 0 then
+     RAISE mergeExcep;
+   end if;
+end mergeOp;
+
+procedure bootstrap(loops number)
+is
+begin
+   FOR opIdx IN 1..loops
+   LOOP
+   BEGIN
+ 		mergeOp(opIdx);
+     	commit;
+    EXCEPTION when others then
+        commit;
+    END;
+  END LOOP;
+end bootstrap;
+end plsql_52180_20240527_pkg2;
+/
+
+begin;
+begin
+plsql_52180_20240527_pkg2.bootstrap(3);
+end;
+/
+
+begin
+plsql_52180_20240527_pkg2.bootstrap(3);
+end;
+/
+rollback;
+drop package plsql_52180_20240527_pkg2;
+
+-- cursor opened by for stmt should be closed when for stmt end
+create table table_2024_06_22_t1(id int primary key, num number);
+
+begin
+ for x in 1..10
+ loop
+  insert into table_2024_06_22_t1 values(x,x);
+ end loop;
+end;
+/
+
+begin;
+declare 
+  myError exception;
+  myError2 exception;
+  ans varchar2(200);
+
+  procedure at1 
+  is
+    myError exception;
+    myError2 exception;
+    cursor vCur is select * from table_2024_06_22_t1 order by id;
+    vRec  table_2024_06_22_t1%rowtype;
+  BEGIN
+    for vRec in vCur
+    loop
+      savepoint sp1;
+      update table_2024_06_22_t1 set num = num + vRec.id where id = vRec.id;
+      if vRec.id = 5 then
+        rollback to sp1;
+      end if;
+      if vRec.id = 9 then
+        raise myError;
+      end if;
+    end loop;
+    commit;
+  exception
+    when others then
+      commit;
+  end at1;
+begin
+  BEGIN
+    at1;
+  exception
+    when others then null;
+  end;
+  BEGIN
+    at1;
+  exception
+    when others then null;
+  end;
+  BEGIN
+    at1;
+  exception
+    when others then null;
+  end;
+end;
+/
+rollback;
+drop table table_2024_06_22_t1;
+
+-- 
+drop trigger if exists emp_dept_check on emp1;
+drop function if exists emp_dept_check;
+drop table if exists emp1;
+drop table if exists emp_trigger;
+drop table if exists t2;
+create table t2(d date, f1 number, f2 number);
+create or replace type t as object (n number, m number);
+create table tbl (id int, f1 t);
+
+begin
+  drop sequence if exists s1_chqin;
+  create sequence s1_chqin ;
+  for j in 1..5 loop
+    insert into tbl values (s1_chqin.nextval,t(j, 0));
+    commit;
+  end loop;
+end;
+/
+drop table tbl;
+drop type t;
+drop table t2;
+reset enable_datanode_row_triggers;
+create extension if not exists opentenbase_ora_package_function;

@@ -30,16 +30,16 @@
  */
 typedef struct
 {
-    bool        is_grant;
-    GrantObjectType objtype;
-    List       *objects;
-    bool        all_privs;
-    AclMode        privileges;
-    List       *col_privs;
-    List       *grantees;
-    bool        grant_option;
-    DropBehavior behavior;
+	bool		is_grant;
+	GrantObjectType objtype;
+	List	   *objects;
+	bool		all_privs;
+	AclMode		privileges;
+	List	   *col_privs;
+	List	   *grantees;
+	bool		grant_option;
+	DropBehavior behavior;
 } InternalGrant;
 
 
-#endif                            /* ACLCHK_INTERNAL_H */
+#endif							/* ACLCHK_INTERNAL_H */

@@ -15,9 +15,6 @@
  *
  * Copyright (c) 2003-2017, PostgreSQL Global Development Group
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * src/include/nodes/tidbitmap.h
  *
  *-------------------------------------------------------------------------
@@ -27,7 +24,6 @@
 
 #include "storage/itemptr.h"
 #include "utils/dsa.h"
-
 
 /*
  * Actual bitmap representation is private to tidbitmap.c.  Callers can
@@ -49,9 +45,11 @@ typedef struct
 	OffsetNumber offsets[FLEXIBLE_ARRAY_MEMBER];
 } TBMIterateResult;
 
+#define TBM_FLAG_RSTORE		0
+
 /* function prototypes in nodes/tidbitmap.c */
 
-extern TIDBitmap *tbm_create(long maxbytes, dsa_area *dsa);
+extern TIDBitmap *tbm_create(long maxbytes, dsa_area *dsa, int flags);
 extern void tbm_free(TIDBitmap *tbm);
 extern void tbm_free_shared_area(dsa_area *dsa, dsa_pointer dp);
 
@@ -73,6 +71,5 @@ extern void tbm_end_iterate(TBMIterator *iterator);
 extern void tbm_end_shared_iterate(TBMSharedIterator *iterator);
 extern TBMSharedIterator *tbm_attach_shared_iterate(dsa_area *dsa,
 						  dsa_pointer dp);
-extern long tbm_calculate_entries(double maxbytes);
 
 #endif							/* TIDBITMAP_H */

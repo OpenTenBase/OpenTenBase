@@ -183,11 +183,11 @@ CREATE TYPE price_key AS (
 
 CREATE FUNCTION price_key_from_table(price) RETURNS price_key AS $$
     SELECT $1.id
-$$ LANGUAGE SQL;
+$$ LANGUAGE SQL pushdown;
 
 CREATE FUNCTION price_key_from_input(price_input) RETURNS price_key AS $$
     SELECT $1.id
-$$ LANGUAGE SQL;
+$$ LANGUAGE SQL pushdown;
 
 insert into price values (1,false,42), (10,false,100), (11,true,17.99);
 
@@ -226,7 +226,7 @@ $$ language sql;
 select fcompos1(row(1,'one'));
 select fcompos2(row(2,'two'));
 select fcompos3(row(3,'three'));
-select * from compos;
+select * from compos order by 1;
 
 --
 -- We allow I/O conversion casts from composite types to strings to be
@@ -274,13 +274,13 @@ select row_to_json(q) from
    where thousand = 42 and tenthous < 2000 offset 0) q;
 select row_to_json(q) from
   (select thousand, tenthous from tenk1
-   where thousand = 42 and tenthous < 2000 offset 0) q;
+   where thousand = 42 and tenthous < 1000 offset 0) q;
 select row_to_json(q) from
   (select thousand as x, tenthous as y from tenk1
-   where thousand = 42 and tenthous < 2000 offset 0) q;
+   where thousand = 42 and tenthous < 1000 offset 0) q;
 select row_to_json(q) from
   (select thousand as x, tenthous as y from tenk1
-   where thousand = 42 and tenthous < 2000 offset 0) q(a,b);
+   where thousand = 42 and tenthous < 1000 offset 0) q(a,b);
 
 create temp table tt1 as select * from int8_tbl limit 2;
 create temp table tt2 () inherits(tt1);

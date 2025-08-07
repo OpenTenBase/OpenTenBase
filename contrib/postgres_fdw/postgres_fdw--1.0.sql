@@ -5,12 +5,12 @@
 
 CREATE FUNCTION postgres_fdw_handler()
 RETURNS fdw_handler
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'postgres_fdw_handler'
 LANGUAGE C STRICT;
 
 CREATE FUNCTION postgres_fdw_validator(text[], oid)
 RETURNS void
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'postgres_fdw_validator'
 LANGUAGE C STRICT;
 
 CREATE FOREIGN DATA WRAPPER postgres_fdw

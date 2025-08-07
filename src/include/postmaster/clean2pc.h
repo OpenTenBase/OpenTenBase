@@ -3,10 +3,7 @@
  * A clean 2pc process is a process able to clean the abnormal 2pc.
  *
  *
- * Copyright (c) 2023 THL A29 Limited, a Tencent company.
- *
- * This source code file is licensed under the BSD 3-Clause License,
- * you may obtain a copy of the License at http://opensource.org/license/bsd-3-clause/
+ * Portions Copyright (c) 1996-2021, TDSQL-PG Development Group
  *
  * IDENTIFICATION
  *		src/include/postmaster/clean2pc.h
@@ -31,7 +28,7 @@ extern bool IsClean2pcWorker(void);
 	(IsClean2pcLauncher() || IsClean2pcWorker())
 
 extern int StartClean2pcLauncher(void);
-extern int StartClean2pcWorker(void);
+extern int StartCln2pcWorker(void);
 
 #ifdef EXEC_BACKEND
 extern void Clean2pcLauncherMain(int argc, char *argv[]) pg_attribute_noreturn();

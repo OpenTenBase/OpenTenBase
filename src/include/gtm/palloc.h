@@ -1,14 +1,14 @@
 /*-------------------------------------------------------------------------
  *
  * palloc.h
- *      POSTGRES memory allocator definitions.
+ *	  POSTGRES memory allocator definitions.
  *
  * This file contains the basic memory allocation interface that is
  * needed by almost every backend module.  It is included directly by
  * postgres.h, so the definitions here are automatically available
- * everywhere.    Keep it lean!
+ * everywhere.	Keep it lean!
  *
- * Memory allocation occurs within "contexts".    Every chunk obtained from
+ * Memory allocation occurs within "contexts".	Every chunk obtained from
  * palloc()/MemoryContextAlloc() is allocated within a specific context.
  * The entire contents of a context can be freed easily and quickly by
  * resetting or deleting the context --- this is both faster and less
@@ -30,7 +30,7 @@
 #define PALLOC_H
 
 /*
- * Type MemoryContextData is declared in nodes/memnodes.h.    Most users
+ * Type MemoryContextData is declared in nodes/memnodes.h.	Most users
  * of memory allocation should just treat it as an abstract type, so we
  * do not provide the struct contents here.
  */
@@ -39,11 +39,15 @@ typedef struct MemoryContextData *MemoryContext;
 /*
  * Fundamental memory-allocation operations (more are in utils/memutils.h)
  */
-extern void *MemoryContextAlloc(MemoryContext context, Size size);
-extern void *MemoryContextAllocZero(MemoryContext context, Size size);
-extern void *MemoryContextAllocZeroAligned(MemoryContext context, Size size);
+extern void *MemoryContextAllocInternal(MemoryContext context, Size size, const char* file, int line);
+extern void *MemoryContextAllocZeroInternal(MemoryContext context, Size size, const char* file, int line);
+extern void *MemoryContextAllocZeroAlignedIternal(MemoryContext context, Size size, const char* file, int line);
 
-#define palloc(sz)    MemoryContextAlloc(CurrentMemoryContext, (sz))
+#define MemoryContextAlloc(context, size) MemoryContextAllocInternal(context, size, __FILE__, __LINE__)
+#define MemoryContextAllocZero(context, size) MemoryContextAllocZeroInternal(context, size, __FILE__, __LINE__)
+#define MemoryContextAllocZeroAligned(context, size) MemoryContextAllocZeroAlignedIternal(context, size, __FILE__, __LINE__)
+
+#define palloc(sz)	MemoryContextAlloc(CurrentMemoryContext, (sz))
 
 #define palloc0(sz) MemoryContextAllocZero(CurrentMemoryContext, (sz))
 
@@ -56,13 +60,14 @@ extern void *MemoryContextAllocZeroAligned(MemoryContext context, Size size);
  * practice.
  */
 #define palloc0fast(sz) \
-    ( MemSetTest(0, sz) ? \
-        MemoryContextAllocZeroAligned(CurrentMemoryContext, sz) : \
-        MemoryContextAllocZero(CurrentMemoryContext, sz) )
+	( MemSetTest(0, sz) ? \
+		MemoryContextAllocZeroAligned(CurrentMemoryContext, sz) : \
+		MemoryContextAllocZero(CurrentMemoryContext, sz) )
 
 extern void pfree(void *pointer);
 
-extern void *repalloc(void *pointer, Size size);
+extern void *RepallocInternal(void *pointer, Size size, const char* file, int line);
+#define repalloc(pointer, sz) RepallocInternal((pointer), (sz), __FILE__, __LINE__)
 
 /*
  * MemoryContextSwitchTo can't be a macro in standard C compilers.

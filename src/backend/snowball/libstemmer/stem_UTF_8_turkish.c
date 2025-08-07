@@ -979,7 +979,7 @@ static int r_mark_yken(struct SN_env * z) {
     return 1;
 }
 
-static int r_stem_nominal_verb_suffixes(struct SN_env * z) {// #lizard forgives
+static int r_stem_nominal_verb_suffixes(struct SN_env * z) {
     z->ket = z->c; /* [, line 312 */
     z->B[0] = 1; /* set continue_stemming_noun_suffixes, line 313 */
     {   int m1 = z->l - z->c; (void)m1; /* or, line 315 */
@@ -1237,7 +1237,7 @@ lab0:
     return 1;
 }
 
-static int r_stem_suffix_chain_before_ki(struct SN_env * z) {// #lizard forgives
+static int r_stem_suffix_chain_before_ki(struct SN_env * z) {
     z->ket = z->c; /* [, line 333 */
     {   int ret = r_mark_ki(z);
         if (ret == 0) return 0; /* call mark_ki, line 334 */
@@ -1436,7 +1436,7 @@ lab0:
     return 1;
 }
 
-static int r_stem_noun_suffixes(struct SN_env * z) {// #lizard forgives
+static int r_stem_noun_suffixes(struct SN_env * z) {
     {   int m1 = z->l - z->c; (void)m1; /* or, line 363 */
         z->ket = z->c; /* [, line 362 */
         {   int ret = r_mark_lAr(z);

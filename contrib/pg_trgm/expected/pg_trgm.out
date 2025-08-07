@@ -7,6 +7,8 @@ WHERE opc.oid >= 16384 AND NOT amvalidate(opc.oid);
 --------+---------
 (0 rows)
 
+-- reduce noise
+set extra_float_digits = 0;
 select show_trgm('');
  show_trgm 
 -----------

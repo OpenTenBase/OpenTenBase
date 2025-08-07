@@ -42,6 +42,26 @@
    Changing BLCKSZ requires an initdb. */
 #undef BLCKSZ
 
+/* Size of a disk block for column storage --- this limits the value count in a block. 
+   You can set it bigger if you need more column values once in the memory.
+   COLBLCKSZ must be a power of 2. The maximum possible value of COL_BLCKSZ is
+   currently 2^21 (2097152). This is determined by the IO. If it is too big,
+   reading or writing such block back or to disk consumes high IO..
+   Changing COL_BLCKSZ requires an initdb. */
+#undef COL_BLCKSZ
+
+/* Size of a memory page for forward node. ---You can set it bigger if you 
+   need want to store more data in it. FNPAGESZ must be a power of 2.  The
+    maximum possible value of FNPAGESZ is currently 2^13 (8192).  Since 
+    the column value in a page is caculated, the size is just limited
+    for performance consideration. */
+#undef FNPAGESZ
+
+/* The limit of the GTM fragment count.  You can set it bigger if you need 
+   want to support more parallel queuey).Changing GTM_MAX_FRAGMENTS requires
+   an initdb.*/
+#undef GTM_MAX_FRAGMENTS
+
 /* Define to the default TCP port number on which the server listens and to
    which clients will try to connect. This can be overridden at run-time, but
    it's convenient if your clients have the right default compiled in.
@@ -96,6 +116,9 @@
 /* Define to 1 if you have the <atomic.h> header file. */
 #undef HAVE_ATOMIC_H
 
+/* Define to 1 if you have the `backtrace_symbols' function. */
+#undef HAVE_BACKTRACE_SYMBOLS
+
 /* Define to 1 if you have the `BIO_get_data' function. */
 #undef HAVE_BIO_GET_DATA
 
@@ -134,6 +157,26 @@
    don't. */
 #undef HAVE_DECL_F_FULLFSYNC
 
+/* Define to 1 if you have the declaration of
+   `LLVMCreateGDBRegistrationListener', and to 0 if you don't. */
+#undef HAVE_DECL_LLVMCREATEGDBREGISTRATIONLISTENER
+
+/* Define to 1 if you have the declaration of
+   `LLVMCreatePerfJITEventListener', and to 0 if you don't. */
+#undef HAVE_DECL_LLVMCREATEPERFJITEVENTLISTENER
+
+/* Define to 1 if you have the declaration of `LLVMGetHostCPUFeatures', and to
+   0 if you don't. */
+#undef HAVE_DECL_LLVMGETHOSTCPUFEATURES
+
+/* Define to 1 if you have the declaration of `LLVMGetHostCPUName', and to 0
+   if you don't. */
+#undef HAVE_DECL_LLVMGETHOSTCPUNAME
+
+/* Define to 1 if you have the declaration of `LLVMOrcGetSymbolAddressIn', and
+   to 0 if you don't. */
+#undef HAVE_DECL_LLVMORCGETSYMBOLADDRESSIN
+
 /* Define to 1 if you have the declaration of `posix_fadvise', and to 0 if you
    don't. */
 #undef HAVE_DECL_POSIX_FADVISE
@@ -169,6 +212,9 @@
 
 /* Define to 1 if you have the <editline/readline.h> header file. */
 #undef HAVE_EDITLINE_READLINE_H
+
+/* Define to 1 if you have the <execinfo.h> header file. */
+#undef HAVE_EXECINFO_H
 
 /* Define to 1 if you have the `fdatasync' function. */
 #undef HAVE_FDATASYNC
@@ -218,6 +264,9 @@
 
 /* Define to 1 if you have the `getaddrinfo' function. */
 #undef HAVE_GETADDRINFO
+
+/* Define to 1 if you have the `getauxval' function. */
+#undef HAVE_GETAUXVAL
 
 /* Define to 1 if you have the `gethostbyname_r' function. */
 #undef HAVE_GETHOSTBYNAME_R
@@ -400,8 +449,17 @@
 /* Define to 1 if you have the `posix_fadvise' function. */
 #undef HAVE_POSIX_FADVISE
 
+/* Define to 1 if you have the `posix_fallocate' function. */
+#undef HAVE_POSIX_FALLOCATE
+
 /* Define to 1 if the assembler supports PPC's LWARX mutex hint bit. */
 #undef HAVE_PPC_LWARX_MUTEX_HINT
+
+/* Define to 1 if you have the `pread' function. */
+#undef HAVE_PREAD
+
+/* Define to 1 if you have the `preadv' function. */
+#undef HAVE_PREADV
 
 /* Define to 1 if you have the `pstat' function. */
 #undef HAVE_PSTAT
@@ -417,6 +475,12 @@
 
 /* Have PTHREAD_PRIO_INHERIT. */
 #undef HAVE_PTHREAD_PRIO_INHERIT
+
+/* Define to 1 if you have the `pwrite' function. */
+#undef HAVE_PWRITE
+
+/* Define to 1 if you have the `pwritev' function. */
+#undef HAVE_PWRITEV
 
 /* Define to 1 if you have the `random' function. */
 #undef HAVE_RANDOM
@@ -438,6 +502,9 @@
 
 /* Define to 1 if you have the `rint' function. */
 #undef HAVE_RINT
+
+/* Define to 1 if you have the `readv' function. */
+#undef HAVE_READV
 
 /* Define to 1 if you have the global variable
    'rl_completion_append_character'. */
@@ -547,6 +614,9 @@
 
 /* Define to 1 if you have the `symlink' function. */
 #undef HAVE_SYMLINK
+
+/* Define to 1 if you have the `syncfs' function. */
+#undef HAVE_SYNCFS
 
 /* Define to 1 if you have the `sync_file_range' function. */
 #undef HAVE_SYNC_FILE_RANGE
@@ -678,14 +748,32 @@
 /* Define to 1 if you have the <winldap.h> header file. */
 #undef HAVE_WINLDAP_H
 
+/* Define to 1 if you have the `writev' function. */
+#undef HAVE_WRITEV
+
+/* Define to 1 if your compiler understands __builtin_bswap16. */
+#undef HAVE__BUILTIN_BSWAP16
+
 /* Define to 1 if your compiler understands __builtin_bswap32. */
 #undef HAVE__BUILTIN_BSWAP32
 
 /* Define to 1 if your compiler understands __builtin_bswap64. */
 #undef HAVE__BUILTIN_BSWAP64
 
+/* Define to 1 if your compiler understands __builtin_clz. */
+#undef HAVE__BUILTIN_CLZ
+
 /* Define to 1 if your compiler understands __builtin_constant_p. */
 #undef HAVE__BUILTIN_CONSTANT_P
+
+/* Define to 1 if your compiler understands __builtin_ctz. */
+#undef HAVE__BUILTIN_CTZ
+
+/* Define to 1 if your compiler understands __builtin_$op_overflow. */
+#undef HAVE__BUILTIN_OP_OVERFLOW
+
+/* Define to 1 if your compiler understands __builtin_popcount. */
+#undef HAVE__BUILTIN_POPCOUNT
 
 /* Define to 1 if your compiler understands __builtin_types_compatible_p. */
 #undef HAVE__BUILTIN_TYPES_COMPATIBLE_P
@@ -814,8 +902,23 @@
 /* Define to 1 if your <sys/time.h> declares `struct tm'. */
 #undef TM_IN_SYS_TIME
 
+/* Define to 1 to use ARMv8 CRC Extension. */
+#undef USE_ARMV8_CRC32C
+
+/* Define to 1 to use ARMv8 CRC Extension with a runtime check. */
+#undef USE_ARMV8_CRC32C_WITH_RUNTIME_CHECK
+
 /* Define to 1 to build with assertion checks. (--enable-cassert) */
 #undef USE_ASSERT_CHECKING
+
+/* Define to 1 to build with KMS support. (--with-kms) */
+#undef USE_KMS
+
+/* Define to 1 to build with SM support. (--with-sm) */
+#undef USE_SM
+
+/* Define to 1 to build with whitebox injection. (--enable-whitebox) */
+#undef USE_WHITEBOX_INJECTION
 
 /* Define to 1 to build with module msgids. (--enable-genmsgids) */
 #undef USE_MODULE_MSGIDS
@@ -850,6 +953,9 @@
    (--with-libxslt) */
 #undef USE_LIBXSLT
 
+/* Define to 1 to build with LLVM based JIT support. (--with-llvm) */
+#undef USE_LLVM
+
 /* Define to select named POSIX semaphores. */
 #undef USE_NAMED_POSIX_SEMAPHORES
 
@@ -865,13 +971,13 @@
 /* Use replacement snprintf() functions. */
 #undef USE_REPL_SNPRINTF
 
-/* Define to 1 to use Intel SSE 4.2 CRC instructions with a runtime check. */
+/* Define to 1 to use software CRC-32C implementation (slicing-by-8). */
 #undef USE_SLICING_BY_8_CRC32C
 
 /* Define to 1 use Intel SSE 4.2 CRC instructions. */
 #undef USE_SSE42_CRC32C
 
-/* Define to 1 to use Intel SSSE 4.2 CRC instructions with a runtime check. */
+/* Define to 1 to use Intel SSE 4.2 CRC instructions with a runtime check. */
 #undef USE_SSE42_CRC32C_WITH_RUNTIME_CHECK
 
 /* Define to build with systemd support. (--with-systemd) */
@@ -885,6 +991,9 @@
 
 /* Define to select unnamed POSIX semaphores. */
 #undef USE_UNNAMED_POSIX_SEMAPHORES
+
+/* Define to 1 to build with trackalloc support. (--enable-trackalloc) */
+#undef MEMORY_ALLOC_TRACKING
 
 /* Define to use native Windows API for random number generation */
 #undef USE_WIN32_RANDOM
@@ -942,6 +1051,24 @@
 /* Define to the type of a signed integer type wide enough to hold a pointer,
    if such a type exists, and if the system does not define it. */
 #undef intptr_t
+
+/* Define to keyword to use for C99 restrict support, or to nothing if not
+   supported */
+#undef pg_restrict
+
+/* Define to the equivalent of the C99 'restrict' keyword, or to
+   nothing if this is not supported.  Do not define if restrict is
+   supported directly.  */
+#undef restrict
+/* Work around a bug in Sun C++: it does not support _Restrict or
+   __restrict__, even though the corresponding Sun C compiler ends up with
+   "#define restrict _Restrict" or "#define restrict __restrict__" in the
+   previous line.  Perhaps some future version of Sun C++ will work with
+   restrict; if so, hopefully it defines __RESTRICT like Sun C does.  */
+#if defined __SUNPRO_CC && !defined __RESTRICT
+# define _Restrict
+# define __restrict__
+#endif
 
 /* Define to empty if the C compiler does not understand signed types. */
 #undef signed

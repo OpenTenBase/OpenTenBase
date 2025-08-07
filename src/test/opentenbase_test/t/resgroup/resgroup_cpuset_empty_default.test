@@ -1,0 +1,50 @@
+%cn 1
+%cn_slave 0
+%dn 2
+%dn_slave 0
+%gtm 1
+%gtm_slave 0
+
+connect conn cn1
+connection conn
+
+-- A regression test for cpuset.
+--
+-- When all the cpu cores are allocated the default cpuset group should
+-- fallback to core 0.  However this fallback logic was only added on
+-- CREATE / ALTER RESOURCE GROUP, but missing in startup logic, an empty cpu
+-- core list "" is set to cgroup and cause a runtime error:
+--
+--     can't write data to file '/sys/fs/cgroup/cpuset/gpdb/1/cpuset.cpus':
+--       No space left on device (resgroup-ops-linux.c:916)
+--
+-- To trigger the issue we create a resource group, allocate all the cpu cores
+-- to it, and restart the cluster.
+
+DROP RESOURCE GROUP rg1_cpuset_test;
+
+
+-- Create a resource group with all the cpu cores.
+call_function_in_opentenbase_test get_max_cpu_no
+replace_then_send_wait_result max_cpu_no CREATE RESOURCE GROUP rg1_cpuset_test WITH cpuset '0-max_cpu_no';
+
+-- Alter a resource group from / to all the cpu cores should also work.
+ALTER RESOURCE GROUP rg1_cpuset_test SET cpuset '0';
+replace_then_send_wait_result max_cpu_no ALTER RESOURCE GROUP rg1_cpuset_test SET cpuset '0-max_cpu_no';
+
+disconnect conn
+
+stop cn1
+stop dn1
+stop dn2
+
+start cn1
+start dn1
+start dn2
+
+
+connect conn cn1
+connection conn
+select groupname,concurrency,cpu_rate_limit,memory_limit,cpuset from pg_resgroup_config where groupname='rg1_cpuset_test';
+-- Cleanup in a new connection as the default one is disconnected by gpstop
+DROP RESOURCE GROUP rg1_cpuset_test;

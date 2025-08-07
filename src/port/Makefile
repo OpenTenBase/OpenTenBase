@@ -31,8 +31,8 @@ override CPPFLAGS := -I$(top_builddir)/src/port -DFRONTEND $(CPPFLAGS)
 LIBS += $(PTHREAD_LIBS)
 
 OBJS = $(LIBOBJS) $(PG_CRC32C_OBJS) chklocale.o erand48.o inet_net_ntop.o \
-	noblock.o path.o pgcheckdir.o pgmkdirp.o pgsleep.o \
-	pgstrcasecmp.o pqsignal.o \
+	noblock.o path.o pg_bitutils.o pgcheckdir.o pgmkdirp.o pgsleep.o \
+	pgstrcasecmp.o pqsignal.o pread.o pwrite.o \
 	qsort.o qsort_arg.o quotes.o sprompt.o tar.o thread.o
 
 ifeq ($(enable_strong_random), yes)
@@ -64,6 +64,10 @@ thread.o: CFLAGS+=$(PTHREAD_CFLAGS)
 # pg_crc32c_sse42.o and its _srv.o version need CFLAGS_SSE42
 pg_crc32c_sse42.o: CFLAGS+=$(CFLAGS_SSE42)
 pg_crc32c_sse42_srv.o: CFLAGS+=$(CFLAGS_SSE42)
+
+# pg_crc32c_armv8.o and its _srv.o version need CFLAGS_ARMV8_CRC32C
+pg_crc32c_armv8.o: CFLAGS+=$(CFLAGS_ARMV8_CRC32C)
+pg_crc32c_armv8_srv.o: CFLAGS+=$(CFLAGS_ARMV8_CRC32C)
 
 #
 # Server versions of object files

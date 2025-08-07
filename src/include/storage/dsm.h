@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * dsm.h
- *      manage dynamic shared memory segments
+ *	  manage dynamic shared memory segments
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -17,13 +17,13 @@
 
 typedef struct dsm_segment dsm_segment;
 
-#define DSM_CREATE_NULL_IF_MAXSEGMENTS            0x0001
+#define DSM_CREATE_NULL_IF_MAXSEGMENTS			0x0001
 
 /* A sentinel value for an invalid DSM handle. */
 #define DSM_HANDLE_INVALID 0
 
 /* Startup and shutdown functions. */
-struct PGShmemHeader;            /* avoid including pg_shmem.h */
+struct PGShmemHeader;			/* avoid including pg_shmem.h */
 extern void dsm_cleanup_using_control_segment(dsm_handle old_control_handle);
 extern void dsm_postmaster_startup(struct PGShmemHeader *);
 extern void dsm_backend_shutdown(void);
@@ -55,9 +55,9 @@ extern dsm_handle dsm_segment_handle(dsm_segment *seg);
 /* Cleanup hooks. */
 typedef void (*on_dsm_detach_callback) (dsm_segment *, Datum arg);
 extern void on_dsm_detach(dsm_segment *seg,
-              on_dsm_detach_callback function, Datum arg);
+			  on_dsm_detach_callback function, Datum arg);
 extern void cancel_on_dsm_detach(dsm_segment *seg,
-                     on_dsm_detach_callback function, Datum arg);
+					 on_dsm_detach_callback function, Datum arg);
 extern void reset_on_dsm_detach(void);
 
-#endif                            /* DSM_H */
+#endif							/* DSM_H */

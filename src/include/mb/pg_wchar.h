@@ -213,6 +213,22 @@ typedef unsigned int pg_wchar;
 /* #define FREE				0xfe	free (unused) */
 /* #define FREE				0xff	free (unused) */
 
+/*
+ * Macros of column width of an ISO 10646
+ */
+#define ISO10646_C0C1_CTRL_CHARACTER	-1	/* C0/C1 control characters
+											 * has a column width of -1. */
+#define ISO10646_ZERO_LEN_CHARACTER		0	/* null/non-spacing/enclosing
+											 * combining characters,
+											 * etc have a column width of 0. */
+#define ISO10646_NORMAL_CHARACTER		1	/* printable ISO 8859-1 and WGL4
+											 * characters, Unicode control characters,
+											 * etc have a column width of 1 */
+#define ISO10646_EAST_ASIAN_CHARACTER	2	/* spacing characters in the
+											 * East Asian Wide(W) or East Asian
+											 * FullWidth(F) category have a column
+											 * width of 2 */
+
 /*----------------------------------------------------
  * end of MULE stuff
  *----------------------------------------------------
@@ -282,28 +298,49 @@ typedef enum pg_enc
 	PG_GB18030,					/* GB18030 */
 	PG_JOHAB,					/* EUC for Korean JOHAB */
 	PG_SHIFT_JIS_2004,			/* Shift-JIS-2004 */
+	PG_GB18030_2022,            /* GB18030-2022 */
 	_PG_LAST_ENCODING_			/* mark only */
 
 } pg_enc;
 
+/*
+ * Maximum byte length of the string equivalent to any one Unicode code point,
+ * in any backend encoding.  The current value assumes that a 4-byte UTF-8
+ * character might expand by MAX_CONVERSION_GROWTH, which is a huge
+ * overestimate.  But in current usage we don't allocate large multiples of
+ * this, so there's little point in being stingy.
+ */
+#define MAX_UNICODE_EQUIVALENT_STRING	16
+
 #define PG_ENCODING_BE_LAST PG_KOI8U
-#define PG_SERVER_ENCODING_BE_LAST PG_GB18030
+#define PG_SERVER_ENCODING_BE_LAST PG_GB18030_2022
 
 /*
  * Please use these tests before access to pg_encconv_tbl[]
  * or to other places...
  */
 #define PG_VALID_BE_ENCODING(_enc) \
-		(((_enc) >= 0 && (_enc) <= PG_ENCODING_BE_LAST) || (_enc) == PG_GBK || (_enc) == PG_GB18030)
+		(((_enc) >= 0 && (_enc) <= PG_ENCODING_BE_LAST) || (_enc) == PG_GBK || (_enc) == PG_GB18030 || (_enc) == PG_GB18030_2022)
 
 #define PG_ENCODING_IS_CLIENT_ONLY(_enc) \
-		((_enc) > PG_ENCODING_BE_LAST && (_enc) < _PG_LAST_ENCODING_ && (_enc) != PG_GBK && (_enc) != PG_GB18030)
+		((_enc) > PG_ENCODING_BE_LAST && (_enc) < _PG_LAST_ENCODING_ && (_enc) != PG_GBK && (_enc) != PG_GB18030 && (_enc) != PG_GB18030_2022)
 
 #define PG_VALID_ENCODING(_enc) \
 		((_enc) >= 0 && (_enc) < _PG_LAST_ENCODING_)
 
 /* On FE are possible all encodings */
 #define PG_VALID_FE_ENCODING(_enc)	PG_VALID_ENCODING(_enc)
+
+/*
+ * When converting strings between different encodings, we assume that space
+ * for converted result is 4-to-1 growth in the worst case. The rate for
+ * currently supported encoding pairs are within 3 (SJIS JIS X0201 half width
+ * kanna -> UTF8 is the worst case).  So "4" should be enough for the moment.
+ *
+ * Note that this is not the same as the maximum character width in any
+ * particular encoding.
+ */
+#define MAX_CONVERSION_GROWTH  4
 
 /*
  * Table for mapping an encoding number to official encoding name and
@@ -484,6 +521,42 @@ typedef struct
  */
 typedef uint32 (*utf_local_conversion_func) (uint32 code);
 
+extern bool copy_illegal_chars_conversion;
+extern char copy_illegal_conv_char;
+
+#define CONVERT_ILLEGAL_CHAR(p, mic, len, vc)                                                      \
+	do                                                                                             \
+	{                                                                                              \
+		/*                                                                                         \
+		 * use copy_illegal_conv_char or ' 'as illegal chars conversion                            \
+		 */                                                                                        \
+		*p++ = vc;                                                                                 \
+		mic++;                                                                                     \
+		len--;                                                                                     \
+	} while (0)
+
+#define CONVERT_ILLEGAL_CHAR_DELTA(p, mic, delta, vc)                                              \
+	do                                                                                             \
+	{                                                                                              \
+		/*                                                                                         \
+		 * use copy_illegal_conv_char or ' ' as illegal chars conversion                           \
+		 */                                                                                        \
+		*p++ = vc;                                                                                 \
+		mic++;                                                                                     \
+		delta = 1;                                                                                 \
+	} while (0)
+
+#define CONVERT_ILLEGAL_CHAR_SKIP(p, mic, len, skip, vc)                                           \
+	do                                                                                             \
+	{                                                                                              \
+		/*                                                                                         \
+		 * use copy_illegal_conv_char or ' ' as illegal chars conversion                           \
+		 */                                                                                        \
+		*p++ = vc;                                                                                 \
+		mic++;                                                                                     \
+		len -= skip;                                                                               \
+	} while (0)
+
 /*
  * Support macro for encoding conversion functions to validate their
  * arguments.  (This could be made more compact if we included fmgr.h
@@ -567,7 +640,7 @@ extern unsigned char *pg_do_encoding_conversion(unsigned char *src, int len,
 
 extern char *pg_client_to_server(const char *s, int len);
 extern char *pg_server_to_client(const char *s, int len);
-extern char *pg_any_to_server(const char *s, int len, int encoding);
+extern char *pg_any_to_server(const char *s, int len, int encoding, bool force_convert, bool illegal_chars_conversion);
 extern char *pg_server_to_any(const char *s, int len, int encoding);
 
 extern unsigned short BIG5toCNS(unsigned short big5, unsigned char *lc);
@@ -588,9 +661,9 @@ extern void LocalToUtf(const unsigned char *iso, int len,
 
 extern bool pg_verifymbstr(const char *mbstr, int len, bool noError);
 extern bool pg_verify_mbstr(int encoding, const char *mbstr, int len,
-				bool noError);
+				bool noError, bool illegal_chars_conversion);
 extern int pg_verify_mbstr_len(int encoding, const char *mbstr, int len,
-					bool noError);
+					bool noError, bool illegal_chars_conversion);
 
 extern void check_encoding_conversion_args(int src_encoding,
 							   int dest_encoding,
@@ -618,9 +691,39 @@ extern void mic2latin_with_table(const unsigned char *mic, unsigned char *p,
 					 const unsigned char *tab);
 
 extern bool pg_utf8_islegal(const unsigned char *source, int length);
+extern int GenericMatchText(char *s, int slen, char *p, int plen);
+extern void pg_unicode_to_server(pg_wchar c, unsigned char *s);
 
 #ifdef WIN32
 extern WCHAR *pgwin32_message_to_UTF16(const char *str, int len, int *utf16len);
 #endif
 
+static inline bool
+is_valid_unicode_codepoint(pg_wchar c)
+{
+	return (c > 0 && c <= 0x10FFFF);
+}
+
+static inline bool
+is_utf16_surrogate_first(pg_wchar c)
+{
+	return (c >= 0xD800 && c <= 0xDBFF);
+}
+
+static inline bool
+is_utf16_surrogate_second(pg_wchar c)
+{
+	return (c >= 0xDC00 && c <= 0xDFFF);
+}
+
+static inline pg_wchar
+surrogate_pair_to_codepoint(pg_wchar first, pg_wchar second)
+{
+	return ((first & 0x3FF) << 10) + 0x10000 + (second & 0x3FF);
+}
+
+extern bool tdx_illegal_chars_conversion;
+
+extern int pg_well_formed_len(const char *str, int str_len, int *well_formed_len);
+extern int get_well_formatted_boundary(char *ptr, const int len, int pos, int *boundary_pos, int *boundary_len);
 #endif							/* PG_WCHAR_H */

@@ -1,0 +1,1599 @@
+------------------------------------------
+-- Test cases for opentenbase_ora number type.
+------------------------------------------
+\c regression_ora
+--------------------------
+-- test number
+--------------------------
+set extra_float_digits = 0;
+create table test_regress_ps4(id number(5, 7));
+insert into test_regress_ps4 values(0.001234567);
+insert into test_regress_ps4 values(0.0091999999);
+insert into test_regress_ps4 values(0.00919191919);
+insert into test_regress_ps4 values(0.009432111);
+select * from test_regress_ps4 order by id;
+    ID    
+----------
+ .0012346
+ .0091919
+    .0092
+ .0094321
+(4 rows)
+
+insert into test_regress_ps4 values(0.0099999999);
+ERROR:  numeric field overflow
+DETAIL:  A field with precision 5, scale 7 must round to an absolute value less than 10^-2.
+insert into test_regress_ps4 values(2.0099999999);
+ERROR:  numeric field overflow
+DETAIL:  A field with precision 5, scale 7 must round to an absolute value less than 10^-2.
+drop table test_regress_ps4;
+--
+-- tapd begin: 115430942
+--
+select -0.123, -.123, 0.123, .123 from dual;
+ ?column? | ?column? | ?column? | ?column? 
+----------+----------+----------+----------
+    -.123 |    -.123 |     .123 |     .123
+(1 row)
+
+select replace(1234.58, .58, .12) from dual;
+ REPLACE 
+---------
+ 1234.12
+(1 row)
+
+select replace(1234.58, 0.58, .12) from dual;
+ REPLACE 
+---------
+ 1234.12
+(1 row)
+
+select replace(1234.58, 0.58, 0.12) from dual;
+ REPLACE 
+---------
+ 1234.12
+(1 row)
+
+select .12 + .13, 0.12 + .13, 0.12 + 0.13 from dual;
+ ?column? | ?column? | ?column? 
+----------+----------+----------
+      .25 |      .25 |      .25
+(1 row)
+
+select '.12' + .13, '0.12' + '.13', '0.12' + '0.13' from dual;
+ ?column? | ?column? | ?column? 
+----------+----------+----------
+      .25 |      .25 |      .25
+(1 row)
+
+--
+-- tapd end: 115430942
+--
+--case2: s < 0  s (- [-84, 127]
+drop table if exists test_scale_min;
+create table test_scale_min(id number(5, -84));
+create table test_scale_min2(id number(5, -85));
+ERROR:  NUMERIC scale -85 must be between -84 and 127
+LINE 1: create table test_scale_min2(id number(5, -85));
+                                        ^
+drop table if exists test_scale_max;
+create table test_scale_max(id number(5, 127));
+create table test_scale_max2(id number(5, 128));
+ERROR:  NUMERIC scale 128 must be between -84 and 127
+LINE 1: create table test_scale_max2(id number(5, 128));
+                                        ^
+create table test_regress_ps5(id number(7, -2), id2 number);
+insert into test_regress_ps5 values(-12345, -12345);
+insert into test_regress_ps5 values(.1, .1);
+insert into test_regress_ps5 values(1, 1 );
+insert into test_regress_ps5 values(12, 12);
+insert into test_regress_ps5 values(123, 123);
+insert into test_regress_ps5 values(1234, 1234);
+insert into test_regress_ps5 values(12345, 12345);
+insert into test_regress_ps5 values(123456, 123456);
+insert into test_regress_ps5 values(1234567, 1234567);
+insert into test_regress_ps5 values(1234567.6789, 1234567.6789);
+insert into test_regress_ps5 values(123456789, 123456789);
+select * from test_regress_ps5 order by id2;
+    ID     |     ID2      
+-----------+--------------
+    -12300 |       -12345
+         0 |           .1
+         0 |            1
+         0 |           12
+       100 |          123
+      1200 |         1234
+     12300 |        12345
+    123500 |       123456
+   1234600 |      1234567
+   1234600 | 1234567.6789
+ 123456800 |    123456789
+(11 rows)
+
+insert into test_regress_ps5 values(1234567891, 1234567891);
+ERROR:  numeric field overflow
+DETAIL:  A field with precision 7, scale -2 must round to an absolute value less than 10^9.
+drop table test_regress_ps5;
+--other associated case
+select scale(-13000000000000000::numeric(29, -10));
+ SCALE 
+-------
+   -10
+(1 row)
+
+select 123456789::numeric(7, -3) from dual;
+  NUMERIC  
+-----------
+ 123457000
+(1 row)
+
+select 123456789::numeric(7, -2) - 123456789::numeric(7, -3) from dual;
+ ?column? 
+----------
+     -200
+(1 row)
+
+select 123456789::numeric(7, -2) + 123456789::numeric(7, -3) from dual;
+ ?column?  
+-----------
+ 246913800
+(1 row)
+
+select 123456789::numeric(11, 2) + 123456789::numeric(7, -3) from dual;
+ ?column?  
+-----------
+ 246913789
+(1 row)
+
+select trunc(123456789::numeric(10, -3), -2);
+   TRUNC   
+-----------
+ 123457000
+(1 row)
+
+select trunc(123456789::numeric(10, -3), -5);
+   TRUNC   
+-----------
+ 123400000
+(1 row)
+
+select round(123456789::numeric(10, -3), -2);
+   ROUND   
+-----------
+ 123457000
+(1 row)
+
+select round(123456789::numeric(10, -3), -5);
+   ROUND   
+-----------
+ 123500000
+(1 row)
+
+select -0.00000000000000000000000000000000000000000000000000000000000000000000000000000000000123456::numeric(1, 84);
+                                        ?column?                                        
+----------------------------------------------------------------------------------------
+ -.000000000000000000000000000000000000000000000000000000000000000000000000000000000001
+(1 row)
+
+select 0.0123456789::numeric(4, 5) from dual;
+ NUMERIC 
+---------
+  .01235
+(1 row)
+
+select 0.0123456789::numeric(6, 7) from dual;
+ NUMERIC  
+----------
+ .0123457
+(1 row)
+
+select 0.00123456789::numeric(6, 8) + 0.00123456789::numeric(3, 5) from dual;
+ ?column?  
+-----------
+ .00246457
+(1 row)
+
+-- expected:123456789123456789123456789123456789123000000
+SELECT 123456789123456789123456789123456789123456789 FROM dual;
+                   ?column?                    
+-----------------------------------------------
+ 123456789123456789123456789123456789123000000
+(1 row)
+
+-- expected:12345678912345678912345678912345678912350000
+SELECT 12345678912345678912345678912345678912345678 FROM dual;
+                   ?column?                   
+----------------------------------------------
+ 12345678912345678912345678912345678912350000
+(1 row)
+
+-- expected:2325.77
+SELECT 2889.79 * 0.8048231878440993982261686835375580924565 FROM dual;
+ ?column? 
+----------
+  2325.77
+(1 row)
+
+-- expected:37.5
+SELECT TRUNC(100 / 88.88 * 33.33, 2) FROM dual;
+ TRUNC 
+-------
+  37.5
+(1 row)
+
+-- expected:37.50000000000000000000000000000000000016
+SELECT 100 / 88.88 * 33.33 FROM dual;
+                 ?column?                  
+-------------------------------------------
+ 37.50000000000000000000000000000000000016
+(1 row)
+
+-- expected:40.63
+SELECT ROUND(100 / 88.96 * 36.14, 2) FROM dual;
+ ROUND 
+-------
+ 40.63
+(1 row)
+
+-- expected:40.62500000000000000000000000000000000016
+SELECT 100 / 88.96 * 36.14 FROM dual;
+                 ?column?                  
+-------------------------------------------
+ 40.62500000000000000000000000000000000016
+(1 row)
+
+-- expected:0.7699999999999999999999999999999999999999
+SELECT 0.76999999999999999999999999999999999999994 + 0.00000000000000000000000000000000000000001 FROM dual;
+                 ?column?                  
+-------------------------------------------
+ .7699999999999999999999999999999999999999
+(1 row)
+
+-- expected:0.77
+SELECT 0.76999999999999999999999999999999999999995 + 0.00000000000000000000000000000000000000001 FROM dual;
+ ?column? 
+----------
+      .77
+(1 row)
+
+-- expcted:0.000123456789123456789123456789123456789123
+SELECT 0.0001234567891234567891234567891234567891234 FROM dual;
+                  ?column?                   
+---------------------------------------------
+ .000123456789123456789123456789123456789123
+(1 row)
+
+-- expcted:0.1234567891234567891234567891234567891235
+SELECT 0.123456789123456789123456789123456789123456 FROM dual;
+                 ?column?                  
+-------------------------------------------
+ .1234567891234567891234567891234567891235
+(1 row)
+
+-- expcted:0.0123456789123456789123456789123456789123
+SELECT 0.0123456789123456789123456789123456789123456 FROM dual;
+                 ?column?                  
+-------------------------------------------
+ .0123456789123456789123456789123456789123
+(1 row)
+
+-- expected:12345678912345678912345678912345678912300
+SELECT 12345678912345678912345678912345678912340 FROM dual;
+                 ?column?                  
+-------------------------------------------
+ 12345678912345678912345678912345678912300
+(1 row)
+
+/*
+ * Following m is the number of significant digits before the decimal point, n
+ * is the number of significant digits after the decimal point, m >= 0, n >= 0.
+ * e.g.
+ * 1.03   => m=1, n=2
+ * 1234   => m=4, n=0
+ * 0.0012 => m=0, n=2
+ */
+-- m=1, n=37, round is not required
+SELECT 1.1234567891234567891234567891234567891 FROM DUAL;
+                ?column?                 
+-----------------------------------------
+ 1.1234567891234567891234567891234567891
+(1 row)
+
+-- m=2, n=38, round is not required
+SELECT 12.12345678912345678912345678912345678912 FROM DUAL;
+                 ?column?                  
+-------------------------------------------
+ 12.12345678912345678912345678912345678912
+(1 row)
+
+-- m=1, n=39, round to 1.12345678912345678912345678912345678913
+SELECT 1.123456789123456789123456789123456789129 FROM DUAL;
+                 ?column?                 
+------------------------------------------
+ 1.12345678912345678912345678912345678913
+(1 row)
+
+-- m=2, n=39, round to 12.12345678912345678912345678912345678913
+SELECT 12.123456789123456789123456789123456789129 FROM DUAL;
+                 ?column?                  
+-------------------------------------------
+ 12.12345678912345678912345678912345678913
+(1 row)
+
+-- m=0, n=38, round is not required
+SELECT 0.00091234567891234567891234567891234567891 FROM DUAL;
+                  ?column?                  
+--------------------------------------------
+ .00091234567891234567891234567891234567891
+(1 row)
+
+-- m=0, n=40, round is not required
+SELECT 0.1234567891234567891234567891234567891234 FROM DUAL;
+                 ?column?                  
+-------------------------------------------
+ .1234567891234567891234567891234567891234
+(1 row)
+
+-- m=0, n=40, round to 0.0123456789123456789123456789123456789124
+SELECT 0.01234567891234567891234567891234567891235 FROM DUAL;
+                 ?column?                  
+-------------------------------------------
+ .0123456789123456789123456789123456789124
+(1 row)
+
+-- Test min and max value of numeric
+-- ok, max value of opentenbase_ora can store.
+SELECT 99.99999999999999999999999999999999999999 * power(10, 124)::NUMERIC FROM DUAL;
+                                                            ?column?                                                            
+--------------------------------------------------------------------------------------------------------------------------------
+ 999999999999999999999999999999999999999900000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+(1 row)
+
+-- ok, The last 4 will be discard.
+SELECT 99.999999999999999999999999999999999999994 * power(10, 124)::NUMERIC FROM DUAL;
+                                                            ?column?                                                            
+--------------------------------------------------------------------------------------------------------------------------------
+ 999999999999999999999999999999999999999900000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+(1 row)
+
+-- fail, The last 5 will be carry which cause `numeric overflow`
+SELECT 99.999999999999999999999999999999999999995 * power(10, 124)::NUMERIC FROM DUAL;
+ERROR:  numeric overflow
+-- fail, `numeric overflow`
+SELECT power(10, 126)::NUMERIC FROM DUAL;
+ERROR:  numeric overflow
+-- ok
+SELECT power(10, -130)::NUMERIC FROM DUAL;
+                                                                POWER                                                                
+-------------------------------------------------------------------------------------------------------------------------------------
+ .0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001
+(1 row)
+
+-- overflow, which will be stored as zero.
+SELECT power(10, -131)::NUMERIC FROM DUAL;
+ POWER 
+-------
+     0
+(1 row)
+
+-- sqrt
+SELECT sqrt(3.) FROM DUAL;
+                   SQRT                   
+------------------------------------------
+ 1.73205080756887729352744634150587236694
+(1 row)
+
+-- ln
+SELECT ln(10.) FROM DUAL;
+                   LN                    
+-----------------------------------------
+ 2.3025850929940456840179914546843642076
+(1 row)
+
+-- log
+SELECT log(3.) FROM DUAL;
+                    LOG                    
+-------------------------------------------
+ .4771212547196624372950279032551153092001
+(1 row)
+
+-- div
+SELECT 1. / 3 FROM DUAL;
+                 ?column?                  
+-------------------------------------------
+ .3333333333333333333333333333333333333333
+(1 row)
+
+SELECT 10. / 3 FROM DUAL;
+                 ?column?                 
+------------------------------------------
+ 3.33333333333333333333333333333333333333
+(1 row)
+
+SELECT 100. / 3 FROM DUAL;
+                 ?column?                  
+-------------------------------------------
+ 33.33333333333333333333333333333333333333
+(1 row)
+
+SELECT 1000. / 3 FROM DUAL;
+                 ?column?                 
+------------------------------------------
+ 333.333333333333333333333333333333333333
+(1 row)
+
+SELECT 0.99999999999999999999999999999999999999999999999 FROM DUAL;
+ ?column? 
+----------
+        1
+(1 row)
+
+SELECT 1149435904 / 0.322769165039062 FROM DUAL;
+                 ?column?                  
+-------------------------------------------
+ 3561170113.201159017275198287504310408627
+(1 row)
+
+-- throw ERROR
+SELECT power(10, -130)::NUMERIC / 10 FROM DUAL;
+ERROR:  numeric overflow
+SELECT 1043005440 * -12345678912345700000000000 / 1234567891234570000000000000000000000000 FROM DUAL;
+    ?column?     
+-----------------
+ -.0000104300544
+(1 row)
+
+drop table if exists num_t1;
+NOTICE:  table "NUM_T1" does not exist, skipping
+create table num_t1(c1 number, c2 number(8), c3 number(6), c4 number(9, 1), c5 number(9, 3), c6 number(7, 2), c7 number(5, -2), c8 number(5, -2), c9 number(5, -4), c10 number(*, 1), c11 number(2, 3), c12 number(2, 3));
+insert into num_t1 values(1234567.89, 1234567.89, 123456.789, 1234567.89, 123456.789, 12345.6789, 1234567.89, 1234511.89, 1234567.89, 1234567.89, 0.012, 0.023);
+insert into num_t1 (c1) values(123456789);
+insert into num_t1 (c2) values(123456789);
+ERROR:  numeric field overflow
+DETAIL:  A field with precision 8, scale 0 must round to an absolute value less than 10^8.
+insert into num_t1 (c3) values(1234567.89);
+ERROR:  numeric field overflow
+DETAIL:  A field with precision 6, scale 0 must round to an absolute value less than 10^6.
+insert into num_t1 (c3) values(0.89);
+insert into num_t1 (c4) values(123456789.1);
+ERROR:  numeric field overflow
+DETAIL:  A field with precision 9, scale 1 must round to an absolute value less than 10^8.
+insert into num_t1 (c4) values(12345678.9);
+insert into num_t1 (c5) values(1234567.89);
+ERROR:  numeric field overflow
+DETAIL:  A field with precision 9, scale 3 must round to an absolute value less than 10^6.
+insert into num_t1 (c9) values(123456789.123);
+insert into num_t1 (c10) values(123456789123456789123456789123456789123456789123456789);
+insert into num_t1 (c10) values(123456789123456789123456789123456789123456789123456.789);
+insert into num_t1 (c10) values(123456789123456789123456789123456789123456789123456789123456789123456789123456789123456789123456789123456789);
+insert into num_t1 (c10) values(12345678912345678912345678912345678912);
+insert into num_t1 (c10) values(123456789123456789123456789123456789.12);
+select * from num_t1 order by 1,2,3,4,5,6,7,8,9,10,11,12;
+     C1     |   C2    |   C3   |     C4     |     C5     |    C6    |   C7    |   C8    |    C9     |                                                     C10                                                      | C11  | C12  
+------------+---------+--------+------------+------------+----------+---------+---------+-----------+--------------------------------------------------------------------------------------------------------------+------+------
+ 1234567.89 | 1234568 | 123457 |  1234567.9 | 123456.789 | 12345.68 | 1234600 | 1234500 |   1230000 |                                                                                                    1234567.9 | .012 | .023
+  123456789 |         |        |            |            |          |         |         |           |                                                                                                              |      |     
+            |         |      1 |            |            |          |         |         |           |                                                                                                              |      |     
+            |         |        | 12345678.9 |            |          |         |         |           |                                                                                                              |      |     
+            |         |        |            |            |          |         |         | 123460000 |                                                                                                              |      |     
+            |         |        |            |            |          |         |         |           |                                                                       123456789123456789123456789123456789.1 |      |     
+            |         |        |            |            |          |         |         |           |                                                                       12345678912345678912345678912345678912 |      |     
+            |         |        |            |            |          |         |         |           |                                                          123456789123456789123456789123456789123000000000000 |      |     
+            |         |        |            |            |          |         |         |           |                                                       123456789123456789123456789123456789123500000000000000 |      |     
+            |         |        |            |            |          |         |         |           | 123456789123456789123456789123456789123500000000000000000000000000000000000000000000000000000000000000000000 |      |     
+(10 rows)
+
+-- test remainder
+select mod(3, 0), remainder(3, 0) from dual;
+ERROR:  division by zero
+select mod(3, 1), remainder(3, 1) from dual;
+ MOD | REMAINDER 
+-----+-----------
+   0 |         0
+(1 row)
+
+select mod(1, 3), remainder(1, 3) from dual;
+ MOD | REMAINDER 
+-----+-----------
+   1 |         1
+(1 row)
+
+select mod(32767, 32767), remainder(32767, 32767) from dual;
+ MOD | REMAINDER 
+-----+-----------
+   0 |         0
+(1 row)
+
+select mod(0.0, 1234.5678), remainder(0.0, 1234.5678) from dual;
+ MOD | REMAINDER 
+-----+-----------
+   0 |         0
+(1 row)
+
+select mod(1234.5678, 0.0), remainder(1234.5678, 0.0) from dual;
+ERROR:  division by zero
+select mod(11234.5678, 9638.5632), remainder(11234.5678, 9638.5632) from dual;
+    MOD    | REMAINDER 
+-----------+-----------
+ 1596.0046 | 1596.0046
+(1 row)
+
+select mod(-0.0, 1234.5678), remainder(-0.0, 1234.5678) from dual;
+ MOD | REMAINDER 
+-----+-----------
+   0 |         0
+(1 row)
+
+select mod(-1234.5678, 0.0), remainder(-1234.5678, 0.0) from dual;
+ERROR:  division by zero
+select mod(-11234.5678, 9638.5632), remainder(-11234.5678, 9638.5632) from dual;
+    MOD     | REMAINDER  
+------------+------------
+ -1596.0046 | -1596.0046
+(1 row)
+
+select mod(1.5, 2), remainder(1.5, 2) from dual;
+ MOD | REMAINDER 
+-----+-----------
+ 1.5 |       -.5
+(1 row)
+
+select mod(1.522322, 2), remainder(1.522322, 2) from dual;
+   MOD    | REMAINDER 
+----------+-----------
+ 1.522322 |  -.477678
+(1 row)
+
+select mod(1.322322, 2), remainder(1.322322, 2) from dual;
+   MOD    | REMAINDER 
+----------+-----------
+ 1.322322 |  -.677678
+(1 row)
+
+select mod(-32768, 3), remainder(-32768, 3) from dual;
+ MOD | REMAINDER 
+-----+-----------
+  -2 |         1
+(1 row)
+
+select mod(-5, 3), remainder(-5, 3) from dual;
+ MOD | REMAINDER 
+-----+-----------
+  -2 |         1
+(1 row)
+
+select mod(-5, -3), remainder(-5, -3) from dual;
+ MOD | REMAINDER 
+-----+-----------
+  -2 |         1
+(1 row)
+
+select mod(-6, 3), remainder(-6, 3) from dual;
+ MOD | REMAINDER 
+-----+-----------
+   0 |         0
+(1 row)
+
+-- test remainder insert data
+create table t_id(id int);
+insert into t_id values(generate_series(1, 5));
+create table t_data(a int, b int, c text , d text);
+insert into t_data select mod(id,2), remainder(id,3), id, id from t_id;
+select * from t_data order by 1,2,3,4;
+ A | B  | C | D 
+---+----+---+---
+ 0 | -1 | 2 | 2
+ 0 |  1 | 4 | 4
+ 1 | -1 | 5 | 5
+ 1 |  0 | 3 | 3
+ 1 |  1 | 1 | 1
+(5 rows)
+
+drop table t_id;
+drop table t_data;
+-- test remainder support BINARY_DOUBLE/BINARY_FLOAT
+drop table if exists float_point_demo;
+NOTICE:  table "FLOAT_POINT_DEMO" does not exist, skipping
+CREATE TABLE float_point_demo(dec_num NUMBER(10,2), bin_double BINARY_DOUBLE, bin_float BINARY_FLOAT);
+INSERT INTO float_point_demo VALUES (12345,12345,12345);
+INSERT INTO float_point_demo VALUES (1.235E+003,1.235E+003,1.235E+003);
+SELECT bin_float, bin_double, REMAINDER(bin_float, bin_double) FROM float_point_demo order by 1;
+ BIN_FLOAT | BIN_DOUBLE | REMAINDER 
+-----------+------------+-----------
+      1235 |       1235 |         0
+     12345 |      12345 |         0
+(2 rows)
+
+explain (costs off, nodes off) SELECT bin_float, bin_double, REMAINDER(bin_float, bin_double) FROM float_point_demo order by 1;
+             QUERY PLAN             
+------------------------------------
+ Sort
+   Sort Key: BIN_FLOAT
+   ->  Seq Scan on FLOAT_POINT_DEMO
+(3 rows)
+
+drop table float_point_demo;
+select remainder(1,2) from dual;
+ REMAINDER 
+-----------
+         1
+(1 row)
+
+select remainder(3,2) from dual;
+ REMAINDER 
+-----------
+        -1
+(1 row)
+
+select remainder(5, 2) from dual;
+ REMAINDER 
+-----------
+         1
+(1 row)
+
+select remainder(5.12, -1) from dual;
+ REMAINDER 
+-----------
+       .12
+(1 row)
+
+select remainder(5.02, 2) from dual;
+ REMAINDER 
+-----------
+      -.98
+(1 row)
+
+select remainder(3.32706, 2.2) from dual;
+ REMAINDER 
+-----------
+  -1.07294
+(1 row)
+
+select remainder(3.02, 2) from dual;
+ REMAINDER 
+-----------
+      -.98
+(1 row)
+
+drop table tt1;
+ERROR:  table "TT1" does not exist
+create table tt1(c1 float4, c2 float8, c3 int2, c4 int4, c5 int8);
+insert into tt1 values(1, 1, 1, 1, 1);
+insert into tt1 values(3, 3, 3, 3, 3);
+insert into tt1 values(5, 5, 5, 5, 5);
+insert into tt1 values(1.123, 1.123, 3, 3, 3);
+insert into tt1 values(3.02, 3.02, 5, 5, 5);
+insert into tt1 values(5.02, 5.02, 5, 5, 5);
+select to_number('ff', 'xx');
+ TO_NUMBER 
+-----------
+       255
+(1 row)
+
+/* 15 character */
+select to_number('fffffffffffffff', 'xxxxxxxxxxxxxxxxxxx');
+      TO_NUMBER      
+---------------------
+ 1152921504606846975
+(1 row)
+
+select to_number('123456789012345', 'xxxxxxxxxxxxxxxxxxx');
+     TO_NUMBER     
+-------------------
+ 81985529205302085
+(1 row)
+
+/* 16 character */
+select to_number('ffffffffffffffff', 'xxxxxxxxxxxxxxxxxxx');
+      TO_NUMBER       
+----------------------
+ 18446744073709551615
+(1 row)
+
+select to_number('f123456789012345', 'xxxxxxxxxxxxxxxxxxxx');
+      TO_NUMBER       
+----------------------
+ 17375808098308006725
+(1 row)
+
+/* with scale */
+select to_number('124.36', 'xxxxxxx');
+ERROR:  invalid number, contain illegal character:.
+select to_number('124.66', 'xxxxxxx');
+ERROR:  invalid number, contain illegal character:.
+/* with space */
+select to_number('fff ', 'xxxxxx');
+ERROR:  invalid number, contain illegal character: 
+select to_number('f f', 'xxxxxx');
+ERROR:  invalid number, contain illegal character: 
+/* max values support , opentenbase_ora is 63 digits */
+select to_number('fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff', 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx');
+ERROR:  invalid number format model
+select to_number('ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff', 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx');
+ERROR:  invalid number
+select to_number('fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff', 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx');
+                                  TO_NUMBER                                   
+------------------------------------------------------------------------------
+ 7237005577332262213973186563042994240831000000000000000000000000000000000000
+(1 row)
+
+/* minus */
+select to_number('-f123456d789012345', 'xxxxxxxxxxxxxxxxxxxx');
+ERROR:  invalid number, contain illegal character:-
+/* with scale */
+select to_number('-f123456d789012345.314', 'xxxxxxxxxxxxxxxxxxxxxxxxx');
+ERROR:  invalid number, contain illegal character:-
+/* with illegal character */
+select to_number('uf123456789012345', 'xxxxxxxxxxxxxxxxxxxx');
+ERROR:  invalid number, contain illegal character:u
+select to_number('f1234567u89012345', 'xxxxxxxxxxxxxxxxxxxx');
+ERROR:  invalid number, contain illegal character:u
+/* fmt is less than str */
+select to_number('ff', 'x');
+ERROR:  invalid number
+select to_number('ffffffffffffffff', 'xxxxxxxxx');
+ERROR:  invalid number
+/* invalid fromat mode */
+select to_number('ff', ' xx');
+ERROR:  Invalid number format model
+select to_number('ff', 'x x');
+ERROR:  Invalid number format model
+--support BINARY_DOUBLE/BINARY_FLOAT
+drop table if exists float_point_demo;
+NOTICE:  table "FLOAT_POINT_DEMO" does not exist, skipping
+CREATE TABLE float_point_demo(dec_num NUMBER(10,2), bin_double BINARY_DOUBLE, bin_float BINARY_FLOAT);
+INSERT INTO float_point_demo VALUES (12345,12345,12345);
+INSERT INTO float_point_demo VALUES (1.235E+003,1.235E+003,1.235E+003);
+SELECT bin_float, bin_double, REMAINDER(bin_float, bin_double) FROM float_point_demo order by 1;;
+ BIN_FLOAT | BIN_DOUBLE | REMAINDER 
+-----------+------------+-----------
+      1235 |       1235 |         0
+     12345 |      12345 |         0
+(2 rows)
+
+drop table float_point_demo;
+CREATE TABLE rqg_table3 (
+c0 number,
+c1 number,
+c2 number,
+c3 number)    PARTITION BY range( c1) ;
+create TABLE rqg_table3_p0 partition of rqg_table3 for values from (-0.9999e+126) to (1e-130);
+create TABLE rqg_table3_p1 partition of rqg_table3 for values from (1e-130) to (0.123456789123456789123456789123456789123456789);
+create TABLE rqg_table3_p2 partition of rqg_table3 for values from (0.123456789123456789123456789123456789123456789) to (1234567891234567891234567891234567891234567890);
+create TABLE rqg_table3_f partition of rqg_table3 default;
+insert into rqg_table3 values (1,-0.9999e+126,1,1);
+insert into rqg_table3 values (2,-0.999999999999999999999999999999999999999999999e-130,2,2);
+select * from rqg_table3 PARTITION (rqg_table3_p0) order by 1;
+ C0 |                                                                  C1                                                                  | C2 | C3 
+----+--------------------------------------------------------------------------------------------------------------------------------------+----+----
+  1 |      -999900000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 |  1 |  1
+  2 | -.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001 |  2 |  2
+(2 rows)
+
+drop table rqg_table3;
+CREATE TABLE rqg_table1 (
+c0 number,
+c1 number,
+c2 number,
+c3 number,
+c4 int)   ;
+INSERT INTO rqg_table1 VALUES  (0.123456789123456789123456789123456789123456789, 0.12345678912345678912345678912345678912345678, 0.00000000123456789123456789123456789123456789123456789, 0.0000000012345678912345678912345678912345678912345678,1);
+insert into rqg_table1 VALUES  (1234567891234567891234567890000.123456789123456789123456789123456789123456789, 1234567891234567891234567890000.123456789123456789123456789123456789123456789, 1234567891234567891234567890000.123456789123456789123456789123456789123456789, 123456789123456789123456789123456789123456789,2);
+insert into rqg_table1 VALUES  (12345678912345678912345678912345678912345678, 1234567891234567891234567890000000000000, 1234567891234567891234567890000.123456789123456789123456789123456789123456789, 12345678912345678912345678.0000123456789123456789123456789123456789123456789,3);
+insert into rqg_table1 VALUES  (-0.123456789123456789123456789123456789123456789, -0.12345678912345678912345678912345678912345678, -0.00000000123456789123456789123456789123456789123456789, -0.0000000012345678912345678912345678912345678912345678,4);
+insert into rqg_table1 VALUES  (-123456789123456789123456789123456789123456789, -12345678912345678912345678912345678912345678, -1234567891234567891234567890000000000000, -1234567891234567891234567890000.123456789123456789123456789123456789123456789,5);
+insert into rqg_table1 VALUES  (-12345678912345678912345678.0000123456789123456789123456789123456789123456789, -12345678912345678912345678.0000123456789123456789123456789123456789123456789, -12345678912345678912345678.0000123456789123456789123456789123456789123456789, -0.12345678912345678912345678912345678912345678,6);
+insert into rqg_table1 VALUES  (12345678912345678912345678912345678912345678, 1234567891234567891234567890000.123456789123456789123456789123456789123456789, 1.23456789123457e+25, 0.522308349609375,7);
+insert into rqg_table1 VALUES  (0.960891723632812e+80, -1234567891234567891234567890000.123456789123456789123456789123456789123456789, -2.50315696788786e+18, 1.23456789123457e-130,8);
+insert into rqg_table1 VALUES  (-0.123456789123457, -1234567891234567891234567890000.123456789123456789123456789123456789123456789, -1.23456789123457e+125, -4.3914794921875e+79,9);
+insert into rqg_table1 VALUES  (-0.123456789123457, -1234567891234567891234567890000.123456789123456789123456789123456789123456789e-161, -0.123456789123457, -1.23456789123457e+43,10) ;
+select *,  mod ( c3, 2 ) from rqg_table1 order by 1, 2, 3;
+                                        C0                                        |                      C1                       |                                                               C2                                                                |                                                                        C3                                                                         | C4 |                                                                        MOD                                                                        
+----------------------------------------------------------------------------------+-----------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------+----+---------------------------------------------------------------------------------------------------------------------------------------------------
+                                   -123456789123456789123456789123456789123000000 | -12345678912345678912345678912345678912350000 |                                                                                       -1234567891234567891234567890000000000000 |                                                                                                         -1234567891234567891234567890000.12345679 |  5 |                                                                                                                                        -.12345679
+                                       -12345678912345678912345678.00001234567891 |    -12345678912345678912345678.00001234567891 |                                                                                      -12345678912345678912345678.00001234567891 |                                                                                                        -.1234567891234567891234567891234567891235 |  6 |                                                                                                        -.1234567891234567891234567891234567891235
+                                                                -.123456789123457 |     -1234567891234567891234567890000.12345679 | -123456789123457000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 |                                                                 -43914794921875000000000000000000000000000000000000000000000000000000000000000000 |  9 |                                                                                                                                                 0
+                                                                -.123456789123457 |                                             0 |                                                                                                               -.123456789123457 |                                                                                                     -12345678912345700000000000000000000000000000 | 10 |                                                                                                                                                 0
+                                       -.1234567891234567891234567891234567891235 |    -.1234567891234567891234567891234567891235 |                                                                              -.000000001234567891234567891234567891234567891235 |                                                                                                -.000000001234567891234567891234567891234567891235 |  4 |                                                                                                -.000000001234567891234567891234567891234567891235
+                                        .1234567891234567891234567891234567891235 |     .1234567891234567891234567891234567891235 |                                                                               .000000001234567891234567891234567891234567891235 |                                                                                                 .000000001234567891234567891234567891234567891235 |  1 |                                                                                                 .000000001234567891234567891234567891234567891235
+                                         1234567891234567891234567890000.12345679 |      1234567891234567891234567890000.12345679 |                                                                                        1234567891234567891234567890000.12345679 |                                                                                                     123456789123456789123456789123456789123000000 |  2 |                                                                                                                                                 0
+                                     12345678912345678912345678912345678912350000 |      1234567891234567891234567890000.12345679 |                                                                                                      12345678912345700000000000 |                                                                                                                                  .522308349609375 |  7 |                                                                                                                                  .522308349609375
+                                     12345678912345678912345678912345678912350000 |      1234567891234567891234567890000000000000 |                                                                                        1234567891234567891234567890000.12345679 |                                                                                                         12345678912345678912345678.00001234567891 |  3 |                                                                                                                                   .00001234567891
+ 96089172363281200000000000000000000000000000000000000000000000000000000000000000 |     -1234567891234567891234567890000.12345679 |                                                                                                            -2503156967887860000 | .000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000123456789123457 |  8 | .000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000123456789123457
+(10 rows)
+
+DELETE FROM rqg_table1 WHERE C1 = mod ( c3, 2 ) or c1 = 0.0000000012345678912345678912345678912345678912345678;
+drop table rqg_table1;
+create table ft1(c1 float(5), c2 float, c3 float(126));
+\d+ ft1;
+                                       Table "public.FT1"
+ Column |      Type      | Collation | Nullable | Default | Storage | Stats target | Description 
+--------+----------------+-----------+----------+---------+---------+--------------+-------------
+ C1     | NUMERIC(-2,0)  |           |          |         | main    |              | 
+ C2     | NUMERIC(-38,0) |           |          |         | main    |              | 
+ C3     | NUMERIC(-38,0) |           |          |         | main    |              | 
+Distribute By: HASH(C1)
+Location Nodes: ALL DATANODES
+
+insert into ft1 values(1234567,123456789123456789123456789123456789123,123456789123456789123456789123456789123);
+select * from ft1;
+   C1    |                   C2                    |                   C3                    
+---------+-----------------------------------------+-----------------------------------------
+ 1200000 | 123456789123456789123456789123456789120 | 123456789123456789123456789123456789120
+(1 row)
+
+drop table ft1;
+select POW(49.145, 49.145);
+                                         POW                                          
+--------------------------------------------------------------------------------------
+ 134199882319864257140437156840980208232700000000000000000000000000000000000000000000
+(1 row)
+
+-- test mod
+SELECT int8mod(11, 0) "Modulus" FROM DUAL;
+ Modulus 
+---------
+      11
+(1 row)
+
+SELECT int2mod(11, 0) "Modulus" FROM DUAL;
+ Modulus 
+---------
+      11
+(1 row)
+
+SELECT int4mod(11, 0) "Modulus" FROM DUAL;
+ Modulus 
+---------
+      11
+(1 row)
+
+SELECT mod(11, 0) "Modulus" FROM DUAL;
+ Modulus 
+---------
+      11
+(1 row)
+
+SELECT mod(11, 0) "Modulus" FROM DUAL;
+ Modulus 
+---------
+      11
+(1 row)
+
+SELECT mod(11, 0) "Modulus" FROM DUAL;
+ Modulus 
+---------
+      11
+(1 row)
+
+SELECT mod(11.234, 0.0) "Modulus" FROM DUAL;
+ Modulus 
+---------
+  11.234
+(1 row)
+
+SELECT mod(11.234, 0) "Modulus" FROM DUAL;
+ Modulus 
+---------
+  11.234
+(1 row)
+
+SELECT mod(11::numeric, 0::numeric) "Modulus" FROM DUAL;
+ Modulus 
+---------
+      11
+(1 row)
+
+SELECT numeric_mod(11, 0) "Modulus" FROM DUAL;
+ Modulus 
+---------
+      11
+(1 row)
+
+SELECT mod('11', '0') "Modulus" FROM DUAL;
+ Modulus 
+---------
+      11
+(1 row)
+
+SELECT mod('11', 0) "Modulus" FROM DUAL;
+ Modulus 
+---------
+      11
+(1 row)
+
+SELECT mod('11', 0::numeric) "Modulus" FROM DUAL;
+ Modulus 
+---------
+      11
+(1 row)
+
+SELECT mod(11::text, 0::numeric) "Modulus" FROM DUAL;
+ Modulus 
+---------
+      11
+(1 row)
+
+SELECT mod(11::text, 0) "Modulus" FROM DUAL;
+ Modulus 
+---------
+      11
+(1 row)
+
+SELECT mod(11::real, 0::numeric) "Modulus" FROM DUAL;
+ Modulus 
+---------
+      11
+(1 row)
+
+-- start tapd: 115752535
+SELECT CAST('  INf  ' as BINARY_FLOAT) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('+inf ' as BINARY_FLOAT) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('  -InF' as BINARY_FLOAT) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('3.40282E+38' as BINARY_FLOAT) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('3.40282E+50' as BINARY_FLOAT) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('3.40282E+30' as BINARY_FLOAT) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('-3.40282E+38' as BINARY_FLOAT) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('-3.40282E+50' as BINARY_FLOAT) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('-3.40282E+30' as BINARY_FLOAT) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('1.17549E-38' as BINARY_FLOAT) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('1.17549E-50' as BINARY_FLOAT) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('1.17549E-30' as BINARY_FLOAT) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('-1.17549E-38' as BINARY_FLOAT) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('-1.17549E-50' as BINARY_FLOAT) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('-1.17549E-30' as BINARY_FLOAT) AS RESULT FROM DUAL;
+                    RESULT                     
+-----------------------------------------------
+                                           Inf
+                                           Inf
+                                          -Inf
+       340282000000000000000000000000000000000
+                                           Inf
+               3402820000000000000000000000000
+      -340282000000000000000000000000000000000
+                                          -Inf
+              -3402820000000000000000000000000
+  .0000000000000000000000000000000000000117549
+                                             0
+          .00000000000000000000000000000117549
+ -.0000000000000000000000000000000000000117549
+                                             0
+         -.00000000000000000000000000000117549
+(15 rows)
+
+SELECT CAST('3.40282E+38'::FLOAT8 as BINARY_FLOAT) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('3.40282E+50'::FLOAT8 as BINARY_FLOAT) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('3.40282E+30'::FLOAT8 as BINARY_FLOAT) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('-3.40282E+38'::FLOAT8 as BINARY_FLOAT) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('-3.40282E+50'::FLOAT8 as BINARY_FLOAT) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('-3.40282E+30'::FLOAT8 as BINARY_FLOAT) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('1.17549E-38'::FLOAT8 as BINARY_FLOAT) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('1.17549E-50'::FLOAT8 as BINARY_FLOAT) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('1.17549E-30'::FLOAT8 as BINARY_FLOAT) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('-1.17549E-38'::FLOAT8 as BINARY_FLOAT) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('-1.17549E-50'::FLOAT8 as BINARY_FLOAT) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('-1.17549E-30'::FLOAT8 as BINARY_FLOAT) AS RESULT FROM DUAL;
+                    RESULT                     
+-----------------------------------------------
+       340282000000000000000000000000000000000
+                                           Inf
+               3402820000000000000000000000000
+      -340282000000000000000000000000000000000
+                                          -Inf
+              -3402820000000000000000000000000
+  .0000000000000000000000000000000000000117549
+                                             0
+          .00000000000000000000000000000117549
+ -.0000000000000000000000000000000000000117549
+                                             0
+         -.00000000000000000000000000000117549
+(12 rows)
+
+SELECT CAST('3.40282E+38'::VARCHAR as BINARY_FLOAT) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('3.40282E+50'::VARCHAR as BINARY_FLOAT) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('3.40282E+30'::VARCHAR as BINARY_FLOAT) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('-3.40282E+38'::VARCHAR as BINARY_FLOAT) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('-3.40282E+50'::VARCHAR as BINARY_FLOAT) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('-3.40282E+30'::VARCHAR as BINARY_FLOAT) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('1.17549E-38'::VARCHAR as BINARY_FLOAT) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('1.17549E-50'::VARCHAR as BINARY_FLOAT) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('1.17549E-30'::VARCHAR as BINARY_FLOAT) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('-1.17549E-38'::VARCHAR as BINARY_FLOAT) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('-1.17549E-50'::VARCHAR as BINARY_FLOAT) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('-1.17549E-30'::VARCHAR as BINARY_FLOAT) AS RESULT FROM DUAL;
+                    RESULT                     
+-----------------------------------------------
+       340282000000000000000000000000000000000
+                                           Inf
+               3402820000000000000000000000000
+      -340282000000000000000000000000000000000
+                                          -Inf
+              -3402820000000000000000000000000
+  .0000000000000000000000000000000000000117549
+                                             0
+          .00000000000000000000000000000117549
+ -.0000000000000000000000000000000000000117549
+                                             0
+         -.00000000000000000000000000000117549
+(12 rows)
+
+SELECT CAST('1.79769313486231E+308' as BINARY_DOUBLE) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('1.79769313486231E+350' as BINARY_DOUBLE) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('1.79769313486231E+300' as BINARY_DOUBLE) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('-1.79769313486231E+308' as BINARY_DOUBLE) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('-1.79769313486231E+350' as BINARY_DOUBLE) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('-1.79769313486231E+300' as BINARY_DOUBLE) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('2.22507485850720E-308' as BINARY_DOUBLE) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('2.22507485850720E-350' as BINARY_DOUBLE) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('2.22507485850720E-300' as BINARY_DOUBLE) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('-2.22507485850720E-308' as BINARY_DOUBLE) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('-2.22507485850720E-350' as BINARY_DOUBLE) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('-2.22507485850720E-300' as BINARY_DOUBLE) AS RESULT FROM DUAL;
+                                                                                                                                                               RESULT                                                                                                                                                                
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+               179769313486231000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+                                                                                                                                                                                                                                                                                                                                 Inf
+                       1797693134862310000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+              -179769313486231000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+                                                                                                                                                                                                                                                                                                                                -Inf
+                      -1797693134862310000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+  .000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000022250748585072
+                                                                                                                                                                                                                                                                                                                                   0
+          .0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000022250748585072
+ -.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000022250748585072
+                                                                                                                                                                                                                                                                                                                                   0
+         -.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000022250748585072
+(12 rows)
+
+SELECT CAST('1.79769313486231E+308'::FLOAT8 as BINARY_DOUBLE) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('1.79769313486231E+300'::FLOAT8 as BINARY_DOUBLE) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('-1.79769313486231E+308'::FLOAT8 as BINARY_DOUBLE) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('-1.79769313486231E+300'::FLOAT8 as BINARY_DOUBLE) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('2.22507485850720E-308'::FLOAT8 as BINARY_DOUBLE) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('2.22507485850720E-300'::FLOAT8 as BINARY_DOUBLE) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('-2.22507485850720E-308'::FLOAT8 as BINARY_DOUBLE) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('-2.22507485850720E-300'::FLOAT8 as BINARY_DOUBLE) AS RESULT FROM DUAL;
+                                                                                                                                                               RESULT                                                                                                                                                                
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+               179769313486231000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+                       1797693134862310000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+              -179769313486231000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+                      -1797693134862310000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+  .000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000022250748585072
+          .0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000022250748585072
+ -.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000022250748585072
+         -.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000022250748585072
+(8 rows)
+
+SELECT CAST('3.40282E+38'::FLOAT4 as BINARY_FLOAT) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('3.40282E+30'::FLOAT4 as BINARY_FLOAT) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('-3.40282E+38'::FLOAT4 as BINARY_FLOAT) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('-3.40282E+30'::FLOAT4 as BINARY_FLOAT) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('1.17549E-38'::FLOAT4 as BINARY_FLOAT) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('1.17549E-30'::FLOAT4 as BINARY_FLOAT) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('-1.17549E-38'::FLOAT4 as BINARY_FLOAT) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('-1.17549E-30'::FLOAT4 as BINARY_FLOAT) AS RESULT FROM DUAL;
+                    RESULT                     
+-----------------------------------------------
+       340282000000000000000000000000000000000
+               3402820000000000000000000000000
+      -340282000000000000000000000000000000000
+              -3402820000000000000000000000000
+  .0000000000000000000000000000000000000117549
+          .00000000000000000000000000000117549
+ -.0000000000000000000000000000000000000117549
+         -.00000000000000000000000000000117549
+(8 rows)
+
+SELECT CAST('1.79769313486231E+308'::VARCHAR as BINARY_DOUBLE) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('1.79769313486231E+350'::VARCHAR as BINARY_DOUBLE) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('1.79769313486231E+300'::VARCHAR as BINARY_DOUBLE) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('-1.79769313486231E+308'::VARCHAR as BINARY_DOUBLE) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('-1.79769313486231E+350'::VARCHAR as BINARY_DOUBLE) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('-1.79769313486231E+300'::VARCHAR as BINARY_DOUBLE) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('2.22507485850720E-308'::VARCHAR as BINARY_DOUBLE) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('2.22507485850720E-350'::VARCHAR as BINARY_DOUBLE) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('2.22507485850720E-300'::VARCHAR as BINARY_DOUBLE) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('-2.22507485850720E-308'::VARCHAR as BINARY_DOUBLE) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('-2.22507485850720E-350'::VARCHAR as BINARY_DOUBLE) AS RESULT FROM DUAL
+UNION ALL
+SELECT CAST('-2.22507485850720E-300'::VARCHAR as BINARY_DOUBLE) AS RESULT FROM DUAL;
+                                                                                                                                                               RESULT                                                                                                                                                                
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+               179769313486231000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+                                                                                                                                                                                                                                                                                                                                 Inf
+                       1797693134862310000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+              -179769313486231000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+                                                                                                                                                                                                                                                                                                                                -Inf
+                      -1797693134862310000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+  .000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000022250748585072
+                                                                                                                                                                                                                                                                                                                                   0
+          .0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000022250748585072
+ -.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000022250748585072
+                                                                                                                                                                                                                                                                                                                                   0
+         -.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000022250748585072
+(12 rows)
+
+CREATE TABLE ORA_BINARY_INF_TEST(val1 BINARY_FLOAT, val2 BINARY_DOUBLE);
+INSERT INTO ORA_BINARY_INF_TEST VALUES('Inf', 'Inf');
+INSERT INTO ORA_BINARY_INF_TEST VALUES('-Inf', '-Inf');
+SELECT * FROM DUAL;
+ DUMMY 
+-------
+ X
+(1 row)
+
+SELECT ABS(val1) AS VAL1, ABS(val2) AS VAL2 FROM ORA_BINARY_INF_TEST;
+ VAL1 | VAL2 
+------+------
+  Inf |  Inf
+  Inf |  Inf
+(2 rows)
+
+SELECT +val1 AS VAL1, +val2 AS VAL2 FROM ORA_BINARY_INF_TEST;
+ VAL1 | VAL2 
+------+------
+  Inf |  Inf
+ -Inf | -Inf
+(2 rows)
+
+SELECT -val1 AS VAL1, -val2 AS VAL2 FROM ORA_BINARY_INF_TEST;
+ VAL1 | VAL2 
+------+------
+ -Inf | -Inf
+  Inf |  Inf
+(2 rows)
+
+SELECT SIGN(val1) AS VAL1, SIGN(val2) AS VAL2 FROM ORA_BINARY_INF_TEST;
+ VAL1 | VAL2 
+------+------
+    1 |    1
+   -1 |   -1
+(2 rows)
+
+SELECT ROUND(val1) AS VAL1, ROUND(val2) AS VAL2 FROM ORA_BINARY_INF_TEST;
+ VAL1 | VAL2 
+------+------
+  Inf |  Inf
+ -Inf | -Inf
+(2 rows)
+
+SELECT TRUNC(val1) AS VAL1, TRUNC(val2) AS VAL2 FROM ORA_BINARY_INF_TEST;
+ VAL1 | VAL2 
+------+------
+  Inf |  Inf
+ -Inf | -Inf
+(2 rows)
+
+SELECT CEIL(val1) AS VAL1, CEIL(val2) AS VAL2 FROM ORA_BINARY_INF_TEST;
+ VAL1 | VAL2 
+------+------
+  Inf |  Inf
+ -Inf | -Inf
+(2 rows)
+
+SELECT FLOOR(val1) AS VAL1, FLOOR(val2) AS VAL2 FROM ORA_BINARY_INF_TEST;
+ VAL1 | VAL2 
+------+------
+  Inf |  Inf
+ -Inf | -Inf
+(2 rows)
+
+SELECT WIDTH_BUCKET(val1, 0, 100, 10) AS RES FROM ORA_BINARY_INF_TEST;
+ RES 
+-----
+  11
+   0
+(2 rows)
+
+SELECT HASH_NUMERIC(val1) AS VAL1, HASH_NUMERIC(val2) AS VAL2 FROM ORA_BINARY_INF_TEST;
+ VAL1 | VAL2 
+------+------
+    0 |    0
+    0 |    0
+(2 rows)
+
+SELECT val1 + 'NaN' AS VAL1, val2 + 1 AS VAL2 FROM ORA_BINARY_INF_TEST;
+ VAL1 | VAL2 
+------+------
+  NaN |  Inf
+  NaN | -Inf
+(2 rows)
+
+SELECT val1 - 1 AS VAL1, val2 - 'NaN' AS VAL2 FROM ORA_BINARY_INF_TEST;
+ VAL1 | VAL2 
+------+------
+  Inf |  NaN
+ -Inf |  NaN
+(2 rows)
+
+SELECT
+    val1 * 2 AS VAL1,
+    val2 * -2 AS VAL2,
+    2 * val1 AS VAL3,
+    -2 * val2 AS VAL4,
+    val1 * 'NaN' AS VAL5,
+    'NaN' * val2 AS VAL6,
+    val1 * 0 AS VAL7,
+    0 * val2 AS VAL8,
+    val1 * 'Inf' AS VAL9,
+    'Inf' * val2 AS VAL10,
+    val1 * '-Inf' AS VAL11,
+    '-Inf' * val2 AS VAL12
+FROM ORA_BINARY_INF_TEST;
+ VAL1 | VAL2 | VAL3 | VAL4 | VAL5 | VAL6 | VAL7 | VAL8 | VAL9 | VAL10 | VAL11 | VAL12 
+------+------+------+------+------+------+------+------+------+-------+-------+-------
+  Inf | -Inf |  Inf | -Inf |  NaN |  NaN |  NaN |  NaN |  Inf |   Inf |  -Inf |  -Inf
+ -Inf |  Inf | -Inf |  Inf |  NaN |  NaN |  NaN |  NaN | -Inf |  -Inf |   Inf |   Inf
+(2 rows)
+
+SELECT
+    val1 / 2 AS VAL1,
+    2 / val2 AS VAL2,
+    val1 / -2 AS VAL3,
+    -2 / val2 AS VAL4,
+    val1 / 'NaN' AS VAL5,
+    'NaN' / val2 AS VAL6,
+    val1 / 0 AS VAL7,
+    0 / val2 AS VAL8,
+    val1 / 'Inf' AS VAL9,
+    'Inf' / val2 AS VAL10,
+    val1 / '-Inf' AS VAL11,
+    '-Inf' / val2 AS VAL12
+FROM ORA_BINARY_INF_TEST;
+ VAL1 | VAL2 | VAL3 | VAL4 | VAL5 | VAL6 | VAL7 | VAL8 | VAL9 | VAL10 | VAL11 | VAL12 
+------+------+------+------+------+------+------+------+------+-------+-------+-------
+  Inf |    0 | -Inf |    0 |  NaN |  NaN |  Inf |    0 |  NaN |   NaN |   NaN |   NaN
+ -Inf |    0 |  Inf |    0 |  NaN |  NaN | -Inf |    0 |  NaN |   NaN |   NaN |   NaN
+(2 rows)
+
+SELECT
+    MOD(val1, 2) AS VAL1,
+    MOD(2, val2) AS VAL2,
+    MOD(val1, -2) AS VAL3,
+    MOD(-2, val2) AS VAL4,
+    MOD(val1, 'NaN') AS VAL5,
+    MOD('NaN', val2) AS VAL6,
+    MOD(val1, 0) AS VAL7,
+    MOD(0, val2) AS VAL8,
+    MOD(val1, 'Inf') AS VAL9,
+    MOD('Inf', val2) AS VAL10,
+    MOD(val1, '-Inf') AS VAL11,
+    MOD('-Inf', val2) AS VAL12
+FROM ORA_BINARY_INF_TEST;
+ VAL1 | VAL2 | VAL3 | VAL4 | VAL5 | VAL6 | VAL7 | VAL8 | VAL9 | VAL10 | VAL11 | VAL12 
+------+------+------+------+------+------+------+------+------+-------+-------+-------
+  NaN |    2 |  NaN |   -2 |  NaN |  NaN |  NaN |    0 |  NaN |   NaN |   NaN |   NaN
+  NaN |    2 |  NaN |   -2 |  NaN |  NaN |  NaN |    0 |  NaN |   NaN |   NaN |   NaN
+(2 rows)
+
+SELECT
+    REMAINDER(val1, 2) AS VAL1,
+    REMAINDER(2, val2) AS VAL2,
+    REMAINDER(val1, -2) AS VAL3,
+    REMAINDER(-2.0, val2) AS VAL4,
+    REMAINDER(val1, 'NaN') AS VAL5,
+    REMAINDER('NaN', val2) AS VAL6,
+    REMAINDER(val1, 0) AS VAL7,
+    REMAINDER(0, val2) AS VAL8,
+    REMAINDER(val1, 'Inf') AS VAL9,
+    REMAINDER('Inf', val2) AS VAL10,
+    REMAINDER(val1, '-Inf') AS VAL11,
+    REMAINDER('-Inf', val2) AS VAL12
+FROM ORA_BINARY_INF_TEST;
+ VAL1 | VAL2 | VAL3 | VAL4 | VAL5 | VAL6 | VAL7 | VAL8 | VAL9 | VAL10 | VAL11 | VAL12 
+------+------+------+------+------+------+------+------+------+-------+-------+-------
+  NaN |    2 |  NaN |   -2 |  NaN |  NaN |  NaN |    0 |  NaN |   NaN |   NaN |   NaN
+  NaN |    2 |  NaN |   -2 |  NaN |  NaN |  NaN |    0 |  NaN |   NaN |   NaN |   NaN
+(2 rows)
+
+SELECT
+    SQRT(val1) AS VAL1,
+    SQRT(val2) AS VAL2
+FROM ORA_BINARY_INF_TEST;
+ VAL1 | VAL2 
+------+------
+  Inf |  Inf
+  NaN |  NaN
+(2 rows)
+
+SELECT
+    EXP(val1) AS VAL1,
+    EXP(val2) AS VAL2
+FROM ORA_BINARY_INF_TEST;
+ VAL1 | VAL2 
+------+------
+  Inf |  Inf
+    0 |    0
+(2 rows)
+
+SELECT
+    LN(val1) AS VAL1,
+    LN(val2) AS VAL2
+FROM ORA_BINARY_INF_TEST;
+ VAL1 | VAL2 
+------+------
+  Inf |  Inf
+  NaN |  NaN
+(2 rows)
+
+SELECT
+    LOG(val1, 0) AS VAL1,
+    LOG(val1, 1) AS VAL2,
+    LOG(val1, -1) AS VAL3,
+    LOG(val1, 'NaN') AS VAL4,
+    LOG(val1, 'Inf') AS VAL5,
+    LOG(val1, '-Inf') AS VAL6,
+    LOG(0, val1) AS VAL7,
+    LOG(1, val1) AS VAL8,
+    LOG(-1, val1) AS VAL9,
+    LOG('NaN', val1) AS VAL10,
+    LOG('Inf', val1) AS VAL11,
+    LOG('-Inf', val1) AS VAL12
+FROM ORA_BINARY_INF_TEST;
+ VAL1 | VAL2 | VAL3 | VAL4 | VAL5 | VAL6 | VAL7 | VAL8 | VAL9 | VAL10 | VAL11 | VAL12 
+------+------+------+------+------+------+------+------+------+-------+-------+-------
+  NaN |    0 |  NaN |  NaN |  NaN |  NaN |  NaN |  Inf |  NaN |   NaN |   NaN |   NaN
+  NaN |  NaN |  NaN |  NaN |  NaN |  NaN |  NaN |  NaN |  NaN |   NaN |   NaN |   NaN
+(2 rows)
+
+SELECT
+    POWER(val1, 0) AS VAL1,
+    POWER(val1, 1) AS VAL2,
+    POWER(val1, -1) AS VAL3,
+    POWER(val1, 'NaN') AS VAL4,
+    POWER(val1, 'Inf') AS VAL5,
+    POWER(val1, '-Inf') AS VAL6,
+    POWER(0, val1) AS VAL7,
+    POWER(1, val1) AS VAL8,
+    POWER(-1, val1) AS VAL9,
+    POWER('NaN', val1) AS VAL10,
+    POWER('Inf', val1) AS VAL11,
+    POWER('-Inf', val1) AS VAL12
+FROM ORA_BINARY_INF_TEST;
+ VAL1 | VAL2 | VAL3 | VAL4 | VAL5 | VAL6 | VAL7 | VAL8 | VAL9 | VAL10 | VAL11 | VAL12 
+------+------+------+------+------+------+------+------+------+-------+-------+-------
+    1 |  Inf |    0 |  NaN |  Inf |    0 |    0 |  NaN |  NaN |   NaN |   Inf |  -Inf
+    1 | -Inf |    0 |  NaN | -Inf |    0 |  Inf |  NaN |  NaN |   NaN |     0 |     0
+(2 rows)
+
+SELECT
+    CAST(val1 AS INT)
+FROM ORA_BINARY_INF_TEST;
+ERROR:  cannot convert Inf or -Inf to integer
+SELECT
+    CAST(val1 AS BIGINT)
+FROM ORA_BINARY_INF_TEST;
+ERROR:  cannot convert Inf or -Inf to bigint
+SELECT
+    CAST(val1 AS SMALLINT)
+FROM ORA_BINARY_INF_TEST;
+ERROR:  cannot convert Inf or -Inf to smallint
+SELECT
+    CAST(val1 AS FLOAT4)
+FROM ORA_BINARY_INF_TEST;
+   VAL1    
+-----------
+  Infinity
+ -Infinity
+(2 rows)
+
+SELECT
+    CAST(val1 AS FLOAT8)
+FROM ORA_BINARY_INF_TEST;
+   VAL1    
+-----------
+  Infinity
+ -Infinity
+(2 rows)
+
+CREATE TABLE ORA_BINARY_AGGREGATE_TEST(id INT, val BINARY_FLOAT);
+INSERT INTO ORA_BINARY_AGGREGATE_TEST VALUES(1, '1.23E130');
+INSERT INTO ORA_BINARY_AGGREGATE_TEST VALUES(1, '1.23');
+INSERT INTO ORA_BINARY_AGGREGATE_TEST VALUES(1, '-1.23');
+INSERT INTO ORA_BINARY_AGGREGATE_TEST VALUES(1, '1.23E-130');
+INSERT INTO ORA_BINARY_AGGREGATE_TEST VALUES(1, '-1.23E130');
+INSERT INTO ORA_BINARY_AGGREGATE_TEST VALUES(1, '-1.23E-130');
+INSERT INTO ORA_BINARY_AGGREGATE_TEST VALUES(1, '0');
+INSERT INTO ORA_BINARY_AGGREGATE_TEST VALUES(2, '1.23E130');
+INSERT INTO ORA_BINARY_AGGREGATE_TEST VALUES(2, '1.23');
+INSERT INTO ORA_BINARY_AGGREGATE_TEST VALUES(2, '-1.23');
+INSERT INTO ORA_BINARY_AGGREGATE_TEST VALUES(2, '1.23E-130');
+INSERT INTO ORA_BINARY_AGGREGATE_TEST VALUES(2, '-1.23E130');
+INSERT INTO ORA_BINARY_AGGREGATE_TEST VALUES(2, '-1.23E-130');
+INSERT INTO ORA_BINARY_AGGREGATE_TEST VALUES(2, '0');
+INSERT INTO ORA_BINARY_AGGREGATE_TEST VALUES(3, '1.23E130');
+INSERT INTO ORA_BINARY_AGGREGATE_TEST VALUES(3, '1.23');
+INSERT INTO ORA_BINARY_AGGREGATE_TEST VALUES(3, '-1.23');
+INSERT INTO ORA_BINARY_AGGREGATE_TEST VALUES(3, '1.23E-130');
+INSERT INTO ORA_BINARY_AGGREGATE_TEST VALUES(3, '-1.23E130');
+INSERT INTO ORA_BINARY_AGGREGATE_TEST VALUES(3, '-1.23E-130');
+INSERT INTO ORA_BINARY_AGGREGATE_TEST VALUES(3, '0');
+SELECT * FROM ORA_BINARY_AGGREGATE_TEST ORDER BY val, id;
+ ID |  VAL  
+----+-------
+  1 |  -Inf
+  2 |  -Inf
+  3 |  -Inf
+  1 | -1.23
+  2 | -1.23
+  3 | -1.23
+  1 |     0
+  1 |     0
+  1 |     0
+  2 |     0
+  2 |     0
+  2 |     0
+  3 |     0
+  3 |     0
+  3 |     0
+  1 |  1.23
+  2 |  1.23
+  3 |  1.23
+  1 |   Inf
+  2 |   Inf
+  3 |   Inf
+(21 rows)
+
+SELECT AVG(val) FROM ORA_BINARY_AGGREGATE_TEST GROUP BY id;
+ AVG 
+-----
+ NaN
+ NaN
+ NaN
+(3 rows)
+
+SELECT MIN(val) FROM ORA_BINARY_AGGREGATE_TEST GROUP BY id;
+ MIN  
+------
+ -Inf
+ -Inf
+ -Inf
+(3 rows)
+
+SELECT MAX(val) FROM ORA_BINARY_AGGREGATE_TEST GROUP BY id;
+ MAX 
+-----
+ Inf
+ Inf
+ Inf
+(3 rows)
+
+SELECT SUM(val) FROM ORA_BINARY_AGGREGATE_TEST GROUP BY id;
+ SUM 
+-----
+ NaN
+ NaN
+ NaN
+(3 rows)
+
+SELECT STDDEV(val) FROM ORA_BINARY_AGGREGATE_TEST GROUP BY id;
+ STDDEV 
+--------
+    NaN
+    NaN
+    NaN
+(3 rows)
+
+SELECT VARIANCE(val) FROM ORA_BINARY_AGGREGATE_TEST GROUP BY id;
+ VARIANCE 
+----------
+      NaN
+      NaN
+      NaN
+(3 rows)
+
+SELECT MEDIAN(val) FROM ORA_BINARY_AGGREGATE_TEST GROUP BY id;
+ERROR:  function MEDIAN(NUMERIC) does not exist
+LINE 1: SELECT MEDIAN(val) FROM ORA_BINARY_AGGREGATE_TEST GROUP BY i...
+               ^
+HINT:  No function matches the given name and argument types. You might need to add explicit type casts.
+DROP TABLE ORA_BINARY_AGGREGATE_TEST;
+-- end tapd: 115752535
+CREATE TABLE tb_numberic_range_inf_00(c0 BINARY_FLOAT, c1 BINARY_DOUBLE, c2 numeric);
+insert into tb_numberic_range_inf_00 values('-3.40282E+38', '1.79769313486231E+308' ,'1e125');
+insert into tb_numberic_range_inf_00 values('3.40282E+38', '-1.79769313486231E+308' ,'1e125');
+insert into tb_numberic_range_inf_00 values('3.40282E+38', '1.79769313486231E+308' ,'-1e-131');
+DROP TABLE tb_numberic_range_inf_00;
+CREATE TABLE NUMBER_PRECISION_SCALE_RANGE_TEST(c1 NUMBER(0));
+ERROR:  NUMERIC precision 0 must be between 1 and 38
+LINE 1: CREATE TABLE NUMBER_PRECISION_SCALE_RANGE_TEST(c1 NUMBER(0))...
+                                                          ^
+CREATE TABLE NUMBER_PRECISION_SCALE_RANGE_TEST(c1 NUMBER(39));
+ERROR:  NUMERIC precision 39 must be between 1 and 38
+LINE 1: CREATE TABLE NUMBER_PRECISION_SCALE_RANGE_TEST(c1 NUMBER(39)...
+                                                          ^
+CREATE TABLE NUMBER_PRECISION_SCALE_RANGE_TEST(c1 NUMBER(10, -85));
+ERROR:  NUMERIC scale -85 must be between -84 and 127
+LINE 1: CREATE TABLE NUMBER_PRECISION_SCALE_RANGE_TEST(c1 NUMBER(10,...
+                                                          ^
+CREATE TABLE NUMBER_PRECISION_SCALE_RANGE_TEST(c1 NUMBER(10, 128));
+ERROR:  NUMERIC scale 128 must be between -84 and 127
+LINE 1: CREATE TABLE NUMBER_PRECISION_SCALE_RANGE_TEST(c1 NUMBER(10,...
+                                                          ^
+-- start tapd: 124047403
+CREATE TABLE DECIMAL_TEST_124047403(col_1 NUMERIC, col_2 DECIMAL, col_3 DECIMAL(5, 3));
+INSERT INTO DECIMAL_TEST_124047403 VALUES(1, 1, 1);
+INSERT INTO DECIMAL_TEST_124047403 VALUES(1.123456, 1.123456, 1.123456);
+INSERT INTO DECIMAL_TEST_124047403 VALUES(3.45, 3.45, 3.45);
+SELECT * FROM DECIMAL_TEST_124047403 ORDER BY COL_1;
+  COL_1   | COL_2 | COL_3 
+----------+-------+-------
+        1 |     1 |     1
+ 1.123456 |     1 | 1.123
+     3.45 |     3 |  3.45
+(3 rows)
+
+DROP TABLE DECIMAL_TEST_124047403;
+-- end tapd: 124047403

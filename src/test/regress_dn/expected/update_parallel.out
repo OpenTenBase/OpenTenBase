@@ -1,0 +1,299 @@
+--
+-- parallel update tests
+--
+drop table if exists updatetest;
+NOTICE:  table "updatetest" does not exist, skipping
+CREATE TABLE updatetest (
+    unique1 int4,
+    a       int4,
+    b       int4,
+    c       int4,
+    d       int4,
+    e       int4
+);
+create index u_index on updatetest using BTREE(unique1);
+create index a_index on updatetest using BTREE(a);
+create index b_index on updatetest using BTREE(b);
+create index c_index on updatetest using BTREE(c);
+create index d_index on updatetest using BTREE(d);
+INSERT INTO updatetest(unique1, a, b, c, d, e)
+SELECT n,
+       n % 10,
+       n % 100,
+       n % 1000,
+       n + 100,
+       n + 200
+FROM generate_series(1,10000) AS n;
+drop table if exists paral_test1;
+NOTICE:  table "paral_test1" does not exist, skipping
+CREATE TABLE paral_test1 (
+    c1  int4,
+    c2  int4
+);
+INSERT INTO paral_test1(c1, c2)
+SELECT n % 10,
+       n % 100
+FROM generate_series(1,100) AS n;
+drop table if exists paral_test2;
+NOTICE:  table "paral_test2" does not exist, skipping
+CREATE TABLE paral_test2 (
+    x1  int4,
+    x2  int4
+);
+INSERT INTO paral_test2(x1, x2)
+SELECT n % 10 + 3,
+       n % 100 + 5
+FROM generate_series(1,100) AS n;
+set enable_parallel_update = on;
+set parallel_tuple_cost = 0;
+set parallel_setup_cost = 0;
+set min_parallel_table_scan_size = 0;
+set enable_indexscan = off;
+SET enable_bitmapscan = OFF;
+set max_parallel_workers_per_gather=4;
+-- parallel plan test
+explain (costs off) update updatetest set a = a + 1;
+                 QUERY PLAN                  
+---------------------------------------------
+ Gather
+   Workers Planned: 4
+   ->  Parallel Update on updatetest
+         ->  Parallel Seq Scan on updatetest
+(4 rows)
+
+explain (costs off) update updatetest set b = b + 1 where b > 50;
+                 QUERY PLAN                  
+---------------------------------------------
+ Gather
+   Workers Planned: 4
+   ->  Parallel Update on updatetest
+         ->  Parallel Seq Scan on updatetest
+               Filter: (b > 50)
+(5 rows)
+
+explain (costs off) update updatetest set c = c + 1;
+                 QUERY PLAN                  
+---------------------------------------------
+ Gather
+   Workers Planned: 4
+   ->  Parallel Update on updatetest
+         ->  Parallel Seq Scan on updatetest
+(4 rows)
+
+explain (costs off) update updatetest set d = d + 1 where d > 10;
+                 QUERY PLAN                  
+---------------------------------------------
+ Gather
+   Workers Planned: 4
+   ->  Parallel Update on updatetest
+         ->  Parallel Seq Scan on updatetest
+               Filter: (d > 10)
+(5 rows)
+
+-- update
+update updatetest set a = a + 1 ;
+update updatetest set b = b + 1 where b > 5;
+update updatetest set c = c + 1;
+update updatetest set d = d + 1 where d > 10;
+-- heap update check
+select * from updatetest order by unique1 limit 10;
+ unique1 | a  | b  | c  |  d  |  e  
+---------+----+----+----+-----+-----
+       1 |  2 |  1 |  2 | 102 | 201
+       2 |  3 |  2 |  3 | 103 | 202
+       3 |  4 |  3 |  4 | 104 | 203
+       4 |  5 |  4 |  5 | 105 | 204
+       5 |  6 |  5 |  6 | 106 | 205
+       6 |  7 |  7 |  7 | 107 | 206
+       7 |  8 |  8 |  8 | 108 | 207
+       8 |  9 |  9 |  9 | 109 | 208
+       9 | 10 | 10 | 10 | 110 | 209
+      10 |  1 | 11 | 11 | 111 | 210
+(10 rows)
+
+-- force index scan
+SET enable_seqscan = OFF;
+SET enable_indexscan = ON;
+SET enable_bitmapscan = OFF;
+-- index update check
+select * from updatetest where unique1 = 20;
+ unique1 | a | b  | c  |  d  |  e  
+---------+---+----+----+-----+-----
+      20 | 1 | 21 | 21 | 121 | 220
+(1 row)
+
+select * from updatetest where a = 5 order by unique1 limit 10;
+ unique1 | a | b  | c  |  d  |  e  
+---------+---+----+----+-----+-----
+       4 | 5 |  4 |  5 | 105 | 204
+      14 | 5 | 15 | 15 | 115 | 214
+      24 | 5 | 25 | 25 | 125 | 224
+      34 | 5 | 35 | 35 | 135 | 234
+      44 | 5 | 45 | 45 | 145 | 244
+      54 | 5 | 55 | 55 | 155 | 254
+      64 | 5 | 65 | 65 | 165 | 264
+      74 | 5 | 75 | 75 | 175 | 274
+      84 | 5 | 85 | 85 | 185 | 284
+      94 | 5 | 95 | 95 | 195 | 294
+(10 rows)
+
+select * from updatetest where b = 90 order by unique1 limit 10;
+ unique1 | a  | b  |  c  |  d   |  e   
+---------+----+----+-----+------+------
+      89 | 10 | 90 |  90 |  190 |  289
+     189 | 10 | 90 | 190 |  290 |  389
+     289 | 10 | 90 | 290 |  390 |  489
+     389 | 10 | 90 | 390 |  490 |  589
+     489 | 10 | 90 | 490 |  590 |  689
+     589 | 10 | 90 | 590 |  690 |  789
+     689 | 10 | 90 | 690 |  790 |  889
+     789 | 10 | 90 | 790 |  890 |  989
+     889 | 10 | 90 | 890 |  990 | 1089
+     989 | 10 | 90 | 990 | 1090 | 1189
+(10 rows)
+
+-- complex update
+SET enable_seqscan to default;
+SET enable_indexscan = OFF;
+SET enable_bitmapscan = OFF;
+SET enable_mergejoin = OFF;
+explain (costs off) update updatetest set d = 99999 from paral_test1 where unique1 = c1;
+                           QUERY PLAN                           
+----------------------------------------------------------------
+ Gather
+   Workers Planned: 4
+   ->  Parallel Update on updatetest
+         ->  Parallel Hash Join
+               Hash Cond: (updatetest.unique1 = paral_test1.c1)
+               ->  Parallel Seq Scan on updatetest
+               ->  Parallel Hash
+                     ->  Parallel Seq Scan on paral_test1
+(8 rows)
+
+explain (costs off) update updatetest L set d = L.e - (select sum(c1) from paral_test1, paral_test2 where c2 = x2 );
+                                QUERY PLAN                                
+--------------------------------------------------------------------------
+ Gather
+   Workers Planned: 4
+   Params Evaluated: $1
+   InitPlan 1 (returns $1)
+     ->  Finalize Aggregate
+           ->  Gather
+                 Workers Planned: 3
+                 ->  Partial Aggregate
+                       ->  Parallel Hash Join
+                             Hash Cond: (paral_test1.c2 = paral_test2.x2)
+                             ->  Parallel Seq Scan on paral_test1
+                             ->  Parallel Hash
+                                   ->  Parallel Seq Scan on paral_test2
+   ->  Parallel Update on updatetest l
+         ->  Parallel Seq Scan on updatetest l
+(15 rows)
+
+explain (costs off) update updatetest L set d = L.e - (select min(c1) from paral_test1, paral_test2 where c2 = x2 and c = paral_test2.x2);
+                       QUERY PLAN                        
+---------------------------------------------------------
+ Update on updatetest l
+   ->  Gather
+         Workers Planned: 4
+         ->  Parallel Seq Scan on updatetest l
+         SubPlan 1
+           ->  Aggregate
+                 ->  Nested Loop
+                       ->  Seq Scan on paral_test1
+                             Filter: (c2 = l.c)
+                       ->  Materialize
+                             ->  Seq Scan on paral_test2
+                                   Filter: (x2 = l.c)
+(12 rows)
+
+explain (costs off) update updatetest L set d = L.e - (select min(c1) from paral_test1, paral_test2 where c2 = x1 and c = paral_test2.x2) where L.b = (select c2 from paral_test1 where L.a = c2);
+                                      QUERY PLAN                                      
+--------------------------------------------------------------------------------------
+ Update on updatetest l
+   ->  Gather
+         Workers Planned: 4
+         ->  Parallel Hash Left Scalar Join
+               Hash Cond: (l.a = paral_test1.c2)
+               Filter: (l.b = paral_test1.c2)
+               ->  Parallel Seq Scan on updatetest l
+               ->  Parallel Hash
+                     ->  Parallel Seq Scan on paral_test1
+         SubPlan 1
+           ->  Aggregate
+                 ->  Hash Join
+                       Hash Cond: (paral_test2.x1 = paral_test1_1.c2)
+                       ->  Seq Scan on paral_test2
+                             Filter: (l.c = x2)
+                       ->  Hash
+                             ->  Gather
+                                   Workers Planned: 3
+                                   ->  Parallel Seq Scan on paral_test1 paral_test1_1
+(19 rows)
+
+update updatetest set d = 99999 from paral_test1 where unique1 = c1;
+select * from updatetest where d = 99999 order by unique1;
+ unique1 | a  | b  | c  |   d   |  e  
+---------+----+----+----+-------+-----
+       1 |  2 |  1 |  2 | 99999 | 201
+       2 |  3 |  2 |  3 | 99999 | 202
+       3 |  4 |  3 |  4 | 99999 | 203
+       4 |  5 |  4 |  5 | 99999 | 204
+       5 |  6 |  5 |  6 | 99999 | 205
+       6 |  7 |  7 |  7 | 99999 | 206
+       7 |  8 |  8 |  8 | 99999 | 207
+       8 |  9 |  9 |  9 | 99999 | 208
+       9 | 10 | 10 | 10 | 99999 | 209
+(9 rows)
+
+update updatetest L set d = L.e - (select sum(c1) from paral_test1, paral_test2 where c2 = x2 );
+select * from updatetest order by unique1 limit 10;
+ unique1 | a  | b  | c  |  d   |  e  
+---------+----+----+----+------+-----
+       1 |  2 |  1 |  2 | -239 | 201
+       2 |  3 |  2 |  3 | -238 | 202
+       3 |  4 |  3 |  4 | -237 | 203
+       4 |  5 |  4 |  5 | -236 | 204
+       5 |  6 |  5 |  6 | -235 | 205
+       6 |  7 |  7 |  7 | -234 | 206
+       7 |  8 |  8 |  8 | -233 | 207
+       8 |  9 |  9 |  9 | -232 | 208
+       9 | 10 | 10 | 10 | -231 | 209
+      10 |  1 | 11 | 11 | -230 | 210
+(10 rows)
+
+update updatetest L set d = L.e - (select min(c1) from paral_test1, paral_test2 where c2 = x2 and c = paral_test2.x2);
+select * from updatetest order by unique1 limit 10;
+ unique1 | a  | b  | c  |  d  |  e  
+---------+----+----+----+-----+-----
+       1 |  2 |  1 |  2 |     | 201
+       2 |  3 |  2 |  3 |     | 202
+       3 |  4 |  3 |  4 |     | 203
+       4 |  5 |  4 |  5 | 199 | 204
+       5 |  6 |  5 |  6 | 199 | 205
+       6 |  7 |  7 |  7 | 199 | 206
+       7 |  8 |  8 |  8 | 199 | 207
+       8 |  9 |  9 |  9 | 199 | 208
+       9 | 10 | 10 | 10 | 209 | 209
+      10 |  1 | 11 | 11 | 209 | 210
+(10 rows)
+
+update updatetest L set d = L.e - (select min(c1) from paral_test1, paral_test2 where c2 = x1 and c = paral_test2.x2) where L.b = (select c2 from paral_test1 where L.a = c2);
+select * from updatetest order by unique1 limit 10;
+ unique1 | a  | b  | c  |  d  |  e  
+---------+----+----+----+-----+-----
+       1 |  2 |  1 |  2 |     | 201
+       2 |  3 |  2 |  3 |     | 202
+       3 |  4 |  3 |  4 |     | 203
+       4 |  5 |  4 |  5 | 199 | 204
+       5 |  6 |  5 |  6 | 199 | 205
+       6 |  7 |  7 |  7 | 201 | 206
+       7 |  8 |  8 |  8 | 201 | 207
+       8 |  9 |  9 |  9 | 201 | 208
+       9 | 10 | 10 | 10 | 201 | 209
+      10 |  1 | 11 | 11 | 209 | 210
+(10 rows)
+
+drop table updatetest;
+drop table paral_test1;
+drop table paral_test2;

@@ -163,4 +163,39 @@ EXPLAIN (ANALYZE, COSTS OFF, SUMMARY OFF, TIMING OFF)
 UPDATE tidscan SET id = -id WHERE CURRENT OF c RETURNING *;
 ERROR:  current transaction is aborted, commands ignored until end of transaction block
 ROLLBACK;
+-- bugfix:ID121512763
+set enable_fast_query_shipping to on;
+SELECT ctid, * FROM tidscan WHERE ctid = '(0,1)';
+ ctid  | id 
+-------+----
+ (0,1) |  1
+(1 row)
+
+EXPLAIN (COSTS OFF)
+SELECT ctid, * FROM tidscan WHERE ctid = '(0,1)';
+               QUERY PLAN                
+-----------------------------------------
+ Remote Fast Query Execution
+   Node/s: datanode_1
+   ->  Tid Scan on tidscan
+         TID Cond: (ctid = '(0,1)'::tid)
+(4 rows)
+
+set enable_fast_query_shipping to off;
+SELECT ctid, * FROM tidscan WHERE ctid = '(0,1)';
+ ctid  | id 
+-------+----
+ (0,1) |  1
+(1 row)
+
+EXPLAIN (COSTS OFF)
+SELECT ctid, * FROM tidscan WHERE ctid = '(0,1)';
+                QUERY PLAN                 
+-------------------------------------------
+ Remote Subquery Scan on all (datanodes 1)
+   ->  Tid Scan on tidscan
+         TID Cond: (ctid = '(0,1)'::tid)
+(3 rows)
+
+reset enable_fast_query_shipping;
 DROP TABLE tidscan;

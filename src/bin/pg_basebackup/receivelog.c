@@ -1,14 +1,14 @@
 /*-------------------------------------------------------------------------
  *
  * receivelog.c - receive WAL files using the streaming
- *                  replication protocol.
+ *				  replication protocol.
  *
  * Author: Magnus Hagander <magnus@hagander.net>
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *          src/bin/pg_basebackup/receivelog.c
+ *		  src/bin/pg_basebackup/receivelog.c
  *-------------------------------------------------------------------------
  */
 
@@ -35,47 +35,47 @@ static char current_walfile_name[MAXPGPATH] = "";
 static bool reportFlushPosition = false;
 static XLogRecPtr lastFlushPosition = InvalidXLogRecPtr;
 
-static bool still_sending = true;    /* feedback still needs to be sent? */
+static bool still_sending = true;	/* feedback still needs to be sent? */
 
 static PGresult *HandleCopyStream(PGconn *conn, StreamCtl *stream,
-                 XLogRecPtr *stoppos);
-static int    CopyStreamPoll(PGconn *conn, long timeout_ms, pgsocket stop_socket);
+				 XLogRecPtr *stoppos);
+static int	CopyStreamPoll(PGconn *conn, long timeout_ms, pgsocket stop_socket);
 static int CopyStreamReceive(PGconn *conn, long timeout, pgsocket stop_socket,
-                  char **buffer);
+				  char **buffer);
 static bool ProcessKeepaliveMsg(PGconn *conn, StreamCtl *stream, char *copybuf,
-                    int len, XLogRecPtr blockpos, TimestampTz *last_status);
+					int len, XLogRecPtr blockpos, TimestampTz *last_status);
 static bool ProcessXLogDataMsg(PGconn *conn, StreamCtl *stream, char *copybuf, int len,
-                   XLogRecPtr *blockpos);
+				   XLogRecPtr *blockpos);
 static PGresult *HandleEndOfCopyStream(PGconn *conn, StreamCtl *stream, char *copybuf,
-                      XLogRecPtr blockpos, XLogRecPtr *stoppos);
+					  XLogRecPtr blockpos, XLogRecPtr *stoppos);
 static bool CheckCopyStreamStop(PGconn *conn, StreamCtl *stream, XLogRecPtr blockpos,
-                    XLogRecPtr *stoppos);
+					XLogRecPtr *stoppos);
 static long CalculateCopyStreamSleeptime(TimestampTz now, int standby_message_timeout,
-                             TimestampTz last_status);
+							 TimestampTz last_status);
 
 static bool ReadEndOfStreamingResult(PGresult *res, XLogRecPtr *startpos,
-                         uint32 *timeline);
+						 uint32 *timeline);
 
 static bool
 mark_file_as_archived(StreamCtl *stream, const char *fname)
 {
-    Walfile    *f;
-    static char tmppath[MAXPGPATH];
+	Walfile    *f;
+	static char tmppath[MAXPGPATH];
 
-    snprintf(tmppath, sizeof(tmppath), "archive_status/%s.done",
-             fname);
+	snprintf(tmppath, sizeof(tmppath), "archive_status/%s.done",
+			 fname);
 
-    f = stream->walmethod->open_for_write(tmppath, NULL, 0);
-    if (f == NULL)
-    {
-        fprintf(stderr, _("%s: could not create archive status file \"%s\": %s\n"),
-                progname, tmppath, stream->walmethod->getlasterror());
-        return false;
-    }
+	f = stream->walmethod->open_for_write(tmppath, NULL, 0);
+	if (f == NULL)
+	{
+		fprintf(stderr, _("%s: could not create archive status file \"%s\": %s\n"),
+				progname, tmppath, stream->walmethod->getlasterror());
+		return false;
+	}
 
-    stream->walmethod->close(f, CLOSE_NORMAL);
+	stream->walmethod->close(f, CLOSE_NORMAL);
 
-    return true;
+	return true;
 }
 
 /*
@@ -89,90 +89,90 @@ mark_file_as_archived(StreamCtl *stream, const char *fname)
  */
 static bool
 open_walfile(StreamCtl *stream, XLogRecPtr startpoint)
-{// #lizard forgives
-    Walfile    *f;
-    char        fn[MAXPGPATH];
-    ssize_t        size;
-    XLogSegNo    segno;
+{
+	Walfile    *f;
+	char		fn[MAXPGPATH];
+	ssize_t		size;
+	XLogSegNo	segno;
 
-    XLByteToSeg(startpoint, segno);
-    XLogFileName(current_walfile_name, stream->timeline, segno);
+	XLByteToSeg(startpoint, segno);
+	XLogFileName(current_walfile_name, stream->timeline, segno);
 
-    snprintf(fn, sizeof(fn), "%s%s", current_walfile_name,
-             stream->partial_suffix ? stream->partial_suffix : "");
+	snprintf(fn, sizeof(fn), "%s%s", current_walfile_name,
+			 stream->partial_suffix ? stream->partial_suffix : "");
 
-    /*
-     * When streaming to files, if an existing file exists we verify that it's
-     * either empty (just created), or a complete XLogSegSize segment (in
-     * which case it has been created and padded). Anything else indicates a
-     * corrupt file.
-     *
-     * When streaming to tar, no file with this name will exist before, so we
-     * never have to verify a size.
-     */
-    if (stream->walmethod->existsfile(fn))
-    {
-        size = stream->walmethod->get_file_size(fn);
-        if (size < 0)
-        {
-            fprintf(stderr,
-                    _("%s: could not get size of write-ahead log file \"%s\": %s\n"),
-                    progname, fn, stream->walmethod->getlasterror());
-            return false;
-        }
-        if (size == XLogSegSize)
-        {
-            /* Already padded file. Open it for use */
-            f = stream->walmethod->open_for_write(current_walfile_name, stream->partial_suffix, 0);
-            if (f == NULL)
-            {
-                fprintf(stderr,
-                        _("%s: could not open existing write-ahead log file \"%s\": %s\n"),
-                        progname, fn, stream->walmethod->getlasterror());
-                return false;
-            }
+	/*
+	 * When streaming to files, if an existing file exists we verify that it's
+	 * either empty (just created), or a complete XLogSegSize segment (in
+	 * which case it has been created and padded). Anything else indicates a
+	 * corrupt file.
+	 *
+	 * When streaming to tar, no file with this name will exist before, so we
+	 * never have to verify a size.
+	 */
+	if (stream->walmethod->existsfile(fn))
+	{
+		size = stream->walmethod->get_file_size(fn);
+		if (size < 0)
+		{
+			fprintf(stderr,
+					_("%s: could not get size of write-ahead log file \"%s\": %s\n"),
+					progname, fn, stream->walmethod->getlasterror());
+			return false;
+		}
+		if (size == XLogSegSize)
+		{
+			/* Already padded file. Open it for use */
+			f = stream->walmethod->open_for_write(current_walfile_name, stream->partial_suffix, 0);
+			if (f == NULL)
+			{
+				fprintf(stderr,
+						_("%s: could not open existing write-ahead log file \"%s\": %s\n"),
+						progname, fn, stream->walmethod->getlasterror());
+				return false;
+			}
 
-            /* fsync file in case of a previous crash */
-            if (stream->walmethod->sync(f) != 0)
-            {
-                fprintf(stderr,
-                        _("%s: could not fsync existing write-ahead log file \"%s\": %s\n"),
-                        progname, fn, stream->walmethod->getlasterror());
-                stream->walmethod->close(f, CLOSE_UNLINK);
-                return false;
-            }
+			/* fsync file in case of a previous crash */
+			if (stream->walmethod->sync(f) != 0)
+			{
+				fprintf(stderr,
+						_("%s: could not fsync existing write-ahead log file \"%s\": %s\n"),
+						progname, fn, stream->walmethod->getlasterror());
+				stream->walmethod->close(f, CLOSE_UNLINK);
+				return false;
+			}
 
-            walfile = f;
-            return true;
-        }
-        if (size != 0)
-        {
-            /* if write didn't set errno, assume problem is no disk space */
-            if (errno == 0)
-                errno = ENOSPC;
-            fprintf(stderr,
-                    ngettext("%s: write-ahead log file \"%s\" has %d byte, should be 0 or %d\n",
-                             "%s: write-ahead log file \"%s\" has %d bytes, should be 0 or %d\n",
-                             size),
-                    progname, fn, (int) size, XLogSegSize);
-            return false;
-        }
-        /* File existed and was empty, so fall through and open */
-    }
+			walfile = f;
+			return true;
+		}
+		if (size != 0)
+		{
+			/* if write didn't set errno, assume problem is no disk space */
+			if (errno == 0)
+				errno = ENOSPC;
+			fprintf(stderr,
+					ngettext("%s: write-ahead log file \"%s\" has %d byte, should be 0 or %d\n",
+							 "%s: write-ahead log file \"%s\" has %d bytes, should be 0 or %d\n",
+							 size),
+					progname, fn, (int) size, XLogSegSize);
+			return false;
+		}
+		/* File existed and was empty, so fall through and open */
+	}
 
-    /* No file existed, so create one */
+	/* No file existed, so create one */
 
-    f = stream->walmethod->open_for_write(current_walfile_name, stream->partial_suffix, XLogSegSize);
-    if (f == NULL)
-    {
-        fprintf(stderr,
-                _("%s: could not open write-ahead log file \"%s\": %s\n"),
-                progname, fn, stream->walmethod->getlasterror());
-        return false;
-    }
+	f = stream->walmethod->open_for_write(current_walfile_name, stream->partial_suffix, XLogSegSize);
+	if (f == NULL)
+	{
+		fprintf(stderr,
+				_("%s: could not open write-ahead log file \"%s\": %s\n"),
+				progname, fn, stream->walmethod->getlasterror());
+		return false;
+	}
 
-    walfile = f;
-    return true;
+	walfile = f;
+	return true;
 }
 
 /*
@@ -182,64 +182,64 @@ open_walfile(StreamCtl *stream, XLogRecPtr startpoint)
  */
 static bool
 close_walfile(StreamCtl *stream, XLogRecPtr pos)
-{// #lizard forgives
-    off_t        currpos;
-    int            r;
+{
+	off_t		currpos;
+	int			r;
 
-    if (walfile == NULL)
-        return true;
+	if (walfile == NULL)
+		return true;
 
-    currpos = stream->walmethod->get_current_pos(walfile);
-    if (currpos == -1)
-    {
-        fprintf(stderr,
-                _("%s: could not determine seek position in file \"%s\": %s\n"),
-                progname, current_walfile_name, stream->walmethod->getlasterror());
-        stream->walmethod->close(walfile, CLOSE_UNLINK);
-        walfile = NULL;
+	currpos = stream->walmethod->get_current_pos(walfile);
+	if (currpos == -1)
+	{
+		fprintf(stderr,
+				_("%s: could not determine seek position in file \"%s\": %s\n"),
+				progname, current_walfile_name, stream->walmethod->getlasterror());
+		stream->walmethod->close(walfile, CLOSE_UNLINK);
+		walfile = NULL;
 
-        return false;
-    }
+		return false;
+	}
 
-    if (stream->partial_suffix)
-    {
-        if (currpos == XLOG_SEG_SIZE)
-            r = stream->walmethod->close(walfile, CLOSE_NORMAL);
-        else
-        {
-            fprintf(stderr,
-                    _("%s: not renaming \"%s%s\", segment is not complete\n"),
-                    progname, current_walfile_name, stream->partial_suffix);
-            r = stream->walmethod->close(walfile, CLOSE_NO_RENAME);
-        }
-    }
-    else
-        r = stream->walmethod->close(walfile, CLOSE_NORMAL);
+	if (stream->partial_suffix)
+	{
+		if (currpos == XLOG_SEG_SIZE)
+			r = stream->walmethod->close(walfile, CLOSE_NORMAL);
+		else
+		{
+			fprintf(stderr,
+					_("%s: not renaming \"%s%s\", segment is not complete\n"),
+					progname, current_walfile_name, stream->partial_suffix);
+			r = stream->walmethod->close(walfile, CLOSE_NO_RENAME);
+		}
+	}
+	else
+		r = stream->walmethod->close(walfile, CLOSE_NORMAL);
 
-    walfile = NULL;
+	walfile = NULL;
 
-    if (r != 0)
-    {
-        fprintf(stderr, _("%s: could not close file \"%s\": %s\n"),
-                progname, current_walfile_name, stream->walmethod->getlasterror());
-        return false;
-    }
+	if (r != 0)
+	{
+		fprintf(stderr, _("%s: could not close file \"%s\": %s\n"),
+				progname, current_walfile_name, stream->walmethod->getlasterror());
+		return false;
+	}
 
-    /*
-     * Mark file as archived if requested by the caller - pg_basebackup needs
-     * to do so as files can otherwise get archived again after promotion of a
-     * new node. This is in line with walreceiver.c always doing a
-     * XLogArchiveForceDone() after a complete segment.
-     */
-    if (currpos == XLOG_SEG_SIZE && stream->mark_done)
-    {
-        /* writes error message if failed */
-        if (!mark_file_as_archived(stream, current_walfile_name))
-            return false;
-    }
+	/*
+	 * Mark file as archived if requested by the caller - pg_basebackup needs
+	 * to do so as files can otherwise get archived again after promotion of a
+	 * new node. This is in line with walreceiver.c always doing a
+	 * XLogArchiveForceDone() after a complete segment.
+	 */
+	if (currpos == XLOG_SEG_SIZE && stream->mark_done)
+	{
+		/* writes error message if failed */
+		if (!mark_file_as_archived(stream, current_walfile_name))
+			return false;
+	}
 
-    lastFlushPosition = pos;
-    return true;
+	lastFlushPosition = pos;
+	return true;
 }
 
 
@@ -249,76 +249,76 @@ close_walfile(StreamCtl *stream, XLogRecPtr pos)
 static bool
 existsTimeLineHistoryFile(StreamCtl *stream)
 {
-    char        histfname[MAXFNAMELEN];
+	char		histfname[MAXFNAMELEN];
 
-    /*
-     * Timeline 1 never has a history file. We treat that as if it existed,
-     * since we never need to stream it.
-     */
-    if (stream->timeline == 1)
-        return true;
+	/*
+	 * Timeline 1 never has a history file. We treat that as if it existed,
+	 * since we never need to stream it.
+	 */
+	if (stream->timeline == 1)
+		return true;
 
-    TLHistoryFileName(histfname, stream->timeline);
+	TLHistoryFileName(histfname, stream->timeline);
 
-    return stream->walmethod->existsfile(histfname);
+	return stream->walmethod->existsfile(histfname);
 }
 
 static bool
 writeTimeLineHistoryFile(StreamCtl *stream, char *filename, char *content)
 {
-    int            size = strlen(content);
-    char        histfname[MAXFNAMELEN];
-    Walfile    *f;
+	int			size = strlen(content);
+	char		histfname[MAXFNAMELEN];
+	Walfile    *f;
 
-    /*
-     * Check that the server's idea of how timeline history files should be
-     * named matches ours.
-     */
-    TLHistoryFileName(histfname, stream->timeline);
-    if (strcmp(histfname, filename) != 0)
-    {
-        fprintf(stderr, _("%s: server reported unexpected history file name for timeline %u: %s\n"),
-                progname, stream->timeline, filename);
-        return false;
-    }
+	/*
+	 * Check that the server's idea of how timeline history files should be
+	 * named matches ours.
+	 */
+	TLHistoryFileName(histfname, stream->timeline);
+	if (strcmp(histfname, filename) != 0)
+	{
+		fprintf(stderr, _("%s: server reported unexpected history file name for timeline %u: %s\n"),
+				progname, stream->timeline, filename);
+		return false;
+	}
 
-    f = stream->walmethod->open_for_write(histfname, ".tmp", 0);
-    if (f == NULL)
-    {
-        fprintf(stderr, _("%s: could not create timeline history file \"%s\": %s\n"),
-                progname, histfname, stream->walmethod->getlasterror());
-        return false;
-    }
+	f = stream->walmethod->open_for_write(histfname, ".tmp", 0);
+	if (f == NULL)
+	{
+		fprintf(stderr, _("%s: could not create timeline history file \"%s\": %s\n"),
+				progname, histfname, stream->walmethod->getlasterror());
+		return false;
+	}
 
-    if ((int) stream->walmethod->write(f, content, size) != size)
-    {
-        fprintf(stderr, _("%s: could not write timeline history file \"%s\": %s\n"),
-                progname, histfname, stream->walmethod->getlasterror());
+	if ((int) stream->walmethod->write(f, content, size) != size)
+	{
+		fprintf(stderr, _("%s: could not write timeline history file \"%s\": %s\n"),
+				progname, histfname, stream->walmethod->getlasterror());
 
-        /*
-         * If we fail to make the file, delete it to release disk space
-         */
-        stream->walmethod->close(f, CLOSE_UNLINK);
+		/*
+		 * If we fail to make the file, delete it to release disk space
+		 */
+		stream->walmethod->close(f, CLOSE_UNLINK);
 
-        return false;
-    }
+		return false;
+	}
 
-    if (stream->walmethod->close(f, CLOSE_NORMAL) != 0)
-    {
-        fprintf(stderr, _("%s: could not close file \"%s\": %s\n"),
-                progname, histfname, stream->walmethod->getlasterror());
-        return false;
-    }
+	if (stream->walmethod->close(f, CLOSE_NORMAL) != 0)
+	{
+		fprintf(stderr, _("%s: could not close file \"%s\": %s\n"),
+				progname, histfname, stream->walmethod->getlasterror());
+		return false;
+	}
 
-    /* Maintain archive_status, check close_walfile() for details. */
-    if (stream->mark_done)
-    {
-        /* writes error message if failed */
-        if (!mark_file_as_archived(stream, histfname))
-            return false;
-    }
+	/* Maintain archive_status, check close_walfile() for details. */
+	if (stream->mark_done)
+	{
+		/* writes error message if failed */
+		if (!mark_file_as_archived(stream, histfname))
+			return false;
+	}
 
-    return true;
+	return true;
 }
 
 /*
@@ -327,38 +327,38 @@ writeTimeLineHistoryFile(StreamCtl *stream, char *filename, char *content)
 static bool
 sendFeedback(PGconn *conn, XLogRecPtr blockpos, TimestampTz now, bool replyRequested)
 {
-    char        replybuf[1 + 8 + 8 + 8 + 8 + 1 + 1];
-    int            len = 0;
+	char		replybuf[1 + 8 + 8 + 8 + 8 + 1 + 1];
+	int			len = 0;
 
-    replybuf[len] = 'r';
-    len += 1;
-    fe_sendint64(blockpos, &replybuf[len]); /* write */
-    len += 8;
-    if (reportFlushPosition)
-        fe_sendint64(lastFlushPosition, &replybuf[len]);    /* flush */
-    else
-        fe_sendint64(InvalidXLogRecPtr, &replybuf[len]);    /* flush */
-    len += 8;
-    fe_sendint64(InvalidXLogRecPtr, &replybuf[len]);    /* apply */
-    len += 8;
-    fe_sendint64(now, &replybuf[len]);    /* sendTime */
-    len += 8;
-    replybuf[len] = replyRequested ? 1 : 0; /* replyRequested */
-    len += 1;
+	replybuf[len] = 'r';
+	len += 1;
+	fe_sendint64(blockpos, &replybuf[len]); /* write */
+	len += 8;
+	if (reportFlushPosition)
+		fe_sendint64(lastFlushPosition, &replybuf[len]);	/* flush */
+	else
+		fe_sendint64(InvalidXLogRecPtr, &replybuf[len]);	/* flush */
+	len += 8;
+	fe_sendint64(InvalidXLogRecPtr, &replybuf[len]);	/* apply */
+	len += 8;
+	fe_sendint64(now, &replybuf[len]);	/* sendTime */
+	len += 8;
+	replybuf[len] = replyRequested ? 1 : 0; /* replyRequested */
+	len += 1;
 
 #ifdef __SUBSCRIPTION__
-    replybuf[len] = 1;    /* i am just a tool, so is_all_actived is true as default value */
-    len += 1;
+	replybuf[len] = 1;	/* i am just a tool, so is_all_actived is true as default value */
+	len += 1;
 #endif
 
-    if (PQputCopyData(conn, replybuf, len) <= 0 || PQflush(conn))
-    {
-        fprintf(stderr, _("%s: could not send feedback packet: %s"),
-                progname, PQerrorMessage(conn));
-        return false;
-    }
+	if (PQputCopyData(conn, replybuf, len) <= 0 || PQflush(conn))
+	{
+		fprintf(stderr, _("%s: could not send feedback packet: %s"),
+				progname, PQerrorMessage(conn));
+		return false;
+	}
 
-    return true;
+	return true;
 }
 
 /*
@@ -370,40 +370,40 @@ sendFeedback(PGconn *conn, XLogRecPtr blockpos, TimestampTz now, bool replyReque
 bool
 CheckServerVersionForStreaming(PGconn *conn)
 {
-    int            minServerMajor,
-                maxServerMajor;
-    int            serverMajor;
+	int			minServerMajor,
+				maxServerMajor;
+	int			serverMajor;
 
-    /*
-     * The message format used in streaming replication changed in 9.3, so we
-     * cannot stream from older servers. And we don't support servers newer
-     * than the client; it might work, but we don't know, so err on the safe
-     * side.
-     */
-    minServerMajor = 903;
-    maxServerMajor = PG_VERSION_NUM / 100;
-    serverMajor = PQserverVersion(conn) / 100;
-    if (serverMajor < minServerMajor)
-    {
-        const char *serverver = PQparameterStatus(conn, "server_version");
+	/*
+	 * The message format used in streaming replication changed in 9.3, so we
+	 * cannot stream from older servers. And we don't support servers newer
+	 * than the client; it might work, but we don't know, so err on the safe
+	 * side.
+	 */
+	minServerMajor = 903;
+	maxServerMajor = PG_VERSION_NUM / 100;
+	serverMajor = PQserverVersion(conn) / 100;
+	if (serverMajor < minServerMajor)
+	{
+		const char *serverver = PQparameterStatus(conn, "server_version");
 
-        fprintf(stderr, _("%s: incompatible server version %s; client does not support streaming from server versions older than %s\n"),
-                progname,
-                serverver ? serverver : "'unknown'",
-                "9.3");
-        return false;
-    }
-    else if (serverMajor > maxServerMajor)
-    {
-        const char *serverver = PQparameterStatus(conn, "server_version");
+		fprintf(stderr, _("%s: incompatible server version %s; client does not support streaming from server versions older than %s\n"),
+				progname,
+				serverver ? serverver : "'unknown'",
+				"9.3");
+		return false;
+	}
+	else if (serverMajor > maxServerMajor)
+	{
+		const char *serverver = PQparameterStatus(conn, "server_version");
 
-        fprintf(stderr, _("%s: incompatible server version %s; client does not support streaming from server versions newer than %s\n"),
-                progname,
-                serverver ? serverver : "'unknown'",
-                PG_VERSION);
-        return false;
-    }
-    return true;
+		fprintf(stderr, _("%s: incompatible server version %s; client does not support streaming from server versions newer than %s\n"),
+				progname,
+				serverver ? serverver : "'unknown'",
+				PG_VERSION);
+		return false;
+	}
+	return true;
 }
 
 /*
@@ -449,277 +449,277 @@ CheckServerVersionForStreaming(PGconn *conn)
  */
 bool
 ReceiveXlogStream(PGconn *conn, StreamCtl *stream)
-{// #lizard forgives
-    char        query[128];
-    char        slotcmd[128];
-    PGresult   *res;
-    XLogRecPtr    stoppos;
+{
+	char		query[128];
+	char		slotcmd[128];
+	PGresult   *res;
+	XLogRecPtr	stoppos;
 
-    /*
-     * The caller should've checked the server version already, but doesn't do
-     * any harm to check it here too.
-     */
-    if (!CheckServerVersionForStreaming(conn))
-        return false;
+	/*
+	 * The caller should've checked the server version already, but doesn't do
+	 * any harm to check it here too.
+	 */
+	if (!CheckServerVersionForStreaming(conn))
+		return false;
 
-    /*
-     * Decide whether we want to report the flush position. If we report the
-     * flush position, the primary will know what WAL we'll possibly
-     * re-request, and it can then remove older WAL safely. We must always do
-     * that when we are using slots.
-     *
-     * Reporting the flush position makes one eligible as a synchronous
-     * replica. People shouldn't include generic names in
-     * synchronous_standby_names, but we've protected them against it so far,
-     * so let's continue to do so unless specifically requested.
-     */
-    if (stream->replication_slot != NULL)
-    {
-        reportFlushPosition = true;
-        sprintf(slotcmd, "SLOT \"%s\" ", stream->replication_slot);
-    }
-    else
-    {
-        if (stream->synchronous)
-            reportFlushPosition = true;
-        else
-            reportFlushPosition = false;
-        slotcmd[0] = 0;
-    }
+	/*
+	 * Decide whether we want to report the flush position. If we report the
+	 * flush position, the primary will know what WAL we'll possibly
+	 * re-request, and it can then remove older WAL safely. We must always do
+	 * that when we are using slots.
+	 *
+	 * Reporting the flush position makes one eligible as a synchronous
+	 * replica. People shouldn't include generic names in
+	 * synchronous_standby_names, but we've protected them against it so far,
+	 * so let's continue to do so unless specifically requested.
+	 */
+	if (stream->replication_slot != NULL)
+	{
+		reportFlushPosition = true;
+		sprintf(slotcmd, "SLOT \"%s\" ", stream->replication_slot);
+	}
+	else
+	{
+		if (stream->synchronous)
+			reportFlushPosition = true;
+		else
+			reportFlushPosition = false;
+		slotcmd[0] = 0;
+	}
 
-    if (stream->sysidentifier != NULL)
-    {
-        /* Validate system identifier hasn't changed */
-        res = PQexec(conn, "IDENTIFY_SYSTEM");
-        if (PQresultStatus(res) != PGRES_TUPLES_OK)
-        {
-            fprintf(stderr,
-                    _("%s: could not send replication command \"%s\": %s"),
-                    progname, "IDENTIFY_SYSTEM", PQerrorMessage(conn));
-            PQclear(res);
-            return false;
-        }
-        if (PQntuples(res) != 1 || PQnfields(res) < 3)
-        {
-            fprintf(stderr,
-                    _("%s: could not identify system: got %d rows and %d fields, expected %d rows and %d or more fields\n"),
-                    progname, PQntuples(res), PQnfields(res), 1, 3);
-            PQclear(res);
-            return false;
-        }
-        if (strcmp(stream->sysidentifier, PQgetvalue(res, 0, 0)) != 0)
-        {
-            fprintf(stderr,
-                    _("%s: system identifier does not match between base backup and streaming connection\n"),
-                    progname);
-            PQclear(res);
-            return false;
-        }
-        if (stream->timeline > atoi(PQgetvalue(res, 0, 1)))
-        {
-            fprintf(stderr,
-                    _("%s: starting timeline %u is not present in the server\n"),
-                    progname, stream->timeline);
-            PQclear(res);
-            return false;
-        }
-        PQclear(res);
-    }
+	if (stream->sysidentifier != NULL)
+	{
+		/* Validate system identifier hasn't changed */
+		res = PQexec(conn, "IDENTIFY_SYSTEM");
+		if (PQresultStatus(res) != PGRES_TUPLES_OK)
+		{
+			fprintf(stderr,
+					_("%s: could not send replication command \"%s\": %s"),
+					progname, "IDENTIFY_SYSTEM", PQerrorMessage(conn));
+			PQclear(res);
+			return false;
+		}
+		if (PQntuples(res) != 1 || PQnfields(res) < 3)
+		{
+			fprintf(stderr,
+					_("%s: could not identify system: got %d rows and %d fields, expected %d rows and %d or more fields\n"),
+					progname, PQntuples(res), PQnfields(res), 1, 3);
+			PQclear(res);
+			return false;
+		}
+		if (strcmp(stream->sysidentifier, PQgetvalue(res, 0, 0)) != 0)
+		{
+			fprintf(stderr,
+					_("%s: system identifier does not match between base backup and streaming connection\n"),
+					progname);
+			PQclear(res);
+			return false;
+		}
+		if (stream->timeline > atoi(PQgetvalue(res, 0, 1)))
+		{
+			fprintf(stderr,
+					_("%s: starting timeline %u is not present in the server\n"),
+					progname, stream->timeline);
+			PQclear(res);
+			return false;
+		}
+		PQclear(res);
+	}
 
-    /*
-     * Create temporary replication slot if one is needed
-     */
-    if (stream->temp_slot)
-    {
-        snprintf(query, sizeof(query),
-                 "CREATE_REPLICATION_SLOT \"%s\" TEMPORARY PHYSICAL RESERVE_WAL",
-                 stream->replication_slot);
-        res = PQexec(conn, query);
-        if (PQresultStatus(res) != PGRES_TUPLES_OK)
-        {
-            fprintf(stderr, _("%s: could not create temporary replication slot \"%s\": %s"),
-                    progname, stream->replication_slot, PQerrorMessage(conn));
-            PQclear(res);
-            return false;
-        }
-    }
+	/*
+	 * Create temporary replication slot if one is needed
+	 */
+	if (stream->temp_slot)
+	{
+		snprintf(query, sizeof(query),
+				 "CREATE_REPLICATION_SLOT \"%s\" TEMPORARY PHYSICAL RESERVE_WAL",
+				 stream->replication_slot);
+		res = PQexec(conn, query);
+		if (PQresultStatus(res) != PGRES_TUPLES_OK)
+		{
+			fprintf(stderr, _("%s: could not create temporary replication slot \"%s\": %s"),
+					progname, stream->replication_slot, PQerrorMessage(conn));
+			PQclear(res);
+			return false;
+		}
+	}
 
-    /*
-     * initialize flush position to starting point, it's the caller's
-     * responsibility that that's sane.
-     */
-    lastFlushPosition = stream->startpos;
+	/*
+	 * initialize flush position to starting point, it's the caller's
+	 * responsibility that that's sane.
+	 */
+	lastFlushPosition = stream->startpos;
 
-    while (1)
-    {
-        /*
-         * Fetch the timeline history file for this timeline, if we don't have
-         * it already. When streaming log to tar, this will always return
-         * false, as we are never streaming into an existing file and
-         * therefore there can be no pre-existing timeline history file.
-         */
-        if (!existsTimeLineHistoryFile(stream))
-        {
-            snprintf(query, sizeof(query), "TIMELINE_HISTORY %u", stream->timeline);
-            res = PQexec(conn, query);
-            if (PQresultStatus(res) != PGRES_TUPLES_OK)
-            {
-                /* FIXME: we might send it ok, but get an error */
-                fprintf(stderr, _("%s: could not send replication command \"%s\": %s"),
-                        progname, "TIMELINE_HISTORY", PQresultErrorMessage(res));
-                PQclear(res);
-                return false;
-            }
+	while (1)
+	{
+		/*
+		 * Fetch the timeline history file for this timeline, if we don't have
+		 * it already. When streaming log to tar, this will always return
+		 * false, as we are never streaming into an existing file and
+		 * therefore there can be no pre-existing timeline history file.
+		 */
+		if (!existsTimeLineHistoryFile(stream))
+		{
+			snprintf(query, sizeof(query), "TIMELINE_HISTORY %u", stream->timeline);
+			res = PQexec(conn, query);
+			if (PQresultStatus(res) != PGRES_TUPLES_OK)
+			{
+				/* FIXME: we might send it ok, but get an error */
+				fprintf(stderr, _("%s: could not send replication command \"%s\": %s"),
+						progname, "TIMELINE_HISTORY", PQresultErrorMessage(res));
+				PQclear(res);
+				return false;
+			}
 
-            /*
-             * The response to TIMELINE_HISTORY is a single row result set
-             * with two fields: filename and content
-             */
-            if (PQnfields(res) != 2 || PQntuples(res) != 1)
-            {
-                fprintf(stderr,
-                        _("%s: unexpected response to TIMELINE_HISTORY command: got %d rows and %d fields, expected %d rows and %d fields\n"),
-                        progname, PQntuples(res), PQnfields(res), 1, 2);
-            }
+			/*
+			 * The response to TIMELINE_HISTORY is a single row result set
+			 * with two fields: filename and content
+			 */
+			if (PQnfields(res) != 2 || PQntuples(res) != 1)
+			{
+				fprintf(stderr,
+						_("%s: unexpected response to TIMELINE_HISTORY command: got %d rows and %d fields, expected %d rows and %d fields\n"),
+						progname, PQntuples(res), PQnfields(res), 1, 2);
+			}
 
-            /* Write the history file to disk */
-            writeTimeLineHistoryFile(stream,
-                                     PQgetvalue(res, 0, 0),
-                                     PQgetvalue(res, 0, 1));
+			/* Write the history file to disk */
+			writeTimeLineHistoryFile(stream,
+									 PQgetvalue(res, 0, 0),
+									 PQgetvalue(res, 0, 1));
 
-            PQclear(res);
-        }
+			PQclear(res);
+		}
 
-        /*
-         * Before we start streaming from the requested location, check if the
-         * callback tells us to stop here.
-         */
-        if (stream->stream_stop(stream->startpos, stream->timeline, false))
-            return true;
+		/*
+		 * Before we start streaming from the requested location, check if the
+		 * callback tells us to stop here.
+		 */
+		if (stream->stream_stop(stream->startpos, stream->timeline, false))
+			return true;
 
-        /* Initiate the replication stream at specified location */
-        snprintf(query, sizeof(query), "START_REPLICATION %s%X/%X TIMELINE %u",
-                 slotcmd,
-                 (uint32) (stream->startpos >> 32), (uint32) stream->startpos,
-                 stream->timeline);
-        res = PQexec(conn, query);
-        if (PQresultStatus(res) != PGRES_COPY_BOTH)
-        {
-            fprintf(stderr, _("%s: could not send replication command \"%s\": %s"),
-                    progname, "START_REPLICATION", PQresultErrorMessage(res));
-            PQclear(res);
-            return false;
-        }
-        PQclear(res);
+		/* Initiate the replication stream at specified location */
+		snprintf(query, sizeof(query), "START_REPLICATION %s%X/%X TIMELINE %u",
+				 slotcmd,
+				 (uint32) (stream->startpos >> 32), (uint32) stream->startpos,
+				 stream->timeline);
+		res = PQexec(conn, query);
+		if (PQresultStatus(res) != PGRES_COPY_BOTH)
+		{
+			fprintf(stderr, _("%s: could not send replication command \"%s\": %s"),
+					progname, "START_REPLICATION", PQresultErrorMessage(res));
+			PQclear(res);
+			return false;
+		}
+		PQclear(res);
 
-        /* Stream the WAL */
-        res = HandleCopyStream(conn, stream, &stoppos);
-        if (res == NULL)
-            goto error;
+		/* Stream the WAL */
+		res = HandleCopyStream(conn, stream, &stoppos);
+		if (res == NULL)
+			goto error;
 
-        /*
-         * Streaming finished.
-         *
-         * There are two possible reasons for that: a controlled shutdown, or
-         * we reached the end of the current timeline. In case of
-         * end-of-timeline, the server sends a result set after Copy has
-         * finished, containing information about the next timeline. Read
-         * that, and restart streaming from the next timeline. In case of
-         * controlled shutdown, stop here.
-         */
-        if (PQresultStatus(res) == PGRES_TUPLES_OK)
-        {
-            /*
-             * End-of-timeline. Read the next timeline's ID and starting
-             * position. Usually, the starting position will match the end of
-             * the previous timeline, but there are corner cases like if the
-             * server had sent us half of a WAL record, when it was promoted.
-             * The new timeline will begin at the end of the last complete
-             * record in that case, overlapping the partial WAL record on the
-             * old timeline.
-             */
-            uint32        newtimeline;
-            bool        parsed;
+		/*
+		 * Streaming finished.
+		 *
+		 * There are two possible reasons for that: a controlled shutdown, or
+		 * we reached the end of the current timeline. In case of
+		 * end-of-timeline, the server sends a result set after Copy has
+		 * finished, containing information about the next timeline. Read
+		 * that, and restart streaming from the next timeline. In case of
+		 * controlled shutdown, stop here.
+		 */
+		if (PQresultStatus(res) == PGRES_TUPLES_OK)
+		{
+			/*
+			 * End-of-timeline. Read the next timeline's ID and starting
+			 * position. Usually, the starting position will match the end of
+			 * the previous timeline, but there are corner cases like if the
+			 * server had sent us half of a WAL record, when it was promoted.
+			 * The new timeline will begin at the end of the last complete
+			 * record in that case, overlapping the partial WAL record on the
+			 * old timeline.
+			 */
+			uint32		newtimeline;
+			bool		parsed;
 
-            parsed = ReadEndOfStreamingResult(res, &stream->startpos, &newtimeline);
-            PQclear(res);
-            if (!parsed)
-                goto error;
+			parsed = ReadEndOfStreamingResult(res, &stream->startpos, &newtimeline);
+			PQclear(res);
+			if (!parsed)
+				goto error;
 
-            /* Sanity check the values the server gave us */
-            if (newtimeline <= stream->timeline)
-            {
-                fprintf(stderr,
-                        _("%s: server reported unexpected next timeline %u, following timeline %u\n"),
-                        progname, newtimeline, stream->timeline);
-                goto error;
-            }
-            if (stream->startpos > stoppos)
-            {
-                fprintf(stderr,
-                        _("%s: server stopped streaming timeline %u at %X/%X, but reported next timeline %u to begin at %X/%X\n"),
-                        progname,
-                        stream->timeline, (uint32) (stoppos >> 32), (uint32) stoppos,
-                        newtimeline, (uint32) (stream->startpos >> 32), (uint32) stream->startpos);
-                goto error;
-            }
+			/* Sanity check the values the server gave us */
+			if (newtimeline <= stream->timeline)
+			{
+				fprintf(stderr,
+						_("%s: server reported unexpected next timeline %u, following timeline %u\n"),
+						progname, newtimeline, stream->timeline);
+				goto error;
+			}
+			if (stream->startpos > stoppos)
+			{
+				fprintf(stderr,
+						_("%s: server stopped streaming timeline %u at %X/%X, but reported next timeline %u to begin at %X/%X\n"),
+						progname,
+						stream->timeline, (uint32) (stoppos >> 32), (uint32) stoppos,
+						newtimeline, (uint32) (stream->startpos >> 32), (uint32) stream->startpos);
+				goto error;
+			}
 
-            /* Read the final result, which should be CommandComplete. */
-            res = PQgetResult(conn);
-            if (PQresultStatus(res) != PGRES_COMMAND_OK)
-            {
-                fprintf(stderr,
-                        _("%s: unexpected termination of replication stream: %s"),
-                        progname, PQresultErrorMessage(res));
-                PQclear(res);
-                goto error;
-            }
-            PQclear(res);
+			/* Read the final result, which should be CommandComplete. */
+			res = PQgetResult(conn);
+			if (PQresultStatus(res) != PGRES_COMMAND_OK)
+			{
+				fprintf(stderr,
+						_("%s: unexpected termination of replication stream: %s"),
+						progname, PQresultErrorMessage(res));
+				PQclear(res);
+				goto error;
+			}
+			PQclear(res);
 
-            /*
-             * Loop back to start streaming from the new timeline. Always
-             * start streaming at the beginning of a segment.
-             */
-            stream->timeline = newtimeline;
-            stream->startpos = stream->startpos - (stream->startpos % XLOG_SEG_SIZE);
-            continue;
-        }
-        else if (PQresultStatus(res) == PGRES_COMMAND_OK)
-        {
-            PQclear(res);
+			/*
+			 * Loop back to start streaming from the new timeline. Always
+			 * start streaming at the beginning of a segment.
+			 */
+			stream->timeline = newtimeline;
+			stream->startpos = stream->startpos - (stream->startpos % XLOG_SEG_SIZE);
+			continue;
+		}
+		else if (PQresultStatus(res) == PGRES_COMMAND_OK)
+		{
+			PQclear(res);
 
-            /*
-             * End of replication (ie. controlled shut down of the server).
-             *
-             * Check if the callback thinks it's OK to stop here. If not,
-             * complain.
-             */
-            if (stream->stream_stop(stoppos, stream->timeline, false))
-                return true;
-            else
-            {
-                fprintf(stderr, _("%s: replication stream was terminated before stop point\n"),
-                        progname);
-                goto error;
-            }
-        }
-        else
-        {
-            /* Server returned an error. */
-            fprintf(stderr,
-                    _("%s: unexpected termination of replication stream: %s"),
-                    progname, PQresultErrorMessage(res));
-            PQclear(res);
-            goto error;
-        }
-    }
+			/*
+			 * End of replication (ie. controlled shut down of the server).
+			 *
+			 * Check if the callback thinks it's OK to stop here. If not,
+			 * complain.
+			 */
+			if (stream->stream_stop(stoppos, stream->timeline, false))
+				return true;
+			else
+			{
+				fprintf(stderr, _("%s: replication stream was terminated before stop point\n"),
+						progname);
+				goto error;
+			}
+		}
+		else
+		{
+			/* Server returned an error. */
+			fprintf(stderr,
+					_("%s: unexpected termination of replication stream: %s"),
+					progname, PQresultErrorMessage(res));
+			PQclear(res);
+			goto error;
+		}
+	}
 
 error:
-    if (walfile != NULL && stream->walmethod->close(walfile, CLOSE_NO_RENAME) != 0)
-        fprintf(stderr, _("%s: could not close file \"%s\": %s\n"),
-                progname, current_walfile_name, stream->walmethod->getlasterror());
-    walfile = NULL;
-    return false;
+	if (walfile != NULL && stream->walmethod->close(walfile, CLOSE_NO_RENAME) != 0)
+		fprintf(stderr, _("%s: could not close file \"%s\": %s\n"),
+				progname, current_walfile_name, stream->walmethod->getlasterror());
+	walfile = NULL;
+	return false;
 }
 
 /*
@@ -729,41 +729,41 @@ error:
 static bool
 ReadEndOfStreamingResult(PGresult *res, XLogRecPtr *startpos, uint32 *timeline)
 {
-    uint32        startpos_xlogid,
-                startpos_xrecoff;
+	uint32		startpos_xlogid,
+				startpos_xrecoff;
 
-    /*----------
-     * The result set consists of one row and two columns, e.g:
-     *
-     *    next_tli | next_tli_startpos
-     * ----------+-------------------
-     *           4 | 0/9949AE0
-     *
-     * next_tli is the timeline ID of the next timeline after the one that
-     * just finished streaming. next_tli_startpos is the WAL location where
-     * the server switched to it.
-     *----------
-     */
-    if (PQnfields(res) < 2 || PQntuples(res) != 1)
-    {
-        fprintf(stderr,
-                _("%s: unexpected result set after end-of-timeline: got %d rows and %d fields, expected %d rows and %d fields\n"),
-                progname, PQntuples(res), PQnfields(res), 1, 2);
-        return false;
-    }
+	/*----------
+	 * The result set consists of one row and two columns, e.g:
+	 *
+	 *	next_tli | next_tli_startpos
+	 * ----------+-------------------
+	 *		   4 | 0/9949AE0
+	 *
+	 * next_tli is the timeline ID of the next timeline after the one that
+	 * just finished streaming. next_tli_startpos is the WAL location where
+	 * the server switched to it.
+	 *----------
+	 */
+	if (PQnfields(res) < 2 || PQntuples(res) != 1)
+	{
+		fprintf(stderr,
+				_("%s: unexpected result set after end-of-timeline: got %d rows and %d fields, expected %d rows and %d fields\n"),
+				progname, PQntuples(res), PQnfields(res), 1, 2);
+		return false;
+	}
 
-    *timeline = atoi(PQgetvalue(res, 0, 0));
-    if (sscanf(PQgetvalue(res, 0, 1), "%X/%X", &startpos_xlogid,
-               &startpos_xrecoff) != 2)
-    {
-        fprintf(stderr,
-                _("%s: could not parse next timeline's starting point \"%s\"\n"),
-                progname, PQgetvalue(res, 0, 1));
-        return false;
-    }
-    *startpos = ((uint64) startpos_xlogid << 32) | startpos_xrecoff;
+	*timeline = atoi(PQgetvalue(res, 0, 0));
+	if (sscanf(PQgetvalue(res, 0, 1), "%X/%X", &startpos_xlogid,
+			   &startpos_xrecoff) != 2)
+	{
+		fprintf(stderr,
+				_("%s: could not parse next timeline's starting point \"%s\"\n"),
+				progname, PQgetvalue(res, 0, 1));
+		return false;
+	}
+	*startpos = ((uint64) startpos_xlogid << 32) | startpos_xrecoff;
 
-    return true;
+	return true;
 }
 
 /*
@@ -776,123 +776,123 @@ ReadEndOfStreamingResult(PGresult *res, XLogRecPtr *startpos, uint32 *timeline)
  */
 static PGresult *
 HandleCopyStream(PGconn *conn, StreamCtl *stream,
-                 XLogRecPtr *stoppos)
-{// #lizard forgives
-    char       *copybuf = NULL;
-    TimestampTz last_status = -1;
-    XLogRecPtr    blockpos = stream->startpos;
+				 XLogRecPtr *stoppos)
+{
+	char	   *copybuf = NULL;
+	TimestampTz last_status = -1;
+	XLogRecPtr	blockpos = stream->startpos;
 
-    still_sending = true;
+	still_sending = true;
 
-    while (1)
-    {
-        int            r;
-        TimestampTz now;
-        long        sleeptime;
+	while (1)
+	{
+		int			r;
+		TimestampTz now;
+		long		sleeptime;
 
-        /*
-         * Check if we should continue streaming, or abort at this point.
-         */
-        if (!CheckCopyStreamStop(conn, stream, blockpos, stoppos))
-            goto error;
+		/*
+		 * Check if we should continue streaming, or abort at this point.
+		 */
+		if (!CheckCopyStreamStop(conn, stream, blockpos, stoppos))
+			goto error;
 
-        now = feGetCurrentTimestamp();
+		now = feGetCurrentTimestamp();
 
-        /*
-         * If synchronous option is true, issue sync command as soon as there
-         * are WAL data which has not been flushed yet.
-         */
-        if (stream->synchronous && lastFlushPosition < blockpos && walfile != NULL)
-        {
-            if (stream->walmethod->sync(walfile) != 0)
-            {
-                fprintf(stderr, _("%s: could not fsync file \"%s\": %s\n"),
-                        progname, current_walfile_name, stream->walmethod->getlasterror());
-                goto error;
-            }
-            lastFlushPosition = blockpos;
+		/*
+		 * If synchronous option is true, issue sync command as soon as there
+		 * are WAL data which has not been flushed yet.
+		 */
+		if (stream->synchronous && lastFlushPosition < blockpos && walfile != NULL)
+		{
+			if (stream->walmethod->sync(walfile) != 0)
+			{
+				fprintf(stderr, _("%s: could not fsync file \"%s\": %s\n"),
+						progname, current_walfile_name, stream->walmethod->getlasterror());
+				goto error;
+			}
+			lastFlushPosition = blockpos;
 
-            /*
-             * Send feedback so that the server sees the latest WAL locations
-             * immediately.
-             */
-            if (!sendFeedback(conn, blockpos, now, false))
-                goto error;
-            last_status = now;
-        }
+			/*
+			 * Send feedback so that the server sees the latest WAL locations
+			 * immediately.
+			 */
+			if (!sendFeedback(conn, blockpos, now, false))
+				goto error;
+			last_status = now;
+		}
 
-        /*
-         * Potentially send a status message to the master
-         */
-        if (still_sending && stream->standby_message_timeout > 0 &&
-            feTimestampDifferenceExceeds(last_status, now,
-                                         stream->standby_message_timeout))
-        {
-            /* Time to send feedback! */
-            if (!sendFeedback(conn, blockpos, now, false))
-                goto error;
-            last_status = now;
-        }
+		/*
+		 * Potentially send a status message to the master
+		 */
+		if (still_sending && stream->standby_message_timeout > 0 &&
+			feTimestampDifferenceExceeds(last_status, now,
+										 stream->standby_message_timeout))
+		{
+			/* Time to send feedback! */
+			if (!sendFeedback(conn, blockpos, now, false))
+				goto error;
+			last_status = now;
+		}
 
-        /*
-         * Calculate how long send/receive loops should sleep
-         */
-        sleeptime = CalculateCopyStreamSleeptime(now, stream->standby_message_timeout,
-                                                 last_status);
+		/*
+		 * Calculate how long send/receive loops should sleep
+		 */
+		sleeptime = CalculateCopyStreamSleeptime(now, stream->standby_message_timeout,
+												 last_status);
 
-        r = CopyStreamReceive(conn, sleeptime, stream->stop_socket, &copybuf);
-        while (r != 0)
-        {
-            if (r == -1)
-                goto error;
-            if (r == -2)
-            {
-                PGresult   *res = HandleEndOfCopyStream(conn, stream, copybuf, blockpos, stoppos);
+		r = CopyStreamReceive(conn, sleeptime, stream->stop_socket, &copybuf);
+		while (r != 0)
+		{
+			if (r == -1)
+				goto error;
+			if (r == -2)
+			{
+				PGresult   *res = HandleEndOfCopyStream(conn, stream, copybuf, blockpos, stoppos);
 
-                if (res == NULL)
-                    goto error;
-                else
-                    return res;
-            }
+				if (res == NULL)
+					goto error;
+				else
+					return res;
+			}
 
-            /* Check the message type. */
-            if (copybuf[0] == 'k')
-            {
-                if (!ProcessKeepaliveMsg(conn, stream, copybuf, r, blockpos,
-                                         &last_status))
-                    goto error;
-            }
-            else if (copybuf[0] == 'w')
-            {
-                if (!ProcessXLogDataMsg(conn, stream, copybuf, r, &blockpos))
-                    goto error;
+			/* Check the message type. */
+			if (copybuf[0] == 'k')
+			{
+				if (!ProcessKeepaliveMsg(conn, stream, copybuf, r, blockpos,
+										 &last_status))
+					goto error;
+			}
+			else if (copybuf[0] == 'w')
+			{
+				if (!ProcessXLogDataMsg(conn, stream, copybuf, r, &blockpos))
+					goto error;
 
-                /*
-                 * Check if we should continue streaming, or abort at this
-                 * point.
-                 */
-                if (!CheckCopyStreamStop(conn, stream, blockpos, stoppos))
-                    goto error;
-            }
-            else
-            {
-                fprintf(stderr, _("%s: unrecognized streaming header: \"%c\"\n"),
-                        progname, copybuf[0]);
-                goto error;
-            }
+				/*
+				 * Check if we should continue streaming, or abort at this
+				 * point.
+				 */
+				if (!CheckCopyStreamStop(conn, stream, blockpos, stoppos))
+					goto error;
+			}
+			else
+			{
+				fprintf(stderr, _("%s: unrecognized streaming header: \"%c\"\n"),
+						progname, copybuf[0]);
+				goto error;
+			}
 
-            /*
-             * Process the received data, and any subsequent data we can read
-             * without blocking.
-             */
-            r = CopyStreamReceive(conn, 0, stream->stop_socket, &copybuf);
-        }
-    }
+			/*
+			 * Process the received data, and any subsequent data we can read
+			 * without blocking.
+			 */
+			r = CopyStreamReceive(conn, 0, stream->stop_socket, &copybuf);
+		}
+	}
 
 error:
-    if (copybuf != NULL)
-        PQfreemem(copybuf);
-    return NULL;
+	if (copybuf != NULL)
+		PQfreemem(copybuf);
+	return NULL;
 }
 
 /*
@@ -905,54 +905,54 @@ error:
  */
 static int
 CopyStreamPoll(PGconn *conn, long timeout_ms, pgsocket stop_socket)
-{// #lizard forgives
-    int            ret;
-    fd_set        input_mask;
-    int            connsocket;
-    int            maxfd;
-    struct timeval timeout;
-    struct timeval *timeoutptr;
+{
+	int			ret;
+	fd_set		input_mask;
+	int			connsocket;
+	int			maxfd;
+	struct timeval timeout;
+	struct timeval *timeoutptr;
 
-    connsocket = PQsocket(conn);
-    if (connsocket < 0)
-    {
-        fprintf(stderr, _("%s: invalid socket: %s"), progname,
-                PQerrorMessage(conn));
-        return -1;
-    }
+	connsocket = PQsocket(conn);
+	if (connsocket < 0)
+	{
+		fprintf(stderr, _("%s: invalid socket: %s"), progname,
+				PQerrorMessage(conn));
+		return -1;
+	}
 
-    FD_ZERO(&input_mask);
-    FD_SET(connsocket, &input_mask);
-    maxfd = connsocket;
-    if (stop_socket != PGINVALID_SOCKET)
-    {
-        FD_SET(stop_socket, &input_mask);
-        maxfd = Max(maxfd, stop_socket);
-    }
+	FD_ZERO(&input_mask);
+	FD_SET(connsocket, &input_mask);
+	maxfd = connsocket;
+	if (stop_socket != PGINVALID_SOCKET)
+	{
+		FD_SET(stop_socket, &input_mask);
+		maxfd = Max(maxfd, stop_socket);
+	}
 
-    if (timeout_ms < 0)
-        timeoutptr = NULL;
-    else
-    {
-        timeout.tv_sec = timeout_ms / 1000L;
-        timeout.tv_usec = (timeout_ms % 1000L) * 1000L;
-        timeoutptr = &timeout;
-    }
+	if (timeout_ms < 0)
+		timeoutptr = NULL;
+	else
+	{
+		timeout.tv_sec = timeout_ms / 1000L;
+		timeout.tv_usec = (timeout_ms % 1000L) * 1000L;
+		timeoutptr = &timeout;
+	}
 
-    ret = select(maxfd + 1, &input_mask, NULL, NULL, timeoutptr);
+	ret = select(maxfd + 1, &input_mask, NULL, NULL, timeoutptr);
 
-    if (ret < 0)
-    {
-        if (errno == EINTR)
-            return 0;            /* Got a signal, so not an error */
-        fprintf(stderr, _("%s: select() failed: %s\n"),
-                progname, strerror(errno));
-        return -1;
-    }
-    if (ret > 0 && FD_ISSET(connsocket, &input_mask))
-        return 1;                /* Got input on connection socket */
+	if (ret < 0)
+	{
+		if (errno == EINTR)
+			return 0;			/* Got a signal, so not an error */
+		fprintf(stderr, _("%s: select() failed: %s\n"),
+				progname, strerror(errno));
+		return -1;
+	}
+	if (ret > 0 && FD_ISSET(connsocket, &input_mask))
+		return 1;				/* Got input on connection socket */
 
-    return 0;                    /* Got timeout or input on stop_socket */
+	return 0;					/* Got timeout or input on stop_socket */
 }
 
 /*
@@ -969,56 +969,56 @@ CopyStreamPoll(PGconn *conn, long timeout_ms, pgsocket stop_socket)
  */
 static int
 CopyStreamReceive(PGconn *conn, long timeout, pgsocket stop_socket,
-                  char **buffer)
-{// #lizard forgives
-    char       *copybuf = NULL;
-    int            rawlen;
+				  char **buffer)
+{
+	char	   *copybuf = NULL;
+	int			rawlen;
 
-    if (*buffer != NULL)
-        PQfreemem(*buffer);
-    *buffer = NULL;
+	if (*buffer != NULL)
+		PQfreemem(*buffer);
+	*buffer = NULL;
 
-    /* Try to receive a CopyData message */
-    rawlen = PQgetCopyData(conn, &copybuf, 1);
-    if (rawlen == 0)
-    {
-        int            ret;
+	/* Try to receive a CopyData message */
+	rawlen = PQgetCopyData(conn, &copybuf, 1);
+	if (rawlen == 0)
+	{
+		int			ret;
 
-        /*
-         * No data available.  Wait for some to appear, but not longer than
-         * the specified timeout, so that we can ping the server.  Also stop
-         * waiting if input appears on stop_socket.
-         */
-        ret = CopyStreamPoll(conn, timeout, stop_socket);
-        if (ret <= 0)
-            return ret;
+		/*
+		 * No data available.  Wait for some to appear, but not longer than
+		 * the specified timeout, so that we can ping the server.  Also stop
+		 * waiting if input appears on stop_socket.
+		 */
+		ret = CopyStreamPoll(conn, timeout, stop_socket);
+		if (ret <= 0)
+			return ret;
 
-        /* Now there is actually data on the socket */
-        if (PQconsumeInput(conn) == 0)
-        {
-            fprintf(stderr,
-                    _("%s: could not receive data from WAL stream: %s"),
-                    progname, PQerrorMessage(conn));
-            return -1;
-        }
+		/* Now there is actually data on the socket */
+		if (PQconsumeInput(conn) == 0)
+		{
+			fprintf(stderr,
+					_("%s: could not receive data from WAL stream: %s"),
+					progname, PQerrorMessage(conn));
+			return -1;
+		}
 
-        /* Now that we've consumed some input, try again */
-        rawlen = PQgetCopyData(conn, &copybuf, 1);
-        if (rawlen == 0)
-            return 0;
-    }
-    if (rawlen == -1)            /* end-of-streaming or error */
-        return -2;
-    if (rawlen == -2)
-    {
-        fprintf(stderr, _("%s: could not read COPY data: %s"),
-                progname, PQerrorMessage(conn));
-        return -1;
-    }
+		/* Now that we've consumed some input, try again */
+		rawlen = PQgetCopyData(conn, &copybuf, 1);
+		if (rawlen == 0)
+			return 0;
+	}
+	if (rawlen == -1)			/* end-of-streaming or error */
+		return -2;
+	if (rawlen == -2)
+	{
+		fprintf(stderr, _("%s: could not read COPY data: %s"),
+				progname, PQerrorMessage(conn));
+		return -1;
+	}
 
-    /* Return received messages to caller */
-    *buffer = copybuf;
-    return rawlen;
+	/* Return received messages to caller */
+	*buffer = copybuf;
+	return rawlen;
 }
 
 /*
@@ -1026,57 +1026,57 @@ CopyStreamReceive(PGconn *conn, long timeout, pgsocket stop_socket,
  */
 static bool
 ProcessKeepaliveMsg(PGconn *conn, StreamCtl *stream, char *copybuf, int len,
-                    XLogRecPtr blockpos, TimestampTz *last_status)
-{// #lizard forgives
-    int            pos;
-    bool        replyRequested;
-    TimestampTz now;
+					XLogRecPtr blockpos, TimestampTz *last_status)
+{
+	int			pos;
+	bool		replyRequested;
+	TimestampTz now;
 
-    /*
-     * Parse the keepalive message, enclosed in the CopyData message. We just
-     * check if the server requested a reply, and ignore the rest.
-     */
-    pos = 1;                    /* skip msgtype 'k' */
-    pos += 8;                    /* skip walEnd */
-    pos += 8;                    /* skip sendTime */
+	/*
+	 * Parse the keepalive message, enclosed in the CopyData message. We just
+	 * check if the server requested a reply, and ignore the rest.
+	 */
+	pos = 1;					/* skip msgtype 'k' */
+	pos += 8;					/* skip walEnd */
+	pos += 8;					/* skip sendTime */
 
-    if (len < pos + 1)
-    {
-        fprintf(stderr, _("%s: streaming header too small: %d\n"),
-                progname, len);
-        return false;
-    }
-    replyRequested = copybuf[pos];
+	if (len < pos + 1)
+	{
+		fprintf(stderr, _("%s: streaming header too small: %d\n"),
+				progname, len);
+		return false;
+	}
+	replyRequested = copybuf[pos];
 
-    /* If the server requested an immediate reply, send one. */
-    if (replyRequested && still_sending)
-    {
-        if (reportFlushPosition && lastFlushPosition < blockpos &&
-            walfile != NULL)
-        {
-            /*
-             * If a valid flush location needs to be reported, flush the
-             * current WAL file so that the latest flush location is sent back
-             * to the server. This is necessary to see whether the last WAL
-             * data has been successfully replicated or not, at the normal
-             * shutdown of the server.
-             */
-            if (stream->walmethod->sync(walfile) != 0)
-            {
-                fprintf(stderr, _("%s: could not fsync file \"%s\": %s\n"),
-                        progname, current_walfile_name, stream->walmethod->getlasterror());
-                return false;
-            }
-            lastFlushPosition = blockpos;
-        }
+	/* If the server requested an immediate reply, send one. */
+	if (replyRequested && still_sending)
+	{
+		if (reportFlushPosition && lastFlushPosition < blockpos &&
+			walfile != NULL)
+		{
+			/*
+			 * If a valid flush location needs to be reported, flush the
+			 * current WAL file so that the latest flush location is sent back
+			 * to the server. This is necessary to see whether the last WAL
+			 * data has been successfully replicated or not, at the normal
+			 * shutdown of the server.
+			 */
+			if (stream->walmethod->sync(walfile) != 0)
+			{
+				fprintf(stderr, _("%s: could not fsync file \"%s\": %s\n"),
+						progname, current_walfile_name, stream->walmethod->getlasterror());
+				return false;
+			}
+			lastFlushPosition = blockpos;
+		}
 
-        now = feGetCurrentTimestamp();
-        if (!sendFeedback(conn, blockpos, now, false))
-            return false;
-        *last_status = now;
-    }
+		now = feGetCurrentTimestamp();
+		if (!sendFeedback(conn, blockpos, now, false))
+			return false;
+		*last_status = now;
+	}
 
-    return true;
+	return true;
 }
 
 /*
@@ -1084,133 +1084,133 @@ ProcessKeepaliveMsg(PGconn *conn, StreamCtl *stream, char *copybuf, int len,
  */
 static bool
 ProcessXLogDataMsg(PGconn *conn, StreamCtl *stream, char *copybuf, int len,
-                   XLogRecPtr *blockpos)
-{// #lizard forgives
-    int            xlogoff;
-    int            bytes_left;
-    int            bytes_written;
-    int            hdr_len;
+				   XLogRecPtr *blockpos)
+{
+	int			xlogoff;
+	int			bytes_left;
+	int			bytes_written;
+	int			hdr_len;
 
-    /*
-     * Once we've decided we don't want to receive any more, just ignore any
-     * subsequent XLogData messages.
-     */
-    if (!(still_sending))
-        return true;
+	/*
+	 * Once we've decided we don't want to receive any more, just ignore any
+	 * subsequent XLogData messages.
+	 */
+	if (!(still_sending))
+		return true;
 
-    /*
-     * Read the header of the XLogData message, enclosed in the CopyData
-     * message. We only need the WAL location field (dataStart), the rest of
-     * the header is ignored.
-     */
-    hdr_len = 1;                /* msgtype 'w' */
-    hdr_len += 8;                /* dataStart */
-    hdr_len += 8;                /* walEnd */
-    hdr_len += 8;                /* sendTime */
-    if (len < hdr_len)
-    {
-        fprintf(stderr, _("%s: streaming header too small: %d\n"),
-                progname, len);
-        return false;
-    }
-    *blockpos = fe_recvint64(&copybuf[1]);
+	/*
+	 * Read the header of the XLogData message, enclosed in the CopyData
+	 * message. We only need the WAL location field (dataStart), the rest of
+	 * the header is ignored.
+	 */
+	hdr_len = 1;				/* msgtype 'w' */
+	hdr_len += 8;				/* dataStart */
+	hdr_len += 8;				/* walEnd */
+	hdr_len += 8;				/* sendTime */
+	if (len < hdr_len)
+	{
+		fprintf(stderr, _("%s: streaming header too small: %d\n"),
+				progname, len);
+		return false;
+	}
+	*blockpos = fe_recvint64(&copybuf[1]);
 
-    /* Extract WAL location for this block */
-    xlogoff = *blockpos % XLOG_SEG_SIZE;
+	/* Extract WAL location for this block */
+	xlogoff = *blockpos % XLOG_SEG_SIZE;
 
-    /*
-     * Verify that the initial location in the stream matches where we think
-     * we are.
-     */
-    if (walfile == NULL)
-    {
-        /* No file open yet */
-        if (xlogoff != 0)
-        {
-            fprintf(stderr,
-                    _("%s: received write-ahead log record for offset %u with no file open\n"),
-                    progname, xlogoff);
-            return false;
-        }
-    }
-    else
-    {
-        /* More data in existing segment */
-        if (stream->walmethod->get_current_pos(walfile) != xlogoff)
-        {
-            fprintf(stderr,
-                    _("%s: got WAL data offset %08x, expected %08x\n"),
-                    progname, xlogoff, (int) stream->walmethod->get_current_pos(walfile));
-            return false;
-        }
-    }
+	/*
+	 * Verify that the initial location in the stream matches where we think
+	 * we are.
+	 */
+	if (walfile == NULL)
+	{
+		/* No file open yet */
+		if (xlogoff != 0)
+		{
+			fprintf(stderr,
+					_("%s: received write-ahead log record for offset %u with no file open\n"),
+					progname, xlogoff);
+			return false;
+		}
+	}
+	else
+	{
+		/* More data in existing segment */
+		if (stream->walmethod->get_current_pos(walfile) != xlogoff)
+		{
+			fprintf(stderr,
+					_("%s: got WAL data offset %08x, expected %08x\n"),
+					progname, xlogoff, (int) stream->walmethod->get_current_pos(walfile));
+			return false;
+		}
+	}
 
-    bytes_left = len - hdr_len;
-    bytes_written = 0;
+	bytes_left = len - hdr_len;
+	bytes_written = 0;
 
-    while (bytes_left)
-    {
-        int            bytes_to_write;
+	while (bytes_left)
+	{
+		int			bytes_to_write;
 
-        /*
-         * If crossing a WAL boundary, only write up until we reach
-         * XLOG_SEG_SIZE.
-         */
-        if (xlogoff + bytes_left > XLOG_SEG_SIZE)
-            bytes_to_write = XLOG_SEG_SIZE - xlogoff;
-        else
-            bytes_to_write = bytes_left;
+		/*
+		 * If crossing a WAL boundary, only write up until we reach
+		 * XLOG_SEG_SIZE.
+		 */
+		if (xlogoff + bytes_left > XLOG_SEG_SIZE)
+			bytes_to_write = XLOG_SEG_SIZE - xlogoff;
+		else
+			bytes_to_write = bytes_left;
 
-        if (walfile == NULL)
-        {
-            if (!open_walfile(stream, *blockpos))
-            {
-                /* Error logged by open_walfile */
-                return false;
-            }
-        }
+		if (walfile == NULL)
+		{
+			if (!open_walfile(stream, *blockpos))
+			{
+				/* Error logged by open_walfile */
+				return false;
+			}
+		}
 
-        if (stream->walmethod->write(walfile, copybuf + hdr_len + bytes_written,
-                                     bytes_to_write) != bytes_to_write)
-        {
-            fprintf(stderr,
-                    _("%s: could not write %u bytes to WAL file \"%s\": %s\n"),
-                    progname, bytes_to_write, current_walfile_name,
-                    stream->walmethod->getlasterror());
-            return false;
-        }
+		if (stream->walmethod->write(walfile, copybuf + hdr_len + bytes_written,
+									 bytes_to_write) != bytes_to_write)
+		{
+			fprintf(stderr,
+					_("%s: could not write %u bytes to WAL file \"%s\": %s\n"),
+					progname, bytes_to_write, current_walfile_name,
+					stream->walmethod->getlasterror());
+			return false;
+		}
 
-        /* Write was successful, advance our position */
-        bytes_written += bytes_to_write;
-        bytes_left -= bytes_to_write;
-        *blockpos += bytes_to_write;
-        xlogoff += bytes_to_write;
+		/* Write was successful, advance our position */
+		bytes_written += bytes_to_write;
+		bytes_left -= bytes_to_write;
+		*blockpos += bytes_to_write;
+		xlogoff += bytes_to_write;
 
-        /* Did we reach the end of a WAL segment? */
-        if (*blockpos % XLOG_SEG_SIZE == 0)
-        {
-            if (!close_walfile(stream, *blockpos))
-                /* Error message written in close_walfile() */
-                return false;
+		/* Did we reach the end of a WAL segment? */
+		if (*blockpos % XLOG_SEG_SIZE == 0)
+		{
+			if (!close_walfile(stream, *blockpos))
+				/* Error message written in close_walfile() */
+				return false;
 
-            xlogoff = 0;
+			xlogoff = 0;
 
-            if (still_sending && stream->stream_stop(*blockpos, stream->timeline, true))
-            {
-                if (PQputCopyEnd(conn, NULL) <= 0 || PQflush(conn))
-                {
-                    fprintf(stderr, _("%s: could not send copy-end packet: %s"),
-                            progname, PQerrorMessage(conn));
-                    return false;
-                }
-                still_sending = false;
-                return true;    /* ignore the rest of this XLogData packet */
-            }
-        }
-    }
-    /* No more data left to write, receive next copy packet */
+			if (still_sending && stream->stream_stop(*blockpos, stream->timeline, true))
+			{
+				if (PQputCopyEnd(conn, NULL) <= 0 || PQflush(conn))
+				{
+					fprintf(stderr, _("%s: could not send copy-end packet: %s"),
+							progname, PQerrorMessage(conn));
+					return false;
+				}
+				still_sending = false;
+				return true;	/* ignore the rest of this XLogData packet */
+			}
+		}
+	}
+	/* No more data left to write, receive next copy packet */
 
-    return true;
+	return true;
 }
 
 /*
@@ -1218,41 +1218,41 @@ ProcessXLogDataMsg(PGconn *conn, StreamCtl *stream, char *copybuf, int len,
  */
 static PGresult *
 HandleEndOfCopyStream(PGconn *conn, StreamCtl *stream, char *copybuf,
-                      XLogRecPtr blockpos, XLogRecPtr *stoppos)
+					  XLogRecPtr blockpos, XLogRecPtr *stoppos)
 {
-    PGresult   *res = PQgetResult(conn);
+	PGresult   *res = PQgetResult(conn);
 
-    /*
-     * The server closed its end of the copy stream.  If we haven't closed
-     * ours already, we need to do so now, unless the server threw an error,
-     * in which case we don't.
-     */
-    if (still_sending)
-    {
-        if (!close_walfile(stream, blockpos))
-        {
-            /* Error message written in close_walfile() */
-            PQclear(res);
-            return NULL;
-        }
-        if (PQresultStatus(res) == PGRES_COPY_IN)
-        {
-            if (PQputCopyEnd(conn, NULL) <= 0 || PQflush(conn))
-            {
-                fprintf(stderr,
-                        _("%s: could not send copy-end packet: %s"),
-                        progname, PQerrorMessage(conn));
-                PQclear(res);
-                return NULL;
-            }
-            res = PQgetResult(conn);
-        }
-        still_sending = false;
-    }
-    if (copybuf != NULL)
-        PQfreemem(copybuf);
-    *stoppos = blockpos;
-    return res;
+	/*
+	 * The server closed its end of the copy stream.  If we haven't closed
+	 * ours already, we need to do so now, unless the server threw an error,
+	 * in which case we don't.
+	 */
+	if (still_sending)
+	{
+		if (!close_walfile(stream, blockpos))
+		{
+			/* Error message written in close_walfile() */
+			PQclear(res);
+			return NULL;
+		}
+		if (PQresultStatus(res) == PGRES_COPY_IN)
+		{
+			if (PQputCopyEnd(conn, NULL) <= 0 || PQflush(conn))
+			{
+				fprintf(stderr,
+						_("%s: could not send copy-end packet: %s"),
+						progname, PQerrorMessage(conn));
+				PQclear(res);
+				return NULL;
+			}
+			res = PQgetResult(conn);
+		}
+		still_sending = false;
+	}
+	if (copybuf != NULL)
+		PQfreemem(copybuf);
+	*stoppos = blockpos;
+	return res;
 }
 
 /*
@@ -1260,25 +1260,25 @@ HandleEndOfCopyStream(PGconn *conn, StreamCtl *stream, char *copybuf,
  */
 static bool
 CheckCopyStreamStop(PGconn *conn, StreamCtl *stream, XLogRecPtr blockpos,
-                    XLogRecPtr *stoppos)
+					XLogRecPtr *stoppos)
 {
-    if (still_sending && stream->stream_stop(blockpos, stream->timeline, false))
-    {
-        if (!close_walfile(stream, blockpos))
-        {
-            /* Potential error message is written by close_walfile */
-            return false;
-        }
-        if (PQputCopyEnd(conn, NULL) <= 0 || PQflush(conn))
-        {
-            fprintf(stderr, _("%s: could not send copy-end packet: %s"),
-                    progname, PQerrorMessage(conn));
-            return false;
-        }
-        still_sending = false;
-    }
+	if (still_sending && stream->stream_stop(blockpos, stream->timeline, false))
+	{
+		if (!close_walfile(stream, blockpos))
+		{
+			/* Potential error message is written by close_walfile */
+			return false;
+		}
+		if (PQputCopyEnd(conn, NULL) <= 0 || PQflush(conn))
+		{
+			fprintf(stderr, _("%s: could not send copy-end packet: %s"),
+					progname, PQerrorMessage(conn));
+			return false;
+		}
+		still_sending = false;
+	}
 
-    return true;
+	return true;
 }
 
 /*
@@ -1286,35 +1286,35 @@ CheckCopyStreamStop(PGconn *conn, StreamCtl *stream, XLogRecPtr blockpos,
  */
 static long
 CalculateCopyStreamSleeptime(TimestampTz now, int standby_message_timeout,
-                             TimestampTz last_status)
+							 TimestampTz last_status)
 {
-    TimestampTz status_targettime = 0;
-    long        sleeptime;
+	TimestampTz status_targettime = 0;
+	long		sleeptime;
 
-    if (standby_message_timeout && still_sending)
-        status_targettime = last_status +
-            (standby_message_timeout - 1) * ((int64) 1000);
+	if (standby_message_timeout && still_sending)
+		status_targettime = last_status +
+			(standby_message_timeout - 1) * ((int64) 1000);
 
-    if (status_targettime > 0)
-    {
-        long        secs;
-        int            usecs;
+	if (status_targettime > 0)
+	{
+		long		secs;
+		int			usecs;
 
-        feTimestampDifference(now,
-                              status_targettime,
-                              &secs,
-                              &usecs);
-        /* Always sleep at least 1 sec */
-        if (secs <= 0)
-        {
-            secs = 1;
-            usecs = 0;
-        }
+		feTimestampDifference(now,
+							  status_targettime,
+							  &secs,
+							  &usecs);
+		/* Always sleep at least 1 sec */
+		if (secs <= 0)
+		{
+			secs = 1;
+			usecs = 0;
+		}
 
-        sleeptime = secs * 1000 + usecs / 1000;
-    }
-    else
-        sleeptime = -1;
+		sleeptime = secs * 1000 + usecs / 1000;
+	}
+	else
+		sleeptime = -1;
 
-    return sleeptime;
+	return sleeptime;
 }

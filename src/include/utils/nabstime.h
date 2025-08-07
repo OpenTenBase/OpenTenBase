@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * nabstime.h
- *      Definitions for the "new" abstime code.
+ *	  Definitions for the "new" abstime code.
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -22,7 +22,7 @@
 
 /* ----------------------------------------------------------------
  *
- *                time types + support macros
+ *				time types + support macros
  *
  * ----------------------------------------------------------------
  */
@@ -38,8 +38,8 @@ typedef int32 RelativeTime;
 
 typedef struct
 {
-    int32        status;
-    AbsoluteTime data[2];
+	int32		status;
+	AbsoluteTime data[2];
 } TimeIntervalData;
 
 typedef TimeIntervalData *TimeInterval;
@@ -66,21 +66,24 @@ typedef TimeIntervalData *TimeInterval;
 /*
  * Reserved values
  * Epoch is Unix system time zero, but needs to be kept as a reserved
- *    value rather than converting to time since timezone calculations
- *    might move it away from 1970-01-01 00:00:00Z - tgl 97/02/20
+ *	value rather than converting to time since timezone calculations
+ *	might move it away from 1970-01-01 00:00:00Z - tgl 97/02/20
  *
  * Pre-v6.1 code had large decimal numbers for reserved values.
  * These were chosen as special 32-bit bit patterns,
- *    so redefine them explicitly using these bit patterns. - tgl 97/02/24
+ *	so redefine them explicitly using these bit patterns. - tgl 97/02/24
  */
 #define INVALID_ABSTIME ((AbsoluteTime) 0x7FFFFFFE) /* 2147483647 (2^31 - 1) */
-#define NOEND_ABSTIME    ((AbsoluteTime) 0x7FFFFFFC) /* 2147483645 (2^31 - 3) */
-#define NOSTART_ABSTIME ((AbsoluteTime) INT_MIN)    /* -2147483648 */
+#define NOEND_ABSTIME	((AbsoluteTime) 0x7FFFFFFC) /* 2147483645 (2^31 - 3) */
+#define NOSTART_ABSTIME ((AbsoluteTime) INT_MIN)	/* -2147483648 */
 
 #define INVALID_RELTIME ((RelativeTime) 0x7FFFFFFE) /* 2147483647 (2^31 - 1) */
 
 #define AbsoluteTimeIsValid(time) \
-    ((bool) ((time) != INVALID_ABSTIME))
+	((bool) ((time) != INVALID_ABSTIME))
+
+#define T_INTERVAL_INVAL   0	/* data represents no valid tinterval */
+#define T_INTERVAL_VALID   1	/* data represents a valid tinterval */
 
 /*
  * Because NOSTART_ABSTIME is defined as INT_MIN, there can't be any
@@ -89,15 +92,19 @@ typedef TimeIntervalData *TimeInterval;
  * compiler bugs on some platforms.  --- tgl & az, 11/2000
  */
 #define AbsoluteTimeIsReal(time) \
-    ((bool) (((AbsoluteTime) (time)) < NOEND_ABSTIME && \
-              ((AbsoluteTime) (time)) != NOSTART_ABSTIME))
+	((bool) (((AbsoluteTime) (time)) < NOEND_ABSTIME && \
+			  ((AbsoluteTime) (time)) != NOSTART_ABSTIME))
 
 #define RelativeTimeIsValid(time) \
-    ((bool) (((RelativeTime) (time)) != INVALID_RELTIME))
+	((bool) (((RelativeTime) (time)) != INVALID_RELTIME))
 
 
 /* non-fmgr-callable support routines */
 extern AbsoluteTime GetCurrentAbsoluteTime(void);
 extern void abstime2tm(AbsoluteTime time, int *tzp, struct pg_tm *tm, char **tzn);
+extern int abstime_cmp_internal(AbsoluteTime a, AbsoluteTime b);
+extern int reltime_cmp_internal(RelativeTime a, RelativeTime b);
+extern int tinterval_cmp_internal(TimeInterval a, TimeInterval b);
+extern AbsoluteTime tm2abstime(struct pg_tm *tm, int tz);
 
-#endif                            /* NABSTIME_H */
+#endif							/* NABSTIME_H */

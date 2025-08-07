@@ -1,8 +1,0 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: opentenbase-scripts
-  labels:
-    {{- include "opentenbase.labels" . | nindent 4 }}
-data:
-  {{- include "opentenbase.extend.scripts" . | nindent 2 }}

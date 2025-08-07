@@ -40,10 +40,10 @@ override CPPFLAGS += -DVAL_LDFLAGS_EX="\"$(LDFLAGS_EX)\""
 override CPPFLAGS += -DVAL_LDFLAGS_SL="\"$(LDFLAGS_SL)\""
 override CPPFLAGS += -DVAL_LIBS="\"$(LIBS)\""
 
-OBJS_COMMON = base64.o config_info.o controldata_utils.o exec.o ip.o \
-	keywords.o md5.o pg_lzcompress.o pgfnames.o psprintf.o relpath.o \
+OBJS_COMMON = base64.o config_info.o controldata_utils.o d2s.o exec.o f2s.o ip.o \
+	keywords.o keywords_ora.o md5.o pg_lzcompress.o pgfnames.o psprintf.o relpath.o \
 	rmtree.o saslprep.o scram-common.o string.o unicode_norm.o \
-	username.o wait_error.o
+	username.o wait_error.o file_utils.o zstd_compress.o
 
 ifeq ($(with_openssl),yes)
 OBJS_COMMON += sha2_openssl.o
@@ -51,7 +51,7 @@ else
 OBJS_COMMON += sha2.o
 endif
 
-OBJS_FRONTEND = $(OBJS_COMMON) fe_memutils.o file_utils.o restricted_token.o
+OBJS_FRONTEND = $(OBJS_COMMON) fe_memutils.o restricted_token.o
 
 OBJS_SRV = $(OBJS_COMMON:%.o=%_srv.o)
 
@@ -87,7 +87,7 @@ libpgcommon_srv.a: $(OBJS_SRV)
 # corresponding *.o, but it works for now.
 ifeq ($(genmsgids), yes)
 PGXL_MSG_FILEID := 1
-%_srv.o: %.c %.o
+ %_srv.o: %.c %.o
 	$(CC) $(CFLAGS) -DPGXL_MSG_MODULE=$(PGXL_MSG_MODULE) -DPGXL_MSG_FILEID=$(PGXL_MSG_FILEID) $(subst -DFRONTEND,, $(CPPFLAGS)) -c $< -o $@
 	$(eval PGXL_MSG_FILEID := $(shell expr $(PGXL_MSG_FILEID) + 1))
 else
@@ -108,8 +108,21 @@ submake-errcodes:
 $(top_builddir)/src/include/parser/gram.h: $(top_srcdir)/src/backend/parser/gram.y
 	$(MAKE) -C $(top_builddir)/src/backend $(top_builddir)/src/include/parser/gram.h
 
+$(top_builddir)/src/include/opentenbase_ora/gram_ora.h: $(top_srcdir)/src/backend/opentenbase_ora/gram_ora.y
+	$(MAKE) -C $(top_builddir)/src/backend $(top_builddir)/src/include/opentenbase_ora/gram_ora.h
+
 keywords.o: $(top_srcdir)/src/include/parser/kwlist.h
-keywords_srv.o: $(top_builddir)/src/include/parser/gram.h $(top_srcdir)/src/include/parser/kwlist.h
+keywords_ora.o: $(top_srcdir)/src/include/opentenbase_ora/kwlist_ora.h
+
+keywords_srv.o: $(top_builddir)/src/include/parser/gram.h $(top_srcdir)/src/include/parser/kwlist.h 
+keywords_ora_srv.o: $(top_builddir)/src/include/opentenbase_ora/gram_ora.h $(top_srcdir)/src/include/opentenbase_ora/kwlist_ora.h
+
+# The code imported from Ryu gets a pass on declaration-after-statement,
+# in order to keep it more closely aligned with its upstream.
+RYU_FILES = d2s.o f2s.o
+RYU_OBJS = $(RYU_FILES) $(RYU_FILES:%.o=%_shlib.o) $(RYU_FILES:%.o=%_srv.o)
+
+$(RYU_OBJS): CFLAGS += $(PERMIT_DECLARATION_AFTER_STATEMENT)
 
 clean distclean maintainer-clean:
 	rm -f libpgcommon.a libpgcommon_srv.a $(OBJS_FRONTEND) $(OBJS_SRV)

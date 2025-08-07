@@ -2,31 +2,35 @@
 #define PG_SEQUENCE_H
 
 #include "catalog/genbki.h"
-/* oid */
-#define SequenceRelationId    2224
+
+#define SequenceRelationId	2224
+
+#define SeqOrderOption 0x0001
 
 CATALOG(pg_sequence,2224) BKI_WITHOUT_OIDS
 {
-    Oid            seqrelid;
-    Oid            seqtypid;
-    int64        seqstart;
-    int64        seqincrement;
-    int64        seqmax;
-    int64        seqmin;
-    int64        seqcache;
-    bool        seqcycle;
+	Oid			seqrelid;
+	Oid			seqtypid;
+	int64		seqstart;
+	int64		seqincrement;
+	int64		seqmax;
+	int64		seqmin;
+	int64		seqcache;
+	bool		seqcycle;
+	bool		seqlocal;
 } FormData_pg_sequence;
-/* the numbers of attribute  */
-typedef FormData_pg_sequence *Form_pg_sequence;
-/* the number of attribute  */
-#define Natts_pg_sequence                8
-#define Anum_pg_sequence_seqrelid        1
-#define Anum_pg_sequence_seqtypid        2
-#define Anum_pg_sequence_seqstart        3
-#define Anum_pg_sequence_seqincrement    4
-#define Anum_pg_sequence_seqmax            5
-#define Anum_pg_sequence_seqmin            6
-#define Anum_pg_sequence_seqcache        7
-#define Anum_pg_sequence_seqcycle        8
 
-#endif                            /* PG_SEQUENCE_H */
+typedef FormData_pg_sequence *Form_pg_sequence;
+
+#define Natts_pg_sequence				9
+#define Anum_pg_sequence_seqrelid		1
+#define Anum_pg_sequence_seqtypid		2
+#define Anum_pg_sequence_seqstart		3
+#define Anum_pg_sequence_seqincrement	4
+#define Anum_pg_sequence_seqmax			5
+#define Anum_pg_sequence_seqmin			6
+#define Anum_pg_sequence_seqcache		7
+#define Anum_pg_sequence_seqcycle		8
+#define Anum_pg_sequence_seqlocal		9
+
+#endif							/* PG_SEQUENCE_H */

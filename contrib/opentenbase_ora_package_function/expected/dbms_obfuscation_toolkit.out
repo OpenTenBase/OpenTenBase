@@ -1,0 +1,16 @@
+\c opentenbase_ora_package_function_regression_ora
+SET client_min_messages = error;
+create extension if not exists opentenbase_ora_package_function;
+reset client_min_messages;
+-- md5
+select utl_raw.cast_to_raw(dbms_obfuscation_toolkit.md5(input_string => 'abc')) from dual;
+           CAST_TO_RAW            
+----------------------------------
+ 900150983CD24FB0D6963F7D28E17F72
+(1 row)
+
+select dbms_obfuscation_toolkit.md5(input => utl_raw.cast_to_raw('abc')) from dual;
+               MD5                
+----------------------------------
+ 900150983CD24FB0D6963F7D28E17F72
+(1 row)

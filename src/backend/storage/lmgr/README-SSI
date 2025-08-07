@@ -379,6 +379,13 @@ level during a GiST search. An index insert at the leaf level can
 then be trusted to ripple up to all levels and locations where
 conflicting predicate locks may exist.
 
+    * Hash index searches acquire predicate locks on the primary
+page of a bucket. It acquires a lock on both the old and new buckets
+for scans that happen concurrently with page splits. During a bucket
+split, a predicate lock is copied from the primary page of an old
+bucket to the primary page of a new bucket.
+
+
     * The effects of page splits, overflows, consolidations, and
 removals must be carefully reviewed to ensure that predicate locks
 aren't "lost" during those operations, or kept with pages which could

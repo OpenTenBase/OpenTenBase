@@ -1,17 +1,11 @@
 /*-------------------------------------------------------------------------
  *
  * parse_node.h
- *        Internal definitions for parser
+ *		Internal definitions for parser
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
- *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  * src/include/parser/parse_node.h
  *
@@ -23,7 +17,9 @@
 #include "nodes/parsenodes.h"
 #include "utils/queryenvironment.h"
 #include "utils/relcache.h"
+#include "utils/hsearch.h"
 
+#define LIGHTWEIGHT_ORA_CONVERS_DATE_TIMESTAMP_TAG -100
 
 /*
  * Expression kinds distinguished by transformExpr().  Many of these are not
@@ -38,44 +34,69 @@
  */
 typedef enum ParseExprKind
 {
-    EXPR_KIND_NONE = 0,            /* "not in an expression" */
-    EXPR_KIND_OTHER,            /* reserved for extensions */
-    EXPR_KIND_JOIN_ON,            /* JOIN ON */
-    EXPR_KIND_JOIN_USING,        /* JOIN USING */
-    EXPR_KIND_FROM_SUBSELECT,    /* sub-SELECT in FROM clause */
-    EXPR_KIND_FROM_FUNCTION,    /* function in FROM clause */
-    EXPR_KIND_WHERE,            /* WHERE */
-    EXPR_KIND_HAVING,            /* HAVING */
-    EXPR_KIND_FILTER,            /* FILTER */
-    EXPR_KIND_WINDOW_PARTITION, /* window definition PARTITION BY */
-    EXPR_KIND_WINDOW_ORDER,        /* window definition ORDER BY */
-    EXPR_KIND_WINDOW_FRAME_RANGE,    /* window frame clause with RANGE */
-    EXPR_KIND_WINDOW_FRAME_ROWS,    /* window frame clause with ROWS */
-    EXPR_KIND_SELECT_TARGET,    /* SELECT target list item */
-    EXPR_KIND_INSERT_TARGET,    /* INSERT target list item */
-    EXPR_KIND_UPDATE_SOURCE,    /* UPDATE assignment source item */
-    EXPR_KIND_UPDATE_TARGET,    /* UPDATE assignment target item */
-    EXPR_KIND_GROUP_BY,            /* GROUP BY */
-    EXPR_KIND_ORDER_BY,            /* ORDER BY */
-    EXPR_KIND_DISTINCT_ON,        /* DISTINCT ON */
-    EXPR_KIND_LIMIT,            /* LIMIT */
-    EXPR_KIND_OFFSET,            /* OFFSET */
-    EXPR_KIND_RETURNING,        /* RETURNING */
-    EXPR_KIND_VALUES,            /* VALUES */
-    EXPR_KIND_VALUES_SINGLE,    /* single-row VALUES (in INSERT only) */
-    EXPR_KIND_CHECK_CONSTRAINT, /* CHECK constraint for a table */
-    EXPR_KIND_DOMAIN_CHECK,        /* CHECK constraint for a domain */
-    EXPR_KIND_COLUMN_DEFAULT,    /* default value for a table column */
-    EXPR_KIND_FUNCTION_DEFAULT, /* default parameter value for function */
-    EXPR_KIND_INDEX_EXPRESSION, /* index expression */
-    EXPR_KIND_INDEX_PREDICATE,    /* index predicate */
-    EXPR_KIND_ALTER_COL_TRANSFORM,    /* transform expr in ALTER COLUMN TYPE */
-    EXPR_KIND_EXECUTE_PARAMETER,    /* parameter value in EXECUTE */
-    EXPR_KIND_TRIGGER_WHEN,        /* WHEN condition in CREATE TRIGGER */
-    EXPR_KIND_POLICY,            /* USING or WITH CHECK expr in policy */
-    EXPR_KIND_PARTITION_EXPRESSION    /* PARTITION BY expression */
+	EXPR_KIND_NONE = 0,			/* "not in an expression" */
+	EXPR_KIND_OTHER,			/* reserved for extensions */
+	EXPR_KIND_JOIN_ON,			/* JOIN ON */
+	EXPR_KIND_JOIN_USING,		/* JOIN USING */
+	EXPR_KIND_FROM_SUBSELECT,	/* sub-SELECT in FROM clause */
+	EXPR_KIND_FROM_FUNCTION,	/* function in FROM clause */
+	EXPR_KIND_WHERE,			/* WHERE */
+	EXPR_KIND_HAVING,			/* HAVING */
+	EXPR_KIND_FILTER,			/* FILTER */
+	EXPR_KIND_WINDOW_PARTITION, /* window definition PARTITION BY */
+	EXPR_KIND_WINDOW_ORDER,		/* window definition ORDER BY */
+	EXPR_KIND_WINDOW_FRAME_RANGE,	/* window frame clause with RANGE */
+	EXPR_KIND_WINDOW_FRAME_ROWS,	/* window frame clause with ROWS */
+	EXPR_KIND_SELECT_TARGET,	/* SELECT target list item */
+	EXPR_KIND_INSERT_TARGET,	/* INSERT target list item */
+	EXPR_KIND_UPDATE_SOURCE,	/* UPDATE assignment source item */
+	EXPR_KIND_UPDATE_TARGET,	/* UPDATE assignment target item */
+	EXPR_KIND_MERGE_WHEN,		/* MERGE WHEN [NOT] MATCHED condition */
+	EXPR_KIND_GROUP_BY,			/* GROUP BY */
+	EXPR_KIND_ORDER_BY,			/* ORDER BY */
+	EXPR_KIND_DISTINCT_ON,		/* DISTINCT ON */
+	EXPR_KIND_LIMIT,			/* LIMIT */
+	EXPR_KIND_OFFSET,			/* OFFSET */
+	EXPR_KIND_RETURNING,		/* RETURNING */
+	EXPR_KIND_VALUES,			/* VALUES */
+	EXPR_KIND_VALUES_SINGLE,	/* single-row VALUES (in INSERT only) */
+	EXPR_KIND_CHECK_CONSTRAINT, /* CHECK constraint for a table */
+	EXPR_KIND_DOMAIN_CHECK,		/* CHECK constraint for a domain */
+	EXPR_KIND_COLUMN_DEFAULT,	/* default value for a table column */
+	EXPR_KIND_FUNCTION_DEFAULT, /* default parameter value for function */
+	EXPR_KIND_INDEX_EXPRESSION, /* index expression */
+	EXPR_KIND_INDEX_PREDICATE,	/* index predicate */
+	EXPR_KIND_ALTER_COL_TRANSFORM,	/* transform expr in ALTER COLUMN TYPE */
+	EXPR_KIND_EXECUTE_PARAMETER,	/* parameter value in EXECUTE */
+	EXPR_KIND_TRIGGER_WHEN,		/* WHEN condition in CREATE TRIGGER */
+	EXPR_KIND_POLICY,			/* USING or WITH CHECK expr in policy */
+	EXPR_KIND_PARTITION_EXPRESSION,	/* PARTITION BY expression */
+	EXPR_KIND_CALL_ARGUMENT     /* procedure argument in CALL */
 } ParseExprKind;
 
+typedef enum LongTypeCheck {
+  LT_NONE,      /* No need to check for long type */
+  LT_INSERT,    /* Need to check for long type in INSERT statement */
+  LT_MAVIEW     /* Need to check for long type in CREATE MATERIALIZED VIEW AS SELECT statement */
+} LongTypeCheck;
+
+#define NULL_TYPE_STR_LEN -3
+#define NULL_TYPE_NULL_LEN -2
+typedef enum
+{
+	EXPR_ITEM_NONE = 0,
+	EXPR_ITEM_FN_ARGS = 1,
+	EXPR_ITEM_UDT_ASSIGN = 2
+} ParseExprItem;
+
+typedef enum
+{
+	COLLECT_NONE = 0, /* non-collection type */
+	COLLECT_ASS_INDEX_LONG = 1, /* Associative array type and its index type is LONG. */
+	COLLECT_ASS_INDEX_TEXT = 2, /* Associative array type and its index type is TEXT. */
+	COLLECT_ASS_INDEX_INT = 3, /* Associative array type and its index type is INTEGER. */
+	COLLECT_OTHERS = 4 /* Nested tables and VARRAY types */
+} ParseCollect;
 
 /*
  * Function signatures for parser hooks
@@ -85,9 +106,14 @@ typedef struct ParseState ParseState;
 typedef Node *(*PreParseColumnRefHook) (ParseState *pstate, ColumnRef *cref);
 typedef Node *(*PostParseColumnRefHook) (ParseState *pstate, ColumnRef *cref, Node *var);
 typedef Node *(*ParseParamRefHook) (ParseState *pstate, ParamRef *pref);
+typedef ParseCollect (*ParseCollectRefHook) (ParseState *pstate, int paramno, Oid *indextypoid);
+typedef int32 (*ParseVarTypMod) (ParseState *pstate, int paramno);
+typedef List *(*GetCollectionValuesHook) (ParseState *pstate, ColumnRef *cref);
 typedef Node *(*CoerceParamHook) (ParseState *pstate, Param *param,
-                                  Oid targetTypeId, int32 targetTypeMod,
-                                  int location);
+								  Oid targetTypeId, int32 targetTypeMod,
+								  int location);
+typedef Node *(*CoerceRecordParamHook) (ParseState *pstate, Param *param);
+typedef bool (*CoerceEmptyStringHook) (ParseState *pstate, Node *node);
 
 
 /*
@@ -173,56 +199,140 @@ typedef Node *(*CoerceParamHook) (ParseState *pstate, Param *param,
  */
 struct ParseState
 {
-    struct ParseState *parentParseState;    /* stack link */
-    const char *p_sourcetext;    /* source text, or NULL if not available */
-    List       *p_rtable;        /* range table so far */
-    List       *p_joinexprs;    /* JoinExprs for RTE_JOIN p_rtable entries */
-    List       *p_joinlist;        /* join items so far (will become FromExpr
-                                 * node's fromlist) */
-    List       *p_namespace;    /* currently-referenceable RTEs (List of
-                                 * ParseNamespaceItem) */
-    bool        p_lateral_active;    /* p_lateral_only items visible? */
-    List       *p_ctenamespace; /* current namespace for common table exprs */
-    List       *p_future_ctes;    /* common table exprs not yet in namespace */
-    CommonTableExpr *p_parent_cte;    /* this query's containing CTE */
-    Relation    p_target_relation;    /* INSERT/UPDATE/DELETE target rel */
-    RangeTblEntry *p_target_rangetblentry;    /* target rel's RTE */
-    bool        p_is_insert;    /* process assignment like INSERT not UPDATE */
-    List       *p_windowdefs;    /* raw representations of window clauses */
-    ParseExprKind p_expr_kind;    /* what kind of expression we're parsing */
-    int            p_next_resno;    /* next targetlist resno to assign */
-    List       *p_multiassign_exprs;    /* junk tlist entries for multiassign */
-    List       *p_locking_clause;    /* raw FOR UPDATE/FOR SHARE info */
-    bool        p_locked_from_parent;    /* parent has marked this subquery
-                                         * with FOR UPDATE/FOR SHARE */
-    bool        p_resolve_unknowns; /* resolve unknown-type SELECT outputs as
-                                     * type text */
+	struct ParseState *parentParseState;	/* stack link */
+	const char *p_sourcetext;	/* source text, or NULL if not available */
+	List	   *p_rtable;		/* range table so far */
+	List	   *p_joinexprs;	/* JoinExprs for RTE_JOIN p_rtable entries */
+	List	   *p_joinlist;		/* join items so far (will become FromExpr
+								 * node's fromlist) */
+	List	   *p_namespace;	/* currently-referenceable RTEs (List of
+								 * ParseNamespaceItem) */
+	List	   **order_list;
+	bool		p_lateral_active;	/* p_lateral_only items visible? */
+	List	   *p_ctenamespace; /* current namespace for common table exprs */
+	List	   *p_future_ctes;	/* common table exprs not yet in namespace */
+	CommonTableExpr *p_parent_cte;	/* this query's containing CTE */
+	Relation	p_target_relation;	/* INSERT/UPDATE/DELETE target rel */
+	RangeTblEntry *p_target_rangetblentry;	/* target rel's RTE */
+	bool		p_is_insert;	/* process assignment like INSERT not UPDATE */
+	List	   *p_windowdefs;	/* raw representations of window clauses */
+	ParseExprKind p_expr_kind;	/* what kind of expression we're parsing */
+	int			p_next_resno;	/* next targetlist resno to assign */
+	List	   *p_multiassign_exprs;	/* junk tlist entries for multiassign */
+	List	   *p_locking_clause;	/* raw FOR UPDATE/FOR SHARE info */
+	bool		p_locked_from_parent;	/* parent has marked this subquery
+										 * with FOR UPDATE/FOR SHARE */
+	bool		p_resolve_unknowns; /* resolve unknown-type SELECT outputs as
+									 * type text */
 
-    QueryEnvironment *p_queryEnv;    /* curr env, incl refs to enclosing env */
+	QueryEnvironment *p_queryEnv;	/* curr env, incl refs to enclosing env */
 
-    /* Flags telling about things found in the query: */
-    bool        p_hasAggs;
-    bool        p_hasWindowFuncs;
-    bool        p_hasTargetSRFs;
-    bool        p_hasSubLinks;
-    bool        p_hasModifyingCTE;
-	bool        p_hasCoordFuncs;
+	/* Flags telling about things found in the query: */
+	bool		p_hasAggs;
+	bool		p_hasWindowFuncs;
+	bool		p_hasTargetSRFs;
+	bool		p_hasSubLinks;
+	bool		p_hasModifyingCTE;
+	bool		p_hasRownum;
+	bool		p_hasDistinct;
 
-    Node       *p_last_srf;        /* most recent set-returning func/op found */
+	Node	   *p_last_srf;		/* most recent set-returning func/op found */
 
-    /*
-     * Optional hook functions for parser callbacks.  These are null unless
-     * set up by the caller of make_parsestate.
-     */
-    PreParseColumnRefHook p_pre_columnref_hook;
-    PostParseColumnRefHook p_post_columnref_hook;
-    ParseParamRefHook p_paramref_hook;
-    CoerceParamHook p_coerce_param_hook;
-    void       *p_ref_hook_state;    /* common passthrough link for above */
+	List	   *p_nested_aggs;		/* Nested aggregate functions */
+	bool		p_resolve_nestagg;
+
+	/*
+	 * Optional hook functions for parser callbacks.  These are null unless
+	 * set up by the caller of make_parsestate.
+	 */
+	PreParseColumnRefHook p_pre_columnref_hook;
+	PostParseColumnRefHook p_post_columnref_hook;
+	ParseParamRefHook p_paramref_hook;
+	ParseCollectRefHook p_collectref_hook;
+	ParseVarTypMod p_vartypmod_hook;
+	GetCollectionValuesHook p_get_collection_values_hook;
+	CoerceParamHook p_coerce_param_hook;
+	CoerceRecordParamHook	p_coerce_rec_hook;
+	CoerceEmptyStringHook	p_coerce_empty_string_hook;
+	void	   *p_ref_hook_state;	/* common passthrough link for above */
 #ifdef __OPENTENBASE__
-    const CopyStmt *stmt;
+	const CopyStmt *stmt;
+	bool fromCTAS; /* Param process control to prevent repeated param parsing in CTAS scenario. */
+
+	/* opentenbase_ora long type syntax check */
+	LongTypeCheck long_type_check;
 #endif
+	bool        p_hasConnectBy;		/* has connect by clause in the query */
+	bool        p_hasWithFuncClause;
+	bool        p_is_connect_by;    /* process special qual: CONNECT BY */
+	bool        p_is_start_with;    /* process special qual: START WITH */
+	bool        p_is_prior;     	/* process special expr: prior */
+	bool		p_has_nocycle;		/* whether specify nocycle */
+
+	bool	has_outer_join_operator;/* Fast path to whether is (+) */
+	bool	need_ignore_outer_join;/* Fast path to whether is (+) in having */
+	bool	has_outer_join_on;/* Fast path to whether is (+) in on */
+	bool	has_ansi_join;/* Have ansi join in join */
+	bool	is_right_or_left_join; /* Is left join or right join in join on */
+	int		outer_join_varno;/* (+) Varno in join on */
+
+	/* ora_compatible: force the agg calculated at its query level */
+	bool		force_agg_local;
+
+	/*
+	 * The same SQL does not support multiple sequence nextVal calls. 
+	 * The hash table records the number of calls to nextVal in different sequences of the same SQL.
+	 * eg.
+	 * case1: Statement "select seq_test.nextval, seq_test2.nextval from dual;" is true
+	 * case2: Statement "select seq_test.nextval, seq_test2.nextval, seq_test2.nextval from dual;" is wrong
+	 */
+	HTAB *hash_seqnextval_calls;
+
+	void	*p_pl_state;
+	ParseExprItem	p_expr_item;
+#ifdef _PG_ORCL_
+	List	*with_funcs; /* List of Const of WITH FUNCTION - pg_proc tuples */
+	List	*local_funcs; /* List of Const of Nested Function - pg_proc tuples */
+	List	*cteList;
+
+	bool	is_top_order;	/* If is parsing a ORDER BY of query */
+	List	*ord_aggref;
+	bool	parse_type_object;     
+	bool	parse_typobj_fun_info; 
+	bool	parse_pkg_func_header;
+	int  param_cnt;
+	List *param_list;
+	SubLink	*p_sublink; /* from a sublink? Only check it from its direct child parse. */
+	List *targetlist;
+	Oid		p_pkgoid;
+	Oid  langValidatorOid; /* plsql language validator function oid */
+#endif
+	bool		isHudiForeign;	/* true if it is hudi FOREIGN TABLE */
+	bool		isHudiColumnTypeReset; /* hudi FOREIGN TABLE column timestamp type reset to date */
+	bool        isMergeStmt;
+	Oid			multisetRetOid;
+	bool		isInCheck;		/* Only performs verification operations, no actual execution */
+	bool		isDeparsedQuery;
 };
+
+/*
+ * One nested-aggregate
+ */
+typedef struct
+{
+	Aggref	*aggref;
+	List	*args;		/* Need replaced args */
+	List	*vars;		/* Vars as the new args for 'aggref' */
+} NestedAgg;
+
+/*
+ * Any aggregate functions with nested aggregate.
+ */
+typedef struct
+{
+	List	*aggs;		/* The nested aggref in the TargetEntry */
+	int		cur_resno;	/* The nested aggref belongs to which TargetEntry */
+} TargetNestedAggs;
 
 /*
  * An element of a namespace list.
@@ -240,7 +350,7 @@ struct ParseState
  * While processing the FROM clause, namespace items may appear with
  * p_lateral_only set, meaning they are visible only to LATERAL
  * subexpressions.  (The pstate's p_lateral_active flag tells whether we are
- * inside such a subexpression at the moment.)    If p_lateral_ok is not set,
+ * inside such a subexpression at the moment.)	If p_lateral_ok is not set,
  * it's an error to actually use such a namespace item.  One might think it
  * would be better to just exclude such items from visibility, but the wording
  * of SQL:2008 requires us to do it this way.  We also use p_lateral_ok to
@@ -253,40 +363,64 @@ struct ParseState
  */
 typedef struct ParseNamespaceItem
 {
-    RangeTblEntry *p_rte;        /* The relation's rangetable entry */
-    bool        p_rel_visible;    /* Relation name is visible? */
-    bool        p_cols_visible; /* Column names visible as unqualified refs? */
-    bool        p_lateral_only; /* Is only visible to LATERAL expressions? */
-    bool        p_lateral_ok;    /* If so, does join type allow use? */
+	RangeTblEntry *p_rte;		/* The relation's rangetable entry */
+	bool		p_rel_visible;	/* Relation name is visible? */
+	bool		p_cols_visible; /* Column names visible as unqualified refs? */
+	bool		p_lateral_only; /* Is only visible to LATERAL expressions? */
+	bool		p_lateral_ok;	/* If so, does join type allow use? */
 } ParseNamespaceItem;
 
 /* Support for parser_errposition_callback function */
 typedef struct ParseCallbackState
 {
-    ParseState *pstate;
-    int            location;
-    ErrorContextCallback errcallback;
+	ParseState *pstate;
+	int			location;
+	ErrorContextCallback errcallback;
 } ParseCallbackState;
 
+/* Insert to copy feature internally depends on data. */
+typedef struct
+{
+	ParamListInfo   params;
+	char          **param_string_list;
+	bool            partialinsert;
+
+	/* The current memory context is used for memory allocation of data_list. */
+	MemoryContext   cxt;
+} InsertToCopyInfoData;
+/* opentenbase_ora behavior checks that the same SQL statement does not contain more than one seq.nextval. */
+typedef struct
+{
+	Oid seqId; /* Relation Oid related to this calls info */
+	int seqnext_calls_num;
+} SeqNextCallItem;
 
 extern ParseState *make_parsestate(ParseState *parentParseState);
 extern void free_parsestate(ParseState *pstate);
-extern int    parser_errposition(ParseState *pstate, int location);
+extern int	parser_errposition(ParseState *pstate, int location);
 
 extern void setup_parser_errposition_callback(ParseCallbackState *pcbstate,
-                                  ParseState *pstate, int location);
+								  ParseState *pstate, int location);
 extern void cancel_parser_errposition_callback(ParseCallbackState *pcbstate);
 
 extern Var *make_var(ParseState *pstate, RangeTblEntry *rte, int attrno,
-         int location);
-extern Oid    transformArrayType(Oid *arrayType, int32 *arrayTypmod);
+		 int location);
+extern void set_with_local_funcs(ParseState *pstate);
+extern void set_with_function(ParseState *pstate);
+extern Oid	transformArrayType(Oid *arrayType, int32 *arrayTypmod);
 extern ArrayRef *transformArraySubscripts(ParseState *pstate,
-                         Node *arrayBase,
-                         Oid arrayType,
-                         Oid elementType,
-                         int32 arrayTypMod,
-                         List *indirection,
-                         Node *assignFrom);
+						 Node *arrayBase,
+						 Oid arrayType,
+						 Oid elementType,
+						 int32 arrayTypMod,
+						 List *indirection,
+						 Node *assignFrom,
+						 Oid indexTypOid);
 extern Const *make_const(ParseState *pstate, Value *value, int location);
 
-#endif                            /* PARSE_NODE_H */
+extern char *** transformInsertValuesToCopy(ParseState *pstate, SelectStmt *selectStmt, bool partialinsert, int *ncolumns, bool *support_tocopy);
+extern char *** transformInsertValuesToCopyForBind(ParseState *pstate, List *query_list, SelectStmt *selectStmt, int ncolumns, InsertToCopyInfoData *infodata);
+extern char *** InitCopyDatalist(int ndatarows, int ncolumns);
+extern void DeepfreeCopyDatalist(char ***data_list, int nrows, int ncolumns);
+
+#endif							/* PARSE_NODE_H */

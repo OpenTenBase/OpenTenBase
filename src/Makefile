@@ -31,6 +31,12 @@ SUBDIRS = \
 	test/regress \
 	test/perl
 
+ifeq ($(with_llvm), yes)
+SUBDIRS += backend/jit/llvm
+endif
+ifeq ($(with_kms), yes)
+SUBDIRS += backend/utils/misc/kms
+endif
 # There are too many interdependencies between the subdirectories, so
 # don't attempt parallel make here.
 .NOTPARALLEL:

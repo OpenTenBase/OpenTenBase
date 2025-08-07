@@ -5,9 +5,6 @@
  *
  * Copyright (c) 1996-2017, PostgreSQL Global Development Group
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * src/include/utils/jsonb.h
  *
  *-------------------------------------------------------------------------
@@ -37,6 +34,9 @@ typedef enum
 #define JsonbExistsStrategyNumber		9
 #define JsonbExistsAnyStrategyNumber	10
 #define JsonbExistsAllStrategyNumber	11
+#define JsonbJsonpathExistsStrategyNumber		15
+#define JsonbJsonpathPredicateStrategyNumber	16
+
 
 /*
  * In the standard jsonb_ops GIN opclass for jsonb, we choose to index both
@@ -68,10 +68,12 @@ typedef enum
 #define JGIN_MAXLENGTH	125		/* max length of text part before hashing */
 
 /* Convenience macros */
-#define DatumGetJsonb(d)	((Jsonb *) PG_DETOAST_DATUM(d))
-#define JsonbGetDatum(p)	PointerGetDatum(p)
-#define PG_GETARG_JSONB(x)	DatumGetJsonb(PG_GETARG_DATUM(x))
-#define PG_RETURN_JSONB(x)	PG_RETURN_POINTER(x)
+#define DatumGetJsonbP(d)	((Jsonb *) PG_DETOAST_DATUM(d))
+#define DatumGetJsonbPCopy(d)	((Jsonb *) PG_DETOAST_DATUM_COPY(d))
+#define JsonbPGetDatum(p)	PointerGetDatum(p)
+#define PG_GETARG_JSONB_P(x)	DatumGetJsonbP(PG_GETARG_DATUM(x))
+#define PG_GETARG_JSONB_P_COPY(x)	DatumGetJsonbPCopy(PG_GETARG_DATUM(x))
+#define PG_RETURN_JSONB_P(x)	PG_RETURN_POINTER(x)
 
 typedef struct JsonbPair JsonbPair;
 typedef struct JsonbValue JsonbValue;
@@ -373,6 +375,7 @@ extern Jsonb *JsonbValueToJsonb(JsonbValue *val);
 extern bool JsonbDeepContains(JsonbIterator **val,
 				  JsonbIterator **mContained);
 extern void JsonbHashScalarValue(const JsonbValue *scalarVal, uint32 *hash);
+extern void JsonbHashScalarValueNew(const JsonbValue *scalarVal, uint32 *hash);
 extern void JsonbHashScalarValueExtended(const JsonbValue *scalarVal,
 							 uint64 *hash, uint64 seed);
 
@@ -381,6 +384,8 @@ extern char *JsonbToCString(StringInfo out, JsonbContainer *in,
 			   int estimated_len);
 extern char *JsonbToCStringIndent(StringInfo out, JsonbContainer *in,
 					 int estimated_len);
+extern bool JsonbExtractScalar(JsonbContainer *jbc, JsonbValue *res);
+extern const char *JsonbTypeName(JsonbValue *jb);
 
 
 #endif							/* __JSONB_H__ */

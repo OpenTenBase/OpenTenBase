@@ -1,9 +1,3 @@
-/*
- * Copyright (c) 2023 THL A29 Limited, a Tencent company.
- *
- * This source code file is licensed under the BSD 3-Clause License,
- * you may obtain a copy of the License at http://opensource.org/license/bsd-3-clause/
- */
 #ifndef GTM_XLOG_INTERNAL_H
 #define GTM_XLOG_INTERNAL_H
 
@@ -16,8 +10,8 @@
 #include "gtm/gtm_c.h"
 #include "gtm/gtm_lock.h"
 #include "gtm/gtm_checkpoint.h"
-#include "utils/pg_crc.h"
 #include "libpq-be.h"
+#include "utils/pg_crc.h"
 
 #define GTM_XLOG_PAGE_MAGIC     0xFFFF
 #define GTM_XLOG_SEG_SIZE       (1024 * 1024 * 2) /* 2M */
@@ -30,38 +24,55 @@
 #define FIRST_XLOG_REC      GTM_XLOG_BLCKSZ
 #define FIRST_USABLE_BYTE   UsableBytesInPage
 
-#define GTMXLogSegmentsPerXLogId    (UINT64CONST(0x100000000) / GTM_XLOG_SEG_SIZE)
+#define GTMXLogSegmentsPerXLogId	(UINT64CONST(0x100000000) / GTM_XLOG_SEG_SIZE)
 
 #define GTMArchiverCheckInterval (1000 * 200) /* 200ms */
 
-#define MAXFNAMELEN        64
+#define XLOG_FNAME_LEN	   24
+
+#define MAXFNAMELEN    	64
 
 #define MAX_COMMAND_LEN 2048
 
-#define GTMXLogFileName(fname, tli, logSegNo)    \
-    snprintf(fname, MAXFNAMELEN, "gtm_xlog/%08X%08X%08X", tli,        \
+#define XLOG_DIR    "gtm_xlog"
+
+#define GTMXLogFileName(fname, tli, logSegNo)	\
+    snprintf(fname, MAXFNAMELEN, "gtm_xlog/%08X%08X%08X", tli,		\
             (uint32) ((logSegNo) / GTMXLogSegmentsPerXLogId), \
             (uint32) ((logSegNo) % GTMXLogSegmentsPerXLogId))
 
-#define GTMXLogFileNameWithoutGtmDir(fname, tli, logSegNo)    \
-    snprintf(fname, MAXFNAMELEN, "%08X%08X%08X", tli,        \
+#define GTMRawXLogFileName(fname, tli, logSegNo)	\
+        snprintf(fname, MAXFNAMELEN, "%08X%08X%08X", tli,      \
+                (uint32) ((logSegNo) / GTMXLogSegmentsPerXLogId), \
+                (uint32) ((logSegNo) % GTMXLogSegmentsPerXLogId))
+
+#define GTMXLogFileNameWithoutGtmDir(fname, tli, logSegNo)	\
+    snprintf(fname, MAXFNAMELEN, "%08X%08X%08X", tli,		\
             (uint32) ((logSegNo) / GTMXLogSegmentsPerXLogId), \
             (uint32) ((logSegNo) % GTMXLogSegmentsPerXLogId))
 
-#define GTMXLogFileStatusReadyName(fname, tli, logSegNo)    \
-    snprintf(fname, MAXFNAMELEN, "gtm_xlog/archive_status/%08X%08X%08X.ready", tli,        \
+#define GTMXLogFileStatusReadyName(fname, tli, logSegNo)	\
+    snprintf(fname, MAXFNAMELEN, "gtm_xlog/archive_status/%08X%08X%08X.ready", tli,		\
+            (uint32) ((logSegNo) / GTMXLogSegmentsPerXLogId), \
+            (uint32) ((logSegNo) % GTMXLogSegmentsPerXLogId))
+#define GTMXLogFileStatusDoneName(fname, tli, logSegNo)	\
+    snprintf(fname, MAXFNAMELEN, "gtm_xlog/archive_status/%08X%08X%08X.done", tli,		\
+            (uint32) ((logSegNo) / GTMXLogSegmentsPerXLogId), \
+            (uint32) ((logSegNo) % GTMXLogSegmentsPerXLogId))
+#define GTMXLogFileGtsName(fname, tli, logSegNo)	\
+    snprintf(fname, MAXFNAMELEN, "gtm_xlog/archive_status/%08X%08X%08X.gts", tli,		\
             (uint32) ((logSegNo) / GTMXLogSegmentsPerXLogId), \
             (uint32) ((logSegNo) % GTMXLogSegmentsPerXLogId))
 
-#define GTMXLogFileStatusDoneName(fname, tli, logSegNo)    \
-    snprintf(fname, MAXFNAMELEN, "gtm_xlog/archive_status/%08X%08X%08X.done", tli,        \
-            (uint32) ((logSegNo) / GTMXLogSegmentsPerXLogId), \
-            (uint32) ((logSegNo) % GTMXLogSegmentsPerXLogId))
+#define IsXLogFileName(fname) \
+	(strlen(fname) == XLOG_FNAME_LEN && \
+	 strspn(fname, "0123456789ABCDEF") == XLOG_FNAME_LEN)
 
-#define GTMXLogFileGtsName(fname, tli, logSegNo)    \
-    snprintf(fname, MAXFNAMELEN, "gtm_xlog/archive_status/%08X%08X%08X.gts", tli,        \
-            (uint32) ((logSegNo) / GTMXLogSegmentsPerXLogId), \
-            (uint32) ((logSegNo) % GTMXLogSegmentsPerXLogId))
+#define IsPartialXLogFileName(fname)	\
+	(strlen(fname) == XLOG_FNAME_LEN + strlen(".partial") &&	\
+	 strspn(fname, "0123456789ABCDEF") == XLOG_FNAME_LEN &&		\
+	 strcmp((fname) + XLOG_FNAME_LEN, ".partial") == 0)
+
 
 #define RECOVERY_CONF_NAME "recovery.conf"
 #define RECOVERY_CONF_NAME_DONE "recovery.done"
@@ -92,6 +103,8 @@ typedef struct XLogRecord
     /* 2 bytes of padding here, initialize to zero */
     pg_crc32c     xl_crc;         /* CRC for this record */
 } XLogRecord; 
+
+#define MAX_XLOG_RECORD_SIZE (((Size) 0x3fffffff) - GTM_XLOG_BLCKSZ) /* define max gtm xlog record size as a little smaller than max size can alloced */
 
 typedef struct XLogPageHeaderData
 {

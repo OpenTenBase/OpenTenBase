@@ -20,4 +20,4 @@ extern SampleScanState *ExecInitSampleScan(SampleScan *node, EState *estate, int
 extern void ExecEndSampleScan(SampleScanState *node);
 extern void ExecReScanSampleScan(SampleScanState *node);
 
-#endif                            /* NODESAMPLESCAN_H */
+#endif							/* NODESAMPLESCAN_H */

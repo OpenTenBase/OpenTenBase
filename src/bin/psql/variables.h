@@ -61,11 +61,11 @@ typedef char *(*VariableSubstituteHook) (char *newval);
  */
 struct _variable
 {
-    char       *name;
-    char       *value;
-    VariableSubstituteHook substitute_hook;
-    VariableAssignHook assign_hook;
-    struct _variable *next;
+	char	   *name;
+	char	   *value;
+	VariableSubstituteHook substitute_hook;
+	VariableAssignHook assign_hook;
+	struct _variable *next;
 };
 
 /* Data structure representing a set of variables */
@@ -76,21 +76,22 @@ VariableSpace CreateVariableSpace(void);
 const char *GetVariable(VariableSpace space, const char *name);
 
 bool ParseVariableBool(const char *value, const char *name,
-                  bool *result);
+				  bool *result);
 
 bool ParseVariableNum(const char *value, const char *name,
-                 int *result);
+				 int *result);
 
-void        PrintVariables(VariableSpace space);
+void		PrintVariables(VariableSpace space);
 
-bool        SetVariable(VariableSpace space, const char *name, const char *value);
-bool        SetVariableBool(VariableSpace space, const char *name);
-bool        DeleteVariable(VariableSpace space, const char *name);
+bool		SetVariable(VariableSpace space, const char *name, const char *value);
+bool		SetVariableBool(VariableSpace space, const char *name);
+bool		DeleteVariable(VariableSpace space, const char *name);
 
 void SetVariableHooks(VariableSpace space, const char *name,
-                 VariableSubstituteHook shook,
-                 VariableAssignHook ahook);
+				 VariableSubstituteHook shook,
+				 VariableAssignHook ahook);
+bool		VariableHasHook(VariableSpace space, const char *name);
 
-void        PsqlVarEnumError(const char *name, const char *value, const char *suggestions);
+void		PsqlVarEnumError(const char *name, const char *value, const char *suggestions);
 
-#endif                            /* VARIABLES_H */
+#endif							/* VARIABLES_H */

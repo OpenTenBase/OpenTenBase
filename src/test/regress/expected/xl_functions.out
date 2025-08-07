@@ -12,7 +12,7 @@ CREATE TABLE xl_funct2(
 ) DISTRIBUTE BY HASH(a);
 INSERT INTO xl_funct2(a,b) VALUES (1,2);--c should be 22
 INSERT INTO xl_funct2(a,b,c) VALUES (3,4,5);-- c should be 5
-SELECT * from xl_funct2;
+SELECT * from xl_funct2 order by 1;
  a | b | c  
 ---+---+----
  1 | 2 | 22
@@ -22,7 +22,9 @@ SELECT * from xl_funct2;
 --STABLE functions
 -- checking STABLE function in DEFAULT of non-distribution column
 create function xl_nochange(text) returns text
-  as 'select $1 limit 1' language sql stable;
+  as 'select $1 limit 1' language sql stable pushdown;
+WARNING:  You are pushing function down to datanode for execution
+HINT:  Make sure it's not attempt to access any other datanode OR YOU MAY SUFFER DATA LOSE !!
 CREATE TABLE xl_funct3(
 	a integer,
 	b integer,
@@ -30,7 +32,7 @@ CREATE TABLE xl_funct3(
 ) DISTRIBUTE BY HASH(a);
 INSERT INTO xl_funct3(a,b) VALUES (1,2);--c should be pallavi
 INSERT INTO xl_funct3(a,b,c) VALUES (3,4,'qwerty');-- c should be qwerty
-SELECT * from xl_funct3;
+SELECT * from xl_funct3 order by 1;
  a | b |   c    
 ---+---+--------
  1 | 2 | hello
@@ -45,17 +47,19 @@ CREATE TABLE xl_funct4(
 ) DISTRIBUTE BY HASH(c);
 INSERT INTO xl_funct4(a,b) VALUES (1,2);--c should be pallavi
 INSERT INTO xl_funct4(a,b,c) VALUES (3,4,'qwerty');-- c should be qwerty
-SELECT * from xl_funct4;
+SELECT * from xl_funct4 order by 1;
  a | b |   c    
 ---+---+--------
- 3 | 4 | qwerty
  1 | 2 | hello
+ 3 | 4 | qwerty
 (2 rows)
 
 --VOLATILE functions
 create or replace function xl_get_curr_decade() returns double precision as
 $$ SELECT EXTRACT(DECADE FROM NOW()); $$
-language sql volatile;
+language sql volatile pushdown;
+WARNING:  You are pushing function down to datanode for execution
+HINT:  Make sure it's not attempt to access any other datanode OR YOU MAY SUFFER DATA LOSE !!
 CREATE TABLE xl_funct5(
 	a integer,
 	b integer,
@@ -63,7 +67,7 @@ CREATE TABLE xl_funct5(
 ) DISTRIBUTE BY HASH(a);
 INSERT INTO xl_funct5(a,b) VALUES (1,2);--c should be e.g. 201 for 2015
 INSERT INTO xl_funct5(a,b,c) VALUES (3,4,20);-- c should be 20
-SELECT * from xl_funct5;
+SELECT * from xl_funct5 order by 1;
  a | b |  c  
 ---+---+-----
  1 | 2 | 202
@@ -80,7 +84,7 @@ CREATE TABLE xl_funct (
 INSERT INTO xl_funct (a) VALUES (1);
 INSERT INTO xl_funct (a) VALUES (2);
 INSERT INTO xl_funct (a) VALUES (3);
-SELECT * FROM xl_funct;
+SELECT * FROM xl_funct order by 1;
  a | b 
 ---+---
  1 | 1
@@ -95,12 +99,12 @@ CREATE TABLE xl_funct1 (
 INSERT INTO xl_funct1 (b) VALUES (1);
 INSERT INTO xl_funct1 (b) VALUES (2);
 INSERT INTO xl_funct1 (b) VALUES (3);
-SELECT * FROM xl_funct1;
+SELECT * FROM xl_funct1 order by a;
  a | b 
 ---+---
+ 4 | 1
  5 | 2
  6 | 3
- 4 | 1
 (3 rows)
 
 DROP TABLE xl_funct;
@@ -112,3 +116,6 @@ DROP TABLE xl_funct4;
 DROP FUNCTION xl_nochange(text);
 DROP TABLE xl_funct5;
 DROP FUNCTION xl_get_curr_decade();
+CREATE TABLE IF NOT EXISTS t0(c0 TEXT DEFAULT (((((lower((CAST(-1807148075 AS VARCHAR) COLLATE "C")) COLLATE "C"))||(num_nonnulls((((('' COLLATE "C"))||(('f?' COLLATE "C"))) COLLATE "C")))) COLLATE "C")), CHECK(CAST((((t0.c0 COLLATE "C"))LIKE((t0.c0 COLLATE "C"))) AS BOOLEAN))) WITH (autovacuum_vacuum_threshold=1041983328, autovacuum_enabled=1, autovacuum_vacuum_cost_limit=708, autovacuum_vacuum_cost_delay=27, autovacuum_analyze_threshold=2023889437, autovacuum_freeze_min_age=354563129, autovacuum_analyze_scale_factor=1, autovacuum_vacuum_scale_factor=0.01, autovacuum_freeze_max_age=1766099001);
+INSERT INTO t0(c0) VALUES(((((((((pg_current_logfile() COLLATE "C"))::VARCHAR COLLATE "C") COLLATE "yi_US.utf8") COLLATE "C"))||(((('?AH4gQ,' COLLATE "C") COLLATE "ar_SD.utf8") COLLATE "C"))) COLLATE "C"));
+DROP TABLE t0;

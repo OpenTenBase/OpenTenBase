@@ -1,8 +1,8 @@
 /*-------------------------------------------------------------------------
  *
  * rls.h
- *      Header file for Row Level Security (RLS) utility commands to be used
- *      with the rowsecurity feature.
+ *	  Header file for Row Level Security (RLS) utility commands to be used
+ *	  with the rowsecurity feature.
  *
  * Copyright (c) 2007-2017, PostgreSQL Global Development Group
  *
@@ -40,11 +40,11 @@ extern bool row_security;
  */
 enum CheckEnableRlsResult
 {
-    RLS_NONE,
-    RLS_NONE_ENV,
-    RLS_ENABLED
+	RLS_NONE,
+	RLS_NONE_ENV,
+	RLS_ENABLED
 };
 
-extern int    check_enable_rls(Oid relid, Oid checkAsUser, bool noError);
+extern int	check_enable_rls(Oid relid, Oid checkAsUser, bool noError);
 
-#endif                            /* RLS_H */
+#endif							/* RLS_H */

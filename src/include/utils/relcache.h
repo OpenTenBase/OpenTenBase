@@ -7,9 +7,6 @@
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * src/include/utils/relcache.h
  *
  *-------------------------------------------------------------------------
@@ -18,9 +15,10 @@
 #define RELCACHE_H
 
 #include "access/tupdesc.h"
-#include "lib/ilist.h"
 #include "nodes/bitmapset.h"
 
+
+#define CHECK_LOCATION __FILE__, __LINE__, PG_FUNCNAME_MACRO
 
 typedef struct RelationData *Relation;
 
@@ -48,6 +46,7 @@ extern Oid	RelationGetOidIndex(Relation relation);
 extern Oid	RelationGetPrimaryKeyIndex(Relation relation);
 extern Oid	RelationGetReplicaIndex(Relation relation);
 extern List *RelationGetIndexExpressions(Relation relation);
+extern List *RelationGetDummyIndexExpressions(Relation relation);
 extern List *RelationGetIndexPredicate(Relation relation);
 
 typedef enum IndexAttrBitmapKind
@@ -57,13 +56,6 @@ typedef enum IndexAttrBitmapKind
 	INDEX_ATTR_BITMAP_PRIMARY_KEY,
 	INDEX_ATTR_BITMAP_IDENTITY_KEY
 } IndexAttrBitmapKind;
-
-typedef struct relcacheheader
-{
-	int			rh_ntup;		/* # of tuples in relation cache */
-	int			rh_maxtup;		/* max number of LRU relations */
-	dlist_head 	rh_lrulist;		/* LRU list, most recent first */
-} RelCacheHeader;
 
 extern Bitmapset *RelationGetIndexAttrBitmap(Relation relation,
 						   IndexAttrBitmapKind keyAttrs);
@@ -123,6 +115,8 @@ extern void RelationSetNewRelfilenode(Relation relation, char persistence,
 extern void RelationForgetRelation(Oid rid);
 
 extern void RelationCacheInvalidateEntry(Oid relationId);
+extern void RelationCacheCheckEntry(Oid relationId, const char * filename, int lineno, const char * funcname);
+
 
 extern void RelationCacheInvalidate(void);
 
@@ -142,13 +136,21 @@ extern void RelationCacheInitFileRemove(void);
 
 extern bool RelationHasGTS(Relation rel);
 
-extern void RelationLRUInsert(Relation rel);
-extern void RelationLRUDelete(Relation rel);
-
 /* should be used only by relcache.c and catcache.c */
 extern bool criticalRelcachesBuilt;
 
 /* should be used only by relcache.c and postinit.c */
 extern bool criticalSharedRelcachesBuilt;
+
+#ifdef __OPENTENBASE_C__
+extern List *RelationGetValidIndexList(Relation relation);
+extern List *RelationGetInvalidIndexList(Relation relation);
+extern int16 check_rel_for_uppdate(Relation rel);
+#endif
+
+extern List* RelationGetIndexInfoList(Relation relation);
+extern List *insert_ordered_oid(List *list, Oid datum);
+extern List *RelationGetGlobalIndexInfoList(Relation relation);
+extern List *RelationIdGetGlobalIndexInfoList(Oid relid);
 
 #endif							/* RELCACHE_H */
