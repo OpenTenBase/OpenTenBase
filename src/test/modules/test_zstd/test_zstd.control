@@ -1,0 +1,4 @@
+comment = 'Test zstd code for compress and decompress files'
+default_version = '1.0'
+module_pathname = '$libdir/test_zstd'
+relocatable = true

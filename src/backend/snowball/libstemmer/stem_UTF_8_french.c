@@ -609,7 +609,7 @@ static int r_R2(struct SN_env * z) {
     return 1;
 }
 
-static int r_standard_suffix(struct SN_env * z) {// #lizard forgives
+static int r_standard_suffix(struct SN_env * z) {
     int among_var;
     z->ket = z->c; /* [, line 92 */
     among_var = find_among_b(z, a_4, 43); /* substring, line 92 */

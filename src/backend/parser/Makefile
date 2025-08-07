@@ -16,7 +16,7 @@ OBJS= analyze.o gram.o scan.o parser.o \
       parse_agg.o parse_clause.o parse_coerce.o parse_collate.o parse_cte.o \
       parse_enr.o parse_expr.o parse_func.o parse_node.o parse_oper.o \
       parse_param.o parse_relation.o parse_target.o parse_type.o \
-      parse_utilcmd.o scansup.o
+      parse_utilcmd.o scansup.o parse_merge.o
 
 include $(top_srcdir)/src/backend/common.mk
 
@@ -46,4 +46,4 @@ gram.o scan.o parser.o: gram.h
 # gram.c, gram.h, and scan.c are in the distribution tarball, so they
 # are not cleaned here.
 clean distclean maintainer-clean:
-	rm -f lex.backup
+	rm -f lex.backup gram.c scan.c

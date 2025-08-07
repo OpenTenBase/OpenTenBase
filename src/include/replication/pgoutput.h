@@ -1,12 +1,12 @@
 /*-------------------------------------------------------------------------
  *
  * pgoutput.h
- *        Logical Replication output plugin
+ *		Logical Replication output plugin
  *
  * Copyright (c) 2015-2017, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *        pgoutput.h
+ *		pgoutput.h
  *
  *-------------------------------------------------------------------------
  */
@@ -17,14 +17,14 @@
 
 typedef struct PGOutputData
 {
-    MemoryContext context;        /* private memory context for transient
-                                 * allocations */
+	MemoryContext context;		/* private memory context for transient
+								 * allocations */
 
-    /* client info */
-    uint32        protocol_version;
+	/* client info */
+	uint32		protocol_version;
 
-    List       *publication_names;
-    List       *publications;
+	List	   *publication_names;
+	List	   *publications;
 } PGOutputData;
 
-#endif                            /* PGOUTPUT_H */
+#endif							/* PGOUTPUT_H */

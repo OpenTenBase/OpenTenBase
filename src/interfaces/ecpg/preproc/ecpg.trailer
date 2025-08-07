@@ -57,7 +57,7 @@ ECPGConnect: SQL_CONNECT TO connection_target opt_connection_name opt_user
 			{ $$ = cat_str(5, $3, mm_strdup(","), $5, mm_strdup(","), $4); }
 		| SQL_CONNECT TO DEFAULT
 			{ $$ = mm_strdup("NULL, NULL, NULL, \"DEFAULT\""); }
-		  /* also allow ORACLE syntax */
+		  /* also allow OPENTENBASE_ORA syntax */
 		| SQL_CONNECT ora_user
 			{ $$ = cat_str(3, mm_strdup("NULL,"), $2, mm_strdup(", NULL")); }
 		| DATABASE connection_target
@@ -1454,13 +1454,13 @@ action : CONTINUE_P
 			$<action>$.command = NULL;
 			$<action>$.str = mm_strdup("break");
 		}
-		| SQL_CALL name '(' c_args ')'
+		| CALL name '(' c_args ')'
 		{
 			$<action>$.code = W_DO;
 			$<action>$.command = cat_str(4, $2, mm_strdup("("), $4, mm_strdup(")"));
 			$<action>$.str = cat2_str(mm_strdup("call"), mm_strdup($<action>$.command));
 		}
-		| SQL_CALL name
+		| CALL name
 		{
 			$<action>$.code = W_DO;
 			$<action>$.command = cat2_str($2, mm_strdup("()"));
@@ -1476,7 +1476,6 @@ ECPGKeywords: ECPGKeywords_vanames	{ $$ = $1; }
 		;
 
 ECPGKeywords_vanames:  SQL_BREAK		{ $$ = mm_strdup("break"); }
-		| SQL_CALL						{ $$ = mm_strdup("call"); }
 		| SQL_CARDINALITY				{ $$ = mm_strdup("cardinality"); }
 		| SQL_COUNT						{ $$ = mm_strdup("count"); }
 		| SQL_DATETIME_INTERVAL_CODE	{ $$ = mm_strdup("datetime_interval_code"); }

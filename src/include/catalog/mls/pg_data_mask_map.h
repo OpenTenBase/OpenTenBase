@@ -1,17 +1,11 @@
-/*
- * Copyright (c) 2023 THL A29 Limited, a Tencent company.
- *
- * This source code file is licensed under the BSD 3-Clause License,
- * you may obtain a copy of the License at http://opensource.org/license/bsd-3-clause/
- */
 #ifndef PG_DATA_MASK_H
 #define PG_DATA_MASK_H
 
 #include "catalog/genbki.h"
 
-#define DataMaskMapRelationId  6107
+#define DataMaskMapRelationId  8192
     
-CATALOG(pg_data_mask_map,6107) BKI_WITHOUT_OIDS 
+CATALOG(pg_data_mask_map,8192) BKI_WITHOUT_OIDS 
 {
     Oid         relid;
     int16       attnum;

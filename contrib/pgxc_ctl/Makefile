@@ -13,7 +13,7 @@ PGAPPICON = win32
 
 PROGRAM= pgxc_ctl
 OBJS= pgxc_ctl_bash.o bash_handler.o config.o pgxc_ctl.o variables.o pgxc_ctl_log.o do_command.o \
-	 utils.o do_shell.o gtm_cmd.o coord_cmd.o datanode_cmd.o gtm_util.o mcxt.o monitor.o
+	 utils.o do_shell.o gtm_cmd.o coord_cmd.o datanode_cmd.o gtm_util.o mcxt.o monitor.o 
 
 
 #Include GTM objects

@@ -20,4 +20,4 @@ extern UniqueState *ExecInitUnique(Unique *node, EState *estate, int eflags);
 extern void ExecEndUnique(UniqueState *node);
 extern void ExecReScanUnique(UniqueState *node);
 
-#endif                            /* NODEUNIQUE_H */
+#endif							/* NODEUNIQUE_H */

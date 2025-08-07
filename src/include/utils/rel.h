@@ -9,9 +9,6 @@
  * Portions Copyright (c) 1994, Regents of the University of California
  * Portions Copyright (c) 2010-2012 Postgres-XC Development Group
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * src/include/utils/rel.h
  *
  *-------------------------------------------------------------------------
@@ -20,10 +17,12 @@
 #define REL_H
 
 #include "access/tupdesc.h"
+#include "access/xact.h"
 #include "access/xlog.h"
 #include "access/transam.h"
 #include "catalog/pg_class.h"
 #include "catalog/pg_index.h"
+#include "catalog/catalog.h"
 #include "catalog/pg_publication.h"
 #include "fmgr.h"
 #include "nodes/bitmapset.h"
@@ -31,12 +30,16 @@
 #include "rewrite/prs2lock.h"
 #include "storage/block.h"
 #include "storage/relfilenode.h"
+#include "storage/smgr.h"
 #include "utils/relcache.h"
 #include "utils/reltrigger.h"
 #ifdef __OPENTENBASE__
-#include "catalog/pg_partition_interval.h"
 #include "nodes/parsenodes.h"
 #endif
+#ifdef __OPENTENBASE_C__
+#include "catalog/pg_am.h"
+#endif
+
 /*
  * LockRelId and LockInfo really belong to lmgr.h, but it's more convenient
  * to declare them here so we can have a LockInfoData field in a Relation.
@@ -56,34 +59,8 @@ typedef struct LockInfoData
 typedef LockInfoData *LockInfo;
 
 /*
- * Information about the partition key of a relation
+ * Here are the contents of a relation cache entry.
  */
-typedef struct PartitionKeyData
-{
-	char		strategy;		/* partitioning strategy */
-	int16		partnatts;		/* number of columns in the partition key */
-	AttrNumber *partattrs;		/* attribute numbers of columns in the
-								 * partition key */
-	List	   *partexprs;		/* list of expressions in the partitioning
-								 * key, or NIL */
-
-	Oid		   *partopfamily;	/* OIDs of operator families */
-	Oid		   *partopcintype;	/* OIDs of opclass declared input data types */
-	FmgrInfo   *partsupfunc;	/* lookup info for support funcs */
-
-	/* Partitioning collation per attribute */
-	Oid		   *partcollation;
-
-	/* Type information per attribute */
-	Oid		   *parttypid;
-	int32	   *parttypmod;
-	int16	   *parttyplen;
-	bool	   *parttypbyval;
-	char	   *parttypalign;
-	Oid		   *parttypcoll;
-}			PartitionKeyData;
-
-typedef struct PartitionKeyData *PartitionKey;
 
 #ifdef _MLS_
 typedef struct tagClsExprStruct
@@ -94,23 +71,29 @@ typedef struct tagClsExprStruct
 }ClsExprStruct;
 #endif
 
-/*
- * Here are the contents of a relation cache entry.
- */
+typedef enum
+{
+	REL_IS_NOT_GTT = 0,
+	REL_IS_META_GTT,
+	REL_IS_ACTIVATED_GTT
+} GttType;
 
 typedef struct RelationData
 {
 	RelFileNode rd_node;		/* relation physical identifier */
-	/* use "struct" here to avoid needing to include smgr.h: */
-	struct SMgrRelationData *rd_smgr;	/* cached file handle, or NULL */
+	SMgrRelation rd_smgr;	/* cached file handle, or NULL */
 	int			rd_refcnt;		/* reference count */
 	BackendId	rd_backend;		/* owning backend id, if temporary relation */
+	pthread_t   rd_threadid;    /* owning thread id */
 	bool		rd_islocaltemp; /* rel is a temp rel of this session */
 	bool		rd_isnailed;	/* rel is nailed in cache */
 	bool		rd_isvalid;		/* relcache entry is valid */
 	char		rd_indexvalid;	/* state of rd_indexlist: 0 = not valid, 1 =
 								 * valid, 2 = temporarily forced */
 	bool		rd_statvalid;	/* is rd_statlist valid? */
+	char		rd_gtt_type; 	/* gtt type of rel: 0 = not gtt, 1 = meta gtt,
+								 * 2 = activated gtt */
+	CommandId   rd_firstcid;    /* first statement using rel */
 
 	/*
 	 * rd_createSubid is the ID of the highest subtransaction the rel has
@@ -237,13 +220,23 @@ typedef struct RelationData
 
 	/* use "struct" here to avoid needing to include pgstat.h: */
 	struct PgStat_TableStatus *pgstat_info; /* statistics collection area */
+	struct XactRelStats	*xact_relstat_info;
+#ifdef _PG_ORCL_
+	/*
+	 * Hack for ALTER TABLE...SET WITH ROWIDS. The new create temporary table
+	 * should use the old table ROWID sequence. Here the OID field will set
+	 * up the correct sequnece ID.
+	 */
+	Oid          rd_rowidseqid;  /* Real Sequnece OID or InvalidOid. */
+
+	/* DISABLE VALIDATE CONSTRAINT, the current table does not allow insertions, deletions, or modifications. */
+	bool         cons_disablevalidate;
+#endif
 #ifdef PGXC
 	RelationLocInfo *rd_locator_info;
 #endif
-#ifdef __OPENTENBASE__
-	Form_pg_partition_interval  rd_partitions_info;
-	dlist_node		rd_lru_list_elem;	/* list member of LRU list */
-#endif
+	bool		rd_cross_node_index_list_valid;
+	List       *rd_cross_node_index_list;
 } RelationData;
 
 
@@ -282,6 +275,7 @@ typedef struct ForeignKeyCacheInfo
  * be applied to relations that use this format or a superset for
  * private options data.
  */
+ 
  /* autovacuum-related reloptions. */
 typedef struct AutoVacOpts
 {
@@ -301,6 +295,7 @@ typedef struct AutoVacOpts
 	float8		analyze_scale_factor;
 } AutoVacOpts;
 
+//1c4715a388956c46a2b8d96a8793ce25c630548f
 typedef struct StdRdOptions
 {
 	int32		vl_len_;		/* varlena header (do not touch directly!) */
@@ -308,10 +303,27 @@ typedef struct StdRdOptions
 	AutoVacOpts autovacuum;		/* autovacuum-related options */
 	bool		user_catalog_table; /* use as an additional catalog relation */
 	int			parallel_workers;	/* max number of parallel workers */
+	bool		on_commit_delete_rows;	/* global temp table */
+	int			online_gathering_threshold;	/* online gathering for bulk loads */
+	char       *rel_parallel_dml;
+	bool        checksum;	/* enable checksum for table */
 } StdRdOptions;
+
+#define StdRdOptionsGetStringData(_basePtr, _memberName, _defaultVal)                    \
+    (((_basePtr) && (((StdRdOptions*)(_basePtr))->_memberName))                          \
+            ? (((char*)(_basePtr) + *(int*)&(((StdRdOptions*)(_basePtr))->_memberName))) \
+            : (_defaultVal))
 
 #define HEAP_MIN_FILLFACTOR			10
 #define HEAP_DEFAULT_FILLFACTOR		100
+
+/*
+ * RelationGetOnlineGatheringThreshold
+ *		Returns the online gathering threshold.
+ */
+#define RelationGetOnlineGatheringThreshold(relation) \
+	((relation)->rd_options ? \
+	 ((StdRdOptions *) (relation)->rd_options)->online_gathering_threshold : -1)
 
 /*
  * RelationGetFillFactor
@@ -355,6 +367,64 @@ typedef struct StdRdOptions
 	((relation)->rd_options ? \
 	 ((StdRdOptions *) (relation)->rd_options)->parallel_workers : (defaultpw))
 
+/*
+ * RelationGetEstoreInsertMemLimit
+ *		Returns the relation's estore_insert_mem_limit reloption setting.
+ *		Note multiple eval of argument!
+ */
+#define RelationGetEstoreInsertMemLimit(relation, defaultpw) \
+	((relation)->rd_options ? \
+	 ((StdRdOptions *) (relation)->rd_options)->estore_insert_mem_limit : (defaultpw))
+
+/*
+ * RelationGetEstoreInsertPartialClusterRowLimit
+ *		Returns the relation's estore_partial_cluster_row_limit reloption setting.
+ *		Note multiple eval of argument!
+ */
+#define RelationGetEstoreInsertPartialClusterRowLimit(relation, defaultpw) \
+	((relation)->rd_options ? \
+	 ((StdRdOptions *) (relation)->rd_options)->estore_partial_cluster_row_limit : (defaultpw))
+
+/*
+ * RelationGetEstoreInsertPartialClusterMemLimit
+ *		Returns the relation's estore_partial_cluster_mem_limit reloption setting.
+ *		Note multiple eval of argument!
+ */
+#define RelationGetEstoreInsertPartialClusterMemLimit(relation, defaultpw) \
+	((relation)->rd_options ? \
+	 ((StdRdOptions *) (relation)->rd_options)->estore_partial_cluster_mem_limit : (defaultpw))
+
+/*
+ * RelationGetEstoreBulkloadPartitionMemLimit
+ *		Returns the relation's estore_bulkload_partition_max_mem reloption setting.
+ *		Note multiple eval of argument!
+ */
+#define RelationGetEstoreBulkloadPartitionMemLimit(relation, defaultpw) \
+	((relation)->rd_options ? \
+	 ((StdRdOptions *) (relation)->rd_options)->estore_bulkload_partition_max_mem : (defaultpw))
+
+/*
+ * RelationGetEstoreBulkloadPartitionMemCtlStrategy
+ *		Returns the relation's estore_bulkload_partition_mem_control_strategy reloption setting.
+ *		Note multiple eval of argument!
+ */
+#define RelationGetEstoreBulkloadPartitionMemCtlStrategy(relation, defaultpw) \
+	((relation)->rd_options ? \
+	 ((StdRdOptions *) (relation)->rd_options)->estore_bulkload_partition_mem_control_strategy : (defaultpw))
+
+/*
+ * RelationEnableChecksum
+ * Returns the relation's checksum reloption setting.
+ * Note multiple eval of argument!
+ */
+#define RelationEnableChecksum(relation) \
+	((((relation)->rd_rel->relkind == RELKIND_RELATION || \
+	   (relation)->rd_rel->relkind == RELKIND_PARTITIONED_TABLE || \
+	   (relation)->rd_rel->relam == BTREE_AM_OID || \
+	   (relation)->rd_rel->relam == HASH_AM_OID || \
+	   (relation)->rd_rel->relam == SPGIST_AM_OID) && \
+	  (relation)->rd_options) ? \
+	 ((StdRdOptions *)(relation)->rd_options)->checksum : false)
 
 /*
  * ViewOptions
@@ -365,6 +435,9 @@ typedef struct ViewOptions
 	int32		vl_len_;		/* varlena header (do not touch directly!) */
 	bool		security_barrier;
 	int			check_option_offset;
+/* BEGIN_OPENTENBASE_ORA */
+	bool		readonly;		/* If the view is readonly */
+/* END_OPENTENBASE_ORA */
 } ViewOptions;
 
 /*
@@ -384,6 +457,12 @@ typedef struct ViewOptions
 #define RelationHasCheckOption(relation)									\
 	((relation)->rd_options &&												\
 	 ((ViewOptions *) (relation)->rd_options)->check_option_offset != 0)
+
+/* BEGIN_OPENTENBASE_ORA */
+#define RelationIsReadonlyView(relation)	\
+		((relation)->rd_options ?	\
+			((ViewOptions *) (relation)->rd_options)->readonly : false)
+/* END_OPENTENBASE_ORA */
 
 /*
  * RelationHasLocalCheckOption
@@ -488,9 +567,13 @@ typedef struct ViewOptions
 #define RelationOpenSmgr(relation) \
 	do { \
 		if ((relation)->rd_smgr == NULL) \
+		{ \
 			smgrsetowner(&((relation)->rd_smgr), smgropen((relation)->rd_node, (relation)->rd_backend)); \
 			(relation)->rd_smgr->smgr_hasextent = RelationHasExtent(relation); \
-	} while (0)
+			(relation)->rd_smgr->smgr_haschecksum = (RelationHasChecksum(relation) || \
+			(IsSystemClass((relation)->rd_id, (relation)->rd_rel))); \
+		} \
+} while (0)
 
 /*
  * RelationCloseSmgr
@@ -556,31 +639,32 @@ typedef struct ViewOptions
 #endif
 #define RelationHasExtent(relation) \
 	((relation)->rd_rel->relhasextent)
-#define RelationGetDisKey(relation) \
-	((relation)->rd_locator_info ? (relation)->rd_locator_info->partAttrNum : InvalidAttrNumber)
 
-#define RelationGetSecDisKey(relation) \
-	((relation)->rd_locator_info ? (relation)->rd_locator_info->secAttrNum : InvalidAttrNumber)
+#define RelationGetDisKeys(relation) \
+	((relation)->rd_locator_info ? (relation)->rd_locator_info->disAttrNums : NULL)
+
+#define RelationGetNumDisKeys(relation) \
+	((relation)->rd_locator_info ? (relation)->rd_locator_info->nDisAttrs : 0)
+
 
 #define RelationIsSharded(relation) \
 	((relation)->rd_locator_info ? (relation)->rd_locator_info->locatorType == LOCATOR_TYPE_SHARD : false)
+
+#define RelationIsReplication(relation) \
+	((relation)->rd_locator_info ? (relation)->rd_locator_info->locatorType == LOCATOR_TYPE_REPLICATED : false)
 
 #define RelationHasToast(relation) \
 	OidIsValid((relation)->rd_toastoid)
 #endif
 
-/*
- * RelationUsesLocalBuffers
- *		True if relation's pages are stored in local buffers.
- */
-#ifdef XCP
-#define RelationUsesLocalBuffers(relation) \
-	(!OidIsValid(MyCoordId) && \
-		((relation)->rd_rel->relpersistence == RELPERSISTENCE_TEMP))
-#else
-#define RelationUsesLocalBuffers(relation) \
-	((relation)->rd_rel->relpersistence == RELPERSISTENCE_TEMP)
-#endif
+#define RelIsRowStore(relstore) \
+	((relstore) == RELSTORE_ROW)
+
+#define RelationGetRelStore(relation) \
+	((relation)->rd_rel->relstore)
+
+#define RelationIsRowStore(relation) \
+	RelIsRowStore(RelationGetRelStore(relation))
 
 #ifdef PGXC
 /*
@@ -599,11 +683,7 @@ typedef struct ViewOptions
  * Beware of multiple eval of argument
  */
 #ifdef XCP
-#define RELATION_IS_LOCAL(relation) \
-	((!OidIsValid(MyCoordId) && (relation)->rd_backend == MyBackendId) || \
-	 (OidIsValid(MyCoordId) && (relation)->rd_backend == MyFirstBackendId) || \
-	 ((relation)->rd_backend == MyBackendId || \
-	 (relation)->rd_createSubid != InvalidSubTransactionId))
+#define RELATION_IS_LOCAL(relation)  false
 #else
 #define RELATION_IS_LOCAL(relation) \
 	((relation)->rd_islocaltemp || \
@@ -626,6 +706,7 @@ typedef struct ViewOptions
  *
  * Beware of multiple eval of argument
  */
+
 #ifdef XCP
 #define RELATION_IS_OTHER_TEMP(relation) \
 	(((relation)->rd_rel->relpersistence == RELPERSISTENCE_TEMP && \
@@ -638,6 +719,9 @@ typedef struct ViewOptions
 	 !(relation)->rd_islocaltemp)
 #endif
 
+#define RELATION_IS_TEMP(relation) \
+			(((relation)->rd_rel->relpersistence == RELPERSISTENCE_TEMP || \
+				(relation)->rd_rel->relpersistence == RELPERSISTENCE_GLOBAL_TEMP))
 #ifdef XCP
 /*
  * RELATION_IS_COORDINATOR_LOCAL
@@ -689,98 +773,68 @@ typedef struct ViewOptions
 	 RelationNeedsWAL(relation) && \
 	 !IsCatalogRelation(relation))
 
-/*
- * RelationGetPartitionKey
- *		Returns the PartitionKey of a relation
- */
-#define RelationGetPartitionKey(relation) ((relation)->rd_partkey)
+#define RELATION_IS_PG_PARTITION(relation)                                                         \
+	((relation)->rd_rel->relkind == RELKIND_PARTITIONED_TABLE)
+
+#define RELATION_IS_PG_CHILD(relation) ((relation)->rd_rel->relispartition)
 
 #ifdef __OPENTENBASE__
-#define RelationGetNParts(relation) \
-	((relation)->rd_partitions_info ? (relation)->rd_partitions_info->partnparts : 0)
-
-#define RelationGetPartitionColumnIndex(relation) \
-	((relation)->rd_partitions_info ? (relation)->rd_partitions_info->partpartkey : InvalidAttrNumber)
-
-#define RELATION_IS_INTERVAL(relation) \
-	((relation)->rd_rel->relpartkind == RELPARTKIND_PARENT)
-	//((relation)->rd_partkey && (relation)->rd_partkey->strategy == PARTITION_STRATEGY_INTERVAL)
-
-#define RELATION_IS_CHILD(relation) \
-	((relation)->rd_rel->relpartkind == RELPARTKIND_CHILD)
-
-#define RELATION_GET_PARENT(relation) \
-	((relation)->rd_rel->relparent)
-
-
-#define RELATION_IS_REGULAR(relation) \
-	((relation)->rd_rel->relpartkind == RELPARTKIND_NONE)
-
-
 #define IndexGetRelationId(relation) \
 	(	\
 		(relation)->rd_rel->relkind == RELKIND_INDEX ? \
 				(relation)->rd_index->indrelid : InvalidOid	\
 	)
 
-#define PARTITION_KEY_IS_TIMESTAMP(partoid) \
-	((partoid) == 1114 || (partoid) == 1184)
+#define INTERNAL_MASK_DISABLE 0x0
+#define INTERNAL_MASK_ENABLE 0x8000
+#define INTERNAL_MASK_DINSERT 0x01    // disable insert
+#define INTERNAL_MASK_DDELETE 0x02    // disable delete
+#define INTERNAL_MASK_DALTER 0x04     // disable alter
+#define INTERNAL_MASK_DSELECT 0x08    // disable select
+#define INTERNAL_MASK_DUPDATE 0x0100  // disable update
 
 extern int64 get_total_relation_size(Relation rel);
+extern bool isAnyTempNamespace(Oid namespaceId);
 #endif
 
-/*
- * PartitionKey inquiry functions
- */
-static inline int
-get_partition_strategy(PartitionKey key)
-{
-	return key->strategy;
-}
+#define RELATION_IS_GLOBAL_TEMP(relation)        false
+#define RELATION_IS_ACTIVE_GLOBAL_TEMP(relation) false
+#define RELATION_IS_META_GLOBAL_TEMP(relation)   false
+#define RELATION_GTT_ON_COMMIT_DELETE(relation)  false
 
-static inline int
-get_partition_natts(PartitionKey key)
-{
-	return key->partnatts;
-}
-
-static inline List *
-get_partition_exprs(PartitionKey key)
-{
-	return key->partexprs;
-}
-
-/*
- * PartitionKey inquiry functions - one column
- */
-static inline int16
-get_partition_col_attnum(PartitionKey key, int col)
-{
-	return key->partattrs[col];
-}
-
-static inline Oid
-get_partition_col_typid(PartitionKey key, int col)
-{
-	return key->parttypid[col];
-}
-
-static inline int32
-get_partition_col_typmod(PartitionKey key, int col)
-{
-	return key->parttypmod[col];
-}
-
-/*
- * RelationGetPartitionDesc
- *		Returns partition descriptor for a relation.
- */
-#define RelationGetPartitionDesc(relation) ((relation)->rd_partdesc)
+#define RelationGetRelPersistence(relation) ((relation)->rd_rel->relpersistence)
 
 /* routines in utils/cache/relcache.c */
 extern void RelationIncrementReferenceCount(Relation rel);
 extern void RelationDecrementReferenceCount(Relation rel);
 extern bool RelationHasUnloggedIndex(Relation rel);
-extern List *RelationGetRepsetList(Relation rel);
+extern bool RelationHasChecksum(Relation rel);
+extern char GetGttType(Oid nspid);
+
+/*
+ * RelationGetSmgr
+ *             Returns smgr file handle for a relation, opening it if needed.
+ *
+ * Very little code is authorized to touch rel->rd_smgr directly.  Instead
+ * use this function to fetch its value.
+ *
+ * Note: since a relcache flush can cause the file handle to be closed again,
+ * it's unwise to hold onto the pointer returned by this function for any
+ * long period.  Recommended practice is to just re-execute RelationGetSmgr
+ * each time you need to access the SMgrRelation.  It's quite cheap in
+ * comparison to whatever an smgr function is going to do.
+ */
+static inline SMgrRelation
+RelationGetSmgr(Relation rel)
+{
+	if (unlikely(rel->rd_smgr == NULL))
+	{
+		smgrsetowner(&(rel->rd_smgr), smgropen(rel->rd_node, rel->rd_backend));
+		rel->rd_smgr->smgr_hasextent = RelationHasExtent(rel);
+		rel->rd_smgr->smgr_haschecksum = (RelationHasChecksum(rel) ||
+									(IsSystemClass(rel->rd_id, rel->rd_rel)));
+	}
+	return rel->rd_smgr;
+}
 
 #endif							/* REL_H */

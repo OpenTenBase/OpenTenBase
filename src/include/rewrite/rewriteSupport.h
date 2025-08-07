@@ -15,12 +15,12 @@
 #define REWRITESUPPORT_H
 
 /* The ON SELECT rule of a view is always named this: */
-#define ViewSelectRuleName    "_RETURN"
+#define ViewSelectRuleName	"_RETURN"
 
 extern bool IsDefinedRewriteRule(Oid owningRel, const char *ruleName);
 
 extern void SetRelationRuleStatus(Oid relationId, bool relHasRules);
 
-extern Oid    get_rewrite_oid(Oid relid, const char *rulename, bool missing_ok);
+extern Oid	get_rewrite_oid(Oid relid, const char *rulename, bool missing_ok);
 
-#endif                            /* REWRITESUPPORT_H */
+#endif							/* REWRITESUPPORT_H */

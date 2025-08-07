@@ -1,0 +1,7 @@
+# opentenbase_ora_package_function extension
+comment = 'Functions and operators that emulate a subset of functions and packages from the OpenTenBase_Ora RDBMS'
+default_version = '3.27'
+module_pathname = '$libdir/opentenbase_ora_package_function'
+relocatable = false
+# sql_mode can be opentenbase_ora, postgresql, all
+sql_mode = 'opentenbase_ora'

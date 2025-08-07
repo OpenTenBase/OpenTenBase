@@ -19473,9 +19473,9 @@ msgstr "절대 경로는 허용하지 않음"
 msgid "path must be in or below the current directory"
 msgstr "경로는 현재 디렉토리와 그 하위 디렉터리여야 합니다."
 
-#: utils/adt/genfile.c:125 utils/adt/oracle_compat.c:184
-#: utils/adt/oracle_compat.c:282 utils/adt/oracle_compat.c:758
-#: utils/adt/oracle_compat.c:1059
+#: utils/adt/genfile.c:125 utils/adt/opentenbase_ora_compat.c:184
+#: utils/adt/opentenbase_ora_compat.c:282 utils/adt/opentenbase_ora_compat.c:758
+#: utils/adt/opentenbase_ora_compat.c:1059
 #, c-format
 msgid "requested length too large"
 msgstr "요청된 길이가 너무 깁니다"
@@ -20342,22 +20342,22 @@ msgstr "입력한 \"%s\" 값은 oid 자료형 범위를 초과했습니다"
 msgid "invalid oidvector data"
 msgstr "잘못된 oidvector 자료"
 
-#: utils/adt/oracle_compat.c:895
+#: utils/adt/opentenbase_ora_compat.c:895
 #, c-format
 msgid "requested character too large"
 msgstr "요청된 문자가 너무 큼"
 
-#: utils/adt/oracle_compat.c:945 utils/adt/oracle_compat.c:1007
+#: utils/adt/opentenbase_ora_compat.c:945 utils/adt/opentenbase_ora_compat.c:1007
 #, c-format
 msgid "requested character too large for encoding: %d"
 msgstr "요청한 문자가 너무 커서 인코딩할 수 없음: %d"
 
-#: utils/adt/oracle_compat.c:986
+#: utils/adt/opentenbase_ora_compat.c:986
 #, c-format
 msgid "requested character not valid for encoding: %d"
 msgstr "요청한 문자가 인코딩용으로 타당치 않음: %d"
 
-#: utils/adt/oracle_compat.c:1000
+#: utils/adt/opentenbase_ora_compat.c:1000
 #, c-format
 msgid "null character not permitted"
 msgstr "null 문자는 허용되지 않음"

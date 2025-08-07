@@ -1,0 +1,161 @@
+\c opentenbase_ora_package_function_regression_ora
+/*
+ * test cases for urowid.
+ * 1. create table
+ *  1.1 create btree index
+ *  1.2 create hash index
+ *  1.3 search using btree/hash index/scan seq
+ *  1.4 create table with urowid(n)
+ * 2. rowid/text can be saved in urowid
+ *  2.1 search urowid = rowid
+ * 3. using in plsql - select rowid into urowid
+ * 4. min/max
+ */
+-- 1. create table
+create table urid_tbl(k int, k2 urowid);
+insert into urid_tbl values(1, 'urowid');
+select * from urid_tbl;
+ K |   K2   
+---+--------
+ 1 | urowid
+(1 row)
+
+drop table urid_tbl;
+-- urowid as disk
+create table urid_tbl(k urowid, k2 urowid);
+insert into urid_tbl values('urowid', 'urowid');
+select * from urid_tbl;
+   K    |   K2   
+--------+--------
+ urowid | urowid
+(1 row)
+
+select * from urid_tbl where k2 = 'urowid';
+   K    |   K2   
+--------+--------
+ urowid | urowid
+(1 row)
+
+drop table urid_tbl;
+set enable_seqscan to off;
+set enable_bitmapscan to off;
+--  1.1 create btree index
+create table ur_t(k int, k2 urowid);
+create index ik2 on ur_t using btree(k2);
+insert into ur_t values(1, '123');
+insert into ur_t values(1, '123');
+explain (costs off) select * from ur_t where k2 = '123';
+                QUERY PLAN                
+------------------------------------------
+ Remote Fast Query Execution
+   Node/s: datanode_1, datanode_2
+   ->  Index Scan using IK2 on UR_T
+         Index Cond: (K2 = '123'::UROWID)
+(4 rows)
+
+select * from ur_t where k2 = '123';
+ K | K2  
+---+-----
+ 1 | 123
+ 1 | 123
+(2 rows)
+
+drop table ur_t;
+--  1.2 create hash index
+create table ur_t(k int, k2 urowid);
+create index ik2 on ur_t using hash(k2);
+insert into ur_t values(1, '123');
+insert into ur_t values(1, '123');
+explain (costs off) select * from ur_t where k2 = '123';
+                QUERY PLAN                
+------------------------------------------
+ Remote Fast Query Execution
+   Node/s: datanode_1, datanode_2
+   ->  Index Scan using IK2 on UR_T
+         Index Cond: (K2 = '123'::UROWID)
+(4 rows)
+
+select * from ur_t where k2 = '123';
+ K | K2  
+---+-----
+ 1 | 123
+ 1 | 123
+(2 rows)
+
+drop table ur_t;
+--  1.3 search using btree/hash index/scan seq
+-- tested above
+--  1.4 create table with urowid(n)
+create table rt(a int, b urowid(2));
+insert into rt values(1, '12');
+insert into rt values(1, '123');
+ERROR:  value too long for type urowid(2)
+insert into rt values(1, '123'::urowid(2));
+drop table rt;
+-- 2. rowid/text can be saved in urowid
+create table rtbl(a int) with (rowids);
+insert into rtbl values(1);
+create table utbl(a int, b urowid);
+insert into utbl select a, rowid from rtbl;
+select a, substr(b::text, 17, 12) from utbl;
+ A |    SUBSTR    
+---+--------------
+ 1 | AQAAAAAAAAA=
+(1 row)
+
+select a from utbl where b in (select rowid from rtbl); -- urowid = rowid
+ A 
+---
+ 1
+(1 row)
+
+select substr(rowid::urowid::text, 17, 12) from rtbl;
+    SUBSTR    
+--------------
+ AQAAAAAAAAA=
+(1 row)
+
+select substr(b::rowid::text, 17, 12) from utbl;
+    SUBSTR    
+--------------
+ AQAAAAAAAAA=
+(1 row)
+
+--  2.1 search urowid = rowid
+-- tested above
+-- 3. using in plsql - select rowid into urowid
+create or replace function sc_test() returns text as $$
+declare
+r   rowid;
+    ur  urowid;
+begin
+select rowid into r from rtbl;
+raise notice '%s',substr(r::text, 17, 12);
+select rowid into ur from rtbl;
+raise notice '%s',substr(ur::text, 17, 12);
+select b into ur from utbl;
+raise notice '%s',substr(ur::text, 17, 12);
+select b into r from utbl;
+raise notice '%s',substr(r::text, 17, 12);
+RETURN 'OK';
+end;
+$$ language default_plsql;
+select sc_test();
+NOTICE:  AQAAAAAAAAA=s
+NOTICE:  AQAAAAAAAAA=s
+NOTICE:  AQAAAAAAAAA=s
+NOTICE:  AQAAAAAAAAA=s
+ SC_TEST 
+---------
+ OK
+(1 row)
+
+-- 4. min/max
+select substr(min(b)::text, 17, 12), substr(max(b)::text, 17, 12) from utbl;
+    SUBSTR    |    SUBSTR    
+--------------+--------------
+ AQAAAAAAAAA= | AQAAAAAAAAA=
+(1 row)
+
+drop table rtbl;
+drop table utbl;

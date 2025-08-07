@@ -1,0 +1,172 @@
+\c regression_ora
+-- tests opentenbase_ora xml opentenbase_ora
+create table xmlexample(ID varchar(100),name varchar(20),data xmltype);
+insert into xmlexample(id,name,data) values('xxxxxxxxxxxxxxx','my document','<?xml version="1.0" encoding="UTF-8" ?>
+<collection xmlns="">
+  <record>
+    <leader>-----nam0-22-----^^^450-</leader>
+    <datafield tag="200" ind1="1" ind2=" ">
+      <subfield code="a">抗震救灾</subfield>
+       <subfield code="f">奥运会</subfield>
+    </datafield>
+    <datafield tag="209" ind1=" " ind2=" ">
+      <subfield code="a">经济学</subfield>
+       <subfield code="b">计算机</subfield>
+       <subfield code="c">10001</subfield>
+       <subfield code="d">2005-07-09</subfield>
+    </datafield>
+    <datafield tag="610" ind1="0" ind2=" ">
+       <subfield code="a">计算机</subfield>
+       <subfield code="a">笔记本</subfield>
+    </datafield>
+  </record>
+</collection>'::xmltype);
+ERROR:  unsupported XML feature
+LINE 1: ...name,data) values('xxxxxxxxxxxxxxx','my document','<?xml ver...
+                                                             ^
+DETAIL:  This functionality requires the server to be built with libxml support.
+HINT:  You need to rebuild PostgreSQL using --with-libxml.
+select id,name,
+      extractvalue(x.data,'/collection/record/leader') as A
+from xmlexample x;
+ ID | NAME | A 
+----+------+---
+(0 rows)
+
+select id,name,
+         extract(x.data,'/collection/record/datafield/subfield') as A
+from xmlexample x;
+ ID | NAME | A 
+----+------+---
+(0 rows)
+
+select id,name,
+        extractvalue(x.data,'/collection/record/datafield[@tag="209"]/subfield[@code="a"]') as A
+from xmlexample x;
+ ID | NAME | A 
+----+------+---
+(0 rows)
+
+drop table xmlexample;
+SELECT extract(XMLTYPE('<AAA> <BBB>healthy</BBB> <BBB>sick</BBB> <BBB>other</BBB> </AAA>'),'/AAA/BBB') from dual;
+ERROR:  unsupported XML feature
+LINE 1: SELECT extract(XMLTYPE('<AAA> <BBB>healthy</BBB> <BBB>sick</...
+                               ^
+DETAIL:  This functionality requires the server to be built with libxml support.
+HINT:  You need to rebuild PostgreSQL using --with-libxml.
+SELECT extract(XMLTYPE('<AAA> <BBB>healthy</BBB> <BBB>sick</BBB> <BBB>other</BBB> </AAA>'),'/AAA/BBB[2]') from dual;
+ERROR:  unsupported XML feature
+LINE 1: SELECT extract(XMLTYPE('<AAA> <BBB>healthy</BBB> <BBB>sick</...
+                               ^
+DETAIL:  This functionality requires the server to be built with libxml support.
+HINT:  You need to rebuild PostgreSQL using --with-libxml.
+SELECT extractvalue(XMLTYPE('<AAA> <BBB>healthy</BBB> <BBB>sick</BBB> <BBB>other</BBB> </AAA>'),'/AAA/BBB[2]') from dual;
+ERROR:  unsupported XML feature
+LINE 1: SELECT extractvalue(XMLTYPE('<AAA> <BBB>healthy</BBB> <BBB>s...
+                                    ^
+DETAIL:  This functionality requires the server to be built with libxml support.
+HINT:  You need to rebuild PostgreSQL using --with-libxml.
+SELECT extractvalue(XMLTYPE('<AAA> <BBB>healthy</BBB> <BBB>sick</BBB> <BBB>other</BBB> </AAA>'),'/AAA/BBB') from dual;
+ERROR:  unsupported XML feature
+LINE 1: SELECT extractvalue(XMLTYPE('<AAA> <BBB>healthy</BBB> <BBB>s...
+                                    ^
+DETAIL:  This functionality requires the server to be built with libxml support.
+HINT:  You need to rebuild PostgreSQL using --with-libxml.
+SELECT extract(XMLTYPE('<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope"  xmlns:typ="http://www.gunnarmorling.de/moapa/videorental/types"> <soapenv:Header/>
+    <soapenv:Body>
+        <typ:FindMoviesByDirectorRequest>
+            <Director>Bryan Singer1</Director>
+        </typ:FindMoviesByDirectorRequest>
+        <typ:FindMoviesByDirectorRequest>
+            <Director>Bryan Singer2</Director>
+        </typ:FindMoviesByDirectorRequest>
+    </soapenv:Body>
+</soapenv:Envelope>'),
+               '/soapenv:Envelope/soapenv:Body/typ:FindMoviesByDirectorRequest/Director',
+               'xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope" xmlns:typ="http://www.gunnarmorling.de/moapa/videorental/types"') from dual;
+ERROR:  unsupported XML feature
+LINE 1: SELECT extract(XMLTYPE('<soapenv:Envelope xmlns:soapenv="htt...
+                               ^
+DETAIL:  This functionality requires the server to be built with libxml support.
+HINT:  You need to rebuild PostgreSQL using --with-libxml.
+select extractValue(XMLTYPE('<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope"  xmlns:typ="http://www.gunnarmorling.de/moapa/videorental/types"> <soapenv:Header/>
+    <soapenv:Body>
+        <typ:FindMoviesByDirectorRequest>
+            <Director>Bryan Singer</Director>
+        </typ:FindMoviesByDirectorRequest>
+    </soapenv:Body>
+</soapenv:Envelope>'),
+                    '/soapenv:Envelope/soapenv:Body/typ:FindMoviesByDirectorRequest/Director',
+                    'xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope" xmlns:typ="http://www.gunnarmorling.de/moapa/videorental/types"') from dual ;
+ERROR:  unsupported XML feature
+LINE 1: select extractValue(XMLTYPE('<soapenv:Envelope xmlns:soapenv...
+                                    ^
+DETAIL:  This functionality requires the server to be built with libxml support.
+HINT:  You need to rebuild PostgreSQL using --with-libxml.
+SELECT extractValue(XMLTYPE('<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope"  xmlns:typ="http://www.gunnarmorling.de/moapa/videorental/types"> <soapenv:Header/>
+    <soapenv:Body>
+        <typ:FindMoviesByDirectorRequest>
+            <Director>Bryan Singer1</Director>
+        </typ:FindMoviesByDirectorRequest>
+        <typ:FindMoviesByDirectorRequest>
+            <Director>Bryan Singer2</Director>
+        </typ:FindMoviesByDirectorRequest>
+    </soapenv:Body>
+</soapenv:Envelope>'),
+               '/soapenv:Envelope/soapenv:Body/typ:FindMoviesByDirectorRequest/Director',
+               'xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope" xmlns:typ="http://www.gunnarmorling.de/moapa/videorental/types"') from dual;
+ERROR:  unsupported XML feature
+LINE 1: SELECT extractValue(XMLTYPE('<soapenv:Envelope xmlns:soapenv...
+                                    ^
+DETAIL:  This functionality requires the server to be built with libxml support.
+HINT:  You need to rebuild PostgreSQL using --with-libxml.
+CREATE TABLE xmltest (
+                         id int,
+                         data xmltype
+);
+INSERT INTO xmltest VALUES (1, '<value>one</value>');
+ERROR:  unsupported XML feature
+LINE 1: INSERT INTO xmltest VALUES (1, '<value>one</value>');
+                                       ^
+DETAIL:  This functionality requires the server to be built with libxml support.
+HINT:  You need to rebuild PostgreSQL using --with-libxml.
+INSERT INTO xmltest VALUES (2, '<value>two</value>');
+ERROR:  unsupported XML feature
+LINE 1: INSERT INTO xmltest VALUES (2, '<value>two</value>');
+                                       ^
+DETAIL:  This functionality requires the server to be built with libxml support.
+HINT:  You need to rebuild PostgreSQL using --with-libxml.
+INSERT INTO xmltest VALUES (3, '<wrong');
+ERROR:  unsupported XML feature
+LINE 1: INSERT INTO xmltest VALUES (3, '<wrong');
+                                       ^
+DETAIL:  This functionality requires the server to be built with libxml support.
+HINT:  You need to rebuild PostgreSQL using --with-libxml.
+SELECT extract(data, '/value') FROM xmltest ORDER BY id;
+ orcl_extract 
+--------------
+(0 rows)
+
+SELECT extract(data, null) FROM xmltest ORDER BY id;
+ orcl_extract 
+--------------
+(0 rows)
+
+SELECT extract(null, '/value') FROM xmltest ORDER BY id;
+ERROR:  unsupported XML feature
+DETAIL:  This functionality requires the server to be built with libxml support.
+HINT:  You need to rebuild PostgreSQL using --with-libxml.
+CONTEXT:  SQL function "orcl_extract" statement 1
+SELECT extract(XMLTYPE('<!-- error -->'), '') from dual;
+ERROR:  unsupported XML feature
+LINE 1: SELECT extract(XMLTYPE('<!-- error -->'), '') from dual;
+                               ^
+DETAIL:  This functionality requires the server to be built with libxml support.
+HINT:  You need to rebuild PostgreSQL using --with-libxml.
+SELECT extract(XMLTYPE('<local:data xmlns:local="http://127.0.0.1"><local:piece id="1">number one</local:piece><local:piece id="2" /></local:data>'), '//text()') from dual;
+ERROR:  unsupported XML feature
+LINE 1: SELECT extract(XMLTYPE('<local:data xmlns:local="http://127....
+                               ^
+DETAIL:  This functionality requires the server to be built with libxml support.
+HINT:  You need to rebuild PostgreSQL using --with-libxml.
+drop table xmltest;

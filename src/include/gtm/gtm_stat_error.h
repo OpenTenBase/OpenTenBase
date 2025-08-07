@@ -1,12 +1,10 @@
 /*-------------------------------------------------------------------------
  *
  * gtm_stat_error.h
+
  *	  collect error logs of gtm
  *
- * Copyright (c) 2023 THL A29 Limited, a Tencent company.
- *
- * This source code file is licensed under the BSD 3-Clause License,
- * you may obtain a copy of the License at http://opensource.org/license/bsd-3-clause/
+ * Copyright (c) 2020-Present OpenTenBase development team, Tencent
  *
  * IDENTIFICATION
  *	  src/gtm/main/gtm_stat_error.h

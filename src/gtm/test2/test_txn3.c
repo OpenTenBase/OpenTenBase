@@ -16,53 +16,53 @@ pthread_key_t     threadinfo_key;
 void
 setUp()
 {
-    sprintf(connect_string, "host=localhost port=6666 node_name=one remote_type=%d",
-        GTM_NODE_GTM);
-    
-    conn = PQconnectGTM(connect_string);
-    if (conn == NULL)
-    {
-        client_log(("Error in connection\n"));
-        exit(1);
-    }
-    client_log(("PGconnectGTM() ok.\n"));
+	sprintf(connect_string, "host=localhost port=6666 node_name=one remote_type=%d",
+		GTM_NODE_GTM);
+	
+	conn = PQconnectGTM(connect_string);
+	if (conn == NULL)
+	{
+		client_log(("Error in connection\n"));
+		exit(1);
+	}
+	client_log(("PGconnectGTM() ok.\n"));
 }
 
 void
 tearDown()
 {
-    GTMPQfinish(conn);
+	GTMPQfinish(conn);
 }
 
 void
 test_txn3_01()
 {
-    GlobalTransactionId gxid;
-    int rc;
+	GlobalTransactionId gxid;
+	int rc;
 
-    SETUP();
+	SETUP();
 
-    gxid = begin_transaction(conn, GTM_ISOLATION_SERIALIZABLE, timestamp);
-    _ASSERT( gxid != InvalidGlobalTransactionId );
+	gxid = begin_transaction(conn, GTM_ISOLATION_SERIALIZABLE, timestamp);
+	_ASSERT( gxid != InvalidGlobalTransactionId );
 
-    rc = prepare_transaction(conn, gxid);
-    _ASSERT( rc>=0 );
+	rc = prepare_transaction(conn, gxid);
+	_ASSERT( rc>=0 );
 
-    sleep(2);
-    system("killall -9 gtm_standby");
-    sleep(1);
+	sleep(2);
+	system("killall -9 gtm_standby");
+	sleep(1);
 
-    rc = abort_transaction(conn, gxid);
-    _ASSERT( rc>=0 );
+	rc = abort_transaction(conn, gxid);
+	_ASSERT( rc>=0 );
 
-    tearDown();
+	tearDown();
 }
 
 
 int
 main(int argc, char *argv[])
 {
-    test_txn2_01();
+	test_txn2_01();
 
-    return 0;
+	return 0;
 }

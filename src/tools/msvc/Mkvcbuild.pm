@@ -3,8 +3,6 @@ package Mkvcbuild;
 #
 # Package that generates build files for msvc build
 #
-# This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
-# All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
 # src/tools/msvc/Mkvcbuild.pm
 #
 use Carp;
@@ -92,6 +90,7 @@ sub mkvcbuild
 	  chklocale.c crypt.c fls.c fseeko.c getrusage.c inet_aton.c random.c
 	  srandom.c getaddrinfo.c gettimeofday.c inet_net_ntop.c kill.c open.c
 	  erand48.c snprintf.c strlcat.c strlcpy.c dirmod.c noblock.c path.c
+	  pg_bitutils.c
 	  pg_strong_random.c pgcheckdir.c pgmkdirp.c pgsleep.c pgstrcasecmp.c
 	  pqsignal.c mkdtemp.c qsort.c qsort_arg.c quotes.c system.c
 	  sprompt.c tar.c thread.c getopt.c getopt_long.c dirent.c
@@ -101,7 +100,7 @@ sub mkvcbuild
 
 	if ($vsVersion >= '9.00')
 	{
-		push(@pgportfiles, 'pg_crc32c_choose.c');
+		push(@pgportfiles, 'pg_crc32c_sse42_choose.c');
 		push(@pgportfiles, 'pg_crc32c_sse42.c');
 		push(@pgportfiles, 'pg_crc32c_sb8.c');
 	}
@@ -111,7 +110,7 @@ sub mkvcbuild
 	}
 
 	our @pgcommonallfiles = qw(
-	  base64.c config_info.c controldata_utils.c exec.c ip.c keywords.c
+	  base64.c config_info.c controldata_utils.c d2s.c exec.c f2s.c ip.c keywords.c
 	  md5.c pg_lzcompress.c pgfnames.c psprintf.c relpath.c rmtree.c
 	  saslprep.c scram-common.c string.c unicode_norm.c username.c
 	  wait_error.c);
@@ -173,6 +172,8 @@ sub mkvcbuild
 		'src/backend/replication', 'repl_scanner.l',
 		'repl_gram.y',             'syncrep_scanner.l',
 		'syncrep_gram.y');
+	$postgres->AddFiles('src/backend/utils/adt', 'jsonpath_scan.l',
+		'jsonpath_gram.y');
 	$postgres->AddDefine('BUILDING_DLL');
 	$postgres->AddLibrary('secur32.lib');
 	$postgres->AddLibrary('ws2_32.lib');
@@ -424,9 +425,9 @@ sub mkvcbuild
 	# AddProject() does not recognize the constructs used to populate OBJS in
 	# the pgcrypto Makefile, so it will discover no files.
 	my $pgcrypto =
-	  $solution->AddProject('pgcrypto', 'dll', 'crypto', 'contrib/pgcrypto');
+	  $solution->AddProject('pgcrypto', 'dll', 'crypto', '/src/backend/contrib/pgcrypto');
 	$pgcrypto->AddFiles(
-		'contrib/pgcrypto', 'pgcrypto.c',
+		'/src/backend/contrib/pgcrypto', 'pgcrypto.c',
 		'px.c',             'px-hmac.c',
 		'px-crypt.c',       'crypt-gensalt.c',
 		'crypt-blowfish.c', 'crypt-des.c',
@@ -440,13 +441,13 @@ sub mkvcbuild
 		'pgp-pgsql.c');
 	if ($solution->{options}->{openssl})
 	{
-		$pgcrypto->AddFiles('contrib/pgcrypto', 'openssl.c',
+		$pgcrypto->AddFiles('/src/backend/contrib/pgcrypto', 'openssl.c',
 			'pgp-mpi-openssl.c');
 	}
 	else
 	{
 		$pgcrypto->AddFiles(
-			'contrib/pgcrypto', 'md5.c',
+			'/src/backend/contrib/pgcrypto', 'md5.c',
 			'sha1.c',           'internal.c',
 			'internal-sha2.c',  'blf.c',
 			'rijndael.c',       'pgp-mpi-internal.c',
@@ -454,7 +455,7 @@ sub mkvcbuild
 	}
 	$pgcrypto->AddReference($postgres);
 	$pgcrypto->AddLibrary('ws2_32.lib');
-	my $mf = Project::read_file('contrib/pgcrypto/Makefile');
+	my $mf = Project::read_file('/src/backend/contrib/pgcrypto/Makefile');
 	GenerateContribSqlFiles('pgcrypto', $mf);
 
 	foreach my $subdir ('contrib', 'src/test/modules')
@@ -574,7 +575,6 @@ sub mkvcbuild
 			system( $solution->{options}->{perl}
 				  . '/bin/perl '
 				  . 'text2macro.pl '
-				  . '--strip="^(\#.*|\s*)$$" '
 				  . 'plc_perlboot.pl plc_trusted.pl '
 				  . '>perlchunks.h');
 			chdir $basedir;

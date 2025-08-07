@@ -1,6 +1,8 @@
 --
 -- UPDATABLE VIEWS
 --
+-- avoid bit-exact output here because operations may not be bit-exact.
+SET extra_float_digits = 0;
 -- check that non-updatable views and columns are rejected with useful error
 -- messages
 CREATE TABLE base_tbl (a int PRIMARY KEY, b text DEFAULT 'Unspecified') DISTRIBUTE BY REPLICATION;
@@ -191,7 +193,7 @@ UPDATE rw_view14 SET ctid=null WHERE a=3; -- should fail
 ERROR:  cannot update column "ctid" of view "rw_view14"
 DETAIL:  View columns that refer to system columns are not updatable.
 UPDATE rw_view14 SET b='ROW 3' WHERE a=3; -- should be OK
-SELECT * FROM base_tbl;
+SELECT * FROM base_tbl order by 1;
  a  |   b    
 ----+--------
  -2 | Row -2
@@ -280,7 +282,7 @@ UPDATE rw_view15 SET upper=DEFAULT WHERE a=3; -- should fail
 ERROR:  cannot update column "upper" of view "rw_view15"
 DETAIL:  View columns that are not columns of their base relation are not updatable.
 UPDATE rw_view15 SET a=4 WHERE a=3; -- should be OK
-SELECT * FROM base_tbl;
+SELECT * FROM base_tbl order by 1;
  a  |      b      
 ----+-------------
  -2 | Row -2
@@ -299,15 +301,15 @@ INSERT INTO rw_view16 (a, b) VALUES (3, 'Row 3'); -- should be OK
 UPDATE rw_view16 SET a=3, aa=-3 WHERE a=3; -- should fail
 ERROR:  multiple assignments to same column "a"
 UPDATE rw_view16 SET aa=-3 WHERE a=3; -- should be OK
-SELECT * FROM base_tbl;
+SELECT * FROM base_tbl order by 1;
  a  |   b    
 ----+--------
+ -3 | Row 3
  -2 | Row -2
  -1 | Row -1
   0 | Row 0
   1 | Row 1
   2 | Row 2
- -3 | Row 3
 (6 rows)
 
 DELETE FROM rw_view16 WHERE a=-3; -- should be OK
@@ -352,7 +354,7 @@ NOTICE:  drop cascades to view ro_view19
 -- simple updatable view
 CREATE TABLE base_tbl (a int PRIMARY KEY, b text DEFAULT 'Unspecified') DISTRIBUTE BY REPLICATION;
 INSERT INTO base_tbl SELECT i, 'Row ' || i FROM generate_series(-2, 2) g(i);
-CREATE VIEW rw_view1 AS SELECT * FROM base_tbl WHERE a>0;
+CREATE VIEW rw_view1 AS SELECT * FROM base_tbl WHERE a>0 order by 1;
 SELECT table_name, is_insertable_into
   FROM information_schema.tables
  WHERE table_name = 'rw_view1';
@@ -383,7 +385,7 @@ INSERT INTO rw_view1 VALUES (3, 'Row 3');
 INSERT INTO rw_view1 (a) VALUES (4);
 UPDATE rw_view1 SET a=5 WHERE a=4;
 DELETE FROM rw_view1 WHERE b='Row 2';
-SELECT * FROM base_tbl;
+SELECT * FROM base_tbl order by 1;
  a  |      b      
 ----+-------------
  -2 | Row -2
@@ -397,7 +399,7 @@ SELECT * FROM base_tbl;
 EXPLAIN (costs off, nodes off) UPDATE rw_view1 SET a=6 WHERE a=5;
                        QUERY PLAN                       
 --------------------------------------------------------
- Remote Subquery Scan on any
+ Remote Subquery Scan on any (datanodes 2)
    ->  Update on base_tbl
          ->  Index Scan using base_tbl_pkey on base_tbl
                Index Cond: ((a > 0) AND (a = 5))
@@ -406,7 +408,7 @@ EXPLAIN (costs off, nodes off) UPDATE rw_view1 SET a=6 WHERE a=5;
 EXPLAIN (costs off, nodes off) DELETE FROM rw_view1 WHERE a=5;
                        QUERY PLAN                       
 --------------------------------------------------------
- Remote Subquery Scan on any
+ Remote Subquery Scan on any (datanodes 2)
    ->  Delete on base_tbl
          ->  Index Scan using base_tbl_pkey on base_tbl
                Index Cond: ((a > 0) AND (a = 5))
@@ -417,7 +419,7 @@ NOTICE:  drop cascades to view rw_view1
 -- view on top of view
 CREATE TABLE base_tbl (a int PRIMARY KEY, b text DEFAULT 'Unspecified') DISTRIBUTE BY REPLICATION;
 INSERT INTO base_tbl SELECT i, 'Row ' || i FROM generate_series(-2, 2) g(i);
-CREATE VIEW rw_view1 AS SELECT b AS bb, a AS aa FROM base_tbl WHERE a>0;
+CREATE VIEW rw_view1 AS SELECT b AS bb, a AS aa FROM base_tbl WHERE a >0 order by 1;
 CREATE VIEW rw_view2 AS SELECT aa AS aaa, bb AS bbb FROM rw_view1 WHERE aa<10;
 SELECT table_name, is_insertable_into
   FROM information_schema.tables
@@ -469,7 +471,7 @@ SELECT * FROM rw_view2;
 EXPLAIN (costs off, nodes off) UPDATE rw_view2 SET aaa=5 WHERE aaa=4;
                           QUERY PLAN                          
 --------------------------------------------------------------
- Remote Subquery Scan on any
+ Remote Subquery Scan on any (datanodes 2)
    ->  Update on base_tbl
          ->  Index Scan using base_tbl_pkey on base_tbl
                Index Cond: ((a < 10) AND (a > 0) AND (a = 4))
@@ -478,7 +480,7 @@ EXPLAIN (costs off, nodes off) UPDATE rw_view2 SET aaa=5 WHERE aaa=4;
 EXPLAIN (costs off, nodes off) DELETE FROM rw_view2 WHERE aaa=4;
                           QUERY PLAN                          
 --------------------------------------------------------------
- Remote Subquery Scan on any
+ Remote Subquery Scan on any (datanodes 2)
    ->  Delete on base_tbl
          ->  Index Scan using base_tbl_pkey on base_tbl
                Index Cond: ((a < 10) AND (a > 0) AND (a = 4))
@@ -491,7 +493,7 @@ drop cascades to view rw_view2
 -- view on top of view with rules
 CREATE TABLE base_tbl (a int PRIMARY KEY, b text DEFAULT 'Unspecified') DISTRIBUTE BY REPLICATION;
 INSERT INTO base_tbl SELECT i, 'Row ' || i FROM generate_series(-2, 2) g(i);
-CREATE VIEW rw_view1 AS SELECT * FROM base_tbl WHERE a>0 OFFSET 0; -- not updatable without rules/triggers
+CREATE VIEW rw_view1 AS SELECT * FROM base_tbl WHERE a>0 order by 1 OFFSET 0; -- not updatable without rules/triggers
 CREATE VIEW rw_view2 AS SELECT * FROM rw_view1 WHERE a<10;
 SELECT table_name, is_insertable_into
   FROM information_schema.tables
@@ -661,36 +663,40 @@ SELECT * FROM rw_view2;
 (2 rows)
 
 EXPLAIN (costs off, nodes off) UPDATE rw_view2 SET a=3 WHERE a=2;
-                              QUERY PLAN                              
-----------------------------------------------------------------------
- Remote Subquery Scan on any
+                               QUERY PLAN                               
+------------------------------------------------------------------------
+ Remote Subquery Scan on any (datanodes 2)
    ->  Update on base_tbl
          ->  Nested Loop
                ->  Index Scan using base_tbl_pkey on base_tbl
                      Index Cond: (a = 2)
                ->  Subquery Scan on rw_view1
                      Filter: ((rw_view1.a < 10) AND (rw_view1.a = 2))
-                     ->  Bitmap Heap Scan on base_tbl base_tbl_1
-                           Recheck Cond: (a > 0)
-                           ->  Bitmap Index Scan on base_tbl_pkey
-                                 Index Cond: (a > 0)
-(11 rows)
+                     ->  Sort
+                           Sort Key: base_tbl_1.a
+                           ->  Bitmap Heap Scan on base_tbl base_tbl_1
+                                 Recheck Cond: (a > 0)
+                                 ->  Bitmap Index Scan on base_tbl_pkey
+                                       Index Cond: (a > 0)
+(13 rows)
 
 EXPLAIN (costs off, nodes off) DELETE FROM rw_view2 WHERE a=2;
-                              QUERY PLAN                              
-----------------------------------------------------------------------
- Remote Subquery Scan on any
+                               QUERY PLAN                               
+------------------------------------------------------------------------
+ Remote Subquery Scan on any (datanodes 2)
    ->  Delete on base_tbl
          ->  Nested Loop
                ->  Index Scan using base_tbl_pkey on base_tbl
                      Index Cond: (a = 2)
                ->  Subquery Scan on rw_view1
                      Filter: ((rw_view1.a < 10) AND (rw_view1.a = 2))
-                     ->  Bitmap Heap Scan on base_tbl base_tbl_1
-                           Recheck Cond: (a > 0)
-                           ->  Bitmap Index Scan on base_tbl_pkey
-                                 Index Cond: (a > 0)
-(11 rows)
+                     ->  Sort
+                           Sort Key: base_tbl_1.a
+                           ->  Bitmap Heap Scan on base_tbl base_tbl_1
+                                 Recheck Cond: (a > 0)
+                                 ->  Bitmap Index Scan on base_tbl_pkey
+                                       Index Cond: (a > 0)
+(13 rows)
 
 DROP TABLE base_tbl CASCADE;
 NOTICE:  drop cascades to 2 other objects
@@ -699,7 +705,7 @@ drop cascades to view rw_view2
 -- view on top of view with triggers
 CREATE TABLE base_tbl (a int PRIMARY KEY, b text DEFAULT 'Unspecified') DISTRIBUTE BY REPLICATION;
 INSERT INTO base_tbl SELECT i, 'Row ' || i FROM generate_series(-2, 2) g(i);
-CREATE VIEW rw_view1 AS SELECT * FROM base_tbl WHERE a>0 OFFSET 0; -- not updatable without rules/triggers
+CREATE VIEW rw_view1 AS SELECT * FROM base_tbl WHERE a>0 order by 1 OFFSET 0; -- not updatable without rules/triggers
 CREATE VIEW rw_view2 AS SELECT * FROM rw_view1 WHERE a<10;
 SELECT table_name, is_insertable_into
   FROM information_schema.tables
@@ -908,9 +914,9 @@ DROP FUNCTION rw_view1_trig_fn();
 -- update using whole row from view
 CREATE TABLE base_tbl (a int PRIMARY KEY, b text DEFAULT 'Unspecified') DISTRIBUTE BY REPLICATION;
 INSERT INTO base_tbl SELECT i, 'Row ' || i FROM generate_series(-2, 2) g(i);
-CREATE VIEW rw_view1 AS SELECT b AS bb, a AS aa FROM base_tbl;
+CREATE VIEW rw_view1 AS SELECT b AS bb, a AS aa FROM base_tbl order by 1;
 CREATE FUNCTION rw_view1_aa(x rw_view1)
-  RETURNS int AS $$ SELECT x.aa $$ LANGUAGE sql;
+  RETURNS int AS $$ SELECT x.aa $$ LANGUAGE sql pushdown;
 UPDATE rw_view1 v SET bb='Updated row 2' WHERE rw_view1_aa(v)=2
   RETURNING rw_view1_aa(v), v.bb;
  rw_view1_aa |      bb       
@@ -918,7 +924,7 @@ UPDATE rw_view1 v SET bb='Updated row 2' WHERE rw_view1_aa(v)=2
            2 | Updated row 2
 (1 row)
 
-SELECT * FROM base_tbl;
+SELECT * FROM base_tbl order by 1;
  a  |       b       
 ----+---------------
  -2 | Row -2
@@ -933,7 +939,7 @@ UPDATE rw_view1 v SET bb='Updated row 2' WHERE rw_view1_aa(v)=2
   RETURNING rw_view1_aa(v), v.bb;
                        QUERY PLAN                       
 --------------------------------------------------------
- Remote Subquery Scan on any
+ Remote Subquery Scan on any (datanodes 2)
    ->  Update on base_tbl
          ->  Index Scan using base_tbl_pkey on base_tbl
                Index Cond: (a = 2)
@@ -949,7 +955,7 @@ CREATE USER regress_view_user2;
 SET SESSION AUTHORIZATION regress_view_user1;
 CREATE TABLE base_tbl(a int, b text, c float) DISTRIBUTE BY REPLICATION;
 INSERT INTO base_tbl VALUES (1, 'Row 1', 1.0);
-CREATE VIEW rw_view1 AS SELECT b AS bb, c AS cc, a AS aa FROM base_tbl;
+CREATE VIEW rw_view1 AS SELECT b AS bb, c AS cc, a AS aa FROM base_tbl order by 1;
 INSERT INTO rw_view1 VALUES ('Row 2', 2.0, 2);
 GRANT SELECT ON base_tbl TO regress_view_user2;
 GRANT SELECT ON rw_view1 TO regress_view_user2;
@@ -957,8 +963,8 @@ GRANT UPDATE (a,c) ON base_tbl TO regress_view_user2;
 GRANT UPDATE (bb,cc) ON rw_view1 TO regress_view_user2;
 RESET SESSION AUTHORIZATION;
 SET SESSION AUTHORIZATION regress_view_user2;
-CREATE VIEW rw_view2 AS SELECT b AS bb, c AS cc, a AS aa FROM base_tbl;
-SELECT * FROM base_tbl; -- ok
+CREATE VIEW rw_view2 AS SELECT b AS bb, c AS cc, a AS aa FROM base_tbl order by 1;
+SELECT * FROM base_tbl order by 1; -- ok
  a |   b   | c 
 ---+-------+---
  1 | Row 1 | 1
@@ -1013,7 +1019,7 @@ DELETE FROM base_tbl WHERE a=1; -- ok
 DELETE FROM rw_view1 WHERE aa=2; -- not allowed
 ERROR:  permission denied for relation rw_view1
 DELETE FROM rw_view2 WHERE aa=2; -- ok
-SELECT * FROM base_tbl;
+SELECT * FROM base_tbl order by 1;
  a |   b   | c 
 ---+-------+---
  3 | Row 3 | 3
@@ -1036,7 +1042,7 @@ ERROR:  permission denied for relation base_tbl
 DELETE FROM rw_view1 WHERE aa=3; -- ok
 DELETE FROM rw_view2 WHERE aa=4; -- not allowed
 ERROR:  permission denied for relation base_tbl
-SELECT * FROM base_tbl;
+SELECT * FROM base_tbl order by 1;
  a |   b   | c 
 ---+-------+---
  4 | Row 4 | 4
@@ -1055,11 +1061,11 @@ CREATE TABLE base_tbl (a int PRIMARY KEY, b text DEFAULT 'Unspecified', c serial
 INSERT INTO base_tbl VALUES (1, 'Row 1');
 INSERT INTO base_tbl VALUES (2, 'Row 2');
 INSERT INTO base_tbl VALUES (3);
-CREATE VIEW rw_view1 AS SELECT a AS aa, b AS bb FROM base_tbl;
+CREATE VIEW rw_view1 AS SELECT a AS aa, b AS bb FROM base_tbl order by 1;
 ALTER VIEW rw_view1 ALTER COLUMN bb SET DEFAULT 'View default';
 INSERT INTO rw_view1 VALUES (4, 'Row 4');
 INSERT INTO rw_view1 (aa) VALUES (5);
-SELECT * FROM base_tbl;
+SELECT * FROM base_tbl order by 1;
  a |      b       | c 
 ---+--------------+---
  1 | Row 1        | 1
@@ -1091,9 +1097,9 @@ CREATE TRIGGER rw_view1_ins_trig AFTER INSERT ON base_tbl
   FOR EACH ROW EXECUTE PROCEDURE rw_view1_trig_fn();
 ERROR:  Postgres-XL does not support TRIGGER yet
 DETAIL:  The feature is not currently supported
-CREATE VIEW rw_view1 AS SELECT a AS aa, b AS bb FROM base_tbl;
+CREATE VIEW rw_view1 AS SELECT a AS aa, b AS bb FROM base_tbl order by 1;
 INSERT INTO rw_view1 VALUES (3, 'Row 3');
-select * from base_tbl;
+select * from base_tbl order by 1;
  a |   b   
 ---+-------
  1 | Row 1
@@ -1129,14 +1135,14 @@ SELECT * FROM rw_view1;
 (4 rows)
 
 EXPLAIN (verbose, costs off, nodes off) UPDATE rw_view1 SET b = b + 1 RETURNING *;
-                            QUERY PLAN                             
--------------------------------------------------------------------
- Remote Subquery Scan on any
+                               QUERY PLAN                                
+-------------------------------------------------------------------------
+ Remote Subquery Scan[1] on any (datanodes 2)
    Output: base_tbl.a, base_tbl.b
    ->  Update on public.base_tbl
          Output: base_tbl.a, base_tbl.b
          ->  Seq Scan on public.base_tbl
-               Output: base_tbl.a, (base_tbl.b + 1), base_tbl.ctid
+               Output: (base_tbl.b + 1), base_tbl.shardid, base_tbl.ctid
 (6 rows)
 
 UPDATE rw_view1 SET b = b + 1 RETURNING *;
@@ -1162,7 +1168,7 @@ NOTICE:  drop cascades to view rw_view1
 -- multiple array-column updates
 CREATE TABLE base_tbl (a int, arr int[]) DISTRIBUTE BY REPLICATION;
 INSERT INTO base_tbl VALUES (1,ARRAY[2]), (3,ARRAY[4]);
-CREATE VIEW rw_view1 AS SELECT * FROM base_tbl;
+CREATE VIEW rw_view1 AS SELECT * FROM base_tbl order by 1;
 UPDATE rw_view1 SET arr[1] = 42, arr[2] = 77 WHERE a = 3;
 SELECT * FROM rw_view1;
  a |   arr   
@@ -1247,7 +1253,6 @@ DELETE FROM rw_view3 WHERE s = sin(0.1); -- should be OK
 SELECT * FROM base_tbl ORDER BY a;
   a  
 -----
- 0.1
  0.2
  0.3
  0.4
@@ -1257,7 +1262,7 @@ SELECT * FROM base_tbl ORDER BY a;
  0.8
  0.9
    1
-(10 rows)
+(9 rows)
 
 SELECT table_name, is_insertable_into
   FROM information_schema.tables
@@ -1323,7 +1328,7 @@ WARNING:  Inherited/partition tables inherit distribution from the parent
 DETAIL:  Explicitly specified distribution will be ignored
 INSERT INTO base_tbl_parent SELECT * FROM generate_series(-8, -1);
 INSERT INTO base_tbl_child SELECT * FROM generate_series(1, 8);
-CREATE VIEW rw_view1 AS SELECT * FROM base_tbl_parent;
+CREATE VIEW rw_view1 AS SELECT * FROM base_tbl_parent order by 1;
 CREATE VIEW rw_view2 AS SELECT * FROM ONLY base_tbl_parent;
 SELECT * FROM rw_view1 ORDER BY a;
  a  
@@ -1460,12 +1465,12 @@ INSERT INTO rw_view1(a) VALUES (9); -- ok
 INSERT INTO rw_view1(a) VALUES (10); -- should fail
 ERROR:  new row violates check option for view "rw_view1"
 DETAIL:  Failing row contains (10, 10).
-SELECT * FROM base_tbl;
+SELECT * FROM base_tbl order by 1;
  a | b  
 ---+----
  1 |  2
- 2 |  3
  1 | -1
+ 2 |  3
  3 |  5
  9 | 10
 (5 rows)
@@ -1474,7 +1479,7 @@ DROP TABLE base_tbl CASCADE;
 NOTICE:  drop cascades to view rw_view1
 -- WITH LOCAL/CASCADED CHECK OPTION
 CREATE TABLE base_tbl (a int) DISTRIBUTE BY REPLICATION;
-CREATE VIEW rw_view1 AS SELECT * FROM base_tbl WHERE a > 0;
+CREATE VIEW rw_view1 AS SELECT * FROM base_tbl WHERE a > 0 order by 1;
 CREATE VIEW rw_view2 AS SELECT * FROM rw_view1 WHERE a < 10
   WITH CHECK OPTION; -- implicitly cascaded
 \d+ rw_view2
@@ -1503,7 +1508,7 @@ INSERT INTO rw_view2 VALUES (5); -- ok
 INSERT INTO rw_view2 VALUES (15); -- should fail
 ERROR:  new row violates check option for view "rw_view2"
 DETAIL:  Failing row contains (15).
-SELECT * FROM base_tbl;
+SELECT * FROM base_tbl order by 1;
  a 
 ---
  5
@@ -1540,11 +1545,11 @@ INSERT INTO rw_view2 VALUES (-10); -- ok, but not in view
 INSERT INTO rw_view2 VALUES (20); -- should fail
 ERROR:  new row violates check option for view "rw_view2"
 DETAIL:  Failing row contains (20).
-SELECT * FROM base_tbl;
+SELECT * FROM base_tbl order by 1;
   a  
 -----
-   5
  -10
+   5
 (2 rows)
 
 ALTER VIEW rw_view1 SET (check_option=here); -- invalid
@@ -1577,11 +1582,11 @@ SELECT * FROM information_schema.views WHERE table_name = 'rw_view2';
 (1 row)
 
 INSERT INTO rw_view2 VALUES (30); -- ok, but not in view
-SELECT * FROM base_tbl;
+SELECT * FROM base_tbl order by 1;
   a  
 -----
-   5
  -10
+   5
   30
 (3 rows)
 
@@ -1654,32 +1659,34 @@ DETAIL:  Failing row contains (15).
 UPDATE rw_view1 SET a = a + 5; -- ok
 UPDATE rw_view1 SET a = a + 5; -- should fail
 EXPLAIN (costs off, nodes off) INSERT INTO rw_view1 VALUES (5);
-                                QUERY PLAN                                 
----------------------------------------------------------------------------
- Remote Subquery Scan on any
+                             QUERY PLAN                              
+---------------------------------------------------------------------
+ Remote Subquery Scan on any (datanodes 2)
    ->  Insert on base_tbl b
          ->  Result
-               SubPlan 1
-                 ->  Remote Subquery Scan on all
-                       ->  Index Only Scan using ref_tbl_pkey on ref_tbl r
-                             Index Cond: (a = b.a)
-(7 rows)
+         SubPlan 1
+           ->  Remote Subquery Scan on all (datanodes 1)
+                 Distribute results by R
+                 ->  Index Only Scan using ref_tbl_pkey on ref_tbl r
+                       Index Cond: (a = b.a)
+(8 rows)
 
 EXPLAIN (costs off, nodes off) UPDATE rw_view1 SET a = a + 5;
-                                 QUERY PLAN                                  
------------------------------------------------------------------------------
- Remote Subquery Scan on any
+                              QUERY PLAN                               
+-----------------------------------------------------------------------
+ Remote Subquery Scan on any (datanodes 2)
    ->  Update on base_tbl b
          ->  Hash Join
                Hash Cond: (b.a = r.a)
                ->  Seq Scan on base_tbl b
                ->  Hash
                      ->  Seq Scan on ref_tbl r
-               SubPlan 1
-                 ->  Remote Subquery Scan on all
-                       ->  Index Only Scan using ref_tbl_pkey on ref_tbl r_1
-                             Index Cond: (a = b.a)
-(11 rows)
+         SubPlan 1
+           ->  Remote Subquery Scan on all (datanodes 1)
+                 Distribute results by R
+                 ->  Index Only Scan using ref_tbl_pkey on ref_tbl r_1
+                       Index Cond: (a = b.a)
+(12 rows)
 
 DROP TABLE base_tbl, ref_tbl CASCADE;
 NOTICE:  drop cascades to view rw_view1
@@ -1740,7 +1747,7 @@ DETAIL:  Failing row contains (-5, null).
 INSERT INTO rw_view2 VALUES (5); -- ok
 INSERT INTO rw_view2 VALUES (50); -- ok, but not in view
 UPDATE rw_view2 SET a = a - 10; -- should fail
-SELECT * FROM base_tbl;
+SELECT * FROM base_tbl order by 1;
  a  | b 
 ----+---
   5 |  
@@ -1753,7 +1760,7 @@ INSERT INTO rw_view2 VALUES (100); -- ok, but not in view (doesn't fail rw_view1
 ERROR:  new row violates check option for view "rw_view1"
 DETAIL:  Failing row contains (100, null).
 UPDATE rw_view2 SET a = 200 WHERE a = 5; -- ok, but not in view (doesn't fail rw_view1's check)
-SELECT * FROM base_tbl;
+SELECT * FROM base_tbl order by 1;
  a  | b 
 ----+---
   5 |  
@@ -1773,15 +1780,15 @@ INSERT INTO rw_view2 VALUES (20); -- ok, but not in view (doesn't fail rw_view1'
 UPDATE rw_view2 SET a = 30 WHERE a = 5; -- ok, but not in view (doesn't fail rw_view1's check)
 INSERT INTO rw_view2 VALUES (5); -- ok
 UPDATE rw_view2 SET a = -5 WHERE a = 5; -- ok, but not in view (doesn't fail rw_view2's check)
-SELECT * FROM base_tbl;
+SELECT * FROM base_tbl order by 1;
   a  | b  
 -----+----
-  50 |   
  -10 | 10
+  -5 | 10
   20 | 10
   30 |   
   30 | 10
-  -5 | 10
+  50 |   
 (6 rows)
 
 DROP TABLE base_tbl CASCADE;
@@ -1871,7 +1878,7 @@ DELETE FROM rw_view1 WHERE NOT snoop(person);
 EXPLAIN (costs off, nodes off) SELECT * FROM rw_view1 WHERE snoop(person);
                      QUERY PLAN                      
 -----------------------------------------------------
- Remote Subquery Scan on all
+ Remote Subquery Scan on all (datanodes 1)
    ->  Subquery Scan on rw_view1
          Filter: snoop(rw_view1.person)
          ->  Seq Scan on base_tbl
@@ -1881,7 +1888,7 @@ EXPLAIN (costs off, nodes off) SELECT * FROM rw_view1 WHERE snoop(person);
 EXPLAIN (costs off, nodes off) UPDATE rw_view1 SET person=person WHERE snoop(person);
                                QUERY PLAN                                
 -------------------------------------------------------------------------
- Remote Subquery Scan on any
+ Remote Subquery Scan on any (datanodes 2)
    ->  Update on base_tbl
          ->  Seq Scan on base_tbl
                Filter: ((visibility = 'public'::text) AND snoop(person))
@@ -1890,7 +1897,7 @@ EXPLAIN (costs off, nodes off) UPDATE rw_view1 SET person=person WHERE snoop(per
 EXPLAIN (costs off, nodes off) DELETE FROM rw_view1 WHERE NOT snoop(person);
                                   QUERY PLAN                                   
 -------------------------------------------------------------------------------
- Remote Subquery Scan on any
+ Remote Subquery Scan on any (datanodes 2)
    ->  Delete on base_tbl
          ->  Seq Scan on base_tbl
                Filter: ((visibility = 'public'::text) AND (NOT snoop(person)))
@@ -1936,7 +1943,7 @@ DELETE FROM rw_view2 WHERE NOT snoop(person);
 EXPLAIN (costs off, nodes off) SELECT * FROM rw_view2 WHERE snoop(person);
                         QUERY PLAN                         
 -----------------------------------------------------------
- Remote Subquery Scan on all
+ Remote Subquery Scan on all (datanodes 1)
    ->  Subquery Scan on rw_view2
          Filter: snoop(rw_view2.person)
          ->  Subquery Scan on rw_view1
@@ -1948,7 +1955,7 @@ EXPLAIN (costs off, nodes off) SELECT * FROM rw_view2 WHERE snoop(person);
 EXPLAIN (costs off, nodes off) UPDATE rw_view2 SET person=person WHERE snoop(person);
                                         QUERY PLAN                                         
 -------------------------------------------------------------------------------------------
- Remote Subquery Scan on any
+ Remote Subquery Scan on any (datanodes 2)
    ->  Update on base_tbl
          ->  Seq Scan on base_tbl
                Filter: ((visibility = 'public'::text) AND snoop(person) AND snoop(person))
@@ -1957,7 +1964,7 @@ EXPLAIN (costs off, nodes off) UPDATE rw_view2 SET person=person WHERE snoop(per
 EXPLAIN (costs off, nodes off) DELETE FROM rw_view2 WHERE NOT snoop(person);
                                            QUERY PLAN                                            
 -------------------------------------------------------------------------------------------------
- Remote Subquery Scan on any
+ Remote Subquery Scan on any (datanodes 2)
    ->  Delete on base_tbl
          ->  Seq Scan on base_tbl
                Filter: ((visibility = 'public'::text) AND snoop(person) AND (NOT snoop(person)))
@@ -1988,7 +1995,7 @@ SELECT * FROM rw_view1;
 EXPLAIN (costs off, nodes off) DELETE FROM rw_view1 WHERE id = 1 AND snoop(data);
                                QUERY PLAN                                
 -------------------------------------------------------------------------
- Remote Subquery Scan on any
+ Remote Subquery Scan on any (datanodes 2)
    ->  Update on base_tbl base_tbl_1
          ->  Nested Loop
                ->  Index Scan using base_tbl_pkey on base_tbl base_tbl_1
@@ -2000,31 +2007,35 @@ EXPLAIN (costs off, nodes off) DELETE FROM rw_view1 WHERE id = 1 AND snoop(data)
 
 DELETE FROM rw_view1 WHERE id = 1 AND snoop(data);
 EXPLAIN (costs off, nodes off) INSERT INTO rw_view1 VALUES (2, 'New row 2');
-                              QUERY PLAN                               
------------------------------------------------------------------------
- Remote Subquery Scan on any
+                           QUERY PLAN                            
+-----------------------------------------------------------------
+ Remote Subquery Scan on any (datanodes 2)
+   Params Evaluated: $0
+   InitPlan 1 (returns $0)
+     ->  Remote Subquery Scan on all (datanodes 1)
+           Distribute results by R
+           ->  Index Only Scan using base_tbl_pkey on base_tbl t
+                 Index Cond: (id = 2)
    ->  Insert on base_tbl
-         InitPlan 1 (returns $0)
-           ->  Remote Subquery Scan on all
-                 ->  Index Only Scan using base_tbl_pkey on base_tbl t
-                       Index Cond: (id = 2)
          ->  Result
                One-Time Filter: ($0 IS NOT TRUE)
  
- Remote Subquery Scan on any
+ Remote Subquery Scan on any (datanodes 2)
+   Params Evaluated: $0
+   InitPlan 1 (returns $0)
+     ->  Remote Subquery Scan on all (datanodes 1)
+           Distribute results by R
+           ->  Index Only Scan using base_tbl_pkey on base_tbl t
+                 Index Cond: (id = 2)
    ->  Update on base_tbl
-         InitPlan 1 (returns $0)
-           ->  Remote Subquery Scan on all
-                 ->  Index Only Scan using base_tbl_pkey on base_tbl t
-                       Index Cond: (id = 2)
          ->  Result
                One-Time Filter: $0
                ->  Index Scan using base_tbl_pkey on base_tbl
                      Index Cond: (id = 2)
-(19 rows)
+(23 rows)
 
 INSERT INTO rw_view1 VALUES (2, 'New row 2');
-SELECT * FROM base_tbl;
+SELECT * FROM base_tbl order by 1;
  id |   data    | deleted 
 ----+-----------+---------
   1 | Row 1     | t
@@ -2083,38 +2094,42 @@ SELECT * FROM v1 WHERE a=8;
 
 EXPLAIN (VERBOSE, COSTS OFF)
 UPDATE v1 SET a=100 WHERE snoop(a) AND leakproof(a) AND a < 7 AND a != 6;
-                                          QUERY PLAN                                           
------------------------------------------------------------------------------------------------
- Remote Subquery Scan on any (datanode_1,datanode_2)
+                                                QUERY PLAN                                                 
+-----------------------------------------------------------------------------------------------------------
+ Remote Subquery Scan[1] on any (datanode_1,datanode_2)
    ->  Update on public.t1
-         Update on public.t1
+         Update on public.t1 t1_1
          Update on public.t11
          Update on public.t12
          Update on public.t111
-         ->  Index Scan using t1_a_idx on public.t1
-               Output: 100, t1.b, t1.c, t1.ctid
-               Index Cond: ((t1.a > 5) AND (t1.a < 7))
-               Filter: ((t1.a <> 6) AND (SubPlan 1) AND snoop(t1.a) AND leakproof(t1.a))
-               SubPlan 1
-                 ->  Remote Subquery Scan on all (datanode_1)
-                       ->  Append
-                             ->  Seq Scan on public.t12 t12_1
-                                   Filter: (t12_1.a = t1.a)
-                             ->  Seq Scan on public.t111 t111_1
-                                   Filter: (t111_1.a = t1.a)
-         ->  Index Scan using t11_a_idx on public.t11
-               Output: 100, t11.b, t11.c, t11.d, t11.ctid
-               Index Cond: ((t11.a > 5) AND (t11.a < 7))
-               Filter: ((t11.a <> 6) AND (SubPlan 1) AND snoop(t11.a) AND leakproof(t11.a))
-         ->  Index Scan using t12_a_idx on public.t12
-               Output: 100, t12.b, t12.c, t12.e, t12.ctid
-               Index Cond: ((t12.a > 5) AND (t12.a < 7))
-               Filter: ((t12.a <> 6) AND (SubPlan 1) AND snoop(t12.a) AND leakproof(t12.a))
-         ->  Index Scan using t111_a_idx on public.t111
-               Output: 100, t111.b, t111.c, t111.d, t111.e, t111.ctid
-               Index Cond: ((t111.a > 5) AND (t111.a < 7))
-               Filter: ((t111.a <> 6) AND (SubPlan 1) AND snoop(t111.a) AND leakproof(t111.a))
-(29 rows)
+         ->  Result
+               Output: 100, t1_1.tableoid, t1_1.shardid, t1_1.ctid
+               ->  Append
+                     ->  Index Scan using t1_a_idx on public.t1 t1_1
+                           Output: t1_1.tableoid, t1_1.shardid, t1_1.ctid
+                           Index Cond: ((t1_1.a > 5) AND (t1_1.a < 7))
+                           Filter: ((t1_1.a <> 6) AND (SubPlan 1) AND snoop(t1_1.a) AND leakproof(t1_1.a))
+                           SubPlan 1
+                             ->  Remote Subquery Scan[2] param[3] on all (datanode_1)
+                                   Distribute results by R
+                                   ->  Append
+                                         ->  Seq Scan on public.t12 t12_1
+                                               Filter: (t12_1.a = t1_1.a)
+                                         ->  Seq Scan on public.t111 t111_1
+                                               Filter: (t111_1.a = t1_1.a)
+                     ->  Index Scan using t11_a_idx on public.t11
+                           Output: t11.tableoid, t11.shardid, t11.ctid
+                           Index Cond: ((t11.a > 5) AND (t11.a < 7))
+                           Filter: ((t11.a <> 6) AND (SubPlan 1) AND snoop(t11.a) AND leakproof(t11.a))
+                     ->  Index Scan using t12_a_idx on public.t12
+                           Output: t12.tableoid, t12.shardid, t12.ctid
+                           Index Cond: ((t12.a > 5) AND (t12.a < 7))
+                           Filter: ((t12.a <> 6) AND (SubPlan 1) AND snoop(t12.a) AND leakproof(t12.a))
+                     ->  Index Scan using t111_a_idx on public.t111
+                           Output: t111.tableoid, t111.shardid, t111.ctid
+                           Index Cond: ((t111.a > 5) AND (t111.a < 7))
+                           Filter: ((t111.a <> 6) AND (SubPlan 1) AND snoop(t111.a) AND leakproof(t111.a))
+(33 rows)
 
 UPDATE v1 SET a=100 WHERE snoop(a) AND leakproof(a) AND a < 7 AND a != 6;
 SELECT * FROM v1 WHERE a=100; -- Nothing should have been changed to 100
@@ -2129,47 +2144,51 @@ SELECT * FROM t1 WHERE a=100; -- Nothing should have been changed to 100
 
 EXPLAIN (VERBOSE, COSTS OFF)
 UPDATE v1 SET a=a+1 WHERE snoop(a) AND leakproof(a) AND a = 8;
-                                  QUERY PLAN                                   
--------------------------------------------------------------------------------
- Remote Subquery Scan on any (datanode_1,datanode_2)
+                                       QUERY PLAN                                        
+-----------------------------------------------------------------------------------------
+ Remote Subquery Scan[1] on any (datanode_1,datanode_2)
    ->  Update on public.t1
-         Update on public.t1
+         Update on public.t1 t1_1
          Update on public.t11
          Update on public.t12
          Update on public.t111
-         ->  Index Scan using t1_a_idx on public.t1
-               Output: (t1.a + 1), t1.b, t1.c, t1.ctid
-               Index Cond: ((t1.a > 5) AND (t1.a = 8))
-               Filter: ((SubPlan 1) AND snoop(t1.a) AND leakproof(t1.a))
-               SubPlan 1
-                 ->  Remote Subquery Scan on all (datanode_1)
-                       ->  Append
-                             ->  Seq Scan on public.t12 t12_1
-                                   Filter: (t12_1.a = t1.a)
-                             ->  Seq Scan on public.t111 t111_1
-                                   Filter: (t111_1.a = t1.a)
-         ->  Index Scan using t11_a_idx on public.t11
-               Output: (t11.a + 1), t11.b, t11.c, t11.d, t11.ctid
-               Index Cond: ((t11.a > 5) AND (t11.a = 8))
-               Filter: ((SubPlan 1) AND snoop(t11.a) AND leakproof(t11.a))
-         ->  Index Scan using t12_a_idx on public.t12
-               Output: (t12.a + 1), t12.b, t12.c, t12.e, t12.ctid
-               Index Cond: ((t12.a > 5) AND (t12.a = 8))
-               Filter: ((SubPlan 1) AND snoop(t12.a) AND leakproof(t12.a))
-         ->  Index Scan using t111_a_idx on public.t111
-               Output: (t111.a + 1), t111.b, t111.c, t111.d, t111.e, t111.ctid
-               Index Cond: ((t111.a > 5) AND (t111.a = 8))
-               Filter: ((SubPlan 1) AND snoop(t111.a) AND leakproof(t111.a))
-(29 rows)
+         ->  Result
+               Output: (t1_1.a + 1), t1_1.tableoid, t1_1.shardid, t1_1.ctid
+               ->  Append
+                     ->  Index Scan using t1_a_idx on public.t1 t1_1
+                           Output: t1_1.a, t1_1.tableoid, t1_1.shardid, t1_1.ctid
+                           Index Cond: ((t1_1.a > 5) AND (t1_1.a = 8))
+                           Filter: ((SubPlan 1) AND snoop(t1_1.a) AND leakproof(t1_1.a))
+                           SubPlan 1
+                             ->  Remote Subquery Scan[2] param[3] on all (datanode_1)
+                                   Distribute results by R
+                                   ->  Append
+                                         ->  Seq Scan on public.t12 t12_1
+                                               Filter: (t12_1.a = t1_1.a)
+                                         ->  Seq Scan on public.t111 t111_1
+                                               Filter: (t111_1.a = t1_1.a)
+                     ->  Index Scan using t11_a_idx on public.t11
+                           Output: t11.a, t11.tableoid, t11.shardid, t11.ctid
+                           Index Cond: ((t11.a > 5) AND (t11.a = 8))
+                           Filter: ((SubPlan 1) AND snoop(t11.a) AND leakproof(t11.a))
+                     ->  Index Scan using t12_a_idx on public.t12
+                           Output: t12.a, t12.tableoid, t12.shardid, t12.ctid
+                           Index Cond: ((t12.a > 5) AND (t12.a = 8))
+                           Filter: ((SubPlan 1) AND snoop(t12.a) AND leakproof(t12.a))
+                     ->  Index Scan using t111_a_idx on public.t111
+                           Output: t111.a, t111.tableoid, t111.shardid, t111.ctid
+                           Index Cond: ((t111.a > 5) AND (t111.a = 8))
+                           Filter: ((SubPlan 1) AND snoop(t111.a) AND leakproof(t111.a))
+(33 rows)
 
 UPDATE v1 SET a=a+1 WHERE snoop(a) AND leakproof(a) AND a = 8;
 SELECT * FROM v1 WHERE b=8;
- a | b |  c   |  d   
----+---+------+------
- 9 | 8 | t1   | t11d
- 9 | 8 | t11  | t11d
- 9 | 8 | t12  | t11d
- 9 | 8 | t111 | t11d
+ a | b |  c   |   d   
+---+---+------+-------
+ 9 | 8 | t111 | t111d
+ 9 | 8 | t12  | t111d
+ 9 | 8 | t11  | t111d
+ 9 | 8 | t1   | t111d
 (4 rows)
 
 DELETE FROM v1 WHERE snoop(a) AND leakproof(a); -- should not delete everything, just where a>5
@@ -2408,3 +2427,211 @@ ERROR:  new row violates check option for view "wcowrtest_v2"
 DETAIL:  Failing row contains (2, no such row in sometable).
 drop view wcowrtest_v, wcowrtest_v2;
 drop table wcowrtest, sometable;
+-- Check INSERT .. ON CONFLICT DO UPDATE works correctly when the view's
+-- columns are named and ordered differently than the underlying table's.
+create table uv_iocu_tab (a text unique, b float);
+insert into uv_iocu_tab values ('xyxyxy', 0);
+create view uv_iocu_view as
+   select b, b+1 as c, a, '2.0'::text as two from uv_iocu_tab;
+insert into uv_iocu_view (a, b) values ('xyxyxy', 1)
+   on conflict (a) do update set b = uv_iocu_view.b;
+select * from uv_iocu_tab;
+   a    | b 
+--------+---
+ xyxyxy | 0
+(1 row)
+
+insert into uv_iocu_view (a, b) values ('xyxyxy', 1)
+   on conflict (a) do update set b = excluded.b;
+select * from uv_iocu_tab;
+   a    | b 
+--------+---
+ xyxyxy | 1
+(1 row)
+
+-- OK to access view columns that are not present in underlying base
+-- relation in the ON CONFLICT portion of the query
+insert into uv_iocu_view (a, b) values ('xyxyxy', 3)
+   on conflict (a) do update set b = cast(excluded.two as float);
+select * from uv_iocu_tab;
+   a    | b 
+--------+---
+ xyxyxy | 2
+(1 row)
+
+explain (costs off)
+insert into uv_iocu_view (a, b) values ('xyxyxy', 3)
+   on conflict (a) do update set b = excluded.b where excluded.c > 0;
+                                       QUERY PLAN                                        
+-----------------------------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 1)
+   ->  Insert on uv_iocu_tab
+         Conflict Resolution: UPDATE
+         Conflict Arbiter Indexes: uv_iocu_tab_a_key
+         Conflict Filter: ((excluded.b + '1'::double precision) > '0'::double precision)
+         ->  Result
+(6 rows)
+
+insert into uv_iocu_view (a, b) values ('xyxyxy', 3)
+   on conflict (a) do update set b = excluded.b where excluded.c > 0;
+select * from uv_iocu_tab;
+   a    | b 
+--------+---
+ xyxyxy | 3
+(1 row)
+
+drop view uv_iocu_view;
+drop table uv_iocu_tab;
+-- Test whole-row references to the view
+create table uv_iocu_tab (a int unique, b text);
+create view uv_iocu_view as
+    select b as bb, a as aa, uv_iocu_tab::text as cc from uv_iocu_tab;
+insert into uv_iocu_view (aa,bb) values (1,'x');
+explain (costs off)
+insert into uv_iocu_view (aa,bb) values (1,'y')
+   on conflict (aa) do update set bb = 'Rejected: '||excluded.*
+   where excluded.aa > 0
+   and excluded.bb != ''
+   and excluded.cc is not null;
+                                                  QUERY PLAN                                                   
+---------------------------------------------------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 1)
+   ->  Insert on uv_iocu_tab
+         Conflict Resolution: UPDATE
+         Conflict Arbiter Indexes: uv_iocu_tab_a_key
+         Conflict Filter: ((excluded.a > 0) AND (excluded.b <> ''::text) AND ((excluded.*)::text IS NOT NULL))
+         ->  Result
+(6 rows)
+
+insert into uv_iocu_view (aa,bb) values (1,'y')
+   on conflict (aa) do update set bb = 'Rejected: '||excluded.*
+   where excluded.aa > 0
+   and excluded.bb != ''
+   and excluded.cc is not null;
+select * from uv_iocu_view;
+           bb            | aa |               cc                
+-------------------------+----+---------------------------------
+ Rejected: (y,1,"(1,y)") |  1 | (1,"Rejected: (y,1,""(1,y)"")")
+(1 row)
+
+-- Test omitting a column of the base relation
+delete from uv_iocu_view;
+insert into uv_iocu_view (aa,bb) values (1,'x');
+insert into uv_iocu_view (aa) values (1)
+   on conflict (aa) do update set bb = 'Rejected: '||excluded.*;
+select * from uv_iocu_view;
+          bb           | aa |              cc               
+-----------------------+----+-------------------------------
+ Rejected: (,1,"(1,)") |  1 | (1,"Rejected: (,1,""(1,)"")")
+(1 row)
+
+alter table uv_iocu_tab alter column b set default 'table default';
+insert into uv_iocu_view (aa) values (1)
+   on conflict (aa) do update set bb = 'Rejected: '||excluded.*;
+select * from uv_iocu_view;
+                          bb                           | aa |                                 cc                                  
+-------------------------------------------------------+----+---------------------------------------------------------------------
+ Rejected: ("table default",1,"(1,""table default"")") |  1 | (1,"Rejected: (""table default"",1,""(1,""""table default"""")"")")
+(1 row)
+
+alter view uv_iocu_view alter column bb set default 'view default';
+insert into uv_iocu_view (aa) values (1)
+   on conflict (aa) do update set bb = 'Rejected: '||excluded.*;
+select * from uv_iocu_view;
+                         bb                          | aa |                                cc                                 
+-----------------------------------------------------+----+-------------------------------------------------------------------
+ Rejected: ("view default",1,"(1,""view default"")") |  1 | (1,"Rejected: (""view default"",1,""(1,""""view default"""")"")")
+(1 row)
+
+-- Should fail to update non-updatable columns
+insert into uv_iocu_view (aa) values (1)
+   on conflict (aa) do update set cc = 'XXX';
+ERROR:  cannot insert into column "cc" of view "uv_iocu_view"
+DETAIL:  View columns that are not columns of their base relation are not updatable.
+drop view uv_iocu_view;
+drop table uv_iocu_tab;
+-- ON CONFLICT DO UPDATE permissions checks
+create user regress_view_user1;
+create user regress_view_user2;
+set session authorization regress_view_user1;
+create table base_tbl(a int unique, b text, c float);
+insert into base_tbl values (1,'xxx',1.0);
+create view rw_view1 as select b as bb, c as cc, a as aa from base_tbl;
+grant select (aa,bb) on rw_view1 to regress_view_user2;
+grant insert on rw_view1 to regress_view_user2;
+grant update (bb) on rw_view1 to regress_view_user2;
+set session authorization regress_view_user2;
+insert into rw_view1 values ('yyy',2.0,1)
+  on conflict (aa) do update set bb = excluded.cc; -- Not allowed
+ERROR:  permission denied for relation rw_view1
+insert into rw_view1 values ('yyy',2.0,1)
+  on conflict (aa) do update set bb = rw_view1.cc; -- Not allowed
+ERROR:  permission denied for relation rw_view1
+insert into rw_view1 values ('yyy',2.0,1)
+  on conflict (aa) do update set bb = excluded.bb; -- OK
+insert into rw_view1 values ('zzz',2.0,1)
+  on conflict (aa) do update set bb = rw_view1.bb||'xxx'; -- OK
+insert into rw_view1 values ('zzz',2.0,1)
+  on conflict (aa) do update set cc = 3.0; -- Not allowed
+ERROR:  permission denied for relation rw_view1
+reset session authorization;
+select * from base_tbl;
+ a |   b    | c 
+---+--------+---
+ 1 | yyyxxx | 1
+(1 row)
+
+set session authorization regress_view_user1;
+grant select (a,b) on base_tbl to regress_view_user2;
+grant insert (a,b) on base_tbl to regress_view_user2;
+grant update (a,b) on base_tbl to regress_view_user2;
+set session authorization regress_view_user2;
+create view rw_view2 as select b as bb, c as cc, a as aa from base_tbl;
+insert into rw_view2 (aa,bb) values (1,'xxx')
+  on conflict (aa) do update set bb = excluded.bb; -- Not allowed
+ERROR:  permission denied for relation base_tbl
+create view rw_view3 as select b as bb, a as aa from base_tbl;
+insert into rw_view3 (aa,bb) values (1,'xxx')
+  on conflict (aa) do update set bb = excluded.bb; -- OK
+reset session authorization;
+select * from base_tbl;
+ a |  b  | c 
+---+-----+---
+ 1 | xxx | 1
+(1 row)
+
+set session authorization regress_view_user2;
+create view rw_view4 as select aa, bb, cc FROM rw_view1;
+insert into rw_view4 (aa,bb) values (1,'yyy')
+  on conflict (aa) do update set bb = excluded.bb; -- Not allowed
+ERROR:  permission denied for relation rw_view1
+create view rw_view5 as select aa, bb FROM rw_view1;
+insert into rw_view5 (aa,bb) values (1,'yyy')
+  on conflict (aa) do update set bb = excluded.bb; -- OK
+reset session authorization;
+select * from base_tbl;
+ a |  b  | c 
+---+-----+---
+ 1 | yyy | 1
+(1 row)
+
+drop view rw_view5;
+drop view rw_view4;
+drop view rw_view3;
+drop view rw_view2;
+drop view rw_view1;
+drop table base_tbl;
+drop user regress_view_user1;
+drop user regress_view_user2;
+create table opentenbase_test(id int);
+create view test_view as select id from opentenbase_test where id >100;
+insert into test_view values(1001),(1002);
+select id from test_view order by id;
+  id  
+------
+ 1001
+ 1002
+(2 rows)
+
+drop view test_view;
+drop table opentenbase_test;

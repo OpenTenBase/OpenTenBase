@@ -1,0 +1,1693 @@
+--explain analyze
+create table a1(id int, num int, name text);
+create table a2(id int, num int, name text);
+create table a3(id int, num int, name text default 'def');
+insert into a1 values(1,generate_series(1,100),'a');
+insert into a1 values(2,generate_series(1,100),'b');
+insert into a1 values(3,generate_series(1,100),'c');
+insert into a2 select * from a1;
+--setting
+explain (costs off,settings) select * from a1;
+                            QUERY PLAN                            
+------------------------------------------------------------------
+ Remote Fast Query Execution
+   Node/s: datanode_1, datanode_2
+   ->  Seq Scan on a1
+ Settings: max_parallel_workers = '256', shared_buffers = '128MB'
+(4 rows)
+
+--normal cases
+explain (costs off,timing off,summary off,analyze,verbose)
+select count(*) from a1;
+                                        QUERY PLAN                                         
+-------------------------------------------------------------------------------------------
+ Finalize Aggregate (actual rows=1 loops=1)
+   Output: count(*)
+   ->  Remote Subquery Scan (fid 3) on all (datanode_1,datanode_2) (actual rows=2 loops=1)
+         DN (actual rows=1..1 loops=1..1)
+         - datanode_1 (actual rows=1 loops=1)
+         - datanode_2 (actual rows=1 loops=1)
+         Output: PARTIAL count(*)
+         ->  Partial Aggregate
+               DN (actual rows=1..1 loops=1..1)
+               - datanode_1 (actual rows=1 loops=1)
+               - datanode_2 (actual rows=1 loops=1)
+               Output: PARTIAL count(*)
+               ->  Seq Scan on public.a1
+                     DN (actual rows=100..200 loops=1..1)
+                     - datanode_1 (actual rows=200 loops=1)
+                     - datanode_2 (actual rows=100 loops=1)
+                     Output: id, num, name
+(17 rows)
+
+explain (costs off,timing off,summary off,analyze,verbose)
+select num, count(*) cnt from a2 group by num order by cnt;
+                                      QUERY PLAN                                       
+---------------------------------------------------------------------------------------
+ Remote Subquery Scan (fid 5) on all (datanode_1,datanode_2) (actual rows=100 loops=1)
+   DN (actual rows=42..58 loops=1..1)
+   - datanode_1 (actual rows=42 loops=1)
+   - datanode_2 (actual rows=58 loops=1)
+   Output: num, count(*)
+   Sort Key: count(*)
+   ->  Sort
+         DN (actual rows=42..58 loops=1..1)
+         - datanode_1 (actual rows=42 loops=1)
+         - datanode_2 (actual rows=58 loops=1)
+         Output: num, (count(*))
+         Sort Key: (count(*))
+         Memory: 26kB min 27kB max 26kB avg
+         - datanode_1 Sort Method: quicksort  Memory: 26kB
+         - datanode_2 Sort Method: quicksort  Memory: 27kB
+         ->  Finalize HashAggregate
+               DN (actual rows=42..58 loops=1..1)
+               - datanode_1 (actual rows=42 loops=1)
+               - datanode_2 (actual rows=58 loops=1)
+               Output: num, count(*)
+               Group Key: a2.num
+               Peak Memory Usage: 0 kB
+               ->  Remote Subquery Scan (fid 6) on all (datanode_1,datanode_2)
+                     DN Recv (actual rows=84..116 loops=1..1)
+                     - datanode_1 (actual rows=84 loops=1)
+                     - datanode_2 (actual rows=116 loops=1)
+                     DN (actual rows=100..100 loops=1..1)
+                     - datanode_1 (actual rows=100 loops=1)
+                     - datanode_2 (actual rows=100 loops=1)
+                     Output: num, PARTIAL count(*)
+                     Distribute results by H: num
+                     ->  Partial HashAggregate
+                           DN (actual rows=100..100 loops=1..1)
+                           - datanode_1 (actual rows=100 loops=1)
+                           - datanode_2 (actual rows=100 loops=1)
+                           Output: num, PARTIAL count(*)
+                           Group Key: a2.num
+                           Peak Memory Usage: 0 kB
+                           ->  Seq Scan on public.a2
+                                 DN (actual rows=100..200 loops=1..1)
+                                 - datanode_1 (actual rows=200 loops=1)
+                                 - datanode_2 (actual rows=100 loops=1)
+                                 Output: num
+(43 rows)
+
+explain (costs off,timing off,summary off,analyze,verbose)
+select * from a1, a2 where a1.num = a2.num;
+                                                       QUERY PLAN                                                        
+-------------------------------------------------------------------------------------------------------------------------
+ Remote Subquery Scan (fid 8) on all (datanode_1,datanode_2) (actual rows=900 loops=1)
+   DN (actual rows=378..522 loops=1..1)
+   - datanode_1 (actual rows=378 loops=1)
+   - datanode_2 (actual rows=522 loops=1)
+   Output: a1.id, a1.num, a1.name, a2.id, a2.num, a2.name
+   ->  Hash Join
+         DN (actual rows=378..522 loops=1..1)
+         - datanode_1 (actual rows=378 loops=1)
+         - datanode_2 (actual rows=522 loops=1)
+         Output: a1.id, a1.num, a1.name, a2.id, a2.num, a2.name
+         Hash Cond: (a1.num = a2.num)
+         ->  Remote Subquery Scan (fid 9) on all (datanode_1,datanode_2)
+               DN Recv (actual rows=126..174 loops=1..1)
+               - datanode_1 (actual rows=126 loops=1)
+               - datanode_2 (actual rows=174 loops=1)
+               DN (actual rows=100..200 loops=1..1)
+               - datanode_1 (actual rows=200 loops=1)
+               - datanode_2 (actual rows=100 loops=1)
+               Output: a1.id, a1.num, a1.name
+               Distribute results by H: num
+               ->  Seq Scan on public.a1
+                     DN (actual rows=100..200 loops=1..1)
+                     - datanode_1 (actual rows=200 loops=1)
+                     - datanode_2 (actual rows=100 loops=1)
+                     Output: a1.id, a1.num, a1.name
+         ->  Hash
+               DN (actual rows=126..174 loops=1..1)
+               - datanode_1 (actual rows=126 loops=1)
+               - datanode_2 (actual rows=174 loops=1)
+               Output: a2.id, a2.num, a2.name
+               Buckets: 1024 min 1024 max 1024 avg  Batches: 1 min 1 max 1 avg  Memory Usage: 14KB min 16KB max 15KB avg
+               - datanode_1 Buckets: 1024 (originally 1024)  Batches: 1 (originally 1)  Memory Usage: 14kB
+               - datanode_2 Buckets: 1024 (originally 1024)  Batches: 1 (originally 1)  Memory Usage: 16kB
+               ->  Remote Subquery Scan (fid 10) on all (datanode_1,datanode_2)
+                     DN Recv (actual rows=126..174 loops=1..1)
+                     - datanode_1 (actual rows=126 loops=1)
+                     - datanode_2 (actual rows=174 loops=1)
+                     DN (actual rows=100..200 loops=1..1)
+                     - datanode_1 (actual rows=200 loops=1)
+                     - datanode_2 (actual rows=100 loops=1)
+                     Output: a2.id, a2.num, a2.name
+                     Distribute results by H: num
+                     ->  Seq Scan on public.a2
+                           DN (actual rows=100..200 loops=1..1)
+                           - datanode_1 (actual rows=200 loops=1)
+                           - datanode_2 (actual rows=100 loops=1)
+                           Output: a2.id, a2.num, a2.name
+(47 rows)
+
+--append
+explain (costs off,timing off,summary off,analyze,verbose)
+select max(num) from a1 union select min(num) from a1 order by 1;
+                                                  QUERY PLAN                                                  
+--------------------------------------------------------------------------------------------------------------
+ Sort (actual rows=2 loops=1)
+   Output: (max(a1.num))
+   Sort Key: (max(a1.num))
+   Sort Method: quicksort  Memory: 25kB
+   ->  HashAggregate (actual rows=2 loops=1)
+         Output: (max(a1.num))
+         Group Key: (max(a1.num))
+         Peak Memory Usage: 7 kB
+         ->  Append (actual rows=2 loops=1)
+               ->  Finalize Aggregate (actual rows=1 loops=1)
+                     Output: max(a1.num)
+                     ->  Remote Subquery Scan (fid 12) on all (datanode_1,datanode_2) (actual rows=2 loops=1)
+                           DN (actual rows=1..1 loops=1..1)
+                           - datanode_1 (actual rows=1 loops=1)
+                           - datanode_2 (actual rows=1 loops=1)
+                           Output: PARTIAL max(a1.num)
+                           ->  Partial Aggregate
+                                 DN (actual rows=1..1 loops=1..1)
+                                 - datanode_1 (actual rows=1 loops=1)
+                                 - datanode_2 (actual rows=1 loops=1)
+                                 Output: PARTIAL max(a1.num)
+                                 ->  Seq Scan on public.a1
+                                       DN (actual rows=100..200 loops=1..1)
+                                       - datanode_1 (actual rows=200 loops=1)
+                                       - datanode_2 (actual rows=100 loops=1)
+                                       Output: a1.id, a1.num, a1.name
+               ->  Finalize Aggregate (actual rows=1 loops=1)
+                     Output: min(a1_1.num)
+                     ->  Remote Subquery Scan (fid 13) on all (datanode_1,datanode_2) (actual rows=2 loops=1)
+                           DN (actual rows=1..1 loops=1..1)
+                           - datanode_1 (actual rows=1 loops=1)
+                           - datanode_2 (actual rows=1 loops=1)
+                           Output: PARTIAL min(a1_1.num)
+                           ->  Partial Aggregate
+                                 DN (actual rows=1..1 loops=1..1)
+                                 - datanode_1 (actual rows=1 loops=1)
+                                 - datanode_2 (actual rows=1 loops=1)
+                                 Output: PARTIAL min(a1_1.num)
+                                 ->  Seq Scan on public.a1 a1_1
+                                       DN (actual rows=100..200 loops=1..1)
+                                       - datanode_1 (actual rows=200 loops=1)
+                                       - datanode_2 (actual rows=100 loops=1)
+                                       Output: a1_1.id, a1_1.num, a1_1.name
+(43 rows)
+
+--subplan
+explain (costs off,timing off,summary off,analyze,verbose)
+select * from a1 where id in (select count(*) from a2 where a1.num=a2.num);
+                                       QUERY PLAN                                       
+----------------------------------------------------------------------------------------
+ Remote Subquery Scan (fid 15) on all (datanode_1,datanode_2) (actual rows=100 loops=1)
+   DN (actual rows=0..100 loops=1..1)
+   - datanode_1 (actual rows=0 loops=1)
+   - datanode_2 (actual rows=100 loops=1)
+   Output: a1.id, a1.num, a1.name
+   ->  Seq Scan on public.a1
+         DN (actual rows=0..100 loops=1..1)
+         - datanode_1 (actual rows=0 loops=1)
+         - datanode_2 (actual rows=100 loops=1)
+         Output: a1.id, a1.num, a1.name
+         Filter: (SubPlan 1)
+         SubPlan 1
+           ->  Finalize Aggregate
+                 DN (actual rows=1..1 loops=100..200)
+                 - datanode_1 (actual rows=1 loops=200)
+                 - datanode_2 (actual rows=1 loops=100)
+                 Output: count(*)
+                 ->  Remote Subquery Scan (fid 16) on all (datanode_1,datanode_2)
+                       DN Recv (actual rows=2..2 loops=100..200)
+                       - datanode_1 (actual rows=2 loops=200)
+                       - datanode_2 (actual rows=2 loops=100)
+                       DN (actual rows=1..1 loops=300..300)
+                       - datanode_1 (actual rows=1 loops=300)
+                       - datanode_2 (actual rows=1 loops=300)
+                       Output: PARTIAL count(*)
+                       ->  Partial Aggregate
+                             DN (actual rows=1..1 loops=300..300)
+                             - datanode_1 (actual rows=1 loops=300)
+                             - datanode_2 (actual rows=1 loops=300)
+                             Output: PARTIAL count(*)
+                             ->  Seq Scan on public.a2
+                                   DN (actual rows=1..2 loops=300..300)
+                                   - datanode_1 (actual rows=2 loops=300)
+                                   - datanode_2 (actual rows=1 loops=300)
+                                   Output: a2.id, a2.num, a2.name
+                                   Filter: (a1.num = a2.num)
+(36 rows)
+
+--initplan
+explain (costs off,summary off)
+select * from a1 where num >= (select count(*) from a2 where name='a');
+                       QUERY PLAN                        
+---------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   InitPlan 1 (returns $0)
+     ->  Finalize Aggregate
+           ->  Remote Subquery Scan on all (datanodes 2)
+                 ->  Partial Aggregate
+                       ->  Seq Scan on a2
+                             Filter: (name = 'a'::text)
+   ->  Seq Scan on a1
+         Filter: (num >= $0)
+(9 rows)
+
+explain (costs off,timing off,summary off,analyze,verbose)
+select * from a1 where num >= (select count(*) from a2 where name='a');
+                                      QUERY PLAN                                      
+--------------------------------------------------------------------------------------
+ Remote Subquery Scan (fid 19) on all (datanode_1,datanode_2) (actual rows=3 loops=1)
+   DN (actual rows=1..2 loops=1..1)
+   - datanode_1 (actual rows=2 loops=1)
+   - datanode_2 (actual rows=1 loops=1)
+   Output: a1.id, a1.num, a1.name
+   InitPlan 1 (returns $0)
+     ->  Finalize Aggregate
+           DN (actual rows=1..1 loops=1..1)
+           - datanode_1 (actual rows=1 loops=1)
+           - datanode_2 (actual rows=1 loops=1)
+           Output: count(*)
+           ->  Remote Subquery Scan (fid 20) on all (datanode_1,datanode_2)
+                 DN Recv (actual rows=2..2 loops=1..1)
+                 - datanode_1 (actual rows=2 loops=1)
+                 - datanode_2 (actual rows=2 loops=1)
+                 DN (actual rows=1..1 loops=1..1)
+                 - datanode_1 (actual rows=1 loops=1)
+                 - datanode_2 (actual rows=1 loops=1)
+                 Output: PARTIAL count(*)
+                 ->  Partial Aggregate
+                       DN (actual rows=1..1 loops=1..1)
+                       - datanode_1 (actual rows=1 loops=1)
+                       - datanode_2 (actual rows=1 loops=1)
+                       Output: PARTIAL count(*)
+                       ->  Seq Scan on public.a2
+                             DN (actual rows=0..100 loops=1..1)
+                             - datanode_1 (actual rows=100 loops=1)
+                             - datanode_2 (actual rows=0 loops=1)
+                             Output: a2.id, a2.num, a2.name
+                             Filter: (a2.name = 'a'::text)
+   ->  Seq Scan on public.a1
+         DN (actual rows=1..2 loops=1..1)
+         - datanode_1 (actual rows=2 loops=1)
+         - datanode_2 (actual rows=1 loops=1)
+         Output: a1.id, a1.num, a1.name
+         Filter: (a1.num >= $0)
+(36 rows)
+
+explain (costs off,summary off)
+select * from a1 where num >= (select count(*) from a2 where name='b') order by id;
+                       QUERY PLAN                        
+---------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   InitPlan 1 (returns $0)
+     ->  Finalize Aggregate
+           ->  Remote Subquery Scan on all (datanodes 2)
+                 ->  Partial Aggregate
+                       ->  Seq Scan on a2
+                             Filter: (name = 'b'::text)
+   ->  Sort
+         Sort Key: a1.id
+         ->  Seq Scan on a1
+               Filter: (num >= $0)
+(11 rows)
+
+explain (costs off,timing off,summary off,analyze,verbose)
+select * from a1 where num >= (select count(*) from a2 where name='b') order by id;
+                                      QUERY PLAN                                      
+--------------------------------------------------------------------------------------
+ Remote Subquery Scan (fid 23) on all (datanode_1,datanode_2) (actual rows=3 loops=1)
+   DN (actual rows=1..2 loops=1..1)
+   - datanode_1 (actual rows=2 loops=1)
+   - datanode_2 (actual rows=1 loops=1)
+   Output: a1.id, a1.num, a1.name
+   Sort Key: a1.id
+   InitPlan 1 (returns $0)
+     ->  Finalize Aggregate
+           DN (actual rows=1..1 loops=1..1)
+           - datanode_1 (actual rows=1 loops=1)
+           - datanode_2 (actual rows=1 loops=1)
+           Output: count(*)
+           ->  Remote Subquery Scan (fid 24) on all (datanode_1,datanode_2)
+                 DN Recv (actual rows=2..2 loops=1..1)
+                 - datanode_1 (actual rows=2 loops=1)
+                 - datanode_2 (actual rows=2 loops=1)
+                 DN (actual rows=1..1 loops=1..1)
+                 - datanode_1 (actual rows=1 loops=1)
+                 - datanode_2 (actual rows=1 loops=1)
+                 Output: PARTIAL count(*)
+                 ->  Partial Aggregate
+                       DN (actual rows=1..1 loops=1..1)
+                       - datanode_1 (actual rows=1 loops=1)
+                       - datanode_2 (actual rows=1 loops=1)
+                       Output: PARTIAL count(*)
+                       ->  Seq Scan on public.a2
+                             DN (actual rows=0..100 loops=1..1)
+                             - datanode_1 (actual rows=100 loops=1)
+                             - datanode_2 (actual rows=0 loops=1)
+                             Output: a2.id, a2.num, a2.name
+                             Filter: (a2.name = 'b'::text)
+   ->  Sort
+         DN (actual rows=1..2 loops=1..1)
+         - datanode_1 (actual rows=2 loops=1)
+         - datanode_2 (actual rows=1 loops=1)
+         Output: a1.id, a1.num, a1.name
+         Sort Key: a1.id
+         Memory: 25kB min 25kB max 25kB avg
+         - datanode_1 Sort Method: quicksort  Memory: 25kB
+         - datanode_2 Sort Method: quicksort  Memory: 25kB
+         ->  Seq Scan on public.a1
+               DN (actual rows=1..2 loops=1..1)
+               - datanode_1 (actual rows=2 loops=1)
+               - datanode_2 (actual rows=1 loops=1)
+               Output: a1.id, a1.num, a1.name
+               Filter: (a1.num >= $0)
+(46 rows)
+
+explain (costs off,summary off)
+select * from a1 where num >= (select count(*) from a2 where name='c') limit 1;
+                          QUERY PLAN                           
+---------------------------------------------------------------
+ Limit
+   ->  Remote Subquery Scan on all (datanodes 2)
+         InitPlan 1 (returns $0)
+           ->  Finalize Aggregate
+                 ->  Remote Subquery Scan on all (datanodes 2)
+                       ->  Partial Aggregate
+                             ->  Seq Scan on a2
+                                   Filter: (name = 'c'::text)
+         ->  Limit
+               ->  Seq Scan on a1
+                     Filter: (num >= $0)
+(11 rows)
+
+explain (costs off,timing off,summary off,analyze,verbose)
+select * from a1 where num >= (select count(*) from a2 where name='c') limit 1;
+                                         QUERY PLAN                                         
+--------------------------------------------------------------------------------------------
+ Limit (actual rows=1 loops=1)
+   Output: a1.id, a1.num, a1.name
+   ->  Remote Subquery Scan (fid 27) on all (datanode_1,datanode_2) (actual rows=1 loops=1)
+         DN (actual rows=1..1 loops=1..1)
+         - datanode_1 (actual rows=1 loops=1)
+         - datanode_2 (actual rows=1 loops=1)
+         Output: a1.id, a1.num, a1.name
+         InitPlan 1 (returns $0)
+           ->  Finalize Aggregate
+                 DN (actual rows=1..1 loops=1..1)
+                 - datanode_1 (actual rows=1 loops=1)
+                 - datanode_2 (actual rows=1 loops=1)
+                 Output: count(*)
+                 ->  Remote Subquery Scan (fid 28) on all (datanode_1,datanode_2)
+                       DN Recv (actual rows=2..2 loops=1..1)
+                       - datanode_1 (actual rows=2 loops=1)
+                       - datanode_2 (actual rows=2 loops=1)
+                       DN (actual rows=1..1 loops=1..1)
+                       - datanode_1 (actual rows=1 loops=1)
+                       - datanode_2 (actual rows=1 loops=1)
+                       Output: PARTIAL count(*)
+                       ->  Partial Aggregate
+                             DN (actual rows=1..1 loops=1..1)
+                             - datanode_1 (actual rows=1 loops=1)
+                             - datanode_2 (actual rows=1 loops=1)
+                             Output: PARTIAL count(*)
+                             ->  Seq Scan on public.a2
+                                   DN (actual rows=0..100 loops=1..1)
+                                   - datanode_1 (actual rows=0 loops=1)
+                                   - datanode_2 (actual rows=100 loops=1)
+                                   Output: a2.id, a2.num, a2.name
+                                   Filter: (a2.name = 'c'::text)
+         ->  Limit
+               DN (actual rows=1..1 loops=1..1)
+               - datanode_1 (actual rows=1 loops=1)
+               - datanode_2 (actual rows=1 loops=1)
+               Output: a1.id, a1.num, a1.name
+               ->  Seq Scan on public.a1
+                     DN (actual rows=1..1 loops=1..1)
+                     - datanode_1 (actual rows=1 loops=1)
+                     - datanode_2 (actual rows=1 loops=1)
+                     Output: a1.id, a1.num, a1.name
+                     Filter: (a1.num >= $0)
+(43 rows)
+
+explain (costs off,summary off)
+select count(*) from a1 group by name having count(*) = (select count(*) from a2 where name='a');
+                       QUERY PLAN                        
+---------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   InitPlan 1 (returns $0)
+     ->  Finalize Aggregate
+           ->  Remote Subquery Scan on all (datanodes 2)
+                 ->  Partial Aggregate
+                       ->  Seq Scan on a2
+                             Filter: (name = 'a'::text)
+   ->  Finalize HashAggregate
+         Group Key: a1.name
+         Filter: (count(*) = $0)
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by H: name
+               ->  Partial HashAggregate
+                     Group Key: a1.name
+                     ->  Seq Scan on a1
+(15 rows)
+
+explain (costs off,timing off,summary off,analyze,verbose)
+select count(*) from a1 group by name having count(*) = (select count(*) from a2 where name='a');
+                                      QUERY PLAN                                      
+--------------------------------------------------------------------------------------
+ Remote Subquery Scan (fid 30) on all (datanode_1,datanode_2) (actual rows=3 loops=1)
+   DN (actual rows=1..2 loops=1..1)
+   - datanode_1 (actual rows=2 loops=1)
+   - datanode_2 (actual rows=1 loops=1)
+   Output: count(*), a1.name
+   InitPlan 1 (returns $0)
+     ->  Finalize Aggregate
+           DN (actual rows=1..1 loops=1..1)
+           - datanode_1 (actual rows=1 loops=1)
+           - datanode_2 (actual rows=1 loops=1)
+           Output: count(*)
+           ->  Remote Subquery Scan (fid 31) on all (datanode_1,datanode_2)
+                 DN Recv (actual rows=2..2 loops=1..1)
+                 - datanode_1 (actual rows=2 loops=1)
+                 - datanode_2 (actual rows=2 loops=1)
+                 DN (actual rows=1..1 loops=1..1)
+                 - datanode_1 (actual rows=1 loops=1)
+                 - datanode_2 (actual rows=1 loops=1)
+                 Output: PARTIAL count(*)
+                 ->  Partial Aggregate
+                       DN (actual rows=1..1 loops=1..1)
+                       - datanode_1 (actual rows=1 loops=1)
+                       - datanode_2 (actual rows=1 loops=1)
+                       Output: PARTIAL count(*)
+                       ->  Seq Scan on public.a2
+                             DN (actual rows=0..100 loops=1..1)
+                             - datanode_1 (actual rows=100 loops=1)
+                             - datanode_2 (actual rows=0 loops=1)
+                             Output: a2.id, a2.num, a2.name
+                             Filter: (a2.name = 'a'::text)
+   ->  Finalize HashAggregate
+         DN (actual rows=1..2 loops=1..1)
+         - datanode_1 (actual rows=2 loops=1)
+         - datanode_2 (actual rows=1 loops=1)
+         Output: count(*), a1.name
+         Group Key: a1.name
+         Filter: (count(*) = $0)
+         Peak Memory Usage: 0 kB
+         ->  Remote Subquery Scan (fid 32) on all (datanode_1,datanode_2)
+               DN Recv (actual rows=1..2 loops=1..1)
+               - datanode_1 (actual rows=2 loops=1)
+               - datanode_2 (actual rows=1 loops=1)
+               DN (actual rows=1..2 loops=1..1)
+               - datanode_1 (actual rows=2 loops=1)
+               - datanode_2 (actual rows=1 loops=1)
+               Output: a1.name, PARTIAL count(*)
+               Distribute results by H: name
+               ->  Partial HashAggregate
+                     DN (actual rows=1..2 loops=1..1)
+                     - datanode_1 (actual rows=2 loops=1)
+                     - datanode_2 (actual rows=1 loops=1)
+                     Output: a1.name, PARTIAL count(*)
+                     Group Key: a1.name
+                     Peak Memory Usage: 0 kB
+                     ->  Seq Scan on public.a1
+                           DN (actual rows=100..200 loops=1..1)
+                           - datanode_1 (actual rows=200 loops=1)
+                           - datanode_2 (actual rows=100 loops=1)
+                           Output: a1.name
+(59 rows)
+
+explain (costs off,summary off)
+insert into a3 values(10, 20, '40'), (-1, 2, DEFAULT),
+    ((select count(*) from a1), (select i from (values(3)) as foo (i)), 'values are fun!');
+                             QUERY PLAN                              
+---------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   ->  Insert on a3
+         ->  Remote Subquery Scan on all (datanodes 1)
+               Distribute results by H: column1
+               InitPlan 1 (returns $0)
+                 ->  Finalize Aggregate
+                       ->  Remote Subquery Scan on all (datanodes 2)
+                             ->  Partial Aggregate
+                                   ->  Seq Scan on a1
+               InitPlan 2 (returns $1)
+                 ->  Result
+               ->  Values Scan on "*VALUES*"
+(12 rows)
+
+insert into a3 values(10, 20, '40'), (-1, 2, DEFAULT),
+    ((select count(*) from a1), (select i from (values(3)) as foo (i)), 'values are fun!');
+select * from a3 order by 1,2,3;
+ id  | num |      name       
+-----+-----+-----------------
+  -1 |   2 | def
+  10 |  20 | 40
+ 300 |   3 | values are fun!
+(3 rows)
+
+explain (costs off,summary off)
+select name, count(*) from a1 where num >= (select count(*) from a2 where name='a') group by name;
+                             QUERY PLAN                              
+---------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   ->  Finalize HashAggregate
+         Group Key: a1.name
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by H: name
+               InitPlan 1 (returns $0)
+                 ->  Finalize Aggregate
+                       ->  Remote Subquery Scan on all (datanodes 2)
+                             ->  Partial Aggregate
+                                   ->  Seq Scan on a2
+                                         Filter: (name = 'a'::text)
+               ->  Partial HashAggregate
+                     Group Key: a1.name
+                     ->  Seq Scan on a1
+                           Filter: (num >= $0)
+(15 rows)
+
+explain (costs off,timing off,summary off,analyze,verbose)
+select name, count(*) from a1 where num >= (select count(*) from a2 where name='a') group by name;
+                                       QUERY PLAN                                       
+----------------------------------------------------------------------------------------
+ Remote Subquery Scan (fid 41) on all (datanode_1,datanode_2) (actual rows=3 loops=1)
+   DN (actual rows=1..2 loops=1..1)
+   - datanode_1 (actual rows=2 loops=1)
+   - datanode_2 (actual rows=1 loops=1)
+   Output: a1.name, count(*)
+   ->  Finalize HashAggregate
+         DN (actual rows=1..2 loops=1..1)
+         - datanode_1 (actual rows=2 loops=1)
+         - datanode_2 (actual rows=1 loops=1)
+         Output: a1.name, count(*)
+         Group Key: a1.name
+         Peak Memory Usage: 0 kB
+         ->  Remote Subquery Scan (fid 42) on all (datanode_1,datanode_2)
+               DN Recv (actual rows=1..2 loops=1..1)
+               - datanode_1 (actual rows=2 loops=1)
+               - datanode_2 (actual rows=1 loops=1)
+               DN (actual rows=1..2 loops=1..1)
+               - datanode_1 (actual rows=2 loops=1)
+               - datanode_2 (actual rows=1 loops=1)
+               Output: a1.name, PARTIAL count(*)
+               Distribute results by H: name
+               InitPlan 1 (returns $0)
+                 ->  Finalize Aggregate
+                       DN (actual rows=1..1 loops=1..1)
+                       - datanode_1 (actual rows=1 loops=1)
+                       - datanode_2 (actual rows=1 loops=1)
+                       Output: count(*)
+                       ->  Remote Subquery Scan (fid 43) on all (datanode_1,datanode_2)
+                             DN Recv (actual rows=2..2 loops=1..1)
+                             - datanode_1 (actual rows=2 loops=1)
+                             - datanode_2 (actual rows=2 loops=1)
+                             DN (actual rows=1..1 loops=1..1)
+                             - datanode_1 (actual rows=1 loops=1)
+                             - datanode_2 (actual rows=1 loops=1)
+                             Output: PARTIAL count(*)
+                             ->  Partial Aggregate
+                                   DN (actual rows=1..1 loops=1..1)
+                                   - datanode_1 (actual rows=1 loops=1)
+                                   - datanode_2 (actual rows=1 loops=1)
+                                   Output: PARTIAL count(*)
+                                   ->  Seq Scan on public.a2
+                                         DN (actual rows=0..100 loops=1..1)
+                                         - datanode_1 (actual rows=100 loops=1)
+                                         - datanode_2 (actual rows=0 loops=1)
+                                         Output: a2.id, a2.num, a2.name
+                                         Filter: (a2.name = 'a'::text)
+               ->  Partial HashAggregate
+                     DN (actual rows=1..2 loops=1..1)
+                     - datanode_1 (actual rows=2 loops=1)
+                     - datanode_2 (actual rows=1 loops=1)
+                     Output: a1.name, PARTIAL count(*)
+                     Group Key: a1.name
+                     Peak Memory Usage: 0 kB
+                     ->  Seq Scan on public.a1
+                           DN (actual rows=1..2 loops=1..1)
+                           - datanode_1 (actual rows=2 loops=1)
+                           - datanode_2 (actual rows=1 loops=1)
+                           Output: a1.name
+                           Filter: (a1.num >= $0)
+(59 rows)
+
+--ctescan
+explain (costs off,summary off)
+WITH v AS (SELECT num a, count(*) b FROM a1 group by num) SELECT * FROM v AS v1, v AS v2 WHERE v1.a = v2.b;
+                       QUERY PLAN                        
+---------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   CTE v
+     ->  Finalize HashAggregate
+           Group Key: a1.num
+           ->  Remote Subquery Scan on all (datanodes 2)
+                 Distribute results by H: num
+                 ->  Partial HashAggregate
+                       Group Key: a1.num
+                       ->  Seq Scan on a1
+   ->  Hash Join
+         Hash Cond: (v2.b = v1.a)
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by H: b
+               ->  Shared CTE Scan on v v2
+         ->  Hash
+               ->  Shared CTE Scan on v v1
+(16 rows)
+
+explain (costs off,timing off,summary off,analyze,verbose)
+WITH v AS (SELECT num a, count(*) b FROM a1 group by num) SELECT * FROM v AS v1, v AS v2 WHERE v1.a = v2.b;
+                                                       QUERY PLAN                                                        
+-------------------------------------------------------------------------------------------------------------------------
+ Remote Subquery Scan (fid 45) on all (datanode_1,datanode_2) (actual rows=100 loops=1)
+   DN (actual rows=0..100 loops=1..1)
+   - datanode_1 (actual rows=0 loops=1)
+   - datanode_2 (actual rows=100 loops=1)
+   Output: v1.a, v1.b, v2.a, v2.b
+   CTE v (fid 47)
+     ->  Finalize HashAggregate
+           DN (actual rows=42..58 loops=1..1)
+           - datanode_1 (actual rows=42 loops=1)
+           - datanode_2 (actual rows=58 loops=1)
+           Output: a1.num, count(*)
+           Group Key: a1.num
+           Peak Memory Usage: 0 kB
+           ->  Remote Subquery Scan (fid 48) on all (datanode_1,datanode_2)
+                 DN Recv (actual rows=84..116 loops=1..1)
+                 - datanode_1 (actual rows=84 loops=1)
+                 - datanode_2 (actual rows=116 loops=1)
+                 DN (actual rows=100..100 loops=1..1)
+                 - datanode_1 (actual rows=100 loops=1)
+                 - datanode_2 (actual rows=100 loops=1)
+                 Output: a1.num, PARTIAL count(*)
+                 Distribute results by H: num
+                 ->  Partial HashAggregate
+                       DN (actual rows=100..100 loops=1..1)
+                       - datanode_1 (actual rows=100 loops=1)
+                       - datanode_2 (actual rows=100 loops=1)
+                       Output: a1.num, PARTIAL count(*)
+                       Group Key: a1.num
+                       Peak Memory Usage: 0 kB
+                       ->  Seq Scan on public.a1
+                             DN (actual rows=100..200 loops=1..1)
+                             - datanode_1 (actual rows=200 loops=1)
+                             - datanode_2 (actual rows=100 loops=1)
+                             Output: a1.num
+   ->  Hash Join
+         DN (actual rows=0..100 loops=1..1)
+         - datanode_1 (actual rows=0 loops=1)
+         - datanode_2 (actual rows=100 loops=1)
+         Output: v1.a, v1.b, v2.a, v2.b
+         Hash Cond: (v2.b = v1.a)
+         ->  Remote Subquery Scan (fid 46) on all (datanode_1,datanode_2)
+               DN Recv (actual rows=0..100 loops=1..1)
+               - datanode_1 (actual rows=0 loops=1)
+               - datanode_2 (actual rows=100 loops=1)
+               DN (actual rows=42..58 loops=1..1)
+               - datanode_1 (actual rows=42 loops=1)
+               - datanode_2 (actual rows=58 loops=1)
+               Output: v2.a, v2.b
+               Distribute results by H: b
+               ->  Shared CTE Scan on v v2
+                     DN (actual rows=42..58 loops=1..1)
+                     - datanode_1 (actual rows=42 loops=1)
+                     - datanode_2 (actual rows=58 loops=1)
+                     Output: v2.a, v2.b
+         ->  Hash
+               DN (actual rows=42..58 loops=1..1)
+               - datanode_1 (actual rows=42 loops=1)
+               - datanode_2 (actual rows=58 loops=1)
+               Output: v1.a, v1.b
+               Buckets: 1024 min 1024 max 1024 avg  Batches: 1 min 1 max 1 avg  Memory Usage: 10KB min 11KB max 10KB avg
+               - datanode_1 Buckets: 1024 (originally 1024)  Batches: 1 (originally 1)  Memory Usage: 10kB
+               - datanode_2 Buckets: 1024 (originally 1024)  Batches: 1 (originally 1)  Memory Usage: 11kB
+               ->  Shared CTE Scan on v v1
+                     DN (actual rows=42..58 loops=1..1)
+                     - datanode_1 (actual rows=42 loops=1)
+                     - datanode_2 (actual rows=58 loops=1)
+                     Output: v1.a, v1.b
+(67 rows)
+
+explain (costs off,summary off)
+WITH v AS (SELECT num a, count(*) b FROM a1 group by num)
+SELECT * FROM v AS v1, v AS v2 WHERE v1.a = v2.b and exists (select count(*) from a2);
+                         QUERY PLAN                          
+-------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   CTE v
+     ->  Finalize HashAggregate
+           Group Key: a1.num
+           ->  Remote Subquery Scan on all (datanodes 2)
+                 Distribute results by H: num
+                 ->  Partial HashAggregate
+                       Group Key: a1.num
+                       ->  Seq Scan on a1
+   InitPlan 2 (returns $1)
+     ->  Finalize Aggregate
+           ->  Remote Subquery Scan on all (datanodes 2)
+                 ->  Partial Aggregate
+                       ->  Seq Scan on a2
+   ->  Result
+         One-Time Filter: $1
+         ->  Hash Join
+               Hash Cond: (v2.b = v1.a)
+               ->  Remote Subquery Scan on all (datanodes 2)
+                     Distribute results by H: b
+                     ->  Shared CTE Scan on v v2
+               ->  Hash
+                     ->  Shared CTE Scan on v v1
+(23 rows)
+
+explain (costs off,timing off,summary off,analyze,verbose)
+WITH v AS (SELECT num a, count(*) b FROM a1 group by num)
+SELECT * FROM v AS v1, v AS v2 WHERE v1.a = v2.b and exists (select count(*) from a2);
+                                                          QUERY PLAN                                                           
+-------------------------------------------------------------------------------------------------------------------------------
+ Remote Subquery Scan (fid 51) on all (datanode_1,datanode_2) (actual rows=100 loops=1)
+   DN (actual rows=0..100 loops=1..1)
+   - datanode_1 (actual rows=0 loops=1)
+   - datanode_2 (actual rows=100 loops=1)
+   Output: v1.a, v1.b, v2.a, v2.b
+   CTE v (fid 54)
+     ->  Finalize HashAggregate
+           DN (actual rows=42..58 loops=1..1)
+           - datanode_1 (actual rows=42 loops=1)
+           - datanode_2 (actual rows=58 loops=1)
+           Output: a1.num, count(*)
+           Group Key: a1.num
+           Peak Memory Usage: 0 kB
+           ->  Remote Subquery Scan (fid 55) on all (datanode_1,datanode_2)
+                 DN Recv (actual rows=84..116 loops=1..1)
+                 - datanode_1 (actual rows=84 loops=1)
+                 - datanode_2 (actual rows=116 loops=1)
+                 DN (actual rows=100..100 loops=1..1)
+                 - datanode_1 (actual rows=100 loops=1)
+                 - datanode_2 (actual rows=100 loops=1)
+                 Output: a1.num, PARTIAL count(*)
+                 Distribute results by H: num
+                 ->  Partial HashAggregate
+                       DN (actual rows=100..100 loops=1..1)
+                       - datanode_1 (actual rows=100 loops=1)
+                       - datanode_2 (actual rows=100 loops=1)
+                       Output: a1.num, PARTIAL count(*)
+                       Group Key: a1.num
+                       Peak Memory Usage: 0 kB
+                       ->  Seq Scan on public.a1
+                             DN (actual rows=100..200 loops=1..1)
+                             - datanode_1 (actual rows=200 loops=1)
+                             - datanode_2 (actual rows=100 loops=1)
+                             Output: a1.num
+   InitPlan 2 (returns $1)
+     ->  Finalize Aggregate
+           DN (actual rows=1..1 loops=1..1)
+           - datanode_1 (actual rows=1 loops=1)
+           - datanode_2 (actual rows=1 loops=1)
+           Output: count(*)
+           ->  Remote Subquery Scan (fid 52) on all (datanode_1,datanode_2)
+                 DN Recv (actual rows=2..2 loops=1..1)
+                 - datanode_1 (actual rows=2 loops=1)
+                 - datanode_2 (actual rows=2 loops=1)
+                 DN (actual rows=1..1 loops=1..1)
+                 - datanode_1 (actual rows=1 loops=1)
+                 - datanode_2 (actual rows=1 loops=1)
+                 Output: PARTIAL count(*)
+                 ->  Partial Aggregate
+                       DN (actual rows=1..1 loops=1..1)
+                       - datanode_1 (actual rows=1 loops=1)
+                       - datanode_2 (actual rows=1 loops=1)
+                       Output: PARTIAL count(*)
+                       ->  Seq Scan on public.a2
+                             DN (actual rows=100..200 loops=1..1)
+                             - datanode_1 (actual rows=200 loops=1)
+                             - datanode_2 (actual rows=100 loops=1)
+                             Output: a2.id, a2.num, a2.name
+   ->  Result
+         DN (actual rows=0..100 loops=1..1)
+         - datanode_1 (actual rows=0 loops=1)
+         - datanode_2 (actual rows=100 loops=1)
+         Output: v1.a, v1.b, v2.a, v2.b
+         One-Time Filter: $1
+         ->  Hash Join
+               DN (actual rows=0..100 loops=1..1)
+               - datanode_1 (actual rows=0 loops=1)
+               - datanode_2 (actual rows=100 loops=1)
+               Output: v1.a, v1.b, v2.a, v2.b
+               Hash Cond: (v2.b = v1.a)
+               ->  Remote Subquery Scan (fid 53) on all (datanode_1,datanode_2)
+                     DN Recv (actual rows=0..100 loops=1..1)
+                     - datanode_1 (actual rows=0 loops=1)
+                     - datanode_2 (actual rows=100 loops=1)
+                     DN (actual rows=42..58 loops=1..1)
+                     - datanode_1 (actual rows=42 loops=1)
+                     - datanode_2 (actual rows=58 loops=1)
+                     Output: v2.a, v2.b
+                     Distribute results by H: b
+                     ->  Shared CTE Scan on v v2
+                           DN (actual rows=42..58 loops=1..1)
+                           - datanode_1 (actual rows=42 loops=1)
+                           - datanode_2 (actual rows=58 loops=1)
+                           Output: v2.a, v2.b
+               ->  Hash
+                     DN (actual rows=42..58 loops=1..1)
+                     - datanode_1 (actual rows=42 loops=1)
+                     - datanode_2 (actual rows=58 loops=1)
+                     Output: v1.a, v1.b
+                     Buckets: 1024 min 1024 max 1024 avg  Batches: 1 min 1 max 1 avg  Memory Usage: 10KB min 11KB max 10KB avg
+                     - datanode_1 Buckets: 1024 (originally 1024)  Batches: 1 (originally 1)  Memory Usage: 10kB
+                     - datanode_2 Buckets: 1024 (originally 1024)  Batches: 1 (originally 1)  Memory Usage: 11kB
+                     ->  Shared CTE Scan on v v1
+                           DN (actual rows=42..58 loops=1..1)
+                           - datanode_1 (actual rows=42 loops=1)
+                           - datanode_2 (actual rows=58 loops=1)
+                           Output: v1.a, v1.b
+(97 rows)
+
+explain (costs off,summary off)
+WITH v1 AS (SELECT num a, count(*) b FROM a1 group by num),
+ v2 AS (SELECT num a, count(*) b FROM a2 group by num)
+SELECT * FROM v1, v2, v1 v3, v2 v4 WHERE v1.a = v2.a and v3.b = v4.b and v2.a=v3.b;
+                                     QUERY PLAN                                      
+-------------------------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   CTE v1
+     ->  Finalize HashAggregate
+           Group Key: a1.num
+           ->  Remote Subquery Scan on all (datanodes 2)
+                 Distribute results by H: num
+                 ->  Partial HashAggregate
+                       Group Key: a1.num
+                       ->  Seq Scan on a1
+   CTE v2
+     ->  Finalize HashAggregate
+           Group Key: a2.num
+           ->  Remote Subquery Scan on all (datanodes 2)
+                 Distribute results by H: num
+                 ->  Partial HashAggregate
+                       Group Key: a2.num
+                       ->  Seq Scan on a2
+   ->  Hash Join
+         Hash Cond: (v2.a = v1.a)
+         ->  Shared CTE Scan on v2
+         ->  Hash
+               ->  Hash Join
+                     Hash Cond: (v1.a = v3.b)
+                     ->  Shared CTE Scan on v1
+                     ->  Hash
+                           ->  Hash Join
+                                 Hash Cond: (v3.b = v4.b)
+                                 ->  Remote Subquery Scan on all (datanodes 2)
+                                       Distribute results by H: b
+                                       ->  Shared CTE Scan on v1 v3
+                                 ->  Hash
+                                       ->  Remote Subquery Scan on all (datanodes 2)
+                                             Distribute results by H: b
+                                             ->  Shared CTE Scan on v2 v4
+(34 rows)
+
+explain (costs off,timing off,summary off,analyze,verbose)
+WITH v1 AS (SELECT num a, count(*) b FROM a1 group by num),
+ v2 AS (SELECT num a, count(*) b FROM a2 group by num)
+SELECT * FROM v1, v2, v1 v3, v2 v4 WHERE v1.a = v2.a and v3.b = v4.b and v2.a=v3.b;
+                                                                   QUERY PLAN                                                                    
+-------------------------------------------------------------------------------------------------------------------------------------------------
+ Remote Subquery Scan (fid 59) on all (datanode_1,datanode_2) (actual rows=10000 loops=1)
+   DN (actual rows=0..10000 loops=1..1)
+   - datanode_1 (actual rows=0 loops=1)
+   - datanode_2 (actual rows=10000 loops=1)
+   Output: v1.a, v1.b, v2.a, v2.b, v3.a, v3.b, v4.a, v4.b
+   CTE v1 (fid 64)
+     ->  Finalize HashAggregate
+           DN (actual rows=42..58 loops=1..1)
+           - datanode_1 (actual rows=42 loops=1)
+           - datanode_2 (actual rows=58 loops=1)
+           Output: a1.num, count(*)
+           Group Key: a1.num
+           Peak Memory Usage: 0 kB
+           ->  Remote Subquery Scan (fid 65) on all (datanode_1,datanode_2)
+                 DN Recv (actual rows=84..116 loops=1..1)
+                 - datanode_1 (actual rows=84 loops=1)
+                 - datanode_2 (actual rows=116 loops=1)
+                 DN (actual rows=100..100 loops=1..1)
+                 - datanode_1 (actual rows=100 loops=1)
+                 - datanode_2 (actual rows=100 loops=1)
+                 Output: a1.num, PARTIAL count(*)
+                 Distribute results by H: num
+                 ->  Partial HashAggregate
+                       DN (actual rows=100..100 loops=1..1)
+                       - datanode_1 (actual rows=100 loops=1)
+                       - datanode_2 (actual rows=100 loops=1)
+                       Output: a1.num, PARTIAL count(*)
+                       Group Key: a1.num
+                       Peak Memory Usage: 0 kB
+                       ->  Seq Scan on public.a1
+                             DN (actual rows=100..200 loops=1..1)
+                             - datanode_1 (actual rows=200 loops=1)
+                             - datanode_2 (actual rows=100 loops=1)
+                             Output: a1.num
+   CTE v2 (fid 62)
+     ->  Finalize HashAggregate
+           DN (actual rows=42..58 loops=1..1)
+           - datanode_1 (actual rows=42 loops=1)
+           - datanode_2 (actual rows=58 loops=1)
+           Output: a2.num, count(*)
+           Group Key: a2.num
+           Peak Memory Usage: 0 kB
+           ->  Remote Subquery Scan (fid 63) on all (datanode_1,datanode_2)
+                 DN Recv (actual rows=84..116 loops=1..1)
+                 - datanode_1 (actual rows=84 loops=1)
+                 - datanode_2 (actual rows=116 loops=1)
+                 DN (actual rows=100..100 loops=1..1)
+                 - datanode_1 (actual rows=100 loops=1)
+                 - datanode_2 (actual rows=100 loops=1)
+                 Output: a2.num, PARTIAL count(*)
+                 Distribute results by H: num
+                 ->  Partial HashAggregate
+                       DN (actual rows=100..100 loops=1..1)
+                       - datanode_1 (actual rows=100 loops=1)
+                       - datanode_2 (actual rows=100 loops=1)
+                       Output: a2.num, PARTIAL count(*)
+                       Group Key: a2.num
+                       Peak Memory Usage: 0 kB
+                       ->  Seq Scan on public.a2
+                             DN (actual rows=100..200 loops=1..1)
+                             - datanode_1 (actual rows=200 loops=1)
+                             - datanode_2 (actual rows=100 loops=1)
+                             Output: a2.num
+   ->  Hash Join
+         DN (actual rows=0..10000 loops=1..1)
+         - datanode_1 (actual rows=0 loops=1)
+         - datanode_2 (actual rows=10000 loops=1)
+         Output: v1.a, v1.b, v2.a, v2.b, v3.a, v3.b, v4.a, v4.b
+         Hash Cond: (v2.a = v1.a)
+         ->  Shared CTE Scan on v2
+               DN (actual rows=1..58 loops=1..1)
+               - datanode_1 (actual rows=1 loops=1)
+               - datanode_2 (actual rows=58 loops=1)
+               Output: v2.a, v2.b
+         ->  Hash
+               DN (actual rows=0..10000 loops=1..1)
+               - datanode_1 (actual rows=0 loops=1)
+               - datanode_2 (actual rows=10000 loops=1)
+               Output: v1.a, v1.b, v3.a, v3.b, v4.a, v4.b
+               Buckets: 1024 min 16384 max 8704 avg  Batches: 1 min 1 max 1 avg  Memory Usage: 8KB min 910KB max 459KB avg
+               - datanode_1 Buckets: 1024 (originally 1024)  Batches: 1 (originally 1)  Memory Usage: 8kB
+               - datanode_2 Buckets: 16384 (originally 1024)  Batches: 1 (originally 1)  Memory Usage: 910kB
+               ->  Hash Join
+                     DN (actual rows=0..10000 loops=1..1)
+                     - datanode_1 (actual rows=0 loops=1)
+                     - datanode_2 (actual rows=10000 loops=1)
+                     Output: v1.a, v1.b, v3.a, v3.b, v4.a, v4.b
+                     Hash Cond: (v1.a = v3.b)
+                     ->  Shared CTE Scan on v1
+                           DN (actual rows=1..58 loops=1..1)
+                           - datanode_1 (actual rows=1 loops=1)
+                           - datanode_2 (actual rows=58 loops=1)
+                           Output: v1.a, v1.b
+                     ->  Hash
+                           DN (actual rows=0..10000 loops=1..1)
+                           - datanode_1 (actual rows=0 loops=1)
+                           - datanode_2 (actual rows=10000 loops=1)
+                           Output: v3.a, v3.b, v4.a, v4.b
+                           Buckets: 1024 min 16384 max 8704 avg  Batches: 1 min 1 max 1 avg  Memory Usage: 8KB min 753KB max 380KB avg
+                           - datanode_1 Buckets: 1024 (originally 1024)  Batches: 1 (originally 1)  Memory Usage: 8kB
+                           - datanode_2 Buckets: 16384 (originally 1024)  Batches: 1 (originally 1)  Memory Usage: 753kB
+                           ->  Hash Join
+                                 DN (actual rows=0..10000 loops=1..1)
+                                 - datanode_1 (actual rows=0 loops=1)
+                                 - datanode_2 (actual rows=10000 loops=1)
+                                 Output: v3.a, v3.b, v4.a, v4.b
+                                 Hash Cond: (v3.b = v4.b)
+                                 ->  Remote Subquery Scan (fid 60) on all (datanode_1,datanode_2)
+                                       DN Recv (actual rows=0..100 loops=1..1)
+                                       - datanode_1 (actual rows=0 loops=1)
+                                       - datanode_2 (actual rows=100 loops=1)
+                                       DN (actual rows=42..58 loops=1..1)
+                                       - datanode_1 (actual rows=42 loops=1)
+                                       - datanode_2 (actual rows=58 loops=1)
+                                       Output: v3.a, v3.b
+                                       Distribute results by H: b
+                                       ->  Shared CTE Scan on v1 v3
+                                             DN (actual rows=42..58 loops=1..1)
+                                             - datanode_1 (actual rows=42 loops=1)
+                                             - datanode_2 (actual rows=58 loops=1)
+                                             Output: v3.a, v3.b
+                                 ->  Hash
+                                       DN (actual rows=100..100 loops=1..1)
+                                       - datanode_2 (actual rows=100 loops=1)
+                                       Output: v4.a, v4.b
+                                       Buckets: 1024 min 1024 max 1024 avg  Batches: 1 min 1 max 1 avg  Memory Usage: 13KB min 13KB max 13KB avg
+                                       - datanode_2 Buckets: 1024 (originally 1024)  Batches: 1 (originally 1)  Memory Usage: 13kB
+                                       ->  Remote Subquery Scan (fid 61) on all (datanode_1,datanode_2)
+                                             DN Recv (actual rows=100..100 loops=1..1)
+                                             - datanode_2 (actual rows=100 loops=1)
+                                             DN (actual rows=42..58 loops=1..1)
+                                             - datanode_1 (actual rows=42 loops=1)
+                                             - datanode_2 (actual rows=58 loops=1)
+                                             Output: v4.a, v4.b
+                                             Distribute results by H: b
+                                             ->  Shared CTE Scan on v2 v4
+                                                   DN (actual rows=42..58 loops=1..1)
+                                                   - datanode_1 (actual rows=42 loops=1)
+                                                   - datanode_2 (actual rows=58 loops=1)
+                                                   Output: v4.a, v4.b
+(140 rows)
+
+explain (costs off,summary off)
+WITH v AS (SELECT num a, count(*) b FROM a1 group by num)
+SELECT * FROM v AS v1, v AS v2 WHERE v1.a = v2.b and exists (select count(*) from a2 where a2.num = v2.a);
+                                QUERY PLAN                                 
+---------------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   CTE v
+     ->  Finalize HashAggregate
+           Group Key: a1.num
+           ->  Remote Subquery Scan on all (datanodes 2)
+                 Distribute results by H: num
+                 ->  Partial HashAggregate
+                       Group Key: a1.num
+                       ->  Seq Scan on a1
+   ->  Nested Loop
+         Join Filter: (v1.a = v2.b)
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by H: b
+               ->  Shared CTE Scan on v v2
+                     Filter: (SubPlan 2)
+                     SubPlan 2
+                       ->  Finalize Aggregate
+                             ->  Remote Subquery Scan on all (datanodes 2)
+                                   ->  Partial Aggregate
+                                         ->  Seq Scan on a2
+                                               Filter: (num = v2.a)
+         ->  Shared CTE Scan on v v1
+(22 rows)
+
+explain (costs off,timing off,summary off,analyze,verbose)
+WITH v AS (SELECT num a, count(*) b FROM a1 group by num)
+SELECT * FROM v AS v1, v AS v2 WHERE v1.a = v2.b and exists (select count(*) from a2 where a2.num = v2.a);
+                                          QUERY PLAN                                          
+----------------------------------------------------------------------------------------------
+ Remote Subquery Scan (fid 69) on all (datanode_1,datanode_2) (actual rows=100 loops=1)
+   DN (actual rows=0..100 loops=1..1)
+   - datanode_1 (actual rows=0 loops=1)
+   - datanode_2 (actual rows=100 loops=1)
+   Output: v1.a, v1.b, v2.a, v2.b
+   CTE v (fid 73)
+     ->  Finalize HashAggregate
+           DN (actual rows=42..58 loops=1..1)
+           - datanode_1 (actual rows=42 loops=1)
+           - datanode_2 (actual rows=58 loops=1)
+           Output: a1.num, count(*)
+           Group Key: a1.num
+           Peak Memory Usage: 0 kB
+           ->  Remote Subquery Scan (fid 74) on all (datanode_1,datanode_2)
+                 DN Recv (actual rows=84..116 loops=1..1)
+                 - datanode_1 (actual rows=84 loops=1)
+                 - datanode_2 (actual rows=116 loops=1)
+                 DN (actual rows=100..100 loops=1..1)
+                 - datanode_1 (actual rows=100 loops=1)
+                 - datanode_2 (actual rows=100 loops=1)
+                 Output: a1.num, PARTIAL count(*)
+                 Distribute results by H: num
+                 ->  Partial HashAggregate
+                       DN (actual rows=100..100 loops=1..1)
+                       - datanode_1 (actual rows=100 loops=1)
+                       - datanode_2 (actual rows=100 loops=1)
+                       Output: a1.num, PARTIAL count(*)
+                       Group Key: a1.num
+                       Peak Memory Usage: 0 kB
+                       ->  Seq Scan on public.a1
+                             DN (actual rows=100..200 loops=1..1)
+                             - datanode_1 (actual rows=200 loops=1)
+                             - datanode_2 (actual rows=100 loops=1)
+                             Output: a1.num
+   ->  Nested Loop
+         DN (actual rows=0..100 loops=1..1)
+         - datanode_1 (actual rows=0 loops=1)
+         - datanode_2 (actual rows=100 loops=1)
+         Output: v1.a, v1.b, v2.a, v2.b
+         Join Filter: (v1.a = v2.b)
+         ->  Remote Subquery Scan (fid 70) on all (datanode_1,datanode_2)
+               DN Recv (actual rows=0..100 loops=1..1)
+               - datanode_1 (actual rows=0 loops=1)
+               - datanode_2 (actual rows=100 loops=1)
+               DN (actual rows=42..58 loops=1..1)
+               - datanode_1 (actual rows=42 loops=1)
+               - datanode_2 (actual rows=58 loops=1)
+               Output: v2.a, v2.b
+               Distribute results by H: b
+               ->  Shared CTE Scan on v v2
+                     DN (actual rows=42..58 loops=1..1)
+                     - datanode_1 (actual rows=42 loops=1)
+                     - datanode_2 (actual rows=58 loops=1)
+                     Output: v2.a, v2.b
+                     Filter: (SubPlan 2)
+                     SubPlan 2
+                       ->  Finalize Aggregate
+                             DN (actual rows=1..1 loops=42..58)
+                             - datanode_1 (actual rows=1 loops=42)
+                             - datanode_2 (actual rows=1 loops=58)
+                             Output: count(*)
+                             ->  Remote Subquery Scan (fid 71) on all (datanode_1,datanode_2)
+                                   DN Recv (actual rows=2..2 loops=42..58)
+                                   - datanode_1 (actual rows=2 loops=42)
+                                   - datanode_2 (actual rows=2 loops=58)
+                                   DN (actual rows=1..1 loops=100..100)
+                                   - datanode_1 (actual rows=1 loops=100)
+                                   - datanode_2 (actual rows=1 loops=100)
+                                   Output: PARTIAL count(*)
+                                   ->  Partial Aggregate
+                                         DN (actual rows=1..1 loops=100..100)
+                                         - datanode_1 (actual rows=1 loops=100)
+                                         - datanode_2 (actual rows=1 loops=100)
+                                         Output: PARTIAL count(*)
+                                         ->  Seq Scan on public.a2
+                                               DN (actual rows=1..2 loops=100..100)
+                                               - datanode_1 (actual rows=2 loops=100)
+                                               - datanode_2 (actual rows=1 loops=100)
+                                               Output: a2.id, a2.num, a2.name
+                                               Filter: (a2.num = v2.a)
+         ->  Shared CTE Scan on v v1
+               DN (actual rows=58..58 loops=100..100)
+               - datanode_2 (actual rows=58 loops=100)
+               Output: v1.a, v1.b
+(84 rows)
+
+--shared ctescan
+set cte_optimizer = on;
+explain (costs off,summary off)
+WITH v AS (SELECT num a, count(*) b FROM a1 group by num) SELECT * FROM v AS v1, v AS v2 WHERE v1.a = v2.b;
+                       QUERY PLAN                        
+---------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   CTE v
+     ->  Finalize HashAggregate
+           Group Key: a1.num
+           ->  Remote Subquery Scan on all (datanodes 2)
+                 Distribute results by H: num
+                 ->  Partial HashAggregate
+                       Group Key: a1.num
+                       ->  Seq Scan on a1
+   ->  Hash Join
+         Hash Cond: (v2.b = v1.a)
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by H: b
+               ->  Shared CTE Scan on v v2
+         ->  Hash
+               ->  Shared CTE Scan on v v1
+(16 rows)
+
+explain (costs off,timing off,summary off,analyze,verbose)
+WITH v AS (SELECT num a, count(*) b FROM a1 group by num) SELECT * FROM v AS v1, v AS v2 WHERE v1.a = v2.b;
+                                                       QUERY PLAN                                                        
+-------------------------------------------------------------------------------------------------------------------------
+ Remote Subquery Scan (fid 77) on all (datanode_1,datanode_2) (actual rows=100 loops=1)
+   DN (actual rows=0..100 loops=1..1)
+   - datanode_1 (actual rows=0 loops=1)
+   - datanode_2 (actual rows=100 loops=1)
+   Output: v1.a, v1.b, v2.a, v2.b
+   CTE v (fid 79)
+     ->  Finalize HashAggregate
+           DN (actual rows=42..58 loops=1..1)
+           - datanode_1 (actual rows=42 loops=1)
+           - datanode_2 (actual rows=58 loops=1)
+           Output: a1.num, count(*)
+           Group Key: a1.num
+           Peak Memory Usage: 0 kB
+           ->  Remote Subquery Scan (fid 80) on all (datanode_1,datanode_2)
+                 DN Recv (actual rows=84..116 loops=1..1)
+                 - datanode_1 (actual rows=84 loops=1)
+                 - datanode_2 (actual rows=116 loops=1)
+                 DN (actual rows=100..100 loops=1..1)
+                 - datanode_1 (actual rows=100 loops=1)
+                 - datanode_2 (actual rows=100 loops=1)
+                 Output: a1.num, PARTIAL count(*)
+                 Distribute results by H: num
+                 ->  Partial HashAggregate
+                       DN (actual rows=100..100 loops=1..1)
+                       - datanode_1 (actual rows=100 loops=1)
+                       - datanode_2 (actual rows=100 loops=1)
+                       Output: a1.num, PARTIAL count(*)
+                       Group Key: a1.num
+                       Peak Memory Usage: 0 kB
+                       ->  Seq Scan on public.a1
+                             DN (actual rows=100..200 loops=1..1)
+                             - datanode_1 (actual rows=200 loops=1)
+                             - datanode_2 (actual rows=100 loops=1)
+                             Output: a1.num
+   ->  Hash Join
+         DN (actual rows=0..100 loops=1..1)
+         - datanode_1 (actual rows=0 loops=1)
+         - datanode_2 (actual rows=100 loops=1)
+         Output: v1.a, v1.b, v2.a, v2.b
+         Hash Cond: (v2.b = v1.a)
+         ->  Remote Subquery Scan (fid 78) on all (datanode_1,datanode_2)
+               DN Recv (actual rows=0..100 loops=1..1)
+               - datanode_1 (actual rows=0 loops=1)
+               - datanode_2 (actual rows=100 loops=1)
+               DN (actual rows=42..58 loops=1..1)
+               - datanode_1 (actual rows=42 loops=1)
+               - datanode_2 (actual rows=58 loops=1)
+               Output: v2.a, v2.b
+               Distribute results by H: b
+               ->  Shared CTE Scan on v v2
+                     DN (actual rows=42..58 loops=1..1)
+                     - datanode_1 (actual rows=42 loops=1)
+                     - datanode_2 (actual rows=58 loops=1)
+                     Output: v2.a, v2.b
+         ->  Hash
+               DN (actual rows=42..58 loops=1..1)
+               - datanode_1 (actual rows=42 loops=1)
+               - datanode_2 (actual rows=58 loops=1)
+               Output: v1.a, v1.b
+               Buckets: 1024 min 1024 max 1024 avg  Batches: 1 min 1 max 1 avg  Memory Usage: 10KB min 11KB max 10KB avg
+               - datanode_1 Buckets: 1024 (originally 1024)  Batches: 1 (originally 1)  Memory Usage: 10kB
+               - datanode_2 Buckets: 1024 (originally 1024)  Batches: 1 (originally 1)  Memory Usage: 11kB
+               ->  Shared CTE Scan on v v1
+                     DN (actual rows=42..58 loops=1..1)
+                     - datanode_1 (actual rows=42 loops=1)
+                     - datanode_2 (actual rows=58 loops=1)
+                     Output: v1.a, v1.b
+(67 rows)
+
+explain (costs off,summary off)
+WITH v AS (SELECT num a, count(*) b FROM a1 group by num)
+SELECT * FROM v AS v1, v AS v2 WHERE v1.a = v2.b and exists (select count(*) from a2);
+                         QUERY PLAN                          
+-------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   CTE v
+     ->  Finalize HashAggregate
+           Group Key: a1.num
+           ->  Remote Subquery Scan on all (datanodes 2)
+                 Distribute results by H: num
+                 ->  Partial HashAggregate
+                       Group Key: a1.num
+                       ->  Seq Scan on a1
+   InitPlan 2 (returns $1)
+     ->  Finalize Aggregate
+           ->  Remote Subquery Scan on all (datanodes 2)
+                 ->  Partial Aggregate
+                       ->  Seq Scan on a2
+   ->  Result
+         One-Time Filter: $1
+         ->  Hash Join
+               Hash Cond: (v2.b = v1.a)
+               ->  Remote Subquery Scan on all (datanodes 2)
+                     Distribute results by H: b
+                     ->  Shared CTE Scan on v v2
+               ->  Hash
+                     ->  Shared CTE Scan on v v1
+(23 rows)
+
+explain (costs off,timing off,summary off,analyze,verbose)
+WITH v AS (SELECT num a, count(*) b FROM a1 group by num)
+SELECT * FROM v AS v1, v AS v2 WHERE v1.a = v2.b and exists (select count(*) from a2);
+                                                          QUERY PLAN                                                           
+-------------------------------------------------------------------------------------------------------------------------------
+ Remote Subquery Scan (fid 83) on all (datanode_1,datanode_2) (actual rows=100 loops=1)
+   DN (actual rows=0..100 loops=1..1)
+   - datanode_1 (actual rows=0 loops=1)
+   - datanode_2 (actual rows=100 loops=1)
+   Output: v1.a, v1.b, v2.a, v2.b
+   CTE v (fid 86)
+     ->  Finalize HashAggregate
+           DN (actual rows=42..58 loops=1..1)
+           - datanode_1 (actual rows=42 loops=1)
+           - datanode_2 (actual rows=58 loops=1)
+           Output: a1.num, count(*)
+           Group Key: a1.num
+           Peak Memory Usage: 0 kB
+           ->  Remote Subquery Scan (fid 87) on all (datanode_1,datanode_2)
+                 DN Recv (actual rows=84..116 loops=1..1)
+                 - datanode_1 (actual rows=84 loops=1)
+                 - datanode_2 (actual rows=116 loops=1)
+                 DN (actual rows=100..100 loops=1..1)
+                 - datanode_1 (actual rows=100 loops=1)
+                 - datanode_2 (actual rows=100 loops=1)
+                 Output: a1.num, PARTIAL count(*)
+                 Distribute results by H: num
+                 ->  Partial HashAggregate
+                       DN (actual rows=100..100 loops=1..1)
+                       - datanode_1 (actual rows=100 loops=1)
+                       - datanode_2 (actual rows=100 loops=1)
+                       Output: a1.num, PARTIAL count(*)
+                       Group Key: a1.num
+                       Peak Memory Usage: 0 kB
+                       ->  Seq Scan on public.a1
+                             DN (actual rows=100..200 loops=1..1)
+                             - datanode_1 (actual rows=200 loops=1)
+                             - datanode_2 (actual rows=100 loops=1)
+                             Output: a1.num
+   InitPlan 2 (returns $1)
+     ->  Finalize Aggregate
+           DN (actual rows=1..1 loops=1..1)
+           - datanode_1 (actual rows=1 loops=1)
+           - datanode_2 (actual rows=1 loops=1)
+           Output: count(*)
+           ->  Remote Subquery Scan (fid 84) on all (datanode_1,datanode_2)
+                 DN Recv (actual rows=2..2 loops=1..1)
+                 - datanode_1 (actual rows=2 loops=1)
+                 - datanode_2 (actual rows=2 loops=1)
+                 DN (actual rows=1..1 loops=1..1)
+                 - datanode_1 (actual rows=1 loops=1)
+                 - datanode_2 (actual rows=1 loops=1)
+                 Output: PARTIAL count(*)
+                 ->  Partial Aggregate
+                       DN (actual rows=1..1 loops=1..1)
+                       - datanode_1 (actual rows=1 loops=1)
+                       - datanode_2 (actual rows=1 loops=1)
+                       Output: PARTIAL count(*)
+                       ->  Seq Scan on public.a2
+                             DN (actual rows=100..200 loops=1..1)
+                             - datanode_1 (actual rows=200 loops=1)
+                             - datanode_2 (actual rows=100 loops=1)
+                             Output: a2.id, a2.num, a2.name
+   ->  Result
+         DN (actual rows=0..100 loops=1..1)
+         - datanode_1 (actual rows=0 loops=1)
+         - datanode_2 (actual rows=100 loops=1)
+         Output: v1.a, v1.b, v2.a, v2.b
+         One-Time Filter: $1
+         ->  Hash Join
+               DN (actual rows=0..100 loops=1..1)
+               - datanode_1 (actual rows=0 loops=1)
+               - datanode_2 (actual rows=100 loops=1)
+               Output: v1.a, v1.b, v2.a, v2.b
+               Hash Cond: (v2.b = v1.a)
+               ->  Remote Subquery Scan (fid 85) on all (datanode_1,datanode_2)
+                     DN Recv (actual rows=0..100 loops=1..1)
+                     - datanode_1 (actual rows=0 loops=1)
+                     - datanode_2 (actual rows=100 loops=1)
+                     DN (actual rows=42..58 loops=1..1)
+                     - datanode_1 (actual rows=42 loops=1)
+                     - datanode_2 (actual rows=58 loops=1)
+                     Output: v2.a, v2.b
+                     Distribute results by H: b
+                     ->  Shared CTE Scan on v v2
+                           DN (actual rows=42..58 loops=1..1)
+                           - datanode_1 (actual rows=42 loops=1)
+                           - datanode_2 (actual rows=58 loops=1)
+                           Output: v2.a, v2.b
+               ->  Hash
+                     DN (actual rows=42..58 loops=1..1)
+                     - datanode_1 (actual rows=42 loops=1)
+                     - datanode_2 (actual rows=58 loops=1)
+                     Output: v1.a, v1.b
+                     Buckets: 1024 min 1024 max 1024 avg  Batches: 1 min 1 max 1 avg  Memory Usage: 10KB min 11KB max 10KB avg
+                     - datanode_1 Buckets: 1024 (originally 1024)  Batches: 1 (originally 1)  Memory Usage: 10kB
+                     - datanode_2 Buckets: 1024 (originally 1024)  Batches: 1 (originally 1)  Memory Usage: 11kB
+                     ->  Shared CTE Scan on v v1
+                           DN (actual rows=42..58 loops=1..1)
+                           - datanode_1 (actual rows=42 loops=1)
+                           - datanode_2 (actual rows=58 loops=1)
+                           Output: v1.a, v1.b
+(97 rows)
+
+explain (costs off,summary off)
+WITH v1 AS (SELECT num a, count(*) b FROM a1 group by num),
+ v2 AS (SELECT num a, count(*) b FROM a2 group by num)
+SELECT * FROM v1, v2, v1 v3, v2 v4 WHERE v1.a = v2.a and v3.b = v4.b and v2.a=v3.b;
+                                     QUERY PLAN                                      
+-------------------------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   CTE v1
+     ->  Finalize HashAggregate
+           Group Key: a1.num
+           ->  Remote Subquery Scan on all (datanodes 2)
+                 Distribute results by H: num
+                 ->  Partial HashAggregate
+                       Group Key: a1.num
+                       ->  Seq Scan on a1
+   CTE v2
+     ->  Finalize HashAggregate
+           Group Key: a2.num
+           ->  Remote Subquery Scan on all (datanodes 2)
+                 Distribute results by H: num
+                 ->  Partial HashAggregate
+                       Group Key: a2.num
+                       ->  Seq Scan on a2
+   ->  Hash Join
+         Hash Cond: (v2.a = v1.a)
+         ->  Shared CTE Scan on v2
+         ->  Hash
+               ->  Hash Join
+                     Hash Cond: (v1.a = v3.b)
+                     ->  Shared CTE Scan on v1
+                     ->  Hash
+                           ->  Hash Join
+                                 Hash Cond: (v3.b = v4.b)
+                                 ->  Remote Subquery Scan on all (datanodes 2)
+                                       Distribute results by H: b
+                                       ->  Shared CTE Scan on v1 v3
+                                 ->  Hash
+                                       ->  Remote Subquery Scan on all (datanodes 2)
+                                             Distribute results by H: b
+                                             ->  Shared CTE Scan on v2 v4
+(34 rows)
+
+/* wrong explain analyze datanode
+explain (costs off,timing off,summary off,analyze,verbose)
+WITH v1 AS (SELECT num a, count(*) b FROM a1 group by num),
+ v2 AS (SELECT num a, count(*) b FROM a2 group by num)
+SELECT * FROM v1, v2, v1 v3, v2 v4 WHERE v1.a = v2.a and v3.b = v4.b and v2.a=v3.b;
+*/
+explain (costs off,summary off)
+WITH v AS (SELECT num a, count(*) b FROM a1 group by num)
+SELECT * FROM v AS v1, v AS v2 WHERE v1.a = v2.b and exists (select count(*) from a2 where a2.num = v2.a);
+                                QUERY PLAN                                 
+---------------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   CTE v
+     ->  Finalize HashAggregate
+           Group Key: a1.num
+           ->  Remote Subquery Scan on all (datanodes 2)
+                 Distribute results by H: num
+                 ->  Partial HashAggregate
+                       Group Key: a1.num
+                       ->  Seq Scan on a1
+   ->  Nested Loop
+         Join Filter: (v1.a = v2.b)
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by H: b
+               ->  Shared CTE Scan on v v2
+                     Filter: (SubPlan 2)
+                     SubPlan 2
+                       ->  Finalize Aggregate
+                             ->  Remote Subquery Scan on all (datanodes 2)
+                                   ->  Partial Aggregate
+                                         ->  Seq Scan on a2
+                                               Filter: (num = v2.a)
+         ->  Shared CTE Scan on v v1
+(22 rows)
+
+explain (costs off,timing off,summary off,analyze,verbose)
+WITH v AS (SELECT num a, count(*) b FROM a1 group by num)
+SELECT * FROM v AS v1, v AS v2 WHERE v1.a = v2.b and exists (select count(*) from a2 where a2.num = v2.a);
+                                          QUERY PLAN                                          
+----------------------------------------------------------------------------------------------
+ Remote Subquery Scan (fid 91) on all (datanode_1,datanode_2) (actual rows=100 loops=1)
+   DN (actual rows=0..100 loops=1..1)
+   - datanode_1 (actual rows=0 loops=1)
+   - datanode_2 (actual rows=100 loops=1)
+   Output: v1.a, v1.b, v2.a, v2.b
+   CTE v (fid 95)
+     ->  Finalize HashAggregate
+           DN (actual rows=42..58 loops=1..1)
+           - datanode_1 (actual rows=42 loops=1)
+           - datanode_2 (actual rows=58 loops=1)
+           Output: a1.num, count(*)
+           Group Key: a1.num
+           Peak Memory Usage: 0 kB
+           ->  Remote Subquery Scan (fid 96) on all (datanode_1,datanode_2)
+                 DN Recv (actual rows=84..116 loops=1..1)
+                 - datanode_1 (actual rows=84 loops=1)
+                 - datanode_2 (actual rows=116 loops=1)
+                 DN (actual rows=100..100 loops=1..1)
+                 - datanode_1 (actual rows=100 loops=1)
+                 - datanode_2 (actual rows=100 loops=1)
+                 Output: a1.num, PARTIAL count(*)
+                 Distribute results by H: num
+                 ->  Partial HashAggregate
+                       DN (actual rows=100..100 loops=1..1)
+                       - datanode_1 (actual rows=100 loops=1)
+                       - datanode_2 (actual rows=100 loops=1)
+                       Output: a1.num, PARTIAL count(*)
+                       Group Key: a1.num
+                       Peak Memory Usage: 0 kB
+                       ->  Seq Scan on public.a1
+                             DN (actual rows=100..200 loops=1..1)
+                             - datanode_1 (actual rows=200 loops=1)
+                             - datanode_2 (actual rows=100 loops=1)
+                             Output: a1.num
+   ->  Nested Loop
+         DN (actual rows=0..100 loops=1..1)
+         - datanode_1 (actual rows=0 loops=1)
+         - datanode_2 (actual rows=100 loops=1)
+         Output: v1.a, v1.b, v2.a, v2.b
+         Join Filter: (v1.a = v2.b)
+         ->  Remote Subquery Scan (fid 92) on all (datanode_1,datanode_2)
+               DN Recv (actual rows=0..100 loops=1..1)
+               - datanode_1 (actual rows=0 loops=1)
+               - datanode_2 (actual rows=100 loops=1)
+               DN (actual rows=42..58 loops=1..1)
+               - datanode_1 (actual rows=42 loops=1)
+               - datanode_2 (actual rows=58 loops=1)
+               Output: v2.a, v2.b
+               Distribute results by H: b
+               ->  Shared CTE Scan on v v2
+                     DN (actual rows=42..58 loops=1..1)
+                     - datanode_1 (actual rows=42 loops=1)
+                     - datanode_2 (actual rows=58 loops=1)
+                     Output: v2.a, v2.b
+                     Filter: (SubPlan 2)
+                     SubPlan 2
+                       ->  Finalize Aggregate
+                             DN (actual rows=1..1 loops=42..58)
+                             - datanode_1 (actual rows=1 loops=42)
+                             - datanode_2 (actual rows=1 loops=58)
+                             Output: count(*)
+                             ->  Remote Subquery Scan (fid 93) on all (datanode_1,datanode_2)
+                                   DN Recv (actual rows=2..2 loops=42..58)
+                                   - datanode_1 (actual rows=2 loops=42)
+                                   - datanode_2 (actual rows=2 loops=58)
+                                   DN (actual rows=1..1 loops=100..100)
+                                   - datanode_1 (actual rows=1 loops=100)
+                                   - datanode_2 (actual rows=1 loops=100)
+                                   Output: PARTIAL count(*)
+                                   ->  Partial Aggregate
+                                         DN (actual rows=1..1 loops=100..100)
+                                         - datanode_1 (actual rows=1 loops=100)
+                                         - datanode_2 (actual rows=1 loops=100)
+                                         Output: PARTIAL count(*)
+                                         ->  Seq Scan on public.a2
+                                               DN (actual rows=1..2 loops=100..100)
+                                               - datanode_1 (actual rows=2 loops=100)
+                                               - datanode_2 (actual rows=1 loops=100)
+                                               Output: a2.id, a2.num, a2.name
+                                               Filter: (a2.num = v2.a)
+         ->  Shared CTE Scan on v v1
+               DN (actual rows=58..58 loops=100..100)
+               - datanode_2 (actual rows=58 loops=100)
+               Output: v1.a, v1.b
+(84 rows)
+
+WITH v AS (SELECT num a, count(*) b FROM a1 group by num)
+SELECT * FROM v AS v1, v AS v2 WHERE v1.a = v2.b and exists (select count(*) from a2 where a2.num = v2.a) order by 3;
+ a | b |  a  | b 
+---+---+-----+---
+ 3 | 3 |   1 | 3
+ 3 | 3 |   2 | 3
+ 3 | 3 |   3 | 3
+ 3 | 3 |   4 | 3
+ 3 | 3 |   5 | 3
+ 3 | 3 |   6 | 3
+ 3 | 3 |   7 | 3
+ 3 | 3 |   8 | 3
+ 3 | 3 |   9 | 3
+ 3 | 3 |  10 | 3
+ 3 | 3 |  11 | 3
+ 3 | 3 |  12 | 3
+ 3 | 3 |  13 | 3
+ 3 | 3 |  14 | 3
+ 3 | 3 |  15 | 3
+ 3 | 3 |  16 | 3
+ 3 | 3 |  17 | 3
+ 3 | 3 |  18 | 3
+ 3 | 3 |  19 | 3
+ 3 | 3 |  20 | 3
+ 3 | 3 |  21 | 3
+ 3 | 3 |  22 | 3
+ 3 | 3 |  23 | 3
+ 3 | 3 |  24 | 3
+ 3 | 3 |  25 | 3
+ 3 | 3 |  26 | 3
+ 3 | 3 |  27 | 3
+ 3 | 3 |  28 | 3
+ 3 | 3 |  29 | 3
+ 3 | 3 |  30 | 3
+ 3 | 3 |  31 | 3
+ 3 | 3 |  32 | 3
+ 3 | 3 |  33 | 3
+ 3 | 3 |  34 | 3
+ 3 | 3 |  35 | 3
+ 3 | 3 |  36 | 3
+ 3 | 3 |  37 | 3
+ 3 | 3 |  38 | 3
+ 3 | 3 |  39 | 3
+ 3 | 3 |  40 | 3
+ 3 | 3 |  41 | 3
+ 3 | 3 |  42 | 3
+ 3 | 3 |  43 | 3
+ 3 | 3 |  44 | 3
+ 3 | 3 |  45 | 3
+ 3 | 3 |  46 | 3
+ 3 | 3 |  47 | 3
+ 3 | 3 |  48 | 3
+ 3 | 3 |  49 | 3
+ 3 | 3 |  50 | 3
+ 3 | 3 |  51 | 3
+ 3 | 3 |  52 | 3
+ 3 | 3 |  53 | 3
+ 3 | 3 |  54 | 3
+ 3 | 3 |  55 | 3
+ 3 | 3 |  56 | 3
+ 3 | 3 |  57 | 3
+ 3 | 3 |  58 | 3
+ 3 | 3 |  59 | 3
+ 3 | 3 |  60 | 3
+ 3 | 3 |  61 | 3
+ 3 | 3 |  62 | 3
+ 3 | 3 |  63 | 3
+ 3 | 3 |  64 | 3
+ 3 | 3 |  65 | 3
+ 3 | 3 |  66 | 3
+ 3 | 3 |  67 | 3
+ 3 | 3 |  68 | 3
+ 3 | 3 |  69 | 3
+ 3 | 3 |  70 | 3
+ 3 | 3 |  71 | 3
+ 3 | 3 |  72 | 3
+ 3 | 3 |  73 | 3
+ 3 | 3 |  74 | 3
+ 3 | 3 |  75 | 3
+ 3 | 3 |  76 | 3
+ 3 | 3 |  77 | 3
+ 3 | 3 |  78 | 3
+ 3 | 3 |  79 | 3
+ 3 | 3 |  80 | 3
+ 3 | 3 |  81 | 3
+ 3 | 3 |  82 | 3
+ 3 | 3 |  83 | 3
+ 3 | 3 |  84 | 3
+ 3 | 3 |  85 | 3
+ 3 | 3 |  86 | 3
+ 3 | 3 |  87 | 3
+ 3 | 3 |  88 | 3
+ 3 | 3 |  89 | 3
+ 3 | 3 |  90 | 3
+ 3 | 3 |  91 | 3
+ 3 | 3 |  92 | 3
+ 3 | 3 |  93 | 3
+ 3 | 3 |  94 | 3
+ 3 | 3 |  95 | 3
+ 3 | 3 |  96 | 3
+ 3 | 3 |  97 | 3
+ 3 | 3 |  98 | 3
+ 3 | 3 |  99 | 3
+ 3 | 3 | 100 | 3
+(100 rows)
+
+set cte_optimizer = off;
+--parallel
+--set max_parallel_workers_per_gather to 2;
+--set parallel_tuple_cost to 0;
+--set parallel_setup_cost to 0;
+--set min_parallel_table_scan_size to 0;
+--parallel sort
+--explain (costs off,timing off,summary off,analyze)
+--select * from a1 order by num;
+--parallel hashjoin
+--explain (costs off,timing off,summary off,analyze)
+--select * from a1,a2 where a1.id = a2.num;
+--parallel hashagg
+--explain (costs off,timing off,summary off,analyze)
+--select name, count(*) cnt, sum(num) sum from a1 group by name having sum(num) > 1000 order by cnt;
+--cleanup
+drop table a1, a2, a3;

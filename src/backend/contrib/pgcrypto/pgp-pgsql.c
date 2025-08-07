@@ -1,6 +1,6 @@
 /*
  * pgp-pgsql.c
- *        PostgreSQL wrappers for pgp.
+ *		PostgreSQL wrappers for pgp.
  *
  * Copyright (c) 2005 Marko Kreen
  * All rights reserved.
@@ -9,10 +9,10 @@
  * modification, are permitted provided that the following conditions
  * are met:
  * 1. Redistributions of source code must retain the above copyright
- *      notice, this list of conditions and the following disclaimer.
+ *	  notice, this list of conditions and the following disclaimer.
  * 2. Redistributions in binary form must reproduce the above copyright
- *      notice, this list of conditions and the following disclaimer in the
- *      documentation and/or other materials provided with the distribution.
+ *	  notice, this list of conditions and the following disclaimer in the
+ *	  documentation and/or other materials provided with the distribution.
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -26,9 +26,6 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- * 
  * contrib/pgcrypto/pgp-pgsql.c
  */
 
@@ -48,25 +45,6 @@
 /*
  * public functions
  */
-Datum        pgp_sym_encrypt_text(PG_FUNCTION_ARGS);
-Datum        pgp_sym_encrypt_bytea(PG_FUNCTION_ARGS);
-Datum        pgp_sym_decrypt_text(PG_FUNCTION_ARGS);
-Datum        pgp_sym_decrypt_bytea(PG_FUNCTION_ARGS);
-
-Datum        pgp_pub_encrypt_text(PG_FUNCTION_ARGS);
-Datum        pgp_pub_encrypt_bytea(PG_FUNCTION_ARGS);
-Datum        pgp_pub_decrypt_text(PG_FUNCTION_ARGS);
-Datum        pgp_pub_decrypt_bytea(PG_FUNCTION_ARGS);
-Datum         pgp_armor_headers(PG_FUNCTION_ARGS);
-
-
-Datum        pgp_key_id_w(PG_FUNCTION_ARGS);
-
-Datum        pg_armor(PG_FUNCTION_ARGS);
-Datum        pg_dearmor(PG_FUNCTION_ARGS);
-
-/* function headers */
-
 PG_FUNCTION_INFO_V1(pgp_sym_encrypt_bytea);
 PG_FUNCTION_INFO_V1(pgp_sym_encrypt_text);
 PG_FUNCTION_INFO_V1(pgp_sym_decrypt_bytea);
@@ -84,114 +62,55 @@ PG_FUNCTION_INFO_V1(pg_dearmor);
 PG_FUNCTION_INFO_V1(pgp_armor_headers);
 
 /*
- * Mix a block of data into RNG.
- */
-static void
-add_block_entropy(PX_MD *md, text *data)
-{
-    uint8        sha1[20];
-
-    px_md_reset(md);
-    px_md_update(md, (uint8 *) VARDATA_ANY(data), VARSIZE_ANY_EXHDR(data));
-    px_md_finish(md, sha1);
-
-    px_add_entropy(sha1, 20);
-
-    crypt_memset(sha1, 0, 20);
-}
-
-/*
- * Mix user data into RNG.  It is for user own interests to have
- * RNG state shuffled.
- */
-static void
-add_entropy(text *data1, text *data2, text *data3)
-{
-    PX_MD       *md;
-    uint8        rnd[3];
-
-    if (!data1 && !data2 && !data3)
-        return;
-
-    if (px_get_random_bytes(rnd, 3) < 0)
-        return;
-
-    if (px_find_digest("sha1", &md) < 0)
-        return;
-
-    /*
-     * Try to make the feeding unpredictable.
-     *
-     * Prefer data over keys, as it's rather likely that key is same in
-     * several calls.
-     */
-
-    /* chance: 7/8 */
-    if (data1 && rnd[0] >= 32)
-        add_block_entropy(md, data1);
-
-    /* chance: 5/8 */
-    if (data2 && rnd[1] >= 160)
-        add_block_entropy(md, data2);
-
-    /* chance: 5/8 */
-    if (data3 && rnd[2] >= 160)
-        add_block_entropy(md, data3);
-
-    px_md_free(md);
-    crypt_memset(rnd, 0, sizeof(rnd));
-}
-
-/*
  * returns src in case of no conversion or error
  */
 static text *
 convert_charset(text *src, int cset_from, int cset_to)
 {
-    int            src_len = VARSIZE_ANY_EXHDR(src);
-    unsigned char *dst;
-    unsigned char *csrc = (unsigned char *) VARDATA_ANY(src);
-    text       *res;
+	int src_len = VARSIZE_ANY_EXHDR(src);
+	unsigned char *dst;
+	unsigned char *csrc = (unsigned char *)VARDATA_ANY(src);
+	text *res;
 
-    dst = pg_do_encoding_conversion(csrc, src_len, cset_from, cset_to);
-    if (dst == csrc)
-        return src;
+	dst = pg_do_encoding_conversion(csrc, src_len, cset_from, cset_to);
+	if (dst == csrc)
+		return src;
 
-    res = cstring_to_text((char *) dst);
-    crypt_free(dst);
-    return res;
+	res = cstring_to_text((char *)dst);
+	pfree(dst);
+	return res;
 }
 
 static text *
 convert_from_utf8(text *src)
 {
-    return convert_charset(src, PG_UTF8, GetDatabaseEncoding());
+	return convert_charset(src, PG_UTF8, GetDatabaseEncoding());
 }
 
 static text *
 convert_to_utf8(text *src)
 {
-    return convert_charset(src, GetDatabaseEncoding(), PG_UTF8);
+	return convert_charset(src, GetDatabaseEncoding(), PG_UTF8);
 }
 
 static bool
 string_is_ascii(const char *str)
 {
-    const char *p;
+	const char *p;
 
-    for (p = str; *p; p++)
-    {
-        if (IS_HIGHBIT_SET(*p))
-            return false;
-    }
-    return true;
+	for (p = str; *p; p++)
+	{
+		if (IS_HIGHBIT_SET(*p))
+			return false;
+	}
+	return true;
 }
 
 static void
 clear_and_pfree(text *p)
 {
-    crypt_memset(p, 0, VARSIZE_ANY(p));
-    crypt_free(p);
+	px_memset(p, 0, VARSIZE_ANY(p));
+	pfree(p);
 }
 
 /*
@@ -199,149 +118,152 @@ clear_and_pfree(text *p)
  */
 struct debug_expect
 {
-    int            debug;
-    int            expect;
-    int            cipher_algo;
-    int            s2k_mode;
-    int            s2k_count;
-    int            s2k_cipher_algo;
-    int            s2k_digest_algo;
-    int            compress_algo;
-    int            use_sess_key;
-    int            disable_mdc;
-    int            unicode_mode;
+	int debug;
+	int expect;
+	int cipher_algo;
+	int s2k_mode;
+	int s2k_count;
+	int s2k_cipher_algo;
+	int s2k_digest_algo;
+	int compress_algo;
+	int use_sess_key;
+	int disable_mdc;
+	int unicode_mode;
 };
 
 static void
-fill_expect(struct debug_expect * ex, int text_mode)
+fill_expect(struct debug_expect *ex, int text_mode)
 {
-    ex->debug = 0;
-    ex->expect = 0;
-    ex->cipher_algo = -1;
-    ex->s2k_mode = -1;
-    ex->s2k_count = -1;
-    ex->s2k_cipher_algo = -1;
-    ex->s2k_digest_algo = -1;
-    ex->compress_algo = -1;
-    ex->use_sess_key = -1;
-    ex->disable_mdc = -1;
-    ex->unicode_mode = -1;
+	ex->debug = 0;
+	ex->expect = 0;
+	ex->cipher_algo = -1;
+	ex->s2k_mode = -1;
+	ex->s2k_count = -1;
+	ex->s2k_cipher_algo = -1;
+	ex->s2k_digest_algo = -1;
+	ex->compress_algo = -1;
+	ex->use_sess_key = -1;
+	ex->disable_mdc = -1;
+	ex->unicode_mode = -1;
 }
 
-#define EX_MSG(arg) \
-    ereport(NOTICE, (errmsg( \
-        "pgp_decrypt: unexpected %s: expected %d got %d", \
-        CppAsString(arg), ex->arg, ctx->arg)))
+#define EX_MSG(arg)                                                       \
+	ereport(NOTICE, (errmsg(                                              \
+						"pgp_decrypt: unexpected %s: expected %d got %d", \
+						CppAsString(arg), ex->arg, ctx->arg)))
 
-#define EX_CHECK(arg) do { \
-        if (ex->arg >= 0 && ex->arg != ctx->arg) EX_MSG(arg); \
-    } while (0)
+#define EX_CHECK(arg)                            \
+	do                                           \
+	{                                            \
+		if (ex->arg >= 0 && ex->arg != ctx->arg) \
+			EX_MSG(arg);                         \
+	} while (0)
 
 static void
-check_expect(PGP_Context *ctx, struct debug_expect * ex)
+check_expect(PGP_Context *ctx, struct debug_expect *ex)
 {
-    EX_CHECK(cipher_algo);
-    EX_CHECK(s2k_mode);
-    EX_CHECK(s2k_count);
-    EX_CHECK(s2k_digest_algo);
-    EX_CHECK(use_sess_key);
-    if (ctx->use_sess_key)
-        EX_CHECK(s2k_cipher_algo);
-    EX_CHECK(disable_mdc);
-    EX_CHECK(compress_algo);
-    EX_CHECK(unicode_mode);
+	EX_CHECK(cipher_algo);
+	EX_CHECK(s2k_mode);
+	EX_CHECK(s2k_count);
+	EX_CHECK(s2k_digest_algo);
+	EX_CHECK(use_sess_key);
+	if (ctx->use_sess_key)
+		EX_CHECK(s2k_cipher_algo);
+	EX_CHECK(disable_mdc);
+	EX_CHECK(compress_algo);
+	EX_CHECK(unicode_mode);
 }
 
 static void
 show_debug(const char *msg)
 {
-    ereport(NOTICE, (errmsg("dbg: %s", msg)));
+	ereport(NOTICE, (errmsg("dbg: %s", msg)));
 }
 
 static int
 set_arg(PGP_Context *ctx, char *key, char *val,
-        struct debug_expect * ex)
+		struct debug_expect *ex)
 {
-    int            res = 0;
+	int res = 0;
 
-    if (strcmp(key, "cipher-algo") == 0)
-        res = pgp_set_cipher_algo(ctx, val);
-    else if (strcmp(key, "disable-mdc") == 0)
-        res = pgp_disable_mdc(ctx, atoi(val));
-    else if (strcmp(key, "sess-key") == 0)
-        res = pgp_set_sess_key(ctx, atoi(val));
-    else if (strcmp(key, "s2k-mode") == 0)
-        res = pgp_set_s2k_mode(ctx, atoi(val));
-    else if (strcmp(key, "s2k-count") == 0)
-        res = pgp_set_s2k_count(ctx, atoi(val));
-    else if (strcmp(key, "s2k-digest-algo") == 0)
-        res = pgp_set_s2k_digest_algo(ctx, val);
-    else if (strcmp(key, "s2k-cipher-algo") == 0)
-        res = pgp_set_s2k_cipher_algo(ctx, val);
-    else if (strcmp(key, "compress-algo") == 0)
-        res = pgp_set_compress_algo(ctx, atoi(val));
-    else if (strcmp(key, "compress-level") == 0)
-        res = pgp_set_compress_level(ctx, atoi(val));
-    else if (strcmp(key, "convert-crlf") == 0)
-        res = pgp_set_convert_crlf(ctx, atoi(val));
-    else if (strcmp(key, "unicode-mode") == 0)
-        res = pgp_set_unicode_mode(ctx, atoi(val));
+	if (strcmp(key, "cipher-algo") == 0)
+		res = pgp_set_cipher_algo(ctx, val);
+	else if (strcmp(key, "disable-mdc") == 0)
+		res = pgp_disable_mdc(ctx, atoi(val));
+	else if (strcmp(key, "sess-key") == 0)
+		res = pgp_set_sess_key(ctx, atoi(val));
+	else if (strcmp(key, "s2k-mode") == 0)
+		res = pgp_set_s2k_mode(ctx, atoi(val));
+	else if (strcmp(key, "s2k-count") == 0)
+		res = pgp_set_s2k_count(ctx, atoi(val));
+	else if (strcmp(key, "s2k-digest-algo") == 0)
+		res = pgp_set_s2k_digest_algo(ctx, val);
+	else if (strcmp(key, "s2k-cipher-algo") == 0)
+		res = pgp_set_s2k_cipher_algo(ctx, val);
+	else if (strcmp(key, "compress-algo") == 0)
+		res = pgp_set_compress_algo(ctx, atoi(val));
+	else if (strcmp(key, "compress-level") == 0)
+		res = pgp_set_compress_level(ctx, atoi(val));
+	else if (strcmp(key, "convert-crlf") == 0)
+		res = pgp_set_convert_crlf(ctx, atoi(val));
+	else if (strcmp(key, "unicode-mode") == 0)
+		res = pgp_set_unicode_mode(ctx, atoi(val));
 
-    /*
-     * The remaining options are for debugging/testing and are therefore not
-     * documented in the user-facing docs.
-     */
-    else if (ex != NULL && strcmp(key, "debug") == 0)
-        ex->debug = atoi(val);
-    else if (ex != NULL && strcmp(key, "expect-cipher-algo") == 0)
-    {
-        ex->expect = 1;
-        ex->cipher_algo = pgp_get_cipher_code(val);
-    }
-    else if (ex != NULL && strcmp(key, "expect-disable-mdc") == 0)
-    {
-        ex->expect = 1;
-        ex->disable_mdc = atoi(val);
-    }
-    else if (ex != NULL && strcmp(key, "expect-sess-key") == 0)
-    {
-        ex->expect = 1;
-        ex->use_sess_key = atoi(val);
-    }
-    else if (ex != NULL && strcmp(key, "expect-s2k-mode") == 0)
-    {
-        ex->expect = 1;
-        ex->s2k_mode = atoi(val);
-    }
-    else if (ex != NULL && strcmp(key, "expect-s2k-count") == 0)
-    {
-        ex->expect = 1;
-        ex->s2k_count = atoi(val);
-    }
-    else if (ex != NULL && strcmp(key, "expect-s2k-digest-algo") == 0)
-    {
-        ex->expect = 1;
-        ex->s2k_digest_algo = pgp_get_digest_code(val);
-    }
-    else if (ex != NULL && strcmp(key, "expect-s2k-cipher-algo") == 0)
-    {
-        ex->expect = 1;
-        ex->s2k_cipher_algo = pgp_get_cipher_code(val);
-    }
-    else if (ex != NULL && strcmp(key, "expect-compress-algo") == 0)
-    {
-        ex->expect = 1;
-        ex->compress_algo = atoi(val);
-    }
-    else if (ex != NULL && strcmp(key, "expect-unicode-mode") == 0)
-    {
-        ex->expect = 1;
-        ex->unicode_mode = atoi(val);
-    }
-    else
-        res = PXE_ARGUMENT_ERROR;
+	/*
+	 * The remaining options are for debugging/testing and are therefore not
+	 * documented in the user-facing docs.
+	 */
+	else if (ex != NULL && strcmp(key, "debug") == 0)
+		ex->debug = atoi(val);
+	else if (ex != NULL && strcmp(key, "expect-cipher-algo") == 0)
+	{
+		ex->expect = 1;
+		ex->cipher_algo = pgp_get_cipher_code(val);
+	}
+	else if (ex != NULL && strcmp(key, "expect-disable-mdc") == 0)
+	{
+		ex->expect = 1;
+		ex->disable_mdc = atoi(val);
+	}
+	else if (ex != NULL && strcmp(key, "expect-sess-key") == 0)
+	{
+		ex->expect = 1;
+		ex->use_sess_key = atoi(val);
+	}
+	else if (ex != NULL && strcmp(key, "expect-s2k-mode") == 0)
+	{
+		ex->expect = 1;
+		ex->s2k_mode = atoi(val);
+	}
+	else if (ex != NULL && strcmp(key, "expect-s2k-count") == 0)
+	{
+		ex->expect = 1;
+		ex->s2k_count = atoi(val);
+	}
+	else if (ex != NULL && strcmp(key, "expect-s2k-digest-algo") == 0)
+	{
+		ex->expect = 1;
+		ex->s2k_digest_algo = pgp_get_digest_code(val);
+	}
+	else if (ex != NULL && strcmp(key, "expect-s2k-cipher-algo") == 0)
+	{
+		ex->expect = 1;
+		ex->s2k_cipher_algo = pgp_get_cipher_code(val);
+	}
+	else if (ex != NULL && strcmp(key, "expect-compress-algo") == 0)
+	{
+		ex->expect = 1;
+		ex->compress_algo = atoi(val);
+	}
+	else if (ex != NULL && strcmp(key, "expect-unicode-mode") == 0)
+	{
+		ex->expect = 1;
+		ex->unicode_mode = atoi(val);
+	}
+	else
+		res = PXE_ARGUMENT_ERROR;
 
-    return res;
+	return res;
 }
 
 /*
@@ -352,27 +274,26 @@ set_arg(PGP_Context *ctx, char *key, char *val,
 static char *
 getword(char *p, char **res_p, int *res_len)
 {
-    /* whitespace at start */
-    while (*p && (*p == ' ' || *p == '\t' || *p == '\n'))
-        p++;
+	/* whitespace at start */
+	while (*p && (*p == ' ' || *p == '\t' || *p == '\n'))
+		p++;
 
-    /* word data */
-    *res_p = p;
-    if (*p == '=' || *p == ',')
-        p++;
-    else
-        while (*p && !(*p == ' ' || *p == '\t' || *p == '\n'
-                       || *p == '=' || *p == ','))
-            p++;
+	/* word data */
+	*res_p = p;
+	if (*p == '=' || *p == ',')
+		p++;
+	else
+		while (*p && !(*p == ' ' || *p == '\t' || *p == '\n' || *p == '=' || *p == ','))
+			p++;
 
-    /* word end */
-    *res_len = p - *res_p;
+	/* word end */
+	*res_len = p - *res_p;
 
-    /* whitespace at end */
-    while (*p && (*p == ' ' || *p == '\t' || *p == '\n'))
-        p++;
+	/* whitespace at end */
+	while (*p && (*p == ' ' || *p == '\t' || *p == '\n'))
+		p++;
 
-    return p;
+	return p;
 }
 
 /*
@@ -381,479 +302,449 @@ getword(char *p, char **res_p, int *res_len)
 static char *
 downcase_convert(const uint8 *s, int len)
 {
-    int            c,
-                i;
-    char       *res = crypt_alloc(len + 1);
+	int c,
+		i;
+	char *res = palloc(len + 1);
 
-    for (i = 0; i < len; i++)
-    {
-        c = s[i];
-        if (c >= 'A' && c <= 'Z')
-            c += 'a' - 'A';
-        res[i] = c;
-    }
-    res[len] = 0;
-    return res;
+	for (i = 0; i < len; i++)
+	{
+		c = s[i];
+		if (c >= 'A' && c <= 'Z')
+			c += 'a' - 'A';
+		res[i] = c;
+	}
+	res[len] = 0;
+	return res;
 }
 
 static int
 parse_args(PGP_Context *ctx, uint8 *args, int arg_len,
-           struct debug_expect * ex)
+		   struct debug_expect *ex)
 {
-    char       *str = downcase_convert(args, arg_len);
-    char       *key,
-               *val;
-    int            key_len,
-                val_len;
-    int            res = 0;
-    char       *p = str;
+	char *str = downcase_convert(args, arg_len);
+	char *key,
+		*val;
+	int key_len,
+		val_len;
+	int res = 0;
+	char *p = str;
 
-    while (*p)
-    {
-        res = PXE_ARGUMENT_ERROR;
-        p = getword(p, &key, &key_len);
-        if (*p++ != '=')
-            break;
-        p = getword(p, &val, &val_len);
-        if (*p == '\0')
-            ;
-        else if (*p++ != ',')
-            break;
+	while (*p)
+	{
+		res = PXE_ARGUMENT_ERROR;
+		p = getword(p, &key, &key_len);
+		if (*p++ != '=')
+			break;
+		p = getword(p, &val, &val_len);
+		if (*p == '\0')
+			;
+		else if (*p++ != ',')
+			break;
 
-        if (*key == 0 || *val == 0 || val_len == 0)
-            break;
+		if (*key == 0 || *val == 0 || val_len == 0)
+			break;
 
-        key[key_len] = 0;
-        val[val_len] = 0;
+		key[key_len] = 0;
+		val[val_len] = 0;
 
-        res = set_arg(ctx, key, val, ex);
-        if (res < 0)
-            break;
-    }
-    crypt_free(str);
-    return res;
+		res = set_arg(ctx, key, val, ex);
+		if (res < 0)
+			break;
+	}
+	pfree(str);
+	return res;
 }
 
 static MBuf *
 create_mbuf_from_vardata(text *data)
 {
-    return mbuf_create_from_data((uint8 *) VARDATA_ANY(data),
-                                 VARSIZE_ANY_EXHDR(data));
+	return mbuf_create_from_data((uint8 *)VARDATA_ANY(data),
+								 VARSIZE_ANY_EXHDR(data));
 }
 
 static void
 init_work(PGP_Context **ctx_p, int is_text,
-          text *args, struct debug_expect * ex)
+		  text *args, struct debug_expect *ex)
 {
-    int            err = pgp_init(ctx_p);
+	int err = pgp_init(ctx_p);
 
-    fill_expect(ex, is_text);
+	fill_expect(ex, is_text);
 
-    if (err == 0 && args != NULL)
-        err = parse_args(*ctx_p, (uint8 *) VARDATA_ANY(args),
-                         VARSIZE_ANY_EXHDR(args), ex);
+	if (err == 0 && args != NULL)
+		err = parse_args(*ctx_p, (uint8 *)VARDATA_ANY(args),
+						 VARSIZE_ANY_EXHDR(args), ex);
 
-    if (err)
-    {
-        ereport(ERROR,
-                (errcode(ERRCODE_EXTERNAL_ROUTINE_INVOCATION_EXCEPTION),
-                 errmsg("%s", px_strerror(err))));
-    }
+	if (err)
+		px_THROW_ERROR(err);
 
-    if (ex->debug)
-        px_set_debug_handler(show_debug);
+	if (ex->debug)
+		px_set_debug_handler(show_debug);
 
-    pgp_set_text_mode(*ctx_p, is_text);
+	pgp_set_text_mode(*ctx_p, is_text);
 }
 
 bytea *
 encrypt_internal(int is_pubenc, int is_text,
-                 text *data, text *key, text *args)
+				 text *data, text *key, text *args)
 {
-    MBuf       *src,
-               *dst;
-    uint8        tmp[VARHDRSZ];
-    uint8       *restmp;
-    bytea       *res;
-    int            res_len;
-    PGP_Context *ctx;
-    int            err;
-    struct debug_expect ex;
-    text       *tmp_data = NULL;
+	MBuf *src,
+		*dst;
+	uint8 tmp[VARHDRSZ];
+	uint8 *restmp;
+	bytea *res;
+	int res_len;
+	PGP_Context *ctx;
+	int err;
+	struct debug_expect ex;
+	text *tmp_data = NULL;
 
-    /*
-     * Add data and key info RNG.
-     */
-    add_entropy(data, key, NULL);
+	init_work(&ctx, is_text, args, &ex);
 
-    init_work(&ctx, is_text, args, &ex);
+	if (is_text && pgp_get_unicode_mode(ctx))
+	{
+		tmp_data = convert_to_utf8(data);
+		if (tmp_data == data)
+			tmp_data = NULL;
+		else
+			data = tmp_data;
+	}
 
-    if (is_text && pgp_get_unicode_mode(ctx))
-    {
-        tmp_data = convert_to_utf8(data);
-        if (tmp_data == data)
-            tmp_data = NULL;
-        else
-            data = tmp_data;
-    }
+	src = create_mbuf_from_vardata(data);
+	dst = mbuf_create(VARSIZE_ANY(data) + 128);
 
-    src = create_mbuf_from_vardata(data);
-    dst = mbuf_create(VARSIZE_ANY(data) + 128);
+	/*
+	 * reserve room for header
+	 */
+	mbuf_append(dst, tmp, VARHDRSZ);
 
-    /*
-     * reserve room for header
-     */
-    mbuf_append(dst, tmp, VARHDRSZ);
+	/*
+	 * set key
+	 */
+	if (is_pubenc)
+	{
+		MBuf *kbuf = create_mbuf_from_vardata(key);
 
-    /*
-     * set key
-     */
-    if (is_pubenc)
-    {
-        MBuf       *kbuf = create_mbuf_from_vardata(key);
+		err = pgp_set_pubkey(ctx, kbuf,
+							 NULL, 0, 0);
+		mbuf_free(kbuf);
+	}
+	else
+		err = pgp_set_symkey(ctx, (uint8 *)VARDATA_ANY(key),
+							 VARSIZE_ANY_EXHDR(key));
 
-        err = pgp_set_pubkey(ctx, kbuf,
-                             NULL, 0, 0);
-        mbuf_free(kbuf);
-    }
-    else
-        err = pgp_set_symkey(ctx, (uint8 *) VARDATA_ANY(key),
-                             VARSIZE_ANY_EXHDR(key));
+	/*
+	 * encrypt
+	 */
+	if (err >= 0)
+		err = pgp_encrypt(ctx, src, dst);
 
-    /*
-     * encrypt
-     */
-    if (err >= 0)
-        err = pgp_encrypt(ctx, src, dst);
+	/*
+	 * check for error
+	 */
+	if (err)
+	{
+		if (ex.debug)
+			px_set_debug_handler(NULL);
+		if (tmp_data)
+			clear_and_pfree(tmp_data);
+		pgp_free(ctx);
+		mbuf_free(src);
+		mbuf_free(dst);
+		px_THROW_ERROR(err);
+	}
 
-    /*
-     * check for error
-     */
-    if (err)
-    {
-        if (ex.debug)
-            px_set_debug_handler(NULL);
-        if (tmp_data)
-            clear_and_pfree(tmp_data);
-        pgp_free(ctx);
-        mbuf_free(src);
-        mbuf_free(dst);
-        ereport(ERROR,
-                (errcode(ERRCODE_EXTERNAL_ROUTINE_INVOCATION_EXCEPTION),
-                 errmsg("%s", px_strerror(err))));
-    }
+	/* res_len includes VARHDRSZ */
+	res_len = mbuf_steal_data(dst, &restmp);
+	res = (bytea *)restmp;
+	SET_VARSIZE(res, res_len);
 
-    /* res_len includes VARHDRSZ */
-    res_len = mbuf_steal_data(dst, &restmp);
-    res = (bytea *) restmp;
-    SET_VARSIZE(res, res_len);
+	if (tmp_data)
+		clear_and_pfree(tmp_data);
+	pgp_free(ctx);
+	mbuf_free(src);
+	mbuf_free(dst);
 
-    if (tmp_data)
-        clear_and_pfree(tmp_data);
-    pgp_free(ctx);
-    mbuf_free(src);
-    mbuf_free(dst);
+	px_set_debug_handler(NULL);
 
-    px_set_debug_handler(NULL);
-
-    return res;
+	return res;
 }
 
 bytea *
 decrypt_internal(int is_pubenc, int need_text, text *data,
-                 text *key, text *keypsw, text *args)
+				 text *key, text *keypsw, text *args)
 {
-    int            err;
-    MBuf       *src = NULL,
-               *dst = NULL;
-    uint8        tmp[VARHDRSZ];
-    uint8       *restmp;
-    bytea       *res;
-    int            res_len;
-    PGP_Context *ctx = NULL;
-    struct debug_expect ex;
-    int            got_unicode = 0;
+	int err;
+	MBuf *src = NULL,
+		 *dst = NULL;
+	uint8 tmp[VARHDRSZ];
+	uint8 *restmp;
+	bytea *res;
+	int res_len;
+	PGP_Context *ctx = NULL;
+	struct debug_expect ex;
+	int got_unicode = 0;
 
+	init_work(&ctx, need_text, args, &ex);
 
-    init_work(&ctx, need_text, args, &ex);
+	src = mbuf_create_from_data((uint8 *)VARDATA_ANY(data),
+								VARSIZE_ANY_EXHDR(data));
+	dst = mbuf_create(VARSIZE_ANY(data) + 2048);
 
-    src = mbuf_create_from_data((uint8 *) VARDATA_ANY(data),
-                                VARSIZE_ANY_EXHDR(data));
-    dst = mbuf_create(VARSIZE_ANY(data) + 2048);
+	/*
+	 * reserve room for header
+	 */
+	mbuf_append(dst, tmp, VARHDRSZ);
 
-    /*
-     * reserve room for header
-     */
-    mbuf_append(dst, tmp, VARHDRSZ);
+	/*
+	 * set key
+	 */
+	if (is_pubenc)
+	{
+		uint8 *psw = NULL;
+		int psw_len = 0;
+		MBuf *kbuf;
 
-    /*
-     * set key
-     */
-    if (is_pubenc)
-    {
-        uint8       *psw = NULL;
-        int            psw_len = 0;
-        MBuf       *kbuf;
+		if (keypsw)
+		{
+			psw = (uint8 *)VARDATA_ANY(keypsw);
+			psw_len = VARSIZE_ANY_EXHDR(keypsw);
+		}
+		kbuf = create_mbuf_from_vardata(key);
+		err = pgp_set_pubkey(ctx, kbuf, psw, psw_len, 1);
+		mbuf_free(kbuf);
+	}
+	else
+		err = pgp_set_symkey(ctx, (uint8 *)VARDATA_ANY(key),
+							 VARSIZE_ANY_EXHDR(key));
 
-        if (keypsw)
-        {
-            psw = (uint8 *) VARDATA_ANY(keypsw);
-            psw_len = VARSIZE_ANY_EXHDR(keypsw);
-        }
-        kbuf = create_mbuf_from_vardata(key);
-        err = pgp_set_pubkey(ctx, kbuf, psw, psw_len, 1);
-        mbuf_free(kbuf);
-    }
-    else
-        err = pgp_set_symkey(ctx, (uint8 *) VARDATA_ANY(key),
-                             VARSIZE_ANY_EXHDR(key));
+	/* decrypt */
+	if (err >= 0)
+	{
+		err = pgp_decrypt(ctx, src, dst);
 
-    /* decrypt */
-    if (err >= 0)
-    {
-        err = pgp_decrypt(ctx, src, dst);
+		if (ex.expect)
+			check_expect(ctx, &ex);
 
-        if (ex.expect)
-            check_expect(ctx, &ex);
+		/* remember the setting */
+		got_unicode = pgp_get_unicode_mode(ctx);
+	}
 
-        /* remember the setting */
-        got_unicode = pgp_get_unicode_mode(ctx);
-    }
+	mbuf_free(src);
+	pgp_free(ctx);
 
-    mbuf_free(src);
-    pgp_free(ctx);
+	if (err)
+	{
+		px_set_debug_handler(NULL);
+		mbuf_free(dst);
+		px_THROW_ERROR(err);
+	}
 
-    if (err)
-    {
-        px_set_debug_handler(NULL);
-        mbuf_free(dst);
-        ereport(ERROR,
-                (errcode(ERRCODE_EXTERNAL_ROUTINE_INVOCATION_EXCEPTION),
-                 errmsg("%s", px_strerror(err))));
-    }
+	res_len = mbuf_steal_data(dst, &restmp);
+	mbuf_free(dst);
 
-    res_len = mbuf_steal_data(dst, &restmp);
-    mbuf_free(dst);
+	/* res_len includes VARHDRSZ */
+	res = (bytea *)restmp;
+	SET_VARSIZE(res, res_len);
 
-    /* res_len includes VARHDRSZ */
-    res = (bytea *) restmp;
-    SET_VARSIZE(res, res_len);
+	if (need_text && got_unicode)
+	{
+		text *utf = convert_from_utf8(res);
 
-    if (need_text && got_unicode)
-    {
-        text       *utf = convert_from_utf8(res);
+		if (utf != res)
+		{
+			clear_and_pfree(res);
+			res = utf;
+		}
+	}
+	px_set_debug_handler(NULL);
 
-        if (utf != res)
-        {
-            clear_and_pfree(res);
-            res = utf;
-        }
-    }
-    px_set_debug_handler(NULL);
-
-    /*
-     * add successful decryptions also into RNG
-     */
-    add_entropy(res, key, keypsw);
-
-    return res;
+	return res;
 }
 
 /*
  * Wrappers for symmetric-key functions
  */
-Datum
-pgp_sym_encrypt_bytea(PG_FUNCTION_ARGS)
+Datum pgp_sym_encrypt_bytea(PG_FUNCTION_ARGS)
 {
-    bytea       *data,
-               *key;
-    text       *arg = NULL;
-    text       *res;
+	bytea *data,
+		*key;
+	text *arg = NULL;
+	text *res;
 
-    data = PG_GETARG_BYTEA_P(0);
-    key = PG_GETARG_BYTEA_P(1);
-    if (PG_NARGS() > 2)
-        arg = PG_GETARG_BYTEA_P(2);
+	data = PG_GETARG_BYTEA_PP(0);
+	key = PG_GETARG_BYTEA_PP(1);
+	if (PG_NARGS() > 2)
+		arg = PG_GETARG_BYTEA_PP(2);
 
-    res = encrypt_internal(0, 0, data, key, arg);
+	res = encrypt_internal(0, 0, data, key, arg);
 
-    PG_FREE_IF_COPY(data, 0);
-    PG_FREE_IF_COPY(key, 1);
-    if (PG_NARGS() > 2)
-        PG_FREE_IF_COPY(arg, 2);
-    PG_RETURN_TEXT_P(res);
+	PG_FREE_IF_COPY(data, 0);
+	PG_FREE_IF_COPY(key, 1);
+	if (PG_NARGS() > 2)
+		PG_FREE_IF_COPY(arg, 2);
+	PG_RETURN_TEXT_P(res);
 }
 
-Datum
-pgp_sym_encrypt_text(PG_FUNCTION_ARGS)
+Datum pgp_sym_encrypt_text(PG_FUNCTION_ARGS)
 {
-    bytea       *data,
-               *key;
-    text       *arg = NULL;
-    text       *res;
+	bytea *data,
+		*key;
+	text *arg = NULL;
+	text *res;
 
-    data = PG_GETARG_BYTEA_P(0);
-    key = PG_GETARG_BYTEA_P(1);
-    if (PG_NARGS() > 2)
-        arg = PG_GETARG_BYTEA_P(2);
+	data = PG_GETARG_BYTEA_PP(0);
+	key = PG_GETARG_BYTEA_PP(1);
+	if (PG_NARGS() > 2)
+		arg = PG_GETARG_BYTEA_PP(2);
 
-    res = encrypt_internal(0, 1, data, key, arg);
+	res = encrypt_internal(0, 1, data, key, arg);
 
-    PG_FREE_IF_COPY(data, 0);
-    PG_FREE_IF_COPY(key, 1);
-    if (PG_NARGS() > 2)
-        PG_FREE_IF_COPY(arg, 2);
-    PG_RETURN_TEXT_P(res);
+	PG_FREE_IF_COPY(data, 0);
+	PG_FREE_IF_COPY(key, 1);
+	if (PG_NARGS() > 2)
+		PG_FREE_IF_COPY(arg, 2);
+	PG_RETURN_TEXT_P(res);
 }
 
-
-Datum
-pgp_sym_decrypt_bytea(PG_FUNCTION_ARGS)
+Datum pgp_sym_decrypt_bytea(PG_FUNCTION_ARGS)
 {
-    bytea       *data,
-               *key;
-    text       *arg = NULL;
-    text       *res;
+	bytea *data,
+		*key;
+	text *arg = NULL;
+	text *res;
 
-    data = PG_GETARG_BYTEA_P(0);
-    key = PG_GETARG_BYTEA_P(1);
-    if (PG_NARGS() > 2)
-        arg = PG_GETARG_BYTEA_P(2);
+	data = PG_GETARG_BYTEA_PP(0);
+	key = PG_GETARG_BYTEA_PP(1);
+	if (PG_NARGS() > 2)
+		arg = PG_GETARG_BYTEA_PP(2);
 
-    res = decrypt_internal(0, 0, data, key, NULL, arg);
+	res = decrypt_internal(0, 0, data, key, NULL, arg);
 
-    PG_FREE_IF_COPY(data, 0);
-    PG_FREE_IF_COPY(key, 1);
-    if (PG_NARGS() > 2)
-        PG_FREE_IF_COPY(arg, 2);
-    PG_RETURN_TEXT_P(res);
+	PG_FREE_IF_COPY(data, 0);
+	PG_FREE_IF_COPY(key, 1);
+	if (PG_NARGS() > 2)
+		PG_FREE_IF_COPY(arg, 2);
+	PG_RETURN_TEXT_P(res);
 }
 
-Datum
-pgp_sym_decrypt_text(PG_FUNCTION_ARGS)
+Datum pgp_sym_decrypt_text(PG_FUNCTION_ARGS)
 {
-    bytea       *data,
-               *key;
-    text       *arg = NULL;
-    text       *res;
+	bytea *data,
+		*key;
+	text *arg = NULL;
+	text *res;
 
-    data = PG_GETARG_BYTEA_P(0);
-    key = PG_GETARG_BYTEA_P(1);
-    if (PG_NARGS() > 2)
-        arg = PG_GETARG_BYTEA_P(2);
+	data = PG_GETARG_BYTEA_PP(0);
+	key = PG_GETARG_BYTEA_PP(1);
+	if (PG_NARGS() > 2)
+		arg = PG_GETARG_BYTEA_PP(2);
 
-    res = decrypt_internal(0, 1, data, key, NULL, arg);
+	res = decrypt_internal(0, 1, data, key, NULL, arg);
 
-    PG_FREE_IF_COPY(data, 0);
-    PG_FREE_IF_COPY(key, 1);
-    if (PG_NARGS() > 2)
-        PG_FREE_IF_COPY(arg, 2);
-    PG_RETURN_TEXT_P(res);
+	PG_FREE_IF_COPY(data, 0);
+	PG_FREE_IF_COPY(key, 1);
+	if (PG_NARGS() > 2)
+		PG_FREE_IF_COPY(arg, 2);
+	PG_RETURN_TEXT_P(res);
 }
 
 /*
  * Wrappers for public-key functions
  */
 
-Datum
-pgp_pub_encrypt_bytea(PG_FUNCTION_ARGS)
+Datum pgp_pub_encrypt_bytea(PG_FUNCTION_ARGS)
 {
-    bytea       *data,
-               *key;
-    text       *arg = NULL;
-    text       *res;
+	bytea *data,
+		*key;
+	text *arg = NULL;
+	text *res;
 
-    data = PG_GETARG_BYTEA_P(0);
-    key = PG_GETARG_BYTEA_P(1);
-    if (PG_NARGS() > 2)
-        arg = PG_GETARG_BYTEA_P(2);
+	data = PG_GETARG_BYTEA_PP(0);
+	key = PG_GETARG_BYTEA_PP(1);
+	if (PG_NARGS() > 2)
+		arg = PG_GETARG_BYTEA_PP(2);
 
-    res = encrypt_internal(1, 0, data, key, arg);
+	res = encrypt_internal(1, 0, data, key, arg);
 
-    PG_FREE_IF_COPY(data, 0);
-    PG_FREE_IF_COPY(key, 1);
-    if (PG_NARGS() > 2)
-        PG_FREE_IF_COPY(arg, 2);
-    PG_RETURN_TEXT_P(res);
+	PG_FREE_IF_COPY(data, 0);
+	PG_FREE_IF_COPY(key, 1);
+	if (PG_NARGS() > 2)
+		PG_FREE_IF_COPY(arg, 2);
+	PG_RETURN_TEXT_P(res);
 }
 
-Datum
-pgp_pub_encrypt_text(PG_FUNCTION_ARGS)
+Datum pgp_pub_encrypt_text(PG_FUNCTION_ARGS)
 {
-    bytea       *data,
-               *key;
-    text       *arg = NULL;
-    text       *res;
+	bytea *data,
+		*key;
+	text *arg = NULL;
+	text *res;
 
-    data = PG_GETARG_BYTEA_P(0);
-    key = PG_GETARG_BYTEA_P(1);
-    if (PG_NARGS() > 2)
-        arg = PG_GETARG_BYTEA_P(2);
+	data = PG_GETARG_BYTEA_PP(0);
+	key = PG_GETARG_BYTEA_PP(1);
+	if (PG_NARGS() > 2)
+		arg = PG_GETARG_BYTEA_PP(2);
 
-    res = encrypt_internal(1, 1, data, key, arg);
+	res = encrypt_internal(1, 1, data, key, arg);
 
-    PG_FREE_IF_COPY(data, 0);
-    PG_FREE_IF_COPY(key, 1);
-    if (PG_NARGS() > 2)
-        PG_FREE_IF_COPY(arg, 2);
-    PG_RETURN_TEXT_P(res);
+	PG_FREE_IF_COPY(data, 0);
+	PG_FREE_IF_COPY(key, 1);
+	if (PG_NARGS() > 2)
+		PG_FREE_IF_COPY(arg, 2);
+	PG_RETURN_TEXT_P(res);
 }
 
-
-Datum
-pgp_pub_decrypt_bytea(PG_FUNCTION_ARGS)
+Datum pgp_pub_decrypt_bytea(PG_FUNCTION_ARGS)
 {
-    bytea       *data,
-               *key;
-    text       *psw = NULL,
-               *arg = NULL;
-    text       *res;
+	bytea *data,
+		*key;
+	text *psw = NULL,
+		 *arg = NULL;
+	text *res;
 
-    data = PG_GETARG_BYTEA_P(0);
-    key = PG_GETARG_BYTEA_P(1);
-    if (PG_NARGS() > 2)
-        psw = PG_GETARG_BYTEA_P(2);
-    if (PG_NARGS() > 3)
-        arg = PG_GETARG_BYTEA_P(3);
+	data = PG_GETARG_BYTEA_PP(0);
+	key = PG_GETARG_BYTEA_PP(1);
+	if (PG_NARGS() > 2)
+		psw = PG_GETARG_BYTEA_PP(2);
+	if (PG_NARGS() > 3)
+		arg = PG_GETARG_BYTEA_PP(3);
 
-    res = decrypt_internal(1, 0, data, key, psw, arg);
+	res = decrypt_internal(1, 0, data, key, psw, arg);
 
-    PG_FREE_IF_COPY(data, 0);
-    PG_FREE_IF_COPY(key, 1);
-    if (PG_NARGS() > 2)
-        PG_FREE_IF_COPY(psw, 2);
-    if (PG_NARGS() > 3)
-        PG_FREE_IF_COPY(arg, 3);
-    PG_RETURN_TEXT_P(res);
+	PG_FREE_IF_COPY(data, 0);
+	PG_FREE_IF_COPY(key, 1);
+	if (PG_NARGS() > 2)
+		PG_FREE_IF_COPY(psw, 2);
+	if (PG_NARGS() > 3)
+		PG_FREE_IF_COPY(arg, 3);
+	PG_RETURN_TEXT_P(res);
 }
 
-Datum
-pgp_pub_decrypt_text(PG_FUNCTION_ARGS)
+Datum pgp_pub_decrypt_text(PG_FUNCTION_ARGS)
 {
-    bytea       *data,
-               *key;
-    text       *psw = NULL,
-               *arg = NULL;
-    text       *res;
+	bytea *data,
+		*key;
+	text *psw = NULL,
+		 *arg = NULL;
+	text *res;
 
-    data = PG_GETARG_BYTEA_P(0);
-    key = PG_GETARG_BYTEA_P(1);
-    if (PG_NARGS() > 2)
-        psw = PG_GETARG_BYTEA_P(2);
-    if (PG_NARGS() > 3)
-        arg = PG_GETARG_BYTEA_P(3);
+	data = PG_GETARG_BYTEA_PP(0);
+	key = PG_GETARG_BYTEA_PP(1);
+	if (PG_NARGS() > 2)
+		psw = PG_GETARG_BYTEA_PP(2);
+	if (PG_NARGS() > 3)
+		arg = PG_GETARG_BYTEA_PP(3);
 
-    res = decrypt_internal(1, 1, data, key, psw, arg);
+	res = decrypt_internal(1, 1, data, key, psw, arg);
 
-    PG_FREE_IF_COPY(data, 0);
-    PG_FREE_IF_COPY(key, 1);
-    if (PG_NARGS() > 2)
-        PG_FREE_IF_COPY(psw, 2);
-    if (PG_NARGS() > 3)
-        PG_FREE_IF_COPY(arg, 3);
-    PG_RETURN_TEXT_P(res);
+	PG_FREE_IF_COPY(data, 0);
+	PG_FREE_IF_COPY(key, 1);
+	if (PG_NARGS() > 2)
+		PG_FREE_IF_COPY(psw, 2);
+	if (PG_NARGS() > 3)
+		PG_FREE_IF_COPY(arg, 3);
+	PG_RETURN_TEXT_P(res);
 }
-
 
 /*
  * Wrappers for PGP ascii armor
@@ -865,260 +756,248 @@ pgp_pub_decrypt_text(PG_FUNCTION_ARGS)
  */
 static int
 parse_key_value_arrays(ArrayType *key_array, ArrayType *val_array,
-                       char ***p_keys, char ***p_values)
+					   char ***p_keys, char ***p_values)
 {
-    int            nkdims = ARR_NDIM(key_array);
-    int            nvdims = ARR_NDIM(val_array);
-    char      **keys,
-              **values;
-    Datum       *key_datums,
-               *val_datums;
-    bool       *key_nulls,
-               *val_nulls;
-    int            key_count,
-                val_count;
-    int            i;
+	int nkdims = ARR_NDIM(key_array);
+	int nvdims = ARR_NDIM(val_array);
+	char **keys,
+		**values;
+	Datum *key_datums,
+		*val_datums;
+	bool *key_nulls,
+		*val_nulls;
+	int key_count,
+		val_count;
+	int i;
 
-    if (nkdims > 1 || nkdims != nvdims)
-        ereport(ERROR,
-                (errcode(ERRCODE_ARRAY_SUBSCRIPT_ERROR),
-                 errmsg("wrong number of array subscripts")));
-    if (nkdims == 0)
-        return 0;
+	if (nkdims > 1 || nkdims != nvdims)
+		ereport(ERROR,
+				(errcode(ERRCODE_ARRAY_SUBSCRIPT_ERROR),
+				 errmsg("wrong number of array subscripts")));
+	if (nkdims == 0)
+		return 0;
 
-    deconstruct_array(key_array,
-                      TEXTOID, -1, false, 'i',
-                      &key_datums, &key_nulls, &key_count);
+	deconstruct_array(key_array,
+					  TEXTOID, -1, false, 'i',
+					  &key_datums, &key_nulls, &key_count);
 
-    deconstruct_array(val_array,
-                      TEXTOID, -1, false, 'i',
-                      &val_datums, &val_nulls, &val_count);
+	deconstruct_array(val_array,
+					  TEXTOID, -1, false, 'i',
+					  &val_datums, &val_nulls, &val_count);
 
-    if (key_count != val_count)
-        ereport(ERROR,
-                (errcode(ERRCODE_ARRAY_SUBSCRIPT_ERROR),
-                 errmsg("mismatched array dimensions")));
+	if (key_count != val_count)
+		ereport(ERROR,
+				(errcode(ERRCODE_ARRAY_SUBSCRIPT_ERROR),
+				 errmsg("mismatched array dimensions")));
 
-    keys = (char **) crypt_alloc(sizeof(char *) * key_count);
-    values = (char **) crypt_alloc(sizeof(char *) * val_count);
+	keys = (char **)palloc(sizeof(char *) * key_count);
+	values = (char **)palloc(sizeof(char *) * val_count);
 
-    for (i = 0; i < key_count; i++)
-    {
-        char       *v;
+	for (i = 0; i < key_count; i++)
+	{
+		char *v;
 
-        /* Check that the key doesn't contain anything funny */
-        if (key_nulls[i])
-            ereport(ERROR,
-                    (errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED),
-                     errmsg("null value not allowed for header key")));
+		/* Check that the key doesn't contain anything funny */
+		if (key_nulls[i])
+			ereport(ERROR,
+					(errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED),
+					 errmsg("null value not allowed for header key")));
 
-        v = TextDatumGetCString(key_datums[i]);
+		v = TextDatumGetCString(key_datums[i]);
 
-        if (!string_is_ascii(v))
-            ereport(ERROR,
-                    (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-                errmsg("header key must not contain non-ASCII characters")));
-        if (strstr(v, ": "))
-            ereport(ERROR,
-                    (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-                     errmsg("header key must not contain \": \"")));
-        if (strchr(v, '\n'))
-            ereport(ERROR,
-                    (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-                     errmsg("header key must not contain newlines")));
-        keys[i] = v;
+		if (!string_is_ascii(v))
+			ereport(ERROR,
+					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+					 errmsg("header key must not contain non-ASCII characters")));
+		if (strstr(v, ": "))
+			ereport(ERROR,
+					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+					 errmsg("header key must not contain \": \"")));
+		if (strchr(v, '\n'))
+			ereport(ERROR,
+					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+					 errmsg("header key must not contain newlines")));
+		keys[i] = v;
 
-        /* And the same for the value */
-        if (val_nulls[i])
-            ereport(ERROR,
-                    (errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED),
-                     errmsg("null value not allowed for header value")));
+		/* And the same for the value */
+		if (val_nulls[i])
+			ereport(ERROR,
+					(errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED),
+					 errmsg("null value not allowed for header value")));
 
-        v = TextDatumGetCString(val_datums[i]);
+		v = TextDatumGetCString(val_datums[i]);
 
-        if (!string_is_ascii(v))
-            ereport(ERROR,
-                    (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-              errmsg("header value must not contain non-ASCII characters")));
-        if (strchr(v, '\n'))
-            ereport(ERROR,
-                    (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-                     errmsg("header value must not contain newlines")));
+		if (!string_is_ascii(v))
+			ereport(ERROR,
+					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+					 errmsg("header value must not contain non-ASCII characters")));
+		if (strchr(v, '\n'))
+			ereport(ERROR,
+					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+					 errmsg("header value must not contain newlines")));
 
-        values[i] = v;
-    }
+		values[i] = v;
+	}
 
-    *p_keys = keys;
-    *p_values = values;
-    return key_count;
+	*p_keys = keys;
+	*p_values = values;
+	return key_count;
 }
 
-Datum
-pg_armor(PG_FUNCTION_ARGS)
+Datum pg_armor(PG_FUNCTION_ARGS)
 {
-    bytea       *data;
-    text       *res;
-    int            data_len;
-    StringInfoData buf;
-    int            num_headers;
-    char      **keys = NULL,
-              **values = NULL;
+	bytea *data;
+	text *res;
+	int data_len;
+	StringInfoData buf;
+	int num_headers;
+	char **keys = NULL,
+		 **values = NULL;
 
-    data = PG_GETARG_BYTEA_P(0);
-    data_len = VARSIZE_ANY_EXHDR(data);
-    if (PG_NARGS() == 3)
-    {
-        num_headers = parse_key_value_arrays(PG_GETARG_ARRAYTYPE_P(1),
-                                             PG_GETARG_ARRAYTYPE_P(2),
-                                             &keys, &values);
-    }
-    else if (PG_NARGS() == 1)
-        num_headers = 0;
-    else
-        elog(ERROR, "unexpected number of arguments %d", PG_NARGS());
+	data = PG_GETARG_BYTEA_PP(0);
+	data_len = VARSIZE_ANY_EXHDR(data);
+	if (PG_NARGS() == 3)
+	{
+		num_headers = parse_key_value_arrays(PG_GETARG_ARRAYTYPE_P(1),
+											 PG_GETARG_ARRAYTYPE_P(2),
+											 &keys, &values);
+	}
+	else if (PG_NARGS() == 1)
+		num_headers = 0;
+	else
+		elog(ERROR, "unexpected number of arguments %d", PG_NARGS());
 
-    initStringInfo(&buf);
+	initStringInfo(&buf);
 
-    pgp_armor_encode((uint8 *) VARDATA_ANY(data), data_len, &buf,
-                     num_headers, keys, values);
+	pgp_armor_encode((uint8 *)VARDATA_ANY(data), data_len, &buf,
+					 num_headers, keys, values);
 
-    res = crypt_alloc(VARHDRSZ + buf.len);
-    SET_VARSIZE(res, VARHDRSZ + buf.len);
-    memcpy(VARDATA_ANY(res), buf.data, buf.len);
-    crypt_free(buf.data);
+	res = palloc(VARHDRSZ + buf.len);
+	SET_VARSIZE(res, VARHDRSZ + buf.len);
+	memcpy(VARDATA(res), buf.data, buf.len);
+	pfree(buf.data);
 
-    PG_FREE_IF_COPY(data, 0);
-    PG_RETURN_TEXT_P(res);
+	PG_FREE_IF_COPY(data, 0);
+	PG_RETURN_TEXT_P(res);
 }
 
-Datum
-pg_dearmor(PG_FUNCTION_ARGS)
+Datum pg_dearmor(PG_FUNCTION_ARGS)
 {
-    text       *data;
-    bytea       *res;
-    int            data_len;
-    int            ret;
-    StringInfoData buf;
+	text *data;
+	bytea *res;
+	int data_len;
+	int ret;
+	StringInfoData buf;
 
-    data = PG_GETARG_TEXT_P(0);
-    data_len = VARSIZE_ANY_EXHDR(data);
+	data = PG_GETARG_TEXT_PP(0);
+	data_len = VARSIZE_ANY_EXHDR(data);
 
-    initStringInfo(&buf);
+	initStringInfo(&buf);
 
-    ret = pgp_armor_decode((uint8 *) VARDATA_ANY(data), data_len, &buf);
-    if (ret < 0)
-        ereport(ERROR,
-                (errcode(ERRCODE_EXTERNAL_ROUTINE_INVOCATION_EXCEPTION),
-                 errmsg("%s", px_strerror(ret))));
-    res = crypt_alloc(VARHDRSZ + buf.len);
-    SET_VARSIZE(res, VARHDRSZ + buf.len);
-    memcpy(VARDATA_ANY(res), buf.data, buf.len);
-    crypt_free(buf.data);
+	ret = pgp_armor_decode((uint8 *)VARDATA_ANY(data), data_len, &buf);
+	if (ret < 0)
+		px_THROW_ERROR(ret);
+	res = palloc(VARHDRSZ + buf.len);
+	SET_VARSIZE(res, VARHDRSZ + buf.len);
+	memcpy(VARDATA(res), buf.data, buf.len);
+	pfree(buf.data);
 
-    PG_FREE_IF_COPY(data, 0);
-    PG_RETURN_TEXT_P(res);
+	PG_FREE_IF_COPY(data, 0);
+	PG_RETURN_TEXT_P(res);
 }
 
 /* cross-call state for pgp_armor_headers */
 typedef struct
 {
-    int            nheaders;
-    char      **keys;
-    char      **values;
+	int nheaders;
+	char **keys;
+	char **values;
 } pgp_armor_headers_state;
 
-Datum
-pgp_armor_headers(PG_FUNCTION_ARGS)
+Datum pgp_armor_headers(PG_FUNCTION_ARGS)
 {
-    FuncCallContext *funcctx;
-    pgp_armor_headers_state *state;
-    char       *utf8key;
-    char       *utf8val;
-    HeapTuple    tuple;
-    TupleDesc    tupdesc;
-    AttInMetadata *attinmeta;
+	FuncCallContext *funcctx;
+	pgp_armor_headers_state *state;
+	char *utf8key;
+	char *utf8val;
+	HeapTuple tuple;
+	TupleDesc tupdesc;
+	AttInMetadata *attinmeta;
 
-    if (SRF_IS_FIRSTCALL())
-    {
-        text       *data = PG_GETARG_TEXT_PP(0);
-        int            res;
-        MemoryContext oldcontext;
+	if (SRF_IS_FIRSTCALL())
+	{
+		text *data = PG_GETARG_TEXT_PP(0);
+		int res;
+		MemoryContext oldcontext;
 
-        funcctx = SRF_FIRSTCALL_INIT();
+		funcctx = SRF_FIRSTCALL_INIT();
 
-        /* we need the state allocated in the multi call context */
-        oldcontext = MemoryContextSwitchTo(funcctx->multi_call_memory_ctx);
+		/* we need the state allocated in the multi call context */
+		oldcontext = MemoryContextSwitchTo(funcctx->multi_call_memory_ctx);
 
-        /* Build a tuple descriptor for our result type */
-        if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
-            elog(ERROR, "return type must be a row type");
+		/* Build a tuple descriptor for our result type */
+		if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
+			elog(ERROR, "return type must be a row type");
 
-        attinmeta = TupleDescGetAttInMetadata(tupdesc);
-        funcctx->attinmeta = attinmeta;
+		attinmeta = TupleDescGetAttInMetadata(tupdesc);
+		funcctx->attinmeta = attinmeta;
 
-        state = (pgp_armor_headers_state *) crypt_alloc(sizeof(pgp_armor_headers_state));
+		state = (pgp_armor_headers_state *)palloc(sizeof(pgp_armor_headers_state));
 
-        res = pgp_extract_armor_headers((uint8 *) VARDATA_ANY(data),
-                                        VARSIZE_ANY_EXHDR(data),
-                                        &state->nheaders, &state->keys,
-                                        &state->values);
-        if (res < 0)
-            ereport(ERROR,
-                    (errcode(ERRCODE_EXTERNAL_ROUTINE_INVOCATION_EXCEPTION),
-                     errmsg("%s", px_strerror(res))));
+		res = pgp_extract_armor_headers((uint8 *)VARDATA_ANY(data),
+										VARSIZE_ANY_EXHDR(data),
+										&state->nheaders, &state->keys,
+										&state->values);
+		if (res < 0)
+			px_THROW_ERROR(res);
 
-        MemoryContextSwitchTo(oldcontext);
-        funcctx->user_fctx = state;
-    }
+		MemoryContextSwitchTo(oldcontext);
+		funcctx->user_fctx = state;
+	}
 
-    funcctx = SRF_PERCALL_SETUP();
-    state = (pgp_armor_headers_state *) funcctx->user_fctx;
+	funcctx = SRF_PERCALL_SETUP();
+	state = (pgp_armor_headers_state *)funcctx->user_fctx;
 
-    if (funcctx->call_cntr >= state->nheaders)
-        SRF_RETURN_DONE(funcctx);
-    else
-    {
-        char       *values[2];
+	if (funcctx->call_cntr >= state->nheaders)
+		SRF_RETURN_DONE(funcctx);
+	else
+	{
+		char *values[2];
 
-        /* we assume that the keys (and values) are in UTF-8. */
-        utf8key = state->keys[funcctx->call_cntr];
-        utf8val = state->values[funcctx->call_cntr];
+		/* we assume that the keys (and values) are in UTF-8. */
+		utf8key = state->keys[funcctx->call_cntr];
+		utf8val = state->values[funcctx->call_cntr];
 
-        values[0] = pg_any_to_server(utf8key, strlen(utf8key), PG_UTF8);
-        values[1] = pg_any_to_server(utf8val, strlen(utf8val), PG_UTF8);
+		values[0] = pg_any_to_server(utf8key, strlen(utf8key), PG_UTF8, false, false);
+		values[1] = pg_any_to_server(utf8val, strlen(utf8val), PG_UTF8, false, false);
 
-        /* build a tuple */
-        tuple = BuildTupleFromCStrings(funcctx->attinmeta, values);
-        SRF_RETURN_NEXT(funcctx, HeapTupleGetDatum(tuple));
-    }
+		/* build a tuple */
+		tuple = BuildTupleFromCStrings(funcctx->attinmeta, values);
+		SRF_RETURN_NEXT(funcctx, HeapTupleGetDatum(tuple));
+	}
 }
-
-
 
 /*
  * Wrappers for PGP key id
  */
 
-Datum
-pgp_key_id_w(PG_FUNCTION_ARGS)
+Datum pgp_key_id_w(PG_FUNCTION_ARGS)
 {
-    bytea       *data;
-    text       *res;
-    int            res_len;
-    MBuf       *buf;
+	bytea *data;
+	text *res;
+	int res_len;
+	MBuf *buf;
 
-    data = PG_GETARG_BYTEA_P(0);
-    buf = create_mbuf_from_vardata(data);
-    res = crypt_alloc(VARHDRSZ + 17);
+	data = PG_GETARG_BYTEA_PP(0);
+	buf = create_mbuf_from_vardata(data);
+	res = palloc(VARHDRSZ + 17);
 
-    res_len = pgp_get_keyid(buf, VARDATA_ANY(res));
-    mbuf_free(buf);
-    if (res_len < 0)
-        ereport(ERROR,
-                (errcode(ERRCODE_EXTERNAL_ROUTINE_INVOCATION_EXCEPTION),
-                 errmsg("%s", px_strerror(res_len))));
-    SET_VARSIZE(res, VARHDRSZ + res_len);
+	res_len = pgp_get_keyid(buf, VARDATA(res));
+	mbuf_free(buf);
+	if (res_len < 0)
+		px_THROW_ERROR(res_len);
+	SET_VARSIZE(res, VARHDRSZ + res_len);
 
-    PG_FREE_IF_COPY(data, 0);
-    PG_RETURN_TEXT_P(res);
+	PG_FREE_IF_COPY(data, 0);
+	PG_RETURN_TEXT_P(res);
 }

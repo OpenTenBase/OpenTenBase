@@ -1,0 +1,127 @@
+create database regression_ora_ext sql mode opentenbase_ora;
+\c regression_ora_ext
+create extension opentenbase_subscription;
+select a.relname, b.attname from pg_class a, pg_attribute b where a.oid=b.attrelid 
+and( a.relname like 'opentenbase_subscription%' or  a.relname like 'OPENTENBASE_SUBSCRIPTION%') order by 1,2;
+           RELNAME           |        ATTNAME         
+-----------------------------+------------------------
+ OPENTENBASE_SUBSCRIPTION          | OID
+ OPENTENBASE_SUBSCRIPTION          | SUB_IGNORE_PK_CONFLICT
+ OPENTENBASE_SUBSCRIPTION          | SUB_IS_ALL_ACTIVED
+ OPENTENBASE_SUBSCRIPTION          | SUB_NAME
+ OPENTENBASE_SUBSCRIPTION          | SUB_PARALLEL_NUMBER
+ OPENTENBASE_SUBSCRIPTION_PARALLEL | OID
+ OPENTENBASE_SUBSCRIPTION_PARALLEL | SUB_ACTIVE_LSN
+ OPENTENBASE_SUBSCRIPTION_PARALLEL | SUB_ACTIVE_STATE
+ OPENTENBASE_SUBSCRIPTION_PARALLEL | SUB_CHILD
+ OPENTENBASE_SUBSCRIPTION_PARALLEL | SUB_INDEX
+ OPENTENBASE_SUBSCRIPTION_PARALLEL | SUB_PARENT
+ opentenbase_subscription          | cmax
+ opentenbase_subscription          | cmin
+ opentenbase_subscription          | ctid
+ opentenbase_subscription          | gtid
+ opentenbase_subscription          | oid
+ opentenbase_subscription          | shardid
+ opentenbase_subscription          | sub_ignore_pk_conflict
+ opentenbase_subscription          | sub_is_all_actived
+ opentenbase_subscription          | sub_name
+ opentenbase_subscription          | sub_parallel_number
+ opentenbase_subscription          | tableoid
+ opentenbase_subscription          | xc_node_id
+ opentenbase_subscription          | xmax
+ opentenbase_subscription          | xmax_gts
+ opentenbase_subscription          | xmin
+ opentenbase_subscription          | xmin_gts
+ opentenbase_subscription_parallel | cmax
+ opentenbase_subscription_parallel | cmin
+ opentenbase_subscription_parallel | ctid
+ opentenbase_subscription_parallel | gtid
+ opentenbase_subscription_parallel | oid
+ opentenbase_subscription_parallel | shardid
+ opentenbase_subscription_parallel | sub_active_lsn
+ opentenbase_subscription_parallel | sub_active_state
+ opentenbase_subscription_parallel | sub_child
+ opentenbase_subscription_parallel | sub_index
+ opentenbase_subscription_parallel | sub_parent
+ opentenbase_subscription_parallel | tableoid
+ opentenbase_subscription_parallel | xc_node_id
+ opentenbase_subscription_parallel | xmax
+ opentenbase_subscription_parallel | xmax_gts
+ opentenbase_subscription_parallel | xmin
+ opentenbase_subscription_parallel | xmin_gts
+(44 rows)
+
+select * from opentenbase_subscription;
+ OID | SUB_NAME | SUB_IGNORE_PK_CONFLICT | SUB_PARALLEL_NUMBER | SUB_IS_ALL_ACTIVED 
+-----+----------+------------------------+---------------------+--------------------
+(0 rows)
+
+select * from opentenbase_subscription_parallel;
+ OID | SUB_PARENT | SUB_CHILD | SUB_INDEX | SUB_ACTIVE_STATE | SUB_ACTIVE_LSN 
+-----+------------+-----------+-----------+------------------+----------------
+(0 rows)
+
+drop extension opentenbase_subscription;
+\c postgres
+create extension opentenbase_subscription;
+select a.relname, b.attname from pg_class a, pg_attribute b where a.oid=b.attrelid 
+and( a.relname like 'opentenbase_subscription%' or  a.relname like 'OPENTENBASE_SUBSCRIPTION%') order by 1,2;
+           relname           |        attname         
+-----------------------------+------------------------
+ OPENTENBASE_SUBSCRIPTION          | OID
+ OPENTENBASE_SUBSCRIPTION          | SUB_IGNORE_PK_CONFLICT
+ OPENTENBASE_SUBSCRIPTION          | SUB_IS_ALL_ACTIVED
+ OPENTENBASE_SUBSCRIPTION          | SUB_NAME
+ OPENTENBASE_SUBSCRIPTION          | SUB_PARALLEL_NUMBER
+ OPENTENBASE_SUBSCRIPTION_PARALLEL | OID
+ OPENTENBASE_SUBSCRIPTION_PARALLEL | SUB_ACTIVE_LSN
+ OPENTENBASE_SUBSCRIPTION_PARALLEL | SUB_ACTIVE_STATE
+ OPENTENBASE_SUBSCRIPTION_PARALLEL | SUB_CHILD
+ OPENTENBASE_SUBSCRIPTION_PARALLEL | SUB_INDEX
+ OPENTENBASE_SUBSCRIPTION_PARALLEL | SUB_PARENT
+ opentenbase_subscription          | cmax
+ opentenbase_subscription          | cmin
+ opentenbase_subscription          | ctid
+ opentenbase_subscription          | gtid
+ opentenbase_subscription          | oid
+ opentenbase_subscription          | shardid
+ opentenbase_subscription          | sub_ignore_pk_conflict
+ opentenbase_subscription          | sub_is_all_actived
+ opentenbase_subscription          | sub_name
+ opentenbase_subscription          | sub_parallel_number
+ opentenbase_subscription          | tableoid
+ opentenbase_subscription          | xc_node_id
+ opentenbase_subscription          | xmax
+ opentenbase_subscription          | xmax_gts
+ opentenbase_subscription          | xmin
+ opentenbase_subscription          | xmin_gts
+ opentenbase_subscription_parallel | cmax
+ opentenbase_subscription_parallel | cmin
+ opentenbase_subscription_parallel | ctid
+ opentenbase_subscription_parallel | gtid
+ opentenbase_subscription_parallel | oid
+ opentenbase_subscription_parallel | shardid
+ opentenbase_subscription_parallel | sub_active_lsn
+ opentenbase_subscription_parallel | sub_active_state
+ opentenbase_subscription_parallel | sub_child
+ opentenbase_subscription_parallel | sub_index
+ opentenbase_subscription_parallel | sub_parent
+ opentenbase_subscription_parallel | tableoid
+ opentenbase_subscription_parallel | xc_node_id
+ opentenbase_subscription_parallel | xmax
+ opentenbase_subscription_parallel | xmax_gts
+ opentenbase_subscription_parallel | xmin
+ opentenbase_subscription_parallel | xmin_gts
+(44 rows)
+
+select * from opentenbase_subscription;
+ sub_name | sub_ignore_pk_conflict | sub_parallel_number | sub_is_all_actived 
+----------+------------------------+---------------------+--------------------
+(0 rows)
+
+select * from opentenbase_subscription_parallel;
+ sub_parent | sub_child | sub_index | sub_active_state | sub_active_lsn 
+------------+-----------+-----------+------------------+----------------
+(0 rows)
+
+drop extension opentenbase_subscription;

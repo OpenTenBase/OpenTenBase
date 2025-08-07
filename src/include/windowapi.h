@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * windowapi.h
- *      API for window functions to extract data from their window
+ *	  API for window functions to extract data from their window
  *
  * A window function does not receive its arguments in the normal way
  * (and therefore the concept of strictness is irrelevant).  Instead it
@@ -39,26 +39,26 @@ typedef struct WindowObjectData *WindowObject;
 #define PG_WINDOW_OBJECT() ((WindowObject) fcinfo->context)
 
 #define WindowObjectIsValid(winobj) \
-    ((winobj) != NULL && IsA(winobj, WindowObjectData))
+	((winobj) != NULL && IsA(winobj, WindowObjectData))
 
 extern void *WinGetPartitionLocalMemory(WindowObject winobj, Size sz);
 
 extern int64 WinGetCurrentPosition(WindowObject winobj);
 extern int64 WinGetPartitionRowCount(WindowObject winobj);
-
+extern Datum WinRatioToReportImpl(WindowObject winobj, bool *isnull);
 extern void WinSetMarkPosition(WindowObject winobj, int64 markpos);
 
 extern bool WinRowsArePeers(WindowObject winobj, int64 pos1, int64 pos2);
 
 extern Datum WinGetFuncArgInPartition(WindowObject winobj, int argno,
-                         int relpos, int seektype, bool set_mark,
-                         bool *isnull, bool *isout);
+						 int relpos, int seektype, bool set_mark,
+						 bool *isnull, bool *isout);
 
 extern Datum WinGetFuncArgInFrame(WindowObject winobj, int argno,
-                     int relpos, int seektype, bool set_mark,
-                     bool *isnull, bool *isout);
+					 int relpos, int seektype, bool set_mark,
+					 bool *isnull, bool *isout);
 
 extern Datum WinGetFuncArgCurrent(WindowObject winobj, int argno,
-                     bool *isnull);
+					 bool *isnull);
 
-#endif                            /* WINDOWAPI_H */
+#endif							/* WINDOWAPI_H */

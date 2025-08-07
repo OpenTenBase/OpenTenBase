@@ -2,6 +2,27 @@
 -- FOREIGN KEY
 --
 
+--test foreign key constraints
+CREATE TABLE users_main (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(50) NOT NULL,
+    age SMALLINT NOT NULL,
+    email VARCHAR(50) UNIQUE,
+    phone VARCHAR(20) NOT NULL
+);
+CREATE TABLE orders_ref (
+    id BIGSERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users_main (id) NOT NULL,
+    amount NUMERIC(10, 2) NOT NULL,
+    status VARCHAR(20) NOT NULL,
+    create_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+INSERT INTO "users_main" (id, name, age, email, phone) SELECT i, 'User ' || i, i % 100, 'user' || i || '@example.com', '139' || i FROM generate_series(1, 10) AS s(i);
+INSERT INTO "orders_ref" (id, user_id, amount, status, create_time, update_time) SELECT i, i + 1, (i * 10)%20000, 'created', now(), now()FROM generate_series(1,10) AS s(i);
+drop table orders_ref;
+drop table users_main;
+
 -- MATCH FULL
 --
 -- First test, check and cascade
@@ -1083,3 +1104,287 @@ INSERT INTO fkpart8.tbl2 VALUES(1);
 ALTER TABLE fkpart8.tbl2 DROP CONSTRAINT tbl2_f1_fkey;
 COMMIT;
 DROP SCHEMA fkpart8 CASCADE;
+
+CREATE TABLE IF NOT EXISTS rep_tbl_foreign(
+col_int int not null,
+col_smallint smallint,
+col_bigint bigint check (col_bigint > 0),
+col_nemeric numeric(5,5),
+col_double double precision,
+constraint pk_foreign_col_int primary key (col_int,col_double)
+) DISTRIBUTE BY REPLICATION;
+
+CREATE TABLE IF NOT EXISTS rep_tbl_constraint(
+col_int int not null,
+col_smallint smallint,
+col_bigint bigint check (col_bigint > 0),
+col_nemeric numeric(5,5),
+col_double double precision,
+col_varchar varchar(50) not null default 'default values',
+col_text text,
+col_timestamp timestamp,
+col_date date,
+col_boolean boolean,
+col_bigserial bigserial,
+constraint pk_constraint_col_int primary key (col_int),
+constraint un_constraint_col_int_bigserial unique (col_int,col_bigserial),
+constraint fk_constraint_col_int_double foreign key(col_int,col_double) references rep_tbl_foreign(col_int,col_double)
+);
+
+DROP TABLE IF EXISTS rep_tbl_foreign;
+CREATE TABLE IF NOT EXISTS rep_tbl_foreign(
+col_int int not null,
+col_smallint smallint,
+col_bigint bigint check (col_bigint > 0),
+col_nemeric numeric(5,5),
+col_double double precision,
+constraint pk_foreign_col_int primary key (col_int,col_double)
+);
+
+DROP TABLE IF EXISTS rep_tbl_constraint;
+CREATE TABLE IF NOT EXISTS rep_tbl_constraint(
+col_int int not null,
+col_smallint smallint,
+col_bigint bigint check (col_bigint > 0),
+col_nemeric numeric(5,5),
+col_double double precision,
+col_varchar varchar(50) not null default 'default values',
+col_text text,
+col_timestamp timestamp,
+col_date date,
+col_boolean boolean,
+col_bigserial bigserial,
+constraint pk_constraint_col_int primary key (col_int),
+constraint un_constraint_col_int_bigserial unique (col_int,col_bigserial),
+constraint fk_constraint_col_int_double foreign key(col_int,col_double) references rep_tbl_foreign(col_int,col_double)
+);
+
+-- Test inconsistency of distribution keys
+drop table if exists t_copy_tri_20220622_tab1;
+create table t_copy_tri_20220622_tab1(id int,id1 int,id2 date);
+insert into t_copy_tri_20220622_tab1 values(1,1,'2020-12-20');
+insert into t_copy_tri_20220622_tab1 values(2,2,NULL);
+insert into t_copy_tri_20220622_tab1 values(3,3,'2021-12-20');
+insert into t_copy_tri_20220622_tab1 values(4,4,null);
+insert into t_copy_tri_20220622_tab1 values(5,5,'2022-12-20');
+drop table if exists t_copy_tri_from_20220622_tb4;
+create table t_copy_tri_from_20220622_tb4 as select * from t_copy_tri_20220622_tab1;
+alter table t_copy_tri_from_20220622_tb4 add constraint ck1 primary key(id);
+
+drop table if exists t_copy_tri_from_20220622_tb3;
+create table t_copy_tri_from_20220622_tb3
+(f1 int, id integer default 10 not null, id1 int, id2 date,
+foreign key (id1) references t_copy_tri_from_20220622_tb4(id)
+);
+
+alter table t_copy_tri_from_20220622_tb3 drop column id;
+insert into t_copy_tri_from_20220622_tb3(f1,id1,id2) values(4,1,'2020-07-20'),(5,1,'2020-07-20');
+select * from t_copy_tri_from_20220622_tb3 order by 1,2,3;
+
+drop table t_copy_tri_from_20220622_tb3;
+drop table t_copy_tri_from_20220622_tb4;
+drop table t_copy_tri_20220622_tab1;
+
+--create and drop foreign key
+drop table if exists t_foreignkey_ref_itself; 
+CREATE TABLE t_foreignkey_ref_itself ( --ERROR
+ so_id int4,
+ item_id int4,
+ product_id int4,
+ qty int4,
+ net_price numeric,
+ FOREIGN KEY (item_id) REFERENCES t_foreignkey_ref_itself (so_id)
+);
+
+CREATE TABLE t_foreignkey_ref_itself (
+ so_id int4,
+ item_id int4,
+ product_id int4,
+ qty int4,
+ net_price numeric,
+ PRIMARY KEY (so_id),
+ FOREIGN KEY (item_id) REFERENCES t_foreignkey_ref_itself (so_id)
+);
+\d+ t_foreignkey_ref_itself
+alter table t_foreignkey_ref_itself drop constraint t_foreignkey_ref_itself_item_id_fkey;
+
+drop table t_foreignkey_ref_itself;
+CREATE TABLE t_foreignkey_ref_itself (
+ so_id int4,
+ item_id int4,
+ product_id int4,
+ qty int4,
+ net_price numeric,
+ PRIMARY KEY (item_id),
+ FOREIGN KEY (item_id) REFERENCES t_foreignkey_ref_itself (item_id)
+);
+\d+ t_foreignkey_ref_itself
+alter table t_foreignkey_ref_itself drop constraint t_foreignkey_ref_itself_item_id_fkey;
+
+drop table t_foreignkey_ref_itself;
+CREATE TABLE t_foreignkey_ref_itself ( --ERROR in distribute
+ so_id int4,
+ item_id int4,
+ product_id int4,
+ qty int4,
+ net_price numeric,
+ PRIMARY KEY (so_id),
+ FOREIGN KEY (item_id) REFERENCES t_foreignkey_ref_itself (so_id)
+) distribute By replication;
+
+CREATE TABLE t_foreignkey_ref_itself ( --ERROR
+ so_id int4,
+ item_id int4,
+ product_id int4,
+ qty int4,
+ net_price numeric,
+ PRIMARY KEY (so_id),
+ FOREIGN KEY (item_id) REFERENCES t_foreignkey_ref_itself (so_id)
+) partition by range (so_id) distribute By shard(so_id);
+
+drop table if exists t_foreignkey_ref_itself;
+CREATE TABLE t_foreignkey_ref_itself (
+ so_id int4,
+ item_id int4,
+ product_id int4,
+ qty int4,
+ net_price numeric,
+ PRIMARY KEY (so_id),
+ FOREIGN KEY (item_id) REFERENCES t_foreignkey_ref_itself (so_id)
+) distribute By shard(so_id);
+\d+ t_foreignkey_ref_itself
+alter table t_foreignkey_ref_itself drop constraint t_foreignkey_ref_itself_item_id_fkey;
+
+drop table t_foreignkey_ref_itself;
+CREATE TABLE t_foreignkey_ref_itself ( --ERROR
+ so_id int4,
+ item_id int4,
+ product_id int4,
+ qty int4,
+ net_price numeric,
+ PRIMARY KEY (so_id, qty),
+ FOREIGN KEY (item_id) REFERENCES t_foreignkey_ref_itself (so_id, qty)
+) distribute By shard(so_id);
+
+CREATE TABLE t_foreignkey_ref_itself (
+ so_id int4,
+ item_id int4,
+ product_id int4,
+ qty int4,
+ net_price numeric,
+ PRIMARY KEY (so_id, qty),
+ FOREIGN KEY (item_id, product_id) REFERENCES t_foreignkey_ref_itself (so_id, qty)
+) distribute By shard(so_id);
+\d+ t_foreignkey_ref_itself
+
+drop table t_foreignkey_ref_itself;
+CREATE TABLE t_foreignkey_ref_itself (
+ so_id int4,
+ item_id int4,
+ product_id int4,
+ qty int4,
+ net_price numeric,
+ PRIMARY KEY (so_id, qty),
+ FOREIGN KEY (item_id, product_id) REFERENCES t_foreignkey_ref_itself (so_id, qty),
+ FOREIGN KEY (product_id, item_id) REFERENCES t_foreignkey_ref_itself (so_id, qty)
+) distribute By shard(so_id);
+
+drop table t_foreignkey_ref_itself;
+CREATE TABLE t_foreignkey_ref_itself (
+ so_id int4,
+ item_id int4,
+ product_id int4,
+ qty int4,
+ net_price numeric
+) distribute By shard(so_id);
+alter table t_foreignkey_ref_itself add constraint t_foreignkey_ref_itself_item_id_fkey foreign key(item_id) REFERENCES _foreignkey_ref_itself (so_id); --ERROR
+alter table t_foreignkey_ref_itself add primary key (so_id);
+alter table t_foreignkey_ref_itself add constraint t_foreignkey_ref_itself_item_id_fkey foreign key(item_id) REFERENCES _foreignkey_ref_itself (so_id);
+alter table t_foreignkey_ref_itself add constraint t_foreignkey_ref_itself_product_id_fkey foreign key(product_id) REFERENCES _foreignkey_ref_itself (so_id);
+\d+ t_foreignkey_ref_itself
+alter table t_foreignkey_ref_itself drop constraint t_foreignkey_ref_itself_item_id_fkey;
+alter table t_foreignkey_ref_itself drop constraint t_foreignkey_ref_itself_product_id_fkey;
+
+drop table t_foreignkey_ref_itself;
+CREATE TABLE t_foreignkey_ref_itself ( --ERROR
+ so_id int4,
+ item_id int4,
+ product_id int4,
+ qty int4,
+ net_price numeric,
+ PRIMARY KEY (so_id, qty)
+) distribute By shard(so_id);
+alter table t_foreignkey_ref_itself add constraint t_foreignkey_ref_itself_item_id_fkey foreign key(item_id) REFERENCES _foreignkey_ref_itself (so_id);
+alter table t_foreignkey_ref_itself drop constraint t_foreignkey_ref_itself_item_id_fkey;
+
+drop table t_foreignkey_ref_itself;
+CREATE TABLE t_foreignkey_ref_itself (
+ so_id int4,
+ item_id int4,
+ product_id int4,
+ qty int4,
+ net_price numeric,
+ PRIMARY KEY (so_id, qty)
+) distribute By shard(so_id);
+alter table t_foreignkey_ref_itself add constraint t_foreignkey_ref_itself_item_id_fkey foreign key(item_id, product_id) REFERENCES _foreignkey_ref_itself (so_id, qty);
+alter table t_foreignkey_ref_itself drop constraint t_foreignkey_ref_itself_item_id_fkey;
+
+drop table t_foreignkey_ref_itself;
+CREATE TABLE t_foreignkey_ref_itself (
+ so_id int4,
+ item_id int4,
+ product_id int4,
+ qty int4,
+ net_price numeric,
+ PRIMARY KEY (so_id, qty)
+) distribute By replication;
+alter table t_foreignkey_ref_itself add constraint t_foreignkey_ref_itself_item_id_fkey foreign key(item_id, product_id) REFERENCES _foreignkey_ref_itself (so_id, qty);--ERROR
+
+drop table t_foreignkey_ref_itself;
+CREATE TABLE t_foreignkey_ref_itself (
+ so_id int4,
+ item_id int4,
+ product_id int4,
+ qty int4,
+ net_price numeric,
+ PRIMARY KEY (so_id)
+) partition by range (so_id) distribute By shard(so_id);
+alter table t_foreignkey_ref_itself add constraint t_foreignkey_ref_itself_item_id_fkey foreign key(item_id) REFERENCES _foreignkey_ref_itself (so_id);--ERROR
+
+drop table t_foreignkey_ref_itself;
+CREATE TABLE t_foreignkey_ref_itself (
+ so_id int4,
+ item_id int4,
+ product_id int4,
+ qty int4,
+ net_price numeric,
+ PRIMARY KEY (so_id)
+) distribute By shard(so_id);
+alter table t_foreignkey_ref_itself add constraint t_foreignkey_ref_itself_item_id_fkey foreign key(item_id) REFERENCES _foreignkey_ref_itself (so_id);
+
+--insert/update/delete check
+insert into t_foreignkey_ref_itself select t,t,t,t,t from generate_series(1,10) as t;
+select * from t_foreignkey_ref_itself order by so_id;
+
+insert into t_foreignkey_ref_itself(so_id, item_id, product_id) values (11,12,13);--ERROR
+insert into t_foreignkey_ref_itself(so_id, item_id, product_id) values (11,12,11);--ERROR
+insert into t_foreignkey_ref_itself(so_id, item_id, product_id) values (11,11,12);
+select * from t_foreignkey_ref_itself order by so_id;
+
+update t_foreignkey_ref_itself set item_id = 100 where item_id = 1;--ERROR
+update t_foreignkey_ref_itself set item_id = 15 where item_id = 10;--ERROR
+update t_foreignkey_ref_itself set item_id = 5 where item_id = 10;
+select * from t_foreignkey_ref_itself order by so_id;
+
+delete from t_foreignkey_ref_itself where so_id = 5;--ERROR
+delete from t_foreignkey_ref_itself where so_id = 1;
+delete from t_foreignkey_ref_itself where so_id = 10;
+delete from t_foreignkey_ref_itself where so_id = 5;
+select * from t_foreignkey_ref_itself order by so_id;
+
+--insert on conflict
+insert into t_foreignkey_ref_itself values(2,12,12,12,12) on conflict(so_id) do UPDATE SET item_id = 13;--ERROR
+insert into t_foreignkey_ref_itself values(2,12,12,12,12) on conflict(so_id) do UPDATE SET item_id = 8;
+select * from t_foreignkey_ref_itself order by so_id;
+
+drop table if exists t_foreignkey_ref_itself;

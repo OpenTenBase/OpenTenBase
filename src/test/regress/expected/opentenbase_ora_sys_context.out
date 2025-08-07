@@ -1,0 +1,188 @@
+create user u_test_sys_context_20231017 with login superuser;
+\c regression_ora u_test_sys_context_20231017
+--
+-- test sys_context
+--
+select sys_context('USERENV', 'CURRENT_USER');
+         SYS_CONTEXT         
+-----------------------------
+ u_test_sys_context_20231017
+(1 row)
+
+--select sys_context('USERENV', 'CURRENT_USERID');
+select sys_context('USERENV', 'DB_NAME');
+  SYS_CONTEXT   
+----------------
+ regression_ora
+(1 row)
+
+select sys_context('USERENV', 'IP_ADDRESS');
+ SYS_CONTEXT 
+-------------
+ [local]
+(1 row)
+
+select sys_context('USERENV', 'ISDBA');
+ SYS_CONTEXT 
+-------------
+ TRUE
+(1 row)
+
+--select sys_context('USERENV', 'HOST');
+--select sys_context('USERENV', 'INSTANCE_NAME');
+--select sys_context('USERENV', 'INSTANCE');
+--select sys_context('USERENV', 'OPENTENBASE_ORA_HOME');
+select sys_context('USERENV', 'CURRENT_SCHEMA');
+ SYS_CONTEXT 
+-------------
+ public
+(1 row)
+
+select sys_context('USERENV', 'HAHAHA');
+ SYS_CONTEXT 
+-------------
+ 
+(1 row)
+
+select sys_context('userenv', 'current_user', 1);
+ SYS_CONTEXT 
+-------------
+ u
+(1 row)
+
+--select sys_context('USERENV'::text, 'current_USERID', 2);
+select sys_context('userenv', 'DB_NaME', 3);
+ SYS_CONTEXT 
+-------------
+ reg
+(1 row)
+
+select sys_context('USERENV', 'IP_AddRESS', 0);
+ SYS_CONTEXT 
+-------------
+ [local]
+(1 row)
+
+select sys_context('userenv'::varchar, 'IsdBA', 1000);
+ SYS_CONTEXT 
+-------------
+ TRUE
+(1 row)
+
+--select sys_context('USERENV', 'HOST', 4000);
+--select sys_context('userenv'::varchar2, 'INSTANCE_NAME', 8000);
+--select sys_context('USERENV', 'INstaNCE', -1);
+--select sys_context('userenv', 'OPENTENBASE_ORA_HOME', -8);
+select sys_context('USERENV', 'CURRENT_SCHEMA', -11111);
+ SYS_CONTEXT 
+-------------
+ public
+(1 row)
+
+select sys_context('OPENTENBASE', 'CURRENT_USER');
+ SYS_CONTEXT 
+-------------
+ 
+(1 row)
+
+select sys_context('OPENTENBASE', '');
+ SYS_CONTEXT 
+-------------
+ 
+(1 row)
+
+select sys_context('', '');
+ SYS_CONTEXT 
+-------------
+ 
+(1 row)
+
+select sys_context('OPENTENBASE'); --fail
+ERROR:  function SYS_CONTEXT(UNKNOWN) does not exist
+LINE 1: select sys_context('OPENTENBASE');
+               ^
+HINT:  No function matches the given name and argument types. You might need to add explicit type casts.
+--
+-- test xs_sys_context
+--
+select xs_sys_context('XS$SESSION', 'CREATE_BY') from dual;
+       XS_SYS_CONTEXT        
+-----------------------------
+ u_test_sys_context_20231017
+(1 row)
+
+select xs_sys_context('XS$SESSION', 'CREATE_TIME') from dual;
+ XS_SYS_CONTEXT 
+----------------
+ 
+(1 row)
+
+select xs_sys_context('XS$SESSION', 'COOKIE') from dual;
+ XS_SYS_CONTEXT 
+----------------
+ 
+(1 row)
+
+select xs_sys_context('XS$SESSION', 'CURRENT_XS_USER') from dual;
+       XS_SYS_CONTEXT        
+-----------------------------
+ u_test_sys_context_20231017
+(1 row)
+
+--select xs_sys_context('XS$SESSION', 'CURRENT_XS_USER_GUID') from dual;
+select xs_sys_context('XS$SESSION', 'INACTIVITY_TIMEOUT') from dual;
+ XS_SYS_CONTEXT 
+----------------
+ 
+(1 row)
+
+select xs_sys_context('XS$SESSION', 'LAST_ACCESS_TIME') from dual;
+ XS_SYS_CONTEXT 
+----------------
+ 
+(1 row)
+
+select xs_sys_context('XS$SESSION', 'LAST_AUTHENTICATION_TIME') from dual;
+ XS_SYS_CONTEXT 
+----------------
+ 
+(1 row)
+
+select xs_sys_context('XS$SESSION', 'LAST_UPDATED_BY') from dual;
+ XS_SYS_CONTEXT 
+----------------
+ 
+(1 row)
+
+--select xs_sys_context('XS$SESSION', 'PROXY_GUID') from dual;
+--select xs_sys_context('XS$SESSION', 'SESSION_ID') from dual;
+select xs_sys_context('XS$SESSION', 'SESSION_XS_USER') from dual;
+       XS_SYS_CONTEXT        
+-----------------------------
+ u_test_sys_context_20231017
+(1 row)
+
+--select xs_sys_context('XS$SESSION', 'SESSION_XS_USER_GUID') from dual;
+select xs_sys_context('XS$SESSION', 'USERNAME') from dual;
+       XS_SYS_CONTEXT        
+-----------------------------
+ u_test_sys_context_20231017
+(1 row)
+
+--select xs_sys_context('XS$SESSION', 'USER_ID') from dual;
+BEGIN;
+CREATE SCHEMA SYS;
+CREATE VIEW SYS.DUAL AS SELECT * FROM DUAL;
+SELECT DECODE(USER, 'XS$NULL', XS_SYS_CONTEXT('XS$SESSION','USERNAME'), USER) FROM SYS.DUAL;
+           DECODE            
+-----------------------------
+ u_test_sys_context_20231017
+(1 row)
+
+ROLLBACK;
+SELECT SYS_CONTEXT('USERENV', 'SESSION_USER') is not null FROM dual;
+ ?column? 
+----------
+ t
+(1 row)
+

@@ -8,9 +8,6 @@
  * Portions Copyright (c) 1994, Regents of the University of California
  * Portions Copyright (c) 2010-2012 Postgres-XC Development Group
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * $PostgreSQL$
  *
  *-------------------------------------------------------------------------
@@ -106,6 +103,8 @@ typedef struct GTM_ThreadInfo
     GTM_WorkerStatistics  *stat_handle;     /* statistics hanndle */
     DataPumpBuf           *datapump_buff;   /* log collection buff */
     bool                  am_syslogger;
+    bool 				  may_wait_sync;
+    bool				  store_locked;
 } GTM_ThreadInfo;
 
 typedef struct GTM_Threads
@@ -143,6 +142,11 @@ void GTM_SetInitialAndNextClientIdentifierAtPromote(void);
 GTM_ThreadInfo *GTM_ThreadCreate(
 				  void *(* startroutine)(void *), int32 max_lock);
 GTM_ThreadInfo * GTM_GetThreadInfo(GTM_ThreadID thrid);
+
+#ifdef __RESOURCE_QUEUE__
+extern void GTM_ThreadSetName(const char * name);
+#endif
+
 #ifdef XCP
 extern void SaveControlInfo(void);
 void GTM_RestoreSeqInfo(FILE *ctlf, struct GTM_RestoreContext *context);
@@ -157,7 +161,14 @@ extern   bool	enable_gtm_sequence_debug;
 extern	 bool 	enable_gtm_debug;
 extern   bool   enable_sync_commit;
 extern   int    warnning_time_cost;
+extern   int	gtm_walreceiver_timeout;
+extern   int	gtm_walsender_timeout;
 #endif
+
+#ifdef __RESOURCE_QUEUE__
+extern 	bool	enable_gtm_resqueue_debug;
+#endif
+
 /*
  * pthread keys to get thread specific information
  */
@@ -180,7 +191,9 @@ extern GTM_ThreadID						TopMostThreadID;
 #define errordata_stack_depth	(GetMyThreadInfo->thr_error_stack_depth)
 #define CritSectionCount		(GetMyThreadInfo->thr_criticalsec_count)
 
+#ifndef PG_exception_stack
 #define PG_exception_stack		(GetMyThreadInfo->thr_sigjmp_buf)
+#endif
 #define MyConnection			(GetMyThreadInfo->thr_conn)
 #define MyPort					((GetMyThreadInfo->thr_conn != NULL) ?	\
 									GetMyThreadInfo->thr_conn->con_port :	\

@@ -9,9 +9,6 @@
  * Written by Peter Eisentraut <peter_e@gmx.net>.
  * Modified by Koichi Suzuki <koichi.szk@gmail.com>
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * src/include/gtm/gtm_opt.h
  *--------------------------------------------------------------------
  */
@@ -131,6 +128,7 @@ struct config_enum_entry
 /*
  * Signatures for per-variable check/assign/show hook functions
  */
+/* No hook in GTM */
 typedef bool (*GtmOptBoolCheckHook) (bool *newval, void **extra, GtmOptSource source);
 typedef bool (*GtmOptIntCheckHook) (int *newval, void **extra, GtmOptSource source);
 typedef bool (*GtmOptRealCheckHook) (double *newval, void **extra, GtmOptSource source);
@@ -377,6 +375,11 @@ const char *const config_type_names[] =\
 #define GTM_OPTNAME_ENABLE_XLOG_DEBUG            "enable_gtm_xlog_debug"
 #define GTM_OPTNAME_RECOVERY_TARGET_GLOBALTIMESTAMP "recovery_target_global_timestamp"
 #define GTM_OPTNAME_RECOVERY_COMMAND              "recovery_command"
+#define GTM_OPTNAME_WARNNING_TIME_COST            "warnning_time_cost"
+#endif
+
+#ifdef __RESOURCE_QUEUE__
+#define GTM_OPTNAME_ENABLE_RESQUEUE_DEBUG    "enable_gtm_resqueue_debug"
 #endif
 
 #define GTM_OPTNAME_UNIX_SOCKET_DIRECTORY       "unix_socket_directory"

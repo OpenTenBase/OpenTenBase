@@ -23,4 +23,3 @@ GTM_XLOG=true
 Before_Stop="echo %d %b %v &> /tmp/before_stop"
 During_Stop="echo %d %b %v &> /tmp/during_stop"
 After_Start="echo %d %b %v &> /tmp/after_start"
-

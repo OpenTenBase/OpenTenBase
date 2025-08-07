@@ -424,7 +424,7 @@ ProcessConfigFileInternal(GucContext context, bool applySettings, int elevel)
 			continue;
 
 		/* In SIGHUP cases in the postmaster, we want to report changes */
-		if (context == PGC_SIGHUP && applySettings && !IsUnderPostmaster)
+		if (context == PGC_SIGHUP && applySettings && (!IsUnderPostmaster || (guc_name_compare(item->name, "upgrade_mode") == 0)))
 		{
 			const char *preval = GetConfigOption(item->name, true, false);
 
@@ -451,6 +451,13 @@ ProcessConfigFileInternal(GucContext context, bool applySettings, int elevel)
 					ereport(elevel,
 							(errmsg("parameter \"%s\" changed to \"%s\"",
 									item->name, item->value)));
+				if (guc_name_compare(item->name, "upgrade_mode") == 0)
+				{
+					if (strcmp(pre_value, "0") != 0 && strcmp(post_value, "0") == 0)
+					{
+						pg_atomic_write_u32((pg_atomic_uint32*)(&WorkingGrandVersionNum), GRAND_VERSION_NUM);
+					}
+				}
 			}
 			item->applied = true;
 		}
@@ -831,11 +838,29 @@ ParseConfigFp(FILE *fp, const char *config_file, int depth, int elevel,
 			item->ignore = false;
 			item->applied = false;
 			item->next = NULL;
-			if (*head_p == NULL)
-				*head_p = item;
+			if (guc_name_compare(opt_name,"upgrade_mode") == 0)
+			{
+				if (*head_p == NULL)
+				{
+					*head_p = item;
+					*tail_p = item;
+				}
+				else
+				{
+					ConfigVariable *prev_head = *head_p;
+					*head_p = item;
+					item->next = prev_head;
+				}
+			}
 			else
-				(*tail_p)->next = item;
-			*tail_p = item;
+			{
+				if (*head_p == NULL)
+					*head_p = item;
+				else
+					(*tail_p)->next = item;
+
+				*tail_p = item;
+			}
 		}
 
 		/* break out of loop if read EOF, else loop for next line */

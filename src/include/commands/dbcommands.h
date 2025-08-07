@@ -7,9 +7,6 @@
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * src/include/commands/dbcommands.h
  *
  *-------------------------------------------------------------------------
@@ -23,8 +20,11 @@
 #include "nodes/parsenodes.h"
 
 extern Oid	createdb(ParseState *pstate, const CreatedbStmt *stmt);
-extern bool dropdb(const char *dbname, bool missing_ok);
-extern void dropdb_prepare(const char *dbname, bool missing_ok);
+extern void dropdb_prepare(const char *dbname, bool missing_ok, bool force);
+extern void dropdb(const char *dbname, bool missing_ok, bool force);
+#if 0
+extern void DropDatabase(ParseState *pstate, DropdbStmt *stmt);
+#endif
 extern ObjectAddress RenameDatabase(const char *oldname, const char *newname);
 extern Oid	AlterDatabase(ParseState *pstate, AlterDatabaseStmt *stmt, bool isTopLevel);
 extern Oid	AlterDatabaseSet(AlterDatabaseSetStmt *stmt);
@@ -38,5 +38,12 @@ extern void check_encoding_locale_matches(int encoding, const char *collate, con
 #ifdef PGXC
 extern bool IsSetTableSpace(AlterDatabaseStmt *stmt);
 #endif
+
+extern char pg_char_to_sql_mode(char* smode);
+extern const char* pg_sql_mode_to_char(char smode);
+
+extern void CreateDirAlias(const CreateDirStmt *stmt);
+extern void CheckDirExists(const CreateDirStmt *stmt);
+extern void DropDirAlias(const DropDirStmt *stmt);
 
 #endif							/* DBCOMMANDS_H */

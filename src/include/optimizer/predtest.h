@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * predtest.h
- *      prototypes for predtest.c
+ *	  prototypes for predtest.c
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -18,8 +18,8 @@
 
 
 extern bool predicate_implied_by(List *predicate_list, List *clause_list,
-                     bool clause_is_check);
+					 bool clause_is_check);
 extern bool predicate_refuted_by(List *predicate_list, List *clause_list,
-                     bool clause_is_check);
+					 bool clause_is_check);
 
-#endif                            /* PREDTEST_H */
+#endif							/* PREDTEST_H */

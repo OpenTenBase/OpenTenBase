@@ -2,10 +2,7 @@
  *
  * replslotdesc.h
  *
- * Copyright (c) 2023 THL A29 Limited, a Tencent company.
- *
- * This source code file is licensed under the BSD 3-Clause License,
- * you may obtain a copy of the License at http://opensource.org/license/bsd-3-clause/
+ * Portions Copyright (c) 2019, OpenTenBase Development Group
  *
  * src/include/access/replslotdesc.h
  *
@@ -23,23 +20,23 @@ typedef struct xl_replication_slot_create
     int             slotid;
 
     /* in ReplicationSlotPersistentData */
-    NameData        slotname;
-    Oid                database;
+    NameData	    slotname;
+    Oid			    database;
     int             persistency;
     TransactionId   xmin;
     TransactionId   catalog_xmin;
-    XLogRecPtr        restart_lsn;
-    XLogRecPtr        confirmed_flush;
-    NameData        pluginname;
+	XLogRecPtr	    restart_lsn;
+    XLogRecPtr	    confirmed_flush;
+    NameData	    pluginname;
 
     /* in ReplicationSlot */
     TransactionId   effective_xmin;
-    TransactionId   effective_catalog_xmin;
-    bool            pgoutput;
+	TransactionId   effective_catalog_xmin;
+	bool            pgoutput;
     Oid             subid;      /* oid of subscription at remote */
-    NameData        subname;    /* name of subscription at remote */
+    NameData	    subname;    /* name of subscription at remote */
 
-    Oid             relid;
+	Oid             relid;
 
 } xl_replication_slot_create;
 
@@ -49,26 +46,18 @@ typedef struct xl_replication_slot_drop
     NameData        slotname;
 } xl_replication_slot_drop;
 
-typedef struct xl_replication_slot_rename
-{
-    int             slotid;
-    NameData        old_slotname;
-    NameData        new_slotname;
-} xl_replication_slot_rename;
-
 typedef struct xl_replication_slot_lsn_replica
 {
     int             slotid;
-    TransactionId   xmin;
+	TransactionId   xmin;
     TransactionId   catalog_xmin;
-    XLogRecPtr        restart_lsn;
-    XLogRecPtr        confirmed_flush;
+    XLogRecPtr	    restart_lsn;
+    XLogRecPtr	    confirmed_flush;
 } xl_replication_slot_lsn_replica;
 
 #define XLOG_REPLORIGIN_SLOT_CREATE         0x10
 #define XLOG_REPLORIGIN_SLOT_LSN_REPLICA    0x20
 #define XLOG_REPLORIGIN_SLOT_DROP           0x40
-#define XLOG_REPLORIGIN_SLOT_RENAME         0x60
 
 extern void replication_slot_redo(XLogReaderState *record);
 extern void replication_slot_desc(StringInfo buf, XLogReaderState *record);

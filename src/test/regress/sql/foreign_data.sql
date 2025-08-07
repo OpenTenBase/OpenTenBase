@@ -125,11 +125,11 @@ CREATE SERVER s1 FOREIGN DATA WRAPPER foo;
 CREATE SERVER s1 FOREIGN DATA WRAPPER foo;                  -- ERROR
 CREATE SERVER IF NOT EXISTS s1 FOREIGN DATA WRAPPER foo;	-- No ERROR, just NOTICE
 CREATE SERVER s2 FOREIGN DATA WRAPPER foo OPTIONS (host 'a', dbname 'b');
-CREATE SERVER s3 TYPE 'oracle' FOREIGN DATA WRAPPER foo;
-CREATE SERVER s4 TYPE 'oracle' FOREIGN DATA WRAPPER foo OPTIONS (host 'a', dbname 'b');
+CREATE SERVER s3 TYPE 'opentenbase_ora' FOREIGN DATA WRAPPER foo;
+CREATE SERVER s4 TYPE 'opentenbase_ora' FOREIGN DATA WRAPPER foo OPTIONS (host 'a', dbname 'b');
 CREATE SERVER s5 VERSION '15.0' FOREIGN DATA WRAPPER foo;
 CREATE SERVER s6 VERSION '16.0' FOREIGN DATA WRAPPER foo OPTIONS (host 'a', dbname 'b');
-CREATE SERVER s7 TYPE 'oracle' VERSION '17.0' FOREIGN DATA WRAPPER foo OPTIONS (host 'a', dbname 'b');
+CREATE SERVER s7 TYPE 'opentenbase_ora' VERSION '17.0' FOREIGN DATA WRAPPER foo OPTIONS (host 'a', dbname 'b');
 CREATE SERVER s8 FOREIGN DATA WRAPPER postgresql OPTIONS (foo '1'); -- ERROR
 CREATE SERVER s8 FOREIGN DATA WRAPPER postgresql OPTIONS (host 'localhost', dbname 's8db');
 \des+
@@ -785,6 +785,16 @@ TRUNCATE pt2;  -- ERROR
 
 DROP FOREIGN TABLE pt2_1;
 DROP TABLE pt2;
+
+-- foreign table cannot be part of partition tree made of temporary
+-- relations.
+CREATE TEMP TABLE temp_parted (a int) PARTITION BY LIST (a);
+CREATE FOREIGN TABLE foreign_part PARTITION OF temp_parted DEFAULT
+  SERVER s0;  -- ERROR
+CREATE FOREIGN TABLE foreign_part (a int) SERVER s0;
+ALTER TABLE temp_parted ATTACH PARTITION foreign_part DEFAULT;  -- ERROR
+DROP FOREIGN TABLE foreign_part;
+DROP TABLE temp_parted;
 
 -- Cleanup
 DROP SCHEMA foreign_schema CASCADE;

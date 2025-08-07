@@ -22,14 +22,14 @@ create unique index pkeys_i on pkeys (pkey1, pkey2);
 create trigger check_fkeys_pkey_exist
 	before insert or update on fkeys
 	for each row
-	execute procedure
+	execute function
 	check_primary_key ('fkey1', 'fkey2', 'pkeys', 'pkey1', 'pkey2');
 ERROR:  Postgres-XL does not support TRIGGER yet
 DETAIL:  The feature is not currently supported
 create trigger check_fkeys_pkey2_exist
 	before insert or update on fkeys
 	for each row
-	execute procedure check_primary_key ('fkey3', 'fkeys2', 'pkey23');
+	execute function check_primary_key ('fkey3', 'fkeys2', 'pkey23');
 ERROR:  Postgres-XL does not support TRIGGER yet
 DETAIL:  The feature is not currently supported
 --
@@ -91,11 +91,9 @@ insert into fkeys values (60, '6', 4);
 delete from pkeys where pkey1 = 30 and pkey2 = '3';
 delete from pkeys where pkey1 = 40 and pkey2 = '4';
 update pkeys set pkey1 = 7, pkey2 = '70' where pkey1 = 50 and pkey2 = '5';
-ERROR:  could not plan this distributed update
-DETAIL:  correlated UPDATE or updating distribution column currently not supported in Postgres-XL.
+ERROR:  Distributed column "pkey1" can't be updated in current version
 update pkeys set pkey1 = 7, pkey2 = '70' where pkey1 = 10 and pkey2 = '1';
-ERROR:  could not plan this distributed update
-DETAIL:  correlated UPDATE or updating distribution column currently not supported in Postgres-XL.
+ERROR:  Distributed column "pkey1" can't be updated in current version
 DROP TABLE pkeys;
 DROP TABLE fkeys;
 DROP TABLE fkeys2;
@@ -194,8 +192,7 @@ select * from tttest order by 1,2,3,4;
 -- now we want to change pric_id in ALL tuples
 -- this gets us not what we need
 update tttest set price_id = 5 where price_id = 3;
-ERROR:  could not plan this distributed update
-DETAIL:  correlated UPDATE or updating distribution column currently not supported in Postgres-XL.
+ERROR:  Distributed column "price_id" can't be updated in current version
 select * from tttest order by 1,2,3,4;
  price_id | price_val | price_on | price_off 
 ----------+-----------+----------+-----------
@@ -221,8 +218,7 @@ select * from tttest order by 1,2,3,4;
 
 -- and try change price_id now!
 update tttest set price_id = 5 where price_id = 3;
-ERROR:  could not plan this distributed update
-DETAIL:  correlated UPDATE or updating distribution column currently not supported in Postgres-XL.
+ERROR:  Distributed column "price_id" can't be updated in current version
 select * from tttest order by 1,2,3,4;
  price_id | price_val | price_on | price_off 
 ----------+-----------+----------+-----------
@@ -302,12 +298,10 @@ ERROR:  Postgres-XL does not support TRIGGER yet
 DETAIL:  The feature is not currently supported
 INSERT INTO main_table DEFAULT VALUES;
 UPDATE main_table SET a = a + 1 WHERE b < 30;
-ERROR:  could not plan this distributed update
-DETAIL:  correlated UPDATE or updating distribution column currently not supported in Postgres-XL.
+ERROR:  Distributed column "a" can't be updated in current version
 -- UPDATE that effects zero rows should still call per-statement trigger
 UPDATE main_table SET a = a + 2 WHERE b > 100;
-ERROR:  could not plan this distributed update
-DETAIL:  correlated UPDATE or updating distribution column currently not supported in Postgres-XL.
+ERROR:  Distributed column "a" can't be updated in current version
 -- constraint now unneeded
 ALTER TABLE main_table DROP CONSTRAINT main_table_a_key;
 -- COPY should fire per-row and per-statement INSERT triggers
@@ -356,8 +350,7 @@ INSERT INTO main_table (a) VALUES (123), (456);
 COPY main_table FROM stdin;
 DELETE FROM main_table WHERE a IN (123, 456);
 UPDATE main_table SET a = 50, b = 60;
-ERROR:  could not plan this distributed update
-DETAIL:  correlated UPDATE or updating distribution column currently not supported in Postgres-XL.
+ERROR:  Distributed column "a" can't be updated in current version
 SELECT * FROM main_table ORDER BY a, b;
  a  | b  
 ----+----
@@ -427,8 +420,7 @@ SELECT pg_get_triggerdef(oid) FROM pg_trigger WHERE tgrelid = 'main_table'::regc
 (0 rows)
 
 UPDATE main_table SET a = 50;
-ERROR:  could not plan this distributed update
-DETAIL:  correlated UPDATE or updating distribution column currently not supported in Postgres-XL.
+ERROR:  Distributed column "a" can't be updated in current version
 UPDATE main_table SET b = 10;
 --
 -- Test case for bug with BEFORE trigger followed by AFTER trigger with WHEN
@@ -457,14 +449,11 @@ ERROR:  Postgres-XL does not support TRIGGER yet
 DETAIL:  The feature is not currently supported
 INSERT INTO some_t VALUES (TRUE);
 UPDATE some_t SET some_col = TRUE;
-ERROR:  could not plan this distributed update
-DETAIL:  correlated UPDATE or updating distribution column currently not supported in Postgres-XL.
+ERROR:  Distributed column "some_col" can't be updated in current version
 UPDATE some_t SET some_col = FALSE;
-ERROR:  could not plan this distributed update
-DETAIL:  correlated UPDATE or updating distribution column currently not supported in Postgres-XL.
+ERROR:  Distributed column "some_col" can't be updated in current version
 UPDATE some_t SET some_col = TRUE;
-ERROR:  could not plan this distributed update
-DETAIL:  correlated UPDATE or updating distribution column currently not supported in Postgres-XL.
+ERROR:  Distributed column "some_col" can't be updated in current version
 DROP TABLE some_t;
 -- bogus cases
 CREATE TRIGGER error_upd_and_col BEFORE UPDATE OR UPDATE OF a ON main_table
@@ -710,11 +699,12 @@ INSERT INTO serializable_update_tab SELECT a, repeat('xyzxz', 100), 'new'
 BEGIN;
 SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
 UPDATE serializable_update_tab SET description = 'no no', id = 1 WHERE id = 1;
+ERROR:  Distributed column "id" can't be updated in current version
 COMMIT;
 SELECT description FROM serializable_update_tab WHERE id = 1;
  description 
 -------------
- no no
+ new
 (1 row)
 
 DROP TABLE serializable_update_tab;
@@ -1507,6 +1497,42 @@ drop table self_ref_trigger;
 drop function self_ref_trigger_ins_func();
 drop function self_ref_trigger_del_func();
 --
+-- Check that statement triggers work correctly even with all children excluded
+--
+create table stmt_trig_on_empty_upd (a int);
+create table stmt_trig_on_empty_upd1 () inherits (stmt_trig_on_empty_upd);
+create function update_stmt_notice() returns trigger as $$
+begin
+	raise notice 'updating %', TG_TABLE_NAME;
+	return null;
+end;
+$$ language plpgsql;
+create trigger before_stmt_trigger
+	before update on stmt_trig_on_empty_upd
+	execute procedure update_stmt_notice();
+ERROR:  Postgres-XL does not support TRIGGER yet
+DETAIL:  The feature is not currently supported
+create trigger before_stmt_trigger
+	before update on stmt_trig_on_empty_upd1
+	execute procedure update_stmt_notice();
+ERROR:  Postgres-XL does not support TRIGGER yet
+DETAIL:  The feature is not currently supported
+-- inherited no-op update
+update stmt_trig_on_empty_upd set a = a where false returning a+1 as aa;
+ aa 
+----
+(0 rows)
+
+-- simple no-op update
+update stmt_trig_on_empty_upd1 set a = a where false returning a+1 as aa;
+ aa 
+----
+(0 rows)
+
+drop table stmt_trig_on_empty_upd cascade;
+NOTICE:  drop cascades to table stmt_trig_on_empty_upd1
+drop function update_stmt_notice();
+--
 -- Check that index creation (or DDL in general) is prohibited in a trigger
 --
 create table trigger_ddl_table (
@@ -1583,17 +1609,17 @@ insert into upsert values(5, 'purple') on conflict (key) do update set color = '
 insert into upsert values(6, 'white') on conflict (key) do update set color = 'updated ' || upsert.color;
 insert into upsert values(7, 'pink') on conflict (key) do update set color = 'updated ' || upsert.color;
 insert into upsert values(8, 'yellow') on conflict (key) do update set color = 'updated ' || upsert.color;
-select * from upsert;
+select * from upsert order by 1,2;
  key | color  
 -----+--------
    1 | black
    2 | red
-   5 | purple
-   6 | white
-   8 | yellow
    3 | orange
    4 | green
+   5 | purple
+   6 | white
    7 | pink
+   8 | yellow
 (8 rows)
 
 drop table upsert;
@@ -1749,7 +1775,7 @@ $$;
 --
 -- Verify behavior of statement triggers on partition hierarchy with
 -- transition tables.  Tuples should appear to each trigger in the
--- format of the the relation the trigger is attached to.
+-- format of the relation the trigger is attached to.
 --
 -- set up a partition hierarchy with some different TupleDescriptors
 create table parent (a text, b int) partition by list (a);
@@ -2087,6 +2113,19 @@ DETAIL:  The feature is not currently supported
 with wcte as (insert into table1 values (42))
   insert into table2 values ('hello world');
 ERROR:  INSERT/UPDATE/DELETE is not supported in subquery
+with wcte as (insert into table1 values (43))
+  insert into table1 values (44);
+ERROR:  INSERT/UPDATE/DELETE is not supported in subquery
+select * from table1;
+ a 
+---
+(0 rows)
+
+select * from table2;
+ a 
+---
+(0 rows)
+
 drop table table1;
 drop table table2;
 --
@@ -2117,6 +2156,39 @@ insert into my_table values (3, 'CCC'), (4, 'DDD')
   on conflict (a) do
   update set b = my_table.b || ':' || excluded.b;
 --
+-- now using a partitioned table
+--
+set enable_datanode_row_triggers to true;
+create table iocdu_tt_parted (a int primary key, b text) partition by list (a) distribute by hash(a);
+create table iocdu_tt_parted1 partition of iocdu_tt_parted for values in (1);
+create table iocdu_tt_parted2 partition of iocdu_tt_parted for values in (2);
+create table iocdu_tt_parted3 partition of iocdu_tt_parted for values in (3);
+create table iocdu_tt_parted4 partition of iocdu_tt_parted for values in (4);
+create trigger iocdu_tt_parted_insert_trig
+  after insert on iocdu_tt_parted referencing new table as new_table
+  for each statement execute procedure dump_insert();
+ERROR:  "iocdu_tt_parted" is a partitioned table
+DETAIL:  Partitioned tables cannot have ROW triggers.
+create trigger iocdu_tt_parted_update_trig
+  after update on iocdu_tt_parted referencing old table as old_table new table as new_table
+  for each statement execute procedure dump_update();
+ERROR:  "iocdu_tt_parted" is a partitioned table
+DETAIL:  Partitioned tables cannot have ROW triggers.
+-- inserts only
+insert into iocdu_tt_parted values (1, 'AAA'), (2, 'BBB')
+  on conflict (a) do
+  update set b = iocdu_tt_parted.b || ':' || excluded.b;
+-- mixture of inserts and updates
+insert into iocdu_tt_parted values (1, 'AAA'), (2, 'BBB'), (3, 'CCC'), (4, 'DDD')
+  on conflict (a) do
+  update set b = iocdu_tt_parted.b || ':' || excluded.b;
+-- updates only
+insert into iocdu_tt_parted values (3, 'CCC'), (4, 'DDD')
+  on conflict (a) do
+  update set b = iocdu_tt_parted.b || ':' || excluded.b;
+drop table iocdu_tt_parted;
+reset enable_datanode_row_triggers;
+--
 -- Verify that you can't create a trigger with transition tables for
 -- more than one event.
 --
@@ -2125,8 +2197,205 @@ create trigger my_table_multievent_trig
   for each statement execute procedure dump_insert();
 ERROR:  Postgres-XL does not support TRIGGER yet
 DETAIL:  The feature is not currently supported
+--
+-- Verify that you can't create a trigger with transition tables with
+-- a column list.
+--
+set enable_datanode_row_triggers to true;
+create trigger my_table_col_update_trig
+  after update of b on my_table referencing new table as new_table
+  for each statement execute procedure dump_insert();
+ERROR:  transition tables cannot be specified for triggers with column lists
 drop table my_table;
+--
+-- Test firing of triggers with transition tables by foreign key cascades
+--
+drop table if exists refd_table cascade;
+NOTICE:  table "refd_table" does not exist, skipping
+drop table if exists trig_table cascade;
+NOTICE:  table "trig_table" does not exist, skipping
+create table refd_table (a int primary key, b text) distribute by shard(a);
+create table trig_table (a int, b text,
+  foreign key (a) references refd_table on update cascade on delete cascade
+)
+distribute by shard(a);
+create trigger trig_table_insert_trig
+  after insert on trig_table referencing new table as new_table
+  for each statement execute procedure dump_insert();
+create trigger trig_table_update_trig
+  after update on trig_table referencing old table as old_table new table as new_table
+  for each statement execute procedure dump_update();
+create trigger trig_table_delete_trig
+  after delete on trig_table referencing old table as old_table
+  for each statement execute procedure dump_delete();
+insert into refd_table values
+  (1, 'one'),
+  (2, 'two'),
+  (3, 'three');
+insert into trig_table values
+  (1, 'one a'),
+  (1, 'one b'),
+  (2, 'two a'),
+  (2, 'two b'),
+  (3, 'three a'),
+  (3, 'three b');
+NOTICE:  trigger = trig_table_insert_trig, new table = (1,"one a"), (1,"one b"), (2,"two a"), (2,"two b"), (3,"three a"), (3,"three b")
+-- Not supported in distributed mode
+update refd_table set a = 11 where b = 'one';
+ERROR:  Distributed column "a" can't be updated in current version
+select * from trig_table order by 1,2;
+ a |    b    
+---+---------
+ 1 | one a
+ 1 | one b
+ 2 | two a
+ 2 | two b
+ 3 | three a
+ 3 | three b
+(6 rows)
+
+delete from refd_table where length(b) = 3;
+NOTICE:  trigger = trig_table_delete_trig, old table = (1,"one a"), (1,"one b"), (2,"two a"), (2,"two b")
+select * from trig_table order by 1,2;
+ a |    b    
+---+---------
+ 3 | three a
+ 3 | three b
+(2 rows)
+
+drop table refd_table, trig_table;
+--
+-- self-referential FKs are even more fun
+--
+drop table if exists self_ref cascade;
+NOTICE:  table "self_ref" does not exist, skipping
+create table self_ref (a int primary key,
+                       b int references self_ref(a) on delete cascade) distribute by shard(a);
+create trigger self_ref_r_trig
+  after delete on self_ref referencing old table as old_table
+  for each row execute procedure dump_delete();
+create trigger self_ref_s_trig
+  after delete on self_ref referencing old table as old_table
+  for each statement execute procedure dump_delete();
+insert into self_ref values (1, null), (2, 1), (3, 2);
+delete from self_ref where a = 1;
+NOTICE:  trigger = self_ref_r_trig, old table = (1,), (2,1)
+NOTICE:  trigger = self_ref_r_trig, old table = (1,), (2,1)
+NOTICE:  trigger = self_ref_s_trig, old table = (1,), (2,1)
+NOTICE:  trigger = self_ref_r_trig, old table = (3,2)
+NOTICE:  trigger = self_ref_s_trig, old table = (3,2)
+-- without AR trigger, cascaded deletes all end up in one transition table
+drop trigger self_ref_r_trig on self_ref;
+insert into self_ref values (1, null), (2, 1), (3, 2), (4, 3);
+delete from self_ref where a = 1;
+NOTICE:  trigger = self_ref_s_trig, old table = (1,), (2,1), (3,2), (4,3)
+drop table self_ref;
+reset enable_datanode_row_triggers;
 -- cleanup
 drop function dump_insert();
 drop function dump_update();
 drop function dump_delete();
+-- trigger with shard table
+CREATE TABLE t_trigger
+ (
+     id integer NOT NULL,
+     nc text NOT NULL
+ ) distribute by shard(id);
+CREATE OR REPLACE FUNCTION t_trigger_insert_trigger_func() RETURNS trigger AS 
+$$
+BEGIN
+    IF NEW.nc = '' THEN    
+        NEW.nc = 'OpenTenBase_' || random()::text;
+    END IF;
+    RETURN NEW;
+END;
+$$ 
+LANGUAGE plpgsql;
+CREATE TRIGGER t_trigger_insert_trigger BEFORE INSERT ON t_trigger
+  FOR EACH ROW EXECUTE PROCEDURE t_trigger_insert_trigger_func();  
+NOTICE:  function t_trigger_insert_trigger_func is evaluated to push down to DN for trigger execution
+HINT:  if you want to change this behavior, use ALTER FUNCTION t_trigger_insert_trigger_func NOT PUSHDOWN
+INSERT INTO t_trigger values(1,'');
+SELECT count(*) FROM t_trigger;
+ count 
+-------
+     1
+(1 row)
+
+drop table t_trigger;
+drop function t_trigger_insert_trigger_func();
+-- trigger support subtransaction
+drop table if exists tb1 cascade;
+NOTICE:  table "tb1" does not exist, skipping
+drop table if exists tb3 cascade;
+NOTICE:  table "tb3" does not exist, skipping
+drop function if exists fun_fbjfyj();
+NOTICE:  function fun_fbjfyj() does not exist, skipping
+create table tb1(a int, b int, c1 varchar(50), c2 varchar(50) COLLATE "pg_catalog"."default", primary key(c1));
+create table tb3(
+    a int,
+    d1 varchar(18) COLLATE "pg_catalog"."default",
+    d2 varchar(600) COLLATE "pg_catalog"."default"
+);
+CREATE OR REPLACE FUNCTION fun_fbjfyj()
+  RETURNS trigger AS $BODY$
+    DECLARE
+        TF              integer :=0;
+    BEGIN
+        begin
+            select NVL2(MAX(a), '1', '0') INTO TF from tb1 where a = 7;
+            IF TF = '1' THEN RETURN new; END IF;
+            new.d1 := '11';
+            new.d2 := '111';
+            insert into tb1 values(12, 12, new.d1, new.d2);
+        end;
+        RETURN new;
+exception
+    when others then
+    return new;
+    END
+$BODY$
+LANGUAGE plpgsql VOLATILE
+COST 100;
+create trigger tb3_insert after insert on tb3
+FOR EACH ROW
+EXECUTE PROCEDURE fun_fbjfyj();
+ERROR:  Postgres-XL does not support TRIGGER yet
+DETAIL:  The feature is not currently supported
+insert into tb3 values(1, '11', '111'), (2, '22', '222'), (3,'33','333');
+insert into tb3 values(1, '11', '111'), (2, '22', '222'), (3,'33','333');
+select count(*) from tb3;
+ count 
+-------
+     6
+(1 row)
+
+drop table tb1 cascade;
+drop table tb3 cascade;
+drop function fun_fbjfyj();
+-- Test row storage table distribute by shard trigger
+create table test_insert_into_select_trigger_table1(id int,  name varchar(20)) distribute by shard(id);
+create table test_insert_into_select_trigger_table2(id int, name varchar(20)) distribute by shard(id);
+create table test_insert_into_select_trigger_table_temp(id int,  name varchar(20)) distribute by shard(id);
+insert into test_insert_into_select_trigger_table_temp values(100, 'test1');
+insert into test_insert_into_select_trigger_table_temp values(200, 'test2');
+insert into test_insert_into_select_trigger_table_temp values(300, 'test3');
+create or replace function test_insert_into_select_trigger_table2_func() returns trigger as $$
+begin
+        insert into test_insert_into_select_trigger_table2 values(new.id, new.name);
+        raise notice '% % % %', TG_RELNAME, TG_OP, TG_WHEN, TG_LEVEL;
+        return new;
+end;$$ language plpgsql;
+--create trigger test_insert_into_select_trigger_table2_trig before insert or delete or update on test_insert_into_select_trigger_table1
+--for each row execute procedure test_insert_into_select_trigger_table2_func();
+--insert into test_insert_into_select_trigger_table1 select * from test_insert_into_select_trigger_table_temp;
+--select * from test_insert_into_select_trigger_table1 order by id;
+--select * from test_insert_into_select_trigger_table2 order by id;
+--update test_insert_into_select_trigger_table1 set name = 'update' where id = 300;
+--select * from test_insert_into_select_trigger_table1 order by id;
+--select * from test_insert_into_select_trigger_table2 order by id;
+drop table if exists test_insert_into_select_trigger_table1;
+drop table if exists test_insert_into_select_trigger_table2;
+drop table if exists test_insert_into_select_trigger_table_temp;
+drop function test_insert_into_select_trigger_table2_func;
+drop table main_table cascade;

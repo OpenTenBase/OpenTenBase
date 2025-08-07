@@ -73,16 +73,17 @@ SELECT count(*) FROM byteatmp WHERE a  =  '2eb2c961c1cbf6 cf8d7b68cb9a2f36 7bbed
 
 -- Test index-only scans
 SET enable_bitmapscan=off;
-EXPLAIN (COSTS OFF)
+EXPLAIN (COSTS OFF, NODES OFF)
 SELECT a FROM byteatmp where a > 'ffa'::bytea ORDER BY a;
                        QUERY PLAN                       
 --------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+ Remote Subquery Scan on all (datanodes 2)
+   Sort Key: a
    ->  Sort
          Sort Key: a
          ->  Index Only Scan using byteaidx on byteatmp
                Index Cond: (a > '\x666661'::bytea)
-(5 rows)
+(6 rows)
 
 SELECT a FROM byteatmp where a > 'ffa'::bytea ORDER BY a;
                a                

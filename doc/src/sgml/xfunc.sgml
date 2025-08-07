@@ -72,6 +72,39 @@
   </para>
   </sect1>
 
+  <sect1 id="xproc">
+   <title>User-defined Procedures</title>
+
+  <indexterm zone="xproc">
+   <primary>procedure</primary>
+   <secondary>user-defined</secondary>
+  </indexterm>
+
+   <para>
+    A procedure is a database object similar to a function.  The difference is
+    that a procedure does not return a value, so there is no return type
+    declaration.  While a function is called as part of a query or DML
+    command, a procedure is called explicitly using
+    the <xref linkend="sql-call"/> statement.
+   </para>
+
+   <para>
+    The explanations on how to define user-defined functions in the rest of
+    this chapter apply to procedures as well, except that
+    the <xref linkend="sql-createprocedure"/> command is used instead, there is
+    no return type, and some other features such as strictness don't apply.
+   </para>
+
+   <para>
+    Collectively, functions and procedures are also known
+    as <firstterm>routines</firstterm><indexterm><primary>routine</primary></indexterm>.
+    There are commands such as <xref linkend="sql-alterroutine"/>
+    and <xref linkend="sql-droproutine"/> that can operate on functions and
+    procedures without having to know which kind it is.  Note, however, that
+    there is no <literal>CREATE ROUTINE</literal> command.
+   </para>
+  </sect1>
+
   <sect1 id="xfunc-sql">
    <title>Query Language (<acronym>SQL</acronym>) Functions</title>
 
@@ -353,6 +386,31 @@ CREATE FUNCTION tf1 (accountno integer, debit numeric) RETURNS numeric AS $$
 $$ LANGUAGE SQL;
 </programlisting>
     </para>
+
+    <para>
+     A <acronym>SQL</acronym> function must return exactly its declared
+     result type.  This may require inserting an explicit cast.
+     For example, suppose we wanted the
+     previous <function>add_em</function> function to return
+     type <type>float8</type> instead.  This won't work:
+
+<programlisting>
+CREATE FUNCTION add_em(integer, integer) RETURNS float8 AS $$
+    SELECT $1 + $2;
+$$ LANGUAGE SQL;
+</programlisting>
+
+     even though in other contexts <productname>PostgreSQL</productname>
+     would be willing to insert an implicit cast to
+     convert <type>integer</type> to <type>float8</type>.
+     We need to write it as
+
+<programlisting>
+CREATE FUNCTION add_em(integer, integer) RETURNS float8 AS $$
+    SELECT ($1 + $2)::float8;
+$$ LANGUAGE SQL;
+</programlisting>
+    </para>
    </sect2>
 
    <sect2 id="xfunc-sql-composite-functions">
@@ -452,13 +510,16 @@ $$ LANGUAGE SQL;
       </listitem>
       <listitem>
        <para>
-        You must typecast the expressions to match the
-        definition of the composite type, or you will get errors like this:
+        We must ensure each expression's type matches the corresponding
+        column of the composite type, inserting a cast if necessary.
+        Otherwise we'll get errors like this:
 <screen>
 <computeroutput>
 ERROR:  function declared to return emp returns varchar instead of text at column 1
 </computeroutput>
 </screen>
+        As with the base-type case, the function will not insert any casts
+        automatically.
        </para>
       </listitem>
      </itemizedlist>
@@ -478,6 +539,11 @@ $$ LANGUAGE SQL;
      in this situation, but it is a handy alternative in some cases
      &mdash; for example, if we need to compute the result by calling
      another function that returns the desired composite value.
+     Another example is that if we are trying to write a function that
+     returns a domain over composite, rather than a plain composite type,
+     it is always necessary to write it as returning a single column,
+     since there is no other way to produce a value that is exactly of
+     the domain type.
     </para>
 
     <para>
@@ -2811,14 +2877,6 @@ typedef struct FuncCallContext
      * function is done.
      */
     uint64 max_calls;
-
-    /*
-     * OPTIONAL pointer to result slot
-     *
-     * This is obsolete and only present for backward compatibility, viz,
-     * user-defined SRFs that use the deprecated TupleDescGetSlot().
-     */
-    TupleTableSlot *slot;
 
     /*
      * OPTIONAL pointer to miscellaneous user-provided context information

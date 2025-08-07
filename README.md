@@ -1,4 +1,6 @@
-![logo](images/OpenTenBase_logo.svg)
+
+<img src="images/OpenTenBase_logo.svg" width="60%" />
+
 ___
 # OpenTenBase Database Management System
 OpenTenBase is an advanced enterprise-level database management system based on prior work of Postgres-XL project. It supports an extended subset of the SQL standard, including transactions, foreign keys, user-defined types and functions. Additional, it adds parallel computing, security, management, audit and other functions.
@@ -29,150 +31,267 @@ OS: TencentOS 2, TencentOS 3, OpenCloudOS, CentOS 7, CentOS 8, Ubuntu
 
 ### Dependence
 
-` yum -y install gcc make readline-devel zlib-devel openssl-devel uuid-devel bison flex`
+` yum -y install gcc make readline-devel zlib-devel openssl-devel uuid-devel bison flex cmake postgresql-devel libssh2-devel sshpass`
 
 or
 
-` apt install -y gcc make libreadline-dev zlib1g-dev libssl-dev libossp-uuid-dev bison flex`
+` apt install -y gcc make libreadline-dev zlib1g-dev libssl-dev libossp-uuid-dev bison flex cmake postgresql-devel libssh2-devel sshpass`
 
 ### Create User 'opentenbase'
 
-```shell
-mkdir /data
-useradd -d /data/opentenbase -s /bin/bash -m opentenbase # add user opentenbase
-passwd opentenbase # set password
-```
+    ```bash
+    # 1.make dir /data
+    mkdir -p /data
+
+    # 2. add user 
+    useradd -d /data/opentenbase -s /bin/bash -m opentenbase # add user opentenbase
+
+    # 3. set passwd
+    passwd opentenbase # set password
+
+    # 4. Add users to the wheel group
+    usermod -aG wheel opentenbase
+
+    # 5. Enable sudo permissions for the wheel group (via visudo), uncomment the line "% wheel", save and exit， # 取消注释 %wheel 行后保存
+    visudo 
+    ```
 
 ### Building
 
-```shell
-git clone https://github.com/OpenTenBase/OpenTenBase
+    ```bash
+    su - opentenbase
+    cd /data/opentenbase/
+    git clone https://github.com/OpenTenBase/OpenTenBase
 
-export SOURCECODE_PATH=/data/opentenbase/OpenTenBase
-export INSTALL_PATH=/data/opentenbase/install
+    export SOURCECODE_PATH=/data/opentenbase/OpenTenBase
+    export INSTALL_PATH=/data/opentenbase/install/
 
-cd ${SOURCECODE_PATH}
-rm -rf ${INSTALL_PATH}/opentenbase_bin_v2.0
-chmod +x configure*
-./configure --prefix=${INSTALL_PATH}/opentenbase_bin_v2.0 --enable-user-switch --with-openssl --with-ossp-uuid CFLAGS=-g
-make clean
-make -sj
-make install
-chmod +x contrib/pgxc_ctl/make_signature
-cd contrib
-make -sj
-make install
-```
+    cd ${SOURCECODE_PATH}
+    rm -rf ${INSTALL_PATH}/opentenbase_bin_v2.0
+    chmod +x configure*
+    ./configure --prefix=${INSTALL_PATH}/opentenbase_bin_v2.0 --enable-user-switch --with-openssl --with-ossp-uuid CFLAGS=-g
+    make clean
+    make -sj
+    make install
+    chmod +x contrib/pgxc_ctl/make_signature
+    cd contrib
+    make -sj
+    make install
+    ```
+
 **Notice: if you use Ubuntu and see *initgtm: command not found* while doing "init all", you may add *${INSTALL_PATH}/opentenbase_bin_v2.0/bin* to */etc/environment***
 
 ## Installation
 Use PGXC\_CTL tool to build a cluster, for example: a cluster with a global transaction management node (GTM), a coordinator(COORDINATOR) and two data nodes (DATANODE).
-
-![topology](images/topology.png)
+<img src="images/topology.png" width="50%" />
 ### Preparation
 
-1. Install pgxc and import the path of pgxc installation package into environment variable.
+    * 1. Install pgxc and import the path of pgxc installation package into environment variable.
 
     ```shell
-	PG_HOME=${INSTALL_PATH}/opentenbase_bin_v2.0
-	export PATH="$PATH:$PG_HOME/bin"
-	export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$PG_HOME/lib"
-	export LC_ALL=C
+    PG_HOME=${INSTALL_PATH}/opentenbase_bin_v2.0
+    export PATH="$PATH:$PG_HOME/bin"
+    export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$PG_HOME/lib"
+    export LC_ALL=C
     ```
 
-2. Disable SELinux and firewall (optional)
+    * 2. Disable SELinux and firewall (optional)
 
     ```
-	vi /etc/selinux/config # set SELINUX=disabled
-	# Disable firewalld
+    vi /etc/selinux/config # set SELINUX=disabled
+    # Disable firewalld
     systemctl disable firewalld
     systemctl stop firewalld
     ```
     
-2. Get through the SSH password free login between the machines where the cluster node is installed, and then deploy and init will SSH to the machines of each node. After getting through, you do not need to enter the password.
+    * 3. Create the *. tar.gz package for initializing instances.
 
     ```
-	ssh-keygen -t rsa
-	ssh-copy-id -i ~/.ssh/id_rsa.pub destination-user@destination-server
+    cd /data/opentenbase/install/
+    tar -zcf opentenbase-5.21.8-i.x86_64.tar.gz *
     ```
 
 ### Cluster startup steps
 
-1. Generate and fill in configuration file pgxc\_ctl.conf. pgxc\_ctl tool can generate a template for the configuration file. You need to fill in the cluster node information in the template. After the pgxc\_ctl tool is started, pgxc\_ctl directory will be generated in the current user's home directory. After entering " prepare config" command, the configuration file template that can be directly modified will be generated in pgxc\_ctl directory.
+1. Generate and fill in configuration file opentenbase\_config.ini . pgxc\_ctl tool can generate a template for the configuration file. You need to fill in the cluster node information in the template. After the pgxc\_ctl tool is started, pgxc\_ctl directory will be generated in the current user's home directory. After entering " prepare config" command, the configuration file template that can be directly modified will be generated in pgxc\_ctl directory.
 
-	* The pgxcInstallDir at the beginning of the configuration file refers to the installation package location of pgxc. The database user can set it according to his own needs.
+    * Description of each field in opentenbase\_config.ini
+	```
+    | 配置分类        | 配置项           | 配置说明                                                                   |
+    |----------------|-----------------|--------------------------------------------------------------------------|
+    | instance       | name            | 实例名称,可用的字符：半角大小写字母、数字、下划线，例如: opentenbase_instance01         |
+    |                | type            | distributed代表分布式，需要gtm、协调节点和数据节点；centralized代表集中式        |
+    |                | package         | 软件包。全路径(建议)或opentenbase_ctl的相对路径                               |
+    | gtm            | master          | 主节点，只有一个IP                                                          |
+    |                | slave           | 备节点。如果需要n个备节点，这里配置n个IP，半角逗号分隔。                          |
+    | coordinators   | master          | 主节点IP，自动生成节点名称，每个IP上部署nodes-per-server个                     |
+    |                | slave           | 备节点IP，个数是master的整数倍。                                             |
+    |                |                 | 举例：如果1主1备，则IP个数和master一样多；如果1主2备，则IP个数是master的两倍。     |
+    |                | nodes-per-server| 可选，默认1。每个IP上部署的节点数。举例：master有3个IP，这里配置2，则实际会有6个节点 |
+    |                |                 | cn001-cn006共6个节点，每个服务器分布2个节点。                                  |
+    | datanodes      | master          | 主节点IP，自动生成节点名称，每个IP上部署nodes-per-server个                     |
+    |                | slave           | 备节点IP，个数是master的整数倍。                                             |
+    |                |                 | 举例：如果1主1备，则IP个数和master一样多；如果1主2备，则IP个数是master的两倍。     |
+    |                | nodes-per-server| 可选，默认1。每个IP上部署的节点数。举例：master有3个IP，这里配置2，则实际会有6个节点 |
+    |                |                 | dn001-dn006共6个节点，每个服务器分布2个节点。                                  |
+    | server         | ssh-user        | 远程执行命令的用户名，需提前创建好,为了配置管理更简单，要求所有服务器的账号一致        |
+    |                | ssh-password    | 远程执行命令的密码，需提前创建好,为了配置管理更简单，要求所有服务器的密码一致         |
+    |                | ssh-port        | ssh端口，为了配置管理更简单，要求所有服务器的一致                                | 
+    | log            | level           | opentenbase_ctl工具运行的日志打印级别(不是opentenbase节点的日志级别)            |
 
 	```
-	pgxcInstallDir=${INSTALL_PATH}/opentenbase_bin_v2.0
+
+    * Create a configuration file opentenbase\_config.ini for the instance
+	```
+    mkdir -p ./logs
+    touch opentenbase_config.ini
+    vim opentenbase_config.ini
 	```
 
-	* For GTM, you need to configure the node name, IP, port and node directory.
-
+    * For example, if I have two servers 172.16.16.49 and 172.16.16.131, the typical configuration of a distributed instance distributed across the two servers is as follows. You can copy this configuration information and make modifications according to your deployment requirements.Don't forget to fill in the ssh password configuration.
 	```
-	#---- GTM ----------
-	gtmName=gtm
-	gtmMasterServer=xxx.xxx.xxx.1
-	gtmMasterPort=50001
-	gtmMasterDir=${GTM_MASTER_DATA_DIR}/data/gtm_master
-	```
+	# 实例配置
+	[instance]
+	name=opentenbase01
+	type=distributed
+	package=/data/opentenbase/install/opentenbase-5.21.8-i.x86_64.tar.gz
 
-	* If you do not need gtmSlave, you can directly set it to 'n' in the configuration of the corresponding node.
+	# gtm节点
+	[gtm]
+	master=172.16.16.49
+	slave=172.16.16.50,172.16.16.131
 
-	```
-	gtmSlave=n
-	```
+	# 协调节点
+	[coordinators]
+	master=172.16.16.49
+	slave= 172.16.16.131
+	nodes-per-server=1
 
-	If you need gtmSlave, configure it according to the instructions in the configuration file.
+	# 数据节点
+	[datanodes]
+	master=172.16.16.49,172.16.16.131
+	slave=172.16.16.131,172.16.16.49
+	nodes-per-server=1
 
-	* Coordination node, which needs to be configured with IP, port, directory, etc.
+	# 登录和部署账号
+	[server]
+	ssh-user=opentenbase
+	ssh-password=
+	ssh-port=36000
 
-	```
-	coordNames=(cn001)
-	coordMasterCluster=(opentenbase_cluster)
-	coordPorts=(30004)
-	poolerPorts=(30014)
-	coordPgHbaEntries=(0.0.0.0/0)
-	coordMasterServers=(xxx.xxx.xxx.2)
-	coordMasterDirs=(${COORD_MASTER_DATA_DIR}/data/cn_master/cn001)
-	```
-
-	* Data node, similar to the above nodes: IP, port, directory, etc. (since there are two data nodes, you need to configure the same information as the number of nodes.)
-
-	```
-	primaryDatanode=dn001
-	datanodeNames=(dn001 dn002)
-	datanodePorts=(20008 20009)
-	datanodePoolerPorts=(20018 20019)
-	datanodeMasterCluster=(opentenbase_cluster opentenbase_cluster)
-	datanodePgHbaEntries=(0.0.0.0/0)
-	datanodeMasterServers=(xxx.xxx.xxx.3 xxx.xxx.xxx.4)
-	datanodeMasterDirs=(${DATANODE_MASTER_DATA_DIR}/data/dn_master/dn001 ${DATANODE_MASTER_DATA_DIR}/data/dn_master/dn002)
+	# 日志配置
+	[log]
+	level=DEBUG
 	```
 
-	There are coordSlave and datanodeSlave corresponding to the coordination node and data node. If not, configure them as 'n'; otherwise, configure them according to the configuration file.
 
-	In addition, two type ports: `poolerPort` and `port`, need to be configured for coordinator node and datanode. `poolerPort` is used by nodes to communicate with other nodes. `port` is the port used to login to the node. Here, `poolerPort` and `port` must be configured differently, otherwise there will be conflicts and the cluster cannot be started.
+    * Similarly, the configuration of a typical centralized instance is as follows.Don't forget to fill in the ssh password configuration.
+	```
+	# 实例配置
+	[instance]
+	name=opentenbase02
+	type=centralized
+	package=/data/opentenbase/install/opentenbase-5.21.8-i.x86_64.tar.gz
 
-	Each node needs to have its own directory and cannot be created in the same directory.
+	# 数据节点
+	[datanodes]
+	master=172.16.16.49
+	slave=172.16.16.131
+	nodes-per-server=1
 
-2. Distribution of installation package(deploy all). After filling in the configuration file, run the pgxc\_ctl tool，and then input "deploy all" command to distribute the installation package to the IP machine of each node.
-![topology](images/deploy.png)
+	# 登录和部署账号
+	[server]
+	ssh-user=opentenbase
+	ssh-password=
+	ssh-port=36000
 
-3. Initialize each node of the cluster(init all). After the distribution of the installation package is completed, input "init all" command in pgxc\_ctl tool to initialize all the nodes in the configuration file pgxc\_ctl.conf and start the cluster. So far, the cluster has been started.
-![topology](images/init.png)
+	# 日志配置
+	[log]
+	level=DEBUG
+	```
+
+2. Execute command for instance installation.
+    * Execute installation command: ./opentenbase_ctl install  -c opentenbase_config.ini
+	```
+    [opentenbase@VM-16-49-tencentos opentenbase_ctl]# export LD_LIBRARY_PATH=/data/opentenbase/install/lib
+    [opentenbase@VM-16-49-tencentos opentenbase_ctl]# ./opentenbase_ctl install  -c opentenbase_config.ini
+
+    ====== Start to Install Opentenbase test_cluster01  ====== 
+
+    step 1: Make *.tar.gz pkg ...
+        Make opentenbase-5.21.8-i.x86_64.tar.gz successfully.
+
+    step 2: Transfer and extract pkg to servers ...
+        Package_path: /data/opentenbase/opentenbase_ctl/opentenbase-5.21.8-i.x86_64.tar.gz
+        Transfer and extract pkg to servers successfully.
+
+    step 3: Install gtm master node ...
+        Install gtm0001(172.16.16.49) ...
+        Install gtm0001(172.16.16.49) successfully
+        Success to install  gtm master node. 
+
+    step 4: Install cn/dn master node ...
+        Install cn0001(172.16.16.49) ...
+        Install dn0001(172.16.16.49) ...
+        Install dn0002(172.16.16.131) ...
+        Install cn0001(172.16.16.49) successfully
+        Install dn0001(172.16.16.49) successfully
+        Install dn0002(172.16.16.131) successfully
+        Success to install all cn/dn master nodes. 
+
+    step 5: Install slave nodes ...
+        Install gtm0002(172.16.16.131) ...
+        Install cn0001(172.16.16.131) ...
+        Install dn0001(172.16.16.131) ...
+        Install dn0002(172.16.16.49) ...
+        Install gtm0002(172.16.16.131) successfully
+        Install dn0002(172.16.16.49) successfully
+        Install dn0001(172.16.16.131) successfully
+        Install cn0001(172.16.16.131) successfully
+        Success to install all slave nodes. 
+
+    step 6:Create node group ...
+        Create node group successfully. 
+
+    ====== Installation completed successfully  ====== 
+	```
+    * When you see the words' Installation completed successfully ', it means that the installation has been completed. Enjoy your opentenbase journey to the fullest.
+    * You can check the status of the instance
+    ```
+    [opentenbase@VM-16-49-tencentos opentenbase_ctl]$ ./opentenbase_ctl status -c opentenbase_config.ini
+
+    ------------- Instance status -----------  
+    Instance name: test_cluster01
+    Version: 5.21.8
+
+    -------------- Node status --------------  
+    Node gtm0001(172.16.16.49) is Running 
+    Node dn0001(172.16.16.49) is Running 
+    Node dn0002(172.16.16.49) is Running 
+    Node cn0001(172.16.16.49) is Running 
+    Node dn0002(172.16.16.131) is Running 
+    Node cn0001(172.16.16.131) is Running 
+    Node gtm0002(172.16.16.131) is Running 
+    Node dn0001(172.16.16.131) is Running 
+    [Result] Total: 8, Running: 8, Stopped: 0, Unknown: 0
+
+    ------- Master CN Connection Info -------  
+    [1] cn0001(172.16.16.49)  
+    Environment variable: export LD_LIBRARY_PATH=/data/opentenbase/install/opentenbase/5.21.8/lib  && export PATH=/data/opentenbase/install/opentenbase/5.21.8/bin:${PATH} 
+    PSQL connection: psql -h 172.16.16.49 -p 11000 -U opentenbase postgres 
+    ```
+
 
 ## Usage
+    * Connect to CN Master node to execute SQL
 
-```
-$ psql -h ${CoordinateNode_IP} -p ${CoordinateNode_PORT} -U ${pgxcOwner} -d postgres
+    ```
+    export LD_LIBRARY_PATH=/home/opentenbase/install/opentenbase/5.21.8/lib  && export PATH=/home/opentenbase/install/opentenbase/5.21.8/bin:${PATH} 
+    $ psql -h ${CoordinateNode_IP} -p ${CoordinateNode_PORT} -U opentenbase -d postgres
 
-postgres=# create default node group default_group  with (dn001,dn002);
-CREATE NODE GROUP
-postgres=# create sharding group to group default_group;
-CREATE SHARDING GROUP
-postgres=# create table foo(id bigint, str text) distribute by shard(id);
+    postgres=# 
 
-```
+    ```
 
 ## References  
 

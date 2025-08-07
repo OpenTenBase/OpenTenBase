@@ -5,22 +5,22 @@
 
 CREATE FUNCTION gin_btree_consistent(internal, int2, anyelement, int4, internal, internal)
 RETURNS bool
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_btree_consistent'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_extract_value_int2(int2, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_value_int2'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_compare_prefix_int2(int2, int2, int2, internal)
 RETURNS int4
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_compare_prefix_int2'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_extract_query_int2(int2, internal, int2, internal, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_query_int2'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE OPERATOR CLASS int2_ops
@@ -40,17 +40,17 @@ STORAGE         int2;
 
 CREATE FUNCTION gin_extract_value_int4(int4, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_value_int4'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_compare_prefix_int4(int4, int4, int2, internal)
 RETURNS int4
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_compare_prefix_int4'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_extract_query_int4(int4, internal, int2, internal, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_query_int4'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE OPERATOR CLASS int4_ops
@@ -70,17 +70,17 @@ STORAGE         int4;
 
 CREATE FUNCTION gin_extract_value_int8(int8, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_value_int8'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_compare_prefix_int8(int8, int8, int2, internal)
 RETURNS int4
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_compare_prefix_int8'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_extract_query_int8(int8, internal, int2, internal, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_query_int8'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE OPERATOR CLASS int8_ops
@@ -100,17 +100,17 @@ STORAGE         int8;
 
 CREATE FUNCTION gin_extract_value_float4(float4, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_value_float4'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_compare_prefix_float4(float4, float4, int2, internal)
 RETURNS int4
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_compare_prefix_float4'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_extract_query_float4(float4, internal, int2, internal, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_query_float4'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE OPERATOR CLASS float4_ops
@@ -130,17 +130,17 @@ STORAGE         float4;
 
 CREATE FUNCTION gin_extract_value_float8(float8, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_value_float8'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_compare_prefix_float8(float8, float8, int2, internal)
 RETURNS int4
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_compare_prefix_float8'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_extract_query_float8(float8, internal, int2, internal, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_query_float8'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE OPERATOR CLASS float8_ops
@@ -160,17 +160,17 @@ STORAGE         float8;
 
 CREATE FUNCTION gin_extract_value_money(money, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_value_money'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_compare_prefix_money(money, money, int2, internal)
 RETURNS int4
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_compare_prefix_money'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_extract_query_money(money, internal, int2, internal, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_query_money'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE OPERATOR CLASS money_ops
@@ -190,17 +190,17 @@ STORAGE         money;
 
 CREATE FUNCTION gin_extract_value_oid(oid, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_value_oid'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_compare_prefix_oid(oid, oid, int2, internal)
 RETURNS int4
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_compare_prefix_oid'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_extract_query_oid(oid, internal, int2, internal, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_query_oid'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE OPERATOR CLASS oid_ops
@@ -220,17 +220,17 @@ STORAGE         oid;
 
 CREATE FUNCTION gin_extract_value_timestamp(timestamp, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_value_timestamp'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_compare_prefix_timestamp(timestamp, timestamp, int2, internal)
 RETURNS int4
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_compare_prefix_timestamp'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_extract_query_timestamp(timestamp, internal, int2, internal, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_query_timestamp'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE OPERATOR CLASS timestamp_ops
@@ -250,17 +250,17 @@ STORAGE         timestamp;
 
 CREATE FUNCTION gin_extract_value_timestamptz(timestamptz, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_value_timestamptz'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_compare_prefix_timestamptz(timestamptz, timestamptz, int2, internal)
 RETURNS int4
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_compare_prefix_timestamptz'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_extract_query_timestamptz(timestamptz, internal, int2, internal, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_query_timestamptz'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE OPERATOR CLASS timestamptz_ops
@@ -280,17 +280,17 @@ STORAGE         timestamptz;
 
 CREATE FUNCTION gin_extract_value_time(time, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_value_time'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_compare_prefix_time(time, time, int2, internal)
 RETURNS int4
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_compare_prefix_time'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_extract_query_time(time, internal, int2, internal, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_query_time'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE OPERATOR CLASS time_ops
@@ -310,17 +310,17 @@ STORAGE         time;
 
 CREATE FUNCTION gin_extract_value_timetz(timetz, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_value_timetz'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_compare_prefix_timetz(timetz, timetz, int2, internal)
 RETURNS int4
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_compare_prefix_timetz'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_extract_query_timetz(timetz, internal, int2, internal, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_query_timetz'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE OPERATOR CLASS timetz_ops
@@ -340,17 +340,17 @@ STORAGE         timetz;
 
 CREATE FUNCTION gin_extract_value_date(date, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_value_date'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_compare_prefix_date(date, date, int2, internal)
 RETURNS int4
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_compare_prefix_date'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_extract_query_date(date, internal, int2, internal, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_query_date'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE OPERATOR CLASS date_ops
@@ -370,17 +370,17 @@ STORAGE         date;
 
 CREATE FUNCTION gin_extract_value_interval(interval, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_value_interval'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_compare_prefix_interval(interval, interval, int2, internal)
 RETURNS int4
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_compare_prefix_interval'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_extract_query_interval(interval, internal, int2, internal, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_query_interval'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE OPERATOR CLASS interval_ops
@@ -400,17 +400,17 @@ STORAGE         interval;
 
 CREATE FUNCTION gin_extract_value_macaddr(macaddr, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_value_macaddr'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_compare_prefix_macaddr(macaddr, macaddr, int2, internal)
 RETURNS int4
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_compare_prefix_macaddr'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_extract_query_macaddr(macaddr, internal, int2, internal, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_query_macaddr'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE OPERATOR CLASS macaddr_ops
@@ -430,17 +430,17 @@ STORAGE         macaddr;
 
 CREATE FUNCTION gin_extract_value_inet(inet, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_value_inet'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_compare_prefix_inet(inet, inet, int2, internal)
 RETURNS int4
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_compare_prefix_inet'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_extract_query_inet(inet, internal, int2, internal, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_query_inet'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE OPERATOR CLASS inet_ops
@@ -460,17 +460,17 @@ STORAGE         inet;
 
 CREATE FUNCTION gin_extract_value_cidr(cidr, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_value_cidr'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_compare_prefix_cidr(cidr, cidr, int2, internal)
 RETURNS int4
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_compare_prefix_cidr'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_extract_query_cidr(cidr, internal, int2, internal, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_query_cidr'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE OPERATOR CLASS cidr_ops
@@ -490,17 +490,17 @@ STORAGE         cidr;
 
 CREATE FUNCTION gin_extract_value_text(text, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_value_text'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_compare_prefix_text(text, text, int2, internal)
 RETURNS int4
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_compare_prefix_text'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_extract_query_text(text, internal, int2, internal, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_query_text'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE OPERATOR CLASS text_ops
@@ -535,17 +535,17 @@ STORAGE         varchar;
 
 CREATE FUNCTION gin_extract_value_char("char", internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_value_char'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_compare_prefix_char("char", "char", int2, internal)
 RETURNS int4
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_compare_prefix_char'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_extract_query_char("char", internal, int2, internal, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_query_char'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE OPERATOR CLASS char_ops
@@ -565,17 +565,17 @@ STORAGE         "char";
 
 CREATE FUNCTION gin_extract_value_bytea(bytea, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_value_bytea'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_compare_prefix_bytea(bytea, bytea, int2, internal)
 RETURNS int4
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_compare_prefix_bytea'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_extract_query_bytea(bytea, internal, int2, internal, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_query_bytea'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE OPERATOR CLASS bytea_ops
@@ -595,17 +595,17 @@ STORAGE         bytea;
 
 CREATE FUNCTION gin_extract_value_bit(bit, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_value_bit'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_compare_prefix_bit(bit, bit, int2, internal)
 RETURNS int4
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_compare_prefix_bit'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_extract_query_bit(bit, internal, int2, internal, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_query_bit'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE OPERATOR CLASS bit_ops
@@ -625,17 +625,17 @@ STORAGE         bit;
 
 CREATE FUNCTION gin_extract_value_varbit(varbit, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_value_varbit'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_compare_prefix_varbit(varbit, varbit, int2, internal)
 RETURNS int4
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_compare_prefix_varbit'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_extract_query_varbit(varbit, internal, int2, internal, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_query_varbit'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE OPERATOR CLASS varbit_ops
@@ -655,22 +655,22 @@ STORAGE         varbit;
 
 CREATE FUNCTION gin_extract_value_numeric(numeric, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_value_numeric'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_compare_prefix_numeric(numeric, numeric, int2, internal)
 RETURNS int4
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_compare_prefix_numeric'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_extract_query_numeric(numeric, internal, int2, internal, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_query_numeric'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_numeric_cmp(numeric, numeric)
 RETURNS int4
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_numeric_cmp'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE OPERATOR CLASS numeric_ops
@@ -687,49 +687,3 @@ AS
     FUNCTION        4       gin_btree_consistent(internal, int2, anyelement, int4, internal, internal),
     FUNCTION        5       gin_compare_prefix_numeric(numeric,numeric,int2, internal),
 STORAGE         numeric;
-
---add bpchar and varchar2
-CREATE FUNCTION gin_extract_value_bpchar(bpchar, internal)
-RETURNS internal
-AS 'MODULE_PATHNAME'
-LANGUAGE C STRICT IMMUTABLE;
-
-CREATE FUNCTION gin_compare_prefix_bpchar(bpchar, bpchar, int2, internal)
-RETURNS int4
-AS 'MODULE_PATHNAME'
-LANGUAGE C STRICT IMMUTABLE;
-
-CREATE FUNCTION gin_extract_query_bpchar(bpchar, internal, int2, internal, internal)
-RETURNS internal
-AS 'MODULE_PATHNAME'
-LANGUAGE C STRICT IMMUTABLE;
-
-CREATE OPERATOR CLASS bpchar_ops
-DEFAULT FOR TYPE bpchar USING gin
-AS
-    OPERATOR        1       <,
-    OPERATOR        2       <=,
-    OPERATOR        3       =,
-    OPERATOR        4       >=,
-    OPERATOR        5       >,
-    FUNCTION        1       bpcharcmp(bpchar,bpchar),
-    FUNCTION        2       gin_extract_value_bpchar(bpchar, internal),
-    FUNCTION        3       gin_extract_query_bpchar(bpchar, internal, int2, internal, internal),
-    FUNCTION        4       gin_btree_consistent(internal, int2, anyelement, int4, internal, internal),
-    FUNCTION        5       gin_compare_prefix_bpchar(bpchar,bpchar,int2, internal),
-STORAGE         bpchar;
-
-CREATE OPERATOR CLASS varchar2_ops
-DEFAULT FOR TYPE varchar2 USING gin
-AS
-    OPERATOR        1       <(text,text),
-    OPERATOR        2       <=(text,text),
-    OPERATOR        3       =(text,text),
-    OPERATOR        4       >=(text,text),
-    OPERATOR        5       >(text,text),
-    FUNCTION        1       bttextcmp(text,text),
-    FUNCTION        2       gin_extract_value_text(text, internal),
-    FUNCTION        3       gin_extract_query_text(text, internal, int2, internal, internal),
-    FUNCTION        4       gin_btree_consistent(internal, int2, anyelement, int4, internal, internal),
-    FUNCTION        5       gin_compare_prefix_text(text,text,int2, internal),
-STORAGE         varchar2;

@@ -6,17 +6,17 @@
 -- macaddr8 datatype support new in 10.0.
 CREATE FUNCTION gin_extract_value_macaddr8(macaddr8, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_value_macaddr8'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_compare_prefix_macaddr8(macaddr8, macaddr8, int2, internal)
 RETURNS int4
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_compare_prefix_macaddr8'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_extract_query_macaddr8(macaddr8, internal, int2, internal, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_query_macaddr8'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE OPERATOR CLASS macaddr8_ops

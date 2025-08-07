@@ -1,17 +1,14 @@
 /*-------------------------------------------------------------------------
  *
  * format_type.c
- *      Display type names "nicely".
+ *	  Display type names "nicely".
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- * 
  * IDENTIFICATION
- *      src/backend/utils/adt/format_type.c
+ *	  src/backend/utils/adt/format_type.c
  *
  *-------------------------------------------------------------------------
  */
@@ -23,17 +20,22 @@
 #include "access/htup_details.h"
 #include "catalog/namespace.h"
 #include "catalog/pg_type.h"
+#include "catalog/pg_package.h"
+#include "catalog/pg_class.h"
 #include "utils/builtins.h"
 #include "utils/lsyscache.h"
 #include "utils/numeric.h"
 #include "utils/syscache.h"
 #include "mb/pg_wchar.h"
+#include "common/opentenbase_ora.h"
+#include "utils/formatting.h"
+#include "utils/guc.h"
 
 #define MAX_INT32_LEN 11
 
 static char *format_type_internal(Oid type_oid, int32 typemod,
-                     bool typemod_given, bool allow_invalid,
-                     bool force_qualify);
+					 bool typemod_given, bool allow_invalid,
+					 bool force_qualify);
 static char *printTypmod(const char *typname, int32 typmod, Oid typmodout);
 
 
@@ -66,25 +68,25 @@ static char *printTypmod(const char *typname, int32 typmod, Oid typmodout);
 Datum
 format_type(PG_FUNCTION_ARGS)
 {
-    Oid            type_oid;
-    int32        typemod;
-    char       *result;
+	Oid			type_oid;
+	int32		typemod;
+	char	   *result;
 
-    /* Since this function is not strict, we must test for null args */
-    if (PG_ARGISNULL(0))
-        PG_RETURN_NULL();
+	/* Since this function is not strict, we must test for null args */
+	if (PG_ARGISNULL(0))
+		PG_RETURN_NULL();
 
-    type_oid = PG_GETARG_OID(0);
+	type_oid = PG_GETARG_OID(0);
 
-    if (PG_ARGISNULL(1))
-        result = format_type_internal(type_oid, -1, false, true, false);
-    else
-    {
-        typemod = PG_GETARG_INT32(1);
-        result = format_type_internal(type_oid, typemod, true, true, false);
-    }
+	if (PG_ARGISNULL(1))
+		result = format_type_internal(type_oid, -1, false, true, false);
+	else
+	{
+		typemod = PG_GETARG_INT32(1);
+		result = format_type_internal(type_oid, typemod, true, true, false);
+	}
 
-    PG_RETURN_TEXT_P(cstring_to_text(result));
+	PG_RETURN_TEXT_P(cstring_to_text(result));
 }
 
 /*
@@ -96,7 +98,7 @@ format_type(PG_FUNCTION_ARGS)
 char *
 format_type_be(Oid type_oid)
 {
-    return format_type_internal(type_oid, -1, false, false, false);
+	return format_type_internal(type_oid, -1, false, false, false);
 }
 
 /*
@@ -106,7 +108,7 @@ format_type_be(Oid type_oid)
 char *
 format_type_be_qualified(Oid type_oid)
 {
-    return format_type_internal(type_oid, -1, false, false, true);
+	return format_type_internal(type_oid, -1, false, false, true);
 }
 
 /*
@@ -115,7 +117,7 @@ format_type_be_qualified(Oid type_oid)
 char *
 format_type_with_typemod(Oid type_oid, int32 typemod)
 {
-    return format_type_internal(type_oid, typemod, true, false, false);
+	return format_type_internal(type_oid, typemod, true, false, false);
 }
 
 /*
@@ -125,7 +127,7 @@ format_type_with_typemod(Oid type_oid, int32 typemod)
 char *
 format_type_with_typemod_qualified(Oid type_oid, int32 typemod)
 {
-    return format_type_internal(type_oid, typemod, true, false, true);
+	return format_type_internal(type_oid, typemod, true, false, true);
 }
 
 /*
@@ -133,228 +135,328 @@ format_type_with_typemod_qualified(Oid type_oid, int32 typemod)
  */
 static char *
 format_type_internal(Oid type_oid, int32 typemod,
-                     bool typemod_given, bool allow_invalid,
-                     bool force_qualify)
-{// #lizard forgives
-    bool        with_typemod = typemod_given && (typemod >= 0);
-    HeapTuple    tuple;
-    Form_pg_type typeform;
-    Oid            array_base_type;
-    bool        is_array;
-    char       *buf;
+					 bool typemod_given, bool allow_invalid,
+					 bool force_qualify)
+{
+	bool		with_typemod = typemod_given && (typemod >= 0);
+	HeapTuple	tuple;
+	Form_pg_type typeform;
+	Oid			array_base_type;
+	bool		is_array;
+	char	   *buf;
 
-    if (type_oid == InvalidOid && allow_invalid)
-        return pstrdup("-");
+	if (type_oid == InvalidOid && allow_invalid)
+		return pstrdup("-");
 
-    tuple = SearchSysCache1(TYPEOID, ObjectIdGetDatum(type_oid));
-    if (!HeapTupleIsValid(tuple))
-    {
-        if (allow_invalid)
-            return pstrdup("???");
-        else
-            elog(ERROR, "cache lookup failed for type %u", type_oid);
-    }
-    typeform = (Form_pg_type) GETSTRUCT(tuple);
+	tuple = SearchSysCache1(TYPEOID, ObjectIdGetDatum(type_oid));
+	if (!HeapTupleIsValid(tuple))
+	{
+		if (allow_invalid)
+			return pstrdup("???");
+		else
+			elog(ERROR, "cache lookup failed for type %u", type_oid);
+	}
+	typeform = (Form_pg_type) GETSTRUCT(tuple);
 
-    /*
-     * Check if it's a regular (variable length) array type.  Fixed-length
-     * array types such as "name" shouldn't get deconstructed.  As of Postgres
-     * 8.1, rather than checking typlen we check the toast property, and don't
-     * deconstruct "plain storage" array types --- this is because we don't
-     * want to show oidvector as oid[].
-     */
-    array_base_type = typeform->typelem;
+	/*
+	 * Check if it's a regular (variable length) array type.  Fixed-length
+	 * array types such as "name" shouldn't get deconstructed.  As of Postgres
+	 * 8.1, rather than checking typlen we check the toast property, and don't
+	 * deconstruct "plain storage" array types --- this is because we don't
+	 * want to show oidvector as oid[].
+	 */
+	if (OidIsValid(typeform->typrelid) &&
+		get_rel_relkind(typeform->typrelid) == RELKIND_NESTED_TABLE_TYPE)
+	{
+		/*
+		 * Here, use the original type of the nested table instead of its corresponding
+		 * pg array type to avoid inconsistency between the original table and the target
+		 * table type when using create table as.
+		 */
+		array_base_type = InvalidOid;
+	}
+	else if (ORA_MODE && OidIsValid(typeform->typrelid))
+	{
+		Oid reloftype = get_rel_reloftype(typeform->typrelid);
 
-    if (array_base_type != InvalidOid &&
-        typeform->typstorage != 'p')
-    {
-        /* Switch our attention to the array element type */
-        ReleaseSysCache(tuple);
-        tuple = SearchSysCache1(TYPEOID, ObjectIdGetDatum(array_base_type));
-        if (!HeapTupleIsValid(tuple))
-        {
-            if (allow_invalid)
-                return pstrdup("???[]");
-            else
-                elog(ERROR, "cache lookup failed for type %u", type_oid);
-        }
-        typeform = (Form_pg_type) GETSTRUCT(tuple);
-        type_oid = array_base_type;
-        is_array = true;
-    }
-    else
-        is_array = false;
+		if (OidIsValid(reloftype))
+		{
+			ReleaseSysCache(tuple);
+			return format_type_internal(reloftype, typemod, typemod_given, allow_invalid, force_qualify);
+		}
 
-    /*
-     * See if we want to special-case the output for certain built-in types.
-     * Note that these special cases should all correspond to special
-     * productions in gram.y, to ensure that the type name will be taken as a
-     * system type, not a user type of the same name.
-     *
-     * If we do not provide a special-case output here, the type name will be
-     * handled the same way as a user type name --- in particular, it will be
-     * double-quoted if it matches any lexer keyword.  This behavior is
-     * essential for some cases, such as types "bit" and "char".
-     */
-    buf = NULL;                    /* flag for no special case */
+		array_base_type = typeform->typelem;
+	}
+	else
+		array_base_type = typeform->typelem;
 
-    switch (type_oid)
-    {
-        case BITOID:
-            if (with_typemod)
-                buf = printTypmod("bit", typemod, typeform->typmodout);
-            else if (typemod_given)
-            {
-                /*
-                 * bit with typmod -1 is not the same as BIT, which means
-                 * BIT(1) per SQL spec.  Report it as the quoted typename so
-                 * that parser will not assign a bogus typmod.
-                 */
-            }
-            else
-                buf = pstrdup("bit");
-            break;
+	if (array_base_type != InvalidOid &&
+		typeform->typstorage != 'p')
+	{
+		/* Switch our attention to the array element type */
+		ReleaseSysCache(tuple);
+		tuple = SearchSysCache1(TYPEOID, ObjectIdGetDatum(array_base_type));
+		if (!HeapTupleIsValid(tuple))
+		{
+			if (allow_invalid)
+				return pstrdup("???[]");
+			else
+				elog(ERROR, "cache lookup failed for type %u", type_oid);
+		}
+		typeform = (Form_pg_type) GETSTRUCT(tuple);
+		type_oid = array_base_type;
+		is_array = true;
+	}
+	else
+		is_array = false;
 
-        case BOOLOID:
-            buf = pstrdup("boolean");
-            break;
+	/*
+	 * See if we want to special-case the output for certain built-in types.
+	 * Note that these special cases should all correspond to special
+	 * productions in gram.y, to ensure that the type name will be taken as a
+	 * system type, not a user type of the same name.
+	 *
+	 * If we do not provide a special-case output here, the type name will be
+	 * handled the same way as a user type name --- in particular, it will be
+	 * double-quoted if it matches any lexer keyword.  This behavior is
+	 * essential for some cases, such as types "bit" and "char".
+	 */
+	buf = NULL;					/* flag for no special case */
 
-        case BPCHAROID:
-            if (with_typemod)
-                buf = printTypmod("character", typemod, typeform->typmodout);
-            else if (typemod_given)
-            {
-                /*
-                 * bpchar with typmod -1 is not the same as CHARACTER, which
-                 * means CHARACTER(1) per SQL spec.  Report it as bpchar so
-                 * that parser will not assign a bogus typmod.
-                 */
-            }
-            else
-                buf = pstrdup("character");
-            break;
+	switch (type_oid)
+	{
+		case BITOID:
+			if (with_typemod)
+				buf = printTypmod("bit", typemod, typeform->typmodout);
+			else if (typemod_given)
+			{
+				/*
+				 * bit with typmod -1 is not the same as BIT, which means
+				 * BIT(1) per SQL spec.  Report it as the quoted typename so
+				 * that parser will not assign a bogus typmod.
+				 */
+			}
+			else
+				buf = pstrdup("bit");
+			break;
 
-        case FLOAT4OID:
-            buf = pstrdup("real");
-            break;
+		case BOOLOID:
+			buf = pstrdup("boolean");
+			break;
 
-        case FLOAT8OID:
-            buf = pstrdup("double precision");
-            break;
+		case BPCHAROID:
+			if (with_typemod)
+				buf = printTypmod("character", typemod, typeform->typmodout);
+			else if (typemod_given)
+			{
+				/*
+				 * bpchar with typmod -1 is not the same as CHARACTER, which
+				 * means CHARACTER(1) per SQL spec.  Report it as bpchar so
+				 * that parser will not assign a bogus typmod.
+				 */
+			}
+			else
+				buf = pstrdup("character");
+			break;
 
-        case INT2OID:
-            buf = pstrdup("smallint");
-            break;
+		case FLOAT4OID:
+			buf = pstrdup("real");
+			break;
 
-        case INT4OID:
-            buf = pstrdup("integer");
-            break;
+		case FLOAT8OID:
+			buf = pstrdup("double precision");
+			break;
 
-        case INT8OID:
-            buf = pstrdup("bigint");
-            break;
+		case INT2OID:
+			buf = pstrdup("smallint");
+			break;
 
-        case NUMERICOID:
-            if (with_typemod)
-                buf = printTypmod("numeric", typemod, typeform->typmodout);
-            else
-                buf = pstrdup("numeric");
-            break;
+		case INT4OID:
+			buf = pstrdup("integer");
+			break;
 
-        case INTERVALOID:
-            if (with_typemod)
-                buf = printTypmod("interval", typemod, typeform->typmodout);
-            else
-                buf = pstrdup("interval");
-            break;
+		case INT8OID:
+			buf = pstrdup("bigint");
+			break;
 
-        case TIMEOID:
-            if (with_typemod)
-                buf = printTypmod("time", typemod, typeform->typmodout);
-            else
-                buf = pstrdup("time without time zone");
-            break;
+		case NUMERICOID:
+			if (with_typemod)
+				buf = printTypmod("numeric", typemod, typeform->typmodout);
+			else
+				buf = pstrdup("numeric");
+			break;
+/* BEGIN LIGHTWEIGHT_ORA */
+		case DATEOID:
+			/* Use pg_catalog.date in opentenbase_ora mode */
+			if (ORA_MODE)
+				buf = pstrdup("pg_catalog.date");
+			else
+				buf = pstrdup("date");
+			break;
+/* END LIGHTWEIGHT_ORA */
 
-        case TIMETZOID:
-            if (with_typemod)
-                buf = printTypmod("time", typemod, typeform->typmodout);
-            else
-                buf = pstrdup("time with time zone");
-            break;
+		case INTERVALOID:
+			if (with_typemod)
+				buf = printTypmod("interval", typemod, typeform->typmodout);
+			else
+				buf = pstrdup("interval");
+			break;
 
-        case TIMESTAMPOID:
-            if (with_typemod)
-                buf = printTypmod("timestamp", typemod, typeform->typmodout);
-            else
-                buf = pstrdup("timestamp without time zone");
-            break;
+		case TIMEOID:
+			if (with_typemod)
+				buf = printTypmod("time", typemod, typeform->typmodout);
+			else
+				buf = pstrdup("time without time zone");
+			break;
 
-        case TIMESTAMPTZOID:
-            if (with_typemod)
-                buf = printTypmod("timestamp", typemod, typeform->typmodout);
-            else
-                buf = pstrdup("timestamp with time zone");
-            break;
+		case TIMETZOID:
+			if (with_typemod)
+				buf = printTypmod("time", typemod, typeform->typmodout);
+			else
+				buf = pstrdup("time with time zone");
+			break;
 
-        case VARBITOID:
-            if (with_typemod)
-                buf = printTypmod("bit varying", typemod, typeform->typmodout);
-            else
-                buf = pstrdup("bit varying");
-            break;
+		case TIMESTAMPOID:
+			if (with_typemod)
+			{
+				/*
+				 * Notice: pg_catalog.timestamp(x) without time zone will return error,
+				 * so use InvalidOid for typmodout argument and it will return
+				 * pg_catalog.timestamp(x) which we want.
+				 */
+				if (ORA_MODE)
+					buf = printTypmod("pg_catalog.timestamp", typemod, InvalidOid);
+				else
+					buf = printTypmod("timestamp", typemod, typeform->typmodout);
+			}
+			/* Use pg_catalog.timestamp in opentenbase_ora mode */
+			else if (ORA_MODE)
+				buf = pstrdup("pg_catalog.timestamp");
+			else
+				buf = pstrdup("timestamp without time zone");
+			break;
 
-        case VARCHAROID:
-            if (with_typemod)
-                buf = printTypmod("character varying", typemod, typeform->typmodout);
-            else
-                buf = pstrdup("character varying");
-            break;
+		case TIMESTAMPTZOID:
+			if (with_typemod)
+			{
+				/*
+				 * Notice: pg_catalog.timestamp(x) with time zone will return error,
+				 * so use InvalidOid for typmodout argument and it will return
+				 * pg_catalog.timestamptz(x) which we want.
+				 */
+				if (ORA_MODE)
+					buf = printTypmod("pg_catalog.timestamptz", typemod, InvalidOid);
+				else
+					buf = printTypmod("timestamp", typemod, typeform->typmodout);
+			}
+			/* Use pg_catalog.timestamptz in opentenbase_ora mode */
+			else if (ORA_MODE)
+				buf = pstrdup("pg_catalog.timestamptz");
+			else
+				buf = pstrdup("timestamp with time zone");
+			break;
+
+		case VARBITOID:
+			if (with_typemod)
+				buf = printTypmod("bit varying", typemod, typeform->typmodout);
+			else
+				buf = pstrdup("bit varying");
+			break;
+
+		case VARCHAROID:
+			if (with_typemod)
+				buf = printTypmod("character varying", typemod, typeform->typmodout);
+			else
+				buf = pstrdup("character varying");
+			break;
 #ifdef _PG_ORCL_
-        case VARCHAR2OID:
-            if (with_typemod)
-                buf = printTypmod("varchar2", typemod, typeform->typmodout);
-            else
-                buf = pstrdup("varchar2");
-            break;
-        case NVARCHAR2OID:
-            if (with_typemod)
-                buf = printTypmod("nvarchar2", typemod, typeform->typmodout);
-            else
-                buf = pstrdup("nvarchar2");
-            break;
+		case TEXTOID:
+			if (ORA_MODE)
+			{
+				buf = pstrdup("text");
+			}
+			break;
+
+		case VARCHAR2OID:
+			if (with_typemod)
+				buf = printTypmod("varchar2", typemod, typeform->typmodout);
+			else
+				buf = pstrdup("varchar2");
+			break;
+		case NVARCHAR2OID:
+			if (with_typemod)
+				buf = printTypmod("nvarchar2", typemod, typeform->typmodout);
+			else
+				buf = pstrdup("nvarchar2");
+			break;
+		case RAWOID:
+			if (with_typemod)
+				buf = printTypmod("raw", typemod, typeform->typmodout);
+			else
+				buf = pstrdup("raw");
+			break;
+		case LRAWOID:
+				buf = pstrdup("long raw");
+			break;
+		case LONGOID:
+				buf = pstrdup("long");
+			break;
 #endif
-    }
+	}
 
-    if (buf == NULL)
-    {
-        /*
-         * Default handling: report the name as it appears in the catalog.
-         * Here, we must qualify the name if it is not visible in the search
-         * path, and we must double-quote it if it's not a standard identifier
-         * or if it matches any keyword.
-         */
-        char       *nspname;
-        char       *typname;
+	if (buf == NULL)
+	{
+		/*
+		 * Default handling: report the name as it appears in the catalog.
+		 * Here, we must qualify the name if it is not visible in the search
+		 * path, and we must double-quote it if it's not a standard identifier
+		 * or if it matches any keyword.
+		 */
+		Oid			pkgid = InvalidOid;
+		char	   *nspname;
+		char	   *pkgname;
+		char	   *typname;
 
-        if (!force_qualify && TypeIsVisible(type_oid))
-            nspname = NULL;
-        else
-            nspname = get_namespace_name_or_temp(typeform->typnamespace);
+		if (!force_qualify && TypeIsVisible(type_oid))
+			nspname = NULL;
+		else
+			nspname = get_namespace_name_or_temp(typeform->typnamespace);
 
-        typname = NameStr(typeform->typname);
+		pkgid = get_pkgId_by_namespace(typeform->typnamespace);
+		if (OidIsValid(pkgid))
+		{
+			pkgname = get_package_name_by_id(pkgid);
+			nspname = get_package_ns_name_by_id(pkgid);
+		}
+		else
+			pkgname = NULL;
 
-        buf = quote_qualified_identifier(nspname, typname);
+		typname = NameStr(typeform->typname);
 
-        if (with_typemod)
-            buf = printTypmod(buf, typemod, typeform->typmodout);
-    }
+		if (pkgname)
+			buf = quote_qualified_pkgobj_identifier(nspname, pkgname, typname);
+		else
+			buf = quote_qualified_identifier(nspname, typname);
 
-    if (is_array)
-        buf = psprintf("%s[]", buf);
+		if (with_typemod)
+			buf = printTypmod(buf, typemod, typeform->typmodout);
+	}
+	else if (ORA_MODE)
+	{
+		char * tmp_buf = buf;
 
-    ReleaseSysCache(tuple);
+		/* Convert the typename to uppercase in opentenbase_ora mode */
+		buf = asc_toupper(tmp_buf, strlen(tmp_buf));
+		/* Free the old one */
+		pfree(tmp_buf);
+	}
 
-    return buf;
+	if (is_array)
+		buf = psprintf("%s[]", buf);
+
+	ReleaseSysCache(tuple);
+
+	return buf;
 }
 
 
@@ -364,27 +466,27 @@ format_type_internal(Oid type_oid, int32 typemod,
 static char *
 printTypmod(const char *typname, int32 typmod, Oid typmodout)
 {
-    char       *res;
+	char	   *res;
 
-    /* Shouldn't be called if typmod is -1 */
-    Assert(typmod >= 0);
+	/* Shouldn't be called if typmod is -1 */
+	Assert(typmod >= 0);
 
-    if (typmodout == InvalidOid)
-    {
-        /* Default behavior: just print the integer typmod with parens */
-        res = psprintf("%s(%d)", typname, (int) typmod);
-    }
-    else
-    {
-        /* Use the type-specific typmodout procedure */
-        char       *tmstr;
+	if (typmodout == InvalidOid)
+	{
+		/* Default behavior: just print the integer typmod with parens */
+		res = psprintf("%s(%d)", typname, (int) typmod);
+	}
+	else
+	{
+		/* Use the type-specific typmodout procedure */
+		char	   *tmstr;
 
-        tmstr = DatumGetCString(OidFunctionCall1(typmodout,
-                                                 Int32GetDatum(typmod)));
-        res = psprintf("%s%s", typname, tmstr);
-    }
+		tmstr = DatumGetCString(OidFunctionCall1(typmodout,
+												 Int32GetDatum(typmod)));
+		res = psprintf("%s%s", typname, tmstr);
+	}
 
-    return res;
+	return res;
 }
 
 
@@ -404,79 +506,79 @@ printTypmod(const char *typname, int32 typmod, Oid typmodout)
  */
 int32
 type_maximum_size(Oid type_oid, int32 typemod)
-{// #lizard forgives
-    if (typemod < 0)
-        return -1;
+{
+	if (typemod < 0)
+		return -1;
 
-    switch (type_oid)
-    {
-        case BPCHAROID:
-        case VARCHAROID:
+	switch (type_oid)
+	{
+		case BPCHAROID:
+		case VARCHAROID:
 #ifdef _PG_ORCL_
-        case VARCHAR2OID:
-        case NVARCHAR2OID:
+		case VARCHAR2OID:
+		case NVARCHAR2OID:
 #endif
-            /* typemod includes varlena header */
+			/* typemod includes varlena header */
 
-            /* typemod is in characters not bytes */
-            return (typemod - VARHDRSZ) *
-                pg_encoding_max_length(GetDatabaseEncoding())
-                + VARHDRSZ;
+			/* typemod is in characters not bytes */
+			return (typemod - VARHDRSZ) *
+				pg_encoding_max_length(GetDatabaseEncoding())
+				+ VARHDRSZ;
 
-        case NUMERICOID:
-            return numeric_maximum_size(typemod);
+		case NUMERICOID:
+			return numeric_maximum_size(typemod);
 
-        case VARBITOID:
-        case BITOID:
-            /* typemod is the (max) number of bits */
-            return (typemod + (BITS_PER_BYTE - 1)) / BITS_PER_BYTE
-                + 2 * sizeof(int32);
-    }
+		case VARBITOID:
+		case BITOID:
+			/* typemod is the (max) number of bits */
+			return (typemod + (BITS_PER_BYTE - 1)) / BITS_PER_BYTE
+				+ 2 * sizeof(int32);
+	}
 
-    /* Unknown type, or unlimited-width type such as 'text' */
-    return -1;
+	/* Unknown type, or unlimited-width type such as 'text' */
+	return -1;
 }
 
 
 /*
- * oidvectortypes            - converts a vector of type OIDs to "typname" list
+ * oidvectortypes			- converts a vector of type OIDs to "typname" list
  */
 Datum
 oidvectortypes(PG_FUNCTION_ARGS)
 {
-    oidvector  *oidArray = (oidvector *) PG_GETARG_POINTER(0);
-    char       *result;
-    int            numargs = oidArray->dim1;
-    int            num;
-    size_t        total;
-    size_t        left;
+	oidvector  *oidArray = (oidvector *) PG_GETARG_POINTER(0);
+	char	   *result;
+	int			numargs = oidArray->dim1;
+	int			num;
+	size_t		total;
+	size_t		left;
 
-    total = 20 * numargs + 1;
-    result = palloc(total);
-    result[0] = '\0';
-    left = total - 1;
+	total = 20 * numargs + 1;
+	result = palloc(total);
+	result[0] = '\0';
+	left = total - 1;
 
-    for (num = 0; num < numargs; num++)
-    {
-        char       *typename = format_type_internal(oidArray->values[num], -1,
-                                                    false, true, false);
-        size_t        slen = strlen(typename);
+	for (num = 0; num < numargs; num++)
+	{
+		char	   *typename = format_type_internal(oidArray->values[num], -1,
+													false, true, false);
+		size_t		slen = strlen(typename);
 
-        if (left < (slen + 2))
-        {
-            total += slen + 2;
-            result = repalloc(result, total);
-            left += slen + 2;
-        }
+		if (left < (slen + 2))
+		{
+			total += slen + 2;
+			result = repalloc(result, total);
+			left += slen + 2;
+		}
 
-        if (num > 0)
-        {
-            strcat(result, ", ");
-            left -= 2;
-        }
-        strcat(result, typename);
-        left -= slen;
-    }
+		if (num > 0)
+		{
+			strcat(result, ", ");
+			left -= 2;
+		}
+		strcat(result, typename);
+		left -= slen;
+	}
 
-    PG_RETURN_TEXT_P(cstring_to_text(result));
+	PG_RETURN_TEXT_P(cstring_to_text(result));
 }

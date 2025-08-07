@@ -16,7 +16,7 @@ sub test_recovery_standby
 	my $num_rows        = shift;
 	my $until_lsn       = shift;
 
-	my $node_standby = get_new_node($node_name);
+	my $node_standby = get_new_node($node_name, 'datanode');
 	$node_standby->init_from_backup($node_master, 'my_backup',
 		has_restoring => 1);
 
@@ -43,8 +43,15 @@ sub test_recovery_standby
 }
 
 # Initialize master node
-my $node_master = get_new_node('master');
-$node_master->init(has_archiving => 1, allows_streaming => 1);
+my $node_master = get_new_node('master', 'datanode');
+# There is no gtm in centralized mode, so it doesn’t matter what
+# the master gtm IP and port are
+$node_master->init(has_archiving => 1, allows_streaming => 1,
+                   extra => ['--master_gtm_nodename', 'no_gtm',
+                             '--master_gtm_ip', '127.0.0.1',
+                             '--master_gtm_port', '25001']);
+$node_master->append_conf('postgresql.conf', "allow_dml_on_datanode = on");
+$node_master->append_conf('postgresql.conf', "is_centralized_mode = on");
 
 # Start it
 $node_master->start;

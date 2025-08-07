@@ -1,14 +1,11 @@
 /*-------------------------------------------------------------------------
  *
  * storage_xlog.h
- *      prototypes for XLog support for backend/catalog/storage.c
+ *	  prototypes for XLog support for backend/catalog/storage.c
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
- *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  * src/include/catalog/storage_xlog.h
  *
@@ -30,49 +27,50 @@
  */
 
 /* XLOG gives us high 4 bits */
-#define XLOG_SMGR_CREATE    0x10
-#define XLOG_SMGR_TRUNCATE    0x20
+#define XLOG_SMGR_CREATE	0x10
+#define XLOG_SMGR_TRUNCATE	0x20
 #ifdef _SHARDING_
-#define XLOG_SMGR_DEALLOC     0x40
+#define XLOG_SMGR_DEALLOC 	0x40
 #endif
 
 typedef struct xl_smgr_create
 {
-    RelFileNode rnode;
-    ForkNumber    forkNum;
+	RelFileNode rnode;
+	ForkNumber	forkNum;
 } xl_smgr_create;
 
 /* flags for xl_smgr_truncate */
-#define SMGR_TRUNCATE_HEAP        0x0001
-#define SMGR_TRUNCATE_VM        0x0002
-#define SMGR_TRUNCATE_FSM        0x0004
-#define SMGR_TRUNCATE_ALL        \
-    (SMGR_TRUNCATE_HEAP|SMGR_TRUNCATE_VM|SMGR_TRUNCATE_FSM)
+#define SMGR_TRUNCATE_HEAP		0x0001
+#define SMGR_TRUNCATE_VM		0x0002
+#define SMGR_TRUNCATE_FSM		0x0004
+#define SMGR_TRUNCATE_ALL		\
+	(SMGR_TRUNCATE_HEAP|SMGR_TRUNCATE_VM|SMGR_TRUNCATE_FSM)
 
 typedef struct xl_smgr_truncate
 {
-    BlockNumber blkno;
-    RelFileNode rnode;
-    int            flags;
+	BlockNumber blkno;
+	RelFileNode rnode;
+	int			flags;
 } xl_smgr_truncate;
 
 #ifdef _SHARDING_
-#define SMGR_DEALLOC_REINIT            0x0001
-#define SMGR_DEALLOC_FREESTORAGE    0x0002
+#define SMGR_DEALLOC_REINIT			0x0001
+#define SMGR_DEALLOC_FREESTORAGE	0x0002
 typedef struct xl_smgr_dealloc
 {
-    RelFileNode    rnode;
-    ExtentID    eid;
-    int            flags;
+	RelFileNode	rnode;
+	ExtentID	eid;
+	int			flags;
+	bool		checksum_enabled;
 }xl_smgr_dealloc;
 #endif
 extern void log_smgrcreate(RelFileNode *rnode, ForkNumber forkNum);
 #ifdef _SHARDING_
-extern void log_smgrdealloc(RelFileNode *rnode, ExtentID eid, int flags);
+extern void log_smgrdealloc(RelFileNode *rnode, ExtentID eid, int flags, bool checksum_enabled);
 #endif
 
 extern void smgr_redo(XLogReaderState *record);
 extern void smgr_desc(StringInfo buf, XLogReaderState *record);
 extern const char *smgr_identify(uint8 info);
 
-#endif                            /* STORAGE_XLOG_H */
+#endif							/* STORAGE_XLOG_H */

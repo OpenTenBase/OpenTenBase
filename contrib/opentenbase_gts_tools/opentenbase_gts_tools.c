@@ -1,9 +1,3 @@
-/*
- * Copyright (c) 2023 THL A29 Limited, a Tencent company.
- *
- * This source code file is licensed under the BSD 3-Clause License,
- * you may obtain a copy of the License at http://opensource.org/license/bsd-3-clause/
- */
 #include "postgres.h"
 #include "fmgr.h"
 #include "funcapi.h"
@@ -15,6 +9,7 @@
 #include "utils/builtins.h"
 #include "utils/elog.h"
 #include "access/commit_ts.h"
+#include "access/csnlog.h"
 #include "access/htup_details.h"
 #include "storage/bufmgr.h"
 
@@ -52,13 +47,13 @@ PG_FUNCTION_INFO_V1(txid_gts);
 Datum
 txid_gts(PG_FUNCTION_ARGS)
 {
-	TransactionId xid = PG_GETARG_UINT32(0);
-	TimestampTz gts;
+	TransactionId xid = PG_GETARG_INT64(0);
+	CommitSeqNo gts;
 	bool found = false;
 
 	if (TransactionIdIsNormal(xid))
 	{
-		found = TransactionIdGetCommitTsData(xid, &gts, NULL);
+		found = TransactionIdGetCSNAndCommitStat(xid, &gts, NULL);
 	}
 
 	if (!found)
@@ -69,6 +64,51 @@ txid_gts(PG_FUNCTION_ARGS)
 	PG_RETURN_INT64(gts);
 }
 
+PG_FUNCTION_INFO_V1(txid_gts_raw);
+
+Datum
+txid_gts_raw(PG_FUNCTION_ARGS)
+{
+	TransactionId xid = PG_GETARG_INT64(0);
+	CommitSeqNo gts = 0;
+
+	if (TransactionIdIsNormal(xid))
+	{
+		gts = CSNLogGetCSNRaw(xid);
+	}
+	else
+	{
+		PG_RETURN_NULL();
+	}
+	
+	PG_RETURN_INT64(gts);
+}
+
+
+PG_FUNCTION_INFO_V1(txid_set_gts);
+
+Datum
+txid_set_gts(PG_FUNCTION_ARGS)
+{
+	TransactionId xid = PG_GETARG_INT64(0);
+	CommitSeqNo   gts = (uint64)(PG_GETARG_INT64(1));
+
+	if (!superuser())
+		ereport(ERROR,
+				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+					errmsg("must be superuser to call this function")));
+	
+	if (TransactionIdIsNormal(xid))
+	{
+		CSNLogSetCSN(xid, 0, NULL, InvalidXLogRecPtr, false, gts);
+	}
+	else
+	{
+		PG_RETURN_NULL();
+	}
+	
+	PG_RETURN_INT64(gts);
+}
 /*
  * heap_page_items_with_gts
  *

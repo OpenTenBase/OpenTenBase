@@ -1,0 +1,41 @@
+-- Test resgroup oid larger than int32.
+set opentenbase_test_flag='bump_oid';
+SET
+show opentenbase_test_flag;
+ opentenbase_test_flag 
+-----------------
+ "bump_oid"
+(1 row)
+
+create resource group rg_large_oid with cpu_rate_limit 20;
+CREATE RESOURCE GROUP
+set opentenbase_test_flag='-bump_oid';
+SET
+show opentenbase_test_flag;
+ opentenbase_test_flag 
+-----------------
+ ""
+(1 row)
+
+select max(oid)::bigint > (power(2,31) + 1)::bigint from pg_resgroup;
+ ?column? 
+----------
+ t
+(1 row)
+
+-- added by opentenbase
+select oid, * from pg_resgroup where oid > 2000000000;
+    oid     |   rsgname    | parent 
+------------+--------------+--------
+ 2147500034 | rg_large_oid |      0
+(1 row)
+
+-- count(*) > 0 to run the SQL but do not display the result
+select count(*) > 0 from pg_resgroup_get_status(NULL);
+ ?column? 
+----------
+ t
+(1 row)
+
+drop resource group rg_large_oid;
+DROP RESOURCE GROUP

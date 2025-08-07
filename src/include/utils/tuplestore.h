@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * tuplestore.h
- *      Generalized routines for temporary tuple storage.
+ *	  Generalized routines for temporary tuple storage.
  *
  * This module handles temporary storage of tuples for purposes such
  * as Materialize nodes, hashjoin batch files, etc.  It is essentially
@@ -25,9 +25,6 @@
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * src/include/utils/tuplestore.h
  *
  *-------------------------------------------------------------------------
@@ -36,6 +33,7 @@
 #define TUPLESTORE_H
 
 #include "executor/tuptable.h"
+#include "utils/resowner.h"
 
 
 /* Tuplestorestate is an opaque type whose details are not known outside
@@ -49,38 +47,38 @@ typedef struct Tuplestorestate Tuplestorestate;
  */
 
 extern Tuplestorestate *tuplestore_begin_heap(bool randomAccess,
-                      bool interXact,
-                      int maxKBytes);
+					  bool interXact,
+					  int maxKBytes);
 
 extern void tuplestore_set_eflags(Tuplestorestate *state, int eflags);
 
 extern void tuplestore_puttupleslot(Tuplestorestate *state,
-                        TupleTableSlot *slot);
+						TupleTableSlot *slot);
 extern void tuplestore_puttuple(Tuplestorestate *state, HeapTuple tuple);
 extern void tuplestore_putvalues(Tuplestorestate *state, TupleDesc tdesc,
-                     Datum *values, bool *isnull);
+					 Datum *values, bool *isnull);
 
 /* tuplestore_donestoring() used to be required, but is no longer used */
-#define tuplestore_donestoring(state)    ((void) 0)
+#define tuplestore_donestoring(state)	((void) 0)
 
-extern int    tuplestore_alloc_read_pointer(Tuplestorestate *state, int eflags);
+extern int	tuplestore_alloc_read_pointer(Tuplestorestate *state, int eflags);
 
 extern void tuplestore_select_read_pointer(Tuplestorestate *state, int ptr);
 
 extern void tuplestore_copy_read_pointer(Tuplestorestate *state,
-                             int srcptr, int destptr);
+							 int srcptr, int destptr);
 
 extern void tuplestore_trim(Tuplestorestate *state);
 
 extern bool tuplestore_in_memory(Tuplestorestate *state);
 
 extern bool tuplestore_gettupleslot(Tuplestorestate *state, bool forward,
-                        bool copy, TupleTableSlot *slot);
+						bool copy, TupleTableSlot *slot);
 
 extern bool tuplestore_advance(Tuplestorestate *state, bool forward);
 
 extern bool tuplestore_skiptuples(Tuplestorestate *state,
-                      int64 ntuples, bool forward);
+					  int64 ntuples, bool forward);
 
 extern int64 tuplestore_tuple_count(Tuplestorestate *state);
 
@@ -94,10 +92,15 @@ extern void tuplestore_end(Tuplestorestate *state);
 
 #ifdef XCP
 extern Tuplestorestate *tuplestore_begin_datarow(bool interXact, int maxKBytes,
-                         MemoryContext tmpcxt);
+												 MemoryContext tmpcxt,
+												 MemoryContext context,
+												 ResourceOwner resowner);
+
 extern Tuplestorestate *tuplestore_begin_message(bool interXact, int maxKBytes);
-extern void tuplestore_putmessage(Tuplestorestate *state, int len, char* msg);
-extern char *tuplestore_getmessage(Tuplestorestate *state, int *len);
+
+extern void tuplestore_putmessage(Tuplestorestate *state, int len, char *msg);
+
+extern char *tuplestore_getmessage(Tuplestorestate *state, bool copy, int *len, char *msg);
 #endif
 
 extern void tuplestore_collect_stat(Tuplestorestate *state, char *name);
@@ -106,4 +109,4 @@ extern void tuplestore_collect_stat(Tuplestorestate *state, char *name);
 extern void tuplestore_set_tupdeleted(Tuplestorestate *state);
 #endif
 
-#endif                            /* TUPLESTORE_H */
+#endif							/* TUPLESTORE_H */

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * parse_enr.h
- *        Internal definitions for parser
+ *		Internal definitions for parser
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -19,4 +19,4 @@
 extern bool name_matches_visible_ENR(ParseState *pstate, const char *refname);
 extern EphemeralNamedRelationMetadata get_visible_ENR(ParseState *pstate, const char *refname);
 
-#endif                            /* PARSE_ENR_H */
+#endif							/* PARSE_ENR_H */

@@ -1,0 +1,445 @@
+\c regression_ora
+-- Test ora_hash
+SELECT ORA_HASH('opentenbase', 4294967295, 2) FROM DUAL;
+  ORA_HASH  
+------------
+ 1048941906
+(1 row)
+
+SELECT ORA_HASH('opentenbase', 4294967295) FROM DUAL;
+  ORA_HASH  
+------------
+ 2000264701
+(1 row)
+
+SELECT ORA_HASH('opentenbase') FROM DUAL;
+  ORA_HASH  
+------------
+ 2000264701
+(1 row)
+
+-- Test dump
+SELECT DUMP('abc', 16, 0, 1) FROM DUAL;
+       DUMP       
+------------------
+ Typ=25 Len=7: 1c
+(1 row)
+
+SELECT DUMP('abc', 16) FROM DUAL;
+              DUMP               
+---------------------------------
+ Typ=25 Len=7: 1c,0,0,0,61,62,63
+(1 row)
+
+SELECT DUMP('数据库', 16) FROM DUAL;
+                        DUMP                        
+----------------------------------------------------
+ Typ=25 Len=13: 34,0,0,0,e6,95,b0,e6,8d,ae,e5,ba,93
+(1 row)
+
+-- Test vsize
+SELECT VSIZE('abc') FROM DUAL;
+ VSIZE 
+-------
+     3
+(1 row)
+
+SELECT VSIZE(123.456) FROM DUAL;
+ VSIZE 
+-------
+     6
+(1 row)
+
+SELECT VSIZE(1) FROM DUAL;
+ VSIZE 
+-------
+     4
+(1 row)
+
+SELECT VSIZE(sysdate) FROM DUAL;
+ VSIZE 
+-------
+     4
+(1 row)
+
+SELECT VSIZE('1'::clob) FROM DUAL;
+ VSIZE 
+-------
+     1
+(1 row)
+
+-- Demo decode
+DROP TABLE IF EXISTS tbl_decode_demo;
+NOTICE:  table "TBL_DECODE_DEMO" does not exist, skipping
+CREATE TABLE tbl_decode_demo(product_id int, product_name varchar2(20), warehouse_id int);
+INSERT INTO tbl_decode_demo VALUES(1320, 'Product A', 1);
+INSERT INTO tbl_decode_demo VALUES(2475, 'Product B', 2);
+INSERT INTO tbl_decode_demo VALUES(3344, 'Product C', 3);
+INSERT INTO tbl_decode_demo VALUES(4227, 'Product D', 4);
+INSERT INTO tbl_decode_demo VALUES(5894, 'Product E', 5);
+SELECT product_id, product_name,
+       DECODE (warehouse_id, 1, 'Southlake',
+                             2, 'San Francisco',
+                             3, 'New Jersey',
+                             4, 'Seattle',
+                                'Non domestic') "Location"
+  FROM tbl_decode_demo
+  ORDER BY product_id, "Location";
+ PRODUCT_ID | PRODUCT_NAME |   Location    
+------------+--------------+---------------
+       1320 | Product A    | Southlake
+       2475 | Product B    | San Francisco
+       3344 | Product C    | New Jersey
+       4227 | Product D    | Seattle
+       5894 | Product E    | Non domestic
+(5 rows)
+
+DROP TABLE tbl_decode_demo;
+-- Demo dump
+SELECT DUMP('abc', 16) FROM DUAL;
+              DUMP               
+---------------------------------
+ Typ=25 Len=7: 1c,0,0,0,61,62,63
+(1 row)
+
+SELECT DUMP('abc', 1016) FROM DUAL;
+                       DUMP                        
+---------------------------------------------------
+ Typ=25 Len=7 CharacterSet=UTF8: 1c,0,0,0,61,62,63
+(1 row)
+
+SELECT DUMP('abc', 1016, 1, 1) FROM DUAL;
+                DUMP                
+------------------------------------
+ Typ=25 Len=7 CharacterSet=UTF8: 1c
+(1 row)
+
+SELECT DUMP(12345, 16) FROM DUAL;
+          DUMP           
+-------------------------
+ Typ=23 Len=4: 39,30,0,0
+(1 row)
+
+SELECT DUMP(12345, 1016) FROM DUAL;
+                   DUMP                    
+-------------------------------------------
+ Typ=23 Len=4 CharacterSet=UTF8: 39,30,0,0
+(1 row)
+
+SELECT DUMP(12345, 1016, 1, 1) FROM DUAL;
+                DUMP                
+------------------------------------
+ Typ=23 Len=4 CharacterSet=UTF8: 39
+(1 row)
+
+-- Demo ora_hash
+SELECT ORA_HASH('demodata', 4294967295, 10) FROM DUAL;
+  ORA_HASH  
+------------
+ 2664398362
+(1 row)
+
+SELECT ORA_HASH('demodata', 4294967295) FROM DUAL;
+  ORA_HASH  
+------------
+ 2945234327
+(1 row)
+
+SELECT ORA_HASH('demodata') FROM DUAL;
+  ORA_HASH  
+------------
+ 2945234327
+(1 row)
+
+-- Support the judge whether the PARAM is null in PREPARE stmt
+create table ttest_20230607 (a int, b int);
+insert into ttest_20230607 values(1,1);
+insert into ttest_20230607 values('',1);
+prepare s as select * from ttest_20230607 where $1 is null;
+execute s('1');
+ A | B 
+---+---
+(0 rows)
+
+execute s(1);
+ A | B 
+---+---
+(0 rows)
+
+execute s('');
+ A | B 
+---+---
+ 1 | 1
+   | 1
+(2 rows)
+
+execute s(NULL);
+ A | B 
+---+---
+ 1 | 1
+   | 1
+(2 rows)
+
+deallocate s;
+prepare s as
+select $1 is null from ttest_20230607;
+execute s(1);
+ ?column? 
+----------
+ f
+ f
+(2 rows)
+
+execute s('');
+ ?column? 
+----------
+ t
+ t
+(2 rows)
+
+execute s(NULL);
+ ?column? 
+----------
+ t
+ t
+(2 rows)
+
+deallocate s;
+prepare s as select decode(a,$1,'first','default') from ttest_20230607;
+execute s(1);
+ DECODE  
+---------
+ first
+ default
+(2 rows)
+
+execute s(2);
+ DECODE  
+---------
+ default
+ default
+(2 rows)
+
+execute s('');
+ DECODE  
+---------
+ default
+ first
+(2 rows)
+
+execute s(NULL);
+ DECODE  
+---------
+ default
+ first
+(2 rows)
+
+deallocate s;
+prepare s as select decode(a,$1,'first',$2,'second') from ttest_20230607;
+execute s(-1,2);
+ DECODE 
+--------
+ 
+ 
+(2 rows)
+
+execute s(2,1);
+ DECODE 
+--------
+ second
+ 
+(2 rows)
+
+execute s('',2);
+ DECODE 
+--------
+ 
+ first
+(2 rows)
+
+execute s(1,'');
+ DECODE 
+--------
+ first
+ second
+(2 rows)
+
+execute s('','');
+ DECODE 
+--------
+ 
+ first
+(2 rows)
+
+execute s(NULL,NULL);
+ DECODE 
+--------
+ 
+ first
+(2 rows)
+
+deallocate s;
+prepare s as select decode(a,$1 + $2,'first','default') from ttest_20230607;
+execute s(1,0);
+ DECODE  
+---------
+ first
+ default
+(2 rows)
+
+execute s(2,1);
+ DECODE  
+---------
+ default
+ default
+(2 rows)
+
+execute s(1+'',1);
+ DECODE  
+---------
+ default
+ first
+(2 rows)
+
+execute s('','');
+ DECODE  
+---------
+ default
+ first
+(2 rows)
+
+execute s(NULL,NULL);
+ DECODE  
+---------
+ default
+ first
+(2 rows)
+
+deallocate s;
+prepare s as select decode(a,$1 + 2,'first','default') from ttest_20230607;
+execute s(-1);
+ DECODE  
+---------
+ first
+ default
+(2 rows)
+
+execute s(0);
+ DECODE  
+---------
+ default
+ default
+(2 rows)
+
+execute s(1+'');
+ DECODE  
+---------
+ default
+ first
+(2 rows)
+
+execute s(1+NULL);
+ DECODE  
+---------
+ default
+ first
+(2 rows)
+
+execute s('');
+ DECODE  
+---------
+ default
+ first
+(2 rows)
+
+execute s(NULL);
+ DECODE  
+---------
+ default
+ first
+(2 rows)
+
+deallocate s;
+prepare s as
+select case when $1 is null then 'first' else 'else' end from ttest_20230607;
+execute s('');
+ case  
+-------
+ first
+ first
+(2 rows)
+
+execute s(NULL);
+ case  
+-------
+ first
+ first
+(2 rows)
+
+execute s(1);
+ case 
+------
+ else
+ else
+(2 rows)
+
+deallocate s;
+prepare s as
+select case when $1 is null then 'first'
+            when $2 is not null then 'second'
+            else 'else' end from ttest_20230607;
+execute s('',1);
+ case  
+-------
+ first
+ first
+(2 rows)
+
+execute s(1,1);
+  case  
+--------
+ second
+ second
+(2 rows)
+
+execute s(1,'');
+ case 
+------
+ else
+ else
+(2 rows)
+
+execute s('','');
+ case  
+-------
+ first
+ first
+(2 rows)
+
+execute s(NULL,1);
+ case  
+-------
+ first
+ first
+(2 rows)
+
+execute s(1,NULL);
+ case 
+------
+ else
+ else
+(2 rows)
+
+execute s(NULL,NULL);
+ case  
+-------
+ first
+ first
+(2 rows)
+
+deallocate s;
+-- failed
+prepare s as
+select $1 is distinct from null as "not null" from ttest_20230607;
+ERROR:  could not determine data type of parameter $1
+drop table ttest_20230607;

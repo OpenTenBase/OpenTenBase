@@ -1,0 +1,4 @@
+rm -rf core.*  test_alog.txt
+make clean
+make -sj
+

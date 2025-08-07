@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * predicate.h
- *      POSTGRES public predicate locking definitions.
+ *	  POSTGRES public predicate locking definitions.
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -22,13 +22,13 @@
 /*
  * GUC variables
  */
-extern int    max_predicate_locks_per_xact;
-extern int    max_predicate_locks_per_relation;
-extern int    max_predicate_locks_per_page;
+extern int	max_predicate_locks_per_xact;
+extern int	max_predicate_locks_per_relation;
+extern int	max_predicate_locks_per_page;
 
 
 /* Number of SLRU buffers to use for predicate locking */
-#define NUM_OLDSERXID_BUFFERS    16
+#define NUM_OLDSERXID_BUFFERS	16
 
 
 /*
@@ -47,8 +47,8 @@ extern bool PageIsPredicateLocked(Relation relation, BlockNumber blkno);
 /* predicate lock maintenance */
 extern Snapshot GetSerializableTransactionSnapshot(Snapshot snapshot);
 extern void SetSerializableTransactionSnapshot(Snapshot snapshot,
-                                   VirtualTransactionId *sourcevxid,
-                                   int sourcepid);
+								   VirtualTransactionId *sourcevxid,
+								   int sourcepid);
 extern void RegisterPredicateLockingXid(TransactionId xid);
 extern void PredicateLockRelation(Relation relation, Snapshot snapshot);
 extern void PredicateLockPage(Relation relation, BlockNumber blkno, Snapshot snapshot);
@@ -60,7 +60,7 @@ extern void ReleasePredicateLocks(bool isCommit);
 
 /* conflict detection (may also trigger rollback) */
 extern void CheckForSerializableConflictOut(bool valid, Relation relation, HeapTuple tuple,
-                                Buffer buffer, Snapshot snapshot);
+								Buffer buffer, Snapshot snapshot);
 extern void CheckForSerializableConflictIn(Relation relation, HeapTuple tuple, Buffer buffer);
 extern void CheckTableForSerializableConflictIn(Relation relation);
 
@@ -72,6 +72,6 @@ extern void AtPrepare_PredicateLocks(void);
 extern void PostPrepare_PredicateLocks(TransactionId xid);
 extern void PredicateLockTwoPhaseFinish(TransactionId xid, bool isCommit);
 extern void predicatelock_twophase_recover(TransactionId xid, uint16 info,
-                               void *recdata, uint32 len);
+							   void *recdata, uint32 len);
 
-#endif                            /* PREDICATE_H */
+#endif							/* PREDICATE_H */

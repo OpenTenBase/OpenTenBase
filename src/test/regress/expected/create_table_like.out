@@ -245,9 +245,9 @@ CREATE TABLE ctlt_all (LIKE ctlt1 INCLUDING ALL);
  a      | text |           | not null |         | main     |              | A
  b      | text |           |          |         | extended |              | B
 Indexes:
-    "ctlt_all_pkey" PRIMARY KEY, btree (a)
-    "ctlt_all_b_idx" btree (b)
-    "ctlt_all_expr_idx" btree ((a || b))
+    "ctlt_all_pkey" PRIMARY KEY, btree (a) WITH (checksum='on')
+    "ctlt_all_b_idx" btree (b) WITH (checksum='on')
+    "ctlt_all_expr_idx" btree ((a || b)) WITH (checksum='on')
 Check constraints:
     "ctlt1_a_check" CHECK (length(a) > 2)
 Distribute By: HASH(a)
@@ -327,3 +327,50 @@ SELECT oid FROM like_test5;
 
 DROP TABLE has_oid, no_oid, like_test, like_test2, like_test3,
   like_test4, like_test5;
+/* LIKE reference relation distribute key when INCLUDING ALL */
+create table t5(f1 int ,f2 int primary key );
+create index t5_f2_idx on t5(f2);
+\d+ t5
+                                    Table "public.t5"
+ Column |  Type   | Collation | Nullable | Default | Storage | Stats target | Description 
+--------+---------+-----------+----------+---------+---------+--------------+-------------
+ f1     | integer |           |          |         | plain   |              | 
+ f2     | integer |           | not null |         | plain   |              | 
+Indexes:
+    "t5_pkey" PRIMARY KEY, btree (f2) WITH (checksum='on')
+    "t5_f2_idx" btree (f2) WITH (checksum='on')
+Distribute By: HASH(f2)
+Location Nodes: ALL DATANODES
+
+create table t6_like (like t5 including all);
+\d+ t6_like
+                                  Table "public.t6_like"
+ Column |  Type   | Collation | Nullable | Default | Storage | Stats target | Description 
+--------+---------+-----------+----------+---------+---------+--------------+-------------
+ f1     | integer |           |          |         | plain   |              | 
+ f2     | integer |           | not null |         | plain   |              | 
+Indexes:
+    "t6_like_pkey" PRIMARY KEY, btree (f2) WITH (checksum='on')
+Distribute By: HASH(f2)
+Location Nodes: ALL DATANODES
+
+DROP TABLE t5, t6_like;
+CREATE TABLE test_like_bigint (a bigint GENERATED ALWAYS AS IDENTITY, b text);
+\d test_like_bigint
+                    Table "public.test_like_bigint"
+ Column |  Type  | Collation | Nullable |           Default            
+--------+--------+-----------+----------+------------------------------
+ a      | bigint |           | not null | generated always as identity
+ b      | text   |           |          | 
+
+CREATE TABLE tlike_bigint(LIKE test_like_bigint INCLUDING ALL);
+insert into tlike_bigint(b) values ('3123');
+insert into tlike_bigint(b) values ('insert bigint');
+select * from tlike_bigint order by a;
+ a |       b       
+---+---------------
+ 1 | 3123
+ 2 | insert bigint
+(2 rows)
+
+drop table test_like_bigint, tlike_bigint;

@@ -1,10 +1,3 @@
-/*
- * Copyright (c) 2023 THL A29 Limited, a Tencent company.
- *
- * This source code file is licensed under the BSD 3-Clause License,
- * you may obtain a copy of the License at http://opensource.org/license/bsd-3-clause/
- *
- */
 #include "postgres.h"
 #include "fmgr.h"
 #include "funcapi.h"
@@ -70,33 +63,42 @@ int  transaction_threshold = 200000;
 #define MAXIMUM_OUTPUT_FILE 1000
 #define XIDPREFIX "_$XC$"
 #define DEFAULT_CLEAN_TIME_INTERVAL 120
-#define LEAST_CLEAN_TIME_INTERVAL     3 /* should not clean twophase trans prepared in 3s */
+#define DEFAULT_CHECK_TIME_INTERVAL 5
+
+#ifdef __TWO_PHASE_TESTS__
+#define LEAST_CLEAN_TIME_INTERVAL     1 /* should not clean twophase trans prepared in 1s */
 #define LEAST_CHECK_TIME_INTERVAL     1 /* should not check twophase trans prepared in 1s */
+#else
+#define LEAST_CLEAN_TIME_INTERVAL     10 /* should not clean twophase trans prepared in 10s */
+#define LEAST_CHECK_TIME_INTERVAL     3  /* should not check twophase trans prepared in 3s */
+#endif
 
 GlobalTimestamp clean_time_interval = DEFAULT_CLEAN_TIME_INTERVAL * USECS_PER_SEC;
 
 PG_MODULE_MAGIC;
 
-#define MAX_GID               64
+#define MAX_GID        GIDSIZE      /* gid max length */
+#define MAX_DBNAME     NAMEDATALEN  /* database name max length */
+#define MAX_FIELD_LEN  100          /* other feild max length */
 
-#define CLEAN_CHECK_TIMES_DEFAULT    3
-#define CLEAN_CHECK_INTERVAL_DEFAULT 100000
-
-#define CLEAN_NODE_CHECK_TIMES       5
-#define CLEAN_NODE_CHECK_INTERVAL    500000
-
-#define MAX_DBNAME	64
 #define GET_START_XID "startxid:"
+#define GET_PREPARE_TIMESTAMP "global_prepare_timestamp:"
 #define GET_COMMIT_TIMESTAMP "global_commit_timestamp:"
 #define GET_START_NODE "startnode:"
 #define GET_NODE "nodes:"
 #define GET_XID "\nxid:"
+#define GET_DATABASE "database:"
+#define GET_USER "user:"
 #define GET_READONLY "readonly"
-#define GIDSIZE (200 + 24)
+#define ROLLBACK_POSTFIX ".rollback" /* 2pc file postfix when the 2pc is rollbacked */
+#define GET_GLOBAL_TRACE_ID "gtraceid:"
+
 #define MAX_TWOPC_TXN 1000
 #define STRING_BUFF_LEN 1024
 
-#define MAX_CMD_LENGTH 120
+#define MAX_CMD_LENGTH (GIDSIZE + 120)
+
+#define LONG_CMD_LENGTH 1024
 
 #define XIDFOUND 1
 #define XIDNOTFOUND -1
@@ -183,6 +185,7 @@ typedef struct txn_info
 	char			gid[MAX_GID];
 	uint32			*xid;				/* xid used in prepare */
 	TimestampTz		*prepare_timestamp;
+	char			*database;
 	char			*owner;
     char            *participants;
 	Oid				origcoord;			/* Original coordinator who initiated the txn */
@@ -197,6 +200,7 @@ typedef struct txn_info
 	TXN_STATUS		*txn_stat;			/* Array for each nodes */
 	char			*msg;				/* Notice message for this txn. */
 	GlobalTimestamp  global_commit_timestamp;	/* get global_commit_timestamp from node once it is committed*/
+	GlobalTimestamp  global_prepare_timestamp;	/* get global_prepare_timestamp from node once it is prepared*/
 
 	TXN_STATUS		global_txn_stat;
 	OPERATION		op;
@@ -269,12 +273,17 @@ database_info       *last_database_info = NULL;
 bool		        execute = false;
 int                 total_twopc_txn = 0;
 
-TimestampTz         current_time;
-GlobalTimestamp     abnormal_time = InvalidGlobalTimestamp;
+TimestampTz         current_time = 0;
+TimestampTz         abnormal_time = 0;
+GlobalTimestamp     current_gts = InvalidGlobalTimestamp;   /* use to save current gts */
+GlobalTimestamp     abnormal_gts = InvalidGlobalTimestamp;  /* use to save abnormal gts, clean 2PCs which prepare gts less than abnormal gts */
 char                *abnormal_nodename = NULL;
 Oid                 abnormal_nodeoid = InvalidOid;
 bool                clear_2pc_belong_node = false;
 
+static bool         is_for_node_removed = false;
+
+static bool         is_for_deadlock = false;
 
 /*function list*/
 	/*plugin entry function*/
@@ -295,8 +304,8 @@ Slots);
 static void 
 	 getTxnInfoOnNodesAll(void);
 void getTxnInfoOnNode(Oid node);
-void add_txn_info(char * dbname, Oid node_oid, uint32 xid, char * gid, char * owner, 
-					  TimestampTz prepared_time, TXN_STATUS status);
+txn_info *add_txn_info(char * dbname, Oid node_oid, uint32 xid, char * gid,
+					  char * owner, TimestampTz prepared_time, TXN_STATUS status);
 TWOPHASE_FILE_STATUS GetTransactionPartNodes(txn_info * txn, Oid node_oid);
 static txn_info *
 	 find_txn(char *gid);
@@ -312,7 +321,6 @@ void getTxnInfoOnOtherNodesAll(void);
 void getTxnInfoOnOtherNodesForDatabase(database_info *database);
 void getTxnInfoOnOtherNodes(txn_info *txn);
 int Get2PCXidByGid(Oid node_oid, char * gid, uint32 * transactionid);
-int Get2PCFile(Oid node_oid, char * gid, uint32 * transactionid);
 
 char *get2PCInfo(const char *tid);
 
@@ -348,6 +356,20 @@ static void
 static void 
      get_node_handles(PGXCNodeAllHandles ** pgxc_handles, Oid nodeoid);
 
+uint32 get_start_xid_from_gid(char *gid);
+char *get_start_node_from_gid(char *gid);
+Oid get_start_node_oid_from_gid(char *gid);
+
+bool is_xid_running_on_node(uint32 xid, Oid node_oid);
+bool is_gid_start_xid_running(char *gid);
+bool is_txn_start_xid_running(txn_info *txn);
+
+void getAllTxnInfoFrom2pcFiles(void);
+void getTxnInfoFrom2pcFile(char *file_name, Oid node_oid);
+static bool GetGlobalTraceIdOnPartNodes(txn_info *txn, Oid node_oid);
+static bool GetGlobalTraceIdImpl(txn_info *txn, char *traceid);
+static bool GetGlobalTraceIdOnNode(const txn_info *txn);
+
 Datum	pg_clean_execute(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(pg_clean_execute);
 Datum	pg_clean_execute(PG_FUNCTION_ARGS)
@@ -360,10 +382,10 @@ Datum	pg_clean_execute(PG_FUNCTION_ARGS)
 	HeapTuple			tuple;		
 	print_txn_info		*print_txn = NULL;
 	txn_info 			*temp_txn;
-	char				txn_gid[100];
-	char				txn_status[100];
-	char				txn_op[100];
-	char				txn_op_issuccess[100];
+	char				txn_gid[MAX_GID];
+	char				txn_status[MAX_FIELD_LEN];
+	char				txn_op[MAX_FIELD_LEN];
+	char				txn_op_issuccess[MAX_FIELD_LEN];
 	
 	Datum		values[ACCESS_CONTROL_ATTR_NUM];
 	bool		nulls[ACCESS_CONTROL_ATTR_NUM];
@@ -400,9 +422,7 @@ Datum	pg_clean_execute(PG_FUNCTION_ARGS)
 		MemoryContextSwitchTo(oldcontext);
 		mycontext = AllocSetContextCreate(funcctx->multi_call_memory_ctx,
 												  "clean_check",
-												  ALLOCSET_DEFAULT_MINSIZE,
-												  ALLOCSET_DEFAULT_INITSIZE,
-												  ALLOCSET_DEFAULT_MAXSIZE);
+												  ALLOCSET_DEFAULT_SIZES);
 		oldcontext = MemoryContextSwitchTo(mycontext);
 		
         /*clear Global*/
@@ -444,6 +464,8 @@ Datum	pg_clean_execute(PG_FUNCTION_ARGS)
 		
 		MemoryContextSwitchTo(oldcontext);
 
+		pgxc_node_set_global_traceid_regenerate(true);
+
 	}
 	
 	funcctx = SRF_PERCALL_SETUP();	
@@ -452,13 +474,14 @@ Datum	pg_clean_execute(PG_FUNCTION_ARGS)
 	if (print_txn->index < print_txn->txn_count)
 	{
 		temp_txn = print_txn->txn[print_txn->index];
-		strncpy(txn_gid, temp_txn->gid, 100);
-		strncpy(txn_status, txn_status_to_string(temp_txn->global_txn_stat), 100);
-		strncpy(txn_op, txn_op_to_string(temp_txn->op), 100);
+		strncpy(txn_gid, temp_txn->gid, MAX_GID);
+		strncpy(txn_status, txn_status_to_string(temp_txn->global_txn_stat),
+			MAX_FIELD_LEN);
+		strncpy(txn_op, txn_op_to_string(temp_txn->op), MAX_FIELD_LEN);
 		if (temp_txn->op_issuccess)
-			strncpy(txn_op_issuccess, "success", 100);
+			strncpy(txn_op_issuccess, "success", MAX_FIELD_LEN);
 		else
-			strncpy(txn_op_issuccess, "fail", 100);
+			strncpy(txn_op_issuccess, "fail", MAX_FIELD_LEN);
 		
 		MemSet(values, 0, sizeof(values));
 		MemSet(nulls, 0, sizeof(nulls));
@@ -482,6 +505,277 @@ Datum	pg_clean_execute(PG_FUNCTION_ARGS)
 }
 
 /*
+ * only use when deadlock
+  */
+Datum	pg_clean_execute_for_deadlock(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(pg_clean_execute_for_deadlock);
+Datum	pg_clean_execute_for_deadlock(PG_FUNCTION_ARGS)
+{
+#ifdef ACCESS_CONTROL_ATTR_NUM
+#undef ACCESS_CONTROL_ATTR_NUM
+#endif
+#define ACCESS_CONTROL_ATTR_NUM  4
+	FuncCallContext     *funcctx;
+	HeapTuple            tuple;
+	print_txn_info      *print_txn = NULL;
+	txn_info            *temp_txn;
+	char                 txn_gid[MAX_GID];
+	char                 txn_status[MAX_FIELD_LEN];
+	char                 txn_op[MAX_FIELD_LEN];
+	char                 txn_op_issuccess[MAX_FIELD_LEN];
+	Datum                values[ACCESS_CONTROL_ATTR_NUM];
+	bool                 nulls[ACCESS_CONTROL_ATTR_NUM];
+
+	if(!IS_PGXC_COORDINATOR)
+	{
+		elog(ERROR, "can only called on coordinator");
+	}
+
+	if (SRF_IS_FIRSTCALL())
+	{
+		MemoryContext oldcontext;
+		TupleDesc	tupdesc;
+		MemoryContext mycontext;
+		funcctx = SRF_FIRSTCALL_INIT();
+
+		oldcontext = MemoryContextSwitchTo(funcctx->multi_call_memory_ctx);
+
+		tupdesc = CreateTemplateTupleDesc(ACCESS_CONTROL_ATTR_NUM, false);
+		TupleDescInitEntry(tupdesc, (AttrNumber) 1, "gid",
+						   TEXTOID, -1, 0);
+		TupleDescInitEntry(tupdesc, (AttrNumber) 2, "global_transaction_status",
+						   TEXTOID, -1, 0);
+		TupleDescInitEntry(tupdesc, (AttrNumber) 3, "operation",
+						   TEXTOID, -1, 0);
+		TupleDescInitEntry(tupdesc, (AttrNumber) 4, "operation_status",
+						   TEXTOID, -1, 0);
+		funcctx->tuple_desc = BlessTupleDesc(tupdesc);
+
+		funcctx->user_fctx = (print_txn_info *)palloc0(sizeof(print_txn_info));
+		print_txn = (print_txn_info *) funcctx->user_fctx;
+
+		MemoryContextSwitchTo(oldcontext);
+		mycontext = AllocSetContextCreate(funcctx->multi_call_memory_ctx,
+												  "clean_check",
+												  ALLOCSET_DEFAULT_SIZES);
+		oldcontext = MemoryContextSwitchTo(mycontext);
+
+		/*clear Global*/
+		ResetGlobalVariables();
+		is_for_deadlock = true;
+		execute = true;
+
+		clean_time_interval = PG_GETARG_INT32(0);
+		if (LEAST_CLEAN_TIME_INTERVAL > clean_time_interval)
+		{
+			elog(WARNING, "least clean time interval is %ds",
+				LEAST_CLEAN_TIME_INTERVAL);
+			clean_time_interval = LEAST_CLEAN_TIME_INTERVAL;
+		}
+		clean_time_interval *= USECS_PER_SEC;
+
+		/*get node list*/
+		PgxcNodeGetOids(&cn_node_list, &dn_node_list,
+						&cn_nodes_num, &dn_nodes_num, true);
+		pgxc_clean_node_count = cn_nodes_num + dn_nodes_num;
+		my_nodeoid = getMyNodeoid();
+		cn_health_map = palloc0(cn_nodes_num * sizeof(bool));
+		dn_health_map = palloc0(dn_nodes_num * sizeof(bool));
+
+		/*add my database info*/
+		add_database_info(get_database_name(MyDatabaseId));
+
+		current_time = GetCurrentTimestamp();
+		current_gts = GetGlobalTimestampGTM();
+		if (!GlobalTimestampIsValid(current_gts))
+		{
+			elog(ERROR, "get invalid gts");
+		}
+
+		/*get txn info from 2pc files*/
+		getAllTxnInfoFrom2pcFiles();
+
+		/*recover all 2PC transactions*/
+		recover2PCForDatabaseAll();
+
+		Init_print_txn_info(print_txn);
+
+		print_txn->mycontext = mycontext;
+
+		MemoryContextSwitchTo(oldcontext);
+	}
+
+	funcctx = SRF_PERCALL_SETUP();
+	print_txn = (print_txn_info *) funcctx->user_fctx;
+
+	if (print_txn->index < print_txn->txn_count)
+	{
+		temp_txn = print_txn->txn[print_txn->index];
+		strncpy(txn_gid, temp_txn->gid, MAX_GID);
+		strncpy(txn_status, txn_status_to_string(temp_txn->global_txn_stat),
+			MAX_FIELD_LEN);
+		strncpy(txn_op, txn_op_to_string(temp_txn->op), MAX_FIELD_LEN);
+		if (temp_txn->op_issuccess)
+			strncpy(txn_op_issuccess, "success", MAX_FIELD_LEN);
+		else
+			strncpy(txn_op_issuccess, "fail", MAX_FIELD_LEN);
+
+		MemSet(values, 0, sizeof(values));
+		MemSet(nulls, 0, sizeof(nulls));
+
+		values[0] = PointerGetDatum(cstring_to_text(txn_gid));
+		values[1] = PointerGetDatum(cstring_to_text(txn_status));
+		values[2] = PointerGetDatum(cstring_to_text(txn_op));
+		values[3] = PointerGetDatum(cstring_to_text(txn_op_issuccess));
+		tuple = heap_form_tuple(funcctx->tuple_desc, values, nulls);
+		print_txn->index++;
+		SRF_RETURN_NEXT(funcctx, HeapTupleGetDatum(tuple));
+	}
+	else
+	{
+		//MemoryContextDelete(print_txn->mycontext);
+		DestroyTxnHash();
+		ResetGlobalVariables();
+		SRF_RETURN_DONE(funcctx);
+	}
+}
+
+/*
+ * only use after node remove from the cluster
+ */
+Datum	pg_clean_execute_for_node_removed(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(pg_clean_execute_for_node_removed);
+Datum	pg_clean_execute_for_node_removed(PG_FUNCTION_ARGS)
+{
+#ifdef ACCESS_CONTROL_ATTR_NUM
+#undef ACCESS_CONTROL_ATTR_NUM
+#endif
+#define ACCESS_CONTROL_ATTR_NUM  4
+	FuncCallContext *funcctx;
+	HeapTuple        tuple;
+	print_txn_info  *print_txn = NULL;
+	txn_info        *temp_txn;
+	char             txn_gid[MAX_GID];
+	char             txn_status[MAX_FIELD_LEN];
+	char             txn_op[MAX_FIELD_LEN];
+	char             txn_op_issuccess[MAX_FIELD_LEN];
+
+	Datum       values[ACCESS_CONTROL_ATTR_NUM];
+	bool        nulls[ACCESS_CONTROL_ATTR_NUM];
+
+	if(!IS_PGXC_COORDINATOR)
+	{
+		elog(ERROR, "can only called on coordinator");
+	}
+
+	if (SRF_IS_FIRSTCALL())
+	{
+		MemoryContext oldcontext;
+		TupleDesc	tupdesc;
+		MemoryContext mycontext;
+		funcctx = SRF_FIRSTCALL_INIT();
+
+		oldcontext = MemoryContextSwitchTo(funcctx->multi_call_memory_ctx);
+
+		tupdesc = CreateTemplateTupleDesc(ACCESS_CONTROL_ATTR_NUM, false);
+		TupleDescInitEntry(tupdesc, (AttrNumber) 1, "gid",
+						   TEXTOID, -1, 0);
+		TupleDescInitEntry(tupdesc, (AttrNumber) 2, "global_transaction_status",
+						   TEXTOID, -1, 0);
+		TupleDescInitEntry(tupdesc, (AttrNumber) 3, "operation",
+						   TEXTOID, -1, 0);
+		TupleDescInitEntry(tupdesc, (AttrNumber) 4, "operation_status",
+						   TEXTOID, -1, 0);
+		funcctx->tuple_desc = BlessTupleDesc(tupdesc);
+
+		funcctx->user_fctx = (print_txn_info *)palloc0(sizeof(print_txn_info));
+		print_txn = (print_txn_info *) funcctx->user_fctx;
+
+		MemoryContextSwitchTo(oldcontext);
+		mycontext = AllocSetContextCreate(funcctx->multi_call_memory_ctx,
+												  "clean_check",
+												  ALLOCSET_DEFAULT_SIZES);
+		oldcontext = MemoryContextSwitchTo(mycontext);
+
+		/*clear Global*/
+		ResetGlobalVariables();
+		execute = true;
+		is_for_node_removed = true;
+
+		clean_time_interval = PG_GETARG_INT32(0);
+		if (LEAST_CLEAN_TIME_INTERVAL > clean_time_interval)
+		{
+			elog(WARNING, "least clean time interval is %ds",
+				LEAST_CLEAN_TIME_INTERVAL);
+			clean_time_interval = LEAST_CLEAN_TIME_INTERVAL;
+		}
+		clean_time_interval *= USECS_PER_SEC;
+
+		/*get node list*/
+		PgxcNodeGetOids(&cn_node_list, &dn_node_list,
+						&cn_nodes_num, &dn_nodes_num, true);
+		pgxc_clean_node_count = cn_nodes_num + dn_nodes_num;
+		my_nodeoid = getMyNodeoid();
+		cn_health_map = palloc0(cn_nodes_num * sizeof(bool));
+		dn_health_map = palloc0(dn_nodes_num * sizeof(bool));
+
+		/*add my database info*/
+		add_database_info(get_database_name(MyDatabaseId));
+
+		/*get all info of 2PC transactions*/
+		getTxnInfoOnNodesAll();
+
+		/*get txn info on other nodes all*/
+		getTxnInfoOnOtherNodesAll();
+
+		/*recover all 2PC transactions*/
+		recover2PCForDatabaseAll();
+
+		Init_print_txn_info(print_txn);
+
+		print_txn->mycontext = mycontext;
+
+		MemoryContextSwitchTo(oldcontext);
+
+		pgxc_node_set_global_traceid_regenerate(true);
+	}
+
+	funcctx = SRF_PERCALL_SETUP();
+	print_txn = (print_txn_info *) funcctx->user_fctx;
+
+	if (print_txn->index < print_txn->txn_count)
+	{
+		temp_txn = print_txn->txn[print_txn->index];
+		strncpy(txn_gid, temp_txn->gid, MAX_GID);
+		strncpy(txn_status, txn_status_to_string(temp_txn->global_txn_stat),
+			MAX_FIELD_LEN);
+		strncpy(txn_op, txn_op_to_string(temp_txn->op), MAX_FIELD_LEN);
+		if (temp_txn->op_issuccess)
+			strncpy(txn_op_issuccess, "success", MAX_FIELD_LEN);
+		else
+			strncpy(txn_op_issuccess, "fail", MAX_FIELD_LEN);
+
+		MemSet(values, 0, sizeof(values));
+		MemSet(nulls, 0, sizeof(nulls));
+
+		values[0] = PointerGetDatum(cstring_to_text(txn_gid));
+		values[1] = PointerGetDatum(cstring_to_text(txn_status));
+		values[2] = PointerGetDatum(cstring_to_text(txn_op));
+		values[3] = PointerGetDatum(cstring_to_text(txn_op_issuccess));
+		tuple = heap_form_tuple(funcctx->tuple_desc, values, nulls);
+		print_txn->index++;
+		SRF_RETURN_NEXT(funcctx, HeapTupleGetDatum(tuple));
+	}
+	else
+	{
+		//MemoryContextDelete(print_txn->mycontext);
+		DestroyTxnHash();
+		ResetGlobalVariables();
+		SRF_RETURN_DONE(funcctx);
+	}
+}
+
+/*
  * clear 2pc after oss detect abnormal node and restart it , 
  * only clear 2pc belong the abnormal node and before the abnormal time
  */
@@ -497,11 +791,12 @@ Datum	pg_clean_execute_on_node(PG_FUNCTION_ARGS)
 	HeapTuple			tuple;		
 	print_txn_info		*print_txn = NULL;
 	txn_info 			*temp_txn;
-	char				txn_gid[100];
-	char				txn_status[100];
-	char				txn_op[100];
-	char				txn_op_issuccess[100];
-	
+	char				txn_gid[MAX_GID];
+	char				txn_status[MAX_FIELD_LEN];
+	char				txn_op[MAX_FIELD_LEN];
+	char				txn_op_issuccess[MAX_FIELD_LEN];
+	int64				time_gap = 0;
+
 	Datum		values[ACCESS_CONTROL_ATTR_NUM];
 	bool		nulls[ACCESS_CONTROL_ATTR_NUM];
 	
@@ -537,9 +832,7 @@ Datum	pg_clean_execute_on_node(PG_FUNCTION_ARGS)
 		MemoryContextSwitchTo(oldcontext);
 		mycontext = AllocSetContextCreate(funcctx->multi_call_memory_ctx,
 												  "clean_check",
-												  ALLOCSET_DEFAULT_MINSIZE,
-												  ALLOCSET_DEFAULT_INITSIZE,
-												  ALLOCSET_DEFAULT_MAXSIZE);
+												  ALLOCSET_DEFAULT_SIZES);
 		oldcontext = MemoryContextSwitchTo(mycontext);
 		
         /*clear Global*/
@@ -547,21 +840,47 @@ Datum	pg_clean_execute_on_node(PG_FUNCTION_ARGS)
         execute = true;
         clear_2pc_belong_node = true;
 
+        if (0 == PG_GETARG_DATUM(0))
+        {
+            elog(ERROR, "pg_clean_execute_on_node: node name is empty");
+        }
         abnormal_nodename = text_to_cstring(PG_GETARG_TEXT_P(0));
         abnormal_nodeoid = get_pgxc_nodeoid(abnormal_nodename);
-        if (InvalidOid == abnormal_nodeoid)
+        if (!OidIsValid(abnormal_nodeoid))
         {
-            elog(ERROR, "pg_clean_execute_on_node, cannot clear 2pc of invalid nodename '%s'", abnormal_nodename);
+            elog(ERROR, "pg_clean_execute_on_node, cannot clear 2pc of "
+                "invalid nodename '%s'", abnormal_nodename);
         }
+
         abnormal_time = PG_GETARG_INT64(1);
         current_time = GetCurrentTimestamp();
-        if (abnormal_time >= current_time - LEAST_CLEAN_TIME_INTERVAL * USECS_PER_SEC)
+        if (abnormal_time > current_time)
         {
-            elog(ERROR, "pg_clean_execute_on_node, least clean time interval is %ds, "
-                "abnormal time: " INT64_FORMAT ", current_time: " INT64_FORMAT,
+            /*abnormal time later than current time, can not clean*/
+            elog(ERROR, "pg_clean_execute_on_node, abnormal time: "
+                INT64_FORMAT " later than current time: " INT64_FORMAT,
+                abnormal_time, current_time);
+        }
+
+        time_gap = current_time - abnormal_time;
+        if (time_gap < LEAST_CLEAN_TIME_INTERVAL * USECS_PER_SEC)
+        {
+            /*time gap less than LEAST_CLEAN_TIME_INTERVAL, can not clean*/
+            elog(ERROR, "pg_clean_execute_on_node, least clean interval is %ds, "
+                "abnormal time: " INT64_FORMAT ", current time: " INT64_FORMAT,
                 LEAST_CLEAN_TIME_INTERVAL, abnormal_time, current_time);
         }
-        
+
+        clean_time_interval = time_gap;
+
+        current_gts = GetGlobalTimestampGTM();
+        if (!GlobalTimestampIsValid(current_gts))
+        {
+            /*get invalid gts, can not clean*/
+            elog(ERROR, "pg_clean_execute_on_node, get invalid gts");
+        }
+        abnormal_gts = current_gts - time_gap;
+
 		/*get node list*/
 		PgxcNodeGetOids(&cn_node_list, &dn_node_list, 
 						&cn_nodes_num, &dn_nodes_num, true);
@@ -588,6 +907,8 @@ Datum	pg_clean_execute_on_node(PG_FUNCTION_ARGS)
 		
 		MemoryContextSwitchTo(oldcontext);
 
+		pgxc_node_set_global_traceid_regenerate(true);
+
 	}
 	
 	funcctx = SRF_PERCALL_SETUP();	
@@ -596,13 +917,14 @@ Datum	pg_clean_execute_on_node(PG_FUNCTION_ARGS)
 	if (print_txn->index < print_txn->txn_count)
 	{
 		temp_txn = print_txn->txn[print_txn->index];
-		strncpy(txn_gid, temp_txn->gid, 100);
-		strncpy(txn_status, txn_status_to_string(temp_txn->global_txn_stat), 100);
-		strncpy(txn_op, txn_op_to_string(temp_txn->op), 100);
+		strncpy(txn_gid, temp_txn->gid, MAX_GID);
+		strncpy(txn_status, txn_status_to_string(temp_txn->global_txn_stat),
+			MAX_FIELD_LEN);
+		strncpy(txn_op, txn_op_to_string(temp_txn->op), MAX_FIELD_LEN);
 		if (temp_txn->op_issuccess)
-			strncpy(txn_op_issuccess, "success", 100);
+			strncpy(txn_op_issuccess, "success", MAX_FIELD_LEN);
 		else
-			strncpy(txn_op_issuccess, "fail", 100);
+			strncpy(txn_op_issuccess, "fail", MAX_FIELD_LEN);
 		
 		MemSet(values, 0, sizeof(values));
 		MemSet(nulls, 0, sizeof(nulls));
@@ -624,6 +946,168 @@ Datum	pg_clean_execute_on_node(PG_FUNCTION_ARGS)
 	}
 }
 
+/*
+ * only use when deadlock
+  */
+Datum	pg_clean_execute_on_node_for_deadlock(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(pg_clean_execute_on_node_for_deadlock);
+Datum	pg_clean_execute_on_node_for_deadlock(PG_FUNCTION_ARGS)
+{
+#ifdef ACCESS_CONTROL_ATTR_NUM
+#undef ACCESS_CONTROL_ATTR_NUM
+#endif
+#define ACCESS_CONTROL_ATTR_NUM  4
+	FuncCallContext     *funcctx;
+	HeapTuple            tuple;
+	print_txn_info      *print_txn = NULL;
+	txn_info            *temp_txn;
+	char                 txn_gid[MAX_GID];
+	char                 txn_status[MAX_FIELD_LEN];
+	char                 txn_op[MAX_FIELD_LEN];
+	char                 txn_op_issuccess[MAX_FIELD_LEN];
+	int64                time_gap = 0;
+	Datum                values[ACCESS_CONTROL_ATTR_NUM];
+	bool                 nulls[ACCESS_CONTROL_ATTR_NUM];
+
+	if(!IS_PGXC_COORDINATOR)
+	{
+		elog(ERROR, "can only called on coordinator");
+	}
+
+	if (SRF_IS_FIRSTCALL())
+	{
+		MemoryContext oldcontext;
+		TupleDesc	tupdesc;
+		MemoryContext mycontext;
+		funcctx = SRF_FIRSTCALL_INIT();
+
+		oldcontext = MemoryContextSwitchTo(funcctx->multi_call_memory_ctx);
+
+		tupdesc = CreateTemplateTupleDesc(ACCESS_CONTROL_ATTR_NUM, false);
+		TupleDescInitEntry(tupdesc, (AttrNumber) 1, "gid",
+						   TEXTOID, -1, 0);
+		TupleDescInitEntry(tupdesc, (AttrNumber) 2, "global_transaction_status",
+						   TEXTOID, -1, 0);
+		TupleDescInitEntry(tupdesc, (AttrNumber) 3, "operation",
+						   TEXTOID, -1, 0);
+		TupleDescInitEntry(tupdesc, (AttrNumber) 4, "operation_status",
+						   TEXTOID, -1, 0);
+		funcctx->tuple_desc = BlessTupleDesc(tupdesc);
+
+		funcctx->user_fctx = (print_txn_info *)palloc0(sizeof(print_txn_info));
+		print_txn = (print_txn_info *) funcctx->user_fctx;
+
+		MemoryContextSwitchTo(oldcontext);
+		mycontext = AllocSetContextCreate(funcctx->multi_call_memory_ctx,
+												  "clean_check",
+												  ALLOCSET_DEFAULT_SIZES);
+		oldcontext = MemoryContextSwitchTo(mycontext);
+
+		/*clear Global*/
+		ResetGlobalVariables();
+		is_for_deadlock = true;
+		execute = true;
+		clear_2pc_belong_node = true;
+
+		if (0 == PG_GETARG_DATUM(0))
+		{
+			elog(ERROR, "pg_clean_execute_on_node: node name is empty");
+		}
+		abnormal_nodename = text_to_cstring(PG_GETARG_TEXT_P(0));
+		abnormal_nodeoid = get_pgxc_nodeoid(abnormal_nodename);
+        if (!OidIsValid(abnormal_nodeoid))
+		{
+			elog(ERROR, "pg_clean_execute_on_node, cannot clear 2pc of "
+				"invalid nodename '%s'", abnormal_nodename);
+		}
+
+		abnormal_time = PG_GETARG_INT64(1);
+		current_time = GetCurrentTimestamp();
+		if (abnormal_time > current_time)
+		{
+			/*abnormal time later than current time, can not clean*/
+			elog(ERROR, "pg_clean_execute_on_node, abnormal time: "
+				INT64_FORMAT " later than current time: " INT64_FORMAT,
+				abnormal_time, current_time);
+		}
+
+		time_gap = current_time - abnormal_time;
+		if (time_gap < LEAST_CLEAN_TIME_INTERVAL * USECS_PER_SEC)
+		{
+			/*time gap less than LEAST_CLEAN_TIME_INTERVAL, can not clean*/
+			elog(ERROR, "pg_clean_execute_on_node, least clean interval is %ds, "
+				"abnormal time: " INT64_FORMAT ", current time: " INT64_FORMAT,
+				LEAST_CLEAN_TIME_INTERVAL, abnormal_time, current_time);
+		}
+
+		clean_time_interval = time_gap;
+
+		current_gts = GetGlobalTimestampGTM();
+		if (!GlobalTimestampIsValid(current_gts))
+		{
+			/*get invalid gts, can not clean*/
+			elog(ERROR, "pg_clean_execute_on_node, get invalid gts");
+		}
+		abnormal_gts = current_gts - time_gap;
+
+		/*get node list*/
+		PgxcNodeGetOids(&cn_node_list, &dn_node_list,
+						&cn_nodes_num, &dn_nodes_num, true);
+		pgxc_clean_node_count = cn_nodes_num + dn_nodes_num;
+		my_nodeoid = getMyNodeoid();
+		cn_health_map = palloc0(cn_nodes_num * sizeof(bool));
+		dn_health_map = palloc0(dn_nodes_num * sizeof(bool));
+
+		/*add my database info*/
+		add_database_info(get_database_name(MyDatabaseId));
+
+		/*get txn info from 2pc files*/
+		getAllTxnInfoFrom2pcFiles();
+
+		/*recover all 2PC transactions*/
+		recover2PCForDatabaseAll();
+
+		Init_print_txn_info(print_txn);
+
+		print_txn->mycontext = mycontext;
+
+		MemoryContextSwitchTo(oldcontext);
+	}
+
+	funcctx = SRF_PERCALL_SETUP();
+	print_txn = (print_txn_info *) funcctx->user_fctx;
+
+	if (print_txn->index < print_txn->txn_count)
+	{
+		temp_txn = print_txn->txn[print_txn->index];
+		strncpy(txn_gid, temp_txn->gid, MAX_GID);
+		strncpy(txn_status, txn_status_to_string(temp_txn->global_txn_stat),
+			MAX_FIELD_LEN);
+		strncpy(txn_op, txn_op_to_string(temp_txn->op), MAX_FIELD_LEN);
+		if (temp_txn->op_issuccess)
+			strncpy(txn_op_issuccess, "success", MAX_FIELD_LEN);
+		else
+			strncpy(txn_op_issuccess, "fail", MAX_FIELD_LEN);
+
+		MemSet(values, 0, sizeof(values));
+		MemSet(nulls, 0, sizeof(nulls));
+
+		values[0] = PointerGetDatum(cstring_to_text(txn_gid));
+		values[1] = PointerGetDatum(cstring_to_text(txn_status));
+		values[2] = PointerGetDatum(cstring_to_text(txn_op));
+		values[3] = PointerGetDatum(cstring_to_text(txn_op_issuccess));
+		tuple = heap_form_tuple(funcctx->tuple_desc, values, nulls);
+		print_txn->index++;
+		SRF_RETURN_NEXT(funcctx, HeapTupleGetDatum(tuple));
+	}
+	else
+	{
+		DestroyTxnHash();
+		pfree(abnormal_nodename);
+		ResetGlobalVariables();
+		SRF_RETURN_DONE(funcctx);
+	}
+}
 
 Datum	pg_clean_check_txn(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(pg_clean_check_txn);
@@ -679,9 +1163,7 @@ Datum	pg_clean_check_txn(PG_FUNCTION_ARGS)
 
 		mycontext = AllocSetContextCreate(funcctx->multi_call_memory_ctx,
 												  "clean_check",
-												  ALLOCSET_DEFAULT_MINSIZE,
-												  ALLOCSET_DEFAULT_INITSIZE,
-												  ALLOCSET_DEFAULT_MAXSIZE);
+												  ALLOCSET_DEFAULT_SIZES);
 		oldcontext = MemoryContextSwitchTo(mycontext);
 
         /*clear Global*/
@@ -697,7 +1179,7 @@ Datum	pg_clean_check_txn(PG_FUNCTION_ARGS)
         clean_time_interval *= USECS_PER_SEC;
 
 		/*get node list*/
-		PgxcNodeGetOids(&cn_node_list, &dn_node_list, 
+		PgxcNodeGetOids(&cn_node_list, &dn_node_list,  
 						&cn_nodes_num, &dn_nodes_num, true);
         if (cn_node_list == NULL || dn_node_list == NULL)
             elog(ERROR, "pg_clean:fail to get cn_node_list and dn_node_list");
@@ -722,11 +1204,266 @@ Datum	pg_clean_check_txn(PG_FUNCTION_ARGS)
 	
 		MemoryContextSwitchTo(oldcontext);
 
+		pgxc_node_set_global_traceid_regenerate(true);
+
 	}
 	
 	funcctx = SRF_PERCALL_SETUP();	
 	pstatus = (print_status *) funcctx->user_fctx;
 	
+	if (pstatus->index < pstatus->count)
+	{
+		MemSet(values, 0, sizeof(values));
+		MemSet(nulls, 0, sizeof(nulls));
+
+		values[0] = PointerGetDatum(cstring_to_text(pstatus->gid[pstatus->index]));
+		values[1] = PointerGetDatum(cstring_to_text(pstatus->database[pstatus->index]));
+		values[2] = PointerGetDatum(cstring_to_text(pstatus->global_status[pstatus->index]));
+		values[3] = PointerGetDatum(cstring_to_text(pstatus->status[pstatus->index]));
+		tuple = heap_form_tuple(funcctx->tuple_desc, values, nulls);
+		pstatus->index++;
+		SRF_RETURN_NEXT(funcctx, HeapTupleGetDatum(tuple));
+	}
+	else
+	{
+		/*
+		MemoryContextDelete(pstatus->mycontext);
+		DropDatabaseInfo();
+		*/
+		DestroyTxnHash();
+		ResetGlobalVariables();
+		SRF_RETURN_DONE(funcctx);
+	}
+}
+
+/*
+ * only use when deadlock
+  */
+Datum	pg_clean_check_txn_for_deadlock(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(pg_clean_check_txn_for_deadlock);
+Datum	pg_clean_check_txn_for_deadlock(PG_FUNCTION_ARGS)
+{
+#ifdef ACCESS_CONTROL_ATTR_NUM
+#undef ACCESS_CONTROL_ATTR_NUM
+#endif
+#define ACCESS_CONTROL_ATTR_NUM  4
+	FuncCallContext     *funcctx;
+	HeapTuple            tuple;
+	print_status        *pstatus = NULL;
+	Datum                values[ACCESS_CONTROL_ATTR_NUM];
+	bool                 nulls[ACCESS_CONTROL_ATTR_NUM];
+
+	execute = false;
+
+	if(!IS_PGXC_COORDINATOR)
+	{
+		elog(ERROR, "can only called on coordinator");
+	}
+
+	if (SRF_IS_FIRSTCALL())
+	{
+		MemoryContext oldcontext;
+		MemoryContext mycontext;
+		TupleDesc	tupdesc;
+		funcctx = SRF_FIRSTCALL_INIT();
+
+		oldcontext = MemoryContextSwitchTo(funcctx->multi_call_memory_ctx);
+
+		tupdesc = CreateTemplateTupleDesc(ACCESS_CONTROL_ATTR_NUM, false);
+		TupleDescInitEntry(tupdesc, (AttrNumber) 1, "gid",
+						   TEXTOID, -1, 0);
+		TupleDescInitEntry(tupdesc, (AttrNumber) 2, "database",
+						   TEXTOID, -1, 0);
+		TupleDescInitEntry(tupdesc, (AttrNumber) 3, "global_transaction_status",
+						   TEXTOID, -1, 0);
+		TupleDescInitEntry(tupdesc, (AttrNumber) 4, "transaction_status_on_allnodes",
+						   TEXTOID, -1, 0);
+		funcctx->tuple_desc = BlessTupleDesc(tupdesc);
+
+		funcctx->user_fctx = (print_status *)palloc0(sizeof(print_status));
+		pstatus = (print_status *) funcctx->user_fctx;
+		pstatus->index = pstatus->count = 0;
+		pstatus->gid = NULL;
+		pstatus->global_status = pstatus->status = (char **)NULL;
+		pstatus->database = NULL;
+		pstatus->mycontext = NULL;
+
+		MemoryContextSwitchTo(oldcontext);
+
+		mycontext = AllocSetContextCreate(funcctx->multi_call_memory_ctx,
+												  "clean_check",
+												  ALLOCSET_DEFAULT_SIZES);
+		oldcontext = MemoryContextSwitchTo(mycontext);
+
+		/*clear Global*/
+		ResetGlobalVariables();
+		is_for_deadlock = true;
+
+		clean_time_interval = PG_GETARG_INT32(0);
+		if (LEAST_CHECK_TIME_INTERVAL > clean_time_interval)
+		{
+			elog(WARNING, "least check time interval is %ds",
+				LEAST_CHECK_TIME_INTERVAL);
+			clean_time_interval = LEAST_CHECK_TIME_INTERVAL;
+		}
+		clean_time_interval *= USECS_PER_SEC;
+
+		/*get node list*/
+		PgxcNodeGetOids(&cn_node_list, &dn_node_list,
+						&cn_nodes_num, &dn_nodes_num, true);
+		if (cn_node_list == NULL || dn_node_list == NULL)
+			elog(ERROR, "pg_clean:fail to get cn_node_list and dn_node_list");
+		pgxc_clean_node_count = cn_nodes_num + dn_nodes_num;
+		my_nodeoid = getMyNodeoid();
+		cn_health_map = palloc0(cn_nodes_num * sizeof(bool));
+		dn_health_map = palloc0(dn_nodes_num * sizeof(bool));
+
+		current_time = GetCurrentTimestamp();
+		current_gts = GetGlobalTimestampGTM();
+		if (!GlobalTimestampIsValid(current_gts))
+		{
+			elog(ERROR, "get invalid gts");
+		}
+
+		/*get txn info from 2pc files*/
+		getAllTxnInfoFrom2pcFiles();
+
+		/*recover all 2PC transactions*/
+		Init_print_stats_all(pstatus);
+
+		pstatus->mycontext = mycontext;
+
+		MemoryContextSwitchTo(oldcontext);
+	}
+
+	funcctx = SRF_PERCALL_SETUP();
+	pstatus = (print_status *) funcctx->user_fctx;
+
+	if (pstatus->index < pstatus->count)
+	{
+		MemSet(values, 0, sizeof(values));
+		MemSet(nulls, 0, sizeof(nulls));
+
+		values[0] = PointerGetDatum(cstring_to_text(pstatus->gid[pstatus->index]));
+		values[1] = PointerGetDatum(cstring_to_text(pstatus->database[pstatus->index]));
+		values[2] = PointerGetDatum(cstring_to_text(pstatus->global_status[pstatus->index]));
+		values[3] = PointerGetDatum(cstring_to_text(pstatus->status[pstatus->index]));
+		tuple = heap_form_tuple(funcctx->tuple_desc, values, nulls);
+		pstatus->index++;
+		SRF_RETURN_NEXT(funcctx, HeapTupleGetDatum(tuple));
+	}
+	else
+	{
+		DestroyTxnHash();
+		ResetGlobalVariables();
+		SRF_RETURN_DONE(funcctx);
+	}
+}
+
+/*
+ * only use after node remove from the cluster
+ */
+Datum	pg_clean_check_txn_for_node_removed(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(pg_clean_check_txn_for_node_removed);
+Datum	pg_clean_check_txn_for_node_removed(PG_FUNCTION_ARGS)
+{
+#ifdef ACCESS_CONTROL_ATTR_NUM
+#undef ACCESS_CONTROL_ATTR_NUM
+#endif
+#define ACCESS_CONTROL_ATTR_NUM  4
+	FuncCallContext *funcctx;
+	HeapTuple        tuple;
+	print_status    *pstatus = NULL;
+
+	Datum            values[ACCESS_CONTROL_ATTR_NUM];
+	bool             nulls[ACCESS_CONTROL_ATTR_NUM];
+	execute = false;
+
+	if(!IS_PGXC_COORDINATOR)
+	{
+		elog(ERROR, "can only called on coordinator");
+	}
+
+	if (SRF_IS_FIRSTCALL())
+	{
+		MemoryContext oldcontext;
+		MemoryContext mycontext;
+		TupleDesc	tupdesc;
+		funcctx = SRF_FIRSTCALL_INIT();
+
+		oldcontext = MemoryContextSwitchTo(funcctx->multi_call_memory_ctx);
+
+		tupdesc = CreateTemplateTupleDesc(ACCESS_CONTROL_ATTR_NUM, false);
+		TupleDescInitEntry(tupdesc, (AttrNumber) 1, "gid",
+						   TEXTOID, -1, 0);
+		TupleDescInitEntry(tupdesc, (AttrNumber) 2, "database",
+						   TEXTOID, -1, 0);
+		TupleDescInitEntry(tupdesc, (AttrNumber) 3, "global_transaction_status",
+						   TEXTOID, -1, 0);
+		TupleDescInitEntry(tupdesc, (AttrNumber) 4, "transaction_status_on_allnodes",
+						   TEXTOID, -1, 0);
+		funcctx->tuple_desc = BlessTupleDesc(tupdesc);
+
+		funcctx->user_fctx = (print_status *)palloc0(sizeof(print_status));
+		pstatus = (print_status *) funcctx->user_fctx;
+		pstatus->index = pstatus->count = 0;
+		pstatus->gid = NULL;
+		pstatus->global_status = pstatus->status = (char **)NULL;
+		pstatus->database = NULL;
+		pstatus->mycontext = NULL;
+
+		MemoryContextSwitchTo(oldcontext);
+
+		mycontext = AllocSetContextCreate(funcctx->multi_call_memory_ctx,
+												  "clean_check",
+												  ALLOCSET_DEFAULT_SIZES);
+		oldcontext = MemoryContextSwitchTo(mycontext);
+
+		/*clear Global*/
+		ResetGlobalVariables();
+		is_for_node_removed = true;
+
+		clean_time_interval = PG_GETARG_INT32(0);
+		if (LEAST_CHECK_TIME_INTERVAL > clean_time_interval)
+		{
+			elog(WARNING, "least check time interval is %ds",
+				LEAST_CHECK_TIME_INTERVAL);
+			clean_time_interval = LEAST_CHECK_TIME_INTERVAL;
+		}
+		clean_time_interval *= USECS_PER_SEC;
+
+		/*get node list*/
+		PgxcNodeGetOids(&cn_node_list, &dn_node_list,
+						&cn_nodes_num, &dn_nodes_num, true);
+		if (cn_node_list == NULL || dn_node_list == NULL)
+			elog(ERROR, "pg_clean:fail to get cn_node_list and dn_node_list");
+		pgxc_clean_node_count = cn_nodes_num + dn_nodes_num;
+		my_nodeoid = getMyNodeoid();
+		cn_health_map = palloc0(cn_nodes_num * sizeof(bool));
+		dn_health_map = palloc0(dn_nodes_num * sizeof(bool));
+
+		/*get all database info*/
+		getDatabaseList();
+
+		/*get all info of 2PC transactions*/
+		getTxnInfoOnNodesAll();
+
+		/*get txn info on other nodes all*/
+		getTxnInfoOnOtherNodesAll();
+
+		/*recover all 2PC transactions*/
+		Init_print_stats_all(pstatus);
+
+		pstatus->mycontext = mycontext;
+
+		MemoryContextSwitchTo(oldcontext);
+
+		pgxc_node_set_global_traceid_regenerate(true);
+	}
+
+	funcctx = SRF_PERCALL_SETUP();
+	pstatus = (print_status *) funcctx->user_fctx;
+
 	if (pstatus->index < pstatus->count)
 	{
 		MemSet(values, 0, sizeof(values));
@@ -777,16 +1514,25 @@ static void ResetGlobalVariables(void)
 	head_database_info = last_database_info = NULL;
 
     current_time = 0;
-    abnormal_time = InvalidGlobalTimestamp;
+    abnormal_time = 0;
+    current_gts = InvalidGlobalTimestamp;
+    abnormal_gts = InvalidGlobalTimestamp;
     abnormal_nodename = NULL;
     abnormal_nodeoid = InvalidOid;
     clear_2pc_belong_node = false;
-
+    is_for_node_removed = false;
+    is_for_deadlock = false;
 }
 
 static Oid getMyNodeoid(void)
 {
-	return get_pgxc_nodeoid(PGXCNodeName);
+	Oid my_oid = get_pgxc_nodeoid(PGXCNodeName);
+	if (!OidIsValid(my_oid))
+	{
+		elog(WARNING, "Get local node(%s) oid failed", PGXCNodeName);
+	}
+
+	return my_oid;
 }
 
 /* 
@@ -888,6 +1634,10 @@ execute_query_on_single_node(Oid node, const char *query, int attnum, TupleTable
 			i_tuple++;
 		}
 	}
+	else
+	{
+		elog(LOG, "pg_clean: node %s is not healthy", get_pgxc_nodename(node));
+	}
 	ExecEndRemoteQuery(pstate);
 #endif
 	return issuccess == true ? (Datum) 1 : (Datum) 0;
@@ -899,9 +1649,9 @@ static bool check_node_health(Oid node_oid)
 	bool ishealthy = false;
 	
 	PoolPingNodeRecheck(node_oid);
-	PgxcNodeGetHealthMap(cn_node_list, dn_node_list, 
-						&cn_nodes_num, &dn_nodes_num, 
-						cn_health_map, dn_health_map);
+	PgxcNodeGetHealthMap(cn_node_list, dn_node_list,
+	                     &cn_nodes_num, &dn_nodes_num,
+	                     cn_health_map, dn_health_map);
 	if (get_pgxc_nodetype(node_oid) == 'C')
 	{
 		for (i = 0; i < cn_nodes_num; i++)
@@ -929,7 +1679,7 @@ static void getDatabaseList(void)
 {
 	int i;
 	TupleTableSlots result_db;
-	const char *query_db = "select datname::text from pg_database;";
+	const char *query_db = "select datname::text from pg_catalog.pg_database";
 	/*add datname into tail of head_database_info*/
 	if (execute_query_on_single_node(my_nodeoid, query_db, 1, &result_db) == (Datum) 1)
 	{
@@ -943,7 +1693,8 @@ static void getDatabaseList(void)
 	}
 	else
 	{
-		elog(LOG, "pg_clean: failed get database list on node %s", get_pgxc_nodename(my_nodeoid));
+		elog(ERROR, "pg_clean: failed to query database list on node %s, sql: %s",
+			get_pgxc_nodename(my_nodeoid), query_db);
 	}
 	DropTupleTableSlots(&result_db);
 }
@@ -986,6 +1737,12 @@ static void getTxnInfoOnNodesAll(void)
 {
 	int i;
 	current_time = GetCurrentTimestamp();
+	current_gts = GetGlobalTimestampGTM();
+	if (!GlobalTimestampIsValid(current_gts))
+	{
+		/*get invalid gts, get txn info error*/
+		elog(ERROR, "getTxnInfoOnNodesAll, get invalid gts");
+	}
 	/*upload 2PC transaction from CN*/
 	for (i = 0; i < cn_nodes_num; i++)
 	{
@@ -1008,18 +1765,33 @@ void getTxnInfoOnNode(Oid node)
 	int i;
 	TupleTableSlots result_txn;
 	Datum execute_res;
-	char query_execute[1024];
-	const char *query_txn_status = "select transaction::text, gid::text, owner::text, database::text, timestamptz_out(prepared)::text "
-										  "from pg_prepared_xacts;";
-	const char *query_txn_status_execute = "select transaction::text, gid::text, owner::text, database::text, timestamptz_out(prepared)::text "
-										  		  "from pg_prepared_xacts where database = '%s';";
-	snprintf(query_execute, 1024, query_txn_status_execute, get_database_name(MyDatabaseId));
+	char query_txn_status[LONG_CMD_LENGTH];
+	int interval_sec = DEFAULT_CHECK_TIME_INTERVAL;
+
+	if (interval_sec < clean_time_interval/USECS_PER_SEC/2)
+	{
+		interval_sec = clean_time_interval/USECS_PER_SEC/2;
+	}
 
 	if (execute)
-		execute_res = execute_query_on_single_node(node, query_execute, 5, &result_txn);
+	{
+		snprintf(query_txn_status, LONG_CMD_LENGTH,
+			"select transaction::text, gid::text, owner::text, database::text, "
+			"timestamptz_out(prepared)::text from pg_catalog.pg_prepared_xacts "
+			"where prepared < clock_timestamp() - interval '%d secs' "
+			"and database = '%s' order by prepared", interval_sec,
+			get_database_name(MyDatabaseId));
+	}
 	else
-		execute_res = execute_query_on_single_node(node, query_txn_status, 5, &result_txn);
-	
+	{
+		snprintf(query_txn_status, LONG_CMD_LENGTH,
+			"select transaction::text, gid::text, owner::text, database::text, "
+			"timestamptz_out(prepared)::text from pg_catalog.pg_prepared_xacts "
+			"where prepared < clock_timestamp() - interval '%d secs' "
+			"order by prepared", interval_sec);
+	}
+
+	execute_res = execute_query_on_single_node(node, query_txn_status, 5, &result_txn);
 	if (execute_res == (Datum) 1)
 	{
 		for (i = 0; i < result_txn.slot_count; i++)
@@ -1039,7 +1811,7 @@ void getTxnInfoOnNode(Oid node)
 												CStringGetDatum(TTSgetvalue(&result_txn, i, 4)),
 												ObjectIdGetDatum(InvalidOid),
 												Int32GetDatum(-1)));
-			
+
 			if (gid == NULL)
 			{
 				elog(ERROR, "node(%d) gid is null, xid: %d", node, xid);
@@ -1065,12 +1837,13 @@ void getTxnInfoOnNode(Oid node)
 	}
 	else
 	{
-		elog(LOG, "pg_clean: failed get database list on node %s", get_pgxc_nodename(node));
+		elog(ERROR, "pg_clean: failed to query prepared xacts on node %s, sql: %s",
+			get_pgxc_nodename(node), query_txn_status);
 	}
 	DropTupleTableSlots(&result_txn);
 }
 
-void add_txn_info(char* dbname, Oid node_oid, uint32 xid, char * gid, 
+txn_info *add_txn_info(char* dbname, Oid node_oid, uint32 xid, char * gid,
 						char * owner, TimestampTz prepared_time, TXN_STATUS status)
 {
 	txn_info *txn = NULL;
@@ -1100,7 +1873,107 @@ void add_txn_info(char* dbname, Oid node_oid, uint32 xid, char * gid,
 		txn->dnparts[nodeidx-cn_nodes_num] = 1;
 		txn->num_dnparts++;
 	}
-	return;
+	return txn;
+}
+
+/* search the first prepared node, then fetch trace id from this node */
+static bool
+GetGlobalTraceIdOnNode(const txn_info *txn)
+{
+	int i = 0;
+	Oid oid = InvalidOid;
+	txn_info dummy_info;
+	bool res = false;
+	if (NULL != txn)
+	{
+		for (i = 0; i < cn_nodes_num; i++)
+		{
+			// if true means this cn node is prepared, and will have a xlog file
+			if (txn->coordparts[i])
+			{
+				oid = cn_node_list[i];
+				break;
+			}
+		}
+		for (i = 0; i < dn_nodes_num && InvalidOid == oid; i++)
+		{
+			if (txn->dnparts[i])
+			{
+				oid = dn_node_list[i];
+				break;
+			}
+		}
+		if (InvalidOid == oid)
+		{
+			elog(WARNING, "2pc clean faile to get node oid, gid: %s", txn->gid);
+		}
+		else
+		{
+			strncpy(dummy_info.gid, txn->gid, strlen(txn->gid) + 1);
+			res = GetGlobalTraceIdOnPartNodes(&dummy_info, oid);
+			elog(DEBUG5, "2pc get globaltraceid:cn oid: %u,gid: %s,traceid: %s",
+				 cn_node_list[i], txn->gid, GlobalTraceId);
+		}
+	}
+	return res;
+}
+
+static bool
+GetGlobalTraceIdImpl(txn_info *txn, char *traceid)
+{
+	int sz = 0;
+	bool res = false;
+	if (NULL != traceid && NULL != txn)
+	{
+		traceid += strlen(GET_GLOBAL_TRACE_ID);
+		traceid = strtok(traceid, "\n");
+		if (NULL != traceid)
+		{
+			sz = strlen(traceid) + 1;
+			if (NAMEDATALEN * 2 <= sz)
+			{
+				elog(WARNING, "g_trace id inside 2pc file is illegal, \
+					 size is: %d, it is: %s", sz, traceid);
+			}
+			else
+			{
+				pgxc_node_set_global_traceid(traceid);
+				/* make the trace id do not be overwrited */
+				pgxc_node_set_global_traceid_regenerate(false);
+				res = true;
+			}
+			elog(DEBUG5, "2pc recover global trace id 1: %s-%s, sz: %d",
+				 traceid, GlobalTraceId, sz);
+		}
+	}
+	return res;
+}
+
+static bool
+GetGlobalTraceIdOnPartNodes(txn_info *txn, Oid node_oid)
+{
+	TupleTableSlots result;
+    char *file_content = NULL;
+	char *traceid = NULL;
+	bool res = false;
+	StringInfoData query_2pc_file;
+	initStringInfo(&query_2pc_file);
+	appendStringInfo(&query_2pc_file,"select public.pgxc_get_2pc_file('%s')::text",
+					 txn->gid);
+    
+	elog(DEBUG5, "2pc recover stmt-gid : %s-%s, node oid: %d",
+	     query_2pc_file.data, txn->gid, node_oid);
+	if (execute_query_on_single_node(node_oid, query_2pc_file.data, 1, &result) == (Datum) 1)
+	{
+		if (result.slot_count && TTSgetvalue(&result, 0, 0))
+		{
+            file_content = TTSgetvalue(&result, 0, 0);    
+			traceid = strstr(file_content, GET_GLOBAL_TRACE_ID);
+			res = GetGlobalTraceIdImpl(txn, traceid);
+		}
+		DropTupleTableSlots(&result);
+	}
+	return res;
 }
 
 TWOPHASE_FILE_STATUS GetTransactionPartNodes(txn_info *txn, Oid node_oid)
@@ -1113,14 +1986,16 @@ TWOPHASE_FILE_STATUS GetTransactionPartNodes(txn_info *txn, Oid node_oid)
     char *file_content = NULL;
     uint32 startxid = 0;
     char *str_startxid = NULL;
+    char *str_prepare_gts = NULL;
     char *str_timestamp = NULL;
 	char *temp = NULL;
+	char *save_ptr = NULL;
 	Oid	 temp_nodeoid;
 	char temp_nodetype;
 	int  temp_nodeidx;
-	char stmt[1024];
-	static const char *STMT_FORM = "select pgxc_get_2pc_file('%s')::text";
-	snprintf(stmt, 1024, STMT_FORM, txn->gid, txn->gid, txn->gid, txn->gid);
+	char stmt[MAX_CMD_LENGTH];
+	static const char *STMT_FORM = "select public.pgxc_get_2pc_file('%s')::text";
+	snprintf(stmt, MAX_CMD_LENGTH, STMT_FORM, txn->gid);
     
 	if (execute_query_on_single_node(node_oid, stmt, 1, &result) == (Datum) 1)
 	{
@@ -1132,7 +2007,13 @@ TWOPHASE_FILE_STATUS GetTransactionPartNodes(txn_info *txn, Oid node_oid)
 #endif
 		{
             file_content = TTSgetvalue(&result, 0, 0);    
-            
+
+            if (strlen(file_content) == 0)
+            {
+                elog(LOG, "gid: %s, 2pc file is not exist", txn->gid);
+	            return TWOPHASE_FILE_NOT_EXISTS;
+            }
+
             if (!IsXidImplicit(txn->gid) && strstr(file_content, GET_READONLY))
             {
                 txn->is_readonly = true;
@@ -1142,6 +2023,7 @@ TWOPHASE_FILE_STATUS GetTransactionPartNodes(txn_info *txn, Oid node_oid)
             }
             startnode = strstr(file_content, GET_START_NODE);
             str_startxid = strstr(file_content, GET_START_XID);
+            str_prepare_gts = strstr(file_content, GET_PREPARE_TIMESTAMP);
             partnodes = strstr(file_content, GET_NODE);
             temp = strstr(file_content, GET_COMMIT_TIMESTAMP);
             
@@ -1152,14 +2034,22 @@ TWOPHASE_FILE_STATUS GetTransactionPartNodes(txn_info *txn, Oid node_oid)
                 temp += strlen(GET_COMMIT_TIMESTAMP);
                 temp = strstr(temp, GET_COMMIT_TIMESTAMP);
             }
-            
+
+            /* get start node name */
             if (startnode)
             {
                 startnode += strlen(GET_START_NODE);
                 startnode = strtok(startnode, "\n");
                 txn->origcoord = get_pgxc_nodeoid(startnode);
+                if (!OidIsValid(txn->origcoord))
+                {
+                    elog(WARNING, "2pc(%s) get start node(%s) oid failed "
+                        "on node(%s), maybe node(%s) is removed from the cluster",
+                        txn->gid, startnode, get_pgxc_nodename(node_oid), startnode);
+                }
             }
-            
+
+            /* get start xid */
             if (str_startxid)
             {
                 str_startxid += strlen(GET_START_XID);
@@ -1167,7 +2057,8 @@ TWOPHASE_FILE_STATUS GetTransactionPartNodes(txn_info *txn, Oid node_oid)
                 startxid = strtoul(str_startxid, NULL, 10);
                 txn->startxid = startxid;
             }
-            
+
+            /* get participated nodes */
             if (partnodes)
             {
                 partnodes += strlen(GET_NODE);
@@ -1190,15 +2081,37 @@ TWOPHASE_FILE_STATUS GetTransactionPartNodes(txn_info *txn, Oid node_oid)
                 return res;
             }
 
+            /* get prepare gts */
+            if (str_prepare_gts)
+            {
+                str_prepare_gts += strlen(GET_PREPARE_TIMESTAMP);
+                str_prepare_gts = strtok(str_prepare_gts, "\n");
+                txn->global_prepare_timestamp = strtoull(str_prepare_gts, NULL, 10);
+            }
+            else
+            {
+                txn->global_prepare_timestamp = InvalidGlobalTimestamp;
+            }
+
+            /* get commit gts */
             if (str_timestamp)
             {
                 str_timestamp += strlen(GET_COMMIT_TIMESTAMP);
                 str_timestamp = strtok(str_timestamp, "\n");
                 txn->global_commit_timestamp = strtoull(str_timestamp, NULL, 10);
             }
-            
-            elog(DEBUG1, "get 2pc txn:%s partnodes in nodename: %s (nodeoid:%u) result: partnodes:%s, startnode:%s, startnodeoid:%u, startxid:%u", 
-                txn->gid, get_pgxc_nodename(node_oid), node_oid, partnodes, startnode, txn->origcoord, startxid);
+            else
+            {
+                txn->global_commit_timestamp = InvalidGlobalTimestamp;
+            }
+
+            elog(DEBUG1, "get 2pc txn: %s, partnodes in nodename: %s(nodeoid:%u), "
+                "partnodes: (%s), startnode: %s(startnodeoid: %u), startxid: %u, "
+                "global_prepare_timestamp: %ld, global_commit_timestamp: %ld", 
+                txn->gid, get_pgxc_nodename(node_oid), node_oid,
+                partnodes, startnode, txn->origcoord, startxid,
+                txn->global_prepare_timestamp, txn->global_commit_timestamp);
+
             /* in explicit transaction startnode participate the transaction */
             if (strstr(partnodes, startnode) || !IsXidImplicit(txn->gid))
             {
@@ -1212,16 +2125,62 @@ TWOPHASE_FILE_STATUS GetTransactionPartNodes(txn_info *txn, Oid node_oid)
 			res = TWOPHASE_FILE_EXISTS;
 			txn->num_coordparts = 0;
 			txn->num_dnparts = 0;
-			temp = strtok(partnodes,", ");
+			temp = strtok_r(partnodes, ",", &save_ptr);
 			while(temp)
 			{
 				/*check node type*/
 				temp_nodeoid = get_pgxc_nodeoid(temp);
-                if (temp_nodeoid == InvalidOid)
-                {
-                    res = TWOPHASE_FILE_ERROR;
-                    break;
-                }
+				if (!OidIsValid(temp_nodeoid))
+				{
+					if (is_for_node_removed)
+					{
+						if (execute)
+						{
+							elog(WARNING, "2pc(%s) get node(%s) oid failed "
+								"on node(%s), maybe node(%s) is removed "
+								"from the cluster, skip node(%s) when using "
+								"pg_clean_execute_for_node_removed(%ld)",
+								txn->gid, temp, get_pgxc_nodename(node_oid), temp,
+								temp, clean_time_interval/USECS_PER_SEC);
+						}
+						else
+						{
+							elog(WARNING, "2pc(%s) get node(%s) oid failed "
+								"on node(%s), maybe node(%s) is removed "
+								"from the cluster, skip node(%s) when using "
+								"pg_clean_check_txn_for_node_removed(%ld)",
+								txn->gid, temp, get_pgxc_nodename(node_oid), temp,
+								temp, clean_time_interval/USECS_PER_SEC);
+						}
+
+						temp = strtok_r(NULL, ",", &save_ptr);
+						continue;
+					}
+
+					if (execute)
+					{
+						elog(WARNING, "2pc(%s) get node(%s) oid failed "
+							"on node(%s), if node(%s) is removed "
+							"from the cluster, you can use "
+							"pg_clean_execute_for_node_removed(%ld) "
+							"to clean the 2pc",
+							txn->gid, temp, get_pgxc_nodename(node_oid),
+							temp, clean_time_interval/USECS_PER_SEC);
+					}
+					else
+					{
+						elog(WARNING, "2pc(%s) get node(%s) oid failed "
+							"on node(%s), if node(%s) is removed "
+							"from the cluster, you can use "
+							"pg_clean_check_txn_for_node_removed(%ld) "
+							"to check the 2pc",
+							txn->gid, temp, get_pgxc_nodename(node_oid),
+							temp, clean_time_interval/USECS_PER_SEC);
+					}
+
+					res = TWOPHASE_FILE_ERROR;
+					break;
+				}
 				temp_nodetype = get_pgxc_nodetype(temp_nodeoid);
 				temp_nodeidx = find_node_index(temp_nodeoid);
 				
@@ -1239,14 +2198,14 @@ TWOPHASE_FILE_STATUS GetTransactionPartNodes(txn_info *txn, Oid node_oid)
 						elog(ERROR,"nodetype of %s is not 'C' or 'D'", temp);
 						break;
 				}
-				temp = strtok(NULL,", ");
+				temp = strtok_r(NULL, ",", &save_ptr);
 			}
 		}
 	}
 	else
 	{
-		elog(LOG, "pg_clean: failed get database list on node %s", get_pgxc_nodename(node_oid));
-		res = TWOPHASE_FILE_ERROR;
+		elog(ERROR, "pg_clean: failed to query txn info on node %s, sql: %s",
+			get_pgxc_nodename(node_oid), stmt);
 	}
 	DropTupleTableSlots(&result);
 	return res;
@@ -1285,20 +2244,32 @@ txn_info* make_txn_info(char* dbname, char* gid, char* owner)
 	txn = (txn_info *)palloc0(sizeof(txn_info));
 	if (txn == NULL)
 		return NULL;
-	//txn->next = NULL;
+
+	/* Normally gid and owner should be valid for every prepared txn, here we check for that */
+	if (gid == NULL || owner == NULL)
+	{
+		elog(ERROR, "pg_clean always expect valid gid and owner on every transaction.");
+		/* silence the compiler, should not get here */
+		return NULL;
+	}
 	
-	//txn->gid = (char *)palloc0(strlen(gid)+1);
+	if (strlen(gid) >= MAX_GID)
+		ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				errmsg("transaction 2pc gid is too long: \"%s\"", gid)));
+
 	strncpy(txn->gid, gid, strlen(gid)+1);
 	txn->owner = (char *)palloc0(strlen(owner)+1);
 	strncpy(txn->owner, owner, strlen(owner)+1);
 	
+	txn->database = pstrdup(dbname);
+
 	txn->txn_stat = (TXN_STATUS *)palloc0(sizeof(TXN_STATUS) * pgxc_clean_node_count);
 	txn->xid = (uint32 *)palloc0(sizeof(uint32) * pgxc_clean_node_count);
 	txn->prepare_timestamp = (TimestampTz *)palloc0(sizeof(TimestampTz) * pgxc_clean_node_count);
 	txn->coordparts = (int *)palloc0(cn_nodes_num * sizeof(int));
 	
 	txn->dnparts = (int *)palloc0(dn_nodes_num * sizeof(int));
-	if (txn->gid == NULL || txn->owner == NULL || txn->txn_stat == NULL
+	if (txn->gid == NULL || txn->owner == NULL || txn->txn_stat == NULL || txn->database == NULL
 		|| txn->xid == NULL || txn->coordparts == NULL || txn->dnparts == NULL || txn->prepare_timestamp == NULL)
 	{
 		pfree(txn);
@@ -1416,6 +2387,373 @@ Oid find_node_oid(int node_idx)
 									   dn_node_list[node_idx-cn_nodes_num];
 }
 
+
+/*
+ * getAllTxnInfoFrom2pcFiles
+ * Get all 2pc txn info from 2pc files
+ */
+void getAllTxnInfoFrom2pcFiles(void)
+{
+	int i = 0;
+	TupleTableSlots *result;
+	const char *stmt = "select public.pgxc_get_record_list()::text";
+	char *twopcfiles = NULL;
+	char *ptr = NULL;
+	char *save_ptr = NULL;
+
+	result = (TupleTableSlots *)palloc0(sizeof(TupleTableSlots) *
+										pgxc_clean_node_count);
+
+	/* collect the 2pc files on nodes */
+	for (i = 0; i < cn_nodes_num; i++)
+	{
+		execute_query_on_single_node(cn_node_list[i], stmt, 1, result + i);
+	}
+
+	for (i = 0; i < dn_nodes_num; i++)
+	{
+		execute_query_on_single_node(dn_node_list[i], stmt, 1,
+									result + cn_nodes_num + i);
+	}
+
+	/* read 2pc files in each cn */
+	for (i = 0; i < cn_nodes_num; i++)
+	{
+		if (0 == result[i].slot_count)
+		{
+			continue;
+		}
+
+		twopcfiles = TTSgetvalue(result + i, 0, 0);
+		if (twopcfiles == NULL)
+		{
+			continue;
+		}
+
+		/* iterate through all 2pc files */
+		ptr = strtok_r(twopcfiles, ",", &save_ptr);
+		for (; ptr != NULL; ptr = strtok_r(NULL, ",", &save_ptr))
+		{
+			elog(DEBUG2, "2pc file(%s) on node %s",
+				ptr, get_pgxc_nodename(cn_node_list[i]));
+
+			/* whether 2pc is rollbacked? */
+			if (strstr(ptr, ROLLBACK_POSTFIX) != NULL)
+			{
+				/* 2pc is rollbacked */
+				continue;
+			}
+
+			/* query txn info from 2pc file */
+			getTxnInfoFrom2pcFile(ptr, cn_node_list[i]);
+		}
+	}
+
+	/* read 2pc files in each dn */
+	for (i = 0; i < dn_nodes_num; i++)
+	{
+		if (0 == result[cn_nodes_num + i].slot_count)
+		{
+			continue;
+		}
+
+		twopcfiles = TTSgetvalue(result + cn_nodes_num + i, 0, 0);
+		if (twopcfiles == NULL)
+		{
+			continue;
+		}
+
+		/*iterate through all 2pc files*/
+		ptr = strtok_r(twopcfiles, ",", &save_ptr);
+		for (; ptr != NULL; ptr = strtok_r(NULL, ",", &save_ptr))
+		{
+			elog(DEBUG2, "2pc file(%s) on node %s",
+				ptr, get_pgxc_nodename(dn_node_list[i]));
+
+			/* whether 2pc is rollbacked? */
+			if (strstr(ptr, ROLLBACK_POSTFIX) != NULL)
+			{
+				/* 2pc is rollbacked */
+				continue;
+			}
+
+			/*query txn info from 2pc file*/
+			getTxnInfoFrom2pcFile(ptr, dn_node_list[i]);
+		}
+	}
+
+	for (i = 0; i < pgxc_clean_node_count; i++)
+	{
+		DropTupleTableSlots(result+i);
+	}
+}
+
+void getTxnInfoFrom2pcFile(char *file_name, Oid node_oid)
+{
+	TupleTableSlots result;
+	txn_info *txn = NULL;
+	char *file_content = NULL;
+
+	char *startnode = NULL;
+	char *str_startxid = NULL;
+	uint32 startxid = 0;
+	char *partnodes = NULL;
+	char *str_xid = NULL;
+	uint32 xid = 0;
+	char *database = NULL;
+	char *user = NULL;
+	char *str_prepare_gts = NULL;
+	GlobalTimestamp prepare_gts = InvalidGlobalTimestamp;
+	char *str_timestamp = NULL;
+	GlobalTimestamp commit_gts = InvalidGlobalTimestamp;
+
+	Oid temp_nodeoid = InvalidOid;
+	char *temp = NULL;
+	char temp_nodetype;
+	int temp_nodeidx;
+
+	char *gid = file_name;
+
+	char stmt[MAX_CMD_LENGTH];
+	TXN_STATUS txn_status = TXN_STATUS_PREPARED;
+
+	char *node_name = NULL;
+
+	static const char *stmt_fmt = "select public.pgxc_get_2pc_file('%s')::text";
+
+	node_name = get_pgxc_nodename(node_oid);
+	if (node_name == NULL)
+	{
+		elog(ERROR, "failed to get node name, file: %s, oid: %d",
+			file_name, node_oid);
+		return;
+	}
+
+	snprintf(stmt, MAX_CMD_LENGTH, stmt_fmt, file_name);
+	if (execute_query_on_single_node(node_oid, stmt, 1, &result) != (Datum) 1)
+	{
+		elog(WARNING, "failed to get 2pc file(%s) on node %s", file_name, node_name);
+		DropTupleTableSlots(&result);
+		return;
+	}
+
+	if (result.slot_count == 0 || TTSgetvalue(&result, 0, 0) == NULL)
+	{
+		int elevel = is_for_deadlock ? LOG : ERROR;
+		elog(elevel, "2pc file(%s) on node %s result is null", file_name, node_name);
+		DropTupleTableSlots(&result);
+		return;
+	}
+
+	file_content = TTSgetvalue(&result, 0, 0);
+	if (strlen(file_content) == 0)
+	{
+		elog(ERROR, "2pc file(%s) on node %s is empty", file_name, node_name);
+		DropTupleTableSlots(&result);
+		return;
+	}
+
+	if (strstr(file_content, GET_READONLY))
+	{
+		elog(NOTICE, "2pc(%s) is readonly on node %s", gid, node_name);
+		DropTupleTableSlots(&result);
+		return;
+	}
+
+	if (!IsXidImplicit(gid))
+	{
+		elog(LOG, "2pc(%s) is explicit on node %s", gid, node_name);
+	}
+
+	startnode = strstr(file_content, GET_START_NODE);
+	str_startxid = strstr(file_content, GET_START_XID);
+	partnodes = strstr(file_content, GET_NODE);
+	str_xid = strstr(file_content, GET_XID);
+	str_prepare_gts = strstr(file_content, GET_PREPARE_TIMESTAMP);
+	database = strstr(file_content, GET_DATABASE);
+	user = strstr(file_content, GET_USER);
+	temp = strstr(file_content, GET_COMMIT_TIMESTAMP);
+
+	/* get the last global_commit_timestamp */
+	while (temp)
+	{
+		str_timestamp = temp;
+		temp += strlen(GET_COMMIT_TIMESTAMP);
+		temp = strstr(temp, GET_COMMIT_TIMESTAMP);
+	}
+
+	/* get start node name */
+	if (startnode)
+	{
+		startnode += strlen(GET_START_NODE);
+		startnode = strtok(startnode, "\n");
+	}
+
+	/* get start xid */
+	if (str_startxid)
+	{
+		str_startxid += strlen(GET_START_XID);
+		str_startxid = strtok(str_startxid, "\n");
+		startxid = strtoul(str_startxid, NULL, 10);
+	}
+
+	if (NULL == startnode || NULL == str_startxid)
+	{
+		elog(ERROR, "2pc file(%s) on node %s lost startnode or startxid",
+			file_name, node_name);
+		DropTupleTableSlots(&result);
+		return;
+	}
+
+	/* get participated nodes */
+	if (partnodes)
+	{
+		partnodes += strlen(GET_NODE);
+		partnodes = strtok(partnodes, "\n");
+	}
+
+	/* get xid */
+	if (str_xid)
+	{
+		str_xid += strlen(GET_XID);
+		str_xid = strtok(str_xid, "\n");
+		xid = strtoul(str_xid, NULL, 10);
+	}
+
+	if (NULL == partnodes || NULL == str_xid)
+	{
+		elog(ERROR, "2pc file(%s) on node %s lost nodes or xid",
+			file_name, node_name);
+		DropTupleTableSlots(&result);
+		return;
+	}
+
+	/* get database */
+	if (database)
+	{
+		database += strlen(GET_DATABASE);
+		database = strtok(database, "\n");
+	}
+
+	/* get user */
+	if (user)
+	{
+		user += strlen(GET_USER);
+		user = strtok(user, "\n");
+	}
+
+	if (NULL == database || NULL == user)
+	{
+		elog(WARNING, "2pc file(%s) on node %s lost database or user",
+			file_name, node_name);
+		DropTupleTableSlots(&result);
+		return;
+	}
+
+	if (0 == startxid || 0 == xid)
+	{
+		elog(WARNING, "2pc file(%s) on node %s startxid(%d) or xid(%d) invalid",
+			file_name, node_name, startxid, xid);
+		DropTupleTableSlots(&result);
+		return;
+	}
+
+	/* get prepare gts */
+	if (str_prepare_gts)
+	{
+		str_prepare_gts += strlen(GET_PREPARE_TIMESTAMP);
+		str_prepare_gts = strtok(str_prepare_gts, "\n");
+		prepare_gts = strtoull(str_prepare_gts, NULL, 10);
+	}
+	else
+	{
+		prepare_gts = InvalidGlobalTimestamp;
+	}
+
+	/* get commit gts */
+	if (str_timestamp)
+	{
+		str_timestamp += strlen(GET_COMMIT_TIMESTAMP);
+		str_timestamp = strtok(str_timestamp, "\n");
+		commit_gts = strtoull(str_timestamp, NULL, 10);
+	}
+	else
+	{
+		commit_gts = InvalidGlobalTimestamp;
+	}
+
+	elog(DEBUG2, "2pc(%s) on %s(nodeoid:%u): startnode(%s), startxid(%u), "
+		"partnodes(%s), xid(%u), prepare_gts(%ld), "
+		"database(%s), user(%s), commit_gts(%ld)",
+		gid, node_name, node_oid, startnode, startxid,
+		partnodes, xid, prepare_gts, database, user, commit_gts);
+
+	txn = add_txn_info(database, node_oid, xid, gid, user, 0, txn_status);
+
+	txn->origcoord = get_pgxc_nodeoid(startnode);
+	if (!OidIsValid(txn->origcoord))
+	{
+		elog(WARNING, "2pc(%s) get start node(%s) oid failed on node(%s), "
+			"maybe node(%s) is removed from the cluster",
+			txn->gid, startnode, node_name, startnode);
+	}
+	txn->startxid = startxid;
+	txn->participants = pstrdup(partnodes);
+	if (prepare_gts != InvalidGlobalTimestamp)
+	{
+		txn->global_prepare_timestamp = prepare_gts;
+	}
+	if (commit_gts != InvalidGlobalTimestamp)
+	{
+		txn->global_commit_timestamp = commit_gts;
+	}
+
+	/* in explicit transaction startnode participate the transaction */
+	if (strstr(partnodes, startnode) || !IsXidImplicit(txn->gid))
+	{
+		txn->isorigcoord_part = true;
+	}
+	else
+	{
+		txn->isorigcoord_part = false;
+	}
+
+	txn->num_coordparts = 0;
+	txn->num_dnparts = 0;
+	temp = strtok(partnodes, ",");
+	while(temp)
+	{
+		/*check node type*/
+		temp_nodeoid = get_pgxc_nodeoid(temp);
+		if (!OidIsValid(temp_nodeoid))
+		{
+			elog(WARNING, "2pc(%s) get node(%s) oid failed on node(%s)",
+				gid, temp, node_name);
+			break;
+		}
+		temp_nodetype = get_pgxc_nodetype(temp_nodeoid);
+		temp_nodeidx = find_node_index(temp_nodeoid);
+
+		switch (temp_nodetype)
+		{
+			case 'C':
+				txn->coordparts[temp_nodeidx] = 1;
+				txn->num_coordparts++;
+				break;
+			case 'D':
+				txn->dnparts[temp_nodeidx - cn_nodes_num] = 1;
+				txn->num_dnparts++;
+				break;
+			default:
+				elog(ERROR, "nodetype of %s is not 'C' or 'D'", temp);
+				break;
+		}
+		temp = strtok(NULL, ",");
+	}
+
+	DropTupleTableSlots(&result);
+}
+
 void getTxnInfoOnOtherNodesAll(void)
 {
 	database_info *cur_database;
@@ -1447,24 +2785,46 @@ void getTxnInfoOnOtherNodesForDatabase(database_info *database)
 
 void getTxnInfoOnOtherNodes(txn_info *txn)
 {
-	int ii;
+    int ii;
     int ret;
-	char node_type;
+    char node_type;
     TWOPHASE_FILE_STATUS status = TWOPHASE_FILE_NOT_EXISTS;
-    Oid node_oid;
+    Oid node_oid = InvalidOid;
     uint32 transactionid = 0;
     char gid[MAX_GID];
     char *ptr = NULL;
 
-    if (IsXidImplicit(txn->gid))
-    {
-        strncpy(gid, txn->gid, strlen(txn->gid)+1);
-        ptr = strtok(gid, ":");
-        ptr = strtok(NULL, ":");
-        node_oid = get_pgxc_nodeoid(ptr);
-        status = GetTransactionPartNodes(txn, node_oid);
-    }
-    else
+	if (!GetGlobalTraceIdOnNode(txn))
+	{
+		elog(WARNING, "failed to get global trace id inside pg clean, gid: %s", txn->gid);
+	}
+	else
+	{
+		elog(DEBUG5, "get global trace id inside pg clean, gid: %s, trace id: %s-%s",
+			 txn->gid, pgxc_get_global_trace_id(), GlobalTraceId);
+	}
+
+	if (IsXidImplicit(txn->gid))
+	{
+		strncpy(gid, txn->gid, strlen(txn->gid) + 1);
+		ptr = strtok(gid, ":");
+		ptr = strtok(NULL, ":");
+		node_oid = get_pgxc_nodeoid(ptr);
+		if (OidIsValid(node_oid))
+		{
+			status = GetTransactionPartNodes(txn, node_oid);
+		}
+		else
+		{
+			elog(WARNING, "2pc(%s) get start node(%s) oid failed on node(%s), "
+				"maybe node(%s) is removed from the cluster",
+				txn->gid, ptr, PGXCNodeName, ptr);
+
+			status = TWOPHASE_FILE_NOT_EXISTS;
+		}
+	}
+
+    if (status == TWOPHASE_FILE_NOT_EXISTS)
     {
         for (ii = 0; ii < cn_nodes_num + dn_nodes_num; ii++)
         {
@@ -1497,13 +2857,26 @@ void getTxnInfoOnOtherNodes(txn_info *txn)
         {
             return;
         }
-        if (TWOPHASE_FILE_EXISTS == status && 
-            InvalidGlobalTimestamp == txn->global_commit_timestamp && 
-            node_oid != txn->origcoord)
-        {
-            status = GetTransactionPartNodes(txn, txn->origcoord);
-        }
 
+		if (TWOPHASE_FILE_EXISTS == status &&
+			InvalidGlobalTimestamp == txn->global_commit_timestamp &&
+			node_oid != txn->origcoord)
+		{
+			if (!is_for_node_removed)
+			{
+				status = GetTransactionPartNodes(txn, txn->origcoord);
+			}
+			else
+			{
+				if (OidIsValid(txn->origcoord))
+				{
+					elog(WARNING, "2pc(%s) start node oid for %s is valid",
+						txn->gid, get_pgxc_nodename(txn->origcoord));
+
+					status = GetTransactionPartNodes(txn, txn->origcoord);
+				}
+			}
+		}
     }
     
     if (TWOPHASE_FILE_EXISTS != status)
@@ -1563,9 +2936,9 @@ int Get2PCXidByGid(Oid node_oid, char *gid, uint32 *transactionid)
     int ret = XIDFOUND;
 	TupleTableSlots result;
 	uint32 xid = 0;
-	static const char *STMT_FORM = "select pgxc_get_2pc_xid('%s')::text;";
-	char stmt[100];
-	snprintf(stmt, 100, STMT_FORM, gid);
+	static const char *STMT_FORM = "select public.pgxc_get_2pc_xid('%s')::text;";
+	char stmt[MAX_CMD_LENGTH];
+	snprintf(stmt, MAX_CMD_LENGTH, STMT_FORM, gid);
 	/*if exist get xid by gid on node_oid*/
 	if (execute_query_on_single_node(node_oid, stmt, 1, &result) != (Datum) 0)
 	{
@@ -1585,54 +2958,27 @@ int Get2PCXidByGid(Oid node_oid, char *gid, uint32 *transactionid)
 			ret = XIDNOTFOUND;
 	}
 	else
-		ret = XIDEXECFAIL;
-	DropTupleTableSlots(&result);
-	return ret;
-}
-
-int Get2PCFile(Oid node_oid, char * gid, uint32 * transactionid)
-{
-    int ret = FILEFOUND;
-	TupleTableSlots result;
-	static const char *STMT_FORM = "select pgxc_get_2pc_file('%s')::text;";
-	char stmt[100];
-	snprintf(stmt, 100, STMT_FORM, gid);
-	/*if exist get xid by gid on node_oid*/
-	if (execute_query_on_single_node(node_oid, stmt, 1, &result) != (Datum) 0)
 	{
-		if (result.slot_count)
-		{
-			if (!TTSgetvalue(&result, 0, 0))
-			{
-                ret = FILENOTFOUND;
-			}
-            else
-            {
-                ret = FILEFOUND;
-            }
-		}
-		else
-			ret = FILENOTFOUND;
+		ret = XIDEXECFAIL;
+		elog(ERROR, "pg_clean: failed to query xid on node %s, sql: %s",
+			get_pgxc_nodename(node_oid), stmt);
 	}
-	else
-		ret = FILEUNKOWN;
 	DropTupleTableSlots(&result);
 	return ret;
 }
-
 
 void getTxnStatus(txn_info *txn, int node_idx)
 {
 	Oid				node_oid;
-	char			stmt[1024];
+	char			stmt[MAX_CMD_LENGTH];
 	char			*att1;
 	TupleTableSlots result;
 
-	static const char *STMT_FORM = "SELECT pgxc_is_committed('%d'::xid)::text";
-	snprintf(stmt, 1024, STMT_FORM, txn->xid[node_idx], txn->xid[node_idx]);
+	static const char *STMT_FORM = "select pg_catalog.pgxc_is_committed('%d'::xid)::text";
+	snprintf(stmt, MAX_CMD_LENGTH, STMT_FORM, txn->xid[node_idx]);
 
 	node_oid = find_node_oid(node_idx);
-	if (0 != execute_query_on_single_node(node_oid, stmt, 1, &result))
+	if (execute_query_on_single_node(node_oid, stmt, 1, &result) != (Datum) 0)
 	{
 		att1 = TTSgetvalue(&result, 0, 0);
 		
@@ -1641,9 +2987,15 @@ void getTxnStatus(txn_info *txn, int node_idx)
 			if (strcmp(att1, "true") == 0)
 			{
 				txn->txn_stat[node_idx] = TXN_STATUS_COMMITTED;
+				elog(DEBUG2, "gid: %s, xid(%d) is committed, att1: %s",
+					txn->gid, txn->xid[node_idx], att1);
 			}
 			else
+			{
 				txn->txn_stat[node_idx] = TXN_STATUS_ABORTED;
+				elog(DEBUG2, "gid: %s, xid(%d) is aborted, att1: %s",
+					txn->gid, txn->xid[node_idx], att1);
+			}
 		}
 		else
 		{
@@ -1651,7 +3003,15 @@ void getTxnStatus(txn_info *txn, int node_idx)
 		}
 	}
 	else
+	{
 		txn->txn_stat[node_idx] = TXN_STATUS_UNKNOWN;
+		elog(ERROR, "pg_clean: failed to query txn status on node %s, sql: %s",
+			get_pgxc_nodename(node_oid), stmt);
+	}
+
+	elog(DEBUG2, "gid: %s, xid(%d) status: %d",
+		txn->gid, txn->xid[node_idx], txn->txn_stat[node_idx]);
+
 	DropTupleTableSlots(&result);
 }
 
@@ -1664,7 +3024,11 @@ char *get2PCInfo(const char *tid)
     int ret = -1;
     struct stat filestate;
     char path[MAXPGPATH];
-    
+
+    if (strlen(tid) >= MAX_GID)
+        ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                errmsg("transaction 2pc gid is too long: \"%s\"", tid)));
+
     info = get_2pc_info_from_cache(tid);
     if (NULL != info)
     {
@@ -1695,7 +3059,7 @@ char *get2PCInfo(const char *tid)
 
         result = (char *)palloc0(size + 1);
 
-        fd = PathNameOpenFile(path, O_RDONLY, S_IRUSR | S_IWUSR);
+        fd = PathNameOpenFile(path, O_RDONLY);
     	if (fd < 0)
     	{   
             pfree(result);
@@ -1720,6 +3084,10 @@ char *get2PCInfo(const char *tid)
     return NULL;
 }
 
+/*
+ * pgxc_get_2pc_file
+ * Get 2pc file content
+ */
 Datum pgxc_get_2pc_file(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(pgxc_get_2pc_file);
 Datum pgxc_get_2pc_file(PG_FUNCTION_ARGS)
@@ -1728,18 +3096,25 @@ Datum pgxc_get_2pc_file(PG_FUNCTION_ARGS)
     char *result = NULL;
     text *t_result = NULL;
 
+    if (0 == PG_GETARG_DATUM(0))
+    {
+        elog(ERROR, "2PC gid is empty");
+    }
     tid = text_to_cstring(PG_GETARG_TEXT_P(0));
     result = get2PCInfo(tid);
     if (NULL != result)
-		{
-			t_result = cstring_to_text(result);
+    {
+        t_result = cstring_to_text(result);
         pfree(result);
-			return PointerGetDatum(t_result);
-		}
+        return PointerGetDatum(t_result);
+    }
     PG_RETURN_NULL();
 }
 
-
+/*
+ * pgxc_get_2pc_nodes
+ * Get 2pc participants
+ */
 Datum pgxc_get_2pc_nodes(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(pgxc_get_2pc_nodes);
 Datum pgxc_get_2pc_nodes(PG_FUNCTION_ARGS)
@@ -1747,26 +3122,36 @@ Datum pgxc_get_2pc_nodes(PG_FUNCTION_ARGS)
     char *tid = NULL;
     char *result = NULL;
     char *nodename = NULL;
-	text *t_result = NULL;
-    
+    text *t_result = NULL;
+
+    if (PG_ARGISNULL(0))
+        PG_RETURN_NULL();
+
+    if (0 == PG_GETARG_DATUM(0))
+    {
+        elog(ERROR, "2PC gid is empty");
+    }
     tid = text_to_cstring(PG_GETARG_TEXT_P(0));
     result = get2PCInfo(tid);
     if (NULL != result)
-		{
-			nodename = strstr(result, GET_NODE);
+    {
+        nodename = strstr(result, GET_NODE);
         if (NULL != nodename)
-			{
-				nodename += strlen(GET_NODE);
-				nodename = strtok(nodename, "\n");
-				t_result = cstring_to_text(nodename);
+        {
+            nodename += strlen(GET_NODE);
+            nodename = strtok(nodename, "\n");
+            t_result = cstring_to_text(nodename);
             pfree(result);
-				return PointerGetDatum(t_result);
-			}
-		}
-
+            return PointerGetDatum(t_result);
+        }
+    }
     PG_RETURN_NULL();
 }
 
+/*
+ * pgxc_get_2pc_startnode
+ * Get 2pc start node
+ */
 Datum pgxc_get_2pc_startnode(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(pgxc_get_2pc_startnode);
 Datum pgxc_get_2pc_startnode(PG_FUNCTION_ARGS)
@@ -1774,26 +3159,36 @@ Datum pgxc_get_2pc_startnode(PG_FUNCTION_ARGS)
     char *tid = NULL;
     char *result = NULL;
     char *nodename = NULL;
-	text *t_result = NULL;
-    
+    text *t_result = NULL;
+
+    if (PG_ARGISNULL(0))
+        PG_RETURN_NULL();
+
+    if (0 == PG_GETARG_DATUM(0))
+    {
+        elog(ERROR, "2PC gid is empty");
+    }
     tid = text_to_cstring(PG_GETARG_TEXT_P(0));
     result = get2PCInfo(tid);
     if (NULL != result)
-		{
-			nodename = strstr(result, GET_START_NODE);
+    {
+        nodename = strstr(result, GET_START_NODE);
         if (NULL != nodename)
-			{
-				nodename += strlen(GET_START_NODE);
-				nodename = strtok(nodename, "\n");
-				t_result = cstring_to_text(nodename);
+        {
+            nodename += strlen(GET_START_NODE);
+            nodename = strtok(nodename, "\n");
+            t_result = cstring_to_text(nodename);
             pfree(result);
-				return PointerGetDatum(t_result);
-
-		}
+            return PointerGetDatum(t_result);
+        }
     }
     PG_RETURN_NULL();
 }
 
+/*
+ * pgxc_get_2pc_startxid
+ * Get 2pc start xid
+ */
 Datum pgxc_get_2pc_startxid(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(pgxc_get_2pc_startxid);
 Datum pgxc_get_2pc_startxid(PG_FUNCTION_ARGS)
@@ -1801,26 +3196,70 @@ Datum pgxc_get_2pc_startxid(PG_FUNCTION_ARGS)
     char *tid = NULL;
     char *result = NULL;
     char *startxid = NULL;
-	text *t_result = NULL;
-    
+    text *t_result = NULL;
+
+    if (PG_ARGISNULL(0))
+        PG_RETURN_NULL();
+
+    if (0 == PG_GETARG_DATUM(0))
+    {
+        elog(ERROR, "2PC gid is empty");
+    }
     tid = text_to_cstring(PG_GETARG_TEXT_P(0));
     result = get2PCInfo(tid);
     if (NULL != result)
-		{
-			startxid = strstr(result, GET_START_XID);
+    {
+        startxid = strstr(result, GET_START_XID);
         if (NULL != startxid)
-			{
-				startxid += strlen(GET_START_XID);
-				startxid = strtok(startxid, "\n");
-				t_result = cstring_to_text(startxid);
+        {
+            startxid += strlen(GET_START_XID);
+            startxid = strtok(startxid, "\n");
+            t_result = cstring_to_text(startxid);
             pfree(result);
-				return PointerGetDatum(t_result);
-			}
-		}
+            return PointerGetDatum(t_result);
+        }
+    }
     PG_RETURN_NULL();
 }
 
+/*
+ * pgxc_get_2pc_prepare_timestamp
+ * Get 2pc prepare timestamp
+ */
+Datum pgxc_get_2pc_prepare_timestamp(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(pgxc_get_2pc_prepare_timestamp);
+Datum pgxc_get_2pc_prepare_timestamp(PG_FUNCTION_ARGS)
+{
+    char *tid = NULL;
+    char *result = NULL;
+    char *prepare_timestamp = NULL;
+    text *t_result = NULL;
 
+    if (0 == PG_GETARG_DATUM(0))
+    {
+        elog(ERROR, "2PC gid is empty");
+    }
+    tid = text_to_cstring(PG_GETARG_TEXT_P(0));
+    result = get2PCInfo(tid);
+    if (NULL != result)
+    {
+        prepare_timestamp = strstr(result, GET_PREPARE_TIMESTAMP);
+        if (NULL != prepare_timestamp)
+        {
+            prepare_timestamp += strlen(GET_PREPARE_TIMESTAMP);
+            prepare_timestamp = strtok(prepare_timestamp, "\n");
+            t_result = cstring_to_text(prepare_timestamp);
+            pfree(result);
+            return PointerGetDatum(t_result);
+        }
+    }
+    PG_RETURN_NULL();
+}
+
+/*
+ * pgxc_get_2pc_commit_timestamp
+ * Get 2pc commit timestamp
+ */
 Datum pgxc_get_2pc_commit_timestamp(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(pgxc_get_2pc_commit_timestamp);
 Datum pgxc_get_2pc_commit_timestamp(PG_FUNCTION_ARGS)
@@ -1828,63 +3267,93 @@ Datum pgxc_get_2pc_commit_timestamp(PG_FUNCTION_ARGS)
     char *tid = NULL;
     char *result = NULL;
     char *commit_timestamp = NULL;
-	text *t_result = NULL;
-    
-    tid = text_to_cstring(PG_GETARG_TEXT_P(0));
-    result = get2PCInfo(tid);
-    if (NULL != result)
-		{
-			commit_timestamp = strstr(result, GET_COMMIT_TIMESTAMP);
-        if (NULL != commit_timestamp)
-			{
-				commit_timestamp += strlen(GET_COMMIT_TIMESTAMP);
-				commit_timestamp = strtok(commit_timestamp, "\n");
-				t_result = cstring_to_text(commit_timestamp);
-            pfree(result);
-				return PointerGetDatum(t_result);
-			}
-		}
-    PG_RETURN_NULL();
-}
+    text *t_result = NULL;
 
+    if (PG_ARGISNULL(0))
+        PG_RETURN_NULL();
 
-
-Datum pgxc_get_2pc_xid(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(pgxc_get_2pc_xid);
-Datum pgxc_get_2pc_xid(PG_FUNCTION_ARGS)
-{
-    char *tid = NULL;
-    char *result = NULL;
-    char *str_xid = NULL;
-    GlobalTransactionId xid;
-    
+    if (0 == PG_GETARG_DATUM(0))
+    {
+        elog(ERROR, "2PC gid is empty");
+    }
     tid = text_to_cstring(PG_GETARG_TEXT_P(0));
     result = get2PCInfo(tid);
     if (NULL != result)
     {
-		str_xid = strstr(result, GET_XID);
-        if (NULL != str_xid)
-		{
-			str_xid += strlen(GET_XID);
-			str_xid = strtok(str_xid, "\n");
-			xid = strtoul(str_xid, NULL, 10);
+        commit_timestamp = strstr(result, GET_COMMIT_TIMESTAMP);
+        if (NULL != commit_timestamp)
+        {
+            commit_timestamp += strlen(GET_COMMIT_TIMESTAMP);
+            commit_timestamp = strtok(commit_timestamp, "\n");
+            t_result = cstring_to_text(commit_timestamp);
             pfree(result);
-			PG_RETURN_UINT32(xid);
-		}
+            return PointerGetDatum(t_result);
+        }
     }
     PG_RETURN_NULL();
 }
 
+/*
+ * pgxc_get_2pc_xid
+ * Get 2pc local xid
+ */
+Datum pgxc_get_2pc_xid(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(pgxc_get_2pc_xid);
+Datum pgxc_get_2pc_xid(PG_FUNCTION_ARGS)
+{
+    GlobalTransactionId xid;
+    char *tid = NULL;
+    char *result = NULL;
+    char *str_xid = NULL;
+
+    if (PG_ARGISNULL(0))
+        PG_RETURN_NULL();
+
+    if (0 == PG_GETARG_DATUM(0))
+    {
+        elog(ERROR, "2PC gid is empty");
+    }
+    tid = text_to_cstring(PG_GETARG_TEXT_P(0));
+    result = get2PCInfo(tid);
+    if (NULL != result)
+    {
+        str_xid = strstr(result, GET_XID);
+        if (NULL != str_xid)
+        {
+            str_xid += strlen(GET_XID);
+            str_xid = strtok(str_xid, "\n");
+            xid = strtoul(str_xid, NULL, 10);
+            pfree(result);
+            PG_RETURN_UINT32(xid);
+        }
+    }
+    PG_RETURN_NULL();
+}
+
+/*
+ * pgxc_remove_2pc_records
+ * Remove a 2pc file
+ */
 Datum pgxc_remove_2pc_records(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(pgxc_remove_2pc_records);
 Datum pgxc_remove_2pc_records(PG_FUNCTION_ARGS)
 {
-    char *tid = text_to_cstring(PG_GETARG_TEXT_P(0));
-	remove_2pc_records(tid, true);
+    char *tid = NULL;
+
+    if (0 == PG_GETARG_DATUM(0))
+    {
+        elog(ERROR, "2PC gid is empty");
+    }
+    tid = text_to_cstring(PG_GETARG_TEXT_P(0));
+    remove_2pc_records(tid, true);
     pfree(tid);
     PG_RETURN_BOOL(true);
 }
 
+/*
+ * pgxc_clear_2pc_records
+ * Clear all 2pc files which are not running
+ */
 Datum pgxc_clear_2pc_records(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(pgxc_clear_2pc_records);
 Datum pgxc_clear_2pc_records(PG_FUNCTION_ARGS)
@@ -1896,45 +3365,27 @@ Datum pgxc_clear_2pc_records(PG_FUNCTION_ARGS)
     int count = 0;
     TupleTableSlots *result;
     TupleTableSlots clear_result;
-    const char *query = "select pgxc_get_record_list()::text";
-    const char *CLEAR_STMT = "select pgxc_remove_2pc_records('%s')::text";
-    char clear_query[100];
+    const char *query = "select public.pgxc_get_record_list()::text";
+    const char *CLEAR_STMT = "select public.pgxc_remove_2pc_records('%s')::text";
+    char clear_query[MAX_CMD_LENGTH];
     char *twopcfiles = NULL;
     char *ptr = NULL;
+    char *save_ptr = NULL;
     bool res = true;
-    
+
 	if(!IS_PGXC_COORDINATOR)
 	{
 		elog(ERROR, "can only called on coordinator");
 	}
+
+	elog(LOG, "clear 2pc files");
 	
 	mycontext = AllocSetContextCreate(CurrentMemoryContext,
 											  "clean_check",
-											  ALLOCSET_DEFAULT_MINSIZE,
-											  ALLOCSET_DEFAULT_INITSIZE,
-											  ALLOCSET_DEFAULT_MAXSIZE);
+											  ALLOCSET_DEFAULT_SIZES);
 	oldcontext = MemoryContextSwitchTo(mycontext);
 
     ResetGlobalVariables();
-#if 0
-	if((dir = opendir(TWOPHASE_RECORD_DIR)))
-	{		
-		while((ptr = readdir(dir)) != NULL)
-	    {
-	    	if (count > 999)
-				break;
-	        if(strcmp(ptr->d_name,".") == 0 || strcmp(ptr->d_name,"..") == 0)
-	        {
-	            continue;
-	        }       
-			snprintf(path[count], MAX_GID, "/%s", ptr->d_name);
-			//snprintf(path[count], MAX_GID, "/%s", ptr->d_name);
-			count++;
-		}
-
-		closedir(dir);
-	}
-#endif
 
 	/*get node list*/
 	PgxcNodeGetOids(&cn_node_list, &dn_node_list, 
@@ -1948,35 +3399,31 @@ Datum pgxc_clear_2pc_records(PG_FUNCTION_ARGS)
     /*collect the 2pc file in nodes*/
     for (i = 0; i < cn_nodes_num; i++)
     {
-        (void) execute_query_on_single_node(cn_node_list[i], query, 1, result+i);
+        if (execute_query_on_single_node(cn_node_list[i],
+            query, 1, result + i) == (Datum) 0)
+        {
+            elog(WARNING, "pgxc_clear_2pc_records: failed to query 2pc file list "
+                "on node %s, sql: %s", get_pgxc_nodename(cn_node_list[i]), query);
+        }
     }
 
     for (i = 0; i < dn_nodes_num; i++)
     {
-        (void) execute_query_on_single_node(dn_node_list[i], query, 1, result+cn_nodes_num+i);
+        if (execute_query_on_single_node(dn_node_list[i],
+            query, 1, result + cn_nodes_num + i) == (Datum) 0)
+        {
+            elog(WARNING, "pgxc_clear_2pc_records: failed to query 2pc file list "
+                "on node %s, sql: %s", get_pgxc_nodename(dn_node_list[i]), query);
+        }
     }
+
 	/*get all database info*/
 	getDatabaseList();
 	
 	/*get all info of 2PC transactions*/
 	getTxnInfoOnNodesAll();
-#if 0
-	if((dir = opendir(TWOPHASE_RECORD_DIR)))
-	{		
-		while (i < count)
-		{
-			if (!find_txn(path[i]))
-			{
-				unlink(path[i]);
-				WriteClean2pcXlogRec(path[i]);
-			}
-			i++;
-		}
 
-		closedir(dir);
-	}
-#endif
-    /*delete all rest 2pc file in each nodes*/
+    /*delete all rest 2pc files in each cn*/
     for (i = 0; i < cn_nodes_num; i++)
     {
         if (0 == result[i].slot_count)
@@ -1984,24 +3431,57 @@ Datum pgxc_clear_2pc_records(PG_FUNCTION_ARGS)
             continue;
         }
         if (!(twopcfiles = TTSgetvalue(result+i, 0, 0)))
+        {
             continue;
-        ptr = strtok(twopcfiles, ",");
-        while(ptr)
+        }
+
+        /*iterate through all 2pc files, delete rest ones*/
+        ptr = strtok_r(twopcfiles, ",", &save_ptr);
+        for (; ptr != NULL; ptr = strtok_r(NULL, ",", &save_ptr))
         {
             if (count >= MAXIMUM_CLEAR_FILE)
-                break;
-            if (!find_txn(ptr))
             {
-                snprintf(clear_query, 100, CLEAR_STMT, ptr);
-                if (execute_query_on_single_node(cn_node_list[i], clear_query, 1, &clear_result) == (Datum)0)
-                    res = false;
-                DropTupleTableSlots(&clear_result);
-                count++;
+                break;
             }
-            ptr = strtok(NULL, ",");
+
+            /*whether 2pc is running?*/
+            if (find_txn(ptr))
+            {
+                /*2pc is running, do not delete its file*/
+                continue;
+            }
+
+            /*whether 2pc is rollbacked?*/
+            if (strstr(ptr, ROLLBACK_POSTFIX) == NULL)
+            {
+                /*2pc is not rollbacked*/
+
+                /*whether 2pc start xid transaction is running?*/
+                if (is_gid_start_xid_running(ptr))
+                {
+                    /*2pc start xid transaction is running, do not delete its file*/
+                    elog(LOG, "2PC '%s' is running", ptr);
+                    continue;
+                }
+            }
+
+            /*2pc is not running, delete its file*/
+            snprintf(clear_query, MAX_CMD_LENGTH, CLEAR_STMT, ptr);
+            elog(LOG, "clear 2pc file: %s", ptr);
+            if (execute_query_on_single_node(cn_node_list[i],
+                clear_query, 1, &clear_result) == (Datum) 0)
+            {
+                res = false;
+                elog(WARNING, "pgxc_clear_2pc_records: failed to remove 2pc file "
+                    "on node %s, sql: %s", get_pgxc_nodename(cn_node_list[i]),
+                    clear_query);
+            }
+            DropTupleTableSlots(&clear_result);
+            count++;
         }
     }
 
+    /*delete all rest 2pc files in each dn*/
     for (i = 0; i < dn_nodes_num; i++)
     {
         if (0 == result[cn_nodes_num+i].slot_count)
@@ -2009,21 +3489,53 @@ Datum pgxc_clear_2pc_records(PG_FUNCTION_ARGS)
             continue;
         }
         if (!(twopcfiles = TTSgetvalue(result+cn_nodes_num+i, 0, 0)))
+        {
             continue;
-        ptr = strtok(twopcfiles, ",");
-        while(ptr)
+        }
+
+        /*iterate through all 2pc files, delete rest ones*/
+        ptr = strtok_r(twopcfiles, ",", &save_ptr);
+        for (; ptr != NULL; ptr = strtok_r(NULL, ",", &save_ptr))
         {
             if (count >= MAXIMUM_CLEAR_FILE)
-                break;
-            if (!find_txn(ptr))
             {
-                snprintf(clear_query, 100, CLEAR_STMT, ptr);
-                if (execute_query_on_single_node(dn_node_list[i], clear_query, 1, &clear_result) == (Datum)0)
-                    res = false;
-                DropTupleTableSlots(&clear_result);
-                count++;
+                break;
             }
-            ptr = strtok(NULL, ",");
+
+            /*whether 2pc is running?*/
+            if (find_txn(ptr))
+            {
+                /*2pc is running, do not delete its file*/
+                continue;
+            }
+
+            /*whether 2pc is rollbacked?*/
+            if (strstr(ptr, ROLLBACK_POSTFIX) == NULL)
+            {
+                /*2pc is not rollbacked*/
+
+                /*whether 2pc start xid transaction is running?*/
+                if (is_gid_start_xid_running(ptr))
+                {
+                    /*2pc start xid transaction is running, do not delete its file*/
+                    elog(LOG, "2PC '%s' is running", ptr);
+                    continue;
+                }
+            }
+
+            /*2pc is not running, delete its file*/
+            snprintf(clear_query, MAX_CMD_LENGTH, CLEAR_STMT, ptr);
+            elog(LOG, "clear 2pc file: %s", ptr);
+            if (execute_query_on_single_node(dn_node_list[i],
+                clear_query, 1, &clear_result) == (Datum) 0)
+            {
+                res = false;
+                elog(WARNING, "pgxc_clear_2pc_records: failed to remove 2pc file "
+                    "on node %s, sql: %s", get_pgxc_nodename(dn_node_list[i]),
+                    clear_query);
+            }
+            DropTupleTableSlots(&clear_result);
+            count++;
         }
     }
 
@@ -2040,6 +3552,10 @@ Datum pgxc_clear_2pc_records(PG_FUNCTION_ARGS)
     PG_RETURN_BOOL(res);
 }
 
+/*
+ * pgxc_get_record_list
+ * Get 2pc files list
+ */
 Datum pgxc_get_record_list(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(pgxc_get_record_list);
 Datum pgxc_get_record_list(PG_FUNCTION_ARGS)
@@ -2048,24 +3564,28 @@ Datum pgxc_get_record_list(PG_FUNCTION_ARGS)
     DIR *dir = NULL;
     struct dirent *ptr = NULL;
     char *recordList = NULL;
-	text *t_recordList = NULL;
+    text *t_recordList = NULL;
 
     /* get from hash table */
     recordList = get_2pc_list_from_cache(&count);
     if (count >= MAXIMUM_OUTPUT_FILE)
     {
-        Assert(NULL != recordList);
+        if (NULL == recordList)
+        {
+            elog(PANIC, "recordList is NULL");
+        }
+
         t_recordList = cstring_to_text(recordList);
         return PointerGetDatum(t_recordList);
     }
 
     /* get from disk */
-	if(!(dir = opendir(TWOPHASE_RECORD_DIR)))
-	{
+    if(!(dir = opendir(TWOPHASE_RECORD_DIR)))
+    {
         if(NULL == recordList)
         {
-		PG_RETURN_NULL();
-	}
+            PG_RETURN_NULL();
+        }
 
         t_recordList = cstring_to_text(recordList);
         return PointerGetDatum(t_recordList);
@@ -2089,9 +3609,9 @@ Datum pgxc_get_record_list(PG_FUNCTION_ARGS)
         }
         else
         {
-    		recordList = (char *) repalloc(recordList,
-								   strlen(ptr->d_name) + strlen(recordList) + 2);
-            sprintf(recordList, "%s,%s", recordList, ptr->d_name);
+            recordList = (char *) repalloc(recordList,
+                                    strlen(ptr->d_name) + strlen(recordList) + 2);
+            sprintf(recordList + strlen(recordList), ",%s", ptr->d_name);
         }
         count++;
     }
@@ -2118,13 +3638,16 @@ Datum pgxc_commit_on_node(PG_FUNCTION_ARGS)
     Oid  nodeoid;
     char *gid;
     txn_info *txn;
-	char command[MAX_CMD_LENGTH];
-	PGXCNodeHandle **connections = NULL;
-	int					conn_count = 0;
-	ResponseCombiner	combiner;
-	PGXCNodeAllHandles *pgxc_handles = NULL;
+    char command[MAX_CMD_LENGTH];
+    PGXCNodeHandle **connections = NULL;
+    int					conn_count = 0;
+    ResponseCombiner	combiner;
+    PGXCNodeAllHandles *pgxc_handles = NULL;
     PGXCNodeHandle *conn = NULL;
     
+    if (PG_ARGISNULL(0) || PG_ARGISNULL(1))
+        PG_RETURN_NULL();
+
     /*clear Global*/
     ResetGlobalVariables();
     /*get node list*/
@@ -2136,11 +3659,21 @@ Datum pgxc_commit_on_node(PG_FUNCTION_ARGS)
     my_nodeoid = getMyNodeoid();
     cn_health_map = palloc0(cn_nodes_num * sizeof(bool));
     dn_health_map = palloc0(dn_nodes_num * sizeof(bool));
- 
+
+    if (0 == PG_GETARG_DATUM(0))
+    {
+        elog(ERROR, "pgxc_commit_on_node: node name is empty");
+    }
     nodename = text_to_cstring(PG_GETARG_TEXT_P(0));
+
+    if (0 == PG_GETARG_DATUM(1))
+    {
+        elog(ERROR, "pgxc_commit_on_node: gid is empty");
+    }
     gid = text_to_cstring(PG_GETARG_TEXT_P(1));
+
     nodeoid = get_pgxc_nodeoid(nodename);
-    if (InvalidOid == nodeoid)
+    if (!OidIsValid(nodeoid))
     {
         elog(ERROR, "Invalid nodename '%s'", nodename);
     }
@@ -2170,6 +3703,10 @@ Datum pgxc_commit_on_node(PG_FUNCTION_ARGS)
         else
         {
             txn->global_commit_timestamp = GetGlobalTimestampGTM();
+            if (!GlobalTimestampIsValid(current_gts))
+            {
+                elog(ERROR, "pgxc_commit_on_node, get invalid gts");
+            }
         }
     }
     
@@ -2180,11 +3717,13 @@ Datum pgxc_commit_on_node(PG_FUNCTION_ARGS)
             pgxc_handles->coord_handles[0] : pgxc_handles->datanode_handles[0];
     if (!send_query_clean_transaction(conn, txn, command))
     {
-        elog(ERROR, "pg_clean: send query '%s' from '%s' to '%s' failed ", 
+        elog(ERROR, "pgxc_commit_on_node: send sql '%s' from '%s' to '%s' failed",
             command, get_pgxc_nodename(my_nodeoid) , nodename);
     }
     else
     {
+        elog(LOG, "pgxc_commit_on_node: send sql '%s' from '%s' to '%s'",
+            command, get_pgxc_nodename(my_nodeoid) , nodename);
         connections[conn_count++] = conn;
     }
     /* receive response */
@@ -2198,7 +3737,7 @@ Datum pgxc_commit_on_node(PG_FUNCTION_ARGS)
                 pgxc_node_report_error(&combiner);
             else
                 ereport(ERROR,
-                        (errcode(ERRCODE_INTERNAL_ERROR),
+                        (errcode(ERRCODE_INVALID_TRANSACTION_STATE),
                          errmsg("Failed to FINISH the transaction on one or more nodes")));
         }
         else
@@ -2206,7 +3745,6 @@ Datum pgxc_commit_on_node(PG_FUNCTION_ARGS)
     }
     /*clear Global*/
     ResetGlobalVariables();
-	clear_handles();
 	pfree_pgxc_all_handles(pgxc_handles);
     pgxc_handles = NULL;
     pfree(connections);
@@ -2224,13 +3762,16 @@ Datum pgxc_abort_on_node(PG_FUNCTION_ARGS)
     Oid  nodeoid;
     char *gid;
     txn_info *txn;
-	char command[MAX_CMD_LENGTH];
-	PGXCNodeHandle **connections = NULL;
-	int					conn_count = 0;
-	ResponseCombiner	combiner;
-	PGXCNodeAllHandles *pgxc_handles = NULL;
+    char command[MAX_CMD_LENGTH];
+    PGXCNodeHandle **connections = NULL;
+    int					conn_count = 0;
+    ResponseCombiner	combiner;
+    PGXCNodeAllHandles *pgxc_handles = NULL;
     PGXCNodeHandle *conn = NULL;
     
+    if (PG_ARGISNULL(0) || PG_ARGISNULL(1))
+        PG_RETURN_NULL();
+
     /*clear Global*/
     ResetGlobalVariables();
     /*get node list*/
@@ -2242,11 +3783,21 @@ Datum pgxc_abort_on_node(PG_FUNCTION_ARGS)
     my_nodeoid = getMyNodeoid();
     cn_health_map = palloc0(cn_nodes_num * sizeof(bool));
     dn_health_map = palloc0(dn_nodes_num * sizeof(bool));
- 
+
+    if (0 == PG_GETARG_DATUM(0))
+    {
+        elog(ERROR, "pgxc_abort_on_node: node name is empty");
+    }
     nodename = text_to_cstring(PG_GETARG_TEXT_P(0));
+
+    if (0 == PG_GETARG_DATUM(1))
+    {
+        elog(ERROR, "pgxc_abort_on_node: gid is empty");
+    }
     gid = text_to_cstring(PG_GETARG_TEXT_P(1));
+
     nodeoid = get_pgxc_nodeoid(nodename);
-    if (InvalidOid == nodeoid)
+    if (!OidIsValid(nodeoid))
     {
         elog(ERROR, "Invalid nodename '%s'", nodename);
     }
@@ -2279,11 +3830,13 @@ Datum pgxc_abort_on_node(PG_FUNCTION_ARGS)
             pgxc_handles->coord_handles[0] : pgxc_handles->datanode_handles[0];
     if (!send_query_clean_transaction(conn, txn, command))
     {
-        elog(ERROR, "pg_clean: send query '%s' from '%s' to '%s' failed ", 
+        elog(ERROR, "pgxc_abort_on_node: send sql '%s' from '%s' to '%s' failed",
             command, get_pgxc_nodename(my_nodeoid) , nodename);
     }
     else
     {
+        elog(LOG, "pgxc_abort_on_node: send sql '%s' from '%s' to '%s'",
+            command, get_pgxc_nodename(my_nodeoid) , nodename);
         connections[conn_count++] = conn;
     }
     /* receive response */
@@ -2297,7 +3850,7 @@ Datum pgxc_abort_on_node(PG_FUNCTION_ARGS)
                 pgxc_node_report_error(&combiner);
             else
                 ereport(ERROR,
-                        (errcode(ERRCODE_INTERNAL_ERROR),
+                        (errcode(ERRCODE_INVALID_TRANSACTION_STATE),
                          errmsg("Failed to FINISH the transaction on one or more nodes")));
         }
         else
@@ -2305,7 +3858,6 @@ Datum pgxc_abort_on_node(PG_FUNCTION_ARGS)
     }
     /*clear Global*/
     ResetGlobalVariables();
-	clear_handles();
 	pfree_pgxc_all_handles(pgxc_handles);
     pgxc_handles = NULL;
     pfree(connections);
@@ -2353,20 +3905,29 @@ bool send_query_clean_transaction(PGXCNodeHandle* conn, txn_info *txn, const cha
         TXN_STATUS_COMMITTED == txn->global_txn_stat &&
         !txn->is_readonly)
 		return false;
-	
-    if (pgxc_node_send_clean(conn))
+
+    if (pgxc_node_send_coord_info(conn, MyProcPid, MyProc->lxid))
     {
         ereport(ERROR,
                 (errcode(ERRCODE_INTERNAL_ERROR),
+                 errmsg("in pg_clean failed to send pid(%d) for %s PREPARED command",
+                        MyProcPid, TXN_STATUS_COMMITTED == txn->global_txn_stat ?
+                        "COMMIT" : "ROLLBACK")));
+        return false;
+    }
+    if (pgxc_node_send_clean(conn))
+    {
+        ereport(ERROR,
+                (errcode(ERRCODE_CONNECTION_EXCEPTION ),
                  errmsg("in pg_clean failed to send pg_clean flag for %s PREPARED command",
                         TXN_STATUS_COMMITTED == txn->global_txn_stat ? "COMMIT" : "ROLLBACK")));
         return false;
     }
-    if (txn->is_readonly && pgxc_node_send_readonly(conn))
+    if (txn->is_readonly && pgxc_node_send_readonly(conn, true))
     {
         ereport(ERROR,
-                (errcode(ERRCODE_INTERNAL_ERROR),
-                 errmsg("in pg_clean failed to send readonly flag for %s PREPARED command",
+                (errcode(ERRCODE_CONNECTION_EXCEPTION ),
+                 errmsg("in pg_clean failed to send readonly flag (true) for %s PREPARED command",
                         TXN_STATUS_COMMITTED == txn->global_txn_stat ? "COMMIT" : "ROLLBACK")));
         return false;
     }
@@ -2374,7 +3935,7 @@ bool send_query_clean_transaction(PGXCNodeHandle* conn, txn_info *txn, const cha
     if (txn->after_first_phase && pgxc_node_send_after_prepare(conn))
     {
         ereport(ERROR,
-                (errcode(ERRCODE_INTERNAL_ERROR),
+                (errcode(ERRCODE_CONNECTION_EXCEPTION ),
                  errmsg("in pg_clean failed to send after prepare flag for %s PREPARED command",
                         TXN_STATUS_COMMITTED == txn->global_txn_stat ? "COMMIT" : "ROLLBACK")));
         return false;
@@ -2388,7 +3949,7 @@ bool send_query_clean_transaction(PGXCNodeHandle* conn, txn_info *txn, const cha
         pgxc_node_send_global_timestamp(conn, txn->global_commit_timestamp))
 	{
 		ereport(ERROR,
-				(errcode(ERRCODE_INTERNAL_ERROR),
+                (errcode(ERRCODE_CONNECTION_EXCEPTION),
 				 errmsg("in pg_clean failed to send global committs for %s PREPARED command",
 						TXN_STATUS_COMMITTED == txn->global_txn_stat ? "COMMIT" : "ROLLBACK")));
 	}
@@ -2397,7 +3958,7 @@ bool send_query_clean_transaction(PGXCNodeHandle* conn, txn_info *txn, const cha
         if (InvalidOid != txn->origcoord && pgxc_node_send_starter(conn, get_pgxc_nodename(txn->origcoord)))
         {
     		ereport(ERROR,
-    				(errcode(ERRCODE_INTERNAL_ERROR),
+                    (errcode(ERRCODE_CONNECTION_EXCEPTION),
     				 errmsg("in pg_clean failed to send start node for %s PREPARED command",
     						TXN_STATUS_COMMITTED == txn->global_txn_stat ? "COMMIT" : "ROLLBACK")));
         }
@@ -2405,24 +3966,49 @@ bool send_query_clean_transaction(PGXCNodeHandle* conn, txn_info *txn, const cha
         if (InvalidTransactionId != txn->startxid && pgxc_node_send_startxid(conn, txn->startxid))
         {
             ereport(ERROR,
-                    (errcode(ERRCODE_INTERNAL_ERROR),
+                    (errcode(ERRCODE_CONNECTION_EXCEPTION),
                      errmsg("in pg_clean failed to send start xid for %s PREPARED command",
                             TXN_STATUS_COMMITTED == txn->global_txn_stat ? "COMMIT" : "ROLLBACK")));
         }
-        
-        if (NULL != txn->participants && pgxc_node_send_partnodes(conn, txn->participants))
+
+        if (InvalidGlobalTimestamp != txn->global_prepare_timestamp &&
+			pgxc_node_send_prepare_timestamp(conn, txn->global_prepare_timestamp))
         {
             ereport(ERROR,
                     (errcode(ERRCODE_INTERNAL_ERROR),
+                     errmsg("in pg_clean failed to send prepare timestamp for %s PREPARED command",
+                            TXN_STATUS_COMMITTED == txn->global_txn_stat ? "COMMIT" : "ROLLBACK")));
+        }
+
+        if (NULL != txn->participants && pgxc_node_send_partnodes(conn, txn->participants))
+        {
+            ereport(ERROR,
+                    (errcode(ERRCODE_CONNECTION_EXCEPTION),
                      errmsg("in pg_clean failed to send participants for %s PREPARED command",
+                            TXN_STATUS_COMMITTED == txn->global_txn_stat ? "COMMIT" : "ROLLBACK")));
+        }
+
+        if (NULL != txn->participants && pgxc_node_send_database(conn, txn->database))
+        {
+            ereport(ERROR,
+                    (errcode(ERRCODE_INTERNAL_ERROR),
+                     errmsg("in pg_clean failed to send database for %s PREPARED command",
+                            TXN_STATUS_COMMITTED == txn->global_txn_stat ? "COMMIT" : "ROLLBACK")));
+        }
+
+        if (NULL != txn->participants && pgxc_node_send_user(conn, txn->owner))
+        {
+            ereport(ERROR,
+                    (errcode(ERRCODE_INTERNAL_ERROR),
+                     errmsg("in pg_clean failed to send user for %s PREPARED command",
                             TXN_STATUS_COMMITTED == txn->global_txn_stat ? "COMMIT" : "ROLLBACK")));
         }
     }
     
-    if (pgxc_node_send_query(conn, finish_cmd))
+    if (pgxc_node_send_query_with_internal_flag(conn, finish_cmd))
     {
         ereport(ERROR,
-                (errcode(ERRCODE_INTERNAL_ERROR),
+                (errcode(ERRCODE_CONNECTION_EXCEPTION),
                  errmsg("in pg_clean failed to send query for %s PREPARED command",
                         TXN_STATUS_COMMITTED == txn->global_txn_stat ? "COMMIT" : "ROLLBACK")));
         return false;
@@ -2435,7 +4021,13 @@ bool check_2pc_belong_node(txn_info * txn)
     int node_index = 0;
     char node_type;
     node_index = find_node_index(abnormal_nodeoid);
-    Assert(InvalidOid != abnormal_nodeoid);
+
+    /* abnormal node oid must be valid here */
+    if (InvalidOid == abnormal_nodeoid)
+    {
+        elog(PANIC, "abnormal_nodeoid is invalid");
+    }
+
     if (abnormal_nodeoid == txn->origcoord)
     {
         txn->belong_abnormal_node = true;
@@ -2455,9 +4047,7 @@ bool check_2pc_belong_node(txn_info * txn)
 
     if (InvalidOid == txn->origcoord)
     {
-        char *startnode = NULL;
-        int   node_oid  = InvalidOid;
-        char  gid[MAX_GID];
+        int node_oid = InvalidOid;
 
         if (!IsXidImplicit(txn->gid))
         {
@@ -2465,39 +4055,16 @@ bool check_2pc_belong_node(txn_info * txn)
             return true;
         }
 
-        Assert(IsXidImplicit(txn->gid));
-
-        /* get start node from gid */
-        strcpy(gid, txn->gid);
-        startnode = strtok(gid, ":");
-        if (NULL == startnode)
+        /* Get start node oid from gid */
+        node_oid = get_start_node_oid_from_gid(txn->gid);
+        if (node_oid == InvalidOid)
         {
-            elog(WARNING, "get startnode(%s) from gid(%s) failed",
-                startnode, gid);
+            elog(WARNING, "Get invalid start node oid from gid(%s)", txn->gid);
             txn->belong_abnormal_node = false;
             return false;
         }
 
-        startnode = strtok(NULL, ":");
-        if (NULL == startnode)
-        {
-            elog(WARNING, "get startnode(%s) from gid(%s) failed",
-                startnode, gid);
-            txn->belong_abnormal_node = false;
-            return false;
-        }
-
-        node_oid = get_pgxc_nodeoid(startnode);
-        if (NULL == startnode)
-        {
-            elog(WARNING, "get invalid oid for startnode(%s) from gid(%s)",
-                startnode, gid);
-            txn->belong_abnormal_node = false;
-            return false;
-        }
-
-        elog(DEBUG5, "get oid(%d) for startnode(%s) from gid(%s)",
-            node_oid, startnode, gid);
+        elog(DEBUG1, "Get start node oid(%d) from gid(%s)", node_oid, txn->gid);
 
         if (abnormal_nodeoid == node_oid)
         {
@@ -2523,22 +4090,127 @@ bool check_node_participate(txn_info * txn, int node_idx)
     return false;
 }
 
-void recover2PC(txn_info * txn)
+static void recovery_a_txn(txn_info *txn, bool commit)
 {
-	int i = 0;
-	bool check_ok = false;
-	int check_times = CLEAN_CHECK_TIMES_DEFAULT;
-	int check_interval = CLEAN_CHECK_INTERVAL_DEFAULT;
-	MemoryContext current_context = NULL;
-	ErrorData* edata = NULL;
+    MemoryContext current_context = NULL;
+    ErrorData* edata = NULL;
+    bool is_running = true;
+    char *print_string = commit ? "Commit" : "Rollback";
+
+    /* check whether the 2pc start xid is still running on start node */
+	if (is_txn_start_xid_running(txn))
+	{
+		elog(WARNING, "%s 2PC '%s' start xid %d is running", print_string, txn->gid, txn->startxid);
+		txn->op_issuccess = false;
+		return;
+	}
+
+	/* check whether the 2pc is still running on participants */
+	is_running = false;
+	current_context = CurrentMemoryContext;
+	PG_TRY();
+	{
+		if (!clean_2PC_iscommit(txn, commit, true))
+		{
+			is_running = true;
+			elog(WARNING, "%s 2PC '%s' check failed", print_string, txn->gid);
+		}
+	}
+	PG_CATCH();
+	{
+		is_running = true;
+		(void)MemoryContextSwitchTo(current_context);
+		edata = CopyErrorData();
+		FlushErrorState();
+
+		elog(WARNING, "%s 2PC '%s' check error: %s",
+			print_string, txn->gid, edata->message);
+
+		if (is_for_deadlock && edata->sqlerrcode == ERRCODE_UNDEFINED_OBJECT)
+		{
+			elog(LOG, "%s 2PC '%s' ignore check error: %s",
+				print_string, txn->gid, edata->message);
+			is_running = false;
+		}
+	}
+	PG_END_TRY();
+
+	/* 2pc is still running, do not try to clean */
+	if (is_running)
+	{
+		txn->op_issuccess = false;
+		return;
+	}
+
+	/*free hash record from gtm*/
+	FinishGIDGTM(txn->gid);
+
+	/* after free gid from gtm, check again */
+	PG_TRY();
+	{
+		if (!clean_2PC_iscommit(txn, commit, true))
+		{
+			is_running = true;
+			elog(WARNING, "again %s 2PC '%s' check failed", print_string, txn->gid);
+		}
+	}
+	PG_CATCH();
+	{
+		is_running = true;
+		(void)MemoryContextSwitchTo(current_context);
+		edata = CopyErrorData();
+		FlushErrorState();
+
+		elog(WARNING, "again %s 2PC '%s' check error: %s",
+			print_string, txn->gid, edata->message);
+
+		if (is_for_deadlock && edata->sqlerrcode == ERRCODE_UNDEFINED_OBJECT)
+		{
+			elog(LOG, "again %s 2PC '%s' ignore check error: %s",
+				print_string, txn->gid, edata->message);
+			is_running = false;
+		}
+	}
+	PG_END_TRY();
+
+	/* 2pc is still running, do not try to clean */
+	if (is_running)
+	{
+		txn->op_issuccess = false;
+		return;
+	}
+
+	/* send commit prepared to all nodes */
+	if (!clean_2PC_iscommit(txn, commit, false))
+	{
+		txn->op_issuccess = false;
+		elog(WARNING, "%s 2PC '%s' failed", print_string, txn->gid);
+		return;
+	}
+	txn->op_issuccess = true;
+}
+
+void recover2PC(txn_info *txn)
+{
 	TXN_STATUS txn_stat;
 	txn_stat = check_txn_global_status(txn);
 	txn->global_txn_stat = txn_stat;
 
-	if (clear_2pc_belong_node)
+	if (is_for_deadlock)
 	{
-		check_times = CLEAN_NODE_CHECK_TIMES;
-		check_interval = CLEAN_NODE_CHECK_INTERVAL;
+		if (strcmp(txn->database, get_database_name(MyDatabaseId)) != 0)
+		{
+			elog(NOTICE, "2PC(%s) belongs to another database: %s, "
+				"current database: %s", txn->gid, txn->database,
+				get_database_name(MyDatabaseId));
+			return;
+		}
+
+		if (!IsXidImplicit(txn->gid))
+		{
+			elog(NOTICE, "2pc(%s) is explicit, skip", txn->gid);
+			return;
+		}
 	}
 
 #ifdef DEBUG_EXECABORT
@@ -2548,130 +4220,90 @@ void recover2PC(txn_info * txn)
 	switch (txn_stat)
 	{
 		case TXN_STATUS_FAILED:
-			elog(LOG, "cannot recover 2PC transaction %s for TXN_STATUS_FAILED", txn->gid);
-            txn->op = UNDO;
+			elog(DEBUG1, "cannot recover 2PC transaction %s for TXN_STATUS_FAILED", txn->gid);
+			txn->op = UNDO;
 			txn->op_issuccess = true;
 			break;
-		
+
 		case TXN_STATUS_UNKNOWN:
-			elog(LOG, "cannot recover 2PC transaction %s for TXN_STATUS_UNKNOWN", txn->gid);
-            txn->op = UNDO;
+			elog(DEBUG1, "cannot recover 2PC transaction %s for TXN_STATUS_UNKNOWN", txn->gid);
+			txn->op = UNDO;
 			txn->op_issuccess = true;
 			break;
-		
+
 		case TXN_STATUS_PREPARED:
 			elog(DEBUG1, "2PC recovery of transaction %s not needed for TXN_STATUS_PREPARED", txn->gid);
-            txn->op = UNDO;
+			txn->op = UNDO;
 			txn->op_issuccess = true;
 			break;
-		
+
 		case TXN_STATUS_COMMITTED:
-            if (InvalidOid == txn->origcoord || txn->is_readonly)
-            {
-                txn->op = UNDO;
-                txn->op_issuccess = true;
-            }
-            else
-            {
-    			txn->op = COMMIT;
-				/* check whether all nodes can commit prepared */
-				for (i = 0; i < check_times; i++)
+			if (txn->is_readonly)
+			{
+				txn->op = UNDO;
+				txn->op_issuccess = true;
+				break;
+			}
+
+			if (!OidIsValid(txn->origcoord))
+			{
+				elog(LOG, "2pc(%s) get start node oid failed, "
+				"maybe it is removed from the cluster", txn->gid);
+
+				if (!is_for_node_removed)
 				{
-					check_ok = true;
-					current_context = CurrentMemoryContext;
-					PG_TRY();
-					{
-    			if (!clean_2PC_iscommit(txn, true, true))
-    			{
-							check_ok = false;
-							elog(LOG, "check commit 2PC transaction %s failed",
-								txn->gid);
-						}
-					}
-					PG_CATCH();
-					{
-						(void)MemoryContextSwitchTo(current_context);
-						edata = CopyErrorData();
-						FlushErrorState();
-
-						check_ok = false;
-						elog(WARNING, "check commit 2PC transaction %s error: %s",
-							txn->gid, edata->message);
-					}
-					PG_END_TRY();
-
-					if (!check_ok)
-					{
-    				txn->op_issuccess = false;
-    				return;
-    			}
-
-					pg_usleep(check_interval);
+					txn->op = UNDO;
+					txn->op_issuccess = true;
+					break;
 				}
+			}
 
-    			/* send commit prepared to all nodes */
-    			if (!clean_2PC_iscommit(txn, true, false))
-    			{
-    				txn->op_issuccess = false;
-					elog(LOG, "commit 2PC transaction %s failed", txn->gid);
-    				return;
-    			}
-    			txn->op_issuccess = true;
-    			clean_2PC_files(txn);
-            }
+			txn->op = COMMIT;
+			elog(LOG, "Commit 2PC '%s'", txn->gid);
+
+			/* check whether the 2pc start xid is 0 */
+			if (txn->startxid == 0 && IsXidImplicit(txn->gid))
+			{
+				elog(LOG, "Commit 2PC '%s' start xid is 0", txn->gid);
+				txn->op_issuccess = false;
+				return;
+			}
+
+			recovery_a_txn(txn, true);
+
 			break;
-		
+
 		case TXN_STATUS_ABORTED:
+			if (!OidIsValid(txn->origcoord))
+			{
+				elog(LOG, "2pc(%s) get start node oid failed, "
+					"maybe it is removed from the cluster", txn->gid);
+
+				if (!is_for_node_removed)
+				{
+					txn->op = UNDO;
+					txn->op_issuccess = true;
+					break;
+				}
+			}
+
 			txn->op = ABORT;
-			/* check whether all nodes can rollback prepared */
-			for (i = 0; i < check_times; i++)
-			{
-				check_ok = true;
-				current_context = CurrentMemoryContext;
-				PG_TRY();
-				{
-			if (!clean_2PC_iscommit(txn, false, true))
-			{
-						check_ok = false;
-						elog(LOG, "check rollback 2PC transaction %s failed",
-							txn->gid);
-					}
-				}
-				PG_CATCH();
-				{
-					check_ok = false;
-					(void)MemoryContextSwitchTo(current_context);
-					edata = CopyErrorData();
-					FlushErrorState();
 
-					elog(WARNING, "check rollback 2PC transaction %s error: %s",
-						txn->gid, edata->message);
-				}
-				PG_END_TRY();
+			elog(LOG, "Rollback 2PC '%s'", txn->gid);
 
-				if (!check_ok)
-				{
-				txn->op_issuccess = false;
-				return;
+			/* check whether the 2pc start xid is 0 */
+			if (txn->startxid == 0 && IsXidImplicit(txn->gid))
+			{
+				elog(LOG, "Rollback 2PC '%s' start xid is 0", txn->gid);
 			}
 
-				pg_usleep(check_interval);
-			}
+			recovery_a_txn(txn, false);
 
-			/* send rollback prepared to all nodes */
-			if (!clean_2PC_iscommit(txn, false, false))
-			{
-				txn->op_issuccess = false;
-				elog(LOG, "rollback 2PC transaction %s failed", txn->gid);
-				return;
-			}
-			txn->op_issuccess = true;
-			clean_2PC_files(txn);
 			break;
 		
 		case TXN_STATUS_INPROGRESS:
 			elog(DEBUG1, "2PC recovery of transaction %s not needed for TXN_STATUS_INPROGRESS", txn->gid);
-            txn->op = UNDO;
+			txn->op = UNDO;
 			txn->op_issuccess = true;
 			break;
 		
@@ -2679,7 +4311,7 @@ void recover2PC(txn_info * txn)
 			elog(ERROR, "cannot recover 2PC transaction %s for unkown status", txn->gid);
 			break;
 	}
-	return;
+
 }
 
 TXN_STATUS check_txn_global_status(txn_info *txn)
@@ -2692,7 +4324,6 @@ TXN_STATUS check_txn_global_status(txn_info *txn)
 #define TXN_INPROGRESS	0X0020
 	int ii;
 	int check_flag = 0;
-    int node_idx = 0;
 	TimestampTz prepared_time = 0;
 	TimestampTz time_gap = clean_time_interval;
 
@@ -2777,8 +4408,108 @@ TXN_STATUS check_txn_global_status(txn_info *txn)
         return TXN_STATUS_INPROGRESS;
     }
 #endif                
-    if (clear_2pc_belong_node)
+
+    /* start xid is 0, maybe at the beginning of the 2pc */
+    if (txn->startxid == 0)
+    {
+        /* prepare timestamp must be invalid */
+        if (GlobalTimestampIsValid(txn->global_prepare_timestamp))
         {
+            elog(PANIC, "gid: %s, start xid is 0, global_prepare_timestamp: %ld",
+                txn->gid, txn->global_prepare_timestamp);
+        }
+
+        elog(DEBUG2, "2PC '%s' start xid is 0", txn->gid);
+
+        if (check_flag & TXN_INPROGRESS
+            || current_time - prepared_time <= time_gap)
+        {
+            /* inprogress or less than time gap, do not clean it */
+            elog(LOG, "2PC '%s' start xid is 0, inprogress, "
+                "current_time: %ld, prepared_time: %ld, "
+                "time_gap: %ld, time_diff: %ld",
+                txn->gid, current_time, prepared_time,
+                time_gap, current_time - prepared_time);
+
+            return TXN_STATUS_INPROGRESS;
+        }
+        else
+        {
+            /* otherwise, abort it */
+            elog(LOG, "2PC '%s' start xid is 0, "
+                "current_time: %ld, prepared_time: %ld, "
+                "time_gap: %ld, time_diff: %ld",
+                txn->gid, current_time, prepared_time,
+                time_gap, current_time - prepared_time);
+
+            return TXN_STATUS_ABORTED;
+        }
+    }
+
+    if (!GlobalTimestampIsValid(txn->global_prepare_timestamp))
+    {
+        if (IsXidImplicit(txn->gid))
+        {
+            /* upgrade from old version, no prepare gts in old version */
+            elog(WARNING, "implicit gid: %s, start xid is %d, "
+                "global_prepare_timestamp is invalid",
+                txn->gid, txn->startxid);
+        }
+        else
+        {
+            /* explicit 2pc prepare gts is invalid */
+            elog(LOG, "explicit gid: %s, start xid is %d, "
+                "global_prepare_timestamp is invalid",
+                txn->gid, txn->startxid);
+        }
+
+        if (check_flag & TXN_INPROGRESS
+            || current_time - prepared_time <= time_gap)
+        {
+            /* inprogress or less than time gap, do not clean it */
+            elog(WARNING, "gid: %s, start xid is %d, inprogress, "
+                "current_time: %ld, prepared_time: %ld, "
+                "time_gap: %ld, time_diff: %ld",
+                txn->gid, txn->startxid, current_time, prepared_time,
+                time_gap, current_time - prepared_time);
+
+            return TXN_STATUS_INPROGRESS;
+        }
+        else if (IsXidImplicit(txn->gid))
+        {
+            /* otherwise, set prepare timestamp */
+            if (clear_2pc_belong_node)
+            {
+                txn->global_prepare_timestamp = abnormal_gts;
+            }
+            else
+            {
+                txn->global_prepare_timestamp = current_gts - time_gap;
+            }
+
+            elog(WARNING, "implicit gid: %s, start xid is %d, "
+                "current_time: %ld, prepared_time: %ld, "
+                "time_gap: %ld, time_diff: %ld, "
+                "set global_prepare_timestamp: %ld",
+                txn->gid, txn->startxid, current_time, prepared_time,
+                time_gap, current_time - prepared_time,
+                txn->global_prepare_timestamp);
+        }
+        else
+        {
+            /* explicit 2pc prepare gts is invalid */
+            elog(LOG, "explicit gid: %s, start xid is %d, "
+                "current_time: %ld, prepared_time: %ld, "
+                "time_gap: %ld, time_diff: %ld, "
+                "global_prepare_timestamp: %ld",
+                txn->gid, txn->startxid, current_time, prepared_time,
+                time_gap, current_time - prepared_time,
+                txn->global_prepare_timestamp);
+        }
+    }
+
+    if (clear_2pc_belong_node)
+    {
         if (!check_2pc_belong_node(txn))
         {
             return TXN_STATUS_INPROGRESS;
@@ -2789,41 +4520,136 @@ TXN_STATUS check_txn_global_status(txn_info *txn)
             return TXN_STATUS_INPROGRESS;
         }
 
-        node_idx = find_node_index(abnormal_nodeoid);
-        if (node_idx >= 0)
+        /* abnormal gts must be valid */
+        if (!GlobalTimestampIsValid(abnormal_gts))
         {
-            if (abnormal_time < txn->prepare_timestamp[node_idx])
-        {
-                elog(WARNING, "gid: %s, abnormal time: " INT64_FORMAT
-                    ", prepare timestamp[%d]: " INT64_FORMAT, txn->gid,
-                    abnormal_time, node_idx, txn->prepare_timestamp[node_idx]);
-
-            return TXN_STATUS_INPROGRESS;
-        }
-        }
-        else
-        {
-            elog(WARNING, "gid: %s, node_idx: %d", txn->gid, node_idx);
+            elog(PANIC, "gid: %s, abnormal_gts is invalid gts", txn->gid);
         }
 
-        if (abnormal_time < prepared_time)
+        if (GlobalTimestampIsValid(txn->global_prepare_timestamp))
+        {
+            /* abnormal gts less than prepare gts, do not clean it */
+            if (abnormal_gts < txn->global_prepare_timestamp)
             {
-            elog(WARNING, "gid: %s, abnormal time: " INT64_FORMAT
-                ", prepared time: " INT64_FORMAT, txn->gid,
-                abnormal_time, prepared_time);
-
+                elog(LOG, "gid: %s, abnormal gts: " INT64_FORMAT
+                    ", prepare gts: " INT64_FORMAT, txn->gid,
+                    abnormal_gts, txn->global_prepare_timestamp);
                 return TXN_STATUS_INPROGRESS;
             }
         }
+        else
+        {
+            int node_idx = 0;
+            if (IsXidImplicit(txn->gid))
+            {
+                /*
+                 * implicit 2pc prepare gts must be valid,
+                 * expect upgrade from old version 
+                */
+                elog(WARNING, "implicit gid: %s, global_prepare_timestamp is invalid",
+                    txn->gid);
+            }
+            else
+            {
+                /* explicit 2pc prepare gts is invalid */
+                elog(LOG, "explicit gid: %s, global_prepare_timestamp is invalid",
+                    txn->gid);
+            }
+
+            /* no valid prepare gts, compare time */
+            node_idx = find_node_index(abnormal_nodeoid);
+            if (node_idx >= 0)
+            {
+                if (abnormal_time < txn->prepare_timestamp[node_idx])
+                {
+                    elog(WARNING, "gid: %s, abnormal time: " INT64_FORMAT
+                        ", prepare timestamp[%d]: " INT64_FORMAT, txn->gid,
+                        abnormal_time, node_idx, txn->prepare_timestamp[node_idx]);
+                    return TXN_STATUS_INPROGRESS;
+                }
+            }
+            else
+            {
+                elog(WARNING, "gid: %s, node_idx: %d", txn->gid, node_idx);
+            }
+
+            if (abnormal_time < prepared_time)
+            {
+                elog(WARNING, "gid: %s, abnormal time: " INT64_FORMAT
+                    ", prepared time: " INT64_FORMAT, txn->gid,
+                    abnormal_time, prepared_time);
+                return TXN_STATUS_INPROGRESS;
+            }
+        }
+
+        if (GlobalTimestampIsValid(txn->global_commit_timestamp))
+        {
+            /* abnormal gts less than commit gts, do not clean it */
+            if (abnormal_gts < txn->global_commit_timestamp)
+            {
+                elog(LOG, "gid: %s, abnormal gts: " INT64_FORMAT
+                    ", commit gts: " INT64_FORMAT, txn->gid,
+                    abnormal_gts, txn->global_commit_timestamp);
+                return TXN_STATUS_INPROGRESS;
+            }
+        }
+    }
     else
     {
-        if (check_flag & TXN_INPROGRESS ||current_time - prepared_time <= time_gap)
+        if (check_flag & TXN_INPROGRESS || current_time - prepared_time <= time_gap)
         {
             /* transaction inprogress */
             return TXN_STATUS_INPROGRESS;
         }
-    }
 
+        /* current gts must be valid */
+        if (!GlobalTimestampIsValid(current_gts))
+        {
+            elog(PANIC, "gid: %s, current_gts is invalid gts", txn->gid);
+        }
+
+        if (GlobalTimestampIsValid(txn->global_prepare_timestamp))
+        {
+            /* 2pc prepare gts gap less than time gap, do not clean it */
+            if (current_gts - txn->global_prepare_timestamp < time_gap)
+            {
+                elog(LOG, "gid: %s, current gts: " INT64_FORMAT
+                    ", prepare gts: " INT64_FORMAT ", time gap: " INT64_FORMAT,
+                    txn->gid, current_gts, txn->global_prepare_timestamp, time_gap);
+                return TXN_STATUS_INPROGRESS;
+            }
+        }
+        else
+        {
+            if (IsXidImplicit(txn->gid))
+            {
+                /*
+                 * implicit 2pc prepare gts must be valid,
+                 * expect upgrade from old version 
+                */
+                elog(WARNING, "implicit gid: %s, global_prepare_timestamp is invalid",
+                    txn->gid);
+            }
+            else
+            {
+                /* explicit 2pc prepare gts is invalid */
+                elog(LOG, "explicit gid: %s, global_prepare_timestamp is invalid",
+                    txn->gid);
+            }
+        }
+
+        if (GlobalTimestampIsValid(txn->global_commit_timestamp))
+        {
+            /* 2pc commit gts gap less than time gap, do not clean it */
+            if (current_gts - txn->global_commit_timestamp <= time_gap)
+            {
+                elog(LOG, "gid: %s, current gts: " INT64_FORMAT
+                    ", commit gts: " INT64_FORMAT ", time gap: " INT64_FORMAT,
+                    txn->gid, current_gts, txn->global_commit_timestamp, time_gap);
+                return TXN_STATUS_INPROGRESS;
+            }
+        }
+    }
 
     if (!IsXidImplicit(txn->gid) && txn->after_first_phase && (TXN_PREPARED == check_flag))
     {
@@ -2844,6 +4670,21 @@ TXN_STATUS check_txn_global_status(txn_info *txn)
 	if (check_flag & TXN_COMMITTED)
 		/* Some 2PC transactions are committed.  Need to commit others. */
 		return TXN_STATUS_COMMITTED;
+
+	/* If 2PC commit gts is valid, must commit it. */
+	if (GlobalTimestampIsValid(txn->global_commit_timestamp))
+	{
+		elog(LOG, "'%s' global_commit_timestamp: %ld",
+			txn->gid, txn->global_commit_timestamp);
+
+		if (!(check_flag & TXN_PREPARED))
+		{
+			elog(PANIC, "gid: %s, check_flag: %d", txn->gid, check_flag);
+		}
+
+		return TXN_STATUS_COMMITTED;
+	}
+
 	/* All the transactions remain prepared.   No need to recover. */
 	return TXN_STATUS_ABORTED;
 }
@@ -2867,7 +4708,7 @@ bool clean_2PC_iscommit(txn_info *txn, bool is_commit, bool is_check)
 		{
 			snprintf(command, MAX_CMD_LENGTH, STMT_FORM_CHECK, "commit", txn->gid);
 		}
-	else
+		else
 		{
 			snprintf(command, MAX_CMD_LENGTH, STMT_FORM, "commit", txn->gid);
 		}
@@ -2883,7 +4724,7 @@ bool clean_2PC_iscommit(txn_info *txn, bool is_commit, bool is_check)
 			snprintf(command, MAX_CMD_LENGTH, STMT_FORM, "rollback", txn->gid);
 		}
 	}
-	if (is_commit && InvalidGlobalTimestamp == txn->global_commit_timestamp)	
+	if (is_commit && InvalidGlobalTimestamp == txn->global_commit_timestamp)
 	{
 		elog(ERROR, "twophase transaction '%s' has InvalidGlobalCommitTimestamp", txn->gid);
 	}
@@ -2896,7 +4737,6 @@ bool clean_2PC_iscommit(txn_info *txn, bool is_commit, bool is_check)
                  errmsg("out of memory for connections")));
     }
     get_transaction_handles(&pgxc_handles, txn);
-
 #ifdef __TWO_PHASE_TESTS__
     if (PG_CLEAN_SEND_CLEAN <= twophase_exception_case && 
         PG_CLEAN_ELOG_ERROR >= twophase_exception_case)
@@ -2907,20 +4747,29 @@ bool clean_2PC_iscommit(txn_info *txn, bool is_commit, bool is_check)
 	for (ii = 0; ii < pgxc_handles->dn_conn_count; ii++)
 	{
         node_oid = pgxc_handles->datanode_handles[ii]->nodeoid;
-    	node_idx = find_node_index(node_oid);
-        if (TXN_STATUS_PREPARED != txn->txn_stat[ node_idx])
+        node_idx = find_node_index(node_oid);
+        if (node_idx < 0 || node_idx >= cn_nodes_num + dn_nodes_num)
+        {
+            elog(PANIC, "gid: %s, node_idx(%d) is invalid", txn->gid, node_idx);
+        }
+
+        if (TXN_STATUS_PREPARED != txn->txn_stat[node_idx])
         {
             continue;
         }
 		/*send global timestamp to dn_node_list[ii]*/
 		if (!send_query_clean_transaction(pgxc_handles->datanode_handles[ii], txn, command))
 		{
-			elog(LOG, "pg_clean: send query '%s' from '%s' to '%s' failed ", 
-				command, get_pgxc_nodename(my_nodeoid) , pgxc_handles->datanode_handles[ii]->nodename);
+			elog(WARNING, "pg_clean: send sql '%s' from '%s' to '%s' failed",
+				command, get_pgxc_nodename(my_nodeoid),
+				pgxc_handles->datanode_handles[ii]->nodename);
 			return false;
 		}
         else
         {
+            elog(LOG, "pg_clean: send sql '%s' from '%s' to '%s'",
+                command, get_pgxc_nodename(my_nodeoid),
+                pgxc_handles->datanode_handles[ii]->nodename);
             connections[conn_count++] = pgxc_handles->datanode_handles[ii];
 #ifdef __TWO_PHASE_TESTS__
             if (PG_CLEAN_SEND_CLEAN <= twophase_exception_case && 
@@ -2940,20 +4789,29 @@ bool clean_2PC_iscommit(txn_info *txn, bool is_commit, bool is_check)
 	for (ii = 0; ii < pgxc_handles->co_conn_count; ii++)
 	{
         node_oid = pgxc_handles->coord_handles[ii]->nodeoid;
-    	node_idx = find_node_index(node_oid);
-        if (TXN_STATUS_PREPARED != txn->txn_stat[ node_idx])
+        node_idx = find_node_index(node_oid);
+        if (node_idx < 0 || node_idx >= cn_nodes_num + dn_nodes_num)
+        {
+            elog(PANIC, "gid: %s, node_idx(%d) is invalid", txn->gid, node_idx);
+        }
+
+        if (TXN_STATUS_PREPARED != txn->txn_stat[node_idx])
         {
             continue;
         }
 		/*send global timestamp to dn_node_list[ii]*/
 		if (!send_query_clean_transaction(pgxc_handles->coord_handles[ii], txn, command))
 		{
-			elog(LOG, "pg_clean: send query '%s' from '%s' to '%s' failed ", 
-				command, get_pgxc_nodename(my_nodeoid) , pgxc_handles->coord_handles[ii]->nodename);
+			elog(WARNING, "pg_clean: send sql '%s' from '%s' to '%s' failed",
+				command, get_pgxc_nodename(my_nodeoid),
+				pgxc_handles->coord_handles[ii]->nodename);
 			return false;
 		}
         else
         {
+            elog(LOG, "pg_clean: send sql '%s' from '%s' to '%s'",
+                command, get_pgxc_nodename(my_nodeoid),
+                pgxc_handles->coord_handles[ii]->nodename);
             connections[conn_count++] = pgxc_handles->coord_handles[ii];
 #ifdef __TWO_PHASE_TESTS__
             if (PG_CLEAN_SEND_CLEAN <= twophase_exception_case && 
@@ -2968,7 +4826,6 @@ bool clean_2PC_iscommit(txn_info *txn, bool is_commit, bool is_check)
             }
 #endif
         }
-
 	}
 
     /* receive response */
@@ -2982,7 +4839,7 @@ bool clean_2PC_iscommit(txn_info *txn, bool is_commit, bool is_check)
                 pgxc_node_report_error(&combiner);
             else
                 ereport(ERROR,
-                        (errcode(ERRCODE_INTERNAL_ERROR),
+                        (errcode(ERRCODE_CONNECTION_EXCEPTION),
                          errmsg("Failed to FINISH the transaction on one or more nodes")));
         }
         else
@@ -2992,42 +4849,50 @@ bool clean_2PC_iscommit(txn_info *txn, bool is_commit, bool is_check)
     {
         for (ii = 0; ii < conn_count; ii++)
         {
-            if (DN_CONNECTION_STATE_IDLE != connections[ii]->state)
+            if (!IsConnectionStateIdle(connections[ii]))
             {
-                elog(WARNING, "IN pg_clean node:%s invalid stauts:%d", connections[ii]->nodename, connections[ii]->state);
+                elog(WARNING, "IN pg_clean node:%s invalid stauts:%s", 
+					connections[ii]->nodename, GetConnectionStateTag(connections[ii]));
             }
         }
     }
     conn_count = 0;
-	clear_handles();
 	pfree_pgxc_all_handles(pgxc_handles);
     pgxc_handles = NULL;
 
-	/*last commit or rollback on origcoord if it participate this txn, since after commit the 2pc file is deleted on origcoord*/
+    /*last commit or rollback on origcoord if it participate this txn, since after commit the 2pc file is deleted on origcoord*/
     if (txn->origcoord != InvalidOid)
     {
-    	node_idx = find_node_index(txn->origcoord);
-    	if (txn->coordparts[node_idx] == 1)
-    	{
-			/*send global timestamp to dn_node_list[ii]*/
-            
-			if (txn->txn_stat[node_idx] == TXN_STATUS_PREPARED)
-			{
+        node_idx = find_node_index(txn->origcoord);
+        if (node_idx < 0 || node_idx >= cn_nodes_num + dn_nodes_num)
+        {
+            elog(PANIC, "gid: %s, node_idx(%d) is invalid", txn->gid, node_idx);
+        }
+
+        if (txn->coordparts[node_idx] == 1)
+        {
+            /*send global timestamp to dn_node_list[ii]*/
+            if (txn->txn_stat[node_idx] == TXN_STATUS_PREPARED)
+            {
                 get_node_handles(&pgxc_handles, txn->origcoord);
                 if (!send_query_clean_transaction(pgxc_handles->coord_handles[0], txn, command))
                 {
-                    elog(LOG, "pg_clean: send query '%s' from %s to %s failed ", 
-                        command, get_pgxc_nodename(my_nodeoid) , pgxc_handles->coord_handles[0]->nodename);
+                    elog(WARNING, "pg_clean: send sql '%s' from %s to %s failed", 
+                        command, get_pgxc_nodename(my_nodeoid),
+                        pgxc_handles->coord_handles[0]->nodename);
                     return false;
                 }
                 else
                 {
+                    elog(LOG, "pg_clean: send sql '%s' from '%s' to '%s'",
+                        command, get_pgxc_nodename(my_nodeoid),
+                        pgxc_handles->coord_handles[0]->nodename);
                     connections[conn_count++] = pgxc_handles->coord_handles[0];
                 }
             }
-    	}
+        }
     }
-	
+
     /* receive response */
     if (conn_count)
     {
@@ -3039,16 +4904,13 @@ bool clean_2PC_iscommit(txn_info *txn, bool is_commit, bool is_check)
                 pgxc_node_report_error(&combiner);
             else
                 ereport(ERROR,
-                        (errcode(ERRCODE_INTERNAL_ERROR),
+                        (errcode(ERRCODE_CONNECTION_EXCEPTION),
                          errmsg("Failed to FINISH the transaction on one or more nodes")));
         }
         else
             CloseCombiner(&combiner);
     }
-	/*free hash record from gtm*/
-	FinishGIDGTM(txn->gid);
-    
-	clear_handles();
+
 	pfree_pgxc_all_handles(pgxc_handles);
     pgxc_handles = NULL;
     pfree(connections);
@@ -3061,7 +4923,7 @@ bool clean_2PC_files(txn_info * txn)
 	int ii;
 	TupleTableSlots result;
 	bool issuccess = true;
-	static const char *STMT_FORM = "select pgxc_remove_2pc_records('%s')::text";
+	const char *STMT_FORM = "select public.pgxc_remove_2pc_records('%s')::text";
 	char query[MAX_CMD_LENGTH];
 	
 	snprintf(query, MAX_CMD_LENGTH, STMT_FORM, txn->gid);
@@ -3070,7 +4932,7 @@ bool clean_2PC_files(txn_info * txn)
 	{
 		if (execute_query_on_single_node(dn_node_list[ii], query, 1, &result) == (Datum) 1)
 		{
-			if (TTSgetvalue(&result, 0, 0) == false)
+			if (TTSgetvalue(&result, 0, 0) == NULL)
 			{
 				elog(LOG, "pg_clean: delete 2PC file failed of transaction %s on node %s",
 						  txn->gid, get_pgxc_nodename(txn->dnparts[ii]));
@@ -3079,7 +4941,8 @@ bool clean_2PC_files(txn_info * txn)
 		}
 		else
 		{
-			elog(LOG, "pg_clean: failed clean 2pc file of transaction %s on node %s", txn->gid, get_pgxc_nodename(dn_node_list[ii]));
+			elog(WARNING, "pg_clean: failed to remove 2pc file on node %s, gid: %s, "
+				"sql: %s", get_pgxc_nodename(dn_node_list[ii]), txn->gid, query);
 			issuccess = false;
 		}
 		DropTupleTableSlots(&result);
@@ -3091,16 +4954,17 @@ bool clean_2PC_files(txn_info * txn)
 	{
 		if (execute_query_on_single_node(cn_node_list[ii], query, 1, &result) == (Datum) 1)
 		{
-			if (TTSgetvalue(&result, 0, 0) == false)
+			if (TTSgetvalue(&result, 0, 0) == NULL)
 			{
-				elog(LOG, "Error:delete 2PC file failed of transaction %s on node %s",
+				elog(LOG, "pg_clean: delete 2PC file failed of transaction %s on node %s",
 						  txn->gid, get_pgxc_nodename(txn->coordparts[ii]));
 				issuccess = false;
 			}
 		}
 		else
 		{
-			elog(LOG, "pg_clean: failed clean 2pc file of transaction %s on node %s", txn->gid, get_pgxc_nodename(cn_node_list[ii]));
+			elog(WARNING, "pg_clean: failed to remove 2pc file on node %s, gid: %s, "
+				"sql: %s", get_pgxc_nodename(cn_node_list[ii]), txn->gid, query);
 			issuccess = false;
 		}
 		DropTupleTableSlots(&result);
@@ -3191,13 +5055,14 @@ void Init_print_stats(txn_info *txn, char *database, print_status * pstatus)
 	RPALLOC(pstatus->status);
 	RPALLOC(pstatus->database);
 
-	pstatus->gid[pstatus->count] = (char *)palloc0(100 * sizeof(char));
-	pstatus->database[pstatus->count] = (char *)palloc0(100 * sizeof(char));
-	pstatus->global_status[pstatus->count] = (char *)palloc0(100 * sizeof(char));
+	pstatus->gid[pstatus->count] = (char *)palloc0(MAX_GID);
+	pstatus->database[pstatus->count] = (char *)palloc0(MAX_DBNAME);
+	pstatus->global_status[pstatus->count] = (char *)palloc0(MAX_FIELD_LEN);
 
-	strncpy(pstatus->gid[pstatus->count], txn->gid, 100);
-	strncpy(pstatus->database[pstatus->count], database, 100);
-	strncpy(pstatus->global_status[pstatus->count], txn_status_to_string(check_txn_global_status(txn)), 100);
+	strncpy(pstatus->gid[pstatus->count], txn->gid, MAX_GID);
+	strncpy(pstatus->database[pstatus->count], database, MAX_DBNAME);
+	strncpy(pstatus->global_status[pstatus->count],
+		txn_status_to_string(check_txn_global_status(txn)), MAX_FIELD_LEN);
 
 	for (ii = 0; ii < pgxc_clean_node_count; ii++)
 	{
@@ -3209,7 +5074,7 @@ void Init_print_stats(txn_info *txn, char *database, print_status * pstatus)
 		}
 	}
 
-	pstatus->status[pstatus->count] = (char *)palloc0((strlen(query.data)+1) * sizeof(char));
+	pstatus->status[pstatus->count] = (char *)palloc0((strlen(query.data)+1));
 	strncpy(pstatus->status[pstatus->count], query.data, strlen(query.data)+1);
 	pstatus->gid_count++;
 	pstatus->database_count++;
@@ -3287,15 +5152,6 @@ CheckFirstPhase(txn_info *txn)
     /* start node node participate */
     else
     {
-#if 0        
-        ret = Get2PCFile(orignode, txn->gid, &transactionid);
-        if (ret == FILENOTFOUND)
-            txn->after_first_phase = false;
-        else if (ret == FILEUNKOWN)
-            txn->global_txn_stat = TXN_STATUS_UNKNOWN;
-        else if (ret == FILEFOUND && txn->global_commit_timestamp != InvalidGlobalTimestamp)
-            txn->after_first_phase = true;
-#endif
         if (txn->global_commit_timestamp != InvalidGlobalTimestamp)
         {
             txn->after_first_phase = true;
@@ -3363,7 +5219,7 @@ void get_transaction_handles(PGXCNodeAllHandles **pgxc_handles, txn_info *txn)
         }
         cn_index++;
     }
-    *pgxc_handles = get_handles(nodelist, coordlist, false, true, true);
+    *pgxc_handles = get_handles(nodelist, coordlist, false, true, FIRST_LEVEL, InvalidFid, true, false);
 }
 
 void get_node_handles(PGXCNodeAllHandles **pgxc_handles, Oid nodeoid)
@@ -3382,15 +5238,17 @@ void get_node_handles(PGXCNodeAllHandles **pgxc_handles, Oid nodeoid)
     {
         nodelist = lappend_int(nodelist, nodeIndex);
     }
-	*pgxc_handles = get_handles(nodelist, coordlist, false, true, true);
+	*pgxc_handles = get_handles(nodelist, coordlist, false, true, FIRST_LEVEL, InvalidFid, true, false);
 }
-
 
 bool check_2pc_start_from_node(txn_info *txn)
 {
 	char node_type;
 
-	Assert(InvalidOid != abnormal_nodeoid);
+	if (InvalidOid == abnormal_nodeoid)
+	{
+		elog(PANIC, "gid: %s, abnormal_nodeoid is invalid", txn->gid);
+	}
 
 	if (abnormal_nodeoid == txn->origcoord)
 	{
@@ -3405,51 +5263,267 @@ bool check_2pc_start_from_node(txn_info *txn)
 
 	if (InvalidOid == txn->origcoord)
 	{
-		char *startnode = NULL;
-		int   node_oid  = InvalidOid;
-		char  gid[MAX_GID];
+		int node_oid = InvalidOid;
 
 		if (!IsXidImplicit(txn->gid))
 		{
 			return true;
 		}
 
-		Assert(IsXidImplicit(txn->gid));
-
-		/* get start node from gid */
-		strcpy(gid, txn->gid);
-		startnode = strtok(gid, ":");
-		if (NULL == startnode)
+		/* Get start node oid from gid */
+		node_oid = get_start_node_oid_from_gid(txn->gid);
+		if (InvalidOid == node_oid)
 		{
-			elog(WARNING, "get startnode(%s) from gid(%s) failed",
-				startnode, gid);
+			elog(WARNING, "Get invalid start node oid from gid(%s)", txn->gid);
 			return false;
 		}
 
-		startnode = strtok(NULL, ":");
-		if (NULL == startnode)
-{
-			elog(WARNING, "get startnode(%s) from gid(%s) failed",
-				startnode, gid);
-			return false;
-		}
-
-		node_oid = get_pgxc_nodeoid(startnode);
-		if (NULL == startnode)
-			{
-			elog(WARNING, "get invalid oid for startnode(%s) from gid(%s)",
-				startnode, gid);
-			return false;
-	}
-
-		elog(DEBUG1, "get oid(%d) for startnode(%s) from gid(%s)",
-			node_oid, startnode, gid);
+		elog(DEBUG1, "Get start node oid(%d) from gid(%s)", node_oid, txn->gid);
 
 		if (abnormal_nodeoid == node_oid)
-	{
-		return true;
-	}
+		{
+			return true;
+		}
 	}
 
 	return false;
 }
+
+/*
+ * get_start_node_from_gid
+ * Get start node name from gid
+ * gid: 2pc gid
+ */
+char *get_start_node_from_gid(char *gid)
+{
+	char *str_start_node = NULL;
+
+	if (!IsXidImplicit(gid))
+	{
+		elog(WARNING, "2PC '%s' is not implicit", gid);
+		return NULL;
+	}
+
+	/* Get start node name from gid */
+	str_start_node = strtok(gid, ":");
+	if (str_start_node == NULL)
+	{
+		elog(WARNING, "Get start node from gid(%s) failed", gid);
+		return NULL;
+	}
+
+	str_start_node = strtok(NULL, ":");
+	if (str_start_node == NULL)
+	{
+		elog(WARNING, "Get start node from gid(%s) failed", gid);
+		return NULL;
+	}
+
+	return str_start_node;
+}
+
+/*
+ * get_start_node_oid_from_gid
+ * Get start node oid from gid
+ * gid: 2pc gid
+ */
+Oid get_start_node_oid_from_gid(char *gid)
+{
+	Oid start_node_oid = 0;
+	char *str_start_node = NULL;
+	char gid_buf[MAX_GID];
+
+	/* Get start node oid from gid */
+	strcpy(gid_buf, gid);
+	str_start_node = get_start_node_from_gid(gid_buf);
+	if (str_start_node == NULL)
+	{
+		elog(WARNING, "Get start node from gid(%s) failed", gid);
+		return 0;
+	}
+
+	elog(LOG, "Get start node(%s) from gid(%s)", str_start_node, gid);
+
+	start_node_oid = get_pgxc_nodeoid(str_start_node);
+	if (!OidIsValid(start_node_oid))
+	{
+		elog(WARNING, "Get invalid oid for start node(%s) from gid(%s)",
+			str_start_node, gid);
+		return 0;
+	}
+
+	return start_node_oid;
+}
+
+/*
+ * get_start_xid_from_gid
+ * Get start xid from gid
+ * gid: 2pc gid
+ */
+uint32 get_start_xid_from_gid(char *gid)
+{
+	uint32 start_xid = 0;
+	char *str_start_xid = NULL;
+	char gid_buf[MAX_GID];
+
+	if (!IsXidImplicit(gid))
+	{
+		elog(WARNING, "2PC '%s' is not implicit", gid);
+		return 0;
+	}
+
+	/* Get start xid from gid */
+	strcpy(gid_buf, gid);
+	str_start_xid = gid_buf + strlen(XIDPREFIX);
+	str_start_xid = strtok(str_start_xid, ":");
+	start_xid = strtoul(str_start_xid, NULL, 10);
+	if (start_xid == 0)
+	{
+		elog(WARNING, "Get start xid from gid(%s) failed", gid);
+		return 0;
+	}
+
+	return start_xid;
+}
+
+/*
+ * is_xid_running_on_node
+ * Whether the transaction with the xid is still running on the node
+ * xid: transaction id
+ * node_oid: node oid
+ */
+bool is_xid_running_on_node(uint32 xid, Oid node_oid)
+{
+	bool is_running = true;
+
+	Datum execute_res;
+	TupleTableSlots result;
+	char command[MAX_CMD_LENGTH];
+
+	if (xid == 0 || node_oid == InvalidOid)
+	{
+		elog(PANIC, "2PC xid: %d, node oid: %d", xid, node_oid);
+		return true;
+	}
+
+	snprintf(command, MAX_CMD_LENGTH, "select pid::text, backend_xid::text "
+			"from pg_catalog.pg_stat_activity where backend_xid=%d", xid);
+
+	execute_res = execute_query_on_single_node(node_oid, command, 2, &result);
+	if (execute_res == (Datum) 1)
+	{
+		if (result.slot_count == 0)
+		{
+			is_running = false;
+		}
+		else
+		{
+			is_running = true;
+
+			if (result.slot_count != 1)
+			{
+				elog(PANIC, "Get %d resules for xid: %d", result.slot_count, xid);
+			}
+		}
+	}
+	else
+	{
+		is_running = true;
+		elog(ERROR, "pg_clean: failed to query txn activity on node %s, sql: %s",
+			get_pgxc_nodename(node_oid), command);
+	}
+	DropTupleTableSlots(&result);
+
+	return is_running;
+}
+
+/*
+ * is_gid_start_xid_running
+ * Whether the transaction with the start xid is still running on start node
+ * gid: 2pc gid
+ */
+bool is_gid_start_xid_running(char *gid)
+{
+	uint32 start_xid = 0;
+	Oid start_node_oid = InvalidOid;
+
+	if (!IsXidImplicit(gid))
+	{
+		elog(LOG, "Explicit 2PC '%s'", gid);
+		return true;
+	}
+
+	/* Get start xid from gid */
+	start_xid = get_start_xid_from_gid(gid);
+	if (start_xid == 0)
+	{
+		elog(ERROR, "Get start xid from gid(%s) failed", gid);
+		return true;
+	}
+
+	elog(LOG, "Get start xid(%d) from gid(%s)", start_xid, gid);
+
+	/* Get start node oid from gid */
+	start_node_oid = get_start_node_oid_from_gid(gid);
+	if (!OidIsValid(start_node_oid))
+	{
+		elog(is_for_node_removed ? LOG: ERROR,
+			"2pc(%s) get start node oid failed, "
+			"maybe it is removed from the cluster", gid);
+
+		return false;
+	}
+
+	elog(LOG, "Get start node oid(%d) from gid(%s)", start_node_oid, gid);
+
+	return is_xid_running_on_node(start_xid, start_node_oid);
+}
+
+/*
+ * is_txn_start_xid_running
+ * Whether the transaction with the start xid is still running on start node
+ * txn: 2pc transaction info
+ */
+bool is_txn_start_xid_running(txn_info *txn)
+{
+	if (txn->startxid != 0)
+	{
+		if (OidIsValid(txn->origcoord))
+		{
+			return is_xid_running_on_node(txn->startxid, txn->origcoord);
+		}
+
+		Assert(!OidIsValid(txn->origcoord));
+
+		elog(is_for_node_removed ? LOG: ERROR,
+			"2pc(%s) get start node oid failed, "
+			"maybe it is removed from the cluster, "
+			"start xid is %d", txn->gid, txn->startxid);
+
+		return false;
+	}
+
+	Assert(txn->startxid == 0);
+
+	if (!OidIsValid(txn->origcoord))
+	{
+		elog(is_for_node_removed ? LOG: ERROR,
+			"2pc(%s) get start node oid failed, "
+			"maybe it is removed from the cluster, "
+			"start xid is %d", txn->gid, txn->startxid);
+
+		return false;
+	}
+
+	Assert(OidIsValid(txn->origcoord));
+
+	if (!IsXidImplicit(txn->gid))
+	{
+		elog(LOG, "Explicit 2PC '%s' start xid is %d", txn->gid, txn->startxid);
+		return false;
+	}
+
+	return is_gid_start_xid_running(txn->gid);
+}
+
+

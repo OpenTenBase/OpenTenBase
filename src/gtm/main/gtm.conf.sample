@@ -86,3 +86,4 @@
 #enable_gtm_xlog_debug = false # log xlog related message
 #enable_gtm_debug = false      # log gtm related message
 #enable_gtm_sequence_debug = false # log sequence related message
+#enable_gtm_resqueue_debug = false # log resource queue related message

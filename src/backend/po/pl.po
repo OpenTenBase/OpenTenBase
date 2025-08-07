@@ -20746,9 +20746,9 @@ msgstr "ścieżka bezwzględna niedozwolona"
 msgid "path must be in or below the current directory"
 msgstr "ścieżka musi wskazywać na lub poniżej bieżącego folderu"
 
-#: utils/adt/genfile.c:126 utils/adt/oracle_compat.c:184
-#: utils/adt/oracle_compat.c:282 utils/adt/oracle_compat.c:758
-#: utils/adt/oracle_compat.c:1059
+#: utils/adt/genfile.c:126 utils/adt/opentenbase_ora_compat.c:184
+#: utils/adt/opentenbase_ora_compat.c:282 utils/adt/opentenbase_ora_compat.c:758
+#: utils/adt/opentenbase_ora_compat.c:1059
 #, c-format
 msgid "requested length too large"
 msgstr "żądana długość jest za duża"
@@ -21589,22 +21589,22 @@ msgstr "wartość \"%s\" jest poza zakresem dla typu 8 bitowy integer"
 msgid "invalid oidvector data"
 msgstr "niepoprawne dane oidvector"
 
-#: utils/adt/oracle_compat.c:895
+#: utils/adt/opentenbase_ora_compat.c:895
 #, c-format
 msgid "requested character too large"
 msgstr "żądany znak jest za duży"
 
-#: utils/adt/oracle_compat.c:945 utils/adt/oracle_compat.c:1007
+#: utils/adt/opentenbase_ora_compat.c:945 utils/adt/opentenbase_ora_compat.c:1007
 #, c-format
 msgid "requested character too large for encoding: %d"
 msgstr "żądany znak jest zbyt długi dla kodowania: %d"
 
-#: utils/adt/oracle_compat.c:986
+#: utils/adt/opentenbase_ora_compat.c:986
 #, c-format
 msgid "requested character not valid for encoding: %d"
 msgstr "żądany znak jest zbyt niepoprawny w kodowaniu: %d"
 
-#: utils/adt/oracle_compat.c:1000
+#: utils/adt/opentenbase_ora_compat.c:1000
 #, c-format
 msgid "null character not permitted"
 msgstr "pusty znak niedozwolony"

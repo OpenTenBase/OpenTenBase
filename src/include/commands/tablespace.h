@@ -7,9 +7,6 @@
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * src/include/commands/tablespace.h
  *
  *-------------------------------------------------------------------------
@@ -46,7 +43,7 @@ typedef struct TableSpaceOpts
 } TableSpaceOpts;
 
 extern Oid	CreateTableSpace(CreateTableSpaceStmt *stmt);
-extern bool DropTableSpace(DropTableSpaceStmt *stmt, bool missing_ok);
+extern void DropTableSpace(DropTableSpaceStmt *stmt);
 extern ObjectAddress RenameTableSpace(const char *oldname, const char *newname);
 extern Oid	AlterTableSpaceOptions(AlterTableSpaceOptionsStmt *stmt);
 
@@ -55,19 +52,12 @@ extern void TablespaceCreateDbspace(Oid spcNode, Oid dbNode, bool isRedo);
 extern Oid	GetDefaultTablespace(char relpersistence, bool partitioned);
 
 extern void PrepareTempTablespaces(void);
-
 extern Oid	get_tablespace_oid(const char *tablespacename, bool missing_ok);
 extern char *get_tablespace_name(Oid spc_oid);
-
 extern bool directory_is_empty(const char *path);
 extern void remove_tablespace_symlink(const char *linkloc);
 
 extern void tblspc_redo(XLogReaderState *rptr);
 extern void tblspc_desc(StringInfo buf, XLogReaderState *rptr);
 extern const char *tblspc_identify(uint8 info);
-
-#ifdef __OPENTENBASE__
-extern bool PreCheckforDropTableSpace(DropTableSpaceStmt *stmt);
-#endif
-
 #endif							/* TABLESPACE_H */

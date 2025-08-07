@@ -1,0 +1,295 @@
+set transform_insert_to_copy = on;
+-- test default null expr in distributed column
+--- test not null error
+create table test_default_null_expr_20240311_1(
+	id character varying(16) default null::character varying not null, -- not null
+	id2 character varying(32) default null::character varying,
+	id3 character varying(32) default null::character varying )
+	distribute by shard(id);
+
+insert into test_default_null_expr_20240311_1(id2,id3) values ('ddddd','ddddd'),('bbbbb','dd222ddd'); -- error
+copy test_default_null_expr_20240311_1(id2, id3) from stdin; -- error
+aaa	bbb
+\.
+copy test_default_null_expr_20240311_1(id2, id3) from stdin (format csv); -- error
+ccc,ddd
+\.
+copy test_default_null_expr_20240311_1(id, id2, id3) from stdin; -- error
+\N	\N	\N
+\.
+copy test_default_null_expr_20240311_1(id, id2, id3) from stdin (format csv); -- error
+,,
+\.
+
+--- allow default null
+create table test_default_null_expr_20240311_2(
+	id character varying(16) default ''::character varying,
+	id2 character varying(32) default null::character varying,
+	id3 character varying(32) default null::character varying )
+	distribute by shard(id);
+
+insert into test_default_null_expr_20240311_2(id2,id3) values ('ddddd','ddddd'),('bbbbb','dd222ddd');
+copy test_default_null_expr_20240311_2(id2, id3) from stdin;
+aaa	bbb
+\.
+copy test_default_null_expr_20240311_2(id2, id3) from stdin (format csv);
+ccc,ddd
+\.
+copy test_default_null_expr_20240311_2(id, id2, id3) from stdin;
+\N	\N	\N
+\.
+copy test_default_null_expr_20240311_2(id, id2, id3) from stdin (format csv);
+,,
+\.
+
+select * from test_default_null_expr_20240311_2 order by id, id2, id3;
+
+--- test complex default null expr1
+create table test_default_null_expr_20240311_3(
+	id date default nullif('2024-03-01','2024-03-01')::date not null, -- not null
+	id2 character varying(32) default ''||null::character varying,
+	id3 character varying(32) default ''||null::character varying )
+	distribute by shard(id);
+
+insert into test_default_null_expr_20240311_3(id3) values ('ddddd'),('bbbbb'); -- error
+copy test_default_null_expr_20240311_3(id2, id3) from stdin; -- error
+aaa	bbb
+\.
+copy test_default_null_expr_20240311_3(id2, id3) from stdin (format csv); -- error
+aaa,bbb
+\.
+copy test_default_null_expr_20240311_3(id, id2, id3) from stdin; -- error
+\N	\N	\N
+\.
+copy test_default_null_expr_20240311_3(id, id2, id3) from stdin (format csv); -- error
+,,
+\.
+
+--- test complex default null expr2
+create table test_default_null_expr_20240311_4(
+	id date default nullif('2024-03-01'::date,'2024-03-01'::date) not null, -- not null
+	id2 character varying(32) default ''||null::character varying,
+	id3 character varying(32) default ''||null::character varying )
+	distribute by shard(id);
+
+insert into test_default_null_expr_20240311_4(id3) values ('ddddd'),('bbbbb'); -- error
+copy test_default_null_expr_20240311_4(id2, id3) from stdin; -- error
+aaa	bbb
+\.
+copy test_default_null_expr_20240311_4(id2, id3) from stdin (format csv); -- error
+aaa,bbb
+\.
+copy test_default_null_expr_20240311_4(id, id2, id3) from stdin; -- error
+\N	\N	\N
+\.
+copy test_default_null_expr_20240311_4(id, id2, id3) from stdin (format csv); -- error
+,,
+\.
+
+--- test complex default null expr3
+create table test_default_null_expr_20240311_5(
+	id character varying(32) default nullif('2022-03-06'::date,'2022-03-06'::date)::character varying not null, -- not null
+	id2 character varying(32) default ''||null::character varying,
+	id3 character varying(32) default ''||null::character varying)
+	distribute by shard(id);
+
+insert into test_default_null_expr_20240311_5(id3) values ('ddddd'),('bbbbb'); -- error
+copy test_default_null_expr_20240311_5(id2, id3) from stdin; -- error
+aaa	bbb
+\.
+copy test_default_null_expr_20240311_5(id2, id3) from stdin (format csv); -- error
+aaa,bbb
+\.
+copy test_default_null_expr_20240311_5(id, id2, id3) from stdin; -- error
+\N	\N	\N
+\.
+copy test_default_null_expr_20240311_5(id, id2, id3) from stdin (format csv); -- error
+,,
+\.
+
+--- test complex default null expr4
+create table test_default_null_expr_20240311_6(
+	id date default (now()+null)::date,
+	id2 character varying(32) default ''||null::character varying,
+	id3 character varying(32) default ''||null::character varying )
+	distribute by shard(id);
+
+insert into test_default_null_expr_20240311_6(id3) values ('ddddd'),('bbbbb');
+copy test_default_null_expr_20240311_6(id2, id3) from stdin;
+aaa	bbb
+\.
+copy test_default_null_expr_20240311_6(id2, id3) from stdin (format csv);
+aaa,bbb
+\.
+copy test_default_null_expr_20240311_6(id, id2, id3) from stdin;
+\N	\N	\N
+\.
+copy test_default_null_expr_20240311_6(id, id2, id3) from stdin (format csv);
+,,
+\.
+
+--- test complex random default expr which maybe NULL
+create table test_default_null_expr_20240311_7(
+	id int default nullif(ceil(random()*2),ceil(random()*2)),
+	id2 character varying(32) default ''||null::character varying,
+	id3 character varying(32) default ''||null::character varying )
+	distribute by shard(id);
+
+insert into test_default_null_expr_20240311_7(id3) values ('ddddd'),('bbbbb');
+insert into test_default_null_expr_20240311_7(id3) values ('ddddd'),('bbbbb');
+insert into test_default_null_expr_20240311_7(id3) values ('ddddd'),('bbbbb');
+insert into test_default_null_expr_20240311_7(id3) values ('ddddd'),('bbbbb');
+insert into test_default_null_expr_20240311_7(id3) values ('ddddd'),('bbbbb');
+insert into test_default_null_expr_20240311_7(id3) values ('ddddd'),('bbbbb');
+copy test_default_null_expr_20240311_7(id2, id3) from stdin;
+aaa	bbb
+\.
+copy test_default_null_expr_20240311_7(id2, id3) from stdin;
+aaa	bbb
+\.
+copy test_default_null_expr_20240311_7(id2, id3) from stdin;
+aaa	bbb
+\.
+copy test_default_null_expr_20240311_7(id2, id3) from stdin;
+aaa	bbb
+\.
+copy test_default_null_expr_20240311_7(id2, id3) from stdin;
+aaa	bbb
+\.
+copy test_default_null_expr_20240311_7(id2, id3) from stdin;
+aaa	bbb
+\.
+copy test_default_null_expr_20240311_7(id2, id3) from stdin;
+aaa	bbb
+\.
+copy test_default_null_expr_20240311_7(id2, id3) from stdin;
+aaa	bbb
+\.
+copy test_default_null_expr_20240311_7(id2, id3) from stdin;
+aaa	bbb
+\.
+copy test_default_null_expr_20240311_7(id2, id3) from stdin;
+aaa	bbb
+\.
+copy test_default_null_expr_20240311_7(id2, id3) from stdin (format csv);
+ccc,ddd
+\.
+copy test_default_null_expr_20240311_7(id2, id3) from stdin (format csv);
+ccc,ddd
+\.
+copy test_default_null_expr_20240311_7(id2, id3) from stdin (format csv);
+ccc,ddd
+\.
+copy test_default_null_expr_20240311_7(id2, id3) from stdin (format csv);
+ccc,ddd
+\.
+copy test_default_null_expr_20240311_7(id2, id3) from stdin (format csv);
+ccc,ddd
+\.
+copy test_default_null_expr_20240311_7(id2, id3) from stdin (format csv);
+ccc,ddd
+\.
+copy test_default_null_expr_20240311_7(id2, id3) from stdin (format csv);
+ccc,ddd
+\.
+copy test_default_null_expr_20240311_7(id, id2, id3) from stdin;
+\N	\N	\N
+\.
+copy test_default_null_expr_20240311_7(id, id2, id3) from stdin (format csv);
+,,
+\.
+select count(*) from test_default_null_expr_20240311_7 where id = 0;
+
+
+-- test default null expr in non-distributed column
+--- test complex random default expr1 which maybe NULL
+create table test_default_null_expr_20240311_8(
+	id character varying(16) default null::character varying,
+    id2 character varying(32) default null::character varying,
+    id3 int default nullif(ceil(random()*2+100),ceil(random()*2+100)))
+    distribute by shard(id);
+
+insert into test_default_null_expr_20240311_8(id) values ('ddddd'),('bbbbb');
+insert into test_default_null_expr_20240311_8(id) values ('ddddd'),('bbbbb');
+insert into test_default_null_expr_20240311_8(id) values ('ddddd'),('bbbbb');
+insert into test_default_null_expr_20240311_8(id) values ('ddddd'),('bbbbb');
+insert into test_default_null_expr_20240311_8(id) values ('ddddd'),('bbbbb');
+insert into test_default_null_expr_20240311_8(id) values ('ddddd'),('bbbbb');
+insert into test_default_null_expr_20240311_8(id) values ('ddddd'),('bbbbb');
+insert into test_default_null_expr_20240311_8(id) values ('ddddd'),('bbbbb');
+copy test_default_null_expr_20240311_8(id) from stdin;
+aaa
+bbb
+\.
+copy test_default_null_expr_20240311_8(id) from stdin;
+aaa
+bbb
+\.
+copy test_default_null_expr_20240311_8(id) from stdin;
+aaa
+bbb
+\.
+copy test_default_null_expr_20240311_8(id) from stdin (format csv);
+aaa
+bbb
+\.
+copy test_default_null_expr_20240311_8(id) from stdin (format csv);
+aaa
+bbb
+\.
+copy test_default_null_expr_20240311_8(id) from stdin (format csv);
+aaa
+bbb
+\.
+select * from test_default_null_expr_20240311_8 where id3 <= 100;
+
+--- test complex random default expr2 which maybe NULL
+set enable_lightweight_ora_syntax = on;
+create table test_default_null_expr_20240311_9(id character varying(16) default null::character varying,
+    id2 character varying(32) default null::character varying,
+    id3 date default nullif(now() + ceil(random()*3),now() + ceil(random()*3)))
+    distribute by shard(id);
+
+insert into test_default_null_expr_20240311_9(id) values ('aaaa'),('bbbb');
+insert into test_default_null_expr_20240311_9(id) values ('aaaa'),('bbbb');
+insert into test_default_null_expr_20240311_9(id) values ('aaaa'),('bbbb');
+insert into test_default_null_expr_20240311_9(id) values ('aaaa'),('bbbb');
+insert into test_default_null_expr_20240311_9(id) values ('aaaa'),('bbbb');
+copy test_default_null_expr_20240311_9(id) from stdin;
+aaa
+bbb
+\.
+copy test_default_null_expr_20240311_9(id) from stdin;
+aaa
+bbb
+\.
+copy test_default_null_expr_20240311_9(id) from stdin;
+aaa
+bbb
+\.
+copy test_default_null_expr_20240311_9(id) from stdin (format csv);
+aaa
+bbb
+\.
+copy test_default_null_expr_20240311_9(id) from stdin (format csv);
+aaa
+bbb
+\.
+copy test_default_null_expr_20240311_9(id) from stdin (format csv);
+aaa
+bbb
+\.
+
+select * from test_default_null_expr_20240311_9 where id3 <= '2000-01-01';
+
+drop table test_default_null_expr_20240311_1;
+drop table test_default_null_expr_20240311_2;
+drop table test_default_null_expr_20240311_3;
+drop table test_default_null_expr_20240311_4;
+drop table test_default_null_expr_20240311_5;
+drop table test_default_null_expr_20240311_7;
+drop table test_default_null_expr_20240311_6;
+drop table test_default_null_expr_20240311_8;
+drop table test_default_null_expr_20240311_9;
+set enable_lightweight_ora_syntax = off;
+reset transform_insert_to_copy;

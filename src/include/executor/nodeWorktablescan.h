@@ -20,4 +20,4 @@ extern WorkTableScanState *ExecInitWorkTableScan(WorkTableScan *node, EState *es
 extern void ExecEndWorkTableScan(WorkTableScanState *node);
 extern void ExecReScanWorkTableScan(WorkTableScanState *node);
 
-#endif                            /* NODEWORKTABLESCAN_H */
+#endif							/* NODEWORKTABLESCAN_H */

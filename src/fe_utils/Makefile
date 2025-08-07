@@ -19,7 +19,7 @@ include $(top_builddir)/src/Makefile.global
 
 override CPPFLAGS := -DFRONTEND -I$(libpq_srcdir) $(CPPFLAGS)
 
-OBJS = mbprint.o print.o psqlscan.o simple_list.o string_utils.o
+OBJS = mbprint.o print.o psqlscan.o psqlscan_ora.o simple_list.o string_utils.o
 
 all: libpgfeutils.a
 
@@ -27,11 +27,19 @@ libpgfeutils.a: $(OBJS)
 	rm -f $@
 	$(AR) $(AROPT) $@ $^
 
-psqlscan.c: FLEXFLAGS = -Cfe -p -p
-psqlscan.c: FLEX_NO_BACKUP=yes
-psqlscan.c: FLEX_FIX_WARNING=yes
+#
+# In Makefile.global, we use flex -b to generate lex.backup, and then read and
+# remove it. But if two flex run the code simultaneously, the second will fail
+# when read the file lex.backup, because it has been removed by the first.
+# So, here we disable parallel for psqlscan.l and psqlscan_ora.l
+#
+.NOTPARALLEL: psqlscan.c psqlscan_ora.c
 
-distprep: psqlscan.c
+psqlscan.c psqlscan_ora.c: FLEXFLAGS = -Cfe -p -p
+psqlscan.c psqlscan_ora.c: FLEX_NO_BACKUP=yes
+psqlscan.c psqlscan_ora.c: FLEX_FIX_WARNING=yes
+
+distprep: psqlscan.c psqlscan_ora.c
 
 # libpgfeutils could be useful to contrib, so install it
 install: all installdirs
@@ -49,4 +57,4 @@ clean distclean:
 # psqlscan.c is supposed to be in the distribution tarball,
 # so do not clean it in the clean/distclean rules
 maintainer-clean: distclean
-	rm -f psqlscan.c
+	rm -f psqlscan.c psqlscan_ora.c

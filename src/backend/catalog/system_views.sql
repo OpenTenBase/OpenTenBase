@@ -3,9 +3,6 @@
  *
  * Copyright (c) 1996-2017, PostgreSQL Global Development Group
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * src/backend/catalog/system_views.sql
  *
  * Note: this file is read in single-user -j mode, which means that the
@@ -27,11 +24,14 @@ CREATE VIEW pg_roles AS
         rolcanlogin,
         rolreplication,
         rolconnlimit,
+        rolresqueue,
         '********'::text as rolpassword,
         rolvaliduntil,
         rolbypassrls,
         setconfig as rolconfig,
-        pg_authid.oid
+        pg_authid.oid,
+        rolresgroup,
+        rolpriority
     FROM pg_authid LEFT JOIN pg_db_role_setting s
     ON (pg_authid.oid = setrole AND setdatabase = 0);
 
@@ -43,6 +43,7 @@ CREATE VIEW pg_shadow AS
         rolsuper AS usesuper,
         rolreplication AS userepl,
         rolbypassrls AS usebypassrls,
+        rolresqueue AS resqueue,
         rolpassword AS passwd,
         rolvaliduntil::abstime AS valuntil,
         setconfig AS useconfig
@@ -68,6 +69,7 @@ CREATE VIEW pg_user AS
         usesuper,
         userepl,
         usebypassrls,
+        resqueue,
         '********'::text as passwd,
         valuntil,
         useconfig
@@ -181,7 +183,7 @@ CREATE OR REPLACE VIEW pg_sequences AS
         S.seqcache AS cache_size,
         CASE
             WHEN has_sequence_privilege(C.oid, 'SELECT,USAGE'::text)
-                THEN pg_sequence_last_value(C.oid)
+                THEN pg_catalog.pg_sequence_last_value(C.oid)
             ELSE NULL
         END AS last_value
     FROM pg_sequence S JOIN pg_class C ON (C.oid = S.seqrelid)
@@ -254,7 +256,7 @@ CREATE VIEW pg_stats WITH (security_barrier) AS
     AND has_column_privilege(c.oid, a.attnum, 'select')
     AND (c.relrowsecurity = false OR NOT row_security_active(c.oid));
 
-REVOKE ALL on pg_statistic FROM public;
+REVOKE ALL on "pg_statistic" FROM public;
 
 CREATE VIEW pg_publication_tables AS
     SELECT
@@ -335,9 +337,11 @@ WHERE
 UNION ALL
 SELECT
 	l.objoid, l.classoid, l.objsubid,
-	CASE WHEN pro.proisagg = true THEN 'aggregate'::text
-	     WHEN pro.proisagg = false THEN 'function'::text
-	END AS objtype,
+	CASE pro.prokind
+            WHEN 'a' THEN 'aggregate'::text
+            WHEN 'f' THEN 'function'::text
+            WHEN 'p' THEN 'procedure'::text
+            WHEN 'w' THEN 'window'::text END AS objtype,
 	pro.pronamespace AS objnamespace,
 	CASE WHEN pg_function_is_visible(pro.oid)
 	     THEN quote_ident(pro.proname)
@@ -537,7 +541,7 @@ CREATE VIEW pg_stat_all_tables AS
     FROM pg_class C LEFT JOIN
          pg_index I ON C.oid = I.indrelid
          LEFT JOIN pg_namespace N ON (N.oid = C.relnamespace)
-    WHERE C.relkind IN ('r', 't', 'm')
+    WHERE C.relkind IN ('r', 't', 'm', 'p')
     GROUP BY C.oid, N.nspname, C.relname;
 
 CREATE VIEW pg_stat_xact_all_tables AS
@@ -557,7 +561,7 @@ CREATE VIEW pg_stat_xact_all_tables AS
     FROM pg_class C LEFT JOIN
          pg_index I ON C.oid = I.indrelid
          LEFT JOIN pg_namespace N ON (N.oid = C.relnamespace)
-    WHERE C.relkind IN ('r', 't', 'm')
+    WHERE C.relkind IN ('r', 't', 'm', 'p')
     GROUP BY C.oid, N.nspname, C.relname;
 
 CREATE VIEW pg_stat_sys_tables AS
@@ -602,7 +606,7 @@ CREATE VIEW pg_statio_all_tables AS
             pg_class T ON C.reltoastrelid = T.oid LEFT JOIN
             pg_index X ON T.oid = X.indrelid
             LEFT JOIN pg_namespace N ON (N.oid = C.relnamespace)
-    WHERE C.relkind IN ('r', 't', 'm')
+    WHERE C.relkind IN ('r', 't', 'm', 'p')
     GROUP BY C.oid, N.nspname, C.relname, T.oid, X.indrelid;
 
 CREATE VIEW pg_statio_sys_tables AS
@@ -629,7 +633,7 @@ CREATE VIEW pg_stat_all_indexes AS
             pg_index X ON C.oid = X.indrelid JOIN
             pg_class I ON I.oid = X.indexrelid
             LEFT JOIN pg_namespace N ON (N.oid = C.relnamespace)
-    WHERE C.relkind IN ('r', 't', 'm');
+    WHERE C.relkind IN ('r', 't', 'm', 'p');
 
 CREATE VIEW pg_stat_sys_indexes AS
     SELECT * FROM pg_stat_all_indexes
@@ -655,7 +659,7 @@ CREATE VIEW pg_statio_all_indexes AS
             pg_index X ON C.oid = X.indrelid JOIN
             pg_class I ON I.oid = X.indexrelid
             LEFT JOIN pg_namespace N ON (N.oid = C.relnamespace)
-    WHERE C.relkind IN ('r', 't', 'm');
+    WHERE C.relkind IN ('r', 't', 'm', 'p');
 
 CREATE VIEW pg_statio_sys_indexes AS
     SELECT * FROM pg_statio_all_indexes
@@ -691,29 +695,98 @@ CREATE VIEW pg_statio_user_sequences AS
 
 CREATE VIEW pg_stat_activity AS
     SELECT
-            S.datid AS datid,
-            D.datname AS datname,
-            S.pid,
-            S.usesysid,
-            U.rolname AS usename,
-            S.application_name,
-            S.client_addr,
-            S.client_hostname,
-            S.client_port,
-            S.backend_start,
-            S.xact_start,
-            S.query_start,
-            S.state_change,
-            S.wait_event_type,
-            S.wait_event,
-            S.state,
-            S.backend_xid,
-            s.backend_xmin,
-            S.query,
-            S.backend_type
+			S.datid AS datid,
+			D.datname AS datname,
+			S.pid,
+			S.usesysid,
+			U.rolname AS usename,
+			S.application_name,
+			S.client_addr,
+			S.client_hostname,
+			S.client_port,
+			S.backend_start,
+			S.xact_start,
+			S.query_start,
+			S.state_change,
+			S.wait_event_type,
+			S.wait_event,
+			S.wait_event_info,
+			S.local_fid,
+			S.state,
+			S.backend_xid,
+			S.backend_xmin,
+			S.query,
+			S.planstate,
+			S.backend_type,
+			S.rsgname,
+            S.statement
     FROM pg_stat_get_activity(NULL) AS S
         LEFT JOIN pg_database AS D ON (S.datid = D.oid)
         LEFT JOIN pg_authid AS U ON (S.usesysid = U.oid);
+CREATE VIEW pg_stat_cluster_activity AS
+    SELECT
+			S.queryid,
+			S.nodename,
+			S.datid,
+			S.datname,
+			S.pid,
+			S.usesysid,
+			S.usename,
+			S.application_name,
+			S.client_addr,
+			S.client_hostname,
+			S.client_port,
+			S.backend_start,
+			S.xact_start,
+			S.query_start,
+			S.state_change,
+			S.wait_event_type,
+			S.wait_event,
+			S.wait_event_info,
+			S.local_fid,
+			S.state,
+			S.backend_xid,
+			S.backend_xmin,
+			S.query,
+			S.planstate,
+			S.backend_type,
+			S.rsgname,
+            S.qid_ts_node,
+            S.qid_seq
+    FROM pg_stat_get_cluster_activity(NULL, false) AS S;
+
+CREATE VIEW pg_stat_cluster_activity_onlycn AS
+    SELECT
+			S.queryid,
+			S.nodename,
+			S.datid,
+			S.datname,
+			S.pid,
+			S.usesysid,
+			S.usename,
+			S.application_name,
+			S.client_addr,
+			S.client_hostname,
+			S.client_port,
+			S.backend_start,
+			S.xact_start,
+			S.query_start,
+			S.state_change,
+			S.wait_event_type,
+			S.wait_event,
+			S.wait_event_info,
+			S.local_fid,
+			S.state,
+			S.backend_xid,
+			S.backend_xmin,
+			S.query,
+			S.planstate,
+			S.backend_type,
+			S.rsgname,
+            S.qid_ts_node,
+            S.qid_seq
+    FROM pg_stat_get_cluster_activity(NULL, true) AS S;
+
 
 CREATE VIEW pg_stat_replication AS
     SELECT
@@ -933,11 +1006,11 @@ CREATE VIEW pg_replication_origin_status AS
 REVOKE ALL ON pg_replication_origin_status FROM public;
 
 -- All columns of pg_subscription except subconninfo are readable.
-REVOKE ALL ON pg_subscription FROM public;
-GRANT SELECT (subdbid, subname, subowner, subenabled, subslotname, subpublications)
-    ON pg_subscription TO public;
+REVOKE ALL ON "pg_subscription" FROM public;
+GRANT SELECT ("subdbid", "subname", "subowner", "subenabled", "subslotname", "subpublications")
+    ON "pg_subscription" TO public;
 
--- Oracle compatible view 
+-- opentenbase_ora compatible view 
 CREATE VIEW dual AS SELECT 'X'::varchar AS dummy;
 REVOKE ALL ON dual FROM PUBLIC;
 GRANT SELECT, REFERENCES ON dual TO PUBLIC;
@@ -1199,6 +1272,52 @@ LANGUAGE INTERNAL
 STRICT IMMUTABLE PARALLEL SAFE
 AS 'jsonb_insert';
 
+CREATE OR REPLACE FUNCTION pg_catalog.jsonb_path_exists(
+            target pg_catalog.jsonb, path pg_catalog.jsonpath,
+            vars pg_catalog.jsonb DEFAULT '{}',
+            silent pg_catalog.bool DEFAULT false)
+RETURNS pg_catalog.bool
+LANGUAGE INTERNAL
+STRICT IMMUTABLE PARALLEL SAFE
+AS 'jsonb_path_exists';
+
+CREATE OR REPLACE FUNCTION pg_catalog.jsonb_path_match(
+            target pg_catalog.jsonb, path pg_catalog.jsonpath,
+            vars pg_catalog.jsonb DEFAULT '{}',
+            silent pg_catalog.bool DEFAULT false)
+RETURNS pg_catalog.bool
+LANGUAGE INTERNAL
+STRICT IMMUTABLE PARALLEL SAFE
+AS 'jsonb_path_match';
+
+CREATE OR REPLACE FUNCTION pg_catalog.jsonb_path_query(
+            target pg_catalog.jsonb, path pg_catalog.jsonpath,
+            vars pg_catalog.jsonb DEFAULT '{}',
+            silent pg_catalog.bool DEFAULT false)
+RETURNS SETOF pg_catalog.jsonb
+LANGUAGE INTERNAL
+STRICT IMMUTABLE PARALLEL SAFE
+AS 'jsonb_path_query';
+
+CREATE OR REPLACE FUNCTION pg_catalog.jsonb_path_query_array(
+            target pg_catalog.jsonb, path pg_catalog.jsonpath,
+            vars pg_catalog.jsonb DEFAULT '{}',
+            silent pg_catalog.bool DEFAULT false)
+RETURNS pg_catalog.jsonb
+LANGUAGE INTERNAL
+STRICT IMMUTABLE PARALLEL SAFE
+AS 'jsonb_path_query_array';
+
+CREATE OR REPLACE FUNCTION pg_catalog.jsonb_path_query_first(
+            target pg_catalog.jsonb, path pg_catalog.jsonpath,
+            vars pg_catalog.jsonb DEFAULT '{}',
+            silent pg_catalog.bool DEFAULT false)
+RETURNS pg_catalog.jsonb
+LANGUAGE INTERNAL
+STRICT IMMUTABLE PARALLEL SAFE
+AS 'jsonb_path_query_first';
+
+--
 -- The default permissions for functions mean that anyone can execute them.
 -- A number of functions shouldn't be executable by just anyone, but rather
 -- than use explicit 'superuser()' checks in those functions, we use the GRANT
@@ -1223,14 +1342,17 @@ REVOKE EXECUTE ON FUNCTION pg_stat_reset_shared(text) FROM public;
 REVOKE EXECUTE ON FUNCTION pg_stat_reset_single_table_counters(oid) FROM public;
 REVOKE EXECUTE ON FUNCTION pg_stat_reset_single_function_counters(oid) FROM public;
 
+REVOKE EXECUTE ON FUNCTION pg_get_backend_memctx_detail(integer,text) FROM public;
+REVOKE EXECUTE ON FUNCTION pg_get_backend_memory_detail() FROM public;
+
 REVOKE EXECUTE ON FUNCTION pg_ls_logdir() FROM public;
 REVOKE EXECUTE ON FUNCTION pg_ls_waldir() FROM public;
-GRANT EXECUTE ON FUNCTION pg_ls_logdir() TO pg_monitor;
-GRANT EXECUTE ON FUNCTION pg_ls_waldir() TO pg_monitor;
+GRANT EXECUTE ON FUNCTION pg_ls_logdir() TO "pg_monitor";
+GRANT EXECUTE ON FUNCTION pg_ls_waldir() TO "pg_monitor";
 
-GRANT pg_read_all_settings TO pg_monitor;
-GRANT pg_read_all_stats TO pg_monitor;
-GRANT pg_stat_scan_tables TO pg_monitor;
+GRANT "pg_read_all_settings" TO "pg_monitor";
+GRANT "pg_read_all_stats" TO "pg_monitor";
+GRANT "pg_stat_scan_tables" TO "pg_monitor";
 
 --MLS
 REVOKE ALL ON SCHEMA PUBLIC FROM PUBLIC; 
@@ -1238,24 +1360,294 @@ REVOKE ALL ON SCHEMA PUBLIC FROM PUBLIC;
 CREATE FUNCTION pg_stat_extent(IN tablename regclass)
 RETURNS TABLE(shardid integer, shard_extents integer, extent_extents integer) AS
 $$
-	SELECT shardinfo.shardid,
-		shardinfo.num_of_extent AS shard_extents,
-		extentinfo.num_of_extent AS extent_extents
-	FROM (
-		SELECT sid,
-			(
-				SELECT count(1)::integer
-				FROM pg_shard_scan_list(tablename, sid)
-			) AS extents
-		FROM pg_shard_anchor(tablename)
-		WHERE scanhead < 10000
-		) AS shardinfo(shardid, num_of_extent)
-	FULL JOIN (
-		SELECT shardid,
-			count(1)::integer
-		FROM pg_extent_info(tablename)
-		WHERE is_occupied = true
-		GROUP BY shardid
-		) AS extentinfo(shardid, num_of_extent) ON shardinfo.shardid = extentinfo.shardid;
+SELECT shardinfo.shardid,
+       shardinfo.num_of_extent AS shard_extents,
+       extentinfo.num_of_extent AS extent_extents
+FROM (
+         SELECT sid,
+                (
+                    SELECT count(1)::integer
+                    FROM pg_shard_scan_list(tablename, sid)
+                ) AS extents
+         FROM pg_shard_anchor(tablename)
+         WHERE scanhead < 10000
+     ) AS shardinfo(shardid, num_of_extent)
+         FULL JOIN (
+    SELECT shardid,
+           count(1)::integer
+    FROM pg_extent_info(tablename)
+    WHERE is_occupied = true
+    GROUP BY shardid
+) AS extentinfo(shardid, num_of_extent) ON shardinfo.shardid = extentinfo.shardid;
 $$
 LANGUAGE SQL STRICT STABLE;
+
+--------------------------------------------------------------------------------
+-- @view:
+--              pg_resgroup_config
+--
+-- @doc:
+--              Resource group configuration
+--
+--------------------------------------------------------------------------------
+
+CREATE VIEW pg_resgroup_config AS
+    SELECT G.oid       AS groupid
+         , G.rsgname   AS groupname
+         , T1.value    AS concurrency
+         , T2.value    AS cpu_rate_limit
+         , T3.value    AS memory_limit
+         , T4.value    AS cpuset
+    FROM pg_resgroup G
+         JOIN pg_resgroupcapability T1 ON G.oid = T1.resgroupid AND T1.reslimittype = 1
+         JOIN pg_resgroupcapability T2 ON G.oid = T2.resgroupid AND T2.reslimittype = 2
+         JOIN pg_resgroupcapability T3 ON G.oid = T3.resgroupid AND T3.reslimittype = 3
+    LEFT JOIN pg_resgroupcapability T4 ON G.oid = T4.resgroupid AND T4.reslimittype = 4
+    ;
+
+GRANT SELECT ON pg_resgroup_config TO public;
+
+--------------------------------------------------------------------------------
+-- @view:
+--              pg_resgroup_status
+--
+-- @doc:
+--              Resource group runtime status information
+--
+--------------------------------------------------------------------------------
+
+CREATE VIEW pg_resgroup_status AS
+    SELECT r.rsgname, s.*
+    FROM pg_resgroup_get_status(null) AS s,
+         pg_resgroup AS r
+    WHERE s.groupname = r.rsgname;
+
+GRANT SELECT ON pg_resgroup_status TO public;
+
+CREATE FUNCTION pg_stat_node_memory_detail(
+    OUT pss numeric
+)
+RETURNS numeric AS
+$$
+select sum(pg_stat_pss_memory_usage(pid)) / 1024 size from pg_stat_activity;
+$$
+LANGUAGE SQL STRICT STABLE PARALLEL SAFE;
+
+COMMENT ON FUNCTION pg_stat_node_memory_detail() IS
+    'Get the current PSS memory usage of the node';
+
+CREATE VIEW pg_stat_cluster_node_memory_detail AS
+    SELECT *
+    FROM pg_stat_cluster_node_memory_detail();
+GRANT SELECT ON pg_stat_cluster_node_memory_detail TO public;
+
+CREATE VIEW pg_stat_cluster_session_memory_detail AS
+    SELECT *
+    FROM pg_stat_cluster_session_memory_detail();
+GRANT SELECT ON pg_stat_cluster_session_memory_detail TO public;
+
+CREATE VIEW pg_stat_cluster_context_memory_detail AS
+    SELECT *
+    FROM pg_stat_cluster_context_memory_detail();
+GRANT SELECT ON pg_stat_cluster_context_memory_detail TO public;
+
+CREATE VIEW pg_stat_cluster_query_cputime AS
+    SELECT *
+    FROM pg_stat_get_cluster_query_cputime(NULL, NULL);
+GRANT SELECT ON pg_stat_cluster_query_cputime TO public;
+
+CREATE VIEW pg_stat_cluster_query_memory AS
+    SELECT *
+    FROM pg_stat_get_cluster_query_memory(NULL, NULL);
+GRANT SELECT ON pg_stat_cluster_query_memory TO public;
+
+CREATE VIEW pg_stat_cluster_query_workfile_usage AS
+    SELECT *
+    FROM pg_stat_get_cluster_query_workfile_usage(NULL, NULL);
+GRANT SELECT ON pg_stat_cluster_query_workfile_usage TO public;
+
+CREATE VIEW pg_stat_cluster_workfile_diskspace AS
+    SELECT *
+    FROM pg_stat_get_cluster_workfile_diskspace();
+GRANT SELECT ON pg_stat_cluster_workfile_diskspace TO public;
+
+CREATE VIEW pg_stat_cluster_query_io AS
+    SELECT *
+    FROM pg_stat_get_cluster_query_io(NULL, NULL);
+GRANT SELECT ON pg_stat_cluster_query_io TO public;
+
+CREATE VIEW pg_stat_query_cputime AS
+    SELECT *
+    FROM pg_stat_get_query_cputime(NULL);
+GRANT SELECT ON pg_stat_query_cputime TO public;
+
+CREATE VIEW pg_stat_query_memory AS
+    SELECT *
+    FROM pg_stat_get_query_memory(NULL);
+GRANT SELECT ON pg_stat_query_memory TO public;
+
+CREATE VIEW pg_stat_query_workfile_usage AS
+    SELECT *
+    FROM pg_stat_get_query_workfile_usage(NULL);
+GRANT SELECT ON pg_stat_query_workfile_usage TO public;
+
+CREATE VIEW pg_stat_workfile_diskspace AS
+    SELECT *
+    FROM pg_stat_get_workfile_diskspace();
+GRANT SELECT ON pg_stat_workfile_diskspace TO public;
+
+CREATE VIEW pg_stat_query_io AS
+    SELECT *
+    FROM pg_stat_get_query_io(NULL);
+GRANT SELECT ON pg_stat_query_io TO public;
+
+CREATE VIEW pg_resgroup_cluster_clean_slot AS
+    SELECT *
+    FROM pg_resgroup_cluster_clean_slot(NULL, false);
+GRANT SELECT ON pg_resgroup_cluster_clean_slot TO public;
+
+CREATE VIEW pg_resgroup_cluster_clean_slot_onlycn AS
+    SELECT *
+    FROM pg_resgroup_cluster_clean_slot(NULL, true);
+GRANT SELECT ON pg_resgroup_cluster_clean_slot_onlycn TO public;
+
+/*
+ * PGXC system view to look for prepared transaction GID list in a cluster
+ */
+
+CREATE OR REPLACE FUNCTION pgxc_prepared_xact()
+RETURNS setof text
+AS $$
+DECLARE
+    text_output text;
+    row_data record;
+    row_name record;
+    query_str text;
+    query_str_nodes text;
+    BEGIN
+        --Get all the node names
+        query_str_nodes := 'SELECT node_name FROM pgxc_node WHERE node_type = ''D''';
+        FOR row_name IN EXECUTE(query_str_nodes) LOOP
+            query_str := 'EXECUTE DIRECT ON (' || row_name.node_name || ') ''SELECT gid FROM pg_prepared_xact()''';
+            FOR row_data IN EXECUTE(query_str) LOOP
+                return next row_data.gid;
+            END LOOP;
+        END LOOP;
+        return;
+    END; $$
+LANGUAGE 'default_plsql';
+
+CREATE OR REPLACE VIEW pgxc_prepared_xacts AS
+    SELECT DISTINCT * from pgxc_prepared_xact();
+
+CREATE VIEW pg_xact_relstat_info AS
+	select * from pg_get_xact_relstat_info();
+GRANT SELECT ON pg_xact_relstat_info TO public;
+CREATE FUNCTION pg_catalog.fn_stat_get_cluster_page
+(
+    OUT nodename pg_catalog.name,
+    OUT qid_ts_node pg_catalog.int8,
+    OUT qid_seq pg_catalog.int8,
+    OUT fid pg_catalog.int2,
+    OUT nodeid pg_catalog.int2,
+    OUT workerid pg_catalog.int2,
+    OUT virtualid pg_catalog.int2,
+    OUT flag pg_catalog.int4,
+    OUT size pg_catalog.int4,
+    OUT bufid pg_catalog.int4
+)
+    RETURNS setof RECORD
+AS $a$
+DECLARE
+    row_data       pg_catalog.record;
+    node           pg_catalog.record;
+    tableinfo      pg_catalog.text;
+    fetch_node_str pg_catalog.text;
+BEGIN
+    fetch_node_str := 'SELECT node_name FROM pgxc_node where node_type = ''C'' or node_type = ''D''';
+    FOR node IN EXECUTE(fetch_node_str) LOOP
+            tableinfo := 'EXECUTE DIRECT ON (' || node.node_name || ') ''select * from fn_stat_get_page()''';
+            FOR row_data IN EXECUTE(tableinfo) LOOP
+                    nodename := node.node_name;
+                    qid_ts_node := row_data.qid_ts_node;
+                    qid_seq := row_data.qid_seq;
+                    fid := row_data.fid;
+                    nodeid := row_data.nodeid;
+                    workerid := row_data.workerid;
+                    virtualid := row_data.virtualid;
+                    flag := row_data.flag;
+                    size := row_data.size;
+                    bufid := row_data.bufid;
+                    RETURN NEXT;
+                END LOOP;
+        END LOOP;
+    return;
+END; $a$ LANGUAGE default_plsql;
+
+CREATE FUNCTION pg_catalog.fn_stat_clear_cluster_page()
+    RETURNS void
+AS $a$
+DECLARE
+    node           record;
+    qid            record;
+    tableinfo      text;
+    fetch_node_str text;
+    queryid_str    text;
+BEGIN
+    fetch_node_str := 'SELECT node_name FROM pgxc_node where node_type = ''C'' or node_type = ''D''';
+    queryid_str := 'select distinct qid_ts_node,qid_seq from fn_stat_get_cluster_page() where (qid_ts_node,qid_seq) not in (select distinct qid_ts_node,qid_seq from pg_stat_cluster_activity where qid_ts_node is not null and qid_seq is not null and state = ''active'')';
+    FOR qid IN EXECUTE(queryid_str) LOOP
+            FOR node IN EXECUTE(fetch_node_str) LOOP
+                    tableinfo := 'EXECUTE DIRECT ON (' || node.node_name || ') ''select fn_stat_clear_page count from fn_stat_clear_page(' || qid.qid_ts_node || ','|| qid.qid_seq ||')''';
+                    EXECUTE(tableinfo);
+            END LOOP;
+    END LOOP;
+END; $a$ LANGUAGE default_plsql;
+
+CREATE FUNCTION pg_catalog.fn_stat_get_cluster_entry
+(
+    OUT nodename pg_catalog.name,
+    OUT qid_ts_node pg_catalog.int8,
+    OUT qid_seq pg_catalog.int8,
+    OUT fid pg_catalog.int2,
+    OUT workerid pg_catalog.int4,
+    OUT send pg_catalog.bool
+)
+    RETURNS setof RECORD
+AS $a$
+DECLARE
+    row_data       pg_catalog.record;
+    node           pg_catalog.record;
+    tableinfo      pg_catalog.text;
+    fetch_node_str pg_catalog.text;
+BEGIN
+    fetch_node_str := 'SELECT node_name FROM pgxc_node where node_type = ''C'' or node_type = ''D''';
+    FOR node IN EXECUTE(fetch_node_str) LOOP
+            tableinfo := 'EXECUTE DIRECT ON (' || node.node_name || ') ''select * from fn_stat_get_entry()''';
+            FOR row_data IN EXECUTE(tableinfo) LOOP
+                    nodename := node.node_name;
+                    qid_ts_node := row_data.qid_ts_node;
+                    qid_seq := row_data.qid_seq;
+                    fid := row_data.fid;
+                    workerid := row_data.workerid;
+                    send := row_data.send;
+                    RETURN NEXT;
+            END LOOP;
+    END LOOP;
+    return;
+END; $a$ LANGUAGE default_plsql;
+
+CREATE FUNCTION pg_catalog.fn_stat_clear_cluster_entry()
+    RETURNS void
+AS $a$
+DECLARE
+    executesql     text;
+    queryid_str    text;
+    row_data       record;
+BEGIN
+    queryid_str := 'select * from fn_stat_get_cluster_entry() where (qid_ts_node,qid_seq) not in (select distinct qid_ts_node,qid_seq from pg_stat_cluster_activity where qid_ts_node is not null and qid_seq is not null and state = ''active'')';
+    FOR row_data IN EXECUTE(queryid_str) LOOP
+        executesql := 'EXECUTE DIRECT ON (' || row_data.nodename || ') ''select fn_stat_clear_entry('||row_data.qid_ts_node||','||row_data.qid_seq||','||row_data.fid||'::smallint,'||row_data.workerid||','||row_data.send||')''';
+        EXECUTE(executesql);
+    END LOOP;
+END; $a$ LANGUAGE default_plsql;

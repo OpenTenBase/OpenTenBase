@@ -1,0 +1,48 @@
+ <refentry id="sql-createpackagebody">
+  <indexterm zone="sql-createpackagebody">
+   <primary>CREATE PACKAGE BODY</primary>
+  </indexterm>
+ 
+  <refmeta>
+   <refentrytitle>CREATE PACKAGE BODY</refentrytitle>
+   <manvolnum>7</manvolnum>
+   <refmiscinfo>SQL - Language Statements</refmiscinfo>
+  </refmeta>
+ 
+  <refnamediv>
+   <refname>CREATE PACKAGE BODY</refname>
+   <refpurpose>define a new package body</refpurpose>
+  </refnamediv>
+ 
+  <refsynopsisdiv>
+ <synopsis>
+
+ CREATE [ OR REPLACE ] [ EDITIONABLE | NONEDITIONABLE ] PACKAGE BODY <replaceable class="parameter">name</replaceable> IS
+ <replaceable class="parameter">declare_sect</replaceable>
+ [ <replaceable class="parameter">initialize_sect </replaceable> ]
+ END [ <replaceable class="parameter">name</replaceable> ];
+
+ <phrase>where <replaceable class="parameter">declare_sect</replaceable> is:</phrase>
+ 
+ for CURSOR definition:
+ CURSOR name [ RETURN type_name ] IS sql_query
+ 
+ for procedure/function declaration:
+ see CREATE PACKAGE.
+
+ for procedure/function definition:
+ see CREATE PROCEDURE/FUNCTION.
+
+ <phrase>and <replaceable class="parameter">initialize_sect</replaceable> is:</phrase>
+
+ BEGIN
+ plsql_statement
+ EXCEPTION
+ exception_handler
+
+ </synopsis>
+ 
+  </refsynopsisdiv>
+ 
+ </refentry>
+

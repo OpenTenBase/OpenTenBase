@@ -1,0 +1,133 @@
+\c opentenbase_ora_package_function_regression_ora
+--
+-- test regexp_instr
+--
+-- good case
+SELECT REGEXP_INSTR('foobarbaz', 'b..', 1, 2) FROM DUAL;
+ REGEXP_INSTR 
+--------------
+            7
+(1 row)
+
+SELECT REGEXP_INSTR('foobarbaz', 'b..', 1, 2, 0) FROM DUAL;
+ REGEXP_INSTR 
+--------------
+            7
+(1 row)
+
+SELECT REGEXP_INSTR('foobarbaz', 'b..', 1, 2, 1) FROM DUAL;
+ REGEXP_INSTR 
+--------------
+           10
+(1 row)
+
+SELECT REGEXP_INSTR('500 OpenTenBase_Ora Parkway, Redwood Shores, CA', '[^ ]+', 1, 6) FROM DUAL;
+ REGEXP_INSTR 
+--------------
+           37
+(1 row)
+
+SELECT REGEXP_INSTR('500 OpenTenBase_Ora Parkway, Redwood Shores, CA', '[s|r|p][[:alpha:]]{6}', 3, 2, 1, 'i') FROM DUAL;
+ REGEXP_INSTR 
+--------------
+           28
+(1 row)
+
+SELECT REGEXP_INSTR('1234567890', '(123)(4(56)(78))', 1, 1, 0, 'i', 1) FROM DUAL;
+ REGEXP_INSTR 
+--------------
+            1
+(1 row)
+
+SELECT REGEXP_INSTR('1234567890', '(123)(4(56)(78))', 1, 1, 0, 'i', 2) FROM DUAL;
+ REGEXP_INSTR 
+--------------
+            4
+(1 row)
+
+SELECT REGEXP_INSTR('1234567890', '(123)(4(56)(78))', 1, 1, 0, 'i', 4) FROM DUAL;
+ REGEXP_INSTR 
+--------------
+            7
+(1 row)
+
+SELECT REGEXP_INSTR('中国人美国人', '[中|美]国人', 1, 2) FROM DUAL;
+ REGEXP_INSTR 
+--------------
+            4
+(1 row)
+
+SELECT REGEXP_INSTR('', 'b..', 1, 2) FROM DUAL;
+ REGEXP_INSTR 
+--------------
+             
+(1 row)
+
+SELECT REGEXP_INSTR('foobarbaz', NULL, 1, 2) FROM DUAL;
+ REGEXP_INSTR 
+--------------
+             
+(1 row)
+
+SELECT REGEXP_INSTR('foobarbaz', '', 1, 2, 1) FROM DUAL;
+ REGEXP_INSTR 
+--------------
+             
+(1 row)
+
+SELECT REGEXP_INSTR('foobarbaz'::varchar, 'b..'::varchar, 1, 2, 1) FROM DUAL;
+ REGEXP_INSTR 
+--------------
+           10
+(1 row)
+
+SELECT REGEXP_INSTR(NULL, NULL, NULL, NULL, NULL, NULL, NULL) FROM DUAL;
+ REGEXP_INSTR 
+--------------
+             
+(1 row)
+
+SELECT REGEXP_INSTR('foobarbaz', 'bbbbbbbbbbbbbbbb', 1, 2) FROM DUAL;
+ REGEXP_INSTR 
+--------------
+            0
+(1 row)
+
+SELECT REGEXP_INSTR('1234567890', '(123)(4(56)(78))', 1, 1, 0, 'i', 100) FROM DUAL;
+ REGEXP_INSTR 
+--------------
+            0
+(1 row)
+
+-- bad case
+SELECT REGEXP_INSTR('foobarbaz', 'b..', -1, 2) FROM DUAL;
+ERROR:  Invalid "position" value (-1) for "regexp_instr"
+HINT:  "position" must be a positive integer
+SELECT REGEXP_INSTR('foobarbaz', 'b..', 1, -2) FROM DUAL;
+ERROR:  Invalid "occurence" value (-2) for "regexp_instr"
+HINT:  "occurence" must be a positive integer
+SELECT REGEXP_INSTR('foobarbaz', 'b..', 1, 2, -1) FROM DUAL;
+ERROR:  Invalid "return_opt" value (2) for "regexp_instr"
+HINT:  "return_opt" must be a nonnegative integer
+SELECT REGEXP_INSTR('1234567890', '(123)(4(56)(78))', 1, 1, 0, 'a', 4) FROM DUAL;
+ERROR:  invalid opentenbase_ora regexp option: "a"
+SELECT REGEXP_INSTR('1234567890', '(123)(4(56)(78))', 1, 1, 0, 'i', -1) FROM DUAL;
+ERROR:  Invalid "subexpr" value (-1) for "regexp_instr"
+HINT:  "subexpr" must be a nonnegative integer
+SELECT REGEXP_INSTR('foobarbaz', 'b..', 99999999999999999, 2) FROM DUAL;
+ERROR:  integer out of range
+SELECT REGEXP_INSTR('foobarbaz'::varchar2, 'b..'::varchar2, 1::bigint, 2::real, 1::double precision) FROM DUAL;
+ REGEXP_INSTR 
+--------------
+           10
+(1 row)
+
+SELECT REGEXP_INSTR('foobarbaz', '', 1, 2, 99999999999999999) FROM DUAL;
+ REGEXP_INSTR 
+--------------
+             
+(1 row)
+
+select regexp_instr('中国人不打中国人', '中国人中国人中国人中国人中国人中国人中国人中国人中国人中国人中国人中国人中国人中国人中国人中国人中国人中国人中国人中国人中国人中国人中国人中国人中国人中国人中国人中国人中国人中国人中国人中国人中国人中国人中国人中国人中国人中国人中国人中国人中国人中国人中国人中国人中国人中国人中国人中国人 中国人中国人中国人中国人中国人中国人中国人中国人中国人中国人中国人中国人', 1, 2) from dual;
+ERROR:  Regular expression too long
+HINT:  "pattern" must be less than or equal to 512 bytes

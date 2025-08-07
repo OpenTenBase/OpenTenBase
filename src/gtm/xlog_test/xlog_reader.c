@@ -7,8 +7,6 @@
  * Portions Copyright (c) 1994, Regents of the University of California
  * Portions Copyright (c) 2010-2012 Postgres-XC Development Group
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  * IDENTIFICATION
  *      $PostgreSQL$
@@ -641,7 +639,7 @@ ServerLoop(void)
 
             /* Save control data */
             GTM_RWLockAcquire(&ControlDataLock,GTM_LOCKMODE_WRITE);
-            ControlData->state = DB_SHUTDOWNED;
+            ControlData->state = GTM_SHUTDOWNED;
             ControlDataSync();
             GTM_RWLockRelease(&ControlDataLock);
 
@@ -990,9 +988,9 @@ GTM_ThreadTimeBackup(void *argp)
 
        
     action.sa_flags = 0;  
-    action.sa_handler = GTM_ThreadSigHandler;  
+    action.sa_handler = GTM_ThreadSigHandler;
 	sigemptyset(&action.sa_mask);
-         
+
     ret = sigaction(SIGQUIT, &action, NULL);  
     if (ret)
     {
@@ -1118,9 +1116,9 @@ GTM_ThreadCheckPointer(void *argp)
     struct sigaction    action;  
        
     action.sa_flags = 0;  
-    action.sa_handler = GTM_ThreadSigHandler;  
+    action.sa_handler = GTM_ThreadSigHandler;
 	sigemptyset(&action.sa_mask);
-         
+
     ret = sigaction(SIGQUIT, &action, NULL);  
     if (ret)
     {
@@ -1198,7 +1196,7 @@ GTM_ThreadXLogWriter(void *argp)
     int ret;
        
     action.sa_flags = 0;  
-    action.sa_handler = GTM_ThreadSigHandler;  
+    action.sa_handler = GTM_ThreadSigHandler;
 	sigemptyset(&action.sa_mask);
     ret = sigaction(SIGQUIT, &action, NULL);  
     if (ret)
@@ -1838,14 +1836,14 @@ GTMAddConnection(Port *port, GTM_Conn *standby)
         {
             continue;
         }
-
+        
         if(NULL == g_timekeeper_thread)
         {
             elog(LOG, "timekeeper thread exited, should not add new connections.");
 
             return STATUS_ERROR;
         }
-
+        pg_read_barrier();
         conninfo->con_thrinfo = thrinfo;
         event.data.ptr = conninfo;
         event.events = EPOLLIN | EPOLLERR | EPOLLHUP | EPOLLRDHUP;
@@ -1990,11 +1988,11 @@ ProcessTransactionCommand(Port *myport, GTM_MessageType mtype, StringInfo messag
     switch (mtype)
     {
         case MSG_NODE_BEGIN_REPLICATION_INIT:
-        	ProcessBeginReplicaInitSyncRequest(myport, message);
+            ProcessBeginReplicationInitialSyncRequest(myport, message);
             break;
 
         case MSG_NODE_END_REPLICATION_INIT:
-        	ProcessEndReplicaInitSyncRequest(myport, message);
+            ProcessEndReplicationInitialSyncRequest(myport, message);
             break;
 
         case MSG_TXN_BEGIN:
@@ -2811,7 +2809,7 @@ GTM_RestoreTxnInfo(FILE *ctlf, GlobalTransactionId next_gxid,
     elog(LOG, "Restoring last GXID to %u\n", next_gxid);
     elog(LOG, "Restoring global xmin to %u\n",
             GTMTransactions.gt_recent_global_xmin);
-    elog(LOG, "Restoring gts to " INT64_FORMAT "\n",
+    elog(LOG, "Restoring gts to " UINT64_FORMAT "\n",
             saved_gts + GTM_GLOBAL_TIME_DELTA);
 
     /* Set this otherwise a strange snapshot might be returned for the first one */
@@ -3015,7 +3013,7 @@ GTM_RestoreStoreInfo(GlobalTransactionId next_gxid, bool force_xid)
 #endif
 
     SetNextGlobalTimestamp(saved_gts + GTM_GLOBAL_TIME_DELTA);
-    elog(LOG, "Restoring gts to " INT64_FORMAT "\n",
+    elog(LOG, "Restoring gts to " UINT64_FORMAT "\n",
             saved_gts + GTM_GLOBAL_TIME_DELTA);
 #ifndef __OPENTENBASE__    
     elog(LOG, "Restoring last GXID to %u\n", next_gxid);
@@ -3267,8 +3265,7 @@ void GTM_TimerRun(void)
     }
 }
 
-    void 
-*
+void*
 GTM_TimerThread(void *argp)
 {
     GTM_ThreadInfo *thrinfo = (GTM_ThreadInfo *)argp;
@@ -3297,7 +3294,7 @@ GTM_TimerThread(void *argp)
      */
 
     if (sigsetjmp(local_sigjmp_buf, 1) != 0)
-    {__OPENTENBASE__
+    {
 #ifdef __OPENTENBASE__
         RWLockCleanUp();        
 #endif
@@ -3541,4 +3538,3 @@ main(int argc, char *argv[])
         Read_XLogRecovery(argv[1],seg,0);
     return 0;
 }
-

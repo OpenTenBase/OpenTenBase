@@ -1513,20 +1513,63 @@ include_dir 'conf.d'
       </term>
       <listitem>
        <para>
-        Specifies the amount of memory to be used by internal sort operations
-        and hash tables before writing to temporary disk files. The value
-        defaults to four megabytes (<literal>4MB</>).
+        Sets the base maximum amount of memory to be used by a query operation
+        (such as a sort or hash table) before writing to temporary disk files.
+        If this value is specified without units, it is taken as kilobytes.
+        The default value is four megabytes (<literal>4MB</literal>).
         Note that for a complex query, several sort or hash operations might be
-        running in parallel; each operation will be allowed to use as much memory
-        as this value specifies before it starts to write data into temporary
-        files. Also, several running sessions could be doing such operations
-        concurrently.  Therefore, the total memory used could be many
-        times the value of <varname>work_mem</varname>; it is necessary to
-        keep this fact in mind when choosing the value. Sort operations are
-        used for <literal>ORDER BY</>, <literal>DISTINCT</>, and
-        merge joins.
+        running in parallel; each operation will generally be allowed
+        to use as much memory as this value specifies before it starts
+        to write data into temporary files.  Also, several running
+        sessions could be doing such operations concurrently.
+        Therefore, the total memory used could be many times the value
+        of <varname>work_mem</varname>; it is necessary to keep this
+        fact in mind when choosing the value.  Sort operations are used
+        for <literal>ORDER BY</literal>, <literal>DISTINCT</literal>,
+        and merge joins.
         Hash tables are used in hash joins, hash-based aggregation, and
         hash-based processing of <literal>IN</> subqueries.
+       </para>
+       <para>
+        Hash-based operations are generally more sensitive to memory
+        availability than equivalent sort-based operations.  The
+        memory available for hash tables is computed by multiplying
+        <varname>work_mem</varname> by
+        <varname>hash_mem_multiplier</varname>.  This makes it
+        possible for hash-based operations to use an amount of memory
+        that exceeds the usual <varname>work_mem</varname> base
+        amount.
+       </para>
+      </listitem>
+     </varlistentry>
+
+     <varlistentry id="guc-hash-mem-multiplier" xreflabel="hash_mem_multiplier">
+      <term><varname>hash_mem_multiplier</varname> (<type>floating point</type>)
+      <indexterm>
+       <primary><varname>hash_mem_multiplier</varname> configuration parameter</primary>
+      </indexterm>
+      </term>
+      <listitem>
+       <para>
+        Used to compute the maximum amount of memory that hash-based
+        operations can use.  The final limit is determined by
+        multiplying <varname>work_mem</varname> by
+        <varname>hash_mem_multiplier</varname>.  The default value is
+        1.0, which makes hash-based operations subject to the same
+        simple <varname>work_mem</varname> maximum as sort-based
+        operations.
+       </para>
+       <para>
+        Consider increasing <varname>hash_mem_multiplier</varname> in
+        environments where spilling by query operations is a regular
+        occurrence, especially when simply increasing
+        <varname>work_mem</varname> results in memory pressure (memory
+        pressure typically takes the form of intermittent out of
+        memory errors).  A setting of 1.5 or 2.0 may be effective with
+        mixed workloads.  Higher settings in the range of 2.0 - 8.0 or
+        more may be effective in environments where
+        <varname>work_mem</varname> has already been increased to 40MB
+        or more.
        </para>
       </listitem>
      </varlistentry>
@@ -1555,45 +1598,6 @@ include_dir 'conf.d'
         may be allocated, so be careful not to set the default value
         too high.  It may be useful to control for this by separately
         setting <xref linkend="guc-autovacuum-work-mem">.
-       </para>
-      </listitem>
-     </varlistentry>
-
-     <varlistentry id="guc-replacement-sort-tuples" xreflabel="replacement_sort_tuples">
-      <term><varname>replacement_sort_tuples</varname> (<type>integer</type>)
-      <indexterm>
-       <primary><varname>replacement_sort_tuples</> configuration parameter</primary>
-      </indexterm>
-      </term>
-      <listitem>
-       <para>
-        When the number of tuples to be sorted is smaller than this number,
-        a sort will produce its first output run using replacement selection
-        rather than quicksort.  This may be useful in memory-constrained
-        environments where tuples that are input into larger sort operations
-        have a strong physical-to-logical correlation.  Note that this does
-        not include input tuples with an <emphasis>inverse</emphasis>
-        correlation.  It is possible for the replacement selection algorithm
-        to generate one long run that requires no merging, where use of the
-        default strategy would result in many runs that must be merged
-        to produce a final sorted output.  This may allow sort
-        operations to complete sooner.
-       </para>
-       <para>
-        The default is 150,000 tuples.  Note that higher values are typically
-        not much more effective, and may be counter-productive, since the
-        priority queue is sensitive to the size of available CPU cache, whereas
-        the default strategy sorts runs using a <firstterm>cache
-        oblivious</firstterm> algorithm.  This property allows the default sort
-        strategy to automatically and transparently make effective use
-        of available CPU cache.
-       </para>
-       <para>
-        Setting <varname>maintenance_work_mem</varname> to its default
-        value usually prevents utility command external sorts (e.g.,
-        sorts used by <command>CREATE INDEX</> to build B-Tree
-        indexes) from ever using replacement selection sort, unless the
-        input tuples are quite wide.
        </para>
       </listitem>
      </varlistentry>
@@ -3636,6 +3640,23 @@ ANY <replaceable class="parameter">num_sync</replaceable> ( <replaceable class="
       </listitem>
      </varlistentry>
 
+     <varlistentry id="guc-hashagg-avoid-disk-plan" xreflabel="hashagg_avoid_disk_plan">
+      <term><varname>hashagg_avoid_disk_plan</varname> (<type>boolean</type>)
+      <indexterm>
+       <primary><varname>hashagg_avoid_disk_plan</varname> configuration parameter</primary>
+      </indexterm>
+      </term>
+      <listitem>
+       <para>
+        If set to <literal>on</literal>, causes the planner to avoid choosing
+        hashed aggregation plans that are expected to use the disk. If hashed
+        aggregation is chosen, it may still require the use of disk at
+        execution time, even if this parameter is enabled. The default is
+        <literal>off</literal>.
+       </para>
+      </listitem>
+     </varlistentry>
+
      <varlistentry id="guc-enable-hashjoin" xreflabel="enable_hashjoin">
       <term><varname>enable_hashjoin</varname> (<type>boolean</type>)
       <indexterm>
@@ -3730,20 +3751,66 @@ ANY <replaceable class="parameter">num_sync</replaceable> ( <replaceable class="
       </listitem>
      </varlistentry>
 
-     <varlistentry id="guc-enable-partition-wise-join" xreflabel="enable_partition_wise_join">
-      <term><varname>enable_partition_wise_join</varname> (<type>boolean</type>)
+     <varlistentry id="guc-enable-parallel-append" xreflabel="enable_parallel_append">
+      <term><varname>enable_parallel_append</varname> (<type>boolean</type>)
       <indexterm>
-       <primary><varname>enable_partition_wise_join</> configuration parameter</primary>
+       <primary><varname>enable_parallel_append</varname> configuration parameter</primary>
       </indexterm>
       </term>
       <listitem>
        <para>
-        Enables or disables the query planner's use of partition-wise join,
+        Enables or disables the query planner's use of parallel-aware
+        append plan types. The default is <literal>on</literal>.
+       </para>
+      </listitem>
+     </varlistentry>
+
+     <varlistentry id="guc-enable-parallel-hash" xreflabel="enable_parallel_hash">
+      <term><varname>enable_parallel_hash</varname> (<type>boolean</type>)
+       <indexterm>
+        <primary><varname>enable_parallel_hash</varname> configuration parameter</primary>
+       </indexterm>
+      </term>
+      <listitem>
+       <para>
+        Enables or disables the query planner's use of hash-join plan
+        types with parallel hash. Has no effect if hash-join plans are not
+        also enabled. The default is <literal>on</literal>.
+       </para>
+      </listitem>
+     </varlistentry>
+
+     <varlistentry id="guc-enable-partition-pruning" xreflabel="enable_partition_pruning">
+      <term><varname>enable_partition_pruning</varname> (<type>boolean</type>)
+       <indexterm>
+        <primary><varname>enable_partition_pruning</varname> configuration parameter</primary>
+       </indexterm>
+      </term>
+      <listitem>
+       <para>
+        Enables or disables the query planner's ability to eliminate a
+        partitioned table's partitions from query plans.  This also controls
+        the planner's ability to generate query plans which allow the query
+        executor to remove (ignore) partitions during query execution.  The
+        default is <literal>on</literal>.
+       </para>
+      </listitem>
+     </varlistentry>
+
+     <varlistentry id="guc-enable-partitionwise-join" xreflabel="enable_partitionwise_join">
+      <term><varname>enable_partitionwise_join</varname> (<type>boolean</type>)
+      <indexterm>
+       <primary><varname>enable_partitionwise_join</varname> configuration parameter</primary>
+      </indexterm>
+      </term>
+      <listitem>
+       <para>
+        Enables or disables the query planner's use of partitionwise join,
         which allows a join between partitioned tables to be performed by
-        joining the matching partitions.  Partition-wise join currently applies
+        joining the matching partitions.  Partitionwise join currently applies
         only when the join conditions include all the partition keys, which
         must be of the same data type and have exactly matching sets of child
-        partitions.  Because partition-wise join planning can use significantly
+        partitions.  Because partitionwise join planning can use significantly
         more CPU time and memory during planning, the default is
         <literal>off</>.
        </para>
@@ -4045,6 +4112,62 @@ ANY <replaceable class="parameter">num_sync</replaceable> ( <replaceable class="
       </listitem>
      </varlistentry>
 
+
+     <varlistentry id="guc-jit-above-cost" xreflabel="jit_above_cost">
+      <term><varname>jit_above_cost</varname> (<type>floating point</type>)
+      <indexterm>
+       <primary><varname>jit_above_cost</varname> configuration parameter</primary>
+      </indexterm>
+      </term>
+      <listitem>
+       <para>
+        Sets the planner's cutoff above which JIT compilation is used as part
+        of query execution (see <xref linkend="jit"/>). Performing
+        <acronym>JIT</acronym> costs time but can accelerate query execution.
+
+        The default is <literal>100000</literal>.
+       </para>
+      </listitem>
+     </varlistentry>
+
+     <varlistentry id="guc-jit-optimize-above-cost" xreflabel="jit_optimize_above_cost">
+      <term><varname>jit_optimize_above_cost</varname> (<type>floating point</type>)
+      <indexterm>
+       <primary><varname>jit_optimize_above_cost</varname> configuration parameter</primary>
+      </indexterm>
+      </term>
+      <listitem>
+       <para>
+        Sets the planner's cutoff above which JIT compiled programs (see <xref
+        linkend="guc-jit-above-cost"/>) are optimized. Optimization initially
+        takes time, but can improve execution speed.  It is not meaningful to
+        set this to a lower value than <xref linkend="guc-jit-above-cost"/>.
+
+        The default is <literal>500000</literal>.
+       </para>
+      </listitem>
+     </varlistentry>
+
+     <varlistentry id="guc-jit-inline-above-cost" xreflabel="jit_inline_above_cost">
+      <term><varname>jit_inline_above_cost</varname> (<type>floating point</type>)
+      <indexterm>
+       <primary><varname>jit_inline_above_cost</varname> configuration parameter</primary>
+      </indexterm>
+      </term>
+      <listitem>
+       <para>
+        Sets the planner's cutoff above which JIT compiled programs (see <xref
+        linkend="guc-jit-above-cost"/>) attempt to inline functions and
+        operators. Inlining initially takes time, but can improve execution
+        speed.  It is unlikely to be beneficial to set
+        <varname>jit_inline_above_cost</varname> below
+        <varname>jit_optimize_above_cost</varname>.
+
+        The default is <literal>500000</literal>.
+       </para>
+      </listitem>
+     </varlistentry>
+
      </variablelist>
 
     </sect2>
@@ -4239,14 +4362,14 @@ ANY <replaceable class="parameter">num_sync</replaceable> ( <replaceable class="
        <para>
         Controls the query planner's use of table constraints to
         optimize queries.
-        The allowed values of <varname>constraint_exclusion</> are
-        <literal>on</> (examine constraints for all tables),
-        <literal>off</> (never examine constraints), and
-        <literal>partition</> (examine constraints only for inheritance child
-        tables and <literal>UNION ALL</> subqueries).
-        <literal>partition</> is the default setting.
-        It is often used with inheritance and partitioned tables to
-        improve performance.
+        The allowed values of <varname>constraint_exclusion</varname> are
+        <literal>on</literal> (examine constraints for all tables),
+        <literal>off</literal> (never examine constraints), and
+        <literal>partition</literal> (examine constraints only for inheritance
+        child tables and <literal>UNION ALL</literal> subqueries).
+        <literal>partition</literal> is the default setting.
+        It is often used with traditional inheritance trees to improve
+        performance.
       </para>
 
        <para>
@@ -4269,16 +4392,20 @@ SELECT * FROM parent WHERE key = 2400;
 
        <para>
         Currently, constraint exclusion is enabled by default
-        only for cases that are often used to implement table partitioning.
-        Turning it on for all tables imposes extra planning overhead that is
-        quite noticeable on simple queries, and most often will yield no
-        benefit for simple queries.  If you have no partitioned tables
-        you might prefer to turn it off entirely.
+        only for cases that are often used to implement table partitioning via
+        inheritance trees.  Turning it on for all tables imposes extra
+        planning overhead that is quite noticeable on simple queries, and most
+        often will yield no benefit for simple queries.  If you have no
+        tables that are partitioned using traditional inheritance, you might
+        prefer to turn it off entirely.  (Note that the equivalent feature for
+        partitioned tables is controlled by a separate parameter,
+        <xref linkend="guc-enable-partition-pruning"/>.)
        </para>
 
        <para>
-        Refer to <xref linkend="ddl-partitioning-constraint-exclusion"> for
-        more information on using constraint exclusion and partitioning.
+        Refer to <xref linkend="ddl-partitioning-constraint-exclusion"/> for
+        more information on using constraint exclusion to implement
+        partitioning.
        </para>
       </listitem>
      </varlistentry>
@@ -4327,6 +4454,23 @@ SELECT * FROM parent WHERE key = 2400;
       </listitem>
      </varlistentry>
 
+     <varlistentry id="guc-jit" xreflabel="jit">
+      <term><varname>jit</varname> (<type>boolean</type>)
+      <indexterm>
+       <primary><varname>jit</varname> configuration parameter</primary>
+      </indexterm>
+      </term>
+      <listitem>
+       <para>
+        Determines whether <acronym>JIT</acronym> may be used by
+        <productname>PostgreSQL</productname>, if available (see <xref
+        linkend="jit"/>).
+
+        The default is <literal>on</literal>.
+       </para>
+      </listitem>
+     </varlistentry>
+
      <varlistentry id="guc-join-collapse-limit" xreflabel="join_collapse_limit">
       <term><varname>join_collapse_limit</varname> (<type>integer</type>)
       <indexterm>
@@ -4359,6 +4503,32 @@ SELECT * FROM parent WHERE key = 2400;
         Setting this value to <xref linkend="guc-geqo-threshold"> or more
         may trigger use of the GEQO planner, resulting in non-optimal
         plans.  See <xref linkend="runtime-config-query-geqo">.
+       </para>
+      </listitem>
+     </varlistentry>
+
+     <varlistentry id="guc-parallel-leader-participation" xreflabel="parallel_leader_participation">
+      <term>
+       <varname>parallel_leader_participation</varname> (<type>boolean</type>)
+       <indexterm>
+        <primary>
+         <varname>parallel_leader_participation</varname> configuration
+         parameter
+        </primary>
+       </indexterm>
+      </term>
+      <listitem>
+       <para>
+        Allows the leader process to execute the query plan under
+        <literal>Gather</literal> and <literal>Gather Merge</literal> nodes
+        instead of waiting for worker processes.  The default is
+        <literal>on</literal>.  Setting this value to <literal>off</literal>
+        reduces the likelihood that workers will become blocked because the
+        leader is not reading tuples fast enough, but requires the leader
+        process to wait for worker processes to start up before the first
+        tuples can be produced.  The degree to which the leader can help or
+        hinder performance depends on the plan type, number of workers and
+        query duration.
        </para>
       </listitem>
      </varlistentry>
@@ -4404,6 +4574,36 @@ SELECT * FROM parent WHERE key = 2400;
         the <literal>Gather</> nodes added to plans by this setting are hidden
         in <literal>EXPLAIN</> output so that the output matches what
         would be obtained if this setting were turned <literal>off</>.
+       </para>
+      </listitem>
+     </varlistentry>
+
+     <varlistentry id="guc-plan-cache_mode" xreflabel="plan_cache_mode">
+      <term><varname>plan_cache_mode</varname> (<type>enum</type>)
+      <indexterm>
+       <primary><varname>plan_cache_mode</varname> configuration parameter</primary>
+      </indexterm>
+      </term>
+      <listitem>
+       <para>
+        Prepared statements (either explicitly prepared or implicitly
+        generated, for example in PL/pgSQL) can be executed using custom or
+        generic plans.  A custom plan is replanned for a new parameter value,
+        a generic plan is reused for repeated executions of the prepared
+        statement.  The choice between them is normally made automatically.
+        This setting overrides the default behavior and forces either a custom
+        or a generic plan.  This can be used to work around performance
+        problems in specific cases.  Note, however, that the plan cache
+        behavior is subject to change, so this setting, like all settings that
+        force the planner's hand, should be reevaluated regularly.
+       </para>
+
+       <para>
+        The allowed values are <literal>auto</literal>,
+        <literal>force_custom_plan</literal> and
+        <literal>force_generic_plan</literal>.  The default value is
+        <literal>auto</literal>.  The setting is applied when a cached plan is
+        to be executed, not when it is prepared.
        </para>
       </listitem>
      </varlistentry>
@@ -6640,6 +6840,38 @@ COPY postgres_log FROM '/full/path/to/logfile.csv' WITH csv;
       </listitem>
      </varlistentry>
 
+     <varlistentry id="guc-idle-session-timeout" xreflabel="idle_session_timeout">
+      <term><varname>idle_session_timeout</varname> (<type>integer</type>)
+      <indexterm>
+       <primary><varname>idle_session_timeout</varname> configuration parameter</primary>
+      </indexterm>
+      </term>
+      <listitem>
+       <para>
+        Terminate any session that has been idle (that is, waiting for a
+        client query), but not within an open transaction, for longer than
+        the specified amount of time.
+        If this value is specified without units, it is taken as milliseconds.
+        A value of zero (the default) disables the timeout.
+       </para>
+
+       <para>
+        Unlike the case with an open transaction, an idle session without a
+        transaction imposes no large costs on the server, so there is less
+        need to enable this timeout
+        than <varname>idle_in_transaction_session_timeout</varname>.
+       </para>
+
+       <para>
+        Be wary of enforcing this timeout on connections made through
+        connection-pooling software or other middleware, as such a layer
+        may not react well to unexpected connection closure.  It may be
+        helpful to enable this timeout only for interactive sessions,
+        perhaps by applying it only to particular users.
+       </para>
+      </listitem>
+     </varlistentry>
+
      <varlistentry id="guc-vacuum-freeze-table-age" xreflabel="vacuum_freeze_table_age">
       <term><varname>vacuum_freeze_table_age</varname> (<type>integer</type>)
       <indexterm>
@@ -6833,6 +7065,23 @@ SET XML OPTION { DOCUMENT | CONTENT };
       </listitem>
      </varlistentry>
 
+     <varlistentry id="guc-restrict-nonsystem-relation-kind" xreflabel="restrict_nonsystem_relation_kind">
+      <term><varname>restrict_nonsystem_relation_kind</varname> (<type>string</type>)
+      <indexterm>
+       <primary><varname>restrict_nonsystem_relation_kind</varname></primary>
+       <secondary>configuration parameter</secondary>
+     </indexterm>
+     </term>
+     <listitem>
+      <para>
+       This variable specifies relation kind to which access is restricted.
+       It contains a comma-separated list of relation kind.  Currently, the
+       supported relation kinds are <literal>view</literal> and
+       <literal>foreign-table</literal>.
+      </para>
+     </listitem>
+     </varlistentry>
+
      </variablelist>
     </sect2>
      <sect2 id="runtime-config-client-format">
@@ -6951,16 +7200,37 @@ SET XML OPTION { DOCUMENT | CONTENT };
       </term>
       <listitem>
        <para>
-        This parameter adjusts the number of digits displayed for
-        floating-point values, including <type>float4</>, <type>float8</>,
-        and geometric data types.  The parameter value is added to the
-        standard number of digits (<literal>FLT_DIG</> or <literal>DBL_DIG</>
-        as appropriate).  The value can be set as high as 3, to include
-        partially-significant digits; this is especially useful for dumping
-        float data that needs to be restored exactly.  Or it can be set
-        negative to suppress unwanted digits.
-        See also <xref linkend="datatype-float">.
+        This parameter adjusts the number of digits used for textual output of
+        floating-point values, including <type>float4</type>, <type>float8</type>,
+        and geometric data types.
        </para>
+       <para>
+        If the value is 1 (the default) or above, float values are output in
+        shortest-precise format; see <xref linkend="datatype-float"/>. The
+        actual number of digits generated depends only on the value being
+        output, not on the value of this parameter. At most 17 digits are
+        required for <type>float8</type> values, and 9 for <type>float4</type>
+        values. This format is both fast and precise, preserving the original
+        binary float value exactly when correctly read. For historical
+        compatibility, values up to 3 are permitted.
+       </para>
+       <para>
+        If the value is zero or negative, then the output is rounded to a
+        given decimal precision. The precision used is the standard number of
+        digits for the type (<literal>FLT_DIG</literal>
+        or <literal>DBL_DIG</literal> as appropriate) reduced according to the
+        value of this parameter. (For example, specifying -1 will cause float4
+        values to be output rounded to 5 significant digits, and float8 values
+        rounded to 14 digits.) This format is slower and does not preserve all
+        the bits of the binary float value, but may be more human-readable.
+       </para>
+       <note>
+        <para>
+         The meaning of this parameter, and its default value, changed
+         in <productname>PostgreSQL</productname> 12;
+         see <xref linkend="datatype-float"/> for further discussion.
+        </para>
+       </note>
       </listitem>
      </varlistentry>
 
@@ -7277,6 +7547,29 @@ SET XML OPTION { DOCUMENT | CONTENT };
       </note>
       </listitem>
      </varlistentry>
+
+     <varlistentry id="guc-jit-provider" xreflabel="jit_provider">
+      <term><varname>jit_provider</varname> (<type>string</type>)
+       <indexterm>
+        <primary><varname>jit_provider</varname> configuration parameter</primary>
+       </indexterm>
+      </term>
+      <listitem>
+       <para>
+        Determines which JIT provider (see <xref linkend="jit-extensibility"/>) is
+        used. The built-in default is <literal>llvmjit</literal>.
+       </para>
+       <para>
+        If set to a non-existent library <acronym>JIT</acronym> will not be
+        available, but no error will be raised. This allows JIT support to be
+        installed separately from the main
+        <productname>PostgreSQL</productname> package.
+
+        This parameter can only be set at server start.
+       </para>
+      </listitem>
+     </varlistentry>
+
     </variablelist>
    </sect2>
 
@@ -7845,6 +8138,38 @@ dynamic_library_path = 'C:\tools\postgresql;H:\my_project\lib;$libdir'
         <productname>PostgreSQL</> is being invoked by clusterware, it may be
         useful to disable the restart so that the clusterware can gain
         control and take any actions it deems appropriate.
+       </para>
+      </listitem>
+     </varlistentry>
+
+     <varlistentry id="guc-data-sync-retry" xreflabel="data_sync_retry">
+      <term><varname>data_sync_retry</varname> (<type>boolean</type>)
+      <indexterm>
+       <primary><varname>data_sync_retry</varname> configuration parameter</primary>
+      </indexterm>
+      </term>
+      <listitem>
+       <para>
+        When set to false, which is the default, <productname>PostgreSQL</productname>
+        will raise a PANIC-level error on failure to flush modified data files
+        to the filesystem.  This causes the database server to crash.
+       </para>
+       <para>
+        On some operating systems, the status of data in the kernel's page
+        cache is unknown after a write-back failure.  In some cases it might
+        have been entirely forgotten, making it unsafe to retry; the second
+        attempt may be reported as successful, when in fact the data has been
+        lost.  In these circumstances, the only way to avoid data loss is to
+        recover from the WAL after any failure is reported, preferably
+        after investigating the root cause of the failure and replacing any
+        faulty hardware.
+       </para>
+       <para>
+        If set to true, <productname>PostgreSQL</productname> will instead
+        report an error but continue to run so that the data flushing
+        operation can be retried in a later checkpoint.  Only set it to true
+        after investigating the operating system's treatment of buffered data
+        in case of write-back failure.
        </para>
       </listitem>
      </varlistentry>
@@ -8540,7 +8865,117 @@ LOG:  CleanUpLock: deleting: lock(0xb7acd844) id(24688,24696,0,0,0,1)
        </para>
       </listitem>
      </varlistentry>
-   </variablelist>
+
+     <varlistentry id="guc-ignore-invalid-pages" xreflabel="ignore_invalid_pages">
+      <term><varname>ignore_invalid_pages</varname> (<type>boolean</type>)
+      <indexterm>
+       <primary><varname>ignore_invalid_pages</varname> configuration parameter</primary>
+      </indexterm>
+      </term>
+      <listitem>
+       <para>
+        If set to <literal>off</literal> (the default), detection of
+        WAL records having references to invalid pages during
+        recovery causes <productname>PostgreSQL</productname> to
+        raise a PANIC-level error, aborting the recovery. Setting
+        <varname>ignore_invalid_pages</varname> to <literal>on</literal>
+        causes the system to ignore invalid page references in WAL records
+        (but still report a warning), and continue the recovery.
+        This behavior may <emphasis>cause crashes, data loss,
+        propagate or hide corruption, or other serious problems</emphasis>.
+        However, it may allow you to get past the PANIC-level error,
+        to finish the recovery, and to cause the server to start up.
+        The parameter can only be set at server start. It only has effect
+        during recovery or in standby mode.
+       </para>
+      </listitem>
+     </varlistentry>
+
+     <varlistentry id="guc-jit-debugging-support" xreflabel="jit_debugging_support">
+      <term><varname>jit_debugging_support</varname> (<type>boolean</type>)
+      <indexterm>
+       <primary><varname>jit_debugging_support</varname> configuration parameter</primary>
+      </indexterm>
+      </term>
+      <listitem>
+       <para>
+        If LLVM has the required functionality, register generated functions
+        with <productname>GDB</productname>.  This makes debugging easier.
+
+        The default setting is <literal>off</literal>, and can only be set at
+        server start.
+       </para>
+      </listitem>
+     </varlistentry>
+
+     <varlistentry id="guc-jit-dump-bitcode" xreflabel="jit_dump_bitcode">
+      <term><varname>jit_dump_bitcode</varname> (<type>boolean</type>)
+      <indexterm>
+       <primary><varname>jit_dump_bitcode</varname> configuration parameter</primary>
+      </indexterm>
+      </term>
+      <listitem>
+       <para>
+        Writes the generated <productname>LLVM</productname> IR out to the
+        filesystem, inside <xref linkend="guc-data-directory"/>. This is only
+        useful for working on the internals of the JIT implementation.
+
+        The default setting is <literal>off</literal>, and it can only be
+        changed by a superuser.
+       </para>
+      </listitem>
+     </varlistentry>
+
+     <varlistentry id="guc-jit-expressions" xreflabel="jit_expressions">
+      <term><varname>jit_expressions</varname> (<type>boolean</type>)
+      <indexterm>
+       <primary><varname>jit_expressions</varname> configuration parameter</primary>
+      </indexterm>
+      </term>
+      <listitem>
+       <para>
+        Determines whether expressions are JIT compiled, subject to costing
+        decisions (see <xref linkend="jit-decision"/>).  The default is
+        <literal>on</literal>.
+       </para>
+      </listitem>
+     </varlistentry>
+
+     <varlistentry id="guc-jit-profiling-support" xreflabel="jit_profiling_support">
+      <term><varname>jit_profiling_support</varname> (<type>boolean</type>)
+      <indexterm>
+       <primary><varname>jit_profiling_support</varname> configuration parameter</primary>
+      </indexterm>
+      </term>
+      <listitem>
+       <para>
+        If LLVM has the required functionality, emit required data to allow
+        <productname>perf</productname> to profile functions generated by JIT.
+        This writes out files to <filename>$HOME/.debug/jit/</filename>; the
+        user is responsible for performing cleanup when desired.
+
+        The default setting is <literal>off</literal>, and can only be set at
+        server start.
+       </para>
+      </listitem>
+     </varlistentry>
+
+     <varlistentry id="guc-jit-tuple-deforming" xreflabel="jit_tuple_deforming">
+      <term><varname>jit_tuple_deforming</varname> (<type>boolean</type>)
+      <indexterm>
+       <primary><varname>jit_tuple_deforming</varname> configuration parameter</primary>
+      </indexterm>
+      </term>
+      <listitem>
+       <para>
+        Determines whether tuple deforming is JIT compiled, subject to costing
+        decisions (see <xref linkend="jit-decision"/>). The default is
+        <literal>on</literal>.
+       </para>
+      </listitem>
+     </varlistentry>
+
+    </variablelist>
   </sect1>
   <sect1 id="runtime-config-short">
    <title>Short Options</title>

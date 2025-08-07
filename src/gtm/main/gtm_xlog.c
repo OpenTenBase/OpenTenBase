@@ -3,10 +3,10 @@
  * gtm_xlog.c
  *        Functionalities of GTM Standby
  *
- * Copyright (c) 2023 THL A29 Limited, a Tencent company.
+ * Portions Copyright (c) 1996-2010, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1994, Regents of the University of California
+ * Portions Copyright (c) 2010-2012 Postgres-XC Development Group
  *
- * This source code file is licensed under the BSD 3-Clause License,
- * you may obtain a copy of the License at http://opensource.org/license/bsd-3-clause/
  *
  * IDENTIFICATION
  *        src/gtm/main/gtm_xlog.c
@@ -49,7 +49,7 @@
 extern bool enalbe_gtm_xlog_debug;
 
 extern GTM_ThreadInfo    *g_basebackup_thread;
-extern bool                 enable_sync_commit;
+extern bool		         enable_sync_commit;
 extern bool              first_init;
 extern int               max_wal_sender;
 extern int32             g_GTMStoreMapFile;
@@ -87,10 +87,21 @@ ControlFileData *ControlData;
 /* The size of ControlData */
 ssize_t          g_GTMControlDataSize;
 
-static int XLogRecPtrCompLess(void *lhs,void *rhs);
-static int XLogRecPtrCompGreater(void *lhs,void *rhs) ;
+#define ENUM_TOCHAR(x) (#x)
 
-static uint64     XLogRecPtrToBytePos(XLogRecPtr ptr);
+const char *g_gtm_state_string[] =
+{
+    ENUM_TOCHAR(GTM_STARTUP),
+    ENUM_TOCHAR(GTM_SHUTDOWNED),
+    ENUM_TOCHAR(GTM_IN_RECOVERY),
+    ENUM_TOCHAR(GTM_IN_OVERWRITING_STORE),
+    ENUM_TOCHAR(GTM_IN_OVERWRITE_DONE),
+    ENUM_TOCHAR(GTM_IN_ARCHIVE_RECOVERY),
+    ENUM_TOCHAR(GTM_IN_PRODUCTION),
+};
+
+static int XLogRecPtrCompLess(void *lhs,void *rhs);
+
 static XLogRecPtr XLogBytePosToStartRecPtr(uint64 byte);
 static XLogRecPtr XLogBytePosToEndRecPtr(uint64 byte);
 static uint32     XLogRecPtrToBuffIdx(XLogRecPtr ptr);
@@ -138,10 +149,7 @@ static void NotifyWaitingQueue(void);
 
 static void gtm_init_replication_data(GTM_StandbyReplication *replication);
 
-static void GTM_RecoveryUpdateMetaData(XLogRecPtr redo_end_pos,XLogRecPtr preXLogRecord,uint64 segment_no,int idx);
-
 static bool CheckSyncStandbyInList(char *application_name);
-
 /* string process tools */
 static char * strip(char *s);
 static bool is_contain(const char *pattern,char ch);
@@ -158,17 +166,17 @@ static void load_syncconfig(void);
 static void load_xlogsync(void);
 static void init_sync_structures(void);
 
-static long long
-getSystemTime()
+static long long 
+getSystemTime() 
 {
     struct timeb t;
     ftime(&t);
     return 1000 * t.time + t.millitm;
-}
+} 
 
 char *
 GetFormatedCommandLine(char *ans,int size,const char *cmd,char *file_name,char *relative_path)
-{// #lizard forgives
+{
     int  i = 0;
     int  offset = 0;
     bool meet_percent = false;
@@ -256,19 +264,19 @@ GTM_UpdateReplicationPos(GTM_StandbyReplication *replication,TimeLineID timeline
  */
 void
 CheckSyncReplication(GTM_StandbyReplication *replication,XLogRecPtr ptr)
-{// #lizard forgives
+{
     bool notify_queue_already = false;
 
     if (!replication->is_sync)
         return ;
-    
-    /* compare with local buff */
+	
+	/* compare with local buff */
     if (replication->next_sync_pos != InvalidXLogRecPtr && ptr < replication->next_sync_pos)
         return ;
 
     GTM_MutexLockAcquire(&XLogSync->check_mutex);
 
-    /* wakeup pending threads in case of invalid XLogSync->head_ptr */
+	/* wakeup pending threads in case of invalid XLogSync->head_ptr */
     if (XLogSync->head_ptr == InvalidXLogRecPtr)
     {
         NotifyWaitingQueue();
@@ -282,14 +290,14 @@ CheckSyncReplication(GTM_StandbyReplication *replication,XLogRecPtr ptr)
         replication->sync_hint     = false;
     }
 
-    /* increase the counter and remember that we have added for the current XLogSync->head */
+	/* increase the counter and remember that we have added for the current XLogSync->head */
     if (ptr >= replication->next_sync_pos && !replication->sync_hint)
     {
         XLogSync->head_xlog_hints++;
         replication->sync_hint = true;
     }
 
-    /* wakeup pending threads */
+	/* wakeup pending threads */
     if (!notify_queue_already && XLogSync->head_xlog_hints >= SyncConfig->required_sync_num)
         NotifyWaitingQueue();
 
@@ -299,30 +307,27 @@ CheckSyncReplication(GTM_StandbyReplication *replication,XLogRecPtr ptr)
 static int
 XLogRecPtrCompLess(void *lhs,void *rhs)
 {
+	XLogRecPtr	l = *((XLogRecPtr *) lhs);
+	XLogRecPtr	r = *((XLogRecPtr *) rhs);
 
-   return *((XLogRecPtr *) lhs) < *((XLogRecPtr *) rhs);
+	if (l > r)
+		return 1;
+	else if (l < r)
+		return -1;
+	else
+		return 0;
 }
 
 /*
- * XLogPtr compare function used in heap.
- */
-static int
-XLogRecPtrCompGreater(void *lhs,void *rhs)
-{
-    return *((XLogRecPtr *) lhs) > *((XLogRecPtr *) rhs);
-}
-
-/*
- * Get max sync xlog position with the given number of sync standbys
- * you have to lock check_mutex lock beforce you call it.
+ * Get synced xlog position with the given number of sync standbys you have to
+ * lock check_mutex lock beforce you call it.
  */
 static XLogRecPtr
 GetMaxSyncStandbyCompletePtr()
 {
-    /* static variables , avoid frequent memory allocation */
-    static  XLogRecPtr  ptrs[GTM_MAX_WALSENDER];
-    static  XLogRecPtr  *temp_key   = NULL;
-    static  XLogRecPtr  *temp_value = NULL;
+    XLogRecPtr  ptrs[GTM_MAX_WALSENDER];
+    XLogRecPtr  *temp_key   = NULL;
+    XLogRecPtr  *temp_value = NULL;
 
     gtm_ListCell   *cell                = NULL;
     GTM_StandbyReplication *replication = NULL;
@@ -330,11 +335,14 @@ GetMaxSyncStandbyCompletePtr()
     int heap_count = 0;
     heap h;
 
+	if (SyncConfig->required_sync_num == 0)
+		return InvalidXLogRecPtr;
+
     /*
      * We used heap the calculate the n-th greatest sync xlog position in replication
      * and n is SyncConfig->required_sync_num which ensure xlog is flush to n standbys.
      */
-    heap_create(&h,0,XLogRecPtrCompGreater);
+	heap_create(&h, 0, XLogRecPtrCompLess);
 
     gtm_foreach(cell,XLogSync->sync_standbys)
     {
@@ -356,9 +364,10 @@ GetMaxSyncStandbyCompletePtr()
         {
             heap_count++;
         }
+		i++;
     }
 
-    /* if there is not engouh stanndbys,return InvalidXLogRecPtr. */
+	/* if there is not engouh stanndbys,return InvalidXLogRecPtr. */
     if (heap_count < SyncConfig->required_sync_num)
     {
         heap_destroy(&h);
@@ -367,18 +376,22 @@ GetMaxSyncStandbyCompletePtr()
         return InvalidXLogRecPtr;
     }
 
-    /* pop until the last one */
-    while(heap_delmin(&h,(void **)&temp_key,(void **)&temp_value))
-    { ; }
+	Assert(heap_size(&h) == heap_count);
+
+	/*
+	 * Min-Heap contains the top-N flushed XLogRecPtr, and the root value is the
+	 * guaranted flushed position.
+	 */
+	heap_delmin(&h,(void **)&temp_key,(void **)&temp_value);
 
     heap_destroy(&h);
 
     if(enalbe_gtm_xlog_debug)
     {
-		if(temp_key)
-	        	elog(LOG,"GetMaxSyncStandbyCompletePtr result %X/%X",(uint32)((*temp_key)>>32),(uint32)(*temp_key));
-		else
-	        	elog(LOG,"GetMaxSyncStandbyCompletePtr result 0");
+	if(temp_key)
+        	elog(LOG,"GetMaxSyncStandbyCompletePtr result %X/%X",(uint32)((*temp_key)>>32),(uint32)(*temp_key));
+	else
+        	elog(LOG,"GetMaxSyncStandbyCompletePtr result 0");
 			
     }
 
@@ -390,16 +403,14 @@ GetMaxSyncStandbyCompletePtr()
  */
 static void
 NotifyWaitingQueue(void)
-{// #lizard forgives
+{
     XLogRecPtr check_ptr = InvalidXLogRecPtr;
     XLogRecPtr *key      = NULL;
     XLogWaiter *waiter   = NULL;
     bool      notify_one = false;
     int       ret = 0;
 
-    
-
-    /* get max sync xlog position */
+	/* Get Synced position among all standbys. */
     check_ptr = GetMaxSyncStandbyCompletePtr();
     if (check_ptr == InvalidXLogRecPtr)
     {
@@ -409,6 +420,7 @@ NotifyWaitingQueue(void)
     }
 
     GTM_MutexLockAcquire(&XLogSync->wait_queue_mutex);
+
 	XLogSync->synced_lsn = XLogSync->synced_lsn > check_ptr ? XLogSync->synced_lsn : check_ptr;
 
     while(ret = heap_min(&XLogSync->wait_queue,(void **)&key,(void **)&waiter),ret)
@@ -501,15 +513,17 @@ WaitSyncComplete(XLogRecPtr ptr)
     waiter->finished = false;
 
     GTM_MutexLockAcquire(&XLogSync->wait_queue_mutex);
-	/* avoid reload changes which will cause hug up*/
-    if(XLogSync->synced_lsn >= ptr)
-	{
+	
+    /* avoid race condition, check sync status again. */
+    if(XLogSync->synced_lsn >= ptr || !enable_sync_commit)
+    {
 	    if(enalbe_gtm_xlog_debug)
 		    elog(LOG,"WaitSyncComplete %X/%X early finished",(uint32)(ptr>>32),(uint32)ptr);
-		GTM_MutexLockRelease(&XLogSync->wait_queue_mutex);
-        return ;
-	}
-    heap_insert(&XLogSync->wait_queue,&waiter->pos,waiter);
+	    GTM_MutexLockRelease(&XLogSync->wait_queue_mutex);
+	    return ;
+    }
+	
+    heap_insert(&XLogSync->wait_queue, &waiter->pos, waiter);
     GTM_MutexLockRelease(&XLogSync->wait_queue_mutex);
 
     /* wait could already finished,if we don't check now, we might wait forever. */
@@ -595,7 +609,7 @@ GetXLogFlushRecPtr()
 void
 ProcessStartReplicationCommand(Port *myport, StringInfo message)
 {
-    StringInfoData    buf;
+    StringInfoData	buf;
     GTM_ThreadInfo  *thr = GetMyThreadInfo;
     int             namelen;
     const char      *node_name;
@@ -690,6 +704,12 @@ GTM_GetReplicationResultIfAny(GTM_StandbyReplication *replication,Port *port)
     StringInfoData input_message;
     int qtype;
 
+    XLogRecPtr  write_ptr;
+    XLogRecPtr  flush_ptr;
+    XLogRecPtr  replay_ptr;
+    TimeLineID  timeline;
+    int value;
+
     if(pq_hasdataleft(port) == false)
     {
         /* immediate return if not data */
@@ -704,55 +724,53 @@ GTM_GetReplicationResultIfAny(GTM_StandbyReplication *replication,Port *port)
 
     initStringInfo(&input_message);
 
-    /*
-     * Get message type code from the frontend.
-     */
-    qtype = pq_getbyte(port);
+	/*
+	 * Get message type code from the frontend.
+	 */
+	qtype = pq_getbyte(port);
 
-    if (qtype == EOF)            /* frontend disconnected */
+	if (qtype == EOF)			/* frontend disconnected */
+	{
+		ereport(DEBUG1,
+				(EPROTO,
+				 errmsg("unexpected EOF on client connection")));
+		return EOF;
+	}
+
+	if (pq_getmessage(port, &input_message, 0))
+		return EOF;
+
+	/*received 'X' and other unkown type also means exit */
+	if (qtype != 'C')
+	{
+		elog(LOG, "received type (%c) is not 'C'", qtype);
+		return EOF;
+	}
+
+    value   = pq_getmsgint(&input_message, sizeof(int));
+    write_ptr  = (XLogRecPtr) pq_getmsgint64(&input_message);
+    flush_ptr  = (XLogRecPtr) pq_getmsgint64(&input_message);
+    replay_ptr = (XLogRecPtr) pq_getmsgint64(&input_message);
+    timeline   = pq_getmsgint(&input_message, sizeof(TimeLineID));
+
+    if(enalbe_gtm_xlog_debug)
     {
-        ereport(DEBUG1,
-                (EPROTO,
-                 errmsg("unexpected EOF on client connection")));
-        return EOF;
+        elog(LOG, "Get replication result : write %X/%X,flush %X/%X, replay_ptr %X/%X ,timeline %d value:%d",
+             (uint32) (write_ptr >> 32),
+             (uint32) write_ptr,
+             (uint32) (flush_ptr >> 32),
+             (uint32) flush_ptr,
+             (uint32) (replay_ptr >> 32),
+             (uint32) replay_ptr,
+             timeline,
+             value
+        );
     }
 
-    if (pq_getmessage(port, &input_message, 0))
-        return EOF;
+    pq_getmsgend(&input_message);
 
-    Assert(qtype == 'C');
+    GTM_UpdateReplicationPos(replication, timeline, write_ptr, flush_ptr, replay_ptr);
 
-    {
-        XLogRecPtr  write_ptr;
-        XLogRecPtr  flush_ptr;
-        XLogRecPtr  replay_ptr;
-        TimeLineID  timeline;
-        int value;
-
-        value   = pq_getmsgint(&input_message, sizeof(int));
-        write_ptr  = (XLogRecPtr) pq_getmsgint64(&input_message);
-        flush_ptr  = (XLogRecPtr) pq_getmsgint64(&input_message);
-        replay_ptr = (XLogRecPtr) pq_getmsgint64(&input_message);
-        timeline   = pq_getmsgint(&input_message, sizeof(TimeLineID));
-
-        if(enalbe_gtm_xlog_debug)
-        {
-            elog(LOG, "Get replication result : write %X/%X,flush %X/%X, replay_ptr %X/%X ,timeline %d value:%d",
-                 (uint32) (write_ptr >> 32),
-                 (uint32) write_ptr,
-                 (uint32) (flush_ptr >> 32),
-                 (uint32) flush_ptr,
-                 (uint32) (replay_ptr >> 32),
-                 (uint32) replay_ptr,
-                 timeline,
-                 value
-            );
-        }
-
-        pq_getmsgend(&input_message);
-
-        GTM_UpdateReplicationPos(replication,timeline,write_ptr,flush_ptr,replay_ptr);
-    }
     return 1;
 }
 
@@ -1053,9 +1071,6 @@ send_fail:
     return false;
 }
 
-/*
- * Check whehter there is any xlog to send
- */
 bool
 GTM_HasXLogToSend(GTM_StandbyReplication *replication)
 {
@@ -1091,7 +1106,6 @@ GTM_XLogFileInit(char *data_dir)
 {
     XLogRecPtr flush;
     uint64     segment_no;
-    int        fd;
 
     flush      = XLogCtl->LogwrtResult.Flush;
     segment_no = flush / GTM_XLOG_SEG_SIZE;
@@ -1113,17 +1127,18 @@ GTM_XLogFileInit(char *data_dir)
         return ;
     }
 
-    fd = XLogCtl->xlog_fd;
-    if(fd != 0)
-        close(fd);
-
+    if(XLogCtl->xlog_fd >= 0)
+    {
+        close(XLogCtl->xlog_fd);
+        XLogCtl->xlog_fd = -1;
+    }
     if(flush % GTM_XLOG_SEG_SIZE == 0)
     {
         segment_no++;
         NewXLogFile(segment_no);
     }
     else
-        OpenXLogFile(segment_no,flush);
+        OpenXLogFile(segment_no, flush);
     XLogCtl->currentSegment = segment_no;
 }
 
@@ -1148,7 +1163,7 @@ GTM_XLogCtlDataInit(void)
 
     memset(XLogCtl->writerBuff,0,sizeof(XLogCtl->writerBuff));
 
-    XLogCtl->xlog_fd        = 0;
+    XLogCtl->xlog_fd        = -1;
     XLogCtl->thisTimeLineID = ControlData->thisTimeLineID;
     XLogCtl->currentSegment = flush / GTM_XLOG_SEG_SIZE;
 
@@ -1202,43 +1217,56 @@ GTM_XLogCtlDataInit(void)
 void
 BeforeReplyToClientXLogTrigger(void)
 {
-    GTM_ThreadInfo *thr = GetMyThreadInfo;
-    XLogRecPtr  endPos;
-    long long start_time;
-    long long end_time;
+	GTM_ThreadInfo *thr = GetMyThreadInfo;
+	XLogRecPtr      endPos;
+	long long       start_time;
+	long long       end_time;
 
-    ReleaseXLogRecordWriteLocks();
+	if (Recovery_IsStandby())
+	{
+		thr->may_wait_sync = false;
+		ReleaseXLogRecordWriteLocks();
+		return;
+	}
 
-    if(Recovery_IsStandby())
-        return ;
+	if (thr->register_buff == NULL)
+	{
+		thr->may_wait_sync = false;
+		ReleaseXLogRecordWriteLocks();
+		return;
+	}
 
-    if(thr->register_buff == NULL)
-        return;
+	if (thr->register_buff->rdata_len == 0)
+	{
+		thr->may_wait_sync = false;
+		ReleaseXLogRecordWriteLocks();
+		ReleaseXLogRegisterBuff();
+		return;
+	}
 
-    if(thr->register_buff->rdata_len == 0)
-    {
-        ReleaseXLogRegisterBuff();
-        return ;
-    }
+	start_time = getSystemTime();
 
-    start_time = getSystemTime();
+	endPos = XLogInsert();
 
-    /* release thread lock ,so that we don't block GTM_StoreLock in xlog flush waiting. */
-    if(thr->handle_standby)
-        GTM_RWLockRelease(&thr->thr_lock);
-
-    endPos = XLogInsert();
+	ReleaseXLogRecordWriteLocks();
 
     XLogFlush(endPos);
+
+	/* release thread lock ,so that we don't block GTM_StoreLock in xlog flush waiting. */
+	if(thr->handle_standby)
+		GTM_RWLockRelease(&thr->thr_lock);
+
     WaitSyncComplete(endPos);
+	thr->may_wait_sync = false;
 
-    if(thr->handle_standby)
-        GTM_RWLockAcquire(&thr->thr_lock, GTM_LOCKMODE_WRITE);
+	if (thr->handle_standby)
+		GTM_RWLockAcquire(&thr->thr_lock, GTM_LOCKMODE_WRITE);
 
-    end_time = getSystemTime();
+	end_time = getSystemTime();
 
-    if(end_time - start_time > warnning_time_cost)
-        elog(LOG, "BeforeReplyToClientXLogTrigger lsn %X/%X cost %lld ms", (uint32)(endPos >> 32), (uint32)endPos, end_time - start_time);
+	if (end_time - start_time > warnning_time_cost)
+		elog(LOG, "BeforeReplyToClientXLogTrigger lsn %X/%X cost %lld ms", (uint32) (endPos >> 32),
+		     (uint32) endPos, end_time - start_time);
 }
 
 /* Read xlog file to buff */
@@ -1322,55 +1350,90 @@ TruncateXLogFile(uint64 segment_no,offset_t size)
 
     if(ftruncate(fd,size) < 0)
     {
-        close(fd);
+    	close(fd);
         elog(LOG,"fail to truncate file %s : %s",xlog_path,strerror(errno));
         return false;
     }
-    close(fd);
+	close(fd);
 
     return true;
 }
 
+bool
+CheckMapperFile(const char *file_path, size_t file_size)
+{
+    struct stat statbuf;
+    int fd = open(file_path, O_RDWR, S_IRUSR | S_IWUSR);
+    if (fd < 0)
+    {
+        elog(LOG, "CheckMapperFile open file:%s failed for:%s exit", file_path, strerror(errno));
+        return false;
+    }
+
+    if (fstat(fd, &statbuf) < 0)
+    {
+        close(fd);
+        elog(LOG, "CheckMapperFile stat file:%s failed for:%s.", file_path, strerror(errno));
+        return false;
+    }
+
+    if (statbuf.st_size != file_size)
+    {
+        close(fd);
+        elog(LOG, "CheckMapperFile stat file:%s size:%zu not equal required size:%zu, file maybe corrupted, "
+                  "try to create a new file.", file_path, statbuf.st_size, file_size);
+        return false;
+    }
+
+    close(fd);
+    return true;
+}
+
+
 /* Open mapper file which uesd in recovery */
 void
-OpenMapperFile(char *data_dir)
+OpenMapperFile(const char *data_dir)
 {
-    char  path[NODE_STRING_MAX_LENGTH];
     struct stat statbuf;
 
-    snprintf(path, NODE_STRING_MAX_LENGTH, "%s/%s", data_dir, GTM_MAP_FILE_NAME);
+    if (g_GTMStoreMapFile >= 0)
+    {
+        close(g_GTMStoreMapFile);
+        g_GTMStoreMapFile = -1;
+    }
+
     g_GTMStoreMapFile = open(GTM_MAP_FILE_NAME, O_RDWR, S_IRUSR | S_IWUSR);
     if (g_GTMStoreMapFile < 0)
     {
         elog(LOG, "OpenMapperFile open file:%s failed for:%s exit", GTM_MAP_FILE_NAME, strerror(errno));
         exit(1);
     }
-    else
-    {
-        if (fstat(g_GTMStoreMapFile, &statbuf) < 0)
-        {
-            close(g_GTMStoreMapFile);
-            elog(LOG, "OpenMapperFile stat file:%s failed for:%s.", GTM_MAP_FILE_NAME, strerror(errno));
-            exit(1);
-        }
 
-        if (statbuf.st_size != g_GTMStoreSize)
-        {
-            close(g_GTMStoreMapFile);
-            elog(LOG, "OpenMapperFile stat file:%s size:%zu not equal required size:%zu, file maybe corrupted, try to create a new file.", GTM_MAP_FILE_NAME, statbuf.st_size, g_GTMStoreSize);
-            exit(1);
-        }
+    if (fstat(g_GTMStoreMapFile, &statbuf) < 0)
+    {
+        close(g_GTMStoreMapFile);
+        elog(LOG, "OpenMapperFile stat file:%s failed for:%s.", GTM_MAP_FILE_NAME, strerror(errno));
+        exit(1);
     }
+
+    if (statbuf.st_size != g_GTMStoreSize)
+    {
+        close(g_GTMStoreMapFile);
+        elog(LOG, "OpenMapperFile stat file:%s size:%zu not equal required size:%zu, file maybe corrupted, try to create a new file.", GTM_MAP_FILE_NAME, statbuf.st_size, g_GTMStoreSize);
+        exit(1);
+    }
+
 }
 
 /* Close mapper file after the recovery */
 void
 CloseMapperFile(void)
 {
-    if(g_GTMStoreMapFile != 0)
+    if(g_GTMStoreMapFile >= 0)
     {
         fsync(g_GTMStoreMapFile);
         close(g_GTMStoreMapFile);
+        g_GTMStoreMapFile = -1;
     }
 }
 
@@ -1449,7 +1512,7 @@ XLogUsageBytesAdd(XLogRecPtr start,int bytes)
  */
 void
 GTM_ThreadWalRedoer_Internal()
-{// #lizard forgives
+{
     char       *xlog_buff;
     char       *xlog_rec;
     uint64      segment_no;
@@ -1474,6 +1537,7 @@ GTM_ThreadWalRedoer_Internal()
 
     xlog_buff = XLogCtl->writerBuff;
 
+    /* One record must not larger then UsableBytesInSegment */
     xlog_rec = palloc(current_buff_size);
     if(xlog_rec == NULL)
     {
@@ -1593,13 +1657,16 @@ GTM_ThreadWalRedoer_Internal()
                 /* update bytes we want to read */
                 desired_bytes = record_header->xl_tot_len;
 
-                if(desired_bytes > current_buff_size)
+                if (desired_bytes > MAX_XLOG_RECORD_SIZE)
+                	elog(FATAL, "Xlog %X/%X get invalid size %lu", (uint32)(redo_pos >> 32),(uint32)redo_pos, desired_bytes);
+                if(desired_bytes + sizeof(XLogRecord) > current_buff_size)
                 {
                     char *new_buff = palloc(desired_bytes + sizeof(XLogRecord));
-                    memcpy(new_buff,xlog_rec,cur_xlog_size);
-                    cur_xlog_size = desired_bytes + sizeof(XLogRecord);
+                    memcpy(new_buff,xlog_rec,current_buff_size);
+                    current_buff_size = desired_bytes + sizeof(XLogRecord);
                     pfree(xlog_rec);
                     xlog_rec = new_buff;
+                    record_header = (XLogRecord *)xlog_rec;
                 }
                 if(enalbe_gtm_xlog_debug)
                     elog(LOG,"Xlog %X/%X get size %lu",
@@ -1678,7 +1745,6 @@ GTM_ThreadWalRedoer_Internal()
         xlog_buff = XLogCtl->writerBuff;
     }
 
-    Assert(redo_end_pos != InvalidXLogRecPtr);
     elog(LOG,"redo exit,recovery finish upto %X/%X",(uint32)(redo_end_pos >> 32) ,(uint32)redo_end_pos);
 
     if(enalbe_gtm_xlog_debug)
@@ -1705,9 +1771,13 @@ GTM_ThreadWalRedoer_Internal()
         g_GTMStoreDirtyMap[i] = true;
 
     if(Recovery_IsStandby())
+    {
         DoSlaveCheckPoint(false);
+    }
     else
+    {
         DoCheckPoint(false);
+    }
 
     return ;
 
@@ -1721,7 +1791,7 @@ GTM_ThreadWalRedoer_Internal()
 }
 
 void
-GTM_RecoveryUpdateMetaData(XLogRecPtr redo_end_pos,XLogRecPtr preXLogRecord,uint64 segment_no,int idx)
+GTM_RecoveryUpdateMetaData(XLogRecPtr redo_end_pos, XLogRecPtr preXLogRecord, uint64 segment_no, int idx)
 {
     Assert(redo_end_pos != InvalidXLogRecPtr);
     elog(LOG,"recovery finish upto %X/%X",(uint32)(redo_end_pos >> 32) ,(uint32)redo_end_pos);
@@ -1750,6 +1820,8 @@ GTM_RecoveryUpdateMetaData(XLogRecPtr redo_end_pos,XLogRecPtr preXLogRecord,uint
         );
     }
 
+    fsync(g_GTMStoreMapFile);
+
     XLogCtl->currentSegment = segment_no;
     XLogCtl->last_write_idx = idx;
 
@@ -1767,8 +1839,8 @@ GTM_RecoveryUpdateMetaData(XLogRecPtr redo_end_pos,XLogRecPtr preXLogRecord,uint
 
 /* Recovery Xlog and apply to mapper file */
 void
-GTM_XLogRecovery(XLogRecPtr startPos,char *data_dir)
-{// #lizard forgives
+GTM_XLogRecovery(XLogRecPtr startPos, const char *data_dir, bool after_overwrite)
+{
     char       *xlog_buff;
     char       *xlog_rec;
     uint64      segment_no;
@@ -1790,6 +1862,7 @@ GTM_XLogRecovery(XLogRecPtr startPos,char *data_dir)
     bool        validate_mode   = false;
     bool        validate_count = GTM_XLOG_RECOVERY_GTS_VALIDATE_NUM;
     GlobalTimestamp last_validate_gts = InvalidGTS;
+    uint32      record_buf_size = 0;
 
     /* return if no xlog when firstly inited */
     if(startPos == FIRST_XLOG_REC)
@@ -1809,13 +1882,14 @@ GTM_XLogRecovery(XLogRecPtr startPos,char *data_dir)
         goto exit_process;
     }
     record_header = (XLogRecord  *)xlog_rec;
+    record_buf_size = UsableBytesInSegment;
 
     Assert(ControlData != NULL);
 
     segment_no    = startPos / GTM_XLOG_SEG_SIZE;
 
     cur_xlog_size = ReadXLogToBuff(segment_no);
-    if(cur_xlog_size < 0)
+    if(cur_xlog_size <= 0)
         goto exit_process;
 
     /* how many bytes we currently want to read */
@@ -1873,13 +1947,13 @@ GTM_XLogRecovery(XLogRecPtr startPos,char *data_dir)
             if(redo_pos == InvalidXLogRecPtr)
                 redo_pos = segment_no * GTM_XLOG_SEG_SIZE + idx;
 
-            memcpy(xlog_rec + rec_offset,xlog_buff,read_size);
+            memcpy(xlog_rec + rec_offset, xlog_buff, read_size);
 
-            idx            += read_size;
-            xlog_buff      += read_size;
+            idx           += read_size;
+            xlog_buff     += read_size;
             desired_bytes -= read_size;
-            bytes_read     += read_size;
-            rec_offset     += read_size;
+            bytes_read    += read_size;
+            rec_offset    += read_size;
 
             /* we have read the XLogRecord struct */
             if(!read_header && bytes_read >= sizeof(XLogRecord))
@@ -1887,6 +1961,23 @@ GTM_XLogRecovery(XLogRecPtr startPos,char *data_dir)
                 read_header   = true;
                 /* update bytes we want to read */
                 desired_bytes = record_header->xl_tot_len;
+                if (desired_bytes > MAX_XLOG_RECORD_SIZE)
+                {
+                    elog(LOG,"Xlog %X/%X total length is not right %u",
+                         (uint32)(redo_pos >> 32), (uint32)redo_pos, record_header->xl_tot_len);
+                    has_error = true;
+                    break;
+                }
+                
+                if (desired_bytes + sizeof(XLogRecord) > record_buf_size)
+                {
+                    char *new_buff = palloc(desired_bytes + sizeof(XLogRecord));
+                    memcpy(new_buff, xlog_rec, rec_offset);
+                    record_buf_size = desired_bytes + sizeof(XLogRecord);
+                    pfree(xlog_rec);
+                    xlog_rec = new_buff;
+                    record_header = (XLogRecord *)xlog_rec;
+                }
             }
 
             /* we have finish read the current xlog record */
@@ -1945,7 +2036,7 @@ GTM_XLogRecovery(XLogRecPtr startPos,char *data_dir)
                     RedoXLogRecord(record_header,redo_pos);
                     if(g_recovery_finish)
                     {
-                        GTM_RecoveryUpdateMetaData(redo_end_pos,preXLogRecord,segment_no,idx);
+                        GTM_RecoveryUpdateMetaData(redo_end_pos, preXLogRecord, segment_no, idx);
                         validate_mode = true;
                         last_validate_gts = record_header->xl_timestamp;
                     }
@@ -1965,14 +2056,15 @@ GTM_XLogRecovery(XLogRecPtr startPos,char *data_dir)
         }
 
         cur_xlog_size = ReadXLogToBuff(segment_no + 1);
-        if(cur_xlog_size < 0)
+        if(cur_xlog_size <= 0)
         {
             //crash recovery to the end of file
             if(recovery_timestamp == InvalidGTS)
-            { 
-                GTM_RecoveryUpdateMetaData(redo_end_pos,preXLogRecord,segment_no,idx);
+            {
+                GTM_RecoveryUpdateMetaData(redo_end_pos, preXLogRecord, segment_no, idx);
                 g_recovery_finish = true;
             }
+            
             goto exit_process;
         }
         else if(has_error)
@@ -1996,11 +2088,11 @@ exit_process:
     {
         if(validate_count != 0)
         {
-            elog(WARNING,"gtm recovery finished, but due to lack of xlog,validation could not complete");
+            elog(WARNING,"gtm recovery finished, but due to lack of xlog,validation could not complete：%d", validate_count);
         }
         return ;
     }
-    else 
+    else if (!after_overwrite)
     {
         elog(LOG,"gtm recovery fails");
         exit(1);
@@ -2022,12 +2114,13 @@ GTM_PrintControlData()
     elog(LOG,"ControlData->checkPoint             = %X/%X",(uint32_t)(ControlData->checkPoint >> 32),(uint32_t)ControlData->checkPoint);
     elog(LOG,"ControlData->gts                    = %lu",ControlData->gts);
     elog(LOG,"ControlData->time                   = %lu",ControlData->time);
+    elog(LOG,"ControlData->state                  = %s",((int)ControlData->state >= (int)GTM_STATE_NUM) ? "unknown state" : g_gtm_state_string[ControlData->state]);
 }
 
 /* Init ControlData during startup */
 int
 GTM_ControlDataInit(void)
-{// #lizard forgives
+{
     int fd;
     struct stat statbuf;
     pg_crc32 crc;
@@ -2054,7 +2147,7 @@ GTM_ControlDataInit(void)
         ControlData->gtm_control_version = GTM_CONTROL_VERSION;
         ControlData->xlog_seg_size       = GTM_XLOG_SEG_SIZE;
         ControlData->xlog_blcksz         = GTM_XLOG_BLCKSZ;
-        ControlData->state               = DB_SHUTDOWNED;
+        ControlData->state               = GTM_SHUTDOWNED;
         ControlData->CurrBytePos         = FIRST_USABLE_BYTE;
         ControlData->PrevBytePos         = FIRST_USABLE_BYTE;
         ControlData->thisTimeLineID      = FIRST_TIMELINE_ID;
@@ -2129,7 +2222,7 @@ GTM_ControlDataInit(void)
     return GTM_STORE_OK;
 
     fail_process:
-    if(fd > 0)
+    if(fd >= 0)
         close(fd);
     pfree(ControlData);
 
@@ -2161,11 +2254,11 @@ ControlDataSync(bool update_time)
 
     fd = open(GTM_CONTROL_FILE_TMP,O_WRONLY| O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
 
-    if (fd < 0)
-    {
-        elog(LOG, "ControlDataSync: fail to open file %s, err_msg %s", GTM_CONTROL_FILE_TMP, strerror(errno));
-        exit(1);
-    }
+	if (fd < 0)
+	{
+		elog(LOG, "ControlDataSync: fail to open file %s, err_msg %s", GTM_CONTROL_FILE_TMP, strerror(errno));
+		exit(1);
+	}
 
     nbyte = write(fd, ControlData, sizeof(ControlFileData));
 
@@ -2200,12 +2293,10 @@ strip(char *s)
     int tail = 0;
     int p = 0;
     int len = strlen(s);
-
     while(s[head] != '\0' && isblank(s[head]))
     {
         head++;
     }
-
     if( head == len )
     {
         s[0] = '\0';
@@ -2252,22 +2343,22 @@ skip_to_next(char *s,const char *token)
 static bool
 start_with_ignore_case(const char *s,const char *pattern) 
 {
-    int i = 0; 
-    for( i = 0; pattern[i] && s[i] ; i++)
-    {
-        if(toupper(pattern[i]) != toupper(s[i]))
-            return false;
-    }
+	int i = 0; 
+	for( i = 0; pattern[i] && s[i] ; i++)
+	{
+		if(toupper(pattern[i]) != toupper(s[i]))
+			return false;
+	}
 
-    return pattern[i] == '\0';
+	return pattern[i] == '\0';
 }
 
 /* Init sync replication data */
 void
 GTM_StandbyBaseinit(void)
 {
-    init_sync_structures();
-    load_sync_structures();
+	init_sync_structures();
+	load_sync_structures();
 }
 
 /* Print xlog command for debug */
@@ -2296,7 +2387,7 @@ PrintRedoTimestamp(XLogRecGts *cmd)
 /* Redo relative xlog command */
 static uint32
 RedoRangeOverwrite(XLogCmdRangerOverWrite *cmd)
-{// #lizard forgives
+{
     size_t nbytes;
 
     if(enalbe_gtm_xlog_debug)
@@ -2361,7 +2452,7 @@ RedoTimestamp(XLogRecGts *cmd)
 /* Redo one xlog record */
 static void
 RedoXLogRecord(XLogRecord *rec,XLogRecPtr pos)
-{// #lizard forgives
+{
     uint32   len;
     char    *data;
     uint32   cmd_size;
@@ -2384,7 +2475,6 @@ RedoXLogRecord(XLogRecord *rec,XLogRecPtr pos)
 
     if(enalbe_gtm_xlog_debug)
         elog(LOG,"recovery timestamp %lu",rec->xl_timestamp);
-
     last_timestamp = rec->xl_timestamp;
 
     data = (char *)rec + sizeof(XLogRecord);
@@ -2411,6 +2501,15 @@ RedoXLogRecord(XLogRecord *rec,XLogRecPtr pos)
 
         len  -= cmd_size;
         data += cmd_size;
+    }
+
+    if (ControlData->state == GTM_IN_OVERWRITE_DONE)
+    {
+        GTM_RWLockAcquire(&ControlDataLock, GTM_LOCKMODE_WRITE);
+        ControlData->state = GTM_IN_RECOVERY;
+        ControlDataSync(false);
+        
+        GTM_RWLockRelease(&ControlDataLock);
     }
 
 }
@@ -2472,7 +2571,7 @@ DoSlaveCheckPoint(bool write_check_point)
 /* Do checkpoint */
 void
 DoMasterCheckPoint(bool shutdown)
-{// #lizard forgives
+{
     int nbytes;
     int size;
     int write_start;
@@ -2504,7 +2603,7 @@ DoMasterCheckPoint(bool shutdown)
 
         write_start = i;
 
-        if( i == g_GTMStoreSize )
+        if(i == g_GTMStoreSize)
             break;
 
         size = 0;
@@ -2677,7 +2776,7 @@ XLogBytePosToEndRecPtr(uint64 byte)
 /*
  * Convert an XLogRecPtr to an "usable byte position".
  */
-static uint64
+uint64
 XLogRecPtrToBytePos(XLogRecPtr ptr)
 {
     uint64 page_offset = ptr % GTM_XLOG_BLCKSZ;
@@ -2752,6 +2851,9 @@ AppendXLogRegisterBuff(XLogRegisterBuff *buff,XLogRecData *data)
         buff->rdata_rear = data;
     }
     data->next = NULL;
+
+    if (buff->rdata_len > MAX_XLOG_RECORD_SIZE)
+    	elog(ERROR,"data in this record is too big:%u", buff->rdata_len);
 }
 
 /*
@@ -2882,9 +2984,7 @@ static void
 XLogSegmentGtsMaxUpdate(char *raw_xlog_data)
 {
     XLogRecord *record = (XLogRecord *)raw_xlog_data;
-
     Assert(record->xl_timestamp != InvalidGTS);
-    
     SpinLockAcquire(&XLogCtl->segment_gts_lck);
     if(XLogCtl->segment_max_gts <= record->xl_timestamp)
     {   
@@ -2893,7 +2993,6 @@ XLogSegmentGtsMaxUpdate(char *raw_xlog_data)
     }
     SpinLockRelease(&XLogCtl->segment_gts_lck);
 }
-
 /*
  * insert xlog checkpoint record into xlog
  */
@@ -2937,31 +3036,17 @@ XLogCheckPointInsert()
         elog(LOG,"Begin byte size %"PRIu64" %"PRIu64" %"PRIu64"",size,Insert->CurrBytePos,Insert->PrevBytePos);
     }
 
+    /* after forcibly switching XLogFile, CurrBytePos needs to be moved to the next file */
     byte_left = Insert->CurrBytePos % UsableBytesInSegment;
-    
+	startbytepos = Insert->CurrBytePos - byte_left + UsableBytesInSegment;
+	endbytepos   = startbytepos + size;
+	prevbytepos  = Insert->PrevBytePos;
 
-    if(byte_left == 0)
-    {
-        startbytepos = Insert->CurrBytePos;
-        endbytepos   = startbytepos + size;
-        prevbytepos  = Insert->PrevBytePos;
-
-        Insert->CurrBytePos = endbytepos;
-        Insert->PrevBytePos = startbytepos;
-    }
-    else
-    {
-        startbytepos = Insert->CurrBytePos - byte_left + UsableBytesInSegment;
-        endbytepos   = startbytepos + size;
-        prevbytepos  = Insert->PrevBytePos;
-
-        Insert->CurrBytePos = endbytepos;
-        Insert->PrevBytePos = startbytepos;
-    }
+	Insert->CurrBytePos = endbytepos;
+	Insert->PrevBytePos = startbytepos;
 
     rec->xl_timestamp = XLogCtl->segment_max_gts;
     rec->xl_time      = time(NULL);
-
     if(enalbe_gtm_xlog_debug)
     {
         elog(LOG,"End byte size %"PRIu64" %"PRIu64" %"PRIu64"",size,Insert->CurrBytePos,Insert->PrevBytePos);
@@ -2973,11 +3058,12 @@ XLogCheckPointInsert()
 
     UpdateInsertInfo(StartPos,EndPos);
 
+    
+
     rec->xl_prev = XLogBytePosToStartRecPtr(prevbytepos);
 
     if(rec->xl_prev % GTM_XLOG_BLCKSZ == 0)
         rec->xl_prev += sizeof(XLogPageHeaderData);
-
 
     /* Finish crc calculation */
     COMP_CRC32C(rec->xl_crc, rec,offsetof(XLogRecord, xl_crc));
@@ -2989,11 +3075,10 @@ XLogCheckPointInsert()
              (uint32)(rec->xl_prev >> 32),(uint32)rec->xl_prev,
              rec->xl_tot_len,
              rec->xl_crc);
-
     XLogSegmentGtsMaxUpdate(data);
-
     /* get xlog record with page header added */
     data_with_pageheader = XLogDataAddPageHeader(StartPos,data,&size);
+
     /* copy xlog record to xlog buff */
     CopyXLogRecordToBuff(data_with_pageheader,StartPos,EndPos,size);
 
@@ -3012,14 +3097,11 @@ static void ReleaseXLogRecordWriteLocks(void)
 {
     GTM_ThreadInfo *thr = GetMyThreadInfo;
     int i ;
-
     if(thr == NULL || thr->xlog_inserting == false)
         return ;
-
     thr->xlog_inserting = false;
     for(i = 0; i < thr->current_write_number;i++)
     {
-
         if(thr->write_counters[i] == 0 )
             GTM_RWLockRelease(thr->write_locks_hold[i]);
         else if(thr->write_counters[i] > 1)
@@ -3027,13 +3109,12 @@ static void ReleaseXLogRecordWriteLocks(void)
     }
     thr->current_write_number = 0;
 }
-
 /*
  * Insert a xlog record into xlog buff 
  */
 XLogRecPtr
 XLogInsert(void)
-{// #lizard forgives
+{
     char *data;
     char *data_with_pageheader;
     XLogCtlInsert *Insert = &XLogCtl->Insert;
@@ -3075,7 +3156,7 @@ XLogInsert(void)
     startbytepos = Insert->CurrBytePos;
     endbytepos   = startbytepos + size;
     prevbytepos  = Insert->PrevBytePos;
-    Insert->CurrBytePos = endbytepos  ;
+    Insert->CurrBytePos = endbytepos;
     Insert->PrevBytePos = startbytepos;
 
     rec->xl_timestamp = GetNextGlobalTimestamp();
@@ -3338,7 +3419,7 @@ XLogInCurrentSegment(XLogRecPtr pos)
  */
 static void
 XLogWrite(XLogRecPtr req)
-{// #lizard forgives
+{
     uint64  nleft;
     uint64  total_write;
     uint64  start_pos;
@@ -3608,7 +3689,7 @@ SetCurrentTimeLineID(TimeLineID timeline)
  * Open a already-exist xlog file
  */
 static void
-OpenXLogFile(XLogSegNo segment_no,XLogRecPtr flush)
+OpenXLogFile(XLogSegNo segment_no, XLogRecPtr flush)
 {
     char path_buff[MAXFNAMELEN];
     int fd;
@@ -3617,32 +3698,37 @@ OpenXLogFile(XLogSegNo segment_no,XLogRecPtr flush)
 
     timeline = GetCurrentTimeLineID();
 
-    GTMXLogFileName(path_buff,timeline,segment_no);
+    GTMXLogFileName(path_buff, timeline, segment_no);
 
     GTM_MutexLockAcquire(&XLogCtl->walwrite_lck);
 
-    if(XLogCtl->xlog_fd != 0)
-        close(XLogCtl->xlog_fd);
-
-    fd = open(path_buff, O_RDWR);
-    if(fd == -1)
+    if(XLogCtl->xlog_fd >= 0)
     {
-        elog(LOG,"Xlog %s fails to open : %s",path_buff,strerror(errno));
+        close(XLogCtl->xlog_fd);
+        XLogCtl->xlog_fd = -1;
+    }
+    fd = open(path_buff, O_RDWR);
+    if(fd < 0)
+    {
+        elog(LOG,"Xlog %s fails to open : %s", path_buff, strerror(errno));
         exit(1);
     }
 
     offset = flush % GTM_XLOG_SEG_SIZE;
 
-    if(lseek(fd,0,SEEK_SET) != 0)
+    if (ControlData->state != GTM_IN_OVERWRITE_DONE)
     {
-        elog(LOG,"Xlog %s fails to read %d : %s",path_buff,offset,strerror(errno));
-        exit(1);
-    }
+        if(lseek(fd, 0, SEEK_SET) != 0)
+        {
+            elog(LOG,"Xlog %s fails to read %d : %s",path_buff,offset,strerror(errno));
+            exit(1);
+        }
 
-    if(read(fd,XLogCtl->writerBuff,offset) != offset)
-    {
-        elog(LOG,"Xlog %s fails to read %d : %s",path_buff,offset,strerror(errno));
-        exit(1);
+        if(read(fd, XLogCtl->writerBuff, offset) != offset)
+        {
+            elog(LOG,"Xlog %s fails to read %d : %s",path_buff,offset,strerror(errno));
+            exit(1);
+        }
     }
 
     XLogCtl->last_write_idx = offset;
@@ -3663,13 +3749,15 @@ NewXLogFile(XLogSegNo segment_no)
 
     timeline = GetCurrentTimeLineID();
 
-    GTMXLogFileName(path_buff,timeline,segment_no);
+    GTMXLogFileName(path_buff,timeline, segment_no);
 
     GTM_MutexLockAcquire(&XLogCtl->walwrite_lck);
 
-    if(XLogCtl->xlog_fd != 0)
+    if(XLogCtl->xlog_fd >= 0)
+    {
         close(XLogCtl->xlog_fd);
-
+        XLogCtl->xlog_fd = -1;
+    }
     fd = open(path_buff, O_WRONLY| O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
     if(fd == -1)
     {
@@ -3684,7 +3772,7 @@ NewXLogFile(XLogSegNo segment_no)
     XLogCtl->xlog_fd = fd;
     XLogCtl->currentSegment = segment_no;
 
-    memset(XLogCtl->writerBuff,0,sizeof(XLogCtl->writerBuff));
+    memset(XLogCtl->writerBuff, 0, sizeof(XLogCtl->writerBuff));
 
     if(enalbe_gtm_xlog_debug)
     {
@@ -3700,26 +3788,20 @@ GenerateStatusFile(uint64 segment_no)
     char archiveStatusPath[MAXFNAMELEN];
     TimeLineID timeline  = FIRST_TIMELINE_ID;
     FILE *fp             = NULL;
-
     timeline = GetCurrentTimeLineID();
-
     GTMXLogFileStatusReadyName(archiveStatusPath,timeline,segment_no);
-
     fp = fopen(archiveStatusPath,"w");
-
     if(fp == NULL)
     {
         elog(LOG,"could not create archive status file \"%s\": %s",archiveStatusPath,strerror(errno));
         return;
     }
-
     if(fclose(fp) != 0)
     {
         elog(LOG,"could not write archive status file \"%s\": %s",archiveStatusPath,strerror(errno));
         exit(1);
     }
 }
-
 static void
 AddXLogGts(uint64 segment_no)
 {
@@ -3769,6 +3851,7 @@ SwitchXLogFile(void)
     current_segment = XLogCtl->currentSegment;
     GTM_RWLockRelease(&XLogCtl->segment_lck);
 
+
     if(Recovery_IsStandby())
     {
         allocated = GetStandbyWriteBuffPos();
@@ -3784,8 +3867,7 @@ SwitchXLogFile(void)
         allocated = XLogBytePosToEndRecPtr(allocated_bytes);
     }
 
-    XLogFlush(MIN((current_segment + 1) * GTM_XLOG_SEG_SIZE,allocated));
-
+    XLogFlush(MIN((current_segment + 1) * GTM_XLOG_SEG_SIZE, allocated));
     if(!Recovery_IsStandby())
         GenerateStatusFile(current_segment);
 
@@ -3830,7 +3912,7 @@ XLogCtlShutDown(void)
  */
 bool
 CopyXLogRecordToBuff(char *data,XLogRecPtr start,XLogRecPtr end,size_t size)
-{// #lizard forgives
+{
     uint64     write_pos;
     uint64     write_byte;
     XLogRecPtr finish_write_pos;
@@ -3878,6 +3960,9 @@ CopyXLogRecordToBuff(char *data,XLogRecPtr start,XLogRecPtr end,size_t size)
             write_pos = 0;
         }
     }
+
+
+
     Assert(write_pos % GTM_XLOG_SEG_SIZE == XLogRecPtrToBuffIdx(end));
 
     return true;
@@ -3965,11 +4050,21 @@ gtm_standby_resign_to_walsender(Port *port,const char *node_name,const char *rep
 
         if(replication->is_use == false)
         {
-	    	if(enalbe_gtm_xlog_debug)
-				elog(LOG,"gtm_standby_resign_to_walsender node_name:%s replication_name:%s",node_name,replication_name);
-			
+            if(enalbe_gtm_xlog_debug)
+            elog(LOG,"gtm_standby_resign_to_walsender node_name:%s replication_name:%s",node_name,replication_name);
+
             replication->is_use  = true ;
             replication->port    = port ;
+
+            /*
+             * node_name in the port is alloced by GTM_ThreadMain's TopMemoryContext, if GTM_ThreadMain exit,
+             * this address in GTM_ThreadWalSender may invalid, free here before transfer to walsender thread
+             */
+            if (replication->port->node_name != NULL)
+            {
+                pfree(replication->port->node_name);
+                replication->port->node_name = NULL;
+            }
 
             memcpy(replication->application_name,replication_name,strlen(replication_name) + 1);
             memcpy(replication->node_name,node_name,strlen(node_name) + 1);
@@ -3977,7 +4072,6 @@ gtm_standby_resign_to_walsender(Port *port,const char *node_name,const char *rep
             if(enable_sync_commit && IsInSyncStandbyList(replication_name))
             {
                 replication->is_sync = true;
-
 				GTM_MutexLockAcquire(&XLogSync->check_mutex);
                 RegisterNewSyncStandby(replication);
 				GTM_MutexLockRelease(&XLogSync->check_mutex);
@@ -4075,7 +4169,7 @@ GetMinReplicationRequiredLocation()
         GTM_MutexLockAcquire(&replication->lock);
         if(replication->is_use)
         {
-            tmp = GetReplicationSendRequestPtr(replication);
+            tmp = GetReplicationFlushPtr(replication);
 
             if(ret == InvalidXLogRecPtr || tmp < ret)
                 ret = tmp;
@@ -4085,35 +4179,31 @@ GetMinReplicationRequiredLocation()
 
     return ret;
 }
-
 /*
  * Check whether it's a sync standby.
  */
 bool
 IsInSyncStandbyList(const char *application_name)
 {
-    gtm_ListCell *cell = NULL;
+	gtm_ListCell *cell = NULL;
 
-    if(enalbe_gtm_xlog_debug)
+	if(enalbe_gtm_xlog_debug)
 		elog(LOG,"IsInSyncStandbyList %s",application_name);
 
 	GTM_MutexLockAcquire(&SyncConfig->lck);
+	gtm_foreach(cell,SyncConfig->sync_application_targets)
+	{
+		if(enalbe_gtm_xlog_debug)
+			elog(LOG,"IsInSyncStandbyList target %s",(char *)gtm_lfirst(cell));
 
-    gtm_foreach(cell,SyncConfig->sync_application_targets)
-    {
-        if(enalbe_gtm_xlog_debug)
-            elog(LOG,"IsInSyncStandbyList target %s",(char *)gtm_lfirst(cell));
-
-        if(strcmp((char *)gtm_lfirst(cell),application_name) == 0)
-        {
-        	
+		if(strcmp((char *)gtm_lfirst(cell),application_name) == 0)
+		{
 			GTM_MutexLockRelease(&SyncConfig->lck);
-            return true;
-        }
-    }
-
+			return true;
+		}
+	}
 	GTM_MutexLockRelease(&SyncConfig->lck);
-    return false;
+	return false;
 }
 
 bool
@@ -4127,10 +4217,8 @@ CheckSyncStandbyInList(char *application_name)
 		return true;
         }
     }
-
     return false;
 }
-
 /*
  * Register a new sync standby to XLogSync->sync_standbys.
  */
@@ -4143,8 +4231,10 @@ RegisterNewSyncStandby(GTM_StandbyReplication *replication)
 
     if(CheckSyncStandbyInList(replication->application_name))
     {
+		/*
+		 * Still append the newly incomming standby server.
+		 */
         elog(LOG,"Standby %s already exist in sync list",replication->application_name);
-	return ;
     }
 
     XLogSync->sync_standbys = gtm_lappend(XLogSync->sync_standbys,replication);
@@ -4160,7 +4250,6 @@ RegisterNewSyncStandby(GTM_StandbyReplication *replication)
         elog(LOG,"RegisterNewSyncStandby %s",replication->application_name);
 }
 
-
 /*
  * Remove a sync standby from XLogSync->sync_standbys.
  */
@@ -4175,31 +4264,25 @@ RemoveSyncStandby(GTM_StandbyReplication *replication)
 
     XLogSync->sync_standbys = gtm_list_delete(XLogSync->sync_standbys,replication);
     SyncReady = (gtm_list_length(XLogSync->sync_standbys) >= SyncConfig->required_sync_num);
-
     if(enalbe_gtm_xlog_debug)
         elog(LOG,"remove SyncReady %d current lenth %d requireed %d",SyncReady,gtm_list_length(XLogSync->sync_standbys), SyncConfig->required_sync_num);
-
     MemoryContextSwitchTo(oldContext);
 }
-
 void 
 clear_notify_queue(void)
 {
     XLogRecPtr *key    = NULL;
     XLogWaiter *waiter = NULL;
     int         ret    = 0;
-	
 	while(ret = heap_min(&XLogSync->wait_queue,(void **)&key,(void **)&waiter),ret)
     {
         heap_delmin(&XLogSync->wait_queue,(void **)&key,(void **)&waiter);
-
         GTM_MutexLockAcquire(&waiter->lock);
         waiter->finished = true;
         GTM_CVSignal(&waiter->cv);
         GTM_MutexLockRelease(&waiter->lock);
     }
 }
-
 void 
 init_standby_replication(void)
 {
@@ -4210,11 +4293,9 @@ init_standby_replication(void)
         elog(LOG,"memory insufficient");
         exit(1);
     }
-
     for(i = 0; i < max_wal_sender ; i++)
         gtm_init_replication_data(g_StandbyReplication + i);
 }
-
 void 
 init_syncconfig(void)
 {
@@ -4228,7 +4309,6 @@ init_syncconfig(void)
     SyncConfig->sync_application_targets = NULL;
     GTM_MutexLockInit(&SyncConfig->lck);
 }
-
 void 
 init_xlogsync(void)
 {
@@ -4240,29 +4320,25 @@ init_xlogsync(void)
     }
     XLogSync->head_xlog_hints = 0;
     XLogSync->head_ptr = InvalidXLogRecPtr;
+    XLogSync->synced_lsn = InvalidXLogRecPtr;
     XLogSync->sync_standbys = NULL;
     heap_create(&XLogSync->wait_queue,0,XLogRecPtrCompLess);
     GTM_MutexLockInit(&XLogSync->check_mutex);
     GTM_MutexLockInit(&XLogSync->wait_queue_mutex);
 }
-
 void 
 clear_syncconfig(void)
 {
 	gtm_ListCell *lc = NULL;
-		
 	gtm_foreach(lc, SyncConfig->sync_application_targets)
 	{
 		free((char *)gtm_lfirst(lc));
 	}
 	gtm_list_free(SyncConfig->sync_application_targets);
-	
 	SyncConfig->sync_application_targets = NULL;
 	SyncConfig->required_sync_num = 0;
-
 	return ;
 }
-
 void 
 load_syncconfig(void)
 {
@@ -4271,19 +4347,16 @@ load_syncconfig(void)
     char *stop = NULL;
     int  sync_standby_num = 0;
     bool any_mode = false;
-
     MemoryContext oldContext;
 
 	GTM_MutexLockAcquire(&SyncConfig->lck);
 
 	clear_syncconfig();
-
 	if(!enable_sync_commit)
 	{
 		GTM_MutexLockRelease(&SyncConfig->lck);
 		return ;
 	}
-
 	oldContext = MemoryContextSwitchTo(TopMostMemoryContext);
 
 	original_sync_names = pstrdup(synchronous_standby_names);
@@ -4295,7 +4368,7 @@ load_syncconfig(void)
         sync_names += 3;
 		sync_names = strip(sync_names);
 
-        SyncConfig->required_sync_num = strtol(sync_names,&stop,10);
+        SyncConfig->required_sync_num = strtol(sync_names,&stop, 10);
 
         if(stop == sync_names)
         {
@@ -4305,16 +4378,16 @@ load_syncconfig(void)
 
 		sync_names = stop;
 
-		elog(LOG,"sync mode any %d",SyncConfig->required_sync_num);
+		elog(LOG,"sync mode any %d", SyncConfig->required_sync_num);
 
         sync_names = skip_to_next(sync_names,"("BLANK_CHARACTERS);
     }
 
     stop = NULL;
-    while(sync_names = strtok_r(sync_names,",)"BLANK_CHARACTERS,&stop),sync_names)
+    while(sync_names = strtok_r(sync_names, ",)"BLANK_CHARACTERS,&stop), sync_names)
     {
-        SyncConfig->sync_application_targets = gtm_lappend(SyncConfig->sync_application_targets,(void *)strdup(sync_names));
-		elog(LOG,"sync target %s",sync_names);
+        SyncConfig->sync_application_targets = gtm_lappend(SyncConfig->sync_application_targets, (void *)strdup(sync_names));
+		elog(LOG,"sync target %s", sync_names);
         sync_standby_num++;
 		sync_names = NULL;
     }
@@ -4322,10 +4395,10 @@ load_syncconfig(void)
     if(!any_mode)
         SyncConfig->required_sync_num = sync_standby_num;
 	
-    elog(LOG,"sync slave number %d",SyncConfig->required_sync_num);
+    elog(LOG,"sync slave number %d", SyncConfig->required_sync_num);
 
     if(SyncConfig->required_sync_num == 0)
-	enable_sync_commit = false;
+        enable_sync_commit = false;
 
     pfree(original_sync_names);
     MemoryContextSwitchTo(oldContext);
@@ -4402,4 +4475,3 @@ load_sync_structures(void)
 	load_syncconfig();
 	load_xlogsync();
 }
-

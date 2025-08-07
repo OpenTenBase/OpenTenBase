@@ -1,0 +1,14 @@
+SET client_min_messages = error;
+SET
+create default node group default_group with ("dn1", "dn2", "dn3");
+CREATE NODE GROUP
+create sharding group to group default_group;
+CREATE SHARDING GROUP
+clean sharding;
+CLEAN SHARDING
+create table t(a int, b int);
+CREATE TABLE
+insert into t select generate_series(1,100);
+INSERT 0 100
+analyze t;
+ERROR:  (XX000) hit stub on execute_update_stat

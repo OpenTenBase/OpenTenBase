@@ -19,88 +19,119 @@
 #include "postgres_fe.h"
 
 #include "pg_regress.h"
-
+#define VTSCACHE_SUFFIX "_vtscache"
 /*
  * start a psql test process for specified file (including redirection),
  * and return process ID
  */
 static PID_TYPE
 psql_start_test(const char *testname,
-                _stringlist **resultfiles,
-                _stringlist **expectfiles,
-                _stringlist **tags)
+				_stringlist **resultfiles,
+				_stringlist **expectfiles,
+				_stringlist **tags)
 {
-    PID_TYPE    pid;
-    char        infile[MAXPGPATH];
-    char        outfile[MAXPGPATH];
-    char        expectfile[MAXPGPATH];
-    char        psql_cmd[MAXPGPATH * 3];
-    size_t        offset = 0;
-    char       *appnameenv;
+	PID_TYPE	pid;
+	char		infile[MAXPGPATH];
+	char		outfile[MAXPGPATH];
+	char		expectfile[MAXPGPATH];
+	char		testname_without_vtscache_suffix[MAXPGPATH];
+	char		guc_param[MAXPGPATH] = {0};
+	char		psql_cmd[MAXPGPATH * 3];
+	size_t		offset = 0;
+	char	   *appnameenv;
+	if (strlen(testname) > strlen(VTSCACHE_SUFFIX) &&
+		 strcmp(testname + (strlen(testname) - strlen(VTSCACHE_SUFFIX)), VTSCACHE_SUFFIX)  == 0)
+	{
+		strncpy(testname_without_vtscache_suffix, testname, strlen(testname) - strlen(VTSCACHE_SUFFIX));
+		testname_without_vtscache_suffix[strlen(testname) - strlen(VTSCACHE_SUFFIX)] = 0;
+		sprintf(guc_param, " -c \"set enable_vtscache_plan = on;set enable_partition_iterator = off;\" ");
+	}
+	else 
+	{
+		strcpy(testname_without_vtscache_suffix, testname);
+	}
 
-    /*
-     * Look for files in the output dir first, consistent with a vpath search.
-     * This is mainly to create more reasonable error messages if the file is
-     * not found.  It also allows local test overrides when running pg_regress
-     * outside of the source tree.
-     */
-    snprintf(infile, sizeof(infile), "%s/sql/%s.sql",
-             outputdir, testname);
-    if (!file_exists(infile))
-        snprintf(infile, sizeof(infile), "%s/sql/%s.sql",
-                 inputdir, testname);
+	/*
+	 * Look for files in the output dir first, consistent with a vpath search.
+	 * This is mainly to create more reasonable error messages if the file is
+	 * not found.  It also allows local test overrides when running pg_regress
+	 * outside of the source tree.
+	 */
+	snprintf(infile, sizeof(infile), "%s/sql/%s.sql",
+			 outputdir, testname_without_vtscache_suffix);
+	if (!file_exists(infile))
+	{
+		snprintf(infile, sizeof(infile), "%s/sql/%s.sql",
+				 inputdir, testname_without_vtscache_suffix);
+		if (!file_exists(infile))
+			snprintf(infile, sizeof(infile), "%s/sql2/%s.sql",
+					outputdir, testname);
+	}
 
-    snprintf(outfile, sizeof(outfile), "%s/results/%s.out",
-             outputdir, testname);
+	snprintf(outfile, sizeof(outfile), "%s/results/%s.out",
+			 outputdir, testname);
 
-    snprintf(expectfile, sizeof(expectfile), "%s/expected/%s.out",
-             outputdir, testname);
-    if (!file_exists(expectfile))
-        snprintf(expectfile, sizeof(expectfile), "%s/expected/%s.out",
-                 inputdir, testname);
+	snprintf(expectfile, sizeof(expectfile), "%s/expected/%s.out",
+			 outputdir, testname);
+	if (!file_exists(expectfile))
+	{
+		snprintf(expectfile, sizeof(expectfile), "%s/expected/%s.out",
+				 inputdir, testname);
+		if (!file_exists(expectfile))
+			snprintf(expectfile, sizeof(expectfile), "%s/expected_opensource/%s.out",
+					outputdir, testname);
+	}
 
-    add_stringlist_item(resultfiles, outfile);
-    add_stringlist_item(expectfiles, expectfile);
+	add_stringlist_item(resultfiles, outfile);
+	add_stringlist_item(expectfiles, expectfile);
 
-    if (launcher)
-        offset += snprintf(psql_cmd + offset, sizeof(psql_cmd) - offset,
-                           "%s ", launcher);
+	if (launcher)
+		offset += snprintf(psql_cmd + offset, sizeof(psql_cmd) - offset,
+						   "%s ", launcher);
 
-    appnameenv = psprintf("PGAPPNAME=pg_regress/%s", testname);
-    putenv(appnameenv);
+	appnameenv = psprintf("PGAPPNAME=pg_regress/%s", testname);
+	putenv(appnameenv);
+	if (strlen(guc_param) == 0)
+		snprintf(psql_cmd + offset, sizeof(psql_cmd) - offset,
+		 "\"%s%spsql\" -X -a -q -d \"%s\" < \"%s\" > \"%s\" 2>&1",
+		 bindir ? bindir : "",
+		 bindir ? "/" : "",
+		 dblist->str,
+		 infile,
+		 outfile);
+	else
+		snprintf(psql_cmd + offset, sizeof(psql_cmd) - offset,
+		 "\"%s%spsql\" -X -a -q -d \"%s\" %s -f \"%s\" > \"%s\" 2>&1",
+		 bindir ? bindir : "",
+		 bindir ? "/" : "",
+		 dblist->str,
+		 guc_param,
+		 infile,
+		 outfile);
+	pid = spawn_process(psql_cmd);
 
-    snprintf(psql_cmd + offset, sizeof(psql_cmd) - offset,
-             "\"%s%spsql\" -X -a -q -d \"%s\" < \"%s\" > \"%s\" 2>&1",
-             bindir ? bindir : "",
-             bindir ? "/" : "",
-             dblist->str,
-             infile,
-             outfile);
+	if (pid == INVALID_PID)
+	{
+		fprintf(stderr, _("could not start process for test %s\n"),
+				testname);
+		exit(2);
+	}
 
-    pid = spawn_process(psql_cmd);
+	unsetenv("PGAPPNAME");
+	free(appnameenv);
 
-    if (pid == INVALID_PID)
-    {
-        fprintf(stderr, _("could not start process for test %s\n"),
-                testname);
-        exit(2);
-    }
-
-    unsetenv("PGAPPNAME");
-    free(appnameenv);
-
-    return pid;
+	return pid;
 }
 
 static void
 psql_init(int argc, char **argv)
 {
-    /* set default regression database name */
-    add_stringlist_item(&dblist, "regression");
+	/* set default regression database name */
+	add_stringlist_item(&dblist, "regression");
 }
 
 int
 main(int argc, char *argv[])
 {
-    return regression_main(argc, argv, psql_init, psql_start_test);
+	return regression_main(argc, argv, psql_init, psql_start_test);
 }

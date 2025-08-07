@@ -1,0 +1,84 @@
+--test dictionary_obj_name in alter/drop procedure or type
+\c regression_ora
+set enable_datanode_row_triggers to on;
+
+create schema trigger_test_schema;
+create user trigger_test_user;
+drop procedure trigger_test_pro(a in int);
+create or REPLACE procedure trigger_test_pro(a in int) as
+begin
+perform DBMS_OUTPUT.serveroutput('t');
+  perform DBMS_OUTPUT.put_line(a);
+end;
+/
+drop type trigger_test_type;
+CREATE TYPE trigger_test_type AS OBJECT
+    ( customer_id        NUMBER(6)
+    , cust_first_name    VARCHAR2(20)
+    , nls_language       VARCHAR2(3)
+    , nls_territory      VARCHAR2(30)
+    , credit_limit       NUMBER(9,2)
+    , cust_email         VARCHAR2(30)
+    , cust_orders        text
+    ) ;
+    
+drop table if exists history;
+create table history (v1 varchar2(20),v2 varchar2(200),v3 varchar2(200) );
+
+drop event trigger if exists ddl_trigger;
+create  trigger ddl_trigger  after ALTER OR CREATE OR DROP on database  begin
+  if dictionary_obj_name != 'history' THEN
+    insert into history values(sysevent, dictionary_obj_type, dictionary_obj_name);
+  END IF;
+end;
+/
+alter procedure trigger_test_pro set schema trigger_test_schema;
+alter TYPE trigger_test_type owner to trigger_test_user;
+drop procedure trigger_test_schema.trigger_test_pro;
+select * from history;
+
+drop procedure trigger_test_pro;
+drop type trigger_test_type;
+drop event trigger ddl_trigger;
+drop user trigger_test_user;
+drop schema trigger_test_schema;
+
+-- trigger support subtransaction
+drop table if exists tb1 cascade;
+drop table if exists tb3 cascade;
+drop function if exists fun_fbjfyj();
+create table tb1(a int, b int, c1 varchar(50), c2 varchar(50) COLLATE "pg_catalog"."default", primary key(c1));
+create table tb3(
+    a int,
+    d1 varchar(18) COLLATE "pg_catalog"."default",
+    d2 varchar(600) COLLATE "pg_catalog"."default"
+);
+CREATE OR REPLACE FUNCTION fun_fbjfyj()
+  RETURNS trigger AS $BODY$
+    DECLARE
+        TF              integer :=0;
+    BEGIN
+        begin
+            select NVL2(MAX(a), '1', '0') INTO TF from tb1 where a = 7;
+            IF TF = '1' THEN RETURN new; END IF;
+            new.d1 := '11';
+            new.d2 := '111';
+            insert into tb1 values(12, 12, new.d1, new.d2);
+        end;
+        RETURN new;
+exception
+    when others then
+    return new;
+    END
+$BODY$
+LANGUAGE default_plsql VOLATILE
+COST 100;
+create trigger tb3_insert after insert on tb3
+FOR EACH ROW
+EXECUTE PROCEDURE fun_fbjfyj();
+insert into tb3 values(1, '11', '111'), (2, '22', '222'), (3,'33','333');
+insert into tb3 values(1, '11', '111'), (2, '22', '222'), (3,'33','333');
+select count(*) from tb3;
+drop table tb1 cascade;
+drop table tb3 cascade;
+drop function fun_fbjfyj();

@@ -8,9 +8,6 @@
  * Portions Copyright (c) 1994, Regents of the University of California
  * Portions Copyright (c) 2010-2012 Postgres-XC Development Group
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * $PostgreSQL$
  *
  *-------------------------------------------------------------------------
@@ -127,9 +124,32 @@ typedef enum GTM_MessageType
 #ifdef __OPENTENBASE__
     MSG_GET_STATISTICS,
     MSG_GET_ERRORLOG,
+#endif	
+#ifdef __OPENTENBASE_C__
+	MSG_ACQUIRE_FID,
+	MSG_RELEASE_FID,
+	MSG_RELEASE_NODE_FID,
+	MSG_KEEPALIVE_FID,
+	MSG_LIST_FID,
+	MSG_LIST_ALIVE_FID,
+	MSG_LIST_ALL_FID,
 #endif
     MSG_SEQUENCE_COPY,
 
+#ifdef __RESOURCE_QUEUE__
+	MSG_RESQUEUE_INIT,			/* Initialize a new global resqueue */
+	MSG_RESQUEUE_CLOSE,			/* Close a previously inited resqueue */
+	MSG_RESQUEUE_ALTER,			/* Alter a resqueue */
+	MSG_RESQUEUE_LIST,			/* Get a list of resqueues */
+	MSG_RESQUEUE_MOVE_CONN,		/* Just dispatch connect to ResourceQueueManager */
+	MSG_RESQUEUE_ACQUIRE,		/* Acqurie resource from resqueue, Do real acquire resource from ResourceQueueManager */
+	MSG_RESQUEUE_RELEASE,		/* Release resource back to resqueue */
+	MSG_RESQUEUE_IF_EXISTS,		/* Check whether the resource queue exists */
+
+	MSG_LIST_GTM_STORE_RESQUEUE,			/* List  gtm running resqueue info */
+	MSG_CHECK_GTM_STORE_RESQUEUE,			/* Check gtm resqueue usage info */
+	MSG_LIST_RESQUEUE_USAGE,				/* list usage info of resource queue */
+#endif
 	/*
 	 * Must be at the end
 	 */
@@ -216,7 +236,32 @@ typedef enum GTM_ResultType
     MSG_GET_GTM_STATISTICS_RESULT,
     MSG_GET_GTM_ERRORLOG_RESULT,
 #endif
-    SEQUENCE_COPY_RESULT,
+	SEQUENCE_COPY_RESULT,
+
+#ifdef __OPENTENBASE_C__
+	MSG_ACQUIRE_FID_RESULT,
+	MSG_RELEASE_FID_RESULT,
+	MSG_KEEPALIVE_FID_RESULT,
+	MSG_LIST_FID_RESULT,
+	MSG_LIST_ALIVE_FID_RESULT,
+	MSG_LIST_ALL_FID_RESULT,
+#endif
+
+#ifdef __RESOURCE_QUEUE__
+	RESQUEUE_INIT_RESULT,
+	RESQUEUE_CLOSE_RESULT,
+	RESQUEUE_ALTER_RESULT,
+	RESQUEUE_LIST_RESULT,
+	RESQUEUE_MOVE_CONN_RESULT,
+	RESQUEUE_ACQUIRE_RESULT,
+	RESQUEUE_RELEASE_RESULT,
+	RESQUEUE_IF_EXISTS_RESULT,
+
+	MSG_LIST_GTM_STORE_RESQUEUE_RESULT,		/* List  gtm running resqueue info */
+	MSG_CHECK_GTM_RESQUEUE_STORE_RESULT,	/* Check gtm resqueue usage info */
+	MSG_LIST_RESQUEUE_USAGE_RESULT,			/* list usage info of resource queue */
+#endif
+
 	RESULT_TYPE_COUNT
 } GTM_ResultType;
 

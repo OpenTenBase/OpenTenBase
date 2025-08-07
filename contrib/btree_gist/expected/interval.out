@@ -72,16 +72,17 @@ SELECT count(*) FROM intervaltmp WHERE a >  '199 days 21:21:23'::interval;
    270
 (1 row)
 
-EXPLAIN (COSTS OFF)
+EXPLAIN (COSTS OFF, NODES OFF)
 SELECT a, a <-> '199 days 21:21:23' FROM intervaltmp ORDER BY a <-> '199 days 21:21:23' LIMIT 3;
                                       QUERY PLAN                                       
 ---------------------------------------------------------------------------------------
  Limit
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
+   ->  Remote Subquery Scan on all (datanodes 2)
+         Sort Key: (a <-> '@ 199 days 21 hours 21 mins 23 secs'::interval)
          ->  Limit
                ->  Index Only Scan using intervalidx on intervaltmp
                      Order By: (a <-> '@ 199 days 21 hours 21 mins 23 secs'::interval)
-(5 rows)
+(6 rows)
 
 SELECT a, a <-> '199 days 21:21:23' FROM intervaltmp ORDER BY a <-> '199 days 21:21:23' LIMIT 3;
                   a                  |               ?column?               
@@ -92,16 +93,17 @@ SELECT a, a <-> '199 days 21:21:23' FROM intervaltmp ORDER BY a <-> '199 days 21
 (3 rows)
 
 SET enable_indexonlyscan=off;
-EXPLAIN (COSTS OFF)
+EXPLAIN (COSTS OFF, NODES OFF)
 SELECT a, a <-> '199 days 21:21:23' FROM intervaltmp ORDER BY a <-> '199 days 21:21:23' LIMIT 3;
                                       QUERY PLAN                                       
 ---------------------------------------------------------------------------------------
  Limit
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
+   ->  Remote Subquery Scan on all (datanodes 2)
+         Sort Key: (a <-> '@ 199 days 21 hours 21 mins 23 secs'::interval)
          ->  Limit
                ->  Index Scan using intervalidx on intervaltmp
                      Order By: (a <-> '@ 199 days 21 hours 21 mins 23 secs'::interval)
-(5 rows)
+(6 rows)
 
 SELECT a, a <-> '199 days 21:21:23' FROM intervaltmp ORDER BY a <-> '199 days 21:21:23' LIMIT 3;
                   a                  |               ?column?               

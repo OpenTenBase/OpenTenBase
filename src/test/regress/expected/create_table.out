@@ -215,6 +215,11 @@ CREATE TABLE IF NOT EXISTS test_tsvector(
 	t text
 );
 NOTICE:  relation "test_tsvector" already exists, skipping
+-- invalid: non-lowercase quoted reloptions identifiers
+CREATE TABLE tas_case WITH ("Fillfactor" = 10) AS SELECT 1 a;
+ERROR:  unrecognized parameter "Fillfactor"
+CREATE TABLE tas_case (a text) WITH ("Oids" = true);
+ERROR:  unrecognized parameter "Oids"
 CREATE UNLOGGED TABLE unlogged1 (a int primary key);			-- OK
 CREATE TEMPORARY TABLE unlogged2 (a int primary key);			-- OK
 SELECT relname, relkind, relpersistence FROM pg_class WHERE relname ~ '^unlogged\d' ORDER BY relname;
@@ -261,6 +266,16 @@ NOTICE:  relation "as_select1" already exists, skipping
 --CREATE TABLE as_select1 AS SELECT * FROM pg_attribute WHERE attstorage = 'p';
 --CREATE TABLE IF NOT EXISTS as_select1 AS SELECT * FROM pg_attribute WHERE attstorage = 'p';
 DROP TABLE as_select1;
+-- create an extra wide table to test for issues related to that
+-- (temporarily hide query, to avoid the long CREATE TABLE stmt)
+\set ECHO none
+INSERT INTO extra_wide_table(firstc, lastc) VALUES('first col', 'last col');
+SELECT firstc, lastc FROM extra_wide_table;
+  firstc   |  lastc   
+-----------+----------
+ first col | last col
+(1 row)
+
 -- check that the oid column is added before the primary key is checked
 CREATE TABLE oid_pk (f1 INT, PRIMARY KEY(oid)) WITH OIDS;
 DROP TABLE oid_pk;
@@ -311,12 +326,12 @@ DROP FUNCTION retset(int);
 CREATE TABLE partitioned (
 	a int
 ) PARTITION BY RANGE ((avg(a)));
-ERROR:  aggregate functions are not allowed in partition key expression
+ERROR:  aggregate functions are not allowed in partition key expressions
 CREATE TABLE partitioned (
 	a int,
 	b int
 ) PARTITION BY RANGE ((avg(a) OVER (PARTITION BY b)));
-ERROR:  window functions are not allowed in partition key expression
+ERROR:  window functions are not allowed in partition key expressions
 CREATE TABLE partitioned (
 	a int
 ) PARTITION BY LIST ((a LIKE (SELECT 1)));
@@ -366,7 +381,7 @@ ERROR:  partition key expressions cannot contain whole-row references
 CREATE TABLE partitioned (
 	a point
 ) PARTITION BY LIST (a);
-ERROR:  data type point has no default btree operator class
+ERROR:  data type point has no default operator class for access method "btree"
 HINT:  You must specify a btree operator class or define a default btree operator class for the data type.
 CREATE TABLE partitioned (
 	a point
@@ -375,7 +390,7 @@ ERROR:  operator class "point_ops" does not exist for access method "btree"
 CREATE TABLE partitioned (
 	a point
 ) PARTITION BY RANGE (a);
-ERROR:  data type point has no default btree operator class
+ERROR:  data type point has no default operator class for access method "btree"
 HINT:  You must specify a btree operator class or define a default btree operator class for the data type.
 CREATE TABLE partitioned (
 	a point
@@ -791,7 +806,7 @@ CREATE TABLE part_c_1_10 PARTITION OF part_c FOR VALUES FROM (1) TO (10);
  a      | text    |           |          |         | extended |              | 
  b      | integer |           | not null | 1       | plain    |              | 
 Partition of: parted FOR VALUES IN ('b')
-Partition constraint: ((a IS NOT NULL) AND (a = ANY (ARRAY['b'::text])))
+Partition constraint: ((a IS NOT NULL) AND (a = 'b'::text))
 Check constraints:
     "check_a" CHECK (length(a) > 0)
     "part_b_b_check" CHECK (b >= 0)
@@ -806,7 +821,7 @@ Location Nodes: ALL DATANODES
  a      | text    |           |          |         | extended |              | 
  b      | integer |           | not null | 0       | plain    |              | 
 Partition of: parted FOR VALUES IN ('c')
-Partition constraint: ((a IS NOT NULL) AND (a = ANY (ARRAY['c'::text])))
+Partition constraint: ((a IS NOT NULL) AND (a = 'c'::text))
 Partition key: RANGE (b)
 Check constraints:
     "check_a" CHECK (length(a) > 0)
@@ -822,7 +837,7 @@ Location Nodes: ALL DATANODES
  a      | text    |           |          |         | extended |              | 
  b      | integer |           | not null | 0       | plain    |              | 
 Partition of: part_c FOR VALUES FROM (1) TO (10)
-Partition constraint: ((a IS NOT NULL) AND (a = ANY (ARRAY['c'::text])) AND (b IS NOT NULL) AND (b >= 1) AND (b < 10))
+Partition constraint: ((a IS NOT NULL) AND (a = 'c'::text) AND (b IS NOT NULL) AND (b >= 1) AND (b < 10))
 Check constraints:
     "check_a" CHECK (length(a) > 0)
 Distribute By: HASH(a)
@@ -933,6 +948,20 @@ Distribute By: HASH(a)
 Location Nodes: ALL DATANODES
 
 DROP TABLE parted_col_comment;
+-- list partitioning on array type column
+CREATE TABLE arrlp (a int[]) PARTITION BY LIST (a);
+CREATE TABLE arrlp12 PARTITION OF arrlp FOR VALUES IN ('{1}', '{2}');
+\d+ arrlp12
+                                   Table "public.arrlp12"
+ Column |   Type    | Collation | Nullable | Default | Storage  | Stats target | Description 
+--------+-----------+-----------+----------+---------+----------+--------------+-------------
+ a      | integer[] |           |          |         | extended |              | 
+Partition of: arrlp FOR VALUES IN ('{1}', '{2}')
+Partition constraint: ((a IS NOT NULL) AND (((a)::anyarray OPERATOR(pg_catalog.=) '{1}'::integer[]) OR ((a)::anyarray OPERATOR(pg_catalog.=) '{2}'::integer[])))
+Distribute By: REPLICATION
+Location Nodes: ALL DATANODES
+
+DROP TABLE arrlp;
 -- partition on boolean column
 create table boolspart (a bool) partition by list (a);
 create table boolspart_t partition of boolspart for values in (true);
@@ -949,6 +978,17 @@ Distribute By: HASH(a)
 Location Nodes: ALL DATANODES
 
 drop table boolspart;
+-- partitions mixing temporary and permanent relations
+create table perm_parted (a int) partition by list (a);
+create temporary table temp_parted (a int) partition by list (a);
+create table perm_part partition of temp_parted default; -- error
+ERROR:  cannot create a permanent relation as partition of temporary relation "temp_parted"
+create temp table temp_part partition of perm_parted default; -- error
+ERROR:  cannot create a temporary relation as partition of permanent relation "perm_parted"
+create temp table temp_part partition of temp_parted default; -- ok
+drop table perm_parted cascade;
+drop table temp_parted cascade;
+-- OPENTENBASE
 drop function if exists create_multi_tables1(integer, varchar);
 NOTICE:  function create_multi_tables1(pg_catalog.int4,pg_catalog.varchar) does not exist, skipping
 CREATE OR REPLACE FUNCTION create_multi_tables1(table_num_in integer, table_sql varchar) RETURNS void
@@ -1024,3 +1064,551 @@ NOTICE:  finished .....
 
 DROP FUNCTION create_multi_tables1;
 DROP FUNCTION del_multi_table1;
+-- 1020421696090509239
+drop table if exists t_src;
+NOTICE:  table "t_src" does not exist, skipping
+drop procedure if exists p_test(inout res varchar);
+NOTICE:  procedure p_test(pg_catalog.varchar) does not exist, skipping
+create table t_src
+       (empno numeric(4) constraint pk_emp primary key,
+        ename varchar(10),
+        job varchar(9),
+        mgr numeric(4),
+        hiredate date,
+        sal numeric(7,2),
+        comm numeric(7,2),
+        deptno numeric(2));
+insert into t_src values
+(7369,'smith','clerk',7902,to_date('17-12-1980','dd-mm-yyyy'),800,null,20);
+insert into t_src values
+(7499,'allen','salesman',7698,to_date('20-2-1981','dd-mm-yyyy'),1600,300,30);
+insert into t_src values
+(7521,'ward','salesman',7698,to_date('22-2-1981','dd-mm-yyyy'),1250,500,30);
+insert into t_src values
+(7566,'jones','manager',7839,to_date('2-4-1981','dd-mm-yyyy'),2975,null,20);
+insert into t_src values
+(7654,'martin','salesman',7698,to_date('28-9-1981','dd-mm-yyyy'),1250,1400,30);
+insert into t_src values
+(7698,'blake','manager',7839,to_date('1-5-1981','dd-mm-yyyy'),2850,null,30);
+insert into t_src values
+(7782,'clark','manager',7839,to_date('9-6-1981','dd-mm-yyyy'),2450,null,10);
+insert into t_src values
+(7788,'scott','analyst',7566,to_date('19-04-1987','dd-mm-yyyy'),3000,null,20);
+insert into t_src values
+(7839,'king','president',null,to_date('17-11-1981','dd-mm-yyyy'),5000,null,10);
+insert into t_src values
+(7844,'turner','salesman',7698,to_date('8-9-1981','dd-mm-yyyy'),1500,0,30);
+insert into t_src values
+(7876,'adams','clerk',7788,to_date('23-05-1987', 'dd-mm-yyyy'),1100,null,20);
+insert into t_src values
+(7900,'james','clerk',7698,to_date('3-12-1981','dd-mm-yyyy'),950,null,30);
+insert into t_src values
+(7902,'ford','analyst',7566,to_date('3-12-1981','dd-mm-yyyy'),3000,null,20);
+insert into t_src values
+(7934,'miller','clerk',7782,to_date('23-1-1982','dd-mm-yyyy'),1300,null,10);
+create or replace procedure p_test(inout res varchar)
+    language plpgsql
+    as $$
+declare
+num numeric ;
+v1 t_src.empno%type;
+begin
+    res:='ok';
+    drop table if exists t_dst;
+    create table t_dst as select empno,sal from t_src;
+    select empno from t_src where empno='7788' into v1;
+    raise notice '%',v1;
+exception
+    when others then
+        raise notice '%',sqlerrm;
+end;
+$$;
+call p_test('');
+NOTICE:  table "t_dst" does not exist, skipping
+NOTICE:  7788
+ res 
+-----
+ ok
+(1 row)
+
+select count(*) from t_src;
+ count 
+-------
+    14
+(1 row)
+
+select count(*) from t_dst;
+ count 
+-------
+    14
+(1 row)
+
+drop procedure p_test(inout res varchar);
+-- The original snapshot status must be maintained in CTAS process snapshot replacement.
+drop function if exists f_ctas_subabort(last_number numeric );
+NOTICE:  function f_ctas_subabort(pg_catalog.numeric) does not exist, skipping
+create or replace function f_ctas_subabort(last_number numeric ) returns varchar
+    language plpgsql
+    as $$
+declare
+v1 numeric ;
+res varchar(20):='ok';
+begin
+   drop table if exists t_dst_subabort;
+   create table t_dst_subabort as select * from t_src;
+   RAISE EXCEPTION 'xxx > 0' USING ERRCODE = 'division_by_zero';
+   return res;
+exception
+    when others then
+        raise notice '%',sqlerrm;
+        return null;
+end;
+$$;
+select f_ctas_subabort(1);
+NOTICE:  table "t_dst_subabort" does not exist, skipping
+NOTICE:  xxx > 0
+ f_ctas_subabort 
+-----------------
+ 
+(1 row)
+
+drop function f_ctas_subabort(last_number numeric );
+drop table t_src;
+drop table t_dst;
+-- https://github.com/Tencent/OpenTenBase/issues/83
+drop table if exists r;
+NOTICE:  table "r" does not exist, skipping
+drop table if exists  r2;
+NOTICE:  table "r2" does not exist, skipping
+drop table if exists  s;
+NOTICE:  table "s" does not exist, skipping
+Drop table if exists  tb1;
+NOTICE:  table "tb1" does not exist, skipping
+drop table if exists  mv_r_s_1;
+NOTICE:  table "mv_r_s_1" does not exist, skipping
+drop table if exists  mv_r_s_3;
+NOTICE:  table "mv_r_s_3" does not exist, skipping
+Drop FUNCTION if exists  getr_text(id integer);
+NOTICE:  function getr_text(pg_catalog.int4) does not exist, skipping
+Drop FUNCTION if exists  getmaincatalog_tst();
+NOTICE:  function getmaincatalog_tst() does not exist, skipping
+create table r distribute by replication as select i i, i || '_val'::text itxt from generate_series(1,5) i;
+create table r2 distribute by replication as select i i, i || '_val'::text itxt from generate_series(1,5) I;
+CREATE OR REPLACE FUNCTION getr_text(id integer)
+ RETURNS text
+ LANGUAGE sql
+ IMMUTABLE
+ parallel safe
+AS $function$
+    select itxt from r2 where i = id;
+$function$;
+create table s (id int primary key, val text) distribute by shard(id) ;
+insert into s  select id, id|| '_val' idval from generate_series(1,3) id;
+Select count(*) from s;
+ count 
+-------
+     3
+(1 row)
+
+-- this works
+create  table mv_r_s_1 as 
+select s.*,r.*, getr_text(r.i),  getr_text(s.id) d2 from
+r right outer join s on (getr_text(r.i) = s.val) limit 0;
+Select count(*) from mv_r_s_1;
+ count 
+-------
+     0
+(1 row)
+
+create table tb1(a int);
+insert into tb1 select generate_series(1,10);
+CREATE OR REPLACE FUNCTION getmaincatalog_tst()
+ RETURNS int
+ LANGUAGE sql
+ immutable PARALLEL SAFE
+AS $function$  select a  from tb1;  $function$;
+Select count(*) from tb1;
+ count 
+-------
+    10
+(1 row)
+
+--- However if we use a function that does lookup on some well established table, we get the above error:
+create  table mv_r_s_3 as
+select s.*,r.*, getr_text(r.i),  getr_text(s.id) d2 from
+r right outer join s on (getr_text(r.i) = s.val or 
+getmaincatalog_tst() = i % 4);
+Select count(*) from mv_r_s_3;
+ count 
+-------
+     8
+(1 row)
+
+drop table r;
+drop table r2;
+drop table s;
+Drop table tb1;
+drop table mv_r_s_1;
+drop table mv_r_s_3;
+Drop FUNCTION getr_text(id integer);
+Drop FUNCTION getmaincatalog_tst();
+-- ctas in procedure support params
+drop table if exists t_src;
+NOTICE:  table "t_src" does not exist, skipping
+drop table if exists t_dst;
+NOTICE:  table "t_dst" does not exist, skipping
+create table t_src(a int, b int);
+insert into t_src values(1,1),(2,2),(3,3),(4,4);
+select * from t_src order by a;
+ a | b 
+---+---
+ 1 | 1
+ 2 | 2
+ 3 | 3
+ 4 | 4
+(4 rows)
+
+create table t_dst as select * from t_src where a > 1 and b != 4 - 1;
+select * from t_dst order by a;
+ a | b 
+---+---
+ 2 | 2
+ 4 | 4
+(2 rows)
+
+drop table t_dst;
+DROP FUNCTION if exists f1(integer,integer);
+NOTICE:  function f1(pg_catalog.int4,pg_catalog.int4) does not exist, skipping
+create or replace function f1(pa int, pb int)
+RETURNS void
+language plpgsql
+    as $$
+declare
+	tmp_a int;
+	tmp_b int;
+	v_sql varchar(2000);
+begin
+	tmp_a := pa;
+	tmp_b := pb -1;
+
+	v_sql := 'drop table if exists t_dst ';
+    EXECUTE v_sql;
+	
+	create table t_dst as select * from t_src where a > tmp_a and b != tmp_b;
+exception
+    when others then
+        raise notice '%',sqlerrm;
+end;
+$$;
+select * from f1(1, 4);
+NOTICE:  table "t_dst" does not exist, skipping
+ f1 
+----
+ 
+(1 row)
+
+select * from t_dst order by a;
+ a | b 
+---+---
+ 2 | 2
+ 4 | 4
+(2 rows)
+
+drop table t_src;
+drop table t_dst;
+DROP FUNCTION f1(integer,integer);
+-- comment on column of temp table
+CREATE TEMP TABLE comment_t1(c0 int, c1 smallint);
+COMMENT ON COLUMN comment_t1.c0 IS NULL;
+COMMENT ON COLUMN comment_t1.c0 IS 'comment on temp table';
+select description from pg_description, pg_class where objoid = pg_class.oid and relname='comment_t1';
+      description      
+-----------------------
+ comment on temp table
+(1 row)
+
+Drop TABLE comment_t1;
+-- statistic on temp table
+CREATE TEMPORARY TABLE IF NOT EXISTS stat_t0(c0 smallint  UNIQUE NULL,
+  c1 bigserial CHECK (((length((((('' COLLATE "C"))||(TRUE)) COLLATE "C")))!=(stat_t0.c1))) NO INHERIT UNIQUE,
+  UNIQUE(c1) WITH (autovacuum_vacuum_threshold=1554318410, autovacuum_enabled=1, autovacuum_vacuum_scale_factor=0.5, autovacuum_analyze_threshold=351112419, autovacuum_freeze_min_age=646736889, autovacuum_analyze_scale_factor=0.9, autovacuum_freeze_max_age=975613214))
+  ON COMMIT PRESERVE ROWS ;
+CREATE STATISTICS IF NOT EXISTS s0 ON c0, c1 FROM stat_t0;
+DROP STATISTICS s0;
+--
+-- test function pg_get_tabledef()
+--
+CREATE TABLE t1_tbl_def(c1 int, c2 text) DISTRIBUTE BY SHARD(c1, c2);
+CREATE TABLE t3_tbl_def(c1 int, c2 text) DISTRIBUTE BY REPLICATION;
+CREATE TABLE t4_tbl_def(c1 int, c2 text) DISTRIBUTE BY ROUNDROBIN;
+CREATE TABLE t5_tbl_def(c1 int, c2 text) DISTRIBUTE BY MODULO(c1);
+COMMENT ON COLUMN t4_tbl_def.c2 IS 'comment on t4_tbl_def';
+CREATE TABLE t6_tbl_def(c1 int, c2 text) DISTRIBUTE BY HASH(c1);
+SELECT pg_get_tabledef(oid) FROM pg_class WHERE relname = 't1_tbl_def';
+       pg_get_tabledef       
+-----------------------------
+ SET search_path = public;  +
+ CREATE TABLE t1_tbl_def (  +
+     c1 integer,            +
+     c2 text                +
+ )                          +
+ WITH (checksum=on)         +
+ DISTRIBUTE BY SHARD(c1, c2)+
+ TO GROUP default_group;
+(1 row)
+
+SELECT pg_get_tabledef('t1_tbl_def');
+       pg_get_tabledef       
+-----------------------------
+ SET search_path = public;  +
+ CREATE TABLE t1_tbl_def (  +
+     c1 integer,            +
+     c2 text                +
+ )                          +
+ WITH (checksum=on)         +
+ DISTRIBUTE BY SHARD(c1, c2)+
+ TO GROUP default_group;
+(1 row)
+
+SELECT pg_get_tabledef('t3_tbl_def');
+      pg_get_tabledef      
+---------------------------
+ SET search_path = public;+
+ CREATE TABLE t3_tbl_def (+
+     c1 integer,          +
+     c2 text              +
+ )                        +
+ WITH (checksum=on)       +
+ DISTRIBUTE BY REPLICATION+
+ TO GROUP default_group;
+(1 row)
+
+SELECT pg_get_tabledef('t4_tbl_def');
+                       pg_get_tabledef                       
+-------------------------------------------------------------
+ SET search_path = public;                                  +
+ CREATE TABLE t4_tbl_def (                                  +
+     c1 integer,                                            +
+     c2 text                                                +
+ )                                                          +
+ WITH (checksum=on)                                         +
+ DISTRIBUTE BY ROUNDROBIN;                                  +
+ COMMENT ON COLUMN t4_tbl_def.c2 IS 'comment on t4_tbl_def';
+(1 row)
+
+SELECT pg_get_tabledef('t5_tbl_def');
+      pg_get_tabledef      
+---------------------------
+ SET search_path = public;+
+ CREATE TABLE t5_tbl_def (+
+     c1 integer,          +
+     c2 text              +
+ )                        +
+ WITH (checksum=on)       +
+ DISTRIBUTE BY MODULO(c1);
+(1 row)
+
+SELECT pg_get_tabledef('t6_tbl_def');
+      pg_get_tabledef      
+---------------------------
+ SET search_path = public;+
+ CREATE TABLE t6_tbl_def (+
+     c1 integer,          +
+     c2 text              +
+ )                        +
+ WITH (checksum=on)       +
+ DISTRIBUTE BY HASH(c1);
+(1 row)
+
+DROP TABLE t1_tbl_def;
+DROP TABLE t3_tbl_def;
+DROP TABLE t4_tbl_def;
+DROP TABLE t5_tbl_def;
+DROP TABLE t6_tbl_def;
+--
+-- test function pg_get_tabledef of partition table
+--
+create table pkslow_person_r (age int not null, city varchar not null) partition by RANGE (age) DISTRIBUTE BY SHARD(age);
+create table pkslow_person_r1 partition of pkslow_person_r for values from (MINVALUE) to (10);
+create table pkslow_person_r2 partition of pkslow_person_r for values from (11) to (20); 
+create table pkslow_person_r3 partition of pkslow_person_r for values from (21) to (MAXVALUE); 
+select pg_get_tabledef('pkslow_person_r');
+                                        pg_get_tabledef                                        
+-----------------------------------------------------------------------------------------------
+ SET search_path = public;                                                                    +
+ CREATE TABLE pkslow_person_r (                                                               +
+     age integer NOT NULL,                                                                    +
+     city character varying NOT NULL                                                          +
+ )                                                                                            +
+ PARTITION BY RANGE (age)                                                                     +
+ WITH (checksum=on)                                                                           +
+ DISTRIBUTE BY SHARD(age)                                                                     +
+ TO GROUP default_group;                                                                      +
+ CREATE TABLE pkslow_person_r1 PARTITION OF pkslow_person_r FOR VALUES FROM (MINVALUE) TO (10)+
+ WITH (checksum=on);                                                                          +
+ CREATE TABLE pkslow_person_r2 PARTITION OF pkslow_person_r FOR VALUES FROM (11) TO (20)      +
+ WITH (checksum=on);                                                                          +
+ CREATE TABLE pkslow_person_r3 PARTITION OF pkslow_person_r FOR VALUES FROM (21) TO (MAXVALUE)+
+ WITH (checksum=on);
+(1 row)
+
+select pg_get_tabledef('pkslow_person_r1');
+                                        pg_get_tabledef                                        
+-----------------------------------------------------------------------------------------------
+ SET search_path = public;                                                                    +
+ CREATE TABLE pkslow_person_r1 PARTITION OF pkslow_person_r FOR VALUES FROM (MINVALUE) TO (10)+
+ WITH (checksum=on);
+(1 row)
+
+select pg_get_tabledef('pkslow_person_r2');
+                                     pg_get_tabledef                                     
+-----------------------------------------------------------------------------------------
+ SET search_path = public;                                                              +
+ CREATE TABLE pkslow_person_r2 PARTITION OF pkslow_person_r FOR VALUES FROM (11) TO (20)+
+ WITH (checksum=on);
+(1 row)
+
+select pg_get_tabledef('pkslow_person_r3');
+                                        pg_get_tabledef                                        
+-----------------------------------------------------------------------------------------------
+ SET search_path = public;                                                                    +
+ CREATE TABLE pkslow_person_r3 PARTITION OF pkslow_person_r FOR VALUES FROM (21) TO (MAXVALUE)+
+ WITH (checksum=on);
+(1 row)
+
+create table pkslow_person_l (age int not null, city varchar not null) PARTITION BY list (city) DISTRIBUTE BY SHARD(age); 
+create table pkslow_person_l1 PARTITION OF pkslow_person_l FOR VALUES IN ('GZ');  
+create table pkslow_person_l2 PARTITION OF pkslow_person_l FOR VALUES IN ('BJ');  
+create table pkslow_person_l3 PARTITION OF pkslow_person_l DEFAULT; 
+select pg_get_tabledef('pkslow_person_l');
+                                 pg_get_tabledef                                 
+---------------------------------------------------------------------------------
+ SET search_path = public;                                                      +
+ CREATE TABLE pkslow_person_l (                                                 +
+     age integer NOT NULL,                                                      +
+     city character varying NOT NULL                                            +
+ )                                                                              +
+ PARTITION BY LIST (city)                                                       +
+ WITH (checksum=on)                                                             +
+ DISTRIBUTE BY SHARD(age)                                                       +
+ TO GROUP default_group;                                                        +
+ CREATE TABLE pkslow_person_l1 PARTITION OF pkslow_person_l FOR VALUES IN ('GZ')+
+ WITH (checksum=on);                                                            +
+ CREATE TABLE pkslow_person_l2 PARTITION OF pkslow_person_l FOR VALUES IN ('BJ')+
+ WITH (checksum=on);                                                            +
+ CREATE TABLE pkslow_person_l3 PARTITION OF pkslow_person_l DEFAULT             +
+ WITH (checksum=on);
+(1 row)
+
+select pg_get_tabledef('pkslow_person_l1');
+                                 pg_get_tabledef                                 
+---------------------------------------------------------------------------------
+ SET search_path = public;                                                      +
+ CREATE TABLE pkslow_person_l1 PARTITION OF pkslow_person_l FOR VALUES IN ('GZ')+
+ WITH (checksum=on);
+(1 row)
+
+select pg_get_tabledef('pkslow_person_l2');
+                                 pg_get_tabledef                                 
+---------------------------------------------------------------------------------
+ SET search_path = public;                                                      +
+ CREATE TABLE pkslow_person_l2 PARTITION OF pkslow_person_l FOR VALUES IN ('BJ')+
+ WITH (checksum=on);
+(1 row)
+
+select pg_get_tabledef('pkslow_person_l3');
+                          pg_get_tabledef                           
+--------------------------------------------------------------------
+ SET search_path = public;                                         +
+ CREATE TABLE pkslow_person_l3 PARTITION OF pkslow_person_l DEFAULT+
+ WITH (checksum=on);
+(1 row)
+
+create table pkslow_person_h (age int not null, city varchar not null) partition by hash (city) DISTRIBUTE BY SHARD(age); 
+create table pkslow_person_h1 partition of pkslow_person_h for values with (modulus 4, remainder 0);  
+create table pkslow_person_h2 partition of pkslow_person_h for values with (modulus 4, remainder 1);  
+create table pkslow_person_h3 partition of pkslow_person_h for values with (modulus 4, remainder 2);  
+create table pkslow_person_h4 partition of pkslow_person_h for values with (modulus 4, remainder 3); 
+select pg_get_tabledef('pkslow_person_h');
+                                           pg_get_tabledef                                           
+-----------------------------------------------------------------------------------------------------
+ SET search_path = public;                                                                          +
+ CREATE TABLE pkslow_person_h (                                                                     +
+     age integer NOT NULL,                                                                          +
+     city character varying NOT NULL                                                                +
+ )                                                                                                  +
+ PARTITION BY HASH (city)                                                                           +
+ WITH (checksum=on)                                                                                 +
+ DISTRIBUTE BY SHARD(age)                                                                           +
+ TO GROUP default_group;                                                                            +
+ CREATE TABLE pkslow_person_h1 PARTITION OF pkslow_person_h FOR VALUES WITH (modulus 4, remainder 0)+
+ WITH (checksum=on);                                                                                +
+ CREATE TABLE pkslow_person_h2 PARTITION OF pkslow_person_h FOR VALUES WITH (modulus 4, remainder 1)+
+ WITH (checksum=on);                                                                                +
+ CREATE TABLE pkslow_person_h3 PARTITION OF pkslow_person_h FOR VALUES WITH (modulus 4, remainder 2)+
+ WITH (checksum=on);                                                                                +
+ CREATE TABLE pkslow_person_h4 PARTITION OF pkslow_person_h FOR VALUES WITH (modulus 4, remainder 3)+
+ WITH (checksum=on);
+(1 row)
+
+select pg_get_tabledef('pkslow_person_h1');
+                                           pg_get_tabledef                                           
+-----------------------------------------------------------------------------------------------------
+ SET search_path = public;                                                                          +
+ CREATE TABLE pkslow_person_h1 PARTITION OF pkslow_person_h FOR VALUES WITH (modulus 4, remainder 0)+
+ WITH (checksum=on);
+(1 row)
+
+select pg_get_tabledef('pkslow_person_h2');
+                                           pg_get_tabledef                                           
+-----------------------------------------------------------------------------------------------------
+ SET search_path = public;                                                                          +
+ CREATE TABLE pkslow_person_h2 PARTITION OF pkslow_person_h FOR VALUES WITH (modulus 4, remainder 1)+
+ WITH (checksum=on);
+(1 row)
+
+select pg_get_tabledef('pkslow_person_h3');
+                                           pg_get_tabledef                                           
+-----------------------------------------------------------------------------------------------------
+ SET search_path = public;                                                                          +
+ CREATE TABLE pkslow_person_h3 PARTITION OF pkslow_person_h FOR VALUES WITH (modulus 4, remainder 2)+
+ WITH (checksum=on);
+(1 row)
+
+select pg_get_tabledef('pkslow_person_h4');
+                                           pg_get_tabledef                                           
+-----------------------------------------------------------------------------------------------------
+ SET search_path = public;                                                                          +
+ CREATE TABLE pkslow_person_h4 PARTITION OF pkslow_person_h FOR VALUES WITH (modulus 4, remainder 3)+
+ WITH (checksum=on);
+(1 row)
+
+drop table pkslow_person_r;
+drop table pkslow_person_l;
+drop table pkslow_person_h;
+-- check that NOT NULL and default value are inherited correctly
+create table parted_notnull_inh_test (a int default 1, b int not null default 0) partition by list (a);
+create table parted_notnull_inh_test1 partition of parted_notnull_inh_test (a not null, b default 1) for values in (1);
+insert into parted_notnull_inh_test (b) values (null);
+ERROR:  null value in column "b" violates not-null constraint
+DETAIL:  Failing row contains (1, null).
+-- note that while b's default is overriden, a's default is preserved
+\d parted_notnull_inh_test1
+      Table "public.parted_notnull_inh_test1"
+ Column |  Type   | Collation | Nullable | Default 
+--------+---------+-----------+----------+---------
+ a      | integer |           | not null | 1
+ b      | integer |           | not null | 1
+Partition of: parted_notnull_inh_test FOR VALUES IN (1)
+
+drop table parted_notnull_inh_test;
+-- check for a conflicting COLLATE clause
+create table parted_collate_must_match (a text collate "C", b text collate "C")
+  partition by range (a);
+-- on the partition key
+create table parted_collate_must_match1 partition of parted_collate_must_match
+  (a collate "POSIX") for values from ('a') to ('m');
+-- on another column
+create table parted_collate_must_match2 partition of parted_collate_must_match
+  (b collate "POSIX") for values from ('m') to ('z');
+drop table parted_collate_must_match;

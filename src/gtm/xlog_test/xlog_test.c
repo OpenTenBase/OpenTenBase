@@ -7,11 +7,6 @@
  * Portions Copyright (c) 1994, Regents of the University of California
  * Portions Copyright (c) 2010-2012 Postgres-XC Development Group
  *
- * Copyright (c) 2023 THL A29 Limited, a Tencent company.
- *
- * This source code file is licensed under the BSD 3-Clause License,
- * you may obtain a copy of the License at http://opensource.org/license/bsd-3-clause/
- *
  *
  * IDENTIFICATION
  *      $PostgreSQL$
@@ -266,7 +261,7 @@ MainThreadInit()
 #endif
 
     GTM_RWLockInit(&thrinfo->thr_lock);
-    GTM_RWLockAcquire(&thrinfo->thr_lock, GTM_LOCKMODE_WRITE);    
+    GTM_RWLockAcquire(&thrinfo->thr_lock, GTM_LOCKMODE_WRITE);
 
     TopMostThreadID = pthread_self();
 
@@ -744,16 +739,20 @@ main(int argc, char *argv[])
 
     switch(ControlData->state)
     {
-        case DB_SHUTDOWNED_IN_RECOVERY:
-        case DB_SHUTDOWNING:
-        case DB_STARTUP:
-        case DB_IN_CRASH_RECOVERY:
-        case DB_IN_ARCHIVE_RECOVERY:
-        case DB_IN_PRODUCTION:
+        case GTM_IN_OVERWRITING_STORE:
+            elog(LOG, "GTM server crashed while copy data fromm primary");
+            if (!GTM_RecoveyFromOverwriting(g_GTMStoreSize))
+            {
+                break;
+            }
+        case GTM_STARTUP:
+        case GTM_IN_PRODUCTION:
+        case GTM_IN_RECOVERY:
             elog(LOG, "Detect GTM server crash.");
-            GTM_XLogRecovery(ControlData->checkPoint,data_dir);
+            GTM_XLogRecovery(ControlData->checkPoint, data_dir, false);
             break;
-        case DB_SHUTDOWNED:
+        case GTM_SHUTDOWNED:
+        case GTM_IN_OVERWRITE_DONE:
             break;
     }
 
@@ -761,7 +760,7 @@ main(int argc, char *argv[])
 
     GTM_RWLockAcquire(&ControlDataLock,GTM_LOCKMODE_WRITE);
     
-    ControlData->state = DB_IN_PRODUCTION;
+    ControlData->state = GTM_IN_PRODUCTION;
     ControlDataSync();
     
     GTM_RWLockRelease(&ControlDataLock);
@@ -1237,7 +1236,7 @@ ServerLoop(void)
 
             /* Save control data */
             GTM_RWLockAcquire(&ControlDataLock,GTM_LOCKMODE_WRITE);
-            ControlData->state = DB_SHUTDOWNED;
+            ControlData->state = GTM_SHUTDOWNED;
             ControlDataSync();
             GTM_RWLockRelease(&ControlDataLock);
 
@@ -1499,7 +1498,7 @@ GTM_ThreadTimeKeeper(void *argp)
      */
 
     if (sigsetjmp(local_sigjmp_buf, 1) != 0)
-    {__OPENTENBASE__
+    {
 #ifdef __OPENTENBASE__
         RWLockCleanUp();
 #endif
@@ -1575,7 +1574,7 @@ GTM_ThreadTimeBackup(void *argp)
     sigjmp_buf  local_sigjmp_buf;
     time_t      last;
     time_t        now;    
-    int__OPENTENBASE__
+    int ret;
     struct sigaction    action;  
 #ifdef __OPENTENBASE__
     GTM_ConnectionInfo  fake_conn;
@@ -1620,7 +1619,7 @@ GTM_ThreadTimeBackup(void *argp)
      * will soon be stopped by overflow of elog.c's internal state stack.)
      */
 
-    if __OPENTENBASE__p(local_sigjmp_buf, 1) != 0)
+    if (sigsetjmp(local_sigjmp_buf, 1) != 0)
     {
 #ifdef __OPENTENBASE__
         RWLockCleanUp();
@@ -1743,7 +1742,7 @@ GTM_ThreadCheckPointer(void *argp)
      * will soon be stopped by overflow of elog.c's internal state stack.)
      */
 
-    if __OPENTENBASE__p(local_sigjmp_buf, 1) != 0)
+    if (sigsetjmp(local_sigjmp_buf, 1) != 0)
     {
 #ifdef __OPENTENBASE__
         RWLockCleanUp();
@@ -1834,7 +1833,7 @@ GTM_ThreadXLogWriter(void *argp)
      * will soon be stopped by overflow of elog.c's internal state stack.)
      */
 
-    if __OPENTENBASE__p(local_sigjmp_buf, 1) != 0)
+    if (sigsetjmp(local_sigjmp_buf, 1) != 0)
     {
 #ifdef __OPENTENBASE__
         RWLockCleanUp();
@@ -1970,7 +1969,7 @@ GTM_XLogTestThread(void *argp)
      */
 
     if (sigsetjmp(local_sigjmp_buf, 1) != 0)
-    {__OPENTENBASE__
+    {
         bool    report = false;
 #ifdef __OPENTENBASE__
         RWLockCleanUp();
@@ -2051,7 +2050,7 @@ ProcessCommand(Port *myport, StringInfo input_message)
 {
     bool                handle_standby = false;
     GTM_MessageType    mtype;
-    GTM__OPENTENBASE__Header proxyhdr;
+    GTM_ProxyMsgHeader proxyhdr;
 
 #ifdef __OPENTENBASE__
     GTM_ThreadInfo *my_threadinfo = NULL;    
@@ -2075,7 +2074,7 @@ ProcessCommand(Port *myport, StringInfo input_message)
     /*
      * The next line will have some overhead.  Better to be in
      * compile option.
-     */__OPENTENBASE__
+     */
     elog(DEBUG1, "mtype = %s (%d).", gtm_util_message_name(mtype), (int)mtype);
 #ifdef __OPENTENBASE__
     /*
@@ -2155,7 +2154,7 @@ ProcessCommand(Port *myport, StringInfo input_message)
         case MSG_TXN_GXID_LIST:
 #ifdef XCP
         case MSG_REPORT_XMIN:
-       __OPENTENBASE___BKUP_REPORT_XMIN:
+        case MSG_BKUP_REPORT_XMIN:
 #endif
 #ifdef __OPENTENBASE__
         case MSG_TXN_FINISH_GID:
@@ -2212,7 +2211,7 @@ ProcessCommand(Port *myport, StringInfo input_message)
             elog(DEBUG1, "MSG_BACKEND_DISCONNECT received - removing all txn infos");
             GTM_RemoveAllTransInfos(GetMyConnection(myport)->con_client_id, proxyhdr.ph_conid);
             /* Mark PGXC Node as disconnected if backend disconnected is postmaster */
-       __OPENTENBASE__essPGXCNodeBackendDisconnect(myport, input_message);
+            ProcessPGXCNodeBackendDisconnect(myport, input_message);
             break;
 #ifdef __OPENTENBASE__
         case MSG_GET_STORAGE:
@@ -2253,14 +2252,14 @@ ProcessCommand(Port *myport, StringInfo input_message)
                     (EPROTO,
                      errmsg("invalid frontend message type %d",
                          mtype)));
-    }__OPENTENBASE__
+    }
 
 #ifdef __OPENTENBASE__    
     if (handle_standby)
     {
         GTM_RWLockRelease(&my_threadinfo->thr_lock);    
     }
-#endif__OPENTENBASE__
+#endif
 
 #ifndef __OPENTENBASE__    
     if (GTM_NeedBackup())
@@ -2595,11 +2594,11 @@ ProcessTransactionCommand(Port *myport, GTM_MessageType mtype, StringInfo messag
     switch (mtype)
     {
         case MSG_NODE_BEGIN_REPLICATION_INIT:
-        	ProcessBeginReplicaInitSyncRequest(myport, message);
+            ProcessBeginReplicationInitialSyncRequest(myport, message);
             break;
 
         case MSG_NODE_END_REPLICATION_INIT:
-        	ProcessEndReplicaInitSyncRequest(myport, message);
+            ProcessEndReplicationInitialSyncRequest(myport, message);
             break;
 
         case MSG_TXN_BEGIN:
@@ -2608,7 +2607,7 @@ ProcessTransactionCommand(Port *myport, GTM_MessageType mtype, StringInfo messag
 
         case MSG_BKUP_TXN_BEGIN:
             ProcessBkupBeginTransactionCommand(myport, message);
-       __OPENTENBASE__k;
+            break;
 
 #ifdef __OPENTENBASE__
         case MSG_BKUP_GLOBAL_TIMESTAMP:
@@ -2720,7 +2719,7 @@ ProcessTransactionCommand(Port *myport, GTM_MessageType mtype, StringInfo messag
         case MSG_TXN_GET_GID_DATA:
             ProcessGetGIDDataTransactionCommand(myport, message);
             break;
-__OPENTENBASE__
+
 
 #ifdef __OPENTENBASE__
         case MSG_TXN_FINISH_GID:
@@ -3281,7 +3280,7 @@ PromoteToActive(void)
                     (EINVAL,
                      errmsg("could not close GTM configuration file \"%s\": %m",
                          conf_file)));
-    }__OPENTENBASE__
+    }
 
 #ifndef __OPENTENBASE__
     GTM_SetNeedBackup();
@@ -3416,7 +3415,7 @@ GTM_RestoreTxnInfo(FILE *ctlf, GlobalTransactionId next_gxid,
     elog(LOG, "Restoring last GXID to %u\n", next_gxid);
     elog(LOG, "Restoring global xmin to %u\n",
             GTMTransactions.gt_recent_global_xmin);
-    elog(LOG, "Restoring gts to " INT64_FORMAT "\n",
+    elog(LOG, "Restoring gts to " UINT64_FORMAT "\n",
             saved_gts + GTM_GLOBAL_TIME_DELTA);
 
     /* Set this otherwise a strange snapshot might be returned for the first one */
@@ -3538,7 +3537,7 @@ GTM_RestoreSeqInfo(FILE *ctlf, struct GTM_RestoreContext *context)
         GTM_SeqRestore(&seqkey, increment_by, minval, maxval, startval, curval,
                 state, cycle, called);
     }
-}__OPENTENBASE__
+}
 
 #ifdef __OPENTENBASE__
     void
@@ -3553,7 +3552,7 @@ GTM_RestoreStoreInfo(GlobalTransactionId next_gxid, bool force_xid)
     if (ret)
     {
         elog(FATAL, "GTM_RestoreStoreInfo restore data file failed");
-        __OPENTENBASE__
+        return;
     }
 #ifndef __OPENTENBASE__
     /*
@@ -3620,7 +3619,7 @@ GTM_RestoreStoreInfo(GlobalTransactionId next_gxid, bool force_xid)
 #endif
 
     SetNextGlobalTimestamp(saved_gts + GTM_GLOBAL_TIME_DELTA);
-    elog__OPENTENBASE__storing gts to " INT64_FORMAT "\n",
+    elog(LOG, "Restoring gts to " UINT64_FORMAT "\n",
             saved_gts + GTM_GLOBAL_TIME_DELTA);
 #ifndef __OPENTENBASE__    
     elog(LOG, "Restoring last GXID to %u\n", next_gxid);
@@ -3900,7 +3899,7 @@ GTM_TimerThread(void *argp)
      * during error recovery.  (If we get into an infinite loop thereby, it
      * will soon be stopped by overflow of elog.c's internal state stack.)
      */
-__OPENTENBASE__
+
     if (sigsetjmp(local_sigjmp_buf, 1) != 0)
     {
 #ifdef __OPENTENBASE__

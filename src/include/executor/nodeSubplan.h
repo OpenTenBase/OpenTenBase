@@ -28,4 +28,6 @@ extern void ExecReScanSetParamPlan(SubPlanState *node, PlanState *parent);
 
 extern void ExecSetParamPlan(SubPlanState *node, ExprContext *econtext);
 
-#endif                            /* NODESUBPLAN_H */
+extern void ExecSetParamPlanMulti(const Bitmapset *params, ExprContext *econtext);
+
+#endif							/* NODESUBPLAN_H */

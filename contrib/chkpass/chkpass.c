@@ -37,7 +37,7 @@ PG_MODULE_MAGIC;
 
 typedef struct chkpass
 {
-    char        password[16];
+	char		password[16];
 } chkpass;
 
 
@@ -46,7 +46,7 @@ typedef struct chkpass
 static int
 verify_pass(const char *str)
 {
-    return 0;
+	return 0;
 }
 
 /*
@@ -56,46 +56,46 @@ PG_FUNCTION_INFO_V1(chkpass_in);
 Datum
 chkpass_in(PG_FUNCTION_ARGS)
 {
-    char       *str = PG_GETARG_CSTRING(0);
-    chkpass    *result;
-    char        mysalt[4];
-    char       *crypt_output;
-    static char salt_chars[] =
-    "./0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+	char	   *str = PG_GETARG_CSTRING(0);
+	chkpass    *result;
+	char		mysalt[4];
+	char	   *crypt_output;
+	static char salt_chars[] =
+	"./0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 
-    /* special case to let us enter encrypted passwords */
-    if (*str == ':')
-    {
-        result = (chkpass *) palloc0(sizeof(chkpass));
-        strlcpy(result->password, str + 1, 13 + 1);
-        PG_RETURN_POINTER(result);
-    }
+	/* special case to let us enter encrypted passwords */
+	if (*str == ':')
+	{
+		result = (chkpass *) palloc0(sizeof(chkpass));
+		strlcpy(result->password, str + 1, 13 + 1);
+		PG_RETURN_POINTER(result);
+	}
 
-    if (verify_pass(str) != 0)
-        ereport(ERROR,
-                (errcode(ERRCODE_DATA_EXCEPTION),
-                 errmsg("password \"%s\" is weak", str)));
+	if (verify_pass(str) != 0)
+		ereport(ERROR,
+				(errcode(ERRCODE_DATA_EXCEPTION),
+				 errmsg("password \"%s\" is weak", str)));
 
-    result = (chkpass *) palloc0(sizeof(chkpass));
+	result = (chkpass *) palloc0(sizeof(chkpass));
 
-    if (!pg_backend_random(mysalt, 2))
-        ereport(ERROR,
-                (errmsg("could not generate random salt")));
+	if (!pg_backend_random(mysalt, 2))
+		ereport(ERROR,
+				(errmsg("could not generate random salt")));
 
-    mysalt[0] = salt_chars[mysalt[0] & 0x3f];
-    mysalt[1] = salt_chars[mysalt[1] & 0x3f];
-    mysalt[2] = 0;                /* technically the terminator is not necessary
-                                 * but I like to play safe */
+	mysalt[0] = salt_chars[mysalt[0] & 0x3f];
+	mysalt[1] = salt_chars[mysalt[1] & 0x3f];
+	mysalt[2] = 0;				/* technically the terminator is not necessary
+								 * but I like to play safe */
 
-    crypt_output = crypt(str, mysalt);
-    if (crypt_output == NULL)
-        ereport(ERROR,
-                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-                 errmsg("crypt() failed")));
+	crypt_output = crypt(str, mysalt);
+	if (crypt_output == NULL)
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				 errmsg("crypt() failed")));
 
-    strlcpy(result->password, crypt_output, sizeof(result->password));
+	strlcpy(result->password, crypt_output, sizeof(result->password));
 
-    PG_RETURN_POINTER(result);
+	PG_RETURN_POINTER(result);
 }
 
 /*
@@ -107,14 +107,14 @@ PG_FUNCTION_INFO_V1(chkpass_out);
 Datum
 chkpass_out(PG_FUNCTION_ARGS)
 {
-    chkpass    *password = (chkpass *) PG_GETARG_POINTER(0);
-    char       *result;
+	chkpass    *password = (chkpass *) PG_GETARG_POINTER(0);
+	char	   *result;
 
-    result = (char *) palloc(16);
-    result[0] = ':';
-    strlcpy(result + 1, password->password, 15);
+	result = (char *) palloc(16);
+	result[0] = ':';
+	strlcpy(result + 1, password->password, 15);
 
-    PG_RETURN_CSTRING(result);
+	PG_RETURN_CSTRING(result);
 }
 
 
@@ -126,9 +126,9 @@ PG_FUNCTION_INFO_V1(chkpass_rout);
 Datum
 chkpass_rout(PG_FUNCTION_ARGS)
 {
-    chkpass    *password = (chkpass *) PG_GETARG_POINTER(0);
+	chkpass    *password = (chkpass *) PG_GETARG_POINTER(0);
 
-    PG_RETURN_TEXT_P(cstring_to_text(password->password));
+	PG_RETURN_TEXT_P(cstring_to_text(password->password));
 }
 
 
@@ -140,36 +140,36 @@ PG_FUNCTION_INFO_V1(chkpass_eq);
 Datum
 chkpass_eq(PG_FUNCTION_ARGS)
 {
-    chkpass    *a1 = (chkpass *) PG_GETARG_POINTER(0);
-    text       *a2 = PG_GETARG_TEXT_PP(1);
-    char        str[9];
-    char       *crypt_output;
+	chkpass    *a1 = (chkpass *) PG_GETARG_POINTER(0);
+	text	   *a2 = PG_GETARG_TEXT_PP(1);
+	char		str[9];
+	char	   *crypt_output;
 
-    text_to_cstring_buffer(a2, str, sizeof(str));
-    crypt_output = crypt(str, a1->password);
-    if (crypt_output == NULL)
-        ereport(ERROR,
-                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-                 errmsg("crypt() failed")));
+	text_to_cstring_buffer(a2, str, sizeof(str));
+	crypt_output = crypt(str, a1->password);
+	if (crypt_output == NULL)
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				 errmsg("crypt() failed")));
 
-    PG_RETURN_BOOL(strcmp(a1->password, crypt_output) == 0);
+	PG_RETURN_BOOL(strcmp(a1->password, crypt_output) == 0);
 }
 
 PG_FUNCTION_INFO_V1(chkpass_ne);
 Datum
 chkpass_ne(PG_FUNCTION_ARGS)
 {
-    chkpass    *a1 = (chkpass *) PG_GETARG_POINTER(0);
-    text       *a2 = PG_GETARG_TEXT_PP(1);
-    char        str[9];
-    char       *crypt_output;
+	chkpass    *a1 = (chkpass *) PG_GETARG_POINTER(0);
+	text	   *a2 = PG_GETARG_TEXT_PP(1);
+	char		str[9];
+	char	   *crypt_output;
 
-    text_to_cstring_buffer(a2, str, sizeof(str));
-    crypt_output = crypt(str, a1->password);
-    if (crypt_output == NULL)
-        ereport(ERROR,
-                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-                 errmsg("crypt() failed")));
+	text_to_cstring_buffer(a2, str, sizeof(str));
+	crypt_output = crypt(str, a1->password);
+	if (crypt_output == NULL)
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				 errmsg("crypt() failed")));
 
-    PG_RETURN_BOOL(strcmp(a1->password, crypt_output) != 0);
+	PG_RETURN_BOOL(strcmp(a1->password, crypt_output) != 0);
 }

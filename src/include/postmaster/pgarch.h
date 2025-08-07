@@ -1,14 +1,11 @@
 /*-------------------------------------------------------------------------
  *
  * pgarch.h
- *      Exports from postmaster/pgarch.c.
+ *	  Exports from postmaster/pgarch.c.
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- * 
  * src/include/postmaster/pgarch.h
  *
  *-------------------------------------------------------------------------
@@ -25,8 +22,8 @@
  * corresponding names with ".ready" or ".done" appended.
  * ----------
  */
-#define MIN_XFN_CHARS    16
-#define MAX_XFN_CHARS    40
+#define MIN_XFN_CHARS	16
+#define MAX_XFN_CHARS	40
 #define VALID_XFN_CHARS "0123456789ABCDEF.history.backup.partial"
 
 
@@ -50,10 +47,10 @@ extern int archive_autowake_interval;
  * Functions called from postmaster
  * ----------
  */
-extern int    pgarch_start(void);
+extern int	pgarch_start(void);
 
 #ifdef EXEC_BACKEND
 extern void PgArchiverMain(int argc, char *argv[]) pg_attribute_noreturn();
 #endif
 
-#endif                            /* _PGARCH_H */
+#endif							/* _PGARCH_H */

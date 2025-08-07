@@ -751,7 +751,7 @@ static int r_attached_pronoun(struct SN_env * z) {
     return 1;
 }
 
-static int r_standard_suffix(struct SN_env * z) {// #lizard forgives
+static int r_standard_suffix(struct SN_env * z) {
     int among_var;
     z->ket = z->c; /* [, line 104 */
     among_var = find_among_b(z, a_6, 51); /* substring, line 104 */

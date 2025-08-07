@@ -1,4 +1,5 @@
 set enable_seqscan=off;
+SET datestyle TO ISO;
 
 CREATE TABLE test_date (
 	i date

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * nodeBitmapHeapscan.c
- *      Routines to support bitmapped scans of relations
+ *	  Routines to support bitmapped scans of relations
  *
  * NOTE: it is critical that this plan type only be used with MVCC-compliant
  * snapshots (ie, regular snapshots, not SnapshotAny or one of the other
@@ -19,21 +19,19 @@
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  * IDENTIFICATION
- *      src/backend/executor/nodeBitmapHeapscan.c
+ *	  src/backend/executor/nodeBitmapHeapscan.c
  *
  *-------------------------------------------------------------------------
  */
 /*
  * INTERFACE ROUTINES
- *        ExecBitmapHeapScan            scans a relation using bitmap info
- *        ExecBitmapHeapNext            workhorse for above
- *        ExecInitBitmapHeapScan        creates and initializes state info.
- *        ExecReScanBitmapHeapScan    prepares to rescan the plan.
- *        ExecEndBitmapHeapScan        releases all storage.
+ *		ExecBitmapHeapScan			scans a relation using bitmap info
+ *		ExecBitmapHeapNext			workhorse for above
+ *		ExecInitBitmapHeapScan		creates and initializes state info.
+ *		ExecReScanBitmapHeapScan	prepares to rescan the plan.
+ *		ExecEndBitmapHeapScan		releases all storage.
  */
 #include "postgres.h"
 
@@ -41,6 +39,8 @@
 
 #include "access/relscan.h"
 #include "access/transam.h"
+#include "access/visibilitymap.h"
+#include "catalog/pg_type.h"
 #include "executor/execdebug.h"
 #include "executor/nodeBitmapHeapscan.h"
 #include "miscadmin.h"
@@ -52,6 +52,7 @@
 #include "utils/spccache.h"
 #include "utils/snapmgr.h"
 #include "utils/tqual.h"
+#include "access/sysattr.h"
 
 #ifdef _MLS_
 #include "utils/mls.h"
@@ -64,294 +65,319 @@
 static TupleTableSlot *BitmapHeapNext(BitmapHeapScanState *node);
 static void bitgetpage(HeapScanDesc scan, TBMIterateResult *tbmres);
 static inline void BitmapDoneInitializingSharedState(
-                                  ParallelBitmapHeapState *pstate);
+								  ParallelBitmapHeapState *pstate);
 static inline void BitmapAdjustPrefetchIterator(BitmapHeapScanState *node,
-                             TBMIterateResult *tbmres);
+							 TBMIterateResult *tbmres);
 static inline void BitmapAdjustPrefetchTarget(BitmapHeapScanState *node);
 static inline void BitmapPrefetch(BitmapHeapScanState *node,
-               HeapScanDesc scan);
+			   HeapScanDesc scan);
 static bool BitmapShouldInitializeSharedState(
-                                  ParallelBitmapHeapState *pstate);
+								  ParallelBitmapHeapState *pstate);
+static void ExecInitNextPartitionForBitmapHeapScan(BitmapHeapScanState* node);
 
 
 /* ----------------------------------------------------------------
- *        BitmapHeapNext
+ *		BitmapHeapNext
  *
- *        Retrieve next tuple from the BitmapHeapScan node's currentRelation
+ *		Retrieve next tuple from the BitmapHeapScan node's currentRelation
  * ----------------------------------------------------------------
  */
 static TupleTableSlot *
 BitmapHeapNext(BitmapHeapScanState *node)
-{// #lizard forgives
-    ExprContext *econtext;
-    HeapScanDesc scan;
-    TIDBitmap  *tbm;
-    TBMIterator *tbmiterator = NULL;
-    TBMSharedIterator *shared_tbmiterator = NULL;
-    TBMIterateResult *tbmres;
-    OffsetNumber targoffset;
-    TupleTableSlot *slot;
-    ParallelBitmapHeapState *pstate = node->pstate;
-    dsa_area   *dsa = node->ss.ps.state->es_query_dsa;
+{
+	ExprContext *econtext;
+	HeapScanDesc scan;
+	TIDBitmap  *tbm;
+	TBMIterator *tbmiterator = NULL;
+	TBMSharedIterator *shared_tbmiterator = NULL;
+	TBMIterateResult *tbmres;
+	OffsetNumber targoffset;
+	TupleTableSlot *slot;
+	ParallelBitmapHeapState *pstate = node->pstate;
+	dsa_area   *dsa = node->ss.ps.state->es_query_dsa;
 
-    /*
-     * extract necessary information from index scan node
-     */
-    econtext = node->ss.ps.ps_ExprContext;
-    slot = node->ss.ss_ScanTupleSlot;
-    scan = node->ss.ss_currentScanDesc;
-    tbm = node->tbm;
-    if (pstate == NULL)
-        tbmiterator = node->tbmiterator;
-    else
-        shared_tbmiterator = node->shared_tbmiterator;
-    tbmres = node->tbmres;
+	/*
+	 * extract necessary information from index scan node
+	 */
+	econtext = node->ss.ps.ps_ExprContext;
+	slot = node->ss.ss_ScanTupleSlot;
+	scan = node->ss.ss_currentScanDesc;
+	tbm = node->tbm;
+	if (pstate == NULL)
+		tbmiterator = node->tbmiterator;
+	else
+		shared_tbmiterator = node->shared_tbmiterator;
+	tbmres = node->tbmres;
 
-    /*
-     * If we haven't yet performed the underlying index scan, do it, and begin
-     * the iteration over the bitmap.
-     *
-     * For prefetching, we use *two* iterators, one for the pages we are
-     * actually scanning and another that runs ahead of the first for
-     * prefetching.  node->prefetch_pages tracks exactly how many pages ahead
-     * the prefetch iterator is.  Also, node->prefetch_target tracks the
-     * desired prefetch distance, which starts small and increases up to the
-     * node->prefetch_maximum.  This is to avoid doing a lot of prefetching in
-     * a scan that stops after a few tuples because of a LIMIT.
-     */
-    if (!node->initialized)
-    {
-        if (!pstate)
-        {
-            tbm = (TIDBitmap *) MultiExecProcNode(outerPlanState(node));
+	/*
+	 * If we haven't yet performed the underlying index scan, do it, and begin
+	 * the iteration over the bitmap.
+	 *
+	 * For prefetching, we use *two* iterators, one for the pages we are
+	 * actually scanning and another that runs ahead of the first for
+	 * prefetching.  node->prefetch_pages tracks exactly how many pages ahead
+	 * the prefetch iterator is.  Also, node->prefetch_target tracks the
+	 * desired prefetch distance, which starts small and increases up to the
+	 * node->prefetch_maximum.  This is to avoid doing a lot of prefetching in
+	 * a scan that stops after a few tuples because of a LIMIT.
+	 */
+	if (!node->initialized)
+	{
+		if (!pstate)
+		{
+			tbm = (TIDBitmap *) MultiExecProcNode(outerPlanState(node));
 
-            if (!tbm || !IsA(tbm, TIDBitmap))
-                elog(ERROR, "unrecognized result from subplan");
+			if (!tbm || !IsA(tbm, TIDBitmap))
+				elog(ERROR, "unrecognized result from subplan");
 
-            node->tbm = tbm;
-            node->tbmiterator = tbmiterator = tbm_begin_iterate(tbm);
-            node->tbmres = tbmres = NULL;
+			node->tbm = tbm;
+			node->tbmiterator = tbmiterator = tbm_begin_iterate(tbm);
+			node->tbmres = tbmres = NULL;
 
 #ifdef USE_PREFETCH
-            if (node->prefetch_maximum > 0)
-            {
-                node->prefetch_iterator = tbm_begin_iterate(tbm);
-                node->prefetch_pages = 0;
-                node->prefetch_target = -1;
-            }
-#endif                            /* USE_PREFETCH */
-        }
-        else
-        {
-            /*
-             * The leader will immediately come out of the function, but
-             * others will be blocked until leader populates the TBM and wakes
-             * them up.
-             */
-            if (BitmapShouldInitializeSharedState(pstate))
-            {
-                tbm = (TIDBitmap *) MultiExecProcNode(outerPlanState(node));
-                if (!tbm || !IsA(tbm, TIDBitmap))
-                    elog(ERROR, "unrecognized result from subplan");
+			if (node->prefetch_maximum > 0)
+			{
+				node->prefetch_iterator = tbm_begin_iterate(tbm);
+				node->prefetch_pages = 0;
+				node->prefetch_target = -1;
+			}
 
-                node->tbm = tbm;
 
-                /*
-                 * Prepare to iterate over the TBM. This will return the
-                 * dsa_pointer of the iterator state which will be used by
-                 * multiple processes to iterate jointly.
-                 */
-                pstate->tbmiterator = tbm_prepare_shared_iterate(tbm);
+#endif							/* USE_PREFETCH */
+		}
+		else
+		{
+			/*
+			 * The leader will immediately come out of the function, but
+			 * others will be blocked until leader populates the TBM and wakes
+			 * them up.
+			 */
+			if (BitmapShouldInitializeSharedState(pstate))
+			{
+				tbm = (TIDBitmap *) MultiExecProcNode(outerPlanState(node));
+				if (!tbm || !IsA(tbm, TIDBitmap))
+					elog(ERROR, "unrecognized result from subplan");
+
+				node->tbm = tbm;
+
+				/*
+				 * Prepare to iterate over the TBM. This will return the
+				 * dsa_pointer of the iterator state which will be used by
+				 * multiple processes to iterate jointly.
+				 */
+				pstate->tbmiterator = tbm_prepare_shared_iterate(tbm);
 #ifdef USE_PREFETCH
-                if (node->prefetch_maximum > 0)
-                {
-                    pstate->prefetch_iterator =
-                        tbm_prepare_shared_iterate(tbm);
+				if (node->prefetch_maximum > 0)
+				{
+					pstate->prefetch_iterator =
+						tbm_prepare_shared_iterate(tbm);
 
-                    /*
-                     * We don't need the mutex here as we haven't yet woke up
-                     * others.
-                     */
-                    pstate->prefetch_pages = 0;
-                    pstate->prefetch_target = -1;
-                }
+					/*
+					* We don't need the mutex here as we haven't yet woke up
+					* others.
+					*/
+					pstate->prefetch_pages = 0;
+					pstate->prefetch_target = -1;
+				}
 #endif
 
-                /* We have initialized the shared state so wake up others. */
-                BitmapDoneInitializingSharedState(pstate);
-            }
+				/* We have initialized the shared state so wake up others. */
+				BitmapDoneInitializingSharedState(pstate);
+			}
 
-            /* Allocate a private iterator and attach the shared state to it */
-            node->shared_tbmiterator = shared_tbmiterator =
-                tbm_attach_shared_iterate(dsa, pstate->tbmiterator);
-            node->tbmres = tbmres = NULL;
-
-#ifdef USE_PREFETCH
-            if (node->prefetch_maximum > 0)
-            {
-                node->shared_prefetch_iterator =
-                    tbm_attach_shared_iterate(dsa, pstate->prefetch_iterator);
-            }
-#endif                            /* USE_PREFETCH */
-        }
-        node->initialized = true;
-    }
-
-    for (;;)
-    {
-        Page        dp;
-        ItemId        lp;
-
-        CHECK_FOR_INTERRUPTS();
-
-        /*
-         * Get next page of results if needed
-         */
-        if (tbmres == NULL)
-        {
-            if (!pstate)
-                node->tbmres = tbmres = tbm_iterate(tbmiterator);
-            else
-                node->tbmres = tbmres = tbm_shared_iterate(shared_tbmiterator);
-            if (tbmres == NULL)
-            {
-                /* no more entries in the bitmap */
-                break;
-            }
-
-            BitmapAdjustPrefetchIterator(node, tbmres);
-
-            /*
-             * Ignore any claimed entries past what we think is the end of the
-             * relation.  (This is probably not necessary given that we got at
-             * least AccessShareLock on the table before performing any of the
-             * indexscans, but let's be safe.)
-             */
-            if (tbmres->blockno >= scan->rs_nblocks)
-            {
-                node->tbmres = tbmres = NULL;
-                continue;
-            }
-
-            /*
-             * Fetch the current heap page and identify candidate tuples.
-             */
-            bitgetpage(scan, tbmres);
-
-            if (tbmres->ntuples >= 0)
-                node->exact_pages++;
-            else
-                node->lossy_pages++;
-
-            /*
-             * Set rs_cindex to first slot to examine
-             */
-            scan->rs_cindex = 0;
-
-            /* Adjust the prefetch target */
-            BitmapAdjustPrefetchTarget(node);
-        }
-        else
-        {
-            /*
-             * Continuing in previously obtained page; advance rs_cindex
-             */
-            scan->rs_cindex++;
+			/* Allocate a private iterator and attach the shared state to it */
+			node->shared_tbmiterator = shared_tbmiterator =
+				tbm_attach_shared_iterate(dsa, pstate->tbmiterator);
+			node->tbmres = tbmres = NULL;
 
 #ifdef USE_PREFETCH
+			if (node->prefetch_maximum > 0)
+			{
+				node->shared_prefetch_iterator =
+					tbm_attach_shared_iterate(dsa, pstate->prefetch_iterator);
+			}
+#endif							/* USE_PREFETCH */
+		}
+		node->initialized = true;
+	}
 
-            /*
-             * Try to prefetch at least a few pages even before we get to the
-             * second page if we don't stop reading after the first tuple.
-             */
-            if (!pstate)
-            {
-                if (node->prefetch_target < node->prefetch_maximum)
-                    node->prefetch_target++;
-            }
-            else if (pstate->prefetch_target < node->prefetch_maximum)
-            {
-                /* take spinlock while updating shared state */
-                SpinLockAcquire(&pstate->mutex);
-                if (pstate->prefetch_target < node->prefetch_maximum)
-                    pstate->prefetch_target++;
-                SpinLockRelease(&pstate->mutex);
-            }
-#endif                            /* USE_PREFETCH */
-        }
+	for (;;)
+	{
+		Page		dp;
+		ItemId		lp;
 
-        /*
-         * Out of range?  If so, nothing more to look at on this page
-         */
-        if (scan->rs_cindex < 0 || scan->rs_cindex >= scan->rs_ntuples)
-        {
-            node->tbmres = tbmres = NULL;
-            continue;
-        }
+		CHECK_FOR_INTERRUPTS();
 
-        /*
-         * We issue prefetch requests *after* fetching the current page to try
-         * to avoid having prefetching interfere with the main I/O. Also, this
-         * should happen only when we have determined there is still something
-         * to do on the current page, else we may uselessly prefetch the same
-         * page we are just about to request for real.
-         */
-        BitmapPrefetch(node, scan);
+		/*
+		 * Get next page of results if needed
+		 */
+		if (tbmres == NULL)
+		{
+			if (!pstate)
+				node->tbmres = tbmres = tbm_iterate(tbmiterator);
+			else
+				node->tbmres = tbmres = tbm_shared_iterate(shared_tbmiterator);
+			if (tbmres == NULL)
+			{
+				/* no more entries in the bitmap */
+				break;
+			}
 
-        /*
-         * Okay to fetch the tuple
-         */
-        targoffset = scan->rs_vistuples[scan->rs_cindex];
-        dp = (Page) BufferGetPage(scan->rs_cbuf);
-        lp = PageGetItemId(dp, targoffset);
-        Assert(ItemIdIsNormal(lp));
+			BitmapAdjustPrefetchIterator(node, tbmres);
 
-        scan->rs_ctup.t_data = (HeapTupleHeader) PageGetItem((Page) dp, lp);
-        scan->rs_ctup.t_len = ItemIdGetLength(lp);
-        scan->rs_ctup.t_tableOid = scan->rs_rd->rd_id;
-        ItemPointerSet(&scan->rs_ctup.t_self, tbmres->blockno, targoffset);
+			/*
+			 * Ignore any claimed entries past what we think is the end of the
+			 * relation.  (This is probably not necessary given that we got at
+			 * least AccessShareLock on the table before performing any of the
+			 * indexscans, but let's be safe.)
+			 */
+			if (tbmres->blockno >= scan->rs_nblocks)
+			{
+				node->tbmres = tbmres = NULL;
+				continue;
+			}
 
-        pgstat_count_heap_fetch(scan->rs_rd);
+			/*
+			 * To fix 'select count(*) from t;' bug, disable skip_fetch 
+			 */
+			node->skip_fetch = false;
 
-        /*
-         * Set up the result slot to point to this tuple. Note that the slot
-         * acquires a pin on the buffer.
-         */
-        ExecStoreTuple(&scan->rs_ctup,
-                       slot,
-                       scan->rs_cbuf,
-                       false);
+			if (node->skip_fetch)
+			{
+				/*
+				 * The number of tuples on this page is put into
+				 * scan->rs_ntuples; note we don't fill scan->rs_vistuples.
+				 */
+				scan->rs_ntuples = tbmres->ntuples;
+			}
+			else
+			{
+				/*
+				* Fetch the current heap page and identify candidate tuples.
+				*/
+				bitgetpage(scan, tbmres);
+			}
 
-        /*
-         * If we are using lossy info, we have to recheck the qual conditions
-         * at every tuple.
-         */
-        if (tbmres->recheck)
-        {
-            econtext->ecxt_scantuple = slot;
-            ResetExprContext(econtext);
+			if (tbmres->ntuples >= 0)
+				node->exact_pages++;
+			else
+				node->lossy_pages++;
 
-            if (!ExecQual(node->bitmapqualorig, econtext))
-            {
-                /* Fails recheck, so drop it and loop back for another */
-                InstrCountFiltered2(node, 1);
-                ExecClearTuple(slot);
-                continue;
-            }
-        }
-        
-        if(enable_distri_debug)
-        {
-            scan->rs_scan_number++;
-        }
-        /* OK to return this tuple */
-        return slot;
-    }
+			/*
+			 * Set rs_cindex to first slot to examine
+			 */
+			scan->rs_cindex = 0;
 
-    /*
-     * if we get here it means we are at the end of the scan..
-     */
-    return ExecClearTuple(slot);
+			/* Adjust the prefetch target */
+			BitmapAdjustPrefetchTarget(node);
+		}
+		else
+		{
+			/*
+			 * Continuing in previously obtained page; advance rs_cindex
+			 */
+			scan->rs_cindex++;
+
+#ifdef USE_PREFETCH
+			/*
+			* Try to prefetch at least a few pages even before we get to the
+			* second page if we don't stop reading after the first tuple.
+			*/
+			if (!pstate)
+			{
+				if (node->prefetch_target < node->prefetch_maximum)
+					node->prefetch_target++;
+			}
+			else if (pstate->prefetch_target < node->prefetch_maximum)
+			{
+				/* take spinlock while updating shared state */
+				SpinLockAcquire(&pstate->mutex);
+				if (pstate->prefetch_target < node->prefetch_maximum)
+					pstate->prefetch_target++;
+				SpinLockRelease(&pstate->mutex);
+			}
+
+#endif							/* USE_PREFETCH */
+		}
+
+		/*
+		* Out of range?  If so, nothing more to look at on this page
+		*/
+		if (scan->rs_cindex < 0 || scan->rs_cindex >= scan->rs_ntuples)
+		{
+			node->tbmres = tbmres = NULL;
+			continue;
+		}
+
+		/*
+		 * We issue prefetch requests *after* fetching the current page to try
+		 * to avoid having prefetching interfere with the main I/O. Also, this
+		 * should happen only when we have determined there is still something
+		 * to do on the current page, else we may uselessly prefetch the same
+		 * page we are just about to request for real.
+		 */
+		BitmapPrefetch(node, scan);
+
+		if (node->skip_fetch)
+		{
+			/*
+			 * If we don't have to fetch the tuple, just return nulls.
+			 */
+			ExecStoreAllNullTuple(slot);
+		}
+		else
+		{
+			pgstat_count_heap_fetch(scan->rs_rd);
+			/*
+			* Okay to fetch the tuple.
+			*/
+			targoffset = scan->rs_vistuples[scan->rs_cindex];
+			dp = (Page) BufferGetPage(scan->rs_cbuf);
+			lp = PageGetItemId(dp, targoffset);
+			Assert(ItemIdIsNormal(lp));
+
+			scan->rs_ctup.t_data = (HeapTupleHeader) PageGetItem((Page) dp, lp);
+			scan->rs_ctup.t_len = ItemIdGetLength(lp);
+			scan->rs_ctup.t_tableOid = scan->rs_rd->rd_id;
+			ItemPointerSet(&scan->rs_ctup.t_self, tbmres->blockno, targoffset);
+
+			/*
+			* Set up the result slot to point to this tuple.  Note that the
+			* slot acquires a pin on the buffer.
+			*/
+			ExecStoreBufferHeapTuple(&scan->rs_ctup,
+									slot,
+									scan->rs_cbuf);
+
+			/*
+			 * If we are using lossy info, we have to recheck the qual
+			 * conditions at every tuple.
+			 */
+			if (tbmres->recheck)
+			{
+				econtext->ecxt_scantuple = slot;
+				if (!ExecQualAndReset(node->bitmapqualorig, econtext))
+				{
+					/* Fails recheck, so drop it and loop back for another */
+					InstrCountFiltered2(node, 1);
+					ExecClearTuple(slot);
+					continue;
+				}
+			}
+		}
+		
+		if(enable_distri_debug)
+		{
+			scan->rs_scan_number++;
+		}
+		/* OK to return this tuple */
+		return slot;
+	}
+
+	/*
+	 * if we get here it means we are at the end of the scan..
+	 */
+	return ExecClearTuple(slot);
 }
 
 /*
@@ -364,173 +390,173 @@ BitmapHeapNext(BitmapHeapScanState *node)
 static void
 bitgetpage(HeapScanDesc scan, TBMIterateResult *tbmres)
 {
-    BlockNumber page = tbmres->blockno;
-    Buffer        buffer;
-    Snapshot    snapshot;
-    int            ntup;
+	BlockNumber page = tbmres->blockno;
+	Buffer		buffer;
+	Snapshot	snapshot;
+	int			ntup;
 
-    /*
-     * Acquire pin on the target heap page, trading in any pin we held before.
-     */
-    Assert(page < scan->rs_nblocks);
+	/*
+	 * Acquire pin on the target heap page, trading in any pin we held before.
+	 */
+	Assert(page < scan->rs_nblocks);
 
-    scan->rs_cbuf = ReleaseAndReadBuffer(scan->rs_cbuf,
-                                         scan->rs_rd,
-                                         page);
-    buffer = scan->rs_cbuf;
-    snapshot = scan->rs_snapshot;
+	scan->rs_cbuf = ReleaseAndReadBuffer(scan->rs_cbuf,
+										 scan->rs_rd,
+										 page);
+	buffer = scan->rs_cbuf;
+	snapshot = scan->rs_snapshot;
 
-    ntup = 0;
+	ntup = 0;
 
-    /*
-     * Prune and repair fragmentation for the whole page, if possible.
-     */
-    heap_page_prune_opt(scan->rs_rd, buffer);
+	/*
+	 * Prune and repair fragmentation for the whole page, if possible.
+	 */
+	heap_page_prune_opt(scan->rs_rd, buffer);
 
-    /*
-     * We must hold share lock on the buffer content while examining tuple
-     * visibility.  Afterwards, however, the tuples we have found to be
-     * visible are guaranteed good as long as we hold the buffer pin.
-     */
-    LockBuffer(buffer, BUFFER_LOCK_SHARE);
+	/*
+	 * We must hold share lock on the buffer content while examining tuple
+	 * visibility.  Afterwards, however, the tuples we have found to be
+	 * visible are guaranteed good as long as we hold the buffer pin.
+	 */
+	LockBuffer(buffer, BUFFER_LOCK_SHARE);
 
-    /*
-     * We need two separate strategies for lossy and non-lossy cases.
-     */
-    if (tbmres->ntuples >= 0)
-    {
-        /*
-         * Bitmap is non-lossy, so we just look through the offsets listed in
-         * tbmres; but we have to follow any HOT chain starting at each such
-         * offset.
-         */
-        int            curslot;
+	/*
+	 * We need two separate strategies for lossy and non-lossy cases.
+	 */
+	if (tbmres->ntuples >= 0)
+	{
+		/*
+		 * Bitmap is non-lossy, so we just look through the offsets listed in
+		 * tbmres; but we have to follow any HOT chain starting at each such
+		 * offset.
+		 */
+		int			curslot;
 
-        for (curslot = 0; curslot < tbmres->ntuples; curslot++)
-        {
-            OffsetNumber offnum = tbmres->offsets[curslot];
-            ItemPointerData tid;
-            HeapTupleData heapTuple;
+		for (curslot = 0; curslot < tbmres->ntuples; curslot++)
+		{
+			OffsetNumber offnum = tbmres->offsets[curslot];
+			ItemPointerData tid;
+			HeapTupleData heapTuple;
 
-            ItemPointerSet(&tid, page, offnum);
-            if (heap_hot_search_buffer(&tid, scan->rs_rd, buffer, snapshot,
-                                       &heapTuple, NULL, true))
-                scan->rs_vistuples[ntup++] = ItemPointerGetOffsetNumber(&tid);
-        }
-    }
-    else
-    {
-        /*
-         * Bitmap is lossy, so we must examine each item pointer on the page.
-         * But we can ignore HOT chains, since we'll check each tuple anyway.
-         */
-        Page        dp = (Page) BufferGetPage(buffer);
-        OffsetNumber maxoff = PageGetMaxOffsetNumber(dp);
-        OffsetNumber offnum;
+			ItemPointerSet(&tid, page, offnum);
+			if (heap_hot_search_buffer(&tid, scan->rs_rd, buffer, snapshot,
+									   &heapTuple, NULL, true))
+				scan->rs_vistuples[ntup++] = ItemPointerGetOffsetNumber(&tid);
+		}
+	}
+	else
+	{
+		/*
+		 * Bitmap is lossy, so we must examine each item pointer on the page.
+		 * But we can ignore HOT chains, since we'll check each tuple anyway.
+		 */
+		Page		dp = (Page) BufferGetPage(buffer);
+		OffsetNumber maxoff = PageGetMaxOffsetNumber(dp);
+		OffsetNumber offnum;
 
-        for (offnum = FirstOffsetNumber; offnum <= maxoff; offnum = OffsetNumberNext(offnum))
-        {
-            ItemId        lp;
-            HeapTupleData loctup;
-            bool        valid;
+		for (offnum = FirstOffsetNumber; offnum <= maxoff; offnum = OffsetNumberNext(offnum))
+		{
+			ItemId		lp;
+			HeapTupleData loctup;
+			bool		valid;
 
-            lp = PageGetItemId(dp, offnum);
-            if (!ItemIdIsNormal(lp))
-                continue;
-            loctup.t_data = (HeapTupleHeader) PageGetItem((Page) dp, lp);
-            loctup.t_len = ItemIdGetLength(lp);
-            loctup.t_tableOid = scan->rs_rd->rd_id;
-            ItemPointerSet(&loctup.t_self, page, offnum);
-            valid = HeapTupleSatisfiesVisibility(&loctup, snapshot, buffer);
-            if (valid)
-            {
-                scan->rs_vistuples[ntup++] = offnum;
-                PredicateLockTuple(scan->rs_rd, &loctup, snapshot);
-            }
-            CheckForSerializableConflictOut(valid, scan->rs_rd, &loctup,
-                                            buffer, snapshot);
-        }
-    }
+			lp = PageGetItemId(dp, offnum);
+			if (!ItemIdIsNormal(lp))
+				continue;
+			loctup.t_data = (HeapTupleHeader) PageGetItem((Page) dp, lp);
+			loctup.t_len = ItemIdGetLength(lp);
+			loctup.t_tableOid = scan->rs_rd->rd_id;
+			ItemPointerSet(&loctup.t_self, page, offnum);
+			valid = HeapTupleSatisfiesVisibility(&loctup, snapshot, buffer);
+			if (valid)
+			{
+				scan->rs_vistuples[ntup++] = offnum;
+				PredicateLockTuple(scan->rs_rd, &loctup, snapshot);
+			}
+			CheckForSerializableConflictOut(valid, scan->rs_rd, &loctup,
+											buffer, snapshot);
+		}
+	}
 
-    LockBuffer(buffer, BUFFER_LOCK_UNLOCK);
+	LockBuffer(buffer, BUFFER_LOCK_UNLOCK);
 
-    Assert(ntup <= MaxHeapTuplesPerPage);
-    scan->rs_ntuples = ntup;
+	Assert(ntup <= MaxHeapTuplesPerPage);
+	scan->rs_ntuples = ntup;
 }
 
 /*
- *    BitmapDoneInitializingSharedState - Shared state is initialized
+ *	BitmapDoneInitializingSharedState - Shared state is initialized
  *
- *    By this time the leader has already populated the TBM and initialized the
- *    shared state so wake up other processes.
+ *	By this time the leader has already populated the TBM and initialized the
+ *	shared state so wake up other processes.
  */
 static inline void
 BitmapDoneInitializingSharedState(ParallelBitmapHeapState *pstate)
 {
-    SpinLockAcquire(&pstate->mutex);
-    pstate->state = BM_FINISHED;
-    SpinLockRelease(&pstate->mutex);
-    ConditionVariableBroadcast(&pstate->cv);
+	SpinLockAcquire(&pstate->mutex);
+	pstate->state = BM_FINISHED;
+	SpinLockRelease(&pstate->mutex);
+	ConditionVariableBroadcast(&pstate->cv);
 }
 
 /*
- *    BitmapAdjustPrefetchIterator - Adjust the prefetch iterator
+ *	BitmapAdjustPrefetchIterator - Adjust the prefetch iterator
  */
 static inline void
 BitmapAdjustPrefetchIterator(BitmapHeapScanState *node,
-                             TBMIterateResult *tbmres)
-{// #lizard forgives
+							 TBMIterateResult *tbmres)
+{
 #ifdef USE_PREFETCH
-    ParallelBitmapHeapState *pstate = node->pstate;
+	ParallelBitmapHeapState *pstate = node->pstate;
 
-    if (pstate == NULL)
-    {
-        TBMIterator *prefetch_iterator = node->prefetch_iterator;
+	if (pstate == NULL)
+	{
+		TBMIterator *prefetch_iterator = node->prefetch_iterator;
 
-        if (node->prefetch_pages > 0)
-        {
-            /* The main iterator has closed the distance by one page */
-            node->prefetch_pages--;
-        }
-        else if (prefetch_iterator)
-        {
-            /* Do not let the prefetch iterator get behind the main one */
-            TBMIterateResult *tbmpre = tbm_iterate(prefetch_iterator);
+		if (node->prefetch_pages > 0)
+		{
+			/* The main iterator has closed the distance by one page */
+			node->prefetch_pages--;
+		}
+		else if (prefetch_iterator)
+		{
+			/* Do not let the prefetch iterator get behind the main one */
+			TBMIterateResult *tbmpre = tbm_iterate(prefetch_iterator);
 
-            if (tbmpre == NULL || tbmpre->blockno != tbmres->blockno)
-                elog(ERROR, "prefetch and main iterators are out of sync");
-        }
-        return;
-    }
+			if (tbmpre == NULL || tbmpre->blockno != tbmres->blockno)
+				elog(ERROR, "prefetch and main iterators are out of sync");
+		}
+		return;
+	}
 
-    if (node->prefetch_maximum > 0)
-    {
-        TBMSharedIterator *prefetch_iterator = node->shared_prefetch_iterator;
+	if (node->prefetch_maximum > 0)
+	{
+		TBMSharedIterator *prefetch_iterator = node->shared_prefetch_iterator;
 
-        SpinLockAcquire(&pstate->mutex);
-        if (pstate->prefetch_pages > 0)
-        {
-            pstate->prefetch_pages--;
-            SpinLockRelease(&pstate->mutex);
-        }
-        else
-        {
-            /* Release the mutex before iterating */
-            SpinLockRelease(&pstate->mutex);
+		SpinLockAcquire(&pstate->mutex);
+		if (pstate->prefetch_pages > 0)
+		{
+			pstate->prefetch_pages--;
+			SpinLockRelease(&pstate->mutex);
+		}
+		else
+		{
+			/* Release the mutex before iterating */
+			SpinLockRelease(&pstate->mutex);
 
-            /*
-             * In case of shared mode, we can not ensure that the current
-             * blockno of the main iterator and that of the prefetch iterator
-             * are same.  It's possible that whatever blockno we are
-             * prefetching will be processed by another process.  Therefore,
-             * we don't validate the blockno here as we do in non-parallel
-             * case.
-             */
-            if (prefetch_iterator)
-                tbm_shared_iterate(prefetch_iterator);
-        }
-    }
-#endif                            /* USE_PREFETCH */
+			/*
+			 * In case of shared mode, we can not ensure that the current
+			 * blockno of the main iterator and that of the prefetch iterator
+			 * are same.  It's possible that whatever blockno we are
+			 * prefetching will be processed by another process.  Therefore,
+			 * we don't validate the blockno here as we do in non-parallel
+			 * case.
+			 */
+			if (prefetch_iterator)
+				tbm_shared_iterate(prefetch_iterator);
+		}
+	}
+#endif							/* USE_PREFETCH */
 }
 
 /*
@@ -543,38 +569,38 @@ BitmapAdjustPrefetchIterator(BitmapHeapScanState *node,
  */
 static inline void
 BitmapAdjustPrefetchTarget(BitmapHeapScanState *node)
-{// #lizard forgives
+{
 #ifdef USE_PREFETCH
-    ParallelBitmapHeapState *pstate = node->pstate;
+	ParallelBitmapHeapState *pstate = node->pstate;
 
-    if (pstate == NULL)
-    {
-        if (node->prefetch_target >= node->prefetch_maximum)
-             /* don't increase any further */ ;
-        else if (node->prefetch_target >= node->prefetch_maximum / 2)
-            node->prefetch_target = node->prefetch_maximum;
-        else if (node->prefetch_target > 0)
-            node->prefetch_target *= 2;
-        else
-            node->prefetch_target++;
-        return;
-    }
+	if (pstate == NULL)
+	{
+		if (node->prefetch_target >= node->prefetch_maximum)
+			 /* don't increase any further */ ;
+		else if (node->prefetch_target >= node->prefetch_maximum / 2)
+			node->prefetch_target = node->prefetch_maximum;
+		else if (node->prefetch_target > 0)
+			node->prefetch_target *= 2;
+		else
+			node->prefetch_target++;
+		return;
+	}
 
-    /* Do an unlocked check first to save spinlock acquisitions. */
-    if (pstate->prefetch_target < node->prefetch_maximum)
-    {
-        SpinLockAcquire(&pstate->mutex);
-        if (pstate->prefetch_target >= node->prefetch_maximum)
-             /* don't increase any further */ ;
-        else if (pstate->prefetch_target >= node->prefetch_maximum / 2)
-            pstate->prefetch_target = node->prefetch_maximum;
-        else if (pstate->prefetch_target > 0)
-            pstate->prefetch_target *= 2;
-        else
-            pstate->prefetch_target++;
-        SpinLockRelease(&pstate->mutex);
-    }
-#endif                            /* USE_PREFETCH */
+	/* Do an unlocked check first to save spinlock acquisitions. */
+	if (pstate->prefetch_target < node->prefetch_maximum)
+	{
+		SpinLockAcquire(&pstate->mutex);
+		if (pstate->prefetch_target >= node->prefetch_maximum)
+			 /* don't increase any further */ ;
+		else if (pstate->prefetch_target >= node->prefetch_maximum / 2)
+			pstate->prefetch_target = node->prefetch_maximum;
+		else if (pstate->prefetch_target > 0)
+			pstate->prefetch_target *= 2;
+		else
+			pstate->prefetch_target++;
+		SpinLockRelease(&pstate->mutex);
+	}
+#endif							/* USE_PREFETCH */
 }
 
 /*
@@ -582,75 +608,104 @@ BitmapAdjustPrefetchTarget(BitmapHeapScanState *node)
  */
 static inline void
 BitmapPrefetch(BitmapHeapScanState *node, HeapScanDesc scan)
-{// #lizard forgives
+{
 #ifdef USE_PREFETCH
-    ParallelBitmapHeapState *pstate = node->pstate;
+	ParallelBitmapHeapState *pstate = node->pstate;
 
-    if (pstate == NULL)
-    {
-        TBMIterator *prefetch_iterator = node->prefetch_iterator;
+	if (pstate == NULL)
+	{
+		TBMIterator *prefetch_iterator = node->prefetch_iterator;
 
-        if (prefetch_iterator)
-        {
-            while (node->prefetch_pages < node->prefetch_target)
-            {
-                TBMIterateResult *tbmpre = tbm_iterate(prefetch_iterator);
+		if (prefetch_iterator)
+		{
+			while (node->prefetch_pages < node->prefetch_target)
+			{
+				TBMIterateResult *tbmpre = tbm_iterate(prefetch_iterator);
+				bool		skip_fetch;
 
-                if (tbmpre == NULL)
-                {
-                    /* No more pages to prefetch */
-                    tbm_end_iterate(prefetch_iterator);
-                    node->prefetch_iterator = NULL;
-                    break;
-                }
-                node->prefetch_pages++;
-                PrefetchBuffer(scan->rs_rd, MAIN_FORKNUM, tbmpre->blockno);
-            }
-        }
+				if (tbmpre == NULL)
+				{
+					/* No more pages to prefetch */
+					tbm_end_iterate(prefetch_iterator);
+					node->prefetch_iterator = NULL;
+					break;
+				}
+				node->prefetch_pages++;
 
-        return;
-    }
+				/*
+				 * If we expect not to have to actually read this heap page,
+				 * skip this prefetch call, but continue to run the prefetch
+				 * logic normally.  (Would it be better not to increment
+				 * prefetch_pages?)
+				 *
+				 * This depends on the assumption that the index AM will
+				 * report the same recheck flag for this future heap page as
+				 * it did for the current heap page; which is not a certainty
+				 * but is true in many cases.
+				 */
+				skip_fetch = (node->can_skip_fetch &&
+							  (node->tbmres ? !node->tbmres->recheck : false) &&
+							  VM_ALL_VISIBLE(node->ss.ss_currentRelation,
+											 tbmpre->blockno,
+											 &node->pvmbuffer));
 
-    if (pstate->prefetch_pages < pstate->prefetch_target)
-    {
-        TBMSharedIterator *prefetch_iterator = node->shared_prefetch_iterator;
+				if (!skip_fetch)
+					PrefetchBuffer(scan->rs_rd, MAIN_FORKNUM, tbmpre->blockno);
+			}
+		}
 
-        if (prefetch_iterator)
-        {
-            while (1)
-            {
-                TBMIterateResult *tbmpre;
-                bool        do_prefetch = false;
+		return;
+	}
 
-                /*
-                 * Recheck under the mutex. If some other process has already
-                 * done enough prefetching then we need not to do anything.
-                 */
-                SpinLockAcquire(&pstate->mutex);
-                if (pstate->prefetch_pages < pstate->prefetch_target)
-                {
-                    pstate->prefetch_pages++;
-                    do_prefetch = true;
-                }
-                SpinLockRelease(&pstate->mutex);
+	if (pstate->prefetch_pages < pstate->prefetch_target)
+	{
+		TBMSharedIterator *prefetch_iterator = node->shared_prefetch_iterator;
 
-                if (!do_prefetch)
-                    return;
+		if (prefetch_iterator)
+		{
+			while (1)
+			{
+				TBMIterateResult *tbmpre;
+				bool		do_prefetch = false;
+				bool		skip_fetch;
 
-                tbmpre = tbm_shared_iterate(prefetch_iterator);
-                if (tbmpre == NULL)
-                {
-                    /* No more pages to prefetch */
-                    tbm_end_shared_iterate(prefetch_iterator);
-                    node->shared_prefetch_iterator = NULL;
-                    break;
-                }
+				/*
+				 * Recheck under the mutex. If some other process has already
+				 * done enough prefetching then we need not to do anything.
+				 */
+				SpinLockAcquire(&pstate->mutex);
+				if (pstate->prefetch_pages < pstate->prefetch_target)
+				{
+					pstate->prefetch_pages++;
+					do_prefetch = true;
+				}
+				SpinLockRelease(&pstate->mutex);
 
-                PrefetchBuffer(scan->rs_rd, MAIN_FORKNUM, tbmpre->blockno);
-            }
-        }
-    }
-#endif                            /* USE_PREFETCH */
+				if (!do_prefetch)
+					return;
+
+				tbmpre = tbm_shared_iterate(prefetch_iterator);
+				if (tbmpre == NULL)
+				{
+					/* No more pages to prefetch */
+					tbm_end_shared_iterate(prefetch_iterator);
+					node->shared_prefetch_iterator = NULL;
+					break;
+				}
+
+				/* As above, skip prefetch if we expect not to need page */
+				skip_fetch = (node->can_skip_fetch &&
+							  (node->tbmres ? !node->tbmres->recheck : false) &&
+							  VM_ALL_VISIBLE(node->ss.ss_currentRelation,
+											 tbmpre->blockno,
+											 &node->pvmbuffer));
+
+				if (!skip_fetch)
+					PrefetchBuffer(scan->rs_rd, MAIN_FORKNUM, tbmpre->blockno);
+			}
+		}
+	}
+#endif							/* USE_PREFETCH */
 }
 
 /*
@@ -659,384 +714,491 @@ BitmapPrefetch(BitmapHeapScanState *node, HeapScanDesc scan)
 static bool
 BitmapHeapRecheck(BitmapHeapScanState *node, TupleTableSlot *slot)
 {
-    ExprContext *econtext;
+	ExprContext *econtext;
 
-    /*
-     * extract necessary information from index scan node
-     */
-    econtext = node->ss.ps.ps_ExprContext;
+	/*
+	 * extract necessary information from index scan node
+	 */
+	econtext = node->ss.ps.ps_ExprContext;
 
-    /* Does the tuple meet the original qual conditions? */
-    econtext->ecxt_scantuple = slot;
-
-    ResetExprContext(econtext);
-
-    return ExecQual(node->bitmapqualorig, econtext);
+	/* Does the tuple meet the original qual conditions? */
+	econtext->ecxt_scantuple = slot;
+	return ExecQualAndReset(node->bitmapqualorig, econtext);
 }
 
 /* ----------------------------------------------------------------
- *        ExecBitmapHeapScan(node)
+ *		ExecBitmapHeapScan(node)
  * ----------------------------------------------------------------
  */
 static TupleTableSlot *
 ExecBitmapHeapScan(PlanState *pstate)
 {
-    BitmapHeapScanState *node = castNode(BitmapHeapScanState, pstate);
+	BitmapHeapScanState *node = castNode(BitmapHeapScanState, pstate);
 
-    return ExecScan(&node->ss,
-                    (ExecScanAccessMtd) BitmapHeapNext,
-                    (ExecScanRecheckMtd) BitmapHeapRecheck);
+	return ExecScan(&node->ss,
+					(ExecScanAccessMtd) BitmapHeapNext,
+					(ExecScanRecheckMtd) BitmapHeapRecheck);
 }
 
 /* ----------------------------------------------------------------
- *        ExecReScanBitmapHeapScan(node)
+ *		ExecReScanBitmapHeapScan(node)
  * ----------------------------------------------------------------
  */
 void
 ExecReScanBitmapHeapScan(BitmapHeapScanState *node)
-{// #lizard forgives
-    PlanState  *outerPlan = outerPlanState(node);
+{
+	PlanState  *outerPlan = outerPlanState(node);
 
-    /* rescan to release any page pin */
-    heap_rescan(node->ss.ss_currentScanDesc, NULL);
+	/* release bitmaps and buffers if any */
+	if (node->tbmiterator)
+		tbm_end_iterate(node->tbmiterator);
+	if (node->prefetch_iterator)
+		tbm_end_iterate(node->prefetch_iterator);
+	if (node->shared_tbmiterator)
+		tbm_end_shared_iterate(node->shared_tbmiterator);
+	if (node->shared_prefetch_iterator)
+		tbm_end_shared_iterate(node->shared_prefetch_iterator);
+	if (node->tbm)
+		tbm_free(node->tbm);
+	if (node->vmbuffer != InvalidBuffer)
+		ReleaseBuffer(node->vmbuffer);
+	if (node->pvmbuffer != InvalidBuffer)
+		ReleaseBuffer(node->pvmbuffer);
+	node->tbm = NULL;
+	node->tbmiterator = NULL;
+	node->tbmres = NULL;
+	node->prefetch_iterator = NULL;
+	node->initialized = false;
+	node->shared_tbmiterator = NULL;
+	node->shared_prefetch_iterator = NULL;
+	node->vmbuffer = InvalidBuffer;
+	node->pvmbuffer = InvalidBuffer;
+	if (node->ss.isPartTbl)
+	{
+		if (node->ss.ss_currentScanDesc != NULL)
+		{
+			heap_endscan(node->ss.ss_currentScanDesc);
+		}
 
-    if (node->tbmiterator)
-        tbm_end_iterate(node->tbmiterator);
-    if (node->prefetch_iterator)
-        tbm_end_iterate(node->prefetch_iterator);
-    if (node->shared_tbmiterator)
-        tbm_end_shared_iterate(node->shared_tbmiterator);
-    if (node->shared_prefetch_iterator)
-        tbm_end_shared_iterate(node->shared_prefetch_iterator);
-    if (node->tbm)
-        tbm_free(node->tbm);
-    node->tbm = NULL;
-    node->tbmiterator = NULL;
-    node->tbmres = NULL;
-    node->prefetch_iterator = NULL;
-    node->initialized = false;
-    node->shared_tbmiterator = NULL;
-    node->shared_prefetch_iterator = NULL;
+		ExecInitNextPartitionForBitmapHeapScan(node);
+	}
+	else
+	{
+		/* rescan to release any page pin */
+		heap_rescan(node->ss.ss_currentScanDesc, NULL);
+	}
 
-    ExecScanReScan(&node->ss);
-
-    /*
-     * if chgParam of subnode is not null then plan will be re-scanned by
-     * first ExecProcNode.
-     */
-    if (outerPlan->chgParam == NULL)
-        ExecReScan(outerPlan);
+	ExecScanReScan(&node->ss);
+	/*
+	 * if chgParam of subnode is not null then plan will be re-scanned by
+	 * first ExecProcNode.
+	 */
+	if (node->ss.isPartTbl || outerPlan->chgParam == NULL)
+		ExecReScan(outerPlan);
 }
 
 /* ----------------------------------------------------------------
- *        ExecEndBitmapHeapScan
+ *		ExecEndBitmapHeapScan
  * ----------------------------------------------------------------
  */
 void
 ExecEndBitmapHeapScan(BitmapHeapScanState *node)
 {
-    Relation    relation;
-    HeapScanDesc scanDesc;
+	Relation	relation;
+	HeapScanDesc scanDesc;
 
-    /*
-     * extract information from the node
-     */
-    relation = node->ss.ss_currentRelation;
-    scanDesc = node->ss.ss_currentScanDesc;
+	if (node->ss.isPartTbl)
+	{
+		ListCell *cell = NULL;
+		node->ss.ss_currentRelation = node->ss.parentRelation;
 
-    /*
-     * Free the exprcontext
-     */
-    ExecFreeExprContext(&node->ss.ps);
+		scanDesc = node->ss.ss_currentScanDesc;
+		if (scanDesc != NULL)
+		{
+			heap_endscan(scanDesc);
+			node->ss.ss_currentScanDesc = NULL;
+		}
 
-    /*
-     * clear out tuple table slots
-     */
-    ExecClearTuple(node->ss.ps.ps_ResultTupleSlot);
-    ExecClearTuple(node->ss.ss_ScanTupleSlot);
+		node->ss.ss_currentScanDesc = node->ss.parentScanDesc;
 
-    /*
-     * close down subplans
-     */
-    ExecEndNode(outerPlanState(node));
+		foreach (cell, node->ss.partition_leaf_rels)
+		{
+			relation = (Relation) lfirst(cell);
+			ExecCloseScanRelation(relation);
+		}
+	}
+	/*
+	 * extract information from the node
+	 */
+	relation = node->ss.ss_currentRelation;
+	scanDesc = node->ss.ss_currentScanDesc;
 
-    /*
-     * release bitmap if any
-     */
-    if (node->tbmiterator)
-        tbm_end_iterate(node->tbmiterator);
-    if (node->prefetch_iterator)
-        tbm_end_iterate(node->prefetch_iterator);
-    if (node->tbm)
-        tbm_free(node->tbm);
-    if (node->shared_tbmiterator)
-        tbm_end_shared_iterate(node->shared_tbmiterator);
-    if (node->shared_prefetch_iterator)
-        tbm_end_shared_iterate(node->shared_prefetch_iterator);
+	/*
+	 * Free the exprcontext
+	 */
+	ExecFreeExprContext(&node->ss.ps);
 
-    /*
-     * close heap scan
-     */
-    heap_endscan(scanDesc);
+	/*
+	 * clear out tuple table slots
+	 */
+	if (node->ss.ps.ps_ResultTupleSlot)
+		ExecClearTuple(node->ss.ps.ps_ResultTupleSlot);
+	ExecClearTuple(node->ss.ss_ScanTupleSlot);
 
-    /*
-     * close the heap relation.
-     */
-    ExecCloseScanRelation(relation);
+	/*
+	 * close down subplans
+	 */
+	ExecEndNode(outerPlanState(node));
+
+	/*
+	 * release bitmaps and buffers if any
+	 */
+	if (node->tbmiterator)
+		tbm_end_iterate(node->tbmiterator);
+	if (node->prefetch_iterator)
+		tbm_end_iterate(node->prefetch_iterator);
+	if (node->tbm)
+		tbm_free(node->tbm);
+	if (node->shared_tbmiterator)
+		tbm_end_shared_iterate(node->shared_tbmiterator);
+	if (node->shared_prefetch_iterator)
+		tbm_end_shared_iterate(node->shared_prefetch_iterator);
+	if (node->vmbuffer != InvalidBuffer)
+		ReleaseBuffer(node->vmbuffer);
+	if (node->pvmbuffer != InvalidBuffer)
+		ReleaseBuffer(node->pvmbuffer);
+
+	/*
+	 * close heap scan
+	 */
+	if (scanDesc != NULL)
+		heap_endscan(scanDesc);
+	/*
+	 * close the heap relation.
+	 */
+	ExecCloseScanRelation(relation);
 }
 
 /* ----------------------------------------------------------------
- *        ExecInitBitmapHeapScan
+ *		ExecInitBitmapHeapScan
  *
- *        Initializes the scan's state information.
+ *		Initializes the scan's state information.
  * ----------------------------------------------------------------
  */
 BitmapHeapScanState *
 ExecInitBitmapHeapScan(BitmapHeapScan *node, EState *estate, int eflags)
-{// #lizard forgives
-    BitmapHeapScanState *scanstate;
-    Relation    currentRelation;
-    int            io_concurrency;
+{
+	BitmapHeapScanState *scanstate;
+	Relation	currentRelation;
+	int			io_concurrency;
 
-#ifdef __AUDIT_FGA__
-    ListCell      *item;
-#endif    
+	/* check for unsupported flags */
+	Assert(!(eflags & (EXEC_FLAG_BACKWARD | EXEC_FLAG_MARK)));
 
-    /* check for unsupported flags */
-    Assert(!(eflags & (EXEC_FLAG_BACKWARD | EXEC_FLAG_MARK)));
+	/*
+	 * Assert caller didn't ask for an unsafe snapshot --- see comments at
+	 * head of file.
+	 */
+	Assert(IsMVCCSnapshot(estate->es_snapshot));
 
-    /*
-     * Assert caller didn't ask for an unsafe snapshot --- see comments at
-     * head of file.
-     */
-    Assert(IsMVCCSnapshot(estate->es_snapshot));
+	/*
+	 * create state structure
+	 */
+	scanstate = makeNode(BitmapHeapScanState);
+	scanstate->ss.ps.plan = (Plan *) node;
+	scanstate->ss.ps.state = estate;
+	scanstate->ss.isPartTbl = node->scan.isPartTbl;
+	scanstate->ss.curPartIdx = -1;
+	scanstate->ss.partScanDirection = node->scan.partScanDirection;
+	scanstate->ss.ps.ExecProcNode = ExecBitmapHeapScan;
 
-    /*
-     * create state structure
-     */
-    scanstate = makeNode(BitmapHeapScanState);
-    scanstate->ss.ps.plan = (Plan *) node;
-    scanstate->ss.ps.state = estate;
-    scanstate->ss.ps.ExecProcNode = ExecBitmapHeapScan;
+	scanstate->tbm = NULL;
+	scanstate->tbmiterator = NULL;
+	scanstate->tbmres = NULL;
+	scanstate->skip_fetch = false;
+	scanstate->vmbuffer = InvalidBuffer;
+	scanstate->pvmbuffer = InvalidBuffer;
+	scanstate->exact_pages = 0;
+	scanstate->lossy_pages = 0;
+	scanstate->prefetch_iterator = NULL;
+	scanstate->prefetch_pages = 0;
+	scanstate->prefetch_target = 0;
+	/* may be updated below */
+	scanstate->prefetch_maximum = target_prefetch_pages;
+	scanstate->pscan_len = 0;
+	scanstate->initialized = false;
+	scanstate->shared_tbmiterator = NULL;
+	scanstate->shared_prefetch_iterator = NULL;
+	scanstate->pstate = NULL;
 
-    scanstate->tbm = NULL;
-    scanstate->tbmiterator = NULL;
-    scanstate->tbmres = NULL;
-    scanstate->exact_pages = 0;
-    scanstate->lossy_pages = 0;
-    scanstate->prefetch_iterator = NULL;
-    scanstate->prefetch_pages = 0;
-    scanstate->prefetch_target = 0;
-    /* may be updated below */
-    scanstate->prefetch_maximum = target_prefetch_pages;
-    scanstate->pscan_len = 0;
-    scanstate->initialized = false;
-    scanstate->shared_tbmiterator = NULL;
-    scanstate->pstate = NULL;
+	/*
+	 * We can potentially skip fetching heap pages if we do not need any
+	 * columns of the table, either for checking non-indexable quals or for
+	 * returning data.  This test is a bit simplistic, as it checks the
+	 * stronger condition that there's no qual or return tlist at all.  But in
+	 * most cases it's probably not worth working harder than that.
+	 */
+	scanstate->can_skip_fetch = (node->scan.plan.qual == NIL &&
+								 node->scan.plan.targetlist == NIL);
 
-    /*
-     * Miscellaneous initialization
-     *
-     * create expression context for node
-     */
-    ExecAssignExprContext(estate, &scanstate->ss.ps);
+	/*
+	 * Miscellaneous initialization
+	 *
+	 * create expression context for node
+	 */
+	ExecAssignExprContext(estate, &scanstate->ss.ps);
 
-    /*
-     * initialize child expressions
-     */
-    scanstate->ss.ps.qual =
-        ExecInitQual(node->scan.plan.qual, (PlanState *) scanstate);
-    scanstate->bitmapqualorig =
-        ExecInitQual(node->bitmapqualorig, (PlanState *) scanstate);
-
-#ifdef __AUDIT_FGA__
-    if (enable_fga)
-    {
-        foreach (item, node->scan.plan.audit_fga_quals)
-        {
-            AuditFgaPolicy *audit_fga_qual = (AuditFgaPolicy *) lfirst(item);
-            
-            audit_fga_policy_state * audit_fga_policy_state_item
-                    = palloc0(sizeof(audit_fga_policy_state));
-
-            audit_fga_policy_state_item->policy_name = audit_fga_qual->policy_name;
-            audit_fga_policy_state_item->query_string = audit_fga_qual->query_string;
-            audit_fga_policy_state_item->qual = 
-                ExecInitQual(audit_fga_qual->qual, (PlanState *) scanstate);
-
-            scanstate->ss.ps.audit_fga_qual = 
-                lappend(scanstate->ss.ps.audit_fga_qual, audit_fga_policy_state_item);      
-        }
-    }
-#endif 
-
-
-    /*
-     * tuple table initialization
-     */
-    ExecInitResultTupleSlot(estate, &scanstate->ss.ps);
-    ExecInitScanTupleSlot(estate, &scanstate->ss);
-
-    /*
-     * open the base relation and acquire appropriate lock on it.
-     */
-#ifdef __OPENTENBASE__
-    if(node->scan.ispartchild)
-    {
-        currentRelation = ExecOpenScanRelationPartition(estate,
-                                                node->scan.scanrelid,
-                                                eflags,
-                                                node->scan.childidx);
-    }
-    else
-    {
-#endif
-    currentRelation = ExecOpenScanRelation(estate, node->scan.scanrelid, eflags);
-#ifdef __OPENTENBASE__
-    }
-#endif
+	/*
+	 * open the base relation and acquire appropriate lock on it.
+	 */
+	currentRelation = ExecOpenScanRelation(estate, node->scan.scanrelid, eflags);
 
 #ifdef _MLS_
-    mls_check_datamask_need_passby((ScanState*)scanstate, currentRelation->rd_id);
+	mls_check_datamask_need_passby((ScanState *)scanstate, currentRelation->rd_id);
 #endif
 
-    /*
-     * Determine the maximum for prefetch_target.  If the tablespace has a
-     * specific IO concurrency set, use that to compute the corresponding
-     * maximum value; otherwise, we already initialized to the value computed
-     * by the GUC machinery.
-     */
-    io_concurrency =
-        get_tablespace_io_concurrency(currentRelation->rd_rel->reltablespace);
-    if (io_concurrency != effective_io_concurrency)
-    {
-        double        maximum;
+	/*
+	 * initialize child nodes
+	 *
+	 * We do this after ExecOpenScanRelation because the child nodes will open
+	 * indexscans on our relation's indexes, and we want to be sure we have
+	 * acquired a lock on the relation first.
+	 */
+	outerPlanState(scanstate) = ExecInitNode(outerPlan(node), estate, eflags);
 
-        if (ComputeIoConcurrency(io_concurrency, &maximum))
-            scanstate->prefetch_maximum = rint(maximum);
-    }
+	/*
+	 * get the scan type from the relation descriptor.
+	 */
+	ExecInitScanTupleSlot(estate, &scanstate->ss,
+						  RelationGetDescr(currentRelation));
 
-    scanstate->ss.ss_currentRelation = currentRelation;
+	/*
+	 * Initialize result type and projection.
+	 */
+	ExecInitResultTypeTL(&scanstate->ss.ps);
+	ExecAssignScanProjectionInfo(&scanstate->ss);
 
-    /*
-     * Even though we aren't going to do a conventional seqscan, it is useful
-     * to create a HeapScanDesc --- most of the fields in it are usable.
-     */
-    scanstate->ss.ss_currentScanDesc = heap_beginscan_bm(currentRelation,
-                                                         estate->es_snapshot,
-                                                         0,
-                                                         NULL);
+	/*
+	 * initialize child expressions
+	 */
+	scanstate->ss.ps.qual =
+		ExecInitQual(node->scan.plan.qual, (PlanState *) scanstate);
+	scanstate->bitmapqualorig =
+		ExecInitQual(node->bitmapqualorig, (PlanState *) scanstate);
 
-    /*
-     * get the scan type from the relation descriptor.
-     */
-    ExecAssignScanType(&scanstate->ss, RelationGetDescr(currentRelation));
+#ifdef __AUDIT_FGA__
+	if (enable_fga)
+	{
+		ListCell      *item;
+		foreach(item, node->scan.plan.audit_fga_quals)
+		{
+			AuditFgaPolicy *audit_fga_qual = (AuditFgaPolicy *) lfirst(item);
 
-    /*
-     * Initialize result tuple type and projection info.
-     */
-    ExecAssignResultTypeFromTL(&scanstate->ss.ps);
-    ExecAssignScanProjectionInfo(&scanstate->ss);
+			audit_fga_policy_state * audit_fga_policy_state_item
+				= palloc0(sizeof(audit_fga_policy_state));
 
-    /*
-     * initialize child nodes
-     *
-     * We do this last because the child nodes will open indexscans on our
-     * relation's indexes, and we want to be sure we have acquired a lock on
-     * the relation first.
-     */
-    outerPlanState(scanstate) = ExecInitNode(outerPlan(node), estate, eflags);
+			audit_fga_policy_state_item->policy_name = audit_fga_qual->policy_name;
+			audit_fga_policy_state_item->query_string = audit_fga_qual->query_string;
+			audit_fga_policy_state_item->qual = 
+				ExecInitQual(audit_fga_qual->qual, (PlanState *) scanstate);
 
-    /*
-     * all done.
-     */
-    return scanstate;
+			scanstate->ss.ps.audit_fga_qual = 
+				lappend(scanstate->ss.ps.audit_fga_qual, audit_fga_policy_state_item);      
+		}
+	}
+#endif
+
+	/*
+	 * Determine the maximum for prefetch_target.  If the tablespace has a
+	 * specific IO concurrency set, use that to compute the corresponding
+	 * maximum value; otherwise, we already initialized to the value computed
+	 * by the GUC machinery.
+	 */
+	io_concurrency =
+		get_tablespace_io_concurrency(currentRelation->rd_rel->reltablespace);
+	if (io_concurrency != effective_io_concurrency)
+	{
+		double		maximum;
+
+		if (ComputeIoConcurrency(io_concurrency, &maximum))
+			scanstate->prefetch_maximum = rint(maximum);
+	}
+
+	scanstate->ss.ss_currentRelation = currentRelation;
+
+	if (!node->scan.isPartTbl)
+		/*
+		 * Even though we aren't going to do a conventional seqscan, it is useful
+		 * to create a HeapScanDesc --- most of the fields in it are usable.
+		 */
+		scanstate->ss.ss_currentScanDesc =
+			heap_beginscan_bm(currentRelation, estate->es_snapshot, 0, NULL);
+
+	if (node->scan.isPartTbl)
+	{
+		ListCell *cell = NULL;
+		LOCKMODE  lockmode;
+		scanstate->ss.parentRelation = scanstate->ss.ss_currentRelation;
+		scanstate->ss.parentScanDesc = scanstate->ss.ss_currentScanDesc;
+
+		/*
+		 * Determine the lock type we need.  First, scan to see if target relation
+		 * is a result relation.  If not, check if it's a FOR UPDATE/FOR SHARE
+		 * relation.  In either of those cases, we got the lock already.
+		 */
+		lockmode = AccessShareLock;
+		if (ExecRelationIsTargetRelation(estate, node->scan.scanrelid))
+			lockmode = NoLock;
+		else
+		{
+			/* Keep this check in sync with InitPlan! */
+			ExecRowMark *erm = ExecFindRowMark(estate, node->scan.scanrelid, true);
+
+			if (erm != NULL && erm->relation != NULL)
+				lockmode = NoLock;
+		}
+		foreach (cell, node->scan.partition_leaf_rels)
+		{
+			Relation rel;
+			Oid      reloid = lfirst_oid(cell);
+
+
+			rel = heap_open(reloid, lockmode);
+			
+			scanstate->ss.partition_leaf_rels = lappend(scanstate->ss.partition_leaf_rels, rel);
+		}
+	}
+	/*
+	 * all done.
+	 */
+	return scanstate;
 }
 
 /*----------------
- *        BitmapShouldInitializeSharedState
+ *		BitmapShouldInitializeSharedState
  *
- *        The first process to come here and see the state to the BM_INITIAL
- *        will become the leader for the parallel bitmap scan and will be
- *        responsible for populating the TIDBitmap.  The other processes will
- *        be blocked by the condition variable until the leader wakes them up.
+ *		The first process to come here and see the state to the BM_INITIAL
+ *		will become the leader for the parallel bitmap scan and will be
+ *		responsible for populating the TIDBitmap.  The other processes will
+ *		be blocked by the condition variable until the leader wakes them up.
  * ---------------
  */
 static bool
 BitmapShouldInitializeSharedState(ParallelBitmapHeapState *pstate)
 {
-    SharedBitmapState state;
+	SharedBitmapState state;
 
-    while (1)
-    {
-        SpinLockAcquire(&pstate->mutex);
-        state = pstate->state;
-        if (pstate->state == BM_INITIAL)
-            pstate->state = BM_INPROGRESS;
-        SpinLockRelease(&pstate->mutex);
+	while (1)
+	{
+		SpinLockAcquire(&pstate->mutex);
+		state = pstate->state;
+		if (pstate->state == BM_INITIAL)
+			pstate->state = BM_INPROGRESS;
+		SpinLockRelease(&pstate->mutex);
 
-        /* Exit if bitmap is done, or if we're the leader. */
-        if (state != BM_INPROGRESS)
-            break;
+		/* Exit if bitmap is done, or if we're the leader. */
+		if (state != BM_INPROGRESS)
+			break;
 
-        /* Wait for the leader to wake us up. */
-        ConditionVariableSleep(&pstate->cv, WAIT_EVENT_PARALLEL_BITMAP_SCAN);
-    }
+		/* Wait for the leader to wake us up. */
+		ConditionVariableSleep(&pstate->cv, WAIT_EVENT_PARALLEL_BITMAP_SCAN);
+	}
 
-    ConditionVariableCancelSleep();
+	ConditionVariableCancelSleep();
 
-    return (state == BM_INITIAL);
+	return (state == BM_INITIAL);
 }
 
 /* ----------------------------------------------------------------
- *        ExecBitmapHeapEstimate
+ *		ExecBitmapHeapEstimate
  *
- *        estimates the space required to serialize bitmap scan node.
+ *		Compute the amount of space we'll need in the parallel
+ *		query DSM, and inform pcxt->estimator about our needs.
  * ----------------------------------------------------------------
  */
 void
 ExecBitmapHeapEstimate(BitmapHeapScanState *node,
-                       ParallelContext *pcxt)
+					   ParallelContext *pcxt)
 {
-    EState       *estate = node->ss.ps.state;
+	EState	   *estate = node->ss.ps.state;
 
-    node->pscan_len = add_size(offsetof(ParallelBitmapHeapState,
-                                        phs_snapshot_data),
-                               EstimateSnapshotSpace(estate->es_snapshot));
-
-    shm_toc_estimate_chunk(&pcxt->estimator, node->pscan_len);
-    shm_toc_estimate_keys(&pcxt->estimator, 1);
+	node->pscan_len = add_size(offsetof(ParallelBitmapHeapState,
+										phs_snapshot_data),
+							   EstimateSnapshotSpace(estate->es_snapshot));
+	if (node->ss.isPartTbl && enable_partition_iterator)
+	{
+		shm_toc_estimate_chunk(&pcxt->estimator,
+		                       BUFFERALIGN(node->pscan_len) * list_length(node->ss.partition_leaf_rels));
+		shm_toc_estimate_keys(&pcxt->estimator, list_length(node->ss.partition_leaf_rels));
+	}
+	else
+	{
+		shm_toc_estimate_chunk(&pcxt->estimator, node->pscan_len);
+		shm_toc_estimate_keys(&pcxt->estimator, 1);
+	}
 }
 
 /* ----------------------------------------------------------------
- *        ExecBitmapHeapInitializeDSM
+ *		ExecBitmapHeapInitializeDSM
  *
- *        Set up a parallel bitmap heap scan descriptor.
+ *		Set up a parallel bitmap heap scan descriptor.
  * ----------------------------------------------------------------
  */
 void
 ExecBitmapHeapInitializeDSM(BitmapHeapScanState *node,
-                            ParallelContext *pcxt)
+							ParallelContext *pcxt)
 {
-    ParallelBitmapHeapState *pstate;
-    EState       *estate = node->ss.ps.state;
+	ParallelBitmapHeapState *pstate;
+	EState	   *estate = node->ss.ps.state;
+	dsa_area   *dsa = node->ss.ps.state->es_query_dsa;
 
-    pstate = shm_toc_allocate(pcxt->toc, node->pscan_len);
+	/* If there's no DSA, there are no workers; initialize nothing. */
+	if (dsa == NULL)
+		return;
 
-    pstate->tbmiterator = 0;
-    pstate->prefetch_iterator = 0;
+	if (node->ss.isPartTbl && enable_partition_iterator)
+	{
+		ListCell *cell = NULL;
+		int       whichplan = 0;
+		foreach (cell, node->ss.partition_leaf_rels)
+		{
+			pstate = shm_toc_allocate(pcxt->toc, node->pscan_len);
+			pstate->tbmiterator = 0;
+			pstate->prefetch_iterator = 0;
 
-    /* Initialize the mutex */
-    SpinLockInit(&pstate->mutex);
-    pstate->prefetch_pages = 0;
-    pstate->prefetch_target = 0;
-    pstate->state = BM_INITIAL;
+			/* Initialize the mutex */
+			SpinLockInit(&pstate->mutex);
+			pstate->prefetch_pages = 0;
+			pstate->prefetch_target = 0;
+			pstate->state = BM_INITIAL;
 
-    ConditionVariableInit(&pstate->cv);
-    SerializeSnapshot(estate->es_snapshot, pstate->phs_snapshot_data);
+			ConditionVariableInit(&pstate->cv);
+			SerializeSnapshot(estate->es_snapshot, pstate->phs_snapshot_data);
+			shm_toc_insert(pcxt->toc, node->ss.ps.plan->plan_node_id + whichplan, pstate);
+			whichplan++;
+		}
+		node->ss.is_parallel = true;
+		node->ss.toc = pcxt->toc;
+	}
+	else
+	{
+		pstate = shm_toc_allocate(pcxt->toc, node->pscan_len);
 
-    shm_toc_insert(pcxt->toc, node->ss.ps.plan->plan_node_id, pstate);
-    node->pstate = pstate;
+		pstate->tbmiterator = 0;
+		pstate->prefetch_iterator = 0;
+
+		/* Initialize the mutex */
+		SpinLockInit(&pstate->mutex);
+		pstate->prefetch_pages = 0;
+		pstate->prefetch_target = 0;
+		pstate->state = BM_INITIAL;
+
+		ConditionVariableInit(&pstate->cv);
+		SerializeSnapshot(estate->es_snapshot, pstate->phs_snapshot_data);
+
+		shm_toc_insert(pcxt->toc, node->ss.ps.plan->plan_node_id, pstate);
+		node->pstate = pstate;
+	}
 }
 
 /* ----------------------------------------------------------------
@@ -1045,13 +1207,10 @@ ExecBitmapHeapInitializeDSM(BitmapHeapScanState *node,
  *		Reset shared state before beginning a fresh scan.
  * ----------------------------------------------------------------
  */
-void
-ExecBitmapHeapReInitializeDSM(BitmapHeapScanState *node,
-							  ParallelContext *pcxt)
-{
-	ParallelBitmapHeapState *pstate = node->pstate;
-	dsa_area   *dsa = node->ss.ps.state->es_query_dsa;
 
+static void
+ExecBitmapHeapReInitializeDSM_internal(ParallelBitmapHeapState *pstate, dsa_area *dsa)
+{
 	pstate->state = BM_INITIAL;
 
 	if (DsaPointerIsValid(pstate->tbmiterator))
@@ -1063,23 +1222,104 @@ ExecBitmapHeapReInitializeDSM(BitmapHeapScanState *node,
 	pstate->tbmiterator = InvalidDsaPointer;
 	pstate->prefetch_iterator = InvalidDsaPointer;
 }
+void
+ExecBitmapHeapReInitializeDSM(BitmapHeapScanState *node,
+							  ParallelContext *pcxt)
+{
+	ParallelBitmapHeapState *pstate = node->pstate;
+	dsa_area                *dsa = node->ss.ps.state->es_query_dsa;
+
+	/* If there's no DSA, there are no workers; do nothing. */
+	if (dsa == NULL)
+		return;
+
+	if (node->ss.isPartTbl && enable_partition_iterator)
+	{
+		int whichplan = 0;
+		int part_num = list_length(node->ss.partition_leaf_rels);
+		for (whichplan = 0; whichplan < part_num; whichplan++)
+		{
+			pstate =
+				shm_toc_lookup(node->ss.toc, node->ss.ps.plan->plan_node_id + whichplan, false);
+
+			ExecBitmapHeapReInitializeDSM_internal(pstate, dsa);
+		}
+	}
+	else
+	{
+		ExecBitmapHeapReInitializeDSM_internal(pstate, dsa);
+	}
+}
 
 /* ----------------------------------------------------------------
- *        ExecBitmapHeapInitializeWorker
+ *		ExecBitmapHeapInitializeWorker
  *
- *        Copy relevant information from TOC into planstate.
+ *		Copy relevant information from TOC into planstate.
  * ----------------------------------------------------------------
  */
 void
 ExecBitmapHeapInitializeWorker(BitmapHeapScanState *node,
 							   ParallelWorkerContext *pwcxt)
 {
-    ParallelBitmapHeapState *pstate;
-    Snapshot    snapshot;
+	ParallelBitmapHeapState *pstate;
+	Snapshot	snapshot;
 
-	pstate = shm_toc_lookup(pwcxt->toc, node->ss.ps.plan->plan_node_id, false);
-    node->pstate = pstate;
+	Assert(node->ss.ps.state->es_query_dsa != NULL);
+	if (node->ss.isPartTbl && enable_partition_iterator)
+	{
+		node->ss.is_parallel = true;
+		node->ss.toc = pwcxt->toc;
+	}
+	else
+	{
+		pstate = shm_toc_lookup(pwcxt->toc, node->ss.ps.plan->plan_node_id, false);
+		node->pstate = pstate;
 
-    snapshot = RestoreSnapshot(pstate->phs_snapshot_data);
-    heap_update_snapshot(node->ss.ss_currentScanDesc, snapshot);
+		snapshot = RestoreSnapshot(pstate->phs_snapshot_data);
+		heap_update_snapshot(node->ss.ss_currentScanDesc, snapshot);
+	}
+}
+
+static void
+ExecInitNextPartitionForBitmapHeapScan(BitmapHeapScanState* node)
+{
+	PlanState     *pstate = &node->ss.ps;
+	EState        *estate = pstate->state;
+	Relation       currentpartitionrel = NULL;
+
+	int            paramno = -1;
+	ParamExecData *param = NULL;
+	BitmapHeapScan       *plan = NULL;
+
+	plan = (BitmapHeapScan *) node->ss.ps.plan;
+
+	/* get partition sequnce */
+	paramno = plan->scan.partIterParamno;
+	param = &(estate->es_param_exec_vals[paramno]);
+	node->ss.curPartIdx = (int) param->value;
+
+	Assert(node->ss.curPartIdx < plan->scan.leafNum);
+
+	/* construct HeapScanDesc for new partition */
+	currentpartitionrel = list_nth(node->ss.partition_leaf_rels, node->ss.curPartIdx);
+	node->ss.ss_currentRelation = currentpartitionrel;
+
+	if (node->ss.is_parallel == true)
+	{
+		ParallelBitmapHeapState *pscan;
+		Snapshot                 snapshot;
+		pscan = shm_toc_lookup(node->ss.toc, node->ss.ps.plan->plan_node_id + node->ss.curPartIdx,
+		                       false);
+		node->ss.ss_currentScanDesc =
+			heap_beginscan_bm(currentpartitionrel, estate->es_snapshot, 0, NULL);
+		node->pstate = pscan;
+
+		snapshot = RestoreSnapshot(pscan->phs_snapshot_data);
+		heap_update_snapshot(node->ss.ss_currentScanDesc, snapshot);
+	}
+	else
+	{
+		node->ss.ss_currentScanDesc =
+			heap_beginscan_bm(currentpartitionrel, estate->es_snapshot, 0, NULL);
+	}
 }

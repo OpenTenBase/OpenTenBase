@@ -235,6 +235,28 @@ SELECT a, lower(coalesce(x, 'foo')), lower(coalesce(y, 'foo')) FROM collate_test
  2 | hij   | hij
 (2 rows)
 
+select coalesce('', 2) from dual;
+ERROR:  invalid input syntax for integer: ""
+LINE 1: select coalesce('', 2) from dual;
+                        ^
+select coalesce(null, 2) from dual;
+ coalesce 
+----------
+        2
+(1 row)
+
+set enable_lightweight_ora_syntax to on;
+select coalesce('', 2) from dual;	-- failed
+ERROR:  COALESCE types text and integer cannot be matched
+LINE 1: select coalesce('', 2) from dual;
+                            ^
+select coalesce(null, 2) from dual;
+ coalesce 
+----------
+        2
+(1 row)
+
+reset enable_lightweight_ora_syntax;
 SELECT a, b, greatest(b, 'CCC') FROM collate_test1 ORDER BY 3,1;
  a |  b  | greatest 
 ---+-----+----------
@@ -424,16 +446,16 @@ SELECT a, b FROM collate_test2 EXCEPT SELECT a, b FROM collate_test2 WHERE a < 2
 SELECT a, b FROM collate_test1 UNION ALL SELECT a, b FROM collate_test2 ORDER BY 2; -- fail
 ERROR:  could not determine which collation to use for string comparison
 HINT:  Use the COLLATE clause to set the collation explicitly.
-(SELECT a, b FROM collate_test1 ORDER BY 1) UNION ALL (SELECT a, b FROM collate_test2 ORDER BY 1); -- ok
+SELECT * from ((SELECT a, b FROM collate_test1 ORDER BY 1) UNION ALL (SELECT a, b FROM collate_test2 ORDER BY 1)) order by 1; -- ok
  a |  b  
 ---+-----
  1 | abc
- 2 | Abc
  1 | abc
  2 | Abc
+ 2 | Abc
+ 3 | bbc
  3 | bbc
  4 | ABD
- 3 | bbc
  4 | ABD
 (8 rows)
 
@@ -570,12 +592,12 @@ ERROR:  collations are not supported by type integer
 LINE 1: ...ATE INDEX collate_test1_idx6 ON collate_test1 ((a COLLATE "P...
                                                              ^
 SELECT relname, pg_get_indexdef(oid) FROM pg_class WHERE relname LIKE 'collate_test%_idx%' ORDER BY 1;
-      relname       |                                           pg_get_indexdef                                           
---------------------+-----------------------------------------------------------------------------------------------------
- collate_test1_idx1 | CREATE INDEX collate_test1_idx1 ON collate_test1 USING btree (b)
- collate_test1_idx2 | CREATE INDEX collate_test1_idx2 ON collate_test1 USING btree (b COLLATE "POSIX")
- collate_test1_idx3 | CREATE INDEX collate_test1_idx3 ON collate_test1 USING btree (b COLLATE "POSIX")
- collate_test1_idx4 | CREATE INDEX collate_test1_idx4 ON collate_test1 USING btree (((b || 'foo'::text)) COLLATE "POSIX")
+      relname       |                                                            pg_get_indexdef                                                             
+--------------------+----------------------------------------------------------------------------------------------------------------------------------------
+ collate_test1_idx1 | CREATE INDEX collate_test1_idx1 ON collate_tests.collate_test1 USING btree (b) WITH (checksum='on')
+ collate_test1_idx2 | CREATE INDEX collate_test1_idx2 ON collate_tests.collate_test1 USING btree (b COLLATE "POSIX") WITH (checksum='on')
+ collate_test1_idx3 | CREATE INDEX collate_test1_idx3 ON collate_tests.collate_test1 USING btree (b COLLATE "POSIX") WITH (checksum='on')
+ collate_test1_idx4 | CREATE INDEX collate_test1_idx4 ON collate_tests.collate_test1 USING btree (((b || 'foo'::text)) COLLATE "POSIX") WITH (checksum='on')
 (4 rows)
 
 -- foreign keys
@@ -604,23 +626,25 @@ RESET enable_nestloop;
 -- EXPLAIN
 EXPLAIN (COSTS OFF)
   SELECT * FROM collate_test10 ORDER BY x, y;
-                     QUERY PLAN                      
------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+                     QUERY PLAN                     
+----------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   Sort Key: x COLLATE "C", y COLLATE "POSIX"
    ->  Sort
          Sort Key: x COLLATE "C", y COLLATE "POSIX"
          ->  Seq Scan on collate_test10
-(4 rows)
+(5 rows)
 
 EXPLAIN (COSTS OFF)
   SELECT * FROM collate_test10 ORDER BY x DESC, y COLLATE "C" ASC NULLS FIRST;
                            QUERY PLAN                            
 -----------------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+ Remote Subquery Scan on all (datanodes 2)
+   Sort Key: x COLLATE "C" DESC, y COLLATE "C" NULLS FIRST
    ->  Sort
          Sort Key: x COLLATE "C" DESC, y COLLATE "C" NULLS FIRST
          ->  Seq Scan on collate_test10
-(4 rows)
+(5 rows)
 
 -- CREATE/DROP COLLATION
 CREATE COLLATION mycoll1 FROM "C";
@@ -633,6 +657,11 @@ DROP COLLATION mycoll2;  -- fail
 ERROR:  cannot drop collation mycoll2 because other objects depend on it
 DETAIL:  table collate_test23 column f1 depends on collation mycoll2
 HINT:  Use DROP ... CASCADE to drop the dependent objects too.
+-- invalid: non-lowercase quoted identifiers
+CREATE COLLATION case_coll ("Lc_Collate" = "POSIX", "Lc_Ctype" = "POSIX");
+ERROR:  collation attribute "Lc_Collate" not recognized
+LINE 1: CREATE COLLATION case_coll ("Lc_Collate" = "POSIX", "Lc_Ctyp...
+                                    ^
 -- 9.1 bug with useless COLLATE in an expression subject to length coercion
 CREATE TEMP TABLE vctable (f1 varchar(25));
 INSERT INTO vctable VALUES ('foo' COLLATE "C");
@@ -663,4 +692,4 @@ SELECT collation for ((SELECT b FROM collate_test1 LIMIT 1));
 --
 \set VERBOSITY terse
 DROP SCHEMA collate_tests CASCADE;
-NOTICE:  drop cascades to 17 other objects
+NOTICE:  drop cascades to 18 other objects

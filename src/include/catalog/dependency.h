@@ -1,15 +1,12 @@
 /*-------------------------------------------------------------------------
  *
  * dependency.h
- *      Routines to support inter-object dependencies.
+ *	  Routines to support inter-object dependencies.
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  * Portions Copyright (c) 2010-2012 Postgres-XC Development Group
- *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  * src/include/catalog/dependency.h
  *
@@ -90,13 +87,13 @@
 
 typedef enum DependencyType
 {
-    DEPENDENCY_NORMAL = 'n',
-    DEPENDENCY_AUTO = 'a',
-    DEPENDENCY_INTERNAL = 'i',
+	DEPENDENCY_NORMAL = 'n',
+	DEPENDENCY_AUTO = 'a',
+	DEPENDENCY_INTERNAL = 'i',
 	DEPENDENCY_INTERNAL_AUTO = 'I',
-    DEPENDENCY_EXTENSION = 'e',
-    DEPENDENCY_AUTO_EXTENSION = 'x',
-    DEPENDENCY_PIN = 'p'
+	DEPENDENCY_EXTENSION = 'e',
+	DEPENDENCY_AUTO_EXTENSION = 'x',
+	DEPENDENCY_PIN = 'p'
 } DependencyType;
 
 /*
@@ -131,11 +128,12 @@ typedef enum DependencyType
  */
 typedef enum SharedDependencyType
 {
-    SHARED_DEPENDENCY_PIN = 'p',
-    SHARED_DEPENDENCY_OWNER = 'o',
-    SHARED_DEPENDENCY_ACL = 'a',
-    SHARED_DEPENDENCY_POLICY = 'r',
-    SHARED_DEPENDENCY_INVALID = 0
+	SHARED_DEPENDENCY_PIN = 'p',
+	SHARED_DEPENDENCY_OWNER = 'o',
+	SHARED_DEPENDENCY_ACL = 'a',
+	SHARED_DEPENDENCY_POLICY = 'r',
+	SHARED_DEPENDENCY_GROUP = 'g',
+	SHARED_DEPENDENCY_INVALID = 0
 } SharedDependencyType;
 
 /* expansible list of ObjectAddresses (private in dependency.c) */
@@ -147,108 +145,100 @@ typedef struct ObjectAddresses ObjectAddresses;
  */
 typedef enum ObjectClass
 {
-    OCLASS_CLASS,                /* pg_class */
-    OCLASS_PROC,                /* pg_proc */
-    OCLASS_TYPE,                /* pg_type */
-    OCLASS_CAST,                /* pg_cast */
-    OCLASS_COLLATION,            /* pg_collation */
-    OCLASS_CONSTRAINT,            /* pg_constraint */
-    OCLASS_CONVERSION,            /* pg_conversion */
-    OCLASS_DEFAULT,                /* pg_attrdef */
-    OCLASS_LANGUAGE,            /* pg_language */
-    OCLASS_LARGEOBJECT,            /* pg_largeobject */
-    OCLASS_OPERATOR,            /* pg_operator */
-    OCLASS_OPCLASS,                /* pg_opclass */
-    OCLASS_OPFAMILY,            /* pg_opfamily */
-    OCLASS_AM,                    /* pg_am */
-    OCLASS_AMOP,                /* pg_amop */
-    OCLASS_AMPROC,                /* pg_amproc */
-    OCLASS_REWRITE,                /* pg_rewrite */
-    OCLASS_TRIGGER,                /* pg_trigger */
-    OCLASS_SCHEMA,                /* pg_namespace */
-    OCLASS_STATISTIC_EXT,        /* pg_statistic_ext */
-    OCLASS_TSPARSER,            /* pg_ts_parser */
-    OCLASS_TSDICT,                /* pg_ts_dict */
-    OCLASS_TSTEMPLATE,            /* pg_ts_template */
-    OCLASS_TSCONFIG,            /* pg_ts_config */
-    OCLASS_ROLE,                /* pg_authid */
-    OCLASS_DATABASE,            /* pg_database */
-    OCLASS_TBLSPACE,            /* pg_tablespace */
-    OCLASS_FDW,                /* pg_foreign_data_wrapper */
-    OCLASS_FOREIGN_SERVER,            /* pg_foreign_server */
-    OCLASS_USER_MAPPING,            /* pg_user_mapping */
+	OCLASS_CLASS,				/* pg_class */
+	OCLASS_PROC,				/* pg_proc */
+	OCLASS_TYPE,				/* pg_type */
+	OCLASS_CAST,				/* pg_cast */
+	OCLASS_COLLATION,			/* pg_collation */
+	OCLASS_CONSTRAINT,			/* pg_constraint */
+	OCLASS_CONVERSION,			/* pg_conversion */
+	OCLASS_DEFAULT,				/* pg_attrdef */
+	OCLASS_LANGUAGE,			/* pg_language */
+	OCLASS_LARGEOBJECT,			/* pg_largeobject */
+	OCLASS_OPERATOR,			/* pg_operator */
+	OCLASS_OPCLASS,				/* pg_opclass */
+	OCLASS_OPFAMILY,			/* pg_opfamily */
+	OCLASS_AM,					/* pg_am */
+	OCLASS_AMOP,				/* pg_amop */
+	OCLASS_AMPROC,				/* pg_amproc */
+	OCLASS_REWRITE,				/* pg_rewrite */
+	OCLASS_TRIGGER,				/* pg_trigger */
+	OCLASS_SCHEMA,				/* pg_namespace */
+	OCLASS_STATISTIC_EXT,		/* pg_statistic_ext */
+	OCLASS_TSPARSER,			/* pg_ts_parser */
+	OCLASS_TSDICT,				/* pg_ts_dict */
+	OCLASS_TSTEMPLATE,			/* pg_ts_template */
+	OCLASS_TSCONFIG,			/* pg_ts_config */
+	OCLASS_ROLE,				/* pg_authid */
+	OCLASS_DATABASE,			/* pg_database */
+	OCLASS_TBLSPACE,			/* pg_tablespace */
+	OCLASS_FDW,				/* pg_foreign_data_wrapper */
+	OCLASS_FOREIGN_SERVER,			/* pg_foreign_server */
+	OCLASS_USER_MAPPING,			/* pg_user_mapping */
 #ifdef PGXC
-    OCLASS_PGXC_CLASS,            /* pgxc_class */
-    OCLASS_PGXC_NODE,            /* pgxc_node */
-    OCLASS_PGXC_GROUP,            /* pgxc_group */
-#endif
-#ifdef __OPENTENBASE__
-    OCLASS_PG_PARTITION_INTERVAL,
+	OCLASS_PGXC_CLASS,			/* pgxc_class */
+	OCLASS_PGXC_NODE,			/* pgxc_node */
+	OCLASS_PGXC_GROUP,			/* pgxc_group */
 #endif
 #ifdef __AUDIT__
-    OCLASS_AUDIT_STMT,            /* pg_audit_stmt_conf */
-    OCLASS_AUDIT_USER,            /* pg_audit_user_conf */
-    OCLASS_AUDIT_OBJ,            /* pg_audit_obj_conf */
-    OCLASS_AUDIT_OBJDEFAULT,    /* pg_audit_obj_def_opts */
+	OCLASS_AUDIT_STMT,			/* pg_audit_stmt_conf */
+	OCLASS_AUDIT_USER,			/* pg_audit_user_conf */
+	OCLASS_AUDIT_OBJ,			/* pg_audit_obj_conf */
+	OCLASS_AUDIT_OBJDEFAULT,	/* pg_audit_obj_def_opts */
 #endif
 #ifdef __STORAGE_SCALABLE__
-    OCLASS_PUBLICATION_SHARD,   /* pg_publication_shard */
-    OCLASS_SUBSCRIPTION_SHARD,  /* pg_subscription_shard */
-    OCLASS_SUBSCRIPTION_TABLE,  /* pg_subscription_table */
+	OCLASS_PUBLICATION_SHARD,   /* pg_publication_shard */
+	OCLASS_SUBSCRIPTION_SHARD,  /* pg_subscription_shard */
+	OCLASS_SUBSCRIPTION_TABLE,  /* pg_subscription_table */
 #endif
-    OCLASS_DEFACL,                /* pg_default_acl */
-    OCLASS_EXTENSION,            /* pg_extension */
-    OCLASS_EVENT_TRIGGER,        /* pg_event_trigger */
-    OCLASS_POLICY,                /* pg_policy */
-    OCLASS_PUBLICATION,            /* pg_publication */
-    OCLASS_PUBLICATION_REL,        /* pg_publication_rel */
-    OCLASS_SUBSCRIPTION,        /* pg_subscription */
-    OCLASS_TRANSFORM            /* pg_transform */
+	OCLASS_DEFACL,				/* pg_default_acl */
+	OCLASS_EXTENSION,			/* pg_extension */
+	OCLASS_EVENT_TRIGGER,		/* pg_event_trigger */
+	OCLASS_POLICY,				/* pg_policy */
+	OCLASS_PUBLICATION,			/* pg_publication */
+	OCLASS_PUBLICATION_REL,		/* pg_publication_rel */
+	OCLASS_SUBSCRIPTION,		/* pg_subscription */
+	OCLASS_TRANSFORM,			/* pg_transform */
+	OCLASS_EXTPROTOCOL,			/* pg_extprotocol */
+	OCLASS_SYNONYM,			/* pg_synonym */
+	OCLASS_PACKAGE,			/* pg_package */
+	OCLASS_CHILDALIAS,		/* pg_childalias */
+	OCLASS_TYPE_OBJECT,		/* pg_type_object/opentenbase_type_object_metadata */
+	OCLASS_SPMPLAN,			/* pg_spm_plan */
+	OCLASS_SPMPLAN_HISTORY  /* pg_spm_plan_history */
 } ObjectClass;
 
-#define LAST_OCLASS        OCLASS_TRANSFORM
+#define LAST_OCLASS		OCLASS_EXTPROTOCOL
 
 /* flag bits for performDeletion/performMultipleDeletions: */
-#define PERFORM_DELETION_INTERNAL            0x0001    /* internal action */
-#define PERFORM_DELETION_CONCURRENTLY        0x0002    /* concurrent drop */
-#define PERFORM_DELETION_QUIETLY            0x0004    /* suppress notices */
-#define PERFORM_DELETION_SKIP_ORIGINAL        0x0008    /* keep original obj */
-#define PERFORM_DELETION_SKIP_EXTENSIONS    0x0010    /* keep extensions */
-
-
+#define PERFORM_DELETION_INTERNAL			0x0001	/* internal action */
+#define PERFORM_DELETION_CONCURRENTLY		0x0002	/* concurrent drop */
+#define PERFORM_DELETION_QUIETLY			0x0004	/* suppress notices */
+#define PERFORM_DELETION_SKIP_ORIGINAL		0x0008	/* keep original obj */
+#define PERFORM_DELETION_SKIP_EXTENSIONS	0x0010	/* keep extensions */
 /* in dependency.c */
 
 extern void performDeletion(const ObjectAddress *object,
-                DropBehavior behavior, int flags);
+				DropBehavior behavior, int flags);
 
 extern void performMultipleDeletions(const ObjectAddresses *objects,
-                         DropBehavior behavior, int flags);
+						 DropBehavior behavior, int flags);
 
-#ifdef __OPENTENBASE__
-extern void RemoveRelationsParallelMode(DropStmt *drop,
-										ObjectAddresses* objects,
-										List *heap_list);
-extern void RemoveObjectsParallelMode(DropStmt *stmt, ObjectAddresses *objects);
-extern void OmitqueryStringSpace(char *queryString);
-extern void RemoveObjnameInQueryString(char *queryString, char *full_name);
-extern ObjectAddresses* PreCheckforRemoveObjects(DropStmt *stmt, bool missing_ok,
-										bool *need_drop, char *query_string,
-										bool need_unlock);
-#endif
+extern void checkObjectDepency(const ObjectAddress *object);
 
 #ifdef PGXC
 extern void performRename(const ObjectAddress *object,
-                          const char *oldname,
-                          const char *newname);
+						  const char *oldname,
+						  const char *newname);
 #endif
 extern void recordDependencyOnExpr(const ObjectAddress *depender,
-                       Node *expr, List *rtable,
-                       DependencyType behavior);
+					   Node *expr, List *rtable,
+					   DependencyType behavior);
 
 extern void recordDependencyOnSingleRelExpr(const ObjectAddress *depender,
-                                Node *expr, Oid relId,
-                                DependencyType behavior,
-                                DependencyType self_behavior,
+								Node *expr, Oid relId,
+								DependencyType behavior,
+								DependencyType self_behavior,
 											bool reverse_self);
 
 extern ObjectClass getObjectClass(const ObjectAddress *object);
@@ -256,72 +246,76 @@ extern ObjectClass getObjectClass(const ObjectAddress *object);
 extern ObjectAddresses *new_object_addresses(void);
 
 extern void add_exact_object_address(const ObjectAddress *object,
-                         ObjectAddresses *addrs);
+						 ObjectAddresses *addrs);
 
 extern bool object_address_present(const ObjectAddress *object,
-                       const ObjectAddresses *addrs);
+					   const ObjectAddresses *addrs);
 
 extern void record_object_address_dependencies(const ObjectAddress *depender,
-                                   ObjectAddresses *referenced,
-                                   DependencyType behavior);
+								   ObjectAddresses *referenced,
+								   DependencyType behavior);
 
 extern void free_object_addresses(ObjectAddresses *addrs);
 
 /* in pg_depend.c */
 
 extern void recordDependencyOn(const ObjectAddress *depender,
-                   const ObjectAddress *referenced,
-                   DependencyType behavior);
+				   const ObjectAddress *referenced,
+				   DependencyType behavior);
 
+extern void recordPinnedDependency(const ObjectAddress *object);
 extern void recordMultipleDependencies(const ObjectAddress *depender,
-                           const ObjectAddress *referenced,
-                           int nreferenced,
-                           DependencyType behavior);
+						   const ObjectAddress *referenced,
+						   int nreferenced,
+						   DependencyType behavior);
 
 extern void recordDependencyOnCurrentExtension(const ObjectAddress *object,
-                                   bool isReplace);
+								   bool isReplace);
+
+extern void checkMembershipInCurrentExtension(const ObjectAddress *object);
 
 extern long deleteDependencyRecordsFor(Oid classId, Oid objectId,
-                           bool skipExtensionDeps);
+						   bool skipExtensionDeps);
 
 extern long deleteDependencyRecordsForClass(Oid classId, Oid objectId,
-                                Oid refclassId, char deptype);
+								Oid refclassId, char deptype);
 
 extern long changeDependencyFor(Oid classId, Oid objectId,
-                    Oid refClassId, Oid oldRefObjectId,
-                    Oid newRefObjectId);
+					Oid refClassId, Oid oldRefObjectId,
+					Oid newRefObjectId);
 
-extern Oid    getExtensionOfObject(Oid classId, Oid objectId);
+extern Oid	getExtensionOfObject(Oid classId, Oid objectId);
+extern List *getAutoExtensionsOfObject(Oid classId, Oid objectId);
 
 extern bool sequenceIsOwned(Oid seqId, char deptype, Oid *tableId, int32 *colId);
 extern List *getOwnedSequences(Oid relid, AttrNumber attnum);
-extern Oid    getOwnedSequence(Oid relid, AttrNumber attnum);
+extern Oid	getOwnedSequence(Oid relid, AttrNumber attnum);
 
-extern Oid    get_constraint_index(Oid constraintId);
+extern Oid	get_constraint_index(Oid constraintId);
 
-extern Oid    get_index_constraint(Oid indexId);
+extern Oid	get_index_constraint(Oid indexId);
 
 /* in pg_shdepend.c */
 
 extern void recordSharedDependencyOn(ObjectAddress *depender,
-                         ObjectAddress *referenced,
-                         SharedDependencyType deptype);
+						 ObjectAddress *referenced,
+						 SharedDependencyType deptype);
 
 extern void deleteSharedDependencyRecordsFor(Oid classId, Oid objectId,
-                                 int32 objectSubId);
+								 int32 objectSubId);
 
 extern void recordDependencyOnOwner(Oid classId, Oid objectId, Oid owner);
 
 extern void changeDependencyOnOwner(Oid classId, Oid objectId,
-                        Oid newOwnerId);
+						Oid newOwnerId);
 
 extern void updateAclDependencies(Oid classId, Oid objectId, int32 objectSubId,
-                      Oid ownerId,
-                      int noldmembers, Oid *oldmembers,
-                      int nnewmembers, Oid *newmembers);
+					  Oid ownerId,
+					  int noldmembers, Oid *oldmembers,
+					  int nnewmembers, Oid *newmembers);
 
 extern bool checkSharedDependencies(Oid classId, Oid objectId,
-                        char **detail_msg, char **detail_log_msg);
+						char **detail_msg, char **detail_log_msg);
 
 extern void shdepLockAndCheckObject(Oid classId, Oid objectId);
 
@@ -333,4 +327,4 @@ extern void shdepDropOwned(List *relids, DropBehavior behavior);
 
 extern void shdepReassignOwned(List *relids, Oid newrole);
 
-#endif                            /* DEPENDENCY_H */
+#endif							/* DEPENDENCY_H */

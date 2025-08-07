@@ -1,0 +1,156 @@
+Global Temporary Table(GTT)
+==============
+
+Feature description
+--------------------------------
+
+Previously, temporary tables are defined once and automatically
+created (starting with empty contents) in every session before using them.
+
+The temporary table implementation in PostgreSQL, known as Local temp tables(LTT),
+did not fully comply with the SQL standard. This version added the support of
+Global Temporary Table .
+
+The metadata of Global Temporary Table is persistent and shared among sessions.
+The data stored in the Global temporary table is independent of sessions. This
+means, when a session creates a Global Temporary Table and writes some data.
+Other sessions cannot see those data, but they have an empty Global Temporary
+Table with same schema.
+
+Like local temporary table, Global Temporary Table supports ON COMMIT PRESERVE ROWS
+or ON COMMIT DELETE ROWS clause, so that data in the temporary table can be
+cleaned up or reserved automatically when a session exits or a transaction COMMITs.
+
+Unlike Local Temporary Table, Global Temporary Table does not support
+ON COMMIT DROP clauses.
+
+In following paragraphs, we use GTT for Global Temporary Table and LTT for
+local temporary table.
+
+Main design ideas
+-----------------------------------------
+
+STORAGE & BUFFER
+
+The schema of GTTs is shared among sessions while their data are not. We build
+a new mechanism to manage those non-shared data.
+
+FOR PG, In general, GTT and LTT use the same storage and buffer design and
+implementation. The storage files for both types of temporary tables are named
+as t_backendid_relfilenode, and the local buffer is used to cache the data.
+
+WHILE FOR OPENTENBASE, GTT and LTT both use the shared buffer to cache the data on datanodes.
+The storage files for LTT are named as relfilenode.
+The storage files for GTT are different. We create tempTableSpace named 'pg_gtt_spc_backendid'
+under directory 'pg_gtt' in different cn-sessions separately to store GTT storage files on each
+node (cn and dn). The tempTableSpace would be droped from catalog, and the files under
+'pg_gtt_spc_backendid' would be cleaned. The 'pg_gtt_spc_backendid' directory can be reused when
+the next session's backendid is same to before.
+So we separate different storage files for different sessions using tablespace.
+When access the GTT, we change the spcNode of RelFileNode in RelationInitPhysicalAddr.
+
+We do not support statistics for GTT now.
+Here is the summary of changes:
+
+1) CATALOG
+GTTs store session-specific data. The storage information of GTTs'data, their
+transaction information, and their statistics are not stored in the catalog.
+
+2) STORAGE INFO
+
+FOR OPENTENBASE : In order to maintain durability and availability of GTTs'session-specific data,
+their storage information is managed in a shared hash table active_gtt_shared_hash.
+
+3) STATISTICS
+We do not support statistics for GTT now.
+
+3) DDL
+A shared hash table active_gtt_shared_hash is added to track the state of the
+GTT in a different session. This information is recorded in the hash table
+during the DDL execution of the GTT.
+
+4) LOCK
+The data stored in a GTT can only be modified or accessed by owning session.
+The statements that only modify data in a GTT do not need a high level of table
+locking, such as truncate GTT.
+Changes to the GTT's metadata affect all sessions.
+
+Detailed design
+-----------------------------------------
+
+1. CATALOG
+1.1 relpersistence
+define RELPERSISTENCEGLOBALTEMP 'g'
+Mark Global Temporary Table in pg_class relpersistence to 'g'. The relpersistence
+of indexes created on the GTT, sequences on GTT and toast tables on GTT are
+also set to 'g'
+
+1.2 on commit clause
+LTT's status associated with on commit DELETE ROWS and on commit PRESERVE ROWS
+is not stored in catalog. Instead, GTTs need a bool value on_commit_delete_rows
+in reloptions which is shared among sessions.
+
+1.3 gram.y
+GTT is already supported in syntax tree. We remove the warning message
+"GLOBAL is deprecated in temporary table creation" and mark
+relpersistence = RELPERSISTENCEGLOBALTEMP.
+
+2. STORAGE INFO
+
+2.1. active_gtt_shared_hash
+This is the hash table created in shared memory to trace the GTT files initialized
+in each session. Each hash entry contains a bitmap that records the backendid of the process
+which initialized the GTT file. With this hash table, we know which backend/session
+is using this GTT. Such information is used during GTT's DDL operations.
+
+2.2 GTT storage file info track
+1) When one session inserts data into a GTT for the first time, set current backendid in
+active_gtt_shared_hash to true.
+2) Use beforeshmemexit to ensure that all files of session GTT and temp tablespace directory are deleted
+when the session exits. Shmem_Exit would be processed only on coordianator or the datanode backend
+initializing the physical storage.
+
+4 DDL
+4.1 DROP GTT
+One GTT is allowed to be deleted when there is only one session using the table
+and the session is the current session.
+After holding the AccessExclusiveLock lock on GTT, active_gtt_shared_hash
+is checked to ensure that.
+
+4.2 DROP INDEX ON GTT
+Same as drop GTT.
+
+4.3 CREATE INDEX ON GTT
+1) create index on GTT statements build index based on local data in a session.
+2) After the index is created, record the index metadata to the catalog.
+3) Other sessions can enable or disable the local GTT index.
+
+4.4 ALTER GTT/INDEX ON GTT
+not supported yet.
+
+5 LOCK
+
+5.1 TRUNCATE GTT
+The truncate GTT command uses RowExclusiveLock, not AccessExclusiveLock, because
+this command only cleans up local data and local buffers in current session.
+
+5.2 CLUSTER GTT/VACUUM FULL GTT
+not supported now.
+
+5.3 Lock GTT
+to be adaptated.
+
+6 MVCC commit log(clog) cleanup
+
+6.1 vacuum GTT
+Users can perform vacuum over a GTT to clean up local data in the GTT.
+(only vacuum the relation in specific temp tablespace)
+
+6.2 autovacuum GTT
+Autovacuum skips all GTTs, because the data in GTTs is only visible in current
+session.(do_autovacuum)
+
+7 OTHERS
+Parallel query
+Planner does not produce parallel query plans for SQL related to GTT. Because
+GTT private data cannot be accessed across processes.(set_rel_consider_parallel)

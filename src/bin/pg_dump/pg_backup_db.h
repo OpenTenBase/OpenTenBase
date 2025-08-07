@@ -1,8 +1,8 @@
 /*
- *    Definitions for pg_backup_db.c
+ *	Definitions for pg_backup_db.c
  *
- *    IDENTIFICATION
- *        src/bin/pg_dump/pg_backup_db.h
+ *	IDENTIFICATION
+ *		src/bin/pg_dump/pg_backup_db.h
  */
 
 #ifndef PG_BACKUP_DB_H
@@ -11,11 +11,11 @@
 #include "pg_backup.h"
 
 
-extern int    ExecuteSqlCommandBuf(Archive *AHX, const char *buf, size_t bufLen);
+extern int	ExecuteSqlCommandBuf(Archive *AHX, const char *buf, size_t bufLen);
 
 extern void ExecuteSqlStatement(Archive *AHX, const char *query);
 extern PGresult *ExecuteSqlQuery(Archive *AHX, const char *query,
-                ExecStatusType status);
+				ExecStatusType status);
 extern PGresult *ExecuteSqlQueryForSingleRow(Archive *fout, char *query);
 
 extern void EndDBCopyMode(Archive *AHX, const char *tocEntryTag);

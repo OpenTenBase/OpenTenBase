@@ -1,0 +1,105 @@
+------------------------------------------------------------
+-- A part of opentenbase_ora.sql, test null functions related cases.
+------------------------------------------------------------
+\set ECHO all
+SET client_min_messages = warning;
+SET datestyle TO ISO;
+SET client_encoding = utf8;
+
+\c regression_ora
+
+-- Test nanvl
+SELECT nanvl(12345, 1), nanvl('NaN', 1) FROM DUAL;
+SELECT nanvl(12345::float4, 1), nanvl('NaN'::float4, 1) FROM DUAL;
+SELECT nanvl(12345::float8, 1), nanvl('NaN'::float8, 1) FROM DUAL;
+SELECT nanvl(12345::numeric, 1), nanvl('NaN'::numeric, 1) FROM DUAL;
+SELECT nanvl(12345, '1'::varchar), nanvl('NaN', 1::varchar) FROM DUAL;
+SELECT nanvl(12345::float4, '1'::varchar), nanvl('NaN'::float4, '1'::varchar) FROM DUAL;
+SELECT nanvl(12345::float8, '1'::varchar), nanvl('NaN'::float8, '1'::varchar) FROM DUAL;
+SELECT nanvl(12345::numeric, '1'::varchar), nanvl('NaN'::numeric, '1'::varchar) FROM DUAL;
+SELECT nanvl(12345, '1'::char), nanvl('NaN', 1::char) FROM DUAL;
+SELECT nanvl(12345::float4, '1'::char), nanvl('NaN'::float4, '1'::char) FROM DUAL;
+SELECT nanvl(12345::float8, '1'::char), nanvl('NaN'::float8, '1'::char) FROM DUAL;
+SELECT nanvl(12345::numeric, '1'::char), nanvl('NaN'::numeric, '1'::char) FROM DUAL;
+
+-- Test nvl
+SELECT nvl('A'::text, 'B') FROM DUAL;
+SELECT nvl(NULL::text, 'B') FROM DUAL;
+SELECT nvl(NULL::text, NULL) FROM DUAL;
+SELECT nvl(1, 2) FROM DUAL;
+SELECT nvl(NULL, 2) FROM DUAL;
+
+-- Test nvl2
+SELECT nvl2('A'::text, 'B', 'C') FROM DUAL;
+SELECT nvl2(NULL::text, 'B', 'C') FROM DUAL;
+SELECT nvl2('A'::text, NULL, 'C') FROM DUAL;
+SELECT nvl2(NULL::text, 'B', NULL) FROM DUAL;
+SELECT nvl2(1, 2, 3) FROM DUAL;
+SELECT nvl2(NULL, 2, 3) FROM DUAL;
+SELECT nvl2(' ', 1, 2) FROM DUAL;
+SELECT nvl2('', 1, 2) FROM DUAL;
+
+-- Test lnnvl
+SELECT lnnvl(true) FROM DUAL;
+SELECT lnnvl(false) FROM DUAL;
+SELECT lnnvl(NULL) FROM DUAL;
+
+-- Test NULL
+SELECT dump('') FROM DUAL;
+SELECT nvl('',3) FROM DUAL;
+SELECT nvl2('','1','2') FROM DUAL ;
+SELECT 1 FROM DUAL WHERE '' is NULL;
+SELECT NULL||'opentenbase' FROM DUAL;
+SELECT NULL+1 FROM DUAL;
+
+DROP TABLE IF EXISTS t_null;
+CREATE TABLE t_null(f1 int,f2 varchar2(10));
+INSERT INTO t_null VALUES(1,NULL);
+INSERT INTO t_null VALUES(2,'');
+SELECT * FROM t_null WHERE f2 is NULL;
+SELECT * FROM t_null WHERE f2 ='' ;
+
+INSERT INTO t_null VALUES(3,'1');
+INSERT INTO t_null VALUES(4,'2');
+SELECT * FROM t_null ORDER BY f2;
+DROP TABLE t_null;
+
+-- TODO: enable this case after opentenbase_ora datetime functions are merged
+-- 1020421696880130617
+-- Test nvl with diff length type
+-- DROP TABLE IF EXISTS t_fix_nvl_ret_cut_20221201;
+-- CREATE TABLE t_fix_nvl_ret_cut_20221201(id int,name varchar(6),name2 timestamp);
+-- INSERT INTO t_fix_nvl_ret_cut_20221201 VALUES (1, '202210', 'Sun Dec 04 23:48:56.654772 2022');
+-- INSERT INTO t_fix_nvl_ret_cut_20221201(id, name2) VALUES (2, 'Sun Dec 04 23:48:56.656310 2022');
+-- INSERT INTO t_fix_nvl_ret_cut_20221201(id, name2) VALUES (3, 'Sun Dec 04 23:48:56.657340 2022');
+-- INSERT INTO t_fix_nvl_ret_cut_20221201 VALUES (4, '202012', 'Sun Dec 04 23:48:56.658634 2022');
+-- SELECT * FROM t_fix_nvl_ret_cut_20221201 ORDER BY id;
+-- SELECT nvl(name, to_char(name2, 'yyyy:mm:dd hh24:mi:ss')) FROM t_fix_nvl_ret_cut_20221201 ORDER BY id;
+-- DROP TABLE t_fix_nvl_ret_cut_20221201;
+
+DROP TABLE IF EXISTS t_test_nvl_with_diff_type;
+CREATE TABLE t_test_nvl_with_diff_type(f1 int, f2 char(1), f3 nchar(1), f4 varchar(1),
+                                f5 varchar2(1), f6 nvarchar2(1), f7 bpchar(1),
+                                f8 text, f9 clob, f10 name,
+                                f11 pg_dependencies, f12 pg_ndistinct, f13 pg_node_tree,
+                                f14 information_schema.sql_identifier,
+                                f15 information_schema.character_data,
+                                f16 information_schema.yes_or_no);
+INSERT INTO t_test_nvl_with_diff_type VALUES (1);
+SELECT nvl(f1, 111111111111111111111111111111111111) FROM t_test_nvl_with_diff_type;
+SELECT nvl(f2, 111111111111111111111111111111111111) FROM t_test_nvl_with_diff_type;
+SELECT nvl(f3, 111111111111111111111111111111111111) FROM t_test_nvl_with_diff_type;
+SELECT nvl(f4, 111111111111111111111111111111111111) FROM t_test_nvl_with_diff_type;
+SELECT nvl(f5, 111111111111111111111111111111111111) FROM t_test_nvl_with_diff_type;
+SELECT nvl(f6, 111111111111111111111111111111111111) FROM t_test_nvl_with_diff_type;
+SELECT nvl(f7, 111111111111111111111111111111111111) FROM t_test_nvl_with_diff_type;
+SELECT nvl(f8, 111111111111111111111111111111111111) FROM t_test_nvl_with_diff_type;
+SELECT nvl(f9, 111111111111111111111111111111111111) FROM t_test_nvl_with_diff_type;
+SELECT nvl(f10, 111111111111111111111111111111111111) FROM t_test_nvl_with_diff_type;
+SELECT nvl(f11, 111111111111111111111111111111111111) FROM t_test_nvl_with_diff_type;
+SELECT nvl(f12, 111111111111111111111111111111111111) FROM t_test_nvl_with_diff_type;
+SELECT nvl(f13, 111111111111111111111111111111111111) FROM t_test_nvl_with_diff_type;
+SELECT nvl(f14, 111111111111111111111111111111111111) FROM t_test_nvl_with_diff_type;
+SELECT nvl(f15, 111111111111111111111111111111111111) FROM t_test_nvl_with_diff_type;
+SELECT nvl(f16, 111111111111111111111111111111111111) FROM t_test_nvl_with_diff_type;
+DROP TABLE t_test_nvl_with_diff_type;

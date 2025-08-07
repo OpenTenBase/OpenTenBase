@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * reinit.h
- *      Reinitialization of unlogged relations
+ *	  Reinitialization of unlogged relations
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -17,7 +17,7 @@
 
 extern void ResetUnloggedRelations(int op);
 
-#define UNLOGGED_RELATION_CLEANUP        0x0001
-#define UNLOGGED_RELATION_INIT            0x0002
+#define UNLOGGED_RELATION_CLEANUP		0x0001
+#define UNLOGGED_RELATION_INIT			0x0002
 
-#endif                            /* REINIT_H */
+#endif							/* REINIT_H */

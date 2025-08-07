@@ -29,6 +29,7 @@ our @EXPORT = qw(
   system_or_bail
   system_log
   run_log
+  run_command
 
   command_ok
   command_fails
@@ -39,6 +40,7 @@ our @EXPORT = qw(
   command_like
   command_like_safe
   command_fails_like
+  scan_server_header
 
   $windows_os
 );
@@ -170,6 +172,16 @@ sub run_log
 {
 	print("# Running: " . join(" ", @{ $_[0] }) . "\n");
 	return IPC::Run::run(@_);
+}
+
+sub run_command
+{
+	my ($cmd) = @_;
+	my ($stdout, $stderr);
+	my $result = IPC::Run::run $cmd, '>', \$stdout, '2>', \$stderr;
+	chomp($stdout);
+	chomp($stderr);
+	return ($stdout, $stderr);
 }
 
 # Generate a string made of the given range of ASCII characters
@@ -328,6 +340,36 @@ sub command_fails_like
 	my $result = IPC::Run::run $cmd, '>', \$stdout, '2>', \$stderr;
 	ok(!$result, "$test_name: exit code not 0");
 	like($stderr, $expected_stderr, "$test_name: matches");
+}
+
+sub scan_server_header
+{
+        my ($header_path, $regexp) = @_;
+
+        my ($stdout, $stderr);
+        my $result = IPC::Run::run [ 'pg_config', '--includedir-server' ], '>',
+          \$stdout, '2>', \$stderr
+          or die "could not execute pg_config";
+        chomp($stdout);
+        $stdout =~ s/\r$//;
+
+        open my $header_h, '<', "$stdout/$header_path" or die "$!";
+
+        my @match = undef;
+        while (<$header_h>)
+        {
+                my $line = $_;
+
+                if (@match = $line =~ /^$regexp/)
+                {
+                        last;
+                }
+        }
+
+        close $header_h;
+        die "could not find match in header $header_path\n"
+          unless @match;
+        return @match;
 }
 
 1;

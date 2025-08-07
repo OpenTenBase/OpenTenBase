@@ -20,4 +20,4 @@ extern LimitState *ExecInitLimit(Limit *node, EState *estate, int eflags);
 extern void ExecEndLimit(LimitState *node);
 extern void ExecReScanLimit(LimitState *node);
 
-#endif                            /* NODELIMIT_H */
+#endif							/* NODELIMIT_H */

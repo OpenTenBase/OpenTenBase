@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * header.h
- *        Replacement header file for Snowball stemmer modules
+ *		Replacement header file for Snowball stemmer modules
  *
  * The Snowball stemmer modules do #include "header.h", and think they
  * are including snowball/libstemmer/header.h.  We adjust the CPPFLAGS
@@ -47,21 +47,21 @@
 #ifdef malloc
 #undef malloc
 #endif
-#define malloc(a)        palloc(a)
+#define malloc(a)		palloc(a)
 
 #ifdef calloc
 #undef calloc
 #endif
-#define calloc(a,b)        palloc0((a) * (b))
+#define calloc(a,b)		palloc0((a) * (b))
 
 #ifdef realloc
 #undef realloc
 #endif
-#define realloc(a,b)    repalloc(a,b)
+#define realloc(a,b)	repalloc(a,b)
 
 #ifdef free
 #undef free
 #endif
-#define free(a)            pfree(a)
+#define free(a)			pfree(a)
 
-#endif                            /* SNOWBALL_HEADR_H */
+#endif							/* SNOWBALL_HEADR_H */

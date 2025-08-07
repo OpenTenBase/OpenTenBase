@@ -1,0 +1,345 @@
+\c regression_ora
+-- 1020421696882003165
+-- test column name like opentenbase_ora
+set enable_opentenbase_ora_column_name to on;
+create table t_opentenbase_ora_colname_20230220("Id " int, "I D" int, num int[]);
+insert into t_opentenbase_ora_colname_20230220 values (1, 2, array[1,2,3]), (2, 3, array[1,2,3]), (3, 4, array[1,2,3]);
+-- test column name of node T_ColumnRef
+select "Id " as id1, "I D" from t_opentenbase_ora_colname_20230220  order by "Id ";
+ ID1 | I D 
+-----+-----
+   1 |   2
+   2 |   3
+   3 |   4
+(3 rows)
+
+-- test column name of node T_A_Indirection (opentenbase_ora doesn't support)
+select num[2] from t_opentenbase_ora_colname_20230220  order by "Id ";
+ NUM[] 
+-------
+     2
+     2
+     2
+(3 rows)
+
+-- test column name of node T_FuncCall
+create or replace function f_opentenbase_ora_colname_20230220(id int)
+returns int AS
+begin
+return id;
+end;
+/
+select f_opentenbase_ora_colname_20230220(num[1]) from t_opentenbase_ora_colname_20230220 order by "Id ";
+ F_OPENTENBASE_ORA_COLNAME_20230220(NUM[1]) 
+--------------------------------------------
+                                          1
+                                          1
+                                          1
+(3 rows)
+
+select sum("Id "), avg("I D") from t_opentenbase_ora_colname_20230220;
+ SUM("ID") | AVG("ID") 
+-----------+-----------
+         6 |         3
+(1 row)
+
+-- test column name of node T_A_Expr
+select sum("Id ") + 3, avg("I D") / 5 from t_opentenbase_ora_colname_20230220;
+ SUM("ID")+3 | AVG("ID")/5 
+-------------+-------------
+           9 |          .6
+(1 row)
+
+select 1 + 1, 'a,' || 'b''' || 'c from' from dual;
+ 1+1 | 'A,'||'B'''||'CFROM' 
+-----+----------------------
+   2 | a,b'c from
+(1 row)
+
+-- test column name of node T_TypeCast (opentenbase_ora doesn't support)
+select "Id "::text, "I D"::varchar(2) from t_opentenbase_ora_colname_20230220 order by "Id ";
+ Id  | I D 
+-----+-----
+ 1   | 2
+ 2   | 3
+ 3   | 4
+(3 rows)
+
+-- test column name of node T_collateClause (opentenbase_ora doesn't support)
+select "Id "::text collate "C" from t_opentenbase_ora_colname_20230220 order by "Id ";
+ Id  
+-----
+ 1
+ 2
+ 3
+(3 rows)
+
+-- test column name of node T_GroupingFunc
+select grouping("Id ") from t_opentenbase_ora_colname_20230220 group by "Id ";
+ GROUPING("ID") 
+----------------
+              0
+              0
+              0
+(3 rows)
+
+select grouping_id("I D") from t_opentenbase_ora_colname_20230220 group by "I D";
+ GROUPING_ID("ID") 
+-------------------
+                 0
+                 0
+                 0
+(3 rows)
+
+-- test column name of node T_SubLink (opentenbase_ora doesn't support exists, array, all, any)
+select exists(select "Id " from t_opentenbase_ora_colname_20230220 order by "Id ") from t_opentenbase_ora_colname_20230220;
+ exists 
+--------
+ t
+ t
+ t
+(3 rows)
+
+select array(select "I D" from t_opentenbase_ora_colname_20230220 order by "I D") from t_opentenbase_ora_colname_20230220;
+  array  
+---------
+ {2,3,4}
+ {2,3,4}
+ {2,3,4}
+(3 rows)
+
+select (select "I D" from t_opentenbase_ora_colname_20230220 order by "I D" limit 1) from dual;
+ (SELECT"ID"FROMT_OPENTENBASE_ORA_COLNAME_20230220ORDERBY"ID"LIM 
+-----------------------------------------------------------------
+                                                               2
+(1 row)
+
+select "Id " = all(select "Id " from t_opentenbase_ora_colname_20230220 order by "Id ") from t_opentenbase_ora_colname_20230220;
+ ?column? 
+----------
+ f
+ f
+ f
+(3 rows)
+
+select "I D" > any(select "I D" from t_opentenbase_ora_colname_20230220 order by "I D") from t_opentenbase_ora_colname_20230220 order by "I D";
+ ?column? 
+----------
+ f
+ t
+ t
+(3 rows)
+
+-- test column name of node T_CaseExpr
+select case when "Id " = 1 then 1 else 0 end from t_opentenbase_ora_colname_20230220 order by "Id ";
+ CASEWHEN"ID"=1THEN1ELSE0END 
+-----------------------------
+                           1
+                           0
+                           0
+(3 rows)
+
+-- test column name of node T_A_ArrayExpr (opentenbase_ora doesn't support)
+select array['1', '2', '3'] from t_opentenbase_ora_colname_20230220;
+  array  
+---------
+ {1,2,3}
+ {1,2,3}
+ {1,2,3}
+(3 rows)
+
+-- test column name of node T_RowExpr (opentenbase_ora doesn't support)
+select row(1, 2, '3') from t_opentenbase_ora_colname_20230220;
+   row   
+---------
+ (1,2,3)
+ (1,2,3)
+ (1,2,3)
+(3 rows)
+
+-- test column name of node T_CoalesceExpr
+select coalesce(NULL, NULL, 3, 4, 5) FROM dual;
+ COALESCE(NULL,NULL,3,4,5) 
+---------------------------
+                         3
+(1 row)
+
+-- test column name of node T_MinMaxExpr
+select greatest(1, 2, 3, 4) from dual;
+ GREATEST(1,2,3,4) 
+-------------------
+                 4
+(1 row)
+
+select least(1, 2, 3, 4) from dual;
+ LEAST(1,2,3,4) 
+----------------
+              1
+(1 row)
+
+-- test column name of node T_SQLValueFunction
+select current_date from dual where 1=0;
+ CURRENT_DATE 
+--------------
+(0 rows)
+
+select current_timestamp from dual where 1=0;
+ CURRENT_TIMESTAMP 
+-------------------
+(0 rows)
+
+select current_timestamp(1) from dual where 1=0;
+ CURRENT_TIMESTAMP(1) 
+----------------------
+(0 rows)
+
+select localtimestamp from dual where 1=0;
+ LOCALTIMESTAMP 
+----------------
+(0 rows)
+
+select localtimestamp(1) from dual where 1=0;
+ LOCALTIMESTAMP 
+----------------
+(0 rows)
+
+select uid from dual where 1=0;
+ UID 
+-----
+(0 rows)
+
+-- opentenbase_ora doesn't support the following T_SQLValueFunction
+select current_time from dual where 1=0;
+ current_time 
+--------------
+(0 rows)
+
+select current_time(1) from dual where 1=0;
+ current_time 
+--------------
+(0 rows)
+
+select localtime from dual where 1=0;
+ localtime 
+-----------
+(0 rows)
+
+select localtime(1) from dual where 1=0;
+ localtime 
+-----------
+(0 rows)
+
+select current_role from dual where 1=0;
+ current_role 
+--------------
+(0 rows)
+
+select current_user from dual where 1=0;
+ current_user 
+--------------
+(0 rows)
+
+select user from dual where 1=0;
+ USER 
+------
+(0 rows)
+
+select session_user from dual where 1=0;
+ session_user 
+--------------
+(0 rows)
+
+select current_catalog from dual where 1=0;
+ current_catalog 
+-----------------
+(0 rows)
+
+select current_schema from dual where 1=0;
+ current_schema 
+----------------
+(0 rows)
+
+-- test column name of node T_XmlExpr (opentenbase_ora doesn't support is document)
+SELECT xmlcomment('hello') from dual;
+ XMLCOMMENT('HELLO') 
+---------------------
+ <!--hello-->
+(1 row)
+
+SELECT xmlconcat(xmlcomment('hello'), xmlcomment('world')) from dual;
+ XMLCONCAT(XMLCOMMENT('HELLO'),XMLCOMMENT('WORLD')) 
+----------------------------------------------------
+ <!--hello--><!--world-->
+(1 row)
+
+SELECT xmlforest('abc' AS "FOO", 123 AS "BAR") from dual;
+ XMLFOREST('ABC'AS"FOO",123AS"BAR") 
+------------------------------------
+ <FOO>abc</FOO><BAR>123</BAR>
+(1 row)
+
+SELECT xmlparse(content '<abc>x</abc>') from dual;
+ XMLPARSE(CONTENT'<ABC>X</ABC>') 
+---------------------------------
+ <abc>x</abc>
+(1 row)
+
+SELECT xmlpi(name foo) from dual;
+ XMLPI(NAMEFOO) 
+----------------
+ <?FOO?>
+(1 row)
+
+SELECT xmlroot( XMLType('<poid>143598</poid>'), VERSION '1.0', STANDALONE YES) from dual;
+ XMLROOT(XMLTYPE('<POID>143598</POID>'),VERSION'1.0',STANDALONEY 
+-----------------------------------------------------------------
+ <?xml version="1.0" standalone="yes"?><poid>143598</poid>
+(1 row)
+
+SELECT xmlserialize(CONTENT xmlconcat(xmlcomment('hello'), xmlcomment('world')) as varchar2(30)) from dual;
+ XMLSERIALIZE(CONTENTXMLCONCAT(XMLCOMMENT('HELLO'),XMLCOMMENT('W 
+-----------------------------------------------------------------
+ <!--hello--><!--world-->
+(1 row)
+
+SELECT xmlforest('abc' AS foo, 123 AS bar) is document from dual;
+ ?column? 
+----------
+ f
+(1 row)
+
+-- test column name of node T_XmlSerialize
+SELECT xmlserialize(CONTENT XMLTYPE('<Owner>Grandco</Owner>') as varchar2(30)) from dual;
+ XMLSERIALIZE(CONTENTXMLTYPE('<OWNER>GRANDCO</OWNER>')ASVARCHAR2 
+-----------------------------------------------------------------
+ <Owner>Grandco</Owner>
+(1 row)
+
+-- test column name of node const
+select 1 from dual;
+ 1 
+---
+ 1
+(1 row)
+
+select 1.2 from dual;
+ 1.2 
+-----
+ 1.2
+(1 row)
+
+select ' 12 2 aaaa' from dual;
+ '122AAAA'  
+------------
+  12 2 aaaa
+(1 row)
+
+select ' 1.3 nnn? 大' from dual;
+ '1.3NNN?大'  
+--------------
+  1.3 nnn? 大
+(1 row)
+
+drop table t_opentenbase_ora_colname_20230220;
+drop function f_opentenbase_ora_colname_20230220;
+reset enable_opentenbase_ora_column_name;

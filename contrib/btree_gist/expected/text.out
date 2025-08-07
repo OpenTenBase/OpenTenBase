@@ -73,15 +73,14 @@ SELECT count(*) FROM texttmp WHERE a  =  '2eb2c961c1cbf6 cf8d7b68cb9a2f36 7bbedb
 
 -- Test index-only scans
 SET enable_bitmapscan=off;
-EXPLAIN (COSTS OFF)
+EXPLAIN (COSTS OFF, NODES OFF)
 SELECT * FROM texttmp WHERE a BETWEEN '31a' AND '31c';
                            QUERY PLAN                            
 -----------------------------------------------------------------
  Remote Fast Query Execution
-   Node/s: datanode_1, datanode_2
    ->  Index Only Scan using textidx on texttmp
          Index Cond: ((a >= '31a'::text) AND (a <= '31c'::text))
-(4 rows)
+(3 rows)
 
 SELECT * FROM texttmp WHERE a BETWEEN '31a' AND '31c';
   a   

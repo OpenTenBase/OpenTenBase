@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * arch-arm.h
- *      Atomic operations considerations specific to ARM
+ *	  Atomic operations considerations specific to ARM
  *
  * Portions Copyright (c) 2013-2017, PostgreSQL Global Development Group
  *
@@ -24,3 +24,8 @@
 #if !defined(__aarch64__) && !defined(__aarch64)
 #define PG_DISABLE_64_BIT_ATOMICS
 #endif  /* __aarch64__ || __aarch64 */
+
+#if defined(__aarch64__) || defined(__aarch64)
+/* 8 byte single-copy atomicity */
+#define PG_HAVE_8BYTE_SINGLE_COPY_ATOMICITY
+#endif

@@ -1,12 +1,12 @@
 /*-------------------------------------------------------------------------
  *
- *      EUC_JIS_2004 <--> UTF8
+ *	  EUC_JIS_2004 <--> UTF8
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *      src/backend/utils/mb/conversion_procs/utf8_and_euc2004/utf8_and_euc2004.c
+ *	  src/backend/utils/mb/conversion_procs/utf8_and_euc2004/utf8_and_euc2004.c
  *
  *-------------------------------------------------------------------------
  */
@@ -24,46 +24,46 @@ PG_FUNCTION_INFO_V1(utf8_to_euc_jis_2004);
 
 /* ----------
  * conv_proc(
- *        INTEGER,    -- source encoding id
- *        INTEGER,    -- destination encoding id
- *        CSTRING,    -- source string (null terminated C string)
- *        CSTRING,    -- destination string (null terminated C string)
- *        INTEGER        -- source string length
+ *		INTEGER,	-- source encoding id
+ *		INTEGER,	-- destination encoding id
+ *		CSTRING,	-- source string (null terminated C string)
+ *		CSTRING,	-- destination string (null terminated C string)
+ *		INTEGER		-- source string length
  * ) returns VOID;
  * ----------
  */
 Datum
 euc_jis_2004_to_utf8(PG_FUNCTION_ARGS)
 {
-    unsigned char *src = (unsigned char *) PG_GETARG_CSTRING(2);
-    unsigned char *dest = (unsigned char *) PG_GETARG_CSTRING(3);
-    int            len = PG_GETARG_INT32(4);
+	unsigned char *src = (unsigned char *) PG_GETARG_CSTRING(2);
+	unsigned char *dest = (unsigned char *) PG_GETARG_CSTRING(3);
+	int			len = PG_GETARG_INT32(4);
 
-    CHECK_ENCODING_CONVERSION_ARGS(PG_EUC_JIS_2004, PG_UTF8);
+	CHECK_ENCODING_CONVERSION_ARGS(PG_EUC_JIS_2004, PG_UTF8);
 
-    LocalToUtf(src, len, dest,
-               &euc_jis_2004_to_unicode_tree,
-               LUmapEUC_JIS_2004_combined, lengthof(LUmapEUC_JIS_2004_combined),
-               NULL,
-               PG_EUC_JIS_2004);
+	LocalToUtf(src, len, dest,
+			   &euc_jis_2004_to_unicode_tree,
+			   LUmapEUC_JIS_2004_combined, lengthof(LUmapEUC_JIS_2004_combined),
+			   NULL,
+			   PG_EUC_JIS_2004);
 
-    PG_RETURN_VOID();
+	PG_RETURN_VOID();
 }
 
 Datum
 utf8_to_euc_jis_2004(PG_FUNCTION_ARGS)
 {
-    unsigned char *src = (unsigned char *) PG_GETARG_CSTRING(2);
-    unsigned char *dest = (unsigned char *) PG_GETARG_CSTRING(3);
-    int            len = PG_GETARG_INT32(4);
+	unsigned char *src = (unsigned char *) PG_GETARG_CSTRING(2);
+	unsigned char *dest = (unsigned char *) PG_GETARG_CSTRING(3);
+	int			len = PG_GETARG_INT32(4);
 
-    CHECK_ENCODING_CONVERSION_ARGS(PG_UTF8, PG_EUC_JIS_2004);
+	CHECK_ENCODING_CONVERSION_ARGS(PG_UTF8, PG_EUC_JIS_2004);
 
-    UtfToLocal(src, len, dest,
-               &euc_jis_2004_from_unicode_tree,
-               ULmapEUC_JIS_2004_combined, lengthof(ULmapEUC_JIS_2004_combined),
-               NULL,
-               PG_EUC_JIS_2004);
+	UtfToLocal(src, len, dest,
+			   &euc_jis_2004_from_unicode_tree,
+			   ULmapEUC_JIS_2004_combined, lengthof(ULmapEUC_JIS_2004_combined),
+			   NULL,
+			   PG_EUC_JIS_2004);
 
-    PG_RETURN_VOID();
+	PG_RETURN_VOID();
 }

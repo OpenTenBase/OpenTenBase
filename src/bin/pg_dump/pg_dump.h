@@ -1,13 +1,10 @@
 /*-------------------------------------------------------------------------
  *
  * pg_dump.h
- *      Common header file for the pg_dump utility
+ *	  Common header file for the pg_dump utility
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
- *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  * src/bin/pg_dump/pg_dump.h
  *
@@ -43,64 +40,66 @@
 
 typedef enum
 {
-    /* When modifying this enum, update priority tables in pg_dump_sort.c! */
-    DO_NAMESPACE,
-    DO_EXTENSION,
-    DO_TYPE,
-    DO_SHELL_TYPE,
-    DO_FUNC,
-    DO_AGG,
-    DO_OPERATOR,
-    DO_ACCESS_METHOD,
-    DO_OPCLASS,
-    DO_OPFAMILY,
-    DO_COLLATION,
-    DO_CONVERSION,
-    DO_TABLE,
-    DO_ATTRDEF,
-    DO_INDEX,
+	/* When modifying this enum, update priority tables in pg_dump_sort.c! */
+	DO_NAMESPACE,
+	DO_EXTENSION,
+	DO_TYPE,
+	DO_SHELL_TYPE,
+	DO_FUNC,
+	DO_AGG,
+	DO_OPERATOR,
+	DO_ACCESS_METHOD,
+	DO_OPCLASS,
+	DO_OPFAMILY,
+	DO_COLLATION,
+	DO_CONVERSION,
+	DO_TABLE,
+	DO_ATTRDEF,
+	DO_INDEX,
 	DO_INDEX_ATTACH,
-    DO_STATSEXT,
-    DO_RULE,
-    DO_TRIGGER,
-    DO_CONSTRAINT,
-    DO_FK_CONSTRAINT,            /* see note for ConstraintInfo */
-    DO_PROCLANG,
-    DO_CAST,
-    DO_TABLE_DATA,
-    DO_SEQUENCE_SET,
-    DO_DUMMY_TYPE,
-    DO_TSPARSER,
-    DO_TSDICT,
-    DO_TSTEMPLATE,
-    DO_TSCONFIG,
-    DO_FDW,
-    DO_FOREIGN_SERVER,
-    DO_DEFAULT_ACL,
-    DO_TRANSFORM,
-    DO_BLOB,
-    DO_BLOB_DATA,
-    DO_PRE_DATA_BOUNDARY,
-    DO_POST_DATA_BOUNDARY,
-    DO_EVENT_TRIGGER,
-    DO_REFRESH_MATVIEW,
-    DO_POLICY,
-    DO_PUBLICATION,
-    DO_PUBLICATION_REL,
-    DO_SUBSCRIPTION
+	DO_STATSEXT,
+	DO_RULE,
+	DO_TRIGGER,
+	DO_CONSTRAINT,
+	DO_FK_CONSTRAINT,			/* see note for ConstraintInfo */
+	DO_PROCLANG,
+	DO_CAST,
+	DO_TABLE_DATA,
+	DO_SEQUENCE_SET,
+	DO_DUMMY_TYPE,
+	DO_TSPARSER,
+	DO_TSDICT,
+	DO_TSTEMPLATE,
+	DO_TSCONFIG,
+	DO_FDW,
+	DO_FOREIGN_SERVER,
+	DO_SYNONYM,
+	DO_PACKAGE,
+	DO_DEFAULT_ACL,
+	DO_TRANSFORM,
+	DO_BLOB,
+	DO_BLOB_DATA,
+	DO_PRE_DATA_BOUNDARY,
+	DO_POST_DATA_BOUNDARY,
+	DO_EVENT_TRIGGER,
+	DO_REFRESH_MATVIEW,
+	DO_POLICY,
+	DO_PUBLICATION,
+	DO_PUBLICATION_REL,
+	DO_SUBSCRIPTION
 } DumpableObjectType;
 
 /* component types of an object which can be selected for dumping */
-typedef uint32 DumpComponents;    /* a bitmask of dump object components */
-#define DUMP_COMPONENT_NONE            (0)
-#define DUMP_COMPONENT_DEFINITION    (1 << 0)
-#define DUMP_COMPONENT_DATA            (1 << 1)
-#define DUMP_COMPONENT_COMMENT        (1 << 2)
-#define DUMP_COMPONENT_SECLABEL        (1 << 3)
-#define DUMP_COMPONENT_ACL            (1 << 4)
-#define DUMP_COMPONENT_POLICY        (1 << 5)
-#define DUMP_COMPONENT_USERMAP        (1 << 6)
-#define DUMP_COMPONENT_ALL            (0xFFFF)
+typedef uint32 DumpComponents;	/* a bitmask of dump object components */
+#define DUMP_COMPONENT_NONE			(0)
+#define DUMP_COMPONENT_DEFINITION	(1 << 0)
+#define DUMP_COMPONENT_DATA			(1 << 1)
+#define DUMP_COMPONENT_COMMENT		(1 << 2)
+#define DUMP_COMPONENT_SECLABEL		(1 << 3)
+#define DUMP_COMPONENT_ACL			(1 << 4)
+#define DUMP_COMPONENT_POLICY		(1 << 5)
+#define DUMP_COMPONENT_USERMAP		(1 << 6)
+#define DUMP_COMPONENT_ALL			(0xFFFF)
 
 /*
  * component types which require us to obtain a lock on the table
@@ -125,282 +124,307 @@ typedef uint32 DumpComponents;    /* a bitmask of dump object components */
  * this up to grab the lock except in the cases we know to be safe.
  */
 #define DUMP_COMPONENTS_REQUIRING_LOCK (\
-        DUMP_COMPONENT_DEFINITION |\
-        DUMP_COMPONENT_DATA |\
-        DUMP_COMPONENT_POLICY)
+		DUMP_COMPONENT_DEFINITION |\
+		DUMP_COMPONENT_DATA |\
+		DUMP_COMPONENT_POLICY)
 
 typedef struct _dumpableObject
 {
-    DumpableObjectType objType;
-    CatalogId    catId;            /* zero if not a cataloged object */
-    DumpId        dumpId;            /* assigned by AssignDumpId() */
-    char       *name;            /* object name (should never be NULL) */
-    struct _namespaceInfo *namespace;    /* containing namespace, or NULL */
-    DumpComponents dump;        /* bitmask of components to dump */
-    DumpComponents dump_contains;    /* as above, but for contained objects */
-    bool        ext_member;        /* true if object is member of extension */
-    DumpId       *dependencies;    /* dumpIds of objects this one depends on */
-    int            nDeps;            /* number of valid dependencies */
-    int            allocDeps;        /* allocated size of dependencies[] */
+	DumpableObjectType objType;
+	CatalogId	catId;			/* zero if not a cataloged object */
+	DumpId		dumpId;			/* assigned by AssignDumpId() */
+	char	   *name;			/* object name (should never be NULL) */
+	struct _namespaceInfo *namespace;	/* containing namespace, or NULL */
+	DumpComponents dump;		/* bitmask of components to dump */
+	DumpComponents dump_contains;	/* as above, but for contained objects */
+	bool		ext_member;		/* true if object is member of extension */
+	DumpId	   *dependencies;	/* dumpIds of objects this one depends on */
+	int			nDeps;			/* number of valid dependencies */
+	int			allocDeps;		/* allocated size of dependencies[] */
 } DumpableObject;
 
 typedef struct _namespaceInfo
 {
-    DumpableObject dobj;
-    char       *rolname;        /* name of owner, or empty string */
-    char       *nspacl;
-    char       *rnspacl;
-    char       *initnspacl;
-    char       *initrnspacl;
+	DumpableObject dobj;
+	char	   *rolname;		/* name of owner, or empty string */
+	char	   *nspacl;
+	char	   *rnspacl;
+	char	   *initnspacl;
+	char	   *initrnspacl;
+	bool		pkg_nsp;
 } NamespaceInfo;
 
 typedef struct _extensionInfo
 {
-    DumpableObject dobj;
-    char       *namespace;        /* schema containing extension's objects */
-    bool        relocatable;
-    char       *extversion;
-    char       *extconfig;        /* info about configuration tables */
-    char       *extcondition;
+	DumpableObject dobj;
+	char	   *namespace;		/* schema containing extension's objects */
+	bool		relocatable;
+	char	   *extversion;
+	char	   *extconfig;		/* info about configuration tables */
+	char	   *extcondition;
 } ExtensionInfo;
 
 typedef struct _typeInfo
 {
-    DumpableObject dobj;
+	DumpableObject dobj;
 
-    /*
-     * Note: dobj.name is the pg_type.typname entry.  format_type() might
-     * produce something different than typname
-     */
-    char       *rolname;        /* name of owner, or empty string */
-    char       *typacl;
-    char       *rtypacl;
-    char       *inittypacl;
-    char       *initrtypacl;
-    Oid            typelem;
-    Oid            typrelid;
-    char        typrelkind;        /* 'r', 'v', 'c', etc */
-    char        typtype;        /* 'b', 'c', etc */
-    bool        isArray;        /* true if auto-generated array type */
-    bool        isDefined;        /* true if typisdefined */
-    /* If needed, we'll create a "shell type" entry for it; link that here: */
-    struct _shellTypeInfo *shellType;    /* shell-type entry, or NULL */
-    /* If it's a domain, we store links to its constraints here: */
-    int            nDomChecks;
-    struct _constraintInfo *domChecks;
+	/*
+	 * Note: dobj.name is the pg_type.typname entry.  format_type() might
+	 * produce something different than typname
+	 */
+	char	   *rolname;		/* name of owner, or empty string */
+	char	   *typacl;
+	char	   *rtypacl;
+	char	   *inittypacl;
+	char	   *initrtypacl;
+	Oid			typelem;
+	Oid			typrelid;
+	char		typrelkind;		/* 'r', 'v', 'c', etc */
+	char		typtype;		/* 'b', 'c', etc */
+	bool		isArray;		/* true if auto-generated array type */
+	bool		isDefined;		/* true if typisdefined */
+	bool		isTypObj;
+	/* If needed, we'll create a "shell type" entry for it; link that here: */
+	struct _shellTypeInfo *shellType;	/* shell-type entry, or NULL */
+	/* If it's a domain, we store links to its constraints here: */
+	int			nDomChecks;
+	struct _constraintInfo *domChecks;
 } TypeInfo;
 
 typedef struct _shellTypeInfo
 {
-    DumpableObject dobj;
+	DumpableObject dobj;
 
-    TypeInfo   *baseType;        /* back link to associated base type */
+	TypeInfo   *baseType;		/* back link to associated base type */
 } ShellTypeInfo;
 
 typedef struct _funcInfo
 {
-    DumpableObject dobj;
-    char       *rolname;        /* name of owner, or empty string */
-    Oid            lang;
-    int            nargs;
-    Oid           *argtypes;
-    Oid            prorettype;
-    char       *proacl;
-    char       *rproacl;
-    char       *initproacl;
-    char       *initrproacl;
+	DumpableObject dobj;
+	char	   *rolname;		/* name of owner, or empty string */
+	Oid			lang;
+	int			nargs;
+	Oid		   *argtypes;
+	Oid			prorettype;
+	char	   *proacl;
+	char	   *rproacl;
+	char	   *initproacl;
+	char	   *initrproacl;
 } FuncInfo;
 
 /* AggInfo is a superset of FuncInfo */
 typedef struct _aggInfo
 {
-    FuncInfo    aggfn;
-    /* we don't require any other fields at the moment */
+	FuncInfo	aggfn;
+	/* we don't require any other fields at the moment */
 } AggInfo;
 
 typedef struct _oprInfo
 {
-    DumpableObject dobj;
-    char       *rolname;
-    char        oprkind;
-    Oid            oprcode;
+	DumpableObject dobj;
+	char	   *rolname;
+	char		oprkind;
+	Oid			oprcode;
 } OprInfo;
 
 typedef struct _accessMethodInfo
 {
-    DumpableObject dobj;
-    char        amtype;
-    char       *amhandler;
+	DumpableObject dobj;
+	char		amtype;
+	char	   *amhandler;
 } AccessMethodInfo;
 
 typedef struct _opclassInfo
 {
-    DumpableObject dobj;
-    char       *rolname;
+	DumpableObject dobj;
+	char	   *rolname;
 } OpclassInfo;
 
 typedef struct _opfamilyInfo
 {
-    DumpableObject dobj;
-    char       *rolname;
+	DumpableObject dobj;
+	char	   *rolname;
 } OpfamilyInfo;
 
 typedef struct _collInfo
 {
-    DumpableObject dobj;
-    char       *rolname;
+	DumpableObject dobj;
+	char	   *rolname;
 } CollInfo;
 
 typedef struct _convInfo
 {
-    DumpableObject dobj;
-    char       *rolname;
+	DumpableObject dobj;
+	char	   *rolname;
 } ConvInfo;
+
+#ifdef _PG_ORCL_
+typedef struct _synoInfo
+{
+	DumpableObject dobj;
+	char	   *rolname;
+} SynoInfo;
+
+typedef struct _pkgInfo
+{
+	DumpableObject dobj;
+	char	   *rolname;
+} PkgInfo;
+#endif
 
 #ifdef __OPENTENBASE__
 typedef struct _keyValueInfo
 {
-    char *schema;
-    char *table;
-    char *keyvalue;
-    char *hotdisgroup;
-    char *colddisgroup;
+	char *schema;
+	char *table;
+	char *keyvalue;
+	char *hotdisgroup;
+	char *colddisgroup;
 }KeyValueInfo;
 #endif
 
 typedef struct _tableInfo
 {
-    /*
-     * These fields are collected for every table in the database.
-     */
-    DumpableObject dobj;
-    char       *rolname;        /* name of owner, or empty string */
-    char       *relacl;
-    char       *rrelacl;
-    char       *initrelacl;
-    char       *initrrelacl;
-    char        relkind;
-    char        relpersistence; /* relation persistence */
-    bool        relispopulated; /* relation is populated */
-    char        relreplident;    /* replica identifier */
-    char       *reltablespace;    /* relation tablespace */
-    char       *reloptions;        /* options specified by WITH (...) */
-    char       *checkoption;    /* WITH CHECK OPTION, if any */
-    char       *toast_reloptions;    /* WITH options for the TOAST table */
-    bool        hasindex;        /* does it have any indexes? */
-    bool        hasrules;        /* does it have any rules? */
-    bool        hastriggers;    /* does it have any triggers? */
-    bool        rowsec;            /* is row security enabled? */
-    bool        forcerowsec;    /* is row security forced? */
-    bool        hasoids;        /* does it have OIDs? */
-    uint32        frozenxid;        /* table's relfrozenxid */
-    uint32        minmxid;        /* table's relminmxid */
-    Oid            toast_oid;        /* toast table's OID, or 0 if none */
-    uint32        toast_frozenxid;    /* toast table's relfrozenxid, if any */
-    uint32        toast_minmxid;    /* toast table's relminmxid */
-    int            ncheck;            /* # of CHECK expressions */
-    char       *reloftype;        /* underlying type for typed table */
-    /* these two are set only if table is a sequence owned by a column: */
-    Oid            owning_tab;        /* OID of table owning sequence */
-    int            owning_col;        /* attr # of column owning sequence */
-    bool        is_identity_sequence;
-    int            relpages;        /* table's size in pages (from pg_class) */
+	/*
+	 * These fields are collected for every table in the database.
+	 */
+	DumpableObject dobj;
+	char	   *rolname;		/* name of owner, or empty string */
+	char	   *relacl;
+	char	   *rrelacl;
+	char	   *initrelacl;
+	char	   *initrrelacl;
+	char		relkind;
+	char		relpersistence; /* relation persistence */
+	bool		relispopulated; /* relation is populated */
+	char		relreplident;	/* replica identifier */
+	char	   *reltablespace;	/* relation tablespace */
+	char	   *reloptions;		/* options specified by WITH (...) */
+	char	   *checkoption;	/* WITH CHECK OPTION, if any */
+	char	   *toast_reloptions;	/* WITH options for the TOAST table */
+	bool		hasindex;		/* does it have any indexes? */
+	bool		hasrules;		/* does it have any rules? */
+	bool		hastriggers;	/* does it have any triggers? */
+	bool		rowsec;			/* is row security enabled? */
+	bool		forcerowsec;	/* is row security forced? */
+	bool		hasoids;		/* does it have OIDs? */
+	uint32		frozenxid;		/* table's relfrozenxid */
+	uint32		minmxid;		/* table's relminmxid */
+	Oid			toast_oid;		/* toast table's OID, or 0 if none */
+#ifdef _PG_ORCL_
+	bool		hasrowid;
+	bool		seqislocal;
+#endif
+	uint32		toast_frozenxid;	/* toast table's relfrozenxid, if any */
+	uint32		toast_minmxid;	/* toast table's relminmxid */
+	int			ncheck;			/* # of CHECK expressions */
+	char	   *reloftype;		/* underlying type for typed table */
+	/* these two are set only if table is a sequence owned by a column: */
+	Oid			owning_tab;		/* OID of table owning sequence */
+	int			owning_col;		/* attr # of column owning sequence */
+	bool		is_identity_sequence;
+	int			relpages;		/* table's size in pages (from pg_class) */
 
-    bool        interesting;    /* true if need to collect more data */
-    bool        dummy_view;        /* view's real definition must be postponed */
-    bool        postponed_def;    /* matview must be postponed into post-data */
-    bool        ispartition;    /* is table a partition? */
+	bool		interesting;	/* true if need to collect more data */
+	bool		dummy_view;		/* view's real definition must be postponed */
+	bool		postponed_def;	/* matview must be postponed into post-data */
+	bool		ispartition;	/* is table a partition? */
 
 #ifdef PGXC
-    /* PGXC table locator Data */
-    char        pgxclocatortype;    /* Type of PGXC table locator */
-    int            pgxcattnum;        /* Number of the attribute the table is partitioned with */
-    int         pgxcsecattnum;  /* Number of the second attribute the table is partitioned with */
-    char        *pgxc_node_names;    /* List of node names where this table is distributed */
+	/* PGXC table locator Data */
+	char		pgxclocatortype;	/* Type of PGXC table locator */
+	char        *discols;
+	char		*pgxc_node_names;	/* List of node names where this table is distributed */
 #endif
 #ifdef __OPENTENBASE__
-    char        parttype;
-    int         partattnum;
-    char        *partstartvalue;
-    char        *partinterval;
-    int         nparts;
-    char        *groupname;
-    char        *coldgroupname;
-    int32         nKeys;        /* Number of keyvalues */
-    KeyValueInfo *keyvalue;        /* Key values*/
+	char        *groupname;
+	char        *aliasname;
+	int32         nKeys;		/* Number of keyvalues */
+	KeyValueInfo *keyvalue;		/* Key values*/
 #endif
 
-    /*
-     * These fields are computed only if we decide the table is interesting
-     * (it's either a table to dump, or a direct parent of a dumpable table).
-     */
-    int            numatts;        /* number of attributes */
-    char      **attnames;        /* the attribute names */
-    char      **atttypnames;    /* attribute type names */
-    int           *atttypmod;        /* type-specific type modifiers */
-    int           *attstattarget;    /* attribute statistics targets */
-    char       *attstorage;        /* attribute storage scheme */
-    char       *typstorage;        /* type storage scheme */
-    bool       *attisdropped;    /* true if attr is dropped; don't dump it */
-    char       *attidentity;
-    int           *attlen;            /* attribute length, used by binary_upgrade */
-    char       *attalign;        /* attribute align, used by binary_upgrade */
-    bool       *attislocal;        /* true if attr has local definition */
-    char      **attoptions;        /* per-attribute options */
-    Oid           *attcollation;    /* per-attribute collation selection */
-    char      **attfdwoptions;    /* per-attribute fdw options */
-    bool       *notnull;        /* NOT NULL constraints on attributes */
-    bool       *inhNotNull;        /* true if NOT NULL is inherited */
-    struct _attrDefInfo **attrdefs; /* DEFAULT expressions */
-    struct _constraintInfo *checkexprs; /* CHECK constraints */
-    char       *partkeydef;        /* partition key definition */
-    char       *partbound;        /* partition bound definition */
-    bool        needs_override; /* has GENERATED ALWAYS AS IDENTITY */
+	/*
+	 * These fields are computed only if we decide the table is interesting
+	 * (it's either a table to dump, or a direct parent of a dumpable table).
+	 */
+	int			numatts;		/* number of attributes */
+	char	  **attnames;		/* the attribute names */
+	char	  **atttypnames;	/* attribute type names */
+	int		   *atttypmod;		/* type-specific type modifiers */
+	int		   *attstattarget;	/* attribute statistics targets */
+	char	   *attstorage;		/* attribute storage scheme */
+	char	   *typstorage;		/* type storage scheme */
+	bool	   *attisdropped;	/* true if attr is dropped; don't dump it */
+	char	   *attidentity;
+	int		   *attlen;			/* attribute length, used by binary_upgrade */
+	char	   *attalign;		/* attribute align, used by binary_upgrade */
+	bool	   *attislocal;		/* true if attr has local definition */
+	char	  **attoptions;		/* per-attribute options */
+	Oid		   *attcollation;	/* per-attribute collation selection */
+	char	  **attfdwoptions;	/* per-attribute fdw options */
+	bool	   *notnull;		/* NOT NULL constraints on attributes */
+	bool	   *inhNotNull;		/* true if NOT NULL is inherited */
+	struct _attrDefInfo **attrdefs; /* DEFAULT expressions */
+	struct _constraintInfo *checkexprs; /* CHECK constraints */
+#ifdef __OPENTENBASE_C__
+	struct _attrEncodingInfo **encoding; /* column encoding info */
+#endif
+	char	   *partkeydef;		/* partition key definition */
+	char	   *partbound;		/* partition bound definition */
+	bool		needs_override; /* has GENERATED ALWAYS AS IDENTITY */
 
-    /*
-     * Stuff computed only for dumpable tables.
-     */
-    int            numParents;        /* number of (immediate) parent tables */
-    struct _tableInfo **parents;    /* TableInfos of immediate parents */
+	/*
+	 * Stuff computed only for dumpable tables.
+	 */
+	int			numParents;		/* number of (immediate) parent tables */
+	struct _tableInfo **parents;	/* TableInfos of immediate parents */
 	int			numIndexes;		/* number of indexes */
 	struct _indxInfo *indexes;	/* indexes */
-    struct _tableDataInfo *dataObj; /* TableDataInfo, if dumping its data */
-    int            numTriggers;    /* number of triggers for table */
-    struct _triggerInfo *triggers;    /* array of TriggerInfo structs */
+	struct _tableDataInfo *dataObj; /* TableDataInfo, if dumping its data */
+	int			numTriggers;	/* number of triggers for table */
+	struct _triggerInfo *triggers;	/* array of TriggerInfo structs */
 } TableInfo;
+
+#ifdef __OPENTENBASE_C__
+typedef struct _attrEncodingInfo
+{
+	int             tc_id;        /* compress_type_enum */
+	bool            unique_store; /* whether we need unique store */
+} AttrEncodingInfo;
+#endif
 
 typedef struct _attrDefInfo
 {
-    DumpableObject dobj;        /* note: dobj.name is name of table */
-    TableInfo  *adtable;        /* link to table of attribute */
-    int            adnum;
-    char       *adef_expr;        /* decompiled DEFAULT expression */
-    bool        separate;        /* TRUE if must dump as separate item */
+	DumpableObject dobj;		/* note: dobj.name is name of table */
+	TableInfo  *adtable;		/* link to table of attribute */
+	int			adnum;
+	char	   *adef_expr;		/* decompiled DEFAULT expression */
+	bool		separate;		/* TRUE if must dump as separate item */
 } AttrDefInfo;
 
 typedef struct _tableDataInfo
 {
-    DumpableObject dobj;
-    TableInfo  *tdtable;        /* link to table to dump */
-    bool        oids;            /* include OIDs in data? */
-    char       *filtercond;        /* WHERE condition to limit rows dumped */
+	DumpableObject dobj;
+	TableInfo  *tdtable;		/* link to table to dump */
+	bool		oids;			/* include OIDs in data? */
+	char	   *filtercond;		/* WHERE condition to limit rows dumped */
 } TableDataInfo;
 
 typedef struct _indxInfo
 {
-    DumpableObject dobj;
-    TableInfo  *indextable;        /* link to table the index is for */
-    char       *indexdef;
-    char       *tablespace;        /* tablespace in which index is stored */
-    char       *indreloptions;    /* options specified by WITH (...) */
-    int            indnkeys;
-    Oid           *indkeys;
-    bool        indisclustered;
-    bool        indisreplident;
+	DumpableObject dobj;
+	TableInfo  *indextable;		/* link to table the index is for */
+	char	   *indexdef;
+	char	   *tablespace;		/* tablespace in which index is stored */
+	char	   *indreloptions;	/* options specified by WITH (...) */
+	int			indnkeys;
+	Oid		   *indkeys;
+	bool		indisclustered;
+	bool		indisreplident;
 	Oid			parentidx;		/* if partitioned, parent index OID */
-    /* if there is an associated constraint object, its dumpId: */
-    DumpId        indexconstraint;
-    int            relpages;        /* relpages of the underlying table */
+	/* if there is an associated constraint object, its dumpId: */
+	DumpId		indexconstraint;
+	int			relpages;		/* relpages of the underlying table */
 } IndxInfo;
 
 typedef struct _indexAttachInfo
@@ -412,49 +436,49 @@ typedef struct _indexAttachInfo
 
 typedef struct _statsExtInfo
 {
-    DumpableObject dobj;
-    TableInfo  *statsexttable;    /* link to table the stats ext is for */
-    char       *statsextdef;
+	DumpableObject dobj;
+	TableInfo  *statsexttable;	/* link to table the stats ext is for */
+	char	   *statsextdef;
 } StatsExtInfo;
 
 typedef struct _ruleInfo
 {
-    DumpableObject dobj;
-    TableInfo  *ruletable;        /* link to table the rule is for */
-    char        ev_type;
-    bool        is_instead;
-    char        ev_enabled;
-    bool        separate;        /* TRUE if must dump as separate item */
-    /* separate is always true for non-ON SELECT rules */
+	DumpableObject dobj;
+	TableInfo  *ruletable;		/* link to table the rule is for */
+	char		ev_type;
+	bool		is_instead;
+	char		ev_enabled;
+	bool		separate;		/* TRUE if must dump as separate item */
+	/* separate is always true for non-ON SELECT rules */
 } RuleInfo;
 
 typedef struct _triggerInfo
 {
-    DumpableObject dobj;
-    TableInfo  *tgtable;        /* link to table the trigger is for */
-    char       *tgfname;
-    int            tgtype;
-    int            tgnargs;
-    char       *tgargs;
-    bool        tgisconstraint;
-    char       *tgconstrname;
-    Oid            tgconstrrelid;
-    char       *tgconstrrelname;
-    char        tgenabled;
-    bool        tgdeferrable;
-    bool        tginitdeferred;
-    char       *tgdef;
+	DumpableObject dobj;
+	TableInfo  *tgtable;		/* link to table the trigger is for */
+	char	   *tgfname;
+	int			tgtype;
+	int			tgnargs;
+	char	   *tgargs;
+	bool		tgisconstraint;
+	char	   *tgconstrname;
+	Oid			tgconstrrelid;
+	char	   *tgconstrrelname;
+	char		tgenabled;
+	bool		tgdeferrable;
+	bool		tginitdeferred;
+	char	   *tgdef;
 } TriggerInfo;
 
 typedef struct _evttriggerInfo
 {
-    DumpableObject dobj;
-    char       *evtname;
-    char       *evtevent;
-    char       *evtowner;
-    char       *evttags;
-    char       *evtfname;
-    char        evtenabled;
+	DumpableObject dobj;
+	char	   *evtname;
+	char	   *evtevent;
+	char	   *evtowner;
+	char	   *evttags;
+	char	   *evtfname;
+	char		evtenabled;
 } EventTriggerInfo;
 
 /*
@@ -467,137 +491,137 @@ typedef struct _evttriggerInfo
  */
 typedef struct _constraintInfo
 {
-    DumpableObject dobj;
-    TableInfo  *contable;        /* NULL if domain constraint */
-    TypeInfo   *condomain;        /* NULL if table constraint */
-    char        contype;
-    char       *condef;            /* definition, if CHECK or FOREIGN KEY */
-    Oid            confrelid;        /* referenced table, if FOREIGN KEY */
-    DumpId        conindex;        /* identifies associated index if any */
-    bool        condeferrable;    /* TRUE if constraint is DEFERRABLE */
-    bool        condeferred;    /* TRUE if constraint is INITIALLY DEFERRED */
-    bool        conislocal;        /* TRUE if constraint has local definition */
-    bool        separate;        /* TRUE if must dump as separate item */
+	DumpableObject dobj;
+	TableInfo  *contable;		/* NULL if domain constraint */
+	TypeInfo   *condomain;		/* NULL if table constraint */
+	char		contype;
+	char	   *condef;			/* definition, if CHECK or FOREIGN KEY */
+	Oid			confrelid;		/* referenced table, if FOREIGN KEY */
+	DumpId		conindex;		/* identifies associated index if any */
+	bool		condeferrable;	/* TRUE if constraint is DEFERRABLE */
+	bool		condeferred;	/* TRUE if constraint is INITIALLY DEFERRED */
+	bool		conislocal;		/* TRUE if constraint has local definition */
+	bool		separate;		/* TRUE if must dump as separate item */
 } ConstraintInfo;
 
 typedef struct _procLangInfo
 {
-    DumpableObject dobj;
-    bool        lanpltrusted;
-    Oid            lanplcallfoid;
-    Oid            laninline;
-    Oid            lanvalidator;
-    char       *lanacl;
-    char       *rlanacl;
-    char       *initlanacl;
-    char       *initrlanacl;
-    char       *lanowner;        /* name of owner, or empty string */
+	DumpableObject dobj;
+	bool		lanpltrusted;
+	Oid			lanplcallfoid;
+	Oid			laninline;
+	Oid			lanvalidator;
+	char	   *lanacl;
+	char	   *rlanacl;
+	char	   *initlanacl;
+	char	   *initrlanacl;
+	char	   *lanowner;		/* name of owner, or empty string */
 } ProcLangInfo;
 
 typedef struct _castInfo
 {
-    DumpableObject dobj;
-    Oid            castsource;
-    Oid            casttarget;
-    Oid            castfunc;
-    char        castcontext;
-    char        castmethod;
+	DumpableObject dobj;
+	Oid			castsource;
+	Oid			casttarget;
+	Oid			castfunc;
+	char		castcontext;
+	char		castmethod;
 } CastInfo;
 
 typedef struct _transformInfo
 {
-    DumpableObject dobj;
-    Oid            trftype;
-    Oid            trflang;
-    Oid            trffromsql;
-    Oid            trftosql;
+	DumpableObject dobj;
+	Oid			trftype;
+	Oid			trflang;
+	Oid			trffromsql;
+	Oid			trftosql;
 } TransformInfo;
 
 /* InhInfo isn't a DumpableObject, just temporary state */
 typedef struct _inhInfo
 {
-    Oid            inhrelid;        /* OID of a child table */
-    Oid            inhparent;        /* OID of its parent */
+	Oid			inhrelid;		/* OID of a child table */
+	Oid			inhparent;		/* OID of its parent */
 } InhInfo;
 
 typedef struct _prsInfo
 {
-    DumpableObject dobj;
-    Oid            prsstart;
-    Oid            prstoken;
-    Oid            prsend;
-    Oid            prsheadline;
-    Oid            prslextype;
+	DumpableObject dobj;
+	Oid			prsstart;
+	Oid			prstoken;
+	Oid			prsend;
+	Oid			prsheadline;
+	Oid			prslextype;
 } TSParserInfo;
 
 typedef struct _dictInfo
 {
-    DumpableObject dobj;
-    char       *rolname;
-    Oid            dicttemplate;
-    char       *dictinitoption;
+	DumpableObject dobj;
+	char	   *rolname;
+	Oid			dicttemplate;
+	char	   *dictinitoption;
 } TSDictInfo;
 
 typedef struct _tmplInfo
 {
-    DumpableObject dobj;
-    Oid            tmplinit;
-    Oid            tmpllexize;
+	DumpableObject dobj;
+	Oid			tmplinit;
+	Oid			tmpllexize;
 } TSTemplateInfo;
 
 typedef struct _cfgInfo
 {
-    DumpableObject dobj;
-    char       *rolname;
-    Oid            cfgparser;
+	DumpableObject dobj;
+	char	   *rolname;
+	Oid			cfgparser;
 } TSConfigInfo;
 
 typedef struct _fdwInfo
 {
-    DumpableObject dobj;
-    char       *rolname;
-    char       *fdwhandler;
-    char       *fdwvalidator;
-    char       *fdwoptions;
-    char       *fdwacl;
-    char       *rfdwacl;
-    char       *initfdwacl;
-    char       *initrfdwacl;
+	DumpableObject dobj;
+	char	   *rolname;
+	char	   *fdwhandler;
+	char	   *fdwvalidator;
+	char	   *fdwoptions;
+	char	   *fdwacl;
+	char	   *rfdwacl;
+	char	   *initfdwacl;
+	char	   *initrfdwacl;
 } FdwInfo;
 
 typedef struct _foreignServerInfo
 {
-    DumpableObject dobj;
-    char       *rolname;
-    Oid            srvfdw;
-    char       *srvtype;
-    char       *srvversion;
-    char       *srvacl;
-    char       *rsrvacl;
-    char       *initsrvacl;
-    char       *initrsrvacl;
-    char       *srvoptions;
+	DumpableObject dobj;
+	char	   *rolname;
+	Oid			srvfdw;
+	char	   *srvtype;
+	char	   *srvversion;
+	char	   *srvacl;
+	char	   *rsrvacl;
+	char	   *initsrvacl;
+	char	   *initrsrvacl;
+	char	   *srvoptions;
 } ForeignServerInfo;
 
 typedef struct _defaultACLInfo
 {
-    DumpableObject dobj;
-    char       *defaclrole;
-    char        defaclobjtype;
-    char       *defaclacl;
-    char       *rdefaclacl;
-    char       *initdefaclacl;
-    char       *initrdefaclacl;
+	DumpableObject dobj;
+	char	   *defaclrole;
+	char		defaclobjtype;
+	char	   *defaclacl;
+	char	   *rdefaclacl;
+	char	   *initdefaclacl;
+	char	   *initrdefaclacl;
 } DefaultACLInfo;
 
 typedef struct _blobInfo
 {
-    DumpableObject dobj;
-    char       *rolname;
-    char       *blobacl;
-    char       *rblobacl;
-    char       *initblobacl;
-    char       *initrblobacl;
+	DumpableObject dobj;
+	char	   *rolname;
+	char	   *blobacl;
+	char	   *rblobacl;
+	char	   *initblobacl;
+	char	   *initrblobacl;
 } BlobInfo;
 
 /*
@@ -608,14 +632,14 @@ typedef struct _blobInfo
  */
 typedef struct _policyInfo
 {
-    DumpableObject dobj;
-    TableInfo  *poltable;
-    char       *polname;        /* null indicates RLS is enabled on rel */
-    char        polcmd;
-    bool        polpermissive;
-    char       *polroles;
-    char       *polqual;
-    char       *polwithcheck;
+	DumpableObject dobj;
+	TableInfo  *poltable;
+	char	   *polname;		/* null indicates RLS is enabled on rel */
+	char		polcmd;
+	bool		polpermissive;
+	char	   *polroles;
+	char	   *polqual;
+	char	   *polwithcheck;
 } PolicyInfo;
 
 /*
@@ -623,12 +647,12 @@ typedef struct _policyInfo
  */
 typedef struct _PublicationInfo
 {
-    DumpableObject dobj;
-    char       *rolname;
-    bool        puballtables;
-    bool        pubinsert;
-    bool        pubupdate;
-    bool        pubdelete;
+	DumpableObject dobj;
+	char	   *rolname;
+	bool		puballtables;
+	bool		pubinsert;
+	bool		pubupdate;
+	bool		pubdelete;
 } PublicationInfo;
 
 /*
@@ -637,9 +661,9 @@ typedef struct _PublicationInfo
  */
 typedef struct _PublicationRelInfo
 {
-    DumpableObject dobj;
-    TableInfo  *pubtable;
-    char       *pubname;
+	DumpableObject dobj;
+	TableInfo  *pubtable;
+	char	   *pubname;
 } PublicationRelInfo;
 
 /*
@@ -647,12 +671,12 @@ typedef struct _PublicationRelInfo
  */
 typedef struct _SubscriptionInfo
 {
-    DumpableObject dobj;
-    char       *rolname;
-    char       *subconninfo;
-    char       *subslotname;
-    char       *subsynccommit;
-    char       *subpublications;
+	DumpableObject dobj;
+	char	   *rolname;
+	char	   *subconninfo;
+	char	   *subslotname;
+	char	   *subsynccommit;
+	char	   *subpublications;
 } SubscriptionInfo;
 
 /*
@@ -661,22 +685,22 @@ typedef struct _SubscriptionInfo
  */
 typedef struct _extensionMemberId
 {
-    CatalogId    catId;            /* tableoid+oid of some member object */
-    ExtensionInfo *ext;            /* owning extension */
+	CatalogId	catId;			/* tableoid+oid of some member object */
+	ExtensionInfo *ext;			/* owning extension */
 } ExtensionMemberId;
 
 /* global decls */
-extern bool force_quotes;        /* double-quotes for identifiers flag */
-extern bool g_verbose;            /* verbose flag */
+extern bool force_quotes;		/* double-quotes for identifiers flag */
+extern bool g_verbose;			/* verbose flag */
 
 /* placeholders for comment starting and ending delimiters */
 extern char g_comment_start[10];
 extern char g_comment_end[10];
 
-extern char g_opaque_type[10];    /* name for the opaque type */
+extern char g_opaque_type[10];	/* name for the opaque type */
 
 /*
- *    common utility functions
+ *	common utility functions
  */
 
 extern TableInfo *getSchemaData(Archive *fout, int *numTablesPtr);
@@ -705,7 +729,7 @@ extern ExtensionInfo *findOwningExtension(CatalogId catalogId);
 extern void parseOidArray(const char *str, Oid *array, int arraysize);
 
 extern void sortDumpableObjects(DumpableObject **objs, int numObjs,
-                    DumpId preBoundaryId, DumpId postBoundaryId);
+					DumpId preBoundaryId, DumpId postBoundaryId);
 extern void sortDumpableObjectsByTypeName(DumpableObject **objs, int numObjs);
 extern void sortDataAndIndexObjectsBySize(DumpableObject **objs, int numObjs);
 
@@ -723,6 +747,12 @@ extern OpclassInfo *getOpclasses(Archive *fout, int *numOpclasses);
 extern OpfamilyInfo *getOpfamilies(Archive *fout, int *numOpfamilies);
 extern CollInfo *getCollations(Archive *fout, int *numCollations);
 extern ConvInfo *getConversions(Archive *fout, int *numConversions);
+#ifdef _PG_ORCL_
+extern void getSynonyms(Archive *fout);
+extern void getPackages(Archive *fout);
+#endif
+extern void createWithTableOidsSet(InhInfo *inhinfo, int numInherits);
+extern void clearWithTableOidsSet(void);
 extern TableInfo *getTables(Archive *fout, int *numTables);
 extern void getOwnedSeqs(Archive *fout, TableInfo tblinfo[], int numTables);
 extern InhInfo *getInherits(Archive *fout, int *numInherits);
@@ -741,22 +771,23 @@ extern TSDictInfo *getTSDictionaries(Archive *fout, int *numTSDicts);
 extern TSTemplateInfo *getTSTemplates(Archive *fout, int *numTSTemplates);
 extern TSConfigInfo *getTSConfigurations(Archive *fout, int *numTSConfigs);
 extern FdwInfo *getForeignDataWrappers(Archive *fout,
-                       int *numForeignDataWrappers);
+					   int *numForeignDataWrappers);
 extern ForeignServerInfo *getForeignServers(Archive *fout,
-                  int *numForeignServers);
+				  int *numForeignServers);
 extern DefaultACLInfo *getDefaultACLs(Archive *fout, int *numDefaultACLs);
 extern void getExtensionMembership(Archive *fout, ExtensionInfo extinfo[],
-                       int numExtensions);
+					   int numExtensions);
 extern void processExtensionTables(Archive *fout, ExtensionInfo extinfo[],
-                       int numExtensions);
+					   int numExtensions);
 extern EventTriggerInfo *getEventTriggers(Archive *fout, int *numEventTriggers);
 extern void getPolicies(Archive *fout, TableInfo tblinfo[], int numTables);
 extern void getPublications(Archive *fout);
 extern void getPublicationTables(Archive *fout, TableInfo tblinfo[],
-                     int numTables);
+					 int numTables);
 extern void getSubscriptions(Archive *fout);
 #ifdef _SHARDING_
 extern void simple_shard_list_append(SimpleOidList *list, const char *val);
 #endif
+extern void dumpTypeObject(Archive *fout, TypeInfo *tyinfo);
 
-#endif                            /* PG_DUMP_H */
+#endif							/* PG_DUMP_H */

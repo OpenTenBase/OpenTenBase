@@ -2,10 +2,11 @@
  *
  * gtm_store.h
  *
- * Copyright (c) 2023 THL A29 Limited, a Tencent company.
  *
- * This source code file is licensed under the BSD 3-Clause License,
- * you may obtain a copy of the License at http://opensource.org/license/bsd-3-clause/
+ * Portions Copyright (c) 1996-2009, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1994, Regents of the University of California
+ * Portions Copyright (c) 2010-2012 Postgres-XC Development Group
+ * Portions Copyright (c) 2012-2018 OpenTenBase Development Group
  *
  * $PostgreSQL$
  *
@@ -20,29 +21,32 @@
 #include "gtm/gtm_list.h"
 #include "gtm/stringinfo.h"
 
+#ifdef __RESOURCE_QUEUE__
+#include "gtm/gtm_resqueue.h"
+#endif
 
 #define GTM_MAX_TIMER_ENTRY_NUMBER  128
 #define GTM_TIMER_NAP               1 /* 1 second. */
 typedef enum
 {
-    GTM_TIMER_TYPE_ONCE = 0,
-    GTM_TIMER_TYPE_LOOP = 1,
-    GTM_TIMER_TYPE_BUTTY
+	GTM_TIMER_TYPE_ONCE = 0,
+	GTM_TIMER_TYPE_LOOP = 1,
+	GTM_TIMER_TYPE_BUTTY
 }GTM_TIMER_TYPE;
 typedef struct
 {
-    GTM_TIMER_TYPE time_type;
-    time_t         start_time; /* start time of the timer. */
-    time_t         interval;   /* interval of the timer. */
-    
-    void          *param;
-    void          *(* timer_routine)(void*);
-    bool           bactive;      /* active or not. */
-    bool           balloced;  /* alloced or not. */
+	GTM_TIMER_TYPE time_type;
+	time_t  	   start_time; /* start time of the timer. */
+	time_t  	   interval;   /* interval of the timer. */
+	
+	void          *param;
+	void          *(* timer_routine)(void*);
+	bool           bactive;	  /* active or not. */
+	bool           balloced;  /* alloced or not. */
 }GTM_TimerEntry;
 
 
-#define  LOCK_STORE_CRASH_HANDL_TIMEOUT 30    /* 30 second */
+#define  LOCK_STORE_CRASH_HANDL_TIMEOUT 30	/* 30 second */
 
 #ifdef __XLOG__
 extern void  GTM_StoreSizeInit(void);
@@ -73,26 +77,26 @@ extern int32 GTM_StoreDropAllSeqInDatabase(GTM_SequenceKey seq_database_key);
 
 extern int32 GTM_StoreBeginPrepareTxn(char *gid, char *node_string);
 extern int32 GTM_StoreLogTransaction(GlobalTransactionId gxid,
-                                        const char *gid, 
-                                        const char *node_string, 
-                                        int node_count, 
-                                        int isGlobal, 
-                                        int isCommit, 
-                                        GlobalTimestamp prepare_ts, 
-                                        GlobalTimestamp commit_ts);
+										const char *gid, 
+										const char *node_string, 
+										int node_count, 
+										int isGlobal, 
+										int isCommit, 
+										GlobalTimestamp prepare_ts, 
+										GlobalTimestamp commit_ts);
 extern int32 GTM_StoreLogScan(GlobalTransactionId gxid,
-                                 const char *nodestring,
-                                GlobalTimestamp start_ts,
-                                GlobalTimestamp local_start_ts,
-                                GlobalTimestamp local_complete_ts,
-                                int scan_type,
-                                 const char *rel_name,
-                                 int64 scan_number);
+							 	const char *nodestring,
+			    				GlobalTimestamp start_ts,
+			    				GlobalTimestamp local_start_ts,
+			    				GlobalTimestamp local_complete_ts,
+			    				int scan_type,
+			     				const char *rel_name,
+			     				int64 scan_number);
 extern GTMStorageHandle GTM_StoreGetPreparedTxnInfo(char *gid, GlobalTransactionId *gxid, char **nodestring);
 extern int32 GTM_StoreCommitTxn(char *gid);
 extern int32 GTM_StoreAbortTxn(char *gid);
 extern GTMStorageHandle GTM_StoreAllocTxn(char *gid);
-extern int32 GTM_StoreStandbyInit(char *data_dir, char *data, uint32 length);
+extern int32 GTM_StoreStandbyInit(char *data_dir, char *data, uint32 org_len, uint32 c_len);
 extern int32 GTM_StoreFinishTxn(char *gid);
 
 extern void ProcessStorageTransferCommand(Port *myport, StringInfo message);
@@ -108,11 +112,29 @@ extern int  GTM_DeactiveTimer(GTM_TimerHandle handle);
 extern int  GTM_ActiveTimer(GTM_TimerHandle handle);
 extern int  GTM_RemoveTimer(GTM_TimerHandle handle);
 extern GTM_TimerHandle GTM_AddTimer(void *(* func)(void*), GTM_TIMER_TYPE type, time_t interval, void *para);
-extern void *LockStoreStandbyCrashHandler(void *param);
 extern bool GTM_StoreLockStatus(void);
 extern bool GTM_StoreGetSysInfo(int64 *identifier, int64 *lsn, GlobalTimestamp *gts);
 extern void GTM_PrintControlHeader(void);
 extern GTMStorageHandle *GTM_StoreGetAllSeqInDatabase(GTM_SequenceKey seq_database_key, int32 *number);
 extern void GTM_StoreGetSeqKey(GTMStorageHandle handle, char *key);
 extern void GTM_StoreGetSeqCreateInfo(GTMStorageHandle handle, GTM_SeqCreateInfo *seq_info);
+
+#ifdef __OPENTENBASE_C__
+extern int *GTM_StoreRestoreFidArray(void);
+extern int32 GTM_StoreSyncFid(int fid, int nodeId);
+#endif
+
+#ifdef __RESOURCE_QUEUE__
+extern int32 GTM_CommitSyncResQueue(GTMStorageHandle handle);
+extern GTMStorageHandle GTM_StoreResQueueCreate(GTM_ResQueueInfo * raw_resq);
+extern int32 GTM_StoreResQueueAlter(GTM_ResQueueInfo *raw_resq,
+									GTM_ResQAlterInfo * resq_alter,
+				  					GTMStorageHandle resq_handle);
+extern GTMStorageHandle GTM_StoreLoadResQueue(GTM_ResQueueInfo *raw_resq);
+extern int32 GTM_StoreDropResQueue(GTMStorageHandle resq_handle);
+extern int32 GTM_StoreResetResQueue(GTMStorageHandle resq_handle);
+extern void ProcessListStorageResQueueCommand(Port *myport, StringInfo message);
+extern void ProcessCheckStorageResQueueCommand(Port *myport, StringInfo message);
+#endif
+
 #endif

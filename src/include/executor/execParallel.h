@@ -5,9 +5,6 @@
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * IDENTIFICATION
  *		src/include/executor/execParallel.h
  *--------------------------------------------------------------------
@@ -26,45 +23,35 @@ typedef struct SharedExecutorInstrumentation SharedExecutorInstrumentation;
 
 typedef struct ParallelExecutorInfo
 {
-	PlanState  *planstate;
-	ParallelContext *pcxt;
-	BufferUsage *buffer_usage;
-	SharedExecutorInstrumentation *instrumentation;
-	shm_mq_handle **tqueue;
-	dsa_area   *area;
-	bool		finished;
-#ifdef __OPENTENBASE__
-	bool        *executor_done;
-#endif
+	PlanState  *planstate;		/* plan subtree we're running in parallel */
+	ParallelContext *pcxt;		/* parallel context we're using */
+	BufferUsage *buffer_usage;	/* points to bufusage area in DSM */
+	uint64	    *processed_count;	/* processed tuple count area in DSM */
+	SharedExecutorInstrumentation *instrumentation; /* optional */
+	struct SharedJitInstrumentation *jit_instrumentation; /* optional */
+	dsa_area   *area;			/* points to DSA area in DSM */
+	dsa_pointer	param_exec;		/* serialized PARAM_EXEC parameters */
+	bool		finished;		/* set true by ExecParallelFinish */
+	/* These two arrays have pcxt->nworkers_launched entries: */
+	shm_mq_handle **tqueue;		/* tuple queues for worker output */
+	struct TupleQueueReader **reader;	/* tuple reader/writer support */
 } ParallelExecutorInfo;
 
-#ifdef __OPENTENBASE__
-
-extern bool *parallelExecutionError;
-
-extern ParallelExecutorInfo *ExecInitParallelPlan(PlanState *planstate, 
-                       EState *estate, int nworkers, Gather *gather);
-#else
-extern ParallelExecutorInfo *ExecInitParallelPlan(PlanState *planstate, 
-                       EState *estate, int nworkers);
-#endif
-
+extern ParallelExecutorInfo *ExecInitParallelPlan(PlanState *planstate,
+					 EState *estate, Bitmapset *sendParam, int nworkers,
+					 int64 tuples_needed);
+extern void ExecParallelCreateReaders(ParallelExecutorInfo *pei);
 extern void ExecParallelFinish(ParallelExecutorInfo *pei);
 extern void ExecParallelCleanup(ParallelExecutorInfo *pei);
 extern void ExecParallelReinitialize(PlanState *planstate,
-						 ParallelExecutorInfo *pei);
+						 ParallelExecutorInfo *pei, Bitmapset *sendParam);
 
 extern void ParallelQueryMain(dsm_segment *seg, shm_toc *toc);
+
 #ifdef __OPENTENBASE__
 extern ParallelWorkerStatus *GetParallelWorkerStatusInfo(shm_toc *toc);
 extern int32 ExecGetForWorkerNumber(ParallelWorkerStatus *worker_status);
-
-extern void *ParallelWorkerShmAlloc(Size size, bool zero);
-
-extern dsa_area *GetNumWorkerDsa(int workerNumber);
-
-extern bool ParallelError(void);
-
-extern void HandleParallelExecutionError(void);
+extern bool ExecParallelAdjustDSM(PlanState *planstate, ParallelContext *pcxt);
 #endif
+
 #endif							/* EXECPARALLEL_H */

@@ -25,23 +25,22 @@
  * FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
  * CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
  * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
- * 
  */
 
 typedef struct
 {
-    uint32        S0[256],
-                S1[256],
-                S2[256],
-                S3[256],
-                P[18];
-    uint32        iv0,
-                iv1;            /* for CBC mode */
+	uint32 S0[256],
+		S1[256],
+		S2[256],
+		S3[256],
+		P[18];
+	uint32 iv0,
+		iv1; /* for CBC mode */
 } BlowfishContext;
 
-void        blowfish_setkey(BlowfishContext *ctx, const uint8 *key, short keybytes);
-void        blowfish_setiv(BlowfishContext *ctx, const uint8 *iv);
-void        blowfish_encrypt_cbc(uint8 *blk, int len, BlowfishContext *ctx);
-void        blowfish_decrypt_cbc(uint8 *blk, int len, BlowfishContext *ctx);
-void        blowfish_encrypt_ecb(uint8 *blk, int len, BlowfishContext *ctx);
-void        blowfish_decrypt_ecb(uint8 *blk, int len, BlowfishContext *ctx);
+void blowfish_setkey(BlowfishContext *ctx, const uint8 *key, short keybytes);
+void blowfish_setiv(BlowfishContext *ctx, const uint8 *iv);
+void blowfish_encrypt_cbc(uint8 *blk, int len, BlowfishContext *ctx);
+void blowfish_decrypt_cbc(uint8 *blk, int len, BlowfishContext *ctx);
+void blowfish_encrypt_ecb(uint8 *blk, int len, BlowfishContext *ctx);
+void blowfish_decrypt_ecb(uint8 *blk, int len, BlowfishContext *ctx);

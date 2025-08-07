@@ -1,22 +1,25 @@
 /*-------------------------------------------------------------------------
  *
  * parse_target.c
- *      handle target lists
+ *	  handle target lists
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
  * IDENTIFICATION
- *      src/backend/parser/parse_target.c
+ *	  src/backend/parser/parse_target.c
  *
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
 
 #include "catalog/pg_type.h"
+#include "catalog/pg_attribute.h"
+#include "catalog/pg_type_object.h"
 #include "commands/dbcommands.h"
 #include "funcapi.h"
+#include "mb/pg_wchar.h"
 #include "miscadmin.h"
 #include "nodes/makefuncs.h"
 #include "nodes/nodeFuncs.h"
@@ -31,91 +34,239 @@
 #include "utils/lsyscache.h"
 #include "utils/rel.h"
 #include "utils/typcache.h"
+#include "utils/xml.h"
+#include "mb/pg_wchar.h"
+#include "parser/scansup.h"
+#include "access/sysattr.h"
 
+/* GUC */
+bool unique_column_name = false;
 
 static void markTargetListOrigin(ParseState *pstate, TargetEntry *tle,
-                     Var *var, int levelsup);
+					 Var *var, int levelsup);
 static Node *transformAssignmentIndirection(ParseState *pstate,
-                               Node *basenode,
-                               const char *targetName,
-                               bool targetIsArray,
-                               Oid targetTypeId,
-                               int32 targetTypMod,
-                               Oid targetCollation,
-                               ListCell *indirection,
-                               Node *rhs,
-                               int location);
+							   Node *basenode,
+							   const char *targetName,
+							   bool targetIsArray,
+							   Oid targetTypeId,
+							   int32 targetTypMod,
+							   Oid targetCollation,
+							   ListCell *indirection,
+							   Node *rhs,
+							   int location);
 static Node *transformAssignmentSubscripts(ParseState *pstate,
-                              Node *basenode,
-                              const char *targetName,
-                              Oid targetTypeId,
-                              int32 targetTypMod,
-                              Oid targetCollation,
-                              List *subscripts,
-                              bool isSlice,
-                              ListCell *next_indirection,
-                              Node *rhs,
-                              int location);
+							  Node *basenode,
+							  const char *targetName,
+							  Oid targetTypeId,
+							  int32 targetTypMod,
+							  Oid targetCollation,
+							  List *subscripts,
+							  bool isSlice,
+							  ListCell *next_indirection,
+							  Node *rhs,
+							  int location);
 static List *ExpandColumnRefStar(ParseState *pstate, ColumnRef *cref,
-                    bool make_target_entry);
+					bool make_target_entry);
 static List *ExpandAllTables(ParseState *pstate, int location);
 static List *ExpandIndirectionStar(ParseState *pstate, A_Indirection *ind,
-                      bool make_target_entry, ParseExprKind exprKind);
+					  bool make_target_entry, ParseExprKind exprKind);
 static List *ExpandSingleTable(ParseState *pstate, RangeTblEntry *rte,
-                  int location, bool make_target_entry);
+				  int location, bool make_target_entry);
 static List *ExpandRowReference(ParseState *pstate, Node *expr,
-                   bool make_target_entry);
-static int    FigureColnameInternal(Node *node, char **name);
+				   bool make_target_entry);
+static int	FigureColnameInternal(Node *node, char **name);
+/* opentenbase_ora: Figure out the column name like opentenbase_ora */
+static char *FigureOraColnameInternal(const char *query, int location);
+static char *FigureOraColname(Node *node, const char *query);
 
+static Expr *AddOpenTenBaseOraXMLCheckAndFormat(Expr *expr, Oid targetoid);
+
+/*
+ * Entry in makeColumnNameUnique's hash table
+ */
+typedef struct
+{
+	char		name[NAMEDATALEN];	/* Hash key --- must be first */
+	int			counter;			/* Largest addition used so far for name */
+} NameHashEntry;
 
 /*
  * transformTargetEntry()
- *    Transform any ordinary "expression-type" node into a targetlist entry.
- *    This is exported so that parse_clause.c can generate targetlist entries
- *    for ORDER/GROUP BY items that are not already in the targetlist.
+ *	Transform any ordinary "expression-type" node into a targetlist entry.
+ *	This is exported so that parse_clause.c can generate targetlist entries
+ *	for ORDER/GROUP BY items that are not already in the targetlist.
  *
- * node        the (untransformed) parse tree for the value expression.
- * expr        the transformed expression, or NULL if caller didn't do it yet.
+ * node		the (untransformed) parse tree for the value expression.
+ * expr		the transformed expression, or NULL if caller didn't do it yet.
  * exprKind expression kind (EXPR_KIND_SELECT_TARGET, etc)
- * colname    the column name to be assigned, or NULL if none yet set.
- * resjunk    true if the target should be marked resjunk, ie, it is not
- *            wanted in the final projected tuple.
+ * colname	the column name to be assigned, or NULL if none yet set.
+ * resjunk	true if the target should be marked resjunk, ie, it is not
+ *			wanted in the final projected tuple.
  */
 TargetEntry *
 transformTargetEntry(ParseState *pstate,
-                     Node *node,
-                     Node *expr,
-                     ParseExprKind exprKind,
-                     char *colname,
-                     bool resjunk)
+					 Node *node,
+					 Node *expr,
+					 ParseExprKind exprKind,
+					 char *colname,
+					 bool resjunk)
 {
-    /* Transform the node if caller didn't do it already */
-    if (expr == NULL)
-    {
-        /*
-         * If it's a SetToDefault node and we should allow that, pass it
-         * through unmodified.  (transformExpr will throw the appropriate
-         * error if we're disallowing it.)
-         */
-        if (exprKind == EXPR_KIND_UPDATE_SOURCE && IsA(node, SetToDefault))
-            expr = node;
-        else
-            expr = transformExpr(pstate, node, exprKind);
-    }
+	/* Transform the node if caller didn't do it already */
+	if (expr == NULL)
+	{
+		/*
+		 * If it's a SetToDefault node and we should allow that, pass it
+		 * through unmodified.  (transformExpr will throw the appropriate
+		 * error if we're disallowing it.)
+		 */
+		if (exprKind == EXPR_KIND_UPDATE_SOURCE && IsA(node, SetToDefault))
+			expr = node;
+		else
+			expr = transformExpr(pstate, node, exprKind);
+	}
 
-    if (colname == NULL && !resjunk)
-    {
-        /*
-         * Generate a suitable column name for a column without any explicit
-         * 'AS ColumnName' clause.
-         */
-        colname = FigureColname(node);
-    }
+	if (colname == NULL && !resjunk)
+	{
+		/*
+		 * Generate a suitable column name for a column without any explicit
+		 * 'AS ColumnName' clause.
+		 */
+		colname = FigureColname(node, pstate->p_sourcetext);
 
-    return makeTargetEntry((Expr *) expr,
-                           (AttrNumber) pstate->p_next_resno++,
-                           colname,
-                           resjunk);
+		if (ORA_MODE && node &&(IsA(node, FuncCall) ||
+			IsA(node, A_Indirection)) && expr)
+		{
+			Node	*expr_without_exp_cast = expr;
+
+			if (IsA(expr_without_exp_cast, FuncExpr))
+			{
+				FuncExpr	*funcexpr = (FuncExpr *) expr_without_exp_cast;
+
+				if (list_length(funcexpr->args) > 0 &&
+					funcexpr->funcformat == COERCE_EXPLICIT_CAST)
+					expr_without_exp_cast = (Node *) linitial(funcexpr->args);
+			}
+
+			if (IsA(expr_without_exp_cast, ArrayRef))
+			{
+				/* Avoid duplicate names in order by */
+				if (colname)
+				{
+					StringInfoData	ds;
+
+					initStringInfo(&ds);
+					appendStringInfo(&ds, "%s[]", colname);
+					colname = ds.data;
+				}
+				else
+					colname = "ARRAY[]";
+			}
+		}
+
+		/* It is a system column not rowid expr in opentenbase_ora mode, return lowercase column like postgresql */
+		if (ORA_MODE && nodeTag(expr) == T_Var &&
+			((Var *) expr)->varoattno < InvalidAttrNumber &&
+			((Var *) expr)->varoattno != ORCL_RowIdAttributeNumber)
+			colname = get_lowercase_ora_ident_str(colname);
+	}
+
+	return makeTargetEntry((Expr *) expr,
+						   (AttrNumber) pstate->p_next_resno++,
+						   colname,
+						   resjunk);
+}
+
+static void
+makeColumnNameUnique(List *targetlist, int *alias)
+{
+	HASHCTL		hash_ctl;
+	HTAB		*names_hash;
+	NameHashEntry *hentry;
+	ListCell	*lc;
+	bool		found;
+	int			cur_res = 0;
+
+	if (!unique_column_name)
+		return;
+
+	/*
+	 * We use a hash table to hold known names, so that this process is O(N)
+	 * not O(N^2) for N names.
+	 */
+	MemSet(&hash_ctl, 0, sizeof(hash_ctl));
+	hash_ctl.keysize = NAMEDATALEN;
+	hash_ctl.entrysize = sizeof(NameHashEntry);
+	hash_ctl.hcxt = CurrentMemoryContext;
+	names_hash = hash_create("makeColumnNameUnique names",
+							 list_length(targetlist),
+							 &hash_ctl,
+							 HASH_ELEM | HASH_CONTEXT);
+	foreach(lc, targetlist)
+	{
+		TargetEntry		*tle = (TargetEntry *) lfirst(lc);
+		char 			*name = tle->resname;
+		
+		if (!name)
+			continue;
+		
+		if (alias[cur_res] > 0)
+		{
+			/* name is expanded from a star expr, count it */
+			alias[cur_res]--;
+		}
+		
+		if (alias[cur_res] < 0)
+		{
+			Assert(alias[cur_res] == -1);
+			/* it's name comes from an alias, skip it */
+			cur_res++;
+			continue;
+		}
+		else if (alias[cur_res] == 0)
+		{
+			/* normal case, or count star attr end, process next res */
+			cur_res++;
+		}
+
+		hentry = (NameHashEntry *) hash_search(names_hash, name, HASH_ENTER, &found);
+
+		if (found)
+		{
+			/* Name already in use, must choose a new one */
+			int		namelen = strlen(name);
+			char	*modname = (char *) palloc(namelen + 16);
+			NameHashEntry *hentry2;
+			
+			do
+			{
+				hentry->counter++;
+				for (;;)
+				{
+					/*
+					 * We avoid using %.*s here because it can misbehave
+					 * if the data is not valid in what libc thinks is the
+					 * prevailing encoding.
+					 */
+					memcpy(modname, name, namelen);
+					sprintf(modname + namelen, "_%d", hentry->counter);
+					if (strlen(modname) < NAMEDATALEN)
+						break;
+					/* drop chars from refname to keep all the digits */
+					namelen = pg_mbcliplen(name, namelen, namelen - 1);
+				}
+				hentry2 = (NameHashEntry *) hash_search(names_hash, modname, HASH_ENTER, &found);
+			} while(found);
+			hentry2->counter = 0;	/* init new hash entry */
+			tle->resname = modname;
+		}
+		else
+		{
+			/* Name not previously used, need only initialize hentry */
+			hentry->counter = 0;
+		}
+	}
+	
+	hash_destroy(names_hash);
 }
 
 
@@ -129,87 +280,138 @@ transformTargetEntry(ParseState *pstate,
  */
 List *
 transformTargetList(ParseState *pstate, List *targetlist,
-                    ParseExprKind exprKind)
+					ParseExprKind exprKind)
 {
-    List       *p_target = NIL;
-    bool        expand_star;
-    ListCell   *o_target;
+	List	   *p_target = NIL;
+	bool		expand_star;
+	ListCell   *o_target;
+	/*
+	 * In makeColumnNameUnique we want to rename all duplicate colname with
+	 * a suffix except column with alias, prepare enough information for it.
+	 *
+	 * Notice: it's an int array.
+	 *  -1 means the name of target entry comes from an alias
+	 *   0 means the name comes from actual var or function name or undetermined
+	 *   n means the resTarget is a star expr and been expanded to "n" columns
+	 *      treat them as not-alias.
+	 */
+	int		*alias = palloc0(list_length(targetlist) * sizeof(int));
+	int		i = -1;
 
-    /* Shouldn't have any leftover multiassign items at start */
-    Assert(pstate->p_multiassign_exprs == NIL);
+	/* Shouldn't have any leftover multiassign items at start */
+	Assert(pstate->p_multiassign_exprs == NIL);
 
-    /* Expand "something.*" in SELECT and RETURNING, but not UPDATE */
-    expand_star = (exprKind != EXPR_KIND_UPDATE_SOURCE);
+	/* Expand "something.*" in SELECT and RETURNING, but not UPDATE */
+	expand_star = (exprKind != EXPR_KIND_UPDATE_SOURCE);
 
-    foreach(o_target, targetlist)
-    {
-        ResTarget  *res = (ResTarget *) lfirst(o_target);
+	foreach(o_target, targetlist)
+	{
+		ResTarget  *res = (ResTarget *) lfirst(o_target);
 
-        /*
-         * Check for "something.*".  Depending on the complexity of the
-         * "something", the star could appear as the last field in ColumnRef,
-         * or as the last indirection item in A_Indirection.
-         */
-        if (expand_star)
-        {
-            if (IsA(res->val, ColumnRef))
-            {
-                ColumnRef  *cref = (ColumnRef *) res->val;
+		i++;
+		/*
+		 * Check for "something.*".  Depending on the complexity of the
+		 * "something", the star could appear as the last field in ColumnRef,
+		 * or as the last indirection item in A_Indirection.
+		 */
+		if (expand_star)
+		{
+			if (IsA(res->val, ColumnRef))
+			{
+				ColumnRef  *cref = (ColumnRef *) res->val;
 
-                if (IsA(llast(cref->fields), A_Star))
-                {
-                    /* It is something.*, expand into multiple items */
-                    p_target = list_concat(p_target,
-                                           ExpandColumnRefStar(pstate,
-                                                               cref,
-                                                               true));
-                    continue;
-                }
-            }
-            else if (IsA(res->val, A_Indirection))
-            {
-                A_Indirection *ind = (A_Indirection *) res->val;
+				if (IsA(llast(cref->fields), A_Star))
+				{
+					/* It is something.*, expand into multiple items */
+					List *tmp = ExpandColumnRefStar(pstate, cref, true);
+					alias[i] = list_length(tmp);
+					p_target = list_concat(p_target, tmp);
 
-                if (IsA(llast(ind->indirection), A_Star))
-                {
-                    /* It is something.*, expand into multiple items */
-                    p_target = list_concat(p_target,
-                                           ExpandIndirectionStar(pstate,
-                                                                 ind,
-                                                                 true,
-                                                                 exprKind));
-                    continue;
-                }
-            }
-        }
+					continue;
+				}
+			}
+			else if (IsA(res->val, A_Indirection))
+			{
+				A_Indirection *ind = (A_Indirection *) res->val;
 
-        /*
-         * Not "something.*", or we want to treat that as a plain whole-row
-         * variable, so transform as a single expression
-         */
-        p_target = lappend(p_target,
-                           transformTargetEntry(pstate,
-                                                res->val,
-                                                NULL,
-                                                exprKind,
-                                                res->name,
-                                                false));
-    }
+				if (IsA(llast(ind->indirection), A_Star))
+				{
+					/* It is something.*, expand into multiple items */
+					List *tmp = ExpandIndirectionStar(pstate, ind, true, exprKind);
+					alias[i] = list_length(tmp);
+					p_target = list_concat(p_target, tmp);
 
-    /*
-     * If any multiassign resjunk items were created, attach them to the end
-     * of the targetlist.  This should only happen in an UPDATE tlist.  We
-     * don't need to worry about numbering of these items; transformUpdateStmt
-     * will set their resnos.
-     */
-    if (pstate->p_multiassign_exprs)
-    {
-        Assert(exprKind == EXPR_KIND_UPDATE_SOURCE);
-        p_target = list_concat(p_target, pstate->p_multiassign_exprs);
-        pstate->p_multiassign_exprs = NIL;
-    }
+					continue;
+				}
+			}
+			else if (IsA(res->val, CaseExpr))
+			{
+				/* Decode Name The decode command is displayed */
+				CaseExpr *c = (CaseExpr *)res->val;
 
-    return p_target;
+				if (c->isdecode && res->name == NULL)
+				{
+					res->name = pstrdup("DECODE");
+				}
+			}
+		}
+
+		if (res->name != NULL)
+			alias[i] = -1;
+
+		/*
+		 * Not "something.*", or we want to treat that as a plain whole-row
+		 * variable, so transform as a single expression
+		 */
+		p_target = lappend(p_target,
+						   transformTargetEntry(pstate,
+												res->val,
+												NULL,
+												exprKind,
+												res->name,
+												false));
+	}
+
+	makeColumnNameUnique(p_target, alias);
+	pfree(alias);
+
+	if (ORA_MODE && pstate->long_type_check > LT_NONE)
+	{
+		ListCell    *lc;
+		TargetEntry *tentry = NULL;
+
+		foreach(lc, p_target)
+		{
+			tentry = (TargetEntry *) lfirst(lc);
+
+			if (exprType((Node *) tentry->expr) == LRAWOID ||
+			    exprType((Node *) tentry->expr) == LONGOID)
+			{
+				if (pstate->long_type_check == LT_INSERT &&
+				    exprType((Node *) tentry->expr) == LRAWOID)
+					ereport(ERROR,
+						(errcode(ERRCODE_WRONG_OBJECT_TYPE),
+						errmsg("inconsistent datatypes: expected CHAR got LONG BINARY")));
+				else if (pstate->long_type_check == LT_MAVIEW)
+					elog(ERROR, "\"long\" type can't in materialized view");
+			}
+		}	
+	}
+
+	/*
+	 * If any multiassign resjunk items were created, attach them to the end
+	 * of the targetlist.  This should only happen in an UPDATE tlist.  We
+	 * don't need to worry about numbering of these items; transformUpdateStmt
+	 * will set their resnos.
+	 */
+	if (pstate->p_multiassign_exprs)
+	{
+		Assert(exprKind == EXPR_KIND_UPDATE_SOURCE);
+		p_target = list_concat(p_target, pstate->p_multiassign_exprs);
+		pstate->p_multiassign_exprs = NIL;
+	}
+
+	return p_target;
 }
 
 
@@ -226,71 +428,71 @@ transformTargetList(ParseState *pstate, List *targetlist,
  */
 List *
 transformExpressionList(ParseState *pstate, List *exprlist,
-                        ParseExprKind exprKind, bool allowDefault)
+						ParseExprKind exprKind, bool allowDefault)
 {
-    List       *result = NIL;
-    ListCell   *lc;
+	List	   *result = NIL;
+	ListCell   *lc;
 
-    foreach(lc, exprlist)
-    {
-        Node       *e = (Node *) lfirst(lc);
+	foreach(lc, exprlist)
+	{
+		Node	   *e = (Node *) lfirst(lc);
 
-        /*
-         * Check for "something.*".  Depending on the complexity of the
-         * "something", the star could appear as the last field in ColumnRef,
-         * or as the last indirection item in A_Indirection.
-         */
-        if (IsA(e, ColumnRef))
-        {
-            ColumnRef  *cref = (ColumnRef *) e;
+		/*
+		 * Check for "something.*".  Depending on the complexity of the
+		 * "something", the star could appear as the last field in ColumnRef,
+		 * or as the last indirection item in A_Indirection.
+		 */
+		if (IsA(e, ColumnRef))
+		{
+			ColumnRef  *cref = (ColumnRef *) e;
 
-            if (IsA(llast(cref->fields), A_Star))
-            {
-                /* It is something.*, expand into multiple items */
-                result = list_concat(result,
-                                     ExpandColumnRefStar(pstate, cref,
-                                                         false));
-                continue;
-            }
-        }
-        else if (IsA(e, A_Indirection))
-        {
-            A_Indirection *ind = (A_Indirection *) e;
+			if (IsA(llast(cref->fields), A_Star))
+			{
+				/* It is something.*, expand into multiple items */
+				result = list_concat(result,
+									 ExpandColumnRefStar(pstate, cref,
+														 false));
+				continue;
+			}
+		}
+		else if (IsA(e, A_Indirection))
+		{
+			A_Indirection *ind = (A_Indirection *) e;
 
-            if (IsA(llast(ind->indirection), A_Star))
-            {
-                /* It is something.*, expand into multiple items */
-                result = list_concat(result,
-                                     ExpandIndirectionStar(pstate, ind,
-                                                           false, exprKind));
-                continue;
-            }
-        }
+			if (IsA(llast(ind->indirection), A_Star))
+			{
+				/* It is something.*, expand into multiple items */
+				result = list_concat(result,
+									 ExpandIndirectionStar(pstate, ind,
+														   false, exprKind));
+				continue;
+			}
+		}
 
-        /*
-         * Not "something.*", so transform as a single expression.  If it's a
-         * SetToDefault node and we should allow that, pass it through
-         * unmodified.  (transformExpr will throw the appropriate error if
-         * we're disallowing it.)
-         */
-        if (allowDefault && IsA(e, SetToDefault))
-             /* do nothing */ ;
-        else
-            e = transformExpr(pstate, e, exprKind);
+		/*
+		 * Not "something.*", so transform as a single expression.  If it's a
+		 * SetToDefault node and we should allow that, pass it through
+		 * unmodified.  (transformExpr will throw the appropriate error if
+		 * we're disallowing it.)
+		 */
+		if (allowDefault && IsA(e, SetToDefault))
+			 /* do nothing */ ;
+		else
+			e = transformExpr(pstate, e, exprKind);
 
-        result = lappend(result, e);
-    }
+		result = lappend(result, e);
+	}
 
-    /* Shouldn't have any multiassign items here */
-    Assert(pstate->p_multiassign_exprs == NIL);
+	/* Shouldn't have any multiassign items here */
+	Assert(pstate->p_multiassign_exprs == NIL);
 
-    return result;
+	return result;
 }
 
 
 /*
  * resolveTargetListUnknowns()
- *        Convert any unknown-type targetlist entries to type TEXT.
+ *		Convert any unknown-type targetlist entries to type TEXT.
  *
  * We do this after we've exhausted all other ways of identifying the output
  * column types of a query.
@@ -298,29 +500,29 @@ transformExpressionList(ParseState *pstate, List *exprlist,
 void
 resolveTargetListUnknowns(ParseState *pstate, List *targetlist)
 {
-    ListCell   *l;
+	ListCell   *l;
 
-    foreach(l, targetlist)
-    {
-        TargetEntry *tle = (TargetEntry *) lfirst(l);
-        Oid            restype = exprType((Node *) tle->expr);
+	foreach(l, targetlist)
+	{
+		TargetEntry *tle = (TargetEntry *) lfirst(l);
+		Oid			restype = exprType((Node *) tle->expr);
 
-        if (restype == UNKNOWNOID)
-        {
-            tle->expr = (Expr *) coerce_type(pstate, (Node *) tle->expr,
-                                             restype, TEXTOID, -1,
-                                             COERCION_IMPLICIT,
-                                             COERCE_IMPLICIT_CAST,
-                                             -1);
-        }
-    }
+		if (restype == UNKNOWNOID)
+		{
+			tle->expr = (Expr *) coerce_type(pstate, (Node *) tle->expr,
+											 restype, TEXTOID, -1,
+											 COERCION_IMPLICIT,
+											 COERCE_IMPLICIT_CAST,
+											 -1);
+		}
+	}
 }
 
 
 /*
  * markTargetListOrigins()
- *        Mark targetlist columns that are simple Vars with the source
- *        table's OID and column number.
+ *		Mark targetlist columns that are simple Vars with the source
+ *		table's OID and column number.
  *
  * Currently, this is done only for SELECT targetlists and RETURNING lists,
  * since we only need the info if we are going to send it to the frontend.
@@ -328,19 +530,19 @@ resolveTargetListUnknowns(ParseState *pstate, List *targetlist)
 void
 markTargetListOrigins(ParseState *pstate, List *targetlist)
 {
-    ListCell   *l;
+	ListCell   *l;
 
-    foreach(l, targetlist)
-    {
-        TargetEntry *tle = (TargetEntry *) lfirst(l);
+	foreach(l, targetlist)
+	{
+		TargetEntry *tle = (TargetEntry *) lfirst(l);
 
-        markTargetListOrigin(pstate, tle, (Var *) tle->expr, 0);
-    }
+		markTargetListOrigin(pstate, tle, (Var *) tle->expr, 0);
+	}
 }
 
 /*
  * markTargetListOrigin()
- *        If 'var' is a Var of a plain relation, mark 'tle' with its origin
+ *		If 'var' is a Var of a plain relation, mark 'tle' with its origin
  *
  * levelsup is an extra offset to interpret the Var's varlevelsup correctly.
  *
@@ -349,105 +551,105 @@ markTargetListOrigins(ParseState *pstate, List *targetlist)
  */
 static void
 markTargetListOrigin(ParseState *pstate, TargetEntry *tle,
-                     Var *var, int levelsup)
-{// #lizard forgives
-    int            netlevelsup;
-    RangeTblEntry *rte;
-    AttrNumber    attnum;
+					 Var *var, int levelsup)
+{
+	int			netlevelsup;
+	RangeTblEntry *rte;
+	AttrNumber	attnum;
 
-    if (var == NULL || !IsA(var, Var))
-        return;
-    netlevelsup = var->varlevelsup + levelsup;
-    rte = GetRTEByRangeTablePosn(pstate, var->varno, netlevelsup);
-    attnum = var->varattno;
+	if (var == NULL || !IsA(var, Var))
+		return;
+	netlevelsup = var->varlevelsup + levelsup;
+	rte = GetRTEByRangeTablePosn(pstate, var->varno, netlevelsup);
+	attnum = var->varattno;
 
-    switch (rte->rtekind)
-    {
-        case RTE_RELATION:
-            /* It's a table or view, report it */
-            tle->resorigtbl = rte->relid;
-            tle->resorigcol = attnum;
-            break;
-        case RTE_SUBQUERY:
-            /* Subselect-in-FROM: copy up from the subselect */
-            if (attnum != InvalidAttrNumber)
-            {
-                TargetEntry *ste = get_tle_by_resno(rte->subquery->targetList,
-                                                    attnum);
+	switch (rte->rtekind)
+	{
+		case RTE_RELATION:
+			/* It's a table or view, report it */
+			tle->resorigtbl = rte->relid;
+			tle->resorigcol = attnum;
+			break;
+		case RTE_SUBQUERY:
+			/* Subselect-in-FROM: copy up from the subselect */
+			if (attnum != InvalidAttrNumber)
+			{
+				TargetEntry *ste = get_tle_by_resno(rte->subquery->targetList,
+													attnum);
 
-                if (ste == NULL || ste->resjunk)
-                    elog(ERROR, "subquery %s does not have attribute %d",
-                         rte->eref->aliasname, attnum);
-                tle->resorigtbl = ste->resorigtbl;
-                tle->resorigcol = ste->resorigcol;
-            }
-            break;
-        case RTE_JOIN:
-            /* Join RTE --- recursively inspect the alias variable */
-            if (attnum != InvalidAttrNumber)
-            {
-                Var           *aliasvar;
+				if (ste == NULL || ste->resjunk)
+					elog(ERROR, "subquery %s does not have attribute %d",
+						 rte->eref->aliasname, attnum);
+				tle->resorigtbl = ste->resorigtbl;
+				tle->resorigcol = ste->resorigcol;
+			}
+			break;
+		case RTE_JOIN:
+			/* Join RTE --- recursively inspect the alias variable */
+			if (attnum != InvalidAttrNumber)
+			{
+				Var		   *aliasvar;
 
-                Assert(attnum > 0 && attnum <= list_length(rte->joinaliasvars));
-                aliasvar = (Var *) list_nth(rte->joinaliasvars, attnum - 1);
-                /* We intentionally don't strip implicit coercions here */
-                markTargetListOrigin(pstate, tle, aliasvar, netlevelsup);
-            }
-            break;
-        case RTE_FUNCTION:
-        case RTE_VALUES:
-        case RTE_TABLEFUNC:
-        case RTE_NAMEDTUPLESTORE:
-            /* not a simple relation, leave it unmarked */
-            break;
-        case RTE_CTE:
+				Assert(attnum > 0 && attnum <= list_length(rte->joinaliasvars));
+				aliasvar = (Var *) list_nth(rte->joinaliasvars, attnum - 1);
+				/* We intentionally don't strip implicit coercions here */
+				markTargetListOrigin(pstate, tle, aliasvar, netlevelsup);
+			}
+			break;
+		case RTE_FUNCTION:
+		case RTE_VALUES:
+		case RTE_TABLEFUNC:
+		case RTE_NAMEDTUPLESTORE:
+			/* not a simple relation, leave it unmarked */
+			break;
+		case RTE_CTE:
 
-            /*
-             * CTE reference: copy up from the subquery, if possible. If the
-             * RTE is a recursive self-reference then we can't do anything
-             * because we haven't finished analyzing it yet. However, it's no
-             * big loss because we must be down inside the recursive term of a
-             * recursive CTE, and so any markings on the current targetlist
-             * are not going to affect the results anyway.
-             */
-            if (attnum != InvalidAttrNumber && !rte->self_reference)
-            {
-                CommonTableExpr *cte = GetCTEForRTE(pstate, rte, netlevelsup);
-                TargetEntry *ste;
+			/*
+			 * CTE reference: copy up from the subquery, if possible. If the
+			 * RTE is a recursive self-reference then we can't do anything
+			 * because we haven't finished analyzing it yet. However, it's no
+			 * big loss because we must be down inside the recursive term of a
+			 * recursive CTE, and so any markings on the current targetlist
+			 * are not going to affect the results anyway.
+			 */
+			if (attnum != InvalidAttrNumber && !rte->self_reference)
+			{
+				CommonTableExpr *cte = GetCTEForRTE(pstate, rte, netlevelsup);
+				TargetEntry *ste;
 
-                ste = get_tle_by_resno(GetCTETargetList(cte), attnum);
-                if (ste == NULL || ste->resjunk)
-                    elog(ERROR, "subquery %s does not have attribute %d",
-                         rte->eref->aliasname, attnum);
-                tle->resorigtbl = ste->resorigtbl;
-                tle->resorigcol = ste->resorigcol;
-            }
-            break;
+				ste = get_tle_by_resno(GetCTETargetList(cte), attnum);
+				if (ste == NULL || ste->resjunk)
+					elog(ERROR, "subquery %s does not have attribute %d",
+						 rte->eref->aliasname, attnum);
+				tle->resorigtbl = ste->resorigtbl;
+				tle->resorigcol = ste->resorigcol;
+			}
+			break;
 #ifdef PGXC
-        case RTE_REMOTE_DUMMY:
-            elog(ERROR, "Invalid RTE found");
-            break;
+		case RTE_REMOTE_DUMMY:
+			elog(ERROR, "Invalid RTE found");
+			break;
 #endif /* PGXC */
-    }
+	}
 }
 
 
 /*
  * transformAssignedExpr()
- *    This is used in INSERT and UPDATE statements only.  It prepares an
- *    expression for assignment to a column of the target table.
- *    This includes coercing the given value to the target column's type
- *    (if necessary), and dealing with any subfield names or subscripts
- *    attached to the target column itself.  The input expression has
- *    already been through transformExpr().
+ *	This is used in INSERT and UPDATE statements only.  It prepares an
+ *	expression for assignment to a column of the target table.
+ *	This includes coercing the given value to the target column's type
+ *	(if necessary), and dealing with any subfield names or subscripts
+ *	attached to the target column itself.  The input expression has
+ *	already been through transformExpr().
  *
- * pstate        parse state
- * expr            expression to be modified
- * exprKind        indicates which type of statement we're dealing with
- * colname        target column name (ie, name of attribute to be assigned to)
- * attrno        target attribute number
- * indirection    subscripts/field names for target column, if any
- * location        error cursor position for the target column, or -1
+ * pstate		parse state
+ * expr			expression to be modified
+ * exprKind		indicates which type of statement we're dealing with
+ * colname		target column name (ie, name of attribute to be assigned to)
+ * attrno		target attribute number
+ * indirection	subscripts/field names for target column, if any
+ * location		error cursor position for the target column, or -1
  *
  * Returns the modified expression.
  *
@@ -458,191 +660,281 @@ markTargetListOrigin(ParseState *pstate, TargetEntry *tle,
  */
 Expr *
 transformAssignedExpr(ParseState *pstate,
-                      Expr *expr,
-                      ParseExprKind exprKind,
-                      char *colname,
-                      int attrno,
-                      List *indirection,
-                      int location)
-{// #lizard forgives
-    Relation    rd = pstate->p_target_relation;
-    Oid            type_id;        /* type of value provided */
-    Oid            attrtype;        /* type of target column */
-    int32        attrtypmod;
-    Oid            attrcollation;    /* collation of target column */
-    ParseExprKind sv_expr_kind;
+					  Expr *expr,
+					  ParseExprKind exprKind,
+					  char *colname,
+					  int attrno,
+					  List *indirection,
+					  int location)
+{
+	Relation	rd = pstate->p_target_relation;
+	Oid			type_id;		/* type of value provided */
+	Oid			attrtype;		/* type of target column */
+	int32		attrtypmod;
+	Oid			attrcollation;	/* collation of target column */
+	ParseExprKind sv_expr_kind;
+	TargetEntry *targetEntry;
 
-    /*
-     * Save and restore identity of expression type we're parsing.  We must
-     * set p_expr_kind here because we can parse subscripts without going
-     * through transformExpr().
-     */
-    Assert(exprKind != EXPR_KIND_NONE);
-    sv_expr_kind = pstate->p_expr_kind;
-    pstate->p_expr_kind = exprKind;
+	/*
+	 * Save and restore identity of expression type we're parsing.  We must
+	 * set p_expr_kind here because we can parse subscripts without going
+	 * through transformExpr().
+	 */
+	Assert(exprKind != EXPR_KIND_NONE);
+	sv_expr_kind = pstate->p_expr_kind;
+	pstate->p_expr_kind = exprKind;
 
-    Assert(rd != NULL);
-    if (attrno <= 0)
-        ereport(ERROR,
-                (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-                 errmsg("cannot assign to system column \"%s\"",
-                        colname),
-                 parser_errposition(pstate, location)));
-    attrtype = attnumTypeId(rd, attrno);
-    attrtypmod = rd->rd_att->attrs[attrno - 1]->atttypmod;
-    attrcollation = rd->rd_att->attrs[attrno - 1]->attcollation;
+	if (rd == NULL && pstate->p_target_rangetblentry->rtekind == RTE_SUBQUERY)
+	{
+		if (attrno <= 0)
+			ereport(ERROR,
+			        (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+			         errmsg("cannot assign to system column \"%s\"", colname),
+			         parser_errposition(pstate, location)));
+		targetEntry = list_nth_node(TargetEntry,
+		                            pstate->p_target_rangetblentry->subquery->targetList,
+		                            attrno - 1);
 
-    /*
-     * If the expression is a DEFAULT placeholder, insert the attribute's
-     * type/typmod/collation into it so that exprType etc will report the
-     * right things.  (We expect that the eventually substituted default
-     * expression will in fact have this type and typmod.  The collation
-     * likely doesn't matter, but let's set it correctly anyway.)  Also,
-     * reject trying to update a subfield or array element with DEFAULT, since
-     * there can't be any default for portions of a column.
-     */
-    if (expr && IsA(expr, SetToDefault))
-    {
-        SetToDefault *def = (SetToDefault *) expr;
+		attrtype = exprType((Node *) targetEntry->expr);
+		attrtypmod = exprTypmod((Node *) targetEntry->expr);
+		attrcollation = exprCollation((Node *) targetEntry->expr);
+	}
+	else
+	{
+		Assert(rd != NULL);
+		if (attrno <= 0)
+			ereport(ERROR,
+			        (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+			         errmsg("cannot assign to system column \"%s\"", colname),
+			         parser_errposition(pstate, location)));
+		attrtype = attnumTypeId(rd, attrno);
+		attrtypmod = TupleDescAttr(rd->rd_att, attrno - 1)->atttypmod;
+		attrcollation = TupleDescAttr(rd->rd_att, attrno - 1)->attcollation;
+	}
 
-        def->typeId = attrtype;
-        def->typeMod = attrtypmod;
-        def->collation = attrcollation;
-        if (indirection)
-        {
-            if (IsA(linitial(indirection), A_Indices))
-                ereport(ERROR,
-                        (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-                         errmsg("cannot set an array element to DEFAULT"),
-                         parser_errposition(pstate, location)));
-            else
-                ereport(ERROR,
-                        (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-                         errmsg("cannot set a subfield to DEFAULT"),
-                         parser_errposition(pstate, location)));
-        }
-    }
+	/*
+	 * If the expression is a DEFAULT placeholder, insert the attribute's
+	 * type/typmod/collation into it so that exprType etc will report the
+	 * right things.  (We expect that the eventually substituted default
+	 * expression will in fact have this type and typmod.  The collation
+	 * likely doesn't matter, but let's set it correctly anyway.)  Also,
+	 * reject trying to update a subfield or array element with DEFAULT, since
+	 * there can't be any default for portions of a column.
+	 */
+	if (expr && IsA(expr, SetToDefault))
+	{
+		SetToDefault *def = (SetToDefault *) expr;
 
-    /* Now we can use exprType() safely. */
-    type_id = exprType((Node *) expr);
+		def->typeId = attrtype;
+		def->typeMod = attrtypmod;
+		def->collation = attrcollation;
+		if (indirection)
+		{
+			if (IsA(linitial(indirection), A_Indices))
+				ereport(ERROR,
+						(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+						 errmsg("cannot set an array element to DEFAULT"),
+						 parser_errposition(pstate, location)));
+			else
+				ereport(ERROR,
+						(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+						 errmsg("cannot set a subfield to DEFAULT"),
+						 parser_errposition(pstate, location)));
+		}
+	}
 
-    /*
-     * If there is indirection on the target column, prepare an array or
-     * subfield assignment expression.  This will generate a new column value
-     * that the source value has been inserted into, which can then be placed
-     * in the new tuple constructed by INSERT or UPDATE.
-     */
-    if (indirection)
-    {
-        Node       *colVar;
+	/* Now we can use exprType() safely. */
+	type_id = exprType((Node *) expr);
 
-        if (pstate->p_is_insert)
-        {
-            /*
-             * The command is INSERT INTO table (col.something) ... so there
-             * is not really a source value to work with. Insert a NULL
-             * constant as the source value.
-             */
-            colVar = (Node *) makeNullConst(attrtype, attrtypmod,
-                                            attrcollation);
-        }
-        else
-        {
-            /*
-             * Build a Var for the column to be updated.
-             */
-            colVar = (Node *) make_var(pstate,
-                                       pstate->p_target_rangetblentry,
-                                       attrno,
-                                       location);
-        }
+	/*
+	 * If there is indirection on the target column, prepare an array or
+	 * subfield assignment expression.  This will generate a new column value
+	 * that the source value has been inserted into, which can then be placed
+	 * in the new tuple constructed by INSERT or UPDATE.
+	 */
+	if (indirection)
+	{
+		Node	   *colVar;
 
-        expr = (Expr *)
-            transformAssignmentIndirection(pstate,
-                                           colVar,
-                                           colname,
-                                           false,
-                                           attrtype,
-                                           attrtypmod,
-                                           attrcollation,
-                                           list_head(indirection),
-                                           (Node *) expr,
-                                           location);
-    }
-    else
-    {
-        /*
-         * For normal non-qualified target column, do type checking and
-         * coercion.
-         */
-        Node       *orig_expr = (Node *) expr;
+		if (pstate->p_is_insert)
+		{
+			/*
+			 * The command is INSERT INTO table (col.something) ... so there
+			 * is not really a source value to work with. Insert a NULL
+			 * constant as the source value.
+			 */
+			colVar = (Node *) makeNullConst(attrtype, attrtypmod,
+											attrcollation);
+		}
+		else
+		{
+			/*
+			 * Build a Var for the column to be updated.
+			 */
+			colVar = (Node *) make_var(pstate,
+									   pstate->p_target_rangetblentry,
+									   attrno,
+									   location);
+		}
 
-        expr = (Expr *)
-            coerce_to_target_type(pstate,
-                                  orig_expr, type_id,
-                                  attrtype, attrtypmod,
-                                  COERCION_ASSIGNMENT,
-                                  COERCE_IMPLICIT_CAST,
-                                  -1);
-        if (expr == NULL)
-            ereport(ERROR,
-                    (errcode(ERRCODE_DATATYPE_MISMATCH),
-                     errmsg("column \"%s\" is of type %s"
-                            " but expression is of type %s",
-                            colname,
-                            format_type_be(attrtype),
-                            format_type_be(type_id)),
-                     errhint("You will need to rewrite or cast the expression."),
-                     parser_errposition(pstate, exprLocation(orig_expr))));
-    }
+		expr = (Expr *)
+			transformAssignmentIndirection(pstate,
+										   colVar,
+										   colname,
+										   false,
+										   attrtype,
+										   attrtypmod,
+										   attrcollation,
+										   list_head(indirection),
+										   (Node *) expr,
+										   location);
+	}
+	else
+	{
+		/*
+		 * For normal non-qualified target column, do type checking and
+		 * coercion.
+		 */
+		Node	   *orig_expr = (Node *) expr;
 
-    pstate->p_expr_kind = sv_expr_kind;
+		expr = (Expr *)
+			coerce_to_target_type(pstate,
+								  orig_expr, type_id,
+								  attrtype, attrtypmod,
+								  COERCION_ASSIGNMENT,
+								  COERCE_IMPLICIT_CAST,
+								  -1);
 
-    return expr;
+		if (expr == NULL && ORA_MODE && TypeCategory(type_id) == TYPCATEGORY_STRING)
+			expr = (Expr *)	coerce_to_target_type(pstate,
+												orig_expr, type_id,
+												attrtype, attrtypmod,
+												COERCION_EXPLICIT,
+												COERCE_EXPLICIT_CAST,
+												-1);
+
+		if (expr == NULL)
+			ereport(ERROR,
+					(errcode(ERRCODE_DATATYPE_MISMATCH),
+					 errmsg("column \"%s\" is of type %s"
+							" but expression is of type %s",
+							colname,
+							format_type_be(attrtype),
+							format_type_be(type_id)),
+					 errhint("You will need to rewrite or cast the expression."),
+					 parser_errposition(pstate, exprLocation(orig_expr))));
+	}
+
+	if (unlikely(ORA_MODE && attrtype > FirstNormalObjectId && is_opentenbase_ora_xmltype(attrtype)))
+		expr = AddOpenTenBaseOraXMLCheckAndFormat(expr, attrtype);
+	pstate->p_expr_kind = sv_expr_kind;
+
+	return expr;
 }
 
+List *
+transformAssignedByObject(ParseState *pstate, Expr *expr, ParseExprKind exprKind,
+		List *icolumns, List *attrnos)
+{
+	int idx;
+	int attrno;
+	Oid obj_type_id;
+	TupleDesc	tupDesc;
+	ResTarget  *col;
+	ListCell   *icols;
+	ListCell   *attnos;
+	List *result = NIL;
+	FieldSelect *fselect;
+	Relation	rd = pstate->p_target_relation;
+
+	obj_type_id = exprType((Node *) expr);
+	tupDesc = lookup_rowtype_tupdesc_noerror(obj_type_id, -1, true);
+	if (!tupDesc)
+		return NIL;
+
+	if (tupDesc->natts != list_length(icolumns))
+	{
+		ReleaseTupleDesc(tupDesc);
+		return NIL;
+	}
+
+	/* check columns are expected */
+	icols = list_head(icolumns);
+	attnos = list_head(attrnos);
+	for (idx = 0; idx < list_length(icolumns); idx++)
+	{
+		col = lfirst_node(ResTarget, icols);
+		attrno = lfirst_int(attnos);
+		if (strcmp(col->name, NameStr(tupDesc->attrs[attrno - 1].attname)) != 0)
+		{
+			ReleaseTupleDesc(tupDesc);
+			return NIL;
+		}
+
+		icols = lnext(icols);
+		attnos = lnext(attnos);
+	}
+
+	icols = list_head(icolumns);
+	attnos = list_head(attrnos);
+	for (idx = 0; idx < list_length(icolumns); idx++)
+	{
+		attrno = lfirst_int(attnos);
+		fselect = makeNode(FieldSelect);
+		fselect->arg = expr;
+		fselect->fieldnum = attrno;
+		fselect->resulttype = attnumTypeId(rd, attrno);
+		fselect->resulttypmod = TupleDescAttr(rd->rd_att, attrno - 1)->atttypmod;
+		fselect->resultcollid = TupleDescAttr(rd->rd_att, attrno - 1)->attcollation;
+		result = lappend(result, fselect);
+		attnos = lnext(attnos);
+	}
+
+	ReleaseTupleDesc(tupDesc);
+	return result;
+}
 
 /*
  * updateTargetListEntry()
- *    This is used in UPDATE statements (and ON CONFLICT DO UPDATE)
- *    only.  It prepares an UPDATE TargetEntry for assignment to a
- *    column of the target table.  This includes coercing the given
- *    value to the target column's type (if necessary), and dealing with
- *    any subfield names or subscripts attached to the target column
- *    itself.
+ *	This is used in UPDATE statements (and ON CONFLICT DO UPDATE)
+ *	only.  It prepares an UPDATE TargetEntry for assignment to a
+ *	column of the target table.  This includes coercing the given
+ *	value to the target column's type (if necessary), and dealing with
+ *	any subfield names or subscripts attached to the target column
+ *	itself.
  *
- * pstate        parse state
- * tle            target list entry to be modified
- * colname        target column name (ie, name of attribute to be assigned to)
- * attrno        target attribute number
- * indirection    subscripts/field names for target column, if any
- * location        error cursor position (should point at column name), or -1
+ * pstate		parse state
+ * tle			target list entry to be modified
+ * colname		target column name (ie, name of attribute to be assigned to)
+ * attrno		target attribute number
+ * indirection	subscripts/field names for target column, if any
+ * location		error cursor position (should point at column name), or -1
  */
 void
 updateTargetListEntry(ParseState *pstate,
-                      TargetEntry *tle,
-                      char *colname,
-                      int attrno,
-                      List *indirection,
-                      int location)
+					  TargetEntry *tle,
+					  char *colname,
+					  int attrno,
+					  List *indirection,
+					  int location)
 {
-    /* Fix up expression as needed */
-    tle->expr = transformAssignedExpr(pstate,
-                                      tle->expr,
-                                      EXPR_KIND_UPDATE_TARGET,
-                                      colname,
-                                      attrno,
-                                      indirection,
-                                      location);
+	/* Fix up expression as needed */
+	tle->expr = transformAssignedExpr(pstate,
+									  tle->expr,
+									  EXPR_KIND_UPDATE_TARGET,
+									  colname,
+									  attrno,
+									  indirection,
+									  location);
 
-    /*
-     * Set the resno to identify the target column --- the rewriter and
-     * planner depend on this.  We also set the resname to identify the target
-     * column, but this is only for debugging purposes; it should not be
-     * relied on.  (In particular, it might be out of date in a stored rule.)
-     */
-    tle->resno = (AttrNumber) attrno;
-    tle->resname = colname;
+	/*
+	 * Set the resno to identify the target column --- the rewriter and
+	 * planner depend on this.  We also set the resname to identify the target
+	 * column, but this is only for debugging purposes; it should not be
+	 * relied on.  (In particular, it might be out of date in a stored rule.)
+	 */
+	tle->resno = (AttrNumber) attrno;
+	tle->resname = colname;
 }
 
 
@@ -679,184 +971,203 @@ updateTargetListEntry(ParseState *pstate,
  */
 static Node *
 transformAssignmentIndirection(ParseState *pstate,
-                               Node *basenode,
-                               const char *targetName,
-                               bool targetIsArray,
-                               Oid targetTypeId,
-                               int32 targetTypMod,
-                               Oid targetCollation,
-                               ListCell *indirection,
-                               Node *rhs,
-                               int location)
-{// #lizard forgives
-    Node       *result;
-    List       *subscripts = NIL;
-    bool        isSlice = false;
-    ListCell   *i;
+							   Node *basenode,
+							   const char *targetName,
+							   bool targetIsArray,
+							   Oid targetTypeId,
+							   int32 targetTypMod,
+							   Oid targetCollation,
+							   ListCell *indirection,
+							   Node *rhs,
+							   int location)
+{
+	Node	   *result;
+	List	   *subscripts = NIL;
+	bool		isSlice = false;
+	ListCell   *i;
 
-    if (indirection && !basenode)
-    {
-        /* Set up a substitution.  We reuse CaseTestExpr for this. */
-        CaseTestExpr *ctest = makeNode(CaseTestExpr);
+	if (indirection && !basenode)
+	{
+		/* Set up a substitution.  We reuse CaseTestExpr for this. */
+		CaseTestExpr *ctest = makeNode(CaseTestExpr);
 
-        ctest->typeId = targetTypeId;
-        ctest->typeMod = targetTypMod;
-        ctest->collation = targetCollation;
-        basenode = (Node *) ctest;
-    }
+		ctest->typeId = targetTypeId;
+		ctest->typeMod = targetTypMod;
+		ctest->collation = targetCollation;
+		basenode = (Node *) ctest;
+	}
 
-    /*
-     * We have to split any field-selection operations apart from
-     * subscripting.  Adjacent A_Indices nodes have to be treated as a single
-     * multidimensional subscript operation.
-     */
-    for_each_cell(i, indirection)
-    {
-        Node       *n = lfirst(i);
+	/*
+	 * We have to split any field-selection operations apart from
+	 * subscripting.  Adjacent A_Indices nodes have to be treated as a single
+	 * multidimensional subscript operation.
+	 */
+	for_each_cell(i, indirection)
+	{
+		Node	   *n = lfirst(i);
 
-        if (IsA(n, A_Indices))
-        {
-            subscripts = lappend(subscripts, n);
-            if (((A_Indices *) n)->is_slice)
-                isSlice = true;
-        }
-        else if (IsA(n, A_Star))
-        {
-            ereport(ERROR,
-                    (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-                     errmsg("row expansion via \"*\" is not supported here"),
-                     parser_errposition(pstate, location)));
-        }
-        else
-        {
-            FieldStore *fstore;
-            Oid            typrelid;
-            AttrNumber    attnum;
-            Oid            fieldTypeId;
-            int32        fieldTypMod;
-            Oid            fieldCollation;
+		if (IsA(n, A_Indices))
+		{
+			subscripts = lappend(subscripts, n);
+			if (((A_Indices *) n)->is_slice)
+				isSlice = true;
+		}
+		else if (IsA(n, A_Star))
+		{
+			ereport(ERROR,
+					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+					 errmsg("row expansion via \"*\" is not supported here"),
+					 parser_errposition(pstate, location)));
+		}
+		else
+		{
+			FieldStore *fstore;
+			Oid			baseTypeId;
+			int32		baseTypeMod;
+			Oid			typrelid;
+			AttrNumber	attnum;
+			Oid			fieldTypeId;
+			int32		fieldTypMod;
+			Oid			fieldCollation;
 
-            Assert(IsA(n, String));
+			Assert(IsA(n, String));
 
-            /* process subscripts before this field selection */
-            if (subscripts)
-            {
-                /* recurse, and then return because we're done */
-                return transformAssignmentSubscripts(pstate,
-                                                     basenode,
-                                                     targetName,
-                                                     targetTypeId,
-                                                     targetTypMod,
-                                                     targetCollation,
-                                                     subscripts,
-                                                     isSlice,
-                                                     i,
-                                                     rhs,
-                                                     location);
-            }
+			/* process subscripts before this field selection */
+			if (subscripts)
+			{
+				/* recurse, and then return because we're done */
+				return transformAssignmentSubscripts(pstate,
+													 basenode,
+													 targetName,
+													 targetTypeId,
+													 targetTypMod,
+													 targetCollation,
+													 subscripts,
+													 isSlice,
+													 i,
+													 rhs,
+													 location);
+			}
 
-            /* No subscripts, so can process field selection here */
+			/* No subscripts, so can process field selection here */
 
-            typrelid = typeidTypeRelid(targetTypeId);
-            if (!typrelid)
-                ereport(ERROR,
-                        (errcode(ERRCODE_DATATYPE_MISMATCH),
-                         errmsg("cannot assign to field \"%s\" of column \"%s\" because its type %s is not a composite type",
-                                strVal(n), targetName,
-                                format_type_be(targetTypeId)),
-                         parser_errposition(pstate, location)));
+			/*
+			 * Look up the composite type, accounting for possibility that
+			 * what we are given is a domain over composite.
+			 */
+			baseTypeMod = targetTypMod;
+			baseTypeId = getBaseTypeAndTypmod(targetTypeId, &baseTypeMod);
 
-            attnum = get_attnum(typrelid, strVal(n));
-            if (attnum == InvalidAttrNumber)
-                ereport(ERROR,
-                        (errcode(ERRCODE_UNDEFINED_COLUMN),
-                         errmsg("cannot assign to field \"%s\" of column \"%s\" because there is no such column in data type %s",
-                                strVal(n), targetName,
-                                format_type_be(targetTypeId)),
-                         parser_errposition(pstate, location)));
-            if (attnum < 0)
-                ereport(ERROR,
-                        (errcode(ERRCODE_UNDEFINED_COLUMN),
-                         errmsg("cannot assign to system column \"%s\"",
-                                strVal(n)),
-                         parser_errposition(pstate, location)));
+			typrelid = typeidTypeRelid(baseTypeId);
+			if (!typrelid)
+				ereport(ERROR,
+						(errcode(ERRCODE_DATATYPE_MISMATCH),
+						 errmsg("cannot assign to field \"%s\" of column \"%s\" because its type %s is not a composite type",
+								strVal(n), targetName,
+								format_type_be(targetTypeId)),
+						 parser_errposition(pstate, location)));
 
-            get_atttypetypmodcoll(typrelid, attnum,
-                                  &fieldTypeId, &fieldTypMod, &fieldCollation);
+			attnum = get_attnum(typrelid, strVal(n));
+			if (attnum == InvalidAttrNumber)
+				ereport(ERROR,
+						(errcode(ERRCODE_UNDEFINED_COLUMN),
+						 errmsg("cannot assign to field \"%s\" of column \"%s\" because there is no such column in data type %s",
+								strVal(n), targetName,
+								format_type_be(targetTypeId)),
+						 parser_errposition(pstate, location)));
+			if (attnum < 0)
+				ereport(ERROR,
+						(errcode(ERRCODE_UNDEFINED_COLUMN),
+						 errmsg("cannot assign to system column \"%s\"",
+								strVal(n)),
+						 parser_errposition(pstate, location)));
 
-            /* recurse to create appropriate RHS for field assign */
-            rhs = transformAssignmentIndirection(pstate,
-                                                 NULL,
-                                                 strVal(n),
-                                                 false,
-                                                 fieldTypeId,
-                                                 fieldTypMod,
-                                                 fieldCollation,
-                                                 lnext(i),
-                                                 rhs,
-                                                 location);
+			get_atttypetypmodcoll(typrelid, attnum,
+								  &fieldTypeId, &fieldTypMod, &fieldCollation);
 
-            /* and build a FieldStore node */
-            fstore = makeNode(FieldStore);
-            fstore->arg = (Expr *) basenode;
-            fstore->newvals = list_make1(rhs);
-            fstore->fieldnums = list_make1_int(attnum);
-            fstore->resulttype = targetTypeId;
+			/* recurse to create appropriate RHS for field assign */
+			rhs = transformAssignmentIndirection(pstate,
+												 NULL,
+												 strVal(n),
+												 false,
+												 fieldTypeId,
+												 fieldTypMod,
+												 fieldCollation,
+												 lnext(i),
+												 rhs,
+												 location);
 
-            return (Node *) fstore;
-        }
-    }
+			/* and build a FieldStore node */
+			fstore = makeNode(FieldStore);
+			fstore->arg = (Expr *) basenode;
+			fstore->newvals = list_make1(rhs);
+			fstore->fieldnums = list_make1_int(attnum);
+			fstore->resulttype = baseTypeId;
 
-    /* process trailing subscripts, if any */
-    if (subscripts)
-    {
-        /* recurse, and then return because we're done */
-        return transformAssignmentSubscripts(pstate,
-                                             basenode,
-                                             targetName,
-                                             targetTypeId,
-                                             targetTypMod,
-                                             targetCollation,
-                                             subscripts,
-                                             isSlice,
-                                             NULL,
-                                             rhs,
-                                             location);
-    }
+			/* If target is a domain, apply constraints */
+			if (baseTypeId != targetTypeId)
+				return coerce_to_domain((Node *) fstore,
+										baseTypeId, baseTypeMod,
+										targetTypeId,
+										COERCION_IMPLICIT,
+										COERCE_IMPLICIT_CAST,
+										location,
+										false);
 
-    /* base case: just coerce RHS to match target type ID */
+			return (Node *) fstore;
+		}
+	}
 
-    result = coerce_to_target_type(pstate,
-                                   rhs, exprType(rhs),
-                                   targetTypeId, targetTypMod,
-                                   COERCION_ASSIGNMENT,
-                                   COERCE_IMPLICIT_CAST,
-                                   -1);
-    if (result == NULL)
-    {
-        if (targetIsArray)
-            ereport(ERROR,
-                    (errcode(ERRCODE_DATATYPE_MISMATCH),
-                     errmsg("array assignment to \"%s\" requires type %s"
-                            " but expression is of type %s",
-                            targetName,
-                            format_type_be(targetTypeId),
-                            format_type_be(exprType(rhs))),
-                     errhint("You will need to rewrite or cast the expression."),
-                     parser_errposition(pstate, location)));
-        else
-            ereport(ERROR,
-                    (errcode(ERRCODE_DATATYPE_MISMATCH),
-                     errmsg("subfield \"%s\" is of type %s"
-                            " but expression is of type %s",
-                            targetName,
-                            format_type_be(targetTypeId),
-                            format_type_be(exprType(rhs))),
-                     errhint("You will need to rewrite or cast the expression."),
-                     parser_errposition(pstate, location)));
-    }
+	/* process trailing subscripts, if any */
+	if (subscripts)
+	{
+		/* recurse, and then return because we're done */
+		return transformAssignmentSubscripts(pstate,
+											 basenode,
+											 targetName,
+											 targetTypeId,
+											 targetTypMod,
+											 targetCollation,
+											 subscripts,
+											 isSlice,
+											 NULL,
+											 rhs,
+											 location);
+	}
 
-    return result;
+	/* base case: just coerce RHS to match target type ID */
+
+	result = coerce_to_target_type(pstate,
+								   rhs, exprType(rhs),
+								   targetTypeId, targetTypMod,
+								   COERCION_ASSIGNMENT,
+								   COERCE_IMPLICIT_CAST,
+								   -1);
+	if (result == NULL)
+	{
+		if (targetIsArray)
+			ereport(ERROR,
+					(errcode(ERRCODE_DATATYPE_MISMATCH),
+					 errmsg("array assignment to \"%s\" requires type %s"
+							" but expression is of type %s",
+							targetName,
+							format_type_be(targetTypeId),
+							format_type_be(exprType(rhs))),
+					 errhint("You will need to rewrite or cast the expression."),
+					 parser_errposition(pstate, location)));
+		else
+			ereport(ERROR,
+					(errcode(ERRCODE_DATATYPE_MISMATCH),
+					 errmsg("subfield \"%s\" is of type %s"
+							" but expression is of type %s",
+							targetName,
+							format_type_be(targetTypeId),
+							format_type_be(exprType(rhs))),
+					 errhint("You will need to rewrite or cast the expression."),
+					 parser_errposition(pstate, location)));
+	}
+
+	return result;
 }
 
 /*
@@ -864,189 +1175,376 @@ transformAssignmentIndirection(ParseState *pstate,
  */
 static Node *
 transformAssignmentSubscripts(ParseState *pstate,
-                              Node *basenode,
-                              const char *targetName,
-                              Oid targetTypeId,
-                              int32 targetTypMod,
-                              Oid targetCollation,
-                              List *subscripts,
-                              bool isSlice,
-                              ListCell *next_indirection,
-                              Node *rhs,
-                              int location)
+							  Node *basenode,
+							  const char *targetName,
+							  Oid targetTypeId,
+							  int32 targetTypMod,
+							  Oid targetCollation,
+							  List *subscripts,
+							  bool isSlice,
+							  ListCell *next_indirection,
+							  Node *rhs,
+							  int location)
 {
-    Node       *result;
-    Oid            arrayType;
-    int32        arrayTypMod;
-    Oid            elementTypeId;
-    Oid            typeNeeded;
-    Oid            collationNeeded;
+	Node	   *result;
+	Oid			arrayType;
+	int32		arrayTypMod;
+	Oid			elementTypeId;
+	Oid			typeNeeded;
+	Oid			collationNeeded;
 
-    Assert(subscripts != NIL);
+	Assert(subscripts != NIL);
 
-    /* Identify the actual array type and element type involved */
-    arrayType = targetTypeId;
-    arrayTypMod = targetTypMod;
-    elementTypeId = transformArrayType(&arrayType, &arrayTypMod);
+	/* Identify the actual array type and element type involved */
+	arrayType = targetTypeId;
+	arrayTypMod = targetTypMod;
+	elementTypeId = transformArrayType(&arrayType, &arrayTypMod);
 
-    /* Identify type that RHS must provide */
-    typeNeeded = isSlice ? arrayType : elementTypeId;
+	/* Identify type that RHS must provide */
+	typeNeeded = isSlice ? arrayType : elementTypeId;
 
-    /*
-     * Array normally has same collation as elements, but there's an
-     * exception: we might be subscripting a domain over an array type. In
-     * that case use collation of the base type.
-     */
-    if (arrayType == targetTypeId)
-        collationNeeded = targetCollation;
-    else
-        collationNeeded = get_typcollation(arrayType);
+	/*
+	 * Array normally has same collation as elements, but there's an
+	 * exception: we might be subscripting a domain over an array type. In
+	 * that case use collation of the base type.
+	 */
+	if (arrayType == targetTypeId)
+		collationNeeded = targetCollation;
+	else
+		collationNeeded = get_typcollation(arrayType);
 
-    /* recurse to create appropriate RHS for array assign */
-    rhs = transformAssignmentIndirection(pstate,
-                                         NULL,
-                                         targetName,
-                                         true,
-                                         typeNeeded,
-                                         arrayTypMod,
-                                         collationNeeded,
-                                         next_indirection,
-                                         rhs,
-                                         location);
+	/* recurse to create appropriate RHS for array assign */
+	rhs = transformAssignmentIndirection(pstate,
+										 NULL,
+										 targetName,
+										 true,
+										 typeNeeded,
+										 arrayTypMod,
+										 collationNeeded,
+										 next_indirection,
+										 rhs,
+										 location);
 
-    /* process subscripts */
-    result = (Node *) transformArraySubscripts(pstate,
-                                               basenode,
-                                               arrayType,
-                                               elementTypeId,
-                                               arrayTypMod,
-                                               subscripts,
-                                               rhs);
+	/* process subscripts */
+	result = (Node *) transformArraySubscripts(pstate,
+											   basenode,
+											   arrayType,
+											   elementTypeId,
+											   arrayTypMod,
+											   subscripts,
+											   rhs,
+											   InvalidOid);
 
-    /* If target was a domain over array, need to coerce up to the domain */
-    if (arrayType != targetTypeId)
-    {
-        Oid            resulttype = exprType(result);
+	/* If target was a domain over array, need to coerce up to the domain */
+	if (arrayType != targetTypeId)
+	{
+		Oid			resulttype = exprType(result);
 
-        result = coerce_to_target_type(pstate,
-                                       result, resulttype,
-                                       targetTypeId, targetTypMod,
-                                       COERCION_ASSIGNMENT,
-                                       COERCE_IMPLICIT_CAST,
-                                       -1);
-        /* can fail if we had int2vector/oidvector, but not for true domains */
-        if (result == NULL)
-            ereport(ERROR,
-                    (errcode(ERRCODE_CANNOT_COERCE),
-                     errmsg("cannot cast type %s to %s",
-                            format_type_be(resulttype),
-                            format_type_be(targetTypeId)),
-                     parser_errposition(pstate, location)));
-    }
+		result = coerce_to_target_type(pstate,
+									   result, resulttype,
+									   targetTypeId, targetTypMod,
+									   COERCION_ASSIGNMENT,
+									   COERCE_IMPLICIT_CAST,
+									   -1);
+		/* can fail if we had int2vector/oidvector, but not for true domains */
+		if (result == NULL)
+			ereport(ERROR,
+					(errcode(ERRCODE_CANNOT_COERCE),
+					 errmsg("cannot cast type %s to %s",
+							format_type_be(resulttype),
+							format_type_be(targetTypeId)),
+					 parser_errposition(pstate, location)));
+	}
 
-    return result;
+	return result;
 }
 
+List *
+checkInsertTargetsSubquery(ParseState *pstate, List *cols, List **attrnos)
+{
+	List        *tlist;
+	ListCell    *targetCell;
+	TargetEntry *targetTle;
+
+	Assert(pstate->p_target_rangetblentry->rtekind == RTE_SUBQUERY);
+
+	*attrnos = NIL;
+	tlist = pstate->p_target_rangetblentry->subquery->targetList;
+	if (cols == NIL)
+	{
+		/*
+		 * Generate default column list for INSERT.
+		 */
+		int i = 0;
+
+		foreach (targetCell, tlist)
+		{
+			ResTarget   *col;
+
+			targetTle = lfirst_node(TargetEntry, targetCell);
+
+			col = makeNode(ResTarget);
+			col->name = pstrdup(targetTle->resname);
+			col->indirection = NIL;
+			col->val = NULL;
+			col->location = -1;
+			cols = lappend(cols, col);
+			*attrnos = lappend_int(*attrnos, i + 1);
+			i++;
+		}
+	}
+	else
+	{
+		/*
+		 * Do initial validation of user-supplied INSERT column list.
+		 */
+		Bitmapset  *wholecols = NULL;
+		Bitmapset  *partialcols = NULL;
+		ListCell   *tl;
+
+		foreach(tl, cols)
+		{
+			ResTarget  *col = (ResTarget *) lfirst(tl);
+			char	   *name = col->name;
+			int			attrno = InvalidAttrNumber;
+			bool        attrnoValid = false;
+
+			foreach (targetCell, tlist)
+			{
+				targetTle = lfirst_node(TargetEntry, targetCell);
+				attrno++;
+				if (pg_strcasecmp(targetTle->resname, name) == 0)
+				{
+					attrnoValid = true;
+					break;
+				}
+			}
+			if (!attrnoValid)
+				ereport(ERROR,
+						(errcode(ERRCODE_UNDEFINED_COLUMN),
+						 errmsg("column \"%s\" of target \"%s\" does not exist",
+								name,
+								pstate->p_target_rangetblentry->eref->aliasname),
+						 parser_errposition(pstate, col->location)));
+
+			/*
+			 * Check for duplicates, but only of whole columns --- we allow
+			 * INSERT INTO foo (col.subcol1, col.subcol2)
+			 */
+			if (col->indirection == NIL)
+			{
+				/* whole column; must not have any other assignment */
+				if (bms_is_member(attrno, wholecols) ||
+					bms_is_member(attrno, partialcols))
+					ereport(ERROR,
+							(errcode(ERRCODE_DUPLICATE_COLUMN),
+							 errmsg("column \"%s\" specified more than once",
+									name),
+							 parser_errposition(pstate, col->location)));
+				wholecols = bms_add_member(wholecols, attrno);
+			}
+			else
+			{
+				/* partial column; must not have any whole assignment */
+				if (bms_is_member(attrno, wholecols))
+					ereport(ERROR,
+							(errcode(ERRCODE_DUPLICATE_COLUMN),
+							 errmsg("column \"%s\" specified more than once",
+									name),
+							 parser_errposition(pstate, col->location)));
+				partialcols = bms_add_member(partialcols, attrno);
+			}
+
+			*attrnos = lappend_int(*attrnos, attrno);
+		}
+	}
+
+	return cols;
+}
+
+/*
+ * Generate default column list for INSERT.
+ */
+void
+generateDefaultColums(ParseState *pstate, List **cols, List **attrnos, int ncolumns)
+{
+	FormData_pg_attribute *attr = pstate->p_target_relation->rd_att->attrs;
+	int                    attr_count = pstate->p_target_relation->rd_rel->relnatts;
+	int                    i;
+	ResTarget             *col = NULL;
+
+	if (unlikely(ncolumns > attr_count))
+		elog(ERROR, "generateDefaultColums: invalid ncolums[%d], rel_ncolums[%d]",
+			ncolumns, attr_count);
+
+	for (i = 0; i < ncolumns; i++)
+	{
+		if (attr[i].attisdropped)
+			continue;
+
+		col = makeNode(ResTarget);
+		col->name = pstrdup(NameStr(attr[i].attname));
+		col->indirection = NIL;
+		col->val = NULL;
+		col->location = -1;
+		*cols = lappend(*cols, col);
+
+		if (attrnos)
+			*attrnos = lappend_int(*attrnos, i + 1);
+	}
+}
 
 /*
  * checkInsertTargets -
- *      generate a list of INSERT column targets if not supplied, or
- *      test supplied column names to make sure they are in target table.
- *      Also return an integer list of the columns' attribute numbers.
+ *	  generate a list of INSERT column targets if not supplied, or
+ *	  test supplied column names to make sure they are in target table.
+ *	  Also return an integer list of the columns' attribute numbers.
  */
 List *
 checkInsertTargets(ParseState *pstate, List *cols, List **attrnos)
-{// #lizard forgives
-    *attrnos = NIL;
+{
+	*attrnos = NIL;
 
-    if (cols == NIL)
-    {
-        /*
-         * Generate default column list for INSERT.
-         */
-        Form_pg_attribute *attr = pstate->p_target_relation->rd_att->attrs;
-        int            numcol = pstate->p_target_relation->rd_rel->relnatts;
-        int            i;
+	if (cols == NIL)
+	{
+		/*
+		 * Generate default column list for INSERT.
+		 */
+		int			numcol = pstate->p_target_relation->rd_rel->relnatts;
+		int			i;
 
-        for (i = 0; i < numcol; i++)
-        {
-            ResTarget  *col;
+		for (i = 0; i < numcol; i++)
+		{
+			ResTarget  *col;
+			Form_pg_attribute attr;
 
-            if (attr[i]->attisdropped)
-                continue;
+			attr = TupleDescAttr(pstate->p_target_relation->rd_att, i);
 
-            col = makeNode(ResTarget);
-            col->name = pstrdup(NameStr(attr[i]->attname));
-            col->indirection = NIL;
-            col->val = NULL;
-            col->location = -1;
-            cols = lappend(cols, col);
-            *attrnos = lappend_int(*attrnos, i + 1);
-        }
-    }
-    else
-    {
-        /*
-         * Do initial validation of user-supplied INSERT column list.
-         */
-        Bitmapset  *wholecols = NULL;
-        Bitmapset  *partialcols = NULL;
-        ListCell   *tl;
+			if (attr->attisdropped)
+				continue;
 
-        foreach(tl, cols)
-        {
-            ResTarget  *col = (ResTarget *) lfirst(tl);
-            char       *name = col->name;
-            int            attrno;
+			col = makeNode(ResTarget);
+			col->name = pstrdup(NameStr(attr->attname));
+			col->indirection = NIL;
+			col->val = NULL;
+			col->location = -1;
+			cols = lappend(cols, col);
+			*attrnos = lappend_int(*attrnos, i + 1);
+		}
+	}
+	else
+	{
+		/*
+		 * Do initial validation of user-supplied INSERT column list.
+		 */
+		Bitmapset  *wholecols = NULL;
+		Bitmapset  *partialcols = NULL;
+		ListCell   *tl;
 
-            /* Lookup column name, ereport on failure */
-            attrno = attnameAttNum(pstate->p_target_relation, name, false);
-            if (attrno == InvalidAttrNumber)
-                ereport(ERROR,
-                        (errcode(ERRCODE_UNDEFINED_COLUMN),
-                         errmsg("column \"%s\" of relation \"%s\" does not exist",
-                                name,
-                                RelationGetRelationName(pstate->p_target_relation)),
-                         parser_errposition(pstate, col->location)));
+		foreach(tl, cols)
+		{
+			ResTarget  *col = (ResTarget *) lfirst(tl);
+			char	   *name = col->name;
+			int			attrno;
 
-            /*
-             * Check for duplicates, but only of whole columns --- we allow
-             * INSERT INTO foo (col.subcol1, col.subcol2)
-             */
-            if (col->indirection == NIL)
-            {
-                /* whole column; must not have any other assignment */
-                if (bms_is_member(attrno, wholecols) ||
-                    bms_is_member(attrno, partialcols))
-                    ereport(ERROR,
-                            (errcode(ERRCODE_DUPLICATE_COLUMN),
-                             errmsg("column \"%s\" specified more than once",
-                                    name),
-                             parser_errposition(pstate, col->location)));
-                wholecols = bms_add_member(wholecols, attrno);
-            }
-            else
-            {
-                /* partial column; must not have any whole assignment */
-                if (bms_is_member(attrno, wholecols))
-                    ereport(ERROR,
-                            (errcode(ERRCODE_DUPLICATE_COLUMN),
-                             errmsg("column \"%s\" specified more than once",
-                                    name),
-                             parser_errposition(pstate, col->location)));
-                partialcols = bms_add_member(partialcols, attrno);
-            }
+			/* Lookup column name, ereport on failure */
+			attrno = attnameAttNum(pstate->p_target_relation, name, false);
 
-            *attrnos = lappend_int(*attrnos, attrno);
-        }
-    }
+			/*
+			 * begin opentenbase_ora
+			 *
+			 * In opentenbase_ora mode, if the column cannot be found in the target table,
+			 * then tries to parse the column name as the table_name.column_name
+			 * pattern, here table_name can be table's alias, throw error if it
+			 * still fails.
+			 */
+			if (ORA_MODE && list_length(col->indirection) == 1 &&
+				attrno == InvalidAttrNumber)
+			{
+				/* Check if is a opentenbase_ora INSERT with table alias. */
+				List	*indi = col->indirection;
+				char	*colname = NULL;
+				Node	*n;
+				char	*relname = RelationGetRelationName(pstate->p_target_relation);
+				RangeTblEntry	*rte = pstate->p_target_rangetblentry;
 
-    return cols;
+				n = linitial(indi);
+				if (n && IsA(n, String)) /* case: INSERT table t1(t1.a).. */
+				{
+					colname = strVal(n);
+
+					if (rte->eref && rte->eref->aliasname)
+						relname = rte->eref->aliasname;
+
+					/* If the alias ahead of column name is correct */
+					if (strcmp(name, relname) != 0)
+						ereport(ERROR,
+								(errcode(ERRCODE_UNDEFINED_COLUMN),
+								 errmsg("invalid relation name \"%s\"", name),
+								 parser_errposition(pstate, col->location)));
+
+					/* Search it again for 'colname' */
+					attrno = attnameAttNum(pstate->p_target_relation, colname, false);
+
+					/*
+					 * Recognize as opentenbase_ora INSERT with table alias, and set the 'name'
+					 * of ResTarget to the real colname and reset 'indirection' to avoid
+					 * confusing the later parse logic.
+					 */
+					if (attrno != InvalidAttrNumber)
+					{
+						col->name = colname;
+						col->indirection = NULL;
+					}
+				}
+			}
+			/* end opentenbase_ora */
+			if (attrno == InvalidAttrNumber)
+				ereport(ERROR,
+						(errcode(ERRCODE_UNDEFINED_COLUMN),
+						 errmsg("column \"%s\" of relation \"%s\" does not exist",
+								name,
+								RelationGetRelationName(pstate->p_target_relation)),
+						 parser_errposition(pstate, col->location)));
+
+			/*
+			 * Check for duplicates, but only of whole columns --- we allow
+			 * INSERT INTO foo (col.subcol1, col.subcol2)
+			 */
+			if (col->indirection == NIL)
+			{
+				/* whole column; must not have any other assignment */
+				if (bms_is_member(attrno, wholecols) ||
+					bms_is_member(attrno, partialcols))
+					ereport(ERROR,
+							(errcode(ERRCODE_DUPLICATE_COLUMN),
+							 errmsg("column \"%s\" specified more than once",
+									name),
+							 parser_errposition(pstate, col->location)));
+				wholecols = bms_add_member(wholecols, attrno);
+			}
+			else
+			{
+				/* partial column; must not have any whole assignment */
+				if (bms_is_member(attrno, wholecols))
+					ereport(ERROR,
+							(errcode(ERRCODE_DUPLICATE_COLUMN),
+							 errmsg("column \"%s\" specified more than once",
+									name),
+							 parser_errposition(pstate, col->location)));
+				partialcols = bms_add_member(partialcols, attrno);
+			}
+
+			*attrnos = lappend_int(*attrnos, attrno);
+		}
+	}
+
+	return cols;
 }
 
 /*
  * ExpandColumnRefStar()
- *        Transforms foo.* into a list of expressions or targetlist entries.
+ *		Transforms foo.* into a list of expressions or targetlist entries.
  *
  * This handles the case where '*' appears as the last or only item in a
  * ColumnRef.  The code is shared between the case of foo.* at the top level
@@ -1058,166 +1556,166 @@ checkInsertTargets(ParseState *pstate, List *cols, List **attrnos)
  */
 static List *
 ExpandColumnRefStar(ParseState *pstate, ColumnRef *cref,
-                    bool make_target_entry)
-{// #lizard forgives
-    List       *fields = cref->fields;
-    int            numnames = list_length(fields);
+					bool make_target_entry)
+{
+	List	   *fields = cref->fields;
+	int			numnames = list_length(fields);
 
-    if (numnames == 1)
-    {
-        /*
-         * Target item is a bare '*', expand all tables
-         *
-         * (e.g., SELECT * FROM emp, dept)
-         *
-         * Since the grammar only accepts bare '*' at top level of SELECT, we
-         * need not handle the make_target_entry==false case here.
-         */
-        Assert(make_target_entry);
-        return ExpandAllTables(pstate, cref->location);
-    }
-    else
-    {
-        /*
-         * Target item is relation.*, expand that table
-         *
-         * (e.g., SELECT emp.*, dname FROM emp, dept)
-         *
-         * Note: this code is a lot like transformColumnRef; it's tempting to
-         * call that instead and then replace the resulting whole-row Var with
-         * a list of Vars.  However, that would leave us with the RTE's
-         * selectedCols bitmap showing the whole row as needing select
-         * permission, as well as the individual columns.  That would be
-         * incorrect (since columns added later shouldn't need select
-         * permissions).  We could try to remove the whole-row permission bit
-         * after the fact, but duplicating code is less messy.
-         */
-        char       *nspname = NULL;
-        char       *relname = NULL;
-        RangeTblEntry *rte = NULL;
-        int            levels_up;
-        enum
-        {
-            CRSERR_NO_RTE,
-            CRSERR_WRONG_DB,
-            CRSERR_TOO_MANY
-        }            crserr = CRSERR_NO_RTE;
+	if (numnames == 1)
+	{
+		/*
+		 * Target item is a bare '*', expand all tables
+		 *
+		 * (e.g., SELECT * FROM emp, dept)
+		 *
+		 * Since the grammar only accepts bare '*' at top level of SELECT, we
+		 * need not handle the make_target_entry==false case here.
+		 */
+		Assert(make_target_entry);
+		return ExpandAllTables(pstate, cref->location);
+	}
+	else
+	{
+		/*
+		 * Target item is relation.*, expand that table
+		 *
+		 * (e.g., SELECT emp.*, dname FROM emp, dept)
+		 *
+		 * Note: this code is a lot like transformColumnRef; it's tempting to
+		 * call that instead and then replace the resulting whole-row Var with
+		 * a list of Vars.  However, that would leave us with the RTE's
+		 * selectedCols bitmap showing the whole row as needing select
+		 * permission, as well as the individual columns.  That would be
+		 * incorrect (since columns added later shouldn't need select
+		 * permissions).  We could try to remove the whole-row permission bit
+		 * after the fact, but duplicating code is less messy.
+		 */
+		char	   *nspname = NULL;
+		char	   *relname = NULL;
+		RangeTblEntry *rte = NULL;
+		int			levels_up;
+		enum
+		{
+			CRSERR_NO_RTE,
+			CRSERR_WRONG_DB,
+			CRSERR_TOO_MANY
+		}			crserr = CRSERR_NO_RTE;
 
-        /*
-         * Give the PreParseColumnRefHook, if any, first shot.  If it returns
-         * non-null then we should use that expression.
-         */
-        if (pstate->p_pre_columnref_hook != NULL)
-        {
-            Node       *node;
+		/*
+		 * Give the PreParseColumnRefHook, if any, first shot.  If it returns
+		 * non-null then we should use that expression.
+		 */
+		if (pstate->p_pre_columnref_hook != NULL)
+		{
+			Node	   *node;
 
-            node = (*pstate->p_pre_columnref_hook) (pstate, cref);
-            if (node != NULL)
-                return ExpandRowReference(pstate, node, make_target_entry);
-        }
+			node = pstate->p_pre_columnref_hook(pstate, cref);
+			if (node != NULL)
+				return ExpandRowReference(pstate, node, make_target_entry);
+		}
 
-        switch (numnames)
-        {
-            case 2:
-                relname = strVal(linitial(fields));
-                rte = refnameRangeTblEntry(pstate, nspname, relname,
-                                           cref->location,
-                                           &levels_up);
-                break;
-            case 3:
-                nspname = strVal(linitial(fields));
-                relname = strVal(lsecond(fields));
-                rte = refnameRangeTblEntry(pstate, nspname, relname,
-                                           cref->location,
-                                           &levels_up);
-                break;
-            case 4:
-                {
-                    char       *catname = strVal(linitial(fields));
+		switch (numnames)
+		{
+			case 2:
+				relname = strVal(linitial(fields));
+				rte = refnameRangeTblEntry(pstate, nspname, relname,
+										   cref->location,
+										   &levels_up);
+				break;
+			case 3:
+				nspname = strVal(linitial(fields));
+				relname = strVal(lsecond(fields));
+				rte = refnameRangeTblEntry(pstate, nspname, relname,
+										   cref->location,
+										   &levels_up);
+				break;
+			case 4:
+				{
+					char	   *catname = strVal(linitial(fields));
 
-                    /*
-                     * We check the catalog name and then ignore it.
-                     */
-                    if (strcmp(catname, get_database_name(MyDatabaseId)) != 0)
-                    {
-                        crserr = CRSERR_WRONG_DB;
-                        break;
-                    }
-                    nspname = strVal(lsecond(fields));
-                    relname = strVal(lthird(fields));
-                    rte = refnameRangeTblEntry(pstate, nspname, relname,
-                                               cref->location,
-                                               &levels_up);
-                    break;
-                }
-            default:
-                crserr = CRSERR_TOO_MANY;
-                break;
-        }
+					/*
+					 * We check the catalog name and then ignore it.
+					 */
+					if (strcmp(catname, get_database_name(MyDatabaseId)) != 0)
+					{
+						crserr = CRSERR_WRONG_DB;
+						break;
+					}
+					nspname = strVal(lsecond(fields));
+					relname = strVal(lthird(fields));
+					rte = refnameRangeTblEntry(pstate, nspname, relname,
+											   cref->location,
+											   &levels_up);
+					break;
+				}
+			default:
+				crserr = CRSERR_TOO_MANY;
+				break;
+		}
 
-        /*
-         * Now give the PostParseColumnRefHook, if any, a chance. We cheat a
-         * bit by passing the RangeTblEntry, not a Var, as the planned
-         * translation.  (A single Var wouldn't be strictly correct anyway.
-         * This convention allows hooks that really care to know what is
-         * happening.)
-         */
-        if (pstate->p_post_columnref_hook != NULL)
-        {
-            Node       *node;
+		/*
+		 * Now give the PostParseColumnRefHook, if any, a chance. We cheat a
+		 * bit by passing the RangeTblEntry, not a Var, as the planned
+		 * translation.  (A single Var wouldn't be strictly correct anyway.
+		 * This convention allows hooks that really care to know what is
+		 * happening.)
+		 */
+		if (pstate->p_post_columnref_hook != NULL)
+		{
+			Node	   *node;
 
-            node = (*pstate->p_post_columnref_hook) (pstate, cref,
-                                                     (Node *) rte);
-            if (node != NULL)
-            {
-                if (rte != NULL)
-                    ereport(ERROR,
-                            (errcode(ERRCODE_AMBIGUOUS_COLUMN),
-                             errmsg("column reference \"%s\" is ambiguous",
-                                    NameListToString(cref->fields)),
-                             parser_errposition(pstate, cref->location)));
-                return ExpandRowReference(pstate, node, make_target_entry);
-            }
-        }
+			node = pstate->p_post_columnref_hook(pstate, cref,
+												 (Node *) rte);
+			if (node != NULL)
+			{
+				if (rte != NULL)
+					ereport(ERROR,
+							(errcode(ERRCODE_AMBIGUOUS_COLUMN),
+							 errmsg("column reference \"%s\" is ambiguous",
+									NameListToString(cref->fields)),
+							 parser_errposition(pstate, cref->location)));
+				return ExpandRowReference(pstate, node, make_target_entry);
+			}
+		}
 
-        /*
-         * Throw error if no translation found.
-         */
-        if (rte == NULL)
-        {
-            switch (crserr)
-            {
-                case CRSERR_NO_RTE:
-                    errorMissingRTE(pstate, makeRangeVar(nspname, relname,
-                                                         cref->location));
-                    break;
-                case CRSERR_WRONG_DB:
-                    ereport(ERROR,
-                            (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-                             errmsg("cross-database references are not implemented: %s",
-                                    NameListToString(cref->fields)),
-                             parser_errposition(pstate, cref->location)));
-                    break;
-                case CRSERR_TOO_MANY:
-                    ereport(ERROR,
-                            (errcode(ERRCODE_SYNTAX_ERROR),
-                             errmsg("improper qualified name (too many dotted names): %s",
-                                    NameListToString(cref->fields)),
-                             parser_errposition(pstate, cref->location)));
-                    break;
-            }
-        }
+		/*
+		 * Throw error if no translation found.
+		 */
+		if (rte == NULL)
+		{
+			switch (crserr)
+			{
+				case CRSERR_NO_RTE:
+					errorMissingRTE(pstate, makeRangeVar(nspname, relname,
+														 cref->location));
+					break;
+				case CRSERR_WRONG_DB:
+					ereport(ERROR,
+							(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+							 errmsg("cross-database references are not implemented: %s",
+									NameListToString(cref->fields)),
+							 parser_errposition(pstate, cref->location)));
+					break;
+				case CRSERR_TOO_MANY:
+					ereport(ERROR,
+							(errcode(ERRCODE_SYNTAX_ERROR),
+							 errmsg("improper qualified name (too many dotted names): %s",
+									NameListToString(cref->fields)),
+							 parser_errposition(pstate, cref->location)));
+					break;
+			}
+		}
 
-        /*
-         * OK, expand the RTE into fields.
-         */
-        return ExpandSingleTable(pstate, rte, cref->location, make_target_entry);
-    }
+		/*
+		 * OK, expand the RTE into fields.
+		 */
+		return ExpandSingleTable(pstate, rte, cref->location, make_target_entry);
+	}
 }
 
 /*
  * ExpandAllTables()
- *        Transforms '*' (in the target list) into a list of targetlist entries.
+ *		Transforms '*' (in the target list) into a list of targetlist entries.
  *
  * tlist entries are generated for each relation visible for unqualified
  * column name access.  We do not consider qualified-name-only entries because
@@ -1229,49 +1727,49 @@ ExpandColumnRefStar(ParseState *pstate, ColumnRef *cref,
 static List *
 ExpandAllTables(ParseState *pstate, int location)
 {
-    List       *target = NIL;
-    bool        found_table = false;
-    ListCell   *l;
+	List	   *target = NIL;
+	bool		found_table = false;
+	ListCell   *l;
 
-    foreach(l, pstate->p_namespace)
-    {
-        ParseNamespaceItem *nsitem = (ParseNamespaceItem *) lfirst(l);
-        RangeTblEntry *rte = nsitem->p_rte;
+	foreach(l, pstate->p_namespace)
+	{
+		ParseNamespaceItem *nsitem = (ParseNamespaceItem *) lfirst(l);
+		RangeTblEntry *rte = nsitem->p_rte;
 
-        /* Ignore table-only items */
-        if (!nsitem->p_cols_visible)
-            continue;
-        /* Should not have any lateral-only items when parsing targetlist */
-        Assert(!nsitem->p_lateral_only);
-        /* Remember we found a p_cols_visible item */
-        found_table = true;
+		/* Ignore table-only items */
+		if (!nsitem->p_cols_visible)
+			continue;
+		/* Should not have any lateral-only items when parsing targetlist */
+		Assert(!nsitem->p_lateral_only);
+		/* Remember we found a p_cols_visible item */
+		found_table = true;
 
-        target = list_concat(target,
-                             expandRelAttrs(pstate,
-                                            rte,
-                                            RTERangeTablePosn(pstate, rte,
-                                                              NULL),
-                                            0,
-                                            location));
-    }
+		target = list_concat(target,
+							 expandRelAttrs(pstate,
+											rte,
+											RTERangeTablePosn(pstate, rte,
+															  NULL),
+											0,
+											location));
+	}
 
-    /*
-     * Check for "SELECT *;".  We do it this way, rather than checking for
-     * target == NIL, because we want to allow SELECT * FROM a zero_column
-     * table.
-     */
-    if (!found_table)
-        ereport(ERROR,
-                (errcode(ERRCODE_SYNTAX_ERROR),
-                 errmsg("SELECT * with no tables specified is not valid"),
-                 parser_errposition(pstate, location)));
+	/*
+	 * Check for "SELECT *;".  We do it this way, rather than checking for
+	 * target == NIL, because we want to allow SELECT * FROM a zero_column
+	 * table.
+	 */
+	if (!found_table)
+		ereport(ERROR,
+				(errcode(ERRCODE_SYNTAX_ERROR),
+				 errmsg("SELECT * with no tables specified is not valid"),
+				 parser_errposition(pstate, location)));
 
-    return target;
+	return target;
 }
 
 /*
  * ExpandIndirectionStar()
- *        Transforms foo.* into a list of expressions or targetlist entries.
+ *		Transforms foo.* into a list of expressions or targetlist entries.
  *
  * This handles the case where '*' appears as the last item in A_Indirection.
  * The code is shared between the case of foo.* at the top level in a SELECT
@@ -1282,25 +1780,25 @@ ExpandAllTables(ParseState *pstate, int location)
  */
 static List *
 ExpandIndirectionStar(ParseState *pstate, A_Indirection *ind,
-                      bool make_target_entry, ParseExprKind exprKind)
+					  bool make_target_entry, ParseExprKind exprKind)
 {
-    Node       *expr;
+	Node	   *expr;
 
-    /* Strip off the '*' to create a reference to the rowtype object */
-    ind = copyObject(ind);
-    ind->indirection = list_truncate(ind->indirection,
-                                     list_length(ind->indirection) - 1);
+	/* Strip off the '*' to create a reference to the rowtype object */
+	ind = copyObject(ind);
+	ind->indirection = list_truncate(ind->indirection,
+									 list_length(ind->indirection) - 1);
 
-    /* And transform that */
-    expr = transformExpr(pstate, (Node *) ind, exprKind);
+	/* And transform that */
+	expr = transformExpr(pstate, (Node *) ind, exprKind);
 
-    /* Expand the rowtype expression into individual fields */
-    return ExpandRowReference(pstate, expr, make_target_entry);
+	/* Expand the rowtype expression into individual fields */
+	return ExpandRowReference(pstate, expr, make_target_entry);
 }
 
 /*
  * ExpandSingleTable()
- *        Transforms foo.* into a list of expressions or targetlist entries.
+ *		Transforms foo.* into a list of expressions or targetlist entries.
  *
  * This handles the case where foo has been determined to be a simple
  * reference to an RTE, so we can just generate Vars for the expressions.
@@ -1309,144 +1807,140 @@ ExpandIndirectionStar(ParseState *pstate, A_Indirection *ind,
  */
 static List *
 ExpandSingleTable(ParseState *pstate, RangeTblEntry *rte,
-                  int location, bool make_target_entry)
+				  int location, bool make_target_entry)
 {
-    int            sublevels_up;
-    int            rtindex;
+	int			sublevels_up;
+	int			rtindex;
 
-    rtindex = RTERangeTablePosn(pstate, rte, &sublevels_up);
+	rtindex = RTERangeTablePosn(pstate, rte, &sublevels_up);
 
-    if (make_target_entry)
-    {
-        /* expandRelAttrs handles permissions marking */
-        return expandRelAttrs(pstate, rte, rtindex, sublevels_up,
-                              location);
-    }
-    else
-    {
-        List       *vars;
-        ListCell   *l;
+	if (make_target_entry)
+	{
+		/* expandRelAttrs handles permissions marking */
+		return expandRelAttrs(pstate, rte, rtindex, sublevels_up,
+							  location);
+	}
+	else
+	{
+		List	   *vars;
+		ListCell   *l;
 
-        expandRTE(rte, rtindex, sublevels_up, location, false,
-                  NULL, &vars);
+		expandRTE(rte, rtindex, sublevels_up, location, false,
+				  NULL, &vars);
 
-        /*
-         * Require read access to the table.  This is normally redundant with
-         * the markVarForSelectPriv calls below, but not if the table has zero
-         * columns.
-         */
-        rte->requiredPerms |= ACL_SELECT;
+		/*
+		 * Require read access to the table.  This is normally redundant with
+		 * the markVarForSelectPriv calls below, but not if the table has zero
+		 * columns.
+		 */
+		rte->requiredPerms |= ACL_SELECT;
 
-        /* Require read access to each column */
-        foreach(l, vars)
-        {
-            Var           *var = (Var *) lfirst(l);
+		/* Require read access to each column */
+		foreach(l, vars)
+		{
+			Var		   *var = (Var *) lfirst(l);
 
-            markVarForSelectPriv(pstate, var, rte);
-        }
+			markVarForSelectPriv(pstate, var, rte);
+		}
 
-        return vars;
-    }
+		return vars;
+	}
 }
 
 /*
  * ExpandRowReference()
- *        Transforms foo.* into a list of expressions or targetlist entries.
+ *		Transforms foo.* into a list of expressions or targetlist entries.
  *
  * This handles the case where foo is an arbitrary expression of composite
  * type.
  */
 static List *
 ExpandRowReference(ParseState *pstate, Node *expr,
-                   bool make_target_entry)
-{// #lizard forgives
-    List       *result = NIL;
-    TupleDesc    tupleDesc;
-    int            numAttrs;
-    int            i;
+				   bool make_target_entry)
+{
+	List	   *result = NIL;
+	TupleDesc	tupleDesc;
+	int			numAttrs;
+	int			i;
 
-    /*
-     * If the rowtype expression is a whole-row Var, we can expand the fields
-     * as simple Vars.  Note: if the RTE is a relation, this case leaves us
-     * with the RTE's selectedCols bitmap showing the whole row as needing
-     * select permission, as well as the individual columns.  However, we can
-     * only get here for weird notations like (table.*).*, so it's not worth
-     * trying to clean up --- arguably, the permissions marking is correct
-     * anyway for such cases.
-     */
-    if (IsA(expr, Var) &&
-        ((Var *) expr)->varattno == InvalidAttrNumber)
-    {
-        Var           *var = (Var *) expr;
-        RangeTblEntry *rte;
+	/*
+	 * If the rowtype expression is a whole-row Var, we can expand the fields
+	 * as simple Vars.  Note: if the RTE is a relation, this case leaves us
+	 * with the RTE's selectedCols bitmap showing the whole row as needing
+	 * select permission, as well as the individual columns.  However, we can
+	 * only get here for weird notations like (table.*).*, so it's not worth
+	 * trying to clean up --- arguably, the permissions marking is correct
+	 * anyway for such cases.
+	 */
+	if (IsA(expr, Var) &&
+		((Var *) expr)->varattno == InvalidAttrNumber)
+	{
+		Var		   *var = (Var *) expr;
+		RangeTblEntry *rte;
 
-        rte = GetRTEByRangeTablePosn(pstate, var->varno, var->varlevelsup);
-        return ExpandSingleTable(pstate, rte, var->location, make_target_entry);
-    }
+		rte = GetRTEByRangeTablePosn(pstate, var->varno, var->varlevelsup);
+		return ExpandSingleTable(pstate, rte, var->location, make_target_entry);
+	}
 
-    /*
-     * Otherwise we have to do it the hard way.  Our current implementation is
-     * to generate multiple copies of the expression and do FieldSelects.
-     * (This can be pretty inefficient if the expression involves nontrivial
-     * computation :-(.)
-     *
-     * Verify it's a composite type, and get the tupdesc.  We use
-     * get_expr_result_type() because that can handle references to functions
-     * returning anonymous record types.  If that fails, use
-     * lookup_rowtype_tupdesc(), which will almost certainly fail as well, but
-     * it will give an appropriate error message.
-     *
-     * If it's a Var of type RECORD, we have to work even harder: we have to
-     * find what the Var refers to, and pass that to get_expr_result_type.
-     * That task is handled by expandRecordVariable().
-     */
-    if (IsA(expr, Var) &&
-        ((Var *) expr)->vartype == RECORDOID)
-        tupleDesc = expandRecordVariable(pstate, (Var *) expr, 0);
-    else if (get_expr_result_type(expr, NULL, &tupleDesc) != TYPEFUNC_COMPOSITE)
-        tupleDesc = lookup_rowtype_tupdesc_copy(exprType(expr),
-                                                exprTypmod(expr));
-    Assert(tupleDesc);
+	/*
+	 * Otherwise we have to do it the hard way.  Our current implementation is
+	 * to generate multiple copies of the expression and do FieldSelects.
+	 * (This can be pretty inefficient if the expression involves nontrivial
+	 * computation :-(.)
+	 *
+	 * Verify it's a composite type, and get the tupdesc.
+	 * get_expr_result_tupdesc() handles this conveniently.
+	 *
+	 * If it's a Var of type RECORD, we have to work even harder: we have to
+	 * find what the Var refers to, and pass that to get_expr_result_tupdesc.
+	 * That task is handled by expandRecordVariable().
+	 */
+	if (IsA(expr, Var) &&
+		((Var *) expr)->vartype == RECORDOID)
+		tupleDesc = expandRecordVariable(pstate, (Var *) expr, 0);
+	else
+		tupleDesc = get_expr_result_tupdesc(expr, false);
+	Assert(tupleDesc);
 
-    /* Generate a list of references to the individual fields */
-    numAttrs = tupleDesc->natts;
-    for (i = 0; i < numAttrs; i++)
-    {
-        Form_pg_attribute att = tupleDesc->attrs[i];
-        FieldSelect *fselect;
+	/* Generate a list of references to the individual fields */
+	numAttrs = tupleDesc->natts;
+	for (i = 0; i < numAttrs; i++)
+	{
+		Form_pg_attribute att = TupleDescAttr(tupleDesc, i);
+		FieldSelect *fselect;
 
-        if (att->attisdropped)
-            continue;
+		if (att->attisdropped)
+			continue;
 
-        fselect = makeNode(FieldSelect);
-        fselect->arg = (Expr *) copyObject(expr);
-        fselect->fieldnum = i + 1;
-        fselect->resulttype = att->atttypid;
-        fselect->resulttypmod = att->atttypmod;
-        /* save attribute's collation for parse_collate.c */
-        fselect->resultcollid = att->attcollation;
+		fselect = makeNode(FieldSelect);
+		fselect->arg = (Expr *) copyObject(expr);
+		fselect->fieldnum = i + 1;
+		fselect->resulttype = att->atttypid;
+		fselect->resulttypmod = att->atttypmod;
+		/* save attribute's collation for parse_collate.c */
+		fselect->resultcollid = att->attcollation;
 
-        if (make_target_entry)
-        {
-            /* add TargetEntry decoration */
-            TargetEntry *te;
+		if (make_target_entry)
+		{
+			/* add TargetEntry decoration */
+			TargetEntry *te;
 
-            te = makeTargetEntry((Expr *) fselect,
-                                 (AttrNumber) pstate->p_next_resno++,
-                                 pstrdup(NameStr(att->attname)),
-                                 false);
-            result = lappend(result, te);
-        }
-        else
-            result = lappend(result, fselect);
-    }
+			te = makeTargetEntry((Expr *) fselect,
+								 (AttrNumber) pstate->p_next_resno++,
+								 pstrdup(NameStr(att->attname)),
+								 false);
+			result = lappend(result, te);
+		}
+		else
+			result = lappend(result, fselect);
+	}
 
-    return result;
+	return result;
 }
 
 /*
  * expandRecordVariable
- *        Get the tuple descriptor for a Var of type RECORD, if possible.
+ *		Get the tuple descriptor for a Var of type RECORD, if possible.
  *
  * Since no actual table or view column is allowed to have type RECORD, such
  * a Var must refer to a JOIN or FUNCTION RTE or to a subquery output.  We
@@ -1457,203 +1951,203 @@ ExpandRowReference(ParseState *pstate, Node *expr,
  */
 TupleDesc
 expandRecordVariable(ParseState *pstate, Var *var, int levelsup)
-{// #lizard forgives
-    TupleDesc    tupleDesc;
-    int            netlevelsup;
-    RangeTblEntry *rte;
-    AttrNumber    attnum;
-    Node       *expr;
+{
+	TupleDesc	tupleDesc;
+	int			netlevelsup;
+	RangeTblEntry *rte;
+	AttrNumber	attnum;
+	Node	   *expr;
 
-    /* Check my caller didn't mess up */
-    Assert(IsA(var, Var));
-    Assert(var->vartype == RECORDOID);
+	/* Check my caller didn't mess up */
+	Assert(IsA(var, Var));
+	Assert(var->vartype == RECORDOID);
 
-    netlevelsup = var->varlevelsup + levelsup;
-    rte = GetRTEByRangeTablePosn(pstate, var->varno, netlevelsup);
-    attnum = var->varattno;
+	netlevelsup = var->varlevelsup + levelsup;
+	rte = GetRTEByRangeTablePosn(pstate, var->varno, netlevelsup);
+	attnum = var->varattno;
 
-    if (attnum == InvalidAttrNumber)
-    {
-        /* Whole-row reference to an RTE, so expand the known fields */
-        List       *names,
-                   *vars;
-        ListCell   *lname,
-                   *lvar;
-        int            i;
+	if (attnum == InvalidAttrNumber)
+	{
+		/* Whole-row reference to an RTE, so expand the known fields */
+		List	   *names,
+				   *vars;
+		ListCell   *lname,
+				   *lvar;
+		int			i;
 
-        expandRTE(rte, var->varno, 0, var->location, false,
-                  &names, &vars);
+		expandRTE(rte, var->varno, 0, var->location, false,
+				  &names, &vars);
 
-        tupleDesc = CreateTemplateTupleDesc(list_length(vars), false);
-        i = 1;
-        forboth(lname, names, lvar, vars)
-        {
-            char       *label = strVal(lfirst(lname));
-            Node       *varnode = (Node *) lfirst(lvar);
+		tupleDesc = CreateTemplateTupleDesc(list_length(vars), false);
+		i = 1;
+		forboth(lname, names, lvar, vars)
+		{
+			char	   *label = strVal(lfirst(lname));
+			Node	   *varnode = (Node *) lfirst(lvar);
 
-            TupleDescInitEntry(tupleDesc, i,
-                               label,
-                               exprType(varnode),
-                               exprTypmod(varnode),
-                               0);
-            TupleDescInitEntryCollation(tupleDesc, i,
-                                        exprCollation(varnode));
-            i++;
-        }
-        Assert(lname == NULL && lvar == NULL);    /* lists same length? */
+			TupleDescInitEntry(tupleDesc, i,
+							   label,
+							   exprType(varnode),
+							   exprTypmod(varnode),
+							   0);
+			TupleDescInitEntryCollation(tupleDesc, i,
+										exprCollation(varnode));
+			i++;
+		}
+		Assert(lname == NULL && lvar == NULL);	/* lists same length? */
 
-        return tupleDesc;
-    }
+		return tupleDesc;
+	}
 
-    expr = (Node *) var;        /* default if we can't drill down */
+	expr = (Node *) var;		/* default if we can't drill down */
 
-    switch (rte->rtekind)
-    {
-        case RTE_RELATION:
-        case RTE_VALUES:
-        case RTE_NAMEDTUPLESTORE:
+	switch (rte->rtekind)
+	{
+		case RTE_RELATION:
+		case RTE_VALUES:
+		case RTE_NAMEDTUPLESTORE:
 
-            /*
-             * This case should not occur: a column of a table or values list
-             * shouldn't have type RECORD.  Fall through and fail (most
-             * likely) at the bottom.
-             */
-            break;
-        case RTE_SUBQUERY:
-            {
-                /* Subselect-in-FROM: examine sub-select's output expr */
-                TargetEntry *ste = get_tle_by_resno(rte->subquery->targetList,
-                                                    attnum);
+			/*
+			 * This case should not occur: a column of a table or values list
+			 * shouldn't have type RECORD.  Fall through and fail (most
+			 * likely) at the bottom.
+			 */
+			break;
+		case RTE_SUBQUERY:
+			{
+				/* Subselect-in-FROM: examine sub-select's output expr */
+				TargetEntry *ste = get_tle_by_resno(rte->subquery->targetList,
+													attnum);
 
-                if (ste == NULL || ste->resjunk)
-                    elog(ERROR, "subquery %s does not have attribute %d",
-                         rte->eref->aliasname, attnum);
-                expr = (Node *) ste->expr;
-                if (IsA(expr, Var))
-                {
-                    /*
-                     * Recurse into the sub-select to see what its Var refers
-                     * to.  We have to build an additional level of ParseState
-                     * to keep in step with varlevelsup in the subselect.
-                     */
-                    ParseState    mypstate;
+				if (ste == NULL || ste->resjunk)
+					elog(ERROR, "subquery %s does not have attribute %d",
+						 rte->eref->aliasname, attnum);
+				expr = (Node *) ste->expr;
+				if (IsA(expr, Var))
+				{
+					/*
+					 * Recurse into the sub-select to see what its Var refers
+					 * to.  We have to build an additional level of ParseState
+					 * to keep in step with varlevelsup in the subselect.
+					 */
+					ParseState	mypstate;
 
-                    MemSet(&mypstate, 0, sizeof(mypstate));
-                    mypstate.parentParseState = pstate;
-                    mypstate.p_rtable = rte->subquery->rtable;
-                    /* don't bother filling the rest of the fake pstate */
+					MemSet(&mypstate, 0, sizeof(mypstate));
+					mypstate.parentParseState = pstate;
+					mypstate.p_rtable = rte->subquery->rtable;
+					/* don't bother filling the rest of the fake pstate */
 
-                    return expandRecordVariable(&mypstate, (Var *) expr, 0);
-                }
-                /* else fall through to inspect the expression */
-            }
-            break;
-        case RTE_JOIN:
-            /* Join RTE --- recursively inspect the alias variable */
-            Assert(attnum > 0 && attnum <= list_length(rte->joinaliasvars));
-            expr = (Node *) list_nth(rte->joinaliasvars, attnum - 1);
-            Assert(expr != NULL);
-            /* We intentionally don't strip implicit coercions here */
-            if (IsA(expr, Var))
-                return expandRecordVariable(pstate, (Var *) expr, netlevelsup);
-            /* else fall through to inspect the expression */
-            break;
-        case RTE_FUNCTION:
+					return expandRecordVariable(&mypstate, (Var *) expr, 0);
+				}
+				/* else fall through to inspect the expression */
+			}
+			break;
+		case RTE_JOIN:
+			/* Join RTE --- recursively inspect the alias variable */
+			Assert(attnum > 0 && attnum <= list_length(rte->joinaliasvars));
+			expr = (Node *) list_nth(rte->joinaliasvars, attnum - 1);
+			Assert(expr != NULL);
+			/* We intentionally don't strip implicit coercions here */
+			if (IsA(expr, Var))
+				return expandRecordVariable(pstate, (Var *) expr, netlevelsup);
+			/* else fall through to inspect the expression */
+			break;
+		case RTE_FUNCTION:
 
-            /*
-             * We couldn't get here unless a function is declared with one of
-             * its result columns as RECORD, which is not allowed.
-             */
-            break;
-        case RTE_TABLEFUNC:
+			/*
+			 * We couldn't get here unless a function is declared with one of
+			 * its result columns as RECORD, which is not allowed.
+			 */
+			break;
+		case RTE_TABLEFUNC:
 
-            /*
-             * Table function cannot have columns with RECORD type.
-             */
-            break;
-        case RTE_CTE:
-            /* CTE reference: examine subquery's output expr */
-            if (!rte->self_reference)
-            {
-                CommonTableExpr *cte = GetCTEForRTE(pstate, rte, netlevelsup);
-                TargetEntry *ste;
+			/*
+			 * Table function cannot have columns with RECORD type.
+			 */
+			break;
+		case RTE_CTE:
+			/* CTE reference: examine subquery's output expr */
+			if (!rte->self_reference)
+			{
+				CommonTableExpr *cte = GetCTEForRTE(pstate, rte, netlevelsup);
+				TargetEntry *ste;
 
-                ste = get_tle_by_resno(GetCTETargetList(cte), attnum);
-                if (ste == NULL || ste->resjunk)
-                    elog(ERROR, "subquery %s does not have attribute %d",
-                         rte->eref->aliasname, attnum);
-                expr = (Node *) ste->expr;
-                if (IsA(expr, Var))
-                {
-                    /*
-                     * Recurse into the CTE to see what its Var refers to. We
-                     * have to build an additional level of ParseState to keep
-                     * in step with varlevelsup in the CTE; furthermore it
-                     * could be an outer CTE.
-                     */
-                    ParseState    mypstate;
-                    Index        levelsup;
+				ste = get_tle_by_resno(GetCTETargetList(cte), attnum);
+				if (ste == NULL || ste->resjunk)
+					elog(ERROR, "subquery %s does not have attribute %d",
+						 rte->eref->aliasname, attnum);
+				expr = (Node *) ste->expr;
+				if (IsA(expr, Var))
+				{
+					/*
+					 * Recurse into the CTE to see what its Var refers to. We
+					 * have to build an additional level of ParseState to keep
+					 * in step with varlevelsup in the CTE; furthermore it
+					 * could be an outer CTE.
+					 */
+					ParseState	mypstate;
+					Index		levelsup;
 
-                    MemSet(&mypstate, 0, sizeof(mypstate));
-                    /* this loop must work, since GetCTEForRTE did */
-                    for (levelsup = 0;
-                         levelsup < rte->ctelevelsup + netlevelsup;
-                         levelsup++)
-                        pstate = pstate->parentParseState;
-                    mypstate.parentParseState = pstate;
-                    mypstate.p_rtable = ((Query *) cte->ctequery)->rtable;
-                    /* don't bother filling the rest of the fake pstate */
+					MemSet(&mypstate, 0, sizeof(mypstate));
+					/* this loop must work, since GetCTEForRTE did */
+					for (levelsup = 0;
+						 levelsup < rte->ctelevelsup + netlevelsup;
+						 levelsup++)
+						pstate = pstate->parentParseState;
+					mypstate.parentParseState = pstate;
+					mypstate.p_rtable = ((Query *) cte->ctequery)->rtable;
+					/* don't bother filling the rest of the fake pstate */
 
-                    return expandRecordVariable(&mypstate, (Var *) expr, 0);
-                }
-                /* else fall through to inspect the expression */
-            }
-            break;
+					return expandRecordVariable(&mypstate, (Var *) expr, 0);
+				}
+				/* else fall through to inspect the expression */
+			}
+			break;
 #ifdef PGXC
-        case RTE_REMOTE_DUMMY:
-            elog(ERROR, "Invalid RTE found");
-            break;
+		case RTE_REMOTE_DUMMY:
+			elog(ERROR, "Invalid RTE found");
+			break;
 #endif /* PGXC */
-    }
+	}
 
-    /*
-     * We now have an expression we can't expand any more, so see if
-     * get_expr_result_type() can do anything with it.  If not, pass to
-     * lookup_rowtype_tupdesc() which will probably fail, but will give an
-     * appropriate error message while failing.
-     */
-    if (get_expr_result_type(expr, NULL, &tupleDesc) != TYPEFUNC_COMPOSITE)
-        tupleDesc = lookup_rowtype_tupdesc_copy(exprType(expr),
-                                                exprTypmod(expr));
-
-    return tupleDesc;
+	/*
+	 * We now have an expression we can't expand any more, so see if
+	 * get_expr_result_tupdesc() can do anything with it.
+	 */
+	return get_expr_result_tupdesc(expr, false);
 }
 
 
 /*
  * FigureColname -
- *      if the name of the resulting column is not specified in the target
- *      list, we have to guess a suitable name.  The SQL spec provides some
- *      guidance, but not much...
+ *	  if the name of the resulting column is not specified in the target
+ *	  list, we have to guess a suitable name.  The SQL spec provides some
+ *	  guidance, but not much...
  *
  * Note that the argument is the *untransformed* parse tree for the target
  * item.  This is a shade easier to work with than the transformed tree.
  */
 char *
-FigureColname(Node *node)
+FigureColname(Node *node, const char *query)
 {
-    char       *name = NULL;
+	char	   *name = NULL;
 
-    (void) FigureColnameInternal(node, &name);
-    if (name != NULL)
-        return name;
-    /* default result if we can't guess anything */
-    return "?column?";
+	/* opentenbase_ora: Figure out the column name like opentenbase_ora */
+	if (ORA_MODE && enable_opentenbase_ora_column_name && query != NULL)
+		name = FigureOraColname(node, query);
+
+	if (name == NULL)
+		(void) FigureColnameInternal(node, &name);
+
+	if (name != NULL)
+		return name;
+	/* default result if we can't guess anything */
+	return "?column?";
 }
 
 /*
  * FigureIndexColname -
- *      choose the name for an expression column in an index
+ *	  choose the name for an expression column in an index
  *
  * This is actually just like FigureColname, except we return NULL if
  * we can't pick a good name.
@@ -1661,264 +2155,471 @@ FigureColname(Node *node)
 char *
 FigureIndexColname(Node *node)
 {
-    char       *name = NULL;
+	char	   *name = NULL;
 
-    (void) FigureColnameInternal(node, &name);
-    return name;
+	(void) FigureColnameInternal(node, &name);
+	return name;
 }
 
 /*
  * FigureColnameInternal -
- *      internal workhorse for FigureColname
+ *	  internal workhorse for FigureColname
  *
  * Return value indicates strength of confidence in result:
- *        0 - no information
- *        1 - second-best name choice
- *        2 - good name choice
+ *		0 - no information
+ *		1 - second-best name choice
+ *		2 - good name choice
  * The return value is actually only used internally.
  * If the result isn't zero, *name is set to the chosen name.
  */
 static int
 FigureColnameInternal(Node *node, char **name)
-{// #lizard forgives
-    int            strength = 0;
+{
+	int			strength = 0;
 
-    if (node == NULL)
-        return strength;
+	if (node == NULL)
+		return strength;
 
-    switch (nodeTag(node))
-    {
-        case T_ColumnRef:
-            {
-                char       *fname = NULL;
-                ListCell   *l;
+	switch (nodeTag(node))
+	{
+		case T_ColumnRef:
+			{
+				char	   *fname = NULL;
+				ListCell   *l;
 
-                /* find last field name, if any, ignoring "*" */
-                foreach(l, ((ColumnRef *) node)->fields)
-                {
-                    Node       *i = lfirst(l);
+				/* find last field name, if any, ignoring "*" */
+				foreach(l, ((ColumnRef *) node)->fields)
+				{
+					Node	   *i = lfirst(l);
 
-                    if (IsA(i, String))
-                        fname = strVal(i);
-                }
-                if (fname)
-                {
-                    *name = fname;
-                    return 2;
-                }
-            }
-            break;
-        case T_A_Indirection:
-            {
-                A_Indirection *ind = (A_Indirection *) node;
-                char       *fname = NULL;
-                ListCell   *l;
+					if (IsA(i, String))
+						fname = strVal(i);
+				}
+				if (fname)
+				{
+					*name = fname;
+					return 2;
+				}
+			}
+			break;
+		case T_A_Indirection:
+			{
+				A_Indirection *ind = (A_Indirection *) node;
+				char	   *fname = NULL;
+				ListCell   *l;
 
-                /* find last field name, if any, ignoring "*" and subscripts */
-                foreach(l, ind->indirection)
-                {
-                    Node       *i = lfirst(l);
+				/* find last field name, if any, ignoring "*" and subscripts */
+				foreach(l, ind->indirection)
+				{
+					Node	   *i = lfirst(l);
 
-                    if (IsA(i, String))
-                        fname = strVal(i);
-                }
-                if (fname)
-                {
-                    *name = fname;
-                    return 2;
-                }
-                return FigureColnameInternal(ind->arg, name);
-            }
-            break;
-        case T_FuncCall:
-            *name = strVal(llast(((FuncCall *) node)->funcname));
-            return 2;
-        case T_A_Expr:
-            if (((A_Expr *) node)->kind == AEXPR_NULLIF)
-            {
-                /* make nullif() act like a regular function */
-                *name = "nullif";
-                return 2;
-            }
-            if (((A_Expr *) node)->kind == AEXPR_PAREN)
-            {
-                /* look through dummy parenthesis node */
-                return FigureColnameInternal(((A_Expr *) node)->lexpr, name);
-            }
-            break;
-        case T_TypeCast:
-            strength = FigureColnameInternal(((TypeCast *) node)->arg,
-                                             name);
-            if (strength <= 1)
-            {
-                if (((TypeCast *) node)->typeName != NULL)
-                {
-                    *name = strVal(llast(((TypeCast *) node)->typeName->names));
-                    return 1;
-                }
-            }
-            break;
-        case T_CollateClause:
-            return FigureColnameInternal(((CollateClause *) node)->arg, name);
-        case T_GroupingFunc:
-            /* make GROUPING() act like a regular function */
-            *name = "grouping";
-            return 2;
-        case T_SubLink:
-            switch (((SubLink *) node)->subLinkType)
-            {
-                case EXISTS_SUBLINK:
-                    *name = "exists";
-                    return 2;
-                case ARRAY_SUBLINK:
-                    *name = "array";
-                    return 2;
-                case EXPR_SUBLINK:
-                    {
-                        /* Get column name of the subquery's single target */
-                        SubLink    *sublink = (SubLink *) node;
-                        Query       *query = (Query *) sublink->subselect;
+					if (IsA(i, String))
+						fname = strVal(i);
+				}
+				if (fname)
+				{
+					*name = fname;
+					return 2;
+				}
+				return FigureColnameInternal(ind->arg, name);
+			}
+			break;
+		case T_FuncCall:
+			*name = strVal(llast(((FuncCall *) node)->funcname));
+			return 2;
+		case T_A_Expr:
+			if (((A_Expr *) node)->kind == AEXPR_NULLIF)
+			{
+				/* make nullif() act like a regular function */
+				*name = "nullif";
+				return 2;
+			}
+			if (((A_Expr *) node)->kind == AEXPR_PAREN)
+			{
+				/* look through dummy parenthesis node */
+				return FigureColnameInternal(((A_Expr *) node)->lexpr, name);
+			}
+			break;
+		case T_TypeCast:
+			strength = FigureColnameInternal(((TypeCast *) node)->arg,
+											 name);
+			if (strength <= 1)
+			{
+				if (((TypeCast *) node)->typeName != NULL)
+				{
+					*name = strVal(llast(((TypeCast *) node)->typeName->names));
+					return 1;
+				}
+			}
+			break;
+		case T_CollateClause:
+			return FigureColnameInternal(((CollateClause *) node)->arg, name);
+		case T_GroupingFunc:
+			/* make GROUPING() act like a regular function */
+			if (ORA_MODE && ((GroupingFunc *)node)->kind == GROUPING_FUNC_ID)
+				*name = "grouping_id";
+			else
+				*name = "grouping";
+			return 2;
+		case T_SubLink:
+			switch (((SubLink *) node)->subLinkType)
+			{
+				case EXISTS_SUBLINK:
+					*name = "exists";
+					return 2;
+				case ARRAY_SUBLINK:
+					*name = "array";
+					return 2;
+				case EXPR_SUBLINK:
+					{
+						/* Get column name of the subquery's single target */
+						SubLink    *sublink = (SubLink *) node;
+						Query	   *query = (Query *) sublink->subselect;
 
-                        /*
-                         * The subquery has probably already been transformed,
-                         * but let's be careful and check that.  (The reason
-                         * we can see a transformed subquery here is that
-                         * transformSubLink is lazy and modifies the SubLink
-                         * node in-place.)
-                         */
-                        if (IsA(query, Query))
-                        {
-                            TargetEntry *te = (TargetEntry *) linitial(query->targetList);
+						/*
+						 * The subquery has probably already been transformed,
+						 * but let's be careful and check that.  (The reason
+						 * we can see a transformed subquery here is that
+						 * transformSubLink is lazy and modifies the SubLink
+						 * node in-place.)
+						 */
+						if (IsA(query, Query))
+						{
+							TargetEntry *te = (TargetEntry *) linitial(query->targetList);
 
-                            if (te->resname)
-                            {
-                                *name = te->resname;
-                                return 2;
-                            }
-                        }
-                    }
-                    break;
-                    /* As with other operator-like nodes, these have no names */
-                case MULTIEXPR_SUBLINK:
-                case ALL_SUBLINK:
-                case ANY_SUBLINK:
-                case ROWCOMPARE_SUBLINK:
-                case CTE_SUBLINK:
-                    break;
-            }
-            break;
-        case T_CaseExpr:
-            strength = FigureColnameInternal((Node *) ((CaseExpr *) node)->defresult,
-                                             name);
-            if (strength <= 1)
-            {
-                *name = "case";
-                return 1;
-            }
-            break;
-        case T_A_ArrayExpr:
-            /* make ARRAY[] act like a function */
-            *name = "array";
-            return 2;
-        case T_RowExpr:
-            /* make ROW() act like a function */
-            *name = "row";
-            return 2;
-        case T_CoalesceExpr:
-            /* make coalesce() act like a regular function */
-            *name = "coalesce";
-            return 2;
-        case T_MinMaxExpr:
-            /* make greatest/least act like a regular function */
-            switch (((MinMaxExpr *) node)->op)
-            {
-                case IS_GREATEST:
-                    *name = "greatest";
-                    return 2;
-                case IS_LEAST:
-                    *name = "least";
-                    return 2;
-            }
-            break;
-        case T_SQLValueFunction:
-            /* make these act like a function or variable */
-            switch (((SQLValueFunction *) node)->op)
-            {
-                case SVFOP_CURRENT_DATE:
-                    *name = "current_date";
-                    return 2;
-                case SVFOP_CURRENT_TIME:
-                case SVFOP_CURRENT_TIME_N:
-                    *name = "current_time";
-                    return 2;
-                case SVFOP_CURRENT_TIMESTAMP:
-                case SVFOP_CURRENT_TIMESTAMP_N:
-                    *name = "current_timestamp";
-                    return 2;
-                case SVFOP_LOCALTIME:
-                case SVFOP_LOCALTIME_N:
-                    *name = "localtime";
-                    return 2;
-                case SVFOP_LOCALTIMESTAMP:
-                case SVFOP_LOCALTIMESTAMP_N:
-                    *name = "localtimestamp";
-                    return 2;
-                case SVFOP_CURRENT_ROLE:
-                    *name = "current_role";
-                    return 2;
-                case SVFOP_CURRENT_USER:
-                    *name = "current_user";
-                    return 2;
-                case SVFOP_USER:
-                    *name = "user";
-                    return 2;
-                case SVFOP_SESSION_USER:
-                    *name = "session_user";
-                    return 2;
-                case SVFOP_CURRENT_CATALOG:
-                    *name = "current_catalog";
-                    return 2;
-                case SVFOP_CURRENT_SCHEMA:
-                    *name = "current_schema";
-                    return 2;
-            }
-            break;
-        case T_XmlExpr:
-            /* make SQL/XML functions act like a regular function */
-            switch (((XmlExpr *) node)->op)
-            {
-                case IS_XMLCONCAT:
-                    *name = "xmlconcat";
-                    return 2;
-                case IS_XMLELEMENT:
-                    *name = "xmlelement";
-                    return 2;
-                case IS_XMLFOREST:
-                    *name = "xmlforest";
-                    return 2;
-                case IS_XMLPARSE:
-                    *name = "xmlparse";
-                    return 2;
-                case IS_XMLPI:
-                    *name = "xmlpi";
-                    return 2;
-                case IS_XMLROOT:
-                    *name = "xmlroot";
-                    return 2;
-                case IS_XMLSERIALIZE:
-                    *name = "xmlserialize";
-                    return 2;
-                case IS_DOCUMENT:
-                    /* nothing */
-                    break;
-            }
-            break;
-        case T_XmlSerialize:
-            *name = "xmlserialize";
-            return 2;
-        default:
-            break;
-    }
+							if (te->resname)
+							{
+								*name = te->resname;
+								return 2;
+							}
+						}
+					}
+					break;
+					/* As with other operator-like nodes, these have no names */
+				case MULTIEXPR_SUBLINK:
+				case ALL_SUBLINK:
+				case ANY_SUBLINK:
+				case ROWCOMPARE_SUBLINK:
+				case CTE_SUBLINK:
+				case INSERT_SUBLINK:	/* ora_compatible: should not happen */
+					break;
+			}
+			break;
+		case T_CaseExpr:
+			strength = FigureColnameInternal((Node *) ((CaseExpr *) node)->defresult,
+											 name);
+			if (strength <= 1)
+			{
+				*name = "case";
+				return 1;
+			}
+			break;
+		case T_A_ArrayExpr:
+			/* make ARRAY[] act like a function */
+			*name = "array";
+			return 2;
+		case T_RowExpr:
+			/* make ROW() act like a function */
+			*name = "row";
+			return 2;
+		case T_CoalesceExpr:
+			/* make coalesce() act like a regular function */
+			*name = "coalesce";
+			return 2;
+		case T_MinMaxExpr:
+			/* make greatest/least act like a regular function */
+			switch (((MinMaxExpr *) node)->op)
+			{
+				case IS_GREATEST:
+					*name = "greatest";
+					return 2;
+				case IS_LEAST:
+					*name = "least";
+					return 2;
+			}
+			break;
+		case T_SQLValueFunction:
+			/* make these act like a function or variable */
+			switch (((SQLValueFunction *) node)->op)
+			{
+				case SVFOP_CURRENT_DATE:
+					*name = "current_date";
+					return 2;
+				case SVFOP_CURRENT_TIME:
+				case SVFOP_CURRENT_TIME_N:
+					*name = "current_time";
+					return 2;
+				case SVFOP_CURRENT_TIMESTAMP:
+				case SVFOP_CURRENT_TIMESTAMP_N:
+					*name = "current_timestamp";
+					return 2;
+				case SVFOP_LOCALTIME:
+				case SVFOP_LOCALTIME_N:
+					*name = "localtime";
+					return 2;
+				case SVFOP_LOCALTIMESTAMP:
+				case SVFOP_LOCALTIMESTAMP_N:
+					*name = "localtimestamp";
+					return 2;
+				case SVFOP_CURRENT_ROLE:
+					*name = "current_role";
+					return 2;
+				case SVFOP_CURRENT_USER:
+					*name = "current_user";
+					return 2;
+				case SVFOP_USER:
+					if (PG_MODE)
+						*name = "user";
+					else
+						*name = "USER";
+					return 2;
+				case SVFOP_USER_ID:
+					*name = "UID";
+					return 2;
+				case SVFOP_SESSION_USER:
+					*name = "session_user";
+					return 2;
+				case SVFOP_CURRENT_CATALOG:
+					*name = "current_catalog";
+					return 2;
+				case SVFOP_CURRENT_SCHEMA:
+					*name = "current_schema";
+					return 2;
+			}
+			break;
+		case T_XmlExpr:
+			/* make SQL/XML functions act like a regular function */
+			switch (((XmlExpr *) node)->op)
+			{
+				case IS_XMLCONCAT:
+					*name = "xmlconcat";
+					return 2;
+				case IS_XMLELEMENT:
+					*name = "xmlelement";
+					return 2;
+				case IS_XMLFOREST:
+					*name = "xmlforest";
+					return 2;
+				case IS_XMLPARSE:
+					*name = "xmlparse";
+					return 2;
+				case IS_XMLPI:
+					*name = "xmlpi";
+					return 2;
+				case IS_XMLROOT:
+					*name = "xmlroot";
+					return 2;
+				case IS_XMLSERIALIZE:
+					*name = "xmlserialize";
+					return 2;
+				case IS_DOCUMENT:
+					/* nothing */
+					break;
+			}
+			break;
+		case T_XmlSerialize:
+			*name = "xmlserialize";
+			return 2;
+		case T_RownumExpr:
+			*name = "ROWNUM";
+			return 2;
+		case T_LevelExpr:
+			*name = "LEVEL";
+			return 2;
+		case T_CBIsLeafExpr:
+			*name = "CONNECT_BY_ISLEAF";
+			return 2;
+		case T_CBIsCycleExpr:
+			*name = "CONNECT_BY_ISCYCLE";
+			return 2;
+		case T_CBRootExpr:
+			*name = "CONNECT_BY_ROOT";
+			return 2;
+		case T_CBPathExpr:
+			*name = "SYS_CONNECT_BY_PATH";
+			return 2;
+		default:
+			break;
+	}
 
-    return strength;
+	return strength;
+}
+
+/*
+ * opentenbase_ora: FigureOraColname - Just like FigureColnameInternal,
+ * but the column name will be same with opentenbase_ora.
+ *
+ * Note: We just support the node which will return column in opentenbase_ora and the other
+ * nodes will return column name as same as FigureColnameInternal.
+ */
+static char *
+FigureOraColname(Node *node, const char *query)
+{
+	int	location = -1;
+
+	if (node)
+	{
+		switch (nodeTag(node))
+		{
+			/* Return column as postgresql which opentenbase_ora don't support */
+			case T_ColumnRef:
+			case T_A_Indirection:
+			case T_TypeCast:
+			case T_CollateClause:
+			case T_A_ArrayExpr:
+			case T_RowExpr:
+				break;
+			case T_FuncCall:
+			case T_A_Expr:
+			case T_GroupingFunc:
+			case T_CaseExpr:
+			case T_CoalesceExpr:
+			case T_MinMaxExpr:
+			case T_XmlSerialize:
+			case T_CBPathExpr:
+			case T_A_Const:
+				return FigureOraColnameInternal(query, exprLocation(node));
+			case T_CBRootExpr:
+				return FigureOraColnameInternal(query, ((CBRootExpr *) node)->location);
+			case T_SubLink:
+				if (((SubLink *) node)->subLinkType == EXPR_SUBLINK)
+				{
+					/* opentenbase_ora just support EXPR_SUBLINK type to return column name */
+					return FigureOraColnameInternal(query, exprLocation(node));
+				}
+				break;
+			case T_SQLValueFunction:
+				switch (((SQLValueFunction *) node)->op)
+				{
+					case SVFOP_CURRENT_DATE:
+						return "CURRENT_DATE";
+					case SVFOP_CURRENT_TIMESTAMP:
+						return "CURRENT_TIMESTAMP";
+					case SVFOP_LOCALTIMESTAMP:
+						return "LOCALTIMESTAMP";
+					case SVFOP_USER_ID:
+						return "UID";
+					case SVFOP_CURRENT_TIMESTAMP_N:
+					case SVFOP_LOCALTIMESTAMP_N:
+						return FigureOraColnameInternal(query, exprLocation(node));
+					default:
+						break;
+				}
+				break;
+			case T_XmlExpr:
+				if (((XmlExpr *) node)->op != IS_DOCUMENT)
+					return FigureOraColnameInternal(query, exprLocation(node));
+				break;
+			case T_RownumExpr:
+				return "ROWNUM";
+			case T_LevelExpr:
+				return "LEVEL";
+			case T_CBIsLeafExpr:
+				return "CONNECT_BY_ISLEAF";
+			case T_CBIsCycleExpr:
+				return "CONNECT_BY_ISCYCLE";
+			default:
+				/* Something we don't know, return column as opentenbase_ora in default */
+				location = exprLocation(node);
+
+				if (location > 0)
+					return FigureOraColnameInternal(query, location);
+				break;
+		}
+	}
+
+	return NULL;
+}
+
+/*
+ * opentenbase_ora: Figure out the column name like opentenbase_ora.
+ * In opentenbase_ora, the return column name:
+ * - funcation call node return func_name(arg1 type1, arg2 type2,...)
+ * - a expr node return its sql like 1 + 1 return 1+1
+ * - ...
+ * It just return a partial of query, so we cut the query and convert
+ * to capital character and skip the space character.
+ */
+static char *
+FigureOraColnameInternal(const char *query, int location)
+{
+	char *colname = NULL;
+	char *query_chr;
+	char *colname_chr;
+	int parentheses_num = 0;
+	bool in_double_quotes = false;
+	bool in_single_quotes = false;
+	bool in_quotes = false;
+	bool enc_is_single_byte;
+
+	query_chr = (char *) query + location;
+	colname_chr = colname = palloc0(strlen(query) - location + 1);
+	enc_is_single_byte = pg_database_encoding_max_length() == 1;
+
+	while(*query_chr != '\0')
+	{
+		/* Skip the space character */
+		if (*query_chr != ' ')
+		{
+			/* Stop while meet ',' or ';' or from and not in quotes or parentheses */
+			if (!in_quotes && parentheses_num == 0 &&
+				(*query_chr == ',' || *query_chr == ';' || pg_strncasecmp(query_chr, "from", 4) == 0))
+				break;
+
+			/* Copy the character */
+			*colname_chr = *query_chr;
+
+			/* Update the flag */
+			if (*query_chr == '\"')
+			{
+				in_double_quotes = in_double_quotes ? false : true;
+				in_quotes = in_double_quotes || in_single_quotes;
+			}
+			else if (*query_chr == '\'' && !in_double_quotes)
+			{
+				/* Just process the single quotes not in double quotes */
+				in_single_quotes = in_single_quotes ? false : true;
+				in_quotes = in_double_quotes || in_single_quotes;
+			}
+			else if (*query_chr == '(' && !in_quotes)
+				parentheses_num++;
+			else if (*query_chr == ')' && !in_quotes)
+				parentheses_num--;
+			else
+			{
+				unsigned char ch = (unsigned char) (*query_chr);
+
+				/* Covert to capital character */
+				if (ch >= 'a' && ch <= 'z')
+					ch -= ('a' - 'A');
+				else if (enc_is_single_byte && IS_HIGHBIT_SET(ch) && islower(ch))
+					ch = toupper(ch);
+
+				*colname_chr = (char) ch;
+			}
+			colname_chr++;
+		}
+		query_chr++;
+	}
+
+	*colname_chr = '\0';
+	return colname;
+}
+
+static Expr *
+AddOpenTenBaseOraXMLCheckAndFormat(Expr *expr, Oid targetoid)
+{
+	/* if the targetoid is a xmltype, add a check and format to the expr */
+	Oid fnoid;
+	Oid sysNamespaceOid = get_namespace_oid("SYS", true);
+	if (OidIsValid(sysNamespaceOid))
+	{
+		fnoid = get_funcid("XMLTYPE_CHECK_AND_FORMAT", buildoidvector(&targetoid, 1), sysNamespaceOid);
+		if (OidIsValid(fnoid))
+		{
+			return (Expr *) makeFuncExpr(fnoid, targetoid, list_make1(expr), InvalidOid, InvalidOid, COERCE_IMPLICIT_CAST);
+		}
+	}
+
+	return expr;
 }

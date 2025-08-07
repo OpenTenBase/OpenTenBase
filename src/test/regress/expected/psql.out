@@ -3097,3 +3097,176 @@ drop schema testpart;
 set search_path to default;
 set role to default;
 drop role testrole_partitioning;
+-- testcase for bugfix in opentenbase_ora mode */
+\c regression_ora
+\d pg_catalog.pg_namespace
+             View "pg_catalog.PG_NAMESPACE"
+   Column   |   Type    | Collation | Nullable | Default 
+------------+-----------+-----------+----------+---------
+ NSPNAME    | NAME      |           |          | 
+ NSPOWNER   | OID       |           |          | 
+ NSPACL     | ACLITEM[] |           |          | 
+ CTID       | TID       |           |          | 
+ OID        | OID       |           |          | 
+ XMIN       | XID       |           |          | 
+ CMIN       | CID       |           |          | 
+ XMAX       | XID       |           |          | 
+ CMAX       | CID       |           |          | 
+ TABLEOID   | OID       |           |          | 
+ XC_NODE_ID | INTEGER   |           |          | 
+ SHARDID    | INTEGER   |           |          | 
+ XMAX_GTS   | BIGINT    |           |          | 
+ XMIN_GTS   | BIGINT    |           |          | 
+
+\dA brin
+List of access methods
+ Name | Type  
+------+-------
+ brin | Index
+(1 row)
+
+\dO default
+                List of collations
+   Schema   |  Name   | Collate | Ctype | Provider 
+------------+---------+---------+-------+----------
+ pg_catalog | default |         |       | default
+(1 row)
+
+\dx oraplsql
+                 List of installed extensions
+   Name   | Version |   Schema   |        Description         
+----------+---------+------------+----------------------------
+ oraplsql | 1.0     | pg_catalog | PL/SQL procedural language
+(1 row)
+
+\dx+ oraplsql
+       Objects in extension "oraplsql"
+              Object description              
+----------------------------------------------
+ function "oraplsql_call_handler"()
+ function "oraplsql_inline_handler"(INTERNAL)
+ function "oraplsql_validator"(OID)
+ language oraplsql
+(4 rows)
+
+\dL oraplsql
+                    List of languages
+   Name   | Owner | Trusted |        Description         
+----------+-------+---------+----------------------------
+ oraplsql | root  | t       | PL/SQL procedural language
+(1 row)
+
+\dF pg_catalog.simple
+     List of text search configurations
+   Schema   |  Name  |     Description      
+------------+--------+----------------------
+ pg_catalog | simple | simple configuration
+(1 row)
+
+\dF+ simple
+Text search configuration "pg_catalog.simple"
+Parser: "pg_catalog.default"
+      Token      | Dictionaries 
+-----------------+--------------
+ asciihword      | simple
+ asciiword       | simple
+ email           | simple
+ file            | simple
+ float           | simple
+ host            | simple
+ hword           | simple
+ hword_asciipart | simple
+ hword_numpart   | simple
+ hword_part      | simple
+ int             | simple
+ numhword        | simple
+ numword         | simple
+ sfloat          | simple
+ uint            | simple
+ url             | simple
+ url_path        | simple
+ version         | simple
+ word            | simple
+
+\dFd simple
+                        List of text search dictionaries
+   Schema   |  Name  |                        Description                        
+------------+--------+-----------------------------------------------------------
+ pg_catalog | simple | simple dictionary: just lower case and check for stopword
+(1 row)
+
+\dFp pg_catalog.default
+        List of text search parsers
+   Schema   |  Name   |     Description     
+------------+---------+---------------------
+ pg_catalog | default | default word parser
+(1 row)
+
+\dFp+ default
+    Text search parser "pg_catalog.default"
+     Method      |    Function    | Description 
+-----------------+----------------+-------------
+ Start parse     | PRSD_START     | (internal)
+ Get next token  | PRSD_NEXTTOKEN | (internal)
+ End parse       | PRSD_END       | (internal)
+ Get headline    | PRSD_HEADLINE  | (internal)
+ Get token types | PRSD_LEXTYPE   | (internal)
+
+        Token types for parser "pg_catalog.default"
+   Token name    |               Description                
+-----------------+------------------------------------------
+ asciihword      | Hyphenated word, all ASCII
+ asciiword       | Word, all ASCII
+ blank           | Space symbols
+ email           | Email address
+ entity          | XML entity
+ file            | File or path name
+ float           | Decimal notation
+ host            | Host
+ hword           | Hyphenated word, all letters
+ hword_asciipart | Hyphenated word part, all ASCII
+ hword_numpart   | Hyphenated word part, letters and digits
+ hword_part      | Hyphenated word part, all letters
+ int             | Signed integer
+ numhword        | Hyphenated word, letters and digits
+ numword         | Word, letters and digits
+ protocol        | Protocol head
+ sfloat          | Scientific notation
+ tag             | XML tag
+ uint            | Unsigned integer
+ url             | URL
+ url_path        | URL path
+ version         | Version number
+ word            | Word, all letters
+(23 rows)
+
+\dFt simple
+                          List of text search templates
+   Schema   |  Name  |                        Description                        
+------------+--------+-----------------------------------------------------------
+ pg_catalog | simple | simple dictionary: just lower case and check for stopword
+(1 row)
+
+\c regression
+-- testcase for \dx+ in opentenbase_ora mode
+create database test_dx_20231225 with sql mode opentenbase_ora;
+\c test_dx_20231225
+\dx+
+       Objects in extension "oraplsql"
+              Object description              
+----------------------------------------------
+ function "oraplsql_call_handler"()
+ function "oraplsql_inline_handler"(INTERNAL)
+ function "oraplsql_validator"(OID)
+ language oraplsql
+(4 rows)
+
+       Objects in extension "plpgsql"
+             Object description              
+---------------------------------------------
+ function "plpgsql_call_handler"()
+ function "plpgsql_inline_handler"(INTERNAL)
+ function "plpgsql_validator"(OID)
+ language plpgsql
+(4 rows)
+

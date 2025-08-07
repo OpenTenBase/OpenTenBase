@@ -108,8 +108,8 @@ typedef int Py_ssize_t;
  * definition is for Python <=2.5
  */
 #ifndef PyVarObject_HEAD_INIT
-#define PyVarObject_HEAD_INIT(type, size)        \
-        PyObject_HEAD_INIT(type) size,
+#define PyVarObject_HEAD_INIT(type, size)		\
+		PyObject_HEAD_INIT(type) size,
 #endif
 
 /* Python 3 removed the Py_TPFLAGS_HAVE_ITER flag */
@@ -133,13 +133,13 @@ typedef int Py_ssize_t;
 #undef vsnprintf
 #endif
 #ifdef __GNUC__
-#define vsnprintf(...)    pg_vsnprintf(__VA_ARGS__)
-#define snprintf(...)    pg_snprintf(__VA_ARGS__)
+#define vsnprintf(...)	pg_vsnprintf(__VA_ARGS__)
+#define snprintf(...)	pg_snprintf(__VA_ARGS__)
 #else
-#define vsnprintf                pg_vsnprintf
-#define snprintf                pg_snprintf
-#endif                            /* __GNUC__ */
-#endif                            /* USE_REPL_SNPRINTF */
+#define vsnprintf				pg_vsnprintf
+#define snprintf				pg_snprintf
+#endif							/* __GNUC__ */
+#endif							/* USE_REPL_SNPRINTF */
 
 /*
  * Used throughout, and also by the Python 2/3 porting layer, so it's easier to
@@ -147,4 +147,4 @@ typedef int Py_ssize_t;
  */
 #include "plpy_util.h"
 
-#endif                            /* PLPYTHON_H */
+#endif							/* PLPYTHON_H */

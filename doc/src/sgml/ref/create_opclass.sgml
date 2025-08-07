@@ -201,7 +201,7 @@ CREATE OPERATOR CLASS <replaceable class="parameter">name</replaceable> [ DEFAUL
     <term><replaceable class="parameter">support_number</replaceable></term>
     <listitem>
      <para>
-      The index method's support procedure number for a
+      The index method's support function number for a
       function associated with the operator class.
      </para>
     </listitem>
@@ -212,7 +212,7 @@ CREATE OPERATOR CLASS <replaceable class="parameter">name</replaceable> [ DEFAUL
     <listitem>
      <para>
       The name (optionally schema-qualified) of a function that is an
-      index method support procedure for the operator class.
+      index method support function for the operator class.
      </para>
     </listitem>
    </varlistentry>

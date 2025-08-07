@@ -42,17 +42,17 @@ static const char oom_buffer[1] = "";
 static void
 markPQExpBufferBroken(PQExpBuffer str)
 {
-    if (str->data != oom_buffer)
-        free(str->data);
-    /*
-     * Casting away const here is a bit ugly, but it seems preferable to
-     * not marking oom_buffer const.  We want to do that to encourage the
-     * compiler to put oom_buffer in read-only storage, so that anyone who
-     * tries to scribble on a broken PQExpBuffer will get a failure.
-     */
-    str->data = (char *) oom_buffer;
-    str->len = 0;
-    str->maxlen = 0;
+	if (str->data != oom_buffer)
+		free(str->data);
+	/*
+	 * Casting away const here is a bit ugly, but it seems preferable to
+	 * not marking oom_buffer const.  We want to do that to encourage the
+	 * compiler to put oom_buffer in read-only storage, so that anyone who
+	 * tries to scribble on a broken PQExpBuffer will get a failure.
+	 */
+	str->data = (char *) oom_buffer;
+	str->len = 0;
+	str->maxlen = 0;
 }
 
 /*
@@ -63,13 +63,13 @@ markPQExpBufferBroken(PQExpBuffer str)
 PQExpBuffer
 createGTMPQExpBuffer(void)
 {
-    PQExpBuffer res;
+	PQExpBuffer res;
 
-    res = (PQExpBuffer) malloc(sizeof(PQExpBufferData));
-    if (res != NULL)
-        initGTMPQExpBuffer(res);
+	res = (PQExpBuffer) malloc(sizeof(PQExpBufferData));
+	if (res != NULL)
+		initGTMPQExpBuffer(res);
 
-    return res;
+	return res;
 }
 
 /*
@@ -81,75 +81,75 @@ createGTMPQExpBuffer(void)
 void
 initGTMPQExpBuffer(PQExpBuffer str)
 {
-    str->data = (char *) malloc(INITIAL_EXPBUFFER_SIZE);
-    if (str->data == NULL)
-    {
-        str->data = (char *) oom_buffer;        /* see comment above */
-        str->maxlen = 0;
-        str->len = 0;
-    }
-    else
-    {
-        str->maxlen = INITIAL_EXPBUFFER_SIZE;
-        str->len = 0;
-        str->data[0] = '\0';
-    }
+	str->data = (char *) malloc(INITIAL_EXPBUFFER_SIZE);
+	if (str->data == NULL)
+	{
+		str->data = (char *) oom_buffer;		/* see comment above */
+		str->maxlen = 0;
+		str->len = 0;
+	}
+	else
+	{
+		str->maxlen = INITIAL_EXPBUFFER_SIZE;
+		str->len = 0;
+		str->data[0] = '\0';
+	}
 }
 
 /*
  * destroyGTMPQExpBuffer(str);
  *
- *        free()s both the data buffer and the PQExpBufferData.
- *        This is the inverse of createGTMPQExpBuffer().
+ *		free()s both the data buffer and the PQExpBufferData.
+ *		This is the inverse of createGTMPQExpBuffer().
  */
 void
 destroyGTMPQExpBuffer(PQExpBuffer str)
 {
-    if (str)
-    {
-        termGTMPQExpBuffer(str);
-        free(str);
-    }
+	if (str)
+	{
+		termGTMPQExpBuffer(str);
+		free(str);
+	}
 }
 
 /*
  * termGTMPQExpBuffer(str)
- *        free()s the data buffer but not the PQExpBufferData itself.
- *        This is the inverse of initGTMPQExpBuffer().
+ *		free()s the data buffer but not the PQExpBufferData itself.
+ *		This is the inverse of initGTMPQExpBuffer().
  */
 void
 termGTMPQExpBuffer(PQExpBuffer str)
 {
-    if (str->data != oom_buffer)
-        free(str->data);
-    /* just for luck, make the buffer validly empty. */
-    str->data = (char *) oom_buffer;        /* see comment above */
-    str->maxlen = 0;
-    str->len = 0;
+	if (str->data != oom_buffer)
+		free(str->data);
+	/* just for luck, make the buffer validly empty. */
+	str->data = (char *) oom_buffer;		/* see comment above */
+	str->maxlen = 0;
+	str->len = 0;
 }
 
 /*
  * resetGTMPQExpBuffer
- *        Reset a PQExpBuffer to empty
+ *		Reset a PQExpBuffer to empty
  *
  * Note: if possible, a "broken" PQExpBuffer is returned to normal.
  */
 void
 resetGTMPQExpBuffer(PQExpBuffer str)
 {
-    if (str)
-    {
-        if (str->data && str->data != oom_buffer)
-        {
-            str->len = 0;
-            str->data[0] = '\0';
-        }
-        else
-        {
-            /* try to reinitialize to valid state */
-            initGTMPQExpBuffer(str);
-        }
-    }
+	if (str)
+	{
+		if (str->data && str->data != oom_buffer)
+		{
+			str->len = 0;
+			str->data[0] = '\0';
+		}
+		else
+		{
+			/* try to reinitialize to valid state */
+			initGTMPQExpBuffer(str);
+		}
+	}
 }
 
 /*
@@ -162,110 +162,110 @@ resetGTMPQExpBuffer(PQExpBuffer str)
  */
 int
 enlargeGTMPQExpBuffer(PQExpBuffer str, size_t needed)
-{// #lizard forgives
-    size_t        newlen;
-    char       *newdata;
+{
+	size_t		newlen;
+	char	   *newdata;
 
-    if (PQExpBufferBroken(str))
-        return 0;                /* already failed */
+	if (PQExpBufferBroken(str))
+		return 0;				/* already failed */
 
-    /*
-     * Guard against ridiculous "needed" values, which can occur if we're fed
-     * bogus data.    Without this, we can get an overflow or infinite loop in
-     * the following.
-     */
-    if (needed >= ((size_t) INT_MAX - str->len))
-    {
-        markPQExpBufferBroken(str);
-        return 0;
-    }
+	/*
+	 * Guard against ridiculous "needed" values, which can occur if we're fed
+	 * bogus data.	Without this, we can get an overflow or infinite loop in
+	 * the following.
+	 */
+	if (needed >= ((size_t) INT_MAX - str->len))
+	{
+		markPQExpBufferBroken(str);
+		return 0;
+	}
 
-    needed += str->len + 1;        /* total space required now */
+	needed += str->len + 1;		/* total space required now */
 
-    /* Because of the above test, we now have needed <= INT_MAX */
+	/* Because of the above test, we now have needed <= INT_MAX */
 
-    if (needed <= str->maxlen)
-        return 1;                /* got enough space already */
+	if (needed <= str->maxlen)
+		return 1;				/* got enough space already */
 
-    /*
-     * We don't want to allocate just a little more space with each append;
-     * for efficiency, double the buffer size each time it overflows.
-     * Actually, we might need to more than double it if 'needed' is big...
-     */
-    newlen = (str->maxlen > 0) ? (2 * str->maxlen) : 64;
-    while (needed > newlen)
-        newlen = 2 * newlen;
+	/*
+	 * We don't want to allocate just a little more space with each append;
+	 * for efficiency, double the buffer size each time it overflows.
+	 * Actually, we might need to more than double it if 'needed' is big...
+	 */
+	newlen = (str->maxlen > 0) ? (2 * str->maxlen) : 64;
+	while (needed > newlen)
+		newlen = 2 * newlen;
 
-    /*
-     * Clamp to INT_MAX in case we went past it.  Note we are assuming here
-     * that INT_MAX <= UINT_MAX/2, else the above loop could overflow.    We
-     * will still have newlen >= needed.
-     */
-    if (newlen > (size_t) INT_MAX)
-        newlen = (size_t) INT_MAX;
+	/*
+	 * Clamp to INT_MAX in case we went past it.  Note we are assuming here
+	 * that INT_MAX <= UINT_MAX/2, else the above loop could overflow.	We
+	 * will still have newlen >= needed.
+	 */
+	if (newlen > (size_t) INT_MAX)
+		newlen = (size_t) INT_MAX;
 
-    newdata = (char *) realloc(str->data, newlen);
-    if (newdata != NULL)
-    {
-        str->data = newdata;
-        str->maxlen = newlen;
-        return 1;
-    }
+	newdata = (char *) realloc(str->data, newlen);
+	if (newdata != NULL)
+	{
+		str->data = newdata;
+		str->maxlen = newlen;
+		return 1;
+	}
 
-    markPQExpBufferBroken(str);
-    return 0;
+	markPQExpBufferBroken(str);
+	return 0;
 }
 
 /*
  * printfGTMPQExpBuffer
  * Format text data under the control of fmt (an sprintf-like format string)
- * and insert it into str.    More space is allocated to str if necessary.
+ * and insert it into str.	More space is allocated to str if necessary.
  * This is a convenience routine that does the same thing as
  * resetGTMPQExpBuffer() followed by appendGTMPQExpBuffer().
  */
 void
 printfGTMPQExpBuffer(PQExpBuffer str, const char *fmt,...)
 {
-    va_list        args;
-    size_t        avail;
-    int            nprinted;
+	va_list		args;
+	size_t		avail;
+	int			nprinted;
 
-    resetGTMPQExpBuffer(str);
+	resetGTMPQExpBuffer(str);
 
-    if (PQExpBufferBroken(str))
-        return;                    /* already failed */
+	if (PQExpBufferBroken(str))
+		return;					/* already failed */
 
-    for (;;)
-    {
-        /*
-         * Try to format the given string into the available space; but if
-         * there's hardly any space, don't bother trying, just fall through to
-         * enlarge the buffer first.
-         */
-        if (str->maxlen > str->len + 16)
-        {
-            avail = str->maxlen - str->len - 1;
-            va_start(args, fmt);
-            nprinted = vsnprintf(str->data + str->len, avail,
-                                 fmt, args);
-            va_end(args);
+	for (;;)
+	{
+		/*
+		 * Try to format the given string into the available space; but if
+		 * there's hardly any space, don't bother trying, just fall through to
+		 * enlarge the buffer first.
+		 */
+		if (str->maxlen > str->len + 16)
+		{
+			avail = str->maxlen - str->len - 1;
+			va_start(args, fmt);
+			nprinted = vsnprintf(str->data + str->len, avail,
+								 fmt, args);
+			va_end(args);
 
-            /*
-             * Note: some versions of vsnprintf return the number of chars
-             * actually stored, but at least one returns -1 on failure. Be
-             * conservative about believing whether the print worked.
-             */
-            if (nprinted >= 0 && nprinted < (int) avail - 1)
-            {
-                /* Success.  Note nprinted does not include trailing null. */
-                str->len += nprinted;
-                break;
-            }
-        }
-        /* Double the buffer size and try again. */
-        if (!enlargeGTMPQExpBuffer(str, str->maxlen))
-            return;                /* oops, out of memory */
-    }
+			/*
+			 * Note: some versions of vsnprintf return the number of chars
+			 * actually stored, but at least one returns -1 on failure. Be
+			 * conservative about believing whether the print worked.
+			 */
+			if (nprinted >= 0 && nprinted < (int) avail - 1)
+			{
+				/* Success.  Note nprinted does not include trailing null. */
+				str->len += nprinted;
+				break;
+			}
+		}
+		/* Double the buffer size and try again. */
+		if (!enlargeGTMPQExpBuffer(str, str->maxlen))
+			return;				/* oops, out of memory */
+	}
 }
 
 /*
@@ -279,44 +279,44 @@ printfGTMPQExpBuffer(PQExpBuffer str, const char *fmt,...)
 void
 appendGTMPQExpBuffer(PQExpBuffer str, const char *fmt,...)
 {
-    va_list        args;
-    size_t        avail;
-    int            nprinted;
+	va_list		args;
+	size_t		avail;
+	int			nprinted;
 
-    if (PQExpBufferBroken(str))
-        return;                    /* already failed */
+	if (PQExpBufferBroken(str))
+		return;					/* already failed */
 
-    for (;;)
-    {
-        /*
-         * Try to format the given string into the available space; but if
-         * there's hardly any space, don't bother trying, just fall through to
-         * enlarge the buffer first.
-         */
-        if (str->maxlen > str->len + 16)
-        {
-            avail = str->maxlen - str->len - 1;
-            va_start(args, fmt);
-            nprinted = vsnprintf(str->data + str->len, avail,
-                                 fmt, args);
-            va_end(args);
+	for (;;)
+	{
+		/*
+		 * Try to format the given string into the available space; but if
+		 * there's hardly any space, don't bother trying, just fall through to
+		 * enlarge the buffer first.
+		 */
+		if (str->maxlen > str->len + 16)
+		{
+			avail = str->maxlen - str->len - 1;
+			va_start(args, fmt);
+			nprinted = vsnprintf(str->data + str->len, avail,
+								 fmt, args);
+			va_end(args);
 
-            /*
-             * Note: some versions of vsnprintf return the number of chars
-             * actually stored, but at least one returns -1 on failure. Be
-             * conservative about believing whether the print worked.
-             */
-            if (nprinted >= 0 && nprinted < (int) avail - 1)
-            {
-                /* Success.  Note nprinted does not include trailing null. */
-                str->len += nprinted;
-                break;
-            }
-        }
-        /* Double the buffer size and try again. */
-        if (!enlargeGTMPQExpBuffer(str, str->maxlen))
-            return;                /* oops, out of memory */
-    }
+			/*
+			 * Note: some versions of vsnprintf return the number of chars
+			 * actually stored, but at least one returns -1 on failure. Be
+			 * conservative about believing whether the print worked.
+			 */
+			if (nprinted >= 0 && nprinted < (int) avail - 1)
+			{
+				/* Success.  Note nprinted does not include trailing null. */
+				str->len += nprinted;
+				break;
+			}
+		}
+		/* Double the buffer size and try again. */
+		if (!enlargeGTMPQExpBuffer(str, str->maxlen))
+			return;				/* oops, out of memory */
+	}
 }
 
 /*
@@ -327,7 +327,7 @@ appendGTMPQExpBuffer(PQExpBuffer str, const char *fmt,...)
 void
 appendGTMPQExpBufferStr(PQExpBuffer str, const char *data)
 {
-    appendBinaryGTMPQExpBuffer(str, data, strlen(data));
+	appendBinaryGTMPQExpBuffer(str, data, strlen(data));
 }
 
 /*
@@ -338,14 +338,14 @@ appendGTMPQExpBufferStr(PQExpBuffer str, const char *data)
 void
 appendGTMPQExpBufferChar(PQExpBuffer str, char ch)
 {
-    /* Make more room if needed */
-    if (!enlargeGTMPQExpBuffer(str, 1))
-        return;
+	/* Make more room if needed */
+	if (!enlargeGTMPQExpBuffer(str, 1))
+		return;
 
-    /* OK, append the character */
-    str->data[str->len] = ch;
-    str->len++;
-    str->data[str->len] = '\0';
+	/* OK, append the character */
+	str->data[str->len] = ch;
+	str->len++;
+	str->data[str->len] = '\0';
 }
 
 /*
@@ -357,17 +357,17 @@ appendGTMPQExpBufferChar(PQExpBuffer str, char ch)
 void
 appendBinaryGTMPQExpBuffer(PQExpBuffer str, const char *data, size_t datalen)
 {
-    /* Make more room if needed */
-    if (!enlargeGTMPQExpBuffer(str, datalen))
-        return;
+	/* Make more room if needed */
+	if (!enlargeGTMPQExpBuffer(str, datalen))
+		return;
 
-    /* OK, append the data */
-    memcpy(str->data + str->len, data, datalen);
-    str->len += datalen;
+	/* OK, append the data */
+	memcpy(str->data + str->len, data, datalen);
+	str->len += datalen;
 
-    /*
-     * Keep a trailing null in place, even though it's probably useless for
-     * binary data...
-     */
-    str->data[str->len] = '\0';
+	/*
+	 * Keep a trailing null in place, even though it's probably useless for
+	 * binary data...
+	 */
+	str->data[str->len] = '\0';
 }

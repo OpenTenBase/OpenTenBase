@@ -188,6 +188,9 @@ SELECT regexp_split_to_array('the quick brown fox jumps over the lazy dog', 'nom
 SELECT regexp_split_to_array('123456','1');
 SELECT regexp_split_to_array('123456','6');
 SELECT regexp_split_to_array('123456','.');
+SELECT regexp_split_to_array('123456','');
+SELECT regexp_split_to_array('123456','(?:)');
+SELECT regexp_split_to_array('1','');
 -- errors
 SELECT foo, length(foo) FROM regexp_split_to_table('thE QUick bROWn FOx jUMPs ovEr The lazy dOG', 'e', 'zippy') AS foo;
 SELECT regexp_split_to_array('thE QUick bROWn FOx jUMPs ovEr The lazy dOG', 'e', 'iz');
@@ -437,6 +440,16 @@ SELECT replace('yabadabadoo', 'ba', '123') AS "ya123da123doo";
 
 SELECT replace('yabadoo', 'bad', '') AS "yaoo";
 
+-- in opentenbase_ora, replace function allowing two parameters
+\c regression_ora
+select replace('acefdefd','dd') AS "acefdefd";
+select replace('acefdefd','fd') AS "acee";
+select replace('acefdefd','efd') AS "ac";
+select replace('acefdefd','') AS "acefdefd";
+select replace('acefdefd', null) AS "acefdefd";
+\c regression
+
+SET bytea_output TO escape;
 --
 -- test split_part
 --
@@ -559,3 +572,11 @@ SELECT btrim(E'\\000trim\\000'::bytea, ''::bytea);
 SELECT encode(overlay(E'Th\\000omas'::bytea placing E'Th\\001omas'::bytea from 2),'escape');
 SELECT encode(overlay(E'Th\\000omas'::bytea placing E'\\002\\003'::bytea from 8),'escape');
 SELECT encode(overlay(E'Th\\000omas'::bytea placing E'\\002\\003'::bytea from 5 for 3),'escape');
+
+\c regression_ora
+select md5('');
+select md5('a');
+select md5('abc');
+select md5('') = 'D41D8CD98F00B204E9800998ECF8427E' AS "TRUE";
+select md5('a') = '0CC175B9C0F1B6A831C399E269772661' AS "TRUE";
+select md5('abc') = '900150983CD24FB0D6963F7D28E17F72' AS "TRUE";

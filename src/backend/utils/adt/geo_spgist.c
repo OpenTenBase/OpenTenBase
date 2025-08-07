@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * geo_spgist.c
- *      SP-GiST implementation of 4-dimensional quad tree over boxes
+ *	  SP-GiST implementation of 4-dimensional quad tree over boxes
  *
  * This module provides SP-GiST implementation for boxes using quad tree
  * analogy in 4-dimensional space.  SP-GiST doesn't allow indexing of
@@ -15,17 +15,17 @@
  * quadrants in 4D space.  It is easier to imagine it as splitting space
  * two times into 4:
  *
- *                |       |
- *                |       |
- *                | -----+-----
- *                |       |
- *                |       |
+ *				|	   |
+ *				|	   |
+ *				| -----+-----
+ *				|	   |
+ *				|	   |
  * -------------+-------------
- *                |
- *                |
- *                |
- *                |
- *                |
+ *				|
+ *				|
+ *				|
+ *				|
+ *				|
  *
  * We are using box datatype as the prefix, but we are treating them
  * as points in 4-dimensional space, because 2D boxes are not enough
@@ -40,9 +40,9 @@
  * traversal values.  In conclusion, three things are necessary
  * to calculate the next traversal value:
  *
- *    (1) the traversal value of the parent
- *    (2) the quadrant of the current node
- *    (3) the prefix of the current node
+ *	(1) the traversal value of the parent
+ *	(2) the quadrant of the current node
+ *	(3) the prefix of the current node
  *
  * If we visualize them on our simplified drawing (see the drawing above);
  * transferred boundaries of (1) would be the outer axis, relevant part
@@ -66,7 +66,7 @@
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *            src/backend/utils/adt/geo_spgist.c
+ *			src/backend/utils/adt/geo_spgist.c
  *
  *-------------------------------------------------------------------------
  */
@@ -89,30 +89,30 @@
 static int
 compareDoubles(const void *a, const void *b)
 {
-    double        x = *(double *) a;
-    double        y = *(double *) b;
+	double		x = *(double *) a;
+	double		y = *(double *) b;
 
-    if (x == y)
-        return 0;
-    return (x > y) ? 1 : -1;
+	if (x == y)
+		return 0;
+	return (x > y) ? 1 : -1;
 }
 
 typedef struct
 {
-    double        low;
-    double        high;
+	double		low;
+	double		high;
 } Range;
 
 typedef struct
 {
-    Range        left;
-    Range        right;
+	Range		left;
+	Range		right;
 } RangeBox;
 
 typedef struct
 {
-    RangeBox    range_box_x;
-    RangeBox    range_box_y;
+	RangeBox	range_box_x;
+	RangeBox	range_box_y;
 } RectBox;
 
 /*
@@ -126,21 +126,21 @@ typedef struct
 static uint8
 getQuadrant(BOX *centroid, BOX *inBox)
 {
-    uint8        quadrant = 0;
+	uint8		quadrant = 0;
 
-    if (inBox->low.x > centroid->low.x)
-        quadrant |= 0x8;
+	if (inBox->low.x > centroid->low.x)
+		quadrant |= 0x8;
 
-    if (inBox->high.x > centroid->high.x)
-        quadrant |= 0x4;
+	if (inBox->high.x > centroid->high.x)
+		quadrant |= 0x4;
 
-    if (inBox->low.y > centroid->low.y)
-        quadrant |= 0x2;
+	if (inBox->low.y > centroid->low.y)
+		quadrant |= 0x2;
 
-    if (inBox->high.y > centroid->high.y)
-        quadrant |= 0x1;
+	if (inBox->high.y > centroid->high.y)
+		quadrant |= 0x1;
 
-    return quadrant;
+	return quadrant;
 }
 
 /*
@@ -153,15 +153,15 @@ getQuadrant(BOX *centroid, BOX *inBox)
 static RangeBox *
 getRangeBox(BOX *box)
 {
-    RangeBox   *range_box = (RangeBox *) palloc(sizeof(RangeBox));
+	RangeBox   *range_box = (RangeBox *) palloc(sizeof(RangeBox));
 
-    range_box->left.low = box->low.x;
-    range_box->left.high = box->high.x;
+	range_box->left.low = box->low.x;
+	range_box->left.high = box->high.x;
 
-    range_box->right.low = box->low.y;
-    range_box->right.high = box->high.y;
+	range_box->right.low = box->low.y;
+	range_box->right.high = box->high.y;
 
-    return range_box;
+	return range_box;
 }
 
 /*
@@ -173,22 +173,22 @@ getRangeBox(BOX *box)
 static RectBox *
 initRectBox(void)
 {
-    RectBox    *rect_box = (RectBox *) palloc(sizeof(RectBox));
-    double        infinity = get_float8_infinity();
+	RectBox    *rect_box = (RectBox *) palloc(sizeof(RectBox));
+	double		infinity = get_float8_infinity();
 
-    rect_box->range_box_x.left.low = -infinity;
-    rect_box->range_box_x.left.high = infinity;
+	rect_box->range_box_x.left.low = -infinity;
+	rect_box->range_box_x.left.high = infinity;
 
-    rect_box->range_box_x.right.low = -infinity;
-    rect_box->range_box_x.right.high = infinity;
+	rect_box->range_box_x.right.low = -infinity;
+	rect_box->range_box_x.right.high = infinity;
 
-    rect_box->range_box_y.left.low = -infinity;
-    rect_box->range_box_y.left.high = infinity;
+	rect_box->range_box_y.left.low = -infinity;
+	rect_box->range_box_y.left.high = infinity;
 
-    rect_box->range_box_y.right.low = -infinity;
-    rect_box->range_box_y.right.high = infinity;
+	rect_box->range_box_y.right.low = -infinity;
+	rect_box->range_box_y.right.high = infinity;
 
-    return rect_box;
+	return rect_box;
 }
 
 /*
@@ -201,169 +201,169 @@ initRectBox(void)
 static RectBox *
 nextRectBox(RectBox *rect_box, RangeBox *centroid, uint8 quadrant)
 {
-    RectBox    *next_rect_box = (RectBox *) palloc(sizeof(RectBox));
+	RectBox    *next_rect_box = (RectBox *) palloc(sizeof(RectBox));
 
-    memcpy(next_rect_box, rect_box, sizeof(RectBox));
+	memcpy(next_rect_box, rect_box, sizeof(RectBox));
 
-    if (quadrant & 0x8)
-        next_rect_box->range_box_x.left.low = centroid->left.low;
-    else
-        next_rect_box->range_box_x.left.high = centroid->left.low;
+	if (quadrant & 0x8)
+		next_rect_box->range_box_x.left.low = centroid->left.low;
+	else
+		next_rect_box->range_box_x.left.high = centroid->left.low;
 
-    if (quadrant & 0x4)
-        next_rect_box->range_box_x.right.low = centroid->left.high;
-    else
-        next_rect_box->range_box_x.right.high = centroid->left.high;
+	if (quadrant & 0x4)
+		next_rect_box->range_box_x.right.low = centroid->left.high;
+	else
+		next_rect_box->range_box_x.right.high = centroid->left.high;
 
-    if (quadrant & 0x2)
-        next_rect_box->range_box_y.left.low = centroid->right.low;
-    else
-        next_rect_box->range_box_y.left.high = centroid->right.low;
+	if (quadrant & 0x2)
+		next_rect_box->range_box_y.left.low = centroid->right.low;
+	else
+		next_rect_box->range_box_y.left.high = centroid->right.low;
 
-    if (quadrant & 0x1)
-        next_rect_box->range_box_y.right.low = centroid->right.high;
-    else
-        next_rect_box->range_box_y.right.high = centroid->right.high;
+	if (quadrant & 0x1)
+		next_rect_box->range_box_y.right.low = centroid->right.high;
+	else
+		next_rect_box->range_box_y.right.high = centroid->right.high;
 
-    return next_rect_box;
+	return next_rect_box;
 }
 
 /* Can any range from range_box overlap with this argument? */
 static bool
 overlap2D(RangeBox *range_box, Range *query)
 {
-    return FPge(range_box->right.high, query->low) &&
-        FPle(range_box->left.low, query->high);
+	return FPge(range_box->right.high, query->low) &&
+		FPle(range_box->left.low, query->high);
 }
 
 /* Can any rectangle from rect_box overlap with this argument? */
 static bool
 overlap4D(RectBox *rect_box, RangeBox *query)
 {
-    return overlap2D(&rect_box->range_box_x, &query->left) &&
-        overlap2D(&rect_box->range_box_y, &query->right);
+	return overlap2D(&rect_box->range_box_x, &query->left) &&
+		overlap2D(&rect_box->range_box_y, &query->right);
 }
 
 /* Can any range from range_box contain this argument? */
 static bool
 contain2D(RangeBox *range_box, Range *query)
 {
-    return FPge(range_box->right.high, query->high) &&
-        FPle(range_box->left.low, query->low);
+	return FPge(range_box->right.high, query->high) &&
+		FPle(range_box->left.low, query->low);
 }
 
 /* Can any rectangle from rect_box contain this argument? */
 static bool
 contain4D(RectBox *rect_box, RangeBox *query)
 {
-    return contain2D(&rect_box->range_box_x, &query->left) &&
-        contain2D(&rect_box->range_box_y, &query->right);
+	return contain2D(&rect_box->range_box_x, &query->left) &&
+		contain2D(&rect_box->range_box_y, &query->right);
 }
 
 /* Can any range from range_box be contained by this argument? */
 static bool
 contained2D(RangeBox *range_box, Range *query)
 {
-    return FPle(range_box->left.low, query->high) &&
-        FPge(range_box->left.high, query->low) &&
-        FPle(range_box->right.low, query->high) &&
-        FPge(range_box->right.high, query->low);
+	return FPle(range_box->left.low, query->high) &&
+		FPge(range_box->left.high, query->low) &&
+		FPle(range_box->right.low, query->high) &&
+		FPge(range_box->right.high, query->low);
 }
 
 /* Can any rectangle from rect_box be contained by this argument? */
 static bool
 contained4D(RectBox *rect_box, RangeBox *query)
 {
-    return contained2D(&rect_box->range_box_x, &query->left) &&
-        contained2D(&rect_box->range_box_y, &query->right);
+	return contained2D(&rect_box->range_box_x, &query->left) &&
+		contained2D(&rect_box->range_box_y, &query->right);
 }
 
 /* Can any range from range_box to be lower than this argument? */
 static bool
 lower2D(RangeBox *range_box, Range *query)
 {
-    return FPlt(range_box->left.low, query->low) &&
-        FPlt(range_box->right.low, query->low);
+	return FPlt(range_box->left.low, query->low) &&
+		FPlt(range_box->right.low, query->low);
 }
 
 /* Can any range from range_box not extend to the right side of the query? */
 static bool
 overLower2D(RangeBox *range_box, Range *query)
 {
-    return FPle(range_box->left.low, query->high) &&
-        FPle(range_box->right.low, query->high);
+	return FPle(range_box->left.low, query->high) &&
+		FPle(range_box->right.low, query->high);
 }
 
 /* Can any range from range_box to be higher than this argument? */
 static bool
 higher2D(RangeBox *range_box, Range *query)
 {
-    return FPgt(range_box->left.high, query->high) &&
-        FPgt(range_box->right.high, query->high);
+	return FPgt(range_box->left.high, query->high) &&
+		FPgt(range_box->right.high, query->high);
 }
 
 /* Can any range from range_box not extend to the left side of the query? */
 static bool
 overHigher2D(RangeBox *range_box, Range *query)
 {
-    return FPge(range_box->left.high, query->low) &&
-        FPge(range_box->right.high, query->low);
+	return FPge(range_box->left.high, query->low) &&
+		FPge(range_box->right.high, query->low);
 }
 
 /* Can any rectangle from rect_box be left of this argument? */
 static bool
 left4D(RectBox *rect_box, RangeBox *query)
 {
-    return lower2D(&rect_box->range_box_x, &query->left);
+	return lower2D(&rect_box->range_box_x, &query->left);
 }
 
 /* Can any rectangle from rect_box does not extend the right of this argument? */
 static bool
 overLeft4D(RectBox *rect_box, RangeBox *query)
 {
-    return overLower2D(&rect_box->range_box_x, &query->left);
+	return overLower2D(&rect_box->range_box_x, &query->left);
 }
 
 /* Can any rectangle from rect_box be right of this argument? */
 static bool
 right4D(RectBox *rect_box, RangeBox *query)
 {
-    return higher2D(&rect_box->range_box_x, &query->left);
+	return higher2D(&rect_box->range_box_x, &query->left);
 }
 
 /* Can any rectangle from rect_box does not extend the left of this argument? */
 static bool
 overRight4D(RectBox *rect_box, RangeBox *query)
 {
-    return overHigher2D(&rect_box->range_box_x, &query->left);
+	return overHigher2D(&rect_box->range_box_x, &query->left);
 }
 
 /* Can any rectangle from rect_box be below of this argument? */
 static bool
 below4D(RectBox *rect_box, RangeBox *query)
 {
-    return lower2D(&rect_box->range_box_y, &query->right);
+	return lower2D(&rect_box->range_box_y, &query->right);
 }
 
 /* Can any rectangle from rect_box does not extend above this argument? */
 static bool
 overBelow4D(RectBox *rect_box, RangeBox *query)
 {
-    return overLower2D(&rect_box->range_box_y, &query->right);
+	return overLower2D(&rect_box->range_box_y, &query->right);
 }
 
 /* Can any rectangle from rect_box be above of this argument? */
 static bool
 above4D(RectBox *rect_box, RangeBox *query)
 {
-    return higher2D(&rect_box->range_box_y, &query->right);
+	return higher2D(&rect_box->range_box_y, &query->right);
 }
 
 /* Can any rectangle from rect_box does not extend below of this argument? */
 static bool
 overAbove4D(RectBox *rect_box, RangeBox *query)
 {
-    return overHigher2D(&rect_box->range_box_y, &query->right);
+	return overHigher2D(&rect_box->range_box_y, &query->right);
 }
 
 /*
@@ -372,14 +372,14 @@ overAbove4D(RectBox *rect_box, RangeBox *query)
 Datum
 spg_box_quad_config(PG_FUNCTION_ARGS)
 {
-    spgConfigOut *cfg = (spgConfigOut *) PG_GETARG_POINTER(1);
+	spgConfigOut *cfg = (spgConfigOut *) PG_GETARG_POINTER(1);
 
-    cfg->prefixType = BOXOID;
-    cfg->labelType = VOIDOID;    /* We don't need node labels. */
-    cfg->canReturnData = true;
-    cfg->longValuesOK = false;
+	cfg->prefixType = BOXOID;
+	cfg->labelType = VOIDOID;	/* We don't need node labels. */
+	cfg->canReturnData = true;
+	cfg->longValuesOK = false;
 
-    PG_RETURN_VOID();
+	PG_RETURN_VOID();
 }
 
 /*
@@ -388,19 +388,19 @@ spg_box_quad_config(PG_FUNCTION_ARGS)
 Datum
 spg_box_quad_choose(PG_FUNCTION_ARGS)
 {
-    spgChooseIn *in = (spgChooseIn *) PG_GETARG_POINTER(0);
-    spgChooseOut *out = (spgChooseOut *) PG_GETARG_POINTER(1);
-    BOX           *centroid = DatumGetBoxP(in->prefixDatum),
-               *box = DatumGetBoxP(in->datum);
+	spgChooseIn *in = (spgChooseIn *) PG_GETARG_POINTER(0);
+	spgChooseOut *out = (spgChooseOut *) PG_GETARG_POINTER(1);
+	BOX		   *centroid = DatumGetBoxP(in->prefixDatum),
+			   *box = DatumGetBoxP(in->datum);
 
-    out->resultType = spgMatchNode;
-    out->result.matchNode.restDatum = BoxPGetDatum(box);
+	out->resultType = spgMatchNode;
+	out->result.matchNode.restDatum = BoxPGetDatum(box);
 
-    /* nodeN will be set by core, when allTheSame. */
-    if (!in->allTheSame)
-        out->result.matchNode.nodeN = getQuadrant(centroid, box);
+	/* nodeN will be set by core, when allTheSame. */
+	if (!in->allTheSame)
+		out->result.matchNode.nodeN = getQuadrant(centroid, box);
 
-    PG_RETURN_VOID();
+	PG_RETURN_VOID();
 }
 
 /*
@@ -412,65 +412,65 @@ spg_box_quad_choose(PG_FUNCTION_ARGS)
 Datum
 spg_box_quad_picksplit(PG_FUNCTION_ARGS)
 {
-    spgPickSplitIn *in = (spgPickSplitIn *) PG_GETARG_POINTER(0);
-    spgPickSplitOut *out = (spgPickSplitOut *) PG_GETARG_POINTER(1);
-    BOX           *centroid;
-    int            median,
-                i;
-    double       *lowXs = palloc(sizeof(double) * in->nTuples);
-    double       *highXs = palloc(sizeof(double) * in->nTuples);
-    double       *lowYs = palloc(sizeof(double) * in->nTuples);
-    double       *highYs = palloc(sizeof(double) * in->nTuples);
+	spgPickSplitIn *in = (spgPickSplitIn *) PG_GETARG_POINTER(0);
+	spgPickSplitOut *out = (spgPickSplitOut *) PG_GETARG_POINTER(1);
+	BOX		   *centroid;
+	int			median,
+				i;
+	double	   *lowXs = palloc(sizeof(double) * in->nTuples);
+	double	   *highXs = palloc(sizeof(double) * in->nTuples);
+	double	   *lowYs = palloc(sizeof(double) * in->nTuples);
+	double	   *highYs = palloc(sizeof(double) * in->nTuples);
 
-    /* Calculate median of all 4D coordinates */
-    for (i = 0; i < in->nTuples; i++)
-    {
-        BOX           *box = DatumGetBoxP(in->datums[i]);
+	/* Calculate median of all 4D coordinates */
+	for (i = 0; i < in->nTuples; i++)
+	{
+		BOX		   *box = DatumGetBoxP(in->datums[i]);
 
-        lowXs[i] = box->low.x;
-        highXs[i] = box->high.x;
-        lowYs[i] = box->low.y;
-        highYs[i] = box->high.y;
-    }
+		lowXs[i] = box->low.x;
+		highXs[i] = box->high.x;
+		lowYs[i] = box->low.y;
+		highYs[i] = box->high.y;
+	}
 
-    qsort(lowXs, in->nTuples, sizeof(double), compareDoubles);
-    qsort(highXs, in->nTuples, sizeof(double), compareDoubles);
-    qsort(lowYs, in->nTuples, sizeof(double), compareDoubles);
-    qsort(highYs, in->nTuples, sizeof(double), compareDoubles);
+	qsort(lowXs, in->nTuples, sizeof(double), compareDoubles);
+	qsort(highXs, in->nTuples, sizeof(double), compareDoubles);
+	qsort(lowYs, in->nTuples, sizeof(double), compareDoubles);
+	qsort(highYs, in->nTuples, sizeof(double), compareDoubles);
 
-    median = in->nTuples / 2;
+	median = in->nTuples / 2;
 
-    centroid = palloc(sizeof(BOX));
+	centroid = palloc(sizeof(BOX));
 
-    centroid->low.x = lowXs[median];
-    centroid->high.x = highXs[median];
-    centroid->low.y = lowYs[median];
-    centroid->high.y = highYs[median];
+	centroid->low.x = lowXs[median];
+	centroid->high.x = highXs[median];
+	centroid->low.y = lowYs[median];
+	centroid->high.y = highYs[median];
 
-    /* Fill the output */
-    out->hasPrefix = true;
-    out->prefixDatum = BoxPGetDatum(centroid);
+	/* Fill the output */
+	out->hasPrefix = true;
+	out->prefixDatum = BoxPGetDatum(centroid);
 
-    out->nNodes = 16;
-    out->nodeLabels = NULL;        /* We don't need node labels. */
+	out->nNodes = 16;
+	out->nodeLabels = NULL;		/* We don't need node labels. */
 
-    out->mapTuplesToNodes = palloc(sizeof(int) * in->nTuples);
-    out->leafTupleDatums = palloc(sizeof(Datum) * in->nTuples);
+	out->mapTuplesToNodes = palloc(sizeof(int) * in->nTuples);
+	out->leafTupleDatums = palloc(sizeof(Datum) * in->nTuples);
 
-    /*
-     * Assign ranges to corresponding nodes according to quadrants relative to
-     * the "centroid" range
-     */
-    for (i = 0; i < in->nTuples; i++)
-    {
-        BOX           *box = DatumGetBoxP(in->datums[i]);
-        uint8        quadrant = getQuadrant(centroid, box);
+	/*
+	 * Assign ranges to corresponding nodes according to quadrants relative to
+	 * the "centroid" range
+	 */
+	for (i = 0; i < in->nTuples; i++)
+	{
+		BOX		   *box = DatumGetBoxP(in->datums[i]);
+		uint8		quadrant = getQuadrant(centroid, box);
 
-        out->leafTupleDatums[i] = BoxPGetDatum(box);
-        out->mapTuplesToNodes[i] = quadrant;
-    }
+		out->leafTupleDatums[i] = BoxPGetDatum(box);
+		out->mapTuplesToNodes[i] = quadrant;
+	}
 
-    PG_RETURN_VOID();
+	PG_RETURN_VOID();
 }
 
 /*
@@ -478,142 +478,142 @@ spg_box_quad_picksplit(PG_FUNCTION_ARGS)
  */
 Datum
 spg_box_quad_inner_consistent(PG_FUNCTION_ARGS)
-{// #lizard forgives
-    spgInnerConsistentIn *in = (spgInnerConsistentIn *) PG_GETARG_POINTER(0);
-    spgInnerConsistentOut *out = (spgInnerConsistentOut *) PG_GETARG_POINTER(1);
-    int            i;
-    MemoryContext old_ctx;
-    RectBox    *rect_box;
-    uint8        quadrant;
-    RangeBox   *centroid,
-              **queries;
+{
+	spgInnerConsistentIn *in = (spgInnerConsistentIn *) PG_GETARG_POINTER(0);
+	spgInnerConsistentOut *out = (spgInnerConsistentOut *) PG_GETARG_POINTER(1);
+	int			i;
+	MemoryContext old_ctx;
+	RectBox    *rect_box;
+	uint8		quadrant;
+	RangeBox   *centroid,
+			  **queries;
 
-    if (in->allTheSame)
-    {
-        /* Report that all nodes should be visited */
-        out->nNodes = in->nNodes;
-        out->nodeNumbers = (int *) palloc(sizeof(int) * in->nNodes);
-        for (i = 0; i < in->nNodes; i++)
-            out->nodeNumbers[i] = i;
+	if (in->allTheSame)
+	{
+		/* Report that all nodes should be visited */
+		out->nNodes = in->nNodes;
+		out->nodeNumbers = (int *) palloc(sizeof(int) * in->nNodes);
+		for (i = 0; i < in->nNodes; i++)
+			out->nodeNumbers[i] = i;
 
-        PG_RETURN_VOID();
-    }
+		PG_RETURN_VOID();
+	}
 
-    /*
-     * We are saving the traversal value or initialize it an unbounded one, if
-     * we have just begun to walk the tree.
-     */
-    if (in->traversalValue)
-        rect_box = in->traversalValue;
-    else
-        rect_box = initRectBox();
+	/*
+	 * We are saving the traversal value or initialize it an unbounded one, if
+	 * we have just begun to walk the tree.
+	 */
+	if (in->traversalValue)
+		rect_box = in->traversalValue;
+	else
+		rect_box = initRectBox();
 
-    /*
-     * We are casting the prefix and queries to RangeBoxes for ease of the
-     * following operations.
-     */
-    centroid = getRangeBox(DatumGetBoxP(in->prefixDatum));
-    queries = (RangeBox **) palloc(in->nkeys * sizeof(RangeBox *));
-    for (i = 0; i < in->nkeys; i++)
-        queries[i] = getRangeBox(DatumGetBoxP(in->scankeys[i].sk_argument));
+	/*
+	 * We are casting the prefix and queries to RangeBoxes for ease of the
+	 * following operations.
+	 */
+	centroid = getRangeBox(DatumGetBoxP(in->prefixDatum));
+	queries = (RangeBox **) palloc(in->nkeys * sizeof(RangeBox *));
+	for (i = 0; i < in->nkeys; i++)
+		queries[i] = getRangeBox(DatumGetBoxP(in->scankeys[i].sk_argument));
 
-    /* Allocate enough memory for nodes */
-    out->nNodes = 0;
-    out->nodeNumbers = (int *) palloc(sizeof(int) * in->nNodes);
-    out->traversalValues = (void **) palloc(sizeof(void *) * in->nNodes);
+	/* Allocate enough memory for nodes */
+	out->nNodes = 0;
+	out->nodeNumbers = (int *) palloc(sizeof(int) * in->nNodes);
+	out->traversalValues = (void **) palloc(sizeof(void *) * in->nNodes);
 
-    /*
-     * We switch memory context, because we want to allocate memory for new
-     * traversal values (next_rect_box) and pass these pieces of memory to
-     * further call of this function.
-     */
-    old_ctx = MemoryContextSwitchTo(in->traversalMemoryContext);
+	/*
+	 * We switch memory context, because we want to allocate memory for new
+	 * traversal values (next_rect_box) and pass these pieces of memory to
+	 * further call of this function.
+	 */
+	old_ctx = MemoryContextSwitchTo(in->traversalMemoryContext);
 
-    for (quadrant = 0; quadrant < in->nNodes; quadrant++)
-    {
-        RectBox    *next_rect_box = nextRectBox(rect_box, centroid, quadrant);
-        bool        flag = true;
+	for (quadrant = 0; quadrant < in->nNodes; quadrant++)
+	{
+		RectBox    *next_rect_box = nextRectBox(rect_box, centroid, quadrant);
+		bool		flag = true;
 
-        for (i = 0; i < in->nkeys; i++)
-        {
-            StrategyNumber strategy = in->scankeys[i].sk_strategy;
+		for (i = 0; i < in->nkeys; i++)
+		{
+			StrategyNumber strategy = in->scankeys[i].sk_strategy;
 
-            switch (strategy)
-            {
-                case RTOverlapStrategyNumber:
-                    flag = overlap4D(next_rect_box, queries[i]);
-                    break;
+			switch (strategy)
+			{
+				case RTOverlapStrategyNumber:
+					flag = overlap4D(next_rect_box, queries[i]);
+					break;
 
-                case RTContainsStrategyNumber:
-                    flag = contain4D(next_rect_box, queries[i]);
-                    break;
+				case RTContainsStrategyNumber:
+					flag = contain4D(next_rect_box, queries[i]);
+					break;
 
-                case RTSameStrategyNumber:
-                case RTContainedByStrategyNumber:
-                    flag = contained4D(next_rect_box, queries[i]);
-                    break;
+				case RTSameStrategyNumber:
+				case RTContainedByStrategyNumber:
+					flag = contained4D(next_rect_box, queries[i]);
+					break;
 
-                case RTLeftStrategyNumber:
-                    flag = left4D(next_rect_box, queries[i]);
-                    break;
+				case RTLeftStrategyNumber:
+					flag = left4D(next_rect_box, queries[i]);
+					break;
 
-                case RTOverLeftStrategyNumber:
-                    flag = overLeft4D(next_rect_box, queries[i]);
-                    break;
+				case RTOverLeftStrategyNumber:
+					flag = overLeft4D(next_rect_box, queries[i]);
+					break;
 
-                case RTRightStrategyNumber:
-                    flag = right4D(next_rect_box, queries[i]);
-                    break;
+				case RTRightStrategyNumber:
+					flag = right4D(next_rect_box, queries[i]);
+					break;
 
-                case RTOverRightStrategyNumber:
-                    flag = overRight4D(next_rect_box, queries[i]);
-                    break;
+				case RTOverRightStrategyNumber:
+					flag = overRight4D(next_rect_box, queries[i]);
+					break;
 
-                case RTAboveStrategyNumber:
-                    flag = above4D(next_rect_box, queries[i]);
-                    break;
+				case RTAboveStrategyNumber:
+					flag = above4D(next_rect_box, queries[i]);
+					break;
 
-                case RTOverAboveStrategyNumber:
-                    flag = overAbove4D(next_rect_box, queries[i]);
-                    break;
+				case RTOverAboveStrategyNumber:
+					flag = overAbove4D(next_rect_box, queries[i]);
+					break;
 
-                case RTBelowStrategyNumber:
-                    flag = below4D(next_rect_box, queries[i]);
-                    break;
+				case RTBelowStrategyNumber:
+					flag = below4D(next_rect_box, queries[i]);
+					break;
 
-                case RTOverBelowStrategyNumber:
-                    flag = overBelow4D(next_rect_box, queries[i]);
-                    break;
+				case RTOverBelowStrategyNumber:
+					flag = overBelow4D(next_rect_box, queries[i]);
+					break;
 
-                default:
-                    elog(ERROR, "unrecognized strategy: %d", strategy);
-            }
+				default:
+					elog(ERROR, "unrecognized strategy: %d", strategy);
+			}
 
-            /* If any check is failed, we have found our answer. */
-            if (!flag)
-                break;
-        }
+			/* If any check is failed, we have found our answer. */
+			if (!flag)
+				break;
+		}
 
-        if (flag)
-        {
-            out->traversalValues[out->nNodes] = next_rect_box;
-            out->nodeNumbers[out->nNodes] = quadrant;
-            out->nNodes++;
-        }
-        else
-        {
-            /*
-             * If this node is not selected, we don't need to keep the next
-             * traversal value in the memory context.
-             */
-            pfree(next_rect_box);
-        }
-    }
+		if (flag)
+		{
+			out->traversalValues[out->nNodes] = next_rect_box;
+			out->nodeNumbers[out->nNodes] = quadrant;
+			out->nNodes++;
+		}
+		else
+		{
+			/*
+			 * If this node is not selected, we don't need to keep the next
+			 * traversal value in the memory context.
+			 */
+			pfree(next_rect_box);
+		}
+	}
 
-    /* Switch back */
-    MemoryContextSwitchTo(old_ctx);
+	/* Switch back */
+	MemoryContextSwitchTo(old_ctx);
 
-    PG_RETURN_VOID();
+	PG_RETURN_VOID();
 }
 
 /*
@@ -621,95 +621,95 @@ spg_box_quad_inner_consistent(PG_FUNCTION_ARGS)
  */
 Datum
 spg_box_quad_leaf_consistent(PG_FUNCTION_ARGS)
-{// #lizard forgives
-    spgLeafConsistentIn *in = (spgLeafConsistentIn *) PG_GETARG_POINTER(0);
-    spgLeafConsistentOut *out = (spgLeafConsistentOut *) PG_GETARG_POINTER(1);
-    Datum        leaf = in->leafDatum;
-    bool        flag = true;
-    int            i;
+{
+	spgLeafConsistentIn *in = (spgLeafConsistentIn *) PG_GETARG_POINTER(0);
+	spgLeafConsistentOut *out = (spgLeafConsistentOut *) PG_GETARG_POINTER(1);
+	Datum		leaf = in->leafDatum;
+	bool		flag = true;
+	int			i;
 
-    /* All tests are exact. */
-    out->recheck = false;
+	/* All tests are exact. */
+	out->recheck = false;
 
-    /* leafDatum is what it is... */
-    out->leafValue = in->leafDatum;
+	/* leafDatum is what it is... */
+	out->leafValue = in->leafDatum;
 
-    /* Perform the required comparison(s) */
-    for (i = 0; i < in->nkeys; i++)
-    {
-        StrategyNumber strategy = in->scankeys[i].sk_strategy;
-        Datum        query = in->scankeys[i].sk_argument;
+	/* Perform the required comparison(s) */
+	for (i = 0; i < in->nkeys; i++)
+	{
+		StrategyNumber strategy = in->scankeys[i].sk_strategy;
+		Datum		query = in->scankeys[i].sk_argument;
 
-        switch (strategy)
-        {
-            case RTOverlapStrategyNumber:
-                flag = DatumGetBool(DirectFunctionCall2(box_overlap, leaf,
-                                                        query));
-                break;
+		switch (strategy)
+		{
+			case RTOverlapStrategyNumber:
+				flag = DatumGetBool(DirectFunctionCall2(box_overlap, leaf,
+														query));
+				break;
 
-            case RTContainsStrategyNumber:
-                flag = DatumGetBool(DirectFunctionCall2(box_contain, leaf,
-                                                        query));
-                break;
+			case RTContainsStrategyNumber:
+				flag = DatumGetBool(DirectFunctionCall2(box_contain, leaf,
+														query));
+				break;
 
-            case RTContainedByStrategyNumber:
-                flag = DatumGetBool(DirectFunctionCall2(box_contained, leaf,
-                                                        query));
-                break;
+			case RTContainedByStrategyNumber:
+				flag = DatumGetBool(DirectFunctionCall2(box_contained, leaf,
+														query));
+				break;
 
-            case RTSameStrategyNumber:
-                flag = DatumGetBool(DirectFunctionCall2(box_same, leaf,
-                                                        query));
-                break;
+			case RTSameStrategyNumber:
+				flag = DatumGetBool(DirectFunctionCall2(box_same, leaf,
+														query));
+				break;
 
-            case RTLeftStrategyNumber:
-                flag = DatumGetBool(DirectFunctionCall2(box_left, leaf,
-                                                        query));
-                break;
+			case RTLeftStrategyNumber:
+				flag = DatumGetBool(DirectFunctionCall2(box_left, leaf,
+														query));
+				break;
 
-            case RTOverLeftStrategyNumber:
-                flag = DatumGetBool(DirectFunctionCall2(box_overleft, leaf,
-                                                        query));
-                break;
+			case RTOverLeftStrategyNumber:
+				flag = DatumGetBool(DirectFunctionCall2(box_overleft, leaf,
+														query));
+				break;
 
-            case RTRightStrategyNumber:
-                flag = DatumGetBool(DirectFunctionCall2(box_right, leaf,
-                                                        query));
-                break;
+			case RTRightStrategyNumber:
+				flag = DatumGetBool(DirectFunctionCall2(box_right, leaf,
+														query));
+				break;
 
-            case RTOverRightStrategyNumber:
-                flag = DatumGetBool(DirectFunctionCall2(box_overright, leaf,
-                                                        query));
-                break;
+			case RTOverRightStrategyNumber:
+				flag = DatumGetBool(DirectFunctionCall2(box_overright, leaf,
+														query));
+				break;
 
-            case RTAboveStrategyNumber:
-                flag = DatumGetBool(DirectFunctionCall2(box_above, leaf,
-                                                        query));
-                break;
+			case RTAboveStrategyNumber:
+				flag = DatumGetBool(DirectFunctionCall2(box_above, leaf,
+														query));
+				break;
 
-            case RTOverAboveStrategyNumber:
-                flag = DatumGetBool(DirectFunctionCall2(box_overabove, leaf,
-                                                        query));
-                break;
+			case RTOverAboveStrategyNumber:
+				flag = DatumGetBool(DirectFunctionCall2(box_overabove, leaf,
+														query));
+				break;
 
-            case RTBelowStrategyNumber:
-                flag = DatumGetBool(DirectFunctionCall2(box_below, leaf,
-                                                        query));
-                break;
+			case RTBelowStrategyNumber:
+				flag = DatumGetBool(DirectFunctionCall2(box_below, leaf,
+														query));
+				break;
 
-            case RTOverBelowStrategyNumber:
-                flag = DatumGetBool(DirectFunctionCall2(box_overbelow, leaf,
-                                                        query));
-                break;
+			case RTOverBelowStrategyNumber:
+				flag = DatumGetBool(DirectFunctionCall2(box_overbelow, leaf,
+														query));
+				break;
 
-            default:
-                elog(ERROR, "unrecognized strategy: %d", strategy);
-        }
+			default:
+				elog(ERROR, "unrecognized strategy: %d", strategy);
+		}
 
-        /* If any check is failed, we have found our answer. */
-        if (!flag)
-            break;
-    }
+		/* If any check is failed, we have found our answer. */
+		if (!flag)
+			break;
+	}
 
-    PG_RETURN_BOOL(flag);
+	PG_RETURN_BOOL(flag);
 }

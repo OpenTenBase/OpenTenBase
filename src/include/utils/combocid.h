@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * combocid.h
- *      Combo command ID support routines
+ *	  Combo command ID support routines
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -15,14 +15,8 @@
 #define COMBOCID_H
 
 /*
- * HeapTupleHeaderGetCmin and HeapTupleHeaderGetCmax function prototypes
- * are in access/htup.h, because that's where the macro definitions that
- * those functions replaced used to be.
+ *  NOTE: ComboCID no longer exists after storing cmax
+ *  into t_xmax_timestamp
  */
 
-extern void AtEOXact_ComboCid(void);
-extern void RestoreComboCIDState(char *comboCIDstate);
-extern void SerializeComboCIDState(Size maxsize, char *start_address);
-extern Size EstimateComboCIDStateSpace(void);
-
-#endif                            /* COMBOCID_H */
+#endif							/* COMBOCID_H */

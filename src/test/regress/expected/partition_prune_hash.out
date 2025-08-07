@@ -31,96 +31,60 @@ explain (costs off) select * from hp where a = 1;
 -------------------------------
  Remote Fast Query Execution
    Node/s: datanode_1
-   ->  Append
-         ->  Seq Scan on hp0
+   ->  PartIterator
+         ->  Seq Scan on hp
                Filter: (a = 1)
-         ->  Seq Scan on hp1
-               Filter: (a = 1)
-         ->  Seq Scan on hp2
-               Filter: (a = 1)
-         ->  Seq Scan on hp3
-               Filter: (a = 1)
-(11 rows)
+(5 rows)
 
 explain (costs off) select * from hp where b = 'xxx';
                QUERY PLAN                
 -----------------------------------------
  Remote Fast Query Execution
    Node/s: datanode_1, datanode_2
-   ->  Append
-         ->  Seq Scan on hp0
+   ->  PartIterator
+         ->  Seq Scan on hp
                Filter: (b = 'xxx'::text)
-         ->  Seq Scan on hp1
-               Filter: (b = 'xxx'::text)
-         ->  Seq Scan on hp2
-               Filter: (b = 'xxx'::text)
-         ->  Seq Scan on hp3
-               Filter: (b = 'xxx'::text)
-(11 rows)
+(5 rows)
 
 explain (costs off) select * from hp where a is null;
             QUERY PLAN             
 -----------------------------------
  Remote Fast Query Execution
    Node/s: datanode_1, datanode_2
-   ->  Append
-         ->  Seq Scan on hp0
+   ->  PartIterator
+         ->  Seq Scan on hp
                Filter: (a IS NULL)
-         ->  Seq Scan on hp1
-               Filter: (a IS NULL)
-         ->  Seq Scan on hp2
-               Filter: (a IS NULL)
-         ->  Seq Scan on hp3
-               Filter: (a IS NULL)
-(11 rows)
+(5 rows)
 
 explain (costs off) select * from hp where b is null;
             QUERY PLAN             
 -----------------------------------
  Remote Fast Query Execution
    Node/s: datanode_1, datanode_2
-   ->  Append
-         ->  Seq Scan on hp0
+   ->  PartIterator
+         ->  Seq Scan on hp
                Filter: (b IS NULL)
-         ->  Seq Scan on hp1
-               Filter: (b IS NULL)
-         ->  Seq Scan on hp2
-               Filter: (b IS NULL)
-         ->  Seq Scan on hp3
-               Filter: (b IS NULL)
-(11 rows)
+(5 rows)
 
 explain (costs off) select * from hp where a < 1 and b = 'xxx';
                       QUERY PLAN                       
 -------------------------------------------------------
  Remote Fast Query Execution
    Node/s: datanode_1, datanode_2
-   ->  Append
-         ->  Seq Scan on hp0
+   ->  PartIterator
+         ->  Seq Scan on hp
                Filter: ((a < 1) AND (b = 'xxx'::text))
-         ->  Seq Scan on hp1
-               Filter: ((a < 1) AND (b = 'xxx'::text))
-         ->  Seq Scan on hp2
-               Filter: ((a < 1) AND (b = 'xxx'::text))
-         ->  Seq Scan on hp3
-               Filter: ((a < 1) AND (b = 'xxx'::text))
-(11 rows)
+(5 rows)
 
 explain (costs off) select * from hp where a <> 1 and b = 'yyy';
                        QUERY PLAN                       
 --------------------------------------------------------
  Remote Fast Query Execution
    Node/s: datanode_1, datanode_2
-   ->  Append
-         ->  Seq Scan on hp0
+   ->  PartIterator
+         ->  Seq Scan on hp
                Filter: ((a <> 1) AND (b = 'yyy'::text))
-         ->  Seq Scan on hp1
-               Filter: ((a <> 1) AND (b = 'yyy'::text))
-         ->  Seq Scan on hp2
-               Filter: ((a <> 1) AND (b = 'yyy'::text))
-         ->  Seq Scan on hp3
-               Filter: ((a <> 1) AND (b = 'yyy'::text))
-(11 rows)
+(5 rows)
 
 -- pruning should work if non-null values are provided for all the keys
 explain (costs off) select * from hp where a is null and b is null;
@@ -128,8 +92,8 @@ explain (costs off) select * from hp where a is null and b is null;
 -----------------------------------------------------
  Remote Fast Query Execution
    Node/s: datanode_1, datanode_2
-   ->  Append
-         ->  Seq Scan on hp0
+   ->  PartIterator
+         ->  Seq Scan on hp
                Filter: ((a IS NULL) AND (b IS NULL))
 (5 rows)
 
@@ -138,8 +102,8 @@ explain (costs off) select * from hp where a = 1 and b is null;
 -------------------------------------------------
  Remote Fast Query Execution
    Node/s: datanode_1
-   ->  Append
-         ->  Seq Scan on hp0
+   ->  PartIterator
+         ->  Seq Scan on hp
                Filter: ((b IS NULL) AND (a = 1))
 (5 rows)
 
@@ -148,8 +112,8 @@ explain (costs off) select * from hp where a = 1 and b = 'xxx';
 -------------------------------------------------------
  Remote Fast Query Execution
    Node/s: datanode_1
-   ->  Append
-         ->  Seq Scan on hp0
+   ->  PartIterator
+         ->  Seq Scan on hp
                Filter: ((a = 1) AND (b = 'xxx'::text))
 (5 rows)
 
@@ -158,8 +122,8 @@ explain (costs off) select * from hp where a is null and b = 'xxx';
 -----------------------------------------------------------
  Remote Fast Query Execution
    Node/s: datanode_1, datanode_2
-   ->  Append
-         ->  Seq Scan on hp1
+   ->  PartIterator
+         ->  Seq Scan on hp
                Filter: ((a IS NULL) AND (b = 'xxx'::text))
 (5 rows)
 
@@ -168,8 +132,8 @@ explain (costs off) select * from hp where a = 10 and b = 'xxx';
 --------------------------------------------------------
  Remote Fast Query Execution
    Node/s: datanode_2
-   ->  Append
-         ->  Seq Scan on hp2
+   ->  PartIterator
+         ->  Seq Scan on hp
                Filter: ((a = 10) AND (b = 'xxx'::text))
 (5 rows)
 
@@ -178,8 +142,8 @@ explain (costs off) select * from hp where a = 10 and b = 'yyy';
 --------------------------------------------------------
  Remote Fast Query Execution
    Node/s: datanode_2
-   ->  Append
-         ->  Seq Scan on hp3
+   ->  PartIterator
+         ->  Seq Scan on hp
                Filter: ((a = 10) AND (b = 'yyy'::text))
 (5 rows)
 
@@ -188,14 +152,10 @@ explain (costs off) select * from hp where (a = 10 and b = 'yyy') or (a = 10 and
 -------------------------------------------------------------------------------------------------------------------------------
  Remote Fast Query Execution
    Node/s: datanode_1, datanode_2
-   ->  Append
-         ->  Seq Scan on hp0
+   ->  PartIterator
+         ->  Seq Scan on hp
                Filter: (((a = 10) AND (b = 'yyy'::text)) OR ((a = 10) AND (b = 'xxx'::text)) OR ((a IS NULL) AND (b IS NULL)))
-         ->  Seq Scan on hp2
-               Filter: (((a = 10) AND (b = 'yyy'::text)) OR ((a = 10) AND (b = 'xxx'::text)) OR ((a IS NULL) AND (b IS NULL)))
-         ->  Seq Scan on hp3
-               Filter: (((a = 10) AND (b = 'yyy'::text)) OR ((a = 10) AND (b = 'xxx'::text)) OR ((a IS NULL) AND (b IS NULL)))
-(9 rows)
+(5 rows)
 
 -- hash partitiong pruning doesn't occur with <> operator clauses
 explain (costs off) select * from hp where a <> 1 and b <> 'xxx';
@@ -203,15 +163,9 @@ explain (costs off) select * from hp where a <> 1 and b <> 'xxx';
 ---------------------------------------------------------
  Remote Fast Query Execution
    Node/s: datanode_1, datanode_2
-   ->  Append
-         ->  Seq Scan on hp0
+   ->  PartIterator
+         ->  Seq Scan on hp
                Filter: ((a <> 1) AND (b <> 'xxx'::text))
-         ->  Seq Scan on hp1
-               Filter: ((a <> 1) AND (b <> 'xxx'::text))
-         ->  Seq Scan on hp2
-               Filter: ((a <> 1) AND (b <> 'xxx'::text))
-         ->  Seq Scan on hp3
-               Filter: ((a <> 1) AND (b <> 'xxx'::text))
-(11 rows)
+(5 rows)
 
 drop table hp;

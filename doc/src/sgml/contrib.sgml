@@ -133,6 +133,7 @@ CREATE EXTENSION <replaceable>module_name</> FROM unpackaged;
  &pgrowlocks;
  &pgstatstatements;
  &pgstattuple;
+ &pgsurgery;
  &pgtrgm;
  &pgxcclean;
  &pgxcctl;

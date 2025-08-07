@@ -191,7 +191,7 @@
       what I expected.</quote>, we might run it ourselves, scan the output, and
       think it looks OK and is exactly what we expected. We should not have to
       spend the time to decode the exact semantics behind your commands.
-      Especially refrain from merely saying that <quote>This is not what SQL says/Oracle
+      Especially refrain from merely saying that <quote>This is not what SQL says/OpenTenBase_Ora
       does.</quote> Digging out the correct behavior from <acronym>SQL</acronym>
       is not a fun undertaking, nor do we all know how all the other relational
       databases out there behave. (If your problem is a program crash, you can

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * matview.h
- *      prototypes for matview.c.
+ *	  prototypes for matview.c.
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -24,10 +24,10 @@
 extern void SetMatViewPopulatedState(Relation relation, bool newstate);
 
 extern ObjectAddress ExecRefreshMatView(RefreshMatViewStmt *stmt, const char *queryString,
-                   ParamListInfo params, char *completionTag);
+				   ParamListInfo params, char *completionTag);
 
 extern DestReceiver *CreateTransientRelDestReceiver(Oid oid);
 
 extern bool MatViewIncrementalMaintenanceIsEnabled(void);
 
-#endif                            /* MATVIEW_H */
+#endif							/* MATVIEW_H */

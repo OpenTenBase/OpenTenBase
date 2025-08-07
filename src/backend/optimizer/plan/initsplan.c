@@ -1,16 +1,14 @@
 /*-------------------------------------------------------------------------
  *
  * initsplan.c
- *      Target list, qualification, joininfo initialization routines
+ *	  Target list, qualification, joininfo initialization routines
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  * IDENTIFICATION
- *      src/backend/optimizer/plan/initsplan.c
+ *	  src/backend/optimizer/plan/initsplan.c
  *
  *-------------------------------------------------------------------------
  */
@@ -21,6 +19,7 @@
 #include "nodes/nodeFuncs.h"
 #include "optimizer/clauses.h"
 #include "optimizer/cost.h"
+#include "optimizer/inherit.h"
 #include "optimizer/joininfo.h"
 #include "optimizer/pathnode.h"
 #include "optimizer/paths.h"
@@ -36,120 +35,146 @@
 
 
 /* These parameters are set by GUC */
-int            from_collapse_limit;
-int            join_collapse_limit;
-
+int			from_collapse_limit;
+int			join_collapse_limit;
 
 /* Elements of the postponed_qual_list used during deconstruct_recurse */
 typedef struct PostponedQual
 {
-    Node       *qual;            /* a qual clause waiting to be processed */
-    Relids        relids;            /* the set of baserels it references */
+	Node	   *qual;			/* a qual clause waiting to be processed */
+	Relids		relids;			/* the set of baserels it references */
 } PostponedQual;
 
 
 static void extract_lateral_references(PlannerInfo *root, RelOptInfo *brel,
-                           Index rtindex);
+						   Index rtindex);
 static List *deconstruct_recurse(PlannerInfo *root, Node *jtnode,
-                    bool below_outer_join,
-                    Relids *qualscope, Relids *inner_join_rels,
-                    List **postponed_qual_list);
-static void process_security_barrier_quals(PlannerInfo *root,
-                               int rti, Relids qualscope,
-                               bool below_outer_join);
+					bool below_outer_join, bool below_semi_join,
+					Relids *qualscope, Relids *inner_join_rels,
+					List **postponed_qual_list);
+static void process_security_barrier_quals(PlannerInfo *root, int rti, Relids qualscope,
+                                                       bool below_outer_join, bool below_semi_join);
 static SpecialJoinInfo *make_outerjoininfo(PlannerInfo *root,
-                   Relids left_rels, Relids right_rels,
-                   Relids inner_join_rels,
-                   JoinType jointype, List *clause);
+				   Relids left_rels, Relids right_rels,
+				   Relids inner_join_rels,
+				   JoinType jointype, List *clause);
 static void compute_semijoin_info(SpecialJoinInfo *sjinfo, List *clause);
-static void distribute_qual_to_rels(PlannerInfo *root, Node *clause,
-                        bool is_deduced,
-                        bool below_outer_join,
-                        JoinType jointype,
-                        Index security_level,
-                        Relids qualscope,
-                        Relids ojscope,
-                        Relids outerjoin_nonnullable,
-                        Relids deduced_nullable_relids,
-                        List **postponed_qual_list);
+static void distribute_qual_to_rels(PlannerInfo *root, Node *clause, bool is_deduced,
+                                                bool below_outer_join, bool below_semi_join, JoinType jointype,
+                                                Index security_level, Relids qualscope, Relids ojscope,
+                                                Relids outerjoin_nonnullable, Relids deduced_nullable_relids,
+                                                List **postponed_qual_list);
 static bool check_outerjoin_delay(PlannerInfo *root, Relids *relids_p,
-                      Relids *nullable_relids_p, bool is_pushed_down);
+					  Relids *nullable_relids_p, bool is_pushed_down);
 static bool check_equivalence_delay(PlannerInfo *root,
-                        RestrictInfo *restrictinfo);
+						RestrictInfo *restrictinfo);
 static bool check_redundant_nullability_qual(PlannerInfo *root, Node *clause);
 static void check_mergejoinable(RestrictInfo *restrictinfo);
 static void check_hashjoinable(RestrictInfo *restrictinfo);
 #ifdef _MLS_
-static void mls_process_cls_quals(PlannerInfo *root,
-                               int rti, Relids qualscope,
-                               bool below_outer_join,
-                               List **postponed_qual_list);
+static void mls_process_cls_quals(PlannerInfo *root, int rti, Relids qualscope,
+                                  bool below_outer_join, bool below_semi_join,
+                                  List **postponed_qual_list);
 #endif
 
 /*****************************************************************************
  *
- *     JOIN TREES
+ *	 JOIN TREES
  *
  *****************************************************************************/
 
 /*
  * add_base_rels_to_query
  *
- *      Scan the query's jointree and create baserel RelOptInfos for all
- *      the base relations (ie, table, subquery, and function RTEs)
- *      appearing in the jointree.
+ *	  Scan the query's jointree and create baserel RelOptInfos for all
+ *	  the base relations (e.g., table, subquery, and function RTEs)
+ *	  appearing in the jointree.
  *
  * The initial invocation must pass root->parse->jointree as the value of
  * jtnode.  Internally, the function recurses through the jointree.
  *
  * At the end of this process, there should be one baserel RelOptInfo for
- * every non-join RTE that is used in the query.  Therefore, this routine
- * is the only place that should call build_simple_rel with reloptkind
- * RELOPT_BASEREL.  (Note: build_simple_rel recurses internally to build
- * "other rel" RelOptInfos for the members of any appendrels we find here.)
+ * every non-join RTE that is used in the query.  Some of the baserels
+ * may be appendrel parents, which will require additional "otherrel"
+ * RelOptInfos for their member rels, but those are added later.
  */
 void
 add_base_rels_to_query(PlannerInfo *root, Node *jtnode)
 {
-    if (jtnode == NULL)
-        return;
-    if (IsA(jtnode, RangeTblRef))
-    {
-        int            varno = ((RangeTblRef *) jtnode)->rtindex;
+	if (jtnode == NULL)
+		return;
+	if (IsA(jtnode, RangeTblRef))
+	{
+		int			varno = ((RangeTblRef *) jtnode)->rtindex;
 
-        (void) build_simple_rel(root, varno, NULL);
-    }
-    else if (IsA(jtnode, FromExpr))
-    {
-        FromExpr   *f = (FromExpr *) jtnode;
-        ListCell   *l;
+		(void) build_simple_rel(root, varno, NULL);
+	}
+	else if (IsA(jtnode, FromExpr))
+	{
+		FromExpr   *f = (FromExpr *) jtnode;
+		ListCell   *l;
 
-        foreach(l, f->fromlist)
-            add_base_rels_to_query(root, lfirst(l));
-    }
-    else if (IsA(jtnode, JoinExpr))
-    {
-        JoinExpr   *j = (JoinExpr *) jtnode;
+		foreach(l, f->fromlist)
+			add_base_rels_to_query(root, lfirst(l));
+	}
+	else if (IsA(jtnode, JoinExpr))
+	{
+		JoinExpr   *j = (JoinExpr *) jtnode;
 
-        add_base_rels_to_query(root, j->larg);
-        add_base_rels_to_query(root, j->rarg);
-    }
-    else
-        elog(ERROR, "unrecognized node type: %d",
-             (int) nodeTag(jtnode));
+		add_base_rels_to_query(root, j->larg);
+		add_base_rels_to_query(root, j->rarg);
+	}
+	else
+		elog(ERROR, "unrecognized node type: %d",
+			 (int) nodeTag(jtnode));
 }
 
+/*
+ * add_other_rels_to_query
+ * create "otherrel" RelOptInfos for the children of appendrel baserels
+ *
+ * At the end of this process, there should be RelOptInfos for all relations
+ * that will be scanned by the query.
+ */
+void
+add_other_rels_to_query(PlannerInfo *root)
+{
+	int	rti;
+	bool isMergeResultRel = false;
+	RelOptInfo *rel = NULL;
+	RangeTblEntry *rte = NULL;
+
+	for (rti = 1; rti < root->simple_rel_array_size; rti++)
+	{
+		rel = root->simple_rel_array[rti];
+		rte = root->simple_rte_array[rti];
+
+		/* there may be empty slots corresponding to non-baserel RTEs */
+		if (rel == NULL)
+			continue;
+
+		isMergeResultRel = (root->parse->commandType == CMD_MERGE && rel->relid == root->parse->resultRelation);
+
+		/* Ignore any "otherrels" that were already added. */
+		if (rel->reloptkind != RELOPT_BASEREL)
+			continue;
+
+		/* If it's marked as inheritable, look for children. */
+		if (rte->inh || isMergeResultRel)
+			expand_inherited_rtentry(root, rel, rte, rti);
+	}
+}
 
 /*****************************************************************************
  *
- *     TARGET LISTS
+ *	 TARGET LISTS
  *
  *****************************************************************************/
 
 /*
  * build_base_rel_tlists
- *      Add targetlist entries for each var needed in the query's final tlist
- *      (and HAVING clause, if any) to the appropriate base relations.
+ *	  Add targetlist entries for each var needed in the query's final tlist
+ *	  (and HAVING clause, if any) to the appropriate base relations.
  *
  * We mark such vars as needed by "relation 0" to ensure that they will
  * propagate up through all join plan steps.
@@ -157,109 +182,162 @@ add_base_rels_to_query(PlannerInfo *root, Node *jtnode)
 void
 build_base_rel_tlists(PlannerInfo *root, List *final_tlist)
 {
-    List       *tlist_vars = pull_var_clause((Node *) final_tlist,
-                                             PVC_RECURSE_AGGREGATES |
-                                             PVC_RECURSE_WINDOWFUNCS |
-                                             PVC_INCLUDE_PLACEHOLDERS);
+	List	   *tlist_vars = pull_var_clause((Node *) final_tlist,
+											 PVC_RECURSE_AGGREGATES |
+											 PVC_RECURSE_WINDOWFUNCS |
+											 PVC_INCLUDE_PLACEHOLDERS);
 
-    if (tlist_vars != NIL)
-    {
-        add_vars_to_targetlist(root, tlist_vars, bms_make_singleton(0), true);
-        list_free(tlist_vars);
-    }
+	if (tlist_vars != NIL)
+	{
+		add_vars_to_targetlist(root, tlist_vars, bms_make_singleton(0), true);
+		list_free(tlist_vars);
+	}
 
-    /*
-     * If there's a HAVING clause, we'll need the Vars it uses, too.  Note
-     * that HAVING can contain Aggrefs but not WindowFuncs.
-     */
-    if (root->parse->havingQual)
-    {
-        List       *having_vars = pull_var_clause(root->parse->havingQual,
-                                                  PVC_RECURSE_AGGREGATES |
-                                                  PVC_INCLUDE_PLACEHOLDERS);
+	/*
+	 * If there's a HAVING clause, we'll need the Vars it uses, too.  Note
+	 * that HAVING can contain Aggrefs but not WindowFuncs.
+	 */
+	if (root->parse->havingQual)
+	{
+		List	   *having_vars = pull_var_clause(root->parse->havingQual,
+												  PVC_RECURSE_AGGREGATES |
+												  PVC_INCLUDE_PLACEHOLDERS);
 
-        if (having_vars != NIL)
-        {
-            add_vars_to_targetlist(root, having_vars,
-                                   bms_make_singleton(0), true);
-            list_free(having_vars);
-        }
-    }
+		if (having_vars != NIL)
+		{
+			add_vars_to_targetlist(root, having_vars,
+								   bms_make_singleton(0), true);
+			list_free(having_vars);
+		}
+	}
+
+	/* vars inside prior expr must distribute to baserels */
+	if (root->prior_exprs)
+	{
+		List *prior_vars = pull_var_clause((Node *) root->prior_exprs,
+										   PVC_RECURSE_AGGREGATES |
+										   PVC_RECURSE_WINDOWFUNCS |
+										   PVC_INCLUDE_PLACEHOLDERS);
+
+		if (prior_vars != NIL)
+		{
+			add_vars_to_targetlist(root, prior_vars,
+								   bms_make_singleton(0), true);
+			list_free(prior_vars);
+		}
+	}
+
+	/* vars inside connect by start with expr must distribute to baserels */
+	if (root->parse->connectByExpr && root->parse->connectByExpr->start)
+	{
+		List *start_with_vars = pull_var_clause((Node *) root->parse->connectByExpr->start,
+												PVC_RECURSE_AGGREGATES |
+												PVC_RECURSE_WINDOWFUNCS |
+												PVC_INCLUDE_PLACEHOLDERS);
+
+		if (start_with_vars != NIL)
+		{
+			add_vars_to_targetlist(root, start_with_vars,
+								   bms_make_singleton(0), true);
+			list_free(start_with_vars);
+		}
+	}
+
+	/*
+	 * We still add vars in other qual here, this is somehow redundant for
+	 * normal table. But for partition table, since whole other qual will only
+	 * apply to Append node, NOT pushing down to Scan node bellow. It's
+	 * necessary to distribute needed vars into baserels here.
+	 */
+	if (root->other_qual)
+	{
+		List *other_qual_vars = pull_var_clause((Node *) root->other_qual,
+												PVC_RECURSE_AGGREGATES |
+												PVC_RECURSE_WINDOWFUNCS |
+												PVC_INCLUDE_PLACEHOLDERS);
+
+		if (other_qual_vars != NIL)
+		{
+			add_vars_to_targetlist(root, other_qual_vars,
+								   bms_make_singleton(0), true);
+			list_free(other_qual_vars);
+		}
+	}
 }
 
 /*
  * add_vars_to_targetlist
- *      For each variable appearing in the list, add it to the owning
- *      relation's targetlist if not already present, and mark the variable
- *      as being needed for the indicated join (or for final output if
- *      where_needed includes "relation 0").
+ *	  For each variable appearing in the list, add it to the owning
+ *	  relation's targetlist if not already present, and mark the variable
+ *	  as being needed for the indicated join (or for final output if
+ *	  where_needed includes "relation 0").
  *
- *      The list may also contain PlaceHolderVars.  These don't necessarily
- *      have a single owning relation; we keep their attr_needed info in
- *      root->placeholder_list instead.  If create_new_ph is true, it's OK
- *      to create new PlaceHolderInfos; otherwise, the PlaceHolderInfos must
- *      already exist, and we should only update their ph_needed.  (This should
- *      be true before deconstruct_jointree begins, and false after that.)
+ *	  The list may also contain PlaceHolderVars.  These don't necessarily
+ *	  have a single owning relation; we keep their attr_needed info in
+ *	  root->placeholder_list instead.  If create_new_ph is true, it's OK
+ *	  to create new PlaceHolderInfos; otherwise, the PlaceHolderInfos must
+ *	  already exist, and we should only update their ph_needed.  (This should
+ *	  be true before deconstruct_jointree begins, and false after that.)
  */
 void
 add_vars_to_targetlist(PlannerInfo *root, List *vars,
-                       Relids where_needed, bool create_new_ph)
+					   Relids where_needed, bool create_new_ph)
 {
-    ListCell   *temp;
+	ListCell   *temp;
 
-    Assert(!bms_is_empty(where_needed));
+	Assert(!bms_is_empty(where_needed));
 
-    foreach(temp, vars)
-    {
-        Node       *node = (Node *) lfirst(temp);
+	foreach(temp, vars)
+	{
+		Node	   *node = (Node *) lfirst(temp);
 
-        if (IsA(node, Var))
-        {
-            Var           *var = (Var *) node;
-            RelOptInfo *rel = find_base_rel(root, var->varno);
-            int            attno = var->varattno;
+		if (IsA(node, Var))
+		{
+			Var		   *var = (Var *) node;
+			RelOptInfo *rel = find_base_rel(root, var->varno);
+			int			attno = var->varattno;
 
-            if (bms_is_subset(where_needed, rel->relids))
-                continue;
-            Assert(attno >= rel->min_attr && attno <= rel->max_attr);
-            attno -= rel->min_attr;
-            if (rel->attr_needed[attno] == NULL)
-            {
-                /* Variable not yet requested, so add to rel's targetlist */
-                /* XXX is copyObject necessary here? */
-                rel->reltarget->exprs = lappend(rel->reltarget->exprs,
-                                                copyObject(var));
-                /* reltarget cost and width will be computed later */
-            }
-            rel->attr_needed[attno] = bms_add_members(rel->attr_needed[attno],
-                                                      where_needed);
-        }
-        else if (IsA(node, PlaceHolderVar))
-        {
-            PlaceHolderVar *phv = (PlaceHolderVar *) node;
-            PlaceHolderInfo *phinfo = find_placeholder_info(root, phv,
-                                                            create_new_ph);
+			if (bms_is_subset(where_needed, rel->relids))
+				continue;
+			Assert(attno >= rel->min_attr && attno <= rel->max_attr);
+			attno -= rel->min_attr;
+			if (rel->attr_needed[attno] == NULL)
+			{
+				/* Variable not yet requested, so add to rel's targetlist */
+				/* XXX is copyObject necessary here? */
+				rel->reltarget->exprs = lappend(rel->reltarget->exprs,
+												copyObject(var));
+				/* reltarget cost and width will be computed later */
+			}
+			rel->attr_needed[attno] = bms_add_members(rel->attr_needed[attno],
+													  where_needed);
+		}
+		else if (IsA(node, PlaceHolderVar))
+		{
+			PlaceHolderVar *phv = (PlaceHolderVar *) node;
+			PlaceHolderInfo *phinfo = find_placeholder_info(root, phv,
+															create_new_ph);
 
-            phinfo->ph_needed = bms_add_members(phinfo->ph_needed,
-                                                where_needed);
-        }
-        else
-            elog(ERROR, "unrecognized node type: %d", (int) nodeTag(node));
-    }
+			phinfo->ph_needed = bms_add_members(phinfo->ph_needed,
+												where_needed);
+		}
+		else
+			elog(ERROR, "unrecognized node type: %d", (int) nodeTag(node));
+	}
 }
 
 
 /*****************************************************************************
  *
- *      LATERAL REFERENCES
+ *	  LATERAL REFERENCES
  *
  *****************************************************************************/
 
 /*
  * find_lateral_references
- *      For each LATERAL subquery, extract all its references to Vars and
- *      PlaceHolderVars of the current query level, and make sure those values
- *      will be available for evaluation of the subquery.
+ *	  For each LATERAL subquery, extract all its references to Vars and
+ *	  PlaceHolderVars of the current query level, and make sure those values
+ *	  will be available for evaluation of the subquery.
  *
  * While later planning steps ensure that the Var/PHV source rels are on the
  * outside of nestloops relative to the LATERAL subquery, we also need to
@@ -278,423 +356,368 @@ add_vars_to_targetlist(PlannerInfo *root, List *vars,
 void
 find_lateral_references(PlannerInfo *root)
 {
-    Index        rti;
+	Index		rti;
 
-    /* We need do nothing if the query contains no LATERAL RTEs */
-    if (!root->hasLateralRTEs)
-        return;
+	/* We need do nothing if the query contains no LATERAL RTEs */
+	if (!root->hasLateralRTEs)
+		return;
 
-    /*
-     * Examine all baserels (the rel array has been set up by now).
-     */
-    for (rti = 1; rti < root->simple_rel_array_size; rti++)
-    {
-        RelOptInfo *brel = root->simple_rel_array[rti];
+	/*
+	 * Examine all baserels (the rel array has been set up by now).
+	 */
+	for (rti = 1; rti < root->simple_rel_array_size; rti++)
+	{
+		RelOptInfo *brel = root->simple_rel_array[rti];
 
-        /* there may be empty slots corresponding to non-baserel RTEs */
-        if (brel == NULL)
-            continue;
+		/* there may be empty slots corresponding to non-baserel RTEs */
+		if (brel == NULL)
+			continue;
 
-        Assert(brel->relid == rti); /* sanity check on array */
+		Assert(brel->relid == rti); /* sanity check on array */
 
-        /*
-         * This bit is less obvious than it might look.  We ignore appendrel
-         * otherrels and consider only their parent baserels.  In a case where
-         * a LATERAL-containing UNION ALL subquery was pulled up, it is the
-         * otherrel that is actually going to be in the plan.  However, we
-         * want to mark all its lateral references as needed by the parent,
-         * because it is the parent's relid that will be used for join
-         * planning purposes.  And the parent's RTE will contain all the
-         * lateral references we need to know, since the pulled-up member is
-         * nothing but a copy of parts of the original RTE's subquery.  We
-         * could visit the parent's children instead and transform their
-         * references back to the parent's relid, but it would be much more
-         * complicated for no real gain.  (Important here is that the child
-         * members have not yet received any processing beyond being pulled
-         * up.)  Similarly, in appendrels created by inheritance expansion,
-         * it's sufficient to look at the parent relation.
-         */
+		/*
+		 * This bit is less obvious than it might look.  We ignore appendrel
+		 * otherrels and consider only their parent baserels.  In a case where
+		 * a LATERAL-containing UNION ALL subquery was pulled up, it is the
+		 * otherrel that is actually going to be in the plan.  However, we
+		 * want to mark all its lateral references as needed by the parent,
+		 * because it is the parent's relid that will be used for join
+		 * planning purposes.  And the parent's RTE will contain all the
+		 * lateral references we need to know, since the pulled-up member is
+		 * nothing but a copy of parts of the original RTE's subquery.  We
+		 * could visit the parent's children instead and transform their
+		 * references back to the parent's relid, but it would be much more
+		 * complicated for no real gain.  (Important here is that the child
+		 * members have not yet received any processing beyond being pulled
+		 * up.)  Similarly, in appendrels created by inheritance expansion,
+		 * it's sufficient to look at the parent relation.
+		 */
 
-        /* ignore RTEs that are "other rels" */
-        if (brel->reloptkind != RELOPT_BASEREL)
-            continue;
+		/* ignore RTEs that are "other rels" */
+		if (brel->reloptkind != RELOPT_BASEREL)
+			continue;
 
-        extract_lateral_references(root, brel, rti);
-    }
+		extract_lateral_references(root, brel, rti);
+	}
 }
 
 static void
 extract_lateral_references(PlannerInfo *root, RelOptInfo *brel, Index rtindex)
-{// #lizard forgives
-    RangeTblEntry *rte = root->simple_rte_array[rtindex];
-    List       *vars;
-    List       *newvars;
-    Relids        where_needed;
-    ListCell   *lc;
+{
+	RangeTblEntry *rte = root->simple_rte_array[rtindex];
+	List	   *vars;
+	List	   *newvars;
+	Relids		where_needed;
+	ListCell   *lc;
 
-    /* No cross-references are possible if it's not LATERAL */
-    if (!rte->lateral)
-        return;
+	/* No cross-references are possible if it's not LATERAL */
+	if (!rte->lateral)
+		return;
 
-    /* Fetch the appropriate variables */
-    if (rte->rtekind == RTE_RELATION)
-        vars = pull_vars_of_level((Node *) rte->tablesample, 0);
-    else if (rte->rtekind == RTE_SUBQUERY)
-        vars = pull_vars_of_level((Node *) rte->subquery, 1);
-    else if (rte->rtekind == RTE_FUNCTION)
-        vars = pull_vars_of_level((Node *) rte->functions, 0);
-    else if (rte->rtekind == RTE_TABLEFUNC)
-        vars = pull_vars_of_level((Node *) rte->tablefunc, 0);
-    else if (rte->rtekind == RTE_VALUES)
-        vars = pull_vars_of_level((Node *) rte->values_lists, 0);
-    else
-    {
-        Assert(false);
-        return;                    /* keep compiler quiet */
-    }
+	/* Fetch the appropriate variables */
+	if (rte->rtekind == RTE_RELATION)
+		vars = pull_vars_of_level((Node *) rte->tablesample, 0);
+	else if (rte->rtekind == RTE_SUBQUERY)
+		vars = pull_vars_of_level((Node *) rte->subquery, 1);
+	else if (rte->rtekind == RTE_FUNCTION)
+		vars = pull_vars_of_level((Node *) rte->functions, 0);
+	else if (rte->rtekind == RTE_TABLEFUNC)
+		vars = pull_vars_of_level((Node *) rte->tablefunc, 0);
+	else if (rte->rtekind == RTE_VALUES)
+		vars = pull_vars_of_level((Node *) rte->values_lists, 0);
+	else
+	{
+		Assert(false);
+		return;					/* keep compiler quiet */
+	}
 
-    if (vars == NIL)
-        return;                    /* nothing to do */
+	if (vars == NIL)
+		return;					/* nothing to do */
 
-    /* Copy each Var (or PlaceHolderVar) and adjust it to match our level */
-    newvars = NIL;
-    foreach(lc, vars)
-    {
-        Node       *node = (Node *) lfirst(lc);
+	/* Copy each Var (or PlaceHolderVar) and adjust it to match our level */
+	newvars = NIL;
+	foreach(lc, vars)
+	{
+		Node	   *node = (Node *) lfirst(lc);
 
-        node = copyObject(node);
-        if (IsA(node, Var))
-        {
-            Var           *var = (Var *) node;
+		node = copyObject(node);
+		if (IsA(node, Var))
+		{
+			Var		   *var = (Var *) node;
 
-            /* Adjustment is easy since it's just one node */
-            var->varlevelsup = 0;
-        }
-        else if (IsA(node, PlaceHolderVar))
-        {
-            PlaceHolderVar *phv = (PlaceHolderVar *) node;
-            int            levelsup = phv->phlevelsup;
+			/* Adjustment is easy since it's just one node */
+			var->varlevelsup = 0;
+		}
+		else if (IsA(node, PlaceHolderVar))
+		{
+			PlaceHolderVar *phv = (PlaceHolderVar *) node;
+			int			levelsup = phv->phlevelsup;
 
-            /* Have to work harder to adjust the contained expression too */
-            if (levelsup != 0)
-                IncrementVarSublevelsUp(node, -levelsup, 0);
+			/* Have to work harder to adjust the contained expression too */
+			if (levelsup != 0)
+				IncrementVarSublevelsUp(node, -levelsup, 0);
 
-            /*
-             * If we pulled the PHV out of a subquery RTE, its expression
-             * needs to be preprocessed.  subquery_planner() already did this
-             * for level-zero PHVs in function and values RTEs, though.
-             */
-            if (levelsup > 0)
-                phv->phexpr = preprocess_phv_expression(root, phv->phexpr);
-        }
-        else
-            Assert(false);
-        newvars = lappend(newvars, node);
-    }
+			/*
+			 * If we pulled the PHV out of a subquery RTE, its expression
+			 * needs to be preprocessed.  subquery_planner() already did this
+			 * for level-zero PHVs in function and values RTEs, though.
+			 */
+			if (levelsup > 0)
+				phv->phexpr = preprocess_phv_expression(root, phv->phexpr);
+		}
+		else
+			Assert(false);
+		newvars = lappend(newvars, node);
+	}
 
-    list_free(vars);
+	list_free(vars);
 
-    /*
-     * We mark the Vars as being "needed" at the LATERAL RTE.  This is a bit
-     * of a cheat: a more formal approach would be to mark each one as needed
-     * at the join of the LATERAL RTE with its source RTE.  But it will work,
-     * and it's much less tedious than computing a separate where_needed for
-     * each Var.
-     */
-    where_needed = bms_make_singleton(rtindex);
+	/*
+	 * We mark the Vars as being "needed" at the LATERAL RTE.  This is a bit
+	 * of a cheat: a more formal approach would be to mark each one as needed
+	 * at the join of the LATERAL RTE with its source RTE.  But it will work,
+	 * and it's much less tedious than computing a separate where_needed for
+	 * each Var.
+	 */
+	where_needed = bms_make_singleton(rtindex);
 
-    /*
-     * Push Vars into their source relations' targetlists, and PHVs into
-     * root->placeholder_list.
-     */
-    add_vars_to_targetlist(root, newvars, where_needed, true);
+	/*
+	 * Push Vars into their source relations' targetlists, and PHVs into
+	 * root->placeholder_list.
+	 */
+	add_vars_to_targetlist(root, newvars, where_needed, true);
 
-    /* Remember the lateral references for create_lateral_join_info */
-    brel->lateral_vars = newvars;
+	/* Remember the lateral references for create_lateral_join_info */
+	brel->lateral_vars = newvars;
 }
 
 /*
  * create_lateral_join_info
- *      Fill in the per-base-relation direct_lateral_relids, lateral_relids
- *      and lateral_referencers sets.
+ *	  Fill in the per-base-relation direct_lateral_relids, lateral_relids
+ *	  and lateral_referencers sets.
  *
  * This has to run after deconstruct_jointree, because we need to know the
  * final ph_eval_at values for PlaceHolderVars.
  */
 void
 create_lateral_join_info(PlannerInfo *root)
-{// #lizard forgives
-    bool        found_laterals = false;
-    Index        rti;
-    ListCell   *lc;
+{
+	bool		found_laterals = false;
+	Index		rti;
+	ListCell   *lc;
 
-    /* We need do nothing if the query contains no LATERAL RTEs */
-    if (!root->hasLateralRTEs)
-        return;
+	/* We need do nothing if the query contains no LATERAL RTEs */
+	if (!root->hasLateralRTEs)
+		return;
 
-    /*
-     * Examine all baserels (the rel array has been set up by now).
-     */
-    for (rti = 1; rti < root->simple_rel_array_size; rti++)
-    {
-        RelOptInfo *brel = root->simple_rel_array[rti];
-        Relids        lateral_relids;
+	/*
+	 * Examine all baserels (the rel array has been set up by now).
+	 */
+	for (rti = 1; rti < root->simple_rel_array_size; rti++)
+	{
+		RelOptInfo *brel = root->simple_rel_array[rti];
+		Relids		lateral_relids;
 
-        /* there may be empty slots corresponding to non-baserel RTEs */
-        if (brel == NULL)
-            continue;
-
-        Assert(brel->relid == rti); /* sanity check on array */
-
-        /* ignore RTEs that are "other rels" */
-        if (brel->reloptkind != RELOPT_BASEREL)
-            continue;
-
-        lateral_relids = NULL;
-
-        /* consider each laterally-referenced Var or PHV */
-        foreach(lc, brel->lateral_vars)
-        {
-            Node       *node = (Node *) lfirst(lc);
-
-            if (IsA(node, Var))
-            {
-                Var           *var = (Var *) node;
-
-                found_laterals = true;
-                lateral_relids = bms_add_member(lateral_relids,
-                                                var->varno);
-            }
-            else if (IsA(node, PlaceHolderVar))
-            {
-                PlaceHolderVar *phv = (PlaceHolderVar *) node;
-                PlaceHolderInfo *phinfo = find_placeholder_info(root, phv,
-                                                                false);
-
-                found_laterals = true;
-                lateral_relids = bms_add_members(lateral_relids,
-                                                 phinfo->ph_eval_at);
-            }
-            else
-                Assert(false);
-        }
-
-        /* We now have all the simple lateral refs from this rel */
-        brel->direct_lateral_relids = lateral_relids;
-        brel->lateral_relids = bms_copy(lateral_relids);
-    }
-
-    /*
-     * Now check for lateral references within PlaceHolderVars, and mark their
-     * eval_at rels as having lateral references to the source rels.
-     *
-     * For a PHV that is due to be evaluated at a baserel, mark its source(s)
-     * as direct lateral dependencies of the baserel (adding onto the ones
-     * recorded above).  If it's due to be evaluated at a join, mark its
-     * source(s) as indirect lateral dependencies of each baserel in the join,
-     * ie put them into lateral_relids but not direct_lateral_relids.  This is
-     * appropriate because we can't put any such baserel on the outside of a
-     * join to one of the PHV's lateral dependencies, but on the other hand we
-     * also can't yet join it directly to the dependency.
-     */
-    foreach(lc, root->placeholder_list)
-    {
-        PlaceHolderInfo *phinfo = (PlaceHolderInfo *) lfirst(lc);
-        Relids        eval_at = phinfo->ph_eval_at;
-        int            varno;
-
-        if (phinfo->ph_lateral == NULL)
-            continue;            /* PHV is uninteresting if no lateral refs */
-
-        found_laterals = true;
-
-        if (bms_get_singleton_member(eval_at, &varno))
-        {
-            /* Evaluation site is a baserel */
-            RelOptInfo *brel = find_base_rel(root, varno);
-
-            brel->direct_lateral_relids =
-                bms_add_members(brel->direct_lateral_relids,
-                                phinfo->ph_lateral);
-            brel->lateral_relids =
-                bms_add_members(brel->lateral_relids,
-                                phinfo->ph_lateral);
-        }
-        else
-        {
-            /* Evaluation site is a join */
-            varno = -1;
-            while ((varno = bms_next_member(eval_at, varno)) >= 0)
-            {
-                RelOptInfo *brel = find_base_rel(root, varno);
-
-                brel->lateral_relids = bms_add_members(brel->lateral_relids,
-                                                       phinfo->ph_lateral);
-            }
-        }
-    }
-
-    /*
-     * If we found no actual lateral references, we're done; but reset the
-     * hasLateralRTEs flag to avoid useless work later.
-     */
-    if (!found_laterals)
-    {
-        root->hasLateralRTEs = false;
-        return;
-    }
-
-    /*
-     * Calculate the transitive closure of the lateral_relids sets, so that
-     * they describe both direct and indirect lateral references.  If relation
-     * X references Y laterally, and Y references Z laterally, then we will
-     * have to scan X on the inside of a nestloop with Z, so for all intents
-     * and purposes X is laterally dependent on Z too.
-     *
-     * This code is essentially Warshall's algorithm for transitive closure.
-     * The outer loop considers each baserel, and propagates its lateral
-     * dependencies to those baserels that have a lateral dependency on it.
-     */
-    for (rti = 1; rti < root->simple_rel_array_size; rti++)
-    {
-        RelOptInfo *brel = root->simple_rel_array[rti];
-        Relids        outer_lateral_relids;
-        Index        rti2;
-
-        if (brel == NULL || brel->reloptkind != RELOPT_BASEREL)
-            continue;
-
-        /* need not consider baserel further if it has no lateral refs */
-        outer_lateral_relids = brel->lateral_relids;
-        if (outer_lateral_relids == NULL)
-            continue;
-
-        /* else scan all baserels */
-        for (rti2 = 1; rti2 < root->simple_rel_array_size; rti2++)
-        {
-            RelOptInfo *brel2 = root->simple_rel_array[rti2];
-
-            if (brel2 == NULL || brel2->reloptkind != RELOPT_BASEREL)
-                continue;
-
-            /* if brel2 has lateral ref to brel, propagate brel's refs */
-            if (bms_is_member(rti, brel2->lateral_relids))
-                brel2->lateral_relids = bms_add_members(brel2->lateral_relids,
-                                                        outer_lateral_relids);
-        }
-    }
-
-    /*
-     * Now that we've identified all lateral references, mark each baserel
-     * with the set of relids of rels that reference it laterally (possibly
-     * indirectly) --- that is, the inverse mapping of lateral_relids.
-     */
-    for (rti = 1; rti < root->simple_rel_array_size; rti++)
-    {
-        RelOptInfo *brel = root->simple_rel_array[rti];
-        Relids        lateral_relids;
-        int            rti2;
-
-        if (brel == NULL || brel->reloptkind != RELOPT_BASEREL)
-            continue;
-
-        /* Nothing to do at rels with no lateral refs */
-        lateral_relids = brel->lateral_relids;
-        if (lateral_relids == NULL)
-            continue;
-
-        /*
-         * We should not have broken the invariant that lateral_relids is
-         * exactly NULL if empty.
-         */
-        Assert(!bms_is_empty(lateral_relids));
-
-        /* Also, no rel should have a lateral dependency on itself */
-        Assert(!bms_is_member(rti, lateral_relids));
-
-        /* Mark this rel's referencees */
-        rti2 = -1;
-        while ((rti2 = bms_next_member(lateral_relids, rti2)) >= 0)
-        {
-            RelOptInfo *brel2 = root->simple_rel_array[rti2];
-
-            Assert(brel2 != NULL && brel2->reloptkind == RELOPT_BASEREL);
-            brel2->lateral_referencers =
-                bms_add_member(brel2->lateral_referencers, rti);
-        }
-    }
-
-    /*
-     * Lastly, propagate lateral_relids and lateral_referencers from appendrel
-     * parent rels to their child rels.  We intentionally give each child rel
-     * the same minimum parameterization, even though it's quite possible that
-     * some don't reference all the lateral rels.  This is because any append
-     * path for the parent will have to have the same parameterization for
-     * every child anyway, and there's no value in forcing extra
-     * reparameterize_path() calls.  Similarly, a lateral reference to the
-     * parent prevents use of otherwise-movable join rels for each child.
-     */
-    for (rti = 1; rti < root->simple_rel_array_size; rti++)
-    {
-        RelOptInfo *brel = root->simple_rel_array[rti];
-		RangeTblEntry *brte = root->simple_rte_array[rti];
-
+		/* there may be empty slots corresponding to non-baserel RTEs */
 		if (brel == NULL)
 			continue;
 
+		Assert(brel->relid == rti); /* sanity check on array */
+
+		/* ignore RTEs that are "other rels" */
+		if (brel->reloptkind != RELOPT_BASEREL)
+			continue;
+
+		lateral_relids = NULL;
+
+		/* consider each laterally-referenced Var or PHV */
+		foreach(lc, brel->lateral_vars)
+		{
+			Node	   *node = (Node *) lfirst(lc);
+
+			if (IsA(node, Var))
+			{
+				Var		   *var = (Var *) node;
+
+				found_laterals = true;
+				lateral_relids = bms_add_member(lateral_relids,
+												var->varno);
+			}
+			else if (IsA(node, PlaceHolderVar))
+			{
+				PlaceHolderVar *phv = (PlaceHolderVar *) node;
+				PlaceHolderInfo *phinfo = find_placeholder_info(root, phv,
+																false);
+
+				found_laterals = true;
+				lateral_relids = bms_add_members(lateral_relids,
+												 phinfo->ph_eval_at);
+			}
+			else
+				Assert(false);
+		}
+
+		/* We now have all the simple lateral refs from this rel */
+		brel->direct_lateral_relids = lateral_relids;
+		brel->lateral_relids = bms_copy(lateral_relids);
+	}
+
+	/*
+	 * Now check for lateral references within PlaceHolderVars, and mark their
+	 * eval_at rels as having lateral references to the source rels.
+	 *
+	 * For a PHV that is due to be evaluated at a baserel, mark its source(s)
+	 * as direct lateral dependencies of the baserel (adding onto the ones
+	 * recorded above).  If it's due to be evaluated at a join, mark its
+	 * source(s) as indirect lateral dependencies of each baserel in the join,
+	 * ie put them into lateral_relids but not direct_lateral_relids.  This is
+	 * appropriate because we can't put any such baserel on the outside of a
+	 * join to one of the PHV's lateral dependencies, but on the other hand we
+	 * also can't yet join it directly to the dependency.
+	 */
+	foreach(lc, root->placeholder_list)
+	{
+		PlaceHolderInfo *phinfo = (PlaceHolderInfo *) lfirst(lc);
+		Relids		eval_at = phinfo->ph_eval_at;
+		int			varno;
+
+		if (phinfo->ph_lateral == NULL)
+			continue;			/* PHV is uninteresting if no lateral refs */
+
+		found_laterals = true;
+
+		if (bms_get_singleton_member(eval_at, &varno))
+		{
+			/* Evaluation site is a baserel */
+			RelOptInfo *brel = find_base_rel(root, varno);
+
+			brel->direct_lateral_relids =
+				bms_add_members(brel->direct_lateral_relids,
+								phinfo->ph_lateral);
+			brel->lateral_relids =
+				bms_add_members(brel->lateral_relids,
+								phinfo->ph_lateral);
+		}
+		else
+		{
+			/* Evaluation site is a join */
+			varno = -1;
+			while ((varno = bms_next_member(eval_at, varno)) >= 0)
+			{
+				RelOptInfo *brel = find_base_rel(root, varno);
+
+				brel->lateral_relids = bms_add_members(brel->lateral_relids,
+													   phinfo->ph_lateral);
+			}
+		}
+	}
+
+	/*
+	 * If we found no actual lateral references, we're done; but reset the
+	 * hasLateralRTEs flag to avoid useless work later.
+	 */
+	if (!found_laterals)
+	{
+		root->hasLateralRTEs = false;
+		return;
+	}
+
+	/*
+	 * Calculate the transitive closure of the lateral_relids sets, so that
+	 * they describe both direct and indirect lateral references.  If relation
+	 * X references Y laterally, and Y references Z laterally, then we will
+	 * have to scan X on the inside of a nestloop with Z, so for all intents
+	 * and purposes X is laterally dependent on Z too.
+	 *
+	 * This code is essentially Warshall's algorithm for transitive closure.
+	 * The outer loop considers each baserel, and propagates its lateral
+	 * dependencies to those baserels that have a lateral dependency on it.
+	 */
+	for (rti = 1; rti < root->simple_rel_array_size; rti++)
+	{
+		RelOptInfo *brel = root->simple_rel_array[rti];
+		Relids		outer_lateral_relids;
+		Index		rti2;
+
+		if (brel == NULL || brel->reloptkind != RELOPT_BASEREL)
+			continue;
+
+		/* need not consider baserel further if it has no lateral refs */
+		outer_lateral_relids = brel->lateral_relids;
+		if (outer_lateral_relids == NULL)
+			continue;
+
+		/* else scan all baserels */
+		for (rti2 = 1; rti2 < root->simple_rel_array_size; rti2++)
+		{
+			RelOptInfo *brel2 = root->simple_rel_array[rti2];
+
+			if (brel2 == NULL || brel2->reloptkind != RELOPT_BASEREL)
+				continue;
+
+			/* if brel2 has lateral ref to brel, propagate brel's refs */
+			if (bms_is_member(rti, brel2->lateral_relids))
+				brel2->lateral_relids = bms_add_members(brel2->lateral_relids,
+														outer_lateral_relids);
+		}
+	}
+
+	/*
+	 * Now that we've identified all lateral references, mark each baserel
+	 * with the set of relids of rels that reference it laterally (possibly
+	 * indirectly) --- that is, the inverse mapping of lateral_relids.
+	 */
+	for (rti = 1; rti < root->simple_rel_array_size; rti++)
+	{
+		RelOptInfo *brel = root->simple_rel_array[rti];
+		Relids		lateral_relids;
+		int			rti2;
+
+		if (brel == NULL || brel->reloptkind != RELOPT_BASEREL)
+			continue;
+
+		/* Nothing to do at rels with no lateral refs */
+		lateral_relids = brel->lateral_relids;
+		if (lateral_relids == NULL)
+			continue;
+
 		/*
-		 * In the case of table inheritance, the parent RTE is directly linked
-		 * to every child table via an AppendRelInfo.  In the case of table
-		 * partitioning, the inheritance hierarchy is expanded one level at a
-		 * time rather than flattened.  Therefore, an other member rel that is
-		 * a partitioned table may have children of its own, and must
-		 * therefore be marked with the appropriate lateral info so that those
-		 * children eventually get marked also.
+		 * We should not have broken the invariant that lateral_relids is
+		 * exactly NULL if empty.
 		 */
-		Assert(IS_SIMPLE_REL(brel));
-		Assert(brte);
-		if (brel->reloptkind == RELOPT_OTHER_MEMBER_REL &&
-			(brte->rtekind != RTE_RELATION ||
-			 brte->relkind != RELKIND_PARTITIONED_TABLE))
-            continue;
+		Assert(!bms_is_empty(lateral_relids));
 
-		if (brte->inh)
-        {
-            foreach(lc, root->append_rel_list)
-            {
-                AppendRelInfo *appinfo = (AppendRelInfo *) lfirst(lc);
-                RelOptInfo *childrel;
+		/* Also, no rel should have a lateral dependency on itself */
+		Assert(!bms_is_member(rti, lateral_relids));
 
-                if (appinfo->parent_relid != rti)
-                    continue;
-                childrel = root->simple_rel_array[appinfo->child_relid];
-                Assert(childrel->reloptkind == RELOPT_OTHER_MEMBER_REL);
-                Assert(childrel->direct_lateral_relids == NULL);
-                childrel->direct_lateral_relids = brel->direct_lateral_relids;
-                Assert(childrel->lateral_relids == NULL);
-                childrel->lateral_relids = brel->lateral_relids;
-                Assert(childrel->lateral_referencers == NULL);
-                childrel->lateral_referencers = brel->lateral_referencers;
-            }
-        }
-    }
+		/* Mark this rel's referencees */
+		rti2 = -1;
+		while ((rti2 = bms_next_member(lateral_relids, rti2)) >= 0)
+		{
+			RelOptInfo *brel2 = root->simple_rel_array[rti2];
+
+			Assert(brel2 != NULL && brel2->reloptkind == RELOPT_BASEREL);
+			brel2->lateral_referencers =
+				bms_add_member(brel2->lateral_referencers, rti);
+		}
+	}
 }
 
 
 /*****************************************************************************
  *
- *      JOIN TREE PROCESSING
+ *	  JOIN TREE PROCESSING
  *
  *****************************************************************************/
 
 /*
  * deconstruct_jointree
- *      Recursively scan the query's join tree for WHERE and JOIN/ON qual
- *      clauses, and add these to the appropriate restrictinfo and joininfo
- *      lists belonging to base RelOptInfos.  Also, add SpecialJoinInfo nodes
- *      to root->join_info_list for any outer joins appearing in the query tree.
- *      Return a "joinlist" data structure showing the join order decisions
- *      that need to be made by make_one_rel().
+ *	  Recursively scan the query's join tree for WHERE and JOIN/ON qual
+ *	  clauses, and add these to the appropriate restrictinfo and joininfo
+ *	  lists belonging to base RelOptInfos.  Also, add SpecialJoinInfo nodes
+ *	  to root->join_info_list for any outer joins appearing in the query tree.
+ *	  Return a "joinlist" data structure showing the join order decisions
+ *	  that need to be made by make_one_rel().
  *
  * The "joinlist" result is a list of items that are either RangeTblRef
  * jointree nodes or sub-joinlists.  All the items at the same level of
@@ -716,83 +739,77 @@ create_lateral_join_info(PlannerInfo *root)
 List *
 deconstruct_jointree(PlannerInfo *root)
 {
-    List       *result;
-    Relids        qualscope;
-    Relids        inner_join_rels;
-    List       *postponed_qual_list = NIL;
+	List	   *result;
+	Relids		qualscope;
+	Relids		inner_join_rels;
+	List	   *postponed_qual_list = NIL;
 
-    /* Start recursion at top of jointree */
-    Assert(root->parse->jointree != NULL &&
-           IsA(root->parse->jointree, FromExpr));
+	/* Start recursion at top of jointree */
+	Assert(root->parse->jointree != NULL &&
+		   IsA(root->parse->jointree, FromExpr));
 
-    /* this is filled as we scan the jointree */
-    root->nullable_baserels = NULL;
+	/* this is filled as we scan the jointree */
+	root->nullable_baserels = NULL;
 
-    result = deconstruct_recurse(root, (Node *) root->parse->jointree, false,
-                                 &qualscope, &inner_join_rels,
-                                 &postponed_qual_list);
+	result = deconstruct_recurse(root, (Node *) root->parse->jointree, false, false,
+								 &qualscope, &inner_join_rels,
+								 &postponed_qual_list);
 
-    /* Shouldn't be any leftover quals */
-    Assert(postponed_qual_list == NIL);
+	/* Shouldn't be any leftover quals */
+	Assert(postponed_qual_list == NIL);
 
-    return result;
+	return result;
 }
 
 /*
  * deconstruct_recurse
- *      One recursion level of deconstruct_jointree processing.
+ *	  One recursion level of deconstruct_jointree processing.
  *
  * Inputs:
- *    jtnode is the jointree node to examine
- *    below_outer_join is TRUE if this node is within the nullable side of a
- *        higher-level outer join
+ *	jtnode is the jointree node to examine
+ *	below_outer_join is TRUE if this node is within the nullable side of a
+ *		higher-level outer join
  * Outputs:
- *    *qualscope gets the set of base Relids syntactically included in this
- *        jointree node (do not modify or free this, as it may also be pointed
- *        to by RestrictInfo and SpecialJoinInfo nodes)
- *    *inner_join_rels gets the set of base Relids syntactically included in
- *        inner joins appearing at or below this jointree node (do not modify
- *        or free this, either)
- *    *postponed_qual_list is a list of PostponedQual structs, which we can
- *        add quals to if they turn out to belong to a higher join level
- *    Return value is the appropriate joinlist for this jointree node
+ *	*qualscope gets the set of base Relids syntactically included in this
+ *		jointree node (do not modify or free this, as it may also be pointed
+ *		to by RestrictInfo and SpecialJoinInfo nodes)
+ *	*inner_join_rels gets the set of base Relids syntactically included in
+ *		inner joins appearing at or below this jointree node (do not modify
+ *		or free this, either)
+ *	*postponed_qual_list is a list of PostponedQual structs, which we can
+ *		add quals to if they turn out to belong to a higher join level
+ *	Return value is the appropriate joinlist for this jointree node
  *
  * In addition, entries will be added to root->join_info_list for outer joins.
  */
 static List *
-deconstruct_recurse(PlannerInfo *root, Node *jtnode, bool below_outer_join,
-                    Relids *qualscope, Relids *inner_join_rels,
-                    List **postponed_qual_list)
-{// #lizard forgives
-    List       *joinlist;
+deconstruct_recurse(PlannerInfo *root, Node *jtnode, bool below_outer_join, bool below_semi_join,
+					Relids *qualscope, Relids *inner_join_rels,
+					List **postponed_qual_list)
+{
+	List	   *joinlist;
 
-    if (jtnode == NULL)
-    {
-        *qualscope = NULL;
-        *inner_join_rels = NULL;
-        return NIL;
-    }
-    if (IsA(jtnode, RangeTblRef))
-    {
-        int            varno = ((RangeTblRef *) jtnode)->rtindex;
+	if (jtnode == NULL)
+	{
+		*qualscope = NULL;
+		*inner_join_rels = NULL;
+		return NIL;
+	}
+	if (IsA(jtnode, RangeTblRef))
+	{
+		int			varno = ((RangeTblRef *) jtnode)->rtindex;
 
-        /* qualscope is just the one RTE */
-        *qualscope = bms_make_singleton(varno);
-        /* Deal with any securityQuals attached to the RTE */
-        if (root->qual_security_level > 0)
-            process_security_barrier_quals(root,
-                                           varno,
-                                           *qualscope,
-                                           below_outer_join);
+		/* qualscope is just the one RTE */
+		*qualscope = bms_make_singleton(varno);
+		/* Deal with any securityQuals attached to the RTE */
+		if (root->qual_security_level > 0)
+			process_security_barrier_quals(root, varno, *qualscope, below_outer_join,
+			                               below_semi_join);
 #ifdef _MLS_
         if (root->hasClsPolicy)
         {
-            mls_process_cls_quals(root,
-                                   varno,
-                                   *qualscope,
-                                   below_outer_join,
-                                   NULL);
-        }
+			mls_process_cls_quals(root, varno, *qualscope, below_outer_join, below_semi_join, NULL);
+		}
 #endif
         
 		/* A single baserel does not create an inner join */
@@ -822,11 +839,9 @@ deconstruct_recurse(PlannerInfo *root, Node *jtnode, bool below_outer_join,
 			List	   *sub_joinlist;
 			int			sub_members;
 
-			sub_joinlist = deconstruct_recurse(root, lfirst(l),
-											   below_outer_join,
-											   &sub_qualscope,
-											   inner_join_rels,
-											   &child_postponed_quals);
+			sub_joinlist =
+				deconstruct_recurse(root, lfirst(l), below_outer_join, below_semi_join,
+			                        &sub_qualscope, inner_join_rels, &child_postponed_quals);
 			*qualscope = bms_add_members(*qualscope, sub_qualscope);
 			sub_members = list_length(sub_joinlist);
 			remaining--;
@@ -857,7 +872,7 @@ deconstruct_recurse(PlannerInfo *root, Node *jtnode, bool below_outer_join,
 
 			if (bms_is_subset(pq->relids, *qualscope))
 				distribute_qual_to_rels(root, pq->qual,
-										false, below_outer_join, JOIN_INNER,
+										false, below_outer_join, below_semi_join, JOIN_INNER,
 										root->qual_security_level,
 										*qualscope, NULL, NULL, NULL,
 										NULL);
@@ -873,7 +888,7 @@ deconstruct_recurse(PlannerInfo *root, Node *jtnode, bool below_outer_join,
 			Node	   *qual = (Node *) lfirst(l);
 
 			distribute_qual_to_rels(root, qual,
-									false, below_outer_join, JOIN_INNER,
+									false, below_outer_join, below_semi_join, JOIN_INNER,
 									root->qual_security_level,
 									*qualscope, NULL, NULL, NULL,
 									postponed_qual_list);
@@ -911,14 +926,11 @@ deconstruct_recurse(PlannerInfo *root, Node *jtnode, bool below_outer_join,
 		switch (j->jointype)
 		{
 			case JOIN_INNER:
-				leftjoinlist = deconstruct_recurse(root, j->larg,
-												   below_outer_join,
-												   &leftids, &left_inners,
-												   &child_postponed_quals);
-				rightjoinlist = deconstruct_recurse(root, j->rarg,
-													below_outer_join,
-													&rightids, &right_inners,
-													&child_postponed_quals);
+				leftjoinlist = deconstruct_recurse(root, j->larg, below_outer_join, below_semi_join,
+				                                   &leftids, &left_inners, &child_postponed_quals);
+				rightjoinlist =
+					deconstruct_recurse(root, j->rarg, below_outer_join, below_semi_join, &rightids,
+				                        &right_inners, &child_postponed_quals);
 				*qualscope = bms_union(leftids, rightids);
 				*inner_join_rels = *qualscope;
 				/* Inner join adds no restrictions for quals */
@@ -927,33 +939,25 @@ deconstruct_recurse(PlannerInfo *root, Node *jtnode, bool below_outer_join,
 				nullable_rels = NULL;
 				break;
 			case JOIN_LEFT:
+			case JOIN_LEFT_SEMI_SCALAR:
+			case JOIN_SEMI_SCALAR:
+			case JOIN_LEFT_SEMI:
 			case JOIN_ANTI:
-#ifdef __OPENTENBASE__
-            case JOIN_LEFT_SCALAR:
-            case JOIN_LEFT_SEMI:
-#endif
-				leftjoinlist = deconstruct_recurse(root, j->larg,
-												   below_outer_join,
-												   &leftids, &left_inners,
-												   &child_postponed_quals);
-				rightjoinlist = deconstruct_recurse(root, j->rarg,
-													true,
-													&rightids, &right_inners,
-													&child_postponed_quals);
+				leftjoinlist = deconstruct_recurse(root, j->larg, below_outer_join, below_semi_join,
+				                                   &leftids, &left_inners, &child_postponed_quals);
+				rightjoinlist = deconstruct_recurse(root, j->rarg, true, below_semi_join, &rightids,
+				                                    &right_inners, &child_postponed_quals);
 				*qualscope = bms_union(leftids, rightids);
 				*inner_join_rels = bms_union(left_inners, right_inners);
 				nonnullable_rels = leftids;
 				nullable_rels = rightids;
 				break;
 			case JOIN_SEMI:
-				leftjoinlist = deconstruct_recurse(root, j->larg,
-												   below_outer_join,
-												   &leftids, &left_inners,
-												   &child_postponed_quals);
-				rightjoinlist = deconstruct_recurse(root, j->rarg,
-													below_outer_join,
-													&rightids, &right_inners,
-													&child_postponed_quals);
+				leftjoinlist = deconstruct_recurse(root, j->larg, below_outer_join, below_semi_join,
+				                                   &leftids, &left_inners, &child_postponed_quals);
+				rightjoinlist =
+					deconstruct_recurse(root, j->rarg, below_outer_join, true, &rightids,
+				                        &right_inners, &child_postponed_quals);
 				*qualscope = bms_union(leftids, rightids);
 				*inner_join_rels = bms_union(left_inners, right_inners);
 				/* Semi join adds no restrictions for quals */
@@ -967,14 +971,10 @@ deconstruct_recurse(PlannerInfo *root, Node *jtnode, bool below_outer_join,
 				nullable_rels = NULL;
 				break;
 			case JOIN_FULL:
-				leftjoinlist = deconstruct_recurse(root, j->larg,
-												   true,
-												   &leftids, &left_inners,
-												   &child_postponed_quals);
-				rightjoinlist = deconstruct_recurse(root, j->rarg,
-													true,
-													&rightids, &right_inners,
-													&child_postponed_quals);
+				leftjoinlist = deconstruct_recurse(root, j->larg, true, false, &leftids,
+				                                   &left_inners, &child_postponed_quals);
+				rightjoinlist = deconstruct_recurse(root, j->rarg, true, false, &rightids,
+				                                    &right_inners, &child_postponed_quals);
 				*qualscope = bms_union(leftids, rightids);
 				*inner_join_rels = bms_union(left_inners, right_inners);
 				/* each side is both outer and inner */
@@ -1055,7 +1055,7 @@ deconstruct_recurse(PlannerInfo *root, Node *jtnode, bool below_outer_join,
 			Node	   *qual = (Node *) lfirst(l);
 
 			distribute_qual_to_rels(root, qual,
-									false, below_outer_join, j->jointype,
+									false, below_outer_join, below_semi_join, j->jointype,
 									root->qual_security_level,
 									*qualscope,
 									ojscope, nonnullable_rels, NULL,
@@ -1075,7 +1075,8 @@ deconstruct_recurse(PlannerInfo *root, Node *jtnode, bool below_outer_join,
 		 * except at a FULL JOIN or where join_collapse_limit would be
 		 * exceeded.
 		 */
-		if (j->jointype == JOIN_FULL)
+		if (j->jointype == JOIN_FULL ||
+			j->jointype == JOIN_LEFT_SEMI_SCALAR)
 		{
 			/* force the join order exactly at this node */
 			joinlist = list_make1(list_make2(leftjoinlist, rightjoinlist));
@@ -1115,7 +1116,7 @@ deconstruct_recurse(PlannerInfo *root, Node *jtnode, bool below_outer_join,
 
 /*
  * process_security_barrier_quals
- *      Transfer security-barrier quals into relation's baserestrictinfo list.
+ *	  Transfer security-barrier quals into relation's baserestrictinfo list.
  *
  * The rewriter put any relevant security-barrier conditions into the RTE's
  * securityQuals field, but it's now time to copy them into the rel's
@@ -1128,58 +1129,49 @@ deconstruct_recurse(PlannerInfo *root, Node *jtnode, bool below_outer_join,
  */
 static void
 process_security_barrier_quals(PlannerInfo *root,
-                               int rti, Relids qualscope,
-                               bool below_outer_join)
+							   int rti, Relids qualscope,
+							   bool below_outer_join, bool below_semi_join)
 {
-    RangeTblEntry *rte = root->simple_rte_array[rti];
-    Index        security_level = 0;
-    ListCell   *lc;
+	RangeTblEntry *rte = root->simple_rte_array[rti];
+	Index		security_level = 0;
+	ListCell   *lc;
 
-    /*
-     * Each element of the securityQuals list has been preprocessed into an
-     * implicitly-ANDed list of clauses.  All the clauses in a given sublist
-     * should get the same security level, but successive sublists get higher
-     * levels.
-     */
-    foreach(lc, rte->securityQuals)
-    {
-        List       *qualset = (List *) lfirst(lc);
-        ListCell   *lc2;
+	/*
+	 * Each element of the securityQuals list has been preprocessed into an
+	 * implicitly-ANDed list of clauses.  All the clauses in a given sublist
+	 * should get the same security level, but successive sublists get higher
+	 * levels.
+	 */
+	foreach(lc, rte->securityQuals)
+	{
+		List	   *qualset = (List *) lfirst(lc);
+		ListCell   *lc2;
 
-        foreach(lc2, qualset)
-        {
-            Node       *qual = (Node *) lfirst(lc2);
+		foreach(lc2, qualset)
+		{
+			Node	   *qual = (Node *) lfirst(lc2);
 
-            /*
-             * We cheat to the extent of passing ojscope = qualscope rather
-             * than its more logical value of NULL.  The only effect this has
-             * is to force a Var-free qual to be evaluated at the rel rather
-             * than being pushed up to top of tree, which we don't want.
-             */
-            distribute_qual_to_rels(root, qual,
-                                    false,
-                                    below_outer_join,
-                                    JOIN_INNER,
-                                    security_level,
-                                    qualscope,
-                                    qualscope,
-                                    NULL,
-                                    NULL,
-                                    NULL);
-        }
-        security_level++;
-    }
+			/*
+			 * We cheat to the extent of passing ojscope = qualscope rather
+			 * than its more logical value of NULL.  The only effect this has
+			 * is to force a Var-free qual to be evaluated at the rel rather
+			 * than being pushed up to top of tree, which we don't want.
+			 */
+			distribute_qual_to_rels(root, qual, false, below_outer_join, below_semi_join, JOIN_INNER,
+			                        security_level, qualscope, qualscope, NULL, NULL, NULL);
+		}
+		security_level++;
+	}
 
-    /* Assert that qual_security_level is higher than anything we just used */
-    Assert(security_level <= root->qual_security_level);
+	/* Assert that qual_security_level is higher than anything we just used */
+	Assert(security_level <= root->qual_security_level);
 }
 #ifdef _MLS_
-static void mls_process_cls_quals(PlannerInfo *root,
-                               int rti, Relids qualscope,
-                               bool below_outer_join,
-                               List ** postponed_qual_list)
+static void
+mls_process_cls_quals(PlannerInfo *root, int rti, Relids qualscope, bool below_outer_join,
+                      bool below_semi_join, List **postponed_qual_list)
 {
-    RangeTblEntry *rte;
+	RangeTblEntry *rte;
 
     rte = root->simple_rte_array[rti];
 
@@ -1187,23 +1179,16 @@ static void mls_process_cls_quals(PlannerInfo *root,
     {
         OffsetVarNodes(rte->cls_expr, (rti - 1), 0);
         
-        /*
-         * We cheat to the extent of passing ojscope = qualscope rather
-         * than its more logical value of NULL.  The only effect this has
-         * is to force a Var-free qual to be evaluated at the rel rather
-         * than being pushed up to top of tree, which we don't want.
-         */
-        distribute_qual_to_rels(root, rte->cls_expr,
-                                false,
-                                below_outer_join,
-                                JOIN_INNER,
-                                root->qual_security_level,
-                                qualscope,
-                                qualscope,
-                                NULL,
-                                NULL,
-                                postponed_qual_list);
-    }
+    	/*
+    	 * We cheat to the extent of passing ojscope = qualscope rather
+    	 * than its more logical value of NULL.  The only effect this has
+    	 * is to force a Var-free qual to be evaluated at the rel rather
+    	 * than being pushed up to top of tree, which we don't want.
+    	 */
+		distribute_qual_to_rels(root, rte->cls_expr, false, below_outer_join, below_semi_join, JOIN_INNER,
+		                        root->qual_security_level, qualscope, qualscope, NULL, NULL,
+		                        postponed_qual_list);
+	}
     
     return;
 }
@@ -1211,14 +1196,14 @@ static void mls_process_cls_quals(PlannerInfo *root,
 
 /*
  * make_outerjoininfo
- *      Build a SpecialJoinInfo for the current outer join
+ *	  Build a SpecialJoinInfo for the current outer join
  *
  * Inputs:
- *    left_rels: the base Relids syntactically on outer side of join
- *    right_rels: the base Relids syntactically on inner side of join
- *    inner_join_rels: base Relids participating in inner joins below this one
- *    jointype: what it says (must always be LEFT, FULL, SEMI, or ANTI)
- *    clause: the outer join's join condition (in implicit-AND format)
+ *	left_rels: the base Relids syntactically on outer side of join
+ *	right_rels: the base Relids syntactically on inner side of join
+ *	inner_join_rels: base Relids participating in inner joins below this one
+ *	jointype: what it says (must always be LEFT, FULL, SEMI, or ANTI)
+ *	clause: the outer join's join condition (in implicit-AND format)
  *
  * The node should eventually be appended to root->join_info_list, but we
  * do not do that here.
@@ -1285,7 +1270,8 @@ make_outerjoininfo(PlannerInfo *root,
 	compute_semijoin_info(sjinfo, clause);
 
 	/* If it's a full join, no need to be very smart */
-	if (jointype == JOIN_FULL)
+	if (jointype == JOIN_FULL ||
+		jointype == JOIN_LEFT_SEMI_SCALAR)
 	{
 		sjinfo->min_lefthand = bms_copy(left_rels);
 		sjinfo->min_righthand = bms_copy(right_rels);
@@ -1332,7 +1318,8 @@ make_outerjoininfo(PlannerInfo *root,
 		 * out of it.  Hence, if it overlaps either LHS or RHS of the current
 		 * rel, expand that side's min relset to cover the whole full join.
 		 */
-		if (otherinfo->jointype == JOIN_FULL)
+		if (otherinfo->jointype == JOIN_FULL ||
+			otherinfo->jointype == JOIN_LEFT_SEMI_SCALAR)
 		{
 			if (bms_overlap(left_rels, otherinfo->syn_lefthand) ||
 				bms_overlap(left_rels, otherinfo->syn_righthand))
@@ -1370,18 +1357,11 @@ make_outerjoininfo(PlannerInfo *root,
 		 */
 		if (bms_overlap(left_rels, otherinfo->syn_righthand))
 		{
-#ifdef __OPENTENBASE__
-            if (bms_overlap(clause_relids, otherinfo->syn_righthand) &&
-                (jointype == JOIN_SEMI ||
-                 jointype == JOIN_ANTI ||
-                 jointype == JOIN_LEFT_SCALAR ||
-				 jointype == JOIN_LEFT_SEMI ||
-                 !bms_overlap(strict_relids, otherinfo->min_righthand)))
-#else
 			if (bms_overlap(clause_relids, otherinfo->syn_righthand) &&
 				(jointype == JOIN_SEMI || jointype == JOIN_ANTI ||
+				 jointype == JOIN_SEMI_SCALAR ||
+				 jointype == JOIN_LEFT_SEMI ||
 				 !bms_overlap(strict_relids, otherinfo->min_righthand)))
-#endif
 			{
 				min_lefthand = bms_add_members(min_lefthand,
 											   otherinfo->syn_lefthand);
@@ -1417,27 +1397,17 @@ make_outerjoininfo(PlannerInfo *root,
 		 */
 		if (bms_overlap(right_rels, otherinfo->syn_righthand))
 		{
-#ifdef __OPENTENBASE__
 			if (bms_overlap(clause_relids, otherinfo->syn_righthand) ||
 				!bms_overlap(clause_relids, otherinfo->min_lefthand) ||
 				jointype == JOIN_SEMI ||
 				jointype == JOIN_ANTI ||
-				jointype == JOIN_LEFT_SCALAR ||
+				jointype == JOIN_SEMI_SCALAR ||
 				jointype == JOIN_LEFT_SEMI ||
 				otherinfo->jointype == JOIN_SEMI ||
 				otherinfo->jointype == JOIN_ANTI ||
-                otherinfo->jointype == JOIN_LEFT_SCALAR ||
+				otherinfo->jointype == JOIN_SEMI_SCALAR ||
 				otherinfo->jointype == JOIN_LEFT_SEMI ||
 				!otherinfo->lhs_strict || otherinfo->delay_upper_joins)
-#else
-			if (bms_overlap(clause_relids, otherinfo->syn_righthand) ||
-				!bms_overlap(clause_relids, otherinfo->min_lefthand) ||
-				jointype == JOIN_SEMI ||
-				jointype == JOIN_ANTI ||
-				otherinfo->jointype == JOIN_SEMI ||
-				otherinfo->jointype == JOIN_ANTI ||
-				!otherinfo->lhs_strict || otherinfo->delay_upper_joins)
-#endif
 			{
 				min_righthand = bms_add_members(min_righthand,
 												otherinfo->syn_lefthand);
@@ -1493,7 +1463,7 @@ make_outerjoininfo(PlannerInfo *root,
 
 /*
  * compute_semijoin_info
- *      Fill semijoin-related fields of a new SpecialJoinInfo
+ *	  Fill semijoin-related fields of a new SpecialJoinInfo
  *
  * Note: this relies on only the jointype and syn_righthand fields of the
  * SpecialJoinInfo; the rest may not be set yet.
@@ -1514,13 +1484,7 @@ compute_semijoin_info(SpecialJoinInfo *sjinfo, List *clause)
 	sjinfo->semi_rhs_exprs = NIL;
 
 	/* Nothing more to do if it's not a semijoin */
-#ifdef __OPENTENBASE__
-	if (sjinfo->jointype != JOIN_SEMI &&
-		sjinfo->jointype != JOIN_LEFT_SCALAR &&
-		sjinfo->jointype != JOIN_LEFT_SEMI)
-#else
 	if (sjinfo->jointype != JOIN_SEMI)
-#endif
 		return;
 
 	/*
@@ -1605,6 +1569,30 @@ compute_semijoin_info(SpecialJoinInfo *sjinfo, List *clause)
 			 */
 			if (contain_volatile_functions((Node *) op))
 				return;
+
+			/*
+			 * For semijoins, if there is a cn expression on the right side,
+			 * we will handle it during the on joining phase, so need
+			 * to add the var from the cn expression to semi_rhs_exprs.
+			 */
+			if (contain_cn_expr((Node *) op))
+			{
+				List     *quals_var;
+				ListCell *temp;
+				quals_var = pull_var_clause((Node *) op, PVC_RECURSE_AGGREGATES |
+				                                                 PVC_RECURSE_WINDOWFUNCS |
+				                                                 PVC_INCLUDE_PLACEHOLDERS);
+				foreach(temp, quals_var)
+				{
+					Node *node = (Node *) lfirst(temp);
+					if (IsA(node, Var))
+					{
+						semi_operators = lappend_oid(semi_operators, opno);
+						semi_rhs_exprs = lappend(semi_rhs_exprs, copyObject(node));
+					}
+				}
+			}
+
 			continue;
 		}
 
@@ -1676,39 +1664,39 @@ compute_semijoin_info(SpecialJoinInfo *sjinfo, List *clause)
 
 /*****************************************************************************
  *
- *      QUALIFICATIONS
+ *	  QUALIFICATIONS
  *
  *****************************************************************************/
 
 /*
  * distribute_qual_to_rels
- *      Add clause information to either the baserestrictinfo or joininfo list
- *      (depending on whether the clause is a join) of each base relation
- *      mentioned in the clause.  A RestrictInfo node is created and added to
- *      the appropriate list for each rel.  Alternatively, if the clause uses a
- *      mergejoinable operator and is not delayed by outer-join rules, enter
- *      the left- and right-side expressions into the query's list of
- *      EquivalenceClasses.  Alternatively, if the clause needs to be treated
- *      as belonging to a higher join level, just add it to postponed_qual_list.
+ *	  Add clause information to either the baserestrictinfo or joininfo list
+ *	  (depending on whether the clause is a join) of each base relation
+ *	  mentioned in the clause.  A RestrictInfo node is created and added to
+ *	  the appropriate list for each rel.  Alternatively, if the clause uses a
+ *	  mergejoinable operator and is not delayed by outer-join rules, enter
+ *	  the left- and right-side expressions into the query's list of
+ *	  EquivalenceClasses.  Alternatively, if the clause needs to be treated
+ *	  as belonging to a higher join level, just add it to postponed_qual_list.
  *
  * 'clause': the qual clause to be distributed
  * 'is_deduced': TRUE if the qual came from implied-equality deduction
  * 'below_outer_join': TRUE if the qual is from a JOIN/ON that is below the
- *        nullable side of a higher-level outer join
+ *		nullable side of a higher-level outer join
  * 'jointype': type of join the qual is from (JOIN_INNER for a WHERE clause)
  * 'security_level': security_level to assign to the qual
  * 'qualscope': set of baserels the qual's syntactic scope covers
  * 'ojscope': NULL if not an outer-join qual, else the minimum set of baserels
- *        needed to form this join
+ *		needed to form this join
  * 'outerjoin_nonnullable': NULL if not an outer-join qual, else the set of
- *        baserels appearing on the outer (nonnullable) side of the join
- *        (for FULL JOIN this includes both sides of the join, and must in fact
- *        equal qualscope)
+ *		baserels appearing on the outer (nonnullable) side of the join
+ *		(for FULL JOIN this includes both sides of the join, and must in fact
+ *		equal qualscope)
  * 'deduced_nullable_relids': if is_deduced is TRUE, the nullable relids to
- *        impute to the clause; otherwise NULL
+ *		impute to the clause; otherwise NULL
  * 'postponed_qual_list': list of PostponedQual structs, which we can add
- *        this qual to if it turns out to belong to a higher join level.
- *        Can be NULL if caller knows postponement is impossible.
+ *		this qual to if it turns out to belong to a higher join level.
+ *		Can be NULL if caller knows postponement is impossible.
  *
  * 'qualscope' identifies what level of JOIN the qual came from syntactically.
  * 'ojscope' is needed if we decide to force the qual up to the outer-join
@@ -1722,407 +1710,459 @@ compute_semijoin_info(SpecialJoinInfo *sjinfo, List *clause)
  * qual placement.
  */
 static void
-distribute_qual_to_rels(PlannerInfo *root, Node *clause,
-                        bool is_deduced,
-                        bool below_outer_join,
-                        JoinType jointype,
-                        Index security_level,
-                        Relids qualscope,
-                        Relids ojscope,
-                        Relids outerjoin_nonnullable,
-                        Relids deduced_nullable_relids,
-                        List **postponed_qual_list)
-{// #lizard forgives
-    Relids        relids;
-    bool        is_pushed_down;
-    bool        outerjoin_delayed;
-    bool        pseudoconstant = false;
-    bool        maybe_equivalence;
-    bool        maybe_outer_join;
-    Relids        nullable_relids;
-    RestrictInfo *restrictinfo;
+distribute_qual_to_rels(PlannerInfo *root, Node *clause, bool is_deduced, bool below_outer_join,
+                        bool below_semi_join, JoinType jointype, Index security_level,
+                        Relids qualscope, Relids ojscope, Relids outerjoin_nonnullable,
+                        Relids deduced_nullable_relids, List **postponed_qual_list)
+{
+	Relids		relids;
+	bool		is_pushed_down;
+	bool		outerjoin_delayed;
+	bool		pseudoconstant = false;
+	bool		maybe_equivalence;
+	bool		maybe_outer_join;
+	Relids		nullable_relids;
+	RestrictInfo *restrictinfo;
+	bool cn_expr = contain_cn_expr((Node *)clause);
 
-	bool        contain_udf = contain_user_defined_functions((Node *) clause);
-	
-    /*
-     * Retrieve all relids mentioned within the clause.
-     */
-    relids = pull_varnos(clause);
+	/*
+	 * Retrieve all relids mentioned within the clause.
+	 */
+	relids = pull_varnos(clause);
 
-    /*
-     * In ordinary SQL, a WHERE or JOIN/ON clause can't reference any rels
-     * that aren't within its syntactic scope; however, if we pulled up a
-     * LATERAL subquery then we might find such references in quals that have
-     * been pulled up.  We need to treat such quals as belonging to the join
-     * level that includes every rel they reference.  Although we could make
-     * pull_up_subqueries() place such quals correctly to begin with, it's
-     * easier to handle it here.  When we find a clause that contains Vars
-     * outside its syntactic scope, we add it to the postponed-quals list, and
-     * process it once we've recursed back up to the appropriate join level.
-     */
-    if (!bms_is_subset(relids, qualscope))
-    {
-        PostponedQual *pq = (PostponedQual *) palloc(sizeof(PostponedQual));
-
-        Assert(root->hasLateralRTEs);    /* shouldn't happen otherwise */
-        Assert(jointype == JOIN_INNER); /* mustn't postpone past outer join */
-        Assert(!is_deduced);    /* shouldn't be deduced, either */
-        pq->qual = clause;
-        pq->relids = relids;
-        *postponed_qual_list = lappend(*postponed_qual_list, pq);
-        return;
-    }
-
-    /*
-     * If it's an outer-join clause, also check that relids is a subset of
-     * ojscope.  (This should not fail if the syntactic scope check passed.)
-     */
-    if (ojscope && !bms_is_subset(relids, ojscope))
-        elog(ERROR, "JOIN qualification cannot refer to other relations");
-
-    /*
-     * If the clause is variable-free, our normal heuristic for pushing it
-     * down to just the mentioned rels doesn't work, because there are none.
-     *
-     * If the clause is an outer-join clause, we must force it to the OJ's
-     * semantic level to preserve semantics.
-     *
-     * Otherwise, when the clause contains volatile functions, we force it to
-     * be evaluated at its original syntactic level.  This preserves the
-     * expected semantics.
-     *
-     * When the clause contains no volatile functions either, it is actually a
-     * pseudoconstant clause that will not change value during any one
-     * execution of the plan, and hence can be used as a one-time qual in a
-     * gating Result plan node.  We put such a clause into the regular
-     * RestrictInfo lists for the moment, but eventually createplan.c will
-     * pull it out and make a gating Result node immediately above whatever
-     * plan node the pseudoconstant clause is assigned to.  It's usually best
-     * to put a gating node as high in the plan tree as possible. If we are
-     * not below an outer join, we can actually push the pseudoconstant qual
-     * all the way to the top of the tree.  If we are below an outer join, we
-     * leave the qual at its original syntactic level (we could push it up to
-     * just below the outer join, but that seems more complex than it's
-     * worth).
-     */
-    if (bms_is_empty(relids))
-    {
-        if (ojscope)
-        {
-            /* clause is attached to outer join, eval it there */
-            relids = bms_copy(ojscope);
-            /* mustn't use as gating qual, so don't mark pseudoconstant */
-        }
-        else
-        {
-            /* eval at original syntactic level */
-            relids = bms_copy(qualscope);
-            if (!contain_volatile_functions(clause))
-            {
-                /* mark as gating qual */
-                pseudoconstant = true;
-                /* tell createplan.c to check for gating quals */
-                root->hasPseudoConstantQuals = true;
-                /* if not below outer join, push it to top of tree */
-                if (!below_outer_join)
-                {
-                    relids =
-                        get_relids_in_jointree((Node *) root->parse->jointree,
-                                               false);
-                    qualscope = bms_copy(relids);
-                }
-            }
-        }
-    }
-
-    /*----------
-     * Check to see if clause application must be delayed by outer-join
-     * considerations.
-     *
-     * A word about is_pushed_down: we mark the qual as "pushed down" if
-     * it is (potentially) applicable at a level different from its original
-     * syntactic level.  This flag is used to distinguish OUTER JOIN ON quals
-     * from other quals pushed down to the same joinrel.  The rules are:
-     *        WHERE quals and INNER JOIN quals: is_pushed_down = true.
-     *        Non-degenerate OUTER JOIN quals: is_pushed_down = false.
-     *        Degenerate OUTER JOIN quals: is_pushed_down = true.
-     * A "degenerate" OUTER JOIN qual is one that doesn't mention the
-     * non-nullable side, and hence can be pushed down into the nullable side
-     * without changing the join result.  It is correct to treat it as a
-     * regular filter condition at the level where it is evaluated.
-     *
-     * Note: it is not immediately obvious that a simple boolean is enough
-     * for this: if for some reason we were to attach a degenerate qual to
-     * its original join level, it would need to be treated as an outer join
-     * qual there.  However, this cannot happen, because all the rels the
-     * clause mentions must be in the outer join's min_righthand, therefore
-     * the join it needs must be formed before the outer join; and we always
-     * attach quals to the lowest level where they can be evaluated.  But
-     * if we were ever to re-introduce a mechanism for delaying evaluation
-     * of "expensive" quals, this area would need work.
-     *----------
-     */
-    if (is_deduced)
-    {
-        /*
-         * If the qual came from implied-equality deduction, it should not be
-         * outerjoin-delayed, else deducer blew it.  But we can't check this
-         * because the join_info_list may now contain OJs above where the qual
-         * belongs.  For the same reason, we must rely on caller to supply the
-         * correct nullable_relids set.
-         */
-        Assert(!ojscope);
-        is_pushed_down = true;
-        outerjoin_delayed = false;
-        nullable_relids = deduced_nullable_relids;
-        /* Don't feed it back for more deductions */
-        maybe_equivalence = false;
-        maybe_outer_join = false;
-    }
-    else if (bms_overlap(relids, outerjoin_nonnullable))
-    {
-        /*
-         * The qual is attached to an outer join and mentions (some of the)
-         * rels on the nonnullable side, so it's not degenerate.
-         *
-         * We can't use such a clause to deduce equivalence (the left and
-         * right sides might be unequal above the join because one of them has
-         * gone to NULL) ... but we might be able to use it for more limited
-         * deductions, if it is mergejoinable.  So consider adding it to the
-         * lists of set-aside outer-join clauses.
-         */
-        is_pushed_down = false;
-        maybe_equivalence = false;
-        maybe_outer_join = true;
-
-        /* Check to see if must be delayed by lower outer join */
-        outerjoin_delayed = check_outerjoin_delay(root,
-                                                  &relids,
-                                                  &nullable_relids,
-                                                  false);
-
-        /*
-         * Now force the qual to be evaluated exactly at the level of joining
-         * corresponding to the outer join.  We cannot let it get pushed down
-         * into the nonnullable side, since then we'd produce no output rows,
-         * rather than the intended single null-extended row, for any
-         * nonnullable-side rows failing the qual.
-         *
-         * (Do this step after calling check_outerjoin_delay, because that
-         * trashes relids.)
-         */
-        Assert(ojscope);
-        relids = ojscope;
-        Assert(!pseudoconstant);
-    }
-    else
-    {
-        /*
-         * Normal qual clause or degenerate outer-join clause.  Either way, we
-         * can mark it as pushed-down.
-         */
-        is_pushed_down = true;
-
-        /* Check to see if must be delayed by lower outer join */
-        outerjoin_delayed = check_outerjoin_delay(root,
-                                                  &relids,
-                                                  &nullable_relids,
-                                                  true);
-
-        if (outerjoin_delayed)
-        {
-            /* Should still be a subset of current scope ... */
-            Assert(root->hasLateralRTEs || bms_is_subset(relids, qualscope));
-            Assert(ojscope == NULL || bms_is_subset(relids, ojscope));
-
-            /*
-             * Because application of the qual will be delayed by outer join,
-             * we mustn't assume its vars are equal everywhere.
-             */
-            maybe_equivalence = false;
-
-            /*
-             * It's possible that this is an IS NULL clause that's redundant
-             * with a lower antijoin; if so we can just discard it.  We need
-             * not test in any of the other cases, because this will only be
-             * possible for pushed-down, delayed clauses.
-             */
-            if (check_redundant_nullability_qual(root, clause))
-                return;
-        }
-        else
-        {
-            /*
-             * Qual is not delayed by any lower outer-join restriction, so we
-             * can consider feeding it to the equivalence machinery. However,
-             * if it's itself within an outer-join clause, treat it as though
-             * it appeared below that outer join (note that we can only get
-             * here when the clause references only nullable-side rels).
-             */
-            maybe_equivalence = true;
-            if (outerjoin_nonnullable != NULL)
-                below_outer_join = true;
-        }
-
-        /*
-         * Since it doesn't mention the LHS, it's certainly not useful as a
-         * set-aside OJ clause, even if it's in an OJ.
-         */
-        maybe_outer_join = false;
-    }
-
-    /*
-     * Build the RestrictInfo node itself.
-     */
-    restrictinfo = make_restrictinfo((Expr *) clause,
-                                     is_pushed_down,
-                                     outerjoin_delayed,
-                                     pseudoconstant,
-                                     security_level,
-                                     relids,
-                                     outerjoin_nonnullable,
-                                     nullable_relids);
-
-    /*
-     * If it's a join clause (either naturally, or because delayed by
-     * outer-join rules), add vars used in the clause to targetlists of their
-     * relations, so that they will be emitted by the plan nodes that scan
-     * those relations (else they won't be available at the join node!).
-     *
-     * Note: if the clause gets absorbed into an EquivalenceClass then this
-     * may be unnecessary, but for now we have to do it to cover the case
-     * where the EC becomes ec_broken and we end up reinserting the original
-     * clauses into the plan.
-     */
-    if (bms_membership(relids) == BMS_MULTIPLE)
-    {
-        List       *vars = pull_var_clause(clause,
-                                           PVC_RECURSE_AGGREGATES |
-                                           PVC_RECURSE_WINDOWFUNCS |
-                                           PVC_INCLUDE_PLACEHOLDERS);
-
-        add_vars_to_targetlist(root, vars, relids, false);
-        list_free(vars);
-    }
-
-    /*
-     * We check "mergejoinability" of every clause, not only join clauses,
-     * because we want to know about equivalences between vars of the same
-     * relation, or between vars and consts.
-     */
-    check_mergejoinable(restrictinfo);
-
-    /*
-     * If it is a true equivalence clause, send it to the EquivalenceClass
-     * machinery.  We do *not* attach it directly to any restriction or join
-     * lists.  The EC code will propagate it to the appropriate places later.
-     *
-     * If the clause has a mergejoinable operator and is not
-     * outerjoin-delayed, yet isn't an equivalence because it is an outer-join
-     * clause, the EC code may yet be able to do something with it.  We add it
-     * to appropriate lists for further consideration later.  Specifically:
-     *
-     * If it is a left or right outer-join qualification that relates the two
-     * sides of the outer join (no funny business like leftvar1 = leftvar2 +
-     * rightvar), we add it to root->left_join_clauses or
-     * root->right_join_clauses according to which side the nonnullable
-     * variable appears on.
-     *
-     * If it is a full outer-join qualification, we add it to
-     * root->full_join_clauses.  (Ideally we'd discard cases that aren't
-     * leftvar = rightvar, as we do for left/right joins, but this routine
-     * doesn't have the info needed to do that; and the current usage of the
-     * full_join_clauses list doesn't require that, so it's not currently
-     * worth complicating this routine's API to make it possible.)
-     *
-     * If none of the above hold, pass it off to
-     * distribute_restrictinfo_to_rels().
-     *
-     * In all cases, it's important to initialize the left_ec and right_ec
-     * fields of a mergejoinable clause, so that all possibly mergejoinable
-     * expressions have representations in EquivalenceClasses.  If
-     * process_equivalence is successful, it will take care of that;
-     * otherwise, we have to call initialize_mergeclause_eclasses to do it.
-     */
-    if (restrictinfo->mergeopfamilies)
-    {
-        if (maybe_equivalence)
-        {
-            if (check_equivalence_delay(root, restrictinfo) &&
-                process_equivalence(root, restrictinfo, below_outer_join))
-                return;
-            /* EC rejected it, so set left_ec/right_ec the hard way ... */
-            initialize_mergeclause_eclasses(root, restrictinfo);
-            /* ... and fall through to distribute_restrictinfo_to_rels */
-        }
-        else if (maybe_outer_join && restrictinfo->can_join)
-        {
-            /* we need to set up left_ec/right_ec the hard way */
-            initialize_mergeclause_eclasses(root, restrictinfo);
-            /* now see if it should go to any outer-join lists */
-            if (bms_is_subset(restrictinfo->left_relids,
-                              outerjoin_nonnullable) &&
-                !bms_overlap(restrictinfo->right_relids,
-                             outerjoin_nonnullable))
-            {
-                /* we have outervar = innervar */
-                root->left_join_clauses = lappend(root->left_join_clauses,
-                                                  restrictinfo);
-                return;
-            }
-            if (bms_is_subset(restrictinfo->right_relids,
-                              outerjoin_nonnullable) &&
-                !bms_overlap(restrictinfo->left_relids,
-                             outerjoin_nonnullable))
-            {
-                /* we have innervar = outervar */
-                root->right_join_clauses = lappend(root->right_join_clauses,
-                                                   restrictinfo);
-                return;
-            }
-            if (jointype == JOIN_FULL)
-            {
-                /* FULL JOIN (above tests cannot match in this case) */
-                root->full_join_clauses = lappend(root->full_join_clauses,
-                                                  restrictinfo);
-                return;
-            }
-            /* nope, so fall through to distribute_restrictinfo_to_rels */
-        }
-        else
-        {
-            /* we still need to set up left_ec/right_ec */
-            initialize_mergeclause_eclasses(root, restrictinfo);
-        }
-    }
-
-	if (root->parse && root->parse->commandType == CMD_SELECT && contain_udf)
+	/*
+	 * In ordinary SQL, a WHERE or JOIN/ON clause can't reference any rels
+	 * that aren't within its syntactic scope; however, if we pulled up a
+	 * LATERAL subquery then we might find such references in quals that have
+	 * been pulled up.  We need to treat such quals as belonging to the join
+	 * level that includes every rel they reference.  Although we could make
+	 * pull_up_subqueries() place such quals correctly to begin with, it's
+	 * easier to handle it here.  When we find a clause that contains Vars
+	 * outside its syntactic scope, we add it to the postponed-quals list, and
+	 * process it once we've recursed back up to the appropriate join level.
+	 */
+	if (!bms_is_subset(relids, qualscope))
 	{
-		List    *quals_var;
-		
-		/* clause contain cn-udf, don't distribute it to rels, collect it */
-		root->udf_quals = lappend(root->udf_quals, restrictinfo->clause);
-		
-		/* cn-udf quals will not distribute to rels, but vars must be added */
-		quals_var = pull_var_clause((Node *) root->udf_quals,
-		                            PVC_RECURSE_AGGREGATES |
-		                            PVC_RECURSE_WINDOWFUNCS |
-		                            PVC_INCLUDE_PLACEHOLDERS);
-		
+		PostponedQual *pq = (PostponedQual *) palloc(sizeof(PostponedQual));
+
+		/*
+		 * Disable assert conditon:
+		 * Postgresql does not support pull up for the following query
+		 * 
+		 * select c1 from ss_tt1
+		 * where c2 in (select c2 from tt2
+		 *              where ss_tt1.c2 is null
+		 *              and tt2.c3 = ss_tt1.c3);
+		 * 
+		 * The table tt1 is under subquery as a local predicate. The predicate
+		 * should be postponed after join.
+		 */
+		// Assert(root->hasLateralRTEs);	/* shouldn't happen otherwise */
+		Assert(jointype == JOIN_INNER); /* mustn't postpone past outer join */
+		Assert(!is_deduced);	/* shouldn't be deduced, either */
+		Assert(postponed_qual_list);
+		pq->qual = clause;
+		pq->relids = relids;
+		*postponed_qual_list = lappend(*postponed_qual_list, pq);
+		return;
+	}
+
+	/*
+	 * If it's an outer-join clause, also check that relids is a subset of
+	 * ojscope.  (This should not fail if the syntactic scope check passed.)
+	 */
+	if (ojscope && !bms_is_subset(relids, ojscope))
+		elog(ERROR, "JOIN qualification cannot refer to other relations");
+
+	/*
+	 * If the clause is variable-free, our normal heuristic for pushing it
+	 * down to just the mentioned rels doesn't work, because there are none.
+	 *
+	 * If the clause is an outer-join clause, we must force it to the OJ's
+	 * semantic level to preserve semantics.
+	 *
+	 * Otherwise, when the clause contains volatile functions, we force it to
+	 * be evaluated at its original syntactic level.  This preserves the
+	 * expected semantics.
+	 *
+	 * When the clause contains no volatile functions either, it is actually a
+	 * pseudoconstant clause that will not change value during any one
+	 * execution of the plan, and hence can be used as a one-time qual in a
+	 * gating Result plan node.  We put such a clause into the regular
+	 * RestrictInfo lists for the moment, but eventually createplan.c will
+	 * pull it out and make a gating Result node immediately above whatever
+	 * plan node the pseudoconstant clause is assigned to.  It's usually best
+	 * to put a gating node as high in the plan tree as possible. If we are
+	 * not below an outer join, we can actually push the pseudoconstant qual
+	 * all the way to the top of the tree.  If we are below an outer join, we
+	 * leave the qual at its original syntactic level (we could push it up to
+	 * just below the outer join, but that seems more complex than it's
+	 * worth).
+	 */
+	if (bms_is_empty(relids))
+	{
+		if (ojscope)
+		{
+			/* clause is attached to outer join, eval it there */
+			relids = bms_copy(ojscope);
+			/* mustn't use as gating qual, so don't mark pseudoconstant */
+		}
+		else
+		{
+			/* eval at original syntactic level */
+			relids = bms_copy(qualscope);
+			if (!contain_volatile_functions(clause))
+			{
+				/* mark as gating qual */
+				pseudoconstant = true;
+				/* tell createplan.c to check for gating quals */
+				root->hasPseudoConstantQuals = true;
+				/* if not below outer join, push it to top of tree */
+				if (!below_outer_join)
+				{
+					relids =
+						get_relids_in_jointree((Node *) root->parse->jointree,
+											   false);
+					qualscope = bms_copy(relids);
+				}
+			}
+		}
+	}
+
+	/*----------
+	 * Check to see if clause application must be delayed by outer-join
+	 * considerations.
+	 *
+	 * A word about is_pushed_down: we mark the qual as "pushed down" if
+	 * it is (potentially) applicable at a level different from its original
+	 * syntactic level.  This flag is used to distinguish OUTER JOIN ON quals
+	 * from other quals pushed down to the same joinrel.  The rules are:
+	 *		WHERE quals and INNER JOIN quals: is_pushed_down = true.
+	 *		Non-degenerate OUTER JOIN quals: is_pushed_down = false.
+	 *		Degenerate OUTER JOIN quals: is_pushed_down = true.
+	 * A "degenerate" OUTER JOIN qual is one that doesn't mention the
+	 * non-nullable side, and hence can be pushed down into the nullable side
+	 * without changing the join result.  It is correct to treat it as a
+	 * regular filter condition at the level where it is evaluated.
+	 *
+	 * Note: it is not immediately obvious that a simple boolean is enough
+	 * for this: if for some reason we were to attach a degenerate qual to
+	 * its original join level, it would need to be treated as an outer join
+	 * qual there.  However, this cannot happen, because all the rels the
+	 * clause mentions must be in the outer join's min_righthand, therefore
+	 * the join it needs must be formed before the outer join; and we always
+	 * attach quals to the lowest level where they can be evaluated.  But
+	 * if we were ever to re-introduce a mechanism for delaying evaluation
+	 * of "expensive" quals, this area would need work.
+	 *
+	 * Note: generally, use of is_pushed_down has to go through the macro
+	 * RINFO_IS_PUSHED_DOWN, because that flag alone is not always sufficient
+	 * to tell whether a clause must be treated as pushed-down in context.
+	 * This seems like another reason why it should perhaps be rethought.
+	 *----------
+	 */
+	if (is_deduced)
+	{
+		/*
+		 * If the qual came from implied-equality deduction, it should not be
+		 * outerjoin-delayed, else deducer blew it.  But we can't check this
+		 * because the join_info_list may now contain OJs above where the qual
+		 * belongs.  For the same reason, we must rely on caller to supply the
+		 * correct nullable_relids set.
+		 */
+		Assert(!ojscope);
+		is_pushed_down = true;
+		outerjoin_delayed = false;
+		nullable_relids = deduced_nullable_relids;
+		/* Don't feed it back for more deductions */
+		maybe_equivalence = false;
+		maybe_outer_join = false;
+	}
+	else if (bms_overlap(relids, outerjoin_nonnullable))
+	{
+		/*
+		 * The qual is attached to an outer join and mentions (some of the)
+		 * rels on the nonnullable side, so it's not degenerate.
+		 *
+		 * We can't use such a clause to deduce equivalence (the left and
+		 * right sides might be unequal above the join because one of them has
+		 * gone to NULL) ... but we might be able to use it for more limited
+		 * deductions, if it is mergejoinable.  So consider adding it to the
+		 * lists of set-aside outer-join clauses.
+		 */
+		is_pushed_down = false;
+		maybe_equivalence = false;
+		maybe_outer_join = true;
+
+		/* Check to see if must be delayed by lower outer join */
+		outerjoin_delayed = check_outerjoin_delay(root,
+												  &relids,
+												  &nullable_relids,
+												  false);
+
+		/*
+		 * Now force the qual to be evaluated exactly at the level of joining
+		 * corresponding to the outer join.  We cannot let it get pushed down
+		 * into the nonnullable side, since then we'd produce no output rows,
+		 * rather than the intended single null-extended row, for any
+		 * nonnullable-side rows failing the qual.
+		 *
+		 * (Do this step after calling check_outerjoin_delay, because that
+		 * trashes relids.)
+		 */
+		Assert(ojscope);
+		relids = ojscope;
+		Assert(!pseudoconstant);
+	}
+	else
+	{
+		/*
+		 * Normal qual clause or degenerate outer-join clause.  Either way, we
+		 * can mark it as pushed-down.
+		 */
+		is_pushed_down = true;
+
+		/* Check to see if must be delayed by lower outer join */
+		outerjoin_delayed = check_outerjoin_delay(root,
+												  &relids,
+												  &nullable_relids,
+												  true);
+
+		if (outerjoin_delayed)
+		{
+			/* Should still be a subset of current scope ... */
+			Assert(root->hasLateralRTEs || bms_is_subset(relids, qualscope));
+			Assert(ojscope == NULL || bms_is_subset(relids, ojscope));
+
+			/*
+			 * Because application of the qual will be delayed by outer join,
+			 * we mustn't assume its vars are equal everywhere.
+			 */
+			maybe_equivalence = false;
+
+			/*
+			 * It's possible that this is an IS NULL clause that's redundant
+			 * with a lower antijoin; if so we can just discard it.  We need
+			 * not test in any of the other cases, because this will only be
+			 * possible for pushed-down, delayed clauses.
+			 */
+			if (check_redundant_nullability_qual(root, clause))
+				return;
+		}
+		else if (cn_expr || root->parse->connectByExpr)
+		{
+			/* if we have cn_expr or connect by clause, disable eq mechanism */
+			maybe_equivalence = false;
+		}
+		else
+		{
+			/*
+			 * Qual is not delayed by any lower outer-join restriction, so we
+			 * can consider feeding it to the equivalence machinery. However,
+			 * if it's itself within an outer-join clause, treat it as though
+			 * it appeared below that outer join (note that we can only get
+			 * here when the clause references only nullable-side rels).
+			 */
+			maybe_equivalence = true;
+			if (outerjoin_nonnullable != NULL)
+				below_outer_join = true;
+		}
+
+		/*
+		 * Since it doesn't mention the LHS, it's certainly not useful as a
+		 * set-aside OJ clause, even if it's in an OJ.
+		 */
+		maybe_outer_join = false;
+	}
+
+	/*
+	 * Build the RestrictInfo node itself.
+	 */
+	restrictinfo = make_restrictinfo((Expr *) clause,
+									 is_pushed_down,
+									 outerjoin_delayed,
+									 pseudoconstant,
+									 security_level,
+									 relids,
+									 outerjoin_nonnullable,
+									 nullable_relids);
+
+	/*
+	 * If it's a join clause (either naturally, or because delayed by
+	 * outer-join rules), add vars used in the clause to targetlists of their
+	 * relations, so that they will be emitted by the plan nodes that scan
+	 * those relations (else they won't be available at the join node!).
+	 *
+	 * Note: if the clause gets absorbed into an EquivalenceClass then this
+	 * may be unnecessary, but for now we have to do it to cover the case
+	 * where the EC becomes ec_broken and we end up reinserting the original
+	 * clauses into the plan.
+	 */
+	if (bms_membership(relids) == BMS_MULTIPLE)
+	{
+		List	   *vars = pull_var_clause(clause,
+										   PVC_RECURSE_AGGREGATES |
+										   PVC_RECURSE_WINDOWFUNCS |
+										   PVC_INCLUDE_PLACEHOLDERS);
+
+		add_vars_to_targetlist(root, vars, relids, false);
+		list_free(vars);
+	}
+
+	/*
+	 * We check "mergejoinability" of every clause, not only join clauses,
+	 * because we want to know about equivalences between vars of the same
+	 * relation, or between vars and consts.
+	 */
+	check_mergejoinable(restrictinfo);
+
+	/*
+	 * If it is a true equivalence clause, send it to the EquivalenceClass
+	 * machinery.  We do *not* attach it directly to any restriction or join
+	 * lists.  The EC code will propagate it to the appropriate places later.
+	 *
+	 * If the clause has a mergejoinable operator and is not
+	 * outerjoin-delayed, yet isn't an equivalence because it is an outer-join
+	 * clause, the EC code may yet be able to do something with it.  We add it
+	 * to appropriate lists for further consideration later.  Specifically:
+	 *
+	 * If it is a left or right outer-join qualification that relates the two
+	 * sides of the outer join (no funny business like leftvar1 = leftvar2 +
+	 * rightvar), we add it to root->left_join_clauses or
+	 * root->right_join_clauses according to which side the nonnullable
+	 * variable appears on.
+	 *
+	 * If it is a full outer-join qualification, we add it to
+	 * root->full_join_clauses.  (Ideally we'd discard cases that aren't
+	 * leftvar = rightvar, as we do for left/right joins, but this routine
+	 * doesn't have the info needed to do that; and the current usage of the
+	 * full_join_clauses list doesn't require that, so it's not currently
+	 * worth complicating this routine's API to make it possible.)
+	 *
+	 * If none of the above hold, pass it off to
+	 * distribute_restrictinfo_to_rels().
+	 *
+	 * In all cases, it's important to initialize the left_ec and right_ec
+	 * fields of a mergejoinable clause, so that all possibly mergejoinable
+	 * expressions have representations in EquivalenceClasses.  If
+	 * process_equivalence is successful, it will take care of that;
+	 * otherwise, we have to call initialize_mergeclause_eclasses to do it.
+	 */
+	if (restrictinfo->mergeopfamilies)
+	{
+		if (maybe_equivalence)
+		{
+			if (check_equivalence_delay(root, restrictinfo) &&
+				process_equivalence(root, &restrictinfo, below_outer_join))
+				return;
+			/* EC rejected it, so set left_ec/right_ec the hard way ... */
+			if (restrictinfo->mergeopfamilies)	/* EC might have changed this */
+				initialize_mergeclause_eclasses(root, restrictinfo);
+			/* ... and fall through to distribute_restrictinfo_to_rels */
+		}
+		else if (maybe_outer_join && restrictinfo->can_join)
+		{
+			/* we need to set up left_ec/right_ec the hard way */
+			initialize_mergeclause_eclasses(root, restrictinfo);
+			/* now see if it should go to any outer-join lists */
+			if (bms_is_subset(restrictinfo->left_relids,
+							  outerjoin_nonnullable) &&
+				!bms_overlap(restrictinfo->right_relids,
+							 outerjoin_nonnullable))
+			{
+				/* we have outervar = innervar */
+				root->left_join_clauses = lappend(root->left_join_clauses,
+												  restrictinfo);
+				return;
+			}
+			if (bms_is_subset(restrictinfo->right_relids,
+							  outerjoin_nonnullable) &&
+				!bms_overlap(restrictinfo->left_relids,
+							 outerjoin_nonnullable))
+			{
+				/* we have innervar = outervar */
+				root->right_join_clauses = lappend(root->right_join_clauses,
+												   restrictinfo);
+				return;
+			}
+			if (jointype == JOIN_FULL ||
+				jointype == JOIN_LEFT_SEMI_SCALAR)
+			{
+				/* FULL JOIN (above tests cannot match in this case) */
+				root->full_join_clauses = lappend(root->full_join_clauses,
+												  restrictinfo);
+				return;
+			}
+			/* nope, so fall through to distribute_restrictinfo_to_rels */
+		}
+		else
+		{
+			/* we still need to set up left_ec/right_ec */
+			initialize_mergeclause_eclasses(root, restrictinfo);
+		}
+	}
+
+	/* is_pushed_down true mean degenerate OUTER JOIN quals or IN INNER JOIN */
+	if (cn_expr && is_pushed_down && !IS_OUTER_JOIN(jointype) && jointype != JOIN_SEMI && postponed_qual_list)
+	{
+		List *quals_var;
+
+		if (below_semi_join || below_outer_join)
+		{
+			List          *quals_var;
+			PostponedQual *pq = (PostponedQual *) palloc(sizeof(PostponedQual));
+
+			pq->qual = clause;
+			pq->relids = relids;
+			*postponed_qual_list = lappend(*postponed_qual_list, pq);
+			
+			quals_var = pull_var_clause((Node *) restrictinfo->clause,
+			                            PVC_RECURSE_AGGREGATES | PVC_RECURSE_WINDOWFUNCS |
+			                                PVC_INCLUDE_PLACEHOLDERS);
+
+			add_vars_to_targetlist(root, quals_var, bms_make_singleton(0), false);
+			return;
+		}
+		/* clause contain cn-expr, don't distribute it to rels, collect it */
+		root->cn_qual = lappend(root->cn_qual, restrictinfo->clause);
+
+		/* cn-processed quals will not distribute to rels, but vars must be added */
+		quals_var = pull_var_clause((Node *)restrictinfo->clause,
+									PVC_RECURSE_AGGREGATES |
+									PVC_RECURSE_WINDOWFUNCS |
+									PVC_INCLUDE_PLACEHOLDERS);
+
 		add_vars_to_targetlist(root, quals_var, bms_make_singleton(0), false);
 	}
 	else
 	{
-    /* No EC special case applies, so push it into the clause lists */
-    distribute_restrictinfo_to_rels(root, restrictinfo);
-}
+		Relids old_relids = restrictinfo->required_relids;
+
+		if (cn_expr && is_pushed_down)
+		{
+			if (bms_is_subset(restrictinfo->required_relids, qualscope))
+			{
+				List *quals_var;
+
+				quals_var = pull_var_clause((Node *) restrictinfo->clause,
+				                            PVC_RECURSE_AGGREGATES | PVC_RECURSE_WINDOWFUNCS |
+				                                PVC_INCLUDE_PLACEHOLDERS);
+
+				add_vars_to_targetlist(root, quals_var, bms_make_singleton(0), false);
+			}
+			restrictinfo->required_relids = qualscope;
+		}
+		/* No EC special case applies, so push it into the clause lists */
+		distribute_restrictinfo_to_rels(root, restrictinfo);
+		restrictinfo->required_relids = old_relids;
+	}
 }
 
 /*
  * check_outerjoin_delay
- *        Detect whether a qual referencing the given relids must be delayed
- *        in application due to the presence of a lower outer join, and/or
- *        may force extra delay of higher-level outer joins.
+ *		Detect whether a qual referencing the given relids must be delayed
+ *		in application due to the presence of a lower outer join, and/or
+ *		may force extra delay of higher-level outer joins.
  *
  * If the qual must be delayed, add relids to *relids_p to reflect the lowest
  * safe level for evaluating the qual, and return TRUE.  Any extra delay for
@@ -2170,79 +2210,83 @@ distribute_qual_to_rels(PlannerInfo *root, Node *clause,
  */
 static bool
 check_outerjoin_delay(PlannerInfo *root,
-                      Relids *relids_p, /* in/out parameter */
-                      Relids *nullable_relids_p,    /* output parameter */
-                      bool is_pushed_down)
-{// #lizard forgives
-    Relids        relids;
-    Relids        nullable_relids;
-    bool        outerjoin_delayed;
-    bool        found_some;
+					  Relids *relids_p, /* in/out parameter */
+					  Relids *nullable_relids_p,	/* output parameter */
+					  bool is_pushed_down)
+{
+	Relids		relids;
+	Relids		nullable_relids;
+	bool		outerjoin_delayed;
+	bool		found_some;
 
-    /* fast path if no special joins */
-    if (root->join_info_list == NIL)
-    {
-        *nullable_relids_p = NULL;
-        return false;
-    }
+	/* fast path if no special joins */
+	if (root->join_info_list == NIL)
+	{
+		*nullable_relids_p = NULL;
+		return false;
+	}
 
-    /* must copy relids because we need the original value at the end */
-    relids = bms_copy(*relids_p);
-    nullable_relids = NULL;
-    outerjoin_delayed = false;
-    do
-    {
-        ListCell   *l;
+	/* must copy relids because we need the original value at the end */
+	relids = bms_copy(*relids_p);
+	nullable_relids = NULL;
+	outerjoin_delayed = false;
+	do
+	{
+		ListCell   *l;
 
-        found_some = false;
-        foreach(l, root->join_info_list)
-        {
-            SpecialJoinInfo *sjinfo = (SpecialJoinInfo *) lfirst(l);
+		found_some = false;
+		foreach(l, root->join_info_list)
+		{
+			SpecialJoinInfo *sjinfo = (SpecialJoinInfo *) lfirst(l);
 
-            /* do we reference any nullable rels of this OJ? */
-            if (bms_overlap(relids, sjinfo->min_righthand) ||
-                (sjinfo->jointype == JOIN_FULL &&
-                 bms_overlap(relids, sjinfo->min_lefthand)))
-            {
-                /* yes; have we included all its rels in relids? */
-                if (!bms_is_subset(sjinfo->min_lefthand, relids) ||
-                    !bms_is_subset(sjinfo->min_righthand, relids))
-                {
-                    /* no, so add them in */
-                    relids = bms_add_members(relids, sjinfo->min_lefthand);
-                    relids = bms_add_members(relids, sjinfo->min_righthand);
-                    outerjoin_delayed = true;
-                    /* we'll need another iteration */
-                    found_some = true;
-                }
-                /* track all the nullable rels of relevant OJs */
-                nullable_relids = bms_add_members(nullable_relids,
-                                                  sjinfo->min_righthand);
-                if (sjinfo->jointype == JOIN_FULL)
-                    nullable_relids = bms_add_members(nullable_relids,
-                                                      sjinfo->min_lefthand);
-                /* set delay_upper_joins if needed */
-                if (is_pushed_down && sjinfo->jointype != JOIN_FULL &&
-                    bms_overlap(relids, sjinfo->min_lefthand))
-                    sjinfo->delay_upper_joins = true;
-            }
-        }
-    } while (found_some);
+			/* do we reference any nullable rels of this OJ? */
+			if (bms_overlap(relids, sjinfo->min_righthand) ||
+				((sjinfo->jointype == JOIN_FULL ||
+				  sjinfo->jointype == JOIN_LEFT_SEMI_SCALAR) &&
+				 bms_overlap(relids, sjinfo->min_lefthand)))
+			{
+				/* yes; have we included all its rels in relids? */
+				if (!bms_is_subset(sjinfo->min_lefthand, relids) ||
+					!bms_is_subset(sjinfo->min_righthand, relids))
+				{
+					/* no, so add them in */
+					relids = bms_add_members(relids, sjinfo->min_lefthand);
+					relids = bms_add_members(relids, sjinfo->min_righthand);
+					outerjoin_delayed = true;
+					/* we'll need another iteration */
+					found_some = true;
+				}
+				/* track all the nullable rels of relevant OJs */
+				nullable_relids = bms_add_members(nullable_relids,
+												  sjinfo->min_righthand);
+				if (sjinfo->jointype == JOIN_FULL ||
+					sjinfo->jointype == JOIN_LEFT_SEMI_SCALAR)
+					nullable_relids = bms_add_members(nullable_relids,
+													  sjinfo->min_lefthand);
+				/* set delay_upper_joins if needed */
+				if (is_pushed_down &&
+					sjinfo->jointype != JOIN_FULL &&
+					sjinfo->jointype != JOIN_LEFT_SEMI_SCALAR &&
+					bms_overlap(relids, sjinfo->min_lefthand))
+					sjinfo->delay_upper_joins = true;
+			}
+		}
+	} while (found_some);
 
-    /* identify just the actually-referenced nullable rels */
-    nullable_relids = bms_int_members(nullable_relids, *relids_p);
+	/* identify just the actually-referenced nullable rels */
+	nullable_relids = bms_int_members(nullable_relids, *relids_p);
 
-    /* replace *relids_p, and return nullable_relids */
-    bms_free(*relids_p);
-    *relids_p = relids;
-    *nullable_relids_p = nullable_relids;
-    return outerjoin_delayed;
+	/* replace *relids_p, and return nullable_relids */
+	bms_free(*relids_p);
+	*relids_p = relids;
+	*nullable_relids_p = nullable_relids;
+	return outerjoin_delayed;
 }
 
 /*
  * check_equivalence_delay
- *        Detect whether a potential equivalence clause is rendered unsafe
- *        by outer-join-delay considerations.  Return TRUE if it's safe.
+ *		Detect whether a potential equivalence clause is rendered unsafe
+ *		by outer-join-delay considerations.  Return TRUE if it's safe.
  *
  * The initial tests in distribute_qual_to_rels will consider a mergejoinable
  * clause to be a potential equivalence clause if it is not outerjoin_delayed.
@@ -2254,33 +2298,33 @@ check_outerjoin_delay(PlannerInfo *root,
  */
 static bool
 check_equivalence_delay(PlannerInfo *root,
-                        RestrictInfo *restrictinfo)
+						RestrictInfo *restrictinfo)
 {
-    Relids        relids;
-    Relids        nullable_relids;
+	Relids		relids;
+	Relids		nullable_relids;
 
-    /* fast path if no special joins */
-    if (root->join_info_list == NIL)
-        return true;
+	/* fast path if no special joins */
+	if (root->join_info_list == NIL)
+		return true;
 
-    /* must copy restrictinfo's relids to avoid changing it */
-    relids = bms_copy(restrictinfo->left_relids);
-    /* check left side does not need delay */
-    if (check_outerjoin_delay(root, &relids, &nullable_relids, true))
-        return false;
+	/* must copy restrictinfo's relids to avoid changing it */
+	relids = bms_copy(restrictinfo->left_relids);
+	/* check left side does not need delay */
+	if (check_outerjoin_delay(root, &relids, &nullable_relids, true))
+		return false;
 
-    /* and similarly for the right side */
-    relids = bms_copy(restrictinfo->right_relids);
-    if (check_outerjoin_delay(root, &relids, &nullable_relids, true))
-        return false;
+	/* and similarly for the right side */
+	relids = bms_copy(restrictinfo->right_relids);
+	if (check_outerjoin_delay(root, &relids, &nullable_relids, true))
+		return false;
 
-    return true;
+	return true;
 }
 
 /*
  * check_redundant_nullability_qual
- *      Check to see if the qual is an IS NULL qual that is redundant with
- *      a lower JOIN_ANTI join.
+ *	  Check to see if the qual is an IS NULL qual that is redundant with
+ *	  a lower JOIN_ANTI join.
  *
  * We want to suppress redundant IS NULL quals, not so much to save cycles
  * as to avoid generating bogus selectivity estimates for them.  So if
@@ -2290,36 +2334,36 @@ check_equivalence_delay(PlannerInfo *root,
 static bool
 check_redundant_nullability_qual(PlannerInfo *root, Node *clause)
 {
-    Var           *forced_null_var;
-    Index        forced_null_rel;
-    ListCell   *lc;
+	Var		   *forced_null_var;
+	Index		forced_null_rel;
+	ListCell   *lc;
 
-    /* Check for IS NULL, and identify the Var forced to NULL */
-    forced_null_var = find_forced_null_var(clause);
-    if (forced_null_var == NULL)
-        return false;
-    forced_null_rel = forced_null_var->varno;
+	/* Check for IS NULL, and identify the Var forced to NULL */
+	forced_null_var = find_forced_null_var(clause);
+	if (forced_null_var == NULL)
+		return false;
+	forced_null_rel = forced_null_var->varno;
 
-    /*
-     * If the Var comes from the nullable side of a lower antijoin, the IS
-     * NULL condition is necessarily true.
-     */
-    foreach(lc, root->join_info_list)
-    {
-        SpecialJoinInfo *sjinfo = (SpecialJoinInfo *) lfirst(lc);
+	/*
+	 * If the Var comes from the nullable side of a lower antijoin, the IS
+	 * NULL condition is necessarily true.
+	 */
+	foreach(lc, root->join_info_list)
+	{
+		SpecialJoinInfo *sjinfo = (SpecialJoinInfo *) lfirst(lc);
 
-        if (sjinfo->jointype == JOIN_ANTI &&
-            bms_is_member(forced_null_rel, sjinfo->syn_righthand))
-            return true;
-    }
+		if (sjinfo->jointype == JOIN_ANTI &&
+			bms_is_member(forced_null_rel, sjinfo->syn_righthand))
+			return true;
+	}
 
-    return false;
+	return false;
 }
 
 /*
  * distribute_restrictinfo_to_rels
- *      Push a completed RestrictInfo into the proper restriction or join
- *      clause list(s).
+ *	  Push a completed RestrictInfo into the proper restriction or join
+ *	  clause list(s).
  *
  * This is the last step of distribute_qual_to_rels() for ordinary qual
  * clauses.  Clauses that are interesting for equivalence-class processing
@@ -2327,62 +2371,62 @@ check_redundant_nullability_qual(PlannerInfo *root, Node *clause)
  */
 void
 distribute_restrictinfo_to_rels(PlannerInfo *root,
-                                RestrictInfo *restrictinfo)
+								RestrictInfo *restrictinfo)
 {
-    Relids        relids = restrictinfo->required_relids;
-    RelOptInfo *rel;
+	Relids		relids = restrictinfo->required_relids;
+	RelOptInfo *rel;
 
-    switch (bms_membership(relids))
-    {
-        case BMS_SINGLETON:
+	switch (bms_membership(relids))
+	{
+		case BMS_SINGLETON:
 
-            /*
-             * There is only one relation participating in the clause, so it
-             * is a restriction clause for that relation.
-             */
-            rel = find_base_rel(root, bms_singleton_member(relids));
+			/*
+			 * There is only one relation participating in the clause, so it
+			 * is a restriction clause for that relation.
+			 */
+			rel = find_base_rel(root, bms_singleton_member(relids));
 
-            /* Add clause to rel's restriction list */
-            rel->baserestrictinfo = lappend(rel->baserestrictinfo,
-                                            restrictinfo);
-            /* Update security level info */
-            rel->baserestrict_min_security = Min(rel->baserestrict_min_security,
-                                                 restrictinfo->security_level);
-            break;
-        case BMS_MULTIPLE:
+			/* Add clause to rel's restriction list */
+			rel->baserestrictinfo = lappend(rel->baserestrictinfo,
+											restrictinfo);
+			/* Update security level info */
+			rel->baserestrict_min_security = Min(rel->baserestrict_min_security,
+												 restrictinfo->security_level);
+			break;
+		case BMS_MULTIPLE:
 
-            /*
-             * The clause is a join clause, since there is more than one rel
-             * in its relid set.
-             */
+			/*
+			 * The clause is a join clause, since there is more than one rel
+			 * in its relid set.
+			 */
 
-            /*
-             * Check for hashjoinable operators.  (We don't bother setting the
-             * hashjoin info except in true join clauses.)
-             */
-            check_hashjoinable(restrictinfo);
+			/*
+			 * Check for hashjoinable operators.  (We don't bother setting the
+			 * hashjoin info except in true join clauses.)
+			 */
+			check_hashjoinable(restrictinfo);
 
-            /*
-             * Add clause to the join lists of all the relevant relations.
-             */
-            add_join_clause_to_rels(root, restrictinfo, relids);
-            break;
-        default:
+			/*
+			 * Add clause to the join lists of all the relevant relations.
+			 */
+			add_join_clause_to_rels(root, restrictinfo, relids);
+			break;
+		default:
 
-            /*
-             * clause references no rels, and therefore we have no place to
-             * attach it.  Shouldn't get here if callers are working properly.
-             */
-            elog(ERROR, "cannot cope with variable-free clause");
-            break;
-    }
+			/*
+			 * clause references no rels, and therefore we have no place to
+			 * attach it.  Shouldn't get here if callers are working properly.
+			 */
+			elog(ERROR, "cannot cope with variable-free clause");
+			break;
+	}
 }
 
 /*
  * process_implied_equality
- *      Create a restrictinfo item that says "item1 op item2", and push it
- *      into the appropriate lists.  (In practice opno is always a btree
- *      equality operator.)
+ *	  Create a restrictinfo item that says "item1 op item2", and push it
+ *	  into the appropriate lists.  (In practice opno is always a btree
+ *	  equality operator.)
  *
  * "qualscope" is the nominal syntactic level to impute to the restrictinfo.
  * This must contain at least all the rels used in the expressions, but it
@@ -2411,54 +2455,52 @@ distribute_restrictinfo_to_rels(PlannerInfo *root,
  */
 void
 process_implied_equality(PlannerInfo *root,
-                         Oid opno,
-                         Oid collation,
-                         Expr *item1,
-                         Expr *item2,
-                         Relids qualscope,
-                         Relids nullable_relids,
-                         Index security_level,
-                         bool below_outer_join,
-                         bool both_const)
+						 Oid opno,
+						 Oid collation,
+						 Expr *item1,
+						 Expr *item2,
+						 Relids qualscope,
+						 Relids nullable_relids,
+						 Index security_level,
+						 bool below_outer_join,
+						 bool both_const)
 {
-    Expr       *clause;
+	Expr	   *clause;
 
-    /*
-     * Build the new clause.  Copy to ensure it shares no substructure with
-     * original (this is necessary in case there are subselects in there...)
-     */
-    clause = make_opclause(opno,
-                           BOOLOID, /* opresulttype */
-                           false,    /* opretset */
-                           copyObject(item1),
-                           copyObject(item2),
-                           InvalidOid,
-                           collation);
+	/*
+	 * Build the new clause.  Copy to ensure it shares no substructure with
+	 * original (this is necessary in case there are subselects in there...)
+	 */
+	clause = make_opclause(opno,
+						   BOOLOID, /* opresulttype */
+						   false,	/* opretset */
+						   copyObject(item1),
+						   copyObject(item2),
+						   InvalidOid,
+						   collation);
 
-    /* If both constant, try to reduce to a boolean constant. */
-    if (both_const)
-    {
-        clause = (Expr *) eval_const_expressions(root, (Node *) clause);
+	/* If both constant, try to reduce to a boolean constant. */
+	if (both_const)
+	{
+		clause = (Expr *) eval_const_expressions(root, (Node *) clause);
 
-        /* If we produced const TRUE, just drop the clause */
-        if (clause && IsA(clause, Const))
-        {
-            Const       *cclause = (Const *) clause;
+		/* If we produced const TRUE, just drop the clause */
+		if (clause && IsA(clause, Const))
+		{
+			Const	   *cclause = (Const *) clause;
 
-            Assert(cclause->consttype == BOOLOID);
-            if (!cclause->constisnull && DatumGetBool(cclause->constvalue))
-                return;
-        }
-    }
+			Assert(cclause->consttype == BOOLOID);
+			if (!cclause->constisnull && DatumGetBool(cclause->constvalue))
+				return;
+		}
+	}
 
-    /*
-     * Push the new clause into all the appropriate restrictinfo lists.
-     */
-    distribute_qual_to_rels(root, (Node *) clause,
-                            true, below_outer_join, JOIN_INNER,
-                            security_level,
-                            qualscope, NULL, NULL, nullable_relids,
-                            NULL);
+	/*
+	 * Push the new clause into all the appropriate restrictinfo lists.
+	 */
+	distribute_qual_to_rels(root, (Node *) clause, true, below_outer_join, false,
+	                        JOIN_INNER, security_level, qualscope, NULL, NULL, nullable_relids,
+	                        NULL);
 }
 
 /*
@@ -2476,51 +2518,51 @@ process_implied_equality(PlannerInfo *root,
  */
 RestrictInfo *
 build_implied_join_equality(Oid opno,
-                            Oid collation,
-                            Expr *item1,
-                            Expr *item2,
-                            Relids qualscope,
-                            Relids nullable_relids,
-                            Index security_level)
+							Oid collation,
+							Expr *item1,
+							Expr *item2,
+							Relids qualscope,
+							Relids nullable_relids,
+							Index security_level)
 {
-    RestrictInfo *restrictinfo;
-    Expr       *clause;
+	RestrictInfo *restrictinfo;
+	Expr	   *clause;
 
-    /*
-     * Build the new clause.  Copy to ensure it shares no substructure with
-     * original (this is necessary in case there are subselects in there...)
-     */
-    clause = make_opclause(opno,
-                           BOOLOID, /* opresulttype */
-                           false,    /* opretset */
-                           copyObject(item1),
-                           copyObject(item2),
-                           InvalidOid,
-                           collation);
+	/*
+	 * Build the new clause.  Copy to ensure it shares no substructure with
+	 * original (this is necessary in case there are subselects in there...)
+	 */
+	clause = make_opclause(opno,
+						   BOOLOID, /* opresulttype */
+						   false,	/* opretset */
+						   copyObject(item1),
+						   copyObject(item2),
+						   InvalidOid,
+						   collation);
 
-    /*
-     * Build the RestrictInfo node itself.
-     */
-    restrictinfo = make_restrictinfo(clause,
-                                     true,    /* is_pushed_down */
-                                     false, /* outerjoin_delayed */
-                                     false, /* pseudoconstant */
-                                     security_level,    /* security_level */
-                                     qualscope, /* required_relids */
-                                     NULL,    /* outer_relids */
-                                     nullable_relids);    /* nullable_relids */
+	/*
+	 * Build the RestrictInfo node itself.
+	 */
+	restrictinfo = make_restrictinfo(clause,
+									 true,	/* is_pushed_down */
+									 false, /* outerjoin_delayed */
+									 false, /* pseudoconstant */
+									 security_level,	/* security_level */
+									 qualscope, /* required_relids */
+									 NULL,	/* outer_relids */
+									 nullable_relids);	/* nullable_relids */
 
-    /* Set mergejoinability/hashjoinability flags */
-    check_mergejoinable(restrictinfo);
-    check_hashjoinable(restrictinfo);
+	/* Set mergejoinability/hashjoinability flags */
+	check_mergejoinable(restrictinfo);
+	check_hashjoinable(restrictinfo);
 
-    return restrictinfo;
+	return restrictinfo;
 }
 
 
 /*
  * match_foreign_keys_to_quals
- *        Match foreign-key constraints to equivalence classes and join quals
+ *		Match foreign-key constraints to equivalence classes and join quals
  *
  * The idea here is to see which query join conditions match equality
  * constraints of a foreign-key relationship.  For such join conditions,
@@ -2534,228 +2576,228 @@ build_implied_join_equality(Oid opno,
  */
 void
 match_foreign_keys_to_quals(PlannerInfo *root)
-{// #lizard forgives
-    List       *newlist = NIL;
-    ListCell   *lc;
+{
+	List	   *newlist = NIL;
+	ListCell   *lc;
 
-    foreach(lc, root->fkey_list)
-    {
-        ForeignKeyOptInfo *fkinfo = (ForeignKeyOptInfo *) lfirst(lc);
-        RelOptInfo *con_rel;
-        RelOptInfo *ref_rel;
-        int            colno;
+	foreach(lc, root->fkey_list)
+	{
+		ForeignKeyOptInfo *fkinfo = (ForeignKeyOptInfo *) lfirst(lc);
+		RelOptInfo *con_rel;
+		RelOptInfo *ref_rel;
+		int			colno;
 
-        /*
-         * Either relid might identify a rel that is in the query's rtable but
-         * isn't referenced by the jointree so won't have a RelOptInfo.  Hence
-         * don't use find_base_rel() here.  We can ignore such FKs.
-         */
-        if (fkinfo->con_relid >= root->simple_rel_array_size ||
-            fkinfo->ref_relid >= root->simple_rel_array_size)
-            continue;            /* just paranoia */
-        con_rel = root->simple_rel_array[fkinfo->con_relid];
-        if (con_rel == NULL)
-            continue;
-        ref_rel = root->simple_rel_array[fkinfo->ref_relid];
-        if (ref_rel == NULL)
-            continue;
+		/*
+		 * Either relid might identify a rel that is in the query's rtable but
+		 * isn't referenced by the jointree so won't have a RelOptInfo.  Hence
+		 * don't use find_base_rel() here.  We can ignore such FKs.
+		 */
+		if (fkinfo->con_relid >= root->simple_rel_array_size ||
+			fkinfo->ref_relid >= root->simple_rel_array_size)
+			continue;			/* just paranoia */
+		con_rel = root->simple_rel_array[fkinfo->con_relid];
+		if (con_rel == NULL)
+			continue;
+		ref_rel = root->simple_rel_array[fkinfo->ref_relid];
+		if (ref_rel == NULL)
+			continue;
 
-        /*
-         * Ignore FK unless both rels are baserels.  This gets rid of FKs that
-         * link to inheritance child rels (otherrels) and those that link to
-         * rels removed by join removal (dead rels).
-         */
-        if (con_rel->reloptkind != RELOPT_BASEREL ||
-            ref_rel->reloptkind != RELOPT_BASEREL)
-            continue;
+		/*
+		 * Ignore FK unless both rels are baserels.  This gets rid of FKs that
+		 * link to inheritance child rels (otherrels) and those that link to
+		 * rels removed by join removal (dead rels).
+		 */
+		if (con_rel->reloptkind != RELOPT_BASEREL ||
+			ref_rel->reloptkind != RELOPT_BASEREL)
+			continue;
 
-        /*
-         * Scan the columns and try to match them to eclasses and quals.
-         *
-         * Note: for simple inner joins, any match should be in an eclass.
-         * "Loose" quals that syntactically match an FK equality must have
-         * been rejected for EC status because they are outer-join quals or
-         * similar.  We can still consider them to match the FK if they are
-         * not outerjoin_delayed.
-         */
-        for (colno = 0; colno < fkinfo->nkeys; colno++)
-        {
-            AttrNumber    con_attno,
-                        ref_attno;
-            Oid            fpeqop;
-            ListCell   *lc2;
+		/*
+		 * Scan the columns and try to match them to eclasses and quals.
+		 *
+		 * Note: for simple inner joins, any match should be in an eclass.
+		 * "Loose" quals that syntactically match an FK equality must have
+		 * been rejected for EC status because they are outer-join quals or
+		 * similar.  We can still consider them to match the FK if they are
+		 * not outerjoin_delayed.
+		 */
+		for (colno = 0; colno < fkinfo->nkeys; colno++)
+		{
+			AttrNumber	con_attno,
+						ref_attno;
+			Oid			fpeqop;
+			ListCell   *lc2;
 
-            fkinfo->eclass[colno] = match_eclasses_to_foreign_key_col(root,
-                                                                      fkinfo,
-                                                                      colno);
-            /* Don't bother looking for loose quals if we got an EC match */
-            if (fkinfo->eclass[colno] != NULL)
-            {
-                fkinfo->nmatched_ec++;
-                continue;
-            }
+			fkinfo->eclass[colno] = match_eclasses_to_foreign_key_col(root,
+																	  fkinfo,
+																	  colno);
+			/* Don't bother looking for loose quals if we got an EC match */
+			if (fkinfo->eclass[colno] != NULL)
+			{
+				fkinfo->nmatched_ec++;
+				continue;
+			}
 
-            /*
-             * Scan joininfo list for relevant clauses.  Either rel's joininfo
-             * list would do equally well; we use con_rel's.
-             */
-            con_attno = fkinfo->conkey[colno];
-            ref_attno = fkinfo->confkey[colno];
-            fpeqop = InvalidOid;    /* we'll look this up only if needed */
+			/*
+			 * Scan joininfo list for relevant clauses.  Either rel's joininfo
+			 * list would do equally well; we use con_rel's.
+			 */
+			con_attno = fkinfo->conkey[colno];
+			ref_attno = fkinfo->confkey[colno];
+			fpeqop = InvalidOid;	/* we'll look this up only if needed */
 
-            foreach(lc2, con_rel->joininfo)
-            {
-                RestrictInfo *rinfo = (RestrictInfo *) lfirst(lc2);
-                OpExpr       *clause = (OpExpr *) rinfo->clause;
-                Var           *leftvar;
-                Var           *rightvar;
+			foreach(lc2, con_rel->joininfo)
+			{
+				RestrictInfo *rinfo = (RestrictInfo *) lfirst(lc2);
+				OpExpr	   *clause = (OpExpr *) rinfo->clause;
+				Var		   *leftvar;
+				Var		   *rightvar;
 
-                /* Ignore outerjoin-delayed clauses */
-                if (rinfo->outerjoin_delayed)
-                    continue;
+				/* Ignore outerjoin-delayed clauses */
+				if (rinfo->outerjoin_delayed)
+					continue;
 
-                /* Only binary OpExprs are useful for consideration */
-                if (!IsA(clause, OpExpr) ||
-                    list_length(clause->args) != 2)
-                    continue;
-                leftvar = (Var *) get_leftop((Expr *) clause);
-                rightvar = (Var *) get_rightop((Expr *) clause);
+				/* Only binary OpExprs are useful for consideration */
+				if (!IsA(clause, OpExpr) ||
+					list_length(clause->args) != 2)
+					continue;
+				leftvar = (Var *) get_leftop((Expr *) clause);
+				rightvar = (Var *) get_rightop((Expr *) clause);
 
-                /* Operands must be Vars, possibly with RelabelType */
-                while (leftvar && IsA(leftvar, RelabelType))
-                    leftvar = (Var *) ((RelabelType *) leftvar)->arg;
-                if (!(leftvar && IsA(leftvar, Var)))
-                    continue;
-                while (rightvar && IsA(rightvar, RelabelType))
-                    rightvar = (Var *) ((RelabelType *) rightvar)->arg;
-                if (!(rightvar && IsA(rightvar, Var)))
-                    continue;
+				/* Operands must be Vars, possibly with RelabelType */
+				while (leftvar && IsA(leftvar, RelabelType))
+					leftvar = (Var *) ((RelabelType *) leftvar)->arg;
+				if (!(leftvar && IsA(leftvar, Var)))
+					continue;
+				while (rightvar && IsA(rightvar, RelabelType))
+					rightvar = (Var *) ((RelabelType *) rightvar)->arg;
+				if (!(rightvar && IsA(rightvar, Var)))
+					continue;
 
-                /* Now try to match the vars to the current foreign key cols */
-                if (fkinfo->ref_relid == leftvar->varno &&
-                    ref_attno == leftvar->varattno &&
-                    fkinfo->con_relid == rightvar->varno &&
-                    con_attno == rightvar->varattno)
-                {
-                    /* Vars match, but is it the right operator? */
-                    if (clause->opno == fkinfo->conpfeqop[colno])
-                    {
-                        fkinfo->rinfos[colno] = lappend(fkinfo->rinfos[colno],
-                                                        rinfo);
-                        fkinfo->nmatched_ri++;
-                    }
-                }
-                else if (fkinfo->ref_relid == rightvar->varno &&
-                         ref_attno == rightvar->varattno &&
-                         fkinfo->con_relid == leftvar->varno &&
-                         con_attno == leftvar->varattno)
-                {
-                    /*
-                     * Reverse match, must check commutator operator.  Look it
-                     * up if we didn't already.  (In the worst case we might
-                     * do multiple lookups here, but that would require an FK
-                     * equality operator without commutator, which is
-                     * unlikely.)
-                     */
-                    if (!OidIsValid(fpeqop))
-                        fpeqop = get_commutator(fkinfo->conpfeqop[colno]);
-                    if (clause->opno == fpeqop)
-                    {
-                        fkinfo->rinfos[colno] = lappend(fkinfo->rinfos[colno],
-                                                        rinfo);
-                        fkinfo->nmatched_ri++;
-                    }
-                }
-            }
-            /* If we found any matching loose quals, count col as matched */
-            if (fkinfo->rinfos[colno])
-                fkinfo->nmatched_rcols++;
-        }
+				/* Now try to match the vars to the current foreign key cols */
+				if (fkinfo->ref_relid == leftvar->varno &&
+					ref_attno == leftvar->varattno &&
+					fkinfo->con_relid == rightvar->varno &&
+					con_attno == rightvar->varattno)
+				{
+					/* Vars match, but is it the right operator? */
+					if (clause->opno == fkinfo->conpfeqop[colno])
+					{
+						fkinfo->rinfos[colno] = lappend(fkinfo->rinfos[colno],
+														rinfo);
+						fkinfo->nmatched_ri++;
+					}
+				}
+				else if (fkinfo->ref_relid == rightvar->varno &&
+						 ref_attno == rightvar->varattno &&
+						 fkinfo->con_relid == leftvar->varno &&
+						 con_attno == leftvar->varattno)
+				{
+					/*
+					 * Reverse match, must check commutator operator.  Look it
+					 * up if we didn't already.  (In the worst case we might
+					 * do multiple lookups here, but that would require an FK
+					 * equality operator without commutator, which is
+					 * unlikely.)
+					 */
+					if (!OidIsValid(fpeqop))
+						fpeqop = get_commutator(fkinfo->conpfeqop[colno]);
+					if (clause->opno == fpeqop)
+					{
+						fkinfo->rinfos[colno] = lappend(fkinfo->rinfos[colno],
+														rinfo);
+						fkinfo->nmatched_ri++;
+					}
+				}
+			}
+			/* If we found any matching loose quals, count col as matched */
+			if (fkinfo->rinfos[colno])
+				fkinfo->nmatched_rcols++;
+		}
 
-        /*
-         * Currently, we drop multicolumn FKs that aren't fully matched to the
-         * query.  Later we might figure out how to derive some sort of
-         * estimate from them, in which case this test should be weakened to
-         * "if ((fkinfo->nmatched_ec + fkinfo->nmatched_rcols) > 0)".
-         */
-        if ((fkinfo->nmatched_ec + fkinfo->nmatched_rcols) == fkinfo->nkeys)
-            newlist = lappend(newlist, fkinfo);
-    }
-    /* Replace fkey_list, thereby discarding any useless entries */
-    root->fkey_list = newlist;
+		/*
+		 * Currently, we drop multicolumn FKs that aren't fully matched to the
+		 * query.  Later we might figure out how to derive some sort of
+		 * estimate from them, in which case this test should be weakened to
+		 * "if ((fkinfo->nmatched_ec + fkinfo->nmatched_rcols) > 0)".
+		 */
+		if ((fkinfo->nmatched_ec + fkinfo->nmatched_rcols) == fkinfo->nkeys)
+			newlist = lappend(newlist, fkinfo);
+	}
+	/* Replace fkey_list, thereby discarding any useless entries */
+	root->fkey_list = newlist;
 }
 
 
 /*****************************************************************************
  *
- *     CHECKS FOR MERGEJOINABLE AND HASHJOINABLE CLAUSES
+ *	 CHECKS FOR MERGEJOINABLE AND HASHJOINABLE CLAUSES
  *
  *****************************************************************************/
 
 /*
  * check_mergejoinable
- *      If the restrictinfo's clause is mergejoinable, set the mergejoin
- *      info fields in the restrictinfo.
+ *	  If the restrictinfo's clause is mergejoinable, set the mergejoin
+ *	  info fields in the restrictinfo.
  *
- *      Currently, we support mergejoin for binary opclauses where
- *      the operator is a mergejoinable operator.  The arguments can be
- *      anything --- as long as there are no volatile functions in them.
+ *	  Currently, we support mergejoin for binary opclauses where
+ *	  the operator is a mergejoinable operator.  The arguments can be
+ *	  anything --- as long as there are no volatile functions in them.
  */
 static void
 check_mergejoinable(RestrictInfo *restrictinfo)
 {
-    Expr       *clause = restrictinfo->clause;
-    Oid            opno;
-    Node       *leftarg;
+	Expr	   *clause = restrictinfo->clause;
+	Oid			opno;
+	Node	   *leftarg;
 
-    if (restrictinfo->pseudoconstant)
-        return;
-    if (!is_opclause(clause))
-        return;
-    if (list_length(((OpExpr *) clause)->args) != 2)
-        return;
+	if (restrictinfo->pseudoconstant)
+		return;
+	if (!is_opclause(clause))
+		return;
+	if (list_length(((OpExpr *) clause)->args) != 2)
+		return;
 
-    opno = ((OpExpr *) clause)->opno;
-    leftarg = linitial(((OpExpr *) clause)->args);
+	opno = ((OpExpr *) clause)->opno;
+	leftarg = linitial(((OpExpr *) clause)->args);
 
-    if (op_mergejoinable(opno, exprType(leftarg)) &&
-        !contain_volatile_functions((Node *) clause))
-        restrictinfo->mergeopfamilies = get_mergejoin_opfamilies(opno);
+	if (op_mergejoinable(opno, exprType(leftarg)) &&
+		!contain_volatile_functions((Node *) clause))
+		restrictinfo->mergeopfamilies = get_mergejoin_opfamilies(opno);
 
-    /*
-     * Note: op_mergejoinable is just a hint; if we fail to find the operator
-     * in any btree opfamilies, mergeopfamilies remains NIL and so the clause
-     * is not treated as mergejoinable.
-     */
+	/*
+	 * Note: op_mergejoinable is just a hint; if we fail to find the operator
+	 * in any btree opfamilies, mergeopfamilies remains NIL and so the clause
+	 * is not treated as mergejoinable.
+	 */
 }
 
 /*
  * check_hashjoinable
- *      If the restrictinfo's clause is hashjoinable, set the hashjoin
- *      info fields in the restrictinfo.
+ *	  If the restrictinfo's clause is hashjoinable, set the hashjoin
+ *	  info fields in the restrictinfo.
  *
- *      Currently, we support hashjoin for binary opclauses where
- *      the operator is a hashjoinable operator.  The arguments can be
- *      anything --- as long as there are no volatile functions in them.
+ *	  Currently, we support hashjoin for binary opclauses where
+ *	  the operator is a hashjoinable operator.  The arguments can be
+ *	  anything --- as long as there are no volatile functions in them.
  */
 static void
 check_hashjoinable(RestrictInfo *restrictinfo)
 {
-    Expr       *clause = restrictinfo->clause;
-    Oid            opno;
-    Node       *leftarg;
+	Expr	   *clause = restrictinfo->clause;
+	Oid			opno;
+	Node	   *leftarg;
 
-    if (restrictinfo->pseudoconstant)
-        return;
-    if (!is_opclause(clause))
-        return;
-    if (list_length(((OpExpr *) clause)->args) != 2)
-        return;
+	if (restrictinfo->pseudoconstant)
+		return;
+	if (!is_opclause(clause))
+		return;
+	if (list_length(((OpExpr *) clause)->args) != 2)
+		return;
 
-    opno = ((OpExpr *) clause)->opno;
-    leftarg = linitial(((OpExpr *) clause)->args);
+	opno = ((OpExpr *) clause)->opno;
+	leftarg = linitial(((OpExpr *) clause)->args);
 
-    if (op_hashjoinable(opno, exprType(leftarg)) &&
-        !contain_volatile_functions((Node *) clause))
-        restrictinfo->hashjoinoperator = opno;
+	if (op_hashjoinable(opno, exprType(leftarg)) &&
+		!contain_volatile_functions((Node *) clause))
+		restrictinfo->hashjoinoperator = opno;
 }

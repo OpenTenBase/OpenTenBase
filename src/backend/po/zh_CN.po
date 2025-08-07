@@ -19570,9 +19570,9 @@ msgstr "不允许使用绝对路径"
 msgid "path must be in or below the current directory"
 msgstr "路径必须在当前目录或其子目录下"
 
-#: utils/adt/genfile.c:125 utils/adt/oracle_compat.c:184
-#: utils/adt/oracle_compat.c:282 utils/adt/oracle_compat.c:758
-#: utils/adt/oracle_compat.c:1059
+#: utils/adt/genfile.c:125 utils/adt/opentenbase_ora_compat.c:184
+#: utils/adt/opentenbase_ora_compat.c:282 utils/adt/opentenbase_ora_compat.c:758
+#: utils/adt/opentenbase_ora_compat.c:1059
 #, c-format
 msgid "requested length too large"
 msgstr "请求长度太大"
@@ -20443,22 +20443,22 @@ msgstr "值 \"%s\" 超出类型 oid 范围"
 msgid "invalid oidvector data"
 msgstr "无效的oidvector数据"
 
-#: utils/adt/oracle_compat.c:895
+#: utils/adt/opentenbase_ora_compat.c:895
 #, c-format
 msgid "requested character too large"
 msgstr "所请求的字符太大"
 
-#: utils/adt/oracle_compat.c:945 utils/adt/oracle_compat.c:1007
+#: utils/adt/opentenbase_ora_compat.c:945 utils/adt/opentenbase_ora_compat.c:1007
 #, c-format
 msgid "requested character too large for encoding: %d"
 msgstr "对于编码来说所要求的字符太大了: %d"
 
-#: utils/adt/oracle_compat.c:986
+#: utils/adt/opentenbase_ora_compat.c:986
 #, c-format
 msgid "requested character not valid for encoding: %d"
 msgstr "请求的字符对于编码:%d是无效的"
 
-#: utils/adt/oracle_compat.c:1000
+#: utils/adt/opentenbase_ora_compat.c:1000
 #, c-format
 msgid "null character not permitted"
 msgstr "不允许使用空字符"

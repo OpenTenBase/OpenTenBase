@@ -1,16 +1,14 @@
 /*-------------------------------------------------------------------------
  *
  * xactdesc.c
- *      rmgr descriptor routines for access/transam/xact.c
+ *	  rmgr descriptor routines for access/transam/xact.c
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  * IDENTIFICATION
- *      src/backend/access/rmgrdesc/xactdesc.c
+ *	  src/backend/access/rmgrdesc/xactdesc.c
  *
  *-------------------------------------------------------------------------
  */
@@ -35,246 +33,289 @@
 
 void
 ParseCommitRecord(uint8 info, xl_xact_commit *xlrec, xl_xact_parsed_commit *parsed)
-{// #lizard forgives
-    char       *data = ((char *) xlrec) + MinSizeOfXactCommit;
+{
+	char	   *data = ((char *) xlrec) + MinSizeOfXactCommit;
 
-    memset(parsed, 0, sizeof(*parsed));
+	memset(parsed, 0, sizeof(*parsed));
 
-    parsed->xinfo = 0;            /* default, if no XLOG_XACT_HAS_INFO is
-                                 * present */
+	parsed->xinfo = 0;			/* default, if no XLOG_XACT_HAS_INFO is
+								 * present */
 
-    parsed->xact_time = xlrec->xact_time;
+	parsed->xact_time = xlrec->xact_time;
 #ifdef __SUPPORT_DISTRIBUTED_TRANSACTION__
-    parsed->global_timestamp = xlrec->global_timestamp;
+	parsed->gts = xlrec->gts;
 #endif
 
-    if (info & XLOG_XACT_HAS_INFO)
-    {
-        xl_xact_xinfo *xl_xinfo = (xl_xact_xinfo *) data;
+	if (info & XLOG_XACT_HAS_INFO)
+	{
+		xl_xact_xinfo *xl_xinfo = (xl_xact_xinfo *) data;
 
-        parsed->xinfo = xl_xinfo->xinfo;
+		parsed->xinfo = xl_xinfo->xinfo;
 
-        data += sizeof(xl_xact_xinfo);
-    }
+		data += sizeof(xl_xact_xinfo);
+	}
 
-    if (parsed->xinfo & XACT_XINFO_HAS_DBINFO)
-    {
-        xl_xact_dbinfo *xl_dbinfo = (xl_xact_dbinfo *) data;
+	if (parsed->xinfo & XACT_XINFO_HAS_DBINFO)
+	{
+		xl_xact_dbinfo *xl_dbinfo = (xl_xact_dbinfo *) data;
 
-        parsed->dbId = xl_dbinfo->dbId;
-        parsed->tsId = xl_dbinfo->tsId;
+		parsed->dbId = xl_dbinfo->dbId;
+		parsed->tsId = xl_dbinfo->tsId;
 
-        data += sizeof(xl_xact_dbinfo);
-    }
+		data += sizeof(xl_xact_dbinfo);
+	}
 
-    if (parsed->xinfo & XACT_XINFO_HAS_SUBXACTS)
-    {
-        xl_xact_subxacts *xl_subxacts = (xl_xact_subxacts *) data;
+	if (parsed->xinfo & XACT_XINFO_HAS_SUBXACTS)
+	{
+		xl_xact_subxacts *xl_subxacts = (xl_xact_subxacts *) data;
 
-        parsed->nsubxacts = xl_subxacts->nsubxacts;
-        parsed->subxacts = xl_subxacts->subxacts;
+		parsed->nsubxacts = xl_subxacts->nsubxacts;
+		parsed->subxacts = xl_subxacts->subxacts;
 
-        data += MinSizeOfXactSubxacts;
-        data += parsed->nsubxacts * sizeof(TransactionId);
-    }
+		data += MinSizeOfXactSubxacts;
+		data += parsed->nsubxacts * sizeof(TransactionId);
+	}
 
-    if (parsed->xinfo & XACT_XINFO_HAS_RELFILENODES)
-    {
-        xl_xact_relfilenodes *xl_relfilenodes = (xl_xact_relfilenodes *) data;
+	if (parsed->xinfo & XACT_XINFO_HAS_RELFILENODES)
+	{
+		xl_xact_relfilenodes *xl_relfilenodes = (xl_xact_relfilenodes *) data;
 
-        parsed->nrels = xl_relfilenodes->nrels;
-        parsed->xnodes = xl_relfilenodes->xnodes;
+		parsed->nrels = xl_relfilenodes->nrels;
+		parsed->xnodes = xl_relfilenodes->xnodes;
 
-        data += MinSizeOfXactRelfilenodes;
-        data += xl_relfilenodes->nrels * sizeof(RelFileNode);
-    }
+		data += MinSizeOfXactRelfilenodes;
+		data += xl_relfilenodes->nrels * sizeof(RelFileNodeNFork);
+	}
 
-    if (parsed->xinfo & XACT_XINFO_HAS_INVALS)
-    {
-        xl_xact_invals *xl_invals = (xl_xact_invals *) data;
+	if (parsed->xinfo & XACT_XINFO_HAS_INVALS)
+	{
+		xl_xact_invals *xl_invals = (xl_xact_invals *) data;
 
-        parsed->nmsgs = xl_invals->nmsgs;
-        parsed->msgs = xl_invals->msgs;
+		parsed->nmsgs = xl_invals->nmsgs;
+		parsed->msgs = xl_invals->msgs;
 
-        data += MinSizeOfXactInvals;
-        data += xl_invals->nmsgs * sizeof(SharedInvalidationMessage);
-    }
+		data += MinSizeOfXactInvals;
+		data += xl_invals->nmsgs * sizeof(SharedInvalidationMessage);
+	}
 
-    if (parsed->xinfo & XACT_XINFO_HAS_TWOPHASE)
-    {
-        xl_xact_twophase *xl_twophase = (xl_xact_twophase *) data;
+	if (parsed->xinfo & XACT_XINFO_HAS_TWOPHASE)
+	{
+		xl_xact_twophase *xl_twophase = (xl_xact_twophase *) data;
 
-        parsed->twophase_xid = xl_twophase->xid;
+		parsed->twophase_xid = xl_twophase->xid;
 
-        data += sizeof(xl_xact_twophase);
-    }
+		data += sizeof(xl_xact_twophase);
+	}
 
-    if (parsed->xinfo & XACT_XINFO_HAS_ORIGIN)
-    {
-        xl_xact_origin xl_origin;
+	if (parsed->xinfo & XACT_XINFO_HAS_ORIGIN)
+	{
+		xl_xact_origin xl_origin;
 
-        /* we're only guaranteed 4 byte alignment, so copy onto stack */
-        memcpy(&xl_origin, data, sizeof(xl_origin));
+		/* we're only guaranteed 4 byte alignment, so copy onto stack */
+		memcpy(&xl_origin, data, sizeof(xl_origin));
 
-        parsed->origin_lsn = xl_origin.origin_lsn;
-        parsed->origin_timestamp = xl_origin.origin_timestamp;
+		parsed->origin_lsn = xl_origin.origin_lsn;
+		parsed->origin_timestamp = xl_origin.origin_timestamp;
 
-        data += sizeof(xl_xact_origin);
-    }
+		data += sizeof(xl_xact_origin);
+	}
+
+	if (parsed->xinfo & XACT_XINFO_HAS_OLDEST_ACTIVE_XID)
+	{
+	    TransactionId xid;
+	    memcpy(&xid, data, sizeof(TransactionId));
+	    parsed->oldest_active_xid = xid;
+	    data += sizeof(TransactionId);
+	}
 }
 
 void
 ParseAbortRecord(uint8 info, xl_xact_abort *xlrec, xl_xact_parsed_abort *parsed)
 {
-    char       *data = ((char *) xlrec) + MinSizeOfXactAbort;
+	char	   *data = ((char *) xlrec) + MinSizeOfXactAbort;
 
-    memset(parsed, 0, sizeof(*parsed));
+	memset(parsed, 0, sizeof(*parsed));
 
-    parsed->xinfo = 0;            /* default, if no XLOG_XACT_HAS_INFO is
-                                 * present */
+	parsed->xinfo = 0;			/* default, if no XLOG_XACT_HAS_INFO is
+								 * present */
 
-    parsed->xact_time = xlrec->xact_time;
+	parsed->xact_time = xlrec->xact_time;
 #ifdef __SUPPORT_DISTRIBUTED_TRANSACTION__
-    parsed->global_timestamp = xlrec->global_timestamp;
+	parsed->gts = xlrec->gts;
 #endif
 
 
-    if (info & XLOG_XACT_HAS_INFO)
-    {
-        xl_xact_xinfo *xl_xinfo = (xl_xact_xinfo *) data;
+	if (info & XLOG_XACT_HAS_INFO)
+	{
+		xl_xact_xinfo *xl_xinfo = (xl_xact_xinfo *) data;
 
-        parsed->xinfo = xl_xinfo->xinfo;
+		parsed->xinfo = xl_xinfo->xinfo;
 
-        data += sizeof(xl_xact_xinfo);
-    }
+		data += sizeof(xl_xact_xinfo);
+	}
 
-    if (parsed->xinfo & XACT_XINFO_HAS_SUBXACTS)
-    {
-        xl_xact_subxacts *xl_subxacts = (xl_xact_subxacts *) data;
+	if (parsed->xinfo & XACT_XINFO_HAS_SUBXACTS)
+	{
+		xl_xact_subxacts *xl_subxacts = (xl_xact_subxacts *) data;
 
-        parsed->nsubxacts = xl_subxacts->nsubxacts;
-        parsed->subxacts = xl_subxacts->subxacts;
+		parsed->nsubxacts = xl_subxacts->nsubxacts;
+		parsed->subxacts = xl_subxacts->subxacts;
 
-        data += MinSizeOfXactSubxacts;
-        data += parsed->nsubxacts * sizeof(TransactionId);
-    }
+		data += MinSizeOfXactSubxacts;
+		data += parsed->nsubxacts * sizeof(TransactionId);
+	}
 
-    if (parsed->xinfo & XACT_XINFO_HAS_RELFILENODES)
-    {
-        xl_xact_relfilenodes *xl_relfilenodes = (xl_xact_relfilenodes *) data;
+	if (parsed->xinfo & XACT_XINFO_HAS_RELFILENODES)
+	{
+		xl_xact_relfilenodes *xl_relfilenodes = (xl_xact_relfilenodes *) data;
 
-        parsed->nrels = xl_relfilenodes->nrels;
-        parsed->xnodes = xl_relfilenodes->xnodes;
+		parsed->nrels = xl_relfilenodes->nrels;
+		parsed->xnodes = xl_relfilenodes->xnodes;
 
-        data += MinSizeOfXactRelfilenodes;
-        data += xl_relfilenodes->nrels * sizeof(RelFileNode);
-    }
+		data += MinSizeOfXactRelfilenodes;
+		data += xl_relfilenodes->nrels * sizeof(RelFileNodeNFork);
+	}
 
-    if (parsed->xinfo & XACT_XINFO_HAS_TWOPHASE)
-    {
-        xl_xact_twophase *xl_twophase = (xl_xact_twophase *) data;
+	if (parsed->xinfo & XACT_XINFO_HAS_TWOPHASE)
+	{
+		xl_xact_twophase *xl_twophase = (xl_xact_twophase *) data;
 
-        parsed->twophase_xid = xl_twophase->xid;
+		parsed->twophase_xid = xl_twophase->xid;
 
-        data += sizeof(xl_xact_twophase);
-    }
+		data += sizeof(xl_xact_twophase);
+	}
+
+	if (parsed->xinfo & XACT_XINFO_HAS_OLDEST_ACTIVE_XID)
+	{
+	    TransactionId xid;
+	    memcpy(&xid, data, sizeof(TransactionId));
+	    parsed->oldest_active_xid = xid;
+	    data += sizeof(TransactionId);
+	}
 }
 
 static void
 xact_desc_commit(StringInfo buf, uint8 info, xl_xact_commit *xlrec, RepOriginId origin_id)
-{// #lizard forgives
-    xl_xact_parsed_commit parsed;
-    int            i;
+{
+	xl_xact_parsed_commit parsed;
+	int			i;
 
-    ParseCommitRecord(info, xlrec, &parsed);
+	ParseCommitRecord(info, xlrec, &parsed);
 
-    /* If this is a prepared xact, show the xid of the original xact */
-    if (TransactionIdIsValid(parsed.twophase_xid))
-        appendStringInfo(buf, "%u: ", parsed.twophase_xid);
+	/* If this is a prepared xact, show the xid of the original xact */
+	if (TransactionIdIsValid(parsed.twophase_xid))
+		appendStringInfo(buf, "%u: ", parsed.twophase_xid);
 
-    appendStringInfoString(buf, timestamptz_to_str(xlrec->xact_time));
+	appendStringInfoString(buf, timestamptz_to_str(xlrec->xact_time));
 
-    if (parsed.nrels > 0)
-    {
-        appendStringInfoString(buf, "; rels:");
-        for (i = 0; i < parsed.nrels; i++)
-        {
-            char       *path = relpathperm_client(parsed.xnodes[i],
-                    MAIN_FORKNUM, "");
+    appendStringInfo(buf, ", gts: "UINT64_FORMAT, xlrec->gts);
+    
+	if (parsed.nrels > 0)
+	{
+		appendStringInfoString(buf, "; rels:");
+		for (i = 0; i < parsed.nrels; i++)
+		{
+			char *path = relpathperm_client(parsed.xnodes[i].rnode, MAIN_FORKNUM, "");
 
-            appendStringInfo(buf, " %s", path);
-            pfree(path);
-        }
-    }
-    if (parsed.nsubxacts > 0)
-    {
-        appendStringInfoString(buf, "; subxacts:");
-        for (i = 0; i < parsed.nsubxacts; i++)
-            appendStringInfo(buf, " %u", parsed.subxacts[i]);
-    }
-    if (parsed.nmsgs > 0)
-    {
-        standby_desc_invalidations(
-                                   buf, parsed.nmsgs, parsed.msgs, parsed.dbId, parsed.tsId,
-                                   XactCompletionRelcacheInitFileInval(parsed.xinfo));
-    }
+#ifdef __OPENTENBASE_C__
+			appendStringInfo(buf, " %s %u:%u:%u ,",
+								path,
+								parsed.xnodes[i].rnode.spcNode,
+								parsed.xnodes[i].rnode.dbNode,
+								parsed.xnodes[i].rnode.relNode);
+#else
+			appendStringInfo(buf, " %s", path);
+#endif
 
-    if (XactCompletionForceSyncCommit(parsed.xinfo))
-        appendStringInfoString(buf, "; sync");
+			pfree(path);
+		}
+	}
+	if (parsed.nsubxacts > 0)
+	{
+		appendStringInfoString(buf, "; subxacts:");
+		for (i = 0; i < parsed.nsubxacts; i++)
+			appendStringInfo(buf, " %u", parsed.subxacts[i]);
+	}
+	if (parsed.nmsgs > 0)
+	{
+		standby_desc_invalidations(
+								   buf, parsed.nmsgs, parsed.msgs, parsed.dbId, parsed.tsId,
+								   XactCompletionRelcacheInitFileInval(parsed.xinfo));
+	}
 
-    if (parsed.xinfo & XACT_XINFO_HAS_ORIGIN)
-    {
-        appendStringInfo(buf, "; origin: node %u, lsn %X/%X, at %s",
-                         origin_id,
-                         (uint32) (parsed.origin_lsn >> 32),
-                         (uint32) parsed.origin_lsn,
-                         timestamptz_to_str(parsed.origin_timestamp));
-    }
+	if (XactCompletionForceSyncCommit(parsed.xinfo))
+		appendStringInfoString(buf, "; sync");
+
+	if (parsed.xinfo & XACT_XINFO_HAS_ORIGIN)
+	{
+		appendStringInfo(buf, "; origin: node %u, lsn %X/%X, at %s",
+						 origin_id,
+						 (uint32) (parsed.origin_lsn >> 32),
+						 (uint32) parsed.origin_lsn,
+						 timestamptz_to_str(parsed.origin_timestamp));
+	}
+
+	if (parsed.xinfo & XACT_XINFO_HAS_OLDEST_ACTIVE_XID)
+	{
+	    appendStringInfo(buf, "; oldest active xid: %u", parsed.oldest_active_xid);
+	}
 }
 
 static void
 xact_desc_abort(StringInfo buf, uint8 info, xl_xact_abort *xlrec)
 {
-    xl_xact_parsed_abort parsed;
-    int            i;
+	xl_xact_parsed_abort parsed;
+	int			i;
 
-    ParseAbortRecord(info, xlrec, &parsed);
+	ParseAbortRecord(info, xlrec, &parsed);
 
-    /* If this is a prepared xact, show the xid of the original xact */
-    if (TransactionIdIsValid(parsed.twophase_xid))
-        appendStringInfo(buf, "%u: ", parsed.twophase_xid);
+	/* If this is a prepared xact, show the xid of the original xact */
+	if (TransactionIdIsValid(parsed.twophase_xid))
+		appendStringInfo(buf, "%u: ", parsed.twophase_xid);
 
-    appendStringInfoString(buf, timestamptz_to_str(xlrec->xact_time));
-    if (parsed.nrels > 0)
-    {
-        appendStringInfoString(buf, "; rels:");
-        for (i = 0; i < parsed.nrels; i++)
-        {
-            char       *path = relpathperm_client(parsed.xnodes[i],
-                    MAIN_FORKNUM, "");
+	appendStringInfoString(buf, timestamptz_to_str(xlrec->xact_time));
+	if (parsed.nrels > 0)
+	{
+		appendStringInfoString(buf, "; rels:");
+		for (i = 0; i < parsed.nrels; i++)
+		{
+			char	   *path = relpathperm_client(parsed.xnodes[i].rnode, MAIN_FORKNUM, "");
 
-            appendStringInfo(buf, " %s", path);
-            pfree(path);
-        }
-    }
+#ifdef __OPENTENBASE_C__
+			appendStringInfo(buf, " %s %u:%u:%u ,",
+								path,
+								parsed.xnodes[i].rnode.spcNode,
+								parsed.xnodes[i].rnode.dbNode,
+								parsed.xnodes[i].rnode.relNode);
+#else
+			appendStringInfo(buf, " %s", path);
+#endif
+			pfree(path);
+		}
+	}
 
-    if (parsed.nsubxacts > 0)
-    {
-        appendStringInfoString(buf, "; subxacts:");
-        for (i = 0; i < parsed.nsubxacts; i++)
-            appendStringInfo(buf, " %u", parsed.subxacts[i]);
-    }
+	if (parsed.nsubxacts > 0)
+	{
+		appendStringInfoString(buf, "; subxacts:");
+		for (i = 0; i < parsed.nsubxacts; i++)
+			appendStringInfo(buf, " %u", parsed.subxacts[i]);
+	}
+
+	if (parsed.xinfo & XACT_XINFO_HAS_OLDEST_ACTIVE_XID)
+	{
+	    appendStringInfo(buf, "; oldest active xid: %u", parsed.oldest_active_xid);
+	}
 }
 
 static void
 xact_desc_assignment(StringInfo buf, xl_xact_assignment *xlrec)
 {
-    int            i;
+	int			i;
 
-    appendStringInfoString(buf, "subxacts:");
+	appendStringInfoString(buf, "subxacts:");
 
-    for (i = 0; i < xlrec->nsubxacts; i++)
-        appendStringInfo(buf, " %u", xlrec->xsub[i]);
+	for (i = 0; i < xlrec->nsubxacts; i++)
+		appendStringInfo(buf, " %u", xlrec->xsub[i]);
 }
 
 void
@@ -319,35 +360,36 @@ xact_desc(StringInfo buf, XLogReaderState *record)
 
 const char *
 xact_identify(uint8 info)
-{// #lizard forgives
-    const char *id = NULL;
+{
+	const char *id = NULL;
 
-    switch (info & XLOG_XACT_OPMASK)
-    {
-        case XLOG_XACT_COMMIT:
-            id = "COMMIT";
-            break;
-        case XLOG_XACT_PREPARE:
-            id = "PREPARE";
-            break;
-        case XLOG_XACT_ABORT:
-            id = "ABORT";
-            break;
-        case XLOG_XACT_COMMIT_PREPARED:
-            id = "COMMIT_PREPARED";
-            break;
-        case XLOG_XACT_ABORT_PREPARED:
-            id = "ABORT_PREPARED";
-            break;
-        case XLOG_XACT_ASSIGNMENT:
-            id = "ASSIGNMENT";
-            break;
+	switch (info & XLOG_XACT_OPMASK)
+	{
+		case XLOG_XACT_COMMIT:
+			id = "COMMIT";
+			break;
+		case XLOG_XACT_PREPARE:
+			id = "PREPARE";
+			break;
+		case XLOG_XACT_ABORT:
+			id = "ABORT";
+			break;
+		case XLOG_XACT_COMMIT_PREPARED:
+			id = "COMMIT_PREPARED";
+			break;
+		case XLOG_XACT_ABORT_PREPARED:
+			id = "ABORT_PREPARED";
+			break;
+		case XLOG_XACT_ASSIGNMENT:
+			id = "ASSIGNMENT";
+			break;
 #ifdef __OPENTENBASE__
-        case XLOG_XACT_ACQUIRE_GTS:
-            id = "ACQUIRE_GTS";
-            break;
-#endif            
-    }
+		case XLOG_XACT_ACQUIRE_GTS:
+			id = "ACQUIRE_GTS";
+			break;
+#endif
+			
+	}
 
-    return id;
+	return id;
 }

@@ -859,7 +859,7 @@ static int r_owned(struct SN_env * z) {
     return 1;
 }
 
-static int r_sing_owner(struct SN_env * z) {// #lizard forgives
+static int r_sing_owner(struct SN_env * z) {
     int among_var;
     z->ket = z->c; /* [, line 168 */
     among_var = find_among_b(z, a_10, 31); /* substring, line 168 */
@@ -975,7 +975,7 @@ static int r_sing_owner(struct SN_env * z) {// #lizard forgives
     return 1;
 }
 
-static int r_plur_owner(struct SN_env * z) {// #lizard forgives
+static int r_plur_owner(struct SN_env * z) {
     int among_var;
     z->ket = z->c; /* [, line 193 */
     if (z->c <= z->lb || z->p[z->c - 1] >> 5 != 3 || !((10768 >> (z->p[z->c - 1] & 0x1f)) & 1)) return 0;

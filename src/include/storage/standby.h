@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * standby.h
- *      Definitions for hot standby mode.
+ *	  Definitions for hot standby mode.
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -20,15 +20,15 @@
 #include "storage/relfilenode.h"
 
 /* User-settable GUC parameters */
-extern int    vacuum_defer_cleanup_age;
-extern int    max_standby_archive_delay;
-extern int    max_standby_streaming_delay;
+extern int	vacuum_defer_cleanup_age;
+extern int	max_standby_archive_delay;
+extern int	max_standby_streaming_delay;
 
 extern void InitRecoveryTransactionEnvironment(void);
 extern void ShutdownRecoveryTransactionEnvironment(void);
 
 extern void ResolveRecoveryConflictWithSnapshot(TransactionId latestRemovedXid,
-                                    RelFileNode node);
+									RelFileNode node);
 extern void ResolveRecoveryConflictWithTablespace(Oid tsid);
 extern void ResolveRecoveryConflictWithDatabase(Oid dbid);
 
@@ -48,7 +48,7 @@ extern void StandbyLockTimeoutHandler(void);
  */
 extern void StandbyAcquireAccessExclusiveLock(TransactionId xid, Oid dbOid, Oid relOid);
 extern void StandbyReleaseLockTree(TransactionId xid,
-                       int nsubxids, TransactionId *subxids);
+					   int nsubxids, TransactionId *subxids);
 extern void StandbyReleaseAllLocks(void);
 extern void StandbyReleaseOldLocks(int nxids, TransactionId *xids);
 
@@ -69,14 +69,14 @@ extern void StandbyReleaseOldLocks(int nxids, TransactionId *xids);
 
 typedef struct RunningTransactionsData
 {
-    int            xcnt;            /* # of xact ids in xids[] */
-    int            subxcnt;        /* # of subxact ids in xids[] */
-    bool        subxid_overflow;    /* snapshot overflowed, subxids missing */
-    TransactionId nextXid;        /* copy of ShmemVariableCache->nextXid */
-    TransactionId oldestRunningXid; /* *not* oldestXmin */
-    TransactionId latestCompletedXid;    /* so we can set xmax */
+	int			xcnt;			/* # of xact ids in xids[] */
+	int			subxcnt;		/* # of subxact ids in xids[] */
+	bool		subxid_overflow;	/* snapshot overflowed, subxids missing */
+	TransactionId nextXid;		/* copy of ShmemVariableCache->nextXid */
+	TransactionId oldestRunningXid; /* *not* oldestXmin */
+	TransactionId latestCompletedXid;	/* so we can set xmax */
 
-    TransactionId *xids;        /* array of (sub)xids still running */
+	TransactionId *xids;		/* array of (sub)xids still running */
 } RunningTransactionsData;
 
 typedef RunningTransactionsData *RunningTransactions;
@@ -86,6 +86,6 @@ extern void LogAccessExclusiveLockPrepare(void);
 
 extern XLogRecPtr LogStandbySnapshot(void);
 extern void LogStandbyInvalidations(int nmsgs, SharedInvalidationMessage *msgs,
-                        bool relcacheInitFileInval);
+						bool relcacheInitFileInval);
 
-#endif                            /* STANDBY_H */
+#endif							/* STANDBY_H */

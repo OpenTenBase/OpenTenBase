@@ -1,12 +1,9 @@
 /*-------------------------------------------------------------------------
  *
  * worker_internal.h
- *      Internal headers shared by logical replication workers.
+ *	  Internal headers shared by logical replication workers.
  *
  * Portions Copyright (c) 2016-2017, PostgreSQL Global Development Group
- *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  * src/include/replication/worker_internal.h
  *
@@ -24,39 +21,39 @@
 
 typedef struct LogicalRepWorker
 {
-    /* Time at which this worker was launched. */
-    TimestampTz launch_time;
+	/* Time at which this worker was launched. */
+	TimestampTz launch_time;
 
-    /* Indicates if this slot is used or free. */
-    bool        in_use;
+	/* Indicates if this slot is used or free. */
+	bool		in_use;
 
-    /* Increased everytime the slot is taken by new worker. */
-    uint16        generation;
+	/* Increased everytime the slot is taken by new worker. */
+	uint16		generation;
 
-    /* Pointer to proc array. NULL if not running. */
-    PGPROC       *proc;
+	/* Pointer to proc array. NULL if not running. */
+	PGPROC	   *proc;
 
-    /* Database id to connect to. */
-    Oid            dbid;
+	/* Database id to connect to. */
+	Oid			dbid;
 
-    /* User to use for connection (will be same as owner of subscription). */
-    Oid            userid;
+	/* User to use for connection (will be same as owner of subscription). */
+	Oid			userid;
 
-    /* Subscription id for the worker. */
-    Oid            subid;
+	/* Subscription id for the worker. */
+	Oid			subid;
 
-    /* Used for initial table synchronization. */
-    Oid            relid;
-    char        relstate;
-    XLogRecPtr    relstate_lsn;
-    slock_t        relmutex;
+	/* Used for initial table synchronization. */
+	Oid			relid;
+	char		relstate;
+	XLogRecPtr	relstate_lsn;
+	slock_t		relmutex;
 
-    /* Stats. */
-    XLogRecPtr    last_lsn;
-    TimestampTz last_send_time;
-    TimestampTz last_recv_time;
-    XLogRecPtr    reply_lsn;
-    TimestampTz reply_time;
+	/* Stats. */
+	XLogRecPtr	last_lsn;
+	TimestampTz last_send_time;
+	TimestampTz last_recv_time;
+	XLogRecPtr	reply_lsn;
+	TimestampTz reply_time;
 } LogicalRepWorker;
 
 /* Main memory context for apply worker. Permanent during worker lifetime. */
@@ -73,33 +70,36 @@ extern bool in_remote_transaction;
 
 extern void logicalrep_worker_attach(int slot);
 extern LogicalRepWorker *logicalrep_worker_find(Oid subid, Oid relid,
-                       bool only_running);
+					   bool only_running);
 extern List *logicalrep_workers_find(Oid subid, bool only_running);
 extern void logicalrep_worker_launch(Oid dbid, Oid subid, const char *subname,
-                         Oid userid, Oid relid);
+						 Oid userid, Oid relid);
 extern void logicalrep_worker_stop(Oid subid, Oid relid);
 extern void logicalrep_worker_stop_at_commit(Oid subid, Oid relid);
 extern void logicalrep_worker_wakeup(Oid subid, Oid relid);
 extern void logicalrep_worker_wakeup_ptr(LogicalRepWorker *worker);
 
-extern int    logicalrep_sync_worker_count(Oid subid);
+extern int	logicalrep_sync_worker_count(Oid subid);
 
 extern char *LogicalRepSyncTableStart(XLogRecPtr *origin_startpos);
-void        process_syncing_tables(XLogRecPtr current_lsn);
+void		process_syncing_tables(XLogRecPtr current_lsn);
 void invalidate_syncing_table_states(Datum arg, int cacheid,
-                                uint32 hashvalue);
+								uint32 hashvalue);
 
 static inline bool
 am_tablesync_worker(void)
 {
-    return OidIsValid(MyLogicalRepWorker->relid);
+	return OidIsValid(MyLogicalRepWorker->relid);
 }
 
 #ifdef __SUBSCRIPTION__
-extern bool am_opentenbase_subscript_dispatch_worker(void);
-extern bool IsColdMoveOpenTenBaseSubscription(void);
-extern bool IsClusterSyncOpenTenBaseSubscription(void);
-extern void logical_apply_dispatch(StringInfo s);
+static inline bool
+am_opentenbase_subscription_dispatch_worker(void)
+{
+	return IS_PGXC_COORDINATOR && 
+			MySubscription != NULL &&
+			MySubscription->parallel_number >= 1;
+}
 #endif
 
-#endif                            /* WORKER_INTERNAL_H */
+#endif							/* WORKER_INTERNAL_H */

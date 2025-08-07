@@ -20,4 +20,4 @@ extern ValuesScanState *ExecInitValuesScan(ValuesScan *node, EState *estate, int
 extern void ExecEndValuesScan(ValuesScanState *node);
 extern void ExecReScanValuesScan(ValuesScanState *node);
 
-#endif                            /* NODEVALUESSCAN_H */
+#endif							/* NODEVALUESSCAN_H */

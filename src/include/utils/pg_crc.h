@@ -13,16 +13,16 @@
  * of four macros:
  *
  * INIT_<variant>(crc)
- *        Initialize a CRC accumulator
+ *		Initialize a CRC accumulator
  *
  * COMP_<variant>(crc, data, len)
- *        Accumulate some (more) bytes into a CRC
+ *		Accumulate some (more) bytes into a CRC
  *
  * FIN_<variant>(crc)
- *        Finish a CRC calculation
+ *		Finish a CRC calculation
  *
  * EQ_<variant>(c1, c2)
- *        Check for equality of two CRCs.
+ *		Check for equality of two CRCs.
  *
  * The CRC-32C variant is in port/pg_crc32c.h.
  *
@@ -44,22 +44,22 @@ typedef uint32 pg_crc32;
  * use the Castagnoli version instead.
  */
 #define INIT_TRADITIONAL_CRC32(crc) ((crc) = 0xFFFFFFFF)
-#define FIN_TRADITIONAL_CRC32(crc)    ((crc) ^= 0xFFFFFFFF)
-#define COMP_TRADITIONAL_CRC32(crc, data, len)    \
-    COMP_CRC32_NORMAL_TABLE(crc, data, len, pg_crc32_table)
+#define FIN_TRADITIONAL_CRC32(crc)	((crc) ^= 0xFFFFFFFF)
+#define COMP_TRADITIONAL_CRC32(crc, data, len)	\
+	COMP_CRC32_NORMAL_TABLE(crc, data, len, pg_crc32_table)
 #define EQ_TRADITIONAL_CRC32(c1, c2) ((c1) == (c2))
 
 /* Sarwate's algorithm, for use with a "normal" lookup table */
-#define COMP_CRC32_NORMAL_TABLE(crc, data, len, table)              \
-do {                                                              \
-    const unsigned char *__data = (const unsigned char *) (data); \
-    uint32        __len = (len); \
+#define COMP_CRC32_NORMAL_TABLE(crc, data, len, table)			  \
+do {															  \
+	const unsigned char *__data = (const unsigned char *) (data); \
+	uint32		__len = (len); \
 \
-    while (__len-- > 0) \
-    { \
-        int        __tab_index = ((int) (crc) ^ *__data++) & 0xFF; \
-        (crc) = table[__tab_index] ^ ((crc) >> 8); \
-    } \
+	while (__len-- > 0) \
+	{ \
+		int		__tab_index = ((int) (crc) ^ *__data++) & 0xFF; \
+		(crc) = table[__tab_index] ^ ((crc) >> 8); \
+	} \
 } while (0)
 
 /*
@@ -77,9 +77,9 @@ do {                                                              \
  * code.
  */
 #define INIT_LEGACY_CRC32(crc) ((crc) = 0xFFFFFFFF)
-#define FIN_LEGACY_CRC32(crc)    ((crc) ^= 0xFFFFFFFF)
-#define COMP_LEGACY_CRC32(crc, data, len)    \
-    COMP_CRC32_REFLECTED_TABLE(crc, data, len, pg_crc32_table)
+#define FIN_LEGACY_CRC32(crc)	((crc) ^= 0xFFFFFFFF)
+#define COMP_LEGACY_CRC32(crc, data, len)	\
+	COMP_CRC32_REFLECTED_TABLE(crc, data, len, pg_crc32_table)
 #define EQ_LEGACY_CRC32(c1, c2) ((c1) == (c2))
 
 /*
@@ -87,15 +87,15 @@ do {                                                              \
  * legacy algorithm, we actually use it on a "normal" table, see above)
  */
 #define COMP_CRC32_REFLECTED_TABLE(crc, data, len, table) \
-do {                                                              \
-    const unsigned char *__data = (const unsigned char *) (data); \
-    uint32        __len = (len); \
+do {															  \
+	const unsigned char *__data = (const unsigned char *) (data); \
+	uint32		__len = (len); \
 \
-    while (__len-- > 0) \
-    { \
-        int        __tab_index = ((int) ((crc) >> 24) ^ *__data++) & 0xFF; \
-        (crc) = table[__tab_index] ^ ((crc) << 8); \
-    } \
+	while (__len-- > 0) \
+	{ \
+		int		__tab_index = ((int) ((crc) >> 24) ^ *__data++) & 0xFF; \
+		(crc) = table[__tab_index] ^ ((crc) << 8); \
+	} \
 } while (0)
 
 /*
@@ -104,4 +104,4 @@ do {                                                              \
  */
 extern PGDLLIMPORT const uint32 pg_crc32_table[256];
 
-#endif                            /* PG_CRC_H */
+#endif							/* PG_CRC_H */

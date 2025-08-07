@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * syslogger.h
- *      Exports from postmaster/syslogger.c.
+ *	  Exports from postmaster/syslogger.c.
  *
  * Copyright (c) 2004-2017, PostgreSQL Global Development Group
  *
@@ -12,7 +12,7 @@
 #ifndef _SYSLOGGER_H
 #define _SYSLOGGER_H
 
-#include <limits.h>                /* for PIPE_BUF */
+#include <limits.h>				/* for PIPE_BUF */
 
 
 /*
@@ -36,25 +36,25 @@
 #else
 #define PIPE_CHUNK_SIZE  ((int) PIPE_BUF)
 #endif
-#else                            /* not defined */
+#else							/* not defined */
 /* POSIX says the value of PIPE_BUF must be at least 512, so use that */
 #define PIPE_CHUNK_SIZE  512
 #endif
 
 typedef struct
 {
-    char        nuls[2];        /* always \0\0 */
-    uint16        len;            /* size of this chunk (counts data only) */
-    int32        pid;            /* writer's pid */
-    char        is_last;        /* last chunk of message? 't' or 'f' ('T' or
-                                 * 'F' for CSV case) */
-    char        data[FLEXIBLE_ARRAY_MEMBER];    /* data payload starts here */
+	char		nuls[2];		/* always \0\0 */
+	uint16		len;			/* size of this chunk (counts data only) */
+	int32		pid;			/* writer's pid */
+	char		is_last;		/* last chunk of message? 't' or 'f' ('T' or
+								 * 'F' for CSV case) */
+	char		data[FLEXIBLE_ARRAY_MEMBER];	/* data payload starts here */
 } PipeProtoHeader;
 
 typedef union
 {
-    PipeProtoHeader proto;
-    char        filler[PIPE_CHUNK_SIZE];
+	PipeProtoHeader proto;
+	char		filler[PIPE_CHUNK_SIZE];
 } PipeProtoChunk;
 
 #define PIPE_HEADER_SIZE  offsetof(PipeProtoHeader, data)
@@ -63,23 +63,23 @@ typedef union
 
 /* GUC options */
 extern bool Logging_collector;
-extern int    Log_RotationAge;
-extern int    Log_RotationSize;
+extern int	Log_RotationAge;
+extern int	Log_RotationSize;
 extern PGDLLIMPORT char *Log_directory;
 extern PGDLLIMPORT char *Log_filename;
 extern bool Log_truncate_on_rotation;
-extern int    Log_file_mode;
+extern int	Log_file_mode;
 
 extern bool am_syslogger;
 
 #ifndef WIN32
-extern int    syslogPipe[2];
+extern int	syslogPipe[2];
 #else
 extern HANDLE syslogPipe[2];
 #endif
 
 
-extern int    SysLogger_Start(void);
+extern int	SysLogger_Start(void);
 
 extern void write_syslogger_file(const char *buffer, int count, int dest);
 
@@ -94,4 +94,4 @@ extern void SysLoggerMain(int argc, char *argv[]) pg_attribute_noreturn();
 #define LOG_METAINFO_DATAFILE  "current_logfiles"
 #define LOG_METAINFO_DATAFILE_TMP  LOG_METAINFO_DATAFILE ".tmp"
 
-#endif                            /* _SYSLOGGER_H */
+#endif							/* _SYSLOGGER_H */

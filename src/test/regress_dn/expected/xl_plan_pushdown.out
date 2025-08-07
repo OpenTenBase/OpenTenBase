@@ -1,0 +1,177 @@
+--ensure that the plans are being pushed to the right subset of nodes
+--Sometimes plans get pushed down to more nodes than they really need to.
+CREATE TABLE xl_pp (a bigint, b int) DISTRIBUTE BY HASH(a);
+INSERT INTO xl_pp SELECT generate_series(1,100), 20;
+ANALYZE xl_pp;
+EXPLAIN VERBOSE SELECT * FROM xl_pp WHERE a = 100;
+                          QUERY PLAN                           
+---------------------------------------------------------------
+ Seq Scan on public.xl_pp  (cost=0.00..2.25 rows=100 width=12)
+   Output: a, b
+   Filter: (xl_pp.a = 100)
+(3 rows)
+
+EXPLAIN VERBOSE SELECT * FROM xl_pp WHERE a = 100::bigint;
+                          QUERY PLAN                           
+---------------------------------------------------------------
+ Seq Scan on public.xl_pp  (cost=0.00..2.25 rows=100 width=12)
+   Output: a, b
+   Filter: (xl_pp.a = '100'::bigint)
+(3 rows)
+
+EXPLAIN VERBOSE INSERT INTO xl_pp (a, b) VALUES (200, 1) ;
+                        QUERY PLAN                        
+----------------------------------------------------------
+ Insert on public.xl_pp  (cost=0.00..0.01 rows=0 width=0)
+   ->  Result  (cost=0.00..0.01 rows=1 width=12)
+         Output: '200'::bigint, 1
+(3 rows)
+
+EXPLAIN VERBOSE INSERT INTO xl_pp (a, b) VALUES (201::bigint, 1) ;
+                        QUERY PLAN                        
+----------------------------------------------------------
+ Insert on public.xl_pp  (cost=0.00..0.01 rows=0 width=0)
+   ->  Result  (cost=0.00..0.01 rows=1 width=12)
+         Output: '201'::bigint, 1
+(3 rows)
+
+EXPLAIN VERBOSE UPDATE xl_pp SET b=2 where a=200;
+                             QUERY PLAN                              
+---------------------------------------------------------------------
+ Update on public.xl_pp  (cost=0.00..2.25 rows=0 width=0)
+   ->  Seq Scan on public.xl_pp  (cost=0.00..2.25 rows=100 width=14)
+         Output: 2, shardid, ctid
+         Filter: (xl_pp.a = 200)
+(4 rows)
+
+EXPLAIN VERBOSE UPDATE xl_pp SET b=2 where a=200::bigint;
+                             QUERY PLAN                              
+---------------------------------------------------------------------
+ Update on public.xl_pp  (cost=0.00..2.25 rows=0 width=0)
+   ->  Seq Scan on public.xl_pp  (cost=0.00..2.25 rows=100 width=14)
+         Output: 2, shardid, ctid
+         Filter: (xl_pp.a = '200'::bigint)
+(4 rows)
+
+EXPLAIN VERBOSE DELETE FROM xl_pp where a=200;
+                             QUERY PLAN                              
+---------------------------------------------------------------------
+ Delete on public.xl_pp  (cost=0.00..2.25 rows=0 width=0)
+   ->  Seq Scan on public.xl_pp  (cost=0.00..2.25 rows=100 width=10)
+         Output: shardid, ctid
+         Filter: (xl_pp.a = 200)
+(4 rows)
+
+SELECT * from xl_pp where a=200;
+ a | b 
+---+---
+(0 rows)
+
+SELECT * from xl_pp where a=200::bigint;
+ a | b 
+---+---
+(0 rows)
+
+EXPLAIN VERBOSE DELETE FROM xl_pp where a=200;
+                             QUERY PLAN                              
+---------------------------------------------------------------------
+ Delete on public.xl_pp  (cost=0.00..2.25 rows=0 width=0)
+   ->  Seq Scan on public.xl_pp  (cost=0.00..2.25 rows=100 width=10)
+         Output: shardid, ctid
+         Filter: (xl_pp.a = 200)
+(4 rows)
+
+EXPLAIN VERBOSE DELETE FROM xl_pp where a=200::bigint;
+                             QUERY PLAN                              
+---------------------------------------------------------------------
+ Delete on public.xl_pp  (cost=0.00..2.25 rows=0 width=0)
+   ->  Seq Scan on public.xl_pp  (cost=0.00..2.25 rows=100 width=10)
+         Output: shardid, ctid
+         Filter: (xl_pp.a = '200'::bigint)
+(4 rows)
+
+--Testing with MODULO distribution
+CREATE TABLE xl_ppm (a INT2, b int) DISTRIBUTE BY MODULO(a);
+INSERT INTO xl_ppm SELECT generate_series(1,100), 20;
+ANALYZE xl_ppm;
+EXPLAIN VERBOSE SELECT * FROM xl_ppm WHERE a = 100;
+                          QUERY PLAN                           
+---------------------------------------------------------------
+ Seq Scan on public.xl_ppm  (cost=0.00..2.25 rows=100 width=6)
+   Output: a, b
+   Filter: (xl_ppm.a = 100)
+(3 rows)
+
+EXPLAIN VERBOSE SELECT * FROM xl_ppm WHERE a = 100::INT2;
+                          QUERY PLAN                           
+---------------------------------------------------------------
+ Seq Scan on public.xl_ppm  (cost=0.00..2.25 rows=100 width=6)
+   Output: a, b
+   Filter: (xl_ppm.a = '100'::smallint)
+(3 rows)
+
+EXPLAIN VERBOSE INSERT INTO xl_ppm (a, b) VALUES (201::INT2, 1) ;
+                        QUERY PLAN                         
+-----------------------------------------------------------
+ Insert on public.xl_ppm  (cost=0.00..0.01 rows=0 width=0)
+   ->  Result  (cost=0.00..0.01 rows=1 width=6)
+         Output: '201'::smallint, 1
+(3 rows)
+
+EXPLAIN VERBOSE UPDATE xl_ppm SET b=2 where a=200;
+                              QUERY PLAN                              
+----------------------------------------------------------------------
+ Update on public.xl_ppm  (cost=0.00..2.25 rows=0 width=0)
+   ->  Seq Scan on public.xl_ppm  (cost=0.00..2.25 rows=100 width=14)
+         Output: 2, shardid, ctid
+         Filter: (xl_ppm.a = 200)
+(4 rows)
+
+EXPLAIN VERBOSE UPDATE xl_ppm SET b=2 where a=200::INT2;
+                              QUERY PLAN                              
+----------------------------------------------------------------------
+ Update on public.xl_ppm  (cost=0.00..2.25 rows=0 width=0)
+   ->  Seq Scan on public.xl_ppm  (cost=0.00..2.25 rows=100 width=14)
+         Output: 2, shardid, ctid
+         Filter: (xl_ppm.a = '200'::smallint)
+(4 rows)
+
+EXPLAIN VERBOSE DELETE FROM xl_ppm where a=200;
+                              QUERY PLAN                              
+----------------------------------------------------------------------
+ Delete on public.xl_ppm  (cost=0.00..2.25 rows=0 width=0)
+   ->  Seq Scan on public.xl_ppm  (cost=0.00..2.25 rows=100 width=10)
+         Output: shardid, ctid
+         Filter: (xl_ppm.a = 200)
+(4 rows)
+
+SELECT * from xl_ppm where a=200;
+ a | b 
+---+---
+(0 rows)
+
+SELECT * from xl_ppm where a=200::INT2;
+ a | b 
+---+---
+(0 rows)
+
+EXPLAIN VERBOSE DELETE FROM xl_ppm where a=200;
+                              QUERY PLAN                              
+----------------------------------------------------------------------
+ Delete on public.xl_ppm  (cost=0.00..2.25 rows=0 width=0)
+   ->  Seq Scan on public.xl_ppm  (cost=0.00..2.25 rows=100 width=10)
+         Output: shardid, ctid
+         Filter: (xl_ppm.a = 200)
+(4 rows)
+
+EXPLAIN VERBOSE DELETE FROM xl_ppm where a=200::INT2;
+                              QUERY PLAN                              
+----------------------------------------------------------------------
+ Delete on public.xl_ppm  (cost=0.00..2.25 rows=0 width=0)
+   ->  Seq Scan on public.xl_ppm  (cost=0.00..2.25 rows=100 width=10)
+         Output: shardid, ctid
+         Filter: (xl_ppm.a = '200'::smallint)
+(4 rows)
+
+DROP TABLE xl_pp;
+DROP TABLE xl_ppm;

@@ -13,18 +13,18 @@
 
 
 extern const char *const sys_errlist[];
-extern int    sys_nerr;
+extern int	sys_nerr;
 
 const char *
 strerror(int errnum)
 {
-    static char buf[24];
+	static char buf[24];
 
-    if (errnum < 0 || errnum > sys_nerr)
-    {
-        sprintf(buf, _("unrecognized error %d"), errnum);
-        return buf;
-    }
+	if (errnum < 0 || errnum > sys_nerr)
+	{
+		sprintf(buf, _("unrecognized error %d"), errnum);
+		return buf;
+	}
 
-    return sys_errlist[errnum];
+	return sys_errlist[errnum];
 }

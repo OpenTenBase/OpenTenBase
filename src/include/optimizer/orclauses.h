@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * orclauses.h
- *      prototypes for orclauses.c.
+ *	  prototypes for orclauses.c.
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -18,4 +18,4 @@
 
 extern void extract_restriction_or_clauses(PlannerInfo *root);
 
-#endif                            /* ORCLAUSES_H */
+#endif							/* ORCLAUSES_H */

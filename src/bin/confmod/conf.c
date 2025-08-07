@@ -1,9 +1,3 @@
-/*
- * Copyright (c) 2023 THL A29 Limited, a Tencent company.
- *
- * This source code file is licensed under the BSD 3-Clause License,
- * you may obtain a copy of the License at http://opensource.org/license/bsd-3-clause/
- */
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -16,7 +10,7 @@
 
 static char *
 get_name(char *line, char **token)
-{// #lizard forgives
+{
     *token = NULL;
 
     if (!line)

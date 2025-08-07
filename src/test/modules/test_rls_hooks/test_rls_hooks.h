@@ -1,12 +1,12 @@
 /*--------------------------------------------------------------------------
  *
  * test_rls_hooks.h
- *        Definitions for RLS hooks
+ *		Definitions for RLS hooks
  *
  * Copyright (c) 2015-2017, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *        src/test/modules/test_rls_hooks/test_rls_hooks.h
+ *		src/test/modules/test_rls_hooks/test_rls_hooks.h
  *
  * -------------------------------------------------------------------------
  */

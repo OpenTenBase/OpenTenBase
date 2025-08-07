@@ -1,0 +1,40 @@
+%cn 1
+%cn_slave 0
+%dn 2
+%dn_slave 0
+%gtm 1
+%gtm_slave 0
+
+connect conn cn1
+connection conn
+
+-- this test case is usless now.
+-- gpdb wants to test a case that when a resgroup already has a session assigned but no query running.
+-- but , now, opentenbase will not assign to a session if no query running
+
+
+CREATE RESOURCE GROUP rg1 WITH concurrency 2 cpu_rate_limit 10;
+CREATE ROLE r1 RESOURCE GROUP rg1;
+
+connect conn1 cn1
+connection conn1
+
+set role r1;
+BEGIN;
+END;
+
+connection conn
+
+ALTER ROLE r1 RESOURCE GROUP none;
+DROP RESOURCE GROUP rg1;
+CREATE RESOURCE GROUP rg1 WITH concurrency 2 cpu_rate_limit 10;
+ALTER ROLE r1 RESOURCE GROUP rg1;
+
+connection conn1
+
+BEGIN;
+END;
+
+connection conn
+DROP ROLE r1;
+DROP RESOURCE GROUP rg1;

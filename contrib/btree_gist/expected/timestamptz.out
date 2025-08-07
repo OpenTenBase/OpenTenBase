@@ -192,16 +192,17 @@ SELECT count(*) FROM timestamptztmp WHERE a >  '2018-12-18 10:59:54 GMT+4'::time
    157
 (1 row)
 
-EXPLAIN (COSTS OFF)
+EXPLAIN (COSTS OFF, NODES OFF)
 SELECT a, a <-> '2018-12-18 10:59:54 GMT+2' FROM timestamptztmp ORDER BY a <-> '2018-12-18 10:59:54 GMT+2' LIMIT 3;
                                            QUERY PLAN                                           
 ------------------------------------------------------------------------------------------------
  Limit
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
+   ->  Remote Subquery Scan on all (datanodes 2)
+         Sort Key: (a <-> 'Tue Dec 18 04:59:54 2018 PST'::timestamp with time zone)
          ->  Limit
                ->  Index Only Scan using timestamptzidx on timestamptztmp
                      Order By: (a <-> 'Tue Dec 18 04:59:54 2018 PST'::timestamp with time zone)
-(5 rows)
+(6 rows)
 
 SELECT a, a <-> '2018-12-18 10:59:54 GMT+2' FROM timestamptztmp ORDER BY a <-> '2018-12-18 10:59:54 GMT+2' LIMIT 3;
               a               |             ?column?              

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * spgist_private.h
- *      Private declarations for SP-GiST access method.
+ *	  Private declarations for SP-GiST access method.
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -22,36 +22,36 @@
 
 
 /* Page numbers of fixed-location pages */
-#define SPGIST_METAPAGE_BLKNO     (0)    /* metapage */
-#define SPGIST_ROOT_BLKNO         (1)    /* root for normal entries */
-#define SPGIST_NULL_BLKNO         (2)    /* root for null-value entries */
+#define SPGIST_METAPAGE_BLKNO	 (0)	/* metapage */
+#define SPGIST_ROOT_BLKNO		 (1)	/* root for normal entries */
+#define SPGIST_NULL_BLKNO		 (2)	/* root for null-value entries */
 #define SPGIST_LAST_FIXED_BLKNO  SPGIST_NULL_BLKNO
 
 #define SpGistBlockIsRoot(blkno) \
-    ((blkno) == SPGIST_ROOT_BLKNO || (blkno) == SPGIST_NULL_BLKNO)
+	((blkno) == SPGIST_ROOT_BLKNO || (blkno) == SPGIST_NULL_BLKNO)
 #define SpGistBlockIsFixed(blkno) \
-    ((BlockNumber) (blkno) <= (BlockNumber) SPGIST_LAST_FIXED_BLKNO)
+	((BlockNumber) (blkno) <= (BlockNumber) SPGIST_LAST_FIXED_BLKNO)
 
 /*
  * Contents of page special space on SPGiST index pages
  */
 typedef struct SpGistPageOpaqueData
 {
-    uint16        flags;            /* see bit definitions below */
-    uint16        nRedirection;    /* number of redirection tuples on page */
-    uint16        nPlaceholder;    /* number of placeholder tuples on page */
-    /* note there's no count of either LIVE or DEAD tuples ... */
-    uint16        spgist_page_id; /* for identification of SP-GiST indexes */
+	uint16		flags;			/* see bit definitions below */
+	uint16		nRedirection;	/* number of redirection tuples on page */
+	uint16		nPlaceholder;	/* number of placeholder tuples on page */
+	/* note there's no count of either LIVE or DEAD tuples ... */
+	uint16		spgist_page_id; /* for identification of SP-GiST indexes */
 } SpGistPageOpaqueData;
 
 typedef SpGistPageOpaqueData *SpGistPageOpaque;
 
 /* Flag bits in page special space */
-#define SPGIST_META            (1<<0)
-#define SPGIST_DELETED        (1<<1)    /* never set, but keep for backwards
-                                     * compatibility */
-#define SPGIST_LEAF            (1<<2)
-#define SPGIST_NULLS        (1<<3)
+#define SPGIST_META			(1<<0)
+#define SPGIST_DELETED		(1<<1)	/* never set, but keep for backwards
+									 * compatibility */
+#define SPGIST_LEAF			(1<<2)
+#define SPGIST_NULLS		(1<<3)
 
 #define SpGistPageGetOpaque(page) ((SpGistPageOpaque) PageGetSpecialPointer(page))
 #define SpGistPageIsMeta(page) (SpGistPageGetOpaque(page)->flags & SPGIST_META)
@@ -67,7 +67,7 @@ typedef SpGistPageOpaqueData *SpGistPageOpaque;
  *
  * See comments above GinPageOpaqueData.
  */
-#define SPGIST_PAGE_ID        0xFF82
+#define SPGIST_PAGE_ID		0xFF82
 
 /*
  * Each backend keeps a cache of last-used page info in its index->rd_amcache
@@ -76,8 +76,8 @@ typedef SpGistPageOpaqueData *SpGistPageOpaque;
  */
 typedef struct SpGistLastUsedPage
 {
-    BlockNumber blkno;            /* block number, or InvalidBlockNumber */
-    int            freeSpace;        /* page's free space (could be obsolete!) */
+	BlockNumber blkno;			/* block number, or InvalidBlockNumber */
+	int			freeSpace;		/* page's free space (could be obsolete!) */
 } SpGistLastUsedPage;
 
 /* Note: indexes in cachedPage[] match flag assignments for SpGistGetBuffer */
@@ -85,7 +85,7 @@ typedef struct SpGistLastUsedPage
 
 typedef struct SpGistLUPCache
 {
-    SpGistLastUsedPage cachedPage[SPGIST_CACHED_PAGES];
+	SpGistLastUsedPage cachedPage[SPGIST_CACHED_PAGES];
 } SpGistLUPCache;
 
 /*
@@ -93,14 +93,14 @@ typedef struct SpGistLUPCache
  */
 typedef struct SpGistMetaPageData
 {
-    uint32        magicNumber;    /* for identity cross-check */
-    SpGistLUPCache lastUsedPages;    /* shared storage of last-used info */
+	uint32		magicNumber;	/* for identity cross-check */
+	SpGistLUPCache lastUsedPages;	/* shared storage of last-used info */
 } SpGistMetaPageData;
 
 #define SPGIST_MAGIC_NUMBER (0xBA0BABEE)
 
 #define SpGistPageGetMeta(p) \
-    ((SpGistMetaPageData *) PageGetContents(p))
+	((SpGistMetaPageData *) PageGetContents(p))
 
 /*
  * Private state of index AM.  SpGistState is common to both insert and
@@ -110,23 +110,23 @@ typedef struct SpGistMetaPageData
 /* Per-datatype info needed in SpGistState */
 typedef struct SpGistTypeDesc
 {
-    Oid            type;
-    bool        attbyval;
-    int16        attlen;
+	Oid			type;
+	bool		attbyval;
+	int16		attlen;
 } SpGistTypeDesc;
 
 typedef struct SpGistState
 {
-    spgConfigOut config;        /* filled in by opclass config method */
+	spgConfigOut config;		/* filled in by opclass config method */
 
-    SpGistTypeDesc attType;        /* type of input data and leaf values */
-    SpGistTypeDesc attPrefixType;    /* type of inner-tuple prefix values */
-    SpGistTypeDesc attLabelType;    /* type of node label values */
+	SpGistTypeDesc attType;		/* type of input data and leaf values */
+	SpGistTypeDesc attPrefixType;	/* type of inner-tuple prefix values */
+	SpGistTypeDesc attLabelType;	/* type of node label values */
 
-    char       *deadTupleStorage;    /* workspace for spgFormDeadTuple */
+	char	   *deadTupleStorage;	/* workspace for spgFormDeadTuple */
 
-    TransactionId myXid;        /* XID to use when creating a redirect tuple */
-    bool        isBuild;        /* true if doing index build */
+	TransactionId myXid;		/* XID to use when creating a redirect tuple */
+	bool		isBuild;		/* true if doing index build */
 } SpGistState;
 
 /*
@@ -134,38 +134,38 @@ typedef struct SpGistState
  */
 typedef struct SpGistScanOpaqueData
 {
-    SpGistState state;            /* see above */
-    MemoryContext tempCxt;        /* short-lived memory context */
+	SpGistState state;			/* see above */
+	MemoryContext tempCxt;		/* short-lived memory context */
 
-    /* Control flags showing whether to search nulls and/or non-nulls */
-    bool        searchNulls;    /* scan matches (all) null entries */
-    bool        searchNonNulls; /* scan matches (some) non-null entries */
+	/* Control flags showing whether to search nulls and/or non-nulls */
+	bool		searchNulls;	/* scan matches (all) null entries */
+	bool		searchNonNulls; /* scan matches (some) non-null entries */
 
-    /* Index quals to be passed to opclass (null-related quals removed) */
-    int            numberOfKeys;    /* number of index qualifier conditions */
-    ScanKey        keyData;        /* array of index qualifier descriptors */
+	/* Index quals to be passed to opclass (null-related quals removed) */
+	int			numberOfKeys;	/* number of index qualifier conditions */
+	ScanKey		keyData;		/* array of index qualifier descriptors */
 
-    /* Stack of yet-to-be-visited pages */
-    List       *scanStack;        /* List of ScanStackEntrys */
+	/* Stack of yet-to-be-visited pages */
+	List	   *scanStack;		/* List of ScanStackEntrys */
 
-    /* These fields are only used in amgetbitmap scans: */
-    TIDBitmap  *tbm;            /* bitmap being filled */
-    int64        ntids;            /* number of TIDs passed to bitmap */
+	/* These fields are only used in amgetbitmap scans: */
+	TIDBitmap  *tbm;			/* bitmap being filled */
+	int64		ntids;			/* number of TIDs passed to bitmap */
 
-    /* These fields are only used in amgettuple scans: */
-    bool        want_itup;        /* are we reconstructing tuples? */
-    TupleDesc    indexTupDesc;    /* if so, tuple descriptor for them */
-    int            nPtrs;            /* number of TIDs found on current page */
-    int            iPtr;            /* index for scanning through same */
-    ItemPointerData heapPtrs[MaxIndexTuplesPerPage];    /* TIDs from cur page */
-    bool        recheck[MaxIndexTuplesPerPage]; /* their recheck flags */
-    HeapTuple    reconTups[MaxIndexTuplesPerPage];    /* reconstructed tuples */
+	/* These fields are only used in amgettuple scans: */
+	bool		want_itup;		/* are we reconstructing tuples? */
+	TupleDesc	indexTupDesc;	/* if so, tuple descriptor for them */
+	int			nPtrs;			/* number of TIDs found on current page */
+	int			iPtr;			/* index for scanning through same */
+	ItemPointerData heapPtrs[MaxIndexTuplesPerPage];	/* TIDs from cur page */
+	bool		recheck[MaxIndexTuplesPerPage]; /* their recheck flags */
+	HeapTuple	reconTups[MaxIndexTuplesPerPage];	/* reconstructed tuples */
 
-    /*
-     * Note: using MaxIndexTuplesPerPage above is a bit hokey since
-     * SpGistLeafTuples aren't exactly IndexTuples; however, they are larger,
-     * so this is safe.
-     */
+	/*
+	 * Note: using MaxIndexTuplesPerPage above is a bit hokey since
+	 * SpGistLeafTuples aren't exactly IndexTuples; however, they are larger,
+	 * so this is safe.
+	 */
 } SpGistScanOpaqueData;
 
 typedef SpGistScanOpaqueData *SpGistScanOpaque;
@@ -176,28 +176,28 @@ typedef SpGistScanOpaqueData *SpGistScanOpaque;
  */
 typedef struct SpGistCache
 {
-    spgConfigOut config;        /* filled in by opclass config method */
+	spgConfigOut config;		/* filled in by opclass config method */
 
-    SpGistTypeDesc attType;        /* type of input data and leaf values */
-    SpGistTypeDesc attPrefixType;    /* type of inner-tuple prefix values */
-    SpGistTypeDesc attLabelType;    /* type of node label values */
+	SpGistTypeDesc attType;		/* type of input data and leaf values */
+	SpGistTypeDesc attPrefixType;	/* type of inner-tuple prefix values */
+	SpGistTypeDesc attLabelType;	/* type of node label values */
 
-    SpGistLUPCache lastUsedPages;    /* local storage of last-used info */
+	SpGistLUPCache lastUsedPages;	/* local storage of last-used info */
 } SpGistCache;
 
 
 /*
  * SPGiST tuple types.  Note: inner, leaf, and dead tuple structs
- * must have the same tupstate field in the same position!    Real inner and
+ * must have the same tupstate field in the same position!	Real inner and
  * leaf tuples always have tupstate = LIVE; if the state is something else,
  * use the SpGistDeadTuple struct to inspect the tuple.
  */
 
 /* values of tupstate (see README for more info) */
-#define SPGIST_LIVE            0    /* normal live tuple (either inner or leaf) */
-#define SPGIST_REDIRECT        1    /* temporary redirection placeholder */
-#define SPGIST_DEAD            2    /* dead, cannot be removed because of links */
-#define SPGIST_PLACEHOLDER    3    /* placeholder, used to preserve offsets */
+#define SPGIST_LIVE			0	/* normal live tuple (either inner or leaf) */
+#define SPGIST_REDIRECT		1	/* temporary redirection placeholder */
+#define SPGIST_DEAD			2	/* dead, cannot be removed because of links */
+#define SPGIST_PLACEHOLDER	3	/* placeholder, used to preserve offsets */
 
 /*
  * SPGiST inner tuple: list of "nodes" that subdivide a set of tuples
@@ -209,37 +209,37 @@ typedef struct SpGistCache
  */
 typedef struct SpGistInnerTupleData
 {
-    unsigned int tupstate:2,    /* LIVE/REDIRECT/DEAD/PLACEHOLDER */
-                allTheSame:1,    /* all nodes in tuple are equivalent */
-                nNodes:13,        /* number of nodes within inner tuple */
-                prefixSize:16;    /* size of prefix, or 0 if none */
-    uint16        size;            /* total size of inner tuple */
-    /* On most machines there will be a couple of wasted bytes here */
-    /* prefix datum follows, then nodes */
+	unsigned int tupstate:2,	/* LIVE/REDIRECT/DEAD/PLACEHOLDER */
+				allTheSame:1,	/* all nodes in tuple are equivalent */
+				nNodes:13,		/* number of nodes within inner tuple */
+				prefixSize:16;	/* size of prefix, or 0 if none */
+	uint16		size;			/* total size of inner tuple */
+	/* On most machines there will be a couple of wasted bytes here */
+	/* prefix datum follows, then nodes */
 } SpGistInnerTupleData;
 
 typedef SpGistInnerTupleData *SpGistInnerTuple;
 
 /* these must match largest values that fit in bit fields declared above */
-#define SGITMAXNNODES        0x1FFF
-#define SGITMAXPREFIXSIZE    0xFFFF
-#define SGITMAXSIZE            0xFFFF
+#define SGITMAXNNODES		0x1FFF
+#define SGITMAXPREFIXSIZE	0xFFFF
+#define SGITMAXSIZE			0xFFFF
 
-#define SGITHDRSZ            MAXALIGN(sizeof(SpGistInnerTupleData))
-#define _SGITDATA(x)        (((char *) (x)) + SGITHDRSZ)
-#define SGITDATAPTR(x)        ((x)->prefixSize ? _SGITDATA(x) : NULL)
-#define SGITDATUM(x, s)        ((x)->prefixSize ? \
-                             ((s)->attPrefixType.attbyval ? \
-                              *(Datum *) _SGITDATA(x) : \
-                              PointerGetDatum(_SGITDATA(x))) \
-                             : (Datum) 0)
-#define SGITNODEPTR(x)        ((SpGistNodeTuple) (_SGITDATA(x) + (x)->prefixSize))
+#define SGITHDRSZ			MAXALIGN(sizeof(SpGistInnerTupleData))
+#define _SGITDATA(x)		(((char *) (x)) + SGITHDRSZ)
+#define SGITDATAPTR(x)		((x)->prefixSize ? _SGITDATA(x) : NULL)
+#define SGITDATUM(x, s)		((x)->prefixSize ? \
+							 ((s)->attPrefixType.attbyval ? \
+							  *(Datum *) _SGITDATA(x) : \
+							  PointerGetDatum(_SGITDATA(x))) \
+							 : (Datum) 0)
+#define SGITNODEPTR(x)		((SpGistNodeTuple) (_SGITDATA(x) + (x)->prefixSize))
 
 /* Macro for iterating through the nodes of an inner tuple */
-#define SGITITERATE(x, i, nt)    \
-    for ((i) = 0, (nt) = SGITNODEPTR(x); \
-         (i) < (x)->nNodes; \
-         (i)++, (nt) = (SpGistNodeTuple) (((char *) (nt)) + IndexTupleSize(nt)))
+#define SGITITERATE(x, i, nt)	\
+	for ((i) = 0, (nt) = SGITNODEPTR(x); \
+		 (i) < (x)->nNodes; \
+		 (i)++, (nt) = (SpGistNodeTuple) (((char *) (nt)) + IndexTupleSize(nt)))
 
 /*
  * SPGiST node tuple: one node within an inner tuple
@@ -255,11 +255,11 @@ typedef IndexTupleData SpGistNodeTupleData;
 
 typedef SpGistNodeTupleData *SpGistNodeTuple;
 
-#define SGNTHDRSZ            MAXALIGN(sizeof(SpGistNodeTupleData))
-#define SGNTDATAPTR(x)        (((char *) (x)) + SGNTHDRSZ)
-#define SGNTDATUM(x, s)        ((s)->attLabelType.attbyval ? \
-                             *(Datum *) SGNTDATAPTR(x) : \
-                             PointerGetDatum(SGNTDATAPTR(x)))
+#define SGNTHDRSZ			MAXALIGN(sizeof(SpGistNodeTupleData))
+#define SGNTDATAPTR(x)		(((char *) (x)) + SGNTHDRSZ)
+#define SGNTDATUM(x, s)		((s)->attLabelType.attbyval ? \
+							 *(Datum *) SGNTDATAPTR(x) : \
+							 PointerGetDatum(SGNTDATAPTR(x)))
 
 /*
  * SPGiST leaf tuple: carries a datum and a heap tuple TID
@@ -289,20 +289,20 @@ typedef SpGistNodeTupleData *SpGistNodeTuple;
  */
 typedef struct SpGistLeafTupleData
 {
-    unsigned int tupstate:2,    /* LIVE/REDIRECT/DEAD/PLACEHOLDER */
-                size:30;        /* large enough for any palloc'able value */
-    OffsetNumber nextOffset;    /* next tuple in chain, or InvalidOffset */
-    ItemPointerData heapPtr;    /* TID of represented heap tuple */
-    /* leaf datum follows */
+	unsigned int tupstate:2,	/* LIVE/REDIRECT/DEAD/PLACEHOLDER */
+				size:30;		/* large enough for any palloc'able value */
+	OffsetNumber nextOffset;	/* next tuple in chain, or InvalidOffset */
+	ItemPointerData heapPtr;	/* TID of represented heap tuple */
+	/* leaf datum follows */
 } SpGistLeafTupleData;
 
 typedef SpGistLeafTupleData *SpGistLeafTuple;
 
-#define SGLTHDRSZ            MAXALIGN(sizeof(SpGistLeafTupleData))
-#define SGLTDATAPTR(x)        (((char *) (x)) + SGLTHDRSZ)
-#define SGLTDATUM(x, s)        ((s)->attType.attbyval ? \
-                             *(Datum *) SGLTDATAPTR(x) : \
-                             PointerGetDatum(SGLTDATAPTR(x)))
+#define SGLTHDRSZ			MAXALIGN(sizeof(SpGistLeafTupleData))
+#define SGLTDATAPTR(x)		(((char *) (x)) + SGLTHDRSZ)
+#define SGLTDATUM(x, s)		((s)->attType.attbyval ? \
+							 *(Datum *) SGLTDATAPTR(x) : \
+							 PointerGetDatum(SGLTDATAPTR(x)))
 
 /*
  * SPGiST dead tuple: declaration for examining non-live tuples
@@ -317,16 +317,16 @@ typedef SpGistLeafTupleData *SpGistLeafTuple;
  */
 typedef struct SpGistDeadTupleData
 {
-    unsigned int tupstate:2,    /* LIVE/REDIRECT/DEAD/PLACEHOLDER */
-                size:30;
-    OffsetNumber nextOffset;    /* not used in dead tuples */
-    ItemPointerData pointer;    /* redirection inside index */
-    TransactionId xid;            /* ID of xact that inserted this tuple */
+	unsigned int tupstate:2,	/* LIVE/REDIRECT/DEAD/PLACEHOLDER */
+				size:30;
+	OffsetNumber nextOffset;	/* not used in dead tuples */
+	ItemPointerData pointer;	/* redirection inside index */
+	TransactionId xid;			/* ID of xact that inserted this tuple */
 } SpGistDeadTupleData;
 
 typedef SpGistDeadTupleData *SpGistDeadTuple;
 
-#define SGDTSIZE        MAXALIGN(sizeof(SpGistDeadTupleData))
+#define SGDTSIZE		MAXALIGN(sizeof(SpGistDeadTupleData))
 
 /*
  * Macros for doing free-space calculations.  Note that when adding up the
@@ -337,28 +337,28 @@ typedef SpGistDeadTupleData *SpGistDeadTuple;
 
 /* Page capacity after allowing for fixed header and special space */
 #define SPGIST_PAGE_CAPACITY  \
-    MAXALIGN_DOWN(BLCKSZ - \
-                  SizeOfPageHeaderData - \
-                  MAXALIGN(sizeof(SpGistPageOpaqueData)))
+	MAXALIGN_DOWN(BLCKSZ - \
+				  SizeOfPageHeaderData - \
+				  MAXALIGN(sizeof(SpGistPageOpaqueData)))
 
 /*
  * Compute free space on page, assuming that up to n placeholders can be
  * recycled if present (n should be the number of tuples to be inserted)
  */
 #define SpGistPageGetFreeSpace(p, n) \
-    (PageGetExactFreeSpace(p) + \
-     Min(SpGistPageGetOpaque(p)->nPlaceholder, n) * \
-     (SGDTSIZE + sizeof(ItemIdData)))
+	(PageGetExactFreeSpace(p) + \
+	 Min(SpGistPageGetOpaque(p)->nPlaceholder, n) * \
+	 (SGDTSIZE + sizeof(ItemIdData)))
 
 /*
  * XLOG stuff
  */
 
 #define STORE_STATE(s, d)  \
-    do { \
-        (d).myXid = (s)->myXid; \
-        (d).isBuild = (s)->isBuild; \
-    } while(0)
+	do { \
+		(d).myXid = (s)->myXid; \
+		(d).isBuild = (s)->isBuild; \
+	} while(0)
 
 /*
  * The "flags" argument for SpGistGetBuffer should be either GBUF_LEAF to
@@ -371,13 +371,13 @@ typedef SpGistDeadTupleData *SpGistDeadTuple;
  *
  * Note: these flag values are used as indexes into lastUsedPages.
  */
-#define GBUF_LEAF                0x03
-#define GBUF_INNER_PARITY(x)    ((x) % 3)
-#define GBUF_NULLS                0x04
+#define GBUF_LEAF				0x03
+#define GBUF_INNER_PARITY(x)	((x) % 3)
+#define GBUF_NULLS				0x04
 
-#define GBUF_PARITY_MASK        0x03
-#define GBUF_REQ_LEAF(flags)    (((flags) & GBUF_PARITY_MASK) == GBUF_LEAF)
-#define GBUF_REQ_NULLS(flags)    ((flags) & GBUF_NULLS)
+#define GBUF_PARITY_MASK		0x03
+#define GBUF_REQ_LEAF(flags)	(((flags) & GBUF_PARITY_MASK) == GBUF_LEAF)
+#define GBUF_REQ_NULLS(flags)	((flags) & GBUF_NULLS)
 
 /* spgutils.c */
 extern SpGistCache *spgGetCache(Relation index);
@@ -385,37 +385,37 @@ extern void initSpGistState(SpGistState *state, Relation index);
 extern Buffer SpGistNewBuffer(Relation index);
 extern void SpGistUpdateMetaPage(Relation index);
 extern Buffer SpGistGetBuffer(Relation index, int flags,
-                int needSpace, bool *isNew);
+				int needSpace, bool *isNew);
 extern void SpGistSetLastUsedPage(Relation index, Buffer buffer);
-extern void SpGistInitPage(Page page, uint16 f);
-extern void SpGistInitBuffer(Buffer b, uint16 f);
-extern void SpGistInitMetapage(Page page);
+extern void SpGistInitPage(Page page, uint16 f, bool checksum_enabled);
+extern void SpGistInitBuffer(Buffer b, uint16 f, bool checksum_enabled);
+extern void SpGistInitMetapage(Page page, bool checksum_enabled);
 extern unsigned int SpGistGetTypeSize(SpGistTypeDesc *att, Datum datum);
 extern SpGistLeafTuple spgFormLeafTuple(SpGistState *state,
-                 ItemPointer heapPtr,
-                 Datum datum, bool isnull);
+				 ItemPointer heapPtr,
+				 Datum datum, bool isnull);
 extern SpGistNodeTuple spgFormNodeTuple(SpGistState *state,
-                 Datum label, bool isnull);
+				 Datum label, bool isnull);
 extern SpGistInnerTuple spgFormInnerTuple(SpGistState *state,
-                  bool hasPrefix, Datum prefix,
-                  int nNodes, SpGistNodeTuple *nodes);
+				  bool hasPrefix, Datum prefix,
+				  int nNodes, SpGistNodeTuple *nodes);
 extern SpGistDeadTuple spgFormDeadTuple(SpGistState *state, int tupstate,
-                 BlockNumber blkno, OffsetNumber offnum);
+				 BlockNumber blkno, OffsetNumber offnum);
 extern Datum *spgExtractNodeLabels(SpGistState *state,
-                     SpGistInnerTuple innerTuple);
+					 SpGistInnerTuple innerTuple);
 extern OffsetNumber SpGistPageAddNewItem(SpGistState *state, Page page,
-                     Item item, Size size,
-                     OffsetNumber *startOffset,
-                     bool errorOK);
+					 Item item, Size size,
+					 OffsetNumber *startOffset,
+					 bool errorOK);
 
 /* spgdoinsert.c */
 extern void spgUpdateNodeLink(SpGistInnerTuple tup, int nodeN,
-                  BlockNumber blkno, OffsetNumber offset);
+				  BlockNumber blkno, OffsetNumber offset);
 extern void spgPageIndexMultiDelete(SpGistState *state, Page page,
-                        OffsetNumber *itemnos, int nitems,
-                        int firststate, int reststate,
-                        BlockNumber blkno, OffsetNumber offnum);
+						OffsetNumber *itemnos, int nitems,
+						int firststate, int reststate,
+						BlockNumber blkno, OffsetNumber offnum);
 extern bool spgdoinsert(Relation index, SpGistState *state,
-            ItemPointer heapPtr, Datum datum, bool isnull);
+			ItemPointer heapPtr, Datum datum, bool isnull);
 
-#endif                            /* SPGIST_PRIVATE_H */
+#endif							/* SPGIST_PRIVATE_H */

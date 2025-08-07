@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * resowner.h
- *      POSTGRES resource owner definitions.
+ *	  POSTGRES resource owner definitions.
  *
  * Query-lifespan resources are tracked by associating them with
  * ResourceOwner objects.  This provides a simple mechanism for ensuring
@@ -30,9 +30,10 @@ typedef struct ResourceOwnerData *ResourceOwner;
 /*
  * Globally known ResourceOwners
  */
-extern PGDLLIMPORT ResourceOwner CurrentResourceOwner;
+extern PGDLLIMPORT __thread ResourceOwner CurrentResourceOwner;
 extern PGDLLIMPORT ResourceOwner CurTransactionResourceOwner;
 extern PGDLLIMPORT ResourceOwner TopTransactionResourceOwner;
+extern PGDLLIMPORT ResourceOwner AuxProcessResourceOwner;
 
 /*
  * Resource releasing is done in three phases: pre-locks, locks, and
@@ -44,19 +45,20 @@ extern PGDLLIMPORT ResourceOwner TopTransactionResourceOwner;
  */
 typedef enum
 {
-    RESOURCE_RELEASE_BEFORE_LOCKS,
-    RESOURCE_RELEASE_LOCKS,
-    RESOURCE_RELEASE_AFTER_LOCKS
+	RESOURCE_RELEASE_PORTAL,
+	RESOURCE_RELEASE_BEFORE_LOCKS,
+	RESOURCE_RELEASE_LOCKS,
+	RESOURCE_RELEASE_AFTER_LOCKS
 } ResourceReleasePhase;
 
 /*
- *    Dynamically loaded modules can get control during ResourceOwnerRelease
- *    by providing a callback of this form.
+ *	Dynamically loaded modules can get control during ResourceOwnerRelease
+ *	by providing a callback of this form.
  */
 typedef void (*ResourceReleaseCallback) (ResourceReleasePhase phase,
-                                         bool isCommit,
-                                         bool isTopLevel,
-                                         void *arg);
+										 bool isCommit,
+										 bool isTopLevel,
+										 void *arg);
 
 
 /*
@@ -65,18 +67,21 @@ typedef void (*ResourceReleaseCallback) (ResourceReleasePhase phase,
 
 /* generic routines */
 extern ResourceOwner ResourceOwnerCreate(ResourceOwner parent,
-                    const char *name);
+					const char *name);
 extern void ResourceOwnerRelease(ResourceOwner owner,
-                     ResourceReleasePhase phase,
-                     bool isCommit,
-                     bool isTopLevel);
+								 ResourceReleasePhase phase,
+								 bool isCommit,
+								 bool isTopLevel);
+extern void ResourceOwnerReleaseAllPlanCacheRefs(ResourceOwner owner);
 extern void ResourceOwnerDelete(ResourceOwner owner);
 extern ResourceOwner ResourceOwnerGetParent(ResourceOwner owner);
+extern ResourceOwner ResourceOwnerGetParentIfExist(ResourceOwner owner);
 extern void ResourceOwnerNewParent(ResourceOwner owner,
-                       ResourceOwner newparent);
+					   ResourceOwner newparent);
 extern void RegisterResourceReleaseCallback(ResourceReleaseCallback callback,
-                                void *arg);
+								void *arg);
 extern void UnregisterResourceReleaseCallback(ResourceReleaseCallback callback,
-                                  void *arg);
-
-#endif                            /* RESOWNER_H */
+								  void *arg);
+extern void CreateAuxProcessResourceOwner(void);
+extern void ReleaseAuxProcessResources(bool isCommit);
+#endif							/* RESOWNER_H */

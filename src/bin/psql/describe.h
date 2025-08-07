@@ -3,9 +3,6 @@
  *
  * Copyright (c) 2000-2017, PostgreSQL Global Development Group
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * src/bin/psql/describe.h
  */
 #ifndef DESCRIBE_H
@@ -32,6 +29,9 @@ extern bool describeOperators(const char *pattern, bool verbose, bool showSystem
 
 /* \du, \dg */
 extern bool describeRoles(const char *pattern, bool verbose, bool showSystem);
+
+/* \dK */
+extern bool listPackages(const char *pattern, bool verbose);
 
 /* \drds */
 extern bool listDbRoleSettings(const char *pattern1, const char *pattern2);
@@ -116,5 +116,9 @@ bool		describePublications(const char *pattern);
 
 /* \dRs */
 bool		describeSubscriptions(const char *pattern, bool verbose);
+
+extern char *queryNodeName(void);
+extern bool queryHostAddrByName(const char *node_name, char **host, char **port);
+extern bool listPgxcNode(void);
 
 #endif							/* DESCRIBE_H */

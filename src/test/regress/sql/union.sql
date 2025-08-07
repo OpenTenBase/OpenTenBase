@@ -122,7 +122,7 @@ SELECT q1 FROM int8_tbl EXCEPT ALL SELECT q1 FROM int8_tbl FOR NO KEY UPDATE;
 (SELECT 1,2,3 UNION SELECT 4,5,6 ORDER BY 1,2) EXCEPT SELECT 4,5,6;
 
 -- exercise both hashed and sorted implementations of INTERSECT/EXCEPT
-
+set enable_indexonlyscan to off;
 set enable_hashagg to on;
 
 explain (costs off)
@@ -148,7 +148,7 @@ select unique1 from tenk1 except select unique2 from tenk1 where unique2 != 10;
 select unique1 from tenk1 except select unique2 from tenk1 where unique2 != 10;
 
 reset enable_hashagg;
-
+reset enable_indexonlyscan;
 --
 -- Mixed types
 --
@@ -192,6 +192,49 @@ SELECT q1 FROM int8_tbl EXCEPT (((SELECT q2 FROM int8_tbl ORDER BY q2 LIMIT 1)))
 --
 
 (((((select * from int8_tbl  ORDER BY q1, q2)))));
+
+--
+-- Check behavior with empty select list (allowed since 9.4)
+--
+
+select union select;
+select intersect select;
+select except select;
+
+-- check hashed implementation
+set enable_hashagg = true;
+set enable_sort = false;
+
+explain (costs off)
+select from generate_series(1,5) union select from generate_series(1,3);
+explain (costs off)
+select from generate_series(1,5) intersect select from generate_series(1,3);
+
+select from generate_series(1,5) union select from generate_series(1,3);
+select from generate_series(1,5) union all select from generate_series(1,3);
+select from generate_series(1,5) intersect select from generate_series(1,3);
+select from generate_series(1,5) intersect all select from generate_series(1,3);
+select from generate_series(1,5) except select from generate_series(1,3);
+select from generate_series(1,5) except all select from generate_series(1,3);
+
+-- check sorted implementation
+set enable_hashagg = false;
+set enable_sort = true;
+
+explain (costs off)
+select from generate_series(1,5) union select from generate_series(1,3);
+explain (costs off)
+select from generate_series(1,5) intersect select from generate_series(1,3);
+
+select from generate_series(1,5) union select from generate_series(1,3);
+select from generate_series(1,5) union all select from generate_series(1,3);
+select from generate_series(1,5) intersect select from generate_series(1,3);
+select from generate_series(1,5) intersect all select from generate_series(1,3);
+select from generate_series(1,5) except select from generate_series(1,3);
+select from generate_series(1,5) except all select from generate_series(1,3);
+
+reset enable_hashagg;
+reset enable_sort;
 
 --
 -- Check handling of a case with unknown constants.  We don't guarantee
@@ -350,11 +393,11 @@ analyze t3;
 
 explain (num_nodes off, nodes off, costs off)
 select * from
-    (select * from t3 a union all select * from t3 b) ss
-        join int4_tbl on f1 = expensivefunc(x);
+  (select * from t3 a union all select * from t3 b) ss
+  join int4_tbl on f1 = expensivefunc(x);
 select * from
-    (select * from t3 a union all select * from t3 b) ss
-        join int4_tbl on f1 = expensivefunc(x);
+  (select * from t3 a union all select * from t3 b) ss
+  join int4_tbl on f1 = expensivefunc(x);
 
 alter function expensivefunc not pushdown;
 explain (num_nodes off, nodes off, costs off)
@@ -374,9 +417,106 @@ select * from
   (select *, 0 as x from int8_tbl a
    union all
    select *, 1 as x from int8_tbl b) ss
-where (x = 0) or (q1 >= q2 and q1 <= q2) order by 1,2,3;
+where (x = 0) or (q1 >= q2 and q1 <= q2);
 select * from
   (select *, 0 as x from int8_tbl a
    union all
    select *, 1 as x from int8_tbl b) ss
 where (x = 0) or (q1 >= q2 and q1 <= q2) order by 1,2,3;
+
+CREATE TABLE tb1 (c1 int, c2 int) DISTRIBUTE BY REPLICATION;
+CREATE TABLE tb2 (c1 int, c2 int);
+
+insert into tb2 select i,i from generate_series(1, 10) i;
+insert into tb1 select i,i from generate_series(1, 10) i;
+
+explain (costs off) select c1 from tb1 union all select c1 from tb2;
+select c1 from tb1 union all select c1 from tb2 order by c1;
+
+explain (costs off) select c1 from tb2 union all select c1 from tb1;
+select c1 from tb2 union all select c1 from tb1 order by c1;
+
+drop table tb1;
+drop table tb2;
+
+--plan of setop (not union)
+explain (costs off) select * from (select 2 except select 1 from t1);
+select * from (select 2 except select 1 from t1);
+
+create table test_nonunion(a int);
+insert into test_nonunion values (1);
+explain (costs off, verbose) select 'x' from test_nonunion t1 union select 'x' from test_nonunion t2 where 1=2 except select 'y' from test_nonunion t3 intersect select 'y' from test_nonunion t4;
+
+select 'x' from test_nonunion t1 except select 'y' from test_nonunion t2 except select 'x' from test_nonunion t3 intersect select 'x' from test_nonunion t4 except select 'y' from test_nonunion t5 ;
+
+drop table test_nonunion;
+
+--bugfix
+create table test_setop(c0 int, c1 bytea, c2 char, c3 bigint, c4 smallint) distribute by shard(c0);
+set nonunion_optimizer = off;
+EXPLAIN (costs off, verbose)
+SELECT ALL ref_0.c4 AS c0
+FROM test_setop AS ref_0
+EXCEPT
+SELECT ALL ref_0.c4 AS c0
+FROM test_setop AS ref_0
+WHERE (ref_0.c1 <> ref_0.c1)
+EXCEPT
+SELECT ALL ref_0.c4 AS c0
+FROM test_setop AS ref_0
+INTERSECT DISTINCT VALUES (CAST(NULL AS NUMERIC)) FOR READ ONLY;
+set nonunion_optimizer = on;
+EXPLAIN (costs off, verbose)
+SELECT ALL ref_0.c4 AS c0
+FROM test_setop AS ref_0
+EXCEPT
+SELECT ALL ref_0.c4 AS c0
+FROM test_setop AS ref_0
+WHERE (ref_0.c1 <> ref_0.c1)
+EXCEPT
+SELECT ALL ref_0.c4 AS c0
+FROM test_setop AS ref_0
+INTERSECT DISTINCT VALUES (CAST(NULL AS NUMERIC)) FOR READ ONLY;
+
+drop table test_setop;
+reset nonunion_optimizer;
+
+CREATE TABLE rqg_table4 (
+c0 int,
+c1 int,
+c2 text,
+c3 text,
+c4 date,
+c5 date,
+c6 timestamp,
+c7 timestamp,
+c8 time,
+c9 time,
+pk text,
+/*Indices*/
+primary key (pk))    PARTITION BY hash(pk) distribute by replication;
+set nonunion_optimizer = off;
+explain (costs off, verbose) select c2 FROM rqg_table4 EXCEPT ALL select c3 FROM rqg_table4 INTERSECT select c2 FROM rqg_table4 order by 1;
+set nonunion_optimizer = on;
+explain (costs off, verbose) select c2 FROM rqg_table4 EXCEPT ALL select c3 FROM rqg_table4 INTERSECT select c2 FROM rqg_table4 order by 1;
+
+drop table rqg_table4;
+reset nonunion_optimizer;
+
+create table union_test(c1 int, c2 int);
+explain (costs off) select 1 union select c1 from union_test;
+explain (costs off) select c1 from union_test union select 1;
+explain (costs off) select 1 union select 2;
+
+prepare union_test_fun(int, int) as select $1 union select c1 from union_test union select $2;
+explain (costs off) execute union_test_fun(1,2);
+DEALLOCATE  union_test_fun;
+
+prepare union_test_fun(int) as select c1 from union_test union select $1;
+explain (costs off) execute union_test_fun(1);
+DEALLOCATE  union_test_fun;
+
+prepare union_test_fun(int) as select $1 union select c1 from union_test;
+explain (costs off) execute union_test_fun(1);
+DEALLOCATE  union_test_fun;
+drop table union_test;

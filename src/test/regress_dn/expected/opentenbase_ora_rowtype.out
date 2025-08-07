@@ -1,0 +1,967 @@
+/*
+ * Test cases for cursor ROWTYPE.
+ * 1. declare cursor name and ROWTYPE
+ *   1.1 execute many times
+ * 2. FETCH INTO
+ *   2.1 rowtype from same cursor
+ *   2.2 rowtype from different cursor with same number field and same type
+ *   2.3 rowtype from different cursor with different number field or different type
+ * 3. SELECT INTO
+ *   3.1 rowtype with same number field and same type
+ *   3.2 rowtype with different number field or different type
+ * 4. assignment
+ *   4.1 rvalue not initialize
+ *   4.2 lvalue and rvalue from same cursor
+ *   4.3 lvalue and rvalue from different cursor with same number field and same type
+ *   4.4 lvalue and rvalue from different cursor with different number field or different type
+ *   4.5 lvalue or rvalue are table%rowtype and cursor%rowtype
+ * 5. name of rowtype is same as declared cursor, even if assigned/FETCH INTO from different source
+ * 6. refcursor testing / cursor with parameters
+ * 7. exception testing
+ *   7.1 no cursor or table in current namespace.
+ * 8. memory leak?
+ * 9. rowtype as parameter
+ * 10. rowtype as return parameter
+ * 11. rowtype from view
+ * 12. rowtype with namespace
+ */
+set enable_opentenbase_ora_compatible to on;
+drop table if exists table2;
+NOTICE:  table "table2" does not exist, skipping
+create table table2(a int, b int);
+insert into table2 values(generate_series(1, 10), generate_series(1, 10));
+create table table3(a int);
+insert into table3 values(generate_series(1, 10));
+create table table4(a text, b text);
+insert into table4 values(generate_series(1, 10), generate_series(1, 10));
+drop table if exists table5;
+NOTICE:  table "table5" does not exist, skipping
+drop view if exists tv;
+NOTICE:  view "tv" does not exist, skipping
+drop table if exists tblres;
+NOTICE:  table "tblres" does not exist, skipping
+create table table5(a int, b varchar2(50), c number);
+create or replace view tv as select a, b from table5;
+insert into table5 values(generate_series(1, 10), chr(generate_series(1,10) + 96), generate_series(1, 10));
+create table tblres(key1 int, des1 varchar2(50));
+-- 1. declare cursor name and ROWTYPE
+--   1.1 execute many times
+CREATE or replace FUNCTION row_type_func() RETURNS text AS $$
+DECLARE
+	c cursor  for select * from table2 order by 1;
+	rc c%rowtype;
+BEGIN
+	open c;
+	fetch c into rc;
+	while found loop
+		raise notice 'value % %', rc.a, rc.b;
+		fetch c into rc;
+	end loop;
+	close c;
+    RETURN 'OK';
+END;
+$$ LANGUAGE plpgsql;
+select row_type_func();
+NOTICE:  value 1 1
+NOTICE:  value 2 2
+NOTICE:  value 3 3
+NOTICE:  value 4 4
+NOTICE:  value 5 5
+NOTICE:  value 6 6
+NOTICE:  value 7 7
+NOTICE:  value 8 8
+NOTICE:  value 9 9
+NOTICE:  value 10 10
+ row_type_func 
+---------------
+ OK
+(1 row)
+
+-- 2. FETCH INTO
+--   2.1 rowtype from same cursor
+-- tested above
+--   2.2 rowtype from different cursor with same number field and same type
+CREATE or replace FUNCTION row_type_func() RETURNS text AS $$
+DECLARE
+	c cursor for select * from table2 order by 1;
+	c_o cursor for select * from table2 order by 1;
+	rc c_o%rowtype;
+BEGIN
+	open c;
+	fetch c into rc;
+	while found loop
+		raise notice 'value % %', rc.a, rc.b;
+		fetch c into rc;
+	end loop;
+	close c;
+    RETURN 'OK';
+END;
+$$ LANGUAGE plpgsql;
+select row_type_func();
+NOTICE:  value 1 1
+NOTICE:  value 2 2
+NOTICE:  value 3 3
+NOTICE:  value 4 4
+NOTICE:  value 5 5
+NOTICE:  value 6 6
+NOTICE:  value 7 7
+NOTICE:  value 8 8
+NOTICE:  value 9 9
+NOTICE:  value 10 10
+ row_type_func 
+---------------
+ OK
+(1 row)
+
+-- with different name
+CREATE or replace FUNCTION row_type_func() RETURNS text AS $$
+DECLARE
+	c cursor for select a, b from table2 order by 1;
+	c_o cursor for select a aa, b bb from table2 order by 1;
+	rc c_o%rowtype;
+BEGIN
+	open c;
+	fetch c into rc;
+	while found loop
+		raise notice 'value % %', rc.aa, rc.bb;
+		fetch c into rc;
+	end loop;
+	close c;
+    RETURN 'OK';
+END;
+$$ LANGUAGE plpgsql;
+select row_type_func();
+NOTICE:  value 1 1
+NOTICE:  value 2 2
+NOTICE:  value 3 3
+NOTICE:  value 4 4
+NOTICE:  value 5 5
+NOTICE:  value 6 6
+NOTICE:  value 7 7
+NOTICE:  value 8 8
+NOTICE:  value 9 9
+NOTICE:  value 10 10
+ row_type_func 
+---------------
+ OK
+(1 row)
+
+--   2.3 rowtype from different cursor with different number field or different type
+-- different field number
+CREATE or replace FUNCTION row_type_func() RETURNS text AS $$
+DECLARE
+	c cursor for select a from table2 order by 1;
+	c_o cursor for select a aa, b bb from table2 order by 1;
+	rc c_o%rowtype;
+BEGIN
+	open c;
+	fetch c into rc;
+	while found loop
+		raise notice 'value % %', rc.aa, rc.bb;
+		fetch c into rc;
+	end loop;
+	close c;
+    RETURN 'OK';
+END;
+$$ LANGUAGE plpgsql;
+select row_type_func();
+NOTICE:  value 1 <NULL>
+NOTICE:  value 2 <NULL>
+NOTICE:  value 3 <NULL>
+NOTICE:  value 4 <NULL>
+NOTICE:  value 5 <NULL>
+NOTICE:  value 6 <NULL>
+NOTICE:  value 7 <NULL>
+NOTICE:  value 8 <NULL>
+NOTICE:  value 9 <NULL>
+NOTICE:  value 10 <NULL>
+ row_type_func 
+---------------
+ OK
+(1 row)
+
+-- different field number
+CREATE or replace FUNCTION row_type_func() RETURNS text AS $$
+DECLARE
+	c cursor for select a, b from table2 order by 1;
+	c_o cursor for select a aa from table2 order by 1;
+	rc c_o%rowtype;
+BEGIN
+	open c;
+	fetch c into rc;
+	while found loop
+		raise notice 'value % %', rc.aa, rc.bb;
+		fetch c into rc;
+	end loop;
+	close c;
+    RETURN 'OK';
+END;
+$$ LANGUAGE plpgsql;
+select row_type_func();
+ERROR:  record "rc" has no field "bb"
+CONTEXT:  SQL statement "SELECT rc.bb"
+PL/pgSQL function row_type_func() line 10 at RAISE
+-- different field number
+CREATE or replace FUNCTION row_type_func() RETURNS text AS $$
+DECLARE
+	c cursor for select a, b from table2 order by 1;
+	c_o cursor for select a aa from table2 order by 1;
+	rc c_o%rowtype;
+BEGIN
+	open c;
+	fetch c into rc;
+	while found loop
+		raise notice 'value %', rc.aa;
+		fetch c into rc;
+	end loop;
+	close c;
+    RETURN 'OK';
+END;
+$$ LANGUAGE plpgsql;
+select row_type_func();
+NOTICE:  value 1
+NOTICE:  value 2
+NOTICE:  value 3
+NOTICE:  value 4
+NOTICE:  value 5
+NOTICE:  value 6
+NOTICE:  value 7
+NOTICE:  value 8
+NOTICE:  value 9
+NOTICE:  value 10
+ row_type_func 
+---------------
+ OK
+(1 row)
+
+-- different field type
+CREATE or replace FUNCTION row_type_func() RETURNS text AS $$
+DECLARE
+	c cursor for select a, b::text || '55' from table2 order by 1;
+	c_o cursor for select a aa, b bb from table2 order by 1;
+	rc c_o%rowtype;
+BEGIN
+	open c;
+	fetch c into rc;
+	while found loop
+		raise notice 'value % %', rc.aa, rc.bb;
+		fetch c into rc;
+	end loop;
+	close c;
+    RETURN 'OK';
+END;
+$$ LANGUAGE plpgsql;
+select row_type_func();
+NOTICE:  value 1 155
+NOTICE:  value 2 255
+NOTICE:  value 3 355
+NOTICE:  value 4 455
+NOTICE:  value 5 555
+NOTICE:  value 6 655
+NOTICE:  value 7 755
+NOTICE:  value 8 855
+NOTICE:  value 9 955
+NOTICE:  value 10 1055
+ row_type_func 
+---------------
+ OK
+(1 row)
+
+-- different field type
+CREATE or replace FUNCTION row_type_func() RETURNS text AS $$
+DECLARE
+	c cursor for select a, b from table2 order by 1;
+	c_o cursor for select a aa, b::text || '55' bb from table2 order by 1;
+	rc c_o%rowtype;
+BEGIN
+	open c;
+	fetch c into rc;
+	while found loop
+		raise notice 'value % %', rc.aa, rc.bb;
+		fetch c into rc;
+	end loop;
+	close c;
+    RETURN 'OK';
+END;
+$$ LANGUAGE plpgsql;
+select row_type_func();
+NOTICE:  value 1 1
+NOTICE:  value 2 2
+NOTICE:  value 3 3
+NOTICE:  value 4 4
+NOTICE:  value 5 5
+NOTICE:  value 6 6
+NOTICE:  value 7 7
+NOTICE:  value 8 8
+NOTICE:  value 9 9
+NOTICE:  value 10 10
+ row_type_func 
+---------------
+ OK
+(1 row)
+
+-- 3. SELECT INTO
+--   3.1 rowtype with same number field and same type
+CREATE or replace FUNCTION row_type_func() RETURNS text AS $$
+DECLARE
+	c cursor for select a, b from table2 order by 1;
+	rc c%rowtype;
+BEGIN
+	select a, b into rc from table2 where a = 1;
+	raise notice 'value % %', rc.a, rc.b;
+    RETURN 'OK';
+END;
+$$ LANGUAGE plpgsql;
+select row_type_func();
+NOTICE:  value 1 1
+ row_type_func 
+---------------
+ OK
+(1 row)
+
+--   3.2 rowtype with different number field or different type
+CREATE or replace FUNCTION row_type_func() RETURNS text AS $$
+DECLARE
+	c cursor for select a from table2 order by 1;
+	rc c%rowtype;
+BEGIN
+	select a, b into rc from table2 where a = 1;
+	raise notice 'value %', rc.a;
+    RETURN 'OK';
+END;
+$$ LANGUAGE plpgsql;
+select row_type_func();
+NOTICE:  value 1
+ row_type_func 
+---------------
+ OK
+(1 row)
+
+CREATE or replace FUNCTION row_type_func() RETURNS text AS $$
+DECLARE
+	c cursor for select a, b from table2 order by 1;
+	rc c%rowtype;
+BEGIN
+	select a into rc from table3 where a = 1;
+	raise notice 'value % %', rc.a, rc.b;
+    RETURN 'OK';
+END;
+$$ LANGUAGE plpgsql;
+select row_type_func();
+NOTICE:  value 1 <NULL>
+ row_type_func 
+---------------
+ OK
+(1 row)
+
+CREATE or replace FUNCTION row_type_func() RETURNS text AS $$
+DECLARE
+	c cursor for select a, b from table2 order by 1;
+	rc c%rowtype;
+BEGIN
+	select a into rc from table4 where a = 1;
+	raise notice 'value % %', rc.a, rc.b;
+    RETURN 'OK';
+END;
+$$ LANGUAGE plpgsql;
+select row_type_func();
+NOTICE:  value 1 <NULL>
+ row_type_func 
+---------------
+ OK
+(1 row)
+
+CREATE or replace FUNCTION row_type_func() RETURNS text AS $$
+DECLARE
+	c cursor for select a, b from table4 order by 1;
+	rc c%rowtype;
+BEGIN
+	select a, b into rc from table2 where a = 1;
+	raise notice 'value % %', rc.a, rc.b;
+    RETURN 'OK';
+END;
+$$ LANGUAGE plpgsql;
+select row_type_func();
+NOTICE:  value 1 1
+ row_type_func 
+---------------
+ OK
+(1 row)
+
+CREATE or replace FUNCTION row_type_func() RETURNS text AS $$
+DECLARE
+	c cursor for select a, b from table4 order by 1;
+	rc c%rowtype;
+BEGIN
+	select a, 'txt' into rc from table2 where a = 1;
+	raise notice 'value % %', rc.a, rc.b;
+    RETURN 'OK';
+END;
+$$ LANGUAGE plpgsql;
+select row_type_func();
+NOTICE:  value 1 txt
+ row_type_func 
+---------------
+ OK
+(1 row)
+
+CREATE or replace FUNCTION row_type_func() RETURNS text AS $$
+DECLARE
+	c cursor for select a, b from table4 order by 1;
+	rc c%rowtype;
+BEGIN
+	select a, b||'txt' into rc from table2 where a = 1;
+	raise notice 'value % %', rc.a, rc.b;
+    RETURN 'OK';
+END;
+$$ LANGUAGE plpgsql;
+select row_type_func();
+NOTICE:  value 1 1txt
+ row_type_func 
+---------------
+ OK
+(1 row)
+
+-- 4. assignment
+--   4.1 rvalue not initialize
+CREATE or replace FUNCTION row_type_func() RETURNS text AS $$
+DECLARE
+	c cursor  for select * from table2 order by 1;
+	rc c%rowtype;
+BEGIN
+	raise notice 'value % %', rc.a, rc.b;
+    RETURN 'OK';
+END;
+$$ LANGUAGE plpgsql;
+select row_type_func();
+ERROR:  record "rc" is not assigned yet
+DETAIL:  The tuple structure of a not-yet-assigned record is indeterminate.
+CONTEXT:  SQL statement "SELECT rc.a"
+PL/pgSQL function row_type_func() line 6 at RAISE
+CREATE or replace FUNCTION row_type_func() RETURNS text AS $$
+DECLARE
+	c cursor  for select * from table2 order by 1;
+	rc c%rowtype;
+	rc_1 c%rowtype;
+BEGIN
+	rc = rc_1;
+    RETURN 'OK';
+END;
+$$ LANGUAGE plpgsql;
+select row_type_func();
+ERROR:  record "rc_1" is not assigned yet
+DETAIL:  The tuple structure of a not-yet-assigned record is indeterminate.
+CONTEXT:  SQL statement "SELECT rc_1"
+PL/pgSQL function row_type_func() line 7 at assignment
+--   4.2 lvalue and rvalue from same cursor
+CREATE or replace FUNCTION row_type_func() RETURNS text AS $$
+DECLARE
+	c cursor  for select * from table2 order by 1;
+	rc c%rowtype;
+	rc_1 c%rowtype;
+BEGIN
+	open c;
+	fetch c into rc_1;
+	rc = rc_1;
+	raise notice 'value % %', rc.a, rc.b;
+	close c;
+    RETURN 'OK';
+END;
+$$ LANGUAGE plpgsql;
+select row_type_func();
+NOTICE:  value 1 1
+ row_type_func 
+---------------
+ OK
+(1 row)
+
+--   4.3 lvalue and rvalue from different cursor with same number field and same type
+CREATE or replace FUNCTION row_type_func() RETURNS text AS $$
+DECLARE
+	c cursor  for select * from table2 order by 1;
+	c_1 cursor  for select * from table2 order by 1;
+	rc c%rowtype;
+	rc_1 c_1%rowtype;
+BEGIN
+	open c;
+	fetch c into rc;
+	rc_1 = rc;
+	raise notice 'value % %', rc_1.a, rc_1.b;
+	close c;
+    RETURN 'OK';
+END;
+$$ LANGUAGE plpgsql;
+select row_type_func();
+NOTICE:  value 1 1
+ row_type_func 
+---------------
+ OK
+(1 row)
+
+--   4.4 lvalue and rvalue from different cursor with different number field or different type
+-- different number
+CREATE or replace FUNCTION row_type_func() RETURNS text AS $$
+DECLARE
+	c cursor  for select a, b from table2 order by 1;
+	c_1 cursor  for select a from table2 order by 1;
+	rc c%rowtype;
+	rc_1 c_1%rowtype;
+BEGIN
+	open c;
+	fetch c into rc;
+	rc_1 = rc;
+	raise notice 'value %', rc_1.a;
+	close c;
+    RETURN 'OK';
+END;
+$$ LANGUAGE plpgsql;
+select row_type_func();
+NOTICE:  value 1
+ row_type_func 
+---------------
+ OK
+(1 row)
+
+-- different type
+CREATE or replace FUNCTION row_type_func() RETURNS text AS $$
+DECLARE
+	c cursor  for select a, b from table2 order by 1;
+	c_1 cursor  for select a from table4 order by 1;
+	rc c%rowtype;
+	rc_1 c_1%rowtype;
+BEGIN
+	open c;
+	fetch c into rc;
+	rc_1 = rc;
+	raise notice 'value %', rc_1.a;
+	close c;
+    RETURN 'OK';
+END;
+$$ LANGUAGE plpgsql;
+select row_type_func();
+NOTICE:  value 1
+ row_type_func 
+---------------
+ OK
+(1 row)
+
+--   4.5 lvalue or rvalue are table%rowtype and cursor%rowtype
+CREATE or replace FUNCTION row_type_func() RETURNS text AS $$
+DECLARE
+	c cursor  for select a, b from table2 order by 1;
+	rc c%rowtype;
+	rc_1 table4%rowtype;
+BEGIN
+	open c;
+	fetch c into rc;
+	rc_1 = rc;
+	raise notice 'value % %', rc_1.a, rc_1.b;
+	close c;
+    RETURN 'OK';
+END;
+$$ LANGUAGE plpgsql;
+select row_type_func();
+NOTICE:  value 1 1
+ row_type_func 
+---------------
+ OK
+(1 row)
+
+CREATE or replace FUNCTION row_type_func() RETURNS text AS $$
+DECLARE
+	c cursor  for select a, b from table2 order by 1;
+	rc c%rowtype;
+	rc_1 table4%rowtype;
+BEGIN
+	select * INTO rc_1 from table4 where a = 1 order by 1;
+	rc = rc_1;
+	raise notice 'value % %', rc.a, rc.b;
+    RETURN 'OK';
+END;
+$$ LANGUAGE plpgsql;
+select row_type_func();
+NOTICE:  value 1 1
+ row_type_func 
+---------------
+ OK
+(1 row)
+
+-- 5. name of rowtype is same as declared cursor, even if assigned/FETCH INTO from different source
+CREATE or replace FUNCTION row_type_func() RETURNS text AS $$
+DECLARE
+	c cursor  for select a, b from table2 order by 1;
+	c_1 cursor  for select a an, b bn from table2 order by 1;
+	rc_1 c_1%rowtype;
+BEGIN
+	open c;
+	fetch c into rc_1;
+	raise notice 'value %', rc_1.a;
+	close c;
+    RETURN 'OK';
+END;
+$$ LANGUAGE plpgsql;
+select row_type_func();
+ERROR:  record "rc_1" has no field "a"
+CONTEXT:  SQL statement "SELECT rc_1.a"
+PL/pgSQL function row_type_func() line 9 at RAISE
+CREATE or replace FUNCTION row_type_func() RETURNS text AS $$
+DECLARE
+	c cursor  for select a, b from table2 order by 1;
+	c_1 cursor  for select a an, b bn from table2 order by 1;
+	rc_1 c_1%rowtype;
+BEGIN
+	open c;
+	fetch c into rc_1;
+	raise notice 'value %', rc_1.an;
+	close c;
+    RETURN 'OK';
+END;
+$$ LANGUAGE plpgsql;
+select row_type_func();
+NOTICE:  value 1
+ row_type_func 
+---------------
+ OK
+(1 row)
+
+-- 6. refcursor testing / cursor with parameters
+create or replace function row_type_func() returns text as $$
+declare
+ 	c refcursor;
+ 	x integer;
+	vr c%rowtype;
+begin
+	open c scroll for select a from table2 order by 1;
+	fetch c into vr;
+	close c;
+	RETURN 'OK' || vr.a;
+end;
+$$ language plpgsql;
+select row_type_func();
+ row_type_func 
+---------------
+ OK1
+(1 row)
+
+create or replace function row_type_func() returns text as $$
+declare
+ 	c refcursor;
+ 	d refcursor;
+ 	x integer;
+	vr c%rowtype;
+	vdr d%rowtype;
+begin
+	open c scroll for select a from table2 order by 1;
+	fetch c into vdr;
+	close c;
+	RETURN 'OK' || vr.a;
+end;
+$$ language plpgsql;
+select row_type_func();
+ERROR:  could not refer to a un-named cursor or without declared returned type
+CONTEXT:  PL/pgSQL function row_type_func() line 10 at FETCH
+-- cursor with parameter
+CREATE or replace FUNCTION row_type_func() RETURNS text AS $$
+DECLARE
+	c cursor (p int) for select a, b from table2 where a=p order by 1;
+	rc c%rowtype;
+BEGIN
+	open c(2);
+	fetch c into rc;
+	raise notice 'value % %', rc.a, rc.b;
+	close c;
+    RETURN 'OK';
+END;
+$$ LANGUAGE plpgsql;
+select row_type_func();
+NOTICE:  value 2 2
+ row_type_func 
+---------------
+ OK
+(1 row)
+
+CREATE or replace FUNCTION row_type_func() RETURNS text AS $$
+DECLARE
+	c cursor (p int, q int) for select a, b from table2 where a=p+q order by 1;
+	rc c%rowtype;
+
+	c2 cursor for select a, b from table2 order by 1;
+	rc2 c2%rowtype;
+BEGIN
+	open c2;
+	fetch c2 into rc;
+	raise notice 'value % %', rc.a, rc.b;
+	close c2;
+    RETURN 'OK';
+END;
+$$ LANGUAGE plpgsql;
+select row_type_func();
+NOTICE:  value 1 1
+ row_type_func 
+---------------
+ OK
+(1 row)
+
+-- 7. exception testing
+--   7.1 no cursor or table in current namespace.
+CREATE or replace FUNCTION row_type_func() RETURNS text AS $$
+DECLARE
+	c cursor (p int) for select a, b from table2 where a=p order by 1;
+	rc nof%rowtype;
+BEGIN
+	open c(2);
+	fetch c into rc;
+	raise notice 'value % %', rc.a, rc.b;
+	close c;
+    RETURN 'OK';
+END;
+$$ LANGUAGE plpgsql;
+ERROR:  relation "nof" does not exist
+CONTEXT:  compilation of PL/pgSQL function "row_type_func" near line 4
+select row_type_func();
+NOTICE:  value 1 1
+ row_type_func 
+---------------
+ OK
+(1 row)
+
+-- 8. memory leak?
+-- manual tested
+-- 9 rowtype as parameter
+drop function if exists f2f;
+NOTICE:  function f2f() does not exist, skipping
+create or replace function f2f(e int, b table5%rowtype) return int is
+res table5%rowtype;
+begin
+res := b;
+select * into res from table5 where table5.a = e;
+insert into tblres values(res.a, res.b);
+return b.b;
+end;
+/
+drop function if exists p2p;
+NOTICE:  function p2p() does not exist, skipping
+create or replace procedure p2p(e int, b table5%rowtype) is
+res table5%rowtype;
+begin
+res := b;
+select * into res from table5 where table5.a = e;
+insert into tblres values(res.a, res.b);
+end;
+/
+drop function if exists p4p;
+NOTICE:  function p4p() does not exist, skipping
+create or replace procedure p4p(e1 int, e2 int, f out table5%rowtype, g IN OUT table5%rowtype) is
+res table5%rowtype;
+begin
+res := g;
+insert into tblres values(res.a, 'inout :' || res.b);
+select * into res from table5 where table5.a = e1;
+f := res;
+select * into res from table5 where table5.a = e2;
+g := res;
+end;
+/
+create or replace package pkg_rowtype is dft_rt table5%rowtype; end;
+/
+drop function if exists p3p;
+NOTICE:  function p3p() does not exist, skipping
+-- pl/sql not support using package var as default parameter
+-- create or replace procedure p3p(e int, a table5%rowtype default pkg_rowtype.dft_rt, b table5%rowtype default null) is
+create or replace procedure p3p(e int, b table5%rowtype default null) is
+buf table5%rowtype;
+begin
+if b is null then
+select * into buf from table5 where table5.a = e;
+insert into tblres values(buf.a, 'null test, defualt val:' || buf.b);
+else 
+insert into tblres values(-1, 'not support null test of record type');
+end if;
+end;
+/
+declare
+p1 table5%rowtype;
+p2 table5%rowtype;
+res int;
+begin
+res := f2f(5, p1);
+call p2p(3, p1);
+p2.a := 12;
+p2.b := 'z';
+p2.c := 12;
+call p4p(6,7,p1,p2);
+insert into tblres values(p1.a, 'OUT: ' || p1.b);
+insert into tblres values(p2.a, 'OUT: ' || p2.b);
+pkg_rowtype.dft_rt.a := 13;
+pkg_rowtype.dft_rt.b := 'x';
+pkg_rowtype.dft_rt.c := 13;
+call p3p(8);
+end;
+/
+select * from tblres order by key1;
+ key1 |           des1           
+------+--------------------------
+    3 | c
+    5 | e
+    6 | OUT: f
+    7 | OUT: g
+    8 | null test, defualt val:h
+   12 | inout :z
+(6 rows)
+
+-- 10 rowtype as return
+drop function if exists f3f;
+NOTICE:  function f3f() does not exist, skipping
+create or replace function f3f(e int, b int, c int) return table5%rowtype is
+res table5%rowtype;
+begin
+select * into res from table5 where table5.a = e;
+return res;
+end;
+/
+declare
+p1 table5%rowtype;
+begin
+p1 := f3f(6, 2, 2);
+insert into tblres values(p1.a, p1.b);
+end;
+/
+select * from tblres order by key1;
+ key1 |           des1           
+------+--------------------------
+    3 | c
+    5 | e
+    6 | OUT: f
+    6 | f
+    7 | OUT: g
+    8 | null test, defualt val:h
+   12 | inout :z
+(7 rows)
+
+-- 11 rowtype from view
+drop function if exists f2f;
+create or replace function f2f(e int, f tv%rowtype) return int is
+res tv%rowtype;
+begin
+res := f;
+select * into res from tv where tv.a = e;
+insert into tblres values(res.a, res.b);
+return res.a;
+end;
+/
+drop procedure if exists p2p;
+create or replace procedure p2p(e int, b tv%rowtype) is
+res tv%rowtype;
+begin
+res := b;
+select * into res from tv where tv.a = e;
+insert into tblres values(res.a, res.b);
+end;
+/
+drop function if exists f3f;
+create or replace function f3f(e int, b int, c int) return tv%rowtype is
+res tv%rowtype;
+begin
+select * into res from tv where tv.a = e;
+return res;
+end;
+/
+declare
+p1 tv%rowtype;
+p2 tv%rowtype;
+res int;
+begin
+res := f2f(7, p1);
+call p2p(8, p1);
+p2 := f3f(9, 1, 1);
+insert into tblres values(p2.a, p2.b);
+end;
+/
+select * from tblres order by key1;
+ key1 |           des1           
+------+--------------------------
+    3 | c
+    5 | e
+    6 | f
+    6 | OUT: f
+    7 | g
+    7 | OUT: g
+    8 | null test, defualt val:h
+    8 | h
+    9 | i
+   12 | inout :z
+(10 rows)
+
+drop table table2;
+drop table table3;
+drop table table4;
+drop table table5 cascade;
+NOTICE:  drop cascades to 7 other objects
+DETAIL:  drop cascades to view tv
+drop cascades to function f2f(integer,tv)
+drop cascades to function p2p(integer,tv)
+drop cascades to function f3f(integer,integer,integer)
+drop cascades to function p4p(integer,integer,table5,table5)
+drop cascades to package pkg_rowtype
+drop cascades to function p3p(integer,table5)
+drop table tblres;
+drop package pkg_rowtype;
+ERROR:  package corresponding namespace "pkg_rowtype" does not exist
+HINT:  Please check catalog.
+-- 12 rowtype with namespace
+drop schema if exists sch1_20230531 cascade;
+NOTICE:  schema "sch1_20230531" does not exist, skipping
+create schema sch1_20230531;
+create table sch1_20230531.tbl1_20230531(c1 int, c2 text);
+CREATE PROCEDURE p_test_mxm_20230531(p1 sch1_20230531.tbl1_20230531%rowtype)
+LANGUAGE plpgsql
+AS $$ 
+DECLARE
+  r1 sch1_20230531.tbl1_20230531%rowtype;
+BEGIN
+  raise notice 'r1: %, p1: %', r1, p1;
+  r1 := p1;
+  p1.c1 := 1000;
+  r1.c1 := 1;
+  raise notice 'r1: %, p1: %', r1, p1;
+END; 
+$$;
+do $$
+declare
+  r sch1_20230531.tbl1_20230531%rowtype;
+begin
+  r.c2 = 'abc';
+  call p_test_mxm_20230531(r);
+end;
+$$;
+NOTICE:  r1: (,), p1: (,abc)
+NOTICE:  r1: (1,abc), p1: (1000,abc)
+drop procedure p_test_mxm_20230531;
+set search_path = sch1_20230531;
+CREATE PROCEDURE p_test_mxm_20230531(p1 tbl1_20230531%rowtype)
+LANGUAGE plpgsql
+AS $$ 
+DECLARE
+  r1 sch1_20230531.tbl1_20230531%rowtype;
+BEGIN
+  raise notice 'r1: %, p1: %', r1, p1;
+  r1 := p1;
+  p1.c1 := 1000;
+  r1.c1 := 1;
+  raise notice 'r1: %, p1: %', r1, p1;
+END; 
+$$;
+do $$
+declare
+  r sch1_20230531.tbl1_20230531%rowtype;
+begin
+  r.c2 = 'abc';
+  call p_test_mxm_20230531(r);
+end;
+$$;
+NOTICE:  r1: (,), p1: (,abc)
+NOTICE:  r1: (1,abc), p1: (1000,abc)
+reset search_path;
+drop procedure sch1_20230531.p_test_mxm_20230531;
+drop table sch1_20230531.tbl1_20230531;
+drop schema sch1_20230531;

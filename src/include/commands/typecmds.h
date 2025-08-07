@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * typecmds.h
- *      prototypes for typecmds.c.
+ *	  prototypes for typecmds.c.
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -19,7 +19,7 @@
 #include "nodes/parsenodes.h"
 
 
-#define DEFAULT_TYPDELIM        ','
+#define DEFAULT_TYPDELIM		','
 
 extern ObjectAddress DefineType(ParseState *pstate, List *names, List *parameters);
 extern void RemoveTypeById(Oid typeOid);
@@ -28,15 +28,16 @@ extern ObjectAddress DefineEnum(CreateEnumStmt *stmt);
 extern ObjectAddress DefineRange(CreateRangeStmt *stmt);
 extern ObjectAddress AlterEnum(AlterEnumStmt *stmt);
 extern ObjectAddress DefineCompositeType(RangeVar *typevar, List *coldeflist);
-extern Oid    AssignTypeArrayOid(void);
+
+extern Oid	AssignTypeArrayOid(void);
 
 extern ObjectAddress AlterDomainDefault(List *names, Node *defaultRaw);
 extern ObjectAddress AlterDomainNotNull(List *names, bool notNull);
 extern ObjectAddress AlterDomainAddConstraint(List *names, Node *constr,
-                         ObjectAddress *constrAddr);
+						 ObjectAddress *constrAddr);
 extern ObjectAddress AlterDomainValidateConstraint(List *names, char *constrName);
 extern ObjectAddress AlterDomainDropConstraint(List *names, const char *constrName,
-                          DropBehavior behavior, bool missing_ok);
+						  DropBehavior behavior, bool missing_ok);
 
 extern void checkDomainOwner(HeapTuple tup);
 
@@ -47,11 +48,11 @@ extern void AlterTypeOwner_oid(Oid typeOid, Oid newOwnerId, bool hasDependEntry)
 extern void AlterTypeOwnerInternal(Oid typeOid, Oid newOwnerId);
 
 extern ObjectAddress AlterTypeNamespace(List *names, const char *newschema,
-                   ObjectType objecttype, Oid *oldschema);
-extern Oid    AlterTypeNamespace_oid(Oid typeOid, Oid nspOid, ObjectAddresses *objsMoved);
+				   ObjectType objecttype, Oid *oldschema);
+extern Oid	AlterTypeNamespace_oid(Oid typeOid, Oid nspOid, ObjectAddresses *objsMoved);
 extern Oid AlterTypeNamespaceInternal(Oid typeOid, Oid nspOid,
-                           bool isImplicitArray,
-                           bool errorOnTableType,
-                           ObjectAddresses *objsMoved);
+						   bool isImplicitArray,
+						   bool errorOnTableType,
+						   ObjectAddresses *objsMoved);
 
-#endif                            /* TYPECMDS_H */
+#endif							/* TYPECMDS_H */

@@ -1,81 +1,87 @@
 /*-------------------------------------------------------------------------
  *
  * execUtils.c
- *      miscellaneous executor utility routines
+ *	  miscellaneous executor utility routines
  *
  * Portions Copyright (c) 2012-2014, TransLattice, Inc.
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  * IDENTIFICATION
- *      src/backend/executor/execUtils.c
+ *	  src/backend/executor/execUtils.c
  *
  *-------------------------------------------------------------------------
  */
 /*
  * INTERFACE ROUTINES
- *        CreateExecutorState        Create/delete executor working state
- *        FreeExecutorState
- *        CreateExprContext
- *        CreateStandaloneExprContext
- *        FreeExprContext
- *        ReScanExprContext
+ *		CreateExecutorState		Create/delete executor working state
+ *		FreeExecutorState
+ *		CreateExprContext
+ *		CreateStandaloneExprContext
+ *		FreeExprContext
+ *		ReScanExprContext
  *
- *        ExecAssignExprContext    Common code for plan node init routines.
- *        ExecAssignResultType
- *        etc
+ *		ExecAssignExprContext	Common code for plan node init routines.
+ *		etc
  *
- *        ExecOpenScanRelation    Common code for scan node init routines.
- *        ExecCloseScanRelation
+ *		ExecOpenScanRelation	Common code for scan node init routines.
+ *		ExecCloseScanRelation
  *
- *        executor_errposition    Report syntactic position of an error.
+ *		executor_errposition	Report syntactic position of an error.
  *
- *        RegisterExprContextCallback    Register function shutdown callback
- *        UnregisterExprContextCallback  Deregister function shutdown callback
+ *		RegisterExprContextCallback    Register function shutdown callback
+ *		UnregisterExprContextCallback  Deregister function shutdown callback
  *
- *        GetAttributeByName        Runtime extraction of columns from tuples.
- *        GetAttributeByNum
+ *		GetAttributeByName		Runtime extraction of columns from tuples.
+ *		GetAttributeByNum
  *
- *     NOTES
- *        This file has traditionally been the place to stick misc.
- *        executor support stuff that doesn't really go anyplace else.
+ *	 NOTES
+ *		This file has traditionally been the place to stick misc.
+ *		executor support stuff that doesn't really go anyplace else.
  */
 
 #include "postgres.h"
 
 #include "access/relscan.h"
 #include "access/transam.h"
+#include "executor/execDispatchFragment.h"
 #include "executor/executor.h"
+#include "jit/jit.h"
 #include "mb/pg_wchar.h"
 #include "nodes/nodeFuncs.h"
 #include "parser/parsetree.h"
+#include "pgxc/execRemote.h"
 #include "storage/lmgr.h"
 #include "utils/builtins.h"
 #include "utils/memutils.h"
 #include "utils/rel.h"
 #include "utils/typcache.h"
+
 #ifdef __OPENTENBASE__
 #include "utils/ruleutils.h"
 #endif
+#ifdef __RESOURCE_QUEUE__
+#include "pgxc/nodemgr.h"
+#endif
+#ifdef __OPENTENBASE_C__
+#include "optimizer/planmain.h"
+#endif
 
-#include "pgxc/execRemote.h"
-
+static bool tlist_matches_tupdesc(PlanState *ps, List *tlist, int varno, TupleDesc tupdesc);
 static void ShutdownExprContext(ExprContext *econtext, bool isCommit);
 
 
 /* ----------------------------------------------------------------
- *                 Executor state and memory management functions
+ *				 Executor state and memory management functions
  * ----------------------------------------------------------------
  */
 
 /* ----------------
- *        CreateExecutorState
+ *		CreateExecutorState
  *
- *        Create and initialize an EState node, which is the root of
- *        working storage for an entire Executor invocation.
+ *		Create and initialize an EState node, which is the root of
+ *		working storage for an entire Executor invocation.
  *
  * Principally, this creates the per-query memory context that will be
  * used to hold all working data that lives till the end of the query.
@@ -86,94 +92,118 @@ static void ShutdownExprContext(ExprContext *econtext, bool isCommit);
 EState *
 CreateExecutorState(void)
 {
-    EState       *estate;
-    MemoryContext qcontext;
-    MemoryContext oldcontext;
+	EState	   *estate;
+	MemoryContext qcontext;
+	MemoryContext oldcontext;
 
-    /*
-     * Create the per-query context for this Executor run.
-     */
-    qcontext = AllocSetContextCreate(CurrentMemoryContext,
-                                     "ExecutorState",
-                                     ALLOCSET_DEFAULT_SIZES);
-
-    /*
-     * Make the EState node within the per-query context.  This way, we don't
-     * need a separate pfree() operation for it at shutdown.
-     */
-    oldcontext = MemoryContextSwitchTo(qcontext);
-
-    estate = makeNode(EState);
-
-    /*
-     * Initialize all fields of the Executor State structure
-     */
-    estate->es_direction = ForwardScanDirection;
-    estate->es_snapshot = InvalidSnapshot;    /* caller must initialize this */
-    estate->es_crosscheck_snapshot = InvalidSnapshot;    /* no crosscheck */
-    estate->es_range_table = NIL;
-    estate->es_plannedstmt = NULL;
-
-    estate->es_junkFilter = NULL;
-
-    estate->es_output_cid = (CommandId) 0;
-
-    estate->es_result_relations = NULL;
-    estate->es_num_result_relations = 0;
-    estate->es_result_relation_info = NULL;
-
-    estate->es_trig_target_relations = NIL;
-    estate->es_trig_tuple_slot = NULL;
-    estate->es_trig_oldtup_slot = NULL;
-    estate->es_trig_newtup_slot = NULL;
-
-    estate->es_param_list_info = NULL;
-    estate->es_param_exec_vals = NULL;
-
-    estate->es_queryEnv = NULL;
-
-    estate->es_query_cxt = qcontext;
-
-    estate->es_tupleTable = NIL;
-
-    estate->es_rowMarks = NIL;
-
-    estate->es_processed = 0;
-    estate->es_lastoid = InvalidOid;
-
-    estate->es_top_eflags = 0;
-    estate->es_instrument = 0;
-    estate->es_finished = false;
-
-    estate->es_exprcontexts = NIL;
-
-    estate->es_subplanstates = NIL;
-
-    estate->es_auxmodifytables = NIL;
-
-    estate->es_per_tuple_exprcontext = NULL;
-
-    estate->es_epqTuple = NULL;
-    estate->es_epqTupleSet = NULL;
-    estate->es_epqScanDone = NULL;
-    estate->es_sourceText = NULL;
-
-#ifdef __AUDIT__
-    estate->es_remote_subplan_num = 0;
+#ifdef __RESOURCE_QUEUE__
+	int i = 0;
 #endif
 
-    /*
-     * Return the executor state structure
-     */
-    MemoryContextSwitchTo(oldcontext);
+	/*
+	 * Create the per-query context for this Executor run.
+	 */
+	qcontext = AllocSetContextCreate(CurrentMemoryContext,
+									 "ExecutorState",
+									 ALLOCSET_DEFAULT_SIZES);
 
-    return estate;
+	/*
+	 * Make the EState node within the per-query context.  This way, we don't
+	 * need a separate pfree() operation for it at shutdown.
+	 */
+	oldcontext = MemoryContextSwitchTo(qcontext);
+
+	estate = makeNode(EState);
+
+	/*
+	 * Initialize all fields of the Executor State structure
+	 */
+	estate->es_direction = ForwardScanDirection;
+	estate->es_snapshot = InvalidSnapshot;	/* caller must initialize this */
+	estate->es_crosscheck_snapshot = InvalidSnapshot;	/* no crosscheck */
+	estate->es_range_table = NIL;
+	estate->es_plannedstmt = NULL;
+
+	estate->es_junkFilter = NULL;
+
+	estate->es_output_cid = (CommandId) 0;
+
+	estate->es_result_relations = NULL;
+	estate->es_num_result_relations = 0;
+	estate->es_result_relation_info = NULL;
+
+	estate->es_trig_target_relations = NIL;
+	estate->es_trig_tuple_slot = NULL;
+	estate->es_trig_oldtup_slot = NULL;
+	estate->es_trig_newtup_slot = NULL;
+
+	estate->es_param_list_info = NULL;
+	estate->es_param_exec_vals = NULL;
+
+	estate->es_queryEnv = NULL;
+
+	estate->es_query_cxt = qcontext;
+
+	estate->es_tupleTable = NIL;
+
+	estate->es_rowMarks = NIL;
+
+	estate->es_processed = 0;
+	estate->es_lastoid = InvalidOid;
+
+	estate->es_top_eflags = 0;
+	estate->es_instrument = 0;
+	estate->es_finished = false;
+
+	estate->es_exprcontexts = NIL;
+
+	estate->es_subplanstates = NIL;
+
+	estate->es_auxmodifytables = NIL;
+
+	estate->es_per_tuple_exprcontext = NULL;
+
+	estate->es_epqTuple = NULL;
+	estate->es_epqTupleSet = NULL;
+	estate->es_epqScanDone = NULL;
+	estate->es_sourceText = NULL;
+
+	estate->es_use_parallel_mode = false;
+	estate->es_not_send_tuple = false;
+
+	estate->es_jit_flags = 0;
+	estate->es_jit = NULL;
+
+#ifdef __RESOURCE_QUEUE__
+	estate->es_perdn_dprocess_num = palloc0(NumDataNodes * sizeof(int16));
+	for (i = 0; i < NumDataNodes; i++)
+	{
+		estate->es_perdn_dprocess_num[i] = 0;
+	}
+#endif
+
+    estate -> resultFormats = NULL;
+    estate -> nResultFormats = 0;
+	estate->es_rc_total_memory = 0;
+	estate->es_rc_hash_table = NULL;
+	estate->es_rc_explained = false;
+	INSTR_TIME_SET_CURRENT(estate->executor_starttime);
+#ifdef __OPENTENBASE_C__
+	estate->es_leader_handle = NULL;
+	estate->es_itable = NULL;
+#endif
+	/*
+	 * Return the executor state structure
+	 */
+	MemoryContextSwitchTo(oldcontext);
+
+	return estate;
 }
 
 /* ----------------
- *        FreeExecutorState
+ *		FreeExecutorState
  *
- *        Release an EState along with all remaining working storage.
+ *		Release an EState along with all remaining working storage.
  *
  * Note: this is not responsible for releasing non-memory resources,
  * such as open relations or buffer pins.  But it will shut down any
@@ -188,34 +218,41 @@ CreateExecutorState(void)
 void
 FreeExecutorState(EState *estate)
 {
-    /*
-     * Shut down and free any remaining ExprContexts.  We do this explicitly
-     * to ensure that any remaining shutdown callbacks get called (since they
-     * might need to release resources that aren't simply memory within the
-     * per-query memory context).
-     */
-    while (estate->es_exprcontexts)
-    {
-        /*
-         * XXX: seems there ought to be a faster way to implement this than
-         * repeated list_delete(), no?
-         */
-        FreeExprContext((ExprContext *) linitial(estate->es_exprcontexts),
-                        true);
-        /* FreeExprContext removed the list link for us */
-    }
+	/*
+	 * Shut down and free any remaining ExprContexts.  We do this explicitly
+	 * to ensure that any remaining shutdown callbacks get called (since they
+	 * might need to release resources that aren't simply memory within the
+	 * per-query memory context).
+	 */
+	while (estate->es_exprcontexts)
+	{
+		/*
+		 * XXX: seems there ought to be a faster way to implement this than
+		 * repeated list_delete(), no?
+		 */
+		FreeExprContext((ExprContext *) linitial(estate->es_exprcontexts),
+						true);
+		/* FreeExprContext removed the list link for us */
+	}
+	
+	/* release JIT context, if allocated */
+	if (estate->es_jit)
+	{
+		jit_release_context(estate->es_jit);
+		estate->es_jit = NULL;
+	}
 
-    /*
-     * Free the per-query memory context, thereby releasing all working
-     * memory, including the EState node itself.
-     */
-    MemoryContextDelete(estate->es_query_cxt);
+	/*
+	 * Free the per-query memory context, thereby releasing all working
+	 * memory, including the EState node itself.
+	 */
+	MemoryContextDelete(estate->es_query_cxt);
 }
 
 /* ----------------
- *        CreateExprContext
+ *		CreateExprContext
  *
- *        Create a context for expression evaluation within an EState.
+ *		Create a context for expression evaluation within an EState.
  *
  * An executor run may require multiple ExprContexts (we usually make one
  * for each Plan node, and a separate one for per-output-tuple processing
@@ -228,61 +265,60 @@ FreeExecutorState(EState *estate)
 ExprContext *
 CreateExprContext(EState *estate)
 {
-    ExprContext *econtext;
-    MemoryContext oldcontext;
+	ExprContext *econtext;
+	MemoryContext oldcontext;
 
-    /* Create the ExprContext node within the per-query memory context */
-    oldcontext = MemoryContextSwitchTo(estate->es_query_cxt);
+	/* Create the ExprContext node within the per-query memory context */
+	oldcontext = MemoryContextSwitchTo(estate->es_query_cxt);
 
-    econtext = makeNode(ExprContext);
+	econtext = makeNode(ExprContext);
 
-    /* Initialize fields of ExprContext */
-    econtext->ecxt_scantuple = NULL;
-    econtext->ecxt_innertuple = NULL;
-    econtext->ecxt_outertuple = NULL;
+	/* Initialize fields of ExprContext */
+	econtext->ecxt_scantuple = NULL;
+	econtext->ecxt_innertuple = NULL;
+	econtext->ecxt_outertuple = NULL;
+	econtext->ecxt_per_query_memory = estate->es_query_cxt;
 
-    econtext->ecxt_per_query_memory = estate->es_query_cxt;
+	/*
+	 * Create working memory for expression evaluation in this context.
+	 */
+	econtext->ecxt_per_tuple_memory =
+		AllocSetContextCreate(estate->es_query_cxt,
+							  "ExprContext",
+							  ALLOCSET_DEFAULT_SIZES);
 
-    /*
-     * Create working memory for expression evaluation in this context.
-     */
-    econtext->ecxt_per_tuple_memory =
-        AllocSetContextCreate(estate->es_query_cxt,
-                              "ExprContext",
-                              ALLOCSET_DEFAULT_SIZES);
+	econtext->ecxt_param_exec_vals = estate->es_param_exec_vals;
+	econtext->ecxt_param_list_info = estate->es_param_list_info;
 
-    econtext->ecxt_param_exec_vals = estate->es_param_exec_vals;
-    econtext->ecxt_param_list_info = estate->es_param_list_info;
+	econtext->ecxt_aggvalues = NULL;
+	econtext->ecxt_aggnulls = NULL;
 
-    econtext->ecxt_aggvalues = NULL;
-    econtext->ecxt_aggnulls = NULL;
+	econtext->caseValue_datum = (Datum) 0;
+	econtext->caseValue_isNull = true;
 
-    econtext->caseValue_datum = (Datum) 0;
-    econtext->caseValue_isNull = true;
+	econtext->domainValue_datum = (Datum) 0;
+	econtext->domainValue_isNull = true;
 
-    econtext->domainValue_datum = (Datum) 0;
-    econtext->domainValue_isNull = true;
+	econtext->ecxt_estate = estate;
 
-    econtext->ecxt_estate = estate;
+	econtext->ecxt_callbacks = NULL;
 
-    econtext->ecxt_callbacks = NULL;
+	/*
+	 * Link the ExprContext into the EState to ensure it is shut down when the
+	 * EState is freed.  Because we use lcons(), shutdowns will occur in
+	 * reverse order of creation, which may not be essential but can't hurt.
+	 */
+	estate->es_exprcontexts = lcons(econtext, estate->es_exprcontexts);
 
-    /*
-     * Link the ExprContext into the EState to ensure it is shut down when the
-     * EState is freed.  Because we use lcons(), shutdowns will occur in
-     * reverse order of creation, which may not be essential but can't hurt.
-     */
-    estate->es_exprcontexts = lcons(econtext, estate->es_exprcontexts);
+	MemoryContextSwitchTo(oldcontext);
 
-    MemoryContextSwitchTo(oldcontext);
-
-    return econtext;
+	return econtext;
 }
 
 /* ----------------
- *        CreateStandaloneExprContext
+ *		CreateStandaloneExprContext
  *
- *        Create a context for standalone expression evaluation.
+ *		Create a context for standalone expression evaluation.
  *
  * An ExprContext made this way can be used for evaluation of expressions
  * that contain no Params, subplans, or Var references (it might work to
@@ -300,50 +336,50 @@ CreateExprContext(EState *estate)
 ExprContext *
 CreateStandaloneExprContext(void)
 {
-    ExprContext *econtext;
+	ExprContext *econtext;
 
-    /* Create the ExprContext node within the caller's memory context */
-    econtext = makeNode(ExprContext);
+	/* Create the ExprContext node within the caller's memory context */
+	econtext = makeNode(ExprContext);
 
-    /* Initialize fields of ExprContext */
-    econtext->ecxt_scantuple = NULL;
-    econtext->ecxt_innertuple = NULL;
-    econtext->ecxt_outertuple = NULL;
+	/* Initialize fields of ExprContext */
+	econtext->ecxt_scantuple = NULL;
+	econtext->ecxt_innertuple = NULL;
+	econtext->ecxt_outertuple = NULL;
 
-    econtext->ecxt_per_query_memory = CurrentMemoryContext;
+	econtext->ecxt_per_query_memory = CurrentMemoryContext;
 
-    /*
-     * Create working memory for expression evaluation in this context.
-     */
-    econtext->ecxt_per_tuple_memory =
-        AllocSetContextCreate(CurrentMemoryContext,
-                              "ExprContext",
-                              ALLOCSET_DEFAULT_SIZES);
+	/*
+	 * Create working memory for expression evaluation in this context.
+	 */
+	econtext->ecxt_per_tuple_memory =
+		AllocSetContextCreate(CurrentMemoryContext,
+							  "ExprContext",
+							  ALLOCSET_DEFAULT_SIZES);
 
-    econtext->ecxt_param_exec_vals = NULL;
-    econtext->ecxt_param_list_info = NULL;
+	econtext->ecxt_param_exec_vals = NULL;
+	econtext->ecxt_param_list_info = NULL;
 
-    econtext->ecxt_aggvalues = NULL;
-    econtext->ecxt_aggnulls = NULL;
+	econtext->ecxt_aggvalues = NULL;
+	econtext->ecxt_aggnulls = NULL;
 
-    econtext->caseValue_datum = (Datum) 0;
-    econtext->caseValue_isNull = true;
+	econtext->caseValue_datum = (Datum) 0;
+	econtext->caseValue_isNull = true;
 
-    econtext->domainValue_datum = (Datum) 0;
-    econtext->domainValue_isNull = true;
+	econtext->domainValue_datum = (Datum) 0;
+	econtext->domainValue_isNull = true;
 
-    econtext->ecxt_estate = NULL;
+	econtext->ecxt_estate = NULL;
 
-    econtext->ecxt_callbacks = NULL;
+	econtext->ecxt_callbacks = NULL;
 
-    return econtext;
+	return econtext;
 }
 
 /* ----------------
- *        FreeExprContext
+ *		FreeExprContext
  *
- *        Free an expression context, including calling any remaining
- *        shutdown callbacks.
+ *		Free an expression context, including calling any remaining
+ *		shutdown callbacks.
  *
  * Since we free the temporary context used for expression evaluation,
  * any previously computed pass-by-reference expression result will go away!
@@ -359,37 +395,37 @@ CreateStandaloneExprContext(void)
 void
 FreeExprContext(ExprContext *econtext, bool isCommit)
 {
-    EState       *estate;
+	EState	   *estate;
 
-    /* Call any registered callbacks */
-    ShutdownExprContext(econtext, isCommit);
-    /* And clean up the memory used */
-    MemoryContextDelete(econtext->ecxt_per_tuple_memory);
-    /* Unlink self from owning EState, if any */
-    estate = econtext->ecxt_estate;
-    if (estate)
-        estate->es_exprcontexts = list_delete_ptr(estate->es_exprcontexts,
-                                                  econtext);
-    /* And delete the ExprContext node */
-    pfree(econtext);
+	/* Call any registered callbacks */
+	ShutdownExprContext(econtext, isCommit);
+	/* And clean up the memory used */
+	MemoryContextDelete(econtext->ecxt_per_tuple_memory);
+	/* Unlink self from owning EState, if any */
+	estate = econtext->ecxt_estate;
+	if (estate)
+		estate->es_exprcontexts = list_delete_ptr(estate->es_exprcontexts,
+												  econtext);
+	/* And delete the ExprContext node */
+	pfree(econtext);
 }
 
 /*
  * ReScanExprContext
  *
- *        Reset an expression context in preparation for a rescan of its
- *        plan node.  This requires calling any registered shutdown callbacks,
- *        since any partially complete set-returning-functions must be canceled.
+ *		Reset an expression context in preparation for a rescan of its
+ *		plan node.  This requires calling any registered shutdown callbacks,
+ *		since any partially complete set-returning-functions must be canceled.
  *
  * Note we make no assumption about the caller's memory context.
  */
 void
 ReScanExprContext(ExprContext *econtext)
 {
-    /* Call any registered callbacks */
-    ShutdownExprContext(econtext, true);
-    /* And clean up the memory used */
-    MemoryContextReset(econtext->ecxt_per_tuple_memory);
+	/* Call any registered callbacks */
+	ShutdownExprContext(econtext, true);
+	/* And clean up the memory used */
+	MemoryContextReset(econtext->ecxt_per_tuple_memory);
 }
 
 /*
@@ -401,15 +437,15 @@ ReScanExprContext(ExprContext *econtext)
 ExprContext *
 MakePerTupleExprContext(EState *estate)
 {
-    if (estate->es_per_tuple_exprcontext == NULL)
-        estate->es_per_tuple_exprcontext = CreateExprContext(estate);
+	if (estate->es_per_tuple_exprcontext == NULL)
+		estate->es_per_tuple_exprcontext = CreateExprContext(estate);
 
-    return estate->es_per_tuple_exprcontext;
+	return estate->es_per_tuple_exprcontext;
 }
 
 
 /* ----------------------------------------------------------------
- *                 miscellaneous node-init support functions
+ *				 miscellaneous node-init support functions
  *
  * Note: all of these are expected to be called with CurrentMemoryContext
  * equal to the per-query memory context.
@@ -417,92 +453,41 @@ MakePerTupleExprContext(EState *estate)
  */
 
 /* ----------------
- *        ExecAssignExprContext
+ *		ExecAssignExprContext
  *
- *        This initializes the ps_ExprContext field.  It is only necessary
- *        to do this for nodes which use ExecQual or ExecProject
- *        because those routines require an econtext. Other nodes that
- *        don't have to evaluate expressions don't need to do this.
+ *		This initializes the ps_ExprContext field.  It is only necessary
+ *		to do this for nodes which use ExecQual or ExecProject
+ *		because those routines require an econtext. Other nodes that
+ *		don't have to evaluate expressions don't need to do this.
  * ----------------
  */
 void
 ExecAssignExprContext(EState *estate, PlanState *planstate)
 {
-    planstate->ps_ExprContext = CreateExprContext(estate);
+	planstate->ps_ExprContext = CreateExprContext(estate);
 }
 
 /* ----------------
- *        ExecAssignResultType
- * ----------------
- */
-void
-ExecAssignResultType(PlanState *planstate, TupleDesc tupDesc)
-{
-    TupleTableSlot *slot = planstate->ps_ResultTupleSlot;
-
-    ExecSetSlotDescriptor(slot, tupDesc);
-}
-
-/* ----------------
- *        ExecAssignResultTypeFromTL
- * ----------------
- */
-void
-ExecAssignResultTypeFromTL(PlanState *planstate)
-{
-    bool        hasoid;
-    TupleDesc    tupDesc;
-	List		*targetList = NIL;
-
-    if (ExecContextForcesOids(planstate, &hasoid))
-    {
-        /* context forces OID choice; hasoid is now set correctly */
-    }
-    else
-    {
-        /* given free choice, don't leave space for OIDs in result tuples */
-        hasoid = false;
-    }
-
-    /*
-	 * If the command with returning syntax, the tupDesc's info should
-	 * be maked up of returningList
-	 */
-	if (IsA(planstate, RemoteQueryState) &&
-		(((((RemoteQueryState *)planstate)->eflags) & EXEC_FLAG_RETURNING) != 0))
-	{
-		if (planstate->state && planstate->state->es_plannedstmt &&
-			planstate->state->es_plannedstmt->parseTree &&
-			planstate->state->es_plannedstmt->parseTree->returningList)
-			targetList = planstate->state->es_plannedstmt->parseTree->returningList;
-	}
-	if (targetList == NIL)
-		targetList = planstate->plan->targetlist;
-
-	/*
-     * ExecTypeFromTL needs the parse-time representation of the tlist, not a
-     * list of ExprStates.  This is good because some plan nodes don't bother
-     * to set up planstate->targetlist ...
-     */
-	tupDesc = ExecTypeFromTL(targetList, hasoid);
-    ExecAssignResultType(planstate, tupDesc);
-}
-
-/* ----------------
- *        ExecGetResultType
+ *		ExecGetResultType
  * ----------------
  */
 TupleDesc
 ExecGetResultType(PlanState *planstate)
 {
-    TupleTableSlot *slot = planstate->ps_ResultTupleSlot;
+	return planstate->ps_ResultTupleDesc;
+}
 
-    return slot->tts_tupleDescriptor;
+void
+ExecAssignResultType(PlanState *planstate, TupleDesc tupDesc)
+{
+	TupleTableSlot *slot = planstate->ps_ResultTupleSlot;
+
+	ExecSetSlotDescriptor(slot, tupDesc);
 }
 
 
 /* ----------------
- *        ExecAssignProjectionInfo
+ *		ExecAssignProjectionInfo
  *
  * forms the projection information from the node's targetlist
  *
@@ -512,19 +497,104 @@ ExecGetResultType(PlanState *planstate)
  */
 void
 ExecAssignProjectionInfo(PlanState *planstate,
-                         TupleDesc inputDesc)
+						 TupleDesc inputDesc)
 {
-    planstate->ps_ProjInfo =
-        ExecBuildProjectionInfo(planstate->plan->targetlist,
-                                planstate->ps_ExprContext,
-                                planstate->ps_ResultTupleSlot,
-                                planstate,
-                                inputDesc);
+	planstate->ps_ProjInfo =
+		ExecBuildProjectionInfo(planstate->plan->targetlist,
+								planstate->ps_ExprContext,
+								planstate->ps_ResultTupleSlot,
+								planstate,
+								inputDesc);
 }
 
 
 /* ----------------
- *        ExecFreeExprContext
+ *		ExecConditionalAssignProjectionInfo
+ *
+ * as ExecAssignProjectionInfo, but store NULL rather than building projection
+ * info if no projection is required
+ * ----------------
+ */
+void
+ExecConditionalAssignProjectionInfo(PlanState *planstate, TupleDesc inputDesc,
+									int varno)
+{
+	if (tlist_matches_tupdesc(planstate,
+							  planstate->plan->targetlist,
+							  varno,
+							  inputDesc))
+		planstate->ps_ProjInfo = NULL;
+	else
+	{
+		if (!planstate->ps_ResultTupleSlot)
+			ExecInitResultSlot(planstate);
+		ExecAssignProjectionInfo(planstate, inputDesc);
+	}
+}
+
+static bool
+tlist_matches_tupdesc(PlanState *ps, List *tlist, int varno, TupleDesc tupdesc)
+{
+	int			numattrs = tupdesc->natts;
+	int			attrno;
+	bool		hasoid;
+	ListCell   *tlist_item = list_head(tlist);
+
+	/* Check the tlist attributes */
+	for (attrno = 1; attrno <= numattrs; attrno++)
+	{
+		Form_pg_attribute att_tup = TupleDescAttr(tupdesc, attrno - 1);
+		Var		   *var;
+
+		if (tlist_item == NULL)
+			return false;		/* tlist too short */
+		var = (Var *) ((TargetEntry *) lfirst(tlist_item))->expr;
+		if (!var || !IsA(var, Var))
+			return false;		/* tlist item not a Var */
+		/* if these Asserts fail, planner messed up */
+		Assert(var->varno == varno);
+		Assert(var->varlevelsup == 0);
+		if (var->varattno != attrno)
+			return false;		/* out of order */
+		if (att_tup->attisdropped)
+			return false;		/* table contains dropped columns */
+		if (att_tup->atthasmissing)
+			return false;       /* table contains cols with missing values */
+
+		/*
+		 * Note: usually the Var's type should match the tupdesc exactly, but
+		 * in situations involving unions of columns that have different
+		 * typmods, the Var may have come from above the union and hence have
+		 * typmod -1.  This is a legitimate situation since the Var still
+		 * describes the column, just not as exactly as the tupdesc does. We
+		 * could change the planner to prevent it, but it'd then insert
+		 * projection steps just to convert from specific typmod to typmod -1,
+		 * which is pretty silly.
+		 */
+		if (var->vartype != att_tup->atttypid ||
+			(var->vartypmod != att_tup->atttypmod &&
+			 var->vartypmod != -1))
+			return false;		/* type mismatch */
+
+		tlist_item = lnext(tlist_item);
+	}
+
+	if (tlist_item)
+		return false;			/* tlist too long */
+
+	/*
+	 * If the plan context requires a particular hasoid setting, then that has
+	 * to match, too.
+	 */
+	if (ExecContextForcesOids(ps, &hasoid) &&
+		hasoid != tupdesc->tdhasoid)
+		return false;
+
+	return true;
+}
+
+/* ----------------
+ *		ExecFreeExprContext
  *
  * A plan node's ExprContext should be freed explicitly during executor
  * shutdown because there may be shutdown callbacks to call.  (Other resources
@@ -542,84 +612,74 @@ ExecAssignProjectionInfo(PlanState *planstate,
 void
 ExecFreeExprContext(PlanState *planstate)
 {
-    /*
-     * Per above discussion, don't actually delete the ExprContext. We do
-     * unlink it from the plan node, though.
-     */
-    planstate->ps_ExprContext = NULL;
+	/*
+	 * Per above discussion, don't actually delete the ExprContext. We do
+	 * unlink it from the plan node, though.
+	 */
+	planstate->ps_ExprContext = NULL;
 }
 
+
 /* ----------------------------------------------------------------
- *        the following scan type support functions are for
- *        those nodes which are stubborn and return tuples in
- *        their Scan tuple slot instead of their Result tuple
- *        slot..  luck fur us, these nodes do not do projections
- *        so we don't have to worry about getting the ProjectionInfo
- *        right for them...  -cim 6/3/91
+ *				  Scan node support
  * ----------------------------------------------------------------
  */
 
 /* ----------------
- *        ExecAssignScanType
+ *		ExecAssignScanType
  * ----------------
  */
 void
 ExecAssignScanType(ScanState *scanstate, TupleDesc tupDesc)
 {
-    TupleTableSlot *slot = scanstate->ss_ScanTupleSlot;
+	TupleTableSlot *slot = scanstate->ss_ScanTupleSlot;
 
-    ExecSetSlotDescriptor(slot, tupDesc);
+	ExecSetSlotDescriptor(slot, tupDesc);
 }
 
 /* ----------------
- *        ExecAssignScanTypeFromOuterPlan
+ *		ExecCreateSlotFromOuterPlan
  * ----------------
  */
 void
-ExecAssignScanTypeFromOuterPlan(ScanState *scanstate)
+ExecCreateScanSlotFromOuterPlan(EState *estate, ScanState *scanstate)
 {
-    PlanState  *outerPlan;
-    TupleDesc    tupDesc;
+	PlanState  *outerPlan;
+	TupleDesc	tupDesc;
 
-    outerPlan = outerPlanState(scanstate);
-    tupDesc = ExecGetResultType(outerPlan);
+	outerPlan = outerPlanState(scanstate);
+	tupDesc = ExecGetResultType(outerPlan);
 
-    ExecAssignScanType(scanstate, tupDesc);
+	ExecInitScanTupleSlot(estate, scanstate, tupDesc);
 }
 
-
 /* ----------------------------------------------------------------
- *                  Scan node support
- * ----------------------------------------------------------------
- */
-
-/* ----------------------------------------------------------------
- *        ExecRelationIsTargetRelation
+ *		ExecRelationIsTargetRelation
  *
- *        Detect whether a relation (identified by rangetable index)
- *        is one of the target relations of the query.
+ *		Detect whether a relation (identified by rangetable index)
+ *		is one of the target relations of the query.
  * ----------------------------------------------------------------
  */
 bool
 ExecRelationIsTargetRelation(EState *estate, Index scanrelid)
 {
-    ResultRelInfo *resultRelInfos;
-    int            i;
+	ResultRelInfo *resultRelInfos;
+	int			i;
 
-    resultRelInfos = estate->es_result_relations;
-    for (i = 0; i < estate->es_num_result_relations; i++)
-    {
-        if (resultRelInfos[i].ri_RangeTableIndex == scanrelid)
-            return true;
-    }
-    return false;
+	resultRelInfos = estate->es_result_relations;
+	for (i = 0; i < estate->es_num_result_relations; i++)
+	{
+		if (resultRelInfos[i].ri_RangeTableIndex == scanrelid)
+			return true;
+	}
+	return false;
 }
 
 /* ----------------------------------------------------------------
- *        ExecOpenScanRelation
+ *		ExecOpenScanRelation
  *
- *        Open the heap relation to be scanned by a base-level scan plan node.
- *        This should be called during the node's ExecInit routine.
+ *		Open the heap relation to be scanned by a base-level scan plan node.
+ *		This should be called during the node's ExecInit routine.
  *
  * By default, this acquires AccessShareLock on the relation.  However,
  * if the relation was already locked by InitPlan, we don't need to acquire
@@ -629,120 +689,52 @@ ExecRelationIsTargetRelation(EState *estate, Index scanrelid)
 Relation
 ExecOpenScanRelation(EState *estate, Index scanrelid, int eflags)
 {
-    Relation    rel;
-    Oid            reloid;
-    LOCKMODE    lockmode;
+	Relation	rel;
+	Oid			reloid;
+	LOCKMODE	lockmode;
 
-    /*
-     * Determine the lock type we need.  First, scan to see if target relation
-     * is a result relation.  If not, check if it's a FOR UPDATE/FOR SHARE
-     * relation.  In either of those cases, we got the lock already.
-     */
-    lockmode = AccessShareLock;
-    if (ExecRelationIsTargetRelation(estate, scanrelid))
-        lockmode = NoLock;
-    else
-    {
-        /* Keep this check in sync with InitPlan! */
-        ExecRowMark *erm = ExecFindRowMark(estate, scanrelid, true);
-
-        if (erm != NULL && erm->relation != NULL)
-            lockmode = NoLock;
-    }
-
-    /* Open the relation and acquire lock as needed */
-    reloid = getrelid(scanrelid, estate->es_range_table);
-    rel = heap_open(reloid, lockmode);
-
-    /*
-     * Complain if we're attempting a scan of an unscannable relation, except
-     * when the query won't actually be run.  This is a slightly klugy place
-     * to do this, perhaps, but there is no better place.
-     */
-    if ((eflags & (EXEC_FLAG_EXPLAIN_ONLY | EXEC_FLAG_WITH_NO_DATA)) == 0 &&
-        !RelationIsScannable(rel))
-        ereport(ERROR,
-                (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-                 errmsg("materialized view \"%s\" has not been populated",
-                        RelationGetRelationName(rel)),
-                 errhint("Use the REFRESH MATERIALIZED VIEW command.")));
-
-    return rel;
-}
-
-#ifdef __OPENTENBASE__
-Relation
-ExecOpenScanRelationPartition(EState *estate, Index scanrelid, int eflags, int partidx)
-{    
-    Relation    rel;
-    Oid            reloid;
-    Relation     partrel;
-    Oid            partoid;
-    LOCKMODE    lockmode;
-
-    /*
-     * Determine the lock type we need.  First, scan to see if target relation
-     * is a result relation.  If not, check if it's a FOR UPDATE/FOR SHARE
-     * relation.  In either of those cases, we got the lock already.
-     */
-    lockmode = AccessShareLock;
-    if (ExecRelationIsTargetRelation(estate, scanrelid))
-        lockmode = NoLock;
-    else
-    {
-        ListCell   *l;
-
-        foreach(l, estate->es_rowMarks)
-        {
-            ExecRowMark *erm = lfirst(l);
-
-            if (erm->rti == scanrelid)
-            {
-                lockmode = NoLock;
-                break;
-            }
-        }
-    }
-
-    /* Open the relation and acquire lock as needed */
-    reloid = getrelid(scanrelid, estate->es_range_table);
-    rel = heap_open(reloid, NoLock);
-
-    partoid = RelationGetPartition(rel, partidx, false);
-
-	if (partoid)
-	{
-	    partrel = heap_open(partoid, lockmode);
-	}
+	/*
+	 * Determine the lock type we need.  First, scan to see if target relation
+	 * is a result relation.  If not, check if it's a FOR UPDATE/FOR SHARE
+	 * relation.  In either of those cases, we got the lock already.
+	 */
+	lockmode = AccessShareLock;
+	if (ExecRelationIsTargetRelation(estate, scanrelid))
+		lockmode = NoLock;
 	else
 	{
-		partrel = NULL;
+		/* Keep this check in sync with InitPlan! */
+		ExecRowMark *erm = ExecFindRowMark(estate, scanrelid, true);
+
+		if (erm != NULL && erm->relation != NULL)
+			lockmode = NoLock;
 	}
 
-    heap_close(rel, NoLock);
-    /*
-     * Complain if we're attempting a scan of an unscannable relation, except
-     * when the query won't actually be run.  This is a slightly klugy place
-     * to do this, perhaps, but there is no better place.
-     */
-    if ((eflags & (EXEC_FLAG_EXPLAIN_ONLY | EXEC_FLAG_WITH_NO_DATA)) == 0 &&
-        !RelationIsScannable(rel))
-        ereport(ERROR,
-                (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-                 errmsg("materialized view \"%s\" has not been populated",
-                        RelationGetRelationName(rel)),
-                 errhint("Use the REFRESH MATERIALIZED VIEW command.")));
+	/* Open the relation and acquire lock as needed */
+	reloid = getrelid(scanrelid, estate->es_range_table);
+	rel = heap_open(reloid, lockmode);
 
-    return partrel;
+	/*
+	 * Complain if we're attempting a scan of an unscannable relation, except
+	 * when the query won't actually be run.  This is a slightly klugy place
+	 * to do this, perhaps, but there is no better place.
+	 */
+	if ((eflags & (EXEC_FLAG_EXPLAIN_ONLY | EXEC_FLAG_WITH_NO_DATA)) == 0 &&
+		!RelationIsScannable(rel))
+		ereport(ERROR,
+				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+				 errmsg("materialized view \"%s\" has not been populated",
+						RelationGetRelationName(rel)),
+				 errhint("Use the REFRESH MATERIALIZED VIEW command.")));
+
+	return rel;
 }
 
-#endif
-
 /* ----------------------------------------------------------------
- *        ExecCloseScanRelation
+ *		ExecCloseScanRelation
  *
- *        Close the heap relation scanned by a base-level scan plan node.
- *        This should be called during the node's ExecEnd routine.
+ *		Close the heap relation scanned by a base-level scan plan node.
+ *		This should be called during the node's ExecEnd routine.
  *
  * Currently, we do not release the lock acquired by ExecOpenScanRelation.
  * This lock should be held till end of transaction.  (There is a faction
@@ -755,37 +747,37 @@ ExecOpenScanRelationPartition(EState *estate, Index scanrelid, int eflags, int p
 void
 ExecCloseScanRelation(Relation scanrel)
 {
-    heap_close(scanrel, NoLock);
+	heap_close(scanrel, NoLock);
 }
 
 /*
  * UpdateChangedParamSet
- *        Add changed parameters to a plan node's chgParam set
+ *		Add changed parameters to a plan node's chgParam set
  */
 void
 UpdateChangedParamSet(PlanState *node, Bitmapset *newchg)
 {
-    Bitmapset  *parmset;
+	Bitmapset  *parmset;
 
-    /*
-     * The plan node only depends on params listed in its allParam set. Don't
-     * include anything else into its chgParam set.
-     */
-    parmset = bms_intersect(node->plan->allParam, newchg);
+	/*
+	 * The plan node only depends on params listed in its allParam set. Don't
+	 * include anything else into its chgParam set.
+	 */
+	parmset = bms_intersect(node->plan->allParam, newchg);
 
-    /*
-     * Keep node->chgParam == NULL if there's not actually any members; this
-     * allows the simplest possible tests in executor node files.
-     */
-    if (!bms_is_empty(parmset))
-        node->chgParam = bms_join(node->chgParam, parmset);
-    else
-        bms_free(parmset);
+	/*
+	 * Keep node->chgParam == NULL if there's not actually any members; this
+	 * allows the simplest possible tests in executor node files.
+	 */
+	if (!bms_is_empty(parmset))
+		node->chgParam = bms_join(node->chgParam, parmset);
+	else
+		bms_free(parmset);
 }
 
 /*
  * executor_errposition
- *        Report an execution-time cursor position, if possible.
+ *		Report an execution-time cursor position, if possible.
  *
  * This is expected to be used within an ereport() call.  The return value
  * is a dummy (always 0, in fact).
@@ -799,18 +791,18 @@ UpdateChangedParamSet(PlanState *node, Bitmapset *newchg)
 int
 executor_errposition(EState *estate, int location)
 {
-    int            pos;
+	int			pos;
 
-    /* No-op if location was not provided */
-    if (location < 0)
-        return 0;
-    /* Can't do anything if source text is not available */
-    if (estate == NULL || estate->es_sourceText == NULL)
-        return 0;
-    /* Convert offset to character number */
-    pos = pg_mbstrlen_with_len(estate->es_sourceText, location) + 1;
-    /* And pass it to the ereport mechanism */
-    return errposition(pos);
+	/* No-op if location was not provided */
+	if (location < 0)
+		return 0;
+	/* Can't do anything if source text is not available */
+	if (estate == NULL || estate->es_sourceText == NULL)
+		return 0;
+	/* Convert offset to character number */
+	pos = pg_mbstrlen_with_len(estate->es_sourceText, location) + 1;
+	/* And pass it to the ereport mechanism */
+	return errposition(pos);
 }
 
 /*
@@ -825,22 +817,22 @@ executor_errposition(EState *estate, int location)
  */
 void
 RegisterExprContextCallback(ExprContext *econtext,
-                            ExprContextCallbackFunction function,
-                            Datum arg)
+							ExprContextCallbackFunction function,
+							Datum arg)
 {
-    ExprContext_CB *ecxt_callback;
+	ExprContext_CB *ecxt_callback;
 
-    /* Save the info in appropriate memory context */
-    ecxt_callback = (ExprContext_CB *)
-        MemoryContextAlloc(econtext->ecxt_per_query_memory,
-                           sizeof(ExprContext_CB));
+	/* Save the info in appropriate memory context */
+	ecxt_callback = (ExprContext_CB *)
+		MemoryContextAlloc(econtext->ecxt_per_query_memory,
+						   sizeof(ExprContext_CB));
 
-    ecxt_callback->function = function;
-    ecxt_callback->arg = arg;
+	ecxt_callback->function = function;
+	ecxt_callback->arg = arg;
 
-    /* link to front of list for appropriate execution order */
-    ecxt_callback->next = econtext->ecxt_callbacks;
-    econtext->ecxt_callbacks = ecxt_callback;
+	/* link to front of list for appropriate execution order */
+	ecxt_callback->next = econtext->ecxt_callbacks;
+	econtext->ecxt_callbacks = ecxt_callback;
 }
 
 /*
@@ -851,24 +843,24 @@ RegisterExprContextCallback(ExprContext *econtext,
  */
 void
 UnregisterExprContextCallback(ExprContext *econtext,
-                              ExprContextCallbackFunction function,
-                              Datum arg)
+							  ExprContextCallbackFunction function,
+							  Datum arg)
 {
-    ExprContext_CB **prev_callback;
-    ExprContext_CB *ecxt_callback;
+	ExprContext_CB **prev_callback;
+	ExprContext_CB *ecxt_callback;
 
-    prev_callback = &econtext->ecxt_callbacks;
+	prev_callback = &econtext->ecxt_callbacks;
 
-    while ((ecxt_callback = *prev_callback) != NULL)
-    {
-        if (ecxt_callback->function == function && ecxt_callback->arg == arg)
-        {
-            *prev_callback = ecxt_callback->next;
-            pfree(ecxt_callback);
-        }
-        else
-            prev_callback = &ecxt_callback->next;
-    }
+	while ((ecxt_callback = *prev_callback) != NULL)
+	{
+		if (ecxt_callback->function == function && ecxt_callback->arg == arg)
+		{
+			*prev_callback = ecxt_callback->next;
+			pfree(ecxt_callback);
+		}
+		else
+			prev_callback = &ecxt_callback->next;
+	}
 }
 
 /*
@@ -883,31 +875,31 @@ UnregisterExprContextCallback(ExprContext *econtext,
 static void
 ShutdownExprContext(ExprContext *econtext, bool isCommit)
 {
-    ExprContext_CB *ecxt_callback;
-    MemoryContext oldcontext;
+	ExprContext_CB *ecxt_callback;
+	MemoryContext oldcontext;
 
-    /* Fast path in normal case where there's nothing to do. */
-    if (econtext->ecxt_callbacks == NULL)
-        return;
+	/* Fast path in normal case where there's nothing to do. */
+	if (econtext->ecxt_callbacks == NULL)
+		return;
 
-    /*
-     * Call the callbacks in econtext's per-tuple context.  This ensures that
-     * any memory they might leak will get cleaned up.
-     */
-    oldcontext = MemoryContextSwitchTo(econtext->ecxt_per_tuple_memory);
+	/*
+	 * Call the callbacks in econtext's per-tuple context.  This ensures that
+	 * any memory they might leak will get cleaned up.
+	 */
+	oldcontext = MemoryContextSwitchTo(econtext->ecxt_per_tuple_memory);
 
-    /*
-     * Call each callback function in reverse registration order.
-     */
-    while ((ecxt_callback = econtext->ecxt_callbacks) != NULL)
-    {
-        econtext->ecxt_callbacks = ecxt_callback->next;
-        if (isCommit)
-            (*ecxt_callback->function) (ecxt_callback->arg);
-        pfree(ecxt_callback);
-    }
+	/*
+	 * Call each callback function in reverse registration order.
+	 */
+	while ((ecxt_callback = econtext->ecxt_callbacks) != NULL)
+	{
+		econtext->ecxt_callbacks = ecxt_callback->next;
+		if (isCommit)
+			ecxt_callback->function(ecxt_callback->arg);
+		pfree(ecxt_callback);
+	}
 
-    MemoryContextSwitchTo(oldcontext);
+	MemoryContextSwitchTo(oldcontext);
 }
 
 /*
@@ -920,171 +912,173 @@ ShutdownExprContext(ExprContext *econtext, bool isCommit)
 void
 ExecLockNonLeafAppendTables(List *partitioned_rels, EState *estate)
 {
-    PlannedStmt *stmt = estate->es_plannedstmt;
-    ListCell   *lc;
+	PlannedStmt *stmt = estate->es_plannedstmt;
+	ListCell   *lc;
 
-    foreach(lc, partitioned_rels)
-    {
-        ListCell   *l;
-        Index        rti = lfirst_int(lc);
-        bool        is_result_rel = false;
-        Oid            relid = getrelid(rti, estate->es_range_table);
+	foreach(lc, partitioned_rels)
+	{
+		ListCell   *l;
+		Index		rti = lfirst_int(lc);
+		bool		is_result_rel = false;
+		Oid			relid = getrelid(rti, estate->es_range_table);
 
-        /* If this is a result relation, already locked in InitPlan */
-        foreach(l, stmt->nonleafResultRelations)
-        {
-            if (rti == lfirst_int(l))
-            {
-                is_result_rel = true;
-                break;
-            }
-        }
+		/* If this is a result relation, already locked in InitPlan */
+		foreach(l, stmt->nonleafResultRelations)
+		{
+			if (rti == lfirst_int(l))
+			{
+				is_result_rel = true;
+				break;
+			}
+		}
 
-        /*
-         * Not a result relation; check if there is a RowMark that requires
-         * taking a RowShareLock on this rel.
-         */
-        if (!is_result_rel)
-        {
-            PlanRowMark *rc = NULL;
+		/*
+		 * Not a result relation; check if there is a RowMark that requires
+		 * taking a RowShareLock on this rel.
+		 */
+		if (!is_result_rel)
+		{
+			PlanRowMark *rc = NULL;
 
-            foreach(l, stmt->rowMarks)
-            {
-                if (((PlanRowMark *) lfirst(l))->rti == rti)
-                {
-                    rc = lfirst(l);
-                    break;
-                }
-            }
+			foreach(l, stmt->rowMarks)
+			{
+				if (((PlanRowMark *) lfirst(l))->rti == rti)
+				{
+					rc = lfirst(l);
+					break;
+				}
+			}
 
-            if (rc && RowMarkRequiresRowShareLock(rc->markType))
-                LockRelationOid(relid, RowShareLock);
-            else
-                LockRelationOid(relid, AccessShareLock);
-        }
-    }
+			if (rc && RowMarkRequiresRowShareLock(rc->markType))
+				LockRelationOid(relid, RowShareLock);
+			else
+				LockRelationOid(relid, AccessShareLock);
+		}
+	}
 }
 
 /*
- *        GetAttributeByName
- *        GetAttributeByNum
+ *		GetAttributeByName
+ *		GetAttributeByNum
  *
- *        These functions return the value of the requested attribute
- *        out of the given tuple Datum.
- *        C functions which take a tuple as an argument are expected
- *        to use these.  Ex: overpaid(EMP) might call GetAttributeByNum().
- *        Note: these are actually rather slow because they do a typcache
- *        lookup on each call.
+ *		These functions return the value of the requested attribute
+ *		out of the given tuple Datum.
+ *		C functions which take a tuple as an argument are expected
+ *		to use these.  Ex: overpaid(EMP) might call GetAttributeByNum().
+ *		Note: these are actually rather slow because they do a typcache
+ *		lookup on each call.
  */
 Datum
 GetAttributeByName(HeapTupleHeader tuple, const char *attname, bool *isNull)
 {
-    AttrNumber    attrno;
-    Datum        result;
-    Oid            tupType;
-    int32        tupTypmod;
-    TupleDesc    tupDesc;
-    HeapTupleData tmptup;
-    int            i;
+	AttrNumber	attrno;
+	Datum		result;
+	Oid			tupType;
+	int32		tupTypmod;
+	TupleDesc	tupDesc;
+	HeapTupleData tmptup;
+	int			i;
 
-    if (attname == NULL)
-        elog(ERROR, "invalid attribute name");
+	if (attname == NULL)
+		elog(ERROR, "invalid attribute name");
 
-    if (isNull == NULL)
-        elog(ERROR, "a NULL isNull pointer was passed");
+	if (isNull == NULL)
+		elog(ERROR, "a NULL isNull pointer was passed");
 
-    if (tuple == NULL)
-    {
-        /* Kinda bogus but compatible with old behavior... */
-        *isNull = true;
-        return (Datum) 0;
-    }
+	if (tuple == NULL)
+	{
+		/* Kinda bogus but compatible with old behavior... */
+		*isNull = true;
+		return (Datum) 0;
+	}
 
-    tupType = HeapTupleHeaderGetTypeId(tuple);
-    tupTypmod = HeapTupleHeaderGetTypMod(tuple);
-    tupDesc = lookup_rowtype_tupdesc(tupType, tupTypmod);
+	tupType = HeapTupleHeaderGetTypeId(tuple);
+	tupTypmod = HeapTupleHeaderGetTypMod(tuple);
+	tupDesc = lookup_rowtype_tupdesc(tupType, tupTypmod);
 
-    attrno = InvalidAttrNumber;
-    for (i = 0; i < tupDesc->natts; i++)
-    {
-        if (namestrcmp(&(tupDesc->attrs[i]->attname), attname) == 0)
-        {
-            attrno = tupDesc->attrs[i]->attnum;
-            break;
-        }
-    }
+	attrno = InvalidAttrNumber;
+	for (i = 0; i < tupDesc->natts; i++)
+	{
+		Form_pg_attribute att = TupleDescAttr(tupDesc, i);
 
-    if (attrno == InvalidAttrNumber)
-        elog(ERROR, "attribute \"%s\" does not exist", attname);
+		if (namestrcmp(&(att->attname), attname) == 0)
+		{
+			attrno = att->attnum;
+			break;
+		}
+	}
 
-    /*
-     * heap_getattr needs a HeapTuple not a bare HeapTupleHeader.  We set all
-     * the fields in the struct just in case user tries to inspect system
-     * columns.
-     */
-    tmptup.t_len = HeapTupleHeaderGetDatumLength(tuple);
-    ItemPointerSetInvalid(&(tmptup.t_self));
-    tmptup.t_tableOid = InvalidOid;
+	if (attrno == InvalidAttrNumber)
+		elog(ERROR, "attribute \"%s\" does not exist", attname);
+
+	/*
+	 * heap_getattr needs a HeapTuple not a bare HeapTupleHeader.  We set all
+	 * the fields in the struct just in case user tries to inspect system
+	 * columns.
+	 */
+	tmptup.t_len = HeapTupleHeaderGetDatumLength(tuple);
+	ItemPointerSetInvalid(&(tmptup.t_self));
+	tmptup.t_tableOid = InvalidOid;
 	tmptup.t_xc_node_id = InvalidOid;
-    tmptup.t_data = tuple;
+	tmptup.t_data = tuple;
 
-    result = heap_getattr(&tmptup,
-                          attrno,
-                          tupDesc,
-                          isNull);
+	result = heap_getattr(&tmptup,
+						  attrno,
+						  tupDesc,
+						  isNull);
 
-    ReleaseTupleDesc(tupDesc);
+	ReleaseTupleDesc(tupDesc);
 
-    return result;
+	return result;
 }
 
 Datum
 GetAttributeByNum(HeapTupleHeader tuple,
-                  AttrNumber attrno,
-                  bool *isNull)
+				  AttrNumber attrno,
+				  bool *isNull)
 {
-    Datum        result;
-    Oid            tupType;
-    int32        tupTypmod;
-    TupleDesc    tupDesc;
-    HeapTupleData tmptup;
+	Datum		result;
+	Oid			tupType;
+	int32		tupTypmod;
+	TupleDesc	tupDesc;
+	HeapTupleData tmptup;
 
-    if (!AttributeNumberIsValid(attrno))
-        elog(ERROR, "invalid attribute number %d", attrno);
+	if (!AttributeNumberIsValid(attrno))
+		elog(ERROR, "invalid attribute number %d", attrno);
 
-    if (isNull == NULL)
-        elog(ERROR, "a NULL isNull pointer was passed");
+	if (isNull == NULL)
+		elog(ERROR, "a NULL isNull pointer was passed");
 
-    if (tuple == NULL)
-    {
-        /* Kinda bogus but compatible with old behavior... */
-        *isNull = true;
-        return (Datum) 0;
-    }
+	if (tuple == NULL)
+	{
+		/* Kinda bogus but compatible with old behavior... */
+		*isNull = true;
+		return (Datum) 0;
+	}
 
-    tupType = HeapTupleHeaderGetTypeId(tuple);
-    tupTypmod = HeapTupleHeaderGetTypMod(tuple);
-    tupDesc = lookup_rowtype_tupdesc(tupType, tupTypmod);
+	tupType = HeapTupleHeaderGetTypeId(tuple);
+	tupTypmod = HeapTupleHeaderGetTypMod(tuple);
+	tupDesc = lookup_rowtype_tupdesc(tupType, tupTypmod);
 
-    /*
-     * heap_getattr needs a HeapTuple not a bare HeapTupleHeader.  We set all
-     * the fields in the struct just in case user tries to inspect system
-     * columns.
-     */
-    tmptup.t_len = HeapTupleHeaderGetDatumLength(tuple);
-    ItemPointerSetInvalid(&(tmptup.t_self));
-    tmptup.t_tableOid = InvalidOid;
+	/*
+	 * heap_getattr needs a HeapTuple not a bare HeapTupleHeader.  We set all
+	 * the fields in the struct just in case user tries to inspect system
+	 * columns.
+	 */
+	tmptup.t_len = HeapTupleHeaderGetDatumLength(tuple);
+	ItemPointerSetInvalid(&(tmptup.t_self));
+	tmptup.t_tableOid = InvalidOid;
 	tmptup.t_xc_node_id = InvalidOid;
-    tmptup.t_data = tuple;
+	tmptup.t_data = tuple;
 
-    result = heap_getattr(&tmptup,
-                          attrno,
-                          tupDesc,
-                          isNull);
+	result = heap_getattr(&tmptup,
+						  attrno,
+						  tupDesc,
+						  isNull);
 
-    ReleaseTupleDesc(tupDesc);
+	ReleaseTupleDesc(tupDesc);
 
-    return result;
+	return result;
 }
 
 /*
@@ -1093,8 +1087,8 @@ GetAttributeByNum(HeapTupleHeader tuple,
 int
 ExecTargetListLength(List *targetlist)
 {
-    /* This used to be more complex, but fjoins are dead */
-    return list_length(targetlist);
+	/* This used to be more complex, but fjoins are dead */
+	return list_length(targetlist);
 }
 
 /*
@@ -1103,15 +1097,46 @@ ExecTargetListLength(List *targetlist)
 int
 ExecCleanTargetListLength(List *targetlist)
 {
-    int            len = 0;
-    ListCell   *tl;
+	int			len = 0;
+	ListCell   *tl;
 
-    foreach(tl, targetlist)
-    {
-        TargetEntry *curTle = lfirst_node(TargetEntry, tl);
+	foreach(tl, targetlist)
+	{
+		TargetEntry *curTle = lfirst_node(TargetEntry, tl);
 
-        if (!curTle->resjunk)
-            len++;
-    }
-    return len;
+		if (!curTle->resjunk)
+			len++;
+	}
+	return len;
+}
+
+/*
+ * Return a relInfo's tuple slot for a trigger's OLD tuples.
+ */
+TupleTableSlot *
+ExecGetTriggerOldSlot(EState *estate, ResultRelInfo *relInfo)
+{
+	if (relInfo->ri_TrigOldSlot == NULL)
+	{
+		Relation	rel = relInfo->ri_RelationDesc;
+		MemoryContext oldcontext = MemoryContextSwitchTo(estate->es_query_cxt);
+
+		relInfo->ri_TrigOldSlot =
+			ExecInitExtraTupleSlot(estate,
+								   RelationGetDescr(rel));
+
+		MemoryContextSwitchTo(oldcontext);
+	}
+
+	return relInfo->ri_TrigOldSlot;
+}
+
+void
+EstateAddItable(EState *estate, Oid oid)
+{
+	MemoryContext old = MemoryContextSwitchTo(estate->es_query_cxt);
+
+	estate->es_itable = list_append_unique_oid(estate->es_itable, oid);
+
+	MemoryContextSwitchTo(old);
 }

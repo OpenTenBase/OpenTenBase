@@ -1,0 +1,505 @@
+-- ----------------------------------------------------------------------
+-- Test: assign/alter a role to a resource group
+-- ----------------------------------------------------------------------
+DROP ROLE IF EXISTS rg_test_role;
+DROP ROLE
+NOTICE:  (00000) role "rg_test_role" does not exist, skipping
+-- positive
+CREATE ROLE rg_test_role;
+CREATE ROLE
+NOTICE:  (00000) resource group not specified, using default resource group "default_group"
+SELECT rolresgroup FROM pg_authid WHERE rolname = 'rg_test_role';
+  rolresgroup  
+---------------
+ default_group
+(1 row)
+
+CREATE ROLE rg_test_role_super SUPERUSER;
+CREATE ROLE
+NOTICE:  (00000) resource group not specified, using admin resource group "admin_group"
+SELECT rolresgroup FROM pg_authid WHERE rolname = 'rg_test_role_super';
+ rolresgroup 
+-------------
+ admin_group
+(1 row)
+
+ALTER ROLE rg_test_role_super NOSUPERUSER;
+ALTER ROLE
+SELECT rolresgroup FROM pg_authid WHERE rolname = 'rg_test_role_super';
+  rolresgroup  
+---------------
+ default_group
+(1 row)
+
+ALTER ROLE rg_test_role_super SUPERUSER;
+ALTER ROLE
+SELECT rolresgroup FROM pg_authid WHERE rolname = 'rg_test_role_super';
+ rolresgroup 
+-------------
+ admin_group
+(1 row)
+
+ALTER ROLE rg_test_role RESOURCE GROUP none;
+ALTER ROLE
+NOTICE:  (0A000) resource group required -- using default resource group "default_group"
+SELECT rolresgroup FROM pg_authid WHERE rolname = 'rg_test_role';
+  rolresgroup  
+---------------
+ default_group
+(1 row)
+
+ALTER ROLE rg_test_role_super RESOURCE GROUP none;
+ALTER ROLE
+NOTICE:  (0A000) resource group required -- using default resource group "admin_group"
+SELECT rolresgroup FROM pg_authid WHERE rolname = 'rg_test_role_super';
+ rolresgroup 
+-------------
+ admin_group
+(1 row)
+
+ALTER ROLE rg_test_role RESOURCE GROUP default_group;
+ALTER ROLE
+SELECT rolresgroup FROM pg_authid WHERE rolname = 'rg_test_role';
+  rolresgroup  
+---------------
+ default_group
+(1 row)
+
+ALTER ROLE rg_test_role_super RESOURCE GROUP admin_group;
+ALTER ROLE
+SELECT rolresgroup FROM pg_authid WHERE rolname = 'rg_test_role_super';
+ rolresgroup 
+-------------
+ admin_group
+(1 row)
+
+-- negative
+ALTER ROLE rg_test_role RESOURCE GROUP non_exist_group;
+ERROR:  (42704) resource group "non_exist_group" does not exist
+ALTER ROLE rg_test_role RESOURCE GROUP admin_group;
+ERROR:  (42501) only superuser can be assigned to admin resgroup
+CREATE ROLE rg_test_role1 RESOURCE GROUP non_exist_group;
+ERROR:  (42704) resource group "non_exist_group" does not exist
+-- nonsuper user should not be assigned to admin group
+CREATE ROLE rg_test_role1 RESOURCE GROUP admin_group;
+ERROR:  (42501) only superuser can be assigned to admin resgroup
+-- cleanup
+DROP ROLE rg_test_role;
+DROP ROLE
+DROP ROLE rg_test_role_super;
+DROP ROLE
+-- ----------------------------------------------------------------------
+-- Test: create/drop a resource group
+-- ----------------------------------------------------------------------
+DROP RESOURCE GROUP rg_test_group;
+ERROR:  (42704) resource group "rg_test_group" does not exist
+select * from pg_resgroup_config;
+ groupid |   groupname   | concurrency | cpu_rate_limit | memory_limit | cpuset 
+---------+---------------+-------------+----------------+--------------+--------
+    9019 | default_group | 20          | 30             | -1           | -1
+    9020 | admin_group   | 10          | 10             | -1           | -1
+(2 rows)
+
+-- negative
+-- can't create the reserved resource groups
+CREATE RESOURCE GROUP default_group WITH CPU_RATE_LIMIT 10;
+ERROR:  (42710) resource group "default_group" already exists
+CREATE RESOURCE GROUP admin_group WITH CPU_RATE_LIMIT 10;
+ERROR:  (42710) resource group "admin_group" already exists
+CREATE RESOURCE GROUP none WITH CPU_RATE_LIMIT 10;
+ERROR:  (42939) resource group name "none" is reserved
+-- multiple resource groups can't share the same name
+CREATE RESOURCE GROUP rg_test_group WITH CPU_RATE_LIMIT 10;
+CREATE RESOURCE GROUP
+CREATE RESOURCE GROUP rg_test_group WITH CPU_RATE_LIMIT 10;
+ERROR:  (42710) resource group "rg_test_group" already exists
+DROP RESOURCE GROUP rg_test_group;
+DROP RESOURCE GROUP
+-- can't specify the resource limit type multiple times
+CREATE RESOURCE GROUP rg_test_group WITH concurrency 1 CPU_RATE_LIMIT 5 concurrency 1;
+ERROR:  (42601) found duplicate resource group resource type: concurrency
+CREATE RESOURCE GROUP rg_test_group WITH CPU_RATE_LIMIT 5 CPU_RATE_LIMIT 5;
+ERROR:  (42601) found duplicate resource group resource type: cpu_rate_limit
+CREATE RESOURCE GROUP rg_test_group WITH cpuset '0' cpuset '0';
+ERROR:  (42601) found duplicate resource group resource type: cpuset
+-- can't specify both cpu_rate_limit and cpuset
+CREATE RESOURCE GROUP rg_test_group WITH CPU_RATE_LIMIT 5 cpuset '0';
+ERROR:  (22023) can't specify both cpu_rate_limit and cpuset
+-- can't specify invalid cpuset
+CREATE RESOURCE GROUP rg_test_group WITH cpuset '';
+ERROR:  (42601) cpuset invalid
+CREATE RESOURCE GROUP rg_test_group WITH cpuset ',';
+ERROR:  (42601) cpuset invalid
+CREATE RESOURCE GROUP rg_test_group WITH cpuset '-';
+ERROR:  (42601) cpuset invalid
+CREATE RESOURCE GROUP rg_test_group WITH cpuset 'a';
+ERROR:  (42601) cpuset invalid
+CREATE RESOURCE GROUP rg_test_group WITH cpuset '12a';
+ERROR:  (42601) cpuset invalid
+CREATE RESOURCE GROUP rg_test_group WITH cpuset '0-,';
+ERROR:  (42601) cpuset invalid
+CREATE RESOURCE GROUP rg_test_group WITH cpuset '-1';
+ERROR:  (42601) cpuset invalid
+CREATE RESOURCE GROUP rg_test_group WITH cpuset '3-1';
+ERROR:  (42601) cpuset invalid
+CREATE RESOURCE GROUP rg_test_group WITH cpuset ' 0 ';
+ERROR:  (42601) cpuset invalid
+CREATE RESOURCE GROUP rg_test_group WITH cpuset '4;a';
+ERROR:  (42601) cpuset invalid
+CREATE RESOURCE GROUP rg_test_group WITH cpuset '-;4';
+ERROR:  (42601) cpuset invalid
+CREATE RESOURCE GROUP rg_test_group WITH cpuset ';5';
+ERROR:  (42601) cpuset invalid
+CREATE RESOURCE GROUP rg_test_group WITH cpuset '5;';
+ERROR:  (42601) cpuset invalid
+---- suppose the core numbered 1024 is not exist
+CREATE RESOURCE GROUP rg_test_group WITH cpuset '1024';
+ERROR:  (22023) cpu cores 1024 are unavailable on the system
+CREATE RESOURCE GROUP rg_test_group WITH cpuset '0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,';
+ERROR:  (22023) the length of cpuset reached the upper limit 1024
+-- can't alter to invalid cpuset
+CREATE RESOURCE GROUP rg_test_group WITH cpuset '0';
+CREATE RESOURCE GROUP
+ALTER RESOURCE GROUP rg_test_group set CPUSET '';
+ERROR:  (42601) cpuset invalid
+ALTER RESOURCE GROUP rg_test_group set CPUSET ',';
+ERROR:  (42601) cpuset invalid
+ALTER RESOURCE GROUP rg_test_group set CPUSET '-';
+ERROR:  (42601) cpuset invalid
+ALTER RESOURCE GROUP rg_test_group set CPUSET 'a';
+ERROR:  (42601) cpuset invalid
+ALTER RESOURCE GROUP rg_test_group set CPUSET '12a';
+ERROR:  (42601) cpuset invalid
+ALTER RESOURCE GROUP rg_test_group set CPUSET '0-';
+ERROR:  (42601) cpuset invalid
+ALTER RESOURCE GROUP rg_test_group set CPUSET '-1';
+ERROR:  (42601) cpuset invalid
+ALTER RESOURCE GROUP rg_test_group set CPUSET '3-1';
+ERROR:  (42601) cpuset invalid
+ALTER RESOURCE GROUP rg_test_group set CPUSET ' 0 ';
+ERROR:  (42601) cpuset invalid
+ALTER RESOURCE GROUP rg_test_group set CPUSET '4;a';
+ERROR:  (42601) cpuset invalid
+ALTER RESOURCE GROUP rg_test_group set CPUSET '-;4';
+ERROR:  (42601) cpuset invalid
+ALTER RESOURCE GROUP rg_test_group set CPUSET ';5';
+ERROR:  (42601) cpuset invalid
+ALTER RESOURCE GROUP rg_test_group set CPUSET '5;';
+ERROR:  (42601) cpuset invalid
+ALTER RESOURCE GROUP rg_test_group set CPUSET ';';
+ERROR:  (42601) cpuset invalid
+ALTER RESOURCE GROUP rg_test_group set CPUSET '1;2;';
+ERROR:  (42601) cpuset invalid
+ALTER RESOURCE GROUP rg_test_group set CPUSET '1;2;3';
+ERROR:  (42601) cpuset invalid
+---- suppose the core numbered 1024 is not exist
+ALTER RESOURCE GROUP rg_test_group set CPUSET '1024';
+ERROR:  (22023) cpu cores 1024 are unavailable on the system
+ALTER RESOURCE GROUP rg_test_group set CPUSET '0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,';
+ERROR:  (22023) the length of cpuset reached the upper limit 1024
+DROP RESOURCE GROUP rg_test_group;
+DROP RESOURCE GROUP
+-- can't drop non-exist resource group
+DROP RESOURCE GROUP non_exist_group;
+ERROR:  (42704) resource group "non_exist_group" does not exist
+-- can't drop reserved resource groups
+DROP RESOURCE GROUP default_group;
+ERROR:  (0A000) cannot drop default resource group "default_group"
+DROP RESOURCE GROUP admin_group;
+ERROR:  (0A000) cannot drop default resource group "admin_group"
+DROP RESOURCE GROUP none;
+ERROR:  (42704) resource group "none" does not exist
+-- these cases are positive on GP, but nagative on opentenbase
+CREATE RESOURCE GROUP rg_test_group WITH CPU_RATE_LIMIT -1;
+ERROR:  (22023) cpu_rate_limit range is [1, 100]
+SELECT * from pg_resgroup_config WHERE groupname='rg_test_group';
+ groupid | groupname | concurrency | cpu_rate_limit | memory_limit | cpuset 
+---------+-----------+-------------+----------------+--------------+--------
+(0 rows)
+
+DROP RESOURCE GROUP rg_test_group;
+ERROR:  (42704) resource group "rg_test_group" does not exist
+-- positive
+CREATE RESOURCE GROUP rg_test_group WITH CPU_RATE_LIMIT 10;
+CREATE RESOURCE GROUP
+SELECT * from pg_resgroup_config WHERE groupname='rg_test_group';
+ groupid |   groupname   | concurrency | cpu_rate_limit | memory_limit | cpuset 
+---------+---------------+-------------+----------------+--------------+--------
+   16399 | rg_test_group | 20          | 10             | -1           | -1
+(1 row)
+
+DROP RESOURCE GROUP rg_test_group;
+DROP RESOURCE GROUP
+CREATE RESOURCE GROUP rg_test_group WITH concurrency 1 cpuset '0';
+CREATE RESOURCE GROUP
+SELECT * from pg_resgroup_config WHERE groupname='rg_test_group';
+ groupid |   groupname   | concurrency | cpu_rate_limit | memory_limit | cpuset 
+---------+---------------+-------------+----------------+--------------+--------
+   16404 | rg_test_group | 1           | -1             | -1           | 0
+(1 row)
+
+DROP RESOURCE GROUP rg_test_group;
+DROP RESOURCE GROUP
+CREATE RESOURCE GROUP rg_test_group WITH cpuset '0';
+CREATE RESOURCE GROUP
+SELECT * from pg_resgroup_config WHERE groupname='rg_test_group';
+ groupid |   groupname   | concurrency | cpu_rate_limit | memory_limit | cpuset 
+---------+---------------+-------------+----------------+--------------+--------
+   16409 | rg_test_group | 20          | -1             | -1           | 0
+(1 row)
+
+DROP RESOURCE GROUP rg_test_group;
+DROP RESOURCE GROUP
+CREATE RESOURCE GROUP rg_test_group WITH cpuset '0-1,2';
+CREATE RESOURCE GROUP
+SELECT * from pg_resgroup_config WHERE groupname='rg_test_group';
+ groupid |   groupname   | concurrency | cpu_rate_limit | memory_limit | cpuset 
+---------+---------------+-------------+----------------+--------------+--------
+   16414 | rg_test_group | 20          | -1             | -1           | 0-1,2
+(1 row)
+
+DROP RESOURCE GROUP rg_test_group;
+DROP RESOURCE GROUP
+CREATE RESOURCE GROUP rg_test_group WITH cpuset '0,0-1';
+CREATE RESOURCE GROUP
+SELECT * from pg_resgroup_config WHERE groupname='rg_test_group';
+ groupid |   groupname   | concurrency | cpu_rate_limit | memory_limit | cpuset 
+---------+---------------+-------------+----------------+--------------+--------
+   16419 | rg_test_group | 20          | -1             | -1           | 0,0-1
+(1 row)
+
+DROP RESOURCE GROUP rg_test_group;
+DROP RESOURCE GROUP
+-- ----------------------------------------------------------------------
+-- Test: boundary check in create resource group syntax
+-- ----------------------------------------------------------------------
+-- negative: cpu_rate_limit should be in [1, 100]
+CREATE RESOURCE GROUP rg_test_group WITH cpu_rate_limit 101;
+ERROR:  (22023) cpu_rate_limit range is [1, 100]
+CREATE RESOURCE GROUP rg_test_group WITH cpu_rate_limit 0;
+ERROR:  (22023) cpu_rate_limit range is [1, 100]
+-- negative: concurrency should be in [1, max_connections]
+CREATE RESOURCE GROUP rg_test_group WITH concurrency -1 cpu_rate_limit 10;
+ERROR:  (22023) concurrency range is [0, 'max_connections']
+show max_connections;
+ max_connections 
+-----------------
+ 500
+(1 row)
+
+CREATE RESOURCE GROUP rg_test_group WITH concurrency 501 cpu_rate_limit 10;
+ERROR:  (22023) concurrency range is [0, 'max_connections']
+-- negative: the cores of cpuset in different groups mustn't overlap
+CREATE RESOURCE GROUP rg_test_group1 WITH cpuset '0';
+CREATE RESOURCE GROUP
+CREATE RESOURCE GROUP rg_test_group2 WITH cpuset '0';
+ERROR:  (22023) cpu cores 0 are used by resource group rg_test_group1
+DROP RESOURCE GROUP rg_test_group1;
+DROP RESOURCE GROUP
+-- positive: cpu_rate_limit should be in [1, 100]
+CREATE RESOURCE GROUP rg_test_group WITH cpu_rate_limit 60;
+CREATE RESOURCE GROUP
+DROP RESOURCE GROUP rg_test_group;
+DROP RESOURCE GROUP
+CREATE RESOURCE GROUP rg_test_group WITH cpu_rate_limit 1;
+CREATE RESOURCE GROUP
+DROP RESOURCE GROUP rg_test_group;
+DROP RESOURCE GROUP
+CREATE RESOURCE GROUP rg_test_group WITH cpu_rate_limit 10;
+CREATE RESOURCE GROUP
+DROP RESOURCE GROUP rg_test_group;
+DROP RESOURCE GROUP
+-- positive: concurrency should be in [0, max_connections]
+CREATE RESOURCE GROUP rg_test_group WITH concurrency 0 cpu_rate_limit 10;
+CREATE RESOURCE GROUP
+DROP RESOURCE GROUP rg_test_group;
+DROP RESOURCE GROUP
+CREATE RESOURCE GROUP rg_test_group WITH concurrency 1 cpu_rate_limit 10;
+CREATE RESOURCE GROUP
+DROP RESOURCE GROUP rg_test_group;
+DROP RESOURCE GROUP
+show max_connections;
+ max_connections 
+-----------------
+ 500
+(1 row)
+
+CREATE RESOURCE GROUP rg_test_group WITH concurrency 500 cpu_rate_limit 10;
+CREATE RESOURCE GROUP
+DROP RESOURCE GROUP rg_test_group;
+DROP RESOURCE GROUP
+CREATE RESOURCE GROUP rg1_test_group WITH concurrency 1 cpu_rate_limit 10;
+CREATE RESOURCE GROUP
+CREATE RESOURCE GROUP rg2_test_group WITH concurrency 1 cpu_rate_limit 500;  -- nagative
+ERROR:  (22023) cpu_rate_limit range is [1, 100]
+DROP RESOURCE GROUP rg1_test_group;
+DROP RESOURCE GROUP
+DROP RESOURCE GROUP rg2_test_group;
+ERROR:  (42704) resource group "rg2_test_group" does not exist
+--
+-- ----------------------------------------------------------------------
+-- Test: alter a resource group
+-- ----------------------------------------------------------------------
+CREATE RESOURCE GROUP rg_test_group WITH cpu_rate_limit 5;
+CREATE RESOURCE GROUP
+-- ALTER RESOURCE GROUP SET CONCURRENCY N
+-- negative: concurrency should be in [1, max_connections]
+ALTER RESOURCE GROUP admin_group SET CONCURRENCY 0;
+ERROR:  (22023) admin_group must have at least one concurrency
+ALTER RESOURCE GROUP rg_test_group SET CONCURRENCY -1;
+ERROR:  (22023) concurrency range is [0, 'max_connections']
+show max_connections;
+ max_connections 
+-----------------
+ 500
+(1 row)
+
+ALTER RESOURCE GROUP rg_test_group SET CONCURRENCY 501;
+ERROR:  (22023) concurrency range is [0, 'max_connections']
+ALTER RESOURCE GROUP rg_test_group SET CONCURRENCY -0.5;
+ERROR:  (42601) syntax error at or near "0.5"
+LINE 1: ALTER RESOURCE GROUP rg_test_group SET CONCURRENCY -0.5;
+                                                            ^
+ALTER RESOURCE GROUP rg_test_group SET CONCURRENCY 0.5;
+ERROR:  (42601) syntax error at or near "0.5"
+LINE 1: ALTER RESOURCE GROUP rg_test_group SET CONCURRENCY 0.5;
+                                                           ^
+ALTER RESOURCE GROUP rg_test_group SET CONCURRENCY a;
+ERROR:  (42601) syntax error at or near "a"
+LINE 1: ALTER RESOURCE GROUP rg_test_group SET CONCURRENCY a;
+                                                           ^
+ALTER RESOURCE GROUP rg_test_group SET CONCURRENCY 'abc';
+ERROR:  (42601) syntax error at or near "'abc'"
+LINE 1: ALTER RESOURCE GROUP rg_test_group SET CONCURRENCY 'abc';
+                                                           ^
+ALTER RESOURCE GROUP rg_test_group SET CONCURRENCY '1';
+ERROR:  (42601) syntax error at or near "'1'"
+LINE 1: ALTER RESOURCE GROUP rg_test_group SET CONCURRENCY '1';
+                                                           ^
+-- positive: concurrency should be in [1, max_connections]
+ALTER RESOURCE GROUP rg_test_group SET CONCURRENCY 0;
+ALTER RESOURCE GROUP
+ALTER RESOURCE GROUP rg_test_group SET CONCURRENCY 1;
+ALTER RESOURCE GROUP
+ALTER RESOURCE GROUP rg_test_group SET CONCURRENCY 2;
+ALTER RESOURCE GROUP
+show max_connections;
+ max_connections 
+-----------------
+ 500
+(1 row)
+
+ALTER RESOURCE GROUP rg_test_group SET CONCURRENCY 500;
+ALTER RESOURCE GROUP
+-- ALTER RESOURCE GROUP SET cpu_rate_limit  VALUE
+-- negative: cpu_rate_limit  should be in [1, 100]
+ALTER RESOURCE GROUP rg_test_group SET cpu_rate_limit  -0.1;
+ERROR:  (42601) syntax error at or near "0.1"
+LINE 1: ALTER RESOURCE GROUP rg_test_group SET cpu_rate_limit  -0.1;
+                                                                ^
+ALTER RESOURCE GROUP rg_test_group SET cpu_rate_limit  -1;
+ERROR:  (22023) cpu_rate_limit range is [1, 100]
+ALTER RESOURCE GROUP rg_test_group SET cpu_rate_limit  0;
+ERROR:  (22023) cpu_rate_limit range is [1, 100]
+ALTER RESOURCE GROUP rg_test_group SET cpu_rate_limit  0.7;
+ERROR:  (42601) syntax error at or near "0.7"
+LINE 1: ALTER RESOURCE GROUP rg_test_group SET cpu_rate_limit  0.7;
+                                                               ^
+ALTER RESOURCE GROUP rg_test_group SET cpu_rate_limit  1.7;
+ERROR:  (42601) syntax error at or near "1.7"
+LINE 1: ALTER RESOURCE GROUP rg_test_group SET cpu_rate_limit  1.7;
+                                                               ^
+ALTER RESOURCE GROUP rg_test_group SET cpu_rate_limit  60;
+ALTER RESOURCE GROUP
+select * from pg_resgroup_config;
+ groupid |   groupname   | concurrency | cpu_rate_limit | memory_limit | cpuset 
+---------+---------------+-------------+----------------+--------------+--------
+    9019 | default_group | 20          | 30             | -1           | -1
+    9020 | admin_group   | 10          | 10             | -1           | -1
+   16465 | rg_test_group | 500         | 60             | -1           | -1
+(3 rows)
+
+ALTER RESOURCE GROUP rg_test_group SET cpu_rate_limit  61; -- nagitive on opentenbase
+ERROR:  (22023) total cpu_rate_limit exceeded the limit of 100
+ALTER RESOURCE GROUP rg_test_group SET cpu_rate_limit  a;
+ERROR:  (42601) syntax error at or near "a"
+LINE 1: ALTER RESOURCE GROUP rg_test_group SET cpu_rate_limit  a;
+                                                               ^
+ALTER RESOURCE GROUP rg_test_group SET cpu_rate_limit  'abc';
+ERROR:  (42601) syntax error at or near "'abc'"
+LINE 1: ...LTER RESOURCE GROUP rg_test_group SET cpu_rate_limit  'abc';
+                                                                 ^
+ALTER RESOURCE GROUP rg_test_group SET cpu_rate_limit  20%;
+ERROR:  (42601) syntax error at or near "%"
+LINE 1: ALTER RESOURCE GROUP rg_test_group SET cpu_rate_limit  20%;
+                                                                 ^
+ALTER RESOURCE GROUP rg_test_group SET cpu_rate_limit  0.2%;
+ERROR:  (42601) syntax error at or near "0.2"
+LINE 1: ALTER RESOURCE GROUP rg_test_group SET cpu_rate_limit  0.2%;
+                                                               ^
+-- positive: cpu_rate_limit  should be in [1, 100]
+ALTER RESOURCE GROUP rg_test_group SET cpu_rate_limit  1;
+ALTER RESOURCE GROUP
+ALTER RESOURCE GROUP rg_test_group SET cpu_rate_limit  2;
+ALTER RESOURCE GROUP
+ALTER RESOURCE GROUP rg_test_group SET cpu_rate_limit  60;
+ALTER RESOURCE GROUP
+DROP RESOURCE GROUP rg_test_group;
+DROP RESOURCE GROUP
+-- positive: cpuset and cpu_rate_limit  are exclusive,
+-- if cpu_rate_limit  is set, cpuset is empty
+-- if cpuset is set, cpuset is -1
+CREATE RESOURCE GROUP rg_test_group WITH cpu_rate_limit 10;
+CREATE RESOURCE GROUP
+ALTER RESOURCE GROUP rg_test_group SET CPUSET '0';
+ALTER RESOURCE GROUP
+SELECT * from pg_resgroup_config WHERE groupname='rg_test_group';
+ groupid |   groupname   | concurrency | cpu_rate_limit | memory_limit | cpuset 
+---------+---------------+-------------+----------------+--------------+--------
+   16470 | rg_test_group | 20          | -1             | -1           | 0
+(1 row)
+
+ALTER RESOURCE GROUP rg_test_group SET cpu_rate_limit  10;
+ALTER RESOURCE GROUP
+SELECT * from pg_resgroup_config WHERE groupname='rg_test_group';
+ groupid |   groupname   | concurrency | cpu_rate_limit | memory_limit | cpuset 
+---------+---------------+-------------+----------------+--------------+--------
+   16470 | rg_test_group | 20          | 10             | -1           | -1
+(1 row)
+
+DROP RESOURCE GROUP rg_test_group;
+DROP RESOURCE GROUP
+CREATE RESOURCE GROUP rg_test_group WITH cpu_rate_limit 10 concurrency 5;
+CREATE RESOURCE GROUP
+CREATE ROLE rg_test_role RESOURCE GROUP rg_test_group;
+CREATE ROLE
+SET ROLE rg_test_role;
+SET
+CREATE TABLE rg_test_group_table(a int);
+ERROR:  (42704) default group not defined
+SELECT count(*) FROM rg_test_group_table;
+ERROR:  (42P01) relation "rg_test_group_table" does not exist
+LINE 1: SELECT count(*) FROM rg_test_group_table;
+                             ^
+SELECT is_session_in_group(pg_backend_pid(), 'rg_test_group');
+ERROR:  (42883) function is_session_in_group(integer, unknown) does not exist
+LINE 1: SELECT is_session_in_group(pg_backend_pid(), 'rg_test_group'...
+               ^
+HINT:  No function matches the given name and argument types. You might need to add explicit type casts.
+RESET ROLE;
+RESET
+SELECT count(*) FROM rg_test_group_table;
+ERROR:  (42P01) relation "rg_test_group_table" does not exist
+LINE 1: SELECT count(*) FROM rg_test_group_table;
+                             ^
+SELECT is_session_in_group(pg_backend_pid(), 'admin_group');
+ERROR:  (42883) function is_session_in_group(integer, unknown) does not exist
+LINE 1: SELECT is_session_in_group(pg_backend_pid(), 'admin_group');
+               ^
+HINT:  No function matches the given name and argument types. You might need to add explicit type casts.
+DROP TABLE rg_test_group_table;
+ERROR:  (42P01) table "rg_test_group_table" does not exist
+DROP ROLE rg_test_role;
+DROP ROLE
+DROP RESOURCE GROUP rg_test_group;
+DROP RESOURCE GROUP

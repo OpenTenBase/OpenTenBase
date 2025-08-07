@@ -1,9 +1,3 @@
-/*
- * Copyright (c) 2023 THL A29 Limited, a Tencent company.
- *
- * This source code file is licensed under the BSD 3-Clause License,
- * you may obtain a copy of the License at http://opensource.org/license/bsd-3-clause/
- */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -18,6 +12,7 @@
 #include "conf.h"
 #include "var.h"
 #include "log.h"
+#include "postgres_fe.h"
 
 #define MAX_BUFF_LEN MAXPATH
 
@@ -41,80 +36,81 @@ int    g_actiontype;
 char g_abs_path_to_conffile[MAX_BUFF_LEN + 1] = {0};
 char g_abs_path_to_newfile[MAX_BUFF_LEN + 1] = {0};
 char g_newvalue_buff[MAX_BUFF_LEN + 1] = { 0 };
+bool g_temp_file_exist = false;
 
 static void usage(void)
 {
-    printf("confmod: check input conf file to mod or del guc option\n"
-           "Usage:\n"
-           " confmod -a actiontype -d path -f conffile -g gucname [-v newvalue] \n\n"
-           "Options:\n");
+	printf("confmod: check input conf file to mod or del guc option\n"
+		   "Usage:\n"
+		   " confmod -a actiontype -d path -f conffile -g gucname [-v newvalue] \n\n"
+		   "Options:\n");
 
     printf("  -a, --actiontype=xxx     mod = modify or add, del = omit \n");
-    printf("  -d, --datapath=path      path to conffile\n");
+	printf("  -d, --datapath=path      path to conffile\n");
     printf("  -f, --filename=xxx       conf file name\n");
     printf("  -g, --gucname=xxx        guc name\n");
     printf("  -v, --newvalue=xxx       if mod = del, this option is no use\n");
-    printf("  -?, --help               print this message.\n");
+	printf("  -?, --help               print this message.\n");
 }
 
 static void parse_confmod_options(int argc, char *argv[])
-{// #lizard forgives
-    static struct option long_options[] =
-    {
+{
+	static struct option long_options[] =
+	{
         {"actiontype", required_argument, NULL, 'a'},
         {"datapath", required_argument, NULL, 'd'},
         {"filename", required_argument, NULL, 'f'},
         {"gucname", required_argument, NULL, 'g'},
-        {"newvalue", required_argument, NULL, 'v'},
+		{"newvalue", required_argument, NULL, 'v'},
             
-        {"help", no_argument, NULL, '?'},
-        {NULL, 0, NULL, 0}
-    };
+		{"help", no_argument, NULL, '?'},
+		{NULL, 0, NULL, 0}
+	};
 
-    int optindex;
-    extern char *optarg;
-    extern int optind;
-    int c;
+	int optindex;
+	extern char *optarg;
+	extern int optind;
+	int c;
 
  
-    while ((c = getopt_long(argc, argv, "a:d:f:g:v:?", long_options, &optindex)) != -1)
-    {
-        switch(c)
-        {
+	while ((c = getopt_long(argc, argv, "a:d:f:g:v:?", long_options, &optindex)) != -1)
+	{
+		switch(c)
+		{
             case 'a':
-                g_actiontypestr = Strdup(optarg);
-                break;
+				g_actiontypestr = Strdup(optarg);
+				break;
             case 'd':
-                g_datapath = Strdup(optarg);
-                break;
+				g_datapath = Strdup(optarg);
+				break;
             case 'f':
-                g_conffilename = Strdup(optarg);
-                break;
+				g_conffilename = Strdup(optarg);
+				break;
             case 'g':
-                g_gucname = Strdup(optarg);
-                break;
+				g_gucname = Strdup(optarg);
+				break;
             case 'v':
-                g_newvalue = Strdup(optarg);
-                break;
-            
-            case '?':
-                if (strcmp(argv[optind - 1], "-?") == 0 || strcmp(argv[optind - 1], "--help") == 0)
-                {
-                    usage();
-                    exit(0);
-                }
-                else
-                {
-                    elog(ERROR, "Try \" --help\" for more information.\n" );
-                    exit(1);
-                }
-                break;
-            default:
-                elog(ERROR, "Try \" --help\" for more information.\n" );
-                exit(1);
-                break;
-        }
-    }
+				g_newvalue = Strdup(optarg);
+				break;
+			
+			case '?':
+				if (strcmp(argv[optind - 1], "-?") == 0 || strcmp(argv[optind - 1], "--help") == 0)
+				{
+					usage();
+					exit(0);
+				}
+				else
+				{
+					elog(ERROR, "Try \" --help\" for more information.\n" );
+					exit(1);
+				}
+				break;
+			default:
+				elog(ERROR, "Try \" --help\" for more information.\n" );
+				exit(1);
+				break;
+		}
+	}
 
     return;
 }
@@ -122,34 +118,34 @@ static void parse_confmod_options(int argc, char *argv[])
 static unsigned long long int
 get_current_timestamp(void)
 {
-    unsigned long long int result = 0;
-    struct timeval tp;
+	unsigned long long int result = 0;
+	struct timeval tp;
 
-    const int UNIX_EPOCH_JDATE = 2440588; /* == date2j(1970, 1, 1) */
-    const int POSTGRES_EPOCH_JDATE = 2451545; /* == date2j(2000, 1, 1) */
+	const int UNIX_EPOCH_JDATE = 2440588; /* == date2j(1970, 1, 1) */
+	const int POSTGRES_EPOCH_JDATE = 2451545; /* == date2j(2000, 1, 1) */
 
-    const int SECS_PER_DAY = 86400;
+	const int SECS_PER_DAY = 86400;
 
 #ifdef HAVE_INT64_TIMESTAMP
-    const int USECS_PER_SEC = 1000000;
+	const int USECS_PER_SEC = 1000000;
 #endif
 
-    (void)gettimeofday(&tp, NULL);
+	(void)gettimeofday(&tp, NULL);
 
-    result = (unsigned long long int) tp.tv_sec -
-        ((POSTGRES_EPOCH_JDATE - UNIX_EPOCH_JDATE) * SECS_PER_DAY);
+	result = (unsigned long long int) tp.tv_sec -
+		((POSTGRES_EPOCH_JDATE - UNIX_EPOCH_JDATE) * SECS_PER_DAY);
 
 #ifdef HAVE_INT64_TIMESTAMP
-    result = (unsigned long long int)((result * USECS_PER_SEC) + tp.tv_usec);
+	result = (unsigned long long int)((result * USECS_PER_SEC) + tp.tv_usec);
 #else
-    result = (unsigned long long int)(result + (tp.tv_usec / 1000000.0));
+	result = (unsigned long long int)(result + (tp.tv_usec / 1000000.0));
 #endif
 
-    return result;
+	return result;
 }
 
 static void check_args()
-{// #lizard forgives
+{
     if ((NULL == g_actiontypestr)
         ||(NULL == g_datapath)
         ||(NULL == g_conffilename)
@@ -180,25 +176,36 @@ static void check_args()
 
     snprintf(g_abs_path_to_conffile, MAX_BUFF_LEN, "%s/%s", g_datapath, g_conffilename);
     g_confpf = Fopen(g_abs_path_to_conffile, "r");
-    if (NULL == g_confpf)
-    {
-        exit(1);
-    }
+	if (NULL == g_confpf)
+	{
+		exit(1);
+	}
 
     snprintf(g_abs_path_to_newfile, MAX_BUFF_LEN, "%s/%s.rename.tm%llu.pid%llu.ppid%llu.tid%llu",
-        g_datapath, 
-        g_conffilename,
-        (unsigned long long int)get_current_timestamp(),
-        (unsigned long long int)getpid(),
-        (unsigned long long int)getppid(),
-        (unsigned long long int)pthread_self());
+		g_datapath, 
+		g_conffilename,
+		(unsigned long long int)get_current_timestamp(),
+		(unsigned long long int)getpid(),
+		(unsigned long long int)getppid(),
+		(unsigned long long int)pthread_self());
     g_newconfpf = Fopen(g_abs_path_to_newfile, "w");
-    if (NULL == g_newconfpf)
-    {
-        exit(1);
-    }
+	if (NULL == g_newconfpf)
+	{
+		exit(1);
+	}
+	g_temp_file_exist = true;
 
     return;
+}
+
+static void
+cleanup_temp_file(void)
+{
+	if (!g_temp_file_exist)
+	{
+		return;
+	}
+	remove(g_abs_path_to_newfile);
 }
 
 static void
@@ -247,7 +254,16 @@ static void create_new_conf_file()
     stree_pre_traverse(root, var_traverse);
 
     fclose(g_confpf);
-    fclose(g_newconfpf);
+    if (fsync(fileno(g_newconfpf)) != 0)
+    {
+        elog(ERROR, "Failed to fsync file, exit \n");
+        exit(1);
+    }
+    if (fclose(g_newconfpf) != 0)
+    {
+        elog(ERROR, "Failed to close file, exit \n");
+        exit(1);
+    }
 }
 
 static void rename_conf_file()
@@ -262,11 +278,11 @@ static void rename_conf_file()
                     g_abs_path_to_newfile,
                     g_abs_path_to_conffile,
                     strerror(errno));
-            exit(-1);
+			exit(-1);
         }
         
-        if (++loops > 2)        /* time out after 10 sec */
-        {
+        if (++loops > 2)		/* time out after 10 sec */
+		{
             elog(ERROR, "Failed to rename '%s' to '%s' after retry %d times, %s \n", 
                     g_abs_path_to_newfile,
                     g_abs_path_to_conffile,
@@ -274,24 +290,30 @@ static void rename_conf_file()
             exit(-1);
         }
         
-        sleep(1);        /* us */
+		sleep(1);		/* us */
     }
+	g_temp_file_exist = false;
 }
 
 int main(int argc, char *argv[])
 {
     if (argc > 1)
-    {
-        if (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-?") == 0)
-        {
-            usage();
-            exit(0);
-        }
-    }
+	{
+		if (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-?") == 0)
+		{
+			usage();
+			exit(0);
+		}
+	}
 
     parse_confmod_options(argc, argv);
 
     check_args();
+
+	/*
+	 * Register a function to clean up temporary files.
+	 */
+	atexit(cleanup_temp_file);
 
     create_new_conf_file();
 

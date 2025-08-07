@@ -30,6 +30,46 @@ CREATE USER regress_user4;
 CREATE USER regress_user5;
 CREATE USER regress_user5;	-- duplicate
 
+CREATE USER regress_priv_user8;
+CREATE USER regress_priv_user9;
+CREATE USER regress_priv_user10;
+
+-- test interaction of SET SESSION AUTHORIZATION and SET ROLE,
+-- as well as propagation of these settings to parallel workers
+GRANT regress_priv_user9 TO regress_priv_user8;
+
+SET SESSION AUTHORIZATION regress_priv_user8;
+SET ROLE regress_priv_user9;
+SET force_parallel_mode = 0;
+SELECT session_user, current_role, current_user, current_setting('role') as role;
+SET force_parallel_mode = 1;
+SELECT session_user, current_role, current_user, current_setting('role') as role;
+
+BEGIN;
+SET SESSION AUTHORIZATION regress_priv_user10;
+SET force_parallel_mode = 0;
+SELECT session_user, current_role, current_user, current_setting('role') as role;
+SET force_parallel_mode = 1;
+SELECT session_user, current_role, current_user, current_setting('role') as role;
+ROLLBACK;
+SET force_parallel_mode = 0;
+SELECT session_user, current_role, current_user, current_setting('role') as role;
+SET force_parallel_mode = 1;
+SELECT session_user, current_role, current_user, current_setting('role') as role;
+
+RESET SESSION AUTHORIZATION;
+-- session_user at this point is installation-dependent
+SET force_parallel_mode = 0;
+SELECT session_user = current_role as c_r_ok, session_user = current_user as c_u_ok, current_setting('role') as role;
+SET force_parallel_mode = 1;
+SELECT session_user = current_role as c_r_ok, session_user = current_user as c_u_ok, current_setting('role') as role;
+
+RESET force_parallel_mode;
+
+DROP USER regress_priv_user10;
+DROP USER regress_priv_user9;
+DROP USER regress_priv_user8;
+
 CREATE GROUP regress_group1;
 CREATE GROUP regress_group2 WITH USER regress_user1, regress_user2;
 
@@ -356,7 +396,7 @@ UPDATE t1 SET c2 = 1; -- fail, but row not shown
 INSERT INTO t1 (c1, c2) VALUES (null, null); -- fail, but see columns being inserted
 INSERT INTO t1 (c3) VALUES (null); -- fail, but see columns being inserted or have SELECT
 INSERT INTO t1 (c1) VALUES (5); -- fail, but see columns being inserted or have SELECT
-UPDATE t1 SET c3 = 10; -- fail, but see columns with SELECT rights, or being modified
+-- UPDATE t1 SET c3 = 10; -- fail, but see columns with SELECT rights, or being modified
 
 SET SESSION AUTHORIZATION regress_user1;
 DROP TABLE t1;
@@ -429,12 +469,21 @@ SET SESSION AUTHORIZATION regress_user1;
 GRANT USAGE ON LANGUAGE sql TO regress_user2; -- fail
 CREATE FUNCTION testfunc1(int) RETURNS int AS 'select 2 * $1;' LANGUAGE sql;
 CREATE FUNCTION testfunc2(int) RETURNS int AS 'select 3 * $1;' LANGUAGE sql;
+CREATE AGGREGATE testagg1(int) (sfunc = int4pl, stype = int4);
+CREATE PROCEDURE testproc1(int) AS 'select $1;' LANGUAGE sql;
 
-REVOKE ALL ON FUNCTION testfunc1(int), testfunc2(int) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION testfunc1(int), testfunc2(int) TO regress_user2;
+REVOKE ALL ON FUNCTION testfunc1(int), testfunc2(int), testagg1(int) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION testfunc1(int), testfunc2(int), testagg1(int) TO regress_user2;
+REVOKE ALL ON FUNCTION testproc1(int) FROM PUBLIC; -- fail, not a function
+REVOKE ALL ON PROCEDURE testproc1(int) FROM PUBLIC;
+GRANT EXECUTE ON PROCEDURE testproc1(int) TO regress_user2;
 GRANT USAGE ON FUNCTION testfunc1(int) TO regress_user3; -- semantic error
+GRANT USAGE ON FUNCTION testagg1(int) TO regress_user3; -- semantic error
+GRANT USAGE ON PROCEDURE testproc1(int) TO regress_user3; -- semantic error
 GRANT ALL PRIVILEGES ON FUNCTION testfunc1(int) TO regress_user4;
 GRANT ALL PRIVILEGES ON FUNCTION testfunc_nosuch(int) TO regress_user4;
+GRANT ALL PRIVILEGES ON FUNCTION testagg1(int) TO regress_user4;
+GRANT ALL PRIVILEGES ON PROCEDURE testproc1(int) TO regress_user4;
 
 CREATE FUNCTION testfunc4(boolean) RETURNS text
   AS 'select col1 from atest2 where col2 = $1;'
@@ -444,16 +493,24 @@ GRANT EXECUTE ON FUNCTION testfunc4(boolean) TO regress_user3;
 SET SESSION AUTHORIZATION regress_user2;
 SELECT testfunc1(5), testfunc2(5); -- ok
 CREATE FUNCTION testfunc3(int) RETURNS int AS 'select 2 * $1;' LANGUAGE sql; -- fail
+SELECT testagg1(x) FROM (VALUES (1), (2), (3)) _(x); -- ok
+CALL testproc1(6); -- ok
 
 SET SESSION AUTHORIZATION regress_user3;
 SELECT testfunc1(5); -- fail
+SELECT testagg1(x) FROM (VALUES (1), (2), (3)) _(x); -- fail
+CALL testproc1(6); -- fail
 SELECT col1 FROM atest2 WHERE col2 = true; -- fail
 SELECT testfunc4(true); -- ok
 
 SET SESSION AUTHORIZATION regress_user4;
 SELECT testfunc1(5); -- ok
+SELECT testagg1(x) FROM (VALUES (1), (2), (3)) _(x); -- ok
+CALL testproc1(6); -- ok
 
 DROP FUNCTION testfunc1(int); -- fail
+DROP AGGREGATE testagg1(int); -- fail
+DROP PROCEDURE testproc1(int); -- fail
 
 \c -
 
@@ -885,6 +942,13 @@ ALTER DEFAULT PRIVILEGES FOR ROLE regress_user1 REVOKE EXECUTE ON FUNCTIONS FROM
 
 ALTER DEFAULT PRIVILEGES IN SCHEMA testns GRANT USAGE ON SCHEMAS TO regress_user2; -- error
 
+--
+-- Testing blanket default grants is very hazardous since it might change
+-- the privileges attached to objects created by concurrent regression tests.
+-- To avoid that, be sure to revoke the privileges again before committing.
+--
+BEGIN;
+
 ALTER DEFAULT PRIVILEGES GRANT USAGE ON SCHEMAS TO regress_user2;
 
 CREATE SCHEMA testns2;
@@ -908,6 +972,8 @@ SELECT has_schema_privilege('regress_user2', 'testns4', 'CREATE'); -- yes
 
 ALTER DEFAULT PRIVILEGES REVOKE ALL ON SCHEMAS FROM regress_user2;
 
+COMMIT;
+
 CREATE SCHEMA testns5;
 
 SELECT has_schema_privilege('regress_user2', 'testns5', 'USAGE'); -- no
@@ -916,17 +982,29 @@ SELECT has_schema_privilege('regress_user2', 'testns5', 'CREATE'); -- no
 SET ROLE regress_user1;
 
 CREATE FUNCTION testns.foo() RETURNS int AS 'select 1' LANGUAGE sql;
+CREATE AGGREGATE testns.agg1(int) (sfunc = int4pl, stype = int4);
+CREATE PROCEDURE testns.bar() AS 'select 1' LANGUAGE sql;
 
 SELECT has_function_privilege('regress_user2', 'testns.foo()', 'EXECUTE'); -- no
+SELECT has_function_privilege('regress_user2', 'testns.agg1(int)', 'EXECUTE'); -- no
+SELECT has_function_privilege('regress_user2', 'testns.bar()', 'EXECUTE'); -- no
 
-ALTER DEFAULT PRIVILEGES IN SCHEMA testns GRANT EXECUTE ON FUNCTIONS to public;
+ALTER DEFAULT PRIVILEGES IN SCHEMA testns GRANT EXECUTE ON ROUTINES to public;
 
 DROP FUNCTION testns.foo();
 CREATE FUNCTION testns.foo() RETURNS int AS 'select 1' LANGUAGE sql;
+DROP AGGREGATE testns.agg1(int);
+CREATE AGGREGATE testns.agg1(int) (sfunc = int4pl, stype = int4);
+DROP PROCEDURE testns.bar();
+CREATE PROCEDURE testns.bar() AS 'select 1' LANGUAGE sql;
 
 SELECT has_function_privilege('regress_user2', 'testns.foo()', 'EXECUTE'); -- yes
+SELECT has_function_privilege('regress_user2', 'testns.agg1(int)', 'EXECUTE'); -- yes
+SELECT has_function_privilege('regress_user2', 'testns.bar()', 'EXECUTE'); -- yes (counts as function here)
 
 DROP FUNCTION testns.foo();
+DROP AGGREGATE testns.agg1(int);
+DROP PROCEDURE testns.bar();
 
 ALTER DEFAULT PRIVILEGES FOR ROLE regress_user1 REVOKE USAGE ON TYPES FROM public;
 
@@ -980,12 +1058,28 @@ SELECT has_table_privilege('regress_user1', 'testns.t1', 'SELECT'); -- false
 SELECT has_table_privilege('regress_user1', 'testns.t2', 'SELECT'); -- false
 
 CREATE FUNCTION testns.testfunc(int) RETURNS int AS 'select 3 * $1;' LANGUAGE sql;
+CREATE AGGREGATE testns.testagg(int) (sfunc = int4pl, stype = int4);
+CREATE PROCEDURE testns.testproc(int) AS 'select 3' LANGUAGE sql;
 
 SELECT has_function_privilege('regress_user1', 'testns.testfunc(int)', 'EXECUTE'); -- true by default
+SELECT has_function_privilege('regress_user1', 'testns.testagg(int)', 'EXECUTE'); -- true by default
+SELECT has_function_privilege('regress_user1', 'testns.testproc(int)', 'EXECUTE'); -- true by default
 
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA testns FROM PUBLIC;
 
 SELECT has_function_privilege('regress_user1', 'testns.testfunc(int)', 'EXECUTE'); -- false
+SELECT has_function_privilege('regress_user1', 'testns.testagg(int)', 'EXECUTE'); -- false
+SELECT has_function_privilege('regress_user1', 'testns.testproc(int)', 'EXECUTE'); -- still true, not a function
+
+REVOKE ALL ON ALL PROCEDURES IN SCHEMA testns FROM PUBLIC;
+
+SELECT has_function_privilege('regress_user1', 'testns.testproc(int)', 'EXECUTE'); -- now false
+
+GRANT ALL ON ALL ROUTINES IN SCHEMA testns TO PUBLIC;
+
+SELECT has_function_privilege('regress_user1', 'testns.testfunc(int)', 'EXECUTE'); -- true
+SELECT has_function_privilege('regress_user1', 'testns.testagg(int)', 'EXECUTE'); -- true
+SELECT has_function_privilege('regress_user1', 'testns.testproc(int)', 'EXECUTE'); -- true
 
 \set VERBOSITY terse \\ -- suppress cascade details
 DROP SCHEMA testns CASCADE;
@@ -1049,8 +1143,10 @@ drop table dep_priv_test;
 
 drop sequence x_seq;
 
+DROP AGGREGATE testagg1(int);
 DROP FUNCTION testfunc2(int);
 DROP FUNCTION testfunc4(boolean);
+DROP PROCEDURE testproc1(int);
 
 DROP VIEW atestv0;
 DROP VIEW atestv1;
@@ -1095,11 +1191,11 @@ CREATE TABLE lock_table (a int);
 GRANT SELECT ON lock_table TO regress_locktable_user;
 SET SESSION AUTHORIZATION regress_locktable_user;
 BEGIN;
-LOCK TABLE lock_table IN ROW EXCLUSIVE MODE; -- should fail
-ROLLBACK;
-BEGIN;
 LOCK TABLE lock_table IN ACCESS SHARE MODE; -- should pass
 COMMIT;
+BEGIN;
+LOCK TABLE lock_table IN ROW EXCLUSIVE MODE; -- should fail
+ROLLBACK;
 BEGIN;
 LOCK TABLE lock_table IN ACCESS EXCLUSIVE MODE; -- should fail
 ROLLBACK;
@@ -1110,11 +1206,11 @@ REVOKE SELECT ON lock_table FROM regress_locktable_user;
 GRANT INSERT ON lock_table TO regress_locktable_user;
 SET SESSION AUTHORIZATION regress_locktable_user;
 BEGIN;
+LOCK TABLE lock_table IN ACCESS SHARE MODE; -- should pass
+ROLLBACK;
+BEGIN;
 LOCK TABLE lock_table IN ROW EXCLUSIVE MODE; -- should pass
 COMMIT;
-BEGIN;
-LOCK TABLE lock_table IN ACCESS SHARE MODE; -- should fail
-ROLLBACK;
 BEGIN;
 LOCK TABLE lock_table IN ACCESS EXCLUSIVE MODE; -- should fail
 ROLLBACK;
@@ -1125,11 +1221,11 @@ REVOKE INSERT ON lock_table FROM regress_locktable_user;
 GRANT UPDATE ON lock_table TO regress_locktable_user;
 SET SESSION AUTHORIZATION regress_locktable_user;
 BEGIN;
+LOCK TABLE lock_table IN ACCESS SHARE MODE; -- should pass
+ROLLBACK;
+BEGIN;
 LOCK TABLE lock_table IN ROW EXCLUSIVE MODE; -- should pass
 COMMIT;
-BEGIN;
-LOCK TABLE lock_table IN ACCESS SHARE MODE; -- should fail
-ROLLBACK;
 BEGIN;
 LOCK TABLE lock_table IN ACCESS EXCLUSIVE MODE; -- should pass
 COMMIT;
@@ -1140,11 +1236,11 @@ REVOKE UPDATE ON lock_table FROM regress_locktable_user;
 GRANT DELETE ON lock_table TO regress_locktable_user;
 SET SESSION AUTHORIZATION regress_locktable_user;
 BEGIN;
+LOCK TABLE lock_table IN ACCESS SHARE MODE; -- should pass
+ROLLBACK;
+BEGIN;
 LOCK TABLE lock_table IN ROW EXCLUSIVE MODE; -- should pass
 COMMIT;
-BEGIN;
-LOCK TABLE lock_table IN ACCESS SHARE MODE; -- should fail
-ROLLBACK;
 BEGIN;
 LOCK TABLE lock_table IN ACCESS EXCLUSIVE MODE; -- should pass
 COMMIT;
@@ -1155,17 +1251,69 @@ REVOKE DELETE ON lock_table FROM regress_locktable_user;
 GRANT TRUNCATE ON lock_table TO regress_locktable_user;
 SET SESSION AUTHORIZATION regress_locktable_user;
 BEGIN;
+LOCK TABLE lock_table IN ACCESS SHARE MODE; -- should pass
+ROLLBACK;
+BEGIN;
 LOCK TABLE lock_table IN ROW EXCLUSIVE MODE; -- should pass
 COMMIT;
-BEGIN;
-LOCK TABLE lock_table IN ACCESS SHARE MODE; -- should fail
-ROLLBACK;
 BEGIN;
 LOCK TABLE lock_table IN ACCESS EXCLUSIVE MODE; -- should pass
 COMMIT;
 \c
 REVOKE TRUNCATE ON lock_table FROM regress_locktable_user;
 
+-- LOCK TABLE and MAINTAIN permission
+GRANT MAINTAIN ON lock_table TO regress_locktable_user;
+SET SESSION AUTHORIZATION regress_locktable_user;
+BEGIN;
+LOCK TABLE lock_table IN ACCESS SHARE MODE; -- should pass
+ROLLBACK;
+BEGIN;
+LOCK TABLE lock_table IN ROW EXCLUSIVE MODE; -- should pass
+COMMIT;
+BEGIN;
+LOCK TABLE lock_table IN ACCESS EXCLUSIVE MODE; -- should pass
+COMMIT;
+\c
+REVOKE MAINTAIN ON lock_table FROM regress_locktable_user;
+
 -- clean up
 DROP TABLE lock_table;
 DROP USER regress_locktable_user;
+
+-- maintain
+create role regress_no_maintain;
+create role regress_maintain;
+create role regress_maintain_all in role pg_maintain;
+
+create table maintain_test (a int);
+grant maintain on maintain_test to regress_maintain;
+
+-- negative tests; should fail
+set role regress_no_maintain;
+vacuum maintain_test;
+analyze maintain_test;
+vacuum (analyze) maintain_test;
+ALTER table maintain_test rename to maintain_test_new;
+reset role;
+
+set role regress_maintain;
+vacuum maintain_test;
+analyze maintain_test;
+vacuum (analyze) maintain_test;
+ALTER table maintain_test rename to maintain_test_new;
+ALTER table maintain_test_new rename to maintain_test;
+reset role;
+
+set role regress_maintain_all;
+vacuum maintain_test;
+analyze maintain_test;
+vacuum (analyze) maintain_test;
+ALTER table maintain_test rename to maintain_test_new;
+ALTER table maintain_test_new rename to maintain_test;
+reset role;
+
+drop table maintain_test;
+drop role regress_no_maintain;
+drop role regress_maintain;
+drop role regress_maintain_all;

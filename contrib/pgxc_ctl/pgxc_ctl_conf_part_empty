@@ -56,7 +56,7 @@ pgxcOwner=$USER		# owner of the Postgres-XC databaseo cluster.  Here, we use thi
 						# the super user of each coordinator and datanode.
 pgxcUser=$pgxcOwner		# OS user of Postgres-XC owner
 multiCluster=y
-pgxcMainClusterName=cluster1
+pgxcMainClusterName=opentenbase_cluster	# Valid values are ( opentenbase_cluster or opentenbase_cluster_01/opentenbase_cluster_02/.../opentenbase_cluster_14/opentenbase_cluster_15 )
 
 tmpDir=/tmp					# temporary dir used in XC servers
 localTmpDir=$tmpDir			# temporary dir used here locally
@@ -155,7 +155,7 @@ coordPgHbaEntries=(::1/128)	# Assumes that all the coordinator (master/slave) ac
 
 #---- Master -------------
 coordMasterServers=()		# none means this master is not available
-coordMasterCluster=()
+coordMasterCluster=()		# Valid values are ( opentenbase_cluster or opentenbase_cluster_01/opentenbase_cluster_02/.../opentenbase_cluster_14/opentenbase_cluster_15 )
 coordMasterDirs=()
 coordMaxWALsender=5	# max_wal_senders: needed to configure slave. If zero value is specified,
 						# it is expected to supply this parameter explicitly by external files
@@ -171,7 +171,7 @@ coordSlave=n			# Specify y if you configure at least one coordiantor slave.  Oth
 						# empty values.
 coordSlaveSync=n		# Specify to connect with synchronized mode.
 coordSlaveServers=()			# none means this slave is not available
-coordSlaveCluster=()
+coordSlaveCluster=()	# Valid values are ( opentenbase_cluster or opentenbase_cluster_01/opentenbase_cluster_02/.../opentenbase_cluster_14/opentenbase_cluster_15 )
 coordSlavePorts=()			# coordinator slave listening ports
 coordSlavePoolerPorts=()			# coordinator slave pooler ports
 coordSlaveDirs=()
@@ -228,7 +228,7 @@ datanodeMasterServers=()	# none means this master is not available.
 													# This means that there should be the master but is down.
 													# The cluster is not operational until the master is
 													# recovered and ready to run.	
-datanodeMasterCluster=()
+datanodeMasterCluster=()	# Valid values are ( opentenbase_cluster or opentenbase_cluster_01/opentenbase_cluster_02/.../opentenbase_cluster_14/opentenbase_cluster_15 )
 datanodeMasterDirs=()
 datanodeMaxWalSender=5								# max_wal_senders: needed to configure slave. If zero value is 
 													# specified, it is expected this parameter is explicitly supplied
@@ -244,7 +244,7 @@ datanodeSlave=n			# Specify y if you configure at least one coordiantor slave.  
 						# then datanodeSlave value will be set to n and all the following values will be set to
 						# empty values.
 datanodeSlaveServers=()	# value none means this slave is not available
-datanodeSlaveCluster=()
+datanodeSlaveCluster=()	# Valid values are ( opentenbase_cluster or opentenbase_cluster_01/opentenbase_cluster_02/.../opentenbase_cluster_14/opentenbase_cluster_15 )
 datanodeSlavePorts=()	# Master and slave use the same port!
 datanodeSlavePoolerPorts=()	# Master and slave use the same port!
 #datanodeSlaveSync=y		# If datanode slave is connected in synchronized mode

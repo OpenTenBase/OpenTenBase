@@ -1,8 +1,8 @@
 /*-------------------------------------------------------------------------
  *
  * queryenvironment.h
- *      Access to functions to mutate the query environment and retrieve the
- *      actual data related to entries (if any).
+ *	  Access to functions to mutate the query environment and retrieve the
+ *	  actual data related to entries (if any).
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -19,7 +19,7 @@
 
 typedef enum EphemeralNameRelationType
 {
-    ENR_NAMED_TUPLESTORE        /* named tuplestore relation; e.g., deltas */
+	ENR_NAMED_TUPLESTORE		/* named tuplestore relation; e.g., deltas */
 } EphemeralNameRelationType;
 
 /*
@@ -31,14 +31,14 @@ typedef enum EphemeralNameRelationType
  */
 typedef struct EphemeralNamedRelationMetadataData
 {
-    char       *name;            /* name used to identify the relation */
+	char	   *name;			/* name used to identify the relation */
 
-    /* only one of the next two fields should be used */
-    Oid            reliddesc;        /* oid of relation to get tupdesc */
-    TupleDesc    tupdesc;        /* description of result rows */
+	/* only one of the next two fields should be used */
+	Oid			reliddesc;		/* oid of relation to get tupdesc */
+	TupleDesc	tupdesc;		/* description of result rows */
 
-    EphemeralNameRelationType enrtype;    /* to identify type of relation */
-    double        enrtuples;        /* estimated number of tuples */
+	EphemeralNameRelationType enrtype;	/* to identify type of relation */
+	double		enrtuples;		/* estimated number of tuples */
 } EphemeralNamedRelationMetadataData;
 
 typedef EphemeralNamedRelationMetadataData *EphemeralNamedRelationMetadata;
@@ -49,8 +49,8 @@ typedef EphemeralNamedRelationMetadataData *EphemeralNamedRelationMetadata;
  */
 typedef struct EphemeralNamedRelationData
 {
-    EphemeralNamedRelationMetadataData md;
-    void       *reldata;        /* structure for execution-time access to data */
+	EphemeralNamedRelationMetadataData md;
+	void	   *reldata;		/* structure for execution-time access to data */
 } EphemeralNamedRelationData;
 
 typedef EphemeralNamedRelationData *EphemeralNamedRelation;
@@ -71,4 +71,4 @@ extern void unregister_ENR(QueryEnvironment *queryEnv, const char *name);
 extern EphemeralNamedRelation get_ENR(QueryEnvironment *queryEnv, const char *name);
 extern TupleDesc ENRMetadataGetTupDesc(EphemeralNamedRelationMetadata enrmd);
 
-#endif                            /* QUERYENVIRONMENT_H */
+#endif							/* QUERYENVIRONMENT_H */

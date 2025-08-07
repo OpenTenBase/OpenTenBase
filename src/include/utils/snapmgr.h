@@ -6,9 +6,6 @@
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * src/include/utils/snapmgr.h
  *
  *-------------------------------------------------------------------------
@@ -22,8 +19,10 @@
 #include "utils/snapshot.h"
 #include "miscadmin.h"
 #include "utils/timestamp.h"
-
-
+#include "access/transam.h"
+#ifndef FRONTEND
+#include "access/parallel.h"
+#endif
 
 /*
  * The structure used to map times to TransactionId values for the "snapshot
@@ -68,10 +67,10 @@ extern TimestampTz GetOldSnapshotThresholdTimestamp(void);
 
 extern bool FirstSnapshotSet;
 
-extern TransactionId TransactionXmin;
-extern TransactionId RecentXmin;
+extern PGDLLIMPORT TransactionId TransactionXmin;
+extern PGDLLIMPORT TransactionId RecentXmin;
 extern PGDLLIMPORT TransactionId RecentGlobalXmin;
-extern TransactionId RecentGlobalDataXmin;
+extern PGDLLIMPORT TransactionId RecentGlobalDataXmin;
 
 extern GlobalTimestamp RecentCommitTs;
 extern GlobalTimestamp RecentDataTs;
@@ -81,7 +80,11 @@ extern bool vacuum_debug_print;
 
 #ifdef _SHARDING_
 extern Snapshot GetTransactionSnapshot_shard(bool need_shardmap, bool latest);
-#define GetTransactionSnapshot() GetTransactionSnapshot_shard(true, false)
+#ifdef FRONTEND
+#define GetTransactionSnapshot() GetTransactionSnapshot_shard(true, IS_CENTRALIZED_MODE)
+#else
+#define GetTransactionSnapshot() GetTransactionSnapshot_shard(true, IS_CENTRALIZED_MODE || IsParallelWorker())
+#endif
 #define GetLocalTransactionSnapshot() GetTransactionSnapshot_shard(true, true)
 #define GetTransactionSnapshot_without_shard() GetTransactionSnapshot_shard(false, false)
 #endif
@@ -131,11 +134,15 @@ extern struct HTAB *HistoricSnapshotGetTupleCids(void);
 extern void SetupHistoricSnapshot(Snapshot snapshot_now, struct HTAB *tuplecids);
 extern void TeardownHistoricSnapshot(bool is_error);
 extern bool HistoricSnapshotActive(void);
+extern void PushHistoricSnapToActiveSnap(void);
+
 
 extern Size EstimateSnapshotSpace(Snapshot snapshot);
 extern void SerializeSnapshot(Snapshot snapshot, char *start_address);
 extern Snapshot RestoreSnapshot(char *start_address);
 extern void RestoreTransactionSnapshot(Snapshot snapshot, void *master_pgproc);
+
+extern Snapshot GetUseLatestGtsSnapshot(void);
 
 /* Support for snapshot checking */
 #ifdef __OPENTENBASE_DEBUG__
@@ -153,9 +160,9 @@ extern bool LookupPreparedXid(TransactionId xid, GlobalTimestamp *prepare_timest
 
 
 static inline bool
-TestForOldTimestamp(GlobalTimestamp currentTimestamp, GlobalTimestamp oldestTimestamp)
+TestForOldCSN(GlobalTimestamp currentTimestamp, GlobalTimestamp oldestTimestamp)
 {
-	
+
 	if(IsInitProcessingMode())
 	{
 		return true;

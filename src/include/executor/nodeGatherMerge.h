@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * nodeGatherMerge.h
- *        prototypes for nodeGatherMerge.c
+ *		prototypes for nodeGatherMerge.c
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -17,13 +17,10 @@
 #include "nodes/execnodes.h"
 
 extern GatherMergeState *ExecInitGatherMerge(GatherMerge *node,
-                    EState *estate,
-                    int eflags);
+					EState *estate,
+					int eflags);
 extern void ExecEndGatherMerge(GatherMergeState *node);
 extern void ExecReScanGatherMerge(GatherMergeState *node);
 extern void ExecShutdownGatherMerge(GatherMergeState *node);
-#ifdef __OPENTENBASE__
-extern void ExecFinishGatherMerge(PlanState *pstate);
-#endif
 
-#endif                            /* NODEGATHERMERGE_H */
+#endif							/* NODEGATHERMERGE_H */

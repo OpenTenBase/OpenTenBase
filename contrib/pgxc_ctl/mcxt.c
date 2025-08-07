@@ -1,7 +1,7 @@
 /*----------------------------------------------------------------------------------
  *
  * mxct.c
- *        Postgres-XC memory context management code for applications.
+ *		Postgres-XC memory context management code for applications.
  *
  * This module is for Postgres-XC application/utility programs.  Sometimes,
  * applications/utilities may need Postgres-XC internal functions which
@@ -33,45 +33,45 @@ static void *memCxtCurrentContext(void);
 
 static void *memCxtAlloc(void* current, size_t needed)
 {
-    return(malloc(needed));
+	return(malloc(needed));
 }
 
 static void *memCxtRealloc(void *addr, size_t needed)
 {
-    return(realloc(addr, needed));
+	return(realloc(addr, needed));
 }
 
 static void *memCxtAlloc0(void *current, size_t needed)
 {
-    void *allocated;
+	void *allocated;
 
-    allocated = malloc(needed);
-    if (allocated == NULL)
-        return(NULL);
-    memset(allocated, 0, needed);
-    return(allocated);
+	allocated = malloc(needed);
+	if (allocated == NULL)
+		return(NULL);
+	memset(allocated, 0, needed);
+	return(allocated);
 }
 
 static void memCxtFree(void *addr)
 {
-    free(addr);
-    return;
+	free(addr);
+	return;
 }
 
 static void *memCxtCurrentContext()
 {
-    return((void *)&current_cxt);
+	return((void *)&current_cxt);
 }
 
 static void *memCxtAllocTop(size_t needed)
 {
-    return(malloc(needed));
+	return(malloc(needed));
 }
 
 
 Gen_Alloc genAlloc_class = {(void *)memCxtAlloc,
-                            (void *)memCxtAlloc0,
-                            (void *)memCxtRealloc,
-                            (void *)memCxtFree,
-                            (void *)memCxtCurrentContext,
-                            (void *)memCxtAllocTop};
+							(void *)memCxtAlloc0,
+							(void *)memCxtRealloc,
+							(void *)memCxtFree,
+							(void *)memCxtCurrentContext,
+							(void *)memCxtAllocTop};

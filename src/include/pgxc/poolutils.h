@@ -2,7 +2,7 @@
  *
  * poolutils.h
  *
- *        Utilities for Postgres-XC Pooler
+ *		Utilities for Postgres-XC Pooler
  *
  * Portions Copyright (c) 1996-2011, PostgreSQL Global Development Group
  * Portions Copyright (c) 2010-2012 Postgres-XC Development Group
@@ -20,26 +20,25 @@
 #define TIMEOUT_CLEAN_LOOP 10 /* Wait 10s for all the transactions to shutdown */
 
 /* Error codes for connection cleaning */
-#define CLEAN_CONNECTION_COMPLETED            0
-#define CLEAN_CONNECTION_NOT_COMPLETED        1
-#define CLEAN_CONNECTION_TX_REMAIN            2
-#define    CLEAN_CONNECTION_EOF                -1
+#define CLEAN_CONNECTION_COMPLETED			0
+#define CLEAN_CONNECTION_NOT_COMPLETED		1
+#define CLEAN_CONNECTION_TX_REMAIN			2
+#define	CLEAN_CONNECTION_EOF				-1
 
 /* Results for query cancel */
-#define QUERY_CANCEL_COMPLETED                0
+#define QUERY_CANCEL_COMPLETED				0
 
 /* Results for pooler connection info check */
-#define POOL_CHECK_SUCCESS                    0
-#define POOL_CHECK_FAILED                    1
+#define POOL_CHECK_SUCCESS					0
+#define POOL_CHECK_FAILED					1
 
 /* Results for pooler connection info refresh */
-#define POOL_REFRESH_SUCCESS                0
-#define POOL_REFRESH_FAILED                    1
+#define POOL_REFRESH_SUCCESS				0
+#define POOL_REFRESH_FAILED					1
 
 /* Results for pooler release pooled connection */
-#define POOL_CONN_RELEASE_SUCCESS            0
-#define POOL_CONN_RELEASE_FAILED            1
-
+#define POOL_CONN_RELEASE_SUCCESS			0
+#define POOL_CONN_RELEASE_FAILED			1
 
 void CleanConnection(CleanConnStmt *stmt);
 void DropDBCleanConnection(char *dbname);

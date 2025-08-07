@@ -1,12 +1,12 @@
 /*-------------------------------------------------------------------------
  *
  * mingwcompat.c
- *      MinGW compatibility functions
+ *	  MinGW compatibility functions
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *      src/backend/port/win32/mingwcompat.c
+ *	  src/backend/port/win32/mingwcompat.c
  *
  *-------------------------------------------------------------------------
  */
@@ -36,14 +36,14 @@ static HMODULE kernel32 = NULL;
 static void
 LoadKernel32()
 {
-    if (kernel32 != NULL)
-        return;
+	if (kernel32 != NULL)
+		return;
 
-    kernel32 = LoadLibraryEx("kernel32.dll", NULL, 0);
-    if (kernel32 == NULL)
-        ereport(FATAL,
-                (errmsg_internal("could not load kernel32.dll: error code %lu",
-                                 GetLastError())));
+	kernel32 = LoadLibraryEx("kernel32.dll", NULL, 0);
+	if (kernel32 == NULL)
+		ereport(FATAL,
+				(errmsg_internal("could not load kernel32.dll: error code %lu",
+								 GetLastError())));
 }
 
 
@@ -52,33 +52,33 @@ LoadKernel32()
  * kernel32.dll
  */
 typedef
-BOOL        (WINAPI * __RegisterWaitForSingleObject)
-            (PHANDLE, HANDLE, WAITORTIMERCALLBACK, PVOID, ULONG, ULONG);
+BOOL		(WINAPI * __RegisterWaitForSingleObject)
+			(PHANDLE, HANDLE, WAITORTIMERCALLBACK, PVOID, ULONG, ULONG);
 static __RegisterWaitForSingleObject _RegisterWaitForSingleObject = NULL;
 
-BOOL        WINAPI
+BOOL		WINAPI
 RegisterWaitForSingleObject(PHANDLE phNewWaitObject,
-                            HANDLE hObject,
-                            WAITORTIMERCALLBACK Callback,
-                            PVOID Context,
-                            ULONG dwMilliseconds,
-                            ULONG dwFlags)
+							HANDLE hObject,
+							WAITORTIMERCALLBACK Callback,
+							PVOID Context,
+							ULONG dwMilliseconds,
+							ULONG dwFlags)
 {
-    if (_RegisterWaitForSingleObject == NULL)
-    {
-        LoadKernel32();
+	if (_RegisterWaitForSingleObject == NULL)
+	{
+		LoadKernel32();
 
-        _RegisterWaitForSingleObject = (__RegisterWaitForSingleObject)
-            GetProcAddress(kernel32, "RegisterWaitForSingleObject");
+		_RegisterWaitForSingleObject = (__RegisterWaitForSingleObject)
+			GetProcAddress(kernel32, "RegisterWaitForSingleObject");
 
-        if (_RegisterWaitForSingleObject == NULL)
-            ereport(FATAL,
-                    (errmsg_internal("could not locate RegisterWaitForSingleObject in kernel32.dll: error code %lu",
-                                     GetLastError())));
-    }
+		if (_RegisterWaitForSingleObject == NULL)
+			ereport(FATAL,
+					(errmsg_internal("could not locate RegisterWaitForSingleObject in kernel32.dll: error code %lu",
+									 GetLastError())));
+	}
 
-    return (_RegisterWaitForSingleObject)
-        (phNewWaitObject, hObject, Callback, Context, dwMilliseconds, dwFlags);
+	return (_RegisterWaitForSingleObject)
+		(phNewWaitObject, hObject, Callback, Context, dwMilliseconds, dwFlags);
 }
 
 #endif

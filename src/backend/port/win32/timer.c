@@ -1,17 +1,17 @@
 /*-------------------------------------------------------------------------
  *
  * timer.c
- *      Microsoft Windows Win32 Timer Implementation
+ *	  Microsoft Windows Win32 Timer Implementation
  *
- *      Limitations of this implementation:
+ *	  Limitations of this implementation:
  *
- *      - Does not support interval timer (value->it_interval)
- *      - Only supports ITIMER_REAL
+ *	  - Does not support interval timer (value->it_interval)
+ *	  - Only supports ITIMER_REAL
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *      src/backend/port/win32/timer.c
+ *	  src/backend/port/win32/timer.c
  *
  *-------------------------------------------------------------------------
  */
@@ -22,9 +22,9 @@
 /* Communication area for inter-thread communication */
 typedef struct timerCA
 {
-    struct itimerval value;
-    HANDLE        event;
-    CRITICAL_SECTION crit_sec;
+	struct itimerval value;
+	HANDLE		event;
+	CRITICAL_SECTION crit_sec;
 } timerCA;
 
 static timerCA timerCommArea;
@@ -35,47 +35,47 @@ static HANDLE timerThreadHandle = INVALID_HANDLE_VALUE;
 static DWORD WINAPI
 pg_timer_thread(LPVOID param)
 {
-    DWORD        waittime;
+	DWORD		waittime;
 
-    Assert(param == NULL);
+	Assert(param == NULL);
 
-    waittime = INFINITE;
+	waittime = INFINITE;
 
-    for (;;)
-    {
-        int            r;
+	for (;;)
+	{
+		int			r;
 
-        r = WaitForSingleObjectEx(timerCommArea.event, waittime, FALSE);
-        if (r == WAIT_OBJECT_0)
-        {
-            /* Event signalled from main thread, change the timer */
-            EnterCriticalSection(&timerCommArea.crit_sec);
-            if (timerCommArea.value.it_value.tv_sec == 0 &&
-                timerCommArea.value.it_value.tv_usec == 0)
-                waittime = INFINITE;    /* Cancel the interrupt */
-            else
-            {
-                /* WaitForSingleObjectEx() uses milliseconds, round up */
-                waittime = (timerCommArea.value.it_value.tv_usec + 999) / 1000 +
-                    timerCommArea.value.it_value.tv_sec * 1000;
-            }
-            ResetEvent(timerCommArea.event);
-            LeaveCriticalSection(&timerCommArea.crit_sec);
-        }
-        else if (r == WAIT_TIMEOUT)
-        {
-            /* Timeout expired, signal SIGALRM and turn it off */
-            pg_queue_signal(SIGALRM);
-            waittime = INFINITE;
-        }
-        else
-        {
-            /* Should never happen */
-            Assert(false);
-        }
-    }
+		r = WaitForSingleObjectEx(timerCommArea.event, waittime, FALSE);
+		if (r == WAIT_OBJECT_0)
+		{
+			/* Event signalled from main thread, change the timer */
+			EnterCriticalSection(&timerCommArea.crit_sec);
+			if (timerCommArea.value.it_value.tv_sec == 0 &&
+				timerCommArea.value.it_value.tv_usec == 0)
+				waittime = INFINITE;	/* Cancel the interrupt */
+			else
+			{
+				/* WaitForSingleObjectEx() uses milliseconds, round up */
+				waittime = (timerCommArea.value.it_value.tv_usec + 999) / 1000 +
+					timerCommArea.value.it_value.tv_sec * 1000;
+			}
+			ResetEvent(timerCommArea.event);
+			LeaveCriticalSection(&timerCommArea.crit_sec);
+		}
+		else if (r == WAIT_TIMEOUT)
+		{
+			/* Timeout expired, signal SIGALRM and turn it off */
+			pg_queue_signal(SIGALRM);
+			waittime = INFINITE;
+		}
+		else
+		{
+			/* Should never happen */
+			Assert(false);
+		}
+	}
 
-    return 0;
+	return 0;
 }
 
 /*
@@ -85,37 +85,37 @@ pg_timer_thread(LPVOID param)
 int
 setitimer(int which, const struct itimerval *value, struct itimerval *ovalue)
 {
-    Assert(value != NULL);
-    Assert(value->it_interval.tv_sec == 0 && value->it_interval.tv_usec == 0);
-    Assert(which == ITIMER_REAL);
+	Assert(value != NULL);
+	Assert(value->it_interval.tv_sec == 0 && value->it_interval.tv_usec == 0);
+	Assert(which == ITIMER_REAL);
 
-    if (timerThreadHandle == INVALID_HANDLE_VALUE)
-    {
-        /* First call in this backend, create event and the timer thread */
-        timerCommArea.event = CreateEvent(NULL, TRUE, FALSE, NULL);
-        if (timerCommArea.event == NULL)
-            ereport(FATAL,
-                    (errmsg_internal("could not create timer event: error code %lu",
-                                     GetLastError())));
+	if (timerThreadHandle == INVALID_HANDLE_VALUE)
+	{
+		/* First call in this backend, create event and the timer thread */
+		timerCommArea.event = CreateEvent(NULL, TRUE, FALSE, NULL);
+		if (timerCommArea.event == NULL)
+			ereport(FATAL,
+					(errmsg_internal("could not create timer event: error code %lu",
+									 GetLastError())));
 
-        MemSet(&timerCommArea.value, 0, sizeof(struct itimerval));
+		MemSet(&timerCommArea.value, 0, sizeof(struct itimerval));
 
-        InitializeCriticalSection(&timerCommArea.crit_sec);
+		InitializeCriticalSection(&timerCommArea.crit_sec);
 
-        timerThreadHandle = CreateThread(NULL, 0, pg_timer_thread, NULL, 0, NULL);
-        if (timerThreadHandle == INVALID_HANDLE_VALUE)
-            ereport(FATAL,
-                    (errmsg_internal("could not create timer thread: error code %lu",
-                                     GetLastError())));
-    }
+		timerThreadHandle = CreateThread(NULL, 0, pg_timer_thread, NULL, 0, NULL);
+		if (timerThreadHandle == INVALID_HANDLE_VALUE)
+			ereport(FATAL,
+					(errmsg_internal("could not create timer thread: error code %lu",
+									 GetLastError())));
+	}
 
-    /* Request the timer thread to change settings */
-    EnterCriticalSection(&timerCommArea.crit_sec);
-    if (ovalue)
-        *ovalue = timerCommArea.value;
-    timerCommArea.value = *value;
-    LeaveCriticalSection(&timerCommArea.crit_sec);
-    SetEvent(timerCommArea.event);
+	/* Request the timer thread to change settings */
+	EnterCriticalSection(&timerCommArea.crit_sec);
+	if (ovalue)
+		*ovalue = timerCommArea.value;
+	timerCommArea.value = *value;
+	LeaveCriticalSection(&timerCommArea.crit_sec);
+	SetEvent(timerCommArea.event);
 
-    return 0;
+	return 0;
 }

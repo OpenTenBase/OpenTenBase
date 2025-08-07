@@ -1,0 +1,25 @@
+Parsed test spec with 3 sessions
+
+starting permutation: s1r s2u s3r s2c s3c s1r s1c
+step s1r: SELECT SUM(total_amount) AS total FROM orders;
+total
+-----
+  300
+(1 row)
+
+step s2u: UPDATE orders SET total_amount = 150 WHERE id = 1;
+step s3r: SELECT SUM(total_amount) AS total FROM orders;
+total
+-----
+  300
+(1 row)
+
+step s2c: COMMIT;
+step s3c: COMMIT;
+step s1r: SELECT SUM(total_amount) AS total FROM orders;
+total
+-----
+  350
+(1 row)
+
+step s1c: COMMIT;

@@ -32,6 +32,6 @@ SELECT count(*) FROM int4tmp WHERE a >= 237::int4;
 
 SELECT count(*) FROM int4tmp WHERE a >  237::int4;
 
-EXPLAIN (COSTS OFF)
+EXPLAIN (COSTS OFF, NODES OFF)
 SELECT a, a <-> '237' FROM int4tmp ORDER BY a <-> '237' LIMIT 3;
 SELECT a, a <-> '237' FROM int4tmp ORDER BY a <-> '237' LIMIT 3;

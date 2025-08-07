@@ -1,17 +1,11 @@
-/*
- * Copyright (c) 2023 THL A29 Limited, a Tencent company.
- *
- * This source code file is licensed under the BSD 3-Clause License,
- * you may obtain a copy of the License at http://opensource.org/license/bsd-3-clause/
- */
 #ifndef PG_CLS_USER_H
 #define PG_CLS_USER_H
 
 #include "catalog/genbki.h"
-/* oid */
-#define ClsUserRelationId  4596
+
+#define ClsUserRelationId  8184
     
-CATALOG(pg_cls_user,4596) BKI_WITHOUT_OIDS 
+CATALOG(pg_cls_user,8184) BKI_WITHOUT_OIDS 
 {
     int16       polid;
     int16       privilege;
@@ -26,10 +20,6 @@ CATALOG(pg_cls_user,4596) BKI_WITHOUT_OIDS
 }FormData_cls_user;
 
 typedef FormData_cls_user *    Form_pg_cls_user;
-
-/*
- * the numbers of attribute  
- */
 
 #define Natts_pg_cls_user                     10
 

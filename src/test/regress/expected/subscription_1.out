@@ -18,20 +18,20 @@ LINE 1: CREATE SUBSCRIPTION testsub PUBLICATION foo;
 -- fail - cannot do CREATE SUBSCRIPTION CREATE SLOT inside transaction block
 BEGIN;
 CREATE SUBSCRIPTION testsub CONNECTION 'testconn' PUBLICATION testpub WITH (create_slot);
-ERROR:  COORDINATOR does not support CREATE SUBSCRIPTION
+ERROR:  COORDINATOR only supports CREATE OPENTENBASE SUBSCRIPTION
 DETAIL:  The feature is not currently supported
 COMMIT;
 -- fail - invalid connection string
 CREATE SUBSCRIPTION testsub CONNECTION 'testconn' PUBLICATION testpub;
-ERROR:  COORDINATOR does not support CREATE SUBSCRIPTION
+ERROR:  COORDINATOR only supports CREATE OPENTENBASE SUBSCRIPTION
 DETAIL:  The feature is not currently supported
 -- fail - duplicate publications
 CREATE SUBSCRIPTION testsub CONNECTION 'dbname=doesnotexist' PUBLICATION foo, testpub, foo WITH (connect = false);
-ERROR:  COORDINATOR does not support CREATE SUBSCRIPTION
+ERROR:  COORDINATOR only supports CREATE OPENTENBASE SUBSCRIPTION
 DETAIL:  The feature is not currently supported
 -- ok
 CREATE SUBSCRIPTION testsub CONNECTION 'dbname=doesnotexist' PUBLICATION testpub WITH (connect = false);
-ERROR:  COORDINATOR does not support CREATE SUBSCRIPTION
+ERROR:  COORDINATOR only supports CREATE OPENTENBASE SUBSCRIPTION
 DETAIL:  The feature is not currently supported
 COMMENT ON SUBSCRIPTION testsub IS 'test subscription';
 ERROR:  subscription "testsub" does not exist
@@ -42,54 +42,56 @@ SELECT obj_description(s.oid, 'pg_subscription') FROM pg_subscription s;
 
 -- fail - name already exists
 CREATE SUBSCRIPTION testsub CONNECTION 'dbname=doesnotexist' PUBLICATION testpub WITH (connect = false);
-ERROR:  COORDINATOR does not support CREATE SUBSCRIPTION
+ERROR:  COORDINATOR only supports CREATE OPENTENBASE SUBSCRIPTION
 DETAIL:  The feature is not currently supported
 -- fail - must be superuser
 SET SESSION AUTHORIZATION 'regress_subscription_user2';
 CREATE SUBSCRIPTION testsub2 CONNECTION 'dbname=doesnotexist' PUBLICATION foo WITH (connect = false);
-ERROR:  COORDINATOR does not support CREATE SUBSCRIPTION
+ERROR:  COORDINATOR only supports CREATE OPENTENBASE SUBSCRIPTION
 DETAIL:  The feature is not currently supported
 SET SESSION AUTHORIZATION 'regress_subscription_user';
 -- fail - invalid option combinations
 CREATE SUBSCRIPTION testsub2 CONNECTION 'dbname=doesnotexist' PUBLICATION testpub WITH (connect = false, copy_data = true);
-ERROR:  COORDINATOR does not support CREATE SUBSCRIPTION
+ERROR:  COORDINATOR only supports CREATE OPENTENBASE SUBSCRIPTION
 DETAIL:  The feature is not currently supported
 CREATE SUBSCRIPTION testsub2 CONNECTION 'dbname=doesnotexist' PUBLICATION testpub WITH (connect = false, enabled = true);
-ERROR:  COORDINATOR does not support CREATE SUBSCRIPTION
+ERROR:  COORDINATOR only supports CREATE OPENTENBASE SUBSCRIPTION
 DETAIL:  The feature is not currently supported
 CREATE SUBSCRIPTION testsub2 CONNECTION 'dbname=doesnotexist' PUBLICATION testpub WITH (connect = false, create_slot = true);
-ERROR:  COORDINATOR does not support CREATE SUBSCRIPTION
+ERROR:  COORDINATOR only supports CREATE OPENTENBASE SUBSCRIPTION
 DETAIL:  The feature is not currently supported
 CREATE SUBSCRIPTION testsub2 CONNECTION 'dbname=doesnotexist' PUBLICATION testpub WITH (slot_name = NONE, enabled = true);
-ERROR:  COORDINATOR does not support CREATE SUBSCRIPTION
+ERROR:  COORDINATOR only supports CREATE OPENTENBASE SUBSCRIPTION
 DETAIL:  The feature is not currently supported
 CREATE SUBSCRIPTION testsub2 CONNECTION 'dbname=doesnotexist' PUBLICATION testpub WITH (slot_name = NONE, create_slot = true);
-ERROR:  COORDINATOR does not support CREATE SUBSCRIPTION
+ERROR:  COORDINATOR only supports CREATE OPENTENBASE SUBSCRIPTION
 DETAIL:  The feature is not currently supported
 CREATE SUBSCRIPTION testsub2 CONNECTION 'dbname=doesnotexist' PUBLICATION testpub WITH (slot_name = NONE);
-ERROR:  COORDINATOR does not support CREATE SUBSCRIPTION
+ERROR:  COORDINATOR only supports CREATE OPENTENBASE SUBSCRIPTION
 DETAIL:  The feature is not currently supported
 CREATE SUBSCRIPTION testsub2 CONNECTION 'dbname=doesnotexist' PUBLICATION testpub WITH (slot_name = NONE, enabled = false);
-ERROR:  COORDINATOR does not support CREATE SUBSCRIPTION
+ERROR:  COORDINATOR only supports CREATE OPENTENBASE SUBSCRIPTION
 DETAIL:  The feature is not currently supported
 CREATE SUBSCRIPTION testsub2 CONNECTION 'dbname=doesnotexist' PUBLICATION testpub WITH (slot_name = NONE, create_slot = false);
-ERROR:  COORDINATOR does not support CREATE SUBSCRIPTION
+ERROR:  COORDINATOR only supports CREATE OPENTENBASE SUBSCRIPTION
 DETAIL:  The feature is not currently supported
 -- ok - with slot_name = NONE
 CREATE SUBSCRIPTION testsub3 CONNECTION 'dbname=doesnotexist' PUBLICATION testpub WITH (slot_name = NONE, connect = false);
-ERROR:  COORDINATOR does not support CREATE SUBSCRIPTION
+ERROR:  COORDINATOR only supports CREATE OPENTENBASE SUBSCRIPTION
 DETAIL:  The feature is not currently supported
 -- fail
 ALTER SUBSCRIPTION testsub3 ENABLE;
-ERROR:  subscription "testsub3" does not exist
+ERROR:  OpenTenBase only supports ALTER [OPENTENBASE] SUBSCRIPTION XXX connection '...' and ALTER [OPENTENBASE] SUBSCRIPTION XXX REFRESH PUBLICATION ...;
 ALTER SUBSCRIPTION testsub3 REFRESH PUBLICATION;
-ERROR:  subscription "testsub3" does not exist
+ERROR:  COORDINATOR only supports ALTER OPENTENBASE SUBSCRIPTION
+DETAIL:  The feature is not currently supported
 DROP SUBSCRIPTION testsub3;
-ERROR:  COORDINATOR does not support DROP SUBSCRIPTION
+ERROR:  COORDINATOR only supports DROP OPENTENBASE SUBSCRIPTION
 DETAIL:  The feature is not currently supported
 -- fail - invalid connection string
 ALTER SUBSCRIPTION testsub CONNECTION 'foobar';
-ERROR:  subscription "testsub" does not exist
+ERROR:  COORDINATOR only supports ALTER OPENTENBASE SUBSCRIPTION
+DETAIL:  The feature is not currently supported
 \dRs+
                         List of subscriptions
  Name | Owner | Enabled | Publication | Synchronous commit | Conninfo 
@@ -97,16 +99,18 @@ ERROR:  subscription "testsub" does not exist
 (0 rows)
 
 ALTER SUBSCRIPTION testsub SET PUBLICATION testpub2, testpub3 WITH (refresh = false);
-ERROR:  OpenTenBase only supports ALTER [OPENTENBASE] SUBSCRIPTION XXX connection '...'; and ALTER [OPENTENBASE] SUBSCRIPTION XXX REFRESH PUBLICATION ...; and ALTER [OPENTENBASE] SUBSCRIPTION XXX DISABLE; 
+ERROR:  OpenTenBase only supports ALTER [OPENTENBASE] SUBSCRIPTION XXX connection '...' and ALTER [OPENTENBASE] SUBSCRIPTION XXX REFRESH PUBLICATION ...;
 ALTER SUBSCRIPTION testsub CONNECTION 'dbname=doesnotexist2';
-ERROR:  subscription "testsub" does not exist
+ERROR:  COORDINATOR only supports ALTER OPENTENBASE SUBSCRIPTION
+DETAIL:  The feature is not currently supported
 ALTER SUBSCRIPTION testsub SET (slot_name = 'newname');
-ERROR:  subscription "testsub" does not exist
+ERROR:  OpenTenBase only supports ALTER [OPENTENBASE] SUBSCRIPTION XXX connection '...' and ALTER [OPENTENBASE] SUBSCRIPTION XXX REFRESH PUBLICATION ...;
 -- fail
 ALTER SUBSCRIPTION doesnotexist CONNECTION 'dbname=doesnotexist2';
-ERROR:  subscription "doesnotexist" does not exist
+ERROR:  COORDINATOR only supports ALTER OPENTENBASE SUBSCRIPTION
+DETAIL:  The feature is not currently supported
 ALTER SUBSCRIPTION testsub SET (create_slot = false);
-ERROR:  subscription "testsub" does not exist
+ERROR:  OpenTenBase only supports ALTER [OPENTENBASE] SUBSCRIPTION XXX connection '...' and ALTER [OPENTENBASE] SUBSCRIPTION XXX REFRESH PUBLICATION ...;
 \dRs+
                         List of subscriptions
  Name | Owner | Enabled | Publication | Synchronous commit | Conninfo 
@@ -114,7 +118,7 @@ ERROR:  subscription "testsub" does not exist
 (0 rows)
 
 ALTER SUBSCRIPTION testsub ENABLE;
-ERROR:  subscription "testsub" does not exist
+ERROR:  OpenTenBase only supports ALTER [OPENTENBASE] SUBSCRIPTION XXX connection '...' and ALTER [OPENTENBASE] SUBSCRIPTION XXX REFRESH PUBLICATION ...;
 \dRs
         List of subscriptions
  Name | Owner | Enabled | Publication 
@@ -122,7 +126,7 @@ ERROR:  subscription "testsub" does not exist
 (0 rows)
 
 ALTER SUBSCRIPTION testsub DISABLE;
-ERROR:  subscription "testsub" does not exist
+ERROR:  OpenTenBase only supports ALTER [OPENTENBASE] SUBSCRIPTION XXX connection '...' and ALTER [OPENTENBASE] SUBSCRIPTION XXX REFRESH PUBLICATION ...;
 \dRs
         List of subscriptions
  Name | Owner | Enabled | Publication 
@@ -137,9 +141,9 @@ RESET ROLE;
 ALTER SUBSCRIPTION testsub RENAME TO testsub_foo;
 ERROR:  subscription "testsub" does not exist
 ALTER SUBSCRIPTION testsub_foo SET (synchronous_commit = local);
-ERROR:  subscription "testsub_foo" does not exist
+ERROR:  OpenTenBase only supports ALTER [OPENTENBASE] SUBSCRIPTION XXX connection '...' and ALTER [OPENTENBASE] SUBSCRIPTION XXX REFRESH PUBLICATION ...;
 ALTER SUBSCRIPTION testsub_foo SET (synchronous_commit = foobar);
-ERROR:  subscription "testsub_foo" does not exist
+ERROR:  OpenTenBase only supports ALTER [OPENTENBASE] SUBSCRIPTION XXX connection '...' and ALTER [OPENTENBASE] SUBSCRIPTION XXX REFRESH PUBLICATION ...;
 \dRs+
                         List of subscriptions
  Name | Owner | Enabled | Publication | Synchronous commit | Conninfo 
@@ -159,22 +163,28 @@ ERROR:  subscription "testsub" does not exist
 -- fail - cannot do DROP SUBSCRIPTION inside transaction block with slot name
 BEGIN;
 DROP SUBSCRIPTION testsub;
-ERROR:  COORDINATOR does not support DROP SUBSCRIPTION
+ERROR:  COORDINATOR only supports DROP OPENTENBASE SUBSCRIPTION
 DETAIL:  The feature is not currently supported
 COMMIT;
 ALTER SUBSCRIPTION testsub SET (slot_name = NONE);
-ERROR:  subscription "testsub" does not exist
+ERROR:  OpenTenBase only supports ALTER [OPENTENBASE] SUBSCRIPTION XXX connection '...' and ALTER [OPENTENBASE] SUBSCRIPTION XXX REFRESH PUBLICATION ...;
+\dRs+
+                        List of subscriptions
+ Name | Owner | Enabled | Publication | Synchronous commit | Conninfo 
+------+-------+---------+-------------+--------------------+----------
+(0 rows)
+
 -- now it works
 BEGIN;
 DROP SUBSCRIPTION testsub;
-ERROR:  COORDINATOR does not support DROP SUBSCRIPTION
+ERROR:  COORDINATOR only supports DROP OPENTENBASE SUBSCRIPTION
 DETAIL:  The feature is not currently supported
 COMMIT;
 DROP SUBSCRIPTION IF EXISTS testsub;
-ERROR:  COORDINATOR does not support DROP SUBSCRIPTION
+ERROR:  COORDINATOR only supports DROP OPENTENBASE SUBSCRIPTION
 DETAIL:  The feature is not currently supported
 DROP SUBSCRIPTION testsub;  -- fail
-ERROR:  COORDINATOR does not support DROP SUBSCRIPTION
+ERROR:  COORDINATOR only supports DROP OPENTENBASE SUBSCRIPTION
 DETAIL:  The feature is not currently supported
 RESET SESSION AUTHORIZATION;
 DROP ROLE regress_subscription_user;

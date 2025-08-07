@@ -1,0 +1,7 @@
+CREATE EXTENSION test_zstd;
+select test_compress_and_decompress();
+ test_compress_and_decompress 
+------------------------------
+ t
+(1 row)
+

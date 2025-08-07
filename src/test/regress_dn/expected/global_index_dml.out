@@ -1,0 +1,258 @@
+-- =====================================================================
+-- Title     : global index ddl and dml
+-- Author    : azurezhao
+-- Date      : 2022-08-22
+-- Level     : P0
+-- Tag	     :
+-- Status    : Ready
+-- AllocateEnv   : ENV_SERIAL
+-- =====================================================================
+drop table if exists gindex_insert;
+NOTICE:  table "gindex_insert" does not exist, skipping
+create table gindex_insert(a int,b int,c varchar(10),d varchar) distribute by shard(a);
+create unique index on gindex_insert(a);
+create global unique index on gindex_insert(b);
+create global unique index on gindex_insert(d);
+create global index on gindex_insert(c);
+insert into gindex_insert values(0,0,'zero','0');
+insert into gindex_insert values(1,1,'one','1'),(2,2,'two','2');
+insert into gindex_insert select generate_series(3,10),generate_series(3,10),'na',generate_series(3,10);
+insert into gindex_insert values(10000,NULL,'zero','011');
+insert into gindex_insert values(10002,NULL,'zero','012');
+insert into gindex_insert values(11,11,'11',null);
+insert into gindex_insert values(12,12,'12',null);
+insert into gindex_insert values(13,13,'13','');
+insert into gindex_insert values(14,14,'14','');
+ERROR:  duplicate key value violates unique constraint "gindex_insert_d_idx_d_idx"
+DETAIL:  Key (d)=() already exists.
+explain (costs off, nodes off) select * from gindex_insert where b=14;
+                                  QUERY PLAN                                   
+-------------------------------------------------------------------------------
+ Remote Fast Query Execution
+   ->  Remote Tid Scan on gindex_insert
+         Recheck Cond (EPQ): (b = 14)
+         ->  Index Scan using gindex_insert_b_idx_b_idx on gindex_insert_b_idx
+               Index Cond: (b = 14)
+(5 rows)
+
+explain (costs off, nodes off) select * from gindex_insert where c='14';
+                QUERY PLAN                
+------------------------------------------
+ Remote Fast Query Execution
+   ->  Seq Scan on gindex_insert
+         Filter: ((c)::text = '14'::text)
+(3 rows)
+
+insert into gindex_insert values((select count(1)+10085 from gindex_insert),null,null,null);
+insert into gindex_insert values((select count(1)+10084 from gindex_insert),null,null,null);
+ERROR:  duplicate key value violates unique constraint "gindex_insert_a_idx"
+DETAIL:  Key (a)=(10101) already exists.
+insert into gindex_insert values((select count(1)+10086 from gindex_insert),(select count(1)+10086 from gindex_insert),(select count(1)+10086 from gindex_insert),(select count(1)+10086 from gindex_insert));
+-- todo insert into gindex_insert values(20001,nullif('A','A'),null,null);
+--todo insert into gindex_insert values (1,1,'one') on conflict(a) do UPDATE SET c = gindex_insert.c+1;
+--todo insert into gindex_insert values (1,1,'one') on conflict(a) do NOTHING;
+/* update */
+explain (costs off, nodes off) update gindex_insert set d= '1023232' where d = '1';
+                                        QUERY PLAN                                         
+-------------------------------------------------------------------------------------------
+ Remote Update
+   ->  Remote Fast Query Execution
+         ->  Update on gindex_insert
+               ->  Remote Tid Scan on gindex_insert
+                     Recheck Cond (EPQ): ((d)::text = '1'::text)
+                     ->  Index Scan using gindex_insert_d_idx_d_idx on gindex_insert_d_idx
+                           Index Cond: ((d)::text = '1'::text)
+(7 rows)
+
+explain (costs off, nodes off) update gindex_insert set c= '100' where c = 'na';
+                      QUERY PLAN                      
+------------------------------------------------------
+ Remote Update
+   ->  Remote Fast Query Execution
+         ->  Update on gindex_insert
+               ->  Seq Scan on gindex_insert
+                     Filter: ((c)::text = 'na'::text)
+(5 rows)
+
+explain (costs off, nodes off) update gindex_insert set c= '100' where d = '011';
+                                        QUERY PLAN                                         
+-------------------------------------------------------------------------------------------
+ Remote Update
+   ->  Remote Fast Query Execution
+         ->  Update on gindex_insert
+               ->  Remote Tid Scan on gindex_insert
+                     Recheck Cond (EPQ): ((d)::text = '011'::text)
+                     ->  Index Scan using gindex_insert_d_idx_d_idx on gindex_insert_d_idx
+                           Index Cond: ((d)::text = '011'::text)
+(7 rows)
+
+explain (costs off, nodes off) update gindex_insert set d= '100' where c = '10104';
+                       QUERY PLAN                        
+---------------------------------------------------------
+ Remote Update
+   ->  Remote Fast Query Execution
+         ->  Update on gindex_insert
+               ->  Seq Scan on gindex_insert
+                     Filter: ((c)::text = '10104'::text)
+(5 rows)
+
+update gindex_insert set d= '1023232' where d = '1';
+update gindex_insert set c= '100' where c = 'na';
+update gindex_insert set c= '100' where d = '011';
+update gindex_insert set d= '100' where c = '10104';
+update gindex_insert set b='10000',c= '10000',d='10000' where c = '10104';
+--tod update gindex_insert set b=(select count(1)+10086 from gindex_insert),c= '10000',d=now()::varchar where c = '10000';
+update gindex_insert set b=null,c= null,d=null where c = '10000';
+delete from gindex_insert where d != '1023232' or d is null;
+COPY gindex_insert (a, b, c, d) TO stdout;
+1	1	one	1023232
+COPY gindex_insert (d) TO stdout;
+1023232
+COPY gindex_insert FROM stdin; -- fail
+delete from gindex_insert where d = '2';
+delete from gindex_insert where c = 'one';
+delete from gindex_insert where c = '100';
+delete from gindex_insert where b in (select count(1) from gindex_insert); --fail
+ERROR:  could not plan this distributed UPDATE/DELETE
+DETAIL:  correlated or complex UPDATE/DELETE is currently not supported in Postgres-XL.
+merge into gindex_insert t1 using gindex_insert t2 on(t1.a=t2.a) when matched then update set t1.b=t2.b; --fail
+ERROR:  invalid reference to FROM-clause entry for table "t2"
+LINE 1: ...ert t2 on(t1.a=t2.a) when matched then update set t1.b=t2.b;
+                                                                  ^
+HINT:  There is an entry for table "t2", but it cannot be referenced from this part of the query.
+truncate gindex_insert;
+vacuum gindex_insert;
+vacuum full gindex_insert;
+ERROR:  table "gindex_insert" with global index can not vacuum full
+vacuum analyze gindex_insert;
+drop table gindex_insert;
+drop table if exists gindex_alter;
+NOTICE:  table "gindex_alter" does not exist, skipping
+create table gindex_alter(a int,b int,c int) distribute by shard(a);
+create index on gindex_alter(a);
+create global index on gindex_alter(b);
+--rename table
+insert into gindex_alter select generate_series(1,100),generate_series(1,100),generate_series(1,100);
+alter table gindex_alter rename to gindex_alter1;
+insert into gindex_alter1 select generate_series(1,100),generate_series(1,100),generate_series(1,100);
+update gindex_alter1 set b = 10,c = 20;
+delete from gindex_alter1;
+alter table gindex_alter1 rename to gindex_alter;
+insert into gindex_alter select generate_series(1,100),generate_series(1,100),generate_series(1,100);
+--rename column
+alter table gindex_alter rename column b to d;
+insert into gindex_alter select generate_series(1,100),generate_series(1,100),generate_series(1,100);
+update gindex_alter set d = d+10,c = 20;
+delete from gindex_alter;
+--rename index
+insert into gindex_alter select generate_series(1,100),generate_series(1,100),generate_series(1,100);
+insert into gindex_alter select generate_series(1,100),generate_series(1,100),generate_series(1,100);
+update gindex_alter set d = d+10,c = 20;
+delete from gindex_alter;
+--drop column
+alter table gindex_alter drop COLUMN d;
+select * from gindex_alter;
+ a | c 
+---+---
+(0 rows)
+
+--add column
+alter table gindex_alter add d varchar;
+create global index on gindex_alter(d);
+insert into gindex_alter select generate_series(1,100),generate_series(1,100),generate_series(1,100);
+--alter type
+alter table gindex_alter alter column d TYPE int; --fail
+ERROR:  column "d" cannot be cast automatically to type integer
+HINT:  You might need to specify "USING d::integer".
+alter table gindex_alter alter column c TYPE varchar; --fail
+ERROR:  cannot reindex while reindexing
+alter table gindex_alter alter column c set NOT NULL;
+alter table gindex_alter alter column c set default 999;
+insert into gindex_alter(a,d) select generate_series(1,100),generate_series(1,100) limit 10;
+create global index on gindex_alter(c);
+drop sequence if exists gindex_seq;
+NOTICE:  sequence "gindex_seq" does not exist, skipping
+create sequence gindex_seq;
+alter table gindex_alter alter column c set default nextval('gindex_seq');
+insert into gindex_alter(a,d) select generate_series(100,200),generate_series(1,100) limit 10;
+select *  from gindex_alter where a >100 order by c;
+  a  | c  | d  
+-----+----+----
+ 101 |  2 | 2
+ 102 |  3 | 3
+ 103 |  4 | 4
+ 104 |  5 | 5
+ 105 |  6 | 6
+ 106 |  7 | 7
+ 107 |  8 | 8
+ 108 |  9 | 9
+ 109 | 10 | 10
+(9 rows)
+
+delete from gindex_alter;
+--truncate table
+truncate gindex_alter_c_idx_idt;
+ERROR:  relation "gindex_alter_c_idx_idt" does not exist
+truncate gindex_alter;
+--drop table 
+drop table gindex_alter;
+select count(1) from gindex_alter_c_idx; --failed
+ERROR:  relation "gindex_alter_c_idx" does not exist
+LINE 1: select count(1) from gindex_alter_c_idx;
+                             ^
+--vacuum
+drop table if exists gindex_vacuum;
+NOTICE:  table "gindex_vacuum" does not exist, skipping
+create table gindex_vacuum(a int,b int,c int) distribute by shard(a);
+create global index on gindex_vacuum(c);
+create global index on gindex_vacuum(b);
+insert into gindex_vacuum(a,b) select generate_series(100,200),generate_series(1,100);
+vacuum gindex_vacuum_b_idx ;
+vacuum gindex_vacuum;
+vacuum FULL gindex_vacuum_b_idx ;
+vacuum FULL gindex_vacuum; --failed
+ERROR:  table "gindex_vacuum" with global index can not vacuum full
+vacuum analyze gindex_vacuum_b_idx ;
+vacuum analyze gindex_vacuum;
+insert into gindex_vacuum select generate_series(1,100),generate_series(1,100),generate_series(1,100);
+insert into gindex_vacuum values(11111,132423,12132342);
+select count(1) from gindex_vacuum;
+ count 
+-------
+   202
+(1 row)
+
+select * from gindex_vacuum where c = 10;
+ a  | b  | c  
+----+----+----
+ 10 | 10 | 10
+(1 row)
+
+select * from gindex_vacuum where b = 11;
+  a  | b  | c  
+-----+----+----
+ 110 | 11 |   
+  11 | 11 | 11
+(2 rows)
+
+--todo [gindex-update] failed to find old tid we want to update
+update gindex_vacuum set b = 10000;
+update gindex_vacuum set c = b + 10,b = 5;
+select count(1) from gindex_vacuum where b = 5;
+ count 
+-------
+   202
+(1 row)
+
+delete from gindex_vacuum;
+drop table gindex_vacuum;
+--cluster
+drop table if exists gindex_cluster;
+NOTICE:  table "gindex_cluster" does not exist, skipping
+create table gindex_cluster(a int,b int,c int) distribute by shard(a);
+create index on gindex_cluster(a);
+create global index gindex_cluster_c_idx on gindex_cluster(c);
+create global index gindex_cluster_b_idx on gindex_cluster(b);
+cluster gindex_cluster using gindex_cluster_a_idx;
+ERROR:  cannot reindex while reindexing
+drop table gindex_cluster;

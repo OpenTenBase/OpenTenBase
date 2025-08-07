@@ -1,9 +1,7 @@
 # deadlock detect extention
-#
-# This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
-# All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
-#
 comment = 'tools for detect and unlock all the deadlocks'
-default_version = '1.0'
+default_version = '1.1'
 module_pathname = '$libdir/pg_unlock'
 relocatable = true
+# sql_mode can be opentenbase_ora, postgresql, all
+sql_mode = 'all'

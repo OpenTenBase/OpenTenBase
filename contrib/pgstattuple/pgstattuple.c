@@ -3,9 +3,6 @@
  *
  * Copyright (c) 2001,2002	Tatsuo Ishii
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * Permission to use, copy, modify, and distribute this software and
  * its documentation for any purpose, without fee, and without a
  * written agreement is hereby granted, provided that the above

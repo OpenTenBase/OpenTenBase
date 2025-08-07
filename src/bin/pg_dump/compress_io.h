@@ -1,13 +1,13 @@
 /*-------------------------------------------------------------------------
  *
  * compress_io.h
- *     Interface to compress_io.c routines
+ *	 Interface to compress_io.c routines
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *       src/bin/pg_dump/compress_io.h
+ *	   src/bin/pg_dump/compress_io.h
  *
  *-------------------------------------------------------------------------
  */
@@ -18,13 +18,13 @@
 #include "pg_backup_archiver.h"
 
 /* Initial buffer sizes used in zlib compression. */
-#define ZLIB_OUT_SIZE    4096
-#define ZLIB_IN_SIZE    4096
+#define ZLIB_OUT_SIZE	4096
+#define ZLIB_IN_SIZE	4096
 
 typedef enum
 {
-    COMPR_ALG_NONE,
-    COMPR_ALG_LIBZ
+	COMPR_ALG_NONE,
+	COMPR_ALG_LIBZ
 } CompressionAlgorithm;
 
 /* Prototype for callback function to WriteDataToArchive() */
@@ -48,9 +48,9 @@ typedef struct CompressorState CompressorState;
 
 extern CompressorState *AllocateCompressor(int compression, WriteFunc writeF);
 extern void ReadDataFromArchive(ArchiveHandle *AH, int compression,
-                    ReadFunc readF);
+					ReadFunc readF);
 extern void WriteDataToArchive(ArchiveHandle *AH, CompressorState *cs,
-                   const void *data, size_t dLen);
+				   const void *data, size_t dLen);
 extern void EndCompressor(ArchiveHandle *AH, CompressorState *cs);
 
 
@@ -59,12 +59,12 @@ typedef struct cfp cfp;
 extern cfp *cfopen(const char *path, const char *mode, int compression);
 extern cfp *cfopen_read(const char *path, const char *mode);
 extern cfp *cfopen_write(const char *path, const char *mode, int compression);
-extern int    cfread(void *ptr, int size, cfp *fp);
-extern int    cfwrite(const void *ptr, int size, cfp *fp);
-extern int    cfgetc(cfp *fp);
+extern int	cfread(void *ptr, int size, cfp *fp);
+extern int	cfwrite(const void *ptr, int size, cfp *fp);
+extern int	cfgetc(cfp *fp);
 extern char *cfgets(cfp *fp, char *buf, int len);
-extern int    cfclose(cfp *fp);
-extern int    cfeof(cfp *fp);
+extern int	cfclose(cfp *fp);
+extern int	cfeof(cfp *fp);
 extern const char *get_cfp_error(cfp *fp);
 
 #endif

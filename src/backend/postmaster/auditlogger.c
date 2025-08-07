@@ -2,13 +2,10 @@
  *
  * auditlogger.c
  *
+ * Copyright (c) 2004-2017, PostgreSQL Global Development Group
+ *
  * IDENTIFICATION
- *      src/backend/postmaster/auditlogger.c
- *
- * Copyright (c) 2023 THL A29 Limited, a Tencent company.
- *
- * This source code file is licensed under the BSD 3-Clause License,
- * you may obtain a copy of the License at http://opensource.org/license/bsd-3-clause/
+ *	  src/backend/postmaster/auditlogger.c
  *
  *-------------------------------------------------------------------------
  */
@@ -24,6 +21,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "audit/audit.h"
 #include "lib/stringinfo.h"
 #include "libpq/pqsignal.h"
 #include "miscadmin.h"
@@ -52,39 +50,39 @@
 #include "pgxc/squeue.h"
 #include "pgxc/shardmap.h"
 
-#define        BYTES_PER_KB            1024
-#define        AUDIT_BITMAP_WORD        (WORDNUM(MaxBackends) + 1)
-#define        AUDIT_BITMAP_SIZE        (BITMAPSET_SIZE(AUDIT_BITMAP_WORD))
+#define		BYTES_PER_KB			1024
+#define		AUDIT_BITMAP_WORD		(WORDNUM(MaxBackends) + 1)
+#define		AUDIT_BITMAP_SIZE		(BITMAPSET_SIZE(AUDIT_BITMAP_WORD))
 
-#define        AUDIT_SLEEP_MICROSEC    100000L
-#define        AUDIT_LATCH_MICROSEC    10000000L
+#define		AUDIT_SLEEP_MICROSEC	100000L
+#define		AUDIT_LATCH_MICROSEC	10000000L
 
-// #define     Use_Audit_Assert         0
+// #define 	Use_Audit_Assert 		0
 
-#define     AuditLog_001_For_Main                0
-#define        AuditLog_002_For_ShareMemoryQueue    0
-#define        AuditLog_003_For_LogFile            0
-#define        AuditLog_004_For_QueueReadWrite        0
-#define        AuditLog_005_For_ThreadWorker        0
-#define        AuditLog_006_For_Elog                0
-#define        AuditLog_007_For_ShardStatistics    0
+#define 	AuditLog_001_For_Main				0
+#define		AuditLog_002_For_ShareMemoryQueue	0
+#define		AuditLog_003_For_LogFile			0
+#define		AuditLog_004_For_QueueReadWrite		0
+#define		AuditLog_005_For_ThreadWorker		0
+#define		AuditLog_006_For_Elog				0
+#define		AuditLog_007_For_ShardStatistics	0
 
 #ifdef Use_Audit_Assert
-    #ifdef Trap
-        #undef Trap
-        #define Trap(condition, errorType) \
-            do { \
-                if (condition) \
-                    ExceptionalCondition(CppAsString(condition), (errorType), \
-                                         __FILE__, __LINE__); \
-            } while (0)
-    #endif
+	#ifdef Trap
+		#undef Trap
+		#define Trap(condition, errorType) \
+			do { \
+				if (condition) \
+					ExceptionalCondition(CppAsString(condition), (errorType), \
+										 __FILE__, __LINE__); \
+			} while (0)
+	#endif
 
-    #ifdef Assert
-        #undef Assert
-        #define Assert(condition) \
-            Trap(!(condition), "FailedAssertion")
-    #endif
+	#ifdef Assert
+		#undef Assert
+		#define Assert(condition) \
+			Trap(!(condition), "FailedAssertion")
+	#endif
 #endif
 
 typedef struct AuditLogQueue
@@ -99,9 +97,9 @@ typedef struct AuditLogQueue
 
 typedef struct AuditLogQueueArray
 {
-    int                        a_count;
-    Bitmapset              *    a_bitmap;
-    AlogQueue              *    a_queue[FLEXIBLE_ARRAY_MEMBER];
+	int						a_count;
+	Bitmapset			  *	a_bitmap;
+	AlogQueue			  *	a_queue[FLEXIBLE_ARRAY_MEMBER];
 } AlogQueueArray;
 
 typedef struct AuditLogQueueCache
@@ -127,7 +125,7 @@ static AlogQueueArray	  * AuditTraceLogQueueArray = NULL;
  * shared memory bitmap to notify consumers to read audit log from AlogQueueArray above
  * each element for one consumer
  */
-static int                  *    AuditConsumerNotifyBitmap = NULL;
+static int				  *	AuditConsumerNotifyBitmap = NULL;
 
 /*
  * Postgres backend state, used in postgres backend only
@@ -139,7 +137,7 @@ static int                  *    AuditConsumerNotifyBitmap = NULL;
  * Postgres backend acqurie free index by AuditLoggerQueueAcquire
  *
  */
-static int                    AuditPostgresAlogQueueIndex = 0;
+static int					AuditPostgresAlogQueueIndex = 0;
 
 /*
  * Consumer local queue cache for AuditLog_max_worker_number consumers, used in
@@ -162,7 +160,7 @@ static AlogQueueCache	  * AuditTraceLogLocalCache = NULL;
 static ThreadSema		  * AuditConsumerNotifySemas = NULL;
 
 /*
- * GUC parameters.    can change at SIGHUP.
+ * GUC parameters.	can change at SIGHUP.
  */
 int							AuditLog_RotationAge = HOURS_PER_DAY * MINS_PER_HOUR;
 int							AuditLog_RotationSize = 10 * 1024;
@@ -189,8 +187,8 @@ int							Maintain_trace_log_cache_size_kb = 64;
 /*
  * Globally visible state
  */
-bool                        am_auditlogger = false;
-bool                        enable_auditlogger_warning = false;
+bool						am_auditlogger = false;
+bool						enable_auditlogger_warning = false;
 
 /*
  * Logger Private state
@@ -217,40 +215,40 @@ static int					audit_curr_log_rotation_age = 0;
 /*
  * Flags set by interrupt handlers for later service in the main loop.
  */
-static volatile sig_atomic_t audit_gotSIGHUP = false;            /* pg_ctl reload */
-static volatile sig_atomic_t audit_gotSIGQUIT = false;            /* pg_ctl stop -m immediate */
-static volatile sig_atomic_t audit_gotSIGTERM = false;            /* pg_ctl stop -m smart */
-static volatile sig_atomic_t audit_gotSIGINT= false;            /* pg_ctl stop -m fast */
-static volatile sig_atomic_t audit_rotation_requested = false;    /* SIGUSR1, killed by pg_rotate_audit_logfile() */
-static volatile sig_atomic_t audit_consume_requested = false;    /* SIGUSR2, killed by alog() */
+static volatile sig_atomic_t audit_gotSIGHUP = false;			/* pg_ctl reload */
+static volatile sig_atomic_t audit_gotSIGQUIT = false;			/* pg_ctl stop -m immediate */
+static volatile sig_atomic_t audit_gotSIGTERM = false;			/* pg_ctl stop -m smart */
+static volatile sig_atomic_t audit_gotSIGINT= false;			/* pg_ctl stop -m fast */
+static volatile sig_atomic_t audit_rotation_requested = false;	/* SIGUSR1, killed by pg_rotate_audit_logfile() */
+static volatile sig_atomic_t audit_consume_requested = false;	/* SIGUSR2, killed by alog() */
 
 #ifdef AuditLog_001_For_Main
 
 /* Local subroutines */
 #ifdef EXEC_BACKEND
-static pid_t                auditlogger_forkexec(void);
+static pid_t				auditlogger_forkexec(void);
 #endif
-NON_EXEC_STATIC void        AuditLoggerMain(int argc, char *argv[]) pg_attribute_noreturn();
+NON_EXEC_STATIC void		AuditLoggerMain(int argc, char *argv[]) pg_attribute_noreturn();
 
-static void        audit_logger_MainLoop(void);
+static void		audit_logger_MainLoop(void);
 
-static void        audit_sigHupHandler(SIGNAL_ARGS);
-static void        audit_sigUsr1Handler(SIGNAL_ARGS);
-static void        audit_sigUsr2Handler(SIGNAL_ARGS);
-static void        audit_sigQuitHandler(SIGNAL_ARGS);
-static void        audit_sigTermHandler(SIGNAL_ARGS);
-static void        audit_sigIntHandler(SIGNAL_ARGS);
+static void		audit_sigHupHandler(SIGNAL_ARGS);
+static void		audit_sigUsr1Handler(SIGNAL_ARGS);
+static void		audit_sigUsr2Handler(SIGNAL_ARGS);
+static void		audit_sigQuitHandler(SIGNAL_ARGS);
+static void		audit_sigTermHandler(SIGNAL_ARGS);
+static void		audit_sigIntHandler(SIGNAL_ARGS);
 
-static void        audit_process_sighup(void);
-static void        audit_process_sigusr1(void);
-static void        audit_process_sigusr2(void);
-static void        audit_process_sigterm(void);
-static void        audit_process_sigint(void);
-static void        audit_process_sigquit(void);
-static void        audit_process_rotate(void);
-static void        audit_process_wakeup(bool timeout);
+static void		audit_process_sighup(void);
+static void		audit_process_sigusr1(void);
+static void		audit_process_sigusr2(void);
+static void		audit_process_sigterm(void);
+static void		audit_process_sigint(void);
+static void		audit_process_sigquit(void);
+static void		audit_process_rotate(void);
+static void		audit_process_wakeup(bool timeout);
 
-static void        audit_assign_log_dir(void);
+static void		audit_assign_log_dir(void);
 #endif
 
 #ifdef AuditLog_002_For_ShareMemoryQueue
@@ -281,21 +279,21 @@ static void		audit_set_next_rotation_time(void);
 #endif
 
 #ifdef AuditLog_004_For_QueueReadWrite
-static void     alog_just_caller(void * var);
-static void     alog_queue_init(AlogQueue * queue, int queue_size_kb);
-static char *     alog_queue_offset_to(AlogQueue * queue, int offset);
-static bool     alog_queue_is_full(int q_size, int q_head, int q_tail);
-static bool     alog_queue_is_empty(int q_size, int q_head, int q_tail);
-static bool     alog_queue_is_empty2(AlogQueue * queue);
-static bool     alog_queue_is_enough(int q_size, int q_head, int q_tail, int N);
-static int         alog_queue_used(int q_size, int q_head, int q_tail);
-static int         alog_queue_remain(int q_size, int q_head, int q_tail);
-static bool     alog_queue_push(AlogQueue * queue, char * buff, int len);
-static bool     alog_queue_push2(AlogQueue * queue, char * buff1, int len1, char * buff2, int len2);
-static bool     alog_queue_pushn(AlogQueue * queue, char * buff[], int len[], int n);
-static int         alog_queue_get_str_len(AlogQueue * queue, int offset);
-static bool     alog_queue_pop_to_queue(AlogQueue * from, AlogQueue * to);
-static bool     alog_queue_pop_to_file(AlogQueue * from, int destination);
+static void 	alog_just_caller(void * var);
+static void 	alog_queue_init(AlogQueue * queue, int queue_size_kb);
+static char * 	alog_queue_offset_to(AlogQueue * queue, int offset);
+static bool 	alog_queue_is_full(int q_size, int q_head, int q_tail);
+static bool 	alog_queue_is_empty(int q_size, int q_head, int q_tail);
+static bool 	alog_queue_is_empty2(AlogQueue * queue);
+static bool 	alog_queue_is_enough(int q_size, int q_head, int q_tail, int N);
+static int 		alog_queue_used(int q_size, int q_head, int q_tail);
+static int 		alog_queue_remain(int q_size, int q_head, int q_tail);
+static bool 	alog_queue_push(AlogQueue * queue, char * buff, int len);
+static bool 	alog_queue_push2(AlogQueue * queue, char * buff1, int len1, char * buff2, int len2);
+static bool 	alog_queue_pushn(AlogQueue * queue, char * buff[], int len[], int n);
+static int 		alog_queue_get_str_len(AlogQueue * queue, int offset);
+static bool 	alog_queue_pop_to_queue(AlogQueue * from, AlogQueue * to);
+static bool 	alog_queue_pop_to_file(AlogQueue * from, int destination);
 #endif
 
 #ifdef AuditLog_005_For_ThreadWorker
@@ -306,24 +304,24 @@ static AlogQueue *		alog_get_local_common_cache(int consumer_id);
 static AlogQueue *		alog_get_local_fga_cache(int consumer_id);
 static AlogQueue *		alog_get_local_trace_cache(int consumer_id);
 static AlogQueueCache * alog_make_local_cache(int cache_number, int queue_size_kb);
-static ThreadSema *        alog_make_consumer_semas(int consumer_count);
-static void             alog_consumer_wakeup(int consumer_id);
-static void             alog_consumer_sleep(int consumer_id);
-static void *            alog_consumer_main(void * arg);
-static void             alog_writer_wakeup(int writer_destination);
-static void             alog_writer_sleep(int writer_destination);
-static void *            alog_writer_main(void * arg);
-static void                alog_start_writer(int writer_destination);
-static void                alog_start_consumer(int consumer_id);
-static void                alog_start_all_worker(void);
+static ThreadSema *		alog_make_consumer_semas(int consumer_count);
+static void 			alog_consumer_wakeup(int consumer_id);
+static void 			alog_consumer_sleep(int consumer_id);
+static void *			alog_consumer_main(void * arg);
+static void 			alog_writer_wakeup(int writer_destination);
+static void 			alog_writer_sleep(int writer_destination);
+static void *			alog_writer_main(void * arg);
+static void				alog_start_writer(int writer_destination);
+static void				alog_start_consumer(int consumer_id);
+static void				alog_start_all_worker(void);
 #endif
 
 #ifdef AuditLog_006_For_Elog
 #endif
 
 #ifdef AuditLog_007_For_ShardStatistics
-static void *            alog_shard_stat_main(void * arg);
-static void                alog_start_shard_stat_worker(void);
+static void *			alog_shard_stat_main(void * arg);
+static void				alog_start_shard_stat_worker(void);
 #endif
 
 #ifdef AuditLog_001_For_Main
@@ -333,50 +331,53 @@ static void                alog_start_shard_stat_worker(void);
 int
 AuditLogger_Start(void)
 {
-    pid_t        auditLoggerPid = 0;
+	pid_t		auditLoggerPid = 0;
 
-    if (AuditLog_max_worker_number > MaxConnections)
-    {
-        ereport(ERROR,
-                (errcode(ERRCODE_OUT_OF_MEMORY),
-                     errmsg("alog_max_worker_number can't be bigger than max_connections")));
-        exit(1);
-    }
+	if (!enable_audit)
+		return 0;
+
+	if (AuditLog_max_worker_number > MaxConnections)
+	{
+		ereport(ERROR,
+				(errcode(ERRCODE_OUT_OF_MEMORY),
+				 	errmsg("alog_max_worker_number can't be bigger than max_connections")));
+		exit(1);
+	}
 
 #ifdef EXEC_BACKEND
-    switch ((auditLoggerPid = auditlogger_forkexec()))
+	switch ((auditLoggerPid = auditlogger_forkexec()))
 #else
-    switch ((auditLoggerPid = fork_process()))
+	switch ((auditLoggerPid = fork_process()))
 #endif
-    {
-        case -1:
-            ereport(LOG,
-                    (errmsg("could not fork audit logger: %m")));
-            return 0;
+	{
+		case -1:
+			ereport(LOG,
+					(errmsg("could not fork audit logger: %m")));
+			return 0;
 
 #ifndef EXEC_BACKEND
-        case 0:
-            /* in postmaster child ... */
-            InitPostmasterChild();
+		case 0:
+			/* in postmaster child ... */
+			InitPostmasterChild();
 
-            /* Close the postmaster's sockets */
-            ClosePostmasterPorts(false);
+			/* Close the postmaster's sockets */
+			ClosePostmasterPorts(false);
 
-            /* Drop our connection to postmaster's shared memory, as well */
-            dsm_detach_all();
+			/* Drop our connection to postmaster's shared memory, as well */
+			dsm_detach_all();
 
-            /* do the work */
-            AuditLoggerMain(0, NULL);
-            break;
+			/* do the work */
+			AuditLoggerMain(0, NULL);
+			break;
 #endif
 
-        default:
-            /* success, in postmaster */
-            return (int) auditLoggerPid;
-    }
+		default:
+			/* success, in postmaster */
+			return (int) auditLoggerPid;
+	}
 
-    /* we should never reach here */
-    return 0;
+	/* we should never reach here */
+	return 0;
 }
 
 
@@ -390,20 +391,20 @@ AuditLogger_Start(void)
 static pid_t
 auditlogger_forkexec(void)
 {
-    char       *av[10] = { 0 };
-    int            ac = 0;
+	char	   *av[10] = { 0 };
+	int			ac = 0;
 
-    av[ac++] = "postgres";
-    av[ac++] = "--forkalog";
-    av[ac++] = NULL;            /* filled in by postmaster_forkexec */
+	av[ac++] = "postgres";
+	av[ac++] = "--forkalog";
+	av[ac++] = NULL;			/* filled in by postmaster_forkexec */
 
-    av[ac] = NULL;
-    Assert(ac < lengthof(av));
+	av[ac] = NULL;
+	Assert(ac < lengthof(av));
 
-    return postmaster_forkexec(ac, av);
+	return postmaster_forkexec(ac, av);
 }
 
-#endif                            /* EXEC_BACKEND */
+#endif							/* EXEC_BACKEND */
 
 /*
  * Main entry point for auditlogger process
@@ -412,55 +413,54 @@ auditlogger_forkexec(void)
 NON_EXEC_STATIC void
 AuditLoggerMain(int argc, char *argv[])
 {
-    am_auditlogger = true;
-    
-    /*
-     * Properly accept or ignore signals the postmaster might send us
-     *
-     * Note: we ignore all termination signals, and instead exit only when all
-     * upstream processes are gone, to ensure we don't miss any dying gasps of
-     * broken backends...
-     */
+	am_auditlogger = true;
+	
+	/*
+	 * Properly accept or ignore signals the postmaster might send us
+	 *
+	 * Note: we ignore all termination signals, and instead exit only when all
+	 * upstream processes are gone, to ensure we don't miss any dying gasps of
+	 * broken backends...
+	 */
 
-    pqsignal(SIGHUP, audit_sigHupHandler);    /* set flag to read config file */
-    pqsignal(SIGINT, audit_sigIntHandler);
-    pqsignal(SIGTERM, audit_sigTermHandler);
-    pqsignal(SIGQUIT, audit_sigQuitHandler);
-    pqsignal(SIGALRM, SIG_IGN);
-    pqsignal(SIGPIPE, SIG_IGN);
-    pqsignal(SIGUSR1, audit_sigUsr1Handler);    /* request log rotation */
-    pqsignal(SIGUSR2, audit_sigUsr2Handler);    /* request consumer to read audit log */
+	pqsignal(SIGHUP, audit_sigHupHandler);	/* set flag to read config file */
+	pqsignal(SIGINT, audit_sigIntHandler);
+	pqsignal(SIGTERM, audit_sigTermHandler);
+	pqsignal(SIGQUIT, audit_sigQuitHandler);
+	pqsignal(SIGALRM, SIG_IGN);
+	pqsignal(SIGPIPE, SIG_IGN);
+	pqsignal(SIGUSR1, audit_sigUsr1Handler);	/* request log rotation */
+	pqsignal(SIGUSR2, audit_sigUsr2Handler);	/* request consumer to read audit log */
 
-    /*
-     * Reset some signals that are accepted by postmaster but not here
-     */
-    pqsignal(SIGCHLD, SIG_DFL);
-    pqsignal(SIGTTIN, SIG_DFL);
-    pqsignal(SIGTTOU, SIG_DFL);
-    pqsignal(SIGCONT, SIG_DFL);
-    pqsignal(SIGWINCH, SIG_DFL);
+	/*
+	 * Reset some signals that are accepted by postmaster but not here
+	 */
+	pqsignal(SIGCHLD, SIG_DFL);
+	pqsignal(SIGTTIN, SIG_DFL);
+	pqsignal(SIGTTOU, SIG_DFL);
+	pqsignal(SIGCONT, SIG_DFL);
+	pqsignal(SIGWINCH, SIG_DFL);
 
-    CurrentResourceOwner = ResourceOwnerCreate(NULL, "Audit Logger");
-    CurrentMemoryContext = AllocSetContextCreate(TopMemoryContext,
-                                                 "Audit Logger",
-                                                 ALLOCSET_DEFAULT_SIZES);
+	CurrentMemoryContext = AllocSetContextCreate(TopMemoryContext,
+												 "Audit Logger",
+												 ALLOCSET_DEFAULT_SIZES);
 
-    /* We allow SIGQUIT (quickdie) at all times */
-    sigdelset(&BlockSig, SIGQUIT);
+	/* We allow SIGQUIT (quickdie) at all times */
+	sigdelset(&BlockSig, SIGQUIT);
 
-    /*
-     * Unblock signals (they were blocked when the postmaster forked us)
-     */
-    PG_SETMASK(&UnBlockSig);
+	/*
+	 * Unblock signals (they were blocked when the postmaster forked us)
+	 */
+	PG_SETMASK(&UnBlockSig);
 
-    /*
-     * Identify myself via ps
-     */
-    init_ps_display("audit logger process", "", "", "");
-    
-    audit_logger_MainLoop();
-    
-    exit(0);
+	/*
+	 * Identify myself via ps
+	 */
+	init_ps_display("audit logger process", "", "", "");
+	
+	audit_logger_MainLoop();
+	
+	exit(0);
 }
 
 /*
@@ -543,7 +543,7 @@ audit_logger_MainLoop(void)
 }
 
 /* --------------------------------
- *        signal handler routines
+ *		signal handler routines
  * --------------------------------
  */
 
@@ -551,208 +551,208 @@ audit_logger_MainLoop(void)
 static void
 audit_sigHupHandler(SIGNAL_ARGS)
 {
-    int            save_errno = errno;
+	int			save_errno = errno;
 
-    if (enable_auditlogger_warning)
-    {
-        ereport(LOG,
-                (errmsg("audit logger %d got SIGHUP in audit_sigHupHandler: %m", getpid())));
-    }
+	if (enable_auditlogger_warning)
+	{
+		ereport(LOG,
+				(errmsg("audit logger %d got SIGHUP in audit_sigHupHandler: %m", getpid())));
+	}
 
-    /* select pg_reload_conf(); */
-    audit_gotSIGHUP = true;
-    SetLatch(MyLatch);
+	/* select pg_reload_conf(); */
+	audit_gotSIGHUP = true;
+	SetLatch(MyLatch);
 
-    errno = save_errno;
+	errno = save_errno;
 }
 
 /* SIGUSR1: set flag to rotate logfile */
 static void
 audit_sigUsr1Handler(SIGNAL_ARGS)
 {
-    int            save_errno = errno;
+	int			save_errno = errno;
 
-    if (enable_auditlogger_warning)
-    {
-        ereport(LOG,
-                (errmsg("audit logger %d got SIGUSR1 in audit_sigUsr1Handler: %m", getpid())));
-    }
+	if (enable_auditlogger_warning)
+	{
+		ereport(LOG,
+				(errmsg("audit logger %d got SIGUSR1 in audit_sigUsr1Handler: %m", getpid())));
+	}
 
-    /* select pg_rotate_audit_logfile(); */
-    audit_rotation_requested = true;
-    SetLatch(MyLatch);
+	/* select pg_rotate_audit_logfile(); */
+	audit_rotation_requested = true;
+	SetLatch(MyLatch);
 
-    errno = save_errno;
+	errno = save_errno;
 }
 
 /* SIGUSR2: set flag to wakeup consumers to read audit log */
 static void
 audit_sigUsr2Handler(SIGNAL_ARGS)
 {
-    int            save_errno = errno;
+	int			save_errno = errno;
 
-    if (enable_auditlogger_warning)
-    {
-        ereport(LOG,
-                (errmsg("audit logger %d got SIGUSR2 in audit_sigUsr2Handler: %m", getpid())));
-    }
+	if (enable_auditlogger_warning)
+	{
+		ereport(LOG,
+				(errmsg("audit logger %d got SIGUSR2 in audit_sigUsr2Handler: %m", getpid())));
+	}
 
-    audit_consume_requested = true;
-    SetLatch(MyLatch);
+	audit_consume_requested = true;
+	SetLatch(MyLatch);
 
-    errno = save_errno;
+	errno = save_errno;
 }
 
 /* SIGQUIT signal handler for audit logger process */
 static void
 audit_sigQuitHandler(SIGNAL_ARGS)
 {
-    int            save_errno = errno;
+	int			save_errno = errno;
 
-    if (enable_auditlogger_warning)
-    {
-        ereport(LOG,
-                (errmsg("audit logger %d got SIGQUIT in audit_sigQuitHandler: %m", getpid())));
-    }
+	if (enable_auditlogger_warning)
+	{
+		ereport(LOG,
+				(errmsg("audit logger %d got SIGQUIT in audit_sigQuitHandler: %m", getpid())));
+	}
 
-    /* pg_ctl stop -m immediate */
-    audit_gotSIGQUIT = true;
-    SetLatch(MyLatch);
+	/* pg_ctl stop -m immediate */
+	audit_gotSIGQUIT = true;
+	SetLatch(MyLatch);
 
-    errno = save_errno;
+	errno = save_errno;
 }
 
 /* SIGTERM signal handler for audit logger process */
 static void
 audit_sigTermHandler(SIGNAL_ARGS)
 {
-    int            save_errno = errno;
+	int			save_errno = errno;
 
-    if (enable_auditlogger_warning)
-    {
-        ereport(LOG,
-                (errmsg("audit logger %d got SIGTERM in audit_sigTermHandler: %m", getpid())));
-    }
+	if (enable_auditlogger_warning)
+	{
+		ereport(LOG,
+				(errmsg("audit logger %d got SIGTERM in audit_sigTermHandler: %m", getpid())));
+	}
 
-    /* pg_ctl stop */
-    audit_gotSIGTERM = true;
-    SetLatch(MyLatch);
+	/* pg_ctl stop */
+	audit_gotSIGTERM = true;
+	SetLatch(MyLatch);
 
-    errno = save_errno;
+	errno = save_errno;
 }
 
 /* SIGINT signal handler for audit logger process */
 static void
 audit_sigIntHandler(SIGNAL_ARGS)
 {
-    int            save_errno = errno;
+	int			save_errno = errno;
 
-    if (enable_auditlogger_warning)
-    {
-        ereport(LOG,
-                (errmsg("audit logger %d got SIGINT in audit_sigIntHandler: %m", getpid())));
-    }
+	if (enable_auditlogger_warning)
+	{
+		ereport(LOG,
+				(errmsg("audit logger %d got SIGINT in audit_sigIntHandler: %m", getpid())));
+	}
 
-    /* pg_ctl stop -m fast */
-    audit_gotSIGINT = true;
-    SetLatch(MyLatch);
+	/* pg_ctl stop -m fast */
+	audit_gotSIGINT = true;
+	SetLatch(MyLatch);
 
-    errno = save_errno;
+	errno = save_errno;
 }
 
 static void audit_process_sighup(void)
 {
-    /*
-     * Process any requests or signals received recently.
-     */
-    if (audit_gotSIGHUP)
-    {
-        audit_gotSIGHUP = false;
-        ProcessConfigFile(PGC_SIGHUP);
+	/*
+	 * Process any requests or signals received recently.
+	 */
+	if (audit_gotSIGHUP)
+	{
+		audit_gotSIGHUP = false;
+		ProcessConfigFile(PGC_SIGHUP);
 
-        audit_assign_log_dir();
+		audit_assign_log_dir();
 
-        /*
-         * Check if the log directory or filename pattern changed in
-         * postgresql.conf. If so, force rotation to make sure we're
-         * writing the logfiles in the right place.
-         */
-        if (strcmp(audit_log_directory, audit_curr_log_dir) != 0)
-        {
-            pfree(audit_curr_log_dir);
-            audit_curr_log_dir = pstrdup(audit_log_directory);
-            audit_rotation_requested = true;
+		/*
+		 * Check if the log directory or filename pattern changed in
+		 * postgresql.conf. If so, force rotation to make sure we're
+		 * writing the logfiles in the right place.
+		 */
+		if (strcmp(audit_log_directory, audit_curr_log_dir) != 0)
+		{
+			pfree(audit_curr_log_dir);
+			audit_curr_log_dir = pstrdup(audit_log_directory);
+			audit_rotation_requested = true;
 
-            /*
-             * Also, create new directory if not present; ignore errors
-             */
-            mkdir(audit_log_directory, S_IRWXU);
-        }
+			/*
+			 * Also, create new directory if not present; ignore errors
+			 */
+			mkdir(audit_log_directory, S_IRWXU);
+		}
 
-        if (strcmp(AuditLog_filename, audit_curr_log_file_name) != 0)
-        {
-            pfree(audit_curr_log_file_name);
-            audit_curr_log_file_name = pstrdup(AuditLog_filename);
-            audit_rotation_requested = true;
-        }
+		if (strcmp(AuditLog_filename, audit_curr_log_file_name) != 0)
+		{
+			pfree(audit_curr_log_file_name);
+			audit_curr_log_file_name = pstrdup(AuditLog_filename);
+			audit_rotation_requested = true;
+		}
 
-        /*
-         * If rotation time parameter changed, reset next rotation time,
-         * but don't immediately force a rotation.
-         */
-        if (audit_curr_log_rotation_age != AuditLog_RotationAge)
-        {
-            audit_curr_log_rotation_age = AuditLog_RotationAge;
-            audit_set_next_rotation_time();
-        }
+		/*
+		 * If rotation time parameter changed, reset next rotation time,
+		 * but don't immediately force a rotation.
+		 */
+		if (audit_curr_log_rotation_age != AuditLog_RotationAge)
+		{
+			audit_curr_log_rotation_age = AuditLog_RotationAge;
+			audit_set_next_rotation_time();
+		}
 
-        /*
-         * If we had a rotation-disabling failure, re-enable rotation
-         * attempts after SIGHUP, and force one immediately.
-         */
-        if (audit_rotation_disabled)
-        {
-            audit_rotation_disabled = false;
-            audit_rotation_requested = true;
-        }
-    }
+		/*
+		 * If we had a rotation-disabling failure, re-enable rotation
+		 * attempts after SIGHUP, and force one immediately.
+		 */
+		if (audit_rotation_disabled)
+		{
+			audit_rotation_disabled = false;
+			audit_rotation_requested = true;
+		}
+	}
 }
 
 static void audit_process_sigusr1(void)
 {
-    /* sigusr1 was processed by audit_process_rotate */
+	/* sigusr1 was processed by audit_process_rotate */
 }
 
 static void audit_process_sigusr2(void)
 {
-    /* sigusr2 was processed by audit_process_wakeup */
+	/* sigusr2 was processed by audit_process_wakeup */
 }
 
 static void audit_process_sigterm(void)
 {
-    if (audit_gotSIGTERM)
-    {
-        audit_gotSIGTERM = false;
-        proc_exit(3);
-    }
+	if (audit_gotSIGTERM)
+	{
+		audit_gotSIGTERM = false;
+		proc_exit(3);
+	}
 }
 
 static void audit_process_sigint(void)
 {
-    if (audit_gotSIGINT)
-    {
-        audit_gotSIGINT = false;
-        proc_exit(4);
-    }
+	if (audit_gotSIGINT)
+	{
+		audit_gotSIGINT = false;
+		proc_exit(4);
+	}
 }
 
 static void audit_process_sigquit(void)
 {
-    if (audit_gotSIGQUIT)
-    {
-        audit_gotSIGQUIT = false;
-        proc_exit(5);
-    }
+	if (audit_gotSIGQUIT)
+	{
+		audit_gotSIGQUIT = false;
+		proc_exit(5);
+	}
 }
 
 static void audit_process_rotate(void)
@@ -869,7 +869,7 @@ static void	audit_process_wakeup(bool timeout)
 #ifdef AuditLog_002_For_ShareMemoryQueue
 
 /* --------------------------------
- *        shmem routines
+ *		shmem routines
  * --------------------------------
  */
 
@@ -908,7 +908,7 @@ static void	audit_process_wakeup(bool timeout)
 
 static Size audit_shared_queue_array_bitmap_offset(void)
 {
-    Size alogQueueArrayBitmapOffset = 0;
+	Size alogQueueArrayBitmapOffset = 0;
 
 	/* store AlogQueueArray->a_count, a_bitmap */
 	alogQueueArrayBitmapOffset = add_size(alogQueueArrayBitmapOffset,
@@ -918,12 +918,12 @@ static Size audit_shared_queue_array_bitmap_offset(void)
 	alogQueueArrayBitmapOffset = add_size(alogQueueArrayBitmapOffset,
 										  mul_size(sizeof(AlogQueue *), MaxBackends));
 
-    return alogQueueArrayBitmapOffset;
+	return alogQueueArrayBitmapOffset;
 }
 
 static Size audit_shared_queue_array_header_size(void)
 {
-    Size alogQueueArrayHeaderSize = 0;
+	Size alogQueueArrayHeaderSize = 0;
 
 	/* store AlogQueueArray->a_count, a_bitmap, a_queue */
 	alogQueueArrayHeaderSize = add_size(alogQueueArrayHeaderSize,
@@ -933,65 +933,65 @@ static Size audit_shared_queue_array_header_size(void)
 	alogQueueArrayHeaderSize = add_size(alogQueueArrayHeaderSize,
 										AUDIT_BITMAP_SIZE);
 
-    return alogQueueArrayHeaderSize;
+	return alogQueueArrayHeaderSize;
 }
 
 static Size audit_queue_elem_size(int queue_size_kb)
 {
-    Size elemQueueSize = 0;
+	Size elemQueueSize = 0;
 
-    elemQueueSize = offsetof(AlogQueue, q_area);
-    elemQueueSize = add_size(elemQueueSize,
-                             mul_size(queue_size_kb, BYTES_PER_KB));
-    return elemQueueSize;
+	elemQueueSize = offsetof(AlogQueue, q_area);
+	elemQueueSize = add_size(elemQueueSize,
+							 mul_size(queue_size_kb, BYTES_PER_KB));
+	return elemQueueSize;
 }
 
 static Size audit_shared_common_queue_elem_size(void)
 {
-    Size        alogCommonQueueItemSize = 0;
+	Size		alogCommonQueueItemSize = 0;
 
-    /* store content of common audit log */
-    alogCommonQueueItemSize = audit_queue_elem_size(AuditLog_common_log_queue_size_kb);
+	/* store content of common audit log */
+	alogCommonQueueItemSize = audit_queue_elem_size(AuditLog_common_log_queue_size_kb);
 
-    return alogCommonQueueItemSize;
+	return alogCommonQueueItemSize;
 }
 
 static Size audit_shared_common_queue_array_size(void)
 {
-    Size        alogCommonQueueSize = 0;
+	Size		alogCommonQueueSize = 0;
 
-    /* store content of common audit log */
-    alogCommonQueueSize = audit_shared_common_queue_elem_size();
-    alogCommonQueueSize = mul_size(alogCommonQueueSize, MaxBackends);
+	/* store content of common audit log */
+	alogCommonQueueSize = audit_shared_common_queue_elem_size();
+	alogCommonQueueSize = mul_size(alogCommonQueueSize, MaxBackends);
 
-    alogCommonQueueSize = add_size(alogCommonQueueSize,
-                                   audit_shared_queue_array_header_size());
+	alogCommonQueueSize = add_size(alogCommonQueueSize,
+								   audit_shared_queue_array_header_size());
 
-    return alogCommonQueueSize;
+	return alogCommonQueueSize;
 }
 
 static Size audit_shared_fga_queue_elem_size(void)
 {
-    Size        alogFgaQueueItemSize = 0;
+	Size		alogFgaQueueItemSize = 0;
 
-    /* store content of fga audit log */
-    alogFgaQueueItemSize = audit_queue_elem_size(AuditLog_fga_log_queue_size_kb);
+	/* store content of fga audit log */
+	alogFgaQueueItemSize = audit_queue_elem_size(AuditLog_fga_log_queue_size_kb);
 
-    return alogFgaQueueItemSize;
+	return alogFgaQueueItemSize;
 }
 
 static Size audit_shared_fga_queue_array_size(void)
 {
-    Size        alogFgaQueueSize = 0;
+	Size		alogFgaQueueSize = 0;
 
-    /* store content of fga audit log */
-    alogFgaQueueSize = audit_shared_fga_queue_elem_size();
-    alogFgaQueueSize = mul_size(alogFgaQueueSize, MaxBackends);
+	/* store content of fga audit log */
+	alogFgaQueueSize = audit_shared_fga_queue_elem_size();
+	alogFgaQueueSize = mul_size(alogFgaQueueSize, MaxBackends);
 
-    alogFgaQueueSize = add_size(alogFgaQueueSize,
-                                audit_shared_queue_array_header_size());
+	alogFgaQueueSize = add_size(alogFgaQueueSize,
+								audit_shared_queue_array_header_size());
 
-    return alogFgaQueueSize;
+	return alogFgaQueueSize;
 }
 
 static Size audit_shared_trace_queue_elem_size(void)
@@ -1020,23 +1020,23 @@ static Size audit_shared_trace_queue_array_size(void)
 
 static Size audit_shared_consumer_bitmap_size(void)
 {
-    Size alogConsumerBitmapSize = 0;
+	Size alogConsumerBitmapSize = 0;
 
-    alogConsumerBitmapSize = mul_size(AuditLog_max_worker_number, sizeof(int));
+	alogConsumerBitmapSize = mul_size(AuditLog_max_worker_number, sizeof(int));
 
-    return alogConsumerBitmapSize;
+	return alogConsumerBitmapSize;
 }
 
 static int audit_shared_consumer_bitmap_get_value(int consumer_id)
 {
-    Assert(consumer_id >= 0 && consumer_id < AuditLog_max_worker_number);
-    return AuditConsumerNotifyBitmap[consumer_id];
+	Assert(consumer_id >= 0 && consumer_id < AuditLog_max_worker_number);
+	return AuditConsumerNotifyBitmap[consumer_id];
 }
 
 static void audit_shared_consumer_bitmap_set_value(int consumer_id, int value)
 {
-    Assert(consumer_id >= 0 && consumer_id < AuditLog_max_worker_number);
-    AuditConsumerNotifyBitmap[consumer_id] = value;
+	Assert(consumer_id >= 0 && consumer_id < AuditLog_max_worker_number);
+	AuditConsumerNotifyBitmap[consumer_id] = value;
 }
 
 Size AuditLoggerShmemSize(void)
@@ -1047,11 +1047,11 @@ Size AuditLoggerShmemSize(void)
 	Size		alogTraceQueueSize = 0;
 	Size		alogConsumerBmpSize = 0;
 
-    /* for common audit log */
-    alogCommonQueueSize = audit_shared_common_queue_array_size();
+	/* for common audit log */
+	alogCommonQueueSize = audit_shared_common_queue_array_size();
 
-    /* for fga audit log*/
-    alogFgaQueueSize = audit_shared_fga_queue_array_size();
+	/* for fga audit log*/
+	alogFgaQueueSize = audit_shared_fga_queue_array_size();
 
 	/* for trace audit log */
 	alogTraceQueueSize = audit_shared_trace_queue_array_size();
@@ -1064,7 +1064,7 @@ Size AuditLoggerShmemSize(void)
 	size = add_size(size, alogTraceQueueSize);
 	size = add_size(size, alogConsumerBmpSize);
 
-    return size;
+	return size;
 }
 
 void AuditLoggerShmemInit(void)
@@ -1107,7 +1107,7 @@ void AuditLoggerShmemInit(void)
 				MemSet(alogQueueItem, 'b', audit_shared_common_queue_elem_size());
 			}
 
-			falogQueueArray = BasicOpenFile("AuditCommonLogQueueArray.txt", O_RDWR | O_TRUNC | O_CREAT, S_IRUSR | S_IWUSR);
+			falogQueueArray = BasicOpenFile("AuditCommonLogQueueArray.txt", O_RDWR | O_TRUNC | O_CREAT);
 			if (falogQueueArray != -1)
 			{
 				write(falogQueueArray, alogQueueArray, alogArraySize);
@@ -1175,7 +1175,7 @@ void AuditLoggerShmemInit(void)
 				MemSet(alogQueueItem, 'd', audit_shared_fga_queue_elem_size());
 			}
 
-			falogQueueArray = BasicOpenFile("AuditFGALogQueueArray.txt", O_RDWR | O_TRUNC | O_CREAT, S_IRUSR | S_IWUSR);
+			falogQueueArray = BasicOpenFile("AuditFGALogQueueArray.txt", O_RDWR | O_TRUNC | O_CREAT);
 			if (falogQueueArray != -1)
 			{
 				write(falogQueueArray, alogQueueArray, alogArraySize);
@@ -1243,7 +1243,7 @@ void AuditLoggerShmemInit(void)
 				MemSet(alogQueueItem, 'f', audit_shared_trace_queue_elem_size());
 			}
 
-			falogQueueArray = BasicOpenFile("AuditTraceLogQueueArray.txt", O_RDWR | O_TRUNC | O_CREAT, S_IRUSR | S_IWUSR);
+			falogQueueArray = BasicOpenFile("AuditTraceLogQueueArray.txt", O_RDWR | O_TRUNC | O_CREAT);
 			if (falogQueueArray != -1)
 			{
 				write(falogQueueArray, alogQueueArray, alogArraySize);
@@ -1299,7 +1299,7 @@ void AuditLoggerShmemInit(void)
 #ifdef AuditLog_003_For_LogFile
 
 /* --------------------------------
- *        logfile routines
+ *		logfile routines
  * --------------------------------
  */
 
@@ -1309,19 +1309,19 @@ void AuditLoggerShmemInit(void)
 static void
 audit_assign_log_dir(void)
 {
-    if (audit_log_directory != NULL)
-    {
-        pfree(audit_log_directory);
-        audit_log_directory = NULL;
-    }
+	if (audit_log_directory != NULL)
+	{
+		pfree(audit_log_directory);
+		audit_log_directory = NULL;
+	}
 
-    if (Log_directory == NULL)
-    {
-        audit_log_directory = pstrdup("pg_log/audit");
-    }
-    else
-    {
-        StringInfoData alog_dir;
+	if (Log_directory == NULL)
+	{
+		audit_log_directory = pstrdup("pg_log/audit");
+	}
+	else
+	{
+		StringInfoData alog_dir;
 
 		memset(&alog_dir, 0, sizeof(alog_dir));
 		initStringInfo(&alog_dir);
@@ -1348,7 +1348,7 @@ audit_assign_log_dir(void)
 static int
 audit_write_log_file(const char *buffer, int count, int destination)
 {
-    int            rc = 0;
+	int			rc = 0;
 
 	if (destination == AUDIT_FGA_LOG)
 	{
@@ -1364,29 +1364,29 @@ audit_write_log_file(const char *buffer, int count, int destination)
 		rc = fwrite(buffer, 1, count, audit_comm_log_file);
 	}
 
-    /* can't use ereport here because of possible recursion */
-    if (rc != count)
-    {
-        write_stderr("could not write to audit log file: %s\n", strerror(errno));
-        return -1;
-    }
+	/* can't use ereport here because of possible recursion */
+	if (rc != count)
+	{
+		write_stderr("could not write to audit log file: %s\n", strerror(errno));
+		return -1;
+	}
 
-    return 0;
+	return 0;
 }
 
 static void
 audit_open_fga_log_file(void)
 {
-    char       *filename = NULL;
+	char	   *filename = NULL;
 
-    filename = audit_log_file_getname(time(NULL), ".fga");
+	filename = audit_log_file_getname(time(NULL), ".fga");
 
-    audit_fga_log_file = audit_open_log_file(filename, "a", false);
+	audit_fga_log_file = audit_open_log_file(filename, "a", false);
 
-    if (audit_last_fga_log_file_name != NULL) /* probably shouldn't happen */
-        pfree(audit_last_fga_log_file_name);
+	if (audit_last_fga_log_file_name != NULL) /* probably shouldn't happen */
+		pfree(audit_last_fga_log_file_name);
 
-    audit_last_fga_log_file_name = filename;
+	audit_last_fga_log_file_name = filename;
 }
 
 
@@ -1418,38 +1418,38 @@ audit_open_trace_log_file(void)
 static FILE *
 audit_open_log_file(const char *filename, const char *mode, bool allow_errors)
 {
-    FILE       *fh = NULL;
-    mode_t        oumask = 0;
+	FILE	   *fh = NULL;
+	mode_t		oumask = 0;
 
-    /*
-     * Note we do not let AuditLog_file_mode disable IWUSR, since we certainly want
-     * to be able to write the files ourselves.
-     */
-    oumask = umask((mode_t) ((~(AuditLog_file_mode | S_IWUSR)) & (S_IRWXU | S_IRWXG | S_IRWXO)));
-    fh = fopen(filename, mode);
-    umask(oumask);
+	/*
+	 * Note we do not let AuditLog_file_mode disable IWUSR, since we certainly want
+	 * to be able to write the files ourselves.
+	 */
+	oumask = umask((mode_t) ((~(AuditLog_file_mode | S_IWUSR)) & (S_IRWXU | S_IRWXG | S_IRWXO)));
+	fh = fopen(filename, mode);
+	umask(oumask);
 
-    if (fh)
-    {
-        setvbuf(fh, NULL, PG_IOLBF, 0);
+	if (fh)
+	{
+		setvbuf(fh, NULL, PG_IOLBF, 0);
 
 #ifdef WIN32
-        /* use CRLF line endings on Windows */
-        _setmode(_fileno(fh), _O_TEXT);
+		/* use CRLF line endings on Windows */
+		_setmode(_fileno(fh), _O_TEXT);
 #endif
-    }
-    else
-    {
-        int            save_errno = errno;
+	}
+	else
+	{
+		int			save_errno = errno;
 
-        ereport(allow_errors ? LOG : FATAL,
-                (errcode_for_file_access(),
-                 errmsg("could not open audit log file \"%s\": %m",
-                        filename)));
-        errno = save_errno;
-    }
+		ereport(allow_errors ? LOG : FATAL,
+				(errcode_for_file_access(),
+				 errmsg("could not open audit log file \"%s\": %m",
+						filename)));
+		errno = save_errno;
+	}
 
-    return fh;
+	return fh;
 }
 
 /*
@@ -1656,28 +1656,28 @@ audit_rotate_log_file(bool time_based_rotation, int size_rotation_for)
 static char *
 audit_log_file_getname(pg_time_t timestamp, const char *suffix)
 {
-    char       *filename = NULL;
-    int            len = 0;
+	char	   *filename = NULL;
+	int			len = 0;
 
-    filename = palloc(MAXPGPATH);
+	filename = palloc(MAXPGPATH);
 
-    snprintf(filename, MAXPGPATH, "%s/", audit_log_directory);
+	snprintf(filename, MAXPGPATH, "%s/", audit_log_directory);
 
-    len = strlen(filename);
+	len = strlen(filename);
 
-    /* treat AuditLog_filename as a strftime pattern */
-    pg_strftime(filename + len, MAXPGPATH - len, AuditLog_filename,
-                pg_localtime(&timestamp, log_timezone));
+	/* treat AuditLog_filename as a strftime pattern */
+	pg_strftime(filename + len, MAXPGPATH - len, AuditLog_filename,
+				pg_localtime(&timestamp, log_timezone));
 
-    if (suffix != NULL)
-    {
-        len = strlen(filename);
-        if (len > 4 && (strcmp(filename + (len - 4), ".log") == 0))
-            len -= 4;
-        strlcpy(filename + len, suffix, MAXPGPATH - len);
-    }
+	if (suffix != NULL)
+	{
+		len = strlen(filename);
+		if (len > 4 && (strcmp(filename + (len - 4), ".log") == 0))
+			len -= 4;
+		strlcpy(filename + len, suffix, MAXPGPATH - len);
+	}
 
-    return filename;
+	return filename;
 }
 
 /*
@@ -1722,35 +1722,35 @@ trace_log_file_getname(pg_time_t timestamp, const char *suffix)
 static void
 audit_set_next_rotation_time(void)
 {
-    pg_time_t    now = 0;
-    struct pg_tm *tm = NULL;
-    int            rotinterval = 0;
+	pg_time_t	now = 0;
+	struct pg_tm *tm = NULL;
+	int			rotinterval = 0;
 
-    /* nothing to do if time-based rotation is disabled */
-    if (AuditLog_RotationAge <= 0)
-        return;
+	/* nothing to do if time-based rotation is disabled */
+	if (AuditLog_RotationAge <= 0)
+		return;
 
-    /*
-     * The requirements here are to choose the next time > now that is a
-     * "multiple" of the log rotation interval.     "Multiple" can be interpreted
-     * fairly loosely.    In this version we align to log_timezone rather than
-     * GMT.
-     */
-    rotinterval = AuditLog_RotationAge * SECS_PER_MINUTE;    /* convert to seconds */
-    now = (pg_time_t) time(NULL);
-    tm = pg_localtime(&now, log_timezone);
-    now += tm->tm_gmtoff;
-    now -= now % rotinterval;
-    now += rotinterval;
-    now -= tm->tm_gmtoff;
-    audit_next_rotation_time = now;
+	/*
+	 * The requirements here are to choose the next time > now that is a
+	 * "multiple" of the log rotation interval.	 "Multiple" can be interpreted
+	 * fairly loosely.	In this version we align to log_timezone rather than
+	 * GMT.
+	 */
+	rotinterval = AuditLog_RotationAge * SECS_PER_MINUTE;	/* convert to seconds */
+	now = (pg_time_t) time(NULL);
+	tm = pg_localtime(&now, log_timezone);
+	now += tm->tm_gmtoff;
+	now -= now % rotinterval;
+	now += rotinterval;
+	now -= tm->tm_gmtoff;
+	audit_next_rotation_time = now;
 }
 #endif
 
 #ifdef AuditLog_004_For_QueueReadWrite
 
 /* --------------------------------
- *        AlogQueue routines
+ *		AlogQueue routines
  * --------------------------------
  */
 
@@ -1766,12 +1766,12 @@ static void alog_just_caller(void * var)
  */
 static void alog_queue_init(AlogQueue * queue, int queue_size_kb)
 {
-    queue->q_pid = 0;
-    queue->q_size = mul_size(queue_size_kb, BYTES_PER_KB);
-    SpinLockInit(&(queue->q_lock));
-    queue->q_head = 0;
-    queue->q_tail = 0;
-    MemSet(queue->q_area, 0, queue->q_size);
+	queue->q_pid = 0;
+	queue->q_size = mul_size(queue_size_kb, BYTES_PER_KB);
+	SpinLockInit(&(queue->q_lock));
+	queue->q_head = 0;
+	queue->q_tail = 0;
+	MemSet(queue->q_area, 0, queue->q_size);
 }
 
 /*
@@ -1779,20 +1779,20 @@ static void alog_queue_init(AlogQueue * queue, int queue_size_kb)
  */
 static char * alog_queue_offset_to(AlogQueue * queue, int offset)
 {
-    char * start = (char *) queue;
+	char * start = (char *) queue;
 
-    Assert(offset >= 0 && offset < queue->q_size);
+	Assert(offset >= 0 && offset < queue->q_size);
 
-    start += offsetof(AlogQueue, q_area);
-    start += offset;
+	start += offsetof(AlogQueue, q_area);
+	start += offset;
 
-    return start;
+	return start;
 }
 
 static bool alog_queue_is_full(int q_size, int q_head, int q_tail)
 {
-    Assert(q_size > 0 && q_head >= 0 && q_tail >= 0);
-    Assert(q_head < q_size && q_tail < q_size);
+	Assert(q_size > 0 && q_head >= 0 && q_tail >= 0);
+	Assert(q_head < q_size && q_tail < q_size);
 
     if ((q_tail + 1) % q_size == q_head)
     {
@@ -1806,8 +1806,8 @@ static bool alog_queue_is_full(int q_size, int q_head, int q_tail)
 
 static bool alog_queue_is_empty(int q_size, int q_head, int q_tail)
 {
-    Assert(q_size > 0 && q_head >= 0 && q_tail >= 0);
-    Assert(q_head < q_size && q_tail < q_size);
+	Assert(q_size > 0 && q_head >= 0 && q_tail >= 0);
+	Assert(q_head < q_size && q_tail < q_size);
 
     if (q_tail == q_head)
     {
@@ -1825,9 +1825,9 @@ static bool alog_queue_is_empty2(AlogQueue * queue)
 	volatile int q_tail = queue->q_tail;
 	volatile int q_size = queue->q_size;
 
-    pg_memory_barrier();
+	pg_memory_barrier();
 
-    return alog_queue_is_empty(q_size, q_head, q_tail);
+	return alog_queue_is_empty(q_size, q_head, q_tail);
 }
 
 /*
@@ -1837,8 +1837,8 @@ static int alog_queue_used(int q_size, int q_head, int q_tail)
 {
 	int used = (q_tail - q_head + q_size) % q_size;
 
-    Assert(q_size > 0 && q_head >= 0 && q_tail >= 0);
-    Assert(q_head < q_size && q_tail < q_size);
+	Assert(q_size > 0 && q_head >= 0 && q_tail >= 0);
+	Assert(q_head < q_size && q_tail < q_size);
 
 	return used;
 }
@@ -1848,14 +1848,14 @@ static int alog_queue_used(int q_size, int q_head, int q_tail)
  */
 static int alog_queue_remain(int q_size, int q_head, int q_tail)
 {
-    int remain = (q_head - q_tail + q_size - 1) % q_size;
+	int remain = (q_head - q_tail + q_size - 1) % q_size;
 
-    Assert(q_size > 0 && q_head >= 0 && q_tail >= 0);
-    Assert(q_head < q_size && q_tail < q_size);
-    Assert(remain == (q_size - 1) - ((q_tail - q_head + q_size) % q_size));
-    Assert(remain == (q_size - 1) - alog_queue_used(q_size, q_head, q_tail));
+	Assert(q_size > 0 && q_head >= 0 && q_tail >= 0);
+	Assert(q_head < q_size && q_tail < q_size);
+	Assert(remain == (q_size - 1) - ((q_tail - q_head + q_size) % q_size));
+	Assert(remain == (q_size - 1) - alog_queue_used(q_size, q_head, q_tail));
 
-    return remain;
+	return remain;
 }
 
 /*
@@ -1863,17 +1863,17 @@ static int alog_queue_remain(int q_size, int q_head, int q_tail)
  */
 static bool alog_queue_is_enough(int q_size, int q_head, int q_tail, int N)
 {
-    int remain = alog_queue_remain(q_size, q_head, q_tail);
+	int remain = alog_queue_remain(q_size, q_head, q_tail);
 
-    Assert(q_size > 0 && q_head >= 0 && q_tail >= 0 && N > 0);
-    Assert(q_head < q_size && q_tail < q_size);
+	Assert(q_size > 0 && q_head >= 0 && q_tail >= 0 && N > 0);
+	Assert(q_head < q_size && q_tail < q_size);
 
-    if (remain > N)
-    {
-        return true;
-    }
+	if (remain > N)
+	{
+		return true;
+	}
 
-    return false;
+	return false;
 }
 
 /*
@@ -1884,10 +1884,10 @@ static bool alog_queue_is_enough(int q_size, int q_head, int q_tail, int N)
  */
 static bool alog_queue_push(AlogQueue * queue, char * buff, int len)
 {
-    char * buff_array [] = { buff };
-    int len_array [] = { len };
+	char * buff_array [] = { buff };
+	int len_array [] = { len };
 
-    return alog_queue_pushn(queue, buff_array, len_array, sizeof(len_array)/sizeof(len_array[0]));
+	return alog_queue_pushn(queue, buff_array, len_array, sizeof(len_array)/sizeof(len_array[0]));
 }
 
 /*
@@ -1898,7 +1898,7 @@ static bool alog_queue_push2(AlogQueue * queue, char * buff1, int len1, char * b
 	char * buff_array[] = {buff1, buff2};
 	int len_array[] = {len1, len2};
 
-    return alog_queue_pushn(queue, buff_array, len_array, sizeof(len_array)/sizeof(len_array[0]));
+	return alog_queue_pushn(queue, buff_array, len_array, sizeof(len_array)/sizeof(len_array[0]));
 }
 
 /*
@@ -1925,73 +1925,73 @@ static bool alog_queue_pushn(AlogQueue * queue, char * buff[], int len[], int n)
 		total_len += len[i];
 	}
 
-    pg_memory_barrier();
-    alog_just_caller(&q_used_before);
-    alog_just_caller(&q_used_after);
+	pg_memory_barrier();
+	alog_just_caller(&q_used_before);
+	alog_just_caller(&q_used_after);
 
-    Assert(q_size > 0 && q_head >= 0 && q_tail >= 0);
-    Assert(q_head < q_size && q_tail < q_size);
-    Assert(buff != NULL && len != 0 && n > 0 && total_len > 0);
+	Assert(q_size > 0 && q_head >= 0 && q_tail >= 0);
+	Assert(q_head < q_size && q_tail < q_size);
+	Assert(buff != NULL && len != 0 && n > 0 && total_len > 0);
 
-    q_used_before = alog_queue_used(q_size_before, q_head_before, q_tail_before);
+	q_used_before = alog_queue_used(q_size_before, q_head_before, q_tail_before);
 
-    if (alog_queue_is_full(q_size, q_head, q_tail))
-    {
-        return false;
-    }
+	if (alog_queue_is_full(q_size, q_head, q_tail))
+	{
+		return false;
+	}
 
-    if (!alog_queue_is_enough(q_size, q_head, q_tail, total_len))
-    {
-        return false;
-    }
+	if (!alog_queue_is_enough(q_size, q_head, q_tail, total_len))
+	{
+		return false;
+	}
 
-    for (i = 0; i < n; i++)
-    {
-        char * curr_buff = buff[i];
-        int curr_len = len[i];
+	for (i = 0; i < n; i++)
+	{
+		char * curr_buff = buff[i];
+		int curr_len = len[i];
 
-        /* has enough space, write directly */
-        if (q_size - q_tail >= curr_len)
-        {
-            char * p_start = alog_queue_offset_to(queue, q_tail);
-            memcpy(p_start, curr_buff, curr_len);
-        }
-        else
-        {
-            /* must write as two parts */
-            int first_len = q_size - q_tail;
-            int second_len = curr_len - first_len;
+		/* has enough space, write directly */
+		if (q_size - q_tail >= curr_len)
+		{
+			char * p_start = alog_queue_offset_to(queue, q_tail);
+			memcpy(p_start, curr_buff, curr_len);
+		}
+		else
+		{
+			/* must write as two parts */
+			int first_len = q_size - q_tail;
+			int second_len = curr_len - first_len;
 
-            char * first_buf = curr_buff + 0;
-            char * second_buf = curr_buff + first_len;
+			char * first_buf = curr_buff + 0;
+			char * second_buf = curr_buff + first_len;
 
-            char * p_start = NULL;
+			char * p_start = NULL;
 
-            pg_memory_barrier();
+			pg_memory_barrier();
 
-            Assert(first_len > 0 && first_len < q_size);
-            Assert(second_len > 0 && second_len < q_size);
+			Assert(first_len > 0 && first_len < q_size);
+			Assert(second_len > 0 && second_len < q_size);
 
-            /* 01. write the first parts into the tail of queue->q_area */
-            p_start = alog_queue_offset_to(queue, q_tail);
-            memcpy(p_start, first_buf, first_len);
+			/* 01. write the first parts into the tail of queue->q_area */
+			p_start = alog_queue_offset_to(queue, q_tail);
+			memcpy(p_start, first_buf, first_len);
 
-            Assert((q_tail + first_len) % q_size == 0);
+			Assert((q_tail + first_len) % q_size == 0);
 
-            /* 02. write the remain parts into the head of queue->q_area */
-            p_start = alog_queue_offset_to(queue, 0);
-            memcpy(p_start, second_buf, second_len);
-        }
+			/* 02. write the remain parts into the head of queue->q_area */
+			p_start = alog_queue_offset_to(queue, 0);
+			memcpy(p_start, second_buf, second_len);
+		}
 
-        q_tail = (q_tail + curr_len) % q_size;
-    }
+		q_tail = (q_tail + curr_len) % q_size;
+	}
 
-    q_used_after = alog_queue_used(q_size, q_head, q_tail);
-    Assert(q_used_before + total_len == q_used_after);
+	q_used_after = alog_queue_used(q_size, q_head, q_tail);
+	Assert(q_used_before + total_len == q_used_after);
 
-    queue->q_tail = q_tail;
+	queue->q_tail = q_tail;
 
-    return true;
+	return true;
 }
 
 /*
@@ -2005,47 +2005,47 @@ static bool alog_queue_pushn(AlogQueue * queue, char * buff[], int len[], int n)
  */
 static int alog_queue_get_str_len(AlogQueue * queue, int offset)
 {
-    volatile int q_size = queue->q_size;
-    char buff[sizeof(int)] = { '\0' };
-    int len = 0;
+	volatile int q_size = queue->q_size;
+	char buff[sizeof(int)] = { '\0' };
+	int len = 0;
 
-    pg_memory_barrier();
+	pg_memory_barrier();
 
-    Assert(offset >= 0 && offset < q_size);
+	Assert(offset >= 0 && offset < q_size);
 
-    /* read len directly */
-    if (q_size - offset >= sizeof(int))
-    {
-        char * q_start = alog_queue_offset_to(queue, offset);
-        memcpy(buff, q_start, sizeof(int));
-    }
-    else
-    {
-        /* must read as two parts */
-        int first_len = q_size - offset;
-        int second_len = sizeof(int) - first_len;
+	/* read len directly */
+	if (q_size - offset >= sizeof(int))
+	{
+		char * q_start = alog_queue_offset_to(queue, offset);
+		memcpy(buff, q_start, sizeof(int));
+	}
+	else
+	{
+		/* must read as two parts */
+		int first_len = q_size - offset;
+		int second_len = sizeof(int) - first_len;
 
-        char * p_start = NULL;
+		char * p_start = NULL;
 
-        pg_memory_barrier();
+		pg_memory_barrier();
 
-        Assert(first_len > 0 && first_len < q_size);
-        Assert(second_len > 0 && second_len < sizeof(int));
+		Assert(first_len > 0 && first_len < q_size);
+		Assert(second_len > 0 && second_len < sizeof(int));
 
-        /* 01. copy the first parts */
-        p_start = alog_queue_offset_to(queue, offset);
-        memcpy(buff, p_start, first_len);
+		/* 01. copy the first parts */
+		p_start = alog_queue_offset_to(queue, offset);
+		memcpy(buff, p_start, first_len);
 
-        /* 02. copy the remain parts */
-        p_start = alog_queue_offset_to(queue, 0);
-        memcpy(buff + first_len, p_start, second_len);
-    }
+		/* 02. copy the remain parts */
+		p_start = alog_queue_offset_to(queue, 0);
+		memcpy(buff + first_len, p_start, second_len);
+	}
 
-    memcpy((char *)(&len), buff, sizeof(int));
+	memcpy((char *)(&len), buff, sizeof(int));
 
-    Assert(len > 0 && len < q_size);
+	Assert(len > 0 && len < q_size);
 
-    return len;
+	return len;
 }
 
 /*
@@ -2060,121 +2060,121 @@ static int alog_queue_get_str_len(AlogQueue * queue, int offset)
  *
  */
 static bool alog_queue_pop_to_queue(AlogQueue * from, AlogQueue * to)
-{// #lizard forgives
-    volatile int q_from_head = from->q_head;      
-    volatile int q_from_tail = from->q_tail;
-    volatile int q_from_size = from->q_size;
+{
+	volatile int q_from_head = from->q_head;
+	volatile int q_from_tail = from->q_tail;
+	volatile int q_from_size = from->q_size;
 
-    volatile int q_to_head = to->q_head;      
-    volatile int q_to_tail = to->q_tail;
-    volatile int q_to_size = to->q_size;
+	volatile int q_to_head = to->q_head;
+	volatile int q_to_tail = to->q_tail;
+	volatile int q_to_size = to->q_size;
 
-    int from_head = q_from_head;      
-    int from_tail = q_from_tail;
-    int from_size = q_from_size;
+	int from_head = q_from_head;
+	int from_tail = q_from_tail;
+	int from_size = q_from_size;
 
-    int to_head = q_to_head;
-    int to_tail = q_to_tail;
-    int to_size = q_to_size;
+	int to_head = q_to_head;
+	int to_tail = q_to_tail;
+	int to_size = q_to_size;
 
-    int from_total = 0;
+	int from_total = 0;
 
-    int from_used = 0;
-    int from_copyed = 0;
+	int from_used = 0;
+	int from_copyed = 0;
 
-    int to_used = 0;
-    int to_copyed = 0;
+	int to_used = 0;
+	int to_copyed = 0;
 
-    pg_memory_barrier();
-    alog_just_caller(&from_total);
-    alog_just_caller(&to_used);
+	pg_memory_barrier();
+	alog_just_caller(&from_total);
+	alog_just_caller(&to_used);
 
-    from_total = from_used = alog_queue_used(from_size, from_head, from_tail);
-    to_used = alog_queue_used(to_size, to_head, to_tail);
+	from_total = from_used = alog_queue_used(from_size, from_head, from_tail);
+	to_used = alog_queue_used(to_size, to_head, to_tail);
 
-    Assert(from_size > 0 && from_head >= 0 && from_tail >= 0);
-    Assert(from_head < from_size && from_tail < from_size && from_used <= from_size);
+	Assert(from_size > 0 && from_head >= 0 && from_tail >= 0);
+	Assert(from_head < from_size && from_tail < from_size && from_used <= from_size);
 
-    Assert(to_size > 0 && to_head >= 0 && to_tail >= 0);
-    Assert(to_head < to_size && to_tail < to_size && to_used <= to_size);
+	Assert(to_size > 0 && to_head >= 0 && to_tail >= 0);
+	Assert(to_head < to_size && to_tail < to_size && to_used <= to_size);
 
-    /* from is empty, ignore */
-    if (alog_queue_is_empty(from_size, from_head, from_tail))
-    {
-        return false;
-    }
+	/* from is empty, ignore */
+	if (alog_queue_is_empty(from_size, from_head, from_tail))
+	{
+		return false;
+	}
 
-    /* to is full, can not write */
-    if (alog_queue_is_full(to_size, to_head, to_tail))
-    {
-        return false;
-    }
+	/* to is full, can not write */
+	if (alog_queue_is_full(to_size, to_head, to_tail))
+	{
+		return false;
+	}
 
-    /* copy message into queue until to is full or from is empty */
-    do
-    {
-        int string_len = alog_queue_get_str_len(from, from_head);
-        int copy_len = sizeof(int) + string_len;
+	/* copy message into queue until to is full or from is empty */
+	do
+	{
+		int string_len = alog_queue_get_str_len(from, from_head);
+		int copy_len = sizeof(int) + string_len;
 
-        pg_memory_barrier();
+		pg_memory_barrier();
 
-        Assert(string_len > 0 && string_len < from_size);
-        Assert(copy_len > 0 && copy_len < from_size);
+		Assert(string_len > 0 && string_len < from_size);
+		Assert(copy_len > 0 && copy_len < from_size);
 
-        if (!alog_queue_is_enough(to_size, to_head, to_tail, copy_len))
-        {
-            break;
-        }
+		if (!alog_queue_is_enough(to_size, to_head, to_tail, copy_len))
+		{
+			break;
+		}
 
-        /* just copy dierctly */
-        if (from_size - from_head >= copy_len)
-        {
-            char * p_start = alog_queue_offset_to(from, from_head);
-            if (!alog_queue_push(to, p_start, copy_len))
-            {
-                break;
-            }
-        }
-        else
-        {
-            /* must copy as two parts */
-            int first_len = from_size - from_head;
-            int second_len = copy_len - first_len;
-            char * p_first_start = NULL;
-            char * p_second_start = NULL;
+		/* just copy dierctly */
+		if (from_size - from_head >= copy_len)
+		{
+			char * p_start = alog_queue_offset_to(from, from_head);
+			if (!alog_queue_push(to, p_start, copy_len))
+			{
+				break;
+			}
+		}
+		else
+		{
+			/* must copy as two parts */
+			int first_len = from_size - from_head;
+			int second_len = copy_len - first_len;
+			char * p_first_start = NULL;
+			char * p_second_start = NULL;
 
-            Assert(first_len > 0 && first_len < from_size);
-            Assert(second_len > 0 && second_len < from_size);
+			Assert(first_len > 0 && first_len < from_size);
+			Assert(second_len > 0 && second_len < from_size);
 
-            p_first_start = alog_queue_offset_to(from, from_head);
-            p_second_start = alog_queue_offset_to(from, 0);
+			p_first_start = alog_queue_offset_to(from, from_head);
+			p_second_start = alog_queue_offset_to(from, 0);
 
-            /* 01. copy the content parts into the tail of to->q_area */
-            if (!alog_queue_push2(to, p_first_start, first_len, p_second_start, second_len))
-            {
-                break;
-            }
-        }
+			/* 01. copy the content parts into the tail of to->q_area */
+			if (!alog_queue_push2(to, p_first_start, first_len, p_second_start, second_len))
+			{
+				break;
+			}
+		}
 
-        from_head = (from_head + copy_len) % from_size;
-        to_tail = (to_tail + copy_len) % to_size;
+		from_head = (from_head + copy_len) % from_size;
+		to_tail = (to_tail + copy_len) % to_size;
 
-        from_copyed += copy_len;
-        to_copyed += copy_len;
+		from_copyed += copy_len;
+		to_copyed += copy_len;
 
-        Assert(from_copyed <= from_total);
-        Assert(from_used - copy_len >= 0);
-        Assert(to_used + copy_len <= to_size);
-        Assert(from_used - copy_len == alog_queue_used(from_size, from_head, from_tail));
-        Assert(to_used + copy_len == alog_queue_used(to_size, to_head, to_tail));
+		Assert(from_copyed <= from_total);
+		Assert(from_used - copy_len >= 0);
+		Assert(to_used + copy_len <= to_size);
+		Assert(from_used - copy_len == alog_queue_used(from_size, from_head, from_tail));
+		Assert(to_used + copy_len == alog_queue_used(to_size, to_head, to_tail));
 
-        from_used = alog_queue_used(from_size, from_head, from_tail);
-        to_used = alog_queue_used(to_size, to_head, to_tail);
-    } while (!alog_queue_is_empty(from_size, from_head, from_tail));
+		from_used = alog_queue_used(from_size, from_head, from_tail);
+		to_used = alog_queue_used(to_size, to_head, to_tail);
+	} while (!alog_queue_is_empty(from_size, from_head, from_tail));
 
-    from->q_head = from_head;
+	from->q_head = from_head;
 
-    return true;
+	return true;
 }
 
 /*
@@ -2303,22 +2303,22 @@ static bool alog_queue_pop_to_file(AlogQueue * from, int destination)
  */
 int AuditLoggerQueueAcquire(void)
 {
-    int alogIdx = -1;
+	int alogIdx = -1;
 
 	AlogQueue * common_queue = NULL;
 	AlogQueue * fga_queue = NULL;
 	AlogQueue * trace_queue = NULL;
 
-    if (!IsBackendPostgres)
-    {
-        ereport(FATAL,
-                (errcode(ERRCODE_INTERNAL_ERROR),
-                 errmsg("only postgres backend can acqurie shared queue to write audit log")));
-        return -1;
-    }
+	if (!IsBackendPostgres)
+	{
+		ereport(FATAL,
+				(errcode(ERRCODE_INTERNAL_ERROR),
+				 errmsg("only postgres backend can acqurie shared queue to write audit log")));
+		return -1;
+	}
 
-    alogIdx = MyProc->pgprocno;
-    Assert(alogIdx >= 0 && alogIdx < MaxBackends);
+	alogIdx = MyProc->pgprocno;
+	Assert(alogIdx >= 0 && alogIdx < MaxBackends);
 
 	common_queue = alog_get_shared_common_queue(alogIdx);
 	fga_queue = alog_get_shared_fga_queue(alogIdx);
@@ -2332,33 +2332,33 @@ int AuditLoggerQueueAcquire(void)
 	fga_queue->q_pid = MyProcPid;
 	trace_queue->q_pid = MyProcPid;
 
-    if (enable_auditlogger_warning)
-    {
-        Assert(alogIdx < MaxBackends);
-        ereport(LOG, (errmsg("acquire alog queue index %d for backend %d ", alogIdx, MyProcPid)));
-    }
+	if (enable_auditlogger_warning)
+	{
+		Assert(alogIdx < MaxBackends);
+		ereport(LOG, (errmsg("acquire alog queue index %d for backend %d ", alogIdx, MyProcPid)));
+	}
 
-    return alogIdx;
+	return alogIdx;
 }
 
 static AlogQueue * alog_get_shared_common_queue(int idx)
 {
-    AlogQueue * queue = NULL;
+	AlogQueue * queue = NULL;
 
-    Assert(idx >= 0 && idx < MaxBackends);
-    queue = AuditCommonLogQueueArray->a_queue[idx];
+	Assert(idx >= 0 && idx < MaxBackends);
+	queue = AuditCommonLogQueueArray->a_queue[idx];
 
-    return queue;
+	return queue;
 }
 
 static AlogQueue * alog_get_shared_fga_queue(int idx)
 {
-    AlogQueue * queue = NULL;
+	AlogQueue * queue = NULL;
 
-    Assert(idx >= 0 && idx < MaxBackends);
-    queue = AuditFGALogQueueArray->a_queue[idx];
+	Assert(idx >= 0 && idx < MaxBackends);
+	queue = AuditFGALogQueueArray->a_queue[idx];
 
-    return queue;
+	return queue;
 }
 
 static AlogQueue * alog_get_shared_trace_queue(int idx)
@@ -2373,22 +2373,22 @@ static AlogQueue * alog_get_shared_trace_queue(int idx)
 
 static AlogQueue * alog_get_local_common_cache(int consumer_id)
 {
-    AlogQueue * queue = NULL;
+	AlogQueue * queue = NULL;
 
-    Assert(consumer_id >= 0 && consumer_id < AuditLog_max_worker_number);
-    queue = AuditCommonLogLocalCache->q_cache[consumer_id];
+	Assert(consumer_id >= 0 && consumer_id < AuditLog_max_worker_number);
+	queue = AuditCommonLogLocalCache->q_cache[consumer_id];
 
-    return queue;
+	return queue;
 }
 
 static AlogQueue * alog_get_local_fga_cache(int consumer_id)
 {
-    AlogQueue * queue = NULL;
+	AlogQueue * queue = NULL;
 
-    Assert(consumer_id >= 0 && consumer_id < AuditLog_max_worker_number);
-    queue = AuditFGALogLocalCache->q_cache[consumer_id];
+	Assert(consumer_id >= 0 && consumer_id < AuditLog_max_worker_number);
+	queue = AuditFGALogLocalCache->q_cache[consumer_id];
 
-    return queue;
+	return queue;
 }
 
 static AlogQueue * alog_get_local_trace_cache(int consumer_id)
@@ -2415,61 +2415,61 @@ static AlogQueue * alog_get_local_trace_cache(int consumer_id)
  */
 static AlogQueueCache * alog_make_local_cache(int cache_number, int queue_size_kb)
 {
-    Size headerSize = 0;
-    Size cacheSize = 0;
-    Size queueSize = 0;
+	Size headerSize = 0;
+	Size cacheSize = 0;
+	Size queueSize = 0;
 
-    AlogQueueCache * cache = NULL;
-    ThreadSema * sema = NULL;
+	AlogQueueCache * cache = NULL;
+	ThreadSema * sema = NULL;
 
-    int i = 0;
+	int i = 0;
 
-    headerSize = offsetof(AlogQueueCache, q_cache);
-    headerSize = add_size(headerSize, cache_number * sizeof(AlogQueue *));
+	headerSize = offsetof(AlogQueueCache, q_cache);
+	headerSize = add_size(headerSize, cache_number * sizeof(AlogQueue *));
 
-    queueSize = audit_queue_elem_size(queue_size_kb);
+	queueSize = audit_queue_elem_size(queue_size_kb);
 
-    cacheSize = queueSize * cache_number;
-    cacheSize = add_size(cacheSize, headerSize);
+	cacheSize = queueSize * cache_number;
+	cacheSize = add_size(cacheSize, headerSize);
 
-    cache = palloc0(cacheSize);
-    sema = &(cache->q_sema);
+	cache = palloc0(cacheSize);
+	sema = &(cache->q_sema);
 
-    for (i = 0; i < cache_number; i++)
-    {
-        AlogQueue * queue = NULL;
+	for (i = 0; i < cache_number; i++)
+	{
+		AlogQueue * queue = NULL;
 
-        queue = (AlogQueue *)(((char *) cache) + headerSize + i * queueSize);
+		queue = (AlogQueue *)(((char *) cache) + headerSize + i * queueSize);
 
-        alog_queue_init(queue, queue_size_kb);
+		alog_queue_init(queue, queue_size_kb);
 
-        cache->q_cache[i] = queue;
-    }
+		cache->q_cache[i] = queue;
+	}
 
-    ThreadSemaInit(sema, 0);
-    cache->q_count = cache_number;
+	ThreadSemaInit(sema, 0, false);
+	cache->q_count = cache_number;
 
-    return cache;
+	return cache;
 }
 
 /*
  * make local ThreadSema array for AuditLog_max_worker_number consumers
  */
-static ThreadSema *    alog_make_consumer_semas(int consumer_count)
+static ThreadSema *	alog_make_consumer_semas(int consumer_count)
 {
-    ThreadSema * sema_array = NULL;
-    int i = 0;
+	ThreadSema * sema_array = NULL;
+	int i = 0;
 
-    Assert(consumer_count == AuditLog_max_worker_number);
+	Assert(consumer_count == AuditLog_max_worker_number);
 
-    sema_array = palloc0(consumer_count * sizeof(ThreadSema));
-    for (i = 0; i < consumer_count; i++)
-    {
-        ThreadSema * sema = (&(sema_array[i]));
-        ThreadSemaInit(sema, 0);
-    }
+	sema_array = palloc0(consumer_count * sizeof(ThreadSema));
+	for (i = 0; i < consumer_count; i++)
+	{
+		ThreadSema * sema = (&(sema_array[i]));
+		ThreadSemaInit(sema, 0, false);
+	}
 
-    return sema_array;
+	return sema_array;
 }
 
 /*
@@ -2478,12 +2478,12 @@ static ThreadSema *    alog_make_consumer_semas(int consumer_count)
  */
 static void alog_consumer_wakeup(int consumer_id)
 {
-    ThreadSema * sema = NULL;
+	ThreadSema * sema = NULL;
 
-    Assert(consumer_id >= 0 && consumer_id < AuditLog_max_worker_number);
+	Assert(consumer_id >= 0 && consumer_id < AuditLog_max_worker_number);
 
-    sema = (&(AuditConsumerNotifySemas[consumer_id]));
-    ThreadSemaUp(sema);
+	sema = (&(AuditConsumerNotifySemas[consumer_id]));
+	ThreadSemaUp(sema);
 }
 
 /*
@@ -2492,12 +2492,12 @@ static void alog_consumer_wakeup(int consumer_id)
  */
 static void alog_consumer_sleep(int consumer_id)
 {
-    ThreadSema * sema = NULL;
+	ThreadSema * sema = NULL;
 
-    Assert(consumer_id >= 0 && consumer_id < AuditLog_max_worker_number);
+	Assert(consumer_id >= 0 && consumer_id < AuditLog_max_worker_number);
 
-    sema = (&(AuditConsumerNotifySemas[consumer_id]));
-    ThreadSemaDown(sema);
+	sema = (&(AuditConsumerNotifySemas[consumer_id]));
+	ThreadSemaDown(sema);
 }
 
 /*
@@ -2516,6 +2516,9 @@ static void * alog_consumer_main(void * arg)
 	AlogQueue * local_common_cache = NULL;
 	AlogQueue * local_fga_cache = NULL;
 	AlogQueue * local_trace_cache = NULL;
+
+	/* add sub thread longjmp check */
+	SUB_THREAD_LONGJMP_DEFAULT_CHECK();
 
 	Assert(consumer_id >= 0 && consumer_id < AuditLog_max_worker_number);
 
@@ -2627,8 +2630,8 @@ static void * alog_consumer_main(void * arg)
  */
 static void alog_writer_wakeup(int writer_destination)
 {
-    ThreadSema * sema = NULL;
-    AlogQueueCache * local_cache = NULL;
+	ThreadSema * sema = NULL;
+	AlogQueueCache * local_cache = NULL;
 
 	Assert(writer_destination == AUDIT_COMMON_LOG ||
 		   writer_destination == AUDIT_FGA_LOG ||
@@ -2648,8 +2651,8 @@ static void alog_writer_wakeup(int writer_destination)
 		local_cache = AuditTraceLogLocalCache;
 	}
 
-    sema = (&(local_cache->q_sema));
-    ThreadSemaUp(sema);
+	sema = (&(local_cache->q_sema));
+	ThreadSemaUp(sema);
 }
 
 /*
@@ -2658,8 +2661,8 @@ static void alog_writer_wakeup(int writer_destination)
  */
 static void alog_writer_sleep(int writer_destination)
 {
-    ThreadSema * sema = NULL;
-    AlogQueueCache * local_cache = NULL;
+	ThreadSema * sema = NULL;
+	AlogQueueCache * local_cache = NULL;
 
 	Assert(writer_destination == AUDIT_COMMON_LOG ||
 		   writer_destination == AUDIT_FGA_LOG ||
@@ -2679,8 +2682,8 @@ static void alog_writer_sleep(int writer_destination)
 		local_cache = AuditTraceLogLocalCache;
 	}
 
-    sema = (&(local_cache->q_sema));
-    ThreadSemaDown(sema);
+	sema = (&(local_cache->q_sema));
+	ThreadSemaDown(sema);
 }
 
 /*
@@ -2694,6 +2697,9 @@ static void * alog_writer_main(void * arg)
 {
 	int writer_destination = *((int *) arg);
 	AlogQueueCache * local_cache = NULL;
+
+	/* add sub thread longjmp check */
+	SUB_THREAD_LONGJMP_DEFAULT_CHECK();
 
 	Assert(writer_destination == AUDIT_COMMON_LOG ||
 		writer_destination == AUDIT_FGA_LOG ||
@@ -2752,17 +2758,17 @@ static void * alog_writer_main(void * arg)
 
 static void alog_start_writer(int writer_destination)
 {
-    int * des = NULL;
-    int ret = 0;
+	int * des = NULL;
+	int ret = 0;
 
 	Assert(writer_destination == AUDIT_COMMON_LOG ||
 		writer_destination == AUDIT_FGA_LOG ||
 		writer_destination == MAINTAIN_TRACE_LOG);
 
-    des = palloc0(sizeof(int));
-    *des = writer_destination;
+	des = palloc0(sizeof(int));
+	*des = writer_destination;
 
-	ret = CreateThread(alog_writer_main, (void *)des, MT_THR_DETACHED);
+	CreateThread(alog_writer_main, (void *)des, MT_THR_DETACHED, &ret);
 	if (ret != 0)
 	{
 		/* failed to create thread, exit */
@@ -2775,28 +2781,28 @@ static void alog_start_writer(int writer_destination)
 
 static void alog_start_consumer(int consumer_id)
 {
-    int * id = NULL;
-    int ret = 0;
+	int * id = NULL;
+	int ret = 0;
 
-    Assert(consumer_id >= 0 && consumer_id < AuditLog_max_worker_number);
+	Assert(consumer_id >= 0 && consumer_id < AuditLog_max_worker_number);
 
-    id = palloc0(sizeof(int));
-    *id = consumer_id;
+	id = palloc0(sizeof(int));
+	*id = consumer_id;
 
-    ret = CreateThread(alog_consumer_main, (void *)id, MT_THR_DETACHED);
-    if (ret != 0)
-    {
-        /* failed to create thread, exit */
-        ereport(ERROR,
-                (errcode(ERRCODE_INTERNAL_ERROR),
-                 errmsg("could not start audit log consumer worker")));
-        exit(7);
-    }
+	CreateThread(alog_consumer_main, (void *)id, MT_THR_DETACHED, &ret);
+	if (ret != 0)
+	{
+		/* failed to create thread, exit */
+		ereport(ERROR,
+				(errcode(ERRCODE_INTERNAL_ERROR),
+				 errmsg("could not start audit log consumer worker")));
+		exit(7);
+	}
 }
 
 static void alog_start_all_worker(void)
 {
-    int i = 0;
+	int i = 0;
 
 	AuditCommonLogLocalCache = alog_make_local_cache(AuditLog_max_worker_number,
 											AuditLog_common_log_cache_size_kb);
@@ -2811,14 +2817,14 @@ static void alog_start_all_worker(void)
 	alog_start_writer(AUDIT_FGA_LOG);
 	alog_start_writer(MAINTAIN_TRACE_LOG);
 
-    /* 001, start AuditLog_max_worker_number consumer worker */
-    for (i = 0; i < AuditLog_max_worker_number; i++)
-    {
-        alog_start_consumer(i);
-    }
+	/* 001, start AuditLog_max_worker_number consumer worker */
+	for (i = 0; i < AuditLog_max_worker_number; i++)
+	{
+		alog_start_consumer(i);
+	}
 
-    /* 002, start a worker for shard statistics */
-    alog_start_shard_stat_worker();
+	/* 002, start a worker for shard statistics */
+	alog_start_shard_stat_worker();
 }
 
 #endif
@@ -2937,6 +2943,9 @@ void alog(int destination, const char *fmt,...)
 #ifdef AuditLog_007_For_ShardStatistics
 static void * alog_shard_stat_main(void * arg)
 {
+	/* add sub thread longjmp check */
+	SUB_THREAD_LONGJMP_DEFAULT_CHECK();
+
 	atexit(FlushShardStatistic);
 
 	while (true)
@@ -2948,22 +2957,22 @@ static void * alog_shard_stat_main(void * arg)
 		pg_usleep(shard_stat_interval);
 	}
 
-    return NULL;
+	return NULL;
 }
 
-static void    alog_start_shard_stat_worker(void)
+static void	alog_start_shard_stat_worker(void)
 {
-    int ret = 0;
+	int ret = 0;
 
-    ret = CreateThread(alog_shard_stat_main, (void *) NULL, MT_THR_DETACHED);
-    if (ret != 0)
-    {
-        /* failed to create thread, exit */
-        ereport(ERROR,
-                (errcode(ERRCODE_INTERNAL_ERROR),
-                 errmsg("could not start shard stat worker")));
-        exit(8);
-    }
+	CreateThread(alog_shard_stat_main, (void *) NULL, MT_THR_DETACHED, &ret);
+	if (ret != 0)
+	{
+		/* failed to create thread, exit */
+		ereport(ERROR,
+				(errcode(ERRCODE_INTERNAL_ERROR),
+				 errmsg("could not start shard stat worker")));
+		exit(8);
+	}
 }
 
 #endif

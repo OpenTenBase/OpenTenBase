@@ -299,7 +299,7 @@ SELECT * FROM t1 WHERE f_leak(b) ORDER BY a FOR SHARE;
 EXPLAIN (COSTS OFF) SELECT * FROM t1 WHERE f_leak(b) FOR SHARE;
 
 -- union all query
-SELECT a, b, oid FROM t2 UNION ALL SELECT a, b, oid FROM t3 order by oid;
+SELECT a, b, oid FROM t2 UNION ALL SELECT a, b, oid FROM t3 order by  a, b, oid;
 EXPLAIN (COSTS OFF) SELECT a, b, oid FROM t2 UNION ALL SELECT a, b, oid FROM t3;
 
 -- superuser is allowed to bypass RLS checks
@@ -620,7 +620,7 @@ EXPLAIN (COSTS OFF) UPDATE only t1 SET b = b || '_updt' WHERE f_leak(b);
 UPDATE only t1 SET b = b || '_updt' WHERE f_leak(b);
 
 -- returning clause with system column
-UPDATE only t1 SET b = b WHERE f_leak(b) RETURNING oid, *, t1;
+UPDATE only t1 SET b = b WHERE f_leak(b) AND a = 2 RETURNING oid, *, t1;
 -- UPDATE t1 SET b = b WHERE f_leak(b) RETURNING *;
 UPDATE t1 SET b = b WHERE f_leak(b);
 -- UPDATE t1 SET b = b WHERE f_leak(b) RETURNING oid, *, t1;
@@ -670,8 +670,9 @@ SET row_security TO ON;
 EXPLAIN (COSTS OFF) DELETE FROM only t1 WHERE f_leak(b);
 EXPLAIN (COSTS OFF) DELETE FROM t1 WHERE f_leak(b);
 
-DELETE FROM only t1 WHERE f_leak(b) RETURNING oid, *, t1;
-DELETE FROM t1 WHERE f_leak(b) RETURNING oid, *, t1;
+-- OpenTenBase-V3 remove unstable case, returning could not add order by clause
+DELETE FROM only t1 WHERE f_leak(b);
+DELETE FROM t1 WHERE f_leak(b);
 
 --
 -- S.b. view on top of Row-level security
@@ -841,7 +842,7 @@ CREATE POLICY p2 ON z1 TO regress_rls_group2 USING (a % 2 = 1);
 ALTER TABLE z1 ENABLE ROW LEVEL SECURITY;
 
 SET SESSION AUTHORIZATION regress_rls_bob;
-SELECT * FROM z1 WHERE f_leak(b);
+SELECT * FROM z1 WHERE f_leak(b) order by a, b;
 EXPLAIN (COSTS OFF) SELECT * FROM z1 WHERE f_leak(b);
 
 PREPARE plancache_test AS SELECT * FROM z1 WHERE f_leak(b);
@@ -887,12 +888,12 @@ GRANT SELECT ON rls_view TO regress_rls_bob;
 
 -- Query as role that is not owner of view or table.  Should return all records.
 SET SESSION AUTHORIZATION regress_rls_bob;
-SELECT * FROM rls_view ORDER BY a,b;
+SELECT * FROM rls_view order by a, b;
 EXPLAIN (COSTS OFF) SELECT * FROM rls_view;
 
 -- Query as view/table owner.  Should return all records.
 SET SESSION AUTHORIZATION regress_rls_alice;
-SELECT * FROM rls_view ORDER BY a,b;
+SELECT * FROM rls_view order by a, b;
 EXPLAIN (COSTS OFF) SELECT * FROM rls_view;
 DROP VIEW rls_view;
 
@@ -904,13 +905,13 @@ GRANT SELECT ON rls_view TO regress_rls_alice;
 -- Query as role that is not owner of view but is owner of table.
 -- Should return records based on view owner policies.
 SET SESSION AUTHORIZATION regress_rls_alice;
-SELECT * FROM rls_view ORDER BY a,b;
+SELECT * FROM rls_view order by a, b;
 EXPLAIN (COSTS OFF) SELECT * FROM rls_view;
 
 -- Query as role that is not owner of table but is owner of view.
 -- Should return records based on view owner policies.
 SET SESSION AUTHORIZATION regress_rls_bob;
-SELECT * FROM rls_view ORDER BY a,b;
+SELECT * FROM rls_view order by a, b;
 EXPLAIN (COSTS OFF) SELECT * FROM rls_view;
 
 -- Query as role that is not the owner of the table or view without permissions.
@@ -921,7 +922,7 @@ EXPLAIN (COSTS OFF) SELECT * FROM rls_view; --fail - permission denied.
 -- Query as role that is not the owner of the table or view with permissions.
 SET SESSION AUTHORIZATION regress_rls_bob;
 GRANT SELECT ON rls_view TO regress_rls_carol;
-SELECT * FROM rls_view ORDER BY a,b;
+SELECT * FROM rls_view order by a, b;
 EXPLAIN (COSTS OFF) SELECT * FROM rls_view;
 
 SET SESSION AUTHORIZATION regress_rls_bob;
@@ -955,12 +956,12 @@ ALTER TABLE x1 ENABLE ROW LEVEL SECURITY;
 
 SET SESSION AUTHORIZATION regress_rls_bob;
 SELECT * FROM x1 WHERE f_leak(b) ORDER BY a ASC;
-UPDATE x1 SET b = b || '_updt' WHERE f_leak(b) RETURNING *;
+UPDATE x1 SET b = b || '_updt' WHERE f_leak(b) AND a = 2 RETURNING *;
 
 SET SESSION AUTHORIZATION regress_rls_carol;
 SELECT * FROM x1 WHERE f_leak(b) ORDER BY a ASC;
-UPDATE x1 SET b = b || '_updt' WHERE f_leak(b) RETURNING *;
-DELETE FROM x1 WHERE f_leak(b) RETURNING *;
+UPDATE x1 SET b = b || '_updt' WHERE f_leak(b) AND a = 2 RETURNING *;
+DELETE FROM x1 WHERE f_leak(b) AND a = 2 RETURNING *;
 
 --
 -- Duplicate Policy Names
@@ -1048,7 +1049,7 @@ ALTER TABLE t1 ENABLE ROW LEVEL SECURITY;
 
 -- Prepare as regress_rls_bob
 SET ROLE regress_rls_bob;
-PREPARE role_inval AS SELECT * FROM t1;
+PREPARE role_inval AS SELECT * FROM t1 order by 1;
 -- Check plan
 EXPLAIN (COSTS OFF) EXECUTE role_inval;
 
@@ -1079,8 +1080,7 @@ INSERT INTO t1 (SELECT x, md5(x::text) FROM generate_series(0,20) x);
 SET SESSION AUTHORIZATION regress_rls_bob;
 
 WITH cte1 AS MATERIALIZED (SELECT * FROM t1 WHERE f_leak(b) order by 1) SELECT * FROM cte1;
-EXPLAIN (COSTS OFF)
-WITH cte1 AS MATERIALIZED (SELECT * FROM t1 WHERE f_leak(b)) SELECT * FROM cte1;
+EXPLAIN (COSTS OFF) WITH cte1 AS (SELECT * FROM t1 WHERE f_leak(b)) SELECT * FROM cte1;
 
 WITH cte1 AS (UPDATE t1 SET a = a + 1 RETURNING *) SELECT * FROM cte1; --fail
 WITH cte1 AS (UPDATE t1 SET a = a RETURNING *) SELECT * FROM cte1; --ok
@@ -1349,7 +1349,7 @@ UPDATE current_check SET payload = payload || '_new' WHERE currentid = 2 RETURNI
 
 BEGIN;
 
-DECLARE current_check_cursor SCROLL CURSOR FOR SELECT * FROM current_check;
+DECLARE current_check_cursor SCROLL CURSOR FOR SELECT * FROM current_check ORDER BY currentid;
 -- Returns rows that can be seen according to SELECT policy, like plain SELECT
 -- above (even rows)
 FETCH ABSOLUTE 1 FROM current_check_cursor;
@@ -1820,6 +1820,16 @@ CREATE POLICY p1 ON dob_t1 TO regress_rls_dob_role1,regress_rls_dob_role2 USING 
 DROP OWNED BY regress_rls_dob_role1;
 DROP POLICY p1 ON dob_t1; -- should succeed
 
+-- same cases with duplicate polroles entries
+CREATE POLICY p1 ON dob_t1 TO regress_rls_dob_role1,regress_rls_dob_role1 USING (true);
+DROP OWNED BY regress_rls_dob_role1;
+DROP POLICY p1 ON dob_t1; -- should fail, already gone
+
+CREATE POLICY p1 ON dob_t1 TO regress_rls_dob_role1,regress_rls_dob_role1,regress_rls_dob_role2 USING (true);
+DROP OWNED BY regress_rls_dob_role1;
+DROP POLICY p1 ON dob_t1; -- should succeed
+
+-- partitioned target
 CREATE POLICY p1 ON dob_t2 TO regress_rls_dob_role1,regress_rls_dob_role2 USING (true);
 DROP OWNED BY regress_rls_dob_role1;
 DROP POLICY p1 ON dob_t2; -- should succeed

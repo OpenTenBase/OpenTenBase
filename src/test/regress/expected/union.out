@@ -349,23 +349,32 @@ ERROR:  FOR NO KEY UPDATE is not allowed with UNION/INTERSECT/EXCEPT
 (1 row)
 
 -- exercise both hashed and sorted implementations of INTERSECT/EXCEPT
+set enable_indexonlyscan to off;
 set enable_hashagg to on;
 explain (costs off)
 select count(*) from
   ( select unique1 from tenk1 intersect select fivethous from tenk1 ) ss;
-                                        QUERY PLAN                                        
-------------------------------------------------------------------------------------------
- Aggregate
-   ->  Subquery Scan on ss
-         ->  HashSetOp Intersect
-               ->  Append
-                     ->  Subquery Scan on "*SELECT* 2"
-                           ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-                                 ->  Seq Scan on tenk1
-                     ->  Subquery Scan on "*SELECT* 1"
-                           ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-                                 ->  Index Only Scan using tenk1_unique1 on tenk1 tenk1_1
-(10 rows)
+                                       QUERY PLAN                                        
+-----------------------------------------------------------------------------------------
+ Finalize Aggregate
+   ->  Remote Subquery Scan on all (datanodes 2)
+         ->  Partial Aggregate
+               ->  Hash Join
+                     Hash Cond: (NOT (tenk1.unique1 IS DISTINCT FROM tenk1_1.fivethous))
+                     ->  HashAggregate
+                           Group Key: tenk1.unique1
+                           ->  Remote Subquery Scan on all (datanodes 2)
+                                 Distribute results by S: unique1
+                                 ->  HashAggregate
+                                       Group Key: tenk1.unique1
+                                       ->  Seq Scan on tenk1
+                     ->  Hash
+                           ->  HashAggregate
+                                 Group Key: tenk1_1.fivethous
+                                 ->  Remote Subquery Scan on all (datanodes 2)
+                                       Distribute results by S: fivethous
+                                       ->  Seq Scan on tenk1 tenk1_1
+(18 rows)
 
 select count(*) from
   ( select unique1 from tenk1 intersect select fivethous from tenk1 ) ss;
@@ -376,18 +385,28 @@ select count(*) from
 
 explain (costs off)
 select unique1 from tenk1 except select unique2 from tenk1 where unique2 != 10;
-                                  QUERY PLAN                                  
-------------------------------------------------------------------------------
- HashSetOp Except
-   ->  Append
-         ->  Subquery Scan on "*SELECT* 1"
-               ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-                     ->  Index Only Scan using tenk1_unique1 on tenk1
-         ->  Subquery Scan on "*SELECT* 2"
-               ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-                     ->  Index Only Scan using tenk1_unique2 on tenk1 tenk1_1
-                           Filter: (unique2 <> 10)
-(9 rows)
+                                QUERY PLAN                                 
+---------------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   ->  Hash Anti Join
+         Hash Cond: (NOT (tenk1.unique1 IS DISTINCT FROM tenk1_1.unique2))
+         ->  HashAggregate
+               Group Key: tenk1.unique1
+               ->  Remote Subquery Scan on all (datanodes 2)
+                     Distribute results by S: unique1
+                     ->  HashAggregate
+                           Group Key: tenk1.unique1
+                           ->  Seq Scan on tenk1
+         ->  Hash
+               ->  HashAggregate
+                     Group Key: tenk1_1.unique2
+                     ->  Remote Subquery Scan on all (datanodes 2)
+                           Distribute results by S: unique2
+                           ->  HashAggregate
+                                 Group Key: tenk1_1.unique2
+                                 ->  Seq Scan on tenk1 tenk1_1
+                                       Filter: (unique2 <> 10)
+(19 rows)
 
 select unique1 from tenk1 except select unique2 from tenk1 where unique2 != 10;
  unique1 
@@ -399,21 +418,25 @@ set enable_hashagg to off;
 explain (costs off)
 select count(*) from
   ( select unique1 from tenk1 intersect select fivethous from tenk1 ) ss;
-                                           QUERY PLAN                                           
-------------------------------------------------------------------------------------------------
- Aggregate
-   ->  Subquery Scan on ss
-         ->  SetOp Intersect
-               ->  Sort
-                     Sort Key: "*SELECT* 2".fivethous
-                     ->  Append
-                           ->  Subquery Scan on "*SELECT* 2"
-                                 ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-                                       ->  Seq Scan on tenk1
-                           ->  Subquery Scan on "*SELECT* 1"
-                                 ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-                                       ->  Index Only Scan using tenk1_unique1 on tenk1 tenk1_1
-(12 rows)
+                                       QUERY PLAN                                        
+-----------------------------------------------------------------------------------------
+ Finalize Aggregate
+   ->  Remote Subquery Scan on all (datanodes 2)
+         ->  Partial Aggregate
+               ->  Hash Join
+                     Hash Cond: (NOT (tenk1.unique1 IS DISTINCT FROM tenk1_1.fivethous))
+                     ->  HashAggregate
+                           Group Key: tenk1.unique1
+                           ->  Remote Subquery Scan on all (datanodes 2)
+                                 Distribute results by S: unique1
+                                 ->  Seq Scan on tenk1
+                     ->  Hash
+                           ->  HashAggregate
+                                 Group Key: tenk1_1.fivethous
+                                 ->  Remote Subquery Scan on all (datanodes 2)
+                                       Distribute results by S: fivethous
+                                       ->  Seq Scan on tenk1 tenk1_1
+(16 rows)
 
 select count(*) from
   ( select unique1 from tenk1 intersect select fivethous from tenk1 ) ss;
@@ -424,20 +447,24 @@ select count(*) from
 
 explain (costs off)
 select unique1 from tenk1 except select unique2 from tenk1 where unique2 != 10;
-                                     QUERY PLAN                                     
-------------------------------------------------------------------------------------
- SetOp Except
-   ->  Sort
-         Sort Key: "*SELECT* 1".unique1
-         ->  Append
-               ->  Subquery Scan on "*SELECT* 1"
-                     ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-                           ->  Index Only Scan using tenk1_unique1 on tenk1
-               ->  Subquery Scan on "*SELECT* 2"
-                     ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-                           ->  Index Only Scan using tenk1_unique2 on tenk1 tenk1_1
+                                QUERY PLAN                                 
+---------------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   ->  Hash Anti Join
+         Hash Cond: (NOT (tenk1.unique1 IS DISTINCT FROM tenk1_1.unique2))
+         ->  HashAggregate
+               Group Key: tenk1.unique1
+               ->  Remote Subquery Scan on all (datanodes 2)
+                     Distribute results by S: unique1
+                     ->  Seq Scan on tenk1
+         ->  Hash
+               ->  HashAggregate
+                     Group Key: tenk1_1.unique2
+                     ->  Remote Subquery Scan on all (datanodes 2)
+                           Distribute results by S: unique2
+                           ->  Seq Scan on tenk1 tenk1_1
                                  Filter: (unique2 <> 10)
-(11 rows)
+(15 rows)
 
 select unique1 from tenk1 except select unique2 from tenk1 where unique2 != 10;
  unique1 
@@ -446,6 +473,7 @@ select unique1 from tenk1 except select unique2 from tenk1 where unique2 != 10;
 (1 row)
 
 reset enable_hashagg;
+reset enable_indexonlyscan;
 --
 -- Mixed types
 --
@@ -564,6 +592,121 @@ SELECT q1 FROM int8_tbl EXCEPT (((SELECT q2 FROM int8_tbl ORDER BY q2 LIMIT 1)))
 (5 rows)
 
 --
+-- Check behavior with empty select list (allowed since 9.4)
+--
+select union select;
+--
+(1 row)
+
+select intersect select;
+--
+(1 row)
+
+select except select;
+--
+(0 rows)
+
+-- check hashed implementation
+set enable_hashagg = true;
+set enable_sort = false;
+explain (costs off)
+select from generate_series(1,5) union select from generate_series(1,3);
+                           QUERY PLAN                           
+----------------------------------------------------------------
+ HashAggregate
+   ->  Append
+         ->  Function Scan on generate_series
+         ->  Function Scan on generate_series generate_series_1
+(4 rows)
+
+explain (costs off)
+select from generate_series(1,5) intersect select from generate_series(1,3);
+                              QUERY PLAN                              
+----------------------------------------------------------------------
+ HashSetOp Intersect
+   ->  Append
+         ->  Subquery Scan on "*SELECT* 1"
+               ->  Function Scan on generate_series
+         ->  Subquery Scan on "*SELECT* 2"
+               ->  Function Scan on generate_series generate_series_1
+(6 rows)
+
+select from generate_series(1,5) union select from generate_series(1,3);
+--
+(1 row)
+
+select from generate_series(1,5) union all select from generate_series(1,3);
+--
+(8 rows)
+
+select from generate_series(1,5) intersect select from generate_series(1,3);
+--
+(1 row)
+
+select from generate_series(1,5) intersect all select from generate_series(1,3);
+--
+(3 rows)
+
+select from generate_series(1,5) except select from generate_series(1,3);
+--
+(0 rows)
+
+select from generate_series(1,5) except all select from generate_series(1,3);
+--
+(2 rows)
+
+-- check sorted implementation
+set enable_hashagg = false;
+set enable_sort = true;
+explain (costs off)
+select from generate_series(1,5) union select from generate_series(1,3);
+                           QUERY PLAN                           
+----------------------------------------------------------------
+ Unique
+   ->  Append
+         ->  Function Scan on generate_series
+         ->  Function Scan on generate_series generate_series_1
+(4 rows)
+
+explain (costs off)
+select from generate_series(1,5) intersect select from generate_series(1,3);
+                              QUERY PLAN                              
+----------------------------------------------------------------------
+ SetOp Intersect
+   ->  Append
+         ->  Subquery Scan on "*SELECT* 1"
+               ->  Function Scan on generate_series
+         ->  Subquery Scan on "*SELECT* 2"
+               ->  Function Scan on generate_series generate_series_1
+(6 rows)
+
+select from generate_series(1,5) union select from generate_series(1,3);
+--
+(1 row)
+
+select from generate_series(1,5) union all select from generate_series(1,3);
+--
+(8 rows)
+
+select from generate_series(1,5) intersect select from generate_series(1,3);
+--
+(1 row)
+
+select from generate_series(1,5) intersect all select from generate_series(1,3);
+--
+(3 rows)
+
+select from generate_series(1,5) except select from generate_series(1,3);
+--
+(0 rows)
+
+select from generate_series(1,5) except all select from generate_series(1,3);
+--
+(2 rows)
+
+reset enable_hashagg;
+reset enable_sort;
+--
 -- Check handling of a case with unknown constants.  We don't guarantee
 -- an undecorated constant will work in all cases, but historically this
 -- usage has worked, so test we don't break it.
@@ -605,7 +748,7 @@ explain (num_nodes off, nodes off, costs off)
  WHERE ab = 'ab';
                     QUERY PLAN                     
 ---------------------------------------------------
- Remote Subquery Scan on all
+ Remote Fast Query Execution
    ->  Append
          ->  Index Scan using t1_ab_idx on t1
                Index Cond: ((a || b) = 'ab'::text)
@@ -619,18 +762,21 @@ explain (num_nodes off, nodes off, costs off)
   UNION
   SELECT * FROM t2) t
  WHERE ab = 'ab';
-                       QUERY PLAN                        
----------------------------------------------------------
- HashAggregate
-   Group Key: ((t1.a || t1.b))
-   ->  Append
-         ->  Remote Subquery Scan on all
-               ->  Index Scan using t1_ab_idx on t1
-                     Index Cond: ((a || b) = 'ab'::text)
-         ->  Remote Subquery Scan on all
-               ->  Index Only Scan using t2_pkey on t2
-                     Index Cond: (ab = 'ab'::text)
-(9 rows)
+                             QUERY PLAN                              
+---------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   ->  HashAggregate
+         Group Key: ((t1.a || t1.b))
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by S: ((a || b))
+               ->  HashAggregate
+                     Group Key: ((t1.a || t1.b))
+                     ->  Append
+                           ->  Index Scan using t1_ab_idx on t1
+                                 Index Cond: ((a || b) = 'ab'::text)
+                           ->  Index Only Scan using t2_pkey on t2
+                                 Index Cond: (ab = 'ab'::text)
+(12 rows)
 
 --
 -- Test that ORDER BY for UNION ALL can be pushed down to inheritance
@@ -650,18 +796,18 @@ explain (costs off)
    UNION ALL
    SELECT ab FROM t2) t
   ORDER BY 1 LIMIT 8;
-                        QUERY PLAN                         
------------------------------------------------------------
+                         QUERY PLAN                         
+------------------------------------------------------------
  Limit
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
+   ->  Remote Subquery Scan on all (datanodes 2)
+         Sort Key: ((t1.a || t1.b))
          ->  Limit
-               ->  Sort
+               ->  Merge Append
                      Sort Key: ((t1.a || t1.b))
-                     ->  Append
-                           ->  Seq Scan on t1
-                           ->  Seq Scan on t1c
-                           ->  Seq Scan on t2
-                           ->  Seq Scan on t2c
+                     ->  Index Scan using t1_ab_idx on t1
+                     ->  Index Scan using t1c_ab_idx on t1c
+                     ->  Index Scan using t2_pkey on t2
+                     ->  Index Scan using t2c_pkey on t2c
 (10 rows)
 
   SELECT * FROM
@@ -694,16 +840,18 @@ select event_id
        union all
        select event_id from other_events) ss
  order by event_id;
-                     QUERY PLAN                      
------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+                    QUERY PLAN                    
+--------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   Sort Key: events.event_id
    ->  Sort
          Sort Key: events.event_id
          ->  Append
-               ->  Seq Scan on events
-               ->  Seq Scan on events_child
+               ->  Append
+                     ->  Seq Scan on events
+                     ->  Seq Scan on events_child
                ->  Seq Scan on other_events
-(7 rows)
+(9 rows)
 
 drop table events_child, events, other_events;
 reset enable_indexonlyscan;
@@ -716,7 +864,7 @@ explain (num_nodes off, nodes off, costs off)
  WHERE t = 2;
            QUERY PLAN            
 ---------------------------------
- Remote Subquery Scan on all
+ Remote Fast Query Execution
    ->  Append
          ->  Seq Scan on tenk1 b
 (3 rows)
@@ -822,8 +970,10 @@ ORDER BY x;
 -- Test proper handling of parameterized appendrel paths when the
 -- potential join qual is expensive
 create function expensivefunc(int) returns int
-language plpgsql immutable strict cost 10000
+language plpgsql immutable strict pushdown cost 10000
 as $$begin return $1; end$$;
+WARNING:  You are pushing function down to datanode for execution
+HINT:  Make sure it's not attempt to access any other datanode OR YOU MAY SUFFER DATA LOSE !!
 create temp table t3 as select generate_series(-1000,1000) as x;
 create index t3i on t3 (expensivefunc(x));
 analyze t3;
@@ -833,7 +983,33 @@ select * from
   join int4_tbl on f1 = expensivefunc(x);
                             QUERY PLAN                            
 ------------------------------------------------------------------
- Remote Subquery Scan on all
+ Remote Fast Query Execution
+   ->  Nested Loop
+         ->  Seq Scan on int4_tbl
+         ->  Append
+               ->  Index Scan using t3i on t3 a
+                     Index Cond: (expensivefunc(x) = int4_tbl.f1)
+               ->  Index Scan using t3i on t3 b
+                     Index Cond: (expensivefunc(x) = int4_tbl.f1)
+(8 rows)
+
+select * from
+  (select * from t3 a union all select * from t3 b) ss
+  join int4_tbl on f1 = expensivefunc(x);
+ x | f1 
+---+----
+ 0 |  0
+ 0 |  0
+(2 rows)
+
+alter function expensivefunc not pushdown;
+explain (num_nodes off, nodes off, costs off)
+select * from
+  (select * from t3 a union all select * from t3 b) ss
+  join int4_tbl on f1 = expensivefunc(x);
+                            QUERY PLAN                            
+------------------------------------------------------------------
+ Remote Fast Query Execution
    ->  Nested Loop
          ->  Seq Scan on int4_tbl
          ->  Append
@@ -860,17 +1036,16 @@ select * from
   (select *, 0 as x from int8_tbl a
    union all
    select *, 1 as x from int8_tbl b) ss
-where (x = 0) or (q1 >= q2 and q1 <= q2) order by 1,2,3;
-                       QUERY PLAN                        
----------------------------------------------------------
- Remote Subquery Scan on all (datanode_1)
-   ->  Sort
-         Sort Key: a.q1, a.q2, (0)
-         ->  Append
-               ->  Seq Scan on int8_tbl a
-               ->  Seq Scan on int8_tbl b
-                     Filter: ((q1 >= q2) AND (q1 <= q2))
-(7 rows)
+where (x = 0) or (q1 >= q2 and q1 <= q2);
+                    QUERY PLAN                     
+---------------------------------------------------
+ Remote Fast Query Execution
+   Node/s: datanode_1
+   ->  Append
+         ->  Seq Scan on int8_tbl a
+         ->  Seq Scan on int8_tbl b
+               Filter: ((q1 >= q2) AND (q1 <= q2))
+(6 rows)
 
 select * from
   (select *, 0 as x from int8_tbl a
@@ -887,3 +1062,499 @@ where (x = 0) or (q1 >= q2 and q1 <= q2) order by 1,2,3;
  4567890123456789 |  4567890123456789 | 1
 (6 rows)
 
+CREATE TABLE tb1 (c1 int, c2 int) DISTRIBUTE BY REPLICATION;
+CREATE TABLE tb2 (c1 int, c2 int);
+insert into tb2 select i,i from generate_series(1, 10) i;
+insert into tb1 select i,i from generate_series(1, 10) i;
+explain (costs off) select c1 from tb1 union all select c1 from tb2;
+                      QUERY PLAN                       
+-------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   ->  Append
+         ->  Remote Subquery Scan on all (datanodes 1)
+               Distribute results by S: c1
+               ->  Seq Scan on tb1
+         ->  Seq Scan on tb2
+(6 rows)
+
+select c1 from tb1 union all select c1 from tb2 order by c1;
+ c1 
+----
+  1
+  1
+  2
+  2
+  3
+  3
+  4
+  4
+  5
+  5
+  6
+  6
+  7
+  7
+  8
+  8
+  9
+  9
+ 10
+ 10
+(20 rows)
+
+explain (costs off) select c1 from tb2 union all select c1 from tb1;
+                      QUERY PLAN                       
+-------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   ->  Append
+         ->  Seq Scan on tb2
+         ->  Remote Subquery Scan on all (datanodes 1)
+               Distribute results by S: c1
+               ->  Seq Scan on tb1
+(6 rows)
+
+select c1 from tb2 union all select c1 from tb1 order by c1;
+ c1 
+----
+  1
+  1
+  2
+  2
+  3
+  3
+  4
+  4
+  5
+  5
+  6
+  6
+  7
+  7
+  8
+  8
+  9
+  9
+ 10
+ 10
+(20 rows)
+
+drop table tb1;
+drop table tb2;
+--plan of setop (not union)
+explain (costs off) select * from (select 2 except select 1 from t1);
+                            QUERY PLAN                             
+-------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 1)
+   ->  Subquery Scan on "__Alias_34__"
+         ->  HashSetOp Except
+               ->  Append
+                     ->  Subquery Scan on "*SELECT* 1"
+                           ->  Result
+                     ->  Remote Subquery Scan on all (datanodes 2)
+                           Distribute results by R
+                           ->  Subquery Scan on "*SELECT* 2"
+                                 ->  Result
+                                       ->  Append
+                                             ->  Seq Scan on t1
+                                             ->  Seq Scan on t1c
+(13 rows)
+
+select * from (select 2 except select 1 from t1);
+ ?column? 
+----------
+        2
+(1 row)
+
+create table test_nonunion(a int);
+insert into test_nonunion values (1);
+explain (costs off, verbose) select 'x' from test_nonunion t1 union select 'x' from test_nonunion t2 where 1=2 except select 'y' from test_nonunion t3 intersect select 'y' from test_nonunion t4;
+                                            QUERY PLAN                                            
+--------------------------------------------------------------------------------------------------
+ Remote Subquery Scan[1] on all (datanode_1)
+   Output: ('x'::text), (0)
+   ->  HashSetOp Except
+         Output: ('x'::text), (0)
+         ->  Append
+               ->  Remote Subquery Scan[2] on all (datanode_1,datanode_2)
+                     Output: ('x'::text), 0
+                     Distribute results by R
+                     ->  HashAggregate
+                           Output: ('x'::text), 0
+                           Group Key: ('x'::text)
+                           ->  Remote Subquery Scan[3] on all (datanode_1,datanode_2)
+                                 Output: ('x'::text)
+                                 Distribute results by S: ('x'::text)
+                                 ->  HashAggregate
+                                       Output: ('x'::text)
+                                       Group Key: ('x'::text)
+                                       ->  Append
+                                             ->  Seq Scan on public.test_nonunion t1
+                                                   Output: 'x'::text
+                                             ->  Remote Subquery Scan[4] on all (datanode_1)
+                                                   Output: 'x'::text
+                                                   Distribute results by S: 'x'::text
+                                                   ->  Result
+                                                         Output: 'x'::text
+                                                         One-Time Filter: false
+               ->  Remote Subquery Scan[5] on all (datanode_1,datanode_2)
+                     Output: 'y'::text, 1
+                     Distribute results by R
+                     ->  Hash Join
+                           Output: 'y'::text, 1
+                           Hash Cond: (NOT ('y'::text IS DISTINCT FROM 'y'::text))
+                           ->  HashAggregate
+                                 Output: ('y'::text)
+                                 Group Key: 'y'::text
+                                 ->  Remote Subquery Scan[6] on all (datanode_1,datanode_2)
+                                       Output: 'y'::text
+                                       Distribute results by S: 'y'::text
+                                       ->  HashAggregate
+                                             Output: ('y'::text)
+                                             Group Key: 'y'::text
+                                             ->  Seq Scan on public.test_nonunion t3
+                                                   Output: 'y'::text
+                           ->  Hash
+                                 Output: 'y'::text
+                                 ->  HashAggregate
+                                       Output: ('y'::text)
+                                       Group Key: 'y'::text
+                                       ->  Remote Subquery Scan[7] on all (datanode_1,datanode_2)
+                                             Output: 'y'::text
+                                             Distribute results by S: 'y'::text
+                                             ->  HashAggregate
+                                                   Output: ('y'::text)
+                                                   Group Key: 'y'::text
+                                                   ->  Seq Scan on public.test_nonunion t4
+                                                         Output: 'y'::text
+(56 rows)
+
+select 'x' from test_nonunion t1 except select 'y' from test_nonunion t2 except select 'x' from test_nonunion t3 intersect select 'x' from test_nonunion t4 except select 'y' from test_nonunion t5 ;
+ ?column? 
+----------
+(0 rows)
+
+drop table test_nonunion;
+--bugfix
+create table test_setop(c0 int, c1 bytea, c2 char, c3 bigint, c4 smallint) distribute by shard(c0);
+set nonunion_optimizer = off;
+EXPLAIN (costs off, verbose)
+SELECT ALL ref_0.c4 AS c0
+FROM test_setop AS ref_0
+EXCEPT
+SELECT ALL ref_0.c4 AS c0
+FROM test_setop AS ref_0
+WHERE (ref_0.c1 <> ref_0.c1)
+EXCEPT
+SELECT ALL ref_0.c4 AS c0
+FROM test_setop AS ref_0
+INTERSECT DISTINCT VALUES (CAST(NULL AS NUMERIC)) FOR READ ONLY;
+                                         QUERY PLAN                                         
+--------------------------------------------------------------------------------------------
+ Remote Subquery Scan[1] on all (datanode_1)
+   Output: (("*SELECT* 1".c0)::numeric), (0)
+   ->  HashSetOp Except
+         Output: (("*SELECT* 1".c0)::numeric), (0)
+         ->  Append
+               ->  Result
+                     Output: "*SELECT* 1".c0, 0
+                     ->  HashSetOp Except
+                           Output: "*SELECT* 1".c0, (0)
+                           ->  Append
+                                 ->  Remote Subquery Scan[2] on all (datanode_1,datanode_2)
+                                       Output: "*SELECT* 1".c0, 0
+                                       Distribute results by R
+                                       ->  Subquery Scan on "*SELECT* 1"
+                                             Output: "*SELECT* 1".c0, 0
+                                             ->  Seq Scan on public.test_setop ref_0
+                                                   Output: ref_0.c4
+                                 ->  Remote Subquery Scan[3] on all (datanode_1,datanode_2)
+                                       Output: "*SELECT* 2".c0, 1
+                                       Distribute results by R
+                                       ->  Subquery Scan on "*SELECT* 2"
+                                             Output: "*SELECT* 2".c0, 1
+                                             ->  Seq Scan on public.test_setop ref_0_1
+                                                   Output: ref_0_1.c4
+                                                   Filter: (ref_0_1.c1 <> ref_0_1.c1)
+               ->  Result
+                     Output: (NULL::numeric), 1
+                     ->  HashSetOp Intersect
+                           Output: (NULL::numeric), (1)
+                           ->  Append
+                                 ->  Subquery Scan on "*SELECT* 4"
+                                       Output: NULL::numeric, 1
+                                       ->  Result
+                                             Output: NULL::numeric
+                                 ->  Remote Subquery Scan[4] on all (datanode_1,datanode_2)
+                                       Output: (("*SELECT* 3".c0)::numeric), 0
+                                       Distribute results by R
+                                       ->  Subquery Scan on "*SELECT* 3"
+                                             Output: "*SELECT* 3".c0, 0
+                                             ->  Seq Scan on public.test_setop ref_0_2
+                                                   Output: ref_0_2.c4
+(41 rows)
+
+set nonunion_optimizer = on;
+EXPLAIN (costs off, verbose)
+SELECT ALL ref_0.c4 AS c0
+FROM test_setop AS ref_0
+EXCEPT
+SELECT ALL ref_0.c4 AS c0
+FROM test_setop AS ref_0
+WHERE (ref_0.c1 <> ref_0.c1)
+EXCEPT
+SELECT ALL ref_0.c4 AS c0
+FROM test_setop AS ref_0
+INTERSECT DISTINCT VALUES (CAST(NULL AS NUMERIC)) FOR READ ONLY;
+                                            QUERY PLAN                                            
+--------------------------------------------------------------------------------------------------
+ Remote Subquery Scan[1] on all (datanode_1)
+   Output: ((ref_0.c4)::numeric), (0)
+   ->  HashSetOp Except
+         Output: ((ref_0.c4)::numeric), (0)
+         ->  Append
+               ->  Remote Subquery Scan[2] on all (datanode_1,datanode_2)
+                     Output: ((ref_0.c4)::numeric), 0
+                     Distribute results by R
+                     ->  Hash Anti Join
+                           Output: ref_0.c4, 0
+                           Hash Cond: (NOT (ref_0.c4 IS DISTINCT FROM ref_0_1.c4))
+                           ->  HashAggregate
+                                 Output: ref_0.c4
+                                 Group Key: ref_0.c4
+                                 ->  Remote Subquery Scan[3] on all (datanode_1,datanode_2)
+                                       Output: ref_0.c4
+                                       Distribute results by S: c4
+                                       ->  HashAggregate
+                                             Output: ref_0.c4
+                                             Group Key: ref_0.c4
+                                             ->  Seq Scan on public.test_setop ref_0
+                                                   Output: ref_0.c4
+                           ->  Hash
+                                 Output: ref_0_1.c4
+                                 ->  HashAggregate
+                                       Output: ref_0_1.c4
+                                       Group Key: ref_0_1.c4
+                                       ->  Remote Subquery Scan[4] on all (datanode_1,datanode_2)
+                                             Output: ref_0_1.c4
+                                             Distribute results by S: c4
+                                             ->  HashAggregate
+                                                   Output: ref_0_1.c4
+                                                   Group Key: ref_0_1.c4
+                                                   ->  Seq Scan on public.test_setop ref_0_1
+                                                         Output: ref_0_1.c4
+                                                         Filter: (ref_0_1.c1 <> ref_0_1.c1)
+               ->  Result
+                     Output: (NULL::numeric), 1
+                     ->  HashSetOp Intersect
+                           Output: (NULL::numeric), (1)
+                           ->  Append
+                                 ->  Subquery Scan on "*SELECT* 4"
+                                       Output: NULL::numeric, 1
+                                       ->  Result
+                                             Output: NULL::numeric
+                                 ->  Remote Subquery Scan[5] on all (datanode_1,datanode_2)
+                                       Output: (("*SELECT* 3".c0)::numeric), 0
+                                       Distribute results by R
+                                       ->  Subquery Scan on "*SELECT* 3"
+                                             Output: "*SELECT* 3".c0, 0
+                                             ->  Seq Scan on public.test_setop ref_0_2
+                                                   Output: ref_0_2.c4
+(52 rows)
+
+drop table test_setop;
+reset nonunion_optimizer;
+CREATE TABLE rqg_table4 (
+c0 int,
+c1 int,
+c2 text,
+c3 text,
+c4 date,
+c5 date,
+c6 timestamp,
+c7 timestamp,
+c8 time,
+c9 time,
+pk text,
+/*Indices*/
+primary key (pk))    PARTITION BY hash(pk) distribute by replication;
+set nonunion_optimizer = off;
+explain (costs off, verbose) select c2 FROM rqg_table4 EXCEPT ALL select c3 FROM rqg_table4 INTERSECT select c2 FROM rqg_table4 order by 1;
+                                                                                         QUERY PLAN                                                                                          
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Remote Fast Query Execution
+   Output: "*SELECT* 1".c2
+   Node/s: datanode_1
+   Remote query: SELECT rqg_table4.c2 FROM public.rqg_table4 EXCEPT ALL (SELECT rqg_table4.c3 AS c2 FROM public.rqg_table4 INTERSECT SELECT rqg_table4.c2 FROM public.rqg_table4) ORDER BY 1
+   ->  Sort
+         Output: "*SELECT* 1".c2, (0)
+         Sort Key: "*SELECT* 1".c2
+         ->  HashSetOp Except All
+               Output: "*SELECT* 1".c2, (0)
+               ->  Append
+                     ->  Subquery Scan on "*SELECT* 1"
+                           Output: "*SELECT* 1".c2, 0
+                           ->  Result
+                                 Output: c2
+                                 One-Time Filter: false
+                     ->  Result
+                           Output: "*SELECT* 2".c2, 1
+                           ->  HashSetOp Intersect
+                                 Output: "*SELECT* 2".c2, (0)
+                                 ->  Append
+                                       ->  Subquery Scan on "*SELECT* 2"
+                                             Output: "*SELECT* 2".c2, 0
+                                             ->  Result
+                                                   Output: c3
+                                                   One-Time Filter: false
+                                       ->  Subquery Scan on "*SELECT* 3"
+                                             Output: "*SELECT* 3".c2, 1
+                                             ->  Result
+                                                   Output: c2
+                                                   One-Time Filter: false
+(30 rows)
+
+set nonunion_optimizer = on;
+explain (costs off, verbose) select c2 FROM rqg_table4 EXCEPT ALL select c3 FROM rqg_table4 INTERSECT select c2 FROM rqg_table4 order by 1;
+                                                                                         QUERY PLAN                                                                                          
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Remote Fast Query Execution
+   Output: "*SELECT* 1".c2
+   Node/s: datanode_1
+   Remote query: SELECT rqg_table4.c2 FROM public.rqg_table4 EXCEPT ALL (SELECT rqg_table4.c3 AS c2 FROM public.rqg_table4 INTERSECT SELECT rqg_table4.c2 FROM public.rqg_table4) ORDER BY 1
+   ->  Sort
+         Output: "*SELECT* 1".c2, (0)
+         Sort Key: "*SELECT* 1".c2
+         ->  HashSetOp Except All
+               Output: "*SELECT* 1".c2, (0)
+               ->  Append
+                     ->  Subquery Scan on "*SELECT* 1"
+                           Output: "*SELECT* 1".c2, 0
+                           ->  Result
+                                 Output: c2
+                                 One-Time Filter: false
+                     ->  Result
+                           Output: "*SELECT* 2".c2, 1
+                           ->  HashSetOp Intersect
+                                 Output: "*SELECT* 2".c2, (0)
+                                 ->  Append
+                                       ->  Subquery Scan on "*SELECT* 2"
+                                             Output: "*SELECT* 2".c2, 0
+                                             ->  Result
+                                                   Output: c3
+                                                   One-Time Filter: false
+                                       ->  Subquery Scan on "*SELECT* 3"
+                                             Output: "*SELECT* 3".c2, 1
+                                             ->  Result
+                                                   Output: c2
+                                                   One-Time Filter: false
+(30 rows)
+
+drop table rqg_table4;
+reset nonunion_optimizer;
+create table union_test(c1 int, c2 int);
+explain (costs off) select 1 union select c1 from union_test;
+                               QUERY PLAN                                
+-------------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   ->  HashAggregate
+         Group Key: (1)
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by S: (1)
+               ->  HashAggregate
+                     Group Key: (1)
+                     ->  Append
+                           ->  Remote Subquery Scan on all (datanodes 1)
+                                 Distribute results by S: 1
+                                 ->  Result
+                           ->  Seq Scan on union_test
+(12 rows)
+
+explain (costs off) select c1 from union_test union select 1;
+                               QUERY PLAN                                
+-------------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   ->  HashAggregate
+         Group Key: union_test.c1
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by S: c1
+               ->  HashAggregate
+                     Group Key: union_test.c1
+                     ->  Append
+                           ->  Seq Scan on union_test
+                           ->  Remote Subquery Scan on all (datanodes 1)
+                                 Distribute results by S: 1
+                                 ->  Result
+(12 rows)
+
+explain (costs off) select 1 union select 2;
+        QUERY PLAN        
+--------------------------
+ Unique
+   ->  Sort
+         Sort Key: (1)
+         ->  Append
+               ->  Result
+               ->  Result
+(6 rows)
+
+prepare union_test_fun(int, int) as select $1 union select c1 from union_test union select $2;
+explain (costs off) execute union_test_fun(1,2);
+                               QUERY PLAN                                
+-------------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   ->  HashAggregate
+         Group Key: (1)
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by S: (1)
+               ->  HashAggregate
+                     Group Key: (1)
+                     ->  Append
+                           ->  Remote Subquery Scan on all (datanodes 1)
+                                 Distribute results by S: 1
+                                 ->  Result
+                           ->  Seq Scan on union_test
+                           ->  Remote Subquery Scan on all (datanodes 1)
+                                 Distribute results by S: 2
+                                 ->  Result
+(15 rows)
+
+DEALLOCATE  union_test_fun;
+prepare union_test_fun(int) as select c1 from union_test union select $1;
+explain (costs off) execute union_test_fun(1);
+                               QUERY PLAN                                
+-------------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   ->  HashAggregate
+         Group Key: union_test.c1
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by S: c1
+               ->  HashAggregate
+                     Group Key: union_test.c1
+                     ->  Append
+                           ->  Seq Scan on union_test
+                           ->  Remote Subquery Scan on all (datanodes 1)
+                                 Distribute results by S: 1
+                                 ->  Result
+(12 rows)
+
+DEALLOCATE  union_test_fun;
+prepare union_test_fun(int) as select $1 union select c1 from union_test;
+explain (costs off) execute union_test_fun(1);
+                               QUERY PLAN                                
+-------------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   ->  HashAggregate
+         Group Key: (1)
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by S: (1)
+               ->  HashAggregate
+                     Group Key: (1)
+                     ->  Append
+                           ->  Remote Subquery Scan on all (datanodes 1)
+                                 Distribute results by S: 1
+                                 ->  Result
+                           ->  Seq Scan on union_test
+(12 rows)
+
+DEALLOCATE  union_test_fun;
+drop table union_test;

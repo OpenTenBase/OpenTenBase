@@ -19,7 +19,7 @@ select rolname, rolsuper, rolinherit, rolcreaterole, rolcreatedb, rolcanlogin, r
 
 -- create table
 \c audit_database audit_user
-create table tbl_test(f1 number, f2 timestamp default now(), f3 int) ;
+create table tbl_test(f1 integer, f2 timestamp default now(), f3 int) ;
 create table tbl_test0 as select * from tbl_test;
 
 create view tbl_test_v as select * from tbl_test;
@@ -29,7 +29,7 @@ create view tbl_test0_v as select * from tbl_test0;
 create materialized view tbl_test0_mv as select * from tbl_test0;
 
 create schema sc_test;
-create table sc_test.tbl_test(f1 number, f2 timestamp default now(), f3 int) ;
+create table sc_test.tbl_test(f1 integer, f2 timestamp default now(), f3 int) ;
 create table sc_test.tbl_test0 as select * from sc_test.tbl_test;
 
 create view sc_test.tbl_test_v as select * from sc_test.tbl_test;
@@ -326,10 +326,9 @@ drop table tbl_test cascade;
 drop table tbl_test0 cascade;
 
 \c regression audit_user
-drop database audit_database;
+-- drop database may faild, do not drop it
+-- drop database audit_database;
 
 reset client_min_messages;
 reset datestyle;
 reset client_encoding;
-
-

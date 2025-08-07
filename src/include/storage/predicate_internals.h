@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * predicate_internals.h
- *      POSTGRES internal predicate locking definitions.
+ *	  POSTGRES internal predicate locking definitions.
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -23,19 +23,19 @@ typedef uint64 SerCommitSeqNo;
 
 /*
  * Reserved commit sequence numbers:
- *    - 0 is reserved to indicate a non-existent SLRU entry; it cannot be
- *      used as a SerCommitSeqNo, even an invalid one
- *    - InvalidSerCommitSeqNo is used to indicate a transaction that
- *      hasn't committed yet, so use a number greater than all valid
- *      ones to make comparison do the expected thing
- *    - RecoverySerCommitSeqNo is used to refer to transactions that
- *      happened before a crash/recovery, since we restart the sequence
- *      at that point.  It's earlier than all normal sequence numbers,
- *      and is only used by recovered prepared transactions
+ *	- 0 is reserved to indicate a non-existent SLRU entry; it cannot be
+ *	  used as a SerCommitSeqNo, even an invalid one
+ *	- InvalidSerCommitSeqNo is used to indicate a transaction that
+ *	  hasn't committed yet, so use a number greater than all valid
+ *	  ones to make comparison do the expected thing
+ *	- RecoverySerCommitSeqNo is used to refer to transactions that
+ *	  happened before a crash/recovery, since we restart the sequence
+ *	  at that point.  It's earlier than all normal sequence numbers,
+ *	  and is only used by recovered prepared transactions
  */
-#define InvalidSerCommitSeqNo        ((SerCommitSeqNo) PG_UINT64_MAX)
-#define RecoverySerCommitSeqNo        ((SerCommitSeqNo) 1)
-#define FirstNormalSerCommitSeqNo    ((SerCommitSeqNo) 2)
+#define InvalidSerCommitSeqNo		((SerCommitSeqNo) PG_UINT64_MAX)
+#define RecoverySerCommitSeqNo		((SerCommitSeqNo) 1)
+#define FirstNormalSerCommitSeqNo	((SerCommitSeqNo) 2)
 
 /*
  * The SERIALIZABLEXACT struct contains information needed for each
@@ -55,73 +55,73 @@ typedef uint64 SerCommitSeqNo;
  */
 typedef struct SERIALIZABLEXACT
 {
-    VirtualTransactionId vxid;    /* The executing process always has one of
-                                 * these. */
+	VirtualTransactionId vxid;	/* The executing process always has one of
+								 * these. */
 
-    /*
-     * We use two numbers to track the order that transactions commit. Before
-     * commit, a transaction is marked as prepared, and prepareSeqNo is set.
-     * Shortly after commit, it's marked as committed, and commitSeqNo is set.
-     * This doesn't give a strict commit order, but these two values together
-     * are good enough for us, as we can always err on the safe side and
-     * assume that there's a conflict, if we can't be sure of the exact
-     * ordering of two commits.
-     *
-     * Note that a transaction is marked as prepared for a short period during
-     * commit processing, even if two-phase commit is not used. But with
-     * two-phase commit, a transaction can stay in prepared state for some
-     * time.
-     */
-    SerCommitSeqNo prepareSeqNo;
-    SerCommitSeqNo commitSeqNo;
+	/*
+	 * We use two numbers to track the order that transactions commit. Before
+	 * commit, a transaction is marked as prepared, and prepareSeqNo is set.
+	 * Shortly after commit, it's marked as committed, and commitSeqNo is set.
+	 * This doesn't give a strict commit order, but these two values together
+	 * are good enough for us, as we can always err on the safe side and
+	 * assume that there's a conflict, if we can't be sure of the exact
+	 * ordering of two commits.
+	 *
+	 * Note that a transaction is marked as prepared for a short period during
+	 * commit processing, even if two-phase commit is not used. But with
+	 * two-phase commit, a transaction can stay in prepared state for some
+	 * time.
+	 */
+	SerCommitSeqNo prepareSeqNo;
+	SerCommitSeqNo commitSeqNo;
 
-    /* these values are not both interesting at the same time */
-    union
-    {
-        SerCommitSeqNo earliestOutConflictCommit;    /* when committed with
-                                                     * conflict out */
-        SerCommitSeqNo lastCommitBeforeSnapshot;    /* when not committed or
-                                                     * no conflict out */
-    }            SeqNo;
-    SHM_QUEUE    outConflicts;    /* list of write transactions whose data we
-                                 * couldn't read. */
-    SHM_QUEUE    inConflicts;    /* list of read transactions which couldn't
-                                 * see our write. */
-    SHM_QUEUE    predicateLocks; /* list of associated PREDICATELOCK objects */
-    SHM_QUEUE    finishedLink;    /* list link in
-                                 * FinishedSerializableTransactions */
+	/* these values are not both interesting at the same time */
+	union
+	{
+		SerCommitSeqNo earliestOutConflictCommit;	/* when committed with
+													 * conflict out */
+		SerCommitSeqNo lastCommitBeforeSnapshot;	/* when not committed or
+													 * no conflict out */
+	}			SeqNo;
+	SHM_QUEUE	outConflicts;	/* list of write transactions whose data we
+								 * couldn't read. */
+	SHM_QUEUE	inConflicts;	/* list of read transactions which couldn't
+								 * see our write. */
+	SHM_QUEUE	predicateLocks; /* list of associated PREDICATELOCK objects */
+	SHM_QUEUE	finishedLink;	/* list link in
+								 * FinishedSerializableTransactions */
 
-    /*
-     * for r/o transactions: list of concurrent r/w transactions that we could
-     * potentially have conflicts with, and vice versa for r/w transactions
-     */
-    SHM_QUEUE    possibleUnsafeConflicts;
+	/*
+	 * for r/o transactions: list of concurrent r/w transactions that we could
+	 * potentially have conflicts with, and vice versa for r/w transactions
+	 */
+	SHM_QUEUE	possibleUnsafeConflicts;
 
-    TransactionId topXid;        /* top level xid for the transaction, if one
-                                 * exists; else invalid */
-    TransactionId finishedBefore;    /* invalid means still running; else the
-                                     * struct expires when no serializable
-                                     * xids are before this. */
-    TransactionId xmin;            /* the transaction's snapshot xmin */
-    uint32        flags;            /* OR'd combination of values defined below */
-    int            pid;            /* pid of associated process */
+	TransactionId topXid;		/* top level xid for the transaction, if one
+								 * exists; else invalid */
+	TransactionId finishedBefore;	/* invalid means still running; else the
+									 * struct expires when no serializable
+									 * xids are before this. */
+	TransactionId xmin;			/* the transaction's snapshot xmin */
+	uint32		flags;			/* OR'd combination of values defined below */
+	int			pid;			/* pid of associated process */
 } SERIALIZABLEXACT;
 
-#define SXACT_FLAG_COMMITTED            0x00000001    /* already committed */
-#define SXACT_FLAG_PREPARED                0x00000002    /* about to commit */
-#define SXACT_FLAG_ROLLED_BACK            0x00000004    /* already rolled back */
-#define SXACT_FLAG_DOOMED                0x00000008    /* will roll back */
+#define SXACT_FLAG_COMMITTED			0x00000001	/* already committed */
+#define SXACT_FLAG_PREPARED				0x00000002	/* about to commit */
+#define SXACT_FLAG_ROLLED_BACK			0x00000004	/* already rolled back */
+#define SXACT_FLAG_DOOMED				0x00000008	/* will roll back */
 /*
  * The following flag actually means that the flagged transaction has a
  * conflict out *to a transaction which committed ahead of it*.  It's hard
  * to get that into a name of a reasonable length.
  */
-#define SXACT_FLAG_CONFLICT_OUT            0x00000010
-#define SXACT_FLAG_READ_ONLY            0x00000020
-#define SXACT_FLAG_DEFERRABLE_WAITING    0x00000040
-#define SXACT_FLAG_RO_SAFE                0x00000080
-#define SXACT_FLAG_RO_UNSAFE            0x00000100
-#define SXACT_FLAG_SUMMARY_CONFLICT_IN    0x00000200
+#define SXACT_FLAG_CONFLICT_OUT			0x00000010
+#define SXACT_FLAG_READ_ONLY			0x00000020
+#define SXACT_FLAG_DEFERRABLE_WAITING	0x00000040
+#define SXACT_FLAG_RO_SAFE				0x00000080
+#define SXACT_FLAG_RO_UNSAFE			0x00000100
+#define SXACT_FLAG_SUMMARY_CONFLICT_IN	0x00000200
 #define SXACT_FLAG_SUMMARY_CONFLICT_OUT 0x00000400
 
 /*
@@ -133,52 +133,52 @@ typedef struct SERIALIZABLEXACT
  */
 typedef struct PredXactListElementData
 {
-    SHM_QUEUE    link;
-    SERIALIZABLEXACT sxact;
-}            PredXactListElementData;
+	SHM_QUEUE	link;
+	SERIALIZABLEXACT sxact;
+}			PredXactListElementData;
 
 typedef struct PredXactListElementData *PredXactListElement;
 
 #define PredXactListElementDataSize \
-        ((Size)MAXALIGN(sizeof(PredXactListElementData)))
+		((Size)MAXALIGN(sizeof(PredXactListElementData)))
 
 typedef struct PredXactListData
 {
-    SHM_QUEUE    availableList;
-    SHM_QUEUE    activeList;
+	SHM_QUEUE	availableList;
+	SHM_QUEUE	activeList;
 
-    /*
-     * These global variables are maintained when registering and cleaning up
-     * serializable transactions.  They must be global across all backends,
-     * but are not needed outside the predicate.c source file. Protected by
-     * SerializableXactHashLock.
-     */
-    TransactionId SxactGlobalXmin;    /* global xmin for active serializable
-                                     * transactions */
-    int            SxactGlobalXminCount;    /* how many active serializable
-                                         * transactions have this xmin */
-    int            WritableSxactCount; /* how many non-read-only serializable
-                                     * transactions are active */
-    SerCommitSeqNo LastSxactCommitSeqNo;    /* a strictly monotonically
-                                             * increasing number for commits
-                                             * of serializable transactions */
-    /* Protected by SerializableXactHashLock. */
-    SerCommitSeqNo CanPartialClearThrough;    /* can clear predicate locks and
-                                             * inConflicts for committed
-                                             * transactions through this seq
-                                             * no */
-    /* Protected by SerializableFinishedListLock. */
-    SerCommitSeqNo HavePartialClearedThrough;    /* have cleared through this
-                                                 * seq no */
-    SERIALIZABLEXACT *OldCommittedSxact;    /* shared copy of dummy sxact */
+	/*
+	 * These global variables are maintained when registering and cleaning up
+	 * serializable transactions.  They must be global across all backends,
+	 * but are not needed outside the predicate.c source file. Protected by
+	 * SerializableXactHashLock.
+	 */
+	TransactionId SxactGlobalXmin;	/* global xmin for active serializable
+									 * transactions */
+	int			SxactGlobalXminCount;	/* how many active serializable
+										 * transactions have this xmin */
+	int			WritableSxactCount; /* how many non-read-only serializable
+									 * transactions are active */
+	SerCommitSeqNo LastSxactCommitSeqNo;	/* a strictly monotonically
+											 * increasing number for commits
+											 * of serializable transactions */
+	/* Protected by SerializableXactHashLock. */
+	SerCommitSeqNo CanPartialClearThrough;	/* can clear predicate locks and
+											 * inConflicts for committed
+											 * transactions through this seq
+											 * no */
+	/* Protected by SerializableFinishedListLock. */
+	SerCommitSeqNo HavePartialClearedThrough;	/* have cleared through this
+												 * seq no */
+	SERIALIZABLEXACT *OldCommittedSxact;	/* shared copy of dummy sxact */
 
-    PredXactListElement element;
-}            PredXactListData;
+	PredXactListElement element;
+}			PredXactListData;
 
 typedef struct PredXactListData *PredXactList;
 
 #define PredXactListDataSize \
-        ((Size)MAXALIGN(sizeof(PredXactListData)))
+		((Size)MAXALIGN(sizeof(PredXactListData)))
 
 
 /*
@@ -193,27 +193,27 @@ typedef struct PredXactListData *PredXactList;
  */
 typedef struct RWConflictData
 {
-    SHM_QUEUE    outLink;        /* link for list of conflicts out from a sxact */
-    SHM_QUEUE    inLink;            /* link for list of conflicts in to a sxact */
-    SERIALIZABLEXACT *sxactOut;
-    SERIALIZABLEXACT *sxactIn;
-}            RWConflictData;
+	SHM_QUEUE	outLink;		/* link for list of conflicts out from a sxact */
+	SHM_QUEUE	inLink;			/* link for list of conflicts in to a sxact */
+	SERIALIZABLEXACT *sxactOut;
+	SERIALIZABLEXACT *sxactIn;
+}			RWConflictData;
 
 typedef struct RWConflictData *RWConflict;
 
 #define RWConflictDataSize \
-        ((Size)MAXALIGN(sizeof(RWConflictData)))
+		((Size)MAXALIGN(sizeof(RWConflictData)))
 
 typedef struct RWConflictPoolHeaderData
 {
-    SHM_QUEUE    availableList;
-    RWConflict    element;
-}            RWConflictPoolHeaderData;
+	SHM_QUEUE	availableList;
+	RWConflict	element;
+}			RWConflictPoolHeaderData;
 
 typedef struct RWConflictPoolHeaderData *RWConflictPoolHeader;
 
 #define RWConflictPoolHeaderDataSize \
-        ((Size)MAXALIGN(sizeof(RWConflictPoolHeaderData)))
+		((Size)MAXALIGN(sizeof(RWConflictPoolHeaderData)))
 
 
 /*
@@ -222,7 +222,7 @@ typedef struct RWConflictPoolHeaderData *RWConflictPoolHeader;
  */
 typedef struct SERIALIZABLEXIDTAG
 {
-    TransactionId xid;
+	TransactionId xid;
 } SERIALIZABLEXIDTAG;
 
 /*
@@ -240,11 +240,11 @@ typedef struct SERIALIZABLEXIDTAG
  */
 typedef struct SERIALIZABLEXID
 {
-    /* hash key */
-    SERIALIZABLEXIDTAG tag;
+	/* hash key */
+	SERIALIZABLEXIDTAG tag;
 
-    /* data */
-    SERIALIZABLEXACT *myXact;    /* pointer to the top level transaction data */
+	/* data */
+	SERIALIZABLEXACT *myXact;	/* pointer to the top level transaction data */
 } SERIALIZABLEXID;
 
 
@@ -267,10 +267,10 @@ typedef struct SERIALIZABLEXID
  */
 typedef struct PREDICATELOCKTARGETTAG
 {
-    uint32        locktag_field1; /* a 32-bit ID field */
-    uint32        locktag_field2; /* a 32-bit ID field */
-    uint32        locktag_field3; /* a 32-bit ID field */
-    uint32        locktag_field4; /* a 32-bit ID field */
+	uint32		locktag_field1; /* a 32-bit ID field */
+	uint32		locktag_field2; /* a 32-bit ID field */
+	uint32		locktag_field3; /* a 32-bit ID field */
+	uint32		locktag_field4; /* a 32-bit ID field */
 } PREDICATELOCKTARGETTAG;
 
 /*
@@ -284,12 +284,12 @@ typedef struct PREDICATELOCKTARGETTAG
  */
 typedef struct PREDICATELOCKTARGET
 {
-    /* hash key */
-    PREDICATELOCKTARGETTAG tag; /* unique identifier of lockable object */
+	/* hash key */
+	PREDICATELOCKTARGETTAG tag; /* unique identifier of lockable object */
 
-    /* data */
-    SHM_QUEUE    predicateLocks; /* list of PREDICATELOCK objects assoc. with
-                                 * predicate lock target */
+	/* data */
+	SHM_QUEUE	predicateLocks; /* list of PREDICATELOCK objects assoc. with
+								 * predicate lock target */
 } PREDICATELOCKTARGET;
 
 
@@ -302,8 +302,8 @@ typedef struct PREDICATELOCKTARGET
  */
 typedef struct PREDICATELOCKTAG
 {
-    PREDICATELOCKTARGET *myTarget;
-    SERIALIZABLEXACT *myXact;
+	PREDICATELOCKTARGET *myTarget;
+	SERIALIZABLEXACT *myXact;
 } PREDICATELOCKTAG;
 
 /*
@@ -317,15 +317,15 @@ typedef struct PREDICATELOCKTAG
  */
 typedef struct PREDICATELOCK
 {
-    /* hash key */
-    PREDICATELOCKTAG tag;        /* unique identifier of lock */
+	/* hash key */
+	PREDICATELOCKTAG tag;		/* unique identifier of lock */
 
-    /* data */
-    SHM_QUEUE    targetLink;        /* list link in PREDICATELOCKTARGET's list of
-                                 * predicate locks */
-    SHM_QUEUE    xactLink;        /* list link in SERIALIZABLEXACT's list of
-                                 * predicate locks */
-    SerCommitSeqNo commitSeqNo; /* only used for summarized predicate locks */
+	/* data */
+	SHM_QUEUE	targetLink;		/* list link in PREDICATELOCKTARGET's list of
+								 * predicate locks */
+	SHM_QUEUE	xactLink;		/* list link in SERIALIZABLEXACT's list of
+								 * predicate locks */
+	SerCommitSeqNo commitSeqNo; /* only used for summarized predicate locks */
 } PREDICATELOCK;
 
 
@@ -347,12 +347,12 @@ typedef struct PREDICATELOCK
  */
 typedef struct LOCALPREDICATELOCK
 {
-    /* hash key */
-    PREDICATELOCKTARGETTAG tag; /* unique identifier of lockable object */
+	/* hash key */
+	PREDICATELOCKTARGETTAG tag; /* unique identifier of lockable object */
 
-    /* data */
-    bool        held;            /* is lock held, or just its children?    */
-    int            childLocks;        /* number of child locks currently held */
+	/* data */
+	bool		held;			/* is lock held, or just its children?	*/
+	int			childLocks;		/* number of child locks currently held */
 } LOCALPREDICATELOCK;
 
 
@@ -361,10 +361,10 @@ typedef struct LOCALPREDICATELOCK
  */
 typedef enum PredicateLockTargetType
 {
-    PREDLOCKTAG_RELATION,
-    PREDLOCKTAG_PAGE,
-    PREDLOCKTAG_TUPLE
-    /* TODO SSI: Other types may be needed for index locking */
+	PREDLOCKTAG_RELATION,
+	PREDLOCKTAG_PAGE,
+	PREDLOCKTAG_TUPLE
+	/* TODO SSI: Other types may be needed for index locking */
 } PredicateLockTargetType;
 
 
@@ -375,9 +375,9 @@ typedef enum PredicateLockTargetType
  */
 typedef struct PredicateLockData
 {
-    int            nelements;
-    PREDICATELOCKTARGETTAG *locktags;
-    SERIALIZABLEXACT *xacts;
+	int			nelements;
+	PREDICATELOCKTARGETTAG *locktags;
+	SERIALIZABLEXACT *xacts;
 } PredicateLockData;
 
 
@@ -387,35 +387,35 @@ typedef struct PredicateLockData
  * rather than accessing the fields directly.  Note multiple eval of target!
  */
 #define SET_PREDICATELOCKTARGETTAG_RELATION(locktag,dboid,reloid) \
-    ((locktag).locktag_field1 = (dboid), \
-     (locktag).locktag_field2 = (reloid), \
-     (locktag).locktag_field3 = InvalidBlockNumber, \
-     (locktag).locktag_field4 = InvalidOffsetNumber)
+	((locktag).locktag_field1 = (dboid), \
+	 (locktag).locktag_field2 = (reloid), \
+	 (locktag).locktag_field3 = InvalidBlockNumber, \
+	 (locktag).locktag_field4 = InvalidOffsetNumber)
 
 #define SET_PREDICATELOCKTARGETTAG_PAGE(locktag,dboid,reloid,blocknum) \
-    ((locktag).locktag_field1 = (dboid), \
-     (locktag).locktag_field2 = (reloid), \
-     (locktag).locktag_field3 = (blocknum), \
-     (locktag).locktag_field4 = InvalidOffsetNumber)
+	((locktag).locktag_field1 = (dboid), \
+	 (locktag).locktag_field2 = (reloid), \
+	 (locktag).locktag_field3 = (blocknum), \
+	 (locktag).locktag_field4 = InvalidOffsetNumber)
 
 #define SET_PREDICATELOCKTARGETTAG_TUPLE(locktag,dboid,reloid,blocknum,offnum) \
-    ((locktag).locktag_field1 = (dboid), \
-     (locktag).locktag_field2 = (reloid), \
-     (locktag).locktag_field3 = (blocknum), \
-     (locktag).locktag_field4 = (offnum))
+	((locktag).locktag_field1 = (dboid), \
+	 (locktag).locktag_field2 = (reloid), \
+	 (locktag).locktag_field3 = (blocknum), \
+	 (locktag).locktag_field4 = (offnum))
 
 #define GET_PREDICATELOCKTARGETTAG_DB(locktag) \
-    ((Oid) (locktag).locktag_field1)
+	((Oid) (locktag).locktag_field1)
 #define GET_PREDICATELOCKTARGETTAG_RELATION(locktag) \
-    ((Oid) (locktag).locktag_field2)
+	((Oid) (locktag).locktag_field2)
 #define GET_PREDICATELOCKTARGETTAG_PAGE(locktag) \
-    ((BlockNumber) (locktag).locktag_field3)
+	((BlockNumber) (locktag).locktag_field3)
 #define GET_PREDICATELOCKTARGETTAG_OFFSET(locktag) \
-    ((OffsetNumber) (locktag).locktag_field4)
-#define GET_PREDICATELOCKTARGETTAG_TYPE(locktag)                             \
-    (((locktag).locktag_field4 != InvalidOffsetNumber) ? PREDLOCKTAG_TUPLE : \
-     (((locktag).locktag_field3 != InvalidBlockNumber) ? PREDLOCKTAG_PAGE :   \
-      PREDLOCKTAG_RELATION))
+	((OffsetNumber) (locktag).locktag_field4)
+#define GET_PREDICATELOCKTARGETTAG_TYPE(locktag)							 \
+	(((locktag).locktag_field4 != InvalidOffsetNumber) ? PREDLOCKTAG_TUPLE : \
+	 (((locktag).locktag_field3 != InvalidBlockNumber) ? PREDLOCKTAG_PAGE :   \
+	  PREDLOCKTAG_RELATION))
 
 /*
  * Two-phase commit statefile records. There are two types: for each
@@ -424,8 +424,8 @@ typedef struct PredicateLockData
  */
 typedef enum TwoPhasePredicateRecordType
 {
-    TWOPHASEPREDICATERECORD_XACT,
-    TWOPHASEPREDICATERECORD_LOCK
+	TWOPHASEPREDICATERECORD_XACT,
+	TWOPHASEPREDICATERECORD_LOCK
 } TwoPhasePredicateRecordType;
 
 /*
@@ -441,25 +441,25 @@ typedef enum TwoPhasePredicateRecordType
  */
 typedef struct TwoPhasePredicateXactRecord
 {
-    TransactionId xmin;
-    uint32        flags;
+	TransactionId xmin;
+	uint32		flags;
 } TwoPhasePredicateXactRecord;
 
 /* Per-lock state */
 typedef struct TwoPhasePredicateLockRecord
 {
-    PREDICATELOCKTARGETTAG target;
-    uint32        filler;            /* to avoid length change in back-patched fix */
+	PREDICATELOCKTARGETTAG target;
+	uint32		filler;			/* to avoid length change in back-patched fix */
 } TwoPhasePredicateLockRecord;
 
 typedef struct TwoPhasePredicateRecord
 {
-    TwoPhasePredicateRecordType type;
-    union
-    {
-        TwoPhasePredicateXactRecord xactRecord;
-        TwoPhasePredicateLockRecord lockRecord;
-    }            data;
+	TwoPhasePredicateRecordType type;
+	union
+	{
+		TwoPhasePredicateXactRecord xactRecord;
+		TwoPhasePredicateLockRecord lockRecord;
+	}			data;
 } TwoPhasePredicateRecord;
 
 /*
@@ -474,6 +474,6 @@ typedef struct TwoPhasePredicateRecord
  */
 extern PredicateLockData *GetPredicateLockStatusData(void);
 extern int GetSafeSnapshotBlockingPids(int blocked_pid,
-                            int *output, int output_size);
+							int *output, int output_size);
 
-#endif                            /* PREDICATE_INTERNALS_H */
+#endif							/* PREDICATE_INTERNALS_H */

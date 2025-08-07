@@ -5,12 +5,12 @@
 
 CREATE FUNCTION file_fdw_handler()
 RETURNS fdw_handler
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'file_fdw_handler'
 LANGUAGE C STRICT;
 
 CREATE FUNCTION file_fdw_validator(text[], oid)
 RETURNS void
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'file_fdw_validator'
 LANGUAGE C STRICT;
 
 CREATE FOREIGN DATA WRAPPER file_fdw

@@ -11,7 +11,7 @@
 # GNUmakefile won't exist yet, so we catch that case as well.
 
 
-all check install installdirs installcheck installcheck-parallel uninstall clean distclean maintainer-clean dist distcheck world check-world install-world installcheck-world:
+all check check-vec install installdirs installcheck installcheck-parallel uninstall clean distclean maintainer-clean dist distcheck world check-world install-world installcheck-world:
 	@if [ ! -f GNUmakefile ] ; then \
 	   echo "You need to run the 'configure' program first. See the file"; \
 	   echo "'INSTALL' for installation instructions." ; \
@@ -35,6 +35,3 @@ all check install installdirs installcheck installcheck-parallel uninstall clean
 	   echo "You must use GNU make to build Postgres-XL." ; \
 	   false; \
 	 fi
-
-
-# include docker/docker.mk

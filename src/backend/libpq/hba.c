@@ -1,18 +1,16 @@
 /*-------------------------------------------------------------------------
  *
  * hba.c
- *      Routines to handle host based authentication (that's the scheme
- *      wherein you authenticate a user by seeing what IP address the system
- *      says he comes from and choosing authentication method based on it).
+ *	  Routines to handle host based authentication (that's the scheme
+ *	  wherein you authenticate a user by seeing what IP address the system
+ *	  says he comes from and choosing authentication method based on it).
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  * IDENTIFICATION
- *      src/backend/libpq/hba.c
+ *	  src/backend/libpq/hba.c
  *
  *-------------------------------------------------------------------------
  */
@@ -60,19 +58,19 @@
 #endif
 
 
-#define MAX_TOKEN    256
-#define MAX_LINE    8192
+#define MAX_TOKEN	256
+#define MAX_LINE	8192
 
 /* callback data for check_network_callback */
 typedef struct check_network_data
 {
-    IPCompareMethod method;        /* test method */
-    SockAddr   *raddr;            /* client's actual address */
-    bool        result;            /* set to true if match */
+	IPCompareMethod method;		/* test method */
+	SockAddr   *raddr;			/* client's actual address */
+	bool		result;			/* set to true if match */
 } check_network_data;
 
 
-#define token_is_keyword(t, k)    (!t->quoted && strcmp(t->string, k) == 0)
+#define token_is_keyword(t, k)	(!t->quoted && strcmp(t->string, k) == 0)
 #define token_matches(t, k)  (strcmp(t->string, k) == 0)
 
 /*
@@ -81,8 +79,8 @@ typedef struct check_network_data
  */
 typedef struct HbaToken
 {
-    char       *string;
-    bool        quoted;
+	char	   *string;
+	bool		quoted;
 } HbaToken;
 
 /*
@@ -95,10 +93,10 @@ typedef struct HbaToken
  */
 typedef struct TokenizedLine
 {
-    List       *fields;            /* List of lists of HbaTokens */
-    int            line_num;        /* Line number */
-    char       *raw_line;        /* Raw line text */
-    char       *err_msg;        /* Error message if any */
+	List	   *fields;			/* List of lists of HbaTokens */
+	int			line_num;		/* Line number */
+	char	   *raw_line;		/* Raw line text */
+	char	   *err_msg;		/* Error message if any */
 } TokenizedLine;
 
 /*
@@ -127,35 +125,35 @@ static MemoryContext parsed_ident_context = NULL;
  */
 static const char *const UserAuthName[] =
 {
-    "reject",
-    "implicit reject",            /* Not a user-visible option */
-    "trust",
-    "ident",
-    "password",
-    "md5",
-    "scram-sha256",
-    "gss",
-    "sspi",
-    "pam",
-    "bsd",
-    "ldap",
-    "cert",
-    "radius",
-    "peer"
+	"reject",
+	"implicit reject",			/* Not a user-visible option */
+	"trust",
+	"ident",
+	"password",
+	"md5",
+	"scram-sha256",
+	"gss",
+	"sspi",
+	"pam",
+	"bsd",
+	"ldap",
+	"cert",
+	"radius",
+	"peer"
 };
 
 
 static MemoryContext tokenize_file(const char *filename, FILE *file,
-              List **tok_lines, int elevel);
+			  List **tok_lines, int elevel);
 static List *tokenize_inc_file(List *tokens, const char *outer_filename,
-                  const char *inc_filename, int elevel, char **err_msg);
+				  const char *inc_filename, int elevel, char **err_msg);
 static bool parse_hba_auth_opt(char *name, char *val, HbaLine *hbaline,
-                   int elevel, char **err_msg);
+				   int elevel, char **err_msg);
 static bool verify_option_list_length(List *options, char *optionname,
-                          List *masters, char *mastername, int line_num);
+						  List *masters, char *mastername, int line_num);
 static ArrayType *gethba_options(HbaLine *hba);
 static void fill_hba_line(Tuplestorestate *tuple_store, TupleDesc tupdesc,
-              int lineno, HbaLine *hba, const char *err_msg);
+			  int lineno, HbaLine *hba, const char *err_msg);
 static void fill_hba_view(Tuplestorestate *tuple_store, TupleDesc tupdesc);
 #ifdef _MLS_
 static MemoryContext mls_load_hba(List **tok_lines);
@@ -171,7 +169,7 @@ static List * mls_next_field_expand(char **lineptr, int elevel, char **err_msg);
 bool
 pg_isblank(const char c)
 {
-    return c == ' ' || c == '\t' || c == '\r';
+	return c == ' ' || c == '\t' || c == '\r';
 }
 
 
@@ -205,92 +203,92 @@ pg_isblank(const char c)
  */
 static bool
 next_token(char **lineptr, char *buf, int bufsz,
-           bool *initial_quote, bool *terminating_comma,
-           int elevel, char **err_msg)
-{// #lizard forgives
-    int            c;
-    char       *start_buf = buf;
-    char       *end_buf = buf + (bufsz - 1);
-    bool        in_quote = false;
-    bool        was_quote = false;
-    bool        saw_quote = false;
+		   bool *initial_quote, bool *terminating_comma,
+		   int elevel, char **err_msg)
+{
+	int			c;
+	char	   *start_buf = buf;
+	char	   *end_buf = buf + (bufsz - 1);
+	bool		in_quote = false;
+	bool		was_quote = false;
+	bool		saw_quote = false;
 
-    Assert(end_buf > start_buf);
+	Assert(end_buf > start_buf);
 
-    *initial_quote = false;
-    *terminating_comma = false;
+	*initial_quote = false;
+	*terminating_comma = false;
 
-    /* Move over any whitespace and commas preceding the next token */
-    while ((c = (*(*lineptr)++)) != '\0' && (pg_isblank(c) || c == ','))
-        ;
+	/* Move over any whitespace and commas preceding the next token */
+	while ((c = (*(*lineptr)++)) != '\0' && (pg_isblank(c) || c == ','))
+		;
 
-    /*
-     * Build a token in buf of next characters up to EOL, unquoted comma, or
-     * unquoted whitespace.
-     */
-    while (c != '\0' &&
-           (!pg_isblank(c) || in_quote))
-    {
-        /* skip comments to EOL */
-        if (c == '#' && !in_quote)
-        {
-            while ((c = (*(*lineptr)++)) != '\0')
-                ;
-            break;
-        }
+	/*
+	 * Build a token in buf of next characters up to EOL, unquoted comma, or
+	 * unquoted whitespace.
+	 */
+	while (c != '\0' &&
+		   (!pg_isblank(c) || in_quote))
+	{
+		/* skip comments to EOL */
+		if (c == '#' && !in_quote)
+		{
+			while ((c = (*(*lineptr)++)) != '\0')
+				;
+			break;
+		}
 
-        if (buf >= end_buf)
-        {
-            *buf = '\0';
-            ereport(elevel,
-                    (errcode(ERRCODE_CONFIG_FILE_ERROR),
-                     errmsg("authentication file token too long, skipping: \"%s\"",
-                            start_buf)));
-            *err_msg = "authentication file token too long";
-            /* Discard remainder of line */
-            while ((c = (*(*lineptr)++)) != '\0')
-                ;
-            /* Un-eat the '\0', in case we're called again */
-            (*lineptr)--;
-            return false;
-        }
+		if (buf >= end_buf)
+		{
+			*buf = '\0';
+			ereport(elevel,
+					(errcode(ERRCODE_CONFIG_FILE_ERROR),
+					 errmsg("authentication file token too long, skipping: \"%s\"",
+							start_buf)));
+			*err_msg = "authentication file token too long";
+			/* Discard remainder of line */
+			while ((c = (*(*lineptr)++)) != '\0')
+				;
+			/* Un-eat the '\0', in case we're called again */
+			(*lineptr)--;
+			return false;
+		}
 
-        /* we do not pass back a terminating comma in the token */
-        if (c == ',' && !in_quote)
-        {
-            *terminating_comma = true;
-            break;
-        }
+		/* we do not pass back a terminating comma in the token */
+		if (c == ',' && !in_quote)
+		{
+			*terminating_comma = true;
+			break;
+		}
 
-        if (c != '"' || was_quote)
-            *buf++ = c;
+		if (c != '"' || was_quote)
+			*buf++ = c;
 
-        /* Literal double-quote is two double-quotes */
-        if (in_quote && c == '"')
-            was_quote = !was_quote;
-        else
-            was_quote = false;
+		/* Literal double-quote is two double-quotes */
+		if (in_quote && c == '"')
+			was_quote = !was_quote;
+		else
+			was_quote = false;
 
-        if (c == '"')
-        {
-            in_quote = !in_quote;
-            saw_quote = true;
-            if (buf == start_buf)
-                *initial_quote = true;
-        }
+		if (c == '"')
+		{
+			in_quote = !in_quote;
+			saw_quote = true;
+			if (buf == start_buf)
+				*initial_quote = true;
+		}
 
-        c = *(*lineptr)++;
-    }
+		c = *(*lineptr)++;
+	}
 
-    /*
-     * Un-eat the char right after the token (critical in case it is '\0',
-     * else next call will read past end of string).
-     */
-    (*lineptr)--;
+	/*
+	 * Un-eat the char right after the token (critical in case it is '\0',
+	 * else next call will read past end of string).
+	 */
+	(*lineptr)--;
 
-    *buf = '\0';
+	*buf = '\0';
 
-    return (saw_quote || buf > start_buf);
+	return (saw_quote || buf > start_buf);
 }
 
 /*
@@ -299,17 +297,17 @@ next_token(char **lineptr, char *buf, int bufsz,
 static HbaToken *
 make_hba_token(const char *token, bool quoted)
 {
-    HbaToken   *hbatoken;
-    int            toklen;
+	HbaToken   *hbatoken;
+	int			toklen;
 
-    toklen = strlen(token);
-    /* we copy string into same palloc block as the struct */
-    hbatoken = (HbaToken *) palloc(sizeof(HbaToken) + toklen + 1);
-    hbatoken->string = (char *) hbatoken + sizeof(HbaToken);
-    hbatoken->quoted = quoted;
-    memcpy(hbatoken->string, token, toklen + 1);
+	toklen = strlen(token);
+	/* we copy string into same palloc block as the struct */
+	hbatoken = (HbaToken *) palloc(sizeof(HbaToken) + toklen + 1);
+	hbatoken->string = (char *) hbatoken + sizeof(HbaToken);
+	hbatoken->quoted = quoted;
+	memcpy(hbatoken->string, token, toklen + 1);
 
-    return hbatoken;
+	return hbatoken;
 }
 
 /*
@@ -318,9 +316,9 @@ make_hba_token(const char *token, bool quoted)
 static HbaToken *
 copy_hba_token(HbaToken *in)
 {
-    HbaToken   *out = make_hba_token(in->string, in->quoted);
+	HbaToken   *out = make_hba_token(in->string, in->quoted);
 
-    return out;
+	return out;
 }
 
 
@@ -340,34 +338,34 @@ copy_hba_token(HbaToken *in)
  */
 static List *
 next_field_expand(const char *filename, char **lineptr,
-                  int elevel, char **err_msg)
+				  int elevel, char **err_msg)
 {
-    char        buf[MAX_TOKEN];
-    bool        trailing_comma;
-    bool        initial_quote;
-    List       *tokens = NIL;
+	char		buf[MAX_TOKEN];
+	bool		trailing_comma;
+	bool		initial_quote;
+	List	   *tokens = NIL;
 
-    do
-    {
-        if (!next_token(lineptr, buf, sizeof(buf),
-                        &initial_quote, &trailing_comma,
-                        elevel, err_msg))
-            break;
+	do
+	{
+		if (!next_token(lineptr, buf, sizeof(buf),
+						&initial_quote, &trailing_comma,
+						elevel, err_msg))
+			break;
 
-        /* Is this referencing a file? */
-        if (!initial_quote && buf[0] == '@' && buf[1] != '\0')
-            tokens = tokenize_inc_file(tokens, filename, buf + 1,
-                                       elevel, err_msg);
-        else
-            tokens = lappend(tokens, make_hba_token(buf, initial_quote));
-    } while (trailing_comma && (*err_msg == NULL));
+		/* Is this referencing a file? */
+		if (!initial_quote && buf[0] == '@' && buf[1] != '\0')
+			tokens = tokenize_inc_file(tokens, filename, buf + 1,
+									   elevel, err_msg);
+		else
+			tokens = lappend(tokens, make_hba_token(buf, initial_quote));
+	} while (trailing_comma && (*err_msg == NULL));
 
-    return tokens;
+	return tokens;
 }
 
 /*
  * tokenize_inc_file
- *        Expand a file included from another file into an hba "field"
+ *		Expand a file included from another file into an hba "field"
  *
  * Opens and tokenises a file included from another HBA config file with @,
  * and returns all values found therein as a flat list of HbaTokens.  If a
@@ -382,107 +380,109 @@ next_field_expand(const char *filename, char **lineptr,
  */
 static List *
 tokenize_inc_file(List *tokens,
-                  const char *outer_filename,
-                  const char *inc_filename,
-                  int elevel,
-                  char **err_msg)
+				  const char *outer_filename,
+				  const char *inc_filename,
+				  int elevel,
+				  char **err_msg)
 {
-    char       *inc_fullname;
-    FILE       *inc_file;
-    List       *inc_lines;
-    ListCell   *inc_line;
-    MemoryContext linecxt;
+	char	   *inc_fullname;
+	FILE	   *inc_file;
+	List	   *inc_lines;
+	ListCell   *inc_line;
+	MemoryContext linecxt;
 
-    if (is_absolute_path(inc_filename))
-    {
-        /* absolute path is taken as-is */
-        inc_fullname = pstrdup(inc_filename);
-    }
-    else
-    {
-        /* relative path is relative to dir of calling file */
-        inc_fullname = (char *) palloc(strlen(outer_filename) + 1 +
-                                       strlen(inc_filename) + 1);
-        strcpy(inc_fullname, outer_filename);
-        get_parent_directory(inc_fullname);
-        join_path_components(inc_fullname, inc_fullname, inc_filename);
-        canonicalize_path(inc_fullname);
-    }
+	if (is_absolute_path(inc_filename))
+	{
+		/* absolute path is taken as-is */
+		inc_fullname = pstrdup(inc_filename);
+	}
+	else
+	{
+		/* relative path is relative to dir of calling file */
+		inc_fullname = (char *) palloc(strlen(outer_filename) + 1 +
+									   strlen(inc_filename) + 1);
+		strcpy(inc_fullname, outer_filename);
+		get_parent_directory(inc_fullname);
+		join_path_components(inc_fullname, inc_fullname, inc_filename);
+		canonicalize_path(inc_fullname);
+	}
 
-    inc_file = AllocateFile(inc_fullname, "r");
-    if (inc_file == NULL)
-    {
-        int            save_errno = errno;
+	inc_file = AllocateFile(inc_fullname, "r");
+	if (inc_file == NULL)
+	{
+		int			save_errno = errno;
 
-        ereport(elevel,
-                (errcode_for_file_access(),
-                 errmsg("could not open secondary authentication file \"@%s\" as \"%s\": %m",
-                        inc_filename, inc_fullname)));
-        *err_msg = psprintf("could not open secondary authentication file \"@%s\" as \"%s\": %s",
-                            inc_filename, inc_fullname, strerror(save_errno));
-        pfree(inc_fullname);
-        return tokens;
-    }
+		ereport(elevel,
+				(errcode_for_file_access(),
+				 errmsg("could not open secondary authentication file \"@%s\" as \"%s\": %m",
+						inc_filename, inc_fullname)));
+		*err_msg = psprintf("could not open secondary authentication file \"@%s\" as \"%s\": %s",
+							inc_filename, inc_fullname, strerror(save_errno));
+		pfree(inc_fullname);
+		return tokens;
+	}
 
-    /* There is possible recursion here if the file contains @ */
-    linecxt = tokenize_file(inc_fullname, inc_file, &inc_lines, elevel);
+	/* There is possible recursion here if the file contains @ */
+	linecxt = tokenize_file(inc_fullname, inc_file, &inc_lines, elevel);
 
-    FreeFile(inc_file);
-    pfree(inc_fullname);
+	FreeFile(inc_file);
+	pfree(inc_fullname);
 
-    /* Copy all tokens found in the file and append to the tokens list */
-    foreach(inc_line, inc_lines)
-    {
-        TokenizedLine *tok_line = (TokenizedLine *) lfirst(inc_line);
-        ListCell   *inc_field;
+	/* Copy all tokens found in the file and append to the tokens list */
+	foreach(inc_line, inc_lines)
+	{
+		TokenizedLine *tok_line = (TokenizedLine *) lfirst(inc_line);
+		ListCell   *inc_field;
 
-        /* If any line has an error, propagate that up to caller */
-        if (tok_line->err_msg)
-        {
-            *err_msg = pstrdup(tok_line->err_msg);
-            break;
-        }
+		/* If any line has an error, propagate that up to caller */
+		if (tok_line->err_msg)
+		{
+			*err_msg = pstrdup(tok_line->err_msg);
+			break;
+		}
 
-        foreach(inc_field, tok_line->fields)
-        {
-            List       *inc_tokens = lfirst(inc_field);
-            ListCell   *inc_token;
+		foreach(inc_field, tok_line->fields)
+		{
+			List	   *inc_tokens = lfirst(inc_field);
+			ListCell   *inc_token;
 
-            foreach(inc_token, inc_tokens)
-            {
-                HbaToken   *token = lfirst(inc_token);
+			foreach(inc_token, inc_tokens)
+			{
+				HbaToken   *token = lfirst(inc_token);
 
-                tokens = lappend(tokens, copy_hba_token(token));
-            }
-        }
-    }
+				tokens = lappend(tokens, copy_hba_token(token));
+			}
+		}
+	}
 
-    MemoryContextDelete(linecxt);
-    return tokens;
+	MemoryContextDelete(linecxt);
+	return tokens;
 }
+
 #ifdef _MLS_
-
-static List * mls_next_field_expand(char **lineptr, int elevel, char **err_msg)
+static List *
+mls_next_field_expand(char **lineptr, int elevel, char **err_msg)
 {
-    char        buf[MAX_TOKEN];
-    bool        trailing_comma;
-    bool        initial_quote;
-    List       *tokens = NIL;
+	char		buf[MAX_TOKEN];
+	bool		trailing_comma;
+	bool		initial_quote;
+	List	   *tokens = NIL;
 
-    do
-    {
-        if (!next_token(lineptr, buf, sizeof(buf),
-                        &initial_quote, &trailing_comma,
-                        elevel, err_msg))
-            break;
+	do
+	{
+		if (!next_token(lineptr, buf, sizeof(buf),
+						&initial_quote, &trailing_comma,
+						elevel, err_msg))
+			break;
 
-            tokens = lappend(tokens, make_hba_token(buf, initial_quote));
-    } while (trailing_comma && (*err_msg == NULL));
+		tokens = lappend(tokens, make_hba_token(buf, initial_quote));
+	} while (trailing_comma && (*err_msg == NULL));
 
-    return tokens;
+	return tokens;
 }
 
-static char ** mls_get_hba_line(int * linecnt)
+static char **
+mls_get_hba_line(int * linecnt)
 {
 #define MLS_HBA_DEFAULT_RECORD_CNT 1  
 #define MLS_HAB_RECORD_MAX_LEN     100
@@ -553,83 +553,83 @@ static char ** mls_get_hba_line(int * linecnt)
  * And, ask for password when logging as default.
  */
 static MemoryContext mls_load_hba(List **tok_lines)
-{// #lizard forgives
-    int              line_number = 1;
+{
+	int			  line_number = 1;
     int           linecnt = 0;
     int           loop;
-    MemoryContext linecxt;
-    MemoryContext oldcxt;
+	MemoryContext linecxt;
+	MemoryContext oldcxt;
     char       ** mls_hba = NULL;
     
-    linecxt = AllocSetContextCreate(CurrentMemoryContext,
-                                    "mls_load_hba",
-                                    ALLOCSET_SMALL_SIZES);
-    oldcxt = MemoryContextSwitchTo(linecxt);
+	linecxt = AllocSetContextCreate(CurrentMemoryContext,
+									"mls_load_hba",
+									ALLOCSET_SMALL_SIZES);
+	oldcxt = MemoryContextSwitchTo(linecxt);
 
     mls_hba = mls_get_hba_line(&linecnt);
 
-    *tok_lines = NIL;
+	*tok_lines = NIL;
 
     for (loop = 0; loop < linecnt; loop++)
     {
-        char       *rawline;
-        char       *lineptr;
-        List       *current_line = NIL;
-        char       *err_msg = NULL;
+		char	   *rawline;
+		char	   *lineptr;
+		List	   *current_line = NIL;
+		char	   *err_msg = NULL;
 
         rawline = mls_hba[loop];
 
-        if (strlen(rawline) == MAX_LINE - 1)
-        {
-            /* Line too long! */
-            ereport(LOG,
-                    (errcode(ERRCODE_CONFIG_FILE_ERROR),
-                     errmsg("authentication mls line too long"),
-                     errcontext("line %d and context is  \"%s\"",
-                                line_number, rawline)));
-            err_msg = "authentication file line too long";
-        }
+		if (strlen(rawline) == MAX_LINE - 1)
+		{
+			/* Line too long! */
+			ereport(LOG,
+					(errcode(ERRCODE_CONFIG_FILE_ERROR),
+					 errmsg("authentication mls line too long"),
+					 errcontext("line %d and context is  \"%s\"",
+								line_number, rawline)));
+			err_msg = "authentication file line too long";
+		}
 
-        /* Strip trailing linebreak from rawline */
-        lineptr = rawline + strlen(rawline) - 1;
-        while (lineptr >= rawline && (*lineptr == '\n' || *lineptr == '\r'))
-        {
-            *lineptr-- = '\0';
-        }
+		/* Strip trailing linebreak from rawline */
+		lineptr = rawline + strlen(rawline) - 1;
+		while (lineptr >= rawline && (*lineptr == '\n' || *lineptr == '\r'))
+		{
+			*lineptr-- = '\0';
+		}
         
-        /* Parse fields */
-        lineptr = rawline;
-        while (*lineptr && err_msg == NULL)
-        {
-            List       *current_field;
+		/* Parse fields */
+		lineptr = rawline;
+		while (*lineptr && err_msg == NULL)
+		{
+			List	   *current_field;
 
-            current_field = mls_next_field_expand(&lineptr, LOG, &err_msg);
-            /* add field to line, unless we are at EOL or comment start */
-            if (current_field != NIL)
-            {
-                current_line = lappend(current_line, current_field);
-            }
-        }
+			current_field = mls_next_field_expand(&lineptr, LOG, &err_msg);
+			/* add field to line, unless we are at EOL or comment start */
+			if (current_field != NIL)
+			{
+				current_line = lappend(current_line, current_field);
+			}
+		}
 
-        /* Reached EOL; emit line to TokenizedLine list unless it's boring */
-        if (current_line != NIL || err_msg != NULL)
-        {
-            TokenizedLine *tok_line;
+		/* Reached EOL; emit line to TokenizedLine list unless it's boring */
+		if (current_line != NIL || err_msg != NULL)
+		{
+			TokenizedLine *tok_line;
 
-            tok_line = (TokenizedLine *) palloc(sizeof(TokenizedLine));
-            tok_line->fields = current_line;
-            tok_line->line_num = line_number;
-            tok_line->raw_line = pstrdup(rawline);
-            tok_line->err_msg = err_msg;
-            *tok_lines = lappend(*tok_lines, tok_line);
-        }
+			tok_line = (TokenizedLine *) palloc(sizeof(TokenizedLine));
+			tok_line->fields = current_line;
+			tok_line->line_num = line_number;
+			tok_line->raw_line = pstrdup(rawline);
+			tok_line->err_msg = err_msg;
+			*tok_lines = lappend(*tok_lines, tok_line);
+		}
 
-        line_number++;
-    }
+		line_number++;
+	}
 
     MemoryContextSwitchTo(oldcxt);
 
-    return linecxt;
+	return linecxt;
 }
 
 #endif
@@ -653,87 +653,87 @@ static MemoryContext mls_load_hba(List **tok_lines)
  */
 static MemoryContext
 tokenize_file(const char *filename, FILE *file, List **tok_lines, int elevel)
-{// #lizard forgives
-    int            line_number = 1;
-    MemoryContext linecxt;
-    MemoryContext oldcxt;
+{
+	int			line_number = 1;
+	MemoryContext linecxt;
+	MemoryContext oldcxt;
 
-    linecxt = AllocSetContextCreate(CurrentMemoryContext,
-                                    "tokenize_file",
-                                    ALLOCSET_SMALL_SIZES);
-    oldcxt = MemoryContextSwitchTo(linecxt);
+	linecxt = AllocSetContextCreate(CurrentMemoryContext,
+									"tokenize_file",
+									ALLOCSET_SMALL_SIZES);
+	oldcxt = MemoryContextSwitchTo(linecxt);
 
-    *tok_lines = NIL;
+	*tok_lines = NIL;
 
-    while (!feof(file) && !ferror(file))
-    {
-        char        rawline[MAX_LINE];
-        char       *lineptr;
-        List       *current_line = NIL;
-        char       *err_msg = NULL;
+	while (!feof(file) && !ferror(file))
+	{
+		char		rawline[MAX_LINE];
+		char	   *lineptr;
+		List	   *current_line = NIL;
+		char	   *err_msg = NULL;
 
-        if (!fgets(rawline, sizeof(rawline), file))
-        {
-            int            save_errno = errno;
+		if (!fgets(rawline, sizeof(rawline), file))
+		{
+			int			save_errno = errno;
 
-            if (!ferror(file))
-                break;            /* normal EOF */
-            /* I/O error! */
-            ereport(elevel,
-                    (errcode_for_file_access(),
-                     errmsg("could not read file \"%s\": %m", filename)));
-            err_msg = psprintf("could not read file \"%s\": %s",
-                               filename, strerror(save_errno));
-            rawline[0] = '\0';
-        }
-        if (strlen(rawline) == MAX_LINE - 1)
-        {
-            /* Line too long! */
-            ereport(elevel,
-                    (errcode(ERRCODE_CONFIG_FILE_ERROR),
-                     errmsg("authentication file line too long"),
-                     errcontext("line %d of configuration file \"%s\"",
-                                line_number, filename)));
-            err_msg = "authentication file line too long";
-        }
+			if (!ferror(file))
+				break;			/* normal EOF */
+			/* I/O error! */
+			ereport(elevel,
+					(errcode_for_file_access(),
+					 errmsg("could not read file \"%s\": %m", filename)));
+			err_msg = psprintf("could not read file \"%s\": %s",
+							   filename, strerror(save_errno));
+			rawline[0] = '\0';
+		}
+		if (strlen(rawline) == MAX_LINE - 1)
+		{
+			/* Line too long! */
+			ereport(elevel,
+					(errcode(ERRCODE_CONFIG_FILE_ERROR),
+					 errmsg("authentication file line too long"),
+					 errcontext("line %d of configuration file \"%s\"",
+								line_number, filename)));
+			err_msg = "authentication file line too long";
+		}
 
-        /* Strip trailing linebreak from rawline */
-        lineptr = rawline + strlen(rawline) - 1;
-        while (lineptr >= rawline && (*lineptr == '\n' || *lineptr == '\r'))
-            *lineptr-- = '\0';
+		/* Strip trailing linebreak from rawline */
+		lineptr = rawline + strlen(rawline) - 1;
+		while (lineptr >= rawline && (*lineptr == '\n' || *lineptr == '\r'))
+			*lineptr-- = '\0';
 
-        /* Parse fields */
-        lineptr = rawline;
-        while (*lineptr && err_msg == NULL)
-        {
-            List       *current_field;
+		/* Parse fields */
+		lineptr = rawline;
+		while (*lineptr && err_msg == NULL)
+		{
+			List	   *current_field;
 
-            current_field = next_field_expand(filename, &lineptr,
-                                              elevel, &err_msg);
-            /* add field to line, unless we are at EOL or comment start */
-            if (current_field != NIL)
-                current_line = lappend(current_line, current_field);
-        }
+			current_field = next_field_expand(filename, &lineptr,
+											  elevel, &err_msg);
+			/* add field to line, unless we are at EOL or comment start */
+			if (current_field != NIL)
+				current_line = lappend(current_line, current_field);
+		}
 
-        /* Reached EOL; emit line to TokenizedLine list unless it's boring */
-        if (current_line != NIL || err_msg != NULL)
-        {
-            TokenizedLine *tok_line;
+		/* Reached EOL; emit line to TokenizedLine list unless it's boring */
+		if (current_line != NIL || err_msg != NULL)
+		{
+			TokenizedLine *tok_line;
 
-            tok_line = (TokenizedLine *) palloc(sizeof(TokenizedLine));
-            tok_line->fields = current_line;
-            tok_line->line_num = line_number;
-            tok_line->raw_line = pstrdup(rawline);
-            tok_line->err_msg = err_msg;
-            *tok_lines = lappend(*tok_lines, tok_line);
-        }
+			tok_line = (TokenizedLine *) palloc(sizeof(TokenizedLine));
+			tok_line->fields = current_line;
+			tok_line->line_num = line_number;
+			tok_line->raw_line = pstrdup(rawline);
+			tok_line->err_msg = err_msg;
+			*tok_lines = lappend(*tok_lines, tok_line);
+		}
 
-        line_number++;
-    }
+		line_number++;
+	}
 
-    MemoryContextSwitchTo(oldcxt);
+	MemoryContextSwitchTo(oldcxt);
 
-    return linecxt;
+	return linecxt;
 }
 
 
@@ -746,22 +746,22 @@ tokenize_file(const char *filename, FILE *file, List **tok_lines, int elevel)
 static bool
 is_member(Oid userid, const char *role)
 {
-    Oid            roleid;
+	Oid			roleid;
 
-    if (!OidIsValid(userid))
-        return false;            /* if user not exist, say "no" */
+	if (!OidIsValid(userid))
+		return false;			/* if user not exist, say "no" */
 
-    roleid = get_role_oid(role, true);
+	roleid = get_role_oid(role, true);
 
-    if (!OidIsValid(roleid))
-        return false;            /* if target role not exist, say "no" */
+	if (!OidIsValid(roleid))
+		return false;			/* if target role not exist, say "no" */
 
-    /*
-     * See if user is directly or indirectly a member of role. For this
-     * purpose, a superuser is not considered to be automatically a member of
-     * the role, so group auth only applies to explicit membership.
-     */
-    return is_member_of_role_nosuper(userid, roleid);
+	/*
+	 * See if user is directly or indirectly a member of role. For this
+	 * purpose, a superuser is not considered to be automatically a member of
+	 * the role, so group auth only applies to explicit membership.
+	 */
+	return is_member_of_role_nosuper(userid, roleid);
 }
 
 /*
@@ -770,22 +770,22 @@ is_member(Oid userid, const char *role)
 static bool
 check_role(const char *role, Oid roleid, List *tokens)
 {
-    ListCell   *cell;
-    HbaToken   *tok;
+	ListCell   *cell;
+	HbaToken   *tok;
 
-    foreach(cell, tokens)
-    {
-        tok = lfirst(cell);
-        if (!tok->quoted && tok->string[0] == '+')
-        {
-            if (is_member(roleid, tok->string + 1))
-                return true;
-        }
-        else if (token_matches(tok, role) ||
-                 token_is_keyword(tok, "all"))
-            return true;
-    }
-    return false;
+	foreach(cell, tokens)
+	{
+		tok = lfirst(cell);
+		if (!tok->quoted && tok->string[0] == '+')
+		{
+			if (is_member(roleid, tok->string + 1))
+				return true;
+		}
+		else if (token_matches(tok, role) ||
+				 token_is_keyword(tok, "all"))
+			return true;
+	}
+	return false;
 }
 
 /*
@@ -793,47 +793,47 @@ check_role(const char *role, Oid roleid, List *tokens)
  */
 static bool
 check_db(const char *dbname, const char *role, Oid roleid, List *tokens)
-{// #lizard forgives
-    ListCell   *cell;
-    HbaToken   *tok;
+{
+	ListCell   *cell;
+	HbaToken   *tok;
 
-    foreach(cell, tokens)
-    {
-        tok = lfirst(cell);
-        if (am_walsender && !am_db_walsender)
-        {
-            /*
-             * physical replication walsender connections can only match
-             * replication keyword
-             */
-            if (token_is_keyword(tok, "replication"))
-                return true;
-        }
-        else if (token_is_keyword(tok, "all"))
-            return true;
-        else if (token_is_keyword(tok, "sameuser"))
-        {
-            if (strcmp(dbname, role) == 0)
-                return true;
-        }
-        else if (token_is_keyword(tok, "samegroup") ||
-                 token_is_keyword(tok, "samerole"))
-        {
-            if (is_member(roleid, dbname))
-                return true;
-        }
-        else if (token_is_keyword(tok, "replication"))
-            continue;            /* never match this if not walsender */
-        else if (token_matches(tok, dbname))
-            return true;
-    }
-    return false;
+	foreach(cell, tokens)
+	{
+		tok = lfirst(cell);
+		if (am_walsender && !am_db_walsender)
+		{
+			/*
+			 * physical replication walsender connections can only match
+			 * replication keyword
+			 */
+			if (token_is_keyword(tok, "replication"))
+				return true;
+		}
+		else if (token_is_keyword(tok, "all"))
+			return true;
+		else if (token_is_keyword(tok, "sameuser"))
+		{
+			if (strcmp(dbname, role) == 0)
+				return true;
+		}
+		else if (token_is_keyword(tok, "samegroup") ||
+				 token_is_keyword(tok, "samerole"))
+		{
+			if (is_member(roleid, dbname))
+				return true;
+		}
+		else if (token_is_keyword(tok, "replication"))
+			continue;			/* never match this if not walsender */
+		else if (token_matches(tok, dbname))
+			return true;
+	}
+	return false;
 }
 
 static bool
 ipv4eq(struct sockaddr_in *a, struct sockaddr_in *b)
 {
-    return (a->sin_addr.s_addr == b->sin_addr.s_addr);
+	return (a->sin_addr.s_addr == b->sin_addr.s_addr);
 }
 
 #ifdef HAVE_IPV6
@@ -841,15 +841,15 @@ ipv4eq(struct sockaddr_in *a, struct sockaddr_in *b)
 static bool
 ipv6eq(struct sockaddr_in6 *a, struct sockaddr_in6 *b)
 {
-    int            i;
+	int			i;
 
-    for (i = 0; i < 16; i++)
-        if (a->sin6_addr.s6_addr[i] != b->sin6_addr.s6_addr[i])
-            return false;
+	for (i = 0; i < 16; i++)
+		if (a->sin6_addr.s6_addr[i] != b->sin6_addr.s6_addr[i])
+			return false;
 
-    return true;
+	return true;
 }
-#endif                            /* HAVE_IPV6 */
+#endif							/* HAVE_IPV6 */
 
 /*
  * Check whether host name matches pattern.
@@ -857,18 +857,18 @@ ipv6eq(struct sockaddr_in6 *a, struct sockaddr_in6 *b)
 static bool
 hostname_match(const char *pattern, const char *actual_hostname)
 {
-    if (pattern[0] == '.')        /* suffix match */
-    {
-        size_t        plen = strlen(pattern);
-        size_t        hlen = strlen(actual_hostname);
+	if (pattern[0] == '.')		/* suffix match */
+	{
+		size_t		plen = strlen(pattern);
+		size_t		hlen = strlen(actual_hostname);
 
-        if (hlen < plen)
-            return false;
+		if (hlen < plen)
+			return false;
 
-        return (pg_strcasecmp(pattern, actual_hostname + (hlen - plen)) == 0);
-    }
-    else
-        return (pg_strcasecmp(pattern, actual_hostname) == 0);
+		return (pg_strcasecmp(pattern, actual_hostname + (hlen - plen)) == 0);
+	}
+	else
+		return (pg_strcasecmp(pattern, actual_hostname) == 0);
 }
 
 /*
@@ -876,92 +876,92 @@ hostname_match(const char *pattern, const char *actual_hostname)
  */
 static bool
 check_hostname(hbaPort *port, const char *hostname)
-{// #lizard forgives
-    struct addrinfo *gai_result,
-               *gai;
-    int            ret;
-    bool        found;
+{
+	struct addrinfo *gai_result,
+			   *gai;
+	int			ret;
+	bool		found;
 
-    /* Quick out if remote host name already known bad */
-    if (port->remote_hostname_resolv < 0)
-        return false;
+	/* Quick out if remote host name already known bad */
+	if (port->remote_hostname_resolv < 0)
+		return false;
 
-    /* Lookup remote host name if not already done */
-    if (!port->remote_hostname)
-    {
-        char        remote_hostname[NI_MAXHOST];
+	/* Lookup remote host name if not already done */
+	if (!port->remote_hostname)
+	{
+		char		remote_hostname[NI_MAXHOST];
 
-        ret = pg_getnameinfo_all(&port->raddr.addr, port->raddr.salen,
-                                 remote_hostname, sizeof(remote_hostname),
-                                 NULL, 0,
-                                 NI_NAMEREQD);
-        if (ret != 0)
-        {
-            /* remember failure; don't complain in the postmaster log yet */
-            port->remote_hostname_resolv = -2;
-            port->remote_hostname_errcode = ret;
-            return false;
-        }
+		ret = pg_getnameinfo_all(&port->raddr.addr, port->raddr.salen,
+								 remote_hostname, sizeof(remote_hostname),
+								 NULL, 0,
+								 NI_NAMEREQD);
+		if (ret != 0)
+		{
+			/* remember failure; don't complain in the postmaster log yet */
+			port->remote_hostname_resolv = -2;
+			port->remote_hostname_errcode = ret;
+			return false;
+		}
 
-        port->remote_hostname = pstrdup(remote_hostname);
-    }
+		port->remote_hostname = pstrdup(remote_hostname);
+	}
 
-    /* Now see if remote host name matches this pg_hba line */
-    if (!hostname_match(hostname, port->remote_hostname))
-        return false;
+	/* Now see if remote host name matches this pg_hba line */
+	if (!hostname_match(hostname, port->remote_hostname))
+		return false;
 
-    /* If we already verified the forward lookup, we're done */
-    if (port->remote_hostname_resolv == +1)
-        return true;
+	/* If we already verified the forward lookup, we're done */
+	if (port->remote_hostname_resolv == +1)
+		return true;
 
-    /* Lookup IP from host name and check against original IP */
-    ret = getaddrinfo(port->remote_hostname, NULL, NULL, &gai_result);
-    if (ret != 0)
-    {
-        /* remember failure; don't complain in the postmaster log yet */
-        port->remote_hostname_resolv = -2;
-        port->remote_hostname_errcode = ret;
-        return false;
-    }
+	/* Lookup IP from host name and check against original IP */
+	ret = getaddrinfo(port->remote_hostname, NULL, NULL, &gai_result);
+	if (ret != 0)
+	{
+		/* remember failure; don't complain in the postmaster log yet */
+		port->remote_hostname_resolv = -2;
+		port->remote_hostname_errcode = ret;
+		return false;
+	}
 
-    found = false;
-    for (gai = gai_result; gai; gai = gai->ai_next)
-    {
-        if (gai->ai_addr->sa_family == port->raddr.addr.ss_family)
-        {
-            if (gai->ai_addr->sa_family == AF_INET)
-            {
-                if (ipv4eq((struct sockaddr_in *) gai->ai_addr,
-                           (struct sockaddr_in *) &port->raddr.addr))
-                {
-                    found = true;
-                    break;
-                }
-            }
+	found = false;
+	for (gai = gai_result; gai; gai = gai->ai_next)
+	{
+		if (gai->ai_addr->sa_family == port->raddr.addr.ss_family)
+		{
+			if (gai->ai_addr->sa_family == AF_INET)
+			{
+				if (ipv4eq((struct sockaddr_in *) gai->ai_addr,
+						   (struct sockaddr_in *) &port->raddr.addr))
+				{
+					found = true;
+					break;
+				}
+			}
 #ifdef HAVE_IPV6
-            else if (gai->ai_addr->sa_family == AF_INET6)
-            {
-                if (ipv6eq((struct sockaddr_in6 *) gai->ai_addr,
-                           (struct sockaddr_in6 *) &port->raddr.addr))
-                {
-                    found = true;
-                    break;
-                }
-            }
+			else if (gai->ai_addr->sa_family == AF_INET6)
+			{
+				if (ipv6eq((struct sockaddr_in6 *) gai->ai_addr,
+						   (struct sockaddr_in6 *) &port->raddr.addr))
+				{
+					found = true;
+					break;
+				}
+			}
 #endif
-        }
-    }
+		}
+	}
 
-    if (gai_result)
-        freeaddrinfo(gai_result);
+	if (gai_result)
+		freeaddrinfo(gai_result);
 
-    if (!found)
-        elog(DEBUG2, "pg_hba.conf host name \"%s\" rejected because address resolution did not return a match with IP address of client",
-             hostname);
+	if (!found)
+		elog(DEBUG2, "pg_hba.conf host name \"%s\" rejected because address resolution did not return a match with IP address of client",
+			 hostname);
 
-    port->remote_hostname_resolv = found ? +1 : -1;
+	port->remote_hostname_resolv = found ? +1 : -1;
 
-    return found;
+	return found;
 }
 
 /*
@@ -970,12 +970,12 @@ check_hostname(hbaPort *port, const char *hostname)
 static bool
 check_ip(SockAddr *raddr, struct sockaddr *addr, struct sockaddr *mask)
 {
-    if (raddr->addr.ss_family == addr->sa_family &&
-        pg_range_sockaddr(&raddr->addr,
-                          (struct sockaddr_storage *) addr,
-                          (struct sockaddr_storage *) mask))
-        return true;
-    return false;
+	if (raddr->addr.ss_family == addr->sa_family &&
+		pg_range_sockaddr(&raddr->addr,
+						  (struct sockaddr_storage *) addr,
+						  (struct sockaddr_storage *) mask))
+		return true;
+	return false;
 }
 
 /*
@@ -983,26 +983,26 @@ check_ip(SockAddr *raddr, struct sockaddr *addr, struct sockaddr *mask)
  */
 static void
 check_network_callback(struct sockaddr *addr, struct sockaddr *netmask,
-                       void *cb_data)
+					   void *cb_data)
 {
-    check_network_data *cn = (check_network_data *) cb_data;
-    struct sockaddr_storage mask;
+	check_network_data *cn = (check_network_data *) cb_data;
+	struct sockaddr_storage mask;
 
-    /* Already found a match? */
-    if (cn->result)
-        return;
+	/* Already found a match? */
+	if (cn->result)
+		return;
 
-    if (cn->method == ipCmpSameHost)
-    {
-        /* Make an all-ones netmask of appropriate length for family */
-        pg_sockaddr_cidr_mask(&mask, NULL, addr->sa_family);
-        cn->result = check_ip(cn->raddr, addr, (struct sockaddr *) &mask);
-    }
-    else
-    {
-        /* Use the netmask of the interface itself */
-        cn->result = check_ip(cn->raddr, addr, netmask);
-    }
+	if (cn->method == ipCmpSameHost)
+	{
+		/* Make an all-ones netmask of appropriate length for family */
+		pg_sockaddr_cidr_mask(&mask, NULL, addr->sa_family);
+		cn->result = check_ip(cn->raddr, addr, (struct sockaddr *) &mask);
+	}
+	else
+	{
+		/* Use the netmask of the interface itself */
+		cn->result = check_ip(cn->raddr, addr, netmask);
+	}
 }
 
 /*
@@ -1011,20 +1011,20 @@ check_network_callback(struct sockaddr *addr, struct sockaddr *netmask,
 static bool
 check_same_host_or_net(SockAddr *raddr, IPCompareMethod method)
 {
-    check_network_data cn;
+	check_network_data cn;
 
-    cn.method = method;
-    cn.raddr = raddr;
-    cn.result = false;
+	cn.method = method;
+	cn.raddr = raddr;
+	cn.result = false;
 
-    errno = 0;
-    if (pg_foreach_ifaddr(check_network_callback, &cn) < 0)
-    {
-        elog(LOG, "error enumerating network interfaces: %m");
-        return false;
-    }
+	errno = 0;
+	if (pg_foreach_ifaddr(check_network_callback, &cn) < 0)
+	{
+		elog(LOG, "error enumerating network interfaces: %m");
+		return false;
+	}
 
-    return cn.result;
+	return cn.result;
 }
 
 
@@ -1035,46 +1035,46 @@ check_same_host_or_net(SockAddr *raddr, IPCompareMethod method)
  * what the calling function's error-exit value is.
  *
  * INVALID_AUTH_OPTION = reports when an option is specified for a method where it's
- *                         not supported.
+ *						 not supported.
  * REQUIRE_AUTH_OPTION = same as INVALID_AUTH_OPTION, except it also checks if the
- *                         method is actually the one specified. Used as a shortcut when
- *                         the option is only valid for one authentication method.
+ *						 method is actually the one specified. Used as a shortcut when
+ *						 the option is only valid for one authentication method.
  * MANDATORY_AUTH_ARG  = check if a required option is set for an authentication method,
- *                         reporting error if it's not.
+ *						 reporting error if it's not.
  */
 #define INVALID_AUTH_OPTION(optname, validmethods) \
 do { \
-    ereport(elevel, \
-            (errcode(ERRCODE_CONFIG_FILE_ERROR), \
-             /* translator: the second %s is a list of auth methods */ \
-             errmsg("authentication option \"%s\" is only valid for authentication methods %s", \
-                    optname, _(validmethods)), \
-             errcontext("line %d of configuration file \"%s\"", \
-                    line_num, HbaFileName))); \
-    *err_msg = psprintf("authentication option \"%s\" is only valid for authentication methods %s", \
-                        optname, validmethods); \
-    return false; \
+	ereport(elevel, \
+			(errcode(ERRCODE_CONFIG_FILE_ERROR), \
+			 /* translator: the second %s is a list of auth methods */ \
+			 errmsg("authentication option \"%s\" is only valid for authentication methods %s", \
+					optname, _(validmethods)), \
+			 errcontext("line %d of configuration file \"%s\"", \
+					line_num, HbaFileName))); \
+	*err_msg = psprintf("authentication option \"%s\" is only valid for authentication methods %s", \
+						optname, validmethods); \
+	return false; \
 } while (0)
 
 #define REQUIRE_AUTH_OPTION(methodval, optname, validmethods) \
 do { \
-    if (hbaline->auth_method != methodval) \
-        INVALID_AUTH_OPTION(optname, validmethods); \
+	if (hbaline->auth_method != methodval) \
+		INVALID_AUTH_OPTION(optname, validmethods); \
 } while (0)
 
 #define MANDATORY_AUTH_ARG(argvar, argname, authname) \
 do { \
-    if (argvar == NULL) { \
-        ereport(elevel, \
-                (errcode(ERRCODE_CONFIG_FILE_ERROR), \
-                 errmsg("authentication method \"%s\" requires argument \"%s\" to be set", \
-                        authname, argname), \
-                 errcontext("line %d of configuration file \"%s\"", \
-                        line_num, HbaFileName))); \
-        *err_msg = psprintf("authentication method \"%s\" requires argument \"%s\" to be set", \
-                            authname, argname); \
-        return NULL; \
-    } \
+	if (argvar == NULL) { \
+		ereport(elevel, \
+				(errcode(ERRCODE_CONFIG_FILE_ERROR), \
+				 errmsg("authentication method \"%s\" requires argument \"%s\" to be set", \
+						authname, argname), \
+				 errcontext("line %d of configuration file \"%s\"", \
+						line_num, HbaFileName))); \
+		*err_msg = psprintf("authentication method \"%s\" requires argument \"%s\" to be set", \
+							authname, argname); \
+		return NULL; \
+	} \
 } while (0)
 
 /*
@@ -1092,25 +1092,25 @@ do { \
  */
 #define IDENT_FIELD_ABSENT(field) \
 do { \
-    if (!field) { \
-        ereport(LOG, \
-                (errcode(ERRCODE_CONFIG_FILE_ERROR), \
-                 errmsg("missing entry in file \"%s\" at end of line %d", \
-                        IdentFileName, line_num))); \
-        return NULL; \
-    } \
+	if (!field) { \
+		ereport(LOG, \
+				(errcode(ERRCODE_CONFIG_FILE_ERROR), \
+				 errmsg("missing entry in file \"%s\" at end of line %d", \
+						IdentFileName, line_num))); \
+		return NULL; \
+	} \
 } while (0)
 
 #define IDENT_MULTI_VALUE(tokens) \
 do { \
-    if (tokens->length > 1) { \
-        ereport(LOG, \
-                (errcode(ERRCODE_CONFIG_FILE_ERROR), \
-                 errmsg("multiple values in ident field"), \
-                 errcontext("line %d of configuration file \"%s\"", \
-                            line_num, IdentFileName))); \
-        return NULL; \
-    } \
+	if (tokens->length > 1) { \
+		ereport(LOG, \
+				(errcode(ERRCODE_CONFIG_FILE_ERROR), \
+				 errmsg("multiple values in ident field"), \
+				 errcontext("line %d of configuration file \"%s\"", \
+							line_num, IdentFileName))); \
+		return NULL; \
+	} \
 } while (0)
 
 
@@ -1128,680 +1128,680 @@ do { \
  */
 static HbaLine *
 parse_hba_line(TokenizedLine *tok_line, int elevel)
-{// #lizard forgives
-    int            line_num = tok_line->line_num;
-    char      **err_msg = &tok_line->err_msg;
-    char       *str;
-    struct addrinfo *gai_result;
-    struct addrinfo hints;
-    int            ret;
-    char       *cidr_slash;
-    char       *unsupauth;
-    ListCell   *field;
-    List       *tokens;
-    ListCell   *tokencell;
-    HbaToken   *token;
-    HbaLine    *parsedline;
+{
+	int			line_num = tok_line->line_num;
+	char	  **err_msg = &tok_line->err_msg;
+	char	   *str;
+	struct addrinfo *gai_result;
+	struct addrinfo hints;
+	int			ret;
+	char	   *cidr_slash;
+	char	   *unsupauth;
+	ListCell   *field;
+	List	   *tokens;
+	ListCell   *tokencell;
+	HbaToken   *token;
+	HbaLine    *parsedline;
 
-    parsedline = palloc0(sizeof(HbaLine));
-    parsedline->linenumber = line_num;
-    parsedline->rawline = pstrdup(tok_line->raw_line);
+	parsedline = palloc0(sizeof(HbaLine));
+	parsedline->linenumber = line_num;
+	parsedline->rawline = pstrdup(tok_line->raw_line);
 
-    /* Check the record type. */
-    Assert(tok_line->fields != NIL);
-    field = list_head(tok_line->fields);
-    tokens = lfirst(field);
-    if (tokens->length > 1)
-    {
-        ereport(elevel,
-                (errcode(ERRCODE_CONFIG_FILE_ERROR),
-                 errmsg("multiple values specified for connection type"),
-                 errhint("Specify exactly one connection type per line."),
-                 errcontext("line %d of configuration file \"%s\"",
-                            line_num, HbaFileName)));
-        *err_msg = "multiple values specified for connection type";
-        return NULL;
-    }
-    token = linitial(tokens);
-    if (strcmp(token->string, "local") == 0)
-    {
+	/* Check the record type. */
+	Assert(tok_line->fields != NIL);
+	field = list_head(tok_line->fields);
+	tokens = lfirst(field);
+	if (tokens->length > 1)
+	{
+		ereport(elevel,
+				(errcode(ERRCODE_CONFIG_FILE_ERROR),
+				 errmsg("multiple values specified for connection type"),
+				 errhint("Specify exactly one connection type per line."),
+				 errcontext("line %d of configuration file \"%s\"",
+							line_num, HbaFileName)));
+		*err_msg = "multiple values specified for connection type";
+		return NULL;
+	}
+	token = linitial(tokens);
+	if (strcmp(token->string, "local") == 0)
+	{
 #ifdef HAVE_UNIX_SOCKETS
-        parsedline->conntype = ctLocal;
+		parsedline->conntype = ctLocal;
 #else
-        ereport(elevel,
-                (errcode(ERRCODE_CONFIG_FILE_ERROR),
-                 errmsg("local connections are not supported by this build"),
-                 errcontext("line %d of configuration file \"%s\"",
-                            line_num, HbaFileName)));
-        *err_msg = "local connections are not supported by this build";
-        return NULL;
+		ereport(elevel,
+				(errcode(ERRCODE_CONFIG_FILE_ERROR),
+				 errmsg("local connections are not supported by this build"),
+				 errcontext("line %d of configuration file \"%s\"",
+							line_num, HbaFileName)));
+		*err_msg = "local connections are not supported by this build";
+		return NULL;
 #endif
-    }
-    else if (strcmp(token->string, "host") == 0 ||
-             strcmp(token->string, "hostssl") == 0 ||
-             strcmp(token->string, "hostnossl") == 0)
-    {
+	}
+	else if (strcmp(token->string, "host") == 0 ||
+			 strcmp(token->string, "hostssl") == 0 ||
+			 strcmp(token->string, "hostnossl") == 0)
+	{
 
-        if (token->string[4] == 's')    /* "hostssl" */
-        {
-            parsedline->conntype = ctHostSSL;
-            /* Log a warning if SSL support is not active */
+		if (token->string[4] == 's')	/* "hostssl" */
+		{
+			parsedline->conntype = ctHostSSL;
+			/* Log a warning if SSL support is not active */
 #ifdef USE_SSL
-            if (!EnableSSL)
-            {
-                ereport(elevel,
-                        (errcode(ERRCODE_CONFIG_FILE_ERROR),
-                         errmsg("hostssl record cannot match because SSL is disabled"),
-                         errhint("Set ssl = on in postgresql.conf."),
-                         errcontext("line %d of configuration file \"%s\"",
-                                    line_num, HbaFileName)));
-                *err_msg = "hostssl record cannot match because SSL is disabled";
-            }
+			if (!EnableSSL)
+			{
+				ereport(elevel,
+						(errcode(ERRCODE_CONFIG_FILE_ERROR),
+						 errmsg("hostssl record cannot match because SSL is disabled"),
+						 errhint("Set ssl = on in postgresql.conf."),
+						 errcontext("line %d of configuration file \"%s\"",
+									line_num, HbaFileName)));
+				*err_msg = "hostssl record cannot match because SSL is disabled";
+			}
 #else
-            ereport(elevel,
-                    (errcode(ERRCODE_CONFIG_FILE_ERROR),
-                     errmsg("hostssl record cannot match because SSL is not supported by this build"),
-                     errhint("Compile with --with-openssl to use SSL connections."),
-                     errcontext("line %d of configuration file \"%s\"",
-                                line_num, HbaFileName)));
-            *err_msg = "hostssl record cannot match because SSL is not supported by this build";
+			ereport(elevel,
+					(errcode(ERRCODE_CONFIG_FILE_ERROR),
+					 errmsg("hostssl record cannot match because SSL is not supported by this build"),
+					 errhint("Compile with --with-openssl to use SSL connections."),
+					 errcontext("line %d of configuration file \"%s\"",
+								line_num, HbaFileName)));
+			*err_msg = "hostssl record cannot match because SSL is not supported by this build";
 #endif
-        }
-        else if (token->string[4] == 'n')    /* "hostnossl" */
-        {
-            parsedline->conntype = ctHostNoSSL;
-        }
-        else
-        {
-            /* "host" */
-            parsedline->conntype = ctHost;
-        }
-    }                            /* record type */
-    else
-    {
-        ereport(elevel,
-                (errcode(ERRCODE_CONFIG_FILE_ERROR),
-                 errmsg("invalid connection type \"%s\"",
-                        token->string),
-                 errcontext("line %d of configuration file \"%s\"",
-                            line_num, HbaFileName)));
-        *err_msg = psprintf("invalid connection type \"%s\"", token->string);
-        return NULL;
-    }
+		}
+		else if (token->string[4] == 'n')	/* "hostnossl" */
+		{
+			parsedline->conntype = ctHostNoSSL;
+		}
+		else
+		{
+			/* "host" */
+			parsedline->conntype = ctHost;
+		}
+	}							/* record type */
+	else
+	{
+		ereport(elevel,
+				(errcode(ERRCODE_CONFIG_FILE_ERROR),
+				 errmsg("invalid connection type \"%s\"",
+						token->string),
+				 errcontext("line %d of configuration file \"%s\"",
+							line_num, HbaFileName)));
+		*err_msg = psprintf("invalid connection type \"%s\"", token->string);
+		return NULL;
+	}
 
-    /* Get the databases. */
-    field = lnext(field);
-    if (!field)
-    {
-        ereport(elevel,
-                (errcode(ERRCODE_CONFIG_FILE_ERROR),
-                 errmsg("end-of-line before database specification"),
-                 errcontext("line %d of configuration file \"%s\"",
-                            line_num, HbaFileName)));
-        *err_msg = "end-of-line before database specification";
-        return NULL;
-    }
-    parsedline->databases = NIL;
-    tokens = lfirst(field);
-    foreach(tokencell, tokens)
-    {
-        parsedline->databases = lappend(parsedline->databases,
-                                        copy_hba_token(lfirst(tokencell)));
-    }
+	/* Get the databases. */
+	field = lnext(field);
+	if (!field)
+	{
+		ereport(elevel,
+				(errcode(ERRCODE_CONFIG_FILE_ERROR),
+				 errmsg("end-of-line before database specification"),
+				 errcontext("line %d of configuration file \"%s\"",
+							line_num, HbaFileName)));
+		*err_msg = "end-of-line before database specification";
+		return NULL;
+	}
+	parsedline->databases = NIL;
+	tokens = lfirst(field);
+	foreach(tokencell, tokens)
+	{
+		parsedline->databases = lappend(parsedline->databases,
+										copy_hba_token(lfirst(tokencell)));
+	}
 
-    /* Get the roles. */
-    field = lnext(field);
-    if (!field)
-    {
-        ereport(elevel,
-                (errcode(ERRCODE_CONFIG_FILE_ERROR),
-                 errmsg("end-of-line before role specification"),
-                 errcontext("line %d of configuration file \"%s\"",
-                            line_num, HbaFileName)));
-        *err_msg = "end-of-line before role specification";
-        return NULL;
-    }
-    parsedline->roles = NIL;
-    tokens = lfirst(field);
-    foreach(tokencell, tokens)
-    {
-        parsedline->roles = lappend(parsedline->roles,
-                                    copy_hba_token(lfirst(tokencell)));
-    }
+	/* Get the roles. */
+	field = lnext(field);
+	if (!field)
+	{
+		ereport(elevel,
+				(errcode(ERRCODE_CONFIG_FILE_ERROR),
+				 errmsg("end-of-line before role specification"),
+				 errcontext("line %d of configuration file \"%s\"",
+							line_num, HbaFileName)));
+		*err_msg = "end-of-line before role specification";
+		return NULL;
+	}
+	parsedline->roles = NIL;
+	tokens = lfirst(field);
+	foreach(tokencell, tokens)
+	{
+		parsedline->roles = lappend(parsedline->roles,
+									copy_hba_token(lfirst(tokencell)));
+	}
 
-    if (parsedline->conntype != ctLocal)
-    {
-        /* Read the IP address field. (with or without CIDR netmask) */
-        field = lnext(field);
-        if (!field)
-        {
-            ereport(elevel,
-                    (errcode(ERRCODE_CONFIG_FILE_ERROR),
-                     errmsg("end-of-line before IP address specification"),
-                     errcontext("line %d of configuration file \"%s\"",
-                                line_num, HbaFileName)));
-            *err_msg = "end-of-line before IP address specification";
-            return NULL;
-        }
-        tokens = lfirst(field);
-        if (tokens->length > 1)
-        {
-            ereport(elevel,
-                    (errcode(ERRCODE_CONFIG_FILE_ERROR),
-                     errmsg("multiple values specified for host address"),
-                     errhint("Specify one address range per line."),
-                     errcontext("line %d of configuration file \"%s\"",
-                                line_num, HbaFileName)));
-            *err_msg = "multiple values specified for host address";
-            return NULL;
-        }
-        token = linitial(tokens);
+	if (parsedline->conntype != ctLocal)
+	{
+		/* Read the IP address field. (with or without CIDR netmask) */
+		field = lnext(field);
+		if (!field)
+		{
+			ereport(elevel,
+					(errcode(ERRCODE_CONFIG_FILE_ERROR),
+					 errmsg("end-of-line before IP address specification"),
+					 errcontext("line %d of configuration file \"%s\"",
+								line_num, HbaFileName)));
+			*err_msg = "end-of-line before IP address specification";
+			return NULL;
+		}
+		tokens = lfirst(field);
+		if (tokens->length > 1)
+		{
+			ereport(elevel,
+					(errcode(ERRCODE_CONFIG_FILE_ERROR),
+					 errmsg("multiple values specified for host address"),
+					 errhint("Specify one address range per line."),
+					 errcontext("line %d of configuration file \"%s\"",
+								line_num, HbaFileName)));
+			*err_msg = "multiple values specified for host address";
+			return NULL;
+		}
+		token = linitial(tokens);
 
-        if (token_is_keyword(token, "all"))
-        {
-            parsedline->ip_cmp_method = ipCmpAll;
-        }
-        else if (token_is_keyword(token, "samehost"))
-        {
-            /* Any IP on this host is allowed to connect */
-            parsedline->ip_cmp_method = ipCmpSameHost;
-        }
-        else if (token_is_keyword(token, "samenet"))
-        {
-            /* Any IP on the host's subnets is allowed to connect */
-            parsedline->ip_cmp_method = ipCmpSameNet;
-        }
-        else
-        {
-            /* IP and netmask are specified */
-            parsedline->ip_cmp_method = ipCmpMask;
+		if (token_is_keyword(token, "all"))
+		{
+			parsedline->ip_cmp_method = ipCmpAll;
+		}
+		else if (token_is_keyword(token, "samehost"))
+		{
+			/* Any IP on this host is allowed to connect */
+			parsedline->ip_cmp_method = ipCmpSameHost;
+		}
+		else if (token_is_keyword(token, "samenet"))
+		{
+			/* Any IP on the host's subnets is allowed to connect */
+			parsedline->ip_cmp_method = ipCmpSameNet;
+		}
+		else
+		{
+			/* IP and netmask are specified */
+			parsedline->ip_cmp_method = ipCmpMask;
 
-            /* need a modifiable copy of token */
-            str = pstrdup(token->string);
+			/* need a modifiable copy of token */
+			str = pstrdup(token->string);
 
-            /* Check if it has a CIDR suffix and if so isolate it */
-            cidr_slash = strchr(str, '/');
-            if (cidr_slash)
-                *cidr_slash = '\0';
+			/* Check if it has a CIDR suffix and if so isolate it */
+			cidr_slash = strchr(str, '/');
+			if (cidr_slash)
+				*cidr_slash = '\0';
 
-            /* Get the IP address either way */
-            hints.ai_flags = AI_NUMERICHOST;
-            hints.ai_family = AF_UNSPEC;
-            hints.ai_socktype = 0;
-            hints.ai_protocol = 0;
-            hints.ai_addrlen = 0;
-            hints.ai_canonname = NULL;
-            hints.ai_addr = NULL;
-            hints.ai_next = NULL;
+			/* Get the IP address either way */
+			hints.ai_flags = AI_NUMERICHOST;
+			hints.ai_family = AF_UNSPEC;
+			hints.ai_socktype = 0;
+			hints.ai_protocol = 0;
+			hints.ai_addrlen = 0;
+			hints.ai_canonname = NULL;
+			hints.ai_addr = NULL;
+			hints.ai_next = NULL;
 
-            ret = pg_getaddrinfo_all(str, NULL, &hints, &gai_result);
-            if (ret == 0 && gai_result)
-                memcpy(&parsedline->addr, gai_result->ai_addr,
-                       gai_result->ai_addrlen);
-            else if (ret == EAI_NONAME)
-                parsedline->hostname = str;
-            else
-            {
-                ereport(elevel,
-                        (errcode(ERRCODE_CONFIG_FILE_ERROR),
-                         errmsg("invalid IP address \"%s\": %s",
-                                str, gai_strerror(ret)),
-                         errcontext("line %d of configuration file \"%s\"",
-                                    line_num, HbaFileName)));
-                *err_msg = psprintf("invalid IP address \"%s\": %s",
-                                    str, gai_strerror(ret));
-                if (gai_result)
-                    pg_freeaddrinfo_all(hints.ai_family, gai_result);
-                return NULL;
-            }
+			ret = pg_getaddrinfo_all(str, NULL, &hints, &gai_result);
+			if (ret == 0 && gai_result)
+				memcpy(&parsedline->addr, gai_result->ai_addr,
+					   gai_result->ai_addrlen);
+			else if (ret == EAI_NONAME)
+				parsedline->hostname = str;
+			else
+			{
+				ereport(elevel,
+						(errcode(ERRCODE_CONFIG_FILE_ERROR),
+						 errmsg("invalid IP address \"%s\": %s",
+								str, gai_strerror(ret)),
+						 errcontext("line %d of configuration file \"%s\"",
+									line_num, HbaFileName)));
+				*err_msg = psprintf("invalid IP address \"%s\": %s",
+									str, gai_strerror(ret));
+				if (gai_result)
+					pg_freeaddrinfo_all(hints.ai_family, gai_result);
+				return NULL;
+			}
 
-            pg_freeaddrinfo_all(hints.ai_family, gai_result);
+			pg_freeaddrinfo_all(hints.ai_family, gai_result);
 
-            /* Get the netmask */
-            if (cidr_slash)
-            {
-                if (parsedline->hostname)
-                {
-                    ereport(elevel,
-                            (errcode(ERRCODE_CONFIG_FILE_ERROR),
-                             errmsg("specifying both host name and CIDR mask is invalid: \"%s\"",
-                                    token->string),
-                             errcontext("line %d of configuration file \"%s\"",
-                                        line_num, HbaFileName)));
-                    *err_msg = psprintf("specifying both host name and CIDR mask is invalid: \"%s\"",
-                                        token->string);
-                    return NULL;
-                }
+			/* Get the netmask */
+			if (cidr_slash)
+			{
+				if (parsedline->hostname)
+				{
+					ereport(elevel,
+							(errcode(ERRCODE_CONFIG_FILE_ERROR),
+							 errmsg("specifying both host name and CIDR mask is invalid: \"%s\"",
+									token->string),
+							 errcontext("line %d of configuration file \"%s\"",
+										line_num, HbaFileName)));
+					*err_msg = psprintf("specifying both host name and CIDR mask is invalid: \"%s\"",
+										token->string);
+					return NULL;
+				}
 
-                if (pg_sockaddr_cidr_mask(&parsedline->mask, cidr_slash + 1,
-                                          parsedline->addr.ss_family) < 0)
-                {
-                    ereport(elevel,
-                            (errcode(ERRCODE_CONFIG_FILE_ERROR),
-                             errmsg("invalid CIDR mask in address \"%s\"",
-                                    token->string),
-                             errcontext("line %d of configuration file \"%s\"",
-                                        line_num, HbaFileName)));
-                    *err_msg = psprintf("invalid CIDR mask in address \"%s\"",
-                                        token->string);
-                    return NULL;
-                }
-                pfree(str);
-            }
-            else if (!parsedline->hostname)
-            {
-                /* Read the mask field. */
-                pfree(str);
-                field = lnext(field);
-                if (!field)
-                {
-                    ereport(elevel,
-                            (errcode(ERRCODE_CONFIG_FILE_ERROR),
-                             errmsg("end-of-line before netmask specification"),
-                             errhint("Specify an address range in CIDR notation, or provide a separate netmask."),
-                             errcontext("line %d of configuration file \"%s\"",
-                                        line_num, HbaFileName)));
-                    *err_msg = "end-of-line before netmask specification";
-                    return NULL;
-                }
-                tokens = lfirst(field);
-                if (tokens->length > 1)
-                {
-                    ereport(elevel,
-                            (errcode(ERRCODE_CONFIG_FILE_ERROR),
-                             errmsg("multiple values specified for netmask"),
-                             errcontext("line %d of configuration file \"%s\"",
-                                        line_num, HbaFileName)));
-                    *err_msg = "multiple values specified for netmask";
-                    return NULL;
-                }
-                token = linitial(tokens);
+				if (pg_sockaddr_cidr_mask(&parsedline->mask, cidr_slash + 1,
+										  parsedline->addr.ss_family) < 0)
+				{
+					ereport(elevel,
+							(errcode(ERRCODE_CONFIG_FILE_ERROR),
+							 errmsg("invalid CIDR mask in address \"%s\"",
+									token->string),
+							 errcontext("line %d of configuration file \"%s\"",
+										line_num, HbaFileName)));
+					*err_msg = psprintf("invalid CIDR mask in address \"%s\"",
+										token->string);
+					return NULL;
+				}
+				pfree(str);
+			}
+			else if (!parsedline->hostname)
+			{
+				/* Read the mask field. */
+				pfree(str);
+				field = lnext(field);
+				if (!field)
+				{
+					ereport(elevel,
+							(errcode(ERRCODE_CONFIG_FILE_ERROR),
+							 errmsg("end-of-line before netmask specification"),
+							 errhint("Specify an address range in CIDR notation, or provide a separate netmask."),
+							 errcontext("line %d of configuration file \"%s\"",
+										line_num, HbaFileName)));
+					*err_msg = "end-of-line before netmask specification";
+					return NULL;
+				}
+				tokens = lfirst(field);
+				if (tokens->length > 1)
+				{
+					ereport(elevel,
+							(errcode(ERRCODE_CONFIG_FILE_ERROR),
+							 errmsg("multiple values specified for netmask"),
+							 errcontext("line %d of configuration file \"%s\"",
+										line_num, HbaFileName)));
+					*err_msg = "multiple values specified for netmask";
+					return NULL;
+				}
+				token = linitial(tokens);
 
-                ret = pg_getaddrinfo_all(token->string, NULL,
-                                         &hints, &gai_result);
-                if (ret || !gai_result)
-                {
-                    ereport(elevel,
-                            (errcode(ERRCODE_CONFIG_FILE_ERROR),
-                             errmsg("invalid IP mask \"%s\": %s",
-                                    token->string, gai_strerror(ret)),
-                             errcontext("line %d of configuration file \"%s\"",
-                                        line_num, HbaFileName)));
-                    *err_msg = psprintf("invalid IP mask \"%s\": %s",
-                                        token->string, gai_strerror(ret));
-                    if (gai_result)
-                        pg_freeaddrinfo_all(hints.ai_family, gai_result);
-                    return NULL;
-                }
+				ret = pg_getaddrinfo_all(token->string, NULL,
+										 &hints, &gai_result);
+				if (ret || !gai_result)
+				{
+					ereport(elevel,
+							(errcode(ERRCODE_CONFIG_FILE_ERROR),
+							 errmsg("invalid IP mask \"%s\": %s",
+									token->string, gai_strerror(ret)),
+							 errcontext("line %d of configuration file \"%s\"",
+										line_num, HbaFileName)));
+					*err_msg = psprintf("invalid IP mask \"%s\": %s",
+										token->string, gai_strerror(ret));
+					if (gai_result)
+						pg_freeaddrinfo_all(hints.ai_family, gai_result);
+					return NULL;
+				}
 
-                memcpy(&parsedline->mask, gai_result->ai_addr,
-                       gai_result->ai_addrlen);
-                pg_freeaddrinfo_all(hints.ai_family, gai_result);
+				memcpy(&parsedline->mask, gai_result->ai_addr,
+					   gai_result->ai_addrlen);
+				pg_freeaddrinfo_all(hints.ai_family, gai_result);
 
-                if (parsedline->addr.ss_family != parsedline->mask.ss_family)
-                {
-                    ereport(elevel,
-                            (errcode(ERRCODE_CONFIG_FILE_ERROR),
-                             errmsg("IP address and mask do not match"),
-                             errcontext("line %d of configuration file \"%s\"",
-                                        line_num, HbaFileName)));
-                    *err_msg = "IP address and mask do not match";
-                    return NULL;
-                }
-            }
-        }
-    }                            /* != ctLocal */
+				if (parsedline->addr.ss_family != parsedline->mask.ss_family)
+				{
+					ereport(elevel,
+							(errcode(ERRCODE_CONFIG_FILE_ERROR),
+							 errmsg("IP address and mask do not match"),
+							 errcontext("line %d of configuration file \"%s\"",
+										line_num, HbaFileName)));
+					*err_msg = "IP address and mask do not match";
+					return NULL;
+				}
+			}
+		}
+	}							/* != ctLocal */
 
-    /* Get the authentication method */
-    field = lnext(field);
-    if (!field)
-    {
-        ereport(elevel,
-                (errcode(ERRCODE_CONFIG_FILE_ERROR),
-                 errmsg("end-of-line before authentication method"),
-                 errcontext("line %d of configuration file \"%s\"",
-                            line_num, HbaFileName)));
-        *err_msg = "end-of-line before authentication method";
-        return NULL;
-    }
-    tokens = lfirst(field);
-    if (tokens->length > 1)
-    {
-        ereport(elevel,
-                (errcode(ERRCODE_CONFIG_FILE_ERROR),
-                 errmsg("multiple values specified for authentication type"),
-                 errhint("Specify exactly one authentication type per line."),
-                 errcontext("line %d of configuration file \"%s\"",
-                            line_num, HbaFileName)));
-        *err_msg = "multiple values specified for authentication type";
-        return NULL;
-    }
-    token = linitial(tokens);
+	/* Get the authentication method */
+	field = lnext(field);
+	if (!field)
+	{
+		ereport(elevel,
+				(errcode(ERRCODE_CONFIG_FILE_ERROR),
+				 errmsg("end-of-line before authentication method"),
+				 errcontext("line %d of configuration file \"%s\"",
+							line_num, HbaFileName)));
+		*err_msg = "end-of-line before authentication method";
+		return NULL;
+	}
+	tokens = lfirst(field);
+	if (tokens->length > 1)
+	{
+		ereport(elevel,
+				(errcode(ERRCODE_CONFIG_FILE_ERROR),
+				 errmsg("multiple values specified for authentication type"),
+				 errhint("Specify exactly one authentication type per line."),
+				 errcontext("line %d of configuration file \"%s\"",
+							line_num, HbaFileName)));
+		*err_msg = "multiple values specified for authentication type";
+		return NULL;
+	}
+	token = linitial(tokens);
 
-    unsupauth = NULL;
-    if (strcmp(token->string, "trust") == 0)
-        parsedline->auth_method = uaTrust;
-    else if (strcmp(token->string, "ident") == 0)
-        parsedline->auth_method = uaIdent;
-    else if (strcmp(token->string, "peer") == 0)
-        parsedline->auth_method = uaPeer;
-    else if (strcmp(token->string, "password") == 0)
-        parsedline->auth_method = uaPassword;
-    else if (strcmp(token->string, "gss") == 0)
+	unsupauth = NULL;
+	if (strcmp(token->string, "trust") == 0)
+		parsedline->auth_method = uaTrust;
+	else if (strcmp(token->string, "ident") == 0)
+		parsedline->auth_method = uaIdent;
+	else if (strcmp(token->string, "peer") == 0)
+		parsedline->auth_method = uaPeer;
+	else if (strcmp(token->string, "password") == 0)
+		parsedline->auth_method = uaPassword;
+	else if (strcmp(token->string, "gss") == 0)
 #ifdef ENABLE_GSS
-        parsedline->auth_method = uaGSS;
+		parsedline->auth_method = uaGSS;
 #else
-        unsupauth = "gss";
+		unsupauth = "gss";
 #endif
-    else if (strcmp(token->string, "sspi") == 0)
+	else if (strcmp(token->string, "sspi") == 0)
 #ifdef ENABLE_SSPI
-        parsedline->auth_method = uaSSPI;
+		parsedline->auth_method = uaSSPI;
 #else
-        unsupauth = "sspi";
+		unsupauth = "sspi";
 #endif
-    else if (strcmp(token->string, "reject") == 0)
-        parsedline->auth_method = uaReject;
-    else if (strcmp(token->string, "md5") == 0)
-    {
-        if (Db_user_namespace)
-        {
-            ereport(elevel,
-                    (errcode(ERRCODE_CONFIG_FILE_ERROR),
-                     errmsg("MD5 authentication is not supported when \"db_user_namespace\" is enabled"),
-                     errcontext("line %d of configuration file \"%s\"",
-                                line_num, HbaFileName)));
-            *err_msg = "MD5 authentication is not supported when \"db_user_namespace\" is enabled";
-            return NULL;
-        }
-        parsedline->auth_method = uaMD5;
-    }
-    else if (strcmp(token->string, "scram-sha-256") == 0)
-        parsedline->auth_method = uaSCRAM;
-    else if (strcmp(token->string, "pam") == 0)
+	else if (strcmp(token->string, "reject") == 0)
+		parsedline->auth_method = uaReject;
+	else if (strcmp(token->string, "md5") == 0)
+	{
+		if (Db_user_namespace)
+		{
+			ereport(elevel,
+					(errcode(ERRCODE_CONFIG_FILE_ERROR),
+					 errmsg("MD5 authentication is not supported when \"db_user_namespace\" is enabled"),
+					 errcontext("line %d of configuration file \"%s\"",
+								line_num, HbaFileName)));
+			*err_msg = "MD5 authentication is not supported when \"db_user_namespace\" is enabled";
+			return NULL;
+		}
+		parsedline->auth_method = uaMD5;
+	}
+	else if (strcmp(token->string, "scram-sha-256") == 0)
+		parsedline->auth_method = uaSCRAM;
+	else if (strcmp(token->string, "pam") == 0)
 #ifdef USE_PAM
-        parsedline->auth_method = uaPAM;
+		parsedline->auth_method = uaPAM;
 #else
-        unsupauth = "pam";
+		unsupauth = "pam";
 #endif
-    else if (strcmp(token->string, "bsd") == 0)
+	else if (strcmp(token->string, "bsd") == 0)
 #ifdef USE_BSD_AUTH
-        parsedline->auth_method = uaBSD;
+		parsedline->auth_method = uaBSD;
 #else
-        unsupauth = "bsd";
+		unsupauth = "bsd";
 #endif
-    else if (strcmp(token->string, "ldap") == 0)
+	else if (strcmp(token->string, "ldap") == 0)
 #ifdef USE_LDAP
-        parsedline->auth_method = uaLDAP;
+		parsedline->auth_method = uaLDAP;
 #else
-        unsupauth = "ldap";
+		unsupauth = "ldap";
 #endif
-    else if (strcmp(token->string, "cert") == 0)
+	else if (strcmp(token->string, "cert") == 0)
 #ifdef USE_SSL
-        parsedline->auth_method = uaCert;
+		parsedline->auth_method = uaCert;
 #else
-        unsupauth = "cert";
+		unsupauth = "cert";
 #endif
-    else if (strcmp(token->string, "radius") == 0)
-        parsedline->auth_method = uaRADIUS;
-    else
-    {
-        ereport(elevel,
-                (errcode(ERRCODE_CONFIG_FILE_ERROR),
-                 errmsg("invalid authentication method \"%s\"",
-                        token->string),
-                 errcontext("line %d of configuration file \"%s\"",
-                            line_num, HbaFileName)));
-        *err_msg = psprintf("invalid authentication method \"%s\"",
-                            token->string);
-        return NULL;
-    }
+	else if (strcmp(token->string, "radius") == 0)
+		parsedline->auth_method = uaRADIUS;
+	else
+	{
+		ereport(elevel,
+				(errcode(ERRCODE_CONFIG_FILE_ERROR),
+				 errmsg("invalid authentication method \"%s\"",
+						token->string),
+				 errcontext("line %d of configuration file \"%s\"",
+							line_num, HbaFileName)));
+		*err_msg = psprintf("invalid authentication method \"%s\"",
+							token->string);
+		return NULL;
+	}
 
-    if (unsupauth)
-    {
-        ereport(elevel,
-                (errcode(ERRCODE_CONFIG_FILE_ERROR),
-                 errmsg("invalid authentication method \"%s\": not supported by this build",
-                        token->string),
-                 errcontext("line %d of configuration file \"%s\"",
-                            line_num, HbaFileName)));
-        *err_msg = psprintf("invalid authentication method \"%s\": not supported by this build",
-                            token->string);
-        return NULL;
-    }
+	if (unsupauth)
+	{
+		ereport(elevel,
+				(errcode(ERRCODE_CONFIG_FILE_ERROR),
+				 errmsg("invalid authentication method \"%s\": not supported by this build",
+						token->string),
+				 errcontext("line %d of configuration file \"%s\"",
+							line_num, HbaFileName)));
+		*err_msg = psprintf("invalid authentication method \"%s\": not supported by this build",
+							token->string);
+		return NULL;
+	}
 
-    /*
-     * XXX: When using ident on local connections, change it to peer, for
-     * backwards compatibility.
-     */
-    if (parsedline->conntype == ctLocal &&
-        parsedline->auth_method == uaIdent)
-        parsedline->auth_method = uaPeer;
+	/*
+	 * XXX: When using ident on local connections, change it to peer, for
+	 * backwards compatibility.
+	 */
+	if (parsedline->conntype == ctLocal &&
+		parsedline->auth_method == uaIdent)
+		parsedline->auth_method = uaPeer;
 
-    /* Invalid authentication combinations */
-    if (parsedline->conntype == ctLocal &&
-        parsedline->auth_method == uaGSS)
-    {
-        ereport(elevel,
-                (errcode(ERRCODE_CONFIG_FILE_ERROR),
-                 errmsg("gssapi authentication is not supported on local sockets"),
-                 errcontext("line %d of configuration file \"%s\"",
-                            line_num, HbaFileName)));
-        *err_msg = "gssapi authentication is not supported on local sockets";
-        return NULL;
-    }
+	/* Invalid authentication combinations */
+	if (parsedline->conntype == ctLocal &&
+		parsedline->auth_method == uaGSS)
+	{
+		ereport(elevel,
+				(errcode(ERRCODE_CONFIG_FILE_ERROR),
+				 errmsg("gssapi authentication is not supported on local sockets"),
+				 errcontext("line %d of configuration file \"%s\"",
+							line_num, HbaFileName)));
+		*err_msg = "gssapi authentication is not supported on local sockets";
+		return NULL;
+	}
 
-    if (parsedline->conntype != ctLocal &&
-        parsedline->auth_method == uaPeer)
-    {
-        ereport(elevel,
-                (errcode(ERRCODE_CONFIG_FILE_ERROR),
-                 errmsg("peer authentication is only supported on local sockets"),
-                 errcontext("line %d of configuration file \"%s\"",
-                            line_num, HbaFileName)));
-        *err_msg = "peer authentication is only supported on local sockets";
-        return NULL;
-    }
+	if (parsedline->conntype != ctLocal &&
+		parsedline->auth_method == uaPeer)
+	{
+		ereport(elevel,
+				(errcode(ERRCODE_CONFIG_FILE_ERROR),
+				 errmsg("peer authentication is only supported on local sockets"),
+				 errcontext("line %d of configuration file \"%s\"",
+							line_num, HbaFileName)));
+		*err_msg = "peer authentication is only supported on local sockets";
+		return NULL;
+	}
 
-    /*
-     * SSPI authentication can never be enabled on ctLocal connections,
-     * because it's only supported on Windows, where ctLocal isn't supported.
-     */
+	/*
+	 * SSPI authentication can never be enabled on ctLocal connections,
+	 * because it's only supported on Windows, where ctLocal isn't supported.
+	 */
 
 
-    if (parsedline->conntype != ctHostSSL &&
-        parsedline->auth_method == uaCert)
-    {
-        ereport(elevel,
-                (errcode(ERRCODE_CONFIG_FILE_ERROR),
-                 errmsg("cert authentication is only supported on hostssl connections"),
-                 errcontext("line %d of configuration file \"%s\"",
-                            line_num, HbaFileName)));
-        *err_msg = "cert authentication is only supported on hostssl connections";
-        return NULL;
-    }
+	if (parsedline->conntype != ctHostSSL &&
+		parsedline->auth_method == uaCert)
+	{
+		ereport(elevel,
+				(errcode(ERRCODE_CONFIG_FILE_ERROR),
+				 errmsg("cert authentication is only supported on hostssl connections"),
+				 errcontext("line %d of configuration file \"%s\"",
+							line_num, HbaFileName)));
+		*err_msg = "cert authentication is only supported on hostssl connections";
+		return NULL;
+	}
 
-    /*
-     * For GSS and SSPI, set the default value of include_realm to true.
-     * Having include_realm set to false is dangerous in multi-realm
-     * situations and is generally considered bad practice.  We keep the
-     * capability around for backwards compatibility, but we might want to
-     * remove it at some point in the future.  Users who still need to strip
-     * the realm off would be better served by using an appropriate regex in a
-     * pg_ident.conf mapping.
-     */
-    if (parsedline->auth_method == uaGSS ||
-        parsedline->auth_method == uaSSPI)
-        parsedline->include_realm = true;
+	/*
+	 * For GSS and SSPI, set the default value of include_realm to true.
+	 * Having include_realm set to false is dangerous in multi-realm
+	 * situations and is generally considered bad practice.  We keep the
+	 * capability around for backwards compatibility, but we might want to
+	 * remove it at some point in the future.  Users who still need to strip
+	 * the realm off would be better served by using an appropriate regex in a
+	 * pg_ident.conf mapping.
+	 */
+	if (parsedline->auth_method == uaGSS ||
+		parsedline->auth_method == uaSSPI)
+		parsedline->include_realm = true;
 
-    /*
-     * For SSPI, include_realm defaults to the SAM-compatible domain (aka
-     * NetBIOS name) and user names instead of the Kerberos principal name for
-     * compatibility.
-     */
-    if (parsedline->auth_method == uaSSPI)
-    {
-        parsedline->compat_realm = true;
-        parsedline->upn_username = false;
-    }
+	/*
+	 * For SSPI, include_realm defaults to the SAM-compatible domain (aka
+	 * NetBIOS name) and user names instead of the Kerberos principal name for
+	 * compatibility.
+	 */
+	if (parsedline->auth_method == uaSSPI)
+	{
+		parsedline->compat_realm = true;
+		parsedline->upn_username = false;
+	}
 
-    /* Parse remaining arguments */
-    while ((field = lnext(field)) != NULL)
-    {
-        tokens = lfirst(field);
-        foreach(tokencell, tokens)
-        {
-            char       *val;
+	/* Parse remaining arguments */
+	while ((field = lnext(field)) != NULL)
+	{
+		tokens = lfirst(field);
+		foreach(tokencell, tokens)
+		{
+			char	   *val;
 
-            token = lfirst(tokencell);
+			token = lfirst(tokencell);
 
-            str = pstrdup(token->string);
-            val = strchr(str, '=');
-            if (val == NULL)
-            {
-                /*
-                 * Got something that's not a name=value pair.
-                 */
-                ereport(elevel,
-                        (errcode(ERRCODE_CONFIG_FILE_ERROR),
-                         errmsg("authentication option not in name=value format: %s", token->string),
-                         errcontext("line %d of configuration file \"%s\"",
-                                    line_num, HbaFileName)));
-                *err_msg = psprintf("authentication option not in name=value format: %s",
-                                    token->string);
-                return NULL;
-            }
+			str = pstrdup(token->string);
+			val = strchr(str, '=');
+			if (val == NULL)
+			{
+				/*
+				 * Got something that's not a name=value pair.
+				 */
+				ereport(elevel,
+						(errcode(ERRCODE_CONFIG_FILE_ERROR),
+						 errmsg("authentication option not in name=value format: %s", token->string),
+						 errcontext("line %d of configuration file \"%s\"",
+									line_num, HbaFileName)));
+				*err_msg = psprintf("authentication option not in name=value format: %s",
+									token->string);
+				return NULL;
+			}
 
-            *val++ = '\0';        /* str now holds "name", val holds "value" */
-            if (!parse_hba_auth_opt(str, val, parsedline, elevel, err_msg))
-                /* parse_hba_auth_opt already logged the error message */
-                return NULL;
-            pfree(str);
-        }
-    }
+			*val++ = '\0';		/* str now holds "name", val holds "value" */
+			if (!parse_hba_auth_opt(str, val, parsedline, elevel, err_msg))
+				/* parse_hba_auth_opt already logged the error message */
+				return NULL;
+			pfree(str);
+		}
+	}
 
-    /*
-     * Check if the selected authentication method has any mandatory arguments
-     * that are not set.
-     */
-    if (parsedline->auth_method == uaLDAP)
-    {
-        MANDATORY_AUTH_ARG(parsedline->ldapserver, "ldapserver", "ldap");
+	/*
+	 * Check if the selected authentication method has any mandatory arguments
+	 * that are not set.
+	 */
+	if (parsedline->auth_method == uaLDAP)
+	{
+		MANDATORY_AUTH_ARG(parsedline->ldapserver, "ldapserver", "ldap");
 
-        /*
-         * LDAP can operate in two modes: either with a direct bind, using
-         * ldapprefix and ldapsuffix, or using a search+bind, using
-         * ldapbasedn, ldapbinddn, ldapbindpasswd and ldapsearchattribute.
-         * Disallow mixing these parameters.
-         */
-        if (parsedline->ldapprefix || parsedline->ldapsuffix)
-        {
-            if (parsedline->ldapbasedn ||
-                parsedline->ldapbinddn ||
-                parsedline->ldapbindpasswd ||
-                parsedline->ldapsearchattribute)
-            {
-                ereport(elevel,
-                        (errcode(ERRCODE_CONFIG_FILE_ERROR),
-                         errmsg("cannot use ldapbasedn, ldapbinddn, ldapbindpasswd, ldapsearchattribute, or ldapurl together with ldapprefix"),
-                         errcontext("line %d of configuration file \"%s\"",
-                                    line_num, HbaFileName)));
-                *err_msg = "cannot use ldapbasedn, ldapbinddn, ldapbindpasswd, ldapsearchattribute, or ldapurl together with ldapprefix";
-                return NULL;
-            }
-        }
-        else if (!parsedline->ldapbasedn)
-        {
-            ereport(elevel,
-                    (errcode(ERRCODE_CONFIG_FILE_ERROR),
-                     errmsg("authentication method \"ldap\" requires argument \"ldapbasedn\", \"ldapprefix\", or \"ldapsuffix\" to be set"),
-                     errcontext("line %d of configuration file \"%s\"",
-                                line_num, HbaFileName)));
-            *err_msg = "authentication method \"ldap\" requires argument \"ldapbasedn\", \"ldapprefix\", or \"ldapsuffix\" to be set";
-            return NULL;
-        }
-    }
+		/*
+		 * LDAP can operate in two modes: either with a direct bind, using
+		 * ldapprefix and ldapsuffix, or using a search+bind, using
+		 * ldapbasedn, ldapbinddn, ldapbindpasswd and ldapsearchattribute.
+		 * Disallow mixing these parameters.
+		 */
+		if (parsedline->ldapprefix || parsedline->ldapsuffix)
+		{
+			if (parsedline->ldapbasedn ||
+				parsedline->ldapbinddn ||
+				parsedline->ldapbindpasswd ||
+				parsedline->ldapsearchattribute)
+			{
+				ereport(elevel,
+						(errcode(ERRCODE_CONFIG_FILE_ERROR),
+						 errmsg("cannot use ldapbasedn, ldapbinddn, ldapbindpasswd, ldapsearchattribute, or ldapurl together with ldapprefix"),
+						 errcontext("line %d of configuration file \"%s\"",
+									line_num, HbaFileName)));
+				*err_msg = "cannot use ldapbasedn, ldapbinddn, ldapbindpasswd, ldapsearchattribute, or ldapurl together with ldapprefix";
+				return NULL;
+			}
+		}
+		else if (!parsedline->ldapbasedn)
+		{
+			ereport(elevel,
+					(errcode(ERRCODE_CONFIG_FILE_ERROR),
+					 errmsg("authentication method \"ldap\" requires argument \"ldapbasedn\", \"ldapprefix\", or \"ldapsuffix\" to be set"),
+					 errcontext("line %d of configuration file \"%s\"",
+								line_num, HbaFileName)));
+			*err_msg = "authentication method \"ldap\" requires argument \"ldapbasedn\", \"ldapprefix\", or \"ldapsuffix\" to be set";
+			return NULL;
+		}
+	}
 
-    if (parsedline->auth_method == uaRADIUS)
-    {
-        MANDATORY_AUTH_ARG(parsedline->radiusservers, "radiusservers", "radius");
-        MANDATORY_AUTH_ARG(parsedline->radiussecrets, "radiussecrets", "radius");
+	if (parsedline->auth_method == uaRADIUS)
+	{
+		MANDATORY_AUTH_ARG(parsedline->radiusservers, "radiusservers", "radius");
+		MANDATORY_AUTH_ARG(parsedline->radiussecrets, "radiussecrets", "radius");
 
-        if (list_length(parsedline->radiusservers) < 1)
-        {
-            ereport(LOG,
-                    (errcode(ERRCODE_CONFIG_FILE_ERROR),
-                     errmsg("list of RADIUS servers cannot be empty"),
-                     errcontext("line %d of configuration file \"%s\"",
-                                line_num, HbaFileName)));
-            return NULL;
-        }
+		if (list_length(parsedline->radiusservers) < 1)
+		{
+			ereport(LOG,
+					(errcode(ERRCODE_CONFIG_FILE_ERROR),
+					 errmsg("list of RADIUS servers cannot be empty"),
+					 errcontext("line %d of configuration file \"%s\"",
+								line_num, HbaFileName)));
+			return NULL;
+		}
 
-        if (list_length(parsedline->radiussecrets) < 1)
-        {
-            ereport(LOG,
-                    (errcode(ERRCODE_CONFIG_FILE_ERROR),
-                     errmsg("list of RADIUS secrets cannot be empty"),
-                     errcontext("line %d of configuration file \"%s\"",
-                                line_num, HbaFileName)));
-            return NULL;
-        }
+		if (list_length(parsedline->radiussecrets) < 1)
+		{
+			ereport(LOG,
+					(errcode(ERRCODE_CONFIG_FILE_ERROR),
+					 errmsg("list of RADIUS secrets cannot be empty"),
+					 errcontext("line %d of configuration file \"%s\"",
+								line_num, HbaFileName)));
+			return NULL;
+		}
 
-        /*
-         * Verify length of option lists - each can be 0 (except for secrets,
-         * but that's already checked above), 1 (use the same value
-         * everywhere) or the same as the number of servers.
-         */
-        if (!verify_option_list_length(parsedline->radiussecrets,
-                                       "RADIUS secrets",
-                                       parsedline->radiusservers,
-                                       "RADIUS servers",
-                                       line_num))
-            return NULL;
-        if (!verify_option_list_length(parsedline->radiusports,
-                                       "RADIUS ports",
-                                       parsedline->radiusservers,
-                                       "RADIUS servers",
-                                       line_num))
-            return NULL;
-        if (!verify_option_list_length(parsedline->radiusidentifiers,
-                                       "RADIUS identifiers",
-                                       parsedline->radiusservers,
-                                       "RADIUS servers",
-                                       line_num))
-            return NULL;
-    }
+		/*
+		 * Verify length of option lists - each can be 0 (except for secrets,
+		 * but that's already checked above), 1 (use the same value
+		 * everywhere) or the same as the number of servers.
+		 */
+		if (!verify_option_list_length(parsedline->radiussecrets,
+									   "RADIUS secrets",
+									   parsedline->radiusservers,
+									   "RADIUS servers",
+									   line_num))
+			return NULL;
+		if (!verify_option_list_length(parsedline->radiusports,
+									   "RADIUS ports",
+									   parsedline->radiusservers,
+									   "RADIUS servers",
+									   line_num))
+			return NULL;
+		if (!verify_option_list_length(parsedline->radiusidentifiers,
+									   "RADIUS identifiers",
+									   parsedline->radiusservers,
+									   "RADIUS servers",
+									   line_num))
+			return NULL;
+	}
 
-    /*
-     * Enforce any parameters implied by other settings.
-     */
-    if (parsedline->auth_method == uaCert)
-    {
-        parsedline->clientcert = true;
-    }
+	/*
+	 * Enforce any parameters implied by other settings.
+	 */
+	if (parsedline->auth_method == uaCert)
+	{
+		parsedline->clientcert = true;
+	}
 
-    return parsedline;
+	return parsedline;
 }
 
 
 static bool
 verify_option_list_length(List *options, char *optionname, List *masters, char *mastername, int line_num)
 {
-    if (list_length(options) == 0 ||
-        list_length(options) == 1 ||
-        list_length(options) == list_length(masters))
-        return true;
+	if (list_length(options) == 0 ||
+		list_length(options) == 1 ||
+		list_length(options) == list_length(masters))
+		return true;
 
-    ereport(LOG,
-            (errcode(ERRCODE_CONFIG_FILE_ERROR),
-             errmsg("the number of %s (%i) must be 1 or the same as the number of %s (%i)",
-                    optionname,
-                    list_length(options),
-                    mastername,
-                    list_length(masters)
-                    ),
-             errcontext("line %d of configuration file \"%s\"",
-                        line_num, HbaFileName)));
-    return false;
+	ereport(LOG,
+			(errcode(ERRCODE_CONFIG_FILE_ERROR),
+			 errmsg("the number of %s (%i) must be 1 or the same as the number of %s (%i)",
+					optionname,
+					list_length(options),
+					mastername,
+					list_length(masters)
+					),
+			 errcontext("line %d of configuration file \"%s\"",
+						line_num, HbaFileName)));
+	return false;
 }
 
 /*
@@ -1812,449 +1812,449 @@ verify_option_list_length(List *options, char *optionname, List *masters, char *
  */
 static bool
 parse_hba_auth_opt(char *name, char *val, HbaLine *hbaline,
-                   int elevel, char **err_msg)
-{// #lizard forgives
-    int            line_num = hbaline->linenumber;
+				   int elevel, char **err_msg)
+{
+	int			line_num = hbaline->linenumber;
 
 #ifdef USE_LDAP
-    hbaline->ldapscope = LDAP_SCOPE_SUBTREE;
+	hbaline->ldapscope = LDAP_SCOPE_SUBTREE;
 #endif
 
-    if (strcmp(name, "map") == 0)
-    {
-        if (hbaline->auth_method != uaIdent &&
-            hbaline->auth_method != uaPeer &&
-            hbaline->auth_method != uaGSS &&
-            hbaline->auth_method != uaSSPI &&
-            hbaline->auth_method != uaCert)
-            INVALID_AUTH_OPTION("map", gettext_noop("ident, peer, gssapi, sspi, and cert"));
-        hbaline->usermap = pstrdup(val);
-    }
-    else if (strcmp(name, "clientcert") == 0)
-    {
-        if (hbaline->conntype != ctHostSSL)
-        {
-            ereport(elevel,
-                    (errcode(ERRCODE_CONFIG_FILE_ERROR),
-                     errmsg("clientcert can only be configured for \"hostssl\" rows"),
-                     errcontext("line %d of configuration file \"%s\"",
-                                line_num, HbaFileName)));
-            *err_msg = "clientcert can only be configured for \"hostssl\" rows";
-            return false;
-        }
-        if (strcmp(val, "1") == 0)
-        {
-            hbaline->clientcert = true;
-        }
-        else
-        {
-            if (hbaline->auth_method == uaCert)
-            {
-                ereport(elevel,
-                        (errcode(ERRCODE_CONFIG_FILE_ERROR),
-                         errmsg("clientcert can not be set to 0 when using \"cert\" authentication"),
-                         errcontext("line %d of configuration file \"%s\"",
-                                    line_num, HbaFileName)));
-                *err_msg = "clientcert can not be set to 0 when using \"cert\" authentication";
-                return false;
-            }
-            hbaline->clientcert = false;
-        }
-    }
-    else if (strcmp(name, "pamservice") == 0)
-    {
-        REQUIRE_AUTH_OPTION(uaPAM, "pamservice", "pam");
-        hbaline->pamservice = pstrdup(val);
-    }
-    else if (strcmp(name, "pam_use_hostname") == 0)
-    {
-        REQUIRE_AUTH_OPTION(uaPAM, "pam_use_hostname", "pam");
-        if (strcmp(val, "1") == 0)
-            hbaline->pam_use_hostname = true;
-        else
-            hbaline->pam_use_hostname = false;
+	if (strcmp(name, "map") == 0)
+	{
+		if (hbaline->auth_method != uaIdent &&
+			hbaline->auth_method != uaPeer &&
+			hbaline->auth_method != uaGSS &&
+			hbaline->auth_method != uaSSPI &&
+			hbaline->auth_method != uaCert)
+			INVALID_AUTH_OPTION("map", gettext_noop("ident, peer, gssapi, sspi, and cert"));
+		hbaline->usermap = pstrdup(val);
+	}
+	else if (strcmp(name, "clientcert") == 0)
+	{
+		if (hbaline->conntype != ctHostSSL)
+		{
+			ereport(elevel,
+					(errcode(ERRCODE_CONFIG_FILE_ERROR),
+					 errmsg("clientcert can only be configured for \"hostssl\" rows"),
+					 errcontext("line %d of configuration file \"%s\"",
+								line_num, HbaFileName)));
+			*err_msg = "clientcert can only be configured for \"hostssl\" rows";
+			return false;
+		}
+		if (strcmp(val, "1") == 0)
+		{
+			hbaline->clientcert = true;
+		}
+		else
+		{
+			if (hbaline->auth_method == uaCert)
+			{
+				ereport(elevel,
+						(errcode(ERRCODE_CONFIG_FILE_ERROR),
+						 errmsg("clientcert can not be set to 0 when using \"cert\" authentication"),
+						 errcontext("line %d of configuration file \"%s\"",
+									line_num, HbaFileName)));
+				*err_msg = "clientcert can not be set to 0 when using \"cert\" authentication";
+				return false;
+			}
+			hbaline->clientcert = false;
+		}
+	}
+	else if (strcmp(name, "pamservice") == 0)
+	{
+		REQUIRE_AUTH_OPTION(uaPAM, "pamservice", "pam");
+		hbaline->pamservice = pstrdup(val);
+	}
+	else if (strcmp(name, "pam_use_hostname") == 0)
+	{
+		REQUIRE_AUTH_OPTION(uaPAM, "pam_use_hostname", "pam");
+		if (strcmp(val, "1") == 0)
+			hbaline->pam_use_hostname = true;
+		else
+			hbaline->pam_use_hostname = false;
 
-    }
-    else if (strcmp(name, "ldapurl") == 0)
-    {
+	}
+	else if (strcmp(name, "ldapurl") == 0)
+	{
 #ifdef LDAP_API_FEATURE_X_OPENLDAP
-        LDAPURLDesc *urldata;
-        int            rc;
+		LDAPURLDesc *urldata;
+		int			rc;
 #endif
 
-        REQUIRE_AUTH_OPTION(uaLDAP, "ldapurl", "ldap");
+		REQUIRE_AUTH_OPTION(uaLDAP, "ldapurl", "ldap");
 #ifdef LDAP_API_FEATURE_X_OPENLDAP
-        rc = ldap_url_parse(val, &urldata);
-        if (rc != LDAP_SUCCESS)
-        {
-            ereport(elevel,
-                    (errcode(ERRCODE_CONFIG_FILE_ERROR),
-                     errmsg("could not parse LDAP URL \"%s\": %s", val, ldap_err2string(rc))));
-            *err_msg = psprintf("could not parse LDAP URL \"%s\": %s",
-                                val, ldap_err2string(rc));
-            return false;
-        }
+		rc = ldap_url_parse(val, &urldata);
+		if (rc != LDAP_SUCCESS)
+		{
+			ereport(elevel,
+					(errcode(ERRCODE_CONFIG_FILE_ERROR),
+					 errmsg("could not parse LDAP URL \"%s\": %s", val, ldap_err2string(rc))));
+			*err_msg = psprintf("could not parse LDAP URL \"%s\": %s",
+								val, ldap_err2string(rc));
+			return false;
+		}
 
-        if (strcmp(urldata->lud_scheme, "ldap") != 0)
-        {
-            ereport(elevel,
-                    (errcode(ERRCODE_CONFIG_FILE_ERROR),
-                     errmsg("unsupported LDAP URL scheme: %s", urldata->lud_scheme)));
-            *err_msg = psprintf("unsupported LDAP URL scheme: %s",
-                                urldata->lud_scheme);
-            ldap_free_urldesc(urldata);
-            return false;
-        }
+		if (strcmp(urldata->lud_scheme, "ldap") != 0)
+		{
+			ereport(elevel,
+					(errcode(ERRCODE_CONFIG_FILE_ERROR),
+					 errmsg("unsupported LDAP URL scheme: %s", urldata->lud_scheme)));
+			*err_msg = psprintf("unsupported LDAP URL scheme: %s",
+								urldata->lud_scheme);
+			ldap_free_urldesc(urldata);
+			return false;
+		}
 
-        hbaline->ldapserver = pstrdup(urldata->lud_host);
-        hbaline->ldapport = urldata->lud_port;
-        hbaline->ldapbasedn = pstrdup(urldata->lud_dn);
+		hbaline->ldapserver = pstrdup(urldata->lud_host);
+		hbaline->ldapport = urldata->lud_port;
+		hbaline->ldapbasedn = pstrdup(urldata->lud_dn);
 
-        if (urldata->lud_attrs)
-            hbaline->ldapsearchattribute = pstrdup(urldata->lud_attrs[0]);    /* only use first one */
-        hbaline->ldapscope = urldata->lud_scope;
-        if (urldata->lud_filter)
-        {
-            ereport(elevel,
-                    (errcode(ERRCODE_CONFIG_FILE_ERROR),
-                     errmsg("filters not supported in LDAP URLs")));
-            *err_msg = "filters not supported in LDAP URLs";
-            ldap_free_urldesc(urldata);
-            return false;
-        }
-        ldap_free_urldesc(urldata);
-#else                            /* not OpenLDAP */
-        ereport(elevel,
-                (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-                 errmsg("LDAP URLs not supported on this platform")));
-        *err_msg = "LDAP URLs not supported on this platform";
-#endif                            /* not OpenLDAP */
-    }
-    else if (strcmp(name, "ldaptls") == 0)
-    {
-        REQUIRE_AUTH_OPTION(uaLDAP, "ldaptls", "ldap");
-        if (strcmp(val, "1") == 0)
-            hbaline->ldaptls = true;
-        else
-            hbaline->ldaptls = false;
-    }
-    else if (strcmp(name, "ldapserver") == 0)
-    {
-        REQUIRE_AUTH_OPTION(uaLDAP, "ldapserver", "ldap");
-        hbaline->ldapserver = pstrdup(val);
-    }
-    else if (strcmp(name, "ldapport") == 0)
-    {
-        REQUIRE_AUTH_OPTION(uaLDAP, "ldapport", "ldap");
-        hbaline->ldapport = atoi(val);
-        if (hbaline->ldapport == 0)
-        {
-            ereport(elevel,
-                    (errcode(ERRCODE_CONFIG_FILE_ERROR),
-                     errmsg("invalid LDAP port number: \"%s\"", val),
-                     errcontext("line %d of configuration file \"%s\"",
-                                line_num, HbaFileName)));
-            *err_msg = psprintf("invalid LDAP port number: \"%s\"", val);
-            return false;
-        }
-    }
-    else if (strcmp(name, "ldapbinddn") == 0)
-    {
-        REQUIRE_AUTH_OPTION(uaLDAP, "ldapbinddn", "ldap");
-        hbaline->ldapbinddn = pstrdup(val);
-    }
-    else if (strcmp(name, "ldapbindpasswd") == 0)
-    {
-        REQUIRE_AUTH_OPTION(uaLDAP, "ldapbindpasswd", "ldap");
-        hbaline->ldapbindpasswd = pstrdup(val);
-    }
-    else if (strcmp(name, "ldapsearchattribute") == 0)
-    {
-        REQUIRE_AUTH_OPTION(uaLDAP, "ldapsearchattribute", "ldap");
-        hbaline->ldapsearchattribute = pstrdup(val);
-    }
-    else if (strcmp(name, "ldapbasedn") == 0)
-    {
-        REQUIRE_AUTH_OPTION(uaLDAP, "ldapbasedn", "ldap");
-        hbaline->ldapbasedn = pstrdup(val);
-    }
-    else if (strcmp(name, "ldapprefix") == 0)
-    {
-        REQUIRE_AUTH_OPTION(uaLDAP, "ldapprefix", "ldap");
-        hbaline->ldapprefix = pstrdup(val);
-    }
-    else if (strcmp(name, "ldapsuffix") == 0)
-    {
-        REQUIRE_AUTH_OPTION(uaLDAP, "ldapsuffix", "ldap");
-        hbaline->ldapsuffix = pstrdup(val);
-    }
-    else if (strcmp(name, "krb_realm") == 0)
-    {
-        if (hbaline->auth_method != uaGSS &&
-            hbaline->auth_method != uaSSPI)
-            INVALID_AUTH_OPTION("krb_realm", gettext_noop("gssapi and sspi"));
-        hbaline->krb_realm = pstrdup(val);
-    }
-    else if (strcmp(name, "include_realm") == 0)
-    {
-        if (hbaline->auth_method != uaGSS &&
-            hbaline->auth_method != uaSSPI)
-            INVALID_AUTH_OPTION("include_realm", gettext_noop("gssapi and sspi"));
-        if (strcmp(val, "1") == 0)
-            hbaline->include_realm = true;
-        else
-            hbaline->include_realm = false;
-    }
-    else if (strcmp(name, "compat_realm") == 0)
-    {
-        if (hbaline->auth_method != uaSSPI)
-            INVALID_AUTH_OPTION("compat_realm", gettext_noop("sspi"));
-        if (strcmp(val, "1") == 0)
-            hbaline->compat_realm = true;
-        else
-            hbaline->compat_realm = false;
-    }
-    else if (strcmp(name, "upn_username") == 0)
-    {
-        if (hbaline->auth_method != uaSSPI)
-            INVALID_AUTH_OPTION("upn_username", gettext_noop("sspi"));
-        if (strcmp(val, "1") == 0)
-            hbaline->upn_username = true;
-        else
-            hbaline->upn_username = false;
-    }
-    else if (strcmp(name, "radiusservers") == 0)
-    {
-        struct addrinfo *gai_result;
-        struct addrinfo hints;
-        int            ret;
-        List       *parsed_servers;
-        ListCell   *l;
-        char       *dupval = pstrdup(val);
+		if (urldata->lud_attrs)
+			hbaline->ldapsearchattribute = pstrdup(urldata->lud_attrs[0]);	/* only use first one */
+		hbaline->ldapscope = urldata->lud_scope;
+		if (urldata->lud_filter)
+		{
+			ereport(elevel,
+					(errcode(ERRCODE_CONFIG_FILE_ERROR),
+					 errmsg("filters not supported in LDAP URLs")));
+			*err_msg = "filters not supported in LDAP URLs";
+			ldap_free_urldesc(urldata);
+			return false;
+		}
+		ldap_free_urldesc(urldata);
+#else							/* not OpenLDAP */
+		ereport(elevel,
+				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+				 errmsg("LDAP URLs not supported on this platform")));
+		*err_msg = "LDAP URLs not supported on this platform";
+#endif							/* not OpenLDAP */
+	}
+	else if (strcmp(name, "ldaptls") == 0)
+	{
+		REQUIRE_AUTH_OPTION(uaLDAP, "ldaptls", "ldap");
+		if (strcmp(val, "1") == 0)
+			hbaline->ldaptls = true;
+		else
+			hbaline->ldaptls = false;
+	}
+	else if (strcmp(name, "ldapserver") == 0)
+	{
+		REQUIRE_AUTH_OPTION(uaLDAP, "ldapserver", "ldap");
+		hbaline->ldapserver = pstrdup(val);
+	}
+	else if (strcmp(name, "ldapport") == 0)
+	{
+		REQUIRE_AUTH_OPTION(uaLDAP, "ldapport", "ldap");
+		hbaline->ldapport = atoi(val);
+		if (hbaline->ldapport == 0)
+		{
+			ereport(elevel,
+					(errcode(ERRCODE_CONFIG_FILE_ERROR),
+					 errmsg("invalid LDAP port number: \"%s\"", val),
+					 errcontext("line %d of configuration file \"%s\"",
+								line_num, HbaFileName)));
+			*err_msg = psprintf("invalid LDAP port number: \"%s\"", val);
+			return false;
+		}
+	}
+	else if (strcmp(name, "ldapbinddn") == 0)
+	{
+		REQUIRE_AUTH_OPTION(uaLDAP, "ldapbinddn", "ldap");
+		hbaline->ldapbinddn = pstrdup(val);
+	}
+	else if (strcmp(name, "ldapbindpasswd") == 0)
+	{
+		REQUIRE_AUTH_OPTION(uaLDAP, "ldapbindpasswd", "ldap");
+		hbaline->ldapbindpasswd = pstrdup(val);
+	}
+	else if (strcmp(name, "ldapsearchattribute") == 0)
+	{
+		REQUIRE_AUTH_OPTION(uaLDAP, "ldapsearchattribute", "ldap");
+		hbaline->ldapsearchattribute = pstrdup(val);
+	}
+	else if (strcmp(name, "ldapbasedn") == 0)
+	{
+		REQUIRE_AUTH_OPTION(uaLDAP, "ldapbasedn", "ldap");
+		hbaline->ldapbasedn = pstrdup(val);
+	}
+	else if (strcmp(name, "ldapprefix") == 0)
+	{
+		REQUIRE_AUTH_OPTION(uaLDAP, "ldapprefix", "ldap");
+		hbaline->ldapprefix = pstrdup(val);
+	}
+	else if (strcmp(name, "ldapsuffix") == 0)
+	{
+		REQUIRE_AUTH_OPTION(uaLDAP, "ldapsuffix", "ldap");
+		hbaline->ldapsuffix = pstrdup(val);
+	}
+	else if (strcmp(name, "krb_realm") == 0)
+	{
+		if (hbaline->auth_method != uaGSS &&
+			hbaline->auth_method != uaSSPI)
+			INVALID_AUTH_OPTION("krb_realm", gettext_noop("gssapi and sspi"));
+		hbaline->krb_realm = pstrdup(val);
+	}
+	else if (strcmp(name, "include_realm") == 0)
+	{
+		if (hbaline->auth_method != uaGSS &&
+			hbaline->auth_method != uaSSPI)
+			INVALID_AUTH_OPTION("include_realm", gettext_noop("gssapi and sspi"));
+		if (strcmp(val, "1") == 0)
+			hbaline->include_realm = true;
+		else
+			hbaline->include_realm = false;
+	}
+	else if (strcmp(name, "compat_realm") == 0)
+	{
+		if (hbaline->auth_method != uaSSPI)
+			INVALID_AUTH_OPTION("compat_realm", gettext_noop("sspi"));
+		if (strcmp(val, "1") == 0)
+			hbaline->compat_realm = true;
+		else
+			hbaline->compat_realm = false;
+	}
+	else if (strcmp(name, "upn_username") == 0)
+	{
+		if (hbaline->auth_method != uaSSPI)
+			INVALID_AUTH_OPTION("upn_username", gettext_noop("sspi"));
+		if (strcmp(val, "1") == 0)
+			hbaline->upn_username = true;
+		else
+			hbaline->upn_username = false;
+	}
+	else if (strcmp(name, "radiusservers") == 0)
+	{
+		struct addrinfo *gai_result;
+		struct addrinfo hints;
+		int			ret;
+		List	   *parsed_servers;
+		ListCell   *l;
+		char	   *dupval = pstrdup(val);
 
-        REQUIRE_AUTH_OPTION(uaRADIUS, "radiusservers", "radius");
+		REQUIRE_AUTH_OPTION(uaRADIUS, "radiusservers", "radius");
 
-        if (!SplitIdentifierString(dupval, ',', &parsed_servers))
-        {
-            /* syntax error in list */
-            ereport(elevel,
-                    (errcode(ERRCODE_CONFIG_FILE_ERROR),
-                     errmsg("could not parse RADIUS server list \"%s\"",
-                            val),
-                     errcontext("line %d of configuration file \"%s\"",
-                                line_num, HbaFileName)));
-            return false;
-        }
+		if (!SplitIdentifierString(dupval, ',', &parsed_servers))
+		{
+			/* syntax error in list */
+			ereport(elevel,
+					(errcode(ERRCODE_CONFIG_FILE_ERROR),
+					 errmsg("could not parse RADIUS server list \"%s\"",
+							val),
+					 errcontext("line %d of configuration file \"%s\"",
+								line_num, HbaFileName)));
+			return false;
+		}
 
-        /* For each entry in the list, translate it */
-        foreach(l, parsed_servers)
-        {
-            MemSet(&hints, 0, sizeof(hints));
-            hints.ai_socktype = SOCK_DGRAM;
-            hints.ai_family = AF_UNSPEC;
+		/* For each entry in the list, translate it */
+		foreach(l, parsed_servers)
+		{
+			MemSet(&hints, 0, sizeof(hints));
+			hints.ai_socktype = SOCK_DGRAM;
+			hints.ai_family = AF_UNSPEC;
 
-            ret = pg_getaddrinfo_all((char *) lfirst(l), NULL, &hints, &gai_result);
-            if (ret || !gai_result)
-            {
-                ereport(elevel,
-                        (errcode(ERRCODE_CONFIG_FILE_ERROR),
-                         errmsg("could not translate RADIUS server name \"%s\" to address: %s",
-                                (char *) lfirst(l), gai_strerror(ret)),
-                         errcontext("line %d of configuration file \"%s\"",
-                                    line_num, HbaFileName)));
-                if (gai_result)
-                    pg_freeaddrinfo_all(hints.ai_family, gai_result);
+			ret = pg_getaddrinfo_all((char *) lfirst(l), NULL, &hints, &gai_result);
+			if (ret || !gai_result)
+			{
+				ereport(elevel,
+						(errcode(ERRCODE_CONFIG_FILE_ERROR),
+						 errmsg("could not translate RADIUS server name \"%s\" to address: %s",
+								(char *) lfirst(l), gai_strerror(ret)),
+						 errcontext("line %d of configuration file \"%s\"",
+									line_num, HbaFileName)));
+				if (gai_result)
+					pg_freeaddrinfo_all(hints.ai_family, gai_result);
 
-                list_free(parsed_servers);
-                return false;
-            }
-            pg_freeaddrinfo_all(hints.ai_family, gai_result);
-        }
+				list_free(parsed_servers);
+				return false;
+			}
+			pg_freeaddrinfo_all(hints.ai_family, gai_result);
+		}
 
-        /* All entries are OK, so store them */
-        hbaline->radiusservers = parsed_servers;
-        hbaline->radiusservers_s = pstrdup(val);
-    }
-    else if (strcmp(name, "radiusports") == 0)
-    {
-        List       *parsed_ports;
-        ListCell   *l;
-        char       *dupval = pstrdup(val);
+		/* All entries are OK, so store them */
+		hbaline->radiusservers = parsed_servers;
+		hbaline->radiusservers_s = pstrdup(val);
+	}
+	else if (strcmp(name, "radiusports") == 0)
+	{
+		List	   *parsed_ports;
+		ListCell   *l;
+		char	   *dupval = pstrdup(val);
 
-        REQUIRE_AUTH_OPTION(uaRADIUS, "radiusports", "radius");
+		REQUIRE_AUTH_OPTION(uaRADIUS, "radiusports", "radius");
 
-        if (!SplitIdentifierString(dupval, ',', &parsed_ports))
-        {
-            ereport(elevel,
-                    (errcode(ERRCODE_CONFIG_FILE_ERROR),
-                     errmsg("could not parse RADIUS port list \"%s\"",
-                            val),
-                     errcontext("line %d of configuration file \"%s\"",
-                                line_num, HbaFileName)));
-            *err_msg = psprintf("invalid RADIUS port number: \"%s\"", val);
-            return false;
-        }
+		if (!SplitIdentifierString(dupval, ',', &parsed_ports))
+		{
+			ereport(elevel,
+					(errcode(ERRCODE_CONFIG_FILE_ERROR),
+					 errmsg("could not parse RADIUS port list \"%s\"",
+							val),
+					 errcontext("line %d of configuration file \"%s\"",
+								line_num, HbaFileName)));
+			*err_msg = psprintf("invalid RADIUS port number: \"%s\"", val);
+			return false;
+		}
 
-        foreach(l, parsed_ports)
-        {
-            if (atoi(lfirst(l)) == 0)
-            {
-                ereport(elevel,
-                        (errcode(ERRCODE_CONFIG_FILE_ERROR),
-                         errmsg("invalid RADIUS port number: \"%s\"", val),
-                         errcontext("line %d of configuration file \"%s\"",
-                                    line_num, HbaFileName)));
+		foreach(l, parsed_ports)
+		{
+			if (atoi(lfirst(l)) == 0)
+			{
+				ereport(elevel,
+						(errcode(ERRCODE_CONFIG_FILE_ERROR),
+						 errmsg("invalid RADIUS port number: \"%s\"", val),
+						 errcontext("line %d of configuration file \"%s\"",
+									line_num, HbaFileName)));
 
-                return false;
-            }
-        }
-        hbaline->radiusports = parsed_ports;
-        hbaline->radiusports_s = pstrdup(val);
-    }
-    else if (strcmp(name, "radiussecrets") == 0)
-    {
-        List       *parsed_secrets;
-        char       *dupval = pstrdup(val);
+				return false;
+			}
+		}
+		hbaline->radiusports = parsed_ports;
+		hbaline->radiusports_s = pstrdup(val);
+	}
+	else if (strcmp(name, "radiussecrets") == 0)
+	{
+		List	   *parsed_secrets;
+		char	   *dupval = pstrdup(val);
 
-        REQUIRE_AUTH_OPTION(uaRADIUS, "radiussecrets", "radius");
+		REQUIRE_AUTH_OPTION(uaRADIUS, "radiussecrets", "radius");
 
-        if (!SplitIdentifierString(dupval, ',', &parsed_secrets))
-        {
-            /* syntax error in list */
-            ereport(elevel,
-                    (errcode(ERRCODE_CONFIG_FILE_ERROR),
-                     errmsg("could not parse RADIUS secret list \"%s\"",
-                            val),
-                     errcontext("line %d of configuration file \"%s\"",
-                                line_num, HbaFileName)));
-            return false;
-        }
+		if (!SplitIdentifierString(dupval, ',', &parsed_secrets))
+		{
+			/* syntax error in list */
+			ereport(elevel,
+					(errcode(ERRCODE_CONFIG_FILE_ERROR),
+					 errmsg("could not parse RADIUS secret list \"%s\"",
+							val),
+					 errcontext("line %d of configuration file \"%s\"",
+								line_num, HbaFileName)));
+			return false;
+		}
 
-        hbaline->radiussecrets = parsed_secrets;
-        hbaline->radiussecrets_s = pstrdup(val);
-    }
-    else if (strcmp(name, "radiusidentifiers") == 0)
-    {
-        List       *parsed_identifiers;
-        char       *dupval = pstrdup(val);
+		hbaline->radiussecrets = parsed_secrets;
+		hbaline->radiussecrets_s = pstrdup(val);
+	}
+	else if (strcmp(name, "radiusidentifiers") == 0)
+	{
+		List	   *parsed_identifiers;
+		char	   *dupval = pstrdup(val);
 
-        REQUIRE_AUTH_OPTION(uaRADIUS, "radiusidentifiers", "radius");
+		REQUIRE_AUTH_OPTION(uaRADIUS, "radiusidentifiers", "radius");
 
-        if (!SplitIdentifierString(dupval, ',', &parsed_identifiers))
-        {
-            /* syntax error in list */
-            ereport(elevel,
-                    (errcode(ERRCODE_CONFIG_FILE_ERROR),
-                     errmsg("could not parse RADIUS identifiers list \"%s\"",
-                            val),
-                     errcontext("line %d of configuration file \"%s\"",
-                                line_num, HbaFileName)));
-            return false;
-        }
+		if (!SplitIdentifierString(dupval, ',', &parsed_identifiers))
+		{
+			/* syntax error in list */
+			ereport(elevel,
+					(errcode(ERRCODE_CONFIG_FILE_ERROR),
+					 errmsg("could not parse RADIUS identifiers list \"%s\"",
+							val),
+					 errcontext("line %d of configuration file \"%s\"",
+								line_num, HbaFileName)));
+			return false;
+		}
 
-        hbaline->radiusidentifiers = parsed_identifiers;
-        hbaline->radiusidentifiers_s = pstrdup(val);
-    }
-    else
-    {
-        ereport(elevel,
-                (errcode(ERRCODE_CONFIG_FILE_ERROR),
-                 errmsg("unrecognized authentication option name: \"%s\"",
-                        name),
-                 errcontext("line %d of configuration file \"%s\"",
-                            line_num, HbaFileName)));
-        *err_msg = psprintf("unrecognized authentication option name: \"%s\"",
-                            name);
-        return false;
-    }
-    return true;
+		hbaline->radiusidentifiers = parsed_identifiers;
+		hbaline->radiusidentifiers_s = pstrdup(val);
+	}
+	else
+	{
+		ereport(elevel,
+				(errcode(ERRCODE_CONFIG_FILE_ERROR),
+				 errmsg("unrecognized authentication option name: \"%s\"",
+						name),
+				 errcontext("line %d of configuration file \"%s\"",
+							line_num, HbaFileName)));
+		*err_msg = psprintf("unrecognized authentication option name: \"%s\"",
+							name);
+		return false;
+	}
+	return true;
 }
 
 /*
- *    Scan the pre-parsed hba file, looking for a match to the port's connection
- *    request.
+ *	Scan the pre-parsed hba file, looking for a match to the port's connection
+ *	request.
  */
 static void
 check_hba(hbaPort *port)
-{// #lizard forgives
-    Oid            roleid;
-    ListCell   *line;
-    HbaLine    *hba;
+{
+	Oid			roleid;
+	ListCell   *line;
+	HbaLine    *hba;
 
-    /* Get the target role's OID.  Note we do not error out for bad role. */
-    roleid = get_role_oid(port->user_name, true);
+	/* Get the target role's OID.  Note we do not error out for bad role. */
+	roleid = get_role_oid(port->user_name, true);
 
-    foreach(line, parsed_hba_lines)
-    {
-        hba = (HbaLine *) lfirst(line);
+	foreach(line, parsed_hba_lines)
+	{
+		hba = (HbaLine *) lfirst(line);
 
-        /* Check connection type */
-        if (hba->conntype == ctLocal)
-        {
-            if (!IS_AF_UNIX(port->raddr.addr.ss_family))
-                continue;
-        }
-        else
-        {
-            if (IS_AF_UNIX(port->raddr.addr.ss_family))
-                continue;
+		/* Check connection type */
+		if (hba->conntype == ctLocal)
+		{
+			if (!IS_AF_UNIX(port->raddr.addr.ss_family))
+				continue;
+		}
+		else
+		{
+			if (IS_AF_UNIX(port->raddr.addr.ss_family))
+				continue;
 
-            /* Check SSL state */
-            if (port->ssl_in_use)
-            {
-                /* Connection is SSL, match both "host" and "hostssl" */
-                if (hba->conntype == ctHostNoSSL)
-                    continue;
-            }
-            else
-            {
-                /* Connection is not SSL, match both "host" and "hostnossl" */
-                if (hba->conntype == ctHostSSL)
-                    continue;
-            }
+			/* Check SSL state */
+			if (port->ssl_in_use)
+			{
+				/* Connection is SSL, match both "host" and "hostssl" */
+				if (hba->conntype == ctHostNoSSL)
+					continue;
+			}
+			else
+			{
+				/* Connection is not SSL, match both "host" and "hostnossl" */
+				if (hba->conntype == ctHostSSL)
+					continue;
+			}
 
-            /* Check IP address */
-            switch (hba->ip_cmp_method)
-            {
-                case ipCmpMask:
-                    if (hba->hostname)
-                    {
-                        if (!check_hostname(port,
-                                            hba->hostname))
-                            continue;
-                    }
-                    else
-                    {
-                        if (!check_ip(&port->raddr,
-                                      (struct sockaddr *) &hba->addr,
-                                      (struct sockaddr *) &hba->mask))
-                            continue;
-                    }
-                    break;
-                case ipCmpAll:
-                    break;
-                case ipCmpSameHost:
-                case ipCmpSameNet:
-                    if (!check_same_host_or_net(&port->raddr,
-                                                hba->ip_cmp_method))
-                        continue;
-                    break;
-                default:
-                    /* shouldn't get here, but deem it no-match if so */
-                    continue;
-            }
-        }                        /* != ctLocal */
+			/* Check IP address */
+			switch (hba->ip_cmp_method)
+			{
+				case ipCmpMask:
+					if (hba->hostname)
+					{
+						if (!check_hostname(port,
+											hba->hostname))
+							continue;
+					}
+					else
+					{
+						if (!check_ip(&port->raddr,
+									  (struct sockaddr *) &hba->addr,
+									  (struct sockaddr *) &hba->mask))
+							continue;
+					}
+					break;
+				case ipCmpAll:
+					break;
+				case ipCmpSameHost:
+				case ipCmpSameNet:
+					if (!check_same_host_or_net(&port->raddr,
+												hba->ip_cmp_method))
+						continue;
+					break;
+				default:
+					/* shouldn't get here, but deem it no-match if so */
+					continue;
+			}
+		}						/* != ctLocal */
 
-        /* Check database and role */
-        if (!check_db(port->database_name, port->user_name, roleid,
-                      hba->databases))
-            continue;
+		/* Check database and role */
+		if (!check_db(port->database_name, port->user_name, roleid,
+					  hba->databases))
+			continue;
 
-        if (!check_role(port->user_name, roleid, hba->roles))
-            continue;
+		if (!check_role(port->user_name, roleid, hba->roles))
+			continue;
 
-        /* Found a record that matched! */
-        port->hba = hba;
+		/* Found a record that matched! */
+		port->hba = hba;
 #ifdef _MLS_
         /* if it was necessary to force user authenticating by password who is in white list? */
 #if 0
@@ -2271,13 +2271,13 @@ check_hba(hbaPort *port)
 #endif
 #endif
 
-        return;
-    }
+		return;
+	}
 
-    /* If no matching entry was found, then implicitly reject. */
-    hba = palloc0(sizeof(HbaLine));
-    hba->auth_method = uaImplicitReject;
-    port->hba = hba;
+	/* If no matching entry was found, then implicitly reject. */
+	hba = palloc0(sizeof(HbaLine));
+	hba->auth_method = uaImplicitReject;
+	port->hba = hba;
 }
 
 /*
@@ -2293,23 +2293,23 @@ check_hba(hbaPort *port)
  */
 bool
 load_hba(void)
-{// #lizard forgives
-    FILE       *file;
-    List       *hba_lines = NIL;
+{
+	FILE	   *file;
+	List	   *hba_lines = NIL;
 #ifdef _MLS_
-    List       *mls_hba_lines = NIL;
+    List	   *mls_hba_lines = NIL;
 #endif
-    ListCell   *line;
-    List       *new_parsed_lines = NIL;
-    bool        ok = true;
+	ListCell   *line;
+	List	   *new_parsed_lines = NIL;
+	bool		ok = true;
 #ifdef _MLS_
 #ifndef _USER_SWITCH_
     MemoryContext mls_linecxt;
 #endif
 #endif
-    MemoryContext linecxt;
-    MemoryContext oldcxt;
-    MemoryContext hbacxt;
+	MemoryContext linecxt;
+	MemoryContext oldcxt;
+	MemoryContext hbacxt;
 
 #ifdef _MLS_
 #ifndef _USER_SWITCH_
@@ -2317,18 +2317,18 @@ load_hba(void)
 #endif
 #endif
 
-    file = AllocateFile(HbaFileName, "r");
-    if (file == NULL)
-    {
-        ereport(LOG,
-                (errcode_for_file_access(),
-                 errmsg("could not open configuration file \"%s\": %m",
-                        HbaFileName)));
-        return false;
-    }
+	file = AllocateFile(HbaFileName, "r");
+	if (file == NULL)
+	{
+		ereport(LOG,
+				(errcode_for_file_access(),
+				 errmsg("could not open configuration file \"%s\": %m",
+						HbaFileName)));
+		return false;
+	}
 
-    linecxt = tokenize_file(HbaFileName, file, &hba_lines, LOG);
-    FreeFile(file);
+	linecxt = tokenize_file(HbaFileName, file, &hba_lines, LOG);
+	FreeFile(file);
 
 #ifdef _MLS_
     if (NIL != mls_hba_lines)
@@ -2337,77 +2337,77 @@ load_hba(void)
     }
 #endif
 
-    /* Now parse all the lines */
-    Assert(PostmasterContext);
-    hbacxt = AllocSetContextCreate(PostmasterContext,
-                                   "hba parser context",
-                                   ALLOCSET_SMALL_SIZES);
-    oldcxt = MemoryContextSwitchTo(hbacxt);
-    foreach(line, hba_lines)
-    {
-        TokenizedLine *tok_line = (TokenizedLine *) lfirst(line);
-        HbaLine    *newline;
+	/* Now parse all the lines */
+	Assert(PostmasterContext);
+	hbacxt = AllocSetContextCreate(PostmasterContext,
+								   "hba parser context",
+								   ALLOCSET_SMALL_SIZES);
+	oldcxt = MemoryContextSwitchTo(hbacxt);
+	foreach(line, hba_lines)
+	{
+		TokenizedLine *tok_line = (TokenizedLine *) lfirst(line);
+		HbaLine    *newline;
 
-        /* don't parse lines that already have errors */
-        if (tok_line->err_msg != NULL)
-        {
-            ok = false;
-            continue;
-        }
+		/* don't parse lines that already have errors */
+		if (tok_line->err_msg != NULL)
+		{
+			ok = false;
+			continue;
+		}
 
-        if ((newline = parse_hba_line(tok_line, LOG)) == NULL)
-        {
-            /* Parse error; remember there's trouble */
-            ok = false;
+		if ((newline = parse_hba_line(tok_line, LOG)) == NULL)
+		{
+			/* Parse error; remember there's trouble */
+			ok = false;
 
-            /*
-             * Keep parsing the rest of the file so we can report errors on
-             * more than the first line.  Error has already been logged, no
-             * need for more chatter here.
-             */
-            continue;
-        }
+			/*
+			 * Keep parsing the rest of the file so we can report errors on
+			 * more than the first line.  Error has already been logged, no
+			 * need for more chatter here.
+			 */
+			continue;
+		}
 
-        new_parsed_lines = lappend(new_parsed_lines, newline);
-    }
+		new_parsed_lines = lappend(new_parsed_lines, newline);
+	}
 
-    /*
-     * A valid HBA file must have at least one entry; else there's no way to
-     * connect to the postmaster.  But only complain about this if we didn't
-     * already have parsing errors.
-     */
-    if (ok && new_parsed_lines == NIL)
-    {
-        ereport(LOG,
-                (errcode(ERRCODE_CONFIG_FILE_ERROR),
-                 errmsg("configuration file \"%s\" contains no entries",
-                        HbaFileName)));
-        ok = false;
-    }
+	/*
+	 * A valid HBA file must have at least one entry; else there's no way to
+	 * connect to the postmaster.  But only complain about this if we didn't
+	 * already have parsing errors.
+	 */
+	if (ok && new_parsed_lines == NIL)
+	{
+		ereport(LOG,
+				(errcode(ERRCODE_CONFIG_FILE_ERROR),
+				 errmsg("configuration file \"%s\" contains no entries",
+						HbaFileName)));
+		ok = false;
+	}
 
-    /* Free tokenizer memory */
+	/* Free tokenizer memory */
 #ifdef _MLS_
 #ifndef _USER_SWITCH_
     MemoryContextDelete(mls_linecxt);
 #endif
 #endif
-    MemoryContextDelete(linecxt);
-    MemoryContextSwitchTo(oldcxt);
+	MemoryContextDelete(linecxt);
+	MemoryContextSwitchTo(oldcxt);
 
-    if (!ok)
-    {
-        /* File contained one or more errors, so bail out */
-        MemoryContextDelete(hbacxt);
-        return false;
-    }
+	if (!ok)
+	{
+		/* File contained one or more errors, so bail out */
+		MemoryContextDelete(hbacxt);
+		return false;
+	}
 
-    /* Loaded new file successfully, replace the one we use */
-    if (parsed_hba_context != NULL)
-        MemoryContextDelete(parsed_hba_context);
-    parsed_hba_context = hbacxt;
-    parsed_hba_lines = new_parsed_lines;
+	/* Loaded new file successfully, replace the one we use */
+	if (parsed_hba_context != NULL)
+		MemoryContextDelete(parsed_hba_context);
+	parsed_hba_context = hbacxt;
+	parsed_hba_lines = new_parsed_lines;
 
-    return true;
+	return true;
 }
 
 /*
@@ -2424,130 +2424,130 @@ load_hba(void)
  */
 static ArrayType *
 gethba_options(HbaLine *hba)
-{// #lizard forgives
-    int            noptions;
-    Datum        options[MAX_HBA_OPTIONS];
+{
+	int			noptions;
+	Datum		options[MAX_HBA_OPTIONS];
 
-    noptions = 0;
+	noptions = 0;
 
-    if (hba->auth_method == uaGSS || hba->auth_method == uaSSPI)
-    {
-        if (hba->include_realm)
-            options[noptions++] =
-                CStringGetTextDatum("include_realm=true");
+	if (hba->auth_method == uaGSS || hba->auth_method == uaSSPI)
+	{
+		if (hba->include_realm)
+			options[noptions++] =
+				CStringGetTextDatum("include_realm=true");
 
-        if (hba->krb_realm)
-            options[noptions++] =
-                CStringGetTextDatum(psprintf("krb_realm=%s", hba->krb_realm));
-    }
-
-    if (hba->usermap)
-        options[noptions++] =
-            CStringGetTextDatum(psprintf("map=%s", hba->usermap));
-
-    if (hba->clientcert)
-        options[noptions++] =
-            CStringGetTextDatum("clientcert=true");
-
-    if (hba->pamservice)
-        options[noptions++] =
-            CStringGetTextDatum(psprintf("pamservice=%s", hba->pamservice));
-
-    if (hba->auth_method == uaLDAP)
-    {
-        if (hba->ldapserver)
-            options[noptions++] =
-                CStringGetTextDatum(psprintf("ldapserver=%s", hba->ldapserver));
-
-        if (hba->ldapport)
-            options[noptions++] =
-                CStringGetTextDatum(psprintf("ldapport=%d", hba->ldapport));
-
-        if (hba->ldaptls)
-            options[noptions++] =
-                CStringGetTextDatum("ldaptls=true");
-
-        if (hba->ldapprefix)
-            options[noptions++] =
-                CStringGetTextDatum(psprintf("ldapprefix=%s", hba->ldapprefix));
-
-        if (hba->ldapsuffix)
-            options[noptions++] =
-                CStringGetTextDatum(psprintf("ldapsuffix=%s", hba->ldapsuffix));
-
-        if (hba->ldapbasedn)
-            options[noptions++] =
-                CStringGetTextDatum(psprintf("ldapbasedn=%s", hba->ldapbasedn));
-
-        if (hba->ldapbinddn)
-            options[noptions++] =
-                CStringGetTextDatum(psprintf("ldapbinddn=%s", hba->ldapbinddn));
-
-        if (hba->ldapbindpasswd)
-        {
-            Assert(noptions < MAX_HBA_OPTIONS);
-            options[noptions++] =
-                CStringGetTextDatum(psprintf("ldapbindpasswd=%s",
-                                             hba->ldapbindpasswd));
-        }
-
-        if (hba->ldapsearchattribute)
-        {
-            Assert(noptions < MAX_HBA_OPTIONS);
-            options[noptions++] =
-                CStringGetTextDatum(psprintf("ldapsearchattribute=%s",
-                                             hba->ldapsearchattribute));
-        }
-
-        if (hba->ldapscope)
-        {
-            Assert(noptions < MAX_HBA_OPTIONS);
-            options[noptions++] =
-                CStringGetTextDatum(psprintf("ldapscope=%d", hba->ldapscope));
-    }
+		if (hba->krb_realm)
+			options[noptions++] =
+				CStringGetTextDatum(psprintf("krb_realm=%s", hba->krb_realm));
 	}
 
-    if (hba->auth_method == uaRADIUS)
-    {
-        if (hba->radiusservers_s)
+	if (hba->usermap)
+		options[noptions++] =
+			CStringGetTextDatum(psprintf("map=%s", hba->usermap));
+
+	if (hba->clientcert)
+		options[noptions++] =
+			CStringGetTextDatum("clientcert=true");
+
+	if (hba->pamservice)
+		options[noptions++] =
+			CStringGetTextDatum(psprintf("pamservice=%s", hba->pamservice));
+
+	if (hba->auth_method == uaLDAP)
+	{
+		if (hba->ldapserver)
+			options[noptions++] =
+				CStringGetTextDatum(psprintf("ldapserver=%s", hba->ldapserver));
+
+		if (hba->ldapport)
+			options[noptions++] =
+				CStringGetTextDatum(psprintf("ldapport=%d", hba->ldapport));
+
+		if (hba->ldaptls)
+			options[noptions++] =
+				CStringGetTextDatum("ldaptls=true");
+
+		if (hba->ldapprefix)
+			options[noptions++] =
+				CStringGetTextDatum(psprintf("ldapprefix=%s", hba->ldapprefix));
+
+		if (hba->ldapsuffix)
+			options[noptions++] =
+				CStringGetTextDatum(psprintf("ldapsuffix=%s", hba->ldapsuffix));
+
+		if (hba->ldapbasedn)
+			options[noptions++] =
+				CStringGetTextDatum(psprintf("ldapbasedn=%s", hba->ldapbasedn));
+
+		if (hba->ldapbinddn)
+			options[noptions++] =
+				CStringGetTextDatum(psprintf("ldapbinddn=%s", hba->ldapbinddn));
+
+		if (hba->ldapbindpasswd)
         {
             Assert(noptions < MAX_HBA_OPTIONS);
             options[noptions++] =
-                CStringGetTextDatum(psprintf("radiusservers=%s", hba->radiusservers_s));
+                    CStringGetTextDatum(psprintf("ldapbindpasswd=%s",
+                                                 hba->ldapbindpasswd));
         }
 
-        if (hba->radiussecrets_s)
+		if (hba->ldapsearchattribute)
         {
             Assert(noptions < MAX_HBA_OPTIONS);
             options[noptions++] =
-                CStringGetTextDatum(psprintf("radiussecrets=%s", hba->radiussecrets_s));
+                    CStringGetTextDatum(psprintf("ldapsearchattribute=%s",
+                                                 hba->ldapsearchattribute));
         }
 
-        if (hba->radiusidentifiers_s)
+		if (hba->ldapscope)
         {
             Assert(noptions < MAX_HBA_OPTIONS);
             options[noptions++] =
-                CStringGetTextDatum(psprintf("radiusidentifiers=%s", hba->radiusidentifiers_s));
+                    CStringGetTextDatum(psprintf("ldapscope=%d", hba->ldapscope));
         }
-
-        if (hba->radiusports_s)
-        {
-            Assert(noptions < MAX_HBA_OPTIONS);
-            options[noptions++] =
-                CStringGetTextDatum(psprintf("radiusports=%s", hba->radiusports_s));
-    }
 	}
 
-    Assert(noptions <= MAX_HBA_OPTIONS);
+	if (hba->auth_method == uaRADIUS)
+	{
+		if (hba->radiusservers_s)
+        {
+            Assert(noptions < MAX_HBA_OPTIONS);
+            options[noptions++] =
+                    CStringGetTextDatum(psprintf("radiusservers=%s", hba->radiusservers_s));
+        }
 
-    if (noptions > 0)
-        return construct_array(options, noptions, TEXTOID, -1, false, 'i');
-    else
-        return NULL;
+		if (hba->radiussecrets_s)
+        {
+            Assert(noptions < MAX_HBA_OPTIONS);
+            options[noptions++] =
+                    CStringGetTextDatum(psprintf("radiussecrets=%s", hba->radiussecrets_s));
+        }
+
+		if (hba->radiusidentifiers_s)
+        {
+            Assert(noptions < MAX_HBA_OPTIONS);
+            options[noptions++] =
+                    CStringGetTextDatum(psprintf("radiusidentifiers=%s", hba->radiusidentifiers_s));
+        }
+
+		if (hba->radiusports_s)
+        {
+            Assert(noptions < MAX_HBA_OPTIONS);
+            options[noptions++] =
+                    CStringGetTextDatum(psprintf("radiusports=%s", hba->radiusports_s));
+        }
+	}
+
+	Assert(noptions <= MAX_HBA_OPTIONS);
+
+	if (noptions > 0)
+		return construct_array(options, noptions, TEXTOID, -1, false, 'i');
+	else
+		return NULL;
 }
 
 /* Number of columns in pg_hba_file_rules view */
-#define NUM_PG_HBA_FILE_RULES_ATTS     9
+#define NUM_PG_HBA_FILE_RULES_ATTS	 9
 
 /*
  * fill_hba_line: build one row of pg_hba_file_rules view, add it to tuplestore
@@ -2563,173 +2563,173 @@ gethba_options(HbaLine *hba)
  */
 static void
 fill_hba_line(Tuplestorestate *tuple_store, TupleDesc tupdesc,
-              int lineno, HbaLine *hba, const char *err_msg)
-{// #lizard forgives
-    Datum        values[NUM_PG_HBA_FILE_RULES_ATTS];
-    bool        nulls[NUM_PG_HBA_FILE_RULES_ATTS];
-    char        buffer[NI_MAXHOST];
-    HeapTuple    tuple;
-    int            index;
-    ListCell   *lc;
-    const char *typestr;
-    const char *addrstr;
-    const char *maskstr;
-    ArrayType  *options;
+			  int lineno, HbaLine *hba, const char *err_msg)
+{
+	Datum		values[NUM_PG_HBA_FILE_RULES_ATTS];
+	bool		nulls[NUM_PG_HBA_FILE_RULES_ATTS];
+	char		buffer[NI_MAXHOST];
+	HeapTuple	tuple;
+	int			index;
+	ListCell   *lc;
+	const char *typestr;
+	const char *addrstr;
+	const char *maskstr;
+	ArrayType  *options;
 
-    Assert(tupdesc->natts == NUM_PG_HBA_FILE_RULES_ATTS);
+	Assert(tupdesc->natts == NUM_PG_HBA_FILE_RULES_ATTS);
 
-    memset(values, 0, sizeof(values));
-    memset(nulls, 0, sizeof(nulls));
-    index = 0;
+	memset(values, 0, sizeof(values));
+	memset(nulls, 0, sizeof(nulls));
+	index = 0;
 
-    /* line_number */
-    values[index++] = Int32GetDatum(lineno);
+	/* line_number */
+	values[index++] = Int32GetDatum(lineno);
 
-    if (hba != NULL)
-    {
-        /* type */
-        /* Avoid a default: case so compiler will warn about missing cases */
-        typestr = NULL;
-        switch (hba->conntype)
-        {
-            case ctLocal:
-                typestr = "local";
-                break;
-            case ctHost:
-                typestr = "host";
-                break;
-            case ctHostSSL:
-                typestr = "hostssl";
-                break;
-            case ctHostNoSSL:
-                typestr = "hostnossl";
-                break;
-        }
-        if (typestr)
-            values[index++] = CStringGetTextDatum(typestr);
-        else
-            nulls[index++] = true;
+	if (hba != NULL)
+	{
+		/* type */
+		/* Avoid a default: case so compiler will warn about missing cases */
+		typestr = NULL;
+		switch (hba->conntype)
+		{
+			case ctLocal:
+				typestr = "local";
+				break;
+			case ctHost:
+				typestr = "host";
+				break;
+			case ctHostSSL:
+				typestr = "hostssl";
+				break;
+			case ctHostNoSSL:
+				typestr = "hostnossl";
+				break;
+		}
+		if (typestr)
+			values[index++] = CStringGetTextDatum(typestr);
+		else
+			nulls[index++] = true;
 
-        /* database */
-        if (hba->databases)
-        {
-            /*
-             * Flatten HbaToken list to string list.  It might seem that we
-             * should re-quote any quoted tokens, but that has been rejected
-             * on the grounds that it makes it harder to compare the array
-             * elements to other system catalogs.  That makes entries like
-             * "all" or "samerole" formally ambiguous ... but users who name
-             * databases/roles that way are inflicting their own pain.
-             */
-            List       *names = NIL;
+		/* database */
+		if (hba->databases)
+		{
+			/*
+			 * Flatten HbaToken list to string list.  It might seem that we
+			 * should re-quote any quoted tokens, but that has been rejected
+			 * on the grounds that it makes it harder to compare the array
+			 * elements to other system catalogs.  That makes entries like
+			 * "all" or "samerole" formally ambiguous ... but users who name
+			 * databases/roles that way are inflicting their own pain.
+			 */
+			List	   *names = NIL;
 
-            foreach(lc, hba->databases)
-            {
-                HbaToken   *tok = lfirst(lc);
+			foreach(lc, hba->databases)
+			{
+				HbaToken   *tok = lfirst(lc);
 
-                names = lappend(names, tok->string);
-            }
-            values[index++] = PointerGetDatum(strlist_to_textarray(names));
-        }
-        else
-            nulls[index++] = true;
+				names = lappend(names, tok->string);
+			}
+			values[index++] = PointerGetDatum(strlist_to_textarray(names));
+		}
+		else
+			nulls[index++] = true;
 
-        /* user */
-        if (hba->roles)
-        {
-            /* Flatten HbaToken list to string list; see comment above */
-            List       *roles = NIL;
+		/* user */
+		if (hba->roles)
+		{
+			/* Flatten HbaToken list to string list; see comment above */
+			List	   *roles = NIL;
 
-            foreach(lc, hba->roles)
-            {
-                HbaToken   *tok = lfirst(lc);
+			foreach(lc, hba->roles)
+			{
+				HbaToken   *tok = lfirst(lc);
 
-                roles = lappend(roles, tok->string);
-            }
-            values[index++] = PointerGetDatum(strlist_to_textarray(roles));
-        }
-        else
-            nulls[index++] = true;
+				roles = lappend(roles, tok->string);
+			}
+			values[index++] = PointerGetDatum(strlist_to_textarray(roles));
+		}
+		else
+			nulls[index++] = true;
 
-        /* address and netmask */
-        /* Avoid a default: case so compiler will warn about missing cases */
-        addrstr = maskstr = NULL;
-        switch (hba->ip_cmp_method)
-        {
-            case ipCmpMask:
-                if (hba->hostname)
-                {
-                    addrstr = hba->hostname;
-                }
-                else
-                {
-                    if (pg_getnameinfo_all(&hba->addr, sizeof(hba->addr),
-                                           buffer, sizeof(buffer),
-                                           NULL, 0,
-                                           NI_NUMERICHOST) == 0)
-                    {
-                        clean_ipv6_addr(hba->addr.ss_family, buffer);
-                        addrstr = pstrdup(buffer);
-                    }
-                    if (pg_getnameinfo_all(&hba->mask, sizeof(hba->mask),
-                                           buffer, sizeof(buffer),
-                                           NULL, 0,
-                                           NI_NUMERICHOST) == 0)
-                    {
-                        clean_ipv6_addr(hba->mask.ss_family, buffer);
-                        maskstr = pstrdup(buffer);
-                    }
-                }
-                break;
-            case ipCmpAll:
-                addrstr = "all";
-                break;
-            case ipCmpSameHost:
-                addrstr = "samehost";
-                break;
-            case ipCmpSameNet:
-                addrstr = "samenet";
-                break;
-        }
-        if (addrstr)
-            values[index++] = CStringGetTextDatum(addrstr);
-        else
-            nulls[index++] = true;
-        if (maskstr)
-            values[index++] = CStringGetTextDatum(maskstr);
-        else
-            nulls[index++] = true;
+		/* address and netmask */
+		/* Avoid a default: case so compiler will warn about missing cases */
+		addrstr = maskstr = NULL;
+		switch (hba->ip_cmp_method)
+		{
+			case ipCmpMask:
+				if (hba->hostname)
+				{
+					addrstr = hba->hostname;
+				}
+				else
+				{
+					if (pg_getnameinfo_all(&hba->addr, sizeof(hba->addr),
+										   buffer, sizeof(buffer),
+										   NULL, 0,
+										   NI_NUMERICHOST) == 0)
+					{
+						clean_ipv6_addr(hba->addr.ss_family, buffer);
+						addrstr = pstrdup(buffer);
+					}
+					if (pg_getnameinfo_all(&hba->mask, sizeof(hba->mask),
+										   buffer, sizeof(buffer),
+										   NULL, 0,
+										   NI_NUMERICHOST) == 0)
+					{
+						clean_ipv6_addr(hba->mask.ss_family, buffer);
+						maskstr = pstrdup(buffer);
+					}
+				}
+				break;
+			case ipCmpAll:
+				addrstr = "all";
+				break;
+			case ipCmpSameHost:
+				addrstr = "samehost";
+				break;
+			case ipCmpSameNet:
+				addrstr = "samenet";
+				break;
+		}
+		if (addrstr)
+			values[index++] = CStringGetTextDatum(addrstr);
+		else
+			nulls[index++] = true;
+		if (maskstr)
+			values[index++] = CStringGetTextDatum(maskstr);
+		else
+			nulls[index++] = true;
 
-        /*
-         * Make sure UserAuthName[] tracks additions to the UserAuth enum
-         */
-        StaticAssertStmt(lengthof(UserAuthName) == USER_AUTH_LAST + 1,
-                         "UserAuthName[] must match the UserAuth enum");
+		/*
+		 * Make sure UserAuthName[] tracks additions to the UserAuth enum
+		 */
+		StaticAssertStmt(lengthof(UserAuthName) == USER_AUTH_LAST + 1,
+						 "UserAuthName[] must match the UserAuth enum");
 
-        /* auth_method */
-        values[index++] = CStringGetTextDatum(UserAuthName[hba->auth_method]);
+		/* auth_method */
+		values[index++] = CStringGetTextDatum(UserAuthName[hba->auth_method]);
 
-        /* options */
-        options = gethba_options(hba);
-        if (options)
-            values[index++] = PointerGetDatum(options);
-        else
-            nulls[index++] = true;
-    }
-    else
-    {
-        /* no parsing result, so set relevant fields to nulls */
-        memset(&nulls[1], true, (NUM_PG_HBA_FILE_RULES_ATTS - 2) * sizeof(bool));
-    }
+		/* options */
+		options = gethba_options(hba);
+		if (options)
+			values[index++] = PointerGetDatum(options);
+		else
+			nulls[index++] = true;
+	}
+	else
+	{
+		/* no parsing result, so set relevant fields to nulls */
+		memset(&nulls[1], true, (NUM_PG_HBA_FILE_RULES_ATTS - 2) * sizeof(bool));
+	}
 
-    /* error */
-    if (err_msg)
-        values[NUM_PG_HBA_FILE_RULES_ATTS - 1] = CStringGetTextDatum(err_msg);
-    else
-        nulls[NUM_PG_HBA_FILE_RULES_ATTS - 1] = true;
+	/* error */
+	if (err_msg)
+		values[NUM_PG_HBA_FILE_RULES_ATTS - 1] = CStringGetTextDatum(err_msg);
+	else
+		nulls[NUM_PG_HBA_FILE_RULES_ATTS - 1] = true;
 
-    tuple = heap_form_tuple(tupdesc, values, nulls);
-    tuplestore_puttuple(tuple_store, tuple);
+	tuple = heap_form_tuple(tupdesc, values, nulls);
+	tuplestore_puttuple(tuple_store, tuple);
 }
 
 /*
@@ -2737,16 +2737,16 @@ fill_hba_line(Tuplestorestate *tuple_store, TupleDesc tupdesc,
  */
 static void
 fill_hba_view(Tuplestorestate *tuple_store, TupleDesc tupdesc)
-{// #lizard forgives
-    FILE       *file;
-    List       *hba_lines = NIL;
+{
+	FILE	   *file;
+	List	   *hba_lines = NIL;
 #ifdef _MLS_
-    List       *mls_hba_lines = NIL;
+    List	   *mls_hba_lines = NIL;
 #endif
-    ListCell   *line;
-    MemoryContext linecxt;
-    MemoryContext hbacxt;
-    MemoryContext oldcxt;
+	ListCell   *line;
+	MemoryContext linecxt;
+	MemoryContext hbacxt;
+	MemoryContext oldcxt;
 #ifdef _MLS_
     MemoryContext mls_linecxt;
 #endif
@@ -2755,21 +2755,21 @@ fill_hba_view(Tuplestorestate *tuple_store, TupleDesc tupdesc)
     mls_linecxt = mls_load_hba(&mls_hba_lines);        
 #endif
 
-    /*
-     * In the unlikely event that we can't open pg_hba.conf, we throw an
-     * error, rather than trying to report it via some sort of view entry.
-     * (Most other error conditions should result in a message in a view
-     * entry.)
-     */
-    file = AllocateFile(HbaFileName, "r");
-    if (file == NULL)
-        ereport(ERROR,
-                (errcode_for_file_access(),
-                 errmsg("could not open configuration file \"%s\": %m",
-                        HbaFileName)));
+	/*
+	 * In the unlikely event that we can't open pg_hba.conf, we throw an
+	 * error, rather than trying to report it via some sort of view entry.
+	 * (Most other error conditions should result in a message in a view
+	 * entry.)
+	 */
+	file = AllocateFile(HbaFileName, "r");
+	if (file == NULL)
+		ereport(ERROR,
+				(errcode_for_file_access(),
+				 errmsg("could not open configuration file \"%s\": %m",
+						HbaFileName)));
 
-    linecxt = tokenize_file(HbaFileName, file, &hba_lines, DEBUG3);
-    FreeFile(file);
+	linecxt = tokenize_file(HbaFileName, file, &hba_lines, DEBUG3);
+	FreeFile(file);
 
 #ifdef _MLS_
     if (NIL != mls_hba_lines)
@@ -2779,32 +2779,32 @@ fill_hba_view(Tuplestorestate *tuple_store, TupleDesc tupdesc)
 #endif
 
 
-    /* Now parse all the lines */
-    hbacxt = AllocSetContextCreate(CurrentMemoryContext,
-                                   "hba parser context",
-                                   ALLOCSET_SMALL_SIZES);
-    oldcxt = MemoryContextSwitchTo(hbacxt);
-    foreach(line, hba_lines)
-    {
-        TokenizedLine *tok_line = (TokenizedLine *) lfirst(line);
-        HbaLine    *hbaline = NULL;
+	/* Now parse all the lines */
+	hbacxt = AllocSetContextCreate(CurrentMemoryContext,
+								   "hba parser context",
+								   ALLOCSET_SMALL_SIZES);
+	oldcxt = MemoryContextSwitchTo(hbacxt);
+	foreach(line, hba_lines)
+	{
+		TokenizedLine *tok_line = (TokenizedLine *) lfirst(line);
+		HbaLine    *hbaline = NULL;
 
-        /* don't parse lines that already have errors */
-        if (tok_line->err_msg == NULL)
-            hbaline = parse_hba_line(tok_line, DEBUG3);
+		/* don't parse lines that already have errors */
+		if (tok_line->err_msg == NULL)
+			hbaline = parse_hba_line(tok_line, DEBUG3);
 
-        fill_hba_line(tuple_store, tupdesc, tok_line->line_num,
-                      hbaline, tok_line->err_msg);
-    }
+		fill_hba_line(tuple_store, tupdesc, tok_line->line_num,
+					  hbaline, tok_line->err_msg);
+	}
 
-    /* Free tokenizer memory */
+	/* Free tokenizer memory */
 #ifdef _MLS_
     MemoryContextDelete(mls_linecxt);
 #endif    
-    MemoryContextDelete(linecxt);
-    /* Free parse_hba_line memory */
-    MemoryContextSwitchTo(oldcxt);
-    MemoryContextDelete(hbacxt);
+	MemoryContextDelete(linecxt);
+	/* Free parse_hba_line memory */
+	MemoryContextSwitchTo(oldcxt);
+	MemoryContextDelete(hbacxt);
 }
 
 /*
@@ -2813,50 +2813,50 @@ fill_hba_view(Tuplestorestate *tuple_store, TupleDesc tupdesc)
 Datum
 pg_hba_file_rules(PG_FUNCTION_ARGS)
 {
-    Tuplestorestate *tuple_store;
-    TupleDesc    tupdesc;
-    MemoryContext old_cxt;
-    ReturnSetInfo *rsi;
+	Tuplestorestate *tuple_store;
+	TupleDesc	tupdesc;
+	MemoryContext old_cxt;
+	ReturnSetInfo *rsi;
 
-    /*
-     * We must use the Materialize mode to be safe against HBA file changes
-     * while the cursor is open. It's also more efficient than having to look
-     * up our current position in the parsed list every time.
-     */
-    rsi = (ReturnSetInfo *) fcinfo->resultinfo;
+	/*
+	 * We must use the Materialize mode to be safe against HBA file changes
+	 * while the cursor is open. It's also more efficient than having to look
+	 * up our current position in the parsed list every time.
+	 */
+	rsi = (ReturnSetInfo *) fcinfo->resultinfo;
 
-    /* Check to see if caller supports us returning a tuplestore */
-    if (rsi == NULL || !IsA(rsi, ReturnSetInfo))
-        ereport(ERROR,
-                (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-                 errmsg("set-valued function called in context that cannot accept a set")));
-    if (!(rsi->allowedModes & SFRM_Materialize))
-        ereport(ERROR,
-                (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-                 errmsg("materialize mode required, but it is not " \
-                        "allowed in this context")));
+	/* Check to see if caller supports us returning a tuplestore */
+	if (rsi == NULL || !IsA(rsi, ReturnSetInfo))
+		ereport(ERROR,
+				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+				 errmsg("set-valued function called in context that cannot accept a set")));
+	if (!(rsi->allowedModes & SFRM_Materialize))
+		ereport(ERROR,
+				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+				 errmsg("materialize mode required, but it is not " \
+						"allowed in this context")));
 
-    rsi->returnMode = SFRM_Materialize;
+	rsi->returnMode = SFRM_Materialize;
 
-    /* Build a tuple descriptor for our result type */
-    if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
-        elog(ERROR, "return type must be a row type");
+	/* Build a tuple descriptor for our result type */
+	if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
+		elog(ERROR, "return type must be a row type");
 
-    /* Build tuplestore to hold the result rows */
-    old_cxt = MemoryContextSwitchTo(rsi->econtext->ecxt_per_query_memory);
+	/* Build tuplestore to hold the result rows */
+	old_cxt = MemoryContextSwitchTo(rsi->econtext->ecxt_per_query_memory);
 
-    tuple_store =
-        tuplestore_begin_heap(rsi->allowedModes & SFRM_Materialize_Random,
-                              false, work_mem);
-    rsi->setDesc = tupdesc;
-    rsi->setResult = tuple_store;
+	tuple_store =
+		tuplestore_begin_heap(rsi->allowedModes & SFRM_Materialize_Random,
+							  false, work_mem);
+	rsi->setDesc = tupdesc;
+	rsi->setResult = tuple_store;
 
-    MemoryContextSwitchTo(old_cxt);
+	MemoryContextSwitchTo(old_cxt);
 
-    /* Fill the tuplestore */
-    fill_hba_view(tuple_store, tupdesc);
+	/* Fill the tuplestore */
+	fill_hba_view(tuple_store, tupdesc);
 
-    PG_RETURN_NULL();
+	PG_RETURN_NULL();
 }
 
 
@@ -2876,262 +2876,262 @@ pg_hba_file_rules(PG_FUNCTION_ARGS)
 static IdentLine *
 parse_ident_line(TokenizedLine *tok_line)
 {
-    int            line_num = tok_line->line_num;
-    ListCell   *field;
-    List       *tokens;
-    HbaToken   *token;
-    IdentLine  *parsedline;
+	int			line_num = tok_line->line_num;
+	ListCell   *field;
+	List	   *tokens;
+	HbaToken   *token;
+	IdentLine  *parsedline;
 
-    Assert(tok_line->fields != NIL);
-    field = list_head(tok_line->fields);
+	Assert(tok_line->fields != NIL);
+	field = list_head(tok_line->fields);
 
-    parsedline = palloc0(sizeof(IdentLine));
-    parsedline->linenumber = line_num;
+	parsedline = palloc0(sizeof(IdentLine));
+	parsedline->linenumber = line_num;
 
-    /* Get the map token (must exist) */
-    tokens = lfirst(field);
-    IDENT_MULTI_VALUE(tokens);
-    token = linitial(tokens);
-    parsedline->usermap = pstrdup(token->string);
+	/* Get the map token (must exist) */
+	tokens = lfirst(field);
+	IDENT_MULTI_VALUE(tokens);
+	token = linitial(tokens);
+	parsedline->usermap = pstrdup(token->string);
 
-    /* Get the ident user token */
-    field = lnext(field);
-    IDENT_FIELD_ABSENT(field);
-    tokens = lfirst(field);
-    IDENT_MULTI_VALUE(tokens);
-    token = linitial(tokens);
-    parsedline->ident_user = pstrdup(token->string);
+	/* Get the ident user token */
+	field = lnext(field);
+	IDENT_FIELD_ABSENT(field);
+	tokens = lfirst(field);
+	IDENT_MULTI_VALUE(tokens);
+	token = linitial(tokens);
+	parsedline->ident_user = pstrdup(token->string);
 
-    /* Get the PG rolename token */
-    field = lnext(field);
-    IDENT_FIELD_ABSENT(field);
-    tokens = lfirst(field);
-    IDENT_MULTI_VALUE(tokens);
-    token = linitial(tokens);
-    parsedline->pg_role = pstrdup(token->string);
+	/* Get the PG rolename token */
+	field = lnext(field);
+	IDENT_FIELD_ABSENT(field);
+	tokens = lfirst(field);
+	IDENT_MULTI_VALUE(tokens);
+	token = linitial(tokens);
+	parsedline->pg_role = pstrdup(token->string);
 
-    if (parsedline->ident_user[0] == '/')
-    {
-        /*
-         * When system username starts with a slash, treat it as a regular
-         * expression. Pre-compile it.
-         */
-        int            r;
-        pg_wchar   *wstr;
-        int            wlen;
+	if (parsedline->ident_user[0] == '/')
+	{
+		/*
+		 * When system username starts with a slash, treat it as a regular
+		 * expression. Pre-compile it.
+		 */
+		int			r;
+		pg_wchar   *wstr;
+		int			wlen;
 
-        wstr = palloc((strlen(parsedline->ident_user + 1) + 1) * sizeof(pg_wchar));
-        wlen = pg_mb2wchar_with_len(parsedline->ident_user + 1,
-                                    wstr, strlen(parsedline->ident_user + 1));
+		wstr = palloc((strlen(parsedline->ident_user + 1) + 1) * sizeof(pg_wchar));
+		wlen = pg_mb2wchar_with_len(parsedline->ident_user + 1,
+									wstr, strlen(parsedline->ident_user + 1));
 
-        r = pg_regcomp(&parsedline->re, wstr, wlen, REG_ADVANCED, C_COLLATION_OID);
-        if (r)
-        {
-            char        errstr[100];
+		r = pg_regcomp(&parsedline->re, wstr, wlen, REG_ADVANCED, C_COLLATION_OID);
+		if (r)
+		{
+			char		errstr[100];
 
-            pg_regerror(r, &parsedline->re, errstr, sizeof(errstr));
-            ereport(LOG,
-                    (errcode(ERRCODE_INVALID_REGULAR_EXPRESSION),
-                     errmsg("invalid regular expression \"%s\": %s",
-                            parsedline->ident_user + 1, errstr)));
+			pg_regerror(r, &parsedline->re, errstr, sizeof(errstr));
+			ereport(LOG,
+					(errcode(ERRCODE_INVALID_REGULAR_EXPRESSION),
+					 errmsg("invalid regular expression \"%s\": %s",
+							parsedline->ident_user + 1, errstr)));
 
-            pfree(wstr);
-            return NULL;
-        }
-        pfree(wstr);
-    }
+			pfree(wstr);
+			return NULL;
+		}
+		pfree(wstr);
+	}
 
-    return parsedline;
+	return parsedline;
 }
 
 /*
- *    Process one line from the parsed ident config lines.
+ *	Process one line from the parsed ident config lines.
  *
- *    Compare input parsed ident line to the needed map, pg_role and ident_user.
- *    *found_p and *error_p are set according to our results.
+ *	Compare input parsed ident line to the needed map, pg_role and ident_user.
+ *	*found_p and *error_p are set according to our results.
  */
 static void
 check_ident_usermap(IdentLine *identLine, const char *usermap_name,
-                    const char *pg_role, const char *ident_user,
-                    bool case_insensitive, bool *found_p, bool *error_p)
-{// #lizard forgives
-    *found_p = false;
-    *error_p = false;
+					const char *pg_role, const char *ident_user,
+					bool case_insensitive, bool *found_p, bool *error_p)
+{
+	*found_p = false;
+	*error_p = false;
 
-    if (strcmp(identLine->usermap, usermap_name) != 0)
-        /* Line does not match the map name we're looking for, so just abort */
-        return;
+	if (strcmp(identLine->usermap, usermap_name) != 0)
+		/* Line does not match the map name we're looking for, so just abort */
+		return;
 
-    /* Match? */
-    if (identLine->ident_user[0] == '/')
-    {
-        /*
-         * When system username starts with a slash, treat it as a regular
-         * expression. In this case, we process the system username as a
-         * regular expression that returns exactly one match. This is replaced
-         * for \1 in the database username string, if present.
-         */
-        int            r;
-        regmatch_t    matches[2];
-        pg_wchar   *wstr;
-        int            wlen;
-        char       *ofs;
-        char       *regexp_pgrole;
+	/* Match? */
+	if (identLine->ident_user[0] == '/')
+	{
+		/*
+		 * When system username starts with a slash, treat it as a regular
+		 * expression. In this case, we process the system username as a
+		 * regular expression that returns exactly one match. This is replaced
+		 * for \1 in the database username string, if present.
+		 */
+		int			r;
+		regmatch_t	matches[2];
+		pg_wchar   *wstr;
+		int			wlen;
+		char	   *ofs;
+		char	   *regexp_pgrole;
 
-        wstr = palloc((strlen(ident_user) + 1) * sizeof(pg_wchar));
-        wlen = pg_mb2wchar_with_len(ident_user, wstr, strlen(ident_user));
+		wstr = palloc((strlen(ident_user) + 1) * sizeof(pg_wchar));
+		wlen = pg_mb2wchar_with_len(ident_user, wstr, strlen(ident_user));
 
-        r = pg_regexec(&identLine->re, wstr, wlen, 0, NULL, 2, matches, 0);
-        if (r)
-        {
-            char        errstr[100];
+		r = pg_regexec(&identLine->re, wstr, wlen, 0, NULL, 2, matches, 0);
+		if (r)
+		{
+			char		errstr[100];
 
-            if (r != REG_NOMATCH)
-            {
-                /* REG_NOMATCH is not an error, everything else is */
-                pg_regerror(r, &identLine->re, errstr, sizeof(errstr));
-                ereport(LOG,
-                        (errcode(ERRCODE_INVALID_REGULAR_EXPRESSION),
-                         errmsg("regular expression match for \"%s\" failed: %s",
-                                identLine->ident_user + 1, errstr)));
-                *error_p = true;
-            }
+			if (r != REG_NOMATCH)
+			{
+				/* REG_NOMATCH is not an error, everything else is */
+				pg_regerror(r, &identLine->re, errstr, sizeof(errstr));
+				ereport(LOG,
+						(errcode(ERRCODE_INVALID_REGULAR_EXPRESSION),
+						 errmsg("regular expression match for \"%s\" failed: %s",
+								identLine->ident_user + 1, errstr)));
+				*error_p = true;
+			}
 
-            pfree(wstr);
-            return;
-        }
-        pfree(wstr);
+			pfree(wstr);
+			return;
+		}
+		pfree(wstr);
 
-        if ((ofs = strstr(identLine->pg_role, "\\1")) != NULL)
-        {
-            int            offset;
+		if ((ofs = strstr(identLine->pg_role, "\\1")) != NULL)
+		{
+			int			offset;
 
-            /* substitution of the first argument requested */
-            if (matches[1].rm_so < 0)
-            {
-                ereport(LOG,
-                        (errcode(ERRCODE_INVALID_REGULAR_EXPRESSION),
-                         errmsg("regular expression \"%s\" has no subexpressions as requested by backreference in \"%s\"",
-                                identLine->ident_user + 1, identLine->pg_role)));
-                *error_p = true;
-                return;
-            }
+			/* substitution of the first argument requested */
+			if (matches[1].rm_so < 0)
+			{
+				ereport(LOG,
+						(errcode(ERRCODE_INVALID_REGULAR_EXPRESSION),
+						 errmsg("regular expression \"%s\" has no subexpressions as requested by backreference in \"%s\"",
+								identLine->ident_user + 1, identLine->pg_role)));
+				*error_p = true;
+				return;
+			}
 
-            /*
-             * length: original length minus length of \1 plus length of match
-             * plus null terminator
-             */
-            regexp_pgrole = palloc0(strlen(identLine->pg_role) - 2 + (matches[1].rm_eo - matches[1].rm_so) + 1);
-            offset = ofs - identLine->pg_role;
-            memcpy(regexp_pgrole, identLine->pg_role, offset);
-            memcpy(regexp_pgrole + offset,
-                   ident_user + matches[1].rm_so,
-                   matches[1].rm_eo - matches[1].rm_so);
-            strcat(regexp_pgrole, ofs + 2);
-        }
-        else
-        {
-            /* no substitution, so copy the match */
-            regexp_pgrole = pstrdup(identLine->pg_role);
-        }
+			/*
+			 * length: original length minus length of \1 plus length of match
+			 * plus null terminator
+			 */
+			regexp_pgrole = palloc0(strlen(identLine->pg_role) - 2 + (matches[1].rm_eo - matches[1].rm_so) + 1);
+			offset = ofs - identLine->pg_role;
+			memcpy(regexp_pgrole, identLine->pg_role, offset);
+			memcpy(regexp_pgrole + offset,
+				   ident_user + matches[1].rm_so,
+				   matches[1].rm_eo - matches[1].rm_so);
+			strcat(regexp_pgrole, ofs + 2);
+		}
+		else
+		{
+			/* no substitution, so copy the match */
+			regexp_pgrole = pstrdup(identLine->pg_role);
+		}
 
-        /*
-         * now check if the username actually matched what the user is trying
-         * to connect as
-         */
-        if (case_insensitive)
-        {
-            if (pg_strcasecmp(regexp_pgrole, pg_role) == 0)
-                *found_p = true;
-        }
-        else
-        {
-            if (strcmp(regexp_pgrole, pg_role) == 0)
-                *found_p = true;
-        }
-        pfree(regexp_pgrole);
+		/*
+		 * now check if the username actually matched what the user is trying
+		 * to connect as
+		 */
+		if (case_insensitive)
+		{
+			if (pg_strcasecmp(regexp_pgrole, pg_role) == 0)
+				*found_p = true;
+		}
+		else
+		{
+			if (strcmp(regexp_pgrole, pg_role) == 0)
+				*found_p = true;
+		}
+		pfree(regexp_pgrole);
 
-        return;
-    }
-    else
-    {
-        /* Not regular expression, so make complete match */
-        if (case_insensitive)
-        {
-            if (pg_strcasecmp(identLine->pg_role, pg_role) == 0 &&
-                pg_strcasecmp(identLine->ident_user, ident_user) == 0)
-                *found_p = true;
-        }
-        else
-        {
-            if (strcmp(identLine->pg_role, pg_role) == 0 &&
-                strcmp(identLine->ident_user, ident_user) == 0)
-                *found_p = true;
-        }
-    }
-    return;
+		return;
+	}
+	else
+	{
+		/* Not regular expression, so make complete match */
+		if (case_insensitive)
+		{
+			if (pg_strcasecmp(identLine->pg_role, pg_role) == 0 &&
+				pg_strcasecmp(identLine->ident_user, ident_user) == 0)
+				*found_p = true;
+		}
+		else
+		{
+			if (strcmp(identLine->pg_role, pg_role) == 0 &&
+				strcmp(identLine->ident_user, ident_user) == 0)
+				*found_p = true;
+		}
+	}
+	return;
 }
 
 
 /*
- *    Scan the (pre-parsed) ident usermap file line by line, looking for a match
+ *	Scan the (pre-parsed) ident usermap file line by line, looking for a match
  *
- *    See if the user with ident username "auth_user" is allowed to act
- *    as Postgres user "pg_role" according to usermap "usermap_name".
+ *	See if the user with ident username "auth_user" is allowed to act
+ *	as Postgres user "pg_role" according to usermap "usermap_name".
  *
- *    Special case: Usermap NULL, equivalent to what was previously called
- *    "sameuser" or "samerole", means don't look in the usermap file.
- *    That's an implied map wherein "pg_role" must be identical to
- *    "auth_user" in order to be authorized.
+ *	Special case: Usermap NULL, equivalent to what was previously called
+ *	"sameuser" or "samerole", means don't look in the usermap file.
+ *	That's an implied map wherein "pg_role" must be identical to
+ *	"auth_user" in order to be authorized.
  *
- *    Iff authorized, return STATUS_OK, otherwise return STATUS_ERROR.
+ *	Iff authorized, return STATUS_OK, otherwise return STATUS_ERROR.
  */
 int
 check_usermap(const char *usermap_name,
-              const char *pg_role,
-              const char *auth_user,
-              bool case_insensitive)
-{// #lizard forgives
-    bool        found_entry = false,
-                error = false;
+			  const char *pg_role,
+			  const char *auth_user,
+			  bool case_insensitive)
+{
+	bool		found_entry = false,
+				error = false;
 
-    if (usermap_name == NULL || usermap_name[0] == '\0')
-    {
-        if (case_insensitive)
-        {
-            if (pg_strcasecmp(pg_role, auth_user) == 0)
-                return STATUS_OK;
-        }
-        else
-        {
-            if (strcmp(pg_role, auth_user) == 0)
-                return STATUS_OK;
-        }
-        ereport(LOG,
-                (errmsg("provided user name (%s) and authenticated user name (%s) do not match",
-                        pg_role, auth_user)));
-        return STATUS_ERROR;
-    }
-    else
-    {
-        ListCell   *line_cell;
+	if (usermap_name == NULL || usermap_name[0] == '\0')
+	{
+		if (case_insensitive)
+		{
+			if (pg_strcasecmp(pg_role, auth_user) == 0)
+				return STATUS_OK;
+		}
+		else
+		{
+			if (strcmp(pg_role, auth_user) == 0)
+				return STATUS_OK;
+		}
+		ereport(LOG,
+				(errmsg("provided user name (%s) and authenticated user name (%s) do not match",
+						pg_role, auth_user)));
+		return STATUS_ERROR;
+	}
+	else
+	{
+		ListCell   *line_cell;
 
-        foreach(line_cell, parsed_ident_lines)
-        {
-            check_ident_usermap(lfirst(line_cell), usermap_name,
-                                pg_role, auth_user, case_insensitive,
-                                &found_entry, &error);
-            if (found_entry || error)
-                break;
-        }
-    }
-    if (!found_entry && !error)
-    {
-        ereport(LOG,
-                (errmsg("no match in usermap \"%s\" for user \"%s\" authenticated as \"%s\"",
-                        usermap_name, pg_role, auth_user)));
-    }
-    return found_entry ? STATUS_OK : STATUS_ERROR;
+		foreach(line_cell, parsed_ident_lines)
+		{
+			check_ident_usermap(lfirst(line_cell), usermap_name,
+								pg_role, auth_user, case_insensitive,
+								&found_entry, &error);
+			if (found_entry || error)
+				break;
+		}
+	}
+	if (!found_entry && !error)
+	{
+		ereport(LOG,
+				(errmsg("no match in usermap \"%s\" for user \"%s\" authenticated as \"%s\"",
+						usermap_name, pg_role, auth_user)));
+	}
+	return found_entry ? STATUS_OK : STATUS_ERROR;
 }
 
 
@@ -3143,117 +3143,117 @@ check_usermap(const char *usermap_name,
  */
 bool
 load_ident(void)
-{// #lizard forgives
-    FILE       *file;
-    List       *ident_lines = NIL;
-    ListCell   *line_cell,
-               *parsed_line_cell;
-    List       *new_parsed_lines = NIL;
-    bool        ok = true;
-    MemoryContext linecxt;
-    MemoryContext oldcxt;
-    MemoryContext ident_context;
-    IdentLine  *newline;
+{
+	FILE	   *file;
+	List	   *ident_lines = NIL;
+	ListCell   *line_cell,
+			   *parsed_line_cell;
+	List	   *new_parsed_lines = NIL;
+	bool		ok = true;
+	MemoryContext linecxt;
+	MemoryContext oldcxt;
+	MemoryContext ident_context;
+	IdentLine  *newline;
 
-    file = AllocateFile(IdentFileName, "r");
-    if (file == NULL)
-    {
-        /* not fatal ... we just won't do any special ident maps */
-        ereport(LOG,
-                (errcode_for_file_access(),
-                 errmsg("could not open usermap file \"%s\": %m",
-                        IdentFileName)));
-        return false;
-    }
+	file = AllocateFile(IdentFileName, "r");
+	if (file == NULL)
+	{
+		/* not fatal ... we just won't do any special ident maps */
+		ereport(LOG,
+				(errcode_for_file_access(),
+				 errmsg("could not open usermap file \"%s\": %m",
+						IdentFileName)));
+		return false;
+	}
 
-    linecxt = tokenize_file(IdentFileName, file, &ident_lines, LOG);
-    FreeFile(file);
+	linecxt = tokenize_file(IdentFileName, file, &ident_lines, LOG);
+	FreeFile(file);
 
-    /* Now parse all the lines */
-    Assert(PostmasterContext);
-    ident_context = AllocSetContextCreate(PostmasterContext,
-                                          "ident parser context",
-                                          ALLOCSET_SMALL_SIZES);
-    oldcxt = MemoryContextSwitchTo(ident_context);
-    foreach(line_cell, ident_lines)
-    {
-        TokenizedLine *tok_line = (TokenizedLine *) lfirst(line_cell);
+	/* Now parse all the lines */
+	Assert(PostmasterContext);
+	ident_context = AllocSetContextCreate(PostmasterContext,
+										  "ident parser context",
+										  ALLOCSET_SMALL_SIZES);
+	oldcxt = MemoryContextSwitchTo(ident_context);
+	foreach(line_cell, ident_lines)
+	{
+		TokenizedLine *tok_line = (TokenizedLine *) lfirst(line_cell);
 
-        /* don't parse lines that already have errors */
-        if (tok_line->err_msg != NULL)
-        {
-            ok = false;
-            continue;
-        }
+		/* don't parse lines that already have errors */
+		if (tok_line->err_msg != NULL)
+		{
+			ok = false;
+			continue;
+		}
 
-        if ((newline = parse_ident_line(tok_line)) == NULL)
-        {
-            /* Parse error; remember there's trouble */
-            ok = false;
+		if ((newline = parse_ident_line(tok_line)) == NULL)
+		{
+			/* Parse error; remember there's trouble */
+			ok = false;
 
-            /*
-             * Keep parsing the rest of the file so we can report errors on
-             * more than the first line.  Error has already been logged, no
-             * need for more chatter here.
-             */
-            continue;
-        }
+			/*
+			 * Keep parsing the rest of the file so we can report errors on
+			 * more than the first line.  Error has already been logged, no
+			 * need for more chatter here.
+			 */
+			continue;
+		}
 
-        new_parsed_lines = lappend(new_parsed_lines, newline);
-    }
+		new_parsed_lines = lappend(new_parsed_lines, newline);
+	}
 
-    /* Free tokenizer memory */
-    MemoryContextDelete(linecxt);
-    MemoryContextSwitchTo(oldcxt);
+	/* Free tokenizer memory */
+	MemoryContextDelete(linecxt);
+	MemoryContextSwitchTo(oldcxt);
 
-    if (!ok)
-    {
-        /*
-         * File contained one or more errors, so bail out, first being careful
-         * to clean up whatever we allocated.  Most stuff will go away via
-         * MemoryContextDelete, but we have to clean up regexes explicitly.
-         */
-        foreach(parsed_line_cell, new_parsed_lines)
-        {
-            newline = (IdentLine *) lfirst(parsed_line_cell);
-            if (newline->ident_user[0] == '/')
-                pg_regfree(&newline->re);
-        }
-        MemoryContextDelete(ident_context);
-        return false;
-    }
+	if (!ok)
+	{
+		/*
+		 * File contained one or more errors, so bail out, first being careful
+		 * to clean up whatever we allocated.  Most stuff will go away via
+		 * MemoryContextDelete, but we have to clean up regexes explicitly.
+		 */
+		foreach(parsed_line_cell, new_parsed_lines)
+		{
+			newline = (IdentLine *) lfirst(parsed_line_cell);
+			if (newline->ident_user[0] == '/')
+				pg_regfree(&newline->re);
+		}
+		MemoryContextDelete(ident_context);
+		return false;
+	}
 
-    /* Loaded new file successfully, replace the one we use */
-    if (parsed_ident_lines != NIL)
-    {
-        foreach(parsed_line_cell, parsed_ident_lines)
-        {
-            newline = (IdentLine *) lfirst(parsed_line_cell);
-            if (newline->ident_user[0] == '/')
-                pg_regfree(&newline->re);
-        }
-    }
-    if (parsed_ident_context != NULL)
-        MemoryContextDelete(parsed_ident_context);
+	/* Loaded new file successfully, replace the one we use */
+	if (parsed_ident_lines != NIL)
+	{
+		foreach(parsed_line_cell, parsed_ident_lines)
+		{
+			newline = (IdentLine *) lfirst(parsed_line_cell);
+			if (newline->ident_user[0] == '/')
+				pg_regfree(&newline->re);
+		}
+	}
+	if (parsed_ident_context != NULL)
+		MemoryContextDelete(parsed_ident_context);
 
-    parsed_ident_context = ident_context;
-    parsed_ident_lines = new_parsed_lines;
+	parsed_ident_context = ident_context;
+	parsed_ident_lines = new_parsed_lines;
 
-    return true;
+	return true;
 }
 
 
 
 /*
- *    Determine what authentication method should be used when accessing database
- *    "database" from frontend "raddr", user "user".  Return the method and
- *    an optional argument (stored in fields of *port), and STATUS_OK.
+ *	Determine what authentication method should be used when accessing database
+ *	"database" from frontend "raddr", user "user".  Return the method and
+ *	an optional argument (stored in fields of *port), and STATUS_OK.
  *
- *    If the file does not contain any entry matching the request, we return
- *    method = uaImplicitReject.
+ *	If the file does not contain any entry matching the request, we return
+ *	method = uaImplicitReject.
  */
 void
 hba_getauthmethod(hbaPort *port)
 {
-    check_hba(port);
+	check_hba(port);
 }

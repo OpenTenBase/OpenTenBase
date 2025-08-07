@@ -1,0 +1,24 @@
+%cn 3
+%cn_slave 1
+%dn 3
+%dn_slave1
+%gtm 1
+%gtm_slave 1
+
+connect conncn1 cn1
+
+connection conncn1
+
+SET client_min_messages = error;
+
+create default node group default_group with ("dn1", "dn2", "dn3");
+
+create sharding group to group default_group;
+
+clean sharding;
+
+create table t(a int, b int);
+insert into t select generate_series(1,100);
+
+analyze t;
+

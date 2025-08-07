@@ -170,10 +170,10 @@ if (sqlca.sqlcode < 0) sqlprint();}
 
 
     { ECPGdo(__LINE__, 0, 1, NULL, 0, ECPGst_normal, "select * from customers limit 2", ECPGt_EOIT, 
-    ECPGt_varchar,&(custs1->name),(long)50,(long)-1,sizeof( customer ), 
-    ECPGt_short,&(inds->name_ind),(long)1,(long)-1,sizeof( struct ind ), 
-    ECPGt_int,&(custs1->phone),(long)1,(long)-1,sizeof( customer ), 
-    ECPGt_short,&(inds->phone_ind),(long)1,(long)-1,sizeof( struct ind ), ECPGt_EORT);
+	ECPGt_varchar,&(custs1->name),(long)50,(long)-1,sizeof( customer ), 
+	ECPGt_short,&(inds->name_ind),(long)1,(long)-1,sizeof( struct ind ), 
+	ECPGt_int,&(custs1->phone),(long)1,(long)-1,sizeof( customer ), 
+	ECPGt_short,&(inds->phone_ind),(long)1,(long)-1,sizeof( struct ind ), ECPGt_EORT);
 #line 60 "pointer_to_struct.pgc"
 
 if (sqlca.sqlcode == ECPG_NOT_FOUND) sqlprint();
@@ -188,15 +188,15 @@ if (sqlca.sqlcode < 0) sqlprint();}
     printf("custs1:\n");
     for (r = 0; r < 2; r++)
     {
-        printf( "name  - %s\n", custs1[r].name.arr );
-        printf( "phone - %d\n", custs1[r].phone );
+	    printf( "name  - %s\n", custs1[r].name.arr );
+	    printf( "phone - %d\n", custs1[r].phone );
     }
 
     { ECPGdo(__LINE__, 0, 1, NULL, 0, ECPGst_normal, "select * from customers limit 2", ECPGt_EOIT, 
-    ECPGt_varchar,&(custs2->name),(long)50,(long)-1,sizeof( customer2 ), 
-    ECPGt_short,&(inds->name_ind),(long)1,(long)-1,sizeof( struct ind ), 
-    ECPGt_int,&(custs2->phone),(long)1,(long)-1,sizeof( customer2 ), 
-    ECPGt_short,&(inds->phone_ind),(long)1,(long)-1,sizeof( struct ind ), ECPGt_EORT);
+	ECPGt_varchar,&(custs2->name),(long)50,(long)-1,sizeof( customer2 ), 
+	ECPGt_short,&(inds->name_ind),(long)1,(long)-1,sizeof( struct ind ), 
+	ECPGt_int,&(custs2->phone),(long)1,(long)-1,sizeof( customer2 ), 
+	ECPGt_short,&(inds->phone_ind),(long)1,(long)-1,sizeof( struct ind ), ECPGt_EORT);
 #line 68 "pointer_to_struct.pgc"
 
 if (sqlca.sqlcode == ECPG_NOT_FOUND) sqlprint();
@@ -211,15 +211,15 @@ if (sqlca.sqlcode < 0) sqlprint();}
     printf("\ncusts2:\n");
     for (r = 0; r < 2; r++)
     {
-        printf( "name  - %s\n", custs2[r].name.arr );
-        printf( "phone - %d\n", custs2[r].phone );
+	    printf( "name  - %s\n", custs2[r].name.arr );
+	    printf( "phone - %d\n", custs2[r].phone );
     }
 
     { ECPGdo(__LINE__, 0, 1, NULL, 0, ECPGst_normal, "select * from customers limit 2", ECPGt_EOIT, 
-    ECPGt_char,&(custs3->name),(long)50,(long)-1,sizeof( struct customer3 ), 
-    ECPGt_short,&(inds->name_ind),(long)1,(long)-1,sizeof( struct ind ), 
-    ECPGt_int,&(custs3->phone),(long)1,(long)-1,sizeof( struct customer3 ), 
-    ECPGt_short,&(inds->phone_ind),(long)1,(long)-1,sizeof( struct ind ), ECPGt_EORT);
+	ECPGt_char,&(custs3->name),(long)50,(long)-1,sizeof( struct customer3 ), 
+	ECPGt_short,&(inds->name_ind),(long)1,(long)-1,sizeof( struct ind ), 
+	ECPGt_int,&(custs3->phone),(long)1,(long)-1,sizeof( struct customer3 ), 
+	ECPGt_short,&(inds->phone_ind),(long)1,(long)-1,sizeof( struct ind ), ECPGt_EORT);
 #line 76 "pointer_to_struct.pgc"
 
 if (sqlca.sqlcode == ECPG_NOT_FOUND) sqlprint();
@@ -234,15 +234,15 @@ if (sqlca.sqlcode < 0) sqlprint();}
     printf("\ncusts3:\n");
     for (r = 0; r < 2; r++)
     {
-        printf( "name  - %s\n", custs3[r].name );
-        printf( "phone - %d\n", custs3[r].phone );
+	    printf( "name  - %s\n", custs3[r].name );
+	    printf( "phone - %d\n", custs3[r].phone );
     }
 
     { ECPGdo(__LINE__, 0, 1, NULL, 0, ECPGst_normal, "select * from customers limit 1", ECPGt_EOIT, 
-    ECPGt_varchar,&(custs4->name),(long)50,(long)-1,sizeof( struct customer4 ), 
-    ECPGt_short,&(inds->name_ind),(long)1,(long)-1,sizeof( struct ind ), 
-    ECPGt_int,&(custs4->phone),(long)1,(long)-1,sizeof( struct customer4 ), 
-    ECPGt_short,&(inds->phone_ind),(long)1,(long)-1,sizeof( struct ind ), ECPGt_EORT);
+	ECPGt_varchar,&(custs4->name),(long)50,(long)-1,sizeof( struct customer4 ), 
+	ECPGt_short,&(inds->name_ind),(long)1,(long)-1,sizeof( struct ind ), 
+	ECPGt_int,&(custs4->phone),(long)1,(long)-1,sizeof( struct customer4 ), 
+	ECPGt_short,&(inds->phone_ind),(long)1,(long)-1,sizeof( struct ind ), ECPGt_EORT);
 #line 84 "pointer_to_struct.pgc"
 
 if (sqlca.sqlcode == ECPG_NOT_FOUND) sqlprint();
@@ -259,8 +259,8 @@ if (sqlca.sqlcode < 0) sqlprint();}
     printf( "phone - %d\n", custs4->phone );
 
     { ECPGdo(__LINE__, 0, 1, NULL, 0, ECPGst_normal, "select c from customers limit 2", ECPGt_EOIT, 
-    ECPGt_varchar,(onlyname),(long)50,(long)2,sizeof(struct varchar_4), 
-    ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EORT);
+	ECPGt_varchar,(onlyname),(long)50,(long)2,sizeof(struct varchar_4), 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EORT);
 #line 89 "pointer_to_struct.pgc"
 
 if (sqlca.sqlcode == ECPG_NOT_FOUND) sqlprint();
@@ -275,7 +275,7 @@ if (sqlca.sqlcode < 0) sqlprint();}
     printf("\nname:\n");
     for (r = 0; r < 2; r++)
     {
-        printf( "name  - %s\n", onlyname[r].arr );
+	    printf( "name  - %s\n", onlyname[r].arr );
     }
 
     { ECPGdisconnect(__LINE__, "ALL");
@@ -288,6 +288,6 @@ if (sqlca.sqlcode < 0) sqlprint();}
 #line 96 "pointer_to_struct.pgc"
 
 
-    /* All the memory will anyway be freed at the end */
+	/* All the memory will anyway be freed at the end */
     return( 0 );
 }

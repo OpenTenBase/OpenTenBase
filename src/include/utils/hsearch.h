@@ -7,9 +7,6 @@
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * src/include/utils/hsearch.h
  *
  *-------------------------------------------------------------------------
@@ -143,6 +140,7 @@ extern void hash_freeze(HTAB *hashp);
 extern Size hash_estimate_size(long num_entries, Size entrysize);
 extern long hash_select_dirsize(long num_entries);
 extern Size hash_get_shared_size(HASHCTL *info, int flags);
+extern MemoryContext hash_get_memcxt(HTAB *hashp);
 extern void AtEOXact_HashTables(bool isCommit);
 extern void AtEOSubXact_HashTables(bool isCommit, int nestDepth);
 
@@ -158,6 +156,9 @@ extern uint32 tag_hash(const void *key, Size keysize);
 extern uint32 uint32_hash(const void *key, Size keysize);
 extern uint32 bitmap_hash(const void *key, Size keysize);
 extern int	bitmap_match(const void *key1, const void *key2, Size keysize);
+
+extern MemoryContext get_current_dynahashcxt();
+extern void set_current_dynahashcxt(MemoryContext cxt);
 
 #define oid_hash uint32_hash	/* Remove me eventually */
 

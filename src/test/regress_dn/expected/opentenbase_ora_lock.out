@@ -1,0 +1,348 @@
+\c regression_ora
+set enable_fast_query_shipping=true;
+drop table if exists t1;
+NOTICE:  table "T1" does not exist, skipping
+drop table if exists t2;
+NOTICE:  table "T2" does not exist, skipping
+drop table if exists t3;
+NOTICE:  table "T3" does not exist, skipping
+drop table if exists p1;
+NOTICE:  table "P1" does not exist, skipping
+drop table if exists c1;
+NOTICE:  table "C1" does not exist, skipping
+-- create some tables
+create table t1(val int, val2 int);
+create table t2(val int, val2 int);
+create table t3(val int, val2 int);
+create table p1(a int, b int);
+create table c1(d int, e int) inherits (p1);
+-- insert some rows in them
+insert into t1 values(1,11),(2,11);
+insert into t2 values(3,11),(4,11);
+insert into t3 values(5,11),(6,11);
+insert into p1 values(55,66),(77,88);
+insert into c1 values(111,222,333,444),(123,345,567,789);
+-- create a view too
+create view v2 as select * from t1 for update wait 10;
+drop view v2;
+-- test a few queries with row marks
+select * from t1 order by 1 for update of t1 wait 10;
+ VAL | VAL2 
+-----+------
+   1 |   11
+   2 |   11
+(2 rows)
+
+WITH q1 AS (SELECT * from t1 order by 1 FOR UPDATE) SELECT * FROM q1 FOR UPDATE WAIT 10;
+ VAL | VAL2 
+-----+------
+   1 |   11
+   2 |   11
+(2 rows)
+
+-- confirm that in various join scenarios for update gets to the remote query
+-- single table case
+explain (costs off, num_nodes off, nodes off, verbose on)  select * from t1 for update of t1 wait 10;
+                   QUERY PLAN                    
+-------------------------------------------------
+ LockRows
+   Output: VAL, VAL2, "ctid", "xc_node_id"
+   ->  Seq Scan on "public".T1
+         Output: VAL, VAL2, "ctid", "xc_node_id"
+(4 rows)
+
+-- two table case, not supported
+explain (costs off, num_nodes off, nodes off, verbose on)  select * from t1, t2 where t1.val = t2.val for update wait 10;
+                                                QUERY PLAN                                                
+----------------------------------------------------------------------------------------------------------
+ LockRows
+   Output: T1.VAL, T1.VAL2, T2.VAL, T2.VAL2, T1."ctid", T1."xc_node_id", T2."ctid", T2."xc_node_id"
+   ->  Merge Join
+         Output: T1.VAL, T1.VAL2, T2.VAL, T2.VAL2, T1."ctid", T1."xc_node_id", T2."ctid", T2."xc_node_id"
+         Merge Cond: (T1.VAL = T2.VAL)
+         ->  Sort
+               Output: T1.VAL, T1.VAL2, T1."ctid", T1."xc_node_id"
+               Sort Key: T1.VAL
+               ->  Seq Scan on "public".T1
+                     Output: T1.VAL, T1.VAL2, T1."ctid", T1."xc_node_id"
+         ->  Sort
+               Output: T2.VAL, T2.VAL2, T2."ctid", T2."xc_node_id"
+               Sort Key: T2.VAL
+               ->  Seq Scan on "public".T2
+                     Output: T2.VAL, T2.VAL2, T2."ctid", T2."xc_node_id"
+(15 rows)
+
+explain (costs off, num_nodes off, nodes off, verbose on)  select * from t1, t2 for update wait 10;
+                                                QUERY PLAN                                                
+----------------------------------------------------------------------------------------------------------
+ LockRows
+   Output: T1.VAL, T1.VAL2, T2.VAL, T2.VAL2, T1."ctid", T1."xc_node_id", T2."ctid", T2."xc_node_id"
+   ->  Nested Loop
+         Output: T1.VAL, T1.VAL2, T2.VAL, T2.VAL2, T1."ctid", T1."xc_node_id", T2."ctid", T2."xc_node_id"
+         ->  Seq Scan on "public".T1
+               Output: T1.VAL, T1.VAL2, T1."ctid", T1."xc_node_id"
+         ->  Materialize
+               Output: T2.VAL, T2.VAL2, T2."ctid", T2."xc_node_id"
+               ->  Seq Scan on "public".T2
+                     Output: T2.VAL, T2.VAL2, T2."ctid", T2."xc_node_id"
+(10 rows)
+
+explain (costs off, num_nodes off, nodes off, verbose on)  select * from t1, t2 for share wait 10;
+                                                QUERY PLAN                                                
+----------------------------------------------------------------------------------------------------------
+ LockRows
+   Output: T1.VAL, T1.VAL2, T2.VAL, T2.VAL2, T1."ctid", T1."xc_node_id", T2."ctid", T2."xc_node_id"
+   ->  Nested Loop
+         Output: T1.VAL, T1.VAL2, T2.VAL, T2.VAL2, T1."ctid", T1."xc_node_id", T2."ctid", T2."xc_node_id"
+         ->  Seq Scan on "public".T1
+               Output: T1.VAL, T1.VAL2, T1."ctid", T1."xc_node_id"
+         ->  Materialize
+               Output: T2.VAL, T2.VAL2, T2."ctid", T2."xc_node_id"
+               ->  Seq Scan on "public".T2
+                     Output: T2.VAL, T2.VAL2, T2."ctid", T2."xc_node_id"
+(10 rows)
+
+-- three table case, not supported
+explain (costs off, num_nodes off, nodes off, verbose on)  select * from t1, t2, t3 for update of t1,t3 wait 10;
+                                                                      QUERY PLAN                                                                       
+-------------------------------------------------------------------------------------------------------------------------------------------------------
+ LockRows
+   Output: T1.VAL, T1.VAL2, T2.VAL, T2.VAL2, T3.VAL, T3.VAL2, T1."ctid", T1."xc_node_id", T3."ctid", T3."xc_node_id", T2."ctid", T2."xc_node_id"
+   ->  Nested Loop
+         Output: T1.VAL, T1.VAL2, T2.VAL, T2.VAL2, T3.VAL, T3.VAL2, T1."ctid", T1."xc_node_id", T3."ctid", T3."xc_node_id", T2."ctid", T2."xc_node_id"
+         ->  Nested Loop
+               Output: T1.VAL, T1.VAL2, T1."ctid", T1."xc_node_id", T2.VAL, T2.VAL2, T2."ctid", T2."xc_node_id"
+               ->  Seq Scan on "public".T1
+                     Output: T1.VAL, T1.VAL2, T1."ctid", T1."xc_node_id"
+               ->  Materialize
+                     Output: T2.VAL, T2.VAL2, T2."ctid", T2."xc_node_id"
+                     ->  Seq Scan on "public".T2
+                           Output: T2.VAL, T2.VAL2, T2."ctid", T2."xc_node_id"
+         ->  Materialize
+               Output: T3.VAL, T3.VAL2, T3."ctid", T3."xc_node_id"
+               ->  Seq Scan on "public".T3
+                     Output: T3.VAL, T3.VAL2, T3."ctid", T3."xc_node_id"
+(16 rows)
+
+-- check a few subquery cases, not supported
+explain (costs off, num_nodes off, nodes off, verbose on)  select * from t1 where val in (select val from t2 for update of t2 wait 10) for update;
+                                    QUERY PLAN                                    
+----------------------------------------------------------------------------------
+ LockRows
+   Output: T1.VAL, T1.VAL2, T1."ctid", T1."xc_node_id", "any_subquery_1".*
+   ->  Hash Join
+         Output: T1.VAL, T1.VAL2, T1."ctid", T1."xc_node_id", "any_subquery_1".*
+         Inner Unique: true
+         Hash Cond: (T1.VAL = "any_subquery_1".VAL)
+         ->  Seq Scan on "public".T1
+               Output: T1.VAL, T1.VAL2, T1."ctid", T1."xc_node_id"
+         ->  Hash
+               Output: "any_subquery_1".*, "any_subquery_1".VAL
+               ->  HashAggregate
+                     Output: "any_subquery_1".*, "any_subquery_1".VAL
+                     Group Key: "any_subquery_1".VAL
+                     ->  Subquery Scan on "any_subquery_1"
+                           Output: "any_subquery_1".*, "any_subquery_1".VAL
+                           ->  LockRows
+                                 Output: T2.VAL, T2."ctid", T2."xc_node_id"
+                                 ->  Seq Scan on "public".T2
+                                       Output: T2.VAL, T2."ctid", T2."xc_node_id"
+(19 rows)
+
+-- make sure FOR UPDATE takes prioriy over FOR SHARE when mentioned for the same table
+explain (costs off, num_nodes off, nodes off, verbose on)  select * from t1 for share of t1 wait 5 for update of t1 wait 10;
+                   QUERY PLAN                    
+-------------------------------------------------
+ LockRows
+   Output: VAL, VAL2, "ctid", "xc_node_id"
+   ->  Seq Scan on "public".T1
+         Output: VAL, VAL2, "ctid", "xc_node_id"
+(4 rows)
+
+-- make sure NOWAIT is used in remote query even if it is not mentioned with FOR UPDATE clause
+explain (costs off, num_nodes off, nodes off, verbose on)  select * from t1 for share of t1 for share of t1 nowait for update of t1 wait 10;
+                   QUERY PLAN                    
+-------------------------------------------------
+ LockRows
+   Output: VAL, VAL2, "ctid", "xc_node_id"
+   ->  Seq Scan on "public".T1
+         Output: VAL, VAL2, "ctid", "xc_node_id"
+(4 rows)
+
+-- confirm that in various join scenarios for update gets to the remote query
+-- single table case
+select * from t1 for update of t1 wait 10;
+ VAL | VAL2 
+-----+------
+   1 |   11
+   2 |   11
+(2 rows)
+
+-- two table case, not supported
+select * from t1, t2 where t1.val = t2.val for update wait 10;
+ VAL | VAL2 | VAL | VAL2 
+-----+------+-----+------
+(0 rows)
+
+create table mytab1(val int, val2 int, val3 int);
+-- create index,rule,trgger & view on one of the tables
+CREATE UNIQUE INDEX test_idx ON mytab1 (val);
+-- insert some rows
+insert into mytab1 values(1,11,1122),(2,11,3344);
+-- prepare a transaction that holds a ACCESS EXCLUSIVE (ROW SHARE) lock on a table
+begin;
+declare c1 cursor for select * from mytab1 for update;
+fetch 1 from c1;
+ VAL | VAL2 | VAL3 
+-----+------+------
+   1 |   11 | 1122
+(1 row)
+
+prepare transaction 'tbl_mytab1_locked';
+set statement_timeout to 2000;
+-- do a SELECT FOR UPDATE WAIT on it (Should fail)
+begin;
+    declare c1 cursor for select * from mytab1 for update wait 1;
+    fetch 1 from c1;
+ERROR:  canceling statement due to row lock timeout
+CONTEXT:  while locking tuple (0,1) in relation "MYTAB1"
+end;
+-- do a SELECT FOR UPDATE WAIT on it (Should fail)
+begin;
+    declare c1 cursor for select * from mytab1 for update wait 3;
+    fetch 1 from c1;
+ERROR:  canceling statement due to statement timeout
+CONTEXT:  while locking tuple (0,1) in relation "MYTAB1"
+end;
+-- behave like NOWAIT
+select * from mytab1 for update wait 0;
+ERROR:  could not obtain lock on row in relation "MYTAB1"
+select * from mytab1 for update nowait;
+ERROR:  could not obtain lock on row in relation "MYTAB1"
+-- priority
+explain (costs off, num_nodes off, nodes off, verbose on)
+select * from mytab1  for update for update wait 1;
+                      QUERY PLAN                       
+-------------------------------------------------------
+ LockRows
+   Output: VAL, VAL2, VAL3, "ctid", "xc_node_id"
+   ->  Seq Scan on "public".MYTAB1
+         Output: VAL, VAL2, VAL3, "ctid", "xc_node_id"
+(4 rows)
+
+explain (costs off, num_nodes off, nodes off, verbose on)
+select * from mytab1  for update for update wait 0;
+                      QUERY PLAN                       
+-------------------------------------------------------
+ LockRows
+   Output: VAL, VAL2, VAL3, "ctid", "xc_node_id"
+   ->  Seq Scan on "public".MYTAB1
+         Output: VAL, VAL2, VAL3, "ctid", "xc_node_id"
+(4 rows)
+
+explain (costs off, num_nodes off, nodes off, verbose on)
+select * from mytab1  for update wait 0 for update wait 1;
+                      QUERY PLAN                       
+-------------------------------------------------------
+ LockRows
+   Output: VAL, VAL2, VAL3, "ctid", "xc_node_id"
+   ->  Seq Scan on "public".MYTAB1
+         Output: VAL, VAL2, VAL3, "ctid", "xc_node_id"
+(4 rows)
+
+explain (costs off, num_nodes off, nodes off, verbose on)
+select * from mytab1  for update wait 1 for update wait 20000;
+                      QUERY PLAN                       
+-------------------------------------------------------
+ LockRows
+   Output: VAL, VAL2, VAL3, "ctid", "xc_node_id"
+   ->  Seq Scan on "public".MYTAB1
+         Output: VAL, VAL2, VAL3, "ctid", "xc_node_id"
+(4 rows)
+
+explain (costs off, num_nodes off, nodes off, verbose on)
+select * from mytab1  for update wait 1 for update nowait;
+                      QUERY PLAN                       
+-------------------------------------------------------
+ LockRows
+   Output: VAL, VAL2, VAL3, "ctid", "xc_node_id"
+   ->  Seq Scan on "public".MYTAB1
+         Output: VAL, VAL2, VAL3, "ctid", "xc_node_id"
+(4 rows)
+
+explain (costs off, num_nodes off, nodes off, verbose on)
+select * from mytab1  for update wait 1 for update skip locked;
+                      QUERY PLAN                       
+-------------------------------------------------------
+ LockRows
+   Output: VAL, VAL2, VAL3, "ctid", "xc_node_id"
+   ->  Seq Scan on "public".MYTAB1
+         Output: VAL, VAL2, VAL3, "ctid", "xc_node_id"
+(4 rows)
+
+explain (costs off, num_nodes off, nodes off, verbose on)
+select * from mytab1  for update wait 0 for update nowait;
+                      QUERY PLAN                       
+-------------------------------------------------------
+ LockRows
+   Output: VAL, VAL2, VAL3, "ctid", "xc_node_id"
+   ->  Seq Scan on "public".MYTAB1
+         Output: VAL, VAL2, VAL3, "ctid", "xc_node_id"
+(4 rows)
+
+explain (costs off, num_nodes off, nodes off, verbose on)
+select * from mytab1  for update wait 0 for update skip locked;
+                      QUERY PLAN                       
+-------------------------------------------------------
+ LockRows
+   Output: VAL, VAL2, VAL3, "ctid", "xc_node_id"
+   ->  Seq Scan on "public".MYTAB1
+         Output: VAL, VAL2, VAL3, "ctid", "xc_node_id"
+(4 rows)
+
+explain (costs off, num_nodes off, nodes off, verbose on)
+select * from mytab1 for update for update nowait;
+                      QUERY PLAN                       
+-------------------------------------------------------
+ LockRows
+   Output: VAL, VAL2, VAL3, "ctid", "xc_node_id"
+   ->  Seq Scan on "public".MYTAB1
+         Output: VAL, VAL2, VAL3, "ctid", "xc_node_id"
+(4 rows)
+
+explain (costs off, num_nodes off, nodes off, verbose on)
+select * from mytab1 for update for update skip locked;
+                      QUERY PLAN                       
+-------------------------------------------------------
+ LockRows
+   Output: VAL, VAL2, VAL3, "ctid", "xc_node_id"
+   ->  Seq Scan on "public".MYTAB1
+         Output: VAL, VAL2, VAL3, "ctid", "xc_node_id"
+(4 rows)
+
+explain (costs off, num_nodes off, nodes off, verbose on)
+select * from mytab1 for update nowait for update skip locked;
+                      QUERY PLAN                       
+-------------------------------------------------------
+ LockRows
+   Output: VAL, VAL2, VAL3, "ctid", "xc_node_id"
+   ->  Seq Scan on "public".MYTAB1
+         Output: VAL, VAL2, VAL3, "ctid", "xc_node_id"
+(4 rows)
+
+reset statement_timeout;
+SET lock_timeout = 2000;
+select * from mytab1 for update wait 2000 for update wait 20000;
+ERROR:  canceling statement due to lock timeout
+CONTEXT:  while locking tuple (0,1) in relation "MYTAB1"
+reset lock_timeout;
+commit prepared 'tbl_mytab1_locked';
+drop table if exists t1 cascade;
+drop table if exists t2 cascade;
+drop table if exists t3 cascade;
+drop table if exists p1 cascade;
+NOTICE:  drop cascades to table C1
+drop table if exists c1 cascade;
+NOTICE:  table "C1" does not exist, skipping
+drop table if exists mytab1 cascade;
+reset enable_fast_query_shipping;

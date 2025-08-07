@@ -1,19 +1,17 @@
 /*-------------------------------------------------------------------------
  *
  * catalog.c
- *        routines concerned with catalog naming conventions and other
- *        bits of hard-wired knowledge
+ *		routines concerned with catalog naming conventions and other
+ *		bits of hard-wired knowledge
  *
  *
  * Portions Copyright (c) 2012-2014, TransLattice, Inc.
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  * IDENTIFICATION
- *      src/backend/catalog/catalog.c
+ *	  src/backend/catalog/catalog.c
  *
  *-------------------------------------------------------------------------
  */
@@ -29,6 +27,8 @@
 #include "catalog/catalog.h"
 #include "catalog/indexing.h"
 #include "catalog/namespace.h"
+#include "catalog/pg_auth_history.h"
+#include "catalog/pg_dbms_job.h"
 #include "catalog/pg_auth_members.h"
 #include "catalog/pg_authid.h"
 #include "catalog/pg_database.h"
@@ -41,162 +41,179 @@
 #include "catalog/pg_shseclabel.h"
 #include "catalog/pg_subscription.h"
 #include "catalog/pg_tablespace.h"
+#include "catalog/pg_term.h"
 #include "catalog/pg_type.h"
 #include "catalog/toasting.h"
 #include "catalog/pgxc_node.h"
 #include "catalog/pgxc_group.h"
 #ifdef _MIGRATE_
 #include "catalog/pgxc_shard_map.h"
-#include "catalog/pgxc_key_values.h"
 #endif
 #include "miscadmin.h"
 #include "storage/fd.h"
 #include "utils/fmgroids.h"
 #include "utils/rel.h"
 #include "utils/tqual.h"
+#include "postmaster/bgwriter.h"
 #ifdef PGXC
 #include "pgxc/pgxc.h"
-#endif
-#ifdef _MLS_
-#include "catalog/mls/pg_transparent_crypt_policy_algorithm.h"
 #endif
 
 #ifdef __AUDIT__
 #include "catalog/pg_audit.h"
 #endif
 
+#ifdef _PG_ORCL_
+#include "catalog/pg_profile.h"
+#include "catalog/pg_profile_cost_weight.h"
+#include "catalog/pg_profile_user_password.h"
+#include "commands/sequence.h"
+#include "utils/lsyscache.h"
+#endif
+
+#ifdef __OPENTENBASE_C__
+#include "catalog/colstore/pg_fn_register_info.h"
+#endif
+#include "catalog/pg_resgroup.h"
+#include "catalog/pg_resgroupcapability.h"
+#include "catalog/pg_dblink.h"
+
+/* inplace upgrade */
+List *new_shared_catalog_list = NIL;
+
+
 /*
  * IsSystemRelation
- *        True iff the relation is either a system catalog or toast table.
- *        By a system catalog, we mean one that created in the pg_catalog schema
- *        during initdb.  User-created relations in pg_catalog don't count as
- *        system catalogs.
+ *		True iff the relation is either a system catalog or toast table.
+ *		By a system catalog, we mean one that created in the pg_catalog schema
+ *		during initdb.  User-created relations in pg_catalog don't count as
+ *		system catalogs.
  *
- *        NB: TOAST relations are considered system relations by this test
- *        for compatibility with the old IsSystemRelationName function.
- *        This is appropriate in many places but not all.  Where it's not,
- *        also check IsToastRelation or use IsCatalogRelation().
+ *		NB: TOAST relations are considered system relations by this test
+ *		for compatibility with the old IsSystemRelationName function.
+ *		This is appropriate in many places but not all.  Where it's not,
+ *		also check IsToastRelation or use IsCatalogRelation().
  */
 bool
 IsSystemRelation(Relation relation)
 {
-    return IsSystemClass(RelationGetRelid(relation), relation->rd_rel);
+	return IsSystemClass(RelationGetRelid(relation), relation->rd_rel);
 }
 
 bool
 IsAuditClass(Oid relid)
 {
-    switch (relid)
-    {
-        case PgAuditStmtConfRelationId:
-        case PgAuditUserConfRelationId:
-        case PgAuditObjConfRelationId:
-        case PgAuditObjDefOptsRelationId:
-        case PgAuditFgaConfRelationId:
-        {
-            return true;
-            break;
-        }
-        default:
-        {
-            return false;
-            break;
-        }
-    }
+	switch (relid)
+	{
+		case PgAuditStmtConfRelationId:
+		case PgAuditUserConfRelationId:
+		case PgAuditObjConfRelationId:
+		case PgAuditObjDefOptsRelationId:
+		case PgAuditFgaConfRelationId:
+		{
+			return true;
+			break;
+		}
+		default:
+		{
+			return false;
+			break;
+		}
+	}
 
-    return false;
+	return false;
 }
 
 /*
  * IsSystemClass
- *        Like the above, but takes a Form_pg_class as argument.
- *        Used when we do not want to open the relation and have to
- *        search pg_class directly.
+ *		Like the above, but takes a Form_pg_class as argument.
+ *		Used when we do not want to open the relation and have to
+ *		search pg_class directly.
  */
 bool
 IsSystemClass(Oid relid, Form_pg_class reltuple)
 {
-    return IsToastClass(reltuple) || IsCatalogClass(relid, reltuple);
+	return IsToastClass(reltuple) || IsCatalogClass(relid, reltuple);
 }
 
 /*
  * IsCatalogRelation
- *        True iff the relation is a system catalog, or the toast table for
- *        a system catalog.  By a system catalog, we mean one that created
- *        in the pg_catalog schema during initdb.  As with IsSystemRelation(),
- *        user-created relations in pg_catalog don't count as system catalogs.
+ *		True iff the relation is a system catalog, or the toast table for
+ *		a system catalog.  By a system catalog, we mean one that created
+ *		in the pg_catalog schema during initdb.  As with IsSystemRelation(),
+ *		user-created relations in pg_catalog don't count as system catalogs.
  *
- *        Note that IsSystemRelation() returns true for ALL toast relations,
- *        but this function returns true only for toast relations of system
- *        catalogs.
+ *		Note that IsSystemRelation() returns true for ALL toast relations,
+ *		but this function returns true only for toast relations of system
+ *		catalogs.
  */
 bool
 IsCatalogRelation(Relation relation)
 {
-    return IsCatalogClass(RelationGetRelid(relation), relation->rd_rel);
+	return IsCatalogClass(RelationGetRelid(relation), relation->rd_rel);
 }
 
 /*
  * IsCatalogClass
- *        True iff the relation is a system catalog relation.
+ *		True iff the relation is a system catalog relation.
  *
  * Check IsCatalogRelation() for details.
  */
 bool
 IsCatalogClass(Oid relid, Form_pg_class reltuple)
 {
-    Oid            relnamespace = reltuple->relnamespace;
+	Oid			relnamespace = reltuple->relnamespace;
 
-    /*
-     * Never consider relations outside pg_catalog/pg_toast to be catalog
-     * relations.
-     */
-    if (!IsSystemNamespace(relnamespace) && !IsToastNamespace(relnamespace))
-        return false;
+	/*
+	 * Never consider relations outside pg_catalog/pg_toast to be catalog
+	 * relations.
+	 */
+	if (!IsSystemNamespace(relnamespace) && !IsToastNamespace(relnamespace))
+		return false;
 
-    /* ----
-     * Check whether the oid was assigned during initdb, when creating the
-     * initial template database. Minus the relations in information_schema
-     * excluded above, these are integral part of the system.
-     * We could instead check whether the relation is pinned in pg_depend, but
-     * this is noticeably cheaper and doesn't require catalog access.
-     *
-     * This test is safe since even an oid wraparound will preserve this
-     * property (c.f. GetNewObjectId()) and it has the advantage that it works
-     * correctly even if a user decides to create a relation in the pg_catalog
-     * namespace.
-     * ----
-     */
-    return relid < FirstNormalObjectId;
+	/* ----
+	 * Check whether the oid was assigned during initdb, when creating the
+	 * initial template database. Minus the relations in information_schema
+	 * excluded above, these are integral part of the system.
+	 * We could instead check whether the relation is pinned in pg_depend, but
+	 * this is noticeably cheaper and doesn't require catalog access.
+	 *
+	 * This test is safe since even an oid wraparound will preserve this
+	 * property (c.f. GetNewObjectId()) and it has the advantage that it works
+	 * correctly even if a user decides to create a relation in the pg_catalog
+	 * namespace.
+	 * ----
+	 */
+	return relid < FirstNormalObjectId;
 }
 
 /*
  * IsToastRelation
- *        True iff relation is a TOAST support relation (or index).
+ *		True iff relation is a TOAST support relation (or index).
  */
 bool
 IsToastRelation(Relation relation)
 {
-    return IsToastNamespace(RelationGetNamespace(relation));
+	return IsToastNamespace(RelationGetNamespace(relation));
 }
 
 /*
  * IsToastClass
- *        Like the above, but takes a Form_pg_class as argument.
- *        Used when we do not want to open the relation and have to
- *        search pg_class directly.
+ *		Like the above, but takes a Form_pg_class as argument.
+ *		Used when we do not want to open the relation and have to
+ *		search pg_class directly.
  */
 bool
 IsToastClass(Form_pg_class reltuple)
 {
-    Oid            relnamespace = reltuple->relnamespace;
+	Oid			relnamespace = reltuple->relnamespace;
 
-    return IsToastNamespace(relnamespace);
+	return IsToastNamespace(relnamespace);
 }
 
 /*
  * IsSystemNamespace
- *        True iff namespace is pg_catalog.
+ *		True iff namespace is pg_catalog.
  *
  * NOTE: the reason this isn't a macro is to avoid having to include
  * catalog/pg_namespace.h in a lot of places.
@@ -205,16 +222,16 @@ bool
 IsSystemNamespace(Oid namespaceId)
 {
 #ifdef _PG_ORCL_
-    return (namespaceId == PG_CATALOG_NAMESPACE ||
-            namespaceId == PG_ORACLE_NAMESPACE);
+	return (namespaceId == PG_CATALOG_NAMESPACE ||
+			namespaceId == OPENTENBASE_ORA_NAMESPACE);
 #else
-    return namespaceId == PG_CATALOG_NAMESPACE;
+	return namespaceId == PG_CATALOG_NAMESPACE;
 #endif
 }
 
 /*
  * IsToastNamespace
- *        True iff namespace is pg_toast or my temporary-toast-table namespace.
+ *		True iff namespace is pg_toast or my temporary-toast-table namespace.
  *
  * Note: this will return false for temporary-toast-table namespaces belonging
  * to other backends.  Those are treated the same as other backends' regular
@@ -223,34 +240,34 @@ IsSystemNamespace(Oid namespaceId)
 bool
 IsToastNamespace(Oid namespaceId)
 {
-    return (namespaceId == PG_TOAST_NAMESPACE) ||
-        isTempToastNamespace(namespaceId);
+	return (namespaceId == PG_TOAST_NAMESPACE) ||
+		isTempToastNamespace(namespaceId);
 }
 
 
 /*
  * IsReservedName
- *        True iff name starts with the pg_ prefix.
+ *		True iff name starts with the pg_ prefix.
  *
- *        For some classes of objects, the prefix pg_ is reserved for
- *        system objects only.  As of 8.0, this was only true for
- *        schema and tablespace names.  With 9.6, this is also true
- *        for roles.
+ *		For some classes of objects, the prefix pg_ is reserved for
+ *		system objects only.  As of 8.0, this was only true for
+ *		schema and tablespace names.  With 9.6, this is also true
+ *		for roles.
  */
 bool
 IsReservedName(const char *name)
 {
-    /* ugly coding for speed */
-    return (name[0] == 'p' &&
-            name[1] == 'g' &&
-            name[2] == '_');
+	/* ugly coding for speed */
+	return (name[0] == 'p' &&
+			name[1] == 'g' &&
+			name[2] == '_');
 }
 
 
 /*
  * IsSharedRelation
- *        Given the OID of a relation, determine whether it's supposed to be
- *        shared across an entire database cluster.
+ *		Given the OID of a relation, determine whether it's supposed to be
+ *		shared across an entire database cluster.
  *
  * In older releases, this had to be hard-wired so that we could compute the
  * locktag for a relation and lock it before examining its catalog entry.
@@ -265,82 +282,120 @@ IsReservedName(const char *name)
  */
 bool
 IsSharedRelation(Oid relationId)
-{// #lizard forgives
-    /* These are the shared catalogs (look for BKI_SHARED_RELATION) */
-    if (relationId == AuthIdRelationId ||
-        relationId == AuthMemRelationId ||
-        relationId == DatabaseRelationId ||
-        relationId == PLTemplateRelationId ||
-        relationId == SharedDescriptionRelationId ||
-        relationId == SharedDependRelationId ||
-        relationId == SharedSecLabelRelationId ||
-        relationId == TableSpaceRelationId ||
+{
+	/* These are the shared catalogs (look for BKI_SHARED_RELATION) */
+	if (relationId == AuthIdRelationId ||
+		relationId == AuthHistoryRelationId ||
+		relationId == AuthMemRelationId ||
+		relationId == DatabaseRelationId ||
+		relationId == PLTemplateRelationId ||
+		relationId == SharedDescriptionRelationId ||
+		relationId == SharedDependRelationId ||
+		relationId == SharedSecLabelRelationId ||
+		relationId == PgDbmsJobRelationId ||
+		relationId == TableSpaceRelationId ||
 #ifdef PGXC
-        relationId == PgxcGroupRelationId ||
-        relationId == PgxcNodeRelationId ||
+		relationId == PgxcGroupRelationId ||
+		relationId == PgxcNodeRelationId ||
 #endif
-        relationId == DbRoleSettingRelationId ||
-        relationId == ReplicationOriginRelationId ||
+		relationId == DbRoleSettingRelationId ||
+		relationId == ReplicationOriginRelationId ||
 #ifdef _MLS_
-        relationId == TransparentCryptPolicyAlgorithmId ||
+		relationId == 8196 || /* TransparentCryptPolicyAlgorithmId only for rollback during upgrade */
 #endif
-        relationId == SubscriptionRelationId)
-        return true;
-    /* These are their indexes (see indexing.h) */
-    if (relationId == AuthIdRolnameIndexId ||
-        relationId == AuthIdOidIndexId ||
-        relationId == AuthMemRoleMemIndexId ||
-        relationId == AuthMemMemRoleIndexId ||
-        relationId == DatabaseNameIndexId ||
-        relationId == DatabaseOidIndexId ||
-        relationId == PLTemplateNameIndexId ||
-        relationId == SharedDescriptionObjIndexId ||
-        relationId == SharedDependDependerIndexId ||
-        relationId == SharedDependReferenceIndexId ||
-        relationId == SharedSecLabelObjectIndexId ||
-        relationId == TablespaceOidIndexId ||
-        relationId == TablespaceNameIndexId ||
+#ifdef _PG_ORCL_
+		relationId == PgProfileRelationId ||
+		relationId == PgProfileCostWeightRelationId ||
+		relationId == PgProfileUserPasswdRelationId ||
+#endif
+#ifdef __OPENTENBASE_C__
+		relationId == PgFnRegisterInfoRelationId ||
+		relationId == ResGroupRelationId ||
+		relationId == ResGroupCapabilityRelationId ||
+#endif
+		relationId == SubscriptionRelationId)
+		return true;
+	/* These are their indexes (see indexing.h) */
+	if (relationId == AuthIdRolnameIndexId ||
+		relationId == AuthIdOidIndexId ||
+		relationId == AuthHistoryIndexId ||
+		relationId == AuthHistoryOidIndexId ||
+		relationId == AuthMemRoleMemIndexId ||
+		relationId == AuthMemMemRoleIndexId ||
+		relationId == DatabaseNameIndexId ||
+		relationId == DatabaseOidIndexId ||
+		relationId == PLTemplateNameIndexId ||
+		relationId == SharedDescriptionObjIndexId ||
+		relationId == SharedDependDependerIndexId ||
+		relationId == SharedDependReferenceIndexId ||
+		relationId == PgDbmsJobOidIndexId ||
+		relationId == PgDbmsJobIdIndexId ||
+		relationId == SharedSecLabelObjectIndexId ||
+		relationId == TablespaceOidIndexId ||
 #ifdef PGXC
-        relationId == PgxcNodeNodeNameIndexId ||
-        relationId == PgxcNodeNodeIdIndexId ||
-        relationId == PgxcNodeOidIndexId ||
-        relationId == PgxcGroupGroupNameIndexId ||
-        relationId == PgxcGroupOidIndexId ||
+		relationId == PgxcNodeNodeNameIndexId ||
+		relationId == PgxcNodeNodeIdIndexId ||
+		relationId == PgxcNodeOidIndexId ||
+		relationId == PgxcGroupGroupNameIndexId ||
+		relationId == PgxcGroupOidIndexId ||
 #endif
 #ifdef _MLS_
-        relationId == PgTransparentCryptPolicyAlgorithmIndexId ||
+		relationId == 8197 || /* PgTransparentCryptPolicyAlgorithmIndexId only for rollback during upgrade */
 #endif
-
 #ifdef _MIGRATE_
-        relationId == PgxcShardMapRelationId ||
-        relationId == PgxcShardMapNodeIndexId ||
-        relationId == PgxcShardMapShardIndexId ||
-        relationId == PgxcShardMapGroupIndexId ||
-        relationId == PgxcKeyValueRelationId ||
-        relationId == PgxcShardKeyValuesIndexID ||
-        relationId == PgxcShardKeyGroupIndexID ||
+		relationId == PgxcShardMapRelationId ||
+		relationId == PgxcShardMapNodeIndexId ||
+		relationId == PgxcShardMapShardIndexId ||
+		relationId == PgxcShardMapGroupIndexId ||
 #endif
-        relationId == DbRoleSettingDatidRolidIndexId ||
-        relationId == ReplicationOriginIdentIndex ||
-        relationId == ReplicationOriginNameIndex ||
-        relationId == SubscriptionObjectIndexId ||
-        relationId == SubscriptionNameIndexId)
-        return true;
-    /* These are their toast tables and toast indexes (see toasting.h) */
-    if (relationId == PgShdescriptionToastTable ||
-        relationId == PgShdescriptionToastIndex ||
-        relationId == PgDbRoleSettingToastTable ||
-        relationId == PgDbRoleSettingToastIndex ||
-        relationId == PgShseclabelToastTable ||
-        relationId == PgShseclabelToastIndex)
-        return true;
-    return false;
+#ifdef _PG_ORCL_
+		relationId == PgProfileObjectIndexId ||
+		relationId == PgProfileNameIndexId ||
+		relationId == PgProfileUserPasswdIndexId ||
+		relationId == PgProfileUserIndexId ||
+#endif
+		relationId == DbRoleSettingDatidRolidIndexId ||
+		relationId == ReplicationOriginIdentIndex ||
+		relationId == ReplicationOriginNameIndex ||
+		relationId == SubscriptionObjectIndexId ||
+		relationId == SubscriptionNameIndexId ||
+		relationId == ResGroupOidIndexId ||
+		relationId == ResGroupRsgnameIndexId ||
+		relationId == ResGroupCapabilityOidIndexId ||
+		relationId == ResGroupCapabilityResgroupidIndexId ||
+		relationId == ResGroupCapabilityResgroupidResLimittypeIndexId ||
+		relationId == AuthIdRolResGroupIndexId||
+		relationId == TermRelationId||
+		relationId == TermIdIndexId)
+		return true;
+	/* These are their toast tables and toast indexes (see toasting.h) */
+	if (relationId == PgShdescriptionToastTable ||
+		relationId == PgShdescriptionToastIndex ||
+		relationId == PgDbmsJobToastTable ||
+		relationId == PgDbmsJobToastIndex ||
+		relationId == PgDbRoleSettingToastTable ||
+		relationId == PgDbRoleSettingToastIndex ||
+		relationId == PgShseclabelToastTable ||
+		relationId == PgShseclabelToastIndex)
+		return true;
+
+	if (new_shared_catalog_list != NIL)
+	{
+		ListCell	*cell = NULL;
+		foreach(cell, new_shared_catalog_list)
+		{
+			Oid relOid = lfirst_oid(cell);
+			if (relOid == relationId)
+				return true;
+		}
+	}
+	return false;
 }
 
 
 /*
  * GetNewOid
- *        Generate a new OID that is unique within the given relation.
+ *		Generate a new OID that is unique within the given relation.
  *
  * Caller must have a suitable lock on the relation.
  *
@@ -367,40 +422,41 @@ IsSharedRelation(Oid relationId)
 Oid
 GetNewOid(Relation relation)
 {
-    Oid            oidIndex;
+	Oid			oidIndex;
 
-    /* If relation doesn't have OIDs at all, caller is confused */
-    Assert(relation->rd_rel->relhasoids);
+	/* If relation doesn't have OIDs at all, caller is confused */
+	Assert(relation->rd_rel->relhasoids);
 
-    /* In bootstrap mode, we don't have any indexes to use */
-    if (IsBootstrapProcessingMode())
-        return GetNewObjectId();
+	/* In bootstrap mode, we don't have any indexes to use */
+	if (IsBootstrapProcessingMode())
+		return GetNewObjectId(false);
 
-    /* The relcache will cache the identity of the OID index for us */
-    oidIndex = RelationGetOidIndex(relation);
+	/* The relcache will cache the identity of the OID index for us */
+	oidIndex = RelationGetOidIndex(relation);
 
-    /* If no OID index, just hand back the next OID counter value */
-    if (!OidIsValid(oidIndex))
-    {
-        /*
-         * System catalogs that have OIDs should *always* have a unique OID
-         * index; we should only take this path for user tables. Give a
-         * warning if it looks like somebody forgot an index.
-         */
-        if (IsSystemRelation(relation))
-            elog(WARNING, "generating possibly-non-unique OID for \"%s\"",
-                 RelationGetRelationName(relation));
+	/* If no OID index, just hand back the next OID counter value */
+	if (!OidIsValid(oidIndex))
+	{
+		/*
+		 * System catalogs that have OIDs should *always* have a unique OID
+		 * index; we should only take this path for user tables. Give a
+		 * warning if it looks like somebody forgot an index.
+		 */
+		if (IsSystemRelation(relation))
+			elog(WARNING, "generating possibly-non-unique OID for \"%s\"",
+				 RelationGetRelationName(relation));
 
-        return GetNewObjectId();
-    }
+		return GetNewObjectId(false);
+	}
 
-    /* Otherwise, use the index to find a nonconflicting OID */
-    return GetNewOidWithIndex(relation, oidIndex, ObjectIdAttributeNumber);
+	/* Otherwise, use the index to find a nonconflicting OID */
+	return GetNewOidWithIndex(relation, oidIndex, ObjectIdAttributeNumber);
 }
+
 
 /*
  * GetNewOidWithIndex
- *        Guts of GetNewOid: use the supplied index
+ *		Guts of GetNewOid: use the supplied index
  *
  * This is exported separately because there are cases where we want to use
  * an index that will not be recognized by RelationGetOidIndex: TOAST tables
@@ -414,48 +470,59 @@ GetNewOid(Relation relation)
 Oid
 GetNewOidWithIndex(Relation relation, Oid indexId, AttrNumber oidcolumn)
 {
-    Oid            newOid;
-    SysScanDesc scan;
-    ScanKeyData key;
-    bool        collides;
+	Oid			newOid;
+	SysScanDesc scan;
+	ScanKeyData key;
+	bool		collides;
+	Snapshot	snapshot;
+	SnapshotData snapshotDirty;
+	bool is_toast_rel = IsToastNamespace(RelationGetNamespace(relation));
 
-    /*
-     * We should never be asked to generate a new pg_type OID during
-     * pg_upgrade; doing so would risk collisions with the OIDs it wants to
-     * assign.  Hitting this assert means there's some path where we failed to
-     * ensure that a type OID is determined by commands in the dump script.
-     */
-    Assert(!IsBinaryUpgrade || RelationGetRelid(relation) != TypeRelationId);
+	InitDirtySnapshot(snapshotDirty);
+	/*
+	 * We should never be asked to generate a new pg_type OID during
+	 * pg_upgrade; doing so would risk collisions with the OIDs it wants to
+	 * assign.  Hitting this assert means there's some path where we failed to
+	 * ensure that a type OID is determined by commands in the dump script.
+	 */
+	Assert(!IsBinaryUpgrade || RelationGetRelid(relation) != TypeRelationId);
 
+	/*
+	 * See notes in GetNewOid about using SnapshotAny.
+	 * Exception: SnapshotDirty is used for upgrading non-TOAST catalog rels,
+	 * because the time qual used for catalogs is SnapshotNow,
+	 * rather than MVCC or SnapshotToast.
+	 */
+	snapshot = (IsInplaceUpgrade && !is_toast_rel) ? &snapshotDirty : SnapshotAny;
 
-    /* Generate new OIDs until we find one not in the table */
-    do
-    {
-        CHECK_FOR_INTERRUPTS();
+	/* Generate new OIDs until we find one not in the table */
+	do
+	{
+		CHECK_FOR_INTERRUPTS();
 
-        newOid = GetNewObjectId();
+		newOid = GetNewObjectId(is_toast_rel);
 
-        ScanKeyInit(&key,
-                    oidcolumn,
-                    BTEqualStrategyNumber, F_OIDEQ,
-                    ObjectIdGetDatum(newOid));
+		ScanKeyInit(&key,
+					oidcolumn,
+					BTEqualStrategyNumber, F_OIDEQ,
+					ObjectIdGetDatum(newOid));
 
 		/* see notes above about using SnapshotAny */
-        scan = systable_beginscan(relation, indexId, true,
-								  SnapshotAny, 1, &key);
+		scan = systable_beginscan(relation, indexId, true,
+								  snapshot, 1, &key);
 
-        collides = HeapTupleIsValid(systable_getnext(scan));
+		collides = HeapTupleIsValid(systable_getnext(scan));
 
-        systable_endscan(scan);
-    } while (collides);
+		systable_endscan(scan);
+	} while (collides);
 
-    return newOid;
+	return newOid;
 }
 
 /*
  * GetNewRelFileNode
- *        Generate a new relfilenode number that is unique within the
- *        database of the given tablespace.
+ *		Generate a new relfilenode number that is unique within the
+ *		database of the given tablespace.
  *
  * If the relfilenode will also be used as the relation's OID, pass the
  * opened pg_class catalog, and this routine will guarantee that the result
@@ -470,88 +537,89 @@ GetNewOidWithIndex(Relation relation, Oid indexId, AttrNumber oidcolumn)
  */
 Oid
 GetNewRelFileNode(Oid reltablespace, Relation pg_class, char relpersistence)
-{// #lizard forgives
-    RelFileNodeBackend rnode;
-    char       *rpath;
-    int            fd;
-    bool        collides;
-    BackendId    backend;
+{
+	RelFileNodeBackend rnode;
+	char	   *rpath;
+	int			fd;
+	bool		collides;
+	BackendId	backend;
 
-    /*
-     * If we ever get here during pg_upgrade, there's something wrong; all
-     * relfilenode assignments during a binary-upgrade run should be
-     * determined by commands in the dump script.
-     */
-    Assert(!IsBinaryUpgrade);
+	/*
+	 * If we ever get here during pg_upgrade, there's something wrong; all
+	 * relfilenode assignments during a binary-upgrade run should be
+	 * determined by commands in the dump script.
+	 */
+	Assert(!IsBinaryUpgrade);
 
-    switch (relpersistence)
-    {
-        case RELPERSISTENCE_TEMP:
+	switch (relpersistence)
+	{
+		case RELPERSISTENCE_TEMP:
+		case RELPERSISTENCE_GLOBAL_TEMP:
 #ifdef XCP
-            if (OidIsValid(MyCoordId))
-                backend = MyFirstBackendId;
-            else
+			if (OidIsValid(MyCoordId))
+				backend = MyFirstBackendId;
+			else
 #endif
-            backend = BackendIdForTempRelations();
-            break;
-        case RELPERSISTENCE_UNLOGGED:
-        case RELPERSISTENCE_PERMANENT:
-            backend = InvalidBackendId;
-            break;
-        default:
-            elog(ERROR, "invalid relpersistence: %c", relpersistence);
-            return InvalidOid;    /* placate compiler */
-    }
+			backend = BackendIdForTempRelations();
+			break;
+		case RELPERSISTENCE_UNLOGGED:
+		case RELPERSISTENCE_PERMANENT:
+			backend = InvalidBackendId;
+			break;
+		default:
+			elog(ERROR, "invalid relpersistence: %c", relpersistence);
+			return InvalidOid;	/* placate compiler */
+	}
 
-    /* This logic should match RelationInitPhysicalAddr */
-    rnode.node.spcNode = reltablespace ? reltablespace : MyDatabaseTableSpace;
-    rnode.node.dbNode = (rnode.node.spcNode == GLOBALTABLESPACE_OID) ? InvalidOid : MyDatabaseId;
+	/* This logic should match RelationInitPhysicalAddr */
+	rnode.node.spcNode = reltablespace ? reltablespace : MyDatabaseTableSpace;
+	rnode.node.dbNode = (rnode.node.spcNode == GLOBALTABLESPACE_OID) ? InvalidOid : MyDatabaseId;
 
-    /*
-     * The relpath will vary based on the backend ID, so we must initialize
-     * that properly here to make sure that any collisions based on filename
-     * are properly detected.
-     */
-    rnode.backend = backend;
+	/*
+	 * The relpath will vary based on the backend ID, so we must initialize
+	 * that properly here to make sure that any collisions based on filename
+	 * are properly detected.
+	 */
+	rnode.backend = backend;
 
-    do
-    {
-        CHECK_FOR_INTERRUPTS();
+	do
+	{
+		CHECK_FOR_INTERRUPTS();
 
-        /* Generate the OID */
-        if (pg_class)
-            rnode.node.relNode = GetNewOid(pg_class);
-        else
-            rnode.node.relNode = GetNewObjectId();
+		/* Generate the OID */
+		if (pg_class)
+			rnode.node.relNode = GetNewOid(pg_class);
+		else
+			rnode.node.relNode = GetNewObjectId(false);
 
-        /* Check for existing file of same name */
-        rpath = relpath(rnode, MAIN_FORKNUM);
-        fd = BasicOpenFile(rpath, O_RDONLY | PG_BINARY, 0);
+		/* Check for existing file of same name */
+		rpath = relpath(rnode, MAIN_FORKNUM);
+		fd = BasicOpenFile(rpath, O_RDONLY | PG_BINARY);
 
-        if (fd >= 0)
-        {
-            /* definite collision */
-            close(fd);
-            collides = true;
-        }
-        else
-        {
-            /*
-             * Here we have a little bit of a dilemma: if errno is something
-             * other than ENOENT, should we declare a collision and loop? In
-             * particular one might think this advisable for, say, EPERM.
-             * However there really shouldn't be any unreadable files in a
-             * tablespace directory, and if the EPERM is actually complaining
-             * that we can't read the directory itself, we'd be in an infinite
-             * loop.  In practice it seems best to go ahead regardless of the
-             * errno.  If there is a colliding file we will get an smgr
-             * failure when we attempt to create the new relation file.
-             */
-            collides = false;
-        }
+		if (fd >= 0)
+		{
+			/* definite collision */
+			close(fd);
+			collides = true;
+		}
+		else
+		{
+			/*
+			 * Here we have a little bit of a dilemma: if errno is something
+			 * other than ENOENT, should we declare a collision and loop? In
+			 * particular one might think this advisable for, say, EPERM.
+			 * However there really shouldn't be any unreadable files in a
+			 * tablespace directory, and if the EPERM is actually complaining
+			 * that we can't read the directory itself, we'd be in an infinite
+			 * loop.  In practice it seems best to go ahead regardless of the
+			 * errno.  If there is a colliding file we will get an smgr
+			 * failure when we attempt to create the new relation file.
+			 */
+			collides = IsExistInUnlinkRelHTAB(&(rnode.node));
+		}
 
-        pfree(rpath);
-    } while (collides);
+		pfree(rpath);
+	} while (collides);
 
-    return rnode.node.relNode;
+	return rnode.node.relNode;
 }

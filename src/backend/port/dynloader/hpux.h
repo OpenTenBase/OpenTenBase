@@ -1,18 +1,18 @@
 /*-------------------------------------------------------------------------
  *
  * dynloader.h
- *      dynamic loader for HP-UX using the shared library mechanism
+ *	  dynamic loader for HP-UX using the shared library mechanism
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
  * IDENTIFICATION
- *      src/backend/port/dynloader/hpux.h
+ *	  src/backend/port/dynloader/hpux.h
  *
- *    NOTES
- *        all functions are defined here -- it's impossible to trace the
- *        shl_* routines from the bundled HP-UX debugger.
+ *	NOTES
+ *		all functions are defined here -- it's impossible to trace the
+ *		shl_* routines from the bundled HP-UX debugger.
  *
  *-------------------------------------------------------------------------
  */

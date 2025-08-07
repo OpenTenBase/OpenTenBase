@@ -253,21 +253,21 @@ ROLLBACK;
 -- cursor
 --
 
-create table tt1(f1 int);
+create table tt1_20231229_1(f1 int);
 
 create function count_tt1_v() returns int8 as
-'select count(*) from tt1' language sql volatile;
+'select count(*) from tt1_20231229_1' language sql volatile;
 
 create function count_tt1_s() returns int8 as
-'select count(*) from tt1' language sql stable;
+'select count(*) from tt1_20231229_1' language sql stable;
 
 begin;
 
-insert into tt1 values(1);
+insert into tt1_20231229_1 values(1);
 
 declare c1 cursor for select count_tt1_v(), count_tt1_s();
 
-insert into tt1 values(2);
+insert into tt1_20231229_1 values(2);
 
 fetch all from c1;
 
@@ -275,21 +275,21 @@ rollback;
 
 begin;
 
-insert into tt1 values(1);
+insert into tt1_20231229_1 values(1);
 
 declare c2 cursor with hold for select count_tt1_v(), count_tt1_s();
 
-insert into tt1 values(2);
+insert into tt1_20231229_1 values(2);
 
 commit;
 
-delete from tt1;
+delete from tt1_20231229_1;
 
 fetch all from c2;
 
 drop function count_tt1_v();
 drop function count_tt1_s();
-drop table tt1;
+drop table tt1_20231229_1;
 
 -- Create a cursor with the BINARY option and check the pg_cursors view
 BEGIN;
@@ -457,10 +457,22 @@ CREATE VIEW ucview AS SELECT * FROM uctest ORDER BY 1;
 CREATE RULE ucrule AS ON DELETE TO ucview DO INSTEAD
   DELETE FROM uctest WHERE f1 = OLD.f1;
 BEGIN;
-DECLARE c1 CURSOR FOR SELECT * FROM ucview;
+DECLARE c1 CURSOR FOR SELECT * FROM ucview order by 1;
 FETCH FROM c1;
 DELETE FROM ucview WHERE CURRENT OF c1; -- fail, views not supported
 ROLLBACK;
+
+-- Check WHERE CURRENT OF with an index-only scan
+set enable_indexonlyscan to off;
+BEGIN;
+EXPLAIN (costs off)
+DECLARE c1 CURSOR FOR SELECT stringu1 FROM onek WHERE stringu1 = 'DZAAAA';
+DECLARE c1 CURSOR FOR SELECT stringu1 FROM onek WHERE stringu1 = 'DZAAAA';
+FETCH FROM c1;
+DELETE FROM onek WHERE CURRENT OF c1;
+SELECT stringu1 FROM onek WHERE stringu1 = 'DZAAAA';
+ROLLBACK;
+reset enable_indexonlyscan;
 
 -- Make sure snapshot management works okay, per bug report in
 -- 235395b90909301035v7228ce63q392931f15aa74b31@mail.gmail.com
@@ -483,6 +495,8 @@ DROP TABLE uctest;
 begin;
 create function nochange(int) returns int
   as 'select $1 limit 1' language sql stable;
+-- Sql language doesn't support auto pushdown, so we need alter it.
+alter function nochange pushdown;
 declare c cursor for select * from int8_tbl order by 1,2 limit nochange(3);
 fetch all from c;
 move backward all in c;

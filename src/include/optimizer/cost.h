@@ -8,9 +8,6 @@
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * src/include/optimizer/cost.h
  *
  *-------------------------------------------------------------------------
@@ -30,12 +27,21 @@
 #define DEFAULT_CPU_TUPLE_COST	0.01
 #define DEFAULT_CPU_INDEX_TUPLE_COST 0.005
 #define DEFAULT_CPU_OPERATOR_COST  0.0025
+#define DEFAULT_PARALLEL_TUPLE_COST 0.1
+#define DEFAULT_PARALLEL_SETUP_COST  1000.0
+#define DEFAULT_DML_TUPLE_COST 0.05
 #ifdef XCP
 #define DEFAULT_NETWORK_BYTE_COST  0.001
 #define DEFAULT_REMOTE_QUERY_COST  100.0
 #endif
-#define DEFAULT_PARALLEL_TUPLE_COST 0.1
-#define DEFAULT_PARALLEL_SETUP_COST  1000.0
+#ifdef __OPENTENBASE_C__
+#define DEFAULT_FN_INIT_COST  1000.0
+#define DEFAULT_COL_SEQ_PAGE_COST  1.0
+#define DEFAULT_COL_RANDOM_PAGE_COST  1000.0
+#endif
+
+#define ENABLE_ROUNDROBIN 0x01
+#define ENABLE_PARTIAL_BROADCAST 0x02
 
 #define DEFAULT_EFFECTIVE_CACHE_SIZE  524288	/* measured in pages */
 
@@ -58,35 +64,57 @@ extern PGDLLIMPORT double random_page_cost;
 extern PGDLLIMPORT double cpu_tuple_cost;
 extern PGDLLIMPORT double cpu_index_tuple_cost;
 extern PGDLLIMPORT double cpu_operator_cost;
-#ifdef XCP
-extern PGDLLIMPORT double network_byte_cost;
-extern PGDLLIMPORT double remote_query_cost;
-#endif
 extern PGDLLIMPORT double parallel_tuple_cost;
 extern PGDLLIMPORT double parallel_setup_cost;
 extern PGDLLIMPORT int effective_cache_size;
-extern Cost disable_cost;
-extern int	max_parallel_workers_per_gather;
-extern bool enable_seqscan;
-extern bool enable_indexscan;
-extern bool enable_indexonlyscan;
-extern bool enable_bitmapscan;
-extern bool enable_tidscan;
-extern bool enable_sort;
-extern bool enable_hashagg;
-extern bool enable_nestloop;
-extern bool enable_material;
-extern bool enable_mergejoin;
-extern bool enable_hashjoin;
+extern PGDLLIMPORT Cost disable_cost;
+extern PGDLLIMPORT int	max_parallel_workers_per_gather;
+extern PGDLLIMPORT bool enable_parallel_insert;
+extern PGDLLIMPORT bool enable_parallel_update;
+extern PGDLLIMPORT bool enable_parallel_sequence;
+extern PGDLLIMPORT bool enable_seqscan;
+extern PGDLLIMPORT bool enable_indexscan;
+extern PGDLLIMPORT bool enable_indexonlyscan;
+extern PGDLLIMPORT bool enable_bitmapscan;
+extern PGDLLIMPORT bool enable_tidscan;
+extern PGDLLIMPORT bool enable_sort;
+extern PGDLLIMPORT bool enable_hashagg;
+extern PGDLLIMPORT bool hashagg_avoid_disk_plan;
+extern PGDLLIMPORT bool enable_nestloop;
+extern PGDLLIMPORT bool enable_material;
+extern PGDLLIMPORT bool enable_mergejoin;
+extern PGDLLIMPORT bool enable_hashjoin;
+extern PGDLLIMPORT bool enable_gathermerge;
+extern PGDLLIMPORT bool enable_partitionwise_join;
+extern PGDLLIMPORT bool enable_parallel_append;
+extern PGDLLIMPORT bool enable_parallel_hash;
+extern PGDLLIMPORT bool enable_partition_pruning;
+extern PGDLLIMPORT int	constraint_exclusion;
+
+#ifdef XCP
+extern PGDLLIMPORT double network_byte_cost;
+extern PGDLLIMPORT double remote_query_cost;
 extern bool enable_fast_query_shipping;
-extern bool enable_gathermerge;
-extern bool enable_partition_wise_join;
+#endif
+#ifdef __OPENTENBASE_C__
+extern PGDLLIMPORT double fn_init_cost;
+extern bool enable_sortagg;
 extern bool enable_nestloop_suppression;
-extern int	constraint_exclusion;
+extern bool enable_rightjoin;
+extern bool enable_right_semi_or_anti_join;
+extern bool enable_hashjoin_bloom;
+extern bool enable_newhash;
+extern bool enable_conservative_selec;
+#define DEFAULT_CONSERVATIVE_SELECTIVITY 0.2
+extern double conservative_selectivity;
+extern int data_skew_option;
+extern bool enable_global_indexscan;
+#endif
 
 extern double clamp_row_est(double nrows);
 extern double index_pages_fetched(double tuples_fetched, BlockNumber pages,
 					double index_pages, PlannerInfo *root);
+extern void cost_modifytable(ModifyTablePath *path, bool cost_dml);
 extern void cost_seqscan(Path *path, PlannerInfo *root, RelOptInfo *baserel,
 			 ParamPathInfo *param_info);
 extern void cost_samplescan(Path *path, PlannerInfo *root, RelOptInfo *baserel,
@@ -109,9 +137,6 @@ extern void cost_tableexprscan(Path *path, PlannerInfo *root,
 				   RelOptInfo *baserel, ParamPathInfo *param_info);
 extern void cost_valuesscan(Path *path, PlannerInfo *root,
 				RelOptInfo *baserel, ParamPathInfo *param_info);
-#ifdef PGXC
-extern void cost_remotequery(Path *path, PlannerInfo *root, RelOptInfo *baserel);
-#endif
 extern void cost_tablefuncscan(Path *path, PlannerInfo *root,
 				   RelOptInfo *baserel, ParamPathInfo *param_info);
 extern void cost_ctescan(Path *path, PlannerInfo *root,
@@ -123,6 +148,7 @@ extern void cost_sort(Path *path, PlannerInfo *root,
 		  List *pathkeys, Cost input_cost, double tuples, int width,
 		  Cost comparison_cost, int sort_mem,
 		  double limit_tuples);
+extern void cost_append(AppendPath *path);
 extern void cost_merge_append(Path *path, PlannerInfo *root,
 				  List *pathkeys, int n_streams,
 				  Cost input_startup_cost, Cost input_total_cost,
@@ -131,16 +157,18 @@ extern void cost_material(Path *path,
 			  Cost input_startup_cost, Cost input_total_cost,
 			  double tuples, int width);
 extern void cost_agg(Path *path, PlannerInfo *root,
-		 AggStrategy aggstrategy, const AggClauseCosts *aggcosts,
-		 int numGroupCols, double numGroups,
-		 Cost input_startup_cost, Cost input_total_cost,
-		 double input_tuples);
+					 AggStrategy aggstrategy, const AggClauseCosts *aggcosts,
+					 int numGroupCols, double numGroups,
+					 List *quals,
+					 Cost input_startup_cost, Cost input_total_cost,
+					 double input_tuples, double input_width);
 extern void cost_windowagg(Path *path, PlannerInfo *root,
 			   List *windowFuncs, int numPartCols, int numOrderCols,
 			   Cost input_startup_cost, Cost input_total_cost,
 			   double input_tuples);
 extern void cost_group(Path *path, PlannerInfo *root,
 		   int numGroupCols, double numGroups,
+		   List *quals,
 		   Cost input_startup_cost, Cost input_total_cost,
 		   double input_tuples);
 extern void initial_cost_nestloop(PlannerInfo *root,
@@ -166,24 +194,18 @@ extern void initial_cost_hashjoin(PlannerInfo *root,
 					  JoinType jointype,
 					  List *hashclauses,
 					  Path *outer_path, Path *inner_path,
-					  JoinPathExtraData *extra);
+					  JoinPathExtraData *extra,
+					  bool parallel_hash);
 extern void final_cost_hashjoin(PlannerInfo *root, HashPath *path,
 					JoinCostWorkspace *workspace,
 					JoinPathExtraData *extra);
 extern void cost_gather(GatherPath *path, PlannerInfo *root,
 			RelOptInfo *baserel, ParamPathInfo *param_info, double *rows);
-#ifdef __OPENTENBASE__
-extern void reset_cost_gather(GatherPath *path);
-#endif
 extern void cost_subplan(PlannerInfo *root, SubPlan *subplan, Plan *plan);
 extern void cost_qual_eval(QualCost *cost, List *quals, PlannerInfo *root);
 extern void cost_qual_eval_node(QualCost *cost, Node *qual, PlannerInfo *root);
-#ifdef XCP
-extern void cost_remote_subplan(Path *path,
-			  Cost input_startup_cost, Cost input_total_cost,
-			  double tuples, int width, int replication);
-#endif
 extern void compute_semi_anti_join_factors(PlannerInfo *root,
+							   RelOptInfo *joinrel,
 							   RelOptInfo *outerrel,
 							   RelOptInfo *innerrel,
 							   JoinType jointype,
@@ -216,6 +238,25 @@ extern void set_foreign_size_estimates(PlannerInfo *root, RelOptInfo *rel);
 extern PathTarget *set_pathtarget_cost_width(PlannerInfo *root, PathTarget *target);
 extern double compute_bitmap_pages(PlannerInfo *root, RelOptInfo *baserel,
 					 Path *bitmapqual, int loop_count, Cost *cost, double *tuple);
+extern double      get_parallel_divisor(Path *path);
+#ifdef PGXC
+extern void cost_remotequery(Path *path, PlannerInfo *root, RelOptInfo *baserel);
+#endif
+#ifdef XCP
+extern void cost_remote_subplan(PlannerInfo *root, Path *path,
+			  Cost input_startup_cost, Cost input_total_cost,
+			  double tuples, int width, int replication);
+#endif
+#ifdef __OPENTENBASE__
+extern bool clause_selectivity_could_under_estimated(PlannerInfo *root, Path *path);
+#endif
+#ifdef __OPENTENBASE_C__
+extern void cost_seqscan_col(Path *path, PlannerInfo *root,
+					  RelOptInfo *baserel, ParamPathInfo *param_info,
+					  AttrMask mask);
+extern void cost_sharedctescan(Path *path, PlannerInfo *root,
+					  RelOptInfo *baserel, Plan *cteplan);
+#endif
 
 /*
  * prototypes for clausesel.c
@@ -231,12 +272,13 @@ extern Selectivity clause_selectivity(PlannerInfo *root,
 				   int varRelid,
 				   JoinType jointype,
 				   SpecialJoinInfo *sjinfo);
-#ifdef __OPENTENBASE__
-extern bool clause_selectivity_could_under_estimated(PlannerInfo *root, Path *path);
-#endif
 extern void cost_gather_merge(GatherMergePath *path, PlannerInfo *root,
 				  RelOptInfo *rel, ParamPathInfo *param_info,
 				  Cost input_startup_cost, Cost input_total_cost,
 				  double *rows);
-
+extern bool allow_global_index_path(Query *query);
+extern void        cost_mergequalproj(Path *path, Cost input_startup_cost, Cost input_total_cost,
+                                      double tuples, int width);
+extern void        cost_partiterator(PartIteratorPath *pipath);
+extern void        apply_scanjoin_target_cost_partiterator(PartIteratorPath *pipath);
 #endif							/* COST_H */

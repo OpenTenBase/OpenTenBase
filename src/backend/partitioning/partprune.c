@@ -1,6 +1,13 @@
 /*-------------------------------------------------------------------------
  *
  * partprune.c
+ *		Support for partition pruning during query planning and execution.
+ *
+ * 		A base pruning step may also consist of expressions whose values are only
+ * 		known during execution, such as Params, in which case pruning cannot occur
+ * 		entirely during planning.  In that case, such steps are included alongside
+ * 		the plan, so that they can be used by the executor for further pruning.
+ *
  *		Parses clauses attempting to match them up to partition keys of a
  *		given relation and generates a set of "pruning steps", which can be
  *		later "executed" either from the planner or the executor to determine
@@ -8,9 +15,6 @@
  *
  * Portions Copyright (c) 1996-2018, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
- *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  * IDENTIFICATION
  *		  src/backend/partitioning/partprune.c
@@ -23,19 +27,24 @@
 #include "access/nbtree.h"
 #include "catalog/pg_operator.h"
 #include "catalog/pg_opfamily.h"
+#include "catalog/pg_proc.h"
 #include "catalog/pg_type.h"
+#include "executor/executor.h"
 #include "miscadmin.h"
 #include "nodes/makefuncs.h"
 #include "nodes/nodeFuncs.h"
+#include "optimizer/appendinfo.h"
 #include "optimizer/clauses.h"
+#include "optimizer/cost.h"
+#include "optimizer/pathnode.h"
 #include "optimizer/planner.h"
 #include "optimizer/predtest.h"
 #include "optimizer/prep.h"
+#include "optimizer/var.h"
 #include "partitioning/partprune.h"
 #include "partitioning/partbounds.h"
 #include "rewrite/rewriteManip.h"
 #include "utils/lsyscache.h"
-
 
 /*
  * Information about a clause matched with a partition key.
@@ -43,18 +52,17 @@
 typedef struct PartClauseInfo
 {
 	int			keyno;			/* Partition key number (0 to partnatts - 1)  */
-	Oid			opno;			/* operator used to compare partkey to 'expr' */
+	Oid			opno;			/* operator used to compare partkey to expr */
 	bool		op_is_ne;		/* is clause's original operator <> ? */
 	Expr	   *expr;			/* expr the partition key is compared to */
 	Oid			cmpfn;			/* Oid of function to compare 'expr' to the
 								 * partition key */
-	int			op_strategy;	/* cached info. */
+	int			op_strategy;	/* btree strategy identifying the operator */
 } PartClauseInfo;
 
 /*
  * PartClauseMatchStatus
- *		Describes the result match_clause_to_partition_key produces for a
- *		given clause and the partition key to match with that are passed to it
+ *		Describes the result of match_clause_to_partition_key()
  */
 typedef enum PartClauseMatchStatus
 {
@@ -76,8 +84,15 @@ typedef enum PartClauseMatchStatus
  */
 typedef struct GeneratePruningStepsContext
 {
+#ifdef USE_ASSERT_CHECKING
+	RelOptInfo *rel;			/* the partitioned relation */
+#endif
+	/* Input data: */
+	bool		forplanner;		/* true when generating steps to be used
+								 * during query planning */
+	/* Working state and result data: */
 	int			next_step_id;
-	List	   *steps;
+	List	   *steps;			/* output, list of PartitionPruneSteps */
 } GeneratePruningStepsContext;
 
 /* The result of performing one PartitionPruneStep */
@@ -93,7 +108,13 @@ typedef struct PruneStepResult
 	bool		scan_null;		/* Scan the partition for NULL values? */
 } PruneStepResult;
 
-
+static List *gen_partprune_steps(RelOptInfo *rel, List *clauses,
+					bool forplanner, bool *contradictory);
+static List *make_partitionedrel_pruneinfo(PlannerInfo *root,
+							  RelOptInfo *parentrel,
+									  int *relid_subplan_map,
+							  List *partitioned_rels, List *prunequal,
+							  Bitmapset **matchedsubplans);
 static List *gen_partprune_steps_internal(GeneratePruningStepsContext *context,
 							 RelOptInfo *rel, List *clauses,
 							 bool *contradictory);
@@ -138,6 +159,10 @@ static PruneStepResult *get_matching_list_bounds(PartitionPruneContext *context,
 static PruneStepResult *get_matching_range_bounds(PartitionPruneContext *context,
 						  StrategyNumber opstrategy, Datum *values, int nvalues,
 						  FmgrInfo *partsupfunc, Bitmapset *nullkeys);
+static Bitmapset *pull_exec_paramids(Expr *expr);
+static bool pull_exec_paramids_walker(Node *node, Bitmapset **context);
+static bool analyze_partkey_exprs(PartitionedRelPruneInfo *pinfo, List *steps,
+					  int partnatts);
 static PruneStepResult *perform_pruning_base_step(PartitionPruneContext *context,
 						  PartitionPruneStepOp *opstep);
 static PruneStepResult *perform_pruning_combine_step(PartitionPruneContext *context,
@@ -147,28 +172,415 @@ static PartClauseMatchStatus match_boolean_partition_clause(Oid partopfamily,
                                                            Expr *clause,
                                                            Expr *partkey,
                                                            Expr **outconst);
-static bool partkey_datum_from_expr(PartitionPruneContext *context,
-						Expr *expr, Datum *value);
+static bool partkey_datum_from_expr(PartitionPruneContext *context, Expr *expr, int stateidx,
+                                    Datum *value, bool *isnull);
 
+static PartitionPruneInfo *
+make_partition_pruneinfo_internal(PlannerInfo *root, RelOptInfo *parentrel, int *relid_subplan_map,
+                                  List *partitioned_rels, List *prunequal, int num_liveleafs);
+
+/*
+ * make_partition_pruneinfo
+ *		Builds a PartitionPruneInfo which can be used in the executor to allow
+ *		additional partition pruning to take place.  Returns NULL when
+ *		partition pruning would be useless.
+ *
+ * 'parentrel' is the RelOptInfo for an appendrel, and 'subpaths' is the list
+ * of scan paths for its child rels.
+ *
+ * 'partitioned_rels' is a List containing Lists of relids of partitioned
+ * tables (a/k/a non-leaf partitions) that are parents of some of the child
+ * rels.  Here we attempt to populate the PartitionPruneInfo by adding a
+ * 'prune_infos' item for each sublist in the 'partitioned_rels' list.
+ * However, some of the sets of partitioned relations may not require any
+ * run-time pruning.  In these cases we'll simply not include a 'prune_infos'
+ * item for that set and instead we'll add all the subplans which belong to
+ * that set into the PartitionPruneInfo's 'other_subplans' field.  Callers
+ * will likely never want to prune subplans which are mentioned in this field.
+ *
+ * 'prunequal' is a list of potential pruning quals.
+ */
+PartitionPruneInfo *
+make_partition_pruneinfo(PlannerInfo *root, RelOptInfo *parentrel, List *subpaths,
+                         List *partitioned_rels, List *prunequal)
+{
+	int *relid_subplan_map;
+	PartitionPruneInfo *result;
+	ListCell   *lc;
+	int			i;
+	/*
+	 * Construct a temporary array to map from planner relids to subplan
+	 * indexes.  For convenience, we use 1-based indexes here, so that zero
+	 * can represent an un-filled array entry.
+	 */
+	relid_subplan_map = palloc0(sizeof(int) * root->simple_rel_array_size);
+
+	/*
+	 * relid_subplan_map maps relid of a leaf partition to the index in
+	 * 'subpaths' of the scan plan for that partition.
+	 */
+	i = 1;
+	foreach(lc, subpaths)
+	{
+		Path	   *path = (Path *) lfirst(lc);
+		RelOptInfo *pathrel = path->parent;
+
+		Assert(IS_SIMPLE_REL(pathrel));
+		Assert(pathrel->relid < root->simple_rel_array_size);
+		/* No duplicates please */
+		Assert(relid_subplan_map[pathrel->relid] == 0);
+
+		relid_subplan_map[pathrel->relid] = i++;
+	}
+	result = make_partition_pruneinfo_internal(root, parentrel, relid_subplan_map, partitioned_rels,
+	                                  prunequal, list_length(subpaths));
+	pfree(relid_subplan_map);
+	return result;
+}
+
+PartitionPruneInfo *
+make_partition_iter_pruneinfo(PlannerInfo *root, RelOptInfo *parentrel,
+                         List *partitioned_rels, List *prunequal)
+{
+	int *relid_subplan_map;
+	PartitionPruneInfo *result;
+	ListCell   *lc;
+	int			i;
+	/*
+	 * Construct a temporary array to map from planner relids to subplan
+	 * indexes.  For convenience, we use 1-based indexes here, so that zero
+	 * can represent an un-filled array entry.
+	 */
+	relid_subplan_map = palloc0(sizeof(int) * root->simple_rel_array_size);
+
+	/*
+	 * relid_subplan_map maps relid of a leaf partition to the index in
+	 * 'subpaths' of the scan plan for that partition.
+	 */
+	i = 1;
+	foreach(lc, parentrel->partition_leaf_rels_idx)
+	{
+		int leaf_relid = lfirst_int(lc);
+		/* No duplicates please */
+		Assert(relid_subplan_map[leaf_relid] == 0);
+
+		relid_subplan_map[leaf_relid] = i++;
+	}
+	result = make_partition_pruneinfo_internal(root, parentrel, relid_subplan_map, partitioned_rels,
+	                                           prunequal,
+	                                           list_length(parentrel->partition_leaf_rels_idx));
+	pfree(relid_subplan_map);
+	return result;
+}
+
+static PartitionPruneInfo *
+make_partition_pruneinfo_internal(PlannerInfo *root, RelOptInfo *parentrel,
+						 int		   *relid_subplan_map, List *partitioned_rels,
+						 List *prunequal, int num_liveleafs)
+{
+	PartitionPruneInfo *pruneinfo;
+	Bitmapset  *allmatchedsubplans = NULL;
+	ListCell   *lc;
+	List	   *prunerelinfos;
+
+	/* We now build a PartitionedRelPruneInfo for each partitioned rel. */
+	prunerelinfos = NIL;
+	foreach(lc, partitioned_rels)
+	{
+		List	   *rels = (List *) lfirst(lc);
+		List	   *pinfolist;
+		Bitmapset  *matchedsubplans = NULL;
+
+		pinfolist = make_partitionedrel_pruneinfo(root, parentrel,
+												  relid_subplan_map,
+												  rels, prunequal,
+												  &matchedsubplans);
+
+		/* When pruning is possible, record the matched subplans */
+		if (pinfolist != NIL)
+		{
+			prunerelinfos = lappend(prunerelinfos, pinfolist);
+			allmatchedsubplans = bms_join(matchedsubplans,
+										  allmatchedsubplans);
+		}
+	}
+
+	/*
+	 * If none of the partition hierarchies had any useful run-time pruning
+	 * quals, then we can just not bother with run-time pruning.
+	 */
+	if (prunerelinfos == NIL)
+		return NULL;
+
+	/* Else build the result data structure */
+	pruneinfo = makeNode(PartitionPruneInfo);
+	pruneinfo->prune_infos = prunerelinfos;
+
+	/*
+	 * Some subplans may not belong to any of the listed partitioned rels.
+	 * This can happen for UNION ALL queries which include a non-partitioned
+	 * table, or when some of the hierarchies aren't run-time prunable.  Build
+	 * a bitmapset of the indexes of all such subplans, so that the executor
+	 * can identify which subplans should never be pruned.
+	 */
+	if (bms_num_members(allmatchedsubplans) < num_liveleafs)
+	{
+		Bitmapset  *other_subplans;
+
+		/* Create the complement of allmatchedsubplans */
+		other_subplans = bms_add_range(NULL, 0, num_liveleafs - 1);
+		other_subplans = bms_del_members(other_subplans, allmatchedsubplans);
+
+		pruneinfo->other_subplans = other_subplans;
+	}
+	else
+		pruneinfo->other_subplans = NULL;
+
+	return pruneinfo;
+}
+
+/*
+ * make_partitionedrel_pruneinfo
+ *		Build a List of PartitionedRelPruneInfos, one for each partitioned
+ *		rel.  These can be used in the executor to allow additional partition
+ *		pruning to take place.
+ *
+ * Here we generate partition pruning steps for 'prunequal' and also build a
+ * data structure which allows mapping of partition indexes into 'subpaths'
+ * indexes.
+ *
+ * If no non-Const expressions are being compared to the partition key in any
+ * of the 'partitioned_rels', then we return NIL to indicate no run-time
+ * pruning should be performed.  Run-time pruning would be useless since the
+ * pruning done during planning will have pruned everything that can be.
+ *
+ * On non-NIL return, 'matchedsubplans' is set to the subplan indexes which
+ * were matched to this partition hierarchy.
+ */
+static List *
+make_partitionedrel_pruneinfo(PlannerInfo *root, RelOptInfo *parentrel,
+							  int *relid_subplan_map,
+							  List *partitioned_rels, List *prunequal,
+							  Bitmapset **matchedsubplans)
+{
+	RelOptInfo *targetpart = NULL;
+	List	   *pinfolist = NIL;
+	bool		doruntimeprune = false;
+	int		   *relid_subpart_map;
+	Bitmapset  *subplansfound = NULL;
+	ListCell   *lc;
+	int			i;
+
+	/*
+	 * Construct a temporary array to map from planner relids to index of the
+	 * partitioned_rel.  For convenience, we use 1-based indexes here, so that
+	 * zero can represent an un-filled array entry.
+	 */
+	relid_subpart_map = palloc0(sizeof(int) * root->simple_rel_array_size);
+
+	/*
+	 * relid_subpart_map maps relid of a non-leaf partition to the index in
+	 * 'partitioned_rels' of that rel (which will also be the index in the
+	 * returned PartitionedRelPruneInfo list of the info for that partition).
+	 */
+	i = 1;
+	foreach(lc, partitioned_rels)
+	{
+		Index		rti = lfirst_int(lc);
+
+		Assert(rti < root->simple_rel_array_size);
+		/* No duplicates please */
+		Assert(relid_subpart_map[rti] == 0);
+		relid_subpart_map[rti] = i++;
+	}
+
+	/* We now build a PartitionedRelPruneInfo for each partitioned rel */
+	foreach(lc, partitioned_rels)
+	{
+		Index		rti = lfirst_int(lc);
+		RelOptInfo *subpart = find_base_rel(root, rti);
+		PartitionedRelPruneInfo *pinfo;
+		RangeTblEntry *rte;
+		Bitmapset  *present_parts;
+		int			nparts = subpart->nparts;
+		int			partnatts = subpart->part_scheme->partnatts;
+		int		   *subplan_map;
+		int		   *subpart_map;
+		List	   *partprunequal;
+		List	   *pruning_steps;
+		bool		contradictory;
+
+		/*
+		 * The first item in the list is the target partitioned relation.
+		 */
+		if (!targetpart)
+		{
+			targetpart = subpart;
+
+			/*
+			 * The prunequal is presented to us as a qual for 'parentrel'.
+			 * Frequently this rel is the same as targetpart, so we can skip
+			 * an adjust_appendrel_attrs step.  But it might not be, and then
+			 * we have to translate.  We update the prunequal parameter here,
+			 * because in later iterations of the loop for child partitions,
+			 * we want to translate from parent to child variables.
+			 */
+			if (!bms_equal(parentrel->relids, subpart->relids))
+			{
+				int			nappinfos;
+				AppendRelInfo **appinfos = find_appinfos_by_relids(root,
+																   subpart->relids,
+																   &nappinfos);
+
+				prunequal = (List *) adjust_appendrel_attrs(root, (Node *)
+															prunequal,
+															nappinfos,
+															appinfos);
+
+				pfree(appinfos);
+			}
+
+			partprunequal = prunequal;
+		}
+		else
+		{
+			/*
+			 * For sub-partitioned tables the columns may not be in the same
+			 * order as the parent, so we must translate the prunequal to make
+			 * it compatible with this relation.
+			 */
+			partprunequal = (List *)
+				adjust_appendrel_attrs_multilevel(root,
+												  (Node *) prunequal,
+												  subpart->relids,
+												  targetpart->relids);
+		}
+
+		/*
+		 * Convert pruning qual to pruning steps.  Since these steps will be
+		 * used in the executor, we can pass 'forplanner' as false to allow
+		 * steps to be generated that are unsafe for evaluation during
+		 * planning, e.g. evaluation of stable functions.
+		 */
+		pruning_steps = gen_partprune_steps(subpart, partprunequal, false,
+											&contradictory);
+
+		if (contradictory)
+		{
+			/*
+			 * This shouldn't happen as the planner should have detected this
+			 * earlier. However, we do use additional quals from parameterized
+			 * paths here. These do only compare Params to the partition key,
+			 * so this shouldn't cause the discovery of any new qual
+			 * contradictions that were not previously discovered as the Param
+			 * values are unknown during planning.  Anyway, we'd better do
+			 * something sane here, so let's just disable run-time pruning.
+			 */
+			return NIL;
+		}
+
+		/*
+		 * Construct the subplan and subpart maps for this partitioning level.
+		 * Here we convert to zero-based indexes, with -1 for empty entries.
+		 * Also construct a Bitmapset of all partitions that are present (that
+		 * is, not pruned already).
+		 */
+		subplan_map = (int *) palloc(nparts * sizeof(int));
+		memset(subplan_map, -1, nparts * sizeof(int));
+		subpart_map = (int *) palloc(nparts * sizeof(int));
+		memset(subpart_map, -1, nparts * sizeof(int));
+		present_parts = NULL;
+
+		for (i = 0; i < nparts; i++)
+		{
+			RelOptInfo *partrel = subpart->part_rels[i];
+			int			subplanidx;
+			int			subpartidx;
+
+			/* Skip processing pruned partitions. */
+			if (partrel == NULL)
+				continue;
+
+			subplan_map[i] = subplanidx = relid_subplan_map[partrel->relid] - 1;
+			subpart_map[i] = subpartidx = relid_subpart_map[partrel->relid] - 1;
+			if (subplanidx >= 0)
+			{
+				present_parts = bms_add_member(present_parts, i);
+
+				/* Record finding this subplan  */
+				subplansfound = bms_add_member(subplansfound, subplanidx);
+			}
+			else if (subpartidx >= 0)
+				present_parts = bms_add_member(present_parts, i);
+		}
+
+		rte = root->simple_rte_array[subpart->relid];
+
+		pinfo = makeNode(PartitionedRelPruneInfo);
+		pinfo->reloid = rte->relid;
+		pinfo->pruning_steps = pruning_steps;
+		pinfo->present_parts = present_parts;
+		pinfo->nparts = nparts;
+		pinfo->subplan_map = subplan_map;
+		pinfo->subpart_map = subpart_map;
+
+		/* Determine which pruning types should be enabled at this level */
+		doruntimeprune |= analyze_partkey_exprs(pinfo, pruning_steps,
+												partnatts);
+
+		pinfolist = lappend(pinfolist, pinfo);
+	}
+
+	pfree(relid_subpart_map);
+
+	if (!doruntimeprune)
+	{
+		/* No run-time pruning required. */
+		return NIL;
+	}
+
+	*matchedsubplans = subplansfound;
+
+	return pinfolist;
+}
 
 /*
  * gen_partprune_steps
  *		Process 'clauses' (a rel's baserestrictinfo list of clauses) and return
- *		a list of "partition pruning steps"
+ *		a list of "partition pruning steps".
+ *
+ * 'forplanner' must be true when generating steps to be evaluated during
+ * query planning, false when generating steps to be used at run-time.
+ *
+ * The result generated with forplanner=false includes all clauses that
+ * are selected with forplanner=true, because in some cases we need a
+ * combination of clauses to prune successfully.  For example, if we
+ * are partitioning on a hash of columns A and B, and we have clauses
+ * "WHERE A=constant AND B=nonconstant", we can't do anything at plan
+ * time even though the first clause would be evaluable then.  And we
+ * must include the first clause when called with forplanner=false,
+ * or we'll fail to prune at run-time either.  This does mean that when
+ * called with forplanner=false, we may return steps that don't actually
+ * need to be executed at runtime; it's left to analyze_partkey_exprs()
+ * to (re)discover that.
  *
  * If the clauses in the input list are contradictory or there is a
- * pseudo-constant "false", *contradictory is set to true upon return.
+ * pseudo-constant "false", *contradictory is set to true upon return,
+ * else it's set false.
  */
-List *
-gen_partprune_steps(RelOptInfo *rel, List *clauses, bool *contradictory)
+static List *
+gen_partprune_steps(RelOptInfo *rel, List *clauses, bool forplanner,
+					bool *contradictory)
 {
 	GeneratePruningStepsContext context;
 
+#ifdef USE_ASSERT_CHECKING
+	context.rel = rel;
+#endif
+
+	context.forplanner = forplanner;
 	context.next_step_id = 0;
 	context.steps = NIL;
-
-	/* The clauses list may be modified below, so better make a copy. */
-	clauses = list_copy(clauses);
 
 	/*
 	 * For sub-partitioned tables there's a corner case where if the
@@ -194,34 +606,34 @@ gen_partprune_steps(RelOptInfo *rel, List *clauses, bool *contradictory)
 		if (rel->relid != 1)
 			ChangeVarNodes((Node *) partqual, 1, rel->relid, 0);
 
-		clauses = list_concat(clauses, partqual);
+		/* Use list_copy to avoid modifying the passed-in List */
+		clauses = list_concat(list_copy(clauses), partqual);
 	}
 
 	/* Down into the rabbit-hole. */
-	gen_partprune_steps_internal(&context, rel, clauses, contradictory);
+	(void) gen_partprune_steps_internal(&context, rel, clauses, contradictory);
 
 	return context.steps;
 }
 
 /*
  * prune_append_rel_partitions
- *		Returns RT indexes of the minimum set of child partitions which must
- *		be scanned to satisfy rel's baserestrictinfo quals.
+ *		Process rel's baserestrictinfo and make use of quals which can be
+ *		evaluated during query planning in order to determine the minimum set
+ *		of partitions which must be scanned to satisfy these quals.  Returns
+ *		the matching partitions in the form of a Bitmapset containing the
+ *		partitions' indexes in the rel's part_rels array.
  *
  * Callers must ensure that 'rel' is a partitioned table.
  */
-Relids
+Bitmapset *
 prune_append_rel_partitions(RelOptInfo *rel)
 {
-	Relids		result;
 	List	   *clauses = rel->baserestrictinfo;
 	List	   *pruning_steps;
 	bool		contradictory;
 	PartitionPruneContext context;
-	Bitmapset  *partindexes;
-	int			i;
 
-	Assert(clauses != NIL);
 	Assert(rel->part_scheme != NULL);
 
 	/* If there are no partitions, return the empty set */
@@ -229,37 +641,52 @@ prune_append_rel_partitions(RelOptInfo *rel)
 		return NULL;
 
 	/*
-	 * Process clauses.  If the clauses are found to be contradictory, we can
-	 * return the empty set.
+	 * If pruning is disabled or if there are no clauses to prune with, return
+	 * all partitions.
 	 */
-	pruning_steps = gen_partprune_steps(rel, clauses, &contradictory);
+	if (!enable_partition_pruning || clauses == NIL)
+		return bms_add_range(NULL, 0, rel->nparts - 1);
+
+	/*
+	 * Process clauses.  If the clauses are found to be contradictory, we can
+	 * return the empty set.  Pass 'forplanner' as true to indicate to the
+	 * pruning code that we only want pruning steps that can be evaluated
+	 * during planning.
+	 */
+	pruning_steps = gen_partprune_steps(rel, clauses, true,
+										&contradictory);
 	if (contradictory)
 		return NULL;
 
+	/* Set up PartitionPruneContext */
 	context.strategy = rel->part_scheme->strategy;
 	context.partnatts = rel->part_scheme->partnatts;
-	context.partopfamily = rel->part_scheme->partopfamily;
-	context.partopcintype = rel->part_scheme->partopcintype;
-	context.partcollation = rel->part_scheme->partcollation;
-	context.partsupfunc = rel->part_scheme->partsupfunc;
 	context.nparts = rel->nparts;
 	context.boundinfo = rel->boundinfo;
+	context.partcollation = rel->part_scheme->partcollation;
+	context.partsupfunc = rel->part_scheme->partsupfunc;
+	context.stepcmpfuncs = (FmgrInfo *) palloc0(sizeof(FmgrInfo) *
+												context.partnatts *
+												list_length(pruning_steps));
+	context.ppccontext = CurrentMemoryContext;
+
+	/* These are not valid when being called from the planner */
+	context.partrel = NULL;
+	context.planstate = NULL;
+	context.exprstates = NULL;
+	context.exprhasexecparam = NULL;
+	context.evalexecparams = false;
 
 	/* Actual pruning happens here. */
-	partindexes = get_matching_partitions(&context, pruning_steps);
-
-	/* Add selected partitions' RT indexes to result. */
-	i = -1;
-	result = NULL;
-	while ((i = bms_next_member(partindexes, i)) >= 0)
-		result = bms_add_member(result, rel->part_rels[i]->relid);
-
-	return result;
+	return get_matching_partitions(&context, pruning_steps);
 }
 
 /*
  * get_matching_partitions
  *		Determine partitions that survive partition pruning
+ *
+ * Note: context->planstate must be set to a valid PlanState when the
+ * pruning_steps were generated with 'forplanner' = false.
  *
  * Returns a Bitmapset of indexes of surviving partitions.
  */
@@ -324,7 +751,10 @@ get_matching_partitions(PartitionPruneContext *context, List *pruning_steps)
 	scan_default = final_result->scan_default;
 	while ((i = bms_next_member(final_result->bound_offsets, i)) >= 0)
 	{
-		int			partindex = context->boundinfo->indexes[i];
+		int			partindex;
+
+		Assert(i < context->boundinfo->nindexes);
+		partindex = context->boundinfo->indexes[i];
 
 		if (partindex < 0)
 		{
@@ -387,9 +817,6 @@ get_matching_partitions(PartitionPruneContext *context, List *pruning_steps)
  * clause that contains false, we set *contradictory to true and return NIL
  * (that is, no pruning steps).  Caller should consider all partitions as
  * pruned in that case.  Otherwise, *contradictory is set to false.
- *
- * Note: the 'clauses' List may be modified inside this function. Callers may
- * like to make a copy of it before passing them to this function.
  */
 static List *
 gen_partprune_steps_internal(GeneratePruningStepsContext *context,
@@ -605,8 +1032,12 @@ gen_partprune_steps_internal(GeneratePruningStepsContext *context,
 				case PARTCLAUSE_MATCH_NULLNESS:
 					if (!clause_is_not_null)
 					{
-						/* check for conflicting IS NOT NULL */
-						if (bms_is_member(i, notnullkeys))
+						/*
+						 * check for conflicting IS NOT NULL as well as
+						 * contradicting strict clauses
+						 */
+						if (bms_is_member(i, notnullkeys) ||
+							keyclauses[i] != NIL)
 						{
 							*contradictory = true;
 							return NIL;
@@ -762,13 +1193,8 @@ gen_prune_step_op(GeneratePruningStepsContext *context,
 	 * InvalidStrategy to signal get_matching_list_bounds to do the right
 	 * thing.
 	 */
-	if (op_is_ne)
-	{
-		Assert(opstrategy == BTEqualStrategyNumber);
-		opstep->opstrategy = InvalidStrategy;
-	}
-	else
-		opstep->opstrategy = opstrategy;
+	opstep->opstrategy = op_is_ne ? InvalidStrategy : opstrategy;
+
 	Assert(list_length(exprs) == list_length(cmpfns));
 	opstep->exprs = exprs;
 	opstep->cmpfns = cmpfns;
@@ -866,34 +1292,18 @@ gen_prune_steps_from_opexps(PartitionScheme part_scheme,
 			{
 				case PARTITION_STRATEGY_LIST:
 				case PARTITION_STRATEGY_RANGE:
-					{
-						PartClauseInfo *last = NULL;
+					btree_clauses[pc->op_strategy] =
+						lappend(btree_clauses[pc->op_strategy], pc);
 
-						/*
-						 * Add this clause to the list of clauses to be used
-						 * for pruning if this is the first such key for this
-						 * operator strategy or if it is consecutively next to
-						 * the last column for which a clause with this
-						 * operator strategy was matched.
-						 */
-						if (btree_clauses[pc->op_strategy] != NIL)
-							last = llast(btree_clauses[pc->op_strategy]);
-
-						if (last == NULL ||
-							i == last->keyno || i == last->keyno + 1)
-							btree_clauses[pc->op_strategy] =
-								lappend(btree_clauses[pc->op_strategy], pc);
-
-						/*
-						 * We can't consider subsequent partition keys if the
-						 * clause for the current key contains a non-inclusive
-						 * operator.
-						 */
-						if (pc->op_strategy == BTLessStrategyNumber ||
-							pc->op_strategy == BTGreaterStrategyNumber)
-							consider_next_key = false;
-						break;
-					}
+					/*
+					 * We can't consider subsequent partition keys if the
+					 * clause for the current key contains a non-inclusive
+					 * operator.
+					 */
+					if (pc->op_strategy == BTLessStrategyNumber ||
+						pc->op_strategy == BTGreaterStrategyNumber)
+						consider_next_key = false;
+					break;
 
 				case PARTITION_STRATEGY_HASH:
 					if (pc->op_strategy != HTEqualStrategyNumber)
@@ -932,6 +1342,7 @@ gen_prune_steps_from_opexps(PartitionScheme part_scheme,
 				List	   *eq_clauses = btree_clauses[BTEqualStrategyNumber];
 				List	   *le_clauses = btree_clauses[BTLessEqualStrategyNumber];
 				List	   *ge_clauses = btree_clauses[BTGreaterEqualStrategyNumber];
+				bool		pk_has_clauses[PARTITION_MAX_KEYS];
 				int			strat;
 
 				/*
@@ -954,6 +1365,35 @@ gen_prune_steps_from_opexps(PartitionScheme part_scheme,
 						ListCell   *lc1;
 						List	   *prefix = NIL;
 						List	   *pc_steps;
+						bool		prefix_valid = true;
+
+						/*
+						 * If this is a clause for the first partition key,
+						 * there are no preceding expressions; generate a
+						 * pruning step without a prefix.
+						 *
+						 * Note that we pass NULL for step_nullkeys, because
+						 * we don't search list/range partition bounds where
+						 * some keys are NULL.
+						 */
+						if (pc->keyno == 0)
+						{
+							Assert(pc->op_strategy == strat);
+							pc_steps = get_steps_using_prefix(context, strat,
+															  pc->op_is_ne,
+															  pc->expr,
+															  pc->cmpfn,
+															  0,
+															  NULL,
+															  NIL);
+							opsteps = list_concat(opsteps, pc_steps);
+							continue;
+						}
+
+						/* (Re-)initialize the pk_has_clauses array */
+						Assert(pc->keyno > 0);
+						for (i = 0; i < pc->keyno; i++)
+							pk_has_clauses[i] = false;
 
 						/*
 						 * Expressions from = clauses can always be in the
@@ -966,7 +1406,10 @@ gen_prune_steps_from_opexps(PartitionScheme part_scheme,
 							if (eqpc->keyno == pc->keyno)
 								break;
 							if (eqpc->keyno < pc->keyno)
+							{
 								prefix = lappend(prefix, eqpc);
+								pk_has_clauses[eqpc->keyno] = true;
+							}
 						}
 
 						/*
@@ -984,7 +1427,10 @@ gen_prune_steps_from_opexps(PartitionScheme part_scheme,
 								if (lepc->keyno == pc->keyno)
 									break;
 								if (lepc->keyno < pc->keyno)
+								{
 									prefix = lappend(prefix, lepc);
+									pk_has_clauses[lepc->keyno] = true;
+								}
 							}
 						}
 
@@ -1003,11 +1449,33 @@ gen_prune_steps_from_opexps(PartitionScheme part_scheme,
 								if (gepc->keyno == pc->keyno)
 									break;
 								if (gepc->keyno < pc->keyno)
+								{
 									prefix = lappend(prefix, gepc);
+									pk_has_clauses[gepc->keyno] = true;
+								}
 							}
 						}
 
 						/*
+						 * Check whether every earlier partition key has at
+						 * least one clause.
+						 */
+						for (i = 0; i < pc->keyno; i++)
+						{
+							if (!pk_has_clauses[i])
+							{
+								prefix_valid = false;
+								break;
+							}
+						}
+
+						/*
+						 * If prefix_valid, generate PartitionPruneStepOps.
+						 * Otherwise, we would not find clauses for a valid
+						 * subset of the partition keys anymore for the
+						 * strategy; give up on generating partition pruning
+						 * steps further for the strategy.
+						 *
 						 * As mentioned above, if 'prefix' contains multiple
 						 * expressions for the same key, the following will
 						 * generate multiple steps, one for each combination
@@ -1017,15 +1485,20 @@ gen_prune_steps_from_opexps(PartitionScheme part_scheme,
 						 * we don't search list/range partition bounds where
 						 * some keys are NULL.
 						 */
-						Assert(pc->op_strategy == strat);
-						pc_steps = get_steps_using_prefix(context, strat,
-														  pc->op_is_ne,
-														  pc->expr,
-														  pc->cmpfn,
-														  pc->keyno,
-														  NULL,
-														  prefix);
-						opsteps = list_concat(opsteps, list_copy(pc_steps));
+						if (prefix_valid)
+						{
+							Assert(pc->op_strategy == strat);
+							pc_steps = get_steps_using_prefix(context, strat,
+															  pc->op_is_ne,
+															  pc->expr,
+															  pc->cmpfn,
+															  pc->keyno,
+															  NULL,
+															  prefix);
+							opsteps = list_concat(opsteps, pc_steps);
+						}
+						else
+							break;
 					}
 				}
 				break;
@@ -1218,10 +1691,12 @@ match_clause_to_partition_key(RelOptInfo *rel,
 		OpExpr	   *opclause = (OpExpr *) clause;
 		Expr	   *leftop,
 				   *rightop;
-		Oid			commutator = InvalidOid,
+		Oid			op_lefttype,
+					op_righttype,
+					commutator = InvalidOid,
 					negator = InvalidOid;
 		Oid			cmpfn;
-		Oid			exprtype;
+		int			op_strategy;
 		bool		is_opne_listp = false;
 		PartClauseInfo *partclause;
 
@@ -1258,10 +1733,49 @@ match_clause_to_partition_key(RelOptInfo *rel,
 
 		/*
 		 * Matched with this key.  Now check various properties of the clause
-		 * to see if it's sane to use it for pruning.  If any of the
-		 * properties makes it unsuitable for pruning, then the clause is
-		 * useless no matter which key it's matched to.
+		 * to see if it's sane to use it for pruning.  In most of these cases,
+		 * we can return UNSUPPORTED because the same failure would occur no
+		 * matter which partkey it's matched to.  (In particular, now that
+		 * we've successfully matched one side of the opclause to a partkey,
+		 * there is no chance that matching the other side to another partkey
+		 * will produce a usable result, since that'd mean there are Vars on
+		 * both sides.)
 		 */
+		if (context->forplanner)
+		{
+			/*
+			 * When pruning in the planner, we only support pruning using
+			 * comparisons to constants.  Immutable subexpressions will have
+			 * been folded to constants already, and we cannot prune on the
+			 * basis of anything that's not immutable.
+			 */
+			if (!IsA(expr, Const))
+				return PARTCLAUSE_UNSUPPORTED;
+
+			/*
+			 * Also, the comparison operator itself must be immutable.
+			 */
+			if (op_volatile(opclause->opno) != PROVOLATILE_IMMUTABLE)
+				return PARTCLAUSE_UNSUPPORTED;
+		}
+		else
+		{
+			/*
+			 * Otherwise, non-consts are allowed, but we can't prune using an
+			 * expression that contains Vars.
+			 */
+			if (contain_var_clause((Node *) expr))
+				return PARTCLAUSE_UNSUPPORTED;
+
+			/*
+			 * And we must reject anything containing a volatile function.
+			 * Stable functions are OK though.  (We need not check this for
+			 * the comparison operator itself: anything that belongs to a
+			 * partitioning operator family must be at least stable.)
+			 */
+			if (contain_volatile_functions((Node *) expr))
+				return PARTCLAUSE_UNSUPPORTED;
+		}
 
 		/*
 		 * Only allow strict operators.  This will guarantee nulls are
@@ -1270,38 +1784,39 @@ match_clause_to_partition_key(RelOptInfo *rel,
 		if (!op_strict(opclause->opno))
 			return PARTCLAUSE_UNSUPPORTED;
 
-		/* We can't use any volatile expressions to prune partitions. */
-		if (contain_volatile_functions((Node *) expr))
-			return PARTCLAUSE_UNSUPPORTED;
-
 		/*
-		 * Normally we only bother with operators that are listed as being
-		 * part of the partitioning operator family.  But we make an exception
-		 * in one case -- operators named '<>' are not listed in any operator
-		 * family whatsoever, in which case, we try to perform partition
-		 * pruning with it only if list partitioning is in use.
+		 * Determine the input types of the operator we're considering.
+		 *
+		 * Normally we only care about operators that are listed as being part
+		 * of the partitioning operator family.  But there is one exception:
+		 * the not-equals operators are not listed in any operator family
+		 * whatsoever, but their negators (equality) are.  We can use one of
+		 * those if we find it, but only for list partitioning.
 		 */
-		if (!op_in_opfamily(opclause->opno, partopfamily))
+		if (op_in_opfamily(opclause->opno, partopfamily))
 		{
+			Oid		oper;
+
+			oper = OidIsValid(commutator) ? commutator : opclause->opno;
+			get_op_opfamily_properties(oper, partopfamily, false,
+									   &op_strategy, &op_lefttype,
+									   &op_righttype);
+		}
+		else
+		{
+			/* Not good unless list partitioning */
 			if (part_scheme->strategy != PARTITION_STRATEGY_LIST)
 				return PARTCLAUSE_UNSUPPORTED;
 
-			/*
-			 * To confirm if the operator is really '<>', check if its negator
-			 * is a btree equality operator.
-			 */
+			/* See if the negator is equality */
 			negator = get_negator(opclause->opno);
 			if (OidIsValid(negator) && op_in_opfamily(negator, partopfamily))
 			{
-				Oid			lefttype;
-				Oid			righttype;
-				int			strategy;
-
 				get_op_opfamily_properties(negator, partopfamily, false,
-										   &strategy, &lefttype, &righttype);
-
-				if (strategy == BTEqualStrategyNumber)
-					is_opne_listp = true;
+										   &op_strategy, &op_lefttype,
+										   &op_righttype);
+				if (op_strategy == BTEqualStrategyNumber)
+					is_opne_listp = true;	/* bingo */
 			}
 
 			/* Operator isn't really what we were hoping it'd be. */
@@ -1309,24 +1824,36 @@ match_clause_to_partition_key(RelOptInfo *rel,
 				return PARTCLAUSE_UNSUPPORTED;
 		}
 
-		/* Check if we're going to need a cross-type comparison function. */
-		exprtype = exprType((Node *) expr);
-		if (exprtype != part_scheme->partopcintype[partkeyidx])
+		/*
+		 * Now find the procedure to use, based on the types.  If the clause's
+		 * other argument is of the same type as the partitioning opclass's
+		 * declared input type, we can use the procedure cached in
+		 * PartitionKey.  If not, search for a cross-type one in the same
+		 * opfamily; if one doesn't exist, give up on pruning for this clause.
+		 */
+		if (op_righttype == part_scheme->partopcintype[partkeyidx])
+			cmpfn = part_scheme->partsupfunc[partkeyidx].fn_oid;
+		else
 		{
 			switch (part_scheme->strategy)
 			{
+				/*
+				 * For range and list partitioning, we need the ordering
+				 * procedure with lefttype being the partition key's type, and
+				 * righttype the clause's operator's right type.
+				 */
 				case PARTITION_STRATEGY_LIST:
 				case PARTITION_STRATEGY_RANGE:
 					cmpfn =
 						get_opfamily_proc(part_scheme->partopfamily[partkeyidx],
 										  part_scheme->partopcintype[partkeyidx],
-										  exprtype, BTORDER_PROC);
+										  op_righttype, BTORDER_PROC);
 					break;
 
 				case PARTITION_STRATEGY_HASH:
 					cmpfn =
 						get_opfamily_proc(part_scheme->partopfamily[partkeyidx],
-										  exprtype, exprtype, HASHEXTENDED_PROC);
+										  op_righttype, op_righttype, HASHEXTENDED_PROC);
 					break;
 
 				default:
@@ -1339,15 +1866,12 @@ match_clause_to_partition_key(RelOptInfo *rel,
 			if (!OidIsValid(cmpfn))
 				return PARTCLAUSE_UNSUPPORTED;
 		}
-		else
-			cmpfn = part_scheme->partsupfunc[partkeyidx].fn_oid;
 
+		/*
+		 * Build the clause, passing the negator or commutator if applicable.
+		 */
 		partclause = (PartClauseInfo *) palloc(sizeof(PartClauseInfo));
 		partclause->keyno = partkeyidx;
-
-		/* For <> operator clauses, pass on the negator. */
-		partclause->op_is_ne = false;
-		partclause->op_strategy = InvalidStrategy;
 
 		if (is_opne_listp)
 		{
@@ -1355,17 +1879,15 @@ match_clause_to_partition_key(RelOptInfo *rel,
 			partclause->opno = negator;
 			partclause->op_is_ne = true;
 
-			/*
-			 * We already know the strategy in this case, so may as well set
-			 * it rather than having to look it up later.
-			 */
-			partclause->op_strategy = BTEqualStrategyNumber;
+			partclause->op_strategy = InvalidStrategy;
 		}
-		/* And if commuted before matching, pass on the commutator */
-		else if (OidIsValid(commutator))
-			partclause->opno = commutator;
 		else
-			partclause->opno = opclause->opno;
+		{
+			partclause->opno = OidIsValid(commutator) ?
+				commutator : opclause->opno;
+			partclause->op_is_ne = false;
+			partclause->op_strategy = op_strategy;
+		}
 
 		partclause->expr = expr;
 		partclause->cmpfn = cmpfn;
@@ -1389,25 +1911,62 @@ match_clause_to_partition_key(RelOptInfo *rel,
 		if (IsA(leftop, RelabelType))
 			leftop = ((RelabelType *) leftop)->arg;
 
-		/* Check it matches this partition key */
+		/* check if the LHS matches this partition key */
 		if (!equal(leftop, partkey) ||
 			!PartCollMatchesExprColl(partcoll, saop->inputcollid))
 			return PARTCLAUSE_NOMATCH;
 
+		if (IsA(rightop, ArrayCoerceExpr) &&
+		    IsA(((ArrayCoerceExpr *) rightop)->elemexpr, RelabelType))
+		{
+			rightop = ((ArrayCoerceExpr *) rightop)->arg;
+		}
 		/*
 		 * Matched with this key.  Check various properties of the clause to
-		 * see if it can sanely be used for partition pruning.
+		 * see if it can sanely be used for partition pruning (this is
+		 * identical to the logic for a plain OpExpr).
 		 */
+		if (context->forplanner)
+		{
+			/*
+			 * When pruning in the planner, we only support pruning using
+			 * comparisons to constants.  Immutable subexpressions will have
+			 * been folded to constants already, and we cannot prune on the
+			 * basis of anything that's not immutable.
+			 */
+			if (!IsA(rightop, Const))
+				return PARTCLAUSE_UNSUPPORTED;
+
+			/*
+			 * Also, the comparison operator itself must be immutable.
+			 */
+			if (op_volatile(saop_op) != PROVOLATILE_IMMUTABLE)
+				return PARTCLAUSE_UNSUPPORTED;
+		}
+		else
+		{
+			/*
+			 * Otherwise, non-consts are allowed, but we can't prune using an
+			 * expression that contains Vars.
+			 */
+			if (contain_var_clause((Node *) rightop))
+				return PARTCLAUSE_UNSUPPORTED;
+
+			/*
+			 * And we must reject anything containing a volatile function.
+			 * Stable functions are OK though.  (We need not check this for
+			 * the comparison operator itself: anything that belongs to a
+			 * partitioning operator family must be at least stable.)
+			 */
+			if (contain_volatile_functions((Node *) rightop))
+				return PARTCLAUSE_UNSUPPORTED;
+		}
 
 		/*
 		 * Only allow strict operators.  This will guarantee nulls are
 		 * filtered.
 		 */
 		if (!op_strict(saop_op))
-			return PARTCLAUSE_UNSUPPORTED;
-
-		/* Useless if the array has any volatile functions. */
-		if (contain_volatile_functions((Node *) rightop))
 			return PARTCLAUSE_UNSUPPORTED;
 
 		/*
@@ -1448,7 +2007,7 @@ match_clause_to_partition_key(RelOptInfo *rel,
 		if (IsA(rightop, Const))
 		{
 			Const	   *arr = castNode(Const, rightop);
-			ArrayType  *arrval = DatumGetArrayTypeP(arr->constvalue);
+			ArrayType  *arrval = NULL;
 			int16		elemlen;
 			bool		elembyval;
 			char		elemalign;
@@ -1456,7 +2015,18 @@ match_clause_to_partition_key(RelOptInfo *rel,
 			bool	   *elem_nulls;
 			int			num_elems,
 						i;
+			
+			/* If the array itself is null, the saop returns null */
+			if (arr->constisnull)
+				return PARTCLAUSE_MATCH_CONTRADICT;
+			
+			arrval = DatumGetArrayTypeP(arr->constvalue);
 
+			/* If the array itself is null, the saop returns null */
+			if (arr->constisnull)
+				return PARTCLAUSE_MATCH_CONTRADICT;
+
+			arrval = DatumGetArrayTypeP(arr->constvalue);
 			get_typlenbyvalalign(ARR_ELEMTYPE(arrval),
 								 &elemlen, &elembyval, &elemalign);
 			deconstruct_array(arrval,
@@ -1575,6 +2145,14 @@ match_clause_to_partition_key(RelOptInfo *rel,
  * 'prefix'.  Actually, since 'prefix' may contain multiple clauses for the
  * same partition key column, we must generate steps for various combinations
  * of the clauses of different keys.
+ *
+ * For list/range partitioning, callers must ensure that step_nullkeys is
+ * NULL, and that prefix contains at least one clause for each of the
+ * partition keys earlier than one specified in step_lastkeyno if it's
+ * greater than zero.  For hash partitioning, step_nullkeys is allowed to be
+ * non-NULL, but they must ensure that prefix contains at least one clause
+ * for each of the partition keys other than those specified in step_nullkeys
+ * and step_lastkeyno.
  */
 static List *
 get_steps_using_prefix(GeneratePruningStepsContext *context,
@@ -1586,6 +2164,8 @@ get_steps_using_prefix(GeneratePruningStepsContext *context,
 					   Bitmapset *step_nullkeys,
 					   List *prefix)
 {
+	Assert(step_nullkeys == NULL || context->rel->part_scheme->strategy == PARTITION_STRATEGY_HASH);
+
 	/* Quick exit if there are no values to prefix with. */
 	if (list_length(prefix) == 0)
 	{
@@ -1651,7 +2231,7 @@ get_steps_using_prefix_recurse(GeneratePruningStepsContext *context,
 		ListCell   *next_start;
 
 		/*
-		 * For each clause with cur_keyno, adds its expr and cmpfn to
+		 * For each clause with cur_keyno, add its expr and cmpfn to
 		 * step_exprs and step_cmpfns, respectively, and recurse after setting
 		 * next_start to the ListCell of the first clause for the next
 		 * partition key.
@@ -1668,23 +2248,19 @@ get_steps_using_prefix_recurse(GeneratePruningStepsContext *context,
 		for_each_cell(lc, start)
 		{
 			List	   *moresteps;
+			List	   *step_exprs1,
+					   *step_cmpfns1;
 
 			pc = lfirst(lc);
 			if (pc->keyno == cur_keyno)
 			{
-				/* clean up before starting a new recursion cycle. */
-				if (cur_keyno == 0)
-				{
-					list_free(step_exprs);
-					list_free(step_cmpfns);
-					step_exprs = list_make1(pc->expr);
-					step_cmpfns = list_make1_oid(pc->cmpfn);
-				}
-				else
-				{
-					step_exprs = lappend(step_exprs, pc->expr);
-					step_cmpfns = lappend_oid(step_cmpfns, pc->cmpfn);
-				}
+				/* Leave the original step_exprs unmodified. */
+				step_exprs1 = list_copy(step_exprs);
+				step_exprs1 = lappend(step_exprs1, pc->expr);
+
+				/* Leave the original step_cmpfns unmodified. */
+				step_cmpfns1 = list_copy(step_cmpfns);
+				step_cmpfns1 = lappend_oid(step_cmpfns1, pc->cmpfn);
 			}
 			else
 			{
@@ -1700,9 +2276,12 @@ get_steps_using_prefix_recurse(GeneratePruningStepsContext *context,
 													   step_lastkeyno,
 													   step_nullkeys,
 													   next_start,
-													   step_exprs,
-													   step_cmpfns);
+													   step_exprs1,
+													   step_cmpfns1);
 			result = list_concat(result, moresteps);
+
+			list_free(step_exprs1);
+			list_free(step_cmpfns1);
 		}
 	}
 	else
@@ -1710,9 +2289,13 @@ get_steps_using_prefix_recurse(GeneratePruningStepsContext *context,
 		/*
 		 * End the current recursion cycle and start generating steps, one for
 		 * each clause with cur_keyno, which is all clauses from here onward
-		 * till the end of the list.
+		 * till the end of the list.  Note that for hash partitioning,
+		 * step_nullkeys is allowed to be non-empty, in which case step_exprs
+		 * would only contain expressions for the earlier partition keys that
+		 * are not specified in step_nullkeys.
 		 */
-		Assert(list_length(step_exprs) == cur_keyno);
+		Assert(list_length(step_exprs) == cur_keyno ||
+			   !bms_is_empty(step_nullkeys));
 		for_each_cell(lc, start)
 		{
 			PartClauseInfo *pc = lfirst(lc);
@@ -1798,16 +2381,20 @@ get_matching_hash_bounds(PartitionPruneContext *context,
 		for (i = 0; i < partnatts; i++)
 			isnull[i] = bms_is_member(i, nullkeys);
 
-		greatest_modulus = get_hash_partition_greatest_modulus(boundinfo);
-		rowHash = compute_hash_value(partnatts, partsupfunc, values, isnull);
+		rowHash = compute_partition_hash_value(partnatts, partsupfunc,
+											   values, isnull);
 
+		greatest_modulus = boundinfo->nindexes;
 		if (partindices[rowHash % greatest_modulus] >= 0)
 			result->bound_offsets =
 				bms_make_singleton(rowHash % greatest_modulus);
 	}
 	else
+	{
+		/* Report all valid offsets into the boundinfo->indexes array. */
 		result->bound_offsets = bms_add_range(NULL, 0,
-											  boundinfo->ndatums - 1);
+											  boundinfo->nindexes - 1);
+	}
 
 	/*
 	 * There is neither a special hash null partition or the default hash
@@ -2437,6 +3024,121 @@ get_matching_range_bounds(PartitionPruneContext *context,
 }
 
 /*
+ * pull_exec_paramids
+ *		Returns a Bitmapset containing the paramids of all Params with
+ *		paramkind = PARAM_EXEC in 'expr'.
+ */
+static Bitmapset *
+pull_exec_paramids(Expr *expr)
+{
+	Bitmapset  *result = NULL;
+
+	(void) pull_exec_paramids_walker((Node *) expr, &result);
+
+	return result;
+}
+
+static bool
+pull_exec_paramids_walker(Node *node, Bitmapset **context)
+{
+	if (node == NULL)
+		return false;
+	if (IsA(node, Param))
+	{
+		Param	   *param = (Param *) node;
+
+		if (param->paramkind == PARAM_EXEC)
+			*context = bms_add_member(*context, param->paramid);
+		return false;
+	}
+	return expression_tree_walker(node, pull_exec_paramids_walker,
+								  (void *) context);
+}
+
+/*
+ * analyze_partkey_exprs
+ *		Loop through all pruning steps and identify which ones require
+ *		executor startup-time or executor run-time pruning.
+ *
+ * Returns true if any executor partition pruning should be attempted at this
+ * level.  Also fills fields of *pinfo to record how to process each step.
+ */
+static bool
+analyze_partkey_exprs(PartitionedRelPruneInfo *pinfo, List *steps,
+					  int partnatts)
+{
+	bool		doruntimeprune = false;
+	ListCell   *lc;
+
+	/*
+	 * Steps require run-time pruning if they contain EXEC_PARAM Params.
+	 * Otherwise, if their expressions aren't simple Consts or they involve
+	 * non-immutable comparison operators, they require startup-time pruning.
+	 * (Otherwise, the pruning would have been done at plan time.)
+	 *
+	 * Notice that what we actually check for mutability is the comparison
+	 * functions, not the original operators.  This relies on the support
+	 * functions of the btree or hash opfamily being marked consistently with
+	 * the operators.
+	 */
+	pinfo->nexprs = list_length(steps) * partnatts;
+	pinfo->hasexecparam = (bool *) palloc0(sizeof(bool) * pinfo->nexprs);
+	pinfo->do_initial_prune = false;
+	pinfo->do_exec_prune = false;
+	pinfo->execparamids = NULL;
+
+	foreach(lc, steps)
+	{
+		PartitionPruneStepOp *step = (PartitionPruneStepOp *) lfirst(lc);
+		ListCell   *lc2;
+		ListCell   *lc3;
+		int			keyno;
+
+		if (!IsA(step, PartitionPruneStepOp))
+			continue;
+
+		keyno = 0;
+		Assert(list_length(step->exprs) == list_length(step->cmpfns));
+		forboth(lc2, step->exprs, lc3, step->cmpfns)
+		{
+			Expr	   *expr = lfirst(lc2);
+			Oid			fnoid = lfirst_oid(lc3);
+
+			if (!IsA(expr, Const))
+			{
+				Bitmapset  *execparamids = pull_exec_paramids(expr);
+				bool		hasexecparams;
+				int			stateidx = PruneCxtStateIdx(partnatts,
+														step->step.step_id,
+														keyno);
+
+				Assert(stateidx < pinfo->nexprs);
+				hasexecparams = !bms_is_empty(execparamids);
+				pinfo->hasexecparam[stateidx] = hasexecparams;
+				pinfo->execparamids = bms_join(pinfo->execparamids,
+											   execparamids);
+
+				if (hasexecparams)
+					pinfo->do_exec_prune = true;
+				else
+					pinfo->do_initial_prune = true;
+
+				doruntimeprune = true;
+			}
+			else if (func_volatile(fnoid) != PROVOLATILE_IMMUTABLE)
+			{
+				/* No exec params here, but must do initial pruning */
+				pinfo->do_initial_prune = true;
+				doruntimeprune = true;
+			}
+			keyno++;
+		}
+	}
+
+	return doruntimeprune;
+}
+
+/*
  * perform_pruning_base_step
  *		Determines the indexes of datums that satisfy conditions specified in
  *		'opstep'.
@@ -2453,7 +3155,8 @@ perform_pruning_base_step(PartitionPruneContext *context,
 	int			keyno,
 				nvalues;
 	Datum		values[PARTITION_MAX_KEYS];
-	FmgrInfo	partsupfunc[PARTITION_MAX_KEYS];
+	FmgrInfo   *partsupfunc;
+	int			stateidx;
 
 	/*
 	 * There better be the same number of expressions and compare functions.
@@ -2489,25 +3192,52 @@ perform_pruning_base_step(PartitionPruneContext *context,
 		{
 			Expr	   *expr;
 			Datum		datum;
+			bool		isnull;
 
 			expr = lfirst(lc1);
-			if (partkey_datum_from_expr(context, expr, &datum))
+			stateidx = PruneCxtStateIdx(context->partnatts,
+										opstep->step.step_id, keyno);
+			if (partkey_datum_from_expr(context, expr, stateidx,
+										&datum, &isnull))
 			{
 				Oid			cmpfn;
 
 				/*
-				 * If we're going to need a different comparison function than
-				 * the one cached in the PartitionKey, we'll need to look up
-				 * the FmgrInfo.
+				 * Since we only allow strict operators in pruning steps, any
+				 * null-valued comparison value must cause the comparison to
+				 * fail, so that no partitions could match.
 				 */
+				if (isnull)
+				{
+					PruneStepResult *result;
+
+					result = (PruneStepResult *) palloc(sizeof(PruneStepResult));
+					result->bound_offsets = NULL;
+					result->scan_default = false;
+					result->scan_null = false;
+
+					return result;
+				}
+
+				/* Set up the stepcmpfuncs entry, unless we already did */
 				cmpfn = lfirst_oid(lc2);
 				Assert(OidIsValid(cmpfn));
-				if (cmpfn != context->partsupfunc[keyno].fn_oid)
-					fmgr_info(cmpfn, &partsupfunc[keyno]);
-				else
-					fmgr_info_copy(&partsupfunc[keyno],
+				if (cmpfn != context->stepcmpfuncs[stateidx].fn_oid)
+				{
+					/*
+					 * If the needed support function is the same one cached
+					 * in the relation's partition key, copy the cached
+					 * FmgrInfo.  Otherwise (i.e., when we have a cross-type
+					 * comparison), an actual lookup is required.
+					 */
+					if (cmpfn == context->partsupfunc[keyno].fn_oid)
+						fmgr_info_copy(&context->stepcmpfuncs[stateidx],
 								   &context->partsupfunc[keyno],
-								   CurrentMemoryContext);
+									   context->ppccontext);
+					else
+						fmgr_info_cxt(cmpfn, &context->stepcmpfuncs[stateidx],
+									  context->ppccontext);
+				}
 
 				values[keyno] = datum;
 				nvalues++;
@@ -2517,6 +3247,13 @@ perform_pruning_base_step(PartitionPruneContext *context,
 			lc2 = lnext(lc2);
 		}
 	}
+
+	/*
+	 * Point partsupfunc to the entry for the 0th key of this step; the
+	 * additional support functions, if any, follow consecutively.
+	 */
+	stateidx = PruneCxtStateIdx(context->partnatts, opstep->step.step_id, 0);
+	partsupfunc = &context->stepcmpfuncs[stateidx];
 
 	switch (context->strategy)
 	{
@@ -2564,30 +3301,20 @@ perform_pruning_combine_step(PartitionPruneContext *context,
 							 PartitionPruneStepCombine *cstep,
 							 PruneStepResult **step_results)
 {
-	ListCell   *lc1;
-	PruneStepResult *result = NULL;
+	PruneStepResult *result = (PruneStepResult *) palloc0(sizeof(PruneStepResult));
 	bool		firststep;
+	ListCell   *lc1;
 
 	/*
 	 * A combine step without any source steps is an indication to not perform
 	 * any partition pruning.  Return all datum indexes in that case.
 	 */
-	result = (PruneStepResult *) palloc0(sizeof(PruneStepResult));
-	if (list_length(cstep->source_stepids) == 0)
+	if (cstep->source_stepids == NIL)
 	{
 		PartitionBoundInfo boundinfo = context->boundinfo;
-		int			rangemax;
-
-		/*
-		 * Add all valid offsets into the boundinfo->indexes array.  For range
-		 * partitioning, boundinfo->indexes contains (boundinfo->ndatums + 1)
-		 * valid entries; otherwise there are boundinfo->ndatums.
-		 */
-		rangemax = context->strategy == PARTITION_STRATEGY_RANGE ?
-			boundinfo->ndatums : boundinfo->ndatums - 1;
 
 		result->bound_offsets =
-			bms_add_range(result->bound_offsets, 0, rangemax);
+			bms_add_range(NULL, 0, boundinfo->nindexes - 1);
 		result->scan_default = partition_bound_has_default(boundinfo);
 		result->scan_null = partition_bound_accepts_nulls(boundinfo);
 		return result;
@@ -2639,7 +3366,8 @@ perform_pruning_combine_step(PartitionPruneContext *context,
 				if (firststep)
 				{
 					/* Copy step's result the first time. */
-					result->bound_offsets = step_result->bound_offsets;
+					result->bound_offsets =
+						bms_copy(step_result->bound_offsets);
 					result->scan_null = step_result->scan_null;
 					result->scan_default = step_result->scan_default;
 					firststep = false;
@@ -2738,21 +3466,57 @@ match_boolean_partition_clause(Oid partopfamily, Expr *clause, Expr *partkey,
 
 /*
  * partkey_datum_from_expr
- *		Evaluate 'expr', set *value to the resulting Datum. Return true if
- *		evaluation was possible, otherwise false.
+ *		Evaluate expression for potential partition pruning
+ *
+ * Evaluate 'expr', whose ExprState is stateidx of the context exprstate
+ * array; set *value and *isnull to the resulting Datum and nullflag.
+ * Return true if evaluation was possible, otherwise false.
+ *
+ * Note that the evaluated result may be in the per-tuple memory context of
+ * context->planstate->ps_ExprContext, and we may have leaked other memory
+ * there too.  This memory must be recovered by resetting that ExprContext
+ * after we're done with the pruning operation (see execPartition.c).
  */
 static bool
 partkey_datum_from_expr(PartitionPruneContext *context,
-						Expr *expr, Datum *value)
+						Expr *expr, int stateidx,
+						Datum *value, bool *isnull)
 {
-	switch (nodeTag(expr))
+	if (IsA(expr, Const))
 	{
-		case T_Const:
-			*value = ((Const *) expr)->constvalue;
-			return true;
+		/* We can always determine the value of a constant */
+		Const	   *con = (Const *) expr;
 
-		default:
-			break;
+		*value = con->constvalue;
+		*isnull = con->constisnull;
+			return true;
+	}
+	else
+	{
+		/*
+		 * We should never see a non-Const in a step unless we're running in
+		 * the executor.
+		 */
+		Assert(context->planstate != NULL);
+
+		/*
+		 * When called from the executor we'll have a valid planstate so we
+		 * may be able to evaluate an expression which could not be folded to
+		 * a Const during planning.  Since run-time pruning can occur both
+		 * during initialization of the executor or while it's running, we
+		 * must be careful here to evaluate expressions containing PARAM_EXEC
+		 * Params only when told it's OK.
+		 */
+		if (context->evalexecparams || !context->exprhasexecparam[stateidx])
+		{
+			ExprState   *exprstate;
+			ExprContext *ectx;
+
+			exprstate = context->exprstates[stateidx];
+			ectx = context->planstate->ps_ExprContext;
+			*value = ExecEvalExprSwitchContext(exprstate, ectx, isnull);
+			return true;
+		}
 	}
 
 	return false;

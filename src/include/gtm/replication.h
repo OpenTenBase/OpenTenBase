@@ -19,7 +19,7 @@
 #include "gtm/libpq.h"
 #include "gtm/stringinfo.h"
 
-void ProcessBeginReplicaInitSyncRequest(Port *, StringInfo);
-void ProcessEndReplicaInitSyncRequest(Port *, StringInfo);
+void ProcessBeginReplicationInitialSyncRequest(Port *, StringInfo);
+void ProcessEndReplicationInitialSyncRequest(Port *, StringInfo);
 
 #endif /* REPLICATION_H */

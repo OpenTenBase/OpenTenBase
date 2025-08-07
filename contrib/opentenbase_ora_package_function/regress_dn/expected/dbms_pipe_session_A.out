@@ -1,0 +1,36 @@
+\c opentenbase_ora_package_function_regression_ora
+\set ECHO none
+ REMOVE_PIPE 
+-------------
+ 
+(1 row)
+
+ REMOVE_PIPE 
+-------------
+ 
+(1 row)
+
+ CREATE_PIPE 
+-------------
+ 
+(1 row)
+
+ PACK_MESSAGE 
+--------------
+ 
+(1 row)
+
+ PACK_MESSAGE 
+--------------
+ 
+(1 row)
+
+ SEND_MESSAGE 
+--------------
+            0
+(1 row)
+
+  NAME   
+---------
+ my_pipe
+(1 row)

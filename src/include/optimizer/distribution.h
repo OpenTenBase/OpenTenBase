@@ -3,10 +3,8 @@
  * distribution.h
  *	  Routines related to adjust distribution
  *
- * Copyright (c) 2023 THL A29 Limited, a Tencent company.
+ * Copyright (c) 2020-Present OpenTenBase development team, Tencent
  *
- * This source code file is licensed under the BSD 3-Clause License,
- * you may obtain a copy of the License at http://opensource.org/license/bsd-3-clause/
  *
  * IDENTIFICATION
  *	  src/include/optimizer/distribution.h
@@ -22,9 +20,24 @@
 
 /* TODO(OpenTenBase): Move all plan/path distribution routines to this file */
 
-extern bool equal_distributions(PlannerInfo *root, Distribution *dst1,
-					Distribution *dst2);
+#define IsValidDistribution(distribution) \
+    ((distribution) != NULL && (distribution)->nExprs > 0 && \
+		(distribution)->disExprs != NULL && (distribution)->disExprs[0] != NULL)
+
+#define IsSingleColDistribution(distribution) \
+    (IsValidDistribution(distribution) && (distribution)->nExprs == 1)
+
+#define IsMultiColsDistribution(distribution) \
+    (IsValidDistribution(distribution) && \
+        (distribution)->nExprs > 1 && (distribution)->disExprs[1])
+
+extern bool equal_distributions(PlannerInfo *root, Path *path);
+extern bool equal_distributions_3(PlannerInfo *root, Distribution *dst1,
+								  Distribution *dst2);
+extern bool extend_equal_disExpr(PlannerInfo *root, Path *path, 
+                                Node *disExprs1, Node *disExprs2);
 extern ResultRelLocation getResultRelLocation(int resultRel, Relids inner,
 					Relids outer);
 extern bool SatisfyResultRelDist(PlannerInfo *root, Path *path);
+extern int get_rel_num_data_nodes(PlannerInfo *root, RelOptInfo *rel);
 #endif  /* DISTRIBUTION_H */

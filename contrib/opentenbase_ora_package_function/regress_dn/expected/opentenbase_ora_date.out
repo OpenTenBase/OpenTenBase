@@ -1,0 +1,743 @@
+\c opentenbase_ora_package_function_regression_ora
+\set ECHO none
+ ?column? 
+----------
+        1
+(1 row)
+
+ ?column? 
+----------
+        1
+(1 row)
+
+ ?column? 
+----------
+        1
+(1 row)
+
+ ?column? 
+----------
+        1
+(1 row)
+
+ ?column? 
+----------
+        1
+(1 row)
+
+ ?column? 
+----------
+        1
+(1 row)
+
+        Value        
+---------------------
+ 2024-01-15 00:00:00
+(1 row)
+
+        Value        
+---------------------
+ 2024-02-14 00:00:00
+(1 row)
+
+ ?column? 
+----------
+        1
+(1 row)
+
+ERROR:  date format picture ends before converting entire input string
+     TO_DATE_EXT     
+---------------------
+ 2024-02-14 00:00:00
+(1 row)
+
+ ?column? 
+----------
+        1
+(1 row)
+
+ ?column? 
+----------
+        1
+(1 row)
+
+           Value            
+----------------------------
+ +000000010 08:00:00.000000
+(1 row)
+
+           Value            
+----------------------------
+ +000000018 12:02:10.000000
+(1 row)
+
+ NEW_TIME('2024-01-15 15:30:45', 'GMT', 'NST') 
+-----------------------------------------------
+ 2024-01-15 12:00:45
+(1 row)
+
+ NEW_TIME('2024-01-15 15:30:45', 'GMT', 'PDT') 
+-----------------------------------------------
+ 2024-01-15 08:30:45
+(1 row)
+
+ NEW_TIME('2024-01-15 15:30:45', 'GMT', 'PST') 
+-----------------------------------------------
+ 2024-01-15 07:30:45
+(1 row)
+
+ NEW_TIME('2024-01-15 15:30:45', 'GMT', NULL) 
+----------------------------------------------
+ 
+(1 row)
+
+ NEW_TIME('2024-01-15 15:30:45', NULL, 'NST') 
+----------------------------------------------
+ 
+(1 row)
+
+ NEW_TIME(NULL, NULL, 'NST') 
+-----------------------------
+ 
+(1 row)
+
+ERROR:  not a valid time zone
+ERROR:  not a valid time zone
+ NEW_TIME(NULL, 'err', 'err') 
+------------------------------
+ 
+(1 row)
+
+ERROR:  invalid extract field for extract source
+ERROR:  invalid extract field for extract source
+ERROR:  invalid extract field for extract source
+ YEAR 
+------
+ 2023
+(1 row)
+
+ MONTH 
+-------
+     2
+(1 row)
+
+ HOUR 
+------
+   12
+(1 row)
+
+ MINUTE 
+--------
+     13
+(1 row)
+
+ SECOND 
+--------
+     14
+(1 row)
+
+ YEAR 
+------
+ 2023
+(1 row)
+
+ MONTH 
+-------
+     2
+(1 row)
+
+ YEAR 
+------
+   10
+(1 row)
+
+ MONTH 
+-------
+     2
+(1 row)
+
+ DAY 
+-----
+  10
+(1 row)
+
+ HOUR 
+------
+   22
+(1 row)
+
+ MINUTE 
+--------
+     33
+(1 row)
+
+ SECOND 
+--------
+     44
+(1 row)
+
+ERROR:  syntax error at or near "DAY"
+LINE 1: SELECT EXTRACT(SECOND FROM '10 22:33:44' DAY TO SECOND) SECO...
+                                                 ^
+ERROR:  invalid extract field for extract source
+         TMESTP          |           TMESTP_TZ            |       TMPSTP_TZL        | EXTRACT | EXTRACT | EXTRACT 
+-------------------------+--------------------------------+-------------------------+---------+---------+---------
+ 2024-01-09 08:22:33.000 | 2024-01-09 08:22:33.000 -08:00 | 2024-01-09 08:22:33.000 |       8 |      16 |       8
+(1 row)
+
+         TMESTP          |           TMESTP_TZ            |       TMPSTP_TZL        | EXTRACT | EXTRACT | EXTRACT 
+-------------------------+--------------------------------+-------------------------+---------+---------+---------
+ 2024-01-09 08:22:33.000 | 2024-01-09 08:22:33.000 -08:00 | 2024-01-10 00:22:33.000 |       8 |      16 |       0
+(1 row)
+
+       TO_DATE       
+---------------------
+ 2022-01-28 16:13:14
+(1 row)
+
+       TO_DATE       
+---------------------
+ 2022-01-28 16:13:14
+(1 row)
+
+ERROR:  invalid NLS parameter string used in SQL function
+ERROR:  invalid NLS parameter string used in SQL function
+ TO_DATE 
+---------
+ 
+(1 row)
+
+ TO_DATE_EXT 
+-------------
+ 
+(1 row)
+
+     TO_DATE_EXT     
+---------------------
+ 2022-01-28 16:13:14
+(1 row)
+
+     TO_DATE_EXT     
+---------------------
+ 2023-01-28 19:13:14
+(1 row)
+
+     TO_DATE_EXT     
+---------------------
+ 2022-01-28 16:13:14
+(1 row)
+
+     TO_DATE_EXT     
+---------------------
+ 2023-01-28 16:13:14
+(1 row)
+
+ERROR:  invalid NLS parameter string used in SQL function
+ERROR:  invalid NLS parameter string used in SQL function
+ERROR:  This argument must be a literal
+       TO_DATE       
+---------------------
+ 28-01-2022 16:13:14
+(1 row)
+
+     TO_DATE_EXT     
+---------------------
+ 28-01-2022 16:13:14
+(1 row)
+
+ERROR:  not a valid month
+ TO_DATE_EXT 
+-------------
+ 
+(1 row)
+
+       TO_DATE        
+----------------------
+ 01-JAN-2016 00:00:00
+(1 row)
+
+       TO_DATE        
+----------------------
+ 01-JAN-2016 00:00:00
+(1 row)
+
+       TO_DATE        
+----------------------
+ 01-JAN-2016 00:01:00
+(1 row)
+
+       TO_DATE        
+----------------------
+ 01-JAN-2016 00:01:00
+(1 row)
+
+       TO_DATE        
+----------------------
+ 01-JAN-2016 00:01:00
+(1 row)
+
+       TO_DATE        
+----------------------
+ 01-JAN-2016 00:01:00
+(1 row)
+
+       TO_DATE        
+----------------------
+ 01-JAN-2016 00:01:00
+(1 row)
+
+       TO_DATE        
+----------------------
+ 01-JAN-2016 00:01:00
+(1 row)
+
+       TO_DATE        
+----------------------
+ 01-JAN-2016 12:01:00
+(1 row)
+
+       TO_DATE        
+----------------------
+ 01-JAN-2016 12:01:00
+(1 row)
+
+       TO_DATE        
+----------------------
+ 01-JAN-2016 12:59:00
+(1 row)
+
+       TO_DATE        
+----------------------
+ 01-JAN-2016 12:59:00
+(1 row)
+
+         TO_TIMESTAMP          
+-------------------------------
+ 2022-01-28 16:13:14.000000000
+(1 row)
+
+         TO_TIMESTAMP          
+-------------------------------
+ 2022-01-28 16:13:15.000000000
+(1 row)
+
+ERROR:  invalid NLS parameter string used in SQL function
+ERROR:  invalid NLS parameter string used in SQL function
+ TO_TIMESTAMP 
+--------------
+ 
+(1 row)
+
+ TO_TIMESTAMP_EXT 
+------------------
+ 
+(1 row)
+
+       TO_TIMESTAMP_EXT        
+-------------------------------
+ 2022-01-28 16:13:20.000000000
+(1 row)
+
+  TO_TIMESTAMP_EXT   
+---------------------
+ 28-01-2022 16:13:21
+(1 row)
+
+  TO_TIMESTAMP_EXT   
+---------------------
+ 28-01-2022 16:13:22
+(1 row)
+
+  TO_TIMESTAMP_EXT   
+---------------------
+ 28-01-2023 16:13:14
+(1 row)
+
+           TO_TIMESTAMP_TZ            
+--------------------------------------
+ 2022-01-28 16:13:14.000000000 +08:00
+(1 row)
+
+           TO_TIMESTAMP_TZ            
+--------------------------------------
+ 2022-01-28 16:13:15.000000000 +08:00
+(1 row)
+
+ERROR:  invalid NLS parameter string used in SQL function
+ERROR:  invalid NLS parameter string used in SQL function
+ TO_TIMESTAMP_TZ_EXT 
+---------------------
+ 
+(1 row)
+
+         TO_TIMESTAMP_TZ_EXT          
+--------------------------------------
+ 2022-01-28 16:13:19.000000000 +08:00
+(1 row)
+
+         TO_TIMESTAMP_TZ_EXT          
+--------------------------------------
+ 2022-01-28 16:13:20.000000000 +08:00
+(1 row)
+
+    TO_TIMESTAMP_TZ_EXT     
+----------------------------
+ 28-01-2022 16:13:21 +08:00
+(1 row)
+
+    TO_TIMESTAMP_TZ_EXT     
+----------------------------
+ 28-01-2023 16:13:14 +08:00
+(1 row)
+
+ERROR:  invalid NLS parameter string used in SQL function
+ERROR:  invalid NLS parameter string used in SQL function
+       TO_CHAR        
+----------------------
+ 28-JAN-2022 16:13:14
+(1 row)
+
+ TO_CHAR 
+---------
+ 
+(1 row)
+
+       TO_CHAR        
+----------------------
+ 28-JAN-2022 16:13:14
+(1 row)
+
+ TO_CHAR 
+---------
+ 
+(1 row)
+
+       TO_CHAR        
+----------------------
+ 28-JAN-2022 16:13:14
+(1 row)
+
+ TO_CHAR 
+---------
+ 
+(1 row)
+
+ERROR:  invalid input syntax for type numeric
+ERROR:  invalid input syntax for type numeric
+    Result     
+---------------
+ +000000100-10
+(1 row)
+
+ERROR:  invalid value for parameter "nls_date_language": "American-error"
+DETAIL:  Cannot access NLS data files or invalid environment specified
+ERROR:  invalid value for parameter "nls_date_language": "Chinese"
+DETAIL:  Cannot access NLS data files or invalid environment specified
+      R       | EXTRACT 
+--------------+---------
+ -99 23:00:00 |     -99
+(1 row)
+
+      R       | EXTRACT 
+--------------+---------
+ -99 23:00:00 |     -23
+(1 row)
+
+      R       | EXTRACT 
+--------------+---------
+ -01 15:59:00 |     -15
+(1 row)
+
+      R       | EXTRACT 
+--------------+---------
+ -01 15:59:00 |      -1
+(1 row)
+
+      R       | EXTRACT 
+--------------+---------
+ -01 15:59:00 |     -59
+(1 row)
+
+          R          | EXTRACT 
+---------------------+---------
+ 27-03-2024 00:00:00 | .123456
+(1 row)
+
+             R              | EXTRACT 
+----------------------------+---------
+ 27-03-2024 00:00:00 +08:00 | .123456
+(1 row)
+
+ ID 
+----
+(0 rows)
+
+ TO_DATE 
+---------
+ 
+(1 row)
+
+ TO_DATE 
+---------
+ 
+(1 row)
+
+ TO_DATE 
+---------
+ 
+(1 row)
+
+ TO_DATE 
+---------
+ 
+(1 row)
+
+ TO_DATE 
+---------
+ 
+(1 row)
+
+ TO_DATE_EXT 
+-------------
+ 
+(1 row)
+
+ TO_DATE_EXT 
+-------------
+ 
+(1 row)
+
+ TO_DATE_EXT 
+-------------
+ 
+(1 row)
+
+ TO_DATE_EXT 
+-------------
+ 
+(1 row)
+
+ TO_DATE_EXT 
+-------------
+ 
+(1 row)
+
+ TO_DATE_EXT 
+-------------
+ 
+(1 row)
+
+ TO_DATE_EXT 
+-------------
+ 
+(1 row)
+
+ TO_DATE_EXT 
+-------------
+ 
+(1 row)
+
+ TO_DATE_EXT 
+-------------
+ 
+(1 row)
+
+ TO_TIMESTAMP 
+--------------
+ 
+(1 row)
+
+ TO_TIMESTAMP 
+--------------
+ 
+(1 row)
+
+ TO_TIMESTAMP 
+--------------
+ 
+(1 row)
+
+ TO_TIMESTAMP 
+--------------
+ 
+(1 row)
+
+ TO_TIMESTAMP 
+--------------
+ 
+(1 row)
+
+ TO_TIMESTAMP_EXT 
+------------------
+ 
+(1 row)
+
+ TO_TIMESTAMP_EXT 
+------------------
+ 
+(1 row)
+
+ TO_TIMESTAMP_EXT 
+------------------
+ 
+(1 row)
+
+ TO_TIMESTAMP_EXT 
+------------------
+ 
+(1 row)
+
+ TO_TIMESTAMP_EXT 
+------------------
+ 
+(1 row)
+
+ TO_TIMESTAMP_EXT 
+------------------
+ 
+(1 row)
+
+ TO_TIMESTAMP_EXT 
+------------------
+ 
+(1 row)
+
+ TO_TIMESTAMP_EXT 
+------------------
+ 
+(1 row)
+
+ TO_TIMESTAMP_EXT 
+------------------
+ 
+(1 row)
+
+ TO_TIMESTAMP_TZ 
+-----------------
+ 
+(1 row)
+
+ TO_TIMESTAMP_TZ 
+-----------------
+ 
+(1 row)
+
+ TO_TIMESTAMP_TZ 
+-----------------
+ 
+(1 row)
+
+ TO_TIMESTAMP_TZ 
+-----------------
+ 
+(1 row)
+
+ TO_TIMESTAMP_TZ 
+-----------------
+ 
+(1 row)
+
+ TO_TIMESTAMP_TZ_EXT 
+---------------------
+ 
+(1 row)
+
+ TO_TIMESTAMP_TZ_EXT 
+---------------------
+ 
+(1 row)
+
+ TO_TIMESTAMP_TZ_EXT 
+---------------------
+ 
+(1 row)
+
+ TO_TIMESTAMP_TZ_EXT 
+---------------------
+ 
+(1 row)
+
+ TO_TIMESTAMP_TZ_EXT 
+---------------------
+ 
+(1 row)
+
+ TO_TIMESTAMP_TZ_EXT 
+---------------------
+ 
+(1 row)
+
+ TO_TIMESTAMP_TZ_EXT 
+---------------------
+ 
+(1 row)
+
+ TO_TIMESTAMP_TZ_EXT 
+---------------------
+ 
+(1 row)
+
+ TO_TIMESTAMP_TZ_EXT 
+---------------------
+ 
+(1 row)
+
+ TO_CHAR 
+---------
+ 
+(1 row)
+
+ TO_CHAR 
+---------
+ 
+(1 row)
+
+ TO_CHAR 
+---------
+ 
+(1 row)
+
+ TO_CHAR 
+---------
+ 
+(1 row)
+
+ TO_CHAR 
+---------
+ 
+(1 row)
+
+ TO_CHAR 
+---------
+ 
+(1 row)
+
+ TO_CHAR 
+---------
+ 
+(1 row)
+
+ TO_CHAR 
+---------
+ 
+(1 row)
+
+ TO_DSINTERVAL_EXT 
+-------------------
+ 
+(1 row)
+
+ TO_DSINTERVAL_EXT 
+-------------------
+ 
+(1 row)
+
+ TO_YMINTERVAL_EXT 
+-------------------
+ 
+(1 row)
+
+ TO_YMINTERVAL_EXT 
+-------------------
+ 
+(1 row)

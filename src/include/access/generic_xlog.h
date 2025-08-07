@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * generic_xlog.h
- *      Generic xlog API definition.
+ *	  Generic xlog API definition.
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -20,10 +20,10 @@
 #include "storage/bufpage.h"
 #include "utils/rel.h"
 
-#define MAX_GENERIC_XLOG_PAGES    XLR_NORMAL_MAX_BLOCK_ID
+#define MAX_GENERIC_XLOG_PAGES	XLR_NORMAL_MAX_BLOCK_ID
 
 /* Flag bits for GenericXLogRegisterBuffer */
-#define GENERIC_XLOG_FULL_IMAGE 0x0001    /* write full-page image */
+#define GENERIC_XLOG_FULL_IMAGE 0x0001	/* write full-page image */
 
 /* state of generic xlog record construction */
 struct GenericXLogState;
@@ -32,7 +32,7 @@ typedef struct GenericXLogState GenericXLogState;
 /* API for construction of generic xlog records */
 extern GenericXLogState *GenericXLogStart(Relation relation);
 extern Page GenericXLogRegisterBuffer(GenericXLogState *state, Buffer buffer,
-                          int flags);
+						  int flags);
 extern XLogRecPtr GenericXLogFinish(GenericXLogState *state);
 extern void GenericXLogAbort(GenericXLogState *state);
 
@@ -42,4 +42,4 @@ extern const char *generic_identify(uint8 info);
 extern void generic_desc(StringInfo buf, XLogReaderState *record);
 extern void generic_mask(char *pagedata, BlockNumber blkno);
 
-#endif                            /* GENERIC_XLOG_H */
+#endif							/* GENERIC_XLOG_H */

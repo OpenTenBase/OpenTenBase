@@ -54,37 +54,37 @@
 
 #include "mb/pg_wchar.h"
 
-#include "miscadmin.h"            /* needed by rcancelrequested/rstacktoodeep */
+#include "miscadmin.h"			/* needed by rcancelrequested/rstacktoodeep */
 
 
 /* overrides for regguts.h definitions, if any */
 #define FUNCPTR(name, args) (*name) args
-#define MALLOC(n)        malloc(n)
-#define FREE(p)            free(VS(p))
-#define REALLOC(p,n)    realloc(VS(p),n)
-#define assert(x)        Assert(x)
+#define MALLOC(n)		malloc(n)
+#define FREE(p)			free(VS(p))
+#define REALLOC(p,n)	realloc(VS(p),n)
+#define assert(x)		Assert(x)
 
 /* internal character type and related */
-typedef pg_wchar chr;            /* the type itself */
-typedef unsigned uchr;            /* unsigned type that will hold a chr */
+typedef pg_wchar chr;			/* the type itself */
+typedef unsigned uchr;			/* unsigned type that will hold a chr */
 
-#define CHR(c)    ((unsigned char) (c))    /* turn char literal into chr literal */
-#define DIGITVAL(c) ((c)-'0')    /* turn chr digit into its value */
-#define CHRBITS 32                /* bits in a chr; must not use sizeof */
-#define CHR_MIN 0x00000000        /* smallest and largest chr; the value */
-#define CHR_MAX 0x7ffffffe        /* CHR_MAX-CHR_MIN+1 must fit in an int, and
-                                 * CHR_MAX+1 must fit in a chr variable */
+#define CHR(c)	((unsigned char) (c))	/* turn char literal into chr literal */
+#define DIGITVAL(c) ((c)-'0')	/* turn chr digit into its value */
+#define CHRBITS 32				/* bits in a chr; must not use sizeof */
+#define CHR_MIN 0x00000000		/* smallest and largest chr; the value */
+#define CHR_MAX 0x7ffffffe		/* CHR_MAX-CHR_MIN+1 must fit in an int, and
+								 * CHR_MAX+1 must fit in a chr variable */
 
 /*
  * Check if a chr value is in range.  Ideally we'd just write this as
- *        ((c) >= CHR_MIN && (c) <= CHR_MAX)
+ *		((c) >= CHR_MIN && (c) <= CHR_MAX)
  * However, if chr is unsigned and CHR_MIN is zero, the first part of that
  * is a no-op, and certain overly-nannyish compilers give warnings about it.
  * So we leave that out here.  If you want to make chr signed and/or CHR_MIN
  * not zero, redefine this macro as above.  Callers should assume that the
  * macro may multiply evaluate its argument, even though it does not today.
  */
-#define CHR_IS_IN_RANGE(c)    ((c) <= CHR_MAX)
+#define CHR_IS_IN_RANGE(c)	((c) <= CHR_MAX)
 
 /*
  * MAX_SIMPLE_CHR is the cutoff between "simple" and "complicated" processing
@@ -94,7 +94,7 @@ typedef unsigned uchr;            /* unsigned type that will hold a chr */
  * Also, small values can be helpful for testing the high-color-map logic
  * with plain old ASCII input.
  */
-#define MAX_SIMPLE_CHR    0x7FF    /* suitable value for Unicode */
+#define MAX_SIMPLE_CHR	0x7FF	/* suitable value for Unicode */
 
 /* functions operating on chr */
 #define iscalnum(x) pg_wc_isalnum(x)

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * solaris.h
- *      port-specific prototypes for Solaris
+ *	  port-specific prototypes for Solaris
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -15,7 +15,7 @@
 #define PORT_PROTOS_H
 
 #include <dlfcn.h>
-#include "utils/dynamic_loader.h"    /* pgrminclude ignore */
+#include "utils/dynamic_loader.h"	/* pgrminclude ignore */
 
 /*
  * In some older systems, the RTLD_NOW flag isn't defined and the mode
@@ -30,9 +30,9 @@
 #define RTLD_GLOBAL 0
 #endif
 
-#define pg_dlopen(f)    dlopen((f), RTLD_NOW | RTLD_GLOBAL)
-#define pg_dlsym        dlsym
-#define pg_dlclose        dlclose
-#define pg_dlerror        dlerror
+#define pg_dlopen(f)	dlopen((f), RTLD_NOW | RTLD_GLOBAL)
+#define pg_dlsym		dlsym
+#define pg_dlclose		dlclose
+#define pg_dlerror		dlerror
 
-#endif                            /* PORT_PROTOS_H */
+#endif							/* PORT_PROTOS_H */

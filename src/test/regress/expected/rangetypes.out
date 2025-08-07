@@ -342,6 +342,7 @@ select * from numrange_test where nr > numrange(1000.0, 1000.0,'[]') ORDER BY nr
 
 select numrange(2.0, 1.0);
 ERROR:  range lower bound must be less than or equal to range upper bound
+HINT:   while processing column numrange
 select numrange(2.0, 3.0) -|- numrange(3.0, 4.0);
  ?column? 
 ----------
@@ -1095,12 +1096,13 @@ explain (costs off)
 select ir from test_range_spgist where ir -|- int4range(10,20) order by ir;
                                   QUERY PLAN                                  
 ------------------------------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+ Remote Fast Query Execution
+   Node/s: datanode_1
    ->  Sort
          Sort Key: ir
          ->  Index Only Scan using test_range_spgist_idx on test_range_spgist
                Index Cond: (ir -|- '[10,20)'::int4range)
-(5 rows)
+(6 rows)
 
 select ir from test_range_spgist where ir -|- int4range(10,20) order by ir;
      ir     
@@ -1325,6 +1327,7 @@ select arrayrange(ARRAY[1,2], ARRAY[2,1]);
 
 select arrayrange(ARRAY[2,1], ARRAY[1,2]);  -- fail
 ERROR:  range lower bound must be less than or equal to range upper bound
+HINT:   while processing column arrayrange
 select array[1,1] <@ arrayrange(array[1,2], array[2,1]);
  ?column? 
 ----------
@@ -1354,6 +1357,18 @@ select *, row_to_json(upper(t)) as u from
 
 drop type two_ints cascade;
 NOTICE:  drop cascades to type two_ints_range
+--
+-- Check behavior when subtype lacks a hash function
+--
+create type cashrange as range (subtype = money);
+set enable_sort = off;  -- try to make it pick a hash setop implementation
+select '(2,5)'::cashrange except select '(5,6)'::cashrange;
+   cashrange   
+---------------
+ ($2.00,$5.00)
+(1 row)
+
+reset enable_sort;
 --
 -- OUT/INOUT/TABLE functions
 --

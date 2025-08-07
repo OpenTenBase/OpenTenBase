@@ -1,0 +1,108 @@
+create table if not exists tbl_20231124(a int) with(autovacuum_enabled=off);
+explain select * from tbl_20231124;
+                           QUERY PLAN                           
+----------------------------------------------------------------
+ Seq Scan on tbl_20231124  (cost=0.00..24.50 rows=1450 width=4)
+(1 row)
+
+explain select * from tbl_20231124 where a > 10;
+                          QUERY PLAN                           
+---------------------------------------------------------------
+ Seq Scan on tbl_20231124  (cost=0.00..28.12 rows=483 width=4)
+   Filter: (a > 10)
+(2 rows)
+
+explain select * from tbl_20231124 where a <= 10;
+                          QUERY PLAN                           
+---------------------------------------------------------------
+ Seq Scan on tbl_20231124  (cost=0.00..28.12 rows=483 width=4)
+   Filter: (a <= 10)
+(2 rows)
+
+begin;
+insert into tbl_20231124 select generate_series(1, 10000);
+analyze (local) tbl_20231124;
+select count(*) from pg_locks where pid = pg_backend_pid() and mode = 'ShareUpdateExclusiveLock';
+ count 
+-------
+     0
+(1 row)
+
+explain select * from tbl_20231124;
+                            QUERY PLAN                            
+------------------------------------------------------------------
+ Seq Scan on tbl_20231124  (cost=0.00..175.00 rows=10000 width=4)
+(1 row)
+
+explain select * from tbl_20231124 where a > 10;
+                           QUERY PLAN                            
+-----------------------------------------------------------------
+ Seq Scan on tbl_20231124  (cost=0.00..200.00 rows=9990 width=4)
+   Filter: (a > 10)
+(2 rows)
+
+explain select * from tbl_20231124 where a <= 10;
+                          QUERY PLAN                           
+---------------------------------------------------------------
+ Seq Scan on tbl_20231124  (cost=0.00..200.00 rows=10 width=4)
+   Filter: (a <= 10)
+(2 rows)
+
+rollback;
+explain select * from tbl_20231124;
+                            QUERY PLAN                            
+------------------------------------------------------------------
+ Seq Scan on tbl_20231124  (cost=0.00..175.00 rows=10000 width=4)
+(1 row)
+
+explain select * from tbl_20231124 where a > 10;
+                           QUERY PLAN                            
+-----------------------------------------------------------------
+ Seq Scan on tbl_20231124  (cost=0.00..200.00 rows=3333 width=4)
+   Filter: (a > 10)
+(2 rows)
+
+explain select * from tbl_20231124 where a <= 10;
+                           QUERY PLAN                            
+-----------------------------------------------------------------
+ Seq Scan on tbl_20231124  (cost=0.00..200.00 rows=3333 width=4)
+   Filter: (a <= 10)
+(2 rows)
+
+drop table tbl_20231124;
+\c regression_ora
+create global temp table gtt_20231124(a int) with(autovacuum_enabled=off);
+WARNING:  GLOBAL is deprecated in temporary table creation
+LINE 1: create global temp table gtt_20231124(a int) with(autovacuum...
+               ^
+begin;
+insert into gtt_20231124 select generate_series(1, 10000);
+analyze (local) gtt_20231124;
+select count(*) from pg_locks where pid = pg_backend_pid() and mode = 'ShareUpdateExclusiveLock';
+ COUNT 
+-------
+     0
+(1 row)
+
+explain select * from gtt_20231124;
+                            QUERY PLAN                            
+------------------------------------------------------------------
+ Seq Scan on GTT_20231124  (cost=0.00..175.00 rows=10000 width=4)
+(1 row)
+
+explain select * from gtt_20231124 where a > 10;
+                           QUERY PLAN                            
+-----------------------------------------------------------------
+ Seq Scan on GTT_20231124  (cost=0.00..200.00 rows=9990 width=4)
+   Filter: (A > 10)
+(2 rows)
+
+explain select * from gtt_20231124 where a <= 10;
+                          QUERY PLAN                           
+---------------------------------------------------------------
+ Seq Scan on GTT_20231124  (cost=0.00..200.00 rows=10 width=4)
+   Filter: (A <= 10)
+(2 rows)
+
+commit;
+drop table gtt_20231124;

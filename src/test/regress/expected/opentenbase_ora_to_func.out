@@ -1,0 +1,233 @@
+---------------------------------------------
+-- Test cases for opentenbase_ora to functions.
+---------------------------------------------
+\c regression_ora
+----------------------------------
+-- Test HEXTORAW function
+----------------------------------
+SELECT HEXTORAW('7ABCD') FROM DUAL;
+ HEXTORAW 
+----------
+ 07ABCD
+(1 row)
+
+DROP TABLE IF EXISTS tex_tow_t;
+NOTICE:  table "TEX_TOW_T" does not exist, skipping
+CREATE TABLE tex_tow_t(id int, c1 number(10, 2), c2 char(3), c3 varchar2(4), c4 nchar(3), c5 NVARCHAR2(4), c6 LONG, c7 float, c8 CLOB, c9 NCLOB, c10 BLOB, c11 raw(10));
+INSERT INTO tex_tow_t VALUES(1, 100.98, 'abc', 'abce', 323, 'abce', 'asdd', '4565', 'dsa', '12da', 'dasas123', 'da4556');
+SELECT id, hextoraw(rawtohex(c1)), hextoraw(rawtohex(c2)), hextoraw(c3), hextoraw(rawtohex(c4)), hextoraw(c5), hextoraw(c7), hextoraw(c11) from tex_tow_t;
+ ID | HEXTORAW | HEXTORAW | HEXTORAW | HEXTORAW | HEXTORAW | HEXTORAW | HEXTORAW 
+----+----------+----------+----------+----------+----------+----------+----------
+  1 | C2020163 | 616263   | ABCE     | 333233   | ABCE     | 4565     | DA4556
+(1 row)
+
+DROP TABLE tex_tow_t;
+----------------------------------
+-- Test RAWTOHEX function
+----------------------------------
+SELECT RAWTOHEX('7') FROM DUAL;
+ RAWTOHEX 
+----------
+ 37
+(1 row)
+
+SELECT RAWTOHEX('8') FROM DUAL;
+ RAWTOHEX 
+----------
+ 38
+(1 row)
+
+SELECT RAWTOHEX('10') FROM DUAL;
+ RAWTOHEX 
+----------
+ 3130
+(1 row)
+
+SELECT RAWTOHEX(10) FROM DUAL;
+ RAWTOHEX 
+----------
+ C10B
+(1 row)
+
+SELECT RAWTOHEX(10112233) FROM DUAL;
+  RAWTOHEX  
+------------
+ C40B0C1722
+(1 row)
+
+SELECT RAWTOHEX(1011.2233) FROM DUAL;
+  RAWTOHEX  
+------------
+ C20B0C1722
+(1 row)
+
+drop table if exists tex_tow_t;
+NOTICE:  table "TEX_TOW_T" does not exist, skipping
+create table tex_tow_t(id int, c1 int, c2 number(10,2), c3 float, c4 double precision);
+insert into tex_tow_t values(1, 12, 28.12, 892.1, 29839.298934);
+insert into tex_tow_t values(2, 123, 283.123, 892.13, 29839.2398934);
+select id, rawtohex(c1) from tex_tow_t order by id;
+ ID | RAWTOHEX 
+----+----------
+  1 | C10D
+  2 | C20218
+(2 rows)
+
+select id, rawtohex(c2) from tex_tow_t order by id;
+ ID | RAWTOHEX 
+----+----------
+  1 | C11D0D
+  2 | C203540D
+(2 rows)
+
+select id, rawtohex(c3) from tex_tow_t order by id;
+ ID | RAWTOHEX 
+----+----------
+  1 | C2095D0B
+  2 | C2095D0E
+(2 rows)
+
+select id, rawtohex(c4) from tex_tow_t order by id;
+ ID |     RAWTOHEX     
+----+------------------
+  1 | C30363281E5A23
+  2 | C303632818635E29
+(2 rows)
+
+drop table tex_tow_t;
+----------------------------------
+-- Test TO_CHAR function
+----------------------------------
+SELECT TO_CHAR('01111' + 1) FROM DUAL;
+ TO_CHAR 
+---------
+ 1112
+(1 row)
+
+SELECT TO_CHAR('01111.123456' + 1) FROM DUAL;
+   TO_CHAR   
+-------------
+ 1112.123456
+(1 row)
+
+SELECT TO_CHAR(-1234567890, '9999999999S'), TO_CHAR(+1234567890, '9999999999S'), TO_CHAR(0, '99.99'), TO_CHAR(+0.1, '99.99'), TO_CHAR(-0.2, '99.99'), TO_CHAR(0, '90.99'), TO_CHAR(+0.1, '90.99'), TO_CHAR(-0.2, '90.99') FROM DUAL;
+   TO_CHAR   |   TO_CHAR   | TO_CHAR | TO_CHAR | TO_CHAR | TO_CHAR | TO_CHAR | TO_CHAR 
+-------------+-------------+---------+---------+---------+---------+---------+---------
+ 1234567890- | 1234567890+ |    .00  |    .10  |   -.20  |   0.00  |   0.10  |  -0.20
+(1 row)
+
+SELECT TO_CHAR(0, '9999'), TO_CHAR(0, '9999'), TO_CHAR(1, '9999'), TO_CHAR(0, 'B9999'), TO_CHAR(1, 'B9999'), TO_CHAR(0, 'B90.99') FROM DUAL;
+ TO_CHAR | TO_CHAR | TO_CHAR | TO_CHAR | TO_CHAR | TO_CHAR 
+---------+---------+---------+---------+---------+---------
+     0   |     0   |     1   |         |     1   |       
+(1 row)
+
+SELECT TO_CHAR(+123.456, '999.999'), TO_CHAR(-123.456, '999.999'), TO_CHAR(+123.456, 'FM999.009'), TO_CHAR(+123.456,'9.9EEEE') FROM DUAL;
+ TO_CHAR  | TO_CHAR  | TO_CHAR |  TO_CHAR  
+----------+----------+---------+-----------
+  123.456 | -123.456 | 123.456 |   1.2E+02
+(1 row)
+
+SELECT TO_CHAR(+1E+12, '9.9EEEE'), TO_CHAR(+123.456, 'FM999.009'), TO_CHAR(+123.456,'FM999.009') FROM DUAL;
+  TO_CHAR  | TO_CHAR | TO_CHAR 
+-----------+---------+---------
+   1.0E+12 | 123.456 | 123.456
+(1 row)
+
+SELECT TO_CHAR(+123.45, 'L999.99'), TO_CHAR(+123.45,'FML999.99') FROM DUAL;
+      TO_CHAR      |     TO_CHAR      
+-------------------+------------------
+           $123.45 |          $123.45
+(1 row)
+
+SELECT TO_CHAR(123456, '999,999') FROM DUAL;
+ TO_CHAR  
+----------
+  123,456
+(1 row)
+
+SET TIMEZONE='00:00';
+DROP TABLE IF EXISTS t_timestamp_test;
+NOTICE:  table "T_TIMESTAMP_TEST" does not exist, skipping
+CREATE TABLE t_timestamp_test (ts_col TIMESTAMP, tstz_col TIMESTAMP WITH TIME ZONE);
+INSERT INTO t_timestamp_test VALUES (TIMESTAMP'1999-12-01 10:00:00.05', TIMESTAMP WITH TIME ZONE'1999-12-01 10:00:00.05 +3:00');
+INSERT INTO t_timestamp_test VALUES (TIMESTAMP'1999-12-02 10:00:00.05', TIMESTAMP WITH TIME ZONE'1999-12-02 10:00:00.05 +5:00');
+DROP TABLE t_timestamp_test;
+RESET TIMEZONE;
+----------------------------------
+-- Test TO_NUMBER function
+----------------------------------
+SELECT TO_NUMBER('2.001' + 1) "Value" FROM DUAL;
+ Value 
+-------
+ 3.001
+(1 row)
+
+SELECT TO_NUMBER('2.01', '9.0') "Value" FROM DUAL;
+ERROR:  invalid number
+SELECT TO_NUMBER(123.456, '999.000') "Value" FROM DUAL;
+  Value  
+---------
+ 123.456
+(1 row)
+
+----------------------------------
+-- Test TO_MULTI_BYTE function
+----------------------------------
+SELECT DUMP(TO_MULTI_BYTE( 'A')) FROM DUAL;
+                DUMP                
+------------------------------------
+ Typ=25 Len=7: 28,0,0,0,239,188,161
+(1 row)
+
+SELECT DUMP(TO_MULTI_BYTE('B')) FROM DUAL;
+                DUMP                
+------------------------------------
+ Typ=25 Len=7: 28,0,0,0,239,188,162
+(1 row)
+
+SELECT DUMP(TO_MULTI_BYTE('C')) FROM DUAL;
+                DUMP                
+------------------------------------
+ Typ=25 Len=7: 28,0,0,0,239,188,163
+(1 row)
+
+----------------------------------
+-- Test TO_SINGLE_BYTE function
+----------------------------------
+SELECT DUMP(TO_SINGLE_BYTE('123数据库')) FROM DUAL;
+                                 DUMP                                 
+----------------------------------------------------------------------
+ Typ=25 Len=16: 64,0,0,0,49,50,51,230,149,176,230,141,174,229,186,147
+(1 row)
+
+-- Test to_single_byte as a function index
+create table test_to_single_byte_20231222(t text);
+create index test_index_20231222 on test_to_single_byte_20231222(to_single_byte(t));
+insert into test_to_single_byte_20231222 values ('test1');
+\d+ test_to_single_byte_20231222
+                      Table "public.TEST_TO_SINGLE_BYTE_20231222"
+ Column | Type | Collation | Nullable | Default | Storage  | Stats target | Description 
+--------+------+-----------+----------+---------+----------+--------------+-------------
+ T      | TEXT |           |          |         | extended |              | 
+Indexes:
+    "TEST_INDEX_20231222" btree (TO_SINGLE_BYTE(T)) WITH (checksum='on')
+Distribute By: HASH(T)
+Location Nodes: ALL DATANODES
+
+drop table test_to_single_byte_20231222;
+-- Test to_number as a function index
+create table test_to_number_20231222(t text);
+create index test_index_20231222 on test_to_number_20231222(to_single_byte(t));
+insert into test_to_number_20231222 values ('test1');
+\d+ test_to_number_20231222
+                         Table "public.TEST_TO_NUMBER_20231222"
+ Column | Type | Collation | Nullable | Default | Storage  | Stats target | Description 
+--------+------+-----------+----------+---------+----------+--------------+-------------
+ T      | TEXT |           |          |         | extended |              | 
+Indexes:
+    "TEST_INDEX_20231222" btree (TO_SINGLE_BYTE(T)) WITH (checksum='on')
+Distribute By: HASH(T)
+Location Nodes: ALL DATANODES
+
+drop table test_to_number_20231222;

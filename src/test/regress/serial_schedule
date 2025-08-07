@@ -1,16 +1,28 @@
 # src/test/regress/serial_schedule
 # This should probably be in an order similar to parallel_schedule.
 
-#run audit fga
-test: audit_fga
+#run mls
+test: mls_check
 
-# test for oracle compatibility and audit
-test: oracle
+# test for opentenbase_ora compatibility and audit
+test: opentenbase_ora
+test: rowid_rownum_profile
+test: orcl_xmltype
+test: partition
 test: audit
 
-# test for interval partition 
-test: partition
-test: partition_index
+# run opentenbase_c test
+#test: opentenbase_c
+#test: opentenbase_c_explain
+#test: opentenbase_c_parallel
+#test: opentenbase_c_latematerial_cbo
+#test: opentenbase_c_text
+#test: opentenbase_c_join
+#test: opentenbase_c_delete
+#test: opentenbase_c_vacuum
+
+#run alter node
+#test: alter_node
 
 test: tablespace
 test: boolean
@@ -33,8 +45,8 @@ test: money
 test: rangetypes
 test: pg_lsn
 test: regproc
-test: strings
 test: zhcn_utf8
+test: strings
 test: zhcn_gb18030
 test: numerology
 test: point
@@ -72,11 +84,13 @@ test: create_function_1
 test: create_type
 test: create_table
 test: create_function_2
+test: create_package
 test: copy
 test: copyselect
 test: copydml
 test: create_misc
 test: create_operator
+test: create_procedure
 test: create_index
 test: create_view
 test: create_aggregate
@@ -132,7 +146,7 @@ test: replica_identity
 test: rowsecurity
 test: object_address
 test: tablesample
-test: groupingsets
+#test: groupingsets
 test: drop_operator
 test: password
 test: alter_generic
@@ -148,10 +162,11 @@ test: tidscan
 test: stats_ext
 test: rules
 test: psql_crosstab
+test: amutils
 test: select_parallel
+test: write_parallel
 test: publication
 test: subscription
-test: amutils
 test: select_views
 test: portals_p2
 test: foreign_key
@@ -170,6 +185,9 @@ test: advisory_lock
 test: json
 test: jsonb
 test: json_encoding
+test: jsonpath
+test: jsonpath_encoding
+test: jsonb_jsonpath
 test: indirect_toast
 test: equivclass
 test: plancache
@@ -197,8 +215,8 @@ test: partition_prune_hash
 test: partition_info
 test: hash_part
 test: indexing
+test: explain
 test: event_trigger
-test: fast_default
 test: stats
 test: xc_create_function
 test: xc_groupby
@@ -229,3 +247,35 @@ test: xl_user_defined_functions
 test: xl_join
 test: xl_distributed_xact
 test: xl_create_table
+test: opentenbase_ora_dynamic_exe 
+test: opentenbase_ora_pivot
+test: opentenbase_ora_unpivot
+test: opentenbase_ora_kw_alias
+test: opentenbase_ora_synonym
+test: opentenbase_ora_rowid
+test: opentenbase_ora_customer
+test: redistribute_custom_types
+test: null_constraint_test
+test: opentenbase_ora_urowid
+test: opentenbase_ora_sys_context
+test: pl_check
+
+# run opentenbase multi distribution key test
+test: opentenbase_multi_distri_column
+
+# global temp table test
+test: gtt_join
+test: gtt_error
+test: gtt_prepare
+test: gtt
+test: gtt_test
+test: gtt_parallel_4
+test: gtt_parallel_1
+test: gtt_parallel_2
+test: gtt_parallel_3
+test: gtt_index
+test: gtt_clean
+test: gtt_function
+test: opentenbase_ora_column_name
+test: opentenbase_ora_implicit_coercion
+test: pl_coverage

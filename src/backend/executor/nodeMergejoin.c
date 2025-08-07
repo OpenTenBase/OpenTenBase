@@ -1,96 +1,94 @@
 /*-------------------------------------------------------------------------
  *
  * nodeMergejoin.c
- *      routines supporting merge joins
+ *	  routines supporting merge joins
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  * IDENTIFICATION
- *      src/backend/executor/nodeMergejoin.c
+ *	  src/backend/executor/nodeMergejoin.c
  *
  *-------------------------------------------------------------------------
  */
 /*
  * INTERFACE ROUTINES
- *        ExecMergeJoin            mergejoin outer and inner relations.
- *        ExecInitMergeJoin        creates and initializes run time states
- *        ExecEndMergeJoin        cleans up the node.
+ *		ExecMergeJoin			mergejoin outer and inner relations.
+ *		ExecInitMergeJoin		creates and initializes run time states
+ *		ExecEndMergeJoin		cleans up the node.
  *
  * NOTES
  *
- *        Merge-join is done by joining the inner and outer tuples satisfying
- *        join clauses of the form ((= outerKey innerKey) ...).
- *        The join clause list is provided by the query planner and may contain
- *        more than one (= outerKey innerKey) clause (for composite sort key).
+ *		Merge-join is done by joining the inner and outer tuples satisfying
+ *		join clauses of the form ((= outerKey innerKey) ...).
+ *		The join clause list is provided by the query planner and may contain
+ *		more than one (= outerKey innerKey) clause (for composite sort key).
  *
- *        However, the query executor needs to know whether an outer
- *        tuple is "greater/smaller" than an inner tuple so that it can
- *        "synchronize" the two relations. For example, consider the following
- *        relations:
+ *		However, the query executor needs to know whether an outer
+ *		tuple is "greater/smaller" than an inner tuple so that it can
+ *		"synchronize" the two relations. For example, consider the following
+ *		relations:
  *
- *                outer: (0 ^1 1 2 5 5 5 6 6 7)    current tuple: 1
- *                inner: (1 ^3 5 5 5 5 6)            current tuple: 3
+ *				outer: (0 ^1 1 2 5 5 5 6 6 7)	current tuple: 1
+ *				inner: (1 ^3 5 5 5 5 6)			current tuple: 3
  *
- *        To continue the merge-join, the executor needs to scan both inner
- *        and outer relations till the matching tuples 5. It needs to know
- *        that currently inner tuple 3 is "greater" than outer tuple 1 and
- *        therefore it should scan the outer relation first to find a
- *        matching tuple and so on.
+ *		To continue the merge-join, the executor needs to scan both inner
+ *		and outer relations till the matching tuples 5. It needs to know
+ *		that currently inner tuple 3 is "greater" than outer tuple 1 and
+ *		therefore it should scan the outer relation first to find a
+ *		matching tuple and so on.
  *
- *        Therefore, rather than directly executing the merge join clauses,
- *        we evaluate the left and right key expressions separately and then
- *        compare the columns one at a time (see MJCompare).  The planner
- *        passes us enough information about the sort ordering of the inputs
- *        to allow us to determine how to make the comparison.  We may use the
- *        appropriate btree comparison function, since Postgres' only notion
- *        of ordering is specified by btree opfamilies.
- *
- *
- *        Consider the above relations and suppose that the executor has
- *        just joined the first outer "5" with the last inner "5". The
- *        next step is of course to join the second outer "5" with all
- *        the inner "5's". This requires repositioning the inner "cursor"
- *        to point at the first inner "5". This is done by "marking" the
- *        first inner 5 so we can restore the "cursor" to it before joining
- *        with the second outer 5. The access method interface provides
- *        routines to mark and restore to a tuple.
+ *		Therefore, rather than directly executing the merge join clauses,
+ *		we evaluate the left and right key expressions separately and then
+ *		compare the columns one at a time (see MJCompare).  The planner
+ *		passes us enough information about the sort ordering of the inputs
+ *		to allow us to determine how to make the comparison.  We may use the
+ *		appropriate btree comparison function, since Postgres' only notion
+ *		of ordering is specified by btree opfamilies.
  *
  *
- *        Essential operation of the merge join algorithm is as follows:
+ *		Consider the above relations and suppose that the executor has
+ *		just joined the first outer "5" with the last inner "5". The
+ *		next step is of course to join the second outer "5" with all
+ *		the inner "5's". This requires repositioning the inner "cursor"
+ *		to point at the first inner "5". This is done by "marking" the
+ *		first inner 5 so we can restore the "cursor" to it before joining
+ *		with the second outer 5. The access method interface provides
+ *		routines to mark and restore to a tuple.
  *
- *        Join {
- *            get initial outer and inner tuples                INITIALIZE
- *            do forever {
- *                while (outer != inner) {                    SKIP_TEST
- *                    if (outer < inner)
- *                        advance outer                        SKIPOUTER_ADVANCE
- *                    else
- *                        advance inner                        SKIPINNER_ADVANCE
- *                }
- *                mark inner position                            SKIP_TEST
- *                do forever {
- *                    while (outer == inner) {
- *                        join tuples                            JOINTUPLES
- *                        advance inner position                NEXTINNER
- *                    }
- *                    advance outer position                    NEXTOUTER
- *                    if (outer == mark)                        TESTOUTER
- *                        restore inner position to mark        TESTOUTER
- *                    else
- *                        break    // return to top of outer loop
- *                }
- *            }
- *        }
  *
- *        The merge join operation is coded in the fashion
- *        of a state machine.  At each state, we do something and then
- *        proceed to another state.  This state is stored in the node's
- *        execution state information and is preserved across calls to
- *        ExecMergeJoin. -cim 10/31/89
+ *		Essential operation of the merge join algorithm is as follows:
+ *
+ *		Join {
+ *			get initial outer and inner tuples				INITIALIZE
+ *			do forever {
+ *				while (outer != inner) {					SKIP_TEST
+ *					if (outer < inner)
+ *						advance outer						SKIPOUTER_ADVANCE
+ *					else
+ *						advance inner						SKIPINNER_ADVANCE
+ *				}
+ *				mark inner position							SKIP_TEST
+ *				do forever {
+ *					while (outer == inner) {
+ *						join tuples							JOINTUPLES
+ *						advance inner position				NEXTINNER
+ *					}
+ *					advance outer position					NEXTOUTER
+ *					if (outer == mark)						TESTOUTER
+ *						restore inner position to mark		TESTOUTER
+ *					else
+ *						break	// return to top of outer loop
+ *				}
+ *			}
+ *		}
+ *
+ *		The merge join operation is coded in the fashion
+ *		of a state machine.  At each state, we do something and then
+ *		proceed to another state.  This state is stored in the node's
+ *		execution state information and is preserved across calls to
+ *		ExecMergeJoin. -cim 10/31/89
  */
 #include "postgres.h"
 
@@ -105,54 +103,54 @@
 /*
  * States of the ExecMergeJoin state machine
  */
-#define EXEC_MJ_INITIALIZE_OUTER        1
-#define EXEC_MJ_INITIALIZE_INNER        2
-#define EXEC_MJ_JOINTUPLES                3
-#define EXEC_MJ_NEXTOUTER                4
-#define EXEC_MJ_TESTOUTER                5
-#define EXEC_MJ_NEXTINNER                6
-#define EXEC_MJ_SKIP_TEST                7
-#define EXEC_MJ_SKIPOUTER_ADVANCE        8
-#define EXEC_MJ_SKIPINNER_ADVANCE        9
-#define EXEC_MJ_ENDOUTER                10
-#define EXEC_MJ_ENDINNER                11
+#define EXEC_MJ_INITIALIZE_OUTER		1
+#define EXEC_MJ_INITIALIZE_INNER		2
+#define EXEC_MJ_JOINTUPLES				3
+#define EXEC_MJ_NEXTOUTER				4
+#define EXEC_MJ_TESTOUTER				5
+#define EXEC_MJ_NEXTINNER				6
+#define EXEC_MJ_SKIP_TEST				7
+#define EXEC_MJ_SKIPOUTER_ADVANCE		8
+#define EXEC_MJ_SKIPINNER_ADVANCE		9
+#define EXEC_MJ_ENDOUTER				10
+#define EXEC_MJ_ENDINNER				11
 
 /*
  * Runtime data for each mergejoin clause
  */
 typedef struct MergeJoinClauseData
 {
-    /* Executable expression trees */
-    ExprState  *lexpr;            /* left-hand (outer) input expression */
-    ExprState  *rexpr;            /* right-hand (inner) input expression */
+	/* Executable expression trees */
+	ExprState  *lexpr;			/* left-hand (outer) input expression */
+	ExprState  *rexpr;			/* right-hand (inner) input expression */
 
-    /*
-     * If we have a current left or right input tuple, the values of the
-     * expressions are loaded into these fields:
-     */
-    Datum        ldatum;            /* current left-hand value */
-    Datum        rdatum;            /* current right-hand value */
-    bool        lisnull;        /* and their isnull flags */
-    bool        risnull;
+	/*
+	 * If we have a current left or right input tuple, the values of the
+	 * expressions are loaded into these fields:
+	 */
+	Datum		ldatum;			/* current left-hand value */
+	Datum		rdatum;			/* current right-hand value */
+	bool		lisnull;		/* and their isnull flags */
+	bool		risnull;
 
-    /*
-     * Everything we need to know to compare the left and right values is
-     * stored here.
-     */
-    SortSupportData ssup;
-}            MergeJoinClauseData;
+	/*
+	 * Everything we need to know to compare the left and right values is
+	 * stored here.
+	 */
+	SortSupportData ssup;
+}			MergeJoinClauseData;
 
 /* Result type for MJEvalOuterValues and MJEvalInnerValues */
 typedef enum
 {
-    MJEVAL_MATCHABLE,            /* normal, potentially matchable tuple */
-    MJEVAL_NONMATCHABLE,        /* tuple cannot join because it has a null */
-    MJEVAL_ENDOFJOIN            /* end of input (physical or effective) */
+	MJEVAL_MATCHABLE,			/* normal, potentially matchable tuple */
+	MJEVAL_NONMATCHABLE,		/* tuple cannot join because it has a null */
+	MJEVAL_ENDOFJOIN			/* end of input (physical or effective) */
 } MJEvalResult;
 
 
 #define MarkInnerTuple(innerTupleSlot, mergestate) \
-    ExecCopySlot((mergestate)->mj_MarkedTupleSlot, (innerTupleSlot))
+	ExecCopySlot((mergestate)->mj_MarkedTupleSlot, (innerTupleSlot))
 
 
 /*
@@ -176,99 +174,99 @@ typedef enum
  */
 static MergeJoinClause
 MJExamineQuals(List *mergeclauses,
-               Oid *mergefamilies,
-               Oid *mergecollations,
-               int *mergestrategies,
-               bool *mergenullsfirst,
-               PlanState *parent)
-{// #lizard forgives
-    MergeJoinClause clauses;
-    int            nClauses = list_length(mergeclauses);
-    int            iClause;
-    ListCell   *cl;
+			   Oid *mergefamilies,
+			   Oid *mergecollations,
+			   int *mergestrategies,
+			   bool *mergenullsfirst,
+			   PlanState *parent)
+{
+	MergeJoinClause clauses;
+	int			nClauses = list_length(mergeclauses);
+	int			iClause;
+	ListCell   *cl;
 
-    clauses = (MergeJoinClause) palloc0(nClauses * sizeof(MergeJoinClauseData));
+	clauses = (MergeJoinClause) palloc0(nClauses * sizeof(MergeJoinClauseData));
 
-    iClause = 0;
-    foreach(cl, mergeclauses)
-    {
-        OpExpr       *qual = (OpExpr *) lfirst(cl);
-        MergeJoinClause clause = &clauses[iClause];
-        Oid            opfamily = mergefamilies[iClause];
-        Oid            collation = mergecollations[iClause];
-        StrategyNumber opstrategy = mergestrategies[iClause];
-        bool        nulls_first = mergenullsfirst[iClause];
-        int            op_strategy;
-        Oid            op_lefttype;
-        Oid            op_righttype;
-        Oid            sortfunc;
+	iClause = 0;
+	foreach(cl, mergeclauses)
+	{
+		OpExpr	   *qual = (OpExpr *) lfirst(cl);
+		MergeJoinClause clause = &clauses[iClause];
+		Oid			opfamily = mergefamilies[iClause];
+		Oid			collation = mergecollations[iClause];
+		StrategyNumber opstrategy = mergestrategies[iClause];
+		bool		nulls_first = mergenullsfirst[iClause];
+		int			op_strategy;
+		Oid			op_lefttype;
+		Oid			op_righttype;
+		Oid			sortfunc;
 
-        if (!IsA(qual, OpExpr))
-            elog(ERROR, "mergejoin clause is not an OpExpr");
+		if (!IsA(qual, OpExpr))
+			elog(ERROR, "mergejoin clause is not an OpExpr");
 
-        /*
-         * Prepare the input expressions for execution.
-         */
-        clause->lexpr = ExecInitExpr((Expr *) linitial(qual->args), parent);
-        clause->rexpr = ExecInitExpr((Expr *) lsecond(qual->args), parent);
+		/*
+		 * Prepare the input expressions for execution.
+		 */
+		clause->lexpr = ExecInitExpr((Expr *) linitial(qual->args), parent);
+		clause->rexpr = ExecInitExpr((Expr *) lsecond(qual->args), parent);
 
-        /* Set up sort support data */
-        clause->ssup.ssup_cxt = CurrentMemoryContext;
-        clause->ssup.ssup_collation = collation;
-        if (opstrategy == BTLessStrategyNumber)
-            clause->ssup.ssup_reverse = false;
-        else if (opstrategy == BTGreaterStrategyNumber)
-            clause->ssup.ssup_reverse = true;
-        else                    /* planner screwed up */
-            elog(ERROR, "unsupported mergejoin strategy %d", opstrategy);
-        clause->ssup.ssup_nulls_first = nulls_first;
+		/* Set up sort support data */
+		clause->ssup.ssup_cxt = CurrentMemoryContext;
+		clause->ssup.ssup_collation = collation;
+		if (opstrategy == BTLessStrategyNumber)
+			clause->ssup.ssup_reverse = false;
+		else if (opstrategy == BTGreaterStrategyNumber)
+			clause->ssup.ssup_reverse = true;
+		else					/* planner screwed up */
+			elog(ERROR, "unsupported mergejoin strategy %d", opstrategy);
+		clause->ssup.ssup_nulls_first = nulls_first;
 
-        /* Extract the operator's declared left/right datatypes */
-        get_op_opfamily_properties(qual->opno, opfamily, false,
-                                   &op_strategy,
-                                   &op_lefttype,
-                                   &op_righttype);
-        if (op_strategy != BTEqualStrategyNumber)    /* should not happen */
-            elog(ERROR, "cannot merge using non-equality operator %u",
-                 qual->opno);
+		/* Extract the operator's declared left/right datatypes */
+		get_op_opfamily_properties(qual->opno, opfamily, false,
+								   &op_strategy,
+								   &op_lefttype,
+								   &op_righttype);
+		if (op_strategy != BTEqualStrategyNumber)	/* should not happen */
+			elog(ERROR, "cannot merge using non-equality operator %u",
+				 qual->opno);
 
-        /*
-         * sortsupport routine must know if abbreviation optimization is
-         * applicable in principle.  It is never applicable for merge joins
-         * because there is no convenient opportunity to convert to
-         * alternative representation.
-         */
-        clause->ssup.abbreviate = false;
+		/*
+		 * sortsupport routine must know if abbreviation optimization is
+		 * applicable in principle.  It is never applicable for merge joins
+		 * because there is no convenient opportunity to convert to
+		 * alternative representation.
+		 */
+		clause->ssup.abbreviate = false;
 
-        /* And get the matching support or comparison function */
-        Assert(clause->ssup.comparator == NULL);
-        sortfunc = get_opfamily_proc(opfamily,
-                                     op_lefttype,
-                                     op_righttype,
-                                     BTSORTSUPPORT_PROC);
-        if (OidIsValid(sortfunc))
-        {
-            /* The sort support function can provide a comparator */
-            OidFunctionCall1(sortfunc, PointerGetDatum(&clause->ssup));
-        }
-        if (clause->ssup.comparator == NULL)
-        {
-            /* support not available, get comparison func */
-            sortfunc = get_opfamily_proc(opfamily,
-                                         op_lefttype,
-                                         op_righttype,
-                                         BTORDER_PROC);
-            if (!OidIsValid(sortfunc))    /* should not happen */
-                elog(ERROR, "missing support function %d(%u,%u) in opfamily %u",
-                     BTORDER_PROC, op_lefttype, op_righttype, opfamily);
-            /* We'll use a shim to call the old-style btree comparator */
-            PrepareSortSupportComparisonShim(sortfunc, &clause->ssup);
-        }
+		/* And get the matching support or comparison function */
+		Assert(clause->ssup.comparator == NULL);
+		sortfunc = get_opfamily_proc(opfamily,
+									 op_lefttype,
+									 op_righttype,
+									 BTSORTSUPPORT_PROC);
+		if (OidIsValid(sortfunc))
+		{
+			/* The sort support function can provide a comparator */
+			OidFunctionCall1(sortfunc, PointerGetDatum(&clause->ssup));
+		}
+		if (clause->ssup.comparator == NULL)
+		{
+			/* support not available, get comparison func */
+			sortfunc = get_opfamily_proc(opfamily,
+										 op_lefttype,
+										 op_righttype,
+										 BTORDER_PROC);
+			if (!OidIsValid(sortfunc))	/* should not happen */
+				elog(ERROR, "missing support function %d(%u,%u) in opfamily %u",
+					 BTORDER_PROC, op_lefttype, op_righttype, opfamily);
+			/* We'll use a shim to call the old-style btree comparator */
+			PrepareSortSupportComparisonShim(sortfunc, &clause->ssup);
+		}
 
-        iClause++;
-    }
+		iClause++;
+	}
 
-    return clauses;
+	return clauses;
 }
 
 /*
@@ -295,42 +293,42 @@ MJExamineQuals(List *mergeclauses,
  */
 static MJEvalResult
 MJEvalOuterValues(MergeJoinState *mergestate)
-{// #lizard forgives
-    ExprContext *econtext = mergestate->mj_OuterEContext;
-    MJEvalResult result = MJEVAL_MATCHABLE;
-    int            i;
-    MemoryContext oldContext;
+{
+	ExprContext *econtext = mergestate->mj_OuterEContext;
+	MJEvalResult result = MJEVAL_MATCHABLE;
+	int			i;
+	MemoryContext oldContext;
 
-    /* Check for end of outer subplan */
-    if (TupIsNull(mergestate->mj_OuterTupleSlot))
-        return MJEVAL_ENDOFJOIN;
+	/* Check for end of outer subplan */
+	if (TupIsNull(mergestate->mj_OuterTupleSlot))
+		return MJEVAL_ENDOFJOIN;
 
-    ResetExprContext(econtext);
+	ResetExprContext(econtext);
 
-    oldContext = MemoryContextSwitchTo(econtext->ecxt_per_tuple_memory);
+	oldContext = MemoryContextSwitchTo(econtext->ecxt_per_tuple_memory);
 
-    econtext->ecxt_outertuple = mergestate->mj_OuterTupleSlot;
+	econtext->ecxt_outertuple = mergestate->mj_OuterTupleSlot;
 
-    for (i = 0; i < mergestate->mj_NumClauses; i++)
-    {
-        MergeJoinClause clause = &mergestate->mj_Clauses[i];
+	for (i = 0; i < mergestate->mj_NumClauses; i++)
+	{
+		MergeJoinClause clause = &mergestate->mj_Clauses[i];
 
-        clause->ldatum = ExecEvalExpr(clause->lexpr, econtext,
-                                      &clause->lisnull);
-        if (clause->lisnull)
-        {
-            /* match is impossible; can we end the join early? */
-            if (i == 0 && !clause->ssup.ssup_nulls_first &&
-                !mergestate->mj_FillOuter)
-                result = MJEVAL_ENDOFJOIN;
-            else if (result == MJEVAL_MATCHABLE)
-                result = MJEVAL_NONMATCHABLE;
-        }
-    }
+		clause->ldatum = ExecEvalExpr(clause->lexpr, econtext,
+									  &clause->lisnull);
+		if (clause->lisnull)
+		{
+			/* match is impossible; can we end the join early? */
+			if (i == 0 && !clause->ssup.ssup_nulls_first &&
+				!mergestate->mj_FillOuter)
+				result = MJEVAL_ENDOFJOIN;
+			else if (result == MJEVAL_MATCHABLE)
+				result = MJEVAL_NONMATCHABLE;
+		}
+	}
 
-    MemoryContextSwitchTo(oldContext);
+	MemoryContextSwitchTo(oldContext);
 
-    return result;
+	return result;
 }
 
 /*
@@ -342,42 +340,42 @@ MJEvalOuterValues(MergeJoinState *mergestate)
  */
 static MJEvalResult
 MJEvalInnerValues(MergeJoinState *mergestate, TupleTableSlot *innerslot)
-{// #lizard forgives
-    ExprContext *econtext = mergestate->mj_InnerEContext;
-    MJEvalResult result = MJEVAL_MATCHABLE;
-    int            i;
-    MemoryContext oldContext;
+{
+	ExprContext *econtext = mergestate->mj_InnerEContext;
+	MJEvalResult result = MJEVAL_MATCHABLE;
+	int			i;
+	MemoryContext oldContext;
 
-    /* Check for end of inner subplan */
-    if (TupIsNull(innerslot))
-        return MJEVAL_ENDOFJOIN;
+	/* Check for end of inner subplan */
+	if (TupIsNull(innerslot))
+		return MJEVAL_ENDOFJOIN;
 
-    ResetExprContext(econtext);
+	ResetExprContext(econtext);
 
-    oldContext = MemoryContextSwitchTo(econtext->ecxt_per_tuple_memory);
+	oldContext = MemoryContextSwitchTo(econtext->ecxt_per_tuple_memory);
 
-    econtext->ecxt_innertuple = innerslot;
+	econtext->ecxt_innertuple = innerslot;
 
-    for (i = 0; i < mergestate->mj_NumClauses; i++)
-    {
-        MergeJoinClause clause = &mergestate->mj_Clauses[i];
+	for (i = 0; i < mergestate->mj_NumClauses; i++)
+	{
+		MergeJoinClause clause = &mergestate->mj_Clauses[i];
 
-        clause->rdatum = ExecEvalExpr(clause->rexpr, econtext,
-                                      &clause->risnull);
-        if (clause->risnull)
-        {
-            /* match is impossible; can we end the join early? */
-            if (i == 0 && !clause->ssup.ssup_nulls_first &&
-                !mergestate->mj_FillInner)
-                result = MJEVAL_ENDOFJOIN;
-            else if (result == MJEVAL_MATCHABLE)
-                result = MJEVAL_NONMATCHABLE;
-        }
-    }
+		clause->rdatum = ExecEvalExpr(clause->rexpr, econtext,
+									  &clause->risnull);
+		if (clause->risnull)
+		{
+			/* match is impossible; can we end the join early? */
+			if (i == 0 && !clause->ssup.ssup_nulls_first &&
+				!mergestate->mj_FillInner)
+				result = MJEVAL_ENDOFJOIN;
+			else if (result == MJEVAL_MATCHABLE)
+				result = MJEVAL_NONMATCHABLE;
+		}
+	}
 
-    MemoryContextSwitchTo(oldContext);
+	MemoryContextSwitchTo(oldContext);
 
-    return result;
+	return result;
 }
 
 /*
@@ -392,58 +390,58 @@ MJEvalInnerValues(MergeJoinState *mergestate, TupleTableSlot *innerslot)
  */
 static int
 MJCompare(MergeJoinState *mergestate)
-{// #lizard forgives
-    int            result = 0;
-    bool        nulleqnull = false;
-    ExprContext *econtext = mergestate->js.ps.ps_ExprContext;
-    int            i;
-    MemoryContext oldContext;
+{
+	int			result = 0;
+	bool		nulleqnull = false;
+	ExprContext *econtext = mergestate->js.ps.ps_ExprContext;
+	int			i;
+	MemoryContext oldContext;
 
-    /*
-     * Call the comparison functions in short-lived context, in case they leak
-     * memory.
-     */
-    ResetExprContext(econtext);
+	/*
+	 * Call the comparison functions in short-lived context, in case they leak
+	 * memory.
+	 */
+	ResetExprContext(econtext);
 
-    oldContext = MemoryContextSwitchTo(econtext->ecxt_per_tuple_memory);
+	oldContext = MemoryContextSwitchTo(econtext->ecxt_per_tuple_memory);
 
-    for (i = 0; i < mergestate->mj_NumClauses; i++)
-    {
-        MergeJoinClause clause = &mergestate->mj_Clauses[i];
+	for (i = 0; i < mergestate->mj_NumClauses; i++)
+	{
+		MergeJoinClause clause = &mergestate->mj_Clauses[i];
 
-        /*
-         * Special case for NULL-vs-NULL, else use standard comparison.
-         */
-        if (clause->lisnull && clause->risnull)
-        {
-            nulleqnull = true;    /* NULL "=" NULL */
-            continue;
-        }
+		/*
+		 * Special case for NULL-vs-NULL, else use standard comparison.
+		 */
+		if (clause->lisnull && clause->risnull)
+		{
+			nulleqnull = true;	/* NULL "=" NULL */
+			continue;
+		}
 
-        result = ApplySortComparator(clause->ldatum, clause->lisnull,
-                                     clause->rdatum, clause->risnull,
-                                     &clause->ssup);
+		result = ApplySortComparator(clause->ldatum, clause->lisnull,
+									 clause->rdatum, clause->risnull,
+									 &clause->ssup);
 
-        if (result != 0)
-            break;
-    }
+		if (result != 0)
+			break;
+	}
 
-    /*
-     * If we had any NULL-vs-NULL inputs, we do not want to report that the
-     * tuples are equal.  Instead, if result is still 0, change it to +1. This
-     * will result in advancing the inner side of the join.
-     *
-     * Likewise, if there was a constant-false joinqual, do not report
-     * equality.  We have to check this as part of the mergequals, else the
-     * rescan logic will do the wrong thing.
-     */
-    if (result == 0 &&
-        (nulleqnull || mergestate->mj_ConstFalseJoin))
-        result = 1;
+	/*
+	 * If we had any NULL-vs-NULL inputs, we do not want to report that the
+	 * tuples are equal.  Instead, if result is still 0, change it to +1. This
+	 * will result in advancing the inner side of the join.
+	 *
+	 * Likewise, if there was a constant-false joinqual, do not report
+	 * equality.  We have to check this as part of the mergequals, else the
+	 * rescan logic will do the wrong thing.
+	 */
+	if (result == 0 &&
+		(nulleqnull || mergestate->mj_ConstFalseJoin))
+		result = 1;
 
-    MemoryContextSwitchTo(oldContext);
+	MemoryContextSwitchTo(oldContext);
 
-    return result;
+	return result;
 }
 
 
@@ -454,28 +452,28 @@ MJCompare(MergeJoinState *mergestate)
 static TupleTableSlot *
 MJFillOuter(MergeJoinState *node)
 {
-    ExprContext *econtext = node->js.ps.ps_ExprContext;
-    ExprState  *otherqual = node->js.ps.qual;
+	ExprContext *econtext = node->js.ps.ps_ExprContext;
+	ExprState  *otherqual = node->js.ps.qual;
 
-    ResetExprContext(econtext);
+	ResetExprContext(econtext);
 
-    econtext->ecxt_outertuple = node->mj_OuterTupleSlot;
-    econtext->ecxt_innertuple = node->mj_NullInnerTupleSlot;
+	econtext->ecxt_outertuple = node->mj_OuterTupleSlot;
+	econtext->ecxt_innertuple = node->mj_NullInnerTupleSlot;
 
-    if (ExecQual(otherqual, econtext))
-    {
-        /*
-         * qualification succeeded.  now form the desired projection tuple and
-         * return the slot containing it.
-         */
-        MJ_printf("ExecMergeJoin: returning outer fill tuple\n");
+	if (ExecQual(otherqual, econtext))
+	{
+		/*
+		 * qualification succeeded.  now form the desired projection tuple and
+		 * return the slot containing it.
+		 */
+		MJ_printf("ExecMergeJoin: returning outer fill tuple\n");
 
-        return ExecProject(node->js.ps.ps_ProjInfo);
-    }
-    else
-        InstrCountFiltered2(node, 1);
+		return ExecProject(node->js.ps.ps_ProjInfo);
+	}
+	else
+		InstrCountFiltered2(node, 1);
 
-    return NULL;
+	return NULL;
 }
 
 /*
@@ -485,28 +483,28 @@ MJFillOuter(MergeJoinState *node)
 static TupleTableSlot *
 MJFillInner(MergeJoinState *node)
 {
-    ExprContext *econtext = node->js.ps.ps_ExprContext;
-    ExprState  *otherqual = node->js.ps.qual;
+	ExprContext *econtext = node->js.ps.ps_ExprContext;
+	ExprState  *otherqual = node->js.ps.qual;
 
-    ResetExprContext(econtext);
+	ResetExprContext(econtext);
 
-    econtext->ecxt_outertuple = node->mj_NullOuterTupleSlot;
-    econtext->ecxt_innertuple = node->mj_InnerTupleSlot;
+	econtext->ecxt_outertuple = node->mj_NullOuterTupleSlot;
+	econtext->ecxt_innertuple = node->mj_InnerTupleSlot;
 
-    if (ExecQual(otherqual, econtext))
-    {
-        /*
-         * qualification succeeded.  now form the desired projection tuple and
-         * return the slot containing it.
-         */
-        MJ_printf("ExecMergeJoin: returning inner fill tuple\n");
+	if (ExecQual(otherqual, econtext))
+	{
+		/*
+		 * qualification succeeded.  now form the desired projection tuple and
+		 * return the slot containing it.
+		 */
+		MJ_printf("ExecMergeJoin: returning inner fill tuple\n");
 
-        return ExecProject(node->js.ps.ps_ProjInfo);
-    }
-    else
-        InstrCountFiltered2(node, 1);
+		return ExecProject(node->js.ps.ps_ProjInfo);
+	}
+	else
+		InstrCountFiltered2(node, 1);
 
-    return NULL;
+	return NULL;
 }
 
 
@@ -521,26 +519,26 @@ MJFillInner(MergeJoinState *node)
 static bool
 check_constant_qual(List *qual, bool *is_const_false)
 {
-    ListCell   *lc;
+	ListCell   *lc;
 
-    foreach(lc, qual)
-    {
-        Const       *con = (Const *) lfirst(lc);
+	foreach(lc, qual)
+	{
+		Const	   *con = (Const *) lfirst(lc);
 
-        if (!con || !IsA(con, Const))
-            return false;
-        if (con->constisnull || !DatumGetBool(con->constvalue))
-            *is_const_false = true;
-    }
-    return true;
+		if (!con || !IsA(con, Const))
+			return false;
+		if (con->constisnull || !DatumGetBool(con->constvalue))
+			*is_const_false = true;
+	}
+	return true;
 }
 
 
 /* ----------------------------------------------------------------
- *        ExecMergeTupleDump
+ *		ExecMergeTupleDump
  *
- *        This function is called through the MJ_dump() macro
- *        when EXEC_MERGEJOINDEBUG is defined
+ *		This function is called through the MJ_dump() macro
+ *		when EXEC_MERGEJOINDEBUG is defined
  * ----------------------------------------------------------------
  */
 #ifdef EXEC_MERGEJOINDEBUG
@@ -548,174 +546,172 @@ check_constant_qual(List *qual, bool *is_const_false)
 static void
 ExecMergeTupleDumpOuter(MergeJoinState *mergestate)
 {
-    TupleTableSlot *outerSlot = mergestate->mj_OuterTupleSlot;
+	TupleTableSlot *outerSlot = mergestate->mj_OuterTupleSlot;
 
-    printf("==== outer tuple ====\n");
-    if (TupIsNull(outerSlot))
-        printf("(nil)\n");
-    else
-        MJ_debugtup(outerSlot);
+	printf("==== outer tuple ====\n");
+	if (TupIsNull(outerSlot))
+		printf("(nil)\n");
+	else
+		MJ_debugtup(outerSlot);
 }
 
 static void
 ExecMergeTupleDumpInner(MergeJoinState *mergestate)
 {
-    TupleTableSlot *innerSlot = mergestate->mj_InnerTupleSlot;
+	TupleTableSlot *innerSlot = mergestate->mj_InnerTupleSlot;
 
-    printf("==== inner tuple ====\n");
-    if (TupIsNull(innerSlot))
-        printf("(nil)\n");
-    else
-        MJ_debugtup(innerSlot);
+	printf("==== inner tuple ====\n");
+	if (TupIsNull(innerSlot))
+		printf("(nil)\n");
+	else
+		MJ_debugtup(innerSlot);
 }
 
 static void
 ExecMergeTupleDumpMarked(MergeJoinState *mergestate)
 {
-    TupleTableSlot *markedSlot = mergestate->mj_MarkedTupleSlot;
+	TupleTableSlot *markedSlot = mergestate->mj_MarkedTupleSlot;
 
-    printf("==== marked tuple ====\n");
-    if (TupIsNull(markedSlot))
-        printf("(nil)\n");
-    else
-        MJ_debugtup(markedSlot);
+	printf("==== marked tuple ====\n");
+	if (TupIsNull(markedSlot))
+		printf("(nil)\n");
+	else
+		MJ_debugtup(markedSlot);
 }
 
 static void
 ExecMergeTupleDump(MergeJoinState *mergestate)
 {
-    printf("******** ExecMergeTupleDump ********\n");
+	printf("******** ExecMergeTupleDump ********\n");
 
-    ExecMergeTupleDumpOuter(mergestate);
-    ExecMergeTupleDumpInner(mergestate);
-    ExecMergeTupleDumpMarked(mergestate);
+	ExecMergeTupleDumpOuter(mergestate);
+	ExecMergeTupleDumpInner(mergestate);
+	ExecMergeTupleDumpMarked(mergestate);
 
-    printf("********\n");
+	printf("********\n");
 }
 #endif
 
 /* ----------------------------------------------------------------
- *        ExecMergeJoin
+ *		ExecMergeJoin
  * ----------------------------------------------------------------
  */
 static TupleTableSlot *
 ExecMergeJoin(PlanState *pstate)
-{// #lizard forgives
-    MergeJoinState *node = castNode(MergeJoinState, pstate);
-    ExprState  *joinqual;
-    ExprState  *otherqual;
-    bool        qualResult;
-    int            compareResult;
-    PlanState  *innerPlan;
-    TupleTableSlot *innerTupleSlot;
-    PlanState  *outerPlan;
-    TupleTableSlot *outerTupleSlot;
-    ExprContext *econtext;
-    bool        doFillOuter;
-    bool        doFillInner;
+{
+	MergeJoinState *node = castNode(MergeJoinState, pstate);
+	ExprState  *joinqual;
+	ExprState  *otherqual;
+	bool		qualResult;
+	int			compareResult;
+	PlanState  *innerPlan;
+	TupleTableSlot *innerTupleSlot;
+	PlanState  *outerPlan;
+	TupleTableSlot *outerTupleSlot;
+	ExprContext *econtext;
+	bool		doFillOuter;
+	bool		doFillInner;
 
-    CHECK_FOR_INTERRUPTS();
+	CHECK_FOR_INTERRUPTS();
 
-    /*
-     * get information from node
-     */
-    innerPlan = innerPlanState(node);
-    outerPlan = outerPlanState(node);
-    econtext = node->js.ps.ps_ExprContext;
-    joinqual = node->js.joinqual;
-    otherqual = node->js.ps.qual;
-    doFillOuter = node->mj_FillOuter;
-    doFillInner = node->mj_FillInner;
+	/*
+	 * get information from node
+	 */
+	innerPlan = innerPlanState(node);
+	outerPlan = outerPlanState(node);
+	econtext = node->js.ps.ps_ExprContext;
+	joinqual = node->js.joinqual;
+	otherqual = node->js.ps.qual;
+	doFillOuter = node->mj_FillOuter;
+	doFillInner = node->mj_FillInner;
 
-    /*
-     * Reset per-tuple memory context to free any expression evaluation
-     * storage allocated in the previous tuple cycle.
-     */
-    ResetExprContext(econtext);
+	/*
+	 * Reset per-tuple memory context to free any expression evaluation
+	 * storage allocated in the previous tuple cycle.
+	 */
+	ResetExprContext(econtext);
 
-    /*
-     * ok, everything is setup.. let's go to work
-     */
-    for (;;)
-    {
-        MJ_dump(node);
+	/*
+	 * ok, everything is setup.. let's go to work
+	 */
+	for (;;)
+	{
+		MJ_dump(node);
 
-        /*
-         * get the current state of the join and do things accordingly.
-         */
-        switch (node->mj_JoinState)
-        {
-                /*
-                 * EXEC_MJ_INITIALIZE_OUTER means that this is the first time
-                 * ExecMergeJoin() has been called and so we have to fetch the
-                 * first matchable tuple for both outer and inner subplans. We
-                 * do the outer side in INITIALIZE_OUTER state, then advance
-                 * to INITIALIZE_INNER state for the inner subplan.
-                 */
-            case EXEC_MJ_INITIALIZE_OUTER:
-                MJ_printf("ExecMergeJoin: EXEC_MJ_INITIALIZE_OUTER\n");
+		/*
+		 * get the current state of the join and do things accordingly.
+		 */
+		switch (node->mj_JoinState)
+		{
+				/*
+				 * EXEC_MJ_INITIALIZE_OUTER means that this is the first time
+				 * ExecMergeJoin() has been called and so we have to fetch the
+				 * first matchable tuple for both outer and inner subplans. We
+				 * do the outer side in INITIALIZE_OUTER state, then advance
+				 * to INITIALIZE_INNER state for the inner subplan.
+				 */
+			case EXEC_MJ_INITIALIZE_OUTER:
+				MJ_printf("ExecMergeJoin: EXEC_MJ_INITIALIZE_OUTER\n");
 
-                outerTupleSlot = ExecProcNode(outerPlan);
-                node->mj_OuterTupleSlot = outerTupleSlot;
+				outerTupleSlot = ExecProcNode(outerPlan);
+				node->mj_OuterTupleSlot = outerTupleSlot;
 
-                /* Compute join values and check for unmatchability */
-                switch (MJEvalOuterValues(node))
-                {
-                    case MJEVAL_MATCHABLE:
-                        /* OK to go get the first inner tuple */
-                        node->mj_JoinState = EXEC_MJ_INITIALIZE_INNER;
-                        break;
-                    case MJEVAL_NONMATCHABLE:
-                        /* Stay in same state to fetch next outer tuple */
-                        if (doFillOuter)
-                        {
-                            /*
-                             * Generate a fake join tuple with nulls for the
-                             * inner tuple, and return it if it passes the
-                             * non-join quals.
-                             */
-                            TupleTableSlot *result;
+				/* Compute join values and check for unmatchability */
+				switch (MJEvalOuterValues(node))
+				{
+					case MJEVAL_MATCHABLE:
+						/* OK to go get the first inner tuple */
+						node->mj_JoinState = EXEC_MJ_INITIALIZE_INNER;
+						break;
+					case MJEVAL_NONMATCHABLE:
+						/* Stay in same state to fetch next outer tuple */
+						if (doFillOuter)
+						{
+							/*
+							 * Generate a fake join tuple with nulls for the
+							 * inner tuple, and return it if it passes the
+							 * non-join quals.
+							 */
+							TupleTableSlot *result;
 
-                            result = MJFillOuter(node);
-                            if (result)
-                                return result;
-                        }
-                        break;
-                    case MJEVAL_ENDOFJOIN:
-                        /* No more outer tuples */
-                        MJ_printf("ExecMergeJoin: nothing in outer subplan\n");
-                        if (doFillInner)
-                        {
-                            /*
-                             * Need to emit right-join tuples for remaining
-                             * inner tuples. We set MatchedInner = true to
-                             * force the ENDOUTER state to advance inner.
-                             */
-                            node->mj_JoinState = EXEC_MJ_ENDOUTER;
-                            node->mj_MatchedInner = true;
-                            break;
-                        }
+							result = MJFillOuter(node);
+							if (result)
+								return result;
+						}
+						break;
+					case MJEVAL_ENDOFJOIN:
+						/* No more outer tuples */
+						MJ_printf("ExecMergeJoin: nothing in outer subplan\n");
+						if (doFillInner)
+						{
+							/*
+							 * Need to emit right-join tuples for remaining
+							 * inner tuples. We set MatchedInner = true to
+							 * force the ENDOUTER state to advance inner.
+							 */
+							node->mj_JoinState = EXEC_MJ_ENDOUTER;
+							node->mj_MatchedInner = true;
+							break;
+						}
 #ifdef __OPENTENBASE__
 						/*
-						 * If we have finished the join, and the inner never
-						 * be executed, we need to disconnect from remote node.
-						 */
-						if (!node->mj_InnerInited && IS_PGXC_DATANODE)
+						  * if we have finished the join,
+						  * we need to disconnect from remote node.
+                          */
+						ExecDisconnectNode(innerPlan);
+						if (!TupIsNull(node->mj_OuterTupleSlot))
 						{
-							ExecDisconnectNode(innerPlan);
+							ExecDisconnectNode(outerPlan);
 						}
 #endif
-                        /* Otherwise we're done. */
-                        return NULL;
-                }
-                break;
+						/* Otherwise we're done. */
+						return NULL;
+				}
+				break;
 
-            case EXEC_MJ_INITIALIZE_INNER:
-                MJ_printf("ExecMergeJoin: EXEC_MJ_INITIALIZE_INNER\n");
+			case EXEC_MJ_INITIALIZE_INNER:
+				MJ_printf("ExecMergeJoin: EXEC_MJ_INITIALIZE_INNER\n");
 
-#ifdef __OPENTENBASE__
-                node->mj_InnerInited = true;
-#endif
 				innerTupleSlot = ExecProcNode(innerPlan);
 				node->mj_InnerTupleSlot = innerTupleSlot;
 
@@ -765,6 +761,17 @@ ExecMergeJoin(PlanState *pstate)
 							node->mj_MatchedOuter = false;
 							break;
 						}
+#ifdef __OPENTENBASE_C__
+						/*
+						  * if we have finished the join,
+						  * we need to disconnect from remote node.
+						  */
+						ExecDisconnectNode(outerPlan);
+						if (!TupIsNull(node->mj_InnerTupleSlot))
+						{
+							ExecDisconnectNode(innerPlan);
+						}
+#endif
 						/* Otherwise we're done. */
 						return NULL;
 				}
@@ -810,12 +817,12 @@ ExecMergeJoin(PlanState *pstate)
 
 				if (qualResult)
 				{
-#ifdef __OPENTENBASE__
-                    if (node->js.jointype == JOIN_LEFT_SCALAR && node->mj_MatchedOuter)
-                        ereport(ERROR,
-                                (errcode(ERRCODE_CARDINALITY_VIOLATION),
-                                        errmsg("more than one row returned by a subquery used as an expression")));
-#endif
+					if ((node->js.jointype == JOIN_LEFT_SEMI_SCALAR ||
+						 node->js.jointype == JOIN_SEMI_SCALAR) &&
+						node->mj_MatchedOuter)
+						ereport(ERROR, (errcode(ERRCODE_CARDINALITY_VIOLATION),
+							errmsg("more than one row returned by a subquery used as an expression")));
+
 					node->mj_MatchedOuter = true;
 					node->mj_MatchedInner = true;
 
@@ -1015,6 +1022,17 @@ ExecMergeJoin(PlanState *pstate)
 							node->mj_JoinState = EXEC_MJ_ENDOUTER;
 							break;
 						}
+#ifdef __OPENTENBASE_C__						
+						/*
+						  * if we have finished the join,
+						  * we need to disconnect from remote node.
+                          */
+						ExecDisconnectNode(innerPlan);
+						if (!TupIsNull(node->mj_OuterTupleSlot))
+						{
+							ExecDisconnectNode(outerPlan);
+						}
+#endif
 						/* Otherwise we're done. */
 						return NULL;
 				}
@@ -1157,6 +1175,17 @@ ExecMergeJoin(PlanState *pstate)
 								node->mj_JoinState = EXEC_MJ_ENDINNER;
 								break;
 							}
+#ifdef __OPENTENBASE_C__
+							/*
+							  * if we have finished the join,
+							  * we need to disconnect from remote node.
+							  */
+							ExecDisconnectNode(outerPlan);
+							if (!TupIsNull(node->mj_InnerTupleSlot))
+							{
+								ExecDisconnectNode(innerPlan);
+							}
+#endif
 							/* Otherwise we're done. */
 							return NULL;
 					}
@@ -1276,6 +1305,17 @@ ExecMergeJoin(PlanState *pstate)
 							node->mj_JoinState = EXEC_MJ_ENDOUTER;
 							break;
 						}
+#ifdef __OPENTENBASE__
+						/*
+						  * if we have finished the join,
+						  * we need to disconnect from remote node.
+						  */
+						ExecDisconnectNode(innerPlan);
+						if (!TupIsNull(node->mj_OuterTupleSlot))
+						{
+							ExecDisconnectNode(outerPlan);
+						}
+#endif
 						/* Otherwise we're done. */
 						return NULL;
 				}
@@ -1346,6 +1386,17 @@ ExecMergeJoin(PlanState *pstate)
 							node->mj_JoinState = EXEC_MJ_ENDINNER;
 							break;
 						}
+#ifdef __OPENTENBASE_C__
+						/*
+						  * if we have finished the join,
+						  * we need to disconnect from remote node.
+						  */
+						ExecDisconnectNode(outerPlan);
+						if (!TupIsNull(node->mj_InnerTupleSlot))
+						{
+							ExecDisconnectNode(innerPlan);
+						}
+#endif
 						/* Otherwise we're done. */
 						return NULL;
 				}
@@ -1450,13 +1501,14 @@ ExecMergeJoin(PlanState *pstate)
 }
 
 /* ----------------------------------------------------------------
- *        ExecInitMergeJoin
+ *		ExecInitMergeJoin
  * ----------------------------------------------------------------
  */
 MergeJoinState *
 ExecInitMergeJoin(MergeJoin *node, EState *estate, int eflags)
 {
 	MergeJoinState *mergestate;
+	TupleDesc	outerDesc, innerDesc;
 
 	/* check for unsupported flags */
 	Assert(!(eflags & (EXEC_FLAG_BACKWARD | EXEC_FLAG_MARK)));
@@ -1471,6 +1523,8 @@ ExecInitMergeJoin(MergeJoin *node, EState *estate, int eflags)
 	mergestate->js.ps.plan = (Plan *) node;
 	mergestate->js.ps.state = estate;
 	mergestate->js.ps.ExecProcNode = ExecMergeJoin;
+	mergestate->js.jointype = node->join.jointype;
+	mergestate->mj_ConstFalseJoin = false;
 
 	/*
 	 * Miscellaneous initialization
@@ -1488,17 +1542,6 @@ ExecInitMergeJoin(MergeJoin *node, EState *estate, int eflags)
 	mergestate->mj_InnerEContext = CreateExprContext(estate);
 
 	/*
-	 * initialize child expressions
-	 */
-	mergestate->js.ps.qual =
-		ExecInitQual(node->join.plan.qual, (PlanState *) mergestate);
-	mergestate->js.jointype = node->join.jointype;
-	mergestate->js.joinqual =
-		ExecInitQual(node->join.joinqual, (PlanState *) mergestate);
-	mergestate->mj_ConstFalseJoin = false;
-	/* mergeclauses are handled below */
-
-	/*
 	 * initialize child nodes
 	 *
 	 * inner child must support MARK/RESTORE, unless we have detected that we
@@ -1509,10 +1552,12 @@ ExecInitMergeJoin(MergeJoin *node, EState *estate, int eflags)
 	mergestate->mj_SkipMarkRestore = node->skip_mark_restore;
 
 	outerPlanState(mergestate) = ExecInitNode(outerPlan(node), estate, eflags);
+	outerDesc = ExecGetResultType(outerPlanState(mergestate));
 	innerPlanState(mergestate) = ExecInitNode(innerPlan(node), estate,
 											  mergestate->mj_SkipMarkRestore ?
 											  eflags :
 											  (eflags | EXEC_FLAG_MARK));
+	innerDesc = ExecGetResultType(innerPlanState(mergestate));
 
 	/*
 	 * For certain types of inner child nodes, it is advantageous to issue
@@ -1523,6 +1568,10 @@ ExecInitMergeJoin(MergeJoin *node, EState *estate, int eflags)
 	 *
 	 * Currently, only Material wants the extra MARKs, and it will be helpful
 	 * only if eflags doesn't specify REWIND.
+	 *
+	 * Note that for IndexScan and IndexOnlyScan, it is *necessary* that we
+	 * not set mj_ExtraMarks; otherwise we might attempt to set a mark before
+	 * the first inner tuple, which they do not support.
 	 */
 	if (IsA(innerPlan(node), Material) &&
 		(eflags & EXEC_FLAG_REWIND) == 0 &&
@@ -1532,13 +1581,24 @@ ExecInitMergeJoin(MergeJoin *node, EState *estate, int eflags)
 		mergestate->mj_ExtraMarks = false;
 
 	/*
+	 * Initialize result slot, type and projection.
+	 */
+	ExecInitResultTupleSlotTL(&mergestate->js.ps);
+	ExecAssignProjectionInfo(&mergestate->js.ps, NULL);
+
+	/*
 	 * tuple table initialization
 	 */
-	ExecInitResultTupleSlot(estate, &mergestate->js.ps);
+	mergestate->mj_MarkedTupleSlot = ExecInitExtraTupleSlot(estate, innerDesc);
 
-	mergestate->mj_MarkedTupleSlot = ExecInitExtraTupleSlot(estate);
-	ExecSetSlotDescriptor(mergestate->mj_MarkedTupleSlot,
-						  ExecGetResultType(innerPlanState(mergestate)));
+	/*
+	 * initialize child expressions
+	 */
+	mergestate->js.ps.qual =
+		ExecInitQual(node->join.plan.qual, (PlanState *) mergestate);
+	mergestate->js.joinqual =
+		ExecInitQual(node->join.joinqual, (PlanState *) mergestate);
+	/* mergeclauses are handled below */
 
 	/*
 	 * detect whether we need only consider the first matching inner tuple
@@ -1547,32 +1607,30 @@ ExecInitMergeJoin(MergeJoin *node, EState *estate, int eflags)
 								   node->join.jointype == JOIN_SEMI ||
 								   node->join.jointype == JOIN_LEFT_SEMI);
 
+
 	/* set up null tuples for outer joins, if needed */
 	switch (node->join.jointype)
 	{
 		case JOIN_INNER:
-        case JOIN_SEMI:
+		case JOIN_SEMI:
+		case JOIN_SEMI_SCALAR:
 			mergestate->mj_FillOuter = false;
 			mergestate->mj_FillInner = false;
 			break;
-#ifdef __OPENTENBASE__
-        case JOIN_LEFT_SCALAR:
-        case JOIN_LEFT_SEMI:
-#endif
 		case JOIN_LEFT:
+		case JOIN_LEFT_SEMI_SCALAR:
+		case JOIN_LEFT_SEMI:
 		case JOIN_ANTI:
 			mergestate->mj_FillOuter = true;
 			mergestate->mj_FillInner = false;
 			mergestate->mj_NullInnerTupleSlot =
-				ExecInitNullTupleSlot(estate,
-									  ExecGetResultType(innerPlanState(mergestate)));
+				ExecInitNullTupleSlot(estate, innerDesc);
 			break;
 		case JOIN_RIGHT:
 			mergestate->mj_FillOuter = false;
 			mergestate->mj_FillInner = true;
 			mergestate->mj_NullOuterTupleSlot =
-				ExecInitNullTupleSlot(estate,
-									  ExecGetResultType(outerPlanState(mergestate)));
+				ExecInitNullTupleSlot(estate, outerDesc);
 
 			/*
 			 * Can't handle right or full join with non-constant extra
@@ -1588,11 +1646,9 @@ ExecInitMergeJoin(MergeJoin *node, EState *estate, int eflags)
 			mergestate->mj_FillOuter = true;
 			mergestate->mj_FillInner = true;
 			mergestate->mj_NullOuterTupleSlot =
-				ExecInitNullTupleSlot(estate,
-									  ExecGetResultType(outerPlanState(mergestate)));
+				ExecInitNullTupleSlot(estate, outerDesc);
 			mergestate->mj_NullInnerTupleSlot =
-				ExecInitNullTupleSlot(estate,
-									  ExecGetResultType(innerPlanState(mergestate)));
+				ExecInitNullTupleSlot(estate, innerDesc);
 
 			/*
 			 * Can't handle right or full join with non-constant extra
@@ -1608,12 +1664,6 @@ ExecInitMergeJoin(MergeJoin *node, EState *estate, int eflags)
 			elog(ERROR, "unrecognized join type: %d",
 				 (int) node->join.jointype);
 	}
-
-	/*
-	 * initialize tuple type and projection info
-	 */
-	ExecAssignResultTypeFromTL(&mergestate->js.ps);
-	ExecAssignProjectionInfo(&mergestate->js.ps, NULL);
 
 	/*
 	 * preprocess the merge clauses
@@ -1634,70 +1684,67 @@ ExecInitMergeJoin(MergeJoin *node, EState *estate, int eflags)
 	mergestate->mj_MatchedInner = false;
 	mergestate->mj_OuterTupleSlot = NULL;
 	mergestate->mj_InnerTupleSlot = NULL;
-#ifdef __OPENTENBASE__
-    mergestate->mj_InnerInited    = false;
-#endif
-    /*
-     * initialization successful
-     */
-    MJ1_printf("ExecInitMergeJoin: %s\n",
-               "node initialized");
+	/*
+	 * initialization successful
+	 */
+	MJ1_printf("ExecInitMergeJoin: %s\n",
+			   "node initialized");
 
-    return mergestate;
+	return mergestate;
 }
 
 /* ----------------------------------------------------------------
- *        ExecEndMergeJoin
+ *		ExecEndMergeJoin
  *
  * old comments
- *        frees storage allocated through C routines.
+ *		frees storage allocated through C routines.
  * ----------------------------------------------------------------
  */
 void
 ExecEndMergeJoin(MergeJoinState *node)
 {
-    MJ1_printf("ExecEndMergeJoin: %s\n",
-               "ending node processing");
+	MJ1_printf("ExecEndMergeJoin: %s\n",
+			   "ending node processing");
 
-    /*
-     * Free the exprcontext
-     */
-    ExecFreeExprContext(&node->js.ps);
+	/*
+	 * Free the exprcontext
+	 */
+	ExecFreeExprContext(&node->js.ps);
 
-    /*
-     * clean out the tuple table
-     */
-    ExecClearTuple(node->js.ps.ps_ResultTupleSlot);
-    ExecClearTuple(node->mj_MarkedTupleSlot);
+	/*
+	 * clean out the tuple table
+	 */
+	ExecClearTuple(node->js.ps.ps_ResultTupleSlot);
+	ExecClearTuple(node->mj_MarkedTupleSlot);
 
-    /*
-     * shut down the subplans
-     */
-    ExecEndNode(innerPlanState(node));
-    ExecEndNode(outerPlanState(node));
+	/*
+	 * shut down the subplans
+	 */
+	ExecEndNode(innerPlanState(node));
+	ExecEndNode(outerPlanState(node));
 
-    MJ1_printf("ExecEndMergeJoin: %s\n",
-               "node processing ended");
+	MJ1_printf("ExecEndMergeJoin: %s\n",
+			   "node processing ended");
 }
 
 void
 ExecReScanMergeJoin(MergeJoinState *node)
 {
-    ExecClearTuple(node->mj_MarkedTupleSlot);
+	ExecClearTuple(node->mj_MarkedTupleSlot);
 
-    node->mj_JoinState = EXEC_MJ_INITIALIZE_OUTER;
-    node->mj_MatchedOuter = false;
-    node->mj_MatchedInner = false;
-    node->mj_OuterTupleSlot = NULL;
-    node->mj_InnerTupleSlot = NULL;
+	node->mj_JoinState = EXEC_MJ_INITIALIZE_OUTER;
+	node->mj_MatchedOuter = false;
+	node->mj_MatchedInner = false;
+	node->mj_OuterTupleSlot = NULL;
+	node->mj_InnerTupleSlot = NULL;
 
-    /*
-     * if chgParam of subnodes is not null then plans will be re-scanned by
-     * first ExecProcNode.
-     */
-    if (node->js.ps.lefttree->chgParam == NULL)
-        ExecReScan(node->js.ps.lefttree);
-    if (node->js.ps.righttree->chgParam == NULL)
-        ExecReScan(node->js.ps.righttree);
+	/*
+	 * if chgParam of subnodes is not null then plans will be re-scanned by
+	 * first ExecProcNode.
+	 */
+	if (node->js.ps.lefttree->chgParam == NULL)
+		ExecReScan(node->js.ps.lefttree);
+	if (node->js.ps.righttree->chgParam == NULL)
+		ExecReScan(node->js.ps.righttree);
 
 }

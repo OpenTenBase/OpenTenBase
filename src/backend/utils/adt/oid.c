@@ -1,16 +1,14 @@
 /*-------------------------------------------------------------------------
  *
  * oid.c
- *      Functions for the built-in type Oid ... also oidvector.
+ *	  Functions for the built-in type Oid ... also oidvector.
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  * IDENTIFICATION
- *      src/backend/utils/adt/oid.c
+ *	  src/backend/utils/adt/oid.c
  *
  *-------------------------------------------------------------------------
  */
@@ -26,138 +24,138 @@
 #include "utils/builtins.h"
 
 
-#define OidVectorSize(n)    (offsetof(oidvector, values) + (n) * sizeof(Oid))
+#define OidVectorSize(n)	(offsetof(oidvector, values) + (n) * sizeof(Oid))
 
 
 /*****************************************************************************
- *     USER I/O ROUTINES                                                         *
+ *	 USER I/O ROUTINES														 *
  *****************************************************************************/
 
 static Oid
 oidin_subr(const char *s, char **endloc)
-{// #lizard forgives
-    unsigned long cvt;
-    char       *endptr;
-    Oid            result;
+{
+	unsigned long cvt;
+	char	   *endptr;
+	Oid			result;
 
-    if (*s == '\0')
-        ereport(ERROR,
-                (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
-                 errmsg("invalid input syntax for type %s: \"%s\"",
-                        "oid", s)));
+	if (*s == '\0')
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
+				 errmsg("invalid input syntax for type %s: \"%s\"",
+						"oid", s)));
 
-    errno = 0;
-    cvt = strtoul(s, &endptr, 10);
+	errno = 0;
+	cvt = strtoul(s, &endptr, 10);
 
-    /*
-     * strtoul() normally only sets ERANGE.  On some systems it also may set
-     * EINVAL, which simply means it couldn't parse the input string. This is
-     * handled by the second "if" consistent across platforms.
-     */
-    if (errno && errno != ERANGE && errno != EINVAL)
-        ereport(ERROR,
-                (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
-                 errmsg("invalid input syntax for type %s: \"%s\"",
-                        "oid", s)));
+	/*
+	 * strtoul() normally only sets ERANGE.  On some systems it also may set
+	 * EINVAL, which simply means it couldn't parse the input string. This is
+	 * handled by the second "if" consistent across platforms.
+	 */
+	if (errno && errno != ERANGE && errno != EINVAL)
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
+				 errmsg("invalid input syntax for type %s: \"%s\"",
+						"oid", s)));
 
-    if (endptr == s && *s != '\0')
-        ereport(ERROR,
-                (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
-                 errmsg("invalid input syntax for type %s: \"%s\"",
-                        "oid", s)));
+	if (endptr == s && *s != '\0')
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
+				 errmsg("invalid input syntax for type %s: \"%s\"",
+						"oid", s)));
 
-    if (errno == ERANGE)
-        ereport(ERROR,
-                (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
-                 errmsg("value \"%s\" is out of range for type %s",
-                        s, "oid")));
+	if (errno == ERANGE)
+		ereport(ERROR,
+				(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+				 errmsg("value \"%s\" is out of range for type %s",
+						s, "oid")));
 
-    if (endloc)
-    {
-        /* caller wants to deal with rest of string */
-        *endloc = endptr;
-    }
-    else
-    {
-        /* allow only whitespace after number */
-        while (*endptr && isspace((unsigned char) *endptr))
-            endptr++;
-        if (*endptr)
-            ereport(ERROR,
-                    (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
-                     errmsg("invalid input syntax for type %s: \"%s\"",
-                            "oid", s)));
-    }
+	if (endloc)
+	{
+		/* caller wants to deal with rest of string */
+		*endloc = endptr;
+	}
+	else
+	{
+		/* allow only whitespace after number */
+		while (*endptr && isspace((unsigned char) *endptr))
+			endptr++;
+		if (*endptr)
+			ereport(ERROR,
+					(errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
+					 errmsg("invalid input syntax for type %s: \"%s\"",
+							"oid", s)));
+	}
 
-    result = (Oid) cvt;
+	result = (Oid) cvt;
 
-    /*
-     * Cope with possibility that unsigned long is wider than Oid, in which
-     * case strtoul will not raise an error for some values that are out of
-     * the range of Oid.
-     *
-     * For backwards compatibility, we want to accept inputs that are given
-     * with a minus sign, so allow the input value if it matches after either
-     * signed or unsigned extension to long.
-     *
-     * To ensure consistent results on 32-bit and 64-bit platforms, make sure
-     * the error message is the same as if strtoul() had returned ERANGE.
-     */
+	/*
+	 * Cope with possibility that unsigned long is wider than Oid, in which
+	 * case strtoul will not raise an error for some values that are out of
+	 * the range of Oid.
+	 *
+	 * For backwards compatibility, we want to accept inputs that are given
+	 * with a minus sign, so allow the input value if it matches after either
+	 * signed or unsigned extension to long.
+	 *
+	 * To ensure consistent results on 32-bit and 64-bit platforms, make sure
+	 * the error message is the same as if strtoul() had returned ERANGE.
+	 */
 #if OID_MAX != ULONG_MAX
-    if (cvt != (unsigned long) result &&
-        cvt != (unsigned long) ((int) result))
-        ereport(ERROR,
-                (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
-                 errmsg("value \"%s\" is out of range for type %s",
-                        s, "oid")));
+	if (cvt != (unsigned long) result &&
+		cvt != (unsigned long) ((int) result))
+		ereport(ERROR,
+				(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+				 errmsg("value \"%s\" is out of range for type %s",
+						s, "oid")));
 #endif
 
-    return result;
+	return result;
 }
 
 Datum
 oidin(PG_FUNCTION_ARGS)
 {
-    char       *s = PG_GETARG_CSTRING(0);
-    Oid            result;
+	char	   *s = PG_GETARG_CSTRING(0);
+	Oid			result;
 
-    result = oidin_subr(s, NULL);
-    PG_RETURN_OID(result);
+	result = oidin_subr(s, NULL);
+	PG_RETURN_OID(result);
 }
 
 Datum
 oidout(PG_FUNCTION_ARGS)
 {
-    Oid            o = PG_GETARG_OID(0);
-    char       *result = (char *) palloc(12);
+	Oid			o = PG_GETARG_OID(0);
+	char	   *result = (char *) palloc(12);
 
-    snprintf(result, 12, "%u", o);
-    PG_RETURN_CSTRING(result);
+	snprintf(result, 12, "%u", o);
+	PG_RETURN_CSTRING(result);
 }
 
 /*
- *        oidrecv            - converts external binary format to oid
+ *		oidrecv			- converts external binary format to oid
  */
 Datum
 oidrecv(PG_FUNCTION_ARGS)
 {
-    StringInfo    buf = (StringInfo) PG_GETARG_POINTER(0);
+	StringInfo	buf = (StringInfo) PG_GETARG_POINTER(0);
 
-    PG_RETURN_OID((Oid) pq_getmsgint(buf, sizeof(Oid)));
+	PG_RETURN_OID((Oid) pq_getmsgint(buf, sizeof(Oid)));
 }
 
 /*
- *        oidsend            - converts oid to binary format
+ *		oidsend			- converts oid to binary format
  */
 Datum
 oidsend(PG_FUNCTION_ARGS)
 {
-    Oid            arg1 = PG_GETARG_OID(0);
-    StringInfoData buf;
+	Oid			arg1 = PG_GETARG_OID(0);
+	StringInfoData buf;
 
-    pq_begintypsend(&buf);
-    pq_sendint(&buf, arg1, sizeof(Oid));
-    PG_RETURN_BYTEA_P(pq_endtypsend(&buf));
+	pq_begintypsend(&buf);
+	pq_sendint32(&buf, arg1);
+	PG_RETURN_BYTEA_P(pq_endtypsend(&buf));
 }
 
 /*
@@ -168,389 +166,389 @@ oidsend(PG_FUNCTION_ARGS)
 oidvector *
 buildoidvector(const Oid *oids, int n)
 {
-    oidvector  *result;
+	oidvector  *result;
 
-    result = (oidvector *) palloc0(OidVectorSize(n));
+	result = (oidvector *) palloc0(OidVectorSize(n));
 
-    if (n > 0 && oids)
-        memcpy(result->values, oids, n * sizeof(Oid));
+	if (n > 0 && oids)
+		memcpy(result->values, oids, n * sizeof(Oid));
 
-    /*
-     * Attach standard array header.  For historical reasons, we set the index
-     * lower bound to 0 not 1.
-     */
-    SET_VARSIZE(result, OidVectorSize(n));
-    result->ndim = 1;
-    result->dataoffset = 0;        /* never any nulls */
-    result->elemtype = OIDOID;
-    result->dim1 = n;
-    result->lbound1 = 0;
+	/*
+	 * Attach standard array header.  For historical reasons, we set the index
+	 * lower bound to 0 not 1.
+	 */
+	SET_VARSIZE(result, OidVectorSize(n));
+	result->ndim = 1;
+	result->dataoffset = 0;		/* never any nulls */
+	result->elemtype = OIDOID;
+	result->dim1 = n;
+	result->lbound1 = 0;
 
-    return result;
+	return result;
 }
 
 /*
- *        oidvectorin            - converts "num num ..." to internal form
+ *		oidvectorin			- converts "num num ..." to internal form
  */
 Datum
 oidvectorin(PG_FUNCTION_ARGS)
-{// #lizard forgives
-    char       *oidString = PG_GETARG_CSTRING(0);
-    oidvector  *result;
-    int            n;
+{
+	char	   *oidString = PG_GETARG_CSTRING(0);
+	oidvector  *result;
+	int			n;
 
-    result = (oidvector *) palloc0(OidVectorSize(FUNC_MAX_ARGS));
+	result = (oidvector *) palloc0(OidVectorSize(FUNC_MAX_ARGS));
 
-    for (n = 0; n < FUNC_MAX_ARGS; n++)
-    {
-        while (*oidString && isspace((unsigned char) *oidString))
-            oidString++;
-        if (*oidString == '\0')
-            break;
-        result->values[n] = oidin_subr(oidString, &oidString);
-    }
-    while (*oidString && isspace((unsigned char) *oidString))
-        oidString++;
-    if (*oidString)
-        ereport(ERROR,
-                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-                 errmsg("oidvector has too many elements")));
+	for (n = 0; n < FUNC_MAX_ARGS; n++)
+	{
+		while (*oidString && isspace((unsigned char) *oidString))
+			oidString++;
+		if (*oidString == '\0')
+			break;
+		result->values[n] = oidin_subr(oidString, &oidString);
+	}
+	while (*oidString && isspace((unsigned char) *oidString))
+		oidString++;
+	if (*oidString)
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				 errmsg("oidvector has too many elements")));
 
-    SET_VARSIZE(result, OidVectorSize(n));
-    result->ndim = 1;
-    result->dataoffset = 0;        /* never any nulls */
-    result->elemtype = OIDOID;
-    result->dim1 = n;
-    result->lbound1 = 0;
+	SET_VARSIZE(result, OidVectorSize(n));
+	result->ndim = 1;
+	result->dataoffset = 0;		/* never any nulls */
+	result->elemtype = OIDOID;
+	result->dim1 = n;
+	result->lbound1 = 0;
 
-    PG_RETURN_POINTER(result);
+	PG_RETURN_POINTER(result);
 }
 
 /*
- *        oidvectorout - converts internal form to "num num ..."
+ *		oidvectorout - converts internal form to "num num ..."
  */
 Datum
 oidvectorout(PG_FUNCTION_ARGS)
 {
-    oidvector  *oidArray = (oidvector *) PG_GETARG_POINTER(0);
-    int            num,
-                nnums = oidArray->dim1;
-    char       *rp;
-    char       *result;
+	oidvector  *oidArray = (oidvector *) PG_GETARG_POINTER(0);
+	int			num,
+				nnums = oidArray->dim1;
+	char	   *rp;
+	char	   *result;
 
-    /* assumes sign, 10 digits, ' ' */
-    rp = result = (char *) palloc(nnums * 12 + 1);
-    for (num = 0; num < nnums; num++)
-    {
-        if (num != 0)
-            *rp++ = ' ';
-        sprintf(rp, "%u", oidArray->values[num]);
-        while (*++rp != '\0')
-            ;
-    }
-    *rp = '\0';
-    PG_RETURN_CSTRING(result);
+	/* assumes sign, 10 digits, ' ' */
+	rp = result = (char *) palloc(nnums * 12 + 1);
+	for (num = 0; num < nnums; num++)
+	{
+		if (num != 0)
+			*rp++ = ' ';
+		sprintf(rp, "%u", oidArray->values[num]);
+		while (*++rp != '\0')
+			;
+	}
+	*rp = '\0';
+	PG_RETURN_CSTRING(result);
 }
 
 /*
- *        oidvectorrecv            - converts external binary format to oidvector
+ *		oidvectorrecv			- converts external binary format to oidvector
  */
 Datum
 oidvectorrecv(PG_FUNCTION_ARGS)
 {
-    StringInfo    buf = (StringInfo) PG_GETARG_POINTER(0);
-    FunctionCallInfoData locfcinfo;
-    oidvector  *result;
+	StringInfo	buf = (StringInfo) PG_GETARG_POINTER(0);
+	FunctionCallInfoData locfcinfo;
+	oidvector  *result;
 
-    /*
-     * Normally one would call array_recv() using DirectFunctionCall3, but
-     * that does not work since array_recv wants to cache some data using
-     * fcinfo->flinfo->fn_extra.  So we need to pass it our own flinfo
-     * parameter.
-     */
-    InitFunctionCallInfoData(locfcinfo, fcinfo->flinfo, 3,
-                             InvalidOid, NULL, NULL);
+	/*
+	 * Normally one would call array_recv() using DirectFunctionCall3, but
+	 * that does not work since array_recv wants to cache some data using
+	 * fcinfo->flinfo->fn_extra.  So we need to pass it our own flinfo
+	 * parameter.
+	 */
+	InitFunctionCallInfoData(locfcinfo, fcinfo->flinfo, 3,
+							 InvalidOid, NULL, NULL);
 
-    locfcinfo.arg[0] = PointerGetDatum(buf);
-    locfcinfo.arg[1] = ObjectIdGetDatum(OIDOID);
-    locfcinfo.arg[2] = Int32GetDatum(-1);
-    locfcinfo.argnull[0] = false;
-    locfcinfo.argnull[1] = false;
-    locfcinfo.argnull[2] = false;
+	locfcinfo.arg[0] = PointerGetDatum(buf);
+	locfcinfo.arg[1] = ObjectIdGetDatum(OIDOID);
+	locfcinfo.arg[2] = Int32GetDatum(-1);
+	locfcinfo.argnull[0] = false;
+	locfcinfo.argnull[1] = false;
+	locfcinfo.argnull[2] = false;
 
-    result = (oidvector *) DatumGetPointer(array_recv(&locfcinfo));
+	result = (oidvector *) DatumGetPointer(array_recv(&locfcinfo));
 
-    Assert(!locfcinfo.isnull);
+	Assert(!locfcinfo.isnull);
 
-    /* sanity checks: oidvector must be 1-D, 0-based, no nulls */
-    if (ARR_NDIM(result) != 1 ||
-        ARR_HASNULL(result) ||
-        ARR_ELEMTYPE(result) != OIDOID ||
-        ARR_LBOUND(result)[0] != 0)
-        ereport(ERROR,
-                (errcode(ERRCODE_INVALID_BINARY_REPRESENTATION),
-                 errmsg("invalid oidvector data")));
+	/* sanity checks: oidvector must be 1-D, 0-based, no nulls */
+	if (ARR_NDIM(result) != 1 ||
+		ARR_HASNULL(result) ||
+		ARR_ELEMTYPE(result) != OIDOID ||
+		ARR_LBOUND(result)[0] != 0)
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_BINARY_REPRESENTATION),
+				 errmsg("invalid oidvector data")));
 
-    /* check length for consistency with oidvectorin() */
-    if (ARR_DIMS(result)[0] > FUNC_MAX_ARGS)
-        ereport(ERROR,
-                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-                 errmsg("oidvector has too many elements")));
+	/* check length for consistency with oidvectorin() */
+	if (ARR_DIMS(result)[0] > FUNC_MAX_ARGS)
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				 errmsg("oidvector has too many elements")));
 
-    PG_RETURN_POINTER(result);
+	PG_RETURN_POINTER(result);
 }
 
 /*
- *        oidvectorsend            - converts oidvector to binary format
+ *		oidvectorsend			- converts oidvector to binary format
  */
 Datum
 oidvectorsend(PG_FUNCTION_ARGS)
 {
-    return array_send(fcinfo);
+	return array_send(fcinfo);
 }
 
 /*
- *        oidparse                - get OID from IConst/FConst node
+ *		oidparse				- get OID from IConst/FConst node
  */
 Oid
 oidparse(Node *node)
 {
-    switch (nodeTag(node))
-    {
-        case T_Integer:
-            return intVal(node);
-        case T_Float:
+	switch (nodeTag(node))
+	{
+		case T_Integer:
+			return intVal(node);
+		case T_Float:
 
-            /*
-             * Values too large for int4 will be represented as Float
-             * constants by the lexer.  Accept these if they are valid OID
-             * strings.
-             */
-            return oidin_subr(strVal(node), NULL);
-        default:
-            elog(ERROR, "unrecognized node type: %d", (int) nodeTag(node));
-    }
-    return InvalidOid;            /* keep compiler quiet */
+			/*
+			 * Values too large for int4 will be represented as Float
+			 * constants by the lexer.  Accept these if they are valid OID
+			 * strings.
+			 */
+			return oidin_subr(strVal(node), NULL);
+		default:
+			elog(ERROR, "unrecognized node type: %d", (int) nodeTag(node));
+	}
+	return InvalidOid;			/* keep compiler quiet */
 }
 
 /* qsort comparison function for Oids */
 int
 oid_cmp(const void *p1, const void *p2)
 {
-    Oid            v1 = *((const Oid *) p1);
-    Oid            v2 = *((const Oid *) p2);
+	Oid			v1 = *((const Oid *) p1);
+	Oid			v2 = *((const Oid *) p2);
 
-    if (v1 < v2)
-        return -1;
-    if (v1 > v2)
-        return 1;
-    return 0;
+	if (v1 < v2)
+		return -1;
+	if (v1 > v2)
+		return 1;
+	return 0;
 }
 
 
 /*****************************************************************************
- *     PUBLIC ROUTINES                                                         *
+ *	 PUBLIC ROUTINES														 *
  *****************************************************************************/
 
 Datum
 oideq(PG_FUNCTION_ARGS)
 {
-    Oid            arg1 = PG_GETARG_OID(0);
-    Oid            arg2 = PG_GETARG_OID(1);
+	Oid			arg1 = PG_GETARG_OID(0);
+	Oid			arg2 = PG_GETARG_OID(1);
 
-    PG_RETURN_BOOL(arg1 == arg2);
+	PG_RETURN_BOOL(arg1 == arg2);
 }
 
 Datum
 oidne(PG_FUNCTION_ARGS)
 {
-    Oid            arg1 = PG_GETARG_OID(0);
-    Oid            arg2 = PG_GETARG_OID(1);
+	Oid			arg1 = PG_GETARG_OID(0);
+	Oid			arg2 = PG_GETARG_OID(1);
 
-    PG_RETURN_BOOL(arg1 != arg2);
+	PG_RETURN_BOOL(arg1 != arg2);
 }
 
 Datum
 oidlt(PG_FUNCTION_ARGS)
 {
-    Oid            arg1 = PG_GETARG_OID(0);
-    Oid            arg2 = PG_GETARG_OID(1);
+	Oid			arg1 = PG_GETARG_OID(0);
+	Oid			arg2 = PG_GETARG_OID(1);
 
-    PG_RETURN_BOOL(arg1 < arg2);
+	PG_RETURN_BOOL(arg1 < arg2);
 }
 
 Datum
 oidle(PG_FUNCTION_ARGS)
 {
-    Oid            arg1 = PG_GETARG_OID(0);
-    Oid            arg2 = PG_GETARG_OID(1);
+	Oid			arg1 = PG_GETARG_OID(0);
+	Oid			arg2 = PG_GETARG_OID(1);
 
-    PG_RETURN_BOOL(arg1 <= arg2);
+	PG_RETURN_BOOL(arg1 <= arg2);
 }
 
 Datum
 oidge(PG_FUNCTION_ARGS)
 {
-    Oid            arg1 = PG_GETARG_OID(0);
-    Oid            arg2 = PG_GETARG_OID(1);
+	Oid			arg1 = PG_GETARG_OID(0);
+	Oid			arg2 = PG_GETARG_OID(1);
 
-    PG_RETURN_BOOL(arg1 >= arg2);
+	PG_RETURN_BOOL(arg1 >= arg2);
 }
 
 Datum
 oidgt(PG_FUNCTION_ARGS)
 {
-    Oid            arg1 = PG_GETARG_OID(0);
-    Oid            arg2 = PG_GETARG_OID(1);
+	Oid			arg1 = PG_GETARG_OID(0);
+	Oid			arg2 = PG_GETARG_OID(1);
 
-    PG_RETURN_BOOL(arg1 > arg2);
+	PG_RETURN_BOOL(arg1 > arg2);
 }
 
 Datum
 oidlarger(PG_FUNCTION_ARGS)
 {
-    Oid            arg1 = PG_GETARG_OID(0);
-    Oid            arg2 = PG_GETARG_OID(1);
+	Oid			arg1 = PG_GETARG_OID(0);
+	Oid			arg2 = PG_GETARG_OID(1);
 
-    PG_RETURN_OID((arg1 > arg2) ? arg1 : arg2);
+	PG_RETURN_OID((arg1 > arg2) ? arg1 : arg2);
 }
 
 Datum
 oidsmaller(PG_FUNCTION_ARGS)
 {
-    Oid            arg1 = PG_GETARG_OID(0);
-    Oid            arg2 = PG_GETARG_OID(1);
+	Oid			arg1 = PG_GETARG_OID(0);
+	Oid			arg2 = PG_GETARG_OID(1);
 
-    PG_RETURN_OID((arg1 < arg2) ? arg1 : arg2);
+	PG_RETURN_OID((arg1 < arg2) ? arg1 : arg2);
 }
 
 Datum
 oidvectoreq(PG_FUNCTION_ARGS)
 {
-    int32        cmp = DatumGetInt32(btoidvectorcmp(fcinfo));
+	int32		cmp = DatumGetInt32(btoidvectorcmp(fcinfo));
 
-    PG_RETURN_BOOL(cmp == 0);
+	PG_RETURN_BOOL(cmp == 0);
 }
 
 Datum
 oidvectorne(PG_FUNCTION_ARGS)
 {
-    int32        cmp = DatumGetInt32(btoidvectorcmp(fcinfo));
+	int32		cmp = DatumGetInt32(btoidvectorcmp(fcinfo));
 
-    PG_RETURN_BOOL(cmp != 0);
+	PG_RETURN_BOOL(cmp != 0);
 }
 
 Datum
 oidvectorlt(PG_FUNCTION_ARGS)
 {
-    int32        cmp = DatumGetInt32(btoidvectorcmp(fcinfo));
+	int32		cmp = DatumGetInt32(btoidvectorcmp(fcinfo));
 
-    PG_RETURN_BOOL(cmp < 0);
+	PG_RETURN_BOOL(cmp < 0);
 }
 
 Datum
 oidvectorle(PG_FUNCTION_ARGS)
 {
-    int32        cmp = DatumGetInt32(btoidvectorcmp(fcinfo));
+	int32		cmp = DatumGetInt32(btoidvectorcmp(fcinfo));
 
-    PG_RETURN_BOOL(cmp <= 0);
+	PG_RETURN_BOOL(cmp <= 0);
 }
 
 Datum
 oidvectorge(PG_FUNCTION_ARGS)
 {
-    int32        cmp = DatumGetInt32(btoidvectorcmp(fcinfo));
+	int32		cmp = DatumGetInt32(btoidvectorcmp(fcinfo));
 
-    PG_RETURN_BOOL(cmp >= 0);
+	PG_RETURN_BOOL(cmp >= 0);
 }
 
 Datum
 oidvectorgt(PG_FUNCTION_ARGS)
 {
-    int32        cmp = DatumGetInt32(btoidvectorcmp(fcinfo));
+	int32		cmp = DatumGetInt32(btoidvectorcmp(fcinfo));
 
-    PG_RETURN_BOOL(cmp > 0);
+	PG_RETURN_BOOL(cmp > 0);
 }
 
 #ifdef _MIGRATE_
 oidvector *
 oidvector_append(oidvector *oldoids, Oid newOid)
 {
-    oidvector *result;
-    int     oldlen = 0;
-    
-    if(!oldoids)
-        oldlen = 0;
-    else
-        oldlen = oldoids->dim1;
+	oidvector *result;
+	int 	oldlen = 0;
+	
+	if(!oldoids)
+		oldlen = 0;
+	else
+		oldlen = oldoids->dim1;
 
-    result = (oidvector *)palloc(OidVectorSize(oldlen + 1));
+	result = (oidvector *)palloc(OidVectorSize(oldlen + 1));
 
-    result->dataoffset = 0;
-    result->dim1 = oldlen + 1;
-    result->elemtype = OIDOID;
-    result->lbound1 = 0;
-    result->ndim = 1;
-    SET_VARSIZE(result, OidVectorSize(oldlen + 1));
+	result->dataoffset = 0;
+	result->dim1 = oldlen + 1;
+	result->elemtype = OIDOID;
+	result->lbound1 = 0;
+	result->ndim = 1;
+	SET_VARSIZE(result, OidVectorSize(oldlen + 1));
 
 	if (oldoids && oldoids->dim1 > 0)
-        memcpy(result->values, oldoids->values, oldlen * sizeof(Oid));
+		memcpy(result->values, oldoids->values, oldlen * sizeof(Oid));
 
-    result->values[result->dim1-1] = newOid;
+	result->values[result->dim1-1] = newOid;
 
-    return result;
+	return result;
 }
 
 oidvector *
 oidvector_remove(oidvector *oldoids, Oid toremove)
 {
-    oidvector *result;
-    int     oldlen = 0;
-    int     newlen = 0;
-    int        i;
-    
-    if(!oldoids || oldoids->dim1 == 1)
-        return NULL;
+	oidvector *result;
+	int 	oldlen = 0;
+	int 	newlen = 0;
+	int		i;
+	
+	if(!oldoids || oldoids->dim1 == 1)
+		return NULL;
 
-    oldlen = oldoids->dim1;
-    
-    result = (oidvector *)palloc(OidVectorSize(oldlen - 1));
+	oldlen = oldoids->dim1;
+	
+	result = (oidvector *)palloc(OidVectorSize(oldlen - 1));
 
-    result->dataoffset = 0;
-    result->dim1 = oldlen - 1;
-    result->elemtype = OIDOID;
-    result->lbound1 = 0;
-    result->ndim = 1;
-    SET_VARSIZE(result, OidVectorSize(oldlen - 1));
+	result->dataoffset = 0;
+	result->dim1 = oldlen - 1;
+	result->elemtype = OIDOID;
+	result->lbound1 = 0;
+	result->ndim = 1;
+	SET_VARSIZE(result, OidVectorSize(oldlen - 1));
 
-    for(i = 0; i < oldlen; i++)
-    {
-        if(oldoids->values[i] != toremove)
-            result->values[newlen++] = oldoids->values[i];
-    }
+	for(i = 0; i < oldlen; i++)
+	{
+		if(oldoids->values[i] != toremove)
+			result->values[newlen++] = oldoids->values[i];
+	}
 
-    if (newlen != oldlen - 1)
-    {
-        elog(ERROR, "[oidvector_remove] remove oid failed.");
-    }
-    
-    return result;
+	if (newlen != oldlen - 1)
+	{
+		elog(ERROR, "[oidvector_remove] remove oid failed.");
+	}
+	
+	return result;
 }
 
 bool 
 oidvector_member(oidvector *oids, Oid oid)
 {
-    int i;
-    
-    if(!oids)
-        return false;
+	int i;
+	
+	if(!oids)
+		return false;
 
-    for (i = 0; i < oids->dim1; i++)
-    {
-        if (oids->values[i] == oid)
-            return true;
-    }
+	for (i = 0; i < oids->dim1; i++)
+	{
+		if (oids->values[i] == oid)
+			return true;
+	}
 
-    return false;
+	return false;
 }
 #endif

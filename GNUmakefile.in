@@ -66,8 +66,13 @@ distclean maintainer-clean:
 	rm -f config.cache config.log config.status GNUmakefile
 	rm -f MSGIDS MSGMODULES
 
-check check-tests installcheck installcheck-parallel installcheck-tests:
-	$(MAKE) -C src/test/regress $@
+check check-vec check-tests installcheck installcheck-parallel installcheck-tests:
+	-$(MAKE) -C src/test/regress $@
+	-$(MAKE) -C src/test/regress_dn $@
+
+uttest :
+	$(MAKE) -C src/backend uttest -j
+	./src/backend/unittest/uttest
 
 $(call recurse,check-world,src/test src/pl src/interfaces/ecpg contrib src/bin,check)
 

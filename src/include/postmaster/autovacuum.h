@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * autovacuum.h
- *      header file for integrated autovacuum daemon
+ *	  header file for integrated autovacuum daemon
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -23,7 +23,7 @@
  */
 typedef enum
 {
-    AVW_BRINSummarizeRange
+	AVW_BRINSummarizeRange
 } AutoVacuumWorkItemType;
 
 
@@ -34,22 +34,22 @@ typedef enum
 
 /* GUC variables */
 extern bool autovacuum_start_daemon;
-extern int    autovacuum_max_workers;
-extern int    autovacuum_work_mem;
-extern int    autovacuum_naptime;
-extern int    autovacuum_vac_thresh;
+extern int	autovacuum_max_workers;
+extern int	autovacuum_work_mem;
+extern int	autovacuum_naptime;
+extern int	autovacuum_vac_thresh;
 extern double autovacuum_vac_scale;
-extern int    autovacuum_anl_thresh;
+extern int	autovacuum_anl_thresh;
 extern double autovacuum_anl_scale;
-extern int    autovacuum_freeze_max_age;
-extern int    autovacuum_multixact_freeze_max_age;
-extern int    autovacuum_vac_cost_delay;
-extern int    autovacuum_vac_cost_limit;
+extern int	autovacuum_freeze_max_age;
+extern int	autovacuum_multixact_freeze_max_age;
+extern int	autovacuum_vac_cost_delay;
+extern int	autovacuum_vac_cost_limit;
 
 /* autovacuum launcher PID, only valid when worker is shutting down */
-extern int    AutovacuumLauncherPid;
+extern int	AutovacuumLauncherPid;
 
-extern int    Log_autovacuum_min_duration;
+extern int	Log_autovacuum_min_duration;
 
 /* Status inquiry functions */
 extern bool AutoVacuumingActive(void);
@@ -57,12 +57,12 @@ extern bool IsAutoVacuumLauncherProcess(void);
 extern bool IsAutoVacuumWorkerProcess(void);
 
 #define IsAnyAutoVacuumProcess() \
-    (IsAutoVacuumLauncherProcess() || IsAutoVacuumWorkerProcess())
+	(IsAutoVacuumLauncherProcess() || IsAutoVacuumWorkerProcess())
 
 /* Functions to start autovacuum process, called from postmaster */
 extern void autovac_init(void);
-extern int    StartAutoVacLauncher(void);
-extern int    StartAutoVacWorker(void);
+extern int	StartAutoVacLauncher(void);
+extern int	StartAutoVacWorker(void);
 
 /* called from postmaster when a worker could not be forked */
 extern void AutoVacWorkerFailed(void);
@@ -78,10 +78,13 @@ extern void AutovacuumLauncherIAm(void);
 #endif
 
 extern void AutoVacuumRequestWork(AutoVacuumWorkItemType type,
-                      Oid relationId, BlockNumber blkno);
+					  Oid relationId, BlockNumber blkno);
 
 /* shared memory stuff */
 extern Size AutoVacuumShmemSize(void);
 extern void AutoVacuumShmemInit(void);
 
-#endif                            /* AUTOVACUUM_H */
+extern bool relation_need_autoanalyze(Oid relid, bool need_read_statfile);
+extern void xact_do_autoanalyze(Relation rel);
+
+#endif							/* AUTOVACUUM_H */

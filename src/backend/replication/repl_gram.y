@@ -1,13 +1,11 @@
 %{
-
 /*-------------------------------------------------------------------------
  *
  * repl_gram.y				- Parser for the replication commands
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
+ *
  *
  * IDENTIFICATION
  *	  src/backend/replication/repl_gram.y
@@ -78,6 +76,7 @@ static SQLCmd *make_sqlcmd(void);
 %token K_MAX_RATE
 %token K_WAL
 %token K_TABLESPACE_MAP
+%token K_NOVERIFY_CHECKSUMS
 %token K_TIMELINE
 %token K_PHYSICAL
 %token K_LOGICAL
@@ -91,6 +90,7 @@ static SQLCmd *make_sqlcmd(void);
 %token K_ID_SUBSCRIPTION
 %token K_REL_NAMESPACE
 %token K_NAME_REL
+%token K_INCLUDE_LOG
 
 %type <node>	command
 %type <node>	base_backup start_replication start_logical_replication
@@ -159,7 +159,7 @@ var_name:	IDENT	{ $$ = $1; }
 
 /*
  * BASE_BACKUP [LABEL '<label>'] [PROGRESS] [FAST] [WAL] [NOWAIT]
- * [MAX_RATE %d] [TABLESPACE_MAP]
+ * [MAX_RATE %d] [TABLESPACE_MAP] [NOVERIFY_CHECKSUMS]
  */
 base_backup:
 			K_BASE_BACKUP base_backup_opt_list
@@ -212,6 +212,16 @@ base_backup_opt:
 				{
 				  $$ = makeDefElem("tablespace_map",
 								   (Node *)makeInteger(TRUE), -1);
+				}
+			| K_INCLUDE_LOG
+			    {
+			      $$ = makeDefElem("include_log",
+			                        (Node *)makeInteger(TRUE), -1);
+			    }
+			| K_NOVERIFY_CHECKSUMS
+				{
+				  $$ = makeDefElem("noverify_checksums",
+								   (Node *)makeInteger(true), -1);
 				}
 			;
 

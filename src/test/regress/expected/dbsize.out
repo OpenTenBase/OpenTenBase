@@ -106,41 +106,117 @@ SELECT pg_size_bytes('1 AB');
 ERROR:  invalid size: "1 AB"
 DETAIL:  Invalid size unit: "AB".
 HINT:  Valid units are "bytes", "kB", "MB", "GB", and "TB".
+ while processing column pg_size_bytes
 SELECT pg_size_bytes('1 AB A');
 ERROR:  invalid size: "1 AB A"
 DETAIL:  Invalid size unit: "AB A".
 HINT:  Valid units are "bytes", "kB", "MB", "GB", and "TB".
+ while processing column pg_size_bytes
 SELECT pg_size_bytes('1 AB A    ');
 ERROR:  invalid size: "1 AB A    "
 DETAIL:  Invalid size unit: "AB A".
 HINT:  Valid units are "bytes", "kB", "MB", "GB", and "TB".
+ while processing column pg_size_bytes
 SELECT pg_size_bytes('9223372036854775807.9');
 ERROR:  bigint out of range
+HINT:   while processing column pg_size_bytes
 SELECT pg_size_bytes('1e100');
 ERROR:  bigint out of range
+HINT:   while processing column pg_size_bytes
 SELECT pg_size_bytes('1e1000000000000000000');
 ERROR:  value overflows numeric format
+HINT:   while processing column pg_size_bytes
 SELECT pg_size_bytes('1 byte');  -- the singular "byte" is not supported
 ERROR:  invalid size: "1 byte"
 DETAIL:  Invalid size unit: "byte".
 HINT:  Valid units are "bytes", "kB", "MB", "GB", and "TB".
+ while processing column pg_size_bytes
 SELECT pg_size_bytes('');
 ERROR:  invalid size: ""
+HINT:   while processing column pg_size_bytes
 SELECT pg_size_bytes('kb');
 ERROR:  invalid size: "kb"
+HINT:   while processing column pg_size_bytes
 SELECT pg_size_bytes('..');
 ERROR:  invalid size: ".."
+HINT:   while processing column pg_size_bytes
 SELECT pg_size_bytes('-.');
 ERROR:  invalid size: "-."
+HINT:   while processing column pg_size_bytes
 SELECT pg_size_bytes('-.kb');
 ERROR:  invalid size: "-.kb"
+HINT:   while processing column pg_size_bytes
 SELECT pg_size_bytes('-. kb');
 ERROR:  invalid size: "-. kb"
+HINT:   while processing column pg_size_bytes
 SELECT pg_size_bytes('.+912');
 ERROR:  invalid size: ".+912"
+HINT:   while processing column pg_size_bytes
 SELECT pg_size_bytes('+912+ kB');
 ERROR:  invalid size: "+912+ kB"
 DETAIL:  Invalid size unit: "+ kB".
 HINT:  Valid units are "bytes", "kB", "MB", "GB", and "TB".
+ while processing column pg_size_bytes
 SELECT pg_size_bytes('++123 kB');
 ERROR:  invalid size: "++123 kB"
+HINT:   while processing column pg_size_bytes
+-- test pg_database_size (temp disable unstable cases)
+--CREATE DATABASE test_dbsize;
+--\c test_dbsize
+--SELECT pg_database_size('test_dbsize');
+--CREATE TABLE rowtbl (i int, j text);
+--SELECT pg_database_size('test_dbsize');
+--INSERT INTO rowtbl VALUES (generate_series(1,10), 'hello word');
+--SELECT pg_database_size('test_dbsize');
+--SELECT pg_database_size('test_dbsize');
+--SELECT pg_database_size('test_dbsize');
+--\c regression
+--DROP DATABASE test_dbsize;
+-- Similar to PostgreSQL, returning null for an invalid OID.
+select pg_relation_size(0);
+ pg_relation_size 
+------------------
+                 
+(1 row)
+
+select pg_relation_size(888);
+ pg_relation_size 
+------------------
+                 
+(1 row)
+
+-- test index table size
+create table testtable5(f1 int primary key,f2 int) distribute by shard(f1);
+insert into testtable5 select i, i+10 from generate_series(1, 100000) i;
+select (pg_table_size('testtable5_pkey') > 8192) as opentenbase;
+ opentenbase 
+-------------
+ t
+(1 row)
+
+select (pg_relation_size('testtable5_pkey') > 8192) as opentenbase;
+ opentenbase 
+-------------
+ t
+(1 row)
+
+select (pg_total_relation_size('testtable5_pkey') > 8192)  as opentenbase;
+ opentenbase 
+-------------
+ t
+(1 row)
+
+select (pg_allocated_table_size('testtable5_pkey') > 8192) as opentenbase;
+ opentenbase 
+-------------
+ t
+(1 row)
+
+select (pg_allocated_total_relation_size('testtable5_pkey') > 8192)  as opentenbase;
+ opentenbase 
+-------------
+ t
+(1 row)
+
+drop table t_col_no, testtable5;
+ERROR:  table "t_col_no" does not exist

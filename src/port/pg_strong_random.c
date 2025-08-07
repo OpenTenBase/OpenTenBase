@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * pg_strong_random.c
- *      generate a cryptographically secure random number
+ *	  generate a cryptographically secure random number
  *
  * Our definition of "strong" is that it's suitable for generating random
  * salts and query cancellation keys, during authentication.
@@ -9,7 +9,7 @@
  * Copyright (c) 1996-2017, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *      src/port/pg_strong_random.c
+ *	  src/port/pg_strong_random.c
  *
  *-------------------------------------------------------------------------
  */
@@ -46,32 +46,32 @@ static HCRYPTPROV hProvider = 0;
 static bool
 random_from_file(char *filename, void *buf, size_t len)
 {
-    int            f;
-    char       *p = buf;
-    ssize_t        res;
+	int			f;
+	char	   *p = buf;
+	ssize_t		res;
 
-    f = open(filename, O_RDONLY, 0);
-    if (f == -1)
-        return false;
+	f = open(filename, O_RDONLY, 0);
+	if (f == -1)
+		return false;
 
-    while (len)
-    {
-        res = read(f, p, len);
-        if (res <= 0)
-        {
-            if (errno == EINTR)
-                continue;        /* interrupted by signal, just retry */
+	while (len)
+	{
+		res = read(f, p, len);
+		if (res <= 0)
+		{
+			if (errno == EINTR)
+				continue;		/* interrupted by signal, just retry */
 
-            close(f);
-            return false;
-        }
+			close(f);
+			return false;
+		}
 
-        p += res;
-        len -= res;
-    }
+		p += res;
+		len -= res;
+	}
 
-    close(f);
-    return true;
+	close(f);
+	return true;
 }
 #endif
 
@@ -98,52 +98,52 @@ random_from_file(char *filename, void *buf, size_t len)
  */
 bool
 pg_strong_random(void *buf, size_t len)
-{// #lizard forgives
-    /*
-     * When built with OpenSSL, use OpenSSL's RAND_bytes function.
-     */
+{
+	/*
+	 * When built with OpenSSL, use OpenSSL's RAND_bytes function.
+	 */
 #if defined(USE_OPENSSL_RANDOM)
-    if (RAND_bytes(buf, len) == 1)
-        return true;
-    return false;
+	if (RAND_bytes(buf, len) == 1)
+		return true;
+	return false;
 
-    /*
-     * Windows has CryptoAPI for strong cryptographic numbers.
-     */
+	/*
+	 * Windows has CryptoAPI for strong cryptographic numbers.
+	 */
 #elif defined(USE_WIN32_RANDOM)
-    if (hProvider == 0)
-    {
-        if (!CryptAcquireContext(&hProvider,
-                                 NULL,
-                                 MS_DEF_PROV,
-                                 PROV_RSA_FULL,
-                                 CRYPT_VERIFYCONTEXT | CRYPT_SILENT))
-        {
-            /*
-             * On failure, set back to 0 in case the value was for some reason
-             * modified.
-             */
-            hProvider = 0;
-        }
-    }
-    /* Re-check in case we just retrieved the provider */
-    if (hProvider != 0)
-    {
-        if (CryptGenRandom(hProvider, len, buf))
-            return true;
-    }
-    return false;
+	if (hProvider == 0)
+	{
+		if (!CryptAcquireContext(&hProvider,
+								 NULL,
+								 MS_DEF_PROV,
+								 PROV_RSA_FULL,
+								 CRYPT_VERIFYCONTEXT | CRYPT_SILENT))
+		{
+			/*
+			 * On failure, set back to 0 in case the value was for some reason
+			 * modified.
+			 */
+			hProvider = 0;
+		}
+	}
+	/* Re-check in case we just retrieved the provider */
+	if (hProvider != 0)
+	{
+		if (CryptGenRandom(hProvider, len, buf))
+			return true;
+	}
+	return false;
 
-    /*
-     * Read /dev/urandom ourselves.
-     */
+	/*
+	 * Read /dev/urandom ourselves.
+	 */
 #elif defined(USE_DEV_URANDOM)
-    if (random_from_file("/dev/urandom", buf, len))
-        return true;
-    return false;
+	if (random_from_file("/dev/urandom", buf, len))
+		return true;
+	return false;
 
 #else
-    /* The autoconf script should not have allowed this */
+	/* The autoconf script should not have allowed this */
 #error no source of random numbers configured
 #endif
 }

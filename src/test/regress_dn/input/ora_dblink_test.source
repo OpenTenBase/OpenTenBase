@@ -1,0 +1,157 @@
+\c regression_ora
+create extension if not exists postgres_fdw;
+set dblink_types to 'postgresql';
+--dblink to linktest_db/U1/SCHEMA_1
+CREATE  DATABASE LINK link1 CONNECT TO u1 IDENTIFIED BY ''
+USING '(DESCRIPTION =
+			(ADDRESS =
+				(PROTOCOL = TCP)(HOST = localhost)(PORT = @dblink_port@))
+			(CONNECT_DATA =
+				(SERVER = DEDICATED)(SERVICE_NAME = linktest_db)(SCHEMA_NAME=SCHEMA_1)))';
+select * from t@link1;
+select * from "t"@link1;
+
+--dblink to linktest_db/U1/schema_1
+CREATE  DATABASE LINK link2 CONNECT TO u1 IDENTIFIED BY ''
+USING '(DESCRIPTION =
+			(ADDRESS =
+				(PROTOCOL = TCP)(HOST = localhost)(PORT = @dblink_port@))
+			(CONNECT_DATA =
+				(SERVER = DEDICATED)(SERVICE_NAME = linktest_db)(SCHEMA_NAME=schema_1)))';
+select * from t@link2;
+select * from "t"@link2;
+
+--dblink to linktest_db/u1/SCHEMA_1
+CREATE  DATABASE LINK link3 CONNECT TO "u1" IDENTIFIED BY ''
+USING '(DESCRIPTION =
+			(ADDRESS =
+				(PROTOCOL = TCP)(HOST = localhost)(PORT = @dblink_port@))
+			(CONNECT_DATA =
+				(SERVER = DEDICATED)(SERVICE_NAME = linktest_db)(SCHEMA_NAME=SCHEMA_1)))';
+select * from t1@link3;
+select * from "t1"@link3;
+
+--dblink to linktest_db/u1/schema_1
+CREATE  DATABASE LINK link4 CONNECT TO "u1" IDENTIFIED BY ''
+USING '(DESCRIPTION =
+			(ADDRESS =
+				(PROTOCOL = TCP)(HOST = localhost)(PORT = @dblink_port@))
+			(CONNECT_DATA =
+				(SERVER = DEDICATED)(SERVICE_NAME = linktest_db)(SCHEMA_NAME=schema_1)))';
+select * from t1@link4;
+select * from "t1"@link4;
+
+drop database link link2;
+drop database link link3;
+drop database link link4;
+
+--test single table select
+explain (costs off) select * from test1@link1 where test1.id = 1;
+select * from test1@link1 where test1.id = 1;
+select * from test1@link1 where test1.id - 2 > 1;
+select * from test1@link1 where to_char(test1.id) = '1';
+select * from test1@link1 t1 where t1.id = 1;
+select * from test1@link1 as t1 where t1.id = 1;
+
+--test join between to dblink table
+explain (costs off) select * from test1@link1 inner join test2@link1 on test1.id = test2.id;
+explain (costs off) select * from test1@link1 inner join test2@link1 on test1.id = test2.id;
+explain (costs off) select * from test1@link1 full outer join test2@link1 where test1.id = test2.id;
+explain (costs off) select * from test1@link1 where exists (select 1 from test2@link1 where test1.id=test2.id);
+explain (costs off) select * from test1@link1 where not exists (select 1 from test2@link1 where test1.id=test2.id);
+explain (costs off) select * from test1@link1 where id in (select id from test2@link1);
+explain (costs off) select * from test1@link1 where id not in (select id from test2@link1);
+select * from test1@link1 inner join test2@link1 on test1.id = test2.id;
+select * from test1@link1 inner join test2@link1 on test1.id = test2.id;
+select * from test1@link1 full outer join test2@link1 where test1.id = test2.id;
+select * from test1@link1 where exists (select 1 from test2@link1 where test1.id=test2.id);
+select * from test1@link1 where not exists (select 1 from test2@link1 where test1.id=test2.id);
+select * from test1@link1 where id in (select id from test2@link1);
+select * from test1@link1 where id not in (select id from test2@link1);
+
+--test join between local table and dblink table
+create table test2
+(
+    id int,
+    name text,
+    comment varchar2(10),
+    d1 timestamp,
+    d2 date,
+    d3 timestamptz,
+    d4 timestampltz,
+    num numeric,
+    f1  float,
+    f2 double precision,
+    b1 bytea
+);
+insert into test2 values
+(1, 'n1','com1','2022-1-1 12:00:00','2022-1-1','2022-1-1 00:00:00','2022-1-1', 123324234, 1.333, 4.55788, 'aabbcc'),
+(2, 'n2','com2','2022-1-1 12:00:00','2022-1-1','2022-1-1 00:00:00','2022-1-1', 123324234, 1.333, 4.55788,'\x31313232');
+explain (costs off) select * from test1@link1 inner join test2 on test1.id = test2.id;
+explain (costs off) select * from test1@link1 full outer join test2 on  test1.id = test2.id;
+explain (costs off) select * from test1@link1 where exists (select 1 from test2 where test1.id=test2.id);
+explain (costs off) select * from test1@link1 where not exists (select 1 from test2 where test1.id=test2.id);
+explain (costs off) select * from test1@link1 where id in (select id from test2);
+explain (costs off) select * from test1@link1 where id not in (select id from test2);
+select * from test1@link1 inner join test2 on test1.id = test2.id;
+select * from test1@link1 full outer join test2 on test1.id = test2.id;
+select * from test1@link1 where exists (select 1 from test2 where test1.id=test2.id);
+select * from test1@link1 where not exists (select 1 from test2 where test1.id=test2.id);
+select * from test1@link1 where id in (select id from test2);
+select * from test1@link1 where id not in (select id from test2);
+--test grammar for dblink
+explain (costs off, nodes off, summary off) select * from (select * from test1@link1) test1 inner join test2@link1 on test1.id = test2.id;
+explain (costs off, nodes off, summary off) select * from test1@link1 inner join test2@link1 on test1.id = test2.id;
+explain (costs off, nodes off, summary off) select * from (select * from test1@link1) test1 inner join test2@link1 on test1.id = test2.id;
+explain (costs off, nodes off, summary off) select * from (select * from (select t1.id from test1@link1 t1, test2@link1 t2)) test1 inner join test2@link1 on test1.id = test2.id;
+--test cte scan
+with t as (select * from test1@link1) select * from t;
+with t as materialized (select * from test1@link1) select * from t;
+
+--test insert
+insert into test1@link1 values
+(3, 'n3','com3','2022-1-1 12:00:00','2022-1-1','2022-1-1 00:00:00','2022-1-1', 123324234, 1.333, 4.55788, 'aabbcc');
+select * from test1@link1;
+
+--test update
+update test1@link1 set name='n4',b1='\x97979898' where id=3;
+select * from test1@link1;
+
+--test delete
+delete from test1@link1 where id=1;
+select * from test1@link1;
+
+--test transaction
+begin;
+insert into test1@link1 values
+(5, 'n5','com3','2022-1-1 12:00:00','2022-1-1','2022-1-1 00:00:00','2022-1-1', 123324234, 1.333, 4.55788, 'aabbcc');
+select * from test1@link1;
+rollback;
+select * from test1@link1;
+
+begin;
+insert into test1@link1 values
+(6, 'n6','com3','2022-1-1 12:00:00','2022-1-1','2022-1-1 00:00:00','2022-1-1', 123324234, 1.333, 4.55788, 'aabbcc');
+commit;
+select * from test1@link1;
+
+--not support
+--test multi insert
+insert all into test1@link1
+select * from test2;
+
+--test merge into
+merge into test1@link1 using test2 on test1.id=test2.id when matched then update set name='nn' when not matched then
+insert values
+(7, 'n7','com3','2022-1-1 12:00:00','2022-1-1','2022-1-1 00:00:00','2022-1-1', 123324234, 1.333, 4.55788, 'aabbcc');
+drop table test2;
+drop database link link1;
+\c linktest_db
+drop schema "schema_1" cascade;
+drop schema "SCHEMA_1" cascade;
+\c regression
+revoke all on database linktest_db from "u1";
+revoke all on database linktest_db from "U1";
+drop user "u1";
+drop user "U1";
+drop database linktest_db;

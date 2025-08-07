@@ -45,6 +45,7 @@ CREATE FUNCTION heap_page_items(IN page bytea,
     OUT t_xmax xid,
     OUT t_field3 int4,
     OUT t_ctid tid,
+    OUT t_infomask3 integer,
     OUT t_infomask2 integer,
     OUT t_infomask integer,
     OUT t_shard smallint,
@@ -152,7 +153,7 @@ CREATE FUNCTION bt_metap(IN relname text,
     OUT magic int4,
     OUT version int4,
     OUT root int4,
-    OUT level int4,
+    OUT "level" int4,
     OUT fastroot int4,
     OUT fastlevel int4)
 AS 'MODULE_PATHNAME', 'bt_metap'
@@ -163,7 +164,7 @@ LANGUAGE C STRICT PARALLEL SAFE;
 --
 CREATE FUNCTION bt_page_stats(IN relname text, IN blkno int4,
     OUT blkno int4,
-    OUT type "char",
+    OUT type char,
     OUT live_items int4,
     OUT dead_items int4,
     OUT avg_item_size int4,
@@ -279,3 +280,68 @@ CREATE FUNCTION gin_leafpage_items(IN page bytea,
 RETURNS SETOF record
 AS 'MODULE_PATHNAME', 'gin_leafpage_items'
 LANGUAGE C STRICT PARALLEL SAFE;
+
+CREATE TYPE infomask_bit_desc AS (mask varbit, symbol text);
+
+--
+-- infomask()
+--
+CREATE OR REPLACE FUNCTION infomask(msk int, which int) returns text
+LANGUAGE PLPGSQL AS $$
+DECLARE
+r infomask_bit_desc;
+      str text = '';
+      append_bar bool = false;
+BEGIN
+for r in select * from infomask_bits(which) loop
+    if (msk::bit(16) & r.mask)::int <> 0 then
+                       if append_bar then
+                              str = str || '|';
+end if;
+                      append_bar = true;
+                      str = str || r.symbol;
+END IF;
+END LOOP;
+RETURN STR;
+END;
+$$ ;
+
+
+--
+-- infomask_bits(int)
+--
+CREATE OR REPLACE FUNCTION infomask_bits(which int)
+RETURNS setof infomask_bit_desc
+LANGUAGE PLPGSQL AS $$
+BEGIN
+       if which = 1 then
+              return query values
+              (x'8000'::varbit, 'MOVED_IN'),
+              (x'4000', 'MOVED_OFF'),
+              (x'2000', 'UPDATED'),
+              (x'1000', 'XMAX_IS_MULTI'),
+              (x'0800', 'XMAX_INVALID'),
+              (x'0400', 'XMAX_COMMITTED'),
+              (x'0200', 'XMIN_INVALID'),
+              (x'0100', 'XMIN_COMMITTED'),
+              (x'0080', 'XMAX_LOCK_ONLY'),
+              (x'0040', 'EXCL_LOCK'),
+              (x'0020', 'COMBOCID'),
+              (x'0010', 'XMAX_KEYSHR_LOCK'),
+              (x'0008', 'HASOID'),
+              (x'0004', 'HASEXTERNAL'),
+              (x'0002', 'HASVARWIDTH'),
+              (x'0001', 'HASNULL');
+      elsif which = 2 then
+              return query values
+              (x'2000'::varbit, 'UPDATE_KEY_REVOKED'),
+              (x'4000', 'HOT_UPDATED'),
+              (x'8000', 'HEAP_ONLY_TUPLE');
+      elsif which = 3 then
+              return query values
+              (x'0001'::varbit, 'HASROWID'),
+              (x'0002', 'SURELYDEAD'),
+              (x'0010', 'FROM_REMOTE');
+END IF;
+END;
+$$;

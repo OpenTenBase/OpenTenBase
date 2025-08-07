@@ -8,9 +8,6 @@
  * Portions Copyright (c) 1994, Regents of the University of California
  * Portions Copyright (c) 2010-2012 Postgres-XC Development Group
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * $PostgreSQL: pgsql/src/include/libpq/libpq.h,v 1.70 2008/11/20 09:29:36 mha Exp $
  *
  *-------------------------------------------------------------------------

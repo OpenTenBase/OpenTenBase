@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * pqexpbuffer.h
- *      Declarations/definitions for "PQExpBuffer" functions.
+ *	  Declarations/definitions for "PQExpBuffer" functions.
  *
  * PQExpBuffer provides an indefinitely-extensible string data type.
  * It can be used to buffer either ordinary C strings (null-terminated text)
@@ -28,14 +28,14 @@
 
 /*-------------------------
  * PQExpBufferData holds information about an extensible string.
- *        data    is the current buffer for the string (allocated with malloc).
- *        len        is the current string length.  There is guaranteed to be
- *                a terminating '\0' at data[len], although this is not very
- *                useful when the string holds binary data rather than text.
- *        maxlen    is the allocated size in bytes of 'data', i.e. the maximum
- *                string size (including the terminating '\0' char) that we can
- *                currently store in 'data' without having to reallocate
- *                more space.  We must always have maxlen > len.
+ *		data	is the current buffer for the string (allocated with malloc).
+ *		len		is the current string length.  There is guaranteed to be
+ *				a terminating '\0' at data[len], although this is not very
+ *				useful when the string holds binary data rather than text.
+ *		maxlen	is the allocated size in bytes of 'data', i.e. the maximum
+ *				string size (including the terminating '\0' char) that we can
+ *				currently store in 'data' without having to reallocate
+ *				more space.  We must always have maxlen > len.
  *
  * An exception occurs if we failed to allocate enough memory for the string
  * buffer.  In that case data points to a statically allocated empty string,
@@ -44,9 +44,9 @@
  */
 typedef struct PQExpBufferData
 {
-    char       *data;
-    size_t        len;
-    size_t        maxlen;
+	char	   *data;
+	size_t		len;
+	size_t		maxlen;
 } PQExpBufferData;
 
 typedef PQExpBufferData *PQExpBuffer;
@@ -58,7 +58,7 @@ typedef PQExpBufferData *PQExpBuffer;
  *------------------------
  */
 #define PQExpBufferBroken(str)  \
-    ((str) == NULL || (str)->maxlen == 0)
+	((str) == NULL || (str)->maxlen == 0)
 
 /*------------------------
  * Same, but for use when using a static or local PQExpBufferData struct.
@@ -66,7 +66,7 @@ typedef PQExpBufferData *PQExpBuffer;
  *------------------------
  */
 #define PQExpBufferDataBroken(buf)  \
-    ((buf).maxlen == 0)
+	((buf).maxlen == 0)
 
 /*------------------------
  * Initial size of the data buffer in a PQExpBuffer.
@@ -74,19 +74,19 @@ typedef PQExpBufferData *PQExpBuffer;
  * be returned by PQrequestCancel().
  *------------------------
  */
-#define INITIAL_EXPBUFFER_SIZE    256
+#define INITIAL_EXPBUFFER_SIZE	256
 
 /*------------------------
  * There are two ways to create a PQExpBuffer object initially:
  *
  * PQExpBuffer stringptr = createGTMPQExpBuffer();
- *        Both the PQExpBufferData and the data buffer are malloc'd.
+ *		Both the PQExpBufferData and the data buffer are malloc'd.
  *
  * PQExpBufferData string;
  * initGTMPQExpBuffer(&string);
- *        The data buffer is malloc'd but the PQExpBufferData is presupplied.
- *        This is appropriate if the PQExpBufferData is a field of another
- *        struct.
+ *		The data buffer is malloc'd but the PQExpBufferData is presupplied.
+ *		This is appropriate if the PQExpBufferData is a field of another
+ *		struct.
  *-------------------------
  */
 
@@ -107,16 +107,16 @@ extern void initGTMPQExpBuffer(PQExpBuffer str);
  * To destroy a PQExpBuffer, use either:
  *
  * destroyGTMPQExpBuffer(str);
- *        free()s both the data buffer and the PQExpBufferData.
- *        This is the inverse of createGTMPQExpBuffer().
+ *		free()s both the data buffer and the PQExpBufferData.
+ *		This is the inverse of createGTMPQExpBuffer().
  *
  * termGTMPQExpBuffer(str)
- *        free()s the data buffer but not the PQExpBufferData itself.
- *        This is the inverse of initGTMPQExpBuffer().
+ *		free()s the data buffer but not the PQExpBufferData itself.
+ *		This is the inverse of initGTMPQExpBuffer().
  *
  * NOTE: some routines build up a string using PQExpBuffer, and then
  * release the PQExpBufferData but return the data string itself to their
- * caller.    At that point the data string looks like a plain malloc'd
+ * caller.	At that point the data string looks like a plain malloc'd
  * string.
  */
 extern void destroyGTMPQExpBuffer(PQExpBuffer str);
@@ -124,7 +124,7 @@ extern void termGTMPQExpBuffer(PQExpBuffer str);
 
 /*------------------------
  * resetGTMPQExpBuffer
- *        Reset a PQExpBuffer to empty
+ *		Reset a PQExpBuffer to empty
  *
  * Note: if possible, a "broken" PQExpBuffer is returned to normal.
  */
@@ -138,12 +138,12 @@ extern void resetGTMPQExpBuffer(PQExpBuffer str);
  * Returns 1 if OK, 0 if failed to enlarge buffer.  (In the latter case
  * the buffer is left in "broken" state.)
  */
-extern int    enlargeGTMPQExpBuffer(PQExpBuffer str, size_t needed);
+extern int	enlargeGTMPQExpBuffer(PQExpBuffer str, size_t needed);
 
 /*------------------------
  * printfGTMPQExpBuffer
  * Format text data under the control of fmt (an sprintf-like format string)
- * and insert it into str.    More space is allocated to str if necessary.
+ * and insert it into str.	More space is allocated to str if necessary.
  * This is a convenience routine that does the same thing as
  * resetGTMPQExpBuffer() followed by appendGTMPQExpBuffer().
  */
@@ -184,6 +184,6 @@ extern void appendGTMPQExpBufferChar(PQExpBuffer str, char ch);
  * if necessary.
  */
 extern void appendBinaryGTMPQExpBuffer(PQExpBuffer str,
-                        const char *data, size_t datalen);
+						const char *data, size_t datalen);
 
 #endif   /* PQEXPBUFFER_H */

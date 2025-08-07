@@ -1,12 +1,12 @@
 /*--------------------------------------------------------------------------
  *
  * test_rls_hooks.c
- *        Code for testing RLS hooks.
+ *		Code for testing RLS hooks.
  *
  * Copyright (c) 2015-2017, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *        src/test/modules/test_rls_hooks/test_rls_hooks.c
+ *		src/test/modules/test_rls_hooks/test_rls_hooks.c
  *
  * -------------------------------------------------------------------------
  */
@@ -35,28 +35,28 @@ PG_MODULE_MAGIC;
 static row_security_policy_hook_type prev_row_security_policy_hook_permissive = NULL;
 static row_security_policy_hook_type prev_row_security_policy_hook_restrictive = NULL;
 
-void        _PG_init(void);
-void        _PG_fini(void);
+void		_PG_init(void);
+void		_PG_fini(void);
 
 /* Install hooks */
 void
 _PG_init(void)
 {
-    /* Save values for unload  */
-    prev_row_security_policy_hook_permissive = row_security_policy_hook_permissive;
-    prev_row_security_policy_hook_restrictive = row_security_policy_hook_restrictive;
+	/* Save values for unload  */
+	prev_row_security_policy_hook_permissive = row_security_policy_hook_permissive;
+	prev_row_security_policy_hook_restrictive = row_security_policy_hook_restrictive;
 
-    /* Set our hooks */
-    row_security_policy_hook_permissive = test_rls_hooks_permissive;
-    row_security_policy_hook_restrictive = test_rls_hooks_restrictive;
+	/* Set our hooks */
+	row_security_policy_hook_permissive = test_rls_hooks_permissive;
+	row_security_policy_hook_restrictive = test_rls_hooks_restrictive;
 }
 
 /* Uninstall hooks */
 void
 _PG_fini(void)
 {
-    row_security_policy_hook_permissive = prev_row_security_policy_hook_permissive;
-    row_security_policy_hook_restrictive = prev_row_security_policy_hook_restrictive;
+	row_security_policy_hook_permissive = prev_row_security_policy_hook_permissive;
+	row_security_policy_hook_restrictive = prev_row_security_policy_hook_restrictive;
 }
 
 /*
@@ -65,55 +65,55 @@ _PG_fini(void)
 List *
 test_rls_hooks_permissive(CmdType cmdtype, Relation relation)
 {
-    List       *policies = NIL;
-    RowSecurityPolicy *policy = palloc0(sizeof(RowSecurityPolicy));
-    Datum        role;
-    FuncCall   *n;
-    Node       *e;
-    ColumnRef  *c;
-    ParseState *qual_pstate;
-    RangeTblEntry *rte;
+	List	   *policies = NIL;
+	RowSecurityPolicy *policy = palloc0(sizeof(RowSecurityPolicy));
+	Datum		role;
+	FuncCall   *n;
+	Node	   *e;
+	ColumnRef  *c;
+	ParseState *qual_pstate;
+	RangeTblEntry *rte;
 
-    if (strcmp(RelationGetRelationName(relation), "rls_test_permissive")
-        && strcmp(RelationGetRelationName(relation), "rls_test_both"))
-        return NIL;
+	if (strcmp(RelationGetRelationName(relation), "rls_test_permissive")
+		&& strcmp(RelationGetRelationName(relation), "rls_test_both"))
+		return NIL;
 
-    qual_pstate = make_parsestate(NULL);
+	qual_pstate = make_parsestate(NULL);
 
-    rte = addRangeTableEntryForRelation(qual_pstate, relation, NULL, false,
-                                        false);
-    addRTEtoQuery(qual_pstate, rte, false, true, true);
+	rte = addRangeTableEntryForRelation(qual_pstate, relation, NULL, false,
+										false);
+	addRTEtoQuery(qual_pstate, rte, false, true, true);
 
-    role = ObjectIdGetDatum(ACL_ID_PUBLIC);
+	role = ObjectIdGetDatum(ACL_ID_PUBLIC);
 
-    policy->policy_name = pstrdup("extension policy");
-    policy->polcmd = '*';
-    policy->roles = construct_array(&role, 1, OIDOID, sizeof(Oid), true, 'i');
+	policy->policy_name = pstrdup("extension policy");
+	policy->polcmd = '*';
+	policy->roles = construct_array(&role, 1, OIDOID, sizeof(Oid), true, 'i');
 
-    /*
-     * policy->qual = (Expr *) makeConst(BOOLOID, -1, InvalidOid,
-     * sizeof(bool), BoolGetDatum(true), false, true);
-     */
+	/*
+	 * policy->qual = (Expr *) makeConst(BOOLOID, -1, InvalidOid,
+	 * sizeof(bool), BoolGetDatum(true), false, true);
+	 */
 
-    n = makeFuncCall(list_make2(makeString("pg_catalog"),
-                                makeString("current_user")), NIL, 0);
+	n = makeFuncCall(list_make2(makeString("pg_catalog"),
+								makeString("current_user")), NIL, 0);
 
-    c = makeNode(ColumnRef);
-    c->fields = list_make1(makeString("username"));
-    c->location = 0;
+	c = makeNode(ColumnRef);
+	c->fields = list_make1(makeString("username"));
+	c->location = 0;
 
-    e = (Node *) makeSimpleA_Expr(AEXPR_OP, "=", (Node *) n, (Node *) c, 0);
+	e = (Node *) makeSimpleA_Expr(AEXPR_OP, "=", (Node *) n, (Node *) c, 0);
 
-    policy->qual = (Expr *) transformWhereClause(qual_pstate, copyObject(e),
-                                                 EXPR_KIND_POLICY,
-                                                 "POLICY");
+	policy->qual = (Expr *) transformWhereClause(qual_pstate, copyObject(e),
+												 EXPR_KIND_POLICY,
+												 "POLICY");
 
-    policy->with_check_qual = copyObject(policy->qual);
-    policy->hassublinks = false;
+	policy->with_check_qual = copyObject(policy->qual);
+	policy->hassublinks = false;
 
-    policies = list_make1(policy);
+	policies = list_make1(policy);
 
-    return policies;
+	return policies;
 }
 
 /*
@@ -127,49 +127,49 @@ test_rls_hooks_permissive(CmdType cmdtype, Relation relation)
 List *
 test_rls_hooks_restrictive(CmdType cmdtype, Relation relation)
 {
-    List       *policies = NIL;
-    RowSecurityPolicy *policy = palloc0(sizeof(RowSecurityPolicy));
-    Datum        role;
-    FuncCall   *n;
-    Node       *e;
-    ColumnRef  *c;
-    ParseState *qual_pstate;
-    RangeTblEntry *rte;
+	List	   *policies = NIL;
+	RowSecurityPolicy *policy = palloc0(sizeof(RowSecurityPolicy));
+	Datum		role;
+	FuncCall   *n;
+	Node	   *e;
+	ColumnRef  *c;
+	ParseState *qual_pstate;
+	RangeTblEntry *rte;
 
 
-    if (strcmp(RelationGetRelationName(relation), "rls_test_restrictive")
-        && strcmp(RelationGetRelationName(relation), "rls_test_both"))
-        return NIL;
+	if (strcmp(RelationGetRelationName(relation), "rls_test_restrictive")
+		&& strcmp(RelationGetRelationName(relation), "rls_test_both"))
+		return NIL;
 
-    qual_pstate = make_parsestate(NULL);
+	qual_pstate = make_parsestate(NULL);
 
-    rte = addRangeTableEntryForRelation(qual_pstate, relation, NULL, false,
-                                        false);
-    addRTEtoQuery(qual_pstate, rte, false, true, true);
+	rte = addRangeTableEntryForRelation(qual_pstate, relation, NULL, false,
+										false);
+	addRTEtoQuery(qual_pstate, rte, false, true, true);
 
-    role = ObjectIdGetDatum(ACL_ID_PUBLIC);
+	role = ObjectIdGetDatum(ACL_ID_PUBLIC);
 
-    policy->policy_name = pstrdup("extension policy");
-    policy->polcmd = '*';
-    policy->roles = construct_array(&role, 1, OIDOID, sizeof(Oid), true, 'i');
+	policy->policy_name = pstrdup("extension policy");
+	policy->polcmd = '*';
+	policy->roles = construct_array(&role, 1, OIDOID, sizeof(Oid), true, 'i');
 
-    n = makeFuncCall(list_make2(makeString("pg_catalog"),
-                                makeString("current_user")), NIL, 0);
+	n = makeFuncCall(list_make2(makeString("pg_catalog"),
+								makeString("current_user")), NIL, 0);
 
-    c = makeNode(ColumnRef);
-    c->fields = list_make1(makeString("supervisor"));
-    c->location = 0;
+	c = makeNode(ColumnRef);
+	c->fields = list_make1(makeString("supervisor"));
+	c->location = 0;
 
-    e = (Node *) makeSimpleA_Expr(AEXPR_OP, "=", (Node *) n, (Node *) c, 0);
+	e = (Node *) makeSimpleA_Expr(AEXPR_OP, "=", (Node *) n, (Node *) c, 0);
 
-    policy->qual = (Expr *) transformWhereClause(qual_pstate, copyObject(e),
-                                                 EXPR_KIND_POLICY,
-                                                 "POLICY");
+	policy->qual = (Expr *) transformWhereClause(qual_pstate, copyObject(e),
+												 EXPR_KIND_POLICY,
+												 "POLICY");
 
-    policy->with_check_qual = copyObject(policy->qual);
-    policy->hassublinks = false;
+	policy->with_check_qual = copyObject(policy->qual);
+	policy->hassublinks = false;
 
-    policies = list_make1(policy);
+	policies = list_make1(policy);
 
-    return policies;
+	return policies;
 }

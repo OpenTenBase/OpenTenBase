@@ -29,102 +29,102 @@ PG_FUNCTION_INFO_V1(moddatetime);
 Datum
 moddatetime(PG_FUNCTION_ARGS)
 {
-    TriggerData *trigdata = (TriggerData *) fcinfo->context;
-    Trigger    *trigger;        /* to get trigger name */
-    int            nargs;            /* # of arguments */
-    int            attnum;            /* positional number of field to change */
-    Oid            atttypid;        /* type OID of field to change */
-    Datum        newdt;            /* The current datetime. */
-    bool        newdtnull;        /* null flag for it */
-    char      **args;            /* arguments */
-    char       *relname;        /* triggered relation name */
-    Relation    rel;            /* triggered relation */
-    HeapTuple    rettuple = NULL;
-    TupleDesc    tupdesc;        /* tuple description */
+	TriggerData *trigdata = (TriggerData *) fcinfo->context;
+	Trigger    *trigger;		/* to get trigger name */
+	int			nargs;			/* # of arguments */
+	int			attnum;			/* positional number of field to change */
+	Oid			atttypid;		/* type OID of field to change */
+	Datum		newdt;			/* The current datetime. */
+	bool		newdtnull;		/* null flag for it */
+	char	  **args;			/* arguments */
+	char	   *relname;		/* triggered relation name */
+	Relation	rel;			/* triggered relation */
+	HeapTuple	rettuple = NULL;
+	TupleDesc	tupdesc;		/* tuple description */
 
-    if (!CALLED_AS_TRIGGER(fcinfo))
-        /* internal error */
-        elog(ERROR, "moddatetime: not fired by trigger manager");
+	if (!CALLED_AS_TRIGGER(fcinfo))
+		/* internal error */
+		elog(ERROR, "moddatetime: not fired by trigger manager");
 
-    if (!TRIGGER_FIRED_FOR_ROW(trigdata->tg_event))
-        /* internal error */
-        elog(ERROR, "moddatetime: must be fired for row");
+	if (!TRIGGER_FIRED_FOR_ROW(trigdata->tg_event))
+		/* internal error */
+		elog(ERROR, "moddatetime: must be fired for row");
 
-    if (!TRIGGER_FIRED_BEFORE(trigdata->tg_event))
-        /* internal error */
-        elog(ERROR, "moddatetime: must be fired before event");
+	if (!TRIGGER_FIRED_BEFORE(trigdata->tg_event))
+		/* internal error */
+		elog(ERROR, "moddatetime: must be fired before event");
 
-    if (TRIGGER_FIRED_BY_INSERT(trigdata->tg_event))
-        /* internal error */
-        elog(ERROR, "moddatetime: cannot process INSERT events");
-    else if (TRIGGER_FIRED_BY_UPDATE(trigdata->tg_event))
-        rettuple = trigdata->tg_newtuple;
-    else
-        /* internal error */
-        elog(ERROR, "moddatetime: cannot process DELETE events");
+	if (TRIGGER_FIRED_BY_INSERT(trigdata->tg_event))
+		/* internal error */
+		elog(ERROR, "moddatetime: cannot process INSERT events");
+	else if (TRIGGER_FIRED_BY_UPDATE(trigdata->tg_event))
+		rettuple = trigdata->tg_newtuple;
+	else
+		/* internal error */
+		elog(ERROR, "moddatetime: cannot process DELETE events");
 
-    rel = trigdata->tg_relation;
-    relname = SPI_getrelname(rel);
+	rel = trigdata->tg_relation;
+	relname = SPI_getrelname(rel);
 
-    trigger = trigdata->tg_trigger;
+	trigger = trigdata->tg_trigger;
 
-    nargs = trigger->tgnargs;
+	nargs = trigger->tgnargs;
 
-    if (nargs != 1)
-        /* internal error */
-        elog(ERROR, "moddatetime (%s): A single argument was expected", relname);
+	if (nargs != 1)
+		/* internal error */
+		elog(ERROR, "moddatetime (%s): A single argument was expected", relname);
 
-    args = trigger->tgargs;
-    /* must be the field layout? */
-    tupdesc = rel->rd_att;
+	args = trigger->tgargs;
+	/* must be the field layout? */
+	tupdesc = rel->rd_att;
 
-    /*
-     * This gets the position in the tuple of the field we want. args[0] being
-     * the name of the field to update, as passed in from the trigger.
-     */
-    attnum = SPI_fnumber(tupdesc, args[0]);
+	/*
+	 * This gets the position in the tuple of the field we want. args[0] being
+	 * the name of the field to update, as passed in from the trigger.
+	 */
+	attnum = SPI_fnumber(tupdesc, args[0]);
 
-    /*
-     * This is where we check to see if the field we are supposed to update
-     * even exists.
-     */
-    if (attnum <= 0)
-        ereport(ERROR,
-                (errcode(ERRCODE_TRIGGERED_ACTION_EXCEPTION),
-                 errmsg("\"%s\" has no attribute \"%s\"",
-                        relname, args[0])));
+	/*
+	 * This is where we check to see if the field we are supposed to update
+	 * even exists.
+	 */
+	if (attnum <= 0)
+		ereport(ERROR,
+				(errcode(ERRCODE_TRIGGERED_ACTION_EXCEPTION),
+				 errmsg("\"%s\" has no attribute \"%s\"",
+						relname, args[0])));
 
-    /*
-     * Check the target field has an allowed type, and get the current
-     * datetime as a value of that type.
-     */
-    atttypid = SPI_gettypeid(tupdesc, attnum);
-    if (atttypid == TIMESTAMPOID)
-        newdt = DirectFunctionCall3(timestamp_in,
-                                    CStringGetDatum("now"),
-                                    ObjectIdGetDatum(InvalidOid),
-                                    Int32GetDatum(-1));
-    else if (atttypid == TIMESTAMPTZOID)
-        newdt = DirectFunctionCall3(timestamptz_in,
-                                    CStringGetDatum("now"),
-                                    ObjectIdGetDatum(InvalidOid),
-                                    Int32GetDatum(-1));
-    else
-    {
-        ereport(ERROR,
-                (errcode(ERRCODE_TRIGGERED_ACTION_EXCEPTION),
-                 errmsg("attribute \"%s\" of \"%s\" must be type TIMESTAMP or TIMESTAMPTZ",
-                        args[0], relname)));
-        newdt = (Datum) 0;        /* keep compiler quiet */
-    }
-    newdtnull = false;
+	/*
+	 * Check the target field has an allowed type, and get the current
+	 * datetime as a value of that type.
+	 */
+	atttypid = SPI_gettypeid(tupdesc, attnum);
+	if (atttypid == TIMESTAMPOID)
+		newdt = DirectFunctionCall3(timestamp_in,
+									CStringGetDatum("now"),
+									ObjectIdGetDatum(InvalidOid),
+									Int32GetDatum(-1));
+	else if (atttypid == TIMESTAMPTZOID)
+		newdt = DirectFunctionCall3(timestamptz_in,
+									CStringGetDatum("now"),
+									ObjectIdGetDatum(InvalidOid),
+									Int32GetDatum(-1));
+	else
+	{
+		ereport(ERROR,
+				(errcode(ERRCODE_TRIGGERED_ACTION_EXCEPTION),
+				 errmsg("attribute \"%s\" of \"%s\" must be type TIMESTAMP or TIMESTAMPTZ",
+						args[0], relname)));
+		newdt = (Datum) 0;		/* keep compiler quiet */
+	}
+	newdtnull = false;
 
-    /* Replace the attnum'th column with newdt */
-    rettuple = heap_modify_tuple_by_cols(rettuple, tupdesc,
-                                         1, &attnum, &newdt, &newdtnull);
+	/* Replace the attnum'th column with newdt */
+	rettuple = heap_modify_tuple_by_cols(rettuple, tupdesc,
+										 1, &attnum, &newdt, &newdtnull);
 
-    /* Clean up */
-    pfree(relname);
+	/* Clean up */
+	pfree(relname);
 
-    return PointerGetDatum(rettuple);
+	return PointerGetDatum(rettuple);
 }

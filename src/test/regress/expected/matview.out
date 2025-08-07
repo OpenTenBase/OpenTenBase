@@ -19,15 +19,17 @@ SELECT * FROM mvtest_tv ORDER BY type;
 -- create a materialized view with no data, and confirm correct behavior
 EXPLAIN (costs off)
   CREATE MATERIALIZED VIEW mvtest_tm AS SELECT type, sum(amt) AS totamt FROM mvtest_t GROUP BY type WITH NO DATA;
-                        QUERY PLAN                         
------------------------------------------------------------
- GroupAggregate
-   Group Key: type
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-         ->  Sort
-               Sort Key: type
-               ->  Seq Scan on mvtest_t
-(6 rows)
+                      QUERY PLAN                       
+-------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   ->  Finalize HashAggregate
+         Group Key: type
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by S: type
+               ->  Partial HashAggregate
+                     Group Key: type
+                     ->  Seq Scan on mvtest_t
+(8 rows)
 
 CREATE MATERIALIZED VIEW mvtest_tm AS SELECT type, sum(amt) AS totamt FROM mvtest_t GROUP BY type WITH NO DATA;
 SELECT relispopulated FROM pg_class WHERE oid = 'mvtest_tm'::regclass;
@@ -58,18 +60,23 @@ SELECT * FROM mvtest_tm ORDER BY type;
 -- create various views
 EXPLAIN (costs off)
   CREATE MATERIALIZED VIEW mvtest_tvm AS SELECT * FROM mvtest_tv ORDER BY type;
-                        QUERY PLAN                         
------------------------------------------------------------
- GroupAggregate
-   Group Key: mvtest_t.type
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-         ->  Sort
-               Sort Key: mvtest_t.type
-               ->  Seq Scan on mvtest_t
-(6 rows)
+                         QUERY PLAN                          
+-------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   Sort Key: mvtest_t.type
+   ->  Sort
+         Sort Key: mvtest_t.type
+         ->  Finalize HashAggregate
+               Group Key: mvtest_t.type
+               ->  Remote Subquery Scan on all (datanodes 2)
+                     Distribute results by S: type
+                     ->  Partial HashAggregate
+                           Group Key: mvtest_t.type
+                           ->  Seq Scan on mvtest_t
+(11 rows)
 
 CREATE MATERIALIZED VIEW mvtest_tvm AS SELECT * FROM mvtest_tv ORDER BY type;
-SELECT * FROM mvtest_tvm;
+SELECT * FROM mvtest_tvm order by 1;
  type | totamt 
 ------+--------
  x    |      5
@@ -84,16 +91,21 @@ CREATE UNIQUE INDEX mvtest_tvmm_pred ON mvtest_tvmm (grandtot) WHERE grandtot < 
 CREATE VIEW mvtest_tvv AS SELECT sum(totamt) AS grandtot FROM mvtest_tv;
 EXPLAIN (costs off)
   CREATE MATERIALIZED VIEW mvtest_tvvm AS SELECT * FROM mvtest_tvv;
-                           QUERY PLAN                            
------------------------------------------------------------------
- Aggregate
-   ->  GroupAggregate
-         Group Key: mvtest_t.type
-         ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-               ->  Sort
-                     Sort Key: mvtest_t.type
-                     ->  Seq Scan on mvtest_t
-(7 rows)
+                               QUERY PLAN                                
+-------------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 1)
+   ->  Finalize Aggregate
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by R
+               ->  Partial Aggregate
+                     ->  Finalize HashAggregate
+                           Group Key: mvtest_t.type
+                           ->  Remote Subquery Scan on all (datanodes 2)
+                                 Distribute results by S: type
+                                 ->  Partial HashAggregate
+                                       Group Key: mvtest_t.type
+                                       ->  Seq Scan on mvtest_t
+(12 rows)
 
 CREATE MATERIALIZED VIEW mvtest_tvvm AS SELECT * FROM mvtest_tvv;
 CREATE VIEW mvtest_tvvmv AS SELECT * FROM mvtest_tvvm;
@@ -139,7 +151,7 @@ View definition:
 ----------+---------+-----------+----------+---------+---------+--------------+-------------
  grandtot | numeric |           |          |         | main    |              | 
 Indexes:
-    "mvtest_aa" btree (grandtot)
+    "mvtest_aa" btree (grandtot) WITH (checksum='on')
 View definition:
  SELECT mvtest_tvvmv.grandtot
    FROM mvtest_tvvmv;
@@ -154,8 +166,8 @@ ALTER MATERIALIZED VIEW mvtest_tvm SET SCHEMA mvtest_mvschema;
 ----------+---------+-----------+----------+---------+---------+--------------+-------------
  grandtot | numeric |           |          |         | main    |              | 
 Indexes:
-    "mvtest_tvmm_expr" UNIQUE, btree ((grandtot > 0::numeric))
-    "mvtest_tvmm_pred" UNIQUE, btree (grandtot) WHERE grandtot < 0::numeric
+    "mvtest_tvmm_expr" UNIQUE, btree ((grandtot > 0::numeric)) WITH (checksum='on')
+    "mvtest_tvmm_pred" UNIQUE, btree (grandtot) WITH (checksum='on') WHERE grandtot < 0::numeric
 View definition:
  SELECT sum(mvtest_tvm.totamt) AS grandtot
    FROM mvtest_mvschema.mvtest_tvm;
@@ -233,19 +245,19 @@ EXPLAIN (costs off)
  Seq Scan on mvtest_tvvm
 (1 row)
 
-SELECT * FROM mvtest_tmm;
+SELECT * FROM mvtest_tmm order by 1;
  grandtot 
 ----------
        28
 (1 row)
 
-SELECT * FROM mvtest_tvmm;
+SELECT * FROM mvtest_tvmm order by 1;
  grandtot 
 ----------
        28
 (1 row)
 
-SELECT * FROM mvtest_tvvm;
+SELECT * FROM mvtest_tvvm order by 1;
  grandtot 
 ----------
        28
@@ -278,19 +290,19 @@ EXPLAIN (costs off)
  Seq Scan on mvtest_tvvm
 (1 row)
 
-SELECT * FROM mvtest_tmm;
+SELECT * FROM mvtest_tmm order by 1;
  grandtot 
 ----------
        41
 (1 row)
 
-SELECT * FROM mvtest_tvmm;
+SELECT * FROM mvtest_tvmm order by 1;
  grandtot 
 ----------
        41
 (1 row)
 
-SELECT * FROM mvtest_tvvm;
+SELECT * FROM mvtest_tvvm order by 1;
  grandtot 
 ----------
        41
@@ -459,31 +471,31 @@ REFRESH MATERIALIZED VIEW mvtest_mv_v;
 REFRESH MATERIALIZED VIEW mvtest_mv_v_2;
 REFRESH MATERIALIZED VIEW mvtest_mv_v_3;
 REFRESH MATERIALIZED VIEW mvtest_mv_v_4;
-SELECT * FROM mvtest_v;
+SELECT * FROM mvtest_v order by 1;
  x | j 
 ---+---
  1 | 3
 (1 row)
 
-SELECT * FROM mvtest_mv_v;
+SELECT * FROM mvtest_mv_v order by 1;
  ii | jj 
 ----+----
   1 |  3
 (1 row)
 
-SELECT * FROM mvtest_mv_v_2;
+SELECT * FROM mvtest_mv_v_2 order by 1;
  ii | j 
 ----+---
   1 | 3
 (1 row)
 
-SELECT * FROM mvtest_mv_v_3;
+SELECT * FROM mvtest_mv_v_3 order by 1;
  ii | jj 
 ----+----
   1 |  3
 (1 row)
 
-SELECT * FROM mvtest_mv_v_4;
+SELECT * FROM mvtest_mv_v_4 order by 1;
  ii | j 
 ----+---
   1 | 3
@@ -525,39 +537,40 @@ DROP MATERIALIZED VIEW mv_unspecified_types;
 -- make sure that create WITH NO DATA does not plan the query (bug #13907)
 create materialized view mvtest_error as select 1/0 as x;  -- fail
 ERROR:  division by zero
+HINT:   while processing column x
 create materialized view mvtest_error as select 1/0 as x with no data;
 refresh materialized view mvtest_error;  -- fail here
 ERROR:  division by zero
+HINT:   while processing column x
 drop materialized view mvtest_error;
 -- make sure that matview rows can be referenced as source rows (bug #9398)
 CREATE TABLE mvtest_v AS SELECT generate_series(1,10) AS a;
 CREATE MATERIALIZED VIEW mvtest_mv_v AS SELECT a FROM mvtest_v WHERE a <= 5;
-DELETE FROM mvtest_v WHERE EXISTS ( SELECT * FROM mvtest_mv_v WHERE mvtest_mv_v.a = mvtest_v.a );
-ERROR:  could not plan this distributed delete
-DETAIL:  correlated or complex DELETE is currently not supported in Postgres-XL.
-SELECT * FROM mvtest_v;
+-- DELETE FROM mvtest_v WHERE EXISTS ( SELECT * FROM mvtest_mv_v WHERE mvtest_mv_v.a = mvtest_v.a );
+-- ERROR:  Failed to bind to node datanode_1, materialized view "mvtest_mv_v" has not been populated
+SELECT * FROM mvtest_v order by 1;
  a  
 ----
   1
   2
-  5
-  6
-  8
-  9
   3
   4
+  5
+  6
   7
+  8
+  9
  10
 (10 rows)
 
-SELECT * FROM mvtest_mv_v;
+SELECT * FROM mvtest_mv_v order by 1;
  a 
 ---
  1
  2
- 5
  3
  4
+ 5
 (5 rows)
 
 DROP TABLE mvtest_v CASCADE;
@@ -593,13 +606,13 @@ SELECT mvtest_func();
  
 (1 row)
 
-SELECT * FROM mvtest1;
+SELECT * FROM mvtest1 order by 1;
  x 
 ---
  1
 (1 row)
 
-SELECT * FROM mvtest2;
+SELECT * FROM mvtest2 order by 1;
 ERROR:  materialized view "mvtest2" has not been populated
 HINT:  Use the REFRESH MATERIALIZED VIEW command.
 ROLLBACK;

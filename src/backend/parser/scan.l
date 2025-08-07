@@ -24,9 +24,6 @@
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * IDENTIFICATION
  *	  src/backend/parser/scan.l
  *
@@ -37,7 +34,8 @@
 #include <ctype.h>
 #include <unistd.h>
 
-#include "parser/gramparse.h"
+#include "parser/gramparse_extra.h"
+#include "parser/gram.h"
 #include "parser/parser.h"		/* only needed for GUC variables */
 #include "parser/scansup.h"
 #include "mb/pg_wchar.h"
@@ -57,16 +55,6 @@ fprintf_to_ereport(const char *fmt, const char *msg)
 {
 	ereport(ERROR, (errmsg_internal("%s", msg)));
 }
-
-/*
- * GUC variables.  This is a DIRECT violation of the warning given at the
- * head of gram.y, ie flex/bison code must not depend on any GUC variables;
- * as such, changing their values can induce very unintuitive behavior.
- * But we shall have to live with it until we can remove these variables.
- */
-int			backslash_quote = BACKSLASH_QUOTE_SAFE_ENCODING;
-bool		escape_string_warning = true;
-bool		standard_conforming_strings = true;
 
 /*
  * Set the type of YYSTYPE.
@@ -106,9 +94,9 @@ static pg_wchar surrogate_pair_to_codepoint(pg_wchar first, pg_wchar second);
 static void addunicode(pg_wchar c, yyscan_t yyscanner);
 static bool check_uescapechar(unsigned char escape);
 
-#define yyerror(msg)  scanner_yyerror(msg, yyscanner)
+#define yyerror(msg)  pg_scanner_yyerror(msg, yyscanner)
 
-#define lexer_errposition()  scanner_errposition(*(yylloc), yyscanner)
+#define lexer_errposition()  pg_scanner_errposition(*(yylloc), yyscanner)
 
 static void check_string_escape_warning(unsigned char ychar, core_yyscan_t yyscanner);
 static void check_escape_warning(core_yyscan_t yyscanner);
@@ -137,7 +125,7 @@ extern void core_yyset_column(int column_no, yyscan_t yyscanner);
 %option noyyrealloc
 %option noyyfree
 %option warn
-%option prefix="core_yy"
+%option prefix="pg_core_yy"
 
 /*
  * OK, here is a short description of lex/flex rules behavior.
@@ -382,10 +370,6 @@ realfail2		({integer}|{decimal})[Ee][-+]
 param			\${integer}
 
 other			.
-
-varrr           [A-Za-z_]+
-errorstr        {integer}{varrr}
-
 
 /*
  * Dollar quoted strings are totally opaque, and no escaping is done on them.
@@ -810,7 +794,14 @@ errorstr        {integer}{varrr}
 					/* throw back all but the initial u/U */
 					yyless(1);
 					/* and treat it as {identifier} */
-					ident = downcase_truncate_identifier(yytext, yyleng, true);
+					/*
+					 * If we use plpgsql in opentenbase_ora mode, we have to convert ident
+					 * to upper case.
+					 */
+					if (ORA_MODE)
+						ident = upcase_truncate_identifier(yytext, yyleng, true);
+					else
+						ident = downcase_truncate_identifier(yytext, yyleng, true);
 					yylval->str = ident;
 					return IDENT;
 				}
@@ -872,9 +863,7 @@ errorstr        {integer}{varrr}
 					int			nchars = yyleng;
 					char	   *slashstar = strstr(yytext, "/*");
 					char	   *dashdash = strstr(yytext, "--");
-#ifdef _PG_ORCL_
-					int			need_replace_ne = 0;
-#endif
+
 					if (slashstar && dashdash)
 					{
 						/* if both appear, take the first one */
@@ -894,16 +883,6 @@ errorstr        {integer}{varrr}
 					 * to forbid operator names like '?-' that could not be
 					 * sequences of SQL operators.
 					 */
-#ifdef _PG_ORCL_
-					/* Convert "!=" operator to "<>" for compatibility and let !=- can also work */
-					if (enable_oracle_compatible && nchars > 1 &&
-					    yytext[0] == '!' && yytext[1] == '=')
-					{
-						yytext[0] = '<';
-						yytext[1] = '>';
-						need_replace_ne = 1;
-					}
-#endif
 					while (nchars > 1 &&
 						   (yytext[nchars - 1] == '+' ||
 							yytext[nchars - 1] == '-'))
@@ -947,14 +926,6 @@ errorstr        {integer}{varrr}
 						yyerror("operator too long");
 
 					yylval->str = pstrdup(yytext);
-#ifdef _PG_ORCL_
-					if (enable_oracle_compatible && 
-						need_replace_ne)
-					{
-						yytext[0] = '!';
-						yytext[1] = '=';
-					}
-#endif
 					return Op;
 				}
 
@@ -963,10 +934,6 @@ errorstr        {integer}{varrr}
 					yylval->ival = atol(yytext + 1);
 					return PARAM;
 				}
-{errorstr}      {
-                    SET_YYLLOC();
-                    yyerror("invalid input variable");
-                }
 
 {integer}		{
 					SET_YYLLOC();
@@ -1008,7 +975,6 @@ errorstr        {integer}{varrr}
 					return FCONST;
 				}
 
-
 {identifier}	{
 					const ScanKeyword *keyword;
 					char	   *ident;
@@ -1028,8 +994,13 @@ errorstr        {integer}{varrr}
 					/*
 					 * No.  Convert the identifier to lower case, and truncate
 					 * if necessary.
+					 * If we use plpgsql in opentenbase_ora mode, we have to convert ident
+					 * to upper case.
 					 */
-					ident = downcase_truncate_identifier(yytext, yyleng, true);
+					if (ORA_MODE)
+						ident = upcase_truncate_identifier(yytext, yyleng, true);
+					else
+						ident = downcase_truncate_identifier(yytext, yyleng, true);
 					yylval->str = ident;
 					return IDENT;
 				}
@@ -1063,7 +1034,7 @@ errorstr        {integer}{varrr}
 
 
 /*
- * scanner_errposition
+ * pg_scanner_errposition
  *		Report a lexer or grammar error cursor position, if possible.
  *
  * This is expected to be used within an ereport() call.  The return value
@@ -1074,7 +1045,7 @@ errorstr        {integer}{varrr}
  * to still be available.
  */
 int
-scanner_errposition(int location, core_yyscan_t yyscanner)
+pg_scanner_errposition(int location, core_yyscan_t yyscanner)
 {
 	int			pos;
 
@@ -1088,7 +1059,7 @@ scanner_errposition(int location, core_yyscan_t yyscanner)
 }
 
 /*
- * scanner_yyerror
+ * pg_scanner_yyerror
  *		Report a lexer or grammar error.
  *
  * The message's cursor position is whatever YYLLOC was last set to,
@@ -1100,7 +1071,7 @@ scanner_errposition(int location, core_yyscan_t yyscanner)
  * be misleading!
  */
 void
-scanner_yyerror(const char *message, core_yyscan_t yyscanner)
+pg_scanner_yyerror(const char *message, core_yyscan_t yyscanner)
 {
 	const char *loc = yyextra->scanbuf + *yylloc;
 
@@ -1127,7 +1098,7 @@ scanner_yyerror(const char *message, core_yyscan_t yyscanner)
  * Called before any actual parsing is done
  */
 core_yyscan_t
-scanner_init(const char *str,
+pg_scanner_init(const char *str,
 			 core_yy_extra_type *yyext,
 			 const ScanKeyword *keywords,
 			 int num_keywords)
@@ -1138,7 +1109,7 @@ scanner_init(const char *str,
 	if (yylex_init(&scanner) != 0)
 		elog(ERROR, "yylex_init() failed: %m");
 
-	core_yyset_extra(yyext, scanner);
+	pg_core_yyset_extra(yyext, scanner);
 
 	yyext->keywords = keywords;
 	yyext->num_keywords = num_keywords;
@@ -1166,10 +1137,10 @@ scanner_init(const char *str,
 
 
 /*
- * Called after parsing is done to clean up after scanner_init()
+ * Called after parsing is done to clean up after pg_scanner_init()
  */
 void
-scanner_finish(core_yyscan_t yyscanner)
+pg_scanner_finish(core_yyscan_t yyscanner)
 {
 	/*
 	 * We don't bother to call yylex_destroy(), because all it would do is
@@ -1246,12 +1217,9 @@ process_integer_literal(const char *token, YYSTYPE *lval)
 
 	errno = 0;
 	val = strtol(token, &endptr, 10);
-	if (*endptr != '\0' || errno == ERANGE
-#ifdef HAVE_LONG_INT_64
-	/* if long > 32 bits, check for overflow of int4 */
-		|| val != (long) ((int32) val)
-#endif
-		)
+	if (*endptr != '\0' || errno == ERANGE ||
+		/* check for overflow of int */
+		val != (int) val)
 	{
 		/* integer too large, treat it as a float */
 		lval->str = pstrdup(token);
@@ -1285,24 +1253,6 @@ check_unicode_value(pg_wchar c, char *loc, core_yyscan_t yyscanner)
 		ADVANCE_YYLLOC(loc - yyextra->literalbuf + 3);	/* 3 for U&" */
 		yyerror("Unicode escape values cannot be used for code point values above 007F when the server encoding is not UTF8");
 	}
-}
-
-static bool
-is_utf16_surrogate_first(pg_wchar c)
-{
-	return (c >= 0xD800 && c <= 0xDBFF);
-}
-
-static bool
-is_utf16_surrogate_second(pg_wchar c)
-{
-	return (c >= 0xDC00 && c <= 0xDFFF);
-}
-
-static pg_wchar
-surrogate_pair_to_codepoint(pg_wchar first, pg_wchar second)
-{
-	return ((first & 0x3FF) << 10) + 0x10000 + (second & 0x3FF);
 }
 
 static void
@@ -1557,13 +1507,13 @@ check_escape_warning(core_yyscan_t yyscanner)
  */
 
 void *
-core_yyalloc(yy_size_t bytes, core_yyscan_t yyscanner)
+pg_core_yyalloc(yy_size_t bytes, core_yyscan_t yyscanner)
 {
 	return palloc(bytes);
 }
 
 void *
-core_yyrealloc(void *ptr, yy_size_t bytes, core_yyscan_t yyscanner)
+pg_core_yyrealloc(void *ptr, yy_size_t bytes, core_yyscan_t yyscanner)
 {
 	if (ptr)
 		return repalloc(ptr, bytes);
@@ -1572,7 +1522,7 @@ core_yyrealloc(void *ptr, yy_size_t bytes, core_yyscan_t yyscanner)
 }
 
 void
-core_yyfree(void *ptr, core_yyscan_t yyscanner)
+pg_core_yyfree(void *ptr, core_yyscan_t yyscanner)
 {
 	if (ptr)
 		pfree(ptr);

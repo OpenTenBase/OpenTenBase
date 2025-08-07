@@ -248,21 +248,25 @@ SELECT '' AS to_char_10, to_char(d1, 'IYYY IYY IY I IW IDDD ID')
 SELECT '' AS to_char_11, to_char(d1, 'FMIYYY FMIYY FMIY FMI FMIW FMIDDD FMID')
    FROM TIMESTAMPTZ_TBL ORDER BY d1;
 
--- Check OF with various zone offsets, particularly fractional hours
+-- Check OF, TZH, TZM with various zone offsets, particularly fractional hours
 SET timezone = '00:00';
-SELECT to_char(now(), 'OF');
+SELECT to_char(now(), 'OF') as "OF", to_char(now(), 'TZH:TZM') as "TZH:TZM";
 SET timezone = '+02:00';
-SELECT to_char(now(), 'OF');
+SELECT to_char(now(), 'OF') as "OF", to_char(now(), 'TZH:TZM') as "TZH:TZM";
 SET timezone = '-13:00';
-SELECT to_char(now(), 'OF');
+SELECT to_char(now(), 'OF') as "OF", to_char(now(), 'TZH:TZM') as "TZH:TZM";
 SET timezone = '-00:30';
-SELECT to_char(now(), 'OF');
+SELECT to_char(now(), 'OF') as "OF", to_char(now(), 'TZH:TZM') as "TZH:TZM";
 SET timezone = '00:30';
-SELECT to_char(now(), 'OF');
+SELECT to_char(now(), 'OF') as "OF", to_char(now(), 'TZH:TZM') as "TZH:TZM";
 SET timezone = '-04:30';
-SELECT to_char(now(), 'OF');
+SELECT to_char(now(), 'OF') as "OF", to_char(now(), 'TZH:TZM') as "TZH:TZM";
 SET timezone = '04:30';
-SELECT to_char(now(), 'OF');
+SELECT to_char(now(), 'OF') as "OF", to_char(now(), 'TZH:TZM') as "TZH:TZM";
+SET timezone = '-04:15';
+SELECT to_char(now(), 'OF') as "OF", to_char(now(), 'TZH:TZM') as "TZH:TZM";
+SET timezone = '04:15';
+SELECT to_char(now(), 'OF') as "OF", to_char(now(), 'TZH:TZM') as "TZH:TZM";
 RESET timezone;
 
 CREATE TABLE TIMESTAMPTZ_TST (a int , b timestamptz);
@@ -314,6 +318,45 @@ SELECT make_timestamptz(2008, 12, 10, 10, 10, 10, 'EDT');
 SELECT make_timestamptz(2014, 12, 10, 10, 10, 10, 'PST8PDT');
 
 RESET TimeZone;
+
+-- generate_series for timestamptz
+select * from generate_series('2020-01-01 00:00'::timestamptz,
+                              '2020-01-02 03:00'::timestamptz,
+                              '1 hour'::interval);
+-- the LIMIT should allow this to terminate in a reasonable amount of time
+-- (but that unfortunately doesn't work yet for SELECT * FROM ...)
+select generate_series('2022-01-01 00:00'::timestamptz,
+                       'infinity'::timestamptz,
+                       '1 month'::interval) limit 10;
+-- errors
+select * from generate_series('2020-01-01 00:00'::timestamptz,
+                              '2020-01-02 03:00'::timestamptz,
+                              '0 hour'::interval);
+
+-- Interval crossing time shift for Europe/Warsaw timezone (with DST)
+SET TimeZone to 'UTC';
+
+SELECT date_add('2022-10-30 00:00:00+01'::timestamptz,
+                '1 day'::interval);
+SELECT date_add('2021-10-31 00:00:00+02'::timestamptz,
+                '1 day'::interval,
+                'Europe/Warsaw');
+SELECT date_subtract('2022-10-30 00:00:00+01'::timestamptz,
+                     '1 day'::interval);
+SELECT date_subtract('2021-10-31 00:00:00+02'::timestamptz,
+                     '1 day'::interval,
+                     'Europe/Warsaw');
+SELECT * FROM generate_series('2021-12-31 23:00:00+00'::timestamptz,
+                              '2020-12-31 23:00:00+00'::timestamptz,
+                              '-1 month'::interval,
+                              'Europe/Warsaw');
+RESET TimeZone;
+select date_add('2020-11-13', 10);
+select date_add('2020-11-13', interval '1' minute);
+select date_add('2020-11-13 12:15:16', interval '1' month);
+select date_sub('2020-11-13', 10);
+select date_sub('2020-11-13', interval '1' minute);
+select date_sub('2020-11-13 12:15:16', interval '1' month);
 
 --
 -- Test behavior with a dynamic (time-varying) timezone abbreviation.

@@ -421,7 +421,7 @@ DROP FUNCTION foo();
 -- some tests on SQL functions with RETURNING
 --
 
-create table tt(f1 serial, data text);
+create table tt(f1 serial, data text) distribute by replication;
 
 create function insert_tt(text) returns int as
 $$ insert into tt(data) values($1) returning f1 $$
@@ -472,6 +472,7 @@ create rule insert_tt_rule as on insert to tt do also
 
 select insert_tt2('foollog','barlog') limit 1;
 select * from tt order by 1, 2;
+drop table tt;
 -- note that nextval() gets executed a second time in the rule expansion,
 -- which is expected.
 select * from tt_log order by 1, 2;
@@ -503,7 +504,7 @@ select array_to_set(array['one', 'two']);
 select * from array_to_set(array['one', 'two']) as t(f1 int,f2 text) order by 1, 2;
 select * from array_to_set(array['one', 'two']); -- fail
 
-create table foo(f1 int8, f2 int8);
+create table foo(f1 int8, f2 int8) distribute by replication;
 
 create function testfoo() returns record as $$
   insert into foo values (1,2) returning *;

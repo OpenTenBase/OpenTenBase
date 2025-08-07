@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * indexfsm.h
- *      POSTGRES free space map for quickly finding an unused page in index
+ *	  POSTGRES free space map for quickly finding an unused page in index
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -23,4 +23,4 @@ extern void RecordUsedIndexPage(Relation rel, BlockNumber page);
 
 extern void IndexFreeSpaceMapVacuum(Relation rel);
 
-#endif                            /* INDEXFSM_H_ */
+#endif							/* INDEXFSM_H_ */

@@ -1,0 +1,170 @@
+\c regression_ora
+create table t_uid_001(uid int, "UID" varchar(20), "Uid" varchar(20));
+ERROR:  syntax error at or near "uid"
+LINE 1: create table t_uid_001(uid int, "UID" varchar(20), "Uid" var...
+                               ^
+create index idx_uid_11 on t_uid_001(uid);
+ERROR:  relation "T_UID_001" does not exist
+create index idx_uid_12 on t_uid_001("UID");
+ERROR:  relation "T_UID_001" does not exist
+create index idx_uid_13 on t_uid_001("Uid");
+ERROR:  relation "T_UID_001" does not exist
+\d t_uid_001;
+CREATE PROCEDURE insert_t_uid_001(uid int, "UID" varchar2)
+LANGUAGE SQL
+AS $$
+	insert into t_uid_001 values(uid, "UID", "UID");
+$$;
+ERROR:  syntax error at or near "uid"
+LINE 1: CREATE PROCEDURE insert_t_uid_001(uid int, "UID" varchar2)
+                                          ^
+CREATE FUNCTION insert_t_uid_001_func(uid int, "UID" varchar2) return void
+LANGUAGE SQL
+AS $$
+	insert into t_uid_001 values(uid, "UID", "UID");
+$$;
+ERROR:  syntax error at or near "uid"
+LINE 1: CREATE FUNCTION insert_t_uid_001_func(uid int, "UID" varchar...
+                                              ^
+call insert_t_uid_001(1, '1');
+ERROR:  procedure INSERT_T_UID_001(INTEGER, UNKNOWN) does not exist
+LINE 1: call insert_t_uid_001(1, '1');
+             ^
+HINT:  No procedure matches the given name and argument types. You might need to add explicit type casts.
+select insert_t_uid_001_func(2, '2');
+ERROR:  function INSERT_T_UID_001_FUNC(INTEGER, UNKNOWN) does not exist
+LINE 1: select insert_t_uid_001_func(2, '2');
+               ^
+HINT:  No function matches the given name and argument types. You might need to add explicit type casts.
+select uid, "UID", "Uid" from t_uid_001 order by uid;
+ERROR:  relation "T_UID_001" does not exist
+LINE 1: select uid, "UID", "Uid" from t_uid_001 order by uid;
+                                      ^
+select uid, "UID", "Uid" from t_uid_001 where uid = 1 order by uid;
+ERROR:  relation "T_UID_001" does not exist
+LINE 1: select uid, "UID", "Uid" from t_uid_001 where uid = 1 order ...
+                                      ^
+select uid, "UID", "Uid" from t_uid_001 where "UID" = '1' order by "UID";
+ERROR:  relation "T_UID_001" does not exist
+LINE 1: select uid, "UID", "Uid" from t_uid_001 where "UID" = '1' or...
+                                      ^
+select uid, "UID", "Uid" from t_uid_001 where "Uid" = '1' order by "Uid";
+ERROR:  relation "T_UID_001" does not exist
+LINE 1: select uid, "UID", "Uid" from t_uid_001 where "Uid" = '1' or...
+                                      ^
+drop procedure insert_t_uid_001;
+ERROR:  could not find a procedure named "INSERT_T_UID_001"
+drop function insert_t_uid_001_func;
+ERROR:  could not find a function named "INSERT_T_UID_001_FUNC"
+drop table t_uid_001;
+ERROR:  table "T_UID_001" does not exist
+-- test in opentenbase_ora mode 
+\c regression_ora
+create table t_uid_002("UID" varchar(20), "uid" varchar(20));
+create index idx_uid_21 on t_uid_002("UID");
+create index idx_uid_22 on t_uid_002("uid");
+\d t_uid_002;
+                    Table "public.T_UID_002"
+ Column |         Type          | Collation | Nullable | Default 
+--------+-----------------------+-----------+----------+---------
+ UID    | CHARACTER VARYING(20) |           |          | 
+ uid    | CHARACTER VARYING(20) |           |          | 
+Indexes:
+    "IDX_UID_21" btree ("UID") WITH (checksum='on')
+    "IDX_UID_22" btree ("uid") WITH (checksum='on')
+
+create or replace procedure insert_t_uid_002("UID" varchar2, "uid" varchar2)
+AS
+BEGIN
+		insert into t_uid_002 values("UID", "uid");
+END;
+/
+CREATE OR REPLACE FUNCTION insert_t_uid_002_func("UID" varchar2, "uid" varchar2)
+RETURNS VOID AS $$
+BEGIN
+    INSERT INTO t_uid_002 VALUES ("UID", "uid");
+END;
+$$ LANGUAGE default_plsql;
+create or replace procedure insert_t_uid_002_proc()
+AS
+DECLARE
+	"UID" varchar2(256) := '2';
+	"uid" varchar2(256) := '2';
+BEGIN
+	perform insert_t_uid_002_func("UID", "uid" => "uid");
+END;
+/
+call insert_t_uid_002('1', '1');
+call insert_t_uid_002_proc();
+select "UID", "uid" from t_uid_002 order by "UID";
+ UID | uid 
+-----+-----
+ 1   | 1
+ 2   | 2
+(2 rows)
+
+select "UID", "uid" from t_uid_002 where "UID" = '1' order by "UID";
+ UID | uid 
+-----+-----
+ 1   | 1
+(1 row)
+
+select "UID", "uid" from t_uid_002 where "uid" = '1' order by "uid";
+ UID | uid 
+-----+-----
+ 1   | 1
+(1 row)
+
+drop procedure insert_t_uid_002;
+drop function insert_t_uid_002_func;
+drop table t_uid_002;
+-- other cases
+CREATE user test_role1;
+CREATE user "Test_role2";
+CREATE user "TEST_ROLE3";
+SET SESSION ROLE TEST_ROLE1;
+SELECT USER, UID > 0 from dual;
+    USER    | ?column? 
+------------+----------
+ TEST_ROLE1 | t
+(1 row)
+
+SET SESSION ROLE "Test_role2";
+SELECT USER, UID > 0 from dual;
+    USER    | ?column? 
+------------+----------
+ Test_role2 | t
+(1 row)
+
+SET SESSION ROLE "TEST_ROLE3";
+SELECT USER, UID > 0 from dual;
+    USER    | ?column? 
+------------+----------
+ TEST_ROLE3 | t
+(1 row)
+
+-- switch to superuser
+\c -
+DROP ROLE TEST_ROLE1;
+DROP ROLE "Test_role2";
+DROP ROLE "TEST_ROLE3";
+-- DONE --
+-- TAPD: https://tapd.woa.com/20385652/bugtrace/bugs/view?bug_id=1020385652126736661
+select coalesce(1.123,uid) from dual;
+ coalesce 
+----------
+    1.123
+(1 row)
+
+select +uid/2 from dual;
+ ?column? 
+----------
+        5
+(1 row)
+
+select +uid/2 * 3.5 - 7 from dual;
+ ?column? 
+----------
+     10.5
+(1 row)
+

@@ -1,0 +1,19 @@
+\c regression_ora
+create table test_muti_index(id number,name varchar2(10));
+create unique index idx_test_muti_index_idname on test_muti_index(id,name);
+insert into test_muti_index values(1,null);
+insert into test_muti_index values(1,null);
+insert into test_muti_index values(null,2);
+insert into test_muti_index values(null,2);
+insert into test_muti_index values(null,null);
+insert into test_muti_index values(null,null);
+
+create table test_index(a int);
+create unique index idx_test_index on test_index(a);
+insert into test_index(a) values(1);
+insert into test_index(a) values(1);
+insert into test_index(a) values(NULL);
+insert into test_index(a) values(NULL);
+
+drop table test_muti_index;
+drop table test_index;

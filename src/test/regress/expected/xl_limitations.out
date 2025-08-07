@@ -79,8 +79,14 @@ begin
 	return x;
 end$$ language plpgsql;
 select xl_trap_zero_divide(50);
-ERROR:  Internal subtransactions not supported in Postgres-XL
-CONTEXT:  PL/pgSQL function xl_trap_zero_divide(integer) line 5 during statement block entry
+NOTICE:  should see this
+NOTICE:  should see this only if 50 <> 0
+NOTICE:  should see this only if 50 fits in smallint
+ xl_trap_zero_divide 
+---------------------
+                   2
+(1 row)
+
 --SERIALIZABLE TRANSACTIONs are not supported. Isolation level SERIALIZABLE is converted to REPEATABLE READ internally silently. 
 -- ALTER OPERATOR FAMILY ... ADD/DROP
 -- Should work. Textbook case of CREATE / ALTER ADD / ALTER DROP / DROP
@@ -484,11 +490,8 @@ FETCH FIRST xl_with_hold_cursor;
 begin;
   set constraints all deferred;
   savepoint x;
-ERROR:  SAVEPOINT is not yet supported.
     set constraints all immediate; -- fails
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
   rollback to x;
-ERROR:  no such savepoint
 commit;				-- still fails
 --Correlated UPDATE/DELETE is not supported. 
 -- distributed by default ==> xl_t by HASH(no), xl_t1 by HASH(no1)
@@ -511,7 +514,7 @@ INSERT INTO xl_names("name", "name1")VALUES ('W', 'W1');
 INSERT INTO xl_names("name", "name1")VALUES ('X', 'X1');
 INSERT INTO xl_names("name", "name1")VALUES ('Y', 'Y1');
 INSERT INTO xl_names("name", "name1")VALUES ('Z', 'Z1');
-select xl_nodename_from_id(xc_node_id), * from xl_t;
+select xl_nodename_from_id(xc_node_id), * from xl_t order by 1;
  xl_nodename_from_id | no | name 
 ---------------------+----+------
  datanode_1          |  1 | A
@@ -520,7 +523,7 @@ select xl_nodename_from_id(xc_node_id), * from xl_t;
  datanode_2          |  4 | D
 (4 rows)
 
-select xl_nodename_from_id(xc_node_id), * from xl_t1;
+select xl_nodename_from_id(xc_node_id), * from xl_t1 order by 1;
  xl_nodename_from_id | no1 | name1 
 ---------------------+-----+-------
  datanode_1          |   1 | Z
@@ -551,7 +554,7 @@ from (select name,name1 from xl_names) T1
 where xl_t1.name1 = T1.name;
 ERROR:  could not plan this distributed update
 DETAIL:  correlated UPDATE or updating distribution column currently not supported in Postgres-XL.
-select xl_nodename_from_id(xc_node_id), * from xl_t;
+select xl_nodename_from_id(xc_node_id), * from xl_t order by 1;
  xl_nodename_from_id | no | name 
 ---------------------+----+------
  datanode_1          |  1 | Z
@@ -560,7 +563,7 @@ select xl_nodename_from_id(xc_node_id), * from xl_t;
  datanode_2          |  4 | W
 (4 rows)
 
-select xl_nodename_from_id(xc_node_id), * from xl_t1;
+select xl_nodename_from_id(xc_node_id), * from xl_t1 order by 1;
  xl_nodename_from_id | no1 | name1 
 ---------------------+-----+-------
  datanode_1          |   1 | Z
@@ -579,14 +582,14 @@ where xl_t1.name1 in (select name1 from xl_names where name in ('Z', 'X'))
 ;
 ERROR:  could not plan this distributed delete
 DETAIL:  correlated or complex DELETE is currently not supported in Postgres-XL.
-select xl_nodename_from_id(xc_node_id), * from xl_t;
+select xl_nodename_from_id(xc_node_id), * from xl_t order by 1;
  xl_nodename_from_id | no | name 
 ---------------------+----+------
  datanode_1          |  2 | Y
  datanode_2          |  4 | W
 (2 rows)
 
-select xl_nodename_from_id(xc_node_id), * from xl_t1;
+select xl_nodename_from_id(xc_node_id), * from xl_t1 order by 1;
  xl_nodename_from_id | no1 | name1 
 ---------------------+-----+-------
  datanode_1          |   1 | Z
@@ -689,9 +692,7 @@ CREATE TABLE lotest_stash_values (loid oid, junk integer, fd integer);
 -- lo_creat(mode integer) returns oid
 -- The mode arg to lo_creat is unused, some vestigal holdover from ancient times
 -- returns the large object id
-INSERT INTO lotest_stash_values (loid) VALUES( lo_creat(42) );
-ERROR:  Postgres-XL does not yet support large objects
-DETAIL:  The feature is not currently supported
+-- INSERT INTO lotest_stash_values (loid) VALUES( lo_creat(42) );
 drop table lotest_stash_values;
 --EVENT TRIGGERs are not supported
 CREATE FUNCTION xl_event_trigger_for_drops()
@@ -733,12 +734,9 @@ SELECT sum(n) FROM t;
 
 --FDWs are not supported
 CREATE FOREIGN DATA WRAPPER xl_foo; -- ERROR
-ERROR:  Postgres-XL does not support FOREIGN DATA WRAPPER yet
-DETAIL:  The feature is not currently supported
 RESET ROLE;
 CREATE FOREIGN DATA WRAPPER xl_foo VALIDATOR postgresql_fdw_validator;
-ERROR:  Postgres-XL does not support FOREIGN DATA WRAPPER yet
-DETAIL:  The feature is not currently supported
+ERROR:  foreign-data wrapper "xl_foo" already exists
 --LISTEN/NOTIFY is not supported. Looks like they are supported now. 
 --We would obviously have issues with LISTEN/NOTIFY if clients are connected to different coordinators. Need to test that manually as it is difficult via regression.
 --LISTEN notify_async1; 

@@ -20,4 +20,4 @@ extern RecursiveUnionState *ExecInitRecursiveUnion(RecursiveUnion *node, EState 
 extern void ExecEndRecursiveUnion(RecursiveUnionState *node);
 extern void ExecReScanRecursiveUnion(RecursiveUnionState *node);
 
-#endif                            /* NODERECURSIVEUNION_H */
+#endif							/* NODERECURSIVEUNION_H */

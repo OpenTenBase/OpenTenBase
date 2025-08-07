@@ -1,0 +1,37 @@
+Parsed test spec with 3 sessions
+
+starting permutation: t1r1 t2r1 t2u1 t3r1 t3r2 t2c t3c t1r1 t1c
+step t1r1: SELECT SUM(balance) AS total FROM accounts;
+total
+-----
+  180
+(1 row)
+
+step t2r1: SELECT * FROM accounts WHERE name = 'Alice';
+id|name |balance
+--+-----+-------
+ 1|Alice|     60
+(1 row)
+
+step t2u1: UPDATE accounts SET balance = balance + 40 WHERE name = 'Bob';
+step t3r1: SELECT * FROM accounts WHERE name = 'Bob';
+id|name|balance
+--+----+-------
+ 2|Bob |     80
+(1 row)
+
+step t3r2: SELECT * FROM accounts WHERE name = 'Charlie';
+id|name   |balance
+--+-------+-------
+ 3|Charlie|     40
+(1 row)
+
+step t2c: COMMIT;
+step t3c: COMMIT;
+step t1r1: SELECT SUM(balance) AS total FROM accounts;
+total
+-----
+  180
+(1 row)
+
+step t1c: COMMIT;

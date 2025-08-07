@@ -63,14 +63,14 @@ INSERT INTO itest3 DEFAULT VALUES;
 INSERT INTO itest3 DEFAULT VALUES;
 INSERT INTO itest4 DEFAULT VALUES;
 INSERT INTO itest4 DEFAULT VALUES;
-SELECT * FROM itest1;
+SELECT * FROM itest1 order by 1;
  a | b 
 ---+---
  1 | 
  2 | 
 (2 rows)
 
-SELECT * FROM itest2;
+SELECT * FROM itest2 order by 1;
  a | b 
 ---+---
  1 | 
@@ -84,7 +84,7 @@ SELECT * FROM itest3 ORDER BY a;
  12 | 
 (2 rows)
 
-SELECT * FROM itest4;
+SELECT * FROM itest4 order by 1;
  a | b 
 ---+---
  1 | 
@@ -118,11 +118,9 @@ SELECT * FROM itest2 ORDER BY a;
 
 -- UPDATE tests
 UPDATE itest1 SET a = 101 WHERE a = 1;
-ERROR:  could not plan this distributed update
-DETAIL:  correlated UPDATE or updating distribution column currently not supported in Postgres-XL.
+ERROR:  Distributed column "a" can't be updated in current version
 UPDATE itest1 SET a = DEFAULT WHERE a = 2;
-ERROR:  could not plan this distributed update
-DETAIL:  correlated UPDATE or updating distribution column currently not supported in Postgres-XL.
+ERROR:  Distributed column "a" can't be updated in current version
 SELECT * FROM itest1 ORDER BY a;
  a  |  b  
 ----+-----
@@ -133,11 +131,9 @@ SELECT * FROM itest1 ORDER BY a;
 (4 rows)
 
 UPDATE itest2 SET a = 101 WHERE a = 1;
-ERROR:  column "a" can only be updated to DEFAULT
-DETAIL:  Column "a" is an identity column defined as GENERATED ALWAYS.
+ERROR:  Distributed column "a" can't be updated in current version
 UPDATE itest2 SET a = DEFAULT WHERE a = 2;
-ERROR:  could not plan this distributed update
-DETAIL:  correlated UPDATE or updating distribution column currently not supported in Postgres-XL.
+ERROR:  Distributed column "a" can't be updated in current version
 SELECT * FROM itest2 ORDER BY a;
  a  |  b  
 ----+-----
@@ -179,14 +175,14 @@ INSERT INTO itestv10 DEFAULT VALUES;
 INSERT INTO itestv10 DEFAULT VALUES;
 INSERT INTO itestv11 DEFAULT VALUES;
 INSERT INTO itestv11 DEFAULT VALUES;
-SELECT * FROM itestv10;
+SELECT * FROM itestv10 order by 1;
  a | b 
 ---+---
  1 | 
  2 | 
 (2 rows)
 
-SELECT * FROM itestv11;
+SELECT * FROM itestv11 order by 1;
  a | b 
 ---+---
  1 | 
@@ -195,13 +191,13 @@ SELECT * FROM itestv11;
 
 INSERT INTO itestv10 VALUES (10, 'xyz');
 INSERT INTO itestv10 OVERRIDING USER VALUE VALUES (11, 'xyz');
-SELECT * FROM itestv10;
+SELECT * FROM itestv10 order by 1;
  a  |  b  
 ----+-----
   1 | 
   2 | 
- 10 | xyz
   3 | xyz
+ 10 | xyz
 (4 rows)
 
 INSERT INTO itestv11 VALUES (10, 'xyz');
@@ -209,7 +205,7 @@ ERROR:  cannot insert into column "a"
 DETAIL:  Column "a" is an identity column defined as GENERATED ALWAYS.
 HINT:  Use OVERRIDING SYSTEM VALUE to override.
 INSERT INTO itestv11 OVERRIDING SYSTEM VALUE VALUES (11, 'xyz');
-SELECT * FROM itestv11;
+SELECT * FROM itestv11 order by 1;
  a  |  b  
 ----+-----
   1 | 
@@ -255,7 +251,7 @@ SELECT * FROM itest6 ORDER BY a;
  102 | 
 (3 rows)
 
-SELECT table_name, column_name, is_identity, identity_generation FROM information_schema.columns WHERE table_name = 'itest6';
+SELECT table_name, column_name, is_identity, identity_generation FROM information_schema.columns WHERE table_name = 'itest6' order by 1,2;
  table_name | column_name | is_identity | identity_generation 
 ------------+-------------+-------------+---------------------
  itest6     | a           | YES         | BY DEFAULT
@@ -271,7 +267,7 @@ DETAIL:  Sequence "itest6_a_seq" is linked to table "itest6".
 -- inheritance
 CREATE TABLE itest7 (a int GENERATED ALWAYS AS IDENTITY);
 INSERT INTO itest7 DEFAULT VALUES;
-SELECT * FROM itest7;
+SELECT * FROM itest7 order by 1;
  a 
 ---
  1
@@ -284,7 +280,7 @@ CREATE TABLE itest7b (a int);
 CREATE TABLE itest7c (a int GENERATED ALWAYS AS IDENTITY) INHERITS (itest7b);
 NOTICE:  merging column "a" with inherited definition
 INSERT INTO itest7c DEFAULT VALUES;
-SELECT * FROM itest7c;
+SELECT * FROM itest7c order by 1;
  a 
 ---
  1

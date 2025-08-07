@@ -13,10 +13,14 @@ top_builddir = ../../../..
 include $(top_builddir)/src/Makefile.global
 
 override CPPFLAGS := -I. -I$(srcdir) $(CPPFLAGS)
+override CPPFLAGS += -DDLSUFFIX=\"$(DLSUFFIX)\"
 
 OBJS = backend_random.o guc.o help_config.o pg_config.o pg_controldata.o \
        pg_rusage.o ps_status.o queryenvironment.o rls.o sampling.o \
-       superuser.o timeout.o tzparser.o mls.o relcrypt.o datamask.o cls.o
+       superuser.o timeout.o tzparser.o mls.o datamask.o cls.o \
+       bloomfilter.o backend_cancel.o queryjumble.o
+
+OBJS += uriparser.o
 
 # This location might depend on the installation directories. Therefore
 # we can't substitute it into pg_config.h.

@@ -1,14 +1,14 @@
 /*-------------------------------------------------------------------------
  *
  * tablesample.c
- *          Support functions for TABLESAMPLE feature
+ *		  Support functions for TABLESAMPLE feature
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
  * IDENTIFICATION
- *          src/backend/access/tablesample/tablesample.c
+ *		  src/backend/access/tablesample/tablesample.c
  *
  * -------------------------------------------------------------------------
  */
@@ -26,15 +26,15 @@
 TsmRoutine *
 GetTsmRoutine(Oid tsmhandler)
 {
-    Datum        datum;
-    TsmRoutine *routine;
+	Datum		datum;
+	TsmRoutine *routine;
 
-    datum = OidFunctionCall1(tsmhandler, PointerGetDatum(NULL));
-    routine = (TsmRoutine *) DatumGetPointer(datum);
+	datum = OidFunctionCall1(tsmhandler, PointerGetDatum(NULL));
+	routine = (TsmRoutine *) DatumGetPointer(datum);
 
-    if (routine == NULL || !IsA(routine, TsmRoutine))
-        elog(ERROR, "tablesample handler function %u did not return a TsmRoutine struct",
-             tsmhandler);
+	if (routine == NULL || !IsA(routine, TsmRoutine))
+		elog(ERROR, "tablesample handler function %u did not return a TsmRoutine struct",
+			 tsmhandler);
 
-    return routine;
+	return routine;
 }

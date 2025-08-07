@@ -20,4 +20,4 @@ extern SetOpState *ExecInitSetOp(SetOp *node, EState *estate, int eflags);
 extern void ExecEndSetOp(SetOpState *node);
 extern void ExecReScanSetOp(SetOpState *node);
 
-#endif                            /* NODESETOP_H */
+#endif							/* NODESETOP_H */

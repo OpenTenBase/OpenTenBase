@@ -1,0 +1,7 @@
+# opentenbase_ai extension
+default_version = '1.0'
+module_pathname = '$libdir/opentenbase_ai'
+relocatable = false
+requires = 'http'
+# sql_mode can be opentenbase_ora, postgresql, all
+sql_mode = 'all'

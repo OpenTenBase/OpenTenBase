@@ -1,16 +1,13 @@
 /*-------------------------------------------------------------------------
  *
  * nodes.h
- *      Definitions for tagged nodes.
+ *	  Definitions for tagged nodes.
  *
  *
  * Portions Copyright (c) 2012-2014, TransLattice, Inc.
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  * Portions Copyright (c) 2010-2012 Postgres-XC Development Group
- *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  * src/include/nodes/nodes.h
  *
@@ -19,6 +16,9 @@
 #ifndef NODES_H
 #define NODES_H
 
+extern void ExceptionalCondition(const char *conditionName,
+					 const char *errorType,
+			 const char *fileName, int lineNumber) __attribute__((noreturn));
 /*
  * The first field of every node is NodeTag. Each node created (with makeNode)
  * will have one of the following tags as the value of its first field.
@@ -30,567 +30,657 @@
  */
 typedef enum NodeTag
 {
-    T_Invalid = 0,
+	T_Invalid = 0,
 
-#ifdef __AUDIT__
-    /*
-     * TAGS FOR AUDIT
-     */
-    T_AuditStmt, 
-    T_CleanAuditStmt,
-#endif
-
-    /*
-     * TAGS FOR EXECUTOR NODES (execnodes.h)
-     */
-    T_IndexInfo,
-    T_ExprContext,
-    T_ProjectionInfo,
-    T_JunkFilter,
-    T_ResultRelInfo,
-    T_EState,
-    T_TupleTableSlot,
-
-    /*
-     * TAGS FOR PLAN NODES (plannodes.h)
-     */
-    T_Plan,
-    T_Result,
-    T_ProjectSet,
-    T_ModifyTable,
-    T_Append,
-    T_MergeAppend,
-    T_RecursiveUnion,
-    T_BitmapAnd,
-    T_BitmapOr,
-    T_Scan,
-    T_SeqScan,
-    T_SampleScan,
-    T_IndexScan,
-    T_IndexOnlyScan,
-    T_BitmapIndexScan,
-    T_BitmapHeapScan,
-    T_TidScan,
-    T_SubqueryScan,
-    T_FunctionScan,
-    T_ValuesScan,
-    T_TableFuncScan,
-    T_CteScan,
-    T_NamedTuplestoreScan,
-    T_WorkTableScan,
-    T_ForeignScan,
-    T_CustomScan,
-    T_Join,
-    T_NestLoop,
-    T_MergeJoin,
-    T_HashJoin,
-    T_Material,
-    T_Sort,
-    T_Group,
-    T_Agg,
-    T_WindowAgg,
-    T_Unique,
-    T_Gather,
-    T_GatherMerge,
-    T_Hash,
-    T_SetOp,
-    T_LockRows,
-    T_Limit,
+	/*
+	 * TAGS FOR EXECUTOR NODES (execnodes.h)
+	 */
+	T_IndexInfo,
+	T_ExprContext,
+	T_ProjectionInfo,
+	T_JunkFilter,
+	T_OnConflictSetState,
+	T_ResultRelInfo,
+	T_EState,
+	T_TupleTableSlot,
+	/*
+	 * TAGS FOR PLAN NODES (plannodes.h)
+	 */
+	T_Plan,
+	T_Result,
+	T_ProjectSet,
+	T_ModifyTable,
+	T_RemoteModifyTable,
+	T_Append,
+	T_MergeAppend,
+	T_RecursiveUnion,
+	T_BitmapAnd,
+	T_BitmapOr,
+	T_Scan,
+	T_SeqScan,
+	T_SampleScan,
+	T_IndexScan,
+	T_IndexOnlyScan,
+	T_BitmapIndexScan,
+	T_BitmapHeapScan,
+	T_TidScan,
+	T_SubqueryScan,
+	T_FunctionScan,
+	T_ValuesScan,
+	T_TableFuncScan,
+	T_CteScan,
+	T_NamedTuplestoreScan,
+	T_WorkTableScan,
+	T_ForeignScan,
+	T_CustomScan,
+	T_Join,
+	T_NestLoop,
+	T_MergeJoin,
+	T_HashJoin,
+	T_Material,
+	T_Sort,
+	T_Group,
+	T_Agg,
+	T_WindowAgg,
+	T_Unique,
+	T_Gather,
+	T_GatherMerge,
+	T_Hash,
+	T_SetOp,
+	T_LockRows,
+	T_Limit,
+	T_MergeQualProj,
 #ifdef PGXC
-    /*
-     * TAGS FOR PGXC NODES
-     * (planner.h, locator.h, nodemgr.h, groupmgr.h)
-     */
+	T_RemoteQuery,
 #ifdef XCP
-    T_Distribution,
+	T_RemoteSubplan,
 #endif
-    T_ExecNodes,
-    T_SimpleSort,
-    T_RemoteQuery,
+	
+	T_PartIterator,
+#endif
+	/* FOR OPENTENBASE_ORA CONNECT BY */
+	T_ConnectBy,
+
+	/* these aren't subclasses of Plan: */
+	T_NestLoopParam,
+	T_PlanRowMark,
+	T_PartitionPruneStep,
+	T_PartitionPruneStepOp,
+	T_PartitionPruneStepCombine,
+	T_PartitionPruneInfo,
+	T_PartitionedRelPruneInfo,
+	T_PlanInvalItem,
+#ifdef PGXC
+	/*
+	 * TAGS FOR PGXC NODES
+	 * (planner.h, locator.h, nodemgr.h, groupmgr.h)
+	 */
 #ifdef XCP
-    T_RemoteSubplan,
+	T_Distribution,
 #endif
-    T_PGXCNodeHandle,
-    T_AlterNodeStmt,
-    T_CreateNodeStmt,
-    T_DropNodeStmt,
-    T_CreateGroupStmt,
-    T_DropGroupStmt,
-    T_AlterGroupStmt,
-    T_AlterGroupCmd,
+	T_ExecNodes,
+	T_SimpleSort,
+	T_PGXCNodeHandle,
 #endif
 
-#ifdef _MIGRATE_
-    T_CreateShardStmt,
-    T_CleanShardingStmt,
-    T_DropShardStmt,
-    T_MoveDataStmt,
+	/*
+	 * TAGS FOR PLAN STATE NODES (execnodes.h)
+	 *
+	 * These should correspond one-to-one with Plan node types.
+	 */
+	T_PlanState,
+	T_ResultState,
+	T_ProjectSetState,
+	T_MergeActionState,
+	T_ModifyTableState,
+	T_RemoteModifyTableState,
+	T_AppendState,
+	T_PartIteratorState,
+	T_MergeAppendState,
+	T_RecursiveUnionState,
+	T_BitmapAndState,
+	T_BitmapOrState,
+	T_ScanState,
+	T_SeqScanState,
+	T_SampleScanState,
+	T_IndexScanState,
+	T_IndexOnlyScanState,
+	T_BitmapIndexScanState,
+	T_BitmapHeapScanState,
+	T_TidScanState,
+	T_SubqueryScanState,
+	T_FunctionScanState,
+	T_TableFuncScanState,
+	T_ValuesScanState,
+	T_CteScanState,
+	T_NamedTuplestoreScanState,
+	T_WorkTableScanState,
+	T_ForeignScanState,
+	T_CustomScanState,
+	T_JoinState,
+	T_NestLoopState,
+	T_MergeJoinState,
+	T_HashJoinState,
+	T_MaterialState,
+	T_SortState,
+	T_GroupState,
+	T_AggState,
+	T_WindowAggState,
+	T_UniqueState,
+	T_GatherState,
+	T_GatherMergeState,
+	T_HashState,
+	T_SetOpState,
+	T_LockRowsState,
+	T_LimitState,
+	T_MergeQualProjState,
+#ifdef PGXC
+	T_RemoteQueryState,
 #endif
-#ifdef __COLD_HOT__
-    T_CreateKeyValuesStmt,
-    T_CheckOverLapStmt,
+#ifdef __OPENTENBASE_C__
+	T_RemoteFragmentState,
+	T_ConnectByState,
+#endif
+
+	/*
+	 * TAGS FOR PRIMITIVE NODES (primnodes.h)
+	 */
+	T_Alias,
+	T_RangeVar,
+	T_TableFunc,
+	T_Expr,
+	T_Var,
+	T_Const,
+	T_Param,
+	T_Aggref,
+	T_GroupingFunc,
+	T_WindowFunc,
+	T_ArrayRef,
+	T_FuncExpr,
+	T_NamedArgExpr,
+	T_OpExpr,
+	T_DistinctExpr,
+	T_NullIfExpr,
+	T_ScalarArrayOpExpr,
+	T_BoolExpr,
+	T_SubLink,
+	T_SubPlan,
+	T_AlternativeSubPlan,
+	T_FieldSelect,
+	T_FieldStore,
+	T_RelabelType,
+	T_CoerceViaIO,
+	T_ArrayCoerceExpr,
+	T_ConvertRowtypeExpr,
+	T_CollateExpr,
+	T_CaseExpr,
+	T_CaseWhen,
+	T_CaseTestExpr,
+	T_ArrayExpr,
+	T_RowExpr,
+	T_RowCompareExpr,
+	T_CoalesceExpr,
+	T_MinMaxExpr,
+	T_SQLValueFunction,
+	T_XmlExpr,
+	T_NullTest,
+	T_BooleanTest,
+	T_CoerceToDomain,
+	T_CoerceToDomainValue,
+	T_SetToDefault,
+	T_CurrentOfExpr,
+	T_NextValueExpr,
+	T_InferenceElem,
+	T_TargetEntry,
+	T_RangeTblRef,
+	T_JoinExpr,
+	T_FromExpr,
+	T_OnConflictExpr,
+	T_ConnectByExpr,
+	T_LevelExpr,
+	T_PriorExpr,
+	T_CBIsLeafExpr,
+	T_CBRootExpr,
+	T_CBPathExpr,
+	T_IntoClause,
+#ifdef PGXC
+	T_DistributeBy,
+	T_PGXCSubCluster,
+#endif
+	/* opentenbase_ora start */
+	T_UnpivotClause,
+	T_PivotClause,
+	T_RownumExpr,
+	T_PartitionInto,
+	T_PartitionMergeSplit,
+	T_PartitionMergeSpec,
+	/* opentenbase_ora end */
+	T_PauseTransactionStmt,
+#ifdef __AUDIT_FGA__
+	T_AuditFgaPolicy,
+#endif
+
+	/*
+	 * TAGS FOR EXPRESSION STATE NODES (execnodes.h)
+	 *
+	 * ExprState represents the evaluation state for a whole expression tree.
+	 * Most Expr-based plan nodes do not have a corresponding expression state
+	 * node, they're fully handled within execExpr* - but sometimes the state
+	 * needs to be shared with other parts of the executor, as for example
+	 * with AggrefExprState, which nodeAgg.c has to modify.
+	 */
+	T_ExprState,
+	T_AggrefExprState,
+	T_WindowFuncExprState,
+	T_SetExprState,
+	T_SubPlanState,
+	T_AlternativeSubPlanState,
+	T_DomainConstraintState,
+
+	/*
+	 * TAGS FOR PLANNER NODES (relation.h)
+	 */
+	T_PlannerInfo,
+	T_PlannerGlobal,
+	T_RelOptInfo,
+	T_IndexOptInfo,
+	T_ForeignKeyOptInfo,
+	T_ParamPathInfo,
+	T_Path,
+	T_IndexPath,
+	T_BitmapHeapPath,
+	T_BitmapAndPath,
+	T_BitmapOrPath,
+	T_TidPath,
+	T_SubqueryScanPath,
+	T_ForeignPath,
+	T_CustomPath,
+	T_NestPath,
+	T_MergePath,
+	T_HashPath,
+	T_AppendPath,
+	T_MergeAppendPath,
+	T_ResultPath,
+	T_MaterialPath,
+	T_UniquePath,
+	T_GatherPath,
+	T_GatherMergePath,
+	T_ProjectionPath,
+	T_ProjectSetPath,
+	T_QualPath,
+	T_SortPath,
+	T_GroupPath,
+	T_UpperUniquePath,
+	T_AggPath,
+	T_GroupingSetsPath,
+	T_MinMaxAggPath,
+	T_WindowAggPath,
+	T_SetOpPath,
+	T_RecursiveUnionPath,
+	T_LockRowsPath,
+	T_ModifyTablePath,
+	T_LimitPath,
+	T_MergeQualProjPath,
+#ifdef XCP
+	T_RemoteSubPath,
+#endif
+#ifdef __OPENTENBASE_C__
+	T_ConnectByPath,
+#endif
+	/* these aren't subclasses of Path: */
+	T_EquivalenceClass,
+	T_EquivalenceMember,
+	T_PathKey,
+	T_PathTarget,
+	T_RestrictInfo,
+	T_PlaceHolderVar,
+	T_SpecialJoinInfo,
+	T_AppendRelInfo,
+	T_RowIdentityVarInfo,
+	T_PlaceHolderInfo,
+	T_MinMaxAggInfo,
+	T_PlannerParamItem,
+    T_MergeAction,
+	T_RollupData,
+	T_GroupingSetData,
+	T_StatisticExtInfo,
+
+	/*
+	 * TAGS FOR MEMORY NODES (memnodes.h)
+	 */
+	T_MemoryContext,
+	T_AllocSetContext,
+	T_SlabContext,
+	T_GenerationContext,
+
+	/*
+	 * TAGS FOR VALUE NODES (value.h)
+	 */
+	T_Value,
+	T_Integer,
+	T_Float,
+	T_String,
+	T_BitString,
+	T_Null,
+
+	/*
+	 * TAGS FOR LIST NODES (pg_list.h)
+	 */
+	T_List,
+	T_IntList,
+	T_OidList,
+
+	/*
+	 * TAGS FOR EXTENSIBLE NODES (extensible.h)
+	 */
+	T_ExtensibleNode,
+
+	/*
+	 * TAGS FOR STATEMENT NODES (mostly in parsenodes.h)
+	 */
+	T_RawStmt,
+	T_Query,
+	T_PlannedStmt,
+	T_InsertStmt,
+	T_DeleteStmt,
+	T_UpdateStmt,
+    T_MergeStmt,
+	T_SelectStmt,
+	T_AlterTableStmt,
+	T_AlterTableCmd,
+	T_AlterDomainStmt,
+	T_SetOperationStmt,
+	T_GrantStmt,
+	T_GrantRoleStmt,
+	T_AlterDefaultPrivilegesStmt,
+	T_ClosePortalStmt,
+	T_ClusterStmt,
+	T_CopyStmt,
+	T_CreateStmt,
+	T_SingleRowErrorDesc,
+	T_ExtTableTypeDesc,
+	T_CreateExternalStmt,
+	T_DefineStmt,
+	T_DropStmt,
+	T_TruncateStmt,
+	T_CommentStmt,
+	T_FetchStmt,
+	T_IndexStmt,
+	T_CreateFunctionStmt,
+	T_AlterFunctionStmt,
+	T_DoStmt,
+	T_RenameStmt,
+	T_RuleStmt,
+	T_NotifyStmt,
+	T_ListenStmt,
+	T_UnlistenStmt,
+	T_TransactionStmt,
+	T_ViewStmt,
+	T_LoadStmt,
+	T_CreateDomainStmt,
+	T_CreatedbStmt,
+	T_DropdbStmt,
+	T_VacuumStmt,
+	T_ExplainStmt,
+	T_CreateTableAsStmt,
+	T_CreateSeqStmt,
+	T_AlterSeqStmt,
+	T_VariableSetStmt,
+	T_VariableShowStmt,
+	T_DiscardStmt,
+	T_CreateTrigStmt,
+	T_CreatePLangStmt,
+	T_CreateRoleStmt,
+	T_AlterRoleStmt,
+	T_DropRoleStmt,
+	T_LockStmt,
+	T_ConstraintsSetStmt,
+	T_ReindexStmt,
+	T_CheckPointStmt,
+	T_CreateSchemaStmt,
+	T_AlterDatabaseStmt,
+	T_AlterDatabaseSetStmt,
+	T_AlterRoleSetStmt,
+	T_CreateConversionStmt,
+	T_CreateCastStmt,
+	T_CreateOpClassStmt,
+	T_CreateOpFamilyStmt,
+	T_AlterOpFamilyStmt,
+	T_PrepareStmt,
+	T_ExecuteStmt,
+	T_DeallocateStmt,
+	T_DeclareCursorStmt,
+	T_CreateTableSpaceStmt,
+	T_DropTableSpaceStmt,
+	T_AlterObjectDependsStmt,
+	T_AlterObjectSchemaStmt,
+	T_AlterOwnerStmt,
+	T_AlterOperatorStmt,
+	T_DropOwnedStmt,
+	T_ReassignOwnedStmt,
+	T_CompositeTypeStmt,
+	T_CreateEnumStmt,
+	T_CreateRangeStmt,
+	T_AlterEnumStmt,
+	T_AlterTSDictionaryStmt,
+	T_AlterTSConfigurationStmt,
+	T_CreateFdwStmt,
+	T_AlterFdwStmt,
+	T_FdwDataNodeTask,
+	T_FdwFileSegment,
+	T_CreateForeignServerStmt,
+	T_AlterForeignServerStmt,
+	T_CreateUserMappingStmt,
+	T_AlterUserMappingStmt,
+	T_DropUserMappingStmt,
+	T_ExecDirectStmt,
+	T_CleanConnStmt,
+	T_AlterTableSpaceOptionsStmt,
+	T_AlterTableMoveAllStmt,
+	T_SecLabelStmt,
+	T_CreateForeignTableStmt,
+	T_ImportForeignSchemaStmt,
+	T_CreateExtensionStmt,
+	T_AlterExtensionStmt,
+	T_AlterExtensionContentsStmt,
+	T_CreateEventTrigStmt,
+	T_AlterEventTrigStmt,
+	T_RefreshMatViewStmt,
+	T_ReplicaIdentityStmt,
+	T_AlterSystemStmt,
+	T_CreatePolicyStmt,
+	T_AlterPolicyStmt,
+	T_CreateTransformStmt,
+	T_CreateAmStmt,
+	T_CreatePublicationStmt,
+	T_AlterPublicationStmt,
+	T_CreateSubscriptionStmt,
+	T_AlterSubscriptionStmt,
+	T_DropSubscriptionStmt,
+	T_CreateStatsStmt,
+	T_AlterCollationStmt,
+	T_CallStmt,
+#ifdef PGXC
+	T_BarrierStmt,
+	T_PauseClusterStmt,
+	T_AlterNodeStmt,
+	T_CreateNodeStmt,
+	T_DropNodeStmt,
+	T_CreateGroupStmt,
+	T_DropGroupStmt,
+	T_AlterGroupStmt,
+	T_AlterGroupCmd,
+#endif
+#ifdef XCP
+	T_RemoteStmt,
+#endif
+#ifdef __AUDIT__
+	/*
+	 * TAGS FOR AUDIT
+	 */
+	T_AuditStmt,
+	T_CleanAuditStmt,
+#endif
+#ifdef _SHARDING_
+	T_VacuumShardStmt,
+#endif
+#ifdef _MIGRATE_
+	T_CreateShardStmt,
+	T_CleanShardingStmt,
+	T_DropShardStmt,
+	T_MoveDataStmt,
 #endif
 #ifdef __OPENTENBASE__
-    T_LockNodeStmt,
+	T_LockNodeStmt,
 	T_SampleStmt,
 #endif
-
-    /* these aren't subclasses of Plan: */
-    T_NestLoopParam,
-    T_PlanRowMark,
-    T_PlanInvalItem,
-
-    /*
-     * TAGS FOR PLAN STATE NODES (execnodes.h)
-     *
-     * These should correspond one-to-one with Plan node types.
-     */
-    T_PlanState,
-    T_ResultState,
-    T_ProjectSetState,
-    T_ModifyTableState,
-    T_AppendState,
-    T_MergeAppendState,
-    T_RecursiveUnionState,
-    T_BitmapAndState,
-    T_BitmapOrState,
-    T_ScanState,
-    T_SeqScanState,
-    T_SampleScanState,
-    T_IndexScanState,
-    T_IndexOnlyScanState,
-    T_BitmapIndexScanState,
-    T_BitmapHeapScanState,
-    T_TidScanState,
-    T_SubqueryScanState,
-    T_FunctionScanState,
-    T_TableFuncScanState,
-    T_ValuesScanState,
-    T_CteScanState,
-    T_NamedTuplestoreScanState,
-    T_WorkTableScanState,
-    T_ForeignScanState,
-    T_CustomScanState,
-    T_JoinState,
-    T_NestLoopState,
-    T_MergeJoinState,
-    T_HashJoinState,
-    T_MaterialState,
-    T_SortState,
-    T_GroupState,
-    T_AggState,
-    T_WindowAggState,
-    T_UniqueState,
-    T_GatherState,
-    T_GatherMergeState,
-    T_HashState,
-    T_SetOpState,
-    T_LockRowsState,
-    T_LimitState,
-#ifdef PGXC
-    T_RemoteQueryState,
-#ifdef XCP
-    T_RemoteSubplanState,
+#ifdef __OPENTENBASE_C__
+	T_TruncateShardStmt,
 #endif
+#ifdef __RESOURCE_QUEUE__
+	T_CreateResourceQueueStmt,
+	T_AlterResourceQueueStmt,
+	T_DropResourceQueueStmt,
+	T_CreateResourceGroupStmt,
+	T_DropResourceGroupStmt,
+	T_AlterResourceGroupStmt,
 #endif
 
-    /*
-     * TAGS FOR PRIMITIVE NODES (primnodes.h)
-     */
-    T_Alias,
-    T_RangeVar,
-    T_TableFunc,
-    T_Expr,
-    T_Var,
-    T_Const,
-    T_Param,
-    T_Aggref,
-    T_GroupingFunc,
-    T_WindowFunc,
-    T_ArrayRef,
-    T_FuncExpr,
-    T_NamedArgExpr,
-    T_OpExpr,
-    T_DistinctExpr,
-    T_NullIfExpr,
-    T_ScalarArrayOpExpr,
-    T_BoolExpr,
-    T_SubLink,
-    T_SubPlan,
-    T_AlternativeSubPlan,
-    T_FieldSelect,
-    T_FieldStore,
-    T_RelabelType,
-    T_CoerceViaIO,
-    T_ArrayCoerceExpr,
-    T_ConvertRowtypeExpr,
-    T_CollateExpr,
-    T_CaseExpr,
-    T_CaseWhen,
-    T_CaseTestExpr,
-    T_ArrayExpr,
-    T_RowExpr,
-    T_RowCompareExpr,
-    T_CoalesceExpr,
-    T_MinMaxExpr,
-    T_SQLValueFunction,
-    T_XmlExpr,
-    T_NullTest,
-    T_BooleanTest,
-    T_CoerceToDomain,
-    T_CoerceToDomainValue,
-    T_SetToDefault,
-    T_CurrentOfExpr,
-    T_NextValueExpr,
-    T_InferenceElem,
-    T_TargetEntry,
-    T_RangeTblRef,
-    T_JoinExpr,
-    T_FromExpr,
-    T_OnConflictExpr,
-    T_IntoClause,
-        T_PartitionPruneStep,
-        T_PartitionPruneStepOp,
-        T_PartitionPruneStepCombine,
-#ifdef PGXC
-    T_DistributeBy,
-    T_PGXCSubCluster,
-#endif
-#ifdef __OPENTENBASE__
-    T_PartitionBy,
-    T_AddDropPartitions,
-    T_PartitionForExpr,
-    T_ExchangeIndexName,
-    T_ModifyPartStartValue,
-#endif
-#ifdef __AUDIT_FGA__
-    T_AuditFgaPolicy,
-#endif
-    /*
-     * TAGS FOR EXPRESSION STATE NODES (execnodes.h)
-     *
-     * ExprState represents the evaluation state for a whole expression tree.
-     * Most Expr-based plan nodes do not have a corresponding expression state
-     * node, they're fully handled within execExpr* - but sometimes the state
-     * needs to be shared with other parts of the executor, as for example
-     * with AggrefExprState, which nodeAgg.c has to modify.
-     */
-    T_ExprState,
-    T_AggrefExprState,
-    T_WindowFuncExprState,
-    T_SetExprState,
-    T_SubPlanState,
-    T_AlternativeSubPlanState,
-    T_DomainConstraintState,
+	/*
+	 * TAGS FOR PARSE TREE NODES (parsenodes.h)
+	 */
+	T_A_Expr,
+	T_ColumnRef,
+	T_ParamRef,
+	T_A_Const,
+	T_FuncCall,
+	T_A_Star,
+	T_A_Indices,
+	T_A_Indirection,
+	T_A_ArrayExpr,
+	T_ResTarget,
+	T_MultiAssignRef,
+	T_TypeCast,
+	T_CollateClause,
+	T_SortBy,
+	T_WindowDef,
+	T_RangeSubselect,
+	T_RangeFunction,
+	T_RangeTableSample,
+	T_RangeTableFunc,
+	T_RangeTableFuncCol,
+	T_TypeName,
+	T_ColumnDef,
+	T_IndexElem,
+	T_Constraint,
+	T_DefElem,
+	T_RangeTblEntry,
+	T_RangeTblFunction,
+	T_TableSampleClause,
+	T_WithCheckOption,
+	T_SortGroupClause,
+	T_GroupingSet,
+	T_WindowClause,
+	T_ObjectWithArgs,
+	T_AccessPriv,
+	T_CreateOpClassItem,
+	T_TableLikeClause,
+	T_FunctionParameter,
+	T_LockingClause,
+	T_RowMarkClause,
+	T_XmlSerialize,
+	T_WithClause,
+	T_InferClause,
+	T_OnConflictClause,
+	T_ConnectByClause,
+	T_CommonTableExpr,
+	T_RoleSpec,
+	T_TriggerTransition,
+	T_PartitionElem,
+	T_PartitionSpec,
+	T_PartitionBoundSpec,
+	T_PartitionRangeDatum,
+	T_PartitionCmd,
+    T_MergeWhenClause,
 
-    /*
-     * TAGS FOR PLANNER NODES (relation.h)
-     */
-    T_PlannerInfo,
-    T_PlannerGlobal,
-    T_RelOptInfo,
-    T_IndexOptInfo,
-    T_ForeignKeyOptInfo,
-    T_ParamPathInfo,
-    T_Path,
-    T_IndexPath,
-    T_BitmapHeapPath,
-    T_BitmapAndPath,
-    T_BitmapOrPath,
-    T_TidPath,
-    T_SubqueryScanPath,
-    T_ForeignPath,
-    T_CustomPath,
-    T_NestPath,
-    T_MergePath,
-    T_HashPath,
-    T_AppendPath,
-    T_MergeAppendPath,
-    T_ResultPath,
-	T_QualPath,
-    T_MaterialPath,
-    T_UniquePath,
-    T_GatherPath,
-    T_GatherMergePath,
-    T_ProjectionPath,
-    T_ProjectSetPath,
-    T_SortPath,
-    T_GroupPath,
-    T_UpperUniquePath,
-    T_AggPath,
-    T_GroupingSetsPath,
-    T_MinMaxAggPath,
-    T_WindowAggPath,
-    T_SetOpPath,
-    T_RecursiveUnionPath,
-    T_LockRowsPath,
-    T_ModifyTablePath,
-    T_LimitPath,
-    /* these aren't subclasses of Path: */
-    T_EquivalenceClass,
-    T_EquivalenceMember,
-    T_PathKey,
-    T_PathTarget,
-    T_RestrictInfo,
-    T_PlaceHolderVar,
-    T_SpecialJoinInfo,
-    T_AppendRelInfo,
-    T_PlaceHolderInfo,
-    T_MinMaxAggInfo,
-    T_PlannerParamItem,
-#ifdef XCP
-    T_RemoteSubPath,
-#endif
-    T_RollupData,
-    T_GroupingSetData,
-    T_StatisticExtInfo,
+	/*
+	 * TAGS FOR REPLICATION GRAMMAR PARSE NODES (replnodes.h)
+	 */
+	T_IdentifySystemCmd,
+	T_BaseBackupCmd,
+	T_CreateReplicationSlotCmd,
+	T_DropReplicationSlotCmd,
+	T_StartReplicationCmd,
+	T_TimeLineHistoryCmd,
+	T_SQLCmd,
 
-    /*
-     * TAGS FOR MEMORY NODES (memnodes.h)
-     */
-    T_MemoryContext,
-    T_AllocSetContext,
-    T_SlabContext,
-
-    /*
-     * TAGS FOR VALUE NODES (value.h)
-     */
-    T_Value,
-    T_Integer,
-    T_Float,
-    T_String,
-    T_BitString,
-    T_Null,
-
-    /*
-     * TAGS FOR LIST NODES (pg_list.h)
-     */
-    T_List,
-    T_IntList,
-    T_OidList,
-
-    /*
-     * TAGS FOR EXTENSIBLE NODES (extensible.h)
-     */
-    T_ExtensibleNode,
-
-    /*
-     * TAGS FOR STATEMENT NODES (mostly in parsenodes.h)
-     */
-    T_RawStmt,
-    T_Query,
-    T_PlannedStmt,
-    T_InsertStmt,
-    T_DeleteStmt,
-    T_UpdateStmt,
-    T_SelectStmt,
-    T_AlterTableStmt,
-    T_AlterTableCmd,
-    T_AlterDomainStmt,
-    T_SetOperationStmt,
-    T_GrantStmt,
-    T_GrantRoleStmt,
-    T_AlterDefaultPrivilegesStmt,
-    T_ClosePortalStmt,
-    T_ClusterStmt,
-    T_CopyStmt,
-    T_CreateStmt,
-    T_DefineStmt,
-    T_DropStmt,
-    T_TruncateStmt,
-    T_CommentStmt,
-    T_FetchStmt,
-    T_IndexStmt,
-    T_CreateFunctionStmt,
-    T_AlterFunctionStmt,
-    T_DoStmt,
-    T_RenameStmt,
-    T_RuleStmt,
-    T_NotifyStmt,
-    T_ListenStmt,
-    T_UnlistenStmt,
-    T_TransactionStmt,
-    T_ViewStmt,
-    T_LoadStmt,
-    T_CreateDomainStmt,
-    T_CreatedbStmt,
-    T_DropdbStmt,
-    T_VacuumStmt,
-#ifdef _SHARDING_
-    T_VacuumShardStmt,
-#endif
-    T_ExplainStmt,
-    T_CreateTableAsStmt,
-    T_CreateSeqStmt,
-    T_AlterSeqStmt,
-    T_VariableSetStmt,
-    T_VariableShowStmt,
-    T_DiscardStmt,
-    T_CreateTrigStmt,
-    T_CreatePLangStmt,
-    T_CreateRoleStmt,
-    T_AlterRoleStmt,
-    T_DropRoleStmt,
-    T_LockStmt,
-    T_ConstraintsSetStmt,
-    T_ReindexStmt,
-    T_CheckPointStmt,
-#ifdef PGXC
-    T_BarrierStmt,
-    T_PauseClusterStmt,
-#endif
-    T_CreateSchemaStmt,
-    T_AlterDatabaseStmt,
-    T_AlterDatabaseSetStmt,
-    T_AlterRoleSetStmt,
-    T_CreateConversionStmt,
-    T_CreateCastStmt,
-    T_CreateOpClassStmt,
-    T_CreateOpFamilyStmt,
-    T_AlterOpFamilyStmt,
-    T_PrepareStmt,
-    T_ExecuteStmt,
-    T_DeallocateStmt,
-    T_DeclareCursorStmt,
-    T_CreateTableSpaceStmt,
-    T_DropTableSpaceStmt,
-    T_AlterObjectDependsStmt,
-    T_AlterObjectSchemaStmt,
-    T_AlterOwnerStmt,
-    T_AlterOperatorStmt,
-    T_DropOwnedStmt,
-    T_ReassignOwnedStmt,
-    T_CompositeTypeStmt,
-    T_CreateEnumStmt,
-    T_CreateRangeStmt,
-    T_AlterEnumStmt,
-    T_AlterTSDictionaryStmt,
-    T_AlterTSConfigurationStmt,
-    T_CreateFdwStmt,
-    T_AlterFdwStmt,
-    T_CreateForeignServerStmt,
-    T_AlterForeignServerStmt,
-    T_CreateUserMappingStmt,
-    T_AlterUserMappingStmt,
-    T_DropUserMappingStmt,
-    T_ExecDirectStmt,
-    T_CleanConnStmt,
-#ifdef XCP
-    T_RemoteStmt,
-#endif
-    T_AlterTableSpaceOptionsStmt,
-    T_AlterTableMoveAllStmt,
-    T_SecLabelStmt,
-    T_CreateForeignTableStmt,
-    T_ImportForeignSchemaStmt,
-    T_CreateExtensionStmt,
-    T_AlterExtensionStmt,
-    T_AlterExtensionContentsStmt,
-    T_CreateEventTrigStmt,
-    T_AlterEventTrigStmt,
-    T_RefreshMatViewStmt,
-    T_ReplicaIdentityStmt,
-    T_AlterSystemStmt,
-    T_CreatePolicyStmt,
-    T_AlterPolicyStmt,
-    T_CreateTransformStmt,
-    T_CreateAmStmt,
-    T_CreatePublicationStmt,
-    T_AlterPublicationStmt,
-    T_CreateSubscriptionStmt,
-    T_AlterSubscriptionStmt,
-    T_DropSubscriptionStmt,
-    T_CreateStatsStmt,
-    T_AlterCollationStmt,
-
-    /*
-     * TAGS FOR PARSE TREE NODES (parsenodes.h)
-     */
-    T_A_Expr,
-    T_ColumnRef,
-    T_ParamRef,
-    T_A_Const,
-    T_FuncCall,
-    T_A_Star,
-    T_A_Indices,
-    T_A_Indirection,
-    T_A_ArrayExpr,
-    T_ResTarget,
-    T_MultiAssignRef,
-    T_TypeCast,
-    T_CollateClause,
-    T_SortBy,
-    T_WindowDef,
-    T_RangeSubselect,
-    T_RangeFunction,
-    T_RangeTableSample,
-    T_RangeTableFunc,
-    T_RangeTableFuncCol,
-    T_TypeName,
-    T_ColumnDef,
-    T_IndexElem,
-    T_Constraint,
-    T_DefElem,
-    T_RangeTblEntry,
-    T_RangeTblFunction,
-    T_TableSampleClause,
-    T_WithCheckOption,
-    T_SortGroupClause,
-    T_GroupingSet,
-    T_WindowClause,
-    T_ObjectWithArgs,
-    T_AccessPriv,
-    T_CreateOpClassItem,
-    T_TableLikeClause,
-    T_FunctionParameter,
-    T_LockingClause,
-    T_RowMarkClause,
-    T_XmlSerialize,
-    T_WithClause,
-    T_InferClause,
-    T_OnConflictClause,
-    T_CommonTableExpr,
-    T_RoleSpec,
-    T_TriggerTransition,
-    T_PartitionElem,
-    T_PartitionSpec,
-    T_PartitionBoundSpec,
-    T_PartitionRangeDatum,
-    T_PartitionCmd,
-
-    /*
-     * TAGS FOR REPLICATION GRAMMAR PARSE NODES (replnodes.h)
-     */
-    T_IdentifySystemCmd,
-    T_BaseBackupCmd,
-    T_CreateReplicationSlotCmd,
-    T_DropReplicationSlotCmd,
-    T_StartReplicationCmd,
-    T_TimeLineHistoryCmd,
-    T_SQLCmd,
-
-    /*
-     * TAGS FOR RANDOM OTHER STUFF
-     *
-     * These are objects that aren't part of parse/plan/execute node tree
-     * structures, but we give them NodeTags anyway for identification
-     * purposes (usually because they are involved in APIs where we want to
-     * pass multiple object types through the same pointer).
-     */
-    T_TriggerData,                /* in commands/trigger.h */
-    T_EventTriggerData,            /* in commands/event_trigger.h */
-    T_ReturnSetInfo,            /* in nodes/execnodes.h */
-    T_WindowObjectData,            /* private in nodeWindowAgg.c */
-    T_TIDBitmap,                /* in nodes/tidbitmap.h */
-    T_InlineCodeBlock,            /* in nodes/parsenodes.h */
-    T_FdwRoutine,                /* in foreign/fdwapi.h */
-    T_IndexAmRoutine,            /* in access/amapi.h */
-    T_TsmRoutine,                /* in access/tsmapi.h */
-    T_ForeignKeyCacheInfo        /* in utils/rel.h */
+	/*
+	 * TAGS FOR RANDOM OTHER STUFF
+	 *
+	 * These are objects that aren't part of parse/plan/execute node tree
+	 * structures, but we give them NodeTags anyway for identification
+	 * purposes (usually because they are involved in APIs where we want to
+	 * pass multiple object types through the same pointer).
+	 */
+	T_TriggerData,		  /* in commands/trigger.h */
+	T_FuncCheckData,	   /* in nodes/execnodes.h */
+	T_EventTriggerData,	  /* in commands/event_trigger.h */
+	T_ReturnSetInfo,	  /* in nodes/execnodes.h */
+	T_WindowObjectData,	  /* private in nodeWindowAgg.c */
+	T_TIDBitmap,		  /* in nodes/tidbitmap.h */
+	T_InlineCodeBlock,	  /* in nodes/parsenodes.h */
+	T_FdwRoutine,		  /* in foreign/fdwapi.h */
+	T_IndexAmRoutine,	  /* in access/amapi.h */
+	T_TsmRoutine,		  /* in access/tsmapi.h */
+	T_ForeignKeyCacheInfo,          /* in utils/rel.h */
+	T_CallContext               /* in nodes/parsenodes.h */
+	,T_KeepDef			  /* KEEP DENSERANK in nodes/parsenodes.h */
 #ifdef _MLS_
-    ,T_SyncBufIdInfo            /* in bufmgr.c*/
+	,T_SyncBufIdInfo /* in bufmgr.c*/
 #endif
-	 ,T_StatSyncOpt
+#ifdef _PG_ORCL_
+	,T_CreateSynonymStmt
+    ,T_CreatePackageStmt
+    ,T_CreatePackageBodyStmt
+    ,T_DropPackageStmt
+	,T_AlterPackageStmt
+    ,T_AccessibleParameter
+    ,T_CreateProfileStmt        /* in nodes/parsenodes.h */
+   	,T_AlterProfileStmt                     /* in nodes/parsenodes.h */
+   	,T_DropProfileStmt                      /* in nodes/parsenodes.h */
+    ,T_CreateTypeObjectStmt
+    ,T_CreateNestedTableStmt
+	,T_AlterResourceCostStmt    /* in nodes/parsenodes.h */
+   	,T_ProfileParameter         /* in catalog/pg_profile.h */
+    ,T_CreateDatabaseLinkStmt   /* in catalog/pg_dblink.h */
+    ,T_DropDatabaseLinkStmt     /* in catalog/pg_dblink.h */
+    ,T_ColumnRefJoin
+    ,T_CreateTypeObjectBodyStmt
+#endif
+	,T_ExternalScanInfo	  /* in nodes/plannodes.h */
+    ,T_AttInfo
+    ,T_Position
+	,T_LoadFromStmt		 /* in nodes/plannodes.h */
+	,T_FragmentDest
+	,T_CopyAttrFixed
+	,T_CopyFormatter
+	/* begin ora_compatible */
+	,T_MultiInsertStmt,				/* in nodes/parsenodes.h */
+	T_MultiInsertInto,				/* in nodes/parsenodes.h */
+	T_MultiModifyTable,				/* in nodes/plannnodes.h */
+	T_MultiModifyTableState,		/* in nodes/execnodes.h */
+	T_MultiModifyTablePath,			/* in nodes/pathnodes.h */
+	T_CreateDirStmt,
+	T_DropDirStmt,
+	/* end ora_compatible */
+
+	T_DisKeyAttr,
+	T_MultiSetExpr,
+	T_PartitionDef
+	,T_PartIteratorPath
+	,T_UpdateTermStmt
+	,T_QueryTermStmt
+	,T_CBIsCycleExpr
 } NodeTag;
 
 /*
@@ -601,18 +691,18 @@ typedef enum NodeTag
  */
 typedef struct Node
 {
-    NodeTag        type;
+	NodeTag		type;
 } Node;
 
-#define nodeTag(nodeptr)        (((const Node*)(nodeptr))->type)
+#define nodeTag(nodeptr)		(((const Node*)(nodeptr))->type)
 
 /*
  * newNode -
- *      create a new node of the specified size and tag the node with the
- *      specified tag.
+ *	  create a new node of the specified size and tag the node with the
+ *	  specified tag.
  *
  * !WARNING!: Avoid using newNode directly. You should be using the
- *      macro makeNode.  eg. to create a Query node, use makeNode(Query)
+ *	  macro makeNode.  eg. to create a Query node, use makeNode(Query)
  *
  * Note: the size argument should always be a compile-time constant, so the
  * apparent risk of multiple evaluation doesn't matter in practice.
@@ -621,36 +711,36 @@ typedef struct Node
 
 /* With GCC, we can use a compound statement within an expression */
 #define newNode(size, tag) \
-({    Node   *_result; \
-    AssertMacro((size) >= sizeof(Node));        /* need the tag, at least */ \
-    _result = (Node *) palloc0fast(size); \
-    _result->type = (tag); \
-    _result; \
+({	Node   *_result; \
+	AssertMacro((size) >= sizeof(Node));		/* need the tag, at least */ \
+	_result = (Node *) palloc0fast(size); \
+	_result->type = (tag); \
+	_result; \
 })
 #else
 
 /*
- *    There is no way to dereference the palloc'ed pointer to assign the
- *    tag, and also return the pointer itself, so we need a holder variable.
- *    Fortunately, this macro isn't recursive so we just define
- *    a global variable for this purpose.
+ *	There is no way to dereference the palloc'ed pointer to assign the
+ *	tag, and also return the pointer itself, so we need a holder variable.
+ *	Fortunately, this macro isn't recursive so we just define
+ *	a global variable for this purpose.
  */
 extern PGDLLIMPORT Node *newNodeMacroHolder;
 
 #define newNode(size, tag) \
 ( \
-    AssertMacro((size) >= sizeof(Node)),        /* need the tag, at least */ \
-    newNodeMacroHolder = (Node *) palloc0fast(size), \
-    newNodeMacroHolder->type = (tag), \
-    newNodeMacroHolder \
+	AssertMacro((size) >= sizeof(Node)),		/* need the tag, at least */ \
+	newNodeMacroHolder = (Node *) palloc0fast(size), \
+	newNodeMacroHolder->type = (tag), \
+	newNodeMacroHolder \
 )
-#endif                            /* __GNUC__ */
+#endif							/* __GNUC__ */
 
 
-#define makeNode(_type_)        ((_type_ *) newNode(sizeof(_type_),T_##_type_))
-#define NodeSetTag(nodeptr,t)    (((Node*)(nodeptr))->type = (t))
+#define makeNode(_type_)		((_type_ *) newNode(sizeof(_type_),T_##_type_))
+#define NodeSetTag(nodeptr,t)	(((Node*)(nodeptr))->type = (t))
 
-#define IsA(nodeptr,_type_)        (nodeTag(nodeptr) == T_##_type_)
+#define IsA(nodeptr,_type_)		(nodeTag(nodeptr) == T_##_type_)
 
 /*
  * castNode(type, ptr) casts ptr to "type *", and if assertions are enabled,
@@ -663,17 +753,17 @@ extern PGDLLIMPORT Node *newNodeMacroHolder;
 static inline Node *
 castNodeImpl(NodeTag type, void *ptr)
 {
-    Assert(ptr == NULL || nodeTag(ptr) == type);
-    return (Node *) ptr;
+	Assert(ptr == NULL || nodeTag(ptr) == type);
+	return (Node *) ptr;
 }
 #define castNode(_type_, nodeptr) ((_type_ *) castNodeImpl(T_##_type_, nodeptr))
 #else
 #define castNode(_type_, nodeptr) ((_type_ *) (nodeptr))
-#endif                            /* USE_ASSERT_CHECKING */
+#endif							/* USE_ASSERT_CHECKING */
 
 
 /* ----------------------------------------------------------------
- *                      extern declarations follow
+ *					  extern declarations follow
  * ----------------------------------------------------------------
  */
 
@@ -682,16 +772,17 @@ castNodeImpl(NodeTag type, void *ptr)
  */
 #ifdef XCP
 extern void set_portable_output(bool value);
+extern bool portable_output;
 #endif
-struct Bitmapset;                /* not to include bitmapset.h here */
-struct StringInfoData;            /* not to include stringinfo.h here */
+struct Bitmapset;				/* not to include bitmapset.h here */
+struct StringInfoData;			/* not to include stringinfo.h here */
 
 extern void outNode(struct StringInfoData *str, const void *obj);
 extern void outToken(struct StringInfoData *str, const char *s);
 extern void outBitmapset(struct StringInfoData *str,
-             const struct Bitmapset *bms);
+			 const struct Bitmapset *bms);
 extern void outDatum(struct StringInfoData *str, uintptr_t value,
-         int typlen, bool typbyval);
+		 int typlen, bool typbyval);
 extern char *nodeToString(const void *obj);
 extern char *bmsToString(const struct Bitmapset *bms);
 
@@ -724,7 +815,8 @@ extern void *copyObjectImpl(const void *obj);
 /*
  * nodes/equalfuncs.c
  */
-extern bool equalDistribution(const void *a, const void *b);
+struct Distribution;
+extern bool IsSimilarDistribution(const struct Distribution *a, const struct Distribution *b);
 extern bool equal(const void *a, const void *b);
 
 
@@ -736,33 +828,34 @@ extern bool equal(const void *a, const void *b);
  * These could have gone into plannodes.h or some such, but many files
  * depend on them...
  */
-typedef double Selectivity;        /* fraction of tuples a qualifier will pass */
-typedef double Cost;            /* execution cost (in page-access units) */
+typedef double Selectivity;		/* fraction of tuples a qualifier will pass */
+typedef double Cost;			/* execution cost (in page-access units) */
 
 
 /*
  * CmdType -
- *      enums for type of operation represented by a Query or PlannedStmt
+ *	  enums for type of operation represented by a Query or PlannedStmt
  *
  * This is needed in both parsenodes.h and plannodes.h, so put it here...
  */
 typedef enum CmdType
 {
-    CMD_UNKNOWN,
-    CMD_SELECT,                    /* select stmt */
-    CMD_UPDATE,                    /* update stmt */
-    CMD_INSERT,                    /* insert stmt */
-    CMD_DELETE,
-    CMD_UTILITY,                /* cmds like create, destroy, copy, vacuum,
-                                 * etc. */
-    CMD_NOTHING                    /* dummy command for instead nothing rules
-                                 * with qual */
+	CMD_UNKNOWN,
+	CMD_SELECT,					/* select stmt */
+	CMD_UPDATE,					/* update stmt */
+	CMD_INSERT,					/* insert stmt */
+	CMD_DELETE,
+    CMD_UTILITY,				/* cmds like create, destroy, copy, vacuum,
+								 * etc. */
+    CMD_MERGE,                  /* merge stmt */
+	CMD_NOTHING					/* dummy command for instead nothing rules
+								 * with qual */
 } CmdType;
 
 
 /*
  * JoinType -
- *      enums for types of relation joins
+ *	  enums for types of relation joins
  *
  * JoinType determines the exact semantics of joining two relations using
  * a matching qualification.  For example, it tells what to do with a tuple
@@ -801,10 +894,19 @@ typedef enum JoinType
 	JOIN_UNIQUE_INNER,			/* RHS path must be made unique */
 
 #ifdef __OPENTENBASE__
-	JOIN_LEFT_SCALAR,			/* pairs + unmatched LHS tuples, only 1 copy of
-	 	 	 	 	 	 	 	 * each LHS row else report error. */
-	JOIN_LEFT_SEMI				/* 1 copy of each LHS row that has match(es) +
-								 * unmatched LHS tuples */
+	JOIN_SEMI_RIGHT,			/* 1 copy of each RHS row that has match(es),
+								   relative to JOIN_SEMI */
+	JOIN_ANTI_RIGHT,			/* 1 copy of each RHS row that has no match,
+								   relative to JOIN_ANTI */
+
+	JOIN_LEFT_SEMI,				/* 1 copy of each LHS row that has match(es) +
+								   unmatched LHS tuples */
+	JOIN_LEFT_SEMI_SCALAR,		/* 1 copy of each LHS row that has match(es) +
+								   unmatched LHS tuples,
+								   only 1 copy of echo LHS row else report error */
+
+	JOIN_SEMI_SCALAR			/* 1 copy of each LHS row that has match(es),
+								   only 1 copy of echo LHS row else report error */
 #endif
 
 	/*
@@ -826,102 +928,121 @@ typedef enum JoinType
  * pushed-down quals.  This is convenient because for almost all purposes,
  * quals attached to a semijoin can be treated the same as innerjoin quals.
  */
-#ifdef __OPENTENBASE__
 #define IS_OUTER_JOIN(jointype) \
 	(((1 << (jointype)) & \
 	  ((1 << JOIN_LEFT) | \
+	   (1 << JOIN_LEFT_SEMI_SCALAR) | \
+	   (1 << JOIN_SEMI_SCALAR) | \
 	   (1 << JOIN_LEFT_SEMI) | \
-	   (1 << JOIN_LEFT_SCALAR) | \
 	   (1 << JOIN_FULL) | \
 	   (1 << JOIN_RIGHT) | \
+	   (1 << JOIN_ANTI_RIGHT) | \
 	   (1 << JOIN_ANTI))) != 0)
-#else
-#define IS_OUTER_JOIN(jointype) \
-	(((1 << (jointype)) & \
-	  ((1 << JOIN_LEFT) | \
-	   (1 << JOIN_FULL) | \
-	   (1 << JOIN_RIGHT) | \
-	   (1 << JOIN_ANTI))) != 0)
-#endif
 
 /*
  * AggStrategy -
- *      overall execution strategies for Agg plan nodes
+ *	  overall execution strategies for Agg plan nodes
  *
  * This is needed in both plannodes.h and relation.h, so put it here...
  */
 typedef enum AggStrategy
 {
-    AGG_PLAIN,                    /* simple agg across all input rows */
-    AGG_SORTED,                    /* grouped agg, input must be sorted */
-    AGG_HASHED,                    /* grouped agg, use internal hashtable */
-    AGG_MIXED                    /* grouped agg, hash and sort both used */
+	AGG_PLAIN,					/* simple agg across all input rows */
+	AGG_SORTED,					/* grouped agg, input must be sorted */
+	AGG_HASHED,					/* grouped agg, use internal hashtable */
+	AGG_MIXED					/* grouped agg, hash and sort both used */
 } AggStrategy;
 
 /*
  * AggSplit -
- *      splitting (partial aggregation) modes for Agg plan nodes
+ *	  splitting (partial aggregation) modes for Agg plan nodes
  *
  * This is needed in both plannodes.h and relation.h, so put it here...
  */
 
 /* Primitive options supported by nodeAgg.c: */
-#define AGGSPLITOP_COMBINE        0x01    /* substitute combinefn for transfn */
-#define AGGSPLITOP_SKIPFINAL    0x02    /* skip finalfn, return state as-is */
-#define AGGSPLITOP_SERIALIZE    0x04    /* apply serializefn to output */
-#define AGGSPLITOP_DESERIALIZE    0x08    /* apply deserializefn to input */
+#define AGGSPLITOP_COMBINE		0x01	/* substitute combinefn for transfn */
+#define AGGSPLITOP_SKIPFINAL	0x02	/* skip finalfn, return state as-is */
+#define AGGSPLITOP_SERIALIZE	0x04	/* apply serializefn to output */
+#define AGGSPLITOP_DESERIALIZE	0x08	/* apply deserializefn to input */
 
 /* Supported operating modes (i.e., useful combinations of these options): */
 typedef enum AggSplit
 {
-    /* Basic, non-split aggregation: */
-    AGGSPLIT_SIMPLE = 0,
-    /* Initial phase of partial aggregation, with serialization: */
-    AGGSPLIT_INITIAL_SERIAL = AGGSPLITOP_SKIPFINAL | AGGSPLITOP_SERIALIZE,
-    /* Final phase of partial aggregation, with deserialization: */
-    AGGSPLIT_FINAL_DESERIAL = AGGSPLITOP_COMBINE | AGGSPLITOP_DESERIALIZE,
-    /* Combine phase of partial aggregation, with both steps: */
-    AGGSPLIT_COMBINE = AGGSPLITOP_COMBINE | AGGSPLITOP_DESERIALIZE | \
-                       AGGSPLITOP_SERIALIZE | AGGSPLITOP_SKIPFINAL
+	/* Basic, non-split aggregation: */
+	AGGSPLIT_SIMPLE = 0,
+	/* Initial phase of partial aggregation, with serialization: */
+	AGGSPLIT_INITIAL_SERIAL = AGGSPLITOP_SKIPFINAL | AGGSPLITOP_SERIALIZE,
+	/* Final phase of partial aggregation, with deserialization: */
+	AGGSPLIT_FINAL_DESERIAL = AGGSPLITOP_COMBINE | AGGSPLITOP_DESERIALIZE
 } AggSplit;
 
 /* Test whether an AggSplit value selects each primitive option: */
-#define DO_AGGSPLIT_COMBINE(as)        (((as) & AGGSPLITOP_COMBINE) != 0)
-#define DO_AGGSPLIT_SKIPFINAL(as)    (((as) & AGGSPLITOP_SKIPFINAL) != 0)
-#define DO_AGGSPLIT_SERIALIZE(as)    (((as) & AGGSPLITOP_SERIALIZE) != 0)
+#define DO_AGGSPLIT_COMBINE(as)		(((as) & AGGSPLITOP_COMBINE) != 0)
+#define DO_AGGSPLIT_SKIPFINAL(as)	(((as) & AGGSPLITOP_SKIPFINAL) != 0)
+#define DO_AGGSPLIT_SERIALIZE(as)	(((as) & AGGSPLITOP_SERIALIZE) != 0)
 #define DO_AGGSPLIT_DESERIALIZE(as) (((as) & AGGSPLITOP_DESERIALIZE) != 0)
 
 /*
  * SetOpCmd and SetOpStrategy -
- *      overall semantics and execution strategies for SetOp plan nodes
+ *	  overall semantics and execution strategies for SetOp plan nodes
  *
  * This is needed in both plannodes.h and relation.h, so put it here...
  */
 typedef enum SetOpCmd
 {
-    SETOPCMD_INTERSECT,
-    SETOPCMD_INTERSECT_ALL,
-    SETOPCMD_EXCEPT,
-    SETOPCMD_EXCEPT_ALL
+	SETOPCMD_INTERSECT,
+	SETOPCMD_INTERSECT_ALL,
+	SETOPCMD_EXCEPT,
+	SETOPCMD_EXCEPT_ALL,
+	SETOPCMD_MINUS,
+	SETOPCMD_MINUS_ALL
 } SetOpCmd;
 
 typedef enum SetOpStrategy
 {
-    SETOP_SORTED,                /* input must be sorted */
-    SETOP_HASHED                /* use internal hashtable */
+	SETOP_SORTED,				/* input must be sorted */
+	SETOP_HASHED				/* use internal hashtable */
 } SetOpStrategy;
 
 /*
  * OnConflictAction -
- *      "ON CONFLICT" clause type of query
+ *	  "ON CONFLICT" clause type of query
  *
  * This is needed in both parsenodes.h and plannodes.h, so put it here...
  */
 typedef enum OnConflictAction
 {
-    ONCONFLICT_NONE,            /* No "ON CONFLICT" clause */
-    ONCONFLICT_NOTHING,            /* ON CONFLICT ... DO NOTHING */
-    ONCONFLICT_UPDATE            /* ON CONFLICT ... DO UPDATE */
+	ONCONFLICT_NONE,			/* No "ON CONFLICT" clause */
+	ONCONFLICT_NOTHING,			/* ON CONFLICT ... DO NOTHING */
+	ONCONFLICT_UPDATE			/* ON CONFLICT ... DO UPDATE */
 } OnConflictAction;
 
-#endif                            /* NODES_H */
+/*
+ * RCmdType -
+ *	  enums for type of remote operation represented for
+ */
+typedef enum RCmdType
+{
+	RCMD_NORETURN,                   /* for trigger/opentenbase_ora_collect_* */
+	RCMD_DISTUPDATE,				/* for dist-update */
+} RCmdType;
+
+/*
+ * LimitOption -
+ *	LIMIT option of query
+ *
+ * This is needed in both parsenodes.h and plannodes.h, so put it here...
+ */
+typedef enum LimitOption
+{
+	LIMIT_OPTION_COUNT,			/* FETCH FIRST... ONLY */
+	LIMIT_OPTION_WITH_TIES,		/* FETCH FIRST... WITH TIES */
+
+	/* adapt opentenbase_ora fetch syntax */
+	LIMIT_OPTION_PERCENT_COUNT,			/* FETCH FIRST percent PERCENT... ONLY */
+	LIMIT_OPTION_PERCENT_WITH_TIES,		/* FETCH FIRST percent PERCENT... WITH TIES */
+	LIMIT_OPTION_DEFAULT,		/* No limit present */
+} LimitOption;
+
+#endif							/* NODES_H */

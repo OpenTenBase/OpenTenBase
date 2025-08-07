@@ -15,12 +15,12 @@
 #include <string.h>
 
 typedef enum NodeType {
-    NodeType_UNDEF = 0, 
-    NodeType_GTM, 
-    NodeType_GTM_PROXY, 
-    NodeType_COORDINATOR, 
-    NodeType_DATANODE, 
-    NodeType_SERVER} NodeType;
+	NodeType_UNDEF = 0, 
+	NodeType_GTM, 
+	NodeType_GTM_PROXY, 
+	NodeType_COORDINATOR, 
+	NodeType_DATANODE, 
+	NodeType_SERVER} NodeType;
 
 void read_vars(FILE *conf);
 void check_configuration(void);

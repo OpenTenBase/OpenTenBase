@@ -8,37 +8,37 @@
 -- define the GiST support methods
 CREATE FUNCTION gbt_macad8_consistent(internal,macaddr8,int2,oid,internal)
 RETURNS bool
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_macad8_consistent'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_macad8_compress(internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_macad8_compress'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_macad8_fetch(internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_macad8_fetch'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_macad8_penalty(internal,internal,internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_macad8_penalty'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_macad8_picksplit(internal, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_macad8_picksplit'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_macad8_union(internal, internal)
 RETURNS gbtreekey16
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_macad8_union'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_macad8_same(gbtreekey16, gbtreekey16, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_macad8_same'
 LANGUAGE C IMMUTABLE STRICT;
 
 -- Create the operator class

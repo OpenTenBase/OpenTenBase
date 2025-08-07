@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * tsmapi.h
- *      API for tablesample methods
+ *	  API for tablesample methods
  *
  * Copyright (c) 2015-2017, PostgreSQL Global Development Group
  *
@@ -21,24 +21,24 @@
  */
 
 typedef void (*SampleScanGetSampleSize_function) (PlannerInfo *root,
-                                                  RelOptInfo *baserel,
-                                                  List *paramexprs,
-                                                  BlockNumber *pages,
-                                                  double *tuples);
+												  RelOptInfo *baserel,
+												  List *paramexprs,
+												  BlockNumber *pages,
+												  double *tuples);
 
 typedef void (*InitSampleScan_function) (SampleScanState *node,
-                                         int eflags);
+										 int eflags);
 
 typedef void (*BeginSampleScan_function) (SampleScanState *node,
-                                          Datum *params,
-                                          int nparams,
-                                          uint32 seed);
+										  Datum *params,
+										  int nparams,
+										  uint32 seed);
 
 typedef BlockNumber (*NextSampleBlock_function) (SampleScanState *node);
 
 typedef OffsetNumber (*NextSampleTuple_function) (SampleScanState *node,
-                                                  BlockNumber blockno,
-                                                  OffsetNumber maxoffset);
+												  BlockNumber blockno,
+												  OffsetNumber maxoffset);
 
 typedef void (*EndSampleScan_function) (SampleScanState *node);
 
@@ -54,28 +54,28 @@ typedef void (*EndSampleScan_function) (SampleScanState *node);
  */
 typedef struct TsmRoutine
 {
-    NodeTag        type;
+	NodeTag		type;
 
-    /* List of datatype OIDs for the arguments of the TABLESAMPLE clause */
-    List       *parameterTypes;
+	/* List of datatype OIDs for the arguments of the TABLESAMPLE clause */
+	List	   *parameterTypes;
 
-    /* Can method produce repeatable samples across, or even within, queries? */
-    bool        repeatable_across_queries;
-    bool        repeatable_across_scans;
+	/* Can method produce repeatable samples across, or even within, queries? */
+	bool		repeatable_across_queries;
+	bool		repeatable_across_scans;
 
-    /* Functions for planning a SampleScan on a physical table */
-    SampleScanGetSampleSize_function SampleScanGetSampleSize;
+	/* Functions for planning a SampleScan on a physical table */
+	SampleScanGetSampleSize_function SampleScanGetSampleSize;
 
-    /* Functions for executing a SampleScan on a physical table */
-    InitSampleScan_function InitSampleScan; /* can be NULL */
-    BeginSampleScan_function BeginSampleScan;
-    NextSampleBlock_function NextSampleBlock;    /* can be NULL */
-    NextSampleTuple_function NextSampleTuple;
-    EndSampleScan_function EndSampleScan;    /* can be NULL */
+	/* Functions for executing a SampleScan on a physical table */
+	InitSampleScan_function InitSampleScan; /* can be NULL */
+	BeginSampleScan_function BeginSampleScan;
+	NextSampleBlock_function NextSampleBlock;	/* can be NULL */
+	NextSampleTuple_function NextSampleTuple;
+	EndSampleScan_function EndSampleScan;	/* can be NULL */
 } TsmRoutine;
 
 
 /* Functions in access/tablesample/tablesample.c */
 extern TsmRoutine *GetTsmRoutine(Oid tsmhandler);
 
-#endif                            /* TSMAPI_H */
+#endif							/* TSMAPI_H */

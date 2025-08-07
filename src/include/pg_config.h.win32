@@ -98,6 +98,26 @@
    don't. */
 #define HAVE_DECL_F_FULLFSYNC 0
 
+/* Define to 1 if you have the declaration of
+   `LLVMCreateGDBRegistrationListener', and to 0 if you don't. */
+#undef HAVE_DECL_LLVMCREATEGDBREGISTRATIONLISTENER
+
+/* Define to 1 if you have the declaration of
+   `LLVMCreatePerfJITEventListener', and to 0 if you don't. */
+#undef HAVE_DECL_LLVMCREATEPERFJITEVENTLISTENER
+
+/* Define to 1 if you have the declaration of `LLVMGetHostCPUName', and to 0
+   if you don't. */
+#define HAVE_DECL_LLVMGETHOSTCPUNAME 0
+
+/* Define to 1 if you have the declaration of `LLVMGetHostCPUFeatures', and to 0
+   if you don't. */
+#define HAVE_DECL_LLVMGETHOSTCPUFEATURES 0
+
+/* Define to 1 if you have the declaration of `LLVMOrcGetSymbolAddressIn', and
+   to 0 if you don't. */
+#define HAVE_DECL_LLVMORCGETSYMBOLADDRESSIN 0
+
 /* Define to 1 if you have the declaration of `snprintf', and to 0 if you
    don't. */
 #define HAVE_DECL_SNPRINTF 1
@@ -269,6 +289,9 @@
 
 /* Define to 1 if you have the <poll.h> header file. */
 /* #undef HAVE_POLL_H */
+
+/* Define to 1 if you have the `posix_fallocate' function. */
+/* #undef HAVE_POSIX_FALLOCATE */
 
 /* Define to 1 if you have the `pstat' function. */
 /* #undef HAVE_PSTAT */
@@ -505,14 +528,29 @@
 /* Define to 1 if you have the <winldap.h> header file. */
 /* #undef HAVE_WINLDAP_H */
 
+/* Define to 1 if your compiler understands __builtin_bswap16. */
+/* #undef HAVE__BUILTIN_BSWAP16 */
+
 /* Define to 1 if your compiler understands __builtin_bswap32. */
 /* #undef HAVE__BUILTIN_BSWAP32 */
 
 /* Define to 1 if your compiler understands __builtin_bswap64. */
 /* #undef HAVE__BUILTIN_BSWAP64 */
 
+/* Define to 1 if your compiler understands __builtin_clz. */
+/* #undef HAVE__BUILTIN_CLZ */
+
 /* Define to 1 if your compiler understands __builtin_constant_p. */
 /* #undef HAVE__BUILTIN_CONSTANT_P */
+
+/* Define to 1 if your compiler understands __builtin_ctz. */
+/* #undef HAVE__BUILTIN_CTZ */
+
+/* Define to 1 if your compiler understands __builtin_$op_overflow. */
+/* #undef HAVE__BUILTIN_OP_OVERFLOW */
+
+/* Define to 1 if your compiler understands __builtin_popcount. */
+/* #undef HAVE__BUILTIN_POPCOUNT */
 
 /* Define to 1 if your compiler understands __builtin_types_compatible_p. */
 /* #undef HAVE__BUILTIN_TYPES_COMPATIBLE_P */
@@ -619,6 +657,9 @@
 /* Define to 1 to build with assertion checks. (--enable-cassert) */
 /* #undef USE_ASSERT_CHECKING */
 
+/* Define to 1 to build with whitebox injection. (--enable-whitebox) */
+/* #undef USE_WHITEBOX_INJECTION */
+
 /* Define to 1 to build with Bonjour support. (--with-bonjour) */
 /* #undef USE_BONJOUR */
 
@@ -630,6 +671,9 @@
 
 /* Define to 1 to build with LDAP support. (--with-ldap) */
 /* #undef USE_LDAP */
+
+/* Define to 1 to build with LLVM based JIT support. (--with-llvm) */
+/* #undef USE_LLVM */
 
 /* Define to select named POSIX semaphores. */
 /* #undef USE_NAMED_POSIX_SEMAPHORES */
@@ -691,6 +735,20 @@
 #ifndef __cplusplus
 #define inline __inline
 #endif
+
+/* Define to keyword to use for C99 restrict support, or to nothing if this is
+   not supported */
+/* Works for C and C++ in Visual Studio 2008 and upwards */
+#if (_MSC_VER >= 1500)
+#define pg_restrict __restrict
+#else
+#define pg_restrict
+#endif
+
+/* Define to the equivalent of the C99 'restrict' keyword, or to
+   nothing if this is not supported.  Do not define if restrict is
+   supported directly.  */
+/* not defined, because it'd conflict with __declspec(restrict) */
 
 /* Define to empty if the C compiler does not understand signed types. */
 /* #undef signed */

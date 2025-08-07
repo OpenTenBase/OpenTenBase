@@ -20508,9 +20508,9 @@ msgstr "no se permiten rutas absolutas"
 msgid "path must be in or below the current directory"
 msgstr "la ruta debe estar en o debajo del directorio actual"
 
-#: utils/adt/genfile.c:126 utils/adt/oracle_compat.c:184
-#: utils/adt/oracle_compat.c:282 utils/adt/oracle_compat.c:758
-#: utils/adt/oracle_compat.c:1059
+#: utils/adt/genfile.c:126 utils/adt/opentenbase_ora_compat.c:184
+#: utils/adt/opentenbase_ora_compat.c:282 utils/adt/opentenbase_ora_compat.c:758
+#: utils/adt/opentenbase_ora_compat.c:1059
 #, c-format
 msgid "requested length too large"
 msgstr "el tamaño solicitado es demasiado grande"
@@ -21331,22 +21331,22 @@ msgstr "el valor «%s» está fuera de rango para un entero de 8 bits"
 msgid "invalid oidvector data"
 msgstr "datos de oidvector no válidos"
 
-#: utils/adt/oracle_compat.c:895
+#: utils/adt/opentenbase_ora_compat.c:895
 #, c-format
 msgid "requested character too large"
 msgstr "el carácter solicitado es demasiado grande"
 
-#: utils/adt/oracle_compat.c:945 utils/adt/oracle_compat.c:1007
+#: utils/adt/opentenbase_ora_compat.c:945 utils/adt/opentenbase_ora_compat.c:1007
 #, c-format
 msgid "requested character too large for encoding: %d"
 msgstr "el carácter pedido es demasiado largo para el encoding: %d"
 
-#: utils/adt/oracle_compat.c:986
+#: utils/adt/opentenbase_ora_compat.c:986
 #, c-format
 msgid "requested character not valid for encoding: %d"
 msgstr "el carácter pedido no es válido para el encoding: %d"
 
-#: utils/adt/oracle_compat.c:1000
+#: utils/adt/opentenbase_ora_compat.c:1000
 #, c-format
 msgid "null character not permitted"
 msgstr "el carácter nulo no está permitido"

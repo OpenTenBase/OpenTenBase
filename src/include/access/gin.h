@@ -1,10 +1,10 @@
 /*--------------------------------------------------------------------------
  * gin.h
- *      Public header file for Generalized Inverted Index access method.
+ *	  Public header file for Generalized Inverted Index access method.
  *
- *    Copyright (c) 2006-2017, PostgreSQL Global Development Group
+ *	Copyright (c) 2006-2017, PostgreSQL Global Development Group
  *
- *    src/include/access/gin.h
+ *	src/include/access/gin.h
  *--------------------------------------------------------------------------
  */
 #ifndef GIN_H
@@ -19,33 +19,33 @@
 /*
  * amproc indexes for inverted indexes.
  */
-#define GIN_COMPARE_PROC               1
-#define GIN_EXTRACTVALUE_PROC           2
-#define GIN_EXTRACTQUERY_PROC           3
-#define GIN_CONSISTENT_PROC               4
-#define GIN_COMPARE_PARTIAL_PROC       5
-#define GIN_TRICONSISTENT_PROC           6
-#define GINNProcs                       6
+#define GIN_COMPARE_PROC			   1
+#define GIN_EXTRACTVALUE_PROC		   2
+#define GIN_EXTRACTQUERY_PROC		   3
+#define GIN_CONSISTENT_PROC			   4
+#define GIN_COMPARE_PARTIAL_PROC	   5
+#define GIN_TRICONSISTENT_PROC		   6
+#define GINNProcs					   6
 
 /*
  * searchMode settings for extractQueryFn.
  */
-#define GIN_SEARCH_MODE_DEFAULT            0
-#define GIN_SEARCH_MODE_INCLUDE_EMPTY    1
-#define GIN_SEARCH_MODE_ALL                2
-#define GIN_SEARCH_MODE_EVERYTHING        3    /* for internal use only */
+#define GIN_SEARCH_MODE_DEFAULT			0
+#define GIN_SEARCH_MODE_INCLUDE_EMPTY	1
+#define GIN_SEARCH_MODE_ALL				2
+#define GIN_SEARCH_MODE_EVERYTHING		3	/* for internal use only */
 
 /*
  * GinStatsData represents stats data for planner use
  */
 typedef struct GinStatsData
 {
-    BlockNumber nPendingPages;
-    BlockNumber nTotalPages;
-    BlockNumber nEntryPages;
-    BlockNumber nDataPages;
-    int64        nEntries;
-    int32        ginVersion;
+	BlockNumber nPendingPages;
+	BlockNumber nTotalPages;
+	BlockNumber nEntryPages;
+	BlockNumber nDataPages;
+	int64		nEntries;
+	int32		ginVersion;
 } GinStatsData;
 
 /*
@@ -56,10 +56,10 @@ typedef struct GinStatsData
  */
 typedef char GinTernaryValue;
 
-#define GIN_FALSE        0        /* item is not present / does not match */
-#define GIN_TRUE        1        /* item is present / matches */
-#define GIN_MAYBE        2        /* don't know if item is present / don't know
-                                 * if matches */
+#define GIN_FALSE		0		/* item is not present / does not match */
+#define GIN_TRUE		1		/* item is present / matches */
+#define GIN_MAYBE		2		/* don't know if item is present / don't know
+								 * if matches */
 
 #define DatumGetGinTernaryValue(X) ((GinTernaryValue)(X))
 #define GinTernaryValueGetDatum(X) ((Datum)(X))
@@ -67,10 +67,10 @@ typedef char GinTernaryValue;
 
 /* GUC parameters */
 extern PGDLLIMPORT int GinFuzzySearchLimit;
-extern int    gin_pending_list_limit;
+extern int	gin_pending_list_limit;
 
 /* ginutil.c */
 extern void ginGetStats(Relation index, GinStatsData *stats);
 extern void ginUpdateStats(Relation index, const GinStatsData *stats);
 
-#endif                            /* GIN_H */
+#endif							/* GIN_H */

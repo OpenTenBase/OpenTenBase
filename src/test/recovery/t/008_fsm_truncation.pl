@@ -9,23 +9,30 @@ use PostgresNode;
 use TestLib;
 use Test::More tests => 1;
 
-my $node_master = get_new_node('master');
-$node_master->init(allows_streaming => 1);
+my $node_master = get_new_node('master', 'datanode');
+# There is no gtm in centralized mode, so it doesn’t matter what
+# the master gtm IP and port are
+$node_master->init(allows_streaming => 1,
+                   extra => ['--master_gtm_nodename', 'no_gtm',
+                             '--master_gtm_ip', '127.0.0.1',
+                             '--master_gtm_port', '25001']);
 
 $node_master->append_conf(
 	'postgresql.conf', qq{
 fsync = on
 wal_log_hints = on
-max_prepared_transactions = 5
 autovacuum = off
+allow_dml_on_datanode = on
+is_centralized_mode = on
 });
+#max_prepared_transactions = 5
 
 # Create a master node and its standby, initializing both with some data
 # at the same time.
 $node_master->start;
 
 $node_master->backup('master_backup');
-my $node_standby = get_new_node('standby');
+my $node_standby = get_new_node('standby', 'datanode');
 $node_standby->init_from_backup($node_master, 'master_backup',
 	has_streaming => 1);
 $node_standby->start;

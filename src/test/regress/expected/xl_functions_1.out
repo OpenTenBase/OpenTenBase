@@ -55,7 +55,7 @@ SELECT * from xl_funct4 order by 1;
 --VOLATILE functions
 create or replace function xl_get_curr_decade() returns double precision as
 $$ SELECT EXTRACT(DECADE FROM NOW()); $$
-language sql volatile;
+language sql volatile pushdown;
 CREATE TABLE xl_funct5(
 	a integer,
 	b integer,
@@ -112,3 +112,6 @@ DROP TABLE xl_funct4;
 DROP FUNCTION xl_nochange(text);
 DROP TABLE xl_funct5;
 DROP FUNCTION xl_get_curr_decade();
+CREATE TABLE IF NOT EXISTS t0(c0 TEXT DEFAULT (((((lower((CAST(-1807148075 AS VARCHAR) COLLATE "C")) COLLATE "C"))||(num_nonnulls((((('' COLLATE "C"))||(('f?' COLLATE "C"))) COLLATE "C")))) COLLATE "C")), CHECK(CAST((((t0.c0 COLLATE "C"))LIKE((t0.c0 COLLATE "C"))) AS BOOLEAN))) WITH (autovacuum_vacuum_threshold=1041983328, autovacuum_enabled=1, autovacuum_vacuum_cost_limit=708, autovacuum_vacuum_cost_delay=27, autovacuum_analyze_threshold=2023889437, autovacuum_freeze_min_age=354563129, autovacuum_analyze_scale_factor=1, autovacuum_vacuum_scale_factor=0.01, autovacuum_freeze_max_age=1766099001);
+INSERT INTO t0(c0) VALUES(((((((((pg_current_logfile() COLLATE "C"))::VARCHAR COLLATE "C") COLLATE "yi_US.utf8") COLLATE "C"))||(((('?AH4gQ,' COLLATE "C") COLLATE "ar_SD.utf8") COLLATE "C"))) COLLATE "C"));
+DROP TABLE t0;

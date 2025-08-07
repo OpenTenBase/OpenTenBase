@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * nodeGather.h
- *        prototypes for nodeGather.c
+ *		prototypes for nodeGather.c
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -20,8 +20,5 @@ extern GatherState *ExecInitGather(Gather *node, EState *estate, int eflags);
 extern void ExecEndGather(GatherState *node);
 extern void ExecShutdownGather(GatherState *node);
 extern void ExecReScanGather(GatherState *node);
-#ifdef __OPENTENBASE__
-extern void ExecFinishGather(PlanState *pstate);
-#endif
 
-#endif                            /* NODEGATHER_H */
+#endif							/* NODEGATHER_H */

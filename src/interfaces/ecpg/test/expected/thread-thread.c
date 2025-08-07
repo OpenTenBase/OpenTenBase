@@ -1,7 +1,3 @@
-/*
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- */
 /* Processed by ecpg (regression mode) */
 /* These include files are added by the preprocessor */
 #include <ecpglib.h>
@@ -12,8 +8,8 @@
 
 #line 1 "thread.pgc"
 /*
- *    Thread test program
- *    by Philip Yarra & Lee Kindness.
+ *	Thread test program
+ *	by Philip Yarra & Lee Kindness.
  */
 #include <stdlib.h>
 #include "ecpg_config.h"
@@ -22,8 +18,8 @@
 int
 main(void)
 {
-    printf("No threading enabled.\n");
-    return 0;
+	printf("No threading enabled.\n");
+	return 0;
 }
 #else
 #ifndef WIN32
@@ -121,8 +117,8 @@ int main()
 #line 85 "thread.pgc"
 
   { ECPGdo(__LINE__, 0, 1, NULL, 0, ECPGst_normal, "select count ( * ) from test_thread", ECPGt_EOIT, 
-    ECPGt_int,&(l_rows),(long)1,(long)1,sizeof(int), 
-    ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EORT);}
+	ECPGt_int,&(l_rows),(long)1,(long)1,sizeof(int), 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EORT);}
 #line 86 "thread.pgc"
 
   { ECPGtrans(__LINE__, NULL, "commit");}
@@ -186,17 +182,17 @@ if (sqlca.sqlcode < 0) sqlprint();}
   for( l_i = 1; l_i <= iterations; l_i++ )
     {
       { ECPGdo(__LINE__, 0, 1, l_connection, 0, ECPGst_normal, "insert into test_thread ( thread , iteration ) values ( $1  , $2  )", 
-    ECPGt_char,(l_connection),(long)128,(long)1,(128)*sizeof(char), 
-    ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, 
-    ECPGt_int,&(l_i),(long)1,(long)1,sizeof(int), 
-    ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EOIT, ECPGt_EORT);
+	ECPGt_char,(l_connection),(long)128,(long)1,(128)*sizeof(char), 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, 
+	ECPGt_int,&(l_i),(long)1,(long)1,sizeof(int), 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EOIT, ECPGt_EORT);
 #line 123 "thread.pgc"
 
 if (sqlca.sqlcode < 0) sqlprint();}
 #line 123 "thread.pgc"
 
       if( sqlca.sqlcode != 0 )
-    printf("%s: ERROR: insert failed!\n", l_connection);
+	printf("%s: ERROR: insert failed!\n", l_connection);
     }
 
   /* all done */
