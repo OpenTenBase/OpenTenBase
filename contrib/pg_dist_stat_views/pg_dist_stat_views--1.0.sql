@@ -41,7 +41,8 @@ CREATE OR REPLACE FUNCTION dist_pg_stat_get_activity(
     OUT backend_xid xid,
     OUT backend_xmin xid,
     OUT backend_type text,
-    OUT global_query_id text
+    OUT global_query_id text,
+    OUT gxid text
 )
 RETURNS SETOF record
 AS 'MODULE_PATHNAME'
@@ -65,7 +66,9 @@ CREATE OR REPLACE FUNCTION get_dist_pg_locks(
     OUT mode text,
     OUT granted boolean,
     OUT fastpath boolean,
-    OUT gxid text
+    OUT gxid text,
+    OUT blocking_pid integer,
+    OUT blocking_gxid text
 )
 RETURNS SETOF record
 AS 'MODULE_PATHNAME', 'get_dist_pg_locks'
@@ -261,69 +264,103 @@ ORDER BY
     -- 3. 最后，按节点名排序
     gid.nodename;
 
--- 创建用户视图：dist_pg_locks
--- 创建一个基础的、只封装C函数的锁视图
+-- 创建一个基础的、只封装C函数的锁视图：dist_pg_locks_raw
 CREATE OR REPLACE VIEW dist_pg_locks_raw AS
   SELECT * FROM get_dist_pg_locks(false);
 
--- 创建在SQL层推断阻塞关系的 dist_pg_locks 视图
+-- 【dist_pg_locks 视图
+-- 它的职责是，在C函数返回的原始锁信息基础上，
+-- 通过关联 dist_pg_stat_activity，为阻塞者补全其所在的节点名称。
+-- 这个视图是所有更高级分析（如锁链、死锁）的、信息完备的基础。
 CREATE OR REPLACE VIEW dist_pg_locks AS
 WITH 
-waiters AS (
-    SELECT * FROM dist_pg_locks_raw WHERE NOT granted
-),
-holders AS (
-    SELECT * FROM dist_pg_locks_raw WHERE granted
-),
-blocking_pairs AS (
-    SELECT DISTINCT
-        w.node_name AS waiter_node,
-        w.pid AS waiter_pid,
-        h.node_name AS blocking_node_name,
-        h.pid AS blocking_pid,
-        h.gxid AS blocking_gxid
-    FROM waiters w JOIN holders h 
-      ON w.database = h.database AND (
-         -- 匹配表、页、元组锁
-         (w.relation IS NOT NULL AND w.relation = h.relation) OR
-         -- 匹配事务ID锁
-         (w.locktype = 'transactionid' AND w.transactionid = h.transactionid) OR
-         -- 匹配 advisory lock
-         (w.locktype = 'advisory' AND w.classid = h.classid AND w.objid = h.objid)
-      )
-    WHERE w.pid != h.pid
+-- 第一步：创建一个“干净”的、只包含潜在阻塞者的活动信息集
+potential_blockers AS (
+    SELECT
+        nodename,
+        pid,
+        gxid
+    FROM
+        dist_pg_stat_activity
+    WHERE
+        -- 关键的预过滤条件：
+        -- 1. 进程必须有一个有效的分布式事务ID
+        gxid IS NOT NULL 
+        -- 2. 进程不能是完全空闲的
+        AND state != 'idle'
 )
--- 整合输出
-SELECT 
-    -- 核心锁信息
+SELECT
+    -- 从 dist_pg_locks_raw 中获取的所有原始信息
     raw.node_name,
     raw.granted,
     raw.gxid,
     raw.pid,
     raw.locktype,
+    raw.database,
+    raw.relation,
+    raw.page,
+    raw.tuple,
+    raw.virtualxid,
+    raw.transactionid,
+    raw.classid,
+    raw.objid,
+    raw.objsubid,
+    raw.virtualtransaction,
     raw.mode,
+    raw.fastpath,
     
-    -- 锁定的对象
+    -- 【核心逻辑】通过JOIN我们预过滤后的 potential_blockers，来查找并补全 blocking_node_name
+    blockers.nodename AS blocking_node_name,
+    
+    -- 从 dist_pg_locks_raw 中获取的、由C代码精确找到的阻塞者ID
+    raw.blocking_pid,
+    raw.blocking_gxid,
+
+    -- 为了方便用户，增加一个可读的 lock_target 列
     CASE 
         WHEN raw.locktype = 'relation' THEN raw.relation::regclass::text 
         WHEN raw.locktype = 'transactionid' THEN raw.transactionid::text
         ELSE pg_describe_object(raw.classid, raw.objid, raw.objsubid)
-    END AS lock_target,
-    
-    -- 推断出的阻塞者信息
-    bp.blocking_node_name,
-    bp.blocking_pid,
-    bp.blocking_gxid,
-
-    -- 保留一些原始列用于深入分析
-    raw.relation,
-    raw.transactionid AS local_xid,
-    raw.virtualtransaction
-FROM 
+    END AS lock_target
+FROM
     dist_pg_locks_raw AS raw
--- 做一次 LEFT JOIN，关联内部计算出的阻塞关系
+-- 使用 LEFT JOIN，以防阻塞者信息因时序问题暂时不可见
 LEFT JOIN
-    blocking_pairs bp ON raw.pid = bp.waiter_pid AND raw.node_name = bp.waiter_node;
+    potential_blockers AS blockers
+    -- 使用最精确的关联键：阻塞者的 PID 和 GXID
+    ON raw.blocking_pid = blockers.pid AND raw.blocking_gxid = blockers.gxid;
+
+-- 包含所有活动信息的大而全视图
+CREATE OR REPLACE VIEW dist_pg_locks_all_info AS
+SELECT 
+    l.node_name,
+    l.granted,
+    l.gxid,
+    l.pid,
+    act.usename AS waiter_usename,
+    act.state AS waiter_state,
+    act.query AS waiter_query,
+    l.locktype,
+    l.mode,
+    CASE 
+        WHEN l.locktype = 'relation' THEN l.relation::regclass::text 
+        WHEN l.locktype = 'transactionid' THEN l.transactionid::text
+        ELSE pg_describe_object(l.classid, l.objid, l.objsubid)
+    END AS lock_target,
+    l.blocking_node_name,
+    l.blocking_pid,
+    l.blocking_gxid,
+    blocker_act.usename AS blocker_usename,
+    blocker_act.state AS blocking_state,
+    blocker_act.query AS blocking_query
+FROM 
+    dist_pg_locks AS l
+LEFT JOIN
+    dist_pg_stat_activity AS act 
+    ON l.pid = act.pid AND l.node_name = act.nodename
+LEFT JOIN
+    dist_pg_stat_activity AS blocker_act 
+    ON l.blocking_pid = blocker_act.pid AND l.blocking_node_name = blocker_act.nodename;
 
 -- ===================================================================
 -- ==      Advanced Lock Analysis Views (Wait Chains & Deadlocks)   ==
@@ -470,5 +507,6 @@ GRANT SELECT ON dist_pg_stat_query_summary TO PUBLIC;
 GRANT SELECT ON dist_pg_stat_query_details TO PUBLIC;
 GRANT SELECT ON dist_pg_locks_raw TO PUBLIC;
 GRANT SELECT ON dist_pg_locks TO PUBLIC;
+GRANT SELECT ON dist_pg_locks_all_info TO PUBLIC;
 GRANT SELECT ON dist_pg_lock_wait_chains TO PUBLIC;
 GRANT SELECT ON dist_pg_deadlocks TO PUBLIC;
