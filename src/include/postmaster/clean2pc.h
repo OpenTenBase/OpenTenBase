@@ -3,7 +3,7 @@
  * A clean 2pc process is a process able to clean the abnormal 2pc.
  *
  *
- * Portions Copyright (c) 1996-2021, TDSQL-PG Development Group
+ * Portions Copyright (c) 1996-2021, OPENTENBASE Development Group
  *
  * IDENTIFICATION
  *		src/include/postmaster/clean2pc.h

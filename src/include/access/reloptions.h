@@ -55,7 +55,7 @@ typedef enum compress_type
 #define REL_MIN_COMPRESSLEVEL (0)
 #define REL_MAX_COMPRESSLEVEL (3)
 
-#define ENCRYPT_KEY "TCHouse-P@2024"
+#define ENCRYPT_KEY "OPENTENBASE@2025"
 
 /* kinds supported by reloptions */
 typedef enum relopt_kind

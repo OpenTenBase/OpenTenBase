@@ -1552,7 +1552,7 @@ InvalidateOprCacheCallBack(Datum arg, int cacheid, uint32 hashvalue)
  * Determine the unknown type to numeric type while the other type is int2/int4/int8.
  *
  * Note: The integer, int, smallint type have different meaning between opentenbase_ora
- * and TDSQL. They are int4, int4, int2 in TDSQL while they are number in opentenbase_ora,
+ * and OPENTENBASE. They are int4, int4, int2 in OPENTENBASE while they are number in opentenbase_ora,
  * so we need to coerce the unknown type to numeric when the other type can't be
  * treated as int2/int4/int8.
  */
