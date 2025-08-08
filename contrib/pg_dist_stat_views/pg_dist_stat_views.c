@@ -18,9 +18,6 @@
 #include "miscadmin.h"
 #include "nodes/makefuncs.h"
 #include "nodes/nodeFuncs.h"
-#include "nodes/plannodes.h"  // 包含 RemoteQuery, ExecNodes 等计划节点定义
-#include "nodes/execnodes.h"  // 包含 RemoteSubplanState 等执行节点定义
-#include "pgxc/nodemgr.h"      // 包含 GetAllNodes() 的声明
 #include "pgstat.h"
 #include "pgxc/execRemote.h"
 #include "pgxc/pgxc.h"
@@ -31,7 +28,6 @@
 #include "storage/shmem.h"
 #include "storage/lock.h"
 #include "storage/proc.h"
-#include "storage/lmgr.h"        // 包含 LockHeldByProc() 和 GetLockTagsMethodTable() 的声明
 #include "storage/predicate_internals.h"
 #include "utils/builtins.h"
 #include "utils/guc.h"
@@ -44,7 +40,7 @@
 
 PG_MODULE_MAGIC;
 
-#define PG_DIST_STAT_ACTIVITY_COLS 27	// 列数定义，如果你要增删列，记得在这里更新
+#define PG_DIST_STAT_ACTIVITY_COLS 27	// 列数定义
 
 /* ----------
  * Total number of backends including auxiliary
@@ -83,19 +79,14 @@ typedef struct PgDistStatStatus	// 上面的说明记得改
 	 * twice before the modification on a machine with weak memory ordering.
 	 * This surprising result can lead to bugs.
 	 */
-	/* ================================================= */
-    /* ==   持久化状态 (整个进程生命周期内不变)   == */
-    /* ================================================= */
+    // 持久化状态
 	int changecount;
 	
 	bool valid;                     /* don't show this entry if false */
 	char nodename[NAMEDATALEN];     /* nodename, determined after process started */
 	char role[NAMEDATALEN];         /* coord, datanode, producer or consumer */
 
-	/* ================================================= */
-    /* ==    临时状态 (每次查询后都应被清理)      == */
-    /* ================================================= */
-	/* fields that will be shown in pg_stat_cluster_activity */
+    // 临时状态
 	char sessionid[NAMEDATALEN];    /* global session id in a cluster, one for a session */
 	
 	/* portal_name or portal_name_unique */
@@ -116,30 +107,17 @@ typedef struct PgDistStatStatus	// 上面的说明记得改
 	char portal[NAMEDATALEN];
 	char cursors[NAMEDATALEN * 64];
 
-	// --- 【新增字段】 ---
+	// 新增字段
     // 存储GID的哈希值，用于在C代码中进行快速、高效的比较和过滤
     uint64 global_query_id_hash; 
     // 存储GID的完整字符串，用于最终在视图中显示
     char   global_query_id[256]; // 预留足够长的空间
-
-	/* --- 【新增的兼容性字段】 --- */
     char application_name[NAMEDATALEN];
     TransactionId backend_xid;
     TransactionId backend_xmin;
     char backend_type[NAMEDATALEN];
 
 } PgDistStatStatus;
-
-/*
- * 自定义的状态结构体，用于在多次SRF调用之间保持状态
- */
-typedef struct DistLockStatus
-{
-	LockData *lockData;	/* state data from lmgr, a safe copy*/
-	int currIdx;	/* current PROCLOCK index */
-	PredicateLockData *predLockData;    /* state data for pred locks */
-    int            predLockIdx;    /* current index for pred lock */
-}DistLockStatus;
 
 static PgDistStatStatus *DistStatArray = NULL;
 static PgDistStatStatus *MyDistStatEntry = NULL;
@@ -193,23 +171,12 @@ static char *pgds_gid_guc_string = NULL;
 	} while (0)
 
 Datum dist_pg_stat_get_activity(PG_FUNCTION_ARGS);
-// ... 其他辅助函数，如果你暂时不用可以注释掉 ...
-/*
-Datum pg_signal_session(PG_FUNCTION_ARGS);
-Datum pg_terminate_session(PG_FUNCTION_ARGS);
-Datum pg_cancel_session(PG_FUNCTION_ARGS);
-*/
 
 void _PG_init(void);
 void _PG_fini(void);
 
 PG_FUNCTION_INFO_V1(dist_pg_stat_get_activity);
 PG_FUNCTION_INFO_V1(get_dist_pg_locks);
-/*
-PG_FUNCTION_INFO_V1(pg_signal_session);
-PG_FUNCTION_INFO_V1(pg_terminate_session);
-PG_FUNCTION_INFO_V1(pg_cancel_session);
-*/
 
 static ParamListInfo
 EvaluateSessionIDParam(const char *sessionid)
@@ -316,8 +283,8 @@ pgds_shutdown_hook(int code, Datum arg)
 	
 	entry->valid = false;	/* mark invalid to hide this entry */
 	
-	entry->global_query_id_hash = 0; // 【新增】
-    entry->global_query_id[0] = '\0'; // 【新增】
+	entry->global_query_id_hash = 0; // 新增
+    entry->global_query_id[0] = '\0'; // 新增
 
 	increment_changecount_after(entry);
 }
@@ -365,10 +332,10 @@ pgds_entry_initialize(void)
 		 * MaxBackends + AuxBackendType + 1 as the index of the slot for an
 		 * auxiliary process.
 		 */
-		MyDistStatEntry = &DistStatArray[MaxBackends + MyAuxProcType];	// 上面的说明记得改
+		MyDistStatEntry = &DistStatArray[MaxBackends + MyAuxProcType];
 	}
 	
-	// 【新增】在初始化时，清空GID信息
+	// 在初始化时，清空GID信息
     MyDistStatEntry->global_query_id_hash = 0;
     MyDistStatEntry->global_query_id[0] = '\0';
 
@@ -463,26 +430,22 @@ pgds_report_query_activity(BackendState state, const char *cmd_str)
 	LocalPgBackendStatus *local_beentry;
 	PgBackendStatus *beentry;
 	
-	// 只调用前任钩子，确保像 pg_stat_statements 这样的其他模块能正常工作。
+	// 只调用前任钩子
 	if (prev_pgstat_report_hook)
 		prev_pgstat_report_hook(state, cmd_str);
 
-	// 只有当这个进程已经被我们的 ExecutorStart 钩子“激活”过
-    // (即它有一个 GID)，我们才为它更新动态信息。
     if (MyDistStatEntry && MyDistStatEntry->global_query_id_hash != 0)
     {
         entry = MyDistStatEntry;
         
-        // 【获取实时的 beentry 来更新动态信息】
+        // 获取实时的 beentry 来更新动态信息
         local_beentry = pgstat_fetch_stat_local_beentry(MyBackendId);
         if (local_beentry)
         {
-             // 注意：这里可能需要一个新的 QueryDesc，或者从其他地方获取
-             // 为了简化，我们暂时只更新 backend_type
+             // 更新 backend_type
              beentry = &local_beentry->backendStatus;
              increment_changecount_before(entry);
              snprintf((char *)entry->backend_type, NAMEDATALEN, "%s", pgstat_get_backend_desc(beentry->st_backendType));
-             // 在这里更新 role 也是一个好主意
              increment_changecount_after(entry);
         }
     }
@@ -494,7 +457,7 @@ pgds_report_query_activity(BackendState state, const char *cmd_str)
  *  Report fileds of per-query referred, hooked as ExecutorStart_hook
  *  report planstate, cursors and common fields.
  * 
- * 唯一负责写入所有与一次“顶层查询”活动相关的瞬时状态。这是整个模块的“大脑”。
+ * 唯一负责写入所有与一次“顶层查询”活动相关的瞬时状态
  * ----------
  */
 static void
@@ -527,7 +490,7 @@ pgds_report_executor_activity(QueryDesc *desc, int eflags)
             snprintf(gid_string, sizeof(gid_string), "%s-%d-%lu",
                      PGXCNodeName, MyProcPid, (unsigned long)GetCurrentTimestamp());
 
-            // 【传递】设置GUC变量，以便传播到DN
+            // 设置GUC变量，以便传播到DN
             (void)set_config_option("pg_dist_stat_views.global_query_id", gid_string,
                                     PGC_SUSET, PGC_S_SESSION, GUC_ACTION_SET, true, 0, false);
         }
@@ -573,7 +536,7 @@ pgds_report_executor_activity(QueryDesc *desc, int eflags)
 		}
 		else if (desc->planstate != NULL)
 		{
-			/* 【修正】保留原始的内存管理策略 */
+			/* 保留原始的内存管理策略 */
 			oldcxt = MemoryContextSwitchTo(desc->estate->es_query_cxt);
 			
 			/* 采集 Cursors */
@@ -605,7 +568,7 @@ pgds_report_executor_activity(QueryDesc *desc, int eflags)
 				snprintf((char *)entry->planstate, sizeof(entry->planstate), "disabled");
 			}
 
-			/* 【新增】在使用完毕后，立刻释放内存 */
+			/* 在使用完毕后，立刻释放内存 */
 			pfree(cursors->data);
 			pfree(cursors);
 			if (planstate_str) // 因为 planstate_str 可能不被创建
@@ -648,7 +611,7 @@ pgds_executor_end_hook(QueryDesc *queryDesc)
             }
         }
 
-        /* --- B. 【新增的关键逻辑】在所有节点上，清理自己共享内存里的GID --- */
+        /* --- B. 在所有节点上，清理自己共享内存里的GID --- */
         // MyDistStatEntry 在进程生命周期中，只要初始化过就不会是 NULL
         if (MyDistStatEntry)
         {
@@ -656,7 +619,7 @@ pgds_executor_end_hook(QueryDesc *queryDesc)
 			entry = (PgDistStatStatus *)v_entry;
 
             increment_changecount_before(v_entry);
-            // 【重要】v_entry->nodename 和 v_entry->role 被刻意保留，不作清理！
+            // v_entry->nodename 和 v_entry->role 被刻意保留，不作清理！
             MemSet(&entry->sessionid, 0, 
                    sizeof(PgDistStatStatus) - offsetof(PgDistStatStatus, sessionid));
             
@@ -1235,7 +1198,7 @@ VXIDGetDatum(BackendId bid, LocalTransactionId lxid)
 }
 
 /*
- * dist_pg_get_local_locks - 【最终版】安全的本地数据采集器
+ * dist_pg_get_local_locks - 安全的本地数据采集器
  *
  * 它的职责是安全地采集本地锁信息，并将其放入一个传入的 Tuplestore。
  * 它不是SRF，只是一个普通的辅助函数。
@@ -1422,7 +1385,7 @@ dist_pg_get_local_locks(Tuplestorestate *tupstore, TupleDesc tupdesc)
         // 第1列: node_name
         values[0] = CStringGetTextDatum(PGXCNodeName);
         
-        // --- 第2-16列: 填充谓词锁信息 (严格校对) ---
+        // --- 第2-16列: 填充谓词锁信息 ---
         lockType = GET_PREDICATELOCKTARGETTAG_TYPE(*predTag);
         values[1] = CStringGetTextDatum(PredicateLockTagTypeNames[lockType]); // locktype
 
@@ -1466,73 +1429,50 @@ dist_pg_get_local_locks(Tuplestorestate *tupstore, TupleDesc tupdesc)
 }
 
 /*
- * dist_pg_get_remote_locks - 【最终权威版】
- * 采用串行方式，逐个节点地执行远程查询，以避免连接池风暴。
+ * dist_pg_get_remote_locks - 远程执行 get_dist_pg_locks(true)
  */
 static void
 dist_pg_get_remote_locks(Tuplestorestate *tupstore, TupleDesc tupdesc)
 {
-    List *nodelist;
-    ListCell *lc;
-	Oid local_node_oid; // 用于存储本地节点的OID
+	char    query[256];
+	EState *estate;
+	RemoteQuery *plan;
+	RemoteQueryState *pstate;
+	TupleTableSlot *result = NULL;
+	MemoryContext oldcontext;
 
-	local_node_oid = get_pgxc_node_oid(PGXCNodeName);
-    // 1. 获取所有需要查询的远程节点列表
-    //    注意：我们不需要包含本地节点，因为它会在主函数中被单独处理。
-    nodelist = list_concat(GetAllCoordNodes(), GetAllDataNodes());
+	snprintf(query, sizeof(query), "SELECT * FROM @extschema@.get_dist_pg_locks(true)");
 
-    // 2. 【核心】使用 foreach 循环，对每个节点进行串行查询
-    foreach(lc, nodelist)
-    {
-        int node_oid = lfirst_int(lc);
-        char query[256];
-        RemoteQuery *plan;
-        EState *estate;
-        RemoteQueryState *pstate;
-        TupleTableSlot *result;
-        MemoryContext oldcontext;
+	plan = makeNode(RemoteQuery);
+	plan->combine_type = COMBINE_TYPE_NONE;
+	
+	plan->exec_nodes = makeNode(ExecNodes);
+	plan->exec_nodes->nodeList = list_concat(GetAllCoordNodes(), GetAllDataNodes());
+	plan->exec_nodes->missing_ok = true;
+	plan->exec_type = EXEC_ON_ALL_NODES;
 
-        // 跳过本地节点，因为主函数会处理它
-        if (node_oid == local_node_oid)
-            continue;
+	plan->sql_statement = query;
+	plan->force_autocommit = false;
 
-        // 准备针对单个节点的远程查询
-        snprintf(query, sizeof(query), "SELECT * FROM @extschema@.get_dist_pg_locks(true)");
+	estate = CreateExecutorState();
+	oldcontext = MemoryContextSwitchTo(estate->es_query_cxt);
+	estate->es_snapshot = GetActiveSnapshot();
+	estate->es_param_list_info = NULL;
+	pstate = ExecInitRemoteQuery(plan, estate, 0);
+	ExecAssignResultType((PlanState *) pstate, tupdesc);
+	MemoryContextSwitchTo(oldcontext);
 
-        plan = makeNode(RemoteQuery);
-        plan->combine_type = COMBINE_TYPE_NONE;
-        plan->exec_nodes = makeNode(ExecNodes);
-        plan->exec_nodes->nodeList = list_make1_int(node_oid); // 只发给当前循环的这一个节点
-        plan->exec_nodes->missing_ok = true;
-        plan->exec_type = EXEC_ON_ALL_NODES; // 明确指定节点列表
-        plan->sql_statement = query;
-        plan->force_autocommit = false;
+	while ((result = ExecRemoteQuery((PlanState *) pstate)) != NULL && !TupIsNull(result))
+	{
+		tuplestore_puttupleslot(tupstore, result);
+	}
 
-        // 为本次循环创建独立的执行状态
-        estate = CreateExecutorState();
-        oldcontext = MemoryContextSwitchTo(estate->es_query_cxt);
-        estate->es_snapshot = GetActiveSnapshot();
-        estate->es_param_list_info = NULL;
-        pstate = ExecInitRemoteQuery(plan, estate, 0);
-        ExecAssignResultType((PlanState *) pstate, tupdesc);
-        MemoryContextSwitchTo(oldcontext);
-
-        // 接收并处理这个节点的所有返回行
-        while ((result = ExecRemoteQuery((PlanState *) pstate)) != NULL && !TupIsNull(result))
-        {
-            tuplestore_puttupleslot(tupstore, result);
-        }
-        
-        // 清理本次循环的资源
-        ExecEndRemoteQuery(pstate);
-        FreeExecutorState(estate);
-    }
-    
-    list_free_deep(nodelist); // 释放节点列表
+	ExecEndRemoteQuery(pstate);
+	FreeExecutorState(estate);
 }
 
 /*
- * get_dist_pg_locks - 【总指挥 & 最终SQL入口】
+ * get_dist_pg_locks - 最终SQL入口
  * 采用物化模式，协调远程和本地的数据采集。
  */
 Datum
@@ -1560,7 +1500,7 @@ get_dist_pg_locks(PG_FUNCTION_ARGS)
     // 创建 Tuplestore
     tupstore = tuplestore_begin_heap(true, false, work_mem);
 
-    // 【核心】告诉PostgreSQL执行器，我们将使用物化模式返回结果
+    // 告诉PostgreSQL执行器，我们将使用物化模式返回结果
     rsinfo->returnMode = SFRM_Materialize;
     rsinfo->setResult = tupstore; // 将 tupstore 挂在返回结果上
     rsinfo->setDesc = tupdesc;      // 将 tupdesc 挂在返回结果上
@@ -1569,7 +1509,7 @@ get_dist_pg_locks(PG_FUNCTION_ARGS)
     if (!localonly && IS_PGXC_COORDINATOR)
         dist_pg_get_remote_locks(tupstore, tupdesc);
 
-    // 2. 然后采集本地节点的数据 (直接、简洁地调用我们的普通辅助函数)
+    // 2. 然后采集本地节点的数据
     dist_pg_get_local_locks(tupstore, tupdesc);
     
     tuplestore_donestoring(tupstore);
@@ -1577,129 +1517,6 @@ get_dist_pg_locks(PG_FUNCTION_ARGS)
 
     return (Datum) 0;
 }
-
-static bool
-pgds_signal_session_remote(const char *sessionid, int signal)
-{
-#define QUERY_LEN 1024
-	char    query[QUERY_LEN];
-	EState              *estate;
-	MemoryContext		oldcontext;
-	RemoteQuery 		*plan;
-	RemoteQueryState    *pstate;
-	Var 				*dummy;
-	TupleTableSlot		*result = NULL;
-	
-	snprintf(query, QUERY_LEN, "select pg_signal_session($1, %d, true)", signal);
-	
-	plan = makeNode(RemoteQuery);
-	plan->combine_type = COMBINE_TYPE_NONE;
-	/*
-	 * set exec_nodes to NULL makes ExecRemoteQuery send query to all nodes
-	 * (local CN nodes won't recieved query again).
-	 */
-	plan->exec_nodes = NULL;
-	plan->exec_type = EXEC_ON_ALL_NODES;
-	plan->sql_statement = (char *) query;
-	plan->force_autocommit = false;
-	
-	/*
-	 * We only need the target entry to determine result data type.
-	 * So create dummy even if real expression is a function.
-	 */
-	dummy = makeVar(1, 1, TEXTOID, 0, InvalidOid, 0);
-	plan->scan.plan.targetlist = lappend(plan->scan.plan.targetlist,
-	                                     makeTargetEntry((Expr *) dummy, 1, NULL, false));
-	
-	/* prepare to execute */
-	estate = CreateExecutorState();
-	oldcontext = MemoryContextSwitchTo(estate->es_query_cxt);
-	estate->es_snapshot = GetActiveSnapshot();
-	estate->es_param_list_info = EvaluateSessionIDParam(sessionid);
-	pstate = ExecInitRemoteQuery(plan, estate, 0);
-	MemoryContextSwitchTo(oldcontext);
-	
-	result = ExecRemoteQuery((PlanState *) pstate);
-	ExecEndRemoteQuery(pstate);
-	if (TupIsNull(result))
-	{
-		elog(ERROR, "result of pg_signal_session executed remotely is NULL");
-		return false;
-	}
-	
-	FreeExecutorState(estate);
-	return true;
-}
-
-static bool
-pgds_signal_session(const char *sessionid, int signal)
-{
-	int         num_backends = pgstat_fetch_stat_numbackends();
-	int         curr_backend;
-	const char *funcname;
-	LocalPgBackendStatus *local_beentry;
-	PgDistStatStatus      *local_dsentry;
-	PgBackendStatus      *beentry;
-	
-	if (signal == SIGTERM)
-		funcname = "pg_terminate_backend";
-	else if (signal == SIGINT)
-		funcname = "pg_cancel_backend";
-	else
-		elog(ERROR, "pgds_signal_session only support SIGTERM and SIGINT, not %d", signal);
-	
-	/* 1-based index */
-	for (curr_backend = 1; curr_backend <= num_backends; curr_backend++)
-	{
-		/* Get the next one in the list */
-		local_beentry = pgstat_fetch_stat_local_beentry(curr_backend);
-		local_dsentry = pgstat_fetch_stat_local_dsentry(local_beentry->backend_id);
-		
-		if (local_dsentry->valid && strcmp(local_dsentry->sessionid, sessionid) == 0)
-		{
-			beentry = &local_beentry->backendStatus;
-			OidFunctionCall1(fmgr_internal_function(funcname),
-			                 Int32GetDatum(beentry->st_procpid));
-		}
-	}
-	
-	return true;
-}
-
-/*
-Datum
-pg_signal_session(PG_FUNCTION_ARGS)
-{
-	const char *sessionid = text_to_cstring(PG_GETARG_TEXT_P(0));
-	int         signal = PG_GETARG_INT32(1);
-	bool        localonly = PG_ARGISNULL(2) ? false : PG_GETARG_BOOL(2);
-	bool        result;
-	
-	result = pgds_signal_session(sessionid, signal);
-	if (result && !localonly)
-		result = pgds_signal_session_remote(sessionid, signal);
-	
-	return BoolGetDatum(result);
-}
-
-Datum
-pg_terminate_session(PG_FUNCTION_ARGS)
-{
-	return DirectFunctionCall3(pg_signal_session,
-	                           PG_GETARG_DATUM(0),
-	                           Int32GetDatum(SIGTERM),
-	                           BoolGetDatum(false));
-}
-
-Datum
-pg_cancel_session(PG_FUNCTION_ARGS)
-{
-	return DirectFunctionCall3(pg_signal_session,
-	                           PG_GETARG_DATUM(0),
-	                           Int32GetDatum(SIGINT),
-	                           BoolGetDatum(false));
-}
-*/
 
 /*
  * Hooked as shmem_startup_hook
@@ -1745,7 +1562,7 @@ _PG_init(void)
 	                         NULL,
 	                         NULL);
 
-	// 【新增】定义自己用于调试的GUC变量
+	// 定义自己用于调试的GUC变量
 	DefineCustomStringVariable(
 							"pg_dist_stat_views.global_query_id",
 							"Internal GUC to propagate Global Query ID.",
