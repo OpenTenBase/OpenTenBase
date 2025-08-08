@@ -321,7 +321,7 @@ slashUsage(unsigned short int pager)
 					  "  \\lo_list\n"
 					  "  \\lo_unlink LOBOID      large object operations\n"));
 
-	fprintf(output, _("Node Information for TDSQL-PG\n"));
+	fprintf(output, _("Node Information for OPENTENBASE\n"));
 	fprintf(output, _("  \\nl					 list node infomations, show the node that can to connect\n"
 					  "  \\nc node_name			 connect to node_name, change the psql connection to new node\n"));
 

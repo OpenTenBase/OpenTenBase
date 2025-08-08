@@ -100,7 +100,7 @@ record_in(PG_FUNCTION_ARGS)
 		 * Such as :
 		 * 	CREATE TABLE xmltest(data XMLType);
 		 * 	INSERT INTO xmltest VALUES('<NODE></NODE>');
-		 * XMLType of TDSQL PG is implemented using Type Object. Its construction method is similar to record which requires parentheses, such as:
+		 * XMLType of OPENTENBASE is implemented using Type Object. Its construction method is similar to record which requires parentheses, such as:
 		 * 	INSERT INTO xmltest VALUES('(<NODE></NODE>)');
 		 * If the user uses the raw string literal, we need to directly call xml constructor.
 		 * */

@@ -1,3 +1,0 @@
-## History News and Events
-
-- 

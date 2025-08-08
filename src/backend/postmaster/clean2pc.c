@@ -5,7 +5,7 @@
  * The background clean 2pc processes are added by whalesong.
  * They attempt to clean the abnormal 2pc.
  *
- * Portions Copyright (c) 1996-2021, TDSQL-PG Development Group
+ * Portions Copyright (c) 1996-2021, OPENTENBASE Development Group
  *
  *
  * IDENTIFICATION

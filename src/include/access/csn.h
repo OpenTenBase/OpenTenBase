@@ -3,7 +3,7 @@
  * csn.h
  *	  csn definitions
  *
- * Portions Copyright (c), TDSQL-PG Development Group
+ * Portions Copyright (c), OPENTENBASE Development Group
  *
  * src/include/access/csn.h
  *

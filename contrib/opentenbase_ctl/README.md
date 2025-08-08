@@ -142,7 +142,7 @@ level = info
      --node-name dn3 \
      --node-ip 172.16.16.83 \
      --ssh-user opentenbase \
-     --ssh-password Tdsql@2024 \
+     --ssh-password your_password \
      --ssh-port 36000
 ```
 
@@ -154,7 +154,7 @@ level = info
      --node-name dn3 \
      --node-ip 172.16.16.83 \
      --ssh-user opentenbase \
-     --ssh-password Tdsql@2024 \
+     --ssh-password your_password \
      --ssh-port 36000
 ```
 

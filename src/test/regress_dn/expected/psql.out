@@ -3153,7 +3153,7 @@ List of access methods
                     List of languages
    Name   | Owner | Trusted |        Description         
 ----------+-------+---------+----------------------------
- oraplsql | tbase | t       | PL/SQL procedural language
+ oraplsql | opentenbase | t       | PL/SQL procedural language
 (1 row)
 
 \dF pg_catalog.simple
@@ -3269,4 +3269,3 @@ create database test_dx_20231225 with sql mode opentenbase_ora;
  function "plpgsql_validator"(OID)
  language plpgsql
 (4 rows)
-

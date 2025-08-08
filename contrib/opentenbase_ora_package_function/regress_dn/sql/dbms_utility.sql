@@ -85,12 +85,12 @@ select dbms_utility.get_hash_value('opentenbase',-2147483649,100) from dual;
 select dbms_utility.get_hash_value('opentenbase',-2147483648,100) from dual;
 select dbms_utility.get_hash_value('opentenbase',2147483647,100) from dual;
 select dbms_utility.get_hash_value('opentenbase',2147483648,100) from dual;
-select dbms_utility.get_hash_value('tdsql-pg',1000, 1024) from dual;
-select dbms_utility.get_hash_value('tdsql-pg',1000, 1024.33333) from dual;
-select dbms_utility.get_hash_value('tdsql-pg',1000, 1024.55555555) from dual;
-select dbms_utility.get_hash_value('tdsql-pg',1000.33333, 1024) from dual;
-select dbms_utility.get_hash_value('tdsql-pg',1000.55555555, 1024) from dual;
-select dbms_utility.get_hash_value('tdsql-pgtdsql-pgtdsql-pgtdsql-pgtdsql-pgtdsql-pgtdsql-pgtdsql-pg',1000, 1024) from dual;
+select dbms_utility.get_hash_value('opentenbase',1000, 1024) from dual;
+select dbms_utility.get_hash_value('opentenbase',1000, 1024.33333) from dual;
+select dbms_utility.get_hash_value('opentenbase',1000, 1024.55555555) from dual;
+select dbms_utility.get_hash_value('opentenbase',1000.33333, 1024) from dual;
+select dbms_utility.get_hash_value('opentenbase',1000.55555555, 1024) from dual;
+select dbms_utility.get_hash_value('opentenbaseopentenbaseopentenbaseopentenbaseopentenbaseopentenbaseopentenbaseopentenbase',1000, 1024) from dual;
 
 -- test for dbms_utility.get_time
 DECLARE
