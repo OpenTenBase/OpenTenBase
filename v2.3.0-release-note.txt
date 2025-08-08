@@ -1,0 +1,22 @@
+V2.3.0-release 版本主要修改集中在：
+1、分区表能力增强：
+● 增加 hash 分区类型、新增 default 分区。
+● 支持 default 分区子表创建、分区键可 update 修改功能、分区父表索引操作自动同步子表。
+● 分区剪枝优化性能提升30%，分区 join 性能提升近10倍。
+
+2、异地多活的易用性增强：
+● EXTENSION 模式，在一个中心内部实现闭环。
+● 通过 tbase_subscription 工具，指定订阅的并行度自由配置。
+● 多CN负载均衡订阅，灵活指定。
+
+3、分布式死锁自动检测：
+● EXTENSION 模式安装 pg_unlock 工具，无需手动配置。
+● pg_unlock_check_deadlock 死锁检测。
+● pg_unlock_execute 死锁解除。
+● pg_unlock_check_dependency 事务依赖关系检测。
+
+4、2PC残留自动清理：
+● EXTENSION模式安装pg_clean工具，无需手动配置。
+● pg_clean_check_txn 检测2P残留。
+● pgxc_get_record_list 查看残留事件。
+● pg_clean_execute 自动清理2PC残留。
