@@ -5,17 +5,22 @@
  * you may obtain a copy of the License at http://opensource.org/license/bsd-3-clause/
  */
 #include "postgres.h"
+#include "stddef.h"
 
 #include "catalog/pg_authid.h"
 #include "catalog/pg_type.h"
 #include "commands/dbcommands.h"
 #include "commands/explain.h"
 #include "common/ip.h"
+#include "executor/spi.h"
 #include "fmgr.h"
 #include "funcapi.h"
 #include "miscadmin.h"
 #include "nodes/makefuncs.h"
 #include "nodes/nodeFuncs.h"
+#include "nodes/plannodes.h"  // 包含 RemoteQuery, ExecNodes 等计划节点定义
+#include "nodes/execnodes.h"  // 包含 RemoteSubplanState 等执行节点定义
+#include "pgxc/nodemgr.h"      // 包含 GetAllNodes() 的声明
 #include "pgstat.h"
 #include "pgxc/execRemote.h"
 #include "pgxc/pgxc.h"
@@ -24,12 +29,18 @@
 #include "storage/ipc.h"
 #include "storage/procarray.h"
 #include "storage/shmem.h"
+#include "storage/lock.h"
+#include "storage/proc.h"
+#include "storage/lmgr.h"        // 包含 LockHeldByProc() 和 GetLockTagsMethodTable() 的声明
+#include "storage/predicate_internals.h"
 #include "utils/builtins.h"
 #include "utils/guc.h"
 #include "utils/portal.h"
 #include "utils/snapmgr.h"
 #include "utils/timestamp.h"
 #include "utils/hsearch.h"
+#include "utils/memutils.h"
+
 
 PG_MODULE_MAGIC;
 
@@ -119,6 +130,17 @@ typedef struct PgDistStatStatus	// 上面的说明记得改
 
 } PgDistStatStatus;
 
+/*
+ * 自定义的状态结构体，用于在多次SRF调用之间保持状态
+ */
+typedef struct DistLockStatus
+{
+	LockData *lockData;	/* state data from lmgr, a safe copy*/
+	int currIdx;	/* current PROCLOCK index */
+	PredicateLockData *predLockData;    /* state data for pred locks */
+    int            predLockIdx;    /* current index for pred lock */
+}DistLockStatus;
+
 static PgDistStatStatus *DistStatArray = NULL;
 static PgDistStatStatus *MyDistStatEntry = NULL;
 
@@ -182,6 +204,7 @@ void _PG_init(void);
 void _PG_fini(void);
 
 PG_FUNCTION_INFO_V1(dist_pg_stat_get_activity);
+PG_FUNCTION_INFO_V1(get_dist_pg_locks);
 /*
 PG_FUNCTION_INFO_V1(pg_signal_session);
 PG_FUNCTION_INFO_V1(pg_terminate_session);
@@ -1195,6 +1218,364 @@ dist_pg_stat_get_activity(PG_FUNCTION_ARGS)
 	tuplestore_donestoring(tupstore);
 	
 	return (Datum) 0;
+}
+
+/*
+ * ===================================================================
+ *                    LOCKS INFORMATION FUNCTIONS
+ * ===================================================================
+ */
+
+static Datum
+VXIDGetDatum(BackendId bid, LocalTransactionId lxid)
+{
+    char vxidstr[32];
+    snprintf(vxidstr, sizeof(vxidstr), "%d/%u", bid, lxid);
+    return CStringGetTextDatum(vxidstr);
+}
+
+/*
+ * dist_pg_get_local_locks - 【最终版】安全的本地数据采集器
+ *
+ * 它的职责是安全地采集本地锁信息，并将其放入一个传入的 Tuplestore。
+ * 它不是SRF，只是一个普通的辅助函数。
+ */
+static void
+dist_pg_get_local_locks(Tuplestorestate *tupstore, TupleDesc tupdesc)
+{
+    LockData   *lockData;
+    PredicateLockData *predLockData;
+    int         i;
+	static const char *const PredicateLockTagTypeNames[] = {"relation", "page", "tuple"};
+
+#define NUM_DIST_LOCKS_RAW_COLS 17
+    Datum       values[NUM_DIST_LOCKS_RAW_COLS];
+    bool        nulls[NUM_DIST_LOCKS_RAW_COLS];
+
+    const char *const LockTagTypeNames[] = {
+        "relation", "extend", "page", "tuple", "transactionid",
+        "virtualxid", "speculative token", "object",
+#ifdef _SHARDING_
+        "shard",
+#endif
+        "userlock", "advisory"
+    };
+
+    // --- 1. 处理常规锁 (Regular Locks) ---
+    lockData = GetLockStatusData();
+    
+    for (i = 0; i < lockData->nelements; i++)
+    {
+        LockInstanceData *instance = &(lockData->locks[i]);
+        PGPROC     *proc = BackendPidGetProc(instance->pid);
+		// 处理持有的锁
+        uint32      holdMask = instance->holdMask;
+        LOCKMODE    mode;
+        
+        if (!proc) 
+            continue;
+
+        for (mode = 0; mode < MAX_LOCKMODES; mode++)
+        {
+            if (holdMask & LOCKBIT_ON(mode))
+            {
+                MemSet(values, 0, sizeof(values));
+                MemSet(nulls, false, sizeof(nulls));
+                
+                values[0] = CStringGetTextDatum(PGXCNodeName);
+                if (instance->locktag.locktag_type <= LOCKTAG_LAST_TYPE)
+                    values[1] = CStringGetTextDatum(LockTagTypeNames[instance->locktag.locktag_type]);
+                else
+                    values[1] = CStringGetTextDatum("unknown");
+                switch ((LockTagType) instance->locktag.locktag_type)
+                {
+                    case LOCKTAG_RELATION:
+                    case LOCKTAG_RELATION_EXTEND:
+                        values[2] = ObjectIdGetDatum(instance->locktag.locktag_field1);
+                        values[3] = ObjectIdGetDatum(instance->locktag.locktag_field2);
+                        nulls[4]=nulls[5]=nulls[6]=nulls[7]=nulls[8]=nulls[9]=nulls[10]=true;
+                        break;
+                    case LOCKTAG_PAGE:
+                        values[2] = ObjectIdGetDatum(instance->locktag.locktag_field1);
+                        values[3] = ObjectIdGetDatum(instance->locktag.locktag_field2);
+                        values[4] = UInt32GetDatum(instance->locktag.locktag_field3);
+                        nulls[5]=nulls[6]=nulls[7]=nulls[8]=nulls[9]=nulls[10]=true;
+                        break;
+                    case LOCKTAG_TUPLE:
+                        values[2] = ObjectIdGetDatum(instance->locktag.locktag_field1);
+                        values[3] = ObjectIdGetDatum(instance->locktag.locktag_field2);
+                        values[4] = UInt32GetDatum(instance->locktag.locktag_field3);
+                        values[5] = UInt16GetDatum(instance->locktag.locktag_field4);
+                        nulls[6]=nulls[7]=nulls[8]=nulls[9]=nulls[10]=true;
+                        break;
+                    case LOCKTAG_TRANSACTION:
+                        values[7] = TransactionIdGetDatum(instance->locktag.locktag_field1);
+                        nulls[2]=nulls[3]=nulls[4]=nulls[5]=nulls[6]=nulls[8]=nulls[9]=nulls[10]=true;
+                        break;
+                    case LOCKTAG_VIRTUALTRANSACTION:
+                        values[6] = VXIDGetDatum(instance->locktag.locktag_field1, instance->locktag.locktag_field2);
+                        nulls[2]=nulls[3]=nulls[4]=nulls[5]=nulls[7]=nulls[8]=nulls[9]=nulls[10]=true;
+                        break;
+                    case LOCKTAG_OBJECT:
+                    case LOCKTAG_USERLOCK:
+                    case LOCKTAG_ADVISORY:
+                    default:
+                        values[2] = ObjectIdGetDatum(instance->locktag.locktag_field1);
+                        values[8] = ObjectIdGetDatum(instance->locktag.locktag_field2);
+                        values[9] = ObjectIdGetDatum(instance->locktag.locktag_field3);
+                        values[10] = Int16GetDatum(instance->locktag.locktag_field4);
+                        nulls[3]=nulls[4]=nulls[5]=nulls[6]=nulls[7]=true;
+                        break;
+                }
+                values[11] = VXIDGetDatum(instance->backend, instance->lxid);
+                values[12] = Int32GetDatum(instance->pid);
+                values[13] = CStringGetTextDatum(GetLockmodeName(instance->locktag.locktag_lockmethodid, mode));
+                values[14] = BoolGetDatum(true);
+                values[15] = BoolGetDatum(instance->fastpath);
+                if (proc->hasGlobalXid && proc->globalXid[0] != '\0')
+                    values[16] = CStringGetTextDatum(proc->globalXid);
+                else
+                    nulls[16] = true;
+                tuplestore_putvalues(tupstore, tupdesc, values, nulls);
+            }
+        }
+        
+        // 处理等待的锁
+        if (instance->waitLockMode != NoLock)
+        {
+            MemSet(values, 0, sizeof(values));
+            MemSet(nulls, false, sizeof(nulls));
+            
+            values[0] = CStringGetTextDatum(PGXCNodeName);
+            if (instance->locktag.locktag_type <= LOCKTAG_LAST_TYPE)
+                values[1] = CStringGetTextDatum(LockTagTypeNames[instance->locktag.locktag_type]);
+            else
+                values[1] = CStringGetTextDatum("unknown");
+            switch ((LockTagType) instance->locktag.locktag_type)
+            {
+                    case LOCKTAG_RELATION:
+                    case LOCKTAG_RELATION_EXTEND:
+                        values[2] = ObjectIdGetDatum(instance->locktag.locktag_field1);
+                        values[3] = ObjectIdGetDatum(instance->locktag.locktag_field2);
+                        nulls[4]=nulls[5]=nulls[6]=nulls[7]=nulls[8]=nulls[9]=nulls[10]=true;
+                        break;
+                    case LOCKTAG_PAGE:
+                        values[2] = ObjectIdGetDatum(instance->locktag.locktag_field1);
+                        values[3] = ObjectIdGetDatum(instance->locktag.locktag_field2);
+                        values[4] = UInt32GetDatum(instance->locktag.locktag_field3);
+                        nulls[5]=nulls[6]=nulls[7]=nulls[8]=nulls[9]=nulls[10]=true;
+                        break;
+                    case LOCKTAG_TUPLE:
+                        values[2] = ObjectIdGetDatum(instance->locktag.locktag_field1);
+                        values[3] = ObjectIdGetDatum(instance->locktag.locktag_field2);
+                        values[4] = UInt32GetDatum(instance->locktag.locktag_field3);
+                        values[5] = UInt16GetDatum(instance->locktag.locktag_field4);
+                        nulls[6]=nulls[7]=nulls[8]=nulls[9]=nulls[10]=true;
+                        break;
+                    case LOCKTAG_TRANSACTION:
+                        values[7] = TransactionIdGetDatum(instance->locktag.locktag_field1);
+                        nulls[2]=nulls[3]=nulls[4]=nulls[5]=nulls[6]=nulls[8]=nulls[9]=nulls[10]=true;
+                        break;
+                    case LOCKTAG_VIRTUALTRANSACTION:
+                        values[6] = VXIDGetDatum(instance->locktag.locktag_field1, instance->locktag.locktag_field2);
+                        nulls[2]=nulls[3]=nulls[4]=nulls[5]=nulls[7]=nulls[8]=nulls[9]=nulls[10]=true;
+                        break;
+                    case LOCKTAG_OBJECT:
+                    case LOCKTAG_USERLOCK:
+                    case LOCKTAG_ADVISORY:
+                    default:
+                        values[2] = ObjectIdGetDatum(instance->locktag.locktag_field1);
+                        values[8] = ObjectIdGetDatum(instance->locktag.locktag_field2);
+                        values[9] = ObjectIdGetDatum(instance->locktag.locktag_field3);
+                        values[10] = Int16GetDatum(instance->locktag.locktag_field4);
+                        nulls[3]=nulls[4]=nulls[5]=nulls[6]=nulls[7]=true;
+                        break;
+            }
+            values[11] = VXIDGetDatum(instance->backend, instance->lxid);
+            values[12] = Int32GetDatum(instance->pid);
+            values[13] = CStringGetTextDatum(GetLockmodeName(instance->locktag.locktag_lockmethodid, instance->waitLockMode));
+            values[14] = BoolGetDatum(false);
+            values[15] = BoolGetDatum(instance->fastpath);
+            if (proc->hasGlobalXid && proc->globalXid[0] != '\0')
+                values[16] = CStringGetTextDatum(proc->globalXid);
+            else
+                nulls[16] = true;
+            tuplestore_putvalues(tupstore, tupdesc, values, nulls);
+        }
+    }
+
+    // --- 2. 处理谓词锁 (Predicate Locks) ---
+    predLockData = GetPredicateLockStatusData();
+
+    for (i = 0; i < predLockData->nelements; i++)
+    {
+        PredicateLockTargetType lockType;
+        PREDICATELOCKTARGETTAG *predTag = &(predLockData->locktags[i]);
+        SERIALIZABLEXACT *xact = &(predLockData->xacts[i]);
+        PGPROC *proc;
+
+        proc = BackendPidGetProc(xact->pid);
+
+        MemSet(values, 0, sizeof(values));
+        MemSet(nulls, false, sizeof(nulls));
+
+        // 第1列: node_name
+        values[0] = CStringGetTextDatum(PGXCNodeName);
+        
+        // --- 第2-16列: 填充谓词锁信息 (严格校对) ---
+        lockType = GET_PREDICATELOCKTARGETTAG_TYPE(*predTag);
+        values[1] = CStringGetTextDatum(PredicateLockTagTypeNames[lockType]); // locktype
+
+        values[2] = GET_PREDICATELOCKTARGETTAG_DB(*predTag);      // database
+        values[3] = GET_PREDICATELOCKTARGETTAG_RELATION(*predTag); // relation
+
+        if (lockType == PREDLOCKTAG_TUPLE)
+            values[5] = GET_PREDICATELOCKTARGETTAG_OFFSET(*predTag); // tuple
+        else
+            nulls[5] = true;
+
+        if (lockType == PREDLOCKTAG_TUPLE || lockType == PREDLOCKTAG_PAGE)
+            values[4] = GET_PREDICATELOCKTARGETTAG_PAGE(*predTag);   // page
+        else
+            nulls[4] = true;
+            
+        nulls[6] = true;   // virtualxid
+        nulls[7] = true;   // transactionid
+        nulls[8] = true;   // classid
+        nulls[9] = true;   // objid
+        nulls[10] = true;  // objsubid
+
+        values[11] = VXIDGetDatum(xact->vxid.backendId, xact->vxid.localTransactionId); // virtualtransaction
+        if (xact->pid != 0)
+            values[12] = Int32GetDatum(xact->pid); // pid
+        else
+            nulls[12] = true;
+
+        values[13] = CStringGetTextDatum("SIReadLock"); // mode
+        values[14] = BoolGetDatum(true);             // granted
+        values[15] = BoolGetDatum(false);            // fastpath
+        
+        // 第17列: gxid
+        if (proc && proc->hasGlobalXid && proc->globalXid[0] != '\0')
+            values[16] = CStringGetTextDatum(proc->globalXid);
+        else
+            nulls[16] = true;
+
+        tuplestore_putvalues(tupstore, tupdesc, values, nulls);
+    }
+}
+
+/*
+ * dist_pg_get_remote_locks - 【最终权威版】
+ * 采用串行方式，逐个节点地执行远程查询，以避免连接池风暴。
+ */
+static void
+dist_pg_get_remote_locks(Tuplestorestate *tupstore, TupleDesc tupdesc)
+{
+    List *nodelist;
+    ListCell *lc;
+	Oid local_node_oid; // 用于存储本地节点的OID
+
+	local_node_oid = get_pgxc_node_oid(PGXCNodeName);
+    // 1. 获取所有需要查询的远程节点列表
+    //    注意：我们不需要包含本地节点，因为它会在主函数中被单独处理。
+    nodelist = list_concat(GetAllCoordNodes(), GetAllDataNodes());
+
+    // 2. 【核心】使用 foreach 循环，对每个节点进行串行查询
+    foreach(lc, nodelist)
+    {
+        int node_oid = lfirst_int(lc);
+        char query[256];
+        RemoteQuery *plan;
+        EState *estate;
+        RemoteQueryState *pstate;
+        TupleTableSlot *result;
+        MemoryContext oldcontext;
+
+        // 跳过本地节点，因为主函数会处理它
+        if (node_oid == local_node_oid)
+            continue;
+
+        // 准备针对单个节点的远程查询
+        snprintf(query, sizeof(query), "SELECT * FROM @extschema@.get_dist_pg_locks(true)");
+
+        plan = makeNode(RemoteQuery);
+        plan->combine_type = COMBINE_TYPE_NONE;
+        plan->exec_nodes = makeNode(ExecNodes);
+        plan->exec_nodes->nodeList = list_make1_int(node_oid); // 只发给当前循环的这一个节点
+        plan->exec_nodes->missing_ok = true;
+        plan->exec_type = EXEC_ON_ALL_NODES; // 明确指定节点列表
+        plan->sql_statement = query;
+        plan->force_autocommit = false;
+
+        // 为本次循环创建独立的执行状态
+        estate = CreateExecutorState();
+        oldcontext = MemoryContextSwitchTo(estate->es_query_cxt);
+        estate->es_snapshot = GetActiveSnapshot();
+        estate->es_param_list_info = NULL;
+        pstate = ExecInitRemoteQuery(plan, estate, 0);
+        ExecAssignResultType((PlanState *) pstate, tupdesc);
+        MemoryContextSwitchTo(oldcontext);
+
+        // 接收并处理这个节点的所有返回行
+        while ((result = ExecRemoteQuery((PlanState *) pstate)) != NULL && !TupIsNull(result))
+        {
+            tuplestore_puttupleslot(tupstore, result);
+        }
+        
+        // 清理本次循环的资源
+        ExecEndRemoteQuery(pstate);
+        FreeExecutorState(estate);
+    }
+    
+    list_free_deep(nodelist); // 释放节点列表
+}
+
+/*
+ * get_dist_pg_locks - 【总指挥 & 最终SQL入口】
+ * 采用物化模式，协调远程和本地的数据采集。
+ */
+Datum
+get_dist_pg_locks(PG_FUNCTION_ARGS)
+{
+    bool localonly = PG_GETARG_BOOL(0);
+    ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
+    TupleDesc tupdesc;
+    Tuplestorestate *tupstore;
+    MemoryContext per_query_ctx, oldcontext;
+    
+    // 检查调用上下文是否支持返回集合
+    if (!IsA(rsinfo, ReturnSetInfo) || !(rsinfo->allowedModes & SFRM_Materialize))
+        ereport(ERROR, (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+                        errmsg("set-valued function called in context that cannot accept a set")));
+
+    // 获取期望返回的元组描述 (TupleDesc)
+    if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
+        elog(ERROR, "return type must be a row type");
+
+    // 切换到查询级别的内存上下文，以确保Tuplestore的生命周期正确
+    per_query_ctx = rsinfo->econtext->ecxt_per_query_memory;
+    oldcontext = MemoryContextSwitchTo(per_query_ctx);
+
+    // 创建 Tuplestore
+    tupstore = tuplestore_begin_heap(true, false, work_mem);
+
+    // 【核心】告诉PostgreSQL执行器，我们将使用物化模式返回结果
+    rsinfo->returnMode = SFRM_Materialize;
+    rsinfo->setResult = tupstore; // 将 tupstore 挂在返回结果上
+    rsinfo->setDesc = tupdesc;      // 将 tupdesc 挂在返回结果上
+
+	// 1. 如果是CN，且非localonly，则进行远程数据采集
+    if (!localonly && IS_PGXC_COORDINATOR)
+        dist_pg_get_remote_locks(tupstore, tupdesc);
+
+    // 2. 然后采集本地节点的数据 (直接、简洁地调用我们的普通辅助函数)
+    dist_pg_get_local_locks(tupstore, tupdesc);
+    
+    tuplestore_donestoring(tupstore);
+    MemoryContextSwitchTo(oldcontext);
+
+    return (Datum) 0;
 }
 
 static bool
