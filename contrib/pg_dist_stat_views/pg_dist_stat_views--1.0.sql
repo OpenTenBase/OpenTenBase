@@ -286,49 +286,66 @@ potential_blockers AS (
         -- 关键的预过滤条件：
         -- 1. 进程必须有一个有效的分布式事务ID
         gxid IS NOT NULL 
-        -- 2. 进程不能是完全空闲的
+        -- 2. 进程不能是完全空闲的，但【必须包括】idle in transaction
         AND state != 'idle'
-)
-SELECT
-    -- 从 dist_pg_locks_raw 中获取的所有原始信息
-    raw.node_name,
-    raw.granted,
-    raw.gxid,
-    raw.pid,
-    raw.locktype,
-    raw.database,
-    raw.relation,
-    raw.page,
-    raw.tuple,
-    raw.virtualxid,
-    raw.transactionid,
-    raw.classid,
-    raw.objid,
-    raw.objsubid,
-    raw.virtualtransaction,
-    raw.mode,
-    raw.fastpath,
-    
-    -- 【核心逻辑】通过JOIN我们预过滤后的 potential_blockers，来查找并补全 blocking_node_name
-    blockers.nodename AS blocking_node_name,
-    
-    -- 从 dist_pg_locks_raw 中获取的、由C代码精确找到的阻塞者ID
-    raw.blocking_pid,
-    raw.blocking_gxid,
+),
 
-    -- 为了方便用户，增加一个可读的 lock_target 列
-    CASE 
-        WHEN raw.locktype = 'relation' THEN raw.relation::regclass::text 
-        WHEN raw.locktype = 'transactionid' THEN raw.transactionid::text
-        ELSE pg_describe_object(raw.classid, raw.objid, raw.objsubid)
-    END AS lock_target
+-- 第二步：将原始锁信息与阻塞者地址（nodename）进行关联
+enriched_locks AS (
+    SELECT
+        raw.*, -- 包含所有原始锁信息
+        blockers.nodename AS blocking_node_name,
+        CASE 
+            WHEN raw.locktype = 'relation' THEN raw.relation::regclass::text 
+            WHEN raw.locktype = 'transactionid' THEN raw.transactionid::text
+            ELSE pg_describe_object(raw.classid, raw.objid, raw.objsubid)
+        END AS lock_target
+    FROM
+        dist_pg_locks_raw AS raw
+    LEFT JOIN
+        potential_blockers AS blockers
+        ON raw.blocking_pid = blockers.pid AND raw.blocking_gxid = blockers.gxid
+)
+
+-- 第三步：【核心】对增强后的结果进行最终的去重和选择
+SELECT DISTINCT ON (node_name, pid, granted, lock_target)
+    -- 选择所有需要的列
+    node_name,
+    granted,
+    gxid,
+    pid,
+    locktype,
+    database,
+    relation,
+    page,
+    tuple,
+    virtualxid,
+    transactionid,
+    classid,
+    objid,
+    objsubid,
+    virtualtransaction,
+    mode,
+    fastpath,
+    blocking_node_name,
+    blocking_pid,
+    blocking_gxid,
+    lock_target
 FROM
-    dist_pg_locks_raw AS raw
--- 使用 LEFT JOIN，以防阻塞者信息因时序问题暂时不可见
-LEFT JOIN
-    potential_blockers AS blockers
-    -- 使用最精确的关联键：阻塞者的 PID 和 GXID
-    ON raw.blocking_pid = blockers.pid AND raw.blocking_gxid = blockers.gxid;
+    enriched_locks
+-- ORDER BY 必须以 DISTINCT ON 的列开始
+ORDER BY
+    node_name, pid, granted, lock_target,
+    -- 内部排序：优先保留最重要的锁模式记录
+    CASE mode
+        WHEN 'AccessExclusiveLock' THEN 1
+        WHEN 'ExclusiveLock' THEN 2
+        WHEN 'ShareRowExclusiveLock' THEN 3
+        WHEN 'RowExclusiveLock' THEN 4
+        WHEN 'ShareLock' THEN 5
+        -- ... (其他锁模式的优先级)
+        ELSE 99
+    END;
 
 -- 包含所有活动信息的大而全视图
 CREATE OR REPLACE VIEW dist_pg_locks_all_info AS
@@ -342,7 +359,7 @@ SELECT
     act.query AS waiter_query,
     l.locktype,
     l.mode,
-    CASE 
+    CASE -- 直接显示出被锁的表名
         WHEN l.locktype = 'relation' THEN l.relation::regclass::text 
         WHEN l.locktype = 'transactionid' THEN l.transactionid::text
         ELSE pg_describe_object(l.classid, l.objid, l.objsubid)

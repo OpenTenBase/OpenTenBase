@@ -86,18 +86,21 @@ typedef struct PgDistStatStatus	// 上面的说明记得改
 	
 	bool valid;                     /* don't show this entry if false */
 	char nodename[NAMEDATALEN];     /* nodename, determined after process started */
-	char role[NAMEDATALEN];         /* coord, datanode, producer or consumer */
 
-    // 临时状态
+	// 【核心】只存储 pgstat 没有的、我们自己扩展的信息
 	char sessionid[NAMEDATALEN];    /* global session id in a cluster, one for a session */
-	
+    // 存储GID的哈希值，用于在C代码中进行快速、高效的比较和过滤
+    uint64 global_query_id_hash; 
+    // 存储GID的完整字符串，用于最终在视图中显示
+    char   global_query_id[256]; // 预留足够长的空间
+	// 查询级状态,在【每一个】顶层查询开始时写入，在【该查询结束】(ExecutorEnd)时就必须清理。
+	char role[NAMEDATALEN];         /* coord, datanode, producer or consumer */
 	/* portal_name or portal_name_unique */
 	char sqname[NAMEDATALEN];
 	/* true if sharequeue end, but currently change when query ends in this backend */
 	bool sqdone;
 	/* part of plantree this backend is processing, OR last processed if backend is idle */
 	char planstate[4096];
-	
 	/*
 	 * portal name: the name of current portal, given by upper node of processing query 
 	 * cursor name: contained in planstate this backend is querying, which would be
@@ -109,17 +112,14 @@ typedef struct PgDistStatStatus	// 上面的说明记得改
 	char portal[NAMEDATALEN];
 	char cursors[NAMEDATALEN * 64];
 
-	// 新增字段
-    // 存储GID的哈希值，用于在C代码中进行快速、高效的比较和过滤
-    uint64 global_query_id_hash; 
-    // 存储GID的完整字符串，用于最终在视图中显示
-    char   global_query_id[256]; // 预留足够长的空间
-    char application_name[NAMEDATALEN];
+	/*
+	// 事务级状态,【第一个】顶层查询开始时写入，直到【事务结束】(COMMIT/ROLLBACK)才清理。
+    char  gxid[NAMEDATALEN];
     TransactionId backend_xid;
     TransactionId backend_xmin;
-    char backend_type[NAMEDATALEN];
-	char gxid[NAMEDATALEN];
-
+    char  application_name[NAMEDATALEN];
+    char  backend_type[NAMEDATALEN]; // backend_type 通常与进程绑定，但为保持与activity一致，也设为事务级
+	*/
 } PgDistStatStatus;
 
 typedef struct DistLockStatus
@@ -295,9 +295,6 @@ pgds_shutdown_hook(int code, Datum arg)
 	increment_changecount_before(entry);
 	
 	entry->valid = false;	/* mark invalid to hide this entry */
-	
-	entry->global_query_id_hash = 0; // 新增
-    entry->global_query_id[0] = '\0'; // 新增
 
 	increment_changecount_after(entry);
 }
@@ -440,28 +437,14 @@ static void
 pgds_report_query_activity(BackendState state, const char *cmd_str)
 {
 	volatile PgDistStatStatus *entry;
-	LocalPgBackendStatus *local_beentry;
-	PgBackendStatus *beentry;
 	
+	pgds_entry_initialize();
+	entry = MyDistStatEntry;
+	pgds_report_common((PgDistStatStatus *) entry);
+
 	// 只调用前任钩子
 	if (prev_pgstat_report_hook)
 		prev_pgstat_report_hook(state, cmd_str);
-
-    if (MyDistStatEntry && MyDistStatEntry->global_query_id_hash != 0)
-    {
-        entry = MyDistStatEntry;
-        
-        // 获取实时的 beentry 来更新动态信息
-        local_beentry = pgstat_fetch_stat_local_beentry(MyBackendId);
-        if (local_beentry)
-        {
-             // 更新 backend_type
-             beentry = &local_beentry->backendStatus;
-             increment_changecount_before(entry);
-             snprintf((char *)entry->backend_type, NAMEDATALEN, "%s", pgstat_get_backend_desc(beentry->st_backendType));
-             increment_changecount_after(entry);
-        }
-    }
 }
 
 /* ----------
@@ -482,8 +465,6 @@ pgds_report_executor_activity(QueryDesc *desc, int eflags)
 	MemoryContext oldcxt;
 	char gid_string[256];
 	char *gid_to_write;
-	LocalPgBackendStatus *local_beentry;
-	PgBackendStatus *beentry;
 	
 	if (prev_ExecutorStart)
 		prev_ExecutorStart(desc, eflags);
@@ -513,9 +494,6 @@ pgds_report_executor_activity(QueryDesc *desc, int eflags)
 		gid_to_write = (char *)pgds_gid_guc_string;
 		// 无论CN还是DN，都在这里，把所有信息一次性写入共享内存
 		increment_changecount_before(entry);
-		// 写入通用信息
-		pgds_report_common((PgDistStatStatus *) entry);
-
 		// --- 在数据节点 (DN) 上，或者作为“中间人”的CN上：读取GUC并存储 --
 		// 检查绑定的C变量是否有值 (即GUC是否被传播过来)
 		if (gid_to_write && gid_to_write[0] != '\0')
@@ -527,29 +505,10 @@ pgds_report_executor_activity(QueryDesc *desc, int eflags)
 			entry->global_query_id_hash = string_hash(gid_to_write, strlen(gid_to_write));
 
 		}
+		// 写入常规信息
+		pgds_report_common((PgDistStatStatus *) entry);
 		// 写入角色
 		pgds_report_role((PgDistStatStatus *)entry, desc);
-
-		// 新增的采集逻辑，连接名称和后台进程相关信息
-		local_beentry = pgstat_fetch_stat_local_beentry(MyBackendId);
-		if (local_beentry)
-        {
-            beentry = &local_beentry->backendStatus;
-            if (beentry->st_appname)
-                snprintf((char *)entry->application_name, NAMEDATALEN, "%s", beentry->st_appname);
-            snprintf((char *)entry->backend_type, NAMEDATALEN, "%s", pgstat_get_backend_desc(beentry->st_backendType));
-            entry->backend_xid = local_beentry->backend_xid;
-            entry->backend_xmin = local_beentry->backend_xmin;
-        }
-
-		if (MyProc && MyProc->hasGlobalXid && MyProc->globalXid[0] != '\0')
-		{
-			snprintf((char *)entry->gxid, NAMEDATALEN, "%s", MyProc->globalXid);
-		}
-		else
-		{
-			entry->gxid[0] = '\0';
-		}
 
 		 /* -- 采集并写入 planstate 和 cursors -- */
         if (desc->already_executed)
@@ -642,8 +601,8 @@ pgds_executor_end_hook(QueryDesc *queryDesc)
 
             increment_changecount_before(v_entry);
             // v_entry->nodename 和 v_entry->role 被刻意保留，不作清理！
-            MemSet(&entry->sessionid, 0, 
-                   sizeof(PgDistStatStatus) - offsetof(PgDistStatStatus, sessionid));
+            MemSet(&entry->global_query_id_hash, 0, 
+                   sizeof(PgDistStatStatus) - offsetof(PgDistStatStatus, global_query_id_hash));
             
             increment_changecount_after(v_entry);
 
@@ -667,60 +626,31 @@ pgds_executor_end_hook(QueryDesc *queryDesc)
  * ----------
  */
 static void
-pgds_report_activity(Portal portal, bool is_drop)	// 新增一个参数区分是Portal Start 还是 Drop
+pgds_report_activity(Portal portal)
 {
 	volatile PgDistStatStatus *entry;
+	QueryDesc *desc = portal->queryDesc;
 	
-	if (is_drop)
-	{
-		if (prev_PortalDrop)
-			prev_PortalDrop(portal);
-	}
-	else
-	{
-		if (prev_PortalStart)
-			prev_PortalStart(portal);
-	}
-
 	pgds_entry_initialize();
 	entry = MyDistStatEntry;
 	
 	/* if query already done, just report sqdone and return */
-	// if (desc != NULL && desc->already_executed)
-	// {
-	// 	increment_changecount_before(entry);
-	// 	entry->sqdone = true;
-	// 	increment_changecount_after(entry);
-	// 	return;
-	// }
+	if (desc != NULL && desc->already_executed)
+	{
+		increment_changecount_before(entry);
+		entry->sqdone = true;
+		increment_changecount_after(entry);
+		return;
+	}
 	
 	increment_changecount_before(entry);
 
-    if (is_drop)
-    {
-        // 如果是 PortalDrop，就清空 portal 名字
-        entry->portal[0] = '\0';
-    }
-    else
-    {
-        // 如果是 PortalStart，就写入 portal 名字
-        strncpy((char *)entry->portal, portal->name, NAMEDATALEN);
-    }
+	pgds_report_common((PgDistStatStatus *) entry);
+	pgds_report_role((PgDistStatStatus *) entry, desc);
+    // 如果是 PortalStart，就写入 portal 名字
+    strncpy((char *)entry->portal, portal->name, NAMEDATALEN);
     
     increment_changecount_after(entry);
-}
-
-// 为了适配钩子函数的不同签名，我们需要两个“包装”函数
-static void
-pgds_portal_start_hook(Portal portal)
-{
-    pgds_report_activity(portal, false);
-}
-
-static void
-pgds_portal_drop_hook(Portal portal)
-{
-    pgds_report_activity(portal, true);
 }
 
 /* ----------
@@ -1143,23 +1073,23 @@ dist_pg_stat_get_activity(PG_FUNCTION_ARGS)
 			else
 				nulls[21] = true;
 
-			if (local_dsentry->application_name[0] != '\0')
-				values[22] = CStringGetTextDatum(local_dsentry->application_name);
+			if (beentry->st_appname)
+				values[22] = CStringGetTextDatum(beentry->st_appname);
 			else
 				nulls[22] = true;
 			
-			if (TransactionIdIsValid(local_dsentry->backend_xid))
-				values[23] = TransactionIdGetDatum(local_dsentry->backend_xid);
+			if (TransactionIdIsValid(local_beentry->backend_xid))
+				values[23] = TransactionIdGetDatum(local_beentry->backend_xid);
 			else
 				nulls[23] = true;
 
-			if (TransactionIdIsValid(local_dsentry->backend_xmin))
-				values[24] = TransactionIdGetDatum(local_dsentry->backend_xmin);
+			if (TransactionIdIsValid(local_beentry->backend_xmin))
+				values[24] = TransactionIdGetDatum(local_beentry->backend_xmin);
 			else
 				nulls[24] = true;
 
-			if (local_dsentry->backend_type[0] != '\0')
-				values[25] = CStringGetTextDatum(local_dsentry->backend_type);
+			if (beentry->st_backendType)
+				values[25] = CStringGetTextDatum(pgstat_get_backend_desc(beentry->st_backendType));
 			else
 				nulls[25] = true;
 
@@ -1168,8 +1098,8 @@ dist_pg_stat_get_activity(PG_FUNCTION_ARGS)
 			else
 				nulls[26] = true;
 
-			if (local_dsentry->gxid[0] != '\0')
-				values[27] = CStringGetTextDatum(local_dsentry->gxid);
+			if (proc->hasGlobalXid && proc->globalXid[0] != '\0')
+				values[27] = CStringGetTextDatum(proc->globalXid);
 			else
 				nulls[27] = true;
 		}
@@ -2013,9 +1943,9 @@ _PG_init(void)
 	prev_pgstat_report_hook = pgstat_report_hook;
 	pgstat_report_hook = pgds_report_query_activity;
 	prev_PortalStart = PortalStart_hook;
-	PortalStart_hook = pgds_portal_start_hook;
+	PortalStart_hook = pgds_report_activity;
 	prev_PortalDrop = PortalDrop_hook;
-	PortalDrop_hook = pgds_portal_drop_hook;
+	PortalDrop_hook = pgds_report_activity;
 	prev_ExecutorStart = ExecutorStart_hook;
 	ExecutorStart_hook = pgds_report_executor_activity;
 	prev_ExecutorEnd = ExecutorEnd_hook;
@@ -2031,8 +1961,8 @@ _PG_fini(void)
 	/* Uninstall hooks. */
 	shmem_startup_hook = prev_shmem_startup_hook;
 	pgstat_report_hook = prev_pgstat_report_hook;
-	PortalStart_hook = pgds_portal_start_hook;
-	PortalDrop_hook = pgds_portal_drop_hook;
+	PortalStart_hook = prev_PortalStart;
+	PortalDrop_hook = prev_PortalDrop;
 	ExecutorStart_hook = prev_ExecutorStart;
 	ExecutorEnd_hook = prev_ExecutorEnd;
 }
