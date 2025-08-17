@@ -296,9 +296,36 @@ enriched_locks AS (
         raw.*, -- 包含所有原始锁信息
         blockers.nodename AS blocking_node_name,
         CASE 
-            WHEN raw.locktype = 'relation' THEN raw.relation::regclass::text 
-            WHEN raw.locktype = 'transactionid' THEN raw.transactionid::text
-            ELSE pg_describe_object(raw.classid, raw.objid, raw.objsubid)
+            WHEN raw.locktype = 'relation' THEN
+                raw.relation::regclass::text
+            
+            WHEN raw.locktype = 'extend' THEN
+                'extend relation ' || raw.relation::regclass::text
+
+            WHEN raw.locktype = 'page' THEN
+                'page ' || raw.page || ' in ' || raw.relation::regclass::text
+
+            WHEN raw.locktype = 'tuple' THEN 
+                'row (' || raw.page || ',' || raw.tuple || ') in ' || raw.relation::regclass::text
+
+            WHEN raw.locktype = 'transactionid' THEN
+                'transaction ' || raw.transactionid::text
+
+            WHEN raw.locktype = 'virtualxid' THEN
+                'virtual transaction ' || raw.virtualxid
+
+            WHEN raw.locktype = 'advisory' THEN
+                -- advisory锁的key存储在classid和objid中
+                'advisory lock [' || raw.classid::text || ',' || raw.objid::text || ']'
+
+            -- 对于 object, userlock 等，pg_describe_object 是最佳选择
+            -- 【安全检查】只有当 classid 有效时，才调用
+            WHEN raw.classid != 0 THEN
+                pg_describe_object(raw.classid, raw.objid, raw.objsubid)
+            
+            -- 对于所有其他未知或不需要特殊描述的类型
+            ELSE
+                raw.locktype
         END AS lock_target
     FROM
         dist_pg_locks_raw AS raw
@@ -350,20 +377,23 @@ ORDER BY
 -- 包含所有活动信息的大而全视图
 CREATE OR REPLACE VIEW dist_pg_locks_all_info AS
 SELECT 
+    -- 现场信息
     l.node_name,
     l.granted,
-    l.gxid,
-    l.pid,
+    
+    -- 等待者信息
+    l.gxid AS waiter_gxid,
+    l.pid AS waiter_pid,
     act.usename AS waiter_usename,
     act.state AS waiter_state,
     act.query AS waiter_query,
+    
+    -- 锁信息
     l.locktype,
     l.mode,
-    CASE -- 直接显示出被锁的表名
-        WHEN l.locktype = 'relation' THEN l.relation::regclass::text 
-        WHEN l.locktype = 'transactionid' THEN l.transactionid::text
-        ELSE pg_describe_object(l.classid, l.objid, l.objsubid)
-    END AS lock_target,
+    l.lock_target, -- lock_target 已经在 dist_pg_locks 中被正确创建
+    
+    -- 阻塞者信息
     l.blocking_node_name,
     l.blocking_pid,
     l.blocking_gxid,
@@ -452,7 +482,6 @@ JOIN
 ORDER BY
     c.path, c.level;
 
-
 -- 视图 2: 分布式死锁检测
 CREATE OR REPLACE VIEW dist_pg_deadlocks AS
 WITH RECURSIVE lock_chain ( -- 在这里显式声明所有列名
@@ -517,6 +546,90 @@ LEFT JOIN
 WHERE
     c.is_cycle;
 
+-- in pg_dist_stat_views--1.0.sql
+
+-- ===================================================================
+-- ==             Distributed Lock Waits Summary View             ==
+-- ==                   (Ultimate & Corrected Edition)            ==
+-- ===================================================================
+-- 视图目标：将同一组“等待-阻塞”关系的所有底层锁等待信息，智能地聚合为一行，
+--          并附加上事务的“源头”信息，提供一个高度浓缩的诊断快照。
+-- ===================================================================
+CREATE OR REPLACE VIEW dist_pg_lock_waits_summary AS
+WITH 
+-- 第一步：从 dist_pg_stat_activity 中筛选出所有 CN 的活动记录，作为“源头”信息库
+cn_activities AS (
+    SELECT DISTINCT ON (gxid)
+        gxid,
+        nodename, -- 【核心修正】添加源头节点名称
+        usename,
+        datname,
+        application_name,
+        client_addr,
+        query AS top_level_query
+    FROM 
+        dist_pg_stat_activity
+    WHERE 
+        role = 'coordinator' AND gxid IS NOT NULL
+    ORDER BY gxid, query_start DESC
+)
+-- 第二步：进行最终的聚合
+SELECT
+    -- 【核心关联ID】
+    lw.waiter_gxid,
+    lw.blocking_gxid,
+
+    -- 【等待者源头信息 (完整版)】
+    waiter_cn.nodename AS waiter_source_node, -- 【核心修正】展示等待者的源头节点
+    waiter_cn.usename AS waiter_user_source,
+    waiter_cn.client_addr AS waiter_client_source,
+    waiter_cn.top_level_query AS waiter_query_source,
+
+    -- 【阻塞者源头信息 (完整版)】
+    blocker_cn.nodename AS blocker_source_node, -- 【核心修正】展示阻塞者的源头节点
+    blocker_cn.usename AS blocker_user_source,
+    blocker_cn.client_addr AS blocker_client_source,
+    blocker_cn.top_level_query AS blocker_query_source,
+
+    -- 【锁等待现场详情 (JSON格式)】
+    JSONB_AGG(
+        DISTINCT jsonb_build_object(
+            'wait_happen_node', lw.node_name,
+            'waiter_pid', lw.waiter_pid,
+            'waiter_state', lw.waiter_state,
+            'blocking_node_name', lw.blocking_node_name,
+            'blocking_pid', lw.blocking_pid,
+            'blocking_state', lw.blocking_state
+        )
+    ) AS wait_scene_details,
+
+    -- 【等待的锁 (聚合字符串)】
+    STRING_AGG(
+        DISTINCT lw.mode || '{' || lw.lock_target || '}', 
+        ', '
+    ) AS locks_waited
+
+FROM
+    dist_pg_locks_all_info AS lw
+LEFT JOIN
+    cn_activities AS waiter_cn ON lw.waiter_gxid = waiter_cn.gxid
+LEFT JOIN
+    cn_activities AS blocker_cn ON lw.blocking_gxid = blocker_cn.gxid
+WHERE
+    NOT lw.granted
+GROUP BY
+    -- 【核心修正】将源头节点名称加入GROUP BY子句
+    lw.waiter_gxid,
+    lw.blocking_gxid,
+    waiter_cn.nodename,
+    waiter_cn.usename,
+    waiter_cn.client_addr,
+    waiter_cn.top_level_query,
+    blocker_cn.nodename,
+    blocker_cn.usename,
+    blocker_cn.client_addr,
+    blocker_cn.top_level_query;
+
 -- 授权
 GRANT SELECT ON dist_pg_stat_activity TO PUBLIC;
 GRANT SELECT ON dist_pg_stat_activity_cn TO PUBLIC;
@@ -527,3 +640,4 @@ GRANT SELECT ON dist_pg_locks TO PUBLIC;
 GRANT SELECT ON dist_pg_locks_all_info TO PUBLIC;
 GRANT SELECT ON dist_pg_lock_wait_chains TO PUBLIC;
 GRANT SELECT ON dist_pg_deadlocks TO PUBLIC;
+GRANT SELECT ON dist_pg_lock_waits_summary TO PUBLIC;
