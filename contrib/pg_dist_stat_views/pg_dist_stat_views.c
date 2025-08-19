@@ -1732,6 +1732,7 @@ get_dist_pg_locks_raw(PG_FUNCTION_ARGS)
 static void
 dist_pg_get_remote_locks(Tuplestorestate *tupstore, TupleDesc tupdesc)
 {
+	// 串行
     List *nodelist;
     ListCell *lc;
 	Oid local_node_oid = InvalidOid; // 用于存储本地节点的OID
@@ -1829,6 +1830,8 @@ dist_pg_get_remote_locks(Tuplestorestate *tupstore, TupleDesc tupdesc)
     }
     
     list_free(nodelist); // 释放节点列表
+
+	// 并行？
 }
 
 /*

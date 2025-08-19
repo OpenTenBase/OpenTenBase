@@ -415,72 +415,111 @@ LEFT JOIN
 
 -- 视图 1: 完整的分布式锁等待链
 CREATE OR REPLACE VIEW dist_pg_lock_wait_chains AS
-WITH RECURSIVE lock_chain AS (
-    -- 递归的起点 (Anchor)
+WITH RECURSIVE 
+lock_chains_raw AS (
+    -- ==========================================================
+    -- 1. 递归的起点 (Anchor Member)
+    -- ==========================================================
     SELECT
         1 AS level,
-        locks.gxid AS waiter_gxid,
-        locks.pid AS waiter_pid,
+        -- 我们需要传递等待者和阻塞者的所有关键信息
+        locks.waiter_gxid,
+        locks.waiter_pid,
         locks.node_name AS waiter_node,
         locks.blocking_gxid,
         locks.blocking_pid,
         locks.blocking_node_name,
-        ARRAY[locks.gxid] AS path,
-        (locks.node_name || ':' || locks.pid) AS path_detail
-    FROM
-        dist_pg_locks AS locks
-    WHERE
-        NOT locks.granted
+        
+        -- 路径数组，用于递归和展示
+        ARRAY[locks.waiter_gxid] AS gxid_path,
+        ARRAY[locks.waiter_pid || ':' || locks.node_name] AS physical_path,
+        
+        -- 链头的唯一标识 (就是等待者自己)
+        locks.waiter_gxid AS chain_head_gxid
+        
+    FROM 
+        dist_pg_locks_all_info AS locks
+    WHERE 
+        NOT locks.granted AND locks.blocking_gxid IS NOT NULL
 
     UNION ALL
 
-    -- 递归的递推
+    -- ==========================================================
+    -- 2. 递归的递推部分 (Recursive Member)
+    -- ==========================================================
     SELECT
         lc.level + 1,
-        lc.blocking_gxid,
-        lc.blocking_pid,
-        lc.blocking_node_name,
+        
+        lc.blocking_gxid AS waiter_gxid,
+        locks.waiter_pid,
+        locks.node_name AS waiter_node,
+        
         locks.blocking_gxid,
         locks.blocking_pid,
         locks.blocking_node_name,
-        lc.path || lc.blocking_gxid,
-        lc.path_detail || ' -> ' || (locks.node_name || ':' || locks.pid)
-    FROM
-        lock_chain lc
-    JOIN
-        dist_pg_locks locks ON lc.blocking_gxid = locks.gxid AND lc.blocking_pid = locks.pid
-    WHERE
-        NOT locks.granted AND NOT (locks.gxid = ANY(lc.path))
+        
+        lc.gxid_path || lc.blocking_gxid,
+        lc.physical_path || (locks.waiter_pid || ':' || locks.node_name),
+        
+        lc.chain_head_gxid
+    FROM 
+        lock_chains_raw lc
+    -- 【核心JOIN】使用 GXID 作为唯一的连接条件！
+    JOIN 
+        dist_pg_locks_all_info AS locks 
+      ON lc.blocking_gxid = locks.waiter_gxid
+    WHERE 
+        NOT locks.granted AND locks.blocking_gxid IS NOT NULL
+      AND NOT (lc.blocking_gxid = ANY(lc.gxid_path))
+),
+-- 第二步：为每个链头，找到其最长的链
+longest_chains AS (
+    SELECT DISTINCT ON (chain_head_gxid)
+        chain_head_gxid,
+        level AS chain_length,
+        gxid_path,
+        physical_path,
+        blocking_gxid AS root_blocker_gxid,
+        blocking_pid AS root_blocker_pid,
+        blocking_node_name AS root_blocker_node
+    FROM lock_chains_raw
+    ORDER BY chain_head_gxid, level DESC
+),
+-- 第三步：准备源头信息
+cn_activities AS (
+    SELECT DISTINCT ON (gxid)
+        gxid, usename, client_addr, query AS top_level_query, nodename AS source_node
+    FROM dist_pg_stat_activity
+    WHERE role = 'coordinator' AND gxid IS NOT NULL
+    ORDER BY gxid, query_start DESC
 )
--- 最终输出: 将递归结果与锁信息和活动信息进行关联
-SELECT
-    c.level AS wait_level,
-    c.path_detail AS wait_chain,
-    -- 等待者信息
-    c.waiter_node,
-    c.waiter_pid,
-    c.waiter_gxid,
-    -- 从 dist_pg_stat_activity (别名 act) 获取 state 和 query
-    act.state AS waiter_state,
-    (now() - act.query_start)::interval(3) AS waiter_duration,
-    act.query AS waiter_query,
-    -- 锁信息 (来自 dist_pg_locks, 别名 l)
-    l.lock_target,
-    l.mode AS lock_mode,
-    -- 阻塞者信息
-    c.blocking_node_name,
-    c.blocking_pid,
-    c.blocking_gxid
+-- 第四步：最终输出，将所有信息整合
+SELECT 
+    lc.chain_length,
+    array_to_string(lc.gxid_path, ' -> ') || ' -> ' || lc.root_blocker_gxid AS full_wait_chain_gxid,
+    array_to_string(lc.physical_path, ' -> ') || ' -> ' || (lc.root_blocker_pid || ':' || lc.root_blocker_node) AS full_wait_chain_pids,
+    
+    -- 链头信息 (最初的等待者)
+    head_cn.source_node AS chain_head_source_node,
+    head_cn.usename AS chain_head_user,
+    lc.chain_head_gxid,
+    
+    -- 根源信息 (最终的阻塞者)
+    root_cn.source_node AS root_blocker_source_node,
+    root_cn.usename AS root_blocker_user,
+    lc.root_blocker_gxid,
+    
+    -- 链头和根源的顶层查询
+    head_cn.top_level_query AS chain_head_query,
+    root_cn.top_level_query AS root_blocker_query
 FROM
-    lock_chain c
--- 关联 dist_pg_locks 以获取锁的详细信息
-JOIN
-    dist_pg_locks l ON c.waiter_gxid = l.gxid AND c.waiter_pid = l.pid
--- 关联 dist_pg_stat_activity 以获取等待者的活动信息
-JOIN
-    dist_pg_stat_activity act ON c.waiter_pid = act.pid AND c.waiter_node = act.nodename
-ORDER BY
-    c.path, c.level;
+    longest_chains lc
+-- 关联链头事务的“源头”信息
+LEFT JOIN
+    cn_activities AS head_cn ON lc.chain_head_gxid = head_cn.gxid
+-- 关联根源阻塞事务的“源头”信息
+LEFT JOIN
+    cn_activities AS root_cn ON lc.root_blocker_gxid = root_cn.gxid;
 
 -- 视图 2: 分布式死锁检测
 CREATE OR REPLACE VIEW dist_pg_deadlocks AS
