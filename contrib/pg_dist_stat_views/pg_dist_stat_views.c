@@ -42,7 +42,11 @@
 
 PG_MODULE_MAGIC;
 
-#define PG_DIST_STAT_ACTIVITY_COLS 28	// 列数定义
+/*
+ * Number of columns in the result of the dist_pg_stat_get_activity() function.
+ * This must be kept in sync with the function's TuplDesc and SQL definition.
+ */
+#define PG_DIST_STAT_ACTIVITY_COLS 28
 
 /* ----------
  * Total number of backends including auxiliary
@@ -58,76 +62,87 @@ PG_MODULE_MAGIC;
 #define UINT32_ACCESS_ONCE(var)		 ((uint32)(*((volatile uint32 *)&(var))))
 
 /*
- * PgDistStatStatus is something like PgBackendStatus (see pgstat.c) but it
- * contains information that a query executed in a cluster database system.
- * Each PgDistStatStatus stands for a backend process forked by postmaster,
- * the same way PgBackendStatus does, like extended fields of PgBackendStatus.
- * We show it in view pg_stat_cluster_activity, still, one tuple for an entry.
+ * PgDistStatStatus extends the standard PgBackendStatus (see pgstat.c) with
+ * additional information specific to a distributed query's execution within
+ * the OpenTenBase cluster.
+ *
+ * Each entry in the shared DistStatArray corresponds to a backend process
+ * and stores context that is not available in the standard pgstat system,
+ * such as the global query ID and the process's role in a distributed plan.
+ * This information is collected at the start of a top-level query via hooks
+ * and is cleared upon query completion.
+ *
+ * The final view, dist_pg_stat_activity, joins this information with the
+ * real-time data from pg_stat_get_activity() to provide a complete picture.
  */
-typedef struct PgDistStatStatus	// 上面的说明记得改
+typedef struct PgDistStatStatus
 {
 	/*
 	 * To avoid locking overhead, we use the following protocol: a backend
 	 * increments changecount before modifying its entry, and again after
-	 * finishing a modification.  A would-be reader should note the value of
+	 * finishing a modification. A would-be reader should note the value of
 	 * changecount, copy the entry into private memory, then check
-	 * changecount again.  If the value hasn't changed, and if it's even,
-	 * the copy is valid; otherwise start over.  This makes updates cheap
-	 * while reads are potentially expensive, but that's the tradeoff we want.
+	 * changecount again. If the value hasn't changed, and if it's even,
+	 * the copy is valid; otherwise start over.
 	 *
-	 * The above protocol needs the memory barriers to ensure that the
-	 * apparent order of execution is as it desires. Otherwise, for example,
-	 * the CPU might rearrange the code so that changecount is incremented
-	 * twice before the modification on a machine with weak memory ordering.
-	 * This surprising result can lead to bugs.
+	 * This protocol requires memory barriers to ensure the intended order
+	 * of operations.
 	 */
-    // 持久化状态
-	int changecount;
+	int			changecount;
+
+	/*
+	 * Fields below are persistent for the backend's lifecycle.
+	 */
+	bool		valid;				/* If false, this entry is not in use. */
+	char		nodename[NAMEDATALEN];	/* Name of the node this backend runs on. */
 	
-	bool valid;                     /* don't show this entry if false */
-	char nodename[NAMEDATALEN];     /* nodename, determined after process started */
-
-	// 【核心】只存储 pgstat 没有的、我们自己扩展的信息
-	char sessionid[NAMEDATALEN];    /* global session id in a cluster, one for a session */
-    // 存储GID的哈希值，用于在C代码中进行快速、高效的比较和过滤
-    uint64 global_query_id_hash; 
-    // 存储GID的完整字符串，用于最终在视图中显示
-    char   global_query_id[256]; // 预留足够长的空间
-	// 查询级状态,在【每一个】顶层查询开始时写入，在【该查询结束】(ExecutorEnd)时就必须清理。
-	char role[NAMEDATALEN];         /* coord, datanode, producer or consumer */
-	/* portal_name or portal_name_unique */
-	char sqname[NAMEDATALEN];
-	/* true if sharequeue end, but currently change when query ends in this backend */
-	bool sqdone;
-	/* part of plantree this backend is processing, OR last processed if backend is idle */
-	char planstate[4096];
 	/*
-	 * portal name: the name of current portal, given by upper node of processing query 
-	 * cursor name: contained in planstate this backend is querying, which would be
-	 *              portal name of next layer of nodes bellow this backend
-	 *              
-	 * Note: with these two fields plus nodename, we can build a backend tree of executing query
-	 *       in whole distributed system.
+	 * Fields below are transient and specific to a single distributed query.
+	 * They are populated at the start of a top-level query (ExecutorStart hook)
+	 * and cleared at the end of that query (ExecutorEnd hook).
 	 */
-	char portal[NAMEDATALEN];
-	char cursors[NAMEDATALEN * 64];
+	char		sessionid[NAMEDATALEN];	/* Global session ID for the cluster. */
 
+	/* 
+	 * Unique identifier for a single distributed query execution.
+	 * Generated on the coordinator and propagated to all involved nodes.
+	 * This is the core key for associating activities across the cluster.
+	 */
+	uint64		global_query_id_hash;	/* Hash of the GID for faster internal comparisons. */
+	char		global_query_id[256];	/* Full string of the Global Query ID for display. */
+
+	char		role[NAMEDATALEN];		/* Role in the distributed plan (e.g., coordinator, datanode). */
+	char		sqname[NAMEDATALEN];	/* Name of the Share Queue, if any. */
+	bool		sqdone;				/* True if the Share Queue is finished. */
+	char		planstate[4096];	/* Text representation of the plan fragment being executed. */
+	
 	/*
-	// 事务级状态,【第一个】顶层查询开始时写入，直到【事务结束】(COMMIT/ROLLBACK)才清理。
-    char  gxid[NAMEDATALEN];
-    TransactionId backend_xid;
-    TransactionId backend_xmin;
-    char  application_name[NAMEDATALEN];
-    char  backend_type[NAMEDATALEN]; // backend_type 通常与进程绑定，但为保持与activity一致，也设为事务级
-	*/
+	 * portal name: The name of the current portal, typically set by an upper node.
+	 * cursors: Space-separated list of cursor names found in RemoteSubplan nodes,
+	 *          representing connections to lower-level nodes.
+	 *
+	 * Note: These fields, along with 'nodename', can be used to reconstruct
+	 *       the execution tree of a distributed query.
+	 */
+	char		portal[NAMEDATALEN];
+	char		cursors[NAMEDATALEN * 64];
 } PgDistStatStatus;
 
+/*
+ * Working status for the get_dist_pg_locks_raw() SRF.
+ *
+ * This struct is used to hold the state of the function across multiple
+ * calls. It strictly imitates the PG_Lock_Status struct used by the kernel's
+ * pg_lock_status() function to ensure safe and correct iteration over
+ * the lock data snapshots.
+ */
 typedef struct DistLockStatus
 {
-    LockData           *lockData;
-    int                 currIdx;
-    PredicateLockData  *predLockData;
-    int                 predLockIdx;
+    LockData   *lockData;        /* A safe copy of the regular lock status data from lmgr. */
+    int         currIdx;        /* Index of the current LockInstanceData being processed. */
+
+    PredicateLockData *predLockData; /* A safe copy of the predicate lock status data. */
+    int         predLockIdx;    /* Index of the current predicate lock being processed. */
 } DistLockStatus;
 
 static PgDistStatStatus *DistStatArray = NULL;
@@ -140,9 +155,9 @@ static PortalDrop_hook_type prev_PortalDrop = NULL;
 static ExecutorStart_hook_type prev_ExecutorStart = NULL;
 static ExecutorEnd_hook_type prev_ExecutorEnd = NULL;
 
-static bool pgds_enable_planstate; /* whether to show planstate in result sets */
-static int pgds_nesting_level = 0;
-static char *pgds_gid_guc_string = NULL;
+static bool pgds_enable_planstate; /* GUC variable: enable/disable planstate collection. */
+static int pgds_nesting_level = 0; /* Nesting level counter for Executor hooks, to identify top-level queries. */
+static char *pgds_gid_guc_string = NULL; /* GUC variable: propagates the Global Query ID from CN to DNs. */
 
 /*
  * Macros to load and store st_changecount with the memory barriers.
@@ -182,13 +197,11 @@ static char *pgds_gid_guc_string = NULL;
 	} while (0)
 
 Datum dist_pg_stat_get_activity(PG_FUNCTION_ARGS);
-// Datum get_dist_pg_locks_raw(PG_FUNCTION_ARGS);
 
 void _PG_init(void);
 void _PG_fini(void);
 
 PG_FUNCTION_INFO_V1(dist_pg_stat_get_activity);
-// PG_FUNCTION_INFO_V1(get_dist_pg_locks_raw);
 PG_FUNCTION_INFO_V1(get_dist_pg_locks);
 
 static ParamListInfo
@@ -345,7 +358,11 @@ pgds_entry_initialize(void)
 		MyDistStatEntry = &DistStatArray[MaxBackends + MyAuxProcType];
 	}
 	
-	// 在初始化时，清空GID信息
+	/*
+	 * Ensure the entry starts in a clean state. This is crucial for backends
+	 * that are recycled from a connection pool, preventing stale data from a
+	 * previous query from persisting.
+	 */
     MyDistStatEntry->global_query_id_hash = 0;
     MyDistStatEntry->global_query_id[0] = '\0';
 
@@ -442,24 +459,32 @@ pgds_report_query_activity(BackendState state, const char *cmd_str)
 	entry = MyDistStatEntry;
 	pgds_report_common((PgDistStatStatus *) entry);
 
-	// 只调用前任钩子
 	if (prev_pgstat_report_hook)
 		prev_pgstat_report_hook(state, cmd_str);
 }
 
-/* ----------
+/*
  * pgds_report_executor_activity
- * 
- *  Report fileds of per-query referred, hooked as ExecutorStart_hook
- *  report planstate, cursors and common fields.
- * 
- * 唯一负责写入所有与一次“顶层查询”活动相关的瞬时状态
- * ----------
+ *
+ * ExecutorStart hook to capture and record all transient, query-specific
+ * distributed status information into the backend's shared memory entry.
+ *
+ * This function is the primary mechanism for our distributed tracking. It is
+ * responsible for:
+ *  1. Identifying the start of a top-level distributed query using a
+ *     nesting-level counter.
+ *  2. Generating a Global Query ID (GID) on the coordinator node.
+ *  3. Propagating the GID to all datanodes via a GUC variable.
+ *  4. Recording the GID and other context (role, planstate, cursors) into
+ *     the shared memory slot (PgDistStatStatus).
+ *
+ * This function guarantees that all context for a distributed query is
+ * captured atomically at the beginning of its execution.
  */
 static void
 pgds_report_executor_activity(QueryDesc *desc, int eflags)
 {
-	volatile PgDistStatStatus *entry;	// volatile 告诉编译器，entry 指向的那块内存随时可能被外部改变，请不要做任何优化
+	volatile PgDistStatStatus *entry;
 	StringInfo planstate_str = NULL;
 	StringInfo cursors = NULL;
 	MemoryContext oldcxt;
@@ -471,62 +496,57 @@ pgds_report_executor_activity(QueryDesc *desc, int eflags)
 	else
 		standard_ExecutorStart(desc, eflags);
 	
-	pgds_nesting_level++;	// 嵌套层级就加一
+	pgds_nesting_level++;
 
 	if (!desc)
 		return;
-	// 2. 在CN端，为顶层查询生成并设置 GID
-    if (pgds_nesting_level == 1)	// 判断一个查询是否为顶层查询，即子查询不再生成新gid
+    if (pgds_nesting_level == 1)
     {
+		/* 
+		* On the coordinator, if no GID is present (i.e., this is the origin
+		* of a new distributed query), generate a new GID.
+		*/
         if (IS_PGXC_COORDINATOR && (pgds_gid_guc_string == NULL || pgds_gid_guc_string[0] == '\0'))
         {
-            // 生成 GID
             snprintf(gid_string, sizeof(gid_string), "%s-%d-%lu",
                      PGXCNodeName, MyProcPid, (unsigned long)GetCurrentTimestamp());
-
-            // 设置GUC变量，以便传播到DN
             (void)set_config_option("pg_dist_stat_views.global_query_id", gid_string,
                                     PGC_SUSET, PGC_S_SESSION, GUC_ACTION_SET, true, 0, false);
         }
-		/* 统一写入所有瞬时状态 */
 		pgds_entry_initialize();
 		entry = MyDistStatEntry;
+
+		/*
+		* On all nodes (CN and DN), atomically write all transient status
+		* information to our shared memory slot.
+		*/
 		gid_to_write = (char *)pgds_gid_guc_string;
-		// 无论CN还是DN，都在这里，把所有信息一次性写入共享内存
 		increment_changecount_before(entry);
-		// --- 在数据节点 (DN) 上，或者作为“中间人”的CN上：读取GUC并存储 --
-		// 检查绑定的C变量是否有值 (即GUC是否被传播过来)
+
 		if (gid_to_write && gid_to_write[0] != '\0')
 		{	
 			snprintf((char *)entry->global_query_id, 
 					sizeof(entry->global_query_id), 
 					"%s", 
-					gid_to_write);	// entry->global_query_id是volatile char *,就是
+					gid_to_write);
 			entry->global_query_id_hash = string_hash(gid_to_write, strlen(gid_to_write));
 
 		}
-		// 写入常规信息
 		pgds_report_common((PgDistStatStatus *) entry);
-		// 写入角色
 		pgds_report_role((PgDistStatStatus *)entry, desc);
 
-		 /* -- 采集并写入 planstate 和 cursors -- */
+		/* Collect and write planstate and cursors if applicable. */
         if (desc->already_executed)
 		{
 			entry->sqdone = true;
 		}
 		else if (desc->planstate != NULL)
 		{
-			/* 保留原始的内存管理策略 */
 			oldcxt = MemoryContextSwitchTo(desc->estate->es_query_cxt);
-			
-			/* 采集 Cursors */
 			cursors = makeStringInfo();
 			cursorCollectWalker(desc->planstate, cursors);
 			if (cursors->len > 0)
 				snprintf((char *)entry->cursors, sizeof(entry->cursors), "%s", cursors->data);
-
-			/* 采集 Planstate */
 			if (pgds_enable_planstate)
 			{
 				ExplainState es;
@@ -538,7 +558,7 @@ pgds_report_executor_activity(QueryDesc *desc, int eflags)
 				es.skip_remote_query = true;
 				
 				ExplainBeginOutput(&es);
-				ExplainPrintPlan(&es, desc);	// planstate_str被填充
+				ExplainPrintPlan(&es, desc);
 				ExplainEndOutput(&es);
 				
 				if (planstate_str->len > 0)
@@ -548,17 +568,13 @@ pgds_report_executor_activity(QueryDesc *desc, int eflags)
 			{
 				snprintf((char *)entry->planstate, sizeof(entry->planstate), "disabled");
 			}
-
-			/* 在使用完毕后，立刻释放内存 */
 			pfree(cursors->data);
 			pfree(cursors);
-			if (planstate_str) // 因为 planstate_str 可能不被创建
+			if (planstate_str)
 			{
 				pfree(planstate_str->data);
 				pfree(planstate_str);
 			}
-
-			/* 切换回原来的内存上下文 */
 			MemoryContextSwitchTo(oldcxt);
 		}
         
@@ -566,23 +582,31 @@ pgds_report_executor_activity(QueryDesc *desc, int eflags)
     }
 }
 
-/* ----------
+/*
  * pgds_executor_end_hook
- * 用于在查询结束时对进程瞬时信息的清空（除了进程的基本标识信息）
- *  
- *  
- * ----------
+ *
+ * ExecutorEnd hook to clean up the transient, query-specific distributed
+ * status information from the backend's shared memory entry.
+ *
+ * This function acts as the counterpart to pgds_report_executor_activity().
+ * It is responsible for:
+ *  1. Decrementing the nesting-level counter.
+ *  2. When the top-level query finishes (nesting level returns to 0),
+ *     it clears all transient fields in the PgDistStatStatus entry.
+ *  3. On the coordinator, it also clears the GID propagation GUC variable.
+ *
+ * This cleanup is crucial to prevent stale data from a completed query
+ * being associated with a new query that reuses the same backend process.
  */
 static void
 pgds_executor_end_hook(QueryDesc *queryDesc)
 {
 	volatile PgDistStatStatus *v_entry;
 	PgDistStatStatus *entry;
-	pgds_nesting_level--;	// 嵌套层级减一
 
+	pgds_nesting_level--;
     if (pgds_nesting_level == 0)
     {
-        /* --- A. 在CN节点上，清理GUC传播信道 --- */
         if (IS_PGXC_COORDINATOR)
         {
             if (pgds_gid_guc_string && pgds_gid_guc_string[0] != '\0')
@@ -592,15 +616,12 @@ pgds_executor_end_hook(QueryDesc *queryDesc)
             }
         }
 
-        /* --- B. 在所有节点上，清理自己共享内存里的GID --- */
-        // MyDistStatEntry 在进程生命周期中，只要初始化过就不会是 NULL
         if (MyDistStatEntry)
         {
             v_entry = MyDistStatEntry;
 			entry = (PgDistStatStatus *)v_entry;
 
             increment_changecount_before(v_entry);
-            // v_entry->nodename 和 v_entry->role 被刻意保留，不作清理！
             MemSet(&entry->global_query_id_hash, 0, 
                    sizeof(PgDistStatStatus) - offsetof(PgDistStatStatus, global_query_id_hash));
             
@@ -608,22 +629,25 @@ pgds_executor_end_hook(QueryDesc *queryDesc)
 
         }
     }
-		// 调用原始的钩子链
     if (prev_ExecutorEnd)
         prev_ExecutorEnd(queryDesc);
     else
         standard_ExecutorEnd(queryDesc);
-
 }
 
-/* ----------
- * pgds_report_activity
- * 
- *  Report fileds of per-portal referred, hooked as PortalStart_hook
- *  report portal name and common fields.
- * 
- * 职责：只负责更新与 `Portal` 严格绑定的信息，比如 `portal` 名字。在 Portal 销毁时，清理掉这个名字。
- * ----------
+/*
+ * pgds_portal_hook
+ *
+ * Generic hook function for PortalStart_hook and PortalDrop_hook. It is
+ * responsible for managing portal-specific information in our shared
+ * memory entry.
+ *
+ * Its primary and ONLY responsibility is to set the portal name on portal
+ * creation (is_drop=false) and clear it on portal destruction (is_drop=true).
+ *
+ * It does NOT handle any other transient, query-specific state, as that
+ * is managed exclusively by the ExecutorStart/ExecutorEnd hooks to ensure
+ * logical consistency.
  */
 static void
 pgds_report_activity(Portal portal)
@@ -647,7 +671,6 @@ pgds_report_activity(Portal portal)
 
 	pgds_report_common((PgDistStatStatus *) entry);
 	pgds_report_role((PgDistStatStatus *) entry, desc);
-    // 如果是 PortalStart，就写入 portal 名字
     strncpy((char *)entry->portal, portal->name, NAMEDATALEN);
     
     increment_changecount_after(entry);
@@ -768,22 +791,34 @@ dist_pg_get_remote_activity(const char *sessionid, bool coordonly, Tuplestoresta
 	FreeExecutorState(estate);
 }
 
-/* ----------
+/*
  * dist_pg_stat_get_activity
- * 
- *  Internal SRF function of this extension. It accesses shared memory to find
- *  every live backend, collects their local and distributed status,
- *  and presents the information. It combines fields from both PgBackendStatus
- *  and our custom PgDistStatStatus.
  *
- *  arguments:  sessionid -- global unique id for a session, generated by CN
- *              coordonly -- only dispatch to other CNs if true.
- *              localonly -- only collect local entries' status if true.
- *              
- *  Note: since we also collect PGBackendStatus, get them first and use
- *  backend id to access a particular distributed status entry to narrow down
- *  the loop search range from all backend slots to localNumBackends (see pgstat.c)
- * ----------
+ * SQL-callable SRF (Set-Returning Function) that serves as the main entry
+ * point for the distributed activity view.
+ *
+ * This function implements a "materialized" SRF pattern. It collects activity
+ * information from all relevant nodes (both remote and local), materializes
+ * the entire result set into a Tuplestore in a single execution, and then
+ * returns the Tuplestore to the executor.
+ *
+ * The core logic involves two stages:
+ *  1. Remote data collection: If executed on a coordinator and not in
+ *     'localonly' mode, it dispatches a recursive call to all other nodes
+ *     via the dist_pg_get_remote_activity() helper.
+ *  2. Local data collection: It then iterates through the local backends,
+ *     fusing real-time status from the pgstat system (via
+ *     pgstat_fetch_stat_local_beentry) with the distributed context
+ *     (like global_query_id) stored in our custom shared memory array
+ *     (DistStatArray).
+ *
+ * Arguments:
+ *  sessionid (text, optional): Filters the result to a specific global session ID.
+ *  coordonly (bool, optional): If true, dispatches remote requests only to
+ *                              other coordinator nodes.
+ *  localonly (bool, optional): If true, skips the remote data collection stage.
+ *                              This is used by the recursive calls to prevent
+ *                              infinite loops.
  */
 Datum
 dist_pg_stat_get_activity(PG_FUNCTION_ARGS)
@@ -1146,7 +1181,11 @@ dist_pg_stat_get_activity(PG_FUNCTION_ARGS)
  * ===================================================================
  */
 
-static Datum
+/*
+ * Helper function to format a VirtualTransactionId into a text Datum.
+ * Copied from lockfuncs.c for self-containment.
+ */
+ static Datum
 VXIDGetDatum(BackendId bid, LocalTransactionId lxid)
 {
     char vxidstr[32];
@@ -1155,12 +1194,16 @@ VXIDGetDatum(BackendId bid, LocalTransactionId lxid)
 }
 
 /*
- * dist_pg_get_local_locks - 安全的本地数据采集器
+ * dist_pg_get_local_locks
  *
- * 它的职责是安全地采集本地锁信息，并将其放入一个传入的 Tuplestore。
- * 它不是SRF，只是一个普通的辅助函数。
+ * Collects all regular and predicate lock information on the local node,
+ * enhances it with distributed context (GXID), identifies the blocking
+ * process for any waiting locks, and populates the results into a Tuplestore.
+ *
+ * This function is a plain C function, not an SRF. It reads the lock manager
+ * snapshots safely and performs analysis to provide a complete picture of
+ * the local lock status.
  */
-
 
 static void
 dist_pg_get_local_locks(Tuplestorestate *tupstore, TupleDesc tupdesc)
@@ -1183,14 +1226,15 @@ dist_pg_get_local_locks(Tuplestorestate *tupstore, TupleDesc tupdesc)
         "userlock", "advisory"
     };
 
-    // --- 1. 处理常规锁 (Regular Locks) ---
+    /*
+	 * Stage 1: Process Regular Locks
+	 */
     lockData = GetLockStatusData();
     
     for (i = 0; i < lockData->nelements; i++)
     {
         LockInstanceData *instance = &(lockData->locks[i]);
         PGPROC     *proc = BackendPidGetProc(instance->pid);
-		// 处理持有的锁
         uint32      holdMask = instance->holdMask;
         LOCKMODE    mode;
         
@@ -1264,32 +1308,27 @@ dist_pg_get_local_locks(Tuplestorestate *tupstore, TupleDesc tupdesc)
             }
         }
         
-        // 处理等待的锁
+    	/* --- 1b. Report the WAITING lock mode for this instance, if any --- */
         if (instance->waitLockMode != NoLock)
         {
-			PGPROC *blocker_proc = NULL; // 声明一个用于存储阻塞者的指针
-            
-            // --- 【核心新增】在C层，安全地、精确地查找阻塞者 ---
+			PGPROC *blocker_proc = NULL;
+
             if (proc->waitStatus == STATUS_WAITING && proc->waitLock != NULL)
             {
                 LOCK *lock_obj = proc->waitLock;
                 const LockMethod lockMethodTable = GetLockTagsMethodTable(&(lock_obj->tag));
                 
-                // 再次遍历【同一个】只读快照 lockData 来寻找持有者
                 for (int j = 0; j < lockData->nelements; j++)
                 {
                     LockInstanceData *holder_instance = &(lockData->locks[j]);
                     
-                    // 检查是否是同一个锁对象 (通过比较locktag)
                     if (memcmp(&instance->locktag, &holder_instance->locktag, sizeof(LOCKTAG)) == 0)
                     {
-                        // 检查锁模式是否冲突
                         if ((holder_instance->holdMask & lockMethodTable->conflictTab[instance->waitLockMode]) != 0)
                         {
-                            // 找到了一个持有冲突锁的进程
                             blocker_proc = BackendPidGetProc(holder_instance->pid);
                             if (blocker_proc)
-                                break; // 找到第一个有效的阻塞者即可
+                                break;
                         }
                     }
                 }
@@ -1370,7 +1409,9 @@ dist_pg_get_local_locks(Tuplestorestate *tupstore, TupleDesc tupdesc)
         }
     }
 
-    // --- 2. 处理谓词锁 (Predicate Locks) ---
+    /*
+	 * Stage 2: Process Predicate Locks
+	 */
     predLockData = GetPredicateLockStatusData();
 
     for (i = 0; i < predLockData->nelements; i++)
@@ -1385,10 +1426,8 @@ dist_pg_get_local_locks(Tuplestorestate *tupstore, TupleDesc tupdesc)
         MemSet(values, 0, sizeof(values));
         MemSet(nulls, false, sizeof(nulls));
 
-        // 第1列: node_name
         values[0] = CStringGetTextDatum(PGXCNodeName);
         
-        // --- 第2-16列: 填充谓词锁信息 ---
         lockType = GET_PREDICATELOCKTARGETTAG_TYPE(*predTag);
         values[1] = CStringGetTextDatum(PredicateLockTagTypeNames[lockType]); // locktype
 
@@ -1421,7 +1460,6 @@ dist_pg_get_local_locks(Tuplestorestate *tupstore, TupleDesc tupdesc)
         values[14] = BoolGetDatum(true);             // granted
         values[15] = BoolGetDatum(false);            // fastpath
         
-        // 第17列: gxid
         if (proc && proc->hasGlobalXid && proc->globalXid[0] != '\0')
             values[16] = CStringGetTextDatum(proc->globalXid);
         else
@@ -1434,300 +1472,23 @@ dist_pg_get_local_locks(Tuplestorestate *tupstore, TupleDesc tupdesc)
     }
 }
 
-
 /*
-Datum
-get_dist_pg_locks_raw(PG_FUNCTION_ARGS)
-{
-    FuncCallContext *funcctx;
-    DistLockStatus  *status;
-	static const char *const PredicateLockTagTypeNames[] = {"relation", "page", "tuple"};
-	// This must match enum LockTagType in lock.h!
-    const char *const LockTagTypeNames[] = {
-        "relation", "extend", "page", "tuple", "transactionid",
-        "virtualxid", "speculative token", "object",
-#ifdef _SHARDING_
-        "shard",
-#endif
-        "userlock", "advisory"
-    };
-
-    if (SRF_IS_FIRSTCALL())
-    {
-        TupleDesc       tupdesc;
-        MemoryContext   oldcontext;
-
-        funcctx = SRF_FIRSTCALL_INIT();
-        oldcontext = MemoryContextSwitchTo(funcctx->multi_call_memory_ctx);
-
-        // 构建返回元组的描述 (17列: node_name + 15 + gxid)
-        tupdesc = CreateTemplateTupleDesc(17, false);
-        TupleDescInitEntry(tupdesc, (AttrNumber) 1, "node_name", TEXTOID, -1, 0);
-        TupleDescInitEntry(tupdesc, (AttrNumber) 2, "locktype", TEXTOID, -1, 0);
-        TupleDescInitEntry(tupdesc, (AttrNumber) 3, "database", OIDOID, -1, 0);
-        TupleDescInitEntry(tupdesc, (AttrNumber) 4, "relation", OIDOID, -1, 0);
-        TupleDescInitEntry(tupdesc, (AttrNumber) 5, "page", INT4OID, -1, 0);
-        TupleDescInitEntry(tupdesc, (AttrNumber) 6, "tuple", INT2OID, -1, 0);
-        TupleDescInitEntry(tupdesc, (AttrNumber) 7, "virtualxid", TEXTOID, -1, 0);
-        TupleDescInitEntry(tupdesc, (AttrNumber) 8, "transactionid", XIDOID, -1, 0);
-        TupleDescInitEntry(tupdesc, (AttrNumber) 9, "classid", OIDOID, -1, 0);
-        TupleDescInitEntry(tupdesc, (AttrNumber) 10, "objid", OIDOID, -1, 0);
-        TupleDescInitEntry(tupdesc, (AttrNumber) 11, "objsubid", INT2OID, -1, 0);
-        TupleDescInitEntry(tupdesc, (AttrNumber) 12, "virtualtransaction", TEXTOID, -1, 0);
-        TupleDescInitEntry(tupdesc, (AttrNumber) 13, "pid", INT4OID, -1, 0);
-        TupleDescInitEntry(tupdesc, (AttrNumber) 14, "mode", TEXTOID, -1, 0);
-        TupleDescInitEntry(tupdesc, (AttrNumber) 15, "granted", BOOLOID, -1, 0);
-        TupleDescInitEntry(tupdesc, (AttrNumber) 16, "fastpath", BOOLOID, -1, 0);
-        TupleDescInitEntry(tupdesc, (AttrNumber) 17, "gxid", TEXTOID, -1, 0);
-        funcctx->tuple_desc = BlessTupleDesc(tupdesc);
-
-        // 创建我们自定义的状态结构体并初始化
-        status = (DistLockStatus *) palloc(sizeof(DistLockStatus));
-        status->lockData = GetLockStatusData();
-        status->currIdx = 0;
-        status->predLockData = GetPredicateLockStatusData();
-        status->predLockIdx = 0;
-        funcctx->user_fctx = status;
-
-        MemoryContextSwitchTo(oldcontext);
-    }
-
-    funcctx = SRF_PERCALL_SETUP();
-    status = (DistLockStatus *) funcctx->user_fctx;
-
-    // --- 处理常规锁 (Regular Locks) ---
-    while (status->currIdx < status->lockData->nelements)
-    {
-        LockInstanceData *instance;
-        PGPROC     *proc;
-        bool        granted;
-        LOCKMODE    mode = 0;
-        Datum       values[17];
-        bool        nulls[17];
-        HeapTuple   tuple;
-        Datum       result;
-
-        instance = &(status->lockData->locks[status->currIdx]);
-        
-        proc = BackendPidGetProc(instance->pid);
-        if (!proc)
-        {
-            status->currIdx++;
-            continue;
-        }
-
-        granted = false;
-        if (instance->holdMask)
-        {
-            for (mode = 0; mode < MAX_LOCKMODES; mode++)
-            {
-                if (instance->holdMask & LOCKBIT_ON(mode))
-                {
-                    granted = true;
-                    instance->holdMask &= LOCKBIT_OFF(mode); // 安全地修改 funcctx 中的副本
-                    break;
-                }
-            }
-        }
-
-        if (!granted)
-        {
-            if (instance->waitLockMode != NoLock)
-            {
-                mode = instance->waitLockMode;
-                status->currIdx++;
-            }
-            else
-            {
-                status->currIdx++;
-                continue;
-            }
-        }
-        
-        MemSet(values, 0, sizeof(values));
-        MemSet(nulls, false, sizeof(nulls));
-
-        // 第1列: node_name
-        values[0] = CStringGetTextDatum(PGXCNodeName);
-        
-        // 第2-16列: pg_locks 的标准15列 (索引+1)
-        if (instance->locktag.locktag_type <= LOCKTAG_LAST_TYPE)
-            values[1] = CStringGetTextDatum(LockTagTypeNames[instance->locktag.locktag_type]);
-        else
-            values[1] = CStringGetTextDatum("unknown");
-
-        switch ((LockTagType) instance->locktag.locktag_type)
-        {
-            case LOCKTAG_RELATION:
-            case LOCKTAG_RELATION_EXTEND:
-                values[2] = ObjectIdGetDatum(instance->locktag.locktag_field1);
-                values[3] = ObjectIdGetDatum(instance->locktag.locktag_field2);
-                nulls[4] = true;
-				nulls[5] = true;
-				nulls[6] = true;
-				nulls[7] = true;
-				nulls[8] = true;
-				nulls[9] = true;
-				nulls[10] = true;
-                break;
-            case LOCKTAG_PAGE:
-                values[1] = ObjectIdGetDatum(instance->locktag.locktag_field1);
-                values[2] = ObjectIdGetDatum(instance->locktag.locktag_field2);
-                values[3] = UInt32GetDatum(instance->locktag.locktag_field3);
-                nulls[4] = true;
-                nulls[5] = true;
-                nulls[6] = true;
-                nulls[7] = true;
-                nulls[8] = true;
-                nulls[9] = true;
-                break;
-            case LOCKTAG_TUPLE:
-                values[1] = ObjectIdGetDatum(instance->locktag.locktag_field1);
-                values[2] = ObjectIdGetDatum(instance->locktag.locktag_field2);
-                values[3] = UInt32GetDatum(instance->locktag.locktag_field3);
-                values[4] = UInt16GetDatum(instance->locktag.locktag_field4);
-                nulls[5] = true;
-                nulls[6] = true;
-                nulls[7] = true;
-                nulls[8] = true;
-                nulls[9] = true;
-                break;
-            case LOCKTAG_TRANSACTION:
-                values[6] =
-                    TransactionIdGetDatum(instance->locktag.locktag_field1);
-                nulls[1] = true;
-                nulls[2] = true;
-                nulls[3] = true;
-                nulls[4] = true;
-                nulls[5] = true;
-                nulls[7] = true;
-                nulls[8] = true;
-                nulls[9] = true;
-                break;
-            case LOCKTAG_VIRTUALTRANSACTION:
-                values[5] = VXIDGetDatum(instance->locktag.locktag_field1,
-                                         instance->locktag.locktag_field2);
-                nulls[1] = true;
-                nulls[2] = true;
-                nulls[3] = true;
-                nulls[4] = true;
-                nulls[6] = true;
-                nulls[7] = true;
-                nulls[8] = true;
-                nulls[9] = true;
-                break;
-            case LOCKTAG_OBJECT:
-            case LOCKTAG_USERLOCK:
-            case LOCKTAG_ADVISORY:
-            default:
-                values[2] = ObjectIdGetDatum(instance->locktag.locktag_field1);
-                values[8] = ObjectIdGetDatum(instance->locktag.locktag_field2);
-                values[9] = ObjectIdGetDatum(instance->locktag.locktag_field3);
-                values[10] = Int16GetDatum(instance->locktag.locktag_field4);
-                nulls[3] = true;
-				nulls[4] = true;
-				nulls[5] = true;
-				nulls[6] = true;
-				nulls[7] = true;
-                break;
-        }
-        values[11] = VXIDGetDatum(instance->backend, instance->lxid);
-        values[12] = Int32GetDatum(instance->pid);
-        values[13] = CStringGetTextDatum(GetLockmodeName(instance->locktag.locktag_lockmethodid, mode));
-        values[14] = BoolGetDatum(granted);
-        values[15] = BoolGetDatum(instance->fastpath);
-
-        // 第17列: gxid
-        if (proc->hasGlobalXid && proc->globalXid[0] != '\0')
-            values[16] = CStringGetTextDatum(proc->globalXid);
-        else
-            nulls[16] = true;
-
-        tuple = heap_form_tuple(funcctx->tuple_desc, values, nulls);
-        result = HeapTupleGetDatum(tuple);
-        SRF_RETURN_NEXT(funcctx, result);
-    }
-
-    // --- 处理谓词锁 (Predicate Locks) ---
-    // This must match enum PredicateLockTargetType
-
-    if (status->predLockIdx < status->predLockData->nelements)
-    {
-        PredicateLockTargetType lockType; // 【修正】定义 lockType 变量
-        PREDICATELOCKTARGETTAG *predTag = &(status->predLockData->locktags[status->predLockIdx]);
-        SERIALIZABLEXACT *xact = &(status->predLockData->xacts[status->predLockIdx]);
-        PGPROC *proc;
-        Datum       values[17];
-        bool        nulls[17];
-        HeapTuple   tuple;
-        Datum       result;
-        
-        proc = BackendPidGetProc(xact->pid);
-        
-        status->predLockIdx++;
-
-        MemSet(values, 0, sizeof(values));
-        MemSet(nulls, false, sizeof(nulls));
-
-        // 第1列: node_name
-        values[0] = CStringGetTextDatum(PGXCNodeName);
-        
-        // --- 第2-16列: 填充谓词锁信息 (严格校对索引和逻辑) ---
-        
-        // lock type
-        lockType = GET_PREDICATELOCKTARGETTAG_TYPE(*predTag); // 【修正】给 lockType 赋值
-        values[1] = CStringGetTextDatum(PredicateLockTagTypeNames[lockType]); // 索引 1 (locktype)
-
-        // lock target
-        values[2] = GET_PREDICATELOCKTARGETTAG_DB(*predTag);      // 索引 2 (database)
-        values[3] = GET_PREDICATELOCKTARGETTAG_RELATION(*predTag); // 索引 3 (relation)
-
-        if (lockType == PREDLOCKTAG_TUPLE)
-            values[5] = GET_PREDICATELOCKTARGETTAG_OFFSET(*predTag); // 索引 5 (tuple)
-        else
-            nulls[5] = true;
-
-        if (lockType == PREDLOCKTAG_TUPLE || lockType == PREDLOCKTAG_PAGE)
-            values[4] = GET_PREDICATELOCKTARGETTAG_PAGE(*predTag);   // 索引 4 (page)
-        else
-            nulls[4] = true;
-
-        // these fields are targets for other types of locks
-        nulls[6] = true;   // virtualxid
-        nulls[7] = true;   // transactionid
-        nulls[8] = true;   // classid
-        nulls[9] = true;   // objid
-        nulls[10] = true;  // objsubid
-
-        // lock holder
-        values[11] = VXIDGetDatum(xact->vxid.backendId, xact->vxid.localTransactionId); // 索引 11 (virtualtransaction)
-        if (xact->pid != 0)
-            values[12] = Int32GetDatum(xact->pid); // 索引 12 (pid)
-        else
-            nulls[12] = true;
-
-        // Lock mode
-        values[13] = CStringGetTextDatum("SIReadLock"); // 索引 13 (mode)
-        values[14] = BoolGetDatum(true);             // 索引 14 (granted)
-        values[15] = BoolGetDatum(false);            // 索引 15 (fastpath)
-        
-        // 第17列: gxid (索引 16)
-        if (proc && proc->hasGlobalXid && proc->globalXid[0] != '\0')
-            values[16] = CStringGetTextDatum(proc->globalXid);
-        else
-            nulls[16] = true;
-            
-        tuple = heap_form_tuple(funcctx->tuple_desc, values, nulls);
-        result = HeapTupleGetDatum(tuple);
-        SRF_RETURN_NEXT(funcctx, result);
-    }
-
-    // 所有常规锁和谓词锁都处理完毕后，才调用 DONE
-    SRF_RETURN_DONE(funcctx);
-}
-*/
-/*
- * dist_pg_get_remote_locks - 远程执行 get_dist_pg_locks(true)
+ * dist_pg_get_remote_locks
+ *
+ * A static helper function that dispatches the get_dist_pg_locks(true) call
+ * to all remote nodes in the cluster and stores their results in the given
+ * Tuplestore.
+ *
+ * This implementation uses a SERIAL dispatch model. It iterates through each
+ * remote node one by one, executes the query, and collects the results before
+ * moving to the next node. While this approach is simpler to implement and
+ * debug, it may be slower than a parallel dispatch model for large clusters.
+ * The choice of serial dispatch is a deliberate trade-off for simplicity and
+ * robustness in this version.
+ *
+ * A parallel implementation would involve creating multiple RemoteQueryState
+ * objects and managing their connections concurrently, which significantly
+ * increases complexity.
  */
 static void
 dist_pg_get_remote_locks(Tuplestorestate *tupstore, TupleDesc tupdesc)
@@ -1735,9 +1496,12 @@ dist_pg_get_remote_locks(Tuplestorestate *tupstore, TupleDesc tupdesc)
 	// 串行
     List *nodelist;
     ListCell *lc;
-	Oid local_node_oid = InvalidOid; // 用于存储本地节点的OID
+	Oid local_node_oid = InvalidOid;
 
-	// --- 1. 手动、一次性地查找本地节点的OID ---
+	/*
+	 * To avoid sending a query to the local node (which is handled
+	 * separately), we must first identify the OID of the current node.
+	 */
 	{ 
 		int num_coords, num_dns;
 		Oid *coord_oids, *dn_oids;
@@ -1778,11 +1542,12 @@ dist_pg_get_remote_locks(Tuplestorestate *tupstore, TupleDesc tupdesc)
 		if (local_node_oid == InvalidOid)
 			elog(ERROR, "could not find OID for local node \"%s\"", PGXCNodeName);
 	}
-    // 1. 获取所有需要查询的远程节点列表
-    //    注意：我们不需要包含本地节点，因为它会在主函数中被单独处理。
+    /* Get a list of all coordinator and datanode OIDs. */
     nodelist = list_concat(GetAllCoordNodes(), GetAllDataNodes());
 
-    // 2. 【核心】使用 foreach 循环，对每个节点进行串行查询
+    /*
+	 * Iterate through each node and execute the remote query serially.
+	 */
     foreach(lc, nodelist)
     {
         int node_oid = lfirst_int(lc);
@@ -1793,23 +1558,26 @@ dist_pg_get_remote_locks(Tuplestorestate *tupstore, TupleDesc tupdesc)
         TupleTableSlot *result;
         MemoryContext oldcontext;
 
-        // 跳过本地节点，因为主函数会处理它
+        /* Skip the local node; it is handled by the calling function. */
         if (node_oid == local_node_oid)
             continue;
 
-        // 准备针对单个节点的远程查询
+        /* Prepare the remote query for this specific node. */
         snprintf(query, sizeof(query), "SELECT * FROM get_dist_pg_locks(true)");
 
         plan = makeNode(RemoteQuery);
         plan->combine_type = COMBINE_TYPE_NONE;
         plan->exec_nodes = makeNode(ExecNodes);
-        plan->exec_nodes->nodeList = list_make1_int(node_oid); // 只发给当前循环的这一个节点
+        plan->exec_nodes->nodeList = list_make1_int(node_oid); /* Target only one node per loop */
         plan->exec_nodes->missing_ok = true;
-        plan->exec_type = EXEC_ON_ALL_NODES; // 明确指定节点列表
+        plan->exec_type = EXEC_ON_ALL_NODES; /* Use EXEC_ON_NODES as we provide an explicit list */
         plan->sql_statement = query;
         plan->force_autocommit = false;
 
-        // 为本次循环创建独立的执行状态
+        /*
+		 * Create a new, temporary EState for each remote query to ensure
+		 * complete isolation between dispatches.
+		 */
         estate = CreateExecutorState();
         oldcontext = MemoryContextSwitchTo(estate->es_query_cxt);
         estate->es_snapshot = GetActiveSnapshot();
@@ -1818,25 +1586,41 @@ dist_pg_get_remote_locks(Tuplestorestate *tupstore, TupleDesc tupdesc)
         ExecAssignResultType((PlanState *) pstate, tupdesc);
         MemoryContextSwitchTo(oldcontext);
 
-        // 接收并处理这个节点的所有返回行
+        /* Fetch all results from the current remote node. */
         while ((result = ExecRemoteQuery((PlanState *) pstate)) != NULL && !TupIsNull(result))
         {
             tuplestore_puttupleslot(tupstore, result);
         }
         
-        // 清理本次循环的资源
+        /* Clean up resources for this iteration before starting the next. */
         ExecEndRemoteQuery(pstate);
         FreeExecutorState(estate);
     }
     
-    list_free(nodelist); // 释放节点列表
-
-	// 并行？
+    list_free(nodelist);
 }
 
 /*
- * get_dist_pg_locks - 最终SQL入口
- * 采用物化模式，协调远程和本地的数据采集。
+ * get_dist_pg_locks
+ *
+ * The main SQL-callable entry point for the distributed locks view. It serves
+ * as the central coordinator for data collection across the cluster.
+ *
+ * This function is implemented as a materialized Set-Returning Function (SRF).
+ * In a single execution, it performs the following steps:
+ *  1. Initializes a Tuplestore to hold the aggregated results.
+ *  2. If executed on a coordinator node (and not in 'localonly' mode), it
+ *     calls the static helper 'dist_pg_get_remote_locks' to dispatch
+ *     collection tasks to all remote nodes.
+ *  3. It then calls the static helper 'dist_pg_get_local_locks' to collect
+ *     and analyze lock information from the local node.
+ *  4. Finally, it returns the fully populated Tuplestore to the executor
+ *     for consumption.
+ *
+ * Arguments:
+ *  localonly (boolean, default false): When true, the function skips the
+ *    remote data collection stage. This is a crucial mechanism used by the
+ *    remote calls themselves to prevent infinite recursion.
  */
 Datum
 get_dist_pg_locks(PG_FUNCTION_ARGS)
@@ -1917,7 +1701,6 @@ _PG_init(void)
 	                         NULL,
 	                         NULL);
 
-	// 定义自己用于调试的GUC变量
 	DefineCustomStringVariable(
 							"pg_dist_stat_views.global_query_id",
 							"Internal GUC to propagate Global Query ID.",
