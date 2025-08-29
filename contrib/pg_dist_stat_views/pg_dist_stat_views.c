@@ -1479,125 +1479,54 @@ dist_pg_get_local_locks(Tuplestorestate *tupstore, TupleDesc tupdesc)
  * to all remote nodes in the cluster and stores their results in the given
  * Tuplestore.
  *
- * This implementation uses a SERIAL dispatch model. It iterates through each
- * remote node one by one, executes the query, and collects the results before
- * moving to the next node. While this approach is simpler to implement and
- * debug, it may be slower than a parallel dispatch model for large clusters.
- * The choice of serial dispatch is a deliberate trade-off for simplicity and
- * robustness in this version.
+ * This implementation uses a PARALLEL dispatch model. It constructs a single
+ * RemoteQuery plan targeting all remote nodes and executes it concurrently.
+ * The remote executor handles the parallel connections and fetches results
+ * as they become available from any node.
  *
- * A parallel implementation would involve creating multiple RemoteQueryState
- * objects and managing their connections concurrently, which significantly
- * increases complexity.
+ * This approach significantly reduces the data collection latency in a large
+ * cluster compared to a serial model, as the total execution time is
+ * determined by the slowest responding node, not the sum of all response times.
  */
 static void
 dist_pg_get_remote_locks(Tuplestorestate *tupstore, TupleDesc tupdesc)
 {
-	// 串行
-    List *nodelist;
-    ListCell *lc;
-	Oid local_node_oid = InvalidOid;
+    char			 query[256];
+	RemoteQuery		*plan;
+	EState			*estate;
+	RemoteQueryState *pstate;
+	TupleTableSlot	*result;
+	MemoryContext	 oldcontext;
 
-	/*
-	 * To avoid sending a query to the local node (which is handled
-	 * separately), we must first identify the OID of the current node.
-	 */
-	{ 
-		int num_coords, num_dns;
-		Oid *coord_oids, *dn_oids;
-		int i;
-		
-		PgxcNodeGetOids(&coord_oids, &dn_oids, &num_coords, &num_dns, false);
+	snprintf(query, sizeof(query), "SELECT * FROM get_dist_pg_locks(true)");
 
-		for (i = 0; i < num_coords; i++)
-		{
-			NodeDefinition *ndef = PgxcNodeGetDefinition(coord_oids[i]);
-			if (ndef && strcmp(NameStr(ndef->nodename), PGXCNodeName) == 0)
-			{
-				local_node_oid = coord_oids[i];
-				pfree(ndef);
-				break;
-			}
-			if (ndef) pfree(ndef);
-		}
-		
-		if (local_node_oid == InvalidOid)
-		{
-			for (i = 0; i < num_dns; i++)
-			{
-				NodeDefinition *ndef = PgxcNodeGetDefinition(dn_oids[i]);
-				if (ndef && strcmp(NameStr(ndef->nodename), PGXCNodeName) == 0)
-				{
-					local_node_oid = dn_oids[i];
-					pfree(ndef);
-					break;
-				}
-				if (ndef) pfree(ndef);
-			}
-		}
-		
-		if (coord_oids) pfree(coord_oids);
-		if (dn_oids) pfree(dn_oids);
+	plan = makeNode(RemoteQuery);
+	plan->combine_type = COMBINE_TYPE_NONE;
+	plan->sql_statement = query;
+	plan->force_autocommit = false;
 
-		if (local_node_oid == InvalidOid)
-			elog(ERROR, "could not find OID for local node \"%s\"", PGXCNodeName);
+	plan->exec_type = EXEC_ON_ALL_NODES;
+
+	plan->exec_nodes = makeNode(ExecNodes);
+	plan->exec_nodes->missing_ok = true;
+
+	estate = CreateExecutorState();
+	oldcontext = MemoryContextSwitchTo(estate->es_query_cxt);
+
+	estate->es_snapshot = GetActiveSnapshot();
+	estate->es_param_list_info = NULL;
+	pstate = ExecInitRemoteQuery(plan, estate, 0);
+	ExecAssignResultType((PlanState *) pstate, tupdesc);
+	
+	MemoryContextSwitchTo(oldcontext);
+
+	while ((result = ExecRemoteQuery((PlanState *) pstate)) != NULL && !TupIsNull(result))
+	{
+		tuplestore_puttupleslot(tupstore, result);
 	}
-    /* Get a list of all coordinator and datanode OIDs. */
-    nodelist = list_concat(GetAllCoordNodes(), GetAllDataNodes());
-
-    /*
-	 * Iterate through each node and execute the remote query serially.
-	 */
-    foreach(lc, nodelist)
-    {
-        int node_oid = lfirst_int(lc);
-        char query[256];
-        RemoteQuery *plan;
-        EState *estate;
-        RemoteQueryState *pstate;
-        TupleTableSlot *result;
-        MemoryContext oldcontext;
-
-        /* Skip the local node; it is handled by the calling function. */
-        if (node_oid == local_node_oid)
-            continue;
-
-        /* Prepare the remote query for this specific node. */
-        snprintf(query, sizeof(query), "SELECT * FROM get_dist_pg_locks(true)");
-
-        plan = makeNode(RemoteQuery);
-        plan->combine_type = COMBINE_TYPE_NONE;
-        plan->exec_nodes = makeNode(ExecNodes);
-        plan->exec_nodes->nodeList = list_make1_int(node_oid); /* Target only one node per loop */
-        plan->exec_nodes->missing_ok = true;
-        plan->exec_type = EXEC_ON_ALL_NODES; /* Use EXEC_ON_NODES as we provide an explicit list */
-        plan->sql_statement = query;
-        plan->force_autocommit = false;
-
-        /*
-		 * Create a new, temporary EState for each remote query to ensure
-		 * complete isolation between dispatches.
-		 */
-        estate = CreateExecutorState();
-        oldcontext = MemoryContextSwitchTo(estate->es_query_cxt);
-        estate->es_snapshot = GetActiveSnapshot();
-        estate->es_param_list_info = NULL;
-        pstate = ExecInitRemoteQuery(plan, estate, 0);
-        ExecAssignResultType((PlanState *) pstate, tupdesc);
-        MemoryContextSwitchTo(oldcontext);
-
-        /* Fetch all results from the current remote node. */
-        while ((result = ExecRemoteQuery((PlanState *) pstate)) != NULL && !TupIsNull(result))
-        {
-            tuplestore_puttupleslot(tupstore, result);
-        }
-        
-        /* Clean up resources for this iteration before starting the next. */
-        ExecEndRemoteQuery(pstate);
-        FreeExecutorState(estate);
-    }
-    
-    list_free(nodelist);
+	
+	ExecEndRemoteQuery(pstate);
+	FreeExecutorState(estate);
 }
 
 /*
