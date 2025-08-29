@@ -885,7 +885,7 @@ dist_pg_stat_get_activity(PG_FUNCTION_ARGS)
 		MemSet(values, 0, sizeof(values));
 		MemSet(nulls, 0, sizeof(nulls));
 		
-		/* Get the next one in the list */	// ????
+		/* Get the next one in the list */
 		local_beentry = pgstat_fetch_stat_local_beentry(curr_backend);
 		local_dsentry = pgstat_fetch_stat_local_dsentry(local_beentry->backend_id);
 		if (!local_beentry || !local_dsentry)
