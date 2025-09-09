@@ -307,20 +307,20 @@ ExecMergeMatched(ModifyTableState *mtstate, EState *estate, ResultRelInfo *resul
 	econtext->ecxt_outertuple = NULL;
 
 lmerge_matched:;
-	
-	Buffer update_buffer;
-	update_tuple.t_self = *tupleid;
-	if (!heap_fetch(resultRelInfo->ri_RelationDesc,
-					SnapshotAny,
-					&update_tuple,
-					&update_buffer,
-					false,
-					NULL))
-		elog(ERROR, "failed to fetch the target tuple");
-	/* we need pin the buffer of updated tuple */
-	ExecStoreBufferHeapTuple(&update_tuple, resultRelInfo->ri_oldTupleSlot, update_buffer);
-	ReleaseBuffer(update_buffer);
-
+	{
+		Buffer update_buffer;
+		update_tuple.t_self = *tupleid;
+		if (!heap_fetch(resultRelInfo->ri_RelationDesc,
+						SnapshotAny,
+						&update_tuple,
+						&update_buffer,
+						false,
+						NULL))
+			elog(ERROR, "failed to fetch the target tuple");
+		/* we need pin the buffer of updated tuple */
+		ExecStoreBufferHeapTuple(&update_tuple, resultRelInfo->ri_oldTupleSlot, update_buffer);
+		ReleaseBuffer(update_buffer);
+	}
 
 	foreach (lc, resultRelInfo->ri_matchedMergeAction)
 	{

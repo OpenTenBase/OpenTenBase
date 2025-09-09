@@ -971,7 +971,7 @@ int create_nodes_group(OpentenbaseConfig* install) {
 
         // Create node_group on master cn or Centralized dn
         if ((is_Centralized_instance(install->instance.instance_type) && install->nodes[i].type == Constants::NODE_TYPE_DN_MASTER)
-        || install->nodes[i].type != Constants::NODE_TYPE_CN_MASTER)
+        || install->nodes[i].type == Constants::NODE_TYPE_CN_MASTER)
         {
             if (create_default_node_group(&install->nodes[i], install) != 0) {
                 LOG_ERROR_FMT("Failed to create default_node_group for %s(%s)", install->nodes[i].name.c_str(), install->nodes[i].ip.c_str());
@@ -1392,11 +1392,13 @@ int status_command(OpentenbaseConfig *install) {
 
         if (is_Centralized_instance(install->instance.instance_type) && is_master_dn(install->nodes[i].type))
         {
+            std::string port = get_node_port(&install->nodes[i], install);
             std::cout << " ------- Master DN Connection Info -------  " << std::endl;
             std::string export_cmd = "export LD_LIBRARY_PATH=" + install->nodes[i].install_path + "/lib  && export PATH=" + install->nodes[i].install_path + "/bin:${PATH} ";
             std::cout << "Environment variable: " << export_cmd << std::endl;
-            std::cout << "PSQL connection: psql -h " << install->nodes[i].ip << " -p 11000 -U opentenbase postgres \n" << std::endl;
-            /* code */
+
+            std::string port = get_node_port(&install->nodes[i], install);
+            std::cout << "PSQL connection: psql -h " << install->nodes[i].ip << " -p " + port + " -U opentenbase postgres \n" << std::endl;
             break;
 
         } else if (is_master_cn(install->nodes[i].type))
@@ -1407,12 +1409,13 @@ int status_command(OpentenbaseConfig *install) {
             {
                 std::cout << " ------- Master CN Connection Info -------  " << std::endl;
             }
-            
-            std::string export_cmd = "export LD_LIBRARY_PATH=" + install->nodes[i].install_path + "/lib  && export PATH=" + install->nodes[i].install_path + "/bin:${PATH} ";
-
             std::cout << "[" << masterCnCount << "] " << install->nodes[i].name << "(" << install->nodes[i].ip << ")  " << std::endl;
+
+            std::string export_cmd = "export LD_LIBRARY_PATH=" + install->nodes[i].install_path + "/lib  && export PATH=" + install->nodes[i].install_path + "/bin:${PATH} ";
             std::cout << "Environment variable: " << export_cmd << std::endl;
-            std::cout << "PSQL connection: psql -h " << install->nodes[i].ip << " -p 11000 -U opentenbase postgres \n" << std::endl;
+
+            std::string port = get_node_port(&install->nodes[i], install);
+            std::cout << "PSQL connection: psql -h " << install->nodes[i].ip << " -p " + port + " -U opentenbase postgres \n" << std::endl;
         }
     }
 
@@ -1480,7 +1483,9 @@ int get_instance_status(OpentenbaseConfig *install) {
 
             std::cout << "[" << masterCnCount << "] " << install->nodes[i].name << "(" << install->nodes[i].ip << ")  " << std::endl;
             std::cout << "Environment variable: " << export_cmd << std::endl;
-            std::cout << "PSQL connection: psql -h " << install->nodes[i].ip << " -p 11000 -U opentenbase postgres \n" << std::endl;
+
+            std::string port = get_node_port(&install->nodes[i], install);
+            std::cout << "PSQL connection: psql -h " << install->nodes[i].ip << " -p " + port + " -U opentenbase postgres \n" << std::endl;
         }
     }
 
@@ -1517,7 +1522,9 @@ int get_node_status(NodeInfo *node, OpentenbaseConfig *install) {
     std::cout << " ------- Node Connection Info -------  " << std::endl;
     std::string export_cmd = "export LD_LIBRARY_PATH=" + node->install_path + "/lib  && export PATH=" + node->install_path + "/bin:${PATH} ";
     std::cout << "Environment variable: " << export_cmd << std::endl;
-    std::cout << "PSQL connection: psql -h " << node->ip << " -p 11000 -U opentenbase postgres \n" << std::endl;
+
+    std::string port = get_node_port(node, install);
+    std::cout << "PSQL connection: psql -h " <<  node->ip << " -p " + port + " -U opentenbase postgres \n" << std::endl;
 
     return 0;
 }
@@ -1613,4 +1620,48 @@ int is_node_running(NodeInfo* node, OpentenbaseConfig* install) {
         // Running
         return 0;
     } 
+}
+
+// Get node port
+std::string get_node_port(NodeInfo* node, OpentenbaseConfig* install) {
+
+    std::string conf_file = "/postgresql.conf";
+    if (is_gtm_node(node->type))
+    {
+        conf_file = "/gtm.conf";
+    }
+    
+    std::string command = "grep '^port' " +  node->data_path + "/postgresql.conf";
+    std::string result;
+    int ret = 0;
+    ret = execute_command(node->ip, install->server.ssh_port, 
+        install->server.ssh_user, install->server.ssh_password, command, result);
+    if (ret != 0)
+    {
+        LOG_ERROR_FMT("Command execution to retrieve (%s:%s)status failed", node->name.c_str(), node->ip.c_str());
+        return "";
+    }
+    
+    return get_value_after_equal(result.c_str());
+}
+
+// get Value After Equal
+std::string get_value_after_equal(const std::string& line) {
+    size_t pos = line.find('=');
+    if (pos == std::string::npos) return "";
+
+    std::string value = line.substr(pos + 1);
+    size_t start = value.find_first_not_of(" \t");
+    if (start == std::string::npos) return "";
+
+    size_t end = value.find_last_not_of(" \t\n"); // 添加 '\n' 到可忽略的字符集中
+    if (end == std::string::npos) return "";
+
+    std::string trimmedValue = value.substr(start, end - start + 1);
+    // 移除末尾的换行符
+    if (!trimmedValue.empty() && trimmedValue.back() == '\n') {
+        trimmedValue.pop_back();
+    }
+
+    return trimmedValue;
 }

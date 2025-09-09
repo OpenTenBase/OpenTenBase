@@ -3706,32 +3706,6 @@ rewriteTargetListMergeInto(
     return list_concat(new_tlist, junk_tlist);
 }
 
-static bool
-contain_nextval_walker(Node *node)
-{
-	if (node == NULL)
-		return false;
-
-	if (IsA(node, FuncExpr))
-	{
-		FuncExpr *fexpr = (FuncExpr *) node;
-
-		if (fexpr->funcid == F_NEXTVAL_OID || fexpr->funcid == F_ORCL_NEXTVAL_OID)
-			return true;
-	}
-
-	if (IsA(node, Query))
-	{
-		/* Recurse into subselects */
-		return query_tree_walker((Query *) node,
-								 contain_nextval_walker,
-								 (void *) NULL, 0);
-	}
-
-	return expression_tree_walker(node, contain_nextval_walker, NULL);
-}
-
-
 /*
  * RewriteQuery -
  *	  rewrites the query and apply the rules again on the queries rewritten

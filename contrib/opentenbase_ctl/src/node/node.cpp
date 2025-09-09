@@ -238,7 +238,7 @@ int configure_cn_node(NodeInfo *node, OpentenbaseConfig *install) {
         {"port", std::to_string(node->port)},
         {"pooler_port", std::to_string(node->pooler_port)},
         {"forward_port", std::to_string(node->forward_port)},
-        {"shared_preload_libraries", "\\'pg_stat_statements,pageinspect,pg_errcode_stat,pg_squeeze,pg_stat_log,pg_stat_error\\'"},
+        {"shared_preload_libraries", "\\'pageinspect\\'"},
         {"pg_stat_statements.max", "1000"},
         {"pg_stat_statements.track", "all"},
         {"pg_stat_log.max", "1024"},
@@ -559,7 +559,7 @@ int configure_dn_node(NodeInfo *node, OpentenbaseConfig *install) {
         {"port", std::to_string(node->port)},
         {"pooler_port", std::to_string(node->pooler_port)},
         {"forward_port", std::to_string(node->forward_port)},
-        {"shared_preload_libraries", "\\'pageinspect,pg_stat_error\\'"},
+        {"shared_preload_libraries", "\\'pageinspect\\'"},
         {"pg_stat_statements.max", "1000"},
         {"pg_stat_statements.track", "all"},
         {"pg_stat_log.max", "1024"},
@@ -1312,9 +1312,6 @@ pqxx::connection* createConnection(const std::string& conninfo) {
 
 // 销毁数据库连接
 void destroyConnection(pqxx::connection* conn) {
-    if (conn && conn->is_open()) {
-        conn->close();
-    }
     delete conn;
     LOG_DEBUG_FMT("The database connection has been closed. ");
 }

@@ -1128,6 +1128,8 @@ ExecDisconnectNode(PlanState *node)
 
 			if (node->plan->remote_flag == -1 && !mstate->eof_underlying)
 			{
+				TupleTableSlot *outerslot;
+				
 				if (tuplestorestate == NULL && mstate->eflags != 0)
 				{
 					tuplestorestate = tuplestore_begin_heap(true, false, work_mem);
@@ -1147,7 +1149,7 @@ ExecDisconnectNode(PlanState *node)
 					mstate->tuplestorestate = tuplestorestate;
 				}
 
-				TupleTableSlot *outerslot = ExecProcNode(outerNode);
+				outerslot = ExecProcNode(outerNode);
 				while (!TupIsNull(outerslot))
 				{
 					tuplestore_puttupleslot(tuplestorestate, outerslot);

@@ -1727,10 +1727,11 @@ ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 		{
 			AggState   *aggstate = castNode(AggState, state->parent);
 			AggStatePerTrans pertrans = op->d.agg_trans.pertrans;
+			AggStatePerGroup pergroup;
 
 			Assert(pertrans->transtypeByVal);
 
-			AggStatePerGroup pergroup = &aggstate->all_pergroups
+			pergroup = &aggstate->all_pergroups
 				[op->d.agg_trans.setoff]
 				[op->d.agg_trans.transno];
 
@@ -1757,10 +1758,11 @@ ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 		{
 			AggState   *aggstate = castNode(AggState, state->parent);
 			AggStatePerTrans pertrans = op->d.agg_trans.pertrans;
+			AggStatePerGroup pergroup;
 
 			Assert(pertrans->transtypeByVal);
 
-			AggStatePerGroup pergroup = &aggstate->all_pergroups
+			pergroup = &aggstate->all_pergroups
 				[op->d.agg_trans.setoff]
 				[op->d.agg_trans.transno];
 
@@ -1777,10 +1779,11 @@ ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 		{
 			AggState   *aggstate = castNode(AggState, state->parent);
 			AggStatePerTrans pertrans = op->d.agg_trans.pertrans;
+			AggStatePerGroup pergroup;
 
 			Assert(pertrans->transtypeByVal);
 
-			AggStatePerGroup pergroup = &aggstate->all_pergroups
+			pergroup = &aggstate->all_pergroups
 				[op->d.agg_trans.setoff]
 				[op->d.agg_trans.transno];
 
@@ -1796,10 +1799,11 @@ ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 		{
 			AggState   *aggstate = castNode(AggState, state->parent);
 			AggStatePerTrans pertrans = op->d.agg_trans.pertrans;
+			AggStatePerGroup pergroup;
 
 			Assert(!pertrans->transtypeByVal);
 
-			AggStatePerGroup pergroup = &aggstate->all_pergroups
+			pergroup = &aggstate->all_pergroups
 				[op->d.agg_trans.setoff]
 				[op->d.agg_trans.transno];
 
@@ -1819,10 +1823,11 @@ ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 		{
 			AggState   *aggstate = castNode(AggState, state->parent);
 			AggStatePerTrans pertrans = op->d.agg_trans.pertrans;
+			AggStatePerGroup pergroup;
 
 			Assert(!pertrans->transtypeByVal);
 
-			AggStatePerGroup pergroup = &aggstate->all_pergroups
+			pergroup = &aggstate->all_pergroups
 				[op->d.agg_trans.setoff]
 				[op->d.agg_trans.transno];
 
@@ -1840,10 +1845,11 @@ ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 		{
 			AggState   *aggstate = castNode(AggState, state->parent);
 			AggStatePerTrans pertrans = op->d.agg_trans.pertrans;
+			AggStatePerGroup pergroup;
 
 			Assert(!pertrans->transtypeByVal);
 
-			AggStatePerGroup pergroup = &aggstate->all_pergroups
+			pergroup = &aggstate->all_pergroups
 				[op->d.agg_trans.setoff]
 				[op->d.agg_trans.transno];
 

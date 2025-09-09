@@ -649,7 +649,7 @@ static Node *reparse_decode_func(List *args, int location);
 
 %type <list>	constraints_set_list
 %type <boolean> constraints_set_mode
-%type <str>		OptTableSpace OptConsTableSpace
+%type <str>		OptConsTableSpace
 %type <str>		OptAlias
 %type <rolespec> OptTableSpaceOwner
 %type <node>    DistributedBy OptDistributedBy
@@ -4994,9 +4994,7 @@ OnCommitOption:  ON COMMIT DROP				{ $$ = ONCOMMIT_DROP; }
 			| /*EMPTY*/						{ $$ = ONCOMMIT_NOOP; }
 		;
 
-OptTableSpace:   TABLESPACE name					{ $$ = $2; }
-			| /*EMPTY*/								{ $$ = NULL; }
-		;
+
 
 TableSpaceInPhyAttr:  TABLESPACE name				{ $$ = makeDefElem(pstrdup($1), (Node *) makeString(pstrdup($2)), @1); }
 		;

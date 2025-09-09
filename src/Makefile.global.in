@@ -758,11 +758,7 @@ ifdef PROFILE
    LDFLAGS += $(PROFILE)
 endif
 
-ifeq ($(DISABLE_WERROR), yes)
-	CFLAGS := $(filter-out -Werror, $(CFLAGS))
-else
-	CFLAGS += -Werror
-endif
+CFLAGS := $(filter-out -Werror, $(CFLAGS))
 
 ifeq ($(enable_simd), yes)
    CFLAGS += -O3 -ftree-vectorize -fopt-info-vec-optimized -funroll-loops -mavx2

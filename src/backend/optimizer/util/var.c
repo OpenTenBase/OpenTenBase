@@ -1596,21 +1596,6 @@ check_varno(Node *qual, int varno, int varlevelsup)
 	return varInfo.result;
 }
 
-/*
- * Search same var in node, return true if found.
- */
-static bool
-contain_same_var_walker(Node *node, void *context)
-{
-	if (node == NULL)
-		return false;
-
-	if (IsA(node, Var) && equal_var( (Var *)node, (Var *)context))
-		return true;
-
-	return expression_tree_walker(node, contain_same_var_walker, context);
-}
-
 bool
 equal_var(Var *var1, Var *var2)
 {

@@ -3,16 +3,19 @@
 
 ___
 # OpenTenBase Database Management System
-OpenTenBase is an advanced enterprise-level database management system based on prior work of Postgres-XL project. It supports an extended subset of the SQL standard, including transactions, foreign keys, user-defined types and functions. Additional, it adds parallel computing, security, management, audit and other functions.
+
+**Language**: [English](README.md) | [简体中文](README_ZH.md)
+
+OpenTenBase is an advanced enterprise-level database management system based on prior work of Postgres-XL project. It supports an extended subset of the SQL standard, including transactions, foreign keys, user-defined types and functions. Additionally, it adds parallel computing, security, management, audit and other functions.
 
 OpenTenBase has many language interfaces similar to PostgreSQL, many of which are listed here:
 
 	https://www.postgresql.org/download
 
 ## Overview
-A OpenTenBase cluster consists of multiple CoordinateNodes, DataNodes, and GTM nodes. All user data resides in the DataNode, the CoordinateNode contains only metadata, the GTM for global transaction management. The CoordinateNodes and DataNodes share the same schema.
+An OpenTenBase cluster consists of multiple CoordinateNodes, DataNodes, and GTM nodes. All user data resides in the DataNodes, the CoordinateNode contains only metadata, the GTM is for global transaction management. The CoordinateNodes and DataNodes share the same schema.
 
-Users always connect to the CoordinateNodes, which divides up the query into fragments that are executed in the DataNodes, and collects the results.
+Users always connect to the CoordinateNodes, which divide up the query into fragments that are executed in the DataNodes, and collect the results.
 
 The latest version of this software may be obtained at:
 
@@ -27,34 +30,42 @@ For more information look at our website located at:
 
 Memory: 4G RAM minimum
 
-OS: TencentOS 2, TencentOS 3, OpenCloudOS, CentOS 7, CentOS 8, Ubuntu
+OS: TencentOS 2, TencentOS 3, OpenCloudOS 8.x, CentOS 7, CentOS 8, Ubuntu 18.04
 
-### Dependence
+### Dependencies
 
-` yum -y install gcc make readline-devel zlib-devel openssl-devel uuid-devel bison flex cmake postgresql-devel libssh2-devel sshpass`
+``` 
+yum -y install git sudo gcc make readline-devel zlib-devel openssl-devel uuid-devel bison flex cmake postgresql-devel libssh2-devel sshpass  libcurl-devel libxml2-devel
+```
 
 or
 
-` apt install -y gcc make libreadline-dev zlib1g-dev libssl-dev libossp-uuid-dev bison flex cmake postgresql-devel libssh2-devel sshpass`
+```
+apt install -y git sudo gcc make libreadline-dev zlib1g-dev libssl-dev libossp-uuid-dev bison flex cmake libssh2-1-dev sshpass libxml2-dev language-pack-zh-hans
+```
+
 
 ### Create User 'opentenbase'
 
 ```bash
-# 1.make dir /data
+# 1. Make directory /data
 mkdir -p /data
 
-# 2. add user 
+# 2. Add user 
 useradd -d /data/opentenbase -s /bin/bash -m opentenbase # add user opentenbase
 
-# 3. set passwd
+# 3. Set password
 passwd opentenbase # set password
 
 # 4. Add users to the wheel group
+# For RedHat
 usermod -aG wheel opentenbase
+# For Debian
+usermod -aG sudo opentenbase
 
-# 5. Enable sudo permissions for the wheel group (via visudo), uncomment the line "% wheel", save and exit， # 取消注释 %wheel 行后保存
+# 5. Enable sudo permissions for the wheel group (via visudo)
 visudo 
-
+# Then uncomment the line "% wheel", save and exit
 ```
 
 ### Building
@@ -68,9 +79,9 @@ export SOURCECODE_PATH=/data/opentenbase/OpenTenBase
 export INSTALL_PATH=/data/opentenbase/install/
 
 cd ${SOURCECODE_PATH}
-rm -rf ${INSTALL_PATH}/opentenbase_bin_v2.0
+rm -rf ${INSTALL_PATH}/opentenbase_bin_v5.0
 chmod +x configure*
-./configure --prefix=${INSTALL_PATH}/opentenbase_bin_v2.0 --enable-user-switch --with-openssl --with-ossp-uuid CFLAGS=-g
+./configure --prefix=${INSTALL_PATH}/opentenbase_bin_v5.0 --enable-user-switch --with-libxml --disable-license --with-openssl --with-ossp-uuid CFLAGS="-g"
 make clean
 make -sj
 make install
@@ -80,7 +91,7 @@ make -sj
 make install
 ```
 
-**Notice: if you use Ubuntu and see *initgtm: command not found* while doing "init all", you may add *${INSTALL_PATH}/opentenbase_bin_v2.0/bin* to */etc/environment***
+**Notice: if you use Ubuntu and see *initgtm: command not found* while doing "init all", you may add *${INSTALL_PATH}/opentenbase_bin_v5.0/bin* to */etc/environment***
 
 ## Installation
 Use PGXC\_CTL tool to build a cluster, for example: a cluster with a global transaction management node (GTM), a coordinator(COORDINATOR) and two data nodes (DATANODE).
@@ -90,7 +101,7 @@ Use PGXC\_CTL tool to build a cluster, for example: a cluster with a global tran
 * 1. Install pgxc and import the path of pgxc installation package into environment variable.
 
 ```shell
-PG_HOME=${INSTALL_PATH}/opentenbase_bin_v2.0
+PG_HOME=${INSTALL_PATH}/opentenbase_bin_v5.0
 export PATH="$PATH:$PG_HOME/bin"
 export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$PG_HOME/lib"
 export LC_ALL=C
@@ -105,10 +116,10 @@ systemctl disable firewalld
 systemctl stop firewalld
 ```
 
-* 3. Create the *. tar.gz package for initializing instances.
+* 3. Create the *.tar.gz package for initializing instances.
 
 ```
-cd /data/opentenbase/install/
+cd /data/opentenbase/install/opentenbase_bin_v5.0
 tar -zcf opentenbase-5.21.8-i.x86_64.tar.gz *
 ```
 
@@ -118,27 +129,27 @@ tar -zcf opentenbase-5.21.8-i.x86_64.tar.gz *
 
 * Description of each field in opentenbase\_config.ini
 ```
-| 配置分类        | 配置项           | 配置说明                                                                   |
-|----------------|-----------------|--------------------------------------------------------------------------|
-| instance       | name            | 实例名称,可用的字符：半角大小写字母、数字、下划线，例如: opentenbase_instance01         |
-|                | type            | distributed代表分布式，需要gtm、协调节点和数据节点；centralized代表集中式        |
-|                | package         | 软件包。全路径(建议)或opentenbase_ctl的相对路径                               |
-| gtm            | master          | 主节点，只有一个IP                                                          |
-|                | slave           | 备节点。如果需要n个备节点，这里配置n个IP，半角逗号分隔。                          |
-| coordinators   | master          | 主节点IP，自动生成节点名称，每个IP上部署nodes-per-server个                     |
-|                | slave           | 备节点IP，个数是master的整数倍。                                             |
-|                |                 | 举例：如果1主1备，则IP个数和master一样多；如果1主2备，则IP个数是master的两倍。     |
-|                | nodes-per-server| 可选，默认1。每个IP上部署的节点数。举例：master有3个IP，这里配置2，则实际会有6个节点 |
-|                |                 | cn001-cn006共6个节点，每个服务器分布2个节点。                                  |
-| datanodes      | master          | 主节点IP，自动生成节点名称，每个IP上部署nodes-per-server个                     |
-|                | slave           | 备节点IP，个数是master的整数倍。                                             |
-|                |                 | 举例：如果1主1备，则IP个数和master一样多；如果1主2备，则IP个数是master的两倍。     |
-|                | nodes-per-server| 可选，默认1。每个IP上部署的节点数。举例：master有3个IP，这里配置2，则实际会有6个节点 |
-|                |                 | dn001-dn006共6个节点，每个服务器分布2个节点。                                  |
-| server         | ssh-user        | 远程执行命令的用户名，需提前创建好,为了配置管理更简单，要求所有服务器的账号一致        |
-|                | ssh-password    | 远程执行命令的密码，需提前创建好,为了配置管理更简单，要求所有服务器的密码一致         |
-|                | ssh-port        | ssh端口，为了配置管理更简单，要求所有服务器的一致                                | 
-| log            | level           | opentenbase_ctl工具运行的日志打印级别(不是opentenbase节点的日志级别)            |
+| Configuration Category | Configuration Item | Description                                                                |
+|------------------------|-------------------|----------------------------------------------------------------------------|
+| instance               | name              | Instance name, available characters: letters, numbers, underscores, e.g.: opentenbase_instance01 |
+|                        | type              | distributed represents distributed mode, requires gtm, coordinator and data nodes; centralized represents centralized mode |
+|                        | package           | Software package. Full path (recommended) or relative path to opentenbase_ctl |
+| gtm                    | master            | Master node, only one IP                                                   |
+|                        | slave             | Slave nodes. If n slave nodes are needed, configure n IPs here, separated by commas |
+| coordinators           | master            | Master node IPs, automatically generate node names, deploy nodes-per-server nodes on each IP |
+|                        | slave             | Slave node IPs, the number is an integer multiple of master               |
+|                        |                   | Example: If 1 master 1 slave, the number of IPs is the same as master; if 1 master 2 slaves, the number of IPs is twice that of master |
+|                        | nodes-per-server  | Optional, default 1. Number of nodes deployed on each IP. Example: master has 3 IPs, configured as 2, then there will be 6 nodes |
+|                        |                   | cn001-cn006 total 6 nodes, 2 nodes distributed on each server            |
+| datanodes              | master            | Master node IPs, automatically generate node names, deploy nodes-per-server nodes on each IP |
+|                        | slave             | Slave node IPs, the number is an integer multiple of master               |
+|                        |                   | Example: If 1 master 1 slave, the number of IPs is the same as master; if 1 master 2 slaves, the number of IPs is twice that of master |
+|                        | nodes-per-server  | Optional, default 1. Number of nodes deployed on each IP. Example: master has 3 IPs, configured as 2, then there will be 6 nodes |
+|                        |                   | dn001-dn006 total 6 nodes, 2 nodes distributed on each server            |
+| server                 | ssh-user          | Username for remote command execution, needs to be created in advance, all servers should have the same account for simpler configuration management |
+|                        | ssh-password      | Password for remote command execution, needs to be created in advance, all servers should have the same password for simpler configuration management |
+|                        | ssh-port          | SSH port, all servers should be consistent for simpler configuration management |
+| log                    | level             | Log level for opentenbase_ctl tool execution (not the log level of opentenbase nodes) |
 
 ```
 
@@ -149,64 +160,64 @@ touch opentenbase_config.ini
 vim opentenbase_config.ini
 ```
 
-* For example, if I have two servers 172.16.16.49 and 172.16.16.131, the typical configuration of a distributed instance distributed across the two servers is as follows. You can copy this configuration information and make modifications according to your deployment requirements.Don't forget to fill in the ssh password configuration.
+* For example, if I have two servers 172.16.16.49 and 172.16.16.131, the typical configuration of a distributed instance distributed across the two servers is as follows. You can copy this configuration information and make modifications according to your deployment requirements. Don't forget to fill in the ssh password configuration.
 ```
-# 实例配置
+# Instance configuration
 [instance]
 name=opentenbase01
 type=distributed
 package=/data/opentenbase/install/opentenbase-5.21.8-i.x86_64.tar.gz
 
-# gtm节点
+# GTM nodes
 [gtm]
 master=172.16.16.49
 slave=172.16.16.50,172.16.16.131
 
-# 协调节点
+# Coordinator nodes
 [coordinators]
 master=172.16.16.49
 slave= 172.16.16.131
 nodes-per-server=1
 
-# 数据节点
+# Data nodes
 [datanodes]
 master=172.16.16.49,172.16.16.131
 slave=172.16.16.131,172.16.16.49
 nodes-per-server=1
 
-# 登录和部署账号
+# Login and deployment account
 [server]
 ssh-user=opentenbase
 ssh-password=
 ssh-port=36000
 
-# 日志配置
+# Log configuration
 [log]
 level=DEBUG
 ```
 
 
-* Similarly, the configuration of a typical centralized instance is as follows.Don't forget to fill in the ssh password configuration.
+* Similarly, the configuration of a typical centralized instance is as follows. Don't forget to fill in the ssh password configuration.
 ```
-# 实例配置
+# Instance configuration
 [instance]
 name=opentenbase02
 type=centralized
 package=/data/opentenbase/install/opentenbase-5.21.8-i.x86_64.tar.gz
 
-# 数据节点
+# Data nodes
 [datanodes]
 master=172.16.16.49
 slave=172.16.16.131
 nodes-per-server=1
 
-# 登录和部署账号
+# Login and deployment account
 [server]
 ssh-user=opentenbase
 ssh-password=
 ssh-port=36000
 
-# 日志配置
+# Log configuration
 [log]
 level=DEBUG
 ```
@@ -214,8 +225,8 @@ level=DEBUG
 2. Execute command for instance installation.
 * Execute installation command: ./opentenbase_ctl install  -c opentenbase_config.ini
 ```
-[opentenbase@VM-16-49-tencentos opentenbase_ctl]# export LD_LIBRARY_PATH=/data/opentenbase/install/lib
-[opentenbase@VM-16-49-tencentos opentenbase_ctl]# ./opentenbase_ctl install  -c opentenbase_config.ini
+export LD_LIBRARY_PATH=/data/opentenbase/install/opentenbase_bin_v5.0/lib
+./opentenbase_bin_v5.0/bin/opentenbase_ctl install  -c opentenbase_config.ini
 
 ====== Start to Install Opentenbase test_cluster01  ====== 
 
@@ -256,10 +267,10 @@ step 6:Create node group ...
 
 ====== Installation completed successfully  ====== 
 ```
-* When you see the words' Installation completed successfully ', it means that the installation has been completed. Enjoy your opentenbase journey to the fullest.
+* When you see the words 'Installation completed successfully', it means that the installation has been completed. Enjoy your opentenbase journey to the fullest.
 * You can check the status of the instance
 ```
-[opentenbase@VM-16-49-tencentos opentenbase_ctl]$ ./opentenbase_ctl status -c opentenbase_config.ini
+[opentenbase@VM-16-49-tencentos opentenbase_ctl]$ ./opentenbase_bin_v5.0/bin/opentenbase_ctl status -c opentenbase_config.ini
 
 ------------- Instance status -----------  
 Instance name: test_cluster01
@@ -317,8 +328,8 @@ Thanks for all contributors here: [CONTRIBUTORS](CONTRIBUTORS.md)
 |------|
 |[Special Review of Cloud Native Open Source Project Application Practice](https://www.opentenbase.org/en/event/event-post-1/)|
 
-## Blogs and Articals
-|Blogs and Articals|
+## Blogs and Articles
+|Blogs and Articles|
 |------------------|
 |[Quick Start](https://www.opentenbase.org/en/blog/01-quickstart/)|
 

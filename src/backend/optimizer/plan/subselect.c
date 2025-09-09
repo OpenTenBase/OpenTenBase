@@ -1574,43 +1574,6 @@ hash_ok_operator(OpExpr *expr)
 	}
 }
 
-#ifdef __OPENTENBASE_C__
-/*
- * For now, we think a cte is simple if and only if it is a kind of table scan
- * actually.
- */
-static bool
-is_cte_complicated(Node *node)
-{
-	Plan *plan;
-
-	if (node == NULL || !IS_PLAN_NODE(node))
-		return false;
-
-	plan = (Plan *) node;
-
-	if (IsA(plan, SeqScan) ||
-		IsA(plan, IndexScan) || IsA(plan, IndexOnlyScan) ||
-		IsA(plan, BitmapHeapScan) || IsA(plan, BitmapIndexScan) ||
-		IsA(plan, TidScan) || IsA(plan, ForeignScan) ||
-		IsA(plan, PartIterator) ||
-		IsA(plan, ValuesScan) || IsA(plan, Result))
-	{
-		return false;
-	}
-
-	if (IsA(plan, Append) || IsA(plan, MergeAppend) ||
-		IsA(plan, Gather) || IsA(plan, GatherMerge) ||
-		IsA(plan, SubqueryScan) || IsA(plan, RemoteSubplan))
-	{
-		return plan_tree_walker(plan, is_cte_complicated, NULL);
-	}
-
-	return true;
-}
-
-#endif
-
 /*
  * SS_process_ctes: process a query's WITH list
  *

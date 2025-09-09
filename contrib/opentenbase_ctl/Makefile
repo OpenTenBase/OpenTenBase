@@ -91,39 +91,9 @@ GTEST_LIB = /usr/local/lib
 GTEST_FLAGS = -lgtest -lgtest_main -pthread
 
 # 默认目标
-.PHONY: all clean test run-test clean-test package check-deps install-deps
+.PHONY: all clean test run-test clean-test package install-deps
 
-all: check-deps opentenbase_ctl
-
-# 检查依赖
-check-deps:
-	@echo "Checking dependencies..."
-	@if ! command -v cmake &> /dev/null; then \
-		echo "cmake not found, installing..."; \
-		sudo yum install -y cmake; \
-	fi
-	@if ! rpm -q postgresql-devel &> /dev/null; then \
-		echo "postgresql-devel not found, installing..."; \
-		sudo yum install -y postgresql-devel; \
-	fi
-	@if ! rpm -q libssh2-devel &> /dev/null; then \
-		echo "libssh2-devel not found, installing..."; \
-		sudo yum install -y libssh2-devel; \
-	fi
-	@if ! ls /usr/local/lib/libpqxx* >/dev/null 2>&1 && ! ls /usr/local/lib64/libpqxx* >/dev/null 2>&1; then \
-		echo "libpqxx not found, installing from source..."; \
-		if [ ! -f "lib/libpqxx-7.7.5.tar.gz" ]; then \
-			echo "Error: libpqxx source package not found in lib/ directory"; \
-			exit 1; \
-		fi; \
-                tar xf lib/libpqxx-7.7.5.tar.gz -C lib && \
-		cd lib/libpqxx-7.7.5; \
-		mkdir -p build && cd build; \
-		cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local; \
-		make -j$(nproc); \
-		sudo make install; \
-		cd ../../..; \
-	fi
+all: opentenbase_ctl
 
 # 主程序
 opentenbase_ctl: $(OBJS)

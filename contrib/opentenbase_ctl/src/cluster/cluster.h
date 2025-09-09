@@ -15,6 +15,11 @@
 // Check if node is running
 int is_node_running(NodeInfo* node, OpentenbaseConfig* install);
 
+// get node port
+std::string get_node_port(NodeInfo* node, OpentenbaseConfig* install);
+
+std::string get_value_after_equal(const std::string& line);
+
 // Get meta and txn connection info from etcd
 int get_connections(OpentenbaseConfig *install);
 
