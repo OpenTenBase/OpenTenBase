@@ -1397,7 +1397,6 @@ int status_command(OpentenbaseConfig *install) {
             std::string export_cmd = "export LD_LIBRARY_PATH=" + install->nodes[i].install_path + "/lib  && export PATH=" + install->nodes[i].install_path + "/bin:${PATH} ";
             std::cout << "Environment variable: " << export_cmd << std::endl;
 
-            std::string port = get_node_port(&install->nodes[i], install);
             std::cout << "PSQL connection: psql -h " << install->nodes[i].ip << " -p " + port + " -U opentenbase postgres \n" << std::endl;
             break;
 

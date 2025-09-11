@@ -2,6 +2,7 @@
 
 ___
 # OpenTenBase 数据库管理系统
+
 OpenTenBase 是基于 Postgres-XL 项目的先进企业级数据库管理系统。它支持SQL标准的扩展子集，包括事务、外键、用户定义类型和函数。此外，它还添加了并行计算、安全性、管理、审计和其他功能。
 
 OpenTenBase具有许多类似于PostgreSQL的语言接口，其中的一些可以在下面的链接中找到：
@@ -24,7 +25,7 @@ OpenTenBase具有许多类似于PostgreSQL的语言接口，其中的一些可�
 ## 构建
 ### 系统要求
 
-内存: 最小 4G RAM
+内存: 最小 8G RAM
 
 操作系统: TencentOS 2, TencentOS 3, OpenCloudOS 8.x, CentOS 7, CentOS 8, Ubuntu 18.04
 
@@ -86,14 +87,12 @@ make -sj
 make install
 ```
 
-**注意: 如果您使用 Ubuntu 并且在"init all"的过程中出现了 `initgtm: command not found`错误, 您可能需要添加 `${INSTALL_PATH}/opentenbase_bin_v5.0/bin` 到 `/etc/environment`中**
-
 ## 安装
-使用 PGXC\_CTL 工具来搭建一个集群，例如：搭建一个具有1个全局事务管理节点(GTM)、1个协调器节点(COORDINATOR)以及2个数据节点(DATANODE)的集群。
+使用 OPENTENBASE\_CTL 工具来搭建一个集群，例如：搭建一个具有1个全局事务管理节点(GTM)、1个协调器节点(COORDINATOR)以及2个数据节点(DATANODE)的集群。
 <img src="images/topology.png" width="50%" />
 ### 准备工作
 
-* 1. 安装 pgxc 并将 pgxc 安装包的路径导入到环境变量中。
+#### 1. 安装 opentenbase 并将 opentenbase 安装包的路径导入到环境变量中。
 
 ```shell
 PG_HOME=${INSTALL_PATH}/opentenbase_bin_v5.0
@@ -102,25 +101,29 @@ export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$PG_HOME/lib"
 export LC_ALL=C
 ```
 
-* 2. 禁用 SELinux 和防火墙（可选）
+#### 2. 禁用 SELinux 和防火墙（可选）
 
 ```
-vi /etc/selinux/config # 设置 SELINUX=disabled
+vi /etc/selinux/config 
+set SELINUX=disabled
+
 # 禁用防火墙
-systemctl disable firewalld
-systemctl stop firewalld
+sudo systemctl disable firewalld
+sudo systemctl stop firewalld
 ```
 
-* 3. 创建用于初始化实例的 *.tar.gz 包。
+#### 3. 创建用于初始化实例的 *.tar.gz 包。
 
 ```
-cd /data/opentenbase/install/opentenbase_bin_v5.0
-tar -zcf opentenbase-5.21.8-i.x86_64.tar.gz *
+cd ${PG_HOME}
+tar -zcf ${INSTALL_PATH}/opentenbase-5.21.8-i.x86_64.tar.gz *
+cd ${INSTALL_PATH}
 ```
 
 ### 集群启动步骤
 
-1. 生成并填写配置文件 opentenbase\_config.ini。pgxc\_ctl 工具可以生成配置文件的模板。您需要在模板中填写集群节点信息。启动 pgxc\_ctl 工具后，将在当前用户的主目录中生成 pgxc\_ctl 目录。输入 "prepare config" 命令后，将在 pgxc\_ctl 目录中生成可直接修改的配置文件模板。
+#### 生成并填写配置文件 
+opentenbase\_config.opentenbase\_ctl 工具可以生成配置文件的模板。您需要在模板中填写集群节点信息。启动 opentenbase\_ctl 工具后，将在当前用户的主目录中生成 opentenbase\_ctl 目录。输入 "prepare config" 命令后，将在 opentenbase\_ctl 目录中生成可直接修改的配置文件模板。
 
 * opentenbase\_config.ini 中各字段说明
 ```
@@ -148,7 +151,7 @@ tar -zcf opentenbase-5.21.8-i.x86_64.tar.gz *
 
 ```
 
-* 为实例创建配置文件 opentenbase\_config.ini
+#### 1. 为实例创建配置文件 opentenbase\_config.ini
 ```
 mkdir -p ./logs
 touch opentenbase_config.ini
@@ -217,8 +220,8 @@ ssh-port=36000
 level=DEBUG
 ```
 
-2. 执行实例安装命令。
-* 执行安装命令：./opentenbase_ctl install  -c opentenbase_config.ini
+#### 2. 执行实例安装命令。
+
 ```
 export LD_LIBRARY_PATH=/data/opentenbase/install/opentenbase_bin_v5.0/lib
 ./opentenbase_bin_v5.0/bin/opentenbase_ctl install  -c opentenbase_config.ini

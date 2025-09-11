@@ -918,7 +918,7 @@ int configure_gtm_node(NodeInfo *node, OpentenbaseConfig *install) {
 }
 
 // 配置 GTM 备节点的函数
-int configure_gtm_slave_node(NodeInfo *node, OpentenbaseConfig *install) {
+int configure_gtm_slave_node1(NodeInfo *node, OpentenbaseConfig *install) {
     LOG_INFO_FMT("Configuring GTM for node %s (%s)", 
                  node->name.c_str(), node->ip.c_str());
     std::string result;
@@ -1025,8 +1025,8 @@ int configure_gtm_slave_node(NodeInfo *node, OpentenbaseConfig *install) {
 }
 
 // Configure gtm node
-int configure_gtm_slave_node1(NodeInfo *node, OpentenbaseConfig *install) {
-    LOG_INFO_FMT("Configuring PostgreSQL for node %s (%s)", 
+int configure_gtm_slave_node(NodeInfo *node, OpentenbaseConfig *install) {
+    LOG_INFO_FMT("Configuring GTM for node %s (%s)", 
             node->name.c_str(), node->ip.c_str());
     std::string command;
     std::string result;

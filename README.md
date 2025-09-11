@@ -28,7 +28,7 @@ For more information look at our website located at:
 ## Building
 ### System Requirements: 
 
-Memory: 4G RAM minimum
+Memory: 8G RAM minimum
 
 OS: TencentOS 2, TencentOS 3, OpenCloudOS 8.x, CentOS 7, CentOS 8, Ubuntu 18.04
 
@@ -91,14 +91,12 @@ make -sj
 make install
 ```
 
-**Notice: if you use Ubuntu and see *initgtm: command not found* while doing "init all", you may add *${INSTALL_PATH}/opentenbase_bin_v5.0/bin* to */etc/environment***
-
 ## Installation
-Use PGXC\_CTL tool to build a cluster, for example: a cluster with a global transaction management node (GTM), a coordinator(COORDINATOR) and two data nodes (DATANODE).
+Use OPENTENBASE\_CTL tool to build a cluster, for example: a cluster with a global transaction management node (GTM), a coordinator(COORDINATOR) and two data nodes (DATANODE).
 <img src="images/topology.png" width="50%" />
 ### Preparation
 
-* 1. Install pgxc and import the path of pgxc installation package into environment variable.
+#### 1. Install opentenbase and import the path of opentenbase installation package into environment variable.
 
 ```shell
 PG_HOME=${INSTALL_PATH}/opentenbase_bin_v5.0
@@ -107,25 +105,29 @@ export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$PG_HOME/lib"
 export LC_ALL=C
 ```
 
-* 2. Disable SELinux and firewall (optional)
+#### 2. Disable SELinux and firewall (optional)
 
 ```
-vi /etc/selinux/config # set SELINUX=disabled
+vi /etc/selinux/config 
+set SELINUX=disabled
+
 # Disable firewalld
-systemctl disable firewalld
-systemctl stop firewalld
+sudo systemctl disable firewalld
+sudo systemctl stop firewalld
 ```
 
-* 3. Create the *.tar.gz package for initializing instances.
+#### 3. Create the *.tar.gz package for initializing instances.
 
 ```
-cd /data/opentenbase/install/opentenbase_bin_v5.0
-tar -zcf opentenbase-5.21.8-i.x86_64.tar.gz *
+cd ${PG_HOME}
+tar -zcf ${INSTALL_PATH}/opentenbase-5.21.8-i.x86_64.tar.gz *
+cd ${INSTALL_PATH}
 ```
 
 ### Cluster startup steps
 
-1. Generate and fill in configuration file opentenbase\_config.ini . pgxc\_ctl tool can generate a template for the configuration file. You need to fill in the cluster node information in the template. After the pgxc\_ctl tool is started, pgxc\_ctl directory will be generated in the current user's home directory. After entering " prepare config" command, the configuration file template that can be directly modified will be generated in pgxc\_ctl directory.
+#### Generate and fill in configuration file opentenbase\_config.ini .
+opentenbase\_ctl tool can generate a template for the configuration file. You need to fill in the cluster node information in the template. After the opentenbase\_ctl tool is started, opentenbase\_ctl directory will be generated in the current user's home directory. After entering " prepare config" command, the configuration file template that can be directly modified will be generated in opentenbase\_ctl directory.
 
 * Description of each field in opentenbase\_config.ini
 ```
@@ -153,7 +155,7 @@ tar -zcf opentenbase-5.21.8-i.x86_64.tar.gz *
 
 ```
 
-* Create a configuration file opentenbase\_config.ini for the instance
+#### 1. Create a configuration file opentenbase\_config.ini for the instance
 ```
 mkdir -p ./logs
 touch opentenbase_config.ini
@@ -222,11 +224,10 @@ ssh-port=36000
 level=DEBUG
 ```
 
-2. Execute command for instance installation.
-* Execute installation command: ./opentenbase_ctl install  -c opentenbase_config.ini
+#### 2. Execute command for instance installation.
+
 ```
-export LD_LIBRARY_PATH=/data/opentenbase/install/opentenbase_bin_v5.0/lib
-./opentenbase_bin_v5.0/bin/opentenbase_ctl install  -c opentenbase_config.ini
+opentenbase_ctl install  -c opentenbase_config.ini
 
 ====== Start to Install Opentenbase test_cluster01  ====== 
 
