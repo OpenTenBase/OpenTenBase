@@ -49,7 +49,6 @@ CREATE OR REPLACE FUNCTION dist_pg_stat_get_activity(
     OUT backend_xid xid,
     OUT backend_xmin xid,
     OUT backend_type text,
-    OUT global_query_id text,
     OUT gxid text
 )
 RETURNS SETOF record
@@ -261,7 +260,7 @@ CREATE OR REPLACE VIEW dist_pg_stat_query_summary AS
 WITH query_activities AS (
     SELECT *
     FROM dist_pg_stat_activity
-    WHERE global_query_id IS NOT NULL AND global_query_id != ''
+    WHERE gxid IS NOT NULL AND gxid != ''
 ),
 
 activities_with_compound_role AS (
@@ -274,7 +273,7 @@ activities_with_compound_role AS (
 )
 
 SELECT
-    gid.global_query_id,
+    gid.gxid,
 
     MAX(gid.query) FILTER (WHERE gid.role = 'coordinator') AS top_level_query,
     MAX(gid.usename) FILTER (WHERE gid.role = 'coordinator') AS username,
@@ -295,7 +294,7 @@ SELECT
                 COUNT(*) as count, 
                 ARRAY_AGG(nodename || ':' || pid ORDER BY nodename, pid) as node_pids
            FROM query_activities
-           WHERE global_query_id = gid.global_query_id
+           WHERE gxid = gid.gxid
            GROUP BY state
            ORDER BY state
           ) AS state_summary
@@ -310,7 +309,7 @@ SELECT
                 COUNT(*) as count, 
                 ARRAY_AGG(nodename || ':' || pid ORDER BY nodename, pid) as node_pids
            FROM query_activities
-           WHERE global_query_id = gid.global_query_id AND wait_event IS NOT NULL
+           WHERE gxid = gid.gxid AND wait_event IS NOT NULL
            GROUP BY wait_event
            ORDER BY wait_event
           ) AS wait_summary
@@ -326,7 +325,7 @@ SELECT
                 COUNT(*) as count, 
                 ARRAY_AGG(pid ORDER BY pid) as pids
            FROM activities_with_compound_role
-           WHERE global_query_id = gid.global_query_id AND compound_role IS NOT NULL
+           WHERE gxid = gid.gxid AND compound_role IS NOT NULL
            GROUP BY compound_role
            ORDER BY compound_role
           ) AS role_summary
@@ -335,9 +334,11 @@ SELECT
 FROM
     query_activities AS gid
 GROUP BY
-    gid.global_query_id
+    gid.gxid
 HAVING
-    COUNT(*) FILTER (WHERE gid.state = 'active') > 0;
+    COUNT(*) FILTER (WHERE gid.state = 'active') > 0
+ORDER BY
+    total_duration DESC;
 
 --
 -- View: dist_pg_stat_query_details
@@ -347,7 +348,7 @@ HAVING
 --
 CREATE OR REPLACE VIEW dist_pg_stat_query_details AS
 SELECT
-    gid.global_query_id,
+    gid.gxid,
     gid.sessionid,
     gid.nodename,
     gid.role,
@@ -375,9 +376,9 @@ SELECT
 FROM
     dist_pg_stat_activity AS gid
 WHERE
-    gid.global_query_id IS NOT NULL AND gid.global_query_id != ''
+    gid.gxid IS NOT NULL AND gid.gxid != ''
 ORDER BY
-    gid.global_query_id,
+    gid.gxid,
     
     CASE gid.role
         WHEN 'coordinator' THEN 1

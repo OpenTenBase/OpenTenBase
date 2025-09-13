@@ -46,7 +46,7 @@ PG_MODULE_MAGIC;
  * Number of columns in the result of the dist_pg_stat_get_activity() function.
  * This must be kept in sync with the function's TuplDesc and SQL definition.
  */
-#define PG_DIST_STAT_ACTIVITY_COLS 28
+#define PG_DIST_STAT_ACTIVITY_COLS 27
 
 /* ----------
  * Total number of backends including auxiliary
@@ -108,8 +108,6 @@ typedef struct PgDistStatStatus
 	 * Generated on the coordinator and propagated to all involved nodes.
 	 * This is the core key for associating activities across the cluster.
 	 */
-	uint64		global_query_id_hash;	/* Hash of the GID for faster internal comparisons. */
-	char		global_query_id[256];	/* Full string of the Global Query ID for display. */
 
 	char		role[NAMEDATALEN];		/* Role in the distributed plan (e.g., coordinator, datanode). */
 	char		sqname[NAMEDATALEN];	/* Name of the Share Queue, if any. */
@@ -156,8 +154,6 @@ static ExecutorStart_hook_type prev_ExecutorStart = NULL;
 static ExecutorEnd_hook_type prev_ExecutorEnd = NULL;
 
 static bool pgds_enable_planstate; /* GUC variable: enable/disable planstate collection. */
-static int pgds_nesting_level = 0; /* Nesting level counter for Executor hooks, to identify top-level queries. */
-static char *pgds_gid_guc_string = NULL; /* GUC variable: propagates the Global Query ID from CN to DNs. */
 
 /*
  * Macros to load and store st_changecount with the memory barriers.
@@ -363,8 +359,6 @@ pgds_entry_initialize(void)
 	 * that are recycled from a connection pool, preventing stale data from a
 	 * previous query from persisting.
 	 */
-    MyDistStatEntry->global_query_id_hash = 0;
-    MyDistStatEntry->global_query_id[0] = '\0';
 
 	/* also set nodename here, it won't change anyway */
 	memcpy(MyDistStatEntry->nodename, PGXCNodeName, strlen(PGXCNodeName) + 1);
@@ -488,98 +482,75 @@ pgds_report_executor_activity(QueryDesc *desc, int eflags)
 	StringInfo planstate_str = NULL;
 	StringInfo cursors = NULL;
 	MemoryContext oldcxt;
-	char gid_string[256];
-	char *gid_to_write;
 	
 	if (prev_ExecutorStart)
 		prev_ExecutorStart(desc, eflags);
 	else
 		standard_ExecutorStart(desc, eflags);
-	
-	pgds_nesting_level++;
+
 
 	if (!desc)
 		return;
-    if (pgds_nesting_level == 1)
-    {
-		/* 
-		* On the coordinator, if no GID is present (i.e., this is the origin
-		* of a new distributed query), generate a new GID.
-		*/
-        if (IS_PGXC_COORDINATOR && (pgds_gid_guc_string == NULL || pgds_gid_guc_string[0] == '\0'))
-        {
-            snprintf(gid_string, sizeof(gid_string), "%s-%d-%lu",
-                     PGXCNodeName, MyProcPid, (unsigned long)GetCurrentTimestamp());
-            (void)set_config_option("pg_dist_stat_views.global_query_id", gid_string,
-                                    PGC_SUSET, PGC_S_SESSION, GUC_ACTION_SET, true, 0, false);
-        }
-		pgds_entry_initialize();
-		entry = MyDistStatEntry;
+	/* 
+	* On the coordinator, if no GID is present (i.e., this is the origin
+	* of a new distributed query), generate a new GID.
+	*/
+	pgds_entry_initialize();
+	entry = MyDistStatEntry;
 
-		/*
-		* On all nodes (CN and DN), atomically write all transient status
-		* information to our shared memory slot.
-		*/
-		gid_to_write = (char *)pgds_gid_guc_string;
-		increment_changecount_before(entry);
+	/*
+	* On all nodes (CN and DN), atomically write all transient status
+	* information to our shared memory slot.
+	*/
+	increment_changecount_before(entry);
 
-		if (gid_to_write && gid_to_write[0] != '\0')
-		{	
-			snprintf((char *)entry->global_query_id, 
-					sizeof(entry->global_query_id), 
-					"%s", 
-					gid_to_write);
-			entry->global_query_id_hash = string_hash(gid_to_write, strlen(gid_to_write));
+	pgds_report_common((PgDistStatStatus *) entry);
+	pgds_report_role((PgDistStatStatus *)entry, desc);
 
-		}
-		pgds_report_common((PgDistStatStatus *) entry);
-		pgds_report_role((PgDistStatStatus *)entry, desc);
-
-		/* Collect and write planstate and cursors if applicable. */
-        if (desc->already_executed)
+	/* Collect and write planstate and cursors if applicable. */
+	if (desc->already_executed)
+	{
+		entry->sqdone = true;
+	}
+	else if (desc->planstate != NULL)
+	{
+		oldcxt = MemoryContextSwitchTo(desc->estate->es_query_cxt);
+		cursors = makeStringInfo();
+		cursorCollectWalker(desc->planstate, cursors);
+		if (cursors->len > 0)
+			snprintf((char *)entry->cursors, sizeof(entry->cursors), "%s", cursors->data);
+		if (pgds_enable_planstate)
 		{
-			entry->sqdone = true;
+			ExplainState es;
+			planstate_str = makeStringInfo();
+			
+			memset(&es, 0, sizeof(es));
+			es.str = planstate_str;
+			es.costs = false;
+			es.skip_remote_query = true;
+			
+			ExplainBeginOutput(&es);
+			ExplainPrintPlan(&es, desc);
+			ExplainEndOutput(&es);
+			
+			if (planstate_str->len > 0)
+				snprintf((char *)entry->planstate, sizeof(entry->planstate), "%s", planstate_str->data);
 		}
-		else if (desc->planstate != NULL)
+		else
 		{
-			oldcxt = MemoryContextSwitchTo(desc->estate->es_query_cxt);
-			cursors = makeStringInfo();
-			cursorCollectWalker(desc->planstate, cursors);
-			if (cursors->len > 0)
-				snprintf((char *)entry->cursors, sizeof(entry->cursors), "%s", cursors->data);
-			if (pgds_enable_planstate)
-			{
-				ExplainState es;
-				planstate_str = makeStringInfo();
-				
-				memset(&es, 0, sizeof(es));
-				es.str = planstate_str;
-				es.costs = false;
-				es.skip_remote_query = true;
-				
-				ExplainBeginOutput(&es);
-				ExplainPrintPlan(&es, desc);
-				ExplainEndOutput(&es);
-				
-				if (planstate_str->len > 0)
-					snprintf((char *)entry->planstate, sizeof(entry->planstate), "%s", planstate_str->data);
-			}
-			else
-			{
-				snprintf((char *)entry->planstate, sizeof(entry->planstate), "disabled");
-			}
-			pfree(cursors->data);
-			pfree(cursors);
-			if (planstate_str)
-			{
-				pfree(planstate_str->data);
-				pfree(planstate_str);
-			}
-			MemoryContextSwitchTo(oldcxt);
+			snprintf((char *)entry->planstate, sizeof(entry->planstate), "disabled");
 		}
-        
-		increment_changecount_after(entry);
-    }
+		pfree(cursors->data);
+		pfree(cursors);
+		if (planstate_str)
+		{
+			pfree(planstate_str->data);
+			pfree(planstate_str);
+		}
+		MemoryContextSwitchTo(oldcxt);
+	}
+	
+	increment_changecount_after(entry);
 }
 
 /*
@@ -601,34 +572,6 @@ pgds_report_executor_activity(QueryDesc *desc, int eflags)
 static void
 pgds_executor_end_hook(QueryDesc *queryDesc)
 {
-	volatile PgDistStatStatus *v_entry;
-	PgDistStatStatus *entry;
-
-	pgds_nesting_level--;
-    if (pgds_nesting_level == 0)
-    {
-        if (IS_PGXC_COORDINATOR)
-        {
-            if (pgds_gid_guc_string && pgds_gid_guc_string[0] != '\0')
-            {
-                (void)set_config_option("pg_dist_stat_views.global_query_id", "",
-                                        PGC_SUSET, PGC_S_SESSION, GUC_ACTION_SET, true, 0, false);
-            }
-        }
-
-        if (MyDistStatEntry)
-        {
-            v_entry = MyDistStatEntry;
-			entry = (PgDistStatStatus *)v_entry;
-
-            increment_changecount_before(v_entry);
-            MemSet(&entry->global_query_id_hash, 0, 
-                   sizeof(PgDistStatStatus) - offsetof(PgDistStatStatus, global_query_id_hash));
-            
-            increment_changecount_after(v_entry);
-
-        }
-    }
     if (prev_ExecutorEnd)
         prev_ExecutorEnd(queryDesc);
     else
@@ -1128,15 +1071,10 @@ dist_pg_stat_get_activity(PG_FUNCTION_ARGS)
 			else
 				nulls[25] = true;
 
-			if (local_dsentry->global_query_id[0] != '\0')
-				values[26] = CStringGetTextDatum(local_dsentry->global_query_id);
+			if (proc->hasGlobalXid && proc->globalXid[0] != '\0')
+				values[26] = CStringGetTextDatum(proc->globalXid);
 			else
 				nulls[26] = true;
-
-			if (proc->hasGlobalXid && proc->globalXid[0] != '\0')
-				values[27] = CStringGetTextDatum(proc->globalXid);
-			else
-				nulls[27] = true;
 		}
 		else
 		{
@@ -1163,7 +1101,6 @@ dist_pg_stat_get_activity(PG_FUNCTION_ARGS)
 			nulls[24] = true;
 			nulls[25] = true;
 			nulls[26] = true;
-			nulls[27] = true;
 		}
 		
 		tuplestore_putvalues(tupstore, tupdesc, values, nulls);
@@ -1629,19 +1566,6 @@ _PG_init(void)
 	                         NULL,
 	                         NULL,
 	                         NULL);
-
-	DefineCustomStringVariable(
-							"pg_dist_stat_views.global_query_id",
-							"Internal GUC to propagate Global Query ID.",
-							NULL,
-							&pgds_gid_guc_string,
-							"",
-							PGC_SUSET,
-							0,
-							NULL,
-							NULL,
-							NULL
-	);
 	
 	/*
 	 * Request additional shared resources.  (These are no-ops if we're not in

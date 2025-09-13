@@ -2601,7 +2601,7 @@ pgstat_fetch_stat_local_beentry(int beid)
     if (beid < 1 || beid > localNumBackends)
         return NULL;
 
-    return &localBackendStatusTable[beid - 1];  // 缓存表
+    return &localBackendStatusTable[beid - 1];
 }
 
 
