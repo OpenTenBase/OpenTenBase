@@ -63,17 +63,19 @@ PG_MODULE_MAGIC;
 
 /*
  * PgDistStatStatus extends the standard PgBackendStatus (see pgstat.c) with
- * additional information specific to a distributed query's execution within
- * the OpenTenBase cluster.
+ * additional, semi-persistent context about a backend's LAST executed
+ * distributed query within the OpenTenBase cluster.
  *
- * Each entry in the shared DistStatArray corresponds to a backend process
- * and stores context that is not available in the standard pgstat system,
- * such as the global query ID and the process's role in a distributed plan.
- * This information is collected at the start of a top-level query via hooks
- * and is cleared upon query completion.
+ * Each entry in the shared DistStatArray corresponds to a backend process.
+ * Unlike a per-query identifier, the information stored here (such as the
+ * process's 'role' in a plan) persists until the backend executes a new
+ * top-level query. The primary key for associating activities across the
+ * cluster is the 'gxid' (Global Transaction ID), which is fetched in
+ * real-time from the PGPROC structure.
  *
- * The final view, dist_pg_stat_activity, joins this information with the
- * real-time data from pg_stat_get_activity() to provide a complete picture.
+ * This hook-collected context, when joined with real-time process state
+ * and the gxid, allows the final view to provide a reasonable approximation
+ * of the current distributed activity.
  */
 typedef struct PgDistStatStatus
 {
@@ -747,20 +749,20 @@ dist_pg_get_remote_activity(const char *sessionid, bool coordonly, Tuplestoresta
  *
  * The core logic involves two stages:
  *  1. Remote data collection: If executed on a coordinator and not in
- *     'localonly' mode, it dispatches a recursive call to all other nodes
- *     via the dist_pg_get_remote_activity() helper.
+ *     'localonly' mode, it dispatches a recursive call to all other nodes.
  *  2. Local data collection: It then iterates through the local backends,
- *     fusing real-time status from the pgstat system (via
- *     pgstat_fetch_stat_local_beentry) with the distributed context
- *     (like global_query_id) stored in our custom shared memory array
- *     (DistStatArray).
+ *     fusing several data sources for each process:
+ *      a) Real-time status from the pgstat system (state, query, etc.).
+ *      b) The Global Transaction ID (gxid) from the PGPROC structure.
+ *      c) The semi-persistent distributed context (role, planstate, etc.)
+ *         from our custom shared memory array (DistStatArray).
  *
  * Arguments:
  *  sessionid (text, optional): Filters the result to a specific global session ID.
  *  coordonly (bool, optional): If true, dispatches remote requests only to
  *                              other coordinator nodes.
  *  localonly (bool, optional): If true, skips the remote data collection stage.
- *                              This is used by the recursive calls to prevent
+ *                              Used by the recursive calls to prevent
  *                              infinite loops.
  */
 Datum
