@@ -1,0 +1,30 @@
+[submodule "third/third/zstd"]
+	path = third/third/zstd
+	url = https://github.com/facebook/zstd
+[submodule "third/third/lz4"]
+	path = third/third/lz4
+	url = https://github.com/lz4/lz4
+[submodule "third/third/CLI11"]
+	path = third/third/CLI11
+	url = https://github.com/CLIUtils/CLI11
+[submodule "third/third/automake"]
+	path = third/third/automake
+	url = https://github.com/autotools-mirror/automake
+[submodule "third/third/libxml2"]
+	path = third/third/libxml2
+	url = https://github.com/GNOME/libxml2
+[submodule "third/zstd"]
+	path = third/zstd
+	url = https://github.com/facebook/zstd
+[submodule "third/lz4"]
+	path = third/lz4
+	url = https://github.com/lz4/lz4
+[submodule "third/CLI11"]
+	path = third/CLI11
+	url = https://github.com/CLIUtils/CLI11
+[submodule "third/automake"]
+	path = third/automake
+	url = https://github.com/autotools-mirror/automake
+[submodule "third/libxml2"]
+	path = third/libxml2
+	url = https://github.com/GNOME/libxml2
