@@ -161,7 +161,7 @@ pgxc_ctl start all
    SELECT count(*) FROM dist_pg_stat_activity;;
     count
    -------
-       10
+       20
    (1 row)
    ```
 
@@ -282,9 +282,13 @@ testdb=# select * from dist_pg_lock_wait_chains;
 *   `chain_head_*` 列: 关于链条“头部”事务的信息。
 *   **`root_blocker_*` 列: (最重要)** 关于链条“根源”（导致整个链条阻塞的最终原因）事务的信息。
 
-## 回归测试 
+## 回归测试
 
-本扩展包含一套回归测试，以确保其稳定性和正确性。
+本扩展包含一套测试，用于验证其功能和稳定性。测试分为两部分：一套用于语法和基础逻辑的自动化测试，以及一套用于复杂并发场景的手动测试指南。
+
+### 1. 自动化基础测试 (`make check`)
+
+这套测试是验证扩展基本功能是否健全的第一道防线。
 
 在 `contrib/pg_dist_stat_views` 目录下，运行:
 
@@ -292,8 +296,120 @@ testdb=# select * from dist_pg_lock_wait_chains;
 make check
 ```
 
-测试流程会自动：
+**测试流程会自动：**
 
-1.  创建一个临时的、隔离的OpenTenBase集群。
-2.  运行一系列`.sql`脚本，验证所有已创建视图的语法和核心逻辑。
-3.  将输出与预期的结果进行比对。
+1.  创建一个临时的、隔离的 OpenTenBase 集群。
+2.  运行一系列 `.sql` 脚本，验证所有已创建视图的语法、列定义和在无并发下的基本查询逻辑。
+3.  将输出与预期的结果进行比对，确保没有基础层面的错误。
+
+**重要限制：**
+
+`make check` 在一个受控的、单线程的测试环境中运行。因此，它**无法**模拟多事务之间的真实并发冲突，例如锁等待、死锁等场景。专门用于诊断此类问题的视图（如 `dist_pg_lock_waits_summary` 和 `dist_pg_lock_wait_chains`）在 `make check` 中只会进行基本的语法检查，而不会验证其核心的并发诊断逻辑。
+
+要验证这些高级视图，请遵循下面的手动测试指南。
+
+### 2. 手动并发测试 (锁等待链场景)
+
+此测试旨在验证 `dist_pg_lock_wait_chains` 视图能否准确地识别、追踪并展示一个多级锁等待链。
+
+#### 场景描述
+
+我们将手动构造一个三级锁等待链 (A → B → C)，其中：
+
+*   事务 C 持有一个行锁。
+*   事务 B 等待事务 C 释放该锁。
+*   事务 A 等待事务 B 释放该锁。
+
+我们将使用第四个会话作为观察者，查询视图并验证结果。
+
+#### 准备工作
+
+1. **准备测试表:** 在您的测试数据库中，创建一个简单的表并插入一行数据。
+
+   ```sql
+   CREATE TABLE lock_test (id INT PRIMARY KEY, data TEXT);
+   INSERT INTO lock_test VALUES (1, 'initial data');
+   ```
+
+2. **打开四个终端会话:** 每个终端都使用 `psql` 连接到**一个协调节点**和**同一个数据库**。我们将它们分别标记为 **Session 1 (C)**, **Session 2 (B)**, **Session 3 (A)**, 和 **Session 4 (Observer)**。
+
+#### 测试步骤
+
+**第 1 步: 在 Session 1 (C) 中，持有锁**
+这个会话将扮演根阻塞者。
+
+```sql
+-- Session 1 (C)
+BEGIN;
+UPDATE lock_test SET data = 'locked by C' WHERE id = 1;
+
+-- 注意：不要 COMMIT 或 ROLLBACK！
+-- 此事务现在持有了 id=1 这一行的排他锁。
+```
+
+**第 2 步: 在 Session 2 (B) 中，等待 C**
+这个会话将成为等待链的中间环节。
+
+```sql
+-- Session 2 (B)
+BEGIN;
+UPDATE lock_test SET data = 'locked by B' WHERE id = 1;
+
+-- 此命令将会“卡住”，因为它正在等待 Session 1 (C) 释放锁。
+```
+
+**第 3 步: 在 Session 3 (A) 中，等待 B**
+这个会话是等待链的最前端，是最初的受害者。
+
+```sql
+-- Session 3 (A)
+BEGIN;
+UPDATE lock_test SET data = 'locked by A' WHERE id = 1;
+
+-- 此命令同样会“卡住”，等待队列在 Session 2 (B) 之后。
+```
+
+**第 4 步: 在 Session 4 (Observer) 中，观察结果**
+现在，锁等待链已经形成。使用观察者会话查询 `dist_pg_lock_wait_chains` 视图。
+
+```sql
+-- Session 4 (Observer)
+SELECT 
+    chain_length,
+    full_wait_chain_gxid,
+    root_blocker_gxid,
+    root_blocker_user_source,
+    root_blocker_query_source,
+    root_blocker_state
+FROM 
+    dist_pg_lock_wait_chains;
+```
+
+#### 预期输出
+
+您应该会看到类似下面的一行结果（GXID 会有所不同）：
+
+```sql
+testdb=# SELECT * FROM dist_pg_lock_wait_chains;
+ chain_length |       full_wait_chain_gxid       |             full_wait_chain_pids             | chain_head_source_node | chain_head_user | chain_head_gxid | root_blocker_source_node | root_blocker_user | root_blocker_gxid |                    chain_head_query                     |                   root_blocker_query                    
+--------------+----------------------------------+----------------------------------------------+------------------------+-----------------+-----------------+--------------------------+-------------------+-------------------+---------------------------------------------------------+---------------------------------------------------------
+            1 | 0:1992:1 -> 0:1995:4             | 464254:dn001 -> 464255:dn001                 | cn001                  | opentenbase     | 0:1992:1        | cn001                    | opentenbase       | 0:1995:4          | UPDATE lock_test SET data = 'locked by B' WHERE id = 1; | UPDATE lock_test SET data = 'locked by C' WHERE id = 1;
+            2 | 1:1994:1 -> 0:1992:1 -> 0:1995:4 | 464275:dn001 -> 464254:dn001 -> 464255:dn001 | cn002                  | opentenbase     | 1:1994:1        | cn001                    | opentenbase       | 0:1995:4          | UPDATE lock_test SET data = 'locked by A' WHERE id = 1; | UPDATE lock_test SET data = 'locked by C' WHERE id = 1;
+(2 rows)
+```
+
+**结果分析:**
+
+*   `chain_length`: 值为 `2`，正确地表示了这是一个包含3个事务、2个等待环节的链条 (A→B, B→C)。
+*   `full_wait_chain_gxid`: 清晰地展示了从链头(1:1994:1)到链根(0:1995:4)的完整GXID路径。
+*   `root_blocker_gxid`: 准确地识别出 `0:1995:4`（即我们的 Session 1 (C)）是导致整个链条阻塞的**根源**。
+*   `root_blocker_*` 列: 提供了根阻塞者的详细信息，包括其来源用户、GXID、执行的查询。
+
+这个输出证明了 `dist_pg_lock_wait_chains` 视图成功地诊断了复杂的多级锁等待问题。
+
+#### 清理
+
+测试完成后，为了释放所有锁，请按顺序在会话中执行 `ROLLBACK`。
+
+1.  **在 Session 1 (C) 中:** `ROLLBACK;` (这会立刻解锁 Session 2)。
+2.  **在 Session 2 (B) 和 Session 3 (A) 中:** 它们的 `UPDATE` 命令会执行失败（因为事务回滚），然后执行 `ROLLBACK;` 即可。
