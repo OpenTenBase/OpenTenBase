@@ -16,7 +16,7 @@ PGFILEDESC = "pg_dist_stat_views - distributed statistics views"
 LDFLAGS_SL += $(filter -lm, $(LIBS))
 
 REGRESS_OPTS = --temp-config $(top_srcdir)/contrib/pg_dist_stat_views/pg_dist_stat_views.conf
-REGRESS = pg_dist_stat_views
+REGRESS = dist_views_base dist_views_logic
 # Disabled because these tests require "shared_preload_libraries=pg_stat_cluster_activity",
 # which typical installcheck users do not have (e.g. buildfarm clients).
 NO_INSTALLCHECK = 1
