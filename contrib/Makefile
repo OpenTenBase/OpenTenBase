@@ -44,6 +44,7 @@ SUBDIRS = \
                 pgstattuple     \
                 pgxc_clean      \
                 pg_clean        \
+                pg_dist_stat_views  \
                 pg_unlock       \
                 pgxc_ctl        \
                 pgxc_monitor \

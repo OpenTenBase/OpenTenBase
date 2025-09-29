@@ -469,10 +469,8 @@ pgds_report_query_activity(BackendState state, const char *cmd_str)
  * responsible for:
  *  1. Identifying the start of a top-level distributed query using a
  *     nesting-level counter.
- *  2. Generating a Global Query ID (GID) on the coordinator node.
- *  3. Propagating the GID to all datanodes via a GUC variable.
- *  4. Recording the GID and other context (role, planstate, cursors) into
- *     the shared memory slot (PgDistStatStatus).
+ *  2. Recording context (role, planstate, cursors) into the shared memory
+ *     slot (PgDistStatStatus) for correlation via OpenTenBase's built-in GXID.
  *
  * This function guarantees that all context for a distributed query is
  * captured atomically at the beginning of its execution.
@@ -493,9 +491,9 @@ pgds_report_executor_activity(QueryDesc *desc, int eflags)
 
 	if (!desc)
 		return;
-	/* 
-	* On the coordinator, if no GID is present (i.e., this is the origin
-	* of a new distributed query), generate a new GID.
+	/*
+	* On all nodes (CN and DN), atomically write all transient status
+	* information to our shared memory slot for GXID-based correlation.
 	*/
 	pgds_entry_initialize();
 	entry = MyDistStatEntry;
@@ -566,7 +564,6 @@ pgds_report_executor_activity(QueryDesc *desc, int eflags)
  *  1. Decrementing the nesting-level counter.
  *  2. When the top-level query finishes (nesting level returns to 0),
  *     it clears all transient fields in the PgDistStatStatus entry.
- *  3. On the coordinator, it also clears the GID propagation GUC variable.
  *
  * This cleanup is crucial to prevent stale data from a completed query
  * being associated with a new query that reuses the same backend process.

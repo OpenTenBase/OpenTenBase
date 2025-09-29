@@ -47,32 +47,45 @@
 
 #### 第 1 步：编译并安装扩展文件
 
-此步骤的目的是将 `pg_dist_stat_views` 的源代码编译成动态链接库（`.so` 文件）和 SQL 控制文件，并将其安装到 OpenTenBase 的扩展目录中。
+此步骤通过 `contrib` 目录的统一编译逻辑，将 `pg_dist_stat_views` 与其他插件一起编译成动态链接库（`.so` 文件）和 SQL 控制文件，并安装到 OpenTenBase 的扩展目录中。
 
 **此操作只需在集群中的任意一台装有完整源码的机器上执行一次。**
 
-1. **进入扩展源码目录：**
-   打开终端，切换到 OpenTenBase 源码树下的 `contrib/pg_dist_stat_views` 目录。请将 `/path/to/opentenbase/source` 替换为您的实际源码路径。
+1. **进入contrib目录：**
+   打开终端，切换到 OpenTenBase 源码树下的 `contrib` 目录。请将 `/path/to/opentenbase/source` 替换为您的实际源码路径。
 
    ```bash
-   cd /path/to/opentenbase/source/contrib/pg_dist_stat_views
+   cd /path/to/opentenbase/source/contrib
    ```
 
-2. **编译代码：**
-   执行 `make` 命令。此命令会调用编译器（如 gcc）将 C 源码编译成目标文件。
+2. **统一编译所有插件（含 pg_dist_stat_views）：**
+   执行 make 命令，系统会自动遍历 SUBDIRS 列表中的所有插件目录（已包含 pg_dist_stat_views）,编译对应的 C 源码。
 
    ```bash
    make
    ```
 
-3. **安装文件：**
-   使用 `sudo` 执行 `make install`。此命令会将编译好的 `.so` 文件、`.control` 文件和 SQL 脚本复制到 PostgreSQL 的系统目录下（例如 `/usr/local/pgsql/lib` 和 `/usr/local/pgsql/share/extension`）。
+3. **统一安装所有插件文件：**
+   使用 sudo 执行 make install，此命令会将所有编译好的插件文件（含 pg_dist_stat_views 的 .so 文件、.control 文件和 SQL 脚本）复制到 OpenTenBase 的系统目录下（例如 `/usr/local/pgsql/lib` 和 `/usr/local/pgsql/share/extension`）。
 
    ```bash
    sudo make install
    ```
 
-   > **提示**：如果 `make install` 后，其他节点无法找到扩展，您可能需要手动将生成的文件从这台机器复制到**所有其他协调节点和数据节点**的相应目录中。保持目录结构一致。
+   > **提示 1**：如果 `make install` 后，其他节点无法找到扩展，您可能需要手动将生成的文件从这台机器复制到**所有其他协调节点和数据节点**的相应目录中。保持目录结构一致。
+   
+    > **提示 2**：若只需单独编译安装 `pg_dist_stat_views` 插件（无需编译其他插件），可直接进入该插件目录执行操作：
+   > ```bash
+   > # 进入插件源码目录
+   > cd /path/to/opentenbase/source/contrib/pg_dist_stat_views
+   > 
+   > # 单独编译该插件
+   > make
+   > 
+   > # 单独安装该插件
+   > sudo make install
+   > ```
+   > 此方式适用于仅更新 `pg_dist_stat_views` 插件的场景，可节省编译时间。
 
 #### 第 2 步：配置 `postgresql.conf` 文件
 
