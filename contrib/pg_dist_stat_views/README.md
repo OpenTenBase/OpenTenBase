@@ -73,19 +73,21 @@
    ```
 
    > **提示 1**：如果 `make install` 后，其他节点无法找到扩展，您可能需要手动将生成的文件从这台机器复制到**所有其他协调节点和数据节点**的相应目录中。保持目录结构一致。
-   
+
     > **提示 2**：若只需单独编译安装 `pg_dist_stat_views` 插件（无需编译其他插件），可直接进入该插件目录执行操作：
-   > ```bash
-   > # 进入插件源码目录
-   > cd /path/to/opentenbase/source/contrib/pg_dist_stat_views
-   > 
-   > # 单独编译该插件
-   > make
-   > 
-   > # 单独安装该插件
-   > sudo make install
-   > ```
-   > 此方式适用于仅更新 `pg_dist_stat_views` 插件的场景，可节省编译时间。
+    >
+    > ```bash
+    > # 进入插件源码目录
+    > cd /path/to/opentenbase/source/contrib/pg_dist_stat_views
+    > 
+    > # 单独编译该插件
+    > make
+    > 
+    > # 单独安装该插件
+    > sudo make install
+    > ```
+    >
+    > 此方式适用于仅更新 `pg_dist_stat_views` 插件的场景，可节省编译时间。
 
 #### 第 2 步：配置 `postgresql.conf` 文件
 
@@ -207,22 +209,22 @@ SELECT * FROM dist_pg_stat_query_summary;
 
 ```sql
 testdb=# select * from dist_pg_stat_query_summary;
- gxid           |                  top_level_query                  |  username   | application_name | client_address | total_duration | involved_processes | distinct_nodes | cluster_xmin_horizon |                                       states_summary                                       |                                         waits_summary                                         |                                     backends_summary                                     
+ global_query_id           |                  top_level_query                  |  username   | application_name | client_address | total_duration | involved_processes | distinct_nodes | cluster_xmin_horizon |                                       states_summary                                       |                                         waits_summary                                         |                                     backends_summary                                     
 ---------------------------+---------------------------------------------------+-------------+------------------+----------------+----------------+--------------------+----------------+----------------------+------------------------------------------------------------------------------------------+-----------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------
- 0:1999:4 | SELECT COUNT(*), pg_sleep(5)                      +| opentenbase | psql             | 127.0.0.1      | 00:00:02.260   |                  7 |              3 |                  643 | active(7){cn001:7082,dn001:7121,dn001:7134,dn001:7136,dn002:7123,dn002:7174,dn002:7175} | ClientRead(4){dn001:7134,dn001:7136,dn002:7174,dn002:7175}, PgSleep(2){dn001:7121,dn002:7123} | coordinator-client backend(1){7082}, datanode-client backend(6){7121,7123,7134,7136,7174,7175}
+ cn001-934244-812553358718868 | SELECT COUNT(*), pg_sleep(5)                      +| opentenbase | psql             | 10.132.221.101      | 00:00:02.260   |                  7 |              3 |                  643 | active(7){cn001:7082,dn001:7121,dn001:7134,dn001:7136,dn002:7123,dn002:7174,dn002:7175} | ClientRead(4){dn001:7134,dn001:7136,dn002:7174,dn002:7175}, PgSleep(2){dn001:7121,dn002:7123} | coordinator-client backend(1){7082}, datanode-client backend(6){7121,7123,7134,7136,7174,7175}
                            | FROM (                                            +|             |                  |                |                |                    |                |                      |                                                                                          |                                                                                               | 
                            |     SELECT t1.id, pg_sleep(0.01)                  +|             |                  |                |                |                    |                |                      |                                                                                          |                                                                                               | 
                            |     FROM my_dist_table AS t1                      +|             |                  |                |                |                    |                |                      |                                                                                          |                                                                                               | 
                            |     JOIN my_dist_table AS t2 ON t1.id = t2.id + 1 +|             |                  |                |                |                    |                |                      |                                                                                          |                                                                                               | 
                            |     WHERE t1.id < 1000                            +|             |                  |                |                |                    |                |                      |                                                                                          |                                                                                               | 
                            | ) AS subquery;                                     |             |                  |                |                |                    |                |                      |                                                                                          |                                                                                               | 
- cn001-7088-808973663463129 | select * from dist_pg_stat_query_summary;          | opentenbase | psql             | 127.0.0.1      | 00:00:00       |                  4 |              4 |                  643 | active(4){cn001:7088,cn002:7194,dn001:7155,dn002:7157}                                   |                                                                                               | coordinator-client backend(2){7088,7194}, datanode-client backend(2){7155,7157}
+ cn001-7088-808973663463129 | select * from dist_pg_stat_query_summary;          | opentenbase | psql             | 10.132.221.101      | 00:00:00       |                  4 |              4 |                  643 | active(4){cn001:7088,cn002:7194,dn001:7155,dn002:7157}                                   |                                                                                               | coordinator-client backend(2){7088,7194}, datanode-client backend(2){7155,7157}
 (2 rows)
 ```
 
 **关键列说明:**
 
-*   `gxid`: 全局事务ID。这是关联所有活动的核心键。
+*   `global_query_id`: 全局查询标识。这是关联所有活动的核心键。
 *   `top_level_query`: 在协调节点上发起的、当前正在执行的SQL文本。
 *   `username`, `client_address`: 发起该事务的用户和客户端信息。
 *   application_name: 一个由客户端应用程序在连接时设置的字符串，用于标识连接来源。

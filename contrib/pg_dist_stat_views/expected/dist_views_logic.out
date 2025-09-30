@@ -1,9 +1,7 @@
 -- Setup
 CREATE EXTENSION pg_dist_stat_views;
-
 CREATE TABLE regress_test_adv (id int primary key, val text) DISTRIBUTE BY SHARD(id);
 INSERT INTO regress_test_adv VALUES (1, 'A'), (2, 'BB'), (3, 'CCC');
-
 -- Test Case 1: dist_pg_stat_query_summary view
 CREATE OR REPLACE FUNCTION test_summary_view_metrics() 
 RETURNS TABLE (
@@ -33,25 +31,39 @@ BEGIN
     WHERE s.global_query_id = v_global_query_id;
 END;
 $$ LANGUAGE plpgsql;
-
 SELECT * FROM test_summary_view_metrics();
+ distinct_nodes_ge_2 | coordinator_count | datanode_count_ge_1 
+---------------------+-------------------+---------------------
+ t                   |                 1 | t
+(1 row)
 
 DROP FUNCTION test_summary_view_metrics();
-
 -- Test Case 2: dist_pg_locks view (broadcast verification)
 BEGIN;
 LOCK TABLE regress_test_adv IN ACCESS EXCLUSIVE MODE;
-
 SELECT count(*)
 FROM dist_pg_locks
 WHERE lock_target = 'regress_test_adv' 
   AND mode = 'AccessExclusiveLock' AND granted;
+ count 
+-------
+     4
+(1 row)
+
   
 ROLLBACK;
-
 -- Test Case 3: Advanced lock views (empty set check)
 SELECT count(*) FROM dist_pg_lock_wait_chains;
+ count 
+-------
+     0
+(1 row)
+
 SELECT count(*) FROM dist_pg_deadlocks;
+ count 
+-------
+     0
+(1 row)
 
 -- Cleanup
 DROP TABLE regress_test_adv;

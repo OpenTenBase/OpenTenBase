@@ -1,0 +1,66 @@
+-- Load extension and create test objects
+CREATE EXTENSION pg_dist_stat_views;
+CREATE TABLE regress_lock_test (id int, val text) DISTRIBUTE BY SHARD(id);
+-- Basic View Syntax Check
+SELECT * FROM dist_pg_stat_activity LIMIT 0;
+ sessionid | pid | client_addr | client_hostname | client_port | nodename | role | datname | usename | wait_event_type | wait_event | state | sqname | sqdone | query | planstate | portal | cursors | backend_start | xact_start | query_start | state_change | application_name | backend_xid | backend_xmin | backend_type | gxid | global_query_id 
+-----------+-----+-------------+-----------------+-------------+----------+------+---------+---------+-----------------+------------+-------+--------+--------+-------+-----------+--------+---------+---------------+------------+-------------+--------------+------------------+-------------+--------------+--------------+------+-----------------
+(0 rows)
+
+SELECT * FROM dist_pg_stat_activity_cn LIMIT 0;
+ sessionid | pid | client_addr | client_hostname | client_port | nodename | role | datname | usename | wait_event_type | wait_event | state | sqname | sqdone | query | planstate | portal | cursors | backend_start | xact_start | query_start | state_change | application_name | backend_xid | backend_xmin | backend_type | gxid | global_query_id 
+-----------+-----+-------------+-----------------+-------------+----------+------+---------+---------+-----------------+------------+-------+--------+--------+-------+-----------+--------+---------+---------------+------------+-------------+--------------+------------------+-------------+--------------+--------------+------+-----------------
+(0 rows)
+
+SELECT * FROM dist_pg_locks_raw LIMIT 0;
+ node_name | locktype | database | relation | page | tuple | virtualxid | transactionid | classid | objid | objsubid | virtualtransaction | pid | mode | granted | fastpath | gxid | blocking_pid | blocking_gxid 
+-----------+----------+----------+----------+------+-------+------------+---------------+---------+-------+----------+--------------------+-----+------+---------+----------+------+--------------+---------------
+(0 rows)
+
+SELECT * FROM dist_pg_locks LIMIT 0;
+ node_name | granted | gxid | pid | locktype | database | relation | page | tuple | virtualxid | transactionid | classid | objid | objsubid | virtualtransaction | mode | fastpath | blocking_node_name | blocking_pid | blocking_gxid | lock_target 
+-----------+---------+------+-----+----------+----------+----------+------+-------+------------+---------------+---------+-------+----------+--------------------+------+----------+--------------------+--------------+---------------+-------------
+(0 rows)
+
+SELECT * FROM dist_pg_locks_all_info LIMIT 0;
+ node_name | granted | waiter_gxid | waiter_pid | waiter_usename | waiter_state | waiter_query | locktype | mode | lock_target | blocking_node_name | blocking_pid | blocking_gxid | blocker_usename | blocking_state | blocking_query 
+-----------+---------+-------------+------------+----------------+--------------+--------------+----------+------+-------------+--------------------+--------------+---------------+-----------------+----------------+----------------
+(0 rows)
+
+SELECT * FROM dist_pg_stat_query_summary LIMIT 0;
+ global_query_id | top_level_query | username | application_name | client_address | total_duration | involved_processes | distinct_nodes | cluster_xmin_horizon | states_summary | waits_summary | backends_summary 
+-----------------+-----------------+----------+------------------+----------------+----------------+--------------------+----------------+----------------------+----------------+---------------+------------------
+(0 rows)
+
+SELECT * FROM dist_pg_stat_query_details LIMIT 0;
+ global_query_id | sessionid | nodename | role | pid | usename | datname | application_name | client_addr | backend_type | state | wait_event_type | wait_event | backend_xid | backend_xmin | query_start | xact_start | backend_start | state_change | query | planstate 
+-----------------+-----------+----------+------+-----+---------+---------+------------------+-------------+--------------+-------+-----------------+------------+-------------+--------------+-------------+------------+---------------+--------------+-------+-----------
+(0 rows)
+
+SELECT * FROM dist_pg_lock_waits_summary LIMIT 0;
+ waiter_gxid | blocking_gxid | waiter_source_node | waiter_user_source | waiter_client_source | waiter_query_source | blocker_source_node | blocker_user_source | blocker_client_source | blocker_query_source | wait_scene_details | locks_waited 
+-------------+---------------+--------------------+--------------------+----------------------+---------------------+---------------------+---------------------+-----------------------+----------------------+--------------------+--------------
+(0 rows)
+
+SELECT * FROM dist_pg_lock_wait_chains LIMIT 0;
+ chain_length | waiting_for | full_wait_chain_gxid | full_wait_chain_pids | chain_head_source_node | chain_head_user | chain_head_gxid | root_blocker_source_node | root_blocker_user | root_blocker_gxid | chain_head_query | root_blocker_query 
+--------------+-------------+----------------------+----------------------+------------------------+-----------------+-----------------+--------------------------+-------------------+-------------------+------------------+--------------------
+(0 rows)
+
+SELECT * FROM dist_pg_deadlocks LIMIT 0;
+ deadlock_cycle_gxid | node_name | pid | gxid | lock_target | lock_mode | waiter_query | blocking_node_name | blocking_pid | blocking_gxid | blocking_query 
+---------------------+-----------+-----+------+-------------+-----------+--------------+--------------------+--------------+---------------+----------------
+(0 rows)
+
+-- Simple Held Lock Verification
+BEGIN;
+LOCK TABLE regress_lock_test IN ACCESS EXCLUSIVE MODE;
+SELECT count(*) FROM dist_pg_locks WHERE lock_target = 'regress_lock_test' AND granted;
+ count 
+-------
+     4
+(1 row)
+
+ROLLBACK;
+DROP TABLE regress_lock_test;
+DROP EXTENSION pg_dist_stat_views;

@@ -49,7 +49,8 @@ CREATE OR REPLACE FUNCTION dist_pg_stat_get_activity(
     OUT backend_xid xid,
     OUT backend_xmin xid,
     OUT backend_type text,
-    OUT gxid text
+    OUT gxid text,
+    OUT global_query_id text
 )
 RETURNS SETOF record
 AS 'MODULE_PATHNAME'
@@ -248,19 +249,26 @@ LEFT JOIN
 /******************************************************************************
  * Section 3: Advanced Analytical Views
  ******************************************************************************/
-
+ 
 --
 -- View: dist_pg_stat_query_summary
--- Description: Provides a high-level summary for each active distributed query,
---              aggregating states, wait events, and backend roles across all
---              involved nodes. Ideal for quick performance bottleneck identification.
+-- Description: Provides a high-level summary for each active distributed query
+--              using global_query_id(GID) as the unique identifier. Aggregates
+--              states, wait events, and backend roles across all involved nodes.
+--              Ideal for quick performance bottleneck identification and
+--              cross-node query correlation.
 --
+-- Key Features:
+--   - Uses global_query_id(GID) for unified query tracking
+--   - Cross-node query correlation and analysis
+--   - Real-time performance monitoring
+--   - Wait event analysis across distributed cluster
 CREATE OR REPLACE VIEW dist_pg_stat_query_summary AS
 
 WITH query_activities AS (
     SELECT *
     FROM dist_pg_stat_activity
-    WHERE gxid IS NOT NULL AND gxid != ''
+    WHERE global_query_id IS NOT NULL AND global_query_id != ''
 ),
 
 activities_with_compound_role AS (
@@ -273,18 +281,15 @@ activities_with_compound_role AS (
 )
 
 SELECT
-    gid.gxid,
-
+    gid.global_query_id,
     MAX(gid.query) FILTER (WHERE gid.role = 'coordinator') AS top_level_query,
     MAX(gid.usename) FILTER (WHERE gid.role = 'coordinator') AS username,
     MAX(gid.application_name) FILTER (WHERE gid.role = 'coordinator') AS application_name,
     MAX(gid.client_addr) FILTER (WHERE gid.role = 'coordinator') AS client_address,
-
     (NOW() - MIN(gid.query_start))::interval(3) AS total_duration,
     COUNT(*) AS involved_processes,
     COUNT(DISTINCT gid.nodename) AS distinct_nodes,
     MIN((gid.backend_xmin::text)::bigint) AS cluster_xmin_horizon,
-
     (SELECT STRING_AGG(
                 state_summary.state || '(' || state_summary.count || '){' || array_to_string(state_summary.node_pids, ',') || '}',
                 ', '
@@ -294,7 +299,7 @@ SELECT
                 COUNT(*) as count, 
                 ARRAY_AGG(nodename || ':' || pid ORDER BY nodename, pid) as node_pids
            FROM query_activities
-           WHERE gxid = gid.gxid
+           WHERE global_query_id = gid.global_query_id
            GROUP BY state
            ORDER BY state
           ) AS state_summary
@@ -309,7 +314,7 @@ SELECT
                 COUNT(*) as count, 
                 ARRAY_AGG(nodename || ':' || pid ORDER BY nodename, pid) as node_pids
            FROM query_activities
-           WHERE gxid = gid.gxid AND wait_event IS NOT NULL
+           WHERE global_query_id = gid.global_query_id AND wait_event IS NOT NULL
            GROUP BY wait_event
            ORDER BY wait_event
           ) AS wait_summary
@@ -325,7 +330,7 @@ SELECT
                 COUNT(*) as count, 
                 ARRAY_AGG(pid ORDER BY pid) as pids
            FROM activities_with_compound_role
-           WHERE gxid = gid.gxid AND compound_role IS NOT NULL
+           WHERE global_query_id = gid.global_query_id AND compound_role IS NOT NULL
            GROUP BY compound_role
            ORDER BY compound_role
           ) AS role_summary
@@ -334,7 +339,7 @@ SELECT
 FROM
     query_activities AS gid
 GROUP BY
-    gid.gxid
+    gid.global_query_id
 HAVING
     COUNT(*) FILTER (WHERE gid.state = 'active') > 0
 ORDER BY
@@ -348,7 +353,7 @@ ORDER BY
 --
 CREATE OR REPLACE VIEW dist_pg_stat_query_details AS
 SELECT
-    gid.gxid,
+    gid.global_query_id,
     gid.sessionid,
     gid.nodename,
     gid.role,
@@ -358,34 +363,28 @@ SELECT
     gid.application_name,
     gid.client_addr,
     gid.backend_type,
-
     gid.state,
     gid.wait_event_type,
     gid.wait_event,
-
     gid.backend_xid,
     gid.backend_xmin,
-
     gid.query_start,
     gid.xact_start,
     gid.backend_start,
     gid.state_change,
-
     gid.query,
     gid.planstate
 FROM
     dist_pg_stat_activity AS gid
 WHERE
-    gid.gxid IS NOT NULL AND gid.gxid != ''
+    gid.global_query_id IS NOT NULL AND gid.global_query_id != ''
 ORDER BY
-    gid.gxid,
-    
+    gid.global_query_id,
     CASE gid.role
         WHEN 'coordinator' THEN 1
         WHEN 'datanode' THEN 2
         ELSE 3
     END,
-
     gid.nodename;
 
 --
@@ -478,11 +477,13 @@ lock_chains_raw AS (
         locks.blocking_gxid,
         locks.blocking_pid,
         locks.blocking_node_name,
+        locks.lock_target,
         
         ARRAY[locks.waiter_gxid] AS gxid_path,
         ARRAY[locks.waiter_pid || ':' || locks.node_name] AS physical_path,
         
-        locks.waiter_gxid AS chain_head_gxid
+        locks.waiter_gxid AS chain_head_gxid,
+        (locks.waiter_gxid || '|' || locks.lock_target) AS chain_identifier
         
     FROM 
         dist_pg_locks_all_info AS locks
@@ -501,11 +502,13 @@ lock_chains_raw AS (
         locks.blocking_gxid,
         locks.blocking_pid,
         locks.blocking_node_name,
+        locks.lock_target,
         
         lc.gxid_path || lc.blocking_gxid,
         lc.physical_path || (locks.waiter_pid || ':' || locks.node_name),
         
-        lc.chain_head_gxid
+        lc.chain_head_gxid,
+        lc.chain_identifier
     FROM 
         lock_chains_raw lc
     JOIN 
@@ -515,17 +518,19 @@ lock_chains_raw AS (
         NOT locks.granted AND locks.blocking_gxid IS NOT NULL
       AND NOT (lc.blocking_gxid = ANY(lc.gxid_path))
 ),
-longest_chains AS (
-    SELECT DISTINCT ON (chain_head_gxid)
+unique_longest_chains AS (
+    SELECT DISTINCT ON (chain_identifier)
+        chain_identifier,
         chain_head_gxid,
         level AS chain_length,
         gxid_path,
         physical_path,
         blocking_gxid AS root_blocker_gxid,
         blocking_pid AS root_blocker_pid,
-        blocking_node_name AS root_blocker_node
+        blocking_node_name AS root_blocker_node,
+        lock_target
     FROM lock_chains_raw
-    ORDER BY chain_head_gxid, level DESC
+    ORDER BY chain_identifier, level DESC, chain_head_gxid
 ),
 cn_activities AS (
     SELECT DISTINCT ON (gxid)
@@ -535,26 +540,30 @@ cn_activities AS (
     ORDER BY gxid, query_start DESC
 )
 SELECT 
-    lc.chain_length,
-    array_to_string(lc.gxid_path, ' -> ') || ' -> ' || lc.root_blocker_gxid AS full_wait_chain_gxid,
-    array_to_string(lc.physical_path, ' -> ') || ' -> ' || (lc.root_blocker_pid || ':' || lc.root_blocker_node) AS full_wait_chain_pids,
+    ulc.chain_length,
+    ulc.lock_target AS waiting_for,
+    array_to_string(ulc.gxid_path, ' -> ') || ' -> ' || ulc.root_blocker_gxid AS full_wait_chain_gxid,
+    array_to_string(ulc.physical_path, ' -> ') || ' -> ' || (ulc.root_blocker_pid || ':' || ulc.root_blocker_node) AS full_wait_chain_pids,
     
     head_cn.source_node AS chain_head_source_node,
     head_cn.usename AS chain_head_user,
-    lc.chain_head_gxid,
+    ulc.chain_head_gxid,
     
     root_cn.source_node AS root_blocker_source_node,
     root_cn.usename AS root_blocker_user,
-    lc.root_blocker_gxid,
+    ulc.root_blocker_gxid,
     
     head_cn.top_level_query AS chain_head_query,
     root_cn.top_level_query AS root_blocker_query
 FROM
-    longest_chains lc
+    unique_longest_chains ulc
 LEFT JOIN
-    cn_activities AS head_cn ON lc.chain_head_gxid = head_cn.gxid
+    cn_activities AS head_cn ON ulc.chain_head_gxid = head_cn.gxid
 LEFT JOIN
-    cn_activities AS root_cn ON lc.root_blocker_gxid = root_cn.gxid;
+    cn_activities AS root_cn ON ulc.root_blocker_gxid = root_cn.gxid
+ORDER BY
+    ulc.chain_length DESC,
+    ulc.chain_head_gxid;
 
 --
 -- View: dist_pg_deadlocks
