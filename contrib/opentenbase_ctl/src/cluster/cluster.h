@@ -116,4 +116,7 @@ int transfer_package_concurrency(OpentenbaseConfig *install,
 // excute sql
 int sql_command(OpentenbaseConfig *config_info);
 
+// display or set guc
+int guc_command(OpentenbaseConfig *config_info);
+
 #endif // CLUSTER_H 

@@ -211,6 +211,9 @@ bool ip_to_in_addr(const std::string& ip_str, in_addr& addr) {
 
 // 判断IP是否为本地IP
 bool is_local_ip(const std::string& ip) {
+
+    return false;
+    /*
     // 1. 检查是否是特殊本地地址
     if (ip == "127.0.0.1" || ip == "localhost" || ip == "::1") {
         return true;
@@ -268,6 +271,7 @@ bool is_local_ip(const std::string& ip) {
 
     freeifaddrs(ifaddr);
     return is_local;
+    */
 }
 
 // Execute command (remote or local)

@@ -53,6 +53,11 @@ int main(int argc, char** argv) {
     else if (Constants::COMMAND_TYPE_SQL == args.command) {
         ret = sql_command(&config);
     }
+    else if (Constants::COMMAND_TYPE_GUC == args.command) {
+        ret = guc_command(&config);
+    } else {
+        std::cout << "This operation is not supported. Please use 'opentenbase_ctl -- help' to view the supported operations" << '\n';
+    }
     
     LOG_INFO_FMT("The execution of the opentenbase_ctl tool has ended.");
     return ret;

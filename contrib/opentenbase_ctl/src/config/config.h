@@ -94,6 +94,14 @@ struct SQLConfig {
     std::string sql;
 };
 
+// guc 配置结构体
+struct GUCConfig {
+    std::string guc_name;
+    std::string guc_value;
+    std::string guc_items_file;
+    std::string op_name;
+};
+
 /**
  * @struct ConfigFile
  * @brief config.ini 配置文件结构体

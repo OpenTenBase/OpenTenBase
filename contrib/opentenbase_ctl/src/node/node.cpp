@@ -15,49 +15,76 @@
 
 
 // Create node directories
-int 
-create_node_directories(NodeInfo *node, OpentenbaseConfig *install) {
+int create_node_directories(NodeInfo *node, OpentenbaseConfig *install) {
     LOG_INFO_FMT("Creating directories for node %s (%s)", node->name.c_str(), node->ip.c_str());
     std::string command;
     std::string result;
     int ret;
+    
+    const int MAX_RETRIES = 3; // 最大重试次数
+    const std::chrono::milliseconds RETRY_INTERVAL(1000); // 重试间隔1秒
 
-    // Create install directory
+    // 创建安装目录（带重试机制）
     command = "mkdir -p " + node->install_path;
     LOG_DEBUG_FMT("Executing command: %s", command.c_str());
-    ret = execute_command(node->ip, 
-        install->server.ssh_port,
-        install->server.ssh_user,
-        install->server.ssh_password,
-        command,
-        result);
-    if (ret != 0) {
-        LOG_ERROR_FMT("Failed to create install directory on node %s (%s): %s", 
-                node->name.c_str(), node->ip.c_str(), result.c_str());
-        return -1;
+    
+    for (int attempt = 1; attempt <= MAX_RETRIES; ++attempt) {
+        ret = execute_command(node->ip, 
+            install->server.ssh_port,
+            install->server.ssh_user,
+            install->server.ssh_password,
+            command,
+            result);
+            
+        if (ret == 0) {
+            LOG_INFO_FMT("Successfully created install directory on node %s (%s) (attempt %d/%d)", 
+                    node->name.c_str(), node->ip.c_str(), attempt, MAX_RETRIES);
+            break; // 成功则跳出重试循环
+        } else {
+            if (attempt < MAX_RETRIES) {
+                LOG_WARN_FMT("Failed to create install directory on node %s (%s) (attempt %d/%d): %s. Retrying in 1 second...", 
+                        node->name.c_str(), node->ip.c_str(), attempt, MAX_RETRIES, result.c_str());
+                std::this_thread::sleep_for(RETRY_INTERVAL); // 等待后重试
+            } else {
+                LOG_ERROR_FMT("Failed to create install directory on node %s (%s) after %d attempts: %s", 
+                        node->name.c_str(), node->ip.c_str(), MAX_RETRIES, result.c_str());
+                return -1; // 重试次数用尽，返回错误
+            }
+        }
     }
-    LOG_INFO_FMT("Successfully created install directory on node %s (%s)", 
-            node->name.c_str(), node->ip.c_str());
 
-    // Create data directory
+    // 创建数据目录（带重试机制）
     command = "mkdir -p " + node->data_path;
     LOG_DEBUG_FMT("Executing command: %s", command.c_str());
-    ret = execute_command(node->ip,
-        install->server.ssh_port,
-        install->server.ssh_user,
-        install->server.ssh_password,
-        command,
-        result);
-    if (ret != 0) {
-        LOG_ERROR_FMT("Failed to create data directory on node %s (%s): %s",
-                node->name.c_str(), node->ip.c_str(), result.c_str());
-        return -1;
+    
+    for (int attempt = 1; attempt <= MAX_RETRIES; ++attempt) {
+        ret = execute_command(node->ip,
+            install->server.ssh_port,
+            install->server.ssh_user,
+            install->server.ssh_password,
+            command,
+            result);
+            
+        if (ret == 0) {
+            LOG_INFO_FMT("Successfully created data directory on node %s (%s) (attempt %d/%d)", 
+                    node->name.c_str(), node->ip.c_str(), attempt, MAX_RETRIES);
+            break; // 成功则跳出重试循环
+        } else {
+            if (attempt < MAX_RETRIES) {
+                LOG_WARN_FMT("Failed to create data directory on node %s (%s) (attempt %d/%d): %s. Retrying in 1 second...", 
+                        node->name.c_str(), node->ip.c_str(), attempt, MAX_RETRIES, result.c_str());
+                std::this_thread::sleep_for(RETRY_INTERVAL); // 等待后重试
+            } else {
+                LOG_ERROR_FMT("Failed to create data directory on node %s (%s) after %d attempts: %s", 
+                        node->name.c_str(), node->ip.c_str(), MAX_RETRIES, result.c_str());
+                return -1; // 重试次数用尽，返回错误
+            }
+        }
     }
-    LOG_INFO_FMT("Successfully created data directory on node %s (%s)",
-            node->name.c_str(), node->ip.c_str());
 
     return 0;
 }
+
 
 // Delete node directories
 int 
@@ -1323,7 +1350,7 @@ int excute_cmd_concurrency(OpentenbaseConfig *configInfo, const std::vector<std:
  * @brief 在多个节点上并发执行sql命令
  * 
  * @param configInfo 配置信息
- * @param server_list 目标服务器地址列表
+ * @param node_list 节点列表
  * @return int 返回 0 表示成功，非0 表示错误码
  */
 int excute_sql_concurrency(OpentenbaseConfig *configInfo, const std::vector<NodeInfo>& node_list) {
@@ -1332,15 +1359,17 @@ int excute_sql_concurrency(OpentenbaseConfig *configInfo, const std::vector<Node
     std::vector<std::thread> threads;
     std::vector<int> results(node_list.size(), 0);
     int failedCount = 0;
+    int tatolCount = 0;
 
     // 手动维护索引
     size_t i = 0; 
     std::string result;
     std::string cmd = configInfo->shell.shell_cmd;
+
     for (const NodeInfo& node : node_list) {
 
         // 如果不是操作的节点，继续下一个
-        if (!node.is_op_node)
+        if (!node.is_op_node || is_gtm_node(node.type))
         {
             continue;
         }
@@ -1355,6 +1384,7 @@ int excute_sql_concurrency(OpentenbaseConfig *configInfo, const std::vector<Node
                                                           node.port, 
                                                           configInfo->sql.user_name, 
                                                           configInfo->sql.database_name, 
+                                                          " ",
                                                           configInfo->sql.sql);
 
             int ret = execute_sql_by_psql(node.ip,
@@ -1372,9 +1402,10 @@ int excute_sql_concurrency(OpentenbaseConfig *configInfo, const std::vector<Node
             } else {
                  // 成功
                 results[i] = 0; 
-                std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " Result: " << result << '\n';
+                std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " Result: " << '\n';
                 std::cout << result.c_str() << '\n';
             }
+            tatolCount++;
         });
         // 手动递增索引
         ++i;
@@ -1393,15 +1424,391 @@ int excute_sql_concurrency(OpentenbaseConfig *configInfo, const std::vector<Node
         }
     }
 
-    int total_num = node_list.size();
-    int success_num = node_list.size() - failedCount;
-
-    std::cout << "Total: " << std::to_string(total_num) << ",Success: " 
+    int success_num = tatolCount - failedCount;
+    std::cout << "Total: " << std::to_string(tatolCount) << ",Success: " 
               << std::to_string(success_num)  << std::endl;
 
     return 0;
 }
 
+/**
+ * @brief 在多个节点上并发执行guc查看命令
+ * 
+ * @param configInfo 配置信息
+ * @param node_list 节点列表
+ * @return int 返回 0 表示成功，非0 表示错误码
+ */
+int excute_show_guc_concurrency(OpentenbaseConfig *configInfo, const std::vector<NodeInfo>& node_list) {
+    
+    // 每个 server 对应一个结果
+    std::vector<std::thread> threads;
+    std::vector<int> results(node_list.size(), 0);
+    int failedCount = 0;
+    int tatolCount = 0;
+
+    // 手动维护索引
+    size_t i = 0; 
+    std::string output;
+    for (const NodeInfo& node : node_list) {
+
+        // 如果不是操作的节点，继续下一个
+        if (!node.is_op_node)
+        {
+            continue;
+        }
+
+        // 捕获当前 node、i、以及其它所需变量
+        threads.emplace_back([&, node, i]() {
+
+
+            int ret = show_guc(configInfo, node, output);
+            if (ret != 0) {
+                LOG_WARN_FMT("Failed to show config item %s on node %s (%s)", 
+                        configInfo->guc.guc_name, node.name.c_str(), node.ip.c_str());
+                std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " Failed to show config item " << configInfo->guc.guc_name  << '\n';
+                results[i] = ret;
+                failedCount++;
+                // todo：failedCount++ 应该用原子操作或加锁，否则多线程下不安全！下面会提到 
+            } 
+
+            // 成功
+            results[i] = 0; 
+            std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " "<< configInfo->guc.guc_name <<"=" << output << '\n';
+            
+            tatolCount++;
+        });
+        // 手动递增索引
+        ++i;
+    }
+
+    // 等待所有线程结束
+    for (auto& thread : threads) {
+        thread.join();
+    }
+
+    // 检查所有结果
+    for (int result : results) {
+        if (result != 0) {
+            LOG_ERROR_FMT("Failed to  excute cmd on one or more servers");
+            return -1;
+        }
+    }
+
+    int success_num = tatolCount - failedCount;
+    std::cout << "Total: " << std::to_string(tatolCount) << ",Success: " 
+              << std::to_string(success_num)  << std::endl;
+
+    return 0;
+}
+
+/**
+ * @brief 在多个节点上并发执行 guc 删除命令，从配置文件中删除
+ * 
+ * @param configInfo 配置信息
+ * @param node_list 节点列表
+ * @return int 返回 0 表示成功，非0 表示错误码
+ */
+int excute_del_guc_concurrency(OpentenbaseConfig *configInfo, const std::vector<NodeInfo>& node_list) {
+    
+    // 每个 server 对应一个结果
+    std::vector<std::thread> threads;
+    std::vector<int> results(node_list.size(), 0);
+    int failedCount = 0;
+    int tatolCount = 0;
+
+    // 手动维护索引
+    size_t i = 0; 
+    std::string output;
+    for (const NodeInfo& node : node_list) {
+
+        // 如果不是操作的节点，继续下一个
+        if (!node.is_op_node)
+        {
+            continue;
+        }
+
+        // 捕获当前 node、i、以及其它所需变量
+        threads.emplace_back([&, node, i]() {
+
+            int ret = delete_guc(configInfo, node);
+            if (ret != 0) {
+                LOG_WARN_FMT("Failed to delete config item %s on node %s (%s)", 
+                        configInfo->guc.guc_name, node.name.c_str(), node.ip.c_str());
+                std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " Failed to delete config item " << configInfo->guc.guc_name  << '\n';
+                results[i] = ret;
+                failedCount++;
+                // todo：failedCount++ 应该用原子操作或加锁，否则多线程下不安全！下面会提到 
+            } 
+
+            // 成功
+            results[i] = 0; 
+            std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " Result: " << output << '\n';
+            std::cout << output.c_str() << '\n';
+            
+            tatolCount++;
+        });
+        // 手动递增索引
+        ++i;
+    }
+
+    // 等待所有线程结束
+    for (auto& thread : threads) {
+        thread.join();
+    }
+
+    // 检查所有结果
+    for (int result : results) {
+        if (result != 0) {
+            LOG_ERROR_FMT("Failed to  excute cmd on one or more servers");
+            return -1;
+        }
+    }
+
+    int success_num = tatolCount - failedCount;
+    std::cout << "Total: " << std::to_string(tatolCount) << ",Success: " 
+              << std::to_string(success_num)  << std::endl;
+
+    return 0;
+}
+
+/**
+ * @brief 在多个节点上并发执行 guc 修改命令
+ * 
+ * @param configInfo 配置信息
+ * @param node_list 节点列表
+ * @return int 返回 0 表示成功，非0 表示错误码
+ */
+int excute_change_guc_concurrency(OpentenbaseConfig *configInfo, const std::vector<NodeInfo>& node_list) {
+    
+    // 每个 server 对应一个结果
+    std::vector<std::thread> threads;
+    std::vector<int> results(node_list.size(), 0);
+    int failedCount = 0;
+    int tatolCount = 0;
+    std::string sql = "";
+
+    // 手动维护索引
+    size_t i = 0; 
+    std::string output;
+    for (const NodeInfo& node : node_list) {
+
+        // 如果不是操作的节点，继续下一个
+        if (!node.is_op_node)
+        {
+            continue;
+        }
+        
+        LOG_INFO_FMT("Start to excute sql(%s) on %s", sql, node);
+
+        // 捕获当前 node、i、以及其它所需变量
+        threads.emplace_back([&, node, i]() {
+
+            int ret = delete_guc(configInfo, node);
+            if (ret != 0) {
+                LOG_WARN_FMT("Failed to delete config item %s on node %s (%s)", 
+                        configInfo->guc.guc_name, node.name.c_str(), node.ip.c_str());
+                std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " Failed to delete config item " << configInfo->guc.guc_name  << '\n';
+                results[i] = ret;
+                failedCount++;
+                // todo：failedCount++ 应该用原子操作或加锁，否则多线程下不安全！下面会提到 
+            } 
+
+            ret = add_guc(configInfo, node);
+            if (ret != 0) {
+                LOG_WARN_FMT("Failed to delete config item %s on node %s (%s)", 
+                        configInfo->guc.guc_name, node.name.c_str(), node.ip.c_str());
+                std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " Failed to delete config item " << configInfo->guc.guc_name  << '\n';
+                results[i] = ret;
+                failedCount++;
+                // todo：failedCount++ 应该用原子操作或加锁，否则多线程下不安全！下面会提到
+            } 
+
+            // 成功
+            results[i] = 0; 
+            std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " " << configInfo->guc.guc_name << " Change to " << configInfo->guc.guc_value << '\n';
+            std::cout << output.c_str() << '\n';
+            
+            tatolCount++;
+        });
+        // 手动递增索引
+        ++i;
+    }
+
+    // 等待所有线程结束
+    for (auto& thread : threads) {
+        thread.join();
+    }
+
+    // 检查所有结果
+    for (int result : results) {
+        if (result != 0) {
+            LOG_ERROR_FMT("Failed to  excute cmd on one or more servers");
+            return -1;
+        }
+    }
+
+    int success_num = tatolCount - failedCount;
+    std::cout << "Total: " << std::to_string(tatolCount) << ",Success: " 
+              << std::to_string(success_num)  << std::endl;
+
+    return 0;
+}
+
+/**
+ * @brief 删除节点的guc配置
+ * 
+ * @param config OpentenbaseConfig 结构体的引用，包含所有节点信息
+ * @param node 节点信息
+ * @return 处理结果，0代表成功，其他代表失败
+ */
+int delete_guc(const OpentenbaseConfig *configInfo, const NodeInfo& node) {
+
+    int ret = 0;
+    std::string result = "";
+
+    if (is_gtm_node(node.type))
+    {
+        std::string command="sed -i '/^[[:blank:]]*" + configInfo->guc.guc_name + "[[:blank:]]*=/d' " + node.data_path + "/" + Constants::FILE_GTM_CONF;
+        LOG_DEBUG_FMT("Executing command: %s", command.c_str());
+        ret = remote_ssh_exec(node.ip,
+            configInfo->server.ssh_port,
+            configInfo->server.ssh_user,
+            configInfo->server.ssh_password,
+            command,
+            result);
+        if (ret != 0) {
+            LOG_WARN_FMT("Failed to delete config item %s on node %s (%s): %s", 
+                    configInfo->guc.guc_name, node.name.c_str(), node.ip.c_str(), result.c_str());
+            std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " Failed to delete config item " << configInfo->guc.guc_name  << '\n';
+        } 
+        
+    } else {
+
+        std::string command="sed -i '/^[[:blank:]]*" + configInfo->guc.guc_name + "[[:blank:]]*=/d' " + node.data_path + "/" + Constants::FILE_POSTGRESQL_CONF;
+        LOG_DEBUG_FMT("Executing command: %s", command.c_str());
+        ret = remote_ssh_exec(node.ip,
+            configInfo->server.ssh_port,
+            configInfo->server.ssh_user,
+            configInfo->server.ssh_password,
+            command,
+            result);
+        if (ret != 0) {
+            LOG_WARN_FMT("Failed to delete config item %s on node %s (%s): %s", 
+                    configInfo->guc.guc_name, node.name.c_str(), node.ip.c_str(), result.c_str());
+            std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " Failed to delete config item " << configInfo->guc.guc_name  << '\n';
+        } 
+
+        command="sed -i '/^[[:blank:]]*" + configInfo->guc.guc_name + "[[:blank:]]*=/d' " + node.data_path + "/" + Constants::FILE_POSTGRESQL_CONF_USER;
+        LOG_DEBUG_FMT("Executing command: %s", command.c_str());
+        ret = remote_ssh_exec(node.ip,
+            configInfo->server.ssh_port,
+            configInfo->server.ssh_user,
+            configInfo->server.ssh_password,
+            command,
+            result);
+        if (ret != 0) {
+            LOG_WARN_FMT("Failed to delete config item %s on node %s (%s): %s", 
+                    configInfo->guc.guc_name, node.name.c_str(), node.ip.c_str(), result.c_str());
+            std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " Failed to delete config item " << configInfo->guc.guc_name  << '\n';
+        }
+    }
+    
+
+    return ret;
+}
+
+/**
+ * @brief 添加节点的guc配置
+ * 
+ * @param config OpentenbaseConfig 结构体的引用，包含所有节点信息
+ * @param node 节点信息
+ * @return 处理结果，0代表成功，其他代表失败
+ */
+int add_guc(const OpentenbaseConfig *configInfo, const NodeInfo& node) {
+
+    int ret = 0;
+    std::string result = "";
+
+    // 配置文件
+    std::string config_file_path = "";
+    if (is_gtm_node(node.type))
+    {
+        config_file_path = node.data_path + "/" + Constants::FILE_GTM_CONF;
+    } else{
+        config_file_path = node.data_path + "/" + Constants::FILE_POSTGRESQL_CONF_USER;
+    }
+
+    // Build base command string
+    std::string command = "echo -e \"";
+    command += configInfo->guc.guc_name + " = " + configInfo->guc.guc_value;
+    command += "\" >> " + config_file_path;
+
+    ret = remote_ssh_exec(node.ip,
+                        configInfo->server.ssh_port,
+                        configInfo->server.ssh_user,
+                        configInfo->server.ssh_password,
+                        command,
+                        result);
+    if (ret != 0) {
+        LOG_WARN_FMT("Failed to add config item %s on node %s (%s): %s", 
+                configInfo->guc.guc_name, node.name.c_str(), node.ip.c_str(), result.c_str());
+        std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " Failed to add config item " << configInfo->guc.guc_name  << '\n';
+    }
+
+    return ret; 
+}
+
+/**
+ * @brief 显示节点的guc配置
+ * 
+ * @param config OpentenbaseConfig 结构体的引用，包含所有节点信息
+ * @param node 节点信息
+ * @return 处理结果，0代表成功，其他代表失败
+ */
+int show_guc(const OpentenbaseConfig *configInfo, const NodeInfo& node, std::string& result) {
+
+    int ret = 0;
+    if (is_gtm_node(node.type)){
+
+        std::string command = "grep '^" + configInfo->guc.guc_name + "' " + node.data_path + "/" + Constants::FILE_GTM_CONF + " | cut -d'=' -f2 | head -n1";
+        LOG_DEBUG_FMT("Executing command: %s", command.c_str());
+        ret = remote_ssh_exec(node.ip,
+            configInfo->server.ssh_port,
+            configInfo->server.ssh_user,
+            configInfo->server.ssh_password,
+            command,
+            result);
+        if (ret != 0) {
+            LOG_WARN_FMT("Failed to show config item %s on node %s (%s): %s", 
+                    configInfo->guc.guc_name, node.name.c_str(), node.ip.c_str(), result.c_str());
+            std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " Failed to delete config item " << configInfo->guc.guc_name  << '\n';
+        } 
+
+    } else {
+
+        std::string sql = "show " + configInfo->guc.guc_name;
+        std::string psql_cmd = build_sql_cmd_for_psql(node.install_path, 
+                                                    node.ip, 
+                                                    node.port, 
+                                                    configInfo->sql.user_name, 
+                                                    configInfo->sql.database_name, 
+                                                    " --no-align --tuples-only ",
+                                                    sql);
+
+        ret = execute_sql_by_psql(node.ip,
+                                configInfo->server.ssh_port,
+                                configInfo->server.ssh_user,
+                                configInfo->server.ssh_password,
+                                psql_cmd,
+                                result);
+        if (ret != 0) {
+            LOG_WARN_FMT("Failed to excute sql(%s) on %s", psql_cmd, node);
+            std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " Failed to excute sql in database " << configInfo->sql.database_name << " as user " << configInfo->sql.user_name << '\n';
+        }
+    }
+
+    return ret; 
+}
 
 /**
  * @brief 筛选满足 is_op_node 条件的节点

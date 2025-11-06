@@ -153,6 +153,7 @@ std::string build_sql_cmd_for_psql(const std::string& binDir,
     const int port, 
     const std::string& username, 
     const std::string& database, 
+    const std::string& psql_option, 
     const std::string& sql);
 
 // build export env str

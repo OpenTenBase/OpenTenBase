@@ -51,13 +51,25 @@ int excute_cmd_concurrency(OpentenbaseConfig *configInfo, const std::vector<std:
 // excute sql concurrency
 int excute_sql_concurrency(OpentenbaseConfig *configInfo, const std::vector<NodeInfo>& node_list);
 
-/**
- * @brief 筛选满足 is_op_node 条件的节点
- * 
- * @param config OpentenbaseConfig 结构体的引用，包含所有节点信息
- * @param is_op_node 布尔值，用于筛选节点的 is_op_node 属性
- * @return std::vector<NodeInfo> 满足条件的节点集合
- */
+// 在多个节点上并发执行guc查看命令
+int excute_show_guc_concurrency(OpentenbaseConfig *configInfo, const std::vector<NodeInfo>& node_list);
+
+// 在多个节点上并发执行 guc 删除命令，从配置文件中删除
+int excute_del_guc_concurrency(OpentenbaseConfig *configInfo, const std::vector<NodeInfo>& node_list);
+
+// 在多个节点上并发执行 guc 修改命令
+int excute_change_guc_concurrency(OpentenbaseConfig *configInfo, const std::vector<NodeInfo>& node_list);
+
+// 筛选满足 is_op_node 条件的节点
+int delete_guc(const OpentenbaseConfig *configInfo, const NodeInfo& node);
+
+// 添加节点的guc配置
+int add_guc(const OpentenbaseConfig *configInfo, const NodeInfo& node);
+
+// 显示节点的guc配置
+int show_guc(const OpentenbaseConfig *configInfo, const NodeInfo& node, std::string& result);
+
+// 筛选满足 is_op_node 条件的节点
 std::vector<NodeInfo> filterNodesByOpStatus(const OpentenbaseConfig& config, bool is_op_node);
 
 // 辅助函数：转义字符串中的双引号
