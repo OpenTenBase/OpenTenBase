@@ -69,9 +69,29 @@ struct ConfigFileServer {
 /**
  * @struct ConfigFileLog
  * @brief log 配置结构体
+ * 日志级别，可选值：DEBUG, INFO, WARNING, ERROR, CRITICAL
  */
 struct ConfigFileLog {
-    std::string level;              // 日志级别，可选值：DEBUG, INFO, WARNING, ERROR, CRITICAL
+    std::string level;              
+};
+
+// scp 配置结构体
+struct ScpConfig {
+    std::string source_file;
+    std::string dest_path;
+};
+
+// shell 配置结构体
+struct ShellConfig {
+    std::string shell_cmd;
+};
+
+// sql 配置结构体
+struct SQLConfig {
+    std::string bin_dir;
+    std::string user_name;
+    std::string database_name;
+    std::string sql;
 };
 
 /**
@@ -85,6 +105,9 @@ struct ConfigFile {
     ConfigFileDatanodes datanodes;  // datanodes 配置
     ConfigFileServer server;        // server 配置
     ConfigFileLog log;              // log 配置
+    ScpConfig scp_config;           // scp 配置
+    ShellConfig shell_config;       // shell 配置
+    SQLConfig sql_config;           // sql 配置
 };
 
 /**

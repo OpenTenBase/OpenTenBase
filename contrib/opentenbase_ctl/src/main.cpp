@@ -44,6 +44,15 @@ int main(int argc, char** argv) {
     else if (Constants::COMMAND_TYPE_STATUS == args.command) {
         ret = status_command(&config);
     }
+    else if (Constants::COMMAND_TYPE_SCP == args.command) {
+        ret = scp_command(&config);
+    }
+    else if (Constants::COMMAND_TYPE_SHELL == args.command) {
+        ret = shell_command(&config);
+    }
+    else if (Constants::COMMAND_TYPE_SQL == args.command) {
+        ret = sql_command(&config);
+    }
     
     LOG_INFO_FMT("The execution of the opentenbase_ctl tool has ended.");
     return ret;

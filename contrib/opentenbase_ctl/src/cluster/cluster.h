@@ -9,16 +9,8 @@
 #include <mutex>
 #include <atomic>
 
-#define OSS_INSTALL_DIR "/usr/local/install/opentenbase"
-#define OSS_PKG_TMP_DIR "opentenbase"
-
 // Check if node is running
 int is_node_running(NodeInfo* node, OpentenbaseConfig* install);
-
-// get node port
-std::string get_node_port(NodeInfo* node, OpentenbaseConfig* install);
-
-std::string get_value_after_equal(const std::string& line);
 
 // Get meta and txn connection info from etcd
 int get_connections(OpentenbaseConfig *install);
@@ -52,12 +44,17 @@ int init_and_start_master_node(NodeInfo* node, OpentenbaseConfig* install);
 // Install slave node
 int redo_and_start_slave_node(NodeInfo* node, OpentenbaseConfig* install);
 
+// init master node
 int init_master_node(NodeInfo* node, OpentenbaseConfig* install);
+
+// rego slave node
 int redo_slave_node(NodeInfo* node, OpentenbaseConfig* install);
 
+// build initdb cmd
 std::string build_initdb_cmd(NodeInfo* node, OpentenbaseConfig* install);
 
-std::string GetDBLocaleByCType(const std::string& ctype);
+// get db locale by ctype
+std::string get_db_locale_by_ctype(const std::string& ctype);
 
 // Install command
 int install_command(OpentenbaseConfig *install);
@@ -92,6 +89,12 @@ int stop_command(OpentenbaseConfig *install);
 // Status command
 int status_command(OpentenbaseConfig *install);
 
+// Status command
+int scp_command(OpentenbaseConfig *install);
+
+// Status command
+int shell_command(OpentenbaseConfig *install);
+
 // Expand command
 int expand_command(OpentenbaseConfig *install);
 
@@ -100,5 +103,17 @@ int shrink_command(OpentenbaseConfig *install);
 
 // 获取文件的基本名称（去掉扩展名）
 std::string getFileBaseName(const std::string& filename);
+
+// 根据节点信息获得所有的IP列表
+std::vector<std::string> getServerList(const std::vector<NodeInfo>& nodes);
+
+// 批量传输软件包
+int transfer_package_concurrency(OpentenbaseConfig *install,
+    const std::string& source_file,
+    const std::string& dest_path,
+    const std::vector<std::string>& server_list);
+
+// excute sql
+int sql_command(OpentenbaseConfig *config_info);
 
 #endif // CLUSTER_H 

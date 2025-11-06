@@ -2,6 +2,9 @@
 #include "../log/log.h"
 #include "../utils/utils.h"
 #include "../config/config.h"
+#include "../command/command.h"
+#include "../ssh/remote_ssh.h"
+#include "../file/file.h"
 #include <iostream>
 #include <string>
 #include <iomanip>
@@ -178,9 +181,24 @@ std::vector<std::string> parse_ip_list(const std::string& str) {
     return items;
 }
 
+// 判断一个std::string变量（例如str）是否为空字符串或仅包含空格
+bool isNullOrEmptyOrWhitespace(const std::string& str) {
+    // 如果字符串为空，返回 true
+    if (str.empty()) {
+        return true;
+    }
+    // 检查字符串中的所有字符是否都是空白字符
+    return std::all_of(str.begin(), str.end(), ::isspace);
+}
+
 // 使用 std::stoi 封装的转换函数
 int get_nodes_per_servers(const std::string& str) {
     try {
+        if (isNullOrEmptyOrWhitespace(str))
+        {
+            return 1;
+        }
+        
         return std::stoi(str);
     } catch (const std::invalid_argument& e) {
         LOG_ERROR_FMT("nodes-per-server in Config file is invalid.");
@@ -365,6 +383,12 @@ build_cn_node_config(const ConfigFile& cfg_file, OpentenbaseConfig& config) {
         LOG_ERROR_FMT("Generate CN master nodes failed.");
         return -1;
     }
+    
+    std::map<std::string, std::string> cn_guc_cfg;
+    if (!parseConfigFile(cfg_file.coordinators.conf, cn_guc_cfg)) {
+        LOG_ERROR_FMT("Failed to parse configuration file %s.", cfg_file.coordinators.conf.c_str());
+    }
+    config.cn_guc_cfg = cn_guc_cfg;
 
     LOG_DEBUG_FMT("Build gtm config end.");
     return 0;
@@ -407,20 +431,105 @@ build_dn_node_config(const ConfigFile& cfg_file, OpentenbaseConfig& config) {
         }
     }
 
-    // generate CN master nodes
+    // generate DN master nodes
     int round_num = master_ips.size() * nodes_per_server;
     if (generate_nodes(master_ips, nodes_per_server, round_num, Constants::NODE_TYPE_DN_MASTER, config) == -1) {
         LOG_ERROR_FMT("Generate CN master nodes failed.");
         return -1;
     }
 
-    // generate CN slave nodes
+    // generate DN slave nodes
     if (generate_nodes(slave_ips, nodes_per_server, round_num, Constants::NODE_TYPE_DN_SLAVE, config) == -1) {
         LOG_ERROR_FMT("Generate CN master nodes failed.");
         return -1;
     }
 
+    // build dn guc config
+    std::map<std::string, std::string> dn_guc_cfg;
+    if (!parseConfigFile(cfg_file.datanodes.conf, dn_guc_cfg)) {
+        LOG_ERROR_FMT("Failed to parse configuration file %s.", cfg_file.datanodes.conf.c_str());
+    }
+    config.dn_guc_cfg = dn_guc_cfg;
+
     LOG_DEBUG_FMT("Build gtm config end.");
+    return 0;
+}
+
+// 辅助函数：判断字符串是否以指定前缀开头
+bool startsWith(const std::string& str, const std::string& prefix) {
+    return str.compare(0, prefix.size(), prefix) == 0;
+}
+
+// 辅助函数：解析 IP:port 字符串
+bool parseIpPort(const std::string& ip_port, std::string& ip, int& port) {
+    size_t colon_pos = ip_port.find(':');
+    if (colon_pos == std::string::npos) {
+        return false;
+    }
+    ip = ip_port.substr(0, colon_pos);
+    try {
+        port = std::stoi(ip_port.substr(colon_pos + 1));
+    } catch (const std::invalid_argument&) {
+        return false;
+    } catch (const std::out_of_range&) {
+        return false;
+    }
+    return true;
+}
+
+// 主函数：处理操作节点
+int process_op_nodes(CommandLineArgs& args, OpentenbaseConfig& config) {
+
+    // install操作默认所有节点都需要
+    if (Constants::COMMAND_TYPE_INSTALL == args.command)
+    {
+        return 0;
+    }
+    
+    // 根据 op_nodes_str 的类型决定处理逻辑
+    std::string& op_nodes_str = args.op_node;
+    if (op_nodes_str == "cn-master") {
+        for (auto& node : config.nodes) {
+            node.is_op_node = (node.type == Constants::NODE_TYPE_CN_MASTER);
+        }
+    }
+    else if (op_nodes_str == "cn-slave") {
+        for (auto& node : config.nodes) {
+            node.is_op_node = (node.type == Constants::NODE_TYPE_CN_SLAVE);
+        }
+    }
+    else if (op_nodes_str == "dn-master") {
+        for (auto& node : config.nodes) {
+            node.is_op_node = (node.type == Constants::NODE_TYPE_DN_MASTER);
+        }
+    }
+    else if (op_nodes_str == "dn-slave") {
+        for (auto& node : config.nodes) {
+            node.is_op_node = (node.type == Constants::NODE_TYPE_DN_SLAVE);
+        }
+    }
+    else if (startsWith(op_nodes_str, "cn") || startsWith(op_nodes_str, "dn") || startsWith(op_nodes_str, "gtm")) {
+        // 假设节点名称以 "cn", "dn", "gtm" 开头，后面跟随数字
+        for (auto& node : config.nodes) {
+            node.is_op_node = (node.name == op_nodes_str);
+        }
+    }
+    else {
+        // 假设是 IP:port 格式
+        std::string ip;
+        int port;
+        if (parseIpPort(op_nodes_str, ip, port)) {
+            for (auto& node : config.nodes) {
+                node.is_op_node = (node.ip == ip && node.port == port);
+            }
+        }
+        else {
+            // 如果格式不正确，可以选择抛出异常或记录错误日志
+            // 这里选择记录错误日志
+            return -1;
+        }
+    }
+
     return 0;
 }
 
@@ -466,10 +575,56 @@ build_log_config(const ConfigFile& cfg_file, OpentenbaseConfig& config) {
     return 0;
 }
 
+// 根据配置文件的内容，生成scp的结构体的信息
+int
+build_scp_config(CommandLineArgs& args, OpentenbaseConfig& config) {
+    LOG_DEBUG_FMT("Build scp config begin.");
+
+    ScpConfig scpInfo; 
+    scpInfo.source_file = args.source_file;
+    scpInfo.dest_path = args.dest_path;
+    
+    // 生成instance结构体的信息
+    config.scpfile = scpInfo;
+
+
+    LOG_DEBUG_FMT("Build scp config end.");
+    return 0;
+}
+
+// 根据配置文件的内容，生成server的结构体的信息
+int build_shell_config(CommandLineArgs& args, OpentenbaseConfig& config) {
+    LOG_DEBUG_FMT("Build shell config begin.");
+
+    ShellConfig shellInfo; 
+    shellInfo.shell_cmd = args.shell_cmd;
+    
+    // 生成instance结构体的信息
+    config.shell = shellInfo;
+
+    LOG_DEBUG_FMT("Build shell config end.");
+    return 0;
+}
+
+// 根据配置文件的内容，生成 sql 的结构体的信息
+int build_sql_config(CommandLineArgs& args, OpentenbaseConfig& config) {
+    LOG_DEBUG_FMT("Build sql config begin.");
+
+    SQLConfig sqlInfo; 
+    sqlInfo.sql = args.sql;
+    sqlInfo.user_name = args.user;
+    sqlInfo.database_name = args.database;
+    
+    // 生成 sql 结构体的信息
+    config.sql = sqlInfo;
+
+
+    LOG_DEBUG_FMT("Build sql config end.");
+    return 0;
+}
 
 // 根据配置文件的内容，生成业务操作的结构体
-int
-build_opentenbase_config(const ConfigFile& cfg_file, OpentenbaseConfig& config) {
+int build_opentenbase_config(CommandLineArgs& args, const ConfigFile& cfg_file, OpentenbaseConfig& config) {
     LOG_INFO_FMT("Build opentenbase config begin.");
 
     // 校验和构建instance信息
@@ -509,6 +664,27 @@ build_opentenbase_config(const ConfigFile& cfg_file, OpentenbaseConfig& config) 
 
     // 校验和构建log信息
     if (build_log_config(cfg_file,config) != 0)
+    {
+        LOG_ERROR_FMT("There are some errors in the log configurations in the file.");
+        return -1;
+    }
+
+    // 构建shell信息
+    if (build_shell_config(args,config) != 0)
+    {
+        LOG_ERROR_FMT("There are some errors in the log configurations in the file.");
+        return -1;
+    }
+
+    // 构建scp信息
+    if (build_scp_config(args,config) != 0)
+    {
+        LOG_ERROR_FMT("There are some errors in the log configurations in the file.");
+        return -1;
+    }
+
+    // 构建sql信息
+    if (build_scp_config(args,config) != 0)
     {
         LOG_ERROR_FMT("There are some errors in the log configurations in the file.");
         return -1;
@@ -592,4 +768,356 @@ std::string get_node_name(const std::string& node_name) {
     }
 
     return ""; // 理论上不会执行到这里
+}
+
+
+// 解析命令行参数
+bool parse_command_line(int argc, char** argv, CommandLineArgs& args, OpentenbaseConfig& config) {
+    CLI::App app{"Opentenbase Cluster Management Tool"};
+
+    // 设置程序基本信息
+    app.name(Constants::APP_NAME);
+    app.description(Constants::APP_DESC);
+    //app.set_version_flag("--version", Constants::APP_VERSION);
+
+    // 初始化所有子命令
+    init_install_command(app, args);
+    init_delete_command(app, args);
+    init_start_command(app, args);
+    init_stop_command(app, args);
+    init_status_command(app, args);
+    init_scp_command(app, args);
+    init_shell_command(app, args);
+    init_sql_command(app, args);
+    init_expand_command(app, args);
+    init_shrink_command(app, args);
+
+    try {
+        app.parse(argc, argv);
+
+        // 如果没有子命令，显示帮助信息
+        if (app.get_subcommands().empty()) {
+            std::cout << app.help() << std::endl;
+            return false;
+        }
+
+        // 确定当前命令
+        for (const auto& subcmd : app.get_subcommands()) {
+            if (subcmd->parsed()) {
+                args.command = subcmd->get_name();
+                LOG_INFO_FMT("Command: %s", args.command.c_str());
+                break;
+            }
+        }
+
+        // 如果指定了环境变量，则设置到环境变量；如果没有指定配置文件，则从环境变量获取
+        if (args.config_file.empty())
+        {
+            //args.config_file = getenv(Constants::ENV_CLUSTER_CONFIG_FILE);
+            args.config_file = getEnvironmentVariableFromBashrc(Constants::ENV_CLUSTER_CONFIG_FILE);
+
+        } else {
+            // 获取绝对路径
+            std::string abolute_path = to_absolute_path(args.config_file.c_str());
+            if (abolute_path == "")
+            {
+                std::cout << "Failed to parse file " << args.config_file << ",please confirm that the file exists" << std::endl;
+                LOG_INFO_FMT("Failed to parse file: %s, please confirm that the file exists", args.config_file.c_str());
+                return false;
+            }
+
+            // 设置环境变量
+            if (setEnvironmentVariableInBashrc(Constants::ENV_CLUSTER_CONFIG_FILE, abolute_path) == 0) {
+                // 成功写入环境变量
+                LOG_INFO_FMT("Environment variable %s successfully set, value:%s\n", Constants::ENV_CLUSTER_CONFIG_FILE, args.config_file);
+            }
+        }
+        
+        // 如果使用了-c 参数则获取并解析配置文件
+        if (!args.config_file.empty()) {
+            
+            // 读取配置文件内容
+            ConfigFile cfg_file;
+            if (parse_config_file(args.config_file, cfg_file) != 0) {
+                std::cout << "Failed to parse file " << args.config_file << ",please confirm that the file exists" << std::endl;
+                LOG_INFO_FMT("Failed to parse file %s, please confirm that the file exists", args.config_file.c_str());
+                return false;
+            }
+
+            // 根据配置文件的内容生成 node节点等信息
+            if (build_opentenbase_config(args, cfg_file, config) != 0) {
+                std::cout << "Failed to parse file " << args.config_file << ",please confirm that the file exists" << std::endl;
+                LOG_INFO_FMT("Failed to parse file %s, please confirm that the file exists", args.config_file.c_str());
+                return false;
+            }
+            
+        } else {
+            // Build configuration from command line arguments
+            if (build_config_from_args(args, config) != 0) {
+                LOG_ERROR_FMT("Failed to build configuration from command line arguments");
+                return false;
+            }
+        }
+
+        // Initialize node directories
+        if (init_node_directories(config) != 0) {
+            LOG_ERROR_FMT("Failed to initialize node directories");
+            return -1;
+        }
+
+        // Assign ports for nodes
+        if (args.command == "install" || args.command == "expand") {
+            // 分配端口
+            if (assign_ports_for_nodes(config.nodes, config.server.ssh_user, config.server.ssh_password, config.server.ssh_port) != 0) {
+                LOG_ERROR_FMT("Failed to assign ports for nodes");
+                return -1;
+            }
+        } else {
+            // 查询并补齐端口
+            if (fill_ports_for_nodes(&config) != 0) {
+                LOG_WARN_FMT("Failed to assign ports for nodes");
+            }
+        }
+
+        // fill with gtm info
+        if (fill_node_with_gtm_info(config) != 0) {
+            LOG_INFO_FMT("Failed to fill node with gtm info, Perhaps no GTM information has been entered");
+        }
+
+        // 生成操作的节点信息,这个逻辑放到比较靠后的原因是：希望等所有信息补充完后再挑选出要操作的节点
+        if (process_op_nodes(args, config) != 0) {
+            LOG_INFO_FMT("Invalid --node option. The available options are: cn-master, cn-slave, dn-master, dn-slave, cn0001, ip:port");
+            return -1;
+        }
+
+        return true;
+    } catch (const CLI::ParseError &e) {
+        return app.exit(e);
+    } catch (const std::exception &e) {
+        LOG_ERROR_FMT("Error parsing command line arguments: %s", e.what());
+        return false;
+    }
+} 
+
+
+// Initialize node directories
+int
+init_node_directories(OpentenbaseConfig& config) {
+    LOG_INFO_FMT("Initializing node directories");
+    std::string home_dir;
+    int ret;
+
+    // Initialize directories for each node
+    for (auto& node : config.nodes) {
+        // Generate default paths if not specified
+        if (node.install_path.empty() || node.data_path.empty()) {
+            ret = get_home_dir(node.ip, config.server.ssh_port, 
+                config.server.ssh_user, config.server.ssh_password, home_dir);
+            if (ret != 0) {    
+                LOG_ERROR_FMT("Failed to get home directory on node %s (%s)", 
+                        node.name.c_str(), node.ip.c_str());
+                return -1;
+            }
+
+            // Set default install path if not specified
+            if (node.install_path.empty()) {
+                node.install_path = home_dir + "/install/" + Constants::DEFAULT_PKG_TMP_DIR + "/" + config.instance.version;
+            }
+
+            // Set default data path if not specified
+            if (node.data_path.empty()) {
+                node.data_path = home_dir + "/run/instance/" + config.instance.instance_name + 
+                    "/" + node.name + "/data";
+            }
+
+            LOG_DEBUG_FMT("Node %s: install_path=%s, data_path=%s", 
+                    node.name.c_str(), node.install_path.c_str(), node.data_path.c_str());
+        }
+    }
+
+    LOG_INFO_FMT("Successfully initialized node directories");
+    return 0;
+}
+
+// Initialize node directories
+int
+fill_node_with_gtm_info(OpentenbaseConfig& config) {
+    LOG_INFO_FMT("fill node with gtminfo");
+
+    // find gtm node
+    NodeInfo gtm_node;
+    for (auto& node : config.nodes) {
+        // Generate default paths if not specified
+        if (is_master_gtm(node.type)) {
+            gtm_node.name = node.name;
+            gtm_node.ip = node.ip;
+            gtm_node.port = node.port;
+            break;
+        }
+    }
+    if (gtm_node.name.empty()) {
+        LOG_INFO_FMT("GTM node not found in config.");
+        return -1;
+    }
+    LOG_INFO_FMT("Gtm node info: name(%s) IP(%s) Port(%d) ", gtm_node.name.c_str(),gtm_node.ip.c_str(),gtm_node.port);
+
+    // Initialize gtm info for each node
+    for (auto& node : config.nodes) {
+            node.gtm_name = gtm_node.name;
+            node.gtm_ip = gtm_node.ip;
+            node.gtm_port = gtm_node.port;
+    }
+
+    LOG_INFO_FMT("Successfully fill node with gtminfo");
+    return 0;
+}
+
+// Build configuration from command line arguments
+int
+build_config_from_args(CommandLineArgs& args, OpentenbaseConfig& config) {
+    LOG_INFO_FMT("Building configuration from command line arguments");
+
+    // Set meta configuration
+    config.meta.etcd_server = args.etcd_server;
+    config.meta.meta_id = args.meta_id.empty() ? 0 : std::stoi(args.meta_id);
+    config.meta.shard_num = args.shard_num.empty() ? 16 : std::stoi(args.shard_num);
+    config.meta.cluster_oid = args.cluster_oid.empty() ? "" : args.cluster_oid;
+
+    // Set instance configuration
+    config.instance.instance_name = args.instance_name;
+    config.instance.package_path = args.package_path;
+    
+    // Extract package name and version
+    // if (args.command == "install" || args.command == "expand" || args.command == "shrink") {
+    // }
+    size_t last_slash_pos = args.package_path.find_last_of('/');
+    config.instance.package_name = (last_slash_pos != std::string::npos) ? 
+        args.package_path.substr(last_slash_pos + 1) : args.package_path;
+    config.instance.version = extract_version_from_package_name(config.instance.package_name);
+    if (config.instance.version.empty()) {
+        LOG_ERROR_FMT("Failed to extract version from package name: %s", 
+                config.instance.package_name.c_str());
+        return -1;
+    }
+    
+    LOG_DEBUG_FMT("Set package-path: %s, package-name: %s, version: %s", 
+            args.package_path.c_str(), config.instance.package_name.c_str(), 
+            config.instance.version.c_str());
+
+    // Parse node information
+    auto node_names = parse_comma_separated_list(args.node_name.c_str());
+    auto node_ips = parse_comma_separated_list(args.node_ip.c_str());
+    
+    // Validate node configuration
+    size_t node_count = node_names.size();
+    if (node_count == 0 || node_ips.size() != node_count) {
+        LOG_ERROR_FMT("Invalid node configuration: inconsistent list lengths");
+        return -1;
+    }
+
+    // Build node information
+    config.nodes.clear();
+    for (size_t i = 0; i < node_count; ++i) {
+        NodeInfo node;
+        node.name = node_names[i];
+        node.type = infer_node_type(node.name);
+        if (node.type == "") {
+            LOG_ERROR_FMT("Invalid node name format: %s, should start with 'cn' or 'dn'", 
+                    node.name.c_str());
+            return -1;
+        }
+        node.ip = node_ips[i];
+        node.data_path = "";
+        node.install_path = "";
+        config.nodes.push_back(node);
+    }
+
+    // Set server configuration
+    config.server.ssh_user = args.ssh_user;
+    config.server.ssh_password = args.ssh_password;
+    config.server.ssh_port = std::stoi(args.ssh_port);
+
+
+    LOG_INFO_FMT("Successfully built configuration from command line arguments");
+    return 0;
+}
+
+// set Environment Variable In Bashrc
+int set_config_file_for_args(CommandLineArgs& args) {
+
+    // 如果指定了环境变量，则设置到环境变量；如果没有指定配置文件，则从环境变量获取
+    if (args.config_file.empty())
+    {
+        args.config_file = getEnvironmentVariableFromBashrc(Constants::ENV_CLUSTER_CONFIG_FILE);
+
+    } else {
+        // 获取绝对路径
+        std::string abolute_path = to_absolute_path(args.config_file.c_str());
+        if (abolute_path == "")
+        {
+            std::cout << "Failed to parse file " << args.config_file << ",please confirm that the file exists" << std::endl;
+            LOG_INFO_FMT("Failed to parse file: %s, please confirm that the file exists", args.config_file.c_str());
+            return -1;
+        }
+
+        // 设置环境变量
+        if (setEnvironmentVariableInBashrc(Constants::ENV_CLUSTER_CONFIG_FILE, abolute_path) == 0) {
+            // 成功写入环境变量
+            LOG_INFO_FMT("Environment variable %s successfully set, value:%s\n", Constants::ENV_CLUSTER_CONFIG_FILE, args.config_file);
+        }
+
+    }
+
+    LOG_INFO_FMT("env CLUSTER_CONFIG_FILE=%s", args.config_file.c_str());
+    return 0;
+}
+
+// fill port for earch node
+int fill_ports_for_nodes(OpentenbaseConfig* config) {
+    if (config == nullptr) {
+        std::cerr << "Error: config is nullptr." << std::endl;
+        return -1;
+    }
+
+    for (auto& node : config->nodes) {
+        std::string port_str = get_node_port(&node, config);
+        if (port_str.empty()) {
+            std::cerr << "Error: Failed to get port for node " << node.name << std::endl;
+            continue;
+        }
+
+        try {
+            int port = std::stoi(port_str);
+            node.port = port;
+        } catch (const std::invalid_argument& e) {
+            continue;
+        } catch (const std::out_of_range& e) {
+            continue;
+        }
+    }
+
+    return 0;
+}
+
+// Get node port
+std::string get_node_port(NodeInfo* node, OpentenbaseConfig* config) {
+
+    std::string conf_file = "/postgresql.conf";
+    if (is_gtm_node(node->type))
+    {
+        conf_file = "/gtm.conf";
+    }
+    
+    std::string command = "grep '^port' " +  node->data_path + conf_file;
+    std::string result;
+    int ret = 0;
+    ret = execute_command(node->ip, config->server.ssh_port, 
+        config->server.ssh_user, config->server.ssh_password, command, result);
+    if (ret != 0)
+    {
+        LOG_ERROR_FMT("Command execution to retrieve (%s:%s)status failed", node->name.c_str(), node->ip.c_str());
+        return "";
+    }
+    
+    return get_value_after_equal(result.c_str());
 }

@@ -3,11 +3,17 @@
 
 #include <string>
 #include <vector>
-#include "config/config.h"
+#include "../config/config.h"
+#include "../command/command.h"
 
 // 定义一个命名空间来组织常量
 namespace Constants {
     
+    // APP basic info
+    inline constexpr auto APP_NAME = "opentenbase_ctl";
+    inline constexpr auto APP_DESC = "OpenTenBase cluster management tool";
+    inline constexpr auto APP_VERSION = "v5.21.9.7";
+
     // 节点类型相关的常量
     inline constexpr auto NODE_TYPE_GTM_MASTER = "gtm_master";
     inline constexpr auto NODE_TYPE_GTM_SLAVE = "gtm_slave";
@@ -26,10 +32,22 @@ namespace Constants {
     inline constexpr auto COMMAND_TYPE_START = "start";
     inline constexpr auto COMMAND_TYPE_STOP = "stop";
     inline constexpr auto COMMAND_TYPE_STATUS = "status";
+    inline constexpr auto COMMAND_TYPE_SCP = "scp";
+    inline constexpr auto COMMAND_TYPE_SHELL = "shell";
+    inline constexpr auto COMMAND_TYPE_SQL = "sql";
 
-    // 默认平面cluster
-    //inline constexpr auto MAIN_CLUSTER_NAME = "opentenbase_cluster";
-    inline constexpr auto MAIN_CLUSTER_NAME = "opentenbase_cluster";
+    // 默认平面cluster,{"optentenbase_cluster","opentenbase_cluster"}
+    inline constexpr auto MAIN_CLUSTER_NAME = "optentenbase_cluster";
+
+    // 环境变量
+    inline constexpr auto ENV_CLUSTER_CONFIG_FILE = "CLUSTER_CONFIG_FILE";
+
+    // initdb
+    inline constexpr auto DEFAULT_USER_OF_INITDB = "opentenbase";
+    inline constexpr auto DEFAULT_DB = "postgres";
+    inline constexpr auto DEFAULT_INSTALL_DIR = "/usr/local/install/opentenbase";
+    inline constexpr auto DEFAULT_PKG_TMP_DIR = "opentenbase";
+    
 }
 
 // 节点信息结构体
@@ -45,6 +63,7 @@ struct NodeInfo {
     std::string  gtm_name;     // gtm节点名称
     std::string  gtm_ip;       // gtm节点IP
     int gtm_port;              // gtm节点端口
+    bool is_op_node = true;    // 是否是本次操作指定的节点，install时默认全部都是true，其他操作要看命令的--node是否指定本节点
 };
 
 // meta 配置结构体
@@ -80,11 +99,17 @@ struct LogConfig {
 
 // 总配置结构体
 struct OpentenbaseConfig {
-    MetaConfig meta;              // meta 配置
-    InstanceConfig instance;      // instance 配置
-    std::vector<NodeInfo> nodes;  // 节点配置
-    ServerConfig server;          // server 配置
-    LogConfig log;                // 日志配置
+    MetaConfig meta;                 // meta 配置
+    std::string config_file;         // 配置文件完整路径
+    InstanceConfig instance;         // instance 配置
+    std::vector<NodeInfo> nodes;     // 全量节点配置
+    std::map<std::string, std::string> cn_guc_cfg; // 用户指定的cn的guc配置
+    std::map<std::string, std::string> dn_guc_cfg; // 用户指定的dn的guc配置
+    ServerConfig server;             // server 配置
+    LogConfig log;                   // 日志配置
+    ScpConfig scpfile;               // scp 命令的配置
+    ShellConfig shell;               // shell 命令的配置
+    SQLConfig sql;                   // sql 命令的配置
 };
 
 
@@ -107,7 +132,7 @@ void printLogConfig(const LogConfig& log);
 void printOpentenbaseConfig(const OpentenbaseConfig& config);
 
 // 生成操作的opentenbase-config对象的内容
-int build_opentenbase_config(const ConfigFile& cfg_file, OpentenbaseConfig& config);
+int build_opentenbase_config(CommandLineArgs& args, const ConfigFile& cfg_file, OpentenbaseConfig& config);
 
 /**
  * 获取节点的名称。
@@ -127,5 +152,56 @@ int build_opentenbase_config(const ConfigFile& cfg_file, OpentenbaseConfig& conf
  * @return 处理后的节点名称，若不符合前缀要求则返回空字符串。
  */
 std::string get_node_name(const std::string& node_name);
+
+int build_scp_config(CommandLineArgs& args, OpentenbaseConfig& config);
+int build_shell_config(CommandLineArgs& args, OpentenbaseConfig& config);
+
+// 根据配置文件的内容，生成sql的结构体的信息
+int build_sql_config(CommandLineArgs& args, OpentenbaseConfig& config);
+
+// 命令行处理函数
+bool parse_command_line(int argc, char** argv, CommandLineArgs& args, OpentenbaseConfig& config);
+
+int build_config_from_args(const CommandLineArgs& args, OpentenbaseConfig& config);
+int init_node_directories(OpentenbaseConfig& config);
+int fill_node_with_gtm_info(OpentenbaseConfig& config);
+
+int build_config_from_args(CommandLineArgs& args, OpentenbaseConfig& config);
+
+// set Environment Variable In Bashrc
+int set_config_file_for_args(const CommandLineArgs& args);
+int process_op_nodes(CommandLineArgs& args, OpentenbaseConfig& config);
+
+
+/**
+ * @brief 为配置中的每个节点填充端口号。
+ *
+ * 此函数遍历给定的 `OpentenbaseConfig` 配置中的所有节点，
+ * 并为每个节点的 `port` 字段分配或更新端口号。
+ *
+ * @param[in,out] config 指向 `OpentenbaseConfig` 结构体的指针，包含要更新的节点信息。
+ *                       必须保证 `config` 及其 `nodes` 成员有效且不为 `nullptr`。
+ *
+ * @return 返回整数值表示操作状态。
+ *         - `0`：成功为所有节点填充端口号。
+ *         - 非零值：在填充过程中遇到错误。
+ *
+ * @note 确保在调用此函数之前，`config` 及其 `nodes` 成员已被正确初始化。
+ * @warning 如果函数返回非零值，建议检查日志以获取详细的错误信息。
+ */
+int fill_ports_for_nodes(OpentenbaseConfig* config);
+
+int set_config_file_for_args(CommandLineArgs& args);
+
+/**
+ * @brief 获取指定节点的端口号。
+ *
+ * 此函数用于检索给定节点的端口号。它从节点信息结构体中提取端口号信息。
+ *
+ * @param node 指向包含节点信息的 NodeInfo 结构体的指针。
+ *             必须确保 node 不为 nullptr，否则行为未定义。
+ * @return 返回节点的端口号作为 std::string。如果节点信息无效或端口号未设置，可能返回空字符串。
+ */
+std::string get_node_port(NodeInfo* node, OpentenbaseConfig* install);
 
 #endif // TYPES_H 

@@ -29,6 +29,8 @@ std::vector<std::string> parse_node_list(const char* str) {
     LOG_DEBUG_FMT("Parsing node list: %s", str);
     std::vector<std::string> items;
     char* str_copy = strdup(str);
+     if (!str_copy) return items;
+
     char* saveptr = NULL;
     char* token = strtok_r(str_copy, ",", &saveptr);
     
@@ -162,7 +164,7 @@ parse_config_file(const std::string& filename, ConfigFile& cfg_file) {
 
         } else if (section == "log") {
             if (key == "level") {
-                cfg_file.log.level = value.c_str();
+                cfg_file.log.level = value;
             }
         }
     }

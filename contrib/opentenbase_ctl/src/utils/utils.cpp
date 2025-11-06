@@ -1,7 +1,7 @@
 #include "utils.h"
 #include "../log/log.h"
-#include "../ssh/remote_ssh.h"
 #include "../types/types.h"
+#include "../ssh/remote_ssh.h"
 #include <cstdio>
 #include <cstring>
 #include <memory>
@@ -33,31 +33,6 @@ std::string extract_version_from_package_name(const std::string& package_name) {
         return "";
     }
 }
-
-// Check if port is available
-int 
-check_port_available(const char *ip, int port, const char *username, const char *password, int ssh_port) {
-    std::string cmd = "export PATH=/usr/local/bin:/usr/bin:/usr/sbin:$PATH && ss -tln | grep -q ':" + std::to_string(port) + "'";
-    std::string result;
-    
-    int ret = remote_ssh_exec(ip, ssh_port, username, password, cmd, result);
-    
-    if (ret == 0) {
-        // Command executed successfully, check return value
-        if (result.empty()) {
-            // No port found, means port is available
-            return 0;
-        } else {
-            // Port found, means port is occupied
-            return 1;
-        }
-    } else {
-        // Command execution failed
-        LOG_ERROR_FMT("Failed to check port %d on %s: %s", port, ip, result.c_str());
-        return -1;
-    }
-}
-
 
 // Get available port pair
 int 
@@ -118,6 +93,41 @@ assign_ports_for_nodes(std::vector<NodeInfo>& nodes, const std::string& username
     }
 
     return 0;
+}
+
+// get Value After Equal
+std::string get_value_after_equal(const std::string& line) {
+    // 查找等号的位置
+    size_t pos = line.find('=');
+    if (pos == std::string::npos) return "";
+
+    // 从等号后第一个非空白字符开始提取
+    size_t start = line.find_first_not_of(" \t", pos + 1);
+    if (start == std::string::npos) return "";
+
+    // 查找从 start 开始的第一个空白字符、'#' 注释符号、换行符或回车符
+    size_t end = line.find_first_of(" \t#\n\r", start);
+    if (end == std::string::npos) {
+        // 如果没有空白、注释或换行符，提取到行尾
+        end = line.length();
+    }
+
+    // 提取子字符串
+    std::string value = line.substr(start, end - start);
+
+    // 移除末尾的空白字符、换行符和回车符
+    value.erase(value.find_last_not_of(" \t\n\r") + 1);
+
+    // 可选：验证提取的值是否为有效的数字（例如端口号）
+    /*
+    for(char c : value){
+        if(!std::isdigit(c)){
+            return ""; // 包含非数字字符，返回空字符串
+        }
+    }
+    */
+
+    return value;
 }
 
 bool is_rpm_package(const std::string& package_name) {
@@ -225,4 +235,46 @@ bool is_fusion_version(std::string version) {
  */
 bool is_Centralized_instance(std::string instance_type) {
     return instance_type == Constants::INSTANCE_TYPE_CENTRALIZED;
+}
+
+// SQL转义函数
+std::string escape_sql(const std::string& sql) {
+    std::string escaped;
+    for (char c : sql) {
+        if (c == '"') escaped += "\\\"";    // 转义双引号
+        else if (c == '\\') escaped += "\\\\"; // 转义反斜杠
+        else escaped += c;
+    }
+    return escaped;
+}
+
+// build sql cmd for psql
+std::string build_sql_cmd_for_psql(const std::string& binDir, 
+    const std::string& ip, 
+    const int port, 
+    const std::string& username, 
+    const std::string& database, 
+    const std::string& sql) {
+
+    // psql connection
+    std::string conn_str = "psql -h " + ip + " -p " + std::to_string(port) + " -d " + database + " -U " + std::string(Constants::DEFAULT_USER_OF_INITDB);
+
+    // sql command
+    std::string psql_cmd;
+    bool should_execute_local = is_local_ip(ip);
+    if (should_execute_local) {
+        psql_cmd =  conn_str + "  --command \\\"" + escape_sql(sql) + "\\\" ";
+    } else {
+        psql_cmd =  conn_str + "  --command \"" +  escape_sql(sql) + "\" ";
+    }
+
+    // Complete psql command
+    psql_cmd = "export LD_LIBRARY_PATH=" + binDir + "/lib && export PATH=" + binDir + "/bin:${PATH} && " + psql_cmd;
+    return psql_cmd;
+}
+
+// build export env str
+std::string buid_ld_library_path_str(std::string bin_dir) {
+
+    return "export LD_LIBRARY_PATH=" + bin_dir + "/lib  && export PATH=" + bin_dir + "/bin:${PATH} ";
 }

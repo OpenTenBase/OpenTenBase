@@ -3,12 +3,18 @@
 #include "../config/config.h"
 #include "../utils/utils.h"
 #include "../ssh/remote_ssh.h"
-#include "../types/types.h"
 #include <iostream>
 #include <sstream>
+#include <cstdlib>
+#include <string>
+#include <cstdio>
+#include <memory>
+#include <stdexcept>
+#include <array>
+#include <regex>
 
 // 解析逗号分隔的字符串列表
-static std::vector<std::string> parse_comma_separated_list(const char* str) {
+std::vector<std::string> parse_comma_separated_list(const char* str) {
     std::vector<std::string> items;
     if (!str || str[0] == '\0') {
         return items;
@@ -32,69 +38,94 @@ static std::vector<std::string> parse_comma_separated_list(const char* str) {
 
 // 初始化安装命令
 void init_install_command(CLI::App& app, CommandLineArgs& args) {
-    auto install_cmd = app.add_subcommand("install", "Install a new Opentenbase cluster");
+    auto install_cmd = app.add_subcommand("install", "Install a new instance");
     install_cmd->add_option("-c,--config", args.config_file, "Path to configuration file");
 }
 
 // 初始化删除命令
 void init_delete_command(CLI::App& app, CommandLineArgs& args) {
-    auto delete_cmd = app.add_subcommand("delete", "Delete an existing Opentenbase cluster");
+    auto delete_cmd = app.add_subcommand("delete", "Delete an existing instance");
     delete_cmd->add_option("-c,--config", args.config_file, "Path to configuration file");
 }
 
 // 初始化启动命令
 void init_start_command(CLI::App& app, CommandLineArgs& args) {
-    auto start_cmd = app.add_subcommand("start", "Start a Opentenbase cluster");
+    auto start_cmd = app.add_subcommand("start", "Start a Instance");
 
     // 方式1:配置文件
     start_cmd->add_option("-c,--config", args.config_file, "Path to configuration file");
-
-    // 方式2:命令参数
-    start_cmd->add_option("--instance-name", args.instance_name, "Instance name");
-    start_cmd->add_option("--package-path", args.package_path, "Package path");
-    start_cmd->add_option("--node-name", args.node_name, "Node name");
-    start_cmd->add_option("--node-ip", args.node_ip, "Node IP");
-    start_cmd->add_option("--ssh-user", args.ssh_user, "SSH user");
-    start_cmd->add_option("--ssh-password", args.ssh_password, "SSH password");
-    start_cmd->add_option("--ssh-port", args.ssh_port, "SSH port");
+    start_cmd->add_option("-n,--node", args.op_node, 
+                           "Node to start. "
+                           "A certain type of node, Or a certain node.such as cn-master/cn-slave/dn-master/dn-slave. "
+                           "The available options are: cn-master, cn-slave, dn-master, dn-slave, cn0001, ip:port");
 }
 
 // 初始化停止命令
 // 配置文件传参方式 ./opentenbase_ctl start -c config/config.ini
 void init_stop_command(CLI::App& app, CommandLineArgs& args) {
-    auto stop_cmd = app.add_subcommand("stop", "Stop a Opentenbase cluster");
+    auto stop_cmd = app.add_subcommand("stop", "Stop a instance");
 
     // 方式1:配置文件
     stop_cmd->add_option("-c,--config", args.config_file, "Path to configuration file");
-
-    // 方式2:命令参数
-    stop_cmd->add_option("--instance-name", args.instance_name, "Instance name");
-    stop_cmd->add_option("--package-path", args.package_path, "Package path");
-    stop_cmd->add_option("--node-name", args.node_name, "Node name");
-    stop_cmd->add_option("--node-ip", args.node_ip, "Node IP");
-    stop_cmd->add_option("--ssh-user", args.ssh_user, "SSH user");
-    stop_cmd->add_option("--ssh-password", args.ssh_password, "SSH password");
-    stop_cmd->add_option("--ssh-port", args.ssh_port, "SSH port");
+    stop_cmd->add_option("-n,--node", args.op_node, 
+                           "Node to stop. "
+                           "A certain type of node, Or a certain node.such as cn-master/cn-slave/dn-master/dn-slave. "
+                           "The available options are: cn-master, cn-slave, dn-master, dn-slave, cn0001, ip:port");
 }
 
 // 查看状态命令
 void init_status_command(CLI::App& app, CommandLineArgs& args) {
-    auto status_cmd = app.add_subcommand("status", "Show Opentenbase cluster status");
+    auto status_cmd = app.add_subcommand("status", "Show instance status");
     status_cmd->add_option("-c,--config", args.config_file, "Path to configuration file");
+    status_cmd->add_option("-n,--node", args.op_node, 
+                           "Node to  show status. "
+                           "A certain type of node, Or a certain node.such as cn-master/cn-slave/dn-master/dn-slave. "
+                           "The available options are: cn-master, cn-slave, dn-master, dn-slave, cn0001, ip:port");
+}
+
+// 分发包命令
+void init_scp_command(CLI::App& app, CommandLineArgs& args) {
+    auto status_cmd = app.add_subcommand("scp", "scp files to cluster nodes");
+    status_cmd->add_option("-c,--config", args.config_file, "Path to configuration file");
+    status_cmd->add_option("-n,--node", args.op_node, 
+                           "Node to scp file. "
+                           "A certain type of node, Or a certain node.such as cn-master/cn-slave/dn-master/dn-slave. "
+                           "The available options are: cn-master, cn-slave, dn-master, dn-slave, cn0001, ip:port");
 
     // 方式2:命令参数
-    status_cmd->add_option("--instance-name", args.instance_name, "Instance name");
-    status_cmd->add_option("--package-path", args.package_path, "Package path");
-    status_cmd->add_option("--node-name", args.node_name, "Node name");
-    status_cmd->add_option("--node-ip", args.node_ip, "Node IP");
-    status_cmd->add_option("--ssh-user", args.ssh_user, "SSH user");
-    status_cmd->add_option("--ssh-password", args.ssh_password, "SSH password");
-    status_cmd->add_option("--ssh-port", args.ssh_port, "SSH port");
+    status_cmd->add_option("--source-file", args.source_file, "Local file path");
+    status_cmd->add_option("--dest-path", args.dest_path, "Path to remote server");
+}
+
+// 执行shell命令
+void init_shell_command(CLI::App& app, CommandLineArgs& args) {
+    auto status_cmd = app.add_subcommand("shell", "Execute shell command");
+    status_cmd->add_option("-c,--config", args.config_file, "Path to configuration file");
+    status_cmd->add_option("-n,--node", args.op_node, 
+                           "Node for executing cmd. "
+                           "A certain type of node, Or a certain node.such as cn-master/cn-slave/dn-master/dn-slave. "
+                           "The available options are: cn-master, cn-slave, dn-master, dn-slave, cn0001, ip:port");
+    status_cmd->add_option("--cmd", args.shell_cmd, "Shell command");
+}
+
+// 执行shell命令
+void init_sql_command(CLI::App& app, CommandLineArgs& args) {
+    auto status_cmd = app.add_subcommand("sql", "Execute sql command");
+    status_cmd->add_option("-c,--config", args.config_file, "Path to configuration file");
+    status_cmd->add_option("-n,--node", args.op_node, 
+                           "Node for executing SQL. "
+                           "A certain type of node, Or a certain node.such as cn-master/cn-slave/dn-master/dn-slave. "
+                           "The available options are: cn-master, cn-slave, dn-master, dn-slave, cn0001, ip:port");
+
+    // 方式2:命令参数
+    status_cmd->add_option("--sql", args.shell_cmd, "sql");
+    status_cmd->add_option("-u,--user", args.user, "Username for connecting to the database");
+    status_cmd->add_option("-d,--db", args.database, "The database name for executing SQL");
 }
 
 // 初始化扩容命令
 void init_expand_command(CLI::App& app, CommandLineArgs& args) {
-    auto expand_cmd = app.add_subcommand("expand", "Expand a Opentenbase cluster");
+    auto expand_cmd = app.add_subcommand("expand", "Expand a Instance");
     expand_cmd->add_option("--etcd-server", args.etcd_server, "Etcd server");
     expand_cmd->add_option("--meta-id", args.meta_id, "Meta ID");
     expand_cmd->add_option("--cluster-oid", args.cluster_oid, "Cluster OID");
@@ -109,7 +140,7 @@ void init_expand_command(CLI::App& app, CommandLineArgs& args) {
 
 // 初始化缩容命令
 void init_shrink_command(CLI::App& app, CommandLineArgs& args) {
-    auto shrink_cmd = app.add_subcommand("shrink", "Shrink a Opentenbase cluster");
+    auto shrink_cmd = app.add_subcommand("shrink", "Shrink a Instance");
     shrink_cmd->add_option("--instance-name", args.instance_name, "Instance name");
     shrink_cmd->add_option("--package-path", args.package_path, "Package path");
     shrink_cmd->add_option("--node-name", args.node_name, "Node name");
@@ -119,234 +150,64 @@ void init_shrink_command(CLI::App& app, CommandLineArgs& args) {
     shrink_cmd->add_option("--ssh-port", args.ssh_port, "SSH port");
 }
 
-// Initialize node directories
-int
-init_node_directories(OpentenbaseConfig& config) {
-    LOG_INFO_FMT("Initializing node directories");
-    std::string home_dir;
-    int ret;
+int setEnvironmentVariableInBashrc(const std::string& var_name, const std::string& var_value) {
+    // 构建 sed 删除命令，删除以 var_name= 开头的行
+    std::string sed_command = "sed -i '/^" + var_name + "=.*$/d' ~/.bashrc";
 
-    // Initialize directories for each node
-    for (auto& node : config.nodes) {
-        // Generate default paths if not specified
-        if (node.install_path.empty() || node.data_path.empty()) {
-            ret = get_home_dir(node.ip, config.server.ssh_port, 
-                config.server.ssh_user, config.server.ssh_password, home_dir);
-            if (ret != 0) {    
-                LOG_ERROR_FMT("Failed to get home directory on node %s (%s)", 
-                        node.name.c_str(), node.ip.c_str());
-                return -1;
-            }
-
-            // Set default install path if not specified
-            if (node.install_path.empty()) {
-                node.install_path = home_dir + "/install/opentenbase/" + config.instance.version;
-            }
-
-            // Set default data path if not specified
-            if (node.data_path.empty()) {
-                node.data_path = home_dir + "/run/instance/" + config.instance.instance_name + 
-                    "/" + node.name + "/data";
-            }
-
-            LOG_DEBUG_FMT("Node %s: install_path=%s, data_path=%s", 
-                    node.name.c_str(), node.install_path.c_str(), node.data_path.c_str());
-        }
+    // 执行 sed 删除命令
+    int ret = system(sed_command.c_str());
+    if (ret != 0) {
+        LOG_ERROR_FMT("Failed to execute sed delete command, return code: %d", ret);
+        return 1;
     }
 
-    LOG_INFO_FMT("Successfully initialized node directories");
+    // 构建 echo 追加命令，将新的环境变量追加到 ~/.bashrc
+    std::string echo_command = "echo '" + var_name + "=" + var_value + "' >> ~/.bashrc";
+
+    // 执行 echo 追加命令
+    ret = system(echo_command.c_str());
+    if (ret != 0) {
+        LOG_ERROR_FMT("Execution of echo append command failed, return code: %d", ret);
+        return 1;
+    }
+
+    LOG_INFO_FMT("The environment variable %s has been successfully written to~/. bashrc", var_name.c_str());
     return 0;
 }
 
-// Initialize node directories
-int
-fill_node_with_gtm_info(OpentenbaseConfig& config) {
-    LOG_INFO_FMT("fill node with gtminfo");
+std::string getEnvironmentVariableFromBashrc(const std::string& var_name) {
+    std::string command = "grep '^" + var_name + "=.*$' ~/.bashrc | awk -F= '{print $2}'";
 
-    // find gtm node
-    NodeInfo gtm_node;
-    for (auto& node : config.nodes) {
-        // Generate default paths if not specified
-        if (is_master_gtm(node.type)) {
-            gtm_node.name = node.name;
-            gtm_node.ip = node.ip;
-            gtm_node.port = node.port;
-            break;
-        }
-    }
-    if (gtm_node.name.empty()) {
-        LOG_INFO_FMT("GTM node not found in config.");
-        return -1;
-    }
-    LOG_INFO_FMT("Gtm node info: name(%s) IP(%s) Port(%d) ", gtm_node.name.c_str(),gtm_node.ip.c_str(),gtm_node.port);
-
-    // Initialize gtm info for each node
-    for (auto& node : config.nodes) {
-            node.gtm_name = gtm_node.name;
-            node.gtm_ip = gtm_node.ip;
-            node.gtm_port = gtm_node.port;
+    std::array<char, 128> buffer;
+    std::string result;
+    std::shared_ptr<FILE> pipe(popen(command.c_str(), "r"), pclose);
+    if (!pipe) {
+        LOG_ERROR_FMT("Failed to popen() for ~/.bashrc");
+        return "";
     }
 
-    LOG_INFO_FMT("Successfully fill node with gtminfo");
-    return 0;
+    // 读取命令输出
+    while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
+        // 去除可能的换行符
+        std::string line(buffer.data());
+        line.erase(std::remove(line.begin(), line.end(), '\n'), line.end());
+        result = line;
+    }
+
+    return result;
 }
 
-// Build configuration from command line arguments
-int
-build_config_from_args(const CommandLineArgs& args, OpentenbaseConfig& config) {
-    LOG_INFO_FMT("Building configuration from command line arguments");
+int setEnvironmentVariableInBashrc_old(const std::string& var_name, const std::string& var_value) {
+    // 构建 sed 命令以替换或添加环境变量
+    std::string command = "sed -i '/^" + var_name + "=.*$/c\\" + var_name + "=" + var_value + "\\\" ~/.bashrc || echo \"" + var_name + "=" + var_value + "\" >> ~/.bashrc";
 
-    // Set meta configuration
-    config.meta.etcd_server = args.etcd_server;
-    config.meta.meta_id = args.meta_id.empty() ? 0 : std::stoi(args.meta_id);
-    config.meta.shard_num = args.shard_num.empty() ? 16 : std::stoi(args.shard_num);
-    config.meta.cluster_oid = args.cluster_oid.empty() ? "" : args.cluster_oid;
-
-    // Set instance configuration
-    config.instance.instance_name = args.instance_name;
-    config.instance.package_path = args.package_path;
-    
-    // Extract package name and version
-    // if (args.command == "install" || args.command == "expand" || args.command == "shrink") {
-    // }
-    size_t last_slash_pos = args.package_path.find_last_of('/');
-    config.instance.package_name = (last_slash_pos != std::string::npos) ? 
-        args.package_path.substr(last_slash_pos + 1) : args.package_path;
-    config.instance.version = extract_version_from_package_name(config.instance.package_name);
-    if (config.instance.version.empty()) {
-        LOG_ERROR_FMT("Failed to extract version from package name: %s", 
-                config.instance.package_name.c_str());
-        return -1;
-    }
-    
-    LOG_DEBUG_FMT("Set package-path: %s, package-name: %s, version: %s", 
-            args.package_path.c_str(), config.instance.package_name.c_str(), 
-            config.instance.version.c_str());
-
-    // Parse node information
-    auto node_names = parse_comma_separated_list(args.node_name.c_str());
-    auto node_ips = parse_comma_separated_list(args.node_ip.c_str());
-    
-    // Validate node configuration
-    size_t node_count = node_names.size();
-    if (node_count == 0 || node_ips.size() != node_count) {
-        LOG_ERROR_FMT("Invalid node configuration: inconsistent list lengths");
-        return -1;
+    // 执行命令
+    int ret = system(command.c_str());
+    if (ret != 0) {
+        LOG_ERROR_FMT("Failed to set Environment variable %s into ~/.bashrc", var_name.c_str());
+        return 1;
     }
 
-    // Build node information
-    config.nodes.clear();
-    for (size_t i = 0; i < node_count; ++i) {
-        NodeInfo node;
-        node.name = node_names[i];
-        node.type = infer_node_type(node.name);
-        if (node.type == "") {
-            LOG_ERROR_FMT("Invalid node name format: %s, should start with 'cn' or 'dn'", 
-                    node.name.c_str());
-            return -1;
-        }
-        node.ip = node_ips[i];
-        node.data_path = "";
-        node.install_path = "";
-        config.nodes.push_back(node);
-    }
-
-    // Set server configuration
-    config.server.ssh_user = args.ssh_user;
-    config.server.ssh_password = args.ssh_password;
-    config.server.ssh_port = std::stoi(args.ssh_port);
-
-
-    LOG_INFO_FMT("Successfully built configuration from command line arguments");
+    LOG_INFO_FMT("Environment variable %s successfully written into ~/.bashrc", var_name.c_str());
     return 0;
 }
-
-// 解析命令行参数
-bool parse_command_line(int argc, char** argv, CommandLineArgs& args, OpentenbaseConfig& config) {
-    CLI::App app{"Opentenbase Cluster Management Tool"};
-
-    // 设置程序基本信息
-    app.name("opentenbase_ctl");
-    app.description("Opentenbase cluster management tool");
-    //app.set_version_flag("--version", "1.0.0");
-
-    // 初始化所有子命令
-    init_install_command(app, args);
-    init_delete_command(app, args);
-    init_start_command(app, args);
-    init_stop_command(app, args);
-    init_status_command(app, args);
-    init_expand_command(app, args);
-    init_shrink_command(app, args);
-
-    try {
-        app.parse(argc, argv);
-
-        // 如果没有子命令，显示帮助信息
-        if (app.get_subcommands().empty()) {
-            std::cout << app.help() << std::endl;
-            return false;
-        }
-
-        // 确定当前命令
-        for (const auto& subcmd : app.get_subcommands()) {
-            if (subcmd->parsed()) {
-                args.command = subcmd->get_name();
-                LOG_INFO_FMT("Command: %s", args.command.c_str());
-                break;
-            }
-        }
-
-        // 如果使用了-c 参数则获取并解析配置文件
-
-        if (!args.config_file.empty()) {
-            
-            // 读取配置文件内容
-            ConfigFile cfg_file;
-            if (parse_config_file(args.config_file, cfg_file) != 0) {
-                std::cout << "Failed to parse configuration file: " << args.config_file << std::endl;
-                LOG_ERROR_FMT("Failed to parse configuration file: %s", args.config_file.c_str());
-                return false;
-            }
-
-            // 根据配置文件的内容生成 node节点等信息
-            if (build_opentenbase_config(cfg_file, config) != 0) {
-                std::cout << "Failed to parse configuration file: " << args.config_file << std::endl;
-                LOG_ERROR_FMT("Failed to parse configuration file: %s", args.config_file.c_str());
-                return false;
-            }
-        } else {
-            // Build configuration from command line arguments
-            if (build_config_from_args(args, config) != 0) {
-                LOG_ERROR_FMT("Failed to build configuration from command line arguments");
-                return false;
-            }
-        }
-
-        // Initialize node directories
-        if (init_node_directories(config) != 0) {
-            LOG_ERROR_FMT("Failed to initialize node directories");
-            return -1;
-        }
-
-        // Assign ports for nodes
-        if (args.command == "install" || args.command == "expand") {
-            if (assign_ports_for_nodes(config.nodes, config.server.ssh_user, config.server.ssh_password, config.server.ssh_port) != 0) {
-                LOG_ERROR_FMT("Failed to assign ports for nodes");
-                return -1;
-            }
-        }
-
-        // fill with gtm info
-        if (fill_node_with_gtm_info(config) != 0) {
-            LOG_INFO_FMT("Failed to fill node with gtm info, Perhaps no GTM information has been entered");
-        }
-
-        return true;
-    } catch (const CLI::ParseError &e) {
-        return app.exit(e);
-    } catch (const std::exception &e) {
-        LOG_ERROR_FMT("Error parsing command line arguments: %s", e.what());
-        return false;
-    }
-} 

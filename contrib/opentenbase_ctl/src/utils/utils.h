@@ -13,17 +13,6 @@
 std::string extract_version_from_package_name(const std::string& package_name);
 
 /**
- * 检查端口是否可用
- * @param ip 目标主机IP地址
- * @param port 要检查的端口号
- * @param username 用户名
- * @param password 密码
- * @param ssh_port SSH端口号
- * @return 0: 端口可用; -1: 端口不可用或发生错误
- */
-int check_port_available(const char *ip, int port, const char *username, const char *password, int ssh_port);
-
-/**
  * 为节点分配可用的端口
  * @param nodes 节点信息数组
  * @param username SSH用户名
@@ -33,6 +22,18 @@ int check_port_available(const char *ip, int port, const char *username, const c
  */
 int assign_ports_for_nodes(std::vector<NodeInfo>& nodes, const std::string& username, 
                           const std::string& password, int ssh_port);
+
+/**
+ * @brief 从等号后提取值并去除尾随的空白字符和注释。
+ *
+ * 此函数用于解析配置文件中的行，提取等号 '=' 后面的值，
+ * 并去除值末尾的空白字符（如空格、制表符）以及注释部分（以 '#' 开始的部分）。
+ *
+ * @param line 包含配置项的字符串，格式通常为 "key = value # comment"。
+ *             必须确保 line 不为 nullptr，否则行为未定义。
+ * @return 返回提取并修剪后的值作为 std::string。如果未找到等号或值为空，返回空字符串。
+ */
+std::string get_value_after_equal(const std::string& line);
 
 /**
  * 检查并获取可用的端口对（node port和pooler port）
@@ -142,5 +143,19 @@ bool is_fusion_version(std::string version);
  * @return true 是; false: 否
  */
 bool is_Centralized_instance(std::string instance_type);
+
+// sql 转义函数
+std::string escape_sql(const std::string& sql);
+
+// build sql cmd for psql
+std::string build_sql_cmd_for_psql(const std::string& binDir, 
+    const std::string& ip, 
+    const int port, 
+    const std::string& username, 
+    const std::string& database, 
+    const std::string& sql);
+
+// build export env str
+std::string buid_ld_library_path_str(std::string bin_dir);
 
 #endif // UTILS_H 

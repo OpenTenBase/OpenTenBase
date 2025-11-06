@@ -46,10 +46,35 @@ should_log(const char* level) {
     return true;
 }
 
+// 检查并创建日志目录
+bool ensure_log_directory_exists() {
+    struct stat info;
+    if (stat(log_dir.c_str(), &info) != 0) {
+        // 目录不存在，尝试创建
+        if (mkdir(log_dir.c_str(), S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH) != 0) {
+            // 创建失败，记录错误日志
+            std::lock_guard<std::mutex> lock(log_mutex);
+            std::cerr << "Failed to create log directory: " << log_dir << " (errno: " << errno << ")" << std::endl;
+            return false;
+        }
+    } else if (!(info.st_mode & S_IFDIR)) {
+        // 路径存在但不是目录
+        std::lock_guard<std::mutex> lock(log_mutex);
+        std::cerr << "Log path exists but is not a directory: " << log_dir << std::endl;
+        return false;
+    }
+    return true;
+}
+
 void 
 log_message(const char* level, const char* message, const char* file, int line) {
     std::lock_guard<std::mutex> lock(log_mutex);
     if (!should_log(level)) {
+        return;
+    }
+    
+    // 确保日志目录存在
+    if (!ensure_log_directory_exists()) {
         return;
     }
 
