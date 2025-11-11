@@ -1,0 +1,7 @@
+MODULES = tx_logger
+DATA_built = sql/tx_logger--1.0.sql
+DATA_uninstalled = sql/uninstall_tx_logger.sql
+
+PG_CONFIG = pg_config
+PGXS := $(shell $(PG_CONFIG) --pgxs)
+include $(PGXS)
