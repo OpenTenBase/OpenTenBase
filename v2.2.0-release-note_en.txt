@@ -1,0 +1,20 @@
+Here is the English translation:
+
+V2.2.0-release version mainly focuses on the following optimizations:
+
+1. Optimizations on the executor/optimizer:
+- Subqueries are optimized to correlated queries. After optimization, some statements can be pushed down to DN nodes for computation, with a potential performance improvement of hundreds of times.  
+- Enhanced the down-pushing capability of FQS queries to support more subquery scenarios using FQS down-pushing, with a potential performance improvement of tens of times.
+
+2. Memory usage optimizations:  
+- Provides a detailed query view of session memory usage.
+- Automatically releases idle connections with excessive memory to reduce the memory usage of all idle connections by about 90%.
+- Supports Relcache LRU replacement to reduce session memory usage by about 55%.
+
+3. Improvements on displaying the analyzed execution plan:
+- On CN, it can view the execution information of operators on each DN (previously with limited functionality, it could only display operators on CN), through complete execution information performance bottlenecks can be found for SQL performance optimization.
+
+4. Added global session view functionality:
+- Can obtain the running status of processes belonging to all sessions in the entire cluster from CN.
+
+In addition to the above, some known bugs were also fixed, improving the cluster stability to a higher level.
