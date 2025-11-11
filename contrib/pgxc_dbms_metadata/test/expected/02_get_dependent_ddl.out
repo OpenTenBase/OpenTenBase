@@ -1,0 +1,139 @@
+-- test for retrieving dependent index constraint ddl
+\i test/sql/get_dependent_ddl/get_dependent_ddl_index_constraint.sql
+SELECT dbms_metadata.get_dependent_ddl('INDEX','table_all','gdmmm') from dual;
+                     get_dependent_ddl                      
+------------------------------------------------------------
+ CREATE INDEX perf_index ON gdmmm.table_all USING btree (c);+
+ 
+(1 row)
+
+SELECT dbms_metadata.get_dependent_ddl('INDEX','Sample unlogged table','gdmmm') from dual;
+                                        get_dependent_ddl                                         
+--------------------------------------------------------------------------------------------------
+ CREATE INDEX "Gin_Index_Name" ON gdmmm."Sample unlogged table" USING spgist ("name of customer");+
+
+(1 row)
+
+SELECT dbms_metadata.get_dependent_ddl('CONSTRAINT','table_all','gdmmm') from dual;
+                             get_dependent_ddl                             
+---------------------------------------------------------------------------
+ ALTER TABLE gdmmm.table_all ADD CONSTRAINT table_all_pkey PRIMARY KEY (a);+
+                                                                           +
+ 
+(1 row)
+
+SELECT dbms_metadata.get_dependent_ddl('CONSTRAINT','table_all_child','gdmmm') from dual;
+                            get_dependent_ddl                            
+-------------------------------------------------------------------------
+ ALTER TABLE gdmmm.table_all_child ADD CONSTRAINT child_uniq UNIQUE (id);+
+                                                                         +
+ 
+(1 row)
+
+SELECT dbms_metadata.get_dependent_ddl('CONSTRAINT','Sample unlogged table','gdmmm') from dual;
+                                           get_dependent_ddl                                            
+--------------------------------------------------------------------------------------------------------
+ ALTER TABLE gdmmm."Sample unlogged table" ADD CONSTRAINT "Sample unlogged table_pkey" PRIMARY KEY (id);+
+ ALTER TABLE gdmmm."Sample unlogged table" ADD CONSTRAINT "Unique age" UNIQUE (id, "Age");              +
+                                                                                                        +
+ ALTER TABLE gdmmm."Sample unlogged table" ADD CHECK (("Birth_Date" > '1900-01-01'::date));             +
+
+(1 row)
+
+SELECT dbms_metadata.get_dependent_ddl('REF_CONSTRAINT','table_all_child','gdmmm') from dual;
+                                               get_dependent_ddl                                               
+---------------------------------------------------------------------------------------------------------------
+ ALTER TABLE gdmmm.table_all_child ADD CONSTRAINT "Fk_customer" FOREIGN KEY (id) REFERENCES gdmmm.table_all(a);+
+ 
+(1 row)
+
+-- tests for schema as NULL
+SET search_path TO public, gdmmm;
+SELECT dbms_metadata.get_dependent_ddl('INDEX','table_all') from dual;
+                  get_dependent_ddl                   
+------------------------------------------------------
+ CREATE INDEX perf_index ON table_all USING btree (c);+
+ 
+(1 row)
+
+SELECT dbms_metadata.get_dependent_ddl('INDEX','Sample unlogged table') from dual;
+                                     get_dependent_ddl                                      
+--------------------------------------------------------------------------------------------
+ CREATE INDEX "Gin_Index_Name" ON "Sample unlogged table" USING spgist ("name of customer");+
+
+(1 row)
+
+SELECT dbms_metadata.get_dependent_ddl('CONSTRAINT','table_all') from dual;
+                             get_dependent_ddl                             
+---------------------------------------------------------------------------
+ ALTER TABLE gdmmm.table_all ADD CONSTRAINT table_all_pkey PRIMARY KEY (a);+
+                                                                           +
+
+(1 row)
+
+SELECT dbms_metadata.get_dependent_ddl('CONSTRAINT','table_all_child') from dual;
+                            get_dependent_ddl                            
+-------------------------------------------------------------------------
+ ALTER TABLE gdmmm.table_all_child ADD CONSTRAINT child_uniq UNIQUE (id);+
+                                                                         +
+
+(1 row)
+
+SELECT dbms_metadata.get_dependent_ddl('CONSTRAINT','Sample unlogged table') from dual;
+                                           get_dependent_ddl                                            
+--------------------------------------------------------------------------------------------------------
+ ALTER TABLE gdmmm."Sample unlogged table" ADD CONSTRAINT "Sample unlogged table_pkey" PRIMARY KEY (id);+
+ ALTER TABLE gdmmm."Sample unlogged table" ADD CONSTRAINT "Unique age" UNIQUE (id, "Age");              +
+                                                                                                        +
+ ALTER TABLE gdmmm."Sample unlogged table" ADD CHECK (("Birth_Date" > '1900-01-01'::date));             +
+ 
+(1 row)
+
+-- test for retrieving dependent sequence ddl
+\i test/sql/get_dependent_ddl/get_dependent_ddl_sequence.sql
+SELECT dbms_metadata.get_dependent_ddl('SEQUENCE','table_all','gdmmm') from dual;
+                                                 get_dependent_ddl                                                 
+-------------------------------------------------------------------------------------------------------------------
+ CREATE SEQUENCE gdmmm.table_all_a_seq START WITH 1 INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 CACHE 1 NO CYCLE+
+                                                                                                                  +
+ 
+(1 row)
+
+SELECT dbms_metadata.get_dependent_ddl('SEQUENCE','Sample unlogged table','gdmmm') from dual;
+                                                        get_dependent_ddl                                                         
+----------------------------------------------------------------------------------------------------------------------------------
+ CREATE SEQUENCE gdmmm."Sample unlogged table_id_seq" START WITH 1 INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 CACHE 1 NO CYCLE+
+                                                                                                                                 +
+ 
+(1 row)
+
+-- tests for schema as NULL
+SET search_path TO public, gdmmm;
+SELECT dbms_metadata.get_dependent_ddl('SEQUENCE','table_all') from dual;
+                                                 get_dependent_ddl                                                 
+-------------------------------------------------------------------------------------------------------------------
+ CREATE SEQUENCE gdmmm.table_all_a_seq START WITH 1 INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 CACHE 1 NO CYCLE+
+                                                                                                                  +
+ 
+(1 row)
+
+SELECT dbms_metadata.get_dependent_ddl('SEQUENCE','Sample unlogged table') from dual;
+                                                        get_dependent_ddl                                                         
+----------------------------------------------------------------------------------------------------------------------------------
+ CREATE SEQUENCE gdmmm."Sample unlogged table_id_seq" START WITH 1 INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 CACHE 1 NO CYCLE+
+                                                                                                                                 +
+ 
+(1 row)
+
+-- test for retrieving dependent trigger ddl
+\i test/sql/get_dependent_ddl/get_dependent_ddl_trigger.sql
+SELECT dbms_metadata.get_dependent_ddl('TRIGGER','table_all','gdmmm') from dual;
+                                              get_dependent_ddl                                              
+-------------------------------------------------------------------------------------------------------------
+ CREATE TRIGGER "order" BEFORE INSERT ON table_all FOR EACH ROW EXECUTE PROCEDURE double_salary();      +
+                                                                                                        +
+ CREATE TRIGGER trigger_edit_text BEFORE INSERT ON table_all FOR EACH ROW EXECUTE PROCEDURE edit_text();+
+                                                                                                        +
+ 
+(1 row)
+

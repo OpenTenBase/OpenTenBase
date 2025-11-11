@@ -1,0 +1,5 @@
+comment = 'Extension to add Oracle SYSTEM VIEW compatibility to OpenTenBase'
+default_version = '1.0.0'
+module_pathname = '$libdir/pgxc_ora_sysview'
+schema = 'sys'
+relocatable = false

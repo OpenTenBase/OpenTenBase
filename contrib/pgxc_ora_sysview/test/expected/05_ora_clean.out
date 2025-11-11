@@ -1,0 +1,24 @@
+joyann=# drop schema jynnn cascade;
+NOTICE:  drop cascades to 12 other objects
+DETAIL:  drop cascades to table jynnn.t_ora_jyinhp
+drop cascades to table jynnn.t_ora_jyinhp_child
+drop cascades to table jynnn.t_ora_sales
+drop cascades to table jynnn."Sample unlogged table"
+drop cascades to view jynnn.t_ora_view1
+drop cascades to view jynnn."Global fines"
+drop cascades to function jynnn.t_ora_double_salary()
+drop cascades to function jynnn.t_ora_edit_text()
+drop cascades to sequence jynnn."attach Line"
+drop cascades to type jynnn.t_ora_location
+drop cascades to type jynnn."T_Ora_Address"
+drop cascades to function jynnn."T Merge objects"(text,jynnn."T_Ora_Address")
+DROP SCHEMA
+joyann=# drop schema zjaaa cascade;
+NOTICE:  drop cascades to 2 other objects
+DETAIL:  drop cascades to table zjaaa.t_ora_zjtab
+drop cascades to table zjaaa.t_ora_zjpart
+DROP SCHEMA
+joyann=# drop user zjaauser ;
+DROP ROLE
+joyann=# drop user jynnuser ;
+DROP ROLE

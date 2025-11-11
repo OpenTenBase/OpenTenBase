@@ -1,0 +1,5 @@
+comment = 'Extension to add Oracle DBMS_METADATA compatibility to OpenTenBase'
+default_version = '1.0.0'
+module_pathname = '$libdir/pgxc_dbms_metadata'
+schema = 'dbms_metadata'
+relocatable = false
