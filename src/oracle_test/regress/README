@@ -1,0 +1,22 @@
+
+这里有些文件是关于如何运行这些回归测试的文件,我直接引用的pgsql的测试文件
+结果可以在PostgreSQL手册的一章中找到“Regression Tests”。
+
+下面进入正题
+
+# 一. 安装oracle-check oracle-installcheck
+
+all install clean oracle-check oracle-installcheck
+
+
+# 二. 编写兼容oracle分区sql
+sql/partition_aggregate.sql
+sql/partition_info.sql
+sql/partition_join.sql
+sql/partition_prune.sql
+
+# 三. 创建分区表测试分区兼容情况
+expected/partition_aggregate.out
+expected/partition_info.out
+expected/partition_join.out
+expected/partition_prune.out
