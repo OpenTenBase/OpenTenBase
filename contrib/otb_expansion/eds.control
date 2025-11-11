@@ -1,0 +1,7 @@
+# eds extension
+comment = 'eds to write a extension'
+default_version = '1.0'
+module_pathname = '$libdir/eds'
+
+relocatable = false
+schema = pg_catalog
