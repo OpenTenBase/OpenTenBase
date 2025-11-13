@@ -1,0 +1,27 @@
+-- 测试1输出
+ emp_id | dept_id | emp_name | salary  
+--------+---------+----------+---------
+      1 |       1 | 张三     | 15000.00
+      2 |       1 | 李四     | 12000.00
+(2 rows)
+
+ project_id | lead_emp_id |    project_name     
+------------+-------------+---------------------
+          1 |           1 | PostgreSQL 16优化
+          2 |           2 | AI数据库研发
+(2 rows)
+
+-- 测试2输出
+ dept_id | dept_name 
+---------+-----------
+       2 | 市场部
+       3 | 财务部
+(2 rows)
+
+ emp_id | dept_id | emp_name | salary  
+--------+---------+----------+---------
+(0 rows)
+
+ project_id | lead_emp_id | project_name 
+------------+-------------+--------------
+(0 rows)
