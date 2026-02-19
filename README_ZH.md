@@ -1,6 +1,12 @@
 <img src="images/OpenTenBase_logo.svg" width="60%" />
 
 ___
+
+<p align="center">
+  <a href="./README.md">English</a> |
+  <a href="./README_ZH.md">简体中文</a>
+</p>
+
 # OpenTenBase 数据库管理系统
 
 OpenTenBase 是基于 Postgres-XL 项目的先进企业级数据库管理系统。它支持SQL标准的扩展子集，包括事务、外键、用户定义类型和函数。此外，它还添加了并行计算、安全性、管理、审计和其他功能。

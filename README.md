@@ -2,6 +2,12 @@
 <img src="images/OpenTenBase_logo.svg" width="60%" />
 
 ___
+
+<p align="center">
+  <a href="./README.md">English</a> |
+  <a href="./README_ZH.md">简体中文</a>
+</p>
+
 # OpenTenBase Database Management System
 
 **Language**: [English](README.md) | [简体中文](README_ZH.md)
