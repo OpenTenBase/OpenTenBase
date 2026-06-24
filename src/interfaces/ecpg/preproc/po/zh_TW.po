@@ -518,8 +518,8 @@ msgstr "在\"%s\"附近發生 %s"
 # storage/file/fd.c:587 storage/file/fd.c:620 storage/file/fd.c:766
 # storage/ipc/sinval.c:789 storage/lmgr/lock.c:497 storage/smgr/md.c:138
 # storage/smgr/md.c:848 storage/smgr/smgr.c:213 utils/adt/cash.c:297
-# utils/adt/cash.c:312 utils/adt/oracle_compat.c:73
-# utils/adt/oracle_compat.c:124 utils/adt/regexp.c:191
+# utils/adt/cash.c:312 utils/adt/opentenbase_ora_compat.c:73
+# utils/adt/opentenbase_ora_compat.c:124 utils/adt/regexp.c:191
 # utils/adt/ri_triggers.c:3471 utils/cache/relcache.c:164
 # utils/cache/relcache.c:178 utils/cache/relcache.c:1130
 # utils/cache/typcache.c:165 utils/cache/typcache.c:487

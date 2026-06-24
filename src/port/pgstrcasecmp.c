@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * pgstrcasecmp.c
- *       Portable SQL-like case-independent comparisons and conversions.
+ *	   Portable SQL-like case-independent comparisons and conversions.
  *
  * SQL99 specifies Unicode-aware case normalization, which we don't yet
  * have the infrastructure for.  Instead we use tolower() to provide a
@@ -34,31 +34,31 @@
  */
 int
 pg_strcasecmp(const char *s1, const char *s2)
-{// #lizard forgives
-    for (;;)
-    {
-        unsigned char ch1 = (unsigned char) *s1++;
-        unsigned char ch2 = (unsigned char) *s2++;
+{
+	for (;;)
+	{
+		unsigned char ch1 = (unsigned char) *s1++;
+		unsigned char ch2 = (unsigned char) *s2++;
 
-        if (ch1 != ch2)
-        {
-            if (ch1 >= 'A' && ch1 <= 'Z')
-                ch1 += 'a' - 'A';
-            else if (IS_HIGHBIT_SET(ch1) && isupper(ch1))
-                ch1 = tolower(ch1);
+		if (ch1 != ch2)
+		{
+			if (ch1 >= 'A' && ch1 <= 'Z')
+				ch1 += 'a' - 'A';
+			else if (IS_HIGHBIT_SET(ch1) && isupper(ch1))
+				ch1 = tolower(ch1);
 
-            if (ch2 >= 'A' && ch2 <= 'Z')
-                ch2 += 'a' - 'A';
-            else if (IS_HIGHBIT_SET(ch2) && isupper(ch2))
-                ch2 = tolower(ch2);
+			if (ch2 >= 'A' && ch2 <= 'Z')
+				ch2 += 'a' - 'A';
+			else if (IS_HIGHBIT_SET(ch2) && isupper(ch2))
+				ch2 = tolower(ch2);
 
-            if (ch1 != ch2)
-                return (int) ch1 - (int) ch2;
-        }
-        if (ch1 == 0)
-            break;
-    }
-    return 0;
+			if (ch1 != ch2)
+				return (int) ch1 - (int) ch2;
+		}
+		if (ch1 == 0)
+			break;
+	}
+	return 0;
 }
 
 /*
@@ -67,31 +67,31 @@ pg_strcasecmp(const char *s1, const char *s2)
  */
 int
 pg_strncasecmp(const char *s1, const char *s2, size_t n)
-{// #lizard forgives
-    while (n-- > 0)
-    {
-        unsigned char ch1 = (unsigned char) *s1++;
-        unsigned char ch2 = (unsigned char) *s2++;
+{
+	while (n-- > 0)
+	{
+		unsigned char ch1 = (unsigned char) *s1++;
+		unsigned char ch2 = (unsigned char) *s2++;
 
-        if (ch1 != ch2)
-        {
-            if (ch1 >= 'A' && ch1 <= 'Z')
-                ch1 += 'a' - 'A';
-            else if (IS_HIGHBIT_SET(ch1) && isupper(ch1))
-                ch1 = tolower(ch1);
+		if (ch1 != ch2)
+		{
+			if (ch1 >= 'A' && ch1 <= 'Z')
+				ch1 += 'a' - 'A';
+			else if (IS_HIGHBIT_SET(ch1) && isupper(ch1))
+				ch1 = tolower(ch1);
 
-            if (ch2 >= 'A' && ch2 <= 'Z')
-                ch2 += 'a' - 'A';
-            else if (IS_HIGHBIT_SET(ch2) && isupper(ch2))
-                ch2 = tolower(ch2);
+			if (ch2 >= 'A' && ch2 <= 'Z')
+				ch2 += 'a' - 'A';
+			else if (IS_HIGHBIT_SET(ch2) && isupper(ch2))
+				ch2 = tolower(ch2);
 
-            if (ch1 != ch2)
-                return (int) ch1 - (int) ch2;
-        }
-        if (ch1 == 0)
-            break;
-    }
-    return 0;
+			if (ch1 != ch2)
+				return (int) ch1 - (int) ch2;
+		}
+		if (ch1 == 0)
+			break;
+	}
+	return 0;
 }
 
 /*
@@ -104,11 +104,11 @@ pg_strncasecmp(const char *s1, const char *s2, size_t n)
 unsigned char
 pg_toupper(unsigned char ch)
 {
-    if (ch >= 'a' && ch <= 'z')
-        ch += 'A' - 'a';
-    else if (IS_HIGHBIT_SET(ch) && islower(ch))
-        ch = toupper(ch);
-    return ch;
+	if (ch >= 'a' && ch <= 'z')
+		ch += 'A' - 'a';
+	else if (IS_HIGHBIT_SET(ch) && islower(ch))
+		ch = toupper(ch);
+	return ch;
 }
 
 /*
@@ -121,11 +121,11 @@ pg_toupper(unsigned char ch)
 unsigned char
 pg_tolower(unsigned char ch)
 {
-    if (ch >= 'A' && ch <= 'Z')
-        ch += 'a' - 'A';
-    else if (IS_HIGHBIT_SET(ch) && isupper(ch))
-        ch = tolower(ch);
-    return ch;
+	if (ch >= 'A' && ch <= 'Z')
+		ch += 'a' - 'A';
+	else if (IS_HIGHBIT_SET(ch) && isupper(ch))
+		ch = tolower(ch);
+	return ch;
 }
 
 /*
@@ -134,9 +134,9 @@ pg_tolower(unsigned char ch)
 unsigned char
 pg_ascii_toupper(unsigned char ch)
 {
-    if (ch >= 'a' && ch <= 'z')
-        ch += 'A' - 'a';
-    return ch;
+	if (ch >= 'a' && ch <= 'z')
+		ch += 'A' - 'a';
+	return ch;
 }
 
 /*
@@ -145,7 +145,7 @@ pg_ascii_toupper(unsigned char ch)
 unsigned char
 pg_ascii_tolower(unsigned char ch)
 {
-    if (ch >= 'A' && ch <= 'Z')
-        ch += 'a' - 'A';
-    return ch;
+	if (ch >= 'A' && ch <= 'Z')
+		ch += 'a' - 'A';
+	return ch;
 }

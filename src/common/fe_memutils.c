@@ -1,14 +1,14 @@
 /*-------------------------------------------------------------------------
  *
  * fe_memutils.c
- *      memory management support for frontend code
+ *	  memory management support for frontend code
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
  * IDENTIFICATION
- *      src/common/fe_memutils.c
+ *	  src/common/fe_memutils.c
  *
  *-------------------------------------------------------------------------
  */
@@ -22,60 +22,60 @@
 static inline void *
 pg_malloc_internal(size_t size, int flags)
 {
-    void       *tmp;
+	void	   *tmp;
 
-    /* Avoid unportable behavior of malloc(0) */
-    if (size == 0)
-        size = 1;
-    tmp = malloc(size);
-    if (tmp == NULL)
-    {
-        if ((flags & MCXT_ALLOC_NO_OOM) == 0)
-        {
-            fprintf(stderr, _("out of memory\n"));
-            exit(EXIT_FAILURE);
-        }
-        return NULL;
-    }
+	/* Avoid unportable behavior of malloc(0) */
+	if (size == 0)
+		size = 1;
+	tmp = malloc(size);
+	if (tmp == NULL)
+	{
+		if ((flags & MCXT_ALLOC_NO_OOM) == 0)
+		{
+			fprintf(stderr, _("out of memory\n"));
+			exit(EXIT_FAILURE);
+		}
+		return NULL;
+	}
 
-    if ((flags & MCXT_ALLOC_ZERO) != 0)
-        MemSet(tmp, 0, size);
-    return tmp;
+	if ((flags & MCXT_ALLOC_ZERO) != 0)
+		MemSet(tmp, 0, size);
+	return tmp;
 }
 
 void *
 pg_malloc(size_t size)
 {
-    return pg_malloc_internal(size, 0);
+	return pg_malloc_internal(size, 0);
 }
 
 void *
 pg_malloc0(size_t size)
 {
-    return pg_malloc_internal(size, MCXT_ALLOC_ZERO);
+	return pg_malloc_internal(size, MCXT_ALLOC_ZERO);
 }
 
 void *
 pg_malloc_extended(size_t size, int flags)
 {
-    return pg_malloc_internal(size, flags);
+	return pg_malloc_internal(size, flags);
 }
 
 void *
 pg_realloc(void *ptr, size_t size)
 {
-    void       *tmp;
+	void	   *tmp;
 
-    /* Avoid unportable behavior of realloc(NULL, 0) */
-    if (ptr == NULL && size == 0)
-        size = 1;
-    tmp = realloc(ptr, size);
-    if (!tmp)
-    {
-        fprintf(stderr, _("out of memory\n"));
-        exit(EXIT_FAILURE);
-    }
-    return tmp;
+	/* Avoid unportable behavior of realloc(NULL, 0) */
+	if (ptr == NULL && size == 0)
+		size = 1;
+	tmp = realloc(ptr, size);
+	if (!tmp)
+	{
+		fprintf(stderr, _("out of memory\n"));
+		exit(EXIT_FAILURE);
+	}
+	return tmp;
 }
 
 /*
@@ -84,28 +84,28 @@ pg_realloc(void *ptr, size_t size)
 char *
 pg_strdup(const char *in)
 {
-    char       *tmp;
+	char	   *tmp;
 
-    if (!in)
-    {
-        fprintf(stderr,
-                _("cannot duplicate null pointer (internal error)\n"));
-        exit(EXIT_FAILURE);
-    }
-    tmp = strdup(in);
-    if (!tmp)
-    {
-        fprintf(stderr, _("out of memory\n"));
-        exit(EXIT_FAILURE);
-    }
-    return tmp;
+	if (!in)
+	{
+		fprintf(stderr,
+				_("cannot duplicate null pointer (internal error)\n"));
+		exit(EXIT_FAILURE);
+	}
+	tmp = strdup(in);
+	if (!tmp)
+	{
+		fprintf(stderr, _("out of memory\n"));
+		exit(EXIT_FAILURE);
+	}
+	return tmp;
 }
 
 void
 pg_free(void *ptr)
 {
-    if (ptr != NULL)
-        free(ptr);
+	if (ptr != NULL)
+		free(ptr);
 }
 
 /*
@@ -113,37 +113,37 @@ pg_free(void *ptr)
  * programs that compile backend files.
  */
 void *
-palloc(Size size)
+palloc_internal(Size size, const char* file, int line)
 {
-    return pg_malloc_internal(size, 0);
+	return pg_malloc_internal(size, 0);
 }
 
 void *
-palloc0(Size size)
+palloc0_internal(Size size, const char* file, int line)
 {
-    return pg_malloc_internal(size, MCXT_ALLOC_ZERO);
+	return pg_malloc_internal(size, MCXT_ALLOC_ZERO);
 }
 
 void *
-palloc_extended(Size size, int flags)
+palloc_extended_internal(Size size, int flags, const char* file, int line)
 {
-    return pg_malloc_internal(size, flags);
+	return pg_malloc_internal(size, flags);
 }
 
 void
 pfree(void *pointer)
 {
-    pg_free(pointer);
+	pg_free(pointer);
 }
 
 char *
 pstrdup(const char *in)
 {
-    return pg_strdup(in);
+	return pg_strdup(in);
 }
 
 void *
-repalloc(void *pointer, Size size)
+repallocInternal(void *pointer, Size size, const char* file, int line)
 {
-    return pg_realloc(pointer, size);
+	return pg_realloc(pointer, size);
 }

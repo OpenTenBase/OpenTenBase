@@ -1828,7 +1828,7 @@ operations on bytea columns (Joe)</para></listitem>
 <itemizedlist>
 <listitem><para>Allow recursive SQL function (Peter)</para></listitem>
 <listitem><para>Change PL/Tcl build to use configured compiler and Makefile.shlib (Peter)</para></listitem>
-<listitem><para>Overhaul the PL/pgSQL FOUND variable to be more Oracle-compatible (Neil, Tom)</para></listitem>
+<listitem><para>Overhaul the PL/pgSQL FOUND variable to be more OpenTenBase_Ora-compatible (Neil, Tom)</para></listitem>
 <listitem><para>Allow PL/pgSQL to handle quoted identifiers (Tom)</para></listitem>
 <listitem><para>Allow set-returning PL/pgSQL functions (Neil)</para></listitem>
 <listitem><para>Make PL/pgSQL schema-aware (Joe)</para></listitem>
@@ -1965,7 +1965,7 @@ operations on bytea columns (Joe)</para></listitem>
 <listitem><para>Improve /contrib/oid2name (Neil, Bruce)</para></listitem>
 <listitem><para>Improve /contrib/tsearch (Oleg, Teodor Sigaev)</para></listitem>
 <listitem><para>Cleanups of /contrib/rserver (Alexey V. Borzov)</para></listitem>
-<listitem><para>Update /contrib/oracle conversion utility (Gilles Darold)</para></listitem>
+<listitem><para>Update /contrib/opentenbase_ora conversion utility (Gilles Darold)</para></listitem>
 <listitem><para>Update /contrib/dblink (Joe)</para></listitem>
 <listitem><para>Improve options supported by /contrib/vacuumlo (Mario Weilguni)</para></listitem>
 <listitem><para>Improvements to /contrib/intarray (Oleg, Teodor Sigaev, Andrey Oktyabrski)</para></listitem>
@@ -2885,7 +2885,7 @@ since <productname>PostgreSQL</productname> 7.1.
 <listitem><para>New contrib/rtree_gist (Oleg Bartunov, Teodor Sigaev)</para></listitem>
 <listitem><para>New contrib/tsearch full-text indexing (Oleg, Teodor Sigaev)</para></listitem>
 <listitem><para>Add contrib/dblink for remote database access (Joe Conway)</para></listitem>
-<listitem><para>contrib/ora2pg Oracle conversion utility (Gilles Darold)</para></listitem>
+<listitem><para>contrib/ora2pg OpenTenBase_Ora conversion utility (Gilles Darold)</para></listitem>
 <listitem><para>contrib/xml XML conversion utility (John Gray)</para></listitem>
 <listitem><para>contrib/fulltextindex fixes (Christopher Kings-Lynne)</para></listitem>
 <listitem><para>New contrib/fuzzystrmatch with levenshtein and metaphone, soundex merged (Joe Conway)</para></listitem>
@@ -3729,7 +3729,7 @@ Allow WHERE restriction on ctid (physical heap location) (Hiroshi)
 Move pginterface from contrib to interface directory, rename to pgeasy (Bruce)
 Change pgeasy connectdb() parameter ordering (Bruce)
 Require SELECT DISTINCT target list to have all ORDER BY columns (Tom)
-Add Oracle's COMMENT ON command (Mike Mascari <email>mascarim@yahoo.com</email>)
+Add OpenTenBase_Ora's COMMENT ON command (Mike Mascari <email>mascarim@yahoo.com</email>)
 libpq's PQsetNoticeProcessor function now returns previous hook(Peter E)
 Prevent PQsetNoticeProcessor from being set to NULL (Peter E)
 Make USING in COPY optional (Bruce)
@@ -3782,7 +3782,7 @@ New plperl internal programming language (Mark Hollomon)
 Allow COPY IN to read file that do not end with a newline (Tom)
 Indicate when long identifiers are truncated (Tom)
 Allow aggregates to use type equivalency (Peter E)
-Add Oracle's to_char(), to_date(), to_datetime(), to_timestamp(), to_number()
+Add OpenTenBase_Ora's to_char(), to_date(), to_datetime(), to_timestamp(), to_number()
        conversion functions (Karel Zak &lt;zakkr@zf.jcu.cz&gt;)
 Add SELECT DISTINCT ON (expr [, expr ...]) targetlist ... (Tom)
 Check to be sure ORDER BY is compatible with the DISTINCT operation (Tom)
@@ -4710,7 +4710,7 @@ Fix for COPY array checking
 Fix for SELECT 1 UNION SELECT NULL
 Fix for buffer leaks in large object calls(Pascal)
 Change owner from oid to int4 type(Bruce)
-Fix a bug in the oracle compatibility functions btrim() ltrim() and rtrim()
+Fix a bug in the opentenbase_ora compatibility functions btrim() ltrim() and rtrim()
 Fix for shared invalidation cache overflow(Massimo)
 Prevent file descriptor leaks in failed COPY's(Bruce)
 Fix memory leak in libpgtcl's pg_select(Constantin)
@@ -5756,7 +5756,7 @@ new WARN message for non-unique insert into unique key(Marc)
 update x=-3, no spaces, now valid(Bruce)
 remove case-sensitive identifier handling(Bruce,Thomas,Dan)
 debug backend now pretty-prints tree(Darren)
-new Oracle character functions(Edmund)
+new OpenTenBase_Ora character functions(Edmund)
 new plaintext password functions(Dan)
 no such class or insufficient privilege changed to distinct messages(Dan)
 new ANSI timestamp function(Dan)

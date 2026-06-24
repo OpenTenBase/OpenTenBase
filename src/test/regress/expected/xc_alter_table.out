@@ -4,15 +4,15 @@
 -- Check on dropped columns
 CREATE TABLE xc_alter_table_1 (id serial, name varchar(80), code varchar(80)) DISTRIBUTE BY HASH(id);
 EXPLAIN (VERBOSE true, COSTS false, NODES false) INSERT INTO xc_alter_table_1(name) VALUES ('aaa'),('bbb'),('ccc');
-                                                      QUERY PLAN                                                       
------------------------------------------------------------------------------------------------------------------------
- Remote Subquery Scan on all
+                                                            QUERY PLAN                                                            
+----------------------------------------------------------------------------------------------------------------------------------
+ Remote Subquery Scan[1] on all (datanodes 2)
    ->  Insert on public.xc_alter_table_1
-         ->  Remote Subquery Scan on all
-               Output: nextval('xc_alter_table_1_id_seq'::regclass), "*VALUES*".column1, NULL::character varying
-               Distribute results by H: nextval('xc_alter_table_1_id_seq'::regclass)
+         ->  Remote Subquery Scan[2] on all (datanodes 1)
+               Output: ((nextval('xc_alter_table_1_id_seq'::regclass))::integer), "*VALUES*".column1, NULL::character varying(80)
+               Distribute results by H: ((nextval('xc_alter_table_1_id_seq'::regclass))::integer)
                ->  Values Scan on "*VALUES*"
-                     Output: nextval('xc_alter_table_1_id_seq'::regclass), "*VALUES*".column1, NULL::character varying
+                     Output: nextval('xc_alter_table_1_id_seq'::regclass), "*VALUES*".column1, NULL::character varying(80)
 (7 rows)
 
 INSERT INTO xc_alter_table_1(name) VALUES ('aaa'),('bbb'),('ccc');
@@ -32,13 +32,13 @@ ALTER TABLE xc_alter_table_1 DROP COLUMN code;
 -- Check for query generation of remote INSERT
 INSERT INTO xc_alter_table_1(name) VALUES('ddd'),('eee'),('fff');
 EXPLAIN (VERBOSE true, COSTS false, NODES false) INSERT INTO xc_alter_table_1(name) VALUES('ddd'),('eee'),('fff');
-                                                 QUERY PLAN                                                  
--------------------------------------------------------------------------------------------------------------
- Remote Subquery Scan on all
+                                                     QUERY PLAN                                                     
+--------------------------------------------------------------------------------------------------------------------
+ Remote Subquery Scan[1] on all (datanodes 2)
    ->  Insert on public.xc_alter_table_1
-         ->  Remote Subquery Scan on all
-               Output: nextval('xc_alter_table_1_id_seq'::regclass), "*VALUES*".column1, NULL::integer
-               Distribute results by H: nextval('xc_alter_table_1_id_seq'::regclass)
+         ->  Remote Subquery Scan[2] on all (datanodes 1)
+               Output: ((nextval('xc_alter_table_1_id_seq'::regclass))::integer), "*VALUES*".column1, NULL::integer
+               Distribute results by H: ((nextval('xc_alter_table_1_id_seq'::regclass))::integer)
                ->  Values Scan on "*VALUES*"
                      Output: nextval('xc_alter_table_1_id_seq'::regclass), "*VALUES*".column1, NULL::integer
 (7 rows)
@@ -57,13 +57,13 @@ SELECT id, name FROM xc_alter_table_1 ORDER BY 1;
 -- Check for query generation of remote INSERT SELECT
 INSERT INTO xc_alter_table_1(name) SELECT 'ggg';
 EXPLAIN (VERBOSE true, COSTS false, NODES false) INSERT INTO xc_alter_table_1(name) SELECT 'ggg';
-                                                      QUERY PLAN                                                       
------------------------------------------------------------------------------------------------------------------------
- Remote Subquery Scan on all
+                                                          QUERY PLAN                                                          
+------------------------------------------------------------------------------------------------------------------------------
+ Remote Subquery Scan[1] on all (datanodes 2)
    ->  Insert on public.xc_alter_table_1
-         ->  Remote Subquery Scan on all
-               Output: nextval('xc_alter_table_1_id_seq'::regclass), 'ggg'::character varying(80), NULL::integer
-               Distribute results by H: nextval('xc_alter_table_1_id_seq'::regclass)
+         ->  Remote Subquery Scan[2] on all (datanodes 1)
+               Output: ((nextval('xc_alter_table_1_id_seq'::regclass))::integer), 'ggg'::character varying(80), NULL::integer
+               Distribute results by H: ((nextval('xc_alter_table_1_id_seq'::regclass))::integer)
                ->  Result
                      Output: nextval('xc_alter_table_1_id_seq'::regclass), 'ggg'::character varying(80), NULL::integer
 (7 rows)
@@ -84,10 +84,10 @@ SELECT id, name FROM xc_alter_table_1 ORDER BY 1;
 EXPLAIN (VERBOSE true, COSTS false, NODES false) UPDATE xc_alter_table_1 SET name = 'zzz' WHERE id = currval('xc_alter_table_1_id_seq');
                                          QUERY PLAN                                         
 --------------------------------------------------------------------------------------------
- Remote Subquery Scan on all
+ Remote Subquery Scan[1] on all (datanodes 2)
    ->  Update on public.xc_alter_table_1
          ->  Seq Scan on public.xc_alter_table_1
-               Output: id, 'zzz'::character varying(80), NULL::integer, xc_node_id, ctid
+               Output: 'zzz'::character varying(80), xc_node_id, shardid, ctid, id
                Filter: (xc_alter_table_1.id = currval('xc_alter_table_1_id_seq'::regclass))
 (5 rows)
 
@@ -128,7 +128,7 @@ ALTER TABLE xc_alter_table_2 DROP COLUMN e;
 EXPLAIN (VERBOSE true, COSTS false, NODES false) INSERT INTO xc_alter_table_2 VALUES ('Kodek', false);
                                                 QUERY PLAN                                                
 ----------------------------------------------------------------------------------------------------------
- Remote Subquery Scan on any
+ Remote Subquery Scan[1] on any (datanodes 2)
    ->  Insert on public.xc_alter_table_2
          ->  Result
                Output: NULL::integer, 'Kodek'::character varying(20), false, NULL::integer, NULL::integer
@@ -146,12 +146,12 @@ SELECT b, c FROM xc_alter_table_2 ORDER BY b;
 
 -- Check for query generation of remote UPDATE
 EXPLAIN (VERBOSE true, COSTS false, NODES false) UPDATE xc_alter_table_2 SET b = 'Morphee', c = false WHERE b = 'Neo';
-                                                    QUERY PLAN                                                    
-------------------------------------------------------------------------------------------------------------------
- Remote Subquery Scan on any
+                                  QUERY PLAN                                  
+------------------------------------------------------------------------------
+ Remote Subquery Scan[1] on any (datanodes 2)
    ->  Update on public.xc_alter_table_2
          ->  Seq Scan on public.xc_alter_table_2
-               Output: NULL::integer, 'Morphee'::character varying(20), false, NULL::integer, NULL::integer, ctid
+               Output: 'Morphee'::character varying(20), false, shardid, ctid
                Filter: ((xc_alter_table_2.b)::text = 'Neo'::text)
 (5 rows)
 
@@ -172,7 +172,7 @@ ALTER TABLE xc_alter_table_2 ADD COLUMN a2 varchar(20);
 EXPLAIN (VERBOSE true, COSTS false, NODES false) INSERT INTO xc_alter_table_2 (a, a2, b, c) VALUES (100, 'CEO', 'Gordon', true);
                                                                  QUERY PLAN                                                                  
 ---------------------------------------------------------------------------------------------------------------------------------------------
- Remote Subquery Scan on any
+ Remote Subquery Scan[1] on any (datanodes 2)
    ->  Insert on public.xc_alter_table_2
          ->  Result
                Output: NULL::integer, 'Gordon'::character varying(20), true, NULL::integer, NULL::integer, 100, 'CEO'::character varying(20)
@@ -191,12 +191,12 @@ SELECT a, a2, b, c FROM xc_alter_table_2 ORDER BY b;
 
 -- Check for query generation of remote UPDATE
 EXPLAIN (VERBOSE true, COSTS false, NODES false) UPDATE xc_alter_table_2 SET a = 200, a2 = 'CTO' WHERE b = 'John';
-                                                    QUERY PLAN                                                    
-------------------------------------------------------------------------------------------------------------------
- Remote Subquery Scan on any
+                               QUERY PLAN                               
+------------------------------------------------------------------------
+ Remote Subquery Scan[1] on any (datanodes 2)
    ->  Update on public.xc_alter_table_2
          ->  Seq Scan on public.xc_alter_table_2
-               Output: NULL::integer, b, c, NULL::integer, NULL::integer, 200, 'CTO'::character varying(20), ctid
+               Output: 200, 'CTO'::character varying(20), shardid, ctid
                Filter: ((xc_alter_table_2.b)::text = 'John'::text)
 (5 rows)
 
@@ -236,6 +236,7 @@ PREPARE xc_alter_table_delete AS DELETE FROM xc_alter_table_3 WHERE a = $1;
 PREPARE xc_alter_table_update AS UPDATE xc_alter_table_3 SET b = $2 WHERE a = $1;
 -- Now begin the tests
 ALTER TABLE xc_alter_table_3 DISTRIBUTE BY HASH(a);
+ERROR:  this operation is not permitted
 SELECT count(*), sum(a), avg(a) FROM xc_alter_table_3; -- Check on tuple presence
  count | sum |        avg         
 -------+-----+--------------------
@@ -271,6 +272,7 @@ SELECT b FROM xc_alter_table_3 WHERE a = 11 or a = 12;
 
 EXECUTE xc_alter_table_delete(12);
 ALTER TABLE xc_alter_table_3 DISTRIBUTE BY HASH(b);
+ERROR:  this operation is not permitted
 SELECT count(*), sum(a), avg(a) FROM xc_alter_table_3; -- Check on tuple presence
  count | sum |        avg         
 -------+-----+--------------------
@@ -291,22 +293,22 @@ SELECT b FROM xc_alter_table_3 WHERE a = 11;
 (1 row)
 
 EXECUTE xc_alter_table_update(11, 'bb');
-ERROR:  could not plan this distributed update
-DETAIL:  correlated UPDATE or updating distribution column currently not supported in Postgres-XL.
 SELECT b FROM xc_alter_table_3 WHERE a = 11;
- b 
----
- b
+ b  
+----
+ bb
 (1 row)
 
 EXECUTE xc_alter_table_delete(11);
 SELECT b FROM xc_alter_table_3 WHERE a = 11 or a = 12;
- b 
----
-(0 rows)
+  b  
+-----
+ nnn
+(1 row)
 
 EXECUTE xc_alter_table_delete(12);
 ALTER TABLE xc_alter_table_3 DISTRIBUTE BY ROUNDROBIN;
+ERROR:  this operation is not permitted
 SELECT count(*), sum(a), avg(a) FROM xc_alter_table_3; -- Check on tuple presence
  count | sum |        avg         
 -------+-----+--------------------
@@ -342,6 +344,7 @@ SELECT b FROM xc_alter_table_3 WHERE a = 11 or a = 12;
 
 EXECUTE xc_alter_table_delete(12);
 ALTER TABLE xc_alter_table_3 DISTRIBUTE BY MODULO(a);
+ERROR:  this operation is not permitted
 SELECT count(*), sum(a), avg(a) FROM xc_alter_table_3; -- Check on tuple presence
  count | sum |        avg         
 -------+-----+--------------------
@@ -377,7 +380,7 @@ SELECT b FROM xc_alter_table_3 WHERE a = 11 or a = 12;
 
 EXECUTE xc_alter_table_delete(12);
 ALTER TABLE xc_alter_table_3 DISTRIBUTE BY MODULO(b);
-ERROR:  Column b is not modulo distributable data type
+ERROR:  this operation is not permitted
 SELECT count(*), sum(a), avg(a) FROM xc_alter_table_3; -- Check on tuple presence
  count | sum |        avg         
 -------+-----+--------------------
@@ -415,6 +418,7 @@ EXECUTE xc_alter_table_delete(12);
 -- Index and redistribution
 CREATE INDEX xc_alter_table_3_index ON xc_alter_table_3(a);
 ALTER TABLE xc_alter_table_3 DISTRIBUTE BY HASH(a);
+ERROR:  this operation is not permitted
 SELECT count(*), sum(a), avg(a) FROM xc_alter_table_3; -- Check on tuple presence
  count | sum |        avg         
 -------+-----+--------------------
@@ -452,6 +456,7 @@ EXECUTE xc_alter_table_delete(12);
 -- Add column on table
 ALTER TABLE xc_alter_table_3 ADD COLUMN c int DEFAULT 4;
 ALTER TABLE xc_alter_table_3 DISTRIBUTE BY REPLICATION;
+ERROR:  this operation is not permitted
 SELECT count(*), sum(a), avg(a) FROM xc_alter_table_3;
  count | sum |        avg         
 -------+-----+--------------------
@@ -468,6 +473,7 @@ SELECT * FROM xc_alter_table_3_v;
 ALTER TABLE xc_alter_table_3 DROP COLUMN b CASCADE;
 NOTICE:  drop cascades to rule xc_alter_table_3_insert on table xc_alter_table_3
 ALTER TABLE xc_alter_table_3 DISTRIBUTE BY HASH(a);
+ERROR:  this operation is not permitted
 SELECT count(*), sum(a), avg(a) FROM xc_alter_table_3;
  count | sum |        avg         
 -------+-----+--------------------
@@ -484,6 +490,7 @@ SELECT * FROM xc_alter_table_3_v;
 ALTER TABLE xc_alter_table_3 DROP COLUMN c;
 ALTER TABLE xc_alter_table_3 ADD COLUMN b varchar(3) default 'aaa';
 ALTER TABLE xc_alter_table_3 DISTRIBUTE BY HASH(a);
+ERROR:  this operation is not permitted
 SELECT count(*), sum(a), avg(a) FROM xc_alter_table_3; -- Check on tuple presence
  count | sum |        avg         
 -------+-----+--------------------
@@ -498,11 +505,9 @@ SELECT * FROM xc_alter_table_3_v;
 
 -- Change the node list
 SELECT alter_table_change_nodes('xc_alter_table_3', '{1}', 'to', NULL);
- alter_table_change_nodes 
---------------------------
- t
-(1 row)
-
+ERROR:  this operation is not permitted
+CONTEXT:  SQL statement "ALTER TABLE xc_alter_table_3 to NODE (datanode_1)"
+PL/pgSQL function alter_table_change_nodes(character varying,integer[],character varying,character varying) line 79 at EXECUTE
 SELECT count(*), sum(a), avg(a) FROM xc_alter_table_3; -- Check on tuple presence
  count | sum |        avg         
 -------+-----+--------------------
@@ -517,11 +522,9 @@ SELECT * FROM xc_alter_table_3_v;
 
 -- Add some nodes on it
 SELECT alter_table_change_nodes('xc_alter_table_3', '{2,4,5}', 'add', NULL);
- alter_table_change_nodes 
---------------------------
- t
-(1 row)
-
+ERROR:  this operation is not permitted
+CONTEXT:  SQL statement "ALTER TABLE xc_alter_table_3 TO NODE (datanode_2, datanode_1)"
+PL/pgSQL function alter_table_change_nodes(character varying,integer[],character varying,character varying) line 79 at EXECUTE
 SELECT count(*), sum(a), avg(a) FROM xc_alter_table_3; -- Check in tuple presence
  count | sum |        avg         
 -------+-----+--------------------
@@ -536,17 +539,13 @@ SELECT * FROM xc_alter_table_3_v;
 
 -- Remove some nodes on it
 SELECT alter_table_change_nodes('xc_alter_table_3', '{3}', 'add', NULL);
- alter_table_change_nodes 
---------------------------
- t
-(1 row)
-
+ERROR:  this operation is not permitted
+CONTEXT:  SQL statement "ALTER TABLE xc_alter_table_3 TO NODE (datanode_1)"
+PL/pgSQL function alter_table_change_nodes(character varying,integer[],character varying,character varying) line 79 at EXECUTE
 SELECT alter_table_change_nodes('xc_alter_table_3', '{2,3,5}', 'delete', NULL);
- alter_table_change_nodes 
---------------------------
- t
-(1 row)
-
+ERROR:  this operation is not permitted
+CONTEXT:  SQL statement "ALTER TABLE xc_alter_table_3 TO NODE (datanode_2, datanode_1)"
+PL/pgSQL function alter_table_change_nodes(character varying,integer[],character varying,character varying) line 79 at EXECUTE
 SELECT count(*), sum(a), avg(a) FROM xc_alter_table_3; -- Check on tuple presence
  count | sum |        avg         
 -------+-----+--------------------
@@ -561,11 +560,9 @@ SELECT * FROM xc_alter_table_3_v;
 
 -- Multiple operations with replication
 SELECT alter_table_change_nodes('xc_alter_table_3', '{1,3,4,5}', 'to', 'replication');
- alter_table_change_nodes 
---------------------------
- t
-(1 row)
-
+ERROR:  this operation is not permitted
+CONTEXT:  SQL statement "ALTER TABLE xc_alter_table_3 TO NODE (datanode_1), DISTRIBUTE BY replication"
+PL/pgSQL function alter_table_change_nodes(character varying,integer[],character varying,character varying) line 79 at EXECUTE
 SELECT count(*), sum(a), avg(a) FROM xc_alter_table_3; -- Check on tuple presence
  count | sum |        avg         
 -------+-----+--------------------
@@ -581,11 +578,9 @@ SELECT * FROM xc_alter_table_3_v;
 -- Manipulate number of nodes to include and remove nodes on a replicated table
 -- On removed nodes data is deleted and on new nodes data is added
 SELECT alter_table_change_nodes('xc_alter_table_3', '{2,3,5}', 'to', NULL);
- alter_table_change_nodes 
---------------------------
- t
-(1 row)
-
+ERROR:  this operation is not permitted
+CONTEXT:  SQL statement "ALTER TABLE xc_alter_table_3 TO NODE (datanode_2, datanode_1)"
+PL/pgSQL function alter_table_change_nodes(character varying,integer[],character varying,character varying) line 79 at EXECUTE
 SELECT count(*), sum(a), avg(a) FROM xc_alter_table_3; -- Check on tuple presence
  count | sum |        avg         
 -------+-----+--------------------
@@ -600,11 +595,9 @@ SELECT * FROM xc_alter_table_3_v;
 
 -- Re-do a double operation with hash this time
 SELECT alter_table_change_nodes('xc_alter_table_3', '{2}', 'delete', 'hash(a)');
- alter_table_change_nodes 
---------------------------
- t
-(1 row)
-
+ERROR:  this operation is not permitted
+CONTEXT:  SQL statement "ALTER TABLE xc_alter_table_3 delete NODE (datanode_2), DISTRIBUTE BY hash(a)"
+PL/pgSQL function alter_table_change_nodes(character varying,integer[],character varying,character varying) line 79 at EXECUTE
 SELECT count(*), sum(a), avg(a) FROM xc_alter_table_3; -- Check on tuple presence
  count | sum |        avg         
 -------+-----+--------------------
@@ -619,7 +612,48 @@ SELECT * FROM xc_alter_table_3_v;
 
 -- Error checks
 ALTER TABLE xc_alter_table_3 ADD COLUMN b int, DISTRIBUTE BY HASH(a);
-ERROR:  Incompatible operation with data redistribution
+ERROR:  this operation is not permitted
 -- Clean up
 DROP TABLE xc_alter_table_3 CASCADE;
 NOTICE:  drop cascades to view xc_alter_table_3_v
+-- bugs for alter table .... reference
+create schema dwrpt;
+set search_path to 'dwrpt';
+CREATE TABLE dwrpt.act_ru_execution (
+    id_ varchar(64),
+    rev_ numeric,
+    proc_inst_id_ varchar(64),
+    business_key_ varchar(255),
+    parent_id_ varchar(64),
+    proc_def_id_ varchar(64),
+    super_exec_ varchar(64),
+    act_id_ varchar(255),
+    is_active_ numeric(1, 0),
+    is_concurrent_ numeric(1, 0),
+    is_scope_ numeric(1, 0),
+    suspension_state_ numeric,
+    PRIMARY KEY (id_)
+) DISTRIBUTE BY SHARD(ID_);
+alter table act_ru_execution add constraint act_fk_exe_procinst foreign key (proc_inst_id_) references dwrpt.act_ru_execution (id_) on delete NO ACTION;
+drop schema dwrpt cascade;
+NOTICE:  drop cascades to table act_ru_execution
+\c
+drop schema dwrpt cascade;
+ERROR:  schema "dwrpt" does not exist
+CREATE TABLE act_ru_execution (
+    id_ varchar(64),
+    rev_ numeric,
+    proc_inst_id_ varchar(64),
+    business_key_ varchar(255),
+    parent_id_ varchar(64),
+    proc_def_id_ varchar(64),
+    super_exec_ varchar(64),
+    act_id_ varchar(255),
+    is_active_ numeric(1, 0),
+    is_concurrent_ numeric(1, 0),
+    is_scope_ numeric(1, 0),
+    suspension_state_ numeric,
+    PRIMARY KEY (id_)
+) DISTRIBUTE BY SHARD(ID_);
+alter table act_ru_execution add constraint act_fk_exe_procinst foreign key (proc_inst_id_) references act_ru_execution (id_) on delete NO ACTION;
+drop table act_ru_execution;

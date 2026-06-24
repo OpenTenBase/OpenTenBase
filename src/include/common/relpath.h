@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * relpath.h
- *        Declarations for GetRelationPath() and friends
+ *		Declarations for GetRelationPath() and friends
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -23,34 +23,38 @@
  */
 typedef enum ForkNumber
 {
-    InvalidForkNumber = -1,
-    MAIN_FORKNUM = 0,
-    FSM_FORKNUM,
-    VISIBILITYMAP_FORKNUM,
+	InvalidForkNumber = -1,
+	MAIN_FORKNUM = 0,
+	FSM_FORKNUM,
+	VISIBILITYMAP_FORKNUM,
 #ifdef _SHARDING_
-    EXTENT_FORKNUM,
+	EXTENT_FORKNUM,
 #endif
-    INIT_FORKNUM
+#ifdef __OPENTENBASE_C__
+	DICTIONARY_FORKNUM,		/* dictionary column */
+	SORT_FORKNUM,           /* sort column */
+#endif
+	INIT_FORKNUM
 
-    /*
-     * NOTE: if you add a new fork, change MAX_FORKNUM and possibly
-     * FORKNAMECHARS below, and update the forkNames array in
-     * src/common/relpath.c
-     */
+	/*
+	 * NOTE: if you add a new fork, change MAX_FORKNUM and possibly
+	 * FORKNAMECHARS below, and update the forkNames array in
+	 * src/common/relpath.c
+	 */
 } ForkNumber;
 
-#define MAX_FORKNUM        INIT_FORKNUM
+#define MAX_FORKNUM		INIT_FORKNUM
 
 #ifdef _SHARDING_
-#define FORKNAMECHARS    5        /* max chars for a fork name */
+#define FORKNAMECHARS	5		/* max chars for a fork name */
 #else
-#define FORKNAMECHARS    4
+#define FORKNAMECHARS	4
 #endif
 
 extern const char *const forkNames[];
 
 extern ForkNumber forkname_to_number(const char *forkName);
-extern int    forkname_chars(const char *str, ForkNumber *fork);
+extern int	forkname_chars(const char *str, ForkNumber *fork);
 
 /*
  * Stuff for computing filesystem pathnames for relations.
@@ -61,11 +65,11 @@ extern char *GetDatabasePath_client(Oid dbNode, Oid spcNode, const char *nodenam
 #endif
 
 extern char *GetRelationPath(Oid dbNode, Oid spcNode, Oid relNode,
-                int backendId, ForkNumber forkNumber);
+				int backendId, ForkNumber forkNumber);
 #ifdef XCP
 extern char *GetRelationPath_client(Oid dbNode, Oid spcNode, Oid relNode,
-                int backendId, ForkNumber forkNumber,
-                const char *nodename);
+				int backendId, ForkNumber forkNumber,
+				const char *nodename);
 #endif
 
 /*
@@ -75,28 +79,29 @@ extern char *GetRelationPath_client(Oid dbNode, Oid spcNode, Oid relNode,
 
 /* First argument is a RelFileNode */
 #define relpathbackend(rnode, backend, forknum) \
-    GetRelationPath((rnode).dbNode, (rnode).spcNode, (rnode).relNode, \
-                    backend, forknum)
+	GetRelationPath((rnode).dbNode, (rnode).spcNode, (rnode).relNode, \
+					backend, forknum)
 #ifdef XCP
 #define relpathbackend_client(rnode, backend, forknum, nodename) \
-    GetRelationPath_client((rnode).dbNode, (rnode).spcNode, (rnode).relNode, \
-                    backend, forknum, nodename)
+	GetRelationPath_client((rnode).dbNode, (rnode).spcNode, (rnode).relNode, \
+					backend, forknum, nodename)
 #endif
 
 /* First argument is a RelFileNode */
 #define relpathperm(rnode, forknum) \
-    relpathbackend(rnode, InvalidBackendId, forknum)
+	relpathbackend(rnode, InvalidBackendId, forknum)
 #ifdef XCP
 #define relpathperm_client(rnode, forknum, nodename) \
-    relpathbackend_client(rnode, InvalidBackendId, forknum, nodename)
+	relpathbackend_client(rnode, InvalidBackendId, forknum, nodename)
 #endif
 
 /* First argument is a RelFileNodeBackend */
 #ifdef XCP
 #define relpath(rnode, forknum) \
-    relpathbackend((rnode).node, InvalidBackendId, forknum)
+	relpathbackend((rnode).node, InvalidBackendId, forknum)
 #else
 #define relpath(rnode, forknum) \
-    relpathbackend((rnode).node, (rnode).backend, forknum)
+	relpathbackend((rnode).node, (rnode).backend, forknum)
 #endif
-#endif                            /* RELPATH_H */
+
+#endif							/* RELPATH_H */

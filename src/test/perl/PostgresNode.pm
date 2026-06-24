@@ -9,7 +9,7 @@ PostgresNode - class representing PostgreSQL server instance
 
   use PostgresNode;
 
-  my $node = PostgresNode->get_new_node('mynode');
+  my $node = PostgresNode->get_new_node('mynode', 'mynodetype');
 
   # Create a data directory with initdb
   $node->init();
@@ -56,7 +56,7 @@ PostgresNode - class representing PostgreSQL server instance
   my $ret = $node->backup_fs_cold('testbackup3')
 
   # Restore it to create a new independent node (not a replica)
-  my $replica = get_new_node('replica');
+  my $replica = get_new_node('replica', 'datanode');
   $replica->init_from_backup($node, 'testbackup');
   $replica->start;
 
@@ -132,7 +132,7 @@ INIT
 
 =over
 
-=item PostgresNode::new($class, $name, $pghost, $pgport)
+=item PostgresNode::new($class, $name, $type, $pghost, $pgport, $poolerport)
 
 Create a new PostgresNode instance. Does not initdb or start it.
 
@@ -143,15 +143,18 @@ of finding port numbers, registering instances for cleanup, etc.
 
 sub new
 {
-	my ($class, $name, $pghost, $pgport) = @_;
+	my ($class, $name, $type, $pghost, $pgport, $poolerport) = @_;
 	my $testname = basename($0);
 	$testname =~ s/\.[^.]+$//;
 	my $self = {
 		_port    => $pgport,
+		_poolerport => $poolerport,
 		_host    => $pghost,
 		_basedir => TestLib::tempdir("data_" . $name),
 		_name    => $name,
-		_logfile => "$TestLib::log_path/${testname}_${name}.log" };
+		_type    => $type,
+		_logfile => "$TestLib::log_path/${testname}_${name}.log"
+	};
 
 	bless $self, $class;
 	$self->dump_info;
@@ -174,6 +177,23 @@ sub port
 {
 	my ($self) = @_;
 	return $self->{_port};
+}
+
+=pod
+
+=item $node->poolerport()
+
+Get the pooler_port number assigned to the host. This won't necessarily be a TCP port
+open on the local host since we prefer to use unix sockets if possible.
+
+Use $node->connstr() if you want a connection string.
+
+=cut
+
+sub poolerport
+{
+        my ($self) = @_;
+        return $self->{_poolerport};
 }
 
 =pod
@@ -219,6 +239,20 @@ sub name
 {
 	my ($self) = @_;
 	return $self->{_name};
+}
+
+=pod
+
+=item $node->type()
+
+The type assigned to the node at creation time.
+
+=cut
+
+sub type
+{
+	my ($self) = @_;
+	return $self->{_type};
 }
 
 =pod
@@ -396,8 +430,11 @@ sub init
 {
 	my ($self, %params) = @_;
 	my $port   = $self->port;
+	my $poolerport = $self->poolerport;
 	my $pgdata = $self->data_dir;
 	my $host   = $self->host;
+	my $name   = $self->name;
+	my $type   = $self->type;
 
 	$params{allows_streaming} = 0 unless defined $params{allows_streaming};
 	$params{has_archiving}    = 0 unless defined $params{has_archiving};
@@ -406,7 +443,7 @@ sub init
 	mkdir $self->archive_dir;
 
 	TestLib::system_or_bail('initdb', '-D', $pgdata, '-A', 'trust', '-N',
-		@{ $params{extra} });
+		'--nodename', $name, '--nodetype', $type, @{ $params{extra} });
 	TestLib::system_or_bail($ENV{PG_REGRESS}, '--config-auth', $pgdata);
 
 	open my $conf, '>>', "$pgdata/postgresql.conf";
@@ -417,6 +454,7 @@ sub init
 	print $conf "log_statement = all\n";
 	print $conf "wal_retrieve_retry_interval = '500ms'\n";
 	print $conf "port = $port\n";
+	print $conf "pooler_port = $poolerport\n";
 
 	if ($params{allows_streaming})
 	{
@@ -611,6 +649,7 @@ sub init_from_backup
 	my ($self, $root_node, $backup_name, %params) = @_;
 	my $backup_path = $root_node->backup_dir . '/' . $backup_name;
 	my $port        = $self->port;
+	my $poolerport  = $self->poolerport;
 	my $node_name   = $self->name;
 	my $root_name   = $root_node->name;
 
@@ -636,39 +675,56 @@ sub init_from_backup
 		qq(
 port = $port
 ));
+        $self->append_conf(
+                'postgresql.conf',
+                qq(
+pooler_port = $poolerport
+));
 	$self->enable_streaming($root_node) if $params{has_streaming};
 	$self->enable_restoring($root_node) if $params{has_restoring};
 }
 
 =pod
 
-=item $node->start()
+
+=item $node->start(%params) => success_or_failure
 
 Wrapper for pg_ctl start
 
 Start the node and wait until it is ready to accept connections.
 
+=over
+
+=item fail_ok => 1
+
+By default, failure terminates the entire F<prove> invocation.  If given,
+instead return a true or false value to indicate success or failure.
+
+=back
+
 =cut
 
 sub start
 {
-	my ($self) = @_;
+	my ($self, %params) = @_;
 	my $port   = $self->port;
 	my $pgdata = $self->data_dir;
 	my $name   = $self->name;
 	BAIL_OUT("node \"$name\" is already running") if defined $self->{_pid};
 	print("### Starting node \"$name\"\n");
 	my $ret = TestLib::system_log('pg_ctl', '-D', $self->data_dir, '-l',
-		$self->logfile, 'start');
+		$self->logfile, '-Z', $self->type, 'start');
 
 	if ($ret != 0)
 	{
 		print "# pg_ctl start failed; logfile:\n";
 		print TestLib::slurp_file($self->logfile);
-		BAIL_OUT("pg_ctl start failed");
+		BAIL_OUT("pg_ctl start failed") unless $params{fail_ok};
+		return 0;
 	}
 
 	$self->_update_pid(1);
+	return 1;
 }
 
 =pod
@@ -729,9 +785,10 @@ sub restart
 	my $pgdata  = $self->data_dir;
 	my $logfile = $self->logfile;
 	my $name    = $self->name;
+	my $type    = $self->type;
 	print "### Restarting node \"$name\"\n";
 	TestLib::system_or_bail('pg_ctl', '-D', $pgdata, '-l', $logfile,
-		'restart');
+		'-Z', $type, 'restart');
 	$self->_update_pid(1);
 }
 
@@ -855,7 +912,7 @@ sub _update_pid
 
 =pod
 
-=item PostgresNode->get_new_node(node_name)
+=item PostgresNode->get_new_node(node_name, node_type)
 
 Build a new object of class C<PostgresNode> (or of a subclass, if you have
 one), assigning a free port number.  Remembers the node, to prevent its port
@@ -872,52 +929,66 @@ which can only create objects of class C<PostgresNode>.
 sub get_new_node
 {
 	my $class = 'PostgresNode';
-	$class = shift if 1 < scalar @_;
+	$class = shift if 2 < scalar @_;
 	my $name  = shift;
+	my $type  = shift;
+
 	my $found = 0;
 	my $port  = $last_port_assigned;
+	my $pgport = $last_port_assigned;
+	my $poolerport = $last_port_assigned;
 
-	while ($found == 0)
-	{
-
-		# advance $port, wrapping correctly around range end
-		$port = 49152 if ++$port >= 65536;
-		print "# Checking port $port\n";
-
-		# Check first that candidate port number is not included in
-		# the list of already-registered nodes.
-		$found = 1;
-		foreach my $node (@all_nodes)
+	print "class: $class name: $name type: $type\n";
+	foreach my $i (0, 1) {
+		while ($found == 0)
 		{
-			$found = 0 if ($node->port == $port);
+	
+			# advance $port, wrapping correctly around range end
+			$port = 49152 if ++$port >= 65536;
+			print "# Checking port $port\n";
+	
+			# Check first that candidate port number is not included in
+			# the list of already-registered nodes.
+			$found = 1;
+			foreach my $node (@all_nodes)
+			{
+				$found = 0 if ($node->port == $port ||
+					$node->poolerport == $port);
+			}
+	
+			# Check to see if anything else is listening on this TCP port.
+			# This is *necessary* on Windows, and seems like a good idea
+			# on Unixen as well, even though we don't ask the postmaster
+			# to open a TCP port on Unix.
+			if ($found == 1)
+			{
+				my $iaddr = inet_aton($test_localhost);
+				my $paddr = sockaddr_in($port, $iaddr);
+				my $proto = getprotobyname("tcp");
+	
+				socket(SOCK, PF_INET, SOCK_STREAM, $proto)
+				  or die "socket failed: $!";
+	
+				# As in postmaster, don't use SO_REUSEADDR on Windows
+				setsockopt(SOCK, SOL_SOCKET, SO_REUSEADDR, pack("l", 1))
+				  unless $TestLib::windows_os;
+				(bind(SOCK, $paddr) && listen(SOCK, SOMAXCONN))
+				  or $found = 0;
+				close(SOCK);
+			}
 		}
-
-		# Check to see if anything else is listening on this TCP port.
-		# This is *necessary* on Windows, and seems like a good idea
-		# on Unixen as well, even though we don't ask the postmaster
-		# to open a TCP port on Unix.
-		if ($found == 1)
-		{
-			my $iaddr = inet_aton($test_localhost);
-			my $paddr = sockaddr_in($port, $iaddr);
-			my $proto = getprotobyname("tcp");
-
-			socket(SOCK, PF_INET, SOCK_STREAM, $proto)
-			  or die "socket failed: $!";
-
-			# As in postmaster, don't use SO_REUSEADDR on Windows
-			setsockopt(SOCK, SOL_SOCKET, SO_REUSEADDR, pack("l", 1))
-			  unless $TestLib::windows_os;
-			(bind(SOCK, $paddr) && listen(SOCK, SOMAXCONN))
-			  or $found = 0;
-			close(SOCK);
+		if ($i == 0) {
+			$pgport = $port;
+		} else {
+			$poolerport = $port;
 		}
+		$found = 0;
 	}
 
-	print "# Found free port $port\n";
+	print "# Found free port $pgport and poolerport $poolerport\n";
 
 	# Lock port number found by creating a new node
-	my $node = $class->new($name, $test_pghost, $port);
+	my $node = $class->new($name, $type, $test_pghost, $pgport, $poolerport);
 
 	# Add node to list of nodes
 	push(@all_nodes, $node);
@@ -1218,6 +1289,93 @@ sub psql
 
 =pod
 
+=item $node->background_psql($dbname, \$stdin, \$stdout, $timer, %params) => harness
+
+Invoke B<psql> on B<$dbname> and return an IPC::Run harness object, which the
+caller may use to send input to B<psql>.  The process's stdin is sourced from
+the $stdin scalar reference, and its stdout and stderr go to the $stdout
+scalar reference.  This allows the caller to act on other parts of the system
+while idling this backend.
+
+The specified timer object is attached to the harness, as well.  It's caller's
+responsibility to select the timeout length, and to restart the timer after
+each command if the timeout is per-command.
+
+psql is invoked in tuples-only unaligned mode with reading of B<.psqlrc>
+disabled.  That may be overridden by passing extra psql parameters.
+
+Dies on failure to invoke psql, or if psql fails to connect.  Errors occurring
+later are the caller's problem.  psql runs with on_error_stop by default so
+that it will stop running sql and return 3 if passed SQL results in an error.
+
+Be sure to "finish" the harness when done with it.
+
+=over
+
+=item on_error_stop => 1
+
+By default, the B<psql> method invokes the B<psql> program with ON_ERROR_STOP=1
+set, so SQL execution is stopped at the first error and exit code 3 is
+returned.  Set B<on_error_stop> to 0 to ignore errors instead.
+
+=item replication => B<value>
+
+If set, add B<replication=value> to the conninfo string.
+Passing the literal value C<database> results in a logical replication
+connection.
+
+=item extra_params => ['--single-transaction']
+
+If given, it must be an array reference containing additional parameters to B<psql>.
+
+=back
+
+=cut
+
+sub background_psql
+{
+	my ($self, $dbname, $stdin, $stdout, $timer, %params) = @_;
+
+	my $replication = $params{replication};
+
+	my @psql_params = (
+		'psql',
+		'-XAtq',
+		'-d',
+		$self->connstr($dbname)
+		  . (defined $replication ? " replication=$replication" : ""),
+		'-f',
+		'-');
+
+	$params{on_error_stop} = 1 unless defined $params{on_error_stop};
+
+	push @psql_params, '-v', 'ON_ERROR_STOP=1' if $params{on_error_stop};
+	push @psql_params, @{ $params{extra_params} }
+	  if defined $params{extra_params};
+
+	# Ensure there is no data waiting to be sent:
+	$$stdin = "" if ref($stdin);
+	# IPC::Run would otherwise append to existing contents:
+	$$stdout = "" if ref($stdout);
+
+	my $harness = IPC::Run::start \@psql_params,
+	  '<', $stdin, '>', $stdout, $timer;
+
+	# Request some output, and pump until we see it.  This means that psql
+	# connection failures are caught here, relieving callers of the need to
+	# handle those.  (Right now, we have no particularly good handling for
+	# errors anyway, but that might be added later.)
+	my $banner = "background_psql: ready";
+	$$stdin = "\\echo $banner\n";
+	pump $harness until $$stdout =~ /$banner/ || $timer->is_expired;
+
+	die "psql startup timed out" if $timer->is_expired;
+
+	return $harness;
+}
+
+=pod
+
 =item $node->poll_query_until($dbname, $query [, $expected ])
 
 Run B<$query> repeatedly, until it returns the B<$expected> result
@@ -1339,6 +1497,58 @@ sub issues_sql_like
 	ok($result, "@$cmd exit code 0");
 	my $log = TestLib::slurp_file($self->logfile);
 	like($log, $expected_sql, "$test_name: SQL found in server log");
+}
+
+=pod
+
+=item $node->wait_for_log(regexp, offset)
+
+Waits for the contents of the server log file, starting at the given offset, to
+match the supplied regular expression.  Checks the entire log if no offset is
+given.
+
+If successful, returns the length of the entire log file, in bytes.
+
+=cut
+
+sub wait_for_log
+{
+        my ($self, $regexp, $offset) = @_;
+        $offset = 0 unless defined $offset;
+
+        my $max_attempts = 300; # 30s
+        my $attempts = 0;
+
+        while ($attempts < $max_attempts)
+        {
+                my $log =
+                  TestLib::slurp_file($self->logfile, $offset);
+
+                return $offset + length($log) if ($log =~ m/$regexp/);
+
+                # Wait 0.1 second before retrying.
+                usleep(100_000);
+
+                $attempts++;
+        }
+
+        die "timed out waiting for match: $regexp";
+}
+
+=pod
+
+=item log_contains(pattern, offset)
+
+Find pattern in logfile of node after offset byte.
+
+=cut
+
+sub log_contains
+{
+        my ($self, $pattern, $offset) = @_;
+
+        return TestLib::slurp_file($self->logfile, $offset) =~
+          m/$pattern/;
 }
 
 =pod

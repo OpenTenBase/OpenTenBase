@@ -222,8 +222,8 @@ SELECT	'(0,0)'::point <-> '((0,0),(1,2),(2,1))'::polygon as on_corner,
 	'(2,2)'::point <-> '((0,0),(1,4),(3,1))'::polygon as inside,
 	'(3,3)'::point <-> '((0,2),(2,0),(2,2))'::polygon as near_corner,
 	'(4,4)'::point <-> '((0,0),(0,3),(4,0))'::polygon as near_segment;
- on_corner | on_segment | inside |   near_corner   | near_segment 
------------+------------+--------+-----------------+--------------
-         0 |          0 |      0 | 1.4142135623731 |          3.2
+ on_corner | on_segment | inside |    near_corner     | near_segment 
+-----------+------------+--------+--------------------+--------------
+         0 |          0 |      0 | 1.4142135623730951 |          3.2
 (1 row)
 

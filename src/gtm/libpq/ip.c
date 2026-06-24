@@ -1,17 +1,15 @@
 /*-------------------------------------------------------------------------
  *
  * ip.c
- *      IPv6-aware network access.
+ *	  IPv6-aware network access.
  *
  * Portions Copyright (c) 1996-2009, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  * Portions Copyright (c) 2010-2012 Postgres-XC Development Group
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  * IDENTIFICATION
- *      $PostgreSQL: pgsql/src/backend/libpq/ip.c,v 1.43 2009/01/01 17:23:42 momjian Exp $
+ *	  $PostgreSQL: pgsql/src/backend/libpq/ip.c,v 1.43 2009/01/01 17:23:42 momjian Exp $
  *
  * This file and the IPV6 implementation were initially provided by
  * Nigel Kukard <nkukard@lbsd.net>, Linux Based Systems Design
@@ -39,13 +37,13 @@
 
 
 static int range_sockaddr_AF_INET(const struct sockaddr_in * addr,
-                       const struct sockaddr_in * netaddr,
-                       const struct sockaddr_in * netmask);
+					   const struct sockaddr_in * netaddr,
+					   const struct sockaddr_in * netmask);
 
 #ifdef HAVE_IPV6
 static int range_sockaddr_AF_INET6(const struct sockaddr_in6 * addr,
-                        const struct sockaddr_in6 * netaddr,
-                        const struct sockaddr_in6 * netmask);
+						const struct sockaddr_in6 * netaddr,
+						const struct sockaddr_in6 * netmask);
 #endif
 
 #ifdef	HAVE_UNIX_SOCKETS
@@ -61,32 +59,32 @@ static int getnameinfo_unix(const struct sockaddr_un *sa, int salen,
 
 
 /*
- *    pg_getaddrinfo_all - get address info for Unix, IPv4 and IPv6 sockets
+ *	pg_getaddrinfo_all - get address info for Unix, IPv4 and IPv6 sockets
  */
 int
 pg_getaddrinfo_all(const char *hostname, const char *servname,
-                   const struct addrinfo * hintp, struct addrinfo ** result)
+				   const struct addrinfo * hintp, struct addrinfo ** result)
 {
-    int            rc;
+	int			rc;
 
-    /* not all versions of getaddrinfo() zero *result on failure */
-    *result = NULL;
+	/* not all versions of getaddrinfo() zero *result on failure */
+	*result = NULL;
 
 #ifdef HAVE_UNIX_SOCKETS
     if (hintp->ai_family == AF_UNIX)
 		return getaddrinfo_unix(servname, hintp, result);
 #endif
 
-    /* NULL has special meaning to getaddrinfo(). */
-    rc = getaddrinfo((!hostname || hostname[0] == '\0') ? NULL : hostname,
-                     servname, hintp, result);
+	/* NULL has special meaning to getaddrinfo(). */
+	rc = getaddrinfo((!hostname || hostname[0] == '\0') ? NULL : hostname,
+					 servname, hintp, result);
 
-    return rc;
+	return rc;
 }
 
 
 /*
- *    pg_freeaddrinfo_all - free addrinfo structures for IPv4, IPv6, or Unix
+ *	pg_freeaddrinfo_all - free addrinfo structures for IPv4, IPv6, or Unix
  *
  * Note: the ai_family field of the original hint structure must be passed
  * so that we can tell whether the addrinfo struct was built by the system's
@@ -97,16 +95,16 @@ pg_getaddrinfo_all(const char *hostname, const char *servname,
 void
 pg_freeaddrinfo_all(int hint_ai_family, struct addrinfo * ai)
 {
-    {
-        /* struct was built by getaddrinfo() */
-        if (ai != NULL)
-            freeaddrinfo(ai);
-    }
+	{
+		/* struct was built by getaddrinfo() */
+		if (ai != NULL)
+			freeaddrinfo(ai);
+	}
 }
 
 
 /*
- *    pg_getnameinfo_all - get name info for Unix, IPv4 and IPv6 sockets
+ *	pg_getnameinfo_all - get name info for Unix, IPv4 and IPv6 sockets
  *
  * The API of this routine differs from the standard getnameinfo() definition
  * in two ways: first, the addr parameter is declared as sockaddr_storage
@@ -115,11 +113,11 @@ pg_freeaddrinfo_all(int hint_ai_family, struct addrinfo * ai)
  */
 int
 pg_getnameinfo_all(const struct sockaddr_storage * addr, int salen,
-                   char *node, int nodelen,
-                   char *service, int servicelen,
-                   int flags)
+				   char *node, int nodelen,
+				   char *service, int servicelen,
+				   int flags)
 {
-    int            rc;
+	int			rc;
 
 #ifdef HAVE_UNIX_SOCKETS
     if (addr && addr->ss_family == AF_UNIX)
@@ -129,20 +127,20 @@ pg_getnameinfo_all(const struct sockaddr_storage * addr, int salen,
 							  flags);
 	else
 #endif
-    rc = getnameinfo((const struct sockaddr *) addr, salen,
-                     node, nodelen,
-                     service, servicelen,
-                     flags);
+	rc = getnameinfo((const struct sockaddr *) addr, salen,
+					 node, nodelen,
+					 service, servicelen,
+					 flags);
 
-    if (rc != 0)
-    {
-        if (node)
-            strlcpy(node, "???", nodelen);
-        if (service)
-            strlcpy(service, "???", servicelen);
-    }
+	if (rc != 0)
+	{
+		if (node)
+			strlcpy(node, "???", nodelen);
+		if (service)
+			strlcpy(service, "???", servicelen);
+	}
 
-    return rc;
+	return rc;
 }
 
 /*
@@ -153,33 +151,33 @@ pg_getnameinfo_all(const struct sockaddr_storage * addr, int salen,
  */
 int
 pg_range_sockaddr(const struct sockaddr_storage * addr,
-                  const struct sockaddr_storage * netaddr,
-                  const struct sockaddr_storage * netmask)
+				  const struct sockaddr_storage * netaddr,
+				  const struct sockaddr_storage * netmask)
 {
-    if (addr->ss_family == AF_INET)
-        return range_sockaddr_AF_INET((struct sockaddr_in *) addr,
-                                      (struct sockaddr_in *) netaddr,
-                                      (struct sockaddr_in *) netmask);
+	if (addr->ss_family == AF_INET)
+		return range_sockaddr_AF_INET((struct sockaddr_in *) addr,
+									  (struct sockaddr_in *) netaddr,
+									  (struct sockaddr_in *) netmask);
 #ifdef HAVE_IPV6
-    else if (addr->ss_family == AF_INET6)
-        return range_sockaddr_AF_INET6((struct sockaddr_in6 *) addr,
-                                       (struct sockaddr_in6 *) netaddr,
-                                       (struct sockaddr_in6 *) netmask);
+	else if (addr->ss_family == AF_INET6)
+		return range_sockaddr_AF_INET6((struct sockaddr_in6 *) addr,
+									   (struct sockaddr_in6 *) netaddr,
+									   (struct sockaddr_in6 *) netmask);
 #endif
-    else
-        return 0;
+	else
+		return 0;
 }
 
 static int
 range_sockaddr_AF_INET(const struct sockaddr_in * addr,
-                       const struct sockaddr_in * netaddr,
-                       const struct sockaddr_in * netmask)
+					   const struct sockaddr_in * netaddr,
+					   const struct sockaddr_in * netmask)
 {
-    if (((addr->sin_addr.s_addr ^ netaddr->sin_addr.s_addr) &
-         netmask->sin_addr.s_addr) == 0)
-        return 1;
-    else
-        return 0;
+	if (((addr->sin_addr.s_addr ^ netaddr->sin_addr.s_addr) &
+		 netmask->sin_addr.s_addr) == 0)
+		return 1;
+	else
+		return 0;
 }
 
 
@@ -187,25 +185,25 @@ range_sockaddr_AF_INET(const struct sockaddr_in * addr,
 
 static int
 range_sockaddr_AF_INET6(const struct sockaddr_in6 * addr,
-                        const struct sockaddr_in6 * netaddr,
-                        const struct sockaddr_in6 * netmask)
+						const struct sockaddr_in6 * netaddr,
+						const struct sockaddr_in6 * netmask)
 {
-    int            i;
+	int			i;
 
-    for (i = 0; i < 16; i++)
-    {
-        if (((addr->sin6_addr.s6_addr[i] ^ netaddr->sin6_addr.s6_addr[i]) &
-             netmask->sin6_addr.s6_addr[i]) != 0)
-            return 0;
-    }
+	for (i = 0; i < 16; i++)
+	{
+		if (((addr->sin6_addr.s6_addr[i] ^ netaddr->sin6_addr.s6_addr[i]) &
+			 netmask->sin6_addr.s6_addr[i]) != 0)
+			return 0;
+	}
 
-    return 1;
+	return 1;
 }
 #endif   /* HAVE_IPV6 */
 
 /*
- *    pg_sockaddr_cidr_mask - make a network mask of the appropriate family
- *      and required number of significant bits
+ *	pg_sockaddr_cidr_mask - make a network mask of the appropriate family
+ *	  and required number of significant bits
  *
  * The resulting mask is placed in *mask, which had better be big enough.
  *
@@ -213,66 +211,66 @@ range_sockaddr_AF_INET6(const struct sockaddr_in6 * addr,
  */
 int
 pg_sockaddr_cidr_mask(struct sockaddr_storage * mask, char *numbits, int family)
-{// #lizard forgives
-    long        bits;
-    char       *endptr;
+{
+	long		bits;
+	char	   *endptr;
 
-    bits = strtol(numbits, &endptr, 10);
+	bits = strtol(numbits, &endptr, 10);
 
-    if (*numbits == '\0' || *endptr != '\0')
-        return -1;
+	if (*numbits == '\0' || *endptr != '\0')
+		return -1;
 
-    switch (family)
-    {
-        case AF_INET:
-            {
-                struct sockaddr_in mask4;
-                long        maskl;
+	switch (family)
+	{
+		case AF_INET:
+			{
+				struct sockaddr_in mask4;
+				long		maskl;
 
-                if (bits < 0 || bits > 32)
-                    return -1;
-                /* avoid "x << 32", which is not portable */
-                if (bits > 0)
-                    maskl = (0xffffffffUL << (32 - (int) bits))
-                        & 0xffffffffUL;
-                else
-                    maskl = 0;
-                mask4.sin_addr.s_addr = htonl(maskl);
-                memcpy(mask, &mask4, sizeof(mask4));
-                break;
-            }
+				if (bits < 0 || bits > 32)
+					return -1;
+				/* avoid "x << 32", which is not portable */
+				if (bits > 0)
+					maskl = (0xffffffffUL << (32 - (int) bits))
+						& 0xffffffffUL;
+				else
+					maskl = 0;
+				mask4.sin_addr.s_addr = pg_hton32(maskl);
+				memcpy(mask, &mask4, sizeof(mask4));
+				break;
+			}
 
 #ifdef HAVE_IPV6
-        case AF_INET6:
-            {
-                struct sockaddr_in6 mask6;
-                int            i;
+		case AF_INET6:
+			{
+				struct sockaddr_in6 mask6;
+				int			i;
 
-                if (bits < 0 || bits > 128)
-                    return -1;
-                for (i = 0; i < 16; i++)
-                {
-                    if (bits <= 0)
-                        mask6.sin6_addr.s6_addr[i] = 0;
-                    else if (bits >= 8)
-                        mask6.sin6_addr.s6_addr[i] = 0xff;
-                    else
-                    {
-                        mask6.sin6_addr.s6_addr[i] =
-                            (0xff << (8 - (int) bits)) & 0xff;
-                    }
-                    bits -= 8;
-                }
-                memcpy(mask, &mask6, sizeof(mask6));
-                break;
-            }
+				if (bits < 0 || bits > 128)
+					return -1;
+				for (i = 0; i < 16; i++)
+				{
+					if (bits <= 0)
+						mask6.sin6_addr.s6_addr[i] = 0;
+					else if (bits >= 8)
+						mask6.sin6_addr.s6_addr[i] = 0xff;
+					else
+					{
+						mask6.sin6_addr.s6_addr[i] =
+							(0xff << (8 - (int) bits)) & 0xff;
+					}
+					bits -= 8;
+				}
+				memcpy(mask, &mask6, sizeof(mask6));
+				break;
+			}
 #endif
-        default:
-            return -1;
-    }
+		default:
+			return -1;
+	}
 
-    mask->ss_family = family;
-    return 0;
+	mask->ss_family = family;
+	return 0;
 }
 
 
@@ -280,7 +278,7 @@ pg_sockaddr_cidr_mask(struct sockaddr_storage * mask, char *numbits, int family)
 
 /*
  * pg_promote_v4_to_v6_addr --- convert an AF_INET addr to AF_INET6, using
- *        the standard convention for IPv4 addresses mapped into IPv6 world
+ *		the standard convention for IPv4 addresses mapped into IPv6 world
  *
  * The passed addr is modified in place; be sure it is large enough to
  * hold the result!  Note that we only worry about setting the fields
@@ -289,30 +287,30 @@ pg_sockaddr_cidr_mask(struct sockaddr_storage * mask, char *numbits, int family)
 void
 pg_promote_v4_to_v6_addr(struct sockaddr_storage * addr)
 {
-    struct sockaddr_in addr4;
-    struct sockaddr_in6 addr6;
-    uint32        ip4addr;
+	struct sockaddr_in addr4;
+	struct sockaddr_in6 addr6;
+	uint32		ip4addr;
 
-    memcpy(&addr4, addr, sizeof(addr4));
-    ip4addr = ntohl(addr4.sin_addr.s_addr);
+	memcpy(&addr4, addr, sizeof(addr4));
+	ip4addr = pg_ntoh32(addr4.sin_addr.s_addr);
 
-    memset(&addr6, 0, sizeof(addr6));
+	memset(&addr6, 0, sizeof(addr6));
 
-    addr6.sin6_family = AF_INET6;
+	addr6.sin6_family = AF_INET6;
 
-    addr6.sin6_addr.s6_addr[10] = 0xff;
-    addr6.sin6_addr.s6_addr[11] = 0xff;
-    addr6.sin6_addr.s6_addr[12] = (ip4addr >> 24) & 0xFF;
-    addr6.sin6_addr.s6_addr[13] = (ip4addr >> 16) & 0xFF;
-    addr6.sin6_addr.s6_addr[14] = (ip4addr >> 8) & 0xFF;
-    addr6.sin6_addr.s6_addr[15] = (ip4addr) & 0xFF;
+	addr6.sin6_addr.s6_addr[10] = 0xff;
+	addr6.sin6_addr.s6_addr[11] = 0xff;
+	addr6.sin6_addr.s6_addr[12] = (ip4addr >> 24) & 0xFF;
+	addr6.sin6_addr.s6_addr[13] = (ip4addr >> 16) & 0xFF;
+	addr6.sin6_addr.s6_addr[14] = (ip4addr >> 8) & 0xFF;
+	addr6.sin6_addr.s6_addr[15] = (ip4addr) & 0xFF;
 
-    memcpy(addr, &addr6, sizeof(addr6));
+	memcpy(addr, &addr6, sizeof(addr6));
 }
 
 /*
  * pg_promote_v4_to_v6_mask --- convert an AF_INET netmask to AF_INET6, using
- *        the standard convention for IPv4 addresses mapped into IPv6 world
+ *		the standard convention for IPv4 addresses mapped into IPv6 world
  *
  * This must be different from pg_promote_v4_to_v6_addr because we want to
  * set the high-order bits to 1's not 0's.
@@ -324,27 +322,27 @@ pg_promote_v4_to_v6_addr(struct sockaddr_storage * addr)
 void
 pg_promote_v4_to_v6_mask(struct sockaddr_storage * addr)
 {
-    struct sockaddr_in addr4;
-    struct sockaddr_in6 addr6;
-    uint32        ip4addr;
-    int            i;
+	struct sockaddr_in addr4;
+	struct sockaddr_in6 addr6;
+	uint32		ip4addr;
+	int			i;
 
-    memcpy(&addr4, addr, sizeof(addr4));
-    ip4addr = ntohl(addr4.sin_addr.s_addr);
+	memcpy(&addr4, addr, sizeof(addr4));
+	ip4addr = pg_ntoh32(addr4.sin_addr.s_addr);
 
-    memset(&addr6, 0, sizeof(addr6));
+	memset(&addr6, 0, sizeof(addr6));
 
-    addr6.sin6_family = AF_INET6;
+	addr6.sin6_family = AF_INET6;
 
-    for (i = 0; i < 12; i++)
-        addr6.sin6_addr.s6_addr[i] = 0xff;
+	for (i = 0; i < 12; i++)
+		addr6.sin6_addr.s6_addr[i] = 0xff;
 
-    addr6.sin6_addr.s6_addr[12] = (ip4addr >> 24) & 0xFF;
-    addr6.sin6_addr.s6_addr[13] = (ip4addr >> 16) & 0xFF;
-    addr6.sin6_addr.s6_addr[14] = (ip4addr >> 8) & 0xFF;
-    addr6.sin6_addr.s6_addr[15] = (ip4addr) & 0xFF;
+	addr6.sin6_addr.s6_addr[12] = (ip4addr >> 24) & 0xFF;
+	addr6.sin6_addr.s6_addr[13] = (ip4addr >> 16) & 0xFF;
+	addr6.sin6_addr.s6_addr[14] = (ip4addr >> 8) & 0xFF;
+	addr6.sin6_addr.s6_addr[15] = (ip4addr) & 0xFF;
 
-    memcpy(addr, &addr6, sizeof(addr6));
+	memcpy(addr, &addr6, sizeof(addr6));
 }
 
 #endif   /* HAVE_IPV6 */

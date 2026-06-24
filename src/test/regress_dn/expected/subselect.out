@@ -1,0 +1,2952 @@
+--
+-- SUBSELECT
+--
+SELECT 1 AS one WHERE 1 IN (SELECT 1);
+ one 
+-----
+   1
+(1 row)
+
+SELECT 1 AS zero WHERE 1 NOT IN (SELECT 1);
+ zero 
+------
+(0 rows)
+
+SELECT 1 AS zero WHERE 1 IN (SELECT 2);
+ zero 
+------
+(0 rows)
+
+-- Check grammar's handling of extra parens in assorted contexts
+SELECT * FROM (SELECT 1 AS x) ss;
+ x 
+---
+ 1
+(1 row)
+
+SELECT * FROM ((SELECT 1 AS x)) ss;
+ x 
+---
+ 1
+(1 row)
+
+(SELECT 2) UNION SELECT 2;
+ ?column? 
+----------
+        2
+(1 row)
+
+((SELECT 2)) UNION SELECT 2;
+ ?column? 
+----------
+        2
+(1 row)
+
+SELECT ((SELECT 2) UNION SELECT 2);
+ ?column? 
+----------
+        2
+(1 row)
+
+SELECT (((SELECT 2)) UNION SELECT 2);
+ ?column? 
+----------
+        2
+(1 row)
+
+SELECT (SELECT ARRAY[1,2,3])[1];
+ array 
+-------
+     1
+(1 row)
+
+SELECT ((SELECT ARRAY[1,2,3]))[2];
+ array 
+-------
+     2
+(1 row)
+
+SELECT (((SELECT ARRAY[1,2,3])))[3];
+ array 
+-------
+     3
+(1 row)
+
+-- Set up some simple test tables
+CREATE TABLE SUBSELECT_TBL (
+  f1 integer,
+  f2 integer,
+  f3 float
+);
+INSERT INTO SUBSELECT_TBL VALUES (1, 2, 3);
+INSERT INTO SUBSELECT_TBL VALUES (2, 3, 4);
+INSERT INTO SUBSELECT_TBL VALUES (3, 4, 5);
+INSERT INTO SUBSELECT_TBL VALUES (1, 1, 1);
+INSERT INTO SUBSELECT_TBL VALUES (2, 2, 2);
+INSERT INTO SUBSELECT_TBL VALUES (3, 3, 3);
+INSERT INTO SUBSELECT_TBL VALUES (6, 7, 8);
+INSERT INTO SUBSELECT_TBL VALUES (8, 9, NULL);
+SELECT '' AS eight, * FROM SUBSELECT_TBL ORDER BY f1, f2, f3;
+ eight | f1 | f2 | f3 
+-------+----+----+----
+       |  1 |  1 |  1
+       |  1 |  2 |  3
+       |  2 |  2 |  2
+       |  2 |  3 |  4
+       |  3 |  3 |  3
+       |  3 |  4 |  5
+       |  6 |  7 |  8
+       |  8 |  9 |   
+(8 rows)
+
+-- Uncorrelated subselects
+SELECT '' AS two, f1 AS "Constant Select" FROM SUBSELECT_TBL
+  WHERE f1 IN (SELECT 1) ORDER BY 2;
+ two | Constant Select 
+-----+-----------------
+     |               1
+     |               1
+(2 rows)
+
+SELECT '' AS six, f1 AS "Uncorrelated Field" FROM SUBSELECT_TBL
+  WHERE f1 IN (SELECT f2 FROM SUBSELECT_TBL) 
+  ORDER BY 2;
+ six | Uncorrelated Field 
+-----+--------------------
+     |                  1
+     |                  1
+     |                  2
+     |                  2
+     |                  3
+     |                  3
+(6 rows)
+
+SELECT '' AS six, f1 AS "Uncorrelated Field" FROM SUBSELECT_TBL
+  WHERE f1 IN (SELECT f2 FROM SUBSELECT_TBL WHERE
+    f2 IN (SELECT f1 FROM SUBSELECT_TBL)) 
+    ORDER BY 2;
+ six | Uncorrelated Field 
+-----+--------------------
+     |                  1
+     |                  1
+     |                  2
+     |                  2
+     |                  3
+     |                  3
+(6 rows)
+
+SELECT '' AS three, f1, f2
+  FROM SUBSELECT_TBL
+  WHERE (f1, f2) NOT IN (SELECT f2, CAST(f3 AS int4) FROM SUBSELECT_TBL
+                         WHERE f3 IS NOT NULL) 
+                         ORDER BY f1, f2;
+ three | f1 | f2 
+-------+----+----
+       |  1 |  2
+       |  6 |  7
+       |  8 |  9
+(3 rows)
+
+-- Correlated subselects
+SELECT '' AS six, f1 AS "Correlated Field", f2 AS "Second Field"
+  FROM SUBSELECT_TBL upper
+  WHERE f1 IN (SELECT f2 FROM SUBSELECT_TBL WHERE f1 = upper.f1) 
+  ORDER BY f1, f2;
+ six | Correlated Field | Second Field 
+-----+------------------+--------------
+     |                1 |            1
+     |                1 |            2
+     |                2 |            2
+     |                2 |            3
+     |                3 |            3
+     |                3 |            4
+(6 rows)
+
+SELECT '' AS six, f1 AS "Correlated Field", f3 AS "Second Field"
+  FROM SUBSELECT_TBL upper
+  WHERE f1 IN
+    (SELECT f2 FROM SUBSELECT_TBL WHERE CAST(upper.f2 AS float) = f3)
+    ORDER BY 2, 3;
+ six | Correlated Field | Second Field 
+-----+------------------+--------------
+     |                1 |            1
+     |                2 |            2
+     |                2 |            4
+     |                3 |            3
+     |                3 |            5
+(5 rows)
+
+SELECT '' AS six, f1 AS "Correlated Field", f3 AS "Second Field"
+  FROM SUBSELECT_TBL upper
+  WHERE f3 IN (SELECT upper.f1 + f2 FROM SUBSELECT_TBL
+               WHERE f2 = CAST(f3 AS integer)) 
+               ORDER BY 2, 3;
+ six | Correlated Field | Second Field 
+-----+------------------+--------------
+     |                1 |            3
+     |                2 |            4
+     |                3 |            5
+     |                6 |            8
+(4 rows)
+
+SELECT '' AS five, f1 AS "Correlated Field"
+  FROM SUBSELECT_TBL
+  WHERE (f1, f2) IN (SELECT f2, CAST(f3 AS int4) FROM SUBSELECT_TBL
+                     WHERE f3 IS NOT NULL) 
+                     ORDER BY 2;
+ five | Correlated Field 
+------+------------------
+      |                1
+      |                2
+      |                2
+      |                3
+      |                3
+(5 rows)
+
+--
+-- Use some existing tables in the regression test
+--
+SELECT '' AS eight, ss.f1 AS "Correlated Field", ss.f3 AS "Second Field"
+  FROM SUBSELECT_TBL ss
+  WHERE f1 NOT IN (SELECT f1+1 FROM INT4_TBL
+                   WHERE f1 != ss.f1 AND f1 < 2147483647) 
+                   ORDER BY 2, 3;
+ eight | Correlated Field | Second Field 
+-------+------------------+--------------
+       |                2 |            2
+       |                2 |            4
+       |                3 |            3
+       |                3 |            5
+       |                6 |            8
+       |                8 |             
+(6 rows)
+
+select q1, float8(count(*)) / (select count(*) from int8_tbl)
+from int8_tbl group by q1 order by q1;
+        q1        | ?column? 
+------------------+----------
+              123 |      0.4
+ 4567890123456789 |      0.6
+(2 rows)
+
+-- Unspecified-type literals in output columns should resolve as text
+SELECT *, pg_typeof(f1) FROM
+  (SELECT 'foo' AS f1 FROM generate_series(1,3)) ss ORDER BY 1;
+ f1  | pg_typeof 
+-----+-----------
+ foo | text
+ foo | text
+ foo | text
+(3 rows)
+
+-- ... unless there's context to suggest differently
+explain verbose select '42' union all select '43';
+                   QUERY PLAN                    
+-------------------------------------------------
+ Append  (cost=0.00..0.05 rows=2 width=32)
+   ->  Result  (cost=0.00..0.01 rows=1 width=32)
+         Output: '42'::text
+   ->  Result  (cost=0.00..0.01 rows=1 width=32)
+         Output: '43'::text
+(5 rows)
+
+explain verbose select '42' union all select 43;
+                   QUERY PLAN                   
+------------------------------------------------
+ Append  (cost=0.00..0.05 rows=2 width=4)
+   ->  Result  (cost=0.00..0.01 rows=1 width=4)
+         Output: 42
+   ->  Result  (cost=0.00..0.01 rows=1 width=4)
+         Output: 43
+(5 rows)
+
+-- check materialization of an initplan reference (bug #14524)
+explain (verbose, costs off)
+select 1 = all (select (select 1));
+            QUERY PLAN             
+-----------------------------------
+ Result
+   Output: (SubPlan 2)
+   SubPlan 2
+     ->  Materialize
+           Output: ($0)
+           InitPlan 1 (returns $0)
+             ->  Result
+                   Output: 1
+           ->  Result
+                 Output: $0
+(10 rows)
+
+select 1 = all (select (select 1));
+ ?column? 
+----------
+ t
+(1 row)
+
+--
+-- Check EXISTS simplification with LIMIT
+--
+explain (costs off)
+select * from int4_tbl o where exists
+  (select 1 from int4_tbl i where i.f1=o.f1 limit null);
+             QUERY PLAN             
+------------------------------------
+ Hash Semi Join
+   Hash Cond: (o.f1 = i.f1)
+   ->  Seq Scan on int4_tbl o
+   ->  Hash
+         ->  Seq Scan on int4_tbl i
+(5 rows)
+
+explain (costs off, nodes off)
+select * from int4_tbl o where not exists
+  (select 1 from int4_tbl i where i.f1=o.f1 limit 1);
+             QUERY PLAN             
+------------------------------------
+ Hash Anti Join
+   Hash Cond: (o.f1 = i.f1)
+   ->  Seq Scan on int4_tbl o
+   ->  Hash
+         ->  Seq Scan on int4_tbl i
+(5 rows)
+
+explain (costs off, nodes off)
+select * from int4_tbl o where exists
+  (select 1 from int4_tbl i where i.f1=o.f1 limit 0);
+               QUERY PLAN               
+----------------------------------------
+ Seq Scan on int4_tbl o
+   Filter: (SubPlan 1)
+   SubPlan 1
+     ->  Limit
+           ->  Result
+                 One-Time Filter: false
+(6 rows)
+
+--
+-- Test cases to catch unpleasant interactions between IN-join processing
+-- and subquery pullup.
+--
+select count(*) from
+  (select 1 from tenk1 a
+   where unique1 IN (select hundred from tenk1 b)) ss;
+ count 
+-------
+   100
+(1 row)
+
+select count(distinct ss.ten) from
+  (select ten from tenk1 a
+   where unique1 IN (select hundred from tenk1 b)) ss;
+ count 
+-------
+    10
+(1 row)
+
+select count(*) from
+  (select 1 from tenk1 a
+   where unique1 IN (select distinct hundred from tenk1 b)) ss;
+ count 
+-------
+   100
+(1 row)
+
+select count(distinct ss.ten) from
+  (select ten from tenk1 a
+   where unique1 IN (select distinct hundred from tenk1 b)) ss;
+ count 
+-------
+    10
+(1 row)
+
+--
+-- Test cases to check for overenthusiastic optimization of
+-- "IN (SELECT DISTINCT ...)" and related cases.  Per example from
+-- Luca Pireddu and Michael Fuhr.
+--
+CREATE TEMP TABLE foo (id integer);
+CREATE TEMP TABLE bar (id1 integer, id2 integer);
+INSERT INTO foo VALUES (1);
+INSERT INTO bar VALUES (1, 1);
+INSERT INTO bar VALUES (2, 2);
+INSERT INTO bar VALUES (3, 1);
+-- These cases require an extra level of distinct-ing above subquery s
+SELECT * FROM foo WHERE id IN
+    (SELECT id2 FROM (SELECT DISTINCT id1, id2 FROM bar) AS s);
+ id 
+----
+  1
+(1 row)
+
+SELECT * FROM foo WHERE id IN
+    (SELECT id2 FROM (SELECT id1,id2 FROM bar GROUP BY id1,id2) AS s);
+ id 
+----
+  1
+(1 row)
+
+SELECT * FROM foo WHERE id IN
+    (SELECT id2 FROM (SELECT id1, id2 FROM bar UNION
+                      SELECT id1, id2 FROM bar) AS s);
+ id 
+----
+  1
+(1 row)
+
+-- These cases do not
+SELECT * FROM foo WHERE id IN
+    (SELECT id2 FROM (SELECT DISTINCT ON (id2) id1, id2 FROM bar) AS s);
+ id 
+----
+  1
+(1 row)
+
+SELECT * FROM foo WHERE id IN
+    (SELECT id2 FROM (SELECT id2 FROM bar GROUP BY id2) AS s);
+ id 
+----
+  1
+(1 row)
+
+SELECT * FROM foo WHERE id IN
+    (SELECT id2 FROM (SELECT id2 FROM bar UNION
+                      SELECT id2 FROM bar) AS s);
+ id 
+----
+  1
+(1 row)
+
+--
+-- Test case to catch problems with multiply nested sub-SELECTs not getting
+-- recalculated properly.  Per bug report from Didier Moens.
+--
+CREATE TABLE orderstest (
+    approver_ref integer,
+    po_ref integer,
+    ordercanceled boolean
+);
+INSERT INTO orderstest VALUES (1, 1, false);
+INSERT INTO orderstest VALUES (66, 5, false);
+INSERT INTO orderstest VALUES (66, 6, false);
+INSERT INTO orderstest VALUES (66, 7, false);
+INSERT INTO orderstest VALUES (66, 1, true);
+INSERT INTO orderstest VALUES (66, 8, false);
+INSERT INTO orderstest VALUES (66, 1, false);
+INSERT INTO orderstest VALUES (77, 1, false);
+INSERT INTO orderstest VALUES (1, 1, false);
+INSERT INTO orderstest VALUES (66, 1, false);
+INSERT INTO orderstest VALUES (1, 1, false);
+CREATE VIEW orders_view AS
+SELECT *,
+(SELECT CASE
+   WHEN ord.approver_ref=1 THEN '---' ELSE 'Approved'
+ END) AS "Approved",
+(SELECT CASE
+ WHEN ord.ordercanceled
+ THEN 'Canceled'
+ ELSE
+  (SELECT CASE
+		WHEN ord.po_ref=1
+		THEN
+		 (SELECT CASE
+				WHEN ord.approver_ref=1
+				THEN '---'
+				ELSE 'Approved'
+			END)
+		ELSE 'PO'
+	END)
+END) AS "Status",
+(CASE
+ WHEN ord.ordercanceled
+ THEN 'Canceled'
+ ELSE
+  (CASE
+		WHEN ord.po_ref=1
+		THEN
+		 (CASE
+				WHEN ord.approver_ref=1
+				THEN '---'
+				ELSE 'Approved'
+			END)
+		ELSE 'PO'
+	END)
+END) AS "Status_OK"
+FROM orderstest ord;
+SELECT * FROM orders_view 
+ORDER BY approver_ref, po_ref, ordercanceled;
+ approver_ref | po_ref | ordercanceled | Approved |  Status  | Status_OK 
+--------------+--------+---------------+----------+----------+-----------
+            1 |      1 | f             | ---      | ---      | ---
+            1 |      1 | f             | ---      | ---      | ---
+            1 |      1 | f             | ---      | ---      | ---
+           66 |      1 | f             | Approved | Approved | Approved
+           66 |      1 | f             | Approved | Approved | Approved
+           66 |      1 | t             | Approved | Canceled | Canceled
+           66 |      5 | f             | Approved | PO       | PO
+           66 |      6 | f             | Approved | PO       | PO
+           66 |      7 | f             | Approved | PO       | PO
+           66 |      8 | f             | Approved | PO       | PO
+           77 |      1 | f             | Approved | Approved | Approved
+(11 rows)
+
+DROP TABLE orderstest cascade;
+NOTICE:  drop cascades to view orders_view
+--
+-- Test cases to catch situations where rule rewriter fails to propagate
+-- hasSubLinks flag correctly.  Per example from Kyle Bateman.
+--
+create temp table parts (
+    partnum     text,
+    cost        float8
+);
+create temp table shipped (
+    ttype       char(2),
+    ordnum      int4,
+    partnum     text,
+    value       float8
+);
+create temp view shipped_view as
+    select * from shipped where ttype = 'wt';
+create rule shipped_view_insert as on insert to shipped_view do instead
+    insert into shipped values('wt', new.ordnum, new.partnum, new.value);
+insert into parts (partnum, cost) values (1, 1234.56);
+insert into shipped_view (ordnum, partnum, value)
+    values (0, 1, (select cost from parts where partnum = '1'));
+select * from shipped_view;
+ ttype | ordnum | partnum |  value  
+-------+--------+---------+---------
+ wt    |      0 | 1       | 1234.56
+(1 row)
+
+create rule shipped_view_update as on update to shipped_view do instead
+    update shipped set partnum = new.partnum, value = new.value
+        where ttype = new.ttype and ordnum = new.ordnum;
+update shipped_view set value = 11
+    from int4_tbl a join int4_tbl b
+      on (a.f1 = (select f1 from int4_tbl c where c.f1=b.f1))
+    where ordnum = a.f1;
+select * from shipped_view;
+ ttype | ordnum | partnum | value 
+-------+--------+---------+-------
+ wt    |      0 | 1       |    11
+(1 row)
+
+select f1, ss1 as relabel from
+    (select *, (select sum(f1) from int4_tbl b where f1 >= a.f1) as ss1
+     from int4_tbl a) ss 
+     ORDER BY f1, relabel;
+     f1      |  relabel   
+-------------+------------
+ -2147483647 |          0
+     -123456 | 2147483647
+           0 | 2147607103
+      123456 | 2147607103
+  2147483647 | 2147483647
+(5 rows)
+
+explain(verbose, costs off)
+select * from
+(values
+  (3 not in (select * from (values (1), (2)) ss1)),
+  (false)
+) ss;
+               QUERY PLAN               
+----------------------------------------
+ Values Scan on "*VALUES*"
+   Output: "*VALUES*".column1
+   SubPlan 1
+     ->  Values Scan on "*VALUES*_1"
+           Output: "*VALUES*_1".column1
+(5 rows)
+
+select * from
+(values
+  (3 not in (select * from (values (1), (2)) ss1)),
+  (false)
+) ss;
+ column1 
+---------
+ t
+ f
+(2 rows)
+
+--
+-- Test cases involving PARAM_EXEC parameters and min/max index optimizations.
+-- Per bug report from David Sanchez i Gregori.
+--
+select * from (
+  select max(unique1) from tenk1 as a
+  where exists (select 1 from tenk1 as b where b.thousand = a.unique2)
+) ss;
+ max  
+------
+ 9997
+(1 row)
+
+select * from (
+  select min(unique1) from tenk1 as a
+  where not exists (select 1 from tenk1 as b where b.unique2 = 10000)
+) ss;
+ min 
+-----
+   0
+(1 row)
+
+--
+-- Test that an IN implemented using a UniquePath does unique-ification
+-- with the right semantics, as per bug #4113.  (Unfortunately we have
+-- no simple way to ensure that this test case actually chooses that type
+-- of plan, but it does in releases 7.4-8.3.  Note that an ordering difference
+-- here might mean that some other plan type is being used, rendering the test
+-- pointless.)
+--
+create temp table numeric_table (num_col numeric);
+insert into numeric_table values (1), (1.000000000000000000001), (2), (3);
+create temp table float_table (float_col float8);
+insert into float_table values (1), (2), (3);
+select * from float_table
+  where float_col in (select num_col from numeric_table) 
+  ORDER BY float_col;
+ float_col 
+-----------
+         1
+         2
+         3
+(3 rows)
+
+select * from numeric_table
+  where num_col in (select float_col from float_table) 
+  ORDER BY num_col;
+         num_col         
+-------------------------
+                       1
+ 1.000000000000000000001
+                       2
+                       3
+(4 rows)
+
+--
+-- Test case for bug #4290: bogus calculation of subplan param sets
+--
+create temp table ta (id int primary key, val int);
+insert into ta values(1,1);
+insert into ta values(2,2);
+create temp table tb (id int primary key, aval int);
+insert into tb values(1,1);
+insert into tb values(2,1);
+insert into tb values(3,2);
+insert into tb values(4,2);
+create temp table tc (id int primary key, aid int);
+insert into tc values(1,1);
+insert into tc values(2,2);
+select
+  ( select min(tb.id) from tb
+    where tb.aval = (select ta.val from ta where ta.id = tc.aid) ) as min_tb_id
+from tc 
+ORDER BY min_tb_id;
+ min_tb_id 
+-----------
+         1
+         3
+(2 rows)
+
+--
+-- Test case for 8.3 "failed to locate grouping columns" bug
+--
+create temp table t1 (f1 numeric(14,0), f2 varchar(30));
+select * from
+  (select distinct f1, f2, (select f2 from t1 x where x.f1 = up.f1) as fs
+   from t1 up) ss
+group by f1,f2,fs;
+ f1 | f2 | fs 
+----+----+----
+(0 rows)
+
+--
+-- Test case for bug #5514 (mishandling of whole-row Vars in subselects)
+--
+create temp table table_a(id integer);
+insert into table_a values (42);
+create temp view view_a as select * from table_a;
+select view_a from view_a;
+ view_a 
+--------
+ (42)
+(1 row)
+
+select (select view_a) from view_a;
+ view_a 
+--------
+ (42)
+(1 row)
+
+select (select (select view_a)) from view_a;
+ view_a 
+--------
+ (42)
+(1 row)
+
+select (select (a.*)::text) from view_a a;
+  a   
+------
+ (42)
+(1 row)
+
+--
+-- Check that whole-row Vars reading the result of a subselect don't include
+-- any junk columns therein
+--
+select q from (select max(f1) from int4_tbl group by f1 order by f1) q;
+       q       
+---------------
+ (-2147483647)
+ (-123456)
+ (0)
+ (123456)
+ (2147483647)
+(5 rows)
+
+with q as (select max(f1) from int4_tbl group by f1 order by f1)
+  select q from q;
+       q       
+---------------
+ (-2147483647)
+ (-123456)
+ (0)
+ (123456)
+ (2147483647)
+(5 rows)
+
+--
+-- Test case for sublinks pushed down into subselects via join alias expansion
+--
+select
+  (select sq1) as qq1
+from
+  (select exists(select 1 from int4_tbl where f1 = q2) as sq1, 42 as dummy
+   from int8_tbl) sq0
+  join
+  int4_tbl i4 on dummy = i4.f1;
+ qq1 
+-----
+(0 rows)
+
+--
+-- Test case for subselect within UPDATE of INSERT...ON CONFLICT DO UPDATE
+--
+create temp table upsert(key int4 primary key, val text) distribute by replication;
+insert into upsert values(1, 'val') on conflict (key) do update set val = 'not seen';
+insert into upsert values(1, 'val') on conflict (key) do update set val = 'seen with subselect ' || (select f1 from int4_tbl where f1 != 0 limit 1)::text;
+select * from upsert;
+ key |            val             
+-----+----------------------------
+   1 | seen with subselect 123456
+(1 row)
+
+with aa as (select 'int4_tbl' u from int4_tbl limit 1)
+insert into upsert values (1, 'x'), (999, 'y')
+on conflict (key) do update set val = (select u from aa)
+returning *;
+ key |   val    
+-----+----------
+   1 | int4_tbl
+ 999 | y
+(2 rows)
+
+--
+-- Test case for cross-type partial matching in hashed subplan (bug #7597)
+--
+create temp table outer_7597 (f1 int4, f2 int4);
+insert into outer_7597 values (0, 0);
+insert into outer_7597 values (1, 0);
+insert into outer_7597 values (0, null);
+insert into outer_7597 values (1, null);
+create temp table inner_7597(c1 int8, c2 int8);
+insert into inner_7597 values(0, null);
+select * from outer_7597 where (f1, f2) not in (select * from inner_7597) order by 1;
+ f1 | f2 
+----+----
+  1 |  0
+  1 |   
+(2 rows)
+
+--
+-- Test case for premature memory release during hashing of subplan output
+--
+select '1'::text in (select '1'::name union all select '1'::name);
+ ?column? 
+----------
+ t
+(1 row)
+
+--
+-- Test case for planner bug with nested EXISTS handling
+--
+select a.thousand from tenk1 a, tenk1 b
+where a.thousand = b.thousand
+  and exists ( select 1 from tenk1 c where b.hundred = c.hundred
+                   and not exists ( select 1 from tenk1 d
+                                    where a.thousand = d.thousand ) );
+ thousand 
+----------
+(0 rows)
+
+--
+-- Check that nested sub-selects are not pulled up if they contain volatiles
+--
+explain (verbose, costs off)
+  select x, x from
+    (select (select now()) as x from (values(1),(2)) v(y)) ss;
+        QUERY PLAN         
+---------------------------
+ Values Scan on "*VALUES*"
+   Output: $0, $1
+   InitPlan 1 (returns $0)
+     ->  Result
+           Output: now()
+   InitPlan 2 (returns $1)
+     ->  Result
+           Output: now()
+(8 rows)
+
+explain (verbose, costs off)
+  select x, x from
+    (select (select random()) as x from (values(1),(2)) v(y)) ss;
+            QUERY PLAN            
+----------------------------------
+ Subquery Scan on ss
+   Output: ss.x, ss.x
+   ->  Values Scan on "*VALUES*"
+         Output: $0
+         InitPlan 1 (returns $0)
+           ->  Result
+                 Output: random()
+(7 rows)
+
+explain (verbose, costs off)
+  select x, x from
+    (select (select now() where y=y) as x from (values(1),(2)) v(y)) ss;
+                              QUERY PLAN                              
+----------------------------------------------------------------------
+ Values Scan on "*VALUES*"
+   Output: (SubPlan 1), (SubPlan 2)
+   SubPlan 1
+     ->  Result
+           Output: now()
+           One-Time Filter: ("*VALUES*".column1 = "*VALUES*".column1)
+   SubPlan 2
+     ->  Result
+           Output: now()
+           One-Time Filter: ("*VALUES*".column1 = "*VALUES*".column1)
+(10 rows)
+
+explain (verbose, costs off)
+  select x, x from
+    (select (select random() where y=y) as x from (values(1),(2)) v(y)) ss;
+                                 QUERY PLAN                                 
+----------------------------------------------------------------------------
+ Subquery Scan on ss
+   Output: ss.x, ss.x
+   ->  Values Scan on "*VALUES*"
+         Output: (SubPlan 1)
+         SubPlan 1
+           ->  Result
+                 Output: random()
+                 One-Time Filter: ("*VALUES*".column1 = "*VALUES*".column1)
+(8 rows)
+
+--
+-- Check we behave sanely in corner case of empty SELECT list (bug #8648)
+--
+create temp table nocolumns();
+select exists(select * from nocolumns);
+ exists 
+--------
+ f
+(1 row)
+
+--
+-- Check sane behavior with nested IN SubLinks
+--
+set enable_indexonlyscan to off;
+explain (verbose, costs off)
+select * from int4_tbl where
+  (case when f1 in (select unique1 from tenk1 a) then f1 else null end) in
+  (select ten from tenk1 b);
+                                                                                               QUERY PLAN                                                                                                
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Hash Right Join
+   Output: int4_tbl.f1
+   Hash Cond: (a.unique1 = int4_tbl.f1)
+   Filter: (CASE WHEN (a.unique1 IS NOT NULL) THEN int4_tbl.f1 ELSE NULL::integer END = b.ten)
+   ->  HashAggregate
+         Output: a.unique1
+         Group Key: a.unique1
+         ->  Seq Scan on public.tenk1 a
+               Output: a.unique1
+   ->  Hash
+         Output: int4_tbl.f1, b.ten
+         ->  Nested Loop
+               Output: int4_tbl.f1, b.ten
+               ->  HashAggregate
+                     Output: b.ten
+                     Group Key: b.ten
+                     ->  Seq Scan on public.tenk1 b
+                           Output: b.unique1, b.unique2, b.two, b.four, b.ten, b.twenty, b.hundred, b.thousand, b.twothousand, b.fivethous, b.tenthous, b.odd, b.even, b.stringu1, b.stringu2, b.string4
+               ->  Materialize
+                     Output: int4_tbl.f1
+                     ->  Seq Scan on public.int4_tbl
+                           Output: int4_tbl.f1
+(22 rows)
+
+select * from int4_tbl where
+  (case when f1 in (select unique1 from tenk1 a) then f1 else null end) in
+  (select ten from tenk1 b);
+ f1 
+----
+  0
+(1 row)
+
+reset enable_indexonlyscan;
+--
+-- Check for incorrect optimization when IN subquery contains a SRF
+--
+explain (verbose, costs off)
+select * from int4_tbl o where (f1, f1) in
+  (select f1, generate_series(1,2) / 10 g from int4_tbl i group by f1);
+                         QUERY PLAN                          
+-------------------------------------------------------------
+ Hash Right Semi Join
+   Output: o.f1
+   Hash Cond: (any_subquery_1.f1 = o.f1)
+   ->  Subquery Scan on any_subquery_1
+         Output: any_subquery_1.f1, any_subquery_1.g
+         Filter: (any_subquery_1.f1 = any_subquery_1.g)
+         ->  Result
+               Output: i.f1, ((generate_series(1, 2)) / 10)
+               ->  ProjectSet
+                     Output: generate_series(1, 2), i.f1
+                     ->  HashAggregate
+                           Output: i.f1
+                           Group Key: i.f1
+                           ->  Seq Scan on public.int4_tbl i
+                                 Output: i.f1
+   ->  Hash
+         Output: o.f1
+         ->  Seq Scan on public.int4_tbl o
+               Output: o.f1
+(19 rows)
+
+select * from int4_tbl o where (f1, f1) in
+  (select f1, generate_series(1,2) / 10 g from int4_tbl i group by f1);
+ f1 
+----
+  0
+(1 row)
+
+--
+-- check for over-optimization of whole-row Var referencing an Append plan
+--
+select (select q from
+         (select 1,2,3 where f1 > 0
+          union all
+          select 4,5,6.0 where f1 <= 0
+         ) q )
+from int4_tbl order by 1;
+     q     
+-----------
+ (1,2,3)
+ (1,2,3)
+ (4,5,6.0)
+ (4,5,6.0)
+ (4,5,6.0)
+(5 rows)
+
+--
+-- Check that volatile quals aren't pushed down past a DISTINCT:
+-- nextval() should not be called more than the nominal number of times
+--
+create temp sequence ts1;
+select * from
+  (select distinct ten from tenk1) ss
+  where ten < 10 + nextval('ts1')
+  order by 1;
+ ten 
+-----
+   0
+   1
+   2
+   3
+   4
+   5
+   6
+   7
+   8
+   9
+(10 rows)
+
+select nextval('ts1');
+ nextval 
+---------
+      11
+(1 row)
+
+SELECT setseed(0);
+ setseed 
+---------
+ 
+(1 row)
+
+-- DROP TABLE IF EXISTS asd ;
+CREATE TABLE IF NOT EXISTS asd  AS
+SELECT clientid::numeric(20),
+ (clientid / 20 )::integer::numeric(20) as userid,
+ cts + ((random()* 3600 *24 )||'sec')::interval as cts,
+ (ARRAY['A','B','C','D','E','F'])[(random()*5+1)::integer] as state,
+ 0 as dim,
+ ((ARRAY['Cat','Dog','Duck'])[(clientid / 10  )% 3  +1 ]) ::text as app_name,
+ ((ARRAY['A','B'])[(clientid / 10  )% 2  +1 ]) ::text as platform
+ FROM generate_series('2016-01-01'::timestamp,'2016-10-01'::timestamp,interval '15 day') cts , generate_series( 1000,2000,10) clientid , generate_series(1,6) t
+;
+SELECT dates::timestamp as dates ,B.platform,B.app_name, B.clientid, B.userid,
+	B.state as state
+FROM ( VALUES
+('2016.08.30. 08:52:43') ,('2016.08.29. 04:57:12') ,('2016.08.26. 08:15:05') ,
+('2016.08.24. 11:49:51') ,('2016.08.22. 08:45:29') ,('2016.08.21. 04:53:47') ,('2016.08.20. 08:44:03')
+) AS D (dates)
+JOIN
+( SELECT DISTINCT clientid FROM asd
+	WHERE userid=74 ) C ON True
+INNER JOIN LATERAL (
+	SELECT DISTINCT ON (clientid,app_name,platform,state,dim) x.*
+	FROM asd x
+	INNER JOIN (SELECT p.clientid,p.app_name,p.platform , p.state, p.dim ,
+	     MAX(p.cts) AS selected_cts
+		FROM asd p
+		where cts<D.dates::timestamp and state in
+		('A','B')
+	GROUP BY p.clientid,p.app_name,p.platform,p.state,p.dim) y
+	ON y.clientid = x.clientid
+	AND y.selected_cts = x.cts
+	AND y.platform = x.platform
+	AND y.app_name=x.app_name
+	AND y.state=x.state
+	AND y.dim = x.dim
+	and x.clientid = C.clientid
+) B ON True
+ORDER BY dates desc, state, B.platform,B.app_name, B.clientid, B.userid;
+          dates           | platform | app_name | clientid | userid | state 
+--------------------------+----------+----------+----------+--------+-------
+ Tue Aug 30 08:52:43 2016 | A        | Dog      |     1480 |     74 | A
+ Tue Aug 30 08:52:43 2016 | B        | Duck     |     1490 |     74 | A
+ Tue Aug 30 08:52:43 2016 | A        | Dog      |     1480 |     74 | B
+ Tue Aug 30 08:52:43 2016 | B        | Duck     |     1490 |     74 | B
+ Mon Aug 29 04:57:12 2016 | A        | Dog      |     1480 |     74 | A
+ Mon Aug 29 04:57:12 2016 | B        | Duck     |     1490 |     74 | A
+ Mon Aug 29 04:57:12 2016 | A        | Dog      |     1480 |     74 | B
+ Mon Aug 29 04:57:12 2016 | B        | Duck     |     1490 |     74 | B
+ Fri Aug 26 08:15:05 2016 | A        | Dog      |     1480 |     74 | A
+ Fri Aug 26 08:15:05 2016 | B        | Duck     |     1490 |     74 | A
+ Fri Aug 26 08:15:05 2016 | A        | Dog      |     1480 |     74 | B
+ Fri Aug 26 08:15:05 2016 | B        | Duck     |     1490 |     74 | B
+ Wed Aug 24 11:49:51 2016 | A        | Dog      |     1480 |     74 | A
+ Wed Aug 24 11:49:51 2016 | B        | Duck     |     1490 |     74 | A
+ Wed Aug 24 11:49:51 2016 | A        | Dog      |     1480 |     74 | B
+ Wed Aug 24 11:49:51 2016 | B        | Duck     |     1490 |     74 | B
+ Mon Aug 22 08:45:29 2016 | A        | Dog      |     1480 |     74 | A
+ Mon Aug 22 08:45:29 2016 | B        | Duck     |     1490 |     74 | A
+ Mon Aug 22 08:45:29 2016 | A        | Dog      |     1480 |     74 | B
+ Mon Aug 22 08:45:29 2016 | B        | Duck     |     1490 |     74 | B
+ Sun Aug 21 04:53:47 2016 | A        | Dog      |     1480 |     74 | A
+ Sun Aug 21 04:53:47 2016 | B        | Duck     |     1490 |     74 | A
+ Sun Aug 21 04:53:47 2016 | A        | Dog      |     1480 |     74 | B
+ Sun Aug 21 04:53:47 2016 | B        | Duck     |     1490 |     74 | B
+ Sat Aug 20 08:44:03 2016 | A        | Dog      |     1480 |     74 | A
+ Sat Aug 20 08:44:03 2016 | B        | Duck     |     1490 |     74 | A
+ Sat Aug 20 08:44:03 2016 | A        | Dog      |     1480 |     74 | B
+ Sat Aug 20 08:44:03 2016 | B        | Duck     |     1490 |     74 | B
+(28 rows)
+
+DROP TABLE asd;
+SELECT setseed(0);
+ setseed 
+---------
+ 
+(1 row)
+
+--
+-- Check that volatile quals aren't pushed down past a set-returning function;
+-- while a nonvolatile qual can be, if it doesn't reference the SRF.
+--
+create function tattle(x int, y int) returns bool
+volatile language plpgsql as $$
+begin
+  raise notice 'x = %, y = %', x, y;
+  return x > y;
+end$$;
+explain (verbose, costs off)
+select * from
+  (select 9 as x, unnest(array[1,2,3,11,12,13]) as u) ss
+  where tattle(x, 8);
+                        QUERY PLAN                        
+----------------------------------------------------------
+ Subquery Scan on ss
+   Output: x, u
+   Filter: tattle(ss.x, 8)
+   ->  ProjectSet
+         Output: 9, unnest('{1,2,3,11,12,13}'::integer[])
+         ->  Result
+(6 rows)
+
+select * from
+  (select 9 as x, unnest(array[1,2,3,11,12,13]) as u) ss
+  where tattle(x, 8);
+NOTICE:  x = 9, y = 8
+NOTICE:  x = 9, y = 8
+NOTICE:  x = 9, y = 8
+NOTICE:  x = 9, y = 8
+NOTICE:  x = 9, y = 8
+NOTICE:  x = 9, y = 8
+ x | u  
+---+----
+ 9 |  1
+ 9 |  2
+ 9 |  3
+ 9 | 11
+ 9 | 12
+ 9 | 13
+(6 rows)
+
+-- if we pretend it's stable, we get different results:
+alter function tattle(x int, y int) stable;
+explain (verbose, costs off)
+select * from
+  (select 9 as x, unnest(array[1,2,3,11,12,13]) as u) ss
+  where tattle(x, 8);
+                     QUERY PLAN                     
+----------------------------------------------------
+ ProjectSet
+   Output: 9, unnest('{1,2,3,11,12,13}'::integer[])
+   ->  Result
+         One-Time Filter: tattle(9, 8)
+(4 rows)
+
+select * from
+  (select 9 as x, unnest(array[1,2,3,11,12,13]) as u) ss
+  where tattle(x, 8);
+NOTICE:  x = 9, y = 8
+ x | u  
+---+----
+ 9 |  1
+ 9 |  2
+ 9 |  3
+ 9 | 11
+ 9 | 12
+ 9 | 13
+(6 rows)
+
+-- although even a stable qual should not be pushed down if it references SRF
+explain (verbose, costs off)
+select * from
+  (select 9 as x, unnest(array[1,2,3,11,12,13]) as u) ss
+  where tattle(x, u);
+                        QUERY PLAN                        
+----------------------------------------------------------
+ Subquery Scan on ss
+   Output: x, u
+   Filter: tattle(ss.x, ss.u)
+   ->  ProjectSet
+         Output: 9, unnest('{1,2,3,11,12,13}'::integer[])
+         ->  Result
+(6 rows)
+
+select * from
+  (select 9 as x, unnest(array[1,2,3,11,12,13]) as u) ss
+  where tattle(x, u);
+NOTICE:  x = 9, y = 1
+NOTICE:  x = 9, y = 2
+NOTICE:  x = 9, y = 3
+NOTICE:  x = 9, y = 11
+NOTICE:  x = 9, y = 12
+NOTICE:  x = 9, y = 13
+ x | u 
+---+---
+ 9 | 1
+ 9 | 2
+ 9 | 3
+(3 rows)
+
+drop function tattle(x int, y int);
+-- test subquery pathkey
+CREATE TABLE catalog_sales (
+    cs_sold_date_sk integer,
+    cs_item_sk integer NOT NULL,
+    cs_order_number integer NOT NULL
+);
+CREATE TABLE catalog_returns (
+    cr_returned_date_sk integer,
+    cr_item_sk integer NOT NULL,
+    cr_order_number integer NOT NULL
+);
+CREATE TABLE date_dim (
+    d_date_sk integer NOT NULL,
+    d_year integer
+);
+with cs as
+(
+    select d_year AS cs_sold_year, cs_item_sk
+    from catalog_sales
+        left join catalog_returns on cr_order_number=cs_order_number and cs_item_sk=cr_item_sk
+        join date_dim on cs_sold_date_sk = d_date_sk
+    order by d_year, cs_item_sk
+)
+select 1
+from date_dim
+    join cs on (cs_sold_year=d_year and cs_item_sk=cs_item_sk);
+ ?column? 
+----------
+(0 rows)
+
+drop table catalog_sales, catalog_returns, date_dim;
+--
+-- Test that LIMIT can be pushed to SORT through a subquery that just projects
+-- columns.  We check for that having happened by looking to see if EXPLAIN
+-- ANALYZE shows that a top-N sort was used.  We must suppress or filter away
+-- all the non-invariant parts of the EXPLAIN ANALYZE output.
+--
+create table sq_limit (pk int primary key, c1 int, c2 int) distribute by replication;
+insert into sq_limit values
+    (1, 1, 1),
+    (2, 2, 2),
+    (3, 3, 3),
+    (4, 4, 4),
+    (5, 1, 1),
+    (6, 2, 2),
+    (7, 3, 3),
+    (8, 4, 4);
+create function explain_sq_limit() returns setof text language plpgsql as
+$$
+declare ln text;
+begin
+    for ln in
+        explain (analyze, summary off, timing off, costs off)
+        select * from (select pk,c2 from sq_limit order by c1,pk) as x limit 3
+    loop
+        ln := regexp_replace(ln, 'Memory: \S*',  'Memory: xxx');
+        return next ln;
+    end loop;
+end;
+$$;
+/* Unfortunately, we use quicksort but not top-N sort. Should be optimized later.
+select * from explain_sq_limit();
+*/
+select * from (select pk,c2 from sq_limit order by c1,pk) as x limit 3;
+ pk | c2 
+----+----
+  1 |  1
+  5 |  1
+  2 |  2
+(3 rows)
+
+drop function explain_sq_limit();
+drop table sq_limit;
+--
+-- Ensure that backward scan direction isn't propagated into
+-- expression subqueries (bug #15336)
+--
+begin;
+declare c1 scroll cursor for
+ select * from generate_series(1,4) i
+  where i <> all (values (2),(3));
+move forward all in c1;
+fetch backward all in c1;
+ i 
+---
+ 4
+ 1
+(2 rows)
+
+commit;
+-- OPENTENBASE
+-- not in optimization
+create table notin_t1 (id1 int, num1 int not null);
+create table notin_t2 (id2 int, num2 int not null);
+explain(costs off) select num1 from notin_t1 where num1 not in (select num2 from notin_t2);
+                  QUERY PLAN                  
+----------------------------------------------
+ Hash Anti Join
+   Hash Cond: (notin_t1.num1 = notin_t2.num2)
+   ->  Seq Scan on notin_t1
+   ->  Hash
+         ->  Seq Scan on notin_t2
+(5 rows)
+
+drop table notin_t1;
+drop table notin_t2;
+create table tbl_a(a int,b int);
+create table tbl_b(a int,b int);
+insert into tbl_a select generate_series(1,10),1 ;
+insert into tbl_b select generate_series(2,11),1 ;
+-- check targetlist subquery scenario.
+set enable_nestloop to true;
+set enable_hashjoin to false;
+set enable_mergejoin to false;
+explain select a.a,(select b.a from tbl_b b where b.a = a.a) q from tbl_a a order by 1,2;
+                                 QUERY PLAN                                  
+-----------------------------------------------------------------------------
+ Sort  (cost=15674.66..15678.04 rows=1350 width=8)
+   Sort Key: a.a, b.a
+   ->  Nested Loop Left Scalar Join  (cost=0.00..15604.47 rows=1350 width=8)
+         Join Filter: (b.a = a.a)
+         ->  Seq Scan on tbl_a a  (cost=0.00..23.50 rows=1350 width=4)
+         ->  Materialize  (cost=0.00..30.25 rows=1350 width=4)
+               ->  Seq Scan on tbl_b b  (cost=0.00..23.50 rows=1350 width=4)
+(7 rows)
+
+select a.a,(select b.a from tbl_b b where b.a = a.a) q from tbl_a a order by 1,2;
+ a  | q  
+----+----
+  1 |   
+  2 |  2
+  3 |  3
+  4 |  4
+  5 |  5
+  6 |  6
+  7 |  7
+  8 |  8
+  9 |  9
+ 10 | 10
+(10 rows)
+
+set enable_nestloop to false;
+set enable_hashjoin to true;
+set enable_mergejoin to false;
+explain (costs off) select a.a,(select b.a from tbl_b b where b.a = a.a) q from tbl_a a order by 1,2;
+              QUERY PLAN               
+---------------------------------------
+ Sort
+   Sort Key: a.a, b.a
+   ->  Hash Left Scalar Join
+         Hash Cond: (a.a = b.a)
+         ->  Seq Scan on tbl_a a
+         ->  Hash
+               ->  Seq Scan on tbl_b b
+(7 rows)
+
+select a.a,(select b.a from tbl_b b where b.a = a.a) q from tbl_a a order by 1,2;
+ a  | q  
+----+----
+  1 |   
+  2 |  2
+  3 |  3
+  4 |  4
+  5 |  5
+  6 |  6
+  7 |  7
+  8 |  8
+  9 |  9
+ 10 | 10
+(10 rows)
+
+set enable_nestloop to false;
+set enable_hashjoin to false;
+set enable_mergejoin to true;
+explain (costs off) select a.a,(select b.a from tbl_b b where b.a = a.a) q from tbl_a a order by 1,2;
+              QUERY PLAN               
+---------------------------------------
+ Sort
+   Sort Key: a.a, b.a
+   ->  Merge Left Scalar Join
+         Merge Cond: (a.a = b.a)
+         ->  Sort
+               Sort Key: a.a
+               ->  Seq Scan on tbl_a a
+         ->  Sort
+               Sort Key: b.a
+               ->  Seq Scan on tbl_b b
+(10 rows)
+
+select a.a,(select b.a from tbl_b b where b.a = a.a) q from tbl_a a order by 1,2;
+ a  | q  
+----+----
+  1 |   
+  2 |  2
+  3 |  3
+  4 |  4
+  5 |  5
+  6 |  6
+  7 |  7
+  8 |  8
+  9 |  9
+ 10 | 10
+(10 rows)
+
+-- check non-scalar scenario.
+insert into tbl_b values(2,2);
+set enable_nestloop to true;
+set enable_hashjoin to false;
+set enable_mergejoin to false;
+explain (costs off) select a.a,(select b.a from tbl_b b where b.a = a.a) q from tbl_a a order by 1,2;
+              QUERY PLAN               
+---------------------------------------
+ Sort
+   Sort Key: a.a, b.a
+   ->  Nested Loop Left Scalar Join
+         Join Filter: (b.a = a.a)
+         ->  Seq Scan on tbl_a a
+         ->  Materialize
+               ->  Seq Scan on tbl_b b
+(7 rows)
+
+select a.a,(select b.a from tbl_b b where b.a = a.a) q from tbl_a a order by 1,2;
+ERROR:  more than one row returned by a subquery used as an expression
+set enable_nestloop to false;
+set enable_hashjoin to true;
+set enable_mergejoin to false;
+explain (costs off) select a.a,(select b.a from tbl_b b where b.a = a.a) q from tbl_a a order by 1,2;
+              QUERY PLAN               
+---------------------------------------
+ Sort
+   Sort Key: a.a, b.a
+   ->  Hash Left Scalar Join
+         Hash Cond: (a.a = b.a)
+         ->  Seq Scan on tbl_a a
+         ->  Hash
+               ->  Seq Scan on tbl_b b
+(7 rows)
+
+select a.a,(select b.a from tbl_b b where b.a = a.a) q from tbl_a a order by 1,2;
+ERROR:  more than one row returned by a subquery used as an expression
+set enable_nestloop to false;
+set enable_hashjoin to false;
+set enable_mergejoin to true;
+explain (costs off) select a.a,(select b.a from tbl_b b where b.a = a.a) q from tbl_a a order by 1,2;
+              QUERY PLAN               
+---------------------------------------
+ Sort
+   Sort Key: a.a, b.a
+   ->  Merge Left Scalar Join
+         Merge Cond: (a.a = b.a)
+         ->  Sort
+               Sort Key: a.a
+               ->  Seq Scan on tbl_a a
+         ->  Sort
+               Sort Key: b.a
+               ->  Seq Scan on tbl_b b
+(10 rows)
+
+select a.a,(select b.a from tbl_b b where b.a = a.a) q from tbl_a a order by 1,2;
+ERROR:  more than one row returned by a subquery used as an expression
+explain (costs off) select a.a,(select b.a from tbl_b b where b.a = a.a and b.a = 5) q from tbl_a a order by 1,2;
+              QUERY PLAN               
+---------------------------------------
+ Sort
+   Sort Key: a.a, b.a
+   ->  Merge Left Scalar Join
+         Merge Cond: (a.a = b.a)
+         ->  Sort
+               Sort Key: a.a
+               ->  Seq Scan on tbl_a a
+         ->  Sort
+               Sort Key: b.a
+               ->  Seq Scan on tbl_b b
+                     Filter: (a = 5)
+(11 rows)
+
+select a.a,(select b.a from tbl_b b where b.a = a.a and b.a = 5) q from tbl_a a order by 1,2;
+ a  | q 
+----+---
+  1 |  
+  2 |  
+  3 |  
+  4 |  
+  5 | 5
+  6 |  
+  7 |  
+  8 |  
+  9 |  
+ 10 |  
+(10 rows)
+
+-- check distinct scenario.
+set enable_nestloop to true;
+set enable_hashjoin to false;
+set enable_mergejoin to false;
+explain (costs  off) select a.a,(select distinct b.a from tbl_b b where b.a = a.a) q from tbl_a a order by 1,2;
+              QUERY PLAN               
+---------------------------------------
+ Sort
+   Sort Key: a.a, b.a
+   ->  Nested Loop Left Scalar Join
+         ->  Seq Scan on tbl_a a
+         ->  Unique
+               ->  Seq Scan on tbl_b b
+                     Filter: (a = a.a)
+(7 rows)
+
+select a.a,(select distinct b.a from tbl_b b where b.a = a.a) q from tbl_a a order by 1,2;
+ a  | q  
+----+----
+  1 |   
+  2 |  2
+  3 |  3
+  4 |  4
+  5 |  5
+  6 |  6
+  7 |  7
+  8 |  8
+  9 |  9
+ 10 | 10
+(10 rows)
+
+set enable_nestloop to false;
+set enable_hashjoin to true;
+set enable_mergejoin to false;
+explain (costs off) select a.a,(select distinct b.a from tbl_b b where b.a = a.a) q from tbl_a a order by 1,2;
+              QUERY PLAN               
+---------------------------------------
+ Sort
+   Sort Key: a.a, b.a
+   ->  Nested Loop Left Scalar Join
+         ->  Seq Scan on tbl_a a
+         ->  Unique
+               ->  Seq Scan on tbl_b b
+                     Filter: (a = a.a)
+(7 rows)
+
+select a.a,(select distinct b.a from tbl_b b where b.a = a.a) q from tbl_a a order by 1,2;
+ a  | q  
+----+----
+  1 |   
+  2 |  2
+  3 |  3
+  4 |  4
+  5 |  5
+  6 |  6
+  7 |  7
+  8 |  8
+  9 |  9
+ 10 | 10
+(10 rows)
+
+set enable_nestloop to false;
+set enable_hashjoin to false;
+set enable_mergejoin to true;
+explain (costs  off) select a.a,(select distinct b.a from tbl_b b where b.a = a.a) q from tbl_a a order by 1,2;
+              QUERY PLAN               
+---------------------------------------
+ Sort
+   Sort Key: a.a, b.a
+   ->  Nested Loop Left Scalar Join
+         ->  Seq Scan on tbl_a a
+         ->  Unique
+               ->  Seq Scan on tbl_b b
+                     Filter: (a = a.a)
+(7 rows)
+
+select a.a,(select distinct b.a from tbl_b b where b.a = a.a) q from tbl_a a order by 1,2;
+ a  | q  
+----+----
+  1 |   
+  2 |  2
+  3 |  3
+  4 |  4
+  5 |  5
+  6 |  6
+  7 |  7
+  8 |  8
+  9 |  9
+ 10 | 10
+(10 rows)
+
+set enable_nestloop to true;
+set enable_hashjoin to true;
+set enable_mergejoin to true;
+drop table tbl_a;
+drop table tbl_b;
+create table test1
+(   c11 integer,
+    c12 integer,
+    c13 integer,
+    c14 integer,
+    c15 integer
+);
+create table test2
+(   c21 integer,
+    c22 integer,
+    c23 integer,
+    c24 integer,
+    c25 integer
+);
+explain (COSTS OFF)
+select * from test1
+where c11=1 or exists (select test2.c23, test2.c24
+                       from test2 where test1.c12=test2.c22);
+                       QUERY PLAN                       
+--------------------------------------------------------
+ Hash Left Join
+   Hash Cond: (test1.c12 = test2.c22)
+   Filter: ((test1.c11 = 1) OR (test2.c22 IS NOT NULL))
+   ->  Seq Scan on test1
+   ->  Hash
+         ->  HashAggregate
+               Group Key: test2.c22
+               ->  Seq Scan on test2
+(8 rows)
+
+explain (COSTS OFF)
+select * from test1
+where c11=1 or test1.c12 IN (select test2.c23 from test2);
+                       QUERY PLAN                       
+--------------------------------------------------------
+ Hash Left Join
+   Hash Cond: (test1.c12 = test2.c23)
+   Filter: ((test1.c11 = 1) OR (test2.c23 IS NOT NULL))
+   ->  Seq Scan on test1
+   ->  Hash
+         ->  HashAggregate
+               Group Key: test2.c23
+               ->  Seq Scan on test2
+(8 rows)
+
+explain (COSTS OFF)
+select * from test1
+where c11=1 or (c12=2 and exists (select test2.c23, test2.c24
+                       from test2 where test1.c12=test2.c22));
+                                  QUERY PLAN                                  
+------------------------------------------------------------------------------
+ Hash Right Join
+   Hash Cond: (test2.c22 = test1.c12)
+   Filter: ((test1.c11 = 1) OR ((test1.c12 = 2) AND (test2.c22 IS NOT NULL)))
+   ->  HashAggregate
+         Group Key: test2.c22
+         ->  Seq Scan on test2
+   ->  Hash
+         ->  Seq Scan on test1
+               Filter: ((c11 = 1) OR (c12 = 2))
+(9 rows)
+
+explain (COSTS OFF)
+select * from test1
+where (c11=1 and exists (select test2.c23, test2.c24
+                       from test2 where test1.c12=test2.c22))
+   or (c12=2 and exists (select test2.c23, test2.c24
+                       from test2 where test1.c12=test2.c22));
+                                                  QUERY PLAN                                                  
+--------------------------------------------------------------------------------------------------------------
+ Hash Right Join
+   Hash Cond: (test2.c22 = test1.c12)
+   Filter: (((test1.c11 = 1) AND (test2_1.c22 IS NOT NULL)) OR ((test1.c12 = 2) AND (test2.c22 IS NOT NULL)))
+   ->  HashAggregate
+         Group Key: test2.c22
+         ->  Seq Scan on test2
+   ->  Hash
+         ->  Hash Right Join
+               Hash Cond: (test2_1.c22 = test1.c12)
+               ->  HashAggregate
+                     Group Key: test2_1.c22
+                     ->  Seq Scan on test2 test2_1
+               ->  Hash
+                     ->  Seq Scan on test1
+                           Filter: ((c11 = 1) OR (c12 = 2))
+(15 rows)
+
+explain (COSTS OFF)
+select * from test1
+where (c11=1 and test1.c12 IN (select test2.c23 from test2))
+   or (c12=2 and exists (select test2.c23, test2.c24
+                       from test2 where test1.c12=test2.c22));
+                                                  QUERY PLAN                                                  
+--------------------------------------------------------------------------------------------------------------
+ Hash Right Join
+   Hash Cond: (test2.c22 = test1.c12)
+   Filter: (((test1.c11 = 1) AND (test2_1.c23 IS NOT NULL)) OR ((test1.c12 = 2) AND (test2.c22 IS NOT NULL)))
+   ->  HashAggregate
+         Group Key: test2.c22
+         ->  Seq Scan on test2
+   ->  Hash
+         ->  Hash Right Join
+               Hash Cond: (test2_1.c23 = test1.c12)
+               ->  HashAggregate
+                     Group Key: test2_1.c23
+                     ->  Seq Scan on test2 test2_1
+               ->  Hash
+                     ->  Seq Scan on test1
+                           Filter: ((c11 = 1) OR (c12 = 2))
+(15 rows)
+
+explain (COSTS OFF)
+select * from test1
+where c11=1 or not exists (select test2.c23, test2.c24
+                       from test2 where test1.c12=test2.c22);
+                     QUERY PLAN                     
+----------------------------------------------------
+ Hash Left Join
+   Hash Cond: (test1.c12 = test2.c22)
+   Filter: ((test1.c11 = 1) OR (test2.c22 IS NULL))
+   ->  Seq Scan on test1
+   ->  Hash
+         ->  HashAggregate
+               Group Key: test2.c22
+               ->  Seq Scan on test2
+(8 rows)
+
+explain (COSTS OFF)
+select * from test1
+where c11=1 or test1.c12 not IN (select test2.c23 from test2);
+                    QUERY PLAN                     
+---------------------------------------------------
+ Seq Scan on test1
+   Filter: ((c11 = 1) OR (NOT (hashed SubPlan 1)))
+   SubPlan 1
+     ->  Seq Scan on test2
+(4 rows)
+
+explain (COSTS OFF)
+select * from test1
+where c11=1 or (c12=2 and not exists (select test2.c23, test2.c24
+                       from test2 where test1.c12=test2.c22));
+                                QUERY PLAN                                
+--------------------------------------------------------------------------
+ Hash Right Join
+   Hash Cond: (test2.c22 = test1.c12)
+   Filter: ((test1.c11 = 1) OR ((test1.c12 = 2) AND (test2.c22 IS NULL)))
+   ->  HashAggregate
+         Group Key: test2.c22
+         ->  Seq Scan on test2
+   ->  Hash
+         ->  Seq Scan on test1
+               Filter: ((c11 = 1) OR (c12 = 2))
+(9 rows)
+
+explain (COSTS OFF)
+select * from test1
+where (c11=1 and not exists (select test2.c23, test2.c24
+                       from test2 where test1.c12=test2.c22))
+   or (c12=2 and exists (select test2.c23, test2.c24
+                       from test2 where test1.c12=test2.c22));
+                                                QUERY PLAN                                                
+----------------------------------------------------------------------------------------------------------
+ Hash Right Join
+   Hash Cond: (test2.c22 = test1.c12)
+   Filter: (((test1.c11 = 1) AND (test2_1.c22 IS NULL)) OR ((test1.c12 = 2) AND (test2.c22 IS NOT NULL)))
+   ->  HashAggregate
+         Group Key: test2.c22
+         ->  Seq Scan on test2
+   ->  Hash
+         ->  Hash Right Join
+               Hash Cond: (test2_1.c22 = test1.c12)
+               ->  HashAggregate
+                     Group Key: test2_1.c22
+                     ->  Seq Scan on test2 test2_1
+               ->  Hash
+                     ->  Seq Scan on test1
+                           Filter: ((c11 = 1) OR (c12 = 2))
+(15 rows)
+
+explain (COSTS OFF)
+select * from test1
+where (c11=1 and test1.c12 not IN (select test2.c23 from test2))
+   or (c12=2 and exists (select test2.c23, test2.c24
+                       from test2 where test1.c12=test2.c22));
+                                                 QUERY PLAN                                                  
+-------------------------------------------------------------------------------------------------------------
+ Hash Right Join
+   Hash Cond: (test2.c22 = test1.c12)
+   Filter: (((test1.c11 = 1) AND (NOT (hashed SubPlan 1))) OR ((test1.c12 = 2) AND (test2.c22 IS NOT NULL)))
+   ->  HashAggregate
+         Group Key: test2.c22
+         ->  Seq Scan on test2
+   ->  Hash
+         ->  Seq Scan on test1
+               Filter: ((c11 = 1) OR (c12 = 2))
+   SubPlan 1
+     ->  Seq Scan on test2 test2_1
+(11 rows)
+
+explain (COSTS OFF)
+select c11 from test1
+      where case
+            when test1.c11=1 THEN 1
+            when test1.c11=2 THEN 2
+            when exists (select test2.c23, test2.c24
+                         from test2 where test1.c12=test2.c22) THEN test1.c11
+            END = 1;
+                                                                   QUERY PLAN                                                                    
+-------------------------------------------------------------------------------------------------------------------------------------------------
+ Hash Left Join
+   Hash Cond: (test1.c12 = test2.c22)
+   Filter: (CASE WHEN (test1.c11 = 1) THEN 1 WHEN (test1.c11 = 2) THEN 2 WHEN (test2.c22 IS NOT NULL) THEN test1.c11 ELSE NULL::integer END = 1)
+   ->  Seq Scan on test1
+   ->  Hash
+         ->  HashAggregate
+               Group Key: test2.c22
+               ->  Seq Scan on test2
+(8 rows)
+
+explain (COSTS OFF)
+select c11 from test1
+      where case
+            when test1.c11=1 THEN 1
+            when test1.c11=2 THEN 2
+            when test1.c12 IN (select test2.c22
+                         from test2) THEN test1.c11
+            END = 1;
+                                                                   QUERY PLAN                                                                    
+-------------------------------------------------------------------------------------------------------------------------------------------------
+ Hash Left Join
+   Hash Cond: (test1.c12 = test2.c22)
+   Filter: (CASE WHEN (test1.c11 = 1) THEN 1 WHEN (test1.c11 = 2) THEN 2 WHEN (test2.c22 IS NOT NULL) THEN test1.c11 ELSE NULL::integer END = 1)
+   ->  Seq Scan on test1
+   ->  Hash
+         ->  HashAggregate
+               Group Key: test2.c22
+               ->  Seq Scan on test2
+(8 rows)
+
+explain (COSTS OFF)
+select c11 from test1
+      where case
+            when test1.c11=1 THEN 1
+            when test1.c11=2 THEN 2
+            when test1.c12 NOT IN (select test2.c22
+                         from test2) THEN test1.c11
+            END = 1;
+                                                           QUERY PLAN                                                           
+--------------------------------------------------------------------------------------------------------------------------------
+ Seq Scan on test1
+   Filter: (CASE WHEN (c11 = 1) THEN 1 WHEN (c11 = 2) THEN 2 WHEN (NOT (hashed SubPlan 1)) THEN c11 ELSE NULL::integer END = 1)
+   SubPlan 1
+     ->  Seq Scan on test2
+(4 rows)
+
+explain (COSTS OFF)
+select c11 from test1
+      where case
+            when test1.c11=1 THEN 1
+            when test1.c11=2 THEN 2
+            when exists (select test2.c23, test2.c24
+                         from test2 where test1.c12=test2.c22) AND c12= 3 THEN test1.c11
+            END = 1;
+                                                                              QUERY PLAN                                                                               
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Hash Left Join
+   Hash Cond: (test1.c12 = test2.c22)
+   Filter: (CASE WHEN (test1.c11 = 1) THEN 1 WHEN (test1.c11 = 2) THEN 2 WHEN ((test2.c22 IS NOT NULL) AND (test1.c12 = 3)) THEN test1.c11 ELSE NULL::integer END = 1)
+   ->  Seq Scan on test1
+   ->  Hash
+         ->  HashAggregate
+               Group Key: test2.c22
+               ->  Seq Scan on test2
+(8 rows)
+
+explain (COSTS OFF)
+select c11 from test1
+      where case
+            when test1.c11=1 THEN 1
+            when test1.c11=2 THEN 2
+            when test1.c12 NOT IN (select test2.c22
+                         from test2) and c12=3 THEN test1.c11
+            END = 1;
+                                                                   QUERY PLAN                                                                   
+------------------------------------------------------------------------------------------------------------------------------------------------
+ Seq Scan on test1
+   Filter: (CASE WHEN (c11 = 1) THEN 1 WHEN (c11 = 2) THEN 2 WHEN ((NOT (hashed SubPlan 1)) AND (c12 = 3)) THEN c11 ELSE NULL::integer END = 1)
+   SubPlan 1
+     ->  Seq Scan on test2
+(4 rows)
+
+explain (COSTS OFF)
+select * from test1
+where c11=1 or exists (select test2.c23, test2.c24
+                                      from test2 where test1.c12=test2.c22)
+                       or c11 in (select c21 from test2
+                                       where test1.c12=test2.c22);
+                                       QUERY PLAN                                       
+----------------------------------------------------------------------------------------
+ Hash Left Join
+   Hash Cond: (test1.c12 = test2_1.c22)
+   Filter: ((test1.c11 = 1) OR (test2_1.c22 IS NOT NULL) OR (subquery.c21 IS NOT NULL))
+   ->  Nested Loop Left Join
+         ->  Seq Scan on test1
+         ->  Subquery Scan on subquery
+               Filter: (test1.c11 = subquery.c21)
+               ->  HashAggregate
+                     Group Key: test2.c21
+                     ->  Seq Scan on test2
+                           Filter: (test1.c12 = c22)
+   ->  Hash
+         ->  HashAggregate
+               Group Key: test2_1.c22
+               ->  Seq Scan on test2 test2_1
+(15 rows)
+
+explain (COSTS OFF)
+select c11 from test1
+      where case
+            when test1.c11=1 THEN 1
+            when test1.c11=2 THEN 2
+            when c11=1 or exists (select test2.c23, test2.c24
+                                      from test2 where test1.c12=test2.c22)
+                       or c11 in (select c21 from test2
+                                       where test1.c12=test2.c22) THEN test1.c11
+            END = 1;
+                                                                                              QUERY PLAN                                                                                              
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Hash Left Join
+   Hash Cond: (test1.c12 = test2_1.c22)
+   Filter: (CASE WHEN (test1.c11 = 1) THEN 1 WHEN (test1.c11 = 2) THEN 2 WHEN ((test1.c11 = 1) OR (test2_1.c22 IS NOT NULL) OR (subquery.c21 IS NOT NULL)) THEN test1.c11 ELSE NULL::integer END = 1)
+   ->  Nested Loop Left Join
+         ->  Seq Scan on test1
+         ->  Subquery Scan on subquery
+               Filter: (test1.c11 = subquery.c21)
+               ->  HashAggregate
+                     Group Key: test2.c21
+                     ->  Seq Scan on test2
+                           Filter: (test1.c12 = c22)
+   ->  Hash
+         ->  HashAggregate
+               Group Key: test2_1.c22
+               ->  Seq Scan on test2 test2_1
+(15 rows)
+
+drop table test1;
+drop table test2;
+create table tt1_20231229
+(
+c1 integer not null,
+c2 integer not null,
+c3 integer,
+c4 char(20)
+)
+DISTRIBUTE BY SHARD (c1);
+create table tt2
+(
+c1 integer not null,
+c2 integer not null,
+c3 integer,
+c4 char(20)
+)
+DISTRIBUTE BY SHARD (c1);
+create table tt3
+(
+c1 integer not null,
+c2 integer not null,
+c3 integer,
+c4 char(20)
+)
+DISTRIBUTE BY SHARD (c1);
+insert into tt1_20231229
+select  i,i,i,'1'
+from generate_series(1, 10) as i;
+insert into tt2
+select  i,i,i,'1'
+from generate_series(1, 10) as i;
+insert into tt3
+select  i,i,i,'1'
+from generate_series(1, 10) as i;
+explain (costs off)
+update tt1_20231229 set c2 = 3
+where exists (with aa as 
+                (select tt3.c2
+                 from tt3 
+                 left join tt2 on tt2.c4 = tt3.c4
+                 where tt2.c1=1 )
+              select * from aa where c3=aa.c2 );
+                          QUERY PLAN                           
+---------------------------------------------------------------
+ Update on tt1_20231229
+   ->  Seq Scan on tt1_20231229
+         Filter: (alternatives: SubPlan 1 or hashed SubPlan 2)
+         SubPlan 1
+           ->  Nested Loop
+                 Join Filter: (tt3.c4 = tt2.c4)
+                 ->  Seq Scan on tt3
+                       Filter: (tt1_20231229.c3 = c2)
+                 ->  Materialize
+                       ->  Seq Scan on tt2
+                             Filter: (c1 = 1)
+         SubPlan 2
+           ->  Hash Join
+                 Hash Cond: (tt2_1.c4 = tt3_1.c4)
+                 ->  Seq Scan on tt2 tt2_1
+                       Filter: (c1 = 1)
+                 ->  Hash
+                       ->  Seq Scan on tt3 tt3_1
+(18 rows)
+
+update tt1_20231229 set c2 = 3
+where exists (with aa as 
+                (select tt3.c2
+                 from tt3 
+                 left join tt2 on tt2.c4 = tt3.c4
+                 where tt2.c1=1 )
+              select * from aa where c3=aa.c2 );
+explain (costs off) 
+select distinct c2, (select count(*)
+                     from tt2
+                     where tt2.c2=tt1_20231229.c2) as count
+from tt1_20231229;
+                  QUERY PLAN                  
+----------------------------------------------
+ Subquery Scan on "Subquery"
+   ->  HashAggregate
+         Group Key: tt1_20231229.c2
+         ->  Seq Scan on tt1_20231229
+   SubPlan 1
+     ->  Aggregate
+           ->  Seq Scan on tt2
+                 Filter: (c2 = "Subquery".c2)
+(8 rows)
+
+explain (costs off) 
+select distinct c2, (select count(*)
+                     from tt2
+                     where tt2.c2=tt1_20231229.c2) as count,
+                c1
+from tt1_20231229;
+                     QUERY PLAN                      
+-----------------------------------------------------
+ Subquery Scan on "Subquery"
+   ->  HashAggregate
+         Group Key: tt1_20231229.c2, tt1_20231229.c1
+         ->  Seq Scan on tt1_20231229
+   SubPlan 1
+     ->  Aggregate
+           ->  Seq Scan on tt2
+                 Filter: (c2 = "Subquery".c2)
+(8 rows)
+
+drop table tt1_20231229;
+drop table tt2;
+drop table tt3;
+explain (verbose, costs off)select * from SUBSELECT_TBL parent where (select sum(f3 * 2)/parent.f3 from SUBSELECT_TBL son where parent.f2 = son.f2) > 1;
+                                             QUERY PLAN                                              
+-----------------------------------------------------------------------------------------------------
+ Nested Loop
+   Output: parent.f1, parent.f2, parent.f3
+   Inner Unique: true
+   ->  Seq Scan on public.subselect_tbl parent
+         Output: parent.f1, parent.f2, parent.f3
+   ->  Subquery Scan on subquery
+         Output: subquery."?column?", subquery."?column?_1"
+         Filter: (parent.f2 = subquery."?column?_1")
+         ->  HashAggregate
+               Output: NULL::double precision, son.f2
+               Group Key: son.f2
+               Filter: ((sum((son.f3 * '2'::double precision)) / parent.f3) > '1'::double precision)
+               ->  Seq Scan on public.subselect_tbl son
+                     Output: son.f2, son.f3
+(14 rows)
+
+select * from SUBSELECT_TBL parent where (select sum(f3 * 2)/parent.f3 from SUBSELECT_TBL son where parent.f2 = son.f2) > 1 order by 1;
+ f1 | f2 | f3 
+----+----+----
+  1 |  2 |  3
+  1 |  1 |  1
+  2 |  3 |  4
+  2 |  2 |  2
+  3 |  4 |  5
+  3 |  3 |  3
+  6 |  7 |  8
+(7 rows)
+
+--
+-- Tests for CTE inlining behavior
+--
+-- Basic subquery that can be inlined
+explain (verbose, costs off)
+with x as (select * from (select f1 from subselect_tbl) ss)
+select * from x where f1 = 1;
+            QUERY PLAN            
+----------------------------------
+ Seq Scan on public.subselect_tbl
+   Output: subselect_tbl.f1
+   Filter: (subselect_tbl.f1 = 1)
+(3 rows)
+
+-- Explicitly request materialization
+explain (verbose, costs off)
+with x as materialized (select * from (select f1 from subselect_tbl) ss)
+select * from x where f1 = 1;
+                QUERY PLAN                
+------------------------------------------
+ CTE Scan on x
+   Output: x.f1
+   Filter: (x.f1 = 1)
+   CTE x
+     ->  Seq Scan on public.subselect_tbl
+           Output: subselect_tbl.f1
+(6 rows)
+
+-- Stable functions are safe to inline
+explain (verbose, costs off)
+with x as (select * from (select f1, now() from subselect_tbl) ss)
+select * from x where f1 = 1;
+            QUERY PLAN             
+-----------------------------------
+ Seq Scan on public.subselect_tbl
+   Output: subselect_tbl.f1, now()
+   Filter: (subselect_tbl.f1 = 1)
+(3 rows)
+
+-- Volatile functions prevent inlining
+explain (verbose, costs off)
+with x as (select * from (select f1, random() from subselect_tbl) ss)
+select * from x where f1 = 1;
+                  QUERY PLAN                  
+----------------------------------------------
+ CTE Scan on x
+   Output: x.f1, x.random
+   Filter: (x.f1 = 1)
+   CTE x
+     ->  Seq Scan on public.subselect_tbl
+           Output: subselect_tbl.f1, random()
+(6 rows)
+
+-- SELECT FOR UPDATE cannot be inlined
+explain (verbose, costs off)
+with x as (select * from (select f1 from subselect_tbl for update) ss)
+select * from x where f1 = 1;
+                                          QUERY PLAN                                          
+----------------------------------------------------------------------------------------------
+ CTE Scan on x
+   Output: x.f1
+   Filter: (x.f1 = 1)
+   CTE x
+     ->  Subquery Scan on ss
+           Output: ss.f1
+           ->  LockRows
+                 Output: subselect_tbl.f1, subselect_tbl.ctid, subselect_tbl.xc_node_id
+                 ->  Seq Scan on public.subselect_tbl
+                       Output: subselect_tbl.f1, subselect_tbl.ctid, subselect_tbl.xc_node_id
+(10 rows)
+
+-- Multiply-referenced CTEs are inlined only when requested
+explain (verbose, costs off)
+with x as (select * from (select f1, now() as n from subselect_tbl) ss)
+select * from x, x x2 where x.n = x2.n;
+                QUERY PLAN                 
+-------------------------------------------
+ Merge Join
+   Output: x.f1, x.n, x2.f1, x2.n
+   Merge Cond: (x.n = x2.n)
+   CTE x
+     ->  Seq Scan on public.subselect_tbl
+           Output: subselect_tbl.f1, now()
+   ->  Sort
+         Output: x.f1, x.n
+         Sort Key: x.n
+         ->  CTE Scan on x
+               Output: x.f1, x.n
+   ->  Sort
+         Output: x2.f1, x2.n
+         Sort Key: x2.n
+         ->  CTE Scan on x x2
+               Output: x2.f1, x2.n
+(16 rows)
+
+explain (verbose, costs off)
+with x as not materialized (select * from (select f1, now() as n from subselect_tbl) ss)
+select * from x, x x2 where x.n = x2.n;
+                                 QUERY PLAN                                 
+----------------------------------------------------------------------------
+ Result
+   Output: subselect_tbl.f1, now(), subselect_tbl_1.f1, now()
+   One-Time Filter: (now() = now())
+   ->  Nested Loop
+         Output: subselect_tbl.f1, subselect_tbl_1.f1
+         ->  Seq Scan on public.subselect_tbl
+               Output: subselect_tbl.f1, subselect_tbl.f2, subselect_tbl.f3
+         ->  Materialize
+               Output: subselect_tbl_1.f1
+               ->  Seq Scan on public.subselect_tbl subselect_tbl_1
+                     Output: subselect_tbl_1.f1
+(11 rows)
+
+-- Multiply-referenced CTEs can't be inlined if they contain outer self-refs
+explain (verbose, costs off)
+with recursive x(a) as
+  ((values ('a'), ('b'))
+   union all
+   (with z as not materialized (select * from x)
+    select z.a || z1.a as a from z cross join z as z1
+    where length(z.a || z1.a) < 5))
+select * from x;
+                        QUERY PLAN                        
+----------------------------------------------------------
+ CTE Scan on x
+   Output: x.a
+   CTE x
+     ->  Recursive Union
+           ->  Values Scan on "*VALUES*"
+                 Output: "*VALUES*".column1
+           ->  Nested Loop
+                 Output: (z.a || z1.a)
+                 Join Filter: (length((z.a || z1.a)) < 5)
+                 CTE z
+                   ->  WorkTable Scan on x x_1
+                         Output: x_1.a
+                 ->  CTE Scan on z
+                       Output: z.a
+                 ->  CTE Scan on z z1
+                       Output: z1.a
+(16 rows)
+
+with recursive x(a) as
+  ((values ('a'), ('b'))
+   union all
+   (with z as not materialized (select * from x)
+    select z.a || z1.a as a from z cross join z as z1
+    where length(z.a || z1.a) < 5))
+select * from x;
+  a   
+------
+ a
+ b
+ aa
+ ab
+ ba
+ bb
+ aaaa
+ aaab
+ aaba
+ aabb
+ abaa
+ abab
+ abba
+ abbb
+ baaa
+ baab
+ baba
+ babb
+ bbaa
+ bbab
+ bbba
+ bbbb
+(22 rows)
+
+explain (verbose, costs off)
+with recursive x(a) as
+  ((values ('a'), ('b'))
+   union all
+   (with z as not materialized (select * from x)
+    select z.a || z.a as a from z
+    where length(z.a || z.a) < 5))
+select * from x;
+                       QUERY PLAN                       
+--------------------------------------------------------
+ CTE Scan on x
+   Output: x.a
+   CTE x
+     ->  Recursive Union
+           ->  Values Scan on "*VALUES*"
+                 Output: "*VALUES*".column1
+           ->  WorkTable Scan on x x_1
+                 Output: (x_1.a || x_1.a)
+                 Filter: (length((x_1.a || x_1.a)) < 5)
+(9 rows)
+
+with recursive x(a) as
+  ((values ('a'), ('b'))
+   union all
+   (with z as not materialized (select * from x)
+    select z.a || z.a as a from z
+    where length(z.a || z.a) < 5))
+select * from x;
+  a   
+------
+ a
+ b
+ aa
+ bb
+ aaaa
+ bbbb
+(6 rows)
+
+-- Check handling of outer references
+explain (verbose, costs off)
+with x as (select * from int4_tbl)
+select * from (with y as (select * from x) select * from y) ss;
+         QUERY PLAN          
+-----------------------------
+ Seq Scan on public.int4_tbl
+   Output: int4_tbl.f1
+(2 rows)
+
+explain (verbose, costs off)
+with x as materialized (select * from int4_tbl)
+select * from (with y as (select * from x) select * from y) ss;
+             QUERY PLAN              
+-------------------------------------
+ CTE Scan on x
+   Output: x.f1
+   CTE x
+     ->  Seq Scan on public.int4_tbl
+           Output: int4_tbl.f1
+(5 rows)
+
+-- Ensure that we inline the currect CTE when there are
+-- multiple CTEs with the same name
+explain (verbose, costs off)
+with x as (select 1 as y)
+select * from (with x as (select 2 as y) select * from x) ss;
+ QUERY PLAN  
+-------------
+ Result
+   Output: 2
+(2 rows)
+
+-- Row marks are not pushed into CTEs
+explain (verbose, costs off)
+with x as (select * from subselect_tbl)
+select * from x for update;
+                           QUERY PLAN                           
+----------------------------------------------------------------
+ Seq Scan on public.subselect_tbl
+   Output: subselect_tbl.f1, subselect_tbl.f2, subselect_tbl.f3
+(2 rows)
+
+drop table subselect_tbl;
+--bugfix:JOINT_LEFT_SEMI and JOIN_LEFT_SCALAR cause pg_hint_plan to core
+\c regression_ora
+
+CREATE TABLE t_dest_tab1_20221122 AS
+SELECT * FROM t_source_tab_20221122 WHERE 1=2;
+ERROR:  relation "T_SOURCE_TAB_20221122" does not exist
+LINE 2: SELECT * FROM t_source_tab_20221122 WHERE 1=2;
+                      ^
+CREATE TABLE t_dest_tab2_20221122 AS
+SELECT * FROM t_source_tab_20221122 WHERE 1=2;
+ERROR:  relation "T_SOURCE_TAB_20221122" does not exist
+LINE 2: SELECT * FROM t_source_tab_20221122 WHERE 1=2;
+                      ^
+CREATE TABLE t_dest_tab3_20221122 AS
+SELECT * FROM t_source_tab_20221122 WHERE 1=2;
+ERROR:  relation "T_SOURCE_TAB_20221122" does not exist
+LINE 2: SELECT * FROM t_source_tab_20221122 WHERE 1=2;
+                      ^
+drop table if exists t_source_tab_20221122;
+NOTICE:  table "T_SOURCE_TAB_20221122" does not exist, skipping
+drop table if exists t_dest_tab1_20221122;
+NOTICE:  table "T_DEST_TAB1_20221122" does not exist, skipping
+drop table if exists t_dest_tab2_20221122;
+NOTICE:  table "T_DEST_TAB2_20221122" does not exist, skipping
+drop table if exists t_dest_tab3_20221122;
+NOTICE:  table "T_DEST_TAB3_20221122" does not exist, skipping
+--TestPoint:2.left semi join
+create table t1_20220116(id integer,key integer) ;
+insert into t1_20220116 select t as id,t as key from generate_series(1,100) as t; 
+create table t2_20220116(id integer,key integer) ;
+insert into t2_20220116 select t as id,t as key from generate_series(1,100) as t; 
+analyze t1_20220116;
+analyze t2_20220116;
+/*+
+  NoHashJoin(a b)
+*/ 
+explain select (select a.id from t2_20220116 a where a.id=b.id limit 1) id,b.key from t1_20220116 b;
+                                QUERY PLAN                                 
+---------------------------------------------------------------------------
+ Merge Left Semi Join  (cost=10.64..12.64 rows=100 width=8)
+   Merge Cond: (B.ID = A.ID)
+   ->  Sort  (cost=5.32..5.57 rows=100 width=8)
+         Sort Key: B.ID
+         ->  Seq Scan on T1_20220116 B  (cost=0.00..2.00 rows=100 width=8)
+   ->  Sort  (cost=5.32..5.57 rows=100 width=4)
+         Sort Key: A.ID
+         ->  Seq Scan on T2_20220116 A  (cost=0.00..2.00 rows=100 width=4)
+(8 rows)
+
+--TestPoint:3.left scalar join
+/*+
+  NoHashJoin(a b)
+*/
+explain select (select a.id from t2_20220116 a where a.id=b.id) id,b.key from t1_20220116 b;
+                                QUERY PLAN                                 
+---------------------------------------------------------------------------
+ Merge Left Scalar Join  (cost=10.64..12.64 rows=100 width=8)
+   Merge Cond: (B.ID = A.ID)
+   ->  Sort  (cost=5.32..5.57 rows=100 width=8)
+         Sort Key: B.ID
+         ->  Seq Scan on T1_20220116 B  (cost=0.00..2.00 rows=100 width=8)
+   ->  Sort  (cost=5.32..5.57 rows=100 width=4)
+         Sort Key: A.ID
+         ->  Seq Scan on T2_20220116 A  (cost=0.00..2.00 rows=100 width=4)
+(8 rows)
+
+drop table if exists t1_20220116;
+drop table if exists t2_20220116;
+
+create table t_fn_glo1_gl(
+  fee_id numeric(12,0) not null,
+  fee_type numeric(3,0) not null,
+  fee_status numeric(2,0) not null,
+  biz_posting_id numeric(20,0),
+  source_batch_id varchar(50),
+  posted char(1)
+);
+create table t_fn_basic_voucher(
+  basic_id numeric(12,0) not null,
+  is_posted varchar(1),
+  gl_fee_organ varchar(40) not null,
+  gl_process_organ varchar(40) not null,
+  biz_posting_id varchar(20),
+  source_batch_id varchar(50)
+);
+set enable_pullup_subquery TO on;
+explain (costs off, nodes off)
+update t_fn_basic_voucher a 
+set (biz_posting_id, source_batch_id, is_posted) =
+    (select b.biz_posting_id, b.source_batch_id, b.posted from t_fn_glo1_gl b where 
+      b.source_batch_id = '121212' and b.posted = 'y' and b.fee_id=a.basic_id) 
+where a.is_posted = 'n'
+and exists(select 1 from t_fn_glo1_gl c where c.source_batch_id = '121212' and c.posted = 'y'and c.fee_id=a.basic_id);
+                                             QUERY PLAN                                              
+-----------------------------------------------------------------------------------------------------
+ Update on T_FN_BASIC_VOUCHER A
+   ->  Hash Left Scalar Join
+         Hash Cond: (A.BASIC_ID = B.FEE_ID)
+         ->  Hash Right Semi Join
+               Hash Cond: (C.FEE_ID = A.BASIC_ID)
+               ->  Seq Scan on T_FN_GLO1_GL C
+                     Filter: (((SOURCE_BATCH_ID)::TEXT = '121212'::TEXT) AND (POSTED = 'y'::BPCHAR))
+               ->  Hash
+                     ->  Seq Scan on T_FN_BASIC_VOUCHER A
+                           Filter: ((IS_POSTED)::TEXT = 'n'::TEXT)
+         ->  Hash
+               ->  Seq Scan on T_FN_GLO1_GL B
+                     Filter: (((SOURCE_BATCH_ID)::TEXT = '121212'::TEXT) AND (POSTED = 'y'::BPCHAR))
+(13 rows)
+
+reset enable_pullup_subquery;
+drop table t_fn_glo1_gl, t_fn_basic_voucher;
+create table update_agg_sublink1(c1 int, c2 int, c3 int, c4 int);
+create table update_agg_sublink2(c1 int, c2 int, c3 int, c4 int);
+create table update_agg_sublink3(c1 int, c2 int, c3 int, c4 int);
+set enable_pullup_expr_agg_update to off;
+set enable_pullup_expr_agg_update_noqual to off;
+explain (costs off) update update_agg_sublink1 set c1 =
+			(select sum(c1) from update_agg_sublink2) where c2 = 1;
+                  QUERY PLAN                   
+-----------------------------------------------
+ Update on UPDATE_AGG_SUBLINK1
+   InitPlan 1 (returns $0)
+     ->  Aggregate
+           ->  Seq Scan on UPDATE_AGG_SUBLINK2
+   ->  Seq Scan on UPDATE_AGG_SUBLINK1
+         Filter: (C2 = 1)
+(6 rows)
+
+explain (costs off) update update_agg_sublink1 s1 set c1 =
+			(select sum(c1) from update_agg_sublink2 s2 where s1.c3 = s2.c3) where c2 = 1;
+                       QUERY PLAN                       
+--------------------------------------------------------
+ Update on UPDATE_AGG_SUBLINK1 S1
+   ->  Seq Scan on UPDATE_AGG_SUBLINK1 S1
+         Filter: (C2 = 1)
+         SubPlan 1
+           ->  Aggregate
+                 ->  Seq Scan on UPDATE_AGG_SUBLINK2 S2
+                       Filter: (S1.C3 = C3)
+(7 rows)
+
+explain (costs off) update update_agg_sublink1 s1 set c1 =
+			(select sum(c1) from update_agg_sublink2 s2 where s1.c3 = s2.c3 and s1.c4 = s2.c4) where c2 = 1;
+                          QUERY PLAN                           
+---------------------------------------------------------------
+ Update on UPDATE_AGG_SUBLINK1 S1
+   ->  Seq Scan on UPDATE_AGG_SUBLINK1 S1
+         Filter: (C2 = 1)
+         SubPlan 1
+           ->  Aggregate
+                 ->  Seq Scan on UPDATE_AGG_SUBLINK2 S2
+                       Filter: ((S1.C3 = C3) AND (S1.C4 = C4))
+(7 rows)
+
+explain (costs off) update update_agg_sublink1 s1 set c1 =
+			(select sum(c1) from (select * from update_agg_sublink2 union all select * from update_agg_sublink3) st2 where s1.c3 = st2.c3 and s1.c4 = st2.c4) where c2 = 1;
+                             QUERY PLAN                              
+---------------------------------------------------------------------
+ Update on UPDATE_AGG_SUBLINK1 S1
+   ->  Seq Scan on UPDATE_AGG_SUBLINK1 S1
+         Filter: (C2 = 1)
+         SubPlan 1
+           ->  Aggregate
+                 ->  Append
+                       ->  Seq Scan on UPDATE_AGG_SUBLINK2
+                             Filter: ((S1.C3 = C3) AND (S1.C4 = C4))
+                       ->  Seq Scan on UPDATE_AGG_SUBLINK3
+                             Filter: ((S1.C3 = C3) AND (S1.C4 = C4))
+(10 rows)
+
+set enable_pullup_expr_agg_update to on;
+set enable_pullup_expr_agg_update_noqual to off;
+explain (costs off) update update_agg_sublink1 set c1 =
+			(select sum(c1) from update_agg_sublink2) where c2 = 1;
+                  QUERY PLAN                   
+-----------------------------------------------
+ Update on UPDATE_AGG_SUBLINK1
+   InitPlan 1 (returns $0)
+     ->  Aggregate
+           ->  Seq Scan on UPDATE_AGG_SUBLINK2
+   ->  Seq Scan on UPDATE_AGG_SUBLINK1
+         Filter: (C2 = 1)
+(6 rows)
+
+explain (costs off) update update_agg_sublink1 s1 set c1 =
+			(select sum(c1) from update_agg_sublink2 s2 where s1.c3 = s2.c3) where c2 = 1;
+                            QUERY PLAN                            
+------------------------------------------------------------------
+ Update on UPDATE_AGG_SUBLINK1 S1
+   ->  Hash Left Semi Join
+         Hash Cond: (S1.C3 = "TARGETLIST_subquery"."?column?")
+         ->  Seq Scan on UPDATE_AGG_SUBLINK1 S1
+               Filter: (C2 = 1)
+         ->  Hash
+               ->  Subquery Scan on "TARGETLIST_subquery"
+                     ->  HashAggregate
+                           Group Key: S2.C3
+                           ->  Seq Scan on UPDATE_AGG_SUBLINK2 S2
+(10 rows)
+
+explain (costs off) update update_agg_sublink1 s1 set c1 =
+			(select sum(c1) from update_agg_sublink2 s2 where s1.c3 = s2.c3 and s1.c4 = s2.c4) where c2 = 1;
+                                                    QUERY PLAN                                                    
+------------------------------------------------------------------------------------------------------------------
+ Update on UPDATE_AGG_SUBLINK1 S1
+   ->  Hash Left Semi Join
+         Hash Cond: ((S1.C3 = "TARGETLIST_subquery"."?column?") AND (S1.C4 = "TARGETLIST_subquery"."?column?_1"))
+         ->  Seq Scan on UPDATE_AGG_SUBLINK1 S1
+               Filter: (C2 = 1)
+         ->  Hash
+               ->  Subquery Scan on "TARGETLIST_subquery"
+                     ->  HashAggregate
+                           Group Key: S2.C3, S2.C4
+                           ->  Seq Scan on UPDATE_AGG_SUBLINK2 S2
+(10 rows)
+
+explain (costs off) update update_agg_sublink1 s1 set c1 =
+			(select sum(c1) from (select * from update_agg_sublink2 union all select * from update_agg_sublink3) st2 where s1.c3 = st2.c3 and s1.c4 = st2.c4) where c2 = 1;
+                                                    QUERY PLAN                                                    
+------------------------------------------------------------------------------------------------------------------
+ Update on UPDATE_AGG_SUBLINK1 S1
+   ->  Hash Left Semi Join
+         Hash Cond: ((S1.C3 = "TARGETLIST_subquery"."?column?") AND (S1.C4 = "TARGETLIST_subquery"."?column?_1"))
+         ->  Seq Scan on UPDATE_AGG_SUBLINK1 S1
+               Filter: (C2 = 1)
+         ->  Hash
+               ->  Subquery Scan on "TARGETLIST_subquery"
+                     ->  HashAggregate
+                           Group Key: UPDATE_AGG_SUBLINK2.C3, UPDATE_AGG_SUBLINK2.C4
+                           ->  Result
+                                 ->  Append
+                                       ->  Seq Scan on UPDATE_AGG_SUBLINK2
+                                       ->  Seq Scan on UPDATE_AGG_SUBLINK3
+(13 rows)
+
+set enable_pullup_expr_agg_update to on;
+set enable_pullup_expr_agg_update_noqual to on;
+explain (costs off) update update_agg_sublink1 set c1 =
+			(select sum(c1) from update_agg_sublink2) where c2 = 1;
+                          QUERY PLAN                           
+---------------------------------------------------------------
+ Update on UPDATE_AGG_SUBLINK1
+   ->  Nested Loop Left Semi Join
+         ->  Seq Scan on UPDATE_AGG_SUBLINK1
+               Filter: (C2 = 1)
+         ->  Materialize
+               ->  Subquery Scan on "TARGETLIST_subquery"
+                     ->  Aggregate
+                           ->  Seq Scan on UPDATE_AGG_SUBLINK2
+(8 rows)
+
+explain (costs off) update update_agg_sublink1 s1 set c1 =
+			(select sum(c1) from update_agg_sublink2 s2 where s1.c3 = s2.c3) where c2 = 1;
+                            QUERY PLAN                            
+------------------------------------------------------------------
+ Update on UPDATE_AGG_SUBLINK1 S1
+   ->  Hash Left Semi Join
+         Hash Cond: (S1.C3 = "TARGETLIST_subquery"."?column?")
+         ->  Seq Scan on UPDATE_AGG_SUBLINK1 S1
+               Filter: (C2 = 1)
+         ->  Hash
+               ->  Subquery Scan on "TARGETLIST_subquery"
+                     ->  HashAggregate
+                           Group Key: S2.C3
+                           ->  Seq Scan on UPDATE_AGG_SUBLINK2 S2
+(10 rows)
+
+explain (costs off) update update_agg_sublink1 s1 set c1 =
+			(select sum(c1) from update_agg_sublink2 s2 where s1.c3 = s2.c3 and s1.c4 = s2.c4) where c2 = 1;
+                                                    QUERY PLAN                                                    
+------------------------------------------------------------------------------------------------------------------
+ Update on UPDATE_AGG_SUBLINK1 S1
+   ->  Hash Left Semi Join
+         Hash Cond: ((S1.C3 = "TARGETLIST_subquery"."?column?") AND (S1.C4 = "TARGETLIST_subquery"."?column?_1"))
+         ->  Seq Scan on UPDATE_AGG_SUBLINK1 S1
+               Filter: (C2 = 1)
+         ->  Hash
+               ->  Subquery Scan on "TARGETLIST_subquery"
+                     ->  HashAggregate
+                           Group Key: S2.C3, S2.C4
+                           ->  Seq Scan on UPDATE_AGG_SUBLINK2 S2
+(10 rows)
+
+explain (costs off) update update_agg_sublink1 s1 set c1 =
+			(select sum(c1) from (select * from update_agg_sublink2 union all select * from update_agg_sublink3) st2 where s1.c3 = st2.c3 and s1.c4 = st2.c4) where c2 = 1;
+                                                    QUERY PLAN                                                    
+------------------------------------------------------------------------------------------------------------------
+ Update on UPDATE_AGG_SUBLINK1 S1
+   ->  Hash Left Semi Join
+         Hash Cond: ((S1.C3 = "TARGETLIST_subquery"."?column?") AND (S1.C4 = "TARGETLIST_subquery"."?column?_1"))
+         ->  Seq Scan on UPDATE_AGG_SUBLINK1 S1
+               Filter: (C2 = 1)
+         ->  Hash
+               ->  Subquery Scan on "TARGETLIST_subquery"
+                     ->  HashAggregate
+                           Group Key: UPDATE_AGG_SUBLINK2.C3, UPDATE_AGG_SUBLINK2.C4
+                           ->  Result
+                                 ->  Append
+                                       ->  Seq Scan on UPDATE_AGG_SUBLINK2
+                                       ->  Seq Scan on UPDATE_AGG_SUBLINK3
+(13 rows)
+
+reset enable_pullup_expr_agg_update;
+reset enable_pullup_expr_agg_update_noqual;
+drop table update_agg_sublink1;
+drop table update_agg_sublink2;
+drop table update_agg_sublink3;
+create table tt1_20240102
+(
+c1 integer not null,
+c2 integer not null,
+c3 timestamp,
+c4 integer
+)
+DISTRIBUTE BY SHARD (c1);
+create table tt2_20240102
+(
+c1 integer not null,
+c2 integer not null,
+c3 timestamp,
+c4 integer
+)
+DISTRIBUTE BY SHARD (c1);
+explain (costs off)
+update tt1_20240102
+set c2 = (select tt2_20240102.c2 from tt2_20240102 where tt2_20240102.c4 = tt1_20240102.c4)
+where exists(select 1 from tt2_20240102 where tt2_20240102.c3 = tt1_20240102.c3);
+                          QUERY PLAN                          
+--------------------------------------------------------------
+ Update on TT1_20240102
+   ->  Hash Left Scalar Join
+         Hash Cond: (TT1_20240102.C4 = TT2_20240102_1.C4)
+         ->  Hash Join
+               Hash Cond: (TT1_20240102.C3 = TT2_20240102.C3)
+               ->  Seq Scan on TT1_20240102
+               ->  Hash
+                     ->  HashAggregate
+                           Group Key: TT2_20240102.C3
+                           ->  Seq Scan on TT2_20240102
+         ->  Hash
+               ->  Seq Scan on TT2_20240102 TT2_20240102_1
+(12 rows)
+
+explain (costs off)
+select c2, (select tt2_20240102.c2 from tt2_20240102 where tt2_20240102.c4 = tt1_20240102.c4)
+from tt1_20240102
+where exists(select 1 from tt2_20240102 where tt2_20240102.c3 = tt1_20240102.c3);
+                       QUERY PLAN                       
+--------------------------------------------------------
+ Hash Left Scalar Join
+   Hash Cond: (TT1_20240102.C4 = TT2_20240102_1.C4)
+   ->  Hash Join
+         Hash Cond: (TT1_20240102.C3 = TT2_20240102.C3)
+         ->  Seq Scan on TT1_20240102
+         ->  Hash
+               ->  HashAggregate
+                     Group Key: TT2_20240102.C3
+                     ->  Seq Scan on TT2_20240102
+   ->  Hash
+         ->  Seq Scan on TT2_20240102 TT2_20240102_1
+(11 rows)
+
+drop table tt1_20240102;
+drop table tt2_20240102;
+Create table t1_21240206(c1 int, c2 int, c3 int, c4 int);
+Create table t2_21240206(c1 int, c2 int, c3 int, c4 int);
+Create table t3_21240206(c1 int, c2 int, c3 int, c4 int);
+Create table t4_21240206(c1 int, c2 int, c3 int, c4 int);
+Create table t5_21240206(c1 int, c2 int, c3 int, c4 int);
+Create table t6_21240206(c1 int, c2 int, c3 int, c4 int);
+Create table t7_21240206(c1 int, c2 int, c3 int, c4 int);
+Create table t8_21240206(c1 int, c2 int, c3 int, c4 int);
+Create table t9_21240206(c1 int, c2 int, c3 int, c4 int);
+Create table t10_21240206(c1 int, c2 int, c3 int, c4 int);
+Create table t11_21240206(c1 int, c2 int, c3 int, c4 int);
+Create table t12_21240206(c1 int, c2 int, c3 int, c4 int);
+create view v1_21240206 as
+Select t3_21240206.c1, t3_21240206.c2, t3_21240206.c3, t3_21240206.c4,
+       (select t2_21240206.c1 from t1_21240206, t2_21240206
+        where t1_21240206.c2 = t2_21240206.c2
+          and t1_21240206.c3 = t3_21240206.c3) as apply
+from t3_21240206,t4_21240206 where t3_21240206.c1 = t4_21240206.c1;
+create view v2_21240206 as
+Select t7_21240206.c1, t7_21240206.c2, t7_21240206.c3, t7_21240206.c4,
+       (select t6_21240206.c1 from t5_21240206, t6_21240206
+        where t5_21240206.c2 = t6_21240206.c2
+          and t5_21240206.c3 = t7_21240206.c3) as apply
+from t7_21240206,t8_21240206 where t7_21240206.c1 = t8_21240206.c1;
+create view v3_21240206 as
+Select t11_21240206.c1, t11_21240206.c2, t11_21240206.c3, t11_21240206.c4,
+       (select t10_21240206.c1 from t9_21240206, t10_21240206
+        where t9_21240206.c2 = t10_21240206.c2
+          and t9_21240206.c3 = t11_21240206.c3) as apply
+from t11_21240206,t12_21240206 where t11_21240206.c1 = t12_21240206.c1;
+explain (costs off)
+select x2.c1 from v1_21240206 x2
+where x2.c2 in (select x.c2 from v1_21240206 x, v1_21240206 x3
+                where x.c4 = x3.c4 and x3.c1 = 5);
+                                          QUERY PLAN                                           
+-----------------------------------------------------------------------------------------------
+ Hash Join
+   Hash Cond: (T3_21240206.C2 = T3_21240206_1.C2)
+   ->  Hash Left Scalar Join
+         Hash Cond: (T3_21240206.C3 = T1_21240206.C3)
+         ->  Merge Join
+               Merge Cond: (T3_21240206.C1 = T4_21240206.C1)
+               ->  Sort
+                     Sort Key: T3_21240206.C1
+                     ->  Seq Scan on T3_21240206
+               ->  Sort
+                     Sort Key: T4_21240206.C1
+                     ->  Seq Scan on T4_21240206
+         ->  Hash
+               ->  Merge Join
+                     Merge Cond: (T1_21240206.C2 = T2_21240206.C2)
+                     ->  Sort
+                           Sort Key: T1_21240206.C2
+                           ->  Seq Scan on T1_21240206
+                     ->  Sort
+                           Sort Key: T2_21240206.C2
+                           ->  Seq Scan on T2_21240206
+   ->  Hash
+         ->  HashAggregate
+               Group Key: T3_21240206_1.C2
+               ->  Merge Join
+                     Merge Cond: (T3_21240206_1.C4 = T3_21240206_2.C4)
+                     ->  Sort
+                           Sort Key: T3_21240206_1.C4
+                           ->  Hash Left Scalar Join
+                                 Hash Cond: (T3_21240206_1.C3 = T1_21240206_1.C3)
+                                 ->  Merge Join
+                                       Merge Cond: (T3_21240206_1.C1 = T4_21240206_1.C1)
+                                       ->  Sort
+                                             Sort Key: T3_21240206_1.C1
+                                             ->  Seq Scan on T3_21240206 T3_21240206_1
+                                       ->  Sort
+                                             Sort Key: T4_21240206_1.C1
+                                             ->  Seq Scan on T4_21240206 T4_21240206_1
+                                 ->  Hash
+                                       ->  Merge Join
+                                             Merge Cond: (T1_21240206_1.C2 = T2_21240206_1.C2)
+                                             ->  Sort
+                                                   Sort Key: T1_21240206_1.C2
+                                                   ->  Seq Scan on T1_21240206 T1_21240206_1
+                                             ->  Sort
+                                                   Sort Key: T2_21240206_1.C2
+                                                   ->  Seq Scan on T2_21240206 T2_21240206_1
+                     ->  Sort
+                           Sort Key: T3_21240206_2.C4
+                           ->  Hash Left Scalar Join
+                                 Hash Cond: (T3_21240206_2.C3 = T1_21240206_2.C3)
+                                 Filter: (T3_21240206_2.C1 = 5)
+                                 ->  Merge Join
+                                       Merge Cond: (T3_21240206_2.C1 = T4_21240206_2.C1)
+                                       ->  Sort
+                                             Sort Key: T3_21240206_2.C1
+                                             ->  Seq Scan on T3_21240206 T3_21240206_2
+                                       ->  Sort
+                                             Sort Key: T4_21240206_2.C1
+                                             ->  Seq Scan on T4_21240206 T4_21240206_2
+                                 ->  Hash
+                                       ->  Merge Join
+                                             Merge Cond: (T1_21240206_2.C2 = T2_21240206_2.C2)
+                                             ->  Sort
+                                                   Sort Key: T1_21240206_2.C2
+                                                   ->  Seq Scan on T1_21240206 T1_21240206_2
+                                             ->  Sort
+                                                   Sort Key: T2_21240206_2.C2
+                                                   ->  Seq Scan on T2_21240206 T2_21240206_2
+(69 rows)
+
+explain (costs off)
+select x2.c1 from v1_21240206 x2
+where x2.c2 in (select x.c2 from v2_21240206 x, v3_21240206 x3
+                where x.c4 = x3.c4 and x3.c1 = 5);
+                                         QUERY PLAN                                         
+--------------------------------------------------------------------------------------------
+ Hash Join
+   Hash Cond: (T3_21240206.C2 = T7_21240206.C2)
+   ->  Hash Left Scalar Join
+         Hash Cond: (T3_21240206.C3 = T1_21240206.C3)
+         ->  Merge Join
+               Merge Cond: (T3_21240206.C1 = T4_21240206.C1)
+               ->  Sort
+                     Sort Key: T3_21240206.C1
+                     ->  Seq Scan on T3_21240206
+               ->  Sort
+                     Sort Key: T4_21240206.C1
+                     ->  Seq Scan on T4_21240206
+         ->  Hash
+               ->  Merge Join
+                     Merge Cond: (T1_21240206.C2 = T2_21240206.C2)
+                     ->  Sort
+                           Sort Key: T1_21240206.C2
+                           ->  Seq Scan on T1_21240206
+                     ->  Sort
+                           Sort Key: T2_21240206.C2
+                           ->  Seq Scan on T2_21240206
+   ->  Hash
+         ->  HashAggregate
+               Group Key: T7_21240206.C2
+               ->  Merge Join
+                     Merge Cond: (T7_21240206.C4 = T11_21240206.C4)
+                     ->  Sort
+                           Sort Key: T7_21240206.C4
+                           ->  Hash Left Scalar Join
+                                 Hash Cond: (T7_21240206.C3 = T5_21240206.C3)
+                                 ->  Merge Join
+                                       Merge Cond: (T7_21240206.C1 = T8_21240206.C1)
+                                       ->  Sort
+                                             Sort Key: T7_21240206.C1
+                                             ->  Seq Scan on T7_21240206
+                                       ->  Sort
+                                             Sort Key: T8_21240206.C1
+                                             ->  Seq Scan on T8_21240206
+                                 ->  Hash
+                                       ->  Merge Join
+                                             Merge Cond: (T5_21240206.C2 = T6_21240206.C2)
+                                             ->  Sort
+                                                   Sort Key: T5_21240206.C2
+                                                   ->  Seq Scan on T5_21240206
+                                             ->  Sort
+                                                   Sort Key: T6_21240206.C2
+                                                   ->  Seq Scan on T6_21240206
+                     ->  Sort
+                           Sort Key: T11_21240206.C4
+                           ->  Hash Left Scalar Join
+                                 Hash Cond: (T11_21240206.C3 = T9_21240206.C3)
+                                 Filter: (T11_21240206.C1 = 5)
+                                 ->  Merge Join
+                                       Merge Cond: (T11_21240206.C1 = T12_21240206.C1)
+                                       ->  Sort
+                                             Sort Key: T11_21240206.C1
+                                             ->  Seq Scan on T11_21240206
+                                       ->  Sort
+                                             Sort Key: T12_21240206.C1
+                                             ->  Seq Scan on T12_21240206
+                                 ->  Hash
+                                       ->  Merge Join
+                                             Merge Cond: (T9_21240206.C2 = T10_21240206.C2)
+                                             ->  Sort
+                                                   Sort Key: T9_21240206.C2
+                                                   ->  Seq Scan on T9_21240206
+                                             ->  Sort
+                                                   Sort Key: T10_21240206.C2
+                                                   ->  Seq Scan on T10_21240206
+(69 rows)
+
+explain (costs off)
+select x.c2 from v2_21240206 x, v3_21240206 x3
+where x.c4 = x3.c4 and x3.c1 = 5;
+                                QUERY PLAN                                
+--------------------------------------------------------------------------
+ Merge Join
+   Merge Cond: (T7_21240206.C4 = T11_21240206.C4)
+   ->  Sort
+         Sort Key: T7_21240206.C4
+         ->  Hash Left Scalar Join
+               Hash Cond: (T7_21240206.C3 = T5_21240206.C3)
+               ->  Merge Join
+                     Merge Cond: (T7_21240206.C1 = T8_21240206.C1)
+                     ->  Sort
+                           Sort Key: T7_21240206.C1
+                           ->  Seq Scan on T7_21240206
+                     ->  Sort
+                           Sort Key: T8_21240206.C1
+                           ->  Seq Scan on T8_21240206
+               ->  Hash
+                     ->  Merge Join
+                           Merge Cond: (T5_21240206.C2 = T6_21240206.C2)
+                           ->  Sort
+                                 Sort Key: T5_21240206.C2
+                                 ->  Seq Scan on T5_21240206
+                           ->  Sort
+                                 Sort Key: T6_21240206.C2
+                                 ->  Seq Scan on T6_21240206
+   ->  Sort
+         Sort Key: T11_21240206.C4
+         ->  Hash Left Scalar Join
+               Hash Cond: (T11_21240206.C3 = T9_21240206.C3)
+               Filter: (T11_21240206.C1 = 5)
+               ->  Merge Join
+                     Merge Cond: (T11_21240206.C1 = T12_21240206.C1)
+                     ->  Sort
+                           Sort Key: T11_21240206.C1
+                           ->  Seq Scan on T11_21240206
+                     ->  Sort
+                           Sort Key: T12_21240206.C1
+                           ->  Seq Scan on T12_21240206
+               ->  Hash
+                     ->  Merge Join
+                           Merge Cond: (T9_21240206.C2 = T10_21240206.C2)
+                           ->  Sort
+                                 Sort Key: T9_21240206.C2
+                                 ->  Seq Scan on T9_21240206
+                           ->  Sort
+                                 Sort Key: T10_21240206.C2
+                                 ->  Seq Scan on T10_21240206
+(45 rows)
+
+drop view  v1_21240206;
+drop view  v2_21240206;
+drop view  v3_21240206;
+drop table t1_21240206;
+drop table t2_21240206;
+drop table t3_21240206;
+drop table t4_21240206;
+drop table t5_21240206;
+drop table t6_21240206;
+drop table t7_21240206;
+drop table t8_21240206;
+drop table t9_21240206;
+drop table t10_21240206;
+drop table t11_21240206;
+drop table t12_21240206;
+CREATE TABLE sub_test (
+    empno int NOT NULL PRIMARY KEY,
+    ename VARCHAR(10),
+    job VARCHAR(9),
+    mgr int,
+    hiredate DATE,
+    sal numeric(7,2),
+    comm numeric(7,2),
+    deptno int
+) ;
+SELECT de.empno
+FROM sub_test de
+WHERE  EXISTS (
+    SELECT 1
+    FROM sub_test sm
+    WHERE de.empno IN (
+        SELECT empno
+        FROM sub_test
+        WHERE mgr = sm.empno
+    )
+);
+ EMPNO 
+-------
+(0 rows)
+
+DROP TABLE sub_test;

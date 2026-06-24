@@ -388,7 +388,8 @@ SELECT regexp_replace('AAA aaa', 'A+', 'Z', 'gi');
 
 -- invalid regexp option
 SELECT regexp_replace('AAA aaa', 'A+', 'Z', 'z');
-ERROR:  invalid regexp option: "z"
+ERROR:  invalid regular expression option: "z"
+HINT:   while processing column regexp_replace
 -- set so we can tell NULL from empty string
 \pset null '\\N'
 -- return all matches from regexp
@@ -500,7 +501,7 @@ SELECT regexp_matches(chr(10) || '1' || chr(10) || '2' || chr(10) || '3' || chr(
 
 -- give me errors
 SELECT regexp_matches('foobarbequebaz', $re$(bar)(beque)$re$, 'gz');
-ERROR:  invalid regexp option: "z"
+ERROR:  invalid regular expression option: "z"
 SELECT regexp_matches('foobarbequebaz', $re$(barbeque$re$);
 ERROR:  invalid regular expression: parentheses () not balanced
 SELECT regexp_matches('foobarbequebaz', $re$(bar)(beque){2,1}$re$);
@@ -674,16 +675,36 @@ SELECT regexp_split_to_array('123456','.');
  {"","","","","","",""}
 (1 row)
 
+SELECT regexp_split_to_array('123456','');
+ regexp_split_to_array 
+-----------------------
+ {1,2,3,4,5,6}
+(1 row)
+
+SELECT regexp_split_to_array('123456','(?:)');
+ regexp_split_to_array 
+-----------------------
+ {1,2,3,4,5,6}
+(1 row)
+
+SELECT regexp_split_to_array('1','');
+ regexp_split_to_array 
+-----------------------
+ {1}
+(1 row)
+
 -- errors
 SELECT foo, length(foo) FROM regexp_split_to_table('thE QUick bROWn FOx jUMPs ovEr The lazy dOG', 'e', 'zippy') AS foo;
-ERROR:  invalid regexp option: "z"
+ERROR:  invalid regular expression option: "z"
 SELECT regexp_split_to_array('thE QUick bROWn FOx jUMPs ovEr The lazy dOG', 'e', 'iz');
-ERROR:  invalid regexp option: "z"
+ERROR:  invalid regular expression option: "z"
+HINT:   while processing column regexp_split_to_array
 -- global option meaningless for regexp_split
 SELECT foo, length(foo) FROM regexp_split_to_table('thE QUick bROWn FOx jUMPs ovEr The lazy dOG', 'e', 'g') AS foo;
-ERROR:  regexp_split_to_table does not support the global option
+ERROR:  regexp_split_to_table() does not support the "global" option
 SELECT regexp_split_to_array('thE QUick bROWn FOx jUMPs ovEr The lazy dOG', 'e', 'g');
-ERROR:  regexp_split_to_array does not support the global option
+ERROR:  regexp_split_to_array() does not support the "global" option
+HINT:   while processing column regexp_split_to_array
 -- change NULL-display back
 \pset null ''
 -- E021-11 position expression
@@ -1282,11 +1303,46 @@ SELECT replace('yabadoo', 'bad', '') AS "yaoo";
  yaoo
 (1 row)
 
+-- in opentenbase_ora, replace function allowing two parameters
+\c regression_ora
+select replace('acefdefd','dd') AS "acefdefd";
+ acefdefd 
+----------
+ acefdefd
+(1 row)
+
+select replace('acefdefd','fd') AS "acee";
+ acee 
+------
+ acee
+(1 row)
+
+select replace('acefdefd','efd') AS "ac";
+ ac 
+----
+ ac
+(1 row)
+
+select replace('acefdefd','') AS "acefdefd";
+ acefdefd 
+----------
+ acefdefd
+(1 row)
+
+select replace('acefdefd', null) AS "acefdefd";
+ acefdefd 
+----------
+ acefdefd
+(1 row)
+
+\c regression
+SET bytea_output TO escape;
 --
 -- test split_part
 --
 select split_part('joeuser@mydatabase','@',0) AS "an error";
 ERROR:  field position must be greater than zero
+HINT:   while processing column "an error"
 select split_part('joeuser@mydatabase','@',1) AS "joeuser";
  joeuser 
 ---------
@@ -1604,6 +1660,7 @@ SELECT chr(65);
 
 SELECT chr(0);
 ERROR:  null character not permitted
+HINT:   while processing column chr
 SELECT repeat('Pg', 4);
   repeat  
 ----------
@@ -1656,5 +1713,42 @@ SELECT encode(overlay(E'Th\\000omas'::bytea placing E'\\002\\003'::bytea from 5 
      encode      
 -----------------
  Th\000o\x02\x03
+(1 row)
+
+\c regression_ora
+select md5('');
+ MD5 
+-----
+ 
+(1 row)
+
+select md5('a');
+               MD5                
+----------------------------------
+ 0CC175B9C0F1B6A831C399E269772661
+(1 row)
+
+select md5('abc');
+               MD5                
+----------------------------------
+ 900150983CD24FB0D6963F7D28E17F72
+(1 row)
+
+select md5('') = 'D41D8CD98F00B204E9800998ECF8427E' AS "TRUE";
+ TRUE 
+------
+ 
+(1 row)
+
+select md5('a') = '0CC175B9C0F1B6A831C399E269772661' AS "TRUE";
+ TRUE 
+------
+ t
+(1 row)
+
+select md5('abc') = '900150983CD24FB0D6963F7D28E17F72' AS "TRUE";
+ TRUE 
+------
+ t
 (1 row)
 

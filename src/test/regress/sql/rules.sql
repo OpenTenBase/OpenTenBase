@@ -432,7 +432,7 @@ create view rtest_vview4 as select X.a, X.b, count(Y.a) as refcount
 	group by X.a, X.b;
 create function rtest_viewfunc1(int4) returns int4 as
 	'select count(*)::int4 from rtest_view2 where a = $1'
-	language sql;
+	language sql pushdown;
 create view rtest_vview5 as select a, b, rtest_viewfunc1(a) as refcount
 	from rtest_view1;
 
@@ -978,6 +978,20 @@ select * from only t1_2 order by 1;
 
 reset constraint_exclusion;
 
+-- test FOR UPDATE in rules
+
+create table rules_base(f1 int, f2 int);
+insert into rules_base values(1,2), (11,12);
+create rule r1 as on update to rules_base do instead
+  select * from rules_base where f1 = 1 for update;
+update rules_base set f2 = f2 + 1;
+create or replace rule r1 as on update to rules_base do instead
+  select * from rules_base where f1 = 11 for update of rules_base;
+update rules_base set f2 = f2 + 1;
+create or replace rule r1 as on update to rules_base do instead
+  select * from rules_base where f1 = 11 for update of old; -- error
+drop table rules_base;
+
 -- test various flavors of pg_get_viewdef()
 
 select pg_get_viewdef('shoe'::regclass) as unpretty;
@@ -988,19 +1002,19 @@ select pg_get_viewdef('shoe'::regclass,0) as prettier;
 -- check multi-row VALUES in rules
 --
 
-create table rules_src(f1 int, f2 int);
+create table rules_src(f1 int, f2 int) distribute by replication;
 create table rules_log(f1 int, f2 int, tag text);
 insert into rules_src values(1,2), (11,12);
 create rule r1 as on update to rules_src do also
   insert into rules_log values(old.*, 'old'), (new.*, 'new');
 update rules_src set f2 = f2 + 1;
 update rules_src set f2 = f2 * 10;
-select * from rules_src;
+select * from rules_src order by 1,2;
 select * from rules_log order by 1,2,3;
 create rule r2 as on update to rules_src do also
-  values(old.*, 'old'), (new.*, 'new');
+  values(old.*, 'old'), (new.*, 'new') order by 1,2,3;
 update rules_src set f2 = f2 / 10;
-select * from rules_src;
+select * from rules_src order by 1,2;
 select * from rules_log order by 1,2,3;
 create rule r3 as on delete to rules_src do notify rules_src_deletion;
 \d+ rules_src

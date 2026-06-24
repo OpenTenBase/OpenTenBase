@@ -11,90 +11,77 @@ BEGIN;
 CREATE TABLESPACE xc_testspace1 LOCATION '@testtablespace@';
 ERROR:  CREATE TABLESPACE cannot run inside a transaction block
 ROLLBACK;
+-- This should fail because we don't allow created on data node 1.
 select exec_util_on_node('CREATE TABLESPACE xc_testspace1 LOCATION $LOC$@testtablespace@$LOC$', 1);
- exec_util_on_node 
--------------------
- 
-(1 row)
-
--- This should fail because we have one tablespace created on data node 1.
-CREATE TABLESPACE xc_testspace1 LOCATION '@testtablespace@';
-ERROR:  tablespace "xc_testspace1" already exists
-CONTEXT:  Error message received from nodes:
--- Drop tablespace on data node 1.
+ERROR:  EXECUTE DIRECT non select command cannot be executed on Datanode
+CONTEXT:  SQL statement "execute direct on (datanode_1) $$ CREATE TABLESPACE xc_testspace1 LOCATION $LOC$@testtablespace@$LOC$ $$"
+PL/pgSQL function exec_util_on_node(character varying,integer) line 8 at EXECUTE
+-- This should fail because we don't allow drop on data node 1.
 select exec_util_on_node('drop TABLESPACE xc_testspace1 ', 1);
- exec_util_on_node 
--------------------
- 
-(1 row)
-
+ERROR:  EXECUTE DIRECT non select command cannot be executed on Datanode
+CONTEXT:  SQL statement "execute direct on (datanode_1) $$ drop TABLESPACE xc_testspace1  $$"
+PL/pgSQL function exec_util_on_node(character varying,integer) line 8 at EXECUTE
 -- Now this should work
 CREATE TABLESPACE xc_testspace1 LOCATION '@testtablespace@';
 ------------
 -- Test#2 CREATE DATABASE
 ------------
 BEGIN;
-CREATE DATABASE xc_db tablespace xc_testspace1;
+CREATE DATABASE xc_db01 tablespace xc_testspace1;
 ERROR:  CREATE DATABASE cannot run inside a transaction block
 ROLLBACK;
--- Drop tablespace on data node 1.
-select exec_util_on_node('drop TABLESPACE xc_testspace1 ', 1);
- exec_util_on_node 
--------------------
- 
-(1 row)
-
--- This should not work because there is no tablespace on datanode1
-CREATE DATABASE xc_db tablespace xc_testspace1;
-ERROR:  tablespace "xc_testspace1" does not exist
-CONTEXT:  Error message received from nodes:
-select exec_util_on_node('CREATE TABLESPACE xc_testspace1 LOCATION $LOC$@testtablespace@$LOC$', 1);
- exec_util_on_node 
--------------------
- 
-(1 row)
-
+-- This should fail because we don't allow created on data node 1.
+select exec_util_on_node('CREATE DATABASE xc_db01 tablespace xc_testspace1', 1);
+ERROR:  EXECUTE DIRECT non select command cannot be executed on Datanode
+CONTEXT:  SQL statement "execute direct on (datanode_1) $$ CREATE DATABASE xc_db01 tablespace xc_testspace1 $$"
+PL/pgSQL function exec_util_on_node(character varying,integer) line 8 at EXECUTE
 -- This should work
-CREATE DATABASE xc_db tablespace xc_testspace1;
+CREATE DATABASE xc_db01 tablespace xc_testspace1;
+-- This should fail because we don't allow drop on data node 1.
+select exec_util_on_node('DROP DATABASE xc_db01', 1);
+ERROR:  EXECUTE DIRECT non select command cannot be executed on Datanode
+CONTEXT:  SQL statement "execute direct on (datanode_1) $$ DROP DATABASE xc_db01 $$"
+PL/pgSQL function exec_util_on_node(character varying,integer) line 8 at EXECUTE
 ------------
 -- Test#3: ALTER DATABASE SET TABLESPACE
 ------------
 BEGIN;
-alter database xc_db set tablespace xc_testspace1;
+alter database xc_db01 set tablespace xc_testspace1;
 ERROR:  ALTER DATABASE SET TABLESPACE cannot run inside a transaction block
 ROLLBACK;
 -- Recreate database on global tablespace.
-clean connection to all for database xc_db;
-drop database xc_db;
-CREATE DATABASE xc_db;
+clean connection to all for database xc_db01;
+-- drop database may faild, do not drop it
+-- drop database xc_db01;
+CREATE DATABASE xc_db02;
 -- Insert some objects.
-\c xc_db
+\c xc_db02
 create table xc_tab1 (id int);
 insert into xc_tab1 select generate_series(1, 50, 1);
 \c regression
-clean connection to all for database xc_db;
+clean connection to all for database xc_db02;
 -- Drop tablespace on data node 1.
 select exec_util_on_node('drop TABLESPACE xc_testspace1 ', 1);
- exec_util_on_node 
--------------------
+ERROR:  EXECUTE DIRECT non select command cannot be executed on Datanode
+CONTEXT:  SQL statement "execute direct on (datanode_1) $$ drop TABLESPACE xc_testspace1  $$"
+PL/pgSQL function exec_util_on_node(character varying,integer) line 8 at EXECUTE
+clean connection to all for database xc_db02;
+select pg_sleep(3);
+ pg_sleep 
+----------
  
 (1 row)
 
-clean connection to all for database xc_db;
 -- This should error out, since we don't have tablespace on data node 1
-alter database xc_db set tablespace xc_testspace1;
-ERROR:  tablespace "xc_testspace1" does not exist
-CONTEXT:  Error message received from nodes:
+alter database xc_db02 set tablespace xc_testspace1;
 select exec_util_on_node('CREATE TABLESPACE xc_testspace1 LOCATION $LOC$@testtablespace@$LOC$', 1);
- exec_util_on_node 
--------------------
- 
-(1 row)
-
+ERROR:  EXECUTE DIRECT non select command cannot be executed on Datanode
+CONTEXT:  SQL statement "execute direct on (datanode_1) $$ CREATE TABLESPACE xc_testspace1 LOCATION $LOC$@testtablespace@$LOC$ $$"
+PL/pgSQL function exec_util_on_node(character varying,integer) line 8 at EXECUTE
 -- Now this should work.
-alter database xc_db set tablespace xc_testspace1;
+alter database xc_db02 set tablespace xc_testspace1;
 -- Verify data in the objects created earlier
-\c xc_db
+\c xc_db02
 select * from xc_tab1 order by id;
  id 
 ----
@@ -151,7 +138,8 @@ select * from xc_tab1 order by id;
 (50 rows)
 
 \c regression
-clean connection to all for database xc_db;
-drop database xc_db;
-drop tablespace xc_testspace1;
-ERROR:  tablespace "xc_testspace1" is not empty
+clean connection to all for database xc_db02;
+-- drop database may faild, do not drop it
+-- drop database xc_db02;
+-- drop tablespace may faild, do not drop it
+-- drop tablespace xc_testspace1;

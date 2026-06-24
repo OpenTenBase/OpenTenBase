@@ -1,0 +1,846 @@
+/*
+ * test case for opentenbase_ora interval year(n) day(n)
+ * 1. interval year to month
+ *  1.1 year(0)xx - year(9)xx
+ *   1.1.1 create table/insert/alter table
+ *   1.1.2 type cast
+ *  1.2 month/year
+ *   1.2.1 create table/insert/alter table
+ * 2. interval day to second
+ *  2.1 day(0)xx - day(9)xx
+ *   2.1.1 create table/insert/alter table
+ *   2.1.2 type cast
+ *  2.2 minute/second/hour
+ *   2.2.1 create table/insert/alter table
+ * 3. plsql testing
+ * 4. lateral testing
+ */
+-- test case for opentenbase_ora interval year(n) day(n)
+-- 1. interval year to month
+--  1.1 year(0)xx - year(9)xx
+--   1.1.1 create table/insert/alter table
+\c regression_ora
+set intervalstyle='sql_standard';
+-- year
+create table ty(y1 int, y2 interval year);
+insert into ty values(1, '12');
+select * from ty;
+ Y1 |   Y2   
+----+--------
+  1 | +12-00
+(1 row)
+
+select interval '12' year;
+ INTERVAL 
+----------
+ +12-00
+(1 row)
+
+select interval '120' year;
+ERROR:  interval YEAR(2) precision is too small for input interval year 120
+LINE 1: select interval '120' year;
+                        ^
+select interval '12' year(12);
+ERROR:  INTERVAL YEAR(12) precision execeed maximum allowed, 9
+LINE 1: select interval '12' year(12);
+               ^
+select interval '12' year(2);
+ INTERVAL 
+----------
+ +12-00
+(1 row)
+
+\d ty
+                     Table "public.TY"
+ Column |       Type       | Collation | Nullable | Default 
+--------+------------------+-----------+----------+---------
+ Y1     | INTEGER          |           |          | 
+ Y2     | INTERVAL YEAR(2) |           |          | 
+
+drop table ty;
+-- year(3)
+create table ty(y1 int, y2 interval year(10));
+ERROR:  INTERVAL YEAR(10) precision execeed maximum allowed, 9
+LINE 1: create table ty(y1 int, y2 interval year(10));
+                                   ^
+drop table ty;
+ERROR:  table "TY" does not exist
+create table ty(y1 int, y2 interval year(3));
+insert into ty values(1, '23');
+select * from ty;
+ Y1 |   Y2    
+----+---------
+  1 | +023-00
+(1 row)
+
+drop table ty;
+-- alter table
+create table ty(y1 int, y2 interval year(3));
+insert into ty values(1, '23');
+select * from ty;
+ Y1 |   Y2    
+----+---------
+  1 | +023-00
+(1 row)
+
+alter table ty alter y2 type interval year(4);
+select * from ty;
+ Y1 |    Y2    
+----+----------
+  1 | +0023-00
+(1 row)
+
+\d ty
+                     Table "public.TY"
+ Column |       Type       | Collation | Nullable | Default 
+--------+------------------+-----------+----------+---------
+ Y1     | INTEGER          |           |          | 
+ Y2     | INTERVAL YEAR(4) |           |          | 
+
+drop table ty;
+-- as shard key
+create table ty(y1 interval year);
+insert into ty values('12');
+drop table ty;
+create table ty(y1 interval year(2));
+insert into ty values('12');
+drop table ty;
+--   1.1.2 type cast
+select cast(interval '12' year(2) as interval day to second(2));
+ERROR:  INTERVAL YEAR(2) does not match INTERVAL DAY(2) TO SECOND(2)
+--  1.2 month/year
+--   1.2.1 create table/insert/alter table
+-- month
+create table ty(y1 int, y2 interval month);
+\d ty
+                      Table "public.TY"
+ Column |       Type        | Collation | Nullable | Default 
+--------+-------------------+-----------+----------+---------
+ Y1     | INTEGER           |           |          | 
+ Y2     | INTERVAL MONTH(2) |           |          | 
+
+insert into ty values(1, '3');
+select * from ty;
+ Y1 |   Y2   
+----+--------
+  1 | +00-03
+(1 row)
+
+drop table ty;
+-- year to month - like opentenbase_ora (default)
+create table ty(y1 int, y2 interval year to month);
+\d ty
+                          Table "public.TY"
+ Column |           Type            | Collation | Nullable | Default 
+--------+---------------------------+-----------+----------+---------
+ Y1     | INTEGER                   |           |          | 
+ Y2     | INTERVAL YEAR(2) TO MONTH |           |          | 
+
+insert into ty values(1, '21-1');
+select * from ty;
+ Y1 |   Y2   
+----+--------
+  1 | +21-01
+(1 row)
+
+drop table ty;
+-- year(n) to month
+create table ty(y1 int, y2 interval year(4) to month);
+\d ty
+                          Table "public.TY"
+ Column |           Type            | Collation | Nullable | Default 
+--------+---------------------------+-----------+----------+---------
+ Y1     | INTEGER                   |           |          | 
+ Y2     | INTERVAL YEAR(4) TO MONTH |           |          | 
+
+insert into ty values(1, '21-1');
+select * from ty;
+ Y1 |    Y2    
+----+----------
+  1 | +0021-01
+(1 row)
+
+alter table ty alter y2 type interval year(1) to month;
+ERROR:  interval YEAR(1) precision is too small for input interval year 21
+alter table ty alter y2 type interval year(5) to month;
+\d ty
+                          Table "public.TY"
+ Column |           Type            | Collation | Nullable | Default 
+--------+---------------------------+-----------+----------+---------
+ Y1     | INTEGER                   |           |          | 
+ Y2     | INTERVAL YEAR(5) TO MONTH |           |          | 
+
+select * from ty;
+ Y1 |    Y2     
+----+-----------
+  1 | +00021-01
+(1 row)
+
+drop table ty;
+-- 2. interval day to second
+--  2.1 day(0)xx - day(9)xx
+--   2.1.1 create table/insert/alter table
+-- day -- default
+create table td(a int, b interval day);
+\d td
+                     Table "public.TD"
+ Column |      Type       | Collation | Nullable | Default 
+--------+-----------------+-----------+----------+---------
+ A      | INTEGER         |           |          | 
+ B      | INTERVAL DAY(2) |           |          | 
+
+insert into td values(1, interval '12' day);
+select * from td;
+ A |      B       
+---+--------------
+ 1 | +12 00:00:00
+(1 row)
+
+drop table td;
+create table td(a int, b interval day(3));
+\d td
+                     Table "public.TD"
+ Column |      Type       | Collation | Nullable | Default 
+--------+-----------------+-----------+----------+---------
+ A      | INTEGER         |           |          | 
+ B      | INTERVAL DAY(3) |           |          | 
+
+insert into td values(1, interval '12' day);
+select * from td;
+ A |       B       
+---+---------------
+ 1 | +012 00:00:00
+(1 row)
+
+drop table td;
+-- hour
+create table td(a int, b interval hour);
+\d td
+                     Table "public.TD"
+ Column |       Type       | Collation | Nullable | Default 
+--------+------------------+-----------+----------+---------
+ A      | INTEGER          |           |          | 
+ B      | INTERVAL HOUR(2) |           |          | 
+
+insert into td values(1, interval '12' hour);
+select * from td;
+ A |      B       
+---+--------------
+ 1 | +00 12:00:00
+(1 row)
+
+drop table td;
+-- minute
+create table td(a int, b interval minute);
+\d td
+                     Table "public.TD"
+ Column |      Type       | Collation | Nullable | Default 
+--------+-----------------+-----------+----------+---------
+ A      | INTEGER         |           |          | 
+ B      | INTERVAL MINUTE |           |          | 
+
+insert into td values(1, interval '12' minute);
+select * from td;
+ A |      B       
+---+--------------
+ 1 | +00 00:12:00
+(1 row)
+
+drop table td;
+-- second
+create table td(a int, b interval second);
+\d td
+                      Table "public.TD"
+ Column |        Type        | Collation | Nullable | Default 
+--------+--------------------+-----------+----------+---------
+ A      | INTEGER            |           |          | 
+ B      | INTERVAL SECOND(6) |           |          | 
+
+insert into td values(1, interval '12.001' second);
+select * from td;
+ A |          B          
+---+---------------------
+ 1 | +00 00:00:12.001000
+(1 row)
+
+drop table td;
+-- hour to second
+create table td(a int, b interval hour to second);
+\d td
+                          Table "public.TD"
+ Column |            Type            | Collation | Nullable | Default 
+--------+----------------------------+-----------+----------+---------
+ A      | INTEGER                    |           |          | 
+ B      | INTERVAL HOUR TO SECOND(6) |           |          | 
+
+insert into td values(1, interval '12 21:23:30.001' hour to second);
+ERROR:  The interval is invalid
+LINE 1: insert into td values(1, interval '12 21:23:30.001' hour to ...
+                                          ^
+select * from td;
+ A | B 
+---+---
+(0 rows)
+
+drop table td;
+-- day to hour
+create table td(a int, b interval day to hour);
+\d td
+                         Table "public.TD"
+ Column |          Type           | Collation | Nullable | Default 
+--------+-------------------------+-----------+----------+---------
+ A      | INTEGER                 |           |          | 
+ B      | INTERVAL DAY(2) TO HOUR |           |          | 
+
+insert into td values(1, interval '12 03' day to hour);
+select * from td;
+ A |      B       
+---+--------------
+ 1 | +12 03:00:00
+(1 row)
+
+drop table td;
+-- day to minute
+create table td(a int, b interval day to minute);
+\d td
+                          Table "public.TD"
+ Column |           Type            | Collation | Nullable | Default 
+--------+---------------------------+-----------+----------+---------
+ A      | INTEGER                   |           |          | 
+ B      | INTERVAL DAY(2) TO MINUTE |           |          | 
+
+insert into td values(1, interval '12 03:23:23' day to minute);
+select * from td;
+ A |      B       
+---+--------------
+ 1 | +12 03:23:00
+(1 row)
+
+drop table td;
+-- day to second - as opentenbase_ora
+create table td(a int, b interval day to second);
+\d td
+                           Table "public.TD"
+ Column |             Type             | Collation | Nullable | Default 
+--------+------------------------------+-----------+----------+---------
+ A      | INTEGER                      |           |          | 
+ B      | INTERVAL DAY(2) TO SECOND(6) |           |          | 
+
+insert into td values(1, interval '12 03:23:23.28' day to second);
+select * from td;
+ A |          B          
+---+---------------------
+ 1 | +12 03:23:23.280000
+(1 row)
+
+drop table td;
+create table td(a int, b interval day(4) to second);
+\d td
+                           Table "public.TD"
+ Column |             Type             | Collation | Nullable | Default 
+--------+------------------------------+-----------+----------+---------
+ A      | INTEGER                      |           |          | 
+ B      | INTERVAL DAY(4) TO SECOND(6) |           |          | 
+
+insert into td values(1, interval '12 03:23:23.28' day to second);
+select * from td;
+ A |           B           
+---+-----------------------
+ 1 | +0012 03:23:23.280000
+(1 row)
+
+select interval '12' day(4) to second;
+ERROR:  The interval is invalid
+LINE 1: select interval '12' day(4) to second;
+                        ^
+drop table td;
+-- alter table
+create table td(a int, b interval day(4) to second);
+\d td
+                           Table "public.TD"
+ Column |             Type             | Collation | Nullable | Default 
+--------+------------------------------+-----------+----------+---------
+ A      | INTEGER                      |           |          | 
+ B      | INTERVAL DAY(4) TO SECOND(6) |           |          | 
+
+insert into td values(1, interval '12 03:23:23.28' day to second);
+select * from td;
+ A |           B           
+---+-----------------------
+ 1 | +0012 03:23:23.280000
+(1 row)
+
+alter table td alter column b type interval day(1) to second;
+ERROR:  interval DAY(1) precision is too small for input interval DAY 12
+alter table td alter column b type interval day(5) to second;
+\d td
+                           Table "public.TD"
+ Column |             Type             | Collation | Nullable | Default 
+--------+------------------------------+-----------+----------+---------
+ A      | INTEGER                      |           |          | 
+ B      | INTERVAL DAY(5) TO SECOND(6) |           |          | 
+
+select * from td;
+ A |           B            
+---+------------------------
+ 1 | +00012 03:23:23.280000
+(1 row)
+
+drop table td;
+--   2.1.2 type cast
+select cast(interval '12' day(4) to second as interval day(2) to second);
+ERROR:  The interval is invalid
+LINE 1: select cast(interval '12' day(4) to second as interval day(2...
+                             ^
+--  2.2 minute/second/hour
+--   2.2.1 create table/insert/alter table
+-- tested above
+-- 3. plsql testing
+create or replace function demo18() returns void as $$
+declare
+  v_d1 interval day to second ;
+  v_d2 interval year to month;
+  v_d13 interval day(3) to second ;
+  v_d24 interval year(4) to month;
+begin
+  v_d1 = interval '99 15:15:14.1234567' day to second;
+  v_d2 = interval '12-03' year to month;
+  v_d13 = interval '1 13:23:23.132' day(3) to second;
+  v_d24 = interval '12-03' year(4) to month;
+  raise notice 'v_d1=% vd_d2=% v_d13=% v_d24=%',v_d1,v_d2,v_d13,v_d24;
+end; $$ language default_plsql;
+select demo18();
+NOTICE:  v_d1=+000000099 15:15:14.123457 vd_d2=+000000012-03 v_d13=+000000001 13:23:23.132000 v_d24=+000000012-03
+ DEMO18 
+--------
+ 
+(1 row)
+
+create or replace function demo19() returns interval day(3) to second as $$
+declare
+begin
+  return interval '99 15:15:14.1234567' day to second;
+end; $$ language default_plsql;
+select demo19();
+           DEMO19           
+----------------------------
+ +000000099 15:15:14.123457
+(1 row)
+
+-- 4. lateral testing
+-- day(n) range
+select interval '12' day(0);
+ERROR:  interval DAY(0) precision is too small for input interval DAY 12
+LINE 1: select interval '12' day(0);
+                        ^
+select interval '0' day(0);
+  INTERVAL   
+-------------
+ +0 00:00:00
+(1 row)
+
+select interval '12' day(9);
+      INTERVAL       
+---------------------
+ +000000012 00:00:00
+(1 row)
+
+select interval '12' day(10);
+ERROR:  INTERVAL DAY(10) precision execeed maximum allowed, 9
+LINE 1: select interval '12' day(10);
+               ^
+select interval '12' hour;
+   INTERVAL   
+--------------
+ +00 12:00:00
+(1 row)
+
+select interval '12' minute;
+   INTERVAL   
+--------------
+ +00 00:12:00
+(1 row)
+
+select interval '12' second;
+      INTERVAL       
+---------------------
+ +00 00:00:12.000000
+(1 row)
+
+select interval '12:23:43' hour to minute;
+   INTERVAL   
+--------------
+ +00 12:23:00
+(1 row)
+
+select interval '12:23:43' hour to second;
+      INTERVAL       
+---------------------
+ +00 12:23:43.000000
+(1 row)
+
+select interval '12:23:43' minute to second;
+      INTERVAL       
+---------------------
+ +00 12:23:43.000000
+(1 row)
+
+-- day to second
+select interval '12 23:32:42.01' day to second(2);
+    INTERVAL     
+-----------------
+ +12 23:32:42.10
+(1 row)
+
+select interval '12 23:32:42.01' day(3) to second(2);
+     INTERVAL     
+------------------
+ +012 23:32:42.10
+(1 row)
+
+-- year(n)
+select interval '12' year(0);
+ERROR:  interval YEAR(0) precision is too small for input interval year 12
+LINE 1: select interval '12' year(0);
+                        ^
+select interval '0' year(0);
+ INTERVAL 
+----------
+ +0-00
+(1 row)
+
+select interval '12' year(9);
+   INTERVAL    
+---------------
+ +000000012-00
+(1 row)
+
+select interval '12' year(10);
+ERROR:  INTERVAL YEAR(10) precision execeed maximum allowed, 9
+LINE 1: select interval '12' year(10);
+               ^
+select interval '3' month;
+ INTERVAL 
+----------
+ +00-03
+(1 row)
+
+-- year to month
+select interval '12-3' year(4);
+ERROR:  The interval is invalid
+LINE 1: select interval '12-3' year(4);
+                        ^
+-- free testing
+select '1 1:1:1' :: interval day(2) to second;
+      INTERVAL       
+---------------------
+ +01 01:01:01.000000
+(1 row)
+
+select '-1 1:1:1' :: interval day(2) to second;
+      INTERVAL       
+---------------------
+ -01 01:01:01.000000
+(1 row)
+
+select interval '-12-3' year(4);
+ERROR:  The interval is invalid
+LINE 1: select interval '-12-3' year(4);
+                        ^
+select interval '-12-3' year(4) to month;
+ INTERVAL 
+----------
+ -0012-03
+(1 row)
+
+select INTERVAL '15 1' day to hour from dual;
+   INTERVAL   
+--------------
+ +15 01:00:00
+(1 row)
+
+select interval '15:15' hour TO minute from dual;
+   INTERVAL   
+--------------
+ +00 15:15:00
+(1 row)
+
+select interval '12-1 12:00:00' day to minute from dual;
+ERROR:  The interval is invalid
+LINE 1: select interval '12-1 12:00:00' day to minute from dual;
+                        ^
+select interval '0 0:0' day to minute from dual;
+   INTERVAL   
+--------------
+ +00 00:00:00
+(1 row)
+
+select interval '0 0:1:1' day to minute from dual;
+   INTERVAL   
+--------------
+ +00 00:01:00
+(1 row)
+
+select interval '0 0:0:0' day to second from dual;
+      INTERVAL       
+---------------------
+ +00 00:00:00.000000
+(1 row)
+
+select interval '0' day from dual;
+   INTERVAL   
+--------------
+ +00 00:00:00
+(1 row)
+
+select interval '1.12323'  second(1) from dual;
+      INTERVAL      
+--------------------
+ +0 00:00:01.123230
+(1 row)
+
+select interval '1 4:4:1.12323' day to second(9) from dual;
+WARNING:  INTERVAL(9) precision reduced to maximum allowed, 6
+LINE 1: select interval '1 4:4:1.12323' day to second(9) from dual;
+               ^
+      INTERVAL       
+---------------------
+ +01 04:04:01.123230
+(1 row)
+
+select interval '1 4:4:1.12323' day to second(1) from dual;
+    INTERVAL    
+----------------
+ +01 04:04:01.1
+(1 row)
+
+create table test_interval(f1 int,f2 interval year to month,f3 interval day to second);
+insert into test_interval values(1, interval '1' day, interval '1' year);
+ERROR:  INTERVAL DAY(2) does not match INTERVAL YEAR(2) TO MONTH
+insert into test_interval values(1, INTERVAL '12' YEAR, INTERVAL '40 24' DAY(3) TO HOUR);
+ERROR:  interval field value out of range: "40 24"
+LINE 1: ...t_interval values(1, INTERVAL '12' YEAR, INTERVAL '40 24' DA...
+                                                             ^
+insert into test_interval values(1, INTERVAL '2' YEAR(2), INTERVAL '1' day);
+insert into test_interval values(2, INTERVAL '1' YEAR(1), interval '1' hour);
+insert into test_interval values(3, INTERVAL '0' month, INTERVAL '1' second);
+select f2,instr(f2,'02',1,1) from test_interval order by f1;
+   F2   | INSTR 
+--------+-------
+ +02-00 |     2
+ +01-00 |     0
+ +00-00 |     0
+(3 rows)
+
+select f3,instr(f3,'01',1,1) from test_interval order by f1;
+         F3          | INSTR 
+---------------------+-------
+ +01 00:00:00.000000 |     2
+ +00 01:00:00.000000 |     5
+ +00 00:00:01.000000 |    11
+(3 rows)
+
+select f2,substr(f2,1,3) from test_interval order by f1;
+   F2   | SUBSTR 
+--------+--------
+ +02-00 | +02
+ +01-00 | +01
+ +00-00 | +00
+(3 rows)
+
+select f3,substr(f3,1,3) from test_interval order by f1;
+         F3          | SUBSTR 
+---------------------+--------
+ +01 00:00:00.000000 | +01
+ +00 01:00:00.000000 | +00
+ +00 00:00:01.000000 | +00
+(3 rows)
+
+select f2,length(f2) from test_interval order by f1;
+   F2   | LENGTH 
+--------+--------
+ +02-00 |      6
+ +01-00 |      6
+ +00-00 |      6
+(3 rows)
+
+select f3,length(f3) from test_interval order by f1;
+         F3          | LENGTH 
+---------------------+--------
+ +01 00:00:00.000000 |     19
+ +00 01:00:00.000000 |     19
+ +00 00:00:01.000000 |     19
+(3 rows)
+
+select f2||'opentenbase' from test_interval order by f1;
+     ?column?      
+-------------------
+ +02-00opentenbase
+ +01-00opentenbase
+ +00-00opentenbase
+(3 rows)
+
+select f3||'opentenbase' from test_interval order by f1;
+            ?column?            
+--------------------------------
+ +01 00:00:00.000000opentenbase
+ +00 01:00:00.000000opentenbase
+ +00 00:00:01.000000opentenbase
+(3 rows)
+
+select concat(f2,'opentenbase') from test_interval order by f1;
+      CONCAT       
+-------------------
+ +02-00opentenbase
+ +01-00opentenbase
+ +00-00opentenbase
+(3 rows)
+
+select concat(f3,'opentenbase') from test_interval order by f1;
+             CONCAT             
+--------------------------------
+ +01 00:00:00.000000opentenbase
+ +00 01:00:00.000000opentenbase
+ +00 00:00:01.000000opentenbase
+(3 rows)
+
+select f2 + interval '1' year,f3 - interval '1' second from test_interval order by f1;
+   ?column?    |          ?column?          
+---------------+----------------------------
+ +000000003-00 | +000000000 23:59:59.000000
+ +000000002-00 | +000000000 00:59:59.000000
+ +000000001-00 | +000000000 00:00:00.000000
+(3 rows)
+
+drop table test_interval;
+select INTERVAL '11:12:10.2222222' HOUR(3) TO SECOND(7) from dual;
+WARNING:  INTERVAL SECOND(7) precision reduced to maximum allowed, 6
+LINE 1: select INTERVAL '11:12:10.2222222' HOUR(3) TO SECOND(7) from...
+               ^
+       INTERVAL       
+----------------------
+ +000 11:12:10.222222
+(1 row)
+
+select INTERVAL '11:20' HOUR(1) TO MINUTE from dual;
+  INTERVAL   
+-------------
+ +0 11:20:00
+(1 row)
+
+select INTERVAL '10:22' MINUTE(1) TO SECOND from dual;
+      INTERVAL      
+--------------------
+ +0 00:10:22.000000
+(1 row)
+
+select INTERVAL '25' HOUR(1) from dual;
+  INTERVAL   
+-------------
+ +1 01:00:00
+(1 row)
+
+select INTERVAL '40' MINUTE(1) from dual;
+  INTERVAL   
+-------------
+ +0 00:40:00
+(1 row)
+
+select INTERVAL '300000' SECOND(1) from dual;
+      INTERVAL      
+--------------------
+ +3 11:20:00.000000
+(1 row)
+
+select INTERVAL '20' HOUR(0) from dual;
+  INTERVAL   
+-------------
+ +0 20:00:00
+(1 row)
+
+select INTERVAL '40' MINUTE(0) from dual;
+  INTERVAL   
+-------------
+ +0 00:40:00
+(1 row)
+
+select INTERVAL '300000' SECOND(0) from dual;
+ERROR:  interval DAY(0) precision is too small for input interval DAY 3
+LINE 1: select INTERVAL '300000' SECOND(0) from dual;
+                        ^
+select INTERVAL '123' month(2) from dual;
+ INTERVAL 
+----------
+ +10-03
+(1 row)
+
+select INTERVAL '123' month(1) from dual;
+ERROR:  interval YEAR(1) precision is too small for input interval year 10
+LINE 1: select INTERVAL '123' month(1) from dual;
+                        ^
+select INTERVAL '3' month(0) from dual;
+ INTERVAL 
+----------
+ +0-03
+(1 row)
+
+select INTERVAL '30.12345' SECOND(2,4) from dual;
+     INTERVAL      
+-------------------
+ +00 00:00:30.1235
+(1 row)
+
+set transform_insert_to_copy = on;
+create table test_interval(id int, v INTERVAL YEAR TO MONTH); 
+insert into test_interval(id, v) values(1, interval '1 month'), (2, interval '2 month');
+select id,v from test_interval order by id;
+ ID |   V    
+----+--------
+  1 | +00-01
+  2 | +00-02
+(2 rows)
+
+drop table test_interval;
+-- 
+-- Fix interval inconsistency in pipeline
+-- 
+SELECT TO_CHAR(INTERVAL '123-2' YEAR(3) TO MONTH, 'YYYY-MM'), TO_CHAR(INTERVAL '13 15:20:33' DAY TO SECOND, 'DD HH24:MI:SS.US') FROM DUAL;
+ TO_CHAR |      TO_CHAR       
+---------+--------------------
+ 0123-02 | 13 15:20:33.000000
+(1 row)
+
+SELECT TO_CHAR(INTERVAL '11:12:10.2222', 'HH24:MI:SS.US');
+     TO_CHAR     
+-----------------
+ 11:12:10.222200
+(1 row)
+
+select to_char(INTERVAL '11:12:00', 'HH24:MI:SS.US');
+     TO_CHAR     
+-----------------
+ 11:12:00.000000
+(1 row)
+
+select to_char(interval '11:12', 'HH24:MI.US');
+   TO_CHAR    
+--------------
+ 11:12.000000
+(1 row)
+
+--Over
+reset transform_insert_to_copy;
+set intervalstyle = 'postgres';
+create table tbl_interval_style_test(id int, c1 interval);
+insert into tbl_interval_style_test values(1, '-99 23:59:59.999999');
+set intervalstyle = 'sql_standard';
+insert into tbl_interval_style_test values(2, '-99 23:59:59.999999');
+select * from tbl_interval_style_test order by id;
+ ID |             C1             
+----+----------------------------
+  1 | -000000098 00:00:00.000001
+  2 | -000000099 23:59:59.999999
+(2 rows)
+
+drop table tbl_interval_style_test;
+reset intervalstyle;

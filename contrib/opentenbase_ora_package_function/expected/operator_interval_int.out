@@ -1,0 +1,89 @@
+-- Just create extension
+set enable_opentenbase_ora_compatible to on;
+create table r_interval_int4_op_20230314(a timestamp(0) without time zone, b timestamp(0) without time zone);
+insert into r_interval_int4_op_20230314 values (now(), now()), (now(), now() - interval '7 day');
+select count(*) from r_interval_int4_op_20230314 where (a - b) < 7;
+ count 
+-------
+     1
+(1 row)
+
+select count(*) from r_interval_int4_op_20230314 where 7 > (a - b);
+ count 
+-------
+     1
+(1 row)
+
+select count(*) from r_interval_int4_op_20230314 where (a - b) = 7;
+ count 
+-------
+     1
+(1 row)
+
+select count(*) from r_interval_int4_op_20230314 where 7 = (a - b);
+ count 
+-------
+     1
+(1 row)
+
+select count(*) from r_interval_int4_op_20230314 where (a - b) > 5;
+ count 
+-------
+     1
+(1 row)
+
+select count(*) from r_interval_int4_op_20230314 where 5 < (a - b);
+ count 
+-------
+     1
+(1 row)
+
+select count(*) from r_interval_int4_op_20230314 where (a - b) > 7;
+ count 
+-------
+     0
+(1 row)
+
+select count(*) from r_interval_int4_op_20230314 where 7 < (a - b);
+ count 
+-------
+     0
+(1 row)
+
+select count(*) from r_interval_int4_op_20230314 where (a - b) <= 7;
+ count 
+-------
+     2
+(1 row)
+
+select count(*) from r_interval_int4_op_20230314 where 7 >= (a - b);
+ count 
+-------
+     2
+(1 row)
+
+select count(*) from r_interval_int4_op_20230314 where (a - b) >= 7;
+ count 
+-------
+     1
+(1 row)
+
+select count(*) from r_interval_int4_op_20230314 where 7 <= (a - b);
+ count 
+-------
+     1
+(1 row)
+
+select count(*) from r_interval_int4_op_20230314 where (a - b) <> 7;
+ count 
+-------
+     1
+(1 row)
+
+select count(*) from r_interval_int4_op_20230314 where 7 <> (a - b);
+ count 
+-------
+     1
+(1 row)
+
+drop table r_interval_int4_op_20230314;

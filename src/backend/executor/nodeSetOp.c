@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * nodeSetOp.c
- *      Routines to handle INTERSECT and EXCEPT selection
+ *	  Routines to handle INTERSECT and EXCEPT selection
  *
  * The input of a SetOp node consists of tuples from two relations,
  * which have been combined into one dataset, with a junk attribute added
@@ -37,7 +37,7 @@
  *
  *
  * IDENTIFICATION
- *      src/backend/executor/nodeSetOp.c
+ *	  src/backend/executor/nodeSetOp.c
  *
  *-------------------------------------------------------------------------
  */
@@ -50,6 +50,9 @@
 #include "miscadmin.h"
 #include "utils/memutils.h"
 
+#ifdef __OPENTENBASE_C__
+
+#endif
 
 /*
  * SetOpStatePerGroupData - per-group working state
@@ -63,9 +66,9 @@
  */
 typedef struct SetOpStatePerGroupData
 {
-    long        numLeft;        /* number of left-input dups in group */
-    long        numRight;        /* number of right-input dups in group */
-}            SetOpStatePerGroupData;
+	long		numLeft;		/* number of left-input dups in group */
+	long		numRight;		/* number of right-input dups in group */
+}			SetOpStatePerGroupData;
 
 
 static TupleTableSlot *setop_retrieve_direct(SetOpState *setopstate);
@@ -79,7 +82,7 @@ static TupleTableSlot *setop_retrieve_hash_table(SetOpState *setopstate);
 static inline void
 initialize_counts(SetOpStatePerGroup pergroup)
 {
-    pergroup->numLeft = pergroup->numRight = 0;
+	pergroup->numLeft = pergroup->numRight = 0;
 }
 
 /*
@@ -88,10 +91,10 @@ initialize_counts(SetOpStatePerGroup pergroup)
 static inline void
 advance_counts(SetOpStatePerGroup pergroup, int flag)
 {
-    if (flag)
-        pergroup->numRight++;
-    else
-        pergroup->numLeft++;
+	if (flag)
+		pergroup->numRight++;
+	else
+		pergroup->numLeft++;
 }
 
 /*
@@ -101,16 +104,16 @@ advance_counts(SetOpStatePerGroup pergroup, int flag)
 static int
 fetch_tuple_flag(SetOpState *setopstate, TupleTableSlot *inputslot)
 {
-    SetOp       *node = (SetOp *) setopstate->ps.plan;
-    int            flag;
-    bool        isNull;
+	SetOp	   *node = (SetOp *) setopstate->ps.plan;
+	int			flag;
+	bool		isNull;
 
-    flag = DatumGetInt32(slot_getattr(inputslot,
-                                      node->flagColIdx,
-                                      &isNull));
-    Assert(!isNull);
-    Assert(flag == 0 || flag == 1);
-    return flag;
+	flag = DatumGetInt32(slot_getattr(inputslot,
+									  node->flagColIdx,
+									  &isNull));
+	Assert(!isNull);
+	Assert(flag == 0 || flag == 1);
+	return flag;
 }
 
 /*
@@ -119,20 +122,25 @@ fetch_tuple_flag(SetOpState *setopstate, TupleTableSlot *inputslot)
 static void
 build_hash_table(SetOpState *setopstate)
 {
-    SetOp       *node = (SetOp *) setopstate->ps.plan;
+	SetOp	   *node = (SetOp *) setopstate->ps.plan;
+	ExprContext *econtext = setopstate->ps.ps_ExprContext;
+	TupleDesc	desc = ExecGetResultType(outerPlanState(setopstate));
 
-    Assert(node->strategy == SETOP_HASHED);
-    Assert(node->numGroups > 0);
+	Assert(node->strategy == SETOP_HASHED);
+	Assert(node->numGroups > 0);
 
-    setopstate->hashtable = BuildTupleHashTable(node->numCols,
-                                                node->dupColIdx,
-                                                setopstate->eqfunctions,
-                                                setopstate->hashfunctions,
-                                                node->numGroups,
-                                                0,
-                                                setopstate->tableContext,
-                                                setopstate->tempContext,
-                                                false);
+	setopstate->hashtable = BuildTupleHashTableExt(&setopstate->ps,
+												   desc,
+												   node->numCols,
+												   node->dupColIdx,
+												   setopstate->eqfuncoids,
+												   setopstate->hashfunctions,
+												   node->numGroups,
+												   0,
+												   setopstate->ps.state->es_query_cxt,
+												   setopstate->tableContext,
+												   econtext->ecxt_per_tuple_memory,
+												   false);
 }
 
 /*
@@ -142,76 +150,78 @@ build_hash_table(SetOpState *setopstate)
  */
 static void
 set_output_count(SetOpState *setopstate, SetOpStatePerGroup pergroup)
-{// #lizard forgives
-    SetOp       *plannode = (SetOp *) setopstate->ps.plan;
+{
+	SetOp	   *plannode = (SetOp *) setopstate->ps.plan;
 
-    switch (plannode->cmd)
-    {
-        case SETOPCMD_INTERSECT:
-            if (pergroup->numLeft > 0 && pergroup->numRight > 0)
-                setopstate->numOutput = 1;
-            else
-                setopstate->numOutput = 0;
-            break;
-        case SETOPCMD_INTERSECT_ALL:
-            setopstate->numOutput =
-                (pergroup->numLeft < pergroup->numRight) ?
-                pergroup->numLeft : pergroup->numRight;
-            break;
-        case SETOPCMD_EXCEPT:
-            if (pergroup->numLeft > 0 && pergroup->numRight == 0)
-                setopstate->numOutput = 1;
-            else
-                setopstate->numOutput = 0;
-            break;
-        case SETOPCMD_EXCEPT_ALL:
-            setopstate->numOutput =
-                (pergroup->numLeft < pergroup->numRight) ?
-                0 : (pergroup->numLeft - pergroup->numRight);
-            break;
-        default:
-            elog(ERROR, "unrecognized set op: %d", (int) plannode->cmd);
-            break;
-    }
+	switch (plannode->cmd)
+	{
+		case SETOPCMD_INTERSECT:
+			if (pergroup->numLeft > 0 && pergroup->numRight > 0)
+				setopstate->numOutput = 1;
+			else
+				setopstate->numOutput = 0;
+			break;
+		case SETOPCMD_INTERSECT_ALL:
+			setopstate->numOutput =
+				(pergroup->numLeft < pergroup->numRight) ?
+				pergroup->numLeft : pergroup->numRight;
+			break;
+		case SETOPCMD_EXCEPT:
+		case SETOPCMD_MINUS:
+			if (pergroup->numLeft > 0 && pergroup->numRight == 0)
+				setopstate->numOutput = 1;
+			else
+				setopstate->numOutput = 0;
+			break;
+		case SETOPCMD_EXCEPT_ALL:
+		case SETOPCMD_MINUS_ALL:
+			setopstate->numOutput =
+				(pergroup->numLeft < pergroup->numRight) ?
+				0 : (pergroup->numLeft - pergroup->numRight);
+			break;
+		default:
+			elog(ERROR, "unrecognized set op: %d", (int) plannode->cmd);
+			break;
+	}
 }
 
 
 /* ----------------------------------------------------------------
- *        ExecSetOp
+ *		ExecSetOp
  * ----------------------------------------------------------------
  */
-static TupleTableSlot *            /* return: a tuple or NULL */
+static TupleTableSlot *			/* return: a tuple or NULL */
 ExecSetOp(PlanState *pstate)
 {
-    SetOpState *node = castNode(SetOpState, pstate);
-    SetOp       *plannode = (SetOp *) node->ps.plan;
-    TupleTableSlot *resultTupleSlot = node->ps.ps_ResultTupleSlot;
+	SetOpState *node = castNode(SetOpState, pstate);
+	SetOp	   *plannode = (SetOp *) node->ps.plan;
+	TupleTableSlot *resultTupleSlot = node->ps.ps_ResultTupleSlot;
 
-    CHECK_FOR_INTERRUPTS();
+	CHECK_FOR_INTERRUPTS();
 
-    /*
-     * If the previously-returned tuple needs to be returned more than once,
-     * keep returning it.
-     */
-    if (node->numOutput > 0)
-    {
-        node->numOutput--;
-        return resultTupleSlot;
-    }
+	/*
+	 * If the previously-returned tuple needs to be returned more than once,
+	 * keep returning it.
+	 */
+	if (node->numOutput > 0)
+	{
+		node->numOutput--;
+		return resultTupleSlot;
+	}
 
-    /* Otherwise, we're done if we are out of groups */
-    if (node->setop_done)
-        return NULL;
+	/* Otherwise, we're done if we are out of groups */
+	if (node->setop_done)
+		return NULL;
 
-    /* Fetch the next tuple group according to the correct strategy */
-    if (plannode->strategy == SETOP_HASHED)
-    {
-        if (!node->table_filled)
-            setop_fill_hash_table(node);
-        return setop_retrieve_hash_table(node);
-    }
-    else
-        return setop_retrieve_direct(node);
+	/* Fetch the next tuple group according to the correct strategy */
+	if (plannode->strategy == SETOP_HASHED)
+	{
+		if (!node->table_filled)
+			setop_fill_hash_table(node);
+		return setop_retrieve_hash_table(node);
+	}
+	else
+		return setop_retrieve_direct(node);
 }
 
 /*
@@ -220,112 +230,110 @@ ExecSetOp(PlanState *pstate)
 static TupleTableSlot *
 setop_retrieve_direct(SetOpState *setopstate)
 {
-    SetOp       *node = (SetOp *) setopstate->ps.plan;
-    PlanState  *outerPlan;
-    SetOpStatePerGroup pergroup;
-    TupleTableSlot *outerslot;
-    TupleTableSlot *resultTupleSlot;
+	PlanState  *outerPlan;
+	SetOpStatePerGroup pergroup;
+	TupleTableSlot *outerslot;
+	TupleTableSlot *resultTupleSlot;
+	ExprContext *econtext = setopstate->ps.ps_ExprContext;
 
-    /*
-     * get state info from node
-     */
-    outerPlan = outerPlanState(setopstate);
-    pergroup = (SetOpStatePerGroup) setopstate->pergroup;
-    resultTupleSlot = setopstate->ps.ps_ResultTupleSlot;
+	/*
+	 * get state info from node
+	 */
+	outerPlan = outerPlanState(setopstate);
+	pergroup = (SetOpStatePerGroup) setopstate->pergroup;
+	resultTupleSlot = setopstate->ps.ps_ResultTupleSlot;
 
-    /*
-     * We loop retrieving groups until we find one we should return
-     */
-    while (!setopstate->setop_done)
-    {
-        /*
-         * If we don't already have the first tuple of the new group, fetch it
-         * from the outer plan.
-         */
-        if (setopstate->grp_firstTuple == NULL)
-        {
-            outerslot = ExecProcNode(outerPlan);
-            if (!TupIsNull(outerslot))
-            {
-                /* Make a copy of the first input tuple */
-                setopstate->grp_firstTuple = ExecCopySlotTuple(outerslot);
-            }
-            else
-            {
-                /* outer plan produced no tuples at all */
-                setopstate->setop_done = true;
-                return NULL;
-            }
-        }
+	/*
+	 * We loop retrieving groups until we find one we should return
+	 */
+	while (!setopstate->setop_done)
+	{
+		/*
+		 * If we don't already have the first tuple of the new group, fetch it
+		 * from the outer plan.
+		 */
+		if (setopstate->grp_firstTuple == NULL)
+		{
+			outerslot = ExecProcNode(outerPlan);
+			if (!TupIsNull(outerslot))
+			{
+				/* Make a copy of the first input tuple */
+				setopstate->grp_firstTuple = ExecCopySlotTuple(outerslot);
+			}
+			else
+			{
+				/* outer plan produced no tuples at all */
+				setopstate->setop_done = true;
+				return NULL;
+			}
+		}
 
-        /*
-         * Store the copied first input tuple in the tuple table slot reserved
-         * for it.  The tuple will be deleted when it is cleared from the
-         * slot.
-         */
-        ExecStoreTuple(setopstate->grp_firstTuple,
-                       resultTupleSlot,
-                       InvalidBuffer,
-                       true);
-        setopstate->grp_firstTuple = NULL;    /* don't keep two pointers */
+		/*
+		 * Store the copied first input tuple in the tuple table slot reserved
+		 * for it.  The tuple will be deleted when it is cleared from the
+		 * slot.
+		 */
+		ExecStoreHeapTuple(setopstate->grp_firstTuple,
+						   resultTupleSlot,
+						   true);
+		setopstate->grp_firstTuple = NULL;	/* don't keep two pointers */
 
-        /* Initialize working state for a new input tuple group */
-        initialize_counts(pergroup);
+		/* Initialize working state for a new input tuple group */
+		initialize_counts(pergroup);
 
-        /* Count the first input tuple */
-        advance_counts(pergroup,
-                       fetch_tuple_flag(setopstate, resultTupleSlot));
+		/* Count the first input tuple */
+		advance_counts(pergroup,
+					   fetch_tuple_flag(setopstate, resultTupleSlot));
 
-        /*
-         * Scan the outer plan until we exhaust it or cross a group boundary.
-         */
-        for (;;)
-        {
-            outerslot = ExecProcNode(outerPlan);
-            if (TupIsNull(outerslot))
-            {
-                /* no more outer-plan tuples available */
-                setopstate->setop_done = true;
-                break;
-            }
+		/*
+		 * Scan the outer plan until we exhaust it or cross a group boundary.
+		 */
+		for (;;)
+		{
+			outerslot = ExecProcNode(outerPlan);
+			if (TupIsNull(outerslot))
+			{
+				/* no more outer-plan tuples available */
+				setopstate->setop_done = true;
+				break;
+			}
 
-            /*
-             * Check whether we've crossed a group boundary.
-             */
-            if (!execTuplesMatch(resultTupleSlot,
-                                 outerslot,
-                                 node->numCols, node->dupColIdx,
-                                 setopstate->eqfunctions,
-                                 setopstate->tempContext))
-            {
-                /*
-                 * Save the first input tuple of the next group.
-                 */
-                setopstate->grp_firstTuple = ExecCopySlotTuple(outerslot);
-                break;
-            }
+			/*
+			 * Check whether we've crossed a group boundary.
+			 */
+			econtext->ecxt_outertuple = resultTupleSlot;
+			econtext->ecxt_innertuple = outerslot;
 
-            /* Still in same group, so count this tuple */
-            advance_counts(pergroup,
-                           fetch_tuple_flag(setopstate, outerslot));
-        }
+			if (!ExecQualAndReset(setopstate->eqfunction, econtext))
+			{
+				/*
+				 * Save the first input tuple of the next group.
+				 */
+				setopstate->grp_firstTuple = ExecCopySlotTuple(outerslot);
+				break;
+			}
 
-        /*
-         * Done scanning input tuple group.  See if we should emit any copies
-         * of result tuple, and if so return the first copy.
-         */
-        set_output_count(setopstate, pergroup);
+			/* Still in same group, so count this tuple */
+			advance_counts(pergroup,
+						   fetch_tuple_flag(setopstate, outerslot));
+		}
 
-        if (setopstate->numOutput > 0)
-        {
-            setopstate->numOutput--;
-            return resultTupleSlot;
-        }
-    }
+		/*
+		 * Done scanning input tuple group.  See if we should emit any copies
+		 * of result tuple, and if so return the first copy.
+		 */
+		set_output_count(setopstate, pergroup);
 
-    /* No more groups */
-    ExecClearTuple(resultTupleSlot);
-    return NULL;
+		if (setopstate->numOutput > 0)
+		{
+			setopstate->numOutput--;
+			return resultTupleSlot;
+		}
+	}
+
+	/* No more groups */
+	ExecClearTuple(resultTupleSlot);
+	return NULL;
 }
 
 /*
@@ -333,84 +341,85 @@ setop_retrieve_direct(SetOpState *setopstate)
  */
 static void
 setop_fill_hash_table(SetOpState *setopstate)
-{// #lizard forgives
-    SetOp       *node = (SetOp *) setopstate->ps.plan;
-    PlanState  *outerPlan;
-    int            firstFlag;
-    bool        in_first_rel PG_USED_FOR_ASSERTS_ONLY;
+{
+	SetOp	   *node = (SetOp *) setopstate->ps.plan;
+	PlanState  *outerPlan;
+	int			firstFlag;
+	bool		in_first_rel PG_USED_FOR_ASSERTS_ONLY;
+	ExprContext *econtext = setopstate->ps.ps_ExprContext;
 
-    /*
-     * get state info from node
-     */
-    outerPlan = outerPlanState(setopstate);
-    firstFlag = node->firstFlag;
-    /* verify planner didn't mess up */
-    Assert(firstFlag == 0 ||
-           (firstFlag == 1 &&
-            (node->cmd == SETOPCMD_INTERSECT ||
-             node->cmd == SETOPCMD_INTERSECT_ALL)));
+	/*
+	 * get state info from node
+	 */
+	outerPlan = outerPlanState(setopstate);
+	firstFlag = node->firstFlag;
+	/* verify planner didn't mess up */
+	Assert(firstFlag == 0 ||
+		   (firstFlag == 1 &&
+			(node->cmd == SETOPCMD_INTERSECT ||
+			 node->cmd == SETOPCMD_INTERSECT_ALL)));
 
-    /*
-     * Process each outer-plan tuple, and then fetch the next one, until we
-     * exhaust the outer plan.
-     */
-    in_first_rel = true;
-    for (;;)
-    {
-        TupleTableSlot *outerslot;
-        int            flag;
-        TupleHashEntryData *entry;
-        bool        isnew;
+	/*
+	 * Process each outer-plan tuple, and then fetch the next one, until we
+	 * exhaust the outer plan.
+	 */
+	in_first_rel = true;
+	for (;;)
+	{
+		TupleTableSlot *outerslot;
+		int			flag;
+		TupleHashEntryData *entry;
+		bool		isnew;
 
-        outerslot = ExecProcNode(outerPlan);
-        if (TupIsNull(outerslot))
-            break;
+		outerslot = ExecProcNode(outerPlan);
+		if (TupIsNull(outerslot))
+			break;
 
-        /* Identify whether it's left or right input */
-        flag = fetch_tuple_flag(setopstate, outerslot);
+		/* Identify whether it's left or right input */
+		flag = fetch_tuple_flag(setopstate, outerslot);
 
-        if (flag == firstFlag)
-        {
-            /* (still) in first input relation */
-            Assert(in_first_rel);
+		if (flag == firstFlag)
+		{
+			/* (still) in first input relation */
+			Assert(in_first_rel);
 
-            /* Find or build hashtable entry for this tuple's group */
-            entry = LookupTupleHashEntry(setopstate->hashtable, outerslot,
-                                         &isnew);
+			/* Find or build hashtable entry for this tuple's group */
+			entry = LookupTupleHashEntry(setopstate->hashtable, outerslot,
+										 &isnew, NULL);
 
-            /* If new tuple group, initialize counts */
-            if (isnew)
-            {
-                entry->additional = (SetOpStatePerGroup)
-                    MemoryContextAlloc(setopstate->hashtable->tablecxt,
-                                       sizeof(SetOpStatePerGroupData));
-                initialize_counts((SetOpStatePerGroup) entry->additional);
-            }
+			/* If new tuple group, initialize counts */
+			if (isnew)
+			{
+				entry->additional = (SetOpStatePerGroup)
+					MemoryContextAlloc(setopstate->hashtable->tablecxt,
+									   sizeof(SetOpStatePerGroupData));
+				initialize_counts((SetOpStatePerGroup) entry->additional);
+			}
 
-            /* Advance the counts */
-            advance_counts((SetOpStatePerGroup) entry->additional, flag);
-        }
-        else
-        {
-            /* reached second relation */
-            in_first_rel = false;
+			/* Advance the counts */
+			advance_counts((SetOpStatePerGroup) entry->additional, flag);
+		}
+		else
+		{
+			/* reached second relation */
+			in_first_rel = false;
 
-            /* For tuples not seen previously, do not make hashtable entry */
-            entry = LookupTupleHashEntry(setopstate->hashtable, outerslot,
-                                         NULL);
+			/* For tuples not seen previously, do not make hashtable entry */
+			entry = LookupTupleHashEntry(setopstate->hashtable, outerslot,
+										 NULL, NULL);
 
-            /* Advance the counts if entry is already present */
-            if (entry)
-                advance_counts((SetOpStatePerGroup) entry->additional, flag);
-        }
+			/* Advance the counts if entry is already present */
+			if (entry)
+				advance_counts((SetOpStatePerGroup) entry->additional, flag);
+		}
 
-        /* Must reset temp context after each hashtable lookup */
-        MemoryContextReset(setopstate->tempContext);
-    }
+		/* Must reset expression context after each hashtable lookup */
+		ResetExprContext(econtext);
+	}
 
-    setopstate->table_filled = true;
-    /* Initialize to walk the hash table */
-    ResetTupleHashIterator(setopstate->hashtable, &setopstate->hashiter);
+	setopstate->table_filled = true;
+	/* Initialize to walk the hash table */
+	ResetTupleHashIterator(setopstate->hashtable, &setopstate->hashiter);
 }
 
 /*
@@ -419,232 +428,226 @@ setop_fill_hash_table(SetOpState *setopstate)
 static TupleTableSlot *
 setop_retrieve_hash_table(SetOpState *setopstate)
 {
-    TupleHashEntryData *entry;
-    TupleTableSlot *resultTupleSlot;
+	TupleHashEntryData *entry;
+	TupleTableSlot *resultTupleSlot;
 
-    /*
-     * get state info from node
-     */
-    resultTupleSlot = setopstate->ps.ps_ResultTupleSlot;
+	/*
+	 * get state info from node
+	 */
+	resultTupleSlot = setopstate->ps.ps_ResultTupleSlot;
 
-    /*
-     * We loop retrieving groups until we find one we should return
-     */
-    while (!setopstate->setop_done)
-    {
-        CHECK_FOR_INTERRUPTS();
+	/*
+	 * We loop retrieving groups until we find one we should return
+	 */
+	while (!setopstate->setop_done)
+	{
+		CHECK_FOR_INTERRUPTS();
 
-        /*
-         * Find the next entry in the hash table
-         */
-        entry = ScanTupleHashTable(setopstate->hashtable, &setopstate->hashiter);
-        if (entry == NULL)
-        {
-            /* No more entries in hashtable, so done */
-            setopstate->setop_done = true;
-            return NULL;
-        }
+		/*
+		 * Find the next entry in the hash table
+		 */
+		entry = ScanTupleHashTable(setopstate->hashtable, &setopstate->hashiter);
+		if (entry == NULL)
+		{
+			/* No more entries in hashtable, so done */
+			setopstate->setop_done = true;
+			return NULL;
+		}
 
-        /*
-         * See if we should emit any copies of this tuple, and if so return
-         * the first copy.
-         */
-        set_output_count(setopstate, (SetOpStatePerGroup) entry->additional);
+		/*
+		 * See if we should emit any copies of this tuple, and if so return
+		 * the first copy.
+		 */
+		set_output_count(setopstate, (SetOpStatePerGroup) entry->additional);
 
-        if (setopstate->numOutput > 0)
-        {
-            setopstate->numOutput--;
-            return ExecStoreMinimalTuple(entry->firstTuple,
-                                         resultTupleSlot,
-                                         false);
-        }
-    }
+		if (setopstate->numOutput > 0)
+		{
+			setopstate->numOutput--;
+			return ExecStoreMinimalTuple(entry->firstTuple,
+										 resultTupleSlot,
+										 false);
+		}
+	}
 
-    /* No more groups */
-    ExecClearTuple(resultTupleSlot);
-    return NULL;
+	/* No more groups */
+	ExecClearTuple(resultTupleSlot);
+	return NULL;
 }
 
 /* ----------------------------------------------------------------
- *        ExecInitSetOp
+ *		ExecInitSetOp
  *
- *        This initializes the setop node state structures and
- *        the node's subplan.
+ *		This initializes the setop node state structures and
+ *		the node's subplan.
  * ----------------------------------------------------------------
  */
 SetOpState *
 ExecInitSetOp(SetOp *node, EState *estate, int eflags)
 {
-    SetOpState *setopstate;
+	SetOpState *setopstate;
+	TupleDesc	outerDesc;
 
-    /* check for unsupported flags */
-    Assert(!(eflags & (EXEC_FLAG_BACKWARD | EXEC_FLAG_MARK)));
+	/* check for unsupported flags */
+	Assert(!(eflags & (EXEC_FLAG_BACKWARD | EXEC_FLAG_MARK)));
 
-    /*
-     * create state structure
-     */
-    setopstate = makeNode(SetOpState);
-    setopstate->ps.plan = (Plan *) node;
-    setopstate->ps.state = estate;
-    setopstate->ps.ExecProcNode = ExecSetOp;
+	/*
+	 * create state structure
+	 */
+	setopstate = makeNode(SetOpState);
+	setopstate->ps.plan = (Plan *) node;
+	setopstate->ps.state = estate;
+	setopstate->ps.ExecProcNode = ExecSetOp;
 
-    setopstate->eqfunctions = NULL;
-    setopstate->hashfunctions = NULL;
-    setopstate->setop_done = false;
-    setopstate->numOutput = 0;
-    setopstate->pergroup = NULL;
-    setopstate->grp_firstTuple = NULL;
-    setopstate->hashtable = NULL;
-    setopstate->tableContext = NULL;
+	setopstate->eqfuncoids = NULL;
+	setopstate->hashfunctions = NULL;
+	setopstate->setop_done = false;
+	setopstate->numOutput = 0;
+	setopstate->pergroup = NULL;
+	setopstate->grp_firstTuple = NULL;
+	setopstate->hashtable = NULL;
+	setopstate->tableContext = NULL;
 
-    /*
-     * Miscellaneous initialization
-     *
-     * SetOp nodes have no ExprContext initialization because they never call
-     * ExecQual or ExecProject.  But they do need a per-tuple memory context
-     * anyway for calling execTuplesMatch.
-     */
-    setopstate->tempContext =
-        AllocSetContextCreate(CurrentMemoryContext,
-                              "SetOp",
-                              ALLOCSET_DEFAULT_SIZES);
+	/*
+	 * create expression context
+	 */
+	ExecAssignExprContext(estate, &setopstate->ps);
 
-    /*
-     * If hashing, we also need a longer-lived context to store the hash
-     * table.  The table can't just be kept in the per-query context because
-     * we want to be able to throw it away in ExecReScanSetOp.
-     */
-    if (node->strategy == SETOP_HASHED)
-        setopstate->tableContext =
-            AllocSetContextCreate(CurrentMemoryContext,
-                                  "SetOp hash table",
-                                  ALLOCSET_DEFAULT_SIZES);
+	/*
+	 * If hashing, we also need a longer-lived context to store the hash
+	 * table.  The table can't just be kept in the per-query context because
+	 * we want to be able to throw it away in ExecReScanSetOp.
+	 */
+	if (node->strategy == SETOP_HASHED)
+		setopstate->tableContext =
+			AllocSetContextCreate(CurrentMemoryContext,
+								  "SetOp hash table",
+								  ALLOCSET_DEFAULT_SIZES);
 
-    /*
-     * Tuple table initialization
-     */
-    ExecInitResultTupleSlot(estate, &setopstate->ps);
+	/*
+	 * initialize child nodes
+	 *
+	 * If we are hashing then the child plan does not need to handle REWIND
+	 * efficiently; see ExecReScanSetOp.
+	 */
+	if (node->strategy == SETOP_HASHED)
+		eflags &= ~EXEC_FLAG_REWIND;
+	outerPlanState(setopstate) = ExecInitNode(outerPlan(node), estate, eflags);
+	outerDesc = ExecGetResultType(outerPlanState(setopstate));
 
-    /*
-     * initialize child nodes
-     *
-     * If we are hashing then the child plan does not need to handle REWIND
-     * efficiently; see ExecReScanSetOp.
-     */
-    if (node->strategy == SETOP_HASHED)
-        eflags &= ~EXEC_FLAG_REWIND;
-    outerPlanState(setopstate) = ExecInitNode(outerPlan(node), estate, eflags);
+	/*
+	 * Initialize result slot and type. Setop nodes do no projections, so
+	 * initialize projection info for this node appropriately.
+	 */
+	ExecInitResultTupleSlotTL(&setopstate->ps);
+	setopstate->ps.ps_ProjInfo = NULL;
 
-    /*
-     * setop nodes do no projections, so initialize projection info for this
-     * node appropriately
-     */
-    ExecAssignResultTypeFromTL(&setopstate->ps);
-    setopstate->ps.ps_ProjInfo = NULL;
+	/*
+	 * Precompute fmgr lookup data for inner loop. We need both equality and
+	 * hashing functions to do it by hashing, but only equality if not
+	 * hashing.
+	 */
+	if (node->strategy == SETOP_HASHED)
+		execTuplesHashPrepare(node->numCols,
+							  node->dupOperators,
+							  &setopstate->eqfuncoids,
+							  &setopstate->hashfunctions,
+							  NULL);
+	else
+		setopstate->eqfunction =
+			execTuplesMatchPrepare(outerDesc,
+								   node->numCols,
+								   node->dupColIdx,
+								   node->dupOperators,
+								   &setopstate->ps);
 
-    /*
-     * Precompute fmgr lookup data for inner loop. We need both equality and
-     * hashing functions to do it by hashing, but only equality if not
-     * hashing.
-     */
-    if (node->strategy == SETOP_HASHED)
-        execTuplesHashPrepare(node->numCols,
-                              node->dupOperators,
-                              &setopstate->eqfunctions,
-                              &setopstate->hashfunctions);
-    else
-        setopstate->eqfunctions =
-            execTuplesMatchPrepare(node->numCols,
-                                   node->dupOperators);
+	if (node->strategy == SETOP_HASHED)
+	{
+		build_hash_table(setopstate);
+		setopstate->table_filled = false;
+	}
+	else
+	{
+		setopstate->pergroup =
+			(SetOpStatePerGroup) palloc0(sizeof(SetOpStatePerGroupData));
+	}
 
-    if (node->strategy == SETOP_HASHED)
-    {
-        build_hash_table(setopstate);
-        setopstate->table_filled = false;
-    }
-    else
-    {
-        setopstate->pergroup =
-            (SetOpStatePerGroup) palloc0(sizeof(SetOpStatePerGroupData));
-    }
-
-    return setopstate;
+	return setopstate;
 }
 
 /* ----------------------------------------------------------------
- *        ExecEndSetOp
+ *		ExecEndSetOp
  *
- *        This shuts down the subplan and frees resources allocated
- *        to this node.
+ *		This shuts down the subplan and frees resources allocated
+ *		to this node.
  * ----------------------------------------------------------------
  */
 void
 ExecEndSetOp(SetOpState *node)
 {
-    /* clean up tuple table */
-    ExecClearTuple(node->ps.ps_ResultTupleSlot);
+	/* clean up tuple table */
+	ExecClearTuple(node->ps.ps_ResultTupleSlot);
 
-    /* free subsidiary stuff including hashtable */
-    MemoryContextDelete(node->tempContext);
-    if (node->tableContext)
-        MemoryContextDelete(node->tableContext);
+	/* free subsidiary stuff including hashtable */
+	if (node->tableContext)
+		MemoryContextDelete(node->tableContext);
+	ExecFreeExprContext(&node->ps);
 
-    ExecEndNode(outerPlanState(node));
+	ExecEndNode(outerPlanState(node));
 }
 
 
 void
 ExecReScanSetOp(SetOpState *node)
-{// #lizard forgives
-    ExecClearTuple(node->ps.ps_ResultTupleSlot);
-    node->setop_done = false;
-    node->numOutput = 0;
+{
+	ExecClearTuple(node->ps.ps_ResultTupleSlot);
+	node->setop_done = false;
+	node->numOutput = 0;
 
-    if (((SetOp *) node->ps.plan)->strategy == SETOP_HASHED)
-    {
-        /*
-         * In the hashed case, if we haven't yet built the hash table then we
-         * can just return; nothing done yet, so nothing to undo. If subnode's
-         * chgParam is not NULL then it will be re-scanned by ExecProcNode,
-         * else no reason to re-scan it at all.
-         */
-        if (!node->table_filled)
-            return;
+	if (((SetOp *) node->ps.plan)->strategy == SETOP_HASHED)
+	{
+		/*
+		 * In the hashed case, if we haven't yet built the hash table then we
+		 * can just return; nothing done yet, so nothing to undo. If subnode's
+		 * chgParam is not NULL then it will be re-scanned by ExecProcNode,
+		 * else no reason to re-scan it at all.
+		 */
+		if (!node->table_filled)
+			return;
 
-        /*
-         * If we do have the hash table and the subplan does not have any
-         * parameter changes, then we can just rescan the existing hash table;
-         * no need to build it again.
-         */
-        if (node->ps.lefttree->chgParam == NULL)
-        {
-            ResetTupleHashIterator(node->hashtable, &node->hashiter);
-            return;
-        }
-    }
+		/*
+		 * If we do have the hash table and the subplan does not have any
+		 * parameter changes, then we can just rescan the existing hash table;
+		 * no need to build it again.
+		 */
+		if (node->ps.lefttree->chgParam == NULL)
+		{
+			ResetTupleHashIterator(node->hashtable, &node->hashiter);
+			return;
+		}
+	}
 
-    /* Release first tuple of group, if we have made a copy */
-    if (node->grp_firstTuple != NULL)
-    {
-        heap_freetuple(node->grp_firstTuple);
-        node->grp_firstTuple = NULL;
-    }
+	/* Release first tuple of group, if we have made a copy */
+	if (node->grp_firstTuple != NULL)
+	{
+		heap_freetuple(node->grp_firstTuple);
+		node->grp_firstTuple = NULL;
+	}
 
-    /* Release any hashtable storage */
-    if (node->tableContext)
-        MemoryContextResetAndDeleteChildren(node->tableContext);
+	/* Release any hashtable storage */
+	if (node->tableContext)
+		MemoryContextResetAndDeleteChildren(node->tableContext);
 
-    /* And rebuild empty hashtable if needed */
-    if (((SetOp *) node->ps.plan)->strategy == SETOP_HASHED)
-    {
-        build_hash_table(node);
-        node->table_filled = false;
-    }
+	/* And rebuild empty hashtable if needed */
+	if (((SetOp *) node->ps.plan)->strategy == SETOP_HASHED)
+	{
+		ResetTupleHashTable(node->hashtable);
+		node->table_filled = false;
+	}
 
-    /*
-     * if chgParam of subnode is not null then plan will be re-scanned by
-     * first ExecProcNode.
-     */
-    if (node->ps.lefttree->chgParam == NULL)
-        ExecReScan(node->ps.lefttree);
+	/*
+	 * if chgParam of subnode is not null then plan will be re-scanned by
+	 * first ExecProcNode.
+	 */
+	if (node->ps.lefttree->chgParam == NULL)
+		ExecReScan(node->ps.lefttree);
 }

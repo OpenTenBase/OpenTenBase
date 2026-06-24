@@ -2,9 +2,6 @@
  * rmgr.c
  *
  * Resource managers definition
- * 
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  * src/backend/access/transam/rmgr.c
  */
@@ -12,6 +9,7 @@
 
 #include "access/clog.h"
 #include "access/commit_ts.h"
+#include "access/csnlog.h"
 #include "access/ginxlog.h"
 #include "access/gistxlog.h"
 #include "access/generic_xlog.h"
@@ -38,16 +36,13 @@
 #include "storage/extent_xlog.h"
 #endif
 #include "utils/relmapper.h"
-#ifdef _MLS_
-#include "utils/relcryptmap.h"
-#endif
-#ifdef _PUB_SUB_RELIABLE_
+ #ifdef _PUB_SUB_RELIABLE_
 #include "access/replslotdesc.h"
 #endif
 
 /* must be kept in sync with RmgrData definition in xlog_internal.h */
 #define PG_RMGR(symname,name,redo,desc,identify,startup,cleanup,mask) \
-    { name, redo, desc, identify, startup, cleanup, mask },
+	{ name, redo, desc, identify, startup, cleanup, mask },
 
 const RmgrData RmgrTable[RM_MAX_ID + 1] = {
 #include "access/rmgrlist.h"

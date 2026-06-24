@@ -1,22 +1,53 @@
 # ----------
 # src/test/regress/parallel_schedule
 #
-# This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
-# All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
-#
 # By convention, we put no more than twenty tests in any one parallel group;
 # this limits the number of connections needed to run the tests.
 # ----------
 
-# run oracle compatibility and audit
-test: oracle audit
+# run catalog data check
+test: postgres_catalog_data_test
+test: template1_catalog_data_test
+test: template1_ora_catalog_data_test
+# run dbsize check test
+test: dbsize_check
 
-# test for interval partition 
-test: partition
-test: partition_index
+# run elog test
+test: elog
+test: merge_affected_row
+# run resource group test
+test: resource_group
+
+test: ora_dblink_pre
+test: opentenbase_ora_authid
+
+# run opentenbase column store table basic feature test
+test: opentenbase_multi_distri_column
+
+# run opentenbase_c basic type & operator tests
+#test: opentenbase_c
+#test: opentenbase_c_explain
+#test: opentenbase_c_parallel
+#test: opentenbase_c_latematerial_cbo
+test: opentenbase_c_text
+test: opentenbase_c_aggregation opentenbase_c_bugfix
+#test: opentenbase_c_join
+#test: opentenbase_c_delete
+#test: opentenbase_c_vacuum
+# ptimizer enhancements
+test: data_skew
+
+#run mls
+#test: mls_check
+
+# run opentenbase_ora compatibility and audit
+test: audit
+
+# test enable_partitionwise_join
+# test: partition_aggregate_tdregress
 
 #run alter node
-test: alter_node
+#test: alter_node
 
 # run tablespace by itself, and first, because it forces a checkpoint;
 # we'd prefer not to have checkpoints later in the tests because that
@@ -28,7 +59,7 @@ test: tablespace
 # ----------
 test: boolean char name varchar text int2 int4 int8 oid float4 float8 bit numeric txid uuid enum money rangetypes pg_lsn regproc zhcn_utf8
 
-# Depends on things setup during char, varchar and text
+# Depends on things setup during char, varchar and text; zhcn_gb18030 depends on data which create by zhcn_utf8
 test: strings zhcn_gb18030
 # Depends on int2, int4, int8, float4, float8
 test: numerology
@@ -53,7 +84,9 @@ test: insert_conflict
 test: create_function_1
 test: create_type
 test: create_table
+test: create_table_opentenbase_ora
 test: create_function_2
+test: create_package
 
 # ----------
 # Load huge amounts of data
@@ -66,7 +99,7 @@ test: copy copyselect copydml
 # ----------
 # More groups of parallel tests
 # ----------
-test: create_misc create_operator
+test: create_misc create_operator create_procedure
 # These depend on the above two
 test: create_index create_view
 
@@ -92,26 +125,34 @@ ignore: random
 # ----------
 # Another group of parallel tests
 # ----------
-test: select_into select_distinct select_distinct_on select_implicit select_having subselect union case join aggregates transactions random portals arrays btree_index hash_index update namespace delete
-
+test: select_into select_distinct select_distinct_on select_implicit select_having subselect union case aggregates transactions random portals arrays btree_index hash_index update namespace
+test: join
+test: delete
 # prepared_xacts cannot run in parallel of other tests involving 2PC
 test: prepared_xacts
 
-# ----------
-# Another group of parallel tests
-# ----------
-test: brin gin gist spgist privileges init_privs collate matview lock replica_identity rowsecurity object_address tablesample groupingsets drop_operator password
+# test subquery pull up
+test: pullup
 
 # ----------
 # Another group of parallel tests
 # ----------
-test: alter_generic alter_operator misc psql async dbsize misc_functions sysviews tsrf tidscan stats_ext fast_default
+test: brin gin gist spgist privileges init_privs security_label collate matview lock replica_identity rowsecurity object_address tablesample drop_operator password
+
+# ----------
+# Another group of parallel tests
+# ----------
+test: alter_generic alter_operator misc psql async dbsize misc_functions sysviews tsrf tidscan stats_ext
+
+# result_cache
+test: result_cache
 
 # rules cannot run concurrently with any test that creates a view
 test: rules psql_crosstab amutils
 
 # run by itself so it can run parallel workers
 test: select_parallel
+test: write_parallel
 
 # no relation related tests can be put in this group
 test: publication subscription
@@ -119,7 +160,17 @@ test: publication subscription
 # ----------
 # Another group of parallel tests
 # ----------
-test: select_views portals_p2 foreign_key cluster dependency guc bitmapops combocid tsearch tsdicts foreign_data window xmlmap functional_deps json jsonb json_encoding indirect_toast equivclass
+test: select_views portals_p2 foreign_key cluster dependency guc bitmapops combocid tsearch tsdicts foreign_data window xmlmap functional_deps indirect_toast equivclass
+
+# ----------
+# Another group of parallel tests (JSON related). jsonb has hung before, so let them run sequentially.
+# ----------
+test: json
+test: jsonb
+test: json_encoding
+test: jsonpath
+test: jsonpath_encoding
+test: jsonb_jsonpath
 
 # ----------
 # As XL uses advisory locks internally running this test separately.
@@ -132,12 +183,14 @@ test: rangefuncs
 # NB: temp.sql does a reconnect which transiently uses 2 connections,
 # so keep this parallel group to at most 19 tests
 # ----------
-test: plancache limit plpgsql copy2 temp domain prepare without_oid conversion truncate alter_table sequence polymorphism rowtypes returning xml
+test: alter_table
+test: plancache limit plpgsql copy2 domain prepare without_oid conversion truncate sequence polymorphism rowtypes returning with
+test: temp xml
 
 # ----------
 # Another group of parallel tests
 # ----------
-test: identity partition_join partition_prune partition_prune_hash hash_part partition_info indexing
+test: identity partition_join partition_prune partition_prune_hash hash_part partition_info indexing explain
 
 # event triggers cannot run concurrently with any test that runs DDL
 test: event_trigger
@@ -165,7 +218,90 @@ test: xc_notrans_block
 # This runs XL specific tests
 test: xl_primary_key xl_foreign_key xl_distribution_column_types xl_alter_table xl_distribution_column_types_modulo xl_plan_pushdown xl_functions xl_limitations xl_user_defined_functions xl_join xl_distributed_xact xl_create_table
 
-# This runs OpenTenBase specific tests
-test: opentenbase_explain
+test: merge
 
-test: redistribute_custom_types pl_bugs
+# Test opentenbase_ora compatible
+test: opentenbase_ora_systemview opentenbase_ora_copy
+test: merge_ora
+#test: merge_ora_col
+test:  opentenbase_ora_approx_count_distinct opentenbase_ora_blob_clob_test
+test: opentenbase_ora_to_part opentenbase_ora_to_func
+test: opentenbase_ora_char opentenbase_ora_char_func opentenbase_ora_char_part opentenbase_ora_number
+test: opentenbase_ora_null_func opentenbase_ora_null_part
+test: opentenbase_ora_decode_func opentenbase_ora_decode_part
+test: opentenbase_ora_limit
+test: opentenbase_ora_raw
+#ttest: opentenbase_ora_rowtype
+test: opentenbase_ora
+test: opentenbase_ora_long
+test: orcl_xmltype
+test: opentenbase_ora_uid
+test: opentenbase_ora_validate
+test: opentenbase_ora_set
+test: opentenbase_ora_constant
+test: null_constraint opentenbase_ora_insert_alias
+test: opentenbase_ora_function_concat
+test: opentenbase_ora_urowid
+test: opentenbase_ora_synonym opentenbase_ora_operator
+test: opentenbase_ora_cmp_syntax
+# test: opentenbase_ora_pl_bugs
+test: opentenbase_ora_lock
+test: opentenbase_ora_implicit_typecast
+test: opentenbase_ora_decode_bug
+test: opentenbase_ora_bug
+test: opentenbase_ora_kw_alias
+#test compatible
+test: opentenbase_ora_anyall_multivalue
+test: opentenbase_ora_profile
+test: opentenbase_ora_unreserved
+#test: opentenbase_ora_test opentenbase_ora_listagg
+#test: redistribute_custom_types
+#test: null_constraint_test
+#test: global_index_ddl
+test: opentenbase_ora_unique_index opentenbase_ora_regexp_func
+test: opentenbase_ora_agg_func
+# test: pl_bugs
+test: opentenbase_ora_case
+test: opentenbase_ora_nullif opentenbase_ora_table_function
+test: opentenbase_ora_userenv
+test: opentenbase_ora_bfile
+test: opentenbase_ora_sys_context
+test: opentenbase_ora_function
+test: opentenbase_ora_column_name
+# Depends on EXTENSION opentenbase_ora_package_function
+test: opentenbase_ora_allarg
+test: opentenbase_ora_customer
+test: opentenbase_ora_ident_case
+test: opentenbase_ora_interval
+test: opentenbase_ora_op_all_some_any
+test: orafce_tonumber
+test: sqlsmith_bug
+#test: pl_dyn_packages
+test: call_in_immutable_func
+test: autoanalyze_bug
+test: opentenbase_ora_constraint
+test: opentenbase_ora_dn_test
+test: opentenbase_ora_to_char_fmt_func
+test: opentenbase_ora_to_number_fmt_func
+test: pl_resources
+# window function support for opentenbase_ora datatypes
+test: opentenbase_ora_window
+
+#
+# The following test cases are cherry-picked from other open source projects
+# Note: put new cases under sql2/ directory, expected outputs under expected_opensource/ directory.
+#
+# test sql procedure
+#
+
+#
+# End of test cases imported from other projects
+#
+test: opentenbase_ora_package_bugs
+test: copy_default_null_binary
+test: copy_default_null_expr
+test: plsql_mixed_use
+test: distinct_pullup
+test: opentenbase_ora_audit
+test: rqg_bugs
+test: pullup_expr_sublink

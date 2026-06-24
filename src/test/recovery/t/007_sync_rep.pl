@@ -27,8 +27,15 @@ sub test_sync_state
 }
 
 # Initialize master node
-my $node_master = get_new_node('master');
-$node_master->init(allows_streaming => 1);
+my $node_master = get_new_node('master', 'datanode');
+# There is no gtm in centralized mode, so it doesn’t matter what
+# the master gtm IP and port are
+$node_master->init(allows_streaming => 1,
+                   extra => ['--master_gtm_nodename', 'no_gtm',
+                             '--master_gtm_ip', '127.0.0.1',
+                             '--master_gtm_port', '25001']);
+$node_master->append_conf('postgresql.conf', "allow_dml_on_datanode = on");
+$node_master->append_conf('postgresql.conf', "is_centralized_mode = on");
 $node_master->start;
 my $backup_name = 'master_backup';
 
@@ -36,19 +43,19 @@ my $backup_name = 'master_backup';
 $node_master->backup($backup_name);
 
 # Create standby1 linking to master
-my $node_standby_1 = get_new_node('standby1');
+my $node_standby_1 = get_new_node('standby1', 'datanode');
 $node_standby_1->init_from_backup($node_master, $backup_name,
 	has_streaming => 1);
 $node_standby_1->start;
 
 # Create standby2 linking to master
-my $node_standby_2 = get_new_node('standby2');
+my $node_standby_2 = get_new_node('standby2', 'datanode');
 $node_standby_2->init_from_backup($node_master, $backup_name,
 	has_streaming => 1);
 $node_standby_2->start;
 
 # Create standby3 linking to master
-my $node_standby_3 = get_new_node('standby3');
+my $node_standby_3 = get_new_node('standby3', 'datanode');
 $node_standby_3->init_from_backup($node_master, $backup_name,
 	has_streaming => 1);
 $node_standby_3->start;
@@ -96,7 +103,7 @@ standby3|3|sync),
 $node_standby_1->start;
 
 # Create standby4 linking to master
-my $node_standby_4 = get_new_node('standby4');
+my $node_standby_4 = get_new_node('standby4', 'datanode');
 $node_standby_4->init_from_backup($node_master, $backup_name,
 	has_streaming => 1);
 $node_standby_4->start;

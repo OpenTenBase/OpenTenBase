@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * clustermon.h
- *      header file for cluster monitor process
+ *	  header file for cluster monitor process
  *
  *
  * Portions Copyright (c) 2015, 2ndQuadrant Ltd
@@ -21,10 +21,10 @@
 
 typedef struct
 {
-    slock_t                mutex;
-    GlobalTransactionId    reported_recent_global_xmin;
-    GlobalTransactionId    reporting_recent_global_xmin;
-    GlobalTransactionId    gtm_recent_global_xmin;
+	slock_t				mutex;
+	GlobalTransactionId	reported_recent_global_xmin;
+	GlobalTransactionId	reporting_recent_global_xmin;
+	GlobalTransactionId	gtm_recent_global_xmin;
 } ClusterMonitorCtlData;
 
 extern void ClusterMonitorShmemInit(void);
@@ -35,7 +35,7 @@ extern bool IsClusterMonitorProcess(void);
 
 /* Functions to start cluster monitor process, called from postmaster */
 int ClusterMonitorInit(void);
-extern int    StartClusterMonitor(void);
+extern int	StartClusterMonitor(void);
 extern GlobalTransactionId ClusterMonitorGetGlobalXmin(void);
 extern void ClusterMonitorSetGlobalXmin(GlobalTransactionId xmin);
 extern GlobalTransactionId ClusterMonitorGetReportingGlobalXmin(void);

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * shmem.h
- *      shared memory management structures
+ *	  shared memory management structures
  *
  * Historical note:
  * A long time ago, Postgres' shared memory region was allowed to be mapped
@@ -27,8 +27,8 @@
 /* shmqueue.c */
 typedef struct SHM_QUEUE
 {
-    struct SHM_QUEUE *prev;
-    struct SHM_QUEUE *next;
+	struct SHM_QUEUE *prev;
+	struct SHM_QUEUE *next;
 } SHM_QUEUE;
 
 /* shmem.c */
@@ -40,26 +40,28 @@ extern void *ShmemAllocUnlocked(Size size);
 extern bool ShmemAddrIsValid(const void *addr);
 extern void InitShmemIndex(void);
 extern HTAB *ShmemInitHash(const char *name, long init_size, long max_size,
-              HASHCTL *infoP, int hash_flags);
+			  HASHCTL *infoP, int hash_flags);
 extern void *ShmemInitStruct(const char *name, Size size, bool *foundPtr);
-extern Size add_size(Size s1, Size s2);
+extern Size add_size_internal(Size s1, Size s2, const char* file, int line);
 extern Size mul_size(Size s1, Size s2);
+
+#define add_size(s1, s2) add_size_internal((s1), (s2), __FILE__, __LINE__)
 
 /* ipci.c */
 extern void RequestAddinShmemSpace(Size size);
 
 /* size constants for the shmem index table */
  /* max size of data structure string name */
-#define SHMEM_INDEX_KEYSIZE         (48)
+#define SHMEM_INDEX_KEYSIZE		 (48)
  /* estimated size of the shmem index table (not a hard limit) */
-#define SHMEM_INDEX_SIZE         (64)
+#define SHMEM_INDEX_SIZE		 (64)
 
 /* this is a hash bucket in the shmem index table */
 typedef struct
 {
-    char        key[SHMEM_INDEX_KEYSIZE];    /* string name */
-    void       *location;        /* location in shared mem */
-    Size        size;            /* # bytes allocated for the structure */
+	char		key[SHMEM_INDEX_KEYSIZE];	/* string name */
+	void	   *location;		/* location in shared mem */
+	Size		size;			/* # bytes allocated for the structure */
 } ShmemIndexEnt;
 
 /*
@@ -71,10 +73,10 @@ extern void SHMQueueDelete(SHM_QUEUE *queue);
 extern void SHMQueueInsertBefore(SHM_QUEUE *queue, SHM_QUEUE *elem);
 extern void SHMQueueInsertAfter(SHM_QUEUE *queue, SHM_QUEUE *elem);
 extern Pointer SHMQueueNext(const SHM_QUEUE *queue, const SHM_QUEUE *curElem,
-             Size linkOffset);
+			 Size linkOffset);
 extern Pointer SHMQueuePrev(const SHM_QUEUE *queue, const SHM_QUEUE *curElem,
-             Size linkOffset);
+			 Size linkOffset);
 extern bool SHMQueueEmpty(const SHM_QUEUE *queue);
 extern bool SHMQueueIsDetached(const SHM_QUEUE *queue);
 
-#endif                            /* SHMEM_H */
+#endif							/* SHMEM_H */

@@ -711,3 +711,14 @@ SELECT width_bucket(5, '{}');
 SELECT width_bucket('5'::text, ARRAY[3, 4]::integer[]);
 SELECT width_bucket(5, ARRAY[3, 4, NULL]);
 SELECT width_bucket(5, ARRAY[ARRAY[1, 2], ARRAY[3, 4]]);
+
+\c regression_ora
+select array_to_string(NULL::int4[], ',') IS NULL;
+select array_to_string('{}'::int4[], ',');
+select array_to_string(array[1,2,3,4,NULL,6], ',');
+select array_to_string(array[1,2,3,4,NULL,6], ',', '*');
+select array_to_string(array[1,2,3,4,NULL,6], NULL);
+select array_to_string(array[1,2,3,4,NULL,6], ',', NULL);
+select array_to_string(array[1,2,3,4,NULL,6], '', '*');
+
+select array_to_string(string_to_array('1|2|3', '|'), '|');

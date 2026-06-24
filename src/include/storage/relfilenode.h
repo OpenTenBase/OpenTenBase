@@ -1,15 +1,12 @@
 /*-------------------------------------------------------------------------
  *
  * relfilenode.h
- *      Physical access information for relations.
+ *	  Physical access information for relations.
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- * 
  * src/include/storage/relfilenode.h
  *
  *-------------------------------------------------------------------------
@@ -58,12 +55,20 @@
  * there *must not* be any unused padding bytes in this struct.  That
  * should be safe as long as all the fields are of type Oid.
  */
+
 typedef struct RelFileNode
 {
-    Oid            spcNode;        /* tablespace */
-    Oid            dbNode;            /* database */
-    Oid            relNode;        /* relation */
+	Oid			spcNode;		/* tablespace */
+	Oid			dbNode;			/* database */
+	Oid			relNode;		/* relation */
 } RelFileNode;
+
+typedef struct RelFileNodeNFork
+{
+	RelFileNode rnode;
+	ForkNumber forknum;
+} RelFileNodeNFork;
+
 
 /*
  * Augmenting a relfilenode with the backend ID provides all the information
@@ -75,17 +80,9 @@ typedef struct RelFileNode
  */
 typedef struct RelFileNodeBackend
 {
-    RelFileNode node;
-    BackendId    backend;
+	RelFileNode node;
+	BackendId	backend;
 } RelFileNodeBackend;
-
-#ifdef XCP
-#define RelFileNodeBackendIsTemp(rnode) \
-    (!IS_PGXC_DATANODE && ((rnode).backend != InvalidBackendId))
-#else
-#define RelFileNodeBackendIsTemp(rnode) \
-    ((rnode).backend != InvalidBackendId)
-#endif
 
 /*
  * Note: RelFileNodeEquals and RelFileNodeBackendEquals compare relNode first
@@ -95,25 +92,21 @@ typedef struct RelFileNodeBackend
  * RelFileNodeBackendEquals.
  */
 #define RelFileNodeEquals(node1, node2) \
-    ((node1).relNode == (node2).relNode && \
-     (node1).dbNode == (node2).dbNode && \
-     (node1).spcNode == (node2).spcNode)
+	((node1).relNode == (node2).relNode && \
+	 (node1).dbNode == (node2).dbNode && \
+	 (node1).spcNode == (node2).spcNode)
 
 #define RelFileNodeBackendEquals(node1, node2) \
-    ((node1).node.relNode == (node2).node.relNode && \
-     (node1).node.dbNode == (node2).node.dbNode && \
-     (node1).backend == (node2).backend && \
-     (node1).node.spcNode == (node2).node.spcNode)
+	((node1).node.relNode == (node2).node.relNode && \
+	 (node1).node.dbNode == (node2).node.dbNode && \
+	 (node1).backend == (node2).backend && \
+	 (node1).node.spcNode == (node2).node.spcNode)
 
-#ifdef _MLS_
-typedef struct tagRelCryptEntry
+typedef enum StorageEngine
 {
-    RelFileNode relfilenode;
-    int         algo_id;
-}RelCryptEntry;
-typedef RelCryptEntry * RelCrypt;
+	HEAP_STORAGE = 0,
+	EFFECTIVE_STORAGE,
+	COLUMN_STORAGE 
+} StorageEngine;
 
-#endif
-
-
-#endif                            /* RELFILENODE_H */
+#endif							/* RELFILENODE_H */

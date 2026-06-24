@@ -7,9 +7,6 @@
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * src/include/catalog/pg_constraint_fn.h
  *
  *-------------------------------------------------------------------------
@@ -68,12 +65,17 @@ extern bool ConstraintNameIsUsed(ConstraintCategory conCat, Oid objId,
 extern char *ChooseConstraintName(const char *name1, const char *name2,
 					 const char *label, Oid namespaceid,
 					 List *others);
+extern bool ConstraintNameIsUsedInObjNamespace(ConstraintCategory conCat,
+		Oid objNamespace, const char *conname);
 
 extern void AlterConstraintNamespaces(Oid ownerId, Oid oldNspId,
 						  Oid newNspId, bool isType, ObjectAddresses *objsMoved);
 extern void ConstraintSetParentConstraint(Oid childConstrId,
 							  Oid parentConstrId);
 extern Oid	get_relation_constraint_oid(Oid relid, const char *conname, bool missing_ok);
+extern Bitmapset *get_relation_constraint_attnos(Oid relid, const char *conname,
+												 bool missing_ok,
+												 Oid *constraintOid);
 extern Oid	get_domain_constraint_oid(Oid typid, const char *conname, bool missing_ok);
 extern Oid get_relation_idx_constraint_oid(Oid relationId, Oid indexId);
 

@@ -16,20 +16,20 @@
 #define _GTM_COMMON_H
 
 #define GTM_COMMON_THREAD_INFO \
-    GTM_ThreadID            thr_id; \
-    uint32                    thr_localid; \
-    bool                    is_main_thread; \
-    void * (* thr_startroutine)(void *); \
-    MemoryContext    thr_thread_context; \
-    MemoryContext    thr_message_context; \
-    MemoryContext    thr_current_context; \
-    MemoryContext    thr_error_context; \
-    MemoryContext    thr_parent_context; \
-    sigjmp_buf        *thr_sigjmp_buf; \
-    ErrorData        thr_error_data[ERRORDATA_STACK_SIZE]; \
-    int                thr_error_stack_depth; \
-    int                thr_error_recursion_depth; \
-    int                thr_criticalsec_count;
+	GTM_ThreadID			thr_id; \
+	uint32					thr_localid; \
+	bool					is_main_thread; \
+	void * (* thr_startroutine)(void *); \
+	MemoryContext	thr_thread_context; \
+	MemoryContext	thr_message_context; \
+	MemoryContext	thr_current_context; \
+	MemoryContext	thr_error_context; \
+	MemoryContext	thr_parent_context; \
+	sigjmp_buf		*thr_sigjmp_buf; \
+	ErrorData		thr_error_data[ERRORDATA_STACK_SIZE]; \
+	int				thr_error_stack_depth; \
+	int				thr_error_recursion_depth; \
+	int				thr_criticalsec_count;
 
 
 #endif

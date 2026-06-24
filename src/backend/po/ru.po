@@ -21800,9 +21800,9 @@ msgstr "абсолютный путь недопустим"
 msgid "path must be in or below the current directory"
 msgstr "путь должен указывать в текущий или вложенный каталог"
 
-#: utils/adt/genfile.c:126 utils/adt/oracle_compat.c:184
-#: utils/adt/oracle_compat.c:282 utils/adt/oracle_compat.c:758
-#: utils/adt/oracle_compat.c:1059
+#: utils/adt/genfile.c:126 utils/adt/opentenbase_ora_compat.c:184
+#: utils/adt/opentenbase_ora_compat.c:282 utils/adt/opentenbase_ora_compat.c:758
+#: utils/adt/opentenbase_ora_compat.c:1059
 #, c-format
 msgid "requested length too large"
 msgstr "запрошенная длина слишком велика"
@@ -22647,22 +22647,22 @@ msgstr "значение \"%s\" вне диапазона для 8-битово�
 msgid "invalid oidvector data"
 msgstr "неверные данные oidvector"
 
-#: utils/adt/oracle_compat.c:895
+#: utils/adt/opentenbase_ora_compat.c:895
 #, c-format
 msgid "requested character too large"
 msgstr "запрошенный символ больше допустимого"
 
-#: utils/adt/oracle_compat.c:945 utils/adt/oracle_compat.c:1007
+#: utils/adt/opentenbase_ora_compat.c:945 utils/adt/opentenbase_ora_compat.c:1007
 #, c-format
 msgid "requested character too large for encoding: %d"
 msgstr "код запрошенного символа слишком велик для кодировки: %d"
 
-#: utils/adt/oracle_compat.c:986
+#: utils/adt/opentenbase_ora_compat.c:986
 #, c-format
 msgid "requested character not valid for encoding: %d"
 msgstr "запрошенный символ не подходит для кодировки: %d"
 
-#: utils/adt/oracle_compat.c:1000
+#: utils/adt/opentenbase_ora_compat.c:1000
 #, c-format
 msgid "null character not permitted"
 msgstr "символ не может быть null"

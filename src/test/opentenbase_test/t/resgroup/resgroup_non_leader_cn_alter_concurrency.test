@@ -1,0 +1,416 @@
+%cn 2
+%cn_slave 0
+%dn 2
+%dn_slave 0
+%gtm 1
+%gtm_slave 0
+
+connect conn cn2
+connection conn
+
+create default node group default_group with ("dn1", "dn2");
+create sharding group to group default_group;
+clean sharding;
+create table t(a int, b int);
+grant all on t to public;
+
+-- create a resource group when gp_resource_manager is queue
+DROP ROLE IF EXISTS role_concurrency_test;
+-- start_ignore
+DROP RESOURCE GROUP rg_concurrency_test;
+-- end_ignore
+CREATE RESOURCE GROUP rg_concurrency_test WITH concurrency 1 CPU_RATE_LIMIT 20;
+CREATE ROLE role_concurrency_test RESOURCE GROUP rg_concurrency_test;
+
+-- After a 'q' command the client connection is disconnected but the
+-- QD may still be alive, if we then query pg_stat_activity quick enough
+-- we might still see this session with query '<IDLE>'.
+-- A filter is put to filter out this kind of quitted sessions.
+CREATE OR REPLACE VIEW rg_activity_status AS
+	SELECT rsgname, wait_event_type, state, query
+	FROM pg_stat_activity
+	WHERE rsgname='rg_concurrency_test'
+    order by wait_event_type, state;
+
+--
+-- 1. increase concurrency after pending queries
+--
+
+ALTER RESOURCE GROUP rg_concurrency_test SET CONCURRENCY 1;
+
+
+
+connect 11 cn2
+connection 11
+SET ROLE role_concurrency_test;
+set opentenbase_test_flag='suspend_after_resgroup_assigned11';
+sendblock select count(*) from t;
+
+connection conn
+SELECT * FROM rg_activity_status;
+
+connect 21 cn2
+connection 21
+SET ROLE role_concurrency_test;
+set opentenbase_test_flag='suspend_after_resgroup_assigned21';
+sendblock select count(*) from t;
+
+connection conn
+SELECT * FROM rg_activity_status;
+
+
+connect 22 cn2
+connection 22
+SET ROLE role_concurrency_test;
+set opentenbase_test_flag='suspend_after_resgroup_assigned22';
+sendblock select count(*) from t;
+
+connection conn
+SELECT * FROM rg_activity_status;
+
+
+connection conn
+ALTER RESOURCE GROUP rg_concurrency_test SET CONCURRENCY 2;
+
+connection conn
+SELECT * FROM rg_activity_status;
+
+execute_shell_cmd rm /tmp/suspend_after_resgroup_assigned11
+reap 11
+
+connection conn
+SELECT * FROM rg_activity_status;
+
+execute_shell_cmd rm /tmp/suspend_after_resgroup_assigned21
+execute_shell_cmd rm /tmp/suspend_after_resgroup_assigned22
+reap 21
+reap 22
+
+connection conn
+SELECT * FROM rg_activity_status;
+
+
+--
+-- 2. increase concurrency before pending queries
+--
+
+ALTER RESOURCE GROUP rg_concurrency_test SET CONCURRENCY 1;
+
+connection 11
+SET ROLE role_concurrency_test;
+set opentenbase_test_flag='suspend_after_resgroup_assigned11';
+sendblock select count(*) from t;
+
+connection conn
+SELECT * FROM rg_activity_status;
+ALTER RESOURCE GROUP rg_concurrency_test SET CONCURRENCY 2;
+
+connection 21
+SET ROLE role_concurrency_test;
+set opentenbase_test_flag='suspend_after_resgroup_assigned21';
+sendblock select count(*) from t;
+
+connection conn
+SELECT * FROM rg_activity_status;
+
+
+connection 22
+SET ROLE role_concurrency_test;
+set opentenbase_test_flag='suspend_after_resgroup_assigned22';
+sendblock select count(*) from t;
+
+connection conn
+-- 22 blocking
+SELECT * FROM rg_activity_status;
+
+execute_shell_cmd rm /tmp/suspend_after_resgroup_assigned11
+reap 11
+
+sleep 2
+
+connection conn
+-- 11 end. should only have 21 and 22
+SELECT * FROM rg_activity_status;
+
+execute_shell_cmd rm /tmp/suspend_after_resgroup_assigned21
+reap 21
+
+execute_shell_cmd rm /tmp/suspend_after_resgroup_assigned22
+reap 22
+
+
+connection conn
+SELECT * FROM rg_activity_status;
+
+
+--
+-- 3. decrease concurrency
+--
+connection conn
+ALTER RESOURCE GROUP rg_concurrency_test SET CONCURRENCY 10;
+
+connection 11
+SET ROLE role_concurrency_test;
+set opentenbase_test_flag='suspend_after_resgroup_assigned11';
+sendblock select count(*) from t;
+
+connect 12 cn2
+connection 12
+SET ROLE role_concurrency_test;
+set opentenbase_test_flag='suspend_after_resgroup_assigned12';
+sendblock select count(*) from t;
+
+connect 13 cn2
+connection 13
+SET ROLE role_concurrency_test;
+set opentenbase_test_flag='suspend_after_resgroup_assigned13';
+sendblock select count(*) from t;
+
+connect 14 cn2
+connection 14
+SET ROLE role_concurrency_test;
+set opentenbase_test_flag='suspend_after_resgroup_assigned14';
+sendblock select count(*) from t;
+
+connect 15 cn2
+connection 15
+SET ROLE role_concurrency_test;
+set opentenbase_test_flag='suspend_after_resgroup_assigned15';
+sendblock select count(*) from t;
+
+connection conn
+-- should no blocking on resgroup
+SELECT * FROM rg_activity_status;
+ALTER RESOURCE GROUP rg_concurrency_test SET CONCURRENCY 1;
+sleep 5
+-- after sleep 5s, should also no blocking on resgroup
+SELECT * FROM rg_activity_status;
+
+
+execute_shell_cmd rm /tmp/suspend_after_resgroup_assigned11
+reap 11
+execute_shell_cmd rm /tmp/suspend_after_resgroup_assigned12
+reap 12
+execute_shell_cmd rm /tmp/suspend_after_resgroup_assigned13
+reap 13
+execute_shell_cmd rm /tmp/suspend_after_resgroup_assigned14
+reap 14
+execute_shell_cmd rm /tmp/suspend_after_resgroup_assigned15
+reap 15
+
+
+sleep 1
+
+connection conn
+-- this part finish
+SELECT * FROM rg_activity_status;
+
+
+
+
+--
+-- 4. increase concurrency from 0
+--
+connection conn
+DROP ROLE role_concurrency_test;
+DROP RESOURCE GROUP rg_concurrency_test;
+CREATE RESOURCE GROUP rg_concurrency_test WITH concurrency 0 CPU_RATE_LIMIT 20;
+CREATE ROLE role_concurrency_test RESOURCE GROUP rg_concurrency_test;
+
+connect 11 cn2
+connection 11
+SET ROLE role_concurrency_test;
+set opentenbase_test_flag='suspend_after_resgroup_assigned11';
+sendblock select count(*) from t;
+
+connection conn
+-- 11 should be blocked by resgroup
+SELECT * FROM rg_activity_status;
+
+ALTER RESOURCE GROUP rg_concurrency_test SET CONCURRENCY 1;
+-- 11 should not be blocked by resgroup
+SELECT * FROM rg_activity_status;
+
+execute_shell_cmd rm /tmp/suspend_after_resgroup_assigned11
+reap 11
+
+connection conn
+-- 11 should not block. gone. empty
+SELECT * FROM rg_activity_status;
+
+
+--
+-- 5.1 decrease concurrency to 0,
+-- without running queries,
+-- without pending queries.
+--
+connection conn
+ALTER RESOURCE GROUP rg_concurrency_test SET CONCURRENCY 1;
+-- should no output
+SELECT * FROM rg_activity_status;
+
+ALTER RESOURCE GROUP rg_concurrency_test SET CONCURRENCY 0;
+-- should no output
+SELECT * FROM rg_activity_status;
+
+
+
+--
+-- 5.2 decrease concurrency to 0,
+-- with running queries,
+-- without pending queries.
+--
+
+ALTER RESOURCE GROUP rg_concurrency_test SET CONCURRENCY 1;
+SELECT * FROM rg_activity_status;
+
+connection 11
+SET ROLE role_concurrency_test;
+set opentenbase_test_flag='suspend_after_resgroup_assigned11';
+sendblock select count(*) from t;
+
+connection conn
+-- should not be blocked by resgroup
+SELECT * FROM rg_activity_status;
+
+ALTER RESOURCE GROUP rg_concurrency_test SET CONCURRENCY 0;
+
+-- should not be blocked by resgroup
+SELECT * FROM rg_activity_status;
+
+execute_shell_cmd rm /tmp/suspend_after_resgroup_assigned11
+reap 11
+
+
+connection conn
+-- should not be blocked
+SELECT * FROM rg_activity_status;
+
+
+
+connection conn
+--
+-- 5.3 decrease concurrency to 0,
+-- with running queries,
+-- with pending queries.
+--
+ALTER RESOURCE GROUP rg_concurrency_test SET CONCURRENCY 1;
+-- empty
+SELECT * FROM rg_activity_status;
+
+connection 11
+SET ROLE role_concurrency_test;
+set opentenbase_test_flag='suspend_after_resgroup_assigned11';
+sendblock select count(*) from t;
+
+
+connect 12 cn2
+connection 12
+SET ROLE role_concurrency_test;
+set opentenbase_test_flag='suspend_after_resgroup_assigned12';
+sendblock select count(*) from t;
+
+
+connection conn
+-- one blocked on resgroup
+SELECT * FROM rg_activity_status;
+
+ALTER RESOURCE GROUP rg_concurrency_test SET CONCURRENCY 0;
+SELECT * FROM rg_activity_status;
+
+execute_shell_cmd rm /tmp/suspend_after_resgroup_assigned11
+reap 11
+
+
+sleep 1
+
+connection conn
+-- one blocking
+SELECT * FROM rg_activity_status;
+SELECT pg_cancel_backend(pid) FROM pg_stat_activity
+WHERE wait_event_type='ResourceGroup' AND rsgname='rg_concurrency_test';
+
+sleep 1
+
+-- blocking has been canceled
+SELECT * FROM rg_activity_status;
+
+-- report canceled error
+execute_shell_cmd rm /tmp/suspend_after_resgroup_assigned12
+reap 12
+
+
+connection conn
+-- not block on resgroup. wait for client
+SELECT * FROM rg_activity_status;
+
+disconnect 12
+
+-- empty
+SELECT * FROM rg_activity_status;
+
+
+connection conn
+-- 6: drop a resgroup with concurrency=0 and pending queries
+DROP ROLE IF EXISTS role_concurrency_test;
+DROP RESOURCE GROUP rg_concurrency_test;
+
+
+CREATE RESOURCE GROUP rg_concurrency_test WITH concurrency 0 CPU_RATE_LIMIT 20 ;
+CREATE ROLE role_concurrency_test RESOURCE GROUP rg_concurrency_test;
+
+connect 61 cn2
+connection 61
+SET ROLE role_concurrency_test;
+set opentenbase_test_flag='suspend_after_resgroup_assigned61';
+sendblock select count(*) from t;
+
+connection conn
+ALTER ROLE role_concurrency_test RESOURCE GROUP none;
+DROP RESOURCE GROUP rg_concurrency_test;
+
+execute_shell_cmd rm /tmp/suspend_after_resgroup_assigned61
+reap 61
+
+disconnect 61
+
+connection conn
+-- empty
+SELECT * FROM rg_activity_status;
+
+connection conn
+-- 7: drop a role with concurrency=0 and pending queries
+DROP ROLE IF EXISTS role_concurrency_test;
+DROP RESOURCE GROUP rg_concurrency_test;
+
+CREATE RESOURCE GROUP rg_concurrency_test WITH concurrency 0 CPU_RATE_LIMIT 20;
+CREATE ROLE role_concurrency_test RESOURCE GROUP rg_concurrency_test;
+
+connect 61 cn2
+connection 61
+SET ROLE role_concurrency_test;
+set opentenbase_test_flag='suspend_after_resgroup_assigned61';
+sendblock select count(*) from t;
+
+sleep 1
+
+connection conn
+
+-- block
+SELECT * FROM rg_activity_status;
+
+DROP ROLE role_concurrency_test;
+DROP RESOURCE GROUP rg_concurrency_test;
+
+sleep 1
+
+-- empty
+SELECT * FROM rg_activity_status;
+
+
+execute_shell_cmd rm /tmp/suspend_after_resgroup_assigned61
+reap 61
+
+connection conn
+-- empty
+SELECT * FROM rg_activity_status;

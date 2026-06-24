@@ -1,0 +1,59 @@
+create default node group default_group with ("dn1", "dn2");
+CREATE NODE GROUP
+create sharding group to group default_group;
+CREATE SHARDING GROUP
+clean sharding;
+CLEAN SHARDING
+create table t(a int, b int);
+CREATE TABLE
+grant all on t to public;
+GRANT
+DROP ROLE IF EXISTS role_test;
+DROP ROLE
+NOTICE:  (00000) role "role_test" does not exist, skipping
+DROP RESOURCE GROUP rg_test;
+ERROR:  (42704) resource group "rg_test" does not exist
+CREATE RESOURCE GROUP rg_test WITH concurrency 2 CPU_RATE_LIMIT 10;
+CREATE RESOURCE GROUP
+CREATE ROLE role_test RESOURCE GROUP rg_test;
+CREATE ROLE
+SET ROLE role_test;
+SET
+set opentenbase_test_flag='suspend_after_resgroup_assigned1';
+SET
+ select count(*) from t;
+SET ROLE role_test;
+SET
+set opentenbase_test_flag = 'resgroup_assigned_failed';
+SET
+show opentenbase_test_flag;
+      opentenbase_test_flag       
+----------------------------
+ "resgroup_assigned_failed"
+(1 row)
+
+-- session 2 should failed, res slot should be freed
+set opentenbase_test_flag='+suspend_after_resgroup_assigned2';
+SET
+select count(*) from t;
+ERROR:  (XX000) hit stub on resgroup_assigned_failed
+set opentenbase_test_flag = 'placeholder';
+SET
+show opentenbase_test_flag;
+ opentenbase_test_flag 
+-----------------
+ "placeholder"
+(1 row)
+
+-- session 2, should success
+select count(*) from t;
+ count 
+-------
+     0
+(1 row)
+
+-- result of session 1
+ count 
+-------
+     0
+(1 row)

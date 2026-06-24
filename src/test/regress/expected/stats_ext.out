@@ -5,6 +5,26 @@
 SET max_parallel_workers = 0;
 SET max_parallel_workers_per_gather = 0;
 SET work_mem = '128kB';
+-- check the number of estimated/actual rows in the top node
+create function check_estimated_rows(text) returns table (estimated int, actual int)
+language plpgsql as
+$$
+declare
+    ln text;
+    tmp text[];
+    first_row bool := true;
+begin
+    for ln in
+        execute format('explain analyze %s', $1)
+    loop
+        if first_row then
+            first_row := false;
+            tmp := regexp_match(ln, 'rows=(\d*) .* rows=(\d*)');
+            return query select tmp[1]::int, tmp[2]::int;
+        end if;
+    end loop;
+end;
+$$;
 -- Verify failures
 CREATE STATISTICS tst;
 ERROR:  syntax error at or near ";"
@@ -79,6 +99,7 @@ ALTER TABLE ab1 ALTER a SET STATISTICS 0;
 INSERT INTO ab1 SELECT a, a%23 FROM generate_series(1, 1000) a;
 CREATE STATISTICS ab1_a_b_stats ON a, b FROM ab1;
 ANALYZE ab1;
+WARNING:  statistics object "public.ab1_a_b_stats" could not be computed for relation "public.ab1"
 SELECT
   (stxndistinct IS NOT NULL) AS ndistinct,
   (stxdependencies IS NOT NULL) AS dependencies
@@ -91,6 +112,7 @@ FROM pg_statistic_ext WHERE stxname = 'ab1_a_b_stats';
 ALTER TABLE ab1 ALTER a SET STATISTICS -1;
 -- partial analyze doesn't build stats either
 ANALYZE ab1 (a);
+WARNING:  statistics object "public.ab1_a_b_stats" could not be computed for relation "public.ab1"
 SELECT
   (stxndistinct IS NOT NULL) AS ndistinct,
   (stxdependencies IS NOT NULL) AS dependencies
@@ -111,6 +133,61 @@ FROM pg_statistic_ext WHERE stxname = 'ab1_a_b_stats';
 (1 row)
 
 DROP TABLE ab1;
+-- Ensure we can build statistics for tables with inheritance.
+CREATE TABLE ab1 (a INTEGER, b INTEGER);
+CREATE TABLE ab1c () INHERITS (ab1);
+INSERT INTO ab1 VALUES (1,1);
+CREATE STATISTICS ab1_a_b_stats ON a, b FROM ab1;
+ANALYZE ab1;
+DROP TABLE ab1 CASCADE;
+NOTICE:  drop cascades to table ab1c
+-- Tests for stats with inheritance
+CREATE TABLE stxdinh(a int, b int);
+CREATE TABLE stxdinh1() INHERITS(stxdinh);
+CREATE TABLE stxdinh2() INHERITS(stxdinh);
+INSERT INTO stxdinh SELECT mod(a,50), mod(a,100) FROM generate_series(0, 1999) a;
+INSERT INTO stxdinh1 SELECT mod(a,100), mod(a,100) FROM generate_series(0, 999) a;
+INSERT INTO stxdinh2 SELECT mod(a,100), mod(a,100) FROM generate_series(0, 999) a;
+VACUUM ANALYZE stxdinh;
+VACUUM ANALYZE stxdinh1;
+VACUUM ANALYZE stxdinh2;
+set enable_fast_query_shipping to off;
+-- Ensure non-inherited stats are not applied to inherited query
+-- Without stats object, it looks like this
+SELECT * FROM check_estimated_rows('SELECT a, b FROM stxdinh* GROUP BY 1, 2');
+ estimated | actual 
+-----------+--------
+       300 |    150
+(1 row)
+
+SELECT * FROM check_estimated_rows('SELECT a, b FROM stxdinh* WHERE a = 0 AND b = 0');
+ estimated | actual 
+-----------+--------
+         3 |     40
+(1 row)
+
+CREATE STATISTICS stxdinh ON a, b FROM stxdinh;
+VACUUM ANALYZE stxdinh;
+VACUUM ANALYZE stxdinh1;
+VACUUM ANALYZE stxdinh2;
+-- Since the stats object does not include inherited stats, it should not
+-- affect the estimates
+SELECT * FROM check_estimated_rows('SELECT a, b FROM stxdinh* GROUP BY 1, 2');
+ estimated | actual 
+-----------+--------
+       300 |    150
+(1 row)
+
+-- Dependencies are applied at individual relations (within append), so
+-- this estimate changes a bit because we improve estimates for the parent
+SELECT * FROM check_estimated_rows('SELECT a, b FROM stxdinh* WHERE a = 0 AND b = 0');
+ estimated | actual 
+-----------+--------
+        22 |     40
+(1 row)
+
+reset enable_fast_query_shipping;
+DROP TABLE stxdinh, stxdinh1, stxdinh2;
 -- Verify supported object types for extended statistics
 CREATE schema tststats;
 CREATE TABLE tststats.t (a int, b int, c text);
@@ -172,61 +249,61 @@ ANALYZE ndistinct;
 -- Group Aggregate, due to over-estimate of the number of groups
 EXPLAIN (COSTS off)
  SELECT COUNT(*) FROM ndistinct GROUP BY a, b;
-                        QUERY PLAN                         
------------------------------------------------------------
- GroupAggregate
-   Group Key: a, b
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-         ->  Sort
-               Sort Key: a, b
+                      QUERY PLAN                       
+-------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   ->  HashAggregate
+         Group Key: a, b
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by S: a, b
                ->  Seq Scan on ndistinct
 (6 rows)
 
 EXPLAIN (COSTS off)
  SELECT COUNT(*) FROM ndistinct GROUP BY b, c;
-                        QUERY PLAN                         
------------------------------------------------------------
- GroupAggregate
-   Group Key: b, c
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-         ->  Sort
-               Sort Key: b, c
+                      QUERY PLAN                       
+-------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   ->  HashAggregate
+         Group Key: b, c
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by S: b, c
                ->  Seq Scan on ndistinct
 (6 rows)
 
 EXPLAIN (COSTS off)
  SELECT COUNT(*) FROM ndistinct GROUP BY a, b, c;
-                        QUERY PLAN                         
------------------------------------------------------------
- GroupAggregate
-   Group Key: a, b, c
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-         ->  Sort
-               Sort Key: a, b, c
+                      QUERY PLAN                       
+-------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   ->  HashAggregate
+         Group Key: a, b, c
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by S: a, b, c
                ->  Seq Scan on ndistinct
 (6 rows)
 
 EXPLAIN (COSTS off)
  SELECT COUNT(*) FROM ndistinct GROUP BY a, b, c, d;
-                        QUERY PLAN                         
------------------------------------------------------------
- GroupAggregate
-   Group Key: a, b, c, d
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-         ->  Sort
-               Sort Key: a, b, c, d
+                      QUERY PLAN                       
+-------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   ->  HashAggregate
+         Group Key: a, b, c, d
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by S: a, b, c, d
                ->  Seq Scan on ndistinct
 (6 rows)
 
 EXPLAIN (COSTS off)
  SELECT COUNT(*) FROM ndistinct GROUP BY b, c, d;
-                        QUERY PLAN                         
------------------------------------------------------------
- GroupAggregate
-   Group Key: b, c, d
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-         ->  Sort
-               Sort Key: b, c, d
+                      QUERY PLAN                       
+-------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   ->  HashAggregate
+         Group Key: b, c, d
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by S: b, c, d
                ->  Seq Scan on ndistinct
 (6 rows)
 
@@ -237,63 +314,75 @@ SELECT stxkind, stxndistinct
   FROM pg_statistic_ext WHERE stxrelid = 'ndistinct'::regclass;
  stxkind |                      stxndistinct                       
 ---------+---------------------------------------------------------
- {d,f}   | {"3, 4": 161, "3, 6": 161, "4, 6": 161, "3, 4, 6": 161}
+ {d,f}   | {"3, 4": 301, "3, 6": 301, "4, 6": 301, "3, 4, 6": 301}
 (1 row)
 
 -- Hash Aggregate, thanks to estimates improved by the statistic
 EXPLAIN (COSTS off)
  SELECT COUNT(*) FROM ndistinct GROUP BY a, b;
-                        QUERY PLAN                         
------------------------------------------------------------
- HashAggregate
-   Group Key: a, b
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-         ->  Seq Scan on ndistinct
-(4 rows)
+                      QUERY PLAN                       
+-------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   ->  Finalize HashAggregate
+         Group Key: a, b
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by S: a, b
+               ->  Partial HashAggregate
+                     Group Key: a, b
+                     ->  Seq Scan on ndistinct
+(8 rows)
 
 EXPLAIN (COSTS off)
  SELECT COUNT(*) FROM ndistinct GROUP BY b, c;
-                        QUERY PLAN                         
------------------------------------------------------------
- HashAggregate
-   Group Key: b, c
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-         ->  Seq Scan on ndistinct
-(4 rows)
+                      QUERY PLAN                       
+-------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   ->  Finalize HashAggregate
+         Group Key: b, c
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by S: b, c
+               ->  Partial HashAggregate
+                     Group Key: b, c
+                     ->  Seq Scan on ndistinct
+(8 rows)
 
 EXPLAIN (COSTS off)
  SELECT COUNT(*) FROM ndistinct GROUP BY a, b, c;
-                        QUERY PLAN                         
------------------------------------------------------------
- HashAggregate
-   Group Key: a, b, c
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-         ->  Seq Scan on ndistinct
-(4 rows)
+                      QUERY PLAN                       
+-------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   ->  Finalize HashAggregate
+         Group Key: a, b, c
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by S: a, b, c
+               ->  Partial HashAggregate
+                     Group Key: a, b, c
+                     ->  Seq Scan on ndistinct
+(8 rows)
 
 -- last two plans keep using Group Aggregate, because 'd' is not covered
 -- by the statistic and while it's NULL-only we assume 200 values for it
 EXPLAIN (COSTS off)
  SELECT COUNT(*) FROM ndistinct GROUP BY a, b, c, d;
-                        QUERY PLAN                         
------------------------------------------------------------
- GroupAggregate
-   Group Key: a, b, c, d
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-         ->  Sort
-               Sort Key: a, b, c, d
+                      QUERY PLAN                       
+-------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   ->  HashAggregate
+         Group Key: a, b, c, d
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by S: a, b, c, d
                ->  Seq Scan on ndistinct
 (6 rows)
 
 EXPLAIN (COSTS off)
  SELECT COUNT(*) FROM ndistinct GROUP BY b, c, d;
-                        QUERY PLAN                         
------------------------------------------------------------
- GroupAggregate
-   Group Key: b, c, d
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-         ->  Sort
-               Sort Key: b, c, d
+                      QUERY PLAN                       
+-------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   ->  HashAggregate
+         Group Key: b, c, d
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by S: b, c, d
                ->  Seq Scan on ndistinct
 (6 rows)
 
@@ -306,67 +395,85 @@ INSERT INTO ndistinct (a, b, c, filler1)
 ANALYZE ndistinct;
 SELECT stxkind, stxndistinct
   FROM pg_statistic_ext WHERE stxrelid = 'ndistinct'::regclass;
- stxkind |                        stxndistinct                        
----------+------------------------------------------------------------
- {d,f}   | {"3, 4": 2378, "3, 6": 800, "4, 6": 1632, "3, 4, 6": 6060}
+ stxkind |                        stxndistinct                         
+---------+-------------------------------------------------------------
+ {d,f}   | {"3, 4": 2550, "3, 6": 800, "4, 6": 1632, "3, 4, 6": 10000}
 (1 row)
 
 -- plans using Group Aggregate, thanks to using correct esimates
 EXPLAIN (COSTS off)
  SELECT COUNT(*) FROM ndistinct GROUP BY a, b;
-                        QUERY PLAN                         
------------------------------------------------------------
- GroupAggregate
-   Group Key: a, b
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-         ->  Sort
-               Sort Key: a, b
+                      QUERY PLAN                       
+-------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   ->  HashAggregate
+         Group Key: a, b
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by S: a, b
                ->  Seq Scan on ndistinct
 (6 rows)
 
 EXPLAIN (COSTS off)
  SELECT COUNT(*) FROM ndistinct GROUP BY a, b, c;
-                        QUERY PLAN                         
------------------------------------------------------------
- GroupAggregate
-   Group Key: a, b, c
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-         ->  Sort
+                      QUERY PLAN                       
+-------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   Sort Key: a, b, c
+   ->  Finalize GroupAggregate
+         Group Key: a, b, c
+         ->  Remote Subquery Scan on all (datanodes 2)
                Sort Key: a, b, c
-               ->  Seq Scan on ndistinct
-(6 rows)
+               Distribute results by S: a, b, c
+               ->  Partial GroupAggregate
+                     Group Key: a, b, c
+                     ->  Sort
+                           Sort Key: a, b, c
+                           ->  Seq Scan on ndistinct
+(12 rows)
 
 EXPLAIN (COSTS off)
  SELECT COUNT(*) FROM ndistinct GROUP BY a, b, c, d;
-                        QUERY PLAN                         
------------------------------------------------------------
- GroupAggregate
-   Group Key: a, b, c, d
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-         ->  Sort
+                      QUERY PLAN                       
+-------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   Sort Key: a, b, c, d
+   ->  Finalize GroupAggregate
+         Group Key: a, b, c, d
+         ->  Remote Subquery Scan on all (datanodes 2)
                Sort Key: a, b, c, d
+               Distribute results by S: a, b, c, d
+               ->  Partial GroupAggregate
+                     Group Key: a, b, c, d
+                     ->  Sort
+                           Sort Key: a, b, c, d
+                           ->  Seq Scan on ndistinct
+(12 rows)
+
+EXPLAIN (COSTS off)
+ SELECT COUNT(*) FROM ndistinct GROUP BY b, c, d;
+                      QUERY PLAN                       
+-------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   ->  HashAggregate
+         Group Key: b, c, d
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by S: b, c, d
                ->  Seq Scan on ndistinct
 (6 rows)
 
 EXPLAIN (COSTS off)
- SELECT COUNT(*) FROM ndistinct GROUP BY b, c, d;
-                        QUERY PLAN                         
------------------------------------------------------------
- HashAggregate
-   Group Key: b, c, d
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-         ->  Seq Scan on ndistinct
-(4 rows)
-
-EXPLAIN (COSTS off)
  SELECT COUNT(*) FROM ndistinct GROUP BY a, d;
-                        QUERY PLAN                         
------------------------------------------------------------
- HashAggregate
-   Group Key: a, d
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-         ->  Seq Scan on ndistinct
-(4 rows)
+                      QUERY PLAN                       
+-------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   ->  Finalize HashAggregate
+         Group Key: a, d
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by S: a, d
+               ->  Partial HashAggregate
+                     Group Key: a, d
+                     ->  Seq Scan on ndistinct
+(8 rows)
 
 DROP STATISTICS s10;
 SELECT stxkind, stxndistinct
@@ -379,53 +486,73 @@ SELECT stxkind, stxndistinct
 -- due to under-estimates
 EXPLAIN (COSTS off)
  SELECT COUNT(*) FROM ndistinct GROUP BY a, b;
-                        QUERY PLAN                         
------------------------------------------------------------
- HashAggregate
-   Group Key: a, b
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-         ->  Seq Scan on ndistinct
-(4 rows)
+                      QUERY PLAN                       
+-------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   ->  Finalize HashAggregate
+         Group Key: a, b
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by S: a, b
+               ->  Partial HashAggregate
+                     Group Key: a, b
+                     ->  Seq Scan on ndistinct
+(8 rows)
 
 EXPLAIN (COSTS off)
  SELECT COUNT(*) FROM ndistinct GROUP BY a, b, c;
-                        QUERY PLAN                         
------------------------------------------------------------
- HashAggregate
-   Group Key: a, b, c
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-         ->  Seq Scan on ndistinct
-(4 rows)
+                      QUERY PLAN                       
+-------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   ->  Finalize HashAggregate
+         Group Key: a, b, c
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by S: a, b, c
+               ->  Partial HashAggregate
+                     Group Key: a, b, c
+                     ->  Seq Scan on ndistinct
+(8 rows)
 
 EXPLAIN (COSTS off)
  SELECT COUNT(*) FROM ndistinct GROUP BY a, b, c, d;
-                        QUERY PLAN                         
------------------------------------------------------------
- HashAggregate
-   Group Key: a, b, c, d
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-         ->  Seq Scan on ndistinct
-(4 rows)
+                      QUERY PLAN                       
+-------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   ->  Finalize HashAggregate
+         Group Key: a, b, c, d
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by S: a, b, c, d
+               ->  Partial HashAggregate
+                     Group Key: a, b, c, d
+                     ->  Seq Scan on ndistinct
+(8 rows)
 
 EXPLAIN (COSTS off)
  SELECT COUNT(*) FROM ndistinct GROUP BY b, c, d;
-                        QUERY PLAN                         
------------------------------------------------------------
- HashAggregate
-   Group Key: b, c, d
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-         ->  Seq Scan on ndistinct
-(4 rows)
+                      QUERY PLAN                       
+-------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   ->  Finalize HashAggregate
+         Group Key: b, c, d
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by S: b, c, d
+               ->  Partial HashAggregate
+                     Group Key: b, c, d
+                     ->  Seq Scan on ndistinct
+(8 rows)
 
 EXPLAIN (COSTS off)
  SELECT COUNT(*) FROM ndistinct GROUP BY a, d;
-                        QUERY PLAN                         
------------------------------------------------------------
- HashAggregate
-   Group Key: a, d
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-         ->  Seq Scan on ndistinct
-(4 rows)
+                      QUERY PLAN                       
+-------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   ->  Finalize HashAggregate
+         Group Key: a, d
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by S: a, d
+               ->  Partial HashAggregate
+                     Group Key: a, d
+                     ->  Seq Scan on ndistinct
+(8 rows)
 
 -- functional dependencies tests
 CREATE TABLE functional_dependencies (
@@ -574,4 +701,105 @@ EXPLAIN (COSTS OFF)
                Index Cond: ((a = 1) AND (b = '1'::text))
 (7 rows)
 
+-- subset relational tests
+CREATE TABLE subset (
+    filler1 TEXT,
+    filler2 NUMERIC,
+    a INT,
+    b TEXT,
+    filler3 DATE,
+    c INT,
+    d TEXT
+);
+-- a => b, b==c
+INSERT INTO subset (a, b, c, filler1)
+     SELECT mod(i,100), 'prefix_'||mod(i,50), mod(i,50), i FROM generate_series(1,5000) s(i);
+ANALYZE subset;
+-- under-estimates when using only per-column statistics
+EXPLAIN (COSTS OFF)
+ SELECT count(*) FROM subset WHERE b = 'prefix_1' and c = 1;
+                         QUERY PLAN                         
+------------------------------------------------------------
+ Aggregate
+   ->  Remote Subquery Scan on all (datanodes 2)
+         ->  Seq Scan on subset
+               Filter: ((b = 'prefix_1'::text) AND (c = 1))
+(4 rows)
+
+SELECT count(*) FROM subset WHERE b = 'prefix_1' and c = 1;
+ count 
+-------
+   100
+(1 row)
+
+-- create dependencies
+CREATE STATISTICS deps_stat (dependencies) ON a, b, c FROM subset;
+ANALYZE subset;
+-- the selectivity is corrected by dependencies stats
+EXPLAIN (COSTS OFF)
+ SELECT count(*) FROM subset WHERE b = 'prefix_1' and c = 1;
+                            QUERY PLAN                            
+------------------------------------------------------------------
+ Finalize Aggregate
+   ->  Remote Subquery Scan on all (datanodes 2)
+         ->  Partial Aggregate
+               ->  Seq Scan on subset
+                     Filter: ((b = 'prefix_1'::text) AND (c = 1))
+(5 rows)
+
+SELECT count(*) FROM subset WHERE b = 'prefix_1' and c = 1;
+ count 
+-------
+   100
+(1 row)
+
+-- dependencies stats does not support operator other than '='
+EXPLAIN (COSTS OFF)
+ SELECT count(*) FROM subset WHERE b like '%_1' and c = 1;
+                          QUERY PLAN                          
+--------------------------------------------------------------
+ Finalize Aggregate
+   ->  Remote Subquery Scan on all (datanodes 2)
+         ->  Partial Aggregate
+               ->  Seq Scan on subset
+                     Filter: ((b ~~ '%_1'::text) AND (c = 1))
+(5 rows)
+
+SELECT count(*) FROM subset WHERE b like '%_1' and c = 1;
+ count 
+-------
+   100
+(1 row)
+
+-- wrong definition, subset stat only support two column
+CREATE STATISTICS subset_stat (subset) ON a, b, c FROM subset;
+ERROR:  unrecognized statistic type "subset"
+-- create subset stats as user defined hint
+CREATE STATISTICS subset_stat (subset) ON c, b FROM subset;
+ERROR:  unrecognized statistic type "subset"
+ANALYZE subset;
+-- the selectivity is corrected by subset stats
+EXPLAIN (COSTS OFF)
+ SELECT count(*) FROM subset WHERE b like '%_1' and c = 1;
+                          QUERY PLAN                          
+--------------------------------------------------------------
+ Finalize Aggregate
+   ->  Remote Subquery Scan on all (datanodes 2)
+         ->  Partial Aggregate
+               ->  Seq Scan on subset
+                     Filter: ((b ~~ '%_1'::text) AND (c = 1))
+(5 rows)
+
+SELECT count(*) FROM subset WHERE b like '%_1' and c = 1;
+ count 
+-------
+   100
+(1 row)
+
 RESET random_page_cost;
+set log_statement = ddl;
+CREATE TABLE ab1_20220712 (a INTEGER, b INTEGER, c INTEGER);
+INSERT INTO ab1_20220712 SELECT a, a%23 FROM generate_series(1, 1000) a;
+CREATE STATISTICS ab1_20220712_a_b_stats ON a, b FROM ab1_20220712;
+ANALYZE ab1_20220712;
+drop table ab1_20220712;

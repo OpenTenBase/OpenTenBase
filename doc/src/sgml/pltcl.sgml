@@ -15,8 +15,8 @@
    PL/Tcl is a loadable procedural language for the
    <productname>PostgreSQL</productname> database system
    that enables the <ulink url="http://www.tcl.tk/">
-   Tcl language</ulink> to be used to write functions and
-   trigger procedures.
+   Tcl language</ulink> to be used to write
+   <productname>PostgreSQL</productname> functions.
   </para>
 
   <!-- **** PL/Tcl overview **** -->
@@ -97,7 +97,8 @@ $$ LANGUAGE pltcl;
      Tcl script as variables named <literal>1</literal>
      ... <literal><replaceable>n</replaceable></literal>.  The result is
      returned from the Tcl code in the usual way, with
-     a <literal>return</literal> statement.
+     a <literal>return</literal> statement.  In a procedure, the return value
+     from the Tcl code is ignored.
     </para>
 
     <para>
@@ -182,6 +183,18 @@ $$ LANGUAGE pltcl;
 CREATE FUNCTION square_cube(in int, out squared int, out cubed int) AS $$
     return [list squared [expr {$1 * $1}] cubed [expr {$1 * $1 * $1}]]
 $$ LANGUAGE pltcl;
+</programlisting>
+    </para>
+
+    <para>
+     Output arguments of procedures are returned in the same way, for example:
+
+<programlisting>
+CREATE PROCEDURE tcl_triple(INOUT a integer, INOUT b integer) AS $$
+    return [list a [expr {$1 * 3}] b [expr {$2 * 3}]]
+$$ LANGUAGE pltcl;
+
+CALL tcl_triple(5, 10);
 </programlisting>
     </para>
 
@@ -574,7 +587,7 @@ SELECT 'doesn''t' AS ret
    </sect1>
 
    <sect1 id="pltcl-trigger">
-    <title>Trigger Procedures in PL/Tcl</title>
+    <title>Trigger Functions in PL/Tcl</title>
 
     <indexterm>
      <primary>trigger</primary>
@@ -606,7 +619,7 @@ SELECT 'doesn''t' AS ret
        <term><varname>$TG_relid</varname></term>
        <listitem>
         <para>
-         The object ID of the table that caused the trigger procedure
+         The object ID of the table that caused the trigger function
          to be invoked.
         </para>
        </listitem>
@@ -616,7 +629,7 @@ SELECT 'doesn''t' AS ret
        <term><varname>$TG_table_name</varname></term>
        <listitem>
         <para>
-         The name of the table that caused the trigger procedure
+         The name of the table that caused the trigger function
          to be invoked.
         </para>
        </listitem>
@@ -626,7 +639,7 @@ SELECT 'doesn''t' AS ret
        <term><varname>$TG_table_schema</varname></term>
        <listitem>
         <para>
-         The schema of the table that caused the trigger procedure
+         The schema of the table that caused the trigger function
          to be invoked.
         </para>
        </listitem>
@@ -709,9 +722,9 @@ SELECT 'doesn''t' AS ret
        <term><varname>$args</varname></term>
        <listitem>
         <para>
-         A Tcl list of the arguments to the procedure as given in the
+         A Tcl list of the arguments to the function as given in the
          <command>CREATE TRIGGER</command> statement. These arguments are also accessible as
-         <literal>$1</literal> ... <literal>$<replaceable>n</replaceable></literal> in the procedure body.
+         <literal>$1</literal> ... <literal>$<replaceable>n</replaceable></literal> in the function body.
         </para>
        </listitem>
       </varlistentry>
@@ -751,7 +764,7 @@ SELECT 'doesn''t' AS ret
     </tip>
 
     <para>
-     Here's a little example trigger procedure that forces an integer value
+     Here's a little example trigger function that forces an integer value
      in a table to keep track of the number of updates that are performed on the
      row. For new rows inserted, the value is initialized to 0 and then
      incremented on every update operation.
@@ -831,11 +844,11 @@ CREATE TRIGGER trig_mytab_modcount BEFORE INSERT OR UPDATE ON mytab
     </para>
 
     <para>
-     The return value of the trigger procedure is ignored.
+     The return value of the trigger function is ignored.
     </para>
 
     <para>
-     Here's a little example event trigger procedure that simply raises
+     Here's a little example event trigger function that simply raises
      a <literal>NOTICE</literal> message each time a supported command is
      executed:
 
@@ -844,7 +857,7 @@ CREATE OR REPLACE FUNCTION tclsnitch() RETURNS event_trigger AS $$
   elog NOTICE "tclsnitch: $TG_event $TG_tag"
 $$ LANGUAGE pltcl;
 
-CREATE EVENT TRIGGER tcl_a_snitch ON ddl_command_start EXECUTE PROCEDURE tclsnitch();
+CREATE EVENT TRIGGER tcl_a_snitch ON ddl_command_start EXECUTE FUNCTION tclsnitch();
 </programlisting>
     </para>
    </sect1>
@@ -1003,6 +1016,47 @@ $$ LANGUAGE pltcl;
      subtransaction to be rolled back.  However, non-error exits out of the
      contained Tcl code (for instance, due to <function>return</function>) do
      not cause a rollback.
+    </para>
+   </sect1>
+
+   <sect1 id="pltcl-transactions">
+    <title>Transaction Management</title>
+
+    <para>
+     In a procedure called from the top level or an anonymous code block
+     (<command>DO</command> command) called from the top level it is possible
+     to control transactions.  To commit the current transaction, call the
+     <literal>commit</literal> command.  To roll back the current transaction,
+     call the <literal>rollback</literal> command.  (Note that it is not
+     possible to run the SQL commands <command>COMMIT</command> or
+     <command>ROLLBACK</command> via <function>spi_exec</function> or similar.
+     It has to be done using these functions.)  After a transaction is ended,
+     a new transaction is automatically started, so there is no separate
+     command for that.
+    </para>
+
+    <para>
+     Here is an example:
+<programlisting>
+CREATE PROCEDURE transaction_test1()
+LANGUAGE pltcl
+AS $$
+for {set i 0} {$i &lt; 10} {incr i} {
+    spi_exec "INSERT INTO test1 (a) VALUES ($i)"
+    if {$i % 2 == 0} {
+        commit
+    } else {
+        rollback
+    }
+}
+$$;
+
+CALL transaction_test1();
+</programlisting>
+    </para>
+
+    <para>
+     Transactions cannot be ended when an explicit subtransaction is active.
     </para>
    </sect1>
 

@@ -81,26 +81,27 @@ extern void cache_locale_time(void);
  */
 struct pg_locale_struct
 {
-    char        provider;
-    union
-    {
+	char		provider;
+	union
+	{
 #ifdef HAVE_LOCALE_T
-        locale_t    lt;
+		locale_t	lt;
 #endif
 #ifdef USE_ICU
-        struct
-        {
-            const char *locale;
-            UCollator  *ucol;
-        }            icu;
+		struct
+		{
+			const char *locale;
+			UCollator  *ucol;
+		}			icu;
 #endif
-        int            dummy;        /* in case we have neither LOCALE_T nor ICU */
-    }            info;
+		int			dummy;		/* in case we have neither LOCALE_T nor ICU */
+	}			info;
 };
 
 typedef struct pg_locale_struct *pg_locale_t;
 
 extern pg_locale_t pg_newlocale_from_collation(Oid collid);
+extern pg_locale_t get_newlocale_from_collation_secure(Oid collid);
 
 extern char *get_collation_actual_version(char collprovider, const char *collcollate);
 
@@ -112,9 +113,9 @@ extern int32_t icu_from_uchar(char **result, const UChar *buff_uchar, int32_t le
 /* These functions convert from/to libc's wchar_t, *not* pg_wchar_t */
 #ifdef USE_WIDE_UPPER_LOWER
 extern size_t wchar2char(char *to, const wchar_t *from, size_t tolen,
-           pg_locale_t locale);
+		   pg_locale_t locale);
 extern size_t char2wchar(wchar_t *to, size_t tolen,
-           const char *from, size_t fromlen, pg_locale_t locale);
+		   const char *from, size_t fromlen, pg_locale_t locale);
 #endif
 
-#endif                            /* _PG_LOCALE_ */
+#endif							/* _PG_LOCALE_ */

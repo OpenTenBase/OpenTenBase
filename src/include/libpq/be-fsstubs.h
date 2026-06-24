@@ -15,23 +15,18 @@
 #define BE_FSSTUBS_H
 
 /*
- * compatibility option for access control
- */
-extern bool lo_compat_privileges;
-
-/*
  * These are not fmgr-callable, but are available to C code.
  * Probably these should have had the underscore-free names,
  * but too late now...
  */
-extern int    lo_read(int fd, char *buf, int len);
-extern int    lo_write(int fd, const char *buf, int len);
+extern int	lo_read(int fd, char *buf, int len);
+extern int	lo_write(int fd, const char *buf, int len);
 
 /*
  * Cleanup LOs at xact commit/abort
  */
 extern void AtEOXact_LargeObject(bool isCommit);
 extern void AtEOSubXact_LargeObject(bool isCommit, SubTransactionId mySubid,
-                        SubTransactionId parentSubid);
+						SubTransactionId parentSubid);
 
-#endif                            /* BE_FSSTUBS_H */
+#endif							/* BE_FSSTUBS_H */

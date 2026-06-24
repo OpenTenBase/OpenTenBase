@@ -1,13 +1,13 @@
 /*-------------------------------------------------------------------------
  *
  * evtcache.c
- *      Special-purpose cache for event trigger data.
+ *	  Special-purpose cache for event trigger data.
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *      src/backend/utils/cache/evtcache.c
+ *	  src/backend/utils/cache/evtcache.c
  *
  *-------------------------------------------------------------------------
  */
@@ -33,15 +33,15 @@
 
 typedef enum
 {
-    ETCS_NEEDS_REBUILD,
-    ETCS_REBUILD_STARTED,
-    ETCS_VALID
+	ETCS_NEEDS_REBUILD,
+	ETCS_REBUILD_STARTED,
+	ETCS_VALID
 } EventTriggerCacheStateType;
 
 typedef struct
 {
-    EventTriggerEvent event;
-    List       *triggerlist;
+	EventTriggerEvent event;
+	List	   *triggerlist;
 } EventTriggerCacheEntry;
 
 static HTAB *EventTriggerCache;
@@ -50,8 +50,8 @@ static EventTriggerCacheStateType EventTriggerCacheState = ETCS_NEEDS_REBUILD;
 
 static void BuildEventTriggerCache(void);
 static void InvalidateEventCacheCallback(Datum arg,
-                             int cacheid, uint32 hashvalue);
-static int    DecodeTextArrayToCString(Datum array, char ***cstringp);
+							 int cacheid, uint32 hashvalue);
+static int	DecodeTextArrayToCString(Datum array, char ***cstringp);
 
 /*
  * Search the event cache by trigger event.
@@ -63,12 +63,12 @@ static int    DecodeTextArrayToCString(Datum array, char ***cstringp);
 List *
 EventCacheLookup(EventTriggerEvent event)
 {
-    EventTriggerCacheEntry *entry;
+	EventTriggerCacheEntry *entry;
 
-    if (EventTriggerCacheState != ETCS_VALID)
-        BuildEventTriggerCache();
-    entry = hash_search(EventTriggerCache, &event, HASH_FIND, NULL);
-    return entry != NULL ? entry->triggerlist : NIL;
+	if (EventTriggerCacheState != ETCS_VALID)
+		BuildEventTriggerCache();
+	entry = hash_search(EventTriggerCache, &event, HASH_FIND, NULL);
+	return entry != NULL ? entry->triggerlist : NIL;
 }
 
 /*
@@ -76,142 +76,142 @@ EventCacheLookup(EventTriggerEvent event)
  */
 static void
 BuildEventTriggerCache(void)
-{// #lizard forgives
-    HASHCTL        ctl;
-    HTAB       *cache;
-    MemoryContext oldcontext;
-    Relation    rel;
-    Relation    irel;
-    SysScanDesc scan;
+{
+	HASHCTL		ctl;
+	HTAB	   *cache;
+	MemoryContext oldcontext;
+	Relation	rel;
+	Relation	irel;
+	SysScanDesc scan;
 
-    if (EventTriggerCacheContext != NULL)
-    {
-        /*
-         * Free up any memory already allocated in EventTriggerCacheContext.
-         * This can happen either because a previous rebuild failed, or
-         * because an invalidation happened before the rebuild was complete.
-         */
-        MemoryContextResetAndDeleteChildren(EventTriggerCacheContext);
-    }
-    else
-    {
-        /*
-         * This is our first time attempting to build the cache, so we need to
-         * set up the memory context and register a syscache callback to
-         * capture future invalidation events.
-         */
-        if (CacheMemoryContext == NULL)
-            CreateCacheMemoryContext();
-        EventTriggerCacheContext =
-            AllocSetContextCreate(CacheMemoryContext,
-                                  "EventTriggerCache",
-                                  ALLOCSET_DEFAULT_SIZES);
-        CacheRegisterSyscacheCallback(EVENTTRIGGEROID,
-                                      InvalidateEventCacheCallback,
-                                      (Datum) 0);
-    }
+	if (EventTriggerCacheContext != NULL)
+	{
+		/*
+		 * Free up any memory already allocated in EventTriggerCacheContext.
+		 * This can happen either because a previous rebuild failed, or
+		 * because an invalidation happened before the rebuild was complete.
+		 */
+		MemoryContextResetAndDeleteChildren(EventTriggerCacheContext);
+	}
+	else
+	{
+		/*
+		 * This is our first time attempting to build the cache, so we need to
+		 * set up the memory context and register a syscache callback to
+		 * capture future invalidation events.
+		 */
+		if (CacheMemoryContext == NULL)
+			CreateCacheMemoryContext();
+		EventTriggerCacheContext =
+			AllocSetContextCreate(CacheMemoryContext,
+								  "EventTriggerCache",
+								  ALLOCSET_DEFAULT_SIZES);
+		CacheRegisterSyscacheCallback(EVENTTRIGGEROID,
+									  InvalidateEventCacheCallback,
+									  (Datum) 0);
+	}
 
-    /* Switch to correct memory context. */
-    oldcontext = MemoryContextSwitchTo(EventTriggerCacheContext);
+	/* Switch to correct memory context. */
+	oldcontext = MemoryContextSwitchTo(EventTriggerCacheContext);
 
-    /* Prevent the memory context from being nuked while we're rebuilding. */
-    EventTriggerCacheState = ETCS_REBUILD_STARTED;
+	/* Prevent the memory context from being nuked while we're rebuilding. */
+	EventTriggerCacheState = ETCS_REBUILD_STARTED;
 
-    /* Create new hash table. */
-    MemSet(&ctl, 0, sizeof(ctl));
-    ctl.keysize = sizeof(EventTriggerEvent);
-    ctl.entrysize = sizeof(EventTriggerCacheEntry);
-    ctl.hcxt = EventTriggerCacheContext;
-    cache = hash_create("Event Trigger Cache", 32, &ctl,
-                        HASH_ELEM | HASH_BLOBS | HASH_CONTEXT);
+	/* Create new hash table. */
+	MemSet(&ctl, 0, sizeof(ctl));
+	ctl.keysize = sizeof(EventTriggerEvent);
+	ctl.entrysize = sizeof(EventTriggerCacheEntry);
+	ctl.hcxt = EventTriggerCacheContext;
+	cache = hash_create("Event Trigger Cache", 32, &ctl,
+						HASH_ELEM | HASH_BLOBS | HASH_CONTEXT);
 
-    /*
-     * Prepare to scan pg_event_trigger in name order.
-     */
-    rel = relation_open(EventTriggerRelationId, AccessShareLock);
-    irel = index_open(EventTriggerNameIndexId, AccessShareLock);
-    scan = systable_beginscan_ordered(rel, irel, NULL, 0, NULL);
+	/*
+	 * Prepare to scan pg_event_trigger in name order.
+	 */
+	rel = relation_open(EventTriggerRelationId, AccessShareLock);
+	irel = index_open(EventTriggerNameIndexId, AccessShareLock);
+	scan = systable_beginscan_ordered(rel, irel, NULL, 0, NULL);
 
-    /*
-     * Build a cache item for each pg_event_trigger tuple, and append each one
-     * to the appropriate cache entry.
-     */
-    for (;;)
-    {
-        HeapTuple    tup;
-        Form_pg_event_trigger form;
-        char       *evtevent;
-        EventTriggerEvent event;
-        EventTriggerCacheItem *item;
-        Datum        evttags;
-        bool        evttags_isnull;
-        EventTriggerCacheEntry *entry;
-        bool        found;
+	/*
+	 * Build a cache item for each pg_event_trigger tuple, and append each one
+	 * to the appropriate cache entry.
+	 */
+	for (;;)
+	{
+		HeapTuple	tup;
+		Form_pg_event_trigger form;
+		char	   *evtevent;
+		EventTriggerEvent event;
+		EventTriggerCacheItem *item;
+		Datum		evttags;
+		bool		evttags_isnull;
+		EventTriggerCacheEntry *entry;
+		bool		found;
 
-        /* Get next tuple. */
-        tup = systable_getnext_ordered(scan, ForwardScanDirection);
-        if (!HeapTupleIsValid(tup))
-            break;
+		/* Get next tuple. */
+		tup = systable_getnext_ordered(scan, ForwardScanDirection);
+		if (!HeapTupleIsValid(tup))
+			break;
 
-        /* Skip trigger if disabled. */
-        form = (Form_pg_event_trigger) GETSTRUCT(tup);
-        if (form->evtenabled == TRIGGER_DISABLED)
-            continue;
+		/* Skip trigger if disabled. */
+		form = (Form_pg_event_trigger) GETSTRUCT(tup);
+		if (form->evtenabled == TRIGGER_DISABLED)
+			continue;
 
-        /* Decode event name. */
-        evtevent = NameStr(form->evtevent);
-        if (strcmp(evtevent, "ddl_command_start") == 0)
-            event = EVT_DDLCommandStart;
-        else if (strcmp(evtevent, "ddl_command_end") == 0)
-            event = EVT_DDLCommandEnd;
-        else if (strcmp(evtevent, "sql_drop") == 0)
-            event = EVT_SQLDrop;
-        else if (strcmp(evtevent, "table_rewrite") == 0)
-            event = EVT_TableRewrite;
-        else
-            continue;
+		/* Decode event name. */
+		evtevent = NameStr(form->evtevent);
+		if (strcmp(evtevent, "ddl_command_start") == 0)
+			event = EVT_DDLCommandStart;
+		else if (strcmp(evtevent, "ddl_command_end") == 0)
+			event = EVT_DDLCommandEnd;
+		else if (strcmp(evtevent, "sql_drop") == 0)
+			event = EVT_SQLDrop;
+		else if (strcmp(evtevent, "table_rewrite") == 0)
+			event = EVT_TableRewrite;
+		else
+			continue;
 
-        /* Allocate new cache item. */
-        item = palloc0(sizeof(EventTriggerCacheItem));
-        item->fnoid = form->evtfoid;
-        item->enabled = form->evtenabled;
+		/* Allocate new cache item. */
+		item = palloc0(sizeof(EventTriggerCacheItem));
+		item->fnoid = form->evtfoid;
+		item->enabled = form->evtenabled;
 
-        /* Decode and sort tags array. */
-        evttags = heap_getattr(tup, Anum_pg_event_trigger_evttags,
-                               RelationGetDescr(rel), &evttags_isnull);
-        if (!evttags_isnull)
-        {
-            item->ntags = DecodeTextArrayToCString(evttags, &item->tag);
-            qsort(item->tag, item->ntags, sizeof(char *), pg_qsort_strcmp);
-        }
+		/* Decode and sort tags array. */
+		evttags = heap_getattr(tup, Anum_pg_event_trigger_evttags,
+							   RelationGetDescr(rel), &evttags_isnull);
+		if (!evttags_isnull)
+		{
+			item->ntags = DecodeTextArrayToCString(evttags, &item->tag);
+			qsort(item->tag, item->ntags, sizeof(char *), pg_qsort_strcmp);
+		}
 
-        /* Add to cache entry. */
-        entry = hash_search(cache, &event, HASH_ENTER, &found);
-        if (found)
-            entry->triggerlist = lappend(entry->triggerlist, item);
-        else
-            entry->triggerlist = list_make1(item);
-    }
+		/* Add to cache entry. */
+		entry = hash_search(cache, &event, HASH_ENTER, &found);
+		if (found)
+			entry->triggerlist = lappend(entry->triggerlist, item);
+		else
+			entry->triggerlist = list_make1(item);
+	}
 
-    /* Done with pg_event_trigger scan. */
-    systable_endscan_ordered(scan);
-    index_close(irel, AccessShareLock);
-    relation_close(rel, AccessShareLock);
+	/* Done with pg_event_trigger scan. */
+	systable_endscan_ordered(scan);
+	index_close(irel, AccessShareLock);
+	relation_close(rel, AccessShareLock);
 
-    /* Restore previous memory context. */
-    MemoryContextSwitchTo(oldcontext);
+	/* Restore previous memory context. */
+	MemoryContextSwitchTo(oldcontext);
 
-    /* Install new cache. */
-    EventTriggerCache = cache;
+	/* Install new cache. */
+	EventTriggerCache = cache;
 
-    /*
-     * If the cache has been invalidated since we entered this routine, we
-     * still use and return the cache we just finished constructing, to avoid
-     * infinite loops, but we leave the cache marked stale so that we'll
-     * rebuild it again on next access.  Otherwise, we mark the cache valid.
-     */
-    if (EventTriggerCacheState == ETCS_REBUILD_STARTED)
-        EventTriggerCacheState = ETCS_VALID;
+	/*
+	 * If the cache has been invalidated since we entered this routine, we
+	 * still use and return the cache we just finished constructing, to avoid
+	 * infinite loops, but we leave the cache marked stale so that we'll
+	 * rebuild it again on next access.  Otherwise, we mark the cache valid.
+	 */
+	if (EventTriggerCacheState == ETCS_REBUILD_STARTED)
+		EventTriggerCacheState = ETCS_VALID;
 }
 
 /*
@@ -224,23 +224,23 @@ BuildEventTriggerCache(void)
 static int
 DecodeTextArrayToCString(Datum array, char ***cstringp)
 {
-    ArrayType  *arr = DatumGetArrayTypeP(array);
-    Datum       *elems;
-    char      **cstring;
-    int            i;
-    int            nelems;
+	ArrayType  *arr = DatumGetArrayTypeP(array);
+	Datum	   *elems;
+	char	  **cstring;
+	int			i;
+	int			nelems;
 
-    if (ARR_NDIM(arr) != 1 || ARR_HASNULL(arr) || ARR_ELEMTYPE(arr) != TEXTOID)
-        elog(ERROR, "expected 1-D text array");
-    deconstruct_array(arr, TEXTOID, -1, false, 'i', &elems, NULL, &nelems);
+	if (ARR_NDIM(arr) != 1 || ARR_HASNULL(arr) || ARR_ELEMTYPE(arr) != TEXTOID)
+		elog(ERROR, "expected 1-D text array");
+	deconstruct_array(arr, TEXTOID, -1, false, 'i', &elems, NULL, &nelems);
 
-    cstring = palloc(nelems * sizeof(char *));
-    for (i = 0; i < nelems; ++i)
-        cstring[i] = TextDatumGetCString(elems[i]);
+	cstring = palloc(nelems * sizeof(char *));
+	for (i = 0; i < nelems; ++i)
+		cstring[i] = TextDatumGetCString(elems[i]);
 
-    pfree(elems);
-    *cstringp = cstring;
-    return nelems;
+	pfree(elems);
+	*cstringp = cstring;
+	return nelems;
 }
 
 /*
@@ -253,17 +253,17 @@ DecodeTextArrayToCString(Datum array, char ***cstringp)
 static void
 InvalidateEventCacheCallback(Datum arg, int cacheid, uint32 hashvalue)
 {
-    /*
-     * If the cache isn't valid, then there might be a rebuild in progress, so
-     * we can't immediately blow it away.  But it's advantageous to do this
-     * when possible, so as to immediately free memory.
-     */
-    if (EventTriggerCacheState == ETCS_VALID)
-    {
-        MemoryContextResetAndDeleteChildren(EventTriggerCacheContext);
-        EventTriggerCache = NULL;
-    }
+	/*
+	 * If the cache isn't valid, then there might be a rebuild in progress, so
+	 * we can't immediately blow it away.  But it's advantageous to do this
+	 * when possible, so as to immediately free memory.
+	 */
+	if (EventTriggerCacheState == ETCS_VALID)
+	{
+		MemoryContextResetAndDeleteChildren(EventTriggerCacheContext);
+		EventTriggerCache = NULL;
+	}
 
-    /* Mark cache for rebuild. */
-    EventTriggerCacheState = ETCS_NEEDS_REBUILD;
+	/* Mark cache for rebuild. */
+	EventTriggerCacheState = ETCS_NEEDS_REBUILD;
 }

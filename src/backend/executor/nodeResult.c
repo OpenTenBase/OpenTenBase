@@ -37,9 +37,6 @@
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * IDENTIFICATION
  *	  src/backend/executor/nodeResult.c
  *
@@ -51,8 +48,12 @@
 #include "executor/executor.h"
 #include "executor/nodeResult.h"
 #include "miscadmin.h"
-#include "optimizer/clauses.h"
 #include "utils/memutils.h"
+#ifdef __OPENTENBASE_C__
+#include "executor/execFragment.h"
+
+static void ExecDecrementRownum(PlanState *pstate);
+#endif
 
 
 /* ----------------------------------------------------------------
@@ -92,6 +93,7 @@ ExecResult(PlanState *pstate)
 		if (!qualResult)
 		{
 			node->rs_done = true;
+			ExecDisconnectNode(pstate);
 			return NULL;
 		}
 	}
@@ -110,6 +112,7 @@ ExecResult(PlanState *pstate)
 	 */
 	while (!node->rs_done)
 	{
+		TupleTableSlot *result;
 		outerPlan = outerPlanState(node);
 
 		if (outerPlan != NULL)
@@ -125,13 +128,19 @@ ExecResult(PlanState *pstate)
 			if (qual)
 			{
 				econtext->ecxt_outertuple = outerTupleSlot;
-				econtext->ecxt_scantuple = outerTupleSlot;
-				
+
 				if (!ExecQual(qual, econtext))
 				{
-					continue;
+					if (((Result *) node->ps.plan)->fail_return)
+						return NULL;
+					else
+					{
+						ExecDecrementRownum(outerPlan);
+						ExecDecrementRownum(pstate);
+						continue;
+					}
 				}
-				
+
 				ResetExprContext(econtext);
 			}
 
@@ -151,7 +160,9 @@ ExecResult(PlanState *pstate)
 		}
 
 		/* form the result tuple using ExecProject(), and return it */
-		return ExecProject(node->ps.ps_ProjInfo);
+		result = ExecProject(node->ps.ps_ProjInfo);
+
+		return result;
 	}
 
 	return NULL;
@@ -223,19 +234,6 @@ ExecInitResult(Result *node, EState *estate, int eflags)
 	ExecAssignExprContext(estate, &resstate->ps);
 
 	/*
-	 * tuple table initialization
-	 */
-	ExecInitResultTupleSlot(estate, &resstate->ps);
-
-	/*
-	 * initialize child expressions
-	 */
-	resstate->ps.qual =
-		ExecInitQual(node->plan.qual, (PlanState *) resstate);
-	resstate->resconstantqual =
-		ExecInitQual((List *) node->resconstantqual, (PlanState *) resstate);
-
-	/*
 	 * initialize child nodes
 	 */
 	outerPlanState(resstate) = ExecInitNode(outerPlan(node), estate, eflags);
@@ -246,10 +244,18 @@ ExecInitResult(Result *node, EState *estate, int eflags)
 	Assert(innerPlan(node) == NULL);
 
 	/*
-	 * initialize tuple type and projection info
+	 * Initialize result slot, type and projection.
 	 */
-	ExecAssignResultTypeFromTL(&resstate->ps);
+	ExecInitResultTupleSlotTL(&resstate->ps);
 	ExecAssignProjectionInfo(&resstate->ps, NULL);
+
+	/*
+	 * initialize child expressions
+	 */
+	resstate->ps.qual =
+		ExecInitQual(node->plan.qual, (PlanState *) resstate);
+	resstate->resconstantqual =
+		ExecInitQual((List *) node->resconstantqual, (PlanState *) resstate);
 
 	return resstate;
 }
@@ -292,4 +298,14 @@ ExecReScanResult(ResultState *node)
 	if (node->ps.lefttree &&
 		node->ps.lefttree->chgParam == NULL)
 		ExecReScan(node->ps.lefttree);
+}
+
+static void
+ExecDecrementRownum(PlanState *pstate)
+{
+	if (pstate->ps_ProjInfo &&
+		pstate->ps_ProjInfo->pi_state.rownum > 1)
+		pstate->ps_ProjInfo->pi_state.rownum--;
+	if (pstate->qual && pstate->qual->rownum > 1)
+		pstate->qual->rownum--;
 }

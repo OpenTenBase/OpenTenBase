@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * async.h
- *      Asynchronous notification: NOTIFY, LISTEN, UNLISTEN
+ *	  Asynchronous notification: NOTIFY, LISTEN, UNLISTEN
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -20,7 +20,7 @@
 /*
  * The number of SLRU page buffers we use for the notification queue.
  */
-#define NUM_ASYNC_BUFFERS    8
+#define NUM_ASYNC_BUFFERS	8
 
 extern bool Trace_notify;
 extern volatile sig_atomic_t notifyInterruptPending;
@@ -29,8 +29,8 @@ extern Size AsyncShmemSize(void);
 extern void AsyncShmemInit(void);
 
 extern void NotifyMyFrontEnd(const char *channel,
-                 const char *payload,
-                 int32 srcPid);
+				 const char *payload,
+				 int32 srcPid);
 
 /* notify-related SQL statements */
 extern void Async_Notify(const char *channel, const char *payload);
@@ -54,4 +54,4 @@ extern void HandleNotifyInterrupt(void);
 /* process interrupts */
 extern void ProcessNotifyInterrupt(void);
 
-#endif                            /* ASYNC_H */
+#endif							/* ASYNC_H */

@@ -7,6 +7,27 @@ SET max_parallel_workers = 0;
 SET max_parallel_workers_per_gather = 0;
 SET work_mem = '128kB';
 
+-- check the number of estimated/actual rows in the top node
+create function check_estimated_rows(text) returns table (estimated int, actual int)
+language plpgsql as
+$$
+declare
+    ln text;
+    tmp text[];
+    first_row bool := true;
+begin
+    for ln in
+        execute format('explain analyze %s', $1)
+    loop
+        if first_row then
+            first_row := false;
+            tmp := regexp_match(ln, 'rows=(\d*) .* rows=(\d*)');
+            return query select tmp[1]::int, tmp[2]::int;
+        end if;
+    end loop;
+end;
+$$;
+
 -- Verify failures
 CREATE STATISTICS tst;
 CREATE STATISTICS tst ON a, b;
@@ -67,6 +88,41 @@ SELECT
 FROM pg_statistic_ext WHERE stxname = 'ab1_a_b_stats';
 DROP TABLE ab1;
 
+-- Ensure we can build statistics for tables with inheritance.
+CREATE TABLE ab1 (a INTEGER, b INTEGER);
+CREATE TABLE ab1c () INHERITS (ab1);
+INSERT INTO ab1 VALUES (1,1);
+CREATE STATISTICS ab1_a_b_stats ON a, b FROM ab1;
+ANALYZE ab1;
+DROP TABLE ab1 CASCADE;
+
+-- Tests for stats with inheritance
+CREATE TABLE stxdinh(a int, b int);
+CREATE TABLE stxdinh1() INHERITS(stxdinh);
+CREATE TABLE stxdinh2() INHERITS(stxdinh);
+INSERT INTO stxdinh SELECT mod(a,50), mod(a,100) FROM generate_series(0, 1999) a;
+INSERT INTO stxdinh1 SELECT mod(a,100), mod(a,100) FROM generate_series(0, 999) a;
+INSERT INTO stxdinh2 SELECT mod(a,100), mod(a,100) FROM generate_series(0, 999) a;
+VACUUM ANALYZE stxdinh;
+VACUUM ANALYZE stxdinh1;
+VACUUM ANALYZE stxdinh2;
+set enable_fast_query_shipping to off;
+-- Ensure non-inherited stats are not applied to inherited query
+-- Without stats object, it looks like this
+SELECT * FROM check_estimated_rows('SELECT a, b FROM stxdinh* GROUP BY 1, 2');
+SELECT * FROM check_estimated_rows('SELECT a, b FROM stxdinh* WHERE a = 0 AND b = 0');
+CREATE STATISTICS stxdinh ON a, b FROM stxdinh;
+VACUUM ANALYZE stxdinh;
+VACUUM ANALYZE stxdinh1;
+VACUUM ANALYZE stxdinh2;
+-- Since the stats object does not include inherited stats, it should not
+-- affect the estimates
+SELECT * FROM check_estimated_rows('SELECT a, b FROM stxdinh* GROUP BY 1, 2');
+-- Dependencies are applied at individual relations (within append), so
+-- this estimate changes a bit because we improve estimates for the parent
+SELECT * FROM check_estimated_rows('SELECT a, b FROM stxdinh* WHERE a = 0 AND b = 0');
+reset enable_fast_query_shipping;
+DROP TABLE stxdinh, stxdinh1, stxdinh2;
 -- Verify supported object types for extended statistics
 CREATE schema tststats;
 
@@ -315,7 +371,7 @@ INSERT INTO subset (a, b, c, filler1)
 ANALYZE subset;
 
 -- under-estimates when using only per-column statistics
-EXPLAIN 
+EXPLAIN (COSTS OFF)
  SELECT count(*) FROM subset WHERE b = 'prefix_1' and c = 1;
 SELECT count(*) FROM subset WHERE b = 'prefix_1' and c = 1;
 
@@ -324,12 +380,12 @@ CREATE STATISTICS deps_stat (dependencies) ON a, b, c FROM subset;
 ANALYZE subset;
 
 -- the selectivity is corrected by dependencies stats
-EXPLAIN 
+EXPLAIN (COSTS OFF)
  SELECT count(*) FROM subset WHERE b = 'prefix_1' and c = 1;
 SELECT count(*) FROM subset WHERE b = 'prefix_1' and c = 1;
 
 -- dependencies stats does not support operator other than '='
-EXPLAIN 
+EXPLAIN (COSTS OFF)
  SELECT count(*) FROM subset WHERE b like '%_1' and c = 1;
 SELECT count(*) FROM subset WHERE b like '%_1' and c = 1;
 
@@ -340,8 +396,15 @@ CREATE STATISTICS subset_stat (subset) ON c, b FROM subset;
 ANALYZE subset;
 
 -- the selectivity is corrected by subset stats
-EXPLAIN 
+EXPLAIN (COSTS OFF)
  SELECT count(*) FROM subset WHERE b like '%_1' and c = 1;
 SELECT count(*) FROM subset WHERE b like '%_1' and c = 1;
 
+
 RESET random_page_cost;
+set log_statement = ddl;
+CREATE TABLE ab1_20220712 (a INTEGER, b INTEGER, c INTEGER);
+INSERT INTO ab1_20220712 SELECT a, a%23 FROM generate_series(1, 1000) a;
+CREATE STATISTICS ab1_20220712_a_b_stats ON a, b FROM ab1_20220712;
+ANALYZE ab1_20220712;
+drop table ab1_20220712;

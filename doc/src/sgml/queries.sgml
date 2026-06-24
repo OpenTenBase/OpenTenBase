@@ -2185,12 +2185,12 @@ SELECT n FROM t LIMIT 100;
 </programlisting>
 
    This works because <productname>PostgreSQL</productname>'s implementation
-   evaluates only as many rows of a <literal>WITH</> query as are actually
+   evaluates only as many rows of a <literal>WITH</literal> query as are actually
    fetched by the parent query.  Using this trick in production is not
    recommended, because other systems might work differently.  Also, it
    usually won't work if you make the outer query sort the recursive query's
    results or join them to some other table, because in such cases the
-   outer query will usually try to fetch all of the <literal>WITH</> query's
+   outer query will usually try to fetch all of the <literal>WITH</literal> query's
    output anyway.
   </para>
 
@@ -2200,7 +2200,7 @@ SELECT n FROM t LIMIT 100;
    they are referred to more than once by the parent query or
    sibling <literal>WITH</literal> queries.
    Thus, expensive calculations that are needed in multiple places can be
-   placed within a <literal>WITH</> query to avoid redundant work.  Another
+   placed within a <literal>WITH</literal> query to avoid redundant work.  Another
    possible application is to prevent unwanted multiple evaluations of
    functions with side-effects.
    However, the other side of this coin is that the optimizer is not able to
@@ -2282,7 +2282,7 @@ SELECT * FROM w AS w1 JOIN w AS w2 ON w1.f = w2.f;
    that <function>very_expensive_function</function> is evaluated only
    once per table row, not twice.
   </para>
-  
+
   <para>
    The examples above only show <literal>WITH</> being used with
    <command>SELECT</>, but it can be attached in the same way to

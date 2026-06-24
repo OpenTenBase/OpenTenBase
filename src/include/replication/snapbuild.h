@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * snapbuild.h
- *      Exports from replication/logical/snapbuild.c.
+ *	  Exports from replication/logical/snapbuild.c.
  *
  * Copyright (c) 2012-2017, PostgreSQL Global Development Group
  *
@@ -17,33 +17,33 @@
 
 typedef enum
 {
-    /*
-     * Initial state, we can't do much yet.
-     */
-    SNAPBUILD_START = -1,
+	/*
+	 * Initial state, we can't do much yet.
+	 */
+	SNAPBUILD_START = -1,
 
-    /*
-     * Collecting committed transactions, to build the initial catalog
-     * snapshot.
-     */
-    SNAPBUILD_BUILDING_SNAPSHOT = 0,
+	/*
+	 * Collecting committed transactions, to build the initial catalog
+	 * snapshot.
+	 */
+	SNAPBUILD_BUILDING_SNAPSHOT = 0,
 
-    /*
-     * We have collected enough information to decode tuples in transactions
-     * that started after this.
-     *
-     * Once we reached this we start to collect changes. We cannot apply them
-     * yet, because they might be based on transactions that were still
-     * running when FULL_SNAPSHOT was reached.
-     */
-    SNAPBUILD_FULL_SNAPSHOT = 1,
+	/*
+	 * We have collected enough information to decode tuples in transactions
+	 * that started after this.
+	 *
+	 * Once we reached this we start to collect changes. We cannot apply them
+	 * yet, because they might be based on transactions that were still
+	 * running when FULL_SNAPSHOT was reached.
+	 */
+	SNAPBUILD_FULL_SNAPSHOT = 1,
 
-    /*
-     * Found a point after SNAPBUILD_FULL_SNAPSHOT where all transactions that
-     * were running at that point finished. Till we reach that we hold off
-     * calling any commit callbacks.
-     */
-    SNAPBUILD_CONSISTENT = 2
+	/*
+	 * Found a point after SNAPBUILD_FULL_SNAPSHOT where all transactions that
+	 * were running at that point finished. Till we reach that we hold off
+	 * calling any commit callbacks.
+	 */
+	SNAPBUILD_CONSISTENT = 2
 } SnapBuildState;
 
 /* forward declare so we don't have to expose the struct to the public */
@@ -60,8 +60,8 @@ struct xl_running_xacts;
 extern void CheckPointSnapBuild(void);
 
 extern SnapBuild *AllocateSnapshotBuilder(struct ReorderBuffer *cache,
-                        TransactionId xmin_horizon, XLogRecPtr start_lsn,
-                        bool need_full_snapshot);
+						TransactionId xmin_horizon, XLogRecPtr start_lsn,
+						bool need_full_snapshot);
 extern void FreeSnapshotBuilder(SnapBuild *cache);
 
 extern void SnapBuildSnapDecRefcount(Snapshot snap);
@@ -69,22 +69,26 @@ extern void SnapBuildSnapDecRefcount(Snapshot snap);
 extern Snapshot SnapBuildInitialSnapshot(SnapBuild *builder);
 extern const char *SnapBuildExportSnapshot(SnapBuild *snapstate);
 extern void SnapBuildClearExportedSnapshot(void);
+extern void SnapBuildResetExportedSnapshotState(void);
 
 extern SnapBuildState SnapBuildCurrentState(SnapBuild *snapstate);
 extern Snapshot SnapBuildGetOrBuildSnapshot(SnapBuild *builder,
-                            TransactionId xid);
+							TransactionId xid);
 
 extern bool SnapBuildXactNeedsSkip(SnapBuild *snapstate, XLogRecPtr ptr);
 
 extern void SnapBuildCommitTxn(SnapBuild *builder, XLogRecPtr lsn,
-                   TransactionId xid, int nsubxacts,
-                   TransactionId *subxacts);
+				   TransactionId xid, int nsubxacts,
+				   TransactionId *subxacts);
 extern bool SnapBuildProcessChange(SnapBuild *builder, TransactionId xid,
-                       XLogRecPtr lsn);
+					   XLogRecPtr lsn);
 extern void SnapBuildProcessNewCid(SnapBuild *builder, TransactionId xid,
-                       XLogRecPtr lsn, struct xl_heap_new_cid *cid);
+					   XLogRecPtr lsn, struct xl_heap_new_cid *cid);
 extern void SnapBuildProcessRunningXacts(SnapBuild *builder, XLogRecPtr lsn,
-                             struct xl_running_xacts *running);
+							 struct xl_running_xacts *running);
 extern void SnapBuildSerializationPoint(SnapBuild *builder, XLogRecPtr lsn);
 
-#endif                            /* SNAPBUILD_H */
+extern void SnapBuildXidSetCatalogChanges(SnapBuild *builder, TransactionId xid,
+										  int subxcnt, TransactionId *subxacts,
+										  XLogRecPtr lsn);
+#endif							/* SNAPBUILD_H */

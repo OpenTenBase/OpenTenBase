@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * block.h
- *      POSTGRES disk block definitions.
+ *	  POSTGRES disk block definitions.
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -30,9 +30,9 @@
  */
 typedef uint32 BlockNumber;
 
-#define InvalidBlockNumber        ((BlockNumber) 0xFFFFFFFF)
+#define InvalidBlockNumber		((BlockNumber) 0xFFFFFFFF)
 
-#define MaxBlockNumber            ((BlockNumber) 0xFFFFFFFE)
+#define MaxBlockNumber			((BlockNumber) 0xFFFFFFFE)
 
 /*
  * BlockId:
@@ -52,70 +52,70 @@ typedef uint32 BlockNumber;
  */
 typedef struct BlockIdData
 {
-    uint16        bi_hi;
-    uint16        bi_lo;
+	uint16		bi_hi;
+	uint16		bi_lo;
 } BlockIdData;
 
-typedef BlockIdData *BlockId;    /* block identifier */
+typedef BlockIdData *BlockId;	/* block identifier */
 
 /* ----------------
- *        support macros
+ *		support macros
  * ----------------
  */
 
 /*
  * BlockNumberIsValid
- *        True iff blockNumber is valid.
+ *		True iff blockNumber is valid.
  */
 #define BlockNumberIsValid(blockNumber) \
-    ((bool) ((BlockNumber) (blockNumber) != InvalidBlockNumber))
+	((bool) ((BlockNumber) (blockNumber) != InvalidBlockNumber))
 
 /*
  * BlockIdIsValid
- *        True iff the block identifier is valid.
+ *		True iff the block identifier is valid.
  */
 #define BlockIdIsValid(blockId) \
-    ((bool) PointerIsValid(blockId))
+	((bool) PointerIsValid(blockId))
 
 /*
  * BlockIdSet
- *        Sets a block identifier to the specified value.
+ *		Sets a block identifier to the specified value.
  */
 #define BlockIdSet(blockId, blockNumber) \
 ( \
-    AssertMacro(PointerIsValid(blockId)), \
-    (blockId)->bi_hi = (blockNumber) >> 16, \
-    (blockId)->bi_lo = (blockNumber) & 0xffff \
+	AssertMacro(PointerIsValid(blockId)), \
+	(blockId)->bi_hi = (blockNumber) >> 16, \
+	(blockId)->bi_lo = (blockNumber) & 0xffff \
 )
 
 /*
  * BlockIdCopy
- *        Copy a block identifier.
+ *		Copy a block identifier.
  */
 #define BlockIdCopy(toBlockId, fromBlockId) \
 ( \
-    AssertMacro(PointerIsValid(toBlockId)), \
-    AssertMacro(PointerIsValid(fromBlockId)), \
-    (toBlockId)->bi_hi = (fromBlockId)->bi_hi, \
-    (toBlockId)->bi_lo = (fromBlockId)->bi_lo \
+	AssertMacro(PointerIsValid(toBlockId)), \
+	AssertMacro(PointerIsValid(fromBlockId)), \
+	(toBlockId)->bi_hi = (fromBlockId)->bi_hi, \
+	(toBlockId)->bi_lo = (fromBlockId)->bi_lo \
 )
 
 /*
  * BlockIdEquals
- *        Check for block number equality.
+ *		Check for block number equality.
  */
 #define BlockIdEquals(blockId1, blockId2) \
-    ((blockId1)->bi_hi == (blockId2)->bi_hi && \
-     (blockId1)->bi_lo == (blockId2)->bi_lo)
+	((blockId1)->bi_hi == (blockId2)->bi_hi && \
+	 (blockId1)->bi_lo == (blockId2)->bi_lo)
 
 /*
  * BlockIdGetBlockNumber
- *        Retrieve the block number from a block identifier.
+ *		Retrieve the block number from a block identifier.
  */
 #define BlockIdGetBlockNumber(blockId) \
 ( \
-    AssertMacro(BlockIdIsValid(blockId)), \
-    (BlockNumber) (((blockId)->bi_hi << 16) | ((uint16) (blockId)->bi_lo)) \
+	AssertMacro(BlockIdIsValid(blockId)), \
+	(BlockNumber) (((blockId)->bi_hi << 16) | ((uint16) (blockId)->bi_lo)) \
 )
 
-#endif                            /* BLOCK_H */
+#endif							/* BLOCK_H */

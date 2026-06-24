@@ -88,7 +88,7 @@ CREATE TYPE gbtreekey_var (
 
 CREATE FUNCTION cash_dist(money, money)
 RETURNS money
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'cash_dist'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OPERATOR <-> (
@@ -100,7 +100,7 @@ CREATE OPERATOR <-> (
 
 CREATE FUNCTION date_dist(date, date)
 RETURNS int4
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'date_dist'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OPERATOR <-> (
@@ -112,7 +112,7 @@ CREATE OPERATOR <-> (
 
 CREATE FUNCTION float4_dist(float4, float4)
 RETURNS float4
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'float4_dist'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OPERATOR <-> (
@@ -124,7 +124,7 @@ CREATE OPERATOR <-> (
 
 CREATE FUNCTION float8_dist(float8, float8)
 RETURNS float8
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'float8_dist'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OPERATOR <-> (
@@ -136,7 +136,7 @@ CREATE OPERATOR <-> (
 
 CREATE FUNCTION int2_dist(int2, int2)
 RETURNS int2
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'int2_dist'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OPERATOR <-> (
@@ -148,7 +148,7 @@ CREATE OPERATOR <-> (
 
 CREATE FUNCTION int4_dist(int4, int4)
 RETURNS int4
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'int4_dist'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OPERATOR <-> (
@@ -160,7 +160,7 @@ CREATE OPERATOR <-> (
 
 CREATE FUNCTION int8_dist(int8, int8)
 RETURNS int8
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'int8_dist'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OPERATOR <-> (
@@ -172,7 +172,7 @@ CREATE OPERATOR <-> (
 
 CREATE FUNCTION interval_dist(interval, interval)
 RETURNS interval
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'interval_dist'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OPERATOR <-> (
@@ -184,7 +184,7 @@ CREATE OPERATOR <-> (
 
 CREATE FUNCTION oid_dist(oid, oid)
 RETURNS oid
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'oid_dist'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OPERATOR <-> (
@@ -196,7 +196,7 @@ CREATE OPERATOR <-> (
 
 CREATE FUNCTION time_dist(time, time)
 RETURNS interval
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'time_dist'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OPERATOR <-> (
@@ -208,7 +208,7 @@ CREATE OPERATOR <-> (
 
 CREATE FUNCTION ts_dist(timestamp, timestamp)
 RETURNS interval
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'ts_dist'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OPERATOR <-> (
@@ -220,7 +220,7 @@ CREATE OPERATOR <-> (
 
 CREATE FUNCTION tstz_dist(timestamptz, timestamptz)
 RETURNS interval
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'tstz_dist'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OPERATOR <-> (
@@ -241,57 +241,57 @@ CREATE OPERATOR <-> (
 -- define the GiST support methods
 CREATE FUNCTION gbt_oid_consistent(internal,oid,int2,oid,internal)
 RETURNS bool
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_oid_consistent'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_oid_distance(internal,oid,int2,oid,internal)
 RETURNS float8
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_oid_distance'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_oid_fetch(internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_oid_fetch'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_oid_compress(internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_oid_compress'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_decompress(internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_decompress'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_var_decompress(internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_var_decompress'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_var_fetch(internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_var_fetch'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_oid_penalty(internal,internal,internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_oid_penalty'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_oid_picksplit(internal, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_oid_picksplit'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_oid_union(internal, internal)
 RETURNS gbtreekey8
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_oid_union'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_oid_same(gbtreekey8, gbtreekey8, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_oid_same'
 LANGUAGE C IMMUTABLE STRICT;
 
 -- Create the operator class
@@ -333,42 +333,42 @@ ALTER OPERATOR FAMILY gist_oid_ops USING gist ADD
 -- define the GiST support methods
 CREATE FUNCTION gbt_int2_consistent(internal,int2,int2,oid,internal)
 RETURNS bool
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_int2_consistent'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_int2_distance(internal,int2,int2,oid,internal)
 RETURNS float8
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_int2_distance'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_int2_compress(internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_int2_compress'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_int2_fetch(internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_int2_fetch'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_int2_penalty(internal,internal,internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_int2_penalty'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_int2_picksplit(internal, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_int2_picksplit'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_int2_union(internal, internal)
 RETURNS gbtreekey4
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_int2_union'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_int2_same(gbtreekey4, gbtreekey4, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_int2_same'
 LANGUAGE C IMMUTABLE STRICT;
 
 -- Create the operator class
@@ -405,42 +405,42 @@ ALTER OPERATOR FAMILY gist_int2_ops USING gist ADD
 -- define the GiST support methods
 CREATE FUNCTION gbt_int4_consistent(internal,int4,int2,oid,internal)
 RETURNS bool
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_int4_consistent'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_int4_distance(internal,int4,int2,oid,internal)
 RETURNS float8
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_int4_distance'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_int4_compress(internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_int4_compress'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_int4_fetch(internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_int4_fetch'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_int4_penalty(internal,internal,internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_int4_penalty'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_int4_picksplit(internal, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_int4_picksplit'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_int4_union(internal, internal)
 RETURNS gbtreekey8
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_int4_union'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_int4_same(gbtreekey8, gbtreekey8, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_int4_same'
 LANGUAGE C IMMUTABLE STRICT;
 
 -- Create the operator class
@@ -478,42 +478,42 @@ ALTER OPERATOR FAMILY gist_int4_ops USING gist ADD
 -- define the GiST support methods
 CREATE FUNCTION gbt_int8_consistent(internal,int8,int2,oid,internal)
 RETURNS bool
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_int8_consistent'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_int8_distance(internal,int8,int2,oid,internal)
 RETURNS float8
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_int8_distance'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_int8_compress(internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_int8_compress'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_int8_fetch(internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_int8_fetch'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_int8_penalty(internal,internal,internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_int8_penalty'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_int8_picksplit(internal, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_int8_picksplit'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_int8_union(internal, internal)
 RETURNS gbtreekey16
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_int8_union'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_int8_same(gbtreekey16, gbtreekey16, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_int8_same'
 LANGUAGE C IMMUTABLE STRICT;
 
 -- Create the operator class
@@ -550,42 +550,42 @@ ALTER OPERATOR FAMILY gist_int8_ops USING gist ADD
 -- define the GiST support methods
 CREATE FUNCTION gbt_float4_consistent(internal,float4,int2,oid,internal)
 RETURNS bool
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_float4_consistent'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_float4_distance(internal,float4,int2,oid,internal)
 RETURNS float8
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_float4_distance'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_float4_compress(internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_float4_compress'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_float4_fetch(internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_float4_fetch'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_float4_penalty(internal,internal,internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_float4_penalty'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_float4_picksplit(internal, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_float4_picksplit'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_float4_union(internal, internal)
 RETURNS gbtreekey8
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_float4_union'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_float4_same(gbtreekey8, gbtreekey8, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_float4_same'
 LANGUAGE C IMMUTABLE STRICT;
 
 -- Create the operator class
@@ -622,42 +622,42 @@ ALTER OPERATOR FAMILY gist_float4_ops USING gist ADD
 -- define the GiST support methods
 CREATE FUNCTION gbt_float8_consistent(internal,float8,int2,oid,internal)
 RETURNS bool
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_float8_consistent'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_float8_distance(internal,float8,int2,oid,internal)
 RETURNS float8
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_float8_distance'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_float8_compress(internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_float8_compress'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_float8_fetch(internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_float8_fetch'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_float8_penalty(internal,internal,internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_float8_penalty'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_float8_picksplit(internal, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_float8_picksplit'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_float8_union(internal, internal)
 RETURNS gbtreekey16
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_float8_union'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_float8_same(gbtreekey16, gbtreekey16, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_float8_same'
 LANGUAGE C IMMUTABLE STRICT;
 
 -- Create the operator class
@@ -694,57 +694,57 @@ ALTER OPERATOR FAMILY gist_float8_ops USING gist ADD
 
 CREATE FUNCTION gbt_ts_consistent(internal,timestamp,int2,oid,internal)
 RETURNS bool
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_ts_consistent'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_ts_distance(internal,timestamp,int2,oid,internal)
 RETURNS float8
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_ts_distance'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_tstz_consistent(internal,timestamptz,int2,oid,internal)
 RETURNS bool
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_tstz_consistent'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_tstz_distance(internal,timestamptz,int2,oid,internal)
 RETURNS float8
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_tstz_distance'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_ts_compress(internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_ts_compress'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_tstz_compress(internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_tstz_compress'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_ts_fetch(internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_ts_fetch'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_ts_penalty(internal,internal,internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_ts_penalty'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_ts_picksplit(internal, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_ts_picksplit'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_ts_union(internal, internal)
 RETURNS gbtreekey16
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_ts_union'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_ts_same(gbtreekey16, gbtreekey16, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_ts_same'
 LANGUAGE C IMMUTABLE STRICT;
 
 -- Create the operator class
@@ -805,52 +805,52 @@ ALTER OPERATOR FAMILY gist_timestamptz_ops USING gist ADD
 
 CREATE FUNCTION gbt_time_consistent(internal,time,int2,oid,internal)
 RETURNS bool
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_time_consistent'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_time_distance(internal,time,int2,oid,internal)
 RETURNS float8
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_time_distance'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_timetz_consistent(internal,timetz,int2,oid,internal)
 RETURNS bool
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_timetz_consistent'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_time_compress(internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_time_compress'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_timetz_compress(internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_timetz_compress'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_time_fetch(internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_time_fetch'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_time_penalty(internal,internal,internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_time_penalty'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_time_picksplit(internal, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_time_picksplit'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_time_union(internal, internal)
 RETURNS gbtreekey16
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_time_union'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_time_same(gbtreekey16, gbtreekey16, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_time_same'
 LANGUAGE C IMMUTABLE STRICT;
 
 -- Create the operator class
@@ -910,42 +910,42 @@ ALTER OPERATOR FAMILY gist_timetz_ops USING gist ADD
 
 CREATE FUNCTION gbt_date_consistent(internal,date,int2,oid,internal)
 RETURNS bool
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_date_consistent'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_date_distance(internal,date,int2,oid,internal)
 RETURNS float8
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_date_distance'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_date_compress(internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_date_compress'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_date_fetch(internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_date_fetch'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_date_penalty(internal,internal,internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_date_penalty'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_date_picksplit(internal, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_date_picksplit'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_date_union(internal, internal)
 RETURNS gbtreekey8
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_date_union'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_date_same(gbtreekey8, gbtreekey8, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_date_same'
 LANGUAGE C IMMUTABLE STRICT;
 
 -- Create the operator class
@@ -983,47 +983,47 @@ ALTER OPERATOR FAMILY gist_date_ops USING gist ADD
 
 CREATE FUNCTION gbt_intv_consistent(internal,interval,int2,oid,internal)
 RETURNS bool
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_intv_consistent'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_intv_distance(internal,interval,int2,oid,internal)
 RETURNS float8
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_intv_distance'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_intv_compress(internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_intv_compress'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_intv_decompress(internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_intv_decompress'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_intv_fetch(internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_intv_fetch'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_intv_penalty(internal,internal,internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_intv_penalty'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_intv_picksplit(internal, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_intv_picksplit'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_intv_union(internal, internal)
 RETURNS gbtreekey32
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_intv_union'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_intv_same(gbtreekey32, gbtreekey32, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_intv_same'
 LANGUAGE C IMMUTABLE STRICT;
 
 -- Create the operator class
@@ -1061,42 +1061,42 @@ ALTER OPERATOR FAMILY gist_interval_ops USING gist ADD
 -- define the GiST support methods
 CREATE FUNCTION gbt_cash_consistent(internal,money,int2,oid,internal)
 RETURNS bool
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_cash_consistent'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_cash_distance(internal,money,int2,oid,internal)
 RETURNS float8
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_cash_distance'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_cash_compress(internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_cash_compress'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_cash_fetch(internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_cash_fetch'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_cash_penalty(internal,internal,internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_cash_penalty'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_cash_picksplit(internal, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_cash_picksplit'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_cash_union(internal, internal)
 RETURNS gbtreekey16
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_cash_union'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_cash_same(gbtreekey16, gbtreekey16, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_cash_same'
 LANGUAGE C IMMUTABLE STRICT;
 
 -- Create the operator class
@@ -1134,37 +1134,37 @@ ALTER OPERATOR FAMILY gist_cash_ops USING gist ADD
 -- define the GiST support methods
 CREATE FUNCTION gbt_macad_consistent(internal,macaddr,int2,oid,internal)
 RETURNS bool
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_macad_consistent'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_macad_compress(internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_macad_compress'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_macad_fetch(internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_macad_fetch'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_macad_penalty(internal,internal,internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_macad_penalty'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_macad_picksplit(internal, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_macad_picksplit'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_macad_union(internal, internal)
 RETURNS gbtreekey16
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_macad_union'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_macad_same(gbtreekey16, gbtreekey16, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_macad_same'
 LANGUAGE C IMMUTABLE STRICT;
 
 -- Create the operator class
@@ -1200,42 +1200,42 @@ ALTER OPERATOR FAMILY gist_macaddr_ops USING gist ADD
 -- define the GiST support methods
 CREATE FUNCTION gbt_text_consistent(internal,text,int2,oid,internal)
 RETURNS bool
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_text_consistent'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_bpchar_consistent(internal,bpchar,int2,oid,internal)
 RETURNS bool
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_bpchar_consistent'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_text_compress(internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_text_compress'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_bpchar_compress(internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_bpchar_compress'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_text_penalty(internal,internal,internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_text_penalty'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_text_picksplit(internal, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_text_picksplit'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_text_union(internal, internal)
 RETURNS gbtreekey_var
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_text_union'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_text_same(gbtreekey_var, gbtreekey_var, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_text_same'
 LANGUAGE C IMMUTABLE STRICT;
 
 -- Create the operator class
@@ -1292,32 +1292,32 @@ ALTER OPERATOR FAMILY gist_bpchar_ops USING gist ADD
 -- define the GiST support methods
 CREATE FUNCTION gbt_bytea_consistent(internal,bytea,int2,oid,internal)
 RETURNS bool
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_bytea_consistent'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_bytea_compress(internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_bytea_compress'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_bytea_penalty(internal,internal,internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_bytea_penalty'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_bytea_picksplit(internal, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_bytea_picksplit'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_bytea_union(internal, internal)
 RETURNS gbtreekey_var
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_bytea_union'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_bytea_same(gbtreekey_var, gbtreekey_var, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_bytea_same'
 LANGUAGE C IMMUTABLE STRICT;
 
 -- Create the operator class
@@ -1353,32 +1353,32 @@ ALTER OPERATOR FAMILY gist_bytea_ops USING gist ADD
 -- define the GiST support methods
 CREATE FUNCTION gbt_numeric_consistent(internal,numeric,int2,oid,internal)
 RETURNS bool
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_numeric_consistent'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_numeric_compress(internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_numeric_compress'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_numeric_penalty(internal,internal,internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_numeric_penalty'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_numeric_picksplit(internal, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_numeric_picksplit'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_numeric_union(internal, internal)
 RETURNS gbtreekey_var
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_numeric_union'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_numeric_same(gbtreekey_var, gbtreekey_var, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_numeric_same'
 LANGUAGE C IMMUTABLE STRICT;
 
 -- Create the operator class
@@ -1413,32 +1413,32 @@ ALTER OPERATOR FAMILY gist_numeric_ops USING gist ADD
 -- define the GiST support methods
 CREATE FUNCTION gbt_bit_consistent(internal,bit,int2,oid,internal)
 RETURNS bool
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_bit_consistent'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_bit_compress(internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_bit_compress'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_bit_penalty(internal,internal,internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_bit_penalty'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_bit_picksplit(internal, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_bit_picksplit'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_bit_union(internal, internal)
 RETURNS gbtreekey_var
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_bit_union'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_bit_same(gbtreekey_var, gbtreekey_var, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_bit_same'
 LANGUAGE C IMMUTABLE STRICT;
 
 -- Create the operator class
@@ -1497,32 +1497,32 @@ ALTER OPERATOR FAMILY gist_vbit_ops USING gist ADD
 -- define the GiST support methods
 CREATE FUNCTION gbt_inet_consistent(internal,inet,int2,oid,internal)
 RETURNS bool
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_inet_consistent'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_inet_compress(internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_inet_compress'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_inet_penalty(internal,internal,internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_inet_penalty'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_inet_picksplit(internal, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_inet_picksplit'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_inet_union(internal, internal)
 RETURNS gbtreekey16
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_inet_union'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION gbt_inet_same(gbtreekey16, gbtreekey16, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gbt_inet_same'
 LANGUAGE C IMMUTABLE STRICT;
 
 -- Create the operator class

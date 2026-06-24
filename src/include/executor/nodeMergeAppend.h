@@ -20,4 +20,4 @@ extern MergeAppendState *ExecInitMergeAppend(MergeAppend *node, EState *estate, 
 extern void ExecEndMergeAppend(MergeAppendState *node);
 extern void ExecReScanMergeAppend(MergeAppendState *node);
 
-#endif                            /* NODEMERGEAPPEND_H */
+#endif							/* NODEMERGEAPPEND_H */

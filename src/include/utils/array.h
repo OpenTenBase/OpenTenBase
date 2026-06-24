@@ -1,17 +1,17 @@
 /*-------------------------------------------------------------------------
  *
  * array.h
- *      Declarations for Postgres arrays.
+ *	  Declarations for Postgres arrays.
  *
  * A standard varlena array has the following internal structure:
- *      <vl_len_>        - standard varlena header word
- *      <ndim>        - number of dimensions of the array
- *      <dataoffset>    - offset to stored data, or 0 if no nulls bitmap
- *      <elemtype>    - element type OID
- *      <dimensions>    - length of each array axis (C array of int)
- *      <lower bnds>    - lower boundary of each dimension (C array of int)
- *      <null bitmap> - bitmap showing locations of nulls (OPTIONAL)
- *      <actual data> - whatever is the stored data
+ *	  <vl_len_>		- standard varlena header word
+ *	  <ndim>		- number of dimensions of the array
+ *	  <dataoffset>	- offset to stored data, or 0 if no nulls bitmap
+ *	  <elemtype>	- element type OID
+ *	  <dimensions>	- length of each array axis (C array of int)
+ *	  <lower bnds>	- lower boundary of each dimension (C array of int)
+ *	  <null bitmap> - bitmap showing locations of nulls (OPTIONAL)
+ *	  <actual data> - whatever is the stored data
  *
  * The <dimensions> and <lower bnds> arrays each have ndim elements.
  *
@@ -62,8 +62,42 @@
 #define ARRAY_H
 
 #include "fmgr.h"
+#include "nodes/pg_list.h"
 #include "utils/expandeddatum.h"
+#include "utils/hsearch.h"
 
+/* avoid including execnodes.h here */
+struct ExprState;
+struct ExprContext;
+
+/* The aux_datum information needs to be used in SQL */
+#ifdef _PG_ORCL_
+typedef struct
+{
+	Oid oid;	
+	Datum value;
+}AssaHashKeyOra;
+
+typedef struct AssaHashEntryOra
+{
+	AssaHashKeyOra	key;
+	struct AssaHashEntryOra *asc_cell;
+	struct AssaHashEntryOra *desc_cell;
+	int32 subscript;
+}AssaHashEntryOra;
+
+typedef struct 
+{
+	int32 alloc_size;
+	int32 limit;
+	int32 count;
+	bool is_a_array;
+	AssaHashEntryOra *first;	/* The first of an associative array */
+	AssaHashEntryOra *last;		/* The last of an associative array */
+	HTAB *hash_tab;
+	char data[0] ;
+}VarAuxDatumOra;
+#endif
 
 /*
  * Arrays are varlena objects, so must meet the varlena convention that
@@ -75,10 +109,10 @@
  */
 typedef struct
 {
-    int32        vl_len_;        /* varlena header (do not touch directly!) */
-    int            ndim;            /* # of dimensions */
-    int32        dataoffset;        /* offset to data, or 0 if no bitmap */
-    Oid            elemtype;        /* element type OID */
+	int32		vl_len_;		/* varlena header (do not touch directly!) */
+	int			ndim;			/* # of dimensions */
+	int32		dataoffset;		/* offset to data, or 0 if no bitmap */
+	Oid			elemtype;		/* element type OID */
 } ArrayType;
 
 /*
@@ -94,61 +128,63 @@ typedef struct
  * this situation.  Once we start modifying array elements, new pass-by-ref
  * elements are separately palloc'd within the memory context.
  */
-#define EA_MAGIC 689375833        /* ID for debugging crosschecks */
+#define EA_MAGIC 689375833		/* ID for debugging crosschecks */
 
 typedef struct ExpandedArrayHeader
 {
-    /* Standard header for expanded objects */
-    ExpandedObjectHeader hdr;
+	/* Standard header for expanded objects */
+	ExpandedObjectHeader hdr;
 
-    /* Magic value identifying an expanded array (for debugging only) */
-    int            ea_magic;
+	/* Magic value identifying an expanded array (for debugging only) */
+	int			ea_magic;
 
-    /* Dimensionality info (always valid) */
-    int            ndims;            /* # of dimensions */
-    int           *dims;            /* array dimensions */
-    int           *lbound;            /* index lower bounds for each dimension */
+	/* Dimensionality info (always valid) */
+	int			ndims;			/* # of dimensions */
+	int		   *dims;			/* array dimensions */
+	int		   *lbound;			/* index lower bounds for each dimension */
 
-    /* Element type info (always valid) */
-    Oid            element_type;    /* element type OID */
-    int16        typlen;            /* needed info about element datatype */
-    bool        typbyval;
-    char        typalign;
+	/* Element type info (always valid) */
+	Oid			element_type;	/* element type OID */
+	int16		typlen;			/* needed info about element datatype */
+	bool		typbyval;
+	char		typalign;
 
-    /*
-     * If we have a Datum-array representation of the array, it's kept here;
-     * else dvalues/dnulls are NULL.  The dvalues and dnulls arrays are always
-     * palloc'd within the object private context, but may change size from
-     * time to time.  For pass-by-ref element types, dvalues entries might
-     * point either into the fstartptr..fendptr area, or to separately
-     * palloc'd chunks.  Elements should always be fully detoasted, as they
-     * are in the standard flat representation.
-     *
-     * Even when dvalues is valid, dnulls can be NULL if there are no null
-     * elements.
-     */
-    Datum       *dvalues;        /* array of Datums */
-    bool       *dnulls;            /* array of is-null flags for Datums */
-    int            dvalueslen;        /* allocated length of above arrays */
-    int            nelems;            /* number of valid entries in above arrays */
+	/*
+	 * If we have a Datum-array representation of the array, it's kept here;
+	 * else dvalues/dnulls are NULL.  The dvalues and dnulls arrays are always
+	 * palloc'd within the object private context, but may change size from
+	 * time to time.  For pass-by-ref element types, dvalues entries might
+	 * point either into the fstartptr..fendptr area, or to separately
+	 * palloc'd chunks.  Elements should always be fully detoasted, as they
+	 * are in the standard flat representation.
+	 *
+	 * Even when dvalues is valid, dnulls can be NULL if there are no null
+	 * elements.
+	 */
+	Datum	   *dvalues;		/* array of Datums */
+	bool	   *dnulls;			/* array of is-null flags for Datums */
+	bool	   *dexists;		/* array of is-exist flags for Datums */
+	int			dvalueslen;		/* allocated length of above arrays */
+	int			nelems;			/* number of valid entries in above arrays */
 
-    /*
-     * flat_size is the current space requirement for the flat equivalent of
-     * the expanded array, if known; otherwise it's 0.  We store this to make
-     * consecutive calls of get_flat_size cheap.
-     */
-    Size        flat_size;
+	/*
+	 * flat_size is the current space requirement for the flat equivalent of
+	 * the expanded array, if known; otherwise it's 0.  We store this to make
+	 * consecutive calls of get_flat_size cheap.
+	 */
+	Size		flat_size;
 
-    /*
-     * fvalue points to the flat representation if it is valid, else it is
-     * NULL.  If we have or ever had a flat representation then
-     * fstartptr/fendptr point to the start and end+1 of its data area; this
-     * is so that we can tell which Datum pointers point into the flat
-     * representation rather than being pointers to separately palloc'd data.
-     */
-    ArrayType  *fvalue;            /* must be a fully detoasted array */
-    char       *fstartptr;        /* start of its data area */
-    char       *fendptr;        /* end+1 of its data area */
+	/*
+	 * fvalue points to the flat representation if it is valid, else it is
+	 * NULL.  If we have or ever had a flat representation then
+	 * fstartptr/fendptr point to the start and end+1 of its data area; this
+	 * is so that we can tell which Datum pointers point into the flat
+	 * representation rather than being pointers to separately palloc'd data.
+	 */
+	ArrayType  *fvalue;			/* must be a fully detoasted array */
+	char	   *fstartptr;		/* start of its data area */
+	char	   *fendptr;		/* end+1 of its data area */
+	VarAuxDatumOra	*aux_data;	/* Used to save collection type subscript information */
 } ExpandedArrayHeader;
 
 /*
@@ -157,8 +193,8 @@ typedef struct ExpandedArrayHeader
  */
 typedef union AnyArrayType
 {
-    ArrayType    flt;
-    ExpandedArrayHeader xpn;
+	ArrayType	flt;
+	ExpandedArrayHeader xpn;
 } AnyArrayType;
 
 /*
@@ -167,16 +203,16 @@ typedef union AnyArrayType
  */
 typedef struct ArrayBuildState
 {
-    MemoryContext mcontext;        /* where all the temp stuff is kept */
-    Datum       *dvalues;        /* array of accumulated Datums */
-    bool       *dnulls;            /* array of is-null flags for Datums */
-    int            alen;            /* allocated length of above arrays */
-    int            nelems;            /* number of valid entries in above arrays */
-    Oid            element_type;    /* data type of the Datums */
-    int16        typlen;            /* needed info about datatype */
-    bool        typbyval;
-    char        typalign;
-    bool        private_cxt;    /* use private memory context */
+	MemoryContext mcontext;		/* where all the temp stuff is kept */
+	Datum	   *dvalues;		/* array of accumulated Datums */
+	bool	   *dnulls;			/* array of is-null flags for Datums */
+	int			alen;			/* allocated length of above arrays */
+	int			nelems;			/* number of valid entries in above arrays */
+	Oid			element_type;	/* data type of the Datums */
+	int16		typlen;			/* needed info about datatype */
+	bool		typbyval;
+	char		typalign;
+	bool		private_cxt;	/* use private memory context */
 } ArrayBuildState;
 
 /*
@@ -185,19 +221,19 @@ typedef struct ArrayBuildState
  */
 typedef struct ArrayBuildStateArr
 {
-    MemoryContext mcontext;        /* where all the temp stuff is kept */
-    char       *data;            /* accumulated data */
-    bits8       *nullbitmap;        /* bitmap of is-null flags, or NULL if none */
-    int            abytes;            /* allocated length of "data" */
-    int            nbytes;            /* number of bytes used so far */
-    int            aitems;            /* allocated length of bitmap (in elements) */
-    int            nitems;            /* total number of elements in result */
-    int            ndims;            /* current dimensions of result */
-    int            dims[MAXDIM];
-    int            lbs[MAXDIM];
-    Oid            array_type;        /* data type of the arrays */
-    Oid            element_type;    /* data type of the array elements */
-    bool        private_cxt;    /* use private memory context */
+	MemoryContext mcontext;		/* where all the temp stuff is kept */
+	char	   *data;			/* accumulated data */
+	bits8	   *nullbitmap;		/* bitmap of is-null flags, or NULL if none */
+	int			abytes;			/* allocated length of "data" */
+	int			nbytes;			/* number of bytes used so far */
+	int			aitems;			/* allocated length of bitmap (in elements) */
+	int			nitems;			/* total number of elements in result */
+	int			ndims;			/* current dimensions of result */
+	int			dims[MAXDIM];
+	int			lbs[MAXDIM];
+	Oid			array_type;		/* data type of the arrays */
+	Oid			element_type;	/* data type of the array elements */
+	bool		private_cxt;	/* use private memory context */
 } ArrayBuildStateArr;
 
 /*
@@ -206,9 +242,9 @@ typedef struct ArrayBuildStateArr
  */
 typedef struct ArrayBuildStateAny
 {
-    /* Exactly one of these is not NULL: */
-    ArrayBuildState *scalarstate;
-    ArrayBuildStateArr *arraystate;
+	/* Exactly one of these is not NULL: */
+	ArrayBuildState *scalarstate;
+	ArrayBuildStateArr *arraystate;
 } ArrayBuildStateAny;
 
 /*
@@ -216,14 +252,14 @@ typedef struct ArrayBuildStateAny
  */
 typedef struct ArrayMetaState
 {
-    Oid            element_type;
-    int16        typlen;
-    bool        typbyval;
-    char        typalign;
-    char        typdelim;
-    Oid            typioparam;
-    Oid            typiofunc;
-    FmgrInfo    proc;
+	Oid			element_type;
+	int16		typlen;
+	bool		typbyval;
+	char		typalign;
+	char		typdelim;
+	Oid			typioparam;
+	Oid			typiofunc;
+	FmgrInfo	proc;
 } ArrayMetaState;
 
 /*
@@ -231,28 +267,28 @@ typedef struct ArrayMetaState
  */
 typedef struct ArrayMapState
 {
-    ArrayMetaState inp_extra;
-    ArrayMetaState ret_extra;
+	ArrayMetaState inp_extra;
+	ArrayMetaState ret_extra;
 } ArrayMapState;
 
 /* ArrayIteratorData is private in arrayfuncs.c */
 typedef struct ArrayIteratorData *ArrayIterator;
 
 /* fmgr macros for regular varlena array objects */
-#define DatumGetArrayTypeP(X)          ((ArrayType *) PG_DETOAST_DATUM(X))
-#define DatumGetArrayTypePCopy(X)      ((ArrayType *) PG_DETOAST_DATUM_COPY(X))
-#define PG_GETARG_ARRAYTYPE_P(n)      DatumGetArrayTypeP(PG_GETARG_DATUM(n))
+#define DatumGetArrayTypeP(X)		  ((ArrayType *) PG_DETOAST_DATUM(X))
+#define DatumGetArrayTypePCopy(X)	  ((ArrayType *) PG_DETOAST_DATUM_COPY(X))
+#define PG_GETARG_ARRAYTYPE_P(n)	  DatumGetArrayTypeP(PG_GETARG_DATUM(n))
 #define PG_GETARG_ARRAYTYPE_P_COPY(n) DatumGetArrayTypePCopy(PG_GETARG_DATUM(n))
-#define PG_RETURN_ARRAYTYPE_P(x)      PG_RETURN_POINTER(x)
+#define PG_RETURN_ARRAYTYPE_P(x)	  PG_RETURN_POINTER(x)
 
 /* fmgr macros for expanded array objects */
 #define PG_GETARG_EXPANDED_ARRAY(n)  DatumGetExpandedArray(PG_GETARG_DATUM(n))
 #define PG_GETARG_EXPANDED_ARRAYX(n, metacache) \
-    DatumGetExpandedArrayX(PG_GETARG_DATUM(n), metacache)
+	DatumGetExpandedArrayX(PG_GETARG_DATUM(n), metacache)
 #define PG_RETURN_EXPANDED_ARRAY(x)  PG_RETURN_DATUM(EOHPGetRWDatum(&(x)->hdr))
 
 /* fmgr macros for AnyArrayType (ie, get either varlena or expanded form) */
-#define PG_GETARG_ANY_ARRAY(n)    DatumGetAnyArray(PG_GETARG_DATUM(n))
+#define PG_GETARG_ANY_ARRAY_P(n)	DatumGetAnyArrayP(PG_GETARG_DATUM(n))
 
 /*
  * Access macros for varlena array header fields.
@@ -266,58 +302,91 @@ typedef struct ArrayIteratorData *ArrayIterator;
  * ARR_DIMS(a)[2] == 4 and ARR_LBOUND(a)[2] == 5.
  *
  * Unlike C, the default lower bound is 1.
+ *
+ * ARR_NULLBITMAP indicates whether the element in the array is null,
+ * and the dataoffset is ARR_OVERHEAD_WITHNULLS. ARR_EXISTBITMAP indicates
+ * whether the element in the array exists, and the dataoffset is
+ * ARR_OVERHEAD_WITHEXISTS. ARR_EXISTBITMAP follows ARR_NULLBITMAP.
+ * ARR_OVERHEAD_WITHAUXDATA will save the subscript information of the
+ * array, and ARR_AUXDATA is behind ARR_EXISTBITMAP.
+ *
+ * Note that if the value in ARR_EXISTBITMAP is 0, then the value of the
+ * corresponding position in ARR_NULLBITMAP must be 0.
  */
-#define ARR_SIZE(a)                VARSIZE(a)
-#define ARR_NDIM(a)                ((a)->ndim)
-#define ARR_HASNULL(a)            ((a)->dataoffset != 0)
-#define ARR_ELEMTYPE(a)            ((a)->elemtype)
+#define ARR_SIZE(a)					VARSIZE(a)
+#define ARR_NDIM(a)					((a)->ndim)
+#define ARR_HASNULL(a)				((a)->dataoffset != 0)
+#define ARR_HASEXIST(a, nitems)		(ARR_HASNULL(a) && (a)->dataoffset >= ARR_OVERHEAD_WITHEXISTS(ARR_NDIM(a), nitems))
+#define ARR_HASAUXDATA(a, nitems)	(ARR_HASNULL(a) && (a)->dataoffset > ARR_OVERHEAD_WITHEXISTS(ARR_NDIM(a), nitems))
+#define ARR_ELEMTYPE(a)				((a)->elemtype)
 
 #define ARR_DIMS(a) \
-        ((int *) (((char *) (a)) + sizeof(ArrayType)))
+		((int *) (((char *) (a)) + sizeof(ArrayType)))
 #define ARR_LBOUND(a) \
-        ((int *) (((char *) (a)) + sizeof(ArrayType) + \
-                  sizeof(int) * ARR_NDIM(a)))
+		((int *) (((char *) (a)) + sizeof(ArrayType) + \
+				  sizeof(int) * ARR_NDIM(a)))
 
 #define ARR_NULLBITMAP(a) \
-        (ARR_HASNULL(a) ? \
-         (bits8 *) (((char *) (a)) + sizeof(ArrayType) + \
-                    2 * sizeof(int) * ARR_NDIM(a)) \
-         : (bits8 *) NULL)
+		(ARR_HASNULL(a) ? \
+		 (bits8 *) (((char *) (a)) + sizeof(ArrayType) + \
+					2 * sizeof(int) * ARR_NDIM(a)) \
+		 : (bits8 *) NULL)
+
+#define ARR_EXISTBITMAP(a, nitems) \
+		(ARR_HASEXIST(a, nitems) ? \
+		 (bits8 *) (((char *) (a)) + ARR_OVERHEAD_WITHNULLS(ARR_NDIM(a), nitems)) \
+		 : (bits8 *) NULL)
+
+#define ARR_AUXDATA(a, nitems) \
+		(ARR_HASAUXDATA(a, nitems) ? \
+		 (bytea *) (((char *) (a)) + ARR_OVERHEAD_WITHEXISTS(ARR_NDIM(a), nitems)) \
+		 : (bytea *) NULL)
+
+#define ARR_NULLBITMAP_SIZE(nitems) \
+		(((nitems) + 7) / 8)
 
 /*
  * The total array header size (in bytes) for an array with the specified
  * number of dimensions and total number of items.
  */
 #define ARR_OVERHEAD_NONULLS(ndims) \
-        MAXALIGN(sizeof(ArrayType) + 2 * sizeof(int) * (ndims))
+		MAXALIGN(sizeof(ArrayType) + 2 * sizeof(int) * (ndims))
 #define ARR_OVERHEAD_WITHNULLS(ndims, nitems) \
-        MAXALIGN(sizeof(ArrayType) + 2 * sizeof(int) * (ndims) + \
-                 ((nitems) + 7) / 8)
+		MAXALIGN(sizeof(ArrayType) + 2 * sizeof(int) * (ndims) + \
+				 ARR_NULLBITMAP_SIZE(nitems))
+
+#define ARR_OVERHEAD_WITHEXISTS(ndims, nitems) \
+		MAXALIGN(ARR_OVERHEAD_WITHNULLS(ndims, nitems) + \
+				 ARR_NULLBITMAP_SIZE(nitems))
+
+#define ARR_OVERHEAD_WITHAUXDATA(ndims, nitems, auxdata_len) \
+		MAXALIGN(ARR_OVERHEAD_WITHEXISTS(ndims, nitems) + \
+				 auxdata_len)
 
 #define ARR_DATA_OFFSET(a) \
-        (ARR_HASNULL(a) ? (a)->dataoffset : ARR_OVERHEAD_NONULLS(ARR_NDIM(a)))
+		(ARR_HASNULL(a) ? (a)->dataoffset : ARR_OVERHEAD_NONULLS(ARR_NDIM(a)))
 
 /*
  * Returns a pointer to the actual array data.
  */
 #define ARR_DATA_PTR(a) \
-        (((char *) (a)) + ARR_DATA_OFFSET(a))
+		(((char *) (a)) + ARR_DATA_OFFSET(a))
 
 /*
  * Macros for working with AnyArrayType inputs.  Beware multiple references!
  */
 #define AARR_NDIM(a) \
-    (VARATT_IS_EXPANDED_HEADER(a) ? (a)->xpn.ndims : ARR_NDIM(&(a)->flt))
+	(VARATT_IS_EXPANDED_HEADER(a) ? (a)->xpn.ndims : ARR_NDIM(&(a)->flt))
 #define AARR_HASNULL(a) \
-    (VARATT_IS_EXPANDED_HEADER(a) ? \
-     ((a)->xpn.dvalues != NULL ? (a)->xpn.dnulls != NULL : ARR_HASNULL((a)->xpn.fvalue)) : \
-     ARR_HASNULL(&(a)->flt))
+	(VARATT_IS_EXPANDED_HEADER(a) ? \
+	 ((a)->xpn.dvalues != NULL ? (a)->xpn.dnulls != NULL : ARR_HASNULL((a)->xpn.fvalue)) : \
+	 ARR_HASNULL(&(a)->flt))
 #define AARR_ELEMTYPE(a) \
-    (VARATT_IS_EXPANDED_HEADER(a) ? (a)->xpn.element_type : ARR_ELEMTYPE(&(a)->flt))
+	(VARATT_IS_EXPANDED_HEADER(a) ? (a)->xpn.element_type : ARR_ELEMTYPE(&(a)->flt))
 #define AARR_DIMS(a) \
-    (VARATT_IS_EXPANDED_HEADER(a) ? (a)->xpn.dims : ARR_DIMS(&(a)->flt))
+	(VARATT_IS_EXPANDED_HEADER(a) ? (a)->xpn.dims : ARR_DIMS(&(a)->flt))
 #define AARR_LBOUND(a) \
-    (VARATT_IS_EXPANDED_HEADER(a) ? (a)->xpn.lbound : ARR_LBOUND(&(a)->flt))
+	(VARATT_IS_EXPANDED_HEADER(a) ? (a)->xpn.lbound : ARR_LBOUND(&(a)->flt))
 
 
 /*
@@ -329,91 +398,96 @@ extern bool Array_nulls;
  * prototypes for functions defined in arrayfuncs.c
  */
 extern void CopyArrayEls(ArrayType *array,
-             Datum *values,
-             bool *nulls,
-             int nitems,
-             int typlen,
-             bool typbyval,
-             char typalign,
-             bool freedata);
+			 Datum *values,
+			 bool *nulls,
+			 bool *exists,
+			 int nitems,
+			 int typlen,
+			 bool typbyval,
+			 char typalign,
+			 bool freedata);
 
 extern Datum array_get_element(Datum arraydatum, int nSubscripts, int *indx,
-                  int arraytyplen, int elmlen, bool elmbyval, char elmalign,
-                  bool *isNull);
+				  int arraytyplen, int elmlen, bool elmbyval, char elmalign,
+				  bool *isNull, bool *isExist);
 extern Datum array_set_element(Datum arraydatum, int nSubscripts, int *indx,
-                  Datum dataValue, bool isNull,
-                  int arraytyplen, int elmlen, bool elmbyval, char elmalign);
+				  Datum dataValue, bool isNull, bool isExist,
+				  int arraytyplen, int elmlen, bool elmbyval, char elmalign);
 extern Datum array_get_slice(Datum arraydatum, int nSubscripts,
-                int *upperIndx, int *lowerIndx,
-                bool *upperProvided, bool *lowerProvided,
-                int arraytyplen, int elmlen, bool elmbyval, char elmalign);
+				int *upperIndx, int *lowerIndx,
+				bool *upperProvided, bool *lowerProvided,
+				int arraytyplen, int elmlen, bool elmbyval, char elmalign);
 extern Datum array_set_slice(Datum arraydatum, int nSubscripts,
-                int *upperIndx, int *lowerIndx,
-                bool *upperProvided, bool *lowerProvided,
-                Datum srcArrayDatum, bool isNull,
-                int arraytyplen, int elmlen, bool elmbyval, char elmalign);
+				int *upperIndx, int *lowerIndx,
+				bool *upperProvided, bool *lowerProvided,
+				Datum srcArrayDatum, bool isNull,
+				int arraytyplen, int elmlen, bool elmbyval, char elmalign);
 
 extern Datum array_ref(ArrayType *array, int nSubscripts, int *indx,
-          int arraytyplen, int elmlen, bool elmbyval, char elmalign,
-          bool *isNull);
+		  int arraytyplen, int elmlen, bool elmbyval, char elmalign,
+		  bool *isNull);
 extern ArrayType *array_set(ArrayType *array, int nSubscripts, int *indx,
-          Datum dataValue, bool isNull,
-          int arraytyplen, int elmlen, bool elmbyval, char elmalign);
+		  Datum dataValue, bool isNull,
+		  int arraytyplen, int elmlen, bool elmbyval, char elmalign);
 
-extern Datum array_map(FunctionCallInfo fcinfo, Oid retType,
-          ArrayMapState *amstate);
+extern Datum array_map(Datum arrayd,
+		  struct ExprState *exprstate, struct ExprContext *econtext,
+		  Oid retType, ArrayMapState *amstate);
 
 extern void array_bitmap_copy(bits8 *destbitmap, int destoffset,
-                  const bits8 *srcbitmap, int srcoffset,
-                  int nitems);
+				  const bits8 *srcbitmap, int srcoffset,
+				  int nitems);
 
 extern ArrayType *construct_array(Datum *elems, int nelems,
-                Oid elmtype,
-                int elmlen, bool elmbyval, char elmalign);
+				Oid elmtype,
+				int elmlen, bool elmbyval, char elmalign);
 extern ArrayType *construct_md_array(Datum *elems,
-                   bool *nulls,
-                   int ndims,
-                   int *dims,
-                   int *lbs,
-                   Oid elmtype, int elmlen, bool elmbyval, char elmalign);
+				   bool *nulls,
+				   int ndims,
+				   int *dims,
+				   int *lbs,
+				   Oid elmtype, int elmlen, bool elmbyval, char elmalign);
 extern ArrayType *construct_empty_array(Oid elmtype);
+extern ArrayType *construct_array_with_all_notexist(Oid elmtype, int ndim,
+													int *dims, int *lbs);
 extern ExpandedArrayHeader *construct_empty_expanded_array(Oid element_type,
-                               MemoryContext parentcontext,
-                               ArrayMetaState *metacache);
+							   MemoryContext parentcontext,
+							   ArrayMetaState *metacache);
 extern void deconstruct_array(ArrayType *array,
-                  Oid elmtype,
-                  int elmlen, bool elmbyval, char elmalign,
-                  Datum **elemsp, bool **nullsp, int *nelemsp);
+				  Oid elmtype,
+				  int elmlen, bool elmbyval, char elmalign,
+				  Datum **elemsp, bool **nullsp, int *nelemsp);
+extern void deconstruct_array_exists(ArrayType *array, bool **existsp);
 extern bool array_contains_nulls(ArrayType *array);
 
 extern ArrayBuildState *initArrayResult(Oid element_type,
-                MemoryContext rcontext, bool subcontext);
+				MemoryContext rcontext, bool subcontext);
 extern ArrayBuildState *accumArrayResult(ArrayBuildState *astate,
-                 Datum dvalue, bool disnull,
-                 Oid element_type,
-                 MemoryContext rcontext);
+				 Datum dvalue, bool disnull,
+				 Oid element_type,
+				 MemoryContext rcontext);
 extern Datum makeArrayResult(ArrayBuildState *astate,
-                MemoryContext rcontext);
+				MemoryContext rcontext);
 extern Datum makeMdArrayResult(ArrayBuildState *astate, int ndims,
-                  int *dims, int *lbs, MemoryContext rcontext, bool release);
+				  int *dims, int *lbs, MemoryContext rcontext, bool release);
 
 extern ArrayBuildStateArr *initArrayResultArr(Oid array_type, Oid element_type,
-                   MemoryContext rcontext, bool subcontext);
+				   MemoryContext rcontext, bool subcontext);
 extern ArrayBuildStateArr *accumArrayResultArr(ArrayBuildStateArr *astate,
-                    Datum dvalue, bool disnull,
-                    Oid array_type,
-                    MemoryContext rcontext);
+					Datum dvalue, bool disnull,
+					Oid array_type,
+					MemoryContext rcontext);
 extern Datum makeArrayResultArr(ArrayBuildStateArr *astate,
-                   MemoryContext rcontext, bool release);
+				   MemoryContext rcontext, bool release);
 
 extern ArrayBuildStateAny *initArrayResultAny(Oid input_type,
-                   MemoryContext rcontext, bool subcontext);
+				   MemoryContext rcontext, bool subcontext);
 extern ArrayBuildStateAny *accumArrayResultAny(ArrayBuildStateAny *astate,
-                    Datum dvalue, bool disnull,
-                    Oid input_type,
-                    MemoryContext rcontext);
+					Datum dvalue, bool disnull,
+					Oid input_type,
+					MemoryContext rcontext);
 extern Datum makeArrayResultAny(ArrayBuildStateAny *astate,
-                   MemoryContext rcontext, bool release);
+				   MemoryContext rcontext, bool release);
 
 extern ArrayIterator array_create_iterator(ArrayType *arr, int slice_ndim, ArrayMetaState *mstate);
 extern bool array_iterate(ArrayIterator iterator, Datum *value, bool *isnull);
@@ -423,24 +497,39 @@ extern void array_free_iterator(ArrayIterator iterator);
  * prototypes for functions defined in arrayutils.c
  */
 
-extern int    ArrayGetOffset(int n, const int *dim, const int *lb, const int *indx);
-extern int    ArrayGetOffset0(int n, const int *tup, const int *scale);
-extern int    ArrayGetNItems(int ndim, const int *dims);
+extern int	ArrayGetOffset(int n, const int *dim, const int *lb, const int *indx);
+extern int	ArrayGetOffset0(int n, const int *tup, const int *scale);
+extern int	ArrayGetNItems(int ndim, const int *dims);
+extern void ArrayCheckBounds(int ndim, const int *dims, const int *lb);
 extern void mda_get_range(int n, int *span, const int *st, const int *endp);
 extern void mda_get_prod(int n, const int *range, int *prod);
 extern void mda_get_offset_values(int n, int *dist, const int *prod, const int *span);
-extern int    mda_next_tuple(int n, int *curr, const int *span);
+extern int	mda_next_tuple(int n, int *curr, const int *span);
 extern int32 *ArrayGetIntegerTypmods(ArrayType *arr, int *n);
 
 /*
  * prototypes for functions defined in array_expanded.c
  */
 extern Datum expand_array(Datum arraydatum, MemoryContext parentcontext,
-             ArrayMetaState *metacache);
+			 ArrayMetaState *metacache);
 extern ExpandedArrayHeader *DatumGetExpandedArray(Datum d);
 extern ExpandedArrayHeader *DatumGetExpandedArrayX(Datum d,
-                       ArrayMetaState *metacache);
+					   ArrayMetaState *metacache);
+extern AnyArrayType *DatumGetAnyArrayP(Datum d);
 extern AnyArrayType *DatumGetAnyArray(Datum d);
 extern void deconstruct_expanded_array(ExpandedArrayHeader *eah);
 
-#endif                            /* ARRAY_H */
+#ifdef __OPENTENBASE_C__
+extern int32 anychar_typmodin(ArrayType *ta, const char *typname);
+extern char *anychar_typmodout(int32 typmod);
+#endif
+
+/*
+ * prototypes for functions defined in arrayfuncs.c
+ */
+extern Datum array_length(PG_FUNCTION_ARGS);
+extern Datum array_upper(PG_FUNCTION_ARGS);
+extern Datum array_lower(PG_FUNCTION_ARGS);
+extern bool array_get_isexist(const bits8 *existbitmap, int offset);
+
+#endif							/* ARRAY_H */

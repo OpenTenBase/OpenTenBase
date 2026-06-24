@@ -11,7 +11,7 @@
 
 #include "test_common.h"
 
-#define client_log(x)    printf x
+#define client_log(x)	printf x
 
 void
 setUp()
@@ -26,209 +26,209 @@ tearDown()
 void
 test01()
 {
-    GTM_Conn *conn;
-    char connect_string[100];
+	GTM_Conn *conn;
+	char connect_string[100];
 
-    SETUP();
+	SETUP();
 
-    sprintf(connect_string, "host=localhost port=6666 node_name=one remote_type=%d",
-        GTM_NODE_GTM_PROXY);
+	sprintf(connect_string, "host=localhost port=6666 node_name=one remote_type=%d",
+		GTM_NODE_GTM_PROXY);
 
-    conn = PQconnectGTM(connect_string);
-    if (conn == NULL)
-    {
-        client_log(("Error in connection\n"));
-        exit(1);
-    }
-    client_log(("PGconnectGTM() ok.\n"));
+	conn = PQconnectGTM(connect_string);
+	if (conn == NULL)
+	{
+		client_log(("Error in connection\n"));
+		exit(1);
+	}
+	client_log(("PGconnectGTM() ok.\n"));
 
-    GTMPQfinish(conn);
+	GTMPQfinish(conn);
 
-    TEARDOWN();
+	TEARDOWN();
 }
 
 void
 test02()
 {
-    GTM_Conn *conn;
-    char connect_string[100];
+	GTM_Conn *conn;
+	char connect_string[100];
 
-    SETUP();
+	SETUP();
 
-    sprintf(connect_string, "host=localhost port=6666 node_name=one remote_type=%d",
-        GTM_NODE_GTM_PROXY_POSTMASTER);
+	sprintf(connect_string, "host=localhost port=6666 node_name=one remote_type=%d",
+		GTM_NODE_GTM_PROXY_POSTMASTER);
 
-    conn = PQconnectGTM(connect_string);
-    if (conn == NULL)
-    {
-        client_log(("Error in connection\n"));
-        exit(1);
-    }
-    client_log(("PGconnectGTM() ok.\n"));
+	conn = PQconnectGTM(connect_string);
+	if (conn == NULL)
+	{
+		client_log(("Error in connection\n"));
+		exit(1);
+	}
+	client_log(("PGconnectGTM() ok.\n"));
 
-    GTMPQfinish(conn);
+	GTMPQfinish(conn);
 
-    TEARDOWN();
+	TEARDOWN();
 }
 
 void
 test03()
 {
-    GTM_Conn *conn;
-    char connect_string[100];
+	GTM_Conn *conn;
+	char connect_string[100];
 
-    SETUP();
+	SETUP();
 
-    sprintf(connect_string, "host=localhost port=6666 node_name=one remote_type=%d",
-        GTM_NODE_COORDINATOR);
+	sprintf(connect_string, "host=localhost port=6666 node_name=one remote_type=%d",
+		GTM_NODE_COORDINATOR);
 
-    conn = PQconnectGTM(connect_string);
-    if (conn == NULL)
-    {
-        client_log(("Error in connection\n"));
-        exit(1);
-    }
-    client_log(("PGconnectGTM() ok.\n"));
+	conn = PQconnectGTM(connect_string);
+	if (conn == NULL)
+	{
+		client_log(("Error in connection\n"));
+		exit(1);
+	}
+	client_log(("PGconnectGTM() ok.\n"));
 
-    GTMPQfinish(conn);
+	GTMPQfinish(conn);
 
-    TEARDOWN();
+	TEARDOWN();
 }
 
 void
 test04()
 {
-    GTM_Conn *conn;
-    char connect_string[100];
+	GTM_Conn *conn;
+	char connect_string[100];
 
-    SETUP();
+	SETUP();
 
-    sprintf(connect_string, "host=localhost port=6666 node_name=one remote_type=%d",
-            GTM_NODE_DATANODE);
+	sprintf(connect_string, "host=localhost port=6666 node_name=one remote_type=%d",
+	        GTM_NODE_DATANODE);
 
-    conn = PQconnectGTM(connect_string);
-    if (conn == NULL)
-    {
-        client_log(("Error in connection\n"));
-        exit(1);
-    }
-    client_log(("PGconnectGTM() ok.\n"));
+	conn = PQconnectGTM(connect_string);
+	if (conn == NULL)
+	{
+		client_log(("Error in connection\n"));
+		exit(1);
+	}
+	client_log(("PGconnectGTM() ok.\n"));
 
-    GTMPQfinish(conn);
+	GTMPQfinish(conn);
 
-    TEARDOWN();
+	TEARDOWN();
 }
 
 void
 test05()
 {
-    GTM_Conn *conn;
-    char connect_string[100];
+	GTM_Conn *conn;
+	char connect_string[100];
 
-    SETUP();
+	SETUP();
 
-    sprintf(connect_string, "host=localhost port=6666 node_name=one remote_type=%d",
-        GTM_NODE_GTM);
+	sprintf(connect_string, "host=localhost port=6666 node_name=one remote_type=%d",
+		GTM_NODE_GTM);
 
-    conn = PQconnectGTM(connect_string);
-    if (conn == NULL)
-    {
-        client_log(("Error in connection\n"));
-        exit(1);
-    }
-    client_log(("PGconnectGTM() ok.\n"));
+	conn = PQconnectGTM(connect_string);
+	if (conn == NULL)
+	{
+		client_log(("Error in connection\n"));
+		exit(1);
+	}
+	client_log(("PGconnectGTM() ok.\n"));
 
-    GTMPQfinish(conn);
+	GTMPQfinish(conn);
 
-    TEARDOWN();
+	TEARDOWN();
 }
 
 void
 test06()
 {
-    GTM_Conn *conn;
-    char connect_string[100];
+	GTM_Conn *conn;
+	char connect_string[100];
 
-    SETUP();
+	SETUP();
 
-    sprintf(connect_string, "host=localhost port=6666 node_name=one remote_type=%d",
-            GTM_NODE_DEFAULT);
+	sprintf(connect_string, "host=localhost port=6666 node_name=one remote_type=%d",
+	        GTM_NODE_DEFAULT);
 
-    conn = PQconnectGTM(connect_string);
-    if (conn == NULL)
-    {
-        client_log(("Error in connection\n"));
-        exit(1);
-    }
-    client_log(("PGconnectGTM() ok.\n"));
+	conn = PQconnectGTM(connect_string);
+	if (conn == NULL)
+	{
+		client_log(("Error in connection\n"));
+		exit(1);
+	}
+	client_log(("PGconnectGTM() ok.\n"));
 
-    GTMPQfinish(conn);
+	GTMPQfinish(conn);
 
-    TEARDOWN();
+	TEARDOWN();
 }
 
 void
 test07()
 {
-    GTM_Conn *conn;
-    char connect_string[100];
+	GTM_Conn *conn;
+	char connect_string[100];
 
-    SETUP();
+	SETUP();
 
-    sprintf(connect_string, "host=localhost port=6666 node_name=one remote_type=%d",
-        12);
+	sprintf(connect_string, "host=localhost port=6666 node_name=one remote_type=%d",
+		12);
 
-    conn = PQconnectGTM(connect_string);
-    if (conn == NULL)
-    {
-        client_log(("Error in connection\n"));
-        exit(1);
-    }
-    client_log(("PGconnectGTM() ok.\n"));
+	conn = PQconnectGTM(connect_string);
+	if (conn == NULL)
+	{
+		client_log(("Error in connection\n"));
+		exit(1);
+	}
+	client_log(("PGconnectGTM() ok.\n"));
 
-    GTMPQfinish(conn);
+	GTMPQfinish(conn);
 
-    TEARDOWN();
+	TEARDOWN();
 }
 
 void
 test08()
 {
-    GTM_Conn *conn;
-    char connect_string[100];
+	GTM_Conn *conn;
+	char connect_string[100];
 
-    SETUP();
+	SETUP();
 
-    sprintf(connect_string, "host=localhost port=6668 node_name=one remote_type=%d",
-        12);
+	sprintf(connect_string, "host=localhost port=6668 node_name=one remote_type=%d",
+		12);
 
-    conn = PQconnectGTM(connect_string);
-    if (conn == NULL)
-    {
-        client_log(("Error in connection\n"));
-        exit(1);
-    }
+	conn = PQconnectGTM(connect_string);
+	if (conn == NULL)
+	{
+		client_log(("Error in connection\n"));
+		exit(1);
+	}
 
-    printf("conn = %p\n", conn);
+	printf("conn = %p\n", conn);
 
-    client_log(("PGconnectGTM() ok.\n"));
+	client_log(("PGconnectGTM() ok.\n"));
 
-    GTMPQfinish(conn);
+	GTMPQfinish(conn);
 
-    TEARDOWN();
+	TEARDOWN();
 }
 
 int
 main(int argc, char *argv[])
 {
-    test01();
-    test02();
-    test03();
-    test04();
-    test05();
-    test06();
-    test07(); /* must fail */
-    test08(); /* must fail */
+	test01();
+	test02();
+	test03();
+	test04();
+	test05();
+	test06();
+	test07(); /* must fail */
+	test08(); /* must fail */
 
-    return 0;
+	return 0;
 }

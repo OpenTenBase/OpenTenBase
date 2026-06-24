@@ -7663,7 +7663,7 @@ current_date &lt; 2017-11-17
       </para>
 
       <para>
-       This matches <productname>Oracle</>'s behavior.
+       This matches <productname>OpenTenBase_Ora</>'s behavior.
       </para>
      </listitem>
 

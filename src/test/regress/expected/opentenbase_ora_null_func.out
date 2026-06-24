@@ -1,0 +1,570 @@
+\c regression_ora
+-- Test lnnvl
+SELECT CASE WHEN LNNVL(1=0) THEN 0 ELSE 1 END "1=0"
+     , CASE WHEN LNNVL(1=1) THEN 0 ELSE 1 END "1=1"
+     , LNNVL(1=0) "1=0"
+     , LNNVL(1=1) "1=0"
+FROM DUAL;
+ 1=0 | 1=1 | 1=0 | 1=0 
+-----+-----+-----+-----
+   0 |   1 | t   | f
+(1 row)
+
+-- Test nanvl
+SELECT NANVL(binary_double_nan, 0), NANVL(binary_float_nan, 0) FROM DUAL;
+ NANVL | NANVL 
+-------+-------
+     0 |     0
+(1 row)
+
+SELECT NANVL(0/0, 1) FROM DUAL;
+ERROR:  division by zero
+DROP TABLE IF EXISTS float_point_demo;
+NOTICE:  table "FLOAT_POINT_DEMO" does not exist, skipping
+CREATE TABLE float_point_demo (id int, dec_num NUMBER(10, 2), bin_double BINARY_DOUBLE, bin_float BINARY_FLOAT);
+INSERT INTO float_point_demo VALUES (1, 1234.56, 1234.56, 1234.56);
+INSERT INTO float_point_demo VALUES (2, 0, 'NaN', 'NaN');
+SELECT bin_float, NANVL(bin_float, 0) FROM float_point_demo ORDER BY id;
+ BIN_FLOAT |  NANVL  
+-----------+---------
+   1234.56 | 1234.56
+       NaN |       0
+(2 rows)
+
+SELECT bin_float, NANVL(bin_float, '1111') FROM float_point_demo ORDER BY id;
+ BIN_FLOAT |  NANVL  
+-----------+---------
+   1234.56 | 1234.56
+       NaN |    1111
+(2 rows)
+
+SELECT bin_double, NANVL(bin_double, '0') FROM float_point_demo ORDER BY id;
+ BIN_DOUBLE |  NANVL  
+------------+---------
+    1234.56 | 1234.56
+        NaN |       0
+(2 rows)
+
+SELECT bin_double, NANVL(bin_double, 0) FROM float_point_demo ORDER BY id;
+ BIN_DOUBLE |  NANVL  
+------------+---------
+    1234.56 | 1234.56
+        NaN |       0
+(2 rows)
+
+DROP TABLE float_point_demo;
+-- begin 22123691
+select nanvl('0', '-1') from dual;
+ NANVL 
+-------
+     0
+(1 row)
+
+select nanvl('-0', '-1') from dual;
+ NANVL 
+-------
+     0
+(1 row)
+
+select nanvl('-0', '-0') from dual;
+ NANVL 
+-------
+     0
+(1 row)
+
+select nanvl('-0', '0') from dual;
+ NANVL 
+-------
+     0
+(1 row)
+
+select nanvl('-0', '+0') from dual;
+ NANVL 
+-------
+     0
+(1 row)
+
+select nanvl('-0', '1') from dual;
+ NANVL 
+-------
+     0
+(1 row)
+
+select nanvl('0.0', '1') from dual;
+ NANVL 
+-------
+     0
+(1 row)
+
+select nanvl('-0.0', '1') from dual;
+ NANVL 
+-------
+     0
+(1 row)
+
+select nanvl('0.00', '1') from dual;
+ NANVL 
+-------
+     0
+(1 row)
+
+select nanvl('-0.00', '1') from dual;
+ NANVL 
+-------
+     0
+(1 row)
+
+select nanvl('-0.00000001', '1') from dual;
+   NANVL    
+------------
+ -.00000001
+(1 row)
+
+select atan2('0', '-1') from dual;
+       ATAN2       
+-------------------
+ 3.141592653589793
+(1 row)
+
+select atan2('-0', '-1') from dual;
+       ATAN2       
+-------------------
+ 3.141592653589793
+(1 row)
+
+select atan2('0.0', '-1') from dual;
+       ATAN2       
+-------------------
+ 3.141592653589793
+(1 row)
+
+select atan2('-0.0', '-1') from dual;
+       ATAN2       
+-------------------
+ 3.141592653589793
+(1 row)
+
+select atan2('0.00000', '-1') from dual;
+       ATAN2       
+-------------------
+ 3.141592653589793
+(1 row)
+
+select atan2('-0.00000', '-1') from dual;
+       ATAN2       
+-------------------
+ 3.141592653589793
+(1 row)
+
+select lnnvl(1 > 2) from dual;
+ LNNVL 
+-------
+ t
+(1 row)
+
+select lnnvl(null) from dual;			-- failed
+ERROR:  invalid relational operator
+select lnnvl('') from dual;			-- failed
+ERROR:  invalid relational operator
+select 1 from dual where lnnvl(null);		-- failed
+ERROR:  invalid relational operator
+select 1 from dual where lnnvl('');		-- failed
+ERROR:  invalid relational operator
+select case when lnnvl(null) then 1 else 2 end as lnnvl from dual;	-- failed
+ERROR:  invalid relational operator
+select case when lnnvl('') then 1 else 2 end as lnnvl from dual;	-- failed
+ERROR:  invalid relational operator
+select lnnvl('1' || 'a') from dual; -- failed;
+ERROR:  invalid relational operator
+select lnnvl('1' + 2) from dual; -- failed;
+ERROR:  invalid relational operator
+select lnnvl(1 + 2) from dual; -- failed;
+ERROR:  invalid relational operator
+select coalesce(null, 2) from dual;
+ coalesce 
+----------
+        2
+(1 row)
+
+select coalesce('', '2') from dual; 
+ coalesce 
+----------
+ 2
+(1 row)
+
+select coalesce('', null, '2') from dual;
+ coalesce 
+----------
+ 2
+(1 row)
+
+select coalesce('', 2) from dual;		-- failed
+ERROR:  COALESCE types TEXT and INTEGER cannot be matched
+LINE 1: select coalesce('', 2) from dual;
+                            ^
+select coalesce(null, '', 2) from dual; -- failed
+ERROR:  COALESCE types TEXT and INTEGER cannot be matched
+LINE 1: select coalesce(null, '', 2) from dual;
+                                  ^
+select coalesce('', '2', 2) from dual;	-- failed
+ERROR:  COALESCE types TEXT and INTEGER cannot be matched
+LINE 1: select coalesce('', '2', 2) from dual;
+                                 ^
+select coalesce('', null, 2) from dual;	-- failed
+ERROR:  COALESCE types TEXT and INTEGER cannot be matched
+LINE 1: select coalesce('', null, 2) from dual;
+                                  ^
+-- end 22123691
+-- Test nvl
+SELECT NVL('', '123') FROM DUAL;
+ NVL 
+-----
+ 123
+(1 row)
+
+SELECT NVL(NULL, '123') FROM DUAL;
+ NVL 
+-----
+ 123
+(1 row)
+
+SELECT NVL('not null', '123') FROM DUAL;
+   NVL    
+----------
+ not null
+(1 row)
+
+SELECT NVL(123.456, '123') FROM DUAL;
+   NVL   
+---------
+ 123.456
+(1 row)
+
+-- Test nvl2
+-- SET NLS_DATE_FORMAT = 'YYYY-MM-DD HH24:MI:SS';
+SELECT NVL2(sysdate, '2022-07-22', '2022-08-22') FROM DUAL;
+    NVL2    
+------------
+ 2022-07-22
+(1 row)
+
+SELECT NVL2(null, '2022-07-22', '2022-08-22') FROM DUAL;
+    NVL2    
+------------
+ 2022-08-22
+(1 row)
+
+SELECT NVL2(systimestamp, '2022-07-22 13:22:33.666 +8:00', '2022-08-22 13:22:33.666 +8:00') FROM DUAL;
+             NVL2              
+-------------------------------
+ 2022-07-22 13:22:33.666 +8:00
+(1 row)
+
+SELECT NVL2(null, '2022-07-22 13:22:33.666 +8:00', '2022-08-22 13:22:33.666 +8:00') FROM DUAL;
+             NVL2              
+-------------------------------
+ 2022-08-22 13:22:33.666 +8:00
+(1 row)
+
+drop table if exists employees cascade;
+NOTICE:  table "EMPLOYEES" does not exist, skipping
+create table employees(last_name varchar2(100), salary int, commission_pct number);
+insert into employees values('Baer', 12223, 2.5);
+insert into employees values('Baida', 4523, 0.5);
+insert into employees values('Banda', 10000, null);
+insert into employees values('Bates', 23516, 1.5);
+insert into employees values('Bell', 12350, 0.5);
+insert into employees values('Bernstein', 45555, '');
+insert into employees values('Bissot', 2451, 1.8);
+insert into employees values('Bloom', 7095, 1);
+insert into employees values('Bull', 8051, 2);
+SELECT last_name, salary,commission_pct,
+       NVL2(commission_pct, salary + (salary * commission_pct), salary) income
+  FROM employees
+  WHERE last_name like 'B%'
+  ORDER BY last_name;
+ LAST_NAME | SALARY | COMMISSION_PCT | INCOME  
+-----------+--------+----------------+---------
+ Baer      |  12223 |            2.5 | 42780.5
+ Baida     |   4523 |             .5 |  6784.5
+ Banda     |  10000 |                |   10000
+ Bates     |  23516 |            1.5 |   58790
+ Bell      |  12350 |             .5 |   18525
+ Bernstein |  45555 |                |   45555
+ Bissot    |   2451 |            1.8 |  6862.8
+ Bloom     |   7095 |              1 |   14190
+ Bull      |   8051 |              2 |   24153
+(9 rows)
+
+drop table if exists employees cascade;
+-- Test lnnvl demo
+DROP TABLE IF EXISTS tbl_lnnvl_demo;
+NOTICE:  table "TBL_LNNVL_DEMO" does not exist, skipping
+CREATE TABLE tbl_lnnvl_demo(a int, b int);
+INSERT INTO tbl_lnnvl_demo VALUES (2);
+SELECT * FROM tbl_lnnvl_demo;
+ A | B 
+---+---
+ 2 |  
+(1 row)
+
+SELECT * FROM tbl_lnnvl_demo WHERE lnnvl(a = 1);
+ A | B 
+---+---
+ 2 |  
+(1 row)
+
+SELECT * FROM tbl_lnnvl_demo WHERE lnnvl(a = 2);
+ A | B 
+---+---
+(0 rows)
+
+SELECT * FROM tbl_lnnvl_demo WHERE lnnvl(a IS NULL);
+ A | B 
+---+---
+ 2 |  
+(1 row)
+
+SELECT * FROM tbl_lnnvl_demo WHERE lnnvl(b = 1);
+ A | B 
+---+---
+ 2 |  
+(1 row)
+
+SELECT * FROM tbl_lnnvl_demo WHERE lnnvl(b IS NULL);
+ A | B 
+---+---
+(0 rows)
+
+SELECT * FROM tbl_lnnvl_demo WHERE lnnvl(a = b);
+ A | B 
+---+---
+ 2 |  
+(1 row)
+
+SELECT a = 1 AS condition, lnnvl(a = 1) FROM tbl_lnnvl_demo;
+ CONDITION | LNNVL 
+-----------+-------
+ f         | t
+(1 row)
+
+SELECT a = 2 AS condition, lnnvl(a = 2) FROM tbl_lnnvl_demo;
+ CONDITION | LNNVL 
+-----------+-------
+ t         | f
+(1 row)
+
+SELECT a IS NULL AS condition, lnnvl(a IS NULL) FROM tbl_lnnvl_demo;
+ CONDITION | LNNVL 
+-----------+-------
+ f         | t
+(1 row)
+
+SELECT b = 1 AS condition, lnnvl(b = 1) FROM tbl_lnnvl_demo;
+ CONDITION | LNNVL 
+-----------+-------
+           | t
+(1 row)
+
+SELECT b IS NULL AS condition, lnnvl(b IS NULL) FROM tbl_lnnvl_demo;
+ CONDITION | LNNVL 
+-----------+-------
+ t         | f
+(1 row)
+
+SELECT a = b AS condition, lnnvl(a = b) FROM tbl_lnnvl_demo;
+ CONDITION | LNNVL 
+-----------+-------
+           | t
+(1 row)
+
+DROP TABLE tbl_lnnvl_demo;
+-- Test nanvl demo
+DROP TABLE IF EXISTS tbl_nanvl_demo;
+NOTICE:  table "TBL_NANVL_DEMO" does not exist, skipping
+CREATE TABLE tbl_nanvl_demo(a int, b float4, c float8);
+INSERT INTO tbl_nanvl_demo VALUES (1, 'NaN', 'NaN');
+SELECT * FROM tbl_nanvl_demo;
+ A |  B  |  C  
+---+-----+-----
+ 1 | NaN | NaN
+(1 row)
+
+SELECT a, b, nanvl(b, a) FROM tbl_nanvl_demo;
+ A |  B  | NANVL 
+---+-----+-------
+ 1 | NaN |     1
+(1 row)
+
+SELECT a, c, nanvl(c, a) FROM tbl_nanvl_demo;
+ A |  C  | NANVL 
+---+-----+-------
+ 1 | NaN |     1
+(1 row)
+
+DROP TABLE tbl_nanvl_demo;
+-- Test nvl demo
+DROP TABLE IF EXISTS tbl_nvl_demo;
+NOTICE:  table "TBL_NVL_DEMO" does not exist, skipping
+CREATE TABLE tbl_nvl_demo(id int, num numeric, str varchar2);
+INSERT INTO tbl_nvl_demo VALUES (1, 100, NULL);
+INSERT INTO tbl_nvl_demo VALUES (2, NULL, 'str is not NULL');
+SELECT * FROM tbl_nvl_demo ORDER BY id;
+ ID | NUM |       STR       
+----+-----+-----------------
+  1 | 100 | 
+  2 |     | str is not NULL
+(2 rows)
+
+SELECT num, nvl(num, 0) FROM tbl_nvl_demo ORDER BY id;
+ NUM | NVL 
+-----+-----
+ 100 | 100
+     |   0
+(2 rows)
+
+SELECT str, nvl(str, 'str is NULL') FROM tbl_nvl_demo ORDER BY id;
+       STR       |       NVL       
+-----------------+-----------------
+                 | str is NULL
+ str is not NULL | str is not NULL
+(2 rows)
+
+DROP TABLE tbl_nvl_demo;
+-- Test nvl2 demo
+DROP TABLE IF EXISTS tbl_nvl2_demo;
+NOTICE:  table "TBL_NVL2_DEMO" does not exist, skipping
+CREATE TABLE tbl_nvl2_demo(id int, num1 numeric, num2 numeric, num3 numeric, str1 varchar2, str2 varchar2, str3 varchar2);
+INSERT INTO tbl_nvl2_demo VALUES (1, 101, 102, 103, 'str1 is not NULL', 'str1 is not NULL, this is str2', 'str1 is not NULL, this is str3');
+INSERT INTO tbl_nvl2_demo VALUES (2, NULL, 201, 203, NULL, 'str1 is NULL, this is str2', 'str1 is NULL, this is str3');
+SELECT * FROM tbl_nvl2_demo ORDER BY id;
+ ID | NUM1 | NUM2 | NUM3 |       STR1       |              STR2              |              STR3              
+----+------+------+------+------------------+--------------------------------+--------------------------------
+  1 |  101 |  102 |  103 | str1 is not NULL | str1 is not NULL, this is str2 | str1 is not NULL, this is str3
+  2 |      |  201 |  203 |                  | str1 is NULL, this is str2     | str1 is NULL, this is str3
+(2 rows)
+
+SELECT num1, num2, num3, nvl2(num1, num2, num3) FROM tbl_nvl2_demo ORDER BY id;
+ NUM1 | NUM2 | NUM3 | NVL2 
+------+------+------+------
+  101 |  102 |  103 |  102
+      |  201 |  203 |  203
+(2 rows)
+
+SELECT str1, str2, str3, nvl2(str1, str2, str3) FROM tbl_nvl2_demo ORDER BY id;
+       STR1       |              STR2              |              STR3              |              NVL2              
+------------------+--------------------------------+--------------------------------+--------------------------------
+ str1 is not NULL | str1 is not NULL, this is str2 | str1 is not NULL, this is str3 | str1 is not NULL, this is str2
+                  | str1 is NULL, this is str2     | str1 is NULL, this is str3     | str1 is NULL, this is str3
+(2 rows)
+
+DROP TABLE tbl_nvl2_demo;
+-- 1020421696880130617
+-- Test nvl with diff length type
+DROP TABLE IF EXISTS tbl_test_nvl_with_diff_type;
+NOTICE:  table "TBL_TEST_NVL_WITH_DIFF_TYPE" does not exist, skipping
+CREATE TABLE tbl_test_nvl_with_diff_type(f1 int, f2 char(1), f3 nchar(1), f4 varchar(1),
+                                f5 varchar2(1), f6 nvarchar2(1), f7 bpchar(1),
+                                f8 text, f9 clob, f10 name,
+                                f11 pg_dependencies, f12 pg_ndistinct, f13 pg_node_tree,
+                                f14 information_schema.sql_identifier,
+                                f15 information_schema.character_data,
+                                f16 information_schema.yes_or_no);
+INSERT INTO tbl_test_nvl_with_diff_type VALUES (1);
+SELECT nvl(f1, 111111111111111111111111111111111111) FROM tbl_test_nvl_with_diff_type;
+ NVL 
+-----
+   1
+(1 row)
+
+SELECT nvl(f2, 111111111111111111111111111111111111) FROM tbl_test_nvl_with_diff_type;
+                 NVL                  
+--------------------------------------
+ 111111111111111111111111111111111111
+(1 row)
+
+SELECT nvl(f3, 111111111111111111111111111111111111) FROM tbl_test_nvl_with_diff_type;
+                 NVL                  
+--------------------------------------
+ 111111111111111111111111111111111111
+(1 row)
+
+SELECT nvl(f4, 111111111111111111111111111111111111) FROM tbl_test_nvl_with_diff_type;
+                 NVL                  
+--------------------------------------
+ 111111111111111111111111111111111111
+(1 row)
+
+SELECT nvl(f5, 111111111111111111111111111111111111) FROM tbl_test_nvl_with_diff_type;
+                 NVL                  
+--------------------------------------
+ 111111111111111111111111111111111111
+(1 row)
+
+SELECT nvl(f6, 111111111111111111111111111111111111) FROM tbl_test_nvl_with_diff_type;
+                 NVL                  
+--------------------------------------
+ 111111111111111111111111111111111111
+(1 row)
+
+SELECT nvl(f7, 111111111111111111111111111111111111) FROM tbl_test_nvl_with_diff_type;
+                 NVL                  
+--------------------------------------
+ 111111111111111111111111111111111111
+(1 row)
+
+SELECT nvl(f8, 111111111111111111111111111111111111) FROM tbl_test_nvl_with_diff_type;
+                 NVL                  
+--------------------------------------
+ 111111111111111111111111111111111111
+(1 row)
+
+SELECT nvl(f9, 111111111111111111111111111111111111) FROM tbl_test_nvl_with_diff_type;
+                 NVL                  
+--------------------------------------
+ 111111111111111111111111111111111111
+(1 row)
+
+SELECT nvl(f10, 111111111111111111111111111111111111) FROM tbl_test_nvl_with_diff_type;
+                 NVL                  
+--------------------------------------
+ 111111111111111111111111111111111111
+(1 row)
+
+SELECT nvl(f11, 111111111111111111111111111111111111) FROM tbl_test_nvl_with_diff_type;
+                 NVL                  
+--------------------------------------
+ 111111111111111111111111111111111111
+(1 row)
+
+SELECT nvl(f12, 111111111111111111111111111111111111) FROM tbl_test_nvl_with_diff_type;
+                 NVL                  
+--------------------------------------
+ 111111111111111111111111111111111111
+(1 row)
+
+SELECT nvl(f13, 111111111111111111111111111111111111) FROM tbl_test_nvl_with_diff_type;
+                 NVL                  
+--------------------------------------
+ 111111111111111111111111111111111111
+(1 row)
+
+SELECT nvl(f14, 111111111111111111111111111111111111) FROM tbl_test_nvl_with_diff_type;
+                 NVL                  
+--------------------------------------
+ 111111111111111111111111111111111111
+(1 row)
+
+SELECT nvl(f15, 111111111111111111111111111111111111) FROM tbl_test_nvl_with_diff_type;
+                 NVL                  
+--------------------------------------
+ 111111111111111111111111111111111111
+(1 row)
+
+SELECT nvl(f16, 111111111111111111111111111111111111) FROM tbl_test_nvl_with_diff_type;
+                 NVL                  
+--------------------------------------
+ 111111111111111111111111111111111111
+(1 row)
+
+DROP TABLE tbl_test_nvl_with_diff_type;

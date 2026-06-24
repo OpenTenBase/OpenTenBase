@@ -19,13 +19,13 @@ extern char *PGTYPESdate_to_asc(date);
 extern date PGTYPESdate_from_timestamp(timestamp);
 extern void PGTYPESdate_julmdy(date, int *);
 extern void PGTYPESdate_mdyjul(int *, date *);
-extern int    PGTYPESdate_dayofweek(date);
+extern int	PGTYPESdate_dayofweek(date);
 extern void PGTYPESdate_today(date *);
-extern int    PGTYPESdate_defmt_asc(date *, const char *, char *);
-extern int    PGTYPESdate_fmt_asc(date, const char *, char *);
+extern int	PGTYPESdate_defmt_asc(date *, const char *, char *);
+extern int	PGTYPESdate_fmt_asc(date, const char *, char *);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif                            /* PGTYPES_DATETIME */
+#endif							/* PGTYPES_DATETIME */

@@ -37,6 +37,9 @@ INSERT INTO J2_TBL VALUES (0, NULL);
 INSERT INTO J2_TBL VALUES (NULL, NULL);
 INSERT INTO J2_TBL VALUES (NULL, 0);
 
+analyze J1_TBL;
+analyze J2_TBL;
+
 --
 -- CORRELATION NAMES
 -- Make sure that table/column aliases are supported
@@ -215,6 +218,15 @@ SELECT '' AS "xxx", *
 SELECT '' AS "xxx", *
   FROM J1_TBL LEFT JOIN J2_TBL USING (i) WHERE (i = 1);
 
+--
+-- semijoin selectivity for <>
+--
+explain (costs off)
+select * from int4_tbl i4, tenk1 a
+where exists(select * from tenk1 b
+             where a.twothousand = b.twothousand and a.fivethous <> b.fivethous)
+      and i4.f1 = a.tenthous;
+
 
 --
 -- More complicated constructs
@@ -224,20 +236,20 @@ SELECT '' AS "xxx", *
 -- Multiway full join
 --
 
-CREATE TABLE t1 (name TEXT, n INTEGER);
-CREATE TABLE t2 (name TEXT, n INTEGER);
-CREATE TABLE t3 (name TEXT, n INTEGER);
+CREATE TABLE join_20231120_t1 (name TEXT, n INTEGER);
+CREATE TABLE join_20231120_t2 (name TEXT, n INTEGER);
+CREATE TABLE join_20231120_t3 (name TEXT, n INTEGER);
 
-INSERT INTO t1 VALUES ( 'bb', 11 );
-INSERT INTO t2 VALUES ( 'bb', 12 );
-INSERT INTO t2 VALUES ( 'cc', 22 );
-INSERT INTO t2 VALUES ( 'ee', 42 );
-INSERT INTO t3 VALUES ( 'bb', 13 );
-INSERT INTO t3 VALUES ( 'cc', 23 );
-INSERT INTO t3 VALUES ( 'dd', 33 );
+INSERT INTO join_20231120_t1 VALUES ( 'bb', 11 );
+INSERT INTO join_20231120_t2 VALUES ( 'bb', 12 );
+INSERT INTO join_20231120_t2 VALUES ( 'cc', 22 );
+INSERT INTO join_20231120_t2 VALUES ( 'ee', 42 );
+INSERT INTO join_20231120_t3 VALUES ( 'bb', 13 );
+INSERT INTO join_20231120_t3 VALUES ( 'cc', 23 );
+INSERT INTO join_20231120_t3 VALUES ( 'dd', 33 );
 
-SELECT * FROM t1 FULL JOIN t2 USING (name) FULL JOIN t3 USING (name) 
-ORDER BY name,t1.n, t2.n, t3.n;
+SELECT * FROM join_20231120_t1 FULL JOIN join_20231120_t2 USING (name) FULL JOIN join_20231120_t3 USING (name)
+ORDER BY name,join_20231120_t1.n, join_20231120_t2.n, join_20231120_t3.n;
 
 --
 -- Test interactions of join syntax and subqueries
@@ -245,81 +257,88 @@ ORDER BY name,t1.n, t2.n, t3.n;
 
 -- Basic cases (we expect planner to pull up the subquery here)
 SELECT * FROM
-(SELECT * FROM t2) as s2
+(SELECT * FROM join_20231120_t2) as s2
 INNER JOIN
-(SELECT * FROM t3) s3
+(SELECT * FROM join_20231120_t3) s3
 USING (name)
 ORDER BY name, s2.n, s3.n;
 
 SELECT * FROM
-(SELECT * FROM t2) as s2
+(SELECT * FROM join_20231120_t2) as s2
 LEFT JOIN
-(SELECT * FROM t3) s3
+(SELECT * FROM join_20231120_t3) s3
 USING (name)
 ORDER BY name, s2.n, s3.n;
 
 SELECT * FROM
-(SELECT * FROM t2) as s2
+(SELECT * FROM join_20231120_t2) as s2
 FULL JOIN
-(SELECT * FROM t3) s3
+(SELECT * FROM join_20231120_t3) s3
 USING (name)
 ORDER BY name, s2.n, s3.n;
 
 -- Cases with non-nullable expressions in subquery results;
 -- make sure these go to null as expected
 SELECT * FROM
-(SELECT name, n as s2_n, 2 as s2_2 FROM t2) as s2
+(SELECT name, n as s2_n, 2 as s2_2 FROM join_20231120_t2) as s2
 NATURAL INNER JOIN
-(SELECT name, n as s3_n, 3 as s3_2 FROM t3) s3
+(SELECT name, n as s3_n, 3 as s3_2 FROM join_20231120_t3) s3
 ORDER BY name, s2_n, s3_n;
 
 SELECT * FROM
-(SELECT name, n as s2_n, 2 as s2_2 FROM t2) as s2
+(SELECT name, n as s2_n, 2 as s2_2 FROM join_20231120_t2) as s2
 NATURAL LEFT JOIN
-(SELECT name, n as s3_n, 3 as s3_2 FROM t3) s3
+(SELECT name, n as s3_n, 3 as s3_2 FROM join_20231120_t3) s3
 ORDER BY name, s2_n, s3_n;
 
 SELECT * FROM
-(SELECT name, n as s2_n, 2 as s2_2 FROM t2) as s2
+(SELECT name, n as s2_n, 2 as s2_2 FROM join_20231120_t2) as s2
 NATURAL FULL JOIN
-(SELECT name, n as s3_n, 3 as s3_2 FROM t3) s3
+(SELECT name, n as s3_n, 3 as s3_2 FROM join_20231120_t3) s3
 ORDER BY name, s2_n, s3_n;
 
 SELECT * FROM
-(SELECT name, n as s1_n, 1 as s1_1 FROM t1) as s1
+(SELECT name, n as s1_n, 1 as s1_1 FROM join_20231120_t1) as s1
 NATURAL INNER JOIN
-(SELECT name, n as s2_n, 2 as s2_2 FROM t2) as s2
+(SELECT name, n as s2_n, 2 as s2_2 FROM join_20231120_t2) as s2
 NATURAL INNER JOIN
-(SELECT name, n as s3_n, 3 as s3_2 FROM t3) s3
+(SELECT name, n as s3_n, 3 as s3_2 FROM join_20231120_t3) s3
 ORDER BY name, s1_n, s2_n, s3_n;
 
 SELECT * FROM
-(SELECT name, n as s1_n, 1 as s1_1 FROM t1) as s1
+(SELECT name, n as s1_n, 1 as s1_1 FROM join_20231120_t1) as s1
 NATURAL FULL JOIN
-(SELECT name, n as s2_n, 2 as s2_2 FROM t2) as s2
+(SELECT name, n as s2_n, 2 as s2_2 FROM join_20231120_t2) as s2
 NATURAL FULL JOIN
-(SELECT name, n as s3_n, 3 as s3_2 FROM t3) s3
+(SELECT name, n as s3_n, 3 as s3_2 FROM join_20231120_t3) s3
 ORDER BY name, s1_n, s2_n, s3_n;
 
 SELECT * FROM
-(SELECT name, n as s1_n FROM t1) as s1
+(SELECT name, n as s1_n FROM join_20231120_t1) as s1
 NATURAL FULL JOIN
   (SELECT * FROM
-    (SELECT name, n as s2_n FROM t2) as s2
+    (SELECT name, n as s2_n FROM join_20231120_t2) as s2
     NATURAL FULL JOIN
-    (SELECT name, n as s3_n FROM t3) as s3
+    (SELECT name, n as s3_n FROM join_20231120_t3) as s3
   ) ss2
   ORDER BY name, s1_n, s2_n, s3_n;
 
 SELECT * FROM
-(SELECT name, n as s1_n FROM t1) as s1
+(SELECT name, n as s1_n FROM join_20231120_t1) as s1
 NATURAL FULL JOIN
   (SELECT * FROM
-    (SELECT name, n as s2_n, 2 as s2_2 FROM t2) as s2
+    (SELECT name, n as s2_n, 2 as s2_2 FROM join_20231120_t2) as s2
     NATURAL FULL JOIN
-    (SELECT name, n as s3_n FROM t3) as s3
+    (SELECT name, n as s3_n FROM join_20231120_t3) as s3
   ) ss2
   ORDER BY name, s1_n, s2_n, s3_n;
+
+-- Constants as join keys can also be problematic
+SELECT * FROM
+  (SELECT name, n as s1_n FROM join_20231120_t1) as s1
+FULL JOIN
+  (SELECT name, 2 as s2_n FROM join_20231120_t2) as s2
+ON (s1_n = s2_n) ORDER BY 1,2,3,4;
 
 
 -- Test for propagation of nullability constraints into sub-joins
@@ -404,8 +423,6 @@ select aa, bb, unique1, unique1
 --
 -- regression test: check handling of empty-FROM subquery underneath outer join
 --
-set enable_nestloop to off;
-
 explain (costs off)
 select * from int8_tbl i1 left join (int8_tbl i2 join
   (select 123 as x) ss on i2.q1 = x) on i1.q2 = i2.q2
@@ -414,8 +431,6 @@ order by 1, 2;
 select * from int8_tbl i1 left join (int8_tbl i2 join
   (select 123 as x) ss on i2.q1 = x) on i1.q2 = i2.q2
 order by 1, 2;
-
-reset enable_nestloop;
 
 --
 -- regression test: check a case where join_clause_is_movable_into() gives
@@ -453,9 +468,9 @@ where b.f1 = t.thousand and a.f1 = b.f1 and (a.f1+b.f1+999) = t.tenthous;
 -- Clean up
 --
 
-DROP TABLE t1;
-DROP TABLE t2;
-DROP TABLE t3;
+DROP TABLE join_20231120_t1;
+DROP TABLE join_20231120_t2;
+DROP TABLE join_20231120_t3;
 
 DROP TABLE J1_TBL;
 DROP TABLE J2_TBL;
@@ -528,6 +543,7 @@ reset enable_nestloop;
 
 set work_mem to '64kB';
 set enable_mergejoin to off;
+set enable_indexonlyscan to off;
 
 explain (costs off)
 select count(*) from tenk1 a, tenk1 b
@@ -537,6 +553,7 @@ select count(*) from tenk1 a, tenk1 b
 
 reset work_mem;
 reset enable_mergejoin;
+reset enable_indexonlyscan;
 
 --
 -- regression test for 8.2 bug with improper re-ordering of left joins
@@ -676,6 +693,26 @@ create temp table a (i integer);
 create temp table b (x integer, y integer);
 
 select * from a left join b on i = x and i = y and x = i;
+
+rollback;
+
+--
+-- test handling of merge clauses using record_ops
+--
+begin;
+
+create type mycomptype as (id int, v bigint);
+
+create temp table tidv (idv mycomptype);
+create index on tidv (idv);
+
+explain (costs off)
+select a.idv, b.idv from tidv a, tidv b where a.idv = b.idv;
+
+set enable_mergejoin = 0;
+
+explain (costs off)
+select a.idv, b.idv from tidv a, tidv b where a.idv = b.idv;
 
 rollback;
 
@@ -884,7 +921,7 @@ select * from int4_tbl a full join int4_tbl b on false order by 1,2;
 --
 -- test for ability to use a cartesian join when necessary
 --
-set enable_hashjoin = false;
+
 explain (num_nodes off, nodes off, costs off)
 select * from
   tenk1 join int4_tbl on f1 = twothousand,
@@ -898,17 +935,15 @@ select * from
   int4(sin(1)) q1,
   int4(sin(0)) q2
 where thousand = (q1 + q2);
-set enable_hashjoin = true;
 
 --
 -- test ability to generate a suitable plan for a star-schema query
 --
-set enable_mergejoin = false;
+
 explain (costs off)
 select * from
   tenk1, int8_tbl a, int8_tbl b
 where thousand = a.q1 and tenthous = b.q1 and a.q2 = 1 and b.q2 = 2;
-set enable_mergejoin = true;
 
 --
 -- test a corner case in which we shouldn't apply the star-schema optimization
@@ -991,6 +1026,7 @@ select * from tenk1 t1 left join
   on t1.hundred = t2.hundred and t1.ten + t2.ten = t3.ten
 where t1.unique1 = 1;
 
+set enable_indexonlyscan to off;
 explain (num_nodes off, nodes off, costs off)
 select count(*) from
   tenk1 a join tenk1 b on a.unique1 = b.unique2
@@ -1016,6 +1052,7 @@ select b.unique1 from
   join int4_tbl i1 on b.thousand = f1
   right join int4_tbl i2 on i2.f1 = b.tenthous
   order by 1;
+reset enable_indexonlyscan;
 
 explain (num_nodes off, nodes off, costs off)
 select * from
@@ -1033,6 +1070,17 @@ select * from
 ) ss
 where fault = 122
 order by fault;
+
+explain (costs off)
+select * from
+(values (1, array[10,20]), (2, array[20,30])) as v1(v1x,v1ys)
+left join (values (1, 10), (2, 20)) as v2(v2x,v2y) on v2x = v1x
+left join unnest(v1ys) as u1(u1y) on u1y = v2y;
+
+select * from
+(values (1, array[10,20]), (2, array[20,30])) as v1(v1x,v1ys)
+left join (values (1, 10), (2, 20)) as v2(v2x,v2y) on v2x = v1x
+left join unnest(v1ys) as u1(u1y) on u1y = v2y;
 
 --
 -- test handling of potential equivalence clauses above outer joins
@@ -1047,6 +1095,8 @@ select q1, unique2, thousand, hundred
   from int8_tbl a left join tenk1 b on q1 = unique2
   where coalesce(thousand,123) = q1 and q1 = coalesce(hundred,123);
 
+set enable_indexonlyscan to off;
+set enable_indexscan to off;
 explain (num_nodes off, nodes off, costs off)
 select f1, unique2, case when unique2 is null then f1 else 0 end
   from int4_tbl a left join tenk1 b on f1 = unique2
@@ -1055,7 +1105,8 @@ select f1, unique2, case when unique2 is null then f1 else 0 end
 select f1, unique2, case when unique2 is null then f1 else 0 end
   from int4_tbl a left join tenk1 b on f1 = unique2
   where (case when unique2 is null then f1 else 0 end) = 0;
-
+reset enable_indexonlyscan;
+reset enable_indexscan;
 --
 -- another case with equivalence clauses above outer joins (bug #8591)
 --
@@ -1072,6 +1123,8 @@ select a.unique1, b.unique1, c.unique1, coalesce(b.twothousand, a.twothousand)
 --
 -- check handling of join aliases when flattening multiple levels of subquery
 --
+set enable_indexonlyscan to off;
+set enable_mergejoin to off;
 
 explain (verbose, costs off)
 select foo1.join_key as foo1_id, foo3.join_key AS foo3_id, bug_field from
@@ -1098,8 +1151,10 @@ left join
     (select unique2 as join_key from tenk1 i2) ss2
    using (join_key)
   ) foo3
-using (join_key);
+using (join_key) order by 1;
 
+reset enable_mergejoin;
+reset enable_indexonlyscan;
 --
 -- test successful handling of nested outer joins with degenerate join quals
 --
@@ -1128,7 +1183,9 @@ select t1.* from
     on (b2.d2 = b1.q2)
   on (t1.f1 = b1.d1)
   left join int4_tbl i4
-  on (i8.q2 = i4.f1);
+  on (i8.q2 = i4.f1) order by 1;
+
+set enable_fast_query_shipping to off;
 
 explain (verbose, costs off)
 select t1.* from
@@ -1151,7 +1208,7 @@ select t1.* from
     on (b2.d2 = b1.q2)
   on (t1.f1 = b1.d1)
   left join int4_tbl i4
-  on (i8.q2 = i4.f1);
+  on (i8.q2 = i4.f1) order by 1;
 
 explain (verbose, costs off)
 select t1.* from
@@ -1176,7 +1233,9 @@ select t1.* from
     on (b2.d2 = b1.q2)
   on (t1.f1 = b1.d1)
   left join int4_tbl i4
-  on (i8.q2 = i4.f1);
+  on (i8.q2 = i4.f1) order by 1;
+
+reset enable_fast_query_shipping;
 
 explain (verbose, costs off)
 select * from
@@ -1195,7 +1254,7 @@ select * from
   right join text_tbl t2
   on t1.f1 = 'doh!'
   left join int4_tbl i4
-  on i8.q1 = i4.f1;
+  on i8.q1 = i4.f1 order by 4;
 
 reset enable_nestloop;
 reset enable_hashjoin;
@@ -1204,7 +1263,7 @@ reset enable_mergejoin;
 -- test for appropriate join order in the presence of lateral references
 --
 
-explain (verbose, costs off)
+explain (verbose, costs off, nodes off)
 select * from
   text_tbl t1
   left join int8_tbl i8
@@ -1216,10 +1275,10 @@ select * from
   text_tbl t1
   left join int8_tbl i8
   on i8.q2 = 123,
-  lateral (select i8.q1, t2.f1 from text_tbl t2 limit 1) as ss
+  lateral (select i8.q1, t2.f1 from text_tbl t2 order by 2 desc limit 1) as ss
 where t1.f1 = ss.f1;
 
-explain (verbose, costs off)
+explain (verbose, costs off, nodes off)
 select * from
   text_tbl t1
   left join int8_tbl i8
@@ -1232,11 +1291,11 @@ select * from
   text_tbl t1
   left join int8_tbl i8
   on i8.q2 = 123,
-  lateral (select i8.q1, t2.f1 from text_tbl t2 limit 1) as ss1,
+  lateral (select i8.q1, t2.f1 from text_tbl t2 order by 2 desc limit 1) as ss1,
   lateral (select ss1.* from text_tbl t3 limit 1) as ss2
 where t1.f1 = ss2.f1;
 
-explain (verbose, costs off)
+explain (verbose, costs off, nodes off)
 select 1 from
   text_tbl as tt1
   inner join text_tbl as tt2 on (tt1.f1 = 'foo')
@@ -1257,7 +1316,7 @@ where tt1.f1 = ss1.c0;
 -- check a case in which a PlaceHolderVar forces join order
 --
 
-explain (verbose, costs off)
+explain (verbose, costs off, nodes off)
 select ss2.* from
   int4_tbl i41
   left join int8_tbl i8
@@ -1544,15 +1603,15 @@ explain (costs off)
   select unique2, x.*
   from int4_tbl x cross join lateral (select unique2 from tenk1 where f1 = unique1) ss;
 select unique2, x.*
-from int4_tbl x left join lateral (select unique1, unique2 from tenk1 where f1 = unique1) ss on true order by 1;
+from int4_tbl x left join lateral (select unique1, unique2 from tenk1 where f1 = unique1) ss on true order by 2;
 --explain (costs off)
   --select unique2, x.*
   --from int4_tbl x left join lateral (select unique1, unique2 from tenk1 where f1 = unique1) ss on true;
 
 -- check scoping of lateral versus parent references
 -- the first of these should return int8_tbl.q2, the second int8_tbl.q1
-select *, (select r from (select q1 as q2) x, (select q2 as r) y) from int8_tbl;
-select *, (select r from (select q1 as q2) x, lateral (select q2 as r) y) from int8_tbl;
+select *, (select r from (select q1 as q2) x, (select q2 as r) y) from int8_tbl order by 1,2,3;
+select *, (select r from (select q1 as q2) x, lateral (select q2 as r) y) from int8_tbl order by 1,2,3;
 
 -- lateral with function in FROM
 select count(*) from tenk1 a, lateral generate_series(1,two) g;
@@ -1574,6 +1633,7 @@ select * from generate_series(100,200) g,
            select * from int8_tbl b where g = q2) ss;
 
 -- lateral with VALUES
+set enable_indexonlyscan to off;
 explain (num_nodes off, nodes off, costs off)
   select count(*) from tenk1 a,
     tenk1 b join lateral (values(a.unique1)) ss(x) on b.unique2 = ss.x;
@@ -1586,6 +1646,7 @@ explain (num_nodes off, nodes off, costs off)
     tenk1 b join lateral (values(a.unique1),(-1)) ss(x) on b.unique2 = ss.x;
 select count(*) from tenk1 a,
   tenk1 b join lateral (values(a.unique1),(-1)) ss(x) on b.unique2 = ss.x;
+reset enable_indexonlyscan;
 
 -- lateral injecting a strange outer join condition
 set enable_hashjoin to off;
@@ -1606,19 +1667,19 @@ reset enable_mergejoin;
 
 -- lateral reference to a join alias variable
 select * from (select f1/2 as x from int4_tbl) ss1 join int4_tbl i4 on x = f1,
-  lateral (select x) ss2(y) order by 1,2,3;
+  lateral (select x) ss2(y);
 select * from (select f1 as x from int4_tbl) ss1 join int4_tbl i4 on x = f1,
-  lateral (values(x)) ss2(y) order by 1,2,3;
+  lateral (values(x)) ss2(y) order by 1;
 select * from ((select f1/2 as x from int4_tbl) ss1 join int4_tbl i4 on x = f1) j,
-  lateral (select x) ss2(y) order by 1,2,3;
+  lateral (select x) ss2(y);
 
 -- lateral references requiring pullup
 select * from (values(1)) x(lb),
-  lateral generate_series(lb,4) x4 order by 1,2;
+  lateral generate_series(lb,4) x4;
 select * from (select f1/1000000000 from int4_tbl) x(lb),
   lateral generate_series(lb,4) x4 order by 1,2;
 select * from (values(1)) x(lb),
-  lateral (values(lb)) y(lbcopy) order by 1,2;
+  lateral (values(lb)) y(lbcopy);
 select * from (values(1)) x(lb),
   lateral (select lb from int4_tbl) y(lbcopy);
 select * from
@@ -1669,21 +1730,22 @@ select * from
 set enable_nestloop to on;
 set enable_hashjoin to off;
 set enable_mergejoin to off;
+
 explain (num_nodes off, nodes off, verbose, costs off)
 select * from int4_tbl i left join
   lateral (select * from int2_tbl j where i.f1 = j.f1) k on true;
 select * from int4_tbl i left join
   lateral (select * from int2_tbl j where i.f1 = j.f1) k on true order by 1;
+
 reset enable_nestloop;
 reset enable_hashjoin;
-reset enable_mergejoin
+reset enable_mergejoin;
+
 explain (num_nodes off, nodes off, verbose, costs off)
 select * from int4_tbl i left join
   lateral (select coalesce(i) from int2_tbl j where i.f1 = j.f1) k on true;
 select * from int4_tbl i left join
   lateral (select coalesce(i) from int2_tbl j where i.f1 = j.f1) k on true order by 1;
-set enable_hashjoin to off;
-set enable_mergejoin to off;
 explain (num_nodes off, nodes off, verbose, costs off)
 select * from int4_tbl a,
   lateral (
@@ -1693,8 +1755,6 @@ select * from int4_tbl a,
   lateral (
     select * from int4_tbl b left join int8_tbl c on (b.f1 = q1 and a.f1 = q2)
   ) ss order by 1,2,3,4;
-reset enable_hashjoin;
-reset enable_mergejoin;
 
 -- lateral reference in a PlaceHolderVar evaluated at join level
 explain (num_nodes off, nodes off, verbose, costs off)
@@ -1741,6 +1801,16 @@ select * from
     select * from (select 3 as z offset 0) z where z.z = x.x
   ) zz on zz.z = y.y;
 
+-- check handling of nested appendrels inside LATERAL
+select * from
+  ((select 2 as v) union all (select 3 as v)) as q1
+  cross join lateral
+  ((select * from
+      ((select 4 as v) union all (select 5 as v)) as q3)
+   union all
+   (select q1.v)
+  ) as q2;
+
 -- check we don't try to do a unique-ified semijoin with LATERAL
 explain (verbose, costs off, nodes off)
 select * from
@@ -1773,7 +1843,7 @@ lateral (select * from int8_tbl t1,
                      where q1 = any (select q2 from int8_tbl t3
                                      where q2 = (select greatest(t1.q1,t2.q2))
                                        and (select v.id=0)) offset 0) ss2) ss
-         where t1.q1 = ss.q2) ss0;
+         where t1.q1 = ss.q2) ss0 order by 3;
 
 -- test some error cases where LATERAL should have been used but wasn't
 select f1,g from int4_tbl a, (select f1 as g) ss;
@@ -1992,12 +2062,14 @@ drop table j2;
 drop table j3;
 
 -- check that semijoin inner is not seen as unique for a portion of the outerrel
+set enable_indexonlyscan to off;
 explain (verbose, costs off)
 select t1.unique1, t2.hundred
 from onek t1, tenk1 t2
 where exists (select 1 from tenk1 t3
               where t3.thousand = t1.unique1 and t3.tenthous = t2.hundred)
       and t1.unique1 < 1;
+reset enable_indexonlyscan;
 
 -- ... unless it actually is unique
 create table j3 as select unique1, tenthous from onek;
@@ -2014,19 +2086,12 @@ where exists (select 1 from j3
 drop table j3;
 
 --
--- Test nestloop path suppression if the selectivity could be under estimated
+-- exercises for the hash join code
 --
-create table nestloop_suppression1(a int, b int, c int, d varchar(20));
-create table nestloop_suppression2(a int, b int, c int, d varchar(20));
-create table nestloop_suppression3(a int, b int);
 
-insert into nestloop_suppression1 select i, i+1, i+2, 'char'||i from generate_series(1,10000) i;
-insert into nestloop_suppression2 select i, i+1, i+2, 'char'||i from generate_series(1,10000) i;
-insert into nestloop_suppression3 select i, i+1 from generate_series(1,100) i;
-create index idx_nestloop_suppression1_b on nestloop_suppression1(b);
-analyze nestloop_suppression1;
-analyze nestloop_suppression2;
-analyze nestloop_suppression3;
+-- something wrong with squeue + subtransaction, just reset
+\c
+
 begin;
 
 set local min_parallel_table_scan_size = 0;
@@ -2103,9 +2168,25 @@ analyze extremely_skewed;
 insert into extremely_skewed
   select 42 as id, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
   from generate_series(1, 20000);
-update pg_class
-  set reltuples = 2, relpages = pg_relation_size('extremely_skewed') / 8192
-  where relname = 'extremely_skewed';
+DO $$
+DECLARE
+    v_size bigint;
+BEGIN
+    SELECT pg_relation_size('extremely_skewed') / 8192 INTO v_size;
+    UPDATE pg_class
+    SET reltuples = 2, relpages = v_size
+    WHERE relname = 'extremely_skewed';
+END;$$;
+
+-- Make a relation with a couple of enormous tuples.
+create table wide as select generate_series(1, 2) as id, rpad('', 320000, 'x') as t;
+alter table wide set (parallel_workers = 2);
+
+-- something wrong with savepoint, move all create table before it
+create table foo as select generate_series(1, 3) as id, 'xxxxx'::text as t;
+alter table foo set (parallel_workers = 0);
+create table bar as select generate_series(1, 10000) as id, 'xxxxx'::text as t;
+alter table bar set (parallel_workers = 2);
 
 -- The "optimal" case: the hash table fits in memory; we plan for 1
 -- batch, we stick to that number, and peak memory usage stays within
@@ -2118,25 +2199,41 @@ set local work_mem = '4MB';
 explain (costs off)
   select count(*) from simple r join simple s using (id);
 select count(*) from simple r join simple s using (id);
-select original > 1 as initially_multibatch, final > original as increased_batches
-  from hash_join_batches(
-$$
-  select count(*) from simple r join simple s using (id);
-$$);
+--select original > 1 as initially_multibatch, final > original as increased_batches
+--  from hash_join_batches(
+--$$
+--  select count(*) from simple r join simple s using (id);
+--$$);
 rollback to settings;
 
 -- parallel with parallel-oblivious hash join
 savepoint settings;
 set local max_parallel_workers_per_gather = 2;
 set local work_mem = '4MB';
+set local enable_parallel_hash = off;
 explain (costs off)
   select count(*) from simple r join simple s using (id);
 select count(*) from simple r join simple s using (id);
-select original > 1 as initially_multibatch, final > original as increased_batches
-  from hash_join_batches(
-$$
+--select original > 1 as initially_multibatch, final > original as increased_batches
+--  from hash_join_batches(
+--$$
+--  select count(*) from simple r join simple s using (id);
+--$$);
+rollback to settings;
+
+-- parallel with parallel-aware hash join
+savepoint settings;
+set local max_parallel_workers_per_gather = 2;
+set local work_mem = '4MB';
+set local enable_parallel_hash = on;
+explain (costs off)
   select count(*) from simple r join simple s using (id);
-$$);
+select count(*) from simple r join simple s using (id);
+--select original > 1 as initially_multibatch, final > original as increased_batches
+--  from hash_join_batches(
+--$$
+--  select count(*) from simple r join simple s using (id);
+--$$);
 rollback to settings;
 
 -- The "good" case: batches required, but we plan the right number; we
@@ -2150,25 +2247,41 @@ set local work_mem = '128kB';
 explain (costs off)
   select count(*) from simple r join simple s using (id);
 select count(*) from simple r join simple s using (id);
-select original > 1 as initially_multibatch, final > original as increased_batches
-  from hash_join_batches(
-$$
-  select count(*) from simple r join simple s using (id);
-$$);
+--select original > 1 as initially_multibatch, final > original as increased_batches
+--  from hash_join_batches(
+--$$
+--  select count(*) from simple r join simple s using (id);
+--$$);
 rollback to settings;
 
 -- parallel with parallel-oblivious hash join
 savepoint settings;
 set local max_parallel_workers_per_gather = 2;
 set local work_mem = '128kB';
+set local enable_parallel_hash = off;
 explain (costs off)
   select count(*) from simple r join simple s using (id);
 select count(*) from simple r join simple s using (id);
-select original > 1 as initially_multibatch, final > original as increased_batches
-  from hash_join_batches(
-$$
+--select original > 1 as initially_multibatch, final > original as increased_batches
+--  from hash_join_batches(
+--$$
+--  select count(*) from simple r join simple s using (id);
+--$$);
+rollback to settings;
+
+-- parallel with parallel-aware hash join
+savepoint settings;
+set local max_parallel_workers_per_gather = 2;
+set local work_mem = '192kB';
+set local enable_parallel_hash = on;
+explain (costs off)
   select count(*) from simple r join simple s using (id);
-$$);
+select count(*) from simple r join simple s using (id);
+--select original > 1 as initially_multibatch, final > original as increased_batches
+--  from hash_join_batches(
+--$$
+--  select count(*) from simple r join simple s using (id);
+--$$);
 rollback to settings;
 
 -- The "bad" case: during execution we need to increase number of
@@ -2183,25 +2296,41 @@ set local work_mem = '128kB';
 explain (costs off)
   select count(*) FROM simple r JOIN bigger_than_it_looks s USING (id);
 select count(*) FROM simple r JOIN bigger_than_it_looks s USING (id);
-select original > 1 as initially_multibatch, final > original as increased_batches
-  from hash_join_batches(
-$$
-  select count(*) FROM simple r JOIN bigger_than_it_looks s USING (id);
-$$);
+--select original > 1 as initially_multibatch, final > original as increased_batches
+--  from hash_join_batches(
+--$$
+--  select count(*) FROM simple r JOIN bigger_than_it_looks s USING (id);
+--$$);
 rollback to settings;
 
 -- parallel with parallel-oblivious hash join
 savepoint settings;
 set local max_parallel_workers_per_gather = 2;
 set local work_mem = '128kB';
+set local enable_parallel_hash = off;
 explain (costs off)
   select count(*) from simple r join bigger_than_it_looks s using (id);
 select count(*) from simple r join bigger_than_it_looks s using (id);
-select original > 1 as initially_multibatch, final > original as increased_batches
-  from hash_join_batches(
-$$
+--select original > 1 as initially_multibatch, final > original as increased_batches
+--  from hash_join_batches(
+--$$
+--  select count(*) from simple r join bigger_than_it_looks s using (id);
+--$$);
+rollback to settings;
+
+-- parallel with parallel-aware hash join
+savepoint settings;
+set local max_parallel_workers_per_gather = 1;
+set local work_mem = '192kB';
+set local enable_parallel_hash = on;
+explain (costs off)
   select count(*) from simple r join bigger_than_it_looks s using (id);
-$$);
+select count(*) from simple r join bigger_than_it_looks s using (id);
+--select original > 1 as initially_multibatch, final > original as increased_batches
+--  from hash_join_batches(
+--$$
+--  select count(*) from simple r join bigger_than_it_looks s using (id);
+--$$);
 rollback to settings;
 
 -- The "ugly" case: increasing the number of batches during execution
@@ -2217,23 +2346,38 @@ set local work_mem = '128kB';
 explain (costs off)
   select count(*) from simple r join extremely_skewed s using (id);
 select count(*) from simple r join extremely_skewed s using (id);
-select * from hash_join_batches(
-$$
-  select count(*) from simple r join extremely_skewed s using (id);
-$$);
+--select * from hash_join_batches(
+--$$
+--  select count(*) from simple r join extremely_skewed s using (id);
+--$$);
 rollback to settings;
 
 -- parallel with parallel-oblivious hash join
 savepoint settings;
 set local max_parallel_workers_per_gather = 2;
 set local work_mem = '128kB';
+set local enable_parallel_hash = off;
 explain (costs off)
   select count(*) from simple r join extremely_skewed s using (id);
 select count(*) from simple r join extremely_skewed s using (id);
-select * from hash_join_batches(
-$$
+--select * from hash_join_batches(
+--$$
+--  select count(*) from simple r join extremely_skewed s using (id);
+--$$);
+rollback to settings;
+
+-- parallel with parallel-aware hash join
+savepoint settings;
+set local max_parallel_workers_per_gather = 1;
+set local work_mem = '128kB';
+set local enable_parallel_hash = on;
+explain (costs off)
   select count(*) from simple r join extremely_skewed s using (id);
-$$);
+select count(*) from simple r join extremely_skewed s using (id);
+--select * from hash_join_batches(
+--$$
+--  select count(*) from simple r join extremely_skewed s using (id);
+--$$);
 rollback to settings;
 
 -- A couple of other hash join tests unrelated to work_mem management.
@@ -2243,10 +2387,121 @@ savepoint settings;
 set local max_parallel_workers_per_gather = 2;
 set local work_mem = '4MB';
 set local parallel_leader_participation = off;
-select * from hash_join_batches(
-$$
-  select count(*) from simple r join simple s using (id);
-$$);
+--select * from hash_join_batches(
+--$$
+--  select count(*) from simple r join simple s using (id);
+--$$);
+rollback to settings;
+
+-- Exercise rescans.  We'll turn off parallel_leader_participation so
+-- that we can check that instrumentation comes back correctly.
+
+-- multi-batch with rescan, parallel-oblivious
+savepoint settings;
+set enable_parallel_hash = off;
+set parallel_leader_participation = off;
+set min_parallel_table_scan_size = 0;
+set parallel_setup_cost = 0;
+set parallel_tuple_cost = 0;
+set max_parallel_workers_per_gather = 2;
+set enable_material = off;
+set enable_mergejoin = off;
+set work_mem = '64kB';
+explain (costs off)
+  select count(*) from foo
+    left join (select b1.id, b1.t from bar b1 join bar b2 using (id)) ss
+    on foo.id < ss.id + 1 and foo.id > ss.id - 1;
+select count(*) from foo
+  left join (select b1.id, b1.t from bar b1 join bar b2 using (id)) ss
+  on foo.id < ss.id + 1 and foo.id > ss.id - 1;
+--select final > 1 as multibatch
+--  from hash_join_batches(
+--$$
+--  select count(*) from foo
+--    left join (select b1.id, b1.t from bar b1 join bar b2 using (id)) ss
+--    on foo.id < ss.id + 1 and foo.id > ss.id - 1;
+--$$);
+rollback to settings;
+
+-- single-batch with rescan, parallel-oblivious
+savepoint settings;
+set enable_parallel_hash = off;
+set parallel_leader_participation = off;
+set min_parallel_table_scan_size = 0;
+set parallel_setup_cost = 0;
+set parallel_tuple_cost = 0;
+set max_parallel_workers_per_gather = 2;
+set enable_material = off;
+set enable_mergejoin = off;
+set work_mem = '4MB';
+explain (costs off)
+  select count(*) from foo
+    left join (select b1.id, b1.t from bar b1 join bar b2 using (id)) ss
+    on foo.id < ss.id + 1 and foo.id > ss.id - 1;
+select count(*) from foo
+  left join (select b1.id, b1.t from bar b1 join bar b2 using (id)) ss
+  on foo.id < ss.id + 1 and foo.id > ss.id - 1;
+--select final > 1 as multibatch
+--  from hash_join_batches(
+--$$
+--  select count(*) from foo
+--    left join (select b1.id, b1.t from bar b1 join bar b2 using (id)) ss
+--    on foo.id < ss.id + 1 and foo.id > ss.id - 1;
+--$$);
+rollback to settings;
+
+-- multi-batch with rescan, parallel-aware
+savepoint settings;
+set enable_parallel_hash = on;
+set parallel_leader_participation = off;
+set min_parallel_table_scan_size = 0;
+set parallel_setup_cost = 0;
+set parallel_tuple_cost = 0;
+set max_parallel_workers_per_gather = 2;
+set enable_material = off;
+set enable_mergejoin = off;
+set work_mem = '64kB';
+explain (costs off)
+  select count(*) from foo
+    left join (select b1.id, b1.t from bar b1 join bar b2 using (id)) ss
+    on foo.id < ss.id + 1 and foo.id > ss.id - 1;
+select count(*) from foo
+  left join (select b1.id, b1.t from bar b1 join bar b2 using (id)) ss
+  on foo.id < ss.id + 1 and foo.id > ss.id - 1;
+--select final > 1 as multibatch
+--  from hash_join_batches(
+--$$
+--  select count(*) from foo
+--    left join (select b1.id, b1.t from bar b1 join bar b2 using (id)) ss
+--    on foo.id < ss.id + 1 and foo.id > ss.id - 1;
+--$$);
+rollback to settings;
+
+-- single-batch with rescan, parallel-aware
+savepoint settings;
+set enable_parallel_hash = on;
+set parallel_leader_participation = off;
+set min_parallel_table_scan_size = 0;
+set parallel_setup_cost = 0;
+set parallel_tuple_cost = 0;
+set max_parallel_workers_per_gather = 2;
+set enable_material = off;
+set enable_mergejoin = off;
+set work_mem = '4MB';
+explain (costs off)
+  select count(*) from foo
+    left join (select b1.id, b1.t from bar b1 join bar b2 using (id)) ss
+    on foo.id < ss.id + 1 and foo.id > ss.id - 1;
+select count(*) from foo
+  left join (select b1.id, b1.t from bar b1 join bar b2 using (id)) ss
+  on foo.id < ss.id + 1 and foo.id > ss.id - 1;
+--select final > 1 as multibatch
+--  from hash_join_batches(
+--$$
+--  select count(*) from foo
+--    left join (select b1.id, b1.t from bar b1 join bar b2 using (id)) ss
+--    on foo.id < ss.id + 1 and foo.id > ss.id - 1;
+--$$);
 rollback to settings;
 
 -- A full outer join where every record is matched.
@@ -2269,16 +2524,285 @@ rollback to settings;
 
 -- An full outer join where every record is not matched.
 
+-- non-parallel
+savepoint settings;
+set local max_parallel_workers_per_gather = 0;
+explain (costs off)
+     select  count(*) from simple r full outer join simple s on (r.id = 0 - s.id);
+select  count(*) from simple r full outer join simple s on (r.id = 0 - s.id);
+rollback to settings;
+
+-- parallelism not possible with parallel-oblivious outer hash join
+savepoint settings;
+set local max_parallel_workers_per_gather = 2;
+explain (costs off)
+     select  count(*) from simple r full outer join simple s on (r.id = 0 - s.id);
+select  count(*) from simple r full outer join simple s on (r.id = 0 - s.id);
+rollback to settings;
+
+-- exercise special code paths for huge tuples (note use of non-strict
+-- expression and left join required to get the detoasted tuple into
+-- the hash table)
+
+-- parallel with parallel-aware hash join (hits ExecParallelHashLoadTuple and
+-- sts_puttuple oversized tuple cases because it's multi-batch)
+savepoint settings;
+set max_parallel_workers_per_gather = 2;
+set enable_parallel_hash = on;
+set work_mem = '128kB';
+explain (costs off)
+  select length(max(s.t))
+  from wide left join (select id, coalesce(t, '') || '' as t from wide) s using (id);
+select length(max(s.t))
+from wide left join (select id, coalesce(t, '') || '' as t from wide) s using (id);
+--select final > 1 as multibatch
+--  from hash_join_batches(
+--$$
+--  select length(max(s.t))
+--  from wide left join (select id, coalesce(t, '') || '' as t from wide) s using (id);
+--$$);
+rollback to settings;
+
+rollback;
+
+--
+-- Test nestloop path suppression if the selectivity could be under estimated
+--
+create table nestloop_suppression1(a int, b int, c int, d varchar(20));
+create table nestloop_suppression2(a int, b int, c int, d varchar(20));
+create table nestloop_suppression3(a int, b int);
+
+insert into nestloop_suppression1 select i, i+1, i+2, 'char'||i from generate_series(1,10000) i;
+insert into nestloop_suppression2 select i, i+1, i+2, 'char'||i from generate_series(1,10000) i;
+insert into nestloop_suppression3 select i, i+1 from generate_series(1,100) i;
+create index idx_nestloop_suppression1_b on nestloop_suppression1(b);
+analyze nestloop_suppression1;
+analyze nestloop_suppression2;
+analyze nestloop_suppression3;
+
 set enable_hashjoin = false;
-explain select t3.b from nestloop_suppression1 t1, nestloop_suppression2 t2, nestloop_suppression3 t3 
+set enable_indexonlyscan to off;
+set enable_indexscan to off;
+explain (costs off) select t3.b from nestloop_suppression1 t1, nestloop_suppression2 t2, nestloop_suppression3 t3 
 	where t1.b=2 and t1.c=3 and t1.d like 'char%' and t1.a=t2.a and t3.b>t2.a;
 set enable_nestloop_suppression = true;
-explain select t3.b from nestloop_suppression1 t1, nestloop_suppression2 t2, nestloop_suppression3 t3 
+explain (costs off) select t3.b from nestloop_suppression1 t1, nestloop_suppression2 t2, nestloop_suppression3 t3 
 	where t1.b=2 and t1.c=3 and t1.d like 'char%' and t1.a=t2.a and t3.b>t2.a;
 
 drop table nestloop_suppression1;
 drop table nestloop_suppression2;
 drop table nestloop_suppression3;
 
+create table tb1(c1 int, c2 int);
+create table tb2(c1 int, c2 int) PARTITION BY list(c2);
+create table tb2_list1 partition of tb2 for values in (100);
+
+explain select 1 from tb1
+left outer join (select c1 from tb2
+                  where tb2.c2 = 100
+                    and tb2.c2 > 200) as tb3
+on tb1.c1 = tb3.c1;
+
+explain select 1 from tb1
+left outer join (select c1 from tb2
+                  where tb2.c1 = 100
+                    and tb2.c1 > 200) as tb3
+on tb1.c1 = tb3.c1;
+
+explain select 1 from tb1
+left outer join (select c1 from tb2
+                  where tb2.c1 = 100
+                    and tb2.c1 = 200) as tb3
+on tb1.c1 = tb3.c1;
+
+drop table tb1;
+drop table tb2;
+
 reset enable_nestloop_suppression;
+reset enable_indexscan;
+reset enable_indexonlyscan;
 reset enable_hashjoin;
+
+CREATE TABLE rqg_table1 (
+c0 int,
+c1 int,
+c2 text,
+c3 text,
+c4 date,
+c5 date,
+c6 timestamp,
+c7 timestamp,
+c8 numeric,
+c9 numeric)   distribute by shard(c0);
+alter table rqg_table1 alter column c0 drop not null;
+CREATE INDEX idx_rqg_table1_c1 ON rqg_table1(c1);
+CREATE INDEX idx_rqg_table1_c3 ON rqg_table1(c3);
+CREATE INDEX idx_rqg_table1_c5 ON rqg_table1(c5);
+CREATE INDEX idx_rqg_table1_c7 ON rqg_table1(c7);
+CREATE INDEX idx_rqg_table1_c9 ON rqg_table1(c9);
+INSERT INTO rqg_table1 VALUES  (6, NULL, 'foo', 'foo', '1982-01-16 18:52:19', '2034-10-22 23:11:42', '1972-03-04 21:15:53.048712', '2013-11-26 11:04:23.043793', 0.6064453125, -0.123456789123457) ,  (0, 2, 'foo', 'foo', '2000-03-06 21:12:58', '2029-06-13 09:19:17', '2003-03-20', '2035-12-20 04:50:51', -1.23456789123457e+44, 1.23456789123457e+30) ,  (9, NULL, 'xmlbo', 'foo', '2010-05-11 12:38:22', '1985-08-25 14:58:27', '1973-03-22 01:32:46.047991', NULL, -1.23456789123457e+39, -0.123456789123457) ,  (2, 4, 'mlbopuyyo', NULL, '2025-06-11 03:05:26', '1991-09-20 02:41:55', '2032-03-28 12:47:16.063544', NULL, -96731136, 0.437469482421875) ,  (1, NULL, 'bar', 'bar', '1992-07-11', '1999-10-20 00:19:14', NULL, '2023-03-02 16:05:08.004696', 1.23456789123457e+39, -1.23456789123457e+43) ,  (NULL, NULL, 'bar', NULL, '1978-04-04', '1985-12-15 06:07:11', '1979-02-01 23:53:51.062078', '2021-12-11 23:07:45', -1.23456789123457e+43, -5.93236660915379e+18) ,  (9, NULL, 'foo', 'bar', '1987-09-19', '1978-02-21', '2034-11-23 16:52:42.014876', '2025-11-23 20:18:48.019448', -1.23456789123457e+44, -1336606720) ,  (5, 0, 'foo', 'foo', '2023-09-21 09:32:29', '2031-01-21 12:15:28', '1976-04-23 08:32:12.001141', '2015-08-22 16:08:05.021997', 1.23456789123457e+30, 6.5081787109375e+80) ,  (NULL, NULL, 'lbopuyyoixibkpkyoivmfshvcgmpzvdnxnxfpapiydzdpcixmfofwarsvxubcruomsozdfldaicsgheitlvdhdpuydxwpojdsnxliabrqjepfmbmgemihpfthigw', 'bar', '1994-06-21', '1976-03-24', '1972-05-25', '1975-11-11 07:05:24.001543', -0.123456789123457, 1.23456789123457e+39) ,  (7, 7, 'bopuyy', 'bar', '1988-02-06', '1998-03-02', '2010-11-17 14:52:51.063678', '2015-01-23 11:33:37', 1.23456789123457e-09, NULL) ;
+CREATE TABLE rqg_table6 (
+c0 int,
+c1 int,
+c2 text,
+c3 text,
+c4 date,
+c5 date,
+c6 timestamp,
+c7 timestamp,
+c8 numeric,
+c9 numeric)   distribute by replication;
+alter table rqg_table6 alter column c0 drop not null;
+CREATE INDEX idx_rqg_table6_c1 ON rqg_table6(c1);
+CREATE INDEX idx_rqg_table6_c3 ON rqg_table6(c3);
+CREATE INDEX idx_rqg_table6_c5 ON rqg_table6(c5);
+CREATE INDEX idx_rqg_table6_c7 ON rqg_table6(c7);
+CREATE INDEX idx_rqg_table6_c9 ON rqg_table6(c9);
+INSERT INTO rqg_table6 VALUES  (5, 0, 'mpzvdnx', NULL, '1985-12-26 00:38:24', '1994-02-07 00:27:30', '2003-08-07 22:25:05.049399', '1997-06-16 20:39:49.034445', -0.123456789123457, 1.23456789123457e+43) ,  (5, 1, NULL, 'foo', '1983-10-08', '2023-04-01', '1979-10-17', '1987-06-09 12:04:29.064057', 0.57427978515625, 1.23456789123457e+44) ,  (1, NULL, 'bar', 'pzvdnxnxf', '2002-11-11 01:11:12', '2013-01-10', '2001-09-22 04:16:14', '2017-08-22 11:20:36', -0.123456789123457, -5.1138373768792e+18) ,  (5, 4, 'zvdnxnxfpapiydzdpcixmfofw', 'vdnxnxfpa', '1979-02-10', '1990-02-01', '1998-07-06 05:11:49.060007', '2033-05-13 12:42:41', -1.23456789123457e+44, -4.979248046875e+80) ,  (6, 4, NULL, 'dnxnxfpapiydzdpcixmfofwarsvxubcruomsoz', '2004-02-13 20:18:29', '2023-09-03', '2029-04-15', '2002-12-06 01:52:57.010271', -1.23456789123457e+44, -1.23456789123457e+30) ,  (7, 6, 'bar', 'bar', '2033-08-24', '2018-02-07 05:41:10', '2029-06-15 19:55:56.049270', '2033-02-23', NULL, -1.23456789123457e+30) ,  (4, 9, 'nxnxfpapi', 'foo', '2031-04-08', '1978-08-22', '2035-06-18 14:44:17', '2020-10-20 22:57:11', -4.81750487763001e+124, 3.86383056640625e+80) ,  (4, 3, NULL, NULL, '2033-02-19 06:06:12', '2032-09-06', '1973-05-19 19:22:56.048458', '1977-10-08', -2.54028319566528e+124, -1.3995361328125e+80) ,  (9, 5, 'foo', 'bar', '2019-12-14 23:02:18', '1972-12-12 14:32:22', '2001-03-28 21:13:39.037798', '2025-07-04', 1.23456789123457e-09, -6.1541748046875e+80) ,  (8, 4, 'xnxfpapiydzdpcixmfofwarsvxubcruomsozdfldaicsgheitlvdhdpuydxwpojdsnxliabrqjepfmbmgemihpfthigwckkovxupsbqpekxcpuatmrftuuivlmuqiuurqojgh', 'nxfp', '1978-10-22 01:40:49', '2008-04-04', NULL, NULL, 1.23456789123457e+30, 1.23456789123457e+44) ;
+
+set enable_seqscan = off;
+set enable_indexscan = off;
+
+drop table if exists rqg_table4;
+CREATE TABLE rqg_table4 (
+c0 int,
+c1 int,
+c2 text,
+c3 text,
+c4 date,
+c5 date,
+c6 timestamp,
+c7 timestamp,
+c8 numeric,
+c9 numeric)   distribute by shard(c3);
+alter table rqg_table4 alter column c0 drop not null;
+CREATE INDEX idx_rqg_table4_c1 ON rqg_table4(c1);
+CREATE INDEX idx_rqg_table4_c3 ON rqg_table4(c3);
+CREATE INDEX idx_rqg_table4_c5 ON rqg_table4(c5);
+CREATE INDEX idx_rqg_table4_c7 ON rqg_table4(c7);
+CREATE INDEX idx_rqg_table4_c9 ON rqg_table4(c9);
+INSERT INTO rqg_table4 VALUES  (NULL, 4, 'foo', NULL, '1985-11-25 21:57:41', '2012-01-19 17:02:33', '2034-10-03 20:24:02.061413', '1987-05-26', 0.881423950195312, 1.23456789123457e+30) ,  (1, 9, 'bar', NULL, '1977-10-19', '1979-06-09', NULL, '1974-10-28 19:32:45', 1.23456789123457e+30, -1.23456789123457e+44) ,  (2, NULL, 'foo', 'bar', '2016-05-27 20:59:31', '1980-02-21', '2019-11-12 18:44:33', '2022-08-14 13:08:06.024802', 1.23456789123457e+43, 0.123456789123457) ,  (4, 7, 'lixijtqhzvfmfgsouvzcntxxugyvdrqhhrssjbpdflvbvarlgsuwmolgymptcbfdjyds', 'ixijtqhzvfmfgsouvzcntxxugyvdrqhhrssjbpdflvbvarlgsuwmolgymptcbfdj', '1983-12-23 17:09:01', '2012-08-25', '2025-01-14 06:40:38.039286', '2026-07-11', -1.23456789123457e-09, 1.23456789123457e+44) ,  (2, 2, NULL, NULL, '1991-01-23 01:21:39', '2017-02-20 15:39:23', '2007-08-06 14:40:11', '2000-02-23 16:25:21', -1.23456789123457e+25, -1.23456789123457e+43) ,  (8, 2, 'xijtqhzvfmfgsouvzcntxxugyvdrqhhrssjbpdflvbvarlgsuwmolgymptcbfdjydsrqmhapcflxfyagbalbcbjokujrifbolqjyymlkogflnpdwipokiluwgjdbltqivlmrloeaqlwuwhoukbmcqm', 'bar', '1987-03-26 05:21:59', '2008-12-17', '2024-05-06 07:37:53.048135', '2022-09-17 22:51:12.064065', -1.23456789123457e+25, 2.40936279296875e+80) ,  (9, 8, NULL, 'bar', '1972-09-09 17:41:09', '2023-11-14', '2023-10-22 22:59:21', '1979-07-10 00:13:19.020138', 1.23456789123457e+25, 0.123456789123457) ,  (NULL, NULL, NULL, 'bar', '2007-03-27 22:04:23', '1992-01-24 12:02:35', '2027-04-13', '1981-03-22 01:48:33.016070', 0.88189697265625, -3.86324405535375e+18) ,  (0, NULL, 'bar', NULL, '2028-04-01 04:31:07', '1998-07-05 16:08:05', '1981-04-25', '2023-01-06 12:42:41.034613', 1.23456789123457e+25, 0.123456789123457) ,  (0, 5, 'bar', 'i', '1999-09-28', '1983-02-01 12:18:37', '1990-05-26 18:04:19.009021', '1993-10-27 19:25:34', 0.123456789123457, 0.5126953125) ;
+drop table if exists rqg_table6;
+CREATE TABLE rqg_table6 (
+c0 int,
+c1 int,
+c2 text,
+c3 text,
+c4 date,
+c5 date,
+c6 timestamp,
+c7 timestamp,
+c8 numeric,
+c9 numeric)   distribute by replication;
+alter table rqg_table6 alter column c0 drop not null;
+CREATE INDEX idx_rqg_table6_c1 ON rqg_table6(c1);
+CREATE INDEX idx_rqg_table6_c3 ON rqg_table6(c3);
+CREATE INDEX idx_rqg_table6_c5 ON rqg_table6(c5);
+CREATE INDEX idx_rqg_table6_c7 ON rqg_table6(c7);
+CREATE INDEX idx_rqg_table6_c9 ON rqg_table6(c9);
+INSERT INTO rqg_table6 VALUES  (8, 1, 'v', 'bar', '1973-12-09', '1974-10-15', '1985-01-26 06:26:28', '2024-09-27', 1.23456789123457e+43, 1.23456789123457e+44) ,  (NULL, 7, NULL, 'fmfgsouvz', '1977-03-06 13:22:11', '2024-07-04 15:41:53', '1992-11-22 00:48:55.031345', '2028-07-16 15:28:17.008752', NULL, NULL) ,  (2, 2, 'bar', 'mfgsouvzcntxxugyvdrqhhrssjbpdflvbvarlgsuwmolgymptcbfdjydsrqmhapcflxfyagbalbcbjokujrifbolqjyymlkogflnpdwipokiluwgjdbltqivlmrloeaqlwuwhou', '1996-09-03', '1990-02-09 00:37:47', '2022-08-25 11:04:36.008903', '1976-04-22 05:48:26.034826', -8.13547125186809e+18, 1.23456789123457e+25) ,  (NULL, NULL, 'fgsouv', 'gsouvzcntxxugyvdrqhhrssjbpdflvbvarlgsuwmolgymptcbfdjydsrqmhapcflxfyagbalbcbjokujrifbolqjyymlkogflnpdwipokiluwgjdbltqivlmrloeaqlwuwhou', '1975-08-19 00:51:09', '2003-09-25', NULL, '2026-12-02 10:34:34.019304', -2.73593677362758e+18, -1.23456789123457e+44) ,  (2, NULL, 'souvzcn', 'ouvzcntxxugyvdrqhhrssjbpdflvbvarlgsuwmolgymptcbf', '1976-01-09', '1999-08-05 08:49:36', '2007-07-02 23:16:01.039734', '1986-03-13', 1.23456789123457e+43, 1.23456789123457e-09) ,  (0, 5, 'foo', 'uvzcn', '1989-11-12 14:45:26', '2003-05-06 05:01:19', '2004-12-26 22:26:18.029048', '2024-11-02 14:36:48', -5.31959558485469e+18, 0.123456789123457) ,  (NULL, 2, 'bar', 'bar', '2021-05-14', '2016-04-17', '1989-08-07', '1983-05-26', -1.23456789123457e+30, -1.23456789123457e-09) ,  (9, NULL, 'bar', 'foo', '1998-08-19', '1979-11-20', '2026-08-08 09:21:42.026149', '2034-12-04 13:35:11.053542', 1913454592, 1.23456789123457e+39) ,  (NULL, 1, 'foo', 'vzcntxxugyvdrqhhrssjbpdflvbvarlgsuwmolgymptcbfdjydsrqmhapcflxfyagbalbcbjokujrifbolqjyymlkogflnpdwipokiluwgjdbltqivlmrloeaqlwuwhoukbmcqmwykqyjxebsajruafshdqzafcnlcbozucrhxbbawwonsaivqjosudqanoqsgqar', '1978-08-16', '1999-09-17 10:43:06', '1989-10-19', '1982-02-10 11:55:58.006975', -574750720, NULL) ,  (3, NULL, 'z', 'bar', '2013-03-15', '1978-02-01', '1989-06-23 01:37:07.024905', '1977-01-03 01:32:21.021484', -1.23456789123457e+25, NULL) ;
+drop table if exists rqg_table12;
+CREATE TABLE rqg_table12 (
+c0 int,
+c1 int,
+c2 text,
+c3 text,
+c4 date,
+c5 date,
+c6 timestamp,
+c7 timestamp,
+c8 numeric,
+c9 numeric)    PARTITION BY hash( c9) distribute by replication;
+create TABLE rqg_table12_p0 partition of rqg_table12 for values with(modulus 4,remainder 0);
+create TABLE rqg_table12_p1 partition of rqg_table12 for values with(modulus 4,remainder 1);
+create TABLE rqg_table12_p2 partition of rqg_table12 for values with(modulus 4,remainder 2);
+create TABLE rqg_table12_p3 partition of rqg_table12 for values with(modulus 4,remainder 3);
+alter table rqg_table12 alter column c0 drop not null;
+CREATE INDEX idx_rqg_table12_c1 ON rqg_table12(c1);
+CREATE INDEX idx_rqg_table12_c3 ON rqg_table12(c3);
+CREATE INDEX idx_rqg_table12_c5 ON rqg_table12(c5);
+CREATE INDEX idx_rqg_table12_c7 ON rqg_table12(c7);
+CREATE INDEX idx_rqg_table12_c9 ON rqg_table12(c9);
+INSERT INTO rqg_table12 VALUES  (NULL, 5, 'bar', 'bar', '1973-05-23 03:39:38', '2031-09-04', '2028-06-21 18:17:15', '2003-08-01', -0.123456789123457, 6.07957802197346e+18) ,  (5, 5, NULL, 'bar', '2028-12-21', '2002-07-05 20:34:19', '1973-02-18 01:02:35.024329', '1982-07-03', -1.23456789123457e+43, 1.23456789123457e-09) ,  (7, 9, NULL, 'foo', '1985-10-28 13:53:24', '2002-10-02 21:54:27', '2002-03-28 17:12:07.021140', '1972-07-15 21:21:35.060278', -6.37062314789228e+18, 0.123456789123457) ,  (8, 6, 'bfdjydsrqmhapcflxfyagbalbcbjokujrifbolqjyymlkogflnpdwipokiluwgjdbltqivlmrloeaqlwuwhou', 'bar', '2017-07-28 16:26:42', '1997-11-25 02:25:53', '2003-06-26 00:04:10.005657', '2002-06-12 11:52:59.006766', 1.23456789123457e+30, 1.23456789123457e+39) ,  (5, 6, 'bar', NULL, '2001-07-04', '1973-08-13 17:51:42', '2020-01-08 11:46:37.056358', '2005-02-11', -1.23456789123457e+44, 0.123456789123457) ,  (NULL, 6, NULL, NULL, '2019-06-11 00:28:47', '1997-08-06', '1985-04-13 04:49:00.047978', '1980-05-04 07:33:03.060762', 1.23456789123457e-09, 8.81410742071748e+18) ,  (2, 5, 'foo', 'fdjydsrq', '2004-12-17 12:59:58', '2026-06-20', '2024-11-15 19:08:15.020034', '1993-04-04 22:29:05.030482', 1.23456789123457e+39, 0.50250244140625) ,  (7, 7, 'djydsrqmhapcflxfyagbalbcbjokujrifbolqjyymlkogflnpdwipokiluwgjdbltqivlmrloeaqlwuwhoukbmcqmwykqyjxebsajruafshdqzafcnlcbozucrhxbbawwonsaivqjosudqanoqsgqarxfyxlglkhrefqckcqkejcqci', 'jydsrq', '1984-09-13', '2033-03-26', '2023-04-15 13:18:45.009238', NULL, -7.82021927795216e+18, -7.13145000994118e+18) ,  (2, NULL, 'yds', NULL, '1993-07-07 04:26:19', '1985-12-08 17:38:19', '1994-08-16 15:41:13.043276', '1981-08-18', 1.23456789123457e+39, 1.23456789123457e+44) ,  (0, 9, 'dsrqmhapcflxfyagbalbcbjokujrifbolqjyymlkogflnpdwipokiluwgjdbltqivlmrloeaqlwuwhoukbmcqmwykqyjxebsajruafshdqzafcnlcbozucrhxbbawwonsaivqjosudqa', 's', '2029-02-13', '2006-12-08 16:20:22', '1982-04-16', '2014-02-14 15:24:57', -1.23456789123457e+39, 0.07537841796875) ;
+analyze rqg_table4;
+analyze rqg_table6;
+analyze rqg_table12;
+explain (costs off)
+select 
+    1
+from rqg_table12 t1 where c0 in (select c1 from rqg_table4 t4 where not exists(select 1 from rqg_table6 t2 where t2.c0 = t4.c0 AND t4.c0 = 7  ) ) and c1=2;
+drop table rqg_table4, rqg_table6, rqg_table12;
+
+set enable_hashjoin=on;
+set enable_mergejoin=off;
+
+drop function if exists get_random_date(start_date date) cascade;
+create function get_random_date(start_date date) RETURNS date
+as
+$$
+begin
+ if start_date is not null then
+ RETURN start_date;
+ else
+ RETURN date_trunc('day', now() - interval '1 day' * (random() * 365))::date;
+ end if;
+end;
+$$
+language plpgsql stable;
+
+drop table if exists jt1;
+drop table if exists jt2;
+create table jt1(c0 int, c1 int, c2 int, c3 date);
+create table jt2(c0 int, c1 int, c2 int, c3 date);
+explain (costs off,verbose) select * from jt1 left join  jt2 s on s.c3=get_random_date('2020-02-10') and jt1.c2=s.c2;
+
+explain (costs off,verbose) select * from jt1 left join (select * from jt2 where c3=get_random_date('2020-02-10')) s on jt1.c2=s.c2;
+
+explain (costs off,verbose) select * from (select * from jt1 where c3=get_random_date('2020-02-10')) jt1 left join jt2 s on jt1.c2=s.c2;
+
+explain (costs off,verbose) select * from jt1 left join  jt2 s on jt1.c3=get_random_date('2020-02-10') and jt1.c2=s.c2;
+
+explain (costs off,verbose) select * from jt1 left join  jt2 s on s.c3=get_random_date('2020-02-10') and jt1.c2=s.c2;
+
+explain (costs off,verbose) select c1 from jt1 where c2 in (select c2 from jt2 where c3=get_random_date('2022-01-20'));
+
+explain (costs off,verbose) select c1 from jt1 where c2 in (select c2 from jt1 where c3=get_random_date('2022-01-20'));
+
+drop table if exists jt1;
+drop table if exists jt2;
+
+drop function if exists get_random_date(start_date date) cascade;
+
+drop function if exists pullupf(x int);
+create function pullupf(x int) returns int language plpgsql AS
+$$
+begin
+    return x;
+end $$ not pushdown;
+
+drop table if exists ft1;
+drop table if exists ft2;
+drop table if exists ft3;
+create table ft1(c0 int, c1 int, c2 int, c3 int);
+create table ft2(c0 int, c1 int, c2 int, c3 int);
+create table ft3(c0 int, c1 int, c2 int, c3 int);
+
+explain (costs off)
+select * from ft1 left join (select ft2.* from ft2 join (select * from ft3 where c2 = pullupf(c2)) fmm on ft2.c1=fmm.c1) fm on ft1.c2 = fm.c2;
+
+drop function if exists pullupfs(x int);
+create function pullupfs(x int) returns int language plpgsql AS
+$$
+begin
+    return x;
+end $$ not pushdown stable;
+
+set enable_hashagg to off;
+explain (costs off)
+select count(1) from ft1 t1 where t1.c1=10 and exists (select c2 from ft2 t2 where t1.c3=t2.c3 and t2.c1=pullupfs(1));
+reset enable_hashagg;
+drop function if exists pullupf(x int);
+drop function if exists pullupfs(x int);
+drop table if exists ft1;
+drop table if exists ft2;
+drop table if exists ft3;

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * int128.h
- *      Roll-our-own 128-bit integer arithmetic.
+ *	  Roll-our-own 128-bit integer arithmetic.
  *
  * We make use of the native int128 type if there is one, otherwise
  * implement things the hard way based on two int64 halves.
@@ -40,7 +40,7 @@ typedef int128 INT128;
 static inline void
 int128_add_uint64(INT128 *i128, uint64 v)
 {
-    *i128 += v;
+	*i128 += v;
 }
 
 /*
@@ -49,7 +49,7 @@ int128_add_uint64(INT128 *i128, uint64 v)
 static inline void
 int128_add_int64(INT128 *i128, int64 v)
 {
-    *i128 += v;
+	*i128 += v;
 }
 
 /*
@@ -61,7 +61,7 @@ int128_add_int64(INT128 *i128, int64 v)
 static inline void
 int128_add_int64_mul_int64(INT128 *i128, int64 x, int64 y)
 {
-    *i128 += (int128) x * (int128) y;
+	*i128 += (int128) x * (int128) y;
 }
 
 /*
@@ -70,11 +70,11 @@ int128_add_int64_mul_int64(INT128 *i128, int64 x, int64 y)
 static inline int
 int128_compare(INT128 x, INT128 y)
 {
-    if (x < y)
-        return -1;
-    if (x > y)
-        return 1;
-    return 0;
+	if (x < y)
+		return -1;
+	if (x > y)
+		return 1;
+	return 0;
 }
 
 /*
@@ -83,7 +83,7 @@ int128_compare(INT128 x, INT128 y)
 static inline INT128
 int64_to_int128(int64 v)
 {
-    return (INT128) v;
+	return (INT128) v;
 }
 
 /*
@@ -93,10 +93,10 @@ int64_to_int128(int64 v)
 static inline int64
 int128_to_int64(INT128 val)
 {
-    return (int64) val;
+	return (int64) val;
 }
 
-#else                            /* !USE_NATIVE_INT128 */
+#else							/* !USE_NATIVE_INT128 */
 
 /*
  * We lay out the INT128 structure with the same content and byte ordering
@@ -107,11 +107,11 @@ int128_to_int64(INT128 val)
 typedef struct
 {
 #ifdef WORDS_BIGENDIAN
-    int64        hi;                /* most significant 64 bits, including sign */
-    uint64        lo;                /* least significant 64 bits, without sign */
+	int64		hi;				/* most significant 64 bits, including sign */
+	uint64		lo;				/* least significant 64 bits, without sign */
 #else
-    uint64        lo;                /* least significant 64 bits, without sign */
-    int64        hi;                /* most significant 64 bits, including sign */
+	uint64		lo;				/* least significant 64 bits, without sign */
+	int64		hi;				/* most significant 64 bits, including sign */
 #endif
 } INT128;
 
@@ -121,19 +121,19 @@ typedef struct
 static inline void
 int128_add_uint64(INT128 *i128, uint64 v)
 {
-    /*
-     * First add the value to the .lo part, then check to see if a carry needs
-     * to be propagated into the .hi part.  A carry is needed if both inputs
-     * have high bits set, or if just one input has high bit set while the new
-     * .lo part doesn't.  Remember that .lo part is unsigned; we cast to
-     * signed here just as a cheap way to check the high bit.
-     */
-    uint64        oldlo = i128->lo;
+	/*
+	 * First add the value to the .lo part, then check to see if a carry needs
+	 * to be propagated into the .hi part.  A carry is needed if both inputs
+	 * have high bits set, or if just one input has high bit set while the new
+	 * .lo part doesn't.  Remember that .lo part is unsigned; we cast to
+	 * signed here just as a cheap way to check the high bit.
+	 */
+	uint64		oldlo = i128->lo;
 
-    i128->lo += v;
-    if (((int64) v < 0 && (int64) oldlo < 0) ||
-        (((int64) v < 0 || (int64) oldlo < 0) && (int64) i128->lo >= 0))
-        i128->hi++;
+	i128->lo += v;
+	if (((int64) v < 0 && (int64) oldlo < 0) ||
+		(((int64) v < 0 || (int64) oldlo < 0) && (int64) i128->lo >= 0))
+		i128->hi++;
 }
 
 /*
@@ -142,25 +142,25 @@ int128_add_uint64(INT128 *i128, uint64 v)
 static inline void
 int128_add_int64(INT128 *i128, int64 v)
 {
-    /*
-     * This is much like the above except that the carry logic differs for
-     * negative v.  Ordinarily we'd need to subtract 1 from the .hi part
-     * (corresponding to adding the sign-extended bits of v to it); but if
-     * there is a carry out of the .lo part, that cancels and we do nothing.
-     */
-    uint64        oldlo = i128->lo;
+	/*
+	 * This is much like the above except that the carry logic differs for
+	 * negative v.  Ordinarily we'd need to subtract 1 from the .hi part
+	 * (corresponding to adding the sign-extended bits of v to it); but if
+	 * there is a carry out of the .lo part, that cancels and we do nothing.
+	 */
+	uint64		oldlo = i128->lo;
 
-    i128->lo += v;
-    if (v >= 0)
-    {
-        if ((int64) oldlo < 0 && (int64) i128->lo >= 0)
-            i128->hi++;
-    }
-    else
-    {
-        if (!((int64) oldlo < 0 || (int64) i128->lo >= 0))
-            i128->hi--;
-    }
+	i128->lo += v;
+	if (v >= 0)
+	{
+		if ((int64) oldlo < 0 && (int64) i128->lo >= 0)
+			i128->hi++;
+	}
+	else
+	{
+		if (!((int64) oldlo < 0 || (int64) i128->lo >= 0))
+			i128->hi--;
+	}
 }
 
 /*
@@ -176,59 +176,59 @@ int128_add_int64(INT128 *i128, int64 v)
 static inline void
 int128_add_int64_mul_int64(INT128 *i128, int64 x, int64 y)
 {
-    /* INT64_AU32 must use arithmetic right shift */
-    StaticAssertStmt(((int64) -1 >> 1) == (int64) -1,
-                     "arithmetic right shift is needed");
+	/* INT64_AU32 must use arithmetic right shift */
+	StaticAssertStmt(((int64) -1 >> 1) == (int64) -1,
+					 "arithmetic right shift is needed");
 
-    /*----------
-     * Form the 128-bit product x * y using 64-bit arithmetic.
-     * Considering each 64-bit input as having 32-bit high and low parts,
-     * we can compute
-     *
-     *     x * y = ((x.hi << 32) + x.lo) * (((y.hi << 32) + y.lo)
-     *           = (x.hi * y.hi) << 64 +
-     *             (x.hi * y.lo) << 32 +
-     *             (x.lo * y.hi) << 32 +
-     *             x.lo * y.lo
-     *
-     * Each individual product is of 32-bit terms so it won't overflow when
-     * computed in 64-bit arithmetic.  Then we just have to shift it to the
-     * correct position while adding into the 128-bit result.  We must also
-     * keep in mind that the "lo" parts must be treated as unsigned.
-     *----------
-     */
+	/*----------
+	 * Form the 128-bit product x * y using 64-bit arithmetic.
+	 * Considering each 64-bit input as having 32-bit high and low parts,
+	 * we can compute
+	 *
+	 *	 x * y = ((x.hi << 32) + x.lo) * (((y.hi << 32) + y.lo)
+	 *		   = (x.hi * y.hi) << 64 +
+	 *			 (x.hi * y.lo) << 32 +
+	 *			 (x.lo * y.hi) << 32 +
+	 *			 x.lo * y.lo
+	 *
+	 * Each individual product is of 32-bit terms so it won't overflow when
+	 * computed in 64-bit arithmetic.  Then we just have to shift it to the
+	 * correct position while adding into the 128-bit result.  We must also
+	 * keep in mind that the "lo" parts must be treated as unsigned.
+	 *----------
+	 */
 
-    /* No need to work hard if product must be zero */
-    if (x != 0 && y != 0)
-    {
-        int64        x_u32 = INT64_AU32(x);
-        uint64        x_l32 = INT64_AL32(x);
-        int64        y_u32 = INT64_AU32(y);
-        uint64        y_l32 = INT64_AL32(y);
-        int64        tmp;
+	/* No need to work hard if product must be zero */
+	if (x != 0 && y != 0)
+	{
+		int64		x_u32 = INT64_AU32(x);
+		uint64		x_l32 = INT64_AL32(x);
+		int64		y_u32 = INT64_AU32(y);
+		uint64		y_l32 = INT64_AL32(y);
+		int64		tmp;
 
-        /* the first term */
-        i128->hi += x_u32 * y_u32;
+		/* the first term */
+		i128->hi += x_u32 * y_u32;
 
-        /* the second term: sign-extend it only if x is negative */
-        tmp = x_u32 * y_l32;
-        if (x < 0)
-            i128->hi += INT64_AU32(tmp);
-        else
-            i128->hi += ((uint64) tmp) >> 32;
-        int128_add_uint64(i128, ((uint64) INT64_AL32(tmp)) << 32);
+		/* the second term: sign-extend it only if x is negative */
+		tmp = x_u32 * y_l32;
+		if (x < 0)
+			i128->hi += INT64_AU32(tmp);
+		else
+			i128->hi += ((uint64) tmp) >> 32;
+		int128_add_uint64(i128, ((uint64) INT64_AL32(tmp)) << 32);
 
-        /* the third term: sign-extend it only if y is negative */
-        tmp = x_l32 * y_u32;
-        if (y < 0)
-            i128->hi += INT64_AU32(tmp);
-        else
-            i128->hi += ((uint64) tmp) >> 32;
-        int128_add_uint64(i128, ((uint64) INT64_AL32(tmp)) << 32);
+		/* the third term: sign-extend it only if y is negative */
+		tmp = x_l32 * y_u32;
+		if (y < 0)
+			i128->hi += INT64_AU32(tmp);
+		else
+			i128->hi += ((uint64) tmp) >> 32;
+		int128_add_uint64(i128, ((uint64) INT64_AL32(tmp)) << 32);
 
-        /* the fourth term: always unsigned */
-        int128_add_uint64(i128, x_l32 * y_l32);
-    }
+		/* the fourth term: always unsigned */
+		int128_add_uint64(i128, x_l32 * y_l32);
+	}
 }
 
 /*
@@ -237,15 +237,15 @@ int128_add_int64_mul_int64(INT128 *i128, int64 x, int64 y)
 static inline int
 int128_compare(INT128 x, INT128 y)
 {
-    if (x.hi < y.hi)
-        return -1;
-    if (x.hi > y.hi)
-        return 1;
-    if (x.lo < y.lo)
-        return -1;
-    if (x.lo > y.lo)
-        return 1;
-    return 0;
+	if (x.hi < y.hi)
+		return -1;
+	if (x.hi > y.hi)
+		return 1;
+	if (x.lo < y.lo)
+		return -1;
+	if (x.lo > y.lo)
+		return 1;
+	return 0;
 }
 
 /*
@@ -254,11 +254,11 @@ int128_compare(INT128 x, INT128 y)
 static inline INT128
 int64_to_int128(int64 v)
 {
-    INT128        val;
+	INT128		val;
 
-    val.lo = (uint64) v;
-    val.hi = (v < 0) ? -INT64CONST(1) : INT64CONST(0);
-    return val;
+	val.lo = (uint64) v;
+	val.hi = (v < 0) ? -INT64CONST(1) : INT64CONST(0);
+	return val;
 }
 
 /*
@@ -268,9 +268,9 @@ int64_to_int128(int64 v)
 static inline int64
 int128_to_int64(INT128 val)
 {
-    return (int64) val.lo;
+	return (int64) val.lo;
 }
 
-#endif                            /* USE_NATIVE_INT128 */
+#endif							/* USE_NATIVE_INT128 */
 
-#endif                            /* INT128_H */
+#endif							/* INT128_H */

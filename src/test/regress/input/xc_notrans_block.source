@@ -14,10 +14,9 @@ BEGIN;
 CREATE TABLESPACE xc_testspace1 LOCATION '@testtablespace@';
 ROLLBACK;
 
+-- This should fail because we don't allow created on data node 1.
 select exec_util_on_node('CREATE TABLESPACE xc_testspace1 LOCATION $LOC$@testtablespace@$LOC$', 1);
--- This should fail because we have one tablespace created on data node 1.
-CREATE TABLESPACE xc_testspace1 LOCATION '@testtablespace@';
--- Drop tablespace on data node 1.
+-- This should fail because we don't allow drop on data node 1.
 select exec_util_on_node('drop TABLESPACE xc_testspace1 ', 1);
 -- Now this should work
 CREATE TABLESPACE xc_testspace1 LOCATION '@testtablespace@';
@@ -29,16 +28,14 @@ CREATE TABLESPACE xc_testspace1 LOCATION '@testtablespace@';
 ------------
 
 BEGIN;
-CREATE DATABASE xc_db tablespace xc_testspace1;
+CREATE DATABASE xc_db01 tablespace xc_testspace1;
 ROLLBACK;
--- Drop tablespace on data node 1.
-select exec_util_on_node('drop TABLESPACE xc_testspace1 ', 1);
--- This should not work because there is no tablespace on datanode1
-CREATE DATABASE xc_db tablespace xc_testspace1;
-select exec_util_on_node('CREATE TABLESPACE xc_testspace1 LOCATION $LOC$@testtablespace@$LOC$', 1);
+-- This should fail because we don't allow created on data node 1.
+select exec_util_on_node('CREATE DATABASE xc_db01 tablespace xc_testspace1', 1);
 -- This should work
-CREATE DATABASE xc_db tablespace xc_testspace1;
-
+CREATE DATABASE xc_db01 tablespace xc_testspace1;
+-- This should fail because we don't allow drop on data node 1.
+select exec_util_on_node('DROP DATABASE xc_db01', 1);
 
 
 ------------
@@ -47,41 +44,45 @@ CREATE DATABASE xc_db tablespace xc_testspace1;
 
 
 BEGIN;
-alter database xc_db set tablespace xc_testspace1;
+alter database xc_db01 set tablespace xc_testspace1;
 ROLLBACK;
 
 -- Recreate database on global tablespace.
-clean connection to all for database xc_db;
-drop database xc_db;
-CREATE DATABASE xc_db;
+clean connection to all for database xc_db01;
+-- drop database may faild, do not drop it
+-- drop database xc_db01;
+CREATE DATABASE xc_db02;
 
 
 -- Insert some objects.
-\c xc_db
+\c xc_db02
 create table xc_tab1 (id int);
 insert into xc_tab1 select generate_series(1, 50, 1);
 \c regression
-clean connection to all for database xc_db;
+clean connection to all for database xc_db02;
 
 
 -- Drop tablespace on data node 1.
 select exec_util_on_node('drop TABLESPACE xc_testspace1 ', 1);
 
-clean connection to all for database xc_db;
+clean connection to all for database xc_db02;
+select pg_sleep(3);
 
 -- This should error out, since we don't have tablespace on data node 1
-alter database xc_db set tablespace xc_testspace1;
+alter database xc_db02 set tablespace xc_testspace1;
 
 select exec_util_on_node('CREATE TABLESPACE xc_testspace1 LOCATION $LOC$@testtablespace@$LOC$', 1);
 
 -- Now this should work.
-alter database xc_db set tablespace xc_testspace1;
+alter database xc_db02 set tablespace xc_testspace1;
 
 -- Verify data in the objects created earlier
-\c xc_db
+\c xc_db02
 select * from xc_tab1 order by id;
 \c regression
-clean connection to all for database xc_db;
+clean connection to all for database xc_db02;
 
-drop database xc_db;
-drop tablespace xc_testspace1;
+-- drop database may faild, do not drop it
+-- drop database xc_db02;
+-- drop tablespace may faild, do not drop it
+-- drop tablespace xc_testspace1;

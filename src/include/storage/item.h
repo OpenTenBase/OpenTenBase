@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * item.h
- *      POSTGRES disk item definitions.
+ *	  POSTGRES disk item definitions.
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -16,4 +16,4 @@
 
 typedef Pointer Item;
 
-#endif                            /* ITEM_H */
+#endif							/* ITEM_H */

@@ -1,0 +1,66 @@
+\c opentenbase_ora_package_function_regression_ora
+SET client_min_messages = error;
+create extension if not exists opentenbase_ora_package_function;
+reset client_min_messages;
+CREATE TABLE invoice (
+	invoice_no    integer        PRIMARY KEY,
+	seller_no     integer,
+	invoice_date  date,
+	invoice_amt   numeric(13,2)
+);
+CREATE MATERIALIZED VIEW sales_summary AS
+SELECT
+	seller_no,
+	invoice_date,
+	sum(invoice_amt)::numeric(13,2) as sales_amt
+FROM invoice
+WHERE invoice_date < CURRENT_DATE
+GROUP BY seller_no, invoice_date
+ORDER BY seller_no, invoice_date;
+CREATE UNIQUE INDEX sales_summary_seller
+ON sales_summary (seller_no, invoice_date);
+insert into invoice values(1, 1, to_date('2024-05-15 00:00:00', 'yyyy-mm-dd HH24:mi:ss'), 12.3);
+insert into invoice values(2, 1, to_date('2024-05-15 00:00:00', 'yyyy-mm-dd HH24:mi:ss'), 10.3);
+select * from invoice order by invoice_no;
+ INVOICE_NO | SELLER_NO | INVOICE_DATE | INVOICE_AMT 
+------------+-----------+--------------+-------------
+          1 |         1 | 05-15-2024   |        12.3
+          2 |         1 | 05-15-2024   |        10.3
+(2 rows)
+
+select * from sales_summary;
+ SELLER_NO | INVOICE_DATE | SALES_AMT 
+-----------+--------------+-----------
+(0 rows)
+
+call dbms_refresh.refresh('sales_summary');
+select * from sales_summary;
+ SELLER_NO | INVOICE_DATE | SALES_AMT 
+-----------+--------------+-----------
+         1 | 05-15-2024   |      22.6
+(1 row)
+
+insert into invoice values(3, 2, to_date('2024-05-16 00:00:00', 'yyyy-mm-dd HH24:mi:ss'), 13.3);
+insert into invoice values(4, 2, to_date('2024-05-16 00:00:00', 'yyyy-mm-dd HH24:mi:ss'), 15.2);
+select * from invoice order by invoice_no;
+ INVOICE_NO | SELLER_NO | INVOICE_DATE | INVOICE_AMT 
+------------+-----------+--------------+-------------
+          1 |         1 | 05-15-2024   |        12.3
+          2 |         1 | 05-15-2024   |        10.3
+          3 |         2 | 05-16-2024   |        13.3
+          4 |         2 | 05-16-2024   |        15.2
+(4 rows)
+
+select * from sales_summary;
+ SELLER_NO | INVOICE_DATE | SALES_AMT 
+-----------+--------------+-----------
+         1 | 05-15-2024   |      22.6
+(1 row)
+
+call dbms_refresh.refresh('sales_summary');
+select * from sales_summary;
+ SELLER_NO | INVOICE_DATE | SALES_AMT 
+-----------+--------------+-----------
+         1 | 05-15-2024   |      22.6
+         2 | 05-16-2024   |      28.5
+(2 rows)

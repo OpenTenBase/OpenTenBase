@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * assert.c
- *      Assert code.
+ *	  Assert code.
  *
  * Portions Copyright (c) 1996-2009, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -9,10 +9,10 @@
  *
  *
  * IDENTIFICATION
- *      $PostgreSQL: pgsql/src/backend/utils/error/assert.c,v 1.35 2008/01/01 19:45:53 momjian Exp $
+ *	  $PostgreSQL: pgsql/src/backend/utils/error/assert.c,v 1.35 2008/01/01 19:45:53 momjian Exp $
  *
  * NOTE
- *      This should eventually work with elog()
+ *	  This should eventually work with elog()
  *
  *-------------------------------------------------------------------------
  */
@@ -28,23 +28,23 @@ bool assert_enabled = false;
  */
 void
 ExceptionalCondition(const char *conditionName,
-                     const char *errorType,
-                     const char *fileName,
-                     int lineNumber)
+					 const char *errorType,
+					 const char *fileName,
+					 int lineNumber)
 {
-    if (!PointerIsValid(conditionName)
-        || !PointerIsValid(fileName)
-        || !PointerIsValid(errorType))
-        fprintf(stderr, "TRAP: ExceptionalCondition: bad arguments\n");
-    else
-    {
-        fprintf(stderr, "TRAP: %s(\"%s\", File: \"%s\", Line: %d)\n",
-                     errorType, conditionName,
-                     fileName, lineNumber);
-    }
+	if (!PointerIsValid(conditionName)
+		|| !PointerIsValid(fileName)
+		|| !PointerIsValid(errorType))
+		fprintf(stderr, "TRAP: ExceptionalCondition: bad arguments\n");
+	else
+	{
+		fprintf(stderr, "TRAP: %s(\"%s\", File: \"%s\", Line: %d)\n",
+					 errorType, conditionName,
+					 fileName, lineNumber);
+	}
 
-    /* Usually this shouldn't be needed, but make sure the msg went out */
-    fflush(stderr);
+	/* Usually this shouldn't be needed, but make sure the msg went out */
+	fflush(stderr);
 
-    abort();
+	abort();
 }

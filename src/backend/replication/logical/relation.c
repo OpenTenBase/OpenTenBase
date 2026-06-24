@@ -1,18 +1,15 @@
 /*-------------------------------------------------------------------------
  * relation.c
- *       PostgreSQL logical replication
+ *	   PostgreSQL logical replication
  *
  * Copyright (c) 2016-2017, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *      src/backend/replication/logical/relation.c
- *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
+ *	  src/backend/replication/logical/relation.c
  *
  * NOTES
- *      This file contains helper functions for logical replication relation
- *      mapping cache.
+ *	  This file contains helper functions for logical replication relation
+ *	  mapping cache.
  *
  *-------------------------------------------------------------------------
  */
@@ -35,7 +32,6 @@
 #ifdef __STORAGE_SCALABLE__
 #include "replication/logical_statistic.h"
 #endif
-
 #ifdef __SUBSCRIPTION__
 #include "commands/trigger.h"
 #include "rewrite/rewriteHandler.h"
@@ -44,6 +40,8 @@
 #include "access/xact.h"
 #include "libpq/pqformat.h"
 #include "pgxc/pgxcnode.h"
+#endif
+#ifdef __OPENTENBASE_C__
 #endif
 
 static MemoryContext LogicalRepRelMapContext = NULL;
@@ -57,63 +55,63 @@ static bool g_am_opentenbase_logical_apply_worker = false;
 #endif
 
 static void logicalrep_typmap_invalidate_cb(Datum arg, int cacheid,
-                                uint32 hashvalue);
+								uint32 hashvalue);
 
 /*
  * Relcache invalidation callback for our relation map cache.
  */
 static void
 logicalrep_relmap_invalidate_cb(Datum arg, Oid reloid)
-{// #lizard forgives
-    LogicalRepRelMapEntry *entry;
+{
+	LogicalRepRelMapEntry *entry;
 
-    /* Just to be sure. */
-    if (LogicalRepRelMap == NULL)
-        return;
+	/* Just to be sure. */
+	if (LogicalRepRelMap == NULL)
+		return;
 
-    if (reloid != InvalidOid)
-    {
-        HASH_SEQ_STATUS status;
+	if (reloid != InvalidOid)
+	{
+		HASH_SEQ_STATUS status;
 
-        hash_seq_init(&status, LogicalRepRelMap);
+		hash_seq_init(&status, LogicalRepRelMap);
 
-        /* TODO, use inverse lookup hashtable? */
-        while ((entry = (LogicalRepRelMapEntry *) hash_seq_search(&status)) != NULL)
-        {
-            if (entry->localreloid == reloid)
-            {
-                entry->localreloid = InvalidOid;
+		/* TODO, use inverse lookup hashtable? */
+		while ((entry = (LogicalRepRelMapEntry *) hash_seq_search(&status)) != NULL)
+		{
+			if (entry->localreloid == reloid)
+			{
+				entry->localreloid = InvalidOid;
 #ifdef __SUBSCRIPTION__
-                if (entry->locator)
-                {
-                    freeLocator(entry->locator);
-                    entry->locator = NULL;
-                }
+				if (entry->locator)
+				{
+					freeLocator(entry->locator);
+					entry->locator = NULL;
+				}
 #endif
-                hash_seq_term(&status);
-                break;
-            }
-        }
-    }
-    else
-    {
-        /* invalidate all cache entries */
-        HASH_SEQ_STATUS status;
+				hash_seq_term(&status);
+				break;
+			}
+		}
+	}
+	else
+	{
+		/* invalidate all cache entries */
+		HASH_SEQ_STATUS status;
 
-        hash_seq_init(&status, LogicalRepRelMap);
+		hash_seq_init(&status, LogicalRepRelMap);
 
-        while ((entry = (LogicalRepRelMapEntry *) hash_seq_search(&status)) != NULL)
-        {
-            entry->localreloid = InvalidOid;
+		while ((entry = (LogicalRepRelMapEntry *) hash_seq_search(&status)) != NULL)
+		{
+			entry->localreloid = InvalidOid;
 #ifdef __SUBSCRIPTION__
-            if (entry->locator)
-            {
-                freeLocator(entry->locator);
-                entry->locator = NULL;
-            }
+			if (entry->locator)
+			{
+				freeLocator(entry->locator);
+				entry->locator = NULL;
+			}
 #endif
-        }
-    }
+		}
+	}
 }
 
 /*
@@ -122,38 +120,38 @@ logicalrep_relmap_invalidate_cb(Datum arg, Oid reloid)
 static void
 logicalrep_relmap_init(void)
 {
-    HASHCTL        ctl;
+	HASHCTL		ctl;
 
-    if (!LogicalRepRelMapContext)
-        LogicalRepRelMapContext =
-            AllocSetContextCreate(CacheMemoryContext,
-                                  "LogicalRepRelMapContext",
-                                  ALLOCSET_DEFAULT_SIZES);
+	if (!LogicalRepRelMapContext)
+		LogicalRepRelMapContext =
+			AllocSetContextCreate(CacheMemoryContext,
+								  "LogicalRepRelMapContext",
+								  ALLOCSET_DEFAULT_SIZES);
 
-    /* Initialize the relation hash table. */
-    MemSet(&ctl, 0, sizeof(ctl));
-    ctl.keysize = sizeof(LogicalRepRelId);
-    ctl.entrysize = sizeof(LogicalRepRelMapEntry);
-    ctl.hcxt = LogicalRepRelMapContext;
+	/* Initialize the relation hash table. */
+	MemSet(&ctl, 0, sizeof(ctl));
+	ctl.keysize = sizeof(LogicalRepRelId);
+	ctl.entrysize = sizeof(LogicalRepRelMapEntry);
+	ctl.hcxt = LogicalRepRelMapContext;
 
-    LogicalRepRelMap = hash_create("logicalrep relation map cache", 128, &ctl,
-                                   HASH_ELEM | HASH_BLOBS | HASH_CONTEXT);
+	LogicalRepRelMap = hash_create("logicalrep relation map cache", 128, &ctl,
+								   HASH_ELEM | HASH_BLOBS | HASH_CONTEXT);
 
-    /* Initialize the type hash table. */
-    MemSet(&ctl, 0, sizeof(ctl));
-    ctl.keysize = sizeof(Oid);
-    ctl.entrysize = sizeof(LogicalRepTyp);
-    ctl.hcxt = LogicalRepRelMapContext;
+	/* Initialize the type hash table. */
+	MemSet(&ctl, 0, sizeof(ctl));
+	ctl.keysize = sizeof(Oid);
+	ctl.entrysize = sizeof(LogicalRepTyp);
+	ctl.hcxt = LogicalRepRelMapContext;
 
-    /* This will usually be small. */
-    LogicalRepTypMap = hash_create("logicalrep type map cache", 2, &ctl,
-                                   HASH_ELEM | HASH_BLOBS | HASH_CONTEXT);
+	/* This will usually be small. */
+	LogicalRepTypMap = hash_create("logicalrep type map cache", 2, &ctl,
+								   HASH_ELEM | HASH_BLOBS | HASH_CONTEXT);
 
-    /* Watch for invalidation events. */
-    CacheRegisterRelcacheCallback(logicalrep_relmap_invalidate_cb,
-                                  (Datum) 0);
-    CacheRegisterSyscacheCallback(TYPEOID, logicalrep_typmap_invalidate_cb,
-                                  (Datum) 0);
+	/* Watch for invalidation events. */
+	CacheRegisterRelcacheCallback(logicalrep_relmap_invalidate_cb,
+								  (Datum) 0);
+	CacheRegisterSyscacheCallback(TYPEOID, logicalrep_typmap_invalidate_cb,
+								  (Datum) 0);
 }
 
 /*
@@ -162,34 +160,34 @@ logicalrep_relmap_init(void)
 static void
 logicalrep_relmap_free_entry(LogicalRepRelMapEntry *entry)
 {
-    LogicalRepRelation *remoterel;
+	LogicalRepRelation *remoterel;
 
-    remoterel = &entry->remoterel;
+	remoterel = &entry->remoterel;
 
-    pfree(remoterel->nspname);
-    pfree(remoterel->relname);
+	pfree(remoterel->nspname);
+	pfree(remoterel->relname);
 
-    if (remoterel->natts > 0)
-    {
-        int            i;
+	if (remoterel->natts > 0)
+	{
+		int			i;
 
-        for (i = 0; i < remoterel->natts; i++)
-            pfree(remoterel->attnames[i]);
+		for (i = 0; i < remoterel->natts; i++)
+			pfree(remoterel->attnames[i]);
 
-        pfree(remoterel->attnames);
-        pfree(remoterel->atttyps);
-    }
-    bms_free(remoterel->attkeys);
+		pfree(remoterel->attnames);
+		pfree(remoterel->atttyps);
+	}
+	bms_free(remoterel->attkeys);
 
-    if (entry->attrmap)
-        pfree(entry->attrmap);
+	if (entry->attrmap)
+		pfree(entry->attrmap);
 
 #ifdef __SUBSCRIPTION__
-    if (entry->locator)
-    {
-        freeLocator(entry->locator);
-        entry->locator = NULL;
-    }
+	if (entry->locator)
+	{
+		freeLocator(entry->locator);
+		entry->locator = NULL;
+	}
 #endif
 }
 
@@ -202,52 +200,52 @@ logicalrep_relmap_free_entry(LogicalRepRelMapEntry *entry)
 void
 logicalrep_relmap_update(LogicalRepRelation *remoterel)
 {
-    MemoryContext oldctx;
-    LogicalRepRelMapEntry *entry;
-    bool        found;
-    int            i;
+	MemoryContext oldctx;
+	LogicalRepRelMapEntry *entry;
+	bool		found;
+	int			i;
 
-    if (LogicalRepRelMap == NULL)
-        logicalrep_relmap_init();
+	if (LogicalRepRelMap == NULL)
+		logicalrep_relmap_init();
 
-    /*
-     * HASH_ENTER returns the existing entry if present or creates a new one.
-     */
-    entry = hash_search(LogicalRepRelMap, (void *) &remoterel->remoteid,
-                        HASH_ENTER, &found);
+	/*
+	 * HASH_ENTER returns the existing entry if present or creates a new one.
+	 */
+	entry = hash_search(LogicalRepRelMap, (void *) &remoterel->remoteid,
+						HASH_ENTER, &found);
 
-    if (found)
-        logicalrep_relmap_free_entry(entry);
+	if (found)
+		logicalrep_relmap_free_entry(entry);
 
-    memset(entry, 0, sizeof(LogicalRepRelMapEntry));
+	memset(entry, 0, sizeof(LogicalRepRelMapEntry));
 
-    /* Make cached copy of the data */
-    oldctx = MemoryContextSwitchTo(LogicalRepRelMapContext);
-    entry->remoterel.remoteid = remoterel->remoteid;
-    entry->remoterel.nspname = pstrdup(remoterel->nspname);
-    entry->remoterel.relname = pstrdup(remoterel->relname);
-    entry->remoterel.natts = remoterel->natts;
-    entry->remoterel.attnames = palloc(remoterel->natts * sizeof(char *));
-    entry->remoterel.atttyps = palloc(remoterel->natts * sizeof(Oid));
-    for (i = 0; i < remoterel->natts; i++)
-    {
-        entry->remoterel.attnames[i] = pstrdup(remoterel->attnames[i]);
-        entry->remoterel.atttyps[i] = remoterel->atttyps[i];
-    }
-    entry->remoterel.replident = remoterel->replident;
-    entry->remoterel.attkeys = bms_copy(remoterel->attkeys);
+	/* Make cached copy of the data */
+	oldctx = MemoryContextSwitchTo(LogicalRepRelMapContext);
+	entry->remoterel.remoteid = remoterel->remoteid;
+	entry->remoterel.nspname = pstrdup(remoterel->nspname);
+	entry->remoterel.relname = pstrdup(remoterel->relname);
+	entry->remoterel.natts = remoterel->natts;
+	entry->remoterel.attnames = palloc(remoterel->natts * sizeof(char *));
+	entry->remoterel.atttyps = palloc(remoterel->natts * sizeof(Oid));
+	for (i = 0; i < remoterel->natts; i++)
+	{
+		entry->remoterel.attnames[i] = pstrdup(remoterel->attnames[i]);
+		entry->remoterel.atttyps[i] = remoterel->atttyps[i];
+	}
+	entry->remoterel.replident = remoterel->replident;
+	entry->remoterel.attkeys = bms_copy(remoterel->attkeys);
 #ifdef __STORAGE_SCALABLE__
-    entry->ntups_insert = 0;
-    entry->ntups_delete = 0;
-    entry->checksum_insert = 0;
-    entry->checksum_delete = 0;
-    entry->ent = NULL;
+	entry->ntups_insert = 0;
+	entry->ntups_delete = 0;
+	entry->checksum_insert = 0;
+	entry->checksum_delete = 0;
+	entry->ent = NULL;
 #endif
 
 #ifdef __SUBSCRIPTION__
-    entry->locator = NULL;
+	entry->locator = NULL;
 #endif
-    MemoryContextSwitchTo(oldctx);
+	MemoryContextSwitchTo(oldctx);
 }
 
 /*
@@ -258,15 +256,15 @@ logicalrep_relmap_update(LogicalRepRelation *remoterel)
 static int
 logicalrep_rel_att_by_name(LogicalRepRelation *remoterel, const char *attname)
 {
-    int            i;
+	int			i;
 
-    for (i = 0; i < remoterel->natts; i++)
-    {
-        if (strcmp(remoterel->attnames[i], attname) == 0)
-            return i;
-    }
+	for (i = 0; i < remoterel->natts; i++)
+	{
+		if (strcmp(remoterel->attnames[i], attname) == 0)
+			return i;
+	}
 
-    return -1;
+	return -1;
 }
 
 /*
@@ -277,23 +275,23 @@ logicalrep_rel_att_by_name(LogicalRepRelation *remoterel, const char *attname)
  */
 LogicalRepRelMapEntry *
 logicalrep_rel_open(LogicalRepRelId remoteid, LOCKMODE lockmode)
-{// #lizard forgives
+{
 	LogicalRepRelMapEntry *entry = NULL;
 	bool		found = false;
 
-    if (LogicalRepRelMap == NULL)
-        logicalrep_relmap_init();
+	if (LogicalRepRelMap == NULL)
+		logicalrep_relmap_init();
 
-    /* Search for existing entry. */
-    entry = hash_search(LogicalRepRelMap, (void *) &remoteid,
-                        HASH_FIND, &found);
+	/* Search for existing entry. */
+	entry = hash_search(LogicalRepRelMap, (void *) &remoteid,
+						HASH_FIND, &found);
 
 #ifdef __SUBSCRIPTION__
 	if (!found)
 	{
-		if (am_opentenbase_subscript_dispatch_worker())
+		if (am_opentenbase_subscription_dispatch_worker())
 		{
-			//elog(LOG, "no relation map entry for remote relation ID %u, ignoring this subscription", remoteid);
+			// elog(LOG, "no relation map entry for remote relation ID %u, ignoring this subscription", remoteid);
 			return NULL;
 		}
 		else
@@ -303,161 +301,138 @@ logicalrep_rel_open(LogicalRepRelId remoteid, LOCKMODE lockmode)
 		}
 	}
 #else
-    if (!found)
-        elog(ERROR, "no relation map entry for remote relation ID %u",
-             remoteid);
+	if (!found)
+		elog(ERROR, "no relation map entry for remote relation ID %u",
+			 remoteid);
 #endif
 
-    /* Need to update the local cache? */
-    if (!OidIsValid(entry->localreloid))
-    {
-        Oid            relid;
-        int            i;
-        int            found;
-        Bitmapset  *idkey;
-        TupleDesc    desc;
-        LogicalRepRelation *remoterel;
-        MemoryContext oldctx;
+	/* Need to update the local cache? */
+	if (!OidIsValid(entry->localreloid))
+	{
+		Oid			relid;
+		int			i;
+		int			found;
+		Bitmapset  *idkey;
+		TupleDesc	desc;
+		LogicalRepRelation *remoterel;
+		MemoryContext oldctx;
 
-        remoterel = &entry->remoterel;
+		remoterel = &entry->remoterel;
 
-        /* Try to find and lock the relation by name. */
-        relid = RangeVarGetRelid(makeRangeVar(remoterel->nspname,
-                                              remoterel->relname, -1),
-                                 lockmode, true);
-        if (!OidIsValid(relid))
+		/* Try to find and lock the relation by name. */
+		relid = RangeVarGetRelid(makeRangeVar(remoterel->nspname,
+											  remoterel->relname, -1),
+								 lockmode, true);
+		if (!OidIsValid(relid))
+			ereport(ERROR,
+					(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+					 errmsg("logical replication target relation \"%s.%s\" does not exist",
+							remoterel->nspname, remoterel->relname)));
+		entry->localrel = heap_open(relid, NoLock);
+
+		/* Check for supported relkind. */
+		CheckSubscriptionRelkind(entry->localrel->rd_rel->relkind,
+								 remoterel->nspname, remoterel->relname);
+
+		/*
+		 * Build the mapping of local attribute numbers to remote attribute
+		 * numbers and validate that we don't miss any replicated columns as
+		 * that would result in potentially unwanted data loss.
+		 */
+		desc = RelationGetDescr(entry->localrel);
+		oldctx = MemoryContextSwitchTo(LogicalRepRelMapContext);
+		entry->attrmap = palloc(desc->natts * sizeof(int));
+		MemoryContextSwitchTo(oldctx);
+
+		found = 0;
+		for (i = 0; i < desc->natts; i++)
 		{
-			if (am_opentenbase_subscript_dispatch_worker())
+			int			attnum;
+			Form_pg_attribute attr = TupleDescAttr(desc, i);
+
+			if (attr->attisdropped)
 			{
-				/*Since the received data of the publisher's table does not have this table locally,
-				 * the log will be printed frequently, which will cause log expand.
-				 * So, comment it out first.
-				 * */
-
-				//elog(LOG, "The subscriber cannot find the table name received from the publisher locally, ignoring the subscription for %s.%s.",
-				//			remoterel->nspname, remoterel->relname);
-				return NULL;
-
+				entry->attrmap[i] = -1;
+				continue;
 			}
-			else
+
+			attnum = logicalrep_rel_att_by_name(remoterel,
+												NameStr(attr->attname));
+
+			entry->attrmap[i] = attnum;
+			if (attnum >= 0)
+				found++;
+		}
+
+		/* TODO, detail message with names of missing columns */
+		if (found < remoterel->natts)
+			ereport(ERROR,
+					(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+					 errmsg("logical replication target relation \"%s.%s\" is missing "
+							"some replicated columns",
+							remoterel->nspname, remoterel->relname)));
+
+		/*
+		 * Check that replica identity matches. We allow for stricter replica
+		 * identity (fewer columns) on subscriber as that will not stop us
+		 * from finding unique tuple. IE, if publisher has identity
+		 * (id,timestamp) and subscriber just (id) this will not be a problem,
+		 * but in the opposite scenario it will.
+		 *
+		 * Don't throw any error here just mark the relation entry as not
+		 * updatable, as replica identity is only for updates and deletes but
+		 * inserts can be replicated even without it.
+		 */
+		entry->updatable = true;
+		idkey = RelationGetIndexAttrBitmap(entry->localrel,
+										   INDEX_ATTR_BITMAP_IDENTITY_KEY);
+		/* fallback to PK if no replica identity */
+		if (idkey == NULL)
+		{
+			idkey = RelationGetIndexAttrBitmap(entry->localrel,
+											   INDEX_ATTR_BITMAP_PRIMARY_KEY);
+
+			/*
+			 * If no replica identity index and no PK, the published table
+			 * must have replica identity FULL.
+			 */
+			if (idkey == NULL && remoterel->replident != REPLICA_IDENTITY_FULL)
+				entry->updatable = false;
+		}
+
+		i = -1;
+		while ((i = bms_next_member(idkey, i)) >= 0)
+		{
+			int			attnum = i + FirstLowInvalidHeapAttributeNumber;
+
+			if (!AttrNumberIsForUserDefinedAttr(attnum))
+				ereport(ERROR,
+						(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+						 errmsg("logical replication target relation \"%s.%s\" uses "
+								"system columns in REPLICA IDENTITY index",
+								remoterel->nspname, remoterel->relname)));
+
+			attnum = AttrNumberGetAttrOffset(attnum);
+
+			if (!bms_is_member(entry->attrmap[attnum], remoterel->attkeys))
 			{
-			    ereport(ERROR,
-                    (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-                     errmsg("logical replication target relation \"%s.%s\" does not exist",
-                            remoterel->nspname, remoterel->relname)));
+				entry->updatable = false;
+				break;
 			}
 		}
-        entry->localrel = heap_open(relid, NoLock);
 
-        /* Check for supported relkind. */
-        CheckSubscriptionRelkind(entry->localrel->rd_rel->relkind,
-                                 remoterel->nspname, remoterel->relname);
-
-        /*
-         * Build the mapping of local attribute numbers to remote attribute
-         * numbers and validate that we don't miss any replicated columns as
-         * that would result in potentially unwanted data loss.
-         */
-        desc = RelationGetDescr(entry->localrel);
-        oldctx = MemoryContextSwitchTo(LogicalRepRelMapContext);
-        entry->attrmap = palloc(desc->natts * sizeof(int));
-        MemoryContextSwitchTo(oldctx);
-
-        found = 0;
-        for (i = 0; i < desc->natts; i++)
-        {
-            int            attnum;
-
-            if (desc->attrs[i]->attisdropped)
-            {
-                entry->attrmap[i] = -1;
-                continue;
-            }
-
-            attnum = logicalrep_rel_att_by_name(remoterel,
-                                                NameStr(desc->attrs[i]->attname));
-
-            entry->attrmap[i] = attnum;
-            if (attnum >= 0)
-                found++;
-        }
-
-        /* TODO, detail message with names of missing columns */
-        if (found < remoterel->natts)
-            ereport(ERROR,
-                    (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-                     errmsg("logical replication target relation \"%s.%s\" is missing "
-                            "some replicated columns",
-                            remoterel->nspname, remoterel->relname)));
-
-        /*
-         * Check that replica identity matches. We allow for stricter replica
-         * identity (fewer columns) on subscriber as that will not stop us
-         * from finding unique tuple. IE, if publisher has identity
-         * (id,timestamp) and subscriber just (id) this will not be a problem,
-         * but in the opposite scenario it will.
-         *
-         * Don't throw any error here just mark the relation entry as not
-         * updatable, as replica identity is only for updates and deletes but
-         * inserts can be replicated even without it.
-         */
-        entry->updatable = true;
-        idkey = RelationGetIndexAttrBitmap(entry->localrel,
-                                           INDEX_ATTR_BITMAP_IDENTITY_KEY);
-        /* fallback to PK if no replica identity */
-        if (idkey == NULL)
-        {
-            idkey = RelationGetIndexAttrBitmap(entry->localrel,
-                                               INDEX_ATTR_BITMAP_PRIMARY_KEY);
-
-            /*
-             * If no replica identity index and no PK, the published table
-             * must have replica identity FULL.
-             */
-            if (idkey == NULL && remoterel->replident != REPLICA_IDENTITY_FULL)
-                entry->updatable = false;
-        }
-
-        i = -1;
-        while ((i = bms_next_member(idkey, i)) >= 0)
-        {
-            int            attnum = i + FirstLowInvalidHeapAttributeNumber;
-
-            if (!AttrNumberIsForUserDefinedAttr(attnum))
-                ereport(ERROR,
-                        (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-                         errmsg("logical replication target relation \"%s.%s\" uses "
-                                "system columns in REPLICA IDENTITY index",
-                                remoterel->nspname, remoterel->relname)));
-
-            attnum = AttrNumberGetAttrOffset(attnum);
-
-            if (!bms_is_member(entry->attrmap[attnum], remoterel->attkeys))
-            {
-                entry->updatable = false;
-                break;
-            }
-        }
-
-        entry->localreloid = relid;
-    }
-    else
-        entry->localrel = heap_open(entry->localreloid, lockmode);
-
-#ifdef __SUBSCRIPTION__
-	if (MySubscription != NULL)
-	{
-#endif
-	    if (entry->state != SUBREL_STATE_READY)
-			entry->state = GetSubscriptionRelState(MySubscription->oid,
-					            entry->localreloid,
-								&entry->statelsn,
-								true);
-#ifdef __SUBSCRIPTION__
+		entry->localreloid = relid;
 	}
-#endif
+	else
+		entry->localrel = heap_open(entry->localreloid, lockmode);
 
-    return entry;
+	if (entry->state != SUBREL_STATE_READY)
+		entry->state = GetSubscriptionRelState(MySubscription->oid,
+											   entry->localreloid,
+											   &entry->statelsn,
+											   true);
+
+	return entry;
 }
 
 /*
@@ -471,8 +446,8 @@ logicalrep_rel_close(LogicalRepRelMapEntry *rel, LOCKMODE lockmode)
 		return;
 #endif
 
-    heap_close(rel->localrel, lockmode);
-    rel->localrel = NULL;
+	heap_close(rel->localrel, lockmode);
+	rel->localrel = NULL;
 }
 
 
@@ -482,18 +457,18 @@ logicalrep_rel_close(LogicalRepRelMapEntry *rel, LOCKMODE lockmode)
 static void
 logicalrep_typmap_invalidate_cb(Datum arg, int cacheid, uint32 hashvalue)
 {
-    HASH_SEQ_STATUS status;
-    LogicalRepTyp *entry;
+	HASH_SEQ_STATUS status;
+	LogicalRepTyp *entry;
 
-    /* Just to be sure. */
-    if (LogicalRepTypMap == NULL)
-        return;
+	/* Just to be sure. */
+	if (LogicalRepTypMap == NULL)
+		return;
 
-    /* invalidate all cache entries */
-    hash_seq_init(&status, LogicalRepTypMap);
+	/* invalidate all cache entries */
+	hash_seq_init(&status, LogicalRepTypMap);
 
-    while ((entry = (LogicalRepTyp *) hash_seq_search(&status)) != NULL)
-        entry->typoid = InvalidOid;
+	while ((entry = (LogicalRepTyp *) hash_seq_search(&status)) != NULL)
+		entry->typoid = InvalidOid;
 }
 
 /*
@@ -502,10 +477,10 @@ logicalrep_typmap_invalidate_cb(Datum arg, int cacheid, uint32 hashvalue)
 static void
 logicalrep_typmap_free_entry(LogicalRepTyp *entry)
 {
-    pfree(entry->nspname);
-    pfree(entry->typname);
+	pfree(entry->nspname);
+	pfree(entry->typname);
 
-    entry->typoid = InvalidOid;
+	entry->typoid = InvalidOid;
 }
 
 /*
@@ -514,29 +489,29 @@ logicalrep_typmap_free_entry(LogicalRepTyp *entry)
 void
 logicalrep_typmap_update(LogicalRepTyp *remotetyp)
 {
-    MemoryContext oldctx;
-    LogicalRepTyp *entry;
-    bool        found;
+	MemoryContext oldctx;
+	LogicalRepTyp *entry;
+	bool		found;
 
-    if (LogicalRepTypMap == NULL)
-        logicalrep_relmap_init();
+	if (LogicalRepTypMap == NULL)
+		logicalrep_relmap_init();
 
-    /*
-     * HASH_ENTER returns the existing entry if present or creates a new one.
-     */
-    entry = hash_search(LogicalRepTypMap, (void *) &remotetyp->remoteid,
-                        HASH_ENTER, &found);
+	/*
+	 * HASH_ENTER returns the existing entry if present or creates a new one.
+	 */
+	entry = hash_search(LogicalRepTypMap, (void *) &remotetyp->remoteid,
+						HASH_ENTER, &found);
 
-    if (found)
-        logicalrep_typmap_free_entry(entry);
+	if (found)
+		logicalrep_typmap_free_entry(entry);
 
-    /* Make cached copy of the data */
-    entry->remoteid = remotetyp->remoteid;
-    oldctx = MemoryContextSwitchTo(LogicalRepRelMapContext);
-    entry->nspname = pstrdup(remotetyp->nspname);
-    entry->typname = pstrdup(remotetyp->typname);
-    MemoryContextSwitchTo(oldctx);
-    entry->typoid = InvalidOid;
+	/* Make cached copy of the data */
+	entry->remoteid = remotetyp->remoteid;
+	oldctx = MemoryContextSwitchTo(LogicalRepRelMapContext);
+	entry->nspname = pstrdup(remotetyp->nspname);
+	entry->typname = pstrdup(remotetyp->typname);
+	MemoryContextSwitchTo(oldctx);
+	entry->typoid = InvalidOid;
 }
 
 /*
@@ -544,123 +519,123 @@ logicalrep_typmap_update(LogicalRepTyp *remotetyp)
  */
 Oid
 logicalrep_typmap_getid(Oid remoteid)
-{// #lizard forgives
-    LogicalRepTyp *entry;
-    bool        found;
-    Oid            nspoid;
+{
+	LogicalRepTyp *entry;
+	bool		found;
+	Oid			nspoid;
 
-    /* Internal types are mapped directly. */
-    if (remoteid < FirstNormalObjectId)
-    {
-        if (!get_typisdefined(remoteid))
-            ereport(ERROR,
-                    (errmsg("builtin type %u not found", remoteid),
-                     errhint("This can be caused by having publisher with "
-                             "higher major version than subscriber")));
-        return remoteid;
-    }
+	/* Internal types are mapped directly. */
+	if (remoteid < FirstNormalObjectId)
+	{
+		if (!get_typisdefined(remoteid))
+			ereport(ERROR,
+					(errmsg("builtin type %u not found", remoteid),
+					 errhint("This can be caused by having publisher with "
+							 "higher major version than subscriber")));
+		return remoteid;
+	}
 
-    if (LogicalRepTypMap == NULL)
-        logicalrep_relmap_init();
+	if (LogicalRepTypMap == NULL)
+		logicalrep_relmap_init();
 
-    /* Try finding the mapping. */
-    entry = hash_search(LogicalRepTypMap, (void *) &remoteid,
-                        HASH_FIND, &found);
+	/* Try finding the mapping. */
+	entry = hash_search(LogicalRepTypMap, (void *) &remoteid,
+						HASH_FIND, &found);
 
-    if (!found)
-        elog(ERROR, "no type map entry for remote type %u",
-             remoteid);
+	if (!found)
+		elog(ERROR, "no type map entry for remote type %u",
+			 remoteid);
 
-    /* Found and mapped, return the oid. */
-    if (OidIsValid(entry->typoid))
-        return entry->typoid;
+	/* Found and mapped, return the oid. */
+	if (OidIsValid(entry->typoid))
+		return entry->typoid;
 
-    /* Otherwise, try to map to local type. */
-    nspoid = LookupExplicitNamespace(entry->nspname, true);
-    if (OidIsValid(nspoid))
-        entry->typoid = GetSysCacheOid2(TYPENAMENSP,
-                                        PointerGetDatum(entry->typname),
-                                        ObjectIdGetDatum(nspoid));
-    else
-        entry->typoid = InvalidOid;
+	/* Otherwise, try to map to local type. */
+	nspoid = LookupExplicitNamespace(entry->nspname, true);
+	if (OidIsValid(nspoid))
+		entry->typoid = GetSysCacheOid2(TYPENAMENSP,
+										PointerGetDatum(entry->typname),
+										ObjectIdGetDatum(nspoid));
+	else
+		entry->typoid = InvalidOid;
 
-    if (!OidIsValid(entry->typoid))
-        ereport(ERROR,
-                (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-                 errmsg("data type \"%s.%s\" required for logical replication does not exist",
-                        entry->nspname, entry->typname)));
+	if (!OidIsValid(entry->typoid))
+		ereport(ERROR,
+				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+				 errmsg("data type \"%s.%s\" required for logical replication does not exist",
+						entry->nspname, entry->typname)));
 
-    return entry->typoid;
+	return entry->typoid;
 }
 
 #ifdef __STORAGE_SCALABLE__
 void
-logicalrep_statis_update_for_sync(Oid relid, Oid subid, char *subname)
+logicalrep_statistic_update_for_sync(Oid relid, Oid subid, char *subname)
 {
-    HASH_SEQ_STATUS status;
-    LogicalRepRelMapEntry *entry;
+	HASH_SEQ_STATUS status;
+	LogicalRepRelMapEntry *entry;
 
-    /* Just to be sure. */
-    if (LogicalRepRelMap == NULL)
-        return;
+	/* Just to be sure. */
+	if (LogicalRepRelMap == NULL)
+		return;
 
-    hash_seq_init(&status, LogicalRepRelMap);
+	hash_seq_init(&status, LogicalRepRelMap);
 
-    while ((entry = (LogicalRepRelMapEntry *) hash_seq_search(&status)) != NULL)
-    {
-        if (entry->localreloid == relid)
-        {
-            //UpdateSubTableStatistics(subid, relid, 0, entry->ntups_insert, 
-            //                         entry->ntups_delete, entry->checksum_insert, entry->checksum_delete, STATE_APPLY, false);
-            UpdateSubStatistics(subname, 0, entry->ntups_insert, entry->ntups_delete, 
-                                entry->checksum_insert, entry->checksum_delete, false);
+	while ((entry = (LogicalRepRelMapEntry *) hash_seq_search(&status)) != NULL)
+	{
+		if (entry->localreloid == relid)
+		{
+			//UpdateSubTableStatistics(subid, relid, 0, entry->ntups_insert, 
+			//	                     entry->ntups_delete, entry->checksum_insert, entry->checksum_delete, STATE_APPLY, false);
+			UpdateSubStatistics(subname, 0, entry->ntups_insert, entry->ntups_delete, 
+				                entry->checksum_insert, entry->checksum_delete, false);
 
-            entry->ntups_insert = 0;
-            entry->ntups_delete = 0;
-            entry->checksum_insert = 0;
-            entry->checksum_delete = 0;
-            entry->ent = NULL;
-            
-            hash_seq_term(&status);
-            break;
-        }
-    }
+			entry->ntups_insert = 0;
+			entry->ntups_delete = 0;
+			entry->checksum_insert = 0;
+			entry->checksum_delete = 0;
+			entry->ent = NULL;
+			
+			hash_seq_term(&status);
+			break;
+		}
+	}
 }
 void
-logicalrep_statis_update_for_apply(Oid subid, char *subname)
+logicalrep_statistic_update_for_apply(Oid subid, char *subname)
 {
-    HASH_SEQ_STATUS status;
-    LogicalRepRelMapEntry *entry;
+	HASH_SEQ_STATUS status;
+	LogicalRepRelMapEntry *entry;
 
-    /* Just to be sure. */
-    if (LogicalRepRelMap == NULL)
-        return;
+	/* Just to be sure. */
+	if (LogicalRepRelMap == NULL)
+		return;
 
-    hash_seq_init(&status, LogicalRepRelMap);
+	hash_seq_init(&status, LogicalRepRelMap);
 
-    while ((entry = (LogicalRepRelMapEntry *) hash_seq_search(&status)) != NULL)
-    {
-        if (OidIsValid(entry->localreloid))
-        {
-            //UpdateSubTableStatistics(subid, entry->localreloid, 0, entry->ntups_insert, 
-            //                         entry->ntups_delete, entry->checksum_insert, entry->checksum_delete, STATE_APPLY, false);
-            UpdateSubStatistics(subname, 0, entry->ntups_insert, entry->ntups_delete, 
-                                entry->checksum_insert, entry->checksum_delete, false);
+	while ((entry = (LogicalRepRelMapEntry *) hash_seq_search(&status)) != NULL)
+	{
+		if (OidIsValid(entry->localreloid))
+		{
+			//UpdateSubTableStatistics(subid, entry->localreloid, 0, entry->ntups_insert, 
+			//	                     entry->ntups_delete, entry->checksum_insert, entry->checksum_delete, STATE_APPLY, false);
+			UpdateSubStatistics(subname, 0, entry->ntups_insert, entry->ntups_delete, 
+				                entry->checksum_insert, entry->checksum_delete, false);
 
-            entry->ntups_insert = 0;
-            entry->ntups_delete = 0;
-            entry->checksum_insert = 0;
-            entry->checksum_delete = 0;
-            entry->ent = NULL;
-        }
-    }
+			entry->ntups_insert = 0;
+			entry->ntups_delete = 0;
+			entry->checksum_insert = 0;
+			entry->checksum_delete = 0;
+			entry->ent = NULL;
+		}
+	}
 }
 #endif
 
 #ifdef __SUBSCRIPTION__
 bool AmOpenTenBaseSubscriptionApplyWorker(void)
 {
-    return IS_PGXC_DATANODE && g_am_opentenbase_logical_apply_worker;
+	return IS_PGXC_DATANODE && g_am_opentenbase_logical_apply_worker;
 }
 
 void OpenTenBaseSubscriptionApplyWorkerSet(void)
@@ -675,21 +650,21 @@ void OpenTenBaseSubscriptionApplyWorkerReset(void)
     return;
 }
 
-void logicl_apply_set_ignor_pk_conflict(bool ignore)
+void logical_apply_set_ignore_pk_conflict(bool ignore)
 {
-    g_logical_apply_ignore_pk_conflict = ignore;
+	g_logical_apply_ignore_pk_conflict = ignore;
 }
 
-void logicl_aply_rset_ignor_pk_conflict(void)
+void logical_apply_reset_ignore_pk_conflict(void)
 {
-	logicl_apply_set_ignor_pk_conflict(false);
+	logical_apply_set_ignore_pk_conflict(false);
 }
 
 bool logical_apply_ignore_pk_conflict(void)
 {
-    return g_logical_apply_ignore_pk_conflict;
+	return g_logical_apply_ignore_pk_conflict;
 }
-#if 0
+
 /*
  * Executor state preparation for evaluation of constraint expressions,
  * indexes and triggers.
@@ -697,35 +672,35 @@ bool logical_apply_ignore_pk_conflict(void)
  * This is based on similar code in copy.c
  */
 static EState *
-logical_apply_create_estate_for_rel_dn_exec(Relation rel)
+logical_apply_create_estate_for_rel(Relation rel)
 {
-    EState       *estate = NULL;
-    ResultRelInfo *resultRelInfo = NULL;
-    RangeTblEntry *rte = NULL;
+	EState	   *estate = NULL;
+	ResultRelInfo *resultRelInfo = NULL;
+	RangeTblEntry *rte = NULL;
 
-    estate = CreateExecutorState();
+	estate = CreateExecutorState();
 
-    rte = makeNode(RangeTblEntry);
-    rte->rtekind = RTE_RELATION;
-    rte->relid = RelationGetRelid(rel);
-    rte->relkind = rel->rd_rel->relkind;
-    estate->es_range_table = list_make1(rte);
+	rte = makeNode(RangeTblEntry);
+	rte->rtekind = RTE_RELATION;
+	rte->relid = RelationGetRelid(rel);
+	rte->relkind = rel->rd_rel->relkind;
+	estate->es_range_table = list_make1(rte);
 
-    resultRelInfo = makeNode(ResultRelInfo);
-    InitResultRelInfo(resultRelInfo, rel, 1, NULL, 0);
+	resultRelInfo = makeNode(ResultRelInfo);
+	InitResultRelInfo(resultRelInfo, rel, 1, NULL, 0, false);
 
-    estate->es_result_relations = resultRelInfo;
-    estate->es_num_result_relations = 1;
-    estate->es_result_relation_info = resultRelInfo;
+	estate->es_result_relations = resultRelInfo;
+	estate->es_num_result_relations = 1;
+	estate->es_result_relation_info = resultRelInfo;
 
-    /* Triggers might need a slot */
-    if (resultRelInfo->ri_TrigDesc)
-        estate->es_trig_tuple_slot = ExecInitExtraTupleSlot(estate);
+	/* Triggers might need a slot */
+	if (resultRelInfo->ri_TrigDesc)
+		estate->es_trig_tuple_slot = ExecInitExtraTupleSlot(estate, NULL);
 
-    /* Prepare to catch AFTER triggers. */
-    AfterTriggerBeginQuery();
+	/* Prepare to catch AFTER triggers. */
+	AfterTriggerBeginQuery();
 
-    return estate;
+	return estate;
 }
 
 /*
@@ -736,56 +711,48 @@ logical_apply_create_estate_for_rel_dn_exec(Relation rel)
  * than on the upstream.
  */
 static void
-logical_apply_slot_fill_defaults_dn_exec(Relation rel,
-                                    EState *estate,
-                                       TupleTableSlot *slot,
-                                       char **values)
+logical_apply_slot_fill_defaults(Relation rel,
+									EState *estate,
+				   					TupleTableSlot *slot,
+				   					char **values)
 {
-    TupleDesc    desc = RelationGetDescr(rel);
-    int            num_phys_attrs = desc->natts;
-    int            i = 0;
-    int            attnum = 0,
-                num_defaults = 0;
-    int           *defmap = NULL;
-    ExprState **defexprs = NULL;
-    ExprContext *econtext = NULL;
-	int         upstream_att_index = 0;
+	TupleDesc	desc = RelationGetDescr(rel);
+	int			num_phys_attrs = desc->natts;
+	int			i = 0;
+	int			attnum = 0,
+				num_defaults = 0;
+	int		   *defmap = NULL;
+	ExprState **defexprs = NULL;
+	ExprContext *econtext = NULL;
 
-    econtext = GetPerTupleExprContext(estate);
-    defmap = (int *) palloc(num_phys_attrs * sizeof(int));
-    defexprs = (ExprState **) palloc(num_phys_attrs * sizeof(ExprState *));
+	econtext = GetPerTupleExprContext(estate);
+	defmap = (int *) palloc(num_phys_attrs * sizeof(int));
+	defexprs = (ExprState **) palloc(num_phys_attrs * sizeof(ExprState *));
 
-    for (attnum = 0; attnum < num_phys_attrs; attnum++)
-    {
-        Expr       *defexpr = NULL;
+	for (attnum = 0; attnum < num_phys_attrs; attnum++)
+	{
+		Expr	   *defexpr = NULL;
 
-		if (desc->attrs[attnum]->attisdropped)
-            continue;
-
-		if (values[upstream_att_index] != NULL)
-		{
-			upstream_att_index++;
+		if (TupleDescAttr(desc, attnum)->attisdropped || values[attnum] != NULL)
 			continue;
+
+		defexpr = (Expr *) build_column_default(rel, attnum + 1);
+
+		if (defexpr != NULL)
+		{
+			/* Run the expression through planner */
+			defexpr = expression_planner(defexpr);
+
+			/* Initialize executable expression in copycontext */
+			defexprs[num_defaults] = ExecInitExpr(defexpr, NULL);
+			defmap[num_defaults] = attnum;
+			num_defaults++;
 		}
+	}
 
-        defexpr = (Expr *) build_column_default(rel, attnum + 1);
-
-        if (defexpr != NULL)
-        {
-            /* Run the expression through planner */
-            defexpr = expression_planner(defexpr);
-
-            /* Initialize executable expression in copycontext */
-            defexprs[num_defaults] = ExecInitExpr(defexpr, NULL);
-            defmap[num_defaults] = attnum;
-            num_defaults++;
-        }
-		upstream_att_index++;
-    }
-
-    for (i = 0; i < num_defaults; i++)
-        slot->tts_values[defmap[i]] =
-            ExecEvalExpr(defexprs[i], econtext, &slot->tts_isnull[defmap[i]]);
+	for (i = 0; i < num_defaults; i++)
+		slot->tts_values[defmap[i]] =
+			ExecEvalExpr(defexprs[i], econtext, &slot->tts_isnull[defmap[i]]);
 }
 
 /*
@@ -794,22 +761,33 @@ logical_apply_slot_fill_defaults_dn_exec(Relation rel,
  * use better.
  */
 static void
-logical_apply_slot_store_cstrings_dn_exec(TupleTableSlot *slot,
-                                        Relation rel,
-                                        char **values)
+logical_apply_slot_store_cstrings(TupleTableSlot *slot,
+										Relation rel,
+										char **values)
 {
-    int            natts = slot->tts_tupleDescriptor->natts;
-    int            i = 0;
-	int         upstream_att_index = 0;
+	int			natts = slot->tts_tupleDescriptor->natts;
+	int			i = 0;
 
-    ExecClearTuple(slot);
+	ExecClearTuple(slot);
 
-    /* Call the "in" function for each non-dropped attribute */
-    for (i = 0; i < natts; i++)
-    {
-        Form_pg_attribute att = slot->tts_tupleDescriptor->attrs[i];
+	/* Call the "in" function for each non-dropped attribute */
+	for (i = 0; i < natts; i++)
+	{
+		Form_pg_attribute att = TupleDescAttr(slot->tts_tupleDescriptor, i);
 
-		if (att->attisdropped)
+		if (!att->attisdropped && values[i] != NULL)
+		{
+			Oid			typinput = InvalidOid;
+			Oid			typioparam = InvalidOid;
+
+			getTypeInputInfo(att->atttypid, &typinput, &typioparam);
+			slot->tts_values[i] = OidInputFunctionCall(typinput,
+													   values[i],
+													   typioparam,
+													   att->atttypmod);
+			slot->tts_isnull[i] = false;
+		}
+		else
 		{
 			/*
 			 * We assign NULL to dropped attributes, NULL values, and missing
@@ -818,38 +796,10 @@ logical_apply_slot_store_cstrings_dn_exec(TupleTableSlot *slot,
 			 */
 			slot->tts_values[i] = (Datum) 0;
 			slot->tts_isnull[i] = true;
-			continue;
 		}
+	}
 
-		if (values[upstream_att_index] != NULL)
-        {
-            Oid            typinput = InvalidOid;
-            Oid            typioparam = InvalidOid;
-
-            getTypeInputInfo(att->atttypid, &typinput, &typioparam);
-            slot->tts_values[i] = OidInputFunctionCall(typinput,
-													   values[upstream_att_index],
-                                                       typioparam,
-                                                       att->atttypmod);
-            slot->tts_isnull[i] = false;
-
-        }
-        else
-        {
-            /*
-             * We assign NULL to dropped attributes, NULL values, and missing
-             * values (missing values should be later filled using
-             * logical_apply_slot_fill_defaults).
-             */
-            slot->tts_values[i] = (Datum) 0;
-            slot->tts_isnull[i] = true;
-        }
-
-		upstream_att_index++;
-
-    }
-
-    ExecStoreVirtualTuple(slot);
+	ExecStoreVirtualTuple(slot);
 }
 
 /*
@@ -859,355 +809,927 @@ logical_apply_slot_store_cstrings_dn_exec(TupleTableSlot *slot,
  * of the types.
  */
 static void
-logical_apply_slot_modify_cstrings_dn_exec(TupleTableSlot *slot,
-                                        Relation rel,
-                                         char **values,
-                                         bool *replaces)
+logical_apply_slot_modify_cstrings(TupleTableSlot *slot,
+										Relation rel,
+					 					char **values,
+					 					bool *replaces)
 {
-    int            natts = slot->tts_tupleDescriptor->natts;
-    int            i = 0;
-	int         upstream_att_index = 0;
+	int			natts = slot->tts_tupleDescriptor->natts;
+	int			i = 0;
 
-    slot_getallattrs(slot);
-    ExecClearTuple(slot);
+	slot_getallattrs(slot);
+	ExecClearTuple(slot);
 
-    /* Call the "in" function for each replaced attribute */
-    for (i = 0; i < natts; i++)
-    {
-        Form_pg_attribute att = slot->tts_tupleDescriptor->attrs[i];
+	/* Call the "in" function for each replaced attribute */
+	for (i = 0; i < natts; i++)
+	{
+		Form_pg_attribute att = TupleDescAttr(slot->tts_tupleDescriptor, i);
 
-		if (att->attisdropped)
-            continue;
-
-		if (!replaces[upstream_att_index])
-		{
-			upstream_att_index++;
+		if (!replaces[i])
 			continue;
+
+		if (values[i] != NULL)
+		{
+			Oid			typinput = InvalidOid;
+			Oid			typioparam = InvalidOid;
+
+			getTypeInputInfo(att->atttypid, &typinput, &typioparam);
+			slot->tts_values[i] = OidInputFunctionCall(typinput,
+													   values[i],
+													   typioparam,
+													   att->atttypmod);
+			slot->tts_isnull[i] = false;
 		}
+		else
+		{
+			slot->tts_values[i] = (Datum) 0;
+			slot->tts_isnull[i] = true;
+		}
+	}
 
-		if (values[upstream_att_index] != NULL)
-        {
-            Oid            typinput = InvalidOid;
-            Oid            typioparam = InvalidOid;
-
-            getTypeInputInfo(att->atttypid, &typinput, &typioparam);
-            slot->tts_values[i] = OidInputFunctionCall(typinput,
-													   values[upstream_att_index],
-                                                       typioparam,
-                                                       att->atttypmod);
-            slot->tts_isnull[i] = false;
-        }
-        else
-        {
-            slot->tts_values[i] = (Datum) 0;
-            slot->tts_isnull[i] = true;
-        }
-
-		upstream_att_index++;
-    }
-
-    ExecStoreVirtualTuple(slot);
+	ExecStoreVirtualTuple(slot);
 }
 
 /*
  * logical apply insert message from CN
  */
 static void
-logical_apply_insert_dn_exec(StringInfo s)
+logical_apply_insert(StringInfo s)
 {
-    Relation rel = NULL;
-    LogicalRepTupleData newtup;
-    EState       *estate = NULL;
-    TupleTableSlot *remoteslot = NULL;
-    MemoryContext oldctx = NULL;
+	Relation rel = NULL;
+	LogicalRepTupleData newtup;
+	EState	   *estate = NULL;
+	TupleTableSlot *remoteslot = NULL;
+	MemoryContext oldctx = NULL;
 
-    char       *nspname = NULL;
-    char       *relname = NULL;
-    char        replident = 0;
+	char	   *nspname = NULL;
+	char	   *relname = NULL;
+	char		replident = 0;
 
-    MemSet(&newtup, 0, sizeof(LogicalRepTupleData));
+	MemSet(&newtup, 0, sizeof(LogicalRepTupleData));
 
-    logicalrep_read_insert(s, &nspname, &relname, &replident, &newtup);
+	logicalrep_read_insert(s, &nspname, &relname, &replident, &newtup, NULL);
 
-    rel = relation_openrv(makeRangeVar(nspname, relname, -1), RowExclusiveLock);
+	rel = relation_openrv(makeRangeVar(nspname, relname, -1), RowExclusiveLock);
 
-    /* Check for supported relkind. */
-    CheckSubscriptionRelkind(rel->rd_rel->relkind, nspname, relname);
+	/* Check for supported relkind. */
+	CheckSubscriptionRelkind(rel->rd_rel->relkind, nspname, relname);
 
-    /* Initialize the executor state. */
-    estate = logical_apply_create_estate_for_rel(rel);
-    remoteslot = ExecInitExtraTupleSlot(estate);
-    ExecSetSlotDescriptor(remoteslot, RelationGetDescr(rel));
+	/* Initialize the executor state. */
+	estate = logical_apply_create_estate_for_rel(rel);
+	remoteslot = ExecInitExtraTupleSlot(estate, RelationGetDescr(rel));
 
-    /* Process and store remote tuple in the slot */
-    oldctx = MemoryContextSwitchTo(GetPerTupleMemoryContext(estate));
-    logical_apply_slot_store_cstrings(remoteslot, rel, newtup.values);
-    logical_apply_slot_fill_defaults(rel, estate, remoteslot, newtup.values);
-    MemoryContextSwitchTo(oldctx);
+	/* Process and store remote tuple in the slot */
+	oldctx = MemoryContextSwitchTo(GetPerTupleMemoryContext(estate));
+	logical_apply_slot_store_cstrings(remoteslot, rel, newtup.values);
+	logical_apply_slot_fill_defaults(rel, estate, remoteslot, newtup.values);
+	MemoryContextSwitchTo(oldctx);
 
 #ifdef __STORAGE_SCALABLE__
-    /* use local snapshot instead of global snapshot */
-    PushActiveSnapshot(GetLocalTransactionSnapshot());
+	/* use local snapshot instead of global snapshot */
+	PushActiveSnapshot(GetLocalTransactionSnapshot());
 #else
-    PushActiveSnapshot(GetTransactionSnapshot());
+	PushActiveSnapshot(GetTransactionSnapshot());
 #endif
-    ExecOpenIndices(estate->es_result_relation_info, false);
+	ExecOpenIndices(estate->es_result_relation_info, false);
 
-    /* Do the insert. */
-    ExecSimpleRelationInsert(estate, remoteslot);
+	/* Do the insert. */
+	ExecSimpleRelationInsert(estate, remoteslot);
 
-    /* Cleanup. */
-    ExecCloseIndices(estate->es_result_relation_info);
-    PopActiveSnapshot();
+	/* Cleanup. */
+	ExecCloseIndices(estate->es_result_relation_info);
+	PopActiveSnapshot();
 
-    /* Handle queued AFTER triggers. */
-    AfterTriggerEndQuery(estate);
+	/* Handle queued AFTER triggers. */
+	AfterTriggerEndQuery(estate);
 
-    ExecResetTupleTable(estate->es_tupleTable, false);
-    FreeExecutorState(estate);
+	ExecResetTupleTable(estate->es_tupleTable, false);
 
-    heap_close(rel, RowExclusiveLock);
+	FreeExecutorState(estate);
 
-    CommandCounterIncrement();
+	heap_close(rel, RowExclusiveLock);
+
+	CommandCounterIncrement();
 }
 
 /*
  * logical apply update message from CN
  */
 static void 
-logical_apply_update_dn_exec_dn_exec(StringInfo s)
+logical_apply_update(StringInfo s)
 {
-    Relation     rel = NULL;
-    Oid            idxoid = InvalidOid;
-    EState       *estate = NULL;
-    EPQState    epqstate;
-    LogicalRepTupleData oldtup;
-    LogicalRepTupleData newtup;
-    bool        has_oldtup = false;
-    TupleTableSlot *localslot = NULL;
-    TupleTableSlot *remoteslot = NULL;
-    bool        found = false;
-    MemoryContext oldctx = NULL;
+	Relation 	rel = NULL;
+	Oid			idxoid = InvalidOid;
+	EState	   *estate = NULL;
+	EPQState	epqstate;
+	LogicalRepTupleData oldtup;
+	LogicalRepTupleData newtup;
+	bool		has_oldtup = false;
+	TupleTableSlot *localslot = NULL;
+	TupleTableSlot *remoteslot = NULL;
+	bool		found = false;
+	MemoryContext oldctx = NULL;
 
-    char       *nspname = NULL;
-    char       *relname = NULL;
-    char        replident = 0;
+	char	   *nspname = NULL;
+	char	   *relname = NULL;
+	char		replident = 0;
 
-    MemSet(&epqstate, 0, sizeof(EPQState));
-    MemSet(&oldtup, 0, sizeof(LogicalRepTupleData));
-    MemSet(&newtup, 0, sizeof(LogicalRepTupleData));
+	MemSet(&epqstate, 0, sizeof(EPQState));
+	MemSet(&oldtup, 0, sizeof(LogicalRepTupleData));
+	MemSet(&newtup, 0, sizeof(LogicalRepTupleData));
 
-    logicalrep_read_update(s, &nspname, &relname, &replident,
-                                &has_oldtup, &oldtup, &newtup);
+	logicalrep_read_update(s, &nspname, &relname, &replident,
+								&has_oldtup, &oldtup, &newtup, NULL, NULL);
 
-    rel = relation_openrv(makeRangeVar(nspname, relname, -1), RowExclusiveLock);
+	rel = relation_openrv(makeRangeVar(nspname, relname, -1), RowExclusiveLock);
 
-    /* Check for supported relkind. */
-    CheckSubscriptionRelkind(rel->rd_rel->relkind, nspname, relname);
+	/* Check for supported relkind. */
+	CheckSubscriptionRelkind(rel->rd_rel->relkind, nspname, relname);
 
-    /* Initialize the executor state. */
-    estate = logical_apply_create_estate_for_rel(rel);
-    remoteslot = ExecInitExtraTupleSlot(estate);
-    ExecSetSlotDescriptor(remoteslot, RelationGetDescr(rel));
-    localslot = ExecInitExtraTupleSlot(estate);
-    ExecSetSlotDescriptor(localslot, RelationGetDescr(rel));
-    EvalPlanQualInit(&epqstate, estate, NULL, NIL, -1);
+	/* Initialize the executor state. */
+	estate = logical_apply_create_estate_for_rel(rel);
+	remoteslot = ExecInitExtraTupleSlot(estate, RelationGetDescr(rel));
+	localslot = ExecInitExtraTupleSlot(estate, RelationGetDescr(rel));
+	EvalPlanQualInit(&epqstate, estate, NULL, NIL, -1);
 
 #ifdef __STORAGE_SCALABLE__
-    /* use local snapshot instead of global snapshot */
-    PushActiveSnapshot(GetLocalTransactionSnapshot());
+	/* use local snapshot instead of global snapshot */
+	PushActiveSnapshot(GetLocalTransactionSnapshot());
 #else
-    PushActiveSnapshot(GetTransactionSnapshot());
+	PushActiveSnapshot(GetTransactionSnapshot());
 #endif
-    ExecOpenIndices(estate->es_result_relation_info, false);
+	ExecOpenIndices(estate->es_result_relation_info, false);
 
-    /* Build the search tuple. */
-    oldctx = MemoryContextSwitchTo(GetPerTupleMemoryContext(estate));
-    logical_apply_slot_store_cstrings(remoteslot, rel,
-                                            has_oldtup ? oldtup.values : newtup.values);
-    MemoryContextSwitchTo(oldctx);
+	/* Build the search tuple. */
+	oldctx = MemoryContextSwitchTo(GetPerTupleMemoryContext(estate));
+	logical_apply_slot_store_cstrings(remoteslot, rel,
+											has_oldtup ? oldtup.values : newtup.values);
+	MemoryContextSwitchTo(oldctx);
 
-    /*
-     * Try to find tuple using either replica identity index, primary key or
-     * if needed, sequential scan.
-     */
-    idxoid = GetRelationIdentityOrPK(rel);
-    Assert(OidIsValid(idxoid) ||
-           (replident == REPLICA_IDENTITY_FULL && has_oldtup));
+	/*
+	 * Try to find tuple using either replica identity index, primary key or
+	 * if needed, sequential scan.
+	 */
+	idxoid = GetRelationIdentityOrPK(rel);
+	Assert(OidIsValid(idxoid) ||
+		   (replident == REPLICA_IDENTITY_FULL && has_oldtup));
 
-    if (OidIsValid(idxoid))
-        found = RelationFindReplTupleByIndex(rel, idxoid,
-                                             LockTupleExclusive,
-                                             remoteslot, localslot);
-    else
-        found = RelationFindReplTupleSeq(rel, LockTupleExclusive,
-                                         remoteslot, localslot);
 
-    ExecClearTuple(remoteslot);
+	if (OidIsValid(idxoid))
+	{
+		found = RelationFindReplTupleByIndex(rel, idxoid,
+													LockTupleExclusive,
+													remoteslot, localslot);
+	}
+	else
+	{
+		found = RelationFindReplTupleSeq(rel, LockTupleExclusive,
+											remoteslot, localslot);
+	}
 
-    /*
-     * Tuple found.
-     *
-     * Note this will fail if there are other conflicting unique indexes.
-     */
-    if (found)
-    {
-        /* Process and store remote tuple in the slot */
-        oldctx = MemoryContextSwitchTo(GetPerTupleMemoryContext(estate));
-        ExecStoreTuple(localslot->tts_tuple, remoteslot, InvalidBuffer, false);
-        logical_apply_slot_modify_cstrings(remoteslot, rel, newtup.values, newtup.changed);
-        MemoryContextSwitchTo(oldctx);
+	
+	ExecClearTuple(remoteslot);
 
-        EvalPlanQualSetSlot(&epqstate, remoteslot);
+	/*
+	 * Tuple found.
+	 *
+	 * Note this will fail if there are other conflicting unique indexes.
+	 */
+	if (found)
+	{
+		/* Process and store remote tuple in the slot */
+		oldctx = MemoryContextSwitchTo(GetPerTupleMemoryContext(estate));
+		ExecStoreHeapTuple(localslot->tts_tuple, remoteslot, false);
+		logical_apply_slot_modify_cstrings(remoteslot, rel, newtup.values, newtup.changed);
+		MemoryContextSwitchTo(oldctx);
 
-        /* Do the actual update. */
-        ExecSimpleRelationUpdate(estate, &epqstate, localslot, remoteslot);
-    }
-    else
-    {
-        /*
-         * The tuple to be updated could not be found.
-         *
-         * TODO what to do here, change the log level to LOG perhaps?
-         */
-        elog(DEBUG1,
-             "logical apply did not find row for update "
-             "in apply target relation \"%s\"",
-             RelationGetRelationName(rel));
-    }
+		EvalPlanQualSetSlot(&epqstate, remoteslot);
 
-    /* Cleanup. */
-    ExecCloseIndices(estate->es_result_relation_info);
-    PopActiveSnapshot();
+		/* Do the actual update. */
+		ExecSimpleRelationUpdate(estate, &epqstate, localslot, remoteslot);
+	}
+	else
+	{
+		/*
+		 * The tuple to be updated could not be found.
+		 *
+		 * TODO what to do here, change the log level to LOG perhaps?
+		 */
+		elog(DEBUG1,
+			 "logical apply did not find row for update "
+			 "in apply target relation \"%s\"",
+			 RelationGetRelationName(rel));
+	}
 
-    /* Handle queued AFTER triggers. */
-    AfterTriggerEndQuery(estate);
+	/* Cleanup. */
+	ExecCloseIndices(estate->es_result_relation_info);
+	PopActiveSnapshot();
 
-    EvalPlanQualEnd(&epqstate);
-    ExecResetTupleTable(estate->es_tupleTable, false);
-    FreeExecutorState(estate);
+	/* Handle queued AFTER triggers. */
+	AfterTriggerEndQuery(estate);
 
-    heap_close(rel, RowExclusiveLock);
+	EvalPlanQualEnd(&epqstate);
+	ExecResetTupleTable(estate->es_tupleTable, false);
 
-    CommandCounterIncrement();
+	FreeExecutorState(estate);
+
+	heap_close(rel, RowExclusiveLock);
+
+	CommandCounterIncrement();
 }
 
 /*
  * logical apply delete message from CN
  */
 static void
-logical_apply_delete_dn_exec(StringInfo s)
+logical_apply_delete(StringInfo s)
 {
-    Relation             rel = NULL;
-    LogicalRepTupleData oldtup;
-    Oid            idxoid = InvalidOid;
-    EState       *estate = NULL;
-    EPQState    epqstate;
-    TupleTableSlot *remoteslot = NULL;
-    TupleTableSlot *localslot = NULL;
-    bool        found = false;
-    MemoryContext oldctx = NULL;
+	Relation 			rel = NULL;
+	LogicalRepTupleData oldtup;
+	Oid			idxoid = InvalidOid;
+	EState	   *estate = NULL;
+	EPQState	epqstate;
+	TupleTableSlot *remoteslot = NULL;
+	TupleTableSlot *localslot = NULL;
+	bool		found = false;
+	MemoryContext oldctx = NULL;
 
-    char       *nspname = NULL;
-    char       *relname = NULL;
-    char        replident = 0;
+	char	   *nspname = NULL;
+	char	   *relname = NULL;
+	char		replident = 0;
 
-    MemSet(&epqstate, 0, sizeof(EPQState));
-    MemSet(&oldtup, 0, sizeof(LogicalRepTupleData));
+	MemSet(&epqstate, 0, sizeof(EPQState));
+	MemSet(&oldtup, 0, sizeof(LogicalRepTupleData));
 
-    logicalrep_read_delete(s, &nspname, &relname, &replident, &oldtup);
+	logicalrep_read_delete(s, &nspname, &relname, &replident, &oldtup, NULL);
 
-    rel = relation_openrv(makeRangeVar(nspname, relname, -1), RowExclusiveLock);
+	rel = relation_openrv(makeRangeVar(nspname, relname, -1), RowExclusiveLock);
 
-    /* Check for supported relkind. */
-    CheckSubscriptionRelkind(rel->rd_rel->relkind, nspname, relname);
+	/* Check for supported relkind. */
+	CheckSubscriptionRelkind(rel->rd_rel->relkind, nspname, relname);
 
-    /* Initialize the executor state. */
-    estate = logical_apply_create_estate_for_rel(rel);
-    remoteslot = ExecInitExtraTupleSlot(estate);
-    ExecSetSlotDescriptor(remoteslot, RelationGetDescr(rel));
-    localslot = ExecInitExtraTupleSlot(estate);
-    ExecSetSlotDescriptor(localslot, RelationGetDescr(rel));
-    EvalPlanQualInit(&epqstate, estate, NULL, NIL, -1);
+	/* Initialize the executor state. */
+	estate = logical_apply_create_estate_for_rel(rel);
+	remoteslot = ExecInitExtraTupleSlot(estate, RelationGetDescr(rel));
+	localslot = ExecInitExtraTupleSlot(estate, RelationGetDescr(rel));
+	EvalPlanQualInit(&epqstate, estate, NULL, NIL, -1);
 
 #ifdef __STORAGE_SCALABLE__
-    /* use local snapshot instead of global snapshot */
-    PushActiveSnapshot(GetLocalTransactionSnapshot());
+	/* use local snapshot instead of global snapshot */
+	PushActiveSnapshot(GetLocalTransactionSnapshot());
 #else
-    PushActiveSnapshot(GetTransactionSnapshot());
+	PushActiveSnapshot(GetTransactionSnapshot());
 #endif
-    ExecOpenIndices(estate->es_result_relation_info, false);
+	ExecOpenIndices(estate->es_result_relation_info, false);
 
-    /* Find the tuple using the replica identity index. */
-    oldctx = MemoryContextSwitchTo(GetPerTupleMemoryContext(estate));
-    logical_apply_slot_store_cstrings(remoteslot, rel, oldtup.values);
-    MemoryContextSwitchTo(oldctx);
+	/* Find the tuple using the replica identity index. */
+	oldctx = MemoryContextSwitchTo(GetPerTupleMemoryContext(estate));
+	logical_apply_slot_store_cstrings(remoteslot, rel, oldtup.values);
+	MemoryContextSwitchTo(oldctx);
 
-    /*
-     * Try to find tuple using either replica identity index, primary key or
-     * if needed, sequential scan.
-     */
-    idxoid = GetRelationIdentityOrPK(rel);
-    Assert(OidIsValid(idxoid) ||
-           (replident == REPLICA_IDENTITY_FULL));
+	/*
+	 * Try to find tuple using either replica identity index, primary key or
+	 * if needed, sequential scan.
+	 */
+	idxoid = GetRelationIdentityOrPK(rel);
+	Assert(OidIsValid(idxoid) ||
+		   (replident == REPLICA_IDENTITY_FULL));
 
-    if (OidIsValid(idxoid))
-        found = RelationFindReplTupleByIndex(rel, idxoid,
-                                             LockTupleExclusive,
-                                             remoteslot, localslot);
-    else
-        found = RelationFindReplTupleSeq(rel, LockTupleExclusive,
-                                         remoteslot, localslot);
-    /* If found delete it. */
-    if (found)
-    {
-        EvalPlanQualSetSlot(&epqstate, localslot);
+	if (OidIsValid(idxoid))
+	{
+		
+		found = RelationFindReplTupleByIndex(rel, idxoid,
+												LockTupleExclusive,
+												remoteslot, localslot);
+	}
+	else
+	{
+		found = RelationFindReplTupleSeq(rel, LockTupleExclusive,
+											remoteslot, localslot);
+	}
+	/* If found delete it. */
+	if (found)
+	{
+		EvalPlanQualSetSlot(&epqstate, localslot);
 
-        /* Do the actual delete. */
-        ExecSimpleRelationDelete(estate, &epqstate, localslot);
-    }
-    else
-    {
-        /* The tuple to be deleted could not be found. */
-        ereport(DEBUG1,
-                (errmsg("logical apply could not find row for delete "
-                        "in apply target %s",
-                        RelationGetRelationName(rel))));
-    }
+		/* Do the actual delete. */
+		ExecSimpleRelationDelete(estate, &epqstate, localslot);
+	}
+	else
+	{
+		/* The tuple to be deleted could not be found. */
+		ereport(DEBUG1,
+				(errmsg("logical apply could not find row for delete "
+						"in apply target %s",
+						RelationGetRelationName(rel))));
+	}
 
-    /* Cleanup. */
-    ExecCloseIndices(estate->es_result_relation_info);
-    PopActiveSnapshot();
+	/* Cleanup. */
+	ExecCloseIndices(estate->es_result_relation_info);
+	PopActiveSnapshot();
 
-    /* Handle queued AFTER triggers. */
-    AfterTriggerEndQuery(estate);
+	/* Handle queued AFTER triggers. */
+	AfterTriggerEndQuery(estate);
 
-    EvalPlanQualEnd(&epqstate);
-    ExecResetTupleTable(estate->es_tupleTable, false);
-    FreeExecutorState(estate);
+	EvalPlanQualEnd(&epqstate);
+	ExecResetTupleTable(estate->es_tupleTable, false);
 
-    heap_close(rel, RowExclusiveLock);
+	FreeExecutorState(estate);
 
-    CommandCounterIncrement();
+	heap_close(rel, RowExclusiveLock);
+
+	CommandCounterIncrement();
+}
+/*
+ * Logical apply protocol message dispatcher.
+ */
+void logical_apply_dispatch(StringInfo s)
+{
+	char action = pq_getmsgbyte(s);
+
+	OpenTenBaseSubscriptionApplyWorkerSet();
+
+	switch (action)
+	{
+			/* INSERT */
+		case 'I':
+			logical_apply_insert(s);
+			break;
+			/* UPDATE */
+		case 'U':
+			logical_apply_update(s);
+			break;
+			/* DELETE */
+		case 'D':
+			logical_apply_delete(s);
+			break;
+		default:
+			ereport(ERROR,
+					(errcode(ERRCODE_PROTOCOL_VIOLATION),
+					 errmsg("invalid logical apply message type %c", action)));
+	}
 }
 
 /*
- * logical apply Handle RELATION message from CN.
- *
- * Note we don't do validation against local schema here. The validation
- * against local schema is postponed until first change for given relation
- * comes as we only care about it when applying changes for it anyway and we
- * do less locking this way.
+ * logical apply batch insert messages from CN
  */
 static void
-logical_apply_relation_dn_exec(StringInfo s)
+logical_apply_batch_insert(StringInfo s)
 {
-	LogicalRepRelation *rel;
+	ApplyChangeItem **insert_change_items = NULL;
+	TupleTableSlot **remote_slots = NULL;
+	Relation rel = NULL;
+	MemoryContext oldctx = NULL;
+	EState *estate = NULL;
+	
+	char *nspname = NULL;
+	char *relname = NULL;
+	char replident = 0;
+	
+	unsigned int n_diff_changes = 0;
+	int i = 0;
+	
+	/* read the relation id */
+	logicalrep_read_batch_changes(s, &nspname, &relname, &replident, &insert_change_items, &n_diff_changes);
+	if (n_diff_changes == 0)
+	{
+		ereport(DEBUG1,
+		        (errmsg("No Changes to APPLY in this batch.")));
+		return;
+	}
+	
+	rel = relation_openrv(makeRangeVar(nspname, relname, -1), RowExclusiveLock);
+	
+	/* Check for supported relkind. */
+	CheckSubscriptionRelkind(rel->rd_rel->relkind, nspname, relname);
+	
+	/* Initialize the executor state. */
+	estate = logical_apply_create_estate_for_rel(rel);
+	remote_slots = (TupleTableSlot **) palloc0(n_diff_changes * sizeof(TupleTableSlot *));
+	for (i = 0; i < n_diff_changes; i++)
+	{
+		remote_slots[i] = ExecInitExtraTupleSlot(estate, RelationGetDescr(rel));
+	}
+	
+	/* Process and store remote tuple in the slot */
+	oldctx = MemoryContextSwitchTo(GetPerTupleMemoryContext(estate));
+	
+	for (i = 0; i < n_diff_changes; i++)
+	{
+		logical_apply_slot_store_cstrings(remote_slots[i], rel, insert_change_items[i]->tuple_data->values);
+		logical_apply_slot_fill_defaults(rel, estate, remote_slots[i], insert_change_items[i]->tuple_data->values);
+	}
+	MemoryContextSwitchTo(oldctx);
 
-	rel = logicalrep_read_rel(s);
-	logicalrep_relmap_update(rel);
+#ifdef __STORAGE_SCALABLE__
+	/* use local snapshot instead of global snapshot */
+	PushActiveSnapshot(GetLocalTransactionSnapshot());
+#else
+	PushActiveSnapshot(GetTransactionSnapshot());
+#endif
+	ExecOpenIndices(estate->es_result_relation_info, false);
+	
+	/* Do the batch insert. */
+	Assert(insert_change_items != NULL);
+	ExecSimpleRelationBatchInsert(estate, insert_change_items, n_diff_changes, remote_slots);
+	
+	/* Cleanup. */
+	ExecCloseIndices(estate->es_result_relation_info);
+	PopActiveSnapshot();
+	
+	/* Handle queued AFTER triggers. */
+	AfterTriggerEndQuery(estate);
+	
+	ExecResetTupleTable(estate->es_tupleTable, false);
+
+	FreeExecutorState(estate);
+	
+	heap_close(rel, RowExclusiveLock);
+	
+	CommandCounterIncrement();
+	
+	for (i = 0; i < n_diff_changes; ++i)
+	{
+		pfree_ext(insert_change_items[i]->tuple_data);
+		ExecDropSingleTupleTableSlot(remote_slots[i]);
+		pfree_ext(insert_change_items[i]);
+	}
+	pfree_ext(insert_change_items);
 }
 
+/*
+ * logical apply batch delete messages from CN
+ */
+static void
+logical_apply_batch_delete(StringInfo s)
+{
+	Relation rel = NULL;
+	EState *estate = NULL;
+	MemoryContext oldctx = NULL;
+	ApplyChangeItem **delete_change_items = NULL;
+	unsigned int n_diff_changes = 0;
+	Oid idxoid = InvalidOid;
+	
+	char *nspname = NULL;
+	char *relname = NULL;
+	char replident = 0;
+	
+	int i = 0;
+	
+	logicalrep_read_batch_changes(s, &nspname, &relname, &replident, &delete_change_items, &n_diff_changes);
+	
+	if (n_diff_changes == 0)
+	{
+		ereport(DEBUG1,
+				(errmsg("No Changes to APPLY in this batch.")));
+		return;
+	}
+	
+	rel = relation_openrv(makeRangeVar(nspname, relname, -1), RowExclusiveLock);
+	
+	/* Check for supported relkind. */
+	CheckSubscriptionRelkind(rel->rd_rel->relkind, nspname, relname);
+	
+	/* Initialize the executor state. */
+	estate = logical_apply_create_estate_for_rel(rel);
+	
+	for (i = 0; i < n_diff_changes; ++i)
+	{
+		delete_change_items[i]->table_slot = MakeSingleTupleTableSlot(RelationGetDescr(rel));
+	}
+	
+	oldctx = MemoryContextSwitchTo(GetPerTupleMemoryContext(estate));
+	for (i = 0; i < n_diff_changes; ++i)
+	{
+		logical_apply_slot_store_cstrings(delete_change_items[i]->table_slot, rel, delete_change_items[i]->tuple_data->values);
+		logical_apply_slot_fill_defaults(rel, estate, delete_change_items[i]->table_slot, delete_change_items[i]->tuple_data->values);
+	}
+	MemoryContextSwitchTo(oldctx);
+	Assert(delete_change_items != NULL);
+	
+	/* For now we support only tables. */
+	Assert(rel->rd_rel->relkind == RELKIND_RELATION);
+	CheckCmdReplicaIdentity(rel, CMD_DELETE);
+	
+	/*
+	 * Try to find tuple using either replica identity index, primary key or
+	 * if needed, sequential scan.
+	 */
+	idxoid = GetRelationIdentityOrPK(rel);
+	
+	/* use local snapshot instead of global snapshot */
+	PushActiveSnapshot(GetLocalTransactionSnapshot());
+	
+	/* use local snapshot instead of global snapshot */
+	ExecOpenIndices(estate->es_result_relation_info, false);
+	
+	for (i = 0; i < n_diff_changes; ++i)
+	{
+		int repeat = delete_change_items[i]->repeat;
+		TupleTableSlot *searchslot = delete_change_items[i]->table_slot;
+		
+		Assert(OidIsValid(idxoid) || (replident == REPLICA_IDENTITY_FULL));
+		
+		do
+		{
+			bool found = false;
+			TupleTableSlot *localslot = MakeSingleTupleTableSlot(RelationGetDescr(rel));
+			
+			if (OidIsValid(idxoid))
+			{
+				found = RelationFindReplTupleByIndex(rel, idxoid, LockTupleExclusive, searchslot, localslot);
+			}
+			else
+			{
+				found = RelationFindReplTupleSeq(rel, LockTupleExclusive, searchslot, localslot);
+			}
+			/* If found delete it. */
+			if (found)
+			{
+				simple_heap_delete(rel, &localslot->tts_tuple->t_self);
+			}
+			else
+			{
+				/* The tuple to be deleted could not be found. */
+				ereport(DEBUG1,
+						(errmsg("logical apply could not find row for delete "
+								"in apply target %s",
+								RelationGetRelationName(rel))));
+			}
+			
+			/* Always release resources and reset the slot to empty */
+			ExecDropSingleTupleTableSlot(localslot);
+			CommandCounterIncrement();
+		} while (--repeat > 0);
+	}
+	
+	/* Cleanup. */
+	ExecCloseIndices(estate->es_result_relation_info);
+	PopActiveSnapshot();
+	
+	/* Handle queued AFTER triggers. */
+	AfterTriggerEndQuery(estate);
+	
+	ExecResetTupleTable(estate->es_tupleTable, false);
+
+	FreeExecutorState(estate);
+	heap_close(rel, RowExclusiveLock);
+	
+	for (i = 0; i < n_diff_changes; ++i)
+	{
+		ExecDropSingleTupleTableSlot(delete_change_items[i]->table_slot);
+		pfree_ext(delete_change_items[i]->tuple_data);
+		pfree_ext(delete_change_items[i]);
+	}
+	pfree_ext(delete_change_items);
+	CommandCounterIncrement();
+}
+
+/*
+ * Batch Logical apply protocol message dispatcher.
+ */
+void logical_apply_dispatch_batch(StringInfo s)
+{
+	char action = pq_getmsgbyte(s);
+	
+	OpenTenBaseSubscriptionApplyWorkerSet();
+	
+	switch (action)
+	{
+		/* INSERT */
+		case 'I':
+			logical_apply_batch_insert(s);
+			break;
+			/* DELETE */
+		case 'D':
+			logical_apply_batch_delete(s);
+			break;
+		default:
+			ereport(ERROR,
+			        (errcode(ERRCODE_PROTOCOL_VIOLATION),
+					        errmsg("invalid logical apply message type %c", action)));
+	}
+}
 #endif
 
+/*
+ * logical apply insert message from TDX
+ */
+static void
+tdx_logical_apply_insert(StringInfo s, TdxSyncDesc tdxDesc)
+{
+	Relation rel = tdxDesc->rel;
+	LogicalRepTupleData newtup;
+	EState *estate = NULL;
+	TupleTableSlot *remoteslot = NULL;
+	MemoryContext oldctx = NULL;
+	
+	MemSet(&newtup, 0, sizeof(LogicalRepTupleData));
+	tdx_logicalrep_read_insert(s, &newtup);
+	
+	/* We currently only support writing to regular tables. */
+	if (rel->rd_rel->relkind != RELKIND_RELATION)
+		ereport(ERROR,
+		        (errcode(ERRCODE_WRONG_OBJECT_TYPE),
+				        errmsg("logical replication target relation \"%s.%s\" is not a table",
+				               tdxDesc->nspname, tdxDesc->relname)));
+	
+	/* Initialize the executor state. */
+	estate = logical_apply_create_estate_for_rel(rel);
+	remoteslot = ExecInitExtraTupleSlot(estate, RelationGetDescr(rel));
+	
+	/* Process and store remote tuple in the slot */
+	oldctx = MemoryContextSwitchTo(GetPerTupleMemoryContext(estate));
+	logical_apply_slot_store_cstrings(remoteslot, rel, newtup.values);
+	logical_apply_slot_fill_defaults(rel, estate, remoteslot, newtup.values);
+	MemoryContextSwitchTo(oldctx);
+
+#ifdef __STORAGE_SCALABLE__
+	/* use local snapshot instead of global snapshot */
+	PushActiveSnapshot(GetLocalTransactionSnapshot());
+#else
+	PushActiveSnapshot(GetTransactionSnapshot());
 #endif
+	ExecOpenIndices(estate->es_result_relation_info, false);
+	
+	/* Do the insert. */
+	ExecSimpleRelationInsert(estate, remoteslot);
+	
+	/* Cleanup. */
+	ExecCloseIndices(estate->es_result_relation_info);
+	PopActiveSnapshot();
+	
+	/* Handle queued AFTER triggers. */
+	AfterTriggerEndQuery(estate);
+	
+	ExecResetTupleTable(estate->es_tupleTable, false);
+
+	FreeExecutorState(estate);
+	
+	CommandCounterIncrement();
+}
+
+/*
+ * logical apply update message from TDX
+ */
+static void
+tdx_logical_apply_update(StringInfo s, TdxSyncDesc tdxDesc)
+{
+	Relation rel = tdxDesc->rel;
+	Oid idxoid = InvalidOid;
+	EState *estate = NULL;
+	EPQState epqstate;
+	LogicalRepTupleData oldtup;
+	LogicalRepTupleData newtup;
+	bool has_oldtup = false;
+	TupleTableSlot *localslot = NULL;
+	TupleTableSlot *remoteslot = NULL;
+	bool found = false;
+	MemoryContext oldctx = NULL;
+	
+	char replident = 0;
+	
+	MemSet(&epqstate, 0, sizeof(EPQState));
+	MemSet(&oldtup, 0, sizeof(LogicalRepTupleData));
+	MemSet(&newtup, 0, sizeof(LogicalRepTupleData));
+	
+	tdx_logicalrep_read_update(s, &has_oldtup, &oldtup, &newtup, &replident);
+	
+	if (!tdxDesc->updatable)
+	{
+		ereport(ERROR,
+		        (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+				        errmsg("TDX target relation \"%s.%s\" has no replica identity",
+				               tdxDesc->nspname, tdxDesc->relname)));
+	}
+	
+	/* We currently only support writing to regular tables. */
+	if (rel->rd_rel->relkind != RELKIND_RELATION)
+		ereport(ERROR,
+		        (errcode(ERRCODE_WRONG_OBJECT_TYPE),
+				        errmsg("logical replication target relation \"%s.%s\" is not a table",
+				               tdxDesc->nspname, tdxDesc->relname)));
+	
+	/* Initialize the executor state. */
+	estate = logical_apply_create_estate_for_rel(rel);
+	remoteslot = ExecInitExtraTupleSlot(estate, RelationGetDescr(rel));
+	localslot = ExecInitExtraTupleSlot(estate, RelationGetDescr(rel));
+	EvalPlanQualInit(&epqstate, estate, NULL, NIL, -1);
+
+#ifdef __STORAGE_SCALABLE__
+	/* use local snapshot instead of global snapshot */
+	PushActiveSnapshot(GetLocalTransactionSnapshot());
+#else
+	PushActiveSnapshot(GetTransactionSnapshot());
+#endif
+	ExecOpenIndices(estate->es_result_relation_info, false);
+	
+	/* Build the search tuple. */
+	oldctx = MemoryContextSwitchTo(GetPerTupleMemoryContext(estate));
+	logical_apply_slot_store_cstrings(remoteslot, rel,
+	                                  has_oldtup ? oldtup.values : newtup.values);
+	MemoryContextSwitchTo(oldctx);
+	
+	/*
+	 * Try to find tuple using either replica identity index, primary key or
+	 * if needed, sequential scan.
+	 */
+	idxoid = GetRelationIdentityOrPK(rel);
+
+	if (OidIsValid(idxoid))
+	{
+		found = RelationFindReplTupleByIndex(rel, idxoid,
+												LockTupleExclusive,
+												remoteslot, localslot);
+	}
+	else
+	{
+		found = RelationFindReplTupleSeq(rel, LockTupleExclusive,
+											remoteslot, localslot);
+	}
+	
+	ExecClearTuple(remoteslot);
+	
+	/*
+	 * Tuple found.
+	 *
+	 * Note this will fail if there are other conflicting unique indexes.
+	 */
+	if (found)
+	{
+		/* Process and store remote tuple in the slot */
+		oldctx = MemoryContextSwitchTo(GetPerTupleMemoryContext(estate));
+		ExecStoreHeapTuple(localslot->tts_tuple, remoteslot, false);
+		logical_apply_slot_modify_cstrings(remoteslot, rel, newtup.values, newtup.changed);
+		MemoryContextSwitchTo(oldctx);
+		
+		EvalPlanQualSetSlot(&epqstate, remoteslot);
+		
+		/* Do the actual update. */
+		ExecSimpleRelationUpdate(estate, &epqstate, localslot, remoteslot);
+	}
+	else
+	{
+		/*
+		 * The tuple to be updated could not be found.
+		 *
+		 * TODO what to do here, change the log level to LOG perhaps?
+		 */
+		elog(DEBUG1,
+		     "logical apply did not find row for update "
+		     "in apply target relation \"%s\"",
+		     RelationGetRelationName(rel));
+	}
+	
+	/* Cleanup. */
+	ExecCloseIndices(estate->es_result_relation_info);
+	PopActiveSnapshot();
+	
+	/* Handle queued AFTER triggers. */
+	AfterTriggerEndQuery(estate);
+	
+	EvalPlanQualEnd(&epqstate);
+	ExecResetTupleTable(estate->es_tupleTable, false);
+
+	FreeExecutorState(estate);
+	CommandCounterIncrement();
+}
+
+/*
+ * logical apply delete message from TDX
+ */
+static void
+tdx_logical_apply_delete(StringInfo s, TdxSyncDesc tdxDesc)
+{
+	Relation rel = tdxDesc->rel;
+	LogicalRepTupleData oldtup;
+	Oid idxoid = InvalidOid;
+	EState *estate = NULL;
+	EPQState epqstate;
+	TupleTableSlot *remoteslot = NULL;
+	TupleTableSlot *localslot = NULL;
+	bool found = false;
+	MemoryContext oldctx = NULL;
+	
+	char replident = 0;
+	
+	MemSet(&epqstate, 0, sizeof(EPQState));
+	MemSet(&oldtup, 0, sizeof(LogicalRepTupleData));
+	
+	tdx_logicalrep_read_delete(s, &oldtup, &replident);
+	
+	if (!tdxDesc->updatable)
+	{
+		ereport(ERROR,
+		        (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+				        errmsg("TDX target relation \"%s.%s\" has no replica identity",
+				               tdxDesc->nspname, tdxDesc->relname)));
+	}
+	/* We currently only support writing to regular tables. */
+	if (rel->rd_rel->relkind != RELKIND_RELATION)
+		ereport(ERROR,
+		        (errcode(ERRCODE_WRONG_OBJECT_TYPE),
+				        errmsg("logical replication target relation \"%s.%s\" is not a table",
+				               tdxDesc->nspname, tdxDesc->relname)));
+	
+	/* Initialize the executor state. */
+	estate = logical_apply_create_estate_for_rel(rel);
+	remoteslot = ExecInitExtraTupleSlot(estate, RelationGetDescr(rel));
+	localslot = ExecInitExtraTupleSlot(estate, RelationGetDescr(rel));
+	EvalPlanQualInit(&epqstate, estate, NULL, NIL, -1);
+
+#ifdef __STORAGE_SCALABLE__
+	/* use local snapshot instead of global snapshot */
+	PushActiveSnapshot(GetLocalTransactionSnapshot());
+#else
+	PushActiveSnapshot(GetTransactionSnapshot());
+#endif
+	ExecOpenIndices(estate->es_result_relation_info, false);
+	
+	/* Find the tuple using the replica identity index. */
+	oldctx = MemoryContextSwitchTo(GetPerTupleMemoryContext(estate));
+	logical_apply_slot_store_cstrings(remoteslot, rel, oldtup.values);
+	MemoryContextSwitchTo(oldctx);
+	
+	/*
+	 * Try to find tuple using either replica identity index, primary key or
+	 * if needed, sequential scan.
+	 */
+	idxoid = GetRelationIdentityOrPK(rel);
+	Assert(OidIsValid(idxoid) ||
+	       (replident == REPLICA_IDENTITY_FULL));
+	
+	if (OidIsValid(idxoid))
+	{
+		
+		found = RelationFindReplTupleByIndex(rel, idxoid,
+												LockTupleExclusive,
+												remoteslot, localslot);
+	}
+	else
+	{
+		found = RelationFindReplTupleSeq(rel, LockTupleExclusive,
+											remoteslot, localslot);
+	}
+
+	/* If found delete it. */
+	if (found)
+	{
+		EvalPlanQualSetSlot(&epqstate, localslot);
+		
+		/* Do the actual delete. */
+		ExecSimpleRelationDelete(estate, &epqstate, localslot);
+	}
+	else
+	{
+		/* The tuple to be deleted could not be found. */
+		ereport(DEBUG1,
+		        (errmsg("logical apply could not find row for delete "
+		                "in apply target %s",
+		                RelationGetRelationName(rel))));
+	}
+	
+	/* Cleanup. */
+	ExecCloseIndices(estate->es_result_relation_info);
+	PopActiveSnapshot();
+	
+	/* Handle queued AFTER triggers. */
+	AfterTriggerEndQuery(estate);
+	
+	EvalPlanQualEnd(&epqstate);
+	ExecResetTupleTable(estate->es_tupleTable, false);
+
+	FreeExecutorState(estate);
+	CommandCounterIncrement();
+}
+
+/*
+ * TDX Logical replication protocol message dispatcher.
+ */
+void
+tdx_apply_dispatch(StringInfo s, TdxSyncDesc tdxDesc)
+{
+	char action = pq_getmsgbyte(s);
+	
+	switch (action)
+	{
+		/* INSERT */
+		case 'I':
+			tdx_logical_apply_insert(s, tdxDesc);
+			break;
+			/* UPDATE */
+		case 'U':
+			tdx_logical_apply_update(s, tdxDesc);
+			break;
+			/* DELETE */
+		case 'D':
+			tdx_logical_apply_delete(s, tdxDesc);
+			break;
+		default:
+		{
+			ereport(ERROR,
+			        (errcode(ERRCODE_PROTOCOL_VIOLATION),
+					        errmsg("invalid logical replication message type %c", action)));
+		}
+	}
+}

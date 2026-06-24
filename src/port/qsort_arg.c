@@ -1,35 +1,35 @@
 /*
- *    qsort_arg.c: qsort with a passthrough "void *" argument
+ *	qsort_arg.c: qsort with a passthrough "void *" argument
  *
- *    Modifications from vanilla NetBSD source:
- *      Add do ... while() macro fix
- *      Remove __inline, _DIAGASSERTs, __P
- *      Remove ill-considered "swap_cnt" switch to insertion sort,
- *      in favor of a simple check for presorted input.
- *      Take care to recurse on the smaller partition, to bound stack usage.
+ *	Modifications from vanilla NetBSD source:
+ *	  Add do ... while() macro fix
+ *	  Remove __inline, _DIAGASSERTs, __P
+ *	  Remove ill-considered "swap_cnt" switch to insertion sort,
+ *	  in favor of a simple check for presorted input.
+ *	  Take care to recurse on the smaller partition, to bound stack usage.
  *
- *    CAUTION: if you change this file, see also qsort.c, gen_qsort_tuple.pl
+ *	CAUTION: if you change this file, see also qsort.c, gen_qsort_tuple.pl
  *
- *    src/port/qsort_arg.c
+ *	src/port/qsort_arg.c
  */
 
-/*    $NetBSD: qsort.c,v 1.13 2003/08/07 16:43:42 agc Exp $    */
+/*	$NetBSD: qsort.c,v 1.13 2003/08/07 16:43:42 agc Exp $	*/
 
 /*-
  * Copyright (c) 1992, 1993
- *    The Regents of the University of California.  All rights reserved.
+ *	The Regents of the University of California.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
  * 1. Redistributions of source code must retain the above copyright
- *      notice, this list of conditions and the following disclaimer.
+ *	  notice, this list of conditions and the following disclaimer.
  * 2. Redistributions in binary form must reproduce the above copyright
- *      notice, this list of conditions and the following disclaimer in the
- *      documentation and/or other materials provided with the distribution.
+ *	  notice, this list of conditions and the following disclaimer in the
+ *	  documentation and/or other materials provided with the distribution.
  * 3. Neither the name of the University nor the names of its contributors
- *      may be used to endorse or promote products derived from this software
- *      without specific prior written permission.
+ *	  may be used to endorse or promote products derived from this software
+ *	  without specific prior written permission.
  *
  * THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -48,7 +48,7 @@
 
 
 static char *med3(char *a, char *b, char *c,
-     qsort_arg_comparator cmp, void *arg);
+	 qsort_arg_comparator cmp, void *arg);
 static void swapfunc(char *, char *, size_t, int);
 
 /*
@@ -68,159 +68,159 @@ static void swapfunc(char *, char *, size_t, int);
  */
 
 #define swapcode(TYPE, parmi, parmj, n) \
-do {        \
-    size_t i = (n) / sizeof (TYPE);            \
-    TYPE *pi = (TYPE *)(void *)(parmi);            \
-    TYPE *pj = (TYPE *)(void *)(parmj);            \
-    do {                        \
-        TYPE    t = *pi;            \
-        *pi++ = *pj;                \
-        *pj++ = t;                \
-        } while (--i > 0);                \
+do {		\
+	size_t i = (n) / sizeof (TYPE);			\
+	TYPE *pi = (TYPE *)(void *)(parmi);			\
+	TYPE *pj = (TYPE *)(void *)(parmj);			\
+	do {						\
+		TYPE	t = *pi;			\
+		*pi++ = *pj;				\
+		*pj++ = t;				\
+		} while (--i > 0);				\
 } while (0)
 
 #define SWAPINIT(a, es) swaptype = ((char *)(a) - (char *)0) % sizeof(long) || \
-    (es) % sizeof(long) ? 2 : (es) == sizeof(long)? 0 : 1;
+	(es) % sizeof(long) ? 2 : (es) == sizeof(long)? 0 : 1;
 
 static void
 swapfunc(char *a, char *b, size_t n, int swaptype)
 {
-    if (swaptype <= 1)
-        swapcode(long, a, b, n);
-    else
-        swapcode(char, a, b, n);
+	if (swaptype <= 1)
+		swapcode(long, a, b, n);
+	else
+		swapcode(char, a, b, n);
 }
 
-#define swap(a, b)                        \
-    if (swaptype == 0) {                    \
-        long t = *(long *)(void *)(a);            \
-        *(long *)(void *)(a) = *(long *)(void *)(b);    \
-        *(long *)(void *)(b) = t;            \
-    } else                            \
-        swapfunc(a, b, es, swaptype)
+#define swap(a, b)						\
+	if (swaptype == 0) {					\
+		long t = *(long *)(void *)(a);			\
+		*(long *)(void *)(a) = *(long *)(void *)(b);	\
+		*(long *)(void *)(b) = t;			\
+	} else							\
+		swapfunc(a, b, es, swaptype)
 
 #define vecswap(a, b, n) if ((n) > 0) swapfunc(a, b, n, swaptype)
 
 static char *
 med3(char *a, char *b, char *c, qsort_arg_comparator cmp, void *arg)
 {
-    return cmp(a, b, arg) < 0 ?
-        (cmp(b, c, arg) < 0 ? b : (cmp(a, c, arg) < 0 ? c : a))
-        : (cmp(b, c, arg) > 0 ? b : (cmp(a, c, arg) < 0 ? a : c));
+	return cmp(a, b, arg) < 0 ?
+		(cmp(b, c, arg) < 0 ? b : (cmp(a, c, arg) < 0 ? c : a))
+		: (cmp(b, c, arg) > 0 ? b : (cmp(a, c, arg) < 0 ? a : c));
 }
 
 void
 qsort_arg(void *a, size_t n, size_t es, qsort_arg_comparator cmp, void *arg)
-{// #lizard forgives
-    char       *pa,
-               *pb,
-               *pc,
-               *pd,
-               *pl,
-               *pm,
-               *pn;
-    size_t        d1,
-                d2;
-    int            r,
-                swaptype,
-                presorted;
+{
+	char	   *pa,
+			   *pb,
+			   *pc,
+			   *pd,
+			   *pl,
+			   *pm,
+			   *pn;
+	size_t		d1,
+				d2;
+	int			r,
+				swaptype,
+				presorted;
 
 loop:SWAPINIT(a, es);
-    if (n < 7)
-    {
-        for (pm = (char *) a + es; pm < (char *) a + n * es; pm += es)
-            for (pl = pm; pl > (char *) a && cmp(pl - es, pl, arg) > 0;
-                 pl -= es)
-                swap(pl, pl - es);
-        return;
-    }
-    presorted = 1;
-    for (pm = (char *) a + es; pm < (char *) a + n * es; pm += es)
-    {
-        if (cmp(pm - es, pm, arg) > 0)
-        {
-            presorted = 0;
-            break;
-        }
-    }
-    if (presorted)
-        return;
-    pm = (char *) a + (n / 2) * es;
-    if (n > 7)
-    {
-        pl = (char *) a;
-        pn = (char *) a + (n - 1) * es;
-        if (n > 40)
-        {
-            size_t        d = (n / 8) * es;
+	if (n < 7)
+	{
+		for (pm = (char *) a + es; pm < (char *) a + n * es; pm += es)
+			for (pl = pm; pl > (char *) a && cmp(pl - es, pl, arg) > 0;
+				 pl -= es)
+				swap(pl, pl - es);
+		return;
+	}
+	presorted = 1;
+	for (pm = (char *) a + es; pm < (char *) a + n * es; pm += es)
+	{
+		if (cmp(pm - es, pm, arg) > 0)
+		{
+			presorted = 0;
+			break;
+		}
+	}
+	if (presorted)
+		return;
+	pm = (char *) a + (n / 2) * es;
+	if (n > 7)
+	{
+		pl = (char *) a;
+		pn = (char *) a + (n - 1) * es;
+		if (n > 40)
+		{
+			size_t		d = (n / 8) * es;
 
-            pl = med3(pl, pl + d, pl + 2 * d, cmp, arg);
-            pm = med3(pm - d, pm, pm + d, cmp, arg);
-            pn = med3(pn - 2 * d, pn - d, pn, cmp, arg);
-        }
-        pm = med3(pl, pm, pn, cmp, arg);
-    }
-    swap(a, pm);
-    pa = pb = (char *) a + es;
-    pc = pd = (char *) a + (n - 1) * es;
-    for (;;)
-    {
-        while (pb <= pc && (r = cmp(pb, a, arg)) <= 0)
-        {
-            if (r == 0)
-            {
-                swap(pa, pb);
-                pa += es;
-            }
-            pb += es;
-        }
-        while (pb <= pc && (r = cmp(pc, a, arg)) >= 0)
-        {
-            if (r == 0)
-            {
-                swap(pc, pd);
-                pd -= es;
-            }
-            pc -= es;
-        }
-        if (pb > pc)
-            break;
-        swap(pb, pc);
-        pb += es;
-        pc -= es;
-    }
-    pn = (char *) a + n * es;
-    d1 = Min(pa - (char *) a, pb - pa);
-    vecswap(a, pb - d1, d1);
-    d1 = Min(pd - pc, pn - pd - es);
-    vecswap(pb, pn - d1, d1);
-    d1 = pb - pa;
-    d2 = pd - pc;
-    if (d1 <= d2)
-    {
-        /* Recurse on left partition, then iterate on right partition */
-        if (d1 > es)
-            qsort_arg(a, d1 / es, es, cmp, arg);
-        if (d2 > es)
-        {
-            /* Iterate rather than recurse to save stack space */
-            /* qsort_arg(pn - d2, d2 / es, es, cmp, arg); */
-            a = pn - d2;
-            n = d2 / es;
-            goto loop;
-        }
-    }
-    else
-    {
-        /* Recurse on right partition, then iterate on left partition */
-        if (d2 > es)
-            qsort_arg(pn - d2, d2 / es, es, cmp, arg);
-        if (d1 > es)
-        {
-            /* Iterate rather than recurse to save stack space */
-            /* qsort_arg(a, d1 / es, es, cmp, arg); */
-            n = d1 / es;
-            goto loop;
-        }
-    }
+			pl = med3(pl, pl + d, pl + 2 * d, cmp, arg);
+			pm = med3(pm - d, pm, pm + d, cmp, arg);
+			pn = med3(pn - 2 * d, pn - d, pn, cmp, arg);
+		}
+		pm = med3(pl, pm, pn, cmp, arg);
+	}
+	swap(a, pm);
+	pa = pb = (char *) a + es;
+	pc = pd = (char *) a + (n - 1) * es;
+	for (;;)
+	{
+		while (pb <= pc && (r = cmp(pb, a, arg)) <= 0)
+		{
+			if (r == 0)
+			{
+				swap(pa, pb);
+				pa += es;
+			}
+			pb += es;
+		}
+		while (pb <= pc && (r = cmp(pc, a, arg)) >= 0)
+		{
+			if (r == 0)
+			{
+				swap(pc, pd);
+				pd -= es;
+			}
+			pc -= es;
+		}
+		if (pb > pc)
+			break;
+		swap(pb, pc);
+		pb += es;
+		pc -= es;
+	}
+	pn = (char *) a + n * es;
+	d1 = Min(pa - (char *) a, pb - pa);
+	vecswap(a, pb - d1, d1);
+	d1 = Min(pd - pc, pn - pd - es);
+	vecswap(pb, pn - d1, d1);
+	d1 = pb - pa;
+	d2 = pd - pc;
+	if (d1 <= d2)
+	{
+		/* Recurse on left partition, then iterate on right partition */
+		if (d1 > es)
+			qsort_arg(a, d1 / es, es, cmp, arg);
+		if (d2 > es)
+		{
+			/* Iterate rather than recurse to save stack space */
+			/* qsort_arg(pn - d2, d2 / es, es, cmp, arg); */
+			a = pn - d2;
+			n = d2 / es;
+			goto loop;
+		}
+	}
+	else
+	{
+		/* Recurse on right partition, then iterate on left partition */
+		if (d2 > es)
+			qsort_arg(pn - d2, d2 / es, es, cmp, arg);
+		if (d1 > es)
+		{
+			/* Iterate rather than recurse to save stack space */
+			/* qsort_arg(a, d1 / es, es, cmp, arg); */
+			n = d1 / es;
+			goto loop;
+		}
+	}
 }

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * joininfo.h
- *      prototypes for joininfo.c.
+ *	  prototypes for joininfo.c.
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -18,13 +18,13 @@
 
 
 extern bool have_relevant_joinclause(PlannerInfo *root,
-                         RelOptInfo *rel1, RelOptInfo *rel2);
+						 RelOptInfo *rel1, RelOptInfo *rel2);
 
 extern void add_join_clause_to_rels(PlannerInfo *root,
-                        RestrictInfo *restrictinfo,
-                        Relids join_relids);
+						RestrictInfo *restrictinfo,
+						Relids join_relids);
 extern void remove_join_clause_from_rels(PlannerInfo *root,
-                             RestrictInfo *restrictinfo,
-                             Relids join_relids);
+							 RestrictInfo *restrictinfo,
+							 Relids join_relids);
 
-#endif                            /* JOININFO_H */
+#endif							/* JOININFO_H */

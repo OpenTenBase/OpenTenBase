@@ -128,7 +128,7 @@
 <!--
 https://forge.continuent.org/pipermail/sequoia/2006-November/004070.html
 
-Oracle RAC is a shared disk approach and just send cache invalidations
+OpenTenBase_Ora RAC is a shared disk approach and just send cache invalidations
 to other nodes but not actual data. As the disk is shared, data is
 only committed once to disk and there is a distributed locking
 protocol to make nodes agree on a serializable transactional order.

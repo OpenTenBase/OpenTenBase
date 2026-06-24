@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * tupmacs.h
- *      Tuple macros used by both index tuples and heap tuples.
+ *	  Tuple macros used by both index tuples and heap tuples.
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -43,52 +43,52 @@
 
 #define fetch_att(T,attbyval,attlen) \
 ( \
-    (attbyval) ? \
-    ( \
-        (attlen) == (int) sizeof(Datum) ? \
-            *((Datum *)(T)) \
-        : \
-      ( \
-        (attlen) == (int) sizeof(int32) ? \
-            Int32GetDatum(*((int32 *)(T))) \
-        : \
-        ( \
-            (attlen) == (int) sizeof(int16) ? \
-                Int16GetDatum(*((int16 *)(T))) \
-            : \
-            ( \
-                AssertMacro((attlen) == 1), \
-                CharGetDatum(*((char *)(T))) \
-            ) \
-        ) \
-      ) \
-    ) \
-    : \
-    PointerGetDatum((char *) (T)) \
+	(attbyval) ? \
+	( \
+		(attlen) == (int) sizeof(Datum) ? \
+			*((Datum *)(T)) \
+		: \
+	  ( \
+		(attlen) == (int) sizeof(int32) ? \
+			Int32GetDatum(*((int32 *)(T))) \
+		: \
+		( \
+			(attlen) == (int) sizeof(int16) ? \
+				Int16GetDatum(*((int16 *)(T))) \
+			: \
+			( \
+				AssertMacro((attlen) == 1), \
+				CharGetDatum(*((char *)(T))) \
+			) \
+		) \
+	  ) \
+	) \
+	: \
+	PointerGetDatum((char *) (T)) \
 )
-#else                            /* SIZEOF_DATUM != 8 */
+#else							/* SIZEOF_DATUM != 8 */
 
 #define fetch_att(T,attbyval,attlen) \
 ( \
-    (attbyval) ? \
-    ( \
-        (attlen) == (int) sizeof(int32) ? \
-            Int32GetDatum(*((int32 *)(T))) \
-        : \
-        ( \
-            (attlen) == (int) sizeof(int16) ? \
-                Int16GetDatum(*((int16 *)(T))) \
-            : \
-            ( \
-                AssertMacro((attlen) == 1), \
-                CharGetDatum(*((char *)(T))) \
-            ) \
-        ) \
-    ) \
-    : \
-    PointerGetDatum((char *) (T)) \
+	(attbyval) ? \
+	( \
+		(attlen) == (int) sizeof(int32) ? \
+			Int32GetDatum(*((int32 *)(T))) \
+		: \
+		( \
+			(attlen) == (int) sizeof(int16) ? \
+				Int16GetDatum(*((int16 *)(T))) \
+			: \
+			( \
+				AssertMacro((attlen) == 1), \
+				CharGetDatum(*((char *)(T))) \
+			) \
+		) \
+	) \
+	: \
+	PointerGetDatum((char *) (T)) \
 )
-#endif                            /* SIZEOF_DATUM == 8 */
+#endif							/* SIZEOF_DATUM == 8 */
 
 /*
  * att_align_datum aligns the given offset as needed for a datum of alignment
@@ -100,9 +100,9 @@
  */
 #define att_align_datum(cur_offset, attalign, attlen, attdatum) \
 ( \
-    ((attlen) == -1 && VARATT_IS_SHORT(DatumGetPointer(attdatum))) ? \
-    (uintptr_t) (cur_offset) : \
-    att_align_nominal(cur_offset, attalign) \
+	((attlen) == -1 && VARATT_IS_SHORT(DatumGetPointer(attdatum))) ? \
+	(uintptr_t) (cur_offset) : \
+	att_align_nominal(cur_offset, attalign) \
 )
 
 /*
@@ -121,35 +121,35 @@
  */
 #define att_align_pointer(cur_offset, attalign, attlen, attptr) \
 ( \
-    ((attlen) == -1 && VARATT_NOT_PAD_BYTE(attptr)) ? \
-    (uintptr_t) (cur_offset) : \
-    att_align_nominal(cur_offset, attalign) \
+	((attlen) == -1 && VARATT_NOT_PAD_BYTE(attptr)) ? \
+	(uintptr_t) (cur_offset) : \
+	att_align_nominal(cur_offset, attalign) \
 )
 
 /*
  * att_align_nominal aligns the given offset as needed for a datum of alignment
  * requirement attalign, ignoring any consideration of packed varlena datums.
  * There are three main use cases for using this macro directly:
- *    * we know that the att in question is not varlena (attlen != -1);
- *      in this case it is cheaper than the above macros and just as good.
- *    * we need to estimate alignment padding cost abstractly, ie without
- *      reference to a real tuple.  We must assume the worst case that
- *      all varlenas are aligned.
- *    * within arrays, we unconditionally align varlenas (XXX this should be
- *      revisited, probably).
+ *	* we know that the att in question is not varlena (attlen != -1);
+ *	  in this case it is cheaper than the above macros and just as good.
+ *	* we need to estimate alignment padding cost abstractly, ie without
+ *	  reference to a real tuple.  We must assume the worst case that
+ *	  all varlenas are aligned.
+ *	* within arrays, we unconditionally align varlenas (XXX this should be
+ *	  revisited, probably).
  *
  * The attalign cases are tested in what is hopefully something like their
  * frequency of occurrence.
  */
 #define att_align_nominal(cur_offset, attalign) \
 ( \
-    ((attalign) == 'i') ? INTALIGN(cur_offset) : \
-     (((attalign) == 'c') ? (uintptr_t) (cur_offset) : \
-      (((attalign) == 'd') ? DOUBLEALIGN(cur_offset) : \
-       ( \
-            AssertMacro((attalign) == 's'), \
-            SHORTALIGN(cur_offset) \
-       ))) \
+	((attalign) == 'i') ? INTALIGN(cur_offset) : \
+	 (((attalign) == 'c') ? (uintptr_t) (cur_offset) : \
+	  (((attalign) == 'd') ? DOUBLEALIGN(cur_offset) : \
+	   ( \
+			AssertMacro((attalign) == 's'), \
+			SHORTALIGN(cur_offset) \
+	   ))) \
 )
 
 /*
@@ -158,7 +158,7 @@
  * with a variable-length attribute.
  */
 #define att_addlength_datum(cur_offset, attlen, attdatum) \
-    att_addlength_pointer(cur_offset, attlen, DatumGetPointer(attdatum))
+	att_addlength_pointer(cur_offset, attlen, DatumGetPointer(attdatum))
 
 /*
  * att_addlength_pointer performs the same calculation as att_addlength_datum,
@@ -171,19 +171,19 @@
  */
 #define att_addlength_pointer(cur_offset, attlen, attptr) \
 ( \
-    ((attlen) > 0) ? \
-    ( \
-        (cur_offset) + (attlen) \
-    ) \
-    : (((attlen) == -1) ? \
-    ( \
-        (cur_offset) + VARSIZE_ANY(attptr) \
-    ) \
-    : \
-    ( \
-        AssertMacro((attlen) == -2), \
-        (cur_offset) + (strlen((char *) (attptr)) + 1) \
-    )) \
+	((attlen) > 0) ? \
+	( \
+		(cur_offset) + (attlen) \
+	) \
+	: (((attlen) == -1) ? \
+	( \
+		(cur_offset) + VARSIZE_ANY(attptr) \
+	) \
+	: \
+	( \
+		AssertMacro((attlen) == -2), \
+		(cur_offset) + (strlen((char *) (attptr)) + 1) \
+	)) \
 )
 
 /*
@@ -196,48 +196,49 @@
 #if SIZEOF_DATUM == 8
 
 #define store_att_byval(T,newdatum,attlen) \
-    do { \
-        switch (attlen) \
-        { \
-            case sizeof(char): \
-                *(char *) (T) = DatumGetChar(newdatum); \
-                break; \
-            case sizeof(int16): \
-                *(int16 *) (T) = DatumGetInt16(newdatum); \
-                break; \
-            case sizeof(int32): \
-                *(int32 *) (T) = DatumGetInt32(newdatum); \
-                break; \
-            case sizeof(Datum): \
-                *(Datum *) (T) = (newdatum); \
-                break; \
-            default: \
-                elog(ERROR, "unsupported byval length: %d", \
-                     (int) (attlen)); \
-                break; \
-        } \
-    } while (0)
-#else                            /* SIZEOF_DATUM != 8 */
+	do { \
+		switch (attlen) \
+		{ \
+			case sizeof(char): \
+				*(char *) (T) = DatumGetChar(newdatum); \
+				break; \
+			case sizeof(int16): \
+				*(int16 *) (T) = DatumGetInt16(newdatum); \
+				break; \
+			case sizeof(int32): \
+				*(int32 *) (T) = DatumGetInt32(newdatum); \
+				break; \
+			case sizeof(Datum): \
+				*(Datum *) (T) = (newdatum); \
+				break; \
+			default: \
+				elog(ERROR, "unsupported byval length: %d", \
+					 (int) (attlen)); \
+				break; \
+		} \
+	} while (0)
+
+#else							/* SIZEOF_DATUM != 8 */
 
 #define store_att_byval(T,newdatum,attlen) \
-    do { \
-        switch (attlen) \
-        { \
-            case sizeof(char): \
-                *(char *) (T) = DatumGetChar(newdatum); \
-                break; \
-            case sizeof(int16): \
-                *(int16 *) (T) = DatumGetInt16(newdatum); \
-                break; \
-            case sizeof(int32): \
-                *(int32 *) (T) = DatumGetInt32(newdatum); \
-                break; \
-            default: \
-                elog(ERROR, "unsupported byval length: %d", \
-                     (int) (attlen)); \
-                break; \
-        } \
-    } while (0)
-#endif                            /* SIZEOF_DATUM == 8 */
+	do { \
+		switch (attlen) \
+		{ \
+			case sizeof(char): \
+				*(char *) (T) = DatumGetChar(newdatum); \
+				break; \
+			case sizeof(int16): \
+				*(int16 *) (T) = DatumGetInt16(newdatum); \
+				break; \
+			case sizeof(int32): \
+				*(int32 *) (T) = DatumGetInt32(newdatum); \
+				break; \
+			default: \
+				elog(ERROR, "unsupported byval length: %d", \
+					 (int) (attlen)); \
+				break; \
+		} \
+	} while (0)
+#endif							/* SIZEOF_DATUM == 8 */
 
 #endif

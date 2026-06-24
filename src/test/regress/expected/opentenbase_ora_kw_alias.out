@@ -1,0 +1,3444 @@
+\c regression_ora
+set do_as_alias to on;
+set case_as_alias to on;
+ select 1 abort from dual;----unreserved
+ ABORT 
+-------
+     1
+(1 row)
+
+ select 1 absolute from dual;----unreserved
+ ABSOLUTE 
+----------
+        1
+(1 row)
+
+ select 1 access from dual;----unreserved
+ ACCESS 
+--------
+      1
+(1 row)
+
+ select 1 account from dual;----unreserved
+ ACCOUNT 
+---------
+       1
+(1 row)
+
+ select 1 action from dual;----unreserved
+ ACTION 
+--------
+      1
+(1 row)
+
+ select 1 add from dual;----unreserved
+ ADD 
+-----
+   1
+(1 row)
+
+ select 1 admin from dual;----unreserved
+ ADMIN 
+-------
+     1
+(1 row)
+
+ select 1 after from dual;----unreserved
+ AFTER 
+-------
+     1
+(1 row)
+
+ select 1 aggregate from dual;----unreserved
+ AGGREGATE 
+-----------
+         1
+(1 row)
+
+ select 1 all from dual;----reserved
+ERROR:  syntax error at or near "all"
+LINE 1: select 1 all from dual;
+                 ^
+ select 1 also from dual;----unreserved
+ ALSO 
+------
+    1
+(1 row)
+
+ select 1 alter from dual;----unreserved
+ ALTER 
+-------
+     1
+(1 row)
+
+ select 1 always from dual;----unreserved
+ ALWAYS 
+--------
+      1
+(1 row)
+
+ select 1 analyse from dual;----reserved
+ ANALYSE 
+---------
+       1
+(1 row)
+
+ select 1 analyze from dual;----reserved
+ ANALYZE 
+---------
+       1
+(1 row)
+
+ select 1 and from dual;----reserved
+ERROR:  syntax error at or near "from"
+LINE 1: select 1 and from dual;
+                     ^
+ select 1 any from dual;----reserved
+ERROR:  syntax error at or near "any"
+LINE 1: select 1 any from dual;
+                 ^
+ select 1 array from dual;----reserved
+ ARRAY 
+-------
+     1
+(1 row)
+
+ select 1 as from dual;----reserved
+ERROR:  syntax error at or near "dual"
+LINE 1: select 1 as from dual;
+                         ^
+ select 1 asc from dual;----reserved
+ERROR:  syntax error at or near "asc"
+LINE 1: select 1 asc from dual;
+                 ^
+ select 1 assertion from dual;----unreserved
+ ASSERTION 
+-----------
+         1
+(1 row)
+
+ select 1 assignment from dual;----unreserved
+ ASSIGNMENT 
+------------
+          1
+(1 row)
+
+ select 1 asymmetric from dual;----reserved
+ ASYMMETRIC 
+------------
+          1
+(1 row)
+
+ select 1 at from dual;----unreserved
+ AT 
+----
+  1
+(1 row)
+
+ select 1 attach from dual;----unreserved
+ ATTACH 
+--------
+      1
+(1 row)
+
+ select 1 attribute from dual;----unreserved
+ ATTRIBUTE 
+-----------
+         1
+(1 row)
+
+ select 1 audit from dual;----reserved
+ERROR:  syntax error at or near "audit"
+LINE 1: select 1 audit from dual;
+                 ^
+ select 1 authorization from dual;----reserved (can be function or type name)
+ AUTHORIZATION 
+---------------
+             1
+(1 row)
+
+ select 1 backward from dual;----unreserved
+ BACKWARD 
+----------
+        1
+(1 row)
+
+ select 1 barrier from dual;----unreserved
+ BARRIER 
+---------
+       1
+(1 row)
+
+ select 1 before from dual;----unreserved
+ BEFORE 
+--------
+      1
+(1 row)
+
+ select 1 begin from dual;----unreserved
+ BEGIN 
+-------
+     1
+(1 row)
+
+ select 1 begin_subtxn from dual;----unreserved
+ BEGIN_SUBTXN 
+--------------
+            1
+(1 row)
+
+ select 1 between from dual;----unreserved (cannot be function or type name)
+ BETWEEN 
+---------
+       1
+(1 row)
+
+ select 1 bigint from dual;----unreserved (cannot be function or type name)
+ BIGINT 
+--------
+      1
+(1 row)
+
+ select 1 binary from dual;----reserved (can be function or type name)
+ BINARY 
+--------
+      1
+(1 row)
+
+ select 1 binary_double from dual;----unreserved (cannot be function or type name)
+ BINARY_DOUBLE 
+---------------
+             1
+(1 row)
+
+ select 1 binary_float from dual;----unreserved (cannot be function or type name)
+ BINARY_FLOAT 
+--------------
+            1
+(1 row)
+
+ select 1 bit from dual;----unreserved (cannot be function or type name)
+ BIT 
+-----
+   1
+(1 row)
+
+ select 1 body from dual;----unreserved (cannot be package name)
+ BODY 
+------
+    1
+(1 row)
+
+ select 1 boolean from dual;----unreserved (cannot be function or type name)
+ BOOLEAN 
+---------
+       1
+(1 row)
+
+ select 1 both from dual;----reserved
+ BOTH 
+------
+    1
+(1 row)
+
+ select 1 by from dual;----reserved
+ERROR:  syntax error at or near "by"
+LINE 1: select 1 by from dual;
+                 ^
+ select 1 cache from dual;----unreserved
+ CACHE 
+-------
+     1
+(1 row)
+
+ select 1 call from dual;----unreserved
+ CALL 
+------
+    1
+(1 row)
+
+ select 1 called from dual;----unreserved
+ CALLED 
+--------
+      1
+(1 row)
+
+ select 1 cascade from dual;----unreserved
+ CASCADE 
+---------
+       1
+(1 row)
+
+ select 1 cascaded from dual;----unreserved
+ CASCADED 
+----------
+        1
+(1 row)
+
+ select 1 case from dual;----reserved
+ CASE 
+------
+    1
+(1 row)
+
+ select 1 cast from dual;----reserved
+ CAST 
+------
+    1
+(1 row)
+
+ select 1 catalog from dual;----unreserved
+ CATALOG 
+---------
+       1
+(1 row)
+
+ select 1 chain from dual;----unreserved
+ CHAIN 
+-------
+     1
+(1 row)
+
+ select 1 char from dual;----unreserved (cannot be function or type name)
+ERROR:  alias name is reserved keyword!
+LINE 1: select 1 char from dual;
+               ^
+ select 1 character from dual;----unreserved (cannot be function or type name)
+ CHARACTER 
+-----------
+         1
+(1 row)
+
+ select 1 characteristics from dual;----unreserved
+ CHARACTERISTICS 
+-----------------
+               1
+(1 row)
+
+ select 1 check from dual;----reserved
+ERROR:  syntax error at or near "check"
+LINE 1: select 1 check from dual;
+                 ^
+ select 1 checkpoint from dual;----unreserved
+ CHECKPOINT 
+------------
+          1
+(1 row)
+
+ select 1 class from dual;----unreserved
+ CLASS 
+-------
+     1
+(1 row)
+
+ select 1 clean from dual;----unreserved
+ CLEAN 
+-------
+     1
+(1 row)
+
+ select 1 close from dual;----unreserved
+ CLOSE 
+-------
+     1
+(1 row)
+
+ select 1 cluster from dual;----unreserved
+ CLUSTER 
+---------
+       1
+(1 row)
+
+ select 1 coalesce from dual;----unreserved (cannot be function or type name)
+ COALESCE 
+----------
+        1
+(1 row)
+
+ select 1 collate from dual;----reserved
+ERROR:  syntax error at or near "from"
+LINE 1: select 1 collate from dual;
+                         ^
+ select 1 collation from dual;----reserved (can be function or type name)
+ COLLATION 
+-----------
+         1
+(1 row)
+
+ select 1 column from dual;----reserved
+ERROR:  syntax error at or near "column"
+LINE 1: select 1 column from dual;
+                 ^
+ select 1 columns from dual;----unreserved
+ COLUMNS 
+---------
+       1
+(1 row)
+
+ select 1 comment from dual;----unreserved
+ COMMENT 
+---------
+       1
+(1 row)
+
+ select 1 comments from dual;----unreserved
+ COMMENTS 
+----------
+        1
+(1 row)
+
+ select 1 commit from dual;----unreserved
+ COMMIT 
+--------
+      1
+(1 row)
+
+ select 1 commit_subtxn from dual;----unreserved
+ COMMIT_SUBTXN 
+---------------
+             1
+(1 row)
+
+ select 1 committed from dual;----unreserved
+ COMMITTED 
+-----------
+         1
+(1 row)
+
+ select 1 concurrently from dual;----reserved (can be function or type name)
+ CONCURRENTLY 
+--------------
+            1
+(1 row)
+
+ select 1 configuration from dual;----unreserved
+ CONFIGURATION 
+---------------
+             1
+(1 row)
+
+ select 1 conflict from dual;----unreserved
+ CONFLICT 
+----------
+        1
+(1 row)
+
+ select 1 connect from dual;----reserved
+ERROR:  syntax error at or near "connect"
+LINE 1: select 1 connect from dual;
+                 ^
+ select 1 connection from dual;----unreserved
+ CONNECTION 
+------------
+          1
+(1 row)
+
+ select 1 constraint from dual;----reserved
+ CONSTRAINT 
+------------
+          1
+(1 row)
+
+ select 1 constraints from dual;----unreserved
+ CONSTRAINTS 
+-------------
+           1
+(1 row)
+
+ select 1 content from dual;----unreserved
+ CONTENT 
+---------
+       1
+(1 row)
+
+ select 1 continue from dual;----unreserved
+ CONTINUE 
+----------
+        1
+(1 row)
+
+ select 1 conversion from dual;----unreserved
+ CONVERSION 
+------------
+          1
+(1 row)
+
+ select 1 coordinator from dual;----unreserved
+ COORDINATOR 
+-------------
+           1
+(1 row)
+
+ select 1 copy from dual;----unreserved
+ COPY 
+------
+    1
+(1 row)
+
+ select 1 cost from dual;----unreserved
+ COST 
+------
+    1
+(1 row)
+
+ select 1 count from dual;----unreserved
+ COUNT 
+-------
+     1
+(1 row)
+
+ select 1 create from dual;----reserved
+ERROR:  syntax error at or near "create"
+LINE 1: select 1 create from dual;
+                 ^
+ select 1 cross from dual;----reserved (can be function or type name)
+ CROSS 
+-------
+     1
+(1 row)
+
+ select 1 csv from dual;----unreserved
+ CSV 
+-----
+   1
+(1 row)
+
+ select 1 cube from dual;----unreserved
+ CUBE 
+------
+    1
+(1 row)
+
+ select 1 current from dual;----unreserved
+ CURRENT 
+---------
+       1
+(1 row)
+
+ select 1 current_catalog from dual;----reserved
+ CURRENT_CATALOG 
+-----------------
+               1
+(1 row)
+
+ select 1 current_date from dual;----reserved
+ CURRENT_DATE 
+--------------
+            1
+(1 row)
+
+ select 1 current_role from dual;----reserved
+ CURRENT_ROLE 
+--------------
+            1
+(1 row)
+
+ select 1 current_schema from dual;----reserved (can be function or type name)
+ CURRENT_SCHEMA 
+----------------
+              1
+(1 row)
+
+ select 1 current_time from dual;----reserved
+ CURRENT_TIME 
+--------------
+            1
+(1 row)
+
+ select 1 current_timestamp from dual;----reserved
+ CURRENT_TIMESTAMP 
+-------------------
+                 1
+(1 row)
+
+ select 1 current_user from dual;----reserved
+ CURRENT_USER 
+--------------
+            1
+(1 row)
+
+ select 1 cursor from dual;----unreserved
+ CURSOR 
+--------
+      1
+(1 row)
+
+ select 1 cycle from dual;----unreserved
+ CYCLE 
+-------
+     1
+(1 row)
+
+ select 1 data from dual;----unreserved
+ DATA 
+------
+    1
+(1 row)
+
+ select 1 database from dual;----unreserved
+ DATABASE 
+----------
+        1
+(1 row)
+
+ select 1 day from dual;----unreserved
+ DAY 
+-----
+   1
+(1 row)
+
+ select 1 dbtimezone from dual;----reserved
+ DBTIMEZONE 
+------------
+          1
+(1 row)
+
+ select 1 deallocate from dual;----unreserved
+ DEALLOCATE 
+------------
+          1
+(1 row)
+
+ select 1 dec from dual;----unreserved (cannot be function or type name)
+ DEC 
+-----
+   1
+(1 row)
+
+ select 1 decimal from dual;----unreserved (cannot be function or type name)
+ DECIMAL 
+---------
+       1
+(1 row)
+
+ select 1 declare from dual;----unreserved
+ DECLARE 
+---------
+       1
+(1 row)
+
+ select 1 default from dual;----reserved
+ERROR:  syntax error at or near "default"
+LINE 1: select 1 default from dual;
+                 ^
+ select 1 defaults from dual;----unreserved
+ DEFAULTS 
+----------
+        1
+(1 row)
+
+ select 1 deferrable from dual;----reserved
+ DEFERRABLE 
+------------
+          1
+(1 row)
+
+ select 1 deferred from dual;----unreserved
+ DEFERRED 
+----------
+        1
+(1 row)
+
+ select 1 definer from dual;----unreserved
+ DEFINER 
+---------
+       1
+(1 row)
+
+ select 1 delete from dual;----reserved
+ERROR:  syntax error at or near "delete"
+LINE 1: select 1 delete from dual;
+                 ^
+ select 1 delimiter from dual;----unreserved
+ DELIMITER 
+-----------
+         1
+(1 row)
+
+ select 1 delimiters from dual;----unreserved
+ DELIMITERS 
+------------
+          1
+(1 row)
+
+ select 1 depends from dual;----unreserved
+ DEPENDS 
+---------
+       1
+(1 row)
+
+ select 1 desc from dual;----reserved
+ERROR:  syntax error at or near "desc"
+LINE 1: select 1 desc from dual;
+                 ^
+ select 1 detach from dual;----unreserved
+ DETACH 
+--------
+      1
+(1 row)
+
+ select 1 dictionary from dual;----unreserved
+ DICTIONARY 
+------------
+          1
+(1 row)
+
+ select 1 direct from dual;----unreserved
+ DIRECT 
+--------
+      1
+(1 row)
+
+ select 1 disable from dual;----unreserved
+ DISABLE 
+---------
+       1
+(1 row)
+
+ select 1 discard from dual;----unreserved
+ DISCARD 
+---------
+       1
+(1 row)
+
+ select 1 distinct from dual;----reserved
+ERROR:  syntax error at or near "distinct"
+LINE 1: select 1 distinct from dual;
+                 ^
+ select 1 distkey from dual;----unreserved
+ DISTKEY 
+---------
+       1
+(1 row)
+
+ select 1 distribute from dual;----unreserved
+ DISTRIBUTE 
+------------
+          1
+(1 row)
+
+ select 1 distributed from dual;----unreserved
+ DISTRIBUTED 
+-------------
+           1
+(1 row)
+
+ select 1 diststyle from dual;----unreserved
+ DISTSTYLE 
+-----------
+         1
+(1 row)
+
+ select 1 do from dual;----reserved
+ DO 
+----
+  1
+(1 row)
+
+ select 1 document from dual;----unreserved
+ DOCUMENT 
+----------
+        1
+(1 row)
+
+ select 1 domain from dual;----unreserved
+ DOMAIN 
+--------
+      1
+(1 row)
+
+ select 1 double from dual;----unreserved
+ DOUBLE 
+--------
+      1
+(1 row)
+
+ select 1 drop from dual;----unreserved
+ DROP 
+------
+    1
+(1 row)
+
+ select 1 each from dual;----unreserved
+ EACH 
+------
+    1
+(1 row)
+
+ select 1 editionable from dual;----unreserved
+ EDITIONABLE 
+-------------
+           1
+(1 row)
+
+ select 1 else from dual;----reserved
+ERROR:  syntax error at or near "else"
+LINE 1: select 1 else from dual;
+                 ^
+ select 1 enable from dual;----unreserved
+ ENABLE 
+--------
+      1
+(1 row)
+
+ select 1 encoding from dual;----unreserved
+ ENCODING 
+----------
+        1
+(1 row)
+
+ select 1 encrypted from dual;----unreserved
+ ENCRYPTED 
+-----------
+         1
+(1 row)
+
+ select 1 end from dual;----reserved
+ END 
+-----
+   1
+(1 row)
+
+ select 1 enum from dual;----unreserved
+ ENUM 
+------
+    1
+(1 row)
+
+ select 1 error from dual;----unreserved
+ ERROR 
+-------
+     1
+(1 row)
+
+ select 1 escape from dual;----unreserved
+ ESCAPE 
+--------
+      1
+(1 row)
+
+ select 1 event from dual;----unreserved
+ EVENT 
+-------
+     1
+(1 row)
+
+ select 1 except from dual;----reserved
+ EXCEPT 
+--------
+      1
+(1 row)
+
+ select 1 exchange from dual;----unreserved
+ EXCHANGE 
+----------
+        1
+(1 row)
+
+ select 1 exclude from dual;----unreserved
+ EXCLUDE 
+---------
+       1
+(1 row)
+
+ select 1 excluding from dual;----unreserved
+ EXCLUDING 
+-----------
+         1
+(1 row)
+
+ select 1 exclusive from dual;----unreserved
+ EXCLUSIVE 
+-----------
+         1
+(1 row)
+
+ select 1 exec from dual;----unreserved
+ EXEC 
+------
+    1
+(1 row)
+
+ select 1 execute from dual;----unreserved
+ EXECUTE 
+---------
+       1
+(1 row)
+
+ select 1 exists from dual;----unreserved (cannot be function or type name)
+ EXISTS 
+--------
+      1
+(1 row)
+
+ select 1 explain from dual;----unreserved
+ EXPLAIN 
+---------
+       1
+(1 row)
+
+ select 1 extension from dual;----unreserved
+ EXTENSION 
+-----------
+         1
+(1 row)
+
+ select 1 extent from dual;----unreserved
+ EXTENT 
+--------
+      1
+(1 row)
+
+ select 1 external from dual;----unreserved
+ EXTERNAL 
+----------
+        1
+(1 row)
+
+ select 1 extract from dual;----unreserved (cannot be function or type name)
+ EXTRACT 
+---------
+       1
+(1 row)
+
+ select 1 false from dual;----reserved
+ FALSE 
+-------
+     1
+(1 row)
+
+ select 1 family from dual;----unreserved
+ FAMILY 
+--------
+      1
+(1 row)
+
+ select 1 fetch from dual;----reserved
+ FETCH 
+-------
+     1
+(1 row)
+
+ select 1 filter from dual;----unreserved
+ERROR:  syntax error at or near "filter"
+LINE 1: select 1 filter from dual;
+                 ^
+ select 1 first from dual;----unreserved
+ FIRST 
+-------
+     1
+(1 row)
+
+ select 1 float from dual;----unreserved (cannot be function or type name)
+ FLOAT 
+-------
+     1
+(1 row)
+
+ select 1 following from dual;----unreserved
+ FOLLOWING 
+-----------
+         1
+(1 row)
+
+ select 1 for from dual;----reserved
+ERROR:  syntax error at or near "from"
+LINE 1: select 1 for from dual;
+                     ^
+ select 1 force from dual;----unreserved
+ FORCE 
+-------
+     1
+(1 row)
+
+ select 1 foreign from dual;----reserved
+ FOREIGN 
+---------
+       1
+(1 row)
+
+ select 1 forward from dual;----unreserved
+ FORWARD 
+---------
+       1
+(1 row)
+
+ select 1 freeze from dual;----reserved (can be function or type name)
+ FREEZE 
+--------
+      1
+(1 row)
+
+ select 1 from from dual;----reserved
+ERROR:  syntax error at or near "from"
+LINE 1: select 1 from from dual;
+                      ^
+ select 1 full from dual;----reserved (can be function or type name)
+ FULL 
+------
+    1
+(1 row)
+
+ select 1 function from dual;----unreserved
+ FUNCTION 
+----------
+        1
+(1 row)
+
+ select 1 functions from dual;----unreserved
+ FUNCTIONS 
+-----------
+         1
+(1 row)
+
+ select 1 generated from dual;----unreserved
+ GENERATED 
+-----------
+         1
+(1 row)
+
+ select 1 global from dual;----unreserved
+ GLOBAL 
+--------
+      1
+(1 row)
+
+ select 1 grant from dual;----reserved
+ERROR:  syntax error at or near "grant"
+LINE 1: select 1 grant from dual;
+                 ^
+ select 1 granted from dual;----unreserved
+ GRANTED 
+---------
+       1
+(1 row)
+
+ select 1 greatest from dual;----unreserved (cannot be function or type name)
+ GREATEST 
+----------
+        1
+(1 row)
+
+ select 1 group from dual;----reserved
+ERROR:  syntax error at or near "from"
+LINE 1: select 1 group from dual;
+                       ^
+ select 1 grouping from dual;----unreserved (cannot be function or type name)
+ GROUPING 
+----------
+        1
+(1 row)
+
+ select 1 gtm from dual;----unreserved
+ GTM 
+-----
+   1
+(1 row)
+
+ select 1 handler from dual;----unreserved
+ HANDLER 
+---------
+       1
+(1 row)
+
+ select 1 having from dual;----reserved
+ERROR:  syntax error at or near "from"
+LINE 1: select 1 having from dual;
+                        ^
+ select 1 header from dual;----unreserved
+ HEADER 
+--------
+      1
+(1 row)
+
+ select 1 hold from dual;----unreserved
+ HOLD 
+------
+    1
+(1 row)
+
+ select 1 hour from dual;----unreserved
+ HOUR 
+------
+    1
+(1 row)
+
+ select 1 identity from dual;----unreserved
+ IDENTITY 
+----------
+        1
+(1 row)
+
+ select 1 if from dual;----unreserved
+ IF 
+----
+  1
+(1 row)
+
+ select 1 ilike from dual;----reserved (can be function or type name)
+ERROR:  syntax error at or near "from"
+LINE 1: select 1 ilike from dual;
+                       ^
+ select 1 immediate from dual;----unreserved
+ IMMEDIATE 
+-----------
+         1
+(1 row)
+
+ select 1 immutable from dual;----unreserved
+ IMMUTABLE 
+-----------
+         1
+(1 row)
+
+ select 1 implicit from dual;----unreserved
+ IMPLICIT 
+----------
+        1
+(1 row)
+
+ select 1 import from dual;----unreserved
+ IMPORT 
+--------
+      1
+(1 row)
+
+ select 1 in from dual;----reserved
+ERROR:  syntax error at or near "from"
+LINE 1: select 1 in from dual;
+                    ^
+ select 1 including from dual;----unreserved
+ INCLUDING 
+-----------
+         1
+(1 row)
+
+ select 1 increment from dual;----unreserved
+ INCREMENT 
+-----------
+         1
+(1 row)
+
+ select 1 index from dual;----unreserved
+ INDEX 
+-------
+     1
+(1 row)
+
+ select 1 indexes from dual;----unreserved
+ INDEXES 
+---------
+       1
+(1 row)
+
+ select 1 inherit from dual;----unreserved
+ INHERIT 
+---------
+       1
+(1 row)
+
+ select 1 inherits from dual;----unreserved
+ INHERITS 
+----------
+        1
+(1 row)
+
+ select 1 initially from dual;----reserved
+ INITIALLY 
+-----------
+         1
+(1 row)
+
+ select 1 inline from dual;----unreserved
+ INLINE 
+--------
+      1
+(1 row)
+
+ select 1 inner from dual;----reserved (can be function or type name)
+ INNER 
+-------
+     1
+(1 row)
+
+ select 1 inout from dual;----unreserved (cannot be function or type name)
+ INOUT 
+-------
+     1
+(1 row)
+
+ select 1 input from dual;----unreserved
+ INPUT 
+-------
+     1
+(1 row)
+
+ select 1 insensitive from dual;----unreserved
+ INSENSITIVE 
+-------------
+           1
+(1 row)
+
+ select 1 insert from dual;----unreserved
+ INSERT 
+--------
+      1
+(1 row)
+
+ select 1 instead from dual;----unreserved
+ INSTEAD 
+---------
+       1
+(1 row)
+
+ select 1 int from dual;----unreserved (cannot be function or type name)
+ INT 
+-----
+   1
+(1 row)
+
+ select 1 integer from dual;----unreserved (cannot be function or type name)
+ INTEGER 
+---------
+       1
+(1 row)
+
+ select 1 intersect from dual;----reserved
+ERROR:  syntax error at or near "from"
+LINE 1: select 1 intersect from dual;
+                           ^
+ select 1 interval from dual;----unreserved (cannot be function or type name)
+ INTERVAL 
+----------
+        1
+(1 row)
+
+ select 1 into from dual;----reserved
+ERROR:  syntax error at or near "from"
+LINE 1: select 1 into from dual;
+                      ^
+ select 1 invoker from dual;----unreserved
+ INVOKER 
+---------
+       1
+(1 row)
+
+ select 1 is from dual;----reserved (can be function or type name)
+ERROR:  syntax error at or near "from"
+LINE 1: select 1 is from dual;
+                    ^
+ select 1 isnull from dual;----reserved (can be function or type name)
+ ?column? 
+----------
+ f
+(1 row)
+
+ select 1 isolation from dual;----unreserved
+ ISOLATION 
+-----------
+         1
+(1 row)
+
+ select 1 join from dual;----reserved (can be function or type name)
+ JOIN 
+------
+    1
+(1 row)
+
+ select 1 key from dual;----unreserved
+ KEY 
+-----
+   1
+(1 row)
+
+ select 1 label from dual;----unreserved
+ LABEL 
+-------
+     1
+(1 row)
+
+ select 1 language from dual;----unreserved
+ LANGUAGE 
+----------
+        1
+(1 row)
+
+ select 1 large from dual;----unreserved
+ LARGE 
+-------
+     1
+(1 row)
+
+ select 1 last from dual;----unreserved
+ LAST 
+------
+    1
+(1 row)
+
+ select 1 lateral from dual;----reserved
+ LATERAL 
+---------
+       1
+(1 row)
+
+ select 1 leading from dual;----reserved
+ LEADING 
+---------
+       1
+(1 row)
+
+ select 1 leakproof from dual;----unreserved
+ LEAKPROOF 
+-----------
+         1
+(1 row)
+
+ select 1 least from dual;----unreserved (cannot be function or type name)
+ LEAST 
+-------
+     1
+(1 row)
+
+ select 1 left from dual;----reserved (can be function or type name)
+ LEFT 
+------
+    1
+(1 row)
+
+ select 1 level from dual;----reserved
+ERROR:  syntax error at or near "level"
+LINE 1: select 1 level from dual;
+                 ^
+ select 1 like from dual;----reserved (can be function or type name)
+ERROR:  syntax error at or near "from"
+LINE 1: select 1 like from dual;
+                      ^
+ select 1 limit from dual;----reserved
+ERROR:  syntax error at or near "from"
+LINE 1: select 1 limit from dual;
+                       ^
+ select 1 listen from dual;----unreserved
+ LISTEN 
+--------
+      1
+(1 row)
+
+ select 1 load from dual;----unreserved
+ LOAD 
+------
+    1
+(1 row)
+
+ select 1 local from dual;----unreserved
+ LOCAL 
+-------
+     1
+(1 row)
+
+ select 1 localtime from dual;----reserved
+ LOCALTIME 
+-----------
+         1
+(1 row)
+
+ select 1 localtimestamp from dual;----reserved
+ LOCALTIMESTAMP 
+----------------
+              1
+(1 row)
+
+ select 1 location from dual;----unreserved
+ LOCATION 
+----------
+        1
+(1 row)
+
+ select 1 lock from dual;----unreserved
+ LOCK 
+------
+    1
+(1 row)
+
+ select 1 locked from dual;----unreserved
+ LOCKED 
+--------
+      1
+(1 row)
+
+ select 1 logged from dual;----unreserved
+ LOGGED 
+--------
+      1
+(1 row)
+
+ select 1 mapping from dual;----unreserved
+ MAPPING 
+---------
+       1
+(1 row)
+
+ select 1 match from dual;----unreserved
+ MATCH 
+-------
+     1
+(1 row)
+
+ select 1 matched from dual;----unreserved
+ MATCHED 
+---------
+       1
+(1 row)
+
+ select 1 materialized from dual;----unreserved
+ MATERIALIZED 
+--------------
+            1
+(1 row)
+
+ select 1 maxvalue from dual;----unreserved
+ MAXVALUE 
+----------
+        1
+(1 row)
+
+ select 1 merge from dual;----unreserved
+ MERGE 
+-------
+     1
+(1 row)
+
+ select 1 method from dual;----unreserved
+ METHOD 
+--------
+      1
+(1 row)
+
+ select 1 minus from dual;----reserved
+ERROR:  syntax error at or near "from"
+LINE 1: select 1 minus from dual;
+                       ^
+ select 1 minute from dual;----unreserved
+ MINUTE 
+--------
+      1
+(1 row)
+
+ select 1 minvalue from dual;----unreserved
+ MINVALUE 
+----------
+        1
+(1 row)
+
+ select 1 mode from dual;----unreserved
+ MODE 
+------
+    1
+(1 row)
+
+ select 1 month from dual;----unreserved
+ MONTH 
+-------
+     1
+(1 row)
+
+ select 1 move from dual;----unreserved
+ MOVE 
+------
+    1
+(1 row)
+
+ select 1 name from dual;----unreserved
+ NAME 
+------
+    1
+(1 row)
+
+ select 1 names from dual;----unreserved
+ NAMES 
+-------
+     1
+(1 row)
+
+ select 1 national from dual;----unreserved (cannot be function or type name)
+ NATIONAL 
+----------
+        1
+(1 row)
+
+ select 1 natural from dual;----reserved (can be function or type name)
+ NATURAL 
+---------
+       1
+(1 row)
+
+ select 1 nchar from dual;----unreserved (cannot be function or type name)
+ NCHAR 
+-------
+     1
+(1 row)
+
+ select 1 new from dual;----unreserved
+ERROR:  syntax error at or near "new"
+LINE 1: select 1 new from dual;
+                 ^
+ select 1 next from dual;----unreserved
+ NEXT 
+------
+    1
+(1 row)
+
+ select 1 no from dual;----unreserved
+ NO 
+----
+  1
+(1 row)
+
+ select 1 noaudit from dual;----reserved
+ERROR:  syntax error at or near "noaudit"
+LINE 1: select 1 noaudit from dual;
+                 ^
+ select 1 node from dual;----unreserved
+ERROR:  syntax error at or near "node"
+LINE 1: select 1 node from dual;
+                 ^
+ select 1 none from dual;----unreserved (cannot be function or type name)
+ NONE 
+------
+    1
+(1 row)
+
+ select 1 noneditionable from dual;----unreserved
+ NONEDITIONABLE 
+----------------
+              1
+(1 row)
+
+ select 1 not from dual;----reserved
+ERROR:  syntax error at or near "not"
+LINE 1: select 1 not from dual;
+                 ^
+ select 1 nothing from dual;----unreserved
+ NOTHING 
+---------
+       1
+(1 row)
+
+ select 1 notify from dual;----unreserved
+ NOTIFY 
+--------
+      1
+(1 row)
+
+ select 1 notnull from dual;----reserved (can be function or type name)
+ ?column? 
+----------
+ t
+(1 row)
+
+ select 1 nowait from dual;----unreserved
+ NOWAIT 
+--------
+      1
+(1 row)
+
+ select 1 null from dual;----reserved
+ERROR:  syntax error at or near "null"
+LINE 1: select 1 null from dual;
+                 ^
+ select 1 nullif from dual;----unreserved (cannot be function or type name)
+ NULLIF 
+--------
+      1
+(1 row)
+
+ select 1 nulls from dual;----unreserved
+ NULLS 
+-------
+     1
+(1 row)
+
+ select 1 number from dual;----unreserved (cannot be function or type name)
+ NUMBER 
+--------
+      1
+(1 row)
+
+ select 1 numeric from dual;----unreserved (cannot be function or type name)
+ NUMERIC 
+---------
+       1
+(1 row)
+
+ select 1 object from dual;----unreserved
+ OBJECT 
+--------
+      1
+(1 row)
+
+ select 1 of from dual;----unreserved
+ OF 
+----
+  1
+(1 row)
+
+ select 1 off from dual;----unreserved
+ OFF 
+-----
+   1
+(1 row)
+
+ select 1 offset from dual;----reserved
+ OFFSET 
+--------
+      1
+(1 row)
+
+ select 1 oid from dual;----unreserved
+ OID 
+-----
+   1
+(1 row)
+
+ select 1 oids from dual;----unreserved
+ OIDS 
+------
+    1
+(1 row)
+
+ select 1 old from dual;----unreserved
+ OLD 
+-----
+   1
+(1 row)
+
+ select 1 on from dual;----reserved
+ERROR:  syntax error at or near "on"
+LINE 1: select 1 on from dual;
+                 ^
+ select 1 only from dual;----reserved
+ ONLY 
+------
+    1
+(1 row)
+
+ select 1 operator from dual;----unreserved
+ OPERATOR 
+----------
+        1
+(1 row)
+
+ select 1 option from dual;----unreserved
+ OPTION 
+--------
+      1
+(1 row)
+
+ select 1 options from dual;----unreserved
+ OPTIONS 
+---------
+       1
+(1 row)
+
+ select 1 or from dual;----reserved
+ERROR:  syntax error at or near "from"
+LINE 1: select 1 or from dual;
+                    ^
+ select 1 order from dual;----reserved
+ERROR:  syntax error at or near "from"
+LINE 1: select 1 order from dual;
+                       ^
+ select 1 ordinality from dual;----unreserved
+ ORDINALITY 
+------------
+          1
+(1 row)
+
+ select 1 out from dual;----unreserved (cannot be function or type name)
+ OUT 
+-----
+   1
+(1 row)
+
+ select 1 outer from dual;----reserved (can be function or type name)
+ OUTER 
+-------
+     1
+(1 row)
+
+ select 1 over from dual;----unreserved
+ERROR:  syntax error at or near "over"
+LINE 1: select 1 over from dual;
+                 ^
+ select 1 overflow from dual;----unreserved
+ OVERFLOW 
+----------
+        1
+(1 row)
+
+ select 1 overlaps from dual;----reserved (can be function or type name)
+ OVERLAPS 
+----------
+        1
+(1 row)
+
+ select 1 overlay from dual;----unreserved (cannot be function or type name)
+ OVERLAY 
+---------
+       1
+(1 row)
+
+ select 1 overriding from dual;----unreserved
+ OVERRIDING 
+------------
+          1
+(1 row)
+
+ select 1 owned from dual;----unreserved
+ OWNED 
+-------
+     1
+(1 row)
+
+ select 1 owner from dual;----unreserved
+ OWNER 
+-------
+     1
+(1 row)
+
+ select 1 package from dual;----unreserved
+ PACKAGE 
+---------
+       1
+(1 row)
+
+ select 1 parallel from dual;----unreserved
+ PARALLEL 
+----------
+        1
+(1 row)
+
+ select 1 parser from dual;----unreserved
+ PARSER 
+--------
+      1
+(1 row)
+
+ select 1 partial from dual;----unreserved
+ PARTIAL 
+---------
+       1
+(1 row)
+
+ select 1 partition from dual;----reserved
+ERROR:  syntax error at or near "partition"
+LINE 1: select 1 partition from dual;
+                 ^
+ select 1 partitions from dual;----unreserved
+ PARTITIONS 
+------------
+          1
+(1 row)
+
+ select 1 passing from dual;----unreserved
+ PASSING 
+---------
+       1
+(1 row)
+
+ select 1 password from dual;----unreserved
+ PASSWORD 
+----------
+        1
+(1 row)
+
+ select 1 pause from dual;----unreserved
+ PAUSE 
+-------
+     1
+(1 row)
+
+ select 1 pivot from dual;----reserved
+ PIVOT 
+-------
+     1
+(1 row)
+
+ select 1 placing from dual;----reserved
+ PLACING 
+---------
+       1
+(1 row)
+
+ select 1 plans from dual;----unreserved
+ PLANS 
+-------
+     1
+(1 row)
+
+ select 1 policy from dual;----unreserved
+ POLICY 
+--------
+      1
+(1 row)
+
+ select 1 position from dual;----unreserved (cannot be function or type name)
+ POSITION 
+----------
+        1
+(1 row)
+
+ select 1 preceding from dual;----unreserved
+ PRECEDING 
+-----------
+         1
+(1 row)
+
+ select 1 precision from dual;----unreserved (cannot be function or type name)
+ PRECISION 
+-----------
+         1
+(1 row)
+
+ select 1 preferred from dual;----unreserved
+ PREFERRED 
+-----------
+         1
+(1 row)
+
+ select 1 prepare from dual;----unreserved
+ PREPARE 
+---------
+       1
+(1 row)
+
+ select 1 prepared from dual;----unreserved
+ PREPARED 
+----------
+        1
+(1 row)
+
+ select 1 preserve from dual;----unreserved
+ PRESERVE 
+----------
+        1
+(1 row)
+
+ select 1 primary from dual;----reserved
+ PRIMARY 
+---------
+       1
+(1 row)
+
+ select 1 prior from dual;----reserved
+ERROR:  syntax error at or near "prior"
+LINE 1: select 1 prior from dual;
+                 ^
+ select 1 privileges from dual;----unreserved
+ PRIVILEGES 
+------------
+          1
+(1 row)
+
+ select 1 procedural from dual;----unreserved
+ PROCEDURAL 
+------------
+          1
+(1 row)
+
+ select 1 procedure from dual;----unreserved
+ PROCEDURE 
+-----------
+         1
+(1 row)
+
+ select 1 procedures from dual;----unreserved
+ PROCEDURES 
+------------
+          1
+(1 row)
+
+ select 1 profile from dual;----unreserved
+ PROFILE 
+---------
+       1
+(1 row)
+
+ select 1 program from dual;----unreserved
+ PROGRAM 
+---------
+       1
+(1 row)
+
+ select 1 publication from dual;----unreserved
+ PUBLICATION 
+-------------
+           1
+(1 row)
+
+ select 1 quote from dual;----unreserved
+ QUOTE 
+-------
+     1
+(1 row)
+
+ select 1 randomly from dual;----unreserved
+ RANDOMLY 
+----------
+        1
+(1 row)
+
+ select 1 range from dual;----unreserved
+ RANGE 
+-------
+     1
+(1 row)
+
+ select 1 read from dual;----unreserved
+ READ 
+------
+    1
+(1 row)
+
+ select 1 real from dual;----unreserved (cannot be function or type name)
+ REAL 
+------
+    1
+(1 row)
+
+ select 1 reassign from dual;----unreserved
+ REASSIGN 
+----------
+        1
+(1 row)
+
+ select 1 rebuild from dual;----unreserved
+ REBUILD 
+---------
+       1
+(1 row)
+
+ select 1 recheck from dual;----unreserved
+ RECHECK 
+---------
+       1
+(1 row)
+
+ select 1 record from dual;----unreserved
+ RECORD 
+--------
+      1
+(1 row)
+
+ select 1 recursive from dual;----unreserved
+ RECURSIVE 
+-----------
+         1
+(1 row)
+
+ select 1 ref from dual;----unreserved
+ REF 
+-----
+   1
+(1 row)
+
+ select 1 references from dual;----reserved
+ REFERENCES 
+------------
+          1
+(1 row)
+
+ select 1 referencing from dual;----unreserved
+ REFERENCING 
+-------------
+           1
+(1 row)
+
+ select 1 refresh from dual;----unreserved
+ REFRESH 
+---------
+       1
+(1 row)
+
+ select 1 reindex from dual;----unreserved
+ REINDEX 
+---------
+       1
+(1 row)
+
+ select 1 relative from dual;----unreserved
+ RELATIVE 
+----------
+        1
+(1 row)
+
+ select 1 release from dual;----unreserved
+ RELEASE 
+---------
+       1
+(1 row)
+
+ select 1 rename from dual;----unreserved
+ RENAME 
+--------
+      1
+(1 row)
+
+ select 1 repeatable from dual;----unreserved
+ REPEATABLE 
+------------
+          1
+(1 row)
+
+ select 1 replace from dual;----unreserved
+ REPLACE 
+---------
+       1
+(1 row)
+
+ select 1 replica from dual;----unreserved
+ REPLICA 
+---------
+       1
+(1 row)
+
+ select 1 reset from dual;----unreserved
+ RESET 
+-------
+     1
+(1 row)
+
+ select 1 resource from dual;----unreserved
+ RESOURCE 
+----------
+        1
+(1 row)
+
+ select 1 restart from dual;----unreserved
+ RESTART 
+---------
+       1
+(1 row)
+
+ select 1 restrict from dual;----unreserved
+ RESTRICT 
+----------
+        1
+(1 row)
+
+ select 1 returning from dual;----reserved
+ RETURNING 
+-----------
+         1
+(1 row)
+
+ select 1 returns from dual;----unreserved
+ RETURNS 
+---------
+       1
+(1 row)
+
+ select 1 revoke from dual;----unreserved
+ REVOKE 
+--------
+      1
+(1 row)
+
+ select 1 right from dual;----reserved (can be function or type name)
+ RIGHT 
+-------
+     1
+(1 row)
+
+ select 1 role from dual;----unreserved
+ ROLE 
+------
+    1
+(1 row)
+
+ select 1 rollback from dual;----unreserved
+ ROLLBACK 
+----------
+        1
+(1 row)
+
+ select 1 rollback_subtxn from dual;----unreserved
+ ROLLBACK_SUBTXN 
+-----------------
+               1
+(1 row)
+
+ select 1 rollup from dual;----unreserved
+ ROLLUP 
+--------
+      1
+(1 row)
+
+ select 1 routine from dual;----unreserved
+ ROUTINE 
+---------
+       1
+(1 row)
+
+ select 1 routines from dual;----unreserved
+ ROUTINES 
+----------
+        1
+(1 row)
+
+ select 1 row from dual;----unreserved (cannot be function or type name)
+ ROW 
+-----
+   1
+(1 row)
+
+ select 1 rowid from dual;----reserved (can be function or type name)
+ ROWID 
+-------
+     1
+(1 row)
+
+ select 1 rows from dual;----unreserved
+ ROWS 
+------
+    1
+(1 row)
+
+ select 1 rowtype from dual;----unreserved
+ ROWTYPE 
+---------
+       1
+(1 row)
+
+ select 1 rule from dual;----unreserved
+ RULE 
+------
+    1
+(1 row)
+
+ select 1 sample from dual;----unreserved
+ SAMPLE 
+--------
+      1
+(1 row)
+
+ select 1 savepoint from dual;----unreserved
+ SAVEPOINT 
+-----------
+         1
+(1 row)
+
+ select 1 schema from dual;----unreserved
+ SCHEMA 
+--------
+      1
+(1 row)
+
+ select 1 schemas from dual;----unreserved
+ SCHEMAS 
+---------
+       1
+(1 row)
+
+ select 1 scroll from dual;----unreserved
+ SCROLL 
+--------
+      1
+(1 row)
+
+ select 1 search from dual;----unreserved
+ SEARCH 
+--------
+      1
+(1 row)
+
+ select 1 second from dual;----unreserved
+ SECOND 
+--------
+      1
+(1 row)
+
+ select 1 security from dual;----unreserved
+ SECURITY 
+----------
+        1
+(1 row)
+
+ select 1 select from dual;----reserved
+ERROR:  syntax error at or near "select"
+LINE 1: select 1 select from dual;
+                 ^
+ select 1 sequence from dual;----unreserved
+ SEQUENCE 
+----------
+        1
+(1 row)
+
+ select 1 sequences from dual;----unreserved
+ SEQUENCES 
+-----------
+         1
+(1 row)
+
+ select 1 serializable from dual;----unreserved
+ SERIALIZABLE 
+--------------
+            1
+(1 row)
+
+ select 1 server from dual;----unreserved
+ SERVER 
+--------
+      1
+(1 row)
+
+ select 1 session from dual;----unreserved
+ SESSION 
+---------
+       1
+(1 row)
+
+ select 1 session_user from dual;----reserved
+ SESSION_USER 
+--------------
+            1
+(1 row)
+
+ select 1 sessiontimezone from dual;----reserved
+ SESSIONTIMEZONE 
+-----------------
+               1
+(1 row)
+
+ select 1 set from dual;----unreserved
+ SET 
+-----
+   1
+(1 row)
+
+ select 1 setof from dual;----unreserved (cannot be function or type name)
+ SETOF 
+-------
+     1
+(1 row)
+
+ select 1 sets from dual;----unreserved
+ SETS 
+------
+    1
+(1 row)
+
+ select 1 sharding from dual;----unreserved
+ SHARDING 
+----------
+        1
+(1 row)
+
+ select 1 share from dual;----unreserved
+ SHARE 
+-------
+     1
+(1 row)
+
+ select 1 sharing from dual;----unreserved
+ SHARING 
+---------
+       1
+(1 row)
+
+ select 1 show from dual;----unreserved
+ SHOW 
+------
+    1
+(1 row)
+
+ select 1 similar from dual;----reserved (can be function or type name)
+ SIMILAR 
+---------
+       1
+(1 row)
+
+ select 1 simple from dual;----unreserved
+ SIMPLE 
+--------
+      1
+(1 row)
+
+ select 1 skip from dual;----unreserved
+ SKIP 
+------
+    1
+(1 row)
+
+ select 1 slot from dual;----unreserved
+ SLOT 
+------
+    1
+(1 row)
+
+ select 1 smallint from dual;----unreserved (cannot be function or type name)
+ SMALLINT 
+----------
+        1
+(1 row)
+
+ select 1 snapshot from dual;----unreserved
+ SNAPSHOT 
+----------
+        1
+(1 row)
+
+ select 1 some from dual;----reserved
+ SOME 
+------
+    1
+(1 row)
+
+ select 1 sql from dual;----unreserved
+ SQL 
+-----
+   1
+(1 row)
+
+ select 1 stable from dual;----unreserved
+ STABLE 
+--------
+      1
+(1 row)
+
+ select 1 standalone from dual;----unreserved
+ STANDALONE 
+------------
+          1
+(1 row)
+
+ select 1 start from dual;----reserved
+ERROR:  syntax error at or near "start"
+LINE 1: select 1 start from dual;
+                 ^
+ select 1 statement from dual;----unreserved
+ STATEMENT 
+-----------
+         1
+(1 row)
+
+ select 1 statistics from dual;----unreserved
+ STATISTICS 
+------------
+          1
+(1 row)
+
+ select 1 stdin from dual;----unreserved
+ STDIN 
+-------
+     1
+(1 row)
+
+ select 1 stdout from dual;----unreserved
+ STDOUT 
+--------
+      1
+(1 row)
+
+ select 1 step from dual;----unreserved
+ STEP 
+------
+    1
+(1 row)
+
+ select 1 storage from dual;----unreserved
+ STORAGE 
+---------
+       1
+(1 row)
+
+ select 1 strict from dual;----unreserved
+ STRICT 
+--------
+      1
+(1 row)
+
+ select 1 strip from dual;----unreserved
+ STRIP 
+-------
+     1
+(1 row)
+
+ select 1 subscription from dual;----unreserved
+ SUBSCRIPTION 
+--------------
+            1
+(1 row)
+
+ select 1 substring from dual;----unreserved (cannot be function or type name)
+ SUBSTRING 
+-----------
+         1
+(1 row)
+
+ select 1 successful from dual;----reserved
+ERROR:  syntax error at or near "successful"
+LINE 1: select 1 successful from dual;
+                 ^
+ select 1 symmetric from dual;----reserved
+ SYMMETRIC 
+-----------
+         1
+(1 row)
+
+ select 1 sysdate from dual;----reserved
+ERROR:  syntax error at or near "sysdate"
+LINE 1: select 1 sysdate from dual;
+                 ^
+ select 1 sysid from dual;----unreserved
+ SYSID 
+-------
+     1
+(1 row)
+
+ select 1 system from dual;----unreserved
+ SYSTEM 
+--------
+      1
+(1 row)
+
+ select 1 systimestamp from dual;----reserved
+ SYSTIMESTAMP 
+--------------
+            1
+(1 row)
+
+ select 1 table from dual;----reserved
+ERROR:  syntax error at or near "table"
+LINE 1: select 1 table from dual;
+                 ^
+ select 1 tables from dual;----unreserved
+ TABLES 
+--------
+      1
+(1 row)
+
+ select 1 tablesample from dual;----reserved (can be function or type name)
+ TABLESAMPLE 
+-------------
+           1
+(1 row)
+
+ select 1 tablespace from dual;----unreserved
+ TABLESPACE 
+------------
+          1
+(1 row)
+
+ select 1 opentenbase from dual;----unreserved
+ OPENTENBASE 
+-------------
+           1
+(1 row)
+
+ select 1 temp from dual;----unreserved
+ TEMP 
+------
+    1
+(1 row)
+
+ select 1 template from dual;----unreserved
+ TEMPLATE 
+----------
+        1
+(1 row)
+
+ select 1 temporary from dual;----unreserved
+ TEMPORARY 
+-----------
+         1
+(1 row)
+
+ select 1 text from dual;----unreserved
+ERROR:  syntax error at or near "text"
+LINE 1: select 1 text from dual;
+                 ^
+ select 1 then from dual;----reserved
+ERROR:  syntax error at or near "then"
+LINE 1: select 1 then from dual;
+                 ^
+ select 1 time from dual;----unreserved (cannot be function or type name)
+ TIME 
+------
+    1
+(1 row)
+
+ select 1 timestamp from dual;----unreserved (cannot be function or type name)
+ TIMESTAMP 
+-----------
+         1
+(1 row)
+
+ select 1 to from dual;----reserved
+ERROR:  syntax error at or near "to"
+LINE 1: select 1 to from dual;
+                 ^
+ select 1 trailing from dual;----reserved
+ TRAILING 
+----------
+        1
+(1 row)
+
+ select 1 transaction from dual;----unreserved
+ TRANSACTION 
+-------------
+           1
+(1 row)
+
+ select 1 transform from dual;----unreserved
+ TRANSFORM 
+-----------
+         1
+(1 row)
+
+ select 1 treat from dual;----unreserved (cannot be function or type name)
+ TREAT 
+-------
+     1
+(1 row)
+
+ select 1 trigger from dual;----unreserved
+ TRIGGER 
+---------
+       1
+(1 row)
+
+ select 1 trim from dual;----unreserved (cannot be function or type name)
+ TRIM 
+------
+    1
+(1 row)
+
+ select 1 true from dual;----reserved
+ TRUE 
+------
+    1
+(1 row)
+
+ select 1 truncate from dual;----unreserved
+ TRUNCATE 
+----------
+        1
+(1 row)
+
+ select 1 trusted from dual;----unreserved
+ TRUSTED 
+---------
+       1
+(1 row)
+
+ select 1 type from dual;----unreserved
+ TYPE 
+------
+    1
+(1 row)
+
+ select 1 types from dual;----unreserved
+ TYPES 
+-------
+     1
+(1 row)
+
+ select 1 unbounded from dual;----unreserved
+ UNBOUNDED 
+-----------
+         1
+(1 row)
+
+ select 1 uncommitted from dual;----unreserved
+ UNCOMMITTED 
+-------------
+           1
+(1 row)
+
+ select 1 unencrypted from dual;----unreserved
+ UNENCRYPTED 
+-------------
+           1
+(1 row)
+
+ select 1 union from dual;----reserved
+ERROR:  syntax error at or near "from"
+LINE 1: select 1 union from dual;
+                       ^
+ select 1 unique from dual;----reserved
+ERROR:  syntax error at or near "unique"
+LINE 1: select 1 unique from dual;
+                 ^
+ select 1 unknown from dual;----unreserved
+ UNKNOWN 
+---------
+       1
+(1 row)
+
+ select 1 unlisten from dual;----unreserved
+ UNLISTEN 
+----------
+        1
+(1 row)
+
+ select 1 unlock from dual;----unreserved
+ UNLOCK 
+--------
+      1
+(1 row)
+
+ select 1 unlogged from dual;----unreserved
+ UNLOGGED 
+----------
+        1
+(1 row)
+
+ select 1 unpause from dual;----unreserved
+ UNPAUSE 
+---------
+       1
+(1 row)
+
+ select 1 until from dual;----unreserved
+ UNTIL 
+-------
+     1
+(1 row)
+
+ select 1 update from dual;----unreserved
+ UPDATE 
+--------
+      1
+(1 row)
+
+ select 1 user from dual;----reserved
+ USER 
+------
+    1
+(1 row)
+
+ select 1 using from dual;----reserved
+ USING 
+-------
+     1
+(1 row)
+
+ select 1 vacuum from dual;----unreserved
+ VACUUM 
+--------
+      1
+(1 row)
+
+ select 1 valid from dual;----unreserved
+ VALID 
+-------
+     1
+(1 row)
+
+ select 1 validate from dual;----unreserved
+ VALIDATE 
+----------
+        1
+(1 row)
+
+ select 1 validator from dual;----unreserved
+ VALIDATOR 
+-----------
+         1
+(1 row)
+
+ select 1 value from dual;----unreserved
+ VALUE 
+-------
+     1
+(1 row)
+
+ select 1 values from dual;----unreserved (cannot be function or type name)
+ VALUES 
+--------
+      1
+(1 row)
+
+ select 1 varchar from dual;----unreserved (cannot be function or type name)
+ERROR:  syntax error at or near "varchar"
+LINE 1: select 1 varchar from dual;
+                 ^
+ select 1 variadic from dual;----reserved
+ VARIADIC 
+----------
+        1
+(1 row)
+
+ select 1 varying from dual;----unreserved
+ERROR:  syntax error at or near "varying"
+LINE 1: select 1 varying from dual;
+                 ^
+ select 1 verbose from dual;----reserved (can be function or type name)
+ VERBOSE 
+---------
+       1
+(1 row)
+
+ select 1 version from dual;----unreserved
+ VERSION 
+---------
+       1
+(1 row)
+
+ select 1 view from dual;----unreserved
+ VIEW 
+------
+    1
+(1 row)
+
+ select 1 views from dual;----unreserved
+ VIEWS 
+-------
+     1
+(1 row)
+
+ select 1 volatile from dual;----unreserved
+ VOLATILE 
+----------
+        1
+(1 row)
+
+ select 1 when from dual;----reserved
+ WHEN 
+------
+    1
+(1 row)
+
+ select 1 whenever from dual;----reserved
+ERROR:  syntax error at or near "whenever"
+LINE 1: select 1 whenever from dual;
+                 ^
+ select 1 where from dual;----reserved
+ERROR:  syntax error at or near "from"
+LINE 1: select 1 where from dual;
+                       ^
+ select 1 whitespace from dual;----unreserved
+ WHITESPACE 
+------------
+          1
+(1 row)
+
+ select 1 window from dual;----reserved
+ WINDOW 
+--------
+      1
+(1 row)
+
+ select 1 with from dual;----reserved
+ERROR:  syntax error at or near "with"
+LINE 1: select 1 with from dual;
+                 ^
+ select 1 within from dual;----unreserved
+ERROR:  syntax error at or near "within"
+LINE 1: select 1 within from dual;
+                 ^
+ select 1 without from dual;----unreserved
+ERROR:  syntax error at or near "without"
+LINE 1: select 1 without from dual;
+                 ^
+ select 1 work from dual;----unreserved
+ WORK 
+------
+    1
+(1 row)
+
+ select 1 wrapper from dual;----unreserved
+ WRAPPER 
+---------
+       1
+(1 row)
+
+ select 1 write from dual;----unreserved
+ WRITE 
+-------
+     1
+(1 row)
+
+ select 1 xml from dual;----unreserved
+ XML 
+-----
+   1
+(1 row)
+
+ select 1 xmlattributes from dual;----unreserved (cannot be function or type name)
+ XMLATTRIBUTES 
+---------------
+             1
+(1 row)
+
+ select 1 xmlconcat from dual;----unreserved (cannot be function or type name)
+ XMLCONCAT 
+-----------
+         1
+(1 row)
+
+ select 1 xmlelement from dual;----unreserved (cannot be function or type name)
+ XMLELEMENT 
+------------
+          1
+(1 row)
+
+ select 1 xmlexists from dual;----unreserved (cannot be function or type name)
+ XMLEXISTS 
+-----------
+         1
+(1 row)
+
+ select 1 xmlforest from dual;----unreserved (cannot be function or type name)
+ XMLFOREST 
+-----------
+         1
+(1 row)
+
+ select 1 xmlnamespaces from dual;----unreserved (cannot be function or type name)
+ XMLNAMESPACES 
+---------------
+             1
+(1 row)
+
+ select 1 xmlparse from dual;----unreserved (cannot be function or type name)
+ XMLPARSE 
+----------
+        1
+(1 row)
+
+ select 1 xmlpi from dual;----unreserved (cannot be function or type name)
+ XMLPI 
+-------
+     1
+(1 row)
+
+ select 1 xmlroot from dual;----unreserved (cannot be function or type name)
+ XMLROOT 
+---------
+       1
+(1 row)
+
+ select 1 xmlserialize from dual;----unreserved (cannot be function or type name)
+ XMLSERIALIZE 
+--------------
+            1
+(1 row)
+
+ select 1 xmltable from dual;----unreserved (cannot be function or type name)
+ XMLTABLE 
+----------
+        1
+(1 row)
+
+ select 1 year from dual;----unreserved
+ YEAR 
+------
+    1
+(1 row)
+
+ select 1 yes from dual;----unreserved
+ YES 
+-----
+   1
+(1 row)
+
+ select 1 zone from dual;----unreserved
+ ZONE 
+------
+    1
+(1 row)
+
+select 1999 year, 12 month, 31 day from dual;
+ YEAR | MONTH | DAY 
+------+-------+-----
+ 1999 |    12 |  31
+(1 row)
+
+select to_char(1999) year, to_char(12) month, to_char(31) day from dual;
+ YEAR | MONTH | DAY 
+------+-------+-----
+ 1999 | 12    | 31
+(1 row)
+
+select 31::text day from dual;
+ERROR:  syntax error at or near "day"
+LINE 1: select 31::text day from dual;
+                        ^
+ 
+select '1999' year, '12' month, '31' day from dual;
+ YEAR | MONTH | DAY 
+------+-------+-----
+ 1999 | 12    | 31
+(1 row)
+
+select date '2001-10-01' day from dual;
+    DAY     
+------------
+ 10-01-2001
+(1 row)
+
+select date '2001-10-01' - integer '7' year from dual;
+ERROR:  syntax error at or near "year"
+LINE 1: select date '2001-10-01' - integer '7' year from dual;
+                                               ^
+create table test_bb_alias(year integer, month integer, day integer);
+insert into test_bb_alias values(2000, 1, 1);
+insert into test_bb_alias values(1999, 12, 32);
+select year month, month year, day from test_bb_alias;
+ MONTH | YEAR | DAY 
+-------+------+-----
+  2000 |    1 |   1
+  1999 |   12 |  32
+(2 rows)
+
+create table test_aa_alias(aa integer, bb integer);
+insert into test_aa_alias values(1999, 11);
+select aa year, bb month from test_aa_alias;
+ YEAR | MONTH 
+------+-------
+ 1999 |    11
+(1 row)
+
+select a.year,a.month, b.year, b.month, b.day from (select aa year, bb month from test_aa_alias) as a, test_bb_alias b where a.year=b.year;
+ YEAR | MONTH | YEAR | MONTH | DAY 
+------+-------+------+-------+-----
+ 1999 |    11 | 1999 |    12 |  32
+(1 row)
+
+select a.year day,a.month year, b.year, b.month, b.day from (select aa year, bb month from test_aa_alias) as a, test_bb_alias b where a.year=b.year;
+ DAY  | YEAR | YEAR | MONTH | DAY 
+------+------+------+-------+-----
+ 1999 |   11 | 1999 |    12 |  32
+(1 row)
+
+-- support percent as alias not need 'as' keyword
+select 'abc' percent from dual;
+ PERCENT 
+---------
+ abc
+(1 row)
+
+select 123 percent from dual;
+ PERCENT 
+---------
+     123
+(1 row)
+
+select 123.456 percent from dual;
+ PERCENT 
+---------
+ 123.456
+(1 row)
+
+select '123' || '456' percent from dual;
+ PERCENT 
+---------
+ 123456
+(1 row)
+
+drop table if exists t_kw_percent;
+NOTICE:  table "T_KW_PERCENT" does not exist, skipping
+create table t_kw_percent (id int, v varchar2(20), n number(4,2), c clob);
+select id percent from t_kw_percent;
+ PERCENT 
+---------
+(0 rows)
+
+select v percent from t_kw_percent;
+ PERCENT 
+---------
+(0 rows)
+
+select n percent from t_kw_percent;
+ PERCENT 
+---------
+(0 rows)
+
+select c percent from t_kw_percent;
+ PERCENT 
+---------
+(0 rows)
+
+drop table if exists t_kw_percent;
+/* -- BEGIN ID 877553047 --
+ *	support case as alias not need 'as' keyword
+ */
+set case_as_alias to on;
+create table t_kw_case_20230423 ("case" int, v varchar2(20), n number(4,2), c clob);
+create table t_kw_case_20230516 ("case" int);
+select 123 as case from dual;
+ CASE 
+------
+  123
+(1 row)
+
+select 123 case from dual;
+ CASE 
+------
+  123
+(1 row)
+
+select '123' || '456' as case from dual;
+  CASE  
+--------
+ 123456
+(1 row)
+
+select '123' || '456' case from dual;
+  CASE  
+--------
+ 123456
+(1 row)
+
+select case when n = 1 then 1 end case from t_kw_case_20230423;
+ CASE 
+------
+(0 rows)
+
+select case when n = 1 then 1 end as case from t_kw_case_20230423;
+ CASE 
+------
+(0 rows)
+
+select "case" case from t_kw_case_20230423;
+ CASE 
+------
+(0 rows)
+
+select "case" from t_kw_case_20230423 case;
+ case 
+------
+(0 rows)
+
+select 'aa' case from dual;
+ CASE 
+------
+ aa
+(1 row)
+
+select 123 case from dual;
+ CASE 
+------
+  123
+(1 row)
+
+select 123.456::float case from dual;
+  CASE   
+---------
+ 123.456
+(1 row)
+
+select 123.456::number case from dual;
+  CASE   
+---------
+ 123.456
+(1 row)
+
+select '123' || '456' case from dual;
+  CASE  
+--------
+ 123456
+(1 row)
+
+-- complex query
+select 1 as case from dual order by case limit 1;
+ CASE 
+------
+    1
+(1 row)
+
+select CASE WHEN 1=1 THEN 'not null' ELSE NULL END CASE from dual;
+   CASE   
+----------
+ not null
+(1 row)
+
+select case."case" from t_kw_case_20230423 case, t_kw_case_20230516 t2 where case."case" = t2."case" and case."case" < 1;
+ case 
+------
+(0 rows)
+
+create table t_kw_case_20230614 (id int, v varchar2(20), n number(4,2), c clob);
+insert into t_kw_case_20230614 values(1, 'x', 23.06, 'a');
+select id case, count(v) from t_kw_case_20230614 group by case order by case limit 1;
+ CASE | COUNT 
+------+-------
+    1 |     1
+(1 row)
+
+select case from (SELECT v as case FROM t_kw_case_20230614 where v = 'x') where case = 'x';
+ CASE 
+------
+ x
+(1 row)
+
+select v case INTO a1_20230725 from t_kw_case_20230614 where n > 2;
+SELECT case, n, AVG(n) OVER (PARTITION BY case ORDER BY id) FROM (SELECT id, v case, n FROM t_kw_case_20230614);
+ CASE |   N   |  AVG  
+------+-------+-------
+ x    | 23.06 | 23.06
+(1 row)
+
+SELECT id case FROM t_kw_case_20230614 group by case having sum(id) > 1;
+ CASE 
+------
+(0 rows)
+
+select id case, v case, n case, c case, case when id is null then 'xxx' else 'yyy' end case from t_kw_case_20230614;
+ CASE | CASE | CASE  | CASE | CASE 
+------+------+-------+------+------
+    1 | x    | 23.06 | a    | yyy
+(1 row)
+
+SELECT id, COUNT (CASE WHEN n = 1 THEN 1
+                       ELSE NULL
+                       END) case,
+                COUNT (CASE WHEN n = 2 THEN 1
+                       ELSE NULL
+                       END)
+    FROM t_kw_case_20230614 GROUP BY id order by case;
+ ID | CASE | COUNT 
+----+------+-------
+  1 |    0 |     0
+(1 row)
+
+drop table t_kw_case_20230614;
+drop table t_kw_case_20230423;
+drop table t_kw_case_20230516;
+reset case_as_alias;
+/* -- BEGIN case TEST --*/
+/*
+ *	support do as alias not need 'as' keyword
+ */
+set do_as_alias to on;
+create table t_kw_do_20230423 ("do" int, v varchar2(20), n number(4,2), c clob);
+create table t_kw_do_20230516 ("do" int);
+select 123 as do from dual;
+ DO  
+-----
+ 123
+(1 row)
+
+select 123 do from dual;
+ DO  
+-----
+ 123
+(1 row)
+
+select '123' || '456' as do from dual;
+   DO   
+--------
+ 123456
+(1 row)
+
+select '123' || '456' do from dual;
+   DO   
+--------
+ 123456
+(1 row)
+
+select case when n = 1 then 1 end do from t_kw_do_20230423;
+ DO 
+----
+(0 rows)
+
+select case when n = 1 then 1 end as do from t_kw_do_20230423;
+ DO 
+----
+(0 rows)
+
+select "do" do from t_kw_do_20230423;
+ DO 
+----
+(0 rows)
+
+select "do" from t_kw_do_20230423 do;
+ do 
+----
+(0 rows)
+
+select 'aa' do from dual;
+ DO 
+----
+ aa
+(1 row)
+
+select 123 do from dual;
+ DO  
+-----
+ 123
+(1 row)
+
+select 123.456::float do from dual;
+   DO    
+---------
+ 123.456
+(1 row)
+
+select 123.456::number do from dual;
+   DO    
+---------
+ 123.456
+(1 row)
+
+select '123' || '456' do from dual;
+   DO   
+--------
+ 123456
+(1 row)
+
+-- complex query
+select 1 as do from dual order by do limit 1;
+ DO 
+----
+  1
+(1 row)
+
+select CASE WHEN 1=1 THEN 'not null' ELSE NULL END do from dual;
+    DO    
+----------
+ not null
+(1 row)
+
+select do."do" from t_kw_do_20230423 do, t_kw_do_20230516 t2 where do."do" = t2."do" and do."do" < 1;
+ do 
+----
+(0 rows)
+
+create table t_kw_do_20230614 (id int primary key, v varchar2(20), n number(4,2), c clob);
+insert into t_kw_do_20230614 values(1, 'x', 23.06, 'a');
+select id do, count(v) from t_kw_do_20230614 group by do order by do limit 1;
+ DO | COUNT 
+----+-------
+  1 |     1
+(1 row)
+
+select do from (SELECT v as do FROM t_kw_do_20230614 where v = 'x') where do = 'x';
+ DO 
+----
+ x
+(1 row)
+
+select v do INTO a2_20230725 from t_kw_do_20230614 where n > 2;
+SELECT do, n, AVG(n) OVER (PARTITION BY do ORDER BY id) FROM (SELECT id, v do, n FROM t_kw_do_20230614);
+ DO |   N   |  AVG  
+----+-------+-------
+ x  | 23.06 | 23.06
+(1 row)
+
+select id do, v do, n do, c do, case when id is null then 'xxx' else 'yyy' end do from t_kw_do_20230614;
+ DO | DO |  DO   | DO | DO  
+----+----+-------+----+-----
+  1 | x  | 23.06 | a  | yyy
+(1 row)
+
+SELECT id do FROM t_kw_do_20230614 group by do having sum(id) > 1;
+ DO 
+----
+(0 rows)
+
+do
+$$
+BEGIN
+NULL;
+END;
+$$
+/
+CREATE RULE my_rule_20230725 AS
+    ON INSERT TO t_kw_do_20230614
+    WHERE new.n = 999
+    DO INSTEAD
+        INSERT INTO t_kw_do_20230614 (id, n)
+        VALUES (888, 666);
+drop rule my_rule_20230725 on t_kw_do_20230614;
+INSERT INTO t_kw_do_20230614 (id, v)
+VALUES (1, 'john')
+ON CONFLICT (id) DO UPDATE
+SET id = 2, v = 'doe';
+ERROR:  Distributed column "ID" can't be updated in current version
+INSERT INTO t_kw_do_20230614 (id, v)
+VALUES (1, 'john')
+ON CONFLICT (id) DO NOTHING;
+drop table t_kw_do_20230614;
+drop table t_kw_do_20230423;
+drop table t_kw_do_20230516;
+reset do_as_alias;
+/* -- BEGIN do TEST --*/
+/* -- BEGIN prompt as table/column name TEST --*/
+create table t_kw_prompt_20230821 (prompt serial);
+drop table t_kw_prompt_20230821;
+create table t_kw_prompt_20230821 (prompt int);
+drop table t_kw_prompt_20230821;
+create table t_kw_prompt_20230821 (prompt smallint);
+drop table t_kw_prompt_20230821;
+create table t_kw_prompt_20230821 (prompt real);
+drop table t_kw_prompt_20230821;
+create table t_kw_prompt_20230821 (prompt binary_float);
+drop table t_kw_prompt_20230821;
+create table t_kw_prompt_20230821 (prompt float);
+drop table t_kw_prompt_20230821;
+create table t_kw_prompt_20230821 (prompt double precision);
+drop table t_kw_prompt_20230821;
+create table t_kw_prompt_20230821 (prompt binary_double);
+drop table t_kw_prompt_20230821;
+create table t_kw_prompt_20230821 (prompt decimal);
+drop table t_kw_prompt_20230821;
+create table t_kw_prompt_20230821 (prompt dec);
+drop table t_kw_prompt_20230821;
+create table t_kw_prompt_20230821 (prompt numeric);
+drop table t_kw_prompt_20230821;
+create table t_kw_prompt_20230821 (prompt number);
+drop table t_kw_prompt_20230821;
+create table t_kw_prompt_20230821 (prompt boolean);
+drop table t_kw_prompt_20230821;
+create table t_kw_prompt_20230821 (prompt bit);
+drop table t_kw_prompt_20230821;
+create table t_kw_prompt_20230821 (prompt character(10));
+drop table t_kw_prompt_20230821;
+create table t_kw_prompt_20230821 (prompt national character(10));
+drop table t_kw_prompt_20230821;
+create table t_kw_prompt_20230821 (prompt varchar(10));
+drop table t_kw_prompt_20230821;
+create table t_kw_prompt_20230821 (prompt varchar2(10));
+drop table t_kw_prompt_20230821;
+create table t_kw_prompt_20230821 (prompt nvarchar2(10));
+drop table t_kw_prompt_20230821;
+create table t_kw_prompt_20230821 (prompt raw(100));
+drop table t_kw_prompt_20230821;
+create table t_kw_prompt_20230821 (prompt blob);
+drop table t_kw_prompt_20230821;
+create table t_kw_prompt_20230821 (prompt long raw);
+drop table t_kw_prompt_20230821;
+create table t_kw_prompt_20230821 (prompt bfile);
+drop table t_kw_prompt_20230821;
+create table t_kw_prompt_20230821 (prompt date);
+drop table t_kw_prompt_20230821;
+create table t_kw_prompt_20230821 (prompt time);
+drop table t_kw_prompt_20230821;
+create table t_kw_prompt_20230821 (prompt timestamp);
+drop table t_kw_prompt_20230821;
+create table t_kw_prompt_20230821 (prompt timestamp with time zone);
+drop table t_kw_prompt_20230821;
+create table t_kw_prompt_20230821 (prompt interval year to month);
+drop table t_kw_prompt_20230821;
+create table prompt (id int primary key, prompt varchar2(20), n number(4,2), c clob);
+insert into prompt values (10, 'good', 3.14, 'clob');
+select 123 as prompt from dual;
+ PROMPT 
+--------
+    123
+(1 row)
+
+select 123 prompt from dual;
+ PROMPT 
+--------
+    123
+(1 row)
+
+select '123' || '456' as prompt from dual;
+ PROMPT 
+--------
+ 123456
+(1 row)
+
+select '123' || '456' prompt from dual;
+ PROMPT 
+--------
+ 123456
+(1 row)
+
+select case when n = 1 then 1 end prompt from prompt;
+ PROMPT 
+--------
+       
+(1 row)
+
+select case when n = 1 then 1 end as prompt from prompt;
+ PROMPT 
+--------
+       
+(1 row)
+
+select prompt from prompt;
+ PROMPT 
+--------
+ good
+(1 row)
+
+select prompt || '++' as prompt from prompt;
+ PROMPT 
+--------
+ good++
+(1 row)
+
+-- complex query
+select 1 as prompt from prompt order by prompt limit 1;
+ PROMPT 
+--------
+      1
+(1 row)
+
+select prompt from prompt order by prompt limit 1;
+ PROMPT 
+--------
+ good
+(1 row)
+
+select CASE WHEN 1=1 THEN 'not null' ELSE NULL END prompt from dual;
+  PROMPT  
+----------
+ not null
+(1 row)
+
+select prompt.id from prompt as prompt, prompt t2 where prompt.id = t2.id and prompt.id < 1; 
+ ID 
+----
+(0 rows)
+
+select prompt, count(n) from prompt group by prompt order by prompt limit 1;
+ PROMPT | COUNT 
+--------+-------
+ good   |     1
+(1 row)
+
+select prompt from (SELECT prompt FROM prompt where prompt = 'good') where prompt = 'good';
+ PROMPT 
+--------
+ good
+(1 row)
+
+SELECT prompt, max(prompt) OVER (PARTITION BY prompt ORDER BY id) FROM (SELECT id, prompt, n FROM prompt);
+ PROMPT | MAX  
+--------+------
+ good   | good
+(1 row)
+
+select id prompt, prompt, n prompt, c prompt, case when id is null then 'xxx' else 'yyy' end prompt from prompt;
+ PROMPT | PROMPT | PROMPT | PROMPT | PROMPT 
+--------+--------+--------+--------+--------
+     10 | good   |   3.14 | clob   | yyy
+(1 row)
+
+-- opentenbase_ora PROMPT usage
+-- tp1: direct use of prompt
+prompt    'abcdef'  "1234 "                          ;
+ERROR:  syntax error at or near "prompt"
+LINE 1: prompt    'abcdef'  "1234 "                          ;
+        ^
+prompt select aaa from dual;
+ERROR:  syntax error at or near "prompt"
+LINE 1: prompt select aaa from dual;
+        ^
+prompt abc 1000 1000 1200 1000 ;
+ERROR:  syntax error at or near "prompt"
+LINE 1: prompt abc 1000 1000 1200 1000 ;
+        ^
+prompt "abc 1000 1000 1200 1000";
+ERROR:  syntax error at or near "prompt"
+LINE 1: prompt "abc 1000 1000 1200 1000";
+        ^
+prompt "abc 1000 1000 1200" 1000   'aaaa'    ;
+ERROR:  syntax error at or near "prompt"
+LINE 1: prompt "abc 1000 1000 1200" 1000   'aaaa'    ;
+        ^

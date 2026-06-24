@@ -1,0 +1,85 @@
+\c regression_ora
+drop table if exists t2;
+create table t2(f1 int,f2 int);
+insert into t2 values(1,0);
+select decode(f2,0,0,12/0*100) from t2; --bug
+select decode(f2,0,0,12/0*100,0) from t2; --bug
+select decode(f2,0,0,1,12/0*100,0) from t2; --bug
+select decode(f2,0,0,1,1,12/0*100,0) from t2; --bug
+select decode(f2,0,0,1,1,floor(12/0*100),0) from t2; --bug
+
+
+SELECT decode('1'||null||'2', nvl(null, '1')||null||'2', nvl('', 1), null, null,'default') from dual; --bug
+SELECT decode('1'||null||'2', nvl(null, '1')||null||'2', nvl('', 1), null, null,12/0) from dual; --bug
+
+SELECT decode(concat('opentenbase',1),to_char(f1), 't',instr('opentenbase','ba',1),12/0,'opentenbase1',trim('opentenbase'||' '), 12/f2) from t2;
+
+SELECT replace(decode(concat('opentenbase',1),to_char(f1), 't',instr('opentenbase','ba',1),12/0,'opentenbase1',trim('opentenbase'||' '), 12/f2),'a','b') from t2;
+
+
+drop table if exists t2;
+
+
+drop table if exists student_score;
+create table student_score(
+   name varchar2(30),
+   subject varchar2(20),
+   score number(4,1)
+);
+insert into student_score (name,subject,score)values('zhang san','Chinese',0);
+select name,subject,decode(subject, 'Chinese',score,floor(12/0*100)) from student_score; --bug
+select name,subject,decode(subject, 'Chinese',score,12/0*100) from student_score; --bug
+
+select name,subject,decode(subject, 'Chinese',score,12/score) from student_score;
+select name,subject,decode(subject, 'Chinese',score,floor(12/0*100)) from student_score; --bug
+select name,subject,decode(subject, 'Chinese',score,12/0*100) from student_score; --bug
+drop table if exists student_score;
+
+-- TestPoint : test the null in decode
+
+drop table if exists t1;
+create table t1(f1 int);
+insert into t1 values(3);
+SELECT decode(f1,'t', 't', 3,null, acos(-3)) from t1; --bug
+delete from t1;
+insert into t1 values(-1);
+SELECT decode(f1,'t', 't', -1,null, ln(-1)) from t1; --bug
+delete from t1;
+insert into t1 values(0);
+SELECT decode(f1, 0, 'a', null, 'b', 12/0) from t1; --bug
+drop table if exists t1;
+
+
+-- TestPoint : test the decode +/- operation
+
+drop table if exists t1;
+create table t1(f1 int);
+insert into t1 values(-1);
+SELECT decode(f1,'t', 't', -1,null, ln(-1)) from t1; --bug
+SELECT decode(f1,'t', 't', -1,2, ln(f1)) + decode(f1,'t', 't', -1,2, 12/(f1+1)) from t1;--bug
+SELECT decode(f1,1, 't', -1,2, ln(f1)) + decode(f1,1, 't', -1,2, 12/(f1+1)) from t1;--bug
+
+-- TestPoint : test the null||null in decode
+
+delete from t1;
+insert into t1 values(3);
+SELECT decode(decode(f1,2, 't', 3,null, acos(f1)),null||null, 'a',ln(f1)) from t1; --result error
+SELECT decode(null,null||null, 'a',ln(-f1)) from t1;
+drop table if exists t1;
+
+-- TestPoint : test the order by with decode
+
+drop table if exists t_student;
+create table t_student(id int, name varchar2(20), age int, sex int);
+insert into t_student values(1, '张三', 15, 1);
+insert into t_student values(2, '李四', 20, 3);
+insert into t_student values(3, '王五', 19, 2);
+insert into t_student values(4, '李六', 30, 1);
+select lpad(decode(count(id),0,1,max(to_number(id)+1)),14,'0') new_id from t_student order by id;
+drop table if exists t_student;
+
+create table tt1_20241108 (a varchar2(20), b varchar2(20), e varchar2(20),f varchar2(20),g varchar2(20),h varchar2(20) );
+create table tt2_20241108 (c varchar2(20), d varchar2(20));
+
+drop table tt1_20241108;
+drop table tt2_20241108;

@@ -1,0 +1,1570 @@
+/*
+ * opentenbase_ora System Views
+ */
+\c regression_ora
+\d+ all_col_comments;
+                      View "pg_catalog.ALL_COL_COMMENTS"
+   Column    | Type | Collation | Nullable | Default | Storage  | Description 
+-------------+------+-----------+----------+---------+----------+-------------
+ OWNER       | NAME |           |          |         | plain    | 
+ SCHEMA_NAME | NAME |           |          |         | plain    | 
+ TABLE_NAME  | NAME |           |          |         | plain    | 
+ COLUMN_NAME | NAME |           |          |         | plain    | 
+ COMMENTS    | TEXT |           |          |         | extended | 
+View definition:
+ SELECT U.ROLNAME AS OWNER,
+    NC.NSPNAME AS SCHEMA_NAME,
+    C.RELNAME AS TABLE_NAME,
+    A.ATTNAME AS COLUMN_NAME,
+    COL_DESCRIPTION(C.OID, A.ATTNUM::INTEGER) AS COMMENTS
+   FROM PG_ATTRIBUTE A
+     JOIN (PG_CLASS C
+     JOIN PG_NAMESPACE NC ON C.RELNAMESPACE = NC.OID
+     JOIN PG_AUTHID U ON C.RELOWNER = U.OID) ON A.ATTRELID = C.OID
+  WHERE NOT PG_IS_OTHER_TEMP_SCHEMA(NC.OID) AND A.ATTNUM > 0 AND NOT A.ATTISDROPPED AND (C.RELKIND = ANY (ARRAY['r'::"CHAR", 'v'::"CHAR", 'f'::"CHAR", 'p'::"CHAR"])) AND (PG_HAS_ROLE(C.RELOWNER, 'USAGE'::TEXT) OR HAS_COLUMN_PRIVILEGE(C.OID, A.ATTNUM, 'SELECT, INSERT, UPDATE, REFERENCES'::TEXT));
+
+select * from all_col_comments limit 0;
+ OWNER | SCHEMA_NAME | TABLE_NAME | COLUMN_NAME | COMMENTS 
+-------+-------------+------------+-------------+----------
+(0 rows)
+
+\d+ user_col_comments;
+                     View "pg_catalog.USER_COL_COMMENTS"
+   Column    | Type | Collation | Nullable | Default | Storage  | Description 
+-------------+------+-----------+----------+---------+----------+-------------
+ SCHEMA_NAME | NAME |           |          |         | plain    | 
+ TABLE_NAME  | NAME |           |          |         | plain    | 
+ COLUMN_NAME | NAME |           |          |         | plain    | 
+ COMMENTS    | TEXT |           |          |         | extended | 
+View definition:
+ SELECT ALL_COL_COMMENTS.SCHEMA_NAME,
+    ALL_COL_COMMENTS.TABLE_NAME,
+    ALL_COL_COMMENTS.COLUMN_NAME,
+    ALL_COL_COMMENTS.COMMENTS
+   FROM ALL_COL_COMMENTS
+  WHERE ALL_COL_COMMENTS.OWNER = CURRENT_USER;
+
+select * from user_col_comments limit 0;
+ SCHEMA_NAME | TABLE_NAME | COLUMN_NAME | COMMENTS 
+-------------+------------+-------------+----------
+(0 rows)
+
+\d+ all_cons_columns;
+                          View "pg_catalog.ALL_CONS_COLUMNS"
+      Column       |   Type   | Collation | Nullable | Default | Storage | Description 
+-------------------+----------+-----------+----------+---------+---------+-------------
+ OWNER             | NAME     |           |          |         | plain   | 
+ CONSTRAINT_SCHEMA | NAME     |           |          |         | plain   | 
+ CONSTRAINT_NAME   | NAME     |           |          |         | plain   | 
+ TABLE_SCHEMA      | NAME     |           |          |         | plain   | 
+ TABLE_NAME        | NAME     |           |          |         | plain   | 
+ COLUMN_NAME       | NAME     |           |          |         | plain   | 
+ POSITION          | SMALLINT |           |          |         | plain   | 
+View definition:
+ SELECT X.TBLOWNERNAME AS OWNER,
+    X.CSTRSCHEMA AS CONSTRAINT_SCHEMA,
+    X.CSTRNAME AS CONSTRAINT_NAME,
+    X.TBLSCHEMA AS TABLE_SCHEMA,
+    X.TBLNAME AS TABLE_NAME,
+    X.COLNAME AS COLUMN_NAME,
+    X.COLPOSITION AS "POSITION"
+   FROM ( SELECT DISTINCT R.OID,
+            NR.NSPNAME,
+            R.RELNAME,
+            R.RELOWNER,
+            A.ATTNAME,
+            NC.NSPNAME,
+            C.CONNAME,
+            A.ATTNUM,
+            U.ROLNAME
+           FROM PG_NAMESPACE NR,
+            PG_CLASS R,
+            PG_ATTRIBUTE A,
+            PG_DEPEND D,
+            PG_NAMESPACE NC,
+            PG_CONSTRAINT C,
+            PG_AUTHID U
+          WHERE NR.OID = R.RELNAMESPACE AND R.OID = A.ATTRELID AND U.OID = R.RELOWNER AND D.REFCLASSID = '"pg_class"'::REGCLASS::OID AND D.CLASSID = '"pg_constraint"'::REGCLASS::OID AND D.REFOBJID = R.OID AND D.REFOBJSUBID = A.ATTNUM AND D.OBJID = C.OID AND C.CONNAMESPACE = NC.OID AND C.CONTYPE = 'c'::"CHAR" AND (R.RELKIND = ANY (ARRAY['r'::"CHAR", 'p'::"CHAR"])) AND NOT A.ATTISDROPPED
+        UNION ALL
+         SELECT R.OID,
+            NR.NSPNAME,
+            R.RELNAME,
+            R.RELOWNER,
+            A.ATTNAME,
+            NC.NSPNAME,
+            C.CONNAME,
+            A.ATTNUM,
+            U.ROLNAME
+           FROM PG_NAMESPACE NR,
+            PG_CLASS R,
+            PG_ATTRIBUTE A,
+            PG_NAMESPACE NC,
+            PG_CONSTRAINT C,
+            PG_AUTHID U
+          WHERE NR.OID = R.RELNAMESPACE AND R.OID = A.ATTRELID AND R.RELOWNER = U.OID AND NC.OID = C.CONNAMESPACE AND R.OID = C.CONRELID AND (A.ATTNUM = ANY (ARRAY[C.CONKEY])) AND NOT A.ATTISDROPPED AND (C.CONTYPE = ANY (ARRAY['p'::"CHAR", 'u'::"CHAR", 'f'::"CHAR"])) AND (R.RELKIND = ANY (ARRAY['r'::"CHAR", 'p'::"CHAR"]))
+        UNION ALL
+         SELECT R.OID,
+            NR.NSPNAME,
+            R.RELNAME,
+            R.RELOWNER,
+            A.ATTNAME,
+            NR.NSPNAME,
+            ((((NR.OID::TEXT || '_'::TEXT) || R.OID::TEXT) || '_'::TEXT) || A.ATTNUM::TEXT) || '_not_null'::TEXT,
+            A.ATTNUM,
+            U.ROLNAME
+           FROM PG_NAMESPACE NR,
+            PG_CLASS R,
+            PG_ATTRIBUTE A,
+            PG_AUTHID U
+          WHERE NR.OID = R.RELNAMESPACE AND R.OID = A.ATTRELID AND R.RELOWNER = U.OID AND A.ATTNOTNULL AND A.ATTNUM > 0 AND NOT A.ATTISDROPPED AND (R.RELKIND = ANY (ARRAY['r'::"CHAR", 'p'::"CHAR"])) AND NOT PG_IS_OTHER_TEMP_SCHEMA(NR.OID)) X(TBLOID, TBLSCHEMA, TBLNAME, TBLOWNEROID, COLNAME, CSTRSCHEMA, CSTRNAME, COLPOSITION, TBLOWNERNAME)
+  WHERE PG_HAS_ROLE(X.TBLOWNEROID, 'USAGE'::TEXT) OR HAS_TABLE_PRIVILEGE(X.TBLOID, 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'::TEXT) OR HAS_ANY_COLUMN_PRIVILEGE(X.TBLOID, 'SELECT, INSERT, UPDATE, REFERENCES'::TEXT);
+
+select * from all_cons_columns limit 0;
+ OWNER | CONSTRAINT_SCHEMA | CONSTRAINT_NAME | TABLE_SCHEMA | TABLE_NAME | COLUMN_NAME | POSITION 
+-------+-------------------+-----------------+--------------+------------+-------------+----------
+(0 rows)
+
+\d+ user_cons_columns;
+                          View "pg_catalog.USER_CONS_COLUMNS"
+      Column       |   Type   | Collation | Nullable | Default | Storage | Description 
+-------------------+----------+-----------+----------+---------+---------+-------------
+ CONSTRAINT_SCHEMA | NAME     |           |          |         | plain   | 
+ CONSTRAINT_NAME   | NAME     |           |          |         | plain   | 
+ TABLE_SCHEMA      | NAME     |           |          |         | plain   | 
+ TABLE_NAME        | NAME     |           |          |         | plain   | 
+ COLUMN_NAME       | NAME     |           |          |         | plain   | 
+ POSITION          | SMALLINT |           |          |         | plain   | 
+View definition:
+ SELECT ALL_CONS_COLUMNS.CONSTRAINT_SCHEMA,
+    ALL_CONS_COLUMNS.CONSTRAINT_NAME,
+    ALL_CONS_COLUMNS.TABLE_SCHEMA,
+    ALL_CONS_COLUMNS.TABLE_NAME,
+    ALL_CONS_COLUMNS.COLUMN_NAME,
+    ALL_CONS_COLUMNS."POSITION"
+   FROM ALL_CONS_COLUMNS
+  WHERE ALL_CONS_COLUMNS.OWNER = CURRENT_USER;
+
+select * from user_cons_columns limit 0;
+ CONSTRAINT_SCHEMA | CONSTRAINT_NAME | TABLE_SCHEMA | TABLE_NAME | COLUMN_NAME | POSITION 
+-------------------+-----------------+--------------+------------+-------------+----------
+(0 rows)
+
+\d+ internal_constraints;
+                         View "pg_catalog.INTERNAL_CONSTRAINTS"
+       Column        |  Type   | Collation | Nullable | Default | Storage  | Description 
+---------------------+---------+-----------+----------+---------+----------+-------------
+ OWNER               | NAME    |           |          |         | plain    | 
+ CONSTRAINT_SCHEMA   | NAME    |           |          |         | plain    | 
+ CONSTRAINT_NAME     | NAME    |           |          |         | plain    | 
+ CONSTRAINT_TYPE     | TEXT    |           |          |         | extended | 
+ TABLE_SCHEMA        | NAME    |           |          |         | plain    | 
+ TABLE_NAME          | NAME    |           |          |         | plain    | 
+ R_OWNER             | NAME    |           |          |         | plain    | 
+ R_CONSTRAINT_SCHEMA | NAME    |           |          |         | plain    | 
+ R_CONSTRAINT_NAME   | NAME    |           |          |         | plain    | 
+ DELETE_RULE         | TEXT    |           |          |         | extended | 
+ IS_DEFERRABLE       | BOOLEAN |           |          |         | plain    | 
+ DEFERRED            | BOOLEAN |           |          |         | plain    | 
+ REL_OWNER           | OID     |           |          |         | plain    | 
+ REL_OID             | OID     |           |          |         | plain    | 
+View definition:
+ SELECT U.ROLNAME AS OWNER,
+    CONNSP.NSPNAME AS CONSTRAINT_SCHEMA,
+    CON.CONNAME AS CONSTRAINT_NAME,
+        CASE CON.CONTYPE
+            WHEN 'c'::"CHAR" THEN 'C'::TEXT
+            WHEN 'f'::"CHAR" THEN 'R'::TEXT
+            WHEN 'p'::"CHAR" THEN 'P'::TEXT
+            WHEN 'u'::"CHAR" THEN 'U'::TEXT
+            ELSE NULL::TEXT
+        END AS CONSTRAINT_TYPE,
+    RNSP.NSPNAME AS TABLE_SCHEMA,
+    R.RELNAME AS TABLE_NAME,
+        CASE CON.CONTYPE
+            WHEN 'f'::"CHAR" THEN FU.ROLNAME
+            ELSE NULL::NAME
+        END AS R_OWNER,
+        CASE CON.CONTYPE
+            WHEN 'f'::"CHAR" THEN NPKC.NSPNAME
+            ELSE NULL::NAME
+        END AS R_CONSTRAINT_SCHEMA,
+        CASE CON.CONTYPE
+            WHEN 'f'::"CHAR" THEN PKC.CONNAME
+            ELSE NULL::NAME
+        END AS R_CONSTRAINT_NAME,
+        CASE CON.CONFDELTYPE
+            WHEN 'c'::"CHAR" THEN 'CASCADE'::TEXT
+            WHEN 'n'::"CHAR" THEN 'SET NULL'::TEXT
+            WHEN 'd'::"CHAR" THEN 'SET DEFAULT'::TEXT
+            WHEN 'r'::"CHAR" THEN 'RESTRICT'::TEXT
+            WHEN 'a'::"CHAR" THEN 'NO ACTION'::TEXT
+            ELSE NULL::TEXT
+        END AS DELETE_RULE,
+    CON.CONDEFERRABLE AS IS_DEFERRABLE,
+    CON.CONDEFERRED AS DEFERRED,
+    R.RELOWNER AS REL_OWNER,
+    R.OID AS REL_OID
+   FROM PG_CONSTRAINT CON
+     LEFT JOIN PG_NAMESPACE CONNSP ON CONNSP.OID = CON.CONNAMESPACE
+     LEFT JOIN PG_CLASS R ON (R.RELKIND = ANY (ARRAY['r'::"CHAR", 'p'::"CHAR"])) AND CON.CONRELID = R.OID
+     LEFT JOIN PG_AUTHID U ON R.RELOWNER = U.OID
+     LEFT JOIN PG_NAMESPACE RNSP ON RNSP.OID = R.RELNAMESPACE
+     LEFT JOIN (PG_CLASS FR
+     LEFT JOIN PG_AUTHID FU ON FU.OID = FR.RELOWNER) ON CON.CONFRELID = FR.OID AND (CON.CONTYPE <> ALL (ARRAY['t'::"CHAR", 'x'::"CHAR"]))
+     LEFT JOIN PG_DEPEND D1 ON D1.OBJID = CON.OID AND D1.CLASSID = '"pg_constraint"'::REGCLASS::OID AND D1.REFCLASSID = '"pg_class"'::REGCLASS::OID AND D1.REFOBJSUBID = 0
+     LEFT JOIN PG_DEPEND D2 ON D2.REFCLASSID = '"pg_constraint"'::REGCLASS::OID AND D2.CLASSID = '"pg_class"'::REGCLASS::OID AND D2.OBJID = D1.REFOBJID AND D2.OBJSUBID = 0 AND D2.DEPTYPE = 'i'::"CHAR"
+     LEFT JOIN PG_CONSTRAINT PKC ON PKC.OID = D2.REFOBJID AND (PKC.CONTYPE = ANY (ARRAY['p'::"CHAR", 'u'::"CHAR"])) AND PKC.CONRELID = CON.CONFRELID
+     LEFT JOIN PG_NAMESPACE NPKC ON PKC.CONNAMESPACE = NPKC.OID
+UNION ALL
+ SELECT U.ROLNAME AS OWNER,
+    NR.NSPNAME AS CONSTRAINT_SCHEMA,
+    ((((NR.OID::TEXT || '_'::TEXT) || R.OID::TEXT) || '_'::TEXT) || A.ATTNUM::TEXT) || '_not_null'::TEXT AS CONSTRAINT_NAME,
+    'C'::TEXT AS CONSTRAINT_TYPE,
+    NR.NSPNAME AS TABLE_SCHEMA,
+    R.RELNAME AS TABLE_NAME,
+    NULL::NAME AS R_OWNER,
+    NULL::NAME AS R_CONSTRAINT_SCHEMA,
+    NULL::NAME AS R_CONSTRAINT_NAME,
+    NULL::TEXT AS DELETE_RULE,
+    false AS IS_DEFERRABLE,
+    false AS DEFERRED,
+    R.RELOWNER AS REL_OWNER,
+    R.OID AS REL_OID
+   FROM PG_NAMESPACE NR,
+    PG_CLASS R,
+    PG_ATTRIBUTE A,
+    PG_AUTHID U
+  WHERE NR.OID = R.RELNAMESPACE AND R.OID = A.ATTRELID AND R.RELOWNER = U.OID AND A.ATTNOTNULL AND A.ATTNUM > 0 AND NOT A.ATTISDROPPED AND (R.RELKIND = ANY (ARRAY['r'::"CHAR", 'p'::"CHAR"])) AND NOT PG_IS_OTHER_TEMP_SCHEMA(NR.OID);
+
+select * from internal_constraints limit 0;
+ OWNER | CONSTRAINT_SCHEMA | CONSTRAINT_NAME | CONSTRAINT_TYPE | TABLE_SCHEMA | TABLE_NAME | R_OWNER | R_CONSTRAINT_SCHEMA | R_CONSTRAINT_NAME | DELETE_RULE | IS_DEFERRABLE | DEFERRED | REL_OWNER | REL_OID 
+-------+-------------------+-----------------+-----------------+--------------+------------+---------+---------------------+-------------------+-------------+---------------+----------+-----------+---------
+(0 rows)
+
+\d+ dba_constraints;
+                            View "pg_catalog.DBA_CONSTRAINTS"
+       Column        |  Type   | Collation | Nullable | Default | Storage  | Description 
+---------------------+---------+-----------+----------+---------+----------+-------------
+ OWNER               | NAME    |           |          |         | plain    | 
+ CONSTRAINT_SCHEMA   | NAME    |           |          |         | plain    | 
+ CONSTRAINT_NAME     | NAME    |           |          |         | plain    | 
+ CONSTRAINT_TYPE     | TEXT    |           |          |         | extended | 
+ TABLE_SCHEMA        | NAME    |           |          |         | plain    | 
+ TABLE_NAME          | NAME    |           |          |         | plain    | 
+ R_OWNER             | NAME    |           |          |         | plain    | 
+ R_CONSTRAINT_SCHEMA | NAME    |           |          |         | plain    | 
+ R_CONSTRAINT_NAME   | NAME    |           |          |         | plain    | 
+ DELETE_RULE         | TEXT    |           |          |         | extended | 
+ IS_DEFERRABLE       | BOOLEAN |           |          |         | plain    | 
+ DEFERRED            | BOOLEAN |           |          |         | plain    | 
+View definition:
+ SELECT INTERNAL_CONSTRAINTS.OWNER,
+    INTERNAL_CONSTRAINTS.CONSTRAINT_SCHEMA,
+    INTERNAL_CONSTRAINTS.CONSTRAINT_NAME,
+    INTERNAL_CONSTRAINTS.CONSTRAINT_TYPE,
+    INTERNAL_CONSTRAINTS.TABLE_SCHEMA,
+    INTERNAL_CONSTRAINTS.TABLE_NAME,
+    INTERNAL_CONSTRAINTS.R_OWNER,
+    INTERNAL_CONSTRAINTS.R_CONSTRAINT_SCHEMA,
+    INTERNAL_CONSTRAINTS.R_CONSTRAINT_NAME,
+    INTERNAL_CONSTRAINTS.DELETE_RULE,
+    INTERNAL_CONSTRAINTS.IS_DEFERRABLE,
+    INTERNAL_CONSTRAINTS.DEFERRED
+   FROM INTERNAL_CONSTRAINTS;
+
+select * from dba_constraints limit 0;
+ OWNER | CONSTRAINT_SCHEMA | CONSTRAINT_NAME | CONSTRAINT_TYPE | TABLE_SCHEMA | TABLE_NAME | R_OWNER | R_CONSTRAINT_SCHEMA | R_CONSTRAINT_NAME | DELETE_RULE | IS_DEFERRABLE | DEFERRED 
+-------+-------------------+-----------------+-----------------+--------------+------------+---------+---------------------+-------------------+-------------+---------------+----------
+(0 rows)
+
+\d+ all_constraints;
+                            View "pg_catalog.ALL_CONSTRAINTS"
+       Column        |  Type   | Collation | Nullable | Default | Storage  | Description 
+---------------------+---------+-----------+----------+---------+----------+-------------
+ OWNER               | NAME    |           |          |         | plain    | 
+ CONSTRAINT_SCHEMA   | NAME    |           |          |         | plain    | 
+ CONSTRAINT_NAME     | NAME    |           |          |         | plain    | 
+ CONSTRAINT_TYPE     | TEXT    |           |          |         | extended | 
+ TABLE_SCHEMA        | NAME    |           |          |         | plain    | 
+ TABLE_NAME          | NAME    |           |          |         | plain    | 
+ R_OWNER             | NAME    |           |          |         | plain    | 
+ R_CONSTRAINT_SCHEMA | NAME    |           |          |         | plain    | 
+ R_CONSTRAINT_NAME   | NAME    |           |          |         | plain    | 
+ DELETE_RULE         | TEXT    |           |          |         | extended | 
+ IS_DEFERRABLE       | BOOLEAN |           |          |         | plain    | 
+ DEFERRED            | BOOLEAN |           |          |         | plain    | 
+View definition:
+ SELECT INTERNAL_CONSTRAINTS.OWNER,
+    INTERNAL_CONSTRAINTS.CONSTRAINT_SCHEMA,
+    INTERNAL_CONSTRAINTS.CONSTRAINT_NAME,
+    INTERNAL_CONSTRAINTS.CONSTRAINT_TYPE,
+    INTERNAL_CONSTRAINTS.TABLE_SCHEMA,
+    INTERNAL_CONSTRAINTS.TABLE_NAME,
+    INTERNAL_CONSTRAINTS.R_OWNER,
+    INTERNAL_CONSTRAINTS.R_CONSTRAINT_SCHEMA,
+    INTERNAL_CONSTRAINTS.R_CONSTRAINT_NAME,
+    INTERNAL_CONSTRAINTS.DELETE_RULE,
+    INTERNAL_CONSTRAINTS.IS_DEFERRABLE,
+    INTERNAL_CONSTRAINTS.DEFERRED
+   FROM INTERNAL_CONSTRAINTS
+  WHERE PG_HAS_ROLE(INTERNAL_CONSTRAINTS.REL_OWNER, 'USAGE'::TEXT) OR HAS_TABLE_PRIVILEGE(INTERNAL_CONSTRAINTS.REL_OID, 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'::TEXT) OR HAS_ANY_COLUMN_PRIVILEGE(INTERNAL_CONSTRAINTS.REL_OID, 'SELECT, INSERT, UPDATE, REFERENCES'::TEXT);
+
+select * from all_constraints limit 0;
+ OWNER | CONSTRAINT_SCHEMA | CONSTRAINT_NAME | CONSTRAINT_TYPE | TABLE_SCHEMA | TABLE_NAME | R_OWNER | R_CONSTRAINT_SCHEMA | R_CONSTRAINT_NAME | DELETE_RULE | IS_DEFERRABLE | DEFERRED 
+-------+-------------------+-----------------+-----------------+--------------+------------+---------+---------------------+-------------------+-------------+---------------+----------
+(0 rows)
+
+\d+ user_constraints;
+                          View "pg_catalog.USER_CONSTRAINTS"
+      Column       |  Type   | Collation | Nullable | Default | Storage  | Description 
+-------------------+---------+-----------+----------+---------+----------+-------------
+ CONSTRAINT_SCHEMA | NAME    |           |          |         | plain    | 
+ CONSTRAINT_NAME   | NAME    |           |          |         | plain    | 
+ CONSTRAINT_TYPE   | TEXT    |           |          |         | extended | 
+ TABLE_SCHEMA      | NAME    |           |          |         | plain    | 
+ TABLE_NAME        | NAME    |           |          |         | plain    | 
+ R_OWNER           | NAME    |           |          |         | plain    | 
+ R_CONSTRAINT_NAME | NAME    |           |          |         | plain    | 
+ DELETE_RULE       | TEXT    |           |          |         | extended | 
+ IS_DEFERRABLE     | BOOLEAN |           |          |         | plain    | 
+ DEFERRED          | BOOLEAN |           |          |         | plain    | 
+View definition:
+ SELECT ALL_CONSTRAINTS.CONSTRAINT_SCHEMA,
+    ALL_CONSTRAINTS.CONSTRAINT_NAME,
+    ALL_CONSTRAINTS.CONSTRAINT_TYPE,
+    ALL_CONSTRAINTS.TABLE_SCHEMA,
+    ALL_CONSTRAINTS.TABLE_NAME,
+    ALL_CONSTRAINTS.R_OWNER,
+    ALL_CONSTRAINTS.R_CONSTRAINT_NAME,
+    ALL_CONSTRAINTS.DELETE_RULE,
+    ALL_CONSTRAINTS.IS_DEFERRABLE,
+    ALL_CONSTRAINTS.DEFERRED
+   FROM ALL_CONSTRAINTS
+  WHERE ALL_CONSTRAINTS.OWNER = CURRENT_USER;
+
+select * from user_constraints limit 0;
+ CONSTRAINT_SCHEMA | CONSTRAINT_NAME | CONSTRAINT_TYPE | TABLE_SCHEMA | TABLE_NAME | R_OWNER | R_CONSTRAINT_NAME | DELETE_RULE | IS_DEFERRABLE | DEFERRED 
+-------------------+-----------------+-----------------+--------------+------------+---------+-------------------+-------------+---------------+----------
+(0 rows)
+
+\d+ internal_tab_columns;
+                             View "pg_catalog.INTERNAL_TAB_COLUMNS"
+        Column        |     Type      | Collation | Nullable | Default | Storage  | Description 
+----------------------+---------------+-----------+----------+---------+----------+-------------
+ OWNER                | NAME          |           |          |         | plain    | 
+ TABLE_SCHEMA         | NAME          |           |          |         | plain    | 
+ TABLE_NAME           | NAME          |           |          |         | plain    | 
+ COLUMN_NAME          | NAME          |           |          |         | plain    | 
+ DATA_TYPE            | TEXT          |           |          |         | extended | 
+ DATA_TYPE_OWNER      | NAME          |           |          |         | plain    | 
+ DATA_LENGTH          | INTEGER       |           |          |         | plain    | 
+ DATA_PRECISION       | INTEGER       |           |          |         | plain    | 
+ DATA_SCALE           | INTEGER       |           |          |         | plain    | 
+ NULLABLE             | TEXT          |           |          |         | extended | 
+ COLUMN_ID            | SMALLINT      |           |          |         | plain    | 
+ DATA_DEFAULT         | TEXT          |           |          |         | extended | 
+ NUM_DISTINCT         | NUMERIC(38,0) |           |          |         | main     | 
+ LOW_VALUE            | TEXT          |           |          |         | extended | 
+ HIGH_VALUE           | TEXT          |           |          |         | extended | 
+ DENSITY              | TEXT          |           |          |         | extended | 
+ NUM_NULLS            | REAL          |           |          |         | plain    | 
+ NUM_BUCKETS          | INTEGER       |           |          |         | plain    | 
+ LAST_ANALYZED        | TEXT          |           |          |         | extended | 
+ SAMPLE_SIZE          | TEXT          |           |          |         | extended | 
+ CHARACTER_SET_NAME   | TEXT          |           |          |         | extended | 
+ CHAR_COL_DECL_LENGTH | INTEGER       |           |          |         | plain    | 
+ GLOBAL_STATS         | TEXT          |           |          |         | extended | 
+ USER_STATS           | TEXT          |           |          |         | extended | 
+ AVG_COL_LEN          | INTEGER       |           |          |         | plain    | 
+ CHAR_LENGTH          | INTEGER       |           |          |         | plain    | 
+ CHAR_USED            | TEXT          |           |          |         | extended | 
+ V80_FMT_IMAGE        | TEXT          |           |          |         | extended | 
+ DATA_UPGRADED        | TEXT          |           |          |         | extended | 
+ HISTOGRAM            | TEXT          |           |          |         | extended | 
+ REL_OWNER            | OID           |           |          |         | plain    | 
+ REL_OID              | OID           |           |          |         | plain    | 
+ REL_ATTNUM           | SMALLINT      |           |          |         | plain    | 
+View definition:
+ SELECT U.ROLNAME AS OWNER,
+    NC.NSPNAME AS TABLE_SCHEMA,
+    C.RELNAME AS TABLE_NAME,
+    A.ATTNAME AS COLUMN_NAME,
+        CASE
+            WHEN T.TYPTYPE = 'd'::"CHAR" THEN
+            CASE
+                WHEN BT.TYPELEM <> 0::OID AND BT.TYPLEN = '-1'::INTEGER THEN 'ARRAY'::TEXT
+                WHEN NBT.NSPNAME = 'pg_catalog'::NAME THEN FORMAT_TYPE(T.TYPBASETYPE, NULL::INTEGER)
+                ELSE 'USER-DEFINED'::TEXT
+            END
+            ELSE
+            CASE
+                WHEN T.TYPELEM <> 0::OID AND T.TYPLEN = '-1'::INTEGER THEN 'ARRAY'::TEXT
+                WHEN NT.NSPNAME = 'pg_catalog'::NAME THEN FORMAT_TYPE(A.ATTTYPID, NULL::INTEGER)
+                ELSE 'USER-DEFINED'::TEXT
+            END
+        END AS DATA_TYPE,
+    TU.ROLNAME AS DATA_TYPE_OWNER,
+    COALESCE(_PG_CHAR_MAX_LENGTH(_PG_TRUETYPID(A.*, T.*), _PG_TRUETYPMOD(A.*, T.*)), _PG_NUMERIC_PRECISION(_PG_TRUETYPID(A.*, T.*), _PG_TRUETYPMOD(A.*, T.*))) AS DATA_LENGTH,
+    _PG_NUMERIC_PRECISION(_PG_TRUETYPID(A.*, T.*), _PG_TRUETYPMOD(A.*, T.*)) AS DATA_PRECISION,
+    _PG_NUMERIC_SCALE(_PG_TRUETYPID(A.*, T.*), _PG_TRUETYPMOD(A.*, T.*)) AS DATA_SCALE,
+        CASE
+            WHEN A.ATTNOTNULL OR T.TYPTYPE = 'd'::"CHAR" AND T.TYPNOTNULL THEN 'NO'::TEXT
+            ELSE 'YES'::TEXT
+        END AS NULLABLE,
+    A.ATTNUM AS COLUMN_ID,
+    PG_GET_EXPR(AD.ADBIN, AD.ADRELID) AS DATA_DEFAULT,
+        CASE
+            WHEN S.STADISTINCT >= 0::DOUBLE PRECISION THEN S.STADISTINCT::DOUBLE PRECISION
+            WHEN S.STADISTINCT < 0::DOUBLE PRECISION THEN S.STADISTINCT * '-1'::INTEGER::DOUBLE PRECISION * C.RELTUPLES
+            ELSE NULL::DOUBLE PRECISION
+        END::NUMERIC(38,0) AS NUM_DISTINCT,
+    NULL::TEXT AS LOW_VALUE,
+    NULL::TEXT AS HIGH_VALUE,
+    NULL::TEXT AS DENSITY,
+    C.RELTUPLES * S.STANULLFRAC AS NUM_NULLS,
+        CASE
+            WHEN S.STAKIND1 = 2 THEN ARRAY_LENGTH(S.STAVALUES1, 1)
+            WHEN S.STAKIND2 = 2 THEN ARRAY_LENGTH(S.STAVALUES2, 1)
+            WHEN S.STAKIND3 = 2 THEN ARRAY_LENGTH(S.STAVALUES3, 1)
+            WHEN S.STAKIND4 = 2 THEN ARRAY_LENGTH(S.STAVALUES4, 1)
+            WHEN S.STAKIND5 = 2 THEN ARRAY_LENGTH(S.STAVALUES5, 1)
+            ELSE NULL::INTEGER
+        END AS NUM_BUCKETS,
+    NULL::TEXT AS LAST_ANALYZED,
+    NULL::TEXT AS SAMPLE_SIZE,
+        CASE
+            WHEN (( SELECT COUNT(*) AS COUNT
+               FROM PG_TYPE T_1
+              WHERE T_1.OID = A.ATTTYPID AND (T_1.TYPNAME = ANY (ARRAY['char'::NAME, 'varchar'::NAME, 'text'::NAME, 'varchar2'::NAME, 'nvarchar2'::NAME, '_varchar2'::NAME, '_nvarchar2'::NAME, '_char'::NAME, '_varchar'::NAME, '_text'::NAME])))) > 0::NUMERIC THEN ( SELECT PG_SETTINGS.SETTING
+               FROM PG_SETTINGS
+              WHERE PG_SETTINGS.NAME = 'server_encoding'::TEXT)
+            ELSE NULL::TEXT
+        END AS CHARACTER_SET_NAME,
+        CASE
+            WHEN (( SELECT COUNT(*) AS COUNT
+               FROM PG_TYPE T_1
+              WHERE T_1.OID = A.ATTTYPID AND (T_1.TYPNAME = ANY (ARRAY['char'::NAME, 'varchar'::NAME, 'varchar2'::NAME, 'nvarchar2'::NAME])))) > 0::NUMERIC THEN A.ATTTYPMOD - 4
+            ELSE NULL::INTEGER
+        END AS CHAR_COL_DECL_LENGTH,
+    'NO'::TEXT AS GLOBAL_STATS,
+    'YES'::TEXT AS USER_STATS,
+    S.STAWIDTH AS AVG_COL_LEN,
+        CASE
+            WHEN (( SELECT COUNT(*) AS COUNT
+               FROM PG_TYPE T_1
+              WHERE T_1.OID = A.ATTTYPID AND (T_1.TYPNAME = ANY (ARRAY['char'::NAME, 'varchar'::NAME, 'varchar2'::NAME, 'nvarchar2'::NAME])))) > 0::NUMERIC THEN A.ATTTYPMOD - 4
+            ELSE NULL::INTEGER
+        END AS CHAR_LENGTH,
+    'B'::TEXT AS CHAR_USED,
+    NULL::TEXT AS V80_FMT_IMAGE,
+    NULL::TEXT AS DATA_UPGRADED,
+        CASE
+            WHEN S.STAKIND1 = 2 THEN 'HEIGHT BALANCED'::TEXT
+            WHEN S.STAKIND2 = 2 THEN 'HEIGHT BALANCED'::TEXT
+            WHEN S.STAKIND3 = 2 THEN 'HEIGHT BALANCED'::TEXT
+            WHEN S.STAKIND4 = 2 THEN 'HEIGHT BALANCED'::TEXT
+            WHEN S.STAKIND5 = 2 THEN 'HEIGHT BALANCED'::TEXT
+            ELSE
+            CASE
+                WHEN S.STAKIND1 = 2 THEN 'FREQUENCY'::TEXT
+                WHEN S.STAKIND2 = 2 THEN 'FREQUENCY'::TEXT
+                WHEN S.STAKIND3 = 2 THEN 'FREQUENCY'::TEXT
+                WHEN S.STAKIND4 = 2 THEN 'FREQUENCY'::TEXT
+                WHEN S.STAKIND5 = 2 THEN 'FREQUENCY'::TEXT
+                ELSE 'NONE'::TEXT
+            END
+        END AS HISTOGRAM,
+    C.RELOWNER AS REL_OWNER,
+    C.OID AS REL_OID,
+    A.ATTNUM AS REL_ATTNUM
+   FROM PG_ATTRIBUTE A
+     LEFT JOIN PG_ATTRDEF AD ON A.ATTRELID = AD.ADRELID AND A.ATTNUM = AD.ADNUM
+     JOIN (PG_CLASS C
+     JOIN PG_NAMESPACE NC ON C.RELNAMESPACE = NC.OID
+     JOIN PG_AUTHID U ON U.OID = C.RELOWNER) ON A.ATTRELID = C.OID
+     JOIN (PG_TYPE T
+     JOIN PG_NAMESPACE NT ON T.TYPNAMESPACE = NT.OID
+     LEFT JOIN PG_AUTHID TU ON TU.OID = T.TYPOWNER) ON A.ATTTYPID = T.OID
+     LEFT JOIN (PG_TYPE BT
+     JOIN PG_NAMESPACE NBT ON BT.TYPNAMESPACE = NBT.OID) ON T.TYPTYPE = 'd'::"CHAR" AND T.TYPBASETYPE = BT.OID
+     LEFT JOIN (PG_COLLATION CO
+     JOIN PG_NAMESPACE NCO ON CO.COLLNAMESPACE = NCO.OID) ON A.ATTCOLLATION = CO.OID AND (NCO.NSPNAME <> 'pg_catalog'::NAME OR CO.COLLNAME <> 'default'::NAME)
+     LEFT JOIN (PG_DEPEND DEP
+     JOIN PG_SEQUENCE SEQ ON DEP.CLASSID = '"pg_class"'::REGCLASS::OID AND DEP.OBJID = SEQ.SEQRELID AND DEP.DEPTYPE = 'i'::"CHAR") ON DEP.REFCLASSID = '"pg_class"'::REGCLASS::OID AND DEP.REFOBJID = C.OID AND DEP.REFOBJSUBID = A.ATTNUM
+     LEFT JOIN PG_STATISTIC S ON S.STARELID = C.OID AND S.STAATTNUM = A.ATTNUM
+  WHERE NOT PG_IS_OTHER_TEMP_SCHEMA(NC.OID) AND A.ATTNUM > 0 AND NOT A.ATTISDROPPED AND (C.RELKIND = ANY (ARRAY['r'::"CHAR", 'v'::"CHAR", 'f'::"CHAR", 'p'::"CHAR"]));
+
+select * from internal_tab_columns limit 0;
+ OWNER | TABLE_SCHEMA | TABLE_NAME | COLUMN_NAME | DATA_TYPE | DATA_TYPE_OWNER | DATA_LENGTH | DATA_PRECISION | DATA_SCALE | NULLABLE | COLUMN_ID | DATA_DEFAULT | NUM_DISTINCT | LOW_VALUE | HIGH_VALUE | DENSITY | NUM_NULLS | NUM_BUCKETS | LAST_ANALYZED | SAMPLE_SIZE | CHARACTER_SET_NAME | CHAR_COL_DECL_LENGTH | GLOBAL_STATS | USER_STATS | AVG_COL_LEN | CHAR_LENGTH | CHAR_USED | V80_FMT_IMAGE | DATA_UPGRADED | HISTOGRAM | REL_OWNER | REL_OID | REL_ATTNUM 
+-------+--------------+------------+-------------+-----------+-----------------+-------------+----------------+------------+----------+-----------+--------------+--------------+-----------+------------+---------+-----------+-------------+---------------+-------------+--------------------+----------------------+--------------+------------+-------------+-------------+-----------+---------------+---------------+-----------+-----------+---------+------------
+(0 rows)
+
+\d+ dba_tab_columns;
+                               View "pg_catalog.DBA_TAB_COLUMNS"
+        Column        |     Type      | Collation | Nullable | Default | Storage  | Description 
+----------------------+---------------+-----------+----------+---------+----------+-------------
+ OWNER                | NAME          |           |          |         | plain    | 
+ TABLE_SCHEMA         | NAME          |           |          |         | plain    | 
+ TABLE_NAME           | NAME          |           |          |         | plain    | 
+ COLUMN_NAME          | NAME          |           |          |         | plain    | 
+ DATA_TYPE            | TEXT          |           |          |         | extended | 
+ DATA_TYPE_OWNER      | NAME          |           |          |         | plain    | 
+ DATA_LENGTH          | INTEGER       |           |          |         | plain    | 
+ DATA_PRECISION       | INTEGER       |           |          |         | plain    | 
+ DATA_SCALE           | INTEGER       |           |          |         | plain    | 
+ NULLABLE             | TEXT          |           |          |         | extended | 
+ COLUMN_ID            | SMALLINT      |           |          |         | plain    | 
+ DATA_DEFAULT         | TEXT          |           |          |         | extended | 
+ NUM_DISTINCT         | NUMERIC(38,0) |           |          |         | main     | 
+ LOW_VALUE            | TEXT          |           |          |         | extended | 
+ HIGH_VALUE           | TEXT          |           |          |         | extended | 
+ DENSITY              | TEXT          |           |          |         | extended | 
+ NUM_NULLS            | REAL          |           |          |         | plain    | 
+ NUM_BUCKETS          | INTEGER       |           |          |         | plain    | 
+ LAST_ANALYZED        | TEXT          |           |          |         | extended | 
+ SAMPLE_SIZE          | TEXT          |           |          |         | extended | 
+ CHARACTER_SET_NAME   | TEXT          |           |          |         | extended | 
+ CHAR_COL_DECL_LENGTH | INTEGER       |           |          |         | plain    | 
+ GLOBAL_STATS         | TEXT          |           |          |         | extended | 
+ USER_STATS           | TEXT          |           |          |         | extended | 
+ AVG_COL_LEN          | INTEGER       |           |          |         | plain    | 
+ CHAR_LENGTH          | INTEGER       |           |          |         | plain    | 
+ CHAR_USED            | TEXT          |           |          |         | extended | 
+ V80_FMT_IMAGE        | TEXT          |           |          |         | extended | 
+ DATA_UPGRADED        | TEXT          |           |          |         | extended | 
+ HISTOGRAM            | TEXT          |           |          |         | extended | 
+View definition:
+ SELECT INTERNAL_TAB_COLUMNS.OWNER,
+    INTERNAL_TAB_COLUMNS.TABLE_SCHEMA,
+    INTERNAL_TAB_COLUMNS.TABLE_NAME,
+    INTERNAL_TAB_COLUMNS.COLUMN_NAME,
+    INTERNAL_TAB_COLUMNS.DATA_TYPE,
+    INTERNAL_TAB_COLUMNS.DATA_TYPE_OWNER,
+    INTERNAL_TAB_COLUMNS.DATA_LENGTH,
+    INTERNAL_TAB_COLUMNS.DATA_PRECISION,
+    INTERNAL_TAB_COLUMNS.DATA_SCALE,
+    INTERNAL_TAB_COLUMNS.NULLABLE,
+    INTERNAL_TAB_COLUMNS.COLUMN_ID,
+    INTERNAL_TAB_COLUMNS.DATA_DEFAULT,
+    INTERNAL_TAB_COLUMNS.NUM_DISTINCT,
+    INTERNAL_TAB_COLUMNS.LOW_VALUE,
+    INTERNAL_TAB_COLUMNS.HIGH_VALUE,
+    INTERNAL_TAB_COLUMNS.DENSITY,
+    INTERNAL_TAB_COLUMNS.NUM_NULLS,
+    INTERNAL_TAB_COLUMNS.NUM_BUCKETS,
+    INTERNAL_TAB_COLUMNS.LAST_ANALYZED,
+    INTERNAL_TAB_COLUMNS.SAMPLE_SIZE,
+    INTERNAL_TAB_COLUMNS.CHARACTER_SET_NAME,
+    INTERNAL_TAB_COLUMNS.CHAR_COL_DECL_LENGTH,
+    INTERNAL_TAB_COLUMNS.GLOBAL_STATS,
+    INTERNAL_TAB_COLUMNS.USER_STATS,
+    INTERNAL_TAB_COLUMNS.AVG_COL_LEN,
+    INTERNAL_TAB_COLUMNS.CHAR_LENGTH,
+    INTERNAL_TAB_COLUMNS.CHAR_USED,
+    INTERNAL_TAB_COLUMNS.V80_FMT_IMAGE,
+    INTERNAL_TAB_COLUMNS.DATA_UPGRADED,
+    INTERNAL_TAB_COLUMNS.HISTOGRAM
+   FROM INTERNAL_TAB_COLUMNS;
+
+select * from dba_tab_columns limit 0;
+ OWNER | TABLE_SCHEMA | TABLE_NAME | COLUMN_NAME | DATA_TYPE | DATA_TYPE_OWNER | DATA_LENGTH | DATA_PRECISION | DATA_SCALE | NULLABLE | COLUMN_ID | DATA_DEFAULT | NUM_DISTINCT | LOW_VALUE | HIGH_VALUE | DENSITY | NUM_NULLS | NUM_BUCKETS | LAST_ANALYZED | SAMPLE_SIZE | CHARACTER_SET_NAME | CHAR_COL_DECL_LENGTH | GLOBAL_STATS | USER_STATS | AVG_COL_LEN | CHAR_LENGTH | CHAR_USED | V80_FMT_IMAGE | DATA_UPGRADED | HISTOGRAM 
+-------+--------------+------------+-------------+-----------+-----------------+-------------+----------------+------------+----------+-----------+--------------+--------------+-----------+------------+---------+-----------+-------------+---------------+-------------+--------------------+----------------------+--------------+------------+-------------+-------------+-----------+---------------+---------------+-----------
+(0 rows)
+
+\d+ all_tab_columns;
+                               View "pg_catalog.ALL_TAB_COLUMNS"
+        Column        |     Type      | Collation | Nullable | Default | Storage  | Description 
+----------------------+---------------+-----------+----------+---------+----------+-------------
+ OWNER                | NAME          |           |          |         | plain    | 
+ TABLE_SCHEMA         | NAME          |           |          |         | plain    | 
+ TABLE_NAME           | NAME          |           |          |         | plain    | 
+ COLUMN_NAME          | NAME          |           |          |         | plain    | 
+ DATA_TYPE            | TEXT          |           |          |         | extended | 
+ DATA_TYPE_OWNER      | NAME          |           |          |         | plain    | 
+ DATA_LENGTH          | INTEGER       |           |          |         | plain    | 
+ DATA_PRECISION       | INTEGER       |           |          |         | plain    | 
+ DATA_SCALE           | INTEGER       |           |          |         | plain    | 
+ NULLABLE             | TEXT          |           |          |         | extended | 
+ COLUMN_ID            | SMALLINT      |           |          |         | plain    | 
+ DATA_DEFAULT         | TEXT          |           |          |         | extended | 
+ NUM_DISTINCT         | NUMERIC(38,0) |           |          |         | main     | 
+ LOW_VALUE            | TEXT          |           |          |         | extended | 
+ HIGH_VALUE           | TEXT          |           |          |         | extended | 
+ DENSITY              | TEXT          |           |          |         | extended | 
+ NUM_NULLS            | REAL          |           |          |         | plain    | 
+ NUM_BUCKETS          | INTEGER       |           |          |         | plain    | 
+ LAST_ANALYZED        | TEXT          |           |          |         | extended | 
+ SAMPLE_SIZE          | TEXT          |           |          |         | extended | 
+ CHARACTER_SET_NAME   | TEXT          |           |          |         | extended | 
+ CHAR_COL_DECL_LENGTH | INTEGER       |           |          |         | plain    | 
+ GLOBAL_STATS         | TEXT          |           |          |         | extended | 
+ USER_STATS           | TEXT          |           |          |         | extended | 
+ AVG_COL_LEN          | INTEGER       |           |          |         | plain    | 
+ CHAR_LENGTH          | INTEGER       |           |          |         | plain    | 
+ CHAR_USED            | TEXT          |           |          |         | extended | 
+ V80_FMT_IMAGE        | TEXT          |           |          |         | extended | 
+ DATA_UPGRADED        | TEXT          |           |          |         | extended | 
+ HISTOGRAM            | TEXT          |           |          |         | extended | 
+View definition:
+ SELECT INTERNAL_TAB_COLUMNS.OWNER,
+    INTERNAL_TAB_COLUMNS.TABLE_SCHEMA,
+    INTERNAL_TAB_COLUMNS.TABLE_NAME,
+    INTERNAL_TAB_COLUMNS.COLUMN_NAME,
+    INTERNAL_TAB_COLUMNS.DATA_TYPE,
+    INTERNAL_TAB_COLUMNS.DATA_TYPE_OWNER,
+    INTERNAL_TAB_COLUMNS.DATA_LENGTH,
+    INTERNAL_TAB_COLUMNS.DATA_PRECISION,
+    INTERNAL_TAB_COLUMNS.DATA_SCALE,
+    INTERNAL_TAB_COLUMNS.NULLABLE,
+    INTERNAL_TAB_COLUMNS.COLUMN_ID,
+    INTERNAL_TAB_COLUMNS.DATA_DEFAULT,
+    INTERNAL_TAB_COLUMNS.NUM_DISTINCT,
+    INTERNAL_TAB_COLUMNS.LOW_VALUE,
+    INTERNAL_TAB_COLUMNS.HIGH_VALUE,
+    INTERNAL_TAB_COLUMNS.DENSITY,
+    INTERNAL_TAB_COLUMNS.NUM_NULLS,
+    INTERNAL_TAB_COLUMNS.NUM_BUCKETS,
+    INTERNAL_TAB_COLUMNS.LAST_ANALYZED,
+    INTERNAL_TAB_COLUMNS.SAMPLE_SIZE,
+    INTERNAL_TAB_COLUMNS.CHARACTER_SET_NAME,
+    INTERNAL_TAB_COLUMNS.CHAR_COL_DECL_LENGTH,
+    INTERNAL_TAB_COLUMNS.GLOBAL_STATS,
+    INTERNAL_TAB_COLUMNS.USER_STATS,
+    INTERNAL_TAB_COLUMNS.AVG_COL_LEN,
+    INTERNAL_TAB_COLUMNS.CHAR_LENGTH,
+    INTERNAL_TAB_COLUMNS.CHAR_USED,
+    INTERNAL_TAB_COLUMNS.V80_FMT_IMAGE,
+    INTERNAL_TAB_COLUMNS.DATA_UPGRADED,
+    INTERNAL_TAB_COLUMNS.HISTOGRAM
+   FROM INTERNAL_TAB_COLUMNS
+  WHERE PG_HAS_ROLE(INTERNAL_TAB_COLUMNS.REL_OWNER, 'USAGE'::TEXT) OR HAS_COLUMN_PRIVILEGE(INTERNAL_TAB_COLUMNS.REL_OID, INTERNAL_TAB_COLUMNS.REL_ATTNUM, 'SELECT, INSERT, UPDATE, REFERENCES'::TEXT);
+
+select * from all_tab_columns limit 0;
+ OWNER | TABLE_SCHEMA | TABLE_NAME | COLUMN_NAME | DATA_TYPE | DATA_TYPE_OWNER | DATA_LENGTH | DATA_PRECISION | DATA_SCALE | NULLABLE | COLUMN_ID | DATA_DEFAULT | NUM_DISTINCT | LOW_VALUE | HIGH_VALUE | DENSITY | NUM_NULLS | NUM_BUCKETS | LAST_ANALYZED | SAMPLE_SIZE | CHARACTER_SET_NAME | CHAR_COL_DECL_LENGTH | GLOBAL_STATS | USER_STATS | AVG_COL_LEN | CHAR_LENGTH | CHAR_USED | V80_FMT_IMAGE | DATA_UPGRADED | HISTOGRAM 
+-------+--------------+------------+-------------+-----------+-----------------+-------------+----------------+------------+----------+-----------+--------------+--------------+-----------+------------+---------+-----------+-------------+---------------+-------------+--------------------+----------------------+--------------+------------+-------------+-------------+-----------+---------------+---------------+-----------
+(0 rows)
+
+\d+ user_tab_columns;
+                               View "pg_catalog.USER_TAB_COLUMNS"
+        Column        |     Type      | Collation | Nullable | Default | Storage  | Description 
+----------------------+---------------+-----------+----------+---------+----------+-------------
+ TABLE_SCHEMA         | NAME          |           |          |         | plain    | 
+ TABLE_NAME           | NAME          |           |          |         | plain    | 
+ COLUMN_NAME          | NAME          |           |          |         | plain    | 
+ DATA_TYPE            | TEXT          |           |          |         | extended | 
+ DATA_TYPE_OWNER      | NAME          |           |          |         | plain    | 
+ DATA_LENGTH          | INTEGER       |           |          |         | plain    | 
+ DATA_PRECISION       | INTEGER       |           |          |         | plain    | 
+ DATA_SCALE           | INTEGER       |           |          |         | plain    | 
+ NULLABLE             | TEXT          |           |          |         | extended | 
+ COLUMN_ID            | SMALLINT      |           |          |         | plain    | 
+ DATA_DEFAULT         | TEXT          |           |          |         | extended | 
+ NUM_DISTINCT         | NUMERIC(38,0) |           |          |         | main     | 
+ LOW_VALUE            | TEXT          |           |          |         | extended | 
+ HIGH_VALUE           | TEXT          |           |          |         | extended | 
+ DENSITY              | TEXT          |           |          |         | extended | 
+ NUM_NULLS            | REAL          |           |          |         | plain    | 
+ NUM_BUCKETS          | INTEGER       |           |          |         | plain    | 
+ LAST_ANALYZED        | TEXT          |           |          |         | extended | 
+ SAMPLE_SIZE          | TEXT          |           |          |         | extended | 
+ CHARACTER_SET_NAME   | TEXT          |           |          |         | extended | 
+ CHAR_COL_DECL_LENGTH | INTEGER       |           |          |         | plain    | 
+ GLOBAL_STATS         | TEXT          |           |          |         | extended | 
+ USER_STATS           | TEXT          |           |          |         | extended | 
+ AVG_COL_LEN          | INTEGER       |           |          |         | plain    | 
+ CHAR_LENGTH          | INTEGER       |           |          |         | plain    | 
+ CHAR_USED            | TEXT          |           |          |         | extended | 
+ V80_FMT_IMAGE        | TEXT          |           |          |         | extended | 
+ DATA_UPGRADED        | TEXT          |           |          |         | extended | 
+ HISTOGRAM            | TEXT          |           |          |         | extended | 
+View definition:
+ SELECT ALL_TAB_COLUMNS.TABLE_SCHEMA,
+    ALL_TAB_COLUMNS.TABLE_NAME,
+    ALL_TAB_COLUMNS.COLUMN_NAME,
+    ALL_TAB_COLUMNS.DATA_TYPE,
+    ALL_TAB_COLUMNS.DATA_TYPE_OWNER,
+    ALL_TAB_COLUMNS.DATA_LENGTH,
+    ALL_TAB_COLUMNS.DATA_PRECISION,
+    ALL_TAB_COLUMNS.DATA_SCALE,
+    ALL_TAB_COLUMNS.NULLABLE,
+    ALL_TAB_COLUMNS.COLUMN_ID,
+    ALL_TAB_COLUMNS.DATA_DEFAULT,
+    ALL_TAB_COLUMNS.NUM_DISTINCT,
+    ALL_TAB_COLUMNS.LOW_VALUE,
+    ALL_TAB_COLUMNS.HIGH_VALUE,
+    ALL_TAB_COLUMNS.DENSITY,
+    ALL_TAB_COLUMNS.NUM_NULLS,
+    ALL_TAB_COLUMNS.NUM_BUCKETS,
+    ALL_TAB_COLUMNS.LAST_ANALYZED,
+    ALL_TAB_COLUMNS.SAMPLE_SIZE,
+    ALL_TAB_COLUMNS.CHARACTER_SET_NAME,
+    ALL_TAB_COLUMNS.CHAR_COL_DECL_LENGTH,
+    ALL_TAB_COLUMNS.GLOBAL_STATS,
+    ALL_TAB_COLUMNS.USER_STATS,
+    ALL_TAB_COLUMNS.AVG_COL_LEN,
+    ALL_TAB_COLUMNS.CHAR_LENGTH,
+    ALL_TAB_COLUMNS.CHAR_USED,
+    ALL_TAB_COLUMNS.V80_FMT_IMAGE,
+    ALL_TAB_COLUMNS.DATA_UPGRADED,
+    ALL_TAB_COLUMNS.HISTOGRAM
+   FROM ALL_TAB_COLUMNS
+  WHERE ALL_TAB_COLUMNS.OWNER = CURRENT_USER;
+
+select * from user_tab_columns limit 0;
+ TABLE_SCHEMA | TABLE_NAME | COLUMN_NAME | DATA_TYPE | DATA_TYPE_OWNER | DATA_LENGTH | DATA_PRECISION | DATA_SCALE | NULLABLE | COLUMN_ID | DATA_DEFAULT | NUM_DISTINCT | LOW_VALUE | HIGH_VALUE | DENSITY | NUM_NULLS | NUM_BUCKETS | LAST_ANALYZED | SAMPLE_SIZE | CHARACTER_SET_NAME | CHAR_COL_DECL_LENGTH | GLOBAL_STATS | USER_STATS | AVG_COL_LEN | CHAR_LENGTH | CHAR_USED | V80_FMT_IMAGE | DATA_UPGRADED | HISTOGRAM 
+--------------+------------+-------------+-----------+-----------------+-------------+----------------+------------+----------+-----------+--------------+--------------+-----------+------------+---------+-----------+-------------+---------------+-------------+--------------------+----------------------+--------------+------------+-------------+-------------+-----------+---------------+---------------+-----------
+(0 rows)
+
+\d+ INTERNAL_INDEXES;
+                             View "pg_catalog.INTERNAL_INDEXES"
+         Column          |  Type   | Collation | Nullable | Default | Storage  | Description 
+-------------------------+---------+-----------+----------+---------+----------+-------------
+ OWNER                   | NAME    |           |          |         | plain    | 
+ INDEX_NAME              | NAME    |           |          |         | plain    | 
+ INDEX_NSP               | NAME    |           |          |         | plain    | 
+ INDEX_TYPE              | NAME    |           |          |         | plain    | 
+ TABLE_OWNER             | NAME    |           |          |         | plain    | 
+ TABLE_NAME              | NAME    |           |          |         | plain    | 
+ TABLE_NSP               | NAME    |           |          |         | plain    | 
+ TABLE_TYPE              | TEXT    |           |          |         | extended | 
+ UNIQUENESS              | TEXT    |           |          |         | extended | 
+ COMPRESSION             | TEXT    |           |          |         | extended | 
+ PREFIX_LENGTH           | TEXT    |           |          |         | extended | 
+ TABLESPACE_NAME         | NAME    |           |          |         | plain    | 
+ INI_TRANS               | TEXT    |           |          |         | extended | 
+ MAX_TRANS               | TEXT    |           |          |         | extended | 
+ INITIAL_EXTENT          | TEXT    |           |          |         | extended | 
+ NEXT_EXTENT             | TEXT    |           |          |         | extended | 
+ MIN_EXTENTS             | TEXT    |           |          |         | extended | 
+ MAX_EXTENTS             | TEXT    |           |          |         | extended | 
+ PCT_INCREASE            | TEXT    |           |          |         | extended | 
+ PCT_THRESHOLD           | INTEGER |           |          |         | plain    | 
+ INCLUDE_COLUMN          | TEXT    |           |          |         | extended | 
+ FREELISTS               | TEXT    |           |          |         | extended | 
+ FREELIST_GROUPS         | TEXT    |           |          |         | extended | 
+ PCT_FREE                | TEXT    |           |          |         | extended | 
+ LOGGING                 | TEXT    |           |          |         | extended | 
+ BLEVEL                  | INTEGER |           |          |         | plain    | 
+ LEAF_BLOCKS             | INTEGER |           |          |         | plain    | 
+ DISTINCT_KEYS           | INTEGER |           |          |         | plain    | 
+ AVG_LEAF_BLOCKS_PER_KEY | INTEGER |           |          |         | plain    | 
+ AVG_DATA_BLOCKS_PER_KEY | INTEGER |           |          |         | plain    | 
+ CLUSTERING_FACTOR       | INTEGER |           |          |         | plain    | 
+ STATUS                  | TEXT    |           |          |         | extended | 
+ NUM_ROWS                | REAL    |           |          |         | plain    | 
+ SAMPLE_SIZE             | INTEGER |           |          |         | plain    | 
+ LAST_ANALYZED           | TEXT    |           |          |         | extended | 
+ DEGREE                  | TEXT    |           |          |         | extended | 
+ INSTANCES               | TEXT    |           |          |         | extended | 
+ PARTITIONED             | TEXT    |           |          |         | extended | 
+ TEMPORARY               | TEXT    |           |          |         | extended | 
+ GENERATED               | TEXT    |           |          |         | extended | 
+ SECONDARY               | TEXT    |           |          |         | extended | 
+ BUFFER_POOL             | TEXT    |           |          |         | extended | 
+ USER_STATS              | TEXT    |           |          |         | extended | 
+ DURATION                | TEXT    |           |          |         | extended | 
+ PCT_DIRECT_ACCESS       | INTEGER |           |          |         | plain    | 
+ ITYP_OWNER              | TEXT    |           |          |         | extended | 
+ ITYP_NAME               | TEXT    |           |          |         | extended | 
+ PARAMETERS              | TEXT    |           |          |         | extended | 
+ GLOBAL_STATS            | TEXT    |           |          |         | extended | 
+ DOMIDX_STATUS           | TEXT    |           |          |         | extended | 
+ DOMIDX_OPSTATUS         | TEXT    |           |          |         | extended | 
+ FUNCIDX_STATUS          | TEXT    |           |          |         | extended | 
+ JOIN_INDEX              | TEXT    |           |          |         | extended | 
+ IOT_REDUNDANT_PKEY_ELIM | TEXT    |           |          |         | extended | 
+ DROPPED                 | TEXT    |           |          |         | extended | 
+ RELID                   | OID     |           |          |         | plain    | 
+View definition:
+ SELECT ( SELECT PG_AUTHID.ROLNAME
+           FROM PG_AUTHID
+          WHERE PG_AUTHID.OID = IDX_I.RELOWNER) AS OWNER,
+    IDX_I.RELNAME AS INDEX_NAME,
+    ( SELECT PG_NAMESPACE.NSPNAME
+           FROM PG_NAMESPACE
+          WHERE PG_NAMESPACE.OID = IDX_I.RELNAMESPACE) AS INDEX_NSP,
+    ( SELECT PG_AM.AMNAME
+           FROM PG_AM
+          WHERE PG_AM.OID = IDX_I.RELAM) AS INDEX_TYPE,
+    ( SELECT PG_AUTHID.ROLNAME
+           FROM PG_AUTHID
+          WHERE PG_AUTHID.OID = IDX_R.RELOWNER) AS TABLE_OWNER,
+    IDX_R.RELNAME AS TABLE_NAME,
+    ( SELECT PG_NAMESPACE.NSPNAME
+           FROM PG_NAMESPACE
+          WHERE PG_NAMESPACE.OID = IDX_R.RELNAMESPACE) AS TABLE_NSP,
+    'TABLE'::TEXT AS TABLE_TYPE,
+        CASE
+            WHEN I.INDISUNIQUE THEN 'UNIQUE'::TEXT
+            ELSE 'NONUNIQUE'::TEXT
+        END AS UNIQUENESS,
+    'DISABLED'::TEXT AS COMPRESSION,
+    NULL::TEXT AS PREFIX_LENGTH,
+    ( SELECT PG_TABLESPACE.SPCNAME
+           FROM PG_TABLESPACE
+          WHERE PG_TABLESPACE.OID = IDX_I.RELTABLESPACE) AS TABLESPACE_NAME,
+    NULL::TEXT AS INI_TRANS,
+    NULL::TEXT AS MAX_TRANS,
+    NULL::TEXT AS INITIAL_EXTENT,
+    NULL::TEXT AS NEXT_EXTENT,
+    NULL::TEXT AS MIN_EXTENTS,
+    NULL::TEXT AS MAX_EXTENTS,
+    NULL::TEXT AS PCT_INCREASE,
+    10 AS PCT_THRESHOLD,
+    NULL::TEXT AS INCLUDE_COLUMN,
+    NULL::TEXT AS FREELISTS,
+    NULL::TEXT AS FREELIST_GROUPS,
+    NULL::TEXT AS PCT_FREE,
+    'NO'::TEXT AS LOGGING,
+    0 AS BLEVEL,
+    0 AS LEAF_BLOCKS,
+    0 AS DISTINCT_KEYS,
+        CASE
+            WHEN I.INDISUNIQUE THEN 1
+            ELSE 0
+        END AS AVG_LEAF_BLOCKS_PER_KEY,
+    0 AS AVG_DATA_BLOCKS_PER_KEY,
+    0 AS CLUSTERING_FACTOR,
+        CASE
+            WHEN I.INDISVALID THEN 'VALID'::TEXT
+            ELSE 'UNUSABLE'::TEXT
+        END AS STATUS,
+    IDX_R.RELTUPLES AS NUM_ROWS,
+    0 AS SAMPLE_SIZE,
+    NULL::TEXT AS LAST_ANALYZED,
+    NULL::TEXT AS DEGREE,
+    NULL::TEXT AS INSTANCES,
+        CASE
+            WHEN IDX_I.RELKIND = 'I'::"CHAR" THEN 'YES'::TEXT
+            ELSE 'NO'::TEXT
+        END AS PARTITIONED,
+        CASE
+            WHEN IDX_I.RELKIND = 't'::"CHAR" THEN 'Y'::TEXT
+            ELSE 'N'::TEXT
+        END AS TEMPORARY,
+    'N'::TEXT AS GENERATED,
+    'N'::TEXT AS SECONDARY,
+    'DEFAULT'::TEXT AS BUFFER_POOL,
+    'NO'::TEXT AS USER_STATS,
+    NULL::TEXT AS DURATION,
+    0 AS PCT_DIRECT_ACCESS,
+    NULL::TEXT AS ITYP_OWNER,
+    NULL::TEXT AS ITYP_NAME,
+    NULL::TEXT AS PARAMETERS,
+    'NO'::TEXT AS GLOBAL_STATS,
+    NULL::TEXT AS DOMIDX_STATUS,
+    NULL::TEXT AS DOMIDX_OPSTATUS,
+        CASE
+            WHEN I.INDEXPRS IS NOT NULL THEN 'ENABLED'::TEXT
+            ELSE NULL::TEXT
+        END AS FUNCIDX_STATUS,
+    'NO'::TEXT AS JOIN_INDEX,
+    NULL::TEXT AS IOT_REDUNDANT_PKEY_ELIM,
+    'NO'::TEXT AS DROPPED,
+    IDX_R.OID AS RELID
+   FROM PG_INDEX I
+     JOIN PG_CLASS IDX_I ON I.INDEXRELID = IDX_I.OID
+     JOIN PG_CLASS IDX_R ON I.INDRELID = IDX_R.OID
+  WHERE IDX_R.RELKIND = ANY (ARRAY['r'::"CHAR", 'v'::"CHAR", 'f'::"CHAR", 'p'::"CHAR"]);
+
+select * from INTERNAL_INDEXES limit 0;
+ OWNER | INDEX_NAME | INDEX_NSP | INDEX_TYPE | TABLE_OWNER | TABLE_NAME | TABLE_NSP | TABLE_TYPE | UNIQUENESS | COMPRESSION | PREFIX_LENGTH | TABLESPACE_NAME | INI_TRANS | MAX_TRANS | INITIAL_EXTENT | NEXT_EXTENT | MIN_EXTENTS | MAX_EXTENTS | PCT_INCREASE | PCT_THRESHOLD | INCLUDE_COLUMN | FREELISTS | FREELIST_GROUPS | PCT_FREE | LOGGING | BLEVEL | LEAF_BLOCKS | DISTINCT_KEYS | AVG_LEAF_BLOCKS_PER_KEY | AVG_DATA_BLOCKS_PER_KEY | CLUSTERING_FACTOR | STATUS | NUM_ROWS | SAMPLE_SIZE | LAST_ANALYZED | DEGREE | INSTANCES | PARTITIONED | TEMPORARY | GENERATED | SECONDARY | BUFFER_POOL | USER_STATS | DURATION | PCT_DIRECT_ACCESS | ITYP_OWNER | ITYP_NAME | PARAMETERS | GLOBAL_STATS | DOMIDX_STATUS | DOMIDX_OPSTATUS | FUNCIDX_STATUS | JOIN_INDEX | IOT_REDUNDANT_PKEY_ELIM | DROPPED | RELID 
+-------+------------+-----------+------------+-------------+------------+-----------+------------+------------+-------------+---------------+-----------------+-----------+-----------+----------------+-------------+-------------+-------------+--------------+---------------+----------------+-----------+-----------------+----------+---------+--------+-------------+---------------+-------------------------+-------------------------+-------------------+--------+----------+-------------+---------------+--------+-----------+-------------+-----------+-----------+-----------+-------------+------------+----------+-------------------+------------+-----------+------------+--------------+---------------+-----------------+----------------+------------+-------------------------+---------+-------
+(0 rows)
+
+\d+ DBA_INDEXES;
+                                View "pg_catalog.DBA_INDEXES"
+         Column          |  Type   | Collation | Nullable | Default | Storage  | Description 
+-------------------------+---------+-----------+----------+---------+----------+-------------
+ OWNER                   | NAME    |           |          |         | plain    | 
+ INDEX_NSP               | NAME    |           |          |         | plain    | 
+ INDEX_NAME              | NAME    |           |          |         | plain    | 
+ INDEX_TYPE              | NAME    |           |          |         | plain    | 
+ TABLE_OWNER             | NAME    |           |          |         | plain    | 
+ TABLE_NSP               | NAME    |           |          |         | plain    | 
+ TABLE_NAME              | NAME    |           |          |         | plain    | 
+ TABLE_TYPE              | TEXT    |           |          |         | extended | 
+ COMPRESSION             | TEXT    |           |          |         | extended | 
+ PREFIX_LENGTH           | TEXT    |           |          |         | extended | 
+ TABLESPACE_NAME         | NAME    |           |          |         | plain    | 
+ INI_TRANS               | TEXT    |           |          |         | extended | 
+ MAX_TRANS               | TEXT    |           |          |         | extended | 
+ INITIAL_EXTENT          | TEXT    |           |          |         | extended | 
+ NEXT_EXTENT             | TEXT    |           |          |         | extended | 
+ MIN_EXTENTS             | TEXT    |           |          |         | extended | 
+ MAX_EXTENTS             | TEXT    |           |          |         | extended | 
+ PCT_INCREASE            | TEXT    |           |          |         | extended | 
+ PCT_THRESHOLD           | INTEGER |           |          |         | plain    | 
+ INCLUDE_COLUMN          | TEXT    |           |          |         | extended | 
+ FREELISTS               | TEXT    |           |          |         | extended | 
+ FREELIST_GROUPS         | TEXT    |           |          |         | extended | 
+ PCT_FREE                | TEXT    |           |          |         | extended | 
+ LOGGING                 | TEXT    |           |          |         | extended | 
+ BLEVEL                  | INTEGER |           |          |         | plain    | 
+ LEAF_BLOCKS             | INTEGER |           |          |         | plain    | 
+ DISTINCT_KEYS           | INTEGER |           |          |         | plain    | 
+ AVG_LEAF_BLOCKS_PER_KEY | INTEGER |           |          |         | plain    | 
+ AVG_DATA_BLOCKS_PER_KEY | INTEGER |           |          |         | plain    | 
+ CLUSTERING_FACTOR       | INTEGER |           |          |         | plain    | 
+ STATUS                  | TEXT    |           |          |         | extended | 
+ NUM_ROWS                | REAL    |           |          |         | plain    | 
+ SAMPLE_SIZE             | INTEGER |           |          |         | plain    | 
+ LAST_ANALYZED           | TEXT    |           |          |         | extended | 
+ DEGREE                  | TEXT    |           |          |         | extended | 
+ INSTANCES               | TEXT    |           |          |         | extended | 
+ PARTITIONED             | TEXT    |           |          |         | extended | 
+ TEMPORARY               | TEXT    |           |          |         | extended | 
+ GENERATED               | TEXT    |           |          |         | extended | 
+ SECONDARY               | TEXT    |           |          |         | extended | 
+ BUFFER_POOL             | TEXT    |           |          |         | extended | 
+ USER_STATS              | TEXT    |           |          |         | extended | 
+ DURATION                | TEXT    |           |          |         | extended | 
+ PCT_DIRECT_ACCESS       | INTEGER |           |          |         | plain    | 
+ ITYP_OWNER              | TEXT    |           |          |         | extended | 
+ ITYP_NAME               | TEXT    |           |          |         | extended | 
+ PARAMETERS              | TEXT    |           |          |         | extended | 
+ GLOBAL_STATS            | TEXT    |           |          |         | extended | 
+ DOMIDX_STATUS           | TEXT    |           |          |         | extended | 
+ DOMIDX_OPSTATUS         | TEXT    |           |          |         | extended | 
+ FUNCIDX_STATUS          | TEXT    |           |          |         | extended | 
+ JOIN_INDEX              | TEXT    |           |          |         | extended | 
+ IOT_REDUNDANT_PKEY_ELIM | TEXT    |           |          |         | extended | 
+ DROPPED                 | TEXT    |           |          |         | extended | 
+View definition:
+ SELECT INTERNAL_INDEXES.OWNER,
+    INTERNAL_INDEXES.INDEX_NSP,
+    INTERNAL_INDEXES.INDEX_NAME,
+    INTERNAL_INDEXES.INDEX_TYPE,
+    INTERNAL_INDEXES.TABLE_OWNER,
+    INTERNAL_INDEXES.TABLE_NSP,
+    INTERNAL_INDEXES.TABLE_NAME,
+    INTERNAL_INDEXES.TABLE_TYPE,
+    INTERNAL_INDEXES.COMPRESSION,
+    INTERNAL_INDEXES.PREFIX_LENGTH,
+    INTERNAL_INDEXES.TABLESPACE_NAME,
+    INTERNAL_INDEXES.INI_TRANS,
+    INTERNAL_INDEXES.MAX_TRANS,
+    INTERNAL_INDEXES.INITIAL_EXTENT,
+    INTERNAL_INDEXES.NEXT_EXTENT,
+    INTERNAL_INDEXES.MIN_EXTENTS,
+    INTERNAL_INDEXES.MAX_EXTENTS,
+    INTERNAL_INDEXES.PCT_INCREASE,
+    INTERNAL_INDEXES.PCT_THRESHOLD,
+    INTERNAL_INDEXES.INCLUDE_COLUMN,
+    INTERNAL_INDEXES.FREELISTS,
+    INTERNAL_INDEXES.FREELIST_GROUPS,
+    INTERNAL_INDEXES.PCT_FREE,
+    INTERNAL_INDEXES.LOGGING,
+    INTERNAL_INDEXES.BLEVEL,
+    INTERNAL_INDEXES.LEAF_BLOCKS,
+    INTERNAL_INDEXES.DISTINCT_KEYS,
+    INTERNAL_INDEXES.AVG_LEAF_BLOCKS_PER_KEY,
+    INTERNAL_INDEXES.AVG_DATA_BLOCKS_PER_KEY,
+    INTERNAL_INDEXES.CLUSTERING_FACTOR,
+    INTERNAL_INDEXES.STATUS,
+    INTERNAL_INDEXES.NUM_ROWS,
+    INTERNAL_INDEXES.SAMPLE_SIZE,
+    INTERNAL_INDEXES.LAST_ANALYZED,
+    INTERNAL_INDEXES.DEGREE,
+    INTERNAL_INDEXES.INSTANCES,
+    INTERNAL_INDEXES.PARTITIONED,
+    INTERNAL_INDEXES.TEMPORARY,
+    INTERNAL_INDEXES.GENERATED,
+    INTERNAL_INDEXES.SECONDARY,
+    INTERNAL_INDEXES.BUFFER_POOL,
+    INTERNAL_INDEXES.USER_STATS,
+    INTERNAL_INDEXES.DURATION,
+    INTERNAL_INDEXES.PCT_DIRECT_ACCESS,
+    INTERNAL_INDEXES.ITYP_OWNER,
+    INTERNAL_INDEXES.ITYP_NAME,
+    INTERNAL_INDEXES.PARAMETERS,
+    INTERNAL_INDEXES.GLOBAL_STATS,
+    INTERNAL_INDEXES.DOMIDX_STATUS,
+    INTERNAL_INDEXES.DOMIDX_OPSTATUS,
+    INTERNAL_INDEXES.FUNCIDX_STATUS,
+    INTERNAL_INDEXES.JOIN_INDEX,
+    INTERNAL_INDEXES.IOT_REDUNDANT_PKEY_ELIM,
+    INTERNAL_INDEXES.DROPPED
+   FROM INTERNAL_INDEXES;
+
+select * from DBA_INDEXES limit 0;
+ OWNER | INDEX_NSP | INDEX_NAME | INDEX_TYPE | TABLE_OWNER | TABLE_NSP | TABLE_NAME | TABLE_TYPE | COMPRESSION | PREFIX_LENGTH | TABLESPACE_NAME | INI_TRANS | MAX_TRANS | INITIAL_EXTENT | NEXT_EXTENT | MIN_EXTENTS | MAX_EXTENTS | PCT_INCREASE | PCT_THRESHOLD | INCLUDE_COLUMN | FREELISTS | FREELIST_GROUPS | PCT_FREE | LOGGING | BLEVEL | LEAF_BLOCKS | DISTINCT_KEYS | AVG_LEAF_BLOCKS_PER_KEY | AVG_DATA_BLOCKS_PER_KEY | CLUSTERING_FACTOR | STATUS | NUM_ROWS | SAMPLE_SIZE | LAST_ANALYZED | DEGREE | INSTANCES | PARTITIONED | TEMPORARY | GENERATED | SECONDARY | BUFFER_POOL | USER_STATS | DURATION | PCT_DIRECT_ACCESS | ITYP_OWNER | ITYP_NAME | PARAMETERS | GLOBAL_STATS | DOMIDX_STATUS | DOMIDX_OPSTATUS | FUNCIDX_STATUS | JOIN_INDEX | IOT_REDUNDANT_PKEY_ELIM | DROPPED 
+-------+-----------+------------+------------+-------------+-----------+------------+------------+-------------+---------------+-----------------+-----------+-----------+----------------+-------------+-------------+-------------+--------------+---------------+----------------+-----------+-----------------+----------+---------+--------+-------------+---------------+-------------------------+-------------------------+-------------------+--------+----------+-------------+---------------+--------+-----------+-------------+-----------+-----------+-----------+-------------+------------+----------+-------------------+------------+-----------+------------+--------------+---------------+-----------------+----------------+------------+-------------------------+---------
+(0 rows)
+
+\d+ ALL_INDEXES;
+                                View "pg_catalog.ALL_INDEXES"
+         Column          |  Type   | Collation | Nullable | Default | Storage  | Description 
+-------------------------+---------+-----------+----------+---------+----------+-------------
+ OWNER                   | NAME    |           |          |         | plain    | 
+ INDEX_NSP               | NAME    |           |          |         | plain    | 
+ INDEX_NAME              | NAME    |           |          |         | plain    | 
+ INDEX_TYPE              | NAME    |           |          |         | plain    | 
+ TABLE_OWNER             | NAME    |           |          |         | plain    | 
+ TABLE_NSP               | NAME    |           |          |         | plain    | 
+ TABLE_NAME              | NAME    |           |          |         | plain    | 
+ TABLE_TYPE              | TEXT    |           |          |         | extended | 
+ COMPRESSION             | TEXT    |           |          |         | extended | 
+ PREFIX_LENGTH           | TEXT    |           |          |         | extended | 
+ TABLESPACE_NAME         | NAME    |           |          |         | plain    | 
+ INI_TRANS               | TEXT    |           |          |         | extended | 
+ MAX_TRANS               | TEXT    |           |          |         | extended | 
+ INITIAL_EXTENT          | TEXT    |           |          |         | extended | 
+ NEXT_EXTENT             | TEXT    |           |          |         | extended | 
+ MIN_EXTENTS             | TEXT    |           |          |         | extended | 
+ MAX_EXTENTS             | TEXT    |           |          |         | extended | 
+ PCT_INCREASE            | TEXT    |           |          |         | extended | 
+ PCT_THRESHOLD           | INTEGER |           |          |         | plain    | 
+ INCLUDE_COLUMN          | TEXT    |           |          |         | extended | 
+ FREELISTS               | TEXT    |           |          |         | extended | 
+ FREELIST_GROUPS         | TEXT    |           |          |         | extended | 
+ PCT_FREE                | TEXT    |           |          |         | extended | 
+ LOGGING                 | TEXT    |           |          |         | extended | 
+ BLEVEL                  | INTEGER |           |          |         | plain    | 
+ LEAF_BLOCKS             | INTEGER |           |          |         | plain    | 
+ DISTINCT_KEYS           | INTEGER |           |          |         | plain    | 
+ AVG_LEAF_BLOCKS_PER_KEY | INTEGER |           |          |         | plain    | 
+ AVG_DATA_BLOCKS_PER_KEY | INTEGER |           |          |         | plain    | 
+ CLUSTERING_FACTOR       | INTEGER |           |          |         | plain    | 
+ STATUS                  | TEXT    |           |          |         | extended | 
+ NUM_ROWS                | REAL    |           |          |         | plain    | 
+ SAMPLE_SIZE             | INTEGER |           |          |         | plain    | 
+ LAST_ANALYZED           | TEXT    |           |          |         | extended | 
+ DEGREE                  | TEXT    |           |          |         | extended | 
+ INSTANCES               | TEXT    |           |          |         | extended | 
+ PARTITIONED             | TEXT    |           |          |         | extended | 
+ TEMPORARY               | TEXT    |           |          |         | extended | 
+ GENERATED               | TEXT    |           |          |         | extended | 
+ SECONDARY               | TEXT    |           |          |         | extended | 
+ BUFFER_POOL             | TEXT    |           |          |         | extended | 
+ USER_STATS              | TEXT    |           |          |         | extended | 
+ DURATION                | TEXT    |           |          |         | extended | 
+ PCT_DIRECT_ACCESS       | INTEGER |           |          |         | plain    | 
+ ITYP_OWNER              | TEXT    |           |          |         | extended | 
+ ITYP_NAME               | TEXT    |           |          |         | extended | 
+ PARAMETERS              | TEXT    |           |          |         | extended | 
+ GLOBAL_STATS            | TEXT    |           |          |         | extended | 
+ DOMIDX_STATUS           | TEXT    |           |          |         | extended | 
+ DOMIDX_OPSTATUS         | TEXT    |           |          |         | extended | 
+ FUNCIDX_STATUS          | TEXT    |           |          |         | extended | 
+ JOIN_INDEX              | TEXT    |           |          |         | extended | 
+ IOT_REDUNDANT_PKEY_ELIM | TEXT    |           |          |         | extended | 
+ DROPPED                 | TEXT    |           |          |         | extended | 
+View definition:
+ SELECT INTERNAL_INDEXES.OWNER,
+    INTERNAL_INDEXES.INDEX_NSP,
+    INTERNAL_INDEXES.INDEX_NAME,
+    INTERNAL_INDEXES.INDEX_TYPE,
+    INTERNAL_INDEXES.TABLE_OWNER,
+    INTERNAL_INDEXES.TABLE_NSP,
+    INTERNAL_INDEXES.TABLE_NAME,
+    INTERNAL_INDEXES.TABLE_TYPE,
+    INTERNAL_INDEXES.COMPRESSION,
+    INTERNAL_INDEXES.PREFIX_LENGTH,
+    INTERNAL_INDEXES.TABLESPACE_NAME,
+    INTERNAL_INDEXES.INI_TRANS,
+    INTERNAL_INDEXES.MAX_TRANS,
+    INTERNAL_INDEXES.INITIAL_EXTENT,
+    INTERNAL_INDEXES.NEXT_EXTENT,
+    INTERNAL_INDEXES.MIN_EXTENTS,
+    INTERNAL_INDEXES.MAX_EXTENTS,
+    INTERNAL_INDEXES.PCT_INCREASE,
+    INTERNAL_INDEXES.PCT_THRESHOLD,
+    INTERNAL_INDEXES.INCLUDE_COLUMN,
+    INTERNAL_INDEXES.FREELISTS,
+    INTERNAL_INDEXES.FREELIST_GROUPS,
+    INTERNAL_INDEXES.PCT_FREE,
+    INTERNAL_INDEXES.LOGGING,
+    INTERNAL_INDEXES.BLEVEL,
+    INTERNAL_INDEXES.LEAF_BLOCKS,
+    INTERNAL_INDEXES.DISTINCT_KEYS,
+    INTERNAL_INDEXES.AVG_LEAF_BLOCKS_PER_KEY,
+    INTERNAL_INDEXES.AVG_DATA_BLOCKS_PER_KEY,
+    INTERNAL_INDEXES.CLUSTERING_FACTOR,
+    INTERNAL_INDEXES.STATUS,
+    INTERNAL_INDEXES.NUM_ROWS,
+    INTERNAL_INDEXES.SAMPLE_SIZE,
+    INTERNAL_INDEXES.LAST_ANALYZED,
+    INTERNAL_INDEXES.DEGREE,
+    INTERNAL_INDEXES.INSTANCES,
+    INTERNAL_INDEXES.PARTITIONED,
+    INTERNAL_INDEXES.TEMPORARY,
+    INTERNAL_INDEXES.GENERATED,
+    INTERNAL_INDEXES.SECONDARY,
+    INTERNAL_INDEXES.BUFFER_POOL,
+    INTERNAL_INDEXES.USER_STATS,
+    INTERNAL_INDEXES.DURATION,
+    INTERNAL_INDEXES.PCT_DIRECT_ACCESS,
+    INTERNAL_INDEXES.ITYP_OWNER,
+    INTERNAL_INDEXES.ITYP_NAME,
+    INTERNAL_INDEXES.PARAMETERS,
+    INTERNAL_INDEXES.GLOBAL_STATS,
+    INTERNAL_INDEXES.DOMIDX_STATUS,
+    INTERNAL_INDEXES.DOMIDX_OPSTATUS,
+    INTERNAL_INDEXES.FUNCIDX_STATUS,
+    INTERNAL_INDEXES.JOIN_INDEX,
+    INTERNAL_INDEXES.IOT_REDUNDANT_PKEY_ELIM,
+    INTERNAL_INDEXES.DROPPED
+   FROM INTERNAL_INDEXES
+  WHERE HAS_TABLE_PRIVILEGE(INTERNAL_INDEXES.RELID, 'select,update,delete,truncate,references,trigger,rule,select with grant option,insert with grant option,update with grant option,delete with grant option,truncate with grant option,references with grant option,trigger with grant option,rule with grant option'::TEXT);
+
+select * from ALL_INDEXES limit 0;
+ OWNER | INDEX_NSP | INDEX_NAME | INDEX_TYPE | TABLE_OWNER | TABLE_NSP | TABLE_NAME | TABLE_TYPE | COMPRESSION | PREFIX_LENGTH | TABLESPACE_NAME | INI_TRANS | MAX_TRANS | INITIAL_EXTENT | NEXT_EXTENT | MIN_EXTENTS | MAX_EXTENTS | PCT_INCREASE | PCT_THRESHOLD | INCLUDE_COLUMN | FREELISTS | FREELIST_GROUPS | PCT_FREE | LOGGING | BLEVEL | LEAF_BLOCKS | DISTINCT_KEYS | AVG_LEAF_BLOCKS_PER_KEY | AVG_DATA_BLOCKS_PER_KEY | CLUSTERING_FACTOR | STATUS | NUM_ROWS | SAMPLE_SIZE | LAST_ANALYZED | DEGREE | INSTANCES | PARTITIONED | TEMPORARY | GENERATED | SECONDARY | BUFFER_POOL | USER_STATS | DURATION | PCT_DIRECT_ACCESS | ITYP_OWNER | ITYP_NAME | PARAMETERS | GLOBAL_STATS | DOMIDX_STATUS | DOMIDX_OPSTATUS | FUNCIDX_STATUS | JOIN_INDEX | IOT_REDUNDANT_PKEY_ELIM | DROPPED 
+-------+-----------+------------+------------+-------------+-----------+------------+------------+-------------+---------------+-----------------+-----------+-----------+----------------+-------------+-------------+-------------+--------------+---------------+----------------+-----------+-----------------+----------+---------+--------+-------------+---------------+-------------------------+-------------------------+-------------------+--------+----------+-------------+---------------+--------+-----------+-------------+-----------+-----------+-----------+-------------+------------+----------+-------------------+------------+-----------+------------+--------------+---------------+-----------------+----------------+------------+-------------------------+---------
+(0 rows)
+
+\d+ USER_INDEXES;
+                               View "pg_catalog.USER_INDEXES"
+         Column          |  Type   | Collation | Nullable | Default | Storage  | Description 
+-------------------------+---------+-----------+----------+---------+----------+-------------
+ INDEX_NSP               | NAME    |           |          |         | plain    | 
+ INDEX_NAME              | NAME    |           |          |         | plain    | 
+ INDEX_TYPE              | NAME    |           |          |         | plain    | 
+ TABLE_OWNER             | NAME    |           |          |         | plain    | 
+ TABLE_NSP               | NAME    |           |          |         | plain    | 
+ TABLE_NAME              | NAME    |           |          |         | plain    | 
+ TABLE_TYPE              | TEXT    |           |          |         | extended | 
+ COMPRESSION             | TEXT    |           |          |         | extended | 
+ PREFIX_LENGTH           | TEXT    |           |          |         | extended | 
+ TABLESPACE_NAME         | NAME    |           |          |         | plain    | 
+ INI_TRANS               | TEXT    |           |          |         | extended | 
+ MAX_TRANS               | TEXT    |           |          |         | extended | 
+ INITIAL_EXTENT          | TEXT    |           |          |         | extended | 
+ NEXT_EXTENT             | TEXT    |           |          |         | extended | 
+ MIN_EXTENTS             | TEXT    |           |          |         | extended | 
+ MAX_EXTENTS             | TEXT    |           |          |         | extended | 
+ PCT_INCREASE            | TEXT    |           |          |         | extended | 
+ PCT_THRESHOLD           | INTEGER |           |          |         | plain    | 
+ INCLUDE_COLUMN          | TEXT    |           |          |         | extended | 
+ FREELISTS               | TEXT    |           |          |         | extended | 
+ FREELIST_GROUPS         | TEXT    |           |          |         | extended | 
+ PCT_FREE                | TEXT    |           |          |         | extended | 
+ LOGGING                 | TEXT    |           |          |         | extended | 
+ BLEVEL                  | INTEGER |           |          |         | plain    | 
+ LEAF_BLOCKS             | INTEGER |           |          |         | plain    | 
+ DISTINCT_KEYS           | INTEGER |           |          |         | plain    | 
+ AVG_LEAF_BLOCKS_PER_KEY | INTEGER |           |          |         | plain    | 
+ AVG_DATA_BLOCKS_PER_KEY | INTEGER |           |          |         | plain    | 
+ CLUSTERING_FACTOR       | INTEGER |           |          |         | plain    | 
+ STATUS                  | TEXT    |           |          |         | extended | 
+ NUM_ROWS                | REAL    |           |          |         | plain    | 
+ SAMPLE_SIZE             | INTEGER |           |          |         | plain    | 
+ LAST_ANALYZED           | TEXT    |           |          |         | extended | 
+ DEGREE                  | TEXT    |           |          |         | extended | 
+ INSTANCES               | TEXT    |           |          |         | extended | 
+ PARTITIONED             | TEXT    |           |          |         | extended | 
+ TEMPORARY               | TEXT    |           |          |         | extended | 
+ GENERATED               | TEXT    |           |          |         | extended | 
+ SECONDARY               | TEXT    |           |          |         | extended | 
+ BUFFER_POOL             | TEXT    |           |          |         | extended | 
+ USER_STATS              | TEXT    |           |          |         | extended | 
+ DURATION                | TEXT    |           |          |         | extended | 
+ PCT_DIRECT_ACCESS       | INTEGER |           |          |         | plain    | 
+ ITYP_OWNER              | TEXT    |           |          |         | extended | 
+ ITYP_NAME               | TEXT    |           |          |         | extended | 
+ PARAMETERS              | TEXT    |           |          |         | extended | 
+ GLOBAL_STATS            | TEXT    |           |          |         | extended | 
+ DOMIDX_STATUS           | TEXT    |           |          |         | extended | 
+ DOMIDX_OPSTATUS         | TEXT    |           |          |         | extended | 
+ FUNCIDX_STATUS          | TEXT    |           |          |         | extended | 
+ JOIN_INDEX              | TEXT    |           |          |         | extended | 
+ IOT_REDUNDANT_PKEY_ELIM | TEXT    |           |          |         | extended | 
+ DROPPED                 | TEXT    |           |          |         | extended | 
+View definition:
+ SELECT INTERNAL_INDEXES.INDEX_NSP,
+    INTERNAL_INDEXES.INDEX_NAME,
+    INTERNAL_INDEXES.INDEX_TYPE,
+    INTERNAL_INDEXES.TABLE_OWNER,
+    INTERNAL_INDEXES.TABLE_NSP,
+    INTERNAL_INDEXES.TABLE_NAME,
+    INTERNAL_INDEXES.TABLE_TYPE,
+    INTERNAL_INDEXES.COMPRESSION,
+    INTERNAL_INDEXES.PREFIX_LENGTH,
+    INTERNAL_INDEXES.TABLESPACE_NAME,
+    INTERNAL_INDEXES.INI_TRANS,
+    INTERNAL_INDEXES.MAX_TRANS,
+    INTERNAL_INDEXES.INITIAL_EXTENT,
+    INTERNAL_INDEXES.NEXT_EXTENT,
+    INTERNAL_INDEXES.MIN_EXTENTS,
+    INTERNAL_INDEXES.MAX_EXTENTS,
+    INTERNAL_INDEXES.PCT_INCREASE,
+    INTERNAL_INDEXES.PCT_THRESHOLD,
+    INTERNAL_INDEXES.INCLUDE_COLUMN,
+    INTERNAL_INDEXES.FREELISTS,
+    INTERNAL_INDEXES.FREELIST_GROUPS,
+    INTERNAL_INDEXES.PCT_FREE,
+    INTERNAL_INDEXES.LOGGING,
+    INTERNAL_INDEXES.BLEVEL,
+    INTERNAL_INDEXES.LEAF_BLOCKS,
+    INTERNAL_INDEXES.DISTINCT_KEYS,
+    INTERNAL_INDEXES.AVG_LEAF_BLOCKS_PER_KEY,
+    INTERNAL_INDEXES.AVG_DATA_BLOCKS_PER_KEY,
+    INTERNAL_INDEXES.CLUSTERING_FACTOR,
+    INTERNAL_INDEXES.STATUS,
+    INTERNAL_INDEXES.NUM_ROWS,
+    INTERNAL_INDEXES.SAMPLE_SIZE,
+    INTERNAL_INDEXES.LAST_ANALYZED,
+    INTERNAL_INDEXES.DEGREE,
+    INTERNAL_INDEXES.INSTANCES,
+    INTERNAL_INDEXES.PARTITIONED,
+    INTERNAL_INDEXES.TEMPORARY,
+    INTERNAL_INDEXES.GENERATED,
+    INTERNAL_INDEXES.SECONDARY,
+    INTERNAL_INDEXES.BUFFER_POOL,
+    INTERNAL_INDEXES.USER_STATS,
+    INTERNAL_INDEXES.DURATION,
+    INTERNAL_INDEXES.PCT_DIRECT_ACCESS,
+    INTERNAL_INDEXES.ITYP_OWNER,
+    INTERNAL_INDEXES.ITYP_NAME,
+    INTERNAL_INDEXES.PARAMETERS,
+    INTERNAL_INDEXES.GLOBAL_STATS,
+    INTERNAL_INDEXES.DOMIDX_STATUS,
+    INTERNAL_INDEXES.DOMIDX_OPSTATUS,
+    INTERNAL_INDEXES.FUNCIDX_STATUS,
+    INTERNAL_INDEXES.JOIN_INDEX,
+    INTERNAL_INDEXES.IOT_REDUNDANT_PKEY_ELIM,
+    INTERNAL_INDEXES.DROPPED
+   FROM INTERNAL_INDEXES
+  WHERE INTERNAL_INDEXES.OWNER = CURRENT_USER;
+
+select * from USER_INDEXES limit 0;
+ INDEX_NSP | INDEX_NAME | INDEX_TYPE | TABLE_OWNER | TABLE_NSP | TABLE_NAME | TABLE_TYPE | COMPRESSION | PREFIX_LENGTH | TABLESPACE_NAME | INI_TRANS | MAX_TRANS | INITIAL_EXTENT | NEXT_EXTENT | MIN_EXTENTS | MAX_EXTENTS | PCT_INCREASE | PCT_THRESHOLD | INCLUDE_COLUMN | FREELISTS | FREELIST_GROUPS | PCT_FREE | LOGGING | BLEVEL | LEAF_BLOCKS | DISTINCT_KEYS | AVG_LEAF_BLOCKS_PER_KEY | AVG_DATA_BLOCKS_PER_KEY | CLUSTERING_FACTOR | STATUS | NUM_ROWS | SAMPLE_SIZE | LAST_ANALYZED | DEGREE | INSTANCES | PARTITIONED | TEMPORARY | GENERATED | SECONDARY | BUFFER_POOL | USER_STATS | DURATION | PCT_DIRECT_ACCESS | ITYP_OWNER | ITYP_NAME | PARAMETERS | GLOBAL_STATS | DOMIDX_STATUS | DOMIDX_OPSTATUS | FUNCIDX_STATUS | JOIN_INDEX | IOT_REDUNDANT_PKEY_ELIM | DROPPED 
+-----------+------------+------------+-------------+-----------+------------+------------+-------------+---------------+-----------------+-----------+-----------+----------------+-------------+-------------+-------------+--------------+---------------+----------------+-----------+-----------------+----------+---------+--------+-------------+---------------+-------------------------+-------------------------+-------------------+--------+----------+-------------+---------------+--------+-----------+-------------+-----------+-----------+-----------+-------------+------------+----------+-------------------+------------+-----------+------------+--------------+---------------+-----------------+----------------+------------+-------------------------+---------
+(0 rows)
+
+\d+ INTERNAL_IND_COLUMNS;
+                        View "pg_catalog.INTERNAL_IND_COLUMNS"
+     Column      |   Type   | Collation | Nullable | Default | Storage  | Description 
+-----------------+----------+-----------+----------+---------+----------+-------------
+ INDEX_OWNER     | NAME     |           |          |         | plain    | 
+ INDEX_NSP       | NAME     |           |          |         | plain    | 
+ INDEX_NAME      | NAME     |           |          |         | plain    | 
+ TABLE_OWNER     | NAME     |           |          |         | plain    | 
+ TABLE_NSP       | NAME     |           |          |         | plain    | 
+ TABLE_NAME      | NAME     |           |          |         | plain    | 
+ COLUMN_NAME     | NAME     |           |          |         | plain    | 
+ COLUMN_POSITION | SMALLINT |           |          |         | plain    | 
+ COLUMN_LENGTH   | SMALLINT |           |          |         | plain    | 
+ CHAR_LENGTH     | INTEGER  |           |          |         | plain    | 
+ DESCEND         | TEXT     |           |          |         | extended | 
+ RELID           | OID      |           |          |         | plain    | 
+View definition:
+ SELECT ( SELECT PG_AUTHID.ROLNAME
+           FROM PG_AUTHID
+          WHERE PG_AUTHID.OID = I_C.RELOWNER) AS INDEX_OWNER,
+    ( SELECT PG_NAMESPACE.NSPNAME
+           FROM PG_NAMESPACE
+          WHERE PG_NAMESPACE.OID = I_C.RELNAMESPACE) AS INDEX_NSP,
+    ( SELECT PG_CLASS.RELNAME
+           FROM PG_CLASS
+          WHERE PG_CLASS.OID = I.INDEXRELID) AS INDEX_NAME,
+    ( SELECT PG_AUTHID.ROLNAME
+           FROM PG_AUTHID
+          WHERE PG_AUTHID.OID = R_C.RELOWNER) AS TABLE_OWNER,
+    ( SELECT PG_NAMESPACE.NSPNAME
+           FROM PG_NAMESPACE
+          WHERE PG_NAMESPACE.OID = R_C.RELNAMESPACE) AS TABLE_NSP,
+    R_C.RELNAME AS TABLE_NAME,
+    A.ATTNAME AS COLUMN_NAME,
+    A.ATTNUM AS COLUMN_POSITION,
+    A.ATTLEN AS COLUMN_LENGTH,
+        CASE
+            WHEN (( SELECT COUNT(*) AS COUNT
+               FROM PG_TYPE T
+              WHERE T.OID = A.ATTTYPID AND (T.TYPNAME = ANY (ARRAY['char'::NAME, 'varchar'::NAME, 'varchar2'::NAME, 'nvarchar2'::NAME])))) > 0::NUMERIC THEN A.ATTTYPMOD - 4
+            ELSE NULL::INTEGER
+        END AS CHAR_LENGTH,
+        CASE
+            WHEN (C.I_COL_OPT::INTEGER & 1) = 1 THEN 'Y'::TEXT
+            ELSE 'N'::TEXT
+        END AS DESCEND,
+    I.INDRELID AS RELID
+   FROM PG_INDEX I
+     JOIN ( SELECT UNNEST(PG_INDEX.INDKEY) AS I_COL,
+            PG_INDEX.INDEXRELID,
+            PG_INDEX.INDRELID,
+            UNNEST(PG_INDEX.INDOPTION) AS I_COL_OPT
+           FROM PG_INDEX) C ON I.INDEXRELID = C.INDEXRELID
+     JOIN PG_ATTRIBUTE A ON A.ATTRELID = C.INDRELID AND A.ATTNUM = C.I_COL
+     JOIN PG_CLASS I_C ON I_C.OID = I.INDEXRELID
+     JOIN PG_CLASS R_C ON R_C.OID = I.INDRELID
+  WHERE R_C.RELKIND = ANY (ARRAY['r'::"CHAR", 'v'::"CHAR", 'f'::"CHAR", 'p'::"CHAR"]);
+
+select * from INTERNAL_IND_COLUMNS limit 0;
+ INDEX_OWNER | INDEX_NSP | INDEX_NAME | TABLE_OWNER | TABLE_NSP | TABLE_NAME | COLUMN_NAME | COLUMN_POSITION | COLUMN_LENGTH | CHAR_LENGTH | DESCEND | RELID 
+-------------+-----------+------------+-------------+-----------+------------+-------------+-----------------+---------------+-------------+---------+-------
+(0 rows)
+
+\d+ DBA_IND_COLUMNS;
+                          View "pg_catalog.DBA_IND_COLUMNS"
+     Column      |   Type   | Collation | Nullable | Default | Storage  | Description 
+-----------------+----------+-----------+----------+---------+----------+-------------
+ INDEX_OWNER     | NAME     |           |          |         | plain    | 
+ INDEX_NSP       | NAME     |           |          |         | plain    | 
+ INDEX_NAME      | NAME     |           |          |         | plain    | 
+ TABLE_OWNER     | NAME     |           |          |         | plain    | 
+ TABLE_NSP       | NAME     |           |          |         | plain    | 
+ TABLE_NAME      | NAME     |           |          |         | plain    | 
+ COLUMN_NAME     | NAME     |           |          |         | plain    | 
+ COLUMN_POSITION | SMALLINT |           |          |         | plain    | 
+ COLUMN_LENGTH   | SMALLINT |           |          |         | plain    | 
+ CHAR_LENGTH     | INTEGER  |           |          |         | plain    | 
+ DESCEND         | TEXT     |           |          |         | extended | 
+View definition:
+ SELECT INTERNAL_IND_COLUMNS.INDEX_OWNER,
+    INTERNAL_IND_COLUMNS.INDEX_NSP,
+    INTERNAL_IND_COLUMNS.INDEX_NAME,
+    INTERNAL_IND_COLUMNS.TABLE_OWNER,
+    INTERNAL_IND_COLUMNS.TABLE_NSP,
+    INTERNAL_IND_COLUMNS.TABLE_NAME,
+    INTERNAL_IND_COLUMNS.COLUMN_NAME,
+    INTERNAL_IND_COLUMNS.COLUMN_POSITION,
+    INTERNAL_IND_COLUMNS.COLUMN_LENGTH,
+    INTERNAL_IND_COLUMNS.CHAR_LENGTH,
+    INTERNAL_IND_COLUMNS.DESCEND
+   FROM INTERNAL_IND_COLUMNS;
+
+select * from DBA_IND_COLUMNS limit 0;
+ INDEX_OWNER | INDEX_NSP | INDEX_NAME | TABLE_OWNER | TABLE_NSP | TABLE_NAME | COLUMN_NAME | COLUMN_POSITION | COLUMN_LENGTH | CHAR_LENGTH | DESCEND 
+-------------+-----------+------------+-------------+-----------+------------+-------------+-----------------+---------------+-------------+---------
+(0 rows)
+
+\d+ ALL_IND_COLUMNS;
+                          View "pg_catalog.ALL_IND_COLUMNS"
+     Column      |   Type   | Collation | Nullable | Default | Storage  | Description 
+-----------------+----------+-----------+----------+---------+----------+-------------
+ INDEX_OWNER     | NAME     |           |          |         | plain    | 
+ INDEX_NSP       | NAME     |           |          |         | plain    | 
+ INDEX_NAME      | NAME     |           |          |         | plain    | 
+ TABLE_OWNER     | NAME     |           |          |         | plain    | 
+ TABLE_NSP       | NAME     |           |          |         | plain    | 
+ TABLE_NAME      | NAME     |           |          |         | plain    | 
+ COLUMN_NAME     | NAME     |           |          |         | plain    | 
+ COLUMN_POSITION | SMALLINT |           |          |         | plain    | 
+ COLUMN_LENGTH   | SMALLINT |           |          |         | plain    | 
+ CHAR_LENGTH     | INTEGER  |           |          |         | plain    | 
+ DESCEND         | TEXT     |           |          |         | extended | 
+View definition:
+ SELECT INTERNAL_IND_COLUMNS.INDEX_OWNER,
+    INTERNAL_IND_COLUMNS.INDEX_NSP,
+    INTERNAL_IND_COLUMNS.INDEX_NAME,
+    INTERNAL_IND_COLUMNS.TABLE_OWNER,
+    INTERNAL_IND_COLUMNS.TABLE_NSP,
+    INTERNAL_IND_COLUMNS.TABLE_NAME,
+    INTERNAL_IND_COLUMNS.COLUMN_NAME,
+    INTERNAL_IND_COLUMNS.COLUMN_POSITION,
+    INTERNAL_IND_COLUMNS.COLUMN_LENGTH,
+    INTERNAL_IND_COLUMNS.CHAR_LENGTH,
+    INTERNAL_IND_COLUMNS.DESCEND
+   FROM INTERNAL_IND_COLUMNS
+  WHERE HAS_TABLE_PRIVILEGE(INTERNAL_IND_COLUMNS.RELID, 'select,update,delete,truncate,references,trigger,rule,select with grant option,insert with grant option,update with grant option,delete with grant option,truncate with grant option,references with grant option,trigger with grant option,rule with grant option'::TEXT);
+
+select * from ALL_IND_COLUMNS limit 0;
+ INDEX_OWNER | INDEX_NSP | INDEX_NAME | TABLE_OWNER | TABLE_NSP | TABLE_NAME | COLUMN_NAME | COLUMN_POSITION | COLUMN_LENGTH | CHAR_LENGTH | DESCEND 
+-------------+-----------+------------+-------------+-----------+------------+-------------+-----------------+---------------+-------------+---------
+(0 rows)
+
+\d+ USER_IND_COLUMNS;
+                          View "pg_catalog.USER_IND_COLUMNS"
+     Column      |   Type   | Collation | Nullable | Default | Storage  | Description 
+-----------------+----------+-----------+----------+---------+----------+-------------
+ INDEX_OWNER     | NAME     |           |          |         | plain    | 
+ INDEX_NSP       | NAME     |           |          |         | plain    | 
+ INDEX_NAME      | NAME     |           |          |         | plain    | 
+ TABLE_OWNER     | NAME     |           |          |         | plain    | 
+ TABLE_NSP       | NAME     |           |          |         | plain    | 
+ TABLE_NAME      | NAME     |           |          |         | plain    | 
+ COLUMN_NAME     | NAME     |           |          |         | plain    | 
+ COLUMN_POSITION | SMALLINT |           |          |         | plain    | 
+ COLUMN_LENGTH   | SMALLINT |           |          |         | plain    | 
+ CHAR_LENGTH     | INTEGER  |           |          |         | plain    | 
+ DESCEND         | TEXT     |           |          |         | extended | 
+View definition:
+ SELECT INTERNAL_IND_COLUMNS.INDEX_OWNER,
+    INTERNAL_IND_COLUMNS.INDEX_NSP,
+    INTERNAL_IND_COLUMNS.INDEX_NAME,
+    INTERNAL_IND_COLUMNS.TABLE_OWNER,
+    INTERNAL_IND_COLUMNS.TABLE_NSP,
+    INTERNAL_IND_COLUMNS.TABLE_NAME,
+    INTERNAL_IND_COLUMNS.COLUMN_NAME,
+    INTERNAL_IND_COLUMNS.COLUMN_POSITION,
+    INTERNAL_IND_COLUMNS.COLUMN_LENGTH,
+    INTERNAL_IND_COLUMNS.CHAR_LENGTH,
+    INTERNAL_IND_COLUMNS.DESCEND
+   FROM INTERNAL_IND_COLUMNS
+  WHERE INTERNAL_IND_COLUMNS.INDEX_OWNER = CURRENT_USER OR INTERNAL_IND_COLUMNS.TABLE_OWNER = CURRENT_USER;
+
+select * from USER_IND_COLUMNS limit 0;
+ INDEX_OWNER | INDEX_NSP | INDEX_NAME | TABLE_OWNER | TABLE_NSP | TABLE_NAME | COLUMN_NAME | COLUMN_POSITION | COLUMN_LENGTH | CHAR_LENGTH | DESCEND 
+-------------+-----------+------------+-------------+-----------+------------+-------------+-----------------+---------------+-------------+---------
+(0 rows)
+
+\d+ DBA_USERS;
+                                          View "pg_catalog.DBA_USERS"
+           Column            |          Type          | Collation | Nullable | Default | Storage  | Description 
+-----------------------------+------------------------+-----------+----------+---------+----------+-------------
+ USERNAME                    | NAME                   |           |          |         | plain    | 
+ USER_ID                     | OID                    |           |          |         | plain    | 
+ PASSWORD                    | TEXT                   |           |          |         | extended | 
+ ACCOUNT_STATUS              | TEXT                   |           |          |         | extended | 
+ LOCK_DATE                   | PG_CATALOG.TIMESTAMPTZ |           |          |         | plain    | 
+ EXPIRY_DATE                 | PG_CATALOG.TIMESTAMPTZ |           |          |         | plain    | 
+ DEFAULT_TABLESPACE          | TEXT                   |           |          |         | extended | 
+ TEMPORARY_TABLESPACE        | TEXT                   |           |          |         | extended | 
+ CREATED                     | TEXT                   |           |          |         | extended | 
+ PROFILE                     | NAME                   |           |          |         | plain    | 
+ INITIAL_RSRC_CONSUMER_GROUP | TEXT                   |           |          |         | extended | 
+ EXTERNAL_NAME               | TEXT                   |           |          |         | extended | 
+View definition:
+ SELECT PG_AUTHID.ROLNAME AS USERNAME,
+    PG_AUTHID.OID AS USER_ID,
+    NULL::TEXT AS PASSWORD,
+        CASE
+            WHEN PG_AUTHID.ROLVALIDUNTIL IS NULL OR PG_AUTHID.ROLVALIDUNTIL > NOW() THEN 'OPEN'::TEXT
+            ELSE 'EXPIRED'::TEXT
+        END AS ACCOUNT_STATUS,
+    PG_AUTHID.ROLVALIDUNTIL AS LOCK_DATE,
+    PG_AUTHID.ROLVALIDUNTIL AS EXPIRY_DATE,
+    NULL::TEXT AS DEFAULT_TABLESPACE,
+    NULL::TEXT AS TEMPORARY_TABLESPACE,
+    NULL::TEXT AS CREATED,
+    ( SELECT PG_PROFILE.PROFNAME
+           FROM PG_PROFILE
+          WHERE PG_PROFILE.OID = PG_AUTHID.ROLPROFILE) AS PROFILE,
+    NULL::TEXT AS INITIAL_RSRC_CONSUMER_GROUP,
+    NULL::TEXT AS EXTERNAL_NAME
+   FROM PG_AUTHID;
+
+select * from DBA_USERS limit 0;
+ USERNAME | USER_ID | PASSWORD | ACCOUNT_STATUS | LOCK_DATE | EXPIRY_DATE | DEFAULT_TABLESPACE | TEMPORARY_TABLESPACE | CREATED | PROFILE | INITIAL_RSRC_CONSUMER_GROUP | EXTERNAL_NAME 
+----------+---------+----------+----------------+-----------+-------------+--------------------+----------------------+---------+---------+-----------------------------+---------------
+(0 rows)
+
+\d+ USER_USERS;
+                                          View "pg_catalog.USER_USERS"
+           Column            |          Type          | Collation | Nullable | Default | Storage  | Description 
+-----------------------------+------------------------+-----------+----------+---------+----------+-------------
+ USERNAME                    | NAME                   |           |          |         | plain    | 
+ USER_ID                     | OID                    |           |          |         | plain    | 
+ ACCOUNT_STATUS              | TEXT                   |           |          |         | extended | 
+ LOCK_DATE                   | PG_CATALOG.TIMESTAMPTZ |           |          |         | plain    | 
+ EXPIRY_DATE                 | PG_CATALOG.TIMESTAMPTZ |           |          |         | plain    | 
+ DEFAULT_TABLESPACE          | TEXT                   |           |          |         | extended | 
+ TEMPORARY_TABLESPACE        | TEXT                   |           |          |         | extended | 
+ CREATED                     | TEXT                   |           |          |         | extended | 
+ INITIAL_RSRC_CONSUMER_GROUP | TEXT                   |           |          |         | extended | 
+ EXTERNAL_NAME               | TEXT                   |           |          |         | extended | 
+View definition:
+ SELECT PG_AUTHID.ROLNAME AS USERNAME,
+    PG_AUTHID.OID AS USER_ID,
+        CASE
+            WHEN PG_AUTHID.ROLVALIDUNTIL IS NULL OR PG_AUTHID.ROLVALIDUNTIL > NOW() THEN 'OPEN'::TEXT
+            ELSE 'EXPIRED'::TEXT
+        END AS ACCOUNT_STATUS,
+    PG_AUTHID.ROLVALIDUNTIL AS LOCK_DATE,
+    PG_AUTHID.ROLVALIDUNTIL AS EXPIRY_DATE,
+    NULL::TEXT AS DEFAULT_TABLESPACE,
+    NULL::TEXT AS TEMPORARY_TABLESPACE,
+    NULL::TEXT AS CREATED,
+    NULL::TEXT AS INITIAL_RSRC_CONSUMER_GROUP,
+    NULL::TEXT AS EXTERNAL_NAME
+   FROM PG_AUTHID
+  WHERE PG_AUTHID.ROLNAME = CURRENT_USER;
+
+select * from USER_USERS limit 0;
+ USERNAME | USER_ID | ACCOUNT_STATUS | LOCK_DATE | EXPIRY_DATE | DEFAULT_TABLESPACE | TEMPORARY_TABLESPACE | CREATED | INITIAL_RSRC_CONSUMER_GROUP | EXTERNAL_NAME 
+----------+---------+----------------+-----------+-------------+--------------------+----------------------+---------+-----------------------------+---------------
+(0 rows)
+
+\d+ ALL_USERS;
+                        View "pg_catalog.ALL_USERS"
+  Column  | Type | Collation | Nullable | Default | Storage  | Description 
+----------+------+-----------+----------+---------+----------+-------------
+ USERNAME | NAME |           |          |         | plain    | 
+ USER_ID  | OID  |           |          |         | plain    | 
+ CREATED  | TEXT |           |          |         | extended | 
+View definition:
+ SELECT PG_AUTHID.ROLNAME AS USERNAME,
+    PG_AUTHID.OID AS USER_ID,
+    NULL::TEXT AS CREATED
+   FROM PG_AUTHID;
+
+select * from ALL_USERS limit 0;
+ USERNAME | USER_ID | CREATED 
+----------+---------+---------
+(0 rows)
+
+\d+ DBA_SYNONYMS;
+                        View "pg_catalog.DBA_SYNONYMS"
+    Column    | Type | Collation | Nullable | Default | Storage  | Description 
+--------------+------+-----------+----------+---------+----------+-------------
+ OWNER        | NAME |           |          |         | plain    | 
+ SYNONYM_NAME | NAME |           |          |         | plain    | 
+ TABLE_OWNER  | TEXT |           |          |         | extended | 
+ TABLE_NAME   | NAME |           |          |         | plain    | 
+ DB_LINK      | NAME |           |          |         | plain    | 
+View definition:
+ SELECT ( SELECT PG_AUTHID.ROLNAME
+           FROM PG_AUTHID
+          WHERE PG_AUTHID.OID = PG_SYNONYM.SYNOWNER) AS OWNER,
+    PG_SYNONYM.SYNNAME AS SYNONYM_NAME,
+    NULL::TEXT AS TABLE_OWNER,
+    PG_SYNONYM.OBJNAME AS TABLE_NAME,
+    PG_SYNONYM.OBJDBLINK AS DB_LINK
+   FROM PG_SYNONYM;
+
+select * from DBA_SYNONYMS limit 0;
+ OWNER | SYNONYM_NAME | TABLE_OWNER | TABLE_NAME | DB_LINK 
+-------+--------------+-------------+------------+---------
+(0 rows)
+
+\d+ ALL_SYNONYMS;
+                        View "pg_catalog.ALL_SYNONYMS"
+    Column    | Type | Collation | Nullable | Default | Storage  | Description 
+--------------+------+-----------+----------+---------+----------+-------------
+ OWNER        | NAME |           |          |         | plain    | 
+ SYNONYM_NAME | NAME |           |          |         | plain    | 
+ TABLE_OWNER  | TEXT |           |          |         | extended | 
+ TABLE_NAME   | NAME |           |          |         | plain    | 
+ DB_LINK      | NAME |           |          |         | plain    | 
+View definition:
+ SELECT ( SELECT PG_AUTHID.ROLNAME
+           FROM PG_AUTHID
+          WHERE PG_AUTHID.OID = PG_SYNONYM.SYNOWNER) AS OWNER,
+    PG_SYNONYM.SYNNAME AS SYNONYM_NAME,
+    NULL::TEXT AS TABLE_OWNER,
+    PG_SYNONYM.OBJNAME AS TABLE_NAME,
+    PG_SYNONYM.OBJDBLINK AS DB_LINK
+   FROM PG_SYNONYM
+  WHERE (( SELECT PG_AUTHID.ROLNAME
+           FROM PG_AUTHID
+          WHERE PG_AUTHID.OID = PG_SYNONYM.SYNOWNER)) = CURRENT_USER;
+
+select * from ALL_SYNONYMS limit 0;
+ OWNER | SYNONYM_NAME | TABLE_OWNER | TABLE_NAME | DB_LINK 
+-------+--------------+-------------+------------+---------
+(0 rows)
+
+\d+ USER_SYNONYMS;
+                        View "pg_catalog.USER_SYNONYMS"
+    Column    | Type | Collation | Nullable | Default | Storage  | Description 
+--------------+------+-----------+----------+---------+----------+-------------
+ SYNONYM_NAME | NAME |           |          |         | plain    | 
+ TABLE_OWNER  | TEXT |           |          |         | extended | 
+ TABLE_NAME   | NAME |           |          |         | plain    | 
+ DB_LINK      | NAME |           |          |         | plain    | 
+View definition:
+ SELECT PG_SYNONYM.SYNNAME AS SYNONYM_NAME,
+    NULL::TEXT AS TABLE_OWNER,
+    PG_SYNONYM.OBJNAME AS TABLE_NAME,
+    PG_SYNONYM.OBJDBLINK AS DB_LINK
+   FROM PG_SYNONYM
+  WHERE (( SELECT PG_AUTHID.ROLNAME
+           FROM PG_AUTHID
+          WHERE PG_AUTHID.OID = PG_SYNONYM.SYNOWNER)) = CURRENT_USER;
+
+select * from USER_SYNONYMS limit 0;
+ SYNONYM_NAME | TABLE_OWNER | TABLE_NAME | DB_LINK 
+--------------+-------------+------------+---------
+(0 rows)
+

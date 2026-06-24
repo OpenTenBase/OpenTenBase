@@ -242,6 +242,65 @@ DROP TABLE xl_dc24;
 DROP TABLE xl_dc25;
 DROP TABLE xl_dc_weather;
 
+CREATE TABLE xl_dc26(c1 int, c2 clob) distribute by shard(c2);
+INSERT INTO xl_dc26 VALUES(0, 'xxx'::clob), (1, 'xxx'::clob);
+SELECT * FROM xl_dc26 ORDER BY 1;
+UPDATE xl_dc26 SET c2 = 'yyy'::clob WHERE c1 = 1;
+SELECT * FROM xl_dc26 ORDER BY 1;
+DROP TABLE xl_dc26;
 
+CREATE TABLE xl_dc26(c1 int, c2 clob) distribute by hash(c2);
+INSERT INTO xl_dc26 VALUES(0, 'xxx'::clob), (1, 'xxx'::clob);
+SELECT * FROM xl_dc26 ORDER BY 1;
+UPDATE xl_dc26 SET c2 = 'yyy'::clob WHERE c1 = 1;
+SELECT * FROM xl_dc26 ORDER BY 1;
+DROP TABLE xl_dc26;
 
+CREATE TABLE xl_dc26(c1 int, c2 clob) distribute by modulo(c2);
+INSERT INTO xl_dc26 VALUES(0, 'xxx'::clob), (1, 'xxx'::clob);
+SELECT * FROM xl_dc26 ORDER BY 1;
+UPDATE xl_dc26 SET c2 = 'yyy'::clob WHERE c1 = 1;
+SELECT * FROM xl_dc26 ORDER BY 1;
+DROP TABLE xl_dc26;
 
+-- Fix the not stable hash value for expr which type is not same as distributed key.
+-- TAPD: https://tapd.woa.com/tapd_fe/20385652/bug/detail/1020385652136788353
+-- postgresql mode
+set enable_fast_query_shipping to on;
+create table r_dis_typ_20250109(id int, address varchar(100) default '南山' collate "C", dt date default to_date('2099-08-15', 'yyyy-mm-dd')) with(oids) distribute by shard(dt);
+create table r2_dis_typ_20250109(id int, address varchar(100) default '南山' collate "C", dt date default to_date('2099-08-15', 'yyyy-mm-dd')) distribute by shard(dt);
+insert into r_dis_typ_20250109 select lv, (array['深圳','北京','上海','广州','重庆','武汉','成都','杭州','厦门','珠海','云南','新疆'])[((lv%12)+1)], (to_date('2022-08-15 00:00:00','yyyy-mm-dd HH24:mi:SS')+(lv%700)*interval '1' day) from generate_series(1, 1000) lv;
+insert into r2_dis_typ_20250109 select lv, (array['深圳','北京','上海','广州','重庆','武汉','成都','杭州','厦门','珠海','云南','新疆'])[((lv%12)+1)], (to_date('2022-08-15 00:00:00','yyyy-mm-dd HH24:mi:SS')+(lv%700)*interval '1' day) from generate_series(1, 1000) lv;
+create or replace function f_dis_typ_20250109(vdt timestamp without time zone) returns varchar
+as $$
+declare
+    vaddress varchar;
+begin
+    select distinct address into vaddress from r_dis_typ_20250109 where dt=vdt order by 1 limit 1;
+    return vaddress;
+end; $$ language plpgsql;
+select count(*) from r2_dis_typ_20250109 where f_dis_typ_20250109(dt)<>address;
+drop function f_dis_typ_20250109;
+drop table r_dis_typ_20250109;
+drop table r2_dis_typ_20250109;
+reset enable_fast_query_shipping;
+-- opentenbase_ora mode
+\c regression_ora
+set enable_fast_query_shipping to on;
+create table r_dis_typ_20250109(id int, address varchar2(100) default '南山' collate "C", dt date default to_date('2099-08-15', 'yyyy-mm-dd')) with(oids) distribute by shard(dt);
+create table r2_dis_typ_20250109(id int, address varchar2(100) default '南山' collate "C", dt date default to_date('2099-08-15', 'yyyy-mm-dd')) distribute by shard(dt);
+insert into r_dis_typ_20250109 select lv, (array['深圳','北京','上海','广州','重庆','武汉','成都','杭州','厦门','珠海','云南','新疆'])[((lv%12)+1)], (to_date('2022-08-15 00:00:00','yyyy-mm-dd HH24:mi:SS')+(lv%700)*interval '1' day) from generate_series(1, 1000) lv;
+insert into r2_dis_typ_20250109 select lv, (array['深圳','北京','上海','广州','重庆','武汉','成都','杭州','厦门','珠海','云南','新疆'])[((lv%12)+1)], (to_date('2022-08-15 00:00:00','yyyy-mm-dd HH24:mi:SS')+(lv%700)*interval '1' day) from generate_series(1, 1000) lv;
+create or replace function f_dis_typ_20250109(vdt timestamp without time zone) return varchar
+as
+    vaddress varchar;
+begin
+    select distinct address into vaddress from r_dis_typ_20250109 where dt=vdt order by 1 limit 1;
+    return vaddress;
+end;
+/
+select count(*) from r2_dis_typ_20250109 where f_dis_typ_20250109(dt)<>address;
+drop function f_dis_typ_20250109;
+drop table r_dis_typ_20250109;
+drop table r2_dis_typ_20250109;
+reset enable_fast_query_shipping;

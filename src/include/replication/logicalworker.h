@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * logicalworker.h
- *      Exports for logical replication workers.
+ *	  Exports for logical replication workers.
  *
  * Portions Copyright (c) 2016-2017, PostgreSQL Global Development Group
  *
@@ -16,4 +16,4 @@ extern void ApplyWorkerMain(Datum main_arg);
 
 extern bool IsLogicalWorker(void);
 
-#endif                            /* LOGICALWORKER_H */
+#endif							/* LOGICALWORKER_H */

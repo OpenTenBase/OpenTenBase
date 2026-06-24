@@ -14,19 +14,19 @@ extern List *explicit_subtransactions;
 
 typedef struct PLySubtransactionObject
 {
-    PyObject_HEAD
-    bool        started;
-    bool        exited;
+	PyObject_HEAD
+	bool		started;
+	bool		exited;
 } PLySubtransactionObject;
 
 /* explicit subtransaction data */
 typedef struct PLySubtransactionData
 {
-    MemoryContext oldcontext;
-    ResourceOwner oldowner;
+	MemoryContext oldcontext;
+	ResourceOwner oldowner;
 } PLySubtransactionData;
 
 extern void PLy_subtransaction_init_type(void);
 extern PyObject *PLy_subtransaction_new(PyObject *self, PyObject *unused);
 
-#endif                            /* PLPY_SUBXACTOBJECT */
+#endif							/* PLPY_SUBXACTOBJECT */

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * gtm_list.c
- *      implementation for PostgreSQL generic linked list package
+ *	  implementation for PostgreSQL generic linked list package
  *
  *
  * Portions Copyright (c) 1996-2009, PostgreSQL Global Development Group
@@ -10,7 +10,7 @@
  *
  *
  * IDENTIFICATION
- *      $PostgreSQL: pgsql/src/backend/nodes/list.c,v 1.70 2008/08/14 18:47:58 tgl Exp $
+ *	  $PostgreSQL: pgsql/src/backend/nodes/list.c,v 1.70 2008/08/14 18:47:58 tgl Exp $
  *
  *-------------------------------------------------------------------------
  */
@@ -20,7 +20,7 @@
 #include "gtm/memutils.h"
 #include "gtm/assert.h"
 
-#define gtm_equal(a, b)        ((a) == (b))
+#define gtm_equal(a, b)		((a) == (b))
 
 
 #ifdef USE_ASSERT_CHECKING
@@ -30,18 +30,18 @@
 static void
 check_list_invariants(gtm_List *list)
 {
-    if (list == gtm_NIL)
-        return;
+	if (list == gtm_NIL)
+		return;
 
-    Assert(list->length > 0);
-    Assert(list->head != NULL);
-    Assert(list->tail != NULL);
+	Assert(list->length > 0);
+	Assert(list->head != NULL);
+	Assert(list->tail != NULL);
 
-    if (list->length == 1)
-        Assert(list->head == list->tail);
-    if (list->length == 2)
-        Assert(list->head->next == list->tail);
-    Assert(list->tail->next == NULL);
+	if (list->length == 1)
+		Assert(list->head == list->tail);
+	if (list->length == 2)
+		Assert(list->head->next == list->tail);
+	Assert(list->tail->next == NULL);
 }
 #else
 #define check_list_invariants(l)
@@ -55,19 +55,19 @@ check_list_invariants(gtm_List *list)
 static gtm_List *
 new_list()
 {
-    gtm_List       *new_list;
-    gtm_ListCell   *new_head;
+	gtm_List	   *new_list;
+	gtm_ListCell   *new_head;
 
-    new_head = (gtm_ListCell *) palloc(sizeof(*new_head));
-    new_head->next = NULL;
-    /* new_head->data is left undefined! */
+	new_head = (gtm_ListCell *) palloc(sizeof(*new_head));
+	new_head->next = NULL;
+	/* new_head->data is left undefined! */
 
-    new_list = (gtm_List *) palloc(sizeof(*new_list));
-    new_list->length = 1;
-    new_list->head = new_head;
-    new_list->tail = new_head;
+	new_list = (gtm_List *) palloc(sizeof(*new_list));
+	new_list->length = 1;
+	new_list->head = new_head;
+	new_list->tail = new_head;
 
-    return new_list;
+	return new_list;
 }
 
 /*
@@ -80,13 +80,13 @@ new_list()
 static void
 new_head_cell(gtm_List *list)
 {
-    gtm_ListCell   *new_head;
+	gtm_ListCell   *new_head;
 
-    new_head = (gtm_ListCell *) palloc(sizeof(*new_head));
-    new_head->next = list->head;
+	new_head = (gtm_ListCell *) palloc(sizeof(*new_head));
+	new_head->next = list->head;
 
-    list->head = new_head;
-    list->length++;
+	list->head = new_head;
+	list->length++;
 }
 
 /*
@@ -99,14 +99,14 @@ new_head_cell(gtm_List *list)
 static void
 new_tail_cell(gtm_List *list)
 {
-    gtm_ListCell   *new_tail;
+	gtm_ListCell   *new_tail;
 
-    new_tail = (gtm_ListCell *) palloc(sizeof(*new_tail));
-    new_tail->next = NULL;
+	new_tail = (gtm_ListCell *) palloc(sizeof(*new_tail));
+	new_tail->next = NULL;
 
-    list->tail->next = new_tail;
-    list->tail = new_tail;
-    list->length++;
+	list->tail->next = new_tail;
+	list->tail = new_tail;
+	list->length++;
 }
 
 /*
@@ -119,14 +119,14 @@ new_tail_cell(gtm_List *list)
 gtm_List *
 gtm_lappend(gtm_List *list, void *datum)
 {
-    if (list == gtm_NIL)
-        list = new_list();
-    else
-        new_tail_cell(list);
+	if (list == gtm_NIL)
+		list = new_list();
+	else
+		new_tail_cell(list);
 
-    gtm_lfirst(list->tail) = datum;
-    check_list_invariants(list);
-    return list;
+	gtm_lfirst(list->tail) = datum;
+	check_list_invariants(list);
+	return list;
 }
 
 /*
@@ -138,19 +138,19 @@ gtm_lappend(gtm_List *list, void *datum)
 static gtm_ListCell *
 add_new_cell(gtm_List *list, gtm_ListCell *prev_cell)
 {
-    gtm_ListCell   *new_cell;
+	gtm_ListCell   *new_cell;
 
-    new_cell = (gtm_ListCell *) palloc(sizeof(*new_cell));
-    /* new_cell->data is left undefined! */
-    new_cell->next = prev_cell->next;
-    prev_cell->next = new_cell;
+	new_cell = (gtm_ListCell *) palloc(sizeof(*new_cell));
+	/* new_cell->data is left undefined! */
+	new_cell->next = prev_cell->next;
+	prev_cell->next = new_cell;
 
-    if (list->tail == prev_cell)
-        list->tail = new_cell;
+	if (list->tail == prev_cell)
+		list->tail = new_cell;
 
-    list->length++;
+	list->length++;
 
-    return new_cell;
+	return new_cell;
 }
 
 /*
@@ -162,12 +162,12 @@ add_new_cell(gtm_List *list, gtm_ListCell *prev_cell)
 gtm_ListCell *
 gtm_lappend_cell(gtm_List *list, gtm_ListCell *prev, void *datum)
 {
-    gtm_ListCell   *new_cell;
+	gtm_ListCell   *new_cell;
 
-    new_cell = add_new_cell(list, prev);
-    gtm_lfirst(new_cell) = datum;
-    check_list_invariants(list);
-    return new_cell;
+	new_cell = add_new_cell(list, prev);
+	gtm_lfirst(new_cell) = datum;
+	check_list_invariants(list);
+	return new_cell;
 }
 
 /*
@@ -180,14 +180,14 @@ gtm_lappend_cell(gtm_List *list, gtm_ListCell *prev, void *datum)
 gtm_List *
 gtm_lcons(void *datum, gtm_List *list)
 {
-    if (list == gtm_NIL)
-        list = new_list();
-    else
-        new_head_cell(list);
+	if (list == gtm_NIL)
+		list = new_list();
+	else
+		new_head_cell(list);
 
-    gtm_lfirst(list->head) = datum;
-    check_list_invariants(list);
-    return list;
+	gtm_lfirst(list->head) = datum;
+	check_list_invariants(list);
+	return list;
 }
 
 /*
@@ -204,20 +204,20 @@ gtm_lcons(void *datum, gtm_List *list)
 gtm_List *
 gtm_list_concat(gtm_List *list1, gtm_List *list2)
 {
-    if (list1 == gtm_NIL)
-        return list2;
-    if (list2 == gtm_NIL)
-        return list1;
-    if (list1 == list2)
-        elog(ERROR, "cannot gtm_list_concat() a list to itself");
+	if (list1 == gtm_NIL)
+		return list2;
+	if (list2 == gtm_NIL)
+		return list1;
+	if (list1 == list2)
+		elog(ERROR, "cannot gtm_list_concat() a list to itself");
 
 
-    list1->length += list2->length;
-    list1->tail->next = list2->head;
-    list1->tail = list2->tail;
+	list1->length += list2->length;
+	list1->tail->next = list2->head;
+	list1->tail = list2->tail;
 
-    check_list_invariants(list1);
-    return list1;
+	check_list_invariants(list1);
+	return list1;
 }
 
 /*
@@ -232,33 +232,33 @@ gtm_list_concat(gtm_List *list1, gtm_List *list2)
 gtm_List *
 gtm_list_truncate(gtm_List *list, int new_size)
 {
-    gtm_ListCell   *cell;
-    int            n;
+	gtm_ListCell   *cell;
+	int			n;
 
-    if (new_size <= 0)
-        return gtm_NIL;                /* truncate to zero length */
+	if (new_size <= 0)
+		return gtm_NIL;				/* truncate to zero length */
 
-    /* If asked to effectively extend the list, do nothing */
-    if (new_size >= gtm_list_length(list))
-        return list;
+	/* If asked to effectively extend the list, do nothing */
+	if (new_size >= gtm_list_length(list))
+		return list;
 
-    n = 1;
-    gtm_foreach(cell, list)
-    {
-        if (n == new_size)
-        {
-            cell->next = NULL;
-            list->tail = cell;
-            list->length = new_size;
-            check_list_invariants(list);
-            return list;
-        }
-        n++;
-    }
+	n = 1;
+	gtm_foreach(cell, list)
+	{
+		if (n == new_size)
+		{
+			cell->next = NULL;
+			list->tail = cell;
+			list->length = new_size;
+			check_list_invariants(list);
+			return list;
+		}
+		n++;
+	}
 
-    /* keep the compiler quiet; never reached */
-    Assert(false);
-    return list;
+	/* keep the compiler quiet; never reached */
+	Assert(false);
+	return list;
 }
 
 /*
@@ -268,21 +268,21 @@ gtm_list_truncate(gtm_List *list, int new_size)
 static gtm_ListCell *
 list_nth_cell(gtm_List *list, int n)
 {
-    gtm_ListCell   *match;
+	gtm_ListCell   *match;
 
-    Assert(list != gtm_NIL);
-    Assert(n >= 0);
-    Assert(n < list->length);
-    check_list_invariants(list);
+	Assert(list != gtm_NIL);
+	Assert(n >= 0);
+	Assert(n < list->length);
+	check_list_invariants(list);
 
-    /* Does the caller actually mean to fetch the tail? */
-    if (n == list->length - 1)
-        return list->tail;
+	/* Does the caller actually mean to fetch the tail? */
+	if (n == list->length - 1)
+		return list->tail;
 
-    for (match = list->head; n-- > 0; match = match->next)
-        ;
+	for (match = list->head; n-- > 0; match = match->next)
+		;
 
-    return match;
+	return match;
 }
 
 /*
@@ -292,7 +292,7 @@ list_nth_cell(gtm_List *list, int n)
 void *
 gtm_list_nth(gtm_List *list, int n)
 {
-    return gtm_lfirst(list_nth_cell(list, n));
+	return gtm_lfirst(list_nth_cell(list, n));
 }
 
 /*
@@ -303,17 +303,17 @@ gtm_list_nth(gtm_List *list, int n)
 bool
 gtm_list_member(gtm_List *list, void *datum)
 {
-    gtm_ListCell   *cell;
+	gtm_ListCell   *cell;
 
-    check_list_invariants(list);
+	check_list_invariants(list);
 
-    gtm_foreach(cell, list)
-    {
-        if (gtm_equal(gtm_lfirst(cell), datum))
-            return true;
-    }
+	gtm_foreach(cell, list)
+	{
+		if (gtm_equal(gtm_lfirst(cell), datum))
+			return true;
+	}
 
-    return false;
+	return false;
 }
 
 /*
@@ -323,17 +323,17 @@ gtm_list_member(gtm_List *list, void *datum)
 bool
 gtm_list_member_ptr(gtm_List *list, void *datum)
 {
-    gtm_ListCell   *cell;
+	gtm_ListCell   *cell;
 
-    check_list_invariants(list);
+	check_list_invariants(list);
 
-    gtm_foreach(cell, list)
-    {
-        if (gtm_lfirst(cell) == datum)
-            return true;
-    }
+	gtm_foreach(cell, list)
+	{
+		if (gtm_lfirst(cell) == datum)
+			return true;
+	}
 
-    return false;
+	return false;
 }
 
 /*
@@ -345,38 +345,37 @@ gtm_list_member_ptr(gtm_List *list, void *datum)
 gtm_List *
 gtm_list_delete_cell(gtm_List *list, gtm_ListCell *cell, gtm_ListCell *prev)
 {
-    check_list_invariants(list);
-    Assert(prev != NULL ? gtm_lnext(prev) == cell : gtm_list_head(list) == cell);
+	check_list_invariants(list);
+	Assert(prev != NULL ? gtm_lnext(prev) == cell : gtm_list_head(list) == cell);
 
-    /*
-     * If we're about to delete the last node from the list, free the whole
-     * list instead and return gtm_NIL, which is the only valid representation of
-     * a zero-length list.
-     */
-    if (list->length == 1)
-    {
-        gtm_list_free(list);
-        return gtm_NIL;
-    }
+	/*
+	 * If we're about to delete the last node from the list, free the whole
+	 * list instead and return gtm_NIL, which is the only valid representation of
+	 * a zero-length list.
+	 */
+	if (list->length == 1)
+	{
+		gtm_list_free(list);
+		return gtm_NIL;
+	}
 
-    /*
-     * Otherwise, adjust the necessary list links, deallocate the particular
-     * node we have just removed, and return the list we were given.
-     */
-    list->length--;
+	/*
+	 * Otherwise, adjust the necessary list links, deallocate the particular
+	 * node we have just removed, and return the list we were given.
+	 */
+	list->length--;
 
-    if (prev)
-        prev->next = cell->next;
-    else
-        list->head = cell->next;
+	if (prev)
+		prev->next = cell->next;
+	else
+		list->head = cell->next;
 
-    if (list->tail == cell)
-        list->tail = prev;
+	if (list->tail == cell)
+		list->tail = prev;
 
-    pfree(cell);
-    return list;
+	pfree(cell);
+	return list;
 }
-
 /*
  * Delete the first cell in list that matches datum, if any.
  * Equality is determined via gtm_equal().
@@ -384,44 +383,44 @@ gtm_list_delete_cell(gtm_List *list, gtm_ListCell *cell, gtm_ListCell *prev)
 gtm_List *
 gtm_list_delete(gtm_List *list, void *datum)
 {
-    gtm_ListCell   *cell;
-    gtm_ListCell   *prev;
+	gtm_ListCell   *cell;
+	gtm_ListCell   *prev;
 
-    check_list_invariants(list);
+	check_list_invariants(list);
 
-    prev = NULL;
-    gtm_foreach(cell, list)
-    {
-        if (gtm_equal(gtm_lfirst(cell), datum))
-            return gtm_list_delete_cell(list, cell, prev);
+	prev = NULL;
+	gtm_foreach(cell, list)
+	{
+		if (gtm_equal(gtm_lfirst(cell), datum))
+			return gtm_list_delete_cell(list, cell, prev);
 
-        prev = cell;
-    }
+		prev = cell;
+	}
 
-    /* Didn't find a match: return the list unmodified */
-    return list;
+	/* Didn't find a match: return the list unmodified */
+	return list;
 }
 
 /* As above, but use simple pointer equality */
 gtm_List *
 gtm_list_delete_ptr(gtm_List *list, void *datum)
 {
-    gtm_ListCell   *cell;
-    gtm_ListCell   *prev;
+	gtm_ListCell   *cell;
+	gtm_ListCell   *prev;
 
-    check_list_invariants(list);
+	check_list_invariants(list);
 
-    prev = NULL;
-    gtm_foreach(cell, list)
-    {
-        if (gtm_lfirst(cell) == datum)
-            return gtm_list_delete_cell(list, cell, prev);
+	prev = NULL;
+	gtm_foreach(cell, list)
+	{
+		if (gtm_lfirst(cell) == datum)
+			return gtm_list_delete_cell(list, cell, prev);
 
-        prev = cell;
-    }
+		prev = cell;
+	}
 
-    /* Didn't find a match: return the list unmodified */
-    return list;
+	/* Didn't find a match: return the list unmodified */
+	return list;
 }
 
 
@@ -436,12 +435,12 @@ gtm_list_delete_ptr(gtm_List *list, void *datum)
 gtm_List *
 gtm_list_delete_first(gtm_List *list)
 {
-    check_list_invariants(list);
+	check_list_invariants(list);
 
-    if (list == gtm_NIL)
-        return gtm_NIL;                /* would an error be better? */
+	if (list == gtm_NIL)
+		return gtm_NIL;				/* would an error be better? */
 
-    return gtm_list_delete_cell(list, gtm_list_head(list), NULL);
+	return gtm_list_delete_cell(list, gtm_list_head(list), NULL);
 }
 
 /*
@@ -467,18 +466,18 @@ gtm_list_delete_first(gtm_List *list)
 gtm_List *
 gtm_list_union(gtm_List *list1, gtm_List *list2)
 {
-    gtm_List       *result;
-    gtm_ListCell   *cell;
+	gtm_List	   *result;
+	gtm_ListCell   *cell;
 
-    result = gtm_list_copy(list1);
-    gtm_foreach(cell, list2)
-    {
-        if (!gtm_list_member(result, gtm_lfirst(cell)))
-            result = gtm_lappend(result, gtm_lfirst(cell));
-    }
+	result = gtm_list_copy(list1);
+	gtm_foreach(cell, list2)
+	{
+		if (!gtm_list_member(result, gtm_lfirst(cell)))
+			result = gtm_lappend(result, gtm_lfirst(cell));
+	}
 
-    check_list_invariants(result);
-    return result;
+	check_list_invariants(result);
+	return result;
 }
 
 /*
@@ -488,19 +487,19 @@ gtm_list_union(gtm_List *list1, gtm_List *list2)
 gtm_List *
 gtm_list_union_ptr(gtm_List *list1, gtm_List *list2)
 {
-    gtm_List       *result;
-    gtm_ListCell   *cell;
+	gtm_List	   *result;
+	gtm_ListCell   *cell;
 
 
-    result = gtm_list_copy(list1);
-    gtm_foreach(cell, list2)
-    {
-        if (!gtm_list_member_ptr(result, gtm_lfirst(cell)))
-            result = gtm_lappend(result, gtm_lfirst(cell));
-    }
+	result = gtm_list_copy(list1);
+	gtm_foreach(cell, list2)
+	{
+		if (!gtm_list_member_ptr(result, gtm_lfirst(cell)))
+			result = gtm_lappend(result, gtm_lfirst(cell));
+	}
 
-    check_list_invariants(result);
-    return result;
+	check_list_invariants(result);
+	return result;
 }
 
 /*
@@ -519,21 +518,21 @@ gtm_list_union_ptr(gtm_List *list1, gtm_List *list2)
 gtm_List *
 gtm_list_intersection(gtm_List *list1, gtm_List *list2)
 {
-    gtm_List       *result;
-    gtm_ListCell   *cell;
+	gtm_List	   *result;
+	gtm_ListCell   *cell;
 
-    if (list1 == gtm_NIL || list2 == gtm_NIL)
-        return gtm_NIL;
+	if (list1 == gtm_NIL || list2 == gtm_NIL)
+		return gtm_NIL;
 
-    result = gtm_NIL;
-    gtm_foreach(cell, list1)
-    {
-        if (gtm_list_member(list2, gtm_lfirst(cell)))
-            result = gtm_lappend(result, gtm_lfirst(cell));
-    }
+	result = gtm_NIL;
+	gtm_foreach(cell, list1)
+	{
+		if (gtm_list_member(list2, gtm_lfirst(cell)))
+			result = gtm_lappend(result, gtm_lfirst(cell));
+	}
 
-    check_list_invariants(result);
-    return result;
+	check_list_invariants(result);
+	return result;
 }
 
 /*
@@ -548,20 +547,20 @@ gtm_list_intersection(gtm_List *list1, gtm_List *list2)
 gtm_List *
 gtm_list_difference(gtm_List *list1, gtm_List *list2)
 {
-    gtm_ListCell   *cell;
-    gtm_List       *result = gtm_NIL;
+	gtm_ListCell   *cell;
+	gtm_List	   *result = gtm_NIL;
 
-    if (list2 == gtm_NIL)
-        return gtm_list_copy(list1);
+	if (list2 == gtm_NIL)
+		return gtm_list_copy(list1);
 
-    gtm_foreach(cell, list1)
-    {
-        if (!gtm_list_member(list2, gtm_lfirst(cell)))
-            result = gtm_lappend(result, gtm_lfirst(cell));
-    }
+	gtm_foreach(cell, list1)
+	{
+		if (!gtm_list_member(list2, gtm_lfirst(cell)))
+			result = gtm_lappend(result, gtm_lfirst(cell));
+	}
 
-    check_list_invariants(result);
-    return result;
+	check_list_invariants(result);
+	return result;
 }
 
 /*
@@ -571,20 +570,20 @@ gtm_list_difference(gtm_List *list1, gtm_List *list2)
 gtm_List *
 gtm_list_difference_ptr(gtm_List *list1, gtm_List *list2)
 {
-    gtm_ListCell   *cell;
-    gtm_List       *result = gtm_NIL;
+	gtm_ListCell   *cell;
+	gtm_List	   *result = gtm_NIL;
 
-    if (list2 == gtm_NIL)
-        return gtm_list_copy(list1);
+	if (list2 == gtm_NIL)
+		return gtm_list_copy(list1);
 
-    gtm_foreach(cell, list1)
-    {
-        if (!gtm_list_member_ptr(list2, gtm_lfirst(cell)))
-            result = gtm_lappend(result, gtm_lfirst(cell));
-    }
+	gtm_foreach(cell, list1)
+	{
+		if (!gtm_list_member_ptr(list2, gtm_lfirst(cell)))
+			result = gtm_lappend(result, gtm_lfirst(cell));
+	}
 
-    check_list_invariants(result);
-    return result;
+	check_list_invariants(result);
+	return result;
 }
 
 /*
@@ -596,10 +595,10 @@ gtm_list_difference_ptr(gtm_List *list1, gtm_List *list2)
 gtm_List *
 gtm_list_append_unique(gtm_List *list, void *datum)
 {
-    if (gtm_list_member(list, datum))
-        return list;
-    else
-        return gtm_lappend(list, datum);
+	if (gtm_list_member(list, datum))
+		return list;
+	else
+		return gtm_lappend(list, datum);
 }
 
 /*
@@ -609,10 +608,10 @@ gtm_list_append_unique(gtm_List *list, void *datum)
 gtm_List *
 gtm_list_append_unique_ptr(gtm_List *list, void *datum)
 {
-    if (gtm_list_member_ptr(list, datum))
-        return list;
-    else
-        return gtm_lappend(list, datum);
+	if (gtm_list_member_ptr(list, datum))
+		return list;
+	else
+		return gtm_lappend(list, datum);
 }
 
 /*
@@ -622,22 +621,22 @@ gtm_list_append_unique_ptr(gtm_List *list, void *datum)
  * via gtm_equal().
  *
  * This is almost the same functionality as gtm_list_union(), but list1 is
- * modified in-place rather than being copied.    Note also that list2's cells
+ * modified in-place rather than being copied.	Note also that list2's cells
  * are not inserted in list1, so the analogy to gtm_list_concat() isn't perfect.
  */
 gtm_List *
 gtm_list_concat_unique(gtm_List *list1, gtm_List *list2)
 {
-    gtm_ListCell   *cell;
+	gtm_ListCell   *cell;
 
-    gtm_foreach(cell, list2)
-    {
-        if (!gtm_list_member(list1, gtm_lfirst(cell)))
-            list1 = gtm_lappend(list1, gtm_lfirst(cell));
-    }
+	gtm_foreach(cell, list2)
+	{
+		if (!gtm_list_member(list1, gtm_lfirst(cell)))
+			list1 = gtm_lappend(list1, gtm_lfirst(cell));
+	}
 
-    check_list_invariants(list1);
-    return list1;
+	check_list_invariants(list1);
+	return list1;
 }
 
 /*
@@ -647,16 +646,16 @@ gtm_list_concat_unique(gtm_List *list1, gtm_List *list2)
 gtm_List *
 gtm_list_concat_unique_ptr(gtm_List *list1, gtm_List *list2)
 {
-    gtm_ListCell   *cell;
+	gtm_ListCell   *cell;
 
-    gtm_foreach(cell, list2)
-    {
-        if (!gtm_list_member_ptr(list1, gtm_lfirst(cell)))
-            list1 = gtm_lappend(list1, gtm_lfirst(cell));
-    }
+	gtm_foreach(cell, list2)
+	{
+		if (!gtm_list_member_ptr(list1, gtm_lfirst(cell)))
+			list1 = gtm_lappend(list1, gtm_lfirst(cell));
+	}
 
-    check_list_invariants(list1);
-    return list1;
+	check_list_invariants(list1);
+	return list1;
 }
 
 /*
@@ -665,23 +664,23 @@ gtm_list_concat_unique_ptr(gtm_List *list1, gtm_List *list2)
 static void
 list_free_private(gtm_List *list, bool deep)
 {
-    gtm_ListCell   *cell;
+	gtm_ListCell   *cell;
 
-    check_list_invariants(list);
+	check_list_invariants(list);
 
-    cell = gtm_list_head(list);
-    while (cell != NULL)
-    {
-        gtm_ListCell   *tmp = cell;
+	cell = gtm_list_head(list);
+	while (cell != NULL)
+	{
+		gtm_ListCell   *tmp = cell;
 
-        cell = gtm_lnext(cell);
-        if (deep)
-            pfree(gtm_lfirst(tmp));
-        pfree(tmp);
-    }
+		cell = gtm_lnext(cell);
+		if (deep)
+			pfree(gtm_lfirst(tmp));
+		pfree(tmp);
+	}
 
-    if (list)
-        pfree(list);
+	if (list)
+		pfree(list);
 }
 
 /*
@@ -695,7 +694,7 @@ list_free_private(gtm_List *list, bool deep)
 void
 gtm_list_free(gtm_List *list)
 {
-    list_free_private(list, false);
+	list_free_private(list, false);
 }
 
 /*
@@ -709,10 +708,10 @@ gtm_list_free(gtm_List *list)
 void
 gtm_list_free_deep(gtm_List *list)
 {
-    /*
-     * A "deep" free operation only makes sense on a list of pointers.
-     */
-    list_free_private(list, true);
+	/*
+	 * A "deep" free operation only makes sense on a list of pointers.
+	 */
+	list_free_private(list, true);
 }
 
 /*
@@ -721,41 +720,41 @@ gtm_list_free_deep(gtm_List *list)
 gtm_List *
 gtm_list_copy(gtm_List *oldlist)
 {
-    gtm_List       *newlist;
-    gtm_ListCell   *newlist_prev;
-    gtm_ListCell   *oldlist_cur;
+	gtm_List	   *newlist;
+	gtm_ListCell   *newlist_prev;
+	gtm_ListCell   *oldlist_cur;
 
-    if (oldlist == gtm_NIL)
-        return gtm_NIL;
+	if (oldlist == gtm_NIL)
+		return gtm_NIL;
 
-    newlist = new_list();
-    newlist->length = oldlist->length;
+	newlist = new_list();
+	newlist->length = oldlist->length;
 
-    /*
-     * Copy over the data in the first cell; new_list() has already allocated
-     * the head cell itself
-     */
-    newlist->head->data = oldlist->head->data;
+	/*
+	 * Copy over the data in the first cell; new_list() has already allocated
+	 * the head cell itself
+	 */
+	newlist->head->data = oldlist->head->data;
 
-    newlist_prev = newlist->head;
-    oldlist_cur = oldlist->head->next;
-    while (oldlist_cur)
-    {
-        gtm_ListCell   *newlist_cur;
+	newlist_prev = newlist->head;
+	oldlist_cur = oldlist->head->next;
+	while (oldlist_cur)
+	{
+		gtm_ListCell   *newlist_cur;
 
-        newlist_cur = (gtm_ListCell *) palloc(sizeof(*newlist_cur));
-        newlist_cur->data = oldlist_cur->data;
-        newlist_prev->next = newlist_cur;
+		newlist_cur = (gtm_ListCell *) palloc(sizeof(*newlist_cur));
+		newlist_cur->data = oldlist_cur->data;
+		newlist_prev->next = newlist_cur;
 
-        newlist_prev = newlist_cur;
-        oldlist_cur = oldlist_cur->next;
-    }
+		newlist_prev = newlist_cur;
+		oldlist_cur = oldlist_cur->next;
+	}
 
-    newlist_prev->next = NULL;
-    newlist->tail = newlist_prev;
+	newlist_prev->next = NULL;
+	newlist->tail = newlist_prev;
 
-    check_list_invariants(newlist);
-    return newlist;
+	check_list_invariants(newlist);
+	return newlist;
 }
 
 /*
@@ -764,51 +763,51 @@ gtm_list_copy(gtm_List *oldlist)
 gtm_List *
 gtm_list_copy_tail(gtm_List *oldlist, int nskip)
 {
-    gtm_List       *newlist;
-    gtm_ListCell   *newlist_prev;
-    gtm_ListCell   *oldlist_cur;
+	gtm_List	   *newlist;
+	gtm_ListCell   *newlist_prev;
+	gtm_ListCell   *oldlist_cur;
 
-    if (nskip < 0)
-        nskip = 0;                /* would it be better to elog? */
+	if (nskip < 0)
+		nskip = 0;				/* would it be better to elog? */
 
-    if (oldlist == gtm_NIL || nskip >= oldlist->length)
-        return gtm_NIL;
+	if (oldlist == gtm_NIL || nskip >= oldlist->length)
+		return gtm_NIL;
 
-    newlist = new_list();
-    newlist->length = oldlist->length - nskip;
+	newlist = new_list();
+	newlist->length = oldlist->length - nskip;
 
-    /*
-     * Skip over the unwanted elements.
-     */
-    oldlist_cur = oldlist->head;
-    while (nskip-- > 0)
-        oldlist_cur = oldlist_cur->next;
+	/*
+	 * Skip over the unwanted elements.
+	 */
+	oldlist_cur = oldlist->head;
+	while (nskip-- > 0)
+		oldlist_cur = oldlist_cur->next;
 
-    /*
-     * Copy over the data in the first remaining cell; new_list() has already
-     * allocated the head cell itself
-     */
-    newlist->head->data = oldlist_cur->data;
+	/*
+	 * Copy over the data in the first remaining cell; new_list() has already
+	 * allocated the head cell itself
+	 */
+	newlist->head->data = oldlist_cur->data;
 
-    newlist_prev = newlist->head;
-    oldlist_cur = oldlist_cur->next;
-    while (oldlist_cur)
-    {
-        gtm_ListCell   *newlist_cur;
+	newlist_prev = newlist->head;
+	oldlist_cur = oldlist_cur->next;
+	while (oldlist_cur)
+	{
+		gtm_ListCell   *newlist_cur;
 
-        newlist_cur = (gtm_ListCell *) palloc(sizeof(*newlist_cur));
-        newlist_cur->data = oldlist_cur->data;
-        newlist_prev->next = newlist_cur;
+		newlist_cur = (gtm_ListCell *) palloc(sizeof(*newlist_cur));
+		newlist_cur->data = oldlist_cur->data;
+		newlist_prev->next = newlist_cur;
 
-        newlist_prev = newlist_cur;
-        oldlist_cur = oldlist_cur->next;
-    }
+		newlist_prev = newlist_cur;
+		oldlist_cur = oldlist_cur->next;
+	}
 
-    newlist_prev->next = NULL;
-    newlist->tail = newlist_prev;
+	newlist_prev->next = NULL;
+	newlist->tail = newlist_prev;
 
-    check_list_invariants(newlist);
-    return newlist;
+	check_list_invariants(newlist);
+	return newlist;
 }
 
 /*
@@ -822,19 +821,19 @@ gtm_list_copy_tail(gtm_List *oldlist, int nskip)
 gtm_ListCell *
 gtm_list_head(gtm_List *l)
 {
-    return l ? l->head : NULL;
+	return l ? l->head : NULL;
 }
 
 gtm_ListCell *
 gtm_list_tail(gtm_List *l)
 {
-    return l ? l->tail : NULL;
+	return l ? l->tail : NULL;
 }
 
 int
 gtm_list_length(gtm_List *l)
 {
-    return l ? l->length : 0;
+	return l ? l->length : 0;
 }
 #endif   /* ! __GNUC__ */
 
@@ -854,10 +853,10 @@ gtm_list_length(gtm_List *l)
  * gtm_list_length() macro in order to avoid the overhead of a function
  * call.
  */
-int            gtm_length(gtm_List *list);
+int			gtm_length(gtm_List *list);
 
 int
 gtm_length(gtm_List *list)
 {
-    return gtm_list_length(list);
+	return gtm_list_length(list);
 }

@@ -3,3 +3,5 @@ comment = 'foreign-data wrapper for flat file access'
 default_version = '1.0'
 module_pathname = '$libdir/file_fdw'
 relocatable = true
+# sql_mode can be opentenbase_ora, postgresql, all
+sql_mode = 'all'

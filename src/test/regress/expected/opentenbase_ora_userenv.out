@@ -1,0 +1,167 @@
+/*
+ * test for opentenbase_ora compatible userenv
+ */
+\c regression_ora
+select userenv(null) from dual;
+ERROR:  invalid USERENV parameter
+select userenv('') from dual;
+ERROR:  invalid USERENV parameter
+select userenv(1) from dual;
+ERROR:  invalid USERENV parameter
+select userenv('xdj') from dual;
+ERROR:  invalid USERENV parameter
+select to_number(userenv('sid')) > 0 from dual;
+ ?column? 
+----------
+ t
+(1 row)
+
+select 't' from dual where regexp_replace(userenv('sid'), '[0-9]', 'x') is not null;
+ ?column? 
+----------
+ t
+(1 row)
+
+select 't' from dual where regexp_replace(userenv('SID'), '[0-9]', 'x') is not null;
+ ?column? 
+----------
+ t
+(1 row)
+
+select 't' from dual where regexp_replace(userenv('schemaid'), '[0-9]', 'x') is not null;
+ ?column? 
+----------
+ t
+(1 row)
+
+select 't' from dual where regexp_replace(userenv('SCHEMAID'), '[0-9]', 'x') is not null;
+ ?column? 
+----------
+ t
+(1 row)
+
+select userenv('lang') from dual;
+ USERENV 
+---------
+ EN
+(1 row)
+
+select userenv('LANG') from dual;
+ USERENV 
+---------
+ EN
+(1 row)
+
+select userenv('language') from dual;
+  USERENV   
+------------
+ EN_US.UTF8
+(1 row)
+
+select userenv('LANGUAGE') from dual;
+  USERENV   
+------------
+ EN_US.UTF8
+(1 row)
+
+select userenv('LANGuage') from dual;
+  USERENV   
+------------
+ EN_US.UTF8
+(1 row)
+
+SELECT USERENV('CLIENT_INFO') FROM DUAL;
+ USERENV 
+---------
+ 
+(1 row)
+
+SELECT USERENV('ENTRYID') FROM DUAL;
+ USERENV 
+---------
+ 0
+(1 row)
+
+SELECT USERENV('ISDBA') FROM DUAL;
+ USERENV 
+---------
+ TRUE
+(1 row)
+
+SELECT USERENV('LANG') IS NOT NULL FROM DUAL;
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT USERENV('LANGUAGE') IS NOT NULL FROM DUAL;
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT USERENV('SESSIONID') IS NOT NULL FROM DUAL;
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT USERENV('SID') IS NOT NULL FROM DUAL;
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT USERENV('TERMINAL') FROM DUAL;
+ USERENV 
+---------
+ 
+(1 row)
+
+create schema sid_schema;
+/* currently definer is not working. just as current_user */
+create or replace function sid_schema.test_sid(val int) returns varchar2 as
+$$
+declare
+res varchar2(60);
+begin
+	select userenv('schemaid') into res;
+	return res;
+end;
+$$language default_plsql;
+create or replace function sid_schema.test_sid1(val int) return varchar2 authid current_user is
+res varchar2(60); 
+begin
+select userenv('schemaid') into res;
+return res;
+end;
+/
+select 't' from dual where sid_schema.test_sid(3) is not null;
+ ?column? 
+----------
+ t
+(1 row)
+
+select 't' from dual where sid_schema.test_sid1(5) is not null;
+ ?column? 
+----------
+ t
+(1 row)
+
+set search_path to sid_schema;
+select 't' from dual where sid_schema.test_sid(3) is not null;
+ ?column? 
+----------
+ t
+(1 row)
+
+select 't' from dual where sid_schema.test_sid1(5) is not null;
+ ?column? 
+----------
+ t
+(1 row)
+
+--select userenv('sid') from dual;
+drop function test_sid;
+drop function test_sid1;
+drop schema sid_schema;

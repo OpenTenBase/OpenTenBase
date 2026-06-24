@@ -20,16 +20,16 @@ typedef uint8 RmgrId;
  * file format.
  */
 #define PG_RMGR(symname,name,redo,desc,identify,startup,cleanup,mask) \
-    symname,
+	symname,
 
 typedef enum RmgrIds
 {
 #include "access/rmgrlist.h"
-    RM_NEXT_ID
+	RM_NEXT_ID
 } RmgrIds;
 
 #undef PG_RMGR
 
-#define RM_MAX_ID                (RM_NEXT_ID - 1)
+#define RM_MAX_ID				(RM_NEXT_ID - 1)
 
-#endif                            /* RMGR_H */
+#endif							/* RMGR_H */

@@ -11,11 +11,8 @@
  * Portions Copyright (c) 2010-2012 Postgres-XC Development Group
  * Written by Peter Eisentraut <peter_e@gmx.net>.
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * IDENTIFICATION
- *      src/backend/utils/misc/guc.c
+ *	  src/backend/utils/misc/guc.c
  *
  *--------------------------------------------------------------------
  */
@@ -57,7 +54,7 @@ extern int GTMServerPortNumber;
 extern int GTMProxyWorkerThreads;
 extern char *GTMProxyDataDir;
 extern char *GTMProxyConfigFileName;
-//extern char *GTMConfigFileName;
+extern char *GTMConfigFileName;
 
 
 /*
@@ -77,9 +74,7 @@ Server_Message_Level_Options();
 /*
  * GTM option variables that are exported from this module
  */
-char       *data_directory;
-char       *GTMConfigFileName;
-
+char	   *data_directory;
 
 /*
  * Displayable names for context types (enum GtmContext)
@@ -108,23 +103,23 @@ Config_Type_Names();
  * TO ADD AN OPTION:
  *
  * 1. Declare a global variable of type bool, int, double, or char*
- *      and make use of it.
+ *	  and make use of it.
  *
  * 2. Decide at what times it's safe to set the option. See guc.h for
- *      details.
+ *	  details.
  *
  * 3. Decide on a name, a default value, upper and lower bounds (if
- *      applicable), etc.
+ *	  applicable), etc.
  *
  * 4. Add a record below.
  *
  * 5. Add it to src/backend/utils/misc/postgresql.conf.sample, if
- *      appropriate.
+ *	  appropriate.
  *
  * 6. Don't forget to document the option (at least in config.sgml).
  *
  * 7. If it's a new GTMOPT_LIST option you must edit pg_dumpall.c to ensure
- *      it is not single quoted at dump time.
+ *	  it is not single quoted at dump time.
  */
 
 /*
@@ -137,242 +132,242 @@ Config_Type_Names();
 
 struct config_bool ConfigureNamesBool[] =
 {
-    /* End-of-list marker */
-    {
+	/* End-of-list marker */
+	{
 		{NULL, 0, NULL, NULL, 0}, NULL, false, NULL, NULL, false, NULL
-    }
+	}
 };
 
 
 struct config_int ConfigureNamesInt[] =
 {
-    {
-        {
-            GTM_OPTNAME_PORT, GTMC_STARTUP,
-            gettext_noop("Listen Port of GTM_Proxy server."),
-            NULL,
-            0
-        },
-        &GTMProxyPortNumber,
+	{
+		{
+			GTM_OPTNAME_PORT, GTMC_STARTUP,
+			gettext_noop("Listen Port of GTM_Proxy server."),
+			NULL,
+			0
+		},
+		&GTMProxyPortNumber,
 		0, 0, INT_MAX, NULL, NULL,
-        0, NULL
-    },
-    {
-        {
-            GTM_OPTNAME_GTM_PORT, GTMC_SIGHUP,
-            gettext_noop("GTM server port number."),
-            NULL,
-            0
-        },
-        &GTMServerPortNumber,
+		0, NULL
+	},
+	{
+		{
+			GTM_OPTNAME_GTM_PORT, GTMC_SIGHUP,
+			gettext_noop("GTM server port number."),
+			NULL,
+			0
+		},
+		&GTMServerPortNumber,
 		0, 0, INT_MAX, NULL, NULL,
-        0, NULL
-    },
-    {
-        {
-            GTM_OPTNAME_CONNECT_RETRY_INTERVAL, GTMC_SIGHUP,
-            gettext_noop("Interval in second to detect reconnect command."),
-            NULL,
-            GTMOPT_UNIT_TIME
-        },
-        &GTMConnectRetryInterval,
+	    0, NULL
+	},
+	{
+		{
+			GTM_OPTNAME_CONNECT_RETRY_INTERVAL, GTMC_SIGHUP,
+			gettext_noop("Interval in second to detect reconnect command."),
+			NULL,
+			GTMOPT_UNIT_TIME
+		},
+		&GTMConnectRetryInterval,
 		60, 0, INT_MAX, NULL, NULL,
-        0, NULL
-    },
-    {
-        {
-            GTM_OPTNAME_KEEPALIVES_IDLE, GTMC_STARTUP,
-            gettext_noop("Sets \"keepalives_idle\" option for the connection to GTM."),
-            NULL,
-            GTMOPT_UNIT_TIME
-        },
-        &tcp_keepalives_idle,
+		0, NULL
+	},
+	{
+		{
+			GTM_OPTNAME_KEEPALIVES_IDLE, GTMC_STARTUP,
+			gettext_noop("Sets \"keepalives_idle\" option for the connection to GTM."),
+		    NULL,
+			GTMOPT_UNIT_TIME
+		},
+		&tcp_keepalives_idle,
 		0, 0, INT_MAX, NULL, NULL,
-        0, NULL
-    },
-    {
-        {
-            GTM_OPTNAME_KEEPALIVES_INTERVAL, GTMC_STARTUP,
-            gettext_noop("Sets \"keepalives_interval\" option fo the connetion to GTM."),
-             NULL,
-            GTMOPT_UNIT_TIME
-        },
-        &tcp_keepalives_interval,
+		0, NULL
+	},
+	{
+		{
+			GTM_OPTNAME_KEEPALIVES_INTERVAL, GTMC_STARTUP,
+			gettext_noop("Sets \"keepalives_interval\" option fo the connetion to GTM."),
+		 	NULL,
+			GTMOPT_UNIT_TIME
+		},
+		&tcp_keepalives_interval,
 		0, 0, INT_MAX, NULL, NULL,
-        0, NULL
-    },
-    {
-        {
-            GTM_OPTNAME_KEEPALIVES_COUNT, GTMC_STARTUP,
-            gettext_noop("Sets \"keepalives_count\" option to the connection to GTM."),
-            NULL,
-            0
-        },
-        &tcp_keepalives_count,
+		0, NULL
+	},
+	{
+		{
+			GTM_OPTNAME_KEEPALIVES_COUNT, GTMC_STARTUP,
+			gettext_noop("Sets \"keepalives_count\" option to the connection to GTM."),
+			NULL,
+			0
+		},
+		&tcp_keepalives_count,
 		0, 0, INT_MAX, NULL, NULL,
-        0, NULL
-    },
-    {
-        {
-            GTM_OPTNAME_WORKER_THREADS, GTMC_STARTUP,
-            gettext_noop("Number of worker thread."),
-            NULL,
-            0
-        },
-        &GTMProxyWorkerThreads,
+		0, NULL
+	},
+	{
+		{
+			GTM_OPTNAME_WORKER_THREADS, GTMC_STARTUP,
+			gettext_noop("Number of worker thread."),
+			NULL,
+			0
+		},
+		&GTMProxyWorkerThreads,
 		GTM_PROXY_DEFAULT_WORKERS, 1, INT_MAX, NULL, NULL,
-        0, NULL
-    },
-    /* End-of-list marker */
-    {
+		0, NULL
+	},
+	/* End-of-list marker */
+	{
 		{NULL, 0, NULL, NULL, 0}, NULL, 0, 0, 0, NULL, NULL, 0, NULL
-    }
+	}
 };
 
 
 struct config_real ConfigureNamesReal[] =
 {
-    /* End-of-list marker */
-    {
+	/* End-of-list marker */
+	{
 		{NULL, 0, NULL, NULL, 0}, NULL, 0.0, 0.0, 0.0, NULL, NULL, 0.0, NULL
-    }
+	}
 };
 
 struct config_string ConfigureNamesString[] =
 {
-    {
-        {
-            GTM_OPTNAME_DATA_DIR, GTMC_STARTUP,
-            gettext_noop("Work directory."),
-            NULL,
-            0
-        },
-        &GTMProxyDataDir,
-        NULL,
+	{
+		{
+			GTM_OPTNAME_DATA_DIR, GTMC_STARTUP,
+			gettext_noop("Work directory."),
+			NULL,
+			0
+		},
+		&GTMProxyDataDir,
+		NULL,
 		NULL, NULL,
-        NULL,
-        NULL
-    },
+		NULL,
+		NULL
+	},
 
-    {
-        {
-            GTM_OPTNAME_CONFIG_FILE, GTMC_SIGHUP,
-             gettext_noop("Configuration file name."),
-             NULL,
-             0
-        },
-        &GTMConfigFileName,
-        CONFIG_FILENAME,
+	{
+		{
+			GTM_OPTNAME_CONFIG_FILE, GTMC_SIGHUP,
+		 	gettext_noop("Configuration file name."),
+		 	NULL,
+		 	0
+		},
+		&GTMConfigFileName,
+		CONFIG_FILENAME,
 		NULL, NULL,
-        NULL,
-        NULL
-    },
+		NULL,
+		NULL
+	},
 
-    {
-        {
-            GTM_OPTNAME_LISTEN_ADDRESSES, GTMC_STARTUP,
-            gettext_noop("Listen address."),
-            NULL,
-            0
-        },
-        &ListenAddresses,
-        "*",
+	{
+		{
+			GTM_OPTNAME_LISTEN_ADDRESSES, GTMC_STARTUP,
+			gettext_noop("Listen address."),
+			NULL,
+			0
+		},
+		&ListenAddresses,
+		"*",
 		NULL, NULL,
-        NULL, NULL
-    },
+		NULL, NULL
+	},
 
-    {
-        {
-            GTM_OPTNAME_NODENAME, GTMC_STARTUP,
-             gettext_noop("My node name."),
-            NULL,
-             0,
-        },
-        &GTMProxyNodeName,
-        NULL,
+	{
+		{
+			GTM_OPTNAME_NODENAME, GTMC_STARTUP,
+		 	gettext_noop("My node name."),
+			NULL,
+		 	0,
+		},
+		&GTMProxyNodeName,
+		NULL,
 		NULL, NULL,
-        NULL, NULL
-    },
+		NULL, NULL
+	},
 
-    {
-        {
-            GTM_OPTNAME_GTM_HOST, GTMC_SIGHUP,
-            gettext_noop("Address of target GTM ACT."),
-            NULL,
-            0
-        },
-        &GTMServerHost,
-        NULL,
+	{
+		{
+			GTM_OPTNAME_GTM_HOST, GTMC_SIGHUP,
+			gettext_noop("Address of target GTM ACT."),
+			NULL,
+			0
+		},
+		&GTMServerHost,
+		NULL,
 		NULL, NULL,
-        NULL, NULL
-    },
+		NULL, NULL
+	},
 
-    {
-        {
-            GTM_OPTNAME_LOG_FILE, GTMC_SIGHUP,
-            gettext_noop("Log file name."),
-            NULL,
-            0
-        },
-        &GTMLogFile,
-        "gtm_proxy.log",
+	{
+		{
+			GTM_OPTNAME_LOG_FILE, GTMC_SIGHUP,
+			gettext_noop("Log file name."),
+			NULL,
+			0
+		},
+		&GTMLogFile,
+		"gtm_proxy.log",
 		NULL, NULL,
-        NULL, NULL
-    },
+		NULL, NULL
+	},
 
-    {
-        {
-            GTM_OPTNAME_ERROR_REPORTER, GTMC_SIGHUP,
-            gettext_noop("Command to report various errors."),
-            NULL,
-            0
-        },
-        &error_reporter,
-        NULL,
+	{
+		{
+			GTM_OPTNAME_ERROR_REPORTER, GTMC_SIGHUP,
+			gettext_noop("Command to report various errors."),
+			NULL,
+			0
+		},
+		&error_reporter,
+		NULL,
 		NULL, NULL,
-        NULL, NULL
-    },
+		NULL, NULL
+	},
 
-    {
-        {
-            GTM_OPTNAME_STATUS_READER, GTMC_SIGHUP,
-            gettext_noop("Command to get status of global XC node status."),
-            gettext_noop("Runs when configuration file is read by SIGHUP"),
-            0
-        },
-        &status_reader,
-        NULL,
+	{
+		{
+			GTM_OPTNAME_STATUS_READER, GTMC_SIGHUP,
+			gettext_noop("Command to get status of global XC node status."),
+			gettext_noop("Runs when configuration file is read by SIGHUP"),
+			0
+		},
+		&status_reader,
+		NULL,
 		NULL, NULL,
-        NULL, NULL
-    },
+		NULL, NULL
+	},
 
-    /* End-of-list marker */
-    {
+	/* End-of-list marker */
+	{
 		{NULL, 0, NULL, NULL}, NULL, NULL,NULL, NULL, NULL, NULL
-    }
+	}
 };
 
 
 struct config_enum ConfigureNamesEnum[] =
 {
-    {
-        {
-            GTM_OPTNAME_LOG_MIN_MESSAGES, GTMC_SIGHUP,
-            gettext_noop("Minimum message level to write to the log file."),
-            NULL,
-             0
-        },
-        &log_min_messages,
-        WARNING,
-        server_message_level_options,
+	{
+		{
+			GTM_OPTNAME_LOG_MIN_MESSAGES, GTMC_SIGHUP,
+			gettext_noop("Minimum message level to write to the log file."),
+			NULL,
+		 	0
+		},
+		&log_min_messages,
+		WARNING,
+		server_message_level_options,
 		NULL,NULL,
-        WARNING, NULL
-    },
+		WARNING, NULL
+	},
 
-    /* End-of-list marker */
-    {
+	/* End-of-list marker */
+	{
 		{NULL, 0, NULL, NULL, 0}, NULL, 0, NULL, NULL, NULL, 0, NULL
-    }
+	}
 };
 
 /******** end of options list ********/
@@ -383,12 +378,12 @@ struct config_enum ConfigureNamesEnum[] =
 struct config_generic **gtm_opt_variables;
 
 /* Current number of variables contained in the vector */
-int    num_gtm_opt_variables;
+int	num_gtm_opt_variables;
 
 /* Vector capacity */
-int    size_gtm_opt_variables;
+int	size_gtm_opt_variables;
 
 
-bool reporting_enabled;    /* TRUE to enable GTMOPT_REPORT */
+bool reporting_enabled;	/* TRUE to enable GTMOPT_REPORT */
 
-int    GTMOptUpdateCount = 0; /* Indicates when specific option is updated */
+int	GTMOptUpdateCount = 0; /* Indicates when specific option is updated */

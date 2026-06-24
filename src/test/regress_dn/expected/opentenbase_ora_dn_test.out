@@ -1,0 +1,60 @@
+--
+-- test \dn in opentenbase_ora mode, filter out package and type object created scheam.
+--
+create database db_ora_test_dn_20240229 with sql mode opentenbase_ora;
+\c db_ora_test_dn_20240229;
+\dn;
+      List of schemas
+        Name        | Owner 
+--------------------+-------
+ INFORMATION_SCHEMA | opentenbase
+ public             | opentenbase
+(2 rows)
+
+\dn+;
+                             List of schemas
+        Name        | Owner | Access privileges |      Description       
+--------------------+-------+-------------------+------------------------
+ INFORMATION_SCHEMA | opentenbase | opentenbase=UC/opentenbase   +| 
+                    |       | =U/opentenbase          | 
+ public             | opentenbase | opentenbase=UC/opentenbase   +| standard public schema
+                    |       | =UC/opentenbase         | 
+(2 rows)
+
+create or replace package pkg_test_20240229 is
+a int;
+end;
+/
+select nspname from pg_namespace where nspname not like '%temp%' order by 1;
+      NSPNAME       
+--------------------
+ INFORMATION_SCHEMA
+ PKG_TEST_20240229
+ pg_catalog
+ opentenbase_ora
+ pg_slice
+ pg_toast
+ public
+(7 rows)
+
+\dn;
+      List of schemas
+        Name        | Owner 
+--------------------+-------
+ INFORMATION_SCHEMA | opentenbase
+ public             | opentenbase
+(2 rows)
+
+\dn+;
+                             List of schemas
+        Name        | Owner | Access privileges |      Description       
+--------------------+-------+-------------------+------------------------
+ INFORMATION_SCHEMA | opentenbase | opentenbase=UC/opentenbase   +| 
+                    |       | =U/opentenbase          | 
+ public             | opentenbase | opentenbase=UC/opentenbase   +| standard public schema
+                    |       | =UC/opentenbase         | 
+(2 rows)
+
+\c regression_ora;
+drop database db_ora_test_dn_20240229 with(force);
+ERROR:  database "DB_ORA_TEST_DN_20240229" does not exist

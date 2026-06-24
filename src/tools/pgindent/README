@@ -14,9 +14,14 @@ PREREQUISITES:
    git clone https://git.postgresql.org/git/pg_bsd_indent.git
    then follow the directions in README.pg_bsd_indent therein.
 
-2) Install perltidy.  Please be sure it is v20090616 (older and newer
-   versions make different formatting choices, and we want consistency).  See
-   https://sourceforge.net/projects/perltidy/files/perltidy/perltidy-20090616/
+2) Install perltidy.  Please be sure it is version 20170521 (older and newer
+   versions make different formatting choices, and we want consistency).
+   You can get the correct version from
+   https://cpan.metacpan.org/authors/id/S/SH/SHANCOCK/
+   To install, follow the usual install process for a Perl module
+   ("man perlmodinstall" explains it).  Or, if you have cpan installed,
+   this should work:
+   cpan SHANCOCK/Perl-Tidy-20170521.tar.gz
 
 DOING THE INDENT RUN:
 
@@ -26,7 +31,7 @@ DOING THE INDENT RUN:
 
 	wget -O src/tools/pgindent/typedefs.list https://buildfarm.postgresql.org/cgi-bin/typedefs.pl
 
-   (See https://www.pgbuildfarm.org/cgi-bin/typedefs.pl?show_list for a full
+   (See https://buildfarm.postgresql.org/cgi-bin/typedefs.pl?show_list for a full
    list of typedef files, if you want to indent some back branch.)
 
 3) Run pgindent on the C files:
@@ -42,6 +47,13 @@ DOING THE INDENT RUN:
 
    If you want to use some perltidy version that's not in your PATH,
    first set the PERLTIDY environment variable to point to it.
+
+5) Reformat the bootstrap catalog data files:
+
+	./configure     # "make" will not work in an unconfigured tree
+	cd src/include/catalog
+	make reformat-dat-files
+	cd ../../..
 
 VALIDATION:
 
@@ -89,6 +101,10 @@ the comment block with some dashes:
 
 Odd spacing around typedef names might indicate an incomplete typedefs list.
 
+pgindent will mangle both declaration and definition of a C function whose
+name matches a typedef.  Currently the best workaround is to choose
+non-conflicting names.
+
 pgindent can get confused by #if sequences that look correct to the compiler
 but have mismatched braces/parentheses when considered as a whole.  Usually
 that looks pretty unreadable to humans too, so best practice is to rearrange
@@ -126,25 +142,11 @@ Which files are processed
 The pgindent run processes (nearly) all PostgreSQL *.c and *.h files,
 but we currently exclude *.y and *.l files, as well as *.c and *.h files
 derived from *.y and *.l files.  Additional exceptions are listed
-in exclude_file_patterns:
+in exclude_file_patterns; see the notes therein for rationale.
 
-src/include/storage/s_lock.h and src/include/port/atomics/ are excluded
-because they contain assembly code that pgindent tends to mess up.
-
-src/backend/utils/fmgrtab.c is excluded because it confuses pgindent
-and it's a derived file anyway.
-
-src/interfaces/ecpg/test/expected/ is excluded to avoid breaking the ecpg
-regression tests, since what ecpg generates is not necessarily formatted
-as pgindent would do it.  (Note that we do not exclude ecpg's header files
-from the run; some of them get copied verbatim into ecpg's output, meaning
-that the expected files may need to be updated to match.)
-
-src/include/snowball/libstemmer/ and src/backend/snowball/libstemmer/
-are excluded because those files are imported from an external project,
-not maintained locally, and are machine-generated anyway.  Likewise for
-plperl/ppport.h.
-
+Note that we do not exclude ecpg's header files from the run.  Some of them
+get copied verbatim into ecpg's output, meaning that ecpg's expected files
+may need to be updated to match.
 
 The perltidy run processes all *.pl and *.pm files, plus a few
 executable Perl scripts that are not named that way.  See the "find"

@@ -1,0 +1,111 @@
+set enable_opentenbase_ora_compatible to on;
+create EXTENSION opentenbase_ora_package_function;
+create table tbl_guid(a int, b raw(16));
+insert into tbl_guid values(1, sys_guid());
+insert into tbl_guid values(2, sys_guid());
+begin
+for i in 1..10 loop
+insert into tbl_guid values(i, sys_guid());
+end loop;
+end;
+/
+select count(distinct(b)), count(*) from tbl_guid;
+ count | count 
+-------+-------
+    12 |    12
+(1 row)
+
+create or replace function print_guid(guid raw, b raw) return int is
+begin
+perform dbms_output.serveroutput(true);
+-- perform dbms_output.put_line('print guid:' || guid || ' - ' || b);
+perform dbms_output.put_line('print guid');
+return 1;
+end;
+/
+create or replace function print_guid1(guid raw) return int is
+begin
+perform dbms_output.serveroutput(true);
+-- perform dbms_output.put_line('print guid:' || guid);
+perform dbms_output.put_line('print guid1');
+return 1;
+end;
+/
+--connect by
+create view v_sys_guid1 as select sys_guid() sg, level l from dual connect by level < 1000;
+select count(sg), count(distinct(sg)) from v_sys_guid1;
+ count | count 
+-------+-------
+   999 |   999
+(1 row)
+
+insert into tbl_guid select level, sys_guid() from dual connect by level < 10;
+select count(distinct(b)), count(b) from tbl_guid;
+ count | count 
+-------+-------
+    21 |    21
+(1 row)
+
+create view v_sys_guid2 as select sys_guid() sg  from tbl_guid where print_guid(sys_guid(), b) > 0;
+select count(sg), count(distinct(sg)) from v_sys_guid2;
+print guid
+print guid
+print guid
+print guid
+print guid
+print guid
+print guid
+print guid
+print guid
+print guid
+print guid
+print guid
+print guid
+print guid
+print guid
+print guid
+print guid
+print guid
+print guid
+print guid
+print guid
+ count | count 
+-------+-------
+    21 |    21
+(1 row)
+
+create view v_sys_guid3 as select sys_guid() sg from tbl_guid where print_guid1(sys_guid()) > 0;
+select count(sg), count(distinct(sg)) from v_sys_guid3;
+print guid1
+print guid1
+print guid1
+print guid1
+print guid1
+print guid1
+print guid1
+print guid1
+print guid1
+print guid1
+print guid1
+print guid1
+print guid1
+print guid1
+print guid1
+print guid1
+print guid1
+print guid1
+print guid1
+print guid1
+print guid1
+ count | count 
+-------+-------
+    21 |    21
+(1 row)
+
+set enable_opentenbase_ora_compatible to off;
+drop table tbl_guid cascade;
+NOTICE:  drop cascades to 2 other objects
+DETAIL:  drop cascades to view v_sys_guid2
+drop cascades to view v_sys_guid3
+drop EXTENSION opentenbase_ora_package_function cascade;
+NOTICE:  drop cascades to view v_sys_guid1

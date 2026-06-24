@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * tupconvert.h
- *      Tuple conversion support.
+ *	  Tuple conversion support.
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -16,34 +16,42 @@
 
 #include "access/htup.h"
 #include "access/tupdesc.h"
+#include "executor/tuptable.h"
 #include "utils/rel.h"
+
 
 typedef struct TupleConversionMap
 {
-    TupleDesc    indesc;            /* tupdesc for source rowtype */
-    TupleDesc    outdesc;        /* tupdesc for result rowtype */
-    AttrNumber *attrMap;        /* indexes of input fields, or 0 for null */
-    Datum       *invalues;        /* workspace for deconstructing source */
-    bool       *inisnull;
-    Datum       *outvalues;        /* workspace for constructing result */
-    bool       *outisnull;
+	TupleDesc	indesc;			/* tupdesc for source rowtype */
+	TupleDesc	outdesc;		/* tupdesc for result rowtype */
+	AttrNumber *attrMap;		/* indexes of input fields, or 0 for null */
+	Datum	   *invalues;		/* workspace for deconstructing source */
+	bool	   *inisnull;
+	Datum	   *outvalues;		/* workspace for constructing result */
+	bool	   *outisnull;
 } TupleConversionMap;
 
 
 extern TupleConversionMap *convert_tuples_by_position(TupleDesc indesc,
-                           TupleDesc outdesc,
-                           const char *msg);
+						   TupleDesc outdesc,
+						   const char *msg);
 
 extern TupleConversionMap *convert_tuples_by_name(TupleDesc indesc,
-                       TupleDesc outdesc,
-                       const char *msg);
+					   TupleDesc outdesc,
+					   const char *msg);
 
 extern AttrNumber *convert_tuples_by_name_map(TupleDesc indesc,
-                           TupleDesc outdesc,
-                           const char *msg);
+						   TupleDesc outdesc,
+						   const char *msg);
+extern AttrNumber *convert_tuples_by_name_map_if_req(TupleDesc indesc,
+								  TupleDesc outdesc,
+								  const char *msg);
 
-extern HeapTuple do_convert_tuple(HeapTuple tuple, TupleConversionMap *map, Relation rel);
+extern HeapTuple execute_attr_map_tuple(HeapTuple tuple, TupleConversionMap *map, Relation rel);
+extern TupleTableSlot *execute_attr_map_slot(AttrNumber *attrMap,
+					  TupleTableSlot *in_slot, TupleTableSlot *out_slot, Relation partrel);
 
 extern void free_conversion_map(TupleConversionMap *map);
+extern HeapTuple do_convert_tuple(HeapTuple tuple, TupleConversionMap *map);
 
-#endif                            /* TUPCONVERT_H */
+#endif							/* TUPCONVERT_H */

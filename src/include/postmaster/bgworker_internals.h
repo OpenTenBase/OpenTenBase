@@ -1,12 +1,12 @@
 /*--------------------------------------------------------------------
  * bgworker_internals.h
- *        POSTGRES pluggable background workers internals
+ *		POSTGRES pluggable background workers internals
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *        src/include/postmaster/bgworker_internals.h
+ *		src/include/postmaster/bgworker_internals.h
  *--------------------------------------------------------------------
  */
 #ifndef BGWORKER_INTERNALS_H
@@ -21,7 +21,9 @@
 /*
  * Maximum possible value of parallel workers.
  */
+
 #define MAX_PARALLEL_WORKER_LIMIT 1024
+
 
 /*
  * List of background workers, private to postmaster.
@@ -32,14 +34,14 @@
  */
 typedef struct RegisteredBgWorker
 {
-    BackgroundWorker rw_worker; /* its registry entry */
-    struct bkend *rw_backend;    /* its BackendList entry, or NULL */
-    pid_t        rw_pid;            /* 0 if not running */
-    int            rw_child_slot;
-    TimestampTz rw_crashed_at;    /* if not 0, time it last crashed */
-    int            rw_shmem_slot;
-    bool        rw_terminate;
-    slist_node    rw_lnode;        /* list link */
+	BackgroundWorker rw_worker; /* its registry entry */
+	struct bkend *rw_backend;	/* its BackendList entry, or NULL */
+	pid_t		rw_pid;			/* 0 if not running */
+	int			rw_child_slot;
+	TimestampTz rw_crashed_at;	/* if not 0, time it last crashed */
+	int			rw_shmem_slot;
+	bool		rw_terminate;
+	slist_node	rw_lnode;		/* list link */
 } RegisteredBgWorker;
 
 extern slist_head BackgroundWorkerList;
@@ -60,4 +62,4 @@ extern void StartBackgroundWorker(void) pg_attribute_noreturn();
 extern BackgroundWorker *BackgroundWorkerEntry(int slotno);
 #endif
 
-#endif                            /* BGWORKER_INTERNALS_H */
+#endif							/* BGWORKER_INTERNALS_H */

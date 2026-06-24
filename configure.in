@@ -284,6 +284,82 @@ AC_DEFINE_UNQUOTED([BLCKSZ], ${BLCKSZ}, [
 ])
 
 #
+# Column Storage Block size
+#
+AC_MSG_CHECKING([for column storage block size])
+PGAC_ARG_REQ(with, colblocksize, [COLBLOCKSIZE], [set column table block size in kB [1024]],
+             [colblocksize=$withval],
+             [colblocksize=1024])
+case ${colblocksize} in
+  8) COL_BLCKSZ=8192;;
+ 16) COL_BLCKSZ=16384;;
+ 32) COL_BLCKSZ=32768;;
+ 64) COL_BLCKSZ=65536;;
+ 128) COL_BLCKSZ=131072;;
+ 256) COL_BLCKSZ=262144;;
+ 512) COL_BLCKSZ=5248288;;
+ 1024) COL_BLCKSZ=1048576;;
+ 2048) COL_BLCKSZ=2097152;;
+  *) AC_MSG_ERROR([Invalid column storage block size. Allowed values are 8,16,32,64,128,512,1024,2048.])
+esac
+AC_MSG_RESULT([${colblocksize}kB])
+
+AC_DEFINE_UNQUOTED([COL_BLCKSZ], ${COL_BLCKSZ}, [
+ Size of a disk block for column storage --- this also limits the size of a tuple.  You
+ can set it bigger if you need bigger tuples (although TOAST should
+ reduce the need to have large tuples, since fields can be spread
+ across multiple tuples).
+
+ COL_BLCKSZ must be a power of 2.  The maximum possible value of COL_BLCKSZ
+ is currently 2^21 (2097152).  Since the column value in a page is caculated, the size is just limited
+for performance consideration).
+
+ Changing COL_BLCKSZ requires an initdb.
+])
+
+#
+# Forward node page size
+#
+AC_MSG_CHECKING([for forward node page size])
+PGAC_ARG_REQ(with, fnpagesize, [FNPAGESZ], [set forward node page size in kB [4]],
+             [fnpagesize=$withval],
+             [fnpagesize=4])
+case ${fnpagesize} in
+  4) FNPAGESZ=4096;;
+  8) FNPAGESZ=8192;;
+  *) AC_MSG_ERROR([Invalid forward node page size. Allowed values are 4,8.])
+esac
+AC_MSG_RESULT([${fnpagesize}kB])
+
+AC_DEFINE_UNQUOTED([FNPAGESZ], ${FNPAGESZ}, [
+ Size of a memory page for forward node.  You
+ can set it bigger if you need want to store more data in it).
+
+ FNPAGESZ must be a power of 2.  The maximum possible value of FNPAGESZ
+ is currently 2^13 (8192).  Since the column value in a page is caculated, the size is just limited
+for performance consideration).
+
+ Changing FNPAGESZ requires an initdb.
+])
+
+#
+# GTM maximum fragment count
+#
+AC_MSG_CHECKING([for gtm maximum fragment count])
+PGAC_ARG_REQ(with, maxfragcount, [GTM_MAX_FRAGMENTS], [set gtm maximum fragment count in[65536]],
+             [maxfragcount=$withval],
+             [maxfragcount=65536])
+AC_MSG_RESULT([${maxgragcount}])
+
+AC_DEFINE_UNQUOTED([GTM_MAX_FRAGMENTS], ${GTM_MAX_FRAGMENTS}, [
+ The limit of the GTM fragment count.  You
+ can set it bigger if you need want to support more parallel queuey).
+
+ Changing GTM_MAX_FRAGMENTS requires an initdb.
+])
+
+
+#
 # Relation segment size
 #
 AC_MSG_CHECKING([for segment size])
@@ -330,7 +406,8 @@ case ${wal_blocksize} in
  16) XLOG_BLCKSZ=16384;;
  32) XLOG_BLCKSZ=32768;;
  64) XLOG_BLCKSZ=65536;;
-  *) AC_MSG_ERROR([Invalid WAL block size. Allowed values are 1,2,4,8,16,32,64.])
+ 1024) XLOG_BLCKSZ=1048576;;
+  *) AC_MSG_ERROR([Invalid WAL block size. Allowed values are 1,2,4,8,16,32,64,1024.])
 esac
 AC_MSG_RESULT([${wal_blocksize}kB])
 
@@ -384,11 +461,12 @@ AC_DEFINE_UNQUOTED([XLOG_SEG_SIZE], [(${wal_segsize} * 1024 * 1024)], [
 PGAC_ARG_REQ(with, CC, [CMD], [set compiler (deprecated)], [CC=$with_CC])
 
 case $template in
-  aix) pgac_cc_list="gcc xlc";;
-    *) pgac_cc_list="gcc cc";;
+  aix) pgac_cc_list="gcc xlc"; pgac_cxx_list="g++ xlC";;
+    *) pgac_cc_list="gcc cc"; pgac_cxx_list="g++ c++";;
 esac
 
 AC_PROG_CC([$pgac_cc_list])
+AC_PROG_CXX([$pgac_cxx_list])
 
 # Check if it's Intel's compiler, which (usually) pretends to be gcc,
 # but has idiosyncrasies of its own.  We assume icc will define
@@ -405,7 +483,22 @@ choke me
 
 AC_SUBST(SUN_STUDIO_CC)
 
+
+#
+# LLVM
+#
+# Checked early because subsequent tests depend on it.
+PGAC_ARG_BOOL(with, llvm, no, [build with LLVM based JIT support],
+              [AC_DEFINE([USE_LLVM], 1, [Define to 1 to build with LLVM based JIT support. (--with-llvm)])])
+AC_SUBST(with_llvm)
+dnl must use AS_IF here, else AC_REQUIRES inside PGAC_LLVM_SUPPORT malfunctions
+AS_IF([test "$with_llvm" = yes], [
+  PGAC_LLVM_SUPPORT()
+]) # fi
+
+
 unset CFLAGS
+unset CXXFLAGS
 
 #
 # Read the template
@@ -434,9 +527,47 @@ else
   fi
 fi
 
-# CFLAGS we determined above will be added back at the end
+if test "$ac_env_CXXFLAGS_set" = set; then
+  CXXFLAGS=$ac_env_CXXFLAGS_value
+elif test "${CXXFLAGS+set}" = set; then
+  : # (keep what template set)
+elif test "$enable_coverage" = yes; then
+  : # no optimization by default
+elif test "$GCC" = yes; then
+  CXXFLAGS="-O2"
+else
+  # if the user selected debug mode, don't use -O
+  if test "$enable_debug" != yes; then
+    CXXFLAGS="-O"
+  fi
+fi
+
+# When generating bitcode (for inlining) we always want to use -O2
+# even when --enable-debug is specified. The bitcode is not going to
+# be used for line-by-line debugging, and JIT inlining doesn't work
+# without at least -O1 (otherwise clang will emit 'noinline'
+# attributes everywhere), which is bad for testing.  Still allow the
+# environment to override if done explicitly.
+if test "$ac_env_BITCODE_CFLAGS_set" = set; then
+  BITCODE_CFLAGS=$ac_env_BITCODE_CFLAGS_value
+else
+  BITCODE_CFLAGS="-O2 $BITCODE_CFLAGS"
+fi
+if test "$ac_env_BITCODE_CXXFLAGS_set" = set; then
+  BITCODE_CXXFLAGS=$ac_env_BITCODE_CXXFLAGS_value
+else
+  BITCODE_CXXFLAGS="-O2 $BITCODE_CXXFLAGS"
+fi
+
+# C[XX]FLAGS we determined above will be added back at the end
 user_CFLAGS=$CFLAGS
 CFLAGS=""
+user_CXXFLAGS=$CXXFLAGS
+CXXFLAGS=""
+user_BITCODE_CFLAGS=$BITCODE_CFLAGS
+BITCODE_CFLAGS=""
+user_BITCODE_CXXFLAGS=$BITCODE_CXXFLAGS
+BITCODE_CXXFLAGS=""
 
 # set CFLAGS_VECTOR from the environment, if available
 if test "$ac_env_CFLAGS_VECTOR_set" = set; then
@@ -450,55 +581,142 @@ fi
 
 if test "$GCC" = yes -a "$ICC" = no; then
   CFLAGS="-Wall -Wmissing-prototypes -Wpointer-arith"
+  CXXFLAGS="-Wall -Wpointer-arith"
   # These work in some but not all gcc versions
+  save_CFLAGS=$CFLAGS
   PGAC_PROG_CC_CFLAGS_OPT([-Wdeclaration-after-statement])
+  # -Wdeclaration-after-statement isn't applicable for C++.  Specific C files
+  # disable it, so AC_SUBST the negative form.
+  PERMIT_DECLARATION_AFTER_STATEMENT=
+  if test x"$save_CFLAGS" != x"$CFLAGS"; then
+    PERMIT_DECLARATION_AFTER_STATEMENT=-Wno-declaration-after-statement
+  fi
+  AC_SUBST(PERMIT_DECLARATION_AFTER_STATEMENT)
   PGAC_PROG_CC_CFLAGS_OPT([-Wendif-labels])
+  PGAC_PROG_CXX_CFLAGS_OPT([-Wendif-labels])
   PGAC_PROG_CC_CFLAGS_OPT([-Wmissing-format-attribute])
+  PGAC_PROG_CXX_CFLAGS_OPT([-Wmissing-format-attribute])
   # This was included in -Wall/-Wformat in older GCC versions
   PGAC_PROG_CC_CFLAGS_OPT([-Wformat-security])
+  PGAC_PROG_CXX_CFLAGS_OPT([-Wformat-security])
   # Disable strict-aliasing rules; needed for gcc 3.3+
   PGAC_PROG_CC_CFLAGS_OPT([-fno-strict-aliasing])
+  PGAC_PROG_CXX_CFLAGS_OPT([-fno-strict-aliasing])
   # Disable optimizations that assume no overflow; needed for gcc 4.3+
   PGAC_PROG_CC_CFLAGS_OPT([-fwrapv])
+  PGAC_PROG_CXX_CFLAGS_OPT([-fwrapv])
   # Disable FP optimizations that cause various errors on gcc 4.5+ or maybe 4.6+
   PGAC_PROG_CC_CFLAGS_OPT([-fexcess-precision=standard])
+  PGAC_PROG_CXX_CFLAGS_OPT([-fexcess-precision=standard])
   # Optimization flags for specific files that benefit from vectorization
   PGAC_PROG_CC_VAR_OPT(CFLAGS_VECTOR, [-funroll-loops])
   PGAC_PROG_CC_VAR_OPT(CFLAGS_VECTOR, [-ftree-vectorize])
-  # We want to suppress clang's unhelpful unused-command-line-argument warnings
-  # but gcc won't complain about unrecognized -Wno-foo switches, so we have to
-  # test for the positive form and if that works, add the negative form
+  #
+  # The following tests want to suppress various unhelpful warnings by adding
+  # -Wno-foo switches.  But gcc won't complain about unrecognized -Wno-foo
+  # switches, so we have to test for the positive form and if that works,
+  # add the negative form.  Note that tests of this form typically need to
+  # be duplicated in the BITCODE_CFLAGS setup stanza below.
+  #
+  # Suppress clang's unhelpful unused-command-line-argument warnings.
+  NOT_THE_CFLAGS=""
   PGAC_PROG_CC_VAR_OPT(NOT_THE_CFLAGS, [-Wunused-command-line-argument])
   if test -n "$NOT_THE_CFLAGS"; then
     CFLAGS="$CFLAGS -Wno-unused-command-line-argument"
+  fi
+  # Remove clang 12+'s compound-token-split-by-macro, as this causes a lot
+  # of warnings when building plperl because of usages in the Perl headers.
+  NOT_THE_CFLAGS=""
+  PGAC_PROG_CC_VAR_OPT(NOT_THE_CFLAGS, [-Wcompound-token-split-by-macro])
+  if test -n "$NOT_THE_CFLAGS"; then
+    CFLAGS="$CFLAGS -Wno-compound-token-split-by-macro"
+  fi
+  # Similarly disable useless truncation warnings from gcc 8+
+  NOT_THE_CFLAGS=""
+  PGAC_PROG_CC_VAR_OPT(NOT_THE_CFLAGS, [-Wformat-truncation])
+  if test -n "$NOT_THE_CFLAGS"; then
+    CFLAGS="$CFLAGS -Wno-format-truncation"
+  fi
+  NOT_THE_CFLAGS=""
+  PGAC_PROG_CC_VAR_OPT(NOT_THE_CFLAGS, [-Wstringop-truncation])
+  if test -n "$NOT_THE_CFLAGS"; then
+    CFLAGS="$CFLAGS -Wno-stringop-truncation"
   fi
 elif test "$ICC" = yes; then
   # Intel's compiler has a bug/misoptimization in checking for
   # division by NAN (NaN == 0), -mp1 fixes it, so add it to the CFLAGS.
   PGAC_PROG_CC_CFLAGS_OPT([-mp1])
+  PGAC_PROG_CXX_CFLAGS_OPT([-mp1])
   # Make sure strict aliasing is off (though this is said to be the default)
   PGAC_PROG_CC_CFLAGS_OPT([-fno-strict-aliasing])
+  PGAC_PROG_CXX_CFLAGS_OPT([-fno-strict-aliasing])
 elif test "$PORTNAME" = "aix"; then
   # AIX's xlc has to have strict aliasing turned off too
   PGAC_PROG_CC_CFLAGS_OPT([-qnoansialias])
+  PGAC_PROG_CXX_CFLAGS_OPT([-qnoansialias])
   PGAC_PROG_CC_CFLAGS_OPT([-qlonglong])
+  PGAC_PROG_CXX_CFLAGS_OPT([-qlonglong])
 elif test "$PORTNAME" = "hpux"; then
   # On some versions of HP-UX, libm functions do not set errno by default.
   # Fix that by using +Olibmerrno if the compiler recognizes it.
   PGAC_PROG_CC_CFLAGS_OPT([+Olibmerrno])
+  PGAC_PROG_CXX_CFLAGS_OPT([+Olibmerrno])
 fi
 
 AC_SUBST(CFLAGS_VECTOR, $CFLAGS_VECTOR)
+
+# Determine flags used to emit bitcode for JIT inlining.
+# 1. We must duplicate any behaviour-changing compiler flags used above,
+# to keep compatibility with the compiler used for normal Postgres code.
+# 2. We don't bother to duplicate extra-warnings switches --- seeing a
+# warning in the main build is enough.
+# 3. But we must duplicate -Wno-warning flags, else we'll see those anyway.
+if test "$with_llvm" = yes ; then
+  CLANGXX="$CLANG -xc++"
+
+  PGAC_PROG_VARCC_VARFLAGS_OPT(CLANG, BITCODE_CFLAGS, [-fno-strict-aliasing])
+  PGAC_PROG_VARCXX_VARFLAGS_OPT(CLANGXX, BITCODE_CXXFLAGS, [-fno-strict-aliasing])
+  PGAC_PROG_VARCC_VARFLAGS_OPT(CLANG, BITCODE_CFLAGS, [-fwrapv])
+  PGAC_PROG_VARCXX_VARFLAGS_OPT(CLANGXX, BITCODE_CXXFLAGS, [-fwrapv])
+  PGAC_PROG_VARCC_VARFLAGS_OPT(CLANG, BITCODE_CFLAGS, [-fexcess-precision=standard])
+  PGAC_PROG_VARCXX_VARFLAGS_OPT(CLANGXX, BITCODE_CXXFLAGS, [-fexcess-precision=standard])
+
+  NOT_THE_CFLAGS=""
+  PGAC_PROG_VARCC_VARFLAGS_OPT(CLANG, NOT_THE_CFLAGS, [-Wunused-command-line-argument])
+  if test -n "$NOT_THE_CFLAGS"; then
+    BITCODE_CFLAGS="$BITCODE_CFLAGS -Wno-unused-command-line-argument"
+  fi
+  NOT_THE_CFLAGS=""
+  PGAC_PROG_VARCC_VARFLAGS_OPT(CLANG, NOT_THE_CFLAGS, [-Wcompound-token-split-by-macro])
+  if test -n "$NOT_THE_CFLAGS"; then
+    BITCODE_CFLAGS="$BITCODE_CFLAGS -Wno-compound-token-split-by-macro"
+  fi
+  NOT_THE_CFLAGS=""
+  PGAC_PROG_VARCC_VARFLAGS_OPT(CLANG, NOT_THE_CFLAGS, [-Wformat-truncation])
+  if test -n "$NOT_THE_CFLAGS"; then
+    BITCODE_CFLAGS="$BITCODE_CFLAGS -Wno-format-truncation"
+  fi
+  NOT_THE_CFLAGS=""
+  PGAC_PROG_VARCC_VARFLAGS_OPT(CLANG, NOT_THE_CFLAGS, [-Wstringop-truncation])
+  if test -n "$NOT_THE_CFLAGS"; then
+    BITCODE_CFLAGS="$BITCODE_CFLAGS -Wno-stringop-truncation"
+  fi
+fi
 
 # supply -g if --enable-debug
 if test "$enable_debug" = yes && test "$ac_cv_prog_cc_g" = yes; then
   CFLAGS="$CFLAGS -g"
 fi
 
+if test "$enable_debug" = yes && test "$ac_cv_prog_cxx_g" = yes; then
+  CXXFLAGS="$CXXFLAGS -g"
+fi
+
 # enable code coverage if --enable-coverage
 if test "$enable_coverage" = yes; then
   if test "$GCC" = yes; then
     CFLAGS="$CFLAGS -fprofile-arcs -ftest-coverage"
+    CXXFLAGS="$CXXFLAGS -fprofile-arcs -ftest-coverage"
   else
     AC_MSG_ERROR([--enable-coverage is supported only when using GCC])
   fi
@@ -510,6 +728,7 @@ if test "$enable_profiling" = yes && test "$ac_cv_prog_cc_g" = yes; then
     AC_DEFINE([PROFILE_PID_DIR], 1,
            [Define to 1 to allow profiling output to be saved separately for each process.])
     CFLAGS="$CFLAGS -pg $PLATFORM_PROFILE_FLAGS"
+    CXXFLAGS="$CXXFLAGS -pg $PLATFORM_PROFILE_FLAGS"
   else
     AC_MSG_ERROR([--enable-profiling is supported only when using GCC])
   fi
@@ -524,6 +743,12 @@ fi
 # user-specified flags (if any) at the end.  This lets users override
 # the automatic additions.
 CFLAGS="$CFLAGS $user_CFLAGS"
+CXXFLAGS="$CXXFLAGS $user_CXXFLAGS"
+BITCODE_CFLAGS="$BITCODE_CFLAGS $user_BITCODE_CFLAGS"
+BITCODE_CXXFLAGS="$BITCODE_CXXFLAGS $user_BITCODE_CXXFLAGS"
+
+AC_SUBST(BITCODE_CFLAGS, $BITCODE_CFLAGS)
+AC_SUBST(BITCODE_CXXFLAGS, $BITCODE_CXXFLAGS)
 
 # Check if the compiler still works with the final flag settings
 AC_MSG_CHECKING([whether the C compiler still works])
@@ -537,6 +762,24 @@ if test "$GCC" = yes; then
 AC_COMPILE_IFELSE([AC_LANG_PROGRAM([], [@%:@ifdef __FAST_MATH__
 choke me
 @%:@endif])], [], [AC_MSG_ERROR([do not put -ffast-math in CFLAGS])])
+fi
+
+# Defend against clang being used on x86-32 without SSE2 enabled.  As current
+# versions of clang do not understand -fexcess-precision=standard, the use of
+# x87 floating point operations leads to problems like isinf possibly returning
+# false for a value that is infinite when converted from the 80bit register to
+# the 8byte memory representation.
+#
+# Only perform the test if the compiler doesn't understand
+# -fexcess-precision=standard, that way a potentially fixed compiler will work
+# automatically.
+if test "$pgac_cv_prog_CC_cflags__fexcess_precision_standard" = no; then
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([], [
+@%:@if defined(__clang__) && defined(__i386__) && !defined(__SSE2_MATH__)
+choke me
+@%:@endif
+])], [],
+[AC_MSG_ERROR([Compiling PostgreSQL with clang, on 32bit x86, requires SSE2 support. Use -msse2 or use gcc.])])
 fi
 
 AC_PROG_CPP
@@ -571,6 +814,14 @@ PGAC_ARG_BOOL(enable, cassert, no, [enable assertion checks (for debugging)],
               [AC_DEFINE([USE_ASSERT_CHECKING], 1,
                          [Define to 1 to build with assertion checks. (--enable-cassert)])])
 
+#
+# Enable xact whitebox injection
+#
+AC_MSG_CHECKING([whether to enable transaction whitebox injection])
+PGAC_ARG_BOOL(enable, whitebox, no, [enable whitebox injection (for debugging)],
+              [AC_DEFINE([USE_WHITEBOX_INJECTION], 1,
+                         [Define to 1 to build with whitebox injection. (--enable-whitebox)])])
+AC_MSG_RESULT([$enable_whitebox])
 
 #
 # Enable module msgids
@@ -1051,6 +1302,8 @@ AC_SEARCH_LIBS(sched_yield, rt)
 AC_SEARCH_LIBS(gethostbyname_r, nsl)
 # Cygwin:
 AC_SEARCH_LIBS(shmget, cygipc)
+# *BSD
+AC_SEARCH_LIBS(backtrace_symbols, execinfo)
 
 if test "$with_readline" = yes; then
   PGAC_CHECK_READLINE
@@ -1344,8 +1597,6 @@ PGAC_C_FUNCNAME_SUPPORT
 PGAC_C_STATIC_ASSERT
 PGAC_C_TYPEOF
 PGAC_C_TYPES_COMPATIBLE
-PGAC_C_BUILTIN_BSWAP32
-PGAC_C_BUILTIN_BSWAP64
 PGAC_C_BUILTIN_CONSTANT_P
 PGAC_C_BUILTIN_UNREACHABLE
 PGAC_C_COMPUTED_GOTO
@@ -1361,6 +1612,24 @@ AC_TYPE_UINTPTR_T
 AC_TYPE_LONG_LONG_INT
 
 PGAC_TYPE_LOCALE_T
+
+# MSVC doesn't cope well with defining restrict to __restrict, the
+# spelling it understands, because it conflicts with
+# __declspec(restrict). Therefore we define pg_restrict to the
+# appropriate definition, which presumably won't conflict.
+#
+# Allow platforms with buggy compilers to force restrict to not be
+# used by setting $FORCE_DISABLE_RESTRICT=yes in the relevant
+# template.
+AC_C_RESTRICT
+if test "$ac_cv_c_restrict" = "no" -o "x$FORCE_DISABLE_RESTRICT" = "xyes"; then
+  pg_restrict=""
+else
+  pg_restrict="$ac_cv_c_restrict"
+fi
+AC_DEFINE_UNQUOTED([pg_restrict], [$pg_restrict],
+[Define to keyword to use for C99 restrict support, or to nothing if not
+supported])
 
 AC_CHECK_TYPES([struct cmsgcred], [], [],
 [#include <sys/socket.h>
@@ -1383,16 +1652,29 @@ Use --without-zlib to disable zlib support.])],
                 [#include <zlib.h>])
 fi
 
-# On PPC, check if assembler supports LWARX instruction's mutex hint bit
 case $host_cpu in
+  x86_64)
+    # On x86_64, check if we can compile a popcntq instruction
+    AC_CACHE_CHECK([whether assembler supports x86_64 popcntq],
+                   [pgac_cv_have_x86_64_popcntq],
+    [AC_COMPILE_IFELSE([AC_LANG_PROGRAM([],
+	[long long x = 1; long long r;
+	 __asm__ __volatile__ (" popcntq %1,%0\n" : "=q"(r) : "rm"(x));])],
+	[pgac_cv_have_x86_64_popcntq=yes],
+	[pgac_cv_have_x86_64_popcntq=no])])
+    if test x"$pgac_cv_have_x86_64_popcntq" = xyes ; then
+	AC_DEFINE(HAVE_X86_64_POPCNTQ, 1, [Define to 1 if the assembler supports X86_64's POPCNTQ instruction.])
+    fi
+  ;;
   ppc*|powerpc*)
-    AC_MSG_CHECKING([whether assembler supports lwarx hint bit])
-    AC_COMPILE_IFELSE([AC_LANG_PROGRAM([],
+    # On PPC, check if assembler supports LWARX instruction's mutex hint bit
+    AC_CACHE_CHECK([whether assembler supports lwarx hint bit],
+                   [pgac_cv_have_ppc_mutex_hint],
+    [AC_COMPILE_IFELSE([AC_LANG_PROGRAM([],
 	[int a = 0; int *p = &a; int r;
 	 __asm__ __volatile__ (" lwarx %0,0,%1,1\n" : "=&r"(r) : "r"(p));])],
 	[pgac_cv_have_ppc_mutex_hint=yes],
-	[pgac_cv_have_ppc_mutex_hint=no])
-    AC_MSG_RESULT([$pgac_cv_have_ppc_mutex_hint])
+	[pgac_cv_have_ppc_mutex_hint=no])])
     if test x"$pgac_cv_have_ppc_mutex_hint" = xyes ; then
 	AC_DEFINE(HAVE_PPC_LWARX_MUTEX_HINT, 1, [Define to 1 if the assembler supports PPC's LWARX mutex hint bit.])
     fi
@@ -1437,7 +1719,16 @@ PGAC_FUNC_WCSTOMBS_L
 LIBS_including_readline="$LIBS"
 LIBS=`echo "$LIBS" | sed -e 's/-ledit//g' -e 's/-lreadline//g'`
 
-AC_CHECK_FUNCS([cbrt clock_gettime dlopen fdatasync getifaddrs getpeerucred getrlimit mbstowcs_l memmove poll pstat pthread_is_threaded_np readlink setproctitle setsid shm_open symlink sync_file_range towlower utime utimes wcstombs wcstombs_l])
+AC_CHECK_FUNCS([backtrace_symbols cbrt clock_gettime dlopen fdatasync getifaddrs getpeerucred getrlimit mbstowcs_l memmove poll posix_fallocate pstat pthread_is_threaded_np readlink setproctitle setsid shm_open symlink syncfs sync_file_range towlower utime utimes wcstombs wcstombs_l])
+
+# These typically are compiler builtins, for which AC_CHECK_FUNCS fails.
+PGAC_CHECK_BUILTIN_FUNC([__builtin_bswap16], [int x])
+PGAC_CHECK_BUILTIN_FUNC([__builtin_bswap32], [int x])
+PGAC_CHECK_BUILTIN_FUNC([__builtin_bswap64], [long int x])
+# We assume that we needn't test all widths of these explicitly:
+PGAC_CHECK_BUILTIN_FUNC([__builtin_clz], [unsigned int x])
+PGAC_CHECK_BUILTIN_FUNC([__builtin_ctz], [unsigned int x])
+PGAC_CHECK_BUILTIN_FUNC([__builtin_popcount], [unsigned int x])
 
 AC_REPLACE_FUNCS(fseeko)
 case $host_os in
@@ -1672,6 +1963,10 @@ if test "$with_icu" = yes; then
   CPPFLAGS=$ac_save_CPPFLAGS
 fi
 
+if test "$with_llvm" = yes; then
+  PGAC_CHECK_LLVM_FUNCTIONS()
+fi
+
 # Lastly, restore full LIBS list and check for readline/libedit symbols
 LIBS="$LIBS_including_readline"
 
@@ -1794,6 +2089,10 @@ if test $pgac_need_repl_snprintf = yes; then
   AC_DEFINE(USE_REPL_SNPRINTF, 1, [Use replacement snprintf() functions.])
   AC_LIBOBJ(snprintf)
 fi
+
+# has to be down here, rather than with the other builtins, because
+# the test uses PG_INT64_TYPE.
+PGAC_C_BUILTIN_OP_OVERFLOW
 
 # Check size of void *, size_t (enables tweaks for > 32bit address space)
 AC_CHECK_SIZEOF([void *])
@@ -1920,28 +2219,73 @@ AC_COMPILE_IFELSE([AC_LANG_PROGRAM([], [
 #endif
 ])], [SSE4_2_TARGETED=1])
 
+# Check for ARMv8 CRC Extension intrinsics to do CRC calculations.
+#
+# First check if __crc32c* intrinsics can be used with the default compiler
+# flags. If not, check if adding -march=armv8-a+crc flag helps.
+# CFLAGS_ARMV8_CRC32C is set if the extra flag is required.
+PGAC_ARMV8_CRC32C_INTRINSICS([])
+if test x"$pgac_armv8_crc32c_intrinsics" != x"yes"; then
+  PGAC_ARMV8_CRC32C_INTRINSICS([-march=armv8-a+crc])
+fi
+AC_SUBST(CFLAGS_ARMV8_CRC32C)
+
+# In order to detect at runtime, if the ARM CRC Extension is available,
+# we will do "getauxval(AT_HWCAP) & HWCAP_CRC32". Check if we have
+# everything we need for that.
+AC_CHECK_FUNCS([getauxval])
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([
+#include <sys/auxv.h>
+#include <asm/hwcap.h>
+], [
+#ifndef AT_HWCAP
+#error AT_HWCAP not defined
+#endif
+#ifndef HWCAP_CRC32
+#error HWCAP_CRC32 not defined
+#endif
+])], [HAVE_HWCAP_CRC32=1])
+
 # Select CRC-32C implementation.
 #
-# If we are targeting a processor that has SSE 4.2 instructions, we can use the
-# special CRC instructions for calculating CRC-32C. If we're not targeting such
-# a processor, but we can nevertheless produce code that uses the SSE
-# intrinsics, perhaps with some extra CFLAGS, compile both implementations and
-# select which one to use at runtime, depending on whether SSE 4.2 is supported
-# by the processor we're running on.
+# If we are targeting a processor that has Intel SSE 4.2 instructions, we can
+# use the special CRC instructions for calculating CRC-32C. If we're not
+# targeting such a processor, but we can nevertheless produce code that uses
+# the SSE intrinsics, perhaps with some extra CFLAGS, compile both
+# implementations and select which one to use at runtime, depending on whether
+# SSE 4.2 is supported by the processor we're running on.
+#
+# Similarly, if we are targeting an ARM processor that has the CRC
+# instructions that are part of the ARMv8 CRC Extension, use them. And if
+# we're not targeting such a processor, but can nevertheless produce code that
+# uses the CRC instructions, compile both, and select at runtime.
 #
 # You can override this logic by setting the appropriate USE_*_CRC32 flag to 1
 # in the template or configure command line.
-if test x"$USE_SSE42_CRC32C" = x"" && test x"$USE_SSE42_CRC32C_WITH_RUNTIME_CHECK" = x"" && test x"$USE_SLICING_BY_8_CRC32C" = x""; then
+if test x"$USE_SLICING_BY_8_CRC32C" = x"" && test x"$USE_SSE42_CRC32C" = x"" && test x"$USE_SSE42_CRC32C_WITH_RUNTIME_CHECK" = x"" && test x"$USE_ARMV8_CRC32C" = x"" && test x"$USE_ARMV8_CRC32C_WITH_RUNTIME_CHECK" = x""; then
+  # Use Intel SSE 4.2 if available.
   if test x"$pgac_sse42_crc32_intrinsics" = x"yes" && test x"$SSE4_2_TARGETED" = x"1" ; then
     USE_SSE42_CRC32C=1
   else
-    # the CPUID instruction is needed for the runtime check.
+    # Intel SSE 4.2, with runtime check? The CPUID instruction is needed for
+    # the runtime check.
     if test x"$pgac_sse42_crc32_intrinsics" = x"yes" && (test x"$pgac_cv__get_cpuid" = x"yes" || test x"$pgac_cv__cpuid" = x"yes"); then
       USE_SSE42_CRC32C_WITH_RUNTIME_CHECK=1
     else
-      # fall back to slicing-by-8 algorithm which doesn't require any special
-      # CPU support.
-      USE_SLICING_BY_8_CRC32C=1
+      # Use ARM CRC Extension if available.
+      if test x"$pgac_armv8_crc32c_intrinsics" = x"yes" && test x"$CFLAGS_ARMV8_CRC32C" = x""; then
+        USE_ARMV8_CRC32C=1
+      else
+        # ARM CRC Extension, with runtime check? The getauxval() function and
+        # HWCAP_CRC32 are needed for the runtime check.
+        if test x"$pgac_armv8_crc32c_intrinsics" = x"yes" && test x"$ac_cv_func_getauxval" = x"yes" && test x"$HAVE_HWCAP_CRC32" = x"1"; then
+          USE_ARMV8_CRC32C_WITH_RUNTIME_CHECK=1
+        else
+          # fall back to slicing-by-8 algorithm, which doesn't require any
+          # special CPU support.
+          USE_SLICING_BY_8_CRC32C=1
+	fi
+      fi
     fi
   fi
 fi
@@ -1954,13 +2298,25 @@ if test x"$USE_SSE42_CRC32C" = x"1"; then
   AC_MSG_RESULT(SSE 4.2)
 else
   if test x"$USE_SSE42_CRC32C_WITH_RUNTIME_CHECK" = x"1"; then
-    AC_DEFINE(USE_SSE42_CRC32C_WITH_RUNTIME_CHECK, 1, [Define to 1 to use Intel SSSE 4.2 CRC instructions with a runtime check.])
-    PG_CRC32C_OBJS="pg_crc32c_sse42.o pg_crc32c_sb8.o pg_crc32c_choose.o"
+    AC_DEFINE(USE_SSE42_CRC32C_WITH_RUNTIME_CHECK, 1, [Define to 1 to use Intel SSE 4.2 CRC instructions with a runtime check.])
+    PG_CRC32C_OBJS="pg_crc32c_sse42.o pg_crc32c_sb8.o pg_crc32c_sse42_choose.o"
     AC_MSG_RESULT(SSE 4.2 with runtime check)
   else
-    AC_DEFINE(USE_SLICING_BY_8_CRC32C, 1, [Define to 1 to use Intel SSE 4.2 CRC instructions with a runtime check.])
-    PG_CRC32C_OBJS="pg_crc32c_sb8.o"
-    AC_MSG_RESULT(slicing-by-8)
+    if test x"$USE_ARMV8_CRC32C" = x"1"; then
+      AC_DEFINE(USE_ARMV8_CRC32C, 1, [Define to 1 to use ARMv8 CRC Extension.])
+      PG_CRC32C_OBJS="pg_crc32c_armv8.o"
+      AC_MSG_RESULT(ARMv8 CRC instructions)
+    else
+      if test x"$USE_ARMV8_CRC32C_WITH_RUNTIME_CHECK" = x"1"; then
+        AC_DEFINE(USE_ARMV8_CRC32C_WITH_RUNTIME_CHECK, 1, [Define to 1 to use ARMv8 CRC Extension with a runtime check.])
+        PG_CRC32C_OBJS="pg_crc32c_armv8.o pg_crc32c_sb8.o pg_crc32c_armv8_choose.o"
+        AC_MSG_RESULT(ARMv8 CRC instructions with runtime check)
+      else
+        AC_DEFINE(USE_SLICING_BY_8_CRC32C, 1, [Define to 1 to use software CRC-32C implementation (slicing-by-8).])
+        PG_CRC32C_OBJS="pg_crc32c_sb8.o"
+        AC_MSG_RESULT(slicing-by-8)
+      fi
+    fi
   fi
 fi
 AC_SUBST(PG_CRC32C_OBJS)
@@ -2226,6 +2582,14 @@ AC_MSG_NOTICE([using compiler=$cc_string])
 AC_MSG_NOTICE([using CFLAGS=$CFLAGS])
 AC_MSG_NOTICE([using CPPFLAGS=$CPPFLAGS])
 AC_MSG_NOTICE([using LDFLAGS=$LDFLAGS])
+# Currently only used when LLVM is used
+if test "$with_llvm" = yes ; then
+   AC_MSG_NOTICE([using CXX=$CXX])
+   AC_MSG_NOTICE([using CXXFLAGS=$CXXFLAGS])
+   AC_MSG_NOTICE([using CLANG=$CLANG])
+   AC_MSG_NOTICE([using BITCODE_CFLAGS=$BITCODE_CFLAGS])
+   AC_MSG_NOTICE([using BITCODE_CXXFLAGS=$BITCODE_CXXFLAGS])
+fi
 
 # prepare build tree if outside source tree
 # Note 1: test -ef might not exist, but it's more reliable than `pwd`.

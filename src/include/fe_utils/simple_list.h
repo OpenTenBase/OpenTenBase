@@ -19,28 +19,28 @@
 
 typedef struct SimpleOidListCell
 {
-    struct SimpleOidListCell *next;
-    Oid            val;
+	struct SimpleOidListCell *next;
+	Oid			val;
 } SimpleOidListCell;
 
 typedef struct SimpleOidList
 {
-    SimpleOidListCell *head;
-    SimpleOidListCell *tail;
+	SimpleOidListCell *head;
+	SimpleOidListCell *tail;
 } SimpleOidList;
 
 typedef struct SimpleStringListCell
 {
-    struct SimpleStringListCell *next;
-    bool        touched;        /* true, when this string was searched and
-                                 * touched */
-    char        val[FLEXIBLE_ARRAY_MEMBER]; /* null-terminated string here */
+	struct SimpleStringListCell *next;
+	bool		touched;		/* true, when this string was searched and
+								 * touched */
+	char		val[FLEXIBLE_ARRAY_MEMBER]; /* null-terminated string here */
 } SimpleStringListCell;
 
 typedef struct SimpleStringList
 {
-    SimpleStringListCell *head;
-    SimpleStringListCell *tail;
+	SimpleStringListCell *head;
+	SimpleStringListCell *tail;
 } SimpleStringList;
 
 
@@ -52,4 +52,4 @@ extern bool simple_string_list_member(SimpleStringList *list, const char *val);
 
 extern const char *simple_string_list_not_touched(SimpleStringList *list);
 
-#endif                            /* SIMPLE_LIST_H */
+#endif							/* SIMPLE_LIST_H */

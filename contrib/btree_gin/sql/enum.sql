@@ -16,7 +16,7 @@ SELECT * FROM test_enum WHERE i='g'::rainbow ORDER BY i;
 SELECT * FROM test_enum WHERE i>='g'::rainbow ORDER BY i;
 SELECT * FROM test_enum WHERE i>'g'::rainbow ORDER BY i;
 
-explain (costs off) SELECT * FROM test_enum WHERE i>='g'::rainbow ORDER BY i;
+explain (costs off, nodes off) SELECT * FROM test_enum WHERE i>='g'::rainbow ORDER BY i;
 
 
 -- make sure we handle the non-evenly-numbered oid case for enums

@@ -15,8 +15,6 @@
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  * IDENTIFICATION
  *	  src/backend/utils/adt/pseudotypes.c
@@ -36,10 +34,8 @@
 #include "utils/lsyscache.h"
 #include "utils/syscache.h"
 #endif
-#ifdef __OPENTENBASE__
-#include "utils/guc.h"
-#endif
 
+extern bool IsInplaceUpgrade;
 /*
  * cstring_in		- input routine for pseudo-type CSTRING.
  *
@@ -343,19 +339,24 @@ shell_out(PG_FUNCTION_ARGS)
 Datum
 pg_node_tree_in(PG_FUNCTION_ARGS)
 {
-#ifdef __OPENTENBASE__
-	if (g_allow_force_ddl)
-		return textin(fcinfo);
-#endif
 	/*
 	 * We disallow input of pg_node_tree values because the SQL functions that
 	 * operate on the type are not secure against malformed input.
 	 */
-	ereport(ERROR,
-			(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-			 errmsg("cannot accept a value of type %s", "pg_node_tree")));
+	if (IsInplaceUpgrade)
+	{
+		char* inputText = PG_GETARG_CSTRING(0);
 
-	PG_RETURN_VOID();			/* keep compiler quiet */
+		PG_RETURN_TEXT_P(cstring_to_text(inputText));
+	}
+	else
+	{
+		ereport(ERROR,
+				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+				 errmsg("cannot accept a value of type %s", "pg_node_tree")));
+
+		PG_RETURN_VOID();			/* keep compiler quiet */
+	}
 }
 
 
@@ -492,3 +493,6 @@ PSEUDOTYPE_DUMMY_IO_FUNCS(internal);
 PSEUDOTYPE_DUMMY_IO_FUNCS(opaque);
 PSEUDOTYPE_DUMMY_IO_FUNCS(anyelement);
 PSEUDOTYPE_DUMMY_IO_FUNCS(anynonarray);
+#ifdef _PG_ORCL_
+PSEUDOTYPE_DUMMY_IO_FUNCS(pludt);
+#endif

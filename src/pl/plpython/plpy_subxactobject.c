@@ -16,7 +16,7 @@
 #include "plpy_elog.h"
 
 
-List       *explicit_subtransactions = NIL;
+List	   *explicit_subtransactions = NIL;
 
 
 static void PLy_subtransaction_dealloc(PyObject *subxact);
@@ -24,76 +24,76 @@ static PyObject *PLy_subtransaction_enter(PyObject *self, PyObject *unused);
 static PyObject *PLy_subtransaction_exit(PyObject *self, PyObject *args);
 
 static char PLy_subtransaction_doc[] = {
-    "PostgreSQL subtransaction context manager"
+	"PostgreSQL subtransaction context manager"
 };
 
 static PyMethodDef PLy_subtransaction_methods[] = {
-    {"__enter__", PLy_subtransaction_enter, METH_VARARGS, NULL},
-    {"__exit__", PLy_subtransaction_exit, METH_VARARGS, NULL},
-    /* user-friendly names for Python <2.6 */
-    {"enter", PLy_subtransaction_enter, METH_VARARGS, NULL},
-    {"exit", PLy_subtransaction_exit, METH_VARARGS, NULL},
-    {NULL, NULL, 0, NULL}
+	{"__enter__", PLy_subtransaction_enter, METH_VARARGS, NULL},
+	{"__exit__", PLy_subtransaction_exit, METH_VARARGS, NULL},
+	/* user-friendly names for Python <2.6 */
+	{"enter", PLy_subtransaction_enter, METH_VARARGS, NULL},
+	{"exit", PLy_subtransaction_exit, METH_VARARGS, NULL},
+	{NULL, NULL, 0, NULL}
 };
 
 static PyTypeObject PLy_SubtransactionType = {
-    PyVarObject_HEAD_INIT(NULL, 0)
-    "PLySubtransaction",        /* tp_name */
-    sizeof(PLySubtransactionObject),    /* tp_size */
-    0,                            /* tp_itemsize */
+	PyVarObject_HEAD_INIT(NULL, 0)
+	"PLySubtransaction",		/* tp_name */
+	sizeof(PLySubtransactionObject),	/* tp_size */
+	0,							/* tp_itemsize */
 
-    /*
-     * methods
-     */
-    PLy_subtransaction_dealloc, /* tp_dealloc */
-    0,                            /* tp_print */
-    0,                            /* tp_getattr */
-    0,                            /* tp_setattr */
-    0,                            /* tp_compare */
-    0,                            /* tp_repr */
-    0,                            /* tp_as_number */
-    0,                            /* tp_as_sequence */
-    0,                            /* tp_as_mapping */
-    0,                            /* tp_hash */
-    0,                            /* tp_call */
-    0,                            /* tp_str */
-    0,                            /* tp_getattro */
-    0,                            /* tp_setattro */
-    0,                            /* tp_as_buffer */
-    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,    /* tp_flags */
-    PLy_subtransaction_doc,        /* tp_doc */
-    0,                            /* tp_traverse */
-    0,                            /* tp_clear */
-    0,                            /* tp_richcompare */
-    0,                            /* tp_weaklistoffset */
-    0,                            /* tp_iter */
-    0,                            /* tp_iternext */
-    PLy_subtransaction_methods, /* tp_tpmethods */
+	/*
+	 * methods
+	 */
+	PLy_subtransaction_dealloc, /* tp_dealloc */
+	0,							/* tp_print */
+	0,							/* tp_getattr */
+	0,							/* tp_setattr */
+	0,							/* tp_compare */
+	0,							/* tp_repr */
+	0,							/* tp_as_number */
+	0,							/* tp_as_sequence */
+	0,							/* tp_as_mapping */
+	0,							/* tp_hash */
+	0,							/* tp_call */
+	0,							/* tp_str */
+	0,							/* tp_getattro */
+	0,							/* tp_setattro */
+	0,							/* tp_as_buffer */
+	Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,	/* tp_flags */
+	PLy_subtransaction_doc,		/* tp_doc */
+	0,							/* tp_traverse */
+	0,							/* tp_clear */
+	0,							/* tp_richcompare */
+	0,							/* tp_weaklistoffset */
+	0,							/* tp_iter */
+	0,							/* tp_iternext */
+	PLy_subtransaction_methods, /* tp_tpmethods */
 };
 
 
 void
 PLy_subtransaction_init_type(void)
 {
-    if (PyType_Ready(&PLy_SubtransactionType) < 0)
-        elog(ERROR, "could not initialize PLy_SubtransactionType");
+	if (PyType_Ready(&PLy_SubtransactionType) < 0)
+		elog(ERROR, "could not initialize PLy_SubtransactionType");
 }
 
 /* s = plpy.subtransaction() */
 PyObject *
 PLy_subtransaction_new(PyObject *self, PyObject *unused)
 {
-    PLySubtransactionObject *ob;
+	PLySubtransactionObject *ob;
 
-    ob = PyObject_New(PLySubtransactionObject, &PLy_SubtransactionType);
+	ob = PyObject_New(PLySubtransactionObject, &PLy_SubtransactionType);
 
-    if (ob == NULL)
-        return NULL;
+	if (ob == NULL)
+		return NULL;
 
-    ob->started = false;
-    ob->exited = false;
+	ob->started = false;
+	ob->exited = false;
 
-    return (PyObject *) ob;
+	return (PyObject *) ob;
 }
 
 /* Python requires a dealloc function to be defined */
@@ -113,43 +113,50 @@ PLy_subtransaction_dealloc(PyObject *subxact)
 static PyObject *
 PLy_subtransaction_enter(PyObject *self, PyObject *unused)
 {
-    PLySubtransactionData *subxactdata;
-    MemoryContext oldcontext;
-    PLySubtransactionObject *subxact = (PLySubtransactionObject *) self;
+	PLySubtransactionData *subxactdata;
+	MemoryContext oldcontext;
+	PLySubtransactionObject *subxact = (PLySubtransactionObject *) self;
 
-    if (subxact->started)
-    {
-        PLy_exception_set(PyExc_ValueError, "this subtransaction has already been entered");
-        return NULL;
-    }
+	if (subxact->started)
+	{
+		PLy_exception_set(PyExc_ValueError, "this subtransaction has already been entered");
+		return NULL;
+	}
 
-    if (subxact->exited)
-    {
-        PLy_exception_set(PyExc_ValueError, "this subtransaction has already been exited");
-        return NULL;
-    }
+	if (subxact->exited)
+	{
+		PLy_exception_set(PyExc_ValueError, "this subtransaction has already been exited");
+		return NULL;
+	}
 
-    subxact->started = true;
-    oldcontext = CurrentMemoryContext;
+	subxact->started = true;
+	oldcontext = CurrentMemoryContext;
 
-    subxactdata = (PLySubtransactionData *)
-        MemoryContextAlloc(TopTransactionContext,
-                           sizeof(PLySubtransactionData));
+	/*
+	 * Because commit command in opentenbase_ora plsql(exec_stmt_commit) will release all
+	 * subtransaction and commit main transaction, so the TopTransactionContext
+	 * will be reset. So we switch to TopMemoryContext to save it.
+	 */
+	subxactdata = (PLySubtransactionData *)
+		MemoryContextAlloc(TopMemoryContext,
+						   sizeof(PLySubtransactionData));
 
-    subxactdata->oldcontext = oldcontext;
-    subxactdata->oldowner = CurrentResourceOwner;
+	subxactdata->oldcontext = oldcontext;
+	subxactdata->oldowner = CurrentResourceOwner;
 
-    BeginInternalSubTransaction(NULL);
+	BeginInternalSubTransaction(NULL);
+	if (ORA_MODE)
+		MarkAsPLpgSQLSubTransaction();
 
-    /* Be sure that cells of explicit_subtransactions list are long-lived */
-    MemoryContextSwitchTo(TopTransactionContext);
-    explicit_subtransactions = lcons(subxactdata, explicit_subtransactions);
+	/* Be sure that cells of explicit_subtransactions list are long-lived */
+	MemoryContextSwitchTo(TopMemoryContext);
+	explicit_subtransactions = lcons(subxactdata, explicit_subtransactions);
 
-    /* Caller wants to stay in original memory context */
-    MemoryContextSwitchTo(oldcontext);
+	/* Caller wants to stay in original memory context */
+	MemoryContextSwitchTo(oldcontext);
 
-    Py_INCREF(self);
-    return self;
+	Py_INCREF(self);
+	return self;
 }
 
 /*
@@ -166,52 +173,52 @@ PLy_subtransaction_enter(PyObject *self, PyObject *unused)
 static PyObject *
 PLy_subtransaction_exit(PyObject *self, PyObject *args)
 {
-    PyObject   *type;
-    PyObject   *value;
-    PyObject   *traceback;
-    PLySubtransactionData *subxactdata;
-    PLySubtransactionObject *subxact = (PLySubtransactionObject *) self;
+	PyObject   *type;
+	PyObject   *value;
+	PyObject   *traceback;
+	PLySubtransactionData *subxactdata;
+	PLySubtransactionObject *subxact = (PLySubtransactionObject *) self;
 
-    if (!PyArg_ParseTuple(args, "OOO", &type, &value, &traceback))
-        return NULL;
+	if (!PyArg_ParseTuple(args, "OOO", &type, &value, &traceback))
+		return NULL;
 
-    if (!subxact->started)
-    {
-        PLy_exception_set(PyExc_ValueError, "this subtransaction has not been entered");
-        return NULL;
-    }
+	if (!subxact->started)
+	{
+		PLy_exception_set(PyExc_ValueError, "this subtransaction has not been entered");
+		return NULL;
+	}
 
-    if (subxact->exited)
-    {
-        PLy_exception_set(PyExc_ValueError, "this subtransaction has already been exited");
-        return NULL;
-    }
+	if (subxact->exited)
+	{
+		PLy_exception_set(PyExc_ValueError, "this subtransaction has already been exited");
+		return NULL;
+	}
 
-    if (explicit_subtransactions == NIL)
-    {
-        PLy_exception_set(PyExc_ValueError, "there is no subtransaction to exit from");
-        return NULL;
-    }
+	if (explicit_subtransactions == NIL)
+	{
+		PLy_exception_set(PyExc_ValueError, "there is no subtransaction to exit from");
+		return NULL;
+	}
 
-    subxact->exited = true;
+	subxact->exited = true;
 
-    if (type != Py_None)
-    {
-        /* Abort the inner transaction */
-        RollbackAndReleaseCurrentSubTransaction();
-    }
-    else
-    {
-        ReleaseCurrentSubTransaction();
-    }
+	if (type != Py_None)
+	{
+		/* Abort the inner transaction */
+		RollbackAndReleaseCurrentSubTransaction();
+	}
+	else
+	{
+		ReleaseCurrentSubTransaction();
+	}
 
-    subxactdata = (PLySubtransactionData *) linitial(explicit_subtransactions);
-    explicit_subtransactions = list_delete_first(explicit_subtransactions);
+	subxactdata = (PLySubtransactionData *) linitial(explicit_subtransactions);
+	explicit_subtransactions = list_delete_first(explicit_subtransactions);
 
-    MemoryContextSwitchTo(subxactdata->oldcontext);
-    CurrentResourceOwner = subxactdata->oldowner;
-    pfree(subxactdata);
+	MemoryContextSwitchTo(subxactdata->oldcontext);
+	CurrentResourceOwner = subxactdata->oldowner;
+	pfree(subxactdata);
 
-    Py_INCREF(Py_None);
-    return Py_None;
+	Py_INCREF(Py_None);
+	return Py_None;
 }

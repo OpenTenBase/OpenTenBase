@@ -1,14 +1,11 @@
 /*-------------------------------------------------------------------------
  *
  * makefuncs.h
- *      prototypes for the creator functions (for primitive nodes)
+ *	  prototypes for the creator functions (for primitive nodes)
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
- *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  * src/include/nodes/makefuncs.h
  *
@@ -21,43 +18,47 @@
 
 
 extern A_Expr *makeA_Expr(A_Expr_Kind kind, List *name,
-           Node *lexpr, Node *rexpr, int location);
+		   Node *lexpr, Node *rexpr, int location);
 
 extern A_Expr *makeSimpleA_Expr(A_Expr_Kind kind, char *name,
-                 Node *lexpr, Node *rexpr, int location);
+				 Node *lexpr, Node *rexpr, int location);
 
-extern Var *makeVar(Index varno,
-        AttrNumber varattno,
-        Oid vartype,
-        int32 vartypmod,
-        Oid varcollid,
-        Index varlevelsup);
+extern Var *makeVar(int varno,
+					AttrNumber varattno,
+					Oid vartype,
+					int32 vartypmod,
+					Oid varcollid,
+					Index varlevelsup);
 
-extern Var *makeVarFromTargetEntry(Index varno,
-                       TargetEntry *tle);
+extern Var *makeVarFromTargetEntry(int varno,
+								   TargetEntry *tle);
 
 extern Var *makeWholeRowVar(RangeTblEntry *rte,
-                Index varno,
-                Index varlevelsup,
-                bool allowScalar);
+							int varno,
+							Index varlevelsup,
+							bool allowScalar);
 
 extern TargetEntry *makeTargetEntry(Expr *expr,
-                AttrNumber resno,
-                char *resname,
-                bool resjunk);
+				AttrNumber resno,
+				char *resname,
+				bool resjunk);
 
 extern TargetEntry *flatCopyTargetEntry(TargetEntry *src_tle);
 
 extern FromExpr *makeFromExpr(List *fromlist, Node *quals);
 
 extern Const *makeConst(Oid consttype,
-          int32 consttypmod,
-          Oid constcollid,
-          int constlen,
-          Datum constvalue,
-          bool constisnull,
-          bool constbyval);
+		  int32 consttypmod,
+		  Oid constcollid,
+		  int constlen,
+		  Datum constvalue,
+		  bool constisnull,
+		  bool constbyval);
 
+#ifdef __OPENTENBASE__
+extern NullTest *makeNullTest(NullTestType type, Expr *expr);
+extern Expr *makeBoolExprTreeNode(BoolExprType boolop, List *args);
+#endif
 extern Const *makeNullConst(Oid consttype, int32 consttypmod, Oid constcollid);
 
 extern Node *makeBoolConst(bool value, bool isnull);
@@ -71,7 +72,7 @@ extern Alias *makeAnonymousAlias(int location);
 #endif
 
 extern RelabelType *makeRelabelType(Expr *arg, Oid rtype, int32 rtypmod,
-                Oid rcollid, CoercionForm rformat);
+				Oid rcollid, CoercionForm rformat);
 
 extern RangeVar *makeRangeVar(char *schemaname, char *relname, int location);
 
@@ -80,21 +81,20 @@ extern TypeName *makeTypeNameFromNameList(List *names);
 extern TypeName *makeTypeNameFromOid(Oid typeOid, int32 typmod);
 
 extern ColumnDef *makeColumnDef(const char *colname,
-              Oid typeOid, int32 typmod, Oid collOid);
+			  Oid typeOid, int32 typmod, Oid collOid);
 
 extern FuncExpr *makeFuncExpr(Oid funcid, Oid rettype, List *args,
-             Oid funccollid, Oid inputcollid, CoercionForm fformat);
+			 Oid funccollid, Oid inputcollid, CoercionForm fformat);
 
 extern FuncCall *makeFuncCall(List *name, List *args, int location);
 
 extern DefElem *makeDefElem(char *name, Node *arg, int location);
 extern DefElem *makeDefElemExtended(char *nameSpace, char *name, Node *arg,
-                    DefElemAction defaction, int location);
+					DefElemAction defaction, int location);
 
 extern GroupingSet *makeGroupingSet(GroupingSetKind kind, List *content, int location);
 
-#ifdef __OPENTENBASE__
-extern NullTest *makeNullTest(NullTestType type, Expr *expr);
-extern Expr *makeBoolExprTreeNode(BoolExprType boolop, List *args);
-#endif
-#endif                            /* MAKEFUNC_H */
+extern ColumnRef* makeColumnRefC(char* relname, char* colname, int location);
+extern Node* makeNullAConst(int location);
+
+#endif							/* MAKEFUNC_H */

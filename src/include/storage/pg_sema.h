@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * pg_sema.h
- *      Platform-independent API for semaphores.
+ *	  Platform-independent API for semaphores.
  *
  * PostgreSQL requires counting semaphores (the kind that keep track of
  * multiple unlock operations, and will allow an equal number of subsequent
@@ -58,4 +58,4 @@ extern void PGSemaphoreUnlock(PGSemaphore sema);
 /* Lock a semaphore only if able to do so without blocking */
 extern bool PGSemaphoreTryLock(PGSemaphore sema);
 
-#endif                            /* PG_SEMA_H */
+#endif							/* PG_SEMA_H */

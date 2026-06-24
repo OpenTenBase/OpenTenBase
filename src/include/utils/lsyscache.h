@@ -7,9 +7,6 @@
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * src/include/utils/lsyscache.h
  *
  *-------------------------------------------------------------------------
@@ -20,6 +17,7 @@
 #include "access/attnum.h"
 #include "access/htup.h"
 #include "nodes/pg_list.h"
+#include "catalog/pg_type.h"
 
 /* Result list element for get_op_btree_interpretation */
 typedef struct OpBtreeInterpretation
@@ -87,6 +85,7 @@ extern List *get_op_btree_interpretation(Oid opno);
 extern bool equality_ops_are_compatible(Oid opno1, Oid opno2);
 extern Oid get_opfamily_proc(Oid opfamily, Oid lefttype, Oid righttype,
 				  int16 procnum);
+extern bool get_attisdropped(Oid relid, AttrNumber attnum);
 extern char *get_attname(Oid relid, AttrNumber attnum);
 extern char *get_relid_attribute_name(Oid relid, AttrNumber attnum);
 extern AttrNumber get_attnum(Oid relid, const char *attname);
@@ -104,10 +103,11 @@ extern Oid 	get_collid(const char *collname, int32 collencoding, Oid collnsp);
 extern char *get_constraint_name(Oid conoid);
 #ifdef __OPENTENBASE__
 extern char *get_constraint_name_relid(Oid conoid, Oid *relid);
-extern Oid get_interval_parent_relid(Oid relid);
 extern Oid get_rel_filenode(Oid relid);
 extern bool get_rel_stat(Oid relid, int *pages, float *tuples, int *all_visible_pages);
 #endif
+extern bool is_sys_table(Oid relid);
+extern bool is_integer_type_oid(Oid typoid);
 extern char *get_language_name(Oid langoid, bool missing_ok);
 extern Oid	get_opclass_family(Oid opclass);
 extern Oid	get_opclass_input_type(Oid opclass);
@@ -124,6 +124,7 @@ extern Oid	get_negator(Oid opno);
 extern RegProcedure get_oprrest(Oid opno);
 extern RegProcedure get_oprjoin(Oid opno);
 extern char *get_func_name(Oid funcid);
+extern Oid	get_func_lang(Oid funcid);
 extern Oid	get_func_namespace(Oid funcid);
 extern Oid	get_func_rettype(Oid funcid);
 extern int	get_func_nargs(Oid funcid);
@@ -132,12 +133,13 @@ extern Oid	get_func_variadictype(Oid funcid);
 extern bool get_func_retset(Oid funcid);
 extern bool func_strict(Oid funcid);
 extern char func_volatile(Oid funcid);
+extern bool func_result_cachable(Oid funcid);
 extern char func_parallel(Oid funcid);
+extern char get_func_prokind(Oid funcid);
 extern bool get_func_leakproof(Oid funcid);
 extern float4 get_func_cost(Oid funcid);
 extern float4 get_func_cost_with_sign(Oid funcid);
 extern float4 get_func_rows(Oid funcid);
-extern Oid     get_func_lang(Oid funcid);
 extern Oid	get_relname_relid(const char *relname, Oid relnamespace);
 #ifdef PGXC
 extern int	get_relnatts(Oid relid);
@@ -149,15 +151,31 @@ extern char get_rel_relkind(Oid relid);
 extern bool get_rel_relispartition(Oid relid);
 extern Oid	get_rel_tablespace(Oid relid);
 extern char get_rel_persistence(Oid relid);
+extern Oid	get_rel_reloftype(Oid relid);
+/* BEGIN_OPENTENBASE_ORA */
+extern Oid get_rel_owner(Oid relId);
+extern Oid get_rel_related_seq_oid(Oid relid);
+/* END_OPENTENBASE_ORA */
+/* WITH FUNCTION */
+extern char func_volatile_withfuncs(List *funcnsp, int funcid);
+extern char func_parallel_withfuncs(List *funcnsp, int funcid);
+extern bool func_strict_withfuncs(List *funcnsp, int funcid);
+extern bool get_func_leakproof_withfuncs(List *funcnsp, int funcid);
+extern float4 get_func_cost_withfuncs(List *funcnsp, int funcid);
+extern char *get_func_name_withfuncs(List *funcnsp, int funcid);
+extern float4 get_func_rows_withfuncs(List *funcnsp, int funcid);
 extern Oid	get_transform_fromsql(Oid typid, Oid langid, List *trftypes);
 extern Oid	get_transform_tosql(Oid typid, Oid langid, List *trftypes);
 extern bool get_typisdefined(Oid typid);
+extern bool get_func_retset_withfuncs(List *funcnsp, int funcid);
+extern Oid  get_func_lang_withfuncs(List *funcnsp, int funcid);
 extern int16 get_typlen(Oid typid);
 extern bool get_typbyval(Oid typid);
 extern void get_typlenbyval(Oid typid, int16 *typlen, bool *typbyval);
 extern void get_typlenbyvalalign(Oid typid, int16 *typlen, bool *typbyval,
 					 char *typalign);
 extern Oid	getTypeIOParam(HeapTuple typeTuple);
+extern int get_nestedtable_ndim(Oid typoid);
 extern void get_type_io_data(Oid typid,
 				 IOFuncSelector which_func,
 				 int16 *typlen,
@@ -172,6 +190,8 @@ extern char get_typtype(Oid typid);
 extern bool type_is_rowtype(Oid typid);
 extern bool type_is_enum(Oid typid);
 extern bool type_is_range(Oid typid);
+extern bool type_is_nestedtable(Oid typid);
+extern Oid nested_table_to_array_type(Oid typid);
 extern void get_type_category_preferred(Oid typid,
 							char *typcategory,
 							bool *typispreferred);
@@ -186,24 +206,28 @@ extern void getTypeBinaryInputInfo(Oid type, Oid *typReceive, Oid *typIOParam);
 extern void getTypeBinaryOutputInfo(Oid type, Oid *typSend, bool *typIsVarlena);
 extern Oid	get_typmodin(Oid typid);
 extern Oid	get_typcollation(Oid typid);
+extern Oid	get_nesttable_elemtype(Form_pg_type typeform, int *ndim);
+extern int get_nestedtable_ndim(Oid typoid);
 extern bool type_is_collatable(Oid typid);
 extern Oid	getBaseType(Oid typid);
 extern Oid	getBaseTypeAndTypmod(Oid typid, int32 *typmod);
 #ifdef PGXC
+extern Oid get_pgxc_class_groupoid(Oid tableoid, bool *is_sys_tbl);
 extern char *get_typename(Oid typid);
-extern char * get_typenamespace_typename(Oid typid);
+extern char * get_typenamespace_typename(Oid typid, bool typnp);
 extern char *get_pgxc_nodename(Oid nodeoid);
 extern Oid	get_pgxc_nodeoid_extend(const char *nodename, const char *clustername);
-#define get_pgxc_nodeoid(nodename) get_pgxc_nodeoid_extend((nodename), (PGXCClusterName))
+#define get_pgxc_nodeoid(nodename) get_pgxc_nodeoid_extend((nodename), (pgxc_plane_name(PGXCPlaneNameID)))
 extern uint32	get_pgxc_node_id(Oid nodeid);
 extern char	get_pgxc_nodetype(Oid nodeid);
 extern int	get_pgxc_nodeport(Oid nodeid);
+#ifdef __OPENTENBASE_C__
+extern int get_pgxc_node_forwardport(Oid nodeid);
+extern int get_pgxc_node_planeid(Oid nodeid);
+#endif
 extern char *get_pgxc_nodehost(Oid nodeid);
 extern bool	is_pgxc_nodepreferred(Oid nodeid);
 extern bool	is_pgxc_nodeprimary(Oid nodeid);
-#ifdef __OPENTENBASE__
-extern char *get_pgxc_nodename_from_identifier(int id);
-#endif
 extern Oid	get_pgxc_groupoid(const char *groupname);
 extern int	get_pgxc_groupmembers(Oid groupid, Oid **members);
 extern int	get_pgxc_classnodes(Oid tableid, Oid **nodes);
@@ -219,6 +243,7 @@ extern char *get_namespace_name(Oid nspid);
 extern Oid	get_namespaceid(const char *nspname);
 extern char *get_typ_name(Oid typid);
 extern Oid	get_typ_namespace(Oid typid);
+extern char	get_typ_category(Oid typid);
 extern Oid	get_typname_typid(const char *typname, Oid typnamespace);
 extern Oid	get_funcid(const char *funcname, oidvector *argtypes, Oid funcnsp);
 extern Oid	get_opnamespace(Oid opno);
@@ -226,6 +251,7 @@ extern Oid	get_operid(const char *oprname, Oid oprleft, Oid oprright, Oid oprnsp
 #endif
 extern char *get_namespace_name_or_temp(Oid nspid);
 extern Oid	get_range_subtype(Oid rangeOid);
+
 
 #ifdef XCP
 extern Oid	get_tablesample_method_id(const char *methodname);

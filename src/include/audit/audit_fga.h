@@ -1,10 +1,3 @@
-/*
- * Copyright (c) 2023 THL A29 Limited, a Tencent company.
- *
- * This source code file is licensed under the BSD 3-Clause License,
- * you may obtain a copy of the License at http://opensource.org/license/bsd-3-clause
- * 
- */
 #ifndef __PGXC_AUDIT_FGA__H
 #define __PGXC_AUDIT_FGA__H
 
@@ -23,23 +16,23 @@ extern const char *g_commandTag;
 /* simple list of strings */
 typedef struct _stringlist
 {
-    char       *str;
-    struct _stringlist *next;
+	char	   *str;
+	struct _stringlist *next;
 } _stringlist;
 
 typedef struct AuditFgaPolicy
 {
     NodeTag     type;
-    char       *policy_name;    /* Name of the policy */
-    //Expr       *qual;            /* Expression to audit condition */
-    List       *qual;            /* Expression to audit condition */
+	char	   *policy_name;	/* Name of the policy */
+	//Expr	   *qual;			/* Expression to audit condition */
+	List	   *qual;			/* Expression to audit condition */
     char       *query_string;
 } AuditFgaPolicy;
 
 typedef struct audit_fga_policy_state
 {
-    char       *policy_name;    /* Name of the policy */
-    ExprState  *qual;            /* Expression to audit condition */
+    char	   *policy_name;	/* Name of the policy */
+	ExprState  *qual;			/* Expression to audit condition */
     char       *query_string;
 } audit_fga_policy_state;
 
@@ -65,12 +58,12 @@ typedef struct audit_fga_tigger_info
     char    exec_feedback[AUDIT_TRIGGER_FEEDBACK_LEN];
 } audit_fga_tigger_info;
 
-/*related function declaration*/
+
 extern Oid schema_name_2_oid(text *in_string);
 extern Oid object_name_2_oid(text *in_string, Oid schema_oid);
 extern Oid function_name_2_oid(text *in_string, Oid schema_oid);
 extern Datum text_2_namedata_datum(text *in_string);
-extern void exec_policy_funct_on_other_node(char *query_string);
+extern void exec_policy_function_on_othter_nodes(char *query_string);
 
 extern bool has_policy_matched_cmd(char * cmd_type, Datum statement_types_datum, bool is_null);
 extern bool has_policy_matched_columns(List * tlist, oidvector *audit_column_oids, bool audit_column_opts);
@@ -88,5 +81,5 @@ extern void AuditFgaShmemInit(void);
 extern void write_trigger_handle_to_shmem(Oid func);
 
 
-#endif  /*AUDIT_FGA_H*/
+#endif
 

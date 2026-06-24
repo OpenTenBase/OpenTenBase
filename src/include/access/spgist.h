@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * spgist.h
- *      Public header file for SP-GiST access method.
+ *	  Public header file for SP-GiST access method.
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -21,31 +21,31 @@
 
 
 /* reloption parameters */
-#define SPGIST_MIN_FILLFACTOR            10
-#define SPGIST_DEFAULT_FILLFACTOR        80
+#define SPGIST_MIN_FILLFACTOR			10
+#define SPGIST_DEFAULT_FILLFACTOR		80
 
 /* SPGiST opclass support function numbers */
-#define SPGIST_CONFIG_PROC                1
-#define SPGIST_CHOOSE_PROC                2
-#define SPGIST_PICKSPLIT_PROC            3
-#define SPGIST_INNER_CONSISTENT_PROC    4
-#define SPGIST_LEAF_CONSISTENT_PROC        5
-#define SPGISTNProc                        5
+#define SPGIST_CONFIG_PROC				1
+#define SPGIST_CHOOSE_PROC				2
+#define SPGIST_PICKSPLIT_PROC			3
+#define SPGIST_INNER_CONSISTENT_PROC	4
+#define SPGIST_LEAF_CONSISTENT_PROC		5
+#define SPGISTNProc						5
 
 /*
  * Argument structs for spg_config method
  */
 typedef struct spgConfigIn
 {
-    Oid            attType;        /* Data type to be indexed */
+	Oid			attType;		/* Data type to be indexed */
 } spgConfigIn;
 
 typedef struct spgConfigOut
 {
-    Oid            prefixType;        /* Data type of inner-tuple prefixes */
-    Oid            labelType;        /* Data type of inner-tuple node labels */
-    bool        canReturnData;    /* Opclass can reconstruct original data */
-    bool        longValuesOK;    /* Opclass can cope with values > 1 page */
+	Oid			prefixType;		/* Data type of inner-tuple prefixes */
+	Oid			labelType;		/* Data type of inner-tuple node labels */
+	bool		canReturnData;	/* Opclass can reconstruct original data */
+	bool		longValuesOK;	/* Opclass can cope with values > 1 page */
 } spgConfigOut;
 
 /*
@@ -53,56 +53,56 @@ typedef struct spgConfigOut
  */
 typedef struct spgChooseIn
 {
-    Datum        datum;            /* original datum to be indexed */
-    Datum        leafDatum;        /* current datum to be stored at leaf */
-    int            level;            /* current level (counting from zero) */
+	Datum		datum;			/* original datum to be indexed */
+	Datum		leafDatum;		/* current datum to be stored at leaf */
+	int			level;			/* current level (counting from zero) */
 
-    /* Data from current inner tuple */
-    bool        allTheSame;        /* tuple is marked all-the-same? */
-    bool        hasPrefix;        /* tuple has a prefix? */
-    Datum        prefixDatum;    /* if so, the prefix value */
-    int            nNodes;            /* number of nodes in the inner tuple */
-    Datum       *nodeLabels;        /* node label values (NULL if none) */
+	/* Data from current inner tuple */
+	bool		allTheSame;		/* tuple is marked all-the-same? */
+	bool		hasPrefix;		/* tuple has a prefix? */
+	Datum		prefixDatum;	/* if so, the prefix value */
+	int			nNodes;			/* number of nodes in the inner tuple */
+	Datum	   *nodeLabels;		/* node label values (NULL if none) */
 } spgChooseIn;
 
 typedef enum spgChooseResultType
 {
-    spgMatchNode = 1,            /* descend into existing node */
-    spgAddNode,                    /* add a node to the inner tuple */
-    spgSplitTuple                /* split inner tuple (change its prefix) */
+	spgMatchNode = 1,			/* descend into existing node */
+	spgAddNode,					/* add a node to the inner tuple */
+	spgSplitTuple				/* split inner tuple (change its prefix) */
 } spgChooseResultType;
 
 typedef struct spgChooseOut
 {
-    spgChooseResultType resultType; /* action code, see above */
-    union
-    {
-        struct                    /* results for spgMatchNode */
-        {
-            int            nodeN;    /* descend to this node (index from 0) */
-            int            levelAdd;    /* increment level by this much */
-            Datum        restDatum;    /* new leaf datum */
-        }            matchNode;
-        struct                    /* results for spgAddNode */
-        {
-            Datum        nodeLabel;    /* new node's label */
-            int            nodeN;    /* where to insert it (index from 0) */
-        }            addNode;
-        struct                    /* results for spgSplitTuple */
-        {
-            /* Info to form new upper-level inner tuple with one child tuple */
-            bool        prefixHasPrefix;    /* tuple should have a prefix? */
-            Datum        prefixPrefixDatum;    /* if so, its value */
-            int            prefixNNodes;    /* number of nodes */
-            Datum       *prefixNodeLabels;    /* their labels (or NULL for no
-                                             * labels) */
-            int            childNodeN; /* which node gets child tuple */
+	spgChooseResultType resultType; /* action code, see above */
+	union
+	{
+		struct					/* results for spgMatchNode */
+		{
+			int			nodeN;	/* descend to this node (index from 0) */
+			int			levelAdd;	/* increment level by this much */
+			Datum		restDatum;	/* new leaf datum */
+		}			matchNode;
+		struct					/* results for spgAddNode */
+		{
+			Datum		nodeLabel;	/* new node's label */
+			int			nodeN;	/* where to insert it (index from 0) */
+		}			addNode;
+		struct					/* results for spgSplitTuple */
+		{
+			/* Info to form new upper-level inner tuple with one child tuple */
+			bool		prefixHasPrefix;	/* tuple should have a prefix? */
+			Datum		prefixPrefixDatum;	/* if so, its value */
+			int			prefixNNodes;	/* number of nodes */
+			Datum	   *prefixNodeLabels;	/* their labels (or NULL for no
+											 * labels) */
+			int			childNodeN; /* which node gets child tuple */
 
-            /* Info to form new lower-level inner tuple with all old nodes */
-            bool        postfixHasPrefix;    /* tuple should have a prefix? */
-            Datum        postfixPrefixDatum; /* if so, its value */
-        }            splitTuple;
-    }            result;
+			/* Info to form new lower-level inner tuple with all old nodes */
+			bool		postfixHasPrefix;	/* tuple should have a prefix? */
+			Datum		postfixPrefixDatum; /* if so, its value */
+		}			splitTuple;
+	}			result;
 } spgChooseOut;
 
 /*
@@ -110,21 +110,21 @@ typedef struct spgChooseOut
  */
 typedef struct spgPickSplitIn
 {
-    int            nTuples;        /* number of leaf tuples */
-    Datum       *datums;            /* their datums (array of length nTuples) */
-    int            level;            /* current level (counting from zero) */
+	int			nTuples;		/* number of leaf tuples */
+	Datum	   *datums;			/* their datums (array of length nTuples) */
+	int			level;			/* current level (counting from zero) */
 } spgPickSplitIn;
 
 typedef struct spgPickSplitOut
 {
-    bool        hasPrefix;        /* new inner tuple should have a prefix? */
-    Datum        prefixDatum;    /* if so, its value */
+	bool		hasPrefix;		/* new inner tuple should have a prefix? */
+	Datum		prefixDatum;	/* if so, its value */
 
-    int            nNodes;            /* number of nodes for new inner tuple */
-    Datum       *nodeLabels;        /* their labels (or NULL for no labels) */
+	int			nNodes;			/* number of nodes for new inner tuple */
+	Datum	   *nodeLabels;		/* their labels (or NULL for no labels) */
 
-    int           *mapTuplesToNodes;    /* node index for each leaf tuple */
-    Datum       *leafTupleDatums;    /* datum to store in each new leaf tuple */
+	int		   *mapTuplesToNodes;	/* node index for each leaf tuple */
+	Datum	   *leafTupleDatums;	/* datum to store in each new leaf tuple */
 } spgPickSplitOut;
 
 /*
@@ -132,30 +132,30 @@ typedef struct spgPickSplitOut
  */
 typedef struct spgInnerConsistentIn
 {
-    ScanKey        scankeys;        /* array of operators and comparison values */
-    int            nkeys;            /* length of array */
+	ScanKey		scankeys;		/* array of operators and comparison values */
+	int			nkeys;			/* length of array */
 
-    Datum        reconstructedValue; /* value reconstructed at parent */
-    void       *traversalValue; /* opclass-specific traverse value */
-    MemoryContext traversalMemoryContext;    /* put new traverse values here */
-    int            level;            /* current level (counting from zero) */
-    bool        returnData;        /* original data must be returned? */
+	Datum		reconstructedValue; /* value reconstructed at parent */
+	void	   *traversalValue; /* opclass-specific traverse value */
+	MemoryContext traversalMemoryContext;	/* put new traverse values here */
+	int			level;			/* current level (counting from zero) */
+	bool		returnData;		/* original data must be returned? */
 
-    /* Data from current inner tuple */
-    bool        allTheSame;        /* tuple is marked all-the-same? */
-    bool        hasPrefix;        /* tuple has a prefix? */
-    Datum        prefixDatum;    /* if so, the prefix value */
-    int            nNodes;            /* number of nodes in the inner tuple */
-    Datum       *nodeLabels;        /* node label values (NULL if none) */
+	/* Data from current inner tuple */
+	bool		allTheSame;		/* tuple is marked all-the-same? */
+	bool		hasPrefix;		/* tuple has a prefix? */
+	Datum		prefixDatum;	/* if so, the prefix value */
+	int			nNodes;			/* number of nodes in the inner tuple */
+	Datum	   *nodeLabels;		/* node label values (NULL if none) */
 } spgInnerConsistentIn;
 
 typedef struct spgInnerConsistentOut
 {
-    int            nNodes;            /* number of child nodes to be visited */
-    int           *nodeNumbers;    /* their indexes in the node array */
-    int           *levelAdds;        /* increment level by this much for each */
-    Datum       *reconstructedValues;    /* associated reconstructed values */
-    void      **traversalValues;    /* opclass-specific traverse values */
+	int			nNodes;			/* number of child nodes to be visited */
+	int		   *nodeNumbers;	/* their indexes in the node array */
+	int		   *levelAdds;		/* increment level by this much for each */
+	Datum	   *reconstructedValues;	/* associated reconstructed values */
+	void	  **traversalValues;	/* opclass-specific traverse values */
 } spgInnerConsistentOut;
 
 /*
@@ -163,21 +163,21 @@ typedef struct spgInnerConsistentOut
  */
 typedef struct spgLeafConsistentIn
 {
-    ScanKey        scankeys;        /* array of operators and comparison values */
-    int            nkeys;            /* length of array */
+	ScanKey		scankeys;		/* array of operators and comparison values */
+	int			nkeys;			/* length of array */
 
-    Datum        reconstructedValue; /* value reconstructed at parent */
-    void       *traversalValue; /* opclass-specific traverse value */
-    int            level;            /* current level (counting from zero) */
-    bool        returnData;        /* original data must be returned? */
+	Datum		reconstructedValue; /* value reconstructed at parent */
+	void	   *traversalValue; /* opclass-specific traverse value */
+	int			level;			/* current level (counting from zero) */
+	bool		returnData;		/* original data must be returned? */
 
-    Datum        leafDatum;        /* datum in leaf tuple */
+	Datum		leafDatum;		/* datum in leaf tuple */
 } spgLeafConsistentIn;
 
 typedef struct spgLeafConsistentOut
 {
-    Datum        leafValue;        /* reconstructed original data, if any */
-    bool        recheck;        /* set true if operator must be rechecked */
+	Datum		leafValue;		/* reconstructed original data, if any */
+	bool		recheck;		/* set true if operator must be rechecked */
 } spgLeafConsistentOut;
 
 
@@ -186,31 +186,31 @@ extern bytea *spgoptions(Datum reloptions, bool validate);
 
 /* spginsert.c */
 extern IndexBuildResult *spgbuild(Relation heap, Relation index,
-         struct IndexInfo *indexInfo);
+		 struct IndexInfo *indexInfo);
 extern void spgbuildempty(Relation index);
 extern bool spginsert(Relation index, Datum *values, bool *isnull,
-          ItemPointer ht_ctid, Relation heapRel,
-          IndexUniqueCheck checkUnique,
-          struct IndexInfo *indexInfo);
+		  ItemPointer ht_ctid, Relation heapRel,
+		  IndexUniqueCheck checkUnique,
+		  struct IndexInfo *indexInfo);
 
 /* spgscan.c */
 extern IndexScanDesc spgbeginscan(Relation rel, int keysz, int orderbysz);
 extern void spgendscan(IndexScanDesc scan);
 extern void spgrescan(IndexScanDesc scan, ScanKey scankey, int nscankeys,
-          ScanKey orderbys, int norderbys);
+		  ScanKey orderbys, int norderbys);
 extern int64 spggetbitmap(IndexScanDesc scan, TIDBitmap *tbm);
 extern bool spggettuple(IndexScanDesc scan, ScanDirection dir);
 extern bool spgcanreturn(Relation index, int attno);
 
 /* spgvacuum.c */
 extern IndexBulkDeleteResult *spgbulkdelete(IndexVacuumInfo *info,
-              IndexBulkDeleteResult *stats,
-              IndexBulkDeleteCallback callback,
-              void *callback_state);
+			  IndexBulkDeleteResult *stats,
+			  IndexBulkDeleteCallback callback,
+			  void *callback_state);
 extern IndexBulkDeleteResult *spgvacuumcleanup(IndexVacuumInfo *info,
-                 IndexBulkDeleteResult *stats);
+				 IndexBulkDeleteResult *stats);
 
 /* spgvalidate.c */
 extern bool spgvalidate(Oid opclassoid);
 
-#endif                            /* SPGIST_H */
+#endif							/* SPGIST_H */

@@ -7,9 +7,6 @@
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * src/include/parser/parse_relation.h
  *
  *-------------------------------------------------------------------------
@@ -19,6 +16,7 @@
 
 #include "parser/parse_node.h"
 
+#define XMLTABLE_ALIAS (ORA_MODE ? ("XMLTABLE") : ("xmltable"))
 
 /*
  * Support for fuzzily matching column.
@@ -61,10 +59,16 @@ extern Node *scanRTEForColumn(ParseState *pstate, RangeTblEntry *rte,
 				 int fuzzy_rte_penalty, FuzzyAttrMatchState *fuzzystate);
 extern Node *colNameToVar(ParseState *pstate, char *colname, bool localonly,
 			 int location);
+extern TargetEntry *scanNameSpaceForTle(ParseState *pstate, char *colname, 
+				List *tlist, int location);
 extern void markVarForSelectPriv(ParseState *pstate, Var *var,
 					 RangeTblEntry *rte);
 extern Relation parserOpenTable(ParseState *pstate, const RangeVar *relation,
 				int lockmode);
+extern List *refnameRangeTblEntries(ParseState *pstate, const char *refname, int location);
+#ifdef __OPENTENBASE__
+extern Relation parserOpenTableNewRel(ParseState *pstate, const RangeVar *relation, int lockmode, RangeVar **new_rel);
+#endif
 extern RangeTblEntry *addRangeTableEntry(ParseState *pstate,
 				   RangeVar *relation,
 				   Alias *alias,
@@ -127,16 +131,19 @@ extern void expandRTE(RangeTblEntry *rte, int rtindex, int sublevels_up,
 extern List *expandRelAttrs(ParseState *pstate, RangeTblEntry *rte,
 			   int rtindex, int sublevels_up, int location);
 extern int	attnameAttNum(Relation rd, const char *attname, bool sysColOK);
+extern int  getAttNumByAttname(ParseState *pstate, ResTarget *target, RangeVar *targetRangeVar);
+extern int  getAttNumByAttnameSubquery(RangeTblEntry *rangeTblEntry, ResTarget *target);
 extern Name attnumAttName(Relation rd, int attid);
 extern Oid	attnumTypeId(Relation rd, int attid);
 extern Oid	attnumCollationId(Relation rd, int attid);
 extern bool isQueryUsingTempRelation(Query *query);
-#ifdef __OPENTENBASE__
-extern bool CheckAndGetRelation(Query *query, List **relation_list);
-#endif
+extern bool MetaGlobalTempTblReplaceWalker(Node *node, void *context);
 
 #ifdef PGXC
 extern int	specialAttNum(const char *attname);
 #endif
 
+
+/* Parse the partition xxx in the select/delete/insert/update */
+extern RangeVar *parse_partition_relname(ParseState *pstate, RangeVar *relation);
 #endif							/* PARSE_RELATION_H */

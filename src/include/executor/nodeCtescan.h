@@ -20,4 +20,17 @@ extern CteScanState *ExecInitCteScan(CteScan *node, EState *estate, int eflags);
 extern void ExecEndCteScan(CteScanState *node);
 extern void ExecReScanCteScan(CteScanState *node);
 
-#endif                            /* NODECTESCAN_H */
+#ifdef __OPENTENBASE_C__
+extern void ExecShutdownCteScan(CteScanState * node);
+extern void ExecEagerFreeCteScan(PlanState *pstate);
+
+extern void ExecCteScanEstimate(CteScanState *node, ParallelContext *pcxt);
+extern void ExecCteScanInitializeDSM(CteScanState *node,
+										ParallelContext *pcxt);
+extern void ExecCteScanReInitializeDSM(CteScanState *node,
+										ParallelContext *pcxt);
+extern void ExecCteScanInitializeWorker(CteScanState *node,
+										ParallelWorkerContext *pwcxt);
+#endif
+
+#endif							/* NODECTESCAN_H */

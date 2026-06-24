@@ -1,0 +1,5 @@
+default_version = '1.7'
+module_pathname = '$libdir/http'
+comment = 'HTTP client for PostgreSQL, allows web page retrieval inside the database.'
+# sql_mode can be opentenbase_ora, postgresql, all
+sql_mode = 'all'

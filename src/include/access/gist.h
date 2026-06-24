@@ -1,9 +1,9 @@
 /*-------------------------------------------------------------------------
  *
  * gist.h
- *      The public API for GiST indexes. This API is exposed to
- *      individuals implementing GiST indexes, so backward-incompatible
- *      changes should be made with care.
+ *	  The public API for GiST indexes. This API is exposed to
+ *	  individuals implementing GiST indexes, so backward-incompatible
+ *	  changes should be made with care.
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -25,27 +25,27 @@
 /*
  * amproc indexes for GiST indexes.
  */
-#define GIST_CONSISTENT_PROC            1
-#define GIST_UNION_PROC                    2
-#define GIST_COMPRESS_PROC                3
-#define GIST_DECOMPRESS_PROC            4
-#define GIST_PENALTY_PROC                5
-#define GIST_PICKSPLIT_PROC                6
-#define GIST_EQUAL_PROC                    7
-#define GIST_DISTANCE_PROC                8
-#define GIST_FETCH_PROC                    9
-#define GISTNProcs                    9
+#define GIST_CONSISTENT_PROC			1
+#define GIST_UNION_PROC					2
+#define GIST_COMPRESS_PROC				3
+#define GIST_DECOMPRESS_PROC			4
+#define GIST_PENALTY_PROC				5
+#define GIST_PICKSPLIT_PROC				6
+#define GIST_EQUAL_PROC					7
+#define GIST_DISTANCE_PROC				8
+#define GIST_FETCH_PROC					9
+#define GISTNProcs					9
 
 /*
  * Page opaque data in a GiST index page.
  */
-#define F_LEAF                (1 << 0)    /* leaf page */
-#define F_DELETED            (1 << 1)    /* the page has been deleted */
-#define F_TUPLES_DELETED    (1 << 2)    /* some tuples on the page were
-                                         * deleted */
-#define F_FOLLOW_RIGHT        (1 << 3)    /* page to the right has no downlink */
-#define F_HAS_GARBAGE        (1 << 4)    /* some tuples on the page are dead,
-                                         * but not deleted yet */
+#define F_LEAF				(1 << 0)	/* leaf page */
+#define F_DELETED			(1 << 1)	/* the page has been deleted */
+#define F_TUPLES_DELETED	(1 << 2)	/* some tuples on the page were
+										 * deleted */
+#define F_FOLLOW_RIGHT		(1 << 3)	/* page to the right has no downlink */
+#define F_HAS_GARBAGE		(1 << 4)	/* some tuples on the page are dead,
+										 * but not deleted yet */
 
 typedef XLogRecPtr GistNSN;
 
@@ -57,10 +57,10 @@ typedef PageXLogRecPtr PageGistNSN;
 
 typedef struct GISTPageOpaqueData
 {
-    PageGistNSN nsn;            /* this value must change on page split */
-    BlockNumber rightlink;        /* next page if any */
-    uint16        flags;            /* see bit definitions above */
-    uint16        gist_page_id;    /* for identification of GiST indexes */
+	PageGistNSN nsn;			/* this value must change on page split */
+	BlockNumber rightlink;		/* next page if any */
+	uint16		flags;			/* see bit definitions above */
+	uint16		gist_page_id;	/* for identification of GiST indexes */
 } GISTPageOpaqueData;
 
 typedef GISTPageOpaqueData *GISTPageOpaque;
@@ -71,7 +71,7 @@ typedef GISTPageOpaqueData *GISTPageOpaque;
  * types apart.  It should be the last 2 bytes on the page.  This is more or
  * less "free" due to alignment considerations.
  */
-#define GIST_PAGE_ID        0xFF81
+#define GIST_PAGE_ID		0xFF81
 
 /*
  * This is the Split Vector to be returned by the PickSplit method.
@@ -102,15 +102,15 @@ typedef GISTPageOpaqueData *GISTPageOpaque;
  */
 typedef struct GIST_SPLITVEC
 {
-    OffsetNumber *spl_left;        /* array of entries that go left */
-    int            spl_nleft;        /* size of this array */
-    Datum        spl_ldatum;        /* Union of keys in spl_left */
-    bool        spl_ldatum_exists;    /* true, if spl_ldatum already exists. */
+	OffsetNumber *spl_left;		/* array of entries that go left */
+	int			spl_nleft;		/* size of this array */
+	Datum		spl_ldatum;		/* Union of keys in spl_left */
+	bool		spl_ldatum_exists;	/* true, if spl_ldatum already exists. */
 
-    OffsetNumber *spl_right;    /* array of entries that go right */
-    int            spl_nright;        /* size of the array */
-    Datum        spl_rdatum;        /* Union of keys in spl_right */
-    bool        spl_rdatum_exists;    /* true, if spl_rdatum already exists. */
+	OffsetNumber *spl_right;	/* array of entries that go right */
+	int			spl_nright;		/* size of the array */
+	Datum		spl_rdatum;		/* Union of keys in spl_right */
+	bool		spl_rdatum_exists;	/* true, if spl_rdatum already exists. */
 } GIST_SPLITVEC;
 
 /*
@@ -120,33 +120,33 @@ typedef struct GIST_SPLITVEC
  */
 typedef struct GISTENTRY
 {
-    Datum        key;
-    Relation    rel;
-    Page        page;
-    OffsetNumber offset;
-    bool        leafkey;
+	Datum		key;
+	Relation	rel;
+	Page		page;
+	OffsetNumber offset;
+	bool		leafkey;
 } GISTENTRY;
 
 #define GistPageGetOpaque(page) ( (GISTPageOpaque) PageGetSpecialPointer(page) )
 
-#define GistPageIsLeaf(page)    ( GistPageGetOpaque(page)->flags & F_LEAF)
+#define GistPageIsLeaf(page)	( GistPageGetOpaque(page)->flags & F_LEAF)
 #define GIST_LEAF(entry) (GistPageIsLeaf((entry)->page))
 
 #define GistPageIsDeleted(page) ( GistPageGetOpaque(page)->flags & F_DELETED)
-#define GistPageSetDeleted(page)    ( GistPageGetOpaque(page)->flags |= F_DELETED)
+#define GistPageSetDeleted(page)	( GistPageGetOpaque(page)->flags |= F_DELETED)
 #define GistPageSetNonDeleted(page) ( GistPageGetOpaque(page)->flags &= ~F_DELETED)
 
 #define GistTuplesDeleted(page) ( GistPageGetOpaque(page)->flags & F_TUPLES_DELETED)
 #define GistMarkTuplesDeleted(page) ( GistPageGetOpaque(page)->flags |= F_TUPLES_DELETED)
-#define GistClearTuplesDeleted(page)    ( GistPageGetOpaque(page)->flags &= ~F_TUPLES_DELETED)
+#define GistClearTuplesDeleted(page)	( GistPageGetOpaque(page)->flags &= ~F_TUPLES_DELETED)
 
 #define GistPageHasGarbage(page) ( GistPageGetOpaque(page)->flags & F_HAS_GARBAGE)
 #define GistMarkPageHasGarbage(page) ( GistPageGetOpaque(page)->flags |= F_HAS_GARBAGE)
-#define GistClearPageHasGarbage(page)    ( GistPageGetOpaque(page)->flags &= ~F_HAS_GARBAGE)
+#define GistClearPageHasGarbage(page)	( GistPageGetOpaque(page)->flags &= ~F_HAS_GARBAGE)
 
 #define GistFollowRight(page) ( GistPageGetOpaque(page)->flags & F_FOLLOW_RIGHT)
 #define GistMarkFollowRight(page) ( GistPageGetOpaque(page)->flags |= F_FOLLOW_RIGHT)
-#define GistClearFollowRight(page)    ( GistPageGetOpaque(page)->flags &= ~F_FOLLOW_RIGHT)
+#define GistClearFollowRight(page)	( GistPageGetOpaque(page)->flags &= ~F_FOLLOW_RIGHT)
 
 #define GistPageGetNSN(page) ( PageXLogRecPtrGet(GistPageGetOpaque(page)->nsn))
 #define GistPageSetNSN(page, val) ( PageXLogRecPtrSet(GistPageGetOpaque(page)->nsn, val))
@@ -157,17 +157,17 @@ typedef struct GISTENTRY
  */
 typedef struct
 {
-    int32        n;                /* number of elements */
-    GISTENTRY    vector[FLEXIBLE_ARRAY_MEMBER];
+	int32		n;				/* number of elements */
+	GISTENTRY	vector[FLEXIBLE_ARRAY_MEMBER];
 } GistEntryVector;
 
-#define GEVHDRSZ    (offsetof(GistEntryVector, vector))
+#define GEVHDRSZ	(offsetof(GistEntryVector, vector))
 
 /*
  * macro to initialize a GISTENTRY
  */
 #define gistentryinit(e, k, r, pg, o, l) \
-    do { (e).key = (k); (e).rel = (r); (e).page = (pg); \
-         (e).offset = (o); (e).leafkey = (l); } while (0)
+	do { (e).key = (k); (e).rel = (r); (e).page = (pg); \
+		 (e).offset = (o); (e).leafkey = (l); } while (0)
 
-#endif                            /* GIST_H */
+#endif							/* GIST_H */

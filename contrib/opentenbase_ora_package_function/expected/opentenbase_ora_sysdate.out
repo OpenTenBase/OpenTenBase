@@ -1,0 +1,50 @@
+\c opentenbase_ora_package_function_regression_ora
+set TimeZone to 'PRC';
+Drop table if exists t_time_range;
+NOTICE:  table "T_TIME_RANGE" does not exist, skipping
+create table t_time_range
+(f1 bigint, f2 timestamp ,f3 bigint) 
+partition by range (f2) begin (timestamp without time zone '2021-06-01 0:0:0')     
+step (interval '10 year') 
+partitions (12) distribute by shard(f1) 
+to group default_group;
+ERROR:  syntax error at or near "begin"
+LINE 3: partition by range (f2) begin (timestamp without time zone '...
+                                ^
+explain verbose select * from t_time_range where f2 < sysdate;
+ERROR:  relation "T_TIME_RANGE" does not exist
+LINE 1: explain verbose select * from t_time_range where f2 < sysdat...
+                                      ^
+prepare fun3 as select * from t_time_range where f2 < sysdate;
+ERROR:  relation "T_TIME_RANGE" does not exist
+LINE 1: prepare fun3 as select * from t_time_range where f2 < sysdat...
+                                      ^
+explain verbose execute fun3;
+ERROR:  prepared statement "FUN3" does not exist
+Drop table t_time_range;
+ERROR:  table "T_TIME_RANGE" does not exist
+declare
+begin
+execute 'select sysdate, sysdate from dual;';
+execute 'select sysdate, sysdate from dual;';
+execute 'select sysdate, sysdate from dual;';
+end;
+/
+reset TimeZone;
+select chr('67'::varchar) from dual;
+ CHR 
+-----
+ C
+(1 row)
+
+select chr('67'::text) from dual;
+ CHR 
+-----
+ C
+(1 row)
+
+select chr(SUBSTR('67125',1,2)) from dual;
+ CHR 
+-----
+ C
+(1 row)

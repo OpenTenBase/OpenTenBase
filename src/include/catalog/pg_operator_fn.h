@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * pg_operator_fn.h
-*     prototypes for functions in catalog/pg_operator.c
+*	 prototypes for functions in catalog/pg_operator.c
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -18,19 +18,19 @@
 #include "nodes/pg_list.h"
 
 extern ObjectAddress OperatorCreate(const char *operatorName,
-               Oid operatorNamespace,
-               Oid leftTypeId,
-               Oid rightTypeId,
-               Oid procedureId,
-               List *commutatorName,
-               List *negatorName,
-               Oid restrictionId,
-               Oid joinId,
-               bool canMerge,
-               bool canHash);
+			   Oid operatorNamespace,
+			   Oid leftTypeId,
+			   Oid rightTypeId,
+			   Oid procedureId,
+			   List *commutatorName,
+			   List *negatorName,
+			   Oid restrictionId,
+			   Oid joinId,
+			   bool canMerge,
+			   bool canHash);
 
 extern ObjectAddress makeOperatorDependencies(HeapTuple tuple, bool isUpdate);
 
 extern void OperatorUpd(Oid baseId, Oid commId, Oid negId, bool isDelete);
 
-#endif                            /* PG_OPERATOR_FN_H */
+#endif							/* PG_OPERATOR_FN_H */

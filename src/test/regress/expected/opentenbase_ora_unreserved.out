@@ -1,0 +1,1368 @@
+\c regression_ora
+-- check as table name
+do
+    $$
+    declare
+    idx int;
+    create_str varchar(512) := '';
+    drop_str   varchar(200) := '';
+    skeys varchar(64)[] := array[
+		'binary_double', 'binary_float', 'byte', 'character', 'coalesce','dec', 'extract', 'greatest','grouping','grouping_id','int',
+        'interval', 'least', 'national','nchar','none','nullif','numeric','position','precision','real','row','time','timestamp','treat','trim',
+        'xmlattributes','xmlconcat','xmlelement','xmlexists','xmlforest','xmlnamespaces','xmlparse','xmlpi','xmlroot','xmlserialize','xmltable',
+
+        'analyze', 'array', 'audit', 'authenticated', 'both','case', 'cast', 'collate','column','connect_by_isleaf','connect_by_root',
+                'constraint', 'current_date','current_time','current_timestamp','current_user','dbtimezone','deferrable','end','except',
+                'false', 'fetch', 'foreign','initially','lateral','leading','level','limit','link','localtime','localtimestamp','noaudit',
+                'nocycle','noorder','offset','only','pivot','primary','references','returning','rownum','sessiontimezone','some','successful',
+                'sys_connect_by_path','sysdate','systimestamp','trailing','true','uid','unpivot','user','using','when','whenever',
+
+         'authorization', 'binary', 'collation', 'cross', 'current_schema','full', 'inner', 'join','left','natural','outer',
+                 'overlaps', 'right',
+
+          'body',
+
+          'bigint','bit','boolean','inout','out','overlay','setof','substring',
+          'analyse','asymmetric','current_catalog','current_role','do','placing','session_user','shardcluster','symmetric','variadic','window',
+          'concurrently','freeze','ilike','isnull','notnull','similar','stashmerge','tablesample','verbose'];
+    begin
+        for idx in 1 .. 134
+        loop
+            create_str = 'create table ';
+            drop_str = 'Drop table if exists ';
+            create_str = create_str || skeys[idx];
+            create_str = create_str || '(i int)';
+            drop_str = drop_str || skeys[idx];
+            --raise notice '%',create_str;
+            --raise notice '%',drop_str;
+            begin
+                execute(drop_str);
+                execute(create_str);
+                execute(drop_str);
+            exception
+                when syntax_error then
+                raise notice '%', ('Failed keyword:' || skeys[idx] || ',' || sqlerrm );
+            end;
+        end loop;
+    end;
+    $$;
+NOTICE:  table "BINARY_DOUBLE" does not exist, skipping
+NOTICE:  table "BINARY_FLOAT" does not exist, skipping
+NOTICE:  table "BYTE" does not exist, skipping
+NOTICE:  table "CHARACTER" does not exist, skipping
+NOTICE:  table "COALESCE" does not exist, skipping
+NOTICE:  table "DEC" does not exist, skipping
+NOTICE:  table "EXTRACT" does not exist, skipping
+NOTICE:  table "GREATEST" does not exist, skipping
+NOTICE:  table "GROUPING" does not exist, skipping
+NOTICE:  table "GROUPING_ID" does not exist, skipping
+NOTICE:  table "INT" does not exist, skipping
+NOTICE:  table "INTERVAL" does not exist, skipping
+NOTICE:  table "LEAST" does not exist, skipping
+NOTICE:  table "NATIONAL" does not exist, skipping
+NOTICE:  table "NCHAR" does not exist, skipping
+NOTICE:  table "NONE" does not exist, skipping
+NOTICE:  table "NULLIF" does not exist, skipping
+NOTICE:  table "NUMERIC" does not exist, skipping
+NOTICE:  table "POSITION" does not exist, skipping
+NOTICE:  table "PRECISION" does not exist, skipping
+NOTICE:  table "REAL" does not exist, skipping
+NOTICE:  table "ROW" does not exist, skipping
+NOTICE:  table "TIME" does not exist, skipping
+NOTICE:  table "TIMESTAMP" does not exist, skipping
+NOTICE:  table "TREAT" does not exist, skipping
+NOTICE:  table "TRIM" does not exist, skipping
+NOTICE:  table "XMLATTRIBUTES" does not exist, skipping
+NOTICE:  table "XMLCONCAT" does not exist, skipping
+NOTICE:  table "XMLELEMENT" does not exist, skipping
+NOTICE:  table "XMLEXISTS" does not exist, skipping
+NOTICE:  table "XMLFOREST" does not exist, skipping
+NOTICE:  table "XMLNAMESPACES" does not exist, skipping
+NOTICE:  table "XMLPARSE" does not exist, skipping
+NOTICE:  table "XMLPI" does not exist, skipping
+NOTICE:  table "XMLROOT" does not exist, skipping
+NOTICE:  table "XMLSERIALIZE" does not exist, skipping
+NOTICE:  table "XMLTABLE" does not exist, skipping
+NOTICE:  table "ANALYZE" does not exist, skipping
+NOTICE:  table "ARRAY" does not exist, skipping
+NOTICE:  Failed keyword:audit,syntax error at or near "audit"
+NOTICE:  table "AUTHENTICATED" does not exist, skipping
+NOTICE:  table "BOTH" does not exist, skipping
+NOTICE:  table "CASE" does not exist, skipping
+NOTICE:  table "CAST" does not exist, skipping
+NOTICE:  Failed keyword:collate,syntax error at or near "collate"
+NOTICE:  Failed keyword:column,syntax error at or near "column"
+NOTICE:  table "CONNECT_BY_ISLEAF" does not exist, skipping
+NOTICE:  table "CONNECT_BY_ROOT" does not exist, skipping
+NOTICE:  table "CONSTRAINT" does not exist, skipping
+NOTICE:  table "CURRENT_DATE" does not exist, skipping
+NOTICE:  table "CURRENT_TIME" does not exist, skipping
+NOTICE:  table "CURRENT_TIMESTAMP" does not exist, skipping
+NOTICE:  table "CURRENT_USER" does not exist, skipping
+NOTICE:  table "DBTIMEZONE" does not exist, skipping
+NOTICE:  table "DEFERRABLE" does not exist, skipping
+NOTICE:  table "END" does not exist, skipping
+NOTICE:  table "EXCEPT" does not exist, skipping
+NOTICE:  table "FALSE" does not exist, skipping
+NOTICE:  table "FETCH" does not exist, skipping
+NOTICE:  table "FOREIGN" does not exist, skipping
+NOTICE:  table "INITIALLY" does not exist, skipping
+NOTICE:  table "LATERAL" does not exist, skipping
+NOTICE:  table "LEADING" does not exist, skipping
+NOTICE:  Failed keyword:level,syntax error at or near "level"
+NOTICE:  table "LIMIT" does not exist, skipping
+NOTICE:  table "LINK" does not exist, skipping
+NOTICE:  table "LOCALTIME" does not exist, skipping
+NOTICE:  table "LOCALTIMESTAMP" does not exist, skipping
+NOTICE:  Failed keyword:noaudit,syntax error at or near "noaudit"
+NOTICE:  table "NOCYCLE" does not exist, skipping
+NOTICE:  table "NOORDER" does not exist, skipping
+NOTICE:  table "OFFSET" does not exist, skipping
+NOTICE:  table "ONLY" does not exist, skipping
+NOTICE:  table "PIVOT" does not exist, skipping
+NOTICE:  table "PRIMARY" does not exist, skipping
+NOTICE:  table "REFERENCES" does not exist, skipping
+NOTICE:  table "RETURNING" does not exist, skipping
+NOTICE:  Failed keyword:rownum,syntax error at or near "rownum"
+NOTICE:  table "SESSIONTIMEZONE" does not exist, skipping
+NOTICE:  table "SOME" does not exist, skipping
+NOTICE:  Failed keyword:successful,syntax error at or near "successful"
+NOTICE:  table "SYS_CONNECT_BY_PATH" does not exist, skipping
+NOTICE:  Failed keyword:sysdate,syntax error at or near "sysdate"
+NOTICE:  table "SYSTIMESTAMP" does not exist, skipping
+NOTICE:  table "TRAILING" does not exist, skipping
+NOTICE:  table "TRUE" does not exist, skipping
+NOTICE:  Failed keyword:uid,syntax error at or near "uid"
+NOTICE:  table "UNPIVOT" does not exist, skipping
+NOTICE:  table "USER" does not exist, skipping
+NOTICE:  table "USING" does not exist, skipping
+NOTICE:  table "WHEN" does not exist, skipping
+NOTICE:  Failed keyword:whenever,syntax error at or near "whenever"
+NOTICE:  table "AUTHORIZATION" does not exist, skipping
+NOTICE:  table "BINARY" does not exist, skipping
+NOTICE:  table "COLLATION" does not exist, skipping
+NOTICE:  table "CROSS" does not exist, skipping
+NOTICE:  table "CURRENT_SCHEMA" does not exist, skipping
+NOTICE:  table "FULL" does not exist, skipping
+NOTICE:  table "INNER" does not exist, skipping
+NOTICE:  table "JOIN" does not exist, skipping
+NOTICE:  table "LEFT" does not exist, skipping
+NOTICE:  table "NATURAL" does not exist, skipping
+NOTICE:  table "OUTER" does not exist, skipping
+NOTICE:  table "OVERLAPS" does not exist, skipping
+NOTICE:  table "RIGHT" does not exist, skipping
+NOTICE:  table "BODY" does not exist, skipping
+NOTICE:  table "BIGINT" does not exist, skipping
+NOTICE:  table "BIT" does not exist, skipping
+NOTICE:  table "BOOLEAN" does not exist, skipping
+NOTICE:  table "INOUT" does not exist, skipping
+NOTICE:  table "OUT" does not exist, skipping
+NOTICE:  table "OVERLAY" does not exist, skipping
+NOTICE:  table "SETOF" does not exist, skipping
+NOTICE:  table "SUBSTRING" does not exist, skipping
+NOTICE:  table "ANALYSE" does not exist, skipping
+NOTICE:  table "ASYMMETRIC" does not exist, skipping
+NOTICE:  table "CURRENT_CATALOG" does not exist, skipping
+NOTICE:  table "CURRENT_ROLE" does not exist, skipping
+NOTICE:  table "DO" does not exist, skipping
+NOTICE:  table "PLACING" does not exist, skipping
+NOTICE:  table "SESSION_USER" does not exist, skipping
+NOTICE:  table "SHARDCLUSTER" does not exist, skipping
+NOTICE:  table "SYMMETRIC" does not exist, skipping
+NOTICE:  table "VARIADIC" does not exist, skipping
+NOTICE:  table "WINDOW" does not exist, skipping
+NOTICE:  table "CONCURRENTLY" does not exist, skipping
+NOTICE:  Failed keyword:concurrently,syntax error at or near "concurrently"
+NOTICE:  table "FREEZE" does not exist, skipping
+NOTICE:  table "ILIKE" does not exist, skipping
+NOTICE:  table "ISNULL" does not exist, skipping
+NOTICE:  table "NOTNULL" does not exist, skipping
+NOTICE:  table "SIMILAR" does not exist, skipping
+NOTICE:  table "STASHMERGE" does not exist, skipping
+NOTICE:  table "TABLESAMPLE" does not exist, skipping
+NOTICE:  table "VERBOSE" does not exist, skipping
+NOTICE:  Failed keyword:verbose,syntax error at or near "verbose"
+--check as col name
+do
+    $$
+    declare
+    idx int;
+    create_str varchar(512) := '';
+    drop_str   varchar(200) := '';
+    skeys varchar(64)[] := array[
+		'binary_double', 'binary_float', 'byte', 'character', 'coalesce','dec', 'extract', 'greatest','grouping','grouping_id','int',
+        'interval', 'least', 'national','nchar','none','nullif','numeric','position','precision','real','row','time','timestamp','treat','trim',
+        'xmlattributes','xmlconcat','xmlelement','xmlexists','xmlforest','xmlnamespaces','xmlparse','xmlpi','xmlroot','xmlserialize','xmltable',
+
+        'analyze', 'array', 'audit', 'authenticated', 'both','case', 'cast', 'collate','column','connect_by_isleaf','connect_by_root',
+                'constraint', 'current_date','current_time','current_timestamp','current_user','dbtimezone','deferrable','end','except',
+                'false', 'fetch', 'foreign','initially','lateral','leading','level','limit','link','localtime','localtimestamp','noaudit',
+                'nocycle','noorder','offset','only','pivot','primary','references','returning','rownum','sessiontimezone','some','successful',
+                'sys_connect_by_path','sysdate','systimestamp','trailing','true','uid','unpivot','user','using','when','whenever',
+
+         'authorization', 'binary', 'collation', 'cross', 'current_schema','full', 'inner', 'join','left','natural','outer',
+                 'overlaps', 'right',
+
+          'body',
+
+          'bigint','bit','boolean','inout','out','overlay','setof','substring',
+          'analyse','asymmetric','current_catalog','current_role','do','placing','session_user','shardcluster','symmetric','variadic','window',
+          'concurrently','freeze','ilike','isnull','notnull','similar','stashmerge','tablesample','verbose'];
+    begin
+        for idx in 1 .. 134
+        loop
+            create_str = 'create table t(';
+            drop_str = 'Drop table if exists t';
+            create_str = create_str ||  skeys[idx] || ' int)';
+            drop_str = drop_str;
+            begin
+                execute(drop_str);
+                execute(create_str);
+                execute(drop_str);
+            exception
+                when syntax_error then
+                raise notice '%', ('Failed keyword:' || skeys[idx] || ',' || sqlerrm );
+            end;
+        end loop;
+    end;
+    $$;
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  Failed keyword:audit,syntax error at or near "audit"
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  Failed keyword:column,syntax error at or near "column"
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  Failed keyword:constraint,syntax error at or near ")"
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  Failed keyword:level,syntax error at or near "level"
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  Failed keyword:noaudit,syntax error at or near "noaudit"
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  Failed keyword:rownum,syntax error at or near "rownum"
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  Failed keyword:successful,syntax error at or near "successful"
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  Failed keyword:sysdate,syntax error at or near "sysdate"
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  Failed keyword:uid,syntax error at or near "uid"
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  Failed keyword:whenever,syntax error at or near "whenever"
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+NOTICE:  table "T" does not exist, skipping
+--check as col alias with as
+do
+    $$
+    declare
+    idx int;
+    sel_str varchar(512) := '';
+    skeys varchar(64)[] := array[
+		'binary_double', 'binary_float', 'byte', 'character', 'coalesce','dec', 'extract', 'greatest','grouping','grouping_id','int',
+        'interval', 'least', 'national','nchar','none','nullif','numeric','position','precision','real','row','time','timestamp','treat','trim',
+        'xmlattributes','xmlconcat','xmlelement','xmlexists','xmlforest','xmlnamespaces','xmlparse','xmlpi','xmlroot','xmlserialize','xmltable',
+
+        'analyze', 'array', 'audit', 'authenticated', 'both','case', 'cast', 'collate','column','connect_by_isleaf','connect_by_root',
+                'constraint', 'current_date','current_time','current_timestamp','current_user','dbtimezone','deferrable','end','except',
+                'false', 'fetch', 'foreign','initially','lateral','leading','level','limit','link','localtime','localtimestamp','noaudit',
+                'nocycle','noorder','offset','only','pivot','primary','references','returning','rownum','sessiontimezone','some','successful',
+                'sys_connect_by_path','sysdate','systimestamp','trailing','true','uid','unpivot','user','using','when','whenever',
+
+         'authorization', 'binary', 'collation', 'cross', 'current_schema','full', 'inner', 'join','left','natural','outer',
+                 'overlaps', 'right',
+
+          'body',
+
+          'bigint','bit','boolean','inout','out','overlay','setof','substring',
+          'analyse','asymmetric','current_catalog','current_role','do','placing','session_user','shardcluster','symmetric','variadic','window',
+          'concurrently','freeze','ilike','isnull','notnull','similar','stashmerge','tablesample','verbose'];
+    begin
+        for idx in 1 .. 134
+        loop
+            sel_str = 'select 1 as ';
+            sel_str = sel_str ||  skeys[idx] || ' from dual';
+            begin
+                execute(sel_str);
+            exception
+                when others then
+                raise notice '%', ('Failed keyword:' || skeys[idx] || ',' || sqlerrm );
+            end;
+        end loop;
+    end;
+    $$;
+--check as col alias without as
+do
+    $$
+    declare
+    idx int;
+    sel_str varchar(512) := '';
+    skeys varchar(64)[] := array[
+		'binary_double', 'binary_float', 'byte', 'character', 'coalesce','dec', 'extract', 'greatest','grouping','grouping_id','int',
+        'interval', 'least', 'national','nchar','none','nullif','numeric','position','precision','real','row','time','timestamp','treat','trim',
+        'xmlattributes','xmlconcat','xmlelement','xmlexists','xmlforest','xmlnamespaces','xmlparse','xmlpi','xmlroot','xmlserialize','xmltable',
+
+        'analyze', 'array', 'audit', 'authenticated', 'both','case', 'cast', 'collate','column','connect_by_isleaf','connect_by_root',
+                'constraint', 'current_date','current_time','current_timestamp','current_user','dbtimezone','deferrable','end','except',
+                'false', 'fetch', 'foreign','initially','lateral','leading','level','limit','link','localtime','localtimestamp','noaudit',
+                'nocycle','noorder','offset','only','pivot','primary','references','returning','rownum','sessiontimezone','some','successful',
+                'sys_connect_by_path','sysdate','systimestamp','trailing','true','uid','unpivot','user','using','when','whenever',
+
+         'authorization', 'binary', 'collation', 'cross', 'current_schema','full', 'inner', 'join','left','natural','outer',
+                 'overlaps', 'right',
+
+          'body',
+
+          'bigint','bit','boolean','inout','out','overlay','setof','substring',
+          'analyse','asymmetric','current_catalog','current_role','do','placing','session_user','shardcluster','symmetric','variadic','window',
+          'concurrently','freeze','ilike','isnull','notnull','similar','stashmerge','tablesample','verbose'];
+    begin
+        for idx in 1 .. 134
+        loop
+            sel_str = 'select 1 ';
+            sel_str = sel_str ||  skeys[idx] || ' from dual';
+            begin
+                execute(sel_str);
+            exception
+                when others then
+                raise notice '%', ('Failed keyword:' || skeys[idx] || ',' || sqlerrm );
+            end;
+        end loop;
+    end;
+    $$;
+NOTICE:  Failed keyword:audit,syntax error at or near "audit"
+NOTICE:  Failed keyword:collate,syntax error at or near "from"
+NOTICE:  Failed keyword:column,syntax error at or near "column"
+NOTICE:  Failed keyword:level,syntax error at or near "level"
+NOTICE:  Failed keyword:limit,syntax error at or near "from"
+NOTICE:  Failed keyword:noaudit,syntax error at or near "noaudit"
+NOTICE:  Failed keyword:rownum,syntax error at or near "rownum"
+NOTICE:  Failed keyword:successful,syntax error at or near "successful"
+NOTICE:  Failed keyword:sysdate,syntax error at or near "sysdate"
+NOTICE:  Failed keyword:uid,syntax error at or near "uid"
+NOTICE:  Failed keyword:whenever,syntax error at or near "whenever"
+NOTICE:  Failed keyword:ilike,syntax error at or near "from"
+do
+    $$
+    declare
+    idx int;
+    sel_str varchar(512) := '';
+    skeys varchar(64)[] := array[
+		'binary_double', 'binary_float', 'byte', 'character', 'coalesce','dec', 'extract', 'greatest','grouping','grouping_id','int',
+        'interval', 'least', 'national','nchar','none','nullif','numeric','position','precision','real','row','time','timestamp','treat','trim',
+        'xmlattributes','xmlconcat','xmlelement','xmlexists','xmlforest','xmlnamespaces','xmlparse','xmlpi','xmlroot','xmlserialize','xmltable',
+
+        'analyze', 'array', 'audit', 'authenticated', 'both','case', 'cast', 'collate','column','connect_by_isleaf','connect_by_root',
+                'constraint', 'current_date','current_time','current_timestamp','current_user','dbtimezone','deferrable','end','except',
+                'false', 'fetch', 'foreign','initially','lateral','leading','level','limit','link','localtime','localtimestamp','noaudit',
+                'nocycle','noorder','offset','only','pivot','primary','references','returning','rownum','sessiontimezone','some','successful',
+                'sys_connect_by_path','sysdate','systimestamp','trailing','true','uid','unpivot','user','using','when','whenever',
+
+         'authorization', 'binary', 'collation', 'cross', 'current_schema','full', 'inner', 'join','left','natural','outer',
+                 'overlaps', 'right',
+
+          'body',
+
+          'bigint','bit','boolean','inout','out','overlay','setof','substring',
+          'analyse','asymmetric','current_catalog','current_role','do','placing','session_user','shardcluster','symmetric','variadic','window',
+          'concurrently','freeze','ilike','isnull','notnull','similar','stashmerge','tablesample','verbose'];
+    begin
+        for idx in 1 .. 134
+        loop
+            sel_str = 'select 1 + 1 ';
+            sel_str = sel_str ||  skeys[idx] || ' from dual';
+            begin
+                execute(sel_str);
+            exception
+                when others then
+                raise notice '%', ('Failed keyword:' || skeys[idx] || ',' || sqlerrm );
+            end;
+        end loop;
+    end;
+    $$;
+NOTICE:  Failed keyword:audit,syntax error at or near "audit"
+NOTICE:  Failed keyword:collate,syntax error at or near "from"
+NOTICE:  Failed keyword:column,syntax error at or near "column"
+NOTICE:  Failed keyword:level,syntax error at or near "level"
+NOTICE:  Failed keyword:limit,syntax error at or near "from"
+NOTICE:  Failed keyword:noaudit,syntax error at or near "noaudit"
+NOTICE:  Failed keyword:rownum,syntax error at or near "rownum"
+NOTICE:  Failed keyword:successful,syntax error at or near "successful"
+NOTICE:  Failed keyword:sysdate,syntax error at or near "sysdate"
+NOTICE:  Failed keyword:uid,syntax error at or near "uid"
+NOTICE:  Failed keyword:whenever,syntax error at or near "whenever"
+NOTICE:  Failed keyword:ilike,syntax error at or near "from"
+--check as table alias with as
+do
+    $$
+    declare
+    idx int;
+    sel_str varchar(512) := '';
+    skeys varchar(64)[] := array[
+		'binary_double', 'binary_float', 'byte', 'character', 'coalesce','dec', 'extract', 'greatest','grouping','grouping_id','int',
+        'interval', 'least', 'national','nchar','none','nullif','numeric','position','precision','real','row','time','timestamp','treat','trim',
+        'xmlattributes','xmlconcat','xmlelement','xmlexists','xmlforest','xmlnamespaces','xmlparse','xmlpi','xmlroot','xmlserialize','xmltable',
+
+        'analyze', 'array', 'audit', 'authenticated', 'both','case', 'cast', 'collate','column','connect_by_isleaf','connect_by_root',
+                'constraint', 'current_date','current_time','current_timestamp','current_user','dbtimezone','deferrable','end','except',
+                'false', 'fetch', 'foreign','initially','lateral','leading','level','limit','link','localtime','localtimestamp','noaudit',
+                'nocycle','noorder','offset','only','pivot','primary','references','returning','rownum','sessiontimezone','some','successful',
+                'sys_connect_by_path','sysdate','systimestamp','trailing','true','uid','unpivot','user','using','when','whenever',
+
+         'authorization', 'binary', 'collation', 'cross', 'current_schema','full', 'inner', 'join','left','natural','outer',
+                 'overlaps', 'right',
+
+          'body',
+
+          'bigint','bit','boolean','inout','out','overlay','setof','substring',
+          'analyse','asymmetric','current_catalog','current_role','do','placing','session_user','shardcluster','symmetric','variadic','window',
+          'concurrently','freeze','ilike','isnull','notnull','similar','stashmerge','tablesample','verbose'];
+    begin
+        for idx in 1 .. 134
+        loop
+            sel_str = 'select 1 from dual as ';
+            sel_str = sel_str ||  skeys[idx];
+            begin
+                execute(sel_str);
+            exception
+                when others then
+                raise notice '%', ('Failed keyword:' || skeys[idx] || ',' || sqlerrm );
+            end;
+        end loop;
+    end;
+    $$;
+NOTICE:  Failed keyword:audit,syntax error at or near "audit"
+NOTICE:  Failed keyword:column,syntax error at or near "column"
+NOTICE:  Failed keyword:level,syntax error at or near "level"
+NOTICE:  Failed keyword:limit,syntax error at or near "limit"
+NOTICE:  Failed keyword:noaudit,syntax error at or near "noaudit"
+NOTICE:  Failed keyword:rownum,syntax error at or near "rownum"
+NOTICE:  Failed keyword:successful,syntax error at or near "successful"
+NOTICE:  Failed keyword:sysdate,syntax error at or near "sysdate"
+NOTICE:  Failed keyword:uid,syntax error at or near "uid"
+NOTICE:  Failed keyword:whenever,syntax error at or near "whenever"
+NOTICE:  Failed keyword:join,syntax error at or near "join"
+--check as table alias without as
+do
+    $$
+    declare
+    idx int;
+    sel_str varchar(512) := '';
+    skeys varchar(64)[] := array[
+		'binary_double', 'binary_float', 'byte', 'character', 'coalesce','dec', 'extract', 'greatest','grouping','grouping_id','int',
+        'interval', 'least', 'national','nchar','none','nullif','numeric','position','precision','real','row','time','timestamp','treat','trim',
+        'xmlattributes','xmlconcat','xmlelement','xmlexists','xmlforest','xmlnamespaces','xmlparse','xmlpi','xmlroot','xmlserialize','xmltable',
+
+        'analyze', 'array', 'audit', 'authenticated', 'both','case', 'cast', 'collate','column','connect_by_isleaf','connect_by_root',
+                'constraint', 'current_date','current_time','current_timestamp','current_user','dbtimezone','deferrable','end','except',
+                'false', 'fetch', 'foreign','initially','lateral','leading','level','limit','link','localtime','localtimestamp','noaudit',
+                'nocycle','noorder','offset','only','pivot','primary','references','returning','rownum','sessiontimezone','some','successful',
+                'sys_connect_by_path','sysdate','systimestamp','trailing','true','uid','unpivot','user','using','when','whenever',
+
+         'authorization', 'binary', 'collation', 'cross', 'current_schema','full', 'inner', 'join','left','natural','outer',
+                 'overlaps', 'right',
+
+          'body',
+
+          'bigint','bit','boolean','inout','out','overlay','setof','substring',
+          'analyse','asymmetric','current_catalog','current_role','do','placing','session_user','shardcluster','symmetric','variadic','window',
+          'concurrently','freeze','ilike','isnull','notnull','similar','stashmerge','tablesample','verbose'];
+    begin
+        for idx in 1 .. 134
+        loop
+            sel_str = 'select 1 from dual ';
+            sel_str = sel_str ||  skeys[idx];
+            begin
+                execute(sel_str);
+            exception
+                when syntax_error or reserved_name then
+                raise notice '%', ('Failed keyword:' || skeys[idx] || ',' || sqlerrm );
+            end;
+        end loop;
+    end;
+    $$;
+NOTICE:  Failed keyword:audit,syntax error at or near "audit"
+NOTICE:  Failed keyword:column,syntax error at or near "column"
+NOTICE:  Failed keyword:level,syntax error at or near "level"
+NOTICE:  Failed keyword:limit,syntax error at end of input
+NOTICE:  Failed keyword:noaudit,syntax error at or near "noaudit"
+NOTICE:  Failed keyword:offset,syntax error at end of input
+NOTICE:  Failed keyword:rownum,syntax error at or near "rownum"
+NOTICE:  Failed keyword:successful,syntax error at or near "successful"
+NOTICE:  Failed keyword:sysdate,syntax error at or near "sysdate"
+NOTICE:  Failed keyword:uid,syntax error at or near "uid"
+NOTICE:  Failed keyword:whenever,syntax error at or near "whenever"
+NOTICE:  Failed keyword:join,syntax error at end of input
+--check as insert alias with as
+do
+    $$
+    declare
+    idx int;
+    sel_str varchar(512) := '';
+    skeys varchar(64)[] := array[
+		'binary_double', 'binary_float', 'byte', 'character', 'coalesce','dec', 'extract', 'greatest','grouping','grouping_id','int',
+        'interval', 'least', 'national','nchar','none','nullif','numeric','position','precision','real','row','time','timestamp','treat','trim',
+        'xmlattributes','xmlconcat','xmlelement','xmlexists','xmlforest','xmlnamespaces','xmlparse','xmlpi','xmlroot','xmlserialize','xmltable',
+
+        'analyze', 'array', 'audit', 'authenticated', 'both','case', 'cast', 'collate','column','connect_by_isleaf','connect_by_root',
+                'constraint', 'current_date','current_time','current_timestamp','current_user','dbtimezone','deferrable','end','except',
+                'false', 'fetch', 'foreign','initially','lateral','leading','level','limit','link','localtime','localtimestamp','noaudit',
+                'nocycle','noorder','offset','only','pivot','primary','references','returning','rownum','sessiontimezone','some','successful',
+                'sys_connect_by_path','sysdate','systimestamp','trailing','true','uid','unpivot','user','using','when','whenever',
+
+         'authorization', 'binary', 'collation', 'cross', 'current_schema','full', 'inner', 'join','left','natural','outer',
+                 'overlaps', 'right',
+
+          'body',
+
+          'bigint','bit','boolean','inout','out','overlay','setof','substring',
+          'analyse','asymmetric','current_catalog','current_role','do','placing','session_user','shardcluster','symmetric','variadic','window',
+          'concurrently','freeze','ilike','isnull','notnull','similar','stashmerge','tablesample','verbose'];
+    begin
+        sel_str = 'drop table if exists test_insert';
+        execute sel_str;
+        sel_str = 'create table test_insert(i int default 1, j int)';
+        execute sel_str;
+        for idx in 1 .. 134
+        loop
+            sel_str = 'insert into test_insert as ';
+            sel_str = sel_str ||  skeys[idx] || '(' || skeys[idx] || '.j) values (1)';
+            begin
+                execute(sel_str);
+            exception
+                when others then
+                raise notice '%', ('Failed keyword:' || skeys[idx] || ',' || sqlerrm );
+            end;
+        end loop;
+        sel_str = 'drop table if exists test_insert';
+        execute sel_str;
+    end;
+    $$;
+NOTICE:  table "TEST_INSERT" does not exist, skipping
+NOTICE:  Failed keyword:audit,syntax error at or near "audit"
+NOTICE:  Failed keyword:column,syntax error at or near "column"
+NOTICE:  Failed keyword:level,syntax error at or near "level"
+NOTICE:  Failed keyword:noaudit,syntax error at or near "noaudit"
+NOTICE:  Failed keyword:returning,syntax error at or near "returning"
+NOTICE:  Failed keyword:rownum,syntax error at or near "rownum"
+NOTICE:  Failed keyword:successful,syntax error at or near "successful"
+NOTICE:  Failed keyword:sysdate,syntax error at or near "sysdate"
+NOTICE:  Failed keyword:uid,syntax error at or near "uid"
+NOTICE:  Failed keyword:using,syntax error at or near "using"
+NOTICE:  Failed keyword:when,syntax error at or near "when"
+NOTICE:  Failed keyword:whenever,syntax error at or near "whenever"
+--check as insert alias without as
+do
+    $$
+    declare
+    idx int;
+    sel_str varchar(512) := '';
+    skeys varchar(64)[] := array[
+		'binary_double', 'binary_float', 'byte', 'character', 'coalesce','dec', 'extract', 'greatest','grouping','grouping_id','int',
+        'interval', 'least', 'national','nchar','none','nullif','numeric','position','precision','real','row','time','timestamp','treat','trim',
+        'xmlattributes','xmlconcat','xmlelement','xmlexists','xmlforest','xmlnamespaces','xmlparse','xmlpi','xmlroot','xmlserialize','xmltable',
+
+        'analyze', 'array', 'audit', 'authenticated', 'both','case', 'cast', 'collate','column','connect_by_isleaf','connect_by_root',
+                'constraint', 'current_date','current_time','current_timestamp','current_user','dbtimezone','deferrable','end','except',
+                'false', 'fetch', 'foreign','initially','lateral','leading','level','limit','link','localtime','localtimestamp','noaudit',
+                'nocycle','noorder','offset','only','pivot','primary','references','returning','rownum','sessiontimezone','some','successful',
+                'sys_connect_by_path','sysdate','systimestamp','trailing','true','uid','unpivot','user','using','when','whenever',
+
+         'authorization', 'binary', 'collation', 'cross', 'current_schema','full', 'inner', 'join','left','natural','outer',
+                 'overlaps', 'right',
+
+          'body',
+
+          'bigint','bit','boolean','inout','out','overlay','setof','substring',
+          'analyse','asymmetric','current_catalog','current_role','do','placing','session_user','shardcluster','symmetric','variadic','window',
+          'concurrently','freeze','ilike','isnull','notnull','similar','stashmerge','tablesample','verbose'];
+    begin
+        sel_str = 'drop table if exists test_insert';
+        execute sel_str;
+        sel_str = 'create table test_insert(i int default 1, j int)';
+        execute sel_str;
+        for idx in 1 .. 134
+        loop
+            sel_str = 'insert into test_insert ';
+            sel_str = sel_str ||  skeys[idx] || '(' || skeys[idx] || '.j) values (1)';
+            begin
+                execute(sel_str);
+            exception
+                when others then
+                raise notice '%', ('Failed keyword:' || skeys[idx] || ',' || sqlerrm );
+            end;
+        end loop;
+        sel_str = 'drop table if exists test_insert';
+        execute sel_str;
+    end;
+    $$;
+NOTICE:  table "TEST_INSERT" does not exist, skipping
+NOTICE:  Failed keyword:audit,syntax error at or near "audit"
+NOTICE:  Failed keyword:column,syntax error at or near "column"
+NOTICE:  Failed keyword:level,syntax error at or near "level"
+NOTICE:  Failed keyword:noaudit,syntax error at or near "noaudit"
+NOTICE:  Failed keyword:returning,syntax error at or near "returning"
+NOTICE:  Failed keyword:rownum,syntax error at or near "rownum"
+NOTICE:  Failed keyword:successful,syntax error at or near "successful"
+NOTICE:  Failed keyword:sysdate,syntax error at or near "sysdate"
+NOTICE:  Failed keyword:uid,syntax error at or near "uid"
+NOTICE:  Failed keyword:using,syntax error at or near "using"
+NOTICE:  Failed keyword:when,syntax error at or near "when"
+NOTICE:  Failed keyword:whenever,syntax error at or near "whenever"
+--check as update alias with as
+do
+    $$
+    declare
+    idx int;
+    sel_str varchar(512) := '';
+    skeys varchar(64)[] := array[
+		'binary_double', 'binary_float', 'byte', 'character', 'coalesce','dec', 'extract', 'greatest','grouping','grouping_id','int',
+        'interval', 'least', 'national','nchar','none','nullif','numeric','position','precision','real','row','time','timestamp','treat','trim',
+        'xmlattributes','xmlconcat','xmlelement','xmlexists','xmlforest','xmlnamespaces','xmlparse','xmlpi','xmlroot','xmlserialize','xmltable',
+
+        'analyze', 'array', 'audit', 'authenticated', 'both','case', 'cast', 'collate','column','connect_by_isleaf','connect_by_root',
+                'constraint', 'current_date','current_time','current_timestamp','current_user','dbtimezone','deferrable','end','except',
+                'false', 'fetch', 'foreign','initially','lateral','leading','level','limit','link','localtime','localtimestamp','noaudit',
+                'nocycle','noorder','offset','only','pivot','primary','references','returning','rownum','sessiontimezone','some','successful',
+                'sys_connect_by_path','sysdate','systimestamp','trailing','true','uid','unpivot','user','using','when','whenever',
+
+         'authorization', 'binary', 'collation', 'cross', 'current_schema','full', 'inner', 'join','left','natural','outer',
+                 'overlaps', 'right',
+
+          'body',
+
+          'bigint','bit','boolean','inout','out','overlay','setof','substring',
+          'analyse','asymmetric','current_catalog','current_role','do','placing','session_user','shardcluster','symmetric','variadic','window',
+          'concurrently','freeze','ilike','isnull','notnull','similar','stashmerge','tablesample','verbose'];
+    begin
+        sel_str = 'drop table if exists test_insert';
+        execute sel_str;
+        sel_str = 'create table test_insert(i int default 1, j int)';
+        execute sel_str;
+        for idx in 1 .. 134
+        loop
+            sel_str = 'update test_insert as ';
+            sel_str = sel_str ||  skeys[idx] || ' set ' || skeys[idx] || '.j=1';
+            begin
+                execute(sel_str);
+            exception
+                when others then
+                raise notice '%', ('Failed keyword:' || skeys[idx] || ',' || sqlerrm );
+            end;
+        end loop;
+        sel_str = 'drop table if exists test_insert';
+        execute sel_str;
+    end;
+    $$;
+NOTICE:  table "TEST_INSERT" does not exist, skipping
+NOTICE:  Failed keyword:audit,syntax error at or near "audit"
+NOTICE:  Failed keyword:column,syntax error at or near "column"
+NOTICE:  Failed keyword:level,syntax error at or near "level"
+NOTICE:  Failed keyword:noaudit,syntax error at or near "noaudit"
+NOTICE:  Failed keyword:returning,syntax error at or near "returning"
+NOTICE:  Failed keyword:rownum,syntax error at or near "rownum"
+NOTICE:  Failed keyword:successful,syntax error at or near "successful"
+NOTICE:  Failed keyword:sysdate,syntax error at or near "sysdate"
+NOTICE:  Failed keyword:uid,syntax error at or near "uid"
+NOTICE:  Failed keyword:using,syntax error at or near "using"
+NOTICE:  Failed keyword:whenever,syntax error at or near "whenever"
+do
+        $$
+        declare
+        idx int;
+        sel_str varchar(512) := '';
+        skeys varchar(64)[] := array[
+                    'binary_double', 'binary_float', 'byte', 'character', 'coalesce','dec', 'extract', 'greatest','grouping','grouping_id','int',
+            'interval', 'least', 'national','nchar','none','nullif','numeric','position','precision','real','row','time','timestamp','treat','trim',
+            'xmlattributes','xmlconcat','xmlelement','xmlexists','xmlforest','xmlnamespaces','xmlparse','xmlpi','xmlroot','xmlserialize','xmltable',
+
+            'analyze', 'array', 'audit', 'authenticated', 'both','case', 'cast', 'collate','column','connect_by_isleaf','connect_by_root',
+                    'constraint', 'current_date','current_time','current_timestamp','current_user','dbtimezone','deferrable','end','except',
+                    'false', 'fetch', 'foreign','initially','lateral','leading','level','limit','link','localtime','localtimestamp','noaudit',
+                    'nocycle','noorder','offset','only','pivot','primary','references','returning','rownum','sessiontimezone','some','successful',
+                    'sys_connect_by_path','sysdate','systimestamp','trailing','true','uid','unpivot','user','using','when','whenever',
+
+             'authorization', 'binary', 'collation', 'cross', 'current_schema','full', 'inner', 'join','left','natural','outer',
+                     'overlaps', 'right',
+
+              'body',
+
+              'bigint','bit','boolean','inout','out','overlay','setof','substring',
+              'analyse','asymmetric','current_catalog','current_role','do','placing','session_user','shardcluster','symmetric','variadic','window',
+              'concurrently','freeze','ilike','isnull','notnull','similar','stashmerge','tablesample','verbose'];
+        begin
+            for idx in 1 .. 134
+            loop
+                sel_str = 'select '|| skeys[idx] || '.dummy from dual as '|| skeys[idx] ||';';
+                begin
+                    execute(sel_str);
+                exception
+                    when syntax_error or reserved_name then
+                    raise notice '%', ('Failed keyword:' || skeys[idx] || ',' || sqlerrm );
+                end;
+            end loop;
+        end;
+        $$;
+NOTICE:  Failed keyword:audit,syntax error at or near "audit"
+NOTICE:  Failed keyword:case,syntax error at or near "."
+NOTICE:  Failed keyword:column,syntax error at or near "column"
+NOTICE:  Failed keyword:current_date,syntax error at or near "."
+NOTICE:  Failed keyword:current_time,syntax error at or near "."
+NOTICE:  Failed keyword:current_timestamp,syntax error at or near "."
+NOTICE:  Failed keyword:current_user,syntax error at or near "."
+NOTICE:  Failed keyword:dbtimezone,syntax error at or near "dbtimezone"
+NOTICE:  Failed keyword:false,syntax error at or near "."
+NOTICE:  Failed keyword:level,syntax error at or near "level"
+NOTICE:  Failed keyword:limit,syntax error at or near "."
+NOTICE:  Failed keyword:localtime,syntax error at or near "."
+NOTICE:  Failed keyword:localtimestamp,syntax error at or near "."
+NOTICE:  Failed keyword:noaudit,syntax error at or near "noaudit"
+NOTICE:  Failed keyword:rownum,syntax error at or near "rownum"
+NOTICE:  Failed keyword:sessiontimezone,syntax error at or near "sessiontimezone"
+NOTICE:  Failed keyword:some,syntax error at or near "some"
+NOTICE:  Failed keyword:successful,syntax error at or near "successful"
+NOTICE:  Failed keyword:sysdate,syntax error at or near "."
+NOTICE:  Failed keyword:systimestamp,syntax error at or near "."
+NOTICE:  Failed keyword:true,syntax error at or near "."
+NOTICE:  Failed keyword:uid,syntax error at or near "."
+NOTICE:  Failed keyword:user,syntax error at or near "."
+NOTICE:  Failed keyword:whenever,syntax error at or near "whenever"
+NOTICE:  Failed keyword:current_schema,syntax error at or near "."
+NOTICE:  Failed keyword:join,syntax error at or near "join"
+NOTICE:  Failed keyword:current_catalog,syntax error at or near "."
+NOTICE:  Failed keyword:current_role,syntax error at or near "."
+NOTICE:  Failed keyword:do,syntax error at or near "do"
+NOTICE:  Failed keyword:session_user,syntax error at or near "."
+--check as update alias without as
+do
+    $$
+    declare
+    idx int;
+    sel_str varchar(512) := '';
+    skeys varchar(64)[] := array[
+		'binary_double', 'binary_float', 'byte', 'character', 'coalesce','dec', 'extract', 'greatest','grouping','grouping_id','int',
+        'interval', 'least', 'national','nchar','none','nullif','numeric','position','precision','real','row','time','timestamp','treat','trim',
+        'xmlattributes','xmlconcat','xmlelement','xmlexists','xmlforest','xmlnamespaces','xmlparse','xmlpi','xmlroot','xmlserialize','xmltable',
+
+        'analyze', 'array', 'audit', 'authenticated', 'both','case', 'cast', 'collate','column','connect_by_isleaf','connect_by_root',
+                'constraint', 'current_date','current_time','current_timestamp','current_user','dbtimezone','deferrable','end','except',
+                'false', 'fetch', 'foreign','initially','lateral','leading','level','limit','link','localtime','localtimestamp','noaudit',
+                'nocycle','noorder','offset','only','pivot','primary','references','returning','rownum','sessiontimezone','some','successful',
+                'sys_connect_by_path','sysdate','systimestamp','trailing','true','uid','unpivot','user','using','when','whenever',
+
+         'authorization', 'binary', 'collation', 'cross', 'current_schema','full', 'inner', 'join','left','natural','outer',
+                 'overlaps', 'right',
+
+          'body',
+
+          'bigint','bit','boolean','inout','out','overlay','setof','substring',
+          'analyse','asymmetric','current_catalog','current_role','do','placing','session_user','shardcluster','symmetric','variadic','window',
+          'concurrently','freeze','ilike','isnull','notnull','similar','stashmerge','tablesample','verbose'];
+    begin
+        sel_str = 'drop table if exists test_insert';
+        execute sel_str;
+        sel_str = 'create table test_insert(i int default 1, j int)';
+        execute sel_str;
+        for idx in 1 .. 134
+        loop
+            sel_str = 'update test_insert ';
+            sel_str = sel_str ||  skeys[idx] || ' set ' || skeys[idx] || '.j=1';
+            begin
+                execute(sel_str);
+            exception
+                when others then
+                raise notice '%', ('Failed keyword:' || skeys[idx] || ',' || sqlerrm );
+            end;
+        end loop;
+        sel_str = 'drop table if exists test_insert';
+        execute sel_str;
+    end;
+    $$;
+NOTICE:  table "TEST_INSERT" does not exist, skipping
+NOTICE:  Failed keyword:audit,syntax error at or near "audit"
+NOTICE:  Failed keyword:column,syntax error at or near "column"
+NOTICE:  Failed keyword:level,syntax error at or near "level"
+NOTICE:  Failed keyword:noaudit,syntax error at or near "noaudit"
+NOTICE:  Failed keyword:returning,syntax error at or near "returning"
+NOTICE:  Failed keyword:rownum,syntax error at or near "rownum"
+NOTICE:  Failed keyword:successful,syntax error at or near "successful"
+NOTICE:  Failed keyword:sysdate,syntax error at or near "sysdate"
+NOTICE:  Failed keyword:uid,syntax error at or near "uid"
+NOTICE:  Failed keyword:using,syntax error at or near "using"
+NOTICE:  Failed keyword:whenever,syntax error at or near "whenever"
+do
+        $$
+        declare
+        idx int;
+        sel_str varchar(512) := '';
+        skeys varchar(64)[] := array[
+                    'binary_double', 'binary_float', 'byte', 'character', 'coalesce','dec', 'extract', 'greatest','grouping','grouping_id','int',
+            'interval', 'least', 'national','nchar','none','nullif','numeric','position','precision','real','row','time','timestamp','treat','trim',
+            'xmlattributes','xmlconcat','xmlelement','xmlexists','xmlforest','xmlnamespaces','xmlparse','xmlpi','xmlroot','xmlserialize','xmltable',
+
+            'analyze', 'array', 'audit', 'authenticated', 'both','case', 'cast', 'collate','column','connect_by_isleaf','connect_by_root',
+                    'constraint', 'current_date','current_time','current_timestamp','current_user','dbtimezone','deferrable','end','except',
+                    'false', 'fetch', 'foreign','initially','lateral','leading','level','limit','link','localtime','localtimestamp','noaudit',
+                    'nocycle','noorder','offset','only','pivot','primary','references','returning','rownum','sessiontimezone','some','successful',
+                    'sys_connect_by_path','sysdate','systimestamp','trailing','true','uid','unpivot','user','using','when','whenever',
+
+             'authorization', 'binary', 'collation', 'cross', 'current_schema','full', 'inner', 'join','left','natural','outer',
+                     'overlaps', 'right',
+
+              'body',
+
+              'bigint','bit','boolean','inout','out','overlay','setof','substring',
+              'analyse','asymmetric','current_catalog','current_role','do','placing','session_user','shardcluster','symmetric','variadic','window',
+              'concurrently','freeze','ilike','isnull','notnull','similar','stashmerge','tablesample','verbose'];
+        begin
+            for idx in 1 .. 134
+            loop
+                sel_str = 'select 1 ' || skeys[idx] || ' from dual ';
+                sel_str = sel_str ||  skeys[idx] || '(' ||skeys[idx] || ')' || ' order by ' || skeys[idx] || '.' || skeys[idx];
+                begin
+                    execute(sel_str);
+                exception
+                    when syntax_error or reserved_name then
+                    raise notice '%', ('Failed keyword:' || skeys[idx] || ',' || sqlerrm );
+                end;
+            end loop;
+        end;
+        $$;
+NOTICE:  Failed keyword:audit,syntax error at or near "audit"
+NOTICE:  Failed keyword:case,syntax error at or near "."
+NOTICE:  Failed keyword:collate,syntax error at or near "from"
+NOTICE:  Failed keyword:column,syntax error at or near "column"
+NOTICE:  Failed keyword:current_date,syntax error at or near "."
+NOTICE:  Failed keyword:current_time,syntax error at or near "."
+NOTICE:  Failed keyword:current_timestamp,syntax error at or near "."
+NOTICE:  Failed keyword:current_user,syntax error at or near "."
+NOTICE:  Failed keyword:dbtimezone,syntax error at or near "dbtimezone"
+NOTICE:  Failed keyword:except,syntax error at or near "except"
+NOTICE:  Failed keyword:false,syntax error at or near "."
+NOTICE:  Failed keyword:level,syntax error at or near "level"
+NOTICE:  Failed keyword:limit,syntax error at or near "from"
+NOTICE:  Failed keyword:localtime,syntax error at or near "."
+NOTICE:  Failed keyword:localtimestamp,syntax error at or near "."
+NOTICE:  Failed keyword:noaudit,syntax error at or near "noaudit"
+NOTICE:  Failed keyword:offset,syntax error at or near "offset"
+NOTICE:  Failed keyword:rownum,syntax error at or near "rownum"
+NOTICE:  Failed keyword:sessiontimezone,syntax error at or near "sessiontimezone"
+NOTICE:  Failed keyword:some,syntax error at or near "some"
+NOTICE:  Failed keyword:successful,syntax error at or near "successful"
+NOTICE:  Failed keyword:sysdate,syntax error at or near "sysdate"
+NOTICE:  Failed keyword:systimestamp,syntax error at or near "."
+NOTICE:  Failed keyword:true,syntax error at or near "."
+NOTICE:  Failed keyword:uid,syntax error at or near "uid"
+NOTICE:  Failed keyword:user,syntax error at or near "."
+NOTICE:  Failed keyword:using,syntax error at or near "using"
+NOTICE:  Failed keyword:whenever,syntax error at or near "whenever"
+NOTICE:  Failed keyword:current_schema,syntax error at or near "."
+NOTICE:  Failed keyword:join,syntax error at or near ")"
+NOTICE:  Failed keyword:current_catalog,syntax error at or near "."
+NOTICE:  Failed keyword:current_role,syntax error at or near "."
+NOTICE:  Failed keyword:do,syntax error at or near "do"
+NOTICE:  Failed keyword:session_user,syntax error at or near "."
+NOTICE:  Failed keyword:ilike,syntax error at or near "from"
+-- test cases, duplicate gram
+drop table if exists left;
+NOTICE:  table "LEFT" does not exist, skipping
+create table left (i int, j int);
+select left.i left from left left join left left1 on left.i = left1.j;
+ LEFT 
+------
+(0 rows)
+
+select left.i as left from left left left join left left1 on left.i = left1.j;
+ LEFT 
+------
+(0 rows)
+
+drop table left;
+select * from dual where trim('1    ') = '1';
+ DUMMY 
+-------
+ X
+(1 row)
+
+select trim('1    ') from dual;
+ BTRIM 
+-------
+ 1
+(1 row)
+
+--bug 117819729
+select ('a' || trim(TRAILING from ' dylan ') || 'a') TRAILING from dual;
+ TRAILING 
+----------
+ a dylana
+(1 row)
+
+select ('a' || trim(LEADING from ' dylan ') || 'a') LEADING from dual;
+ LEADING  
+----------
+ adylan a
+(1 row)
+
+select ('a' || trim(BOTH from ' dylan ') || 'a') BOTH from dual;
+  BOTH   
+---------
+ adylana
+(1 row)
+
+-- test case for CROSS as alias
+select * from (table dual) cross cross join (select * from dual) where cross.dummy='X';
+ DUMMY | DUMMY 
+-------+-------
+ X     | X
+(1 row)
+
+select * from (table dual) cross(cross) cross join (select * from dual) where cross.cross='X';
+ CROSS | DUMMY 
+-------+-------
+ X     | X
+(1 row)
+
+select * from (table dual) cross join (select * from dual);
+ DUMMY | DUMMY 
+-------+-------
+ X     | X
+(1 row)
+
+create table cross(cross int);
+select * from cross cross join (table dual);
+ CROSS | DUMMY 
+-------+-------
+(0 rows)
+
+--test case for FULL/RIGHT
+select * from (select * from dual) FULL right outer join (select * from dual) right on full.dummy = right.dummy;
+ DUMMY | DUMMY 
+-------+-------
+ X     | X
+(1 row)
+
+select * from (select * from dual) FULL(full) right outer join (select * from dual) right(right) on full.full = right.right;
+ FULL | RIGHT 
+------+-------
+ X    | X
+(1 row)
+
+select * from (select * from dual) FULL(full) right join (select * from dual) right(right) on full.full = right.right;
+ FULL | RIGHT 
+------+-------
+ X    | X
+(1 row)
+
+select * from (select * from dual) FULL(full) full join (select * from dual) right(right) on full.full = right.right;
+ FULL | RIGHT 
+------+-------
+ X    | X
+(1 row)
+
+select * from (select * from dual) FULL(full) right outer join (select * from dual) right(right) on full.full = right.right;
+ FULL | RIGHT 
+------+-------
+ X    | X
+(1 row)
+
+select * from (select * from dual) FULL full join (select * from dual) right(right) on full.dummy = right.right;
+ DUMMY | RIGHT 
+-------+-------
+ X     | X
+(1 row)
+
+select * from (select * from dual) right right outer join (select * from dual) full on full.dummy = right.dummy;
+ DUMMY | DUMMY 
+-------+-------
+ X     | X
+(1 row)
+
+create table full(full int);
+create table right(right int);
+insert into full values (1),(2);
+insert into right values (1),(3);
+select * from full full full outer join right right on full.full = right.right order by 1;
+ FULL | RIGHT 
+------+-------
+    1 |     1
+    2 |      
+      |     3
+(3 rows)
+
+select * from right right right join full full on full.full = right.right order by 1;
+ RIGHT | FULL 
+-------+------
+     1 |    1
+       |    2
+(2 rows)
+
+drop table full;
+drop table right;
+--test case for INNER
+create table inner(inner int);
+create table left(left int);
+insert into inner values (1),(2);
+insert into left values (2),(3);
+select * from inner inner inner join (select * from left) left on inner.inner = left.left;
+ INNER | LEFT 
+-------+------
+     2 |    2
+(1 row)
+
+drop table inner;
+drop table left;
+select 1 prompt from dual;
+ PROMPT 
+--------
+      1
+(1 row)
+
+select 1+1 prompt from dual;
+ PROMPT 
+--------
+      2
+(1 row)
+
+select 2! prompt from dual;
+ PROMPT 
+--------
+      2
+(1 row)
+
+CREATE DATABASE LINK t_link_abc CONNECT TO "user1" identified by '' USING '(DESCRIPTION = (ADDRESS = (PROTOCOL = TCP)(HOST = 127.0.0.1)(PORT = 11000))(CONNECT_DATA =(SERVER = DEDICATED)(SERVICE_NAME = orcl)))';
+ERROR:  syntax error at or near "LINK"
+LINE 1: CREATE DATABASE LINK t_link_abc CONNECT TO "user1" identifie...
+                        ^
+create database link template template0_ora;
+drop database link;
+drop database link link;
+ERROR:  syntax error at or near "link"
+LINE 1: drop database link link;
+                      ^
+drop table if exists binary;
+NOTICE:  table "BINARY" does not exist, skipping
+create table binary (i int);
+copy binary binary from  'test';
+ERROR:  could not open file "test" for reading: No such file or directory
+HINT:  COPY FROM instructs the PostgreSQL server process to read a file. You may want a client-side facility such as psql's \copy.
+copy binary from  'test';
+ERROR:  could not open file "test" for reading: No such file or directory
+HINT:  COPY FROM instructs the PostgreSQL server process to read a file. You may want a client-side facility such as psql's \copy.
+drop table binary;
+--bug 120619041
+CREATE TABLE keyword_departments_20240117 (
+  id int primary key,
+  name varchar2(50),
+  parent_id int
+);
+INSERT INTO keyword_departments_20240117 (id, name, parent_id) VALUES (1, 'Head Office', null);
+INSERT INTO keyword_departments_20240117 (id, name, parent_id) VALUES (2, 'Sale', 1);
+INSERT INTO keyword_departments_20240117 (id, name, parent_id) VALUES (3, 'Marketing', 1);
+INSERT INTO keyword_departments_20240117 (id, name, parent_id) VALUES (4, 'IT', 1);
+INSERT INTO keyword_departments_20240117 (id, name, parent_id) VALUES (5, 'Sale East', 2);
+INSERT INTO keyword_departments_20240117 (id, name, parent_id) VALUES (6, 'Sale West', 2);
+-- 作为列别名，order by 会报错
+select id using from keyword_departments_20240117 order by using;
+ USING 
+-------
+     1
+     2
+     3
+     4
+     5
+     6
+(6 rows)
+
+select id using from keyword_departments_20240117 order by using using >;
+ USING 
+-------
+     6
+     5
+     4
+     3
+     2
+     1
+(6 rows)
+
+select id using from keyword_departments_20240117 order by using using operator(<);
+ USING 
+-------
+     1
+     2
+     3
+     4
+     5
+     6
+(6 rows)
+
+select id using from keyword_departments_20240117 order by using using > nulls last;
+ USING 
+-------
+     6
+     5
+     4
+     3
+     2
+     1
+(6 rows)
+
+select id using from keyword_departments_20240117 order by using using < nulls first;
+ USING 
+-------
+     1
+     2
+     3
+     4
+     5
+     6
+(6 rows)
+
+-- 作为表别名，order by 会报错
+select id from keyword_departments_20240117 using order by using.id;
+ ID 
+----
+  1
+  2
+  3
+  4
+  5
+  6
+(6 rows)
+
+-- 作为对比，若出现在 group by 中就不报错
+select id using from keyword_departments_20240117 group by using order by id;
+ USING 
+-------
+     1
+     2
+     3
+     4
+     5
+     6
+(6 rows)
+
+select id from keyword_departments_20240117 using group by using.id order by id;
+ ID 
+----
+  1
+  2
+  3
+  4
+  5
+  6
+(6 rows)
+
+select (USING.id+123) from keyword_departments_20240117 as USING group by (USING.id+123) order by (USING.id+123) desc;
+ ?column? 
+----------
+      129
+      128
+      127
+      126
+      125
+      124
+(6 rows)
+
+select (USING.id+123) from keyword_departments_20240117 USING group by (USING.id+123) order by (USING.id+123) desc;
+ ?column? 
+----------
+      129
+      128
+      127
+      126
+      125
+      124
+(6 rows)
+
+select (USING.id+123) from keyword_departments_20240117 as USING group by (USING.id+123) order by (USING.id+123) using <;
+ ?column? 
+----------
+      124
+      125
+      126
+      127
+      128
+      129
+(6 rows)
+
+select (USING.id+123) from keyword_departments_20240117 as USING group by (USING.id+123) order by (USING.id+123) using < nulls last;
+ ?column? 
+----------
+      124
+      125
+      126
+      127
+      128
+      129
+(6 rows)
+
+select (USING.id+123) from keyword_departments_20240117 as USING group by (USING.id+123) order by (USING.id+123) using =;
+ERROR:  operator = is not a valid ordering operator
+LINE 1: ...ING group by (USING.id+123) order by (USING.id+123) using =;
+                                                                     ^
+HINT:  Ordering operators must be "<" or ">" members of btree operator families.
+select (USING.id+123) from keyword_departments_20240117 as USING group by (USING.id+123) order by (USING.id+123) using operator(<) nulls last;
+ ?column? 
+----------
+      124
+      125
+      126
+      127
+      128
+      129
+(6 rows)
+
+select (USING.id+123) from keyword_departments_20240117 as USING group by (USING.id+123) order by (USING.id+123) using operator(>);
+ ?column? 
+----------
+      129
+      128
+      127
+      126
+      125
+      124
+(6 rows)
+
+--bug 120604297
+drop table if exists t_variadic;
+NOTICE:  table "T_VARIADIC" does not exist, skipping
+create table t_variadic(c1 int);
+insert into t_variadic values(1);
+select (VARIADIC.c1+123) from t_variadic VARIADIC;
+ ?column? 
+----------
+      124
+(1 row)
+
+select AVG(VARIADIC.c1) from t_variadic VARIADIC;
+ AVG 
+-----
+   1
+(1 row)
+
+--bug 126367295
+--assert core
+select * from dual offset (+0);
+ DUMMY 
+-------
+ X
+(1 row)
+

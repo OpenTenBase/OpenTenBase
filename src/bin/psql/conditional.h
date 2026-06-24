@@ -13,19 +13,19 @@
  */
 typedef enum ifState
 {
-    IFSTATE_NONE = 0,            /* not currently in an \if block */
-    IFSTATE_TRUE,                /* currently in an \if or \elif that is true
-                                 * and all parent branches (if any) are true */
-    IFSTATE_FALSE,                /* currently in an \if or \elif that is false
-                                 * but no true branch has yet been seen, and
-                                 * all parent branches (if any) are true */
-    IFSTATE_IGNORED,            /* currently in an \elif that follows a true
-                                 * branch, or the whole \if is a child of a
-                                 * false parent branch */
-    IFSTATE_ELSE_TRUE,            /* currently in an \else that is true and all
-                                 * parent branches (if any) are true */
-    IFSTATE_ELSE_FALSE            /* currently in an \else that is false or
-                                 * ignored */
+	IFSTATE_NONE = 0,			/* not currently in an \if block */
+	IFSTATE_TRUE,				/* currently in an \if or \elif that is true
+								 * and all parent branches (if any) are true */
+	IFSTATE_FALSE,				/* currently in an \if or \elif that is false
+								 * but no true branch has yet been seen, and
+								 * all parent branches (if any) are true */
+	IFSTATE_IGNORED,			/* currently in an \elif that follows a true
+								 * branch, or the whole \if is a child of a
+								 * false parent branch */
+	IFSTATE_ELSE_TRUE,			/* currently in an \else that is true and all
+								 * parent branches (if any) are true */
+	IFSTATE_ELSE_FALSE			/* currently in an \else that is false or
+								 * ignored */
 } ifState;
 
 /*
@@ -42,16 +42,16 @@ typedef enum ifState
  */
 typedef struct IfStackElem
 {
-    ifState        if_state;        /* current state, see enum above */
-    int            query_len;        /* length of query_buf at last branch start */
-    int            paren_depth;    /* parenthesis depth at last branch start */
-    struct IfStackElem *next;    /* next surrounding \if, if any */
+	ifState		if_state;		/* current state, see enum above */
+	int			query_len;		/* length of query_buf at last branch start */
+	int			paren_depth;	/* parenthesis depth at last branch start */
+	struct IfStackElem *next;	/* next surrounding \if, if any */
 } IfStackElem;
 
 typedef struct ConditionalStackData
 {
-    IfStackElem *head;
-}            ConditionalStackData;
+	IfStackElem *head;
+}			ConditionalStackData;
 
 typedef struct ConditionalStackData *ConditionalStack;
 
@@ -74,10 +74,10 @@ extern bool conditional_active(ConditionalStack cstack);
 
 extern void conditional_stack_set_query_len(ConditionalStack cstack, int len);
 
-extern int    conditional_stack_get_query_len(ConditionalStack cstack);
+extern int	conditional_stack_get_query_len(ConditionalStack cstack);
 
 extern void conditional_stack_set_paren_depth(ConditionalStack cstack, int depth);
 
-extern int    conditional_stack_get_paren_depth(ConditionalStack cstack);
+extern int	conditional_stack_get_paren_depth(ConditionalStack cstack);
 
-#endif                            /* CONDITIONAL_H */
+#endif							/* CONDITIONAL_H */

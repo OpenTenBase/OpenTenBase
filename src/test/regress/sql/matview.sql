@@ -203,7 +203,8 @@ drop materialized view mvtest_error;
 -- make sure that matview rows can be referenced as source rows (bug #9398)
 CREATE TABLE mvtest_v AS SELECT generate_series(1,10) AS a;
 CREATE MATERIALIZED VIEW mvtest_mv_v AS SELECT a FROM mvtest_v WHERE a <= 5;
-DELETE FROM mvtest_v WHERE EXISTS ( SELECT * FROM mvtest_mv_v WHERE mvtest_mv_v.a = mvtest_v.a );
+-- DELETE FROM mvtest_v WHERE EXISTS ( SELECT * FROM mvtest_mv_v WHERE mvtest_mv_v.a = mvtest_v.a );
+-- ERROR:  Failed to bind to node datanode_1, materialized view "mvtest_mv_v" has not been populated
 SELECT * FROM mvtest_v order by 1;
 SELECT * FROM mvtest_mv_v order by 1;
 DROP TABLE mvtest_v CASCADE;

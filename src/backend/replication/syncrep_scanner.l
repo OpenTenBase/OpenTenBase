@@ -1,5 +1,4 @@
 %{
-
 /*-------------------------------------------------------------------------
  *
  * syncrep_scanner.l
@@ -8,8 +7,6 @@
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  * IDENTIFICATION
  *	  src/backend/replication/syncrep_scanner.l
@@ -54,8 +51,8 @@ static StringInfoData xdbuf;
 space			[ \t\n\r\f\v]
 
 digit			[0-9]
-ident_start		[A-Za-z\200-\377_]
-ident_cont		[A-Za-z\200-\377_0-9\$]
+ident_start		[A-Za-z\200-\377_\[]
+ident_cont		[A-Za-z\200-\377_0-9\$\:\]]
 identifier		{ident_start}{ident_cont}*
 
 dquote			\"
@@ -115,6 +112,8 @@ xdinside		[^"]+
 "."			{ return '.'; }
 ":"			{ return ':'; }
 
+"["         { return '['; }
+"]"         { return ']'; }
 .			{ return JUNK; }
 %%
 

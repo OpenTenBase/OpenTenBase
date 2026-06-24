@@ -170,9 +170,7 @@ CREATE TABLE xl_dc25 (
     price numeric,
     primary key(product_no, product_id)
 ) DISTRIBUTE BY HASH (product_no, product_id); --fail
-ERROR:  syntax error at or near ","
-LINE 8: ) DISTRIBUTE BY HASH (product_no, product_id);
-                                        ^
+ERROR:  too many distributed keys for non-shard table, only one distributed key is allowed.
 -- Distribution column value cannot be updated
 -- default distributed on HASH by primary key column, i.e. city
 CREATE TABLE xl_dc_weather (
@@ -184,8 +182,7 @@ CREATE TABLE xl_dc_weather (
 );
 INSERT INTO xl_dc_weather VALUES ('San Francisco', 46, 50, 0.25, '1994-11-27');
 UPDATE xl_dc_weather SET city = 'SFO' where temp_lo=46 and temp_hi=50; -- fail
-ERROR:  could not plan this distributed update
-DETAIL:  correlated UPDATE or updating distribution column currently not supported in Postgres-XL.
+ERROR:  Distributed column "city" can't be updated in current version
 DROP TABLE xl_dc;
 DROP TABLE xl_dc1;
 DROP TABLE xl_dc2;
@@ -211,3 +208,114 @@ DROP TABLE xl_dc24;
 DROP TABLE xl_dc25;
 ERROR:  table "xl_dc25" does not exist
 DROP TABLE xl_dc_weather;
+CREATE TABLE xl_dc26(c1 int, c2 clob) distribute by shard(c2);
+ERROR:  Column c2 is not a shard distributable data type
+INSERT INTO xl_dc26 VALUES(0, 'xxx'::clob), (1, 'xxx'::clob);
+ERROR:  relation "xl_dc26" does not exist
+LINE 1: INSERT INTO xl_dc26 VALUES(0, 'xxx'::clob), (1, 'xxx'::clob)...
+                    ^
+SELECT * FROM xl_dc26 ORDER BY 1;
+ERROR:  relation "xl_dc26" does not exist
+LINE 1: SELECT * FROM xl_dc26 ORDER BY 1;
+                      ^
+UPDATE xl_dc26 SET c2 = 'yyy'::clob WHERE c1 = 1;
+ERROR:  relation "xl_dc26" does not exist
+LINE 1: UPDATE xl_dc26 SET c2 = 'yyy'::clob WHERE c1 = 1;
+               ^
+SELECT * FROM xl_dc26 ORDER BY 1;
+ERROR:  relation "xl_dc26" does not exist
+LINE 1: SELECT * FROM xl_dc26 ORDER BY 1;
+                      ^
+DROP TABLE xl_dc26;
+ERROR:  table "xl_dc26" does not exist
+CREATE TABLE xl_dc26(c1 int, c2 clob) distribute by hash(c2);
+ERROR:  Column c2 is not a hash distributable data type
+INSERT INTO xl_dc26 VALUES(0, 'xxx'::clob), (1, 'xxx'::clob);
+ERROR:  relation "xl_dc26" does not exist
+LINE 1: INSERT INTO xl_dc26 VALUES(0, 'xxx'::clob), (1, 'xxx'::clob)...
+                    ^
+SELECT * FROM xl_dc26 ORDER BY 1;
+ERROR:  relation "xl_dc26" does not exist
+LINE 1: SELECT * FROM xl_dc26 ORDER BY 1;
+                      ^
+UPDATE xl_dc26 SET c2 = 'yyy'::clob WHERE c1 = 1;
+ERROR:  relation "xl_dc26" does not exist
+LINE 1: UPDATE xl_dc26 SET c2 = 'yyy'::clob WHERE c1 = 1;
+               ^
+SELECT * FROM xl_dc26 ORDER BY 1;
+ERROR:  relation "xl_dc26" does not exist
+LINE 1: SELECT * FROM xl_dc26 ORDER BY 1;
+                      ^
+DROP TABLE xl_dc26;
+ERROR:  table "xl_dc26" does not exist
+CREATE TABLE xl_dc26(c1 int, c2 clob) distribute by modulo(c2);
+ERROR:  Column c2 is not modulo distributable data type
+INSERT INTO xl_dc26 VALUES(0, 'xxx'::clob), (1, 'xxx'::clob);
+ERROR:  relation "xl_dc26" does not exist
+LINE 1: INSERT INTO xl_dc26 VALUES(0, 'xxx'::clob), (1, 'xxx'::clob)...
+                    ^
+SELECT * FROM xl_dc26 ORDER BY 1;
+ERROR:  relation "xl_dc26" does not exist
+LINE 1: SELECT * FROM xl_dc26 ORDER BY 1;
+                      ^
+UPDATE xl_dc26 SET c2 = 'yyy'::clob WHERE c1 = 1;
+ERROR:  relation "xl_dc26" does not exist
+LINE 1: UPDATE xl_dc26 SET c2 = 'yyy'::clob WHERE c1 = 1;
+               ^
+SELECT * FROM xl_dc26 ORDER BY 1;
+ERROR:  relation "xl_dc26" does not exist
+LINE 1: SELECT * FROM xl_dc26 ORDER BY 1;
+                      ^
+DROP TABLE xl_dc26;
+ERROR:  table "xl_dc26" does not exist
+-- Fix the not stable hash value for expr which type is not same as distributed key.
+-- TAPD: https://tapd.woa.com/tapd_fe/20385652/bug/detail/1020385652136788353
+-- postgresql mode
+set enable_fast_query_shipping to on;
+create table r_dis_typ_20250109(id int, address varchar(100) default '南山' collate "C", dt date default to_date('2099-08-15', 'yyyy-mm-dd')) with(oids) distribute by shard(dt);
+create table r2_dis_typ_20250109(id int, address varchar(100) default '南山' collate "C", dt date default to_date('2099-08-15', 'yyyy-mm-dd')) distribute by shard(dt);
+insert into r_dis_typ_20250109 select lv, (array['深圳','北京','上海','广州','重庆','武汉','成都','杭州','厦门','珠海','云南','新疆'])[((lv%12)+1)], (to_date('2022-08-15 00:00:00','yyyy-mm-dd HH24:mi:SS')+(lv%700)*interval '1' day) from generate_series(1, 1000) lv;
+insert into r2_dis_typ_20250109 select lv, (array['深圳','北京','上海','广州','重庆','武汉','成都','杭州','厦门','珠海','云南','新疆'])[((lv%12)+1)], (to_date('2022-08-15 00:00:00','yyyy-mm-dd HH24:mi:SS')+(lv%700)*interval '1' day) from generate_series(1, 1000) lv;
+create or replace function f_dis_typ_20250109(vdt timestamp without time zone) returns varchar
+as $$
+declare
+    vaddress varchar;
+begin
+    select distinct address into vaddress from r_dis_typ_20250109 where dt=vdt order by 1 limit 1;
+    return vaddress;
+end; $$ language plpgsql;
+select count(*) from r2_dis_typ_20250109 where f_dis_typ_20250109(dt)<>address;
+ count 
+-------
+   300
+(1 row)
+
+drop function f_dis_typ_20250109;
+drop table r_dis_typ_20250109;
+drop table r2_dis_typ_20250109;
+reset enable_fast_query_shipping;
+-- opentenbase_ora mode
+\c regression_ora
+set enable_fast_query_shipping to on;
+create table r_dis_typ_20250109(id int, address varchar2(100) default '南山' collate "C", dt date default to_date('2099-08-15', 'yyyy-mm-dd')) with(oids) distribute by shard(dt);
+create table r2_dis_typ_20250109(id int, address varchar2(100) default '南山' collate "C", dt date default to_date('2099-08-15', 'yyyy-mm-dd')) distribute by shard(dt);
+insert into r_dis_typ_20250109 select lv, (array['深圳','北京','上海','广州','重庆','武汉','成都','杭州','厦门','珠海','云南','新疆'])[((lv%12)+1)], (to_date('2022-08-15 00:00:00','yyyy-mm-dd HH24:mi:SS')+(lv%700)*interval '1' day) from generate_series(1, 1000) lv;
+insert into r2_dis_typ_20250109 select lv, (array['深圳','北京','上海','广州','重庆','武汉','成都','杭州','厦门','珠海','云南','新疆'])[((lv%12)+1)], (to_date('2022-08-15 00:00:00','yyyy-mm-dd HH24:mi:SS')+(lv%700)*interval '1' day) from generate_series(1, 1000) lv;
+create or replace function f_dis_typ_20250109(vdt timestamp without time zone) return varchar
+as
+    vaddress varchar;
+begin
+    select distinct address into vaddress from r_dis_typ_20250109 where dt=vdt order by 1 limit 1;
+    return vaddress;
+end;
+/
+select count(*) from r2_dis_typ_20250109 where f_dis_typ_20250109(dt)<>address;
+ COUNT 
+-------
+   300
+(1 row)
+
+drop function f_dis_typ_20250109;
+drop table r_dis_typ_20250109;
+drop table r2_dis_typ_20250109;
+reset enable_fast_query_shipping;

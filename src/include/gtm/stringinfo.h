@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * stringinfo.h
- *      Declarations/definitions for "StringInfo" functions.
+ *	  Declarations/definitions for "StringInfo" functions.
  *
  * StringInfo provides an indefinitely-extensible string data type.
  * It can be used to buffer either ordinary C strings (null-terminated text)
@@ -20,25 +20,25 @@
 
 /*-------------------------
  * StringInfoData holds information about an extensible string.
- *        data    is the current buffer for the string (allocated with palloc).
- *        len        is the current string length.  There is guaranteed to be
- *                a terminating '\0' at data[len], although this is not very
- *                useful when the string holds binary data rather than text.
- *        maxlen    is the allocated size in bytes of 'data', i.e. the maximum
- *                string size (including the terminating '\0' char) that we can
- *                currently store in 'data' without having to reallocate
- *                more space.  We must always have maxlen > len.
- *        cursor    is initialized to zero by makeStringInfo or initStringInfo,
- *                but is not otherwise touched by the stringinfo.c routines.
- *                Some routines use it to scan through a StringInfo.
+ *		data	is the current buffer for the string (allocated with palloc).
+ *		len		is the current string length.  There is guaranteed to be
+ *				a terminating '\0' at data[len], although this is not very
+ *				useful when the string holds binary data rather than text.
+ *		maxlen	is the allocated size in bytes of 'data', i.e. the maximum
+ *				string size (including the terminating '\0' char) that we can
+ *				currently store in 'data' without having to reallocate
+ *				more space.  We must always have maxlen > len.
+ *		cursor	is initialized to zero by makeStringInfo or initStringInfo,
+ *				but is not otherwise touched by the stringinfo.c routines.
+ *				Some routines use it to scan through a StringInfo.
  *-------------------------
  */
 typedef struct StringInfoData
 {
-    char       *data;
-    int            len;
-    int            maxlen;
-    int            cursor;
+	char	   *data;
+	int			len;
+	int			maxlen;
+	int			cursor;
 } StringInfoData;
 
 typedef StringInfoData *StringInfo;
@@ -48,20 +48,20 @@ typedef StringInfoData *StringInfo;
  * There are two ways to create a StringInfo object initially:
  *
  * StringInfo stringptr = makeStringInfo();
- *        Both the StringInfoData and the data buffer are palloc'd.
+ *		Both the StringInfoData and the data buffer are palloc'd.
  *
  * StringInfoData string;
  * initStringInfo(&string);
- *        The data buffer is palloc'd but the StringInfoData is just local.
- *        This is the easiest approach for a StringInfo object that will
- *        only live as long as the current routine.
+ *		The data buffer is palloc'd but the StringInfoData is just local.
+ *		This is the easiest approach for a StringInfo object that will
+ *		only live as long as the current routine.
  *
  * To destroy a StringInfo, pfree() the data buffer, and then pfree() the
  * StringInfoData if it was palloc'd.  There's no special support for this.
  *
  * NOTE: some routines build up a string using StringInfo, and then
  * release the StringInfoData but return the data string itself to their
- * caller.    At that point the data string looks like a plain palloc'd
+ * caller.	At that point the data string looks like a plain palloc'd
  * string.
  *-------------------------
  */
@@ -101,7 +101,7 @@ __attribute__((format(printf, 2, 3)));
 /*------------------------
  * appendStringInfoVA
  * Attempt to format text data under the control of fmt (an sprintf-style
- * format string) and append it to whatever is already in str.    If successful
+ * format string) and append it to whatever is already in str.	If successful
  * return true; if not (because there's not enough space), return false
  * without modifying str.  Typically the caller would enlarge str and retry
  * on false return --- see appendStringInfo for standard usage pattern.
@@ -130,9 +130,9 @@ extern void appendStringInfoChar(StringInfo str, char ch);
  * Caution: str argument will be evaluated multiple times.
  */
 #define appendStringInfoCharMacro(str,ch) \
-    (((str)->len + 1 >= (str)->maxlen) ? \
-     appendStringInfoChar(str, ch) : \
-     (void)((str)->data[(str)->len] = (ch), (str)->data[++(str)->len] = '\0'))
+	(((str)->len + 1 >= (str)->maxlen) ? \
+	 appendStringInfoChar(str, ch) : \
+	 (void)((str)->data[(str)->len] = (ch), (str)->data[++(str)->len] = '\0'))
 
 /*------------------------
  * appendBinaryStringInfo
@@ -140,7 +140,7 @@ extern void appendStringInfoChar(StringInfo str, char ch);
  * if necessary.
  */
 extern void appendBinaryStringInfo(StringInfo str,
-                       const char *data, int datalen);
+					   const char *data, int datalen);
 
 /*------------------------
  * enlargeStringInfo
@@ -160,5 +160,11 @@ extern StringInfo dupStringInfo(StringInfo orig);
  * cursor of "to" will be initialized to zero.
  */
 extern void copyStringInfo(StringInfo to, StringInfo from);
+
+/*------------------------
+ * appendStringInfoSpaces
+ * Append a given number of spaces to str.
+ */
+extern void appendStringInfoSpaces(StringInfo str, int count);
 
 #endif   /* STRINGINFO_H */

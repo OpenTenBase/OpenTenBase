@@ -213,3 +213,21 @@ CREATE TABLE xl_testtab (a serial, b int);
 ALTER TABLE xl_testtab RENAME TO xl_testtab_newname;
 \d+ xl_testtab_newname
 
+
+-- TAPD : https://tapd.woa.com/20421696/prong/stories/view/1020421696887262249
+set sequence_range to 1000;
+create table table_test_20230915(c1 int);
+insert into table_test_20230915 select generate_series(1,10);
+create sequence s_20230915 increment by 1 minvalue 1 maxvalue 9223372036854775807
+start 1 cache 1 no cycle;
+create table dest_test_20230915(c1 int);
+insert into dest_test_20230915 select nextval('s_20230915') from table_test_20230915;
+insert into dest_test_20230915 select nextval('s_20230915') from table_test_20230915;
+insert into dest_test_20230915 select nextval('s_20230915') from table_test_20230915;
+insert into dest_test_20230915 select nextval('s_20230915') from table_test_20230915;
+insert into dest_test_20230915 select nextval('s_20230915') from table_test_20230915;
+select * from dest_test_20230915 order by c1;
+drop table dest_test_20230915;
+drop table table_test_20230915;
+drop sequence s_20230915;
+set sequence_range to 1;

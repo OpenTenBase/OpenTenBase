@@ -1,0 +1,64 @@
+create default node group default_group with ("dn1", "dn2", "dn3");
+CREATE NODE GROUP
+create sharding group to group default_group;
+CREATE SHARDING GROUP
+clean sharding;
+CLEAN SHARDING
+create table t(a int, b int);
+CREATE TABLE
+insert into t select
+generate_series(200,210);
+INSERT 0 11
+update
+t set b=a*a;
+UPDATE 11
+select * from t order by a;
+  a  |   b   
+-----+-------
+ 200 | 40000
+ 201 | 40401
+ 202 | 40804
+ 203 | 41209
+ 204 | 41616
+ 205 | 42025
+ 206 | 42436
+ 207 | 42849
+ 208 | 43264
+ 209 | 43681
+ 210 | 44100
+(11 rows)
+
+create table x(a int, b int);
+CREATE TABLE
+insert into x select generate_series(1,10);
+INSERT 0 10
+select * from x order by a;
+ a  | b 
+----+---
+  1 |  
+  2 |  
+  3 |  
+  4 |  
+  5 |  
+  6 |  
+  7 |  
+  8 |  
+  9 |  
+ 10 |  
+(10 rows)
+
+ select * from t where a < 150 order by a;
+ a | b 
+---+---
+(0 rows)
+
+ select * from x where a > 5 order by a;
+ a  | b 
+----+---
+  6 |  
+  7 |  
+  8 |  
+  9 |  
+ 10 |  
+(5 rows)
+

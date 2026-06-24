@@ -1,0 +1,6 @@
+comment = 'vector data type and ivfflat and hnsw access methods'
+default_version = '0.8.0'
+module_pathname = '$libdir/vector'
+relocatable = true
+# sql_mode can be opentenbase_ora, postgresql, all
+sql_mode = 'all'

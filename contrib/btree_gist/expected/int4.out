@@ -72,16 +72,17 @@ SELECT count(*) FROM int4tmp WHERE a >  237::int4;
    248
 (1 row)
 
-EXPLAIN (COSTS OFF)
+EXPLAIN (COSTS OFF, NODES OFF)
 SELECT a, a <-> '237' FROM int4tmp ORDER BY a <-> '237' LIMIT 3;
                          QUERY PLAN                         
 ------------------------------------------------------------
  Limit
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
+   ->  Remote Subquery Scan on all (datanodes 2)
+         Sort Key: (a <-> 237)
          ->  Limit
                ->  Index Only Scan using int4idx on int4tmp
                      Order By: (a <-> 237)
-(5 rows)
+(6 rows)
 
 SELECT a, a <-> '237' FROM int4tmp ORDER BY a <-> '237' LIMIT 3;
   a  | ?column? 

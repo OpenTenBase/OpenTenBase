@@ -1,0 +1,390 @@
+set enable_filter_statistic to off;
+set max_parallel_workers to 0;
+set max_parallel_workers_per_gather to 0;
+set enable_hashjoin to off;
+set enable_mergejoin to off;
+set enable_bitmapscan to off;
+set enable_material TO off;
+create table if not exists pushpred_t1(c1 int, c2 int, c3 int, c4 int);
+create table if not exists pushpred_t2(c1 int, c2 int, c3 int, c4 int);
+create table if not exists pushpred_t3(c1 int, c2 int, c3 int, c4 int);
+insert into pushpred_t1 select i,i,i,i from generate_series(1,100000) i;
+insert into pushpred_t2 select i,i,i,i from generate_series(1,100000) i;
+insert into pushpred_t3 select i,i,i,i from generate_series(1,100000) i;
+create index pushpred_t1_c1_idx on pushpred_t1(c1);
+create index pushpred_t2_c1_idx on pushpred_t2(c1);
+create index pushpred_t3_c1_idx on pushpred_t3(c1);
+analyze pushpred_t1;
+analyze pushpred_t2;
+analyze pushpred_t3;
+set enable_push_pred to off;
+explain select * from pushpred_t1 t1, (select c1, sum(c2) from pushpred_t2 group by c1) st2 where t1.c1 = st2.c1;
+                                           QUERY PLAN                                           
+------------------------------------------------------------------------------------------------
+ Nested Loop  (cost=2341.29..40809.00 rows=100000 width=28)
+   ->  HashAggregate  (cost=2341.00..3341.00 rows=100000 width=12)
+         Group Key: pushpred_t2.c1
+         ->  Seq Scan on pushpred_t2  (cost=0.00..1841.00 rows=100000 width=8)
+   ->  Index Scan using pushpred_t1_c1_idx on pushpred_t1 t1  (cost=0.29..0.35 rows=1 width=16)
+         Index Cond: (c1 = pushpred_t2.c1)
+(6 rows)
+
+explain select * from pushpred_t1 t1, (select c1, sum(c2) from pushpred_t2 group by c1 union all select c1, sum(c2) from pushpred_t3 group by c1) st2 where t1.c1 = st2.c1;
+                                           QUERY PLAN                                           
+------------------------------------------------------------------------------------------------
+ Nested Loop  (cost=2341.29..78150.00 rows=200000 width=28)
+   ->  Append  (cost=2341.00..9682.00 rows=200000 width=12)
+         ->  HashAggregate  (cost=2341.00..3341.00 rows=100000 width=12)
+               Group Key: pushpred_t2.c1
+               ->  Seq Scan on pushpred_t2  (cost=0.00..1841.00 rows=100000 width=8)
+         ->  HashAggregate  (cost=2341.00..3341.00 rows=100000 width=12)
+               Group Key: pushpred_t3.c1
+               ->  Seq Scan on pushpred_t3  (cost=0.00..1841.00 rows=100000 width=8)
+   ->  Index Scan using pushpred_t1_c1_idx on pushpred_t1 t1  (cost=0.29..0.33 rows=1 width=16)
+         Index Cond: (c1 = pushpred_t2.c1)
+(10 rows)
+
+set enable_push_pred to on;
+explain select * from pushpred_t1 t1, (select c1, sum(c2) from pushpred_t2 group by c1) st2 where t1.c1 = st2.c1;
+                                               QUERY PLAN                                               
+--------------------------------------------------------------------------------------------------------
+ Nested Loop  (cost=0.29..836591.00 rows=1 width=28)
+   ->  Seq Scan on pushpred_t1 t1  (cost=0.00..1841.00 rows=100000 width=16)
+   ->  Subquery Scan on st2  (cost=0.29..8.34 rows=1 width=12)
+         Filter: (t1.c1 = st2.c1)
+         ->  GroupAggregate  (cost=0.29..8.32 rows=1 width=12)
+               Group Key: pushpred_t2.c1
+               ->  Index Scan using pushpred_t2_c1_idx on pushpred_t2  (cost=0.29..8.31 rows=1 width=8)
+                     Index Cond: (t1.c1 = c1)
+(8 rows)
+
+explain select * from pushpred_t1 t1, (select c1, sum(c2) from pushpred_t2 group by c1 union all select c1, sum(c2) from pushpred_t3 group by c1) st2 where t1.c1 = st2.c1;
+                                                  QUERY PLAN                                                  
+--------------------------------------------------------------------------------------------------------------
+ Nested Loop  (cost=0.29..1672341.00 rows=2 width=28)
+   ->  Seq Scan on pushpred_t1 t1  (cost=0.00..1841.00 rows=100000 width=16)
+   ->  Append  (cost=0.29..16.68 rows=2 width=12)
+         ->  Subquery Scan on "*SELECT* 1"  (cost=0.29..8.34 rows=1 width=12)
+               Filter: (t1.c1 = "*SELECT* 1".c1)
+               ->  GroupAggregate  (cost=0.29..8.32 rows=1 width=12)
+                     Group Key: pushpred_t2.c1
+                     ->  Index Scan using pushpred_t2_c1_idx on pushpred_t2  (cost=0.29..8.31 rows=1 width=8)
+                           Index Cond: (t1.c1 = c1)
+         ->  Subquery Scan on "*SELECT* 2"  (cost=0.29..8.34 rows=1 width=12)
+               Filter: (t1.c1 = "*SELECT* 2".c1)
+               ->  GroupAggregate  (cost=0.29..8.32 rows=1 width=12)
+                     Group Key: pushpred_t3.c1
+                     ->  Index Scan using pushpred_t3_c1_idx on pushpred_t3  (cost=0.29..8.31 rows=1 width=8)
+                           Index Cond: (t1.c1 = c1)
+(15 rows)
+
+explain select * from pushpred_t1 t1, (select c1,c2, sum(c3) from pushpred_t2 group by c1,c2) st2 where t1.c1 = st2.c1 and t1.c2 = st2.c2;
+                                               QUERY PLAN                                                
+---------------------------------------------------------------------------------------------------------
+ Nested Loop  (cost=0.29..837341.00 rows=1 width=32)
+   ->  Seq Scan on pushpred_t1 t1  (cost=0.00..1841.00 rows=100000 width=16)
+   ->  Subquery Scan on st2  (cost=0.29..8.35 rows=1 width=16)
+         Filter: ((t1.c1 = st2.c1) AND (t1.c2 = st2.c2))
+         ->  GroupAggregate  (cost=0.29..8.33 rows=1 width=16)
+               Group Key: pushpred_t2.c1, pushpred_t2.c2
+               ->  Index Scan using pushpred_t2_c1_idx on pushpred_t2  (cost=0.29..8.31 rows=1 width=12)
+                     Index Cond: (t1.c1 = c1)
+                     Filter: (t1.c2 = c2)
+(9 rows)
+
+explain select * from pushpred_t1 t1, (select c1,c2, sum(c4) from pushpred_t2 group by c1,c2,c3) st2 where t1.c1 = st2.c1 and t1.c2 = st2.c2;
+                                                  QUERY PLAN                                                   
+---------------------------------------------------------------------------------------------------------------
+ Nested Loop  (cost=8.32..839091.00 rows=1 width=32)
+   ->  Seq Scan on pushpred_t1 t1  (cost=0.00..1841.00 rows=100000 width=16)
+   ->  Subquery Scan on st2  (cost=8.32..8.36 rows=1 width=16)
+         Filter: ((t1.c1 = st2.c1) AND (t1.c2 = st2.c2))
+         ->  GroupAggregate  (cost=8.32..8.35 rows=1 width=20)
+               Group Key: pushpred_t2.c1, pushpred_t2.c2, pushpred_t2.c3
+               ->  Sort  (cost=8.32..8.33 rows=1 width=16)
+                     Sort Key: pushpred_t2.c3
+                     ->  Index Scan using pushpred_t2_c1_idx on pushpred_t2  (cost=0.29..8.31 rows=1 width=16)
+                           Index Cond: (t1.c1 = c1)
+                           Filter: (t1.c2 = c2)
+(11 rows)
+
+explain select * from pushpred_t1 t1, (select c1, sum(c2) from pushpred_t2 group by c1 offset 500) st2 where t1.c1 = st2.c1;
+                                           QUERY PLAN                                           
+------------------------------------------------------------------------------------------------
+ Nested Loop  (cost=2346.29..40644.00 rows=99500 width=28)
+   ->  Limit  (cost=2346.00..3341.00 rows=99500 width=12)
+         ->  HashAggregate  (cost=2341.00..3341.00 rows=100000 width=12)
+               Group Key: pushpred_t2.c1
+               ->  Seq Scan on pushpred_t2  (cost=0.00..1841.00 rows=100000 width=8)
+   ->  Index Scan using pushpred_t1_c1_idx on pushpred_t1 t1  (cost=0.29..0.35 rows=1 width=16)
+         Index Cond: (c1 = pushpred_t2.c1)
+(7 rows)
+
+explain select * from pushpred_t1 t1, (select c1, sum(c2) from pushpred_t2 group by c1 limit 1) st2 where t1.c1 = st2.c1;
+                                                   QUERY PLAN                                                   
+----------------------------------------------------------------------------------------------------------------
+ Nested Loop  (cost=0.58..8.67 rows=1 width=28)
+   ->  Limit  (cost=0.29..0.34 rows=1 width=12)
+         ->  GroupAggregate  (cost=0.29..4948.29 rows=100000 width=12)
+               Group Key: pushpred_t2.c1
+               ->  Index Scan using pushpred_t2_c1_idx on pushpred_t2  (cost=0.29..3448.29 rows=100000 width=8)
+   ->  Index Scan using pushpred_t1_c1_idx on pushpred_t1 t1  (cost=0.29..8.31 rows=1 width=16)
+         Index Cond: (c1 = pushpred_t2.c1)
+(7 rows)
+
+explain select * from pushpred_t1 t1, (select c1, sum(c2) from pushpred_t2 group by c1 union all select c1, sum(c2) from pushpred_t3 group by c1 offset 500) st2 where t1.c1 = st2.c1;
+                                           QUERY PLAN                                           
+------------------------------------------------------------------------------------------------
+ Nested Loop  (cost=2359.64..79985.00 rows=199500 width=28)
+   ->  Limit  (cost=2359.35..9682.00 rows=199500 width=12)
+         ->  Append  (cost=2341.00..9682.00 rows=200000 width=12)
+               ->  HashAggregate  (cost=2341.00..3341.00 rows=100000 width=12)
+                     Group Key: pushpred_t2.c1
+                     ->  Seq Scan on pushpred_t2  (cost=0.00..1841.00 rows=100000 width=8)
+               ->  HashAggregate  (cost=2341.00..3341.00 rows=100000 width=12)
+                     Group Key: pushpred_t3.c1
+                     ->  Seq Scan on pushpred_t3  (cost=0.00..1841.00 rows=100000 width=8)
+   ->  Index Scan using pushpred_t1_c1_idx on pushpred_t1 t1  (cost=0.29..0.33 rows=1 width=16)
+         Index Cond: (c1 = pushpred_t2.c1)
+(11 rows)
+
+explain select * from pushpred_t1 t1, (select distinct c1 from pushpred_t2) st2 where t1.c1 = st2.c1;
+                                                 QUERY PLAN                                                  
+-------------------------------------------------------------------------------------------------------------
+ Nested Loop  (cost=0.29..835091.00 rows=1 width=20)
+   ->  Seq Scan on pushpred_t1 t1  (cost=0.00..1841.00 rows=100000 width=16)
+   ->  Subquery Scan on st2  (cost=0.29..8.32 rows=1 width=4)
+         Filter: (t1.c1 = st2.c1)
+         ->  Unique  (cost=0.29..8.31 rows=1 width=4)
+               ->  Index Only Scan using pushpred_t2_c1_idx on pushpred_t2  (cost=0.29..8.31 rows=1 width=4)
+                     Index Cond: (c1 = t1.c1)
+(7 rows)
+
+explain select * from pushpred_t1 t1, (select c1, sum(c2*random()) from pushpred_t2 group by c1) st2 where t1.c1 = st2.c1;
+                                               QUERY PLAN                                               
+--------------------------------------------------------------------------------------------------------
+ Nested Loop  (cost=0.29..837341.00 rows=1 width=28)
+   ->  Seq Scan on pushpred_t1 t1  (cost=0.00..1841.00 rows=100000 width=16)
+   ->  Subquery Scan on st2  (cost=0.29..8.34 rows=1 width=12)
+         Filter: (t1.c1 = st2.c1)
+         ->  GroupAggregate  (cost=0.29..8.33 rows=1 width=12)
+               Group Key: pushpred_t2.c1
+               ->  Index Scan using pushpred_t2_c1_idx on pushpred_t2  (cost=0.29..8.31 rows=1 width=8)
+                     Index Cond: (t1.c1 = c1)
+(8 rows)
+
+create view pushpred_view as
+select c1, c2 from pushpred_t1 where not exists (select 1 from pushpred_t3 where pushpred_t3.c1 = pushpred_t1.c2)
+union
+select c1, c2 from pushpred_t2;
+set enable_push_pred to off;
+explain (costs off, nodes off) select p2.c1, p2.c2 from pushpred_t3 p, pushpred_view p2 where p.c1 = 10 and p.c2 = p2.c2;
+                                   QUERY PLAN                                    
+---------------------------------------------------------------------------------
+ Nested Loop
+   Join Filter: (p.c2 = pushpred_t1.c2)
+   ->  Index Scan using pushpred_t3_c1_idx on pushpred_t3 p
+         Index Cond: (c1 = 10)
+   ->  HashAggregate
+         Group Key: pushpred_t1.c1, pushpred_t1.c2
+         ->  Append
+               ->  Nested Loop Anti Join
+                     ->  Seq Scan on pushpred_t1
+                     ->  Index Only Scan using pushpred_t3_c1_idx on pushpred_t3
+                           Index Cond: (c1 = pushpred_t1.c2)
+               ->  Seq Scan on pushpred_t2
+(12 rows)
+
+explain (costs off, nodes off) select /*+ pushpred(p2) */ p2.c1, p2.c2 from pushpred_t3 p, pushpred_view p2 where p.c1 = 10 and p.c2 = p2.c2;
+                                   QUERY PLAN                                    
+---------------------------------------------------------------------------------
+ Nested Loop
+   Join Filter: (p.c2 = pushpred_t1.c2)
+   ->  Index Scan using pushpred_t3_c1_idx on pushpred_t3 p
+         Index Cond: (c1 = 10)
+   ->  HashAggregate
+         Group Key: pushpred_t1.c1, pushpred_t1.c2
+         ->  Append
+               ->  Nested Loop Anti Join
+                     ->  Seq Scan on pushpred_t1
+                     ->  Index Only Scan using pushpred_t3_c1_idx on pushpred_t3
+                           Index Cond: (c1 = pushpred_t1.c2)
+               ->  Seq Scan on pushpred_t2
+(12 rows)
+
+set enable_push_pred to on;
+explain (costs off, nodes off) select p2.c1, p2.c2 from pushpred_t3 p, pushpred_view p2 where p.c1 = 10 and p.c2 = p2.c2;
+                                         QUERY PLAN                                          
+---------------------------------------------------------------------------------------------
+ Nested Loop
+   ->  Index Scan using pushpred_t3_c1_idx on pushpred_t3 p
+         Index Cond: (c1 = 10)
+   ->  Subquery Scan on p2
+         Filter: (p.c2 = p2.c2)
+         ->  Unique
+               ->  Sort
+                     Sort Key: pushpred_t1.c1, pushpred_t1.c2
+                     ->  Append
+                           ->  Nested Loop Anti Join
+                                 Join Filter: (pushpred_t3.c1 = pushpred_t1.c2)
+                                 ->  Seq Scan on pushpred_t1
+                                       Filter: (p.c2 = c2)
+                                 ->  Index Only Scan using pushpred_t3_c1_idx on pushpred_t3
+                                       Index Cond: (c1 = p.c2)
+                           ->  Seq Scan on pushpred_t2
+                                 Filter: (p.c2 = c2)
+(17 rows)
+
+-- syntax error
+explain (costs off, nodes off) select /*+ pushpred(p2 p) */ p2.c1, p2.c2 from pushpred_t3 p, pushpred_view p2 where p.c1 = 10 and p.c2 = p2.c2;
+                                         QUERY PLAN                                          
+---------------------------------------------------------------------------------------------
+ Nested Loop
+   ->  Index Scan using pushpred_t3_c1_idx on pushpred_t3 p
+         Index Cond: (c1 = 10)
+   ->  Subquery Scan on p2
+         Filter: (p.c2 = p2.c2)
+         ->  Unique
+               ->  Sort
+                     Sort Key: pushpred_t1.c1, pushpred_t1.c2
+                     ->  Append
+                           ->  Nested Loop Anti Join
+                                 Join Filter: (pushpred_t3.c1 = pushpred_t1.c2)
+                                 ->  Seq Scan on pushpred_t1
+                                       Filter: (p.c2 = c2)
+                                 ->  Index Only Scan using pushpred_t3_c1_idx on pushpred_t3
+                                       Index Cond: (c1 = p.c2)
+                           ->  Seq Scan on pushpred_t2
+                                 Filter: (p.c2 = c2)
+(17 rows)
+
+drop view pushpred_view;
+drop table if exists pushpred_t1;
+drop table if exists pushpred_t2;
+drop table if exists pushpred_t3;
+create table pushpred_cap (c1 date not null, c2 numeric(10,0), c3 numeric(10,0), c4 numeric(10,0), c5 numeric(10,0), c6 date);
+create unique index pp_cap_u_idx on pushpred_cap(c1,c2,c3,c4);
+create index pp_cap_c3 on pushpred_cap(c3);
+create index pp_cap_c4 on pushpred_cap(c4);
+create index pp_cap_c2_c1 on pushpred_cap(c2,c1);
+create index pp_cap_c2 on pushpred_cap(c2);
+set enable_push_pred to on;
+select 1 from pushpred_cap, (select c1 from pushpred_cap where c1 = (select max(c1) from pushpred_cap) group by c1) s2 where s2.c1 = pushpred_cap.c1;
+ ?column? 
+----------
+(0 rows)
+
+drop table if exists pushpred_cap;
+set enable_push_pred = on;
+explain (costs off, nodes off) select * from generate_series(1, 10) i where i in (values(i));
+                   QUERY PLAN                   
+------------------------------------------------
+ Nested Loop Semi Join
+   ->  Function Scan on generate_series i
+   ->  Subquery Scan on any_subquery_1
+         Filter: (i.i = any_subquery_1.column1)
+         ->  Result
+(5 rows)
+
+create table pushpred_fix_test1
+(   c11 integer,
+    c12 integer,
+    c13 integer,
+    c14 integer,
+    c15 integer
+);
+create table pushpred_fix_test2
+(   c21 integer,
+    c22 integer,
+    c23 integer,
+    c24 integer,
+    c25 integer
+);
+create table pushpred_fix_test3
+(   c31 integer,
+    c32 integer,
+    c33 integer,
+    c34 integer,
+    c35 integer
+);
+set enable_push_pred = on;
+explain (costs off, nodes off) select c11 from pushpred_fix_test1
+      where case
+            when pushpred_fix_test1.c11=1 THEN 1
+            when pushpred_fix_test1.c11=2 THEN 2
+            when c11=1 or exists (select pushpred_fix_test2.c23, pushpred_fix_test2.c24
+                                      from pushpred_fix_test2 where pushpred_fix_test1.c12=pushpred_fix_test2.c22)
+                       or c11 in (select c21 from pushpred_fix_test2
+                                       where pushpred_fix_test1.c12=pushpred_fix_test2.c22) THEN pushpred_fix_test1.c11
+            END = 1;
+                                                                                                                             QUERY PLAN                                                                                                                              
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Nested Loop Left Join
+   Filter: (CASE WHEN (pushpred_fix_test1.c11 = 1) THEN 1 WHEN (pushpred_fix_test1.c11 = 2) THEN 2 WHEN ((pushpred_fix_test1.c11 = 1) OR (pushpred_fix_test2.c22 IS NOT NULL) OR (subquery.c21 IS NOT NULL)) THEN pushpred_fix_test1.c11 ELSE NULL::integer END = 1)
+   ->  Nested Loop Left Join
+         ->  Seq Scan on pushpred_fix_test1
+         ->  Group
+               Group Key: pushpred_fix_test2.c22
+               ->  Seq Scan on pushpred_fix_test2
+                     Filter: (pushpred_fix_test1.c12 = c22)
+   ->  Subquery Scan on subquery
+         Filter: (pushpred_fix_test1.c11 = subquery.c21)
+         ->  Group
+               Group Key: pushpred_fix_test2_1.c21
+               ->  Sort
+                     Sort Key: pushpred_fix_test2_1.c21
+                     ->  Seq Scan on pushpred_fix_test2 pushpred_fix_test2_1
+                           Filter: (pushpred_fix_test1.c12 = c22)
+(16 rows)
+
+explain (costs off, nodes off) select c11 from pushpred_fix_test1
+      where  exists (select pushpred_fix_test2.c23, pushpred_fix_test2.c24
+                     from pushpred_fix_test2 where pushpred_fix_test1.c12=pushpred_fix_test2.c22)
+             or c14 in (select c34 from pushpred_fix_test3
+                         where pushpred_fix_test1.c14=pushpred_fix_test3.c34);
+                                   QUERY PLAN                                   
+--------------------------------------------------------------------------------
+ Nested Loop Left Join
+   Filter: ((pushpred_fix_test2.c22 IS NOT NULL) OR (subquery.c34 IS NOT NULL))
+   ->  Nested Loop Left Join
+         ->  Seq Scan on pushpred_fix_test1
+         ->  Group
+               Group Key: pushpred_fix_test2.c22
+               ->  Seq Scan on pushpred_fix_test2
+                     Filter: (pushpred_fix_test1.c12 = c22)
+   ->  Subquery Scan on subquery
+         Filter: (pushpred_fix_test1.c14 = subquery.c34)
+         ->  Group
+               Group Key: pushpred_fix_test3.c34
+               ->  Seq Scan on pushpred_fix_test3
+                     Filter: (pushpred_fix_test1.c14 = c34)
+(14 rows)
+
+explain (costs off, nodes off) select c11 from pushpred_fix_test1
+      where  c11=1
+             or c14 in (select c34 from pushpred_fix_test3
+                         where pushpred_fix_test1.c14=pushpred_fix_test3.c34);
+                               QUERY PLAN                               
+------------------------------------------------------------------------
+ Nested Loop Left Join
+   Filter: ((pushpred_fix_test1.c11 = 1) OR (subquery.c34 IS NOT NULL))
+   ->  Seq Scan on pushpred_fix_test1
+   ->  Subquery Scan on subquery
+         Filter: (pushpred_fix_test1.c14 = subquery.c34)
+         ->  Group
+               Group Key: pushpred_fix_test3.c34
+               ->  Seq Scan on pushpred_fix_test3
+                     Filter: (pushpred_fix_test1.c14 = c34)
+(9 rows)
+
+reset enable_filter_statistic;
+reset max_parallel_workers;
+reset max_parallel_workers_per_gather;
+reset enable_hashjoin;
+reset enable_mergejoin;
+reset enable_bitmapscan;
+reset enable_material;
+reset enable_push_pred;
+drop table pushpred_fix_test1;
+drop table pushpred_fix_test2;
+drop table pushpred_fix_test3;

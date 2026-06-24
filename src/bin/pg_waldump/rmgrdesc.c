@@ -10,6 +10,7 @@
 
 #include "access/brin_xlog.h"
 #include "access/clog.h"
+#include "access/csnlog.h"
 #include "access/commit_ts.h"
 #include "access/generic_xlog.h"
 #include "access/ginxlog.h"
@@ -33,9 +34,6 @@
 #include "storage/extentmapping.h"
 #include "storage/extent_xlog.h"
 #include "utils/relmapper.h"
-#ifdef _MLS_
-#include "utils/relcryptmap.h"
-#endif
 #ifdef XCP
 #include "pgxc/barrier.h"
 #endif

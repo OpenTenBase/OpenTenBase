@@ -689,11 +689,13 @@ INSERT INTO fract_only VALUES (2, '0.1');
 INSERT INTO fract_only VALUES (3, '1.0');	-- should fail
 ERROR:  numeric field overflow
 DETAIL:  A field with precision 4, scale 4 must round to an absolute value less than 1.
+HINT:   while processing column val
 INSERT INTO fract_only VALUES (4, '-0.9999');
 INSERT INTO fract_only VALUES (5, '0.99994');
 INSERT INTO fract_only VALUES (6, '0.99995');  -- should fail
 ERROR:  numeric field overflow
 DETAIL:  A field with precision 4, scale 4 must round to an absolute value less than 1.
+HINT:   while processing column val
 INSERT INTO fract_only VALUES (7, '0.00001');
 INSERT INTO fract_only VALUES (8, '0.00017');
 SELECT * FROM fract_only ORDER BY id;
@@ -759,20 +761,28 @@ FROM generate_series(-5,5) AS t(i);
 -- errors
 SELECT width_bucket(5.0, 3.0, 4.0, 0);
 ERROR:  count must be greater than zero
+HINT:   while processing column width_bucket
 SELECT width_bucket(5.0, 3.0, 4.0, -5);
 ERROR:  count must be greater than zero
+HINT:   while processing column width_bucket
 SELECT width_bucket(3.5, 3.0, 3.0, 888);
 ERROR:  lower bound cannot equal upper bound
+HINT:   while processing column width_bucket
 SELECT width_bucket(5.0::float8, 3.0::float8, 4.0::float8, 0);
 ERROR:  count must be greater than zero
+HINT:   while processing column width_bucket
 SELECT width_bucket(5.0::float8, 3.0::float8, 4.0::float8, -5);
 ERROR:  count must be greater than zero
+HINT:   while processing column width_bucket
 SELECT width_bucket(3.5::float8, 3.0::float8, 3.0::float8, 888);
 ERROR:  lower bound cannot equal upper bound
+HINT:   while processing column width_bucket
 SELECT width_bucket('NaN', 3.0, 4.0, 888);
 ERROR:  operand, lower bound, and upper bound cannot be NaN
+HINT:   while processing column width_bucket
 SELECT width_bucket(0::float8, 'NaN', 4.0::float8, 888);
 ERROR:  operand, lower bound, and upper bound cannot be NaN
+HINT:   while processing column width_bucket
 -- normal operation
 CREATE TABLE width_bucket_test (operand_num numeric, operand_f8 float8);
 COPY width_bucket_test (operand_num) FROM stdin;
@@ -817,8 +827,10 @@ SELECT
 -- finite bucket bounds, but allow an infinite operand
 SELECT width_bucket(0.0::float8, 'Infinity'::float8, 5, 10); -- error
 ERROR:  lower and upper bounds must be finite
+HINT:   while processing column width_bucket
 SELECT width_bucket(0.0::float8, 5, '-Infinity'::float8, 20); -- error
 ERROR:  lower and upper bounds must be finite
+HINT:   while processing column width_bucket
 SELECT width_bucket('Infinity'::float8, 1, 10, 10),
        width_bucket('-Infinity'::float8, 1, 10, 10);
  width_bucket | width_bucket 
@@ -1442,6 +1454,57 @@ select div(12345678901234567890, 123) * 123 + 12345678901234567890 % 123;
 (1 row)
 
 --
+-- Test some corner cases for square root
+--
+select sqrt(1.000000000000003::numeric);
+       sqrt        
+-------------------
+ 1.000000000000001
+(1 row)
+
+select sqrt(1.000000000000004::numeric);
+       sqrt        
+-------------------
+ 1.000000000000002
+(1 row)
+
+select sqrt(96627521408608.56340355805::numeric);
+        sqrt         
+---------------------
+ 9829929.87811248648
+(1 row)
+
+select sqrt(96627521408608.56340355806::numeric);
+        sqrt         
+---------------------
+ 9829929.87811248649
+(1 row)
+
+select sqrt(515549506212297735.073688290367::numeric);
+          sqrt          
+------------------------
+ 718017761.766585921184
+(1 row)
+
+select sqrt(515549506212297735.073688290368::numeric);
+          sqrt          
+------------------------
+ 718017761.766585921185
+(1 row)
+
+select sqrt(8015491789940783531003294973900306::numeric);
+       sqrt        
+-------------------
+ 89529278953540017
+(1 row)
+
+select sqrt(8015491789940783531003294973900307::numeric);
+       sqrt        
+-------------------
+ 89529278953540018
+(1 row)
+
+--
 -- Test code path for raising to integer powers
 --
 select 10.0 ^ -2147483648 as rounds_to_zero;
@@ -1458,8 +1521,10 @@ select 10.0 ^ -2147483647 as rounds_to_zero;
 
 select 10.0 ^ 2147483647 as overflows;
 ERROR:  value overflows numeric format
+HINT:   while processing column overflows
 select 117743296169.0 ^ 1000000000 as overflows;
 ERROR:  value overflows numeric format
+HINT:   while processing column overflows
 -- cases that used to return inaccurate results
 select 3.789 ^ 21;
             ?column?            
@@ -1713,8 +1778,10 @@ select * from generate_series(1::numeric, 3::numeric) i, generate_series(1,5,i) 
 -- Invalid inputs
 select ln(-12.34);
 ERROR:  cannot take logarithm of a negative number
+HINT:   while processing column ln
 select ln(0.0);
 ERROR:  cannot take logarithm of zero
+HINT:   while processing column ln
 -- Some random tests
 select ln(1.2345678e-28);
                    ln                    
@@ -1817,16 +1884,22 @@ select log(590489.45235237);
 -- invalid inputs
 select log(-12.34, 56.78);
 ERROR:  cannot take logarithm of a negative number
+HINT:   while processing column log
 select log(-12.34, -56.78);
 ERROR:  cannot take logarithm of a negative number
+HINT:   while processing column log
 select log(12.34, -56.78);
 ERROR:  cannot take logarithm of a negative number
+HINT:   while processing column log
 select log(0.0, 12.34);
 ERROR:  cannot take logarithm of zero
+HINT:   while processing column log
 select log(12.34, 0.0);
 ERROR:  cannot take logarithm of zero
+HINT:   while processing column log
 select log(1.0, 12.34);
 ERROR:  division by zero
+HINT:   while processing column log
 -- some random tests
 select log(1.23e-89, 6.4689e45);
                                               log                                               
@@ -1925,3 +1998,257 @@ SELECT SUM((-9999)::numeric) FROM generate_series(1, 100000);
  -999900000
 (1 row)
 
+-- test function to_numeric()
+select to_numeric('0');
+ to_numeric 
+------------
+          0
+(1 row)
+
+select to_numeric('0.00');
+ to_numeric 
+------------
+       0.00
+(1 row)
+
+select to_numeric('147258369.31415926555589');
+        to_numeric        
+--------------------------
+ 147258369.31415926555589
+(1 row)
+
+select to_numeric('147258369.');
+ to_numeric 
+------------
+  147258369
+(1 row)
+
+select to_numeric('.31415926555589');
+    to_numeric    
+------------------
+ 0.31415926555589
+(1 row)
+
+select to_numeric('+147258369.31415926555589');
+        to_numeric        
+--------------------------
+ 147258369.31415926555589
+(1 row)
+
+select to_numeric('-147258369.31415926555589');
+        to_numeric         
+---------------------------
+ -147258369.31415926555589
+(1 row)
+
+select to_numeric('NaN');
+ to_numeric 
+------------
+        NaN
+(1 row)
+
+select to_numeric(null);
+ to_numeric 
+------------
+           
+(1 row)
+
+select to_numeric('1472o58369');
+ERROR:  invalid input syntax for type numeric: "1472o58369"
+HINT:   while processing column to_numeric
+--
+-- support number(p, s)
+-- case1: p < s
+create table test_regress_ps4(id number(5, 7));
+ERROR:  type "number" does not exist
+LINE 1: create table test_regress_ps4(id number(5, 7));
+                                         ^
+\c regression_ora
+create table test_regress_ps4(id number(5, 7));
+insert into test_regress_ps4 values(0.001234567); 
+insert into test_regress_ps4 values(0.0091999999); 
+insert into test_regress_ps4 values(0.00919191919); 
+insert into test_regress_ps4 values(0.009432111);
+select * from test_regress_ps4 order by id;
+    ID    
+----------
+ .0012346
+ .0091919
+    .0092
+ .0094321
+(4 rows)
+
+insert into test_regress_ps4 values(0.0099999999);
+ERROR:  numeric field overflow
+DETAIL:  A field with precision 5, scale 7 must round to an absolute value less than 10^-2.
+insert into test_regress_ps4 values(2.0099999999);
+ERROR:  numeric field overflow
+DETAIL:  A field with precision 5, scale 7 must round to an absolute value less than 10^-2.
+drop table test_regress_ps4;
+--case2: s < 0  s (- [-84, 127]
+create table test_scale_min(id number(5, -84));
+create table test_scale_min2(id number(5, -85));
+ERROR:  NUMERIC scale -85 must be between -84 and 127
+LINE 1: create table test_scale_min2(id number(5, -85));
+                                        ^
+create table test_scale_max(id number(5, 127));
+create table test_scale_max2(id number(5, 128));
+ERROR:  NUMERIC scale 128 must be between -84 and 127
+LINE 1: create table test_scale_max2(id number(5, 128));
+                                        ^
+create table test_regress_ps5(id number(7, -2), id2 number);
+insert into test_regress_ps5 values(-12345, -12345);
+insert into test_regress_ps5 values(.1, .1);
+insert into test_regress_ps5 values(1, 1 );
+insert into test_regress_ps5 values(12, 12);
+insert into test_regress_ps5 values(123, 123);
+insert into test_regress_ps5 values(1234, 1234);
+insert into test_regress_ps5 values(12345, 12345);
+insert into test_regress_ps5 values(123456, 123456);
+insert into test_regress_ps5 values(1234567, 1234567);
+insert into test_regress_ps5 values(1234567.6789, 1234567.6789);
+insert into test_regress_ps5 values(123456789, 123456789);
+select * from test_regress_ps5 order by id2;
+    ID     |     ID2      
+-----------+--------------
+    -12300 |       -12345
+         0 |           .1
+         0 |            1
+         0 |           12
+       100 |          123
+      1200 |         1234
+     12300 |        12345
+    123500 |       123456
+   1234600 |      1234567
+   1234600 | 1234567.6789
+ 123456800 |    123456789
+(11 rows)
+
+insert into test_regress_ps5 values(1234567891, 1234567891);
+ERROR:  numeric field overflow
+DETAIL:  A field with precision 7, scale -2 must round to an absolute value less than 10^9.
+drop table test_regress_ps5;
+\c regression
+create table test_regress_ps5(id number(7, -2), id2 number);
+ERROR:  type "number" does not exist
+LINE 1: create table test_regress_ps5(id number(7, -2), id2 number);
+                                         ^
+--other associated case
+\c regression_ora
+select scale(-13000000000000000::numeric(29, -10));
+ SCALE 
+-------
+   -10
+(1 row)
+
+select 123456789::numeric(7, -3) from dual;
+  NUMERIC  
+-----------
+ 123457000
+(1 row)
+
+select 123456789::numeric(7, -2) - 123456789::numeric(7, -3) from dual;
+ ?column? 
+----------
+     -200
+(1 row)
+
+select 123456789::numeric(7, -2) + 123456789::numeric(7, -3) from dual;
+ ?column?  
+-----------
+ 246913800
+(1 row)
+
+select 123456789::numeric(11, 2) + 123456789::numeric(7, -3) from dual;
+ ?column?  
+-----------
+ 246913789
+(1 row)
+
+select trunc(123456789::numeric(10, -3), -2);
+   TRUNC   
+-----------
+ 123457000
+(1 row)
+
+select trunc(123456789::numeric(10, -3), -5);
+   TRUNC   
+-----------
+ 123400000
+(1 row)
+
+select round(123456789::numeric(10, -3), -2);
+   ROUND   
+-----------
+ 123457000
+(1 row)
+
+select round(123456789::numeric(10, -3), -5);
+   ROUND   
+-----------
+ 123500000
+(1 row)
+
+select -0.00000000000000000000000000000000000000000000000000000000000000000000000000000000000123456::numeric(1, 84);
+                                        ?column?                                        
+----------------------------------------------------------------------------------------
+ -.000000000000000000000000000000000000000000000000000000000000000000000000000000000001
+(1 row)
+
+select 0.0123456789::numeric(4, 5) from dual;
+ NUMERIC 
+---------
+  .01235
+(1 row)
+
+select 0.0123456789::numeric(6, 7) from dual;
+ NUMERIC  
+----------
+ .0123457
+(1 row)
+
+select 0.00123456789::numeric(6, 8) + 0.00123456789::numeric(3, 5) from dual;
+ ?column?  
+-----------
+ .00246457
+(1 row)
+
+-- big integer optimization
+create table test_numeric(i int, j numeric);
+insert into test_numeric values (1, 70141183460469231731687303715884105727);
+insert into test_numeric values (1, 70141183460469231731687303715884105727);
+insert into test_numeric values (1, 70141183460469231731687303715884105727);
+select sum(j) from test_numeric;
+                   SUM                   
+-----------------------------------------
+ 210423550381407695195061911147652317181
+(1 row)
+
+truncate table test_numeric;
+insert into test_numeric values (1, 9223372036854775808);
+insert into test_numeric values (1, 9223372036854775808);
+select sum(j) from test_numeric;
+         SUM          
+----------------------
+ 18446744073709551616
+(1 row)
+
+truncate table test_numeric;
+insert into test_numeric values (1, 70141183460469231731687303715884105727);
+insert into test_numeric values (1, 9223372036854775808);
+select sum(j) from test_numeric;
+                  SUM                   
+----------------------------------------
+ 70141183460469231740910675752738881535
+(1 row)
+
+truncate table test_numeric;
+insert into test_numeric values (1, 9223372036854775808);
+insert into test_numeric values (1, 70141183460469231731687303715884105727);
+select sum(j) from test_numeric;
+                  SUM                   
+----------------------------------------
+ 70141183460469231740910675752738881535
+(1 row)
+
+drop table test_numeric;

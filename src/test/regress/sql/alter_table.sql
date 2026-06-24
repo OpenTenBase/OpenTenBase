@@ -1343,7 +1343,6 @@ alter table at_partitioned attach partition at_part_2 for values from (1000) to 
 alter table at_partitioned alter column b type numeric using b::numeric;
 \d at_part_1
 \d at_part_2
-
 -- disallow recursive containment of row types
 create temp table recur1 (f1 int);
 alter table recur1 add column f2 recur1; -- fails
@@ -1431,6 +1430,44 @@ ANALYZE check_fk_presence_2;
 ROLLBACK;
 \d check_fk_presence_2
 DROP TABLE check_fk_presence_1, check_fk_presence_2;
+
+-- check column addition within a view (bug #14876)
+create table at_base_table(id int, stuff text);
+insert into at_base_table values (23, 'skidoo');
+create view at_view_1 as select * from at_base_table bt;
+create view at_view_2 as select *, to_json(v1) as j from at_view_1 v1;
+\d+ at_view_1
+\d+ at_view_2
+explain (verbose, costs off) select * from at_view_2;
+select * from at_view_2;
+
+create or replace view at_view_1 as select *, 2+2 as more from at_base_table bt;
+\d+ at_view_1
+\d+ at_view_2
+explain (verbose, costs off) select * from at_view_2;
+select * from at_view_2;
+
+drop view at_view_2;
+drop view at_view_1;
+drop table at_base_table;
+
+-- related case (bug #17811)
+begin;
+create temp table t1 distribute by replication as select * from int8_tbl;
+create temp view v1 as select 1::int8 as q1;
+create temp view v2 as select * from v1;
+create or replace temp view v1 with (security_barrier = true)
+  as select * from t1;
+
+create temp table log (q1 int8, q2 int8);
+create rule v1_upd_rule as on update to v1
+  do also insert into log values (new.*);
+
+update v2 set q1 = q1 + 1 where q1 = 123;
+
+select * from t1;
+select * from log;
+rollback;
 
 --
 -- lock levels
@@ -1568,6 +1605,11 @@ alter table my_locks set (security_barrier=off);
 select * from my_locks order by 1;
 alter table my_locks reset (security_barrier);
 rollback;
+
+alter table my_locks set (estore_insert_mem_limit = 1);
+alter view my_locks set (estore_insert_mem_limit = 1);
+alter table my_locks reset (estore_insert_mem_limit);
+alter view my_locks reset (estore_insert_mem_limit);
 
 -- cleanup
 drop table alterlock2;
@@ -2329,12 +2371,15 @@ DROP TABLE quuux;
 -- values are hashed, the row may map to different partitions, which result in
 -- regression failure.  To avoid this, let's create a non-default hash function
 -- that just returns the input value unchanged.
+DROP FUNCTION IF EXISTS dummy_hashint4 CASCADE;
 CREATE OR REPLACE FUNCTION dummy_hashint4(a int4, seed int8) RETURNS int8 AS
 $$ BEGIN RETURN (a + 1 + seed); END; $$ LANGUAGE 'plpgsql' IMMUTABLE;
+
 CREATE OPERATOR CLASS custom_opclass FOR TYPE int4 USING HASH AS
 OPERATOR 1 = , FUNCTION 2 dummy_hashint4(int4, int8);
 
 -- check that the new partition won't overlap with an existing partition
+DROP TABLE IF EXISTS hash_parted;
 CREATE TABLE hash_parted (
 	a int,
 	b int
@@ -2531,6 +2576,18 @@ alter table defpart_attach_test attach partition defpart_attach_test_d default;
 
 drop table defpart_attach_test;
 
+-- check combinations of temporary and permanent relations when attaching
+-- partitions.
+create table perm_part_parent (a int) partition by list (a);
+create temp table temp_part_parent (a int) partition by list (a);
+create table perm_part_child (a int);
+create temp table temp_part_child (a int);
+alter table temp_part_parent attach partition perm_part_child default; -- error
+alter table perm_part_parent attach partition temp_part_child default; -- error
+alter table temp_part_parent attach partition temp_part_child default; -- ok
+drop table perm_part_parent cascade;
+drop table temp_part_parent cascade;
+
 -- test case where the partitioning operator is a SQL function whose
 -- evaluation results in the table's relcache being rebuilt partway through
 -- the execution of an ATTACH PARTITION command
@@ -2546,6 +2603,7 @@ alter table at_test_sql_partop attach partition at_test_sql_partop_1 for values 
 drop table at_test_sql_partop;
 drop operator class at_test_sql_partop using btree;
 drop function at_test_sql_partop;
+
 -- remote dml with dropped column
 create table dropped_col_remote_dml (a int, b int, c int) distribute by shard(a);
 insert into dropped_col_remote_dml values(1,1,1);
@@ -2574,3 +2632,113 @@ alter table t_default_shardid add column c int default nextval('s_default_shardi
 select shardid, a, b from t_default_shardid order by 1;
 drop table t_default_shardid;
 drop sequence s_default_shardid;
+
+drop table if exists aa;
+create table aa(a int, b int, c int);
+alter table aa add constraint aa_pck CHECK(a > 0);
+alter table aa add constraint aa_pck primary key(a,b);
+drop table if exists aa;
+
+-- multilevel partition
+drop table if exists test_col_alter_multi_part;
+create table test_col_alter_multi_part(id int,c1 date) partition by range(c1) distribute by shard(id);
+create table test_col_alter_multi_part_p1 partition of test_col_alter_multi_part for values from ('2023-12-12') to ('2024-11-19') partition by range(c1);
+alter table test_col_alter_multi_part add column c2 serial;
+drop table test_col_alter_multi_part;
+
+-- start bug: 122976613
+CREATE TABLE IF NOT EXISTS public."bug122976613"("ID" NUMERIC(10,2) NOT NULL,
+    "1" BIGINT,
+    "EXT_COL_1" BIGINT,
+    "ext_col_2" BIGINT,
+    "EXT_COL_3" BIGINT,
+    "EXT_COL_4" NUMERIC(10,2),
+    "ext_col_5" NUMERIC(10,2),
+    CONSTRAINT "SHARD_TABLE_PKEY" PRIMARY KEY ("ID")
+    ) WITH (OIDS = FALSE) DISTRIBUTE BY SHARD("ID");
+-- PostgreSQL converts all objects without double quotes to lowercase
+ALTER TABLE PUBLIC.BUG122976613 ALTER COLUMN EXT_COL_5 TYPE NUMERIC(10, 3);
+ALTER TABLE PUBlic.Bug122976613 ALTER COLUMN EXT_col_5 TYPE NUMERIC(10, 4);
+ALTER TABLE public.bug122976613 ALTER COLUMN "EXT_COL_4" TYPE NUMERIC(10, 3);
+ALTER TABLE public."bug122976613" ALTER COLUMN "ext_col_2" TYPE INT;
+ALTER TABLE "public"."bug122976613" ALTER COLUMN "EXT_COL_1" TYPE INT;
+-- ERROR
+ALTER TABLE "public"."bug122976613" ALTER COLUMN ext_col_3 TYPE INT;
+ALTER TABLE "public"."bug122976613" ALTER COLUMN "ext_col_4" TYPE NUMERIC(10, 3);
+ALTER TABLE public.bug122976613 ALTER COLUMN "Ext_col_5" TYPE NUMERIC(10, 3);
+ALTER TABLE "PUBLIC".bug122976613 ALTER COLUMN "EXT_COL_3" TYPE INT;
+ALTER TABLE public."BUG122976613" ALTER COLUMN "EXT_COL_3" TYPE INT;
+DROP TABLE public."bug122976613";
+-- end bug: 122976613
+-- Test that ALTER TABLE rewrite preserves a clustered index
+-- for normal indexes and indexes on constraints.
+create table alttype_cluster (a int);
+alter table alttype_cluster add primary key (a);
+create index alttype_cluster_ind on alttype_cluster (a);
+alter table alttype_cluster cluster on alttype_cluster_ind;
+-- Normal index remains clustered.
+select indexrelid::regclass, indisclustered from pg_index
+  where indrelid = 'alttype_cluster'::regclass
+  order by indexrelid::regclass::text;
+alter table alttype_cluster alter a type bigint;
+select indexrelid::regclass, indisclustered from pg_index
+  where indrelid = 'alttype_cluster'::regclass
+  order by indexrelid::regclass::text;
+-- Constraint index remains clustered.
+alter table alttype_cluster cluster on alttype_cluster_pkey;
+select indexrelid::regclass, indisclustered from pg_index
+  where indrelid = 'alttype_cluster'::regclass
+  order by indexrelid::regclass::text;
+alter table alttype_cluster alter a type int;
+select indexrelid::regclass, indisclustered from pg_index
+  where indrelid = 'alttype_cluster'::regclass
+  order by indexrelid::regclass::text;
+drop table alttype_cluster;
+
+--
+-- Check that attaching or detaching a partitioned partition correctly leads
+-- to its partitions' constraint being updated to reflect the parent's
+-- newly added/removed constraint
+create table target_parted (a int, b int) partition by list (a);
+create table attach_parted (a int, b int) partition by list (b);
+create table attach_parted_part1 partition of attach_parted for values in (1);
+-- insert a row directly into the leaf partition so that its partition
+-- constraint is built and stored in the relcache
+insert into attach_parted_part1 values (1, 1);
+-- the following better invalidate the partition constraint of the leaf
+-- partition too...
+alter table target_parted attach partition attach_parted for values in (1);
+-- ...such that the following insert fails
+insert into attach_parted_part1 values (2, 1);
+-- ...and doesn't when the partition is detached along with its own partition
+alter table target_parted detach partition attach_parted;
+insert into attach_parted_part1 values (2, 1);
+
+-- alter table replication default in pg mode
+drop table if exists t_alter_repl_add_test1;
+create table t_alter_repl_add_test1(id int,c2 int) distribute by replication;
+insert into t_alter_repl_add_test1 values(1,10);
+alter table t_alter_repl_add_test1 add c3 varchar(32) default random();
+alter table t_alter_repl_add_test1 add c3 varchar(50) default 's' || random() || 's';
+alter table t_alter_repl_add_test1 add c3 varchar(50) default 's' || round(random() + 1) || 's';
+drop table if exists t_alter_repl_add_test1;
+-- alter table shard default in pg mode
+drop table if exists t_alter_shard_add_test1;
+create table t_alter_shard_add_test1(id int,c2 int) distribute by shard(id);
+insert into t_alter_shard_add_test1 values(1,10);
+alter table t_alter_shard_add_test1 add c3 varchar(50) default 's' || round(random() + 1) || 's';
+drop table if exists t_alter_shard_add_test1;
+-- alter table replication default in ora mode
+\c regression_ora
+drop table if exists t_alter_repl_add_test1;
+create table t_alter_repl_add_test1(id int,c2 int) distribute by replication;
+insert into t_alter_repl_add_test1 values(1,10);
+alter table t_alter_repl_add_test1 add c3 varchar(50) default 's' || sys_guid() || 's';
+alter table t_alter_repl_add_test1 add c3 varchar(50) default 's' || HEXTORAW(sys_guid() || 's') || 's';
+drop table if exists t_alter_repl_add_test1;
+-- alter table shard default in ora mode
+drop table if exists t_alter_shard_add_test1;
+create table t_alter_shard_add_test1(id int,c2 int) distribute by shard(id);
+insert into t_alter_shard_add_test1 values(1,10);
+alter table t_alter_shard_add_test1 add c3 varchar(50) default 's' || sys_guid() || 's';
+drop table if exists t_alter_shard_add_test1;

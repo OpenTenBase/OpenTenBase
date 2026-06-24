@@ -6252,7 +6252,7 @@
       <para>
        <literal>STRICT</> mode throws an exception if more or less
        than one row is returned by the <command>SELECT</>, for
-       <productname>Oracle PL/SQL</> compatibility.
+       <productname>OpenTenBase_Ora PL/SQL</> compatibility.
       </para>
      </listitem>
 

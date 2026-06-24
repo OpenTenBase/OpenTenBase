@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * parse_target.h
- *      handle target lists
+ *	  handle target lists
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -18,29 +18,36 @@
 
 
 extern List *transformTargetList(ParseState *pstate, List *targetlist,
-                    ParseExprKind exprKind);
+					ParseExprKind exprKind);
 extern List *transformExpressionList(ParseState *pstate, List *exprlist,
-                        ParseExprKind exprKind, bool allowDefault);
+						ParseExprKind exprKind, bool allowDefault);
 extern void resolveTargetListUnknowns(ParseState *pstate, List *targetlist);
 extern void markTargetListOrigins(ParseState *pstate, List *targetlist);
 extern TargetEntry *transformTargetEntry(ParseState *pstate,
-                     Node *node, Node *expr, ParseExprKind exprKind,
-                     char *colname, bool resjunk);
+					 Node *node, Node *expr, ParseExprKind exprKind,
+					 char *colname, bool resjunk);
 extern Expr *transformAssignedExpr(ParseState *pstate, Expr *expr,
-                      ParseExprKind exprKind,
-                      char *colname,
-                      int attrno,
-                      List *indirection,
-                      int location);
+					  ParseExprKind exprKind,
+					  char *colname,
+					  int attrno,
+					  List *indirection,
+					  int location);
+extern List *transformAssignedByObject(ParseState *pstate,
+					  Expr *expr,
+					  ParseExprKind exprKind,
+					  List *icols,
+					  List *attnos);
 extern void updateTargetListEntry(ParseState *pstate, TargetEntry *tle,
-                      char *colname, int attrno,
-                      List *indirection,
-                      int location);
+					  char *colname, int attrno,
+					  List *indirection,
+					  int location);
+extern void generateDefaultColums(ParseState *pstate, List **cols, List **attrnos, int ncolumns);
 extern List *checkInsertTargets(ParseState *pstate, List *cols,
-                   List **attrnos);
+				   List **attrnos);
+extern List *checkInsertTargetsSubquery(ParseState *pstate, List *cols, List **attrnos);
 extern TupleDesc expandRecordVariable(ParseState *pstate, Var *var,
-                     int levelsup);
-extern char *FigureColname(Node *node);
+					 int levelsup);
+extern char *FigureColname(Node *node, const char *query);
 extern char *FigureIndexColname(Node *node);
 
-#endif                            /* PARSE_TARGET_H */
+#endif							/* PARSE_TARGET_H */

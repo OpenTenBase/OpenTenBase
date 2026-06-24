@@ -34,10 +34,10 @@ SELECT count(*) FROM float4tmp WHERE a >  -179.0;
 
 SELECT a, a <-> '-179.0' FROM float4tmp ORDER BY a <-> '-179.0' LIMIT 3;
     a     | ?column? 
-----------+----------
+------------+-----------
      -179 |        0
- -189.024 |  10.0239
- -158.177 |  20.8226
+ -189.02386 | 10.023865
+ -158.17741 | 20.822586
 (3 rows)
 
 CREATE INDEX float4idx ON float4tmp USING gist ( a );
@@ -72,22 +72,23 @@ SELECT count(*) FROM float4tmp WHERE a >  -179.0::float4;
    302
 (1 row)
 
-EXPLAIN (COSTS OFF)
+EXPLAIN (COSTS OFF, NODES OFF)
 SELECT a, a <-> '-179.0' FROM float4tmp ORDER BY a <-> '-179.0' LIMIT 3;
                            QUERY PLAN                           
 ----------------------------------------------------------------
  Limit
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
+   ->  Remote Subquery Scan on all (datanodes 2)
+         Sort Key: (a <-> '-179'::real)
          ->  Limit
                ->  Index Only Scan using float4idx on float4tmp
                      Order By: (a <-> '-179'::real)
-(5 rows)
+(6 rows)
 
 SELECT a, a <-> '-179.0' FROM float4tmp ORDER BY a <-> '-179.0' LIMIT 3;
     a     | ?column? 
-----------+----------
+------------+-----------
      -179 |        0
- -189.024 |  10.0239
- -158.177 |  20.8226
+ -189.02386 | 10.023865
+ -158.17741 | 20.822586
 (3 rows)
 

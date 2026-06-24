@@ -18,7 +18,7 @@ extern bool openQueryOutputFile(const char *fname, FILE **fout, bool *is_pipe);
 extern bool setQFout(const char *fname);
 
 extern char *psql_get_variable(const char *varname, PsqlScanQuoteType quote,
-                  void *passthrough);
+				  void *passthrough);
 
 extern void psql_error(const char *fmt,...) pg_attribute_printf(1, 2);
 
@@ -34,7 +34,7 @@ extern void SetCancelConn(void);
 extern void ResetCancelConn(void);
 
 extern PGresult *PSQLexec(const char *query);
-extern int    PSQLexecWatch(const char *query, const printQueryOpt *opt);
+extern int	PSQLexecWatch(const char *query, const printQueryOpt *opt);
 
 extern bool SendQuery(const char *query);
 
@@ -48,4 +48,5 @@ extern bool recognized_connection_string(const char *connstr);
 #ifdef _MLS_
 extern bool is_mls_or_audit_user_front(void);
 #endif
-#endif                            /* COMMON_H */
+extern int get_sql_mode(void);
+#endif							/* COMMON_H */

@@ -280,6 +280,22 @@ INSERT INTO testtab VALUES (1), (2), (3);
 SELECT * FROM testtab order by 1;
 DROP TABLE testtab;
 
+-- EXPERIMENT MODE
+SET enable_experiment_isolation to false;
+
+ALTER SYSTEM SET default_transaction_isolation TO 'repeatable read';
+SET default_transaction_isolation TO 'repeatable read';
+
+BEGIN TRANSACTION ISOLATION level REPEATABLE READ ;
+
+SET enable_experiment_isolation to true;
+SET default_transaction_isolation TO 'repeatable read';
+
+BEGIN TRANSACTION ISOLATION level REPEATABLE READ ;
+COMMIT;
+
+RESET default_transaction_isolation;
+
 -- ERROR
 SET search_path TO "testschema 3", SELECT;
 
@@ -305,3 +321,100 @@ DROP SCHEMA "testschema 3" CASCADE;
 DROP SCHEMA "READ" CASCADE;
 DROP SCHEMA SELECT CASCADE;
 DROP SCHEMA "SELECT" CASCADE;
+
+create schema test_alter_1;
+create schema test_alter_2;
+create role test_alter_set with login superuser;
+\c - test_alter_set
+alter user test_alter_set set search_path=test_alter_1;
+\c 
+show search_path;
+alter user test_alter_set set search_path=test_alter_2;
+show search_path;
+create table test_alter_table(id int);
+\d+ test_alter_table
+insert into test_alter_table values(1);
+select * from test_alter_table;
+drop table test_alter_table;
+
+-- Test extension black list and white list
+create extension opentenbase_ora_package_function;
+\c regression_ora
+
+-- Test search_path are be cut into 64 and cause something wrong
+-- TAPD: https://tapd.woa.com/OpenTenBase_C/bugtrace/bugs/view?bug_id=1020385652126678671
+\c regression_ora
+create schema "rownum_dml_dis_01_schema_20240702";
+create schema "opentenbase_pg_proc_20240702";
+set search_path = "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog";
+create table r_search_path_bug_20240702
+(
+    id   number primary key,
+    col1 number
+);
+insert into r_search_path_bug_20240702 values(1, 1);
+set search_path = "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog";
+drop schema "rownum_dml_dis_01_schema_20240702" cascade;
+drop schema "opentenbase_pg_proc_20240702";
+
+\c regression
+create schema "rownum_dml_dis_01_schema_20240702";
+create schema "opentenbase_pg_proc_20240702";
+set search_path = "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog";
+create table r_search_path_bug_20240702
+(
+    id   int primary key,
+    col1 int
+);
+insert into r_search_path_bug_20240702 values(1, 1);
+update r_search_path_bug_20240702 set col1 = 1 where id in (select * from (select id from r_search_path_bug_20240702 order by id));
+set search_path = "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog";
+update r_search_path_bug_20240702 set col1 = 1 where id in (select * from (select id from r_search_path_bug_20240702 order by id));
+drop schema "rownum_dml_dis_01_schema_20240702" cascade;
+drop schema "opentenbase_pg_proc_20240702";
+
+-- Test unit memory display
+-- TAPD: https://tapd.woa.com/OpenTenBase_C/prong/stories/view/1020385652118989323
+
+-- GUC_UNIT_KB
+SHOW work_mem;
+-- GUC_UNIT_BLOCKS
+SHOW checkpoint_flush_after;
+-- GUC_UNIT_XBLOCKS
+SHOW wal_segment_size;
+
+-- test reset all
+\c regression root
+CREATE SCHEMA TEST_S1;
+SET SEARCH_PATH TO 'TEST_S1';
+RESET ALL;
+CREATE TABLE TEST_T20241231(A INT);
+INSERT INTO TEST_T20241231 VALUES(1);
+INSERT INTO TEST_T20241231 VALUES(2);
+INSERT INTO TEST_T20241231 VALUES(3);
+INSERT INTO TEST_T20241231 VALUES(4);
+INSERT INTO TEST_T20241231 VALUES(5);
+
+SELECT * FROM TEST_T20241231 ORDER BY 1;
+DROP TABLE TEST_T20241231;
+DROP SCHEMA TEST_S1;
+DISCARD ALL;
+
+\c regression_ora  root
+CREATE SCHEMA TEST_S1;
+show search_path;
+SET SEARCH_PATH TO 'TEST_S1';
+show search_path;
+RESET ALL;
+show search_path;
+CREATE TABLE TEST_T20241231(A INT);
+INSERT INTO TEST_T20241231 VALUES(1);
+INSERT INTO TEST_T20241231 VALUES(2);
+INSERT INTO TEST_T20241231 VALUES(3);
+INSERT INTO TEST_T20241231 VALUES(4);
+INSERT INTO TEST_T20241231 VALUES(5);
+
+SELECT * FROM TEST_T20241231 ORDER BY 1;
+DROP TABLE TEST_T20241231;
+DROP SCHEMA TEST_S1;
+DISCARD ALL;

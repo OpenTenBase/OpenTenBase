@@ -3,19 +3,7 @@ create type rainbow as enum ('r','o','y','g','b','i','v');
 CREATE TABLE enumtmp (a rainbow);
 \copy enumtmp from 'data/enum.data'
 SET enable_seqscan=on;
-select a, count(*) from enumtmp group by a order by 1;
- a | count 
----+-------
- r |    76
- o |    78
- y |    73
- g |    75
- b |    77
- i |    78
- v |    75
-   |    63
-(8 rows)
-
+-- select a, count(*) from enumtmp group by a order by 1;
 SELECT count(*) FROM enumtmp WHERE a <  'g'::rainbow;
  count 
 -------
@@ -78,12 +66,12 @@ SELECT count(*) FROM enumtmp WHERE a >  'g'::rainbow;
    230
 (1 row)
 
-EXPLAIN (COSTS OFF)
+EXPLAIN (COSTS OFF, NODES OFF)
 SELECT count(*) FROM enumtmp WHERE a >= 'g'::rainbow;
                         QUERY PLAN                         
 -----------------------------------------------------------
  Finalize Aggregate
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
+   ->  Remote Subquery Scan on all (datanodes 2)
          ->  Partial Aggregate
                ->  Bitmap Heap Scan on enumtmp
                      Recheck Cond: (a >= 'g'::rainbow)

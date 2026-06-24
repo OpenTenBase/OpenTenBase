@@ -1,13 +1,13 @@
 /*-------------------------------------------------------------------------
  *
  * getpeereid.c
- *        get peer userid for UNIX-domain socket connection
+ *		get peer userid for UNIX-domain socket connection
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  *
  *
  * IDENTIFICATION
- *      src/port/getpeereid.c
+ *	  src/port/getpeereid.c
  *
  *-------------------------------------------------------------------------
  */
@@ -36,48 +36,48 @@
  */
 int
 getpeereid(int sock, uid_t *uid, gid_t *gid)
-{// #lizard forgives
+{
 #if defined(SO_PEERCRED)
-    /* Linux: use getsockopt(SO_PEERCRED) */
-    struct ucred peercred;
-    ACCEPT_TYPE_ARG3 so_len = sizeof(peercred);
+	/* Linux: use getsockopt(SO_PEERCRED) */
+	struct ucred peercred;
+	ACCEPT_TYPE_ARG3 so_len = sizeof(peercred);
 
-    if (getsockopt(sock, SOL_SOCKET, SO_PEERCRED, &peercred, &so_len) != 0 ||
-        so_len != sizeof(peercred))
-        return -1;
-    *uid = peercred.uid;
-    *gid = peercred.gid;
-    return 0;
+	if (getsockopt(sock, SOL_SOCKET, SO_PEERCRED, &peercred, &so_len) != 0 ||
+		so_len != sizeof(peercred))
+		return -1;
+	*uid = peercred.uid;
+	*gid = peercred.gid;
+	return 0;
 #elif defined(LOCAL_PEERCRED)
-    /* Debian with FreeBSD kernel: use getsockopt(LOCAL_PEERCRED) */
-    struct xucred peercred;
-    ACCEPT_TYPE_ARG3 so_len = sizeof(peercred);
+	/* Debian with FreeBSD kernel: use getsockopt(LOCAL_PEERCRED) */
+	struct xucred peercred;
+	ACCEPT_TYPE_ARG3 so_len = sizeof(peercred);
 
-    if (getsockopt(sock, 0, LOCAL_PEERCRED, &peercred, &so_len) != 0 ||
-        so_len != sizeof(peercred) ||
-        peercred.cr_version != XUCRED_VERSION)
-        return -1;
-    *uid = peercred.cr_uid;
-    *gid = peercred.cr_gid;
-    return 0;
+	if (getsockopt(sock, 0, LOCAL_PEERCRED, &peercred, &so_len) != 0 ||
+		so_len != sizeof(peercred) ||
+		peercred.cr_version != XUCRED_VERSION)
+		return -1;
+	*uid = peercred.cr_uid;
+	*gid = peercred.cr_gid;
+	return 0;
 #elif defined(HAVE_GETPEERUCRED)
-    /* Solaris: use getpeerucred() */
-    ucred_t    *ucred;
+	/* Solaris: use getpeerucred() */
+	ucred_t    *ucred;
 
-    ucred = NULL;                /* must be initialized to NULL */
-    if (getpeerucred(sock, &ucred) == -1)
-        return -1;
+	ucred = NULL;				/* must be initialized to NULL */
+	if (getpeerucred(sock, &ucred) == -1)
+		return -1;
 
-    *uid = ucred_geteuid(ucred);
-    *gid = ucred_getegid(ucred);
-    ucred_free(ucred);
+	*uid = ucred_geteuid(ucred);
+	*gid = ucred_getegid(ucred);
+	ucred_free(ucred);
 
-    if (*uid == (uid_t) (-1) || *gid == (gid_t) (-1))
-        return -1;
-    return 0;
+	if (*uid == (uid_t) (-1) || *gid == (gid_t) (-1))
+		return -1;
+	return 0;
 #else
-    /* No implementation available on this platform */
-    errno = ENOSYS;
-    return -1;
+	/* No implementation available on this platform */
+	errno = ENOSYS;
+	return -1;
 #endif
 }

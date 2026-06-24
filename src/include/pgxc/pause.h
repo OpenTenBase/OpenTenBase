@@ -2,10 +2,10 @@
  *
  * pause.h
  *
- *      Definitions for the Pause/Unpause Cluster handling
+ *	  Definitions for the Pause/Unpause Cluster handling
  *
  * IDENTIFICATION
- *      $$
+ *	  $$
  *
  *-------------------------------------------------------------------------
  */
@@ -17,10 +17,10 @@
 
 /* Shared memory area for management of cluster pause/unpause */
 typedef struct {
-    int        cl_holder_pid; /* pid of the process issuing CLUSTER PAUSE */
-    int        cl_process_count; /* Number of processes undergoing txns */
+	int		cl_holder_pid; /* pid of the process issuing CLUSTER PAUSE */
+	int		cl_process_count; /* Number of processes undergoing txns */
 
-    slock_t    cl_mutex; /* locks shared variables mentioned above */
+	slock_t	cl_mutex; /* locks shared variables mentioned above */
 } ClusterLockInfo;
 
 extern ClusterLockInfo *ClustLinfo;

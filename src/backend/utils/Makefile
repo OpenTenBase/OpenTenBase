@@ -8,8 +8,8 @@ subdir = src/backend/utils
 top_builddir = ../../..
 include $(top_builddir)/src/Makefile.global
 
-OBJS        = fmgrtab.o
-SUBDIRS     = adt cache error fmgr hash init mb misc mmgr resowner sort time
+OBJS        = fmgrtab.o 
+SUBDIRS     = adt cache error xact_whitebox fmgr hash init mb misc mmgr resgroup resowner sort opentenbase_test time gdd workfile_manager
 
 # location of Catalog.pm
 catalogdir  = $(top_srcdir)/src/backend/catalog
@@ -24,8 +24,8 @@ $(SUBDIRS:%=%-recursive): fmgroids.h fmgrprotos.h
 fmgrprotos.h: fmgroids.h ;
 fmgroids.h: fmgrtab.c ;
 
-fmgrtab.c: Gen_fmgrtab.pl $(catalogdir)/Catalog.pm $(top_srcdir)/src/include/catalog/pg_proc.h
-	$(PERL) -I $(catalogdir) $< $(top_srcdir)/src/include/catalog/pg_proc.h
+fmgrtab.c: Gen_fmgrtab.pl $(catalogdir)/Catalog.pm $(top_srcdir)/src/include/catalog/pg_proc.h $(top_srcdir)/src/include/catalog/pg_proc.v
+	$(PERL) -I $(catalogdir) $< $(top_srcdir)/src/include/catalog/pg_proc.h $(top_srcdir)/src/include/catalog/pg_proc.v
 
 errcodes.h: $(top_srcdir)/src/backend/utils/errcodes.txt generate-errcodes.pl
 	$(PERL) $(srcdir)/generate-errcodes.pl $< > $@

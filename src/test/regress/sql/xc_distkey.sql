@@ -250,3 +250,22 @@ insert into my_rr_tab values(2, 'Two');
 
 select * from my_rr_tab order by a;
 
+-- test function getdistributekey();
+create table t1_shard(c1 int, c2 text) distribute by shard(c1);
+create table t2_shard(c1 int, c2 text) distribute by shard(c1, c2);
+create table t3_hash(c1 int, c2 text) distribute by hash(c1);
+create table t4_replicate(c1 int, c2 text) distribute by replication;
+create table t5_modulo(c1 int, c2 text) distribute by modulo(c1);
+
+select getdistributekey('t1_shard');
+select getdistributekey('t2_shard');
+select getdistributekey('t3_hash');
+select getdistributekey('t4_replicate');
+select getdistributekey('t5_modulo');
+select getdistributekey(oid) from pg_class where relname = 't2_shard';
+
+drop table t1_shard;
+drop table t2_shard;
+drop table t3_hash;
+drop table t4_replicate;
+drop table t5_modulo;

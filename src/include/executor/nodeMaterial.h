@@ -22,4 +22,4 @@ extern void ExecMaterialMarkPos(MaterialState *node);
 extern void ExecMaterialRestrPos(MaterialState *node);
 extern void ExecReScanMaterial(MaterialState *node);
 
-#endif                            /* NODEMATERIAL_H */
+#endif							/* NODEMATERIAL_H */

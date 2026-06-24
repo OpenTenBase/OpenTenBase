@@ -1,0 +1,44 @@
+\c regression
+create or replace procedure ttt20231124() as $$
+begin 
+create table if not exists tb_ttt20231124(a int); 
+insert into tb_ttt20231124 select random()*100;
+end;
+$$ language plpgsql;
+create or replace function tmp_func_20231124() returns text IMMUTABLE as $$
+begin 
+call ttt20231124();
+return 'ok';
+end;
+$$ language plpgsql;
+select tmp_func_20231124();
+ERROR:  CALL is not allowed in a non-volatile function
+HINT:   while processing column tmp_func_20231124
+CONTEXT:  SQL statement "CALL ttt20231124()"
+PL/pgSQL function tmp_func_20231124() line 3 at CALL
+drop procedure ttt20231124;
+drop function tmp_func_20231124;
+drop table tb_ttt20231124;
+ERROR:  table "tb_ttt20231124" does not exist
+\c regression_ora
+create or replace procedure ttt20231124() as $$
+begin 
+create table if not exists tb_ttt20231124(a int); 
+insert into tb_ttt20231124 select random()*100;
+end;
+$$ language plpgsql;
+create or replace function tmp_func_20231124() returns text IMMUTABLE as $$
+begin 
+call ttt20231124();
+return 'ok';
+end;
+$$ language plpgsql;
+select tmp_func_20231124();
+ TMP_FUNC_20231124 
+-------------------
+ ok
+(1 row)
+
+drop procedure ttt20231124;
+drop function tmp_func_20231124;
+drop table tb_ttt20231124;

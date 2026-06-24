@@ -1,0 +1,14 @@
+Parsed test spec with 3 sessions
+
+starting permutation: s2r s1u s3d s1c s3c s2c
+step s2r: SELECT * FROM employee WHERE id = 1;
+id|name |salary
+--+-----+------
+ 1|Alice|  5000
+(1 row)
+
+step s1u: UPDATE employee SET salary = 5500 WHERE id = 1;
+step s3d: DELETE FROM employee WHERE id = 2;
+step s1c: COMMIT;
+step s3c: COMMIT;
+step s2c: COMMIT;

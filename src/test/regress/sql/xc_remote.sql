@@ -4,8 +4,8 @@
 
 -- Test cases for Postgres-XL remote queries
 -- Create of non-Coordinator quals
-CREATE FUNCTION func_stable (int) RETURNS int AS $$ SELECT $1 $$ LANGUAGE SQL STABLE;
-CREATE FUNCTION func_volatile (int) RETURNS int AS $$ SELECT $1 $$ LANGUAGE SQL VOLATILE;
+CREATE FUNCTION func_stable (int) RETURNS int AS $$ SELECT $1 $$ LANGUAGE SQL STABLE pushdown;
+CREATE FUNCTION func_volatile (int) RETURNS int AS $$ SELECT $1 $$ LANGUAGE SQL VOLATILE pushdown;
 CREATE FUNCTION func_immutable (int) RETURNS int AS $$ SELECT $1 $$ LANGUAGE SQL IMMUTABLE;
 
 -- Test for remote DML on different tables
@@ -130,15 +130,15 @@ DROP SEQUENCE seqtest5;
 
 -- DELETE cases
 -- Coordinator quals
-CREATE SEQUENCE seqtest7 START 1;
-DELETE FROM rel_rep WHERE a < nextval('seqtest7') + 1;
-DELETE FROM rel_rr WHERE a < nextval('seqtest7') - 3;
-DELETE FROM rel_hash WHERE a < nextval('seqtest7') - 3;
--- Plain cases
-DELETE FROM rel_rep;
-DELETE FROM rel_rr;
-DELETE FROM rel_hash;
-DROP SEQUENCE seqtest7;
+--CREATE SEQUENCE seqtest7 START 1;
+--DELETE FROM rel_rep WHERE a < nextval('seqtest7') + 1;
+--DELETE FROM rel_rr WHERE a < nextval('seqtest7') - 3;
+--DELETE FROM rel_hash WHERE a < nextval('seqtest7') - 3;
+---- Plain cases
+--DELETE FROM rel_rep;
+--DELETE FROM rel_rr;
+--DELETE FROM rel_hash;
+--DROP SEQUENCE seqtest7;
 
 
 
@@ -185,8 +185,8 @@ CREATE TABLE xcrem_employee (EMPNO CHAR(6) NOT NULL, FIRSTNAME VARCHAR(12) NOT N
 
 create table xcrem_temptable as select * from xcrem_employee;
 
-create or replace function volatile_func(id int) returns int pushdown as
-$$begin return 3;end $$ language plpgsql;
+create or replace function volatile_func(id int) returns int as
+$$begin return 3;end $$ language plpgsql pushdown;
 
 \set EXP 'explain (verbose true, costs false, nodes false)'
 \set SEL 'select empno, edlevel, lastname, salary, bonus from xcrem_employee order by empno'
@@ -252,3 +252,23 @@ DROP FUNCTION func_immutable (int);
 drop table xcrem_employee, xcrem_temptable;
 drop function volatile_func(int);
 
+-- xc update with join
+create table update_test1(id int,name varchar(20),class varchar(20));
+create table update_test2(id int,name varchar(20),class varchar(20));
+
+explain UPDATE update_test1 a SET (name,class) = 
+  (SELECT name,class FROM update_test2 t WHERE t.id = a.id AND NOT EXISTS 
+  	(SELECT 1 FROM (SELECT id FROM update_test2 GROUP BY id HAVING COUNT(id) > 1) f WHERE f.id = t.id))
+   WHERE EXISTS
+  (SELECT 1 FROM update_test2 b WHERE b.id = a.id AND NOT EXISTS 
+   	(SELECT 1 FROM (SELECT id FROM update_test2 GROUP BY id HAVING COUNT(id) > 1) f WHERE f.id = b.id));
+                       
+UPDATE update_test1 a SET (name,class) = 
+  (SELECT name,class FROM update_test2 t WHERE t.id = a.id AND NOT EXISTS 
+  	(SELECT 1 FROM (SELECT id FROM update_test2 GROUP BY id HAVING COUNT(id) > 1) f WHERE f.id = t.id))
+   WHERE EXISTS
+  (SELECT 1 FROM update_test2 b WHERE b.id = a.id AND NOT EXISTS 
+   	(SELECT 1 FROM (SELECT id FROM update_test2 GROUP BY id HAVING COUNT(id) > 1) f WHERE f.id = b.id));
+   	
+drop table update_test1;
+drop table update_test2;

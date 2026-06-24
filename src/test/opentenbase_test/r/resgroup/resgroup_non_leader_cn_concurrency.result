@@ -1,0 +1,678 @@
+create default node group default_group with ("dn1", "dn2");
+CREATE NODE GROUP
+create sharding group to group default_group;
+CREATE SHARDING GROUP
+clean sharding;
+CLEAN SHARDING
+create table t(a int, b int);
+CREATE TABLE
+grant all on t to public;
+GRANT
+-- test1: test pg_resgroup_status and pg_stat_activity
+DROP ROLE IF EXISTS role_concurrency_test;
+DROP ROLE
+NOTICE:  (00000) role "role_concurrency_test" does not exist, skipping
+-- start_ignore
+DROP RESOURCE GROUP rg_concurrency_test;
+ERROR:  (42704) resource group "rg_concurrency_test" does not exist
+-- end_ignore
+CREATE RESOURCE GROUP rg_concurrency_test WITH concurrency 2 cpu_rate_limit 20;
+CREATE RESOURCE GROUP
+CREATE ROLE role_concurrency_test RESOURCE GROUP rg_concurrency_test;
+CREATE ROLE
+-- no query has been assigned to the this group
+SELECT r.rsgname, num_running, num_queueing, num_queued, num_executed
+FROM pg_resgroup_status s, pg_resgroup r
+WHERE s.groupname=r.rsgname AND r.rsgname='rg_concurrency_test';
+       rsgname       |                 num_running                  |                 num_queueing                 |                  num_queued                  |                 num_executed                 
+---------------------+----------------------------------------------+----------------------------------------------+----------------------------------------------+----------------------------------------------
+ rg_concurrency_test | [{"cn2":0}, {"cn1":0}, {"dn1":0}, {"dn2":0}] | [{"cn2":0}, {"cn1":0}, {"dn1":0}, {"dn2":0}] | [{"cn2":0}, {"cn1":0}, {"dn1":0}, {"dn2":0}] | [{"cn2":0}, {"cn1":0}, {"dn1":0}, {"dn2":0}]
+(1 row)
+
+SET ROLE role_concurrency_test;
+SET
+set opentenbase_test_flag='suspend_after_resgroup_assignedconn2';
+SET
+ select count(*) from t;
+SET ROLE role_concurrency_test;
+SET
+set opentenbase_test_flag='suspend_after_resgroup_assignedconn3';
+SET
+ select count(*) from t;
+SET ROLE role_concurrency_test;
+SET
+set opentenbase_test_flag='suspend_after_resgroup_assignedconn4';
+SET
+ select count(*) from t;
+-- new transaction will be blocked when the concurrency limit of the resource group is reached.
+SELECT r.rsgname, num_running, num_queueing, num_queued, num_executed
+FROM pg_resgroup_status s, pg_resgroup r
+WHERE s.groupname=r.rsgname AND r.rsgname='rg_concurrency_test';
+       rsgname       |                 num_running                  |                 num_queueing                 |                  num_queued                  |                 num_executed                 
+---------------------+----------------------------------------------+----------------------------------------------+----------------------------------------------+----------------------------------------------
+ rg_concurrency_test | [{"cn2":0}, {"cn1":2}, {"dn1":0}, {"dn2":0}] | [{"cn2":0}, {"cn1":1}, {"dn1":0}, {"dn2":0}] | [{"cn2":0}, {"cn1":1}, {"dn1":0}, {"dn2":0}] | [{"cn2":0}, {"cn1":2}, {"dn1":0}, {"dn2":0}]
+(1 row)
+
+SELECT wait_event from pg_stat_activity
+where query = 'select count(*) from t;' and state = 'active' and rsgname = 'rg_concurrency_test' and wait_event_type='ResourceGroup';
+     wait_event      
+---------------------
+ rg_concurrency_test
+(1 row)
+
+ count 
+-------
+     0
+(1 row)
+
+ count 
+-------
+     0
+(1 row)
+
+ count 
+-------
+     0
+(1 row)
+
+SELECT r.rsgname, num_running, num_queueing, num_queued, num_executed
+FROM pg_resgroup_status s, pg_resgroup r WHERE s.groupname=r.rsgname AND r.rsgname='rg_concurrency_test';
+       rsgname       |                 num_running                  |                 num_queueing                 |                  num_queued                  |                 num_executed                 
+---------------------+----------------------------------------------+----------------------------------------------+----------------------------------------------+----------------------------------------------
+ rg_concurrency_test | [{"cn2":0}, {"cn1":0}, {"dn1":0}, {"dn2":0}] | [{"cn2":0}, {"cn1":0}, {"dn1":0}, {"dn2":0}] | [{"cn2":0}, {"cn1":1}, {"dn1":0}, {"dn2":0}] | [{"cn2":0}, {"cn1":3}, {"dn1":0}, {"dn2":0}]
+(1 row)
+
+DROP ROLE role_concurrency_test;
+DROP ROLE
+DROP RESOURCE GROUP rg_concurrency_test;
+DROP RESOURCE GROUP
+-- test2: test alter concurrency
+-- Create a resource group with concurrency=2. Prepare 2 running transactions and 1 queueing transactions.
+-- Alter concurrency 2->3, the queueing transaction will be woken up, the 'value' of pg_resgroupcapability
+-- will be set to 3.
+DROP ROLE IF EXISTS role_concurrency_test;
+DROP ROLE
+NOTICE:  (00000) role "role_concurrency_test" does not exist, skipping
+-- start_ignore
+DROP RESOURCE GROUP rg_concurrency_test;
+ERROR:  (42704) resource group "rg_concurrency_test" does not exist
+-- end_ignore
+CREATE RESOURCE GROUP rg_concurrency_test WITH concurrency 2 cpu_rate_limit 20;
+CREATE RESOURCE GROUP
+CREATE ROLE role_concurrency_test RESOURCE GROUP rg_concurrency_test;
+CREATE ROLE
+SET ROLE role_concurrency_test;
+SET
+set opentenbase_test_flag='suspend_after_resgroup_assignedconn12';
+SET
+ select count(*) from t;
+SET ROLE role_concurrency_test;
+SET
+set opentenbase_test_flag='suspend_after_resgroup_assignedconn13';
+SET
+ select count(*) from t;
+SET ROLE role_concurrency_test;
+SET
+set opentenbase_test_flag='suspend_after_resgroup_assignedconn14';
+SET
+ select count(*) from t;
+SELECT r.rsgname, num_running, num_queueing, num_queued, num_executed
+FROM pg_resgroup_status s, pg_resgroup r WHERE s.groupname=r.rsgname AND r.rsgname='rg_concurrency_test';
+       rsgname       |                 num_running                  |                 num_queueing                 |                  num_queued                  |                 num_executed                 
+---------------------+----------------------------------------------+----------------------------------------------+----------------------------------------------+----------------------------------------------
+ rg_concurrency_test | [{"cn2":0}, {"cn1":2}, {"dn1":0}, {"dn2":0}] | [{"cn2":0}, {"cn1":1}, {"dn1":0}, {"dn2":0}] | [{"cn2":0}, {"cn1":1}, {"dn1":0}, {"dn2":0}] | [{"cn2":0}, {"cn1":2}, {"dn1":0}, {"dn2":0}]
+(1 row)
+
+CREATE OR REPLACE VIEW rg_activity_status AS
+	SELECT rsgname, wait_event_type, state, query
+	FROM pg_stat_activity
+	WHERE rsgname='rg_concurrency_test'
+    order by wait_event_type, state;
+CREATE VIEW
+SELECT * FROM rg_activity_status;
+       rsgname       | wait_event_type | state  |          query          
+---------------------+-----------------+--------+-------------------------
+ rg_concurrency_test | ResourceGroup   | active | select count(*) from t;
+ rg_concurrency_test |                 | active | select count(*) from t;
+ rg_concurrency_test |                 | active | select count(*) from t;
+(3 rows)
+
+SELECT concurrency FROM pg_resgroup_config WHERE groupname='rg_concurrency_test';
+ concurrency 
+-------------
+ 2
+(1 row)
+
+ALTER RESOURCE GROUP rg_concurrency_test SET CONCURRENCY 3;
+ALTER RESOURCE GROUP
+SELECT r.rsgname, num_running, num_queueing, num_queued, num_executed
+FROM pg_resgroup_status s, pg_resgroup r WHERE s.groupname=r.rsgname AND r.rsgname='rg_concurrency_test';
+       rsgname       |                 num_running                  |                 num_queueing                 |                  num_queued                  |                 num_executed                 
+---------------------+----------------------------------------------+----------------------------------------------+----------------------------------------------+----------------------------------------------
+ rg_concurrency_test | [{"cn2":0}, {"cn1":3}, {"dn1":0}, {"dn2":0}] | [{"cn2":0}, {"cn1":0}, {"dn1":0}, {"dn2":0}] | [{"cn2":0}, {"cn1":1}, {"dn1":0}, {"dn2":0}] | [{"cn2":0}, {"cn1":3}, {"dn1":0}, {"dn2":0}]
+(1 row)
+
+SELECT concurrency FROM pg_resgroup_config WHERE groupname='rg_concurrency_test';
+ concurrency 
+-------------
+ 3
+(1 row)
+
+SELECT * FROM rg_activity_status;
+       rsgname       | wait_event_type | state  |          query          
+---------------------+-----------------+--------+-------------------------
+ rg_concurrency_test |                 | active | select count(*) from t;
+ rg_concurrency_test |                 | active | select count(*) from t;
+ rg_concurrency_test |                 | active | select count(*) from t;
+(3 rows)
+
+ count 
+-------
+     0
+(1 row)
+
+ count 
+-------
+     0
+(1 row)
+
+ count 
+-------
+     0
+(1 row)
+
+DROP ROLE role_concurrency_test;
+DROP ROLE
+DROP RESOURCE GROUP rg_concurrency_test;
+DROP RESOURCE GROUP
+-- test3: test alter concurrency
+-- Create a resource group with concurrency=3. Prepare 3 running transactions, and 1 queueing transaction.
+DROP ROLE IF EXISTS role_concurrency_test;
+DROP ROLE
+NOTICE:  (00000) role "role_concurrency_test" does not exist, skipping
+-- start_ignore
+DROP RESOURCE GROUP rg_concurrency_test;
+ERROR:  (42704) resource group "rg_concurrency_test" does not exist
+-- end_ignore
+CREATE RESOURCE GROUP rg_concurrency_test WITH concurrency 3 cpu_rate_limit 20;
+CREATE RESOURCE GROUP
+CREATE ROLE role_concurrency_test RESOURCE GROUP rg_concurrency_test;
+CREATE ROLE
+SET ROLE role_concurrency_test;
+SET
+set opentenbase_test_flag='suspend_after_resgroup_assignedconn22';
+SET
+ select count(*) from t;
+SET ROLE role_concurrency_test;
+SET
+set opentenbase_test_flag='suspend_after_resgroup_assignedconn23';
+SET
+ select count(*) from t;
+SET ROLE role_concurrency_test;
+SET
+set opentenbase_test_flag='suspend_after_resgroup_assignedconn24';
+SET
+ select count(*) from t;
+SET ROLE role_concurrency_test;
+SET
+set opentenbase_test_flag='suspend_after_resgroup_assignedconn25';
+SET
+ select count(*) from t;
+SELECT r.rsgname, num_running, num_queueing, num_queued, num_executed
+FROM pg_resgroup_status s, pg_resgroup r WHERE s.groupname=r.rsgname AND r.rsgname='rg_concurrency_test';
+       rsgname       |                 num_running                  |                 num_queueing                 |                  num_queued                  |                 num_executed                 
+---------------------+----------------------------------------------+----------------------------------------------+----------------------------------------------+----------------------------------------------
+ rg_concurrency_test | [{"cn2":0}, {"cn1":3}, {"dn1":0}, {"dn2":0}] | [{"cn2":0}, {"cn1":1}, {"dn1":0}, {"dn2":0}] | [{"cn2":0}, {"cn1":1}, {"dn1":0}, {"dn2":0}] | [{"cn2":0}, {"cn1":3}, {"dn1":0}, {"dn2":0}]
+(1 row)
+
+SELECT concurrency FROM pg_resgroup_config WHERE groupname='rg_concurrency_test';
+ concurrency 
+-------------
+ 3
+(1 row)
+
+-- Alter concurrency 3->2, the 'value' of pg_resgroupcapability will be set to 2.
+ALTER RESOURCE GROUP rg_concurrency_test SET CONCURRENCY 2;
+ALTER RESOURCE GROUP
+SELECT concurrency FROM pg_resgroup_config WHERE groupname='rg_concurrency_test';
+ concurrency 
+-------------
+ 2
+(1 row)
+
+-- When one transaction is finished, queueing transaction won't be woken up. There're 2 running transactions and 1 queueing transaction.
+ count 
+-------
+     0
+(1 row)
+
+SELECT r.rsgname, num_running, num_queueing, num_queued, num_executed
+FROM pg_resgroup_status s, pg_resgroup r WHERE s.groupname=r.rsgname AND r.rsgname='rg_concurrency_test';
+       rsgname       |                 num_running                  |                 num_queueing                 |                  num_queued                  |                 num_executed                 
+---------------------+----------------------------------------------+----------------------------------------------+----------------------------------------------+----------------------------------------------
+ rg_concurrency_test | [{"cn2":0}, {"cn1":2}, {"dn1":0}, {"dn2":0}] | [{"cn2":0}, {"cn1":1}, {"dn1":0}, {"dn2":0}] | [{"cn2":0}, {"cn1":1}, {"dn1":0}, {"dn2":0}] | [{"cn2":0}, {"cn1":3}, {"dn1":0}, {"dn2":0}]
+(1 row)
+
+-- New transaction will be queued, there're 2 running and 2 queueing transactions.
+set opentenbase_test_flag='suspend_after_resgroup_assignedconn24';
+SET
+ select count(*) from t;
+SELECT r.rsgname, num_running, num_queueing, num_queued, num_executed
+FROM pg_resgroup_status s, pg_resgroup r WHERE s.groupname=r.rsgname AND r.rsgname='rg_concurrency_test';
+       rsgname       |                 num_running                  |                 num_queueing                 |                  num_queued                  |                 num_executed                 
+---------------------+----------------------------------------------+----------------------------------------------+----------------------------------------------+----------------------------------------------
+ rg_concurrency_test | [{"cn2":0}, {"cn1":2}, {"dn1":0}, {"dn2":0}] | [{"cn2":0}, {"cn1":2}, {"dn1":0}, {"dn2":0}] | [{"cn2":0}, {"cn1":2}, {"dn1":0}, {"dn2":0}] | [{"cn2":0}, {"cn1":3}, {"dn1":0}, {"dn2":0}]
+(1 row)
+
+-- Finish another transaction, one queueing transaction will be woken up, there're 2 running transactions and 1 queueing transaction.
+ count 
+-------
+     0
+(1 row)
+
+SELECT r.rsgname, num_running, num_queueing, num_queued, num_executed
+FROM pg_resgroup_status s, pg_resgroup r WHERE s.groupname=r.rsgname AND r.rsgname='rg_concurrency_test';
+       rsgname       |                 num_running                  |                 num_queueing                 |                  num_queued                  |                 num_executed                 
+---------------------+----------------------------------------------+----------------------------------------------+----------------------------------------------+----------------------------------------------
+ rg_concurrency_test | [{"cn2":0}, {"cn1":2}, {"dn1":0}, {"dn2":0}] | [{"cn2":0}, {"cn1":1}, {"dn1":0}, {"dn2":0}] | [{"cn2":0}, {"cn1":2}, {"dn1":0}, {"dn2":0}] | [{"cn2":0}, {"cn1":4}, {"dn1":0}, {"dn2":0}]
+(1 row)
+
+-- Alter concurrency 2->2, the 'value' of pg_resgroupcapability will be set to 2.
+ALTER RESOURCE GROUP rg_concurrency_test SET CONCURRENCY 2;
+ALTER RESOURCE GROUP
+SELECT concurrency FROM pg_resgroup_config WHERE groupname='rg_concurrency_test';
+ concurrency 
+-------------
+ 2
+(1 row)
+
+-- Finish another transaction, one queueing transaction will be woken up, there're 2 running transactions and 0 queueing transaction.
+ count 
+-------
+     0
+(1 row)
+
+SELECT r.rsgname, num_running, num_queueing, num_queued, num_executed
+FROM pg_resgroup_status s, pg_resgroup r WHERE s.groupname=r.rsgname AND r.rsgname='rg_concurrency_test';
+       rsgname       |                 num_running                  |                 num_queueing                 |                  num_queued                  |                 num_executed                 
+---------------------+----------------------------------------------+----------------------------------------------+----------------------------------------------+----------------------------------------------
+ rg_concurrency_test | [{"cn2":0}, {"cn1":2}, {"dn1":0}, {"dn2":0}] | [{"cn2":0}, {"cn1":0}, {"dn1":0}, {"dn2":0}] | [{"cn2":0}, {"cn1":2}, {"dn1":0}, {"dn2":0}] | [{"cn2":0}, {"cn1":5}, {"dn1":0}, {"dn2":0}]
+(1 row)
+
+ count 
+-------
+     0
+(1 row)
+
+ count 
+-------
+     0
+(1 row)
+
+DROP ROLE role_concurrency_test;
+DROP ROLE
+DROP RESOURCE GROUP rg_concurrency_test;
+DROP RESOURCE GROUP
+-- test4: concurrently drop resource group
+DROP ROLE IF EXISTS role_concurrency_test;
+DROP ROLE
+NOTICE:  (00000) role "role_concurrency_test" does not exist, skipping
+-- start_ignore
+DROP RESOURCE GROUP rg_concurrency_test;
+ERROR:  (42704) resource group "rg_concurrency_test" does not exist
+-- end_ignore
+CREATE RESOURCE GROUP rg_concurrency_test WITH concurrency 2 cpu_rate_limit 20;
+CREATE RESOURCE GROUP
+CREATE ROLE role_concurrency_test RESOURCE GROUP rg_concurrency_test;
+CREATE ROLE
+-- DROP should fail if there're running transactions
+SET ROLE role_concurrency_test;
+SET
+set opentenbase_test_flag='suspend_after_resgroup_assignedconn32';
+SET
+ select count(*) from t;
+DROP ROLE role_concurrency_test;
+DROP ROLE
+DROP RESOURCE GROUP rg_concurrency_test;
+ERROR:  (2BP01) cannot drop resource group "rg_concurrency_test"
+HINT:   The resource group is currently managing 1 query(ies) and cannot be dropped.
+	Terminate the queries first or try dropping the group later.
+	The view pg_stat_activity tracks the queries managed by resource groups.
+-- conn32 will failed, it is nornal, because role has been delete it before it dispatch the query to DN
+--?ERROR:.*
+DROP ROLE IF EXISTS role_concurrency_test;
+DROP ROLE
+NOTICE:  (00000) role "role_concurrency_test" does not exist, skipping
+DROP RESOURCE GROUP rg_concurrency_test;
+DROP RESOURCE GROUP
+-- todo: added by opentenbase. I am not sure what this case will test now.
+-- test5: QD exit before QE 
+DROP ROLE IF EXISTS role_concurrency_test;
+DROP ROLE
+NOTICE:  (00000) role "role_concurrency_test" does not exist, skipping
+-- start_ignore
+DROP RESOURCE GROUP rg_concurrency_test;
+ERROR:  (42704) resource group "rg_concurrency_test" does not exist
+-- end_ignore
+CREATE RESOURCE GROUP rg_concurrency_test WITH concurrency 1 cpu_rate_limit 20;
+CREATE RESOURCE GROUP
+CREATE ROLE role_concurrency_test RESOURCE GROUP rg_concurrency_test;
+CREATE ROLE
+SET ROLE role_concurrency_test;
+SET
+set opentenbase_test_flag='suspend_after_resgroup_assignedconn51';
+SET
+ select count(*) from t;
+SET ROLE role_concurrency_test;
+SET
+set opentenbase_test_flag='suspend_after_resgroup_assignedconn52';
+SET
+ select count(*) from t;
+SELECT pg_cancel_backend(pid) FROM pg_stat_activity WHERE wait_event_type='ResourceGroup' AND rsgname='rg_concurrency_test';
+ pg_cancel_backend 
+-------------------
+ t
+(1 row)
+
+ERROR:  (57014) canceling statement due to user request
+set opentenbase_test_flag='suspend_after_resgroup_assignedconn52';
+SET
+ select count(*) from t;
+SELECT pg_cancel_backend(pid) FROM pg_stat_activity WHERE wait_event_type='ResourceGroup' AND rsgname='rg_concurrency_test';
+ pg_cancel_backend 
+-------------------
+ t
+(1 row)
+
+ERROR:  (57014) canceling statement due to user request
+SELECT * FROM rg_activity_status;
+       rsgname       | wait_event_type | state  |          query          
+---------------------+-----------------+--------+-------------------------
+ rg_concurrency_test |                 | active | select count(*) from t;
+(1 row)
+
+DROP ROLE role_concurrency_test;
+DROP ROLE
+DROP RESOURCE GROUP rg_concurrency_test;
+DROP RESOURCE GROUP
+SELECT * FROM rg_activity_status;
+ rsgname | wait_event_type | state | query 
+---------+-----------------+-------+-------
+(0 rows)
+
+-- todo: added by opentenbase. I think this comment is not consistent with the implementation, how the query is canceled?
+-- test6: cancel a query that is waiting for a slot
+DROP ROLE IF EXISTS role_concurrency_test;
+DROP ROLE
+NOTICE:  (00000) role "role_concurrency_test" does not exist, skipping
+-- start_ignore
+DROP RESOURCE GROUP rg_concurrency_test;
+ERROR:  (42704) resource group "rg_concurrency_test" does not exist
+-- end_ignore
+CREATE RESOURCE GROUP rg_concurrency_test WITH concurrency 1 cpu_rate_limit 20;
+CREATE RESOURCE GROUP
+CREATE ROLE role_concurrency_test RESOURCE GROUP rg_concurrency_test;
+CREATE ROLE
+SELECT * FROM rg_activity_status;
+ rsgname | wait_event_type | state | query 
+---------+-----------------+-------+-------
+(0 rows)
+
+SET ROLE role_concurrency_test;
+SET
+set opentenbase_test_flag='suspend_after_resgroup_assignedconn51';
+SET
+ select count(*) from t;
+SELECT * FROM rg_activity_status;
+       rsgname       | wait_event_type | state  |          query          
+---------------------+-----------------+--------+-------------------------
+ rg_concurrency_test |                 | active | select count(*) from t;
+(1 row)
+
+SET ROLE role_concurrency_test;
+SET
+set opentenbase_test_flag='suspend_after_resgroup_assignedconn52';
+SET
+ select count(*) from t;
+SELECT * FROM rg_activity_status;
+       rsgname       | wait_event_type | state  |          query          
+---------------------+-----------------+--------+-------------------------
+ rg_concurrency_test | ResourceGroup   | active | select count(*) from t;
+ rg_concurrency_test |                 | active | select count(*) from t;
+(2 rows)
+
+SELECT * FROM rg_activity_status;
+       rsgname       | wait_event_type | state  |          query          
+---------------------+-----------------+--------+-------------------------
+ rg_concurrency_test |                 | active | select count(*) from t;
+(1 row)
+
+ count 
+-------
+     0
+(1 row)
+
+SELECT * FROM rg_activity_status;
+ rsgname | wait_event_type | state | query 
+---------+-----------------+-------+-------
+(0 rows)
+
+DROP ROLE role_concurrency_test;
+DROP ROLE
+DROP RESOURCE GROUP rg_concurrency_test;
+DROP RESOURCE GROUP
+-- test7: terminate a query that is waiting for a slot
+DROP ROLE IF EXISTS role_concurrency_test;
+DROP ROLE
+NOTICE:  (00000) role "role_concurrency_test" does not exist, skipping
+-- start_ignore
+DROP RESOURCE GROUP rg_concurrency_test;
+ERROR:  (42704) resource group "rg_concurrency_test" does not exist
+-- end_ignore
+CREATE RESOURCE GROUP rg_concurrency_test WITH concurrency 1 cpu_rate_limit 20;
+CREATE RESOURCE GROUP
+CREATE ROLE role_concurrency_test RESOURCE GROUP rg_concurrency_test;
+CREATE ROLE
+SET ROLE role_concurrency_test;
+SET
+set opentenbase_test_flag='suspend_after_resgroup_assignedconn61';
+SET
+ select count(*) from t;
+SET ROLE role_concurrency_test;
+SET
+set opentenbase_test_flag='suspend_after_resgroup_assignedconn62';
+SET
+ select count(*) from t;
+SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE wait_event_type='ResourceGroup' AND rsgname='rg_concurrency_test';
+ pg_terminate_backend 
+----------------------
+ t
+(1 row)
+
+FATAL:  (57P01) terminating connection due to administrator command
+server closed the connection unexpectedly
+	This probably means the server terminated abnormally
+	before or while processing the request.
+connection to server was lost
+SELECT * FROM rg_activity_status;
+ rsgname | wait_event_type | state | query 
+---------+-----------------+-------+-------
+(0 rows)
+
+DROP ROLE role_concurrency_test;
+DROP ROLE
+DROP RESOURCE GROUP rg_concurrency_test;
+DROP RESOURCE GROUP
+-- test8: create a resgroup with concurrency=0
+DROP ROLE IF EXISTS role_concurrency_test;
+DROP ROLE
+NOTICE:  (00000) role "role_concurrency_test" does not exist, skipping
+-- start_ignore
+DROP RESOURCE GROUP rg_concurrency_test;
+ERROR:  (42704) resource group "rg_concurrency_test" does not exist
+-- end_ignore
+CREATE RESOURCE GROUP rg_concurrency_test WITH concurrency 0 cpu_rate_limit 20;
+CREATE RESOURCE GROUP
+CREATE ROLE role_concurrency_test RESOURCE GROUP rg_concurrency_test;
+CREATE ROLE
+SET ROLE role_concurrency_test;
+SET
+set opentenbase_test_flag='suspend_after_resgroup_assignedconn61';
+SET
+ select count(*) from t;
+SELECT pg_cancel_backend(pid) FROM pg_stat_activity WHERE wait_event_type='ResourceGroup' AND rsgname='rg_concurrency_test';
+ pg_cancel_backend 
+-------------------
+ t
+(1 row)
+
+ERROR:  (57014) canceling statement due to user request
+SELECT * FROM rg_activity_status;
+ rsgname | wait_event_type | state | query 
+---------+-----------------+-------+-------
+(0 rows)
+
+DROP ROLE role_concurrency_test;
+DROP ROLE
+DROP RESOURCE GROUP rg_concurrency_test;
+DROP RESOURCE GROUP
+--
+-- Test cursors, pl/* functions only take one slot.
+--
+-- set concurrency to 1
+CREATE RESOURCE GROUP rg_concurrency_test WITH concurrency 1 cpu_rate_limit 20;
+CREATE RESOURCE GROUP
+CREATE ROLE role_concurrency_test RESOURCE GROUP rg_concurrency_test;
+CREATE ROLE
+-- declare cursors and verify that it only takes one resource group slot
+SET ROLE TO role_concurrency_test;
+SET
+CREATE TABLE foo_concurrency_test as select i as c1 , i as c2 from generate_series(1, 1000) i;
+INSERT 0 1000
+CREATE TABLE bar_concurrency_test as select i as c1 , i as c2 from generate_series(1, 1000) i;
+INSERT 0 1000
+BEGIN;
+BEGIN
+DECLARE c1 CURSOR for select c1, c2 from foo_concurrency_test order by c1 limit 10;
+DECLARE CURSOR
+DECLARE c2 CURSOR for select c1, c2 from bar_concurrency_test order by c1 limit 10;
+DECLARE CURSOR
+DECLARE c3 CURSOR for select count(*) from foo_concurrency_test t1, bar_concurrency_test t2 where t1.c2 = t2.c2;
+DECLARE CURSOR
+Fetch ALL FROM c1;
+ c1 | c2 
+----+----
+  1 |  1
+  2 |  2
+  3 |  3
+  4 |  4
+  5 |  5
+  6 |  6
+  7 |  7
+  8 |  8
+  9 |  9
+ 10 | 10
+(10 rows)
+
+Fetch ALL FROM c2;
+ c1 | c2 
+----+----
+  1 |  1
+  2 |  2
+  3 |  3
+  4 |  4
+  5 |  5
+  6 |  6
+  7 |  7
+  8 |  8
+  9 |  9
+ 10 | 10
+(10 rows)
+
+Fetch ALL FROM c3;
+ count 
+-------
+  1000
+(1 row)
+
+END;
+COMMIT
+-- create a pl function and verify that it only takes one resource group slot.
+CREATE OR REPLACE FUNCTION func_concurrency_test () RETURNS integer as /*in func*/
+$$ /*in func*/
+DECLARE /*in func*/
+	tmprecord RECORD; /*in func*/
+	ret integer; /*in func*/
+BEGIN /*in func*/
+	SELECT count(*) INTO ret FROM foo_concurrency_test;	 /*in func*/
+	FOR tmprecord IN SELECT * FROM bar_concurrency_test LOOP /*in func*/
+		SELECT count(*) INTO ret FROM foo_concurrency_test;	 /*in func*/
+	END LOOP; /*in func*/
+ /*in func*/
+	select 1/0; /*in func*/
+EXCEPTION /*in func*/
+	WHEN division_by_zero THEN /*in func*/
+		SELECT count(*) INTO ret FROM foo_concurrency_test;	 /*in func*/
+		raise NOTICE 'divided by zero'; /*in func*/
+	RETURN ret; /*in func*/
+END; /*in func*/
+$$ /*in func*/
+LANGUAGE plpgsql;
+CREATE FUNCTION
+select func_concurrency_test();
+ func_concurrency_test 
+-----------------------
+                  1000
+(1 row)
+
+NOTICE:  (00000) divided by zero
+-- Prepare/execute statements and verify that it only takes one resource group slot. 
+BEGIN;
+BEGIN
+PREPARE p1 (integer) as select * from foo_concurrency_test where c2=$1;
+PREPARE
+PREPARE p2 (integer) as select * from bar_concurrency_test where c2=$1;
+PREPARE
+EXECUTE p1(1);
+ c1 | c2 
+----+----
+  1 |  1
+(1 row)
+
+EXECUTE p2(2);
+ c1 | c2 
+----+----
+  2 |  2
+(1 row)
+
+END;
+COMMIT
+PREPARE p3 (integer) as select * from foo_concurrency_test where c2=$1;
+PREPARE
+PREPARE p4 (integer) as select * from bar_concurrency_test where c2=$1;
+PREPARE
+EXECUTE p3(1);
+ c1 | c2 
+----+----
+  1 |  1
+(1 row)
+
+EXECUTE p4(2);
+ c1 | c2 
+----+----
+  2 |  2
+(1 row)
+
+SELECT * FROM rg_activity_status;
+ rsgname | wait_event_type | state | query 
+---------+-----------------+-------+-------
+(0 rows)
+
+DROP TABLE foo_concurrency_test;
+DROP TABLE
+DROP TABLE bar_concurrency_test;
+DROP TABLE
+DROP ROLE role_concurrency_test;
+DROP ROLE
+DROP RESOURCE GROUP rg_concurrency_test;
+DROP RESOURCE GROUP

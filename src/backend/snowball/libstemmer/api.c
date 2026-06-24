@@ -1,7 +1,7 @@
 #include "header.h"
 
 extern struct SN_env * SN_create_env(int S_size, int I_size, int B_size)
-{// #lizard forgives
+{
     struct SN_env * z = (struct SN_env *) calloc(1, sizeof(struct SN_env));
     if (z == NULL) return NULL;
     z->p = create_s();

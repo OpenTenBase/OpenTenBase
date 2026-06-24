@@ -1,37 +1,11 @@
-/*
- * Copyright (c) 2023 THL A29 Limited, a Tencent company.
- *
- * This source code file is licensed under the BSD 3-Clause License,
- * you may obtain a copy of the License at http://opensource.org/license/bsd-3-clause/
- * 
- * Terms of the BSD 3-Clause License:
- * --------------------------------------------------------------------
- * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
- * 
- * 1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
- * 
- * 2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation 
- * and/or other materials provided with the distribution.
- * 
- * 3. Neither the name of THL A29 Limited nor the names of its contributors may be used to endorse or promote products derived from this software without 
- * specific prior written permission.
- * 
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, 
- * THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS 
- * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE 
- * GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT 
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH 
- * DAMAGE.
- * 
- */
 #ifndef SHARD_VACUUM_H
 #define SHARD_VACUUM_H
 
 
 typedef enum
 {
-    SHARD_VISIBLE_CHECK_VISIBLE,
-    SHARD_VISIBLE_CHECK_HIDDEN
+	SHARD_VISIBLE_CHECK_VISIBLE,
+	SHARD_VISIBLE_CHECK_HIDDEN
 }ShardVisibleCheckMode;
 
 extern List *string_to_shard_list(char *str);
@@ -40,15 +14,10 @@ extern List *string_to_reloid_list(char *str);
 extern int64 vacuum_shard_internal(Relation rel, Bitmapset *to_vacuum, Snapshot vacuum_snapshot, int sleep_interval, bool to_delete);
 
 extern int64 vacuum_shard(Relation rel, Bitmapset *to_vacuum, Snapshot vacuum_snapshot, bool to_delete);
-/*
-*10ms sleep after delete 300 tuples
-*/
-#define VACUUM_SHARD_SLEEP_INTERVAL_DEFALUT 20  
+
+#define VACUUM_SHARD_SLEEP_INTERVAL_DEFALUT 20  /*10ms sleep after delete 300 tuples*/
 
 extern Datum vacuum_hidden_shards(PG_FUNCTION_ARGS);
 
-
 extern void check_shardlist_visiblility(List *shard_list, ShardVisibleCheckMode visible_mode);
-
-extern List * GetShardRelations_NoChild(bool is_contain_replic);
-#endif /* SHARD_VACUUM_H */
+#endif

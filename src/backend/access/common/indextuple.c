@@ -1,15 +1,15 @@
 /*-------------------------------------------------------------------------
  *
  * indextuple.c
- *       This file contains index tuple accessor and mutator routines,
- *       as well as various tuple utilities.
+ *	   This file contains index tuple accessor and mutator routines,
+ *	   as well as various tuple utilities.
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
  * IDENTIFICATION
- *      src/backend/access/common/indextuple.c
+ *	  src/backend/access/common/indextuple.c
  *
  *-------------------------------------------------------------------------
  */
@@ -22,388 +22,392 @@
 
 
 /* ----------------------------------------------------------------
- *                  index_ tuple interface routines
+ *				  index_ tuple interface routines
  * ----------------------------------------------------------------
  */
 
 /* ----------------
- *        index_form_tuple
+ *		index_form_tuple
  *
- *        This shouldn't leak any memory; otherwise, callers such as
- *        tuplesort_putindextuplevalues() will be very unhappy.
+ *		This shouldn't leak any memory; otherwise, callers such as
+ *		tuplesort_putindextuplevalues() will be very unhappy.
  * ----------------
  */
 IndexTuple
 index_form_tuple(TupleDesc tupleDescriptor,
-                 Datum *values,
-                 bool *isnull)
-{// #lizard forgives
-    char       *tp;                /* tuple pointer */
-    IndexTuple    tuple;            /* return tuple */
-    Size        size,
-                data_size,
-                hoff;
-    int            i;
-    unsigned short infomask = 0;
-    bool        hasnull = false;
-    uint16        tupmask = 0;
-    int            numberOfAttributes = tupleDescriptor->natts;
+				 Datum *values,
+				 bool *isnull)
+{
+	char	   *tp;				/* tuple pointer */
+	IndexTuple	tuple;			/* return tuple */
+	Size		size,
+				data_size,
+				hoff;
+	int			i;
+	unsigned short infomask = 0;
+	bool		hasnull = false;
+	uint16		tupmask = 0;
+	int			numberOfAttributes = tupleDescriptor->natts;
 
 #ifdef TOAST_INDEX_HACK
-    Datum        untoasted_values[INDEX_MAX_KEYS];
-    bool        untoasted_free[INDEX_MAX_KEYS];
+	Datum		untoasted_values[INDEX_MAX_KEYS];
+	bool		untoasted_free[INDEX_MAX_KEYS];
 #endif
 
-    if (numberOfAttributes > INDEX_MAX_KEYS)
-        ereport(ERROR,
-                (errcode(ERRCODE_TOO_MANY_COLUMNS),
-                 errmsg("number of index columns (%d) exceeds limit (%d)",
-                        numberOfAttributes, INDEX_MAX_KEYS)));
+	if (numberOfAttributes > INDEX_MAX_KEYS)
+		ereport(ERROR,
+				(errcode(ERRCODE_TOO_MANY_COLUMNS),
+				 errmsg("number of index columns (%d) exceeds limit (%d)",
+						numberOfAttributes, INDEX_MAX_KEYS)));
 
 #ifdef TOAST_INDEX_HACK
-    for (i = 0; i < numberOfAttributes; i++)
-    {
-        Form_pg_attribute att = tupleDescriptor->attrs[i];
+	for (i = 0; i < numberOfAttributes; i++)
+	{
+		Form_pg_attribute att = TupleDescAttr(tupleDescriptor, i);
 
-        untoasted_values[i] = values[i];
-        untoasted_free[i] = false;
+		untoasted_values[i] = values[i];
+		untoasted_free[i] = false;
 
-        /* Do nothing if value is NULL or not of varlena type */
-        if (isnull[i] || att->attlen != -1)
-            continue;
+		/* Do nothing if value is NULL or not of varlena type */
+		if (isnull[i] || att->attlen != -1)
+			continue;
 
-        /*
-         * If value is stored EXTERNAL, must fetch it so we are not depending
-         * on outside storage.  This should be improved someday.
-         */
-        if (VARATT_IS_EXTERNAL(DatumGetPointer(values[i])))
-        {
-            untoasted_values[i] =
-                PointerGetDatum(heap_tuple_fetch_attr((struct varlena *)
-                                                      DatumGetPointer(values[i])));
-            untoasted_free[i] = true;
-        }
+		/*
+		 * If value is stored EXTERNAL, must fetch it so we are not depending
+		 * on outside storage.  This should be improved someday.
+		 */
+		if (VARATT_IS_EXTERNAL(DatumGetPointer(values[i])))
+		{
+			untoasted_values[i] =
+				PointerGetDatum(heap_tuple_fetch_attr((struct varlena *)
+													  DatumGetPointer(values[i])));
+			untoasted_free[i] = true;
+		}
 
-        /*
-         * If value is above size target, and is of a compressible datatype,
-         * try to compress it in-line.
-         */
-        if (!VARATT_IS_EXTENDED(DatumGetPointer(untoasted_values[i])) &&
-            VARSIZE(DatumGetPointer(untoasted_values[i])) > TOAST_INDEX_TARGET &&
-            (att->attstorage == 'x' || att->attstorage == 'm'))
-        {
-            Datum        cvalue = toast_compress_datum(untoasted_values[i]);
+		/*
+		 * If value is above size target, and is of a compressible datatype,
+		 * try to compress it in-line.
+		 */
+		if (!VARATT_IS_EXTENDED(DatumGetPointer(untoasted_values[i])) &&
+			VARSIZE(DatumGetPointer(untoasted_values[i])) > TOAST_INDEX_TARGET &&
+			(att->attstorage == 'x' || att->attstorage == 'm'))
+		{
+			Datum		cvalue = toast_compress_datum(untoasted_values[i]);
 
-            if (DatumGetPointer(cvalue) != NULL)
-            {
-                /* successful compression */
-                if (untoasted_free[i])
-                    pfree(DatumGetPointer(untoasted_values[i]));
-                untoasted_values[i] = cvalue;
-                untoasted_free[i] = true;
-            }
-        }
-    }
+			if (DatumGetPointer(cvalue) != NULL)
+			{
+				/* successful compression */
+				if (untoasted_free[i])
+					pfree(DatumGetPointer(untoasted_values[i]));
+				untoasted_values[i] = cvalue;
+				untoasted_free[i] = true;
+			}
+		}
+	}
 #endif
 
-    for (i = 0; i < numberOfAttributes; i++)
-    {
-        if (isnull[i])
-        {
-            hasnull = true;
-            break;
-        }
-    }
+	for (i = 0; i < numberOfAttributes; i++)
+	{
+		if (isnull[i])
+		{
+			hasnull = true;
+			break;
+		}
+	}
 
-    if (hasnull)
-        infomask |= INDEX_NULL_MASK;
+	if (hasnull)
+		infomask |= INDEX_NULL_MASK;
 
-    hoff = IndexInfoFindDataOffset(infomask);
+	hoff = IndexInfoFindDataOffset(infomask);
 #ifdef TOAST_INDEX_HACK
-    data_size = heap_compute_data_size(tupleDescriptor,
-                                       untoasted_values, isnull);
+	data_size = heap_compute_data_size(tupleDescriptor,
+									   untoasted_values, isnull);
 #else
-    data_size = heap_compute_data_size(tupleDescriptor,
-                                       values, isnull);
+	data_size = heap_compute_data_size(tupleDescriptor,
+									   values, isnull);
 #endif
-    size = hoff + data_size;
-    size = MAXALIGN(size);        /* be conservative */
+	size = hoff + data_size;
+	size = MAXALIGN(size);		/* be conservative */
 
-    tp = (char *) palloc0(size);
-    tuple = (IndexTuple) tp;
+	tp = (char *) palloc0(size);
+	tuple = (IndexTuple) tp;
 
-    heap_fill_tuple(tupleDescriptor,
+	heap_fill_tuple(tupleDescriptor,
 #ifdef TOAST_INDEX_HACK
-                    untoasted_values,
+					untoasted_values,
 #else
-                    values,
+					values,
 #endif
-                    isnull,
-                    (char *) tp + hoff,
-                    data_size,
-                    &tupmask,
-                    (hasnull ? (bits8 *) tp + sizeof(IndexTupleData) : NULL));
+					isnull,
+					(char *) tp + hoff,
+					data_size,
+					&tupmask,
+					(hasnull ? (bits8 *) tp + sizeof(IndexTupleData) : NULL));
 
 #ifdef TOAST_INDEX_HACK
-    for (i = 0; i < numberOfAttributes; i++)
-    {
-        if (untoasted_free[i])
-            pfree(DatumGetPointer(untoasted_values[i]));
-    }
+	for (i = 0; i < numberOfAttributes; i++)
+	{
+		if (untoasted_free[i])
+			pfree(DatumGetPointer(untoasted_values[i]));
+	}
 #endif
 
-    /*
-     * We do this because heap_fill_tuple wants to initialize a "tupmask"
-     * which is used for HeapTuples, but we want an indextuple infomask. The
-     * only relevant info is the "has variable attributes" field. We have
-     * already set the hasnull bit above.
-     */
-    if (tupmask & HEAP_HASVARWIDTH)
-        infomask |= INDEX_VAR_MASK;
+	/*
+	 * We do this because heap_fill_tuple wants to initialize a "tupmask"
+	 * which is used for HeapTuples, but we want an indextuple infomask. The
+	 * only relevant info is the "has variable attributes" field. We have
+	 * already set the hasnull bit above.
+	 */
+	if (tupmask & HEAP_HASVARWIDTH)
+		infomask |= INDEX_VAR_MASK;
 
-    /* Also assert we got rid of external attributes */
+	/* Also assert we got rid of external attributes */
 #ifdef TOAST_INDEX_HACK
-    Assert((tupmask & HEAP_HASEXTERNAL) == 0);
+	Assert((tupmask & HEAP_HASEXTERNAL) == 0);
 #endif
 
-    /*
-     * Here we make sure that the size will fit in the field reserved for it
-     * in t_info.
-     */
-    if ((size & INDEX_SIZE_MASK) != size)
-        ereport(ERROR,
-                (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
-                 errmsg("index row requires %zu bytes, maximum size is %zu",
-                        size, (Size) INDEX_SIZE_MASK)));
+	/*
+	 * Here we make sure that the size will fit in the field reserved for it
+	 * in t_info.
+	 */
+	if ((size & INDEX_SIZE_MASK) != size)
+		ereport(ERROR,
+				(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
+				 errmsg("index row requires %zu bytes, maximum size is %zu",
+						size, (Size) INDEX_SIZE_MASK)));
 
-    infomask |= size;
+	infomask |= size;
 
-    /*
-     * initialize metadata
-     */
-    tuple->t_info = infomask;
-    return tuple;
+	/*
+	 * initialize metadata
+	 */
+	tuple->t_info = infomask;
+	return tuple;
 }
 
 /* ----------------
- *        nocache_index_getattr
+ *		nocache_index_getattr
  *
- *        This gets called from index_getattr() macro, and only in cases
- *        where we can't use cacheoffset and the value is not null.
+ *		This gets called from index_getattr() macro, and only in cases
+ *		where we can't use cacheoffset and the value is not null.
  *
- *        This caches attribute offsets in the attribute descriptor.
+ *		This caches attribute offsets in the attribute descriptor.
  *
- *        An alternative way to speed things up would be to cache offsets
- *        with the tuple, but that seems more difficult unless you take
- *        the storage hit of actually putting those offsets into the
- *        tuple you send to disk.  Yuck.
+ *		An alternative way to speed things up would be to cache offsets
+ *		with the tuple, but that seems more difficult unless you take
+ *		the storage hit of actually putting those offsets into the
+ *		tuple you send to disk.  Yuck.
  *
- *        This scheme will be slightly slower than that, but should
- *        perform well for queries which hit large #'s of tuples.  After
- *        you cache the offsets once, examining all the other tuples using
- *        the same attribute descriptor will go much quicker. -cim 5/4/91
+ *		This scheme will be slightly slower than that, but should
+ *		perform well for queries which hit large #'s of tuples.  After
+ *		you cache the offsets once, examining all the other tuples using
+ *		the same attribute descriptor will go much quicker. -cim 5/4/91
  * ----------------
  */
 Datum
 nocache_index_getattr(IndexTuple tup,
-                      int attnum,
-                      TupleDesc tupleDesc)
-{// #lizard forgives
-    Form_pg_attribute *att = tupleDesc->attrs;
-    char       *tp;                /* ptr to data part of tuple */
-    bits8       *bp = NULL;        /* ptr to null bitmap in tuple */
-    bool        slow = false;    /* do we have to walk attrs? */
-    int            data_off;        /* tuple data offset */
-    int            off;            /* current offset within data */
+					  int attnum,
+					  TupleDesc tupleDesc)
+{
+	char	   *tp;				/* ptr to data part of tuple */
+	bits8	   *bp = NULL;		/* ptr to null bitmap in tuple */
+	bool		slow = false;	/* do we have to walk attrs? */
+	int			data_off;		/* tuple data offset */
+	int			off;			/* current offset within data */
 
-    /* ----------------
-     *     Three cases:
-     *
-     *     1: No nulls and no variable-width attributes.
-     *     2: Has a null or a var-width AFTER att.
-     *     3: Has nulls or var-widths BEFORE att.
-     * ----------------
-     */
+	/* ----------------
+	 *	 Three cases:
+	 *
+	 *	 1: No nulls and no variable-width attributes.
+	 *	 2: Has a null or a var-width AFTER att.
+	 *	 3: Has nulls or var-widths BEFORE att.
+	 * ----------------
+	 */
 
-    data_off = IndexInfoFindDataOffset(tup->t_info);
+	data_off = IndexInfoFindDataOffset(tup->t_info);
 
-    attnum--;
+	attnum--;
 
-    if (IndexTupleHasNulls(tup))
-    {
-        /*
-         * there's a null somewhere in the tuple
-         *
-         * check to see if desired att is null
-         */
+	if (IndexTupleHasNulls(tup))
+	{
+		/*
+		 * there's a null somewhere in the tuple
+		 *
+		 * check to see if desired att is null
+		 */
 
-        /* XXX "knows" t_bits are just after fixed tuple header! */
-        bp = (bits8 *) ((char *) tup + sizeof(IndexTupleData));
+		/* XXX "knows" t_bits are just after fixed tuple header! */
+		bp = (bits8 *) ((char *) tup + sizeof(IndexTupleData));
 
-        /*
-         * Now check to see if any preceding bits are null...
-         */
-        {
-            int            byte = attnum >> 3;
-            int            finalbit = attnum & 0x07;
+		/*
+		 * Now check to see if any preceding bits are null...
+		 */
+		{
+			int			byte = attnum >> 3;
+			int			finalbit = attnum & 0x07;
 
-            /* check for nulls "before" final bit of last byte */
-            if ((~bp[byte]) & ((1 << finalbit) - 1))
-                slow = true;
-            else
-            {
-                /* check for nulls in any "earlier" bytes */
-                int            i;
+			/* check for nulls "before" final bit of last byte */
+			if ((~bp[byte]) & ((1 << finalbit) - 1))
+				slow = true;
+			else
+			{
+				/* check for nulls in any "earlier" bytes */
+				int			i;
 
-                for (i = 0; i < byte; i++)
-                {
-                    if (bp[i] != 0xFF)
-                    {
-                        slow = true;
-                        break;
-                    }
-                }
-            }
-        }
-    }
+				for (i = 0; i < byte; i++)
+				{
+					if (bp[i] != 0xFF)
+					{
+						slow = true;
+						break;
+					}
+				}
+			}
+		}
+	}
 
-    tp = (char *) tup + data_off;
+	tp = (char *) tup + data_off;
 
-    if (!slow)
-    {
-        /*
-         * If we get here, there are no nulls up to and including the target
-         * attribute.  If we have a cached offset, we can use it.
-         */
-        if (att[attnum]->attcacheoff >= 0)
-        {
-            return fetchatt(att[attnum],
-                            tp + att[attnum]->attcacheoff);
-        }
+	if (!slow)
+	{
+		Form_pg_attribute att;
 
-        /*
-         * Otherwise, check for non-fixed-length attrs up to and including
-         * target.  If there aren't any, it's safe to cheaply initialize the
-         * cached offsets for these attrs.
-         */
-        if (IndexTupleHasVarwidths(tup))
-        {
-            int            j;
+		/*
+		 * If we get here, there are no nulls up to and including the target
+		 * attribute.  If we have a cached offset, we can use it.
+		 */
+		att = TupleDescAttr(tupleDesc, attnum);
+		if (att->attcacheoff >= 0)
+			return fetchatt(att, tp + att->attcacheoff);
 
-            for (j = 0; j <= attnum; j++)
-            {
-                if (att[j]->attlen <= 0)
-                {
-                    slow = true;
-                    break;
-                }
-            }
-        }
-    }
+		/*
+		 * Otherwise, check for non-fixed-length attrs up to and including
+		 * target.  If there aren't any, it's safe to cheaply initialize the
+		 * cached offsets for these attrs.
+		 */
+		if (IndexTupleHasVarwidths(tup))
+		{
+			int			j;
 
-    if (!slow)
-    {
-        int            natts = tupleDesc->natts;
-        int            j = 1;
+			for (j = 0; j <= attnum; j++)
+			{
+				if (TupleDescAttr(tupleDesc, j)->attlen <= 0)
+				{
+					slow = true;
+					break;
+				}
+			}
+		}
+	}
 
-        /*
-         * If we get here, we have a tuple with no nulls or var-widths up to
-         * and including the target attribute, so we can use the cached offset
-         * ... only we don't have it yet, or we'd not have got here.  Since
-         * it's cheap to compute offsets for fixed-width columns, we take the
-         * opportunity to initialize the cached offsets for *all* the leading
-         * fixed-width columns, in hope of avoiding future visits to this
-         * routine.
-         */
-        att[0]->attcacheoff = 0;
+	if (!slow)
+	{
+		int			natts = tupleDesc->natts;
+		int			j = 1;
 
-        /* we might have set some offsets in the slow path previously */
-        while (j < natts && att[j]->attcacheoff > 0)
-            j++;
+		/*
+		 * If we get here, we have a tuple with no nulls or var-widths up to
+		 * and including the target attribute, so we can use the cached offset
+		 * ... only we don't have it yet, or we'd not have got here.  Since
+		 * it's cheap to compute offsets for fixed-width columns, we take the
+		 * opportunity to initialize the cached offsets for *all* the leading
+		 * fixed-width columns, in hope of avoiding future visits to this
+		 * routine.
+		 */
+		TupleDescAttr(tupleDesc, 0)->attcacheoff = 0;
 
-        off = att[j - 1]->attcacheoff + att[j - 1]->attlen;
+		/* we might have set some offsets in the slow path previously */
+		while (j < natts && TupleDescAttr(tupleDesc, j)->attcacheoff > 0)
+			j++;
 
-        for (; j < natts; j++)
-        {
-            if (att[j]->attlen <= 0)
-                break;
+		off = TupleDescAttr(tupleDesc, j - 1)->attcacheoff +
+			TupleDescAttr(tupleDesc, j - 1)->attlen;
 
-            off = att_align_nominal(off, att[j]->attalign);
+		for (; j < natts; j++)
+		{
+			Form_pg_attribute att = TupleDescAttr(tupleDesc, j);
 
-            att[j]->attcacheoff = off;
+			if (att->attlen <= 0)
+				break;
 
-            off += att[j]->attlen;
-        }
+			off = att_align_nominal(off, att->attalign);
 
-        Assert(j > attnum);
+			att->attcacheoff = off;
 
-        off = att[attnum]->attcacheoff;
-    }
-    else
-    {
-        bool        usecache = true;
-        int            i;
+			off += att->attlen;
+		}
 
-        /*
-         * Now we know that we have to walk the tuple CAREFULLY.  But we still
-         * might be able to cache some offsets for next time.
-         *
-         * Note - This loop is a little tricky.  For each non-null attribute,
-         * we have to first account for alignment padding before the attr,
-         * then advance over the attr based on its length.  Nulls have no
-         * storage and no alignment padding either.  We can use/set
-         * attcacheoff until we reach either a null or a var-width attribute.
-         */
-        off = 0;
-        for (i = 0;; i++)        /* loop exit is at "break" */
-        {
-            if (IndexTupleHasNulls(tup) && att_isnull(i, bp))
-            {
-                usecache = false;
-                continue;        /* this cannot be the target att */
-            }
+		Assert(j > attnum);
 
-            /* If we know the next offset, we can skip the rest */
-            if (usecache && att[i]->attcacheoff >= 0)
-                off = att[i]->attcacheoff;
-            else if (att[i]->attlen == -1)
-            {
-                /*
-                 * We can only cache the offset for a varlena attribute if the
-                 * offset is already suitably aligned, so that there would be
-                 * no pad bytes in any case: then the offset will be valid for
-                 * either an aligned or unaligned value.
-                 */
-                if (usecache &&
-                    off == att_align_nominal(off, att[i]->attalign))
-                    att[i]->attcacheoff = off;
-                else
-                {
-                    off = att_align_pointer(off, att[i]->attalign, -1,
-                                            tp + off);
-                    usecache = false;
-                }
-            }
-            else
-            {
-                /* not varlena, so safe to use att_align_nominal */
-                off = att_align_nominal(off, att[i]->attalign);
+		off = TupleDescAttr(tupleDesc, attnum)->attcacheoff;
+	}
+	else
+	{
+		bool		usecache = true;
+		int			i;
 
-                if (usecache)
-                    att[i]->attcacheoff = off;
-            }
+		/*
+		 * Now we know that we have to walk the tuple CAREFULLY.  But we still
+		 * might be able to cache some offsets for next time.
+		 *
+		 * Note - This loop is a little tricky.  For each non-null attribute,
+		 * we have to first account for alignment padding before the attr,
+		 * then advance over the attr based on its length.  Nulls have no
+		 * storage and no alignment padding either.  We can use/set
+		 * attcacheoff until we reach either a null or a var-width attribute.
+		 */
+		off = 0;
+		for (i = 0;; i++)		/* loop exit is at "break" */
+		{
+			Form_pg_attribute att = TupleDescAttr(tupleDesc, i);
 
-            if (i == attnum)
-                break;
+			if (IndexTupleHasNulls(tup) && att_isnull(i, bp))
+			{
+				usecache = false;
+				continue;		/* this cannot be the target att */
+			}
 
-            off = att_addlength_pointer(off, att[i]->attlen, tp + off);
+			/* If we know the next offset, we can skip the rest */
+			if (usecache && att->attcacheoff >= 0)
+				off = att->attcacheoff;
+			else if (att->attlen == -1)
+			{
+				/*
+				 * We can only cache the offset for a varlena attribute if the
+				 * offset is already suitably aligned, so that there would be
+				 * no pad bytes in any case: then the offset will be valid for
+				 * either an aligned or unaligned value.
+				 */
+				if (usecache &&
+					off == att_align_nominal(off, att->attalign))
+					att->attcacheoff = off;
+				else
+				{
+					off = att_align_pointer(off, att->attalign, -1,
+											tp + off);
+					usecache = false;
+				}
+			}
+			else
+			{
+				/* not varlena, so safe to use att_align_nominal */
+				off = att_align_nominal(off, att->attalign);
 
-            if (usecache && att[i]->attlen <= 0)
-                usecache = false;
-        }
-    }
+				if (usecache)
+					att->attcacheoff = off;
+			}
 
-    return fetchatt(att[attnum], tp + off);
+			if (i == attnum)
+				break;
+
+			off = att_addlength_pointer(off, att->attlen, tp + off);
+
+			if (usecache && att->attlen <= 0)
+				usecache = false;
+		}
+	}
+
+	return fetchatt(TupleDescAttr(tupleDesc, attnum), tp + off);
 }
 
 /*
@@ -414,17 +418,17 @@ nocache_index_getattr(IndexTuple tup,
  */
 void
 index_deform_tuple(IndexTuple tup, TupleDesc tupleDescriptor,
-                   Datum *values, bool *isnull)
+				   Datum *values, bool *isnull)
 {
-    int            i;
+	int			i;
 
-    /* Assert to protect callers who allocate fixed-size arrays */
-    Assert(tupleDescriptor->natts <= INDEX_MAX_KEYS);
+	/* Assert to protect callers who allocate fixed-size arrays */
+	Assert(tupleDescriptor->natts <= INDEX_MAX_KEYS);
 
-    for (i = 0; i < tupleDescriptor->natts; i++)
-    {
-        values[i] = index_getattr(tup, i + 1, tupleDescriptor, &isnull[i]);
-    }
+	for (i = 0; i < tupleDescriptor->natts; i++)
+	{
+		values[i] = index_getattr(tup, i + 1, tupleDescriptor, &isnull[i]);
+	}
 }
 
 /*
@@ -433,11 +437,11 @@ index_deform_tuple(IndexTuple tup, TupleDesc tupleDescriptor,
 IndexTuple
 CopyIndexTuple(IndexTuple source)
 {
-    IndexTuple    result;
-    Size        size;
+	IndexTuple	result;
+	Size		size;
 
-    size = IndexTupleSize(source);
-    result = (IndexTuple) palloc(size);
-    memcpy(result, source, size);
-    return result;
+	size = IndexTupleSize(source);
+	result = (IndexTuple) palloc(size);
+	memcpy(result, source, size);
+	return result;
 }

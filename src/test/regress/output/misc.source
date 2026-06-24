@@ -6,10 +6,10 @@
 --
 UPDATE onek
    SET unique1 = onek.unique1 + 1;
-ERROR:  Distributed column or partition column "unique1" can't be updated in current version
+ERROR:  Distributed column "unique1" can't be updated in current version
 UPDATE onek
    SET unique1 = onek.unique1 - 1;
-ERROR:  Distributed column or partition column "unique1" can't be updated in current version
+ERROR:  Distributed column "unique1" can't be updated in current version
 --
 -- BTREE partial
 --

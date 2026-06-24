@@ -195,8 +195,8 @@ COPY y TO stdout WITH CSV FORCE QUOTE col2 ESCAPE E'\\' ENCODING 'sql_ascii';
 "It is \"perfect\".","	"
 "",
 COPY y TO stdout WITH CSV FORCE QUOTE *;
-"Jackson, Sam",\h
-"It is ""perfect"".",	
+"Jackson, Sam","\h"
+"It is ""perfect"".","	"
 "",
 -- Repeat above tests with new 9.0 option syntax
 COPY y TO stdout (FORMAT CSV);
@@ -212,8 +212,8 @@ COPY y TO stdout (FORMAT CSV, FORCE_QUOTE (col2), ESCAPE E'\\');
 "It is \"perfect\".","	"
 "",
 COPY y TO stdout (FORMAT CSV, FORCE_QUOTE *);
-"Jackson, Sam",\h
-"It is ""perfect"".",	
+"Jackson, Sam","\h"
+"It is ""perfect"".","	"
 "",
 \copy y TO stdout (FORMAT CSV)
 "Jackson, Sam",\h
@@ -228,8 +228,8 @@ It is "perfect".|
 "It is \"perfect\".","	"
 "",
 \copy y TO stdout (FORMAT CSV, FORCE_QUOTE *)
-"Jackson, Sam",\h
-"It is ""perfect"".",	
+"Jackson, Sam","\h"
+"It is ""perfect"".","	"
 "",
 --test that we read consecutive LFs properly
 CREATE TEMP TABLE testnl (a int, b text, c int);
@@ -260,145 +260,99 @@ SELECT * FROM testnull ORDER BY 1,2;
 
 BEGIN;
 CREATE TABLE vistest (LIKE testeoc);
-ERROR:  relation "testeoc" does not exist
 COPY vistest FROM stdin CSV;
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
-a0
-b
-\.
-invalid command \.
 COMMIT;
-ERROR:  syntax error at or near "a0"
-LINE 1: a0
-        ^
-SELECT * FROM vistest;
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
+SELECT * FROM vistest order by 1;
+ a  
+----
+ a0
+ b
+(2 rows)
+
 BEGIN;
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
 TRUNCATE vistest;
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
 COPY vistest FROM stdin CSV;
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
-a1
-b
-\.
-invalid command \.
-SELECT * FROM vistest;
-ERROR:  syntax error at or near "a1"
-LINE 1: a1
-        ^
+SELECT * FROM vistest order by 1;
+ a  
+----
+ a1
+ b
+(2 rows)
+
 SAVEPOINT s1;
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
 TRUNCATE vistest;
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
 COPY vistest FROM stdin CSV;
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
-d1
-e
-\.
-invalid command \.
-SELECT * FROM vistest;
-ERROR:  syntax error at or near "d1"
-LINE 1: d1
-        ^
+SELECT * FROM vistest order by 1;
+ a  
+----
+ d1
+ e
+(2 rows)
+
 COMMIT;
-SELECT * FROM vistest;
-ERROR:  relation "vistest" does not exist
-LINE 1: SELECT * FROM vistest;
-                      ^
+SELECT * FROM vistest order by 1;
+ a  
+----
+ d1
+ e
+(2 rows)
+
 BEGIN;
 TRUNCATE vistest;
-ERROR:  relation "vistest" does not exist
 COPY vistest FROM stdin CSV FREEZE;
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
-a2
-b
-\.
-invalid command \.
-SELECT * FROM vistest;
-ERROR:  syntax error at or near "a2"
-LINE 1: a2
-        ^
+SELECT * FROM vistest order by 1;
+ a  
+----
+ a2
+ b
+(2 rows)
+
 SAVEPOINT s1;
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
 TRUNCATE vistest;
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
 COPY vistest FROM stdin CSV FREEZE;
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
-d2
-e
-\.
-invalid command \.
-SELECT * FROM vistest;
-ERROR:  syntax error at or near "d2"
-LINE 1: d2
-        ^
+SELECT * FROM vistest order by 1;
+ a  
+----
+ d2
+ e
+(2 rows)
+
 COMMIT;
-SELECT * FROM vistest;
-ERROR:  relation "vistest" does not exist
-LINE 1: SELECT * FROM vistest;
-                      ^
+SELECT * FROM vistest order by 1;
+ a  
+----
+ d2
+ e
+(2 rows)
+
 BEGIN;
 TRUNCATE vistest;
-ERROR:  relation "vistest" does not exist
 COPY vistest FROM stdin CSV FREEZE;
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
-x
-y
-\.
-invalid command \.
-SELECT * FROM vistest;
-ERROR:  syntax error at or near "x"
-LINE 1: x
-        ^
+SELECT * FROM vistest order by 1;
+ a 
+---
+ x
+ y
+(2 rows)
+
 COMMIT;
 TRUNCATE vistest;
-ERROR:  relation "vistest" does not exist
 COPY vistest FROM stdin CSV FREEZE;
-ERROR:  relation "vistest" does not exist
-p
-g
-\.
-invalid command \.
+ERROR:  cannot perform COPY FREEZE because the table was not created or truncated in the current subtransaction
 BEGIN;
-ERROR:  syntax error at or near "p"
-LINE 1: p
-        ^
 TRUNCATE vistest;
-ERROR:  relation "vistest" does not exist
 SAVEPOINT s1;
-ERROR:  SAVEPOINT can only be used in transaction blocks
 COPY vistest FROM stdin CSV FREEZE;
-ERROR:  relation "vistest" does not exist
-m
-k
-\.
-invalid command \.
+ERROR:  cannot perform COPY FREEZE because the table was not created or truncated in the current subtransaction
 COMMIT;
-ERROR:  syntax error at or near "m"
-LINE 1: m
-        ^
 BEGIN;
 INSERT INTO vistest VALUES ('z');
-ERROR:  relation "vistest" does not exist
-LINE 1: INSERT INTO vistest VALUES ('z');
-                    ^
 SAVEPOINT s1;
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
 TRUNCATE vistest;
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
 ROLLBACK TO SAVEPOINT s1;
-ERROR:  no such savepoint
 COPY vistest FROM stdin CSV FREEZE;
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
-d3
-e
-\.
-invalid command \.
+ERROR:  cannot perform COPY FREEZE because the table was not created or truncated in the current subtransaction
 COMMIT;
-ERROR:  syntax error at or near "d3"
-LINE 1: d3
-        ^
 CREATE FUNCTION truncate_in_subxact() RETURNS VOID AS
 $$
 BEGIN
@@ -408,28 +362,30 @@ EXCEPTION
 	INSERT INTO vistest VALUES ('subxact failure');
 END;
 $$ language plpgsql;
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
 BEGIN;
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
 INSERT INTO vistest VALUES ('z');
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
 SELECT truncate_in_subxact();
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
+ truncate_in_subxact 
+---------------------
+ 
+(1 row)
+
 COPY vistest FROM stdin CSV FREEZE;
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
-d4
-e
-\.
-invalid command \.
-SELECT * FROM vistest;
-ERROR:  syntax error at or near "d4"
-LINE 1: d4
-        ^
+SELECT * FROM vistest order by 1;
+ a  
+----
+ d4
+ e
+(2 rows)
+
 COMMIT;
-SELECT * FROM vistest;
-ERROR:  relation "vistest" does not exist
-LINE 1: SELECT * FROM vistest;
-                      ^
+SELECT * FROM vistest order by 1;
+ a  
+----
+ d4
+ e
+(2 rows)
+
 -- Test FORCE_NOT_NULL and FORCE_NULL options
 CREATE TEMP TABLE forcetest (
     a INT NOT NULL,
@@ -444,9 +400,9 @@ BEGIN;
 COPY forcetest (a, b, c) FROM STDIN WITH (FORMAT csv, FORCE_NOT_NULL(b), FORCE_NULL(c));
 COMMIT;
 SELECT b, c FROM forcetest WHERE a = 1;
- b | c 
----+---
-   | 
+ b |  c   
+---+------
+   | NULL
 (1 row)
 
 -- should succeed, FORCE_NULL and FORCE_NOT_NULL can be both specified
@@ -454,9 +410,9 @@ BEGIN;
 COPY forcetest (a, b, c, d) FROM STDIN WITH (FORMAT csv, FORCE_NOT_NULL(c,d), FORCE_NULL(c,d));
 COMMIT;
 SELECT c, d FROM forcetest WHERE a = 2;
- c | d 
----+---
-   | 
+ c |  d   
+---+------
+   | NULL
 (1 row)
 
 -- should fail with not-null constraint violation
@@ -605,13 +561,188 @@ SELECT * FROM instead_of_insert_tbl;
 ----+------
 (0 rows)
 
+\c regression_ora
+set transform_insert_to_copy TO on;
+drop TABLE if exists ctv_data_20220713 cascade;
+NOTICE:  table "CTV_DATA_20220713" does not exist, skipping
+CREATE TABLE ctv_data_20220713 (v, h, c, i, d) AS
+VALUES
+   ('v1','h2','foo', 3, '2015-04-01'::date),
+   ('v2','h1','bar', 3, '2015-01-02'),
+   ('v1','h0','baz', NULL, '2015-07-12'),
+   ('v0','h4','qux', 4, '2015-07-15'),
+   ('v0','h4','dbl', -3, '2014-12-15'),
+   ('v0',NULL,'qux', 5, '2014-07-15'),
+   ('v1','h2','quux',7, '2015-04-04');
+select * from ctv_data_20220713 order by 1,2;
+ V  | H  |  C   | I  |     D      
+----+----+------+----+------------
+ v0 | h4 | qux  |  4 | 07-15-2015
+ v0 | h4 | dbl  | -3 | 12-15-2014
+ v0 |    | qux  |  5 | 07-15-2014
+ v1 | h0 | baz  |    | 07-12-2015
+ v1 | h2 | foo  |  3 | 04-01-2015
+ v1 | h2 | quux |  7 | 04-04-2015
+ v2 | h1 | bar  |  3 | 01-02-2015
+(7 rows)
+
+drop TABLE if exists ctv_data_20220713 cascade;
+create table t_copy_type_convert(v varchar(3)) distribute by shard(v);
+copy t_copy_type_convert(v position(1:6) trim($1)) from stdin encoding 'UTF8';
+ERROR:  value too long for type character(3), actual(6)
+CONTEXT:  COPY T_COPY_TYPE_CONVERT, line 1, column V: "qqqqqq", nodetype:1(1:cn,0:dn)
+copy t_copy_type_convert(v position(1:6) cast(nullif(trim($1),'') as varchar)) from stdin encoding 'UTF8';
+ERROR:  value too long for type character(3), actual(6)
+CONTEXT:  COPY T_COPY_TYPE_CONVERT, line 1, column V: "qqqqqq", nodetype:1(1:cn,0:dn)
+drop table t_copy_type_convert;
+\c regression
+reset transform_insert_to_copy;
+set transform_insert_to_copy to on;
+drop table if exists t4;
+NOTICE:  table "t4" does not exist, skipping
+create table t4(f1 int,f2 varchar,f3 int);
+--expected error
+insert into t4(f1,f2,f3) values(1,'xxxxx'),(2,'xxxxx');
+ERROR:  INSERT has more target columns than expressions
+LINE 1: insert into t4(f1,f2,f3) values(1,'xxxxx'),(2,'xxxxx');
+                             ^
+insert into t4(f1,f2) values(1,'xxxxx'),(2,'xxxxx');
+insert into t4 values(1,'xxxxx',1),(2,'xxxxx',2);
+-- Additional support for partial column insert to copy
+insert into t4 values(1,'xxxxx'),(2,'xxxxx');
+select * from t4 order by 1,2,3;
+ f1 |  f2   | f3 
+----+-------+----
+  1 | xxxxx |  1
+  1 | xxxxx |   
+  1 | xxxxx |   
+  2 | xxxxx |  2
+  2 | xxxxx |   
+  2 | xxxxx |   
+(6 rows)
+
+drop table t4;
+drop table if exists rules_src;
+drop table if exists rules_log;
+create table rules_src(f1 int, f2 int);
+create table rules_log(f1 int, f2 int, tag text);
+insert into rules_src values(1,2), (11,12);
+-- No error is reported when the execution is successful.
+create rule r1 as on update to rules_src do also
+insert into rules_log values(old.*, 'old'), (new.*, 'new');
+update rules_src set f2 = f2 + 1;
+-- No error 'ERROR:  INSERT has more target columns than expressions'
+insert into rules_log values(1,2), (11, to_number('14', '999'));
+select * from rules_log order by 1,2,3;
+ f1 | f2 | tag 
+----+----+-----
+  1 |  2 | old
+  1 |  2 | 
+  1 |  3 | new
+ 11 | 12 | old
+ 11 | 13 | new
+ 11 | 14 | 
+(6 rows)
+
+drop table rules_src cascade;
+drop table rules_log cascade;
+-- The cast conversion supports the insert to copy statement.
+SET datestyle = iso, ymd;
+drop table if exists t_varchar;
+NOTICE:  table "t_varchar" does not exist, skipping
+create table t_varchar(a varchar(1), b varchar(30)) distribute by shard(a);
+insert into t_varchar values('123'::varchar(1), '2023-01-02 11:31:22'::date);
+insert into t_varchar values('123'::varchar(1), '2023-01-02 11:31:22'::date),('123'::varchar(1), '2023-01-02 11:31:22'::date);
+insert into t_varchar values('456'::varchar(1), NULL::date);
+insert into t_varchar values('456'::varchar(1), NULL::date),('456'::varchar(1), NULL::date);
+select *, b is null from t_varchar order by 1,2;
+ a |     b      | ?column? 
+---+------------+----------
+ 1 | 2023-01-02 | f
+ 1 | 2023-01-02 | f
+ 1 | 2023-01-02 | f
+ 4 |            | t
+ 4 |            | t
+ 4 |            | t
+(6 rows)
+
+drop table t_varchar;
+reset datestyle;
+-- prepare insert
+drop table if exists t_insert_success;
+NOTICE:  table "t_insert_success" does not exist, skipping
+CREATE TABLE t_insert_success (
+    col1 integer,
+    col2 integer,
+    col3 char(3),
+    col4 int,
+    col5 date
+) distribute by shard(col1);
+delete from t_insert_success;
+prepare p1_3(int)  as insert into t_insert_success  values(1,2,'a',1,'2011-01-01'),(2,2,2,3,'2020-11-01'),(3,3,3,3,'2022-11-01') ;
+execute p1_3(1);
+select * from t_insert_success order by 1,2,3,4,5;
+ col1 | col2 | col3 | col4 |    col5    
+------+------+------+------+------------
+    1 |    2 | a    |    1 | 01-01-2011
+    2 |    2 | 2    |    3 | 11-01-2020
+    3 |    3 | 3    |    3 | 11-01-2022
+(3 rows)
+
+select count(*) from t_insert_success;
+ count 
+-------
+     3
+(1 row)
+
+drop table if exists t_insert_success;
+-- plpgsql support tocopy
+drop table if exists bug_test_pro_multi_values_shard_1 cascade;
+NOTICE:  table "bug_test_pro_multi_values_shard_1" does not exist, skipping
+create table bug_test_pro_multi_values_shard_1(f1 int default 1,f2 int default 1, f3 float default 0.9, f4 date default '2023-01-12', f5 timestamp default '2023-01-12 15:50:00.424278', f6 time default '15:50:00', f7 interval default '1 day', f8 varchar default '你好', f9 varchar(8000) default repeat('深圳', 10), f10 text default '南山', f11 serial);
+drop procedure if exists bug_test_pro_multi_values_shard_1_insert();
+NOTICE:  procedure bug_test_pro_multi_values_shard_1_insert() does not exist, skipping
+CREATE OR REPLACE PROCEDURE bug_test_pro_multi_values_shard_1_insert() AS
+$$
+BEGIN
+    delete from bug_test_pro_multi_values_shard_1;
+    insert into bug_test_pro_multi_values_shard_1 values(3,3),(4,4);
+    insert into bug_test_pro_multi_values_shard_1 values(5,5,default),(6,6,default),(default,default,default);
+    insert into bug_test_pro_multi_values_shard_1 values(7,7,default),(8,8,default),(default,default,default);
+    insert into bug_test_pro_multi_values_shard_1 values(default,default,default,default,default,default,default),(default,default,default,default,default,default,default),(default,default,default,default,default,default,default);
+    exception
+     when others then
+		raise notice '%',SQLERRM;
+end;
+$$
+language plpgsql;
+truncate table bug_test_pro_multi_values_shard_1;
+call bug_test_pro_multi_values_shard_1_insert();
+select * from bug_test_pro_multi_values_shard_1 order by f11;
+ f1 | f2 | f3  |     f4     |               f5                |    f6    |   f7    |  f8  |                    f9                    | f10  | f11 
+----+----+-----+------------+---------------------------------+----------+---------+------+------------------------------------------+------+-----
+  3 |  3 | 0.9 | 01-12-2023 | Thu Jan 12 15:50:00.424278 2023 | 15:50:00 | @ 1 day | 你好 | 深圳深圳深圳深圳深圳深圳深圳深圳深圳深圳 | 南山 |   1
+  4 |  4 | 0.9 | 01-12-2023 | Thu Jan 12 15:50:00.424278 2023 | 15:50:00 | @ 1 day | 你好 | 深圳深圳深圳深圳深圳深圳深圳深圳深圳深圳 | 南山 |   2
+  5 |  5 | 0.9 | 01-12-2023 | Thu Jan 12 15:50:00.424278 2023 | 15:50:00 | @ 1 day | 你好 | 深圳深圳深圳深圳深圳深圳深圳深圳深圳深圳 | 南山 |   3
+  6 |  6 | 0.9 | 01-12-2023 | Thu Jan 12 15:50:00.424278 2023 | 15:50:00 | @ 1 day | 你好 | 深圳深圳深圳深圳深圳深圳深圳深圳深圳深圳 | 南山 |   4
+  1 |  1 | 0.9 | 01-12-2023 | Thu Jan 12 15:50:00.424278 2023 | 15:50:00 | @ 1 day | 你好 | 深圳深圳深圳深圳深圳深圳深圳深圳深圳深圳 | 南山 |   5
+  7 |  7 | 0.9 | 01-12-2023 | Thu Jan 12 15:50:00.424278 2023 | 15:50:00 | @ 1 day | 你好 | 深圳深圳深圳深圳深圳深圳深圳深圳深圳深圳 | 南山 |   6
+  8 |  8 | 0.9 | 01-12-2023 | Thu Jan 12 15:50:00.424278 2023 | 15:50:00 | @ 1 day | 你好 | 深圳深圳深圳深圳深圳深圳深圳深圳深圳深圳 | 南山 |   7
+  1 |  1 | 0.9 | 01-12-2023 | Thu Jan 12 15:50:00.424278 2023 | 15:50:00 | @ 1 day | 你好 | 深圳深圳深圳深圳深圳深圳深圳深圳深圳深圳 | 南山 |   8
+  1 |  1 | 0.9 | 01-12-2023 | Thu Jan 12 15:50:00.424278 2023 | 15:50:00 | @ 1 day | 你好 | 深圳深圳深圳深圳深圳深圳深圳深圳深圳深圳 | 南山 |   9
+  1 |  1 | 0.9 | 01-12-2023 | Thu Jan 12 15:50:00.424278 2023 | 15:50:00 | @ 1 day | 你好 | 深圳深圳深圳深圳深圳深圳深圳深圳深圳深圳 | 南山 |  10
+  1 |  1 | 0.9 | 01-12-2023 | Thu Jan 12 15:50:00.424278 2023 | 15:50:00 | @ 1 day | 你好 | 深圳深圳深圳深圳深圳深圳深圳深圳深圳深圳 | 南山 |  11
+(11 rows)
+
+drop table bug_test_pro_multi_values_shard_1 cascade;
+reset transform_insert_to_copy;
 -- clean up
 DROP TABLE forcetest;
+ERROR:  table "forcetest" does not exist
 DROP TABLE vistest;
-ERROR:  table "vistest" does not exist
 DROP FUNCTION truncate_in_subxact();
-ERROR:  function truncate_in_subxact() does not exist
 DROP TABLE x, y;
+ERROR:  table "x" does not exist
 DROP TABLE rls_t1 CASCADE;
 DROP ROLE regress_rls_copy_user;
 DROP ROLE regress_rls_copy_user_colperms;
@@ -620,3 +751,347 @@ DROP FUNCTION fn_x_after();
 DROP TABLE instead_of_insert_tbl;
 DROP VIEW instead_of_insert_tbl_view;
 DROP FUNCTION fun_instead_of_insert_tbl();
+\c regression_ora
+create table t_copy_type_convert(v varchar(3)) distribute by shard(v);
+copy t_copy_type_convert(v position(1:6) trim($1)) from stdin encoding 'UTF8';
+ERROR:  value too long for type character(3), actual(6)
+CONTEXT:  COPY T_COPY_TYPE_CONVERT, line 1, column V: "qqqqqq", nodetype:1(1:cn,0:dn)
+copy t_copy_type_convert(v position(1:6) cast(nullif(trim($1),'') as varchar)) from stdin encoding 'UTF8';
+ERROR:  value too long for type character(3), actual(6)
+CONTEXT:  COPY T_COPY_TYPE_CONVERT, line 1, column V: "qqqqqq", nodetype:1(1:cn,0:dn)
+drop table t_copy_type_convert;
+-- test copy position
+drop table if exists t_copy;
+NOTICE:  table "T_COPY" does not exist, skipping
+create table t_copy(v varchar(3)) distribute by shard(v);
+-- ok
+copy t_copy(v position(1:3)) from stdin encoding 'UTF8';
+select * from t_copy;
+  V  
+-----
+ qqq
+(1 row)
+
+drop table t_copy;
+-- copy with fixed
+create table test_cp(f1 smallint, f2 integer, f3 bigint, f4 decimal, f5 numeric, f6 numeric(10), f7 numeric(10,5), f8 real ,f9 double precision, f10 money, f11 varchar(10), f12 char(15), f13 text, f14 timestamp without time zone, f15 boolean, f16 varchar(15));
+copy test_cp from stdin delimiter ',';
+copy test_cp to stdout csv formatter(f1(10));
+ERROR:  formatter only can be specified in FIXED mode
+copy test_cp to stdout binary formatter(f1(10));
+ERROR:  formatter only can be specified in FIXED mode
+copy test_cp to stdout fixed;
+ERROR:  formatter must be specified in FIXED mode
+copy test_cp to stdout fixed formatter(f1(10));
+ERROR:  Fixed length is not specified for column "F2"
+copy test_cp to stdout fixed formatter(f1(5), f2(5), f3(5), f4(5), f5(6), f6(6), f7(6), f8(7), f9(7));
+ERROR:  Fixed length is not specified for column "F10"
+copy test_cp to stdout fixed formatter(f1(5), f2(5), f3(5), f4(5), f5(6), f6(6), f7(6), f8(7), f9(7), f13(2), f14(10), f15(1));
+ERROR:  Fixed length is not specified for column "F10"
+copy test_cp to stdout fixed formatter(f1(5), f2(5), f3(5), f4(5), f5(6), f6(6), f7(6), f8(7), f9(7), f10(8), f13(2), f14(10), f15(1));
+ERROR:  Unexpected response from the data nodes when combining, request type 0, errorMessage: length of field "F7" longer than limit of '6'
+copy test_cp to stdout fixed formatter with truncate (f1(5), f2(5), f3(5), f4(5), f5(6), f6(6), f7(6), f8(7), f9(7), f10(8), f13(2), f14(10), f15(1));
+0000100002000030000400000501234612345.12345.612345.6$12,345.abc       ccccc          ddMon May 01teeeeeeee       
+0001200022000320004200005101234612345.12345.612345.6$12,345.dfedfedfe ccc            ddMon May 01teeeeeeee       
+0001300023000330004300005101234612345.12345.612345.6$12,345.qwerqwerq ccc            ddMon May 01teeeeeeee       
+0001100021000310004100005101234612345.12345.612345.6$12,345.abcabcabc cccccccccccccccddMon May 01teeeeeeee       
+copy test_cp to stdout fixed formatter(f1(5), f2(5), f3(5), f4(5), f5(6), f6(6), f7 with truncate(6), f8(9), f9 with truncate(7), f10 with truncate(8), f13 with truncate(2), f14 with truncate(10), f15(2));
+0000100002000030000400000501234612345.12345.67912345.6$12,345.abc       ccccc          ddMon May 010teeeeeeee       
+0001200022000320004200005101234612345.12345.67912345.6$12,345.dfedfedfe ccc            ddMon May 010teeeeeeee       
+0001300023000330004300005101234612345.12345.67912345.6$12,345.qwerqwerq ccc            ddMon May 010teeeeeeee       
+0001100021000310004100005101234612345.12345.67912345.6$12,345.abcabcabc cccccccccccccccddMon May 010teeeeeeee       
+copy test_cp to stdout fixed formatter(f1(5), f2(5), f3(5), f4(5), f5(6), f6(6), f7 with truncate(6), f8 with truncate(7), f9 with truncate(7), f10 with truncate(8), f13 with truncate(2), f14 with truncate(10), f15(8)) header;
+F1   F2   F3   F4   F5    F6    F7    F8     F9     F10     F11       F12            F1F14       F15     F16            
+0000100002000030000400000501234612345.12345.612345.6$12,345.abc       ccccc          ddMon May 010000000teeeeeeee       
+0001200022000320004200005101234612345.12345.612345.6$12,345.dfedfedfe ccc            ddMon May 010000000teeeeeeee       
+0001300023000330004300005101234612345.12345.612345.6$12,345.qwerqwerq ccc            ddMon May 010000000teeeeeeee       
+0001100021000310004100005101234612345.12345.612345.6$12,345.abcabcabc cccccccccccccccddMon May 010000000teeeeeeee       
+select * from test_cp order by 1,2,3,4;
+ F1 | F2 | F3 | F4 | F5 |  F6   |     F7     |    F8     |     F9     |    F10     |    F11    |       F12       |  F13   |           F14            | F15 |   F16    
+----+----+----+----+----+-------+------------+-----------+------------+------------+-----------+-----------------+--------+--------------------------+-----+----------
+  1 |  2 |  3 |  4 |  5 | 12346 | 12345.6789 | 12345.679 | 12345.6789 | $12,345.67 | abc       | ccccc           | dddddd | Mon May 01 10:10:10 2023 | t   | eeeeeeee
+ 11 | 21 | 31 | 41 | 51 | 12346 | 12345.6789 | 12345.679 | 12345.6789 | $12,345.67 | abcabcabc | ccccccccccccccc | dddddd | Mon May 01 10:10:10 2023 | t   | eeeeeeee
+ 12 | 22 | 32 | 42 | 51 | 12346 | 12345.6789 | 12345.679 | 12345.6789 | $12,345.67 | dfedfedfe | ccc             | dddddd | Mon May 01 10:10:10 2023 | t   | eeeeeeee
+ 13 | 23 | 33 | 43 | 51 | 12346 | 12345.6789 | 12345.679 | 12345.6789 | $12,345.67 | qwerqwerq | ccc             | dddddd | Mon May 01 10:10:10 2023 | t   | eeeeeeee
+(4 rows)
+
+copy test_cp to stdout fixed formatter(f1(5), f2(5), f3(5), f4(5), f5(6), f6(6), f7(15), f8(9), f9(10), f10(15), f13(12), f14(25), f15(8)) header;
+F1   F2   F3   F4   F5    F6    F7             F8       F9        F10            F11       F12            F13         F14                      F15     F16            
+000010000200003000040000050123460000012345.678912345.67912345.678900000$12,345.67abc       ccccc          dddddd      0Mon May 01 10:10:10 20230000000teeeeeeee       
+000120002200032000420000510123460000012345.678912345.67912345.678900000$12,345.67dfedfedfe ccc            dddddd      0Mon May 01 10:10:10 20230000000teeeeeeee       
+000130002300033000430000510123460000012345.678912345.67912345.678900000$12,345.67qwerqwerq ccc            dddddd      0Mon May 01 10:10:10 20230000000teeeeeeee       
+000110002100031000410000510123460000012345.678912345.67912345.678900000$12,345.67abcabcabc cccccccccccccccdddddd      0Mon May 01 10:10:10 20230000000teeeeeeee       
+copy (select f1, f11, f12, f14 from test_cp) to stdout fixed formatter(f1(5), f14(25)) header;
+F1   F11       F12            F14                      
+00001abc       ccccc          0Mon May 01 10:10:10 2023
+00012dfedfedfe ccc            0Mon May 01 10:10:10 2023
+00013qwerqwerq ccc            0Mon May 01 10:10:10 2023
+00011abcabcabc ccccccccccccccc0Mon May 01 10:10:10 2023
+copy test_cp(f1, f11, f12, f14) from stdin fixed formatter(f1(5), f14(20)) header;
+select * from test_cp order by 1,2,3,4;
+ F1 | F2 | F3 | F4 | F5 |  F6   |     F7     |    F8     |     F9     |    F10     |    F11    |       F12       |  F13   |           F14            | F15 |   F16    
+----+----+----+----+----+-------+------------+-----------+------------+------------+-----------+-----------------+--------+--------------------------+-----+----------
+  1 |  2 |  3 |  4 |  5 | 12346 | 12345.6789 | 12345.679 | 12345.6789 | $12,345.67 | abc       | ccccc           | dddddd | Mon May 01 10:10:10 2023 | t   | eeeeeeee
+  1 |    |    |    |    |       |            |           |            |            | abc       | ccccc           |        | Mon May 01 10:10:10 2023 |     | 
+ 11 | 21 | 31 | 41 | 51 | 12346 | 12345.6789 | 12345.679 | 12345.6789 | $12,345.67 | abcabcabc | ccccccccccccccc | dddddd | Mon May 01 10:10:10 2023 | t   | eeeeeeee
+ 11 |    |    |    |    |       |            |           |            |            | abcabcabc | ccccccccccccccc |        | Mon May 01 10:10:10 2023 |     | 
+ 12 | 22 | 32 | 42 | 51 | 12346 | 12345.6789 | 12345.679 | 12345.6789 | $12,345.67 | dfedfedfe | ccc             | dddddd | Mon May 01 10:10:10 2023 | t   | eeeeeeee
+ 12 |    |    |    |    |       |            |           |            |            | dfedfedfe | ccc             |        | Mon May 01 10:10:10 2023 |     | 
+ 13 | 23 | 33 | 43 | 51 | 12346 | 12345.6789 | 12345.679 | 12345.6789 | $12,345.67 | qwerqwerq | ccc             | dddddd | Mon May 01 10:10:10 2023 | t   | eeeeeeee
+ 13 |    |    |    |    |       |            |           |            |            | qwerqwerq | ccc             |        | Mon May 01 10:10:10 2023 |     | 
+(8 rows)
+
+copy (select f1, f8, f11, f12, f14 from test_cp) to stdout fixed formatter(f1(5), f8(10), f11(20), f14(25)) header;
+F1   F8        F11                 F12            F14                      
+00001012345.679abc                 ccccc          0Mon May 01 10:10:10 2023
+00012012345.679dfedfedfe           ccc            0Mon May 01 10:10:10 2023
+00013012345.679qwerqwerq           ccc            0Mon May 01 10:10:10 2023
+0000100000000\Nabc                 ccccc          0Mon May 01 10:10:10 2023
+0001200000000\Ndfedfedfe           ccc            0Mon May 01 10:10:10 2023
+0001300000000\Nqwerqwerq           ccc            0Mon May 01 10:10:10 2023
+00011012345.679abcabcabc           ccccccccccccccc0Mon May 01 10:10:10 2023
+0001100000000\Nabcabcabc           ccccccccccccccc0Mon May 01 10:10:10 2023
+copy test_cp(f1, f8, f11, f12, f14) from stdin fixed formatter(f1(5), f8(10), f11(20), f14(20)) header;
+select * from test_cp order by 1,2,3,4;
+ F1 | F2 | F3 | F4 | F5 |  F6   |     F7     |    F8     |     F9     |    F10     |    F11    |       F12       |  F13   |           F14            | F15 |   F16    
+----+----+----+----+----+-------+------------+-----------+------------+------------+-----------+-----------------+--------+--------------------------+-----+----------
+  1 |  2 |  3 |  4 |  5 | 12346 | 12345.6789 | 12345.679 | 12345.6789 | $12,345.67 | abc       | ccccc           | dddddd | Mon May 01 10:10:10 2023 | t   | eeeeeeee
+  1 |    |    |    |    |       |            |           |            |            | abc       | ccccc           |        | Mon May 01 10:10:10 2023 |     | 
+  1 |    |    |    |    |       |            |   12345.7 |            |            | abc       | ccccc           |        | Mon May 01 10:10:10 2023 |     | 
+  1 |    |    |    |    |       |            |           |            |            | abc       | ccccc           |        | Mon May 01 10:10:10 2023 |     | 
+ 11 | 21 | 31 | 41 | 51 | 12346 | 12345.6789 | 12345.679 | 12345.6789 | $12,345.67 | abcabcabc | ccccccccccccccc | dddddd | Mon May 01 10:10:10 2023 | t   | eeeeeeee
+ 11 |    |    |    |    |       |            |           |            |            | abcabcabc | ccccccccccccccc |        | Mon May 01 10:10:10 2023 |     | 
+ 11 |    |    |    |    |       |            |   12345.7 |            |            | abcabcabc | ccccccccccccccc |        | Mon May 01 10:10:10 2023 |     | 
+ 11 |    |    |    |    |       |            |           |            |            | abcabcabc | ccccccccccccccc |        | Mon May 01 10:10:10 2023 |     | 
+ 12 | 22 | 32 | 42 | 51 | 12346 | 12345.6789 | 12345.679 | 12345.6789 | $12,345.67 | dfedfedfe | ccc             | dddddd | Mon May 01 10:10:10 2023 | t   | eeeeeeee
+ 12 |    |    |    |    |       |            |           |            |            | dfedfedfe | ccc             |        | Mon May 01 10:10:10 2023 |     | 
+ 12 |    |    |    |    |       |            |   12345.7 |            |            | dfedfedfe | ccc             |        | Mon May 01 10:10:10 2023 |     | 
+ 12 |    |    |    |    |       |            |           |            |            | dfedfedfe | ccc             |        | Mon May 01 10:10:10 2023 |     | 
+ 13 | 23 | 33 | 43 | 51 | 12346 | 12345.6789 | 12345.679 | 12345.6789 | $12,345.67 | qwerqwerq | ccc             | dddddd | Mon May 01 10:10:10 2023 | t   | eeeeeeee
+ 13 |    |    |    |    |       |            |           |            |            | qwerqwerq | ccc             |        | Mon May 01 10:10:10 2023 |     | 
+ 13 |    |    |    |    |       |            |   12345.7 |            |            | qwerqwerq | ccc             |        | Mon May 01 10:10:10 2023 |     | 
+ 13 |    |    |    |    |       |            |           |            |            | qwerqwerq | ccc             |        | Mon May 01 10:10:10 2023 |     | 
+(16 rows)
+
+truncate test_cp;
+copy test_cp(f1, f8, f11, f12, f14) from stdin fixed formatter(f1(5), f8(10), f11(20), f14(20), fff(10)) header;
+ERROR:  extra formatter after last expected column
+copy test_cp(f1, f8, f11, f12, f14) from stdin fixed formatter(f1(5), f8(10), f11(20), f14(20), fff(10)) header IGNORE_EXTRA_DATA;
+select * from test_cp order by 1,2,3,4;
+ F1 | F2 | F3 | F4 | F5 | F6 | F7 |   F8    | F9 | F10 |    F11    |       F12       | F13 |           F14            | F15 | F16 
+----+----+----+----+----+----+----+---------+----+-----+-----------+-----------------+-----+--------------------------+-----+-----
+ 11 |    |    |    |    |    |    | 12345.7 |    |     | abcabcabc | ccccccccccccccc |     | Mon May 01 10:10:10 2023 |     | 
+ 11 |    |    |    |    |    |    |         |    |     | abcabcabc | ccccccccccccccc |     | Mon May 01 10:10:10 2023 |     | 
+ 13 |    |    |    |    |    |    | 12345.7 |    |     | qwerqwerq | ccc             |     | Mon May 01 10:10:10 2023 |     | 
+(3 rows)
+
+truncate test_cp;
+copy test_cp(f1, f8, f11, f12, f14) from stdin fixed formatter(f1(5), f8(10), f11(20), f14(20), fff(10)) header IGNORE_EXTRA_DATA;
+ERROR:  missing data for column "F14"
+CONTEXT:  COPY TEST_CP, line 4: "0001100000000\Nabcabcabc           ccccccccccccccc", nodetype:1(1:cn,0:dn)
+copy test_cp(f1, f8, f11, f12, f14) from stdin fixed formatter(f1(5), f8(10), f11(20), f14(20), fff(10)) header IGNORE_EXTRA_DATA FILL_MISSING_FIELDS;
+select * from test_cp order by 1,2,3,4;
+ F1 | F2 | F3 | F4 | F5 | F6 | F7 |   F8    | F9 | F10 |    F11    |       F12       | F13 |           F14            | F15 | F16 
+----+----+----+----+----+----+----+---------+----+-----+-----------+-----------------+-----+--------------------------+-----+-----
+ 11 |    |    |    |    |    |    | 12345.7 |    |     | abcabcabc | ccccccccccccccc |     | Mon May 01 10:10:10 2023 |     | 
+ 11 |    |    |    |    |    |    |         |    |     | abcabcabc | ccccccccccccccc |     |                          |     | 
+ 13 |    |    |    |    |    |    | 12345.7 |    |     | qwerqwerq | ccc             |     | Mon May 01 10:10:10 2023 |     | 
+(3 rows)
+
+drop table t_copy_type_convert;
+ERROR:  table "T_COPY_TYPE_CONVERT" does not exist
+-----------------------------------------------
+-- 定长字段：语法、基本功能
+-----------------------------------------------
+-- 先创建所需表
+drop table if exists data_20230612_31 cascade ;
+NOTICE:  table "DATA_20230612_31" does not exist, skipping
+drop table if exists test_20230612_31 cascade ;
+NOTICE:  table "TEST_20230612_31" does not exist, skipping
+create table data_20230612_31(id int, f1 char(10), f2 varchar(10), f3 numeric(10,5));
+create table test_20230612_31(id int, f1 char(10), f2 varchar(10), f3 numeric(10,5));
+-- 语法不支持formatter在括号里面，所以下面语句报错
+insert into data_20230612_31 values (1, 'f1', 'f2', 1);
+copy data_20230612_31 to stdout with (FORMAT fixed, formatter(id(3)));
+ERROR:  syntax error at or near "("
+LINE 1: ...20230612_31 to stdout with (FORMAT fixed, formatter(id(3)));
+                                                                 ^
+copy data_20230612_31 to stdout( delimiter '$',encoding utf8, format csv);
+1$f1        $f2$1
+copy data_20230612_31 to stdout( delimiter '$',encoding utf8, format fixed, formatter(id(3), f1(10), f2(10), f3 with truncate (10)));
+ERROR:  syntax error at or near "("
+LINE 1: ...iter '$',encoding utf8, format fixed, formatter(id(3), f1(10...
+                                                             ^
+-- 在定长模式下，需要指定输出列的长度，默认采用列定义长度
+truncate  table data_20230612_31;
+insert into data_20230612_31 values (1, 'f1', 'f2', 1);
+insert into data_20230612_31 values (2, 'f1');
+copy data_20230612_31 to stdout;
+1	f1        	f2	1
+2	f1        	\N	\N
+copy data_20230612_31 to stdout fixed formatter(id(3)) delimiter '$';
+001f1        f2        0000000001
+002f1        \N        00000000\N
+copy data_20230612_31 to stdout fixed formatter(id(3), f1(10), f2(10), f3 with truncate (10)) delimiter '$';
+001f1        f2        0000000001
+002f1        \N        00000000\N
+copy data_20230612_31 to stdout with fixed formatter(id(3), f1(10), f2(10), f3 with truncate (10)) delimiter '$';
+001f1        f2        0000000001
+002f1        \N        00000000\N
+-- 在定长模式下，需要指定输出列的长度，默认采用列定义长度----导出
+truncate  table data_20230612_31;
+insert into data_20230612_31 values (1, 'f1', 'f2', 1);
+copy data_20230612_31 to stdout;
+1	f1        	f2	1
+copy data_20230612_31 to stdout with fixed formatter(id(3)) ;
+001f1        f2        0000000001
+truncate  table data_20230612_31;
+insert into data_20230612_31 values (2, 'f1');
+copy data_20230612_31 to stdout;
+2	f1        	\N	\N
+copy data_20230612_31 to stdout with fixed formatter(id(3)) ;
+002f1        \N        00000000\N
+-- 定长字段，不指定长度，长度超长：不带with cut会报错，带with cut后按照定义的长度导入导出
+truncate  table data_20230612_31;
+insert into data_20230612_31 values (2, 'hij', 'hijklmn', 22222);
+copy data_20230612_31 to stdout;
+2	hij       	hijklmn	22222
+copy data_20230612_31 to stdout fixed formatter(id(3));
+002hij       hijklmn   0000022222
+copy data_20230612_31 to stdout fixed formatter(id(3), f1(10), f2(10), f3 with truncate (10)) delimiter '$';
+002hij       hijklmn   0000022222
+copy data_20230612_31 to stdout fixed formatter(id(3), f3 with truncate (10)) delimiter '$';
+002hij       hijklmn   0000022222
+drop table if exists data_20230612_31 cascade ;
+drop table if exists test_20230612_31 cascade ;
+create table emptystr(c1 int, c2 text, c3 text);
+set enable_lightweight_ora_syntax TO off;
+COPY emptystr (c1, c2, c3) from stdin (format 'csv',delimiter ',', null '\N');
+select * from emptystr where c2 is null;
+ C1 | C2 | C3 
+----+----+----
+  1 |    | aa
+  3 |    | cc
+(2 rows)
+
+truncate emptystr;
+set enable_lightweight_ora_syntax TO on;
+COPY emptystr (c1, c2, c3) from stdin (format 'csv',delimiter ',', null '\N');
+select * from emptystr where c2 is null;
+ C1 | C2 | C3 
+----+----+----
+  1 |    | aa
+  3 |    | cc
+(2 rows)
+
+reset enable_lightweight_ora_syntax;
+drop table emptystr;
+create table emptystr_20250106(c1 int, c2 text, c3 text) distribute by replication;;
+COPY emptystr_20250106 (c1, c2, c3) from stdin fixed formatter(c1(10), c2(10), c3(10));
+select * from emptystr_20250106;
+ C1 | C2 |     C3     
+----+----+------------
+  1 | aa | aaaaaaaaaa
+  2 | ab | bb
+  3 |    | cccccccccc
+(3 rows)
+
+drop table emptystr_20250106;
+create table emptystr_20250106(c1 int, c2 text, c3 text) with(oids) distribute by replication;;
+COPY emptystr_20250106 (c1, c2, c3) from stdin fixed oids formatter(oid(2), c1(8), c2(10), c3(10));
+\o copy_to_tmp.data
+COPY emptystr_20250106 to stdout oids fixed formatter(c1(10), c2(10), c3(10)) DELIMITER '|';
+\o
+drop table emptystr_20250106;
+create table tbquote(c1 int, c2 text, c3 text);
+copy tbquote from stdin (format 'csv', delimiter '^C', encoding utf8, quote E'&', escape '\');
+ERROR:  unterminated CSV quoted field
+CONTEXT:  COPY TBQUOTE, line 2: "2^Cd^C&t2
+3^Ce^Ct3
+4^Cf^Ct4
+", nodetype:1(1:cn,0:dn)
+copy tbquote from stdin (format 'csv', delimiter '^C', encoding utf8, quote E'\b', escape '\');
+select * from tbquote order by 1;
+ C1 | C2 | C3  
+----+----+-----
+  1 | c  | t1
+  2 | d  | &t2
+  3 | e  | t3
+  4 | f  | t4
+(4 rows)
+
+drop table tbquote;
+-- reset conn
+\c regression
+-- cannot copy to table with foreign key or insertTrigger that could not be pushed down
+set enable_datanode_row_triggers to on;
+drop table if exists t_copy_tri_from_20220622_tb1;
+NOTICE:  table "t_copy_tri_from_20220622_tb1" does not exist, skipping
+create table t_copy_tri_from_20220622_tb1
+(
+f1 int,
+id integer default 10 not null,
+id1 int,
+id2 date
+);
+drop sequence if exists s_copy_tri_20220622;
+NOTICE:  sequence "s_copy_tri_20220622" does not exist, skipping
+create sequence s_copy_tri_20220622;
+CREATE or replace function tri_copy_tri_20220622_1()
+returns trigger
+as $$
+begin
+    IF new.f1 IS NULL THEN
+     new.f1=NEXTVAL('s_copy_tri_20220622') ;
+    END IF;
+    return new;
+END;
+$$ language plpgsql;
+drop trigger if exists  tri_copy_tri_20220622_1 on t_copy_tri_from_20220622_tb1;
+NOTICE:  trigger "tri_copy_tri_20220622_1" for relation "t_copy_tri_from_20220622_tb1" does not exist, skipping
+CREATE TRIGGER tri_copy_tri_20220622_1
+BEFORE INSERT ON t_copy_tri_from_20220622_tb1
+FOR EACH ROW
+execute procedure tri_copy_tri_20220622_1();
+copy t_copy_tri_from_20220622_tb1(id,id1,id2) from stdin (format 'csv',delimiter ',', null '\N');;
+ERROR:  cannot copy to table with foreign key or insertTrigger that could not be pushed down
+select * from t_copy_tri_from_20220622_tb1 order by 1,2,3;
+ f1 | id | id1 | id2 
+----+----+-----+-----
+(0 rows)
+
+drop trigger tri_copy_tri_20220622_1 on t_copy_tri_from_20220622_tb1;
+drop function tri_copy_tri_20220622_1;
+drop sequence s_copy_tri_20220622;
+drop table t_copy_tri_from_20220622_tb1;
+reset enable_datanode_row_triggers;
+set transform_insert_to_copy TO on;
+CREATE TABLE test_insert_copy_20240322 (
+    col1 integer
+) distribute by shard(col1);
+prepare p1_20240322 as insert into test_insert_copy_20240322 values(1),(2),(3); -- Fix: value list all consts, only insert a NULL row.
+alter table test_insert_copy_20240322 alter column col1 set default NULL; -- after DDL, RevalidateCachedQuery will re-analysis and re-planning.
+execute p1_20240322;
+select distinct * from test_insert_copy_20240322 order by col1;
+ col1 
+------
+    1
+    2
+    3
+(3 rows)
+
+prepare p2_20240322 as insert into test_insert_copy_20240322 values(1),(2),($1); -- value list not all consts
+alter table test_insert_copy_20240322 alter column col1 set default NULL;
+execute p2_20240322(3);
+select distinct * from test_insert_copy_20240322 order by col1;
+ col1 
+------
+    1
+    2
+    3
+(3 rows)
+
+deallocate p1_20240322;
+deallocate p2_20240322;
+drop table test_insert_copy_20240322;
+reset transform_insert_to_copy;

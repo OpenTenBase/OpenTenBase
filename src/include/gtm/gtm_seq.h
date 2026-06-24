@@ -8,9 +8,6 @@
  * Portions Copyright (c) 1994, Regents of the University of California
  * Portions Copyright (c) 2010-2012 Postgres-XC Development Group
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * $PostgreSQL$
  *
  *-------------------------------------------------------------------------
@@ -88,8 +85,9 @@ int GTM_SeqOpen(GTM_SequenceKey seqkey,
 			GTM_Sequence maxval,
 			GTM_Sequence startval,
 			bool cycle,
-			GlobalTransactionId gxid
-			);
+			GlobalTransactionId gxid,
+			bool nocache,
+			bool is_order);
 int GTM_SeqAlter(GTM_SequenceKey seqkey,
 				 GTM_Sequence increment_by,
 				 GTM_Sequence minval,
@@ -97,7 +95,9 @@ int GTM_SeqAlter(GTM_SequenceKey seqkey,
 				 GTM_Sequence startval,
 				 GTM_Sequence lastval,
 				 bool cycle,
-				 bool is_restart);
+				 bool is_restart,
+				 bool nocache,
+				 bool is_order);
 int GTM_SeqClose(GTM_SequenceKey seqkey, GlobalTransactionId gxid);
 int GTM_SeqRename(GTM_SequenceKey seqkey, GTM_SequenceKey newseqkey,
 				  GlobalTransactionId gxid);

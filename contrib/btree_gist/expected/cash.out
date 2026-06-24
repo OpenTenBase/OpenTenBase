@@ -72,16 +72,17 @@ SELECT count(*) FROM moneytmp WHERE a >  '22649.64'::money;
    253
 (1 row)
 
-EXPLAIN (COSTS OFF)
+EXPLAIN (COSTS OFF, NODES OFF)
 SELECT a, a <-> '21472.79' FROM moneytmp ORDER BY a <-> '21472.79' LIMIT 3;
                           QUERY PLAN                          
 --------------------------------------------------------------
  Limit
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
+   ->  Remote Subquery Scan on all (datanodes 2)
+         Sort Key: (a <-> '$21,472.79'::money)
          ->  Limit
                ->  Index Only Scan using moneyidx on moneytmp
                      Order By: (a <-> '$21,472.79'::money)
-(5 rows)
+(6 rows)
 
 SELECT a, a <-> '21472.79' FROM moneytmp ORDER BY a <-> '21472.79' LIMIT 3;
      a      | ?column? 

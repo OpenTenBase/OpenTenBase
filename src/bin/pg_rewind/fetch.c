@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * fetch.c
- *      Functions for fetching files from a local or remote data dir
+ *	  Functions for fetching files from a local or remote data dir
  *
  * This file forms an abstraction of getting files from the "source".
  * There are two implementations of this interface: one for copying files
@@ -27,22 +27,22 @@
 void
 fetchSourceFileList(void)
 {
-    if (datadir_source)
-        traverse_datadir(datadir_source, &process_source_file);
-    else
-        libpqProcessFileList();
+	if (datadir_source)
+		traverse_datadir(datadir_source, &process_source_file);
+	else
+		libpqProcessFileList();
 }
 
 /*
  * Fetch all relation data files that are marked in the given data page map.
  */
 void
-executeFileMap(void)
+executeFileMap(bool prepared)
 {
-    if (datadir_source)
-        copy_executeFileMap(filemap);
-    else
-        libpq_executeFileMap(filemap);
+	if (datadir_source)
+		copy_executeFileMap(filemap);
+	else
+		libpq_executeFileMap(filemap, prepared);
 }
 
 /*
@@ -53,8 +53,8 @@ executeFileMap(void)
 char *
 fetchFile(char *filename, size_t *filesize)
 {
-    if (datadir_source)
-        return slurpFile(datadir_source, filename, filesize);
-    else
-        return libpqGetFile(filename, filesize);
+	if (datadir_source)
+		return slurpFile(datadir_source, filename, filesize);
+	else
+		return libpqGetFile(filename, filesize);
 }

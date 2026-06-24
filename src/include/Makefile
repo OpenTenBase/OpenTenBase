@@ -17,13 +17,14 @@ all: pg_config.h pg_config_ext.h pg_config_os.h
 
 
 # Subdirectories containing installable headers
-SUBDIRS = access audit bootstrap catalog catalog/audit catalog/mls commands common datatype \
-	executor fe_utils foreign \
-	lib libpq mb nodes optimizer oracle parser pgxc postmaster regex replication \
-	rewrite statistics storage tcop snowball snowball/libstemmer tsearch \
+SUBDIRS = access audit bootstrap catalog catalog/audit catalog/colstore catalog/mls commands common datatype \
+	executor fe_utils foreign forward gtm jit \
+	lib libpq mb nodes optimizer opentenbase_ora parser partitioning pgxc postmaster \
+	regex replication rewrite \
+	statistics storage tcop snowball snowball/libstemmer tsearch \
 	tsearch/dicts utils port port/atomics port/win32 port/win32_msvc \
 	port/win32_msvc/sys port/win32/arpa port/win32/netinet \
-	port/win32/sys portability gtm
+	port/win32/sys portability
 
 # Install all headers
 install: all installdirs
@@ -73,7 +74,7 @@ uninstall:
 
 
 clean:
-	rm -f utils/fmgroids.h utils/fmgrprotos.h utils/errcodes.h parser/gram.h utils/probes.h catalog/schemapg.h
+	rm -f utils/fmgroids.h utils/fmgrprotos.h utils/errcodes.h parser/gram.h opentenbase_ora/gram_ora.h utils/probes.h catalog/schemapg.h
 
 distclean maintainer-clean: clean
 	rm -f pg_config.h pg_config_ext.h pg_config_os.h dynloader.h stamp-h stamp-ext-h

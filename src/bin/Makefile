@@ -23,6 +23,7 @@ SUBDIRS = \
 	pg_controldata \
 	pg_ctl \
 	pg_dump \
+    pg_license \
 	pg_resetwal \
 	pg_rewind \
 	pg_test_fsync \
@@ -31,6 +32,7 @@ SUBDIRS = \
 	pg_waldump \
 	pgbench \
 	psql \
+	opentenbase_tool \
 	scripts
 
 ifeq ($(PORTNAME), win32)

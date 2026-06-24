@@ -8,9 +8,6 @@
  * Portions Copyright (c) 1996-2009, PostgreSQL Global Development Group
  * Portions Copyright (c) 2010-2012 Postgres-XC Development Group
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * IDENTIFICATION
  *	  $$
  *
@@ -30,6 +27,7 @@
 #include "pgxc/pgxcnode.h"
 #include "storage/lwlock.h"
 #include "tcop/dest.h"
+#include "pgxc/pgxcnode.h"
 
 static const char *generate_barrier_id(const char *id);
 static PGXCNodeAllHandles *PrepareBarrier(const char *id);
@@ -166,14 +164,14 @@ SendBarrierPrepareRequest(List *coords, const char *id)
 	int msglen;
 	int barrier_idlen;
 
-	coord_handles = get_handles(NIL, coords, true, true, true);
+	coord_handles = get_handles(NIL, coords, true, true, FIRST_LEVEL, InvalidFid, false, false);
 
 	for (conn = 0; conn < coord_handles->co_conn_count; conn++)
 	{
 		PGXCNodeHandle *handle = coord_handles->coord_handles[conn];
 
 		/* Invalid connection state, return error */
-		if (handle->state != DN_CONNECTION_STATE_IDLE)
+		if (!IsConnectionStateIdle(handle))
 			ereport(ERROR,
 					(errcode(ERRCODE_INTERNAL_ERROR),
 					 errmsg("Failed to send CREATE BARRIER PREPARE request "
@@ -194,7 +192,7 @@ SendBarrierPrepareRequest(List *coords, const char *id)
 		}
 
 		handle->outBuffer[handle->outEnd++] = 'b';
-		msglen = htonl(msglen);
+		msglen = pg_hton32(msglen);
 		memcpy(handle->outBuffer + handle->outEnd, &msglen, 4);
 		handle->outEnd += 4;
 
@@ -203,9 +201,7 @@ SendBarrierPrepareRequest(List *coords, const char *id)
 		memcpy(handle->outBuffer + handle->outEnd, id, barrier_idlen);
 		handle->outEnd += barrier_idlen;
 
-		PGXCNodeSetConnectionState(handle, DN_CONNECTION_STATE_QUERY);
-
-		pgxc_node_flush(handle);
+		SendRequest(handle);
 	}
 
 	return coord_handles;
@@ -259,7 +255,7 @@ SendBarrierEndRequest(PGXCNodeAllHandles *coord_handles, const char *id)
 		PGXCNodeHandle *handle = coord_handles->coord_handles[conn];
 
 		/* Invalid connection state, return error */
-		if (handle->state != DN_CONNECTION_STATE_IDLE)
+		if (!IsConnectionStateIdle(handle))
 			ereport(ERROR,
 					(errcode(ERRCODE_INTERNAL_ERROR),
 					 errmsg("Failed to send CREATE BARRIER PREPARE request "
@@ -275,12 +271,12 @@ SendBarrierEndRequest(PGXCNodeAllHandles *coord_handles, const char *id)
 		if (ensure_out_buffer_capacity(handle->outEnd + 1 + msglen, handle) != 0)
 		{
 			ereport(ERROR,
-					(errcode(ERRCODE_INTERNAL_ERROR),
+					(errcode(ERRCODE_OUT_OF_MEMORY),
 					 errmsg("Out of memory")));
 		}
 
 		handle->outBuffer[handle->outEnd++] = 'b';
-		msglen = htonl(msglen);
+		msglen = pg_hton32(msglen);
 		memcpy(handle->outBuffer + handle->outEnd, &msglen, 4);
 		handle->outEnd += 4;
 
@@ -288,9 +284,7 @@ SendBarrierEndRequest(PGXCNodeAllHandles *coord_handles, const char *id)
 
 		memcpy(handle->outBuffer + handle->outEnd, id, barrier_idlen);
 		handle->outEnd += barrier_idlen;
-
-		PGXCNodeSetConnectionState(handle, DN_CONNECTION_STATE_QUERY);
-		pgxc_node_flush(handle);
+		SendRequest(handle);
 	}
 
 }
@@ -318,7 +312,7 @@ PrepareBarrier(const char *id)
 	 * send an asynchronous request so that we can disable local commits and
 	 * then wait for the remote Coordinators to finish the work
 	 */
-	coord_handles = SendBarrierPrepareRequest(GetAllCoordNodes(), id);
+	coord_handles = SendBarrierPrepareRequest(GetAllCoordNodes(false), id);
 
 	/*
 	 * Disable local commits
@@ -348,13 +342,13 @@ static void
 ExecuteBarrier(const char *id)
 {
 	List *barrierDataNodeList = GetAllDataNodes();
-	List *barrierCoordList = GetAllCoordNodes();
+	List *barrierCoordList = GetAllCoordNodes(false);
 	PGXCNodeAllHandles *conn_handles;
 	int conn;
 	int msglen;
 	int barrier_idlen;
 
-	conn_handles = get_handles(barrierDataNodeList, barrierCoordList, false, true, true);
+	conn_handles = get_handles(barrierDataNodeList, barrierCoordList, false, true, FIRST_LEVEL, InvalidFid, false, false);
 
 	elog(DEBUG2, "Sending CREATE BARRIER <%s> EXECUTE message to "
 				 "Datanodes and Coordinator", id);
@@ -371,7 +365,7 @@ ExecuteBarrier(const char *id)
 			handle = conn_handles->datanode_handles[conn - conn_handles->co_conn_count];
 
 		/* Invalid connection state, return error */
-		if (handle->state != DN_CONNECTION_STATE_IDLE)
+		if (!IsConnectionStateIdle(handle))
 			ereport(ERROR,
 					(errcode(ERRCODE_INTERNAL_ERROR),
 					 errmsg("Failed to send CREATE BARRIER EXECUTE request "
@@ -387,12 +381,12 @@ ExecuteBarrier(const char *id)
 		if (ensure_out_buffer_capacity(handle->outEnd + 1 + msglen, handle) != 0)
 		{
 			ereport(ERROR,
-					(errcode(ERRCODE_INTERNAL_ERROR),
+					(errcode(ERRCODE_OUT_OF_MEMORY),
 					 errmsg("Out of memory")));
 		}
 
 		handle->outBuffer[handle->outEnd++] = 'b';
-		msglen = htonl(msglen);
+		msglen = pg_hton32(msglen);
 		memcpy(handle->outBuffer + handle->outEnd, &msglen, 4);
 		handle->outEnd += 4;
 
@@ -400,9 +394,7 @@ ExecuteBarrier(const char *id)
 
 		memcpy(handle->outBuffer + handle->outEnd, id, barrier_idlen);
 		handle->outEnd += barrier_idlen;
-
-		PGXCNodeSetConnectionState(handle, DN_CONNECTION_STATE_QUERY);
-		pgxc_node_flush(handle);
+		SendRequest(handle);
 	}
 
 	CheckBarrierCommandStatus(conn_handles, id, "EXECUTE");

@@ -845,8 +845,8 @@ postgres   27093  0.0  0.0  30096  2752 ?        Ss   11:34   0:00 postgres: ser
 
       <tbody>
        <row>
-        <entry morerows="60"><literal>LWLock</></entry>
-        <entry><literal>ShmemIndexLock</></entry>
+        <entry morerows="63"><literal>LWLock</literal></entry>
+        <entry><literal>ShmemIndexLock</literal></entry>
         <entry>Waiting to find or allocate space in shared memory.</entry>
        </row>
        <row>
@@ -1109,13 +1109,29 @@ postgres   27093  0.0  0.0  30096  2752 ?        Ss   11:34   0:00 postgres: ser
          <entry>Waiting for TBM shared iterator lock.</entry>
         </row>
         <row>
-         <entry morerows="9"><literal>Lock</></entry>
-         <entry><literal>relation</></entry>
+         <entry><literal>parallel_append</literal></entry>
+         <entry>Waiting to choose the next subplan during Parallel Append plan
+         execution.</entry>
+        </row>
+        <row>
+         <entry><literal>parallel_hash_join</literal></entry>
+         <entry>Waiting to allocate or exchange a chunk of memory or update
+         counters during Parallel Hash plan execution.</entry>
+        </row>
+        <row>
+         <entry morerows="9"><literal>Lock</literal></entry>
+         <entry><literal>relation</literal></entry>
          <entry>Waiting to acquire a lock on a relation.</entry>
         </row>
         <row>
          <entry><literal>extend</></entry>
          <entry>Waiting to extend a relation.</entry>
+        </row>
+        <row>
+         <entry><literal>frozenid</literal></entry>
+         <entry>Waiting to
+         update <structname>pg_database</structname>.<structfield>datfrozenxid</structfield>
+         and <structname>pg_database</structname>.<structfield>datminmxid</structfield>.</entry>
         </row>
         <row>
          <entry><literal>page</></entry>
@@ -1250,8 +1266,8 @@ postgres   27093  0.0  0.0  30096  2752 ?        Ss   11:34   0:00 postgres: ser
          <entry>Waiting in an extension.</entry>
         </row>
         <row>
-         <entry morerows="16"><literal>IPC</></entry>
-         <entry><literal>BgWorkerShutdown</></entry>
+         <entry morerows="32"><literal>IPC</literal></entry>
+         <entry><literal>BgWorkerShutdown</literal></entry>
          <entry>Waiting for background worker to shut down.</entry>
         </row>
         <row>
@@ -1267,7 +1283,67 @@ postgres   27093  0.0  0.0  30096  2752 ?        Ss   11:34   0:00 postgres: ser
          <entry>Waiting for activity from child process when executing <literal>Gather</> node.</entry>
         </row>
         <row>
-         <entry><literal>LogicalSyncData</></entry>
+          <entry><literal>Hash/Batch/Allocating</literal></entry>
+          <entry>Waiting for an elected Parallel Hash participant to allocate a hash table.</entry>
+        </row>
+        <row>
+          <entry><literal>Hash/Batch/Electing</literal></entry>
+          <entry>Electing a Parallel Hash participant to allocate a hash table.</entry>
+        </row>
+        <row>
+          <entry><literal>Hash/Batch/Loading</literal></entry>
+          <entry>Waiting for other Parallel Hash participants to finish loading a hash table.</entry>
+        </row>
+        <row>
+          <entry><literal>Hash/Build/Allocating</literal></entry>
+          <entry>Waiting for an elected Parallel Hash participant to allocate the initial hash table.</entry>
+        </row>
+        <row>
+          <entry><literal>Hash/Build/Electing</literal></entry>
+          <entry>Electing a Parallel Hash participant to allocate the initial hash table.</entry>
+        </row>
+        <row>
+          <entry><literal>Hash/Build/HashingInner</literal></entry>
+          <entry>Waiting for other Parallel Hash participants to finish hashing the inner relation.</entry>
+        </row>
+        <row>
+          <entry><literal>Hash/Build/HashingOuter</literal></entry>
+          <entry>Waiting for other Parallel Hash participants to finish partitioning the outer relation.</entry>
+        </row>
+        <row>
+          <entry><literal>Hash/GrowBatches/Allocating</literal></entry>
+          <entry>Waiting for an elected Parallel Hash participant to allocate more batches.</entry>
+        </row>
+        <row>
+          <entry><literal>Hash/GrowBatches/Deciding</literal></entry>
+          <entry>Electing a Parallel Hash participant to decide on future batch growth.</entry>
+        </row>
+        <row>
+          <entry><literal>Hash/GrowBatches/Electing</literal></entry>
+          <entry>Electing a Parallel Hash participant to allocate more batches.</entry>
+        </row>
+        <row>
+          <entry><literal>Hash/GrowBatches/Finishing</literal></entry>
+          <entry>Waiting for an elected Parallel Hash participant to decide on future batch growth.</entry>
+        </row>
+        <row>
+          <entry><literal>Hash/GrowBatches/Repartitioning</literal></entry>
+          <entry>Waiting for other Parallel Hash participants to finishing repartitioning.</entry>
+        </row>
+        <row>
+          <entry><literal>Hash/GrowBuckets/Allocating</literal></entry>
+          <entry>Waiting for an elected Parallel Hash participant to finish allocating more buckets.</entry>
+        </row>
+        <row>
+          <entry><literal>Hash/GrowBuckets/Electing</literal></entry>
+          <entry>Electing a Parallel Hash participant to allocate more buckets.</entry>
+        </row>
+        <row>
+          <entry><literal>Hash/GrowBuckets/Reinserting</literal></entry>
+          <entry>Waiting for other Parallel Hash participants to finish inserting tuples into new buckets.</entry>
+        </row>
+        <row>
+         <entry><literal>LogicalSyncData</literal></entry>
          <entry>Waiting for logical replication remote server to send data for initial table synchronization.</entry>
         </row>
         <row>
@@ -3451,7 +3527,7 @@ SELECT pg_stat_get_backend_pid(s.backendid) AS pid,
    Currently, the
    <ulink url="https://en.wikipedia.org/wiki/DTrace">DTrace</ulink>
    utility is supported, which, at the time of this writing, is available
-   on Solaris, macOS, FreeBSD, NetBSD, and Oracle Linux.  The
+   on Solaris, macOS, FreeBSD, NetBSD, and OpenTenBase_Ora Linux.  The
    <ulink url="http://sourceware.org/systemtap/">SystemTap</ulink> project
    for Linux provides a DTrace equivalent and can also be used.  Supporting other dynamic
    tracing utilities is theoretically possible by changing the definitions for

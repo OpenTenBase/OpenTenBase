@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * catversion.h
- *      "Catalog version number" for PostgreSQL.
+ *	  "Catalog version number" for PostgreSQL.
  *
  * The catalog version number is used to flag incompatible changes in
  * the PostgreSQL system catalogs.  Whenever anyone changes the format of
@@ -52,7 +52,7 @@
  * catalog changes on the same day...)
  */
 
-/*                            yyyymmddN */
-#define CATALOG_VERSION_NO    201707211
+/*							yyyymmddN */
+#define CATALOG_VERSION_NO	201707211
 
 #endif

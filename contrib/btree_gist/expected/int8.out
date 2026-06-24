@@ -72,16 +72,17 @@ SELECT count(*) FROM int8tmp WHERE a >  464571291354841::int8;
    270
 (1 row)
 
-EXPLAIN (COSTS OFF)
+EXPLAIN (COSTS OFF, NODES OFF)
 SELECT a, a <-> '464571291354841' FROM int8tmp ORDER BY a <-> '464571291354841' LIMIT 3;
                            QUERY PLAN                            
 -----------------------------------------------------------------
  Limit
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
+   ->  Remote Subquery Scan on all (datanodes 2)
+         Sort Key: (a <-> '464571291354841'::bigint)
          ->  Limit
                ->  Index Only Scan using int8idx on int8tmp
                      Order By: (a <-> '464571291354841'::bigint)
-(5 rows)
+(6 rows)
 
 SELECT a, a <-> '464571291354841' FROM int8tmp ORDER BY a <-> '464571291354841' LIMIT 3;
         a        |    ?column?    

@@ -1,16 +1,14 @@
 /*-------------------------------------------------------------------------
  *
  * hashutil.c
- *      Utility code for Postgres hash implementation.
+ *	  Utility code for Postgres hash implementation.
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  * IDENTIFICATION
- *      src/backend/access/hash/hashutil.c
+ *	  src/backend/access/hash/hashutil.c
  *
  *-------------------------------------------------------------------------
  */
@@ -24,7 +22,7 @@
 #include "storage/buf_internals.h"
 
 #define CALC_NEW_BUCKET(old_bucket, lowmask) \
-            old_bucket | (lowmask + 1)
+			old_bucket | (lowmask + 1)
 
 /*
  * _hash_checkqual -- does the index tuple satisfy the scan conditions?
@@ -32,70 +30,70 @@
 bool
 _hash_checkqual(IndexScanDesc scan, IndexTuple itup)
 {
-    /*
-     * Currently, we can't check any of the scan conditions since we do not
-     * have the original index entry value to supply to the sk_func. Always
-     * return true; we expect that hashgettuple already set the recheck flag
-     * to make the main indexscan code do it.
-     */
+	/*
+	 * Currently, we can't check any of the scan conditions since we do not
+	 * have the original index entry value to supply to the sk_func. Always
+	 * return true; we expect that hashgettuple already set the recheck flag
+	 * to make the main indexscan code do it.
+	 */
 #ifdef NOT_USED
-    TupleDesc    tupdesc = RelationGetDescr(scan->indexRelation);
-    ScanKey        key = scan->keyData;
-    int            scanKeySize = scan->numberOfKeys;
+	TupleDesc	tupdesc = RelationGetDescr(scan->indexRelation);
+	ScanKey		key = scan->keyData;
+	int			scanKeySize = scan->numberOfKeys;
 
-    while (scanKeySize > 0)
-    {
-        Datum        datum;
-        bool        isNull;
-        Datum        test;
+	while (scanKeySize > 0)
+	{
+		Datum		datum;
+		bool		isNull;
+		Datum		test;
 
-        datum = index_getattr(itup,
-                              key->sk_attno,
-                              tupdesc,
-                              &isNull);
+		datum = index_getattr(itup,
+							  key->sk_attno,
+							  tupdesc,
+							  &isNull);
 
-        /* assume sk_func is strict */
-        if (isNull)
-            return false;
-        if (key->sk_flags & SK_ISNULL)
-            return false;
+		/* assume sk_func is strict */
+		if (isNull)
+			return false;
+		if (key->sk_flags & SK_ISNULL)
+			return false;
 
-        test = FunctionCall2Coll(&key->sk_func, key->sk_collation,
-                                 datum, key->sk_argument);
+		test = FunctionCall2Coll(&key->sk_func, key->sk_collation,
+								 datum, key->sk_argument);
 
-        if (!DatumGetBool(test))
-            return false;
+		if (!DatumGetBool(test))
+			return false;
 
-        key++;
-        scanKeySize--;
-    }
+		key++;
+		scanKeySize--;
+	}
 #endif
 
-    return true;
+	return true;
 }
 
 /*
- * _hash_datum2hashkey -- given a Datum, call the index's hash procedure
+ * _hash_datum2hashkey -- given a Datum, call the index's hash function
  *
  * The Datum is assumed to be of the index's column type, so we can use the
- * "primary" hash procedure that's tracked for us by the generic index code.
+ * "primary" hash function that's tracked for us by the generic index code.
  */
 uint32
 _hash_datum2hashkey(Relation rel, Datum key)
 {
-    FmgrInfo   *procinfo;
-    Oid            collation;
+	FmgrInfo   *procinfo;
+	Oid			collation;
 
-    /* XXX assumes index has only one attribute */
+	/* XXX assumes index has only one attribute */
 	procinfo = index_getprocinfo(rel, 1, HASHSTANDARD_PROC);
-    collation = rel->rd_indcollation[0];
+	collation = rel->rd_indcollation[0];
 
-    return DatumGetUInt32(FunctionCall1Coll(procinfo, collation, key));
+	return DatumGetUInt32(FunctionCall1Coll(procinfo, collation, key));
 }
 
 /*
  * _hash_datum2hashkey_type -- given a Datum of a specified type,
- *            hash it in a fashion compatible with this index
+ *			hash it in a fashion compatible with this index
  *
  * This is much more expensive than _hash_datum2hashkey, so use it only in
  * cross-type situations.
@@ -103,21 +101,21 @@ _hash_datum2hashkey(Relation rel, Datum key)
 uint32
 _hash_datum2hashkey_type(Relation rel, Datum key, Oid keytype)
 {
-    RegProcedure hash_proc;
-    Oid            collation;
+	RegProcedure hash_proc;
+	Oid			collation;
 
-    /* XXX assumes index has only one attribute */
-    hash_proc = get_opfamily_proc(rel->rd_opfamily[0],
-                                  keytype,
-                                  keytype,
+	/* XXX assumes index has only one attribute */
+	hash_proc = get_opfamily_proc(rel->rd_opfamily[0],
+								  keytype,
+								  keytype,
 								  HASHSTANDARD_PROC);
-    if (!RegProcedureIsValid(hash_proc))
-        elog(ERROR, "missing support function %d(%u,%u) for index \"%s\"",
+	if (!RegProcedureIsValid(hash_proc))
+		elog(ERROR, "missing support function %d(%u,%u) for index \"%s\"",
 			 HASHSTANDARD_PROC, keytype, keytype,
-             RelationGetRelationName(rel));
-    collation = rel->rd_indcollation[0];
+			 RelationGetRelationName(rel));
+	collation = rel->rd_indcollation[0];
 
-    return DatumGetUInt32(OidFunctionCall1Coll(hash_proc, collation, key));
+	return DatumGetUInt32(OidFunctionCall1Coll(hash_proc, collation, key));
 }
 
 /*
@@ -125,15 +123,15 @@ _hash_datum2hashkey_type(Relation rel, Datum key, Oid keytype)
  */
 Bucket
 _hash_hashkey2bucket(uint32 hashkey, uint32 maxbucket,
-                     uint32 highmask, uint32 lowmask)
+					 uint32 highmask, uint32 lowmask)
 {
-    Bucket        bucket;
+	Bucket		bucket;
 
-    bucket = hashkey & highmask;
-    if (bucket > maxbucket)
-        bucket = bucket & lowmask;
+	bucket = hashkey & highmask;
+	if (bucket > maxbucket)
+		bucket = bucket & lowmask;
 
-    return bucket;
+	return bucket;
 }
 
 /*
@@ -142,79 +140,79 @@ _hash_hashkey2bucket(uint32 hashkey, uint32 maxbucket,
 uint32
 _hash_log2(uint32 num)
 {
-    uint32        i,
-                limit;
+	uint32		i,
+				limit;
 
-    limit = 1;
-    for (i = 0; limit < num; limit <<= 1, i++)
-        ;
-    return i;
+	limit = 1;
+	for (i = 0; limit < num; limit <<= 1, i++)
+		;
+	return i;
 }
 
 /*
  * _hash_spareindex -- returns spare index / global splitpoint phase of the
- *                       bucket
+ *					   bucket
  */
 uint32
 _hash_spareindex(uint32 num_bucket)
 {
-    uint32        splitpoint_group;
-    uint32        splitpoint_phases;
+	uint32		splitpoint_group;
+	uint32		splitpoint_phases;
 
-    splitpoint_group = _hash_log2(num_bucket);
+	splitpoint_group = _hash_log2(num_bucket);
 
-    if (splitpoint_group < HASH_SPLITPOINT_GROUPS_WITH_ONE_PHASE)
-        return splitpoint_group;
+	if (splitpoint_group < HASH_SPLITPOINT_GROUPS_WITH_ONE_PHASE)
+		return splitpoint_group;
 
-    /* account for single-phase groups */
-    splitpoint_phases = HASH_SPLITPOINT_GROUPS_WITH_ONE_PHASE;
+	/* account for single-phase groups */
+	splitpoint_phases = HASH_SPLITPOINT_GROUPS_WITH_ONE_PHASE;
 
-    /* account for multi-phase groups before splitpoint_group */
-    splitpoint_phases +=
-        ((splitpoint_group - HASH_SPLITPOINT_GROUPS_WITH_ONE_PHASE) <<
-         HASH_SPLITPOINT_PHASE_BITS);
+	/* account for multi-phase groups before splitpoint_group */
+	splitpoint_phases +=
+		((splitpoint_group - HASH_SPLITPOINT_GROUPS_WITH_ONE_PHASE) <<
+		 HASH_SPLITPOINT_PHASE_BITS);
 
-    /* account for phases within current group */
-    splitpoint_phases +=
-        (((num_bucket - 1) >>
-          (splitpoint_group - (HASH_SPLITPOINT_PHASE_BITS + 1))) &
-         HASH_SPLITPOINT_PHASE_MASK);    /* to 0-based value. */
+	/* account for phases within current group */
+	splitpoint_phases +=
+		(((num_bucket - 1) >>
+		  (splitpoint_group - (HASH_SPLITPOINT_PHASE_BITS + 1))) &
+		 HASH_SPLITPOINT_PHASE_MASK);	/* to 0-based value. */
 
-    return splitpoint_phases;
+	return splitpoint_phases;
 }
 
 /*
- *    _hash_get_totalbuckets -- returns total number of buckets allocated till
- *                            the given splitpoint phase.
+ *	_hash_get_totalbuckets -- returns total number of buckets allocated till
+ *							the given splitpoint phase.
  */
 uint32
 _hash_get_totalbuckets(uint32 splitpoint_phase)
 {
-    uint32        splitpoint_group;
-    uint32        total_buckets;
-    uint32        phases_within_splitpoint_group;
+	uint32		splitpoint_group;
+	uint32		total_buckets;
+	uint32		phases_within_splitpoint_group;
 
-    if (splitpoint_phase < HASH_SPLITPOINT_GROUPS_WITH_ONE_PHASE)
-        return (1 << splitpoint_phase);
+	if (splitpoint_phase < HASH_SPLITPOINT_GROUPS_WITH_ONE_PHASE)
+		return (1 << splitpoint_phase);
 
-    /* get splitpoint's group */
-    splitpoint_group = HASH_SPLITPOINT_GROUPS_WITH_ONE_PHASE;
-    splitpoint_group +=
-        ((splitpoint_phase - HASH_SPLITPOINT_GROUPS_WITH_ONE_PHASE) >>
-         HASH_SPLITPOINT_PHASE_BITS);
+	/* get splitpoint's group */
+	splitpoint_group = HASH_SPLITPOINT_GROUPS_WITH_ONE_PHASE;
+	splitpoint_group +=
+		((splitpoint_phase - HASH_SPLITPOINT_GROUPS_WITH_ONE_PHASE) >>
+		 HASH_SPLITPOINT_PHASE_BITS);
 
-    /* account for buckets before splitpoint_group */
-    total_buckets = (1 << (splitpoint_group - 1));
+	/* account for buckets before splitpoint_group */
+	total_buckets = (1 << (splitpoint_group - 1));
 
-    /* account for buckets within splitpoint_group */
-    phases_within_splitpoint_group =
-        (((splitpoint_phase - HASH_SPLITPOINT_GROUPS_WITH_ONE_PHASE) &
-          HASH_SPLITPOINT_PHASE_MASK) + 1); /* from 0-based to 1-based */
-    total_buckets +=
-        (((1 << (splitpoint_group - 1)) >> HASH_SPLITPOINT_PHASE_BITS) *
-         phases_within_splitpoint_group);
+	/* account for buckets within splitpoint_group */
+	phases_within_splitpoint_group =
+		(((splitpoint_phase - HASH_SPLITPOINT_GROUPS_WITH_ONE_PHASE) &
+		  HASH_SPLITPOINT_PHASE_MASK) + 1); /* from 0-based to 1-based */
+	total_buckets +=
+		(((1 << (splitpoint_group - 1)) >> HASH_SPLITPOINT_PHASE_BITS) *
+		 phases_within_splitpoint_group);
 
-    return total_buckets;
+	return total_buckets;
 }
 
 /*
@@ -225,73 +223,72 @@ _hash_get_totalbuckets(uint32 splitpoint_phase)
  */
 void
 _hash_checkpage(Relation rel, Buffer buf, int flags)
-{// #lizard forgives
-    Page        page = BufferGetPage(buf);
+{
+	Page		page = BufferGetPage(buf);
+	/*
+	 * ReadBuffer verifies that every newly-read page passes
+	 * PageHeaderIsValid, which means it either contains a reasonably sane
+	 * page header or is all-zero.  We have to defend against the all-zero
+	 * case, however.
+	 */
+	if (PageIsNew(page))
+		ereport(ERROR,
+				(errcode(ERRCODE_INDEX_CORRUPTED),
+				 errmsg("index \"%s\" contains unexpected zero page at block %u",
+						RelationGetRelationName(rel),
+						BufferGetBlockNumber(buf)),
+				 errhint("Please REINDEX it.")));
 
-    /*
-     * ReadBuffer verifies that every newly-read page passes
-     * PageHeaderIsValid, which means it either contains a reasonably sane
-     * page header or is all-zero.  We have to defend against the all-zero
-     * case, however.
-     */
-    if (PageIsNew(page))
-        ereport(ERROR,
-                (errcode(ERRCODE_INDEX_CORRUPTED),
-                 errmsg("index \"%s\" contains unexpected zero page at block %u",
-                        RelationGetRelationName(rel),
-                        BufferGetBlockNumber(buf)),
-                 errhint("Please REINDEX it.")));
+	/*
+	 * Additionally check that the special area looks sane.
+	 */
+	if (PageGetSpecialSize(page) != MAXALIGN(sizeof(HashPageOpaqueData)))
+		ereport(ERROR,
+				(errcode(ERRCODE_INDEX_CORRUPTED),
+				 errmsg("index \"%s\" contains corrupted page at block %u",
+						RelationGetRelationName(rel),
+						BufferGetBlockNumber(buf)),
+				 errhint("Please REINDEX it.")));
 
-    /*
-     * Additionally check that the special area looks sane.
-     */
-    if (PageGetSpecialSize(page) != MAXALIGN(sizeof(HashPageOpaqueData)))
-        ereport(ERROR,
-                (errcode(ERRCODE_INDEX_CORRUPTED),
-                 errmsg("index \"%s\" contains corrupted page at block %u",
-                        RelationGetRelationName(rel),
-                        BufferGetBlockNumber(buf)),
-                 errhint("Please REINDEX it.")));
+	if (flags)
+	{
+		HashPageOpaque opaque = (HashPageOpaque) PageGetSpecialPointer(page);
 
-    if (flags)
-    {
-        HashPageOpaque opaque = (HashPageOpaque) PageGetSpecialPointer(page);
+		if ((opaque->hasho_flag & flags) == 0)
+			ereport(ERROR,
+					(errcode(ERRCODE_INDEX_CORRUPTED),
+					 errmsg("index \"%s\" contains corrupted page at block %u",
+							RelationGetRelationName(rel),
+							BufferGetBlockNumber(buf)),
+					 errhint("Please REINDEX it.")));
+	}
 
-        if ((opaque->hasho_flag & flags) == 0)
-            ereport(ERROR,
-                    (errcode(ERRCODE_INDEX_CORRUPTED),
-                     errmsg("index \"%s\" contains corrupted page at block %u",
-                            RelationGetRelationName(rel),
-                            BufferGetBlockNumber(buf)),
-                     errhint("Please REINDEX it.")));
-    }
+	/*
+	 * When checking the metapage, also verify magic number and version.
+	 */
+	if (flags == LH_META_PAGE)
+	{
+		HashMetaPage metap = HashPageGetMeta(page);
 
-    /*
-     * When checking the metapage, also verify magic number and version.
-     */
-    if (flags == LH_META_PAGE)
-    {
-        HashMetaPage metap = HashPageGetMeta(page);
+		if (metap->hashm_magic != HASH_MAGIC)
+			ereport(ERROR,
+					(errcode(ERRCODE_INDEX_CORRUPTED),
+					 errmsg("index \"%s\" is not a hash index",
+							RelationGetRelationName(rel))));
 
-        if (metap->hashm_magic != HASH_MAGIC)
-            ereport(ERROR,
-                    (errcode(ERRCODE_INDEX_CORRUPTED),
-                     errmsg("index \"%s\" is not a hash index",
-                            RelationGetRelationName(rel))));
-
-        if (metap->hashm_version != HASH_VERSION)
-            ereport(ERROR,
-                    (errcode(ERRCODE_INDEX_CORRUPTED),
-                     errmsg("index \"%s\" has wrong hash version",
-                            RelationGetRelationName(rel)),
-                     errhint("Please REINDEX it.")));
-    }
+		if (metap->hashm_version != HASH_VERSION)
+			ereport(ERROR,
+					(errcode(ERRCODE_INDEX_CORRUPTED),
+					 errmsg("index \"%s\" has wrong hash version",
+							RelationGetRelationName(rel)),
+					 errhint("Please REINDEX it.")));
+	}
 }
 
 bytea *
 hashoptions(Datum reloptions, bool validate)
 {
-    return default_reloptions(reloptions, validate, RELOPT_KIND_HASH);
+	return default_reloptions(reloptions, validate, RELOPT_KIND_HASH);
 }
 
 /*
@@ -300,14 +297,14 @@ hashoptions(Datum reloptions, bool validate)
 uint32
 _hash_get_indextuple_hashkey(IndexTuple itup)
 {
-    char       *attp;
+	char	   *attp;
 
-    /*
-     * We assume the hash key is the first attribute and can't be null, so
-     * this can be done crudely but very very cheaply ...
-     */
-    attp = (char *) itup + IndexInfoFindDataOffset(itup->t_info);
-    return *((uint32 *) attp);
+	/*
+	 * We assume the hash key is the first attribute and can't be null, so
+	 * this can be done crudely but very very cheaply ...
+	 */
+	attp = (char *) itup + IndexInfoFindDataOffset(itup->t_info);
+	return *((uint32 *) attp);
 }
 
 /*
@@ -315,7 +312,7 @@ _hash_get_indextuple_hashkey(IndexTuple itup)
  *
  * Inputs: values and isnull arrays for the user data column(s)
  * Outputs: values and isnull arrays for the index tuple, suitable for
- *        passing to index_form_tuple().
+ *		passing to index_form_tuple().
  *
  * Returns true if successful, false if not (because there are null values).
  * On a false result, the given data need not be indexed.
@@ -326,27 +323,27 @@ _hash_get_indextuple_hashkey(IndexTuple itup)
  */
 bool
 _hash_convert_tuple(Relation index,
-                    Datum *user_values, bool *user_isnull,
-                    Datum *index_values, bool *index_isnull)
+					Datum *user_values, bool *user_isnull,
+					Datum *index_values, bool *index_isnull)
 {
-    uint32        hashkey;
+	uint32		hashkey;
 
-    /*
-     * We do not insert null values into hash indexes.  This is okay because
-     * the only supported search operator is '=', and we assume it is strict.
-     */
-    if (user_isnull[0])
-        return false;
+	/*
+	 * We do not insert null values into hash indexes.  This is okay because
+	 * the only supported search operator is '=', and we assume it is strict.
+	 */
+	if (user_isnull[0])
+		return false;
 
-    hashkey = _hash_datum2hashkey(index, user_values[0]);
-    index_values[0] = UInt32GetDatum(hashkey);
-    index_isnull[0] = false;
-    return true;
+	hashkey = _hash_datum2hashkey(index, user_values[0]);
+	index_values[0] = UInt32GetDatum(hashkey);
+	index_isnull[0] = false;
+	return true;
 }
 
 /*
  * _hash_binsearch - Return the offset number in the page where the
- *                     specified hash value should be sought or inserted.
+ *					 specified hash value should be sought or inserted.
  *
  * We use binary search, relying on the assumption that the existing entries
  * are ordered by hash key.
@@ -359,31 +356,31 @@ _hash_convert_tuple(Relation index,
 OffsetNumber
 _hash_binsearch(Page page, uint32 hash_value)
 {
-    OffsetNumber upper;
-    OffsetNumber lower;
+	OffsetNumber upper;
+	OffsetNumber lower;
 
-    /* Loop invariant: lower <= desired place <= upper */
-    upper = PageGetMaxOffsetNumber(page) + 1;
-    lower = FirstOffsetNumber;
+	/* Loop invariant: lower <= desired place <= upper */
+	upper = PageGetMaxOffsetNumber(page) + 1;
+	lower = FirstOffsetNumber;
 
-    while (upper > lower)
-    {
-        OffsetNumber off;
-        IndexTuple    itup;
-        uint32        hashkey;
+	while (upper > lower)
+	{
+		OffsetNumber off;
+		IndexTuple	itup;
+		uint32		hashkey;
 
-        off = (upper + lower) / 2;
-        Assert(OffsetNumberIsValid(off));
+		off = (upper + lower) / 2;
+		Assert(OffsetNumberIsValid(off));
 
-        itup = (IndexTuple) PageGetItem(page, PageGetItemId(page, off));
-        hashkey = _hash_get_indextuple_hashkey(itup);
-        if (hashkey < hash_value)
-            lower = off + 1;
-        else
-            upper = off;
-    }
+		itup = (IndexTuple) PageGetItem(page, PageGetItemId(page, off));
+		hashkey = _hash_get_indextuple_hashkey(itup);
+		if (hashkey < hash_value)
+			lower = off + 1;
+		else
+			upper = off;
+	}
 
-    return lower;
+	return lower;
 }
 
 /*
@@ -397,70 +394,70 @@ _hash_binsearch(Page page, uint32 hash_value)
 OffsetNumber
 _hash_binsearch_last(Page page, uint32 hash_value)
 {
-    OffsetNumber upper;
-    OffsetNumber lower;
+	OffsetNumber upper;
+	OffsetNumber lower;
 
-    /* Loop invariant: lower <= desired place <= upper */
-    upper = PageGetMaxOffsetNumber(page);
-    lower = FirstOffsetNumber - 1;
+	/* Loop invariant: lower <= desired place <= upper */
+	upper = PageGetMaxOffsetNumber(page);
+	lower = FirstOffsetNumber - 1;
 
-    while (upper > lower)
-    {
-        IndexTuple    itup;
-        OffsetNumber off;
-        uint32        hashkey;
+	while (upper > lower)
+	{
+		IndexTuple	itup;
+		OffsetNumber off;
+		uint32		hashkey;
 
-        off = (upper + lower + 1) / 2;
-        Assert(OffsetNumberIsValid(off));
+		off = (upper + lower + 1) / 2;
+		Assert(OffsetNumberIsValid(off));
 
-        itup = (IndexTuple) PageGetItem(page, PageGetItemId(page, off));
-        hashkey = _hash_get_indextuple_hashkey(itup);
-        if (hashkey > hash_value)
-            upper = off - 1;
-        else
-            lower = off;
-    }
+		itup = (IndexTuple) PageGetItem(page, PageGetItemId(page, off));
+		hashkey = _hash_get_indextuple_hashkey(itup);
+		if (hashkey > hash_value)
+			upper = off - 1;
+		else
+			lower = off;
+	}
 
-    return lower;
+	return lower;
 }
 
 /*
- *    _hash_get_oldblock_from_newbucket() -- get the block number of a bucket
- *            from which current (new) bucket is being split.
+ *	_hash_get_oldblock_from_newbucket() -- get the block number of a bucket
+ *			from which current (new) bucket is being split.
  */
 BlockNumber
 _hash_get_oldblock_from_newbucket(Relation rel, Bucket new_bucket)
 {
-    Bucket        old_bucket;
-    uint32        mask;
-    Buffer        metabuf;
-    HashMetaPage metap;
-    BlockNumber blkno;
+	Bucket		old_bucket;
+	uint32		mask;
+	Buffer		metabuf;
+	HashMetaPage metap;
+	BlockNumber blkno;
 
-    /*
-     * To get the old bucket from the current bucket, we need a mask to modulo
-     * into lower half of table.  This mask is stored in meta page as
-     * hashm_lowmask, but here we can't rely on the same, because we need a
-     * value of lowmask that was prevalent at the time when bucket split was
-     * started.  Masking the most significant bit of new bucket would give us
-     * old bucket.
-     */
-    mask = (((uint32) 1) << (fls(new_bucket) - 1)) - 1;
-    old_bucket = new_bucket & mask;
+	/*
+	 * To get the old bucket from the current bucket, we need a mask to modulo
+	 * into lower half of table.  This mask is stored in meta page as
+	 * hashm_lowmask, but here we can't rely on the same, because we need a
+	 * value of lowmask that was prevalent at the time when bucket split was
+	 * started.  Masking the most significant bit of new bucket would give us
+	 * old bucket.
+	 */
+	mask = (((uint32) 1) << (fls(new_bucket) - 1)) - 1;
+	old_bucket = new_bucket & mask;
 
-    metabuf = _hash_getbuf(rel, HASH_METAPAGE, HASH_READ, LH_META_PAGE);
-    metap = HashPageGetMeta(BufferGetPage(metabuf));
+	metabuf = _hash_getbuf(rel, HASH_METAPAGE, HASH_READ, LH_META_PAGE);
+	metap = HashPageGetMeta(BufferGetPage(metabuf));
 
-    blkno = BUCKET_TO_BLKNO(metap, old_bucket);
+	blkno = BUCKET_TO_BLKNO(metap, old_bucket);
 
-    _hash_relbuf(rel, metabuf);
+	_hash_relbuf(rel, metabuf);
 
-    return blkno;
+	return blkno;
 }
 
 /*
- *    _hash_get_newblock_from_oldbucket() -- get the block number of a bucket
- *            that will be generated after split from old bucket.
+ *	_hash_get_newblock_from_oldbucket() -- get the block number of a bucket
+ *			that will be generated after split from old bucket.
  *
  * This is used to find the new bucket from old bucket based on current table
  * half.  It is mainly required to finish the incomplete splits where we are
@@ -470,27 +467,27 @@ _hash_get_oldblock_from_newbucket(Relation rel, Bucket new_bucket)
 BlockNumber
 _hash_get_newblock_from_oldbucket(Relation rel, Bucket old_bucket)
 {
-    Bucket        new_bucket;
-    Buffer        metabuf;
-    HashMetaPage metap;
-    BlockNumber blkno;
+	Bucket		new_bucket;
+	Buffer		metabuf;
+	HashMetaPage metap;
+	BlockNumber blkno;
 
-    metabuf = _hash_getbuf(rel, HASH_METAPAGE, HASH_READ, LH_META_PAGE);
-    metap = HashPageGetMeta(BufferGetPage(metabuf));
+	metabuf = _hash_getbuf(rel, HASH_METAPAGE, HASH_READ, LH_META_PAGE);
+	metap = HashPageGetMeta(BufferGetPage(metabuf));
 
-    new_bucket = _hash_get_newbucket_from_oldbucket(rel, old_bucket,
-                                                    metap->hashm_lowmask,
-                                                    metap->hashm_maxbucket);
-    blkno = BUCKET_TO_BLKNO(metap, new_bucket);
+	new_bucket = _hash_get_newbucket_from_oldbucket(rel, old_bucket,
+													metap->hashm_lowmask,
+													metap->hashm_maxbucket);
+	blkno = BUCKET_TO_BLKNO(metap, new_bucket);
 
-    _hash_relbuf(rel, metabuf);
+	_hash_relbuf(rel, metabuf);
 
-    return blkno;
+	return blkno;
 }
 
 /*
- *    _hash_get_newbucket_from_oldbucket() -- get the new bucket that will be
- *            generated after split from current (old) bucket.
+ *	_hash_get_newbucket_from_oldbucket() -- get the new bucket that will be
+ *			generated after split from current (old) bucket.
  *
  * This is used to find the new bucket from old bucket.  New bucket can be
  * obtained by OR'ing old bucket with most significant bit of current table
@@ -502,18 +499,18 @@ _hash_get_newblock_from_oldbucket(Relation rel, Bucket old_bucket)
  */
 Bucket
 _hash_get_newbucket_from_oldbucket(Relation rel, Bucket old_bucket,
-                                   uint32 lowmask, uint32 maxbucket)
+								   uint32 lowmask, uint32 maxbucket)
 {
-    Bucket        new_bucket;
+	Bucket		new_bucket;
 
-    new_bucket = CALC_NEW_BUCKET(old_bucket, lowmask);
-    if (new_bucket > maxbucket)
-    {
-        lowmask = lowmask >> 1;
-        new_bucket = CALC_NEW_BUCKET(old_bucket, lowmask);
-    }
+	new_bucket = CALC_NEW_BUCKET(old_bucket, lowmask);
+	if (new_bucket > maxbucket)
+	{
+		lowmask = lowmask >> 1;
+		new_bucket = CALC_NEW_BUCKET(old_bucket, lowmask);
+	}
 
-    return new_bucket;
+	return new_bucket;
 }
 
 /*
@@ -524,62 +521,121 @@ _hash_get_newbucket_from_oldbucket(Relation rel, Bucket old_bucket,
  * current page and killed tuples thereon (generally, this should only be
  * called if so->numKilled > 0).
  *
+ * The caller does not have a lock on the page and may or may not have the
+ * page pinned in a buffer.  Note that read-lock is sufficient for setting
+ * LP_DEAD status (which is only a hint).
+ *
+ * The caller must have pin on bucket buffer, but may or may not have pin
+ * on overflow buffer, as indicated by HashScanPosIsPinned(so->currPos).
+ *
  * We match items by heap TID before assuming they are the right ones to
  * delete.
+ *
+ * Note that we keep the pin on the bucket page throughout the scan. Hence,
+ * there is no chance of VACUUM deleting any items from that page.  However,
+ * having pin on the overflow page doesn't guarantee that vacuum won't delete
+ * any items.
+ *
+ * See _bt_killitems() for more details.
  */
 void
 _hash_kill_items(IndexScanDesc scan)
 {
-    HashScanOpaque so = (HashScanOpaque) scan->opaque;
-    Page        page;
-    HashPageOpaque opaque;
-    OffsetNumber offnum,
-                maxoff;
-    int            numKilled = so->numKilled;
-    int            i;
-    bool        killedsomething = false;
+	HashScanOpaque so = (HashScanOpaque) scan->opaque;
+	Relation	rel = scan->indexRelation;
+	BlockNumber blkno;
+	Buffer		buf;
+	Page		page;
+	HashPageOpaque opaque;
+	OffsetNumber offnum,
+				maxoff;
+	int			numKilled = so->numKilled;
+	int			i;
+	bool		killedsomething = false;
+	bool		havePin = false;
 
-    Assert(so->numKilled > 0);
-    Assert(so->killedItems != NULL);
+	Assert(so->numKilled > 0);
+	Assert(so->killedItems != NULL);
+	Assert(HashScanPosIsValid(so->currPos));
 
-    /*
-     * Always reset the scan state, so we don't look for same items on other
-     * pages.
-     */
-    so->numKilled = 0;
+	/*
+	 * Always reset the scan state, so we don't look for same items on other
+	 * pages.
+	 */
+	so->numKilled = 0;
 
-    page = BufferGetPage(so->hashso_curbuf);
-    opaque = (HashPageOpaque) PageGetSpecialPointer(page);
-    maxoff = PageGetMaxOffsetNumber(page);
+	blkno = so->currPos.currPage;
+	if (HashScanPosIsPinned(so->currPos))
+	{
+		/*
+		 * We already have pin on this buffer, so, all we need to do is
+		 * acquire lock on it.
+		 */
+		havePin = true;
+		buf = so->currPos.buf;
+		LockBuffer(buf, BUFFER_LOCK_SHARE);
+	}
+	else
+		buf = _hash_getbuf(rel, blkno, HASH_READ, LH_OVERFLOW_PAGE);
 
-    for (i = 0; i < numKilled; i++)
-    {
-        offnum = so->killedItems[i].indexOffset;
+	/*
+	 * If page LSN differs it means that the page was modified since the last
+	 * read. killedItems could be not valid so applying LP_DEAD hints is not
+	 * safe.
+	 */
+	page = BufferGetPage(buf);
+	if (PageGetLSN(page) != so->currPos.lsn)
+	{
+		if (havePin)
+			LockBuffer(buf, BUFFER_LOCK_UNLOCK);
+		else
+			_hash_relbuf(rel, buf);
+		return;
+	}
 
-        while (offnum <= maxoff)
-        {
-            ItemId        iid = PageGetItemId(page, offnum);
-            IndexTuple    ituple = (IndexTuple) PageGetItem(page, iid);
+	opaque = (HashPageOpaque) PageGetSpecialPointer(page);
+	maxoff = PageGetMaxOffsetNumber(page);
 
-            if (ItemPointerEquals(&ituple->t_tid, &so->killedItems[i].heapTid))
-            {
-                /* found the item */
-                ItemIdMarkDead(iid);
-                killedsomething = true;
-                break;            /* out of inner search loop */
-            }
-            offnum = OffsetNumberNext(offnum);
-        }
-    }
+	for (i = 0; i < numKilled; i++)
+	{
+		int			itemIndex = so->killedItems[i];
+		HashScanPosItem *currItem = &so->currPos.items[itemIndex];
 
-    /*
-     * Since this can be redone later if needed, mark as dirty hint. Whenever
-     * we mark anything LP_DEAD, we also set the page's
-     * LH_PAGE_HAS_DEAD_TUPLES flag, which is likewise just a hint.
-     */
-    if (killedsomething)
-    {
-        opaque->hasho_flag |= LH_PAGE_HAS_DEAD_TUPLES;
-        MarkBufferDirtyHint(so->hashso_curbuf, true);
-    }
+		offnum = currItem->indexOffset;
+
+		Assert(itemIndex >= so->currPos.firstItem &&
+			   itemIndex <= so->currPos.lastItem);
+
+		while (offnum <= maxoff)
+		{
+			ItemId		iid = PageGetItemId(page, offnum);
+			IndexTuple	ituple = (IndexTuple) PageGetItem(page, iid);
+
+			if (ItemPointerEquals(&ituple->t_tid, &currItem->heapTid))
+			{
+				/* found the item */
+				ItemIdMarkDead(iid);
+				killedsomething = true;
+				break;			/* out of inner search loop */
+			}
+			offnum = OffsetNumberNext(offnum);
+		}
+	}
+
+	/*
+	 * Since this can be redone later if needed, mark as dirty hint. Whenever
+	 * we mark anything LP_DEAD, we also set the page's
+	 * LH_PAGE_HAS_DEAD_TUPLES flag, which is likewise just a hint.
+	 */
+	if (killedsomething)
+	{
+		opaque->hasho_flag |= LH_PAGE_HAS_DEAD_TUPLES;
+		MarkBufferDirtyHint(buf, true);
+	}
+
+	if (so->hashso_bucket_buf == so->currPos.buf ||
+		havePin)
+		LockBuffer(so->currPos.buf, BUFFER_LOCK_UNLOCK);
+	else
+		_hash_relbuf(rel, buf);
 }

@@ -26,21 +26,21 @@
  */
 typedef struct BipartiteMatchState
 {
-    /* inputs: */
-    int            u_size;            /* size of U */
-    int            v_size;            /* size of V */
-    short      **adjacency;        /* adjacency[u] = [k, v1,v2,v3,...,vk] */
-    /* outputs: */
-    int            matching;        /* number of edges in matching */
-    short       *pair_uv;        /* pair_uv[u] -> v */
-    short       *pair_vu;        /* pair_vu[v] -> u */
-    /* private state for matching algorithm: */
-    short       *distance;        /* distance[u] */
-    short       *queue;            /* queue storage for breadth search */
+	/* inputs: */
+	int			u_size;			/* size of U */
+	int			v_size;			/* size of V */
+	short	  **adjacency;		/* adjacency[u] = [k, v1,v2,v3,...,vk] */
+	/* outputs: */
+	int			matching;		/* number of edges in matching */
+	short	   *pair_uv;		/* pair_uv[u] -> v */
+	short	   *pair_vu;		/* pair_vu[v] -> u */
+	/* private state for matching algorithm: */
+	short	   *distance;		/* distance[u] */
+	short	   *queue;			/* queue storage for breadth search */
 } BipartiteMatchState;
 
 extern BipartiteMatchState *BipartiteMatch(int u_size, int v_size, short **adjacency);
 
 extern void BipartiteMatchFree(BipartiteMatchState *state);
 
-#endif                            /* BIPARTITE_MATCH_H */
+#endif							/* BIPARTITE_MATCH_H */

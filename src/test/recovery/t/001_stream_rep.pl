@@ -3,11 +3,19 @@ use strict;
 use warnings;
 use PostgresNode;
 use TestLib;
-use Test::More tests => 28;
+use Test::More tests => 27;
 
 # Initialize master node
-my $node_master = get_new_node('master');
-$node_master->init(allows_streaming => 1);
+my $node_master = get_new_node('master', 'datanode');
+# There is no gtm in centralized mode, so it doesn’t matter what 
+# the master gtm IP and port are 
+$node_master->init(allows_streaming => 1,
+                   extra => ['--master_gtm_nodename', 'no_gtm',
+		             '--master_gtm_ip', '127.0.0.1',
+		             '--master_gtm_port', '25001']);
+
+$node_master->append_conf('postgresql.conf', "allow_dml_on_datanode = on");
+$node_master->append_conf('postgresql.conf', "is_centralized_mode = on");
 $node_master->start;
 my $backup_name = 'my_backup';
 
@@ -15,7 +23,7 @@ my $backup_name = 'my_backup';
 $node_master->backup($backup_name);
 
 # Create streaming standby linking to master
-my $node_standby_1 = get_new_node('standby_1');
+my $node_standby_1 = get_new_node('standby_1', 'datanode');
 $node_standby_1->init_from_backup($node_master, $backup_name,
 	has_streaming => 1);
 $node_standby_1->start;
@@ -30,7 +38,7 @@ $node_standby_1->backup('my_backup_2');
 $node_master->start;
 
 # Create second standby node linking to standby 1
-my $node_standby_2 = get_new_node('standby_2');
+my $node_standby_2 = get_new_node('standby_2', 'datanode');
 $node_standby_2->init_from_backup($node_standby_1, $backup_name,
 	has_streaming => 1);
 $node_standby_2->start;
@@ -135,11 +143,12 @@ $node_standby_1->append_conf('postgresql.conf',
 	"wal_receiver_status_interval = 1");
 $node_standby_1->append_conf('postgresql.conf', "max_replication_slots = 4");
 $node_standby_1->restart;
-is( $node_standby_1->psql(
-		'postgres',
-		qq[SELECT pg_create_physical_replication_slot('$slotname_2');]),
-	0,
-	'physical slot created on intermediate replica');
+# Execute this sql on sandby will report "ERROR:  cannot make new WAL entries
+# during recovery". since create physical replication slot in opentenbase requires
+# inserting xlog.
+$node_standby_1->psql(
+	'postgres',
+	qq[SELECT pg_create_physical_replication_slot('$slotname_2');]);
 $node_standby_2->append_conf('recovery.conf',
 	"primary_slot_name = $slotname_2");
 $node_standby_2->append_conf('postgresql.conf',

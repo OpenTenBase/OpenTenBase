@@ -9,11 +9,8 @@
  * are reached or passed, the current logfile is closed and a new one
  * is created (rotated) The logfiles are stored in a subdirectory gtm_log.
  *
- * Copyright (c) 2004-2017, PostgreSQL Global Development Group
+ * Copyright (c) 2021-Present OpenTenBase development team, Tencent
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- * 
  * IDENTIFICATION
  *	  src/gtm/common/syslogger.c
  *
@@ -527,7 +524,7 @@ set_next_rotation_time(void)
      */
     rotinterval = Log_RotationAge * SECS_PER_MINUTE;	/* convert to seconds */
     now = (pg_time_t) time(NULL);
-    localtime_r(&now,&timeinfo);
+    localtime_r((time_t *)&now,&timeinfo);
     now += timeinfo.tm_gmtoff;
     now -= now % rotinterval;
     now += rotinterval;

@@ -32,6 +32,6 @@ SELECT count(*) FROM timetmp WHERE a >= '10:57:11'::time;
 
 SELECT count(*) FROM timetmp WHERE a >  '10:57:11'::time;
 
-EXPLAIN (COSTS OFF)
+EXPLAIN (COSTS OFF, NODES OFF)
 SELECT a, a <-> '10:57:11' FROM timetmp ORDER BY a <-> '10:57:11' LIMIT 3;
 SELECT a, a <-> '10:57:11' FROM timetmp ORDER BY a <-> '10:57:11' LIMIT 3;

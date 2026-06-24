@@ -231,7 +231,7 @@ ALTER TABLE T ALTER COLUMN c_bpchar    DROP DEFAULT,
 
 INSERT INTO T VALUES (15), (16);
 
-SELECT * FROM T order by 1;
+SELECT * FROM T;
 
 SELECT comp();
 
@@ -360,12 +360,82 @@ SELECT a,
        AS z
 FROM t1;
 
+-- check that ALTER TABLE ... ALTER TYPE does the right thing
+
+CREATE TABLE vtype( a integer);
+INSERT INTO vtype VALUES (1);
+ALTER TABLE vtype ADD COLUMN b DOUBLE PRECISION DEFAULT 0.2;
+ALTER TABLE vtype ADD COLUMN c BOOLEAN DEFAULT true;
+SELECT * FROM vtype;
+ALTER TABLE vtype
+      ALTER b TYPE text USING b::text,
+      ALTER c TYPE text USING c::text;
+SELECT * FROM vtype;
+
+-- also check the case that doesn't rewrite the table
+
+CREATE TABLE vtype2 (a int);
+INSERT INTO vtype2 VALUES (1);
+ALTER TABLE vtype2 ADD COLUMN b varchar(10) DEFAULT 'xxx';
+ALTER TABLE vtype2 ALTER COLUMN b SET DEFAULT 'yyy';
+INSERT INTO vtype2 VALUES (2);
+
+ALTER TABLE vtype2 ALTER COLUMN b TYPE varchar(20) USING b::varchar(20);
+SELECT * FROM vtype2;
+
+-- verify that a default set on a non-plain table doesn't set a missing
+-- value on the attribute
+CREATE FOREIGN DATA WRAPPER dummy;
+CREATE SERVER s0 FOREIGN DATA WRAPPER dummy;
+CREATE FOREIGN TABLE ft1 (c1 integer NOT NULL) SERVER s0;
+ALTER FOREIGN TABLE ft1 ADD COLUMN c8 integer DEFAULT 0;
+ALTER FOREIGN TABLE ft1 ALTER COLUMN c8 TYPE char(10);
+SELECT count(*)
+  FROM pg_attribute
+  WHERE attrelid = 'ft1'::regclass AND
+    (attmissingval IS NOT NULL OR atthasmissing);
+
+-- Ensure that defaults are checked when evaluating whether HOT update
+-- is possible, this was broken for a while:
+-- https://postgr.es/m/20190202133521.ylauh3ckqa7colzj%40alap3.anarazel.de
+BEGIN;
+CREATE TABLE t_20240319();
+INSERT INTO t_20240319 DEFAULT VALUES;
+ALTER TABLE t_20240319 ADD COLUMN a int DEFAULT 1;
+CREATE INDEX ON t_20240319(a);
+-- set column with a default 1 to NULL, due to a bug that wasn't
+-- noticed has heap_getattr buggily returned NULL for default columns
+UPDATE t_20240319 SET a = NULL;
+
+-- verify that index and non-index scans show the same result
+SET LOCAL enable_seqscan = true;
+SELECT * FROM t_20240319 WHERE a IS NULL;
+SET LOCAL enable_seqscan = false;
+SELECT * FROM t_20240319 WHERE a IS NULL;
+ROLLBACK;
+
+
+-- cleanup
+DROP FOREIGN TABLE ft1;
+DROP SERVER s0;
+DROP FOREIGN DATA WRAPPER dummy;
+DROP TABLE vtype;
+DROP TABLE vtype2;
+DROP TABLE follower;
+DROP TABLE leader;
+DROP FUNCTION test_trigger();
 DROP TABLE t1;
 DROP TABLE T;
 DROP FUNCTION set(name);
 DROP FUNCTION comp();
 DROP TABLE m;
 DROP TABLE has_volatile;
+DROP TABLE vtype;
+DROP TABLE vtype2;
 DROP EVENT TRIGGER has_volatile_rewrite;
 DROP FUNCTION log_rewrite;
 DROP SCHEMA fast_default;
+DROP FOREIGN TABLE ft1;
+DROP SERVER s0;
+DROP FOREIGN DATA WRAPPER dummy;
+

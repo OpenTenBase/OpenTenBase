@@ -1,0 +1,9 @@
+# oraplsql extension
+comment = 'PL/SQL procedural language'
+default_version = '1.0'
+module_pathname = '$libdir/oraplsql'
+relocatable = false
+schema = pg_catalog
+superuser = false
+# sql_mode can be opentenbase_ora, postgresql, all
+sql_mode = 'all'

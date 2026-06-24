@@ -11,11 +11,9 @@
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  * IDENTIFICATION
- *      src/backend/postmaster/startup.c
+ *	  src/backend/postmaster/startup.c
  *
  *-------------------------------------------------------------------------
  */
@@ -55,12 +53,12 @@ static void startupproc_quickdie(SIGNAL_ARGS);
 static void StartupProcSigUsr1Handler(SIGNAL_ARGS);
 static void StartupProcTriggerHandler(SIGNAL_ARGS);
 static void StartupProcSigHupHandler(SIGNAL_ARGS);
-#ifdef _MLS_
-extern void mls_crypt_parellel_main_exit(void);
-#endif
+
+/* Callbacks */
+static void StartupProcExit(int code, Datum arg);
 
 /* --------------------------------
- *        signal handler routines
+ *		signal handler routiness
  * --------------------------------
  */
 
@@ -73,27 +71,27 @@ extern void mls_crypt_parellel_main_exit(void);
 static void
 startupproc_quickdie(SIGNAL_ARGS)
 {
-    PG_SETMASK(&BlockSig);
+	PG_SETMASK(&BlockSig);
 
-    /*
-     * We DO NOT want to run proc_exit() callbacks -- we're here because
-     * shared memory may be corrupted, so we don't want to try to clean up our
-     * transaction.  Just nail the windows shut and get out of town.  Now that
-     * there's an atexit callback to prevent third-party code from breaking
-     * things by calling exit() directly, we have to reset the callbacks
-     * explicitly to make this work as intended.
-     */
-    on_exit_reset();
+	/*
+	 * We DO NOT want to run proc_exit() callbacks -- we're here because
+	 * shared memory may be corrupted, so we don't want to try to clean up our
+	 * transaction.  Just nail the windows shut and get out of town.  Now that
+	 * there's an atexit callback to prevent third-party code from breaking
+	 * things by calling exit() directly, we have to reset the callbacks
+	 * explicitly to make this work as intended.
+	 */
+	on_exit_reset();
 
-    /*
-     * Note we do exit(2) not exit(0).  This is to force the postmaster into a
-     * system reset cycle if some idiot DBA sends a manual SIGQUIT to a random
-     * backend.  This is necessary precisely because we don't clean up our
-     * shared memory state.  (The "dead man switch" mechanism in pmsignal.c
-     * should ensure the postmaster sees this as a crash, too, but no harm in
-     * being doubly sure.)
-     */
-    exit(2);
+	/*
+	 * Note we do exit(2) not exit(0).  This is to force the postmaster into a
+	 * system reset cycle if some idiot DBA sends a manual SIGQUIT to a random
+	 * backend.  This is necessary precisely because we don't clean up our
+	 * shared memory state.  (The "dead man switch" mechanism in pmsignal.c
+	 * should ensure the postmaster sees this as a crash, too, but no harm in
+	 * being doubly sure.)
+	 */
+	exit(2);
 }
 
 
@@ -101,165 +99,179 @@ startupproc_quickdie(SIGNAL_ARGS)
 static void
 StartupProcSigUsr1Handler(SIGNAL_ARGS)
 {
-    int            save_errno = errno;
+	int			save_errno = errno;
 
-    latch_sigusr1_handler();
+	latch_sigusr1_handler();
 
-    errno = save_errno;
+	errno = save_errno;
 }
 
 /* SIGUSR2: set flag to finish recovery */
 static void
 StartupProcTriggerHandler(SIGNAL_ARGS)
 {
-    int            save_errno = errno;
+	int			save_errno = errno;
 
-    promote_triggered = true;
-    WakeupRecovery();
+	promote_triggered = true;
+	WakeupRecovery();
 
-    errno = save_errno;
+	errno = save_errno;
 }
 
 /* SIGHUP: set flag to re-read config file at next convenient time */
 static void
 StartupProcSigHupHandler(SIGNAL_ARGS)
 {
-    int            save_errno = errno;
+	int			save_errno = errno;
 
-    got_SIGHUP = true;
-    WakeupRecovery();
+	got_SIGHUP = true;
+	WakeupRecovery();
 
-    errno = save_errno;
+	errno = save_errno;
 }
 
 /* SIGTERM: set flag to abort redo and exit */
 static void
 StartupProcShutdownHandler(SIGNAL_ARGS)
 {
-    int            save_errno = errno;
+	int			save_errno = errno;
 
-    if (in_restore_command)
-        proc_exit(1);
-    else
-        shutdown_requested = true;
-    WakeupRecovery();
+	if (in_restore_command)
+		proc_exit(1);
+	else
+		shutdown_requested = true;
+	WakeupRecovery();
 
-    errno = save_errno;
+	errno = save_errno;
 }
 
 /* Handle SIGHUP and SIGTERM signals of startup process */
 void
 HandleStartupProcInterrupts(void)
 {
-    /*
-     * Check if we were requested to re-read config file.
-     */
-    if (got_SIGHUP)
-    {
-        got_SIGHUP = false;
-        ProcessConfigFile(PGC_SIGHUP);
+	/*
+	 * Check if we were requested to re-read config file.
+	 */
+	if (got_SIGHUP)
+	{
+		got_SIGHUP = false;
+		ProcessConfigFile(PGC_SIGHUP);
 
-        /*if primaryinfo is changed, shutdown wal receiver process and reload it*/
-        HandleRecoveryForReload();
-    }
+		/*if primaryinfo is changed, shutdown wal receiver process and reload it*/
+		HandleRecoveryForReload();
+	}
 
-    /*
-     * Check if we were requested to exit without finishing recovery.
-     */
-    if (shutdown_requested)
-        proc_exit(1);
+	/*
+	 * Check if we were requested to exit without finishing recovery.
+	 */
+	if (shutdown_requested)
+		proc_exit(1);
 
-    /*
-     * Emergency bailout if postmaster has died.  This is to avoid the
-     * necessity for manual cleanup of all postmaster children.
-     */
-    if (IsUnderPostmaster && !PostmasterIsAlive())
-        exit(1);
+	/*
+	 * Emergency bailout if postmaster has died.  This is to avoid the
+	 * necessity for manual cleanup of all postmaster children.
+	 */
+	if (IsUnderPostmaster && !PostmasterIsAlive())
+		exit(1);
+}
+
+
+/* --------------------------------
+ *		signal handler routines
+ * --------------------------------
+ */
+static void
+StartupProcExit(int code, Datum arg)
+{
+	/* Shutdown the recovery environment */
+	if (standbyState != STANDBY_DISABLED)
+		ShutdownRecoveryTransactionEnvironment();
 }
 
 
 /* ----------------------------------
- *    Startup Process main entry point
+ *	Startup Process main entry point
  * ----------------------------------
  */
 void
 StartupProcessMain(void)
 {
-    /*
-     * Properly accept or ignore signals the postmaster might send us.
-     */
-    pqsignal(SIGHUP, StartupProcSigHupHandler); /* reload config file */
-    pqsignal(SIGINT, SIG_IGN);    /* ignore query cancel */
-    pqsignal(SIGTERM, StartupProcShutdownHandler);    /* request shutdown */
-    pqsignal(SIGQUIT, startupproc_quickdie);    /* hard crash time */
-    InitializeTimeouts();        /* establishes SIGALRM handler */
-    pqsignal(SIGPIPE, SIG_IGN);
-    pqsignal(SIGUSR1, StartupProcSigUsr1Handler);
-    pqsignal(SIGUSR2, StartupProcTriggerHandler);
+	/* Arrange to clean up at startup process exit */
+	on_shmem_exit(StartupProcExit, 0);
 
-    /*
-     * Reset some signals that are accepted by postmaster but not here
-     */
-    pqsignal(SIGCHLD, SIG_DFL);
-    pqsignal(SIGTTIN, SIG_DFL);
-    pqsignal(SIGTTOU, SIG_DFL);
-    pqsignal(SIGCONT, SIG_DFL);
-    pqsignal(SIGWINCH, SIG_DFL);
+	/*
+	 * Properly accept or ignore signals the postmaster might send us.
+	 */
+	pqsignal(SIGHUP, StartupProcSigHupHandler); /* reload config file */
+	pqsignal(SIGINT, SIG_IGN);	/* ignore query cancel */
+	pqsignal(SIGTERM, StartupProcShutdownHandler);	/* request shutdown */
+	pqsignal(SIGQUIT, startupproc_quickdie);	/* hard crash time */
+	InitializeTimeouts();		/* establishes SIGALRM handler */
+	pqsignal(SIGPIPE, SIG_IGN);
+	pqsignal(SIGUSR1, StartupProcSigUsr1Handler);
+	pqsignal(SIGUSR2, StartupProcTriggerHandler);
 
-    /*
-     * Register timeouts needed for standby mode
-     */
-    RegisterTimeout(STANDBY_DEADLOCK_TIMEOUT, StandbyDeadLockHandler);
-    RegisterTimeout(STANDBY_TIMEOUT, StandbyTimeoutHandler);
-    RegisterTimeout(STANDBY_LOCK_TIMEOUT, StandbyLockTimeoutHandler);
+	/*
+	 * Reset some signals that are accepted by postmaster but not here
+	 */
+	pqsignal(SIGCHLD, SIG_DFL);
+	pqsignal(SIGTTIN, SIG_DFL);
+	pqsignal(SIGTTOU, SIG_DFL);
+	pqsignal(SIGCONT, SIG_DFL);
+	pqsignal(SIGWINCH, SIG_DFL);
 
-    /*
-     * Unblock signals (they were blocked when the postmaster forked us)
-     */
-    PG_SETMASK(&UnBlockSig);
+	/*
+	 * Register timeouts needed for standby mode
+	 */
+	RegisterTimeout(STANDBY_DEADLOCK_TIMEOUT, StandbyDeadLockHandler);
+	RegisterTimeout(STANDBY_TIMEOUT, StandbyTimeoutHandler);
+	RegisterTimeout(STANDBY_LOCK_TIMEOUT, StandbyLockTimeoutHandler);
 
-    /*
-     * Do what we came for.
-     */
-    StartupXLOG();
-#ifdef _MLS_
-    mls_crypt_parellel_main_exit();
-#endif
-    /*
-     * Exit normally. Exit code 0 tells postmaster that we completed recovery
-     * successfully.
-     */
-    proc_exit(0);
+	/*
+	 * Unblock signals (they were blocked when the postmaster forked us)
+	 */
+	PG_SETMASK(&UnBlockSig);
+
+	/*
+	 * Do what we came for.
+	 */
+	StartupXLOG();
+
+	/*
+	 * Exit normally. Exit code 0 tells postmaster that we completed recovery
+	 * successfully.
+	 */
+	proc_exit(0);
 }
 
 void
 PreRestoreCommand(void)
 {
-    /*
-     * Set in_restore_command to tell the signal handler that we should exit
-     * right away on SIGTERM. We know that we're at a safe point to do that.
-     * Check if we had already received the signal, so that we don't miss a
-     * shutdown request received just before this.
-     */
-    in_restore_command = true;
-    if (shutdown_requested)
-        proc_exit(1);
+	/*
+	 * Set in_restore_command to tell the signal handler that we should exit
+	 * right away on SIGTERM. We know that we're at a safe point to do that.
+	 * Check if we had already received the signal, so that we don't miss a
+	 * shutdown request received just before this.
+	 */
+	in_restore_command = true;
+	if (shutdown_requested)
+		proc_exit(1);
 }
 
 void
 PostRestoreCommand(void)
 {
-    in_restore_command = false;
+	in_restore_command = false;
 }
 
 bool
 IsPromoteTriggered(void)
 {
-    return promote_triggered;
+	return promote_triggered;
 }
 
 void
 ResetPromoteTriggered(void)
 {
-    promote_triggered = false;
+	promote_triggered = false;
 }

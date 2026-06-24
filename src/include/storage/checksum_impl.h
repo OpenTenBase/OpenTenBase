@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * checksum_impl.h
- *      Checksum implementation for data pages.
+ *	  Checksum implementation for data pages.
  *
  * This file exists for the benefit of external programs that may wish to
  * check Postgres page checksums.  They can #include this to get the code
@@ -11,9 +11,6 @@
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- * 
  * src/include/storage/checksum_impl.h
  *
  *-------------------------------------------------------------------------
@@ -29,7 +26,7 @@
  * for Fowler/Noll/Vo).  The primitive of a plain FNV-1a hash folds in data 1
  * byte at a time according to the formula:
  *
- *       hash = (hash ^ value) * FNV_PRIME
+ *	   hash = (hash ^ value) * FNV_PRIME
  *
  * FNV-1a algorithm is described at http://www.isthe.com/chongo/tech/comp/fnv/
  *
@@ -42,7 +39,7 @@
  * avalanche into lower positions. For performance reasons we choose to combine
  * 4 bytes at a time. The actual hash formula used as the basis is:
  *
- *       hash = (hash ^ value) * FNV_PRIME ^ ((hash ^ value) >> 17)
+ *	   hash = (hash ^ value) * FNV_PRIME ^ ((hash ^ value) >> 17)
  *
  * The main bottleneck in this calculation is the multiplication latency. To
  * hide the latency and to make use of SIMD parallelism multiple hash values
@@ -109,20 +106,20 @@
 #define N_SUMS 32
 /* prime multiplier of FNV-1a hash */
 #define FNV_PRIME 16777619
-
+ 
 /*
  * Base offsets to initialize each of the parallel FNV hashes into a
  * different initial state.
  */
 static const uint32 checksumBaseOffsets[N_SUMS] = {
-    0x5B1F36E9, 0xB8525960, 0x02AB50AA, 0x1DE66D2A,
-    0x79FF467A, 0x9BB9F8A3, 0x217E7CD2, 0x83E13D2C,
-    0xF8D4474F, 0xE39EB970, 0x42C6AE16, 0x993216FA,
-    0x7B093B5D, 0x98DAFF3C, 0xF718902A, 0x0B1C9CDB,
-    0xE58F764B, 0x187636BC, 0x5D7B3BB1, 0xE73DE7DE,
-    0x92BEC979, 0xCCA6C0B2, 0x304A0979, 0x85AA43D4,
-    0x783125BB, 0x6CA8EAA2, 0xE407EAC6, 0x4B5CFC3E,
-    0x9FBF8C76, 0x15CA20BE, 0xF2CA9FD3, 0x959BD756
+	0x5B1F36E9, 0xB8525960, 0x02AB50AA, 0x1DE66D2A,
+	0x79FF467A, 0x9BB9F8A3, 0x217E7CD2, 0x83E13D2C,
+	0xF8D4474F, 0xE39EB970, 0x42C6AE16, 0x993216FA,
+	0x7B093B5D, 0x98DAFF3C, 0xF718902A, 0x0B1C9CDB,
+	0xE58F764B, 0x187636BC, 0x5D7B3BB1, 0xE73DE7DE,
+	0x92BEC979, 0xCCA6C0B2, 0x304A0979, 0x85AA43D4,
+	0x783125BB, 0x6CA8EAA2, 0xE407EAC6, 0x4B5CFC3E,
+	0x9FBF8C76, 0x15CA20BE, 0xF2CA9FD3, 0x959BD756
 };
 
 /*
@@ -130,8 +127,8 @@ static const uint32 checksumBaseOffsets[N_SUMS] = {
  */
 #define CHECKSUM_COMP(checksum, value) \
 do { \
-    uint32 __tmp = (checksum) ^ (value); \
-    (checksum) = __tmp * FNV_PRIME ^ (__tmp >> 17); \
+	uint32 __tmp = (checksum) ^ (value); \
+	(checksum) = __tmp * FNV_PRIME ^ (__tmp >> 17); \
 } while (0)
 
 /*
@@ -141,33 +138,33 @@ do { \
 static uint32
 pg_checksum_block(char *data, uint32 size)
 {
-    uint32        sums[N_SUMS];
-    uint32        (*dataArr)[N_SUMS] = (uint32 (*)[N_SUMS]) data;
-    uint32        result = 0;
-    uint32        i,
-                j;
+	uint32		sums[N_SUMS];
+	uint32		(*dataArr)[N_SUMS] = (uint32 (*)[N_SUMS]) data;
+	uint32		result = 0;
+	uint32		i,
+				j;
 
-    /* ensure that the size is compatible with the algorithm */
-    Assert((size % (sizeof(uint32) * N_SUMS)) == 0);
+	/* ensure that the size is compatible with the algorithm */
+	Assert((size % (sizeof(uint32) * N_SUMS)) == 0);
 
-    /* initialize partial checksums to their corresponding offsets */
-    memcpy(sums, checksumBaseOffsets, sizeof(checksumBaseOffsets));
+	/* initialize partial checksums to their corresponding offsets */
+	memcpy(sums, checksumBaseOffsets, sizeof(checksumBaseOffsets));
 
-    /* main checksum calculation */
-    for (i = 0; i < size / sizeof(uint32) / N_SUMS; i++)
-        for (j = 0; j < N_SUMS; j++)
-            CHECKSUM_COMP(sums[j], dataArr[i][j]);
+	/* main checksum calculation */
+	for (i = 0; i < size / sizeof(uint32) / N_SUMS; i++)
+		for (j = 0; j < N_SUMS; j++)
+			CHECKSUM_COMP(sums[j], dataArr[i][j]);
 
-    /* finally add in two rounds of zeroes for additional mixing */
-    for (i = 0; i < 2; i++)
-        for (j = 0; j < N_SUMS; j++)
-            CHECKSUM_COMP(sums[j], 0);
+	/* finally add in two rounds of zeroes for additional mixing */
+	for (i = 0; i < 2; i++)
+		for (j = 0; j < N_SUMS; j++)
+			CHECKSUM_COMP(sums[j], 0);
 
-    /* xor fold partial checksums together */
-    for (i = 0; i < N_SUMS; i++)
-        result ^= sums[i];
+	/* xor fold partial checksums together */
+	for (i = 0; i < N_SUMS; i++)
+		result ^= sums[i];
 
-    return result;
+	return result;
 }
 
 /*
@@ -181,30 +178,38 @@ pg_checksum_block(char *data, uint32 size)
 uint16
 pg_checksum_page(char *page, BlockNumber blkno)
 {
-    PageHeader    phdr = (PageHeader) page;
-    uint16        save_checksum;
-    uint32        checksum;
+	PageHeader	phdr = (PageHeader) page;
+	uint16		save_checksum;
+	uint32		checksum;
 
-    /* We only calculate the checksum for properly-initialized pages */
-    Assert(!PageIsNew(page));
+	/* We only calculate the checksum for properly-initialized pages */
+	Assert(!PageIsNew(page));
 
-    /*
-     * Save pd_checksum and temporarily set it to zero, so that the checksum
-     * calculation isn't affected by the old checksum stored on the page.
-     * Restore it after, because actually updating the checksum is NOT part of
-     * the API of this function.
-     */
-    save_checksum = phdr->pd_checksum;
-    phdr->pd_checksum = 0;
-    checksum = pg_checksum_block(page, BLCKSZ);
-    phdr->pd_checksum = save_checksum;
+	/*
+	 * Save pd_checksum and temporarily set it to zero, so that the checksum
+	 * calculation isn't affected by the old checksum stored on the page.
+	 * Restore it after, because actually updating the checksum is NOT part of
+	 * the API of this function.
+	 */
+	save_checksum = phdr->pd_checksum;
+	phdr->pd_checksum = 0;
+	checksum = pg_checksum_block(page, BLCKSZ);
+	phdr->pd_checksum = save_checksum;
 
-    /* Mix in the block number to detect transposed pages */
-    checksum ^= blkno;
+	/* Mix in the block number to detect transposed pages */
+	checksum ^= blkno;
 
-    /*
-     * Reduce to a uint16 (to fit in the pd_checksum field) with an offset of
-     * one. That avoids checksums of zero, which seems like a good idea.
-     */
-    return (checksum % 65535) + 1;
+	/*
+	 * Reduce to a uint16 (to fit in the pd_checksum field) with an offset of
+	 * one. That avoids checksums of zero, which seems like a good idea.
+	 */
+	return (checksum % 65535) + 1;
 }
+
+#ifdef __OPENTENBASE_C__
+uint16 pg_checksum_col_page(char *data, int32 size);
+uint16 pg_checksum_col_page(char *data, int32 size)
+{
+	return pg_checksum_block(data, size);
+}
+#endif

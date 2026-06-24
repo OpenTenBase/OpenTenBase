@@ -21,12 +21,12 @@ static PLyUnicode_FromStringAndSize_t PLyUnicode_FromStringAndSize_p;
 void
 _PG_init(void)
 {
-    /* Asserts verify that typedefs above match original declarations */
+	/* Asserts verify that typedefs above match original declarations */
 #if PY_MAJOR_VERSION >= 3
-    AssertVariableIsOfType(&PLyUnicode_FromStringAndSize, PLyUnicode_FromStringAndSize_t);
-    PLyUnicode_FromStringAndSize_p = (PLyUnicode_FromStringAndSize_t)
-        load_external_function("$libdir/" PLPYTHON_LIBNAME, "PLyUnicode_FromStringAndSize",
-                               true, NULL);
+	AssertVariableIsOfType(&PLyUnicode_FromStringAndSize, PLyUnicode_FromStringAndSize_t);
+	PLyUnicode_FromStringAndSize_p = (PLyUnicode_FromStringAndSize_t)
+		load_external_function("$libdir/" PLPYTHON_LIBNAME, "PLyUnicode_FromStringAndSize",
+							   true, NULL);
 #endif
 }
 
@@ -40,21 +40,21 @@ PG_FUNCTION_INFO_V1(ltree_to_plpython);
 Datum
 ltree_to_plpython(PG_FUNCTION_ARGS)
 {
-    ltree       *in = PG_GETARG_LTREE(0);
-    int            i;
-    PyObject   *list;
-    ltree_level *curlevel;
+	ltree	   *in = PG_GETARG_LTREE_P(0);
+	int			i;
+	PyObject   *list;
+	ltree_level *curlevel;
 
-    list = PyList_New(in->numlevel);
+	list = PyList_New(in->numlevel);
 
-    curlevel = LTREE_FIRST(in);
-    for (i = 0; i < in->numlevel; i++)
-    {
-        PyList_SetItem(list, i, PyString_FromStringAndSize(curlevel->name, curlevel->len));
-        curlevel = LEVEL_NEXT(curlevel);
-    }
+	curlevel = LTREE_FIRST(in);
+	for (i = 0; i < in->numlevel; i++)
+	{
+		PyList_SetItem(list, i, PyString_FromStringAndSize(curlevel->name, curlevel->len));
+		curlevel = LEVEL_NEXT(curlevel);
+	}
 
-    PG_FREE_IF_COPY(in, 0);
+	PG_FREE_IF_COPY(in, 0);
 
-    return PointerGetDatum(list);
+	return PointerGetDatum(list);
 }

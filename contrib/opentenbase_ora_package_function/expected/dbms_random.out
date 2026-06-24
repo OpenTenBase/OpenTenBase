@@ -1,0 +1,85 @@
+\c opentenbase_ora_package_function_regression_ora
+-- Tests for package DBMS_RANDOM
+call dbms_random.initialize(8);
+SELECT dbms_random.normal()::numeric(10, 8);
+   NORMAL   
+------------
+ -.37787769
+(1 row)
+
+SELECT dbms_random.normal()::numeric(10, 8);
+  NORMAL   
+-----------
+ .80499804
+(1 row)
+
+SELECT pg_typeof(dbms_random.normal());
+ PG_TYPEOF 
+-----------
+ NUMERIC
+(1 row)
+
+call dbms_random.seed(8);
+SELECT dbms_random.random();
+   RANDOM   
+------------
+ -632387854
+(1 row)
+
+call dbms_random.seed('test');
+SELECT dbms_random.string('U',5);
+ STRING 
+--------
+ XEJGE
+(1 row)
+
+SELECT dbms_random.string('P',2);
+ STRING 
+--------
+ T9
+(1 row)
+
+SELECT dbms_random.string('x',4);
+ STRING 
+--------
+ FVGL
+(1 row)
+
+SELECT dbms_random.string('a',2);
+ STRING 
+--------
+ AZ
+(1 row)
+
+SELECT dbms_random.string('l',3);
+ STRING 
+--------
+ hmo
+(1 row)
+
+call dbms_random.seed(5);
+SELECT dbms_random.value()::numeric(10, 8);
+  VALUE   
+----------
+ .2747456
+(1 row)
+
+SELECT pg_typeof(dbms_random.value());
+ PG_TYPEOF 
+-----------
+ NUMERIC
+(1 row)
+
+SELECT dbms_random.value(10,15)::numeric(10, 8);
+    VALUE    
+-------------
+ 14.96377612
+(1 row)
+
+SELECT pg_typeof(dbms_random.value(10,15));
+ PG_TYPEOF 
+-----------
+ NUMERIC
+(1 row)
+
+call dbms_random.terminate();

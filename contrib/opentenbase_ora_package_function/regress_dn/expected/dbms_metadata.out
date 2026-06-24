@@ -1,0 +1,1336 @@
+drop database if exists db_dbms_metadata_test;
+NOTICE:  database "db_dbms_metadata_test" does not exist, skipping
+create database db_dbms_metadata_test with sql_mode=opentenbase_ora;
+\c db_dbms_metadata_test
+CREATE EXTENSION IF NOT EXISTS opentenbase_ora_package_function;
+create user usr_dbms_metadata_test with superuser;
+SET SESSION AUTHORIZATION usr_dbms_metadata_test;
+-- Tests for package DBMS_METADATA
+create table mtbl(a int);
+\o dbms_metadata.tmp
+select dbms_metadata.get_ddl('TABLE', '');
+\o
+\! cat dbms_metadata.tmp | sed '/-- Dumped by pg_dump version 10.0 @ *.*/d'
+                                          GET_DDL                                          
+-------------------------------------------------------------------------------------------
+ --                                                                                       +
+ -- PostgreSQL database dump                                                              +
+ --                                                                                       +
+                                                                                          +
+                                                                                          +
+ SET statement_timeout = 0;                                                               +
+ SET lock_timeout = 0;                                                                    +
+ SET idle_in_transaction_session_timeout = 0;                                             +
+ SET client_encoding = 'UTF8';                                                            +
+ SET standard_conforming_strings = off;                                                   +
+ SET check_function_bodies = false;                                                       +
+ SET client_min_messages = warning;                                                       +
+ SET escape_string_warning = off;                                                         +
+ SET row_security = on;                                                                   +
+                                                                                          +
+ SET SESSION AUTHORIZATION 'USR_DBMS_METADATA_TEST';                                      +
+                                                                                          +
+ SET search_path = public, pg_catalog;                                                    +
+                                                                                          +
+ SET default_with_oids = false;                                                           +
+                                                                                          +
+ --                                                                                       +
+ -- Name: MTBL; Type: TABLE; Schema: public; Owner: USR_DBMS_METADATA_TEST                +
+ --                                                                                       +
+                                                                                          +
+ CREATE TABLE "MTBL" (                                                                    +
+     "A" INTEGER                                                                          +
+ );                                                                                       +
+ CREATE KEY VALUES '(null)' FOR TABLE public.MTBL TO GROUP (null);                        +
+                                                                                          +
+                                                                                          +
+                                                                                          +
+ 
+(1 row)
+
+\o dbms_metadata.tmp
+select dbms_metadata.get_ddl('TABLE', '', 'public');
+\o
+\! cat dbms_metadata.tmp | sed '/-- Dumped by pg_dump version 10.0 @ *.*/d'
+                                          GET_DDL                                          
+-------------------------------------------------------------------------------------------
+ --                                                                                       +
+ -- PostgreSQL database dump                                                              +
+ --                                                                                       +
+                                                                                          +
+                                                                                          +
+ SET statement_timeout = 0;                                                               +
+ SET lock_timeout = 0;                                                                    +
+ SET idle_in_transaction_session_timeout = 0;                                             +
+ SET client_encoding = 'UTF8';                                                            +
+ SET standard_conforming_strings = off;                                                   +
+ SET check_function_bodies = false;                                                       +
+ SET client_min_messages = warning;                                                       +
+ SET escape_string_warning = off;                                                         +
+ SET row_security = on;                                                                   +
+                                                                                          +
+ SET SESSION AUTHORIZATION 'USR_DBMS_METADATA_TEST';                                      +
+                                                                                          +
+ SET search_path = public, pg_catalog;                                                    +
+                                                                                          +
+ SET default_with_oids = false;                                                           +
+                                                                                          +
+ --                                                                                       +
+ -- Name: MTBL; Type: TABLE; Schema: public; Owner: USR_DBMS_METADATA_TEST                +
+ --                                                                                       +
+                                                                                          +
+ CREATE TABLE "MTBL" (                                                                    +
+     "A" INTEGER                                                                          +
+ );                                                                                       +
+ CREATE KEY VALUES '(null)' FOR TABLE public.MTBL TO GROUP (null);                        +
+                                                                                          +
+                                                                                          +
+                                                                                          +
+ 
+(1 row)
+
+\o dbms_metadata.tmp
+select dbms_metadata.get_ddl('TABLE', '', 'PGXZM_OSS');
+ERROR:  no matching schemas were found for pattern "PGXZM_OSS"
+
+\o
+\! cat dbms_metadata.tmp | sed '/-- Dumped by pg_dump version 10.0 @ *.*/d'
+-- create type/table/function
+create type public.my_test_type as (cf1 text, cf2 text);
+create table public.my_test_table1(col1 integer, col2 text, col3 integer);
+create table public.my_test_table2(col_1 integer, col_2 text, col_3 integer);
+CREATE OR REPLACE FUNCTION my_test_func_add(aa int, bb int) RETURNS int AS $$
+DECLARE
+	cnt int;
+BEGIN
+	cnt = aa + bb;
+	raise notice 'count=%', cnt;
+	return cnt;
+END;
+$$ LANGUAGE default_plsql;
+CREATE OR REPLACE FUNCTION my_test_func_add(aa text, bb text) RETURNS text AS $$
+DECLARE
+	res text;
+BEGIN
+	res =  aa || bb;
+	raise notice 'count=%', res;
+	return res;
+END;
+$$ LANGUAGE default_plsql;
+-- create schema type/table/function
+CREATE SCHEMA IF NOT EXISTS pgxzm_oss;
+set search_path=pgxzm_oss;
+select current_schema();
+ CURRENT_SCHEMA 
+----------------
+ PGXZM_OSS
+(1 row)
+
+create type pgxzm_oss.my_test_type as (cf1 int, cf2 int);
+create table pgxzm_oss.my_test_table1(col1 integer, col2 text, col3 integer);
+create table pgxzm_oss.my_test_table2(col_1 integer, col_2 text, col_3 integer);
+CREATE OR REPLACE FUNCTION my_test_func_add(aa int, bb int) RETURNS int AS $$
+DECLARE
+	cnt int;
+BEGIN
+	cnt = aa + bb;
+	raise notice 'count=%', cnt;
+	return cnt;
+END;
+$$ LANGUAGE default_plsql;
+CREATE OR REPLACE FUNCTION my_test_func_add(aa text, bb text) RETURNS text AS $$
+DECLARE
+	res text;
+BEGIN
+	res =  aa || bb;
+	raise notice 'count=%', res;
+	return res;
+END;
+$$ LANGUAGE default_plsql;
+-----------
+select typname, n.nspname from pg_type t, pg_namespace n where typname like 'MY_TEST%' and t.typnamespace=n.oid order by typnamespace, typname, t.oid;
+    TYPNAME     |  NSPNAME  
+----------------+-----------
+ MY_TEST_TABLE1 | public
+ MY_TEST_TABLE2 | public
+ MY_TEST_TYPE   | public
+ MY_TEST_TABLE1 | PGXZM_OSS
+ MY_TEST_TABLE2 | PGXZM_OSS
+ MY_TEST_TYPE   | PGXZM_OSS
+(6 rows)
+
+select relname, n.nspname from pg_class c, pg_namespace n where relname like 'MY_TEST%' and c.relnamespace=n.oid order by relnamespace, relname, c.oid;
+    RELNAME     |  NSPNAME  
+----------------+-----------
+ MY_TEST_TABLE1 | public
+ MY_TEST_TABLE2 | public
+ MY_TEST_TYPE   | public
+ MY_TEST_TABLE1 | PGXZM_OSS
+ MY_TEST_TABLE2 | PGXZM_OSS
+ MY_TEST_TYPE   | PGXZM_OSS
+(6 rows)
+
+select proname, n.nspname from pg_proc p, pg_namespace n where proname like 'MY_TEST%' and p.pronamespace=n.oid order by pronamespace, proname, p.oid;
+     PRONAME      |  NSPNAME  
+------------------+-----------
+ MY_TEST_FUNC_ADD | public
+ MY_TEST_FUNC_ADD | public
+ MY_TEST_FUNC_ADD | PGXZM_OSS
+ MY_TEST_FUNC_ADD | PGXZM_OSS
+(4 rows)
+
+--test 
+select current_schema();
+ CURRENT_SCHEMA 
+----------------
+ PGXZM_OSS
+(1 row)
+
+\o dbms_metadata.tmp
+select dbms_metadata.get_ddl('TYPE', 'MY_TEST_TYPE');
+\o
+\! cat dbms_metadata.tmp | sed '/-- Dumped by pg_dump version 10.0 @ *.*/d'
+                                          GET_DDL                                          
+-------------------------------------------------------------------------------------------
+ --                                                                                       +
+ -- PostgreSQL database dump                                                              +
+ --                                                                                       +
+                                                                                          +
+                                                                                          +
+ SET statement_timeout = 0;                                                               +
+ SET lock_timeout = 0;                                                                    +
+ SET idle_in_transaction_session_timeout = 0;                                             +
+ SET client_encoding = 'UTF8';                                                            +
+ SET standard_conforming_strings = off;                                                   +
+ SET check_function_bodies = false;                                                       +
+ SET client_min_messages = warning;                                                       +
+ SET escape_string_warning = off;                                                         +
+ SET row_security = on;                                                                   +
+                                                                                          +
+ SET SESSION AUTHORIZATION 'USR_DBMS_METADATA_TEST';                                      +
+                                                                                          +
+ SET search_path = "PGXZM_OSS", pg_catalog;                                               +
+                                                                                          +
+ --                                                                                       +
+ -- Name: MY_TEST_TYPE; Type: TYPE; Schema: PGXZM_OSS; Owner: USR_DBMS_METADATA_TEST      +
+ --                                                                                       +
+                                                                                          +
+ CREATE TYPE "MY_TEST_TYPE" AS (                                                          +
+         "CF1" INTEGER,                                                                   +
+         "CF2" INTEGER                                                                    +
+ );                                                                                       +
+                                                                                          +
+                                                                                          +
+ 
+(1 row)
+
+\o dbms_metadata.tmp
+select dbms_metadata.get_ddl('TYPE', 'MY_TEST_TYPE', 'public');
+\o
+\! cat dbms_metadata.tmp | sed '/-- Dumped by pg_dump version 10.0 @ *.*/d'
+                                          GET_DDL                                          
+-------------------------------------------------------------------------------------------
+ --                                                                                       +
+ -- PostgreSQL database dump                                                              +
+ --                                                                                       +
+                                                                                          +
+                                                                                          +
+ SET statement_timeout = 0;                                                               +
+ SET lock_timeout = 0;                                                                    +
+ SET idle_in_transaction_session_timeout = 0;                                             +
+ SET client_encoding = 'UTF8';                                                            +
+ SET standard_conforming_strings = off;                                                   +
+ SET check_function_bodies = false;                                                       +
+ SET client_min_messages = warning;                                                       +
+ SET escape_string_warning = off;                                                         +
+ SET row_security = on;                                                                   +
+                                                                                          +
+ SET SESSION AUTHORIZATION 'USR_DBMS_METADATA_TEST';                                      +
+                                                                                          +
+ SET search_path = public, pg_catalog;                                                    +
+                                                                                          +
+ --                                                                                       +
+ -- Name: MY_TEST_TYPE; Type: TYPE; Schema: public; Owner: USR_DBMS_METADATA_TEST         +
+ --                                                                                       +
+                                                                                          +
+ CREATE TYPE "MY_TEST_TYPE" AS (                                                          +
+         "CF1" TEXT,                                                                      +
+         "CF2" TEXT                                                                       +
+ );                                                                                       +
+                                                                                          +
+                                                                                          +
+ 
+(1 row)
+
+\o dbms_metadata.tmp
+select dbms_metadata.get_ddl('TABLE', 'MY_TEST_TABLE1');
+\o
+\! cat dbms_metadata.tmp | sed '/-- Dumped by pg_dump version 10.0 @ *.*/d'
+                                          GET_DDL                                          
+-------------------------------------------------------------------------------------------
+ --                                                                                       +
+ -- PostgreSQL database dump                                                              +
+ --                                                                                       +
+                                                                                          +
+                                                                                          +
+ SET statement_timeout = 0;                                                               +
+ SET lock_timeout = 0;                                                                    +
+ SET idle_in_transaction_session_timeout = 0;                                             +
+ SET client_encoding = 'UTF8';                                                            +
+ SET standard_conforming_strings = off;                                                   +
+ SET check_function_bodies = false;                                                       +
+ SET client_min_messages = warning;                                                       +
+ SET escape_string_warning = off;                                                         +
+ SET row_security = on;                                                                   +
+                                                                                          +
+ SET SESSION AUTHORIZATION 'USR_DBMS_METADATA_TEST';                                      +
+                                                                                          +
+ SET search_path = "PGXZM_OSS", pg_catalog;                                               +
+                                                                                          +
+ SET default_with_oids = false;                                                           +
+                                                                                          +
+ --                                                                                       +
+ -- Name: MY_TEST_TABLE1; Type: TABLE; Schema: PGXZM_OSS; Owner: USR_DBMS_METADATA_TEST   +
+ --                                                                                       +
+                                                                                          +
+ CREATE TABLE "MY_TEST_TABLE1" (                                                          +
+     "COL1" INTEGER,                                                                      +
+     "COL2" TEXT,                                                                         +
+     "COL3" INTEGER                                                                       +
+ );                                                                                       +
+ CREATE KEY VALUES '(null)' FOR TABLE PGXZM_OSS.MY_TEST_TABLE1 TO GROUP (null);           +
+                                                                                          +
+                                                                                          +
+                                                                                          +
+ 
+(1 row)
+
+\o dbms_metadata.tmp
+select dbms_metadata.get_ddl('TABLE', '');
+\o
+\! cat dbms_metadata.tmp | sed '/-- Dumped by pg_dump version 10.0 @ *.*/d'
+                                          GET_DDL                                          
+-------------------------------------------------------------------------------------------
+ --                                                                                       +
+ -- PostgreSQL database dump                                                              +
+ --                                                                                       +
+                                                                                          +
+                                                                                          +
+ SET statement_timeout = 0;                                                               +
+ SET lock_timeout = 0;                                                                    +
+ SET idle_in_transaction_session_timeout = 0;                                             +
+ SET client_encoding = 'UTF8';                                                            +
+ SET standard_conforming_strings = off;                                                   +
+ SET check_function_bodies = false;                                                       +
+ SET client_min_messages = warning;                                                       +
+ SET escape_string_warning = off;                                                         +
+ SET row_security = on;                                                                   +
+                                                                                          +
+ SET SESSION AUTHORIZATION 'USR_DBMS_METADATA_TEST';                                      +
+                                                                                          +
+ --                                                                                       +
+ -- Name: PGXZM_OSS; Type: SCHEMA; Schema: -; Owner: USR_DBMS_METADATA_TEST               +
+ --                                                                                       +
+                                                                                          +
+ CREATE SCHEMA "PGXZM_OSS";                                                               +
+                                                                                          +
+                                                                                          +
+ SET search_path = "PGXZM_OSS", pg_catalog;                                               +
+                                                                                          +
+ SET default_with_oids = false;                                                           +
+                                                                                          +
+ --                                                                                       +
+ -- Name: MY_TEST_TABLE1; Type: TABLE; Schema: PGXZM_OSS; Owner: USR_DBMS_METADATA_TEST   +
+ --                                                                                       +
+                                                                                          +
+ CREATE TABLE "MY_TEST_TABLE1" (                                                          +
+     "COL1" INTEGER,                                                                      +
+     "COL2" TEXT,                                                                         +
+     "COL3" INTEGER                                                                       +
+ );                                                                                       +
+ CREATE KEY VALUES '(null)' FOR TABLE PGXZM_OSS.MY_TEST_TABLE1 TO GROUP (null);           +
+                                                                                          +
+                                                                                          +
+                                                                                          +
+ --                                                                                       +
+ -- Name: MY_TEST_TABLE2; Type: TABLE; Schema: PGXZM_OSS; Owner: USR_DBMS_METADATA_TEST   +
+ --                                                                                       +
+                                                                                          +
+ CREATE TABLE "MY_TEST_TABLE2" (                                                          +
+     "COL_1" INTEGER,                                                                     +
+     "COL_2" TEXT,                                                                        +
+     "COL_3" INTEGER                                                                      +
+ );                                                                                       +
+ CREATE KEY VALUES '(null)' FOR TABLE PGXZM_OSS.MY_TEST_TABLE2 TO GROUP (null);           +
+                                                                                          +
+                                                                                          +
+                                                                                          +
+ 
+(1 row)
+
+\o dbms_metadata.tmp
+select dbms_metadata.get_ddl('TABLE', 'MY_TEST_TABLE1', 'public');
+\o
+\! cat dbms_metadata.tmp | sed '/-- Dumped by pg_dump version 10.0 @ *.*/d'
+                                          GET_DDL                                          
+-------------------------------------------------------------------------------------------
+ --                                                                                       +
+ -- PostgreSQL database dump                                                              +
+ --                                                                                       +
+                                                                                          +
+                                                                                          +
+ SET statement_timeout = 0;                                                               +
+ SET lock_timeout = 0;                                                                    +
+ SET idle_in_transaction_session_timeout = 0;                                             +
+ SET client_encoding = 'UTF8';                                                            +
+ SET standard_conforming_strings = off;                                                   +
+ SET check_function_bodies = false;                                                       +
+ SET client_min_messages = warning;                                                       +
+ SET escape_string_warning = off;                                                         +
+ SET row_security = on;                                                                   +
+                                                                                          +
+ SET SESSION AUTHORIZATION 'USR_DBMS_METADATA_TEST';                                      +
+                                                                                          +
+ SET search_path = public, pg_catalog;                                                    +
+                                                                                          +
+ SET default_with_oids = false;                                                           +
+                                                                                          +
+ --                                                                                       +
+ -- Name: MY_TEST_TABLE1; Type: TABLE; Schema: public; Owner: USR_DBMS_METADATA_TEST      +
+ --                                                                                       +
+                                                                                          +
+ CREATE TABLE "MY_TEST_TABLE1" (                                                          +
+     "COL1" INTEGER,                                                                      +
+     "COL2" TEXT,                                                                         +
+     "COL3" INTEGER                                                                       +
+ );                                                                                       +
+ CREATE KEY VALUES '(null)' FOR TABLE public.MY_TEST_TABLE1 TO GROUP (null);              +
+                                                                                          +
+                                                                                          +
+                                                                                          +
+ 
+(1 row)
+
+\o dbms_metadata.tmp
+select dbms_metadata.get_ddl('TABLE', '', 'public');
+\o
+\! cat dbms_metadata.tmp | sed '/-- Dumped by pg_dump version 10.0 @ *.*/d'
+                                          GET_DDL                                          
+-------------------------------------------------------------------------------------------
+ --                                                                                       +
+ -- PostgreSQL database dump                                                              +
+ --                                                                                       +
+                                                                                          +
+                                                                                          +
+ SET statement_timeout = 0;                                                               +
+ SET lock_timeout = 0;                                                                    +
+ SET idle_in_transaction_session_timeout = 0;                                             +
+ SET client_encoding = 'UTF8';                                                            +
+ SET standard_conforming_strings = off;                                                   +
+ SET check_function_bodies = false;                                                       +
+ SET client_min_messages = warning;                                                       +
+ SET escape_string_warning = off;                                                         +
+ SET row_security = on;                                                                   +
+                                                                                          +
+ SET SESSION AUTHORIZATION 'USR_DBMS_METADATA_TEST';                                      +
+                                                                                          +
+ SET search_path = public, pg_catalog;                                                    +
+                                                                                          +
+ SET default_with_oids = false;                                                           +
+                                                                                          +
+ --                                                                                       +
+ -- Name: MTBL; Type: TABLE; Schema: public; Owner: USR_DBMS_METADATA_TEST                +
+ --                                                                                       +
+                                                                                          +
+ CREATE TABLE "MTBL" (                                                                    +
+     "A" INTEGER                                                                          +
+ );                                                                                       +
+ CREATE KEY VALUES '(null)' FOR TABLE public.MTBL TO GROUP (null);                        +
+                                                                                          +
+                                                                                          +
+                                                                                          +
+ --                                                                                       +
+ -- Name: MY_TEST_TABLE1; Type: TABLE; Schema: public; Owner: USR_DBMS_METADATA_TEST      +
+ --                                                                                       +
+                                                                                          +
+ CREATE TABLE "MY_TEST_TABLE1" (                                                          +
+     "COL1" INTEGER,                                                                      +
+     "COL2" TEXT,                                                                         +
+     "COL3" INTEGER                                                                       +
+ );                                                                                       +
+ CREATE KEY VALUES '(null)' FOR TABLE public.MY_TEST_TABLE1 TO GROUP (null);              +
+                                                                                          +
+                                                                                          +
+                                                                                          +
+ --                                                                                       +
+ -- Name: MY_TEST_TABLE2; Type: TABLE; Schema: public; Owner: USR_DBMS_METADATA_TEST      +
+ --                                                                                       +
+                                                                                          +
+ CREATE TABLE "MY_TEST_TABLE2" (                                                          +
+     "COL_1" INTEGER,                                                                     +
+     "COL_2" TEXT,                                                                        +
+     "COL_3" INTEGER                                                                      +
+ );                                                                                       +
+ CREATE KEY VALUES '(null)' FOR TABLE public.MY_TEST_TABLE2 TO GROUP (null);              +
+                                                                                          +
+                                                                                          +
+                                                                                          +
+ 
+(1 row)
+
+\o dbms_metadata.tmp
+select dbms_metadata.get_ddl('FUNCTION', 'MY_TEST_FUNC_ADD');
+\o
+\! cat dbms_metadata.tmp | sed '/-- Dumped by pg_dump version 10.0 @ *.*/d'
+                                                    GET_DDL                                                    
+---------------------------------------------------------------------------------------------------------------
+ --                                                                                                           +
+ -- PostgreSQL database dump                                                                                  +
+ --                                                                                                           +
+                                                                                                              +
+                                                                                                              +
+ SET statement_timeout = 0;                                                                                   +
+ SET lock_timeout = 0;                                                                                        +
+ SET idle_in_transaction_session_timeout = 0;                                                                 +
+ SET client_encoding = 'UTF8';                                                                                +
+ SET standard_conforming_strings = off;                                                                       +
+ SET check_function_bodies = false;                                                                           +
+ SET client_min_messages = warning;                                                                           +
+ SET escape_string_warning = off;                                                                             +
+ SET row_security = on;                                                                                       +
+                                                                                                              +
+ SET SESSION AUTHORIZATION 'USR_DBMS_METADATA_TEST';                                                          +
+                                                                                                              +
+ SET search_path = "PGXZM_OSS", pg_catalog;                                                                   +
+                                                                                                              +
+ --                                                                                                           +
+ -- Name: MY_TEST_FUNC_ADD(INTEGER, INTEGER); Type: FUNCTION; Schema: PGXZM_OSS; Owner: USR_DBMS_METADATA_TEST+
+ --                                                                                                           +
+                                                                                                              +
+ CREATE FUNCTION "MY_TEST_FUNC_ADD"(AA INTEGER, BB INTEGER) RETURNS INTEGER                                   +
+     LANGUAGE oraplsql                                                                                        +
+     AS '                                                                                                     +
+ DECLARE                                                                                                      +
+         cnt int;                                                                                             +
+ BEGIN                                                                                                        +
+         cnt = aa + bb;                                                                                       +
+         raise notice ''count=%'', cnt;                                                                       +
+         return cnt;                                                                                          +
+ END;                                                                                                         +
+ ';                                                                                                           +
+                                                                                                              +
+                                                                                                              +
+ --                                                                                                           +
+ -- Name: MY_TEST_FUNC_ADD(TEXT, TEXT); Type: FUNCTION; Schema: PGXZM_OSS; Owner: USR_DBMS_METADATA_TEST      +
+ --                                                                                                           +
+                                                                                                              +
+ CREATE FUNCTION "MY_TEST_FUNC_ADD"(AA TEXT, BB TEXT) RETURNS TEXT                                            +
+     LANGUAGE oraplsql                                                                                        +
+     AS '                                                                                                     +
+ DECLARE                                                                                                      +
+         res text;                                                                                            +
+ BEGIN                                                                                                        +
+         res =  aa || bb;                                                                                     +
+         raise notice ''count=%'', res;                                                                       +
+         return res;                                                                                          +
+ END;                                                                                                         +
+ ';                                                                                                           +
+                                                                                                              +
+                                                                                                              +
+ 
+(1 row)
+
+\o dbms_metadata.tmp
+select dbms_metadata.get_ddl('FUNCTION', '');
+\o
+\! cat dbms_metadata.tmp | sed '/-- Dumped by pg_dump version 10.0 @ *.*/d'
+                                                    GET_DDL                                                    
+---------------------------------------------------------------------------------------------------------------
+ --                                                                                                           +
+ -- PostgreSQL database dump                                                                                  +
+ --                                                                                                           +
+                                                                                                              +
+                                                                                                              +
+ SET statement_timeout = 0;                                                                                   +
+ SET lock_timeout = 0;                                                                                        +
+ SET idle_in_transaction_session_timeout = 0;                                                                 +
+ SET client_encoding = 'UTF8';                                                                                +
+ SET standard_conforming_strings = off;                                                                       +
+ SET check_function_bodies = false;                                                                           +
+ SET client_min_messages = warning;                                                                           +
+ SET escape_string_warning = off;                                                                             +
+ SET row_security = on;                                                                                       +
+                                                                                                              +
+ SET SESSION AUTHORIZATION 'USR_DBMS_METADATA_TEST';                                                          +
+                                                                                                              +
+ --                                                                                                           +
+ -- Name: PGXZM_OSS; Type: SCHEMA; Schema: -; Owner: USR_DBMS_METADATA_TEST                                   +
+ --                                                                                                           +
+                                                                                                              +
+ CREATE SCHEMA "PGXZM_OSS";                                                                                   +
+                                                                                                              +
+                                                                                                              +
+ SET search_path = "PGXZM_OSS", pg_catalog;                                                                   +
+                                                                                                              +
+ --                                                                                                           +
+ -- Name: MY_TEST_FUNC_ADD(INTEGER, INTEGER); Type: FUNCTION; Schema: PGXZM_OSS; Owner: USR_DBMS_METADATA_TEST+
+ --                                                                                                           +
+                                                                                                              +
+ CREATE FUNCTION "MY_TEST_FUNC_ADD"(AA INTEGER, BB INTEGER) RETURNS INTEGER                                   +
+     LANGUAGE oraplsql                                                                                        +
+     AS '                                                                                                     +
+ DECLARE                                                                                                      +
+         cnt int;                                                                                             +
+ BEGIN                                                                                                        +
+         cnt = aa + bb;                                                                                       +
+         raise notice ''count=%'', cnt;                                                                       +
+         return cnt;                                                                                          +
+ END;                                                                                                         +
+ ';                                                                                                           +
+                                                                                                              +
+                                                                                                              +
+ --                                                                                                           +
+ -- Name: MY_TEST_FUNC_ADD(TEXT, TEXT); Type: FUNCTION; Schema: PGXZM_OSS; Owner: USR_DBMS_METADATA_TEST      +
+ --                                                                                                           +
+                                                                                                              +
+ CREATE FUNCTION "MY_TEST_FUNC_ADD"(AA TEXT, BB TEXT) RETURNS TEXT                                            +
+     LANGUAGE oraplsql                                                                                        +
+     AS '                                                                                                     +
+ DECLARE                                                                                                      +
+         res text;                                                                                            +
+ BEGIN                                                                                                        +
+         res =  aa || bb;                                                                                     +
+         raise notice ''count=%'', res;                                                                       +
+         return res;                                                                                          +
+ END;                                                                                                         +
+ ';                                                                                                           +
+                                                                                                              +
+                                                                                                              +
+ 
+(1 row)
+
+\o dbms_metadata.tmp
+select dbms_metadata.get_ddl('FUNCTION', 'MY_TEST_FUNC_ADD', 'public');
+\o
+\! cat dbms_metadata.tmp | sed '/-- Dumped by pg_dump version 10.0 @ *.*/d'
+                                                  GET_DDL                                                   
+------------------------------------------------------------------------------------------------------------
+ --                                                                                                        +
+ -- PostgreSQL database dump                                                                               +
+ --                                                                                                        +
+                                                                                                           +
+                                                                                                           +
+ SET statement_timeout = 0;                                                                                +
+ SET lock_timeout = 0;                                                                                     +
+ SET idle_in_transaction_session_timeout = 0;                                                              +
+ SET client_encoding = 'UTF8';                                                                             +
+ SET standard_conforming_strings = off;                                                                    +
+ SET check_function_bodies = false;                                                                        +
+ SET client_min_messages = warning;                                                                        +
+ SET escape_string_warning = off;                                                                          +
+ SET row_security = on;                                                                                    +
+                                                                                                           +
+ SET SESSION AUTHORIZATION 'USR_DBMS_METADATA_TEST';                                                       +
+                                                                                                           +
+ SET search_path = public, pg_catalog;                                                                     +
+                                                                                                           +
+ --                                                                                                        +
+ -- Name: MY_TEST_FUNC_ADD(INTEGER, INTEGER); Type: FUNCTION; Schema: public; Owner: USR_DBMS_METADATA_TEST+
+ --                                                                                                        +
+                                                                                                           +
+ CREATE FUNCTION "MY_TEST_FUNC_ADD"(AA INTEGER, BB INTEGER) RETURNS INTEGER                                +
+     LANGUAGE oraplsql                                                                                     +
+     AS '                                                                                                  +
+ DECLARE                                                                                                   +
+         cnt int;                                                                                          +
+ BEGIN                                                                                                     +
+         cnt = aa + bb;                                                                                    +
+         raise notice ''count=%'', cnt;                                                                    +
+         return cnt;                                                                                       +
+ END;                                                                                                      +
+ ';                                                                                                        +
+                                                                                                           +
+                                                                                                           +
+ --                                                                                                        +
+ -- Name: MY_TEST_FUNC_ADD(TEXT, TEXT); Type: FUNCTION; Schema: public; Owner: USR_DBMS_METADATA_TEST      +
+ --                                                                                                        +
+                                                                                                           +
+ CREATE FUNCTION "MY_TEST_FUNC_ADD"(AA TEXT, BB TEXT) RETURNS TEXT                                         +
+     LANGUAGE oraplsql                                                                                     +
+     AS '                                                                                                  +
+ DECLARE                                                                                                   +
+         res text;                                                                                         +
+ BEGIN                                                                                                     +
+         res =  aa || bb;                                                                                  +
+         raise notice ''count=%'', res;                                                                    +
+         return res;                                                                                       +
+ END;                                                                                                      +
+ ';                                                                                                        +
+                                                                                                           +
+                                                                                                           +
+ 
+(1 row)
+
+\o dbms_metadata.tmp
+select dbms_metadata.get_ddl('FUNCTION', '', 'public');
+\o
+\! cat dbms_metadata.tmp | sed '/-- Dumped by pg_dump version 10.0 @ *.*/d'
+                                                  GET_DDL                                                   
+------------------------------------------------------------------------------------------------------------
+ --                                                                                                        +
+ -- PostgreSQL database dump                                                                               +
+ --                                                                                                        +
+                                                                                                           +
+                                                                                                           +
+ SET statement_timeout = 0;                                                                                +
+ SET lock_timeout = 0;                                                                                     +
+ SET idle_in_transaction_session_timeout = 0;                                                              +
+ SET client_encoding = 'UTF8';                                                                             +
+ SET standard_conforming_strings = off;                                                                    +
+ SET check_function_bodies = false;                                                                        +
+ SET client_min_messages = warning;                                                                        +
+ SET escape_string_warning = off;                                                                          +
+ SET row_security = on;                                                                                    +
+                                                                                                           +
+ SET SESSION AUTHORIZATION 'USR_DBMS_METADATA_TEST';                                                       +
+                                                                                                           +
+ SET search_path = public, pg_catalog;                                                                     +
+                                                                                                           +
+ --                                                                                                        +
+ -- Name: MY_TEST_FUNC_ADD(INTEGER, INTEGER); Type: FUNCTION; Schema: public; Owner: USR_DBMS_METADATA_TEST+
+ --                                                                                                        +
+                                                                                                           +
+ CREATE FUNCTION "MY_TEST_FUNC_ADD"(AA INTEGER, BB INTEGER) RETURNS INTEGER                                +
+     LANGUAGE oraplsql                                                                                     +
+     AS '                                                                                                  +
+ DECLARE                                                                                                   +
+         cnt int;                                                                                          +
+ BEGIN                                                                                                     +
+         cnt = aa + bb;                                                                                    +
+         raise notice ''count=%'', cnt;                                                                    +
+         return cnt;                                                                                       +
+ END;                                                                                                      +
+ ';                                                                                                        +
+                                                                                                           +
+                                                                                                           +
+ --                                                                                                        +
+ -- Name: MY_TEST_FUNC_ADD(TEXT, TEXT); Type: FUNCTION; Schema: public; Owner: USR_DBMS_METADATA_TEST      +
+ --                                                                                                        +
+                                                                                                           +
+ CREATE FUNCTION "MY_TEST_FUNC_ADD"(AA TEXT, BB TEXT) RETURNS TEXT                                         +
+     LANGUAGE oraplsql                                                                                     +
+     AS '                                                                                                  +
+ DECLARE                                                                                                   +
+         res text;                                                                                         +
+ BEGIN                                                                                                     +
+         res =  aa || bb;                                                                                  +
+         raise notice ''count=%'', res;                                                                    +
+         return res;                                                                                       +
+ END;                                                                                                      +
+ ';                                                                                                        +
+                                                                                                           +
+                                                                                                           +
+ 
+(1 row)
+
+set search_path = default;
+select current_schema();
+ CURRENT_SCHEMA 
+----------------
+ public
+(1 row)
+
+\o dbms_metadata.tmp
+select dbms_metadata.get_ddl('TABLE', 'MY_TEST_TABLE1');
+\o
+\! cat dbms_metadata.tmp | sed '/-- Dumped by pg_dump version 10.0 @ *.*/d'
+                                          GET_DDL                                          
+-------------------------------------------------------------------------------------------
+ --                                                                                       +
+ -- PostgreSQL database dump                                                              +
+ --                                                                                       +
+                                                                                          +
+                                                                                          +
+ SET statement_timeout = 0;                                                               +
+ SET lock_timeout = 0;                                                                    +
+ SET idle_in_transaction_session_timeout = 0;                                             +
+ SET client_encoding = 'UTF8';                                                            +
+ SET standard_conforming_strings = off;                                                   +
+ SET check_function_bodies = false;                                                       +
+ SET client_min_messages = warning;                                                       +
+ SET escape_string_warning = off;                                                         +
+ SET row_security = on;                                                                   +
+                                                                                          +
+ SET SESSION AUTHORIZATION 'USR_DBMS_METADATA_TEST';                                      +
+                                                                                          +
+ SET search_path = public, pg_catalog;                                                    +
+                                                                                          +
+ SET default_with_oids = false;                                                           +
+                                                                                          +
+ --                                                                                       +
+ -- Name: MY_TEST_TABLE1; Type: TABLE; Schema: public; Owner: USR_DBMS_METADATA_TEST      +
+ --                                                                                       +
+                                                                                          +
+ CREATE TABLE "MY_TEST_TABLE1" (                                                          +
+     "COL1" INTEGER,                                                                      +
+     "COL2" TEXT,                                                                         +
+     "COL3" INTEGER                                                                       +
+ );                                                                                       +
+ CREATE KEY VALUES '(null)' FOR TABLE public.MY_TEST_TABLE1 TO GROUP (null);              +
+                                                                                          +
+                                                                                          +
+                                                                                          +
+ 
+(1 row)
+
+\o dbms_metadata.tmp
+select dbms_metadata.get_ddl('TABLE', '');
+\o
+\! cat dbms_metadata.tmp | sed '/-- Dumped by pg_dump version 10.0 @ *.*/d'
+                                          GET_DDL                                          
+-------------------------------------------------------------------------------------------
+ --                                                                                       +
+ -- PostgreSQL database dump                                                              +
+ --                                                                                       +
+                                                                                          +
+                                                                                          +
+ SET statement_timeout = 0;                                                               +
+ SET lock_timeout = 0;                                                                    +
+ SET idle_in_transaction_session_timeout = 0;                                             +
+ SET client_encoding = 'UTF8';                                                            +
+ SET standard_conforming_strings = off;                                                   +
+ SET check_function_bodies = false;                                                       +
+ SET client_min_messages = warning;                                                       +
+ SET escape_string_warning = off;                                                         +
+ SET row_security = on;                                                                   +
+                                                                                          +
+ SET SESSION AUTHORIZATION 'USR_DBMS_METADATA_TEST';                                      +
+                                                                                          +
+ SET search_path = public, pg_catalog;                                                    +
+                                                                                          +
+ SET default_with_oids = false;                                                           +
+                                                                                          +
+ --                                                                                       +
+ -- Name: MTBL; Type: TABLE; Schema: public; Owner: USR_DBMS_METADATA_TEST                +
+ --                                                                                       +
+                                                                                          +
+ CREATE TABLE "MTBL" (                                                                    +
+     "A" INTEGER                                                                          +
+ );                                                                                       +
+ CREATE KEY VALUES '(null)' FOR TABLE public.MTBL TO GROUP (null);                        +
+                                                                                          +
+                                                                                          +
+                                                                                          +
+ --                                                                                       +
+ -- Name: MY_TEST_TABLE1; Type: TABLE; Schema: public; Owner: USR_DBMS_METADATA_TEST      +
+ --                                                                                       +
+                                                                                          +
+ CREATE TABLE "MY_TEST_TABLE1" (                                                          +
+     "COL1" INTEGER,                                                                      +
+     "COL2" TEXT,                                                                         +
+     "COL3" INTEGER                                                                       +
+ );                                                                                       +
+ CREATE KEY VALUES '(null)' FOR TABLE public.MY_TEST_TABLE1 TO GROUP (null);              +
+                                                                                          +
+                                                                                          +
+                                                                                          +
+ --                                                                                       +
+ -- Name: MY_TEST_TABLE2; Type: TABLE; Schema: public; Owner: USR_DBMS_METADATA_TEST      +
+ --                                                                                       +
+                                                                                          +
+ CREATE TABLE "MY_TEST_TABLE2" (                                                          +
+     "COL_1" INTEGER,                                                                     +
+     "COL_2" TEXT,                                                                        +
+     "COL_3" INTEGER                                                                      +
+ );                                                                                       +
+ CREATE KEY VALUES '(null)' FOR TABLE public.MY_TEST_TABLE2 TO GROUP (null);              +
+                                                                                          +
+                                                                                          +
+                                                                                          +
+ 
+(1 row)
+
+\o dbms_metadata.tmp
+select dbms_metadata.get_ddl('TABLE', 'MY_TEST_TABLE1', 'public');
+\o
+\! cat dbms_metadata.tmp | sed '/-- Dumped by pg_dump version 10.0 @ *.*/d'
+                                          GET_DDL                                          
+-------------------------------------------------------------------------------------------
+ --                                                                                       +
+ -- PostgreSQL database dump                                                              +
+ --                                                                                       +
+                                                                                          +
+                                                                                          +
+ SET statement_timeout = 0;                                                               +
+ SET lock_timeout = 0;                                                                    +
+ SET idle_in_transaction_session_timeout = 0;                                             +
+ SET client_encoding = 'UTF8';                                                            +
+ SET standard_conforming_strings = off;                                                   +
+ SET check_function_bodies = false;                                                       +
+ SET client_min_messages = warning;                                                       +
+ SET escape_string_warning = off;                                                         +
+ SET row_security = on;                                                                   +
+                                                                                          +
+ SET SESSION AUTHORIZATION 'USR_DBMS_METADATA_TEST';                                      +
+                                                                                          +
+ SET search_path = public, pg_catalog;                                                    +
+                                                                                          +
+ SET default_with_oids = false;                                                           +
+                                                                                          +
+ --                                                                                       +
+ -- Name: MY_TEST_TABLE1; Type: TABLE; Schema: public; Owner: USR_DBMS_METADATA_TEST      +
+ --                                                                                       +
+                                                                                          +
+ CREATE TABLE "MY_TEST_TABLE1" (                                                          +
+     "COL1" INTEGER,                                                                      +
+     "COL2" TEXT,                                                                         +
+     "COL3" INTEGER                                                                       +
+ );                                                                                       +
+ CREATE KEY VALUES '(null)' FOR TABLE public.MY_TEST_TABLE1 TO GROUP (null);              +
+                                                                                          +
+                                                                                          +
+                                                                                          +
+ 
+(1 row)
+
+\o dbms_metadata.tmp
+select dbms_metadata.get_ddl('TABLE', '', 'PGXZM_OSS');
+\o
+\! cat dbms_metadata.tmp | sed '/-- Dumped by pg_dump version 10.0 @ *.*/d'
+                                          GET_DDL                                          
+-------------------------------------------------------------------------------------------
+ --                                                                                       +
+ -- PostgreSQL database dump                                                              +
+ --                                                                                       +
+                                                                                          +
+                                                                                          +
+ SET statement_timeout = 0;                                                               +
+ SET lock_timeout = 0;                                                                    +
+ SET idle_in_transaction_session_timeout = 0;                                             +
+ SET client_encoding = 'UTF8';                                                            +
+ SET standard_conforming_strings = off;                                                   +
+ SET check_function_bodies = false;                                                       +
+ SET client_min_messages = warning;                                                       +
+ SET escape_string_warning = off;                                                         +
+ SET row_security = on;                                                                   +
+                                                                                          +
+ SET SESSION AUTHORIZATION 'USR_DBMS_METADATA_TEST';                                      +
+                                                                                          +
+ --                                                                                       +
+ -- Name: PGXZM_OSS; Type: SCHEMA; Schema: -; Owner: USR_DBMS_METADATA_TEST               +
+ --                                                                                       +
+                                                                                          +
+ CREATE SCHEMA "PGXZM_OSS";                                                               +
+                                                                                          +
+                                                                                          +
+ SET search_path = "PGXZM_OSS", pg_catalog;                                               +
+                                                                                          +
+ SET default_with_oids = false;                                                           +
+                                                                                          +
+ --                                                                                       +
+ -- Name: MY_TEST_TABLE1; Type: TABLE; Schema: PGXZM_OSS; Owner: USR_DBMS_METADATA_TEST   +
+ --                                                                                       +
+                                                                                          +
+ CREATE TABLE "MY_TEST_TABLE1" (                                                          +
+     "COL1" INTEGER,                                                                      +
+     "COL2" TEXT,                                                                         +
+     "COL3" INTEGER                                                                       +
+ );                                                                                       +
+ CREATE KEY VALUES '(null)' FOR TABLE PGXZM_OSS.MY_TEST_TABLE1 TO GROUP (null);           +
+                                                                                          +
+                                                                                          +
+                                                                                          +
+ --                                                                                       +
+ -- Name: MY_TEST_TABLE2; Type: TABLE; Schema: PGXZM_OSS; Owner: USR_DBMS_METADATA_TEST   +
+ --                                                                                       +
+                                                                                          +
+ CREATE TABLE "MY_TEST_TABLE2" (                                                          +
+     "COL_1" INTEGER,                                                                     +
+     "COL_2" TEXT,                                                                        +
+     "COL_3" INTEGER                                                                      +
+ );                                                                                       +
+ CREATE KEY VALUES '(null)' FOR TABLE PGXZM_OSS.MY_TEST_TABLE2 TO GROUP (null);           +
+                                                                                          +
+                                                                                          +
+                                                                                          +
+ 
+(1 row)
+
+\o dbms_metadata.tmp
+select dbms_metadata.get_ddl('TABLE', 'MY_TEST_TABLE1', 'PGXZM_OSS');
+\o
+\! cat dbms_metadata.tmp | sed '/-- Dumped by pg_dump version 10.0 @ *.*/d'
+                                          GET_DDL                                          
+-------------------------------------------------------------------------------------------
+ --                                                                                       +
+ -- PostgreSQL database dump                                                              +
+ --                                                                                       +
+                                                                                          +
+                                                                                          +
+ SET statement_timeout = 0;                                                               +
+ SET lock_timeout = 0;                                                                    +
+ SET idle_in_transaction_session_timeout = 0;                                             +
+ SET client_encoding = 'UTF8';                                                            +
+ SET standard_conforming_strings = off;                                                   +
+ SET check_function_bodies = false;                                                       +
+ SET client_min_messages = warning;                                                       +
+ SET escape_string_warning = off;                                                         +
+ SET row_security = on;                                                                   +
+                                                                                          +
+ SET SESSION AUTHORIZATION 'USR_DBMS_METADATA_TEST';                                      +
+                                                                                          +
+ SET search_path = "PGXZM_OSS", pg_catalog;                                               +
+                                                                                          +
+ SET default_with_oids = false;                                                           +
+                                                                                          +
+ --                                                                                       +
+ -- Name: MY_TEST_TABLE1; Type: TABLE; Schema: PGXZM_OSS; Owner: USR_DBMS_METADATA_TEST   +
+ --                                                                                       +
+                                                                                          +
+ CREATE TABLE "MY_TEST_TABLE1" (                                                          +
+     "COL1" INTEGER,                                                                      +
+     "COL2" TEXT,                                                                         +
+     "COL3" INTEGER                                                                       +
+ );                                                                                       +
+ CREATE KEY VALUES '(null)' FOR TABLE PGXZM_OSS.MY_TEST_TABLE1 TO GROUP (null);           +
+                                                                                          +
+                                                                                          +
+                                                                                          +
+ 
+(1 row)
+
+\o dbms_metadata.tmp
+select dbms_metadata.get_ddl('TABLE', '', 'PGXZM_OSS');
+\o
+\! cat dbms_metadata.tmp | sed '/-- Dumped by pg_dump version 10.0 @ *.*/d'
+                                          GET_DDL                                          
+-------------------------------------------------------------------------------------------
+ --                                                                                       +
+ -- PostgreSQL database dump                                                              +
+ --                                                                                       +
+                                                                                          +
+                                                                                          +
+ SET statement_timeout = 0;                                                               +
+ SET lock_timeout = 0;                                                                    +
+ SET idle_in_transaction_session_timeout = 0;                                             +
+ SET client_encoding = 'UTF8';                                                            +
+ SET standard_conforming_strings = off;                                                   +
+ SET check_function_bodies = false;                                                       +
+ SET client_min_messages = warning;                                                       +
+ SET escape_string_warning = off;                                                         +
+ SET row_security = on;                                                                   +
+                                                                                          +
+ SET SESSION AUTHORIZATION 'USR_DBMS_METADATA_TEST';                                      +
+                                                                                          +
+ --                                                                                       +
+ -- Name: PGXZM_OSS; Type: SCHEMA; Schema: -; Owner: USR_DBMS_METADATA_TEST               +
+ --                                                                                       +
+                                                                                          +
+ CREATE SCHEMA "PGXZM_OSS";                                                               +
+                                                                                          +
+                                                                                          +
+ SET search_path = "PGXZM_OSS", pg_catalog;                                               +
+                                                                                          +
+ SET default_with_oids = false;                                                           +
+                                                                                          +
+ --                                                                                       +
+ -- Name: MY_TEST_TABLE1; Type: TABLE; Schema: PGXZM_OSS; Owner: USR_DBMS_METADATA_TEST   +
+ --                                                                                       +
+                                                                                          +
+ CREATE TABLE "MY_TEST_TABLE1" (                                                          +
+     "COL1" INTEGER,                                                                      +
+     "COL2" TEXT,                                                                         +
+     "COL3" INTEGER                                                                       +
+ );                                                                                       +
+ CREATE KEY VALUES '(null)' FOR TABLE PGXZM_OSS.MY_TEST_TABLE1 TO GROUP (null);           +
+                                                                                          +
+                                                                                          +
+                                                                                          +
+ --                                                                                       +
+ -- Name: MY_TEST_TABLE2; Type: TABLE; Schema: PGXZM_OSS; Owner: USR_DBMS_METADATA_TEST   +
+ --                                                                                       +
+                                                                                          +
+ CREATE TABLE "MY_TEST_TABLE2" (                                                          +
+     "COL_1" INTEGER,                                                                     +
+     "COL_2" TEXT,                                                                        +
+     "COL_3" INTEGER                                                                      +
+ );                                                                                       +
+ CREATE KEY VALUES '(null)' FOR TABLE PGXZM_OSS.MY_TEST_TABLE2 TO GROUP (null);           +
+                                                                                          +
+                                                                                          +
+                                                                                          +
+ 
+(1 row)
+
+\o dbms_metadata.tmp
+select dbms_metadata.get_ddl('FUNCTION', 'MY_TEST_FUNC_ADD');
+\o
+\! cat dbms_metadata.tmp | sed '/-- Dumped by pg_dump version 10.0 @ *.*/d'
+                                                  GET_DDL                                                   
+------------------------------------------------------------------------------------------------------------
+ --                                                                                                        +
+ -- PostgreSQL database dump                                                                               +
+ --                                                                                                        +
+                                                                                                           +
+                                                                                                           +
+ SET statement_timeout = 0;                                                                                +
+ SET lock_timeout = 0;                                                                                     +
+ SET idle_in_transaction_session_timeout = 0;                                                              +
+ SET client_encoding = 'UTF8';                                                                             +
+ SET standard_conforming_strings = off;                                                                    +
+ SET check_function_bodies = false;                                                                        +
+ SET client_min_messages = warning;                                                                        +
+ SET escape_string_warning = off;                                                                          +
+ SET row_security = on;                                                                                    +
+                                                                                                           +
+ SET SESSION AUTHORIZATION 'USR_DBMS_METADATA_TEST';                                                       +
+                                                                                                           +
+ SET search_path = public, pg_catalog;                                                                     +
+                                                                                                           +
+ --                                                                                                        +
+ -- Name: MY_TEST_FUNC_ADD(INTEGER, INTEGER); Type: FUNCTION; Schema: public; Owner: USR_DBMS_METADATA_TEST+
+ --                                                                                                        +
+                                                                                                           +
+ CREATE FUNCTION "MY_TEST_FUNC_ADD"(AA INTEGER, BB INTEGER) RETURNS INTEGER                                +
+     LANGUAGE oraplsql                                                                                     +
+     AS '                                                                                                  +
+ DECLARE                                                                                                   +
+         cnt int;                                                                                          +
+ BEGIN                                                                                                     +
+         cnt = aa + bb;                                                                                    +
+         raise notice ''count=%'', cnt;                                                                    +
+         return cnt;                                                                                       +
+ END;                                                                                                      +
+ ';                                                                                                        +
+                                                                                                           +
+                                                                                                           +
+ --                                                                                                        +
+ -- Name: MY_TEST_FUNC_ADD(TEXT, TEXT); Type: FUNCTION; Schema: public; Owner: USR_DBMS_METADATA_TEST      +
+ --                                                                                                        +
+                                                                                                           +
+ CREATE FUNCTION "MY_TEST_FUNC_ADD"(AA TEXT, BB TEXT) RETURNS TEXT                                         +
+     LANGUAGE oraplsql                                                                                     +
+     AS '                                                                                                  +
+ DECLARE                                                                                                   +
+         res text;                                                                                         +
+ BEGIN                                                                                                     +
+         res =  aa || bb;                                                                                  +
+         raise notice ''count=%'', res;                                                                    +
+         return res;                                                                                       +
+ END;                                                                                                      +
+ ';                                                                                                        +
+                                                                                                           +
+                                                                                                           +
+ 
+(1 row)
+
+\o dbms_metadata.tmp
+select dbms_metadata.get_ddl('FUNCTION', '');
+\o
+\! cat dbms_metadata.tmp | sed '/-- Dumped by pg_dump version 10.0 @ *.*/d'
+                                                  GET_DDL                                                   
+------------------------------------------------------------------------------------------------------------
+ --                                                                                                        +
+ -- PostgreSQL database dump                                                                               +
+ --                                                                                                        +
+                                                                                                           +
+                                                                                                           +
+ SET statement_timeout = 0;                                                                                +
+ SET lock_timeout = 0;                                                                                     +
+ SET idle_in_transaction_session_timeout = 0;                                                              +
+ SET client_encoding = 'UTF8';                                                                             +
+ SET standard_conforming_strings = off;                                                                    +
+ SET check_function_bodies = false;                                                                        +
+ SET client_min_messages = warning;                                                                        +
+ SET escape_string_warning = off;                                                                          +
+ SET row_security = on;                                                                                    +
+                                                                                                           +
+ SET SESSION AUTHORIZATION 'USR_DBMS_METADATA_TEST';                                                       +
+                                                                                                           +
+ SET search_path = public, pg_catalog;                                                                     +
+                                                                                                           +
+ --                                                                                                        +
+ -- Name: MY_TEST_FUNC_ADD(INTEGER, INTEGER); Type: FUNCTION; Schema: public; Owner: USR_DBMS_METADATA_TEST+
+ --                                                                                                        +
+                                                                                                           +
+ CREATE FUNCTION "MY_TEST_FUNC_ADD"(AA INTEGER, BB INTEGER) RETURNS INTEGER                                +
+     LANGUAGE oraplsql                                                                                     +
+     AS '                                                                                                  +
+ DECLARE                                                                                                   +
+         cnt int;                                                                                          +
+ BEGIN                                                                                                     +
+         cnt = aa + bb;                                                                                    +
+         raise notice ''count=%'', cnt;                                                                    +
+         return cnt;                                                                                       +
+ END;                                                                                                      +
+ ';                                                                                                        +
+                                                                                                           +
+                                                                                                           +
+ --                                                                                                        +
+ -- Name: MY_TEST_FUNC_ADD(TEXT, TEXT); Type: FUNCTION; Schema: public; Owner: USR_DBMS_METADATA_TEST      +
+ --                                                                                                        +
+                                                                                                           +
+ CREATE FUNCTION "MY_TEST_FUNC_ADD"(AA TEXT, BB TEXT) RETURNS TEXT                                         +
+     LANGUAGE oraplsql                                                                                     +
+     AS '                                                                                                  +
+ DECLARE                                                                                                   +
+         res text;                                                                                         +
+ BEGIN                                                                                                     +
+         res =  aa || bb;                                                                                  +
+         raise notice ''count=%'', res;                                                                    +
+         return res;                                                                                       +
+ END;                                                                                                      +
+ ';                                                                                                        +
+                                                                                                           +
+                                                                                                           +
+ 
+(1 row)
+
+\o dbms_metadata.tmp
+select dbms_metadata.get_ddl('FUNCTION', 'MY_TEST_FUNC_ADD', 'PGXZM_OSS');
+\o
+\! cat dbms_metadata.tmp | sed '/-- Dumped by pg_dump version 10.0 @ *.*/d'
+                                                    GET_DDL                                                    
+---------------------------------------------------------------------------------------------------------------
+ --                                                                                                           +
+ -- PostgreSQL database dump                                                                                  +
+ --                                                                                                           +
+                                                                                                              +
+                                                                                                              +
+ SET statement_timeout = 0;                                                                                   +
+ SET lock_timeout = 0;                                                                                        +
+ SET idle_in_transaction_session_timeout = 0;                                                                 +
+ SET client_encoding = 'UTF8';                                                                                +
+ SET standard_conforming_strings = off;                                                                       +
+ SET check_function_bodies = false;                                                                           +
+ SET client_min_messages = warning;                                                                           +
+ SET escape_string_warning = off;                                                                             +
+ SET row_security = on;                                                                                       +
+                                                                                                              +
+ SET SESSION AUTHORIZATION 'USR_DBMS_METADATA_TEST';                                                          +
+                                                                                                              +
+ SET search_path = "PGXZM_OSS", pg_catalog;                                                                   +
+                                                                                                              +
+ --                                                                                                           +
+ -- Name: MY_TEST_FUNC_ADD(INTEGER, INTEGER); Type: FUNCTION; Schema: PGXZM_OSS; Owner: USR_DBMS_METADATA_TEST+
+ --                                                                                                           +
+                                                                                                              +
+ CREATE FUNCTION "MY_TEST_FUNC_ADD"(AA INTEGER, BB INTEGER) RETURNS INTEGER                                   +
+     LANGUAGE oraplsql                                                                                        +
+     AS '                                                                                                     +
+ DECLARE                                                                                                      +
+         cnt int;                                                                                             +
+ BEGIN                                                                                                        +
+         cnt = aa + bb;                                                                                       +
+         raise notice ''count=%'', cnt;                                                                       +
+         return cnt;                                                                                          +
+ END;                                                                                                         +
+ ';                                                                                                           +
+                                                                                                              +
+                                                                                                              +
+ --                                                                                                           +
+ -- Name: MY_TEST_FUNC_ADD(TEXT, TEXT); Type: FUNCTION; Schema: PGXZM_OSS; Owner: USR_DBMS_METADATA_TEST      +
+ --                                                                                                           +
+                                                                                                              +
+ CREATE FUNCTION "MY_TEST_FUNC_ADD"(AA TEXT, BB TEXT) RETURNS TEXT                                            +
+     LANGUAGE oraplsql                                                                                        +
+     AS '                                                                                                     +
+ DECLARE                                                                                                      +
+         res text;                                                                                            +
+ BEGIN                                                                                                        +
+         res =  aa || bb;                                                                                     +
+         raise notice ''count=%'', res;                                                                       +
+         return res;                                                                                          +
+ END;                                                                                                         +
+ ';                                                                                                           +
+                                                                                                              +
+                                                                                                              +
+ 
+(1 row)
+
+\o dbms_metadata.tmp
+select dbms_metadata.get_ddl('FUNCTION', '', 'PGXZM_OSS');
+\o
+\! cat dbms_metadata.tmp | sed '/-- Dumped by pg_dump version 10.0 @ *.*/d'
+                                                    GET_DDL                                                    
+---------------------------------------------------------------------------------------------------------------
+ --                                                                                                           +
+ -- PostgreSQL database dump                                                                                  +
+ --                                                                                                           +
+                                                                                                              +
+                                                                                                              +
+ SET statement_timeout = 0;                                                                                   +
+ SET lock_timeout = 0;                                                                                        +
+ SET idle_in_transaction_session_timeout = 0;                                                                 +
+ SET client_encoding = 'UTF8';                                                                                +
+ SET standard_conforming_strings = off;                                                                       +
+ SET check_function_bodies = false;                                                                           +
+ SET client_min_messages = warning;                                                                           +
+ SET escape_string_warning = off;                                                                             +
+ SET row_security = on;                                                                                       +
+                                                                                                              +
+ SET SESSION AUTHORIZATION 'USR_DBMS_METADATA_TEST';                                                          +
+                                                                                                              +
+ --                                                                                                           +
+ -- Name: PGXZM_OSS; Type: SCHEMA; Schema: -; Owner: USR_DBMS_METADATA_TEST                                   +
+ --                                                                                                           +
+                                                                                                              +
+ CREATE SCHEMA "PGXZM_OSS";                                                                                   +
+                                                                                                              +
+                                                                                                              +
+ SET search_path = "PGXZM_OSS", pg_catalog;                                                                   +
+                                                                                                              +
+ --                                                                                                           +
+ -- Name: MY_TEST_FUNC_ADD(INTEGER, INTEGER); Type: FUNCTION; Schema: PGXZM_OSS; Owner: USR_DBMS_METADATA_TEST+
+ --                                                                                                           +
+                                                                                                              +
+ CREATE FUNCTION "MY_TEST_FUNC_ADD"(AA INTEGER, BB INTEGER) RETURNS INTEGER                                   +
+     LANGUAGE oraplsql                                                                                        +
+     AS '                                                                                                     +
+ DECLARE                                                                                                      +
+         cnt int;                                                                                             +
+ BEGIN                                                                                                        +
+         cnt = aa + bb;                                                                                       +
+         raise notice ''count=%'', cnt;                                                                       +
+         return cnt;                                                                                          +
+ END;                                                                                                         +
+ ';                                                                                                           +
+                                                                                                              +
+                                                                                                              +
+ --                                                                                                           +
+ -- Name: MY_TEST_FUNC_ADD(TEXT, TEXT); Type: FUNCTION; Schema: PGXZM_OSS; Owner: USR_DBMS_METADATA_TEST      +
+ --                                                                                                           +
+                                                                                                              +
+ CREATE FUNCTION "MY_TEST_FUNC_ADD"(AA TEXT, BB TEXT) RETURNS TEXT                                            +
+     LANGUAGE oraplsql                                                                                        +
+     AS '                                                                                                     +
+ DECLARE                                                                                                      +
+         res text;                                                                                            +
+ BEGIN                                                                                                        +
+         res =  aa || bb;                                                                                     +
+         raise notice ''count=%'', res;                                                                       +
+         return res;                                                                                          +
+ END;                                                                                                         +
+ ';                                                                                                           +
+                                                                                                              +
+                                                                                                              +
+ 
+(1 row)
+
+--clean all object
+set search_path = default;
+drop FUNCTION my_test_func_add(aa int, bb int);
+drop FUNCTION my_test_func_add(aa text, bb text);
+drop table my_test_table2;
+drop table my_test_table1;
+drop type my_test_type;
+drop schema pgxzm_oss CASCADE;
+NOTICE:  drop cascades to 5 other objects
+DETAIL:  drop cascades to type PGXZM_OSS.MY_TEST_TYPE
+drop cascades to table PGXZM_OSS.MY_TEST_TABLE1
+drop cascades to table PGXZM_OSS.MY_TEST_TABLE2
+drop cascades to function PGXZM_OSS.MY_TEST_FUNC_ADD(INTEGER,INTEGER)
+drop cascades to function PGXZM_OSS.MY_TEST_FUNC_ADD(TEXT,TEXT)
+drop table mtbl;
+reset SESSION AUTHORIZATION;
+drop user usr_dbms_metadata_test;

@@ -1,14 +1,11 @@
 /*-------------------------------------------------------------------------
  *
  * pg_type_fn.h
- *     prototypes for functions in catalog/pg_type.c
+ *	 prototypes for functions in catalog/pg_type.c
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
- *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  * src/include/catalog/pg_type_fn.h
  *
@@ -22,66 +19,56 @@
 
 
 extern ObjectAddress TypeShellMake(const char *typeName,
-              Oid typeNamespace,
-              Oid ownerId);
+			  Oid typeNamespace,
+			  Oid ownerId);
 
 extern ObjectAddress TypeCreate(Oid newTypeOid,
-           const char *typeName,
-           Oid typeNamespace,
-           Oid relationOid,
-           char relationKind,
-           Oid ownerId,
-           int16 internalSize,
-           char typeType,
-           char typeCategory,
-           bool typePreferred,
-           char typDelim,
-           Oid inputProcedure,
-           Oid outputProcedure,
-           Oid receiveProcedure,
-           Oid sendProcedure,
-           Oid typmodinProcedure,
-           Oid typmodoutProcedure,
-           Oid analyzeProcedure,
-           Oid elementType,
-           bool isImplicitArray,
-           Oid arrayType,
-           Oid baseType,
-           const char *defaultTypeValue,
-           char *defaultTypeBin,
-           bool passedByValue,
-           char alignment,
-           char storage,
-           int32 typeMod,
-           int32 typNDims,
-           bool typeNotNull,
-           Oid typeCollation);
+		   const char *typeName,
+		   Oid typeNamespace,
+		   Oid relationOid,
+		   char relationKind,
+		   Oid ownerId,
+		   int16 internalSize,
+		   char typeType,
+		   char typeCategory,
+		   bool typePreferred,
+		   char typDelim,
+		   Oid inputProcedure,
+		   Oid outputProcedure,
+		   Oid receiveProcedure,
+		   Oid sendProcedure,
+		   Oid typmodinProcedure,
+		   Oid typmodoutProcedure,
+		   Oid analyzeProcedure,
+		   Oid elementType,
+		   bool isImplicitArray,
+		   Oid arrayType,
+		   Oid baseType,
+		   const char *defaultTypeValue,
+		   char *defaultTypeBin,
+		   bool passedByValue,
+		   char alignment,
+		   char storage,
+		   int32 typeMod,
+		   int32 typNDims,
+		   bool typeNotNull,
+		   Oid typeCollation);
 
-extern void GenerateTypeDependencies(Oid typeNamespace,
-                         Oid typeObjectId,
-                         Oid relationOid,
-                         char relationKind,
-                         Oid owner,
-                         Oid inputProcedure,
-                         Oid outputProcedure,
-                         Oid receiveProcedure,
-                         Oid sendProcedure,
-                         Oid typmodinProcedure,
-                         Oid typmodoutProcedure,
-                         Oid analyzeProcedure,
-                         Oid elementType,
-                         bool isImplicitArray,
-                         Oid baseType,
-                         Oid typeCollation,
-                         Node *defaultExpr,
-                         bool rebuild);
+extern void GenerateTypeDependencies(Oid typeObjectId,
+						 Form_pg_type typeForm,
+						 Node *defaultExpr,
+						 void *typacl,
+						 char relationKind, /* only for relation rowtypes */
+						 bool isImplicitArray,
+						 bool isDependentType,
+						 bool rebuild);
 
 extern void RenameTypeInternal(Oid typeOid, const char *newTypeName,
-                   Oid typeNamespace);
+				   Oid typeNamespace);
 
 extern char *makeArrayTypeName(const char *typeName, Oid typeNamespace);
 
 extern bool moveArrayTypeName(Oid typeOid, const char *typeName,
-                  Oid typeNamespace);
+				  Oid typeNamespace);
 
-#endif                            /* PG_TYPE_FN_H */
+#endif							/* PG_TYPE_FN_H */

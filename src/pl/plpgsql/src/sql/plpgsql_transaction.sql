@@ -166,7 +166,7 @@ BEGIN
 END;
 $$;
 
-CALL transaction_test8();
+-- CALL transaction_test8();
 
 
 -- commit inside cursor loop

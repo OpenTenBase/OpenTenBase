@@ -1,14 +1,11 @@
 /*-------------------------------------------------------------------------
  *
  * snapshot.h
- *      POSTGRES snapshot definition
+ *	  POSTGRES snapshot definition
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  * Portions Copyright (c) 2010-2012 Postgres-XC Development Group
- *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  * src/include/utils/snapshot.h
  *
@@ -30,7 +27,7 @@
 
 typedef struct SnapshotData *Snapshot;
 
-#define InvalidSnapshot        ((Snapshot) NULL)
+#define InvalidSnapshot		((Snapshot) NULL)
 
 /*
  * We use SnapshotData structures to represent both "regular" (MVCC)
@@ -39,7 +36,7 @@ typedef struct SnapshotData *Snapshot;
  * function.
  */
 typedef bool (*SnapshotSatisfiesFunc) (HeapTuple htup,
-                                       Snapshot snapshot, Buffer buffer);
+									   Snapshot snapshot, Buffer buffer);
 
 /*
  * Struct representing all kind of possible snapshots.
@@ -50,7 +47,7 @@ typedef bool (*SnapshotSatisfiesFunc) (HeapTuple htup,
  * * Historic MVCC snapshots used during logical decoding
  * * snapshots passed to HeapTupleSatisfiesDirty()
  * * snapshots used for SatisfiesAny, Toast, Self where no members are
- *     accessed.
+ *	 accessed.
  *
  * TODO: It's probably a good idea to split this struct using a NodeTag
  * similar to how parser and executor nodes are handled, with one type for
@@ -59,103 +56,92 @@ typedef bool (*SnapshotSatisfiesFunc) (HeapTuple htup,
  */
 typedef struct SnapshotData
 {
-    SnapshotSatisfiesFunc satisfies;    /* tuple test function */
+	SnapshotSatisfiesFunc satisfies;	/* tuple test function */
+    
 
-    /*
-     * The remaining fields are used only for MVCC snapshots, and are normally
-     * just zeroes in special snapshots.  (But xmin and xmax are used
-     * specially by HeapTupleSatisfiesDirty.)
-     *
-     * An MVCC snapshot can never see the effects of XIDs >= xmax. It can see
-     * the effects of all older XIDs except those listed in the snapshot. xmin
-     * is stored as an optimization to avoid needing to search the XID arrays
-     * for most tuples.
-     */
-    TransactionId xmin;            /* all XID < xmin are visible to me */
-    TransactionId xmax;            /* all XID >= xmax are invisible to me */
+	/*
+	 * The remaining fields are used only for MVCC snapshots, and are normally
+	 * just zeroes in special snapshots.  (But xmin and xmax are used
+	 * specially by HeapTupleSatisfiesDirty.)
+	 *
+	 * An MVCC snapshot can never see the effects of XIDs >= xmax. It can see
+	 * the effects of all older XIDs except those listed in the snapshot. xmin
+	 * is stored as an optimization to avoid needing to search the XID arrays
+	 * for most tuples.
+	 */
+	TransactionId xmin;			/* all XID < xmin are visible to me */
+	TransactionId xmax;			/* all XID >= xmax are invisible to me */
 
-    /*
-     * For normal MVCC snapshot this contains the all xact IDs that are in
-     * progress, unless the snapshot was taken during recovery in which case
-     * it's empty. For historic MVCC snapshots, the meaning is inverted, i.e.
-     * it contains *committed* transactions between xmin and xmax.
-     *
-     * note: all ids in xip[] satisfy xmin <= xip[i] < xmax
-     */
-    TransactionId *xip;
-    uint32        xcnt;            /* # of xact ids in xip[] */
+	/*
+	 * For normal MVCC snapshot this contains the all xact IDs that are in
+	 * progress, unless the snapshot was taken during recovery in which case
+	 * it's empty. For historic MVCC snapshots, the meaning is inverted, i.e.
+	 * it contains *committed* transactions between xmin and xmax.
+	 *
+	 * note: all ids in xip[] satisfy xmin <= xip[i] < xmax
+	 */
+	TransactionId *xip;
+	uint32		xcnt;			/* # of xact ids in xip[] */
 #ifdef PGXC  /* PGXC_COORD */
-    uint32        max_xcnt;        /* Max # of xact in xip[] */
+	uint32		max_xcnt;		/* Max # of xact in xip[] */
 #endif
 
 #ifdef __SUPPORT_DISTRIBUTED_TRANSACTION__
+    CommitSeqNo start_ts;		/* global timestamp at which the statement/transaction starts */
+
+	bool			local;			/* local snapshot */
+    bool			is_catalog;			/* catalog snapshot */
+    
+	int64		number_visible_tuples;
+	int64		scanned_tuples_before_prepare;
+	int64		scanned_tuples_after_prepare;
+	int64		scanned_tuples_after_committed;
+	int64		scanned_tuples_after_abort;
+#endif
+
 	/*
-	 * global timestamp at which the statement/transaction starts
+	 * For non-historic MVCC snapshots, this contains subxact IDs that are in
+	 * progress (and other transactions that are in progress if taken during
+	 * recovery). For historic snapshot it contains *all* xids assigned to the
+	 * replayed transaction, including the toplevel xid.
+	 *
+	 * note: all ids in subxip[] are >= xmin, but we don't bother filtering
+	 * out any that are >= xmax
 	 */
-	GlobalTimestamp start_ts;
+	TransactionId *subxip;
+	int32		subxcnt;		/* # of xact ids in subxip[] */
+	bool		suboverflowed;	/* has the subxip array overflowed? */
 
-	bool			local;		/* local snapshot */
+	bool		takenDuringRecovery;	/* recovery-shaped snapshot? */
+	bool		copied;			/* false if it's a static snapshot */
 
-	TransactionId *prepare_xip;
-	GlobalTimestamp *prepare_xip_ts;
+	CommandId	curcid;			/* in my xact, CID < curcid are visible */
 
-    uint32        prepare_xcnt;
+	/*
+	 * An extra return value for HeapTupleSatisfiesDirty, not used in MVCC
+	 * snapshots.
+	 */
+	uint32		speculativeToken;
 
-	TransactionId *prepare_subxip;
-	GlobalTimestamp *prepare_subxip_ts;
+	/*
+	 * Book-keeping information, used by the snapshot manager
+	 */
+	uint32		active_count;	/* refcount on ActiveSnapshot stack */
+	uint32		regd_count;		/* refcount on RegisteredSnapshots */
+	pairingheap_node ph_node;	/* link in the RegisteredSnapshots heap */
 
-    uint32        prepare_subxcnt;
-
-    TransactionId prepare_xmin;
-
-    int64        number_visible_tuples;
-    int64        scanned_tuples_before_prepare;
-    int64        scanned_tuples_after_prepare;
-    int64        scanned_tuples_after_committed;
-    int64        scanned_tuples_after_abort;
-#endif
-
-    /*
-     * For non-historic MVCC snapshots, this contains subxact IDs that are in
-     * progress (and other transactions that are in progress if taken during
-     * recovery). For historic snapshot it contains *all* xids assigned to the
-     * replayed transaction, including the toplevel xid.
-     *
-     * note: all ids in subxip[] are >= xmin, but we don't bother filtering
-     * out any that are >= xmax
-     */
-    TransactionId *subxip;
-    int32        subxcnt;        /* # of xact ids in subxip[] */
-    bool        suboverflowed;    /* has the subxip array overflowed? */
-
-    bool        takenDuringRecovery;    /* recovery-shaped snapshot? */
-    bool        copied;            /* false if it's a static snapshot */
-
-    CommandId    curcid;            /* in my xact, CID < curcid are visible */
-
-    /*
-     * An extra return value for HeapTupleSatisfiesDirty, not used in MVCC
-     * snapshots.
-     */
-    uint32        speculativeToken;
-
-    /*
-     * Book-keeping information, used by the snapshot manager
-     */
-    uint32        active_count;    /* refcount on ActiveSnapshot stack */
-    uint32        regd_count;        /* refcount on RegisteredSnapshots */
-    pairingheap_node ph_node;    /* link in the RegisteredSnapshots heap */
-
-    TimestampTz whenTaken;        /* timestamp when snapshot was taken */
-    XLogRecPtr    lsn;            /* position in the WAL stream when taken */
-    
+	TimestampTz whenTaken;		/* timestamp when snapshot was taken */
+	XLogRecPtr	lsn;			/* position in the WAL stream when taken */
+	
 #ifdef __OPENTENBASE__
-    int         groupsize;
-    Bitmapset    *shardgroup;
-    char        sg_filler[SHARD_TABLE_BITMAP_SIZE];
+	int 		groupsize;
+	Bitmapset	*shardgroup;
+	char		sg_filler[SHARD_TABLE_BITMAP_SIZE];
+	Bitmapset	*shardcluster;  /* used for estore shardcluster visibility check. */
+	char		sc_filler[SHARD_CLUSTER_BITMAP_SIZE];
 #endif
 
-    
+	
 } SnapshotData;
 
 /*
@@ -164,18 +150,20 @@ typedef struct SnapshotData
  */
 typedef enum
 {
-    HeapTupleMayBeUpdated,
-    HeapTupleInvisible,
-    HeapTupleSelfUpdated,
-    HeapTupleUpdated,
-    HeapTupleBeingUpdated,
-    HeapTupleWouldBlock            /* can be returned by heap_tuple_lock */
+	HeapTupleMayBeUpdated,
+	HeapTupleInvisible,
+	HeapTupleSelfUpdated,
+	HeapTupleUpdated,
+	HeapTupleBeingUpdated,
+	HeapTupleWouldBlock			/* can be returned by heap_tuple_lock */
 } HTSU_Result;
 
 #ifdef __OPENTENBASE__
-#define    SnapshotGetShardTable(snapshot) ((snapshot)->shardgroup)
+#define	SnapshotGetShardTable(snapshot) ((snapshot)->shardgroup)
+#define	SnapshotGetShardClusterTable(snapshot) ((snapshot)->shardcluster)
+
 #endif
 
 
 
-#endif                            /* SNAPSHOT_H */
+#endif							/* SNAPSHOT_H */

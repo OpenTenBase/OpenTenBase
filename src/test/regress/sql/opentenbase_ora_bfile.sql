@@ -1,0 +1,11 @@
+\c regression_ora
+-- test bfile
+create table test_20231019(c1 int,c2 bfile);
+
+create table test_20240116(c1 int,c2 int);
+-- AT_AddColumn
+alter table test_20240116 add column c3 bfile;
+-- AT_AlterColumnType
+alter table test_20240116 alter column c2 type bfile;
+
+drop table test_20240116;

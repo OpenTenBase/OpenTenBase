@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * collationcmds.h
- *      prototypes for collationcmds.c.
+ *	  prototypes for collationcmds.c.
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -22,4 +22,4 @@ extern ObjectAddress DefineCollation(ParseState *pstate, List *names, List *para
 extern void IsThereCollationInNamespace(const char *collname, Oid nspOid);
 extern ObjectAddress AlterCollation(AlterCollationStmt *stmt);
 
-#endif                            /* COLLATIONCMDS_H */
+#endif							/* COLLATIONCMDS_H */

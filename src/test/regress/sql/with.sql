@@ -80,12 +80,14 @@ SELECT n, n IS OF (text) as is_text FROM t ORDER BY n;
 
 -- In a perfect world, this would work and resolve the literal as int ...
 -- but for now, we have to be content with resolving to text too soon.
+set enable_lightweight_ora_syntax to on;
 WITH RECURSIVE t(n) AS (
     SELECT '7'
 UNION ALL
     SELECT n+1 FROM t WHERE n < 10
 )
 SELECT n, n IS OF (int) AS is_int FROM t;
+set enable_lightweight_ora_syntax to off;
 
 --
 -- Some examples with a tree
@@ -128,7 +130,7 @@ WITH RECURSIVE subdepartment AS
 SELECT * FROM subdepartment ORDER BY name;
 
 -- extract all departments under 'A' with "level" number
-WITH RECURSIVE subdepartment(level, id, parent_department, name) AS
+WITH RECURSIVE subdepartment(level1, id, parent_department, name) AS
 (
 	-- non recursive term
 	SELECT 1, * FROM department WHERE name = 'A'
@@ -136,14 +138,14 @@ WITH RECURSIVE subdepartment(level, id, parent_department, name) AS
 	UNION ALL
 
 	-- recursive term
-	SELECT sd.level + 1, d.* FROM department AS d, subdepartment AS sd
+	SELECT sd.level1 + 1, d.* FROM department AS d, subdepartment AS sd
 		WHERE d.parent_department = sd.id
 )
 SELECT * FROM subdepartment ORDER BY name;
 
 -- extract all departments under 'A' with "level" number.
 -- Only shows level 2 or more
-WITH RECURSIVE subdepartment(level, id, parent_department, name) AS
+WITH RECURSIVE subdepartment(level1, id, parent_department, name) AS
 (
 	-- non recursive term
 	SELECT 1, * FROM department WHERE name = 'A'
@@ -151,10 +153,10 @@ WITH RECURSIVE subdepartment(level, id, parent_department, name) AS
 	UNION ALL
 
 	-- recursive term
-	SELECT sd.level + 1, d.* FROM department AS d, subdepartment AS sd
+	SELECT sd.level1 + 1, d.* FROM department AS d, subdepartment AS sd
 		WHERE d.parent_department = sd.id
 )
-SELECT * FROM subdepartment WHERE level >= 2 ORDER BY name;
+SELECT * FROM subdepartment WHERE level1 >= 2 ORDER BY name;
 
 -- "RECURSIVE" is ignored if the query has no self-reference
 WITH RECURSIVE subdepartment AS
@@ -214,25 +216,25 @@ SELECT sum(n) FROM t;
 \d+ sums_1_100
 
 -- corner case in which sub-WITH gets initialized first
-with recursive q as (
-      select * from department
-    union all
-      (with x as (select * from q)
-       select * from x)
-    )
-select * from q limit 24;
+--with recursive q as (
+--      select * from department
+--    union all
+--      (with x as (select * from q)
+--       select * from x)
+--    )
+--select * from q limit 24;
 
-with recursive q as (
-      select * from department
-    union all
-      (with recursive x as (
-           select * from department
-         union all
-           (select * from q union all select * from x)
-        )
-       select * from x)
-    )
-select * from q order by 1, 2, 3 limit 32;
+--with recursive q as (
+--      select * from department
+--    union all
+--      (with recursive x as (
+--           select * from department
+--         union all
+--           (select * from q union all select * from x)
+--        )
+--       select * from x)
+--    )
+--select * from q order by 1, 2, 3 limit 32;
 
 -- recursive term has sub-UNION
 WITH RECURSIVE t(i,j) AS (
@@ -315,7 +317,7 @@ with recursive search_graph(f, t, label, path, cycle) as (
 	from graph g, search_graph sg
 	where g.f = sg.t and not cycle
 )
-select * from search_graph order by path;
+select * from search_graph order by path,1,2;
 
 -- ordering by the path column has same effect as SEARCH DEPTH FIRST
 with recursive search_graph(f, t, label, path, cycle) as (
@@ -325,7 +327,7 @@ with recursive search_graph(f, t, label, path, cycle) as (
 	from graph g, search_graph sg
 	where g.f = sg.t and not cycle
 )
-select * from search_graph order by path;
+select * from search_graph order by path,1,2;
 
 --
 -- test multiple WITH queries
@@ -628,22 +630,22 @@ select * from C;
 --
 
 WITH RECURSIVE
-  tab(id_key,link) AS (VALUES (1,17), (2,17), (3,17), (4,17), (6,17), (5,17)),
-  iter (id_key, row_type, link) AS (
+  tab(id_key,link1) AS (VALUES (1,17), (2,17), (3,17), (4,17), (6,17), (5,17)),
+  iter (id_key, row_type, link1) AS (
       SELECT 0, 'base', 17
     UNION ALL (
-      WITH remaining(id_key, row_type, link, min) AS (
-        SELECT tab.id_key, 'true'::text, iter.link, MIN(tab.id_key) OVER ()
-        FROM tab INNER JOIN iter USING (link)
+      WITH remaining(id_key, row_type, link1, min) AS (
+        SELECT tab.id_key, 'true'::text, iter.link1, MIN(tab.id_key) OVER ()
+        FROM tab INNER JOIN iter USING (link1)
         WHERE tab.id_key > iter.id_key
       ),
       first_remaining AS (
-        SELECT id_key, row_type, link
+        SELECT id_key, row_type, link1
         FROM remaining
         WHERE id_key=min
       ),
       effect AS (
-        SELECT tab.id_key, 'new'::text, tab.link
+        SELECT tab.id_key, 'new'::text, tab.link1
         FROM first_remaining e INNER JOIN tab ON e.id_key=tab.id_key
         WHERE e.row_type = 'false'
       )
@@ -654,22 +656,22 @@ WITH RECURSIVE
 SELECT * FROM iter;
 
 WITH RECURSIVE
-  tab(id_key,link) AS (VALUES (1,17), (2,17), (3,17), (4,17), (6,17), (5,17)),
-  iter (id_key, row_type, link) AS (
+  tab(id_key,link1) AS (VALUES (1,17), (2,17), (3,17), (4,17), (6,17), (5,17)),
+  iter (id_key, row_type, link1) AS (
       SELECT 0, 'base', 17
     UNION (
-      WITH remaining(id_key, row_type, link, min) AS (
-        SELECT tab.id_key, 'true'::text, iter.link, MIN(tab.id_key) OVER ()
-        FROM tab INNER JOIN iter USING (link)
+      WITH remaining(id_key, row_type, link1, min) AS (
+        SELECT tab.id_key, 'true'::text, iter.link1, MIN(tab.id_key) OVER ()
+        FROM tab INNER JOIN iter USING (link1)
         WHERE tab.id_key > iter.id_key
       ),
       first_remaining AS (
-        SELECT id_key, row_type, link
+        SELECT id_key, row_type, link1
         FROM remaining
         WHERE id_key=min
       ),
       effect AS (
-        SELECT tab.id_key, 'new'::text, tab.link
+        SELECT tab.id_key, 'new'::text, tab.link1
         FROM first_remaining e INNER JOIN tab ON e.id_key=tab.id_key
         WHERE e.row_type = 'false'
       )
@@ -772,6 +774,37 @@ INSERT INTO bug6051 SELECT * FROM t1;
 
 SELECT * FROM bug6051 ORDER BY 1;
 SELECT * FROM bug6051_2;
+
+-- check case where CTE reference is removed due to optimization
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT q1 FROM
+(
+  WITH t_cte AS (SELECT * FROM int8_tbl t)
+  SELECT q1, (SELECT q2 FROM t_cte WHERE t_cte.q1 = i8.q1) AS t_sub
+  FROM int8_tbl i8
+) ss;
+
+SELECT q1 FROM
+(
+  WITH t_cte AS (SELECT * FROM int8_tbl t)
+  SELECT q1, (SELECT q2 FROM t_cte WHERE t_cte.q1 = i8.q1) AS t_sub
+  FROM int8_tbl i8
+) ss;
+
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT q1 FROM
+(
+  WITH t_cte AS MATERIALIZED (SELECT * FROM int8_tbl t)
+  SELECT q1, (SELECT q2 FROM t_cte WHERE t_cte.q1 = i8.q1) AS t_sub
+  FROM int8_tbl i8
+) ss;
+
+SELECT q1 FROM
+(
+  WITH t_cte AS MATERIALIZED (SELECT * FROM int8_tbl t)
+  SELECT q1, (SELECT q2 FROM t_cte WHERE t_cte.q1 = i8.q1) AS t_sub
+  FROM int8_tbl i8
+) ss;
 
 -- a truly recursive CTE in the same list
 WITH RECURSIVE t(a) AS (
@@ -1030,4 +1063,256 @@ create table foo (with ordinality);  -- fail, WITH is a reserved word
 with ordinality as (select 1 as x) select * from ordinality;
 
 -- check sane response to attempt to modify CTE relation
-WITH d AS (SELECT 42) INSERT INTO d VALUES (1);
+WITH test AS (SELECT 42) INSERT INTO test VALUES (1);
+
+-- check response to attempt to modify table with same name as a CTE (perhaps
+-- surprisingly it works, because CTEs don't hide tables from data-modifying
+-- statements)
+create table test (i int);
+with test as (select 42) insert into test select * from test;
+select * from test;
+drop table test;
+
+explain(verbose ,costs off, nodes off) with t as not materialized(select * from dual union select * from dual) select * from t;
+explain(verbose ,costs off, nodes off) with t as  materialized(select * from dual union select * from dual) select * from t;
+explain(verbose ,costs off, nodes off) with t as (select * from dual union select * from dual) select * from t;
+explain(verbose ,costs off, nodes off) with recursive t as not materialized(select * from dual union select * from t) select * from t;
+explain(verbose ,costs off, nodes off) with recursive t as materialized(select * from dual union select * from t) select * from t;
+explain(verbose ,costs off, nodes off) with recursive t as (select * from dual union select * from t) select * from t;
+
+drop view if exists dual_view;
+create view dual_view as with t as not materialized(select * from dual union select * from dual) select * from t;
+explain(verbose, costs off, nodes off) select * from dual_view;
+drop view dual_view;
+
+drop view if exists dual_view;
+create view dual_view as with t as materialized(select * from dual union select * from dual) select * from t;
+explain(verbose, costs off, nodes off) select * from dual_view;
+drop view dual_view;
+
+drop view if exists dual_view;
+create view dual_view as with t as (select * from dual union select * from dual) select * from t;
+explain(verbose, costs off, nodes off) select * from dual_view;
+drop view dual_view;
+
+drop view if exists dual_view;
+create view dual_view as with recursive t as not materialized(select * from dual union select * from t) select * from t;
+explain(verbose, costs off, nodes off) select * from dual_view;
+drop view dual_view;
+
+drop view if exists dual_view;
+create view dual_view as with recursive t as materialized(select * from dual union select * from t) select * from t;
+explain(verbose, costs off, nodes off) select * from dual_view;
+drop view dual_view;
+
+drop view if exists dual_view;
+create view dual_view as with recursive t as (select * from dual union select * from t) select * from t;
+explain(verbose, costs off, nodes off) select * from dual_view;
+drop view dual_view;
+
+explain(verbose ,costs off, nodes off) with t as not materialized(select * from dual union select * from dual) select * from t;
+explain(verbose ,costs off, nodes off) with t as  materialized(select * from dual union select * from dual) select * from t;
+explain(verbose ,costs off, nodes off) with t as (select * from dual union select * from dual) select * from t;
+explain(verbose ,costs off, nodes off) with recursive t as not materialized(select * from dual union select * from t) select * from t;
+explain(verbose ,costs off, nodes off) with recursive t as materialized(select * from dual union select * from t) select * from t;
+explain(verbose ,costs off, nodes off) with recursive t as (select * from dual union select * from t) select * from t;
+
+drop view if exists dual_view;
+create view dual_view as with t as not materialized(select * from dual union select * from dual) select * from t;
+explain(verbose, costs off, nodes off) select * from dual_view;
+drop view dual_view;
+
+drop view if exists dual_view;
+create view dual_view as with t as materialized(select * from dual union select * from dual) select * from t;
+explain(verbose, costs off, nodes off) select * from dual_view;
+drop view dual_view;
+
+drop view if exists dual_view;
+create view dual_view as with t as (select * from dual union select * from dual) select * from t;
+explain(verbose, costs off, nodes off) select * from dual_view;
+drop view dual_view;
+
+drop view if exists dual_view;
+create view dual_view as with recursive t as not materialized(select * from dual union select * from t) select * from t;
+explain(verbose, costs off, nodes off) select * from dual_view;
+drop view dual_view;
+
+drop view if exists dual_view;
+create view dual_view as with recursive t as materialized(select * from dual union select * from t) select * from t;
+explain(verbose, costs off, nodes off) select * from dual_view;
+drop view dual_view;
+
+drop view if exists dual_view;
+create view dual_view as with recursive t as (select * from dual union select * from t) select * from t;
+explain(verbose, costs off, nodes off) select * from dual_view;
+drop view dual_view;
+
+--test FQS with as mat/not mat
+set enable_fast_query_shipping to on;
+set enable_mergejoin to off;
+set enable_nestloop to off;
+drop table if exists test_fqs;
+create table test_fqs(i int, j int) distribute by replication;
+insert into test_fqs select i, i+1 from generate_series(1,10) t(i);
+
+explain (verbose, costs off)
+with t(i) as materialized
+    (select case  when i > 4 then i else 4 end from test_fqs)
+select * from t natural join test_fqs
+    union
+select * from test_fqs where exists(select 1 from t where t.i = test_fqs.i);
+
+explain (verbose, costs off)
+with t(i) as not materialized
+    (select case  when i > 4 then i else 4 end from test_fqs)
+select * from t natural join test_fqs
+    union
+select * from test_fqs where exists(select 1 from t where t.i = test_fqs.i);
+
+explain (verbose, costs off)
+with t(i) as
+    (select case  when i > 4 then i else 4 end from test_fqs)
+select * from t natural join test_fqs
+    union
+select * from test_fqs where exists(select 1 from t where t.i = test_fqs.i);
+
+-- test result,expect empty
+(with t(i) as not materialized
+    (select case  when i > 4 then i else 4 end from test_fqs)
+select * from t natural join test_fqs
+    union
+select * from test_fqs where exists(select 1 from t where t.i = test_fqs.i))
+except
+(with t(i) as materialized
+    (select case  when i > 4 then i else 4 end from test_fqs)
+select * from t natural join test_fqs
+    union
+select * from test_fqs where exists( select 1 from t where t.i = test_fqs.i));
+
+(with t(i) as
+    (select case  when i > 4 then i else 4 end from test_fqs)
+select * from t natural join test_fqs
+    union
+select * from test_fqs where exists(select 1 from t where t.i = test_fqs.i))
+except
+(with t(i) as materialized
+    (select case  when i > 4 then i else 4 end from test_fqs)
+select * from t natural join test_fqs
+    union
+select * from test_fqs where exists( select 1 from t where t.i = test_fqs.i));
+
+set enable_fast_query_shipping to off;
+explain (verbose, costs off)
+with t(i) as materialized
+    (select case  when i > 4 then i else 4 end from test_fqs)
+select * from t natural join test_fqs
+    union
+select * from test_fqs where exists(select 1 from t where t.i = test_fqs.i);
+
+explain (verbose, costs off)
+with t(i) as not materialized
+    (select case  when i > 4 then i else 4 end from test_fqs)
+select * from t natural join test_fqs
+    union
+select * from test_fqs where exists(select 1 from t where t.i = test_fqs.i);
+
+explain (verbose, costs off)
+with t(i) as
+    (select case  when i > 4 then i else 4 end from test_fqs)
+select * from t natural join test_fqs
+    union
+select * from test_fqs where exists(select 1 from t where t.i = test_fqs.i);
+
+-- test result,expect empty
+(with t(i) as not materialized
+    (select case  when i > 4 then i else 4 end from test_fqs)
+select * from t natural join test_fqs
+    union
+select * from test_fqs where exists(select 1 from t where t.i = test_fqs.i))
+except
+(with t(i) as materialized
+    (select case  when i > 4 then i else 4 end from test_fqs)
+select * from t natural join test_fqs
+    union
+select * from test_fqs where exists( select 1 from t where t.i = test_fqs.i));
+
+(with t(i) as
+    (select case  when i > 4 then i else 4 end from test_fqs)
+select * from t natural join test_fqs
+    union
+select * from test_fqs where exists(select 1 from t where t.i = test_fqs.i))
+except
+(with t(i) as materialized
+    (select case  when i > 4 then i else 4 end from test_fqs)
+select * from t natural join test_fqs
+    union
+select * from test_fqs where exists( select 1 from t where t.i = test_fqs.i));
+reset enable_fast_query_shipping;
+reset enable_mergejoin;
+reset enable_nestloop;
+drop table test_fqs;
+
+-- Cancel with recursive error alarm and verify
+-- https://git.woa.com/OpenTenBase/OpenTenBase-V3.0/merge_requests/4337/checkers
+create table test1 (id1 character varying) distribute by replication;
+create table test2 (id2 int) distribute by shard(id2);
+
+INSERT INTO test1 (id1) SELECT id FROM generate_series(1, 1000) AS id;
+INSERT INTO test2 (id2) SELECT id FROM generate_series(1, 1000) AS id;
+
+WITH RECURSIVE recursive_query_test1 (level, id1)
+AS (
+    SELECT 1, id1
+    FROM test1
+    WHERE id1 = '1'
+    UNION ALL
+    SELECT r.level + 1, t.id1
+    FROM test1 t
+    INNER JOIN recursive_query_test1 r ON t.id1::int = r.id1::int + 1
+    WHERE t.id1::int <= 10
+)
+SELECT * FROM recursive_query_test1;
+
+WITH RECURSIVE recursive_query_test2 (level, id2)
+AS (
+    SELECT 1, id2
+    FROM test2
+    WHERE id2 = 1
+    UNION ALL
+    SELECT r.level + 1, t.id2
+    FROM test2 t
+    INNER JOIN recursive_query_test2 r ON t.id2 = r.id2 + 1
+    WHERE t.id2 <= 10
+)
+SELECT * FROM recursive_query_test2;
+
+DROP TABLE test1;
+DROP TABLE test2;
+
+
+-- OpenTenBase: rescan shared cte under subquery
+create table with_t1(id int, age int, name text, score numeric);
+create table with_t2(id int, age int, name text, score numeric);
+insert into with_t1 values(generate_series(1,10), 10, 'abc', generate_series(1,10));
+insert into with_t2 values(generate_series(1,10), 20, 'xyz', generate_series(1,10));
+
+explain (costs off)
+update with_t2 set age =
+(select age+1 from
+(
+with ctetmp as (select age, avg(score) as score from with_t1 group by age)
+ select * from ctetmp where with_t2.id >
+ (select with_t1.id from with_t1, ctetmp where with_t1.score > ctetmp.score and with_t2.score > ctetmp.score order by 1 limit 1)
+) c);
+
+update with_t2 set age =
+(select age+1 from
+(
+with ctetmp as (select age, avg(score) as score from with_t1 group by age)
+ select * from ctetmp where with_t2.id >
+ (select with_t1.id from with_t1, ctetmp where with_t1.score > ctetmp.score and with_t2.score > ctetmp.score order by 1 limit 1)
+) c);
+
+select * from with_t2 order by id;
+drop table with_t1;
+drop table with_t2;

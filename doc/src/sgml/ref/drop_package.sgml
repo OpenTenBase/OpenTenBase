@@ -1,0 +1,25 @@
+ <refentry id="sql-droppackage">
+  <indexterm zone="sql-droppackage">
+   <primary>DROP PACKAGE</primary>
+  </indexterm>
+ 
+  <refmeta>
+   <refentrytitle>DROP PACKAGE</refentrytitle>
+   <manvolnum>7</manvolnum>
+   <refmiscinfo>SQL - Language Statements</refmiscinfo>
+  </refmeta>
+ 
+  <refnamediv>
+   <refname>DROP PACKAGE</refname>
+   <refpurpose>drop a package or body</refpurpose>
+  </refnamediv>
+ 
+  <refsynopsisdiv>
+ <synopsis>
+DROP PACKAGE <replaceable class="parameter">name</replaceable>
+DROP PACKAGE BODY <replaceable class="parameter">name</replaceable>
+ </synopsis>
+
+  </refsynopsisdiv>
+ 
+ </refentry>

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * network_gist.c
- *      GiST support for network types.
+ *	  GiST support for network types.
  *
  * The key thing to understand about this code is the definition of the
  * "union" of a set of INET/CIDR values.  It works like this:
@@ -37,8 +37,9 @@
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
+ *
  * IDENTIFICATION
- *      src/backend/utils/adt/network_gist.c
+ *	  src/backend/utils/adt/network_gist.c
  *
  *-------------------------------------------------------------------------
  */
@@ -54,17 +55,17 @@
 /*
  * Operator strategy numbers used in the GiST inet_ops opclass
  */
-#define INETSTRAT_OVERLAPS        RTOverlapStrategyNumber
-#define INETSTRAT_EQ            RTEqualStrategyNumber
-#define INETSTRAT_NE            RTNotEqualStrategyNumber
-#define INETSTRAT_LT            RTLessStrategyNumber
-#define INETSTRAT_LE            RTLessEqualStrategyNumber
-#define INETSTRAT_GT            RTGreaterStrategyNumber
-#define INETSTRAT_GE            RTGreaterEqualStrategyNumber
-#define INETSTRAT_SUB            RTSubStrategyNumber
-#define INETSTRAT_SUBEQ            RTSubEqualStrategyNumber
-#define INETSTRAT_SUP            RTSuperStrategyNumber
-#define INETSTRAT_SUPEQ            RTSuperEqualStrategyNumber
+#define INETSTRAT_OVERLAPS		RTOverlapStrategyNumber
+#define INETSTRAT_EQ			RTEqualStrategyNumber
+#define INETSTRAT_NE			RTNotEqualStrategyNumber
+#define INETSTRAT_LT			RTLessStrategyNumber
+#define INETSTRAT_LE			RTLessEqualStrategyNumber
+#define INETSTRAT_GT			RTGreaterStrategyNumber
+#define INETSTRAT_GE			RTGreaterEqualStrategyNumber
+#define INETSTRAT_SUB			RTSubStrategyNumber
+#define INETSTRAT_SUBEQ			RTSubEqualStrategyNumber
+#define INETSTRAT_SUP			RTSuperStrategyNumber
+#define INETSTRAT_SUPEQ			RTSuperEqualStrategyNumber
 
 
 /*
@@ -76,11 +77,11 @@
  */
 typedef struct GistInetKey
 {
-    uint8        va_header;        /* varlena header --- don't touch directly */
-    unsigned char family;        /* PGSQL_AF_INET, PGSQL_AF_INET6, or zero */
-    unsigned char minbits;        /* minimum number of bits in netmask */
-    unsigned char commonbits;    /* number of common prefix bits in addresses */
-    unsigned char ipaddr[16];    /* up to 128 bits of common address */
+	uint8		va_header;		/* varlena header --- don't touch directly */
+	unsigned char family;		/* PGSQL_AF_INET, PGSQL_AF_INET6, or zero */
+	unsigned char minbits;		/* minimum number of bits in netmask */
+	unsigned char commonbits;	/* number of common prefix bits in addresses */
+	unsigned char ipaddr[16];	/* up to 128 bits of common address */
 } GistInetKey;
 
 #define DatumGetInetKeyP(X) ((GistInetKey *) DatumGetPointer(X))
@@ -91,19 +92,19 @@ typedef struct GistInetKey
  * consistency with access to INET/CIDR values.  Note that family-zero values
  * are stored with 4 bytes of address, not 16.
  */
-#define gk_ip_family(gkptr)        ((gkptr)->family)
-#define gk_ip_minbits(gkptr)    ((gkptr)->minbits)
+#define gk_ip_family(gkptr)		((gkptr)->family)
+#define gk_ip_minbits(gkptr)	((gkptr)->minbits)
 #define gk_ip_commonbits(gkptr) ((gkptr)->commonbits)
-#define gk_ip_addr(gkptr)        ((gkptr)->ipaddr)
-#define ip_family_maxbits(fam)    ((fam) == PGSQL_AF_INET6 ? 128 : 32)
+#define gk_ip_addr(gkptr)		((gkptr)->ipaddr)
+#define ip_family_maxbits(fam)	((fam) == PGSQL_AF_INET6 ? 128 : 32)
 
 /* These require that the family field has been set: */
 #define gk_ip_addrsize(gkptr) \
-    (gk_ip_family(gkptr) == PGSQL_AF_INET6 ? 16 : 4)
+	(gk_ip_family(gkptr) == PGSQL_AF_INET6 ? 16 : 4)
 #define gk_ip_maxbits(gkptr) \
-    ip_family_maxbits(gk_ip_family(gkptr))
+	ip_family_maxbits(gk_ip_family(gkptr))
 #define SET_GK_VARSIZE(dst) \
-    SET_VARSIZE_SHORT(dst, offsetof(GistInetKey, ipaddr) + gk_ip_addrsize(dst))
+	SET_VARSIZE_SHORT(dst, offsetof(GistInetKey, ipaddr) + gk_ip_addrsize(dst))
 
 
 /*
@@ -111,219 +112,219 @@ typedef struct GistInetKey
  */
 Datum
 inet_gist_consistent(PG_FUNCTION_ARGS)
-{// #lizard forgives
-    GISTENTRY  *ent = (GISTENTRY *) PG_GETARG_POINTER(0);
-    inet       *query = PG_GETARG_INET_PP(1);
-    StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
+{
+	GISTENTRY  *ent = (GISTENTRY *) PG_GETARG_POINTER(0);
+	inet	   *query = PG_GETARG_INET_PP(1);
+	StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
 
-    /* Oid        subtype = PG_GETARG_OID(3); */
-    bool       *recheck = (bool *) PG_GETARG_POINTER(4);
-    GistInetKey *key = DatumGetInetKeyP(ent->key);
-    int            minbits,
-                order;
+	/* Oid		subtype = PG_GETARG_OID(3); */
+	bool	   *recheck = (bool *) PG_GETARG_POINTER(4);
+	GistInetKey *key = DatumGetInetKeyP(ent->key);
+	int			minbits,
+				order;
 
-    /* All operators served by this function are exact. */
-    *recheck = false;
+	/* All operators served by this function are exact. */
+	*recheck = false;
 
-    /*
-     * Check 0: different families
-     *
-     * If key represents multiple address families, its children could match
-     * anything.  This can only happen on an inner index page.
-     */
-    if (gk_ip_family(key) == 0)
-    {
-        Assert(!GIST_LEAF(ent));
-        PG_RETURN_BOOL(true);
-    }
+	/*
+	 * Check 0: different families
+	 *
+	 * If key represents multiple address families, its children could match
+	 * anything.  This can only happen on an inner index page.
+	 */
+	if (gk_ip_family(key) == 0)
+	{
+		Assert(!GIST_LEAF(ent));
+		PG_RETURN_BOOL(true);
+	}
 
-    /*
-     * Check 1: different families
-     *
-     * Matching families do not help any of the strategies.
-     */
-    if (gk_ip_family(key) != ip_family(query))
-    {
-        switch (strategy)
-        {
-            case INETSTRAT_LT:
-            case INETSTRAT_LE:
-                if (gk_ip_family(key) < ip_family(query))
-                    PG_RETURN_BOOL(true);
-                break;
+	/*
+	 * Check 1: different families
+	 *
+	 * Matching families do not help any of the strategies.
+	 */
+	if (gk_ip_family(key) != ip_family(query))
+	{
+		switch (strategy)
+		{
+			case INETSTRAT_LT:
+			case INETSTRAT_LE:
+				if (gk_ip_family(key) < ip_family(query))
+					PG_RETURN_BOOL(true);
+				break;
 
-            case INETSTRAT_GE:
-            case INETSTRAT_GT:
-                if (gk_ip_family(key) > ip_family(query))
-                    PG_RETURN_BOOL(true);
-                break;
+			case INETSTRAT_GE:
+			case INETSTRAT_GT:
+				if (gk_ip_family(key) > ip_family(query))
+					PG_RETURN_BOOL(true);
+				break;
 
-            case INETSTRAT_NE:
-                PG_RETURN_BOOL(true);
-        }
-        /* For all other cases, we can be sure there is no match */
-        PG_RETURN_BOOL(false);
-    }
+			case INETSTRAT_NE:
+				PG_RETURN_BOOL(true);
+		}
+		/* For all other cases, we can be sure there is no match */
+		PG_RETURN_BOOL(false);
+	}
 
-    /*
-     * Check 2: network bit count
-     *
-     * Network bit count (ip_bits) helps to check leaves for sub network and
-     * sup network operators.  At non-leaf nodes, we know every child value
-     * has ip_bits >= gk_ip_minbits(key), so we can avoid descending in some
-     * cases too.
-     */
-    switch (strategy)
-    {
-        case INETSTRAT_SUB:
-            if (GIST_LEAF(ent) && gk_ip_minbits(key) <= ip_bits(query))
-                PG_RETURN_BOOL(false);
-            break;
+	/*
+	 * Check 2: network bit count
+	 *
+	 * Network bit count (ip_bits) helps to check leaves for sub network and
+	 * sup network operators.  At non-leaf nodes, we know every child value
+	 * has ip_bits >= gk_ip_minbits(key), so we can avoid descending in some
+	 * cases too.
+	 */
+	switch (strategy)
+	{
+		case INETSTRAT_SUB:
+			if (GIST_LEAF(ent) && gk_ip_minbits(key) <= ip_bits(query))
+				PG_RETURN_BOOL(false);
+			break;
 
-        case INETSTRAT_SUBEQ:
-            if (GIST_LEAF(ent) && gk_ip_minbits(key) < ip_bits(query))
-                PG_RETURN_BOOL(false);
-            break;
+		case INETSTRAT_SUBEQ:
+			if (GIST_LEAF(ent) && gk_ip_minbits(key) < ip_bits(query))
+				PG_RETURN_BOOL(false);
+			break;
 
-        case INETSTRAT_SUPEQ:
-        case INETSTRAT_EQ:
-            if (gk_ip_minbits(key) > ip_bits(query))
-                PG_RETURN_BOOL(false);
-            break;
+		case INETSTRAT_SUPEQ:
+		case INETSTRAT_EQ:
+			if (gk_ip_minbits(key) > ip_bits(query))
+				PG_RETURN_BOOL(false);
+			break;
 
-        case INETSTRAT_SUP:
-            if (gk_ip_minbits(key) >= ip_bits(query))
-                PG_RETURN_BOOL(false);
-            break;
-    }
+		case INETSTRAT_SUP:
+			if (gk_ip_minbits(key) >= ip_bits(query))
+				PG_RETURN_BOOL(false);
+			break;
+	}
 
-    /*
-     * Check 3: common network bits
-     *
-     * Compare available common prefix bits to the query, but not beyond
-     * either the query's netmask or the minimum netmask among the represented
-     * values.  If these bits don't match the query, we have our answer (and
-     * may or may not need to descend, depending on the operator).  If they do
-     * match, and we are not at a leaf, we descend in all cases.
-     *
-     * Note this is the final check for operators that only consider the
-     * network part of the address.
-     */
-    minbits = Min(gk_ip_commonbits(key), gk_ip_minbits(key));
-    minbits = Min(minbits, ip_bits(query));
+	/*
+	 * Check 3: common network bits
+	 *
+	 * Compare available common prefix bits to the query, but not beyond
+	 * either the query's netmask or the minimum netmask among the represented
+	 * values.  If these bits don't match the query, we have our answer (and
+	 * may or may not need to descend, depending on the operator).  If they do
+	 * match, and we are not at a leaf, we descend in all cases.
+	 *
+	 * Note this is the final check for operators that only consider the
+	 * network part of the address.
+	 */
+	minbits = Min(gk_ip_commonbits(key), gk_ip_minbits(key));
+	minbits = Min(minbits, ip_bits(query));
 
-    order = bitncmp(gk_ip_addr(key), ip_addr(query), minbits);
+	order = bitncmp(gk_ip_addr(key), ip_addr(query), minbits);
 
-    switch (strategy)
-    {
-        case INETSTRAT_SUB:
-        case INETSTRAT_SUBEQ:
-        case INETSTRAT_OVERLAPS:
-        case INETSTRAT_SUPEQ:
-        case INETSTRAT_SUP:
-            PG_RETURN_BOOL(order == 0);
+	switch (strategy)
+	{
+		case INETSTRAT_SUB:
+		case INETSTRAT_SUBEQ:
+		case INETSTRAT_OVERLAPS:
+		case INETSTRAT_SUPEQ:
+		case INETSTRAT_SUP:
+			PG_RETURN_BOOL(order == 0);
 
-        case INETSTRAT_LT:
-        case INETSTRAT_LE:
-            if (order > 0)
-                PG_RETURN_BOOL(false);
-            if (order < 0 || !GIST_LEAF(ent))
-                PG_RETURN_BOOL(true);
-            break;
+		case INETSTRAT_LT:
+		case INETSTRAT_LE:
+			if (order > 0)
+				PG_RETURN_BOOL(false);
+			if (order < 0 || !GIST_LEAF(ent))
+				PG_RETURN_BOOL(true);
+			break;
 
-        case INETSTRAT_EQ:
-            if (order != 0)
-                PG_RETURN_BOOL(false);
-            if (!GIST_LEAF(ent))
-                PG_RETURN_BOOL(true);
-            break;
+		case INETSTRAT_EQ:
+			if (order != 0)
+				PG_RETURN_BOOL(false);
+			if (!GIST_LEAF(ent))
+				PG_RETURN_BOOL(true);
+			break;
 
-        case INETSTRAT_GE:
-        case INETSTRAT_GT:
-            if (order < 0)
-                PG_RETURN_BOOL(false);
-            if (order > 0 || !GIST_LEAF(ent))
-                PG_RETURN_BOOL(true);
-            break;
+		case INETSTRAT_GE:
+		case INETSTRAT_GT:
+			if (order < 0)
+				PG_RETURN_BOOL(false);
+			if (order > 0 || !GIST_LEAF(ent))
+				PG_RETURN_BOOL(true);
+			break;
 
-        case INETSTRAT_NE:
-            if (order != 0 || !GIST_LEAF(ent))
-                PG_RETURN_BOOL(true);
-            break;
-    }
+		case INETSTRAT_NE:
+			if (order != 0 || !GIST_LEAF(ent))
+				PG_RETURN_BOOL(true);
+			break;
+	}
 
-    /*
-     * Remaining checks are only for leaves and basic comparison strategies.
-     * See network_cmp_internal() in network.c for the implementation we need
-     * to match.  Note that in a leaf key, commonbits should equal the address
-     * length, so we compared the whole network parts above.
-     */
-    Assert(GIST_LEAF(ent));
+	/*
+	 * Remaining checks are only for leaves and basic comparison strategies.
+	 * See network_cmp_internal() in network.c for the implementation we need
+	 * to match.  Note that in a leaf key, commonbits should equal the address
+	 * length, so we compared the whole network parts above.
+	 */
+	Assert(GIST_LEAF(ent));
 
-    /*
-     * Check 4: network bit count
-     *
-     * Next step is to compare netmask widths.
-     */
-    switch (strategy)
-    {
-        case INETSTRAT_LT:
-        case INETSTRAT_LE:
-            if (gk_ip_minbits(key) < ip_bits(query))
-                PG_RETURN_BOOL(true);
-            if (gk_ip_minbits(key) > ip_bits(query))
-                PG_RETURN_BOOL(false);
-            break;
+	/*
+	 * Check 4: network bit count
+	 *
+	 * Next step is to compare netmask widths.
+	 */
+	switch (strategy)
+	{
+		case INETSTRAT_LT:
+		case INETSTRAT_LE:
+			if (gk_ip_minbits(key) < ip_bits(query))
+				PG_RETURN_BOOL(true);
+			if (gk_ip_minbits(key) > ip_bits(query))
+				PG_RETURN_BOOL(false);
+			break;
 
-        case INETSTRAT_EQ:
-            if (gk_ip_minbits(key) != ip_bits(query))
-                PG_RETURN_BOOL(false);
-            break;
+		case INETSTRAT_EQ:
+			if (gk_ip_minbits(key) != ip_bits(query))
+				PG_RETURN_BOOL(false);
+			break;
 
-        case INETSTRAT_GE:
-        case INETSTRAT_GT:
-            if (gk_ip_minbits(key) > ip_bits(query))
-                PG_RETURN_BOOL(true);
-            if (gk_ip_minbits(key) < ip_bits(query))
-                PG_RETURN_BOOL(false);
-            break;
+		case INETSTRAT_GE:
+		case INETSTRAT_GT:
+			if (gk_ip_minbits(key) > ip_bits(query))
+				PG_RETURN_BOOL(true);
+			if (gk_ip_minbits(key) < ip_bits(query))
+				PG_RETURN_BOOL(false);
+			break;
 
-        case INETSTRAT_NE:
-            if (gk_ip_minbits(key) != ip_bits(query))
-                PG_RETURN_BOOL(true);
-            break;
-    }
+		case INETSTRAT_NE:
+			if (gk_ip_minbits(key) != ip_bits(query))
+				PG_RETURN_BOOL(true);
+			break;
+	}
 
-    /*
-     * Check 5: whole address
-     *
-     * Netmask bit counts are the same, so check all the address bits.
-     */
-    order = bitncmp(gk_ip_addr(key), ip_addr(query), gk_ip_maxbits(key));
+	/*
+	 * Check 5: whole address
+	 *
+	 * Netmask bit counts are the same, so check all the address bits.
+	 */
+	order = bitncmp(gk_ip_addr(key), ip_addr(query), gk_ip_maxbits(key));
 
-    switch (strategy)
-    {
-        case INETSTRAT_LT:
-            PG_RETURN_BOOL(order < 0);
+	switch (strategy)
+	{
+		case INETSTRAT_LT:
+			PG_RETURN_BOOL(order < 0);
 
-        case INETSTRAT_LE:
-            PG_RETURN_BOOL(order <= 0);
+		case INETSTRAT_LE:
+			PG_RETURN_BOOL(order <= 0);
 
-        case INETSTRAT_EQ:
-            PG_RETURN_BOOL(order == 0);
+		case INETSTRAT_EQ:
+			PG_RETURN_BOOL(order == 0);
 
-        case INETSTRAT_GE:
-            PG_RETURN_BOOL(order >= 0);
+		case INETSTRAT_GE:
+			PG_RETURN_BOOL(order >= 0);
 
-        case INETSTRAT_GT:
-            PG_RETURN_BOOL(order > 0);
+		case INETSTRAT_GT:
+			PG_RETURN_BOOL(order > 0);
 
-        case INETSTRAT_NE:
-            PG_RETURN_BOOL(order != 0);
-    }
+		case INETSTRAT_NE:
+			PG_RETURN_BOOL(order != 0);
+	}
 
-    elog(ERROR, "unknown strategy for inet GiST");
-    PG_RETURN_BOOL(false);        /* keep compiler quiet */
+	elog(ERROR, "unknown strategy for inet GiST");
+	PG_RETURN_BOOL(false);		/* keep compiler quiet */
 }
 
 /*
@@ -341,60 +342,60 @@ inet_gist_consistent(PG_FUNCTION_ARGS)
  */
 static void
 calc_inet_union_params(GISTENTRY *ent,
-                       int m, int n,
-                       int *minfamily_p,
-                       int *maxfamily_p,
-                       int *minbits_p,
-                       int *commonbits_p)
-{// #lizard forgives
-    int            minfamily,
-                maxfamily,
-                minbits,
-                commonbits;
-    unsigned char *addr;
-    GistInetKey *tmp;
-    int            i;
+					   int m, int n,
+					   int *minfamily_p,
+					   int *maxfamily_p,
+					   int *minbits_p,
+					   int *commonbits_p)
+{
+	int			minfamily,
+				maxfamily,
+				minbits,
+				commonbits;
+	unsigned char *addr;
+	GistInetKey *tmp;
+	int			i;
 
-    /* Must be at least one key. */
-    Assert(m <= n);
+	/* Must be at least one key. */
+	Assert(m <= n);
 
-    /* Initialize variables using the first key. */
-    tmp = DatumGetInetKeyP(ent[m].key);
-    minfamily = maxfamily = gk_ip_family(tmp);
-    minbits = gk_ip_minbits(tmp);
-    commonbits = gk_ip_commonbits(tmp);
-    addr = gk_ip_addr(tmp);
+	/* Initialize variables using the first key. */
+	tmp = DatumGetInetKeyP(ent[m].key);
+	minfamily = maxfamily = gk_ip_family(tmp);
+	minbits = gk_ip_minbits(tmp);
+	commonbits = gk_ip_commonbits(tmp);
+	addr = gk_ip_addr(tmp);
 
-    /* Scan remaining keys. */
-    for (i = m + 1; i <= n; i++)
-    {
-        tmp = DatumGetInetKeyP(ent[i].key);
+	/* Scan remaining keys. */
+	for (i = m + 1; i <= n; i++)
+	{
+		tmp = DatumGetInetKeyP(ent[i].key);
 
-        /* Determine range of family numbers */
-        if (minfamily > gk_ip_family(tmp))
-            minfamily = gk_ip_family(tmp);
-        if (maxfamily < gk_ip_family(tmp))
-            maxfamily = gk_ip_family(tmp);
+		/* Determine range of family numbers */
+		if (minfamily > gk_ip_family(tmp))
+			minfamily = gk_ip_family(tmp);
+		if (maxfamily < gk_ip_family(tmp))
+			maxfamily = gk_ip_family(tmp);
 
-        /* Find minimum minbits */
-        if (minbits > gk_ip_minbits(tmp))
-            minbits = gk_ip_minbits(tmp);
+		/* Find minimum minbits */
+		if (minbits > gk_ip_minbits(tmp))
+			minbits = gk_ip_minbits(tmp);
 
-        /* Find minimum number of bits in common */
-        if (commonbits > gk_ip_commonbits(tmp))
-            commonbits = gk_ip_commonbits(tmp);
-        if (commonbits > 0)
-            commonbits = bitncommon(addr, gk_ip_addr(tmp), commonbits);
-    }
+		/* Find minimum number of bits in common */
+		if (commonbits > gk_ip_commonbits(tmp))
+			commonbits = gk_ip_commonbits(tmp);
+		if (commonbits > 0)
+			commonbits = bitncommon(addr, gk_ip_addr(tmp), commonbits);
+	}
 
-    /* Force minbits/commonbits to zero if more than one family. */
-    if (minfamily != maxfamily)
-        minbits = commonbits = 0;
+	/* Force minbits/commonbits to zero if more than one family. */
+	if (minfamily != maxfamily)
+		minbits = commonbits = 0;
 
-    *minfamily_p = minfamily;
-    *maxfamily_p = maxfamily;
-    *minbits_p = minbits;
-    *commonbits_p = commonbits;
+	*minfamily_p = minfamily;
+	*maxfamily_p = maxfamily;
+	*minbits_p = minbits;
+	*commonbits_p = commonbits;
 }
 
 /*
@@ -403,60 +404,60 @@ calc_inet_union_params(GISTENTRY *ent,
  */
 static void
 calc_inet_union_params_indexed(GISTENTRY *ent,
-                               OffsetNumber *offsets, int noffsets,
-                               int *minfamily_p,
-                               int *maxfamily_p,
-                               int *minbits_p,
-                               int *commonbits_p)
-{// #lizard forgives
-    int            minfamily,
-                maxfamily,
-                minbits,
-                commonbits;
-    unsigned char *addr;
-    GistInetKey *tmp;
-    int            i;
+							   OffsetNumber *offsets, int noffsets,
+							   int *minfamily_p,
+							   int *maxfamily_p,
+							   int *minbits_p,
+							   int *commonbits_p)
+{
+	int			minfamily,
+				maxfamily,
+				minbits,
+				commonbits;
+	unsigned char *addr;
+	GistInetKey *tmp;
+	int			i;
 
-    /* Must be at least one key. */
-    Assert(noffsets > 0);
+	/* Must be at least one key. */
+	Assert(noffsets > 0);
 
-    /* Initialize variables using the first key. */
-    tmp = DatumGetInetKeyP(ent[offsets[0]].key);
-    minfamily = maxfamily = gk_ip_family(tmp);
-    minbits = gk_ip_minbits(tmp);
-    commonbits = gk_ip_commonbits(tmp);
-    addr = gk_ip_addr(tmp);
+	/* Initialize variables using the first key. */
+	tmp = DatumGetInetKeyP(ent[offsets[0]].key);
+	minfamily = maxfamily = gk_ip_family(tmp);
+	minbits = gk_ip_minbits(tmp);
+	commonbits = gk_ip_commonbits(tmp);
+	addr = gk_ip_addr(tmp);
 
-    /* Scan remaining keys. */
-    for (i = 1; i < noffsets; i++)
-    {
-        tmp = DatumGetInetKeyP(ent[offsets[i]].key);
+	/* Scan remaining keys. */
+	for (i = 1; i < noffsets; i++)
+	{
+		tmp = DatumGetInetKeyP(ent[offsets[i]].key);
 
-        /* Determine range of family numbers */
-        if (minfamily > gk_ip_family(tmp))
-            minfamily = gk_ip_family(tmp);
-        if (maxfamily < gk_ip_family(tmp))
-            maxfamily = gk_ip_family(tmp);
+		/* Determine range of family numbers */
+		if (minfamily > gk_ip_family(tmp))
+			minfamily = gk_ip_family(tmp);
+		if (maxfamily < gk_ip_family(tmp))
+			maxfamily = gk_ip_family(tmp);
 
-        /* Find minimum minbits */
-        if (minbits > gk_ip_minbits(tmp))
-            minbits = gk_ip_minbits(tmp);
+		/* Find minimum minbits */
+		if (minbits > gk_ip_minbits(tmp))
+			minbits = gk_ip_minbits(tmp);
 
-        /* Find minimum number of bits in common */
-        if (commonbits > gk_ip_commonbits(tmp))
-            commonbits = gk_ip_commonbits(tmp);
-        if (commonbits > 0)
-            commonbits = bitncommon(addr, gk_ip_addr(tmp), commonbits);
-    }
+		/* Find minimum number of bits in common */
+		if (commonbits > gk_ip_commonbits(tmp))
+			commonbits = gk_ip_commonbits(tmp);
+		if (commonbits > 0)
+			commonbits = bitncommon(addr, gk_ip_addr(tmp), commonbits);
+	}
 
-    /* Force minbits/commonbits to zero if more than one family. */
-    if (minfamily != maxfamily)
-        minbits = commonbits = 0;
+	/* Force minbits/commonbits to zero if more than one family. */
+	if (minfamily != maxfamily)
+		minbits = commonbits = 0;
 
-    *minfamily_p = minfamily;
-    *maxfamily_p = maxfamily;
-    *minbits_p = minbits;
-    *commonbits_p = commonbits;
+	*minfamily_p = minfamily;
+	*maxfamily_p = maxfamily;
+	*minbits_p = minbits;
+	*commonbits_p = commonbits;
 }
 
 /*
@@ -468,29 +469,29 @@ calc_inet_union_params_indexed(GISTENTRY *ent,
  */
 static GistInetKey *
 build_inet_union_key(int family, int minbits, int commonbits,
-                     unsigned char *addr)
+					 unsigned char *addr)
 {
-    GistInetKey *result;
+	GistInetKey *result;
     Assert(commonbits >= 0);
-    /* Make sure any unused bits are zeroed. */
-    result = (GistInetKey *) palloc0(sizeof(GistInetKey));
+	/* Make sure any unused bits are zeroed. */
+	result = (GistInetKey *) palloc0(sizeof(GistInetKey));
 
-    gk_ip_family(result) = family;
-    gk_ip_minbits(result) = minbits;
-    gk_ip_commonbits(result) = commonbits;
+	gk_ip_family(result) = family;
+	gk_ip_minbits(result) = minbits;
+	gk_ip_commonbits(result) = commonbits;
 
-    /* Clone appropriate bytes of the address. */
-    if (commonbits > 0)
-        memcpy(gk_ip_addr(result), addr, (commonbits + 7) / 8);
+	/* Clone appropriate bytes of the address. */
+	if (commonbits > 0)
+		memcpy(gk_ip_addr(result), addr, (commonbits + 7) / 8);
 
-    /* Clean any unwanted bits in the last partial byte. */
-    if (commonbits % 8 != 0)
-        gk_ip_addr(result)[commonbits / 8] &= ~(0xFF >> (commonbits % 8));
+	/* Clean any unwanted bits in the last partial byte. */
+	if (commonbits % 8 != 0)
+		gk_ip_addr(result)[commonbits / 8] &= ~(0xFF >> (commonbits % 8));
 
-    /* Set varlena header correctly. */
-    SET_GK_VARSIZE(result);
+	/* Set varlena header correctly. */
+	SET_GK_VARSIZE(result);
 
-    return result;
+	return result;
 }
 
 
@@ -502,33 +503,33 @@ build_inet_union_key(int family, int minbits, int commonbits,
 Datum
 inet_gist_union(PG_FUNCTION_ARGS)
 {
-    GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
-    GISTENTRY  *ent = entryvec->vector;
-    int            minfamily,
-                maxfamily,
-                minbits,
-                commonbits;
-    unsigned char *addr;
-    GistInetKey *tmp,
-               *result;
+	GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
+	GISTENTRY  *ent = entryvec->vector;
+	int			minfamily,
+				maxfamily,
+				minbits,
+				commonbits;
+	unsigned char *addr;
+	GistInetKey *tmp,
+			   *result;
 
-    /* Determine parameters of the union. */
-    calc_inet_union_params(ent, 0, entryvec->n - 1,
-                           &minfamily, &maxfamily,
-                           &minbits, &commonbits);
+	/* Determine parameters of the union. */
+	calc_inet_union_params(ent, 0, entryvec->n - 1,
+						   &minfamily, &maxfamily,
+						   &minbits, &commonbits);
 
-    /* If more than one family, emit family number zero. */
-    if (minfamily != maxfamily)
-        minfamily = 0;
+	/* If more than one family, emit family number zero. */
+	if (minfamily != maxfamily)
+		minfamily = 0;
 
-    /* Initialize address using the first key. */
-    tmp = DatumGetInetKeyP(ent[0].key);
-    addr = gk_ip_addr(tmp);
+	/* Initialize address using the first key. */
+	tmp = DatumGetInetKeyP(ent[0].key);
+	addr = gk_ip_addr(tmp);
 
-    /* Construct the union value. */
-    result = build_inet_union_key(minfamily, minbits, commonbits, addr);
+	/* Construct the union value. */
+	result = build_inet_union_key(minfamily, minbits, commonbits, addr);
 
-    PG_RETURN_POINTER(result);
+	PG_RETURN_POINTER(result);
 }
 
 /*
@@ -539,39 +540,39 @@ inet_gist_union(PG_FUNCTION_ARGS)
 Datum
 inet_gist_compress(PG_FUNCTION_ARGS)
 {
-    GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
-    GISTENTRY  *retval;
+	GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
+	GISTENTRY  *retval;
 
-    if (entry->leafkey)
-    {
-        retval = palloc(sizeof(GISTENTRY));
-        if (DatumGetPointer(entry->key) != NULL)
-        {
-            inet       *in = DatumGetInetPP(entry->key);
-            GistInetKey *r;
+	if (entry->leafkey)
+	{
+		retval = palloc(sizeof(GISTENTRY));
+		if (DatumGetPointer(entry->key) != NULL)
+		{
+			inet	   *in = DatumGetInetPP(entry->key);
+			GistInetKey *r;
 
-            r = (GistInetKey *) palloc0(sizeof(GistInetKey));
+			r = (GistInetKey *) palloc0(sizeof(GistInetKey));
 
-            gk_ip_family(r) = ip_family(in);
-            gk_ip_minbits(r) = ip_bits(in);
-            gk_ip_commonbits(r) = gk_ip_maxbits(r);
-            memcpy(gk_ip_addr(r), ip_addr(in), gk_ip_addrsize(r));
-            SET_GK_VARSIZE(r);
+			gk_ip_family(r) = ip_family(in);
+			gk_ip_minbits(r) = ip_bits(in);
+			gk_ip_commonbits(r) = gk_ip_maxbits(r);
+			memcpy(gk_ip_addr(r), ip_addr(in), gk_ip_addrsize(r));
+			SET_GK_VARSIZE(r);
 
-            gistentryinit(*retval, PointerGetDatum(r),
-                          entry->rel, entry->page,
-                          entry->offset, FALSE);
-        }
-        else
-        {
-            gistentryinit(*retval, (Datum) 0,
-                          entry->rel, entry->page,
-                          entry->offset, FALSE);
-        }
-    }
-    else
-        retval = entry;
-    PG_RETURN_POINTER(retval);
+			gistentryinit(*retval, PointerGetDatum(r),
+						  entry->rel, entry->page,
+						  entry->offset, FALSE);
+		}
+		else
+		{
+			gistentryinit(*retval, (Datum) 0,
+						  entry->rel, entry->page,
+						  entry->offset, FALSE);
+		}
+	}
+	else
+		retval = entry;
+	PG_RETURN_POINTER(retval);
 }
 
 /*
@@ -582,9 +583,9 @@ inet_gist_compress(PG_FUNCTION_ARGS)
 Datum
 inet_gist_decompress(PG_FUNCTION_ARGS)
 {
-    GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
+	GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
 
-    PG_RETURN_POINTER(entry);
+	PG_RETURN_POINTER(entry);
 }
 
 /*
@@ -595,23 +596,23 @@ inet_gist_decompress(PG_FUNCTION_ARGS)
 Datum
 inet_gist_fetch(PG_FUNCTION_ARGS)
 {
-    GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
-    GistInetKey *key = DatumGetInetKeyP(entry->key);
-    GISTENTRY  *retval;
-    inet       *dst;
+	GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
+	GistInetKey *key = DatumGetInetKeyP(entry->key);
+	GISTENTRY  *retval;
+	inet	   *dst;
 
-    dst = (inet *) palloc0(sizeof(inet));
+	dst = (inet *) palloc0(sizeof(inet));
 
-    ip_family(dst) = gk_ip_family(key);
-    ip_bits(dst) = gk_ip_minbits(key);
-    memcpy(ip_addr(dst), gk_ip_addr(key), ip_addrsize(dst));
-    SET_INET_VARSIZE(dst);
+	ip_family(dst) = gk_ip_family(key);
+	ip_bits(dst) = gk_ip_minbits(key);
+	memcpy(ip_addr(dst), gk_ip_addr(key), ip_addrsize(dst));
+	SET_INET_VARSIZE(dst);
 
-    retval = palloc(sizeof(GISTENTRY));
-    gistentryinit(*retval, InetPGetDatum(dst), entry->rel, entry->page,
-                  entry->offset, FALSE);
+	retval = palloc(sizeof(GISTENTRY));
+	gistentryinit(*retval, InetPGetDatum(dst), entry->rel, entry->page,
+				  entry->offset, FALSE);
 
-    PG_RETURN_POINTER(retval);
+	PG_RETURN_POINTER(retval);
 }
 
 /*
@@ -625,32 +626,32 @@ inet_gist_fetch(PG_FUNCTION_ARGS)
 Datum
 inet_gist_penalty(PG_FUNCTION_ARGS)
 {
-    GISTENTRY  *origent = (GISTENTRY *) PG_GETARG_POINTER(0);
-    GISTENTRY  *newent = (GISTENTRY *) PG_GETARG_POINTER(1);
-    float       *penalty = (float *) PG_GETARG_POINTER(2);
-    GistInetKey *orig = DatumGetInetKeyP(origent->key),
-               *new = DatumGetInetKeyP(newent->key);
-    int            commonbits;
+	GISTENTRY  *origent = (GISTENTRY *) PG_GETARG_POINTER(0);
+	GISTENTRY  *newent = (GISTENTRY *) PG_GETARG_POINTER(1);
+	float	   *penalty = (float *) PG_GETARG_POINTER(2);
+	GistInetKey *orig = DatumGetInetKeyP(origent->key),
+			   *new = DatumGetInetKeyP(newent->key);
+	int			commonbits;
 
-    if (gk_ip_family(orig) == gk_ip_family(new))
-    {
-        if (gk_ip_minbits(orig) <= gk_ip_minbits(new))
-        {
-            commonbits = bitncommon(gk_ip_addr(orig), gk_ip_addr(new),
-                                    Min(gk_ip_commonbits(orig),
-                                        gk_ip_commonbits(new)));
-            if (commonbits > 0)
-                *penalty = 1.0f / commonbits;
-            else
-                *penalty = 2;
-        }
-        else
-            *penalty = 3;
-    }
-    else
-        *penalty = 4;
+	if (gk_ip_family(orig) == gk_ip_family(new))
+	{
+		if (gk_ip_minbits(orig) <= gk_ip_minbits(new))
+		{
+			commonbits = bitncommon(gk_ip_addr(orig), gk_ip_addr(new),
+									Min(gk_ip_commonbits(orig),
+										gk_ip_commonbits(new)));
+			if (commonbits > 0)
+				*penalty = 1.0f / commonbits;
+			else
+				*penalty = 2;
+		}
+		else
+			*penalty = 3;
+	}
+	else
+		*penalty = 4;
 
-    PG_RETURN_POINTER(penalty);
+	PG_RETURN_POINTER(penalty);
 }
 
 /*
@@ -667,133 +668,133 @@ inet_gist_penalty(PG_FUNCTION_ARGS)
  */
 Datum
 inet_gist_picksplit(PG_FUNCTION_ARGS)
-{// #lizard forgives
-    GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
-    GIST_SPLITVEC *splitvec = (GIST_SPLITVEC *) PG_GETARG_POINTER(1);
-    GISTENTRY  *ent = entryvec->vector;
-    int            minfamily,
-                maxfamily,
-                minbits,
-                commonbits;
-    unsigned char *addr;
-    GistInetKey *tmp,
-               *left_union,
-               *right_union;
-    int            maxoff,
-                nbytes;
-    OffsetNumber i,
-               *left,
-               *right;
+{
+	GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
+	GIST_SPLITVEC *splitvec = (GIST_SPLITVEC *) PG_GETARG_POINTER(1);
+	GISTENTRY  *ent = entryvec->vector;
+	int			minfamily,
+				maxfamily,
+				minbits,
+				commonbits;
+	unsigned char *addr;
+	GistInetKey *tmp,
+			   *left_union,
+			   *right_union;
+	int			maxoff,
+				nbytes;
+	OffsetNumber i,
+			   *left,
+			   *right;
 
-    maxoff = entryvec->n - 1;
-    nbytes = (maxoff + 1) * sizeof(OffsetNumber);
+	maxoff = entryvec->n - 1;
+	nbytes = (maxoff + 1) * sizeof(OffsetNumber);
 
-    left = (OffsetNumber *) palloc(nbytes);
-    right = (OffsetNumber *) palloc(nbytes);
+	left = (OffsetNumber *) palloc(nbytes);
+	right = (OffsetNumber *) palloc(nbytes);
 
-    splitvec->spl_left = left;
-    splitvec->spl_right = right;
+	splitvec->spl_left = left;
+	splitvec->spl_right = right;
 
-    splitvec->spl_nleft = 0;
-    splitvec->spl_nright = 0;
+	splitvec->spl_nleft = 0;
+	splitvec->spl_nright = 0;
 
-    /* Determine parameters of the union of all the inputs. */
-    calc_inet_union_params(ent, FirstOffsetNumber, maxoff,
-                           &minfamily, &maxfamily,
-                           &minbits, &commonbits);
+	/* Determine parameters of the union of all the inputs. */
+	calc_inet_union_params(ent, FirstOffsetNumber, maxoff,
+						   &minfamily, &maxfamily,
+						   &minbits, &commonbits);
 
-    if (minfamily != maxfamily)
-    {
-        /* Multiple families, so split by family. */
-        for (i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i))
-        {
-            /*
-             * If there's more than 2 families, all but maxfamily go into the
-             * left union.  This could only happen if the inputs include some
-             * IPv4, some IPv6, and some already-multiple-family unions.
-             */
-            tmp = DatumGetInetKeyP(ent[i].key);
-            if (gk_ip_family(tmp) != maxfamily)
-                left[splitvec->spl_nleft++] = i;
-            else
-                right[splitvec->spl_nright++] = i;
-        }
-    }
-    else
-    {
-        /*
-         * Split on the next bit after the common bits.  If that yields a
-         * trivial split, try the next bit position to the right.  Repeat till
-         * success; or if we run out of bits, do an arbitrary 50-50 split.
-         */
-        int            maxbits = ip_family_maxbits(minfamily);
+	if (minfamily != maxfamily)
+	{
+		/* Multiple families, so split by family. */
+		for (i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i))
+		{
+			/*
+			 * If there's more than 2 families, all but maxfamily go into the
+			 * left union.  This could only happen if the inputs include some
+			 * IPv4, some IPv6, and some already-multiple-family unions.
+			 */
+			tmp = DatumGetInetKeyP(ent[i].key);
+			if (gk_ip_family(tmp) != maxfamily)
+				left[splitvec->spl_nleft++] = i;
+			else
+				right[splitvec->spl_nright++] = i;
+		}
+	}
+	else
+	{
+		/*
+		 * Split on the next bit after the common bits.  If that yields a
+		 * trivial split, try the next bit position to the right.  Repeat till
+		 * success; or if we run out of bits, do an arbitrary 50-50 split.
+		 */
+		int			maxbits = ip_family_maxbits(minfamily);
 
-        while (commonbits < maxbits)
-        {
-            /* Split using the commonbits'th bit position. */
-            int            bitbyte = commonbits / 8;
-            int            bitmask = 0x80 >> (commonbits % 8);
+		while (commonbits < maxbits)
+		{
+			/* Split using the commonbits'th bit position. */
+			int			bitbyte = commonbits / 8;
+			int			bitmask = 0x80 >> (commonbits % 8);
 
-            splitvec->spl_nleft = splitvec->spl_nright = 0;
+			splitvec->spl_nleft = splitvec->spl_nright = 0;
 
-            for (i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i))
-            {
-                tmp = DatumGetInetKeyP(ent[i].key);
-                addr = gk_ip_addr(tmp);
-                if ((addr[bitbyte] & bitmask) == 0)
-                    left[splitvec->spl_nleft++] = i;
-                else
-                    right[splitvec->spl_nright++] = i;
-            }
+			for (i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i))
+			{
+				tmp = DatumGetInetKeyP(ent[i].key);
+				addr = gk_ip_addr(tmp);
+				if ((addr[bitbyte] & bitmask) == 0)
+					left[splitvec->spl_nleft++] = i;
+				else
+					right[splitvec->spl_nright++] = i;
+			}
 
-            if (splitvec->spl_nleft > 0 && splitvec->spl_nright > 0)
-                break;            /* success */
-            commonbits++;
-        }
+			if (splitvec->spl_nleft > 0 && splitvec->spl_nright > 0)
+				break;			/* success */
+			commonbits++;
+		}
 
-        if (commonbits >= maxbits)
-        {
-            /* Failed ... do a 50-50 split. */
-            splitvec->spl_nleft = splitvec->spl_nright = 0;
+		if (commonbits >= maxbits)
+		{
+			/* Failed ... do a 50-50 split. */
+			splitvec->spl_nleft = splitvec->spl_nright = 0;
 
-            for (i = FirstOffsetNumber; i <= maxoff / 2; i = OffsetNumberNext(i))
-            {
-                left[splitvec->spl_nleft++] = i;
-            }
-            for (; i <= maxoff; i = OffsetNumberNext(i))
-            {
-                right[splitvec->spl_nright++] = i;
-            }
-        }
-    }
+			for (i = FirstOffsetNumber; i <= maxoff / 2; i = OffsetNumberNext(i))
+			{
+				left[splitvec->spl_nleft++] = i;
+			}
+			for (; i <= maxoff; i = OffsetNumberNext(i))
+			{
+				right[splitvec->spl_nright++] = i;
+			}
+		}
+	}
 
-    /*
-     * Compute the union value for each side from scratch.  In most cases we
-     * could approximate the union values with what we already know, but this
-     * ensures that each side has minbits and commonbits set as high as
-     * possible.
-     */
-    calc_inet_union_params_indexed(ent, left, splitvec->spl_nleft,
-                                   &minfamily, &maxfamily,
-                                   &minbits, &commonbits);
-    if (minfamily != maxfamily)
-        minfamily = 0;
-    tmp = DatumGetInetKeyP(ent[left[0]].key);
-    addr = gk_ip_addr(tmp);
-    left_union = build_inet_union_key(minfamily, minbits, commonbits, addr);
-    splitvec->spl_ldatum = PointerGetDatum(left_union);
+	/*
+	 * Compute the union value for each side from scratch.  In most cases we
+	 * could approximate the union values with what we already know, but this
+	 * ensures that each side has minbits and commonbits set as high as
+	 * possible.
+	 */
+	calc_inet_union_params_indexed(ent, left, splitvec->spl_nleft,
+								   &minfamily, &maxfamily,
+								   &minbits, &commonbits);
+	if (minfamily != maxfamily)
+		minfamily = 0;
+	tmp = DatumGetInetKeyP(ent[left[0]].key);
+	addr = gk_ip_addr(tmp);
+	left_union = build_inet_union_key(minfamily, minbits, commonbits, addr);
+	splitvec->spl_ldatum = PointerGetDatum(left_union);
 
-    calc_inet_union_params_indexed(ent, right, splitvec->spl_nright,
-                                   &minfamily, &maxfamily,
-                                   &minbits, &commonbits);
-    if (minfamily != maxfamily)
-        minfamily = 0;
-    tmp = DatumGetInetKeyP(ent[right[0]].key);
-    addr = gk_ip_addr(tmp);
-    right_union = build_inet_union_key(minfamily, minbits, commonbits, addr);
-    splitvec->spl_rdatum = PointerGetDatum(right_union);
+	calc_inet_union_params_indexed(ent, right, splitvec->spl_nright,
+								   &minfamily, &maxfamily,
+								   &minbits, &commonbits);
+	if (minfamily != maxfamily)
+		minfamily = 0;
+	tmp = DatumGetInetKeyP(ent[right[0]].key);
+	addr = gk_ip_addr(tmp);
+	right_union = build_inet_union_key(minfamily, minbits, commonbits, addr);
+	splitvec->spl_rdatum = PointerGetDatum(right_union);
 
-    PG_RETURN_POINTER(splitvec);
+	PG_RETURN_POINTER(splitvec);
 }
 
 /*
@@ -802,15 +803,15 @@ inet_gist_picksplit(PG_FUNCTION_ARGS)
 Datum
 inet_gist_same(PG_FUNCTION_ARGS)
 {
-    GistInetKey *left = DatumGetInetKeyP(PG_GETARG_DATUM(0));
-    GistInetKey *right = DatumGetInetKeyP(PG_GETARG_DATUM(1));
-    bool       *result = (bool *) PG_GETARG_POINTER(2);
+	GistInetKey *left = DatumGetInetKeyP(PG_GETARG_DATUM(0));
+	GistInetKey *right = DatumGetInetKeyP(PG_GETARG_DATUM(1));
+	bool	   *result = (bool *) PG_GETARG_POINTER(2);
 
-    *result = (gk_ip_family(left) == gk_ip_family(right) &&
-               gk_ip_minbits(left) == gk_ip_minbits(right) &&
-               gk_ip_commonbits(left) == gk_ip_commonbits(right) &&
-               memcmp(gk_ip_addr(left), gk_ip_addr(right),
-                      gk_ip_addrsize(left)) == 0);
+	*result = (gk_ip_family(left) == gk_ip_family(right) &&
+			   gk_ip_minbits(left) == gk_ip_minbits(right) &&
+			   gk_ip_commonbits(left) == gk_ip_commonbits(right) &&
+			   memcmp(gk_ip_addr(left), gk_ip_addr(right),
+					  gk_ip_addrsize(left)) == 0);
 
-    PG_RETURN_POINTER(result);
+	PG_RETURN_POINTER(result);
 }

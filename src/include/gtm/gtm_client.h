@@ -8,9 +8,6 @@
  * Portions Copyright (c) 1994, Regents of the University of California
  * Portions Copyright (c) 2010-2012 Postgres-XC Development Group
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * $PostgreSQL$
  *
  *-------------------------------------------------------------------------
@@ -26,6 +23,13 @@
 #include "gtm/libpq-fe.h"
 #include "access/xlogdefs.h"
 #include "gtm/gtm_stat.h"
+#ifdef __OPENTENBASE_C__
+#include "gtm/gtm_fid.h"
+#endif
+
+#ifdef __RESOURCE_QUEUE__
+#include "gtm/gtm_resqueue.h"
+#endif
 
 #define MAX_HOSTADDR_LEN 32
 #define MAX_PORT_LEN     8
@@ -181,8 +185,15 @@ typedef union GTM_ResultData
 		int						errcode;
 	} grd_report_xmin;						/* REPORT_XMIN */
 
-    GTM_StatisticsResult statistic_result;
+#ifdef __RESOURCE_QUEUE__
+	GTMStorageResQueueStatus	grd_resqret;	/* RESQUEUE_INIT
+												 * RESQUEUE_RESET
+												 * RESQUEUE_CLOSE 
+												 * RESQUEUE_IF_EXISTS
+												 */
+#endif
 
+	GTM_StatisticsResult statistic_result;
 	/*
 	 * TODO
 	 * 	TXN_GET_STATUS
@@ -211,7 +222,8 @@ typedef struct GTM_Result
 #ifdef __OPENTENBASE__	
 	struct
 	{
-		int32					len;
+		uint32					org_len;
+		uint32					c_len;
 		char				   *data;
 #ifdef __XLOG__
 		XLogRecPtr              start_pos;
@@ -245,14 +257,49 @@ typedef struct GTM_Result
 		int32							count;
 		GTMStorageTransactionStatus     *txns;
 	}grd_store_check_txn;
-
-    struct
+	
+	struct
     {
         int len;
         char* errlog;
     } grd_errlog;
-
+	
 #endif
+#ifdef __OPENTENBASE_C__
+	struct
+	{
+		int32							fid_count;
+		int 							*fids;
+		GTM_Fid							*fidstatus;
+	}grd_store_fid;
+#endif
+
+#ifdef __RESOURCE_QUEUE__
+	struct 
+	{
+		int32							count;
+		GTM_StoredResQueueDataInfo		*resqs;
+	}grd_store_resq;							/* MSG_LIST_GTM_STORE_RESQUEUE */
+
+	struct 
+	{
+		int32							count;
+		GTMStorageResQueueStatus		*resqs;
+	}grd_store_check_resq;						/* MSG_CHECK_GTM_STORE_RESQUEUE */
+
+	struct
+	{
+		int32							count;
+		GTM_ResQueueInfo				*resqs;
+	} grd_resq_list;							/* RESQUEUE_GET_LIST */
+
+	struct
+	{
+		int32							count;
+		GTM_ResQUsageInfo				*usages;
+	} grd_resq_usage;							/* MSG_LIST_RESQUEUE_USAGE */
+#endif
+
 	/*
 	 * We keep these two items outside the union to avoid repeated malloc/free
 	 * of the xip array. If these items are pushed inside the union, they may
@@ -273,6 +320,17 @@ typedef struct Get_GTS_Result {
     GTM_Timestamp		        gts;    /* GETGTS or when CHECK_GTM  GTS from primary GTM. */
     bool                        gtm_readonly;   /* read only mode for gtm */
 } Get_GTS_Result;
+
+typedef struct _GetStoreFileSt
+{
+	uint32					org_len;
+	uint32					c_len;
+	char				   *data;
+#ifdef __XLOG__
+	XLogRecPtr              start_pos;
+	TimeLineID              time_line;
+#endif
+} GetStoreFileSt;
 
 /*
  * Connection Management API
@@ -431,17 +489,17 @@ int report_global_xmin(GTM_Conn *conn, const char *node_name,
 int open_sequence(GTM_Conn *conn, GTM_SequenceKey key, GTM_Sequence increment,
 				  GTM_Sequence minval, GTM_Sequence maxval,
 				  GTM_Sequence startval, bool cycle,
-				  GlobalTransactionId gxid);
+				  GlobalTransactionId gxid, bool nocache, bool is_order);
 int bkup_open_sequence(GTM_Conn *conn, GTM_SequenceKey key, GTM_Sequence increment,
 					   GTM_Sequence minval, GTM_Sequence maxval,
 					   GTM_Sequence startval, bool cycle,
-					   GlobalTransactionId gxid);
+					   GlobalTransactionId gxid, bool nocache, bool is_order);
 int alter_sequence(GTM_Conn *conn, GTM_SequenceKey key, GTM_Sequence increment,
 				   GTM_Sequence minval, GTM_Sequence maxval,
-				   GTM_Sequence startval, GTM_Sequence lastval, bool cycle, bool is_restart);
+				   GTM_Sequence startval, GTM_Sequence lastval, bool cycle, bool is_restart, bool nocache, bool is_order);
 int bkup_alter_sequence(GTM_Conn *conn, GTM_SequenceKey key, GTM_Sequence increment,
 						GTM_Sequence minval, GTM_Sequence maxval,
-						GTM_Sequence startval, GTM_Sequence lastval, bool cycle, bool is_restart);
+						GTM_Sequence startval, GTM_Sequence lastval, bool cycle, bool is_restart, bool nocache, bool is_order);
 int close_sequence(GTM_Conn *conn, GTM_SequenceKey key, GlobalTransactionId gxid);
 int bkup_close_sequence(GTM_Conn *conn, GTM_SequenceKey key, GlobalTransactionId gxid);
 int rename_sequence(GTM_Conn *conn, GTM_SequenceKey key,
@@ -492,11 +550,7 @@ int set_begin_replication(GTM_Conn *conn,const char *application_name,const char
 /*
  * GTM-Storage
  */
-#ifdef  __XLOG__
-size_t get_storage_file(GTM_Conn *conn, char **data,XLogRecPtr *start_pos,TimeLineID *timeLineID);
-#else
-size_t get_storage_file(GTM_Conn *conn, char **data);
-#endif
+int get_storage_file(GTM_Conn *conn, GetStoreFileSt *store_file_info);
 int finish_gid_gtm(GTM_Conn *conn, char *gid);
 int get_gtm_store_status(GTM_Conn *conn, GTMStorageStatus *header);
 int32 get_storage_sequence_list(GTM_Conn *conn, GTM_StoredSeqInfo **store_seq);
@@ -506,4 +560,88 @@ int32 check_storage_transaction(GTM_Conn *conn, GTMStorageTransactionStatus **st
 int   rename_db_sequence(GTM_Conn *conn, GTM_SequenceKey key, GTM_SequenceKey newkey, GlobalTransactionId gxid);
 #endif
 void gtmpqFreeResultResource(GTM_Result *result);
+
+#endif
+#ifdef __OPENTENBASE_C__
+int32 acquire_fragment_id(GTM_Conn *conn, int *fids, int nodeId, int size, time_t nodeStartTs);
+int32 release_fragment_id(GTM_Conn *conn, int *fids, int nodeId, int size);
+int32 release_node_fragment_id(GTM_Conn *conn, int nodeId);
+int32 list_fragment_id(GTM_Conn *conn, int **fids, int nodeId);
+int32 keepalive_fragment_id(GTM_Conn *conn, int nodeId, time_t nodeStartTs);
+int32 list_alive_fragment_id_status(GTM_Conn *conn, GTM_Fid **fids);
+int32 list_all_fragment_id_status(GTM_Conn *conn, GTM_Fid **fids);
+
+#endif
+
+#ifdef __RESOURCE_QUEUE__
+int
+resqueue_open(GTM_Conn *conn,
+				NameData * resq_name,
+				NameData * resq_group,
+				int64	resq_memory_limit,
+				int64	resq_network_limit,
+				int32	resq_active_stmts,
+				int16	resq_wait_overload,
+				int16	resq_priority);
+int
+resqueue_alter(GTM_Conn *conn,
+				NameData * resq_name,
+				NameData * resq_group,
+				int64	resq_memory_limit,
+				int64	resq_network_limit,
+				int32	resq_active_stmts,
+				int16	resq_wait_overload,
+				int16	resq_priority,
+				char alter_name,
+				char alter_group,
+				char alter_memory_limit,
+				char alter_network_limit,
+				char alter_active_stmts,
+				char alter_wait_overload,
+				char alter_priority);
+int
+resqueue_close(GTM_Conn *conn, NameData * resq_name);
+
+int
+resqueue_check_if_exists(GTM_Conn *conn, NameData * resq_name, bool * exists);
+
+int 
+resqueue_move_conn(GTM_Conn *conn, const char *node_name, int node_procid,
+				 		int node_backendid, int32 *move_success);
+int 
+resqueue_acquire(GTM_Conn * conn, 
+						const char * node_name,
+						int node_procid,
+				 		int node_backendid,
+				 		NameData * resq_name,
+				 		int64 memory_Bytes,
+						NameData * ret_name,
+						NameData * ret_group,
+						int64 * ret_memory_limit,
+						int64 * ret_network_limit,
+						int32 * ret_active_stmts,
+						int16 * ret_wait_overload,
+						int16 * ret_priority,
+						int32 * errcode);
+int
+resqueue_release(GTM_Conn *conn, 
+						const char *node_name,
+						int node_procid,
+				 		int node_backendid,
+				 		NameData * resq_name, 
+				 		int64 memory_Bytes,
+				 		int32 * errcode);
+
+int32
+get_resqueue_list(GTM_Conn *conn, GTM_ResQueueInfo **resq_list);
+
+int32
+get_storage_resqueue_list(GTM_Conn *conn, GTM_StoredResQueueDataInfo **store_resq);
+
+int32
+check_storage_resqueue(GTM_Conn *conn, GTMStorageResQueueStatus **store_resq, bool need_fix);
+
+int32
+get_resqueue_usage(GTM_Conn *conn, NameData * resq_name, GTM_ResQUsageInfo **usages);
+
 #endif

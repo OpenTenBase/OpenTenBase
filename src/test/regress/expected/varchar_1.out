@@ -109,3 +109,15 @@ SELECT '' AS four, * FROM VARCHAR_TBL ORDER BY f1;
       | abcd
 (4 rows)
 
+-- test format
+CREATE TABLE test_format (pt_d varchar(255)) with (orientation = column);
+INSERT INTO test_format VALUES ('20240731'), ('20240820'), ('20240630'), ('20240901'), ('20240715'), ('20240805'), ('20240728'), ('20240818'), ('20240701'), ('20240810');
+SELECT * FROM test_format WHERE pt_d in ('20240731','20240820')
+AND format(substr(pt_d,1,6),'yyyyMM') >= concat('2024',case when '7'>9 then '7' else concat(0,'7') end )
+AND format(substr(pt_d,1,6),'yyyyMM') <= concat('2024',case when '7'>9 then '7' else concat(0,'7') end );
+   pt_d   
+----------
+ 20240731
+(1 row)
+
+DROP TABLE test_format;

@@ -116,8 +116,9 @@ select regexp_match('abc', '(B)(c)', 'i');
 (1 row)
 
 select regexp_match('abc', 'Bd', 'ig'); -- error
-ERROR:  regexp_match does not support the global option
+ERROR:  regexp_match() does not support the "global" option
 HINT:  Use the regexp_matches function instead.
+ while processing column regexp_match
 -- Test lookahead constraints
 select regexp_matches('ab', 'a(?=b)b*');
  regexp_matches 
@@ -516,6 +517,38 @@ select 'a' ~ '()+\1';
  ?column? 
 ----------
  t
+(1 row)
+
+-- Test incorrect removal of capture groups within {0}
+select 'xxx' ~ '(.){0}(\1)' as f;
+ f 
+---
+ f
+(1 row)
+
+select 'xxx' ~ '((.)){0}(\2)' as f;
+ f 
+---
+ f
+(1 row)
+
+select 'xyz' ~ '((.)){0}(\2){0}' as t;
+ t 
+---
+ t
+(1 row)
+
+-- Test ancient oversight in when to apply zaptreesubs
+select 'abcdef' ~ '^(.)\1|\1.' as f;
+ f 
+---
+ f
+(1 row)
+
+select 'abadef' ~ '^((.)\2|..)\2' as f;
+ f 
+---
+ f
 (1 row)
 
 -- Error conditions

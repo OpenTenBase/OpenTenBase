@@ -47,6 +47,13 @@ SELECT * FROM viewtest ORDER BY a;
 CREATE OR REPLACE VIEW viewtest AS
 	SELECT a, b FROM viewtest_tbl WHERE a > 5 ORDER BY b DESC;
 
+EXPLAIN (costs off, nodes off) SELECT * FROM viewtest;
+SELECT * FROM viewtest;
+
+EXPLAIN (costs off, nodes off) SELECT a FROM viewtest;
+SELECT a FROM viewtest;
+
+EXPLAIN (costs off, nodes off) SELECT * FROM viewtest ORDER BY a;
 SELECT * FROM viewtest ORDER BY a;
 
 -- should fail
@@ -513,19 +520,19 @@ rollback;
 
 create type nestedcomposite as (x int8_tbl);
 create view tt15v as select row(i)::nestedcomposite from int8_tbl i;
-select * from tt15v order by 1;
+select * from tt15v order by row;
 select pg_get_viewdef('tt15v', true);
-select row(i.*::int8_tbl)::nestedcomposite from int8_tbl i order by 1;
+select row(i.*::int8_tbl)::nestedcomposite from int8_tbl i order by row;
 
 create view tt16v as select * from int8_tbl i, lateral(values(i)) ss;
-select * from tt16v order by 1,2,3;
+select * from tt16v order by q1,q2,column1;
 select pg_get_viewdef('tt16v', true);
-select * from int8_tbl i, lateral(values(i.*::int8_tbl)) ss order by 1,2,3;
+select * from int8_tbl i, lateral(values(i.*::int8_tbl)) ss order by q1,q2,column1;
 
 create view tt17v as select * from int8_tbl i where i in (values(i));
-select * from tt17v order by 1,2;
+select * from tt17v order by q1,q2;
 select pg_get_viewdef('tt17v', true);
-select * from int8_tbl i where i.* in (values(i.*::int8_tbl)) order by 1,2;
+select * from int8_tbl i where i.* in (values(i.*::int8_tbl)) order by q1,q2;
 
 -- check unique-ification of overlength names
 
@@ -590,5 +597,28 @@ set enable_seqscan = off;
 create table test(v int primary key, w int) distribute by shard(v); 
 insert into test values(generate_series(1,50), generate_series(1,50));
 create view test_sort as select * from test where v in (select v from test where w < 20) order by v asc;
-select * from test_sort order by 1;
+select * from test_sort;
 drop table test cascade;
+
+-- test restriction on non-system view expansion.
+create table tt27v_tbl (a int);
+create view tt27v as select a from tt27v_tbl;
+set restrict_nonsystem_relation_kind to 'view';
+select a from tt27v where a > 0; -- Error
+insert into tt27v values (1); -- Error
+select viewname from pg_views where viewname = 'tt27v'; -- Ok to access a system view.
+drop view tt27v;
+drop table tt27v_tbl;
+reset restrict_nonsystem_relation_kind;
+
+-- check view definition with connect and related exprs
+\c regression_ora
+
+-- check view name conflict for remote requery deparse (only applied to distributed mode)
+create view myview as select 'X'::character varying AS dummy;
+create schema sys;
+create view sys.myview as select * from myview;
+select * from sys.myview;
+drop view sys.myview;
+drop view myview;
+drop schema sys;

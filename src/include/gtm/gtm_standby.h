@@ -7,9 +7,6 @@
  * Portions Copyright (c) 1994, Regents of the University of California
  * Portions Copyright (c) 2010-2012 Postgres-XC Development Group
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * src/include/gtm/gtm_standby.h
  *
  *-------------------------------------------------------------------------
@@ -57,6 +54,8 @@ void gtm_standby_finishActiveConn(void);
 
 #ifdef __OPENTENBASE__
 extern int32 GTM_StoreStandbyInitFromMaster(char *data_dir);
+bool GTM_RecoveyFromOverwriting(size_t file_size);
+
 #endif
 
 #ifdef __XLOG__
@@ -72,10 +71,11 @@ extern int gtm_standby_start_replication(const char *application_name);
 
 enum GTM_PromoteStatus
 {
-    GTM_PRPMOTE_INIT          = 0,
-    GTM_PRPMOTE_IN_STARTUP    = 1,
-    GTM_PRPMOTE_CONNED        = 2,
-    GTM_PRPMOTE_NORMAL        = 3,
+    GTM_PRPMOTE_NONE = 0,
+    GTM_PRPMOTE_INIT,
+    GTM_PRPMOTE_IN_STARTUP,
+    GTM_PRPMOTE_CONNED,
+    GTM_PRPMOTE_NORMAL,
 };
 
 #endif /* GTM_STANDBY_H */

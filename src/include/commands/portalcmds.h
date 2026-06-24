@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * portalcmds.h
- *      prototypes for portalcmds.c.
+ *	  prototypes for portalcmds.c.
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -19,10 +19,10 @@
 
 
 extern void PerformCursorOpen(DeclareCursorStmt *cstmt, ParamListInfo params,
-                  const char *queryString, bool isTopLevel);
+				  const char *queryString, bool isTopLevel);
 
 extern void PerformPortalFetch(FetchStmt *stmt, DestReceiver *dest,
-                   char *completionTag);
+				   char *completionTag);
 
 extern void PerformPortalClose(const char *name);
 
@@ -30,4 +30,4 @@ extern void PortalCleanup(Portal portal);
 
 extern void PersistHoldablePortal(Portal portal);
 
-#endif                            /* PORTALCMDS_H */
+#endif							/* PORTALCMDS_H */

@@ -3,9 +3,20 @@
 -- complain if script is sourced in psql, rather than via CREATE EXTENSION
 \echo Use "create EXTENSION opentenbase_gts_tools" to load this file. \quit
 
-CREATE FUNCTION txid_gts(int)
+CREATE FUNCTION txid_gts(bigint)
 RETURNS bigint
 AS 'MODULE_PATHNAME', 'txid_gts'
+LANGUAGE C STRICT;
+
+CREATE FUNCTION txid_gts_raw(bigint)
+    RETURNS bigint
+AS 'MODULE_PATHNAME', 'txid_gts_raw'
+LANGUAGE C STRICT;
+
+CREATE FUNCTION txid_set_gts(IN  xid bigint,
+                             IN  gts bigint)
+    RETURNS bigint
+AS 'MODULE_PATHNAME', 'txid_set_gts'
 LANGUAGE C STRICT;
 
 --

@@ -204,33 +204,33 @@ SELECT dense_rank() OVER (PARTITION BY four ORDER BY ten), ten, four FROM tenk1 
 (10 rows)
 
 SELECT percent_rank() OVER (PARTITION BY four ORDER BY ten), ten, four FROM tenk1 WHERE unique2 < 10 ORDER BY 1, 2, 3;
-   percent_rank    | ten | four 
--------------------+-----+------
-                 0 |   0 |    0
-                 0 |   0 |    0
-                 0 |   0 |    2
-                 0 |   1 |    1
-                 0 |   1 |    1
-                 0 |   1 |    3
- 0.666666666666667 |   7 |    1
-                 1 |   3 |    3
-                 1 |   4 |    0
-                 1 |   9 |    1
+    percent_rank    | ten | four 
+--------------------+-----+------
+                  0 |   0 |    0
+                  0 |   0 |    0
+                  0 |   0 |    2
+                  0 |   1 |    1
+                  0 |   1 |    1
+                  0 |   1 |    3
+ 0.6666666666666666 |   7 |    1
+                  1 |   3 |    3
+                  1 |   4 |    0
+                  1 |   9 |    1
 (10 rows)
 
 SELECT cume_dist() OVER (PARTITION BY four ORDER BY ten), ten, four FROM tenk1 WHERE unique2 < 10 ORDER BY 1, 2, 3;
-     cume_dist     | ten | four 
--------------------+-----+------
-               0.5 |   1 |    1
-               0.5 |   1 |    1
-               0.5 |   1 |    3
- 0.666666666666667 |   0 |    0
- 0.666666666666667 |   0 |    0
-              0.75 |   7 |    1
-                 1 |   0 |    2
-                 1 |   3 |    3
-                 1 |   4 |    0
-                 1 |   9 |    1
+     cume_dist      | ten | four 
+--------------------+-----+------
+                0.5 |   1 |    1
+                0.5 |   1 |    1
+                0.5 |   1 |    3
+ 0.6666666666666666 |   0 |    0
+ 0.6666666666666666 |   0 |    0
+               0.75 |   7 |    1
+                  1 |   0 |    2
+                  1 |   3 |    3
+                  1 |   4 |    0
+                  1 |   9 |    1
 (10 rows)
 
 SELECT ntile(3) OVER (ORDER BY ten, four), ten, four FROM tenk1 WHERE unique2 < 10 ORDER BY 1, 2, 3;
@@ -379,11 +379,37 @@ SELECT last_value(four) OVER (ORDER BY ten, four), ten, four FROM tenk1 WHERE un
 SELECT last_value(ten) OVER (PARTITION BY four), ten, four FROM
 	(SELECT * FROM tenk1 WHERE unique2 < 10 ORDER BY four, ten)s
 	ORDER BY four, ten;
-ERROR:  Postgres-XL does not currently support ORDER BY in subqueries
+ last_value | ten | four 
+------------+-----+------
+          4 |   0 |    0
+          4 |   0 |    0
+          4 |   4 |    0
+          9 |   1 |    1
+          9 |   1 |    1
+          9 |   7 |    1
+          9 |   9 |    1
+          0 |   0 |    2
+          3 |   1 |    3
+          3 |   3 |    3
+(10 rows)
+
 SELECT nth_value(ten, four + 1) OVER (PARTITION BY four), ten, four
 	FROM (SELECT * FROM tenk1 WHERE unique2 < 10 ORDER BY four, ten)s
 	ORDER BY four, ten;
-ERROR:  Postgres-XL does not currently support ORDER BY in subqueries
+ nth_value | ten | four 
+-----------+-----+------
+         0 |   0 |    0
+         0 |   0 |    0
+         0 |   4 |    0
+         1 |   1 |    1
+         1 |   1 |    1
+         1 |   7 |    1
+         1 |   9 |    1
+           |   0 |    2
+           |   1 |    3
+           |   3 |    3
+(10 rows)
+
 SELECT ten, two, sum(hundred) AS gsum, sum(sum(hundred)) OVER (PARTITION BY two ORDER BY ten) AS wsum 
 FROM tenk1 GROUP BY ten, two
 ORDER BY ten, two;
@@ -595,18 +621,20 @@ explain (costs off)
 select first_value(max(x)) over (), y
   from (select unique1 as x, ten+four as y from tenk1) ss
   group by y;
-                           QUERY PLAN                            
------------------------------------------------------------------
- WindowAgg
-   ->  Finalize GroupAggregate
-         Group Key: (tenk1.ten + tenk1.four)
-         ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-               ->  Sort
-                     Sort Key: ((tenk1.ten + tenk1.four))
-                     ->  Partial HashAggregate
-                           Group Key: (tenk1.ten + tenk1.four)
-                           ->  Seq Scan on tenk1
-(9 rows)
+                             QUERY PLAN                              
+---------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 1)
+   ->  WindowAgg
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by R
+               ->  Finalize HashAggregate
+                     Group Key: ((tenk1.ten + tenk1.four))
+                     ->  Remote Subquery Scan on all (datanodes 2)
+                           Distribute results by S: ((ten + four))
+                           ->  Partial HashAggregate
+                                 Group Key: (tenk1.ten + tenk1.four)
+                                 ->  Seq Scan on tenk1
+(11 rows)
 
 -- test non-default frame specifications
 SELECT four, ten,
@@ -769,23 +797,88 @@ FROM tenk1 WHERE unique1 < 10;
 SELECT sum(unique1) over (rows between current row and unbounded following),
 	unique1, four
 FROM (SELECT unique1, four FROM tenk1 WHERE unique1 < 10 ORDER BY 1, 2) stenk1;
-ERROR:  Postgres-XL does not currently support ORDER BY in subqueries
+ sum | unique1 | four 
+-----+---------+------
+  45 |       0 |    0
+  45 |       1 |    1
+  44 |       2 |    2
+  42 |       3 |    3
+  39 |       4 |    0
+  35 |       5 |    1
+  30 |       6 |    2
+  24 |       7 |    3
+  17 |       8 |    0
+   9 |       9 |    1
+(10 rows)
+
 SELECT sum(unique1) over (rows between 2 preceding and 2 following),
 	unique1, four
 FROM (SELECT unique1, four FROM tenk1 WHERE unique1 < 10 ORDER BY 1, 2) stenk1;
-ERROR:  Postgres-XL does not currently support ORDER BY in subqueries
+ sum | unique1 | four 
+-----+---------+------
+   3 |       0 |    0
+   6 |       1 |    1
+  10 |       2 |    2
+  15 |       3 |    3
+  20 |       4 |    0
+  25 |       5 |    1
+  30 |       6 |    2
+  35 |       7 |    3
+  30 |       8 |    0
+  24 |       9 |    1
+(10 rows)
+
 SELECT sum(unique1) over (rows between 2 preceding and 1 preceding),
 	unique1, four
 FROM (SELECT unique1, four FROM tenk1 WHERE unique1 < 10 ORDER BY 1, 2) stenk1;
-ERROR:  Postgres-XL does not currently support ORDER BY in subqueries
+ sum | unique1 | four 
+-----+---------+------
+     |       0 |    0
+   0 |       1 |    1
+   1 |       2 |    2
+   3 |       3 |    3
+   5 |       4 |    0
+   7 |       5 |    1
+   9 |       6 |    2
+  11 |       7 |    3
+  13 |       8 |    0
+  15 |       9 |    1
+(10 rows)
+
 SELECT sum(unique1) over (rows between 1 following and 3 following),
 	unique1, four
 FROM (SELECT unique1, four FROM tenk1 WHERE unique1 < 10 ORDER BY 1, 2) stenk1;
-ERROR:  Postgres-XL does not currently support ORDER BY in subqueries
+ sum | unique1 | four 
+-----+---------+------
+   6 |       0 |    0
+   9 |       1 |    1
+  12 |       2 |    2
+  15 |       3 |    3
+  18 |       4 |    0
+  21 |       5 |    1
+  24 |       6 |    2
+  17 |       7 |    3
+   9 |       8 |    0
+     |       9 |    1
+(10 rows)
+
 SELECT sum(unique1) over (rows between unbounded preceding and 1 following),
 	unique1, four
 FROM (SELECT unique1, four FROM tenk1 WHERE unique1 < 10 ORDER BY 1, 2) stenk1;
-ERROR:  Postgres-XL does not currently support ORDER BY in subqueries
+ sum | unique1 | four 
+-----+---------+------
+   1 |       0 |    0
+   3 |       1 |    1
+   6 |       2 |    2
+  10 |       3 |    3
+  15 |       4 |    0
+  21 |       5 |    1
+  28 |       6 |    2
+  36 |       7 |    3
+  45 |       8 |    0
+  45 |       9 |    1
+(10 rows)
+
 SELECT sum(unique1) over (w range between current row and unbounded following),
 	unique1, four
 FROM tenk1 WHERE unique1 < 10 WINDOW w AS (order by four, unique1);
@@ -803,13 +896,6 @@ FROM tenk1 WHERE unique1 < 10 WINDOW w AS (order by four, unique1);
    7 |       7 |    3
 (10 rows)
 
--- fail: not implemented yet
-SELECT sum(unique1) over (order by four, ten, unique1 range between 2::int8 preceding and 1::int2 preceding),
-	unique1, four
-FROM tenk1 WHERE unique1 < 10;
-ERROR:  RANGE PRECEDING is only supported with UNBOUNDED
-LINE 1: ...CT sum(unique1) over (order by four, ten, unique1 range betw...
-                                                             ^
 SELECT first_value(unique1) over w,
 	nth_value(unique1, 2) over w AS nth_2,
 	last_value(unique1) over w, unique1, four
@@ -834,7 +920,20 @@ SELECT sum(unique1) over
 	 rows (SELECT unique1 FROM tenk1 ORDER BY unique1 LIMIT 1) + 1 PRECEDING),
 	unique1
 FROM (SELECT unique1, four FROM tenk1 WHERE unique1 < 10 ORDER BY 1, 2) stenk1;
-ERROR:  Postgres-XL does not currently support ORDER BY in subqueries
+ sum | unique1 
+-----+---------
+   0 |       0
+   1 |       1
+   3 |       2
+   5 |       3
+   7 |       4
+   9 |       5
+  11 |       6
+  13 |       7
+  15 |       8
+  17 |       9
+(10 rows)
+
 CREATE TEMP VIEW v_window AS
 	SELECT i, sum(i) over (order by i rows between 1 preceding and 1 following) as sum_rows
 	FROM generate_series(1, 10) i;
@@ -861,6 +960,412 @@ SELECT pg_get_viewdef('v_window');
     FROM generate_series(1, 10) i(i);
 (1 row)
 
+DROP VIEW v_window;
+CREATE TEMP VIEW v_window AS
+	SELECT i, min(i) over (order by i range between '1 day' preceding and '10 days' following) as min_i
+  FROM generate_series(now(), now()+'100 days'::interval, '1 hour') i;
+ERROR:  RANGE PRECEDING is only supported with UNBOUNDED
+LINE 2:  SELECT i, min(i) over (order by i range between '1 day' pre...
+                                           ^
+SELECT pg_get_viewdef('v_window');
+ERROR:  relation "v_window" does not exist
+-- RANGE offset PRECEDING/FOLLOWING tests
+SELECT sum(unique1) over (order by four range between 2::int8 preceding and 1::int2 preceding),
+	unique1, four
+FROM tenk1 WHERE unique1 < 10;
+ERROR:  RANGE PRECEDING is only supported with UNBOUNDED
+LINE 1: SELECT sum(unique1) over (order by four range between 2::int...
+                                                ^
+SELECT sum(unique1) over (order by four desc range between 2::int8 preceding and 1::int2 preceding),
+	unique1, four
+FROM tenk1 WHERE unique1 < 10;
+ERROR:  RANGE PRECEDING is only supported with UNBOUNDED
+LINE 1: SELECT sum(unique1) over (order by four desc range between 2...
+                                                     ^
+SELECT sum(unique1) over (partition by four order by unique1 range between 5::int8 preceding and 6::int2 following),
+	unique1, four
+FROM tenk1 WHERE unique1 < 10;
+ERROR:  RANGE PRECEDING is only supported with UNBOUNDED
+LINE 1: ...unique1) over (partition by four order by unique1 range betw...
+                                                             ^
+select sum(salary) over (order by enroll_date range between '1 year'::interval preceding and '1 year'::interval following),
+	salary, enroll_date from empsalary;
+ERROR:  RANGE PRECEDING is only supported with UNBOUNDED
+LINE 1: select sum(salary) over (order by enroll_date range between ...
+                                                      ^
+select sum(salary) over (order by enroll_date desc range between '1 year'::interval preceding and '1 year'::interval following),
+	salary, enroll_date from empsalary;
+ERROR:  RANGE PRECEDING is only supported with UNBOUNDED
+LINE 1: ...elect sum(salary) over (order by enroll_date desc range betw...
+                                                             ^
+select sum(salary) over (order by enroll_date desc range between '1 year'::interval following and '1 year'::interval following),
+	salary, enroll_date from empsalary;
+ERROR:  RANGE FOLLOWING is only supported with UNBOUNDED
+LINE 1: ...elect sum(salary) over (order by enroll_date desc range betw...
+                                                             ^
+select first_value(salary) over(order by salary range between 1000 preceding and 1000 following),
+	lead(salary) over(order by salary range between 1000 preceding and 1000 following),
+	nth_value(salary, 1) over(order by salary range between 1000 preceding and 1000 following),
+	salary from empsalary;
+ERROR:  RANGE PRECEDING is only supported with UNBOUNDED
+LINE 1: select first_value(salary) over(order by salary range betwee...
+                                                        ^
+select last_value(salary) over(order by salary range between 1000 preceding and 1000 following),
+	lag(salary) over(order by salary range between 1000 preceding and 1000 following),
+	salary from empsalary;
+ERROR:  RANGE PRECEDING is only supported with UNBOUNDED
+LINE 1: select last_value(salary) over(order by salary range between...
+                                                       ^
+-- RANGE offset PRECEDING/FOLLOWING with null values
+select x, y,
+       first_value(y) over w,
+       last_value(y) over w
+from
+  (select x, x as y from generate_series(1,5) as x
+   union all select null, 42
+   union all select null, 43) ss
+window w as
+  (order by x asc nulls first range between 2 preceding and 2 following);
+ERROR:  RANGE PRECEDING is only supported with UNBOUNDED
+LINE 9:   (order by x asc nulls first range between 2 preceding and ...
+                                      ^
+select x, y,
+       first_value(y) over w,
+       last_value(y) over w
+from
+  (select x, x as y from generate_series(1,5) as x
+   union all select null, 42
+   union all select null, 43) ss
+window w as
+  (order by x asc nulls last range between 2 preceding and 2 following);
+ERROR:  RANGE PRECEDING is only supported with UNBOUNDED
+LINE 9:   (order by x asc nulls last range between 2 preceding and 2...
+                                     ^
+select x, y,
+       first_value(y) over w,
+       last_value(y) over w
+from
+  (select x, x as y from generate_series(1,5) as x
+   union all select null, 42
+   union all select null, 43) ss
+window w as
+  (order by x desc nulls first range between 2 preceding and 2 following);
+ERROR:  RANGE PRECEDING is only supported with UNBOUNDED
+LINE 9:   (order by x desc nulls first range between 2 preceding and...
+                                       ^
+select x, y,
+       first_value(y) over w,
+       last_value(y) over w
+from
+  (select x, x as y from generate_series(1,5) as x
+   union all select null, 42
+   union all select null, 43) ss
+window w as
+  (order by x desc nulls last range between 2 preceding and 2 following);
+ERROR:  RANGE PRECEDING is only supported with UNBOUNDED
+LINE 9:   (order by x desc nulls last range between 2 preceding and ...
+                                      ^
+-- Check overflow behavior for various integer sizes
+select x, last_value(x) over (order by x::smallint range between current row and 2147450884 following)
+from generate_series(32764, 32766) x;
+ERROR:  RANGE FOLLOWING is only supported with UNBOUNDED
+LINE 1: ...elect x, last_value(x) over (order by x::smallint range betw...
+                                                             ^
+select x, last_value(x) over (order by x::smallint desc range between current row and 2147450885 following)
+from generate_series(-32766, -32764) x;
+ERROR:  RANGE FOLLOWING is only supported with UNBOUNDED
+LINE 1: ... x, last_value(x) over (order by x::smallint desc range betw...
+                                                             ^
+select x, last_value(x) over (order by x range between current row and 4 following)
+from generate_series(2147483644, 2147483646) x;
+ERROR:  RANGE FOLLOWING is only supported with UNBOUNDED
+LINE 1: select x, last_value(x) over (order by x range between curre...
+                                                 ^
+select x, last_value(x) over (order by x desc range between current row and 5 following)
+from generate_series(-2147483646, -2147483644) x;
+ERROR:  RANGE FOLLOWING is only supported with UNBOUNDED
+LINE 1: select x, last_value(x) over (order by x desc range between ...
+                                                      ^
+select x, last_value(x) over (order by x range between current row and 4 following)
+from generate_series(9223372036854775804, 9223372036854775806) x;
+ERROR:  RANGE FOLLOWING is only supported with UNBOUNDED
+LINE 1: select x, last_value(x) over (order by x range between curre...
+                                                 ^
+select x, last_value(x) over (order by x desc range between current row and 5 following)
+from generate_series(-9223372036854775806, -9223372036854775804) x;
+ERROR:  RANGE FOLLOWING is only supported with UNBOUNDED
+LINE 1: select x, last_value(x) over (order by x desc range between ...
+                                                      ^
+-- Test in_range for other numeric datatypes
+create temp table numerics(
+    id int,
+    f_float4 float4,
+    f_float8 float8,
+    f_numeric numeric
+);
+insert into numerics values
+(0, '-infinity', '-infinity', '-1000'),  -- numeric type lacks infinities
+(1, -3, -3, -3),
+(2, -1, -1, -1),
+(3, 0, 0, 0),
+(4, 1.1, 1.1, 1.1),
+(5, 1.12, 1.12, 1.12),
+(6, 2, 2, 2),
+(7, 100, 100, 100),
+(8, 'infinity', 'infinity', '1000'),
+(9, 'NaN', 'NaN', 'NaN');
+select id, f_float4, first_value(id) over w, last_value(id) over w
+from numerics
+window w as (order by f_float4 range between
+             1 preceding and 1 following);
+ERROR:  RANGE PRECEDING is only supported with UNBOUNDED
+LINE 3: window w as (order by f_float4 range between
+                                       ^
+select id, f_float4, first_value(id) over w, last_value(id) over w
+from numerics
+window w as (order by f_float4 range between
+             1 preceding and 1.1::float4 following);
+ERROR:  RANGE PRECEDING is only supported with UNBOUNDED
+LINE 3: window w as (order by f_float4 range between
+                                       ^
+select id, f_float4, first_value(id) over w, last_value(id) over w
+from numerics
+window w as (order by f_float4 range between
+             'inf' preceding and 'inf' following);
+ERROR:  RANGE PRECEDING is only supported with UNBOUNDED
+LINE 3: window w as (order by f_float4 range between
+                                       ^
+select id, f_float4, first_value(id) over w, last_value(id) over w
+from numerics
+window w as (order by f_float4 range between
+             1.1 preceding and 'NaN' following);  -- error, NaN disallowed
+ERROR:  RANGE PRECEDING is only supported with UNBOUNDED
+LINE 3: window w as (order by f_float4 range between
+                                       ^
+select id, f_float8, first_value(id) over w, last_value(id) over w
+from numerics
+window w as (order by f_float8 range between
+             1 preceding and 1 following);
+ERROR:  RANGE PRECEDING is only supported with UNBOUNDED
+LINE 3: window w as (order by f_float8 range between
+                                       ^
+select id, f_float8, first_value(id) over w, last_value(id) over w
+from numerics
+window w as (order by f_float8 range between
+             1 preceding and 1.1::float8 following);
+ERROR:  RANGE PRECEDING is only supported with UNBOUNDED
+LINE 3: window w as (order by f_float8 range between
+                                       ^
+select id, f_float8, first_value(id) over w, last_value(id) over w
+from numerics
+window w as (order by f_float8 range between
+             'inf' preceding and 'inf' following);
+ERROR:  RANGE PRECEDING is only supported with UNBOUNDED
+LINE 3: window w as (order by f_float8 range between
+                                       ^
+select id, f_float8, first_value(id) over w, last_value(id) over w
+from numerics
+window w as (order by f_float8 range between
+             1.1 preceding and 'NaN' following);  -- error, NaN disallowed
+ERROR:  RANGE PRECEDING is only supported with UNBOUNDED
+LINE 3: window w as (order by f_float8 range between
+                                       ^
+select id, f_numeric, first_value(id) over w, last_value(id) over w
+from numerics
+window w as (order by f_numeric range between
+             1 preceding and 1 following);
+ERROR:  RANGE PRECEDING is only supported with UNBOUNDED
+LINE 3: window w as (order by f_numeric range between
+                                        ^
+select id, f_numeric, first_value(id) over w, last_value(id) over w
+from numerics
+window w as (order by f_numeric range between
+             1 preceding and 1.1::numeric following);
+ERROR:  RANGE PRECEDING is only supported with UNBOUNDED
+LINE 3: window w as (order by f_numeric range between
+                                        ^
+select id, f_numeric, first_value(id) over w, last_value(id) over w
+from numerics
+window w as (order by f_numeric range between
+             1.1 preceding and 'NaN' following);  -- error, NaN disallowed
+ERROR:  RANGE PRECEDING is only supported with UNBOUNDED
+LINE 3: window w as (order by f_numeric range between
+                                        ^
+-- Test in_range for other datetime datatypes
+create temp table datetimes(
+    id int,
+    f_time time,
+    f_timetz timetz,
+    f_interval interval,
+    f_timestamptz timestamptz,
+    f_timestamp timestamp
+);
+insert into datetimes values
+(1, '11:00', '11:00 BST', '1 year', '2000-10-19 10:23:54+01', '2000-10-19 10:23:54'),
+(2, '12:00', '12:00 BST', '2 years', '2001-10-19 10:23:54+01', '2001-10-19 10:23:54'),
+(3, '13:00', '13:00 BST', '3 years', '2001-10-19 10:23:54+01', '2001-10-19 10:23:54'),
+(4, '14:00', '14:00 BST', '4 years', '2002-10-19 10:23:54+01', '2002-10-19 10:23:54'),
+(5, '15:00', '15:00 BST', '5 years', '2003-10-19 10:23:54+01', '2003-10-19 10:23:54'),
+(6, '15:00', '15:00 BST', '5 years', '2004-10-19 10:23:54+01', '2004-10-19 10:23:54'),
+(7, '17:00', '17:00 BST', '7 years', '2005-10-19 10:23:54+01', '2005-10-19 10:23:54'),
+(8, '18:00', '18:00 BST', '8 years', '2006-10-19 10:23:54+01', '2006-10-19 10:23:54'),
+(9, '19:00', '19:00 BST', '9 years', '2007-10-19 10:23:54+01', '2007-10-19 10:23:54'),
+(10, '20:00', '20:00 BST', '10 years', '2008-10-19 10:23:54+01', '2008-10-19 10:23:54');
+select id, f_time, first_value(id) over w, last_value(id) over w
+from datetimes
+window w as (order by f_time range between
+             '70 min'::interval preceding and '2 hours'::interval following);
+ERROR:  RANGE PRECEDING is only supported with UNBOUNDED
+LINE 3: window w as (order by f_time range between
+                                     ^
+select id, f_time, first_value(id) over w, last_value(id) over w
+from datetimes
+window w as (order by f_time desc range between
+             '70 min' preceding and '2 hours' following);
+ERROR:  RANGE PRECEDING is only supported with UNBOUNDED
+LINE 3: window w as (order by f_time desc range between
+                                          ^
+select id, f_timetz, first_value(id) over w, last_value(id) over w
+from datetimes
+window w as (order by f_timetz range between
+             '70 min'::interval preceding and '2 hours'::interval following);
+ERROR:  RANGE PRECEDING is only supported with UNBOUNDED
+LINE 3: window w as (order by f_timetz range between
+                                       ^
+select id, f_timetz, first_value(id) over w, last_value(id) over w
+from datetimes
+window w as (order by f_timetz desc range between
+             '70 min' preceding and '2 hours' following);
+ERROR:  RANGE PRECEDING is only supported with UNBOUNDED
+LINE 3: window w as (order by f_timetz desc range between
+                                            ^
+select id, f_interval, first_value(id) over w, last_value(id) over w
+from datetimes
+window w as (order by f_interval range between
+             '1 year'::interval preceding and '1 year'::interval following);
+ERROR:  RANGE PRECEDING is only supported with UNBOUNDED
+LINE 3: window w as (order by f_interval range between
+                                         ^
+select id, f_interval, first_value(id) over w, last_value(id) over w
+from datetimes
+window w as (order by f_interval desc range between
+             '1 year' preceding and '1 year' following);
+ERROR:  RANGE PRECEDING is only supported with UNBOUNDED
+LINE 3: window w as (order by f_interval desc range between
+                                              ^
+select id, f_timestamptz, first_value(id) over w, last_value(id) over w
+from datetimes
+window w as (order by f_timestamptz range between
+             '1 year'::interval preceding and '1 year'::interval following);
+ERROR:  RANGE PRECEDING is only supported with UNBOUNDED
+LINE 3: window w as (order by f_timestamptz range between
+                                            ^
+select id, f_timestamptz, first_value(id) over w, last_value(id) over w
+from datetimes
+window w as (order by f_timestamptz desc range between
+             '1 year' preceding and '1 year' following);
+ERROR:  RANGE PRECEDING is only supported with UNBOUNDED
+LINE 3: window w as (order by f_timestamptz desc range between
+                                                 ^
+select id, f_timestamp, first_value(id) over w, last_value(id) over w
+from datetimes
+window w as (order by f_timestamp range between
+             '1 year'::interval preceding and '1 year'::interval following);
+ERROR:  RANGE PRECEDING is only supported with UNBOUNDED
+LINE 3: window w as (order by f_timestamp range between
+                                          ^
+select id, f_timestamp, first_value(id) over w, last_value(id) over w
+from datetimes
+window w as (order by f_timestamp desc range between
+             '1 year' preceding and '1 year' following);
+ERROR:  RANGE PRECEDING is only supported with UNBOUNDED
+LINE 3: window w as (order by f_timestamp desc range between
+                                               ^
+-- Show differences in offset interpretation between ROWS, RANGE, and GROUPS
+WITH cte (x) AS (
+        SELECT * FROM generate_series(1, 35, 2)
+)
+SELECT x, (sum(x) over w)
+FROM cte
+WINDOW w AS (ORDER BY x rows between 1 preceding and 1 following);
+ x  | sum 
+----+-----
+  1 |   4
+  3 |   9
+  5 |  15
+  7 |  21
+  9 |  27
+ 11 |  33
+ 13 |  39
+ 15 |  45
+ 17 |  51
+ 19 |  57
+ 21 |  63
+ 23 |  69
+ 25 |  75
+ 27 |  81
+ 29 |  87
+ 31 |  93
+ 33 |  99
+ 35 |  68
+(18 rows)
+
+WITH cte (x) AS (
+        SELECT * FROM generate_series(1, 35, 2)
+)
+SELECT x, (sum(x) over w)
+FROM cte
+WINDOW w AS (ORDER BY x range between 1 preceding and 1 following);
+ERROR:  RANGE PRECEDING is only supported with UNBOUNDED
+LINE 6: WINDOW w AS (ORDER BY x range between 1 preceding and 1 foll...
+                                ^
+WITH cte (x) AS (
+        select 1 union all select 1 union all select 1 union all
+        SELECT * FROM generate_series(5, 49, 2)
+)
+SELECT x, (sum(x) over w)
+FROM cte
+WINDOW w AS (ORDER BY x rows between 1 preceding and 1 following);
+ x  | sum 
+----+-----
+  1 |   2
+  1 |   3
+  1 |   7
+  5 |  13
+  7 |  21
+  9 |  27
+ 11 |  33
+ 13 |  39
+ 15 |  45
+ 17 |  51
+ 19 |  57
+ 21 |  63
+ 23 |  69
+ 25 |  75
+ 27 |  81
+ 29 |  87
+ 31 |  93
+ 33 |  99
+ 35 | 105
+ 37 | 111
+ 39 | 117
+ 41 | 123
+ 43 | 129
+ 45 | 135
+ 47 | 141
+ 49 |  96
+(26 rows)
+
+WITH cte (x) AS (
+        select 1 union all select 1 union all select 1 union all
+        SELECT * FROM generate_series(5, 49, 2)
+)
+SELECT x, (sum(x) over w)
+FROM cte
+WINDOW w AS (ORDER BY x range between 1 preceding and 1 following);
+ERROR:  RANGE PRECEDING is only supported with UNBOUNDED
+LINE 7: WINDOW w AS (ORDER BY x range between 1 preceding and 1 foll...
+                                ^
 -- with UNION
 SELECT count(*) OVER (PARTITION BY four) FROM (SELECT * FROM tenk1 UNION ALL SELECT * FROM tenk2)s LIMIT 0;
  count 
@@ -946,17 +1451,18 @@ SELECT * FROM
           min(salary) OVER (PARTITION BY depname || 'A', depname) depminsalary
    FROM empsalary) emp
 WHERE depname = 'sales';
-                                 QUERY PLAN                                  
------------------------------------------------------------------------------
- Subquery Scan on emp
-   ->  WindowAgg
-         ->  Sort
-               Sort Key: (((empsalary.depname)::text || 'A'::text))
-               ->  WindowAgg
-                     ->  Remote Subquery Scan on all (datanode_1,datanode_2)
+                                QUERY PLAN                                 
+---------------------------------------------------------------------------
+ Remote Fast Query Execution Mode: fqs_mode_std_planer
+   Node/s: datanode_1
+   ->  Subquery Scan on emp
+         ->  WindowAgg
+               ->  Sort
+                     Sort Key: (((empsalary.depname)::text || 'A'::text))
+                     ->  WindowAgg
                            ->  Seq Scan on empsalary
                                  Filter: ((depname)::text = 'sales'::text)
-(8 rows)
+(9 rows)
 
 -- pushdown is unsafe because there's a PARTITION BY clause without depname:
 EXPLAIN (COSTS OFF)
@@ -966,19 +1472,24 @@ SELECT * FROM
           min(salary) OVER (PARTITION BY depname) depminsalary
    FROM empsalary) emp
 WHERE depname = 'sales';
-                                 QUERY PLAN                                  
------------------------------------------------------------------------------
- Subquery Scan on emp
-   Filter: ((emp.depname)::text = 'sales'::text)
-   ->  WindowAgg
-         ->  Sort
-               Sort Key: empsalary.depname
-               ->  WindowAgg
-                     ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-                           ->  Sort
-                                 Sort Key: empsalary.enroll_date
-                                 ->  Seq Scan on empsalary
-(10 rows)
+                                     QUERY PLAN                                      
+-------------------------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   ->  Subquery Scan on emp
+         Filter: ((emp.depname)::text = 'sales'::text)
+         ->  WindowAgg
+               ->  Sort
+                     Sort Key: empsalary.depname
+                     ->  Remote Subquery Scan on all (datanodes 2)
+                           Sort Key: empsalary.enroll_date
+                           Distribute results by S: depname
+                           ->  WindowAgg
+                                 ->  Sort
+                                       Sort Key: empsalary.enroll_date
+                                       ->  Remote Subquery Scan on all (datanodes 2)
+                                             Distribute results by S: enroll_date
+                                             ->  Seq Scan on empsalary
+(15 rows)
 
 -- cleanup
 DROP TABLE empsalary;
@@ -987,10 +1498,36 @@ CREATE FUNCTION nth_value_def(val anyelement, n integer = 1) RETURNS anyelement
   LANGUAGE internal WINDOW IMMUTABLE STRICT AS 'window_nth_value';
 SELECT nth_value_def(n := 2, val := ten) OVER (PARTITION BY four), ten, four
   FROM (SELECT * FROM tenk1 WHERE unique2 < 10 ORDER BY four, ten) s;
-ERROR:  Postgres-XL does not currently support ORDER BY in subqueries
+ nth_value_def | ten | four 
+---------------+-----+------
+             0 |   0 |    0
+             0 |   0 |    0
+             0 |   4 |    0
+             1 |   1 |    1
+             1 |   1 |    1
+             1 |   7 |    1
+             1 |   9 |    1
+               |   0 |    2
+             3 |   1 |    3
+             3 |   3 |    3
+(10 rows)
+
 SELECT nth_value_def(ten) OVER (PARTITION BY four), ten, four
   FROM (SELECT * FROM tenk1 WHERE unique2 < 10 ORDER BY four, ten) s;
-ERROR:  Postgres-XL does not currently support ORDER BY in subqueries
+ nth_value_def | ten | four 
+---------------+-----+------
+             0 |   0 |    0
+             0 |   0 |    0
+             0 |   4 |    0
+             1 |   1 |    1
+             1 |   1 |    1
+             1 |   7 |    1
+             1 |   9 |    1
+             0 |   0 |    2
+             1 |   1 |    3
+             1 |   3 |    3
+(10 rows)
+
 --
 -- Test the basic moving-aggregate machinery
 --
@@ -1700,4 +2237,174 @@ SELECT i, b, bool_and(b) OVER w, bool_or(b) OVER w
  4 | f | f        | t
  5 | t | t        | t
 (5 rows)
+
+--Test Cases for opentenbase_ora Compatible Window Functions
+--test cases for function ratio_to_report
+\c regression_ora
+CREATE TEMPORARY TABLE empsalary (
+    depname varchar,
+    empno bigint,
+    salary int,
+    enroll_date date
+);
+INSERT INTO empsalary VALUES
+('develop', 10, 5200, '2007-08-01'),
+('sales', 1, 5000, '2006-10-01'),
+('personnel', 5, 3500, '2007-12-10'),
+('sales', 4, 4800, '2007-08-08'),
+('personnel', 2, 3900, '2006-12-23'),
+('develop', 7, 4200, '2008-01-01'),
+('develop', 9, 4500, '2008-01-01'),
+('sales', 3, 4800, '2007-08-01'),
+('develop', 8, 6000, '2006-10-01'),
+('develop', 11, 5200, '2007-08-15');
+select depname,ratio_to_report(null) over() from empsalary order by 1;
+  DEPNAME  | RATIO_TO_REPORT 
+-----------+-----------------
+ develop   |                
+ develop   |                
+ develop   |                
+ develop   |                
+ develop   |                
+ personnel |                
+ personnel |                
+ sales     |                
+ sales     |                
+ sales     |                
+(10 rows)
+
+select depname,empno,salary,ratio_to_report(null) over(partition by depname order by salary) from empsalary order by 1;
+  DEPNAME  | EMPNO | SALARY | RATIO_TO_REPORT 
+-----------+-------+--------+-----------------
+ develop   |     7 |   4200 |                
+ develop   |     9 |   4500 |                
+ develop   |    10 |   5200 |                
+ develop   |    11 |   5200 |                
+ develop   |     8 |   6000 |                
+ personnel |     5 |   3500 |                
+ personnel |     2 |   3900 |                
+ sales     |     4 |   4800 |                
+ sales     |     3 |   4800 |                
+ sales     |     1 |   5000 |                
+(10 rows)
+
+select depname,ratio_to_report(100) over() from empsalary order by 1;
+  DEPNAME  | RATIO_TO_REPORT 
+-----------+-----------------
+ develop   |              .1
+ develop   |              .1
+ develop   |              .1
+ develop   |              .1
+ develop   |              .1
+ personnel |              .1
+ personnel |              .1
+ sales     |              .1
+ sales     |              .1
+ sales     |              .1
+(10 rows)
+
+select depname,empno,salary,ratio_to_report(100) over(partition by depname order by salary) from empsalary order by 1;
+  DEPNAME  | EMPNO | SALARY |              RATIO_TO_REPORT              
+-----------+-------+--------+-------------------------------------------
+ develop   |     7 |   4200 |                                        .2
+ develop   |     9 |   4500 |                                        .2
+ develop   |    10 |   5200 |                                        .2
+ develop   |    11 |   5200 |                                        .2
+ develop   |     8 |   6000 |                                        .2
+ personnel |     5 |   3500 |                                        .5
+ personnel |     2 |   3900 |                                        .5
+ sales     |     4 |   4800 | .3333333333333333333333333333333333333333
+ sales     |     3 |   4800 | .3333333333333333333333333333333333333333
+ sales     |     1 |   5000 | .3333333333333333333333333333333333333333
+(10 rows)
+
+select depname,ratio_to_report('100') over() from empsalary order by 1;
+  DEPNAME  | RATIO_TO_REPORT 
+-----------+-----------------
+ develop   |              .1
+ develop   |              .1
+ develop   |              .1
+ develop   |              .1
+ develop   |              .1
+ personnel |              .1
+ personnel |              .1
+ sales     |              .1
+ sales     |              .1
+ sales     |              .1
+(10 rows)
+
+select depname,empno,salary,ratio_to_report('100') over(partition by depname order by salary) from empsalary order by 1;
+  DEPNAME  | EMPNO | SALARY |              RATIO_TO_REPORT              
+-----------+-------+--------+-------------------------------------------
+ develop   |     7 |   4200 |                                        .2
+ develop   |     9 |   4500 |                                        .2
+ develop   |    10 |   5200 |                                        .2
+ develop   |    11 |   5200 |                                        .2
+ develop   |     8 |   6000 |                                        .2
+ personnel |     5 |   3500 |                                        .5
+ personnel |     2 |   3900 |                                        .5
+ sales     |     4 |   4800 | .3333333333333333333333333333333333333333
+ sales     |     3 |   4800 | .3333333333333333333333333333333333333333
+ sales     |     1 |   5000 | .3333333333333333333333333333333333333333
+(10 rows)
+
+select depname,salary,sum(salary) over(), ratio_to_report(salary) over() from empsalary order by 1;
+  DEPNAME  | SALARY |  SUM  |              RATIO_TO_REPORT              
+-----------+--------+-------+-------------------------------------------
+ develop   |   5200 | 47100 | .1104033970276008492569002123142250530786
+ develop   |   4200 | 47100 | .0891719745222929936305732484076433121019
+ develop   |   4500 | 47100 | .0955414012738853503184713375796178343949
+ develop   |   6000 | 47100 | .1273885350318471337579617834394904458599
+ develop   |   5200 | 47100 | .1104033970276008492569002123142250530786
+ personnel |   3500 | 47100 | .0743099787685774946921443736730360934183
+ personnel |   3900 | 47100 | .0828025477707006369426751592356687898089
+ sales     |   5000 | 47100 | .1061571125265392781316348195329087048832
+ sales     |   4800 | 47100 | .1019108280254777070063694267515923566879
+ sales     |   4800 | 47100 | .1019108280254777070063694267515923566879
+(10 rows)
+
+select depname,empno,salary,sum(salary) over(partition by depname), ratio_to_report(salary) over(partition by depname order by salary) from empsalary order by 1;
+  DEPNAME  | EMPNO | SALARY |  SUM  |              RATIO_TO_REPORT              
+-----------+-------+--------+-------+-------------------------------------------
+ develop   |     7 |   4200 | 25100 | .1673306772908366533864541832669322709163
+ develop   |     9 |   4500 | 25100 | .1792828685258964143426294820717131474104
+ develop   |    10 |   5200 | 25100 | .2071713147410358565737051792828685258964
+ develop   |    11 |   5200 | 25100 | .2071713147410358565737051792828685258964
+ develop   |     8 |   6000 | 25100 | .2390438247011952191235059760956175298805
+ personnel |     5 |   3500 |  7400 |  .472972972972972972972972972972972972973
+ personnel |     2 |   3900 |  7400 |  .527027027027027027027027027027027027027
+ sales     |     4 |   4800 | 14600 | .3287671232876712328767123287671232876712
+ sales     |     3 |   4800 | 14600 | .3287671232876712328767123287671232876712
+ sales     |     1 |   5000 | 14600 | .3424657534246575342465753424657534246575
+(10 rows)
+
+select depname,salary,empno,ratio_to_report(salary) over(), sum(salary) over(), ratio_to_report(empno) over(), sum(empno) over() from empsalary order by 1;
+  DEPNAME  | SALARY | EMPNO |              RATIO_TO_REPORT              |  SUM  |              RATIO_TO_REPORT              | SUM 
+-----------+--------+-------+-------------------------------------------+-------+-------------------------------------------+-----
+ develop   |   5200 |    10 | .1104033970276008492569002123142250530786 | 47100 | .1666666666666666666666666666666666666667 |  60
+ develop   |   4200 |     7 | .0891719745222929936305732484076433121019 | 47100 | .1166666666666666666666666666666666666667 |  60
+ develop   |   4500 |     9 | .0955414012738853503184713375796178343949 | 47100 |                                       .15 |  60
+ develop   |   6000 |     8 | .1273885350318471337579617834394904458599 | 47100 | .1333333333333333333333333333333333333333 |  60
+ develop   |   5200 |    11 | .1104033970276008492569002123142250530786 | 47100 | .1833333333333333333333333333333333333333 |  60
+ personnel |   3500 |     5 | .0743099787685774946921443736730360934183 | 47100 | .0833333333333333333333333333333333333333 |  60
+ personnel |   3900 |     2 | .0828025477707006369426751592356687898089 | 47100 | .0333333333333333333333333333333333333333 |  60
+ sales     |   5000 |     1 | .1061571125265392781316348195329087048832 | 47100 | .0166666666666666666666666666666666666667 |  60
+ sales     |   4800 |     4 | .1019108280254777070063694267515923566879 | 47100 | .0666666666666666666666666666666666666667 |  60
+ sales     |   4800 |     3 | .1019108280254777070063694267515923566879 | 47100 |                                       .05 |  60
+(10 rows)
+
+select depname,empno,salary,ratio_to_report(salary) over(partition by depname order by salary), sum(salary) over(partition by depname), ratio_to_report(salary) over(), sum(salary) over() from empsalary order by 1;
+  DEPNAME  | EMPNO | SALARY |              RATIO_TO_REPORT              |  SUM  |              RATIO_TO_REPORT              |  SUM  
+-----------+-------+--------+-------------------------------------------+-------+-------------------------------------------+-------
+ develop   |     7 |   4200 | .1673306772908366533864541832669322709163 | 25100 | .0891719745222929936305732484076433121019 | 47100
+ develop   |     9 |   4500 | .1792828685258964143426294820717131474104 | 25100 | .0955414012738853503184713375796178343949 | 47100
+ develop   |    10 |   5200 | .2071713147410358565737051792828685258964 | 25100 | .1104033970276008492569002123142250530786 | 47100
+ develop   |    11 |   5200 | .2071713147410358565737051792828685258964 | 25100 | .1104033970276008492569002123142250530786 | 47100
+ develop   |     8 |   6000 | .2390438247011952191235059760956175298805 | 25100 | .1273885350318471337579617834394904458599 | 47100
+ personnel |     5 |   3500 |  .472972972972972972972972972972972972973 |  7400 | .0743099787685774946921443736730360934183 | 47100
+ personnel |     2 |   3900 |  .527027027027027027027027027027027027027 |  7400 | .0828025477707006369426751592356687898089 | 47100
+ sales     |     4 |   4800 | .3287671232876712328767123287671232876712 | 14600 | .1019108280254777070063694267515923566879 | 47100
+ sales     |     3 |   4800 | .3287671232876712328767123287671232876712 | 14600 | .1019108280254777070063694267515923566879 | 47100
+ sales     |     1 |   5000 | .3424657534246575342465753424657534246575 | 14600 | .1061571125265392781316348195329087048832 | 47100
+(10 rows)
 

@@ -1,6 +1,6 @@
 /*
  * variable.h
- *        Routines for handling specialized SET variables.
+ *		Routines for handling specialized SET variables.
  *
  * Portions Copyright (c) 2012-2014, TransLattice, Inc.
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -41,5 +41,7 @@ extern void assign_global_session(const char *newval, void *extra);
 extern bool check_role(char **newval, void **extra, GucSource source);
 extern void assign_role(const char *newval, void *extra);
 extern const char *show_role(void);
+extern void assign_track_context_name(const char *newval, void *extra);
+extern void assign_spm_plan_capture_rules(const char *newval, void *extra);
 
-#endif                            /* VARIABLE_H */
+#endif							/* VARIABLE_H */

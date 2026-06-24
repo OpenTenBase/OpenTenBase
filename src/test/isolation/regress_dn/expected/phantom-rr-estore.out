@@ -1,0 +1,33 @@
+Parsed test spec with 3 sessions
+
+starting permutation: s1r s2i s3r1 s3r2 s2c s3c s1r s1c
+step s1r: SELECT * FROM orders WHERE quantity > 15;
+id|item  |quantity
+--+------+--------
+ 2|Item B|      20
+(1 row)
+
+step s2i: INSERT INTO orders (item, quantity) VALUES ('Item C', 25);
+ERROR:  duplicate key value violates unique constraint "orders_pkey"
+step s3r1: SELECT * FROM orders WHERE quantity > 15;
+id|item  |quantity
+--+------+--------
+ 2|Item B|      20
+(1 row)
+
+step s3r2: SELECT * FROM orders order by 1;
+id|item  |quantity
+--+------+--------
+ 1|Item A|      10
+ 2|Item B|      20
+(2 rows)
+
+step s2c: COMMIT;
+step s3c: COMMIT;
+step s1r: SELECT * FROM orders WHERE quantity > 15;
+id|item  |quantity
+--+------+--------
+ 2|Item B|      20
+(1 row)
+
+step s1c: COMMIT;

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * xc_maintenance_mode.c
- *        XC maintenance mode parameters
+ *		XC maintenance mode parameters
  *
  *
  * Portions Copyright (c) 1996-2011 PostgreSQL Global Development Group

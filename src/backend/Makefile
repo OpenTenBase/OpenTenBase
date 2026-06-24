@@ -21,9 +21,10 @@ ifneq ($(PORTNAME), win32)
 override CFLAGS += $(PTHREAD_CFLAGS)
 endif
 
-SUBDIRS = access audit bootstrap catalog contrib parser commands executor foreign lib libpq \
-	pgxc main nodes optimizer partitioning oracle port postmaster regex replication rewrite \
-	statistics storage tcop tsearch utils $(top_builddir)/src/timezone $(top_builddir)/src/interfaces/libpq
+SUBDIRS = access audit bootstrap catalog contrib parser commands executor foreign forward lib libpq license \
+	pgxc main nodes optimizer partitioning opentenbase_ora port postmaster regex replication rewrite \
+	statistics storage tcop tsearch utils $(top_builddir)/src/timezone $(top_builddir)/src/interfaces/libpq \
+	jit
 
 include $(srcdir)/common.mk
 
@@ -41,27 +42,14 @@ endif
 
 OBJS = $(SUBDIROBJS) $(LOCALOBJS) \
 	$(top_builddir)/src/port/libpgport_srv.a \
-       $(top_builddir)/src/common/libpgcommon_srv.a \
-	$(top_builddir)/src/interfaces/libpq/fe-connect.o \
-	$(top_builddir)/src/interfaces/libpq/fe-secure.o \
-	$(top_builddir)/src/interfaces/libpq/fe-misc.o \
-	$(top_builddir)/src/interfaces/libpq/fe-protocol3.o \
-	$(top_builddir)/src/interfaces/libpq/fe-protocol2.o \
-	$(top_builddir)/src/interfaces/libpq/fe-exec.o \
-	$(top_builddir)/src/interfaces/libpq/fe-auth.o \
-	$(top_builddir)/src/interfaces/libpq/pqexpbuffer.o \
-	$(top_builddir)/src/interfaces/libpq/fe-auth-scram.o \
+	$(top_builddir)/src/common/libpgcommon_srv.a \
 	$(top_builddir)/src/gtm/client/libgtmclient.a \
 	$(top_builddir)/src/gtm/common/libgtm.a \
 	$(top_builddir)/src/gtm/libpq/libpqcomm.a
 
-ifeq ($(with_openssl), yes)
-OBJS += $(top_builddir)/src/interfaces/libpq/fe-secure-openssl.o
-endif
-
 # We put libpgport and libpgcommon into OBJS, so remove it from LIBS; also add
 # libldap
-LIBS := $(filter-out -lpgport -lpgcommon, $(LIBS)) $(LDAP_LIBS_BE)
+LIBS := $(filter-out -lpgport -lpgcommon, $(LIBS)) $(LDAP_LIBS_BE) $(libpq)
 
 # The backend doesn't need everything that's in LIBS, however
 LIBS := $(filter-out -lz -lreadline -ledit -ltermcap -lncurses -lcurses, $(LIBS))
@@ -70,6 +58,9 @@ ifeq ($(with_systemd),yes)
 LIBS += -lsystemd
 endif
 
+LIBS+=-lcurl
+LIBS += -lzstd
+LIBS += -llz4
 ##########################################################################
 
 all: submake-libpgport submake-schemapg postgres $(POSTGRES_IMP)
@@ -80,6 +71,18 @@ ifneq ($(PORTNAME), aix)
 
 postgres: $(OBJS)
 	$(CC) $(CFLAGS) $(LDFLAGS) $(LDFLAGS_EX) -L$(top_builddir)/src/gtm/libpg $(export_dynamic) $(call expand_subsys,$^) $(LIBS) $(ICU_LIBS) -lz -o $@
+
+uttest: libpostgres_ut.a
+	make -C unittest uttest
+
+unittest/main.o : postgres
+# will trim stub-objs from $(OBJS)
+RMOBJS = $(shell find $(top_builddir)/src/backend/unittest -name "stub_objs.txt" -exec cat {} \;)
+
+# make a static lib from postgres object files
+filter_out_sub = $(foreach v,$(2),$(if $(findstring found,$(foreach vr,$(1),$(if $(findstring $(vr),$(v)),found,))),,$v))
+libpostgres_ut.a: postgres
+	$(AR) $(AROPT) $@ $(call filter_out_sub,$(RMOBJS),$(call expand_subsys,$(OBJS)))
 
 endif
 endif
@@ -154,6 +157,9 @@ postgres.o: $(OBJS)
 parser/gram.h: parser/gram.y
 	$(MAKE) -C parser gram.h
 
+opentenbase_ora/gram_ora.h: opentenbase_ora/gram_ora.y
+	$(MAKE) -C opentenbase_ora gram_ora.h
+
 storage/lmgr/lwlocknames.h: storage/lmgr/generate-lwlocknames.pl storage/lmgr/lwlocknames.txt
 	$(MAKE) -C storage/lmgr lwlocknames.h
 
@@ -190,9 +196,14 @@ submake-schemapg:
 
 .PHONY: generated-headers
 
-generated-headers: $(top_builddir)/src/include/parser/gram.h $(top_builddir)/src/include/catalog/schemapg.h $(top_builddir)/src/include/storage/lwlocknames.h $(top_builddir)/src/include/utils/errcodes.h $(top_builddir)/src/include/utils/fmgroids.h $(top_builddir)/src/include/utils/fmgrprotos.h $(top_builddir)/src/include/utils/probes.h
+generated-headers: $(top_builddir)/src/include/parser/gram.h $(top_builddir)/src/include/opentenbase_ora/gram_ora.h  $(top_builddir)/src/include/catalog/schemapg.h $(top_builddir)/src/include/storage/lwlocknames.h $(top_builddir)/src/include/utils/errcodes.h $(top_builddir)/src/include/utils/fmgroids.h $(top_builddir)/src/include/utils/fmgrprotos.h $(top_builddir)/src/include/utils/probes.h
 
 $(top_builddir)/src/include/parser/gram.h: parser/gram.h
+	prereqdir=`cd '$(dir $<)' >/dev/null && pwd` && \
+	  cd '$(dir $@)' && rm -f $(notdir $@) && \
+	  $(LN_S) "$$prereqdir/$(notdir $<)" .
+
+$(top_builddir)/src/include/opentenbase_ora/gram_ora.h: opentenbase_ora/gram_ora.h
 	prereqdir=`cd '$(dir $<)' >/dev/null && pwd` && \
 	  cd '$(dir $@)' && rm -f $(notdir $@) && \
 	  $(LN_S) "$$prereqdir/$(notdir $<)" .
@@ -236,10 +247,12 @@ utils/probes.o: utils/probes.d $(SUBDIROBJS)
 # Be sure that these files get removed by the maintainer-clean target
 distprep:
 	$(MAKE) -C parser	gram.c gram.h scan.c
+	$(MAKE) -C opentenbase_ora	gram_ora.c gram_ora.h scan_ora.c
 	$(MAKE) -C bootstrap	bootparse.c bootscanner.c
 	$(MAKE) -C catalog	schemapg.h postgres.bki postgres.description postgres.shdescription
 	$(MAKE) -C replication	repl_gram.c repl_scanner.c syncrep_gram.c syncrep_scanner.c
 	$(MAKE) -C storage/lmgr	lwlocknames.h
+	$(MAKE) -C utils/adt	jsonpath_gram.c jsonpath_scan.c
 	$(MAKE) -C utils	fmgrtab.c fmgroids.h fmgrprotos.h errcodes.h
 	$(MAKE) -C utils/misc	guc-file.c
 	$(MAKE) -C utils/sort	qsort_tuple.c
@@ -266,6 +279,18 @@ endif
 	$(INSTALL_DATA) $(srcdir)/access/transam/recovery.conf.sample '$(DESTDIR)$(datadir)/recovery.conf.sample'
 	$(INSTALL_DATA) $(srcdir)/utils/misc/pgbouncer.ini '$(DESTDIR)$(datadir)/pgbouncer.ini'
 	$(INSTALL_DATA) $(srcdir)/utils/misc/userlist.txt '$(DESTDIR)$(datadir)/userlist.txt'
+
+ifeq ($(enable_memory_check), yes)
+	$(INSTALL_DATA) $(srcdir)/../test/regress/memcheck/asan/suppressions/memleak_ignore '$(DESTDIR)$(datadir)/memleak_ignore'
+endif
+
+ifeq ($(with_llvm), yes)
+install-bin: install-postgres-bitcode
+
+install-postgres-bitcode: $(OBJS) all
+	$(call install_llvm_module,postgres,$(call expand_subsys, $(filter-out $(top_builddir)/src/timezone/objfiles.txt, $(SUBDIROBJS))))
+endif
+
 	for f in $(srcdir)/utils/opentenbase_upgrade_spec/* ; do \
 		install -D -t $(DESTDIR)$(datadir)/opentenbase_upgrade_spec/ $$f; \
 	done
@@ -326,19 +351,24 @@ endif
 	rm -f '$(DESTDIR)$(datadir)/pg_hba.conf.sample' \
 	      '$(DESTDIR)$(datadir)/pg_ident.conf.sample' \
 	      '$(DESTDIR)$(datadir)/postgresql.conf.sample' \
-	      '$(DESTDIR)$(datadir)/recovery.conf.sample'
-
+	      '$(DESTDIR)$(datadir)/recovery.conf.sample' \
+		  '$(DESTDIR)$(datadir)/memleak_ignore'
+ifeq ($(with_llvm), yes)
+	$(call uninstall_llvm_module,postgres)
+endif
 
 ##########################################################################
 
 clean:
 	rm -f $(LOCALOBJS) postgres$(X) $(POSTGRES_IMP) \
 		$(top_builddir)/src/include/parser/gram.h \
+		$(top_builddir)/src/include/opentenbase_ora/gram_ora.h \
 		$(top_builddir)/src/include/catalog/schemapg.h \
 		$(top_builddir)/src/include/storage/lwlocknames.h \
 		$(top_builddir)/src/include/utils/fmgroids.h \
 		$(top_builddir)/src/include/utils/fmgrprotos.h \
 		$(top_builddir)/src/include/utils/probes.h
+		rm -rf libpostgres_ut.a
 ifeq ($(PORTNAME), cygwin)
 	rm -f postgres.dll libpostgres.a
 endif
@@ -355,6 +385,9 @@ maintainer-clean: distclean
 	      parser/gram.c \
 	      parser/gram.h \
 	      parser/scan.c \
+	      opentenbase_ora/gram_ora.c \
+	      opentenbase_ora/gram_ora.h \
+	      opentenbase_ora/scan_ora.c \
 	      catalog/schemapg.h \
 	      catalog/postgres.bki \
 	      catalog/postgres.description \
@@ -365,10 +398,12 @@ maintainer-clean: distclean
 	      replication/syncrep_scanner.c \
 	      storage/lmgr/lwlocknames.c \
 	      storage/lmgr/lwlocknames.h \
+	      utils/adt/jsonpath_gram.c \
+	      utils/adt/jsonpath_scan.c \
+	      utils/errcodes.h \
 	      utils/fmgroids.h \
 	      utils/fmgrprotos.h \
 	      utils/fmgrtab.c \
-	      utils/errcodes.h \
 	      utils/misc/guc-file.c \
 	      utils/sort/qsort_tuple.c
 

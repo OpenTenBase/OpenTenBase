@@ -1,14 +1,14 @@
 /*-------------------------------------------------------------------------
  *
  * shmqueue.c
- *      shared memory linked lists
+ *	  shared memory linked lists
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
  * IDENTIFICATION
- *      src/backend/storage/ipc/shmqueue.c
+ *	  src/backend/storage/ipc/shmqueue.c
  *
  * NOTES
  *
@@ -30,24 +30,24 @@
 
 /*
  * ShmemQueueInit -- make the head of a new queue point
- *        to itself
+ *		to itself
  */
 void
 SHMQueueInit(SHM_QUEUE *queue)
 {
-    Assert(ShmemAddrIsValid(queue));
-    queue->prev = queue->next = queue;
+	Assert(ShmemAddrIsValid(queue));
+	queue->prev = queue->next = queue;
 }
 
 /*
  * SHMQueueIsDetached -- TRUE if element is not currently
- *        in a queue.
+ *		in a queue.
  */
 bool
 SHMQueueIsDetached(const SHM_QUEUE *queue)
 {
-    Assert(ShmemAddrIsValid(queue));
-    return (queue->prev == NULL);
+	Assert(ShmemAddrIsValid(queue));
+	return (queue->prev == NULL);
 }
 
 /*
@@ -56,66 +56,66 @@ SHMQueueIsDetached(const SHM_QUEUE *queue)
 void
 SHMQueueElemInit(SHM_QUEUE *queue)
 {
-    Assert(ShmemAddrIsValid(queue));
-    queue->prev = queue->next = NULL;
+	Assert(ShmemAddrIsValid(queue));
+	queue->prev = queue->next = NULL;
 }
 
 /*
  * SHMQueueDelete -- remove an element from the queue and
- *        close the links
+ *		close the links
  */
 void
 SHMQueueDelete(SHM_QUEUE *queue)
 {
-    SHM_QUEUE  *nextElem = queue->next;
-    SHM_QUEUE  *prevElem = queue->prev;
+	SHM_QUEUE  *nextElem = queue->next;
+	SHM_QUEUE  *prevElem = queue->prev;
 
-    Assert(ShmemAddrIsValid(queue));
-    Assert(ShmemAddrIsValid(nextElem));
-    Assert(ShmemAddrIsValid(prevElem));
+	Assert(ShmemAddrIsValid(queue));
+	Assert(ShmemAddrIsValid(nextElem));
+	Assert(ShmemAddrIsValid(prevElem));
 
-    prevElem->next = queue->next;
-    nextElem->prev = queue->prev;
+	prevElem->next = queue->next;
+	nextElem->prev = queue->prev;
 
-    queue->prev = queue->next = NULL;
+	queue->prev = queue->next = NULL;
 }
 
 /*
  * SHMQueueInsertBefore -- put elem in queue before the given queue
- *        element.  Inserting "before" the queue head puts the elem
- *        at the tail of the queue.
+ *		element.  Inserting "before" the queue head puts the elem
+ *		at the tail of the queue.
  */
 void
 SHMQueueInsertBefore(SHM_QUEUE *queue, SHM_QUEUE *elem)
 {
-    SHM_QUEUE  *prevPtr = queue->prev;
+	SHM_QUEUE  *prevPtr = queue->prev;
 
-    Assert(ShmemAddrIsValid(queue));
-    Assert(ShmemAddrIsValid(elem));
+	Assert(ShmemAddrIsValid(queue));
+	Assert(ShmemAddrIsValid(elem));
 
-    elem->next = prevPtr->next;
-    elem->prev = queue->prev;
-    queue->prev = elem;
-    prevPtr->next = elem;
+	elem->next = prevPtr->next;
+	elem->prev = queue->prev;
+	queue->prev = elem;
+	prevPtr->next = elem;
 }
 
 /*
  * SHMQueueInsertAfter -- put elem in queue after the given queue
- *        element.  Inserting "after" the queue head puts the elem
- *        at the head of the queue.
+ *		element.  Inserting "after" the queue head puts the elem
+ *		at the head of the queue.
  */
 void
 SHMQueueInsertAfter(SHM_QUEUE *queue, SHM_QUEUE *elem)
 {
-    SHM_QUEUE  *nextPtr = queue->next;
+	SHM_QUEUE  *nextPtr = queue->next;
 
-    Assert(ShmemAddrIsValid(queue));
-    Assert(ShmemAddrIsValid(elem));
+	Assert(ShmemAddrIsValid(queue));
+	Assert(ShmemAddrIsValid(elem));
 
-    elem->prev = nextPtr->prev;
-    elem->next = queue->next;
-    queue->next = elem;
-    nextPtr->prev = elem;
+	elem->prev = nextPtr->prev;
+	elem->next = queue->next;
+	queue->next = elem;
+	nextPtr->prev = elem;
 }
 
 /*--------------------
@@ -129,29 +129,29 @@ SHMQueueInsertAfter(SHM_QUEUE *queue, SHM_QUEUE *elem)
  * whole structure rather than a pointer to its SHMQueue field.
  * For example,
  * struct {
- *        int                stuff;
- *        SHMQueue        elem;
+ *		int				stuff;
+ *		SHMQueue		elem;
  * } ELEMType;
  * When this element is in a queue, prevElem->next points at struct.elem.
  * We subtract linkOffset to get the correct start address of the structure.
  *
  * calls to SHMQueueNext should take these parameters:
- *     &(queueHead), &(queueHead), offsetof(ELEMType, elem)
+ *	 &(queueHead), &(queueHead), offsetof(ELEMType, elem)
  * or
- *     &(queueHead), &(curElem->elem), offsetof(ELEMType, elem)
+ *	 &(queueHead), &(curElem->elem), offsetof(ELEMType, elem)
  *--------------------
  */
 Pointer
 SHMQueueNext(const SHM_QUEUE *queue, const SHM_QUEUE *curElem, Size linkOffset)
 {
-    SHM_QUEUE  *elemPtr = curElem->next;
+	SHM_QUEUE  *elemPtr = curElem->next;
 
-    Assert(ShmemAddrIsValid(curElem));
+	Assert(ShmemAddrIsValid(curElem));
 
-    if (elemPtr == queue)        /* back to the queue head? */
-        return NULL;
+	if (elemPtr == queue)		/* back to the queue head? */
+		return NULL;
 
-    return (Pointer) (((char *) elemPtr) - linkOffset);
+	return (Pointer) (((char *) elemPtr) - linkOffset);
 }
 
 /*--------------------
@@ -163,14 +163,14 @@ SHMQueueNext(const SHM_QUEUE *queue, const SHM_QUEUE *curElem, Size linkOffset)
 Pointer
 SHMQueuePrev(const SHM_QUEUE *queue, const SHM_QUEUE *curElem, Size linkOffset)
 {
-    SHM_QUEUE  *elemPtr = curElem->prev;
+	SHM_QUEUE  *elemPtr = curElem->prev;
 
-    Assert(ShmemAddrIsValid(curElem));
+	Assert(ShmemAddrIsValid(curElem));
 
-    if (elemPtr == queue)        /* back to the queue head? */
-        return NULL;
+	if (elemPtr == queue)		/* back to the queue head? */
+		return NULL;
 
-    return (Pointer) (((char *) elemPtr) - linkOffset);
+	return (Pointer) (((char *) elemPtr) - linkOffset);
 }
 
 /*
@@ -179,12 +179,12 @@ SHMQueuePrev(const SHM_QUEUE *queue, const SHM_QUEUE *curElem, Size linkOffset)
 bool
 SHMQueueEmpty(const SHM_QUEUE *queue)
 {
-    Assert(ShmemAddrIsValid(queue));
+	Assert(ShmemAddrIsValid(queue));
 
-    if (queue->prev == queue)
-    {
-        Assert(queue->next == queue);
-        return TRUE;
-    }
-    return FALSE;
+	if (queue->prev == queue)
+	{
+		Assert(queue->next == queue);
+		return TRUE;
+	}
+	return FALSE;
 }

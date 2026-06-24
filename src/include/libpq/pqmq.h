@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * pqmq.h
- *      Use the frontend/backend protocol for communication over a shm_mq
+ *	  Use the frontend/backend protocol for communication over a shm_mq
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -21,4 +21,4 @@ extern void pq_set_parallel_master(pid_t pid, BackendId backend_id);
 
 extern void pq_parse_errornotice(StringInfo str, ErrorData *edata);
 
-#endif                            /* PQMQ_H */
+#endif							/* PQMQ_H */

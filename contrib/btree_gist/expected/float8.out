@@ -34,10 +34,10 @@ SELECT count(*) FROM float8tmp WHERE a >  -1890.0;
 
 SELECT a, a <-> '-1890.0' FROM float8tmp ORDER BY a <-> '-1890.0' LIMIT 3;
       a       |  ?column?  
---------------+------------
+--------------+--------------------
         -1890 |          0
- -2003.634512 | 113.634512
-  -1769.73634 |  120.26366
+ -2003.634512 | 113.63451200000009
+  -1769.73634 | 120.26366000000007
 (3 rows)
 
 CREATE INDEX float8idx ON float8tmp USING gist ( a );
@@ -72,22 +72,23 @@ SELECT count(*) FROM float8tmp WHERE a >  -1890.0::float8;
    306
 (1 row)
 
-EXPLAIN (COSTS OFF)
+EXPLAIN (COSTS OFF, NODES OFF)
 SELECT a, a <-> '-1890.0' FROM float8tmp ORDER BY a <-> '-1890.0' LIMIT 3;
                            QUERY PLAN                            
 -----------------------------------------------------------------
  Limit
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
+   ->  Remote Subquery Scan on all (datanodes 2)
+         Sort Key: (a <-> '-1890'::double precision)
          ->  Limit
                ->  Index Only Scan using float8idx on float8tmp
                      Order By: (a <-> '-1890'::double precision)
-(5 rows)
+(6 rows)
 
 SELECT a, a <-> '-1890.0' FROM float8tmp ORDER BY a <-> '-1890.0' LIMIT 3;
       a       |  ?column?  
---------------+------------
+--------------+--------------------
         -1890 |          0
- -2003.634512 | 113.634512
-  -1769.73634 |  120.26366
+ -2003.634512 | 113.63451200000009
+  -1769.73634 | 120.26366000000007
 (3 rows)
 

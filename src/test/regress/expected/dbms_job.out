@@ -1,0 +1,248 @@
+drop database if exists opentenbase_ora_dbms_job;
+NOTICE:  database "opentenbase_ora_dbms_job" does not exist, skipping
+create database opentenbase_ora_dbms_job sql mode opentenbase_ora;
+\c opentenbase_ora_dbms_job
+--
+-- simulate A db's dbms_job
+--
+create table test(id int, time date);
+create or replace function test() returns void 
+as $$
+DECLARE
+	var integer := 0;
+	id_set integer := 1;
+BEGIN
+	SELECT COUNT(*) INTO var FROM test;
+	IF var = 0 THEN
+		INSERT INTO test VALUES(id_set, TIMESTAMP '4012-12-24 12:00:00');
+	ELSE
+		SELECT MAX(test.id) INTO id_set FROM test;
+		INSERT INTO test VALUES(id_set + 1, TIMESTAMP '4012-12-24 12:00:00');
+	END IF;
+END;
+$$ LANGUAGE plpgsql;
+--pg_dbms_job.submit
+-- select * from pg_dbms_job.submit('call public.test(); ', TIMESTAMP '4012-12-24 12:00:00', 'TIMESTAMP ''4012-12-24 12:00:00'' + 2.0/24');
+-- select * from pg_dbms_job.submit('call public.test(); ', TIMESTAMP '4012-12-24 12:00:00');
+-- select * from pg_dbms_job.submit('call public.test(); ', TIMESTAMP '4012-12-24 12:00:00', 'TIMESTAMP ''4012-12-24 12:00:00'' + 1.0/24');
+-- select * from pg_dbms_job.submit('begin public.test(); end;', TIMESTAMP '4012-12-24 12:00:00', 'TIMESTAMP ''4012-12-24 12:00:00'' + 3.0/24');
+-- select * from pg_dbms_job.submit('insert into public.test values(100, TIMESTAMP ''4012-12-24 12:00:00''+1.0/24) ; ', TIMESTAMP '4012-12-24 12:00:00', 'TIMESTAMP ''4012-12-24 12:00:00'' + 4.0/24');
+-- select * from pg_dbms_job.submit('begin public.test();insert into public.test values(102, TIMESTAMP ''4012-12-24 12:00:00''+1.0/24) ; end;', TIMESTAMP '4012-12-24 12:00:00', 'TIMESTAMP ''4012-12-24 12:00:00'' + 5.0/24');
+-- select * from pg_dbms_job.submit('insert into public.test values(103, TIMESTAMP ''4012-12-24 12:00:00''+1.0/24) ; insert into public.test values(104, TIMESTAMP ''4012-12-24 12:00:00''+1.0/24) ;', TIMESTAMP '4012-12-24 12:00:00', 'TIMESTAMP ''4012-12-24 12:00:00'' + 6.0/24');
+-- select * from pg_dbms_job.submit('inset ino public.test values(103, TIMESTAMP ''4012-12-24 12:00:00''+1.0/24) ; ', TIMESTAMP '4012-12-24 12:00:00', 'TIMESTAMP ''4012-12-24 12:00:00'' + 6.0/24'); --what missspelling
+-- select * from pg_dbms_job.submit('insert into publicpubilic.test values(103, TIMESTAMP ''4012-12-24 12:00:00''+1.0/24) ; ', TIMESTAMP '4012-12-24 12:00:00', 'TIMESTAMP ''4012-12-24 12:00:00'' + 6.0/24'); --operating a inexistent table
+-- select * from pg_dbms_job.submit('insert into publicpubilic.test values(103, TIMESTAMP ''4012-12-24 12:00:00''+1.0/24) ; ', TIMESTAMP '4012-12-24 12:00:00', 'TIMESTAMP ''4012-12-24 12:00:00'' + 5.0/24'); --interval misspeling
+-- select count(*) from pg_dbms_job order by 1;
+-- select * from test;
+-- select * from pg_dbms_job.submit('call public.test(); ');
+--test job_scheduler.c
+-- select * from pg_dbms_job.submit('call public.test(); ', '', 'TIMESTAMP ''4012-12-24 12:00:00'' + 2.0/24');
+-- select * from pg_dbms_job.submit('call public.test(); ', TIMESTAMP '4012-12-24 12:00:00', '');
+-- select * from pg_dbms_job.submit('call public.test(); ', sysdate, 'sysdate + interval ''5 seconds''');
+--pg_dbms_job.isubmit
+select * from pg_dbms_job.isubmit(18, 'public.test; ', TIMESTAMP '4012-12-24 12:00:00', 'TIMESTAMP ''4012-12-24 12:00:00'' + 1.0/24');--correct
+ ISUBMIT 
+---------
+      18
+(1 row)
+
+select * from pg_dbms_job.isubmit(18, ' call public.test; ', TIMESTAMP '2020-12-24 12:00:00', 'TIMESTAMP ''2020-12-24 12:00:00'' + 1.0/24');--repeat the same job_id
+ERROR:  Invalid parameter interval: 'TIMESTAMP '2020-12-24 12:00:00' + 1.0/24'.
+DETAIL:  Interval: 'TIMESTAMP ''2020-12-24 12:00:00'' + 1.0/24' must evaluate to a time in the future for job_id: 18.
+select * from pg_dbms_job.isubmit(18, '', TIMESTAMP '4012-12-24 12:00:00', 'TIMESTAMP ''4012-12-24 12:00:00'' + 1.0/24');
+ERROR:  Parameter what can not be null.
+select * from pg_dbms_job.isubmit(18, 'public.test; ', '', 'TIMESTAMP ''4012-12-24 12:00:00'' + 1.0/24');
+ERROR:  Parameter next date can not be null.
+select * from pg_dbms_job.isubmit(18, 'public.test; ', TIMESTAMP '4012-12-24 12:00:00', '');
+ERROR:  duplicate key value violates unique constraint "pg_dbms_job_id_index"
+DETAIL:  Key ("job_id")=(18) already exists.
+select * from pg_dbms_job.isubmit(19, 'public.test; ', TIMESTAMP '4012-12-24 12:00:00', 'null1');
+ERROR:  Invalid parameter interval: 'null1'.
+DETAIL:  column "NULL1" does not exist
+select * from pg_dbms_job.isubmit(18, 'public.test; ', sysdate, 'TIMESTAMP ''2000-12-24 12:00:00''');
+ERROR:  Invalid parameter interval: 'TIMESTAMP '2000-12-24 12:00:00''.
+DETAIL:  Interval: 'TIMESTAMP ''2000-12-24 12:00:00''' must evaluate to a time in the future for job_id: 18.
+select * from pg_dbms_job.isubmit(20, 'public.test; ', TIMESTAMP '4012-12-24 12:00:00', 'sysdate');
+ ISUBMIT 
+---------
+      20
+(1 row)
+
+--pg_dbms_job.remove
+select * from pg_dbms_job.remove(7);
+ERROR:  Remove jobid:7 failed.
+DETAIL:  Can not find job id 7 in system table pg_job.
+select * from pg_dbms_job.remove(23);
+ERROR:  Remove jobid:23 failed.
+DETAIL:  Can not find job id 23 in system table pg_job.
+select * from pg_dbms_job.remove(-1);
+ERROR:  Remove jobid:-1 failed.
+DETAIL:  Invalid job_id: -1
+--create table and job
+create table test_if(a date);
+select * from pg_dbms_job.isubmit(118,'insert into public.test_if values(sysdate);', TIMESTAMP '2222-11-21 11:11:11', 'TIMESTAMP ''2222-11-21 11:11:11'' + 1.0/24');
+ ISUBMIT 
+---------
+     118
+(1 row)
+
+select job_id,node_name,start_date,last_start_date,last_end_date,last_suc_date,this_run_date,next_run_date from pg_dbms_job where job_id=118;
+ JOB_ID | NODE_NAME |        START_DATE        | LAST_START_DATE | LAST_END_DATE | LAST_SUC_DATE | THIS_RUN_DATE |      NEXT_RUN_DATE       
+--------+-----------+--------------------------+-----------------+---------------+---------------+---------------+--------------------------
+    118 | coord1    | Thu Nov 21 11:11:11 2222 |                 |               |               |               | Thu Nov 21 11:11:11 2222
+(1 row)
+
+--pg_dbms_job.broken
+select * from pg_dbms_job.broken(118,true,TIMESTAMP '2222-11-21 11:11:11');
+ BROKEN 
+--------
+ 
+(1 row)
+
+select job_status, next_run_date from pg_dbms_job where job_id = 118;
+ JOB_STATUS |      NEXT_RUN_DATE       
+------------+--------------------------
+ d          | Sat Jan 01 08:00:00 4000
+(1 row)
+
+select * from pg_dbms_job.broken(20,false,TIMESTAMP '2222-11-21 11:11:11');
+ BROKEN 
+--------
+ 
+(1 row)
+
+select job_status, next_run_date from pg_dbms_job where job_id = 118;
+ JOB_STATUS |      NEXT_RUN_DATE       
+------------+--------------------------
+ d          | Sat Jan 01 08:00:00 4000
+(1 row)
+
+select * from pg_dbms_job.broken(118,null,TIMESTAMP '2222-11-21 11:11:11');
+ BROKEN 
+--------
+ 
+(1 row)
+
+select job_status, next_run_date from pg_dbms_job where job_id = 118;
+ JOB_STATUS |      NEXT_RUN_DATE       
+------------+--------------------------
+ d          | Sat Jan 01 08:00:00 4000
+(1 row)
+
+select * from pg_dbms_job.broken(118,true,'');
+ BROKEN 
+--------
+ 
+(1 row)
+
+select job_status, next_run_date from pg_dbms_job where job_id = 118;
+ JOB_STATUS |      NEXT_RUN_DATE       
+------------+--------------------------
+ d          | Sat Jan 01 08:00:00 4000
+(1 row)
+
+\o
+select * from pg_dbms_job.broken(118,true);
+ BROKEN 
+--------
+ 
+(1 row)
+
+select job_status, next_run_date from pg_dbms_job where job_id = 118;
+ JOB_STATUS |      NEXT_RUN_DATE       
+------------+--------------------------
+ d          | Sat Jan 01 08:00:00 4000
+(1 row)
+
+--pg_dbms_job.change
+select * from pg_dbms_job.change(-1,sysdate,'sysdate+1','insert into public.test_if values(sysdate);');
+ERROR:  Invalid job_id: -1
+DETAIL:  The scope of jobid should between 1 and 32767
+select * from pg_dbms_job.change(100,sysdate,'sysdate+1','insert into public.test_if values(sysdate);');
+ERROR:  Can not find job id 100 in system table pg_job.
+select * from pg_dbms_job.change(118,TIMESTAMP '2222-11-21 11:11:11', 'TIMESTAMP ''2222-11-21 11:11:11'' + 1.0/24',null); 
+ CHANGE 
+--------
+ 
+(1 row)
+
+select job_id, what, next_run_date, interval from pg_dbms_job where job_id = 118;
+ JOB_ID |                    WHAT                     |      NEXT_RUN_DATE       |                 INTERVAL                 
+--------+---------------------------------------------+--------------------------+------------------------------------------
+    118 | insert into public.test_if values(sysdate); | Thu Nov 21 11:11:11 2222 | TIMESTAMP '2222-11-21 11:11:11' + 1.0/24
+(1 row)
+
+select * from pg_dbms_job.change(118,null, 'TIMESTAMP ''2211-12-21 12:12:12'' + 1.0/24','call public.test;'); 
+ CHANGE 
+--------
+ 
+(1 row)
+
+select job_id, what, next_run_date, interval from pg_dbms_job where job_id = 118;
+ JOB_ID |       WHAT        |      NEXT_RUN_DATE       |                 INTERVAL                 
+--------+-------------------+--------------------------+------------------------------------------
+    118 | call public.test; | Thu Nov 21 11:11:11 2222 | TIMESTAMP '2211-12-21 12:12:12' + 1.0/24
+(1 row)
+
+select * from pg_dbms_job.change(118,TIMESTAMP '2211-12-21 12:12:12', null,'insert into public.test_if values(sysdate);'); 
+ CHANGE 
+--------
+ 
+(1 row)
+
+select job_id, what, next_run_date, interval from pg_dbms_job where job_id = 118;
+ JOB_ID |                    WHAT                     |      NEXT_RUN_DATE       |                 INTERVAL                 
+--------+---------------------------------------------+--------------------------+------------------------------------------
+    118 | insert into public.test_if values(sysdate); | Sat Dec 21 12:12:12 2211 | TIMESTAMP '2211-12-21 12:12:12' + 1.0/24
+(1 row)
+
+select * from pg_dbms_job.change(118,TIMESTAMP '2222-11-21 11:11:11', 'TIMESTAMP ''2222-11-21 11:11:11'' + 1.0/24','insert into public.test_if values(sysdate);'); 
+ CHANGE 
+--------
+ 
+(1 row)
+
+select what, interval, next_run_date from pg_dbms_job where job_id = 118;
+                    WHAT                     |                 INTERVAL                 |      NEXT_RUN_DATE       
+---------------------------------------------+------------------------------------------+--------------------------
+ insert into public.test_if values(sysdate); | TIMESTAMP '2222-11-21 11:11:11' + 1.0/24 | Thu Nov 21 11:11:11 2222
+(1 row)
+
+select * from pg_dbms_job.change(118,TIMESTAMP '2222-11-21 11:11:11', '','insert into public.test_if values(sysdate);');
+ CHANGE 
+--------
+ 
+(1 row)
+
+select what, interval, next_run_date from pg_dbms_job where job_id = 118;
+                    WHAT                     |                 INTERVAL                 |      NEXT_RUN_DATE       
+---------------------------------------------+------------------------------------------+--------------------------
+ insert into public.test_if values(sysdate); | TIMESTAMP '2222-11-21 11:11:11' + 1.0/24 | Thu Nov 21 11:11:11 2222
+(1 row)
+
+select * from pg_dbms_job.change(118,null, 'TIMESTAMP ''2000-11-21 11:11:11''',null);
+ERROR:  Invalid parameter interval: 'TIMESTAMP '2000-11-21 11:11:11''.
+DETAIL:  Interval: 'TIMESTAMP ''2000-11-21 11:11:11''' must evaluate to a time in the future for job_id: 118.
+select * from pg_dbms_job.change(118,null, 'null1',null);
+ERROR:  Invalid parameter interval: 'null1'.
+DETAIL:  column "NULL1" does not exist
+select * from pg_dbms_job.change(118,null, 'null',null);
+ CHANGE 
+--------
+ 
+(1 row)
+
+select * from pg_dbms_job.change(118,null,null,null);
+ CHANGE 
+--------
+ 
+(1 row)
+
+select interval from pg_dbms_job where job_id = 118;
+ INTERVAL 
+----------
+ null
+(1 row)
+
+drop table test;
+drop table public.test_if;

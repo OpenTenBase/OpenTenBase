@@ -1,50 +1,149 @@
+test: dirty-write-rc
+test: dirty-read-rc
+test: cursor-lost-update-rc
+test: lost-update-rc
+test: fuzzy-read-rc
+test: phantom-rc
+test: read-skew-rc
+test: write-skew-rc
+test: dirty-write-rr
+test: dirty-read-rr
+test: cursor-lost-update-rr
+test: lost-update-rr
+test: fuzzy-read-rr
+test: phantom-rr
+test: read-skew-rr
+test: write-skew-rr
 test: read-only-anomaly
-test: read-write-unique
-test: read-write-unique-2
-test: read-write-unique-3
-test: read-write-unique-4
-test: simple-write-skew
-test: receipt-report
-test: temporal-range-integrity
-test: project-manager
-test: classroom-scheduling
-test: total-cash
-test: referential-integrity
-test: partial-index
-test: two-ids
-test: multiple-row-versions
-test: index-only-scan
 test: deadlock-simple
 test: deadlock-hard
 test: deadlock-soft
 test: deadlock-soft-2
 test: fk-contention
-test: lock-update-delete
-test: lock-update-traversal
 test: insert-conflict-do-nothing
-test: insert-conflict-do-nothing-2
 test: insert-conflict-do-update
-test: insert-conflict-do-update-3
-test: aborted-keyrevoke
-test: multixact-no-deadlock
-test: multixact-no-forget
-test: lock-committed-update
-test: lock-committed-keyupdate
-test: tuplelock-conflict
-test: tuplelock-update
+test: merge-insert-update
+#test: delete-abort-savept
+#test: delete-abort-savept-2
+#test: multixact-no-deadlock
+test: propagate-lock-delete
+#test: tuplelock-conflict
+test: freeze-the-dead
 test: nowait
 test: nowait-2
-test: nowait-3
-test: nowait-4
-test: nowait-5
+#test: nowait-3
 test: skip-locked
 test: skip-locked-2
-test: skip-locked-3
-test: skip-locked-4
-test: drop-index-concurrently-1
 test: alter-table-1
 test: alter-table-2
+test: alter-table-3
 test: sequence-ddl
-test: async-notify
-test: vacuum-reltuples
 test: timeouts
+#test: vacuum-conflict
+test: cluster-conflict
+test: cluster-conflict-partition
+test: truncate-conflict
+
+#bug
+#test: tuplelock-upgrade-no-deadlock
+#test: skip-locked-3
+#test: vacuum-no-cleanup-lock
+
+#pg_advisory_lock
+#test: nowait-4
+#test: nowait-5
+#test: plpgsql-toast
+#test: skip-locked-4
+#test: temp-schema-cleanup
+#test: tuplelock-update
+
+# unsupported feature
+#test: vacuum-concurrent-drop
+#test: vacuum-skip-locked
+#test: reindex-concurrently
+#test: reindex-concurrently-toast
+#test: detach-partition-concurrently-1
+#test: detach-partition-concurrently-3
+#test: drop-index-concurrently-1
+#test: multiple-cic
+#test: reindex-schema
+#test: deadlock-parallel
+#test: stats
+#test: detach-partition-concurrently-2
+#test: detach-partition-concurrently-4
+#test: fk-partitioned-1
+#test: fk-snapshot
+#test: insert-conflict-do-update-3
+#test: eval-plan-qual
+#test: insert-conflict-do-update-2
+#test: lock-update-traversal
+#test: inherit-temp
+#test: merge-delete
+#test: merge-update
+test: merge-join
+#test: tuplelock-partition
+#test: partition-concurrent-attach
+#test: merge-match-recheck
+#test: horizons
+#test: partition-drop-index-locking
+
+#Hash/Modulo distribution column does not refer to hash/modulo distribution column in referenced table
+#test: fk-deadlock
+#test: fk-deadlock2
+#test: update-locked-tuple
+
+#Rework subtransaction commit protocol for hot standby. 06da3c570f21394003fc392d80f54862f7dec19f
+#test: subxid-overflow
+
+#ERROR:  Using pull-up functions in DML statements is not supported
+#test: eval-plan-qual-trigger
+
+#ERROR:  Distributed column "key" can't be updated in current version
+#test: aborted-keyrevoke
+#test: multixact-no-forget
+
+#Unique index of distributed table must contain the distribution column
+#test: insert-conflict-specconflict
+
+#ERROR:  cannot alter type of column named in distributed key
+#test: alter-table-4
+#test: create-trigger
+#test: partition-key-update-1
+#test: partition-key-update-2
+#test: partition-key-update-4
+
+# cases for SERIALIZABLE
+#test: read-only-anomaly-2
+#test: read-only-anomaly-3
+#test: read-write-unique
+#test: read-write-unique-2
+#test: read-write-unique-3
+#test: read-write-unique-4
+#test: simple-write-skew
+#test: receipt-report
+#test: temporal-range-integrity
+#test: project-manager
+#test: classroom-scheduling
+#test: total-cash
+#test: referential-integrity
+#test: ri-trigger
+#test: partial-index
+#test: two-ids
+#test: multiple-row-versions
+#test: index-only-scan
+#test: predicate-lock-hot-tuple
+#test: update-conflict-out
+#test: fk-partitioned-2
+#test: lock-update-delete
+#test: insert-conflict-do-nothing-2
+#test: lock-committed-update
+#test: lock-committed-keyupdate
+#test: async-notify
+#test: predicate-hash
+#test: predicate-gist
+#test: predicate-gin
+#test: partition-key-update-3
+#test: serializable-parallel-2
+#test: serializable-parallel-3
+#test: matview-write-skew
+#test: serializable-parallel

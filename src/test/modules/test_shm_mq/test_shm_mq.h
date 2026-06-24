@@ -1,12 +1,12 @@
 /*--------------------------------------------------------------------------
  *
  * test_shm_mq.h
- *        Definitions for shared memory message queues
+ *		Definitions for shared memory message queues
  *
  * Copyright (c) 2013-2017, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *        src/test/modules/test_shm_mq/test_shm_mq.h
+ *		src/test/modules/test_shm_mq/test_shm_mq.h
  *
  * -------------------------------------------------------------------------
  */
@@ -19,7 +19,7 @@
 #include "storage/spin.h"
 
 /* Identifier for shared memory segments used by this extension. */
-#define        PG_TEST_SHM_MQ_MAGIC        0x79fb2447
+#define		PG_TEST_SHM_MQ_MAGIC		0x79fb2447
 
 /*
  * This structure is stored in the dynamic shared memory segment.  We use
@@ -28,16 +28,16 @@
  */
 typedef struct
 {
-    slock_t        mutex;
-    int            workers_total;
-    int            workers_attached;
-    int            workers_ready;
+	slock_t		mutex;
+	int			workers_total;
+	int			workers_attached;
+	int			workers_ready;
 } test_shm_mq_header;
 
 /* Set up dynamic shared memory and background workers for test run. */
 extern void test_shm_mq_setup(int64 queue_size, int32 nworkers,
-                  dsm_segment **seg, shm_mq_handle **output,
-                  shm_mq_handle **input);
+				  dsm_segment **seg, shm_mq_handle **output,
+				  shm_mq_handle **input);
 
 /* Main entrypoint for a worker. */
 extern void test_shm_mq_main(Datum) pg_attribute_noreturn();

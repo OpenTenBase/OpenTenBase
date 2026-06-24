@@ -1,8 +1,8 @@
 /*-------------------------------------------------------------------------
  *
  * gistproc.c
- *      Support procedures for GiSTs over 2-D objects (boxes, polygons, circles,
- *      points).
+ *	  Support procedures for GiSTs over 2-D objects (boxes, polygons, circles,
+ *	  points).
  *
  * This gives R-tree behavior, with Guttman's poly-time split algorithm.
  *
@@ -11,7 +11,7 @@
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *    src/backend/access/gist/gistproc.c
+ *	src/backend/access/gist/gistproc.c
  *
  *-------------------------------------------------------------------------
  */
@@ -27,19 +27,19 @@
 
 
 static bool gist_box_leaf_consistent(BOX *key, BOX *query,
-                         StrategyNumber strategy);
+						 StrategyNumber strategy);
 static bool rtree_internal_consistent(BOX *key, BOX *query,
-                          StrategyNumber strategy);
+						  StrategyNumber strategy);
 
 /* Minimum accepted ratio of split */
 #define LIMIT_RATIO 0.3
 
 /* Convenience macros for NaN-aware comparisons */
-#define FLOAT8_EQ(a,b)    (float8_cmp_internal(a, b) == 0)
-#define FLOAT8_LT(a,b)    (float8_cmp_internal(a, b) < 0)
-#define FLOAT8_LE(a,b)    (float8_cmp_internal(a, b) <= 0)
-#define FLOAT8_GT(a,b)    (float8_cmp_internal(a, b) > 0)
-#define FLOAT8_GE(a,b)    (float8_cmp_internal(a, b) >= 0)
+#define FLOAT8_EQ(a,b)	(float8_cmp_internal(a, b) == 0)
+#define FLOAT8_LT(a,b)	(float8_cmp_internal(a, b) < 0)
+#define FLOAT8_LE(a,b)	(float8_cmp_internal(a, b) <= 0)
+#define FLOAT8_GT(a,b)	(float8_cmp_internal(a, b) > 0)
+#define FLOAT8_GE(a,b)	(float8_cmp_internal(a, b) >= 0)
 #define FLOAT8_MAX(a,b)  (FLOAT8_GT(a, b) ? (a) : (b))
 #define FLOAT8_MIN(a,b)  (FLOAT8_LT(a, b) ? (a) : (b))
 
@@ -54,10 +54,10 @@ static bool rtree_internal_consistent(BOX *key, BOX *query,
 static void
 rt_box_union(BOX *n, const BOX *a, const BOX *b)
 {
-    n->high.x = FLOAT8_MAX(a->high.x, b->high.x);
-    n->high.y = FLOAT8_MAX(a->high.y, b->high.y);
-    n->low.x = FLOAT8_MIN(a->low.x, b->low.x);
-    n->low.y = FLOAT8_MIN(a->low.y, b->low.y);
+	n->high.x = FLOAT8_MAX(a->high.x, b->high.x);
+	n->high.y = FLOAT8_MAX(a->high.y, b->high.y);
+	n->low.x = FLOAT8_MIN(a->low.x, b->low.x);
+	n->low.y = FLOAT8_MIN(a->low.y, b->low.y);
 }
 
 /*
@@ -67,25 +67,25 @@ rt_box_union(BOX *n, const BOX *a, const BOX *b)
 static double
 size_box(const BOX *box)
 {
-    /*
-     * Check for zero-width cases.  Note that we define the size of a zero-
-     * by-infinity box as zero.  It's important to special-case this somehow,
-     * as naively multiplying infinity by zero will produce NaN.
-     *
-     * The less-than cases should not happen, but if they do, say "zero".
-     */
-    if (FLOAT8_LE(box->high.x, box->low.x) ||
-        FLOAT8_LE(box->high.y, box->low.y))
-        return 0.0;
+	/*
+	 * Check for zero-width cases.  Note that we define the size of a zero-
+	 * by-infinity box as zero.  It's important to special-case this somehow,
+	 * as naively multiplying infinity by zero will produce NaN.
+	 *
+	 * The less-than cases should not happen, but if they do, say "zero".
+	 */
+	if (FLOAT8_LE(box->high.x, box->low.x) ||
+		FLOAT8_LE(box->high.y, box->low.y))
+		return 0.0;
 
-    /*
-     * We treat NaN as larger than +Infinity, so any distance involving a NaN
-     * and a non-NaN is infinite.  Note the previous check eliminated the
-     * possibility that the low fields are NaNs.
-     */
-    if (isnan(box->high.x) || isnan(box->high.y))
-        return get_float8_infinity();
-    return (box->high.x - box->low.x) * (box->high.y - box->low.y);
+	/*
+	 * We treat NaN as larger than +Infinity, so any distance involving a NaN
+	 * and a non-NaN is infinite.  Note the previous check eliminated the
+	 * possibility that the low fields are NaNs.
+	 */
+	if (isnan(box->high.x) || isnan(box->high.y))
+		return get_float8_infinity();
+	return (box->high.x - box->low.x) * (box->high.y - box->low.y);
 }
 
 /*
@@ -95,10 +95,10 @@ size_box(const BOX *box)
 static double
 box_penalty(const BOX *original, const BOX *new)
 {
-    BOX            unionbox;
+	BOX			unionbox;
 
-    rt_box_union(&unionbox, original, new);
-    return size_box(&unionbox) - size_box(original);
+	rt_box_union(&unionbox, original, new);
+	return size_box(&unionbox) - size_box(original);
 }
 
 /*
@@ -111,31 +111,31 @@ box_penalty(const BOX *original, const BOX *new)
 Datum
 gist_box_consistent(PG_FUNCTION_ARGS)
 {
-    GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
-    BOX           *query = PG_GETARG_BOX_P(1);
-    StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
+	GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
+	BOX		   *query = PG_GETARG_BOX_P(1);
+	StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
 
-    /* Oid        subtype = PG_GETARG_OID(3); */
-    bool       *recheck = (bool *) PG_GETARG_POINTER(4);
+	/* Oid		subtype = PG_GETARG_OID(3); */
+	bool	   *recheck = (bool *) PG_GETARG_POINTER(4);
 
-    /* All cases served by this function are exact */
-    *recheck = false;
+	/* All cases served by this function are exact */
+	*recheck = false;
 
-    if (DatumGetBoxP(entry->key) == NULL || query == NULL)
-        PG_RETURN_BOOL(FALSE);
+	if (DatumGetBoxP(entry->key) == NULL || query == NULL)
+		PG_RETURN_BOOL(FALSE);
 
-    /*
-     * if entry is not leaf, use rtree_internal_consistent, else use
-     * gist_box_leaf_consistent
-     */
-    if (GIST_LEAF(entry))
-        PG_RETURN_BOOL(gist_box_leaf_consistent(DatumGetBoxP(entry->key),
-                                                query,
-                                                strategy));
-    else
-        PG_RETURN_BOOL(rtree_internal_consistent(DatumGetBoxP(entry->key),
-                                                 query,
-                                                 strategy));
+	/*
+	 * if entry is not leaf, use rtree_internal_consistent, else use
+	 * gist_box_leaf_consistent
+	 */
+	if (GIST_LEAF(entry))
+		PG_RETURN_BOOL(gist_box_leaf_consistent(DatumGetBoxP(entry->key),
+												query,
+												strategy));
+	else
+		PG_RETURN_BOOL(rtree_internal_consistent(DatumGetBoxP(entry->key),
+												 query,
+												 strategy));
 }
 
 /*
@@ -144,14 +144,14 @@ gist_box_consistent(PG_FUNCTION_ARGS)
 static void
 adjustBox(BOX *b, const BOX *addon)
 {
-    if (FLOAT8_LT(b->high.x, addon->high.x))
-        b->high.x = addon->high.x;
-    if (FLOAT8_GT(b->low.x, addon->low.x))
-        b->low.x = addon->low.x;
-    if (FLOAT8_LT(b->high.y, addon->high.y))
-        b->high.y = addon->high.y;
-    if (FLOAT8_GT(b->low.y, addon->low.y))
-        b->low.y = addon->low.y;
+	if (FLOAT8_LT(b->high.x, addon->high.x))
+		b->high.x = addon->high.x;
+	if (FLOAT8_GT(b->low.x, addon->low.x))
+		b->low.x = addon->low.x;
+	if (FLOAT8_LT(b->high.y, addon->high.y))
+		b->high.y = addon->high.y;
+	if (FLOAT8_GT(b->low.y, addon->low.y))
+		b->low.y = addon->low.y;
 }
 
 /*
@@ -162,26 +162,26 @@ adjustBox(BOX *b, const BOX *addon)
 Datum
 gist_box_union(PG_FUNCTION_ARGS)
 {
-    GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
-    int           *sizep = (int *) PG_GETARG_POINTER(1);
-    int            numranges,
-                i;
-    BOX           *cur,
-               *pageunion;
+	GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
+	int		   *sizep = (int *) PG_GETARG_POINTER(1);
+	int			numranges,
+				i;
+	BOX		   *cur,
+			   *pageunion;
 
-    numranges = entryvec->n;
-    pageunion = (BOX *) palloc(sizeof(BOX));
-    cur = DatumGetBoxP(entryvec->vector[0].key);
-    memcpy((void *) pageunion, (void *) cur, sizeof(BOX));
+	numranges = entryvec->n;
+	pageunion = (BOX *) palloc(sizeof(BOX));
+	cur = DatumGetBoxP(entryvec->vector[0].key);
+	memcpy((void *) pageunion, (void *) cur, sizeof(BOX));
 
-    for (i = 1; i < numranges; i++)
-    {
-        cur = DatumGetBoxP(entryvec->vector[i].key);
-        adjustBox(pageunion, cur);
-    }
-    *sizep = sizeof(BOX);
+	for (i = 1; i < numranges; i++)
+	{
+		cur = DatumGetBoxP(entryvec->vector[i].key);
+		adjustBox(pageunion, cur);
+	}
+	*sizep = sizeof(BOX);
 
-    PG_RETURN_POINTER(pageunion);
+	PG_RETURN_POINTER(pageunion);
 }
 
 /*
@@ -192,7 +192,7 @@ gist_box_union(PG_FUNCTION_ARGS)
 Datum
 gist_box_compress(PG_FUNCTION_ARGS)
 {
-    PG_RETURN_POINTER(PG_GETARG_POINTER(0));
+	PG_RETURN_POINTER(PG_GETARG_POINTER(0));
 }
 
 /*
@@ -204,7 +204,7 @@ gist_box_compress(PG_FUNCTION_ARGS)
 Datum
 gist_box_decompress(PG_FUNCTION_ARGS)
 {
-    PG_RETURN_POINTER(PG_GETARG_POINTER(0));
+	PG_RETURN_POINTER(PG_GETARG_POINTER(0));
 }
 
 /*
@@ -214,7 +214,7 @@ gist_box_decompress(PG_FUNCTION_ARGS)
 Datum
 gist_box_fetch(PG_FUNCTION_ARGS)
 {
-    PG_RETURN_POINTER(PG_GETARG_POINTER(0));
+	PG_RETURN_POINTER(PG_GETARG_POINTER(0));
 }
 
 /*
@@ -225,14 +225,14 @@ gist_box_fetch(PG_FUNCTION_ARGS)
 Datum
 gist_box_penalty(PG_FUNCTION_ARGS)
 {
-    GISTENTRY  *origentry = (GISTENTRY *) PG_GETARG_POINTER(0);
-    GISTENTRY  *newentry = (GISTENTRY *) PG_GETARG_POINTER(1);
-    float       *result = (float *) PG_GETARG_POINTER(2);
-    BOX           *origbox = DatumGetBoxP(origentry->key);
-    BOX           *newbox = DatumGetBoxP(newentry->key);
+	GISTENTRY  *origentry = (GISTENTRY *) PG_GETARG_POINTER(0);
+	GISTENTRY  *newentry = (GISTENTRY *) PG_GETARG_POINTER(1);
+	float	   *result = (float *) PG_GETARG_POINTER(2);
+	BOX		   *origbox = DatumGetBoxP(origentry->key);
+	BOX		   *newbox = DatumGetBoxP(newentry->key);
 
-    *result = (float) box_penalty(origbox, newbox);
-    PG_RETURN_POINTER(result);
+	*result = (float) box_penalty(origbox, newbox);
+	PG_RETURN_POINTER(result);
 }
 
 /*
@@ -242,53 +242,53 @@ gist_box_penalty(PG_FUNCTION_ARGS)
 static void
 fallbackSplit(GistEntryVector *entryvec, GIST_SPLITVEC *v)
 {
-    OffsetNumber i,
-                maxoff;
-    BOX           *unionL = NULL,
-               *unionR = NULL;
-    int            nbytes;
+	OffsetNumber i,
+				maxoff;
+	BOX		   *unionL = NULL,
+			   *unionR = NULL;
+	int			nbytes;
 
-    maxoff = entryvec->n - 1;
+	maxoff = entryvec->n - 1;
 
-    nbytes = (maxoff + 2) * sizeof(OffsetNumber);
-    v->spl_left = (OffsetNumber *) palloc(nbytes);
-    v->spl_right = (OffsetNumber *) palloc(nbytes);
-    v->spl_nleft = v->spl_nright = 0;
+	nbytes = (maxoff + 2) * sizeof(OffsetNumber);
+	v->spl_left = (OffsetNumber *) palloc(nbytes);
+	v->spl_right = (OffsetNumber *) palloc(nbytes);
+	v->spl_nleft = v->spl_nright = 0;
 
-    for (i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i))
-    {
-        BOX           *cur = DatumGetBoxP(entryvec->vector[i].key);
+	for (i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i))
+	{
+		BOX		   *cur = DatumGetBoxP(entryvec->vector[i].key);
 
-        if (i <= (maxoff - FirstOffsetNumber + 1) / 2)
-        {
-            v->spl_left[v->spl_nleft] = i;
-            if (unionL == NULL)
-            {
-                unionL = (BOX *) palloc(sizeof(BOX));
-                *unionL = *cur;
-            }
-            else
-                adjustBox(unionL, cur);
+		if (i <= (maxoff - FirstOffsetNumber + 1) / 2)
+		{
+			v->spl_left[v->spl_nleft] = i;
+			if (unionL == NULL)
+			{
+				unionL = (BOX *) palloc(sizeof(BOX));
+				*unionL = *cur;
+			}
+			else
+				adjustBox(unionL, cur);
 
-            v->spl_nleft++;
-        }
-        else
-        {
-            v->spl_right[v->spl_nright] = i;
-            if (unionR == NULL)
-            {
-                unionR = (BOX *) palloc(sizeof(BOX));
-                *unionR = *cur;
-            }
-            else
-                adjustBox(unionR, cur);
+			v->spl_nleft++;
+		}
+		else
+		{
+			v->spl_right[v->spl_nright] = i;
+			if (unionR == NULL)
+			{
+				unionR = (BOX *) palloc(sizeof(BOX));
+				*unionR = *cur;
+			}
+			else
+				adjustBox(unionR, cur);
 
-            v->spl_nright++;
-        }
-    }
+			v->spl_nright++;
+		}
+	}
 
-    v->spl_ldatum = BoxPGetDatum(unionL);
-    v->spl_rdatum = BoxPGetDatum(unionR);
+	v->spl_ldatum = BoxPGetDatum(unionL);
+	v->spl_rdatum = BoxPGetDatum(unionR);
 }
 
 /*
@@ -297,10 +297,10 @@ fallbackSplit(GistEntryVector *entryvec, GIST_SPLITVEC *v)
  */
 typedef struct
 {
-    /* Index of entry in the initial array */
-    int            index;
-    /* Delta between penalties of entry insertion into different groups */
-    double        delta;
+	/* Index of entry in the initial array */
+	int			index;
+	/* Delta between penalties of entry insertion into different groups */
+	double		delta;
 } CommonEntry;
 
 /*
@@ -309,21 +309,21 @@ typedef struct
  */
 typedef struct
 {
-    int            entriesCount;    /* total number of entries being split */
-    BOX            boundingBox;    /* minimum bounding box across all entries */
+	int			entriesCount;	/* total number of entries being split */
+	BOX			boundingBox;	/* minimum bounding box across all entries */
 
-    /* Information about currently selected split follows */
+	/* Information about currently selected split follows */
 
-    bool        first;            /* true if no split was selected yet */
+	bool		first;			/* true if no split was selected yet */
 
-    double        leftUpper;        /* upper bound of left interval */
-    double        rightLower;        /* lower bound of right interval */
+	double		leftUpper;		/* upper bound of left interval */
+	double		rightLower;		/* lower bound of right interval */
 
-    float4        ratio;
-    float4        overlap;
-    int            dim;            /* axis of this split */
-    double        range;            /* width of general MBR projection to the
-                                 * selected axis */
+	float4		ratio;
+	float4		overlap;
+	int			dim;			/* axis of this split */
+	double		range;			/* width of general MBR projection to the
+								 * selected axis */
 } ConsiderSplitContext;
 
 /*
@@ -331,8 +331,8 @@ typedef struct
  */
 typedef struct
 {
-    double        lower,
-                upper;
+	double		lower,
+				upper;
 } SplitInterval;
 
 /*
@@ -341,10 +341,10 @@ typedef struct
 static int
 interval_cmp_lower(const void *i1, const void *i2)
 {
-    double        lower1 = ((const SplitInterval *) i1)->lower,
-                lower2 = ((const SplitInterval *) i2)->lower;
+	double		lower1 = ((const SplitInterval *) i1)->lower,
+				lower2 = ((const SplitInterval *) i2)->lower;
 
-    return float8_cmp_internal(lower1, lower2);
+	return float8_cmp_internal(lower1, lower2);
 }
 
 /*
@@ -353,10 +353,10 @@ interval_cmp_lower(const void *i1, const void *i2)
 static int
 interval_cmp_upper(const void *i1, const void *i2)
 {
-    double        upper1 = ((const SplitInterval *) i1)->upper,
-                upper2 = ((const SplitInterval *) i2)->upper;
+	double		upper1 = ((const SplitInterval *) i1)->upper,
+				upper2 = ((const SplitInterval *) i2)->upper;
 
-    return float8_cmp_internal(upper1, upper2);
+	return float8_cmp_internal(upper1, upper2);
 }
 
 /*
@@ -365,10 +365,10 @@ interval_cmp_upper(const void *i1, const void *i2)
 static inline float
 non_negative(float val)
 {
-    if (val >= 0.0f)
-        return val;
-    else
-        return 0.0f;
+	if (val >= 0.0f)
+		return val;
+	else
+		return 0.0f;
 }
 
 /*
@@ -376,107 +376,107 @@ non_negative(float val)
  */
 static inline void
 g_box_consider_split(ConsiderSplitContext *context, int dimNum,
-                     double rightLower, int minLeftCount,
-                     double leftUpper, int maxLeftCount)
-{// #lizard forgives
-    int            leftCount,
-                rightCount;
-    float4        ratio,
-                overlap;
-    double        range;
+					 double rightLower, int minLeftCount,
+					 double leftUpper, int maxLeftCount)
+{
+	int			leftCount,
+				rightCount;
+	float4		ratio,
+				overlap;
+	double		range;
 
-    /*
-     * Calculate entries distribution ratio assuming most uniform distribution
-     * of common entries.
-     */
-    if (minLeftCount >= (context->entriesCount + 1) / 2)
-    {
-        leftCount = minLeftCount;
-    }
-    else
-    {
-        if (maxLeftCount <= context->entriesCount / 2)
-            leftCount = maxLeftCount;
-        else
-            leftCount = context->entriesCount / 2;
-    }
-    rightCount = context->entriesCount - leftCount;
+	/*
+	 * Calculate entries distribution ratio assuming most uniform distribution
+	 * of common entries.
+	 */
+	if (minLeftCount >= (context->entriesCount + 1) / 2)
+	{
+		leftCount = minLeftCount;
+	}
+	else
+	{
+		if (maxLeftCount <= context->entriesCount / 2)
+			leftCount = maxLeftCount;
+		else
+			leftCount = context->entriesCount / 2;
+	}
+	rightCount = context->entriesCount - leftCount;
 
-    /*
-     * Ratio of split - quotient between size of lesser group and total
-     * entries count.
-     */
-    ratio = ((float4) Min(leftCount, rightCount)) /
-        ((float4) context->entriesCount);
+	/*
+	 * Ratio of split - quotient between size of lesser group and total
+	 * entries count.
+	 */
+	ratio = ((float4) Min(leftCount, rightCount)) /
+		((float4) context->entriesCount);
 
-    if (ratio > LIMIT_RATIO)
-    {
-        bool        selectthis = false;
+	if (ratio > LIMIT_RATIO)
+	{
+		bool		selectthis = false;
 
-        /*
-         * The ratio is acceptable, so compare current split with previously
-         * selected one. Between splits of one dimension we search for minimal
-         * overlap (allowing negative values) and minimal ration (between same
-         * overlaps. We switch dimension if find less overlap (non-negative)
-         * or less range with same overlap.
-         */
-        if (dimNum == 0)
-            range = context->boundingBox.high.x - context->boundingBox.low.x;
-        else
-            range = context->boundingBox.high.y - context->boundingBox.low.y;
+		/*
+		 * The ratio is acceptable, so compare current split with previously
+		 * selected one. Between splits of one dimension we search for minimal
+		 * overlap (allowing negative values) and minimal ration (between same
+		 * overlaps. We switch dimension if find less overlap (non-negative)
+		 * or less range with same overlap.
+		 */
+		if (dimNum == 0)
+			range = context->boundingBox.high.x - context->boundingBox.low.x;
+		else
+			range = context->boundingBox.high.y - context->boundingBox.low.y;
 
-        overlap = (leftUpper - rightLower) / range;
+		overlap = (leftUpper - rightLower) / range;
 
-        /* If there is no previous selection, select this */
-        if (context->first)
-            selectthis = true;
-        else if (context->dim == dimNum)
-        {
-            /*
-             * Within the same dimension, choose the new split if it has a
-             * smaller overlap, or same overlap but better ratio.
-             */
-            if (overlap < context->overlap ||
-                (overlap == context->overlap && ratio > context->ratio))
-                selectthis = true;
-        }
-        else
-        {
-            /*
-             * Across dimensions, choose the new split if it has a smaller
-             * *non-negative* overlap, or same *non-negative* overlap but
-             * bigger range. This condition differs from the one described in
-             * the article. On the datasets where leaf MBRs don't overlap
-             * themselves, non-overlapping splits (i.e. splits which have zero
-             * *non-negative* overlap) are frequently possible. In this case
-             * splits tends to be along one dimension, because most distant
-             * non-overlapping splits (i.e. having lowest negative overlap)
-             * appears to be in the same dimension as in the previous split.
-             * Therefore MBRs appear to be very prolonged along another
-             * dimension, which leads to bad search performance. Using range
-             * as the second split criteria makes MBRs more quadratic. Using
-             * *non-negative* overlap instead of overlap as the first split
-             * criteria gives to range criteria a chance to matter, because
-             * non-overlapping splits are equivalent in this criteria.
-             */
-            if (non_negative(overlap) < non_negative(context->overlap) ||
-                (range > context->range &&
-                 non_negative(overlap) <= non_negative(context->overlap)))
-                selectthis = true;
-        }
+		/* If there is no previous selection, select this */
+		if (context->first)
+			selectthis = true;
+		else if (context->dim == dimNum)
+		{
+			/*
+			 * Within the same dimension, choose the new split if it has a
+			 * smaller overlap, or same overlap but better ratio.
+			 */
+			if (overlap < context->overlap ||
+				(overlap == context->overlap && ratio > context->ratio))
+				selectthis = true;
+		}
+		else
+		{
+			/*
+			 * Across dimensions, choose the new split if it has a smaller
+			 * *non-negative* overlap, or same *non-negative* overlap but
+			 * bigger range. This condition differs from the one described in
+			 * the article. On the datasets where leaf MBRs don't overlap
+			 * themselves, non-overlapping splits (i.e. splits which have zero
+			 * *non-negative* overlap) are frequently possible. In this case
+			 * splits tends to be along one dimension, because most distant
+			 * non-overlapping splits (i.e. having lowest negative overlap)
+			 * appears to be in the same dimension as in the previous split.
+			 * Therefore MBRs appear to be very prolonged along another
+			 * dimension, which leads to bad search performance. Using range
+			 * as the second split criteria makes MBRs more quadratic. Using
+			 * *non-negative* overlap instead of overlap as the first split
+			 * criteria gives to range criteria a chance to matter, because
+			 * non-overlapping splits are equivalent in this criteria.
+			 */
+			if (non_negative(overlap) < non_negative(context->overlap) ||
+				(range > context->range &&
+				 non_negative(overlap) <= non_negative(context->overlap)))
+				selectthis = true;
+		}
 
-        if (selectthis)
-        {
-            /* save information about selected split */
-            context->first = false;
-            context->ratio = ratio;
-            context->range = range;
-            context->overlap = overlap;
-            context->rightLower = rightLower;
-            context->leftUpper = leftUpper;
-            context->dim = dimNum;
-        }
-    }
+		if (selectthis)
+		{
+			/* save information about selected split */
+			context->first = false;
+			context->ratio = ratio;
+			context->range = range;
+			context->overlap = overlap;
+			context->rightLower = rightLower;
+			context->leftUpper = leftUpper;
+			context->dim = dimNum;
+		}
+	}
 }
 
 /*
@@ -486,15 +486,15 @@ g_box_consider_split(ConsiderSplitContext *context, int dimNum,
 static int
 common_entry_cmp(const void *i1, const void *i2)
 {
-    double        delta1 = ((const CommonEntry *) i1)->delta,
-                delta2 = ((const CommonEntry *) i2)->delta;
+	double		delta1 = ((const CommonEntry *) i1)->delta,
+				delta2 = ((const CommonEntry *) i2)->delta;
 
-    if (delta1 < delta2)
-        return -1;
-    else if (delta1 > delta2)
-        return 1;
-    else
-        return 0;
+	if (delta1 < delta2)
+		return -1;
+	else if (delta1 > delta2)
+		return 1;
+	else
+		return 0;
 }
 
 /*
@@ -514,7 +514,7 @@ common_entry_cmp(const void *i1, const void *i2)
  * 1) Entries which should be placed to the left group
  * 2) Entries which should be placed to the right group
  * 3) "Common entries" which can be placed to any of groups without affecting
- *      of overlap along selected axis.
+ *	  of overlap along selected axis.
  *
  * The common entries are distributed by minimizing penalty.
  *
@@ -525,349 +525,349 @@ common_entry_cmp(const void *i1, const void *i2)
  */
 Datum
 gist_box_picksplit(PG_FUNCTION_ARGS)
-{// #lizard forgives
-    GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
-    GIST_SPLITVEC *v = (GIST_SPLITVEC *) PG_GETARG_POINTER(1);
-    OffsetNumber i,
-                maxoff;
-    ConsiderSplitContext context;
-    BOX           *box,
-               *leftBox,
-               *rightBox;
-    int            dim,
-                commonEntriesCount;
-    SplitInterval *intervalsLower,
-               *intervalsUpper;
-    CommonEntry *commonEntries;
-    int            nentries;
+{
+	GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
+	GIST_SPLITVEC *v = (GIST_SPLITVEC *) PG_GETARG_POINTER(1);
+	OffsetNumber i,
+				maxoff;
+	ConsiderSplitContext context;
+	BOX		   *box,
+			   *leftBox,
+			   *rightBox;
+	int			dim,
+				commonEntriesCount;
+	SplitInterval *intervalsLower,
+			   *intervalsUpper;
+	CommonEntry *commonEntries;
+	int			nentries;
 
-    memset(&context, 0, sizeof(ConsiderSplitContext));
+	memset(&context, 0, sizeof(ConsiderSplitContext));
 
-    maxoff = entryvec->n - 1;
-    nentries = context.entriesCount = maxoff - FirstOffsetNumber + 1;
+	maxoff = entryvec->n - 1;
+	nentries = context.entriesCount = maxoff - FirstOffsetNumber + 1;
 
-    /* Allocate arrays for intervals along axes */
-    intervalsLower = (SplitInterval *) palloc(nentries * sizeof(SplitInterval));
-    intervalsUpper = (SplitInterval *) palloc(nentries * sizeof(SplitInterval));
+	/* Allocate arrays for intervals along axes */
+	intervalsLower = (SplitInterval *) palloc(nentries * sizeof(SplitInterval));
+	intervalsUpper = (SplitInterval *) palloc(nentries * sizeof(SplitInterval));
 
-    /*
-     * Calculate the overall minimum bounding box over all the entries.
-     */
-    for (i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i))
-    {
-        box = DatumGetBoxP(entryvec->vector[i].key);
-        if (i == FirstOffsetNumber)
-            context.boundingBox = *box;
-        else
-            adjustBox(&context.boundingBox, box);
-    }
+	/*
+	 * Calculate the overall minimum bounding box over all the entries.
+	 */
+	for (i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i))
+	{
+		box = DatumGetBoxP(entryvec->vector[i].key);
+		if (i == FirstOffsetNumber)
+			context.boundingBox = *box;
+		else
+			adjustBox(&context.boundingBox, box);
+	}
 
-    /*
-     * Iterate over axes for optimal split searching.
-     */
-    context.first = true;        /* nothing selected yet */
-    for (dim = 0; dim < 2; dim++)
-    {
-        double        leftUpper,
-                    rightLower;
-        int            i1,
-                    i2;
+	/*
+	 * Iterate over axes for optimal split searching.
+	 */
+	context.first = true;		/* nothing selected yet */
+	for (dim = 0; dim < 2; dim++)
+	{
+		double		leftUpper,
+					rightLower;
+		int			i1,
+					i2;
 
-        /* Project each entry as an interval on the selected axis. */
-        for (i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i))
-        {
-            box = DatumGetBoxP(entryvec->vector[i].key);
-            if (dim == 0)
-            {
-                intervalsLower[i - FirstOffsetNumber].lower = box->low.x;
-                intervalsLower[i - FirstOffsetNumber].upper = box->high.x;
-            }
-            else
-            {
-                intervalsLower[i - FirstOffsetNumber].lower = box->low.y;
-                intervalsLower[i - FirstOffsetNumber].upper = box->high.y;
-            }
-        }
+		/* Project each entry as an interval on the selected axis. */
+		for (i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i))
+		{
+			box = DatumGetBoxP(entryvec->vector[i].key);
+			if (dim == 0)
+			{
+				intervalsLower[i - FirstOffsetNumber].lower = box->low.x;
+				intervalsLower[i - FirstOffsetNumber].upper = box->high.x;
+			}
+			else
+			{
+				intervalsLower[i - FirstOffsetNumber].lower = box->low.y;
+				intervalsLower[i - FirstOffsetNumber].upper = box->high.y;
+			}
+		}
 
-        /*
-         * Make two arrays of intervals: one sorted by lower bound and another
-         * sorted by upper bound.
-         */
-        memcpy(intervalsUpper, intervalsLower,
-               sizeof(SplitInterval) * nentries);
-        qsort(intervalsLower, nentries, sizeof(SplitInterval),
-              interval_cmp_lower);
-        qsort(intervalsUpper, nentries, sizeof(SplitInterval),
-              interval_cmp_upper);
+		/*
+		 * Make two arrays of intervals: one sorted by lower bound and another
+		 * sorted by upper bound.
+		 */
+		memcpy(intervalsUpper, intervalsLower,
+			   sizeof(SplitInterval) * nentries);
+		qsort(intervalsLower, nentries, sizeof(SplitInterval),
+			  interval_cmp_lower);
+		qsort(intervalsUpper, nentries, sizeof(SplitInterval),
+			  interval_cmp_upper);
 
-        /*----
-         * The goal is to form a left and right interval, so that every entry
-         * interval is contained by either left or right interval (or both).
-         *
-         * For example, with the intervals (0,1), (1,3), (2,3), (2,4):
-         *
-         * 0 1 2 3 4
-         * +-+
-         *     +---+
-         *       +-+
-         *       +---+
-         *
-         * The left and right intervals are of the form (0,a) and (b,4).
-         * We first consider splits where b is the lower bound of an entry.
-         * We iterate through all entries, and for each b, calculate the
-         * smallest possible a. Then we consider splits where a is the
-         * upper bound of an entry, and for each a, calculate the greatest
-         * possible b.
-         *
-         * In the above example, the first loop would consider splits:
-         * b=0: (0,1)-(0,4)
-         * b=1: (0,1)-(1,4)
-         * b=2: (0,3)-(2,4)
-         *
-         * And the second loop:
-         * a=1: (0,1)-(1,4)
-         * a=3: (0,3)-(2,4)
-         * a=4: (0,4)-(2,4)
-         */
+		/*----
+		 * The goal is to form a left and right interval, so that every entry
+		 * interval is contained by either left or right interval (or both).
+		 *
+		 * For example, with the intervals (0,1), (1,3), (2,3), (2,4):
+		 *
+		 * 0 1 2 3 4
+		 * +-+
+		 *	 +---+
+		 *	   +-+
+		 *	   +---+
+		 *
+		 * The left and right intervals are of the form (0,a) and (b,4).
+		 * We first consider splits where b is the lower bound of an entry.
+		 * We iterate through all entries, and for each b, calculate the
+		 * smallest possible a. Then we consider splits where a is the
+		 * upper bound of an entry, and for each a, calculate the greatest
+		 * possible b.
+		 *
+		 * In the above example, the first loop would consider splits:
+		 * b=0: (0,1)-(0,4)
+		 * b=1: (0,1)-(1,4)
+		 * b=2: (0,3)-(2,4)
+		 *
+		 * And the second loop:
+		 * a=1: (0,1)-(1,4)
+		 * a=3: (0,3)-(2,4)
+		 * a=4: (0,4)-(2,4)
+		 */
 
-        /*
-         * Iterate over lower bound of right group, finding smallest possible
-         * upper bound of left group.
-         */
-        i1 = 0;
-        i2 = 0;
-        rightLower = intervalsLower[i1].lower;
-        leftUpper = intervalsUpper[i2].lower;
-        while (true)
-        {
-            /*
-             * Find next lower bound of right group.
-             */
-            while (i1 < nentries &&
-                   FLOAT8_EQ(rightLower, intervalsLower[i1].lower))
-            {
-                if (FLOAT8_LT(leftUpper, intervalsLower[i1].upper))
-                    leftUpper = intervalsLower[i1].upper;
-                i1++;
-            }
-            if (i1 >= nentries)
-                break;
-            rightLower = intervalsLower[i1].lower;
+		/*
+		 * Iterate over lower bound of right group, finding smallest possible
+		 * upper bound of left group.
+		 */
+		i1 = 0;
+		i2 = 0;
+		rightLower = intervalsLower[i1].lower;
+		leftUpper = intervalsUpper[i2].lower;
+		while (true)
+		{
+			/*
+			 * Find next lower bound of right group.
+			 */
+			while (i1 < nentries &&
+				   FLOAT8_EQ(rightLower, intervalsLower[i1].lower))
+			{
+				if (FLOAT8_LT(leftUpper, intervalsLower[i1].upper))
+					leftUpper = intervalsLower[i1].upper;
+				i1++;
+			}
+			if (i1 >= nentries)
+				break;
+			rightLower = intervalsLower[i1].lower;
 
-            /*
-             * Find count of intervals which anyway should be placed to the
-             * left group.
-             */
-            while (i2 < nentries &&
-                   FLOAT8_LE(intervalsUpper[i2].upper, leftUpper))
-                i2++;
+			/*
+			 * Find count of intervals which anyway should be placed to the
+			 * left group.
+			 */
+			while (i2 < nentries &&
+				   FLOAT8_LE(intervalsUpper[i2].upper, leftUpper))
+				i2++;
 
-            /*
-             * Consider found split.
-             */
-            g_box_consider_split(&context, dim, rightLower, i1, leftUpper, i2);
-        }
+			/*
+			 * Consider found split.
+			 */
+			g_box_consider_split(&context, dim, rightLower, i1, leftUpper, i2);
+		}
 
-        /*
-         * Iterate over upper bound of left group finding greatest possible
-         * lower bound of right group.
-         */
-        i1 = nentries - 1;
-        i2 = nentries - 1;
-        rightLower = intervalsLower[i1].upper;
-        leftUpper = intervalsUpper[i2].upper;
-        while (true)
-        {
-            /*
-             * Find next upper bound of left group.
-             */
-            while (i2 >= 0 && FLOAT8_EQ(leftUpper, intervalsUpper[i2].upper))
-            {
-                if (FLOAT8_GT(rightLower, intervalsUpper[i2].lower))
-                    rightLower = intervalsUpper[i2].lower;
-                i2--;
-            }
-            if (i2 < 0)
-                break;
-            leftUpper = intervalsUpper[i2].upper;
+		/*
+		 * Iterate over upper bound of left group finding greatest possible
+		 * lower bound of right group.
+		 */
+		i1 = nentries - 1;
+		i2 = nentries - 1;
+		rightLower = intervalsLower[i1].upper;
+		leftUpper = intervalsUpper[i2].upper;
+		while (true)
+		{
+			/*
+			 * Find next upper bound of left group.
+			 */
+			while (i2 >= 0 && FLOAT8_EQ(leftUpper, intervalsUpper[i2].upper))
+			{
+				if (FLOAT8_GT(rightLower, intervalsUpper[i2].lower))
+					rightLower = intervalsUpper[i2].lower;
+				i2--;
+			}
+			if (i2 < 0)
+				break;
+			leftUpper = intervalsUpper[i2].upper;
 
-            /*
-             * Find count of intervals which anyway should be placed to the
-             * right group.
-             */
-            while (i1 >= 0 && FLOAT8_GE(intervalsLower[i1].lower, rightLower))
-                i1--;
+			/*
+			 * Find count of intervals which anyway should be placed to the
+			 * right group.
+			 */
+			while (i1 >= 0 && FLOAT8_GE(intervalsLower[i1].lower, rightLower))
+				i1--;
 
-            /*
-             * Consider found split.
-             */
-            g_box_consider_split(&context, dim,
-                                 rightLower, i1 + 1, leftUpper, i2 + 1);
-        }
-    }
+			/*
+			 * Consider found split.
+			 */
+			g_box_consider_split(&context, dim,
+								 rightLower, i1 + 1, leftUpper, i2 + 1);
+		}
+	}
 
-    /*
-     * If we failed to find any acceptable splits, use trivial split.
-     */
-    if (context.first)
-    {
-        fallbackSplit(entryvec, v);
-        PG_RETURN_POINTER(v);
-    }
+	/*
+	 * If we failed to find any acceptable splits, use trivial split.
+	 */
+	if (context.first)
+	{
+		fallbackSplit(entryvec, v);
+		PG_RETURN_POINTER(v);
+	}
 
-    /*
-     * Ok, we have now selected the split across one axis.
-     *
-     * While considering the splits, we already determined that there will be
-     * enough entries in both groups to reach the desired ratio, but we did
-     * not memorize which entries go to which group. So determine that now.
-     */
+	/*
+	 * Ok, we have now selected the split across one axis.
+	 *
+	 * While considering the splits, we already determined that there will be
+	 * enough entries in both groups to reach the desired ratio, but we did
+	 * not memorize which entries go to which group. So determine that now.
+	 */
 
-    /* Allocate vectors for results */
-    v->spl_left = (OffsetNumber *) palloc(nentries * sizeof(OffsetNumber));
-    v->spl_right = (OffsetNumber *) palloc(nentries * sizeof(OffsetNumber));
-    v->spl_nleft = 0;
-    v->spl_nright = 0;
+	/* Allocate vectors for results */
+	v->spl_left = (OffsetNumber *) palloc(nentries * sizeof(OffsetNumber));
+	v->spl_right = (OffsetNumber *) palloc(nentries * sizeof(OffsetNumber));
+	v->spl_nleft = 0;
+	v->spl_nright = 0;
 
-    /* Allocate bounding boxes of left and right groups */
-    leftBox = palloc0(sizeof(BOX));
-    rightBox = palloc0(sizeof(BOX));
+	/* Allocate bounding boxes of left and right groups */
+	leftBox = palloc0(sizeof(BOX));
+	rightBox = palloc0(sizeof(BOX));
 
-    /*
-     * Allocate an array for "common entries" - entries which can be placed to
-     * either group without affecting overlap along selected axis.
-     */
-    commonEntriesCount = 0;
-    commonEntries = (CommonEntry *) palloc(nentries * sizeof(CommonEntry));
+	/*
+	 * Allocate an array for "common entries" - entries which can be placed to
+	 * either group without affecting overlap along selected axis.
+	 */
+	commonEntriesCount = 0;
+	commonEntries = (CommonEntry *) palloc(nentries * sizeof(CommonEntry));
 
-    /* Helper macros to place an entry in the left or right group */
-#define PLACE_LEFT(box, off)                    \
-    do {                                        \
-        if (v->spl_nleft > 0)                    \
-            adjustBox(leftBox, box);            \
-        else                                    \
-            *leftBox = *(box);                    \
-        v->spl_left[v->spl_nleft++] = off;        \
-    } while(0)
+	/* Helper macros to place an entry in the left or right group */
+#define PLACE_LEFT(box, off)					\
+	do {										\
+		if (v->spl_nleft > 0)					\
+			adjustBox(leftBox, box);			\
+		else									\
+			*leftBox = *(box);					\
+		v->spl_left[v->spl_nleft++] = off;		\
+	} while(0)
 
-#define PLACE_RIGHT(box, off)                    \
-    do {                                        \
-        if (v->spl_nright > 0)                    \
-            adjustBox(rightBox, box);            \
-        else                                    \
-            *rightBox = *(box);                    \
-        v->spl_right[v->spl_nright++] = off;    \
-    } while(0)
+#define PLACE_RIGHT(box, off)					\
+	do {										\
+		if (v->spl_nright > 0)					\
+			adjustBox(rightBox, box);			\
+		else									\
+			*rightBox = *(box);					\
+		v->spl_right[v->spl_nright++] = off;	\
+	} while(0)
 
-    /*
-     * Distribute entries which can be distributed unambiguously, and collect
-     * common entries.
-     */
-    for (i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i))
-    {
-        double        lower,
-                    upper;
+	/*
+	 * Distribute entries which can be distributed unambiguously, and collect
+	 * common entries.
+	 */
+	for (i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i))
+	{
+		double		lower,
+					upper;
 
-        /*
-         * Get upper and lower bounds along selected axis.
-         */
-        box = DatumGetBoxP(entryvec->vector[i].key);
-        if (context.dim == 0)
-        {
-            lower = box->low.x;
-            upper = box->high.x;
-        }
-        else
-        {
-            lower = box->low.y;
-            upper = box->high.y;
-        }
+		/*
+		 * Get upper and lower bounds along selected axis.
+		 */
+		box = DatumGetBoxP(entryvec->vector[i].key);
+		if (context.dim == 0)
+		{
+			lower = box->low.x;
+			upper = box->high.x;
+		}
+		else
+		{
+			lower = box->low.y;
+			upper = box->high.y;
+		}
 
-        if (FLOAT8_LE(upper, context.leftUpper))
-        {
-            /* Fits to the left group */
-            if (FLOAT8_GE(lower, context.rightLower))
-            {
-                /* Fits also to the right group, so "common entry" */
-                commonEntries[commonEntriesCount++].index = i;
-            }
-            else
-            {
-                /* Doesn't fit to the right group, so join to the left group */
-                PLACE_LEFT(box, i);
-            }
-        }
-        else
-        {
-            /*
-             * Each entry should fit on either left or right group. Since this
-             * entry didn't fit on the left group, it better fit in the right
-             * group.
-             */
-            Assert(FLOAT8_GE(lower, context.rightLower));
+		if (FLOAT8_LE(upper, context.leftUpper))
+		{
+			/* Fits to the left group */
+			if (FLOAT8_GE(lower, context.rightLower))
+			{
+				/* Fits also to the right group, so "common entry" */
+				commonEntries[commonEntriesCount++].index = i;
+			}
+			else
+			{
+				/* Doesn't fit to the right group, so join to the left group */
+				PLACE_LEFT(box, i);
+			}
+		}
+		else
+		{
+			/*
+			 * Each entry should fit on either left or right group. Since this
+			 * entry didn't fit on the left group, it better fit in the right
+			 * group.
+			 */
+			Assert(FLOAT8_GE(lower, context.rightLower));
 
-            /* Doesn't fit to the left group, so join to the right group */
-            PLACE_RIGHT(box, i);
-        }
-    }
+			/* Doesn't fit to the left group, so join to the right group */
+			PLACE_RIGHT(box, i);
+		}
+	}
 
-    /*
-     * Distribute "common entries", if any.
-     */
-    if (commonEntriesCount > 0)
-    {
-        /*
-         * Calculate minimum number of entries that must be placed in both
-         * groups, to reach LIMIT_RATIO.
-         */
-        int            m = ceil(LIMIT_RATIO * (double) nentries);
+	/*
+	 * Distribute "common entries", if any.
+	 */
+	if (commonEntriesCount > 0)
+	{
+		/*
+		 * Calculate minimum number of entries that must be placed in both
+		 * groups, to reach LIMIT_RATIO.
+		 */
+		int			m = ceil(LIMIT_RATIO * (double) nentries);
 
-        /*
-         * Calculate delta between penalties of join "common entries" to
-         * different groups.
-         */
-        for (i = 0; i < commonEntriesCount; i++)
-        {
-            box = DatumGetBoxP(entryvec->vector[commonEntries[i].index].key);
-            commonEntries[i].delta = Abs(box_penalty(leftBox, box) -
-                                         box_penalty(rightBox, box));
-        }
+		/*
+		 * Calculate delta between penalties of join "common entries" to
+		 * different groups.
+		 */
+		for (i = 0; i < commonEntriesCount; i++)
+		{
+			box = DatumGetBoxP(entryvec->vector[commonEntries[i].index].key);
+			commonEntries[i].delta = Abs(box_penalty(leftBox, box) -
+										 box_penalty(rightBox, box));
+		}
 
-        /*
-         * Sort "common entries" by calculated deltas in order to distribute
-         * the most ambiguous entries first.
-         */
-        qsort(commonEntries, commonEntriesCount, sizeof(CommonEntry), common_entry_cmp);
+		/*
+		 * Sort "common entries" by calculated deltas in order to distribute
+		 * the most ambiguous entries first.
+		 */
+		qsort(commonEntries, commonEntriesCount, sizeof(CommonEntry), common_entry_cmp);
 
-        /*
-         * Distribute "common entries" between groups.
-         */
-        for (i = 0; i < commonEntriesCount; i++)
-        {
-            box = DatumGetBoxP(entryvec->vector[commonEntries[i].index].key);
+		/*
+		 * Distribute "common entries" between groups.
+		 */
+		for (i = 0; i < commonEntriesCount; i++)
+		{
+			box = DatumGetBoxP(entryvec->vector[commonEntries[i].index].key);
 
-            /*
-             * Check if we have to place this entry in either group to achieve
-             * LIMIT_RATIO.
-             */
-            if (v->spl_nleft + (commonEntriesCount - i) <= m)
-                PLACE_LEFT(box, commonEntries[i].index);
-            else if (v->spl_nright + (commonEntriesCount - i) <= m)
-                PLACE_RIGHT(box, commonEntries[i].index);
-            else
-            {
-                /* Otherwise select the group by minimal penalty */
-                if (box_penalty(leftBox, box) < box_penalty(rightBox, box))
-                    PLACE_LEFT(box, commonEntries[i].index);
-                else
-                    PLACE_RIGHT(box, commonEntries[i].index);
-            }
-        }
-    }
+			/*
+			 * Check if we have to place this entry in either group to achieve
+			 * LIMIT_RATIO.
+			 */
+			if (v->spl_nleft + (commonEntriesCount - i) <= m)
+				PLACE_LEFT(box, commonEntries[i].index);
+			else if (v->spl_nright + (commonEntriesCount - i) <= m)
+				PLACE_RIGHT(box, commonEntries[i].index);
+			else
+			{
+				/* Otherwise select the group by minimal penalty */
+				if (box_penalty(leftBox, box) < box_penalty(rightBox, box))
+					PLACE_LEFT(box, commonEntries[i].index);
+				else
+					PLACE_RIGHT(box, commonEntries[i].index);
+			}
+		}
+	}
 
-    v->spl_ldatum = PointerGetDatum(leftBox);
-    v->spl_rdatum = PointerGetDatum(rightBox);
-    PG_RETURN_POINTER(v);
+	v->spl_ldatum = PointerGetDatum(leftBox);
+	v->spl_rdatum = PointerGetDatum(rightBox);
+	PG_RETURN_POINTER(v);
 }
 
 /*
@@ -883,18 +883,18 @@ gist_box_picksplit(PG_FUNCTION_ARGS)
 Datum
 gist_box_same(PG_FUNCTION_ARGS)
 {
-    BOX           *b1 = PG_GETARG_BOX_P(0);
-    BOX           *b2 = PG_GETARG_BOX_P(1);
-    bool       *result = (bool *) PG_GETARG_POINTER(2);
+	BOX		   *b1 = PG_GETARG_BOX_P(0);
+	BOX		   *b2 = PG_GETARG_BOX_P(1);
+	bool	   *result = (bool *) PG_GETARG_POINTER(2);
 
-    if (b1 && b2)
-        *result = (FLOAT8_EQ(b1->low.x, b2->low.x) &&
-                   FLOAT8_EQ(b1->low.y, b2->low.y) &&
-                   FLOAT8_EQ(b1->high.x, b2->high.x) &&
-                   FLOAT8_EQ(b1->high.y, b2->high.y));
-    else
-        *result = (b1 == NULL && b2 == NULL);
-    PG_RETURN_POINTER(result);
+	if (b1 && b2)
+		*result = (FLOAT8_EQ(b1->low.x, b2->low.x) &&
+				   FLOAT8_EQ(b1->low.y, b2->low.y) &&
+				   FLOAT8_EQ(b1->high.x, b2->high.x) &&
+				   FLOAT8_EQ(b1->high.y, b2->high.y));
+	else
+		*result = (b1 == NULL && b2 == NULL);
+	PG_RETURN_POINTER(result);
 }
 
 /*
@@ -902,79 +902,79 @@ gist_box_same(PG_FUNCTION_ARGS)
  */
 static bool
 gist_box_leaf_consistent(BOX *key, BOX *query, StrategyNumber strategy)
-{// #lizard forgives
-    bool        retval;
+{
+	bool		retval;
 
-    switch (strategy)
-    {
-        case RTLeftStrategyNumber:
-            retval = DatumGetBool(DirectFunctionCall2(box_left,
-                                                      PointerGetDatum(key),
-                                                      PointerGetDatum(query)));
-            break;
-        case RTOverLeftStrategyNumber:
-            retval = DatumGetBool(DirectFunctionCall2(box_overleft,
-                                                      PointerGetDatum(key),
-                                                      PointerGetDatum(query)));
-            break;
-        case RTOverlapStrategyNumber:
-            retval = DatumGetBool(DirectFunctionCall2(box_overlap,
-                                                      PointerGetDatum(key),
-                                                      PointerGetDatum(query)));
-            break;
-        case RTOverRightStrategyNumber:
-            retval = DatumGetBool(DirectFunctionCall2(box_overright,
-                                                      PointerGetDatum(key),
-                                                      PointerGetDatum(query)));
-            break;
-        case RTRightStrategyNumber:
-            retval = DatumGetBool(DirectFunctionCall2(box_right,
-                                                      PointerGetDatum(key),
-                                                      PointerGetDatum(query)));
-            break;
-        case RTSameStrategyNumber:
-            retval = DatumGetBool(DirectFunctionCall2(box_same,
-                                                      PointerGetDatum(key),
-                                                      PointerGetDatum(query)));
-            break;
-        case RTContainsStrategyNumber:
-        case RTOldContainsStrategyNumber:
-            retval = DatumGetBool(DirectFunctionCall2(box_contain,
-                                                      PointerGetDatum(key),
-                                                      PointerGetDatum(query)));
-            break;
-        case RTContainedByStrategyNumber:
-        case RTOldContainedByStrategyNumber:
-            retval = DatumGetBool(DirectFunctionCall2(box_contained,
-                                                      PointerGetDatum(key),
-                                                      PointerGetDatum(query)));
-            break;
-        case RTOverBelowStrategyNumber:
-            retval = DatumGetBool(DirectFunctionCall2(box_overbelow,
-                                                      PointerGetDatum(key),
-                                                      PointerGetDatum(query)));
-            break;
-        case RTBelowStrategyNumber:
-            retval = DatumGetBool(DirectFunctionCall2(box_below,
-                                                      PointerGetDatum(key),
-                                                      PointerGetDatum(query)));
-            break;
-        case RTAboveStrategyNumber:
-            retval = DatumGetBool(DirectFunctionCall2(box_above,
-                                                      PointerGetDatum(key),
-                                                      PointerGetDatum(query)));
-            break;
-        case RTOverAboveStrategyNumber:
-            retval = DatumGetBool(DirectFunctionCall2(box_overabove,
-                                                      PointerGetDatum(key),
-                                                      PointerGetDatum(query)));
-            break;
-        default:
-            elog(ERROR, "unrecognized strategy number: %d", strategy);
-            retval = false;        /* keep compiler quiet */
-            break;
-    }
-    return retval;
+	switch (strategy)
+	{
+		case RTLeftStrategyNumber:
+			retval = DatumGetBool(DirectFunctionCall2(box_left,
+													  PointerGetDatum(key),
+													  PointerGetDatum(query)));
+			break;
+		case RTOverLeftStrategyNumber:
+			retval = DatumGetBool(DirectFunctionCall2(box_overleft,
+													  PointerGetDatum(key),
+													  PointerGetDatum(query)));
+			break;
+		case RTOverlapStrategyNumber:
+			retval = DatumGetBool(DirectFunctionCall2(box_overlap,
+													  PointerGetDatum(key),
+													  PointerGetDatum(query)));
+			break;
+		case RTOverRightStrategyNumber:
+			retval = DatumGetBool(DirectFunctionCall2(box_overright,
+													  PointerGetDatum(key),
+													  PointerGetDatum(query)));
+			break;
+		case RTRightStrategyNumber:
+			retval = DatumGetBool(DirectFunctionCall2(box_right,
+													  PointerGetDatum(key),
+													  PointerGetDatum(query)));
+			break;
+		case RTSameStrategyNumber:
+			retval = DatumGetBool(DirectFunctionCall2(box_same,
+													  PointerGetDatum(key),
+													  PointerGetDatum(query)));
+			break;
+		case RTContainsStrategyNumber:
+		case RTOldContainsStrategyNumber:
+			retval = DatumGetBool(DirectFunctionCall2(box_contain,
+													  PointerGetDatum(key),
+													  PointerGetDatum(query)));
+			break;
+		case RTContainedByStrategyNumber:
+		case RTOldContainedByStrategyNumber:
+			retval = DatumGetBool(DirectFunctionCall2(box_contained,
+													  PointerGetDatum(key),
+													  PointerGetDatum(query)));
+			break;
+		case RTOverBelowStrategyNumber:
+			retval = DatumGetBool(DirectFunctionCall2(box_overbelow,
+													  PointerGetDatum(key),
+													  PointerGetDatum(query)));
+			break;
+		case RTBelowStrategyNumber:
+			retval = DatumGetBool(DirectFunctionCall2(box_below,
+													  PointerGetDatum(key),
+													  PointerGetDatum(query)));
+			break;
+		case RTAboveStrategyNumber:
+			retval = DatumGetBool(DirectFunctionCall2(box_above,
+													  PointerGetDatum(key),
+													  PointerGetDatum(query)));
+			break;
+		case RTOverAboveStrategyNumber:
+			retval = DatumGetBool(DirectFunctionCall2(box_overabove,
+													  PointerGetDatum(key),
+													  PointerGetDatum(query)));
+			break;
+		default:
+			elog(ERROR, "unrecognized strategy number: %d", strategy);
+			retval = false;		/* keep compiler quiet */
+			break;
+	}
+	return retval;
 }
 
 /*****************************************
@@ -989,75 +989,75 @@ gist_box_leaf_consistent(BOX *key, BOX *query, StrategyNumber strategy)
  */
 static bool
 rtree_internal_consistent(BOX *key, BOX *query, StrategyNumber strategy)
-{// #lizard forgives
-    bool        retval;
+{
+	bool		retval;
 
-    switch (strategy)
-    {
-        case RTLeftStrategyNumber:
-            retval = !DatumGetBool(DirectFunctionCall2(box_overright,
-                                                       PointerGetDatum(key),
-                                                       PointerGetDatum(query)));
-            break;
-        case RTOverLeftStrategyNumber:
-            retval = !DatumGetBool(DirectFunctionCall2(box_right,
-                                                       PointerGetDatum(key),
-                                                       PointerGetDatum(query)));
-            break;
-        case RTOverlapStrategyNumber:
-            retval = DatumGetBool(DirectFunctionCall2(box_overlap,
-                                                      PointerGetDatum(key),
-                                                      PointerGetDatum(query)));
-            break;
-        case RTOverRightStrategyNumber:
-            retval = !DatumGetBool(DirectFunctionCall2(box_left,
-                                                       PointerGetDatum(key),
-                                                       PointerGetDatum(query)));
-            break;
-        case RTRightStrategyNumber:
-            retval = !DatumGetBool(DirectFunctionCall2(box_overleft,
-                                                       PointerGetDatum(key),
-                                                       PointerGetDatum(query)));
-            break;
-        case RTSameStrategyNumber:
-        case RTContainsStrategyNumber:
-        case RTOldContainsStrategyNumber:
-            retval = DatumGetBool(DirectFunctionCall2(box_contain,
-                                                      PointerGetDatum(key),
-                                                      PointerGetDatum(query)));
-            break;
-        case RTContainedByStrategyNumber:
-        case RTOldContainedByStrategyNumber:
-            retval = DatumGetBool(DirectFunctionCall2(box_overlap,
-                                                      PointerGetDatum(key),
-                                                      PointerGetDatum(query)));
-            break;
-        case RTOverBelowStrategyNumber:
-            retval = !DatumGetBool(DirectFunctionCall2(box_above,
-                                                       PointerGetDatum(key),
-                                                       PointerGetDatum(query)));
-            break;
-        case RTBelowStrategyNumber:
-            retval = !DatumGetBool(DirectFunctionCall2(box_overabove,
-                                                       PointerGetDatum(key),
-                                                       PointerGetDatum(query)));
-            break;
-        case RTAboveStrategyNumber:
-            retval = !DatumGetBool(DirectFunctionCall2(box_overbelow,
-                                                       PointerGetDatum(key),
-                                                       PointerGetDatum(query)));
-            break;
-        case RTOverAboveStrategyNumber:
-            retval = !DatumGetBool(DirectFunctionCall2(box_below,
-                                                       PointerGetDatum(key),
-                                                       PointerGetDatum(query)));
-            break;
-        default:
-            elog(ERROR, "unrecognized strategy number: %d", strategy);
-            retval = false;        /* keep compiler quiet */
-            break;
-    }
-    return retval;
+	switch (strategy)
+	{
+		case RTLeftStrategyNumber:
+			retval = !DatumGetBool(DirectFunctionCall2(box_overright,
+													   PointerGetDatum(key),
+													   PointerGetDatum(query)));
+			break;
+		case RTOverLeftStrategyNumber:
+			retval = !DatumGetBool(DirectFunctionCall2(box_right,
+													   PointerGetDatum(key),
+													   PointerGetDatum(query)));
+			break;
+		case RTOverlapStrategyNumber:
+			retval = DatumGetBool(DirectFunctionCall2(box_overlap,
+													  PointerGetDatum(key),
+													  PointerGetDatum(query)));
+			break;
+		case RTOverRightStrategyNumber:
+			retval = !DatumGetBool(DirectFunctionCall2(box_left,
+													   PointerGetDatum(key),
+													   PointerGetDatum(query)));
+			break;
+		case RTRightStrategyNumber:
+			retval = !DatumGetBool(DirectFunctionCall2(box_overleft,
+													   PointerGetDatum(key),
+													   PointerGetDatum(query)));
+			break;
+		case RTSameStrategyNumber:
+		case RTContainsStrategyNumber:
+		case RTOldContainsStrategyNumber:
+			retval = DatumGetBool(DirectFunctionCall2(box_contain,
+													  PointerGetDatum(key),
+													  PointerGetDatum(query)));
+			break;
+		case RTContainedByStrategyNumber:
+		case RTOldContainedByStrategyNumber:
+			retval = DatumGetBool(DirectFunctionCall2(box_overlap,
+													  PointerGetDatum(key),
+													  PointerGetDatum(query)));
+			break;
+		case RTOverBelowStrategyNumber:
+			retval = !DatumGetBool(DirectFunctionCall2(box_above,
+													   PointerGetDatum(key),
+													   PointerGetDatum(query)));
+			break;
+		case RTBelowStrategyNumber:
+			retval = !DatumGetBool(DirectFunctionCall2(box_overabove,
+													   PointerGetDatum(key),
+													   PointerGetDatum(query)));
+			break;
+		case RTAboveStrategyNumber:
+			retval = !DatumGetBool(DirectFunctionCall2(box_overbelow,
+													   PointerGetDatum(key),
+													   PointerGetDatum(query)));
+			break;
+		case RTOverAboveStrategyNumber:
+			retval = !DatumGetBool(DirectFunctionCall2(box_below,
+													   PointerGetDatum(key),
+													   PointerGetDatum(query)));
+			break;
+		default:
+			elog(ERROR, "unrecognized strategy number: %d", strategy);
+			retval = false;		/* keep compiler quiet */
+			break;
+	}
+	return retval;
 }
 
 /**************************************************
@@ -1070,25 +1070,25 @@ rtree_internal_consistent(BOX *key, BOX *query, StrategyNumber strategy)
 Datum
 gist_poly_compress(PG_FUNCTION_ARGS)
 {
-    GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
-    GISTENTRY  *retval;
+	GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
+	GISTENTRY  *retval;
 
-    if (entry->leafkey)
-    {
-        POLYGON    *in = DatumGetPolygonP(entry->key);
-        BOX           *r;
+	if (entry->leafkey)
+	{
+		POLYGON    *in = DatumGetPolygonP(entry->key);
+		BOX		   *r;
 
-        r = (BOX *) palloc(sizeof(BOX));
-        memcpy((void *) r, (void *) &(in->boundbox), sizeof(BOX));
+		r = (BOX *) palloc(sizeof(BOX));
+		memcpy((void *) r, (void *) &(in->boundbox), sizeof(BOX));
 
-        retval = (GISTENTRY *) palloc(sizeof(GISTENTRY));
-        gistentryinit(*retval, PointerGetDatum(r),
-                      entry->rel, entry->page,
-                      entry->offset, FALSE);
-    }
-    else
-        retval = entry;
-    PG_RETURN_POINTER(retval);
+		retval = (GISTENTRY *) palloc(sizeof(GISTENTRY));
+		gistentryinit(*retval, PointerGetDatum(r),
+					  entry->rel, entry->page,
+					  entry->offset, FALSE);
+	}
+	else
+		retval = entry;
+	PG_RETURN_POINTER(retval);
 }
 
 /*
@@ -1097,32 +1097,32 @@ gist_poly_compress(PG_FUNCTION_ARGS)
 Datum
 gist_poly_consistent(PG_FUNCTION_ARGS)
 {
-    GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
-    POLYGON    *query = PG_GETARG_POLYGON_P(1);
-    StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
+	GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
+	POLYGON    *query = PG_GETARG_POLYGON_P(1);
+	StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
 
-    /* Oid        subtype = PG_GETARG_OID(3); */
-    bool       *recheck = (bool *) PG_GETARG_POINTER(4);
-    bool        result;
+	/* Oid		subtype = PG_GETARG_OID(3); */
+	bool	   *recheck = (bool *) PG_GETARG_POINTER(4);
+	bool		result;
 
-    /* All cases served by this function are inexact */
-    *recheck = true;
+	/* All cases served by this function are inexact */
+	*recheck = true;
 
-    if (DatumGetBoxP(entry->key) == NULL || query == NULL)
-        PG_RETURN_BOOL(FALSE);
+	if (DatumGetBoxP(entry->key) == NULL || query == NULL)
+		PG_RETURN_BOOL(FALSE);
 
-    /*
-     * Since the operators require recheck anyway, we can just use
-     * rtree_internal_consistent even at leaf nodes.  (This works in part
-     * because the index entries are bounding boxes not polygons.)
-     */
-    result = rtree_internal_consistent(DatumGetBoxP(entry->key),
-                                       &(query->boundbox), strategy);
+	/*
+	 * Since the operators require recheck anyway, we can just use
+	 * rtree_internal_consistent even at leaf nodes.  (This works in part
+	 * because the index entries are bounding boxes not polygons.)
+	 */
+	result = rtree_internal_consistent(DatumGetBoxP(entry->key),
+									   &(query->boundbox), strategy);
 
-    /* Avoid memory leak if supplied poly is toasted */
-    PG_FREE_IF_COPY(query, 1);
+	/* Avoid memory leak if supplied poly is toasted */
+	PG_FREE_IF_COPY(query, 1);
 
-    PG_RETURN_BOOL(result);
+	PG_RETURN_BOOL(result);
 }
 
 /**************************************************
@@ -1135,28 +1135,28 @@ gist_poly_consistent(PG_FUNCTION_ARGS)
 Datum
 gist_circle_compress(PG_FUNCTION_ARGS)
 {
-    GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
-    GISTENTRY  *retval;
+	GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
+	GISTENTRY  *retval;
 
-    if (entry->leafkey)
-    {
-        CIRCLE       *in = DatumGetCircleP(entry->key);
-        BOX           *r;
+	if (entry->leafkey)
+	{
+		CIRCLE	   *in = DatumGetCircleP(entry->key);
+		BOX		   *r;
 
-        r = (BOX *) palloc(sizeof(BOX));
-        r->high.x = in->center.x + in->radius;
-        r->low.x = in->center.x - in->radius;
-        r->high.y = in->center.y + in->radius;
-        r->low.y = in->center.y - in->radius;
+		r = (BOX *) palloc(sizeof(BOX));
+		r->high.x = in->center.x + in->radius;
+		r->low.x = in->center.x - in->radius;
+		r->high.y = in->center.y + in->radius;
+		r->low.y = in->center.y - in->radius;
 
-        retval = (GISTENTRY *) palloc(sizeof(GISTENTRY));
-        gistentryinit(*retval, PointerGetDatum(r),
-                      entry->rel, entry->page,
-                      entry->offset, FALSE);
-    }
-    else
-        retval = entry;
-    PG_RETURN_POINTER(retval);
+		retval = (GISTENTRY *) palloc(sizeof(GISTENTRY));
+		gistentryinit(*retval, PointerGetDatum(r),
+					  entry->rel, entry->page,
+					  entry->offset, FALSE);
+	}
+	else
+		retval = entry;
+	PG_RETURN_POINTER(retval);
 }
 
 /*
@@ -1165,35 +1165,35 @@ gist_circle_compress(PG_FUNCTION_ARGS)
 Datum
 gist_circle_consistent(PG_FUNCTION_ARGS)
 {
-    GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
-    CIRCLE       *query = PG_GETARG_CIRCLE_P(1);
-    StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
+	GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
+	CIRCLE	   *query = PG_GETARG_CIRCLE_P(1);
+	StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
 
-    /* Oid        subtype = PG_GETARG_OID(3); */
-    bool       *recheck = (bool *) PG_GETARG_POINTER(4);
-    BOX            bbox;
-    bool        result;
+	/* Oid		subtype = PG_GETARG_OID(3); */
+	bool	   *recheck = (bool *) PG_GETARG_POINTER(4);
+	BOX			bbox;
+	bool		result;
 
-    /* All cases served by this function are inexact */
-    *recheck = true;
+	/* All cases served by this function are inexact */
+	*recheck = true;
 
-    if (DatumGetBoxP(entry->key) == NULL || query == NULL)
-        PG_RETURN_BOOL(FALSE);
+	if (DatumGetBoxP(entry->key) == NULL || query == NULL)
+		PG_RETURN_BOOL(FALSE);
 
-    /*
-     * Since the operators require recheck anyway, we can just use
-     * rtree_internal_consistent even at leaf nodes.  (This works in part
-     * because the index entries are bounding boxes not circles.)
-     */
-    bbox.high.x = query->center.x + query->radius;
-    bbox.low.x = query->center.x - query->radius;
-    bbox.high.y = query->center.y + query->radius;
-    bbox.low.y = query->center.y - query->radius;
+	/*
+	 * Since the operators require recheck anyway, we can just use
+	 * rtree_internal_consistent even at leaf nodes.  (This works in part
+	 * because the index entries are bounding boxes not circles.)
+	 */
+	bbox.high.x = query->center.x + query->radius;
+	bbox.low.x = query->center.x - query->radius;
+	bbox.high.y = query->center.y + query->radius;
+	bbox.low.y = query->center.y - query->radius;
 
-    result = rtree_internal_consistent(DatumGetBoxP(entry->key),
-                                       &bbox, strategy);
+	result = rtree_internal_consistent(DatumGetBoxP(entry->key),
+									   &bbox, strategy);
 
-    PG_RETURN_BOOL(result);
+	PG_RETURN_BOOL(result);
 }
 
 /**************************************************
@@ -1203,23 +1203,23 @@ gist_circle_consistent(PG_FUNCTION_ARGS)
 Datum
 gist_point_compress(PG_FUNCTION_ARGS)
 {
-    GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
+	GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
 
-    if (entry->leafkey)            /* Point, actually */
-    {
-        BOX           *box = palloc(sizeof(BOX));
-        Point       *point = DatumGetPointP(entry->key);
-        GISTENTRY  *retval = palloc(sizeof(GISTENTRY));
+	if (entry->leafkey)			/* Point, actually */
+	{
+		BOX		   *box = palloc(sizeof(BOX));
+		Point	   *point = DatumGetPointP(entry->key);
+		GISTENTRY  *retval = palloc(sizeof(GISTENTRY));
 
-        box->high = box->low = *point;
+		box->high = box->low = *point;
 
-        gistentryinit(*retval, BoxPGetDatum(box),
-                      entry->rel, entry->page, entry->offset, FALSE);
+		gistentryinit(*retval, BoxPGetDatum(box),
+					  entry->rel, entry->page, entry->offset, FALSE);
 
-        PG_RETURN_POINTER(retval);
-    }
+		PG_RETURN_POINTER(retval);
+	}
 
-    PG_RETURN_POINTER(entry);
+	PG_RETURN_POINTER(entry);
 }
 
 /*
@@ -1231,278 +1231,278 @@ gist_point_compress(PG_FUNCTION_ARGS)
 Datum
 gist_point_fetch(PG_FUNCTION_ARGS)
 {
-    GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
-    BOX           *in = DatumGetBoxP(entry->key);
-    Point       *r;
-    GISTENTRY  *retval;
+	GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
+	BOX		   *in = DatumGetBoxP(entry->key);
+	Point	   *r;
+	GISTENTRY  *retval;
 
-    retval = palloc(sizeof(GISTENTRY));
+	retval = palloc(sizeof(GISTENTRY));
 
-    r = (Point *) palloc(sizeof(Point));
-    r->x = in->high.x;
-    r->y = in->high.y;
-    gistentryinit(*retval, PointerGetDatum(r),
-                  entry->rel, entry->page,
-                  entry->offset, FALSE);
+	r = (Point *) palloc(sizeof(Point));
+	r->x = in->high.x;
+	r->y = in->high.y;
+	gistentryinit(*retval, PointerGetDatum(r),
+				  entry->rel, entry->page,
+				  entry->offset, FALSE);
 
-    PG_RETURN_POINTER(retval);
+	PG_RETURN_POINTER(retval);
 }
 
 
 #define point_point_distance(p1,p2) \
-    DatumGetFloat8(DirectFunctionCall2(point_distance, \
-                                       PointPGetDatum(p1), PointPGetDatum(p2)))
+	DatumGetFloat8(DirectFunctionCall2(point_distance, \
+									   PointPGetDatum(p1), PointPGetDatum(p2)))
 
 static double
 computeDistance(bool isLeaf, BOX *box, Point *point)
-{// #lizard forgives
-    double        result = 0.0;
+{
+	double		result = 0.0;
 
-    if (isLeaf)
-    {
-        /* simple point to point distance */
-        result = point_point_distance(point, &box->low);
-    }
-    else if (point->x <= box->high.x && point->x >= box->low.x &&
-             point->y <= box->high.y && point->y >= box->low.y)
-    {
-        /* point inside the box */
-        result = 0.0;
-    }
-    else if (point->x <= box->high.x && point->x >= box->low.x)
-    {
-        /* point is over or below box */
-        Assert(box->low.y <= box->high.y);
-        if (point->y > box->high.y)
-            result = point->y - box->high.y;
-        else if (point->y < box->low.y)
-            result = box->low.y - point->y;
-        else
-            elog(ERROR, "inconsistent point values");
-    }
-    else if (point->y <= box->high.y && point->y >= box->low.y)
-    {
-        /* point is to left or right of box */
-        Assert(box->low.x <= box->high.x);
-        if (point->x > box->high.x)
-            result = point->x - box->high.x;
-        else if (point->x < box->low.x)
-            result = box->low.x - point->x;
-        else
-            elog(ERROR, "inconsistent point values");
-    }
-    else
-    {
-        /* closest point will be a vertex */
-        Point        p;
-        double        subresult;
+	if (isLeaf)
+	{
+		/* simple point to point distance */
+		result = point_point_distance(point, &box->low);
+	}
+	else if (point->x <= box->high.x && point->x >= box->low.x &&
+			 point->y <= box->high.y && point->y >= box->low.y)
+	{
+		/* point inside the box */
+		result = 0.0;
+	}
+	else if (point->x <= box->high.x && point->x >= box->low.x)
+	{
+		/* point is over or below box */
+		Assert(box->low.y <= box->high.y);
+		if (point->y > box->high.y)
+			result = point->y - box->high.y;
+		else if (point->y < box->low.y)
+			result = box->low.y - point->y;
+		else
+			elog(ERROR, "inconsistent point values");
+	}
+	else if (point->y <= box->high.y && point->y >= box->low.y)
+	{
+		/* point is to left or right of box */
+		Assert(box->low.x <= box->high.x);
+		if (point->x > box->high.x)
+			result = point->x - box->high.x;
+		else if (point->x < box->low.x)
+			result = box->low.x - point->x;
+		else
+			elog(ERROR, "inconsistent point values");
+	}
+	else
+	{
+		/* closest point will be a vertex */
+		Point		p;
+		double		subresult;
 
-        result = point_point_distance(point, &box->low);
+		result = point_point_distance(point, &box->low);
 
-        subresult = point_point_distance(point, &box->high);
-        if (result > subresult)
-            result = subresult;
+		subresult = point_point_distance(point, &box->high);
+		if (result > subresult)
+			result = subresult;
 
-        p.x = box->low.x;
-        p.y = box->high.y;
-        subresult = point_point_distance(point, &p);
-        if (result > subresult)
-            result = subresult;
+		p.x = box->low.x;
+		p.y = box->high.y;
+		subresult = point_point_distance(point, &p);
+		if (result > subresult)
+			result = subresult;
 
-        p.x = box->high.x;
-        p.y = box->low.y;
-        subresult = point_point_distance(point, &p);
-        if (result > subresult)
-            result = subresult;
-    }
+		p.x = box->high.x;
+		p.y = box->low.y;
+		subresult = point_point_distance(point, &p);
+		if (result > subresult)
+			result = subresult;
+	}
 
-    return result;
+	return result;
 }
 
 static bool
 gist_point_consistent_internal(StrategyNumber strategy,
-                               bool isLeaf, BOX *key, Point *query)
-{// #lizard forgives
-    bool        result = false;
+							   bool isLeaf, BOX *key, Point *query)
+{
+	bool		result = false;
 
-    switch (strategy)
-    {
-        case RTLeftStrategyNumber:
-            result = FPlt(key->low.x, query->x);
-            break;
-        case RTRightStrategyNumber:
-            result = FPgt(key->high.x, query->x);
-            break;
-        case RTAboveStrategyNumber:
-            result = FPgt(key->high.y, query->y);
-            break;
-        case RTBelowStrategyNumber:
-            result = FPlt(key->low.y, query->y);
-            break;
-        case RTSameStrategyNumber:
-            if (isLeaf)
-            {
-                /* key.high must equal key.low, so we can disregard it */
-                result = (FPeq(key->low.x, query->x) &&
-                          FPeq(key->low.y, query->y));
-            }
-            else
-            {
-                result = (FPle(query->x, key->high.x) &&
-                          FPge(query->x, key->low.x) &&
-                          FPle(query->y, key->high.y) &&
-                          FPge(query->y, key->low.y));
-            }
-            break;
-        default:
-            elog(ERROR, "unrecognized strategy number: %d", strategy);
-            result = false;        /* keep compiler quiet */
-            break;
-    }
+	switch (strategy)
+	{
+		case RTLeftStrategyNumber:
+			result = FPlt(key->low.x, query->x);
+			break;
+		case RTRightStrategyNumber:
+			result = FPgt(key->high.x, query->x);
+			break;
+		case RTAboveStrategyNumber:
+			result = FPgt(key->high.y, query->y);
+			break;
+		case RTBelowStrategyNumber:
+			result = FPlt(key->low.y, query->y);
+			break;
+		case RTSameStrategyNumber:
+			if (isLeaf)
+			{
+				/* key.high must equal key.low, so we can disregard it */
+				result = (FPeq(key->low.x, query->x) &&
+						  FPeq(key->low.y, query->y));
+			}
+			else
+			{
+				result = (FPle(query->x, key->high.x) &&
+						  FPge(query->x, key->low.x) &&
+						  FPle(query->y, key->high.y) &&
+						  FPge(query->y, key->low.y));
+			}
+			break;
+		default:
+			elog(ERROR, "unrecognized strategy number: %d", strategy);
+			result = false;		/* keep compiler quiet */
+			break;
+	}
 
-    return result;
+	return result;
 }
 
-#define GeoStrategyNumberOffset        20
-#define PointStrategyNumberGroup    0
-#define BoxStrategyNumberGroup        1
-#define PolygonStrategyNumberGroup    2
-#define CircleStrategyNumberGroup    3
+#define GeoStrategyNumberOffset		20
+#define PointStrategyNumberGroup	0
+#define BoxStrategyNumberGroup		1
+#define PolygonStrategyNumberGroup	2
+#define CircleStrategyNumberGroup	3
 
 Datum
 gist_point_consistent(PG_FUNCTION_ARGS)
-{// #lizard forgives
-    GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
-    StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
-    bool       *recheck = (bool *) PG_GETARG_POINTER(4);
-    bool        result;
-    StrategyNumber strategyGroup = strategy / GeoStrategyNumberOffset;
+{
+	GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
+	StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
+	bool	   *recheck = (bool *) PG_GETARG_POINTER(4);
+	bool		result;
+	StrategyNumber strategyGroup = strategy / GeoStrategyNumberOffset;
 
-    switch (strategyGroup)
-    {
-        case PointStrategyNumberGroup:
-            result = gist_point_consistent_internal(strategy % GeoStrategyNumberOffset,
-                                                    GIST_LEAF(entry),
-                                                    DatumGetBoxP(entry->key),
-                                                    PG_GETARG_POINT_P(1));
-            *recheck = false;
-            break;
-        case BoxStrategyNumberGroup:
-            {
-                /*
-                 * The only operator in this group is point <@ box (on_pb), so
-                 * we needn't examine strategy again.
-                 *
-                 * For historical reasons, on_pb uses exact rather than fuzzy
-                 * comparisons.  We could use box_overlap when at an internal
-                 * page, but that would lead to possibly visiting child pages
-                 * uselessly, because box_overlap uses fuzzy comparisons.
-                 * Instead we write a non-fuzzy overlap test.  The same code
-                 * will also serve for leaf-page tests, since leaf keys have
-                 * high == low.
-                 */
-                BOX           *query,
-                           *key;
+	switch (strategyGroup)
+	{
+		case PointStrategyNumberGroup:
+			result = gist_point_consistent_internal(strategy % GeoStrategyNumberOffset,
+													GIST_LEAF(entry),
+													DatumGetBoxP(entry->key),
+													PG_GETARG_POINT_P(1));
+			*recheck = false;
+			break;
+		case BoxStrategyNumberGroup:
+			{
+				/*
+				 * The only operator in this group is point <@ box (on_pb), so
+				 * we needn't examine strategy again.
+				 *
+				 * For historical reasons, on_pb uses exact rather than fuzzy
+				 * comparisons.  We could use box_overlap when at an internal
+				 * page, but that would lead to possibly visiting child pages
+				 * uselessly, because box_overlap uses fuzzy comparisons.
+				 * Instead we write a non-fuzzy overlap test.  The same code
+				 * will also serve for leaf-page tests, since leaf keys have
+				 * high == low.
+				 */
+				BOX		   *query,
+						   *key;
 
-                query = PG_GETARG_BOX_P(1);
-                key = DatumGetBoxP(entry->key);
+				query = PG_GETARG_BOX_P(1);
+				key = DatumGetBoxP(entry->key);
 
-                result = (key->high.x >= query->low.x &&
-                          key->low.x <= query->high.x &&
-                          key->high.y >= query->low.y &&
-                          key->low.y <= query->high.y);
-                *recheck = false;
-            }
-            break;
-        case PolygonStrategyNumberGroup:
-            {
-                POLYGON    *query = PG_GETARG_POLYGON_P(1);
+				result = (key->high.x >= query->low.x &&
+						  key->low.x <= query->high.x &&
+						  key->high.y >= query->low.y &&
+						  key->low.y <= query->high.y);
+				*recheck = false;
+			}
+			break;
+		case PolygonStrategyNumberGroup:
+			{
+				POLYGON    *query = PG_GETARG_POLYGON_P(1);
 
-                result = DatumGetBool(DirectFunctionCall5(
-                                                          gist_poly_consistent,
-                                                          PointerGetDatum(entry),
-                                                          PolygonPGetDatum(query),
-                                                          Int16GetDatum(RTOverlapStrategyNumber),
-                                                          0, PointerGetDatum(recheck)));
+				result = DatumGetBool(DirectFunctionCall5(
+														  gist_poly_consistent,
+														  PointerGetDatum(entry),
+														  PolygonPGetDatum(query),
+														  Int16GetDatum(RTOverlapStrategyNumber),
+														  0, PointerGetDatum(recheck)));
 
-                if (GIST_LEAF(entry) && result)
-                {
-                    /*
-                     * We are on leaf page and quick check shows overlapping
-                     * of polygon's bounding box and point
-                     */
-                    BOX           *box = DatumGetBoxP(entry->key);
+				if (GIST_LEAF(entry) && result)
+				{
+					/*
+					 * We are on leaf page and quick check shows overlapping
+					 * of polygon's bounding box and point
+					 */
+					BOX		   *box = DatumGetBoxP(entry->key);
 
-                    Assert(box->high.x == box->low.x
-                           && box->high.y == box->low.y);
-                    result = DatumGetBool(DirectFunctionCall2(
-                                                              poly_contain_pt,
-                                                              PolygonPGetDatum(query),
-                                                              PointPGetDatum(&box->high)));
-                    *recheck = false;
-                }
-            }
-            break;
-        case CircleStrategyNumberGroup:
-            {
-                CIRCLE       *query = PG_GETARG_CIRCLE_P(1);
+					Assert(box->high.x == box->low.x
+						   && box->high.y == box->low.y);
+					result = DatumGetBool(DirectFunctionCall2(
+															  poly_contain_pt,
+															  PolygonPGetDatum(query),
+															  PointPGetDatum(&box->high)));
+					*recheck = false;
+				}
+			}
+			break;
+		case CircleStrategyNumberGroup:
+			{
+				CIRCLE	   *query = PG_GETARG_CIRCLE_P(1);
 
-                result = DatumGetBool(DirectFunctionCall5(
-                                                          gist_circle_consistent,
-                                                          PointerGetDatum(entry),
-                                                          CirclePGetDatum(query),
-                                                          Int16GetDatum(RTOverlapStrategyNumber),
-                                                          0, PointerGetDatum(recheck)));
+				result = DatumGetBool(DirectFunctionCall5(
+														  gist_circle_consistent,
+														  PointerGetDatum(entry),
+														  CirclePGetDatum(query),
+														  Int16GetDatum(RTOverlapStrategyNumber),
+														  0, PointerGetDatum(recheck)));
 
-                if (GIST_LEAF(entry) && result)
-                {
-                    /*
-                     * We are on leaf page and quick check shows overlapping
-                     * of polygon's bounding box and point
-                     */
-                    BOX           *box = DatumGetBoxP(entry->key);
+				if (GIST_LEAF(entry) && result)
+				{
+					/*
+					 * We are on leaf page and quick check shows overlapping
+					 * of polygon's bounding box and point
+					 */
+					BOX		   *box = DatumGetBoxP(entry->key);
 
-                    Assert(box->high.x == box->low.x
-                           && box->high.y == box->low.y);
-                    result = DatumGetBool(DirectFunctionCall2(
-                                                              circle_contain_pt,
-                                                              CirclePGetDatum(query),
-                                                              PointPGetDatum(&box->high)));
-                    *recheck = false;
-                }
-            }
-            break;
-        default:
-            elog(ERROR, "unrecognized strategy number: %d", strategy);
-            result = false;        /* keep compiler quiet */
-            break;
-    }
+					Assert(box->high.x == box->low.x
+						   && box->high.y == box->low.y);
+					result = DatumGetBool(DirectFunctionCall2(
+															  circle_contain_pt,
+															  CirclePGetDatum(query),
+															  PointPGetDatum(&box->high)));
+					*recheck = false;
+				}
+			}
+			break;
+		default:
+			elog(ERROR, "unrecognized strategy number: %d", strategy);
+			result = false;		/* keep compiler quiet */
+			break;
+	}
 
-    PG_RETURN_BOOL(result);
+	PG_RETURN_BOOL(result);
 }
 
 Datum
 gist_point_distance(PG_FUNCTION_ARGS)
 {
-    GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
-    StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
-    double        distance;
-    StrategyNumber strategyGroup = strategy / GeoStrategyNumberOffset;
+	GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
+	StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
+	double		distance;
+	StrategyNumber strategyGroup = strategy / GeoStrategyNumberOffset;
 
-    switch (strategyGroup)
-    {
-        case PointStrategyNumberGroup:
-            distance = computeDistance(GIST_LEAF(entry),
-                                       DatumGetBoxP(entry->key),
-                                       PG_GETARG_POINT_P(1));
-            break;
-        default:
-            elog(ERROR, "unrecognized strategy number: %d", strategy);
-            distance = 0.0;        /* keep compiler quiet */
-            break;
-    }
+	switch (strategyGroup)
+	{
+		case PointStrategyNumberGroup:
+			distance = computeDistance(GIST_LEAF(entry),
+									   DatumGetBoxP(entry->key),
+									   PG_GETARG_POINT_P(1));
+			break;
+		default:
+			elog(ERROR, "unrecognized strategy number: %d", strategy);
+			distance = 0.0;		/* keep compiler quiet */
+			break;
+	}
 
-    PG_RETURN_FLOAT8(distance);
+	PG_RETURN_FLOAT8(distance);
 }
 
 /*
@@ -1517,57 +1517,57 @@ gist_point_distance(PG_FUNCTION_ARGS)
  */
 static double
 gist_bbox_distance(GISTENTRY *entry, Datum query,
-                   StrategyNumber strategy, bool *recheck)
+				   StrategyNumber strategy, bool *recheck)
 {
-    double        distance;
-    StrategyNumber strategyGroup = strategy / GeoStrategyNumberOffset;
+	double		distance;
+	StrategyNumber strategyGroup = strategy / GeoStrategyNumberOffset;
 
-    /* Bounding box distance is always inexact. */
-    *recheck = true;
+	/* Bounding box distance is always inexact. */
+	*recheck = true;
 
-    switch (strategyGroup)
-    {
-        case PointStrategyNumberGroup:
-            distance = computeDistance(false,
-                                       DatumGetBoxP(entry->key),
-                                       DatumGetPointP(query));
-            break;
-        default:
-            elog(ERROR, "unrecognized strategy number: %d", strategy);
-            distance = 0.0;        /* keep compiler quiet */
-    }
+	switch (strategyGroup)
+	{
+		case PointStrategyNumberGroup:
+			distance = computeDistance(false,
+									   DatumGetBoxP(entry->key),
+									   DatumGetPointP(query));
+			break;
+		default:
+			elog(ERROR, "unrecognized strategy number: %d", strategy);
+			distance = 0.0;		/* keep compiler quiet */
+	}
 
-    return distance;
+	return distance;
 }
 
 Datum
 gist_circle_distance(PG_FUNCTION_ARGS)
 {
-    GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
-    Datum        query = PG_GETARG_DATUM(1);
-    StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
+	GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
+	Datum		query = PG_GETARG_DATUM(1);
+	StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
 
-    /* Oid subtype = PG_GETARG_OID(3); */
-    bool       *recheck = (bool *) PG_GETARG_POINTER(4);
-    double        distance;
+	/* Oid subtype = PG_GETARG_OID(3); */
+	bool	   *recheck = (bool *) PG_GETARG_POINTER(4);
+	double		distance;
 
-    distance = gist_bbox_distance(entry, query, strategy, recheck);
+	distance = gist_bbox_distance(entry, query, strategy, recheck);
 
-    PG_RETURN_FLOAT8(distance);
+	PG_RETURN_FLOAT8(distance);
 }
 
 Datum
 gist_poly_distance(PG_FUNCTION_ARGS)
 {
-    GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
-    Datum        query = PG_GETARG_DATUM(1);
-    StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
+	GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
+	Datum		query = PG_GETARG_DATUM(1);
+	StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
 
-    /* Oid subtype = PG_GETARG_OID(3); */
-    bool       *recheck = (bool *) PG_GETARG_POINTER(4);
-    double        distance;
+	/* Oid subtype = PG_GETARG_OID(3); */
+	bool	   *recheck = (bool *) PG_GETARG_POINTER(4);
+	double		distance;
 
-    distance = gist_bbox_distance(entry, query, strategy, recheck);
+	distance = gist_bbox_distance(entry, query, strategy, recheck);
 
-    PG_RETURN_FLOAT8(distance);
+	PG_RETURN_FLOAT8(distance);
 }

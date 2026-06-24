@@ -1,0 +1,40 @@
+create extension pg_clean;
+CREATE EXTENSION
+create resource group rgroup_seg_down with cpu_rate_limit 10 CONCURRENCY 10;
+CREATE RESOURCE GROUP
+set opentenbase_test_flag='resgroup_dn_down_2pc';
+SET
+ alter resource group rgroup_seg_down set CONCURRENCY 20;
+--?WARNING:  .* Failed to send COMMIT PREPARED .*
+--?WARNING:  .* 2PC is interrupted, it will be committed or rollbacked automatically later
+--? Twophase Transaction .*failed in Global State TWO_PHASE_COMMITTING
+--?	 state of 2pc transaction .* on each node:
+--?		 2pc twophase state on datanode: dn1, gid: .*, trans state: TWO_PHASE_COMMIT_ERROR, conn state: TWO_PHASE_SEND_QUERY_ERROR
+--?		 2pc twophase state on datanode: dn2, gid: .*, trans state: TWO_PHASE_COMMITTED, conn state: TWO_PHASE_HEALTHY
+--?	 response msg of 2pc transaction '.*' on each node:
+--?		 2pc twophase state on datanode: dn1, gid: .*, errmsg: server closed the connection unexpectedly
+	This probably means the server terminated abnormally
+	before or while processing the request.
+failed to send data to datanode
+
+select pg_clean_execute(10);
+                     pg_clean_execute                      
+-----------------------------------------------------------
+--? .*,TXN_STATUS_COMMITTED,COMMIT,success.*
+(1 row)
+
+select groupname, concurrency, cpu_rate_limit, memory_limit, cpuset from pg_resgroup_config;
+    groupname    | concurrency | cpu_rate_limit | memory_limit | cpuset 
+-----------------+-------------+----------------+--------------+--------
+ default_group   | 20          | 30             | -1           | -1
+ admin_group     | 10          | 10             | -1           | -1
+ rgroup_seg_down | 20          | 10             | -1           | -1
+(3 rows)
+
+execute direct on(dn1) 'select groupname, concurrency, cpu_rate_limit, memory_limit, cpuset from pg_resgroup_config;';
+    groupname    | concurrency | cpu_rate_limit | memory_limit | cpuset 
+-----------------+-------------+----------------+--------------+--------
+ default_group   | 20          | 30             | -1           | -1
+ admin_group     | 10          | 10             | -1           | -1
+ rgroup_seg_down | 20          | 10             | -1           | -1
+(3 rows)

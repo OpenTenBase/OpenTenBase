@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * netbsd.h
- *      port-specific prototypes for NetBSD
+ *	  port-specific prototypes for NetBSD
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -18,7 +18,7 @@
 #include <link.h>
 #include <dlfcn.h>
 
-#include "utils/dynamic_loader.h"    /* pgrminclude ignore */
+#include "utils/dynamic_loader.h"	/* pgrminclude ignore */
 
 /*
  * Dynamic Loader on NetBSD 1.0.
@@ -46,14 +46,14 @@
 #define RTLD_GLOBAL 0
 #endif
 
-#define           pg_dlopen(f)    BSD44_derived_dlopen((f), RTLD_NOW | RTLD_GLOBAL)
-#define           pg_dlsym           BSD44_derived_dlsym
-#define           pg_dlclose       BSD44_derived_dlclose
-#define           pg_dlerror       BSD44_derived_dlerror
+#define		   pg_dlopen(f)    BSD44_derived_dlopen((f), RTLD_NOW | RTLD_GLOBAL)
+#define		   pg_dlsym		   BSD44_derived_dlsym
+#define		   pg_dlclose	   BSD44_derived_dlclose
+#define		   pg_dlerror	   BSD44_derived_dlerror
 
-char       *BSD44_derived_dlerror(void);
-void       *BSD44_derived_dlopen(const char *filename, int num);
-void       *BSD44_derived_dlsym(void *handle, const char *name);
-void        BSD44_derived_dlclose(void *handle);
+char	   *BSD44_derived_dlerror(void);
+void	   *BSD44_derived_dlopen(const char *filename, int num);
+void	   *BSD44_derived_dlsym(void *handle, const char *name);
+void		BSD44_derived_dlclose(void *handle);
 
-#endif                            /* PORT_PROTOS_H */
+#endif							/* PORT_PROTOS_H */

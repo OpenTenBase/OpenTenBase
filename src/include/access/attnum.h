@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * attnum.h
- *      POSTGRES attribute number definitions.
+ *	  POSTGRES attribute number definitions.
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -20,45 +20,45 @@
  */
 typedef int16 AttrNumber;
 
-#define InvalidAttrNumber        0
-#define MaxAttrNumber            32767
+#define InvalidAttrNumber		0
+#define MaxAttrNumber			32767
 
 /* ----------------
- *        support macros
+ *		support macros
  * ----------------
  */
 /*
  * AttributeNumberIsValid
- *        True iff the attribute number is valid.
+ *		True iff the attribute number is valid.
  */
 #define AttributeNumberIsValid(attributeNumber) \
-    ((bool) ((attributeNumber) != InvalidAttrNumber))
+	((bool) ((attributeNumber) != InvalidAttrNumber))
 
 /*
  * AttrNumberIsForUserDefinedAttr
- *        True iff the attribute number corresponds to an user defined attribute.
+ *		True iff the attribute number corresponds to an user defined attribute.
  */
 #define AttrNumberIsForUserDefinedAttr(attributeNumber) \
-    ((bool) ((attributeNumber) > 0))
+	((bool) ((attributeNumber) > 0))
 
 /*
  * AttrNumberGetAttrOffset
- *        Returns the attribute offset for an attribute number.
+ *		Returns the attribute offset for an attribute number.
  *
  * Note:
- *        Assumes the attribute number is for a user defined attribute.
+ *		Assumes the attribute number is for a user defined attribute.
  */
 #define AttrNumberGetAttrOffset(attNum) \
 ( \
-    AssertMacro(AttrNumberIsForUserDefinedAttr(attNum)), \
-    ((attNum) - 1) \
+	AssertMacro(AttrNumberIsForUserDefinedAttr(attNum)), \
+	((attNum) - 1) \
 )
 
 /*
  * AttributeOffsetGetAttributeNumber
- *        Returns the attribute number for an attribute offset.
+ *		Returns the attribute number for an attribute offset.
  */
 #define AttrOffsetGetAttrNumber(attributeOffset) \
-     ((AttrNumber) (1 + (attributeOffset)))
+	 ((AttrNumber) (1 + (attributeOffset)))
 
-#endif                            /* ATTNUM_H */
+#endif							/* ATTNUM_H */

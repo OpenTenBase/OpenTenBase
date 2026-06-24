@@ -1,0 +1,57 @@
+ <refentry id="sql-createpackage">
+  <indexterm zone="sql-createpackage">
+   <primary>CREATE PACKAGE</primary>
+  </indexterm>
+ 
+  <refmeta>
+   <refentrytitle>CREATE PACKAGE</refentrytitle>
+   <manvolnum>7</manvolnum>
+   <refmiscinfo>SQL - Language Statements</refmiscinfo>
+  </refmeta>
+ 
+  <refnamediv>
+   <refname>CREATE PACKAGE</refname>
+   <refpurpose>define a new package</refpurpose>
+  </refnamediv>
+ 
+  <refsynopsisdiv>
+ <synopsis>
+ CREATE [ OR REPLACE ] [ EDITIONABLE | NONEDITIONABLE ] PACKAGE <replaceable class="parameter">name</replaceable> [ <replaceable class="parameter">invoker_clause</replaceable> ] IS
+  <replaceable>pkg_specs</replaceable>
+ END [ <replaceable class="parameter">name</replaceable> ];
+
+ <phrase>where <replaceable class="parameter">invoker_clause</replaceable> is:</phrase>
+ 
+ AUTHID [ CURRENT_USER | DEFINER ]
+
+ <phrase>and <replaceable class="parameter">pkg_specs</replaceable> is:</phrase>
+
+ type_definition | cursor_declaration | variable_declaration | function_declaration | procedure_declaration | pragma
+
+ <phrase>and <replaceable class="parameter">type_definition</replaceable> is:</phrase>
+ 
+ TYPE name IS VARRAY({ number } ) OF type_name
+ TYPE name IS TABLE OF type_name [ INDEX BY type_name ]
+ TYPE name IS RECORD(fields_list)
+ 
+ <phrase>and <replaceable class="parameter">cursor_declaration</replaceable> is:</phrase>
+
+ CURSOR name [ RETURN type_name ]
+
+ <phrase>and <replaceable class="parameter">function_declaration</replaceable> is:</phrase>
+
+ FUNCTION name(args_list) RETURN type_name
+ 
+ <phrase>and <replaceable class="parameter">procedure_declaration</replaceable> is:</phrase>
+
+ PROCEDURE name(args_list)
+
+ <phrase>and <replaceable class="parameter">pragma</replaceable> is:</phrase>
+
+ PRAGMA pragma_command
+ 
+ </synopsis>
+ 
+  </refsynopsisdiv>
+ 
+ </refentry>

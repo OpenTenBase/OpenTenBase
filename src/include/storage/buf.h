@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * buf.h
- *      Basic buffer manager data types.
+ *	  Basic buffer manager data types.
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -22,19 +22,19 @@
  */
 typedef int Buffer;
 
-#define InvalidBuffer    0
+#define InvalidBuffer	0
 
 /*
  * BufferIsInvalid
- *        True iff the buffer is invalid.
+ *		True iff the buffer is invalid.
  */
 #define BufferIsInvalid(buffer) ((buffer) == InvalidBuffer)
 
 /*
  * BufferIsLocal
- *        True iff the buffer is local (not visible to other backends).
+ *		True iff the buffer is local (not visible to other backends).
  */
-#define BufferIsLocal(buffer)    ((buffer) < 0)
+#define BufferIsLocal(buffer)	((buffer) < 0)
 
 /*
  * Buffer access strategy objects.
@@ -43,4 +43,4 @@ typedef int Buffer;
  */
 typedef struct BufferAccessStrategyData *BufferAccessStrategy;
 
-#endif                            /* BUF_H */
+#endif							/* BUF_H */

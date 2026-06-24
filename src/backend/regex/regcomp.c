@@ -39,14 +39,14 @@
  */
 /* === regcomp.c === */
 static void moresubs(struct vars *, int);
-static int    freev(struct vars *, int);
+static int	freev(struct vars *, int);
 static void makesearch(struct vars *, struct nfa *);
 static struct subre *parse(struct vars *, int, int, struct state *, struct state *);
 static struct subre *parsebranch(struct vars *, int, int, struct state *, struct state *, int);
 static void parseqatom(struct vars *, int, int, struct state *, struct state *, struct subre *);
 static void nonword(struct vars *, int, struct state *, struct state *);
 static void word(struct vars *, int, struct state *, struct state *);
-static int    scannum(struct vars *);
+static int	scannum(struct vars *);
 static void repeat(struct vars *, struct state *, struct state *, int, int);
 static void bracket(struct vars *, struct state *, struct state *);
 static void cbracket(struct vars *, struct state *, struct state *);
@@ -55,21 +55,21 @@ static const chr *scanplain(struct vars *);
 static void onechr(struct vars *, chr, struct state *, struct state *);
 static void wordchrs(struct vars *);
 static void processlacon(struct vars *, struct state *, struct state *, int,
-             struct state *, struct state *);
+			 struct state *, struct state *);
 static struct subre *subre(struct vars *, int, int, struct state *, struct state *);
 static void freesubre(struct vars *, struct subre *);
 static void freesrnode(struct vars *, struct subre *);
 static void optst(struct vars *, struct subre *);
-static int    numst(struct subre *, int);
+static int	numst(struct subre *, int);
 static void markst(struct subre *);
 static void cleanst(struct vars *);
 static long nfatree(struct vars *, struct subre *, FILE *);
 static long nfanode(struct vars *, struct subre *, int, FILE *);
-static int    newlacon(struct vars *, struct state *, struct state *, int);
+static int	newlacon(struct vars *, struct state *, struct state *, int);
 static void freelacons(struct subre *, int);
 static void rfree(regex_t *);
-static int    rcancelrequested(void);
-static int    rstacktoodeep(void);
+static int	rcancelrequested(void);
+static int	rstacktoodeep(void);
 
 #ifdef REG_DEBUG
 static void dump(regex_t *, FILE *);
@@ -82,13 +82,13 @@ static void lexstart(struct vars *);
 static void prefixes(struct vars *);
 static void lexnest(struct vars *, const chr *, const chr *);
 static void lexword(struct vars *);
-static int    next(struct vars *);
-static int    lexescape(struct vars *);
-static chr    lexdigits(struct vars *, int, int, int);
-static int    brenext(struct vars *, chr);
+static int	next(struct vars *);
+static int	lexescape(struct vars *);
+static chr	lexdigits(struct vars *, int, int, int);
+static int	brenext(struct vars *, chr);
 static void skip(struct vars *);
-static chr    newline(void);
-static chr    chrnamed(struct vars *, const chr *, const chr *, chr);
+static chr	newline(void);
+static chr	chrnamed(struct vars *, const chr *, const chr *, chr);
 
 /* === regc_color.c === */
 static void initcm(struct vars *, struct colormap *);
@@ -100,7 +100,7 @@ static color pseudocolor(struct colormap *);
 static color subcolor(struct colormap *, chr);
 static color subcolorhi(struct colormap *, color *);
 static color newsub(struct colormap *, color);
-static int    newhicolorrow(struct colormap *, int);
+static int	newhicolorrow(struct colormap *, int);
 static void newhicolorcols(struct colormap *);
 static void subcolorcvec(struct vars *, struct cvec *, struct state *, struct state *);
 static void subcoloronechr(struct vars *, chr, struct state *, struct state *, color *);
@@ -129,13 +129,13 @@ static void createarc(struct nfa *, int, color, struct state *, struct state *);
 static struct arc *allocarc(struct nfa *, struct state *);
 static void freearc(struct nfa *, struct arc *);
 static void changearctarget(struct arc *, struct state *);
-static int    hasnonemptyout(struct state *);
+static int	hasnonemptyout(struct state *);
 static struct arc *findarc(struct state *, int, color);
 static void cparc(struct nfa *, struct arc *, struct state *, struct state *);
 static void sortins(struct nfa *, struct state *);
-static int    sortins_cmp(const void *, const void *);
+static int	sortins_cmp(const void *, const void *);
 static void sortouts(struct nfa *, struct state *);
-static int    sortouts_cmp(const void *, const void *);
+static int	sortouts_cmp(const void *, const void *);
 static void moveins(struct nfa *, struct state *, struct state *);
 static void copyins(struct nfa *, struct state *, struct state *);
 static void mergeins(struct nfa *, struct state *, struct arc **, int);
@@ -151,32 +151,32 @@ static struct state *single_color_transition(struct state *, struct state *);
 static void specialcolors(struct nfa *);
 static long optimize(struct nfa *, FILE *);
 static void pullback(struct nfa *, FILE *);
-static int    pull(struct nfa *, struct arc *, struct state **);
+static int	pull(struct nfa *, struct arc *, struct state **);
 static void pushfwd(struct nfa *, FILE *);
-static int    push(struct nfa *, struct arc *, struct state **);
+static int	push(struct nfa *, struct arc *, struct state **);
 
-#define INCOMPATIBLE    1        /* destroys arc */
-#define SATISFIED    2            /* constraint satisfied */
-#define COMPATIBLE    3            /* compatible but not satisfied yet */
-static int    combine(struct arc *, struct arc *);
+#define INCOMPATIBLE	1		/* destroys arc */
+#define SATISFIED	2			/* constraint satisfied */
+#define COMPATIBLE	3			/* compatible but not satisfied yet */
+static int	combine(struct arc *, struct arc *);
 static void fixempties(struct nfa *, FILE *);
 static struct state *emptyreachable(struct nfa *, struct state *,
-               struct state *, struct arc **);
-static int    isconstraintarc(struct arc *);
-static int    hasconstraintout(struct state *);
+			   struct state *, struct arc **);
+static int	isconstraintarc(struct arc *);
+static int	hasconstraintout(struct state *);
 static void fixconstraintloops(struct nfa *, FILE *);
-static int    findconstraintloop(struct nfa *, struct state *);
+static int	findconstraintloop(struct nfa *, struct state *);
 static void breakconstraintloop(struct nfa *, struct state *);
 static void clonesuccessorstates(struct nfa *, struct state *, struct state *,
-                     struct state *, struct arc *,
-                     char *, char *, int);
+					 struct state *, struct arc *,
+					 char *, char *, int);
 static void cleanup(struct nfa *);
 static void markreachable(struct nfa *, struct state *, struct state *, struct state *);
 static void markcanreach(struct nfa *, struct state *, struct state *, struct state *);
 static long analyze(struct nfa *);
 static void compact(struct nfa *, struct cnfa *);
 static void carcsort(struct carc *, size_t);
-static int    carc_cmp(const void *, const void *);
+static int	carc_cmp(const void *, const void *);
 static void freecnfa(struct cnfa *);
 static void dumpnfa(struct nfa *, FILE *);
 
@@ -196,110 +196,110 @@ static struct cvec *getcvec(struct vars *, int, int);
 static void freecvec(struct cvec *);
 
 /* === regc_pg_locale.c === */
-static int    pg_wc_isdigit(pg_wchar c);
-static int    pg_wc_isalpha(pg_wchar c);
-static int    pg_wc_isalnum(pg_wchar c);
-static int    pg_wc_isupper(pg_wchar c);
-static int    pg_wc_islower(pg_wchar c);
-static int    pg_wc_isgraph(pg_wchar c);
-static int    pg_wc_isprint(pg_wchar c);
-static int    pg_wc_ispunct(pg_wchar c);
-static int    pg_wc_isspace(pg_wchar c);
+static int	pg_wc_isdigit(pg_wchar c);
+static int	pg_wc_isalpha(pg_wchar c);
+static int	pg_wc_isalnum(pg_wchar c);
+static int	pg_wc_isupper(pg_wchar c);
+static int	pg_wc_islower(pg_wchar c);
+static int	pg_wc_isgraph(pg_wchar c);
+static int	pg_wc_isprint(pg_wchar c);
+static int	pg_wc_ispunct(pg_wchar c);
+static int	pg_wc_isspace(pg_wchar c);
 static pg_wchar pg_wc_toupper(pg_wchar c);
 static pg_wchar pg_wc_tolower(pg_wchar c);
 
 /* === regc_locale.c === */
-static chr    element(struct vars *, const chr *, const chr *);
+static chr	element(struct vars *, const chr *, const chr *);
 static struct cvec *range(struct vars *, chr, chr, int);
-static int    before(chr, chr);
+static int	before(chr, chr);
 static struct cvec *eclass(struct vars *, chr, int);
 static struct cvec *cclass(struct vars *, const chr *, const chr *, int);
-static int    cclass_column_index(struct colormap *, chr);
+static int	cclass_column_index(struct colormap *, chr);
 static struct cvec *allcases(struct vars *, chr);
-static int    cmp(const chr *, const chr *, size_t);
-static int    casecmp(const chr *, const chr *, size_t);
+static int	cmp(const chr *, const chr *, size_t);
+static int	casecmp(const chr *, const chr *, size_t);
 
 
 /* internal variables, bundled for easy passing around */
 struct vars
 {
-    regex_t    *re;
-    const chr  *now;            /* scan pointer into string */
-    const chr  *stop;            /* end of string */
-    const chr  *savenow;        /* saved now and stop for "subroutine call" */
-    const chr  *savestop;
-    int            err;            /* error code (0 if none) */
-    int            cflags;            /* copy of compile flags */
-    int            lasttype;        /* type of previous token */
-    int            nexttype;        /* type of next token */
-    chr            nextvalue;        /* value (if any) of next token */
-    int            lexcon;            /* lexical context type (see lex.c) */
-    int            nsubexp;        /* subexpression count */
-    struct subre **subs;        /* subRE pointer vector */
-    size_t        nsubs;            /* length of vector */
-    struct subre *sub10[10];    /* initial vector, enough for most */
-    struct nfa *nfa;            /* the NFA */
-    struct colormap *cm;        /* character color map */
-    color        nlcolor;        /* color of newline */
-    struct state *wordchrs;        /* state in nfa holding word-char outarcs */
-    struct subre *tree;            /* subexpression tree */
-    struct subre *treechain;    /* all tree nodes allocated */
-    struct subre *treefree;        /* any free tree nodes */
-    int            ntree;            /* number of tree nodes, plus one */
-    struct cvec *cv;            /* interface cvec */
-    struct cvec *cv2;            /* utility cvec */
-    struct subre *lacons;        /* lookaround-constraint vector */
-    int            nlacons;        /* size of lacons[]; note that only slots
-                                 * numbered 1 .. nlacons-1 are used */
-    size_t        spaceused;        /* approx. space used for compilation */
+	regex_t    *re;
+	const chr  *now;			/* scan pointer into string */
+	const chr  *stop;			/* end of string */
+	const chr  *savenow;		/* saved now and stop for "subroutine call" */
+	const chr  *savestop;
+	int			err;			/* error code (0 if none) */
+	int			cflags;			/* copy of compile flags */
+	int			lasttype;		/* type of previous token */
+	int			nexttype;		/* type of next token */
+	chr			nextvalue;		/* value (if any) of next token */
+	int			lexcon;			/* lexical context type (see lex.c) */
+	int			nsubexp;		/* subexpression count */
+	struct subre **subs;		/* subRE pointer vector */
+	size_t		nsubs;			/* length of vector */
+	struct subre *sub10[10];	/* initial vector, enough for most */
+	struct nfa *nfa;			/* the NFA */
+	struct colormap *cm;		/* character color map */
+	color		nlcolor;		/* color of newline */
+	struct state *wordchrs;		/* state in nfa holding word-char outarcs */
+	struct subre *tree;			/* subexpression tree */
+	struct subre *treechain;	/* all tree nodes allocated */
+	struct subre *treefree;		/* any free tree nodes */
+	int			ntree;			/* number of tree nodes, plus one */
+	struct cvec *cv;			/* interface cvec */
+	struct cvec *cv2;			/* utility cvec */
+	struct subre *lacons;		/* lookaround-constraint vector */
+	int			nlacons;		/* size of lacons[]; note that only slots
+								 * numbered 1 .. nlacons-1 are used */
+	size_t		spaceused;		/* approx. space used for compilation */
 };
 
 /* parsing macros; most know that `v' is the struct vars pointer */
-#define NEXT()    (next(v))        /* advance by one token */
-#define SEE(t)    (v->nexttype == (t))    /* is next token this? */
-#define EAT(t)    (SEE(t) && next(v)) /* if next is this, swallow it */
-#define VISERR(vv)    ((vv)->err != 0)    /* have we seen an error yet? */
+#define NEXT()	(next(v))		/* advance by one token */
+#define SEE(t)	(v->nexttype == (t))	/* is next token this? */
+#define EAT(t)	(SEE(t) && next(v)) /* if next is this, swallow it */
+#define VISERR(vv)	((vv)->err != 0)	/* have we seen an error yet? */
 #define ISERR() VISERR(v)
-#define VERR(vv,e)    ((vv)->nexttype = EOS, \
-                     (vv)->err = ((vv)->err ? (vv)->err : (e)))
-#define ERR(e)    VERR(v, e)        /* record an error */
-#define NOERR() {if (ISERR()) return;}    /* if error seen, return */
-#define NOERRN()    {if (ISERR()) return NULL;} /* NOERR with retval */
-#define NOERRZ()    {if (ISERR()) return 0;}    /* NOERR with retval */
+#define VERR(vv,e)	((vv)->nexttype = EOS, \
+					 (vv)->err = ((vv)->err ? (vv)->err : (e)))
+#define ERR(e)	VERR(v, e)		/* record an error */
+#define NOERR() {if (ISERR()) return;}	/* if error seen, return */
+#define NOERRN()	{if (ISERR()) return NULL;} /* NOERR with retval */
+#define NOERRZ()	{if (ISERR()) return 0;}	/* NOERR with retval */
 #define INSIST(c, e) do { if (!(c)) ERR(e); } while (0) /* error if c false */
 #define NOTE(b) (v->re->re_info |= (b)) /* note visible condition */
-#define EMPTYARC(x, y)    newarc(v->nfa, EMPTY, 0, x, y)
+#define EMPTYARC(x, y)	newarc(v->nfa, EMPTY, 0, x, y)
 
 /* token type codes, some also used as NFA arc types */
-#define EMPTY    'n'                /* no token present */
-#define EOS 'e'                    /* end of string */
-#define PLAIN    'p'                /* ordinary character */
-#define DIGIT    'd'                /* digit (in bound) */
-#define BACKREF 'b'                /* back reference */
-#define COLLEL    'I'                /* start of [. */
-#define ECLASS    'E'                /* start of [= */
-#define CCLASS    'C'                /* start of [: */
-#define END 'X'                    /* end of [. [= [: */
-#define RANGE    'R'                /* - within [] which might be range delim. */
-#define LACON    'L'                /* lookaround constraint subRE */
-#define AHEAD    'a'                /* color-lookahead arc */
-#define BEHIND    'r'                /* color-lookbehind arc */
-#define WBDRY    'w'                /* word boundary constraint */
-#define NWBDRY    'W'                /* non-word-boundary constraint */
-#define SBEGIN    'A'                /* beginning of string (even if not BOL) */
-#define SEND    'Z'                /* end of string (even if not EOL) */
-#define PREFER    'P'                /* length preference */
+#define EMPTY	'n'				/* no token present */
+#define EOS 'e'					/* end of string */
+#define PLAIN	'p'				/* ordinary character */
+#define DIGIT	'd'				/* digit (in bound) */
+#define BACKREF 'b'				/* back reference */
+#define COLLEL	'I'				/* start of [. */
+#define ECLASS	'E'				/* start of [= */
+#define CCLASS	'C'				/* start of [: */
+#define END 'X'					/* end of [. [= [: */
+#define RANGE	'R'				/* - within [] which might be range delim. */
+#define LACON	'L'				/* lookaround constraint subRE */
+#define AHEAD	'a'				/* color-lookahead arc */
+#define BEHIND	'r'				/* color-lookbehind arc */
+#define WBDRY	'w'				/* word boundary constraint */
+#define NWBDRY	'W'				/* non-word-boundary constraint */
+#define SBEGIN	'A'				/* beginning of string (even if not BOL) */
+#define SEND	'Z'				/* end of string (even if not EOL) */
+#define PREFER	'P'				/* length preference */
 
 /* is an arc colored, and hence on a color chain? */
 #define COLORED(a) \
-    ((a)->type == PLAIN || (a)->type == AHEAD || (a)->type == BEHIND)
+	((a)->type == PLAIN || (a)->type == AHEAD || (a)->type == BEHIND)
 
 
 /* static function list */
 static const struct fns functions = {
-    rfree,                        /* regfree insides */
-    rcancelrequested,            /* check for cancel request */
-    rstacktoodeep                /* check for stack getting dangerously deep */
+	rfree,						/* regfree insides */
+	rcancelrequested,			/* check for cancel request */
+	rstacktoodeep				/* check for stack getting dangerously deep */
 };
 
 
@@ -312,179 +312,179 @@ static const struct fns functions = {
  */
 int
 pg_regcomp(regex_t *re,
-           const chr *string,
-           size_t len,
-           int flags,
-           Oid collation)
-{// #lizard forgives
-    struct vars var;
-    struct vars *v = &var;
-    struct guts *g;
-    int            i;
-    size_t        j;
+		   const chr *string,
+		   size_t len,
+		   int flags,
+		   Oid collation)
+{
+	struct vars var;
+	struct vars *v = &var;
+	struct guts *g;
+	int			i;
+	size_t		j;
 
 #ifdef REG_DEBUG
-    FILE       *debug = (flags & REG_PROGRESS) ? stdout : (FILE *) NULL;
+	FILE	   *debug = (flags & REG_PROGRESS) ? stdout : (FILE *) NULL;
 #else
-    FILE       *debug = (FILE *) NULL;
+	FILE	   *debug = (FILE *) NULL;
 #endif
 
-#define  CNOERR()     { if (ISERR()) return freev(v, v->err); }
+#define  CNOERR()	 { if (ISERR()) return freev(v, v->err); }
 
-    /* sanity checks */
+	/* sanity checks */
 
-    if (re == NULL || string == NULL)
-        return REG_INVARG;
-    if ((flags & REG_QUOTE) &&
-        (flags & (REG_ADVANCED | REG_EXPANDED | REG_NEWLINE)))
-        return REG_INVARG;
-    if (!(flags & REG_EXTENDED) && (flags & REG_ADVF))
-        return REG_INVARG;
+	if (re == NULL || string == NULL)
+		return REG_INVARG;
+	if ((flags & REG_QUOTE) &&
+		(flags & (REG_ADVANCED | REG_EXPANDED | REG_NEWLINE)))
+		return REG_INVARG;
+	if (!(flags & REG_EXTENDED) && (flags & REG_ADVF))
+		return REG_INVARG;
 
-    /* Initialize locale-dependent support */
-    pg_set_regex_collation(collation);
+	/* Initialize locale-dependent support */
+	pg_set_regex_collation(collation);
 
-    /* initial setup (after which freev() is callable) */
-    v->re = re;
-    v->now = string;
-    v->stop = v->now + len;
-    v->savenow = v->savestop = NULL;
-    v->err = 0;
-    v->cflags = flags;
-    v->nsubexp = 0;
-    v->subs = v->sub10;
-    v->nsubs = 10;
-    for (j = 0; j < v->nsubs; j++)
-        v->subs[j] = NULL;
-    v->nfa = NULL;
-    v->cm = NULL;
-    v->nlcolor = COLORLESS;
-    v->wordchrs = NULL;
-    v->tree = NULL;
-    v->treechain = NULL;
-    v->treefree = NULL;
-    v->cv = NULL;
-    v->cv2 = NULL;
-    v->lacons = NULL;
-    v->nlacons = 0;
-    v->spaceused = 0;
-    re->re_magic = REMAGIC;
-    re->re_info = 0;            /* bits get set during parse */
-    re->re_csize = sizeof(chr);
-    re->re_collation = collation;
-    re->re_guts = NULL;
-    re->re_fns = VS(&functions);
+	/* initial setup (after which freev() is callable) */
+	v->re = re;
+	v->now = string;
+	v->stop = v->now + len;
+	v->savenow = v->savestop = NULL;
+	v->err = 0;
+	v->cflags = flags;
+	v->nsubexp = 0;
+	v->subs = v->sub10;
+	v->nsubs = 10;
+	for (j = 0; j < v->nsubs; j++)
+		v->subs[j] = NULL;
+	v->nfa = NULL;
+	v->cm = NULL;
+	v->nlcolor = COLORLESS;
+	v->wordchrs = NULL;
+	v->tree = NULL;
+	v->treechain = NULL;
+	v->treefree = NULL;
+	v->cv = NULL;
+	v->cv2 = NULL;
+	v->lacons = NULL;
+	v->nlacons = 0;
+	v->spaceused = 0;
+	re->re_magic = REMAGIC;
+	re->re_info = 0;			/* bits get set during parse */
+	re->re_csize = sizeof(chr);
+	re->re_collation = collation;
+	re->re_guts = NULL;
+	re->re_fns = VS(&functions);
 
-    /* more complex setup, malloced things */
-    re->re_guts = VS(MALLOC(sizeof(struct guts)));
-    if (re->re_guts == NULL)
-        return freev(v, REG_ESPACE);
-    g = (struct guts *) re->re_guts;
-    g->tree = NULL;
-    initcm(v, &g->cmap);
-    v->cm = &g->cmap;
-    g->lacons = NULL;
-    g->nlacons = 0;
-    ZAPCNFA(g->search);
-    v->nfa = newnfa(v, v->cm, (struct nfa *) NULL);
-    CNOERR();
-    /* set up a reasonably-sized transient cvec for getcvec usage */
-    v->cv = newcvec(100, 20);
-    if (v->cv == NULL)
-        return freev(v, REG_ESPACE);
+	/* more complex setup, malloced things */
+	re->re_guts = VS(MALLOC(sizeof(struct guts)));
+	if (re->re_guts == NULL)
+		return freev(v, REG_ESPACE);
+	g = (struct guts *) re->re_guts;
+	g->tree = NULL;
+	initcm(v, &g->cmap);
+	v->cm = &g->cmap;
+	g->lacons = NULL;
+	g->nlacons = 0;
+	ZAPCNFA(g->search);
+	v->nfa = newnfa(v, v->cm, (struct nfa *) NULL);
+	CNOERR();
+	/* set up a reasonably-sized transient cvec for getcvec usage */
+	v->cv = newcvec(100, 20);
+	if (v->cv == NULL)
+		return freev(v, REG_ESPACE);
 
-    /* parsing */
-    lexstart(v);                /* also handles prefixes */
-    if ((v->cflags & REG_NLSTOP) || (v->cflags & REG_NLANCH))
-    {
-        /* assign newline a unique color */
-        v->nlcolor = subcolor(v->cm, newline());
-        okcolors(v->nfa, v->cm);
-    }
-    CNOERR();
-    v->tree = parse(v, EOS, PLAIN, v->nfa->init, v->nfa->final);
-    assert(SEE(EOS));            /* even if error; ISERR() => SEE(EOS) */
-    CNOERR();
-    assert(v->tree != NULL);
+	/* parsing */
+	lexstart(v);				/* also handles prefixes */
+	if ((v->cflags & REG_NLSTOP) || (v->cflags & REG_NLANCH))
+	{
+		/* assign newline a unique color */
+		v->nlcolor = subcolor(v->cm, newline());
+		okcolors(v->nfa, v->cm);
+	}
+	CNOERR();
+	v->tree = parse(v, EOS, PLAIN, v->nfa->init, v->nfa->final);
+	assert(SEE(EOS));			/* even if error; ISERR() => SEE(EOS) */
+	CNOERR();
+	assert(v->tree != NULL);
 
-    /* finish setup of nfa and its subre tree */
-    specialcolors(v->nfa);
-    CNOERR();
+	/* finish setup of nfa and its subre tree */
+	specialcolors(v->nfa);
+	CNOERR();
 #ifdef REG_DEBUG
-    if (debug != NULL)
-    {
-        fprintf(debug, "\n\n\n========= RAW ==========\n");
-        dumpnfa(v->nfa, debug);
-        dumpst(v->tree, debug, 1);
-    }
+	if (debug != NULL)
+	{
+		fprintf(debug, "\n\n\n========= RAW ==========\n");
+		dumpnfa(v->nfa, debug);
+		dumpst(v->tree, debug, 1);
+	}
 #endif
-    optst(v, v->tree);
-    v->ntree = numst(v->tree, 1);
-    markst(v->tree);
-    cleanst(v);
+	optst(v, v->tree);
+	v->ntree = numst(v->tree, 1);
+	markst(v->tree);
+	cleanst(v);
 #ifdef REG_DEBUG
-    if (debug != NULL)
-    {
-        fprintf(debug, "\n\n\n========= TREE FIXED ==========\n");
-        dumpst(v->tree, debug, 1);
-    }
+	if (debug != NULL)
+	{
+		fprintf(debug, "\n\n\n========= TREE FIXED ==========\n");
+		dumpst(v->tree, debug, 1);
+	}
 #endif
 
-    /* build compacted NFAs for tree and lacons */
-    re->re_info |= nfatree(v, v->tree, debug);
-    CNOERR();
-    assert(v->nlacons == 0 || v->lacons != NULL);
-    for (i = 1; i < v->nlacons; i++)
-    {
-        struct subre *lasub = &v->lacons[i];
-
-#ifdef REG_DEBUG
-        if (debug != NULL)
-            fprintf(debug, "\n\n\n========= LA%d ==========\n", i);
-#endif
-
-        /* Prepend .* to pattern if it's a lookbehind LACON */
-        nfanode(v, lasub, !LATYPE_IS_AHEAD(lasub->subno), debug);
-    }
-    CNOERR();
-    if (v->tree->flags & SHORTER)
-        NOTE(REG_USHORTEST);
-
-    /* build compacted NFAs for tree, lacons, fast search */
-#ifdef REG_DEBUG
-    if (debug != NULL)
-        fprintf(debug, "\n\n\n========= SEARCH ==========\n");
-#endif
-    /* can sacrifice main NFA now, so use it as work area */
-    (DISCARD) optimize(v->nfa, debug);
-    CNOERR();
-    makesearch(v, v->nfa);
-    CNOERR();
-    compact(v->nfa, &g->search);
-    CNOERR();
-
-    /* looks okay, package it up */
-    re->re_nsub = v->nsubexp;
-    v->re = NULL;                /* freev no longer frees re */
-    g->magic = GUTSMAGIC;
-    g->cflags = v->cflags;
-    g->info = re->re_info;
-    g->nsub = re->re_nsub;
-    g->tree = v->tree;
-    v->tree = NULL;
-    g->ntree = v->ntree;
-    g->compare = (v->cflags & REG_ICASE) ? casecmp : cmp;
-    g->lacons = v->lacons;
-    v->lacons = NULL;
-    g->nlacons = v->nlacons;
+	/* build compacted NFAs for tree and lacons */
+	re->re_info |= nfatree(v, v->tree, debug);
+	CNOERR();
+	assert(v->nlacons == 0 || v->lacons != NULL);
+	for (i = 1; i < v->nlacons; i++)
+	{
+		struct subre *lasub = &v->lacons[i];
 
 #ifdef REG_DEBUG
-    if (flags & REG_DUMP)
-        dump(re, stdout);
+		if (debug != NULL)
+			fprintf(debug, "\n\n\n========= LA%d ==========\n", i);
 #endif
 
-    assert(v->err == 0);
-    return freev(v, 0);
+		/* Prepend .* to pattern if it's a lookbehind LACON */
+		nfanode(v, lasub, !LATYPE_IS_AHEAD(lasub->subno), debug);
+	}
+	CNOERR();
+	if (v->tree->flags & SHORTER)
+		NOTE(REG_USHORTEST);
+
+	/* build compacted NFAs for tree, lacons, fast search */
+#ifdef REG_DEBUG
+	if (debug != NULL)
+		fprintf(debug, "\n\n\n========= SEARCH ==========\n");
+#endif
+	/* can sacrifice main NFA now, so use it as work area */
+	(DISCARD) optimize(v->nfa, debug);
+	CNOERR();
+	makesearch(v, v->nfa);
+	CNOERR();
+	compact(v->nfa, &g->search);
+	CNOERR();
+
+	/* looks okay, package it up */
+	re->re_nsub = v->nsubexp;
+	v->re = NULL;				/* freev no longer frees re */
+	g->magic = GUTSMAGIC;
+	g->cflags = v->cflags;
+	g->info = re->re_info;
+	g->nsub = re->re_nsub;
+	g->tree = v->tree;
+	v->tree = NULL;
+	g->ntree = v->ntree;
+	g->compare = (v->cflags & REG_ICASE) ? casecmp : cmp;
+	g->lacons = v->lacons;
+	v->lacons = NULL;
+	g->nlacons = v->nlacons;
+
+#ifdef REG_DEBUG
+	if (flags & REG_DUMP)
+		dump(re, stdout);
+#endif
+
+	assert(v->err == 0);
+	return freev(v, 0);
 }
 
 /*
@@ -492,33 +492,33 @@ pg_regcomp(regex_t *re,
  */
 static void
 moresubs(struct vars *v,
-         int wanted)            /* want enough room for this one */
+		 int wanted)			/* want enough room for this one */
 {
-    struct subre **p;
-    size_t        n;
+	struct subre **p;
+	size_t		n;
 
-    assert(wanted > 0 && (size_t) wanted >= v->nsubs);
-    n = (size_t) wanted * 3 / 2 + 1;
+	assert(wanted > 0 && (size_t) wanted >= v->nsubs);
+	n = (size_t) wanted * 3 / 2 + 1;
 
-    if (v->subs == v->sub10)
-    {
-        p = (struct subre **) MALLOC(n * sizeof(struct subre *));
-        if (p != NULL)
-            memcpy(VS(p), VS(v->subs),
-                   v->nsubs * sizeof(struct subre *));
-    }
-    else
-        p = (struct subre **) REALLOC(v->subs, n * sizeof(struct subre *));
-    if (p == NULL)
-    {
-        ERR(REG_ESPACE);
-        return;
-    }
-    v->subs = p;
-    for (p = &v->subs[v->nsubs]; v->nsubs < n; p++, v->nsubs++)
-        *p = NULL;
-    assert(v->nsubs == n);
-    assert((size_t) wanted < v->nsubs);
+	if (v->subs == v->sub10)
+	{
+		p = (struct subre **) MALLOC(n * sizeof(struct subre *));
+		if (p != NULL)
+			memcpy(VS(p), VS(v->subs),
+				   v->nsubs * sizeof(struct subre *));
+	}
+	else
+		p = (struct subre **) REALLOC(v->subs, n * sizeof(struct subre *));
+	if (p == NULL)
+	{
+		ERR(REG_ESPACE);
+		return;
+	}
+	v->subs = p;
+	for (p = &v->subs[v->nsubs]; v->nsubs < n; p++, v->nsubs++)
+		*p = NULL;
+	assert(v->nsubs == n);
+	assert((size_t) wanted < v->nsubs);
 }
 
 /*
@@ -529,27 +529,27 @@ moresubs(struct vars *v,
  */
 static int
 freev(struct vars *v,
-      int err)
-{// #lizard forgives
-    if (v->re != NULL)
-        rfree(v->re);
-    if (v->subs != v->sub10)
-        FREE(v->subs);
-    if (v->nfa != NULL)
-        freenfa(v->nfa);
-    if (v->tree != NULL)
-        freesubre(v, v->tree);
-    if (v->treechain != NULL)
-        cleanst(v);
-    if (v->cv != NULL)
-        freecvec(v->cv);
-    if (v->cv2 != NULL)
-        freecvec(v->cv2);
-    if (v->lacons != NULL)
-        freelacons(v->lacons, v->nlacons);
-    ERR(err);                    /* nop if err==0 */
+	  int err)
+{
+	if (v->re != NULL)
+		rfree(v->re);
+	if (v->subs != v->sub10)
+		FREE(v->subs);
+	if (v->nfa != NULL)
+		freenfa(v->nfa);
+	if (v->tree != NULL)
+		freesubre(v, v->tree);
+	if (v->treechain != NULL)
+		cleanst(v);
+	if (v->cv != NULL)
+		freecvec(v->cv);
+	if (v->cv2 != NULL)
+		freecvec(v->cv2);
+	if (v->lacons != NULL)
+		freelacons(v->lacons, v->nlacons);
+	ERR(err);					/* nop if err==0 */
 
-    return v->err;
+	return v->err;
 }
 
 /*
@@ -558,84 +558,84 @@ freev(struct vars *v,
  */
 static void
 makesearch(struct vars *v,
-           struct nfa *nfa)
-{// #lizard forgives
-    struct arc *a;
-    struct arc *b;
-    struct state *pre = nfa->pre;
-    struct state *s;
-    struct state *s2;
-    struct state *slist;
+		   struct nfa *nfa)
+{
+	struct arc *a;
+	struct arc *b;
+	struct state *pre = nfa->pre;
+	struct state *s;
+	struct state *s2;
+	struct state *slist;
 
-    /* no loops are needed if it's anchored */
-    for (a = pre->outs; a != NULL; a = a->outchain)
-    {
-        assert(a->type == PLAIN);
-        if (a->co != nfa->bos[0] && a->co != nfa->bos[1])
-            break;
-    }
-    if (a != NULL)
-    {
-        /* add implicit .* in front */
-        rainbow(nfa, v->cm, PLAIN, COLORLESS, pre, pre);
+	/* no loops are needed if it's anchored */
+	for (a = pre->outs; a != NULL; a = a->outchain)
+	{
+		assert(a->type == PLAIN);
+		if (a->co != nfa->bos[0] && a->co != nfa->bos[1])
+			break;
+	}
+	if (a != NULL)
+	{
+		/* add implicit .* in front */
+		rainbow(nfa, v->cm, PLAIN, COLORLESS, pre, pre);
 
-        /* and ^* and \A* too -- not always necessary, but harmless */
-        newarc(nfa, PLAIN, nfa->bos[0], pre, pre);
-        newarc(nfa, PLAIN, nfa->bos[1], pre, pre);
-    }
+		/* and ^* and \A* too -- not always necessary, but harmless */
+		newarc(nfa, PLAIN, nfa->bos[0], pre, pre);
+		newarc(nfa, PLAIN, nfa->bos[1], pre, pre);
+	}
 
-    /*
-     * Now here's the subtle part.  Because many REs have no lookback
-     * constraints, often knowing when you were in the pre state tells you
-     * little; it's the next state(s) that are informative.  But some of them
-     * may have other inarcs, i.e. it may be possible to make actual progress
-     * and then return to one of them.  We must de-optimize such cases,
-     * splitting each such state into progress and no-progress states.
-     */
+	/*
+	 * Now here's the subtle part.  Because many REs have no lookback
+	 * constraints, often knowing when you were in the pre state tells you
+	 * little; it's the next state(s) that are informative.  But some of them
+	 * may have other inarcs, i.e. it may be possible to make actual progress
+	 * and then return to one of them.  We must de-optimize such cases,
+	 * splitting each such state into progress and no-progress states.
+	 */
 
-    /* first, make a list of the states reachable from pre and elsewhere */
-    slist = NULL;
-    for (a = pre->outs; a != NULL; a = a->outchain)
-    {
-        s = a->to;
-        for (b = s->ins; b != NULL; b = b->inchain)
-        {
-            if (b->from != pre)
-                break;
-        }
+	/* first, make a list of the states reachable from pre and elsewhere */
+	slist = NULL;
+	for (a = pre->outs; a != NULL; a = a->outchain)
+	{
+		s = a->to;
+		for (b = s->ins; b != NULL; b = b->inchain)
+		{
+			if (b->from != pre)
+				break;
+		}
 
-        /*
-         * We want to mark states as being in the list already by having non
-         * NULL tmp fields, but we can't just store the old slist value in tmp
-         * because that doesn't work for the first such state.  Instead, the
-         * first list entry gets its own address in tmp.
-         */
-        if (b != NULL && s->tmp == NULL)
-        {
-            s->tmp = (slist != NULL) ? slist : s;
-            slist = s;
-        }
-    }
+		/*
+		 * We want to mark states as being in the list already by having non
+		 * NULL tmp fields, but we can't just store the old slist value in tmp
+		 * because that doesn't work for the first such state.  Instead, the
+		 * first list entry gets its own address in tmp.
+		 */
+		if (b != NULL && s->tmp == NULL)
+		{
+			s->tmp = (slist != NULL) ? slist : s;
+			slist = s;
+		}
+	}
 
-    /* do the splits */
-    for (s = slist; s != NULL; s = s2)
-    {
-        s2 = newstate(nfa);
-        NOERR();
-        copyouts(nfa, s, s2);
-        NOERR();
-        for (a = s->ins; a != NULL; a = b)
-        {
-            b = a->inchain;
-            if (a->from != pre)
-            {
-                cparc(nfa, a, a->from, s2);
-                freearc(nfa, a);
-            }
-        }
-        s2 = (s->tmp != s) ? s->tmp : NULL;
-        s->tmp = NULL;            /* clean up while we're at it */
-    }
+	/* do the splits */
+	for (s = slist; s != NULL; s = s2)
+	{
+		s2 = newstate(nfa);
+		NOERR();
+		copyouts(nfa, s, s2);
+		NOERR();
+		for (a = s->ins; a != NULL; a = b)
+		{
+			b = a->inchain;
+			if (a->from != pre)
+			{
+				cparc(nfa, a, a->from, s2);
+				freearc(nfa, a);
+			}
+		}
+		s2 = (s->tmp != s) ? s->tmp : NULL;
+		s->tmp = NULL;			/* clean up while we're at it */
+	}
 }
 
 /*
@@ -647,74 +647,74 @@ makesearch(struct vars *v,
  */
 static struct subre *
 parse(struct vars *v,
-      int stopper,                /* EOS or ')' */
-      int type,                    /* LACON (lookaround subRE) or PLAIN */
-      struct state *init,        /* initial state */
-      struct state *final)        /* final state */
-{// #lizard forgives
-    struct state *left;            /* scaffolding for branch */
-    struct state *right;
-    struct subre *branches;        /* top level */
-    struct subre *branch;        /* current branch */
-    struct subre *t;            /* temporary */
-    int            firstbranch;    /* is this the first branch? */
+	  int stopper,				/* EOS or ')' */
+	  int type,					/* LACON (lookaround subRE) or PLAIN */
+	  struct state *init,		/* initial state */
+	  struct state *final)		/* final state */
+{
+	struct state *left;			/* scaffolding for branch */
+	struct state *right;
+	struct subre *branches;		/* top level */
+	struct subre *branch;		/* current branch */
+	struct subre *t;			/* temporary */
+	int			firstbranch;	/* is this the first branch? */
 
-    assert(stopper == ')' || stopper == EOS);
+	assert(stopper == ')' || stopper == EOS);
 
-    branches = subre(v, '|', LONGER, init, final);
-    NOERRN();
-    branch = branches;
-    firstbranch = 1;
-    do
-    {                            /* a branch */
-        if (!firstbranch)
-        {
-            /* need a place to hang it */
-            branch->right = subre(v, '|', LONGER, init, final);
-            NOERRN();
-            branch = branch->right;
-        }
-        firstbranch = 0;
-        left = newstate(v->nfa);
-        right = newstate(v->nfa);
-        NOERRN();
-        EMPTYARC(init, left);
-        EMPTYARC(right, final);
-        NOERRN();
-        branch->left = parsebranch(v, stopper, type, left, right, 0);
-        NOERRN();
-        branch->flags |= UP(branch->flags | branch->left->flags);
-        if ((branch->flags & ~branches->flags) != 0)    /* new flags */
-            for (t = branches; t != branch; t = t->right)
-                t->flags |= branch->flags;
-    } while (EAT('|'));
-    assert(SEE(stopper) || SEE(EOS));
+	branches = subre(v, '|', LONGER, init, final);
+	NOERRN();
+	branch = branches;
+	firstbranch = 1;
+	do
+	{							/* a branch */
+		if (!firstbranch)
+		{
+			/* need a place to hang it */
+			branch->right = subre(v, '|', LONGER, init, final);
+			NOERRN();
+			branch = branch->right;
+		}
+		firstbranch = 0;
+		left = newstate(v->nfa);
+		right = newstate(v->nfa);
+		NOERRN();
+		EMPTYARC(init, left);
+		EMPTYARC(right, final);
+		NOERRN();
+		branch->left = parsebranch(v, stopper, type, left, right, 0);
+		NOERRN();
+		branch->flags |= UP(branch->flags | branch->left->flags);
+		if ((branch->flags & ~branches->flags) != 0)	/* new flags */
+			for (t = branches; t != branch; t = t->right)
+				t->flags |= branch->flags;
+	} while (EAT('|'));
+	assert(SEE(stopper) || SEE(EOS));
 
-    if (!SEE(stopper))
-    {
-        assert(stopper == ')' && SEE(EOS));
-        ERR(REG_EPAREN);
-    }
+	if (!SEE(stopper))
+	{
+		assert(stopper == ')' && SEE(EOS));
+		ERR(REG_EPAREN);
+	}
 
-    /* optimize out simple cases */
-    if (branch == branches)
-    {                            /* only one branch */
-        assert(branch->right == NULL);
-        t = branch->left;
-        branch->left = NULL;
-        freesubre(v, branches);
-        branches = t;
-    }
-    else if (!MESSY(branches->flags))
-    {                            /* no interesting innards */
-        freesubre(v, branches->left);
-        branches->left = NULL;
-        freesubre(v, branches->right);
-        branches->right = NULL;
-        branches->op = '=';
-    }
+	/* optimize out simple cases */
+	if (branch == branches)
+	{							/* only one branch */
+		assert(branch->right == NULL);
+		t = branch->left;
+		branch->left = NULL;
+		freesubre(v, branches);
+		branches = t;
+	}
+	else if (!MESSY(branches->flags))
+	{							/* no interesting innards */
+		freesubre(v, branches->left);
+		branches->left = NULL;
+		freesubre(v, branches->right);
+		branches->right = NULL;
+		branches->op = '=';
+	}
 
-    return branches;
+	return branches;
 }
 
 /*
@@ -726,44 +726,44 @@ parse(struct vars *v,
  */
 static struct subre *
 parsebranch(struct vars *v,
-            int stopper,        /* EOS or ')' */
-            int type,            /* LACON (lookaround subRE) or PLAIN */
-            struct state *left, /* leftmost state */
-            struct state *right,    /* rightmost state */
-            int partial)        /* is this only part of a branch? */
+			int stopper,		/* EOS or ')' */
+			int type,			/* LACON (lookaround subRE) or PLAIN */
+			struct state *left, /* leftmost state */
+			struct state *right,	/* rightmost state */
+			int partial)		/* is this only part of a branch? */
 {
-    struct state *lp;            /* left end of current construct */
-    int            seencontent;    /* is there anything in this branch yet? */
-    struct subre *t;
+	struct state *lp;			/* left end of current construct */
+	int			seencontent;	/* is there anything in this branch yet? */
+	struct subre *t;
 
-    lp = left;
-    seencontent = 0;
-    t = subre(v, '=', 0, left, right);    /* op '=' is tentative */
-    NOERRN();
-    while (!SEE('|') && !SEE(stopper) && !SEE(EOS))
-    {
-        if (seencontent)
-        {                        /* implicit concat operator */
-            lp = newstate(v->nfa);
-            NOERRN();
-            moveins(v->nfa, right, lp);
-        }
-        seencontent = 1;
+	lp = left;
+	seencontent = 0;
+	t = subre(v, '=', 0, left, right);	/* op '=' is tentative */
+	NOERRN();
+	while (!SEE('|') && !SEE(stopper) && !SEE(EOS))
+	{
+		if (seencontent)
+		{						/* implicit concat operator */
+			lp = newstate(v->nfa);
+			NOERRN();
+			moveins(v->nfa, right, lp);
+		}
+		seencontent = 1;
 
-        /* NB, recursion in parseqatom() may swallow rest of branch */
-        parseqatom(v, stopper, type, lp, right, t);
-        NOERRN();
-    }
+		/* NB, recursion in parseqatom() may swallow rest of branch */
+		parseqatom(v, stopper, type, lp, right, t);
+		NOERRN();
+	}
 
-    if (!seencontent)
-    {                            /* empty branch */
-        if (!partial)
-            NOTE(REG_UUNSPEC);
-        assert(lp == left);
-        EMPTYARC(left, right);
-    }
+	if (!seencontent)
+	{							/* empty branch */
+		if (!partial)
+			NOTE(REG_UUNSPEC);
+		assert(lp == left);
+		EMPTYARC(left, right);
+	}
 
-    return t;
+	return t;
 }
 
 /*
@@ -775,447 +775,459 @@ parsebranch(struct vars *v,
  */
 static void
 parseqatom(struct vars *v,
-           int stopper,            /* EOS or ')' */
-           int type,            /* LACON (lookaround subRE) or PLAIN */
-           struct state *lp,    /* left state to hang it on */
-           struct state *rp,    /* right state to hang it on */
-           struct subre *top)    /* subtree top */
-{// #lizard forgives
-    struct state *s;            /* temporaries for new states */
-    struct state *s2;
+		   int stopper,			/* EOS or ')' */
+		   int type,			/* LACON (lookaround subRE) or PLAIN */
+		   struct state *lp,	/* left state to hang it on */
+		   struct state *rp,	/* right state to hang it on */
+		   struct subre *top)	/* subtree top */
+{
+	struct state *s;			/* temporaries for new states */
+	struct state *s2;
 
-#define  ARCV(t, val)     newarc(v->nfa, t, val, lp, rp)
-    int            m,
-                n;
-    struct subre *atom;            /* atom's subtree */
-    struct subre *t;
-    int            cap;            /* capturing parens? */
-    int            latype;            /* lookaround constraint type */
-    int            subno;            /* capturing-parens or backref number */
-    int            atomtype;
-    int            qprefer;        /* quantifier short/long preference */
-    int            f;
-    struct subre **atomp;        /* where the pointer to atom is */
+#define  ARCV(t, val)	 newarc(v->nfa, t, val, lp, rp)
+	int			m,
+				n;
+	struct subre *atom;			/* atom's subtree */
+	struct subre *t;
+	int			cap;			/* capturing parens? */
+	int			latype;			/* lookaround constraint type */
+	int			subno;			/* capturing-parens or backref number */
+	int			atomtype;
+	int			qprefer;		/* quantifier short/long preference */
+	int			f;
+	struct subre **atomp;		/* where the pointer to atom is */
 
-    /* initial bookkeeping */
-    atom = NULL;
-    assert(lp->nouts == 0);        /* must string new code */
-    assert(rp->nins == 0);        /* between lp and rp */
-    subno = 0;                    /* just to shut lint up */
+	/* initial bookkeeping */
+	atom = NULL;
+	assert(lp->nouts == 0);		/* must string new code */
+	assert(rp->nins == 0);		/* between lp and rp */
+	subno = 0;					/* just to shut lint up */
 
-    /* an atom or constraint... */
-    atomtype = v->nexttype;
-    switch (atomtype)
-    {
-            /* first, constraints, which end by returning */
-        case '^':
-            ARCV('^', 1);
-            if (v->cflags & REG_NLANCH)
-                ARCV(BEHIND, v->nlcolor);
-            NEXT();
-            return;
-            break;
-        case '$':
-            ARCV('$', 1);
-            if (v->cflags & REG_NLANCH)
-                ARCV(AHEAD, v->nlcolor);
-            NEXT();
-            return;
-            break;
-        case SBEGIN:
-            ARCV('^', 1);        /* BOL */
-            ARCV('^', 0);        /* or BOS */
-            NEXT();
-            return;
-            break;
-        case SEND:
-            ARCV('$', 1);        /* EOL */
-            ARCV('$', 0);        /* or EOS */
-            NEXT();
-            return;
-            break;
-        case '<':
-            wordchrs(v);        /* does NEXT() */
-            s = newstate(v->nfa);
-            NOERR();
-            nonword(v, BEHIND, lp, s);
-            word(v, AHEAD, s, rp);
-            return;
-            break;
-        case '>':
-            wordchrs(v);        /* does NEXT() */
-            s = newstate(v->nfa);
-            NOERR();
-            word(v, BEHIND, lp, s);
-            nonword(v, AHEAD, s, rp);
-            return;
-            break;
-        case WBDRY:
-            wordchrs(v);        /* does NEXT() */
-            s = newstate(v->nfa);
-            NOERR();
-            nonword(v, BEHIND, lp, s);
-            word(v, AHEAD, s, rp);
-            s = newstate(v->nfa);
-            NOERR();
-            word(v, BEHIND, lp, s);
-            nonword(v, AHEAD, s, rp);
-            return;
-            break;
-        case NWBDRY:
-            wordchrs(v);        /* does NEXT() */
-            s = newstate(v->nfa);
-            NOERR();
-            word(v, BEHIND, lp, s);
-            word(v, AHEAD, s, rp);
-            s = newstate(v->nfa);
-            NOERR();
-            nonword(v, BEHIND, lp, s);
-            nonword(v, AHEAD, s, rp);
-            return;
-            break;
-        case LACON:                /* lookaround constraint */
-            latype = v->nextvalue;
-            NEXT();
-            s = newstate(v->nfa);
-            s2 = newstate(v->nfa);
-            NOERR();
-            t = parse(v, ')', LACON, s, s2);
-            freesubre(v, t);    /* internal structure irrelevant */
-            NOERR();
-            assert(SEE(')'));
-            NEXT();
-            processlacon(v, s, s2, latype, lp, rp);
-            return;
-            break;
-            /* then errors, to get them out of the way */
-        case '*':
-        case '+':
-        case '?':
-        case '{':
-            ERR(REG_BADRPT);
-            return;
-            break;
-        default:
-            ERR(REG_ASSERT);
-            return;
-            break;
-            /* then plain characters, and minor variants on that theme */
-        case ')':                /* unbalanced paren */
-            if ((v->cflags & REG_ADVANCED) != REG_EXTENDED)
-            {
-                ERR(REG_EPAREN);
-                return;
-            }
-            /* legal in EREs due to specification botch */
-            NOTE(REG_UPBOTCH);
-            /* fallthrough into case PLAIN */
-        case PLAIN:
-            onechr(v, v->nextvalue, lp, rp);
-            okcolors(v->nfa, v->cm);
-            NOERR();
-            NEXT();
-            break;
-        case '[':
-            if (v->nextvalue == 1)
-                bracket(v, lp, rp);
-            else
-                cbracket(v, lp, rp);
-            assert(SEE(']') || ISERR());
-            NEXT();
-            break;
-        case '.':
-            rainbow(v->nfa, v->cm, PLAIN,
-                    (v->cflags & REG_NLSTOP) ? v->nlcolor : COLORLESS,
-                    lp, rp);
-            NEXT();
-            break;
-            /* and finally the ugly stuff */
-        case '(':                /* value flags as capturing or non */
-            cap = (type == LACON) ? 0 : v->nextvalue;
-            if (cap)
-            {
-                v->nsubexp++;
-                subno = v->nsubexp;
-                if ((size_t) subno >= v->nsubs)
-                    moresubs(v, subno);
-                assert((size_t) subno < v->nsubs);
-            }
-            else
-                atomtype = PLAIN;    /* something that's not '(' */
-            NEXT();
-            /* need new endpoints because tree will contain pointers */
-            s = newstate(v->nfa);
-            s2 = newstate(v->nfa);
-            NOERR();
-            EMPTYARC(lp, s);
-            EMPTYARC(s2, rp);
-            NOERR();
-            atom = parse(v, ')', type, s, s2);
-            assert(SEE(')') || ISERR());
-            NEXT();
-            NOERR();
-            if (cap)
-            {
-                v->subs[subno] = atom;
-                t = subre(v, '(', atom->flags | CAP, lp, rp);
-                NOERR();
-                t->subno = subno;
-                t->left = atom;
-                atom = t;
-            }
-            /* postpone everything else pending possible {0} */
-            break;
-        case BACKREF:            /* the Feature From The Black Lagoon */
-            INSIST(type != LACON, REG_ESUBREG);
-            INSIST(v->nextvalue < v->nsubs, REG_ESUBREG);
-            INSIST(v->subs[v->nextvalue] != NULL, REG_ESUBREG);
-            NOERR();
-            assert(v->nextvalue > 0);
-            atom = subre(v, 'b', BACKR, lp, rp);
-            NOERR();
-            subno = v->nextvalue;
-            atom->subno = subno;
-            EMPTYARC(lp, rp);    /* temporarily, so there's something */
-            NEXT();
-            break;
-    }
+	/* an atom or constraint... */
+	atomtype = v->nexttype;
+	switch (atomtype)
+	{
+			/* first, constraints, which end by returning */
+		case '^':
+			ARCV('^', 1);
+			if (v->cflags & REG_NLANCH)
+				ARCV(BEHIND, v->nlcolor);
+			NEXT();
+			return;
+			break;
+		case '$':
+			ARCV('$', 1);
+			if (v->cflags & REG_NLANCH)
+				ARCV(AHEAD, v->nlcolor);
+			NEXT();
+			return;
+			break;
+		case SBEGIN:
+			ARCV('^', 1);		/* BOL */
+			ARCV('^', 0);		/* or BOS */
+			NEXT();
+			return;
+			break;
+		case SEND:
+			ARCV('$', 1);		/* EOL */
+			ARCV('$', 0);		/* or EOS */
+			NEXT();
+			return;
+			break;
+		case '<':
+			wordchrs(v);		/* does NEXT() */
+			s = newstate(v->nfa);
+			NOERR();
+			nonword(v, BEHIND, lp, s);
+			word(v, AHEAD, s, rp);
+			return;
+			break;
+		case '>':
+			wordchrs(v);		/* does NEXT() */
+			s = newstate(v->nfa);
+			NOERR();
+			word(v, BEHIND, lp, s);
+			nonword(v, AHEAD, s, rp);
+			return;
+			break;
+		case WBDRY:
+			wordchrs(v);		/* does NEXT() */
+			s = newstate(v->nfa);
+			NOERR();
+			nonword(v, BEHIND, lp, s);
+			word(v, AHEAD, s, rp);
+			s = newstate(v->nfa);
+			NOERR();
+			word(v, BEHIND, lp, s);
+			nonword(v, AHEAD, s, rp);
+			return;
+			break;
+		case NWBDRY:
+			wordchrs(v);		/* does NEXT() */
+			s = newstate(v->nfa);
+			NOERR();
+			word(v, BEHIND, lp, s);
+			word(v, AHEAD, s, rp);
+			s = newstate(v->nfa);
+			NOERR();
+			nonword(v, BEHIND, lp, s);
+			nonword(v, AHEAD, s, rp);
+			return;
+			break;
+		case LACON:				/* lookaround constraint */
+			latype = v->nextvalue;
+			NEXT();
+			s = newstate(v->nfa);
+			s2 = newstate(v->nfa);
+			NOERR();
+			t = parse(v, ')', LACON, s, s2);
+			freesubre(v, t);	/* internal structure irrelevant */
+			NOERR();
+			assert(SEE(')'));
+			NEXT();
+			processlacon(v, s, s2, latype, lp, rp);
+			return;
+			break;
+			/* then errors, to get them out of the way */
+		case '*':
+		case '+':
+		case '?':
+		case '{':
+			ERR(REG_BADRPT);
+			return;
+			break;
+		default:
+			ERR(REG_ASSERT);
+			return;
+			break;
+			/* then plain characters, and minor variants on that theme */
+		case ')':				/* unbalanced paren */
+			if ((v->cflags & REG_ADVANCED) != REG_EXTENDED)
+			{
+				ERR(REG_EPAREN);
+				return;
+			}
+			/* legal in EREs due to specification botch */
+			NOTE(REG_UPBOTCH);
+			/* fallthrough into case PLAIN */
+		case PLAIN:
+			onechr(v, v->nextvalue, lp, rp);
+			okcolors(v->nfa, v->cm);
+			NOERR();
+			NEXT();
+			break;
+		case '[':
+			if (v->nextvalue == 1)
+				bracket(v, lp, rp);
+			else
+				cbracket(v, lp, rp);
+			assert(SEE(']') || ISERR());
+			NEXT();
+			break;
+		case '.':
+			rainbow(v->nfa, v->cm, PLAIN,
+					(v->cflags & REG_NLSTOP) ? v->nlcolor : COLORLESS,
+					lp, rp);
+			NEXT();
+			break;
+			/* and finally the ugly stuff */
+		case '(':				/* value flags as capturing or non */
+			cap = (type == LACON) ? 0 : v->nextvalue;
+			if (cap)
+			{
+				v->nsubexp++;
+				subno = v->nsubexp;
+				if ((size_t) subno >= v->nsubs)
+					moresubs(v, subno);
+				assert((size_t) subno < v->nsubs);
+			}
+			else
+				atomtype = PLAIN;	/* something that's not '(' */
+			NEXT();
+			/* need new endpoints because tree will contain pointers */
+			s = newstate(v->nfa);
+			s2 = newstate(v->nfa);
+			NOERR();
+			EMPTYARC(lp, s);
+			EMPTYARC(s2, rp);
+			NOERR();
+			atom = parse(v, ')', type, s, s2);
+			assert(SEE(')') || ISERR());
+			NEXT();
+			NOERR();
+			if (cap)
+			{
+				v->subs[subno] = atom;
+				t = subre(v, '(', atom->flags | CAP, s, s2);
+				NOERR();
+				t->subno = subno;
+				t->left = atom;
+				atom = t;
+			}
+			/* postpone everything else pending possible {0} */
+			break;
+		case BACKREF:			/* the Feature From The Black Lagoon */
+			INSIST(type != LACON, REG_ESUBREG);
+			INSIST(v->nextvalue < v->nsubs, REG_ESUBREG);
+			INSIST(v->subs[v->nextvalue] != NULL, REG_ESUBREG);
+			NOERR();
+			assert(v->nextvalue > 0);
+			atom = subre(v, 'b', BACKR, lp, rp);
+			NOERR();
+			subno = v->nextvalue;
+			atom->subno = subno;
+			EMPTYARC(lp, rp);	/* temporarily, so there's something */
+			NEXT();
+			break;
+	}
 
-    /* ...and an atom may be followed by a quantifier */
-    switch (v->nexttype)
-    {
-        case '*':
-            m = 0;
-            n = DUPINF;
-            qprefer = (v->nextvalue) ? LONGER : SHORTER;
-            NEXT();
-            break;
-        case '+':
-            m = 1;
-            n = DUPINF;
-            qprefer = (v->nextvalue) ? LONGER : SHORTER;
-            NEXT();
-            break;
-        case '?':
-            m = 0;
-            n = 1;
-            qprefer = (v->nextvalue) ? LONGER : SHORTER;
-            NEXT();
-            break;
-        case '{':
-            NEXT();
-            m = scannum(v);
-            if (EAT(','))
-            {
-                if (SEE(DIGIT))
-                    n = scannum(v);
-                else
-                    n = DUPINF;
-                if (m > n)
-                {
-                    ERR(REG_BADBR);
-                    return;
-                }
-                /* {m,n} exercises preference, even if it's {m,m} */
-                qprefer = (v->nextvalue) ? LONGER : SHORTER;
-            }
-            else
-            {
-                n = m;
-                /* {m} passes operand's preference through */
-                qprefer = 0;
-            }
-            if (!SEE('}'))
-            {                    /* catches errors too */
-                ERR(REG_BADBR);
-                return;
-            }
-            NEXT();
-            break;
-        default:                /* no quantifier */
-            m = n = 1;
-            qprefer = 0;
-            break;
-    }
+	/* ...and an atom may be followed by a quantifier */
+	switch (v->nexttype)
+	{
+		case '*':
+			m = 0;
+			n = DUPINF;
+			qprefer = (v->nextvalue) ? LONGER : SHORTER;
+			NEXT();
+			break;
+		case '+':
+			m = 1;
+			n = DUPINF;
+			qprefer = (v->nextvalue) ? LONGER : SHORTER;
+			NEXT();
+			break;
+		case '?':
+			m = 0;
+			n = 1;
+			qprefer = (v->nextvalue) ? LONGER : SHORTER;
+			NEXT();
+			break;
+		case '{':
+			NEXT();
+			m = scannum(v);
+			if (EAT(','))
+			{
+				if (SEE(DIGIT))
+					n = scannum(v);
+				else
+					n = DUPINF;
+				if (m > n)
+				{
+					ERR(REG_BADBR);
+					return;
+				}
+				/* {m,n} exercises preference, even if it's {m,m} */
+				qprefer = (v->nextvalue) ? LONGER : SHORTER;
+			}
+			else
+			{
+				n = m;
+				/* {m} passes operand's preference through */
+				qprefer = 0;
+			}
+			if (!SEE('}'))
+			{					/* catches errors too */
+				ERR(REG_BADBR);
+				return;
+			}
+			NEXT();
+			break;
+		default:				/* no quantifier */
+			m = n = 1;
+			qprefer = 0;
+			break;
+	}
 
-    /* annoying special case:  {0} or {0,0} cancels everything */
-    if (m == 0 && n == 0)
-    {
-        if (atom != NULL)
-            freesubre(v, atom);
-        if (atomtype == '(')
-            v->subs[subno] = NULL;
-        delsub(v->nfa, lp, rp);
-        EMPTYARC(lp, rp);
-        return;
-    }
+	/* annoying special case:  {0} or {0,0} cancels everything */
+	if (m == 0 && n == 0)
+	{
+		/*
+		 * If we had capturing subexpression(s) within the atom, we don't want
+		 * to destroy them, because it's legal (if useless) to back-ref them
+		 * later.  Hence, just unlink the atom from lp/rp and then ignore it.
+		 */
+		if (atom != NULL && (atom->flags & CAP))
+		{
+			delsub(v->nfa, lp, atom->begin);
+			delsub(v->nfa, atom->end, rp);
+		}
+		else
+		{
+			/* Otherwise, we can clean up any subre infrastructure we made */
+			if (atom != NULL)
+				freesubre(v, atom);
+			delsub(v->nfa, lp, rp);
+		}
+		EMPTYARC(lp, rp);
+		return;
+	}
 
-    /* if not a messy case, avoid hard part */
-    assert(!MESSY(top->flags));
-    f = top->flags | qprefer | ((atom != NULL) ? atom->flags : 0);
-    if (atomtype != '(' && atomtype != BACKREF && !MESSY(UP(f)))
-    {
-        if (!(m == 1 && n == 1))
-            repeat(v, lp, rp, m, n);
-        if (atom != NULL)
-            freesubre(v, atom);
-        top->flags = f;
-        return;
-    }
+	/* if not a messy case, avoid hard part */
+	assert(!MESSY(top->flags));
+	f = top->flags | qprefer | ((atom != NULL) ? atom->flags : 0);
+	if (atomtype != '(' && atomtype != BACKREF && !MESSY(UP(f)))
+	{
+		if (!(m == 1 && n == 1))
+			repeat(v, lp, rp, m, n);
+		if (atom != NULL)
+			freesubre(v, atom);
+		top->flags = f;
+		return;
+	}
 
-    /*
-     * hard part:  something messy
-     *
-     * That is, capturing parens, back reference, short/long clash, or an atom
-     * with substructure containing one of those.
-     */
+	/*
+	 * hard part:  something messy
+	 *
+	 * That is, capturing parens, back reference, short/long clash, or an atom
+	 * with substructure containing one of those.
+	 */
 
-    /* now we'll need a subre for the contents even if they're boring */
-    if (atom == NULL)
-    {
-        atom = subre(v, '=', 0, lp, rp);
-        NOERR();
-    }
+	/* now we'll need a subre for the contents even if they're boring */
+	if (atom == NULL)
+	{
+		atom = subre(v, '=', 0, lp, rp);
+		NOERR();
+	}
 
-    /*----------
-     * Prepare a general-purpose state skeleton.
-     *
-     * In the no-backrefs case, we want this:
-     *
-     * [lp] ---> [s] ---prefix---> [begin] ---atom---> [end] ---rest---> [rp]
-     *
-     * where prefix is some repetitions of atom.  In the general case we need
-     *
-     * [lp] ---> [s] ---iterator---> [s2] ---rest---> [rp]
-     *
-     * where the iterator wraps around [begin] ---atom---> [end]
-     *
-     * We make the s state here for both cases; s2 is made below if needed
-     *----------
-     */
-    s = newstate(v->nfa);        /* first, new endpoints for the atom */
-    s2 = newstate(v->nfa);
-    NOERR();
-    moveouts(v->nfa, lp, s);
-    moveins(v->nfa, rp, s2);
-    NOERR();
-    atom->begin = s;
-    atom->end = s2;
-    s = newstate(v->nfa);        /* set up starting state */
-    NOERR();
-    EMPTYARC(lp, s);
-    NOERR();
+	/*----------
+	 * Prepare a general-purpose state skeleton.
+	 *
+	 * In the no-backrefs case, we want this:
+	 *
+	 * [lp] ---> [s] ---prefix---> [begin] ---atom---> [end] ---rest---> [rp]
+	 *
+	 * where prefix is some repetitions of atom.  In the general case we need
+	 *
+	 * [lp] ---> [s] ---iterator---> [s2] ---rest---> [rp]
+	 *
+	 * where the iterator wraps around [begin] ---atom---> [end]
+	 *
+	 * We make the s state here for both cases; s2 is made below if needed
+	 *----------
+	 */
+	s = newstate(v->nfa);		/* first, new endpoints for the atom */
+	s2 = newstate(v->nfa);
+	NOERR();
+	moveouts(v->nfa, lp, s);
+	moveins(v->nfa, rp, s2);
+	NOERR();
+	atom->begin = s;
+	atom->end = s2;
+	s = newstate(v->nfa);		/* set up starting state */
+	NOERR();
+	EMPTYARC(lp, s);
+	NOERR();
 
-    /* break remaining subRE into x{...} and what follows */
-    t = subre(v, '.', COMBINE(qprefer, atom->flags), lp, rp);
-    NOERR();
-    t->left = atom;
-    atomp = &t->left;
+	/* break remaining subRE into x{...} and what follows */
+	t = subre(v, '.', COMBINE(qprefer, atom->flags), lp, rp);
+	NOERR();
+	t->left = atom;
+	atomp = &t->left;
 
-    /* here we should recurse... but we must postpone that to the end */
+	/* here we should recurse... but we must postpone that to the end */
 
-    /* split top into prefix and remaining */
-    assert(top->op == '=' && top->left == NULL && top->right == NULL);
-    top->left = subre(v, '=', top->flags, top->begin, lp);
-    NOERR();
-    top->op = '.';
-    top->right = t;
+	/* split top into prefix and remaining */
+	assert(top->op == '=' && top->left == NULL && top->right == NULL);
+	top->left = subre(v, '=', top->flags, top->begin, lp);
+	NOERR();
+	top->op = '.';
+	top->right = t;
 
-    /* if it's a backref, now is the time to replicate the subNFA */
-    if (atomtype == BACKREF)
-    {
-        assert(atom->begin->nouts == 1);    /* just the EMPTY */
-        delsub(v->nfa, atom->begin, atom->end);
-        assert(v->subs[subno] != NULL);
+	/* if it's a backref, now is the time to replicate the subNFA */
+	if (atomtype == BACKREF)
+	{
+		assert(atom->begin->nouts == 1);	/* just the EMPTY */
+		delsub(v->nfa, atom->begin, atom->end);
+		assert(v->subs[subno] != NULL);
 
-        /*
-         * And here's why the recursion got postponed: it must wait until the
-         * skeleton is filled in, because it may hit a backref that wants to
-         * copy the filled-in skeleton.
-         */
-        dupnfa(v->nfa, v->subs[subno]->begin, v->subs[subno]->end,
-               atom->begin, atom->end);
-        NOERR();
-    }
+		/*
+		 * And here's why the recursion got postponed: it must wait until the
+		 * skeleton is filled in, because it may hit a backref that wants to
+		 * copy the filled-in skeleton.
+		 */
+		dupnfa(v->nfa, v->subs[subno]->begin, v->subs[subno]->end,
+			   atom->begin, atom->end);
+		NOERR();
+	}
 
-    /*
-     * It's quantifier time.  If the atom is just a backref, we'll let it deal
-     * with quantifiers internally.
-     */
-    if (atomtype == BACKREF)
-    {
-        /* special case:  backrefs have internal quantifiers */
-        EMPTYARC(s, atom->begin);    /* empty prefix */
-        /* just stuff everything into atom */
-        repeat(v, atom->begin, atom->end, m, n);
-        atom->min = (short) m;
-        atom->max = (short) n;
-        atom->flags |= COMBINE(qprefer, atom->flags);
-        /* rest of branch can be strung starting from atom->end */
-        s2 = atom->end;
-    }
-    else if (m == 1 && n == 1)
-    {
-        /* no/vacuous quantifier:  done */
-        EMPTYARC(s, atom->begin);    /* empty prefix */
-        /* rest of branch can be strung starting from atom->end */
-        s2 = atom->end;
-    }
-    else if (m > 0 && !(atom->flags & BACKR))
-    {
-        /*
-         * If there's no backrefs involved, we can turn x{m,n} into
-         * x{m-1,n-1}x, with capturing parens in only the second x.  This is
-         * valid because we only care about capturing matches from the final
-         * iteration of the quantifier.  It's a win because we can implement
-         * the backref-free left side as a plain DFA node, since we don't
-         * really care where its submatches are.
-         */
-        dupnfa(v->nfa, atom->begin, atom->end, s, atom->begin);
-        assert(m >= 1 && m != DUPINF && n >= 1);
-        repeat(v, s, atom->begin, m - 1, (n == DUPINF) ? n : n - 1);
-        f = COMBINE(qprefer, atom->flags);
-        t = subre(v, '.', f, s, atom->end); /* prefix and atom */
-        NOERR();
-        t->left = subre(v, '=', PREF(f), s, atom->begin);
-        NOERR();
-        t->right = atom;
-        *atomp = t;
-        /* rest of branch can be strung starting from atom->end */
-        s2 = atom->end;
-    }
-    else
-    {
-        /* general case: need an iteration node */
-        s2 = newstate(v->nfa);
-        NOERR();
-        moveouts(v->nfa, atom->end, s2);
-        NOERR();
-        dupnfa(v->nfa, atom->begin, atom->end, s, s2);
-        repeat(v, s, s2, m, n);
-        f = COMBINE(qprefer, atom->flags);
-        t = subre(v, '*', f, s, s2);
-        NOERR();
-        t->min = (short) m;
-        t->max = (short) n;
-        t->left = atom;
-        *atomp = t;
-        /* rest of branch is to be strung from iteration's end state */
-    }
+	/*
+	 * It's quantifier time.  If the atom is just a backref, we'll let it deal
+	 * with quantifiers internally.
+	 */
+	if (atomtype == BACKREF)
+	{
+		/* special case:  backrefs have internal quantifiers */
+		EMPTYARC(s, atom->begin);	/* empty prefix */
+		/* just stuff everything into atom */
+		repeat(v, atom->begin, atom->end, m, n);
+		atom->min = (short) m;
+		atom->max = (short) n;
+		atom->flags |= COMBINE(qprefer, atom->flags);
+		/* rest of branch can be strung starting from atom->end */
+		s2 = atom->end;
+	}
+	else if (m == 1 && n == 1)
+	{
+		/* no/vacuous quantifier:  done */
+		EMPTYARC(s, atom->begin);	/* empty prefix */
+		/* rest of branch can be strung starting from atom->end */
+		s2 = atom->end;
+	}
+	else if (m > 0 && !(atom->flags & BACKR))
+	{
+		/*
+		 * If there's no backrefs involved, we can turn x{m,n} into
+		 * x{m-1,n-1}x, with capturing parens in only the second x.  This is
+		 * valid because we only care about capturing matches from the final
+		 * iteration of the quantifier.  It's a win because we can implement
+		 * the backref-free left side as a plain DFA node, since we don't
+		 * really care where its submatches are.
+		 */
+		dupnfa(v->nfa, atom->begin, atom->end, s, atom->begin);
+		assert(m >= 1 && m != DUPINF && n >= 1);
+		repeat(v, s, atom->begin, m - 1, (n == DUPINF) ? n : n - 1);
+		f = COMBINE(qprefer, atom->flags);
+		t = subre(v, '.', f, s, atom->end); /* prefix and atom */
+		NOERR();
+		t->left = subre(v, '=', PREF(f), s, atom->begin);
+		NOERR();
+		t->right = atom;
+		*atomp = t;
+		/* rest of branch can be strung starting from atom->end */
+		s2 = atom->end;
+	}
+	else
+	{
+		/* general case: need an iteration node */
+		s2 = newstate(v->nfa);
+		NOERR();
+		moveouts(v->nfa, atom->end, s2);
+		NOERR();
+		dupnfa(v->nfa, atom->begin, atom->end, s, s2);
+		repeat(v, s, s2, m, n);
+		f = COMBINE(qprefer, atom->flags);
+		t = subre(v, '*', f, s, s2);
+		NOERR();
+		t->min = (short) m;
+		t->max = (short) n;
+		t->left = atom;
+		*atomp = t;
+		/* rest of branch is to be strung from iteration's end state */
+	}
 
-    /* and finally, look after that postponed recursion */
-    t = top->right;
-    if (!(SEE('|') || SEE(stopper) || SEE(EOS)))
-        t->right = parsebranch(v, stopper, type, s2, rp, 1);
-    else
-    {
-        EMPTYARC(s2, rp);
-        t->right = subre(v, '=', 0, s2, rp);
-    }
-    NOERR();
-    assert(SEE('|') || SEE(stopper) || SEE(EOS));
-    t->flags |= COMBINE(t->flags, t->right->flags);
-    top->flags |= COMBINE(top->flags, t->flags);
+	/* and finally, look after that postponed recursion */
+	t = top->right;
+	if (!(SEE('|') || SEE(stopper) || SEE(EOS)))
+		t->right = parsebranch(v, stopper, type, s2, rp, 1);
+	else
+	{
+		EMPTYARC(s2, rp);
+		t->right = subre(v, '=', 0, s2, rp);
+	}
+	NOERR();
+	assert(SEE('|') || SEE(stopper) || SEE(EOS));
+	t->flags |= COMBINE(t->flags, t->right->flags);
+	top->flags |= COMBINE(top->flags, t->flags);
 }
 
 /*
@@ -1223,17 +1235,17 @@ parseqatom(struct vars *v,
  */
 static void
 nonword(struct vars *v,
-        int dir,                /* AHEAD or BEHIND */
-        struct state *lp,
-        struct state *rp)
+		int dir,				/* AHEAD or BEHIND */
+		struct state *lp,
+		struct state *rp)
 {
-    int            anchor = (dir == AHEAD) ? '$' : '^';
+	int			anchor = (dir == AHEAD) ? '$' : '^';
 
-    assert(dir == AHEAD || dir == BEHIND);
-    newarc(v->nfa, anchor, 1, lp, rp);
-    newarc(v->nfa, anchor, 0, lp, rp);
-    colorcomplement(v->nfa, v->cm, dir, v->wordchrs, lp, rp);
-    /* (no need for special attention to \n) */
+	assert(dir == AHEAD || dir == BEHIND);
+	newarc(v->nfa, anchor, 1, lp, rp);
+	newarc(v->nfa, anchor, 0, lp, rp);
+	colorcomplement(v->nfa, v->cm, dir, v->wordchrs, lp, rp);
+	/* (no need for special attention to \n) */
 }
 
 /*
@@ -1241,34 +1253,34 @@ nonword(struct vars *v,
  */
 static void
 word(struct vars *v,
-     int dir,                    /* AHEAD or BEHIND */
-     struct state *lp,
-     struct state *rp)
+	 int dir,					/* AHEAD or BEHIND */
+	 struct state *lp,
+	 struct state *rp)
 {
-    assert(dir == AHEAD || dir == BEHIND);
-    cloneouts(v->nfa, v->wordchrs, lp, rp, dir);
-    /* (no need for special attention to \n) */
+	assert(dir == AHEAD || dir == BEHIND);
+	cloneouts(v->nfa, v->wordchrs, lp, rp, dir);
+	/* (no need for special attention to \n) */
 }
 
 /*
  * scannum - scan a number
  */
-static int                        /* value, <= DUPMAX */
+static int						/* value, <= DUPMAX */
 scannum(struct vars *v)
 {
-    int            n = 0;
+	int			n = 0;
 
-    while (SEE(DIGIT) && n < DUPMAX)
-    {
-        n = n * 10 + v->nextvalue;
-        NEXT();
-    }
-    if (SEE(DIGIT) || n > DUPMAX)
-    {
-        ERR(REG_BADBR);
-        return 0;
-    }
-    return n;
+	while (SEE(DIGIT) && n < DUPMAX)
+	{
+		n = n * 10 + v->nextvalue;
+		NEXT();
+	}
+	if (SEE(DIGIT) || n > DUPMAX)
+	{
+		ERR(REG_BADBR);
+		return 0;
+	}
+	return n;
 }
 
 /*
@@ -1286,84 +1298,84 @@ scannum(struct vars *v)
  */
 static void
 repeat(struct vars *v,
-       struct state *lp,
-       struct state *rp,
-       int m,
-       int n)
-{// #lizard forgives
-#define  SOME     2
-#define  INF     3
+	   struct state *lp,
+	   struct state *rp,
+	   int m,
+	   int n)
+{
+#define  SOME	 2
+#define  INF	 3
 #define  PAIR(x, y)  ((x)*4 + (y))
-#define  REDUCE(x)     ( ((x) == DUPINF) ? INF : (((x) > 1) ? SOME : (x)) )
-    const int    rm = REDUCE(m);
-    const int    rn = REDUCE(n);
-    struct state *s;
-    struct state *s2;
+#define  REDUCE(x)	 ( ((x) == DUPINF) ? INF : (((x) > 1) ? SOME : (x)) )
+	const int	rm = REDUCE(m);
+	const int	rn = REDUCE(n);
+	struct state *s;
+	struct state *s2;
 
-    switch (PAIR(rm, rn))
-    {
-        case PAIR(0, 0):        /* empty string */
-            delsub(v->nfa, lp, rp);
-            EMPTYARC(lp, rp);
-            break;
-        case PAIR(0, 1):        /* do as x| */
-            EMPTYARC(lp, rp);
-            break;
-        case PAIR(0, SOME):        /* do as x{1,n}| */
-            repeat(v, lp, rp, 1, n);
-            NOERR();
-            EMPTYARC(lp, rp);
-            break;
-        case PAIR(0, INF):        /* loop x around */
-            s = newstate(v->nfa);
-            NOERR();
-            moveouts(v->nfa, lp, s);
-            moveins(v->nfa, rp, s);
-            EMPTYARC(lp, s);
-            EMPTYARC(s, rp);
-            break;
-        case PAIR(1, 1):        /* no action required */
-            break;
-        case PAIR(1, SOME):        /* do as x{0,n-1}x = (x{1,n-1}|)x */
-            s = newstate(v->nfa);
-            NOERR();
-            moveouts(v->nfa, lp, s);
-            dupnfa(v->nfa, s, rp, lp, s);
-            NOERR();
-            repeat(v, lp, s, 1, n - 1);
-            NOERR();
-            EMPTYARC(lp, s);
-            break;
-        case PAIR(1, INF):        /* add loopback arc */
-            s = newstate(v->nfa);
-            s2 = newstate(v->nfa);
-            NOERR();
-            moveouts(v->nfa, lp, s);
-            moveins(v->nfa, rp, s2);
-            EMPTYARC(lp, s);
-            EMPTYARC(s2, rp);
-            EMPTYARC(s2, s);
-            break;
-        case PAIR(SOME, SOME):    /* do as x{m-1,n-1}x */
-            s = newstate(v->nfa);
-            NOERR();
-            moveouts(v->nfa, lp, s);
-            dupnfa(v->nfa, s, rp, lp, s);
-            NOERR();
-            repeat(v, lp, s, m - 1, n - 1);
-            break;
-        case PAIR(SOME, INF):    /* do as x{m-1,}x */
-            s = newstate(v->nfa);
-            NOERR();
-            moveouts(v->nfa, lp, s);
-            dupnfa(v->nfa, s, rp, lp, s);
-            NOERR();
-            repeat(v, lp, s, m - 1, n);
-            break;
-        default:
-            ERR(REG_ASSERT);
-            break;
-    }
+	switch (PAIR(rm, rn))
+	{
+		case PAIR(0, 0):		/* empty string */
+			delsub(v->nfa, lp, rp);
+			EMPTYARC(lp, rp);
+			break;
+		case PAIR(0, 1):		/* do as x| */
+			EMPTYARC(lp, rp);
+			break;
+		case PAIR(0, SOME):		/* do as x{1,n}| */
+			repeat(v, lp, rp, 1, n);
+			NOERR();
+			EMPTYARC(lp, rp);
+			break;
+		case PAIR(0, INF):		/* loop x around */
+			s = newstate(v->nfa);
+			NOERR();
+			moveouts(v->nfa, lp, s);
+			moveins(v->nfa, rp, s);
+			EMPTYARC(lp, s);
+			EMPTYARC(s, rp);
+			break;
+		case PAIR(1, 1):		/* no action required */
+			break;
+		case PAIR(1, SOME):		/* do as x{0,n-1}x = (x{1,n-1}|)x */
+			s = newstate(v->nfa);
+			NOERR();
+			moveouts(v->nfa, lp, s);
+			dupnfa(v->nfa, s, rp, lp, s);
+			NOERR();
+			repeat(v, lp, s, 1, n - 1);
+			NOERR();
+			EMPTYARC(lp, s);
+			break;
+		case PAIR(1, INF):		/* add loopback arc */
+			s = newstate(v->nfa);
+			s2 = newstate(v->nfa);
+			NOERR();
+			moveouts(v->nfa, lp, s);
+			moveins(v->nfa, rp, s2);
+			EMPTYARC(lp, s);
+			EMPTYARC(s2, rp);
+			EMPTYARC(s2, s);
+			break;
+		case PAIR(SOME, SOME):	/* do as x{m-1,n-1}x */
+			s = newstate(v->nfa);
+			NOERR();
+			moveouts(v->nfa, lp, s);
+			dupnfa(v->nfa, s, rp, lp, s);
+			NOERR();
+			repeat(v, lp, s, m - 1, n - 1);
+			break;
+		case PAIR(SOME, INF):	/* do as x{m-1,}x */
+			s = newstate(v->nfa);
+			NOERR();
+			moveouts(v->nfa, lp, s);
+			dupnfa(v->nfa, s, rp, lp, s);
+			NOERR();
+			repeat(v, lp, s, m - 1, n);
+			break;
+		default:
+			ERR(REG_ASSERT);
+			break;
+	}
 }
 
 /*
@@ -1372,15 +1384,15 @@ repeat(struct vars *v,
  */
 static void
 bracket(struct vars *v,
-        struct state *lp,
-        struct state *rp)
+		struct state *lp,
+		struct state *rp)
 {
-    assert(SEE('['));
-    NEXT();
-    while (!SEE(']') && !SEE(EOS))
-        brackpart(v, lp, rp);
-    assert(SEE(']') || ISERR());
-    okcolors(v->nfa, v->cm);
+	assert(SEE('['));
+	NEXT();
+	while (!SEE(']') && !SEE(EOS))
+		brackpart(v, lp, rp);
+	assert(SEE(']') || ISERR());
+	okcolors(v->nfa, v->cm);
 }
 
 /*
@@ -1391,29 +1403,29 @@ bracket(struct vars *v,
  */
 static void
 cbracket(struct vars *v,
-         struct state *lp,
-         struct state *rp)
+		 struct state *lp,
+		 struct state *rp)
 {
-    struct state *left = newstate(v->nfa);
-    struct state *right = newstate(v->nfa);
+	struct state *left = newstate(v->nfa);
+	struct state *right = newstate(v->nfa);
 
-    NOERR();
-    bracket(v, left, right);
-    if (v->cflags & REG_NLSTOP)
-        newarc(v->nfa, PLAIN, v->nlcolor, left, right);
-    NOERR();
+	NOERR();
+	bracket(v, left, right);
+	if (v->cflags & REG_NLSTOP)
+		newarc(v->nfa, PLAIN, v->nlcolor, left, right);
+	NOERR();
 
-    assert(lp->nouts == 0);        /* all outarcs will be ours */
+	assert(lp->nouts == 0);		/* all outarcs will be ours */
 
-    /*
-     * Easy part of complementing, and all there is to do since the MCCE code
-     * was removed.
-     */
-    colorcomplement(v->nfa, v->cm, PLAIN, left, lp, rp);
-    NOERR();
-    dropstate(v->nfa, left);
-    assert(right->nins == 0);
-    freestate(v->nfa, right);
+	/*
+	 * Easy part of complementing, and all there is to do since the MCCE code
+	 * was removed.
+	 */
+	colorcomplement(v->nfa, v->cm, PLAIN, left, lp, rp);
+	NOERR();
+	dropstate(v->nfa, left);
+	assert(right->nins == 0);
+	freestate(v->nfa, right);
 }
 
 /*
@@ -1421,109 +1433,109 @@ cbracket(struct vars *v,
  */
 static void
 brackpart(struct vars *v,
-          struct state *lp,
-          struct state *rp)
-{// #lizard forgives
-    chr            startc;
-    chr            endc;
-    struct cvec *cv;
-    const chr  *startp;
-    const chr  *endp;
-    chr            c[1];
+		  struct state *lp,
+		  struct state *rp)
+{
+	chr			startc;
+	chr			endc;
+	struct cvec *cv;
+	const chr  *startp;
+	const chr  *endp;
+	chr			c[1];
 
-    /* parse something, get rid of special cases, take shortcuts */
-    switch (v->nexttype)
-    {
-        case RANGE:                /* a-b-c or other botch */
-            ERR(REG_ERANGE);
-            return;
-            break;
-        case PLAIN:
-            c[0] = v->nextvalue;
-            NEXT();
-            /* shortcut for ordinary chr (not range) */
-            if (!SEE(RANGE))
-            {
-                onechr(v, c[0], lp, rp);
-                return;
-            }
-            startc = element(v, c, c + 1);
-            NOERR();
-            break;
-        case COLLEL:
-            startp = v->now;
-            endp = scanplain(v);
-            INSIST(startp < endp, REG_ECOLLATE);
-            NOERR();
-            startc = element(v, startp, endp);
-            NOERR();
-            break;
-        case ECLASS:
-            startp = v->now;
-            endp = scanplain(v);
-            INSIST(startp < endp, REG_ECOLLATE);
-            NOERR();
-            startc = element(v, startp, endp);
-            NOERR();
-            cv = eclass(v, startc, (v->cflags & REG_ICASE));
-            NOERR();
-            subcolorcvec(v, cv, lp, rp);
-            return;
-            break;
-        case CCLASS:
-            startp = v->now;
-            endp = scanplain(v);
-            INSIST(startp < endp, REG_ECTYPE);
-            NOERR();
-            cv = cclass(v, startp, endp, (v->cflags & REG_ICASE));
-            NOERR();
-            subcolorcvec(v, cv, lp, rp);
-            return;
-            break;
-        default:
-            ERR(REG_ASSERT);
-            return;
-            break;
-    }
+	/* parse something, get rid of special cases, take shortcuts */
+	switch (v->nexttype)
+	{
+		case RANGE:				/* a-b-c or other botch */
+			ERR(REG_ERANGE);
+			return;
+			break;
+		case PLAIN:
+			c[0] = v->nextvalue;
+			NEXT();
+			/* shortcut for ordinary chr (not range) */
+			if (!SEE(RANGE))
+			{
+				onechr(v, c[0], lp, rp);
+				return;
+			}
+			startc = element(v, c, c + 1);
+			NOERR();
+			break;
+		case COLLEL:
+			startp = v->now;
+			endp = scanplain(v);
+			INSIST(startp < endp, REG_ECOLLATE);
+			NOERR();
+			startc = element(v, startp, endp);
+			NOERR();
+			break;
+		case ECLASS:
+			startp = v->now;
+			endp = scanplain(v);
+			INSIST(startp < endp, REG_ECOLLATE);
+			NOERR();
+			startc = element(v, startp, endp);
+			NOERR();
+			cv = eclass(v, startc, (v->cflags & REG_ICASE));
+			NOERR();
+			subcolorcvec(v, cv, lp, rp);
+			return;
+			break;
+		case CCLASS:
+			startp = v->now;
+			endp = scanplain(v);
+			INSIST(startp < endp, REG_ECTYPE);
+			NOERR();
+			cv = cclass(v, startp, endp, (v->cflags & REG_ICASE));
+			NOERR();
+			subcolorcvec(v, cv, lp, rp);
+			return;
+			break;
+		default:
+			ERR(REG_ASSERT);
+			return;
+			break;
+	}
 
-    if (SEE(RANGE))
-    {
-        NEXT();
-        switch (v->nexttype)
-        {
-            case PLAIN:
-            case RANGE:
-                c[0] = v->nextvalue;
-                NEXT();
-                endc = element(v, c, c + 1);
-                NOERR();
-                break;
-            case COLLEL:
-                startp = v->now;
-                endp = scanplain(v);
-                INSIST(startp < endp, REG_ECOLLATE);
-                NOERR();
-                endc = element(v, startp, endp);
-                NOERR();
-                break;
-            default:
-                ERR(REG_ERANGE);
-                return;
-                break;
-        }
-    }
-    else
-        endc = startc;
+	if (SEE(RANGE))
+	{
+		NEXT();
+		switch (v->nexttype)
+		{
+			case PLAIN:
+			case RANGE:
+				c[0] = v->nextvalue;
+				NEXT();
+				endc = element(v, c, c + 1);
+				NOERR();
+				break;
+			case COLLEL:
+				startp = v->now;
+				endp = scanplain(v);
+				INSIST(startp < endp, REG_ECOLLATE);
+				NOERR();
+				endc = element(v, startp, endp);
+				NOERR();
+				break;
+			default:
+				ERR(REG_ERANGE);
+				return;
+				break;
+		}
+	}
+	else
+		endc = startc;
 
-    /*
-     * Ranges are unportable.  Actually, standard C does guarantee that digits
-     * are contiguous, but making that an exception is just too complicated.
-     */
-    if (startc != endc)
-        NOTE(REG_UUNPORT);
-    cv = range(v, startc, endc, (v->cflags & REG_ICASE));
-    NOERR();
-    subcolorcvec(v, cv, lp, rp);
+	/*
+	 * Ranges are unportable.  Actually, standard C does guarantee that digits
+	 * are contiguous, but making that an exception is just too complicated.
+	 */
+	if (startc != endc)
+		NOTE(REG_UUNPORT);
+	cv = range(v, startc, endc, (v->cflags & REG_ICASE));
+	NOERR();
+	subcolorcvec(v, cv, lp, rp);
 }
 
 /*
@@ -1532,25 +1544,25 @@ brackpart(struct vars *v,
  * Certain bits of trickery in lex.c know that this code does not try
  * to look past the final bracket of the [. etc.
  */
-static const chr *                /* just after end of sequence */
+static const chr *				/* just after end of sequence */
 scanplain(struct vars *v)
 {
-    const chr  *endp;
+	const chr  *endp;
 
-    assert(SEE(COLLEL) || SEE(ECLASS) || SEE(CCLASS));
-    NEXT();
+	assert(SEE(COLLEL) || SEE(ECLASS) || SEE(CCLASS));
+	NEXT();
 
-    endp = v->now;
-    while (SEE(PLAIN))
-    {
-        endp = v->now;
-        NEXT();
-    }
+	endp = v->now;
+	while (SEE(PLAIN))
+	{
+		endp = v->now;
+		NEXT();
+	}
 
-    assert(SEE(END) || ISERR());
-    NEXT();
+	assert(SEE(END) || ISERR());
+	NEXT();
 
-    return endp;
+	return endp;
 }
 
 /*
@@ -1559,20 +1571,20 @@ scanplain(struct vars *v)
  */
 static void
 onechr(struct vars *v,
-       chr c,
-       struct state *lp,
-       struct state *rp)
+	   chr c,
+	   struct state *lp,
+	   struct state *rp)
 {
-    if (!(v->cflags & REG_ICASE))
-    {
-        color        lastsubcolor = COLORLESS;
+	if (!(v->cflags & REG_ICASE))
+	{
+		color		lastsubcolor = COLORLESS;
 
-        subcoloronechr(v, c, lp, rp, &lastsubcolor);
-        return;
-    }
+		subcoloronechr(v, c, lp, rp, &lastsubcolor);
+		return;
+	}
 
-    /* rats, need general case anyway... */
-    subcolorcvec(v, allcases(v, c), lp, rp);
+	/* rats, need general case anyway... */
+	subcolorcvec(v, allcases(v, c), lp, rp);
 }
 
 /*
@@ -1587,27 +1599,27 @@ onechr(struct vars *v,
 static void
 wordchrs(struct vars *v)
 {
-    struct state *left;
-    struct state *right;
+	struct state *left;
+	struct state *right;
 
-    if (v->wordchrs != NULL)
-    {
-        NEXT();                    /* for consistency */
-        return;
-    }
+	if (v->wordchrs != NULL)
+	{
+		NEXT();					/* for consistency */
+		return;
+	}
 
-    left = newstate(v->nfa);
-    right = newstate(v->nfa);
-    NOERR();
-    /* fine point:    implemented with [::], and lexer will set REG_ULOCALE */
-    lexword(v);
-    NEXT();
-    assert(v->savenow != NULL && SEE('['));
-    bracket(v, left, right);
-    assert((v->savenow != NULL && SEE(']')) || ISERR());
-    NEXT();
-    NOERR();
-    v->wordchrs = left;
+	left = newstate(v->nfa);
+	right = newstate(v->nfa);
+	NOERR();
+	/* fine point:	implemented with [::], and lexer will set REG_ULOCALE */
+	lexword(v);
+	NEXT();
+	assert(v->savenow != NULL && SEE('['));
+	bracket(v, left, right);
+	assert((v->savenow != NULL && SEE(']')) || ISERR());
+	NEXT();
+	NOERR();
+	v->wordchrs = left;
 }
 
 /*
@@ -1618,65 +1630,65 @@ wordchrs(struct vars *v)
  */
 static void
 processlacon(struct vars *v,
-             struct state *begin,    /* start of parsed LACON sub-re */
-             struct state *end, /* end of parsed LACON sub-re */
-             int latype,
-             struct state *lp,    /* left state to hang it on */
-             struct state *rp)    /* right state to hang it on */
-{// #lizard forgives
-    struct state *s1;
-    int            n;
+			 struct state *begin,	/* start of parsed LACON sub-re */
+			 struct state *end, /* end of parsed LACON sub-re */
+			 int latype,
+			 struct state *lp,	/* left state to hang it on */
+			 struct state *rp)	/* right state to hang it on */
+{
+	struct state *s1;
+	int			n;
 
-    /*
-     * Check for lookaround RE consisting of a single plain color arc (or set
-     * of arcs); this would typically be a simple chr or a bracket expression.
-     */
-    s1 = single_color_transition(begin, end);
-    switch (latype)
-    {
-        case LATYPE_AHEAD_POS:
-            /* If lookahead RE is just colorset C, convert to AHEAD(C) */
-            if (s1 != NULL)
-            {
-                cloneouts(v->nfa, s1, lp, rp, AHEAD);
-                return;
-            }
-            break;
-        case LATYPE_AHEAD_NEG:
-            /* If lookahead RE is just colorset C, convert to AHEAD(^C)|$ */
-            if (s1 != NULL)
-            {
-                colorcomplement(v->nfa, v->cm, AHEAD, s1, lp, rp);
-                newarc(v->nfa, '$', 1, lp, rp);
-                newarc(v->nfa, '$', 0, lp, rp);
-                return;
-            }
-            break;
-        case LATYPE_BEHIND_POS:
-            /* If lookbehind RE is just colorset C, convert to BEHIND(C) */
-            if (s1 != NULL)
-            {
-                cloneouts(v->nfa, s1, lp, rp, BEHIND);
-                return;
-            }
-            break;
-        case LATYPE_BEHIND_NEG:
-            /* If lookbehind RE is just colorset C, convert to BEHIND(^C)|^ */
-            if (s1 != NULL)
-            {
-                colorcomplement(v->nfa, v->cm, BEHIND, s1, lp, rp);
-                newarc(v->nfa, '^', 1, lp, rp);
-                newarc(v->nfa, '^', 0, lp, rp);
-                return;
-            }
-            break;
-        default:
-            assert(NOTREACHED);
-    }
+	/*
+	 * Check for lookaround RE consisting of a single plain color arc (or set
+	 * of arcs); this would typically be a simple chr or a bracket expression.
+	 */
+	s1 = single_color_transition(begin, end);
+	switch (latype)
+	{
+		case LATYPE_AHEAD_POS:
+			/* If lookahead RE is just colorset C, convert to AHEAD(C) */
+			if (s1 != NULL)
+			{
+				cloneouts(v->nfa, s1, lp, rp, AHEAD);
+				return;
+			}
+			break;
+		case LATYPE_AHEAD_NEG:
+			/* If lookahead RE is just colorset C, convert to AHEAD(^C)|$ */
+			if (s1 != NULL)
+			{
+				colorcomplement(v->nfa, v->cm, AHEAD, s1, lp, rp);
+				newarc(v->nfa, '$', 1, lp, rp);
+				newarc(v->nfa, '$', 0, lp, rp);
+				return;
+			}
+			break;
+		case LATYPE_BEHIND_POS:
+			/* If lookbehind RE is just colorset C, convert to BEHIND(C) */
+			if (s1 != NULL)
+			{
+				cloneouts(v->nfa, s1, lp, rp, BEHIND);
+				return;
+			}
+			break;
+		case LATYPE_BEHIND_NEG:
+			/* If lookbehind RE is just colorset C, convert to BEHIND(^C)|^ */
+			if (s1 != NULL)
+			{
+				colorcomplement(v->nfa, v->cm, BEHIND, s1, lp, rp);
+				newarc(v->nfa, '^', 1, lp, rp);
+				newarc(v->nfa, '^', 0, lp, rp);
+				return;
+			}
+			break;
+		default:
+			assert(NOTREACHED);
+	}
 
-    /* General case: we need a LACON subre and arc */
-    n = newlacon(v, begin, end, latype);
-    newarc(v->nfa, LACON, n, lp, rp);
+	/* General case: we need a LACON subre and arc */
+	n = newlacon(v, begin, end, latype);
+	newarc(v->nfa, LACON, n, lp, rp);
 }
 
 /*
@@ -1684,93 +1696,93 @@ processlacon(struct vars *v,
  */
 static struct subre *
 subre(struct vars *v,
-      int op,
-      int flags,
-      struct state *begin,
-      struct state *end)
+	  int op,
+	  int flags,
+	  struct state *begin,
+	  struct state *end)
 {
-    struct subre *ret = v->treefree;
+	struct subre *ret = v->treefree;
 
-    /*
-     * Checking for stack overflow here is sufficient to protect parse() and
-     * its recursive subroutines.
-     */
-    if (STACK_TOO_DEEP(v->re))
-    {
-        ERR(REG_ETOOBIG);
-        return NULL;
-    }
+	/*
+	 * Checking for stack overflow here is sufficient to protect parse() and
+	 * its recursive subroutines.
+	 */
+	if (STACK_TOO_DEEP(v->re))
+	{
+		ERR(REG_ETOOBIG);
+		return NULL;
+	}
 
-    if (ret != NULL)
-        v->treefree = ret->left;
-    else
-    {
-        ret = (struct subre *) MALLOC(sizeof(struct subre));
-        if (ret == NULL)
-        {
-            ERR(REG_ESPACE);
-            return NULL;
-        }
-        ret->chain = v->treechain;
-        v->treechain = ret;
-    }
+	if (ret != NULL)
+		v->treefree = ret->left;
+	else
+	{
+		ret = (struct subre *) MALLOC(sizeof(struct subre));
+		if (ret == NULL)
+		{
+			ERR(REG_ESPACE);
+			return NULL;
+		}
+		ret->chain = v->treechain;
+		v->treechain = ret;
+	}
 
-    assert(strchr("=b|.*(", op) != NULL);
+	assert(strchr("=b|.*(", op) != NULL);
 
-    ret->op = op;
-    ret->flags = flags;
-    ret->id = 0;                /* will be assigned later */
-    ret->subno = 0;
-    ret->min = ret->max = 1;
-    ret->left = NULL;
-    ret->right = NULL;
-    ret->begin = begin;
-    ret->end = end;
-    ZAPCNFA(ret->cnfa);
+	ret->op = op;
+	ret->flags = flags;
+	ret->id = 0;				/* will be assigned later */
+	ret->subno = 0;
+	ret->min = ret->max = 1;
+	ret->left = NULL;
+	ret->right = NULL;
+	ret->begin = begin;
+	ret->end = end;
+	ZAPCNFA(ret->cnfa);
 
-    return ret;
+	return ret;
 }
 
 /*
  * freesubre - free a subRE subtree
  */
 static void
-freesubre(struct vars *v,        /* might be NULL */
-          struct subre *sr)
+freesubre(struct vars *v,		/* might be NULL */
+		  struct subre *sr)
 {
-    if (sr == NULL)
-        return;
+	if (sr == NULL)
+		return;
 
-    if (sr->left != NULL)
-        freesubre(v, sr->left);
-    if (sr->right != NULL)
-        freesubre(v, sr->right);
+	if (sr->left != NULL)
+		freesubre(v, sr->left);
+	if (sr->right != NULL)
+		freesubre(v, sr->right);
 
-    freesrnode(v, sr);
+	freesrnode(v, sr);
 }
 
 /*
  * freesrnode - free one node in a subRE subtree
  */
 static void
-freesrnode(struct vars *v,        /* might be NULL */
-           struct subre *sr)
+freesrnode(struct vars *v,		/* might be NULL */
+		   struct subre *sr)
 {
-    if (sr == NULL)
-        return;
+	if (sr == NULL)
+		return;
 
-    if (!NULLCNFA(sr->cnfa))
-        freecnfa(&sr->cnfa);
-    sr->flags = 0;
+	if (!NULLCNFA(sr->cnfa))
+		freecnfa(&sr->cnfa);
+	sr->flags = 0;
 
-    if (v != NULL && v->treechain != NULL)
-    {
-        /* we're still parsing, maybe we can reuse the subre */
-        sr->left = v->treefree;
-        v->treefree = sr;
-    }
-    else
-        FREE(sr);
+	if (v != NULL && v->treechain != NULL)
+	{
+		/* we're still parsing, maybe we can reuse the subre */
+		sr->left = v->treefree;
+		v->treefree = sr;
+	}
+	else
+		FREE(sr);
 }
 
 /*
@@ -1778,35 +1790,35 @@ freesrnode(struct vars *v,        /* might be NULL */
  */
 static void
 optst(struct vars *v,
-      struct subre *t)
+	  struct subre *t)
 {
-    /*
-     * DGP (2007-11-13): I assume it was the programmer's intent to eventually
-     * come back and add code to optimize subRE trees, but the routine coded
-     * just spends effort traversing the tree and doing nothing. We can do
-     * nothing with less effort.
-     */
-    return;
+	/*
+	 * DGP (2007-11-13): I assume it was the programmer's intent to eventually
+	 * come back and add code to optimize subRE trees, but the routine coded
+	 * just spends effort traversing the tree and doing nothing. We can do
+	 * nothing with less effort.
+	 */
+	return;
 }
 
 /*
  * numst - number tree nodes (assigning "id" indexes)
  */
-static int                        /* next number */
+static int						/* next number */
 numst(struct subre *t,
-      int start)                /* starting point for subtree numbers */
+	  int start)				/* starting point for subtree numbers */
 {
-    int            i;
+	int			i;
 
-    assert(t != NULL);
+	assert(t != NULL);
 
-    i = start;
-    t->id = (short) i++;
-    if (t->left != NULL)
-        i = numst(t->left, i);
-    if (t->right != NULL)
-        i = numst(t->right, i);
-    return i;
+	i = start;
+	t->id = (short) i++;
+	if (t->left != NULL)
+		i = numst(t->left, i);
+	if (t->right != NULL)
+		i = numst(t->right, i);
+	return i;
 }
 
 /*
@@ -1829,13 +1841,13 @@ numst(struct subre *t,
 static void
 markst(struct subre *t)
 {
-    assert(t != NULL);
+	assert(t != NULL);
 
-    t->flags |= INUSE;
-    if (t->left != NULL)
-        markst(t->left);
-    if (t->right != NULL)
-        markst(t->right);
+	t->flags |= INUSE;
+	if (t->left != NULL)
+		markst(t->left);
+	if (t->right != NULL)
+		markst(t->right);
 }
 
 /*
@@ -1844,35 +1856,35 @@ markst(struct subre *t)
 static void
 cleanst(struct vars *v)
 {
-    struct subre *t;
-    struct subre *next;
+	struct subre *t;
+	struct subre *next;
 
-    for (t = v->treechain; t != NULL; t = next)
-    {
-        next = t->chain;
-        if (!(t->flags & INUSE))
-            FREE(t);
-    }
-    v->treechain = NULL;
-    v->treefree = NULL;            /* just on general principles */
+	for (t = v->treechain; t != NULL; t = next)
+	{
+		next = t->chain;
+		if (!(t->flags & INUSE))
+			FREE(t);
+	}
+	v->treechain = NULL;
+	v->treefree = NULL;			/* just on general principles */
 }
 
 /*
  * nfatree - turn a subRE subtree into a tree of compacted NFAs
  */
-static long                        /* optimize results from top node */
+static long						/* optimize results from top node */
 nfatree(struct vars *v,
-        struct subre *t,
-        FILE *f)                /* for debug output */
+		struct subre *t,
+		FILE *f)				/* for debug output */
 {
-    assert(t != NULL && t->begin != NULL);
+	assert(t != NULL && t->begin != NULL);
 
-    if (t->left != NULL)
-        (DISCARD) nfatree(v, t->left, f);
-    if (t->right != NULL)
-        (DISCARD) nfatree(v, t->right, f);
+	if (t->left != NULL)
+		(DISCARD) nfatree(v, t->left, f);
+	if (t->right != NULL)
+		(DISCARD) nfatree(v, t->right, f);
 
-    return nfanode(v, t, 0, f);
+	return nfanode(v, t, 0, f);
 }
 
 /*
@@ -1880,79 +1892,79 @@ nfatree(struct vars *v,
  *
  * If converttosearch is true, apply makesearch() to the NFA.
  */
-static long                        /* optimize results */
+static long						/* optimize results */
 nfanode(struct vars *v,
-        struct subre *t,
-        int converttosearch,
-        FILE *f)                /* for debug output */
-{// #lizard forgives
-    struct nfa *nfa;
-    long        ret = 0;
+		struct subre *t,
+		int converttosearch,
+		FILE *f)				/* for debug output */
+{
+	struct nfa *nfa;
+	long		ret = 0;
 
-    assert(t->begin != NULL);
+	assert(t->begin != NULL);
 
 #ifdef REG_DEBUG
-    if (f != NULL)
-    {
-        char        idbuf[50];
+	if (f != NULL)
+	{
+		char		idbuf[50];
 
-        fprintf(f, "\n\n\n========= TREE NODE %s ==========\n",
-                stid(t, idbuf, sizeof(idbuf)));
-    }
+		fprintf(f, "\n\n\n========= TREE NODE %s ==========\n",
+				stid(t, idbuf, sizeof(idbuf)));
+	}
 #endif
-    nfa = newnfa(v, v->cm, v->nfa);
-    NOERRZ();
-    dupnfa(nfa, t->begin, t->end, nfa->init, nfa->final);
-    if (!ISERR())
-        specialcolors(nfa);
-    if (!ISERR())
-        ret = optimize(nfa, f);
-    if (converttosearch && !ISERR())
-        makesearch(v, nfa);
-    if (!ISERR())
-        compact(nfa, &t->cnfa);
+	nfa = newnfa(v, v->cm, v->nfa);
+	NOERRZ();
+	dupnfa(nfa, t->begin, t->end, nfa->init, nfa->final);
+	if (!ISERR())
+		specialcolors(nfa);
+	if (!ISERR())
+		ret = optimize(nfa, f);
+	if (converttosearch && !ISERR())
+		makesearch(v, nfa);
+	if (!ISERR())
+		compact(nfa, &t->cnfa);
 
-    freenfa(nfa);
-    return ret;
+	freenfa(nfa);
+	return ret;
 }
 
 /*
  * newlacon - allocate a lookaround-constraint subRE
  */
-static int                        /* lacon number */
+static int						/* lacon number */
 newlacon(struct vars *v,
-         struct state *begin,
-         struct state *end,
-         int latype)
+		 struct state *begin,
+		 struct state *end,
+		 int latype)
 {
-    int            n;
-    struct subre *newlacons;
-    struct subre *sub;
+	int			n;
+	struct subre *newlacons;
+	struct subre *sub;
 
-    if (v->nlacons == 0)
-    {
-        n = 1;                    /* skip 0th */
-        newlacons = (struct subre *) MALLOC(2 * sizeof(struct subre));
-    }
-    else
-    {
-        n = v->nlacons;
-        newlacons = (struct subre *) REALLOC(v->lacons,
-                                             (n + 1) * sizeof(struct subre));
-    }
-    if (newlacons == NULL)
-    {
-        ERR(REG_ESPACE);
-        return 0;
-    }
-    v->lacons = newlacons;
-    v->nlacons = n + 1;
-    sub = &v->lacons[n];
-    sub->begin = begin;
-    sub->end = end;
-    sub->subno = latype;
-    ZAPCNFA(sub->cnfa);
-    return n;
+	if (v->nlacons == 0)
+	{
+		n = 1;					/* skip 0th */
+		newlacons = (struct subre *) MALLOC(2 * sizeof(struct subre));
+	}
+	else
+	{
+		n = v->nlacons;
+		newlacons = (struct subre *) REALLOC(v->lacons,
+											 (n + 1) * sizeof(struct subre));
+	}
+	if (newlacons == NULL)
+	{
+		ERR(REG_ESPACE);
+		return 0;
+	}
+	v->lacons = newlacons;
+	v->nlacons = n + 1;
+	sub = &v->lacons[n];
+	sub->begin = begin;
+	sub->end = end;
+	sub->subno = latype;
+	ZAPCNFA(sub->cnfa);
+	return n;
 }
 
 /*
@@ -1960,16 +1972,16 @@ newlacon(struct vars *v,
  */
 static void
 freelacons(struct subre *subs,
-           int n)
+		   int n)
 {
-    struct subre *sub;
-    int            i;
+	struct subre *sub;
+	int			i;
 
-    assert(n > 0);
-    for (sub = subs + 1, i = n - 1; i > 0; sub++, i--)    /* no 0th */
-        if (!NULLCNFA(sub->cnfa))
-            freecnfa(&sub->cnfa);
-    FREE(subs);
+	assert(n > 0);
+	for (sub = subs + 1, i = n - 1; i > 0; sub++, i--)	/* no 0th */
+		if (!NULLCNFA(sub->cnfa))
+			freecnfa(&sub->cnfa);
+	FREE(subs);
 }
 
 /*
@@ -1978,27 +1990,27 @@ freelacons(struct subre *subs,
 static void
 rfree(regex_t *re)
 {
-    struct guts *g;
+	struct guts *g;
 
-    if (re == NULL || re->re_magic != REMAGIC)
-        return;
+	if (re == NULL || re->re_magic != REMAGIC)
+		return;
 
-    re->re_magic = 0;            /* invalidate RE */
-    g = (struct guts *) re->re_guts;
-    re->re_guts = NULL;
-    re->re_fns = NULL;
-    if (g != NULL)
-    {
-        g->magic = 0;
-        freecm(&g->cmap);
-        if (g->tree != NULL)
-            freesubre((struct vars *) NULL, g->tree);
-        if (g->lacons != NULL)
-            freelacons(g->lacons, g->nlacons);
-        if (!NULLCNFA(g->search))
-            freecnfa(&g->search);
-        FREE(g);
-    }
+	re->re_magic = 0;			/* invalidate RE */
+	g = (struct guts *) re->re_guts;
+	re->re_guts = NULL;
+	re->re_fns = NULL;
+	if (g != NULL)
+	{
+		g->magic = 0;
+		freecm(&g->cmap);
+		if (g->tree != NULL)
+			freesubre((struct vars *) NULL, g->tree);
+		if (g->lacons != NULL)
+			freelacons(g->lacons, g->nlacons);
+		if (!NULLCNFA(g->search))
+			freecnfa(&g->search);
+		FREE(g);
+	}
 }
 
 /*
@@ -2014,7 +2026,7 @@ rfree(regex_t *re)
 static int
 rcancelrequested(void)
 {
-    return InterruptPending && (QueryCancelPending || ProcDiePending);
+	return InterruptPending && (QueryCancelPending || ProcDiePending);
 }
 
 /*
@@ -2030,7 +2042,7 @@ rcancelrequested(void)
 static int
 rstacktoodeep(void)
 {
-    return stack_is_too_deep();
+	return stack_is_too_deep();
 }
 
 #ifdef REG_DEBUG
@@ -2040,62 +2052,62 @@ rstacktoodeep(void)
  */
 static void
 dump(regex_t *re,
-     FILE *f)
-{// #lizard forgives
-    struct guts *g;
-    int            i;
+	 FILE *f)
+{
+	struct guts *g;
+	int			i;
 
-    if (re->re_magic != REMAGIC)
-        fprintf(f, "bad magic number (0x%x not 0x%x)\n", re->re_magic,
-                REMAGIC);
-    if (re->re_guts == NULL)
-    {
-        fprintf(f, "NULL guts!!!\n");
-        return;
-    }
-    g = (struct guts *) re->re_guts;
-    if (g->magic != GUTSMAGIC)
-        fprintf(f, "bad guts magic number (0x%x not 0x%x)\n", g->magic,
-                GUTSMAGIC);
+	if (re->re_magic != REMAGIC)
+		fprintf(f, "bad magic number (0x%x not 0x%x)\n", re->re_magic,
+				REMAGIC);
+	if (re->re_guts == NULL)
+	{
+		fprintf(f, "NULL guts!!!\n");
+		return;
+	}
+	g = (struct guts *) re->re_guts;
+	if (g->magic != GUTSMAGIC)
+		fprintf(f, "bad guts magic number (0x%x not 0x%x)\n", g->magic,
+				GUTSMAGIC);
 
-    fprintf(f, "\n\n\n========= DUMP ==========\n");
-    fprintf(f, "nsub %d, info 0%lo, csize %d, ntree %d\n",
-            (int) re->re_nsub, re->re_info, re->re_csize, g->ntree);
+	fprintf(f, "\n\n\n========= DUMP ==========\n");
+	fprintf(f, "nsub %d, info 0%lo, csize %d, ntree %d\n",
+			(int) re->re_nsub, re->re_info, re->re_csize, g->ntree);
 
-    dumpcolors(&g->cmap, f);
-    if (!NULLCNFA(g->search))
-    {
-        fprintf(f, "\nsearch:\n");
-        dumpcnfa(&g->search, f);
-    }
-    for (i = 1; i < g->nlacons; i++)
-    {
-        struct subre *lasub = &g->lacons[i];
-        const char *latype;
+	dumpcolors(&g->cmap, f);
+	if (!NULLCNFA(g->search))
+	{
+		fprintf(f, "\nsearch:\n");
+		dumpcnfa(&g->search, f);
+	}
+	for (i = 1; i < g->nlacons; i++)
+	{
+		struct subre *lasub = &g->lacons[i];
+		const char *latype;
 
-        switch (lasub->subno)
-        {
-            case LATYPE_AHEAD_POS:
-                latype = "positive lookahead";
-                break;
-            case LATYPE_AHEAD_NEG:
-                latype = "negative lookahead";
-                break;
-            case LATYPE_BEHIND_POS:
-                latype = "positive lookbehind";
-                break;
-            case LATYPE_BEHIND_NEG:
-                latype = "negative lookbehind";
-                break;
-            default:
-                latype = "???";
-                break;
-        }
-        fprintf(f, "\nla%d (%s):\n", i, latype);
-        dumpcnfa(&lasub->cnfa, f);
-    }
-    fprintf(f, "\n");
-    dumpst(g->tree, f, 0);
+		switch (lasub->subno)
+		{
+			case LATYPE_AHEAD_POS:
+				latype = "positive lookahead";
+				break;
+			case LATYPE_AHEAD_NEG:
+				latype = "negative lookahead";
+				break;
+			case LATYPE_BEHIND_POS:
+				latype = "positive lookbehind";
+				break;
+			case LATYPE_BEHIND_NEG:
+				latype = "negative lookbehind";
+				break;
+			default:
+				latype = "???";
+				break;
+		}
+		fprintf(f, "\nla%d (%s):\n", i, latype);
+		dumpcnfa(&lasub->cnfa, f);
+	}
+	fprintf(f, "\n");
+	dumpst(g->tree, f, 0);
 }
 
 /*
@@ -2103,14 +2115,14 @@ dump(regex_t *re,
  */
 static void
 dumpst(struct subre *t,
-       FILE *f,
-       int nfapresent)            /* is the original NFA still around? */
+	   FILE *f,
+	   int nfapresent)			/* is the original NFA still around? */
 {
-    if (t == NULL)
-        fprintf(f, "null tree\n");
-    else
-        stdump(t, f, nfapresent);
-    fflush(f);
+	if (t == NULL)
+		fprintf(f, "null tree\n");
+	else
+		stdump(t, f, nfapresent);
+	fflush(f);
 }
 
 /*
@@ -2118,69 +2130,69 @@ dumpst(struct subre *t,
  */
 static void
 stdump(struct subre *t,
-       FILE *f,
-       int nfapresent)            /* is the original NFA still around? */
-{// #lizard forgives
-    char        idbuf[50];
+	   FILE *f,
+	   int nfapresent)			/* is the original NFA still around? */
+{
+	char		idbuf[50];
 
-    fprintf(f, "%s. `%c'", stid(t, idbuf, sizeof(idbuf)), t->op);
-    if (t->flags & LONGER)
-        fprintf(f, " longest");
-    if (t->flags & SHORTER)
-        fprintf(f, " shortest");
-    if (t->flags & MIXED)
-        fprintf(f, " hasmixed");
-    if (t->flags & CAP)
-        fprintf(f, " hascapture");
-    if (t->flags & BACKR)
-        fprintf(f, " hasbackref");
-    if (!(t->flags & INUSE))
-        fprintf(f, " UNUSED");
-    if (t->subno != 0)
-        fprintf(f, " (#%d)", t->subno);
-    if (t->min != 1 || t->max != 1)
-    {
-        fprintf(f, " {%d,", t->min);
-        if (t->max != DUPINF)
-            fprintf(f, "%d", t->max);
-        fprintf(f, "}");
-    }
-    if (nfapresent)
-        fprintf(f, " %ld-%ld", (long) t->begin->no, (long) t->end->no);
-    if (t->left != NULL)
-        fprintf(f, " L:%s", stid(t->left, idbuf, sizeof(idbuf)));
-    if (t->right != NULL)
-        fprintf(f, " R:%s", stid(t->right, idbuf, sizeof(idbuf)));
-    if (!NULLCNFA(t->cnfa))
-    {
-        fprintf(f, "\n");
-        dumpcnfa(&t->cnfa, f);
-    }
-    fprintf(f, "\n");
-    if (t->left != NULL)
-        stdump(t->left, f, nfapresent);
-    if (t->right != NULL)
-        stdump(t->right, f, nfapresent);
+	fprintf(f, "%s. `%c'", stid(t, idbuf, sizeof(idbuf)), t->op);
+	if (t->flags & LONGER)
+		fprintf(f, " longest");
+	if (t->flags & SHORTER)
+		fprintf(f, " shortest");
+	if (t->flags & MIXED)
+		fprintf(f, " hasmixed");
+	if (t->flags & CAP)
+		fprintf(f, " hascapture");
+	if (t->flags & BACKR)
+		fprintf(f, " hasbackref");
+	if (!(t->flags & INUSE))
+		fprintf(f, " UNUSED");
+	if (t->subno != 0)
+		fprintf(f, " (#%d)", t->subno);
+	if (t->min != 1 || t->max != 1)
+	{
+		fprintf(f, " {%d,", t->min);
+		if (t->max != DUPINF)
+			fprintf(f, "%d", t->max);
+		fprintf(f, "}");
+	}
+	if (nfapresent)
+		fprintf(f, " %ld-%ld", (long) t->begin->no, (long) t->end->no);
+	if (t->left != NULL)
+		fprintf(f, " L:%s", stid(t->left, idbuf, sizeof(idbuf)));
+	if (t->right != NULL)
+		fprintf(f, " R:%s", stid(t->right, idbuf, sizeof(idbuf)));
+	if (!NULLCNFA(t->cnfa))
+	{
+		fprintf(f, "\n");
+		dumpcnfa(&t->cnfa, f);
+	}
+	fprintf(f, "\n");
+	if (t->left != NULL)
+		stdump(t->left, f, nfapresent);
+	if (t->right != NULL)
+		stdump(t->right, f, nfapresent);
 }
 
 /*
  * stid - identify a subtree node for dumping
  */
-static const char *                /* points to buf or constant string */
+static const char *				/* points to buf or constant string */
 stid(struct subre *t,
-     char *buf,
-     size_t bufsize)
+	 char *buf,
+	 size_t bufsize)
 {
-    /* big enough for hex int or decimal t->id? */
-    if (bufsize < sizeof(void *) * 2 + 3 || bufsize < sizeof(t->id) * 3 + 1)
-        return "unable";
-    if (t->id != 0)
-        sprintf(buf, "%d", t->id);
-    else
-        sprintf(buf, "%p", t);
-    return buf;
+	/* big enough for hex int or decimal t->id? */
+	if (bufsize < sizeof(void *) * 2 + 3 || bufsize < sizeof(t->id) * 3 + 1)
+		return "unable";
+	if (t->id != 0)
+		sprintf(buf, "%d", t->id);
+	else
+		sprintf(buf, "%p", t);
+	return buf;
 }
-#endif                            /* REG_DEBUG */
+#endif							/* REG_DEBUG */
 
 
 #include "regc_lex.c"

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * shm_toc.c
- *      shared memory segment table of contents
+ *	  shared memory segment table of contents
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -19,18 +19,18 @@
 
 typedef struct shm_toc_entry
 {
-    uint64        key;            /* Arbitrary identifier */
-    Size        offset;            /* Offset, in bytes, from TOC start */
+	uint64		key;			/* Arbitrary identifier */
+	Size		offset;			/* Offset, in bytes, from TOC start */
 } shm_toc_entry;
 
 struct shm_toc
 {
-    uint64        toc_magic;        /* Magic number identifying this TOC */
-    slock_t        toc_mutex;        /* Spinlock for mutual exclusion */
-    Size        toc_total_bytes;    /* Bytes managed by this TOC */
-    Size        toc_allocated_bytes;    /* Bytes allocated of those managed */
-    uint32        toc_nentry;        /* Number of entries in TOC */
-    shm_toc_entry toc_entry[FLEXIBLE_ARRAY_MEMBER];
+	uint64		toc_magic;		/* Magic number identifying this TOC */
+	slock_t		toc_mutex;		/* Spinlock for mutual exclusion */
+	Size		toc_total_bytes;	/* Bytes managed by this TOC */
+	Size		toc_allocated_bytes;	/* Bytes allocated of those managed */
+	uint32		toc_nentry;		/* Number of entries in TOC */
+	shm_toc_entry toc_entry[FLEXIBLE_ARRAY_MEMBER];
 };
 
 /*
@@ -39,16 +39,21 @@ struct shm_toc
 shm_toc *
 shm_toc_create(uint64 magic, void *address, Size nbytes)
 {
-    shm_toc    *toc = (shm_toc *) address;
+	shm_toc    *toc = (shm_toc *) address;
 
-    Assert(nbytes > offsetof(shm_toc, toc_entry));
-    toc->toc_magic = magic;
-    SpinLockInit(&toc->toc_mutex);
-    toc->toc_total_bytes = nbytes;
-    toc->toc_allocated_bytes = 0;
-    toc->toc_nentry = 0;
+	Assert(nbytes > offsetof(shm_toc, toc_entry));
+	toc->toc_magic = magic;
+	SpinLockInit(&toc->toc_mutex);
 
-    return toc;
+	/*
+	 * The alignment code in shm_toc_allocate() assumes that the starting
+	 * value is buffer-aligned.
+	 */
+	toc->toc_total_bytes = BUFFERALIGN_DOWN(nbytes);
+	toc->toc_allocated_bytes = 0;
+	toc->toc_nentry = 0;
+
+	return toc;
 }
 
 /*
@@ -58,15 +63,15 @@ shm_toc_create(uint64 magic, void *address, Size nbytes)
 extern shm_toc *
 shm_toc_attach(uint64 magic, void *address)
 {
-    shm_toc    *toc = (shm_toc *) address;
+	shm_toc    *toc = (shm_toc *) address;
 
-    if (toc->toc_magic != magic)
-        return NULL;
+	if (toc->toc_magic != magic)
+		return NULL;
 
-    Assert(toc->toc_total_bytes >= toc->toc_allocated_bytes);
-    Assert(toc->toc_total_bytes > offsetof(shm_toc, toc_entry));
+	Assert(toc->toc_total_bytes >= toc->toc_allocated_bytes);
+	Assert(toc->toc_total_bytes > offsetof(shm_toc, toc_entry));
 
-    return toc;
+	return toc;
 }
 
 /*
@@ -82,36 +87,41 @@ shm_toc_attach(uint64 magic, void *address)
 extern void *
 shm_toc_allocate(shm_toc *toc, Size nbytes)
 {
-    volatile shm_toc *vtoc = toc;
-    Size        total_bytes;
-    Size        allocated_bytes;
-    Size        nentry;
-    Size        toc_bytes;
+	volatile shm_toc *vtoc = toc;
+	Size		total_bytes;
+	Size		allocated_bytes;
+	Size		nentry;
+	Size		toc_bytes;
 
-    /* Make sure request is well-aligned. */
-    nbytes = BUFFERALIGN(nbytes);
+	/*
+	 * Make sure request is well-aligned.  XXX: MAXALIGN is not enough,
+	 * because atomic ops might need a wider alignment.  We don't have a
+	 * proper definition for the minimum to make atomic ops safe, but
+	 * BUFFERALIGN ought to be enough.
+	 */
+	nbytes = BUFFERALIGN(nbytes);
 
-    SpinLockAcquire(&toc->toc_mutex);
+	SpinLockAcquire(&toc->toc_mutex);
 
-    total_bytes = vtoc->toc_total_bytes;
-    allocated_bytes = vtoc->toc_allocated_bytes;
-    nentry = vtoc->toc_nentry;
-    toc_bytes = offsetof(shm_toc, toc_entry) + nentry * sizeof(shm_toc_entry)
-        + allocated_bytes;
+	total_bytes = vtoc->toc_total_bytes;
+	allocated_bytes = vtoc->toc_allocated_bytes;
+	nentry = vtoc->toc_nentry;
+	toc_bytes = offsetof(shm_toc, toc_entry) + nentry * sizeof(shm_toc_entry)
+		+ allocated_bytes;
 
-    /* Check for memory exhaustion and overflow. */
-    if (toc_bytes + nbytes > total_bytes || toc_bytes + nbytes < toc_bytes)
-    {
-        SpinLockRelease(&toc->toc_mutex);
-        ereport(ERROR,
-                (errcode(ERRCODE_OUT_OF_MEMORY),
-                 errmsg("out of shared memory")));
-    }
-    vtoc->toc_allocated_bytes += nbytes;
+	/* Check for memory exhaustion and overflow. */
+	if (toc_bytes + nbytes > total_bytes || toc_bytes + nbytes < toc_bytes)
+	{
+		SpinLockRelease(&toc->toc_mutex);
+		ereport(ERROR,
+				(errcode(ERRCODE_OUT_OF_MEMORY),
+				 errmsg("out of shared memory")));
+	}
+	vtoc->toc_allocated_bytes += nbytes;
 
-    SpinLockRelease(&toc->toc_mutex);
+	SpinLockRelease(&toc->toc_mutex);
 
-    return ((char *) toc) + (total_bytes - allocated_bytes - nbytes);
+	return ((char *) toc) + (total_bytes - allocated_bytes - nbytes);
 }
 
 /*
@@ -120,21 +130,21 @@ shm_toc_allocate(shm_toc *toc, Size nbytes)
 extern Size
 shm_toc_freespace(shm_toc *toc)
 {
-    volatile shm_toc *vtoc = toc;
-    Size        total_bytes;
-    Size        allocated_bytes;
-    Size        nentry;
-    Size        toc_bytes;
+	volatile shm_toc *vtoc = toc;
+	Size		total_bytes;
+	Size		allocated_bytes;
+	Size		nentry;
+	Size		toc_bytes;
 
-    SpinLockAcquire(&toc->toc_mutex);
-    total_bytes = vtoc->toc_total_bytes;
-    allocated_bytes = vtoc->toc_allocated_bytes;
-    nentry = vtoc->toc_nentry;
-    SpinLockRelease(&toc->toc_mutex);
+	SpinLockAcquire(&toc->toc_mutex);
+	total_bytes = vtoc->toc_total_bytes;
+	allocated_bytes = vtoc->toc_allocated_bytes;
+	nentry = vtoc->toc_nentry;
+	SpinLockRelease(&toc->toc_mutex);
 
-    toc_bytes = offsetof(shm_toc, toc_entry) + nentry * sizeof(shm_toc_entry);
-    Assert(allocated_bytes + BUFFERALIGN(toc_bytes) <= total_bytes);
-    return total_bytes - (allocated_bytes + BUFFERALIGN(toc_bytes));
+	toc_bytes = offsetof(shm_toc, toc_entry) + nentry * sizeof(shm_toc_entry);
+	Assert(allocated_bytes + BUFFERALIGN(toc_bytes) <= total_bytes);
+	return total_bytes - (allocated_bytes + BUFFERALIGN(toc_bytes));
 }
 
 /*
@@ -160,50 +170,50 @@ shm_toc_freespace(shm_toc *toc)
 void
 shm_toc_insert(shm_toc *toc, uint64 key, void *address)
 {
-    volatile shm_toc *vtoc = toc;
-    Size        total_bytes;
-    Size        allocated_bytes;
-    Size        nentry;
-    Size        toc_bytes;
-    Size        offset;
+	volatile shm_toc *vtoc = toc;
+	Size		total_bytes;
+	Size		allocated_bytes;
+	Size		nentry;
+	Size		toc_bytes;
+	Size		offset;
 
-    /* Relativize pointer. */
-    Assert(address > (void *) toc);
-    offset = ((char *) address) - (char *) toc;
+	/* Relativize pointer. */
+	Assert(address > (void *) toc);
+	offset = ((char *) address) - (char *) toc;
 
-    SpinLockAcquire(&toc->toc_mutex);
+	SpinLockAcquire(&toc->toc_mutex);
 
-    total_bytes = vtoc->toc_total_bytes;
-    allocated_bytes = vtoc->toc_allocated_bytes;
-    nentry = vtoc->toc_nentry;
-    toc_bytes = offsetof(shm_toc, toc_entry) + nentry * sizeof(shm_toc_entry)
-        + allocated_bytes;
+	total_bytes = vtoc->toc_total_bytes;
+	allocated_bytes = vtoc->toc_allocated_bytes;
+	nentry = vtoc->toc_nentry;
+	toc_bytes = offsetof(shm_toc, toc_entry) + nentry * sizeof(shm_toc_entry)
+		+ allocated_bytes;
 
-    /* Check for memory exhaustion and overflow. */
-    if (toc_bytes + sizeof(shm_toc_entry) > total_bytes ||
-        toc_bytes + sizeof(shm_toc_entry) < toc_bytes ||
-        nentry >= PG_UINT32_MAX)
-    {
-        SpinLockRelease(&toc->toc_mutex);
-        ereport(ERROR,
-                (errcode(ERRCODE_OUT_OF_MEMORY),
-                 errmsg("out of shared memory")));
-    }
+	/* Check for memory exhaustion and overflow. */
+	if (toc_bytes + sizeof(shm_toc_entry) > total_bytes ||
+		toc_bytes + sizeof(shm_toc_entry) < toc_bytes ||
+		nentry >= PG_UINT32_MAX)
+	{
+		SpinLockRelease(&toc->toc_mutex);
+		ereport(ERROR,
+				(errcode(ERRCODE_OUT_OF_MEMORY),
+				 errmsg("out of shared memory")));
+	}
 
-    Assert(offset < total_bytes);
-    vtoc->toc_entry[nentry].key = key;
-    vtoc->toc_entry[nentry].offset = offset;
+	Assert(offset < total_bytes);
+	vtoc->toc_entry[nentry].key = key;
+	vtoc->toc_entry[nentry].offset = offset;
 
-    /*
-     * By placing a write barrier after filling in the entry and before
-     * updating the number of entries, we make it safe to read the TOC
-     * unlocked.
-     */
-    pg_write_barrier();
+	/*
+	 * By placing a write barrier after filling in the entry and before
+	 * updating the number of entries, we make it safe to read the TOC
+	 * unlocked.
+	 */
+	pg_write_barrier();
 
-    vtoc->toc_nentry++;
+	vtoc->toc_nentry++;
 
-    SpinLockRelease(&toc->toc_mutex);
+	SpinLockRelease(&toc->toc_mutex);
 }
 
 /*
@@ -221,28 +231,28 @@ shm_toc_insert(shm_toc *toc, uint64 key, void *address)
 void *
 shm_toc_lookup(shm_toc *toc, uint64 key, bool noError)
 {
-    uint32        nentry;
-    uint32        i;
+	uint32		nentry;
+	uint32		i;
 
-    /*
-     * Read the number of entries before we examine any entry.  We assume that
-     * reading a uint32 is atomic.
-     */
-    nentry = toc->toc_nentry;
-    pg_read_barrier();
+	/*
+	 * Read the number of entries before we examine any entry.  We assume that
+	 * reading a uint32 is atomic.
+	 */
+	nentry = toc->toc_nentry;
+	pg_read_barrier();
 
-    /* Now search for a matching entry. */
-    for (i = 0; i < nentry; ++i)
-    {
-        if (toc->toc_entry[i].key == key)
-            return ((char *) toc) + toc->toc_entry[i].offset;
-    }
+	/* Now search for a matching entry. */
+	for (i = 0; i < nentry; ++i)
+	{
+		if (toc->toc_entry[i].key == key)
+			return ((char *) toc) + toc->toc_entry[i].offset;
+	}
 
-    /* No matching entry was found. */
-    if (!noError)
-        elog(ERROR, "could not find key " UINT64_FORMAT " in shm TOC at %p",
-             key, toc);
-    return NULL;
+	/* No matching entry was found. */
+	if (!noError)
+		elog(ERROR, "could not find key " UINT64_FORMAT " in shm TOC at %p",
+			 key, toc);
+	return NULL;
 }
 
 /*
@@ -252,7 +262,11 @@ shm_toc_lookup(shm_toc *toc, uint64 key, bool noError)
 Size
 shm_toc_estimate(shm_toc_estimator *e)
 {
-    return add_size(offsetof(shm_toc, toc_entry),
-                    add_size(mul_size(e->number_of_keys, sizeof(shm_toc_entry)),
-                             e->space_for_chunks));
+	Size		sz;
+
+	sz = offsetof(shm_toc, toc_entry);
+	sz = add_size(sz, mul_size(e->number_of_keys, sizeof(shm_toc_entry)));
+	sz = add_size(sz, e->space_for_chunks);
+
+	return BUFFERALIGN(sz);
 }

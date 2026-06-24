@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * unicode_norm.h
- *      Routines for normalizing Unicode strings
+ *	  Routines for normalizing Unicode strings
  *
  * These definitions are used by both frontend and backend code.
  *
@@ -18,4 +18,4 @@
 
 extern pg_wchar *unicode_normalize_kc(const pg_wchar *input);
 
-#endif                            /* UNICODE_NORM_H */
+#endif							/* UNICODE_NORM_H */

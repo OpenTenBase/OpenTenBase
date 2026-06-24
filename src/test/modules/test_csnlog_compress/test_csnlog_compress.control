@@ -1,0 +1,4 @@
+comment = 'Test code for compress and decompress csnlog files'
+default_version = '1.0'
+module_pathname = '$libdir/test_csnlog_compress'
+relocatable = true

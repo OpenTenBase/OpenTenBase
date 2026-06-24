@@ -98,17 +98,21 @@
       <entry><literal>jsonb_ops</></entry>
       <entry><type>jsonb</></entry>
       <entry>
-       <literal>?</>
-       <literal>?&amp;</>
-       <literal>?|</>
-       <literal>@&gt;</>
+       <literal>?</literal>
+       <literal>?&amp;</literal>
+       <literal>?|</literal>
+       <literal>@&gt;</literal>
+       <literal>@?</literal>
+       <literal>@@</literal>
       </entry>
      </row>
      <row>
       <entry><literal>jsonb_path_ops</></entry>
       <entry><type>jsonb</></entry>
       <entry>
-       <literal>@&gt;</>
+       <literal>@&gt;</literal>
+       <literal>@?</literal>
+       <literal>@@</literal>
       </entry>
      </row>
      <row>

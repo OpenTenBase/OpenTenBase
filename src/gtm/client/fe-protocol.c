@@ -1,18 +1,16 @@
 /*-------------------------------------------------------------------------
  *
  * fe-protocol3.c
- *      functions that are specific to frontend/backend protocol version 3
+ *	  functions that are specific to frontend/backend protocol version 3
  *
  * Portions Copyright (c) 2012-2014, TransLattice, Inc.
  * Portions Copyright (c) 1996-2009, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  * Portions Copyright (c) 2010-2012 Postgres-XC Development Group
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  * IDENTIFICATION
- *      $PostgreSQL$
+ *	  $PostgreSQL$
  *
  *-------------------------------------------------------------------------
  */
@@ -39,7 +37,7 @@
  * than a couple of kilobytes).
  */
 #define VALID_LONG_MESSAGE_TYPE(id) \
-    ((id) == 'S' || (id) == 'E')
+	((id) == 'S' || (id) == 'E')
 
 static void handleSyncLoss(GTM_Conn *conn, char id, int msgLength);
 static GTM_Result *pqParseInput(GTM_Conn *conn);
@@ -53,116 +51,121 @@ static int gtmpqReadSeqKey(GTM_SequenceKey seqkey, GTM_Conn *conn);
  */
 static GTM_Result *
 pqParseInput(GTM_Conn *conn)
-{// #lizard forgives
-    char        id;
-    int            msgLength;
-    int            avail;
-    GTM_Result    *result = NULL;
+{
+	char		id = 0;
+	int			msgLength = 0;
+	int			avail;
+	GTM_Result	*result = NULL;
 
-    if (conn->result == NULL)
-    {
-        conn->result = (GTM_Result *) malloc(sizeof (GTM_Result));
-        memset(conn->result, 0, sizeof (GTM_Result));
-    }
-    else
-        gtmpqFreeResultData(conn->result, conn->remote_type);
+	if (conn->result == NULL)
+	{
+		conn->result = (GTM_Result *) malloc(sizeof (GTM_Result));
+		if (conn->result == NULL)
+		{
+			handleSyncLoss(conn, id, msgLength);
+			return NULL;
+		}
+		memset(conn->result, 0, sizeof (GTM_Result));
+	}
+	else
+		gtmpqFreeResultData(conn->result, conn->remote_type);
 
-    result = conn->result;
+	result = conn->result;
 
-    /*
-     * Try to read a message.  First get the type code and length. Return
-     * if not enough data.
-     */
-    conn->inCursor = conn->inStart;
-    if (gtmpqGetc(&id, conn))
-        return NULL;
-    if (gtmpqGetInt(&msgLength, 4, conn))
-        return NULL;
+	/*
+	 * Try to read a message.  First get the type code and length. Return
+	 * if not enough data.
+	 */
+	conn->inCursor = conn->inStart;
+	if (gtmpqGetc(&id, conn))
+		return NULL;
+	if (gtmpqGetInt(&msgLength, 4, conn))
+		return NULL;
 
-    /*
-     * Try to validate message type/length here.  A length less than 4 is
-     * definitely broken.  Large lengths should only be believed for a few
-     * message types.
-     */
-    if (msgLength < 4)
-    {
-        handleSyncLoss(conn, id, msgLength);
-        return NULL;
-    }
-    if (msgLength > 30000 && !VALID_LONG_MESSAGE_TYPE(id))
-    {
-        handleSyncLoss(conn, id, msgLength);
-        return NULL;
-    }
+	/*
+	 * Try to validate message type/length here.  A length less than 4 is
+	 * definitely broken.  Large lengths should only be believed for a few
+	 * message types.
+	 */
+	if (msgLength < 4)
+	{
+		handleSyncLoss(conn, id, msgLength);
+		return NULL;
+	}
+	if (msgLength > 30000 && !VALID_LONG_MESSAGE_TYPE(id))
+	{
+		handleSyncLoss(conn, id, msgLength);
+		return NULL;
+	}
 
-    /*
-     * Can't process if message body isn't all here yet.
-     */
-    conn->result->gr_msglen = msgLength -= 4;
-    avail = conn->inEnd - conn->inCursor;
-    if (avail < msgLength)
-    {
-        /*
-         * Before returning, enlarge the input buffer if needed to hold
-         * the whole message.  This is better than leaving it to
-         * gtmpqReadData because we can avoid multiple cycles of realloc()
-         * when the message is large; also, we can implement a reasonable
-         * recovery strategy if we are unable to make the buffer big
-         * enough.
-         */
-        if (gtmpqCheckInBufferSpace(conn->inCursor + (size_t) msgLength,
-                                 conn))
-        {
-            /*
-             * XXX add some better recovery code... plan is to skip over
-             * the message using its length, then report an error. For the
-             * moment, just treat this like loss of sync (which indeed it
-             * might be!)
-             */
-            handleSyncLoss(conn, id, msgLength);
-        }
-        return NULL;
-    }
+	/*
+	 * Can't process if message body isn't all here yet.
+	 */
+	conn->result->gr_msglen = msgLength -= 4;
+	avail = conn->inEnd - conn->inCursor;
+	if (avail < msgLength)
+	{
+		/*
+		 * Before returning, enlarge the input buffer if needed to hold
+		 * the whole message.  This is better than leaving it to
+		 * gtmpqReadData because we can avoid multiple cycles of realloc()
+		 * when the message is large; also, we can implement a reasonable
+		 * recovery strategy if we are unable to make the buffer big
+		 * enough.
+		 */
+		if (gtmpqCheckInBufferSpace(conn->inCursor + (size_t) msgLength,
+								 conn))
+		{
+			/*
+			 * XXX add some better recovery code... plan is to skip over
+			 * the message using its length, then report an error. For the
+			 * moment, just treat this like loss of sync (which indeed it
+			 * might be!)
+			 */
+			handleSyncLoss(conn, id, msgLength);
+		}
+		return NULL;
+	}
 
-    switch (id)
-    {
-        case 'S':        /* command complete */
-            if (gtmpqParseSuccess(conn, result))
-                return NULL;
-            break;
+	switch (id)
+	{
+		case 'S':		/* command complete */
+			if (gtmpqParseSuccess(conn, result))
+				return NULL;
+			break;
 
-        case 'E':        /* error return */
-            if (gtmpqGetError(conn, result))
-                return NULL;
-            result->gr_status = GTM_RESULT_ERROR;
-            break;
-        default:
-            printfGTMPQExpBuffer(&conn->errorMessage,
-                              "unexpected response from server; first received character was \"%c\"\n",
-                              id);
-            conn->inCursor += msgLength;
+		case 'E':		/* error return */
+			if (gtmpqGetError(conn, result))
+				return NULL;
 			result->gr_status = GTM_RESULT_ERROR;
-            break;
-    }                    /* switch on protocol character */
-    /* Successfully consumed this message */
-    if (conn->inCursor == conn->inStart + 5 + msgLength)
-    {
-        /* Normal case: parsing agrees with specified length */
-        conn->inStart = conn->inCursor;
-    }
-    else
-    {
-        /* Trouble --- report it */
-        printfGTMPQExpBuffer(&conn->errorMessage,
-                          "message contents do not agree with length in message type \"%c\"\n",
-                          id);
-        /* trust the specified message length as what to skip */
-        conn->inStart += 5 + msgLength;
+			break;
+		default:
+			printfGTMPQExpBuffer(&conn->errorMessage,
+							  "unexpected response from server; first received character was \"%c\"\n",
+							  id);
+			conn->inCursor += msgLength;
+			result->gr_status = GTM_RESULT_ERROR;
+			break;
+	}					/* switch on protocol character */
+	/* Successfully consumed this message */
+	if (conn->inCursor == conn->inStart + 5 + msgLength)
+	{
+		/* Normal case: parsing agrees with specified length */
+		conn->inStart = conn->inCursor;
+	}
+	else
+	{
+		/* Trouble --- report it */
+		printfGTMPQExpBuffer(&conn->errorMessage,
+						  "message contents do not agree with length in message type \"%c\"\n",
+						  id);
+		/* trust the specified message length as what to skip */
+		conn->inStart += 5 + msgLength;
 
 		result->gr_status = GTM_RESULT_ERROR;
-    }
+	}
 
-    return result;
+	return result;
 }
 
 /*
@@ -173,12 +176,12 @@ pqParseInput(GTM_Conn *conn)
 static void
 handleSyncLoss(GTM_Conn *conn, char id, int msgLength)
 {
-    printfGTMPQExpBuffer(&conn->errorMessage,
-    "lost synchronization with server: got message type \"%c\", length %d\n",
-                      id, msgLength);
-    close(conn->sock);
-    conn->sock = -1;
-    conn->status = CONNECTION_BAD;        /* No more connection to backend */
+	printfGTMPQExpBuffer(&conn->errorMessage,
+	"lost synchronization with server: got message type \"%c\", length %d\n",
+					  id, msgLength);
+	close(conn->sock);
+	conn->sock = -1;
+	conn->status = CONNECTION_BAD;		/* No more connection to backend */
 }
 
 /*
@@ -186,115 +189,120 @@ handleSyncLoss(GTM_Conn *conn, char id, int msgLength)
  * This is possible in several places, so we break it out as a subroutine.
  * Entry: 'E' message type and length have already been consumed.
  * Exit: returns 0 if successfully consumed message.
- *         returns EOF if not enough data.
+ *		 returns EOF if not enough data.
  */
 int
 gtmpqGetError(GTM_Conn *conn, GTM_Result *result)
-{// #lizard forgives
-    char        id;
+{
+	char		id;
 
-    /*
-     * If we are a GTM proxy, expect an additional proxy header in the incoming
-     * message.
-     */
-    if (conn->remote_type == GTM_NODE_GTM_PROXY)
-    {
-        if (gtmpqGetnchar((char *)&result->gr_proxyhdr,
-                    sizeof (GTM_ProxyMsgHeader), conn))
-            return 1;
-        result->gr_msglen -= sizeof (GTM_ProxyMsgHeader);
+	/*
+	 * If we are a GTM proxy, expect an additional proxy header in the incoming
+	 * message.
+	 */
+	if (conn->remote_type == GTM_NODE_GTM_PROXY)
+	{
+		if (gtmpqGetnchar((char *)&result->gr_proxyhdr,
+					sizeof (GTM_ProxyMsgHeader), conn))
+			return 1;
+		result->gr_msglen -= sizeof (GTM_ProxyMsgHeader);
 
-        /*
-         * If the allocated buffer is not large enough to hold the proxied
-         * data, realloc the buffer.
-         *
-         * Since the client side code is shared between the proxy and the
-         * backend, we don't want any memory context management etc here. So
-         * just use plain realloc. Anyways, we don't indent to free the memory.
-         */
-        if (result->gr_proxy_datalen < result->gr_msglen)
-        {
-            result->gr_proxy_data = (char *)realloc(
-                    result->gr_proxy_data, result->gr_msglen);
-            result->gr_proxy_datalen = result->gr_msglen;
-        }
+		/*
+		 * If the allocated buffer is not large enough to hold the proxied
+		 * data, realloc the buffer.
+		 *
+		 * Since the client side code is shared between the proxy and the
+		 * backend, we don't want any memory context management etc here. So
+		 * just use plain realloc. Anyways, we don't indent to free the memory.
+		 */
+		if (result->gr_proxy_datalen < result->gr_msglen)
+		{
+			result->gr_proxy_data = (char *)realloc(
+					result->gr_proxy_data, result->gr_msglen);
+			if (result->gr_proxy_data == NULL)
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				return 1;
+			}
+			result->gr_proxy_datalen = result->gr_msglen;
+		}
 
-        if (gtmpqGetnchar((char *)result->gr_proxy_data,
-                    result->gr_msglen, conn))
-        {
-            result->gr_status = GTM_RESULT_UNKNOWN;
-            return 1;
-        }
+		if (gtmpqGetnchar((char *)result->gr_proxy_data,
+					result->gr_msglen, conn))
+		{
+			result->gr_status = GTM_RESULT_UNKNOWN;
+			return 1;
+		}
 
-        return 0;
-    }
-    else
-        result->gr_proxyhdr.ph_conid = InvalidGTMProxyConnID;
+		return 0;
+	}
+	else
+		result->gr_proxyhdr.ph_conid = InvalidGTMProxyConnID;
 
-    /*
-     * Read the fields and save into res.
-     */
-    for (;;)
-    {
-        if (gtmpqGetc(&id, conn))
-            goto fail;
-        if (id == '\0')
-            break;
-        if (gtmpqGets(&conn->errorMessage, conn))
-            goto fail;
-    }
-    return 0;
+	/*
+	 * Read the fields and save into res.
+	 */
+	for (;;)
+	{
+		if (gtmpqGetc(&id, conn))
+			goto fail;
+		if (id == '\0')
+			break;
+		if (gtmpqGets(&conn->errorMessage, conn))
+			goto fail;
+	}
+	return 0;
 
 fail:
-    return EOF;
+	return EOF;
 }
 
 /*
  * gtmpQgetResult
- *      Get the next GTM_Result produced.  Returns NULL if no
- *      query work remains or an error has occurred (e.g. out of
- *      memory).
+ *	  Get the next GTM_Result produced.  Returns NULL if no
+ *	  query work remains or an error has occurred (e.g. out of
+ *	  memory).
  */
 
 GTM_Result *
 GTMPQgetResult(GTM_Conn *conn)
-{// #lizard forgives
-    GTM_Result *res;
+{
+	GTM_Result *res;
 
-    if (!conn)
-        return NULL;
+	if (!conn)
+		return NULL;
 
-    /* Parse any available data, if our state permits. */
-    while ((res = pqParseInput(conn)) == NULL)
-    {
-        int            flushResult;
+	/* Parse any available data, if our state permits. */
+	while ((res = pqParseInput(conn)) == NULL)
+	{
+		int			flushResult;
 
-        /*
-         * If data remains unsent, send it.  Else we might be waiting for the
-         * result of a command the backend hasn't even got yet.
-         */
-        while ((flushResult = gtmpqFlush(conn)) > 0)
-        {
-            if (gtmpqWait(false, true, conn))
-            {
-                flushResult = -1;
-                break;
-            }
-        }
+		/*
+		 * If data remains unsent, send it.  Else we might be waiting for the
+		 * result of a command the backend hasn't even got yet.
+		 */
+		while ((flushResult = gtmpqFlush(conn)) > 0)
+		{
+			if (gtmpqWait(false, true, conn))
+			{
+				flushResult = -1;
+				break;
+			}
+		}
 
-        /* Wait for some more data, and load it. */
-        if (flushResult ||
-            gtmpqWait(true, false, conn) ||
-            gtmpqReadData(conn) < 0)
-        {
-            /*
-             * conn->errorMessage has been set by gtmpqWait or gtmpqReadData.
-             */
-            return NULL;
-        }
-    }
+		/* Wait for some more data, and load it. */
+		if (flushResult ||
+			gtmpqWait(true, false, conn) ||
+			gtmpqReadData(conn) < 0)
+		{
+			/*
+			 * conn->errorMessage has been set by gtmpqWait or gtmpqReadData.
+			 */
+			return NULL;
+		}
+	}
 
-    return res;
+	return res;
 }
 
 /*
@@ -303,452 +311,481 @@ GTMPQgetResult(GTM_Conn *conn)
  */
 static int
 gtmpqParseSuccess(GTM_Conn *conn, GTM_Result *result)
-{// #lizard forgives
-    int xcnt, xsize;
-    int i;
-    GlobalTransactionId *xip = NULL;
+{
+	int xcnt, xsize;
+	int i;
+	GlobalTransactionId *xip = NULL;
 
-    result->gr_status = GTM_RESULT_OK;
+	result->gr_status = GTM_RESULT_OK;
 
-    if (gtmpqGetInt((int *)&result->gr_type, 4, conn))
-        return 1;
-    result->gr_msglen -= 4;
+	if (gtmpqGetInt((int *)&result->gr_type, 4, conn))
+		return 1;
+	result->gr_msglen -= 4;
 
-    if (conn->remote_type == GTM_NODE_GTM_PROXY)
-    {
-        if (gtmpqGetnchar((char *)&result->gr_proxyhdr,
-                    sizeof (GTM_ProxyMsgHeader), conn))
-            return 1;
-        result->gr_msglen -= sizeof (GTM_ProxyMsgHeader);
-    }
-    else
-        result->gr_proxyhdr.ph_conid = InvalidGTMProxyConnID;
+	if (conn->remote_type == GTM_NODE_GTM_PROXY)
+	{
+		if (gtmpqGetnchar((char *)&result->gr_proxyhdr,
+					sizeof (GTM_ProxyMsgHeader), conn))
+			return 1;
+		result->gr_msglen -= sizeof (GTM_ProxyMsgHeader);
+	}
+	else
+		result->gr_proxyhdr.ph_conid = InvalidGTMProxyConnID;
 
-    /*
-     * If we are dealing with a proxied message, just read the remaining binary
-     * data which can then be forwarded to the right backend.
-     */
-    if (result->gr_proxyhdr.ph_conid != InvalidGTMProxyConnID)
-    {
-        /*
-         * If the allocated buffer is not large enough to hold the proxied
-         * data, realloc the buffer.
-         *
-         * Since the client side code is shared between the proxy and the
-         * backend, we don't want any memory context management etc here. So
-         * just use plain realloc. Anyways, we don't indent to free the memory.
-         */
-        if (result->gr_proxy_datalen < result->gr_msglen)
-        {
-            result->gr_proxy_data = (char *)realloc(
-                    result->gr_proxy_data, result->gr_msglen);
-            result->gr_proxy_datalen = result->gr_msglen;
-        }
+	/*
+	 * If we are dealing with a proxied message, just read the remaining binary
+	 * data which can then be forwarded to the right backend.
+	 */
+	if (result->gr_proxyhdr.ph_conid != InvalidGTMProxyConnID)
+	{
+		/*
+		 * If the allocated buffer is not large enough to hold the proxied
+		 * data, realloc the buffer.
+		 *
+		 * Since the client side code is shared between the proxy and the
+		 * backend, we don't want any memory context management etc here. So
+		 * just use plain realloc. Anyways, we don't indent to free the memory.
+		 */
+		if (result->gr_proxy_datalen < result->gr_msglen)
+		{
+			result->gr_proxy_data = (char *)realloc(
+					result->gr_proxy_data, result->gr_msglen);
+			if (result->gr_proxy_data == NULL)
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				return 1;
+			}
+			result->gr_proxy_datalen = result->gr_msglen;
+		}
 
-        if (gtmpqGetnchar((char *)result->gr_proxy_data,
-                    result->gr_msglen, conn))
-        {
-            result->gr_status = GTM_RESULT_UNKNOWN;
-            return 1;
-        }
+		if (gtmpqGetnchar((char *)result->gr_proxy_data,
+					result->gr_msglen, conn))
+		{
+			result->gr_status = GTM_RESULT_UNKNOWN;
+			return 1;
+		}
 
-        return result->gr_status;
-    }
+		return result->gr_status;
+	}
 
-    result->gr_status = GTM_RESULT_OK;
+	result->gr_status = GTM_RESULT_OK;
 
-    switch (result->gr_type)
-    {
-        case SYNC_STANDBY_RESULT:
-            break;
+	switch (result->gr_type)
+	{
+		case SYNC_STANDBY_RESULT:
+			break;
 
-        case NODE_BEGIN_REPLICATION_INIT_RESULT:
-            break;
+		case NODE_BEGIN_REPLICATION_INIT_RESULT:
+			break;
 
-        case NODE_END_REPLICATION_INIT_RESULT:
-            break;
+		case NODE_END_REPLICATION_INIT_RESULT:
+			break;
 
-        case BEGIN_BACKUP_SUCCEED_RESULT:
-            result->gr_resdata.backup_result = true;
-            break;
+		case BEGIN_BACKUP_SUCCEED_RESULT:
+			result->gr_resdata.backup_result = true;
+			break;
 
-        case BEGIN_BACKUP_FAIL_RESULT:
-            result->gr_resdata.backup_result = false;
-            break;
+		case BEGIN_BACKUP_FAIL_RESULT:
+			result->gr_resdata.backup_result = false;
+			break;
 
-        case END_BACKUP_RESULT:
-            break;
+		case END_BACKUP_RESULT:
+			break;
 
 #ifdef XCP
-        case REGISTER_SESSION_RESULT:
+		case REGISTER_SESSION_RESULT:
 break;
 #endif
 
-        case TXN_BEGIN_RESULT:
-            if (gtmpqGetnchar((char *) &result->gr_resdata.grd_txnhandle,
-                              sizeof(GTM_TransactionHandle), conn))
-                result->gr_status = GTM_RESULT_ERROR;
-            break;
+		case TXN_BEGIN_RESULT:
+			if (gtmpqGetnchar((char *) &result->gr_resdata.grd_txnhandle,
+							  sizeof(GTM_TransactionHandle), conn))
+				result->gr_status = GTM_RESULT_ERROR;
+			break;
 
-        case TXN_BEGIN_GETGXID_RESULT:
-            if (gtmpqGetnchar((char *) &result->gr_resdata.grd_gxid_tp.gxid,
-                              sizeof(GlobalTransactionId), conn))
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
+		case TXN_BEGIN_GETGXID_RESULT:
+			if (gtmpqGetnchar((char *) &result->gr_resdata.grd_gxid_tp.gxid,
+							  sizeof(GlobalTransactionId), conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
 
-            if (gtmpqGetnchar((char *) &result->gr_resdata.grd_gxid_tp.timestamp,
-                              sizeof(GTM_Timestamp), conn))
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
-            break;
+			if (gtmpqGetnchar((char *) &result->gr_resdata.grd_gxid_tp.timestamp,
+							  sizeof(GTM_Timestamp), conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
+			break;
 
 #ifdef __OPENTENBASE__
-            /* Add for global timestamp */
-        case TXN_BEGIN_GETGTS_RESULT:
-            if (gtmpqGetnchar((char *) &result->gr_resdata.grd_gts.grd_gts,
-                              sizeof(GTM_Timestamp), conn))
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
+			/* Add for global timestamp */
+		case TXN_BEGIN_GETGTS_RESULT:
+			if (gtmpqGetnchar((char *) &result->gr_resdata.grd_gts.grd_gts,
+							  sizeof(GTM_Timestamp), conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
             /* compatible with former protocol,gtm sends read-only flag only if it's in read-only state */
-            if (gtmpqGetc(&result->gr_resdata.grd_gts.gtm_readonly, conn) == EOF)
-            {
-                result->gr_resdata.grd_gts.gtm_readonly = false;
-            }
-            break;
+			if (gtmpqGetc(&result->gr_resdata.grd_gts.gtm_readonly, conn) == EOF)
+        	{
+            	result->gr_resdata.grd_gts.gtm_readonly = false;
+        	}
+			break;
 
-        case TXN_BEGIN_GETGTS_MULTI_RESULT:
+		case TXN_BEGIN_GETGTS_MULTI_RESULT:
 
-            if (gtmpqGetnchar((char *) &result->gr_resdata.grd_gts.grd_gts,
-                              sizeof(GTM_Timestamp), conn))
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
-            break;
+			if (gtmpqGetnchar((char *) &result->gr_resdata.grd_gts.grd_gts,
+							  sizeof(GTM_Timestamp), conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
+			break;
 
 
-        case TXN_CHECK_GTM_STATUS_RESULT:
-        {
-            int len = 0;
-            int count = 0;
+		case TXN_CHECK_GTM_STATUS_RESULT:
+		{
+			int len = 0;
+			int count = 0;
             memset(&result->gr_resdata.grd_gts, 0, sizeof(result->gr_resdata.grd_gts));
 
-            if (gtmpqGetnchar((char *) &result->gr_resdata.grd_gts.node_status,
-                              sizeof(int), conn))
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
+			if (gtmpqGetnchar((char *) &result->gr_resdata.grd_gts.node_status,
+							  sizeof(int), conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
 
-            if (gtmpqGetnchar((char *) &result->gr_resdata.grd_gts.grd_gts,
-                              sizeof(GTM_Timestamp), conn))
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
+			if (gtmpqGetnchar((char *) &result->gr_resdata.grd_gts.grd_gts,
+							  sizeof(GTM_Timestamp), conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
 
-            if (gtmpqGetInt64((int64 *)(&result->gr_resdata.grd_gts.master_flush),conn))
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
+			if (gtmpqGetInt64((int64 *)(&result->gr_resdata.grd_gts.master_flush),conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
 
-            if (gtmpqGetInt(&count, sizeof(int), conn))
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
+			if (gtmpqGetInt(&count, sizeof(int), conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
 
-            result->gr_resdata.grd_gts.standby_count = count;
+			result->gr_resdata.grd_gts.standby_count = count;
 
-            if(count == 0)
-                break;
+			if(count == 0)
+				break;
 
             if(count > GTM_MAX_WALSENDER)
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
 
-            result->gr_resdata.grd_gts.slave_is_sync   = malloc(sizeof(int) * count);
-            result->gr_resdata.grd_gts.slave_timestamp = malloc(sizeof(GTM_Timestamp) * count);
-            result->gr_resdata.grd_gts.slave_flush_ptr = malloc(sizeof(XLogRecPtr) * count);
+			result->gr_resdata.grd_gts.slave_is_sync   = malloc(sizeof(int) * count);
+			result->gr_resdata.grd_gts.slave_timestamp = malloc(sizeof(GTM_Timestamp) * count);
+			result->gr_resdata.grd_gts.slave_flush_ptr = malloc(sizeof(XLogRecPtr) * count);
+			
+			if (result->gr_resdata.grd_gts.slave_is_sync == NULL ||
+				result->gr_resdata.grd_gts.slave_timestamp == NULL ||
+				result->gr_resdata.grd_gts.slave_flush_ptr == NULL)
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
+			
+			for( i = 0 ; i < count ; i++)
+			{
+				if(gtmpqGetInt(result->gr_resdata.grd_gts.slave_is_sync + i,sizeof(int),conn))
+				{
+					result->gr_status = GTM_RESULT_ERROR;
+					break;
+				}
 
-            for( i = 0 ; i < count ; i++)
-            {
-                if(gtmpqGetInt(result->gr_resdata.grd_gts.slave_is_sync + i,sizeof(int),conn))
-                {
-                    result->gr_status = GTM_RESULT_ERROR;
-                    break;
-                }
+				if(gtmpqGetInt(&len,sizeof(int),conn))
+				{
+					result->gr_status = GTM_RESULT_ERROR;
+					break;
+				}
 
-                if(gtmpqGetInt(&len,sizeof(int),conn))
-                {
-                    result->gr_status = GTM_RESULT_ERROR;
-                    break;
-                }
-
-                result->gr_resdata.grd_gts.application_name[i] = malloc(len);
+				result->gr_resdata.grd_gts.application_name[i] = malloc(len);
                 if(result->gr_resdata.grd_gts.application_name[i] == NULL)
-                {
-                    result->gr_status = GTM_RESULT_ERROR;
-                    break;
-                }
+				{
+					result->gr_status = GTM_RESULT_ERROR;
+					break;
+				}
 
-                if(gtmpqGetnchar(result->gr_resdata.grd_gts.application_name[i],len,conn))
-                {
-                    result->gr_status = GTM_RESULT_ERROR;
-                    break;
-                }
+				if(gtmpqGetnchar(result->gr_resdata.grd_gts.application_name[i],len,conn))
+				{
+					result->gr_status = GTM_RESULT_ERROR;
+					break;
+				}
 
-                if (gtmpqGetnchar((char *) (result->gr_resdata.grd_gts.slave_timestamp + i),
-                                  sizeof(GTM_Timestamp), conn))
-                {
-                    result->gr_status = GTM_RESULT_ERROR;
-                    break;
-                }
+				if (gtmpqGetnchar((char *) (result->gr_resdata.grd_gts.slave_timestamp + i),
+								  sizeof(GTM_Timestamp), conn))
+				{
+					result->gr_status = GTM_RESULT_ERROR;
+					break;
+				}
 
-                if(gtmpqGetInt64((int64 *)(result->gr_resdata.grd_gts.slave_flush_ptr + i),conn))
-                {
-                    result->gr_status = GTM_RESULT_ERROR;
-                    break;
-                }
-            }
-            break;
-        }
+				if(gtmpqGetInt64((int64 *)(result->gr_resdata.grd_gts.slave_flush_ptr + i),conn))
+				{
+					result->gr_status = GTM_RESULT_ERROR;
+					break;
+				}
+			}
+			break;
+		}
 #endif
-        case TXN_BEGIN_GETGXID_AUTOVACUUM_RESULT:
-        case TXN_PREPARE_RESULT:
-        case TXN_START_PREPARED_RESULT:
-        case TXN_LOG_TRANSACTION_RESULT:
-        case TXN_LOG_SCAN_RESULT:
-        case TXN_ROLLBACK_RESULT:
-            if (gtmpqGetnchar((char *) &result->gr_resdata.grd_gxid,
-                              sizeof(GlobalTransactionId), conn))
-                result->gr_status = GTM_RESULT_ERROR;
-            break;
+		case TXN_BEGIN_GETGXID_AUTOVACUUM_RESULT:
+		case TXN_PREPARE_RESULT:
+		case TXN_START_PREPARED_RESULT:
+		case TXN_LOG_TRANSACTION_RESULT:
+		case TXN_LOG_SCAN_RESULT:
+		case TXN_ROLLBACK_RESULT:
+			if (gtmpqGetnchar((char *) &result->gr_resdata.grd_gxid,
+							  sizeof(GlobalTransactionId), conn))
+				result->gr_status = GTM_RESULT_ERROR;
+			break;
 
-        case TXN_COMMIT_RESULT:
-        case TXN_COMMIT_PREPARED_RESULT:
-            if (gtmpqGetnchar((char *) &result->gr_resdata.grd_eof_txn.gxid,
-                              sizeof(GlobalTransactionId), conn))
-                result->gr_status = GTM_RESULT_ERROR;
-            if (gtmpqGetnchar((char *) &result->gr_resdata.grd_eof_txn.status,
-                              sizeof(int), conn))
-                result->gr_status = GTM_RESULT_ERROR;
-            break;
+		case TXN_COMMIT_RESULT:
+		case TXN_COMMIT_PREPARED_RESULT:
+			if (gtmpqGetnchar((char *) &result->gr_resdata.grd_eof_txn.gxid,
+							  sizeof(GlobalTransactionId), conn))
+				result->gr_status = GTM_RESULT_ERROR;
+			if (gtmpqGetnchar((char *) &result->gr_resdata.grd_eof_txn.status,
+							  sizeof(int), conn))
+				result->gr_status = GTM_RESULT_ERROR;
+			break;
 
-        case TXN_GET_GXID_RESULT:
-            if (gtmpqGetnchar((char *) &result->gr_resdata.grd_txn.txnhandle,
-                              sizeof(GTM_TransactionHandle), conn))
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
+		case TXN_GET_GXID_RESULT:
+			if (gtmpqGetnchar((char *) &result->gr_resdata.grd_txn.txnhandle,
+							  sizeof(GTM_TransactionHandle), conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
 
-            if (gtmpqGetnchar((char *) &result->gr_resdata.grd_txn.gxid,
-                              sizeof(GlobalTransactionId), conn))
-                result->gr_status = GTM_RESULT_ERROR;
-            break;
+			if (gtmpqGetnchar((char *) &result->gr_resdata.grd_txn.gxid,
+							  sizeof(GlobalTransactionId), conn))
+				result->gr_status = GTM_RESULT_ERROR;
+			break;
 
-        case TXN_GET_NEXT_GXID_RESULT:
-            if (gtmpqGetInt((int *) &result->gr_resdata.grd_next_gxid,
-                            sizeof(int32), conn))
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
-            break;
+		case TXN_GET_NEXT_GXID_RESULT:
+			if (gtmpqGetInt((int *) &result->gr_resdata.grd_next_gxid,
+							sizeof(int32), conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
+			break;
 
-        case TXN_BEGIN_GETGXID_MULTI_RESULT:
-            if (gtmpqGetnchar((char *) &result->gr_resdata.grd_txn_get_multi.txn_count,
-                              sizeof(int), conn))
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
-            if (gtmpqGetnchar((char *) result->gr_resdata.grd_txn_get_multi.txn_gxid,
-                              sizeof(GlobalTransactionId) * result->gr_resdata.grd_txn_get_multi.txn_count,
-                              conn))
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
-            if (gtmpqGetnchar((char *) &result->gr_resdata.grd_txn_get_multi.timestamp,
-                              sizeof(GTM_Timestamp), conn))
-                result->gr_status = GTM_RESULT_ERROR;
-            break;
+		case TXN_BEGIN_GETGXID_MULTI_RESULT:
+			if (gtmpqGetnchar((char *) &result->gr_resdata.grd_txn_get_multi.txn_count,
+							  sizeof(int), conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
+			if (gtmpqGetnchar((char *) result->gr_resdata.grd_txn_get_multi.txn_gxid,
+							  sizeof(GlobalTransactionId) * result->gr_resdata.grd_txn_get_multi.txn_count,
+							  conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
+			if (gtmpqGetnchar((char *) &result->gr_resdata.grd_txn_get_multi.timestamp,
+							  sizeof(GTM_Timestamp), conn))
+				result->gr_status = GTM_RESULT_ERROR;
+			break;
 
-        case TXN_COMMIT_MULTI_RESULT:
-        case TXN_ROLLBACK_MULTI_RESULT:
-            if (gtmpqGetnchar((char *) &result->gr_resdata.grd_txn_rc_multi.txn_count,
-                              sizeof(int), conn))
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
-            if (gtmpqGetnchar((char *) result->gr_resdata.grd_txn_rc_multi.status,
-                              sizeof(int) * result->gr_resdata.grd_txn_rc_multi.txn_count, conn))
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
-            break;
+		case TXN_COMMIT_MULTI_RESULT:
+		case TXN_ROLLBACK_MULTI_RESULT:
+			if (gtmpqGetnchar((char *) &result->gr_resdata.grd_txn_rc_multi.txn_count,
+							  sizeof(int), conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
+			if (gtmpqGetnchar((char *) result->gr_resdata.grd_txn_rc_multi.status,
+							  sizeof(int) * result->gr_resdata.grd_txn_rc_multi.txn_count, conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
+			break;
 
-        case SNAPSHOT_GXID_GET_RESULT:
-            if (gtmpqGetnchar((char *) &result->gr_resdata.grd_txn_snap_multi.txnhandle,
-                              sizeof(GTM_TransactionHandle), conn))
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
-            /* Fall through */
-        case SNAPSHOT_GET_RESULT:
-            if (gtmpqGetnchar((char *) &result->gr_resdata.grd_txn_snap_multi.gxid,
-                              sizeof(GlobalTransactionId), conn))
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
-            /* Fall through */
-        case SNAPSHOT_GET_MULTI_RESULT:
-            if (gtmpqGetnchar((char *) &result->gr_resdata.grd_txn_snap_multi.txn_count,
-                              sizeof(int), conn))
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
-            if (gtmpqGetnchar((char *) result->gr_resdata.grd_txn_snap_multi.status,
-                              sizeof(int) * result->gr_resdata.grd_txn_snap_multi.txn_count, conn))
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
+		case SNAPSHOT_GXID_GET_RESULT:
+			if (gtmpqGetnchar((char *) &result->gr_resdata.grd_txn_snap_multi.txnhandle,
+							  sizeof(GTM_TransactionHandle), conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
+			/* Fall through */
+		case SNAPSHOT_GET_RESULT:
+			if (gtmpqGetnchar((char *) &result->gr_resdata.grd_txn_snap_multi.gxid,
+							  sizeof(GlobalTransactionId), conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
+			/* Fall through */
+		case SNAPSHOT_GET_MULTI_RESULT:
+			if (gtmpqGetnchar((char *) &result->gr_resdata.grd_txn_snap_multi.txn_count,
+							  sizeof(int), conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
+			if (gtmpqGetnchar((char *) result->gr_resdata.grd_txn_snap_multi.status,
+							  sizeof(int) * result->gr_resdata.grd_txn_snap_multi.txn_count, conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
 
-            if (gtmpqGetnchar((char *) &result->gr_snapshot.sn_xmin,
-                              sizeof(GlobalTransactionId), conn))
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
+			if (gtmpqGetnchar((char *) &result->gr_snapshot.sn_xmin,
+							  sizeof(GlobalTransactionId), conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
 
-            if (gtmpqGetnchar((char *) &result->gr_snapshot.sn_xmax,
-                              sizeof(GlobalTransactionId), conn))
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
+			if (gtmpqGetnchar((char *) &result->gr_snapshot.sn_xmax,
+							  sizeof(GlobalTransactionId), conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
 
-            if (gtmpqGetInt((int *) &result->gr_snapshot.sn_xcnt,
-                            sizeof(int32), conn))
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
+			if (gtmpqGetInt((int *) &result->gr_snapshot.sn_xcnt,
+							sizeof(int32), conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
 
-            xsize = result->gr_xip_size;
-            xcnt = result->gr_snapshot.sn_xcnt;
-            xip = result->gr_snapshot.sn_xip;
+			xsize = result->gr_xip_size;
+			xcnt = result->gr_snapshot.sn_xcnt;
+			xip = result->gr_snapshot.sn_xip;
 
-            if (!xip || xcnt > xsize)
-            {
-                if (!xip)
-                    xip = (GlobalTransactionId *) malloc(sizeof(GlobalTransactionId) *
-                                                         GTM_MAX_GLOBAL_TRANSACTIONS);
-                else
-                    xip = (GlobalTransactionId *) realloc(xip,
-                                                          sizeof(GlobalTransactionId) * xcnt);
+			if (!xip || xcnt > xsize)
+			{
+				if (!xip)
+					xip = (GlobalTransactionId *) malloc(sizeof(GlobalTransactionId) *
+														 GTM_MAX_GLOBAL_TRANSACTIONS);
+				else
+					xip = (GlobalTransactionId *) realloc(xip,
+														  sizeof(GlobalTransactionId) * xcnt);
 
-                result->gr_snapshot.sn_xip = xip;
-                result->gr_xip_size = xcnt;
-            }
+				if (xip == NULL)
+				{
+					result->gr_status = GTM_RESULT_ERROR;
+					break;
+				}
+				
+				result->gr_snapshot.sn_xip = xip;
+				result->gr_xip_size = xcnt;
+			}
 
-            if (gtmpqGetnchar((char *) xip, sizeof(GlobalTransactionId) * xcnt, conn))
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
+			if (gtmpqGetnchar((char *) xip, sizeof(GlobalTransactionId) * xcnt, conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
 
-            break;
+			break;
 
-        case SEQUENCE_INIT_RESULT:
-        case SEQUENCE_RESET_RESULT:
-        case SEQUENCE_CLOSE_RESULT:
-        case SEQUENCE_RENAME_RESULT:
+		case SEQUENCE_INIT_RESULT:
+		case SEQUENCE_RESET_RESULT:
+		case SEQUENCE_CLOSE_RESULT:
+		case SEQUENCE_RENAME_RESULT:
         case SEQUENCE_COPY_RESULT:
-        case SEQUENCE_ALTER_RESULT:
-        case SEQUENCE_SET_VAL_RESULT:
-        case MSG_DB_SEQUENCE_RENAME_RESULT:
-            if (gtmpqReadSeqKey(&result->gr_resdata.grd_seqkey, conn))
-                result->gr_status = GTM_RESULT_ERROR;
-            break;
+		case SEQUENCE_ALTER_RESULT:
+		case SEQUENCE_SET_VAL_RESULT:
+		case MSG_DB_SEQUENCE_RENAME_RESULT:
+			if (gtmpqReadSeqKey(&result->gr_resdata.grd_seqkey, conn))
+				result->gr_status = GTM_RESULT_ERROR;
+			break;
 
-        case SEQUENCE_GET_CURRENT_RESULT:
-        case SEQUENCE_GET_NEXT_RESULT:
-        case SEQUENCE_GET_LAST_RESULT:
-            if (gtmpqReadSeqKey(&result->gr_resdata.grd_seq.seqkey, conn))
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
-            if (gtmpqGetnchar((char *) &result->gr_resdata.grd_seq.seqval,
-                              sizeof(GTM_Sequence), conn))
-                result->gr_status = GTM_RESULT_ERROR;
+		case SEQUENCE_GET_CURRENT_RESULT:
+		case SEQUENCE_GET_NEXT_RESULT:
+		case SEQUENCE_GET_LAST_RESULT:
+			if (gtmpqReadSeqKey(&result->gr_resdata.grd_seq.seqkey, conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
+			if (gtmpqGetnchar((char *) &result->gr_resdata.grd_seq.seqval,
+							  sizeof(GTM_Sequence), conn))
+				result->gr_status = GTM_RESULT_ERROR;
 #ifdef XCP
-        if (result->gr_type == SEQUENCE_GET_NEXT_RESULT &&
-gtmpqGetnchar((char *)&result->gr_resdata.grd_seq.rangemax,
-sizeof (GTM_Sequence), conn))
-result->gr_status = GTM_RESULT_ERROR;
+		if (result->gr_type == SEQUENCE_GET_NEXT_RESULT &&
+                gtmpqGetnchar((char *)&result->gr_resdata.grd_seq.rangemax,
+                sizeof (GTM_Sequence), conn))
+            result->gr_status = GTM_RESULT_ERROR;
 #endif
-            break;
+		    break;
 
 #ifdef __OPENTENBASE__
-        case STORAGE_TRANSFER_RESULT:
-        {
-            int32 loop_count = 0;
-            int32 offset = 0;
-            int data_len = 0;
-            char *data_buf = NULL;
+		case STORAGE_TRANSFER_RESULT:
+		{
+			int32 loop_count = 0;
+			int32 offset = 0;
+			int data_len = 0;
+			char *data_buf = NULL;
 
 #ifdef __XLOG__
-            /* get xlog start pos and timeline */
-            if (gtmpqGetInt64((int64 *)&result->grd_storage_data.start_pos, conn))
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
+			/* get xlog start pos and timeline */
+			if (gtmpqGetInt64((int64 *)&result->grd_storage_data.start_pos, conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
 
-            if (gtmpqGetInt((int *)&result->grd_storage_data.time_line,
-                            sizeof(TimeLineID), conn))
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
+			if (gtmpqGetInt((int *)&result->grd_storage_data.time_line,
+							sizeof(TimeLineID), conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
 #endif
 
 			/* communication protocol: total data len, pkg number, {pkg_len,pkg_data}, {pkg_len,pkg_data},*/
-			if (gtmpqGetInt(&result->grd_storage_data.len,
-							sizeof(uint32), conn))
+			if (gtmpqGetInt((int *)&result->grd_storage_data.org_len, sizeof(uint32), conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
+
+			if (gtmpqGetInt((int *)&result->grd_storage_data.c_len, sizeof(uint32), conn))
 			{
 				result->gr_status = GTM_RESULT_ERROR;
 				break;
 			}
 
 			/* get loop count */
-			if (gtmpqGetInt(&loop_count,
-							sizeof(uint32), conn))
+			if (gtmpqGetInt(&loop_count, sizeof(uint32), conn))
 			{
 				result->gr_status = GTM_RESULT_ERROR;
 				break;
 			}
 
-			result->grd_storage_data.data = (char *) malloc(result->grd_storage_data.len);
+			result->grd_storage_data.data = (char *) malloc(result->grd_storage_data.c_len);
+			if (result->grd_storage_data.data == NULL)
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
+			
 			data_buf = result->grd_storage_data.data;
 			for (i = 0; i < loop_count; i++)
 			{
@@ -770,7 +807,7 @@ result->gr_status = GTM_RESULT_ERROR;
 
 			if (result->gr_status != GTM_RESULT_OK)
 			{
-				if (offset != result->grd_storage_data.len)
+				if (offset != result->grd_storage_data.org_len)
 				{
 					abort();
 				}
@@ -815,7 +852,7 @@ result->gr_status = GTM_RESULT_ERROR;
 				break;
 			}
 
-			if (gtmpqGetInt64(&result->gtm_status.header.m_next_gts, conn))
+			if (gtmpqGetInt64((int64 *)&result->gtm_status.header.m_next_gts, conn))
 			{
 				result->gr_status = GTM_RESULT_ERROR;
 				break;
@@ -844,6 +881,14 @@ result->gr_status = GTM_RESULT_ERROR;
 				result->gr_status = GTM_RESULT_ERROR;
 				break;
 			}
+
+#ifdef __RESOURCE_QUEUE__
+			if (gtmpqGetInt((int32 *) &result->gtm_status.header.m_resq_freelist, sizeof(int32), conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
+#endif
 
 			if (gtmpqGetInt64(&result->gtm_status.header.m_lsn, conn))
 			{
@@ -887,6 +932,21 @@ result->gr_status = GTM_RESULT_ERROR;
 				result->gr_status = GTM_RESULT_ERROR;
 				break;
 			}
+
+#ifdef __RESOURCE_QUEUE__
+			if (gtmpqGetInt((int32 *) &result->gtm_status.resq_total, sizeof(int32), conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
+		
+
+			if (gtmpqGetInt((int32 *) &result->gtm_status.resq_used, sizeof(int32), conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
+#endif
 			break;
 		}
 
@@ -898,10 +958,16 @@ result->gr_status = GTM_RESULT_ERROR;
 				result->gr_status = GTM_RESULT_ERROR;
 				break;
 			}
-
+			
 			conn->result->grd_store_seq.seqs =
-					(GTM_StoredSeqInfo *) malloc(sizeof(GTM_StoredSeqInfo) *
-												 conn->result->grd_store_seq.count);
+				(GTM_StoredSeqInfo *) malloc(sizeof(GTM_StoredSeqInfo) *
+				                             conn->result->grd_store_seq.count);
+			if (conn->result->grd_store_seq.seqs == NULL)
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
+			
 			for (i = 0; i < conn->result->grd_store_seq.count; i++)
 			{
 				if (gtmpqGetnchar((char *) &conn->result->grd_store_seq.seqs[i], sizeof(GTM_StoredSeqInfo), conn))
@@ -925,6 +991,12 @@ result->gr_status = GTM_RESULT_ERROR;
 			conn->result->grd_store_txn.txns =
 					(GTM_StoredTransactionInfo *) malloc(sizeof(GTM_StoredTransactionInfo) *
 														 conn->result->grd_store_txn.count);
+			if (conn->result->grd_store_txn.txns == NULL)
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
+			
 			for (i = 0; i < conn->result->grd_store_txn.count; i++)
 			{
 				if (gtmpqGetnchar((char *) &conn->result->grd_store_txn.txns[i], sizeof(GTM_StoredTransactionInfo),
@@ -950,6 +1022,12 @@ result->gr_status = GTM_RESULT_ERROR;
 			conn->result->grd_store_check_seq.seqs =
 					(GTMStorageSequneceStatus *) malloc(sizeof(GTMStorageSequneceStatus) *
 														conn->result->grd_store_check_seq.count);
+			if (conn->result->grd_store_check_seq.seqs == NULL)
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
+			
 			for (i = 0; i < conn->result->grd_store_check_seq.count; i++)
 			{
 				if (gtmpqGetnchar((char *) &conn->result->grd_store_check_seq.seqs[i], sizeof(GTMStorageSequneceStatus),
@@ -974,6 +1052,12 @@ result->gr_status = GTM_RESULT_ERROR;
 			conn->result->grd_store_check_txn.txns =
 					(GTMStorageTransactionStatus *) malloc(sizeof(GTMStorageTransactionStatus) *
 														   conn->result->grd_store_check_txn.count);
+			if (conn->result->grd_store_check_txn.txns == NULL)
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
+			
 			for (i = 0; i < conn->result->grd_store_check_txn.count; i++)
 			{
 				if (gtmpqGetnchar((char *) &conn->result->grd_store_check_txn.txns[i],
@@ -1057,6 +1141,12 @@ result->gr_status = GTM_RESULT_ERROR;
 
             result->grd_errlog.errlog =
                     (char *) malloc(result->gr_msglen);
+            if (result->grd_errlog.errlog == NULL)
+            {
+	            result->gr_status = GTM_RESULT_ERROR;
+	            break;
+            }
+            
             if (gtmpqGetnchar((char *) result->grd_errlog.errlog,
                               result->gr_msglen, conn))
             {
@@ -1067,167 +1157,185 @@ result->gr_status = GTM_RESULT_ERROR;
         }
 
 #endif
-        case SEQUENCE_LIST_RESULT:
-            if (gtmpqGetInt(&result->gr_resdata.grd_seq_list.seq_count,
-                            sizeof(int32), conn))
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
+		case SEQUENCE_LIST_RESULT:
+			if (gtmpqGetInt(&result->gr_resdata.grd_seq_list.seq_count,
+							sizeof(int32), conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
+			
+			result->gr_resdata.grd_seq_list.seq =
+				(GTM_SeqInfo *) malloc(sizeof(GTM_SeqInfo) *
+				                       result->gr_resdata.grd_seq_list.seq_count);
+			if (result->gr_resdata.grd_seq_list.seq == NULL)
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
 
-            result->gr_resdata.grd_seq_list.seq =
-                    (GTM_SeqInfo *) malloc(sizeof(GTM_SeqInfo) *
-                                           result->gr_resdata.grd_seq_list.seq_count);
+			for (i = 0; i < result->gr_resdata.grd_seq_list.seq_count; i++)
+			{
+				int buflen;
+				char *buf;
 
-            for (i = 0; i < result->gr_resdata.grd_seq_list.seq_count; i++)
-            {
-                int buflen;
-                char *buf;
+				/* a length of the next serialized sequence */
+				if (gtmpqGetInt(&buflen, sizeof(int32), conn))
+				{
+					result->gr_status = GTM_RESULT_ERROR;
+					break;
+				}
 
-                /* a length of the next serialized sequence */
-                if (gtmpqGetInt(&buflen, sizeof(int32), conn))
-                {
-                    result->gr_status = GTM_RESULT_ERROR;
-                    break;
-                }
+				/* a data body of the serialized sequence */
+				buf = (char *) malloc(buflen);
+				if (buf == NULL)
+				{
+					result->gr_status = GTM_RESULT_ERROR;
+					break;
+				}
+				
+				if (gtmpqGetnchar(buf, buflen, conn))
+				{
+					result->gr_status = GTM_RESULT_ERROR;
+					free(buf);
+					break;
+				}
 
-                /* a data body of the serialized sequence */
-                buf = (char *) malloc(buflen);
-                if (gtmpqGetnchar(buf, buflen, conn))
-                {
-                    result->gr_status = GTM_RESULT_ERROR;
-                    free(buf);
-                    break;
-                }
+				gtm_deserialize_sequence(result->gr_resdata.grd_seq_list.seq + i,
+										 buf, buflen);
 
-                gtm_deserialize_sequence(result->gr_resdata.grd_seq_list.seq + i,
-                                         buf, buflen);
+				free(buf);
+			}
+			break;
 
-                free(buf);
-            }
-            break;
+		case TXN_GET_STATUS_RESULT:
+			break;
 
-        case TXN_GET_STATUS_RESULT:
-            break;
+		case TXN_GET_ALL_PREPARED_RESULT:
+			break;
 
-        case TXN_GET_ALL_PREPARED_RESULT:
-            break;
-
-        case TXN_GET_GID_DATA_RESULT:
-            if (gtmpqGetnchar((char *) &result->gr_resdata.grd_txn_get_gid_data.gxid,
-                              sizeof(GlobalTransactionId), conn))
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
-            if (gtmpqGetnchar((char *) &result->gr_resdata.grd_txn_get_gid_data.prepared_gxid,
-                              sizeof(GlobalTransactionId), conn))
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
-            if (gtmpqGetInt(&result->gr_resdata.grd_txn_get_gid_data.nodelen,
-                            sizeof(int32), conn))
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
-            if (result->gr_resdata.grd_txn_get_gid_data.nodelen != 0)
-            {
+		case TXN_GET_GID_DATA_RESULT:
+			if (gtmpqGetnchar((char *) &result->gr_resdata.grd_txn_get_gid_data.gxid,
+							  sizeof(GlobalTransactionId), conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
+			if (gtmpqGetnchar((char *) &result->gr_resdata.grd_txn_get_gid_data.prepared_gxid,
+							  sizeof(GlobalTransactionId), conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
+			if (gtmpqGetInt(&result->gr_resdata.grd_txn_get_gid_data.nodelen,
+							sizeof(int32), conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
+			if (result->gr_resdata.grd_txn_get_gid_data.nodelen != 0)
+			{
 				/* Do necessary allocation, free outside */
-                result->gr_resdata.grd_txn_get_gid_data.nodestring =
-                        (char *) malloc(sizeof(char *) * result->gr_resdata.grd_txn_get_gid_data.nodelen + 1);
-                if (result->gr_resdata.grd_txn_get_gid_data.nodestring == NULL)
-                {
-                    result->gr_status = GTM_RESULT_ERROR;
-                    break;
-                }
+				result->gr_resdata.grd_txn_get_gid_data.nodestring =
+						(char *) malloc(result->gr_resdata.grd_txn_get_gid_data.nodelen + 1);
+				if (result->gr_resdata.grd_txn_get_gid_data.nodestring == NULL)
+				{
+					result->gr_status = GTM_RESULT_ERROR;
+					break;
+				}
 
-                /* get the string itself */
-                if (gtmpqGetnchar(result->gr_resdata.grd_txn_get_gid_data.nodestring,
-                                  result->gr_resdata.grd_txn_get_gid_data.nodelen, conn))
-                {
-                    result->gr_status = GTM_RESULT_ERROR;
-                    break;
-                }
+				memset(result->gr_resdata.grd_txn_get_gid_data.nodestring, 0,
+					   result->gr_resdata.grd_txn_get_gid_data.nodelen + 1);
 
-                /* null terminate the name*/
-                result->gr_resdata.grd_txn_get_gid_data.nodestring[result->gr_resdata.grd_txn_get_gid_data.nodelen] = '\0';
-            }
-            else
-                result->gr_resdata.grd_txn_get_gid_data.nodestring = NULL;
+				/* get the string itself */
+				if (gtmpqGetnchar(result->gr_resdata.grd_txn_get_gid_data.nodestring,
+								  result->gr_resdata.grd_txn_get_gid_data.nodelen, conn))
+				{
+					result->gr_status = GTM_RESULT_ERROR;
+					break;
+				}
 
-            break;
+				Assert(strlen(result->gr_resdata.grd_txn_get_gid_data.nodestring) ==
+					   result->gr_resdata.grd_txn_get_gid_data.nodelen);
+			}
+			else
+				result->gr_resdata.grd_txn_get_gid_data.nodestring = NULL;
 
-        case TXN_GXID_LIST_RESULT:
-            result->gr_resdata.grd_txn_gid_list.len = 0;
-            result->gr_resdata.grd_txn_gid_list.ptr = NULL;
+			break;
 
-            if (gtmpqGetInt((int *) &result->gr_resdata.grd_txn_gid_list.len,
-                            sizeof(int32), conn))
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
+		case TXN_GXID_LIST_RESULT:
+			result->gr_resdata.grd_txn_gid_list.len = 0;
+			result->gr_resdata.grd_txn_gid_list.ptr = NULL;
 
-            /*
-             * I don't understand why malloc() here?  Should be palloc()?
-             */
-            result->gr_resdata.grd_txn_gid_list.ptr =
-                    (char *) malloc(result->gr_resdata.grd_txn_gid_list.len);
+			if (gtmpqGetInt((int *) &result->gr_resdata.grd_txn_gid_list.len,
+							sizeof(int32), conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
 
-            if (result->gr_resdata.grd_txn_gid_list.ptr == NULL)
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
+			/*
+			 * I don't understand why pg_malloc() here?  Should be palloc()?
+			 */
+			result->gr_resdata.grd_txn_gid_list.ptr =
+					(char *) malloc(result->gr_resdata.grd_txn_gid_list.len);
 
-            if (gtmpqGetnchar(result->gr_resdata.grd_txn_gid_list.ptr,
-                              result->gr_resdata.grd_txn_gid_list.len,
-                              conn))  /* serialized GTM_Transactions */
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
-            break;
+			if (result->gr_resdata.grd_txn_gid_list.ptr == NULL)
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
 
-        case NODE_UNREGISTER_RESULT:
-        case NODE_REGISTER_RESULT:
-            result->gr_resdata.grd_node.len = 0;
-            result->gr_resdata.grd_node.node_name = NULL;
+			if (gtmpqGetnchar(result->gr_resdata.grd_txn_gid_list.ptr,
+							  result->gr_resdata.grd_txn_gid_list.len,
+							  conn))  /* serialized GTM_Transactions */
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
+			break;
 
-            if (gtmpqGetnchar((char *) &result->gr_resdata.grd_node.type,
-                              sizeof(GTM_PGXCNodeType), conn))
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
-            if (gtmpqGetInt((int *) &result->gr_resdata.grd_node.len,
-                            sizeof(int32), conn))
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
+		case NODE_UNREGISTER_RESULT:
+		case NODE_REGISTER_RESULT:
+			result->gr_resdata.grd_node.len = 0;
+			result->gr_resdata.grd_node.node_name = NULL;
 
-            result->gr_resdata.grd_node.node_name =
-                    (char *) malloc(result->gr_resdata.grd_node.len + 1);
+			if (gtmpqGetnchar((char *) &result->gr_resdata.grd_node.type,
+							  sizeof(GTM_PGXCNodeType), conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
+			if (gtmpqGetInt((int *) &result->gr_resdata.grd_node.len,
+							sizeof(int32), conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
 
-            if (result->gr_resdata.grd_node.node_name == NULL)
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
+			result->gr_resdata.grd_node.node_name =
+					(char *) malloc(result->gr_resdata.grd_node.len + 1);
 
-            if (gtmpqGetnchar(result->gr_resdata.grd_node.node_name,
-                              result->gr_resdata.grd_node.len,
-                              conn))  /* serialized GTM_Transactions */
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
-            result->gr_resdata.grd_node.node_name[result->gr_resdata.grd_node.len] = '\0';
+			if (result->gr_resdata.grd_node.node_name == NULL)
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
 
-            break;
+			memset(result->gr_resdata.grd_node.node_name, 0,
+				   result->gr_resdata.grd_node.len + 1);
+
+			if (gtmpqGetnchar(result->gr_resdata.grd_node.node_name,
+							  result->gr_resdata.grd_node.len,
+							  conn))  /* serialized GTM_Transactions */
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
+
+			Assert(strlen(result->gr_resdata.grd_node.node_name) ==
+			       result->gr_resdata.grd_node.len);
+			break;
 
 		case NODE_LIST_RESULT:
 		{
@@ -1237,17 +1345,17 @@ result->gr_status = GTM_RESULT_ERROR;
 
             memset(result->gr_resdata.grd_node_list.nodeinfo, 0, sizeof(result->gr_resdata.grd_node_list.nodeinfo));
 
-            if (gtmpqGetInt(&result->gr_resdata.grd_node_list.num_node, sizeof(int32), conn))
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
+			if (gtmpqGetInt(&result->gr_resdata.grd_node_list.num_node, sizeof(int32), conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
 
             buf = (char *) malloc(buf_size);
             if (buf == NULL)
             {
                 result->gr_status = GTM_RESULT_ERROR;
-                printfGTMPQExpBuffer(&conn->errorMessage, "malloc buffer for node list data failed");
+                printfGTMPQExpBuffer(&conn->errorMessage, "pg_malloc buffer for node list data failed");
                 break;
             }
 
@@ -1255,6 +1363,11 @@ result->gr_status = GTM_RESULT_ERROR;
 			{
 				int size;
 				GTM_PGXCNodeInfo *data = (GTM_PGXCNodeInfo *) malloc(sizeof(GTM_PGXCNodeInfo));
+				if (data == NULL)
+				{
+					result->gr_status = GTM_RESULT_ERROR;
+					break;
+				}
                 memset(data, 0, sizeof(GTM_PGXCNodeInfo));
 
 				if (gtmpqGetInt(&size, sizeof(int32), conn))
@@ -1324,64 +1437,64 @@ result->gr_status = GTM_RESULT_ERROR;
 		case BARRIER_RESULT:
 			break;
 
-        case REPORT_XMIN_RESULT:
-            if (gtmpqGetnchar((char *) &result->gr_resdata.grd_report_xmin.latest_completed_xid,
-                              sizeof(GlobalTransactionId), conn))
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
-            if (gtmpqGetnchar((char *) &result->gr_resdata.grd_report_xmin.global_xmin,
-                              sizeof(GlobalTransactionId), conn))
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
-            if (gtmpqGetnchar((char *) &result->gr_resdata.grd_report_xmin.errcode,
-                              sizeof(int), conn))
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
-            break;
+		case REPORT_XMIN_RESULT:
+			if (gtmpqGetnchar((char *) &result->gr_resdata.grd_report_xmin.latest_completed_xid,
+							  sizeof(GlobalTransactionId), conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
+			if (gtmpqGetnchar((char *) &result->gr_resdata.grd_report_xmin.global_xmin,
+							  sizeof(GlobalTransactionId), conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
+			if (gtmpqGetnchar((char *) &result->gr_resdata.grd_report_xmin.errcode,
+							  sizeof(int), conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
+			break;
 
-        case MSG_CLEAN_SESSION_SEQ_RESULT:
-            break;
+		case MSG_CLEAN_SESSION_SEQ_RESULT:
+			break;
 
 #ifdef __XLOG__
-        case MSG_REPLICATION_START_RESULT_SUCCESS:
-            break;
+		case MSG_REPLICATION_START_RESULT_SUCCESS:
+			break;
 
-        case MSG_REPLICATION_START_RESULT_FAIL:
-            break;
+		case MSG_REPLICATION_START_RESULT_FAIL:
+			break;
 
-        case MSG_REPLICATION_STATUS:
-            if (gtmpqGetInt64((int64 *) &result->gr_resdata.grd_replication.flush, conn))
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
+		case MSG_REPLICATION_STATUS:
+			if (gtmpqGetInt64((int64 *) &result->gr_resdata.grd_replication.flush, conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
 
-            if (gtmpqGetInt64((int64 *) &result->gr_resdata.grd_replication.write, conn))
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
+			if (gtmpqGetInt64((int64 *) &result->gr_resdata.grd_replication.write, conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
 
-            if (gtmpqGetInt64((int64 *) &result->gr_resdata.grd_replication.apply, conn))
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
+			if (gtmpqGetInt64((int64 *) &result->gr_resdata.grd_replication.apply, conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
 
-            break;
+			break;
 
-        case MSG_REPLICATION_CONTENT:
-        {
+		case MSG_REPLICATION_CONTENT:
+		{
             int loop_count = 0;
             int offset     = 0;
             int pack_size  = 0;
-            int i          = 0;
+			int i          = 0;
             result->gr_resdata.grd_xlog_data.length = 0;
             result->gr_resdata.grd_xlog_data.xlog_data = NULL;
 
@@ -1396,108 +1509,376 @@ result->gr_status = GTM_RESULT_ERROR;
                 break;
             }
 
-            if (gtmpqGetInt64((int64 *)&result->gr_resdata.grd_xlog_data.flush, conn))
-            {
-                result->gr_status = GTM_RESULT_ERROR;
+			if (gtmpqGetInt64((int64 *)&result->gr_resdata.grd_xlog_data.flush, conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
+
+			if (gtmpqGetInt(&result->gr_resdata.grd_xlog_data.reply,sizeof(int), conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
+
+			if (gtmpqGetInt64((int64 *) &result->gr_resdata.grd_xlog_data.pos, conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
+
+			if (gtmpqGetInt(&result->gr_resdata.grd_xlog_data.length,
+							sizeof(int), conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
+
+			if(result->gr_resdata.grd_xlog_data.length > GTM_XLOG_SEG_SIZE)
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
+
+			if(result->gr_resdata.grd_xlog_data.length == 0)
+				break;
+
+			/* get loop count */
+			if (gtmpqGetInt(&loop_count, sizeof(int), conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
+
+			result->gr_resdata.grd_xlog_data.xlog_data = (char *) malloc(result->gr_resdata.grd_xlog_data.length);
+			if (result->gr_resdata.grd_xlog_data.xlog_data == NULL)
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
+
+			for(i = 0 ; i < loop_count;i++ )
+			{
+				if (gtmpqGetInt(&pack_size, sizeof(int), conn))
+				{
+					result->gr_status = GTM_RESULT_ERROR;
+					break;
+				}
+
+				if (gtmpqGetnchar(result->gr_resdata.grd_xlog_data.xlog_data + offset, (uint32_t)pack_size, conn))
+				{
+					result->gr_status = GTM_RESULT_ERROR;
+					break;
+				}
+
+				offset += pack_size;
+			}
+
+			if(offset != result->gr_resdata.grd_xlog_data.length)
+			{
+				result->gr_status = GTM_RESULT_ERROR;
                 break;
-            }
+			}
 
-            if (gtmpqGetInt(&result->gr_resdata.grd_xlog_data.reply,sizeof(int), conn))
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
-
-            if (gtmpqGetInt64((int64 *) &result->gr_resdata.grd_xlog_data.pos, conn))
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
-
-            if (gtmpqGetInt(&result->gr_resdata.grd_xlog_data.length,
-                            sizeof(int), conn))
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
-
-            if(result->gr_resdata.grd_xlog_data.length > GTM_XLOG_SEG_SIZE)
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
-
-            if(result->gr_resdata.grd_xlog_data.length == 0)
-                break;
-
-            /* get loop count */
-            if (gtmpqGetInt(&loop_count, sizeof(int), conn))
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
-
-            result->gr_resdata.grd_xlog_data.xlog_data = (char *) malloc(result->gr_resdata.grd_xlog_data.length);
-
-            for(i = 0 ; i < loop_count;i++ )
-            {
-                if (gtmpqGetInt(&pack_size, sizeof(int), conn))
-                {
-                    result->gr_status = GTM_RESULT_ERROR;
-                    break;
-                }
-
-                if (gtmpqGetnchar(result->gr_resdata.grd_xlog_data.xlog_data + offset, (uint32_t)pack_size, conn))
-                {
-                    result->gr_status = GTM_RESULT_ERROR;
-                    break;
-                }
-
-                offset += pack_size;
-            }
-
-            if(offset != result->gr_resdata.grd_xlog_data.length)
-            {
-                result->gr_status = GTM_RESULT_ERROR;
-                break;
-            }
-
-            break;
-    }
+			break;
+	}
 #endif
-        default:
-            printfGTMPQExpBuffer(&conn->errorMessage,
-                              "unexpected result type from server; result typr was \"%d\"\n",
-                              result->gr_type);
-            result->gr_status = GTM_RESULT_ERROR;
-            break;
-    }
+#ifdef __OPENTENBASE_C__
+		case MSG_ACQUIRE_FID_RESULT:
+		{
+			int i;
+			if (gtmpqGetInt(&result->grd_store_fid.fid_count,sizeof(int), conn))
+			{
+				result->grd_store_fid.fids = NULL;
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
+			if (result->grd_store_fid.fid_count > 0)
+			{
+				result->grd_store_fid.fids = (int *)malloc(result->grd_store_fid.fid_count * sizeof(int));
+				for (i = 0; i < result->grd_store_fid.fid_count; i++)
+				{
+					if (gtmpqGetInt(&result->grd_store_fid.fids[i],sizeof(int), conn))
+					{
+						result->gr_status = GTM_RESULT_ERROR;
+						break;
+					}
+				}
+			}
+			break;
+		}
+		case MSG_RELEASE_FID_RESULT:
+		case MSG_KEEPALIVE_FID_RESULT:
+		{
+			break;
+		}
+		case MSG_LIST_FID_RESULT:
+		{
+			int i;
+			if (gtmpqGetInt(&result->grd_store_fid.fid_count,sizeof(int), conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
+			result->grd_store_fid.fids = (int *)malloc(result->grd_store_fid.fid_count * sizeof(int));
+			for (i = 0; i < result->grd_store_fid.fid_count; i++)
+			{
+				if (gtmpqGetInt(&result->grd_store_fid.fids[i],sizeof(int), conn))
+				{
+					result->gr_status = GTM_RESULT_ERROR;
+					break;
+				}
+			}
+			break;
+		}
+		case MSG_LIST_ALIVE_FID_RESULT:
+		{
+			int i;
+			if (gtmpqGetInt(&result->grd_store_fid.fid_count,sizeof(int), conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}			
+			result->grd_store_fid.fidstatus = (GTM_Fid *)malloc(result->grd_store_fid.fid_count * sizeof(GTM_Fid));
+			for (i = 0; i < result->grd_store_fid.fid_count; i++)
+			{
+				if (gtmpqGetnchar((char *) &result->grd_store_fid.fidstatus[i], sizeof(GTM_Fid),
+								  conn))
+				{
+					result->gr_status = GTM_RESULT_ERROR;
+					break;
+				}
+			}
+			break;
+		}
+		case MSG_LIST_ALL_FID_RESULT:
+		{
+			int i;
+			if (gtmpqGetInt(&result->grd_store_fid.fid_count,sizeof(int), conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}			
+			result->grd_store_fid.fidstatus = (GTM_Fid *)malloc(result->grd_store_fid.fid_count * sizeof(GTM_Fid));
+			for (i = 0; i < result->grd_store_fid.fid_count; i++)
+			{
+				if (gtmpqGetnchar((char *) &result->grd_store_fid.fidstatus[i], sizeof(GTM_Fid),
+								  conn))
+				{
+					result->gr_status = GTM_RESULT_ERROR;
+					break;
+				}
+			}
+			break;
+		}
+#endif
 
-    return (result->gr_status);
+#ifdef __RESOURCE_QUEUE__
+		case RESQUEUE_INIT_RESULT:
+		case RESQUEUE_CLOSE_RESULT:
+		case RESQUEUE_ALTER_RESULT:
+		{
+			if (gtmpqGetnchar(result->gr_resdata.grd_resqret.resqueue.resq_name.data, NAMEDATALEN, conn))
+				result->gr_status = GTM_RESULT_ERROR;
+			break;
+		}
+		case RESQUEUE_LIST_RESULT:
+		{
+			if (gtmpqGetInt(&result->grd_resq_list.count,
+							sizeof(int32), conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
+
+			result->grd_resq_list.resqs =
+					(GTM_ResQueueInfo *) malloc(sizeof(GTM_ResQueueInfo) *
+										   result->grd_resq_list.count);
+
+			for (i = 0; i < result->grd_resq_list.count; i++)
+			{
+				int buflen = 0;
+				char *buf = NULL;
+
+				/* a length of the next serialized resqueue */
+				if (gtmpqGetInt(&buflen, sizeof(int32), conn))
+				{
+					result->gr_status = GTM_RESULT_ERROR;
+					break;
+				}
+
+				/* a data body of the serialized resqueue */
+				buf = (char *) malloc(buflen);
+				if (gtmpqGetnchar(buf, buflen, conn))
+				{
+					result->gr_status = GTM_RESULT_ERROR;
+					free(buf);
+					break;
+				}
+
+				gtm_deserialize_resqueue(result->grd_resq_list.resqs + i,
+										 buf, buflen);
+
+				free(buf);
+			}
+			break;
+		}
+		case MSG_LIST_GTM_STORE_RESQUEUE_RESULT:
+		{
+			if (gtmpqGetInt(&conn->result->grd_store_resq.count,
+							sizeof(int32), conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
+
+			conn->result->grd_store_resq.resqs =
+					(GTM_StoredResQueueDataInfo *) malloc(sizeof(GTM_StoredResQueueDataInfo) *
+												 conn->result->grd_store_resq.count);
+			for (i = 0; i < conn->result->grd_store_resq.count; i++)
+			{
+				if (gtmpqGetnchar((char *) &conn->result->grd_store_resq.resqs[i], sizeof(GTM_StoredResQueueDataInfo), conn))
+				{
+					result->gr_status = GTM_RESULT_ERROR;
+					break;
+				}
+			}
+			break;
+		}
+		case MSG_CHECK_GTM_RESQUEUE_STORE_RESULT:
+		{
+			if (gtmpqGetInt(&conn->result->grd_store_check_resq.count,
+							sizeof(int32), conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
+
+			conn->result->grd_store_check_resq.resqs =
+					(GTMStorageResQueueStatus *) malloc(sizeof(GTMStorageResQueueStatus) *
+														conn->result->grd_store_check_resq.count);
+			for (i = 0; i < conn->result->grd_store_check_resq.count; i++)
+			{
+				if (gtmpqGetnchar((char *) &conn->result->grd_store_check_resq.resqs[i], sizeof(GTMStorageResQueueStatus),
+								  conn))
+				{
+					result->gr_status = GTM_RESULT_ERROR;
+					break;
+				}
+			}
+			break;
+		}
+		case MSG_LIST_RESQUEUE_USAGE_RESULT:
+		{
+			if (gtmpqGetInt(&conn->result->grd_resq_usage.count,
+							sizeof(int32), conn))
+			{
+				result->gr_status = GTM_RESULT_ERROR;
+				break;
+			}
+
+			conn->result->grd_resq_usage.usages =
+					(GTM_ResQUsageInfo *) malloc(sizeof(GTM_ResQUsageInfo) *
+														conn->result->grd_resq_usage.count);
+			for (i = 0; i < conn->result->grd_resq_usage.count; i++)
+			{
+				if (gtmpqGetnchar((char *) &conn->result->grd_resq_usage.usages[i], sizeof(GTM_ResQUsageInfo),
+								  conn))
+				{
+					result->gr_status = GTM_RESULT_ERROR;
+					break;
+				}
+			}
+			break;
+		}
+		case RESQUEUE_MOVE_CONN_RESULT:
+		{
+			if (gtmpqGetInt(&result->gr_resdata.grd_resqret.status, 4, conn))
+				result->gr_status = GTM_RESULT_ERROR;
+			break;
+		}
+		case RESQUEUE_ACQUIRE_RESULT:
+		case RESQUEUE_RELEASE_RESULT:
+		{
+			if (gtmpqGetnchar(result->gr_resdata.grd_resqret.resqueue.resq_name.data, NAMEDATALEN, conn) ||
+				gtmpqGetnchar(result->gr_resdata.grd_resqret.resqueue.resq_group.data, NAMEDATALEN, conn) ||
+				gtmpqGetInt64(&result->gr_resdata.grd_resqret.resqueue.resq_memory_limit, conn) ||
+				gtmpqGetInt64(&result->gr_resdata.grd_resqret.resqueue.resq_network_limit, conn))
+				result->gr_status = GTM_RESULT_ERROR;
+			else
+			{
+				int myRet = 0;
+
+				if (gtmpqGetInt(&myRet, 4, conn))
+					result->gr_status = GTM_RESULT_ERROR;
+				else
+				{
+					result->gr_resdata.grd_resqret.resqueue.resq_active_stmts = (int32) myRet;
+
+					if (gtmpqGetInt(&myRet, 2, conn))
+						result->gr_status = GTM_RESULT_ERROR;
+					else
+					{
+						result->gr_resdata.grd_resqret.resqueue.resq_wait_overload = (int16) myRet;
+
+						if (gtmpqGetInt(&myRet, 2, conn))
+							result->gr_status = GTM_RESULT_ERROR;
+						else
+						{
+							result->gr_resdata.grd_resqret.resqueue.resq_priority = (int16) myRet;
+
+							if (gtmpqGetInt(&myRet, 4, conn))
+								result->gr_status = GTM_RESULT_ERROR;
+							else
+								result->gr_resdata.grd_resqret.error = (int32) myRet;
+						}
+					}
+				}
+			}
+
+			break;
+		}
+		case RESQUEUE_IF_EXISTS_RESULT:
+		{
+			if (gtmpqGetnchar(result->gr_resdata.grd_resqret.resqueue.resq_name.data, NAMEDATALEN, conn) ||
+				gtmpqGetInt(&result->gr_resdata.grd_resqret.status, 4, conn))
+				result->gr_status = GTM_RESULT_ERROR;
+			break;
+		}
+#endif
+		default:
+			printfGTMPQExpBuffer(&conn->errorMessage,
+							  "unexpected result type from server; result typr was \"%d\"\n",
+							  result->gr_type);
+			result->gr_status = GTM_RESULT_ERROR;
+			break;
+	}
+
+	return (result->gr_status);
 }
 
 static int
 gtmpqReadSeqKey(GTM_SequenceKey seqkey, GTM_Conn *conn)
 {
-    /*
-     * Read keylength
-     */
-    if (gtmpqGetInt((int *)&seqkey->gsk_keylen, 4, conn))
-        return EINVAL;
+	/*
+	 * Read keylength
+	 */
+	if (gtmpqGetInt((int *)&seqkey->gsk_keylen, 4, conn))
+		return EINVAL;
 
-    /*
-     * Do some sanity checks on the keylength
-     */
-    if (seqkey->gsk_keylen <= 0 || seqkey->gsk_keylen > GTM_MAX_SEQKEY_LENGTH)
-        return EINVAL;
+	/*
+	 * Do some sanity checks on the keylength
+	 */
+	if (seqkey->gsk_keylen <= 0 || seqkey->gsk_keylen > GTM_MAX_SEQKEY_LENGTH)
+		return EINVAL;
 
-    if ((seqkey->gsk_key = (char *) malloc(seqkey->gsk_keylen))    == NULL)
-        return ENOMEM;
+	if ((seqkey->gsk_key = (char *) malloc(seqkey->gsk_keylen))	== NULL)
+		return ENOMEM;
 
-    if (gtmpqGetnchar(seqkey->gsk_key, seqkey->gsk_keylen, conn))
-        return EINVAL;
+	if (gtmpqGetnchar(seqkey->gsk_key, seqkey->gsk_keylen, conn))
+		return EINVAL;
 
-    return 0;
+	return 0;
 }
 
 /*
@@ -1650,12 +2031,12 @@ gtmpqFreeResultResource(GTM_Result *result)
             break;
         case STORAGE_TRANSFER_RESULT:
             /* free result of last call */
-            if (result->grd_storage_data.len && result->grd_storage_data.data)
+            if (result->grd_storage_data.data)
             {
                 free(result->grd_storage_data.data);
                 result->grd_storage_data.data = NULL;
-                result->grd_storage_data.len = 0;
             }
+            result->grd_storage_data.org_len = 0;
             break;
         case MSG_LIST_GTM_STORE_SEQ_RESULT:
             if (result->grd_store_seq.count && result->grd_store_seq.seqs)
@@ -1690,9 +2071,65 @@ gtmpqFreeResultResource(GTM_Result *result)
             }
             break;
 #endif
-        default:
-            break;
-    }
+#ifdef __OPENTENBASE_C__
+		case MSG_ACQUIRE_FID_RESULT:
+		case MSG_LIST_FID_RESULT:
+			if (result->grd_store_fid.fids != NULL)
+			{
+				free(result->grd_store_fid.fids);
+			}
+			result->grd_store_fid.fids = NULL;
+			break;
+		case MSG_LIST_ALIVE_FID_RESULT:
+		case MSG_LIST_ALL_FID_RESULT:
+			if (result->grd_store_fid.fidstatus != NULL)
+			{
+				free(result->grd_store_fid.fidstatus);
+			}
+			result->grd_store_fid.fidstatus = NULL;
+			break;
+#endif
+#ifdef __RESOURCE_QUEUE__
+		case RESQUEUE_LIST_RESULT:
+		{
+			if (result->grd_resq_list.resqs != NULL)
+			{
+				free(result->grd_resq_list.resqs);
+			}
+			result->grd_resq_list.resqs = NULL;
+			break;
+		}
+		case MSG_LIST_GTM_STORE_RESQUEUE_RESULT:
+		{
+			if (result->grd_store_resq.resqs != NULL)
+			{
+				free(result->grd_store_resq.resqs);
+			}
+			result->grd_store_resq.resqs = NULL;
+			break;
+		}
+		case MSG_CHECK_GTM_RESQUEUE_STORE_RESULT:
+		{
+			if (result->grd_store_check_resq.resqs != NULL)
+			{
+				free(result->grd_store_check_resq.resqs);
+			}
+			result->grd_store_check_resq.resqs = NULL;
+			break;
+		}
+		case MSG_LIST_RESQUEUE_USAGE_RESULT:
+		{
+			if (result->grd_resq_usage.usages != NULL)
+			{
+				free(result->grd_resq_usage.usages);
+			}
+			result->grd_resq_usage.usages = NULL;
+			break;
+		}
+#endif
+		default:
+			break;
+	}
 }
 
 void

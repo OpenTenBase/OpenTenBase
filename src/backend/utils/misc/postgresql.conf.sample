@@ -2,9 +2,6 @@
 # PostgreSQL configuration file
 # -----------------------------
 #
-# This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
-# All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
-#
 # This file consists of lines of the form:
 #
 #   name = value
@@ -134,8 +131,8 @@
 # Caution: it is not advisable to set max_prepared_transactions nonzero unless
 # you actively intend to use prepared transactions.
 #work_mem = 4MB				# min 64kB
+#hash_mem_multiplier = 1.0		# 1-1000.0 multiplier on hash table work_mem
 #maintenance_work_mem = 64MB		# min 1MB
-#replacement_sort_tuples = 150000	# limits use of replacement selection sort
 #autovacuum_work_mem = -1		# min 1MB, or -1 to use maintenance_work_mem
 #max_stack_depth = 2MB			# min 100kB
 #dynamic_shared_memory_type = posix	# the default is the first option
@@ -177,7 +174,8 @@
 
 #effective_io_concurrency = 1		# 1-1000; 0 disables prefetching
 #max_worker_processes = 8		# (change requires restart)
-#max_parallel_workers_per_gather = 0	# taken from max_parallel_workers
+#max_parallel_workers_per_gather = 2	# taken from max_parallel_workers
+#parallel_leader_participation = on
 #max_parallel_workers = 8		# maximum number of max_worker_processes that
 					# can be used in parallel queries
 #old_snapshot_threshold = -1		# 1min-60d; -1 disables; 0 is immediate
@@ -315,10 +313,13 @@
 #enable_material = on
 #enable_mergejoin = on
 #enable_nestloop = on
+#enable_parallel_append = on
 #enable_seqscan = on
 #enable_sort = on
 #enable_tidscan = on
-#enable_partition_wise_join = off
+#enable_partitionwise_join = off
+#enable_parallel_hash = on
+#enable_partition_pruning = on
 
 # - Planner Cost Constants -
 
@@ -331,6 +332,16 @@
 #remote_query_cost = 100.0		# same scale as above
 #parallel_tuple_cost = 0.1		# same scale as above
 #parallel_setup_cost = 1000.0	# same scale as above
+
+#jit_above_cost = 100000		# perform JIT compilation if available
+					# and query more expensive than this;
+					# -1 disables
+#jit_inline_above_cost = 500000		# inline small functions if query is
+					# more expensive than this; -1 disables
+#jit_optimize_above_cost = 500000	# use expensive JIT optimizations if
+					# query is more expensive than this;
+					# -1 disables
+
 #min_parallel_table_scan_size = 8MB
 #min_parallel_index_scan_size = 512kB
 #effective_cache_size = 4GB
@@ -354,6 +365,8 @@
 #join_collapse_limit = 8		# 1 disables collapsing of explicit
 					# JOIN clauses
 #force_parallel_mode = off
+#jit = off				# allow JIT compilation
+#plan_cache_mode = auto			# auto, force_generic_plan or force_custom_plan
 
 
 #------------------------------------------------------------------------------
@@ -500,14 +513,6 @@
 #update_process_title = on
 
 
-# - Memory Protection -
-
-#enable_buffer_mprotect = off
-#enable_clog_mprotect = off
-#enable_tlog_mprotect = off
-#enable_xlog_mprotect = off
-
-
 # - Maintain GTS -
 
 #gts_maintain_option = 0	# range: 0-2. the default is 0.
@@ -516,11 +521,6 @@
 				#    tlog while doing vacuum.
 				# 2: check the correctness of the GTS of tuples by referring to
 				#    tlog, and reset it if it is wrong while doing vacuum.
-
-# - Memory Optimization -
-#enable_memory_optimization = false
-#max_relcache_relations = 2000
-#number_replaced_relations = 10
 
 #------------------------------------------------------------------------------
 # RUNTIME STATISTICS
@@ -538,6 +538,7 @@
 
 # - Statistics Monitoring -
 
+#compute_query_id = off
 #log_parser_stats = off
 #log_planner_stats = off
 #log_executor_stats = off
@@ -616,7 +617,8 @@
 					#   India
 					# You can create your own file in
 					# share/timezonesets/.
-#extra_float_digits = 0			# min -15, max 3
+#extra_float_digits = 1			# min -15, max 3; any value >0 actually
+					# selects precise output mode
 #client_encoding = sql_ascii		# actually, defaults to database
 					# encoding
 
@@ -635,6 +637,7 @@
 #dynamic_library_path = '$libdir'
 #local_preload_libraries = ''
 #session_preload_libraries = ''
+#jit_provider = 'llvmjit'		# JIT library to use
 
 
 #------------------------------------------------------------------------------
@@ -678,7 +681,7 @@
 
 #exit_on_error = off			# terminate session on any error?
 #restart_after_crash = on		# reinitialize after backend crash?
-
+#data_sync_retry = off			# retry or panic on failure to fsync data?
 #------------------------------------------------------------------------------
 # DATA NODES AND CONNECTION POOLING
 #------------------------------------------------------------------------------
@@ -734,3 +737,7 @@
 #------------------------------------------------------------------------------
 
 # Add settings for extensions here
+select_into_empty = on
+default_interval_day_prec = on
+pullup_target_casewhen_filter = 1
+allow_type_nesting_error = on

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * startup.h
- *      Exports from postmaster/startup.c.
+ *	  Exports from postmaster/startup.c.
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  *
@@ -19,4 +19,4 @@ extern void PostRestoreCommand(void);
 extern bool IsPromoteTriggered(void);
 extern void ResetPromoteTriggered(void);
 
-#endif                            /* _STARTUP_H */
+#endif							/* _STARTUP_H */

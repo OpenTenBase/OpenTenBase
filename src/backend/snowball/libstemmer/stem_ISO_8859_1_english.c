@@ -651,7 +651,7 @@ lab0:
     return 1;
 }
 
-static int r_Step_2(struct SN_env * z) {// #lizard forgives
+static int r_Step_2(struct SN_env * z) {
     int among_var;
     z->ket = z->c; /* [, line 100 */
     if (z->c - 1 <= z->lb || z->p[z->c - 1] >> 5 != 3 || !((815616 >> (z->p[z->c - 1] & 0x1f)) & 1)) return 0;

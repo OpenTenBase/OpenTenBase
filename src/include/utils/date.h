@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * date.h
- *      Definitions for the SQL "date" and "time" types.
+ *	  Definitions for the SQL "date" and "time" types.
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -17,6 +17,8 @@
 #include <math.h>
 
 #include "fmgr.h"
+#include "pgtime.h"
+#include "datatype/timestamp.h"
 
 
 typedef int32 DateADT;
@@ -25,21 +27,21 @@ typedef int64 TimeADT;
 
 typedef struct
 {
-    TimeADT        time;            /* all time units other than months and years */
-    int32        zone;            /* numeric time zone, in seconds */
+	TimeADT		time;			/* all time units other than months and years */
+	int32		zone;			/* numeric time zone, in seconds */
 } TimeTzADT;
 
 /*
  * Infinity and minus infinity must be the max and min values of DateADT.
  */
-#define DATEVAL_NOBEGIN        ((DateADT) PG_INT32_MIN)
-#define DATEVAL_NOEND        ((DateADT) PG_INT32_MAX)
+#define DATEVAL_NOBEGIN		((DateADT) PG_INT32_MIN)
+#define DATEVAL_NOEND		((DateADT) PG_INT32_MAX)
 
-#define DATE_NOBEGIN(j)        ((j) = DATEVAL_NOBEGIN)
-#define DATE_IS_NOBEGIN(j)    ((j) == DATEVAL_NOBEGIN)
-#define DATE_NOEND(j)        ((j) = DATEVAL_NOEND)
-#define DATE_IS_NOEND(j)    ((j) == DATEVAL_NOEND)
-#define DATE_NOT_FINITE(j)    (DATE_IS_NOBEGIN(j) || DATE_IS_NOEND(j))
+#define DATE_NOBEGIN(j)		((j) = DATEVAL_NOBEGIN)
+#define DATE_IS_NOBEGIN(j)	((j) == DATEVAL_NOBEGIN)
+#define DATE_NOEND(j)		((j) = DATEVAL_NOEND)
+#define DATE_IS_NOEND(j)	((j) == DATEVAL_NOEND)
+#define DATE_NOT_FINITE(j)	(DATE_IS_NOBEGIN(j) || DATE_IS_NOEND(j))
 
 /*
  * Macros for fmgr-callable functions.
@@ -49,20 +51,20 @@ typedef struct
  */
 #define MAX_TIME_PRECISION 6
 
-#define DatumGetDateADT(X)      ((DateADT) DatumGetInt32(X))
-#define DatumGetTimeADT(X)      ((TimeADT) DatumGetInt64(X))
+#define DatumGetDateADT(X)	  ((DateADT) DatumGetInt32(X))
+#define DatumGetTimeADT(X)	  ((TimeADT) DatumGetInt64(X))
 #define DatumGetTimeTzADTP(X) ((TimeTzADT *) DatumGetPointer(X))
 
-#define DateADTGetDatum(X)      Int32GetDatum(X)
-#define TimeADTGetDatum(X)      Int64GetDatum(X)
+#define DateADTGetDatum(X)	  Int32GetDatum(X)
+#define TimeADTGetDatum(X)	  Int64GetDatum(X)
 #define TimeTzADTPGetDatum(X) PointerGetDatum(X)
 
-#define PG_GETARG_DATEADT(n)     DatumGetDateADT(PG_GETARG_DATUM(n))
-#define PG_GETARG_TIMEADT(n)     DatumGetTimeADT(PG_GETARG_DATUM(n))
+#define PG_GETARG_DATEADT(n)	 DatumGetDateADT(PG_GETARG_DATUM(n))
+#define PG_GETARG_TIMEADT(n)	 DatumGetTimeADT(PG_GETARG_DATUM(n))
 #define PG_GETARG_TIMETZADT_P(n) DatumGetTimeTzADTP(PG_GETARG_DATUM(n))
 
-#define PG_RETURN_DATEADT(x)     return DateADTGetDatum(x)
-#define PG_RETURN_TIMEADT(x)     return TimeADTGetDatum(x)
+#define PG_RETURN_DATEADT(x)	 return DateADTGetDatum(x)
+#define PG_RETURN_TIMEADT(x)	 return TimeADTGetDatum(x)
 #define PG_RETURN_TIMETZADT_P(x) return TimeTzADTPGetDatum(x)
 
 
@@ -73,5 +75,14 @@ extern void EncodeSpecialDate(DateADT dt, char *str);
 extern DateADT GetSQLCurrentDate(void);
 extern TimeTzADT *GetSQLCurrentTime(int32 typmod);
 extern TimeADT GetSQLLocalTime(int32 typmod);
+extern int time2tm(TimeADT time, struct pg_tm *tm, fsec_t *fsec);
+extern int timetz2tm(TimeTzADT *time, struct pg_tm *tm, fsec_t *fsec, int *tzp);
+extern Timestamp date2timestamp(DateADT dateVal);
+extern TimestampTz date2timestamptz(DateADT dateVal);
+extern int timetz_cmp_internal(TimeTzADT *time1, TimeTzADT *time2);
 
-#endif                            /* DATE_H */
+extern Datum in_range_date_interval(PG_FUNCTION_ARGS);
+extern Datum in_range_time_interval(PG_FUNCTION_ARGS);
+extern Datum in_range_timetz_interval(PG_FUNCTION_ARGS);
+
+#endif							/* DATE_H */

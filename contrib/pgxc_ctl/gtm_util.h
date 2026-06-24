@@ -19,5 +19,4 @@ extern int process_unregister_command(GTM_PGXCNodeType type, char *nodename);
 #define unregister_gtm_proxy(name) do{process_unregister_command(GTM_NODE_GTM_PROXY, name);}while(0)
 #define unregister_coordinator(name) do{process_unregister_command(GTM_NODE_COORDINATOR, name);}while(0)
 #define unregister_datanode(name) do{process_unregister_command(GTM_NODE_DATANODE, name);}while(0)
-
 #endif /* GTM_UTIL_H */

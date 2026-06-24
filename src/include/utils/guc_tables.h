@@ -1,16 +1,13 @@
 /*-------------------------------------------------------------------------
  *
  * guc_tables.h
- *        Declarations of tables used by GUC.
+ *		Declarations of tables used by GUC.
  *
  * See src/backend/utils/misc/README for design notes.
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- * 
- *      src/include/utils/guc_tables.h
+ *	  src/include/utils/guc_tables.h
  *
  *-------------------------------------------------------------------------
  */
@@ -24,22 +21,21 @@
  */
 enum config_type
 {
-    PGC_BOOL,
-    PGC_INT,
-    PGC_UINT,
-    PGC_REAL,
-    PGC_STRING,
-    PGC_ENUM
+	PGC_BOOL,
+	PGC_INT,
+	PGC_REAL,
+	PGC_STRING,
+	PGC_ENUM
 };
 
 union config_var_val
 {
-    bool        boolval;
-    int            intval;
-    uint        uintval;
-    double        realval;
-    char       *stringval;
-    int            enumval;
+	bool		boolval;
+	int			intval;
+	uint		uintval;
+	double		realval;
+	char	   *stringval;
+	int			enumval;
 };
 
 /*
@@ -48,8 +44,8 @@ union config_var_val
  */
 typedef struct config_var_value
 {
-    union config_var_val val;
-    void       *extra;
+	union config_var_val val;
+	void	   *extra;
 } config_var_value;
 
 /*
@@ -57,65 +53,70 @@ typedef struct config_var_value
  */
 enum config_group
 {
-    UNGROUPED,
-    FILE_LOCATIONS,
-    CONN_AUTH,
-    CONN_AUTH_SETTINGS,
-    CONN_AUTH_SECURITY,
-    RESOURCES,
-    RESOURCES_MEM,
-    RESOURCES_DISK,
-    RESOURCES_KERNEL,
-    RESOURCES_VACUUM_DELAY,
-    RESOURCES_BGWRITER,
-    RESOURCES_ASYNCHRONOUS,
-    WAL,
-    WAL_SETTINGS,
-    WAL_CHECKPOINTS,
-    WAL_ARCHIVING,
-    REPLICATION,
-    REPLICATION_SENDING,
-    REPLICATION_MASTER,
-    REPLICATION_STANDBY,
-    REPLICATION_SUBSCRIBERS,
-    QUERY_TUNING,
-    QUERY_TUNING_METHOD,
-    QUERY_TUNING_COST,
-    QUERY_TUNING_GEQO,
-    QUERY_TUNING_OTHER,
-    LOGGING,
-    LOGGING_WHERE,
-    LOGGING_WHEN,
-    LOGGING_WHAT,
-    PROCESS_TITLE,
-    STATS,
-    STATS_MONITORING,
-    STATS_COLLECTOR,
-    AUTOVACUUM,
-    CLIENT_CONN,
-    CLIENT_CONN_STATEMENT,
-    CLIENT_CONN_LOCALE,
-    CLIENT_CONN_PRELOAD,
-    CLIENT_CONN_OTHER,
-    LOCK_MANAGEMENT,
-    COMPAT_OPTIONS,
-    COMPAT_OPTIONS_PREVIOUS,
-    COMPAT_OPTIONS_CLIENT,
-    ERROR_HANDLING_OPTIONS,
-    PRESET_OPTIONS,
-    CUSTOM_OPTIONS,
+	UNGROUPED,
+	FILE_LOCATIONS,
+	CONN_AUTH,
+	CONN_AUTH_SETTINGS,
+	CONN_AUTH_SECURITY,
+	RESOURCES,
+	RESOURCES_MEM,
+	RESOURCES_DISK,
+	RESOURCES_KERNEL,
+	RESOURCES_VACUUM_DELAY,
+	RESOURCES_BGWRITER,
+	RESOURCES_ASYNCHRONOUS,
+	WAL,
+	WAL_SETTINGS,
+	WAL_CHECKPOINTS,
+	WAL_ARCHIVING,
+	REPLICATION,
+	REPLICATION_SENDING,
+	REPLICATION_MASTER,
+	REPLICATION_STANDBY,
+	REPLICATION_SUBSCRIBERS,
+	QUERY_TUNING,
+	QUERY_TUNING_METHOD,
+	QUERY_TUNING_COST,
+	QUERY_TUNING_GEQO,
+	QUERY_TUNING_OTHER,
+	LOGGING,
+	LOGGING_WHERE,
+	LOGGING_WHEN,
+	LOGGING_WHAT,
+	PROCESS_TITLE,
+	STATS,
+	STATS_MONITORING,
+	STATS_COLLECTOR,
+	AUTOVACUUM,
+	PGJOB,
+	CLIENT_CONN,
+	CLIENT_CONN_STATEMENT,
+	CLIENT_CONN_LOCALE,
+	CLIENT_CONN_PRELOAD,
+	CLIENT_CONN_OTHER,
+	LOCK_MANAGEMENT,
+	COMPAT_OPTIONS,
+	COMPAT_OPTIONS_PREVIOUS,
+	COMPAT_OPTIONS_CLIENT,
+	ERROR_HANDLING_OPTIONS,
+	PRESET_OPTIONS,
+	CUSTOM_OPTIONS,
+	UPGRADE_OPTIONS,
 #ifdef _SHARDING_
-    SHARD_VISIBLE_MODE,
+	SHARD_VISIBLE_MODE,
 #endif
 #ifdef PGXC
-    DEVELOPER_OPTIONS,
-    DATA_NODES,
-    GTM,
-    COORDINATORS,
-    XC_HOUSEKEEPING_OPTIONS
+	DEVELOPER_OPTIONS,
+	DATA_NODES,
+	GTM,
+	COORDINATORS,
+	XC_HOUSEKEEPING_OPTIONS,
 #else
-    DEVELOPER_OPTIONS
+	DEVELOPER_OPTIONS,
 #endif
+	OPENTENBASE_ORA_COMPAT_OPTIONS,
+	CSNLOG_OPTIONS,
+	OPENTENBASE_ORA_SHARED_IN_PG_OPTIONS		/* for opentenbase_ora GUC shared in PG mode */
 };
 
 /*
@@ -124,24 +125,27 @@ enum config_group
  */
 typedef enum
 {
-    /* This is almost GucAction, but we need a fourth state for SET+LOCAL */
-    GUC_SAVE,                    /* entry caused by function SET option */
-    GUC_SET,                    /* entry caused by plain SET command */
-    GUC_LOCAL,                    /* entry caused by SET LOCAL command */
-    GUC_SET_LOCAL                /* entry caused by SET then SET LOCAL */
+	/* This is almost GucAction, but we need a fourth state for SET+LOCAL */
+	GUC_SAVE,					/* entry caused by function SET option */
+	GUC_SET,					/* entry caused by plain SET command */
+	GUC_LOCAL,					/* entry caused by SET LOCAL command */
+	GUC_SET_LOCAL				/* entry caused by SET then SET LOCAL */
 } GucStackState;
 
 typedef struct guc_stack
 {
-    struct guc_stack *prev;        /* previous stack item, if any */
-    int            nest_level;        /* nesting depth at which we made entry */
-    GucStackState state;        /* see enum above */
-    GucSource    source;            /* source of the prior value */
-    /* masked value's source must be PGC_S_SESSION, so no need to store it */
-    GucContext    scontext;        /* context that set the prior value */
-    GucContext    masked_scontext;    /* context that set the masked value */
-    config_var_value prior;        /* previous value of variable */
-    config_var_value masked;    /* SET value in a GUC_SET_LOCAL entry */
+	struct guc_stack *prev;		/* previous stack item, if any */
+	int			nest_level;		/* nesting depth at which we made entry */
+	GucStackState state;		/* see enum above */
+	GucSource	source;			/* source of the prior value */
+	/* masked value's source must be PGC_S_SESSION, so no need to store it */
+	GucContext	scontext;		/* context that set the prior value */
+	GucContext	masked_scontext;	/* context that set the masked value */
+	config_var_value prior;		/* previous value of variable */
+	config_var_value masked;	/* SET value in a GUC_SET_LOCAL entry */
+
+	/* Used for auto xact */
+	config_var_value new_value;		/* new value of variable */
 } GucStack;
 
 /*
@@ -158,29 +162,31 @@ typedef struct guc_stack
  */
 struct config_generic
 {
-    /* constant fields, must be set correctly in initial value: */
-    const char *name;            /* name of variable - MUST BE FIRST */
-    GucContext    context;        /* context required to set the variable */
-    enum config_group group;    /* to help organize variables by function */
-    const char *short_desc;        /* short desc. of this variable's purpose */
-    const char *long_desc;        /* long desc. of this variable's purpose */
-    int            flags;            /* flag bits, see guc.h */
-    /* variable fields, initialized at runtime: */
-    enum config_type vartype;    /* type of variable (set only at startup) */
-    int            status;            /* status bits, see below */
-    GucSource    source;            /* source of the current actual value */
-    GucSource    reset_source;    /* source of the reset_value */
-    GucContext    scontext;        /* context that set the current value */
-    GucContext    reset_scontext; /* context that set the reset value */
-    GucStack   *stack;            /* stacked prior values */
-    void       *extra;            /* "extra" pointer for current actual value */
-    char       *sourcefile;        /* file current setting is from (NULL if not
-                                 * set in config file) */
-    int            sourceline;        /* line in source file */
+	/* constant fields, must be set correctly in initial value: */
+	const char *name;			/* name of variable - MUST BE FIRST */
+	GucContext	context;		/* context required to set the variable */
+	enum config_group group;	/* to help organize variables by function */
+	const char *short_desc;		/* short desc. of this variable's purpose */
+	const char *long_desc;		/* long desc. of this variable's purpose */
+	int			flags;			/* flag bits, see guc.h */
+	/* variable fields, initialized at runtime: */
+	enum config_type vartype;	/* type of variable (set only at startup) */
+	int			status;			/* status bits, see below */
+	GucSource	source;			/* source of the current actual value */
+	GucSource	reset_source;	/* source of the reset_value */
+	GucSource	prev_reset_source;	/* source of the prev reset value */
+	GucContext	scontext;		/* context that set the current value */
+	GucContext	reset_scontext; /* context that set the reset value */
+	GucContext	prev_reset_scontext; /* context that set the prev reset value */
+	GucStack   *stack;			/* stacked prior values */
+	void	   *extra;			/* "extra" pointer for current actual value */
+	char	   *sourcefile;		/* file current setting is from (NULL if not
+								 * set in config file) */
+	int			sourceline;		/* line in source file */
 };
 
 /* bit values in status field */
-#define GUC_IS_IN_FILE        0x0001    /* found it in config file */
+#define GUC_IS_IN_FILE		0x0001	/* found it in config file */
 /*
  * Caution: the GUC_IS_IN_FILE bit is transient state for ProcessConfigFile.
  * Do not assume that its value represents useful information elsewhere.
@@ -192,93 +198,92 @@ struct config_generic
 
 struct config_bool
 {
-    struct config_generic gen;
-    /* constant fields, must be set correctly in initial value: */
-    bool       *variable;
-    bool        boot_val;
-    GucBoolCheckHook check_hook;
-    GucBoolAssignHook assign_hook;
-    GucShowHook show_hook;
-    /* variable fields, initialized at runtime: */
-    bool        reset_val;
-    void       *reset_extra;
+	struct config_generic gen;
+	/* constant fields, must be set correctly in initial value: */
+	bool	   *variable;
+	bool		boot_val;
+	GucBoolCheckHook check_hook;
+	GucBoolAssignHook assign_hook;
+	GucShowHook show_hook;
+	/* variable fields, initialized at runtime: */
+	bool		reset_val;
+	void	   *reset_extra;
+	/* variable fields, user for reset user */
+	bool		prev_reset_val;
+	void	   *prev_reset_extra;
 };
 
 struct config_int
 {
-    struct config_generic gen;
-    /* constant fields, must be set correctly in initial value: */
-    int           *variable;
-    int            boot_val;
-    int            min;
-    int            max;
-    GucIntCheckHook check_hook;
-    GucIntAssignHook assign_hook;
-    GucShowHook show_hook;
-    /* variable fields, initialized at runtime: */
-    int            reset_val;
-    void       *reset_extra;
-};
-
-struct config_uint
-{
-    struct config_generic gen;
-    /* constant fields, must be set correctly in initial value: */
-    uint       *variable;
-    uint        boot_val;
-    uint        min;
-    uint        max;
-    GucUintCheckHook check_hook;
-    GucUintAssignHook assign_hook;
-    GucShowHook show_hook;
-    /* variable fields, initialized at runtime: */
-    uint        reset_val;
-    void       *reset_extra;
+	struct config_generic gen;
+	/* constant fields, must be set correctly in initial value: */
+	int		   *variable;
+	int			boot_val;
+	int			min;
+	int			max;
+	GucIntCheckHook check_hook;
+	GucIntAssignHook assign_hook;
+	GucShowHook show_hook;
+	/* variable fields, initialized at runtime: */
+	int			reset_val;
+	void	   *reset_extra;
+	/* variable fields, user for reset user */
+	int  		prev_reset_val;
+	void	   *prev_reset_extra;
 };
 
 struct config_real
 {
-    struct config_generic gen;
-    /* constant fields, must be set correctly in initial value: */
-    double       *variable;
-    double        boot_val;
-    double        min;
-    double        max;
-    GucRealCheckHook check_hook;
-    GucRealAssignHook assign_hook;
-    GucShowHook show_hook;
-    /* variable fields, initialized at runtime: */
-    double        reset_val;
-    void       *reset_extra;
+	struct config_generic gen;
+	/* constant fields, must be set correctly in initial value: */
+	double	   *variable;
+	double		boot_val;
+	double		min;
+	double		max;
+	GucRealCheckHook check_hook;
+	GucRealAssignHook assign_hook;
+	GucShowHook show_hook;
+	/* variable fields, initialized at runtime: */
+	double		reset_val;
+	void	   *reset_extra;
+	/* variable fields, user for reset user */
+	double		prev_reset_val;
+	void	   *prev_reset_extra;
 };
 
 struct config_string
 {
-    struct config_generic gen;
-    /* constant fields, must be set correctly in initial value: */
-    char      **variable;
-    const char *boot_val;
-    GucStringCheckHook check_hook;
-    GucStringAssignHook assign_hook;
-    GucShowHook show_hook;
-    /* variable fields, initialized at runtime: */
-    char       *reset_val;
-    void       *reset_extra;
+	struct config_generic gen;
+	/* constant fields, must be set correctly in initial value: */
+	char	  **variable;
+	const char *boot_val;
+	GucStringCheckHook check_hook;
+	GucStringAssignHook assign_hook;
+	GucShowHook show_hook;
+	/* variable fields, initialized at runtime: */
+	char	   *reset_val;
+	void	   *reset_extra;
+	/* variable fields, user for reset user */
+	char	   *prev_reset_val;
+	void	   *prev_reset_extra;
 };
 
 struct config_enum
 {
-    struct config_generic gen;
-    /* constant fields, must be set correctly in initial value: */
-    int           *variable;
-    int            boot_val;
-    const struct config_enum_entry *options;
-    GucEnumCheckHook check_hook;
-    GucEnumAssignHook assign_hook;
-    GucShowHook show_hook;
-    /* variable fields, initialized at runtime: */
-    int            reset_val;
-    void       *reset_extra;
+	struct config_generic gen;
+	/* constant fields, must be set correctly in initial value: */
+	int		   *variable;
+	int			boot_val;
+	const struct config_enum_entry *options;
+	GucEnumCheckHook check_hook;
+	GucEnumAssignHook assign_hook;
+	GucShowHook show_hook;
+	/* variable fields, initialized at runtime: */
+	int			reset_val;
+	void	   *reset_extra;
+	/* variable fields, user for reset user */
+	int		    prev_reset_val;
+	void	   *prev_reset_extra;
 };
 
 /* constant tables corresponding to enums above and in guc.h */
@@ -295,6 +300,7 @@ extern void build_guc_variables(void);
 /* search in enum options */
 extern const char *config_enum_lookup_by_value(struct config_enum *record, int val);
 extern bool config_enum_lookup_by_name(struct config_enum *record,
-                           const char *value, int *retval);
+						   const char *value, int *retval);
+extern struct config_generic **get_explain_guc_options(int *num);
 
-#endif                            /* GUC_TABLES_H */
+#endif							/* GUC_TABLES_H */

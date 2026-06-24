@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * geqo_gene.h
- *      genome representation in optimizer/geqo
+ *	  genome representation in optimizer/geqo
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -13,9 +13,9 @@
 
 /* contributed by:
    =*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=
-   *  Martin Utesch                 * Institute of Automatic Control       *
-   =                             = University of Mining and Technology =
-   *  utesch@aut.tu-freiberg.de  * Freiberg, Germany                   *
+   *  Martin Utesch				 * Institute of Automatic Control	   *
+   =							 = University of Mining and Technology =
+   *  utesch@aut.tu-freiberg.de  * Freiberg, Germany				   *
    =*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=
  */
 
@@ -31,15 +31,15 @@ typedef int Gene;
 
 typedef struct Chromosome
 {
-    Gene       *string;
-    Cost        worth;
+	Gene	   *string;
+	Cost		worth;
 } Chromosome;
 
 typedef struct Pool
 {
-    Chromosome *data;
-    int            size;
-    int            string_length;
+	Chromosome *data;
+	int			size;
+	int			string_length;
 } Pool;
 
-#endif                            /* GEQO_GENE_H */
+#endif							/* GEQO_GENE_H */

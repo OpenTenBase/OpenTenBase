@@ -18,12 +18,12 @@
 #line 3 "strings.pgc"
 /* exec sql begin declare section */
 #line 1 "strings.h"
-       
-           
-           
-           
-           
-           
+	   
+		   
+		   
+		   
+		   
+		   
 
 #line 5 "strings.pgc"
 
@@ -46,18 +46,18 @@ int main(void)
 
 
   { ECPGdo(__LINE__, 0, 1, NULL, 0, ECPGst_normal, "select 'abcdef' , N'abcdef' as foo , E'abc\\bdef' as \"foo\" , U&'d\\0061t\\0061' as U&\"foo\" , U&'d!+000061t!+000061' uescape '!' , $foo$abc$def$foo$", ECPGt_EOIT, 
-    ECPGt_char,&(s1),(long)0,(long)1,(1)*sizeof(char), 
-    ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, 
-    ECPGt_char,&(s2),(long)0,(long)1,(1)*sizeof(char), 
-    ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, 
-    ECPGt_char,&(s3),(long)0,(long)1,(1)*sizeof(char), 
-    ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, 
-    ECPGt_char,&(s4),(long)0,(long)1,(1)*sizeof(char), 
-    ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, 
-    ECPGt_char,&(s5),(long)0,(long)1,(1)*sizeof(char), 
-    ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, 
-    ECPGt_char,&(s6),(long)0,(long)1,(1)*sizeof(char), 
-    ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EORT);}
+	ECPGt_char,&(s1),(long)0,(long)1,(1)*sizeof(char), 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, 
+	ECPGt_char,&(s2),(long)0,(long)1,(1)*sizeof(char), 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, 
+	ECPGt_char,&(s3),(long)0,(long)1,(1)*sizeof(char), 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, 
+	ECPGt_char,&(s4),(long)0,(long)1,(1)*sizeof(char), 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, 
+	ECPGt_char,&(s5),(long)0,(long)1,(1)*sizeof(char), 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, 
+	ECPGt_char,&(s6),(long)0,(long)1,(1)*sizeof(char), 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EORT);}
 #line 21 "strings.pgc"
 
 

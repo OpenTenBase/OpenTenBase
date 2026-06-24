@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * libpq-fs.h
- *      definitions for using Inversion file system routines (ie, large objects)
+ *	  definitions for using Inversion file system routines (ie, large objects)
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -15,10 +15,10 @@
 #define LIBPQ_FS_H
 
 /*
- *    Read/write mode flags for inversion (large object) calls
+ *	Read/write mode flags for inversion (large object) calls
  */
 
-#define INV_WRITE        0x00020000
-#define INV_READ        0x00040000
+#define INV_WRITE		0x00020000
+#define INV_READ		0x00040000
 
-#endif                            /* LIBPQ_FS_H */
+#endif							/* LIBPQ_FS_H */

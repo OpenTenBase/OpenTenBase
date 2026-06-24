@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * arrayaccess.h
- *      Declarations for element-by-element access to Postgres arrays.
+ *	  Declarations for element-by-element access to Postgres arrays.
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -32,87 +32,116 @@
 
 typedef struct array_iter
 {
-    /* datumptr being NULL or not tells if we have flat or expanded array */
+	/* datumptr being NULL or not tells if we have flat or expanded array */
 
-    /* Fields used when we have an expanded array */
-    Datum       *datumptr;        /* Pointer to Datum array */
-    bool       *isnullptr;        /* Pointer to isnull array */
+	/* Fields used when we have an expanded array */
+	Datum	   *datumptr;		/* Pointer to Datum array */
+	bool	   *isnullptr;		/* Pointer to isnull array */
+	bool	   *isexistptr;		/* Pointer to isexist array */
 
-    /* Fields used when we have a flat array */
-    char       *dataptr;        /* Current spot in the data area */
-    bits8       *bitmapptr;        /* Current byte of the nulls bitmap, or NULL */
-    int            bitmask;        /* mask for current bit in nulls bitmap */
+	/* Fields used when we have a flat array */
+	char	   *dataptr;		/* Current spot in the data area */
+	bits8	   *bitmapptr;		/* Current byte of the nulls bitmap, or NULL */
+	int			bitmask;		/* mask for current bit in nulls bitmap */
+	bits8	   *bitmapptr_exist;
+	int			bitmask_exist;
 } array_iter;
 
 
 static inline void
 array_iter_setup(array_iter *it, AnyArrayType *a)
 {
-    if (VARATT_IS_EXPANDED_HEADER(a))
-    {
-        if (a->xpn.dvalues)
-        {
-            it->datumptr = a->xpn.dvalues;
-            it->isnullptr = a->xpn.dnulls;
-            /* we must fill all fields to prevent compiler warnings */
-            it->dataptr = NULL;
-            it->bitmapptr = NULL;
-        }
-        else
-        {
-            /* Work with flat array embedded in the expanded datum */
-            it->datumptr = NULL;
-            it->isnullptr = NULL;
-            it->dataptr = ARR_DATA_PTR(a->xpn.fvalue);
-            it->bitmapptr = ARR_NULLBITMAP(a->xpn.fvalue);
-        }
-    }
-    else
-    {
-        it->datumptr = NULL;
-        it->isnullptr = NULL;
-        it->dataptr = ARR_DATA_PTR(&a->flt);
-        it->bitmapptr = ARR_NULLBITMAP(&a->flt);
-    }
-    it->bitmask = 1;
+	if (VARATT_IS_EXPANDED_HEADER(a))
+	{
+		if (a->xpn.dvalues)
+		{
+			it->datumptr = a->xpn.dvalues;
+			it->isnullptr = a->xpn.dnulls;
+			it->isexistptr = a->xpn.dexists;
+			/* we must fill all fields to prevent compiler warnings */
+			it->dataptr = NULL;
+			it->bitmapptr = NULL;
+			it->bitmapptr_exist = NULL;
+		}
+		else
+		{
+			/* Work with flat array embedded in the expanded datum */
+			it->datumptr = NULL;
+			it->isnullptr = NULL;
+			it->dataptr = ARR_DATA_PTR(a->xpn.fvalue);
+			it->bitmapptr = ARR_NULLBITMAP(a->xpn.fvalue);
+			it->bitmapptr_exist = ARR_EXISTBITMAP(a->xpn.fvalue, ArrayGetNItems(ARR_NDIM(a->xpn.fvalue), ARR_DIMS(a->xpn.fvalue)));
+		}
+	}
+	else
+	{
+		it->datumptr = NULL;
+		it->isnullptr = NULL;
+		it->dataptr = ARR_DATA_PTR(&a->flt);
+		it->bitmapptr = ARR_NULLBITMAP(&a->flt);
+		it->bitmapptr_exist = ARR_EXISTBITMAP(&a->flt, ArrayGetNItems(ARR_NDIM(&a->flt), ARR_DIMS(&a->flt)));
+	}
+	it->bitmask = 1;
+	it->bitmask_exist = 1;
 }
 
 static inline Datum
-array_iter_next(array_iter *it, bool *isnull, int i,
-                int elmlen, bool elmbyval, char elmalign)
+array_iter_next(array_iter *it, bool *isnull, bool *isexist, int i,
+				int elmlen, bool elmbyval, char elmalign)
 {
-    Datum        ret;
+	Datum		ret;
 
-    if (it->datumptr)
-    {
-        ret = it->datumptr[i];
-        *isnull = it->isnullptr ? it->isnullptr[i] : false;
-    }
-    else
-    {
-        if (it->bitmapptr && (*(it->bitmapptr) & it->bitmask) == 0)
-        {
-            *isnull = true;
-            ret = (Datum) 0;
-        }
-        else
-        {
-            *isnull = false;
-            ret = fetch_att(it->dataptr, elmbyval, elmlen);
-            it->dataptr = att_addlength_pointer(it->dataptr, elmlen,
-                                                it->dataptr);
-            it->dataptr = (char *) att_align_nominal(it->dataptr, elmalign);
-        }
-        it->bitmask <<= 1;
-        if (it->bitmask == 0x100)
-        {
-            if (it->bitmapptr)
-                it->bitmapptr++;
-            it->bitmask = 1;
-        }
-    }
+	if (isexist)
+		*isexist = true;
 
-    return ret;
+	if (it->datumptr)
+	{
+		ret = it->datumptr[i];
+		*isnull = it->isnullptr ? it->isnullptr[i] : false;
+		if (isexist)
+			*isexist = it->isexistptr ? it->isexistptr[i] : true;
+	}
+	else
+	{
+		if (isexist && it->bitmapptr_exist &&
+			(*(it->bitmapptr_exist) & it->bitmask_exist) == 0)
+		{
+			*isexist = false;
+			*isnull = true;
+			ret = (Datum) 0;
+		}
+		else if (it->bitmapptr && (*(it->bitmapptr) & it->bitmask) == 0)
+		{
+			*isnull = true;
+			ret = (Datum) 0;
+		}
+		else
+		{
+			*isnull = false;
+			ret = fetch_att(it->dataptr, elmbyval, elmlen);
+			it->dataptr = att_addlength_pointer(it->dataptr, elmlen,
+												it->dataptr);
+			it->dataptr = (char *) att_align_nominal(it->dataptr, elmalign);
+		}
+
+		it->bitmask <<= 1;
+		if (it->bitmask == 0x100)
+		{
+			if (it->bitmapptr)
+				it->bitmapptr++;
+			it->bitmask = 1;
+		}
+
+		it->bitmask_exist <<= 1;
+		if (it->bitmask_exist == 0x100)
+		{
+			if (it->bitmapptr_exist)
+				it->bitmapptr_exist++;
+			it->bitmask_exist = 1;
+		}
+	}
+
+	return ret;
 }
 
-#endif                            /* ARRAYACCESS_H */
+#endif							/* ARRAYACCESS_H */

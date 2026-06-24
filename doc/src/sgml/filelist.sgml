@@ -50,6 +50,7 @@
 <!ENTITY add-node      SYSTEM "add-node.sgml">
 <!ENTITY remove-node   SYSTEM "remove-node.sgml">
 <!ENTITY logical-replication    SYSTEM "logical-replication.sgml">
+<!ENTITY jit    SYSTEM "jit.sgml">
 
 <!-- programmer's guide -->
 <!ENTITY bgworker   SYSTEM "bgworker.sgml">
@@ -139,6 +140,7 @@
 <!ENTITY pgstandby       SYSTEM "pgstandby.sgml">
 <!ENTITY pgstatstatements SYSTEM "pgstatstatements.sgml">
 <!ENTITY pgstattuple     SYSTEM "pgstattuple.sgml">
+<!ENTITY pgsurgery       SYSTEM "pgsurgery.sgml">
 <!ENTITY pgtrgm          SYSTEM "pgtrgm.sgml">
 <!ENTITY pgvisibility    SYSTEM "pgvisibility.sgml">
 <!ENTITY postgres-fdw    SYSTEM "postgres-fdw.sgml">

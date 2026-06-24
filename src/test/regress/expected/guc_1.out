@@ -312,21 +312,21 @@ set search_path = foo, public, not_there_initially;
 select current_schemas(false);
   current_schemas   
 --------------------
- {public,pg_oracle}
+ {public,opentenbase_ora}
 (1 row)
 
 create schema not_there_initially;
 select current_schemas(false);
             current_schemas             
 ----------------------------------------
- {public,not_there_initially,pg_oracle}
+ {public,not_there_initially,opentenbase_ora}
 (1 row)
 
 drop schema not_there_initially;
 select current_schemas(false);
   current_schemas   
 --------------------
- {public,pg_oracle}
+ {public,opentenbase_ora}
 (1 row)
 
 reset search_path;
@@ -618,6 +618,22 @@ SELECT * FROM testtab order by 1;
 (3 rows)
 
 DROP TABLE testtab;
+-- EXPERIMENT MODE
+SET enable_experiment_isolation to false;
+ALTER SYSTEM SET default_transaction_isolation TO 'repeatable read';
+ERROR:  parameter "default_transaction_isolation" is restricted to default value.
+HINT:  experiment mode is not restricted but might cause instability.
+SET default_transaction_isolation TO 'repeatable read';
+ERROR:  parameter "default_transaction_isolation" is restricted to default value.
+HINT:  experiment mode is not restricted but might cause instability.
+BEGIN TRANSACTION ISOLATION level REPEATABLE READ ;
+ERROR:  transaction mode is restricted to READ COMMITTED.
+HINT:  You can enable other transcation level under experiment mode but which is untested.
+SET enable_experiment_isolation to true;
+SET default_transaction_isolation TO 'repeatable read';
+BEGIN TRANSACTION ISOLATION level REPEATABLE READ ;
+COMMIT;
+RESET default_transaction_isolation;
 -- ERROR
 SET search_path TO "testschema 3", SELECT;
 ERROR:  syntax error at or near "SELECT"
@@ -703,3 +719,39 @@ ERROR:  syntax error at or near "SELECT"
 LINE 1: DROP SCHEMA SELECT CASCADE;
                     ^
 DROP SCHEMA "SELECT" CASCADE;
+create schema test_alter_1;
+create schema test_alter_2;
+create role test_alter_set with login superuser;
+\c - test_alter_set
+alter user test_alter_set set search_path=test_alter_1;
+\c 
+show search_path;
+ search_path  
+--------------
+ test_alter_1
+(1 row)
+
+alter user test_alter_set set search_path=test_alter_2;
+show search_path;
+ search_path  
+--------------
+ test_alter_1
+(1 row)
+
+create table test_alter_table(id int);
+\d+ test_alter_table
+                          Table "test_alter_1.test_alter_table"
+ Column |  Type   | Collation | Nullable | Default | Storage | Stats target | Description 
+--------+---------+-----------+----------+---------+---------+--------------+-------------
+ id     | integer |           |          |         | plain   |              | 
+Distribute By: HASH(id)
+Location Nodes: ALL DATANODES
+
+insert into test_alter_table values(1);
+select * from test_alter_table;
+ id 
+----
+  1
+(1 row)
+
+drop table test_alter_table;

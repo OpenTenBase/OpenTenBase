@@ -2,10 +2,10 @@
  *
  * gtm_xlog.h
  *
- * Copyright (c) 2023 THL A29 Limited, a Tencent company.
  *
- * This source code file is licensed under the BSD 3-Clause License,
- * you may obtain a copy of the License at http://opensource.org/license/bsd-3-clause/
+ * Portions Copyright (c) 1996-2010, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1994, Regents of the University of California
+ * Portions Copyright (c) 2010-2012 Postgres-XC Development Group
  *
  * src/include/gtm/gtm_xlog.h
  *
@@ -52,9 +52,9 @@ typedef struct XLogwrtResult
 
 enum XLogSendResult
 {
-    Send_OK               = 1,
-    Send_No_data          = 0,
-    Send_Data_Not_Found   = -1,
+    Send_OK                   = 1,
+    Send_No_data              = 0,
+    Send_Data_Not_Found       = -1,
     Send_Error                = -2,
     Send_XlogFile_Not_Found   = -3
 };
@@ -118,6 +118,8 @@ extern GTM_RWLock       ControlDataLock;
 extern XLogSyncStandby  *XLogSync;
 extern XLogSyncConfig   *SyncConfig;
 extern volatile bool  SyncReady;
+extern const char *g_gtm_state_string[];
+
 
 extern XLogRecPtr GetStandbyWriteBuffPos(void);
 extern XLogRecPtr GetStandbyApplyPos(void);
@@ -153,7 +155,7 @@ extern XLogwrtResult GetCurrentXLogwrtResult(void);
  * Xlog Init Function.
  */
 extern int  GTM_ControlDataInit(void);
-extern void GTM_XLogRecovery(XLogRecPtr startPos,char *data_dir);
+extern void GTM_XLogRecovery(XLogRecPtr startPos, const char *data_dir, bool after_overwrite);
 extern void GTM_XLogCtlDataInit(void);
 extern void GTM_XLogFileInit(char *data_dir);
 extern void ControlDataSync(bool update_time);
@@ -186,8 +188,9 @@ extern void XLogBeginInsert(void);
 extern XLogRecPtr XLogInsert(void);
 extern void XLogFlush(XLogRecPtr ptr);
 
-extern void OpenMapperFile(char *data_dir);
+extern void OpenMapperFile(const char *data_dir);
 extern void CloseMapperFile(void);
+bool CheckMapperFile(const char *file_path, size_t file_size);
 
 extern void DoSlaveCheckPoint(bool  write_check_point);
 extern void DoMasterCheckPoint(bool shutdown);
@@ -230,5 +233,8 @@ extern bool IsInSyncStandbyList(const char *application_name);
 extern void RegisterNewSyncStandby(GTM_StandbyReplication *replication);
 extern void RemoveSyncStandby(GTM_StandbyReplication *replication);
 extern void load_sync_structures(void);
+extern void GTM_RecoveryUpdateMetaData(XLogRecPtr redo_end_pos,XLogRecPtr preXLogRecord, uint64 segment_no, int idx);
+extern uint64 XLogRecPtrToBytePos(XLogRecPtr ptr);
+
 #endif /* GTM_XLOG_H */
 

@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------
  * ascii.c
- *     The PostgreSQL routine for string to ascii conversion.
+ *	 The PostgreSQL routine for string to ascii conversion.
  *
- *     Portions Copyright (c) 1999-2017, PostgreSQL Global Development Group
+ *	 Portions Copyright (c) 1999-2017, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *      src/backend/utils/adt/ascii.c
+ *	  src/backend/utils/adt/ascii.c
  *
  *-----------------------------------------------------------------------
  */
@@ -16,7 +16,7 @@
 #include "utils/builtins.h"
 
 static void pg_to_ascii(unsigned char *src, unsigned char *src_end,
-            unsigned char *dest, int enc);
+			unsigned char *dest, int enc);
 static text *encode_to_ascii(text *data, int enc);
 
 
@@ -26,70 +26,70 @@ static text *encode_to_ascii(text *data, int enc);
  */
 static void
 pg_to_ascii(unsigned char *src, unsigned char *src_end, unsigned char *dest, int enc)
-{// #lizard forgives
-    unsigned char *x;
-    const unsigned char *ascii;
-    int            range;
+{
+	unsigned char *x;
+	const unsigned char *ascii;
+	int			range;
 
-    /*
-     * relevant start for an encoding
-     */
-#define RANGE_128    128
-#define RANGE_160    160
+	/*
+	 * relevant start for an encoding
+	 */
+#define RANGE_128	128
+#define RANGE_160	160
 
-    if (enc == PG_LATIN1)
-    {
-        /*
-         * ISO-8859-1 <range: 160 -- 255>
-         */
-        ascii = (const unsigned char *) "  cL Y  \"Ca  -R     'u .,      ?AAAAAAACEEEEIIII NOOOOOxOUUUUYTBaaaaaaaceeeeiiii nooooo/ouuuuyty";
-        range = RANGE_160;
-    }
-    else if (enc == PG_LATIN2)
-    {
-        /*
-         * ISO-8859-2 <range: 160 -- 255>
-         */
-        ascii = (const unsigned char *) " A L LS \"SSTZ-ZZ a,l'ls ,sstz\"zzRAAAALCCCEEEEIIDDNNOOOOxRUUUUYTBraaaalccceeeeiiddnnoooo/ruuuuyt.";
-        range = RANGE_160;
-    }
-    else if (enc == PG_LATIN9)
-    {
-        /*
-         * ISO-8859-15 <range: 160 -- 255>
-         */
-        ascii = (const unsigned char *) "  cL YS sCa  -R     Zu .z   EeY?AAAAAAACEEEEIIII NOOOOOxOUUUUYTBaaaaaaaceeeeiiii nooooo/ouuuuyty";
-        range = RANGE_160;
-    }
-    else if (enc == PG_WIN1250)
-    {
-        /*
-         * Window CP1250 <range: 128 -- 255>
-         */
-        ascii = (const unsigned char *) "  ' \"    %S<STZZ `'\"\".--  s>stzz   L A  \"CS  -RZ  ,l'u .,as L\"lzRAAAALCCCEEEEIIDDNNOOOOxRUUUUYTBraaaalccceeeeiiddnnoooo/ruuuuyt ";
-        range = RANGE_128;
-    }
-    else
-    {
-        ereport(ERROR,
-                (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-                 errmsg("encoding conversion from %s to ASCII not supported",
-                        pg_encoding_to_char(enc))));
-        return;                    /* keep compiler quiet */
-    }
+	if (enc == PG_LATIN1)
+	{
+		/*
+		 * ISO-8859-1 <range: 160 -- 255>
+		 */
+		ascii = (const unsigned char *) "  cL Y  \"Ca  -R     'u .,      ?AAAAAAACEEEEIIII NOOOOOxOUUUUYTBaaaaaaaceeeeiiii nooooo/ouuuuyty";
+		range = RANGE_160;
+	}
+	else if (enc == PG_LATIN2)
+	{
+		/*
+		 * ISO-8859-2 <range: 160 -- 255>
+		 */
+		ascii = (const unsigned char *) " A L LS \"SSTZ-ZZ a,l'ls ,sstz\"zzRAAAALCCCEEEEIIDDNNOOOOxRUUUUYTBraaaalccceeeeiiddnnoooo/ruuuuyt.";
+		range = RANGE_160;
+	}
+	else if (enc == PG_LATIN9)
+	{
+		/*
+		 * ISO-8859-15 <range: 160 -- 255>
+		 */
+		ascii = (const unsigned char *) "  cL YS sCa  -R     Zu .z   EeY?AAAAAAACEEEEIIII NOOOOOxOUUUUYTBaaaaaaaceeeeiiii nooooo/ouuuuyty";
+		range = RANGE_160;
+	}
+	else if (enc == PG_WIN1250)
+	{
+		/*
+		 * Window CP1250 <range: 128 -- 255>
+		 */
+		ascii = (const unsigned char *) "  ' \"    %S<STZZ `'\"\".--  s>stzz   L A  \"CS  -RZ  ,l'u .,as L\"lzRAAAALCCCEEEEIIDDNNOOOOxRUUUUYTBraaaalccceeeeiiddnnoooo/ruuuuyt ";
+		range = RANGE_128;
+	}
+	else
+	{
+		ereport(ERROR,
+				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+				 errmsg("encoding conversion from %s to ASCII not supported",
+						pg_encoding_to_char(enc))));
+		return;					/* keep compiler quiet */
+	}
 
-    /*
-     * Encode
-     */
-    for (x = src; x < src_end; x++)
-    {
-        if (*x < 128)
-            *dest++ = *x;
-        else if (*x < range)
-            *dest++ = ' ';        /* bogus 128 to 'range' */
-        else
-            *dest++ = ascii[*x - range];
-    }
+	/*
+	 * Encode
+	 */
+	for (x = src; x < src_end; x++)
+	{
+		if (*x < 128)
+			*dest++ = *x;
+		else if (*x < range)
+			*dest++ = ' ';		/* bogus 128 to 'range' */
+		else
+			*dest++ = ascii[*x - range];
+	}
 }
 
 /* ----------
@@ -102,12 +102,12 @@ pg_to_ascii(unsigned char *src, unsigned char *src_end, unsigned char *dest, int
 static text *
 encode_to_ascii(text *data, int enc)
 {
-    pg_to_ascii((unsigned char *) VARDATA(data),    /* src */
-                (unsigned char *) (data) + VARSIZE(data),    /* src end */
-                (unsigned char *) VARDATA(data),    /* dest */
-                enc);            /* encoding */
+	pg_to_ascii((unsigned char *) VARDATA(data),	/* src */
+				(unsigned char *) (data) + VARSIZE(data),	/* src end */
+				(unsigned char *) VARDATA(data),	/* dest */
+				enc);			/* encoding */
 
-    return data;
+	return data;
 }
 
 /* ----------
@@ -117,16 +117,16 @@ encode_to_ascii(text *data, int enc)
 Datum
 to_ascii_encname(PG_FUNCTION_ARGS)
 {
-    text       *data = PG_GETARG_TEXT_P_COPY(0);
-    char       *encname = NameStr(*PG_GETARG_NAME(1));
-    int            enc = pg_char_to_encoding(encname);
+	text	   *data = PG_GETARG_TEXT_P_COPY(0);
+	char	   *encname = NameStr(*PG_GETARG_NAME(1));
+	int			enc = pg_char_to_encoding(encname);
 
-    if (enc < 0)
-        ereport(ERROR,
-                (errcode(ERRCODE_UNDEFINED_OBJECT),
-                 errmsg("%s is not a valid encoding name", encname)));
+	if (enc < 0)
+		ereport(ERROR,
+				(errcode(ERRCODE_UNDEFINED_OBJECT),
+				 errmsg("%s is not a valid encoding name", encname)));
 
-    PG_RETURN_TEXT_P(encode_to_ascii(data, enc));
+	PG_RETURN_TEXT_P(encode_to_ascii(data, enc));
 }
 
 /* ----------
@@ -136,15 +136,15 @@ to_ascii_encname(PG_FUNCTION_ARGS)
 Datum
 to_ascii_enc(PG_FUNCTION_ARGS)
 {
-    text       *data = PG_GETARG_TEXT_P_COPY(0);
-    int            enc = PG_GETARG_INT32(1);
+	text	   *data = PG_GETARG_TEXT_P_COPY(0);
+	int			enc = PG_GETARG_INT32(1);
 
-    if (!PG_VALID_ENCODING(enc))
-        ereport(ERROR,
-                (errcode(ERRCODE_UNDEFINED_OBJECT),
-                 errmsg("%d is not a valid encoding code", enc)));
+	if (!PG_VALID_ENCODING(enc))
+		ereport(ERROR,
+				(errcode(ERRCODE_UNDEFINED_OBJECT),
+				 errmsg("%d is not a valid encoding code", enc)));
 
-    PG_RETURN_TEXT_P(encode_to_ascii(data, enc));
+	PG_RETURN_TEXT_P(encode_to_ascii(data, enc));
 }
 
 /* ----------
@@ -154,10 +154,10 @@ to_ascii_enc(PG_FUNCTION_ARGS)
 Datum
 to_ascii_default(PG_FUNCTION_ARGS)
 {
-    text       *data = PG_GETARG_TEXT_P_COPY(0);
-    int            enc = GetDatabaseEncoding();
+	text	   *data = PG_GETARG_TEXT_P_COPY(0);
+	int			enc = GetDatabaseEncoding();
 
-    PG_RETURN_TEXT_P(encode_to_ascii(data, enc));
+	PG_RETURN_TEXT_P(encode_to_ascii(data, enc));
 }
 
 /* ----------
@@ -171,28 +171,28 @@ to_ascii_default(PG_FUNCTION_ARGS)
  */
 void
 ascii_safe_strlcpy(char *dest, const char *src, size_t destsiz)
-{// #lizard forgives
-    if (destsiz == 0)            /* corner case: no room for trailing nul */
-        return;
+{
+	if (destsiz == 0)			/* corner case: no room for trailing nul */
+		return;
 
-    while (--destsiz > 0)
-    {
-        /* use unsigned char here to avoid compiler warning */
-        unsigned char ch = *src++;
+	while (--destsiz > 0)
+	{
+		/* use unsigned char here to avoid compiler warning */
+		unsigned char ch = *src++;
 
-        if (ch == '\0')
-            break;
-        /* Keep printable ASCII characters */
-        if (32 <= ch && ch <= 127)
-            *dest = ch;
-        /* White-space is also OK */
-        else if (ch == '\n' || ch == '\r' || ch == '\t')
-            *dest = ch;
-        /* Everything else is replaced with '?' */
-        else
-            *dest = '?';
-        dest++;
-    }
+		if (ch == '\0')
+			break;
+		/* Keep printable ASCII characters */
+		if (32 <= ch && ch <= 127)
+			*dest = ch;
+		/* White-space is also OK */
+		else if (ch == '\n' || ch == '\r' || ch == '\t')
+			*dest = ch;
+		/* Everything else is replaced with '?' */
+		else
+			*dest = '?';
+		dest++;
+	}
 
-    *dest = '\0';
+	*dest = '\0';
 }

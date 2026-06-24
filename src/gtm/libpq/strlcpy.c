@@ -1,21 +1,21 @@
 /*-------------------------------------------------------------------------
  *
  * strlcpy.c
- *      strncpy done right
+ *	  strncpy done right
  *
  * Portions Copyright (c) 1996-2009, PostgreSQL Global Development Group
  * Portions Copyright (c) 2010-2012 Postgres-XC Development Group
  *
  *
  * IDENTIFICATION
- *      $PostgreSQL: pgsql/src/port/strlcpy.c,v 1.5 2008/01/01 19:46:00 momjian Exp $
+ *	  $PostgreSQL: pgsql/src/port/strlcpy.c,v 1.5 2008/01/01 19:46:00 momjian Exp $
  *
  * This file was taken from OpenBSD and is used on platforms that don't
  * provide strlcpy().  The OpenBSD copyright terms follow.
  *-------------------------------------------------------------------------
  */
 
-/*    $OpenBSD: strlcpy.c,v 1.11 2006/05/05 15:27:38 millert Exp $    */
+/*	$OpenBSD: strlcpy.c,v 1.11 2006/05/05 15:27:38 millert Exp $	*/
 
 /*
  * Copyright (c) 1998 Todd C. Miller <Todd.Miller@courtesan.com>
@@ -37,37 +37,37 @@
 
 #ifndef HAVE_STRLCPY
 /*
- * Copy src to string dst of size siz.    At most siz-1 characters
- * will be copied.    Always NUL terminates (unless siz == 0).
+ * Copy src to string dst of size siz.	At most siz-1 characters
+ * will be copied.	Always NUL terminates (unless siz == 0).
  * Returns strlen(src); if retval >= siz, truncation occurred.
  * Function creation history:  http://www.gratisoft.us/todd/papers/strlcpy.html
  */
 size_t
 strlcpy(char *dst, const char *src, size_t siz)
 {
-    char       *d = dst;
-    const char *s = src;
-    size_t        n = siz;
+	char	   *d = dst;
+	const char *s = src;
+	size_t		n = siz;
 
-    /* Copy as many bytes as will fit */
-    if (n != 0)
-    {
-        while (--n != 0)
-        {
-            if ((*d++ = *s++) == '\0')
-                break;
-        }
-    }
+	/* Copy as many bytes as will fit */
+	if (n != 0)
+	{
+		while (--n != 0)
+		{
+			if ((*d++ = *s++) == '\0')
+				break;
+		}
+	}
 
-    /* Not enough room in dst, add NUL and traverse rest of src */
-    if (n == 0)
-    {
-        if (siz != 0)
-            *d = '\0';            /* NUL-terminate dst */
-        while (*s++)
-            ;
-    }
+	/* Not enough room in dst, add NUL and traverse rest of src */
+	if (n == 0)
+	{
+		if (siz != 0)
+			*d = '\0';			/* NUL-terminate dst */
+		while (*s++)
+			;
+	}
 
-    return (s - src - 1);        /* count does not include NUL */
+	return (s - src - 1);		/* count does not include NUL */
 }
 #endif

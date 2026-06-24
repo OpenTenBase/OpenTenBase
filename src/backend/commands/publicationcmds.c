@@ -1,16 +1,13 @@
 /*-------------------------------------------------------------------------
  *
  * publicationcmds.c
- *        publication manipulation
+ *		publication manipulation
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * IDENTIFICATION
- *        publicationcmds.c
+ *		publicationcmds.c
  *
  *-------------------------------------------------------------------------
  */
@@ -66,84 +63,84 @@ static List *OpenTableList(List *tables);
 #endif
 static void CloseTableList(List *rels);
 static void PublicationAddTables(Oid pubid, List *rels, bool if_not_exists,
-                     AlterPublicationStmt *stmt);
+					 AlterPublicationStmt *stmt);
 #ifdef __STORAGE_SCALABLE__
 static void PublicationAddShards(Oid pubid, List *shards, bool if_not_exists,
-                     AlterPublicationStmt *stmt);
+					 AlterPublicationStmt *stmt);
 
 #endif
 static void PublicationDropTables(Oid pubid, List *rels, bool missing_ok);
 
 static void
 parse_publication_options(List *options,
-                          bool *publish_given,
-                          bool *publish_insert,
-                          bool *publish_update,
-                          bool *publish_delete)
+						  bool *publish_given,
+						  bool *publish_insert,
+						  bool *publish_update,
+						  bool *publish_delete)
 {
-    ListCell   *lc;
+	ListCell   *lc;
 
-    *publish_given = false;
+	*publish_given = false;
 
-    /* Defaults are true */
-    *publish_insert = true;
-    *publish_update = true;
-    *publish_delete = true;
+	/* Defaults are true */
+	*publish_insert = true;
+	*publish_update = true;
+	*publish_delete = true;
 
-    /* Parse options */
-    foreach(lc, options)
-    {
-        DefElem    *defel = (DefElem *) lfirst(lc);
+	/* Parse options */
+	foreach(lc, options)
+	{
+		DefElem    *defel = (DefElem *) lfirst(lc);
 
-        if (strcmp(defel->defname, "publish") == 0)
-        {
-            char       *publish;
-            List       *publish_list;
-            ListCell   *lc;
+		if (strcmp(defel->defname, "publish") == 0)
+		{
+			char	   *publish;
+			List	   *publish_list;
+			ListCell   *lc;
 
-            if (*publish_given)
-                ereport(ERROR,
-                        (errcode(ERRCODE_SYNTAX_ERROR),
-                         errmsg("conflicting or redundant options")));
+			if (*publish_given)
+				ereport(ERROR,
+						(errcode(ERRCODE_SYNTAX_ERROR),
+						 errmsg("conflicting or redundant options")));
 
-            /*
-             * If publish option was given only the explicitly listed actions
-             * should be published.
-             */
-            *publish_insert = false;
-            *publish_update = false;
-            *publish_delete = false;
+			/*
+			 * If publish option was given only the explicitly listed actions
+			 * should be published.
+			 */
+			*publish_insert = false;
+			*publish_update = false;
+			*publish_delete = false;
 
-            *publish_given = true;
-            publish = defGetString(defel);
+			*publish_given = true;
+			publish = defGetString(defel);
 
-            if (!SplitIdentifierString(publish, ',', &publish_list))
-                ereport(ERROR,
-                        (errcode(ERRCODE_SYNTAX_ERROR),
-                         errmsg("invalid publish list")));
+			if (!SplitIdentifierString(publish, ',', &publish_list))
+				ereport(ERROR,
+						(errcode(ERRCODE_SYNTAX_ERROR),
+						 errmsg("invalid publish list")));
 
-            /* Process the option list. */
-            foreach(lc, publish_list)
-            {
-                char       *publish_opt = (char *) lfirst(lc);
+			/* Process the option list. */
+			foreach(lc, publish_list)
+			{
+				char	   *publish_opt = (char *) lfirst(lc);
 
-                if (strcmp(publish_opt, "insert") == 0)
-                    *publish_insert = true;
-                else if (strcmp(publish_opt, "update") == 0)
-                    *publish_update = true;
-                else if (strcmp(publish_opt, "delete") == 0)
-                    *publish_delete = true;
-                else
-                    ereport(ERROR,
-                            (errcode(ERRCODE_SYNTAX_ERROR),
-                             errmsg("unrecognized \"publish\" value: \"%s\"", publish_opt)));
-            }
-        }
-        else
-            ereport(ERROR,
-                    (errcode(ERRCODE_SYNTAX_ERROR),
-                     errmsg("unrecognized publication parameter: %s", defel->defname)));
-    }
+				if (strcmp(publish_opt, "insert") == 0)
+					*publish_insert = true;
+				else if (strcmp(publish_opt, "update") == 0)
+					*publish_update = true;
+				else if (strcmp(publish_opt, "delete") == 0)
+					*publish_delete = true;
+				else
+					ereport(ERROR,
+							(errcode(ERRCODE_SYNTAX_ERROR),
+							 errmsg("unrecognized \"publish\" value: \"%s\"", publish_opt)));
+			}
+		}
+		else
+			ereport(ERROR,
+					(errcode(ERRCODE_SYNTAX_ERROR),
+					 errmsg("unrecognized publication parameter: \"%s\"", defel->defname)));
+	}
 }
 
 /*
@@ -151,110 +148,110 @@ parse_publication_options(List *options,
  */
 ObjectAddress
 CreatePublication(CreatePublicationStmt *stmt)
-{// #lizard forgives
-    Relation    rel;
-    ObjectAddress myself;
-    Oid            puboid;
-    bool        nulls[Natts_pg_publication];
-    Datum        values[Natts_pg_publication];
-    HeapTuple    tup;
-    bool        publish_given;
-    bool        publish_insert;
-    bool        publish_update;
-    bool        publish_delete;
-    AclResult    aclresult;
+{
+	Relation	rel;
+	ObjectAddress myself;
+	Oid			puboid;
+	bool		nulls[Natts_pg_publication];
+	Datum		values[Natts_pg_publication];
+	HeapTuple	tup;
+	bool		publish_given;
+	bool		publish_insert;
+	bool		publish_update;
+	bool		publish_delete;
+	AclResult	aclresult;
 
-    /* must have CREATE privilege on database */
-    aclresult = pg_database_aclcheck(MyDatabaseId, GetUserId(), ACL_CREATE);
-    if (aclresult != ACLCHECK_OK)
-        aclcheck_error(aclresult, ACL_KIND_DATABASE,
-                       get_database_name(MyDatabaseId));
+	/* must have CREATE privilege on database */
+	aclresult = pg_database_aclcheck(MyDatabaseId, GetUserId(), ACL_CREATE);
+	if (aclresult != ACLCHECK_OK)
+		aclcheck_error(aclresult, ACL_KIND_DATABASE,
+					   get_database_name(MyDatabaseId));
 
-    /* FOR ALL TABLES requires superuser */
-    if (stmt->for_all_tables && !superuser())
-        ereport(ERROR,
-                (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-                 (errmsg("must be superuser to create FOR ALL TABLES publication"))));
+	/* FOR ALL TABLES requires superuser */
+	if (stmt->for_all_tables && !superuser())
+		ereport(ERROR,
+				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+				 (errmsg("must be superuser to create FOR ALL TABLES publication"))));
 
-    rel = heap_open(PublicationRelationId, RowExclusiveLock);
+	rel = heap_open(PublicationRelationId, RowExclusiveLock);
 
-    /* Check if name is used */
-    puboid = GetSysCacheOid1(PUBLICATIONNAME, CStringGetDatum(stmt->pubname));
-    if (OidIsValid(puboid))
-    {
-        ereport(ERROR,
-                (errcode(ERRCODE_DUPLICATE_OBJECT),
-                 errmsg("publication \"%s\" already exists",
-                        stmt->pubname)));
-    }
+	/* Check if name is used */
+	puboid = GetSysCacheOid1(PUBLICATIONNAME, CStringGetDatum(stmt->pubname));
+	if (OidIsValid(puboid))
+	{
+		ereport(ERROR,
+				(errcode(ERRCODE_DUPLICATE_OBJECT),
+				 errmsg("publication \"%s\" already exists",
+						stmt->pubname)));
+	}
 
-    /* Form a tuple. */
-    memset(values, 0, sizeof(values));
-    memset(nulls, false, sizeof(nulls));
+	/* Form a tuple. */
+	memset(values, 0, sizeof(values));
+	memset(nulls, false, sizeof(nulls));
 
-    values[Anum_pg_publication_pubname - 1] =
-        DirectFunctionCall1(namein, CStringGetDatum(stmt->pubname));
-    values[Anum_pg_publication_pubowner - 1] = ObjectIdGetDatum(GetUserId());
+	values[Anum_pg_publication_pubname - 1] =
+		DirectFunctionCall1(namein, CStringGetDatum(stmt->pubname));
+	values[Anum_pg_publication_pubowner - 1] = ObjectIdGetDatum(GetUserId());
 
-    parse_publication_options(stmt->options,
-                              &publish_given, &publish_insert,
-                              &publish_update, &publish_delete);
+	parse_publication_options(stmt->options,
+							  &publish_given, &publish_insert,
+							  &publish_update, &publish_delete);
 
-    values[Anum_pg_publication_puballtables - 1] =
-        BoolGetDatum(stmt->for_all_tables);
-    values[Anum_pg_publication_pubinsert - 1] =
-        BoolGetDatum(publish_insert);
-    values[Anum_pg_publication_pubupdate - 1] =
-        BoolGetDatum(publish_update);
-    values[Anum_pg_publication_pubdelete - 1] =
-        BoolGetDatum(publish_delete);
+	values[Anum_pg_publication_puballtables - 1] =
+		BoolGetDatum(stmt->for_all_tables);
+	values[Anum_pg_publication_pubinsert - 1] =
+		BoolGetDatum(publish_insert);
+	values[Anum_pg_publication_pubupdate - 1] =
+		BoolGetDatum(publish_update);
+	values[Anum_pg_publication_pubdelete - 1] =
+		BoolGetDatum(publish_delete);
 
-    tup = heap_form_tuple(RelationGetDescr(rel), values, nulls);
+	tup = heap_form_tuple(RelationGetDescr(rel), values, nulls);
 
-    /* Insert tuple into catalog. */
-    puboid = CatalogTupleInsert(rel, tup);
-    heap_freetuple(tup);
+	/* Insert tuple into catalog. */
+	puboid = CatalogTupleInsert(rel, tup);
+	heap_freetuple(tup);
 
-    recordDependencyOnOwner(PublicationRelationId, puboid, GetUserId());
+	recordDependencyOnOwner(PublicationRelationId, puboid, GetUserId());
 
-    ObjectAddressSet(myself, PublicationRelationId, puboid);
+	ObjectAddressSet(myself, PublicationRelationId, puboid);
 
-    /* Make the changes visible. */
-    CommandCounterIncrement();
+	/* Make the changes visible. */
+	CommandCounterIncrement();
 
-    if (stmt->tables)
-    {
-        List       *rels;
+	if (stmt->tables)
+	{
+		List	   *rels;
 
-        Assert(list_length(stmt->tables) > 0);
+		Assert(list_length(stmt->tables) > 0);
 
 #ifdef __STORAGE_SCALABLE__
-        rels = OpenTableList(stmt->tables, (list_length(stmt->shards) > 0));
+		rels = OpenTableList(stmt->tables, (list_length(stmt->shards) > 0));
 #else
-        rels = OpenTableList(stmt->tables);
+		rels = OpenTableList(stmt->tables);
 #endif
-        PublicationAddTables(puboid, rels, true, NULL);
-        CloseTableList(rels);
-    }
+		PublicationAddTables(puboid, rels, true, NULL);
+		CloseTableList(rels);
+	}
 
 #ifdef __STORAGE_SCALABLE__
-    /*
-     * add shards to publication if specified, publish shard table 
-     * with shards
+	/*
+	 * add shards to publication if specified, publish shard table 
+	 * with shards
      */
      if (stmt->shards)
-     {
-         Assert(list_length(stmt->shards) > 0);
+ 	{
+ 		Assert(list_length(stmt->shards) > 0);
 
-        PublicationAddShards(puboid, stmt->shards, true, NULL);
-     }
+		PublicationAddShards(puboid, stmt->shards, true, NULL);
+ 	}
 #endif
 
-    heap_close(rel, RowExclusiveLock);
+	heap_close(rel, RowExclusiveLock);
 
-    InvokeObjectPostCreateHook(PublicationRelationId, puboid, 0);
+	InvokeObjectPostCreateHook(PublicationRelationId, puboid, 0);
 
-    return myself;
+	return myself;
 }
 
 /*
@@ -262,79 +259,79 @@ CreatePublication(CreatePublicationStmt *stmt)
  */
 static void
 AlterPublicationOptions(AlterPublicationStmt *stmt, Relation rel,
-                        HeapTuple tup)
+						HeapTuple tup)
 {
-    bool        nulls[Natts_pg_publication];
-    bool        replaces[Natts_pg_publication];
-    Datum        values[Natts_pg_publication];
-    bool        publish_given;
-    bool        publish_insert;
-    bool        publish_update;
-    bool        publish_delete;
-    ObjectAddress obj;
+	bool		nulls[Natts_pg_publication];
+	bool		replaces[Natts_pg_publication];
+	Datum		values[Natts_pg_publication];
+	bool		publish_given;
+	bool		publish_insert;
+	bool		publish_update;
+	bool		publish_delete;
+	ObjectAddress obj;
 
-    parse_publication_options(stmt->options,
-                              &publish_given, &publish_insert,
-                              &publish_update, &publish_delete);
+	parse_publication_options(stmt->options,
+							  &publish_given, &publish_insert,
+							  &publish_update, &publish_delete);
 
-    /* Everything ok, form a new tuple. */
-    memset(values, 0, sizeof(values));
-    memset(nulls, false, sizeof(nulls));
-    memset(replaces, false, sizeof(replaces));
+	/* Everything ok, form a new tuple. */
+	memset(values, 0, sizeof(values));
+	memset(nulls, false, sizeof(nulls));
+	memset(replaces, false, sizeof(replaces));
 
-    if (publish_given)
-    {
-        values[Anum_pg_publication_pubinsert - 1] = BoolGetDatum(publish_insert);
-        replaces[Anum_pg_publication_pubinsert - 1] = true;
+	if (publish_given)
+	{
+		values[Anum_pg_publication_pubinsert - 1] = BoolGetDatum(publish_insert);
+		replaces[Anum_pg_publication_pubinsert - 1] = true;
 
-        values[Anum_pg_publication_pubupdate - 1] = BoolGetDatum(publish_update);
-        replaces[Anum_pg_publication_pubupdate - 1] = true;
+		values[Anum_pg_publication_pubupdate - 1] = BoolGetDatum(publish_update);
+		replaces[Anum_pg_publication_pubupdate - 1] = true;
 
-        values[Anum_pg_publication_pubdelete - 1] = BoolGetDatum(publish_delete);
-        replaces[Anum_pg_publication_pubdelete - 1] = true;
-    }
+		values[Anum_pg_publication_pubdelete - 1] = BoolGetDatum(publish_delete);
+		replaces[Anum_pg_publication_pubdelete - 1] = true;
+	}
 
-    tup = heap_modify_tuple(tup, RelationGetDescr(rel), values, nulls,
-                            replaces);
+	tup = heap_modify_tuple(tup, RelationGetDescr(rel), values, nulls,
+							replaces);
 
-    /* Update the catalog. */
-    CatalogTupleUpdate(rel, &tup->t_self, tup);
+	/* Update the catalog. */
+	CatalogTupleUpdate(rel, &tup->t_self, tup);
 
-    CommandCounterIncrement();
+	CommandCounterIncrement();
 
-    /* Invalidate the relcache. */
-    if (((Form_pg_publication) GETSTRUCT(tup))->puballtables)
-    {
-        CacheInvalidateRelcacheAll();
-    }
-    else
-    {
-        List       *relids = GetPublicationRelations(HeapTupleGetOid(tup));
+	/* Invalidate the relcache. */
+	if (((Form_pg_publication) GETSTRUCT(tup))->puballtables)
+	{
+		CacheInvalidateRelcacheAll();
+	}
+	else
+	{
+		List	   *relids = GetPublicationRelations(HeapTupleGetOid(tup));
 
-        /*
-         * We don't want to send too many individual messages, at some point
-         * it's cheaper to just reset whole relcache.
-         */
-        if (list_length(relids) < MAX_RELCACHE_INVAL_MSGS)
-        {
-            ListCell   *lc;
+		/*
+		 * We don't want to send too many individual messages, at some point
+		 * it's cheaper to just reset whole relcache.
+		 */
+		if (list_length(relids) < MAX_RELCACHE_INVAL_MSGS)
+		{
+			ListCell   *lc;
 
-            foreach(lc, relids)
-            {
-                Oid            relid = lfirst_oid(lc);
+			foreach(lc, relids)
+			{
+				Oid			relid = lfirst_oid(lc);
 
-                CacheInvalidateRelcacheByRelid(relid);
-            }
-        }
-        else
-            CacheInvalidateRelcacheAll();
-    }
+				CacheInvalidateRelcacheByRelid(relid);
+			}
+		}
+		else
+			CacheInvalidateRelcacheAll();
+	}
 
-    ObjectAddressSet(obj, PublicationRelationId, HeapTupleGetOid(tup));
-    EventTriggerCollectSimpleCommand(obj, InvalidObjectAddress,
-                                     (Node *) stmt);
+	ObjectAddressSet(obj, PublicationRelationId, HeapTupleGetOid(tup));
+	EventTriggerCollectSimpleCommand(obj, InvalidObjectAddress,
+									 (Node *) stmt);
 
-    InvokeObjectPostAlterHook(PublicationRelationId, HeapTupleGetOid(tup), 0);
+	InvokeObjectPostAlterHook(PublicationRelationId, HeapTupleGetOid(tup), 0);
 }
 
 /*
@@ -342,94 +339,94 @@ AlterPublicationOptions(AlterPublicationStmt *stmt, Relation rel,
  */
 static void
 AlterPublicationTables(AlterPublicationStmt *stmt, Relation rel,
-                       HeapTuple tup)
-{// #lizard forgives
-    Oid            pubid = HeapTupleGetOid(tup);
-    List       *rels = NIL;
-    Form_pg_publication pubform = (Form_pg_publication) GETSTRUCT(tup);
+					   HeapTuple tup)
+{
+	Oid			pubid = HeapTupleGetOid(tup);
+	List	   *rels = NIL;
+	Form_pg_publication pubform = (Form_pg_publication) GETSTRUCT(tup);
 
-    /* Check that user is allowed to manipulate the publication tables. */
-    if (pubform->puballtables)
-        ereport(ERROR,
-                (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-                 errmsg("publication \"%s\" is defined as FOR ALL TABLES",
-                        NameStr(pubform->pubname)),
-                 errdetail("Tables cannot be added to or dropped from FOR ALL TABLES publications.")));
+	/* Check that user is allowed to manipulate the publication tables. */
+	if (pubform->puballtables)
+		ereport(ERROR,
+				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+				 errmsg("publication \"%s\" is defined as FOR ALL TABLES",
+						NameStr(pubform->pubname)),
+				 errdetail("Tables cannot be added to or dropped from FOR ALL TABLES publications.")));
 
 #ifdef __STORAGE_SCALABLE__
-    {
-        Oid pubid = get_publication_oid(NameStr(pubform->pubname), false);
-        List *shard = GetPublicationShards(pubid);
+	{
+		Oid pubid = get_publication_oid(NameStr(pubform->pubname), false);
+		List *shard = GetPublicationShards(pubid);
 
-        if (shard)
-        {
-            ereport(ERROR,
-                    (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-                     errmsg("publication \"%s\" is defined as FOR SHARD",
-                            NameStr(pubform->pubname)),
-                     errdetail("Tables cannot be added to or dropped from FOR SHARD publications.")));
-        }
-    }
+		if (shard)
+		{
+			ereport(ERROR,
+					(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+					 errmsg("publication \"%s\" is defined as FOR SHARD",
+							NameStr(pubform->pubname)),
+					 errdetail("Tables cannot be added to or dropped from FOR SHARD publications.")));
+		}
+	}
 #endif
 
-    Assert(list_length(stmt->tables) > 0);
+	Assert(list_length(stmt->tables) > 0);
 
 #ifdef __STORAGE_SCALABLE__
-    rels = OpenTableList(stmt->tables, false);
+	rels = OpenTableList(stmt->tables, false);
 #else
-    rels = OpenTableList(stmt->tables);
+	rels = OpenTableList(stmt->tables);
 #endif
 
-    if (stmt->tableAction == DEFELEM_ADD)
-        PublicationAddTables(pubid, rels, false, stmt);
-    else if (stmt->tableAction == DEFELEM_DROP)
-        PublicationDropTables(pubid, rels, false);
-    else                        /* DEFELEM_SET */
-    {
-        List       *oldrelids = GetPublicationRelations(pubid);
-        List       *delrels = NIL;
-        ListCell   *oldlc;
+	if (stmt->tableAction == DEFELEM_ADD)
+		PublicationAddTables(pubid, rels, false, stmt);
+	else if (stmt->tableAction == DEFELEM_DROP)
+		PublicationDropTables(pubid, rels, false);
+	else						/* DEFELEM_SET */
+	{
+		List	   *oldrelids = GetPublicationRelations(pubid);
+		List	   *delrels = NIL;
+		ListCell   *oldlc;
 
-        /* Calculate which relations to drop. */
-        foreach(oldlc, oldrelids)
-        {
-            Oid            oldrelid = lfirst_oid(oldlc);
-            ListCell   *newlc;
-            bool        found = false;
+		/* Calculate which relations to drop. */
+		foreach(oldlc, oldrelids)
+		{
+			Oid			oldrelid = lfirst_oid(oldlc);
+			ListCell   *newlc;
+			bool		found = false;
 
-            foreach(newlc, rels)
-            {
-                Relation    newrel = (Relation) lfirst(newlc);
+			foreach(newlc, rels)
+			{
+				Relation	newrel = (Relation) lfirst(newlc);
 
-                if (RelationGetRelid(newrel) == oldrelid)
-                {
-                    found = true;
-                    break;
-                }
-            }
+				if (RelationGetRelid(newrel) == oldrelid)
+				{
+					found = true;
+					break;
+				}
+			}
 
-            if (!found)
-            {
-                Relation    oldrel = heap_open(oldrelid,
-                                               ShareUpdateExclusiveLock);
+			if (!found)
+			{
+				Relation	oldrel = heap_open(oldrelid,
+											   ShareUpdateExclusiveLock);
 
-                delrels = lappend(delrels, oldrel);
-            }
-        }
+				delrels = lappend(delrels, oldrel);
+			}
+		}
 
-        /* And drop them. */
-        PublicationDropTables(pubid, delrels, true);
+		/* And drop them. */
+		PublicationDropTables(pubid, delrels, true);
 
-        /*
-         * Don't bother calculating the difference for adding, we'll catch and
-         * skip existing ones when doing catalog update.
-         */
-        PublicationAddTables(pubid, rels, true, stmt);
+		/*
+		 * Don't bother calculating the difference for adding, we'll catch and
+		 * skip existing ones when doing catalog update.
+		 */
+		PublicationAddTables(pubid, rels, true, stmt);
 
-        CloseTableList(delrels);
-    }
+		CloseTableList(delrels);
+	}
 
-    CloseTableList(rels);
+	CloseTableList(rels);
 }
 
 /*
@@ -441,33 +438,33 @@ AlterPublicationTables(AlterPublicationStmt *stmt, Relation rel,
 void
 AlterPublication(AlterPublicationStmt *stmt)
 {
-    Relation    rel;
-    HeapTuple    tup;
+	Relation	rel;
+	HeapTuple	tup;
 
-    rel = heap_open(PublicationRelationId, RowExclusiveLock);
+	rel = heap_open(PublicationRelationId, RowExclusiveLock);
 
-    tup = SearchSysCacheCopy1(PUBLICATIONNAME,
-                              CStringGetDatum(stmt->pubname));
+	tup = SearchSysCacheCopy1(PUBLICATIONNAME,
+							  CStringGetDatum(stmt->pubname));
 
-    if (!HeapTupleIsValid(tup))
-        ereport(ERROR,
-                (errcode(ERRCODE_UNDEFINED_OBJECT),
-                 errmsg("publication \"%s\" does not exist",
-                        stmt->pubname)));
+	if (!HeapTupleIsValid(tup))
+		ereport(ERROR,
+				(errcode(ERRCODE_UNDEFINED_OBJECT),
+				 errmsg("publication \"%s\" does not exist",
+						stmt->pubname)));
 
-    /* must be owner */
-    if (!pg_publication_ownercheck(HeapTupleGetOid(tup), GetUserId()))
-        aclcheck_error(ACLCHECK_NOT_OWNER, ACL_KIND_PUBLICATION,
-                       stmt->pubname);
+	/* must be owner */
+	if (!pg_publication_ownercheck(HeapTupleGetOid(tup), GetUserId()))
+		aclcheck_error(ACLCHECK_NOT_OWNER, ACL_KIND_PUBLICATION,
+					   stmt->pubname);
 
-    if (stmt->options)
-        AlterPublicationOptions(stmt, rel, tup);
-    else
-        AlterPublicationTables(stmt, rel, tup);
+	if (stmt->options)
+		AlterPublicationOptions(stmt, rel, tup);
+	else
+		AlterPublicationTables(stmt, rel, tup);
 
-    /* Cleanup. */
-    heap_freetuple(tup);
-    heap_close(rel, RowExclusiveLock);
+	/* Cleanup. */
+	heap_freetuple(tup);
+	heap_close(rel, RowExclusiveLock);
 }
 
 /*
@@ -476,21 +473,21 @@ AlterPublication(AlterPublicationStmt *stmt)
 void
 RemovePublicationById(Oid pubid)
 {
-    Relation    rel;
-    HeapTuple    tup;
+	Relation	rel;
+	HeapTuple	tup;
 
-    rel = heap_open(PublicationRelationId, RowExclusiveLock);
+	rel = heap_open(PublicationRelationId, RowExclusiveLock);
 
-    tup = SearchSysCache1(PUBLICATIONOID, ObjectIdGetDatum(pubid));
+	tup = SearchSysCache1(PUBLICATIONOID, ObjectIdGetDatum(pubid));
 
-    if (!HeapTupleIsValid(tup))
-        elog(ERROR, "cache lookup failed for publication %u", pubid);
+	if (!HeapTupleIsValid(tup))
+		elog(ERROR, "cache lookup failed for publication %u", pubid);
 
-    CatalogTupleDelete(rel, &tup->t_self);
+	CatalogTupleDelete(rel, &tup->t_self);
 
-    ReleaseSysCache(tup);
+	ReleaseSysCache(tup);
 
-    heap_close(rel, RowExclusiveLock);
+	heap_close(rel, RowExclusiveLock);
 }
 
 /*
@@ -499,28 +496,28 @@ RemovePublicationById(Oid pubid)
 void
 RemovePublicationRelById(Oid proid)
 {
-    Relation    rel;
-    HeapTuple    tup;
-    Form_pg_publication_rel pubrel;
+	Relation	rel;
+	HeapTuple	tup;
+	Form_pg_publication_rel pubrel;
 
-    rel = heap_open(PublicationRelRelationId, RowExclusiveLock);
+	rel = heap_open(PublicationRelRelationId, RowExclusiveLock);
 
-    tup = SearchSysCache1(PUBLICATIONREL, ObjectIdGetDatum(proid));
+	tup = SearchSysCache1(PUBLICATIONREL, ObjectIdGetDatum(proid));
 
-    if (!HeapTupleIsValid(tup))
-        elog(ERROR, "cache lookup failed for publication table %u",
-             proid);
+	if (!HeapTupleIsValid(tup))
+		elog(ERROR, "cache lookup failed for publication table %u",
+			 proid);
 
-    pubrel = (Form_pg_publication_rel) GETSTRUCT(tup);
+	pubrel = (Form_pg_publication_rel) GETSTRUCT(tup);
 
-    /* Invalidate relcache so that publication info is rebuilt. */
-    CacheInvalidateRelcacheByRelid(pubrel->prrelid);
+	/* Invalidate relcache so that publication info is rebuilt. */
+	CacheInvalidateRelcacheByRelid(pubrel->prrelid);
 
-    CatalogTupleDelete(rel, &tup->t_self);
+	CatalogTupleDelete(rel, &tup->t_self);
 
-    ReleaseSysCache(tup);
+	ReleaseSysCache(tup);
 
-    heap_close(rel, RowExclusiveLock);
+	heap_close(rel, RowExclusiveLock);
 }
 
 /*
@@ -534,123 +531,96 @@ OpenTableList(List *tables, bool forShard)
 static List *
 OpenTableList(List *tables)
 #endif
-{// #lizard forgives
-    List       *relids = NIL;
-    List       *rels = NIL;
-    ListCell   *lc;
+{
+	List	   *relids = NIL;
+	List	   *rels = NIL;
+	ListCell   *lc;
 
-    /*
-     * Open, share-lock, and check all the explicitly-specified relations
-     */
-    foreach(lc, tables)
-    {
-        RangeVar   *rv = lfirst(lc);
+	/*
+	 * Open, share-lock, and check all the explicitly-specified relations
+	 */
+	foreach(lc, tables)
+	{
+		RangeVar   *rv = lfirst(lc);
 		Relation	rel  = NULL;
-        bool        recurse = rv->inh;
+		bool		recurse = rv->inh;
 		Oid			myrelid = InvalidOid;
 
-        CHECK_FOR_INTERRUPTS();
+		CHECK_FOR_INTERRUPTS();
 
-        rel = heap_openrv(rv, ShareUpdateExclusiveLock);
-        myrelid = RelationGetRelid(rel);
-
-#ifdef __STORAGE_SCALABLE__
-        /* if specified shard, tables must be shard tables */
-        if (forShard)
-        {
-            if (!RelationIsSharded(rel))
-            {
-                heap_close(rel, ShareUpdateExclusiveLock);
-				rel = NULL;
-                elog(ERROR, "Table must be shard table while specified shard"
-                            "in publication.");
-            }
-        }
-#endif
-
-        /*
-         * Filter out duplicates if user specifies "foo, foo".
-         *
-         * Note that this algorithm is known to not be very efficient (O(N^2))
-         * but given that it only works on list of tables given to us by user
-         * it's deemed acceptable.
-         */
-        if (list_member_oid(relids, myrelid))
-        {
-            heap_close(rel, ShareUpdateExclusiveLock);
-			rel = NULL;
-            continue;
-        }
+		rel = heap_openrv(rv, ShareUpdateExclusiveLock);
+		myrelid = RelationGetRelid(rel);
 
 #ifdef __STORAGE_SCALABLE__
-        /* do not include interval partition parent table */
-        if(!RELATION_IS_INTERVAL(rel))
-        {
-#endif
-        rels = lappend(rels, rel);
-        relids = lappend_oid(relids, myrelid);
-#ifdef __STORAGE_SCALABLE__
-        }
-#endif
-
-#ifdef __STORAGE_SCALABLE__
-        /* for interval partition table, get all childs */
-        if (recurse || RELATION_IS_INTERVAL(rel))
-#else
-        if (recurse)
-#endif
-        {
-            ListCell   *child;
-            List       *children;
-
-#ifdef __STORAGE_SCALABLE__
-            /* interval partition table */
-            if (RELATION_IS_INTERVAL(rel))
-            {
-                children = RelationGetAllPartitions(rel);
+		/* if specified shard, tables must be shard tables */
+		if (forShard)
+		{
+			if (!RelationIsSharded(rel))
+			{
 				heap_close(rel, ShareUpdateExclusiveLock);
 				rel = NULL;
-            }
-            else
-            {
+				elog(ERROR, "Table must be shard table while specified shard"
+					        "in publication.");
+			}
+		}
 #endif
-            children = find_all_inheritors(myrelid, ShareUpdateExclusiveLock,
-                                           NULL);
-#ifdef __STORAGE_SCALABLE__
-            }
-#endif
-            foreach(child, children)
-            {
-                Oid            childrelid = lfirst_oid(child);
 
-                if (list_member_oid(relids, childrelid))
-                    continue;
+		/*
+		 * Filter out duplicates if user specifies "foo, foo".
+		 *
+		 * Note that this algorithm is known to not be very efficient (O(N^2))
+		 * but given that it only works on list of tables given to us by user
+		 * it's deemed acceptable.
+		 */
+		if (list_member_oid(relids, myrelid))
+		{
+			heap_close(rel, ShareUpdateExclusiveLock);
+			rel = NULL;
+			continue;
+		}
 
-                /*
-                 * Skip duplicates if user specified both parent and child
-                 * tables.
-                 */
-                if (list_member_oid(relids, childrelid))
-                {
+		rels = lappend(rels, rel);
+		relids = lappend_oid(relids, myrelid);
+
+		if (recurse)
+		{
+			ListCell   *child;
+			List	   *children;
+
+			children = find_all_inheritors(myrelid, ShareUpdateExclusiveLock,
+										   NULL);
+			foreach(child, children)
+			{
+				Oid			childrelid = lfirst_oid(child);
+
+				if (list_member_oid(relids, childrelid))
+					continue;
+
+				/*
+				 * Skip duplicates if user specified both parent and child
+				 * tables.
+				 */
+				if (list_member_oid(relids, childrelid))
+				{
 					if (rel != NULL)
 					{
 						heap_close(rel, ShareUpdateExclusiveLock);
 						rel = NULL;
 					}
-                    continue;
-                }
+					continue;
+				}
 
-                /* find_all_inheritors already got lock */
-                rel = heap_open(childrelid, NoLock);
-                rels = lappend(rels, rel);
-                relids = lappend_oid(relids, childrelid);
-            }
-        }
-    }
+				/* find_all_inheritors already got lock */
+				rel = heap_open(childrelid, NoLock);
+				rels = lappend(rels, rel);
+				relids = lappend_oid(relids, childrelid);
+			}
+		}
+	}
 
-    list_free(relids);
+	list_free(relids);
 
-    return rels;
+	return rels;
 }
 
 /*
@@ -659,14 +629,14 @@ OpenTableList(List *tables)
 static void
 CloseTableList(List *rels)
 {
-    ListCell   *lc;
+	ListCell   *lc;
 
-    foreach(lc, rels)
-    {
-        Relation    rel = (Relation) lfirst(lc);
+	foreach(lc, rels)
+	{
+		Relation	rel = (Relation) lfirst(lc);
 
-        heap_close(rel, NoLock);
-    }
+		heap_close(rel, NoLock);
+	}
 }
 
 /*
@@ -674,32 +644,32 @@ CloseTableList(List *rels)
  */
 static void
 PublicationAddTables(Oid pubid, List *rels, bool if_not_exists,
-                     AlterPublicationStmt *stmt)
+					 AlterPublicationStmt *stmt)
 {
-    ListCell   *lc;
+	ListCell   *lc;
 
-    Assert(!stmt || !stmt->for_all_tables);
+	Assert(!stmt || !stmt->for_all_tables);
 
-    foreach(lc, rels)
-    {
-        Relation    rel = (Relation) lfirst(lc);
-        ObjectAddress obj;
+	foreach(lc, rels)
+	{
+		Relation	rel = (Relation) lfirst(lc);
+		ObjectAddress obj;
 
-        /* Must be owner of the table or superuser. */
-        if (!pg_class_ownercheck(RelationGetRelid(rel), GetUserId()))
-            aclcheck_error(ACLCHECK_NOT_OWNER, ACL_KIND_CLASS,
-                           RelationGetRelationName(rel));
+		/* Must be owner of the table or superuser. */
+		if (!pg_class_ownercheck(RelationGetRelid(rel), GetUserId()))
+			aclcheck_error(ACLCHECK_NOT_OWNER, ACL_KIND_CLASS,
+						   RelationGetRelationName(rel));
 
-        obj = publication_add_relation(pubid, rel, if_not_exists);
-        if (stmt)
-        {
-            EventTriggerCollectSimpleCommand(obj, InvalidObjectAddress,
-                                             (Node *) stmt);
+		obj = publication_add_relation(pubid, rel, if_not_exists);
+		if (stmt)
+		{
+			EventTriggerCollectSimpleCommand(obj, InvalidObjectAddress,
+											 (Node *) stmt);
 
-            InvokeObjectPostCreateHook(PublicationRelRelationId,
-                                       obj.objectId, 0);
-        }
-    }
+			InvokeObjectPostCreateHook(PublicationRelRelationId,
+									   obj.objectId, 0);
+		}
+	}
 }
 
 #ifdef __STORAGE_SCALABLE__
@@ -708,27 +678,27 @@ PublicationAddTables(Oid pubid, List *rels, bool if_not_exists,
  */
 static void
 PublicationAddShards(Oid pubid, List *shards, bool if_not_exists,
-                     AlterPublicationStmt *stmt)
+					 AlterPublicationStmt *stmt)
 {
-    ListCell   *lc;
+	ListCell   *lc;
 
-    foreach(lc, shards)
-    {
-        int32 sid;
-        A_Const * cons = (A_Const *)lfirst(lc);
-        if(cons->val.type != T_Integer)
-            elog(ERROR, "shard must be a integer");
-        
-        sid = intVal(&cons->val);
+	foreach(lc, shards)
+	{
+		int32 sid;
+		A_Const * cons = (A_Const *)lfirst(lc);
+		if(cons->val.type != T_Integer)
+			elog(ERROR, "shard must be a integer");
+		
+		sid = intVal(&cons->val);
 
-        /* 
-         * shardid is invalid, skip it
-         */
-        if (!ShardIDIsValid(sid))
-            continue;
-        
-        publication_add_shard(pubid, sid, if_not_exists);
-    }
+		/* 
+		 * shardid is invalid, skip it
+		 */
+		if (!ShardIDIsValid(sid))
+			continue;
+		
+		publication_add_shard(pubid, sid, if_not_exists);
+	}
 }
 
 /*
@@ -737,55 +707,55 @@ PublicationAddShards(Oid pubid, List *shards, bool if_not_exists,
 void
 RemovePublicationShardById(Oid proid)
 {
-    Relation    rel;
-    HeapTuple    tup;
+	Relation	rel;
+	HeapTuple	tup;
 
-    rel = heap_open(PublicationShardRelationId, RowExclusiveLock);
+	rel = heap_open(PublicationShardRelationId, RowExclusiveLock);
 
-    tup = SearchSysCache1(PUBLICATIONSHARD, ObjectIdGetDatum(proid));
+	tup = SearchSysCache1(PUBLICATIONSHARD, ObjectIdGetDatum(proid));
 
-    if (!HeapTupleIsValid(tup))
-        elog(ERROR, "cache lookup failed for publication shard %u",
-             proid);
+	if (!HeapTupleIsValid(tup))
+		elog(ERROR, "cache lookup failed for publication shard %u",
+			 proid);
 
-    CatalogTupleDelete(rel, &tup->t_self);
+	CatalogTupleDelete(rel, &tup->t_self);
 
-    ReleaseSysCache(tup);
+	ReleaseSysCache(tup);
 
-    heap_close(rel, RowExclusiveLock);
+	heap_close(rel, RowExclusiveLock);
 }
 
 char *
 GetPublicationShardDesc(Oid proid)
 {
-    Relation    rel;
-    HeapTuple    tup;
-    Form_pg_publication_shard pubshard;
-    StringInfoData str_desc;
+	Relation	rel;
+	HeapTuple	tup;
+	Form_pg_publication_shard pubshard;
+	StringInfoData str_desc;
 
-    initStringInfo(&str_desc);
+	initStringInfo(&str_desc);
 
-    rel = heap_open(PublicationShardRelationId, RowExclusiveLock);
+	rel = heap_open(PublicationShardRelationId, RowExclusiveLock);
 
-    tup = SearchSysCache1(PUBLICATIONSHARD, ObjectIdGetDatum(proid));
+	tup = SearchSysCache1(PUBLICATIONSHARD, ObjectIdGetDatum(proid));
 
-    if (!HeapTupleIsValid(tup))
-    {
-        appendStringInfoString(&str_desc, "invalid tuple oid in pg_publication_shard ");
-    }
-    else
-    {
+	if (!HeapTupleIsValid(tup))
+	{
+		appendStringInfoString(&str_desc, "invalid tuple oid in pg_publication_shard ");
+	}
+	else
+	{
 
-        pubshard = (Form_pg_publication_shard) GETSTRUCT(tup);
+		pubshard = (Form_pg_publication_shard) GETSTRUCT(tup);
 
-        appendStringInfo(&str_desc, "shard %d in publication %s", pubshard->prshardid, get_publication_name(pubshard->prpubid));
+		appendStringInfo(&str_desc, "shard %d in publication %s", pubshard->prshardid, get_publication_name(pubshard->prpubid));
 
-        ReleaseSysCache(tup);
-    }
+		ReleaseSysCache(tup);
+	}
 
-    heap_close(rel, RowExclusiveLock);
+	heap_close(rel, RowExclusiveLock);
 
-    return str_desc.data;
+	return str_desc.data;
 }
 #endif
 
@@ -795,31 +765,31 @@ GetPublicationShardDesc(Oid proid)
 static void
 PublicationDropTables(Oid pubid, List *rels, bool missing_ok)
 {
-    ObjectAddress obj;
-    ListCell   *lc;
-    Oid            prid;
+	ObjectAddress obj;
+	ListCell   *lc;
+	Oid			prid;
 
-    foreach(lc, rels)
-    {
-        Relation    rel = (Relation) lfirst(lc);
-        Oid            relid = RelationGetRelid(rel);
+	foreach(lc, rels)
+	{
+		Relation	rel = (Relation) lfirst(lc);
+		Oid			relid = RelationGetRelid(rel);
 
-        prid = GetSysCacheOid2(PUBLICATIONRELMAP, ObjectIdGetDatum(relid),
-                               ObjectIdGetDatum(pubid));
-        if (!OidIsValid(prid))
-        {
-            if (missing_ok)
-                continue;
+		prid = GetSysCacheOid2(PUBLICATIONRELMAP, ObjectIdGetDatum(relid),
+							   ObjectIdGetDatum(pubid));
+		if (!OidIsValid(prid))
+		{
+			if (missing_ok)
+				continue;
 
-            ereport(ERROR,
-                    (errcode(ERRCODE_UNDEFINED_OBJECT),
-                     errmsg("relation \"%s\" is not part of the publication",
-                            RelationGetRelationName(rel))));
-        }
+			ereport(ERROR,
+					(errcode(ERRCODE_UNDEFINED_OBJECT),
+					 errmsg("relation \"%s\" is not part of the publication",
+							RelationGetRelationName(rel))));
+		}
 
-        ObjectAddressSet(obj, PublicationRelRelationId, prid);
-        performDeletion(&obj, DROP_CASCADE, 0);
-    }
+		ObjectAddressSet(obj, PublicationRelRelationId, prid);
+		performDeletion(&obj, DROP_CASCADE, 0);
+	}
 }
 
 /*
@@ -828,49 +798,49 @@ PublicationDropTables(Oid pubid, List *rels, bool missing_ok)
 static void
 AlterPublicationOwner_internal(Relation rel, HeapTuple tup, Oid newOwnerId)
 {
-    Form_pg_publication form;
+	Form_pg_publication form;
 
-    form = (Form_pg_publication) GETSTRUCT(tup);
+	form = (Form_pg_publication) GETSTRUCT(tup);
 
-    if (form->pubowner == newOwnerId)
-        return;
+	if (form->pubowner == newOwnerId)
+		return;
 
-    if (!superuser())
-    {
-        AclResult    aclresult;
+	if (!superuser())
+	{
+		AclResult	aclresult;
 
-        /* Must be owner */
-        if (!pg_publication_ownercheck(HeapTupleGetOid(tup), GetUserId()))
-            aclcheck_error(ACLCHECK_NOT_OWNER, ACL_KIND_PUBLICATION,
-                           NameStr(form->pubname));
+		/* Must be owner */
+		if (!pg_publication_ownercheck(HeapTupleGetOid(tup), GetUserId()))
+			aclcheck_error(ACLCHECK_NOT_OWNER, ACL_KIND_PUBLICATION,
+						   NameStr(form->pubname));
 
-        /* Must be able to become new owner */
-        check_is_member_of_role(GetUserId(), newOwnerId);
+		/* Must be able to become new owner */
+		check_is_member_of_role(GetUserId(), newOwnerId);
 
-        /* New owner must have CREATE privilege on database */
-        aclresult = pg_database_aclcheck(MyDatabaseId, newOwnerId, ACL_CREATE);
-        if (aclresult != ACLCHECK_OK)
-            aclcheck_error(aclresult, ACL_KIND_DATABASE,
-                           get_database_name(MyDatabaseId));
+		/* New owner must have CREATE privilege on database */
+		aclresult = pg_database_aclcheck(MyDatabaseId, newOwnerId, ACL_CREATE);
+		if (aclresult != ACLCHECK_OK)
+			aclcheck_error(aclresult, ACL_KIND_DATABASE,
+						   get_database_name(MyDatabaseId));
 
-        if (form->puballtables && !superuser_arg(newOwnerId))
-            ereport(ERROR,
-                    (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-                     errmsg("permission denied to change owner of publication \"%s\"",
-                            NameStr(form->pubname)),
-                     errhint("The owner of a FOR ALL TABLES publication must be a superuser.")));
-    }
+		if (form->puballtables && !superuser_arg(newOwnerId))
+			ereport(ERROR,
+					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+					 errmsg("permission denied to change owner of publication \"%s\"",
+							NameStr(form->pubname)),
+					 errhint("The owner of a FOR ALL TABLES publication must be a superuser.")));
+	}
 
-    form->pubowner = newOwnerId;
-    CatalogTupleUpdate(rel, &tup->t_self, tup);
+	form->pubowner = newOwnerId;
+	CatalogTupleUpdate(rel, &tup->t_self, tup);
 
-    /* Update owner dependency reference */
-    changeDependencyOnOwner(PublicationRelationId,
-                            HeapTupleGetOid(tup),
-                            newOwnerId);
+	/* Update owner dependency reference */
+	changeDependencyOnOwner(PublicationRelationId,
+							HeapTupleGetOid(tup),
+							newOwnerId);
 
-    InvokeObjectPostAlterHook(PublicationRelationId,
-                              HeapTupleGetOid(tup), 0);
+	InvokeObjectPostAlterHook(PublicationRelationId,
+							  HeapTupleGetOid(tup), 0);
 }
 
 /*
@@ -879,31 +849,31 @@ AlterPublicationOwner_internal(Relation rel, HeapTuple tup, Oid newOwnerId)
 ObjectAddress
 AlterPublicationOwner(const char *name, Oid newOwnerId)
 {
-    Oid            subid;
-    HeapTuple    tup;
-    Relation    rel;
-    ObjectAddress address;
+	Oid			subid;
+	HeapTuple	tup;
+	Relation	rel;
+	ObjectAddress address;
 
-    rel = heap_open(PublicationRelationId, RowExclusiveLock);
+	rel = heap_open(PublicationRelationId, RowExclusiveLock);
 
-    tup = SearchSysCacheCopy1(PUBLICATIONNAME, CStringGetDatum(name));
+	tup = SearchSysCacheCopy1(PUBLICATIONNAME, CStringGetDatum(name));
 
-    if (!HeapTupleIsValid(tup))
-        ereport(ERROR,
-                (errcode(ERRCODE_UNDEFINED_OBJECT),
-                 errmsg("publication \"%s\" does not exist", name)));
+	if (!HeapTupleIsValid(tup))
+		ereport(ERROR,
+				(errcode(ERRCODE_UNDEFINED_OBJECT),
+				 errmsg("publication \"%s\" does not exist", name)));
 
-    subid = HeapTupleGetOid(tup);
+	subid = HeapTupleGetOid(tup);
 
-    AlterPublicationOwner_internal(rel, tup, newOwnerId);
+	AlterPublicationOwner_internal(rel, tup, newOwnerId);
 
-    ObjectAddressSet(address, PublicationRelationId, subid);
+	ObjectAddressSet(address, PublicationRelationId, subid);
 
-    heap_freetuple(tup);
+	heap_freetuple(tup);
 
-    heap_close(rel, RowExclusiveLock);
+	heap_close(rel, RowExclusiveLock);
 
-    return address;
+	return address;
 }
 
 /*
@@ -912,21 +882,21 @@ AlterPublicationOwner(const char *name, Oid newOwnerId)
 void
 AlterPublicationOwner_oid(Oid subid, Oid newOwnerId)
 {
-    HeapTuple    tup;
-    Relation    rel;
+	HeapTuple	tup;
+	Relation	rel;
 
-    rel = heap_open(PublicationRelationId, RowExclusiveLock);
+	rel = heap_open(PublicationRelationId, RowExclusiveLock);
 
-    tup = SearchSysCacheCopy1(PUBLICATIONOID, ObjectIdGetDatum(subid));
+	tup = SearchSysCacheCopy1(PUBLICATIONOID, ObjectIdGetDatum(subid));
 
-    if (!HeapTupleIsValid(tup))
-        ereport(ERROR,
-                (errcode(ERRCODE_UNDEFINED_OBJECT),
-                 errmsg("publication with OID %u does not exist", subid)));
+	if (!HeapTupleIsValid(tup))
+		ereport(ERROR,
+				(errcode(ERRCODE_UNDEFINED_OBJECT),
+				 errmsg("publication with OID %u does not exist", subid)));
 
-    AlterPublicationOwner_internal(rel, tup, newOwnerId);
+	AlterPublicationOwner_internal(rel, tup, newOwnerId);
 
-    heap_freetuple(tup);
+	heap_freetuple(tup);
 
-    heap_close(rel, RowExclusiveLock);
+	heap_close(rel, RowExclusiveLock);
 }

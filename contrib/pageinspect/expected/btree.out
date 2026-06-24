@@ -1,8 +1,8 @@
-CREATE TABLE test1 (a int8, b text);
+CREATE TABLE test1 (a int8, b text) DISTRIBUTE BY REPLICATION;
 INSERT INTO test1 VALUES (72057594037927937, 'text');
 CREATE INDEX test1_a_idx ON test1 USING btree (a);
 \x
-SELECT * FROM bt_metap('test1_a_idx');
+execute direct on (datanode_1) 'SELECT * FROM bt_metap(''test1_a_idx'')';
 -[ RECORD 1 ]-----
 magic     | 340322
 version   | 2
@@ -11,9 +11,9 @@ level     | 0
 fastroot  | 1
 fastlevel | 0
 
-SELECT * FROM bt_page_stats('test1_a_idx', 0);
+execute direct on (datanode_1) 'SELECT * FROM bt_page_stats(''test1_a_idx'', 0)';
 ERROR:  block 0 is a meta page
-SELECT * FROM bt_page_stats('test1_a_idx', 1);
+execute direct on (datanode_1) 'SELECT * FROM bt_page_stats(''test1_a_idx'', 1)';
 -[ RECORD 1 ]-+-----
 blkno         | 1
 type          | l
@@ -21,17 +21,17 @@ live_items    | 1
 dead_items    | 0
 avg_item_size | 16
 page_size     | 8192
-free_size     | 8128
+free_size     | 8108
 btpo_prev     | 0
 btpo_next     | 0
 btpo          | 0
 btpo_flags    | 3
 
-SELECT * FROM bt_page_stats('test1_a_idx', 2);
+execute direct on (datanode_1) 'SELECT * FROM bt_page_stats(''test1_a_idx'', 2)';
 ERROR:  block number out of range
-SELECT * FROM bt_page_items('test1_a_idx', 0);
+execute direct on (datanode_1) 'SELECT * FROM bt_page_items(''test1_a_idx'', 0)';
 ERROR:  block 0 is a meta page
-SELECT * FROM bt_page_items('test1_a_idx', 1);
+execute direct on (datanode_1) 'SELECT * FROM bt_page_items(''test1_a_idx'', 1)';
 -[ RECORD 1 ]-----------------------
 itemoffset | 1
 ctid       | (0,1)
@@ -40,11 +40,11 @@ nulls      | f
 vars       | f
 data       | 01 00 00 00 00 00 00 01
 
-SELECT * FROM bt_page_items('test1_a_idx', 2);
+execute direct on (datanode_1) 'SELECT * FROM bt_page_items(''test1_a_idx'', 2)';
 ERROR:  block number out of range
-SELECT * FROM bt_page_items(get_raw_page('test1_a_idx', 0));
+execute direct on (datanode_1) 'SELECT * FROM bt_page_items(get_raw_page(''test1_a_idx'', 0))';
 ERROR:  block is a meta page
-SELECT * FROM bt_page_items(get_raw_page('test1_a_idx', 1));
+execute direct on (datanode_1) 'SELECT * FROM bt_page_items(get_raw_page(''test1_a_idx'', 1))';
 -[ RECORD 1 ]-----------------------
 itemoffset | 1
 ctid       | (0,1)
@@ -53,6 +53,66 @@ nulls      | f
 vars       | f
 data       | 01 00 00 00 00 00 00 01
 
-SELECT * FROM bt_page_items(get_raw_page('test1_a_idx', 2));
+execute direct on (datanode_1) 'SELECT * FROM bt_page_items(get_raw_page(''test1_a_idx'', 2))';
 ERROR:  block number 2 is out of range for relation "test1_a_idx"
+DROP TABLE test1;
+create database contrib_ora_pageinspect sql mode opentenbase_ora;
+ERROR:  database "contrib_ora_pageinspect" already exists
+\c contrib_ora_pageinspect
+CREATE TABLE test1 (a int8, b text) DISTRIBUTE BY REPLICATION;
+INSERT INTO test1 VALUES (72057594037927937, 'text');
+CREATE INDEX test1_a_idx ON test1 USING btree (a);
+execute direct on (datanode_1) 'SELECT * FROM bt_metap(''TEST1_A_IDX'')';
+-[ RECORD 1 ]-----
+MAGIC     | 340322
+VERSION   | 2
+ROOT      | 1
+level     | 0
+FASTROOT  | 1
+FASTLEVEL | 0
+
+execute direct on (datanode_1) 'SELECT * FROM bt_page_stats(''TEST1_A_IDX'', 0)';
+ERROR:  block 0 is a meta page
+execute direct on (datanode_1) 'SELECT * FROM bt_page_stats(''TEST1_A_IDX'', 1)';
+-[ RECORD 1 ]-+-----
+BLKNO         | 1
+TYPE          | l
+LIVE_ITEMS    | 1
+DEAD_ITEMS    | 0
+AVG_ITEM_SIZE | 16
+PAGE_SIZE     | 8192
+FREE_SIZE     | 8108
+BTPO_PREV     | 0
+BTPO_NEXT     | 0
+BTPO          | 0
+BTPO_FLAGS    | 3
+
+execute direct on (datanode_1) 'SELECT * FROM bt_page_stats(''TEST1_A_IDX'', 2)';
+ERROR:  block number out of range
+execute direct on (datanode_1) 'SELECT * FROM bt_page_items(''TEST1_A_IDX'', 0)';
+ERROR:  block 0 is a meta page
+execute direct on (datanode_1) 'SELECT * FROM bt_page_items(''TEST1_A_IDX'', 1)';
+-[ RECORD 1 ]-----------------------
+ITEMOFFSET | 1
+CTID       | (0,1)
+ITEMLEN    | 16
+NULLS      | f
+VARS       | f
+DATA       | 01 00 00 00 00 00 00 01
+
+execute direct on (datanode_1) 'SELECT * FROM bt_page_items(''TEST1_A_IDX'', 2)';
+ERROR:  block number out of range
+execute direct on (datanode_1) 'SELECT * FROM bt_page_items(get_raw_page(''TEST1_A_IDX'', 0))';
+ERROR:  block is a meta page
+execute direct on (datanode_1) 'SELECT * FROM bt_page_items(get_raw_page(''TEST1_A_IDX'', 1))';
+-[ RECORD 1 ]-----------------------
+ITEMOFFSET | 1
+CTID       | (0,1)
+ITEMLEN    | 16
+NULLS      | f
+VARS       | f
+DATA       | 01 00 00 00 00 00 00 01
+
+execute direct on (datanode_1) 'SELECT * FROM bt_page_items(get_raw_page(''TEST1_A_IDX'', 2))';
+ERROR:  block number 2 is out of range for relation "TEST1_A_IDX"
 DROP TABLE test1;

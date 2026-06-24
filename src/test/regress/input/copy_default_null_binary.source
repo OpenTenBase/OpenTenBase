@@ -1,0 +1,116 @@
+set transform_insert_to_copy = on;
+-- test default null expr in distributed column
+--- test not null error
+create table test_null_binary_20240306_1(
+	id character varying(16) default null::character varying not null, -- not null
+	id2 character varying(32) default null::character varying,
+	id3 character varying(32) default null::character varying )
+	distribute by shard(id);
+
+insert into test_null_binary_20240306_1(id, id2, id3) values ('aa', 'aa', 'aa'),('bb', 'bb', 'bb');
+copy test_null_binary_20240306_1(id2, id3) to '@abs_srcdir@/data/test_null_binary_20240306_1.binary' (format binary);
+copy test_null_binary_20240306_1(id2, id3) from '@abs_srcdir@/data/test_null_binary_20240306_1.binary' (format binary); -- error
+
+--- test complex default null expr1
+create table test_null_binary_20240306_2(
+	id date default nullif('2024-03-01','2024-03-01')::date not null, -- not null
+	id2 character varying(32) default ''||null::character varying,
+	id3 character varying(32) default ''||null::character varying )
+	distribute by shard(id);
+
+insert into test_null_binary_20240306_2(id3) values ('ddddd'),('bbbbb'); -- error
+insert into test_null_binary_20240306_2(id) values ('2024-03-06'),('2024-03-06');
+copy test_null_binary_20240306_2(id2, id3) to '@abs_srcdir@/data/test_null_binary_20240306_2.binary' (format binary);
+copy test_null_binary_20240306_2(id2, id3) from '@abs_srcdir@/data/test_null_binary_20240306_2.binary' (format binary); -- error
+
+--- test complex default null expr2
+create table test_null_binary_20240306_3(
+	id date default nullif('2024-03-01'::date,'2024-03-01'::date) not null, -- not null
+	id2 character varying(32) default ''||null::character varying,
+	id3 character varying(32) default ''||null::character varying )
+	distribute by shard(id);
+
+insert into test_null_binary_20240306_3(id3) values ('ddddd'),('bbbbb'); -- error
+insert into test_null_binary_20240306_3(id) values ('2024-03-06'),('2024-03-06');
+copy test_null_binary_20240306_3(id2, id3) to '@abs_srcdir@/data/test_null_binary_20240306_3.binary' (format binary);
+copy test_null_binary_20240306_3(id2, id3) from '@abs_srcdir@/data/test_null_binary_20240306_3.binary' (format binary); -- error
+
+--- test complex default null expr3
+create table test_null_binary_20240306_4(
+	id character varying(32) default nullif('2022-03-06'::date,'2022-03-06'::date)::character varying,
+	id2 character varying(32) default ''||null::character varying,
+	id3 character varying(32) default ''||null::character varying)
+	distribute by shard(id);
+
+insert into test_null_binary_20240306_4(id3) values ('ddddd'),('bbbbb');
+copy test_null_binary_20240306_4(id, id2, id3) from stdin (format csv);
+,,
+\.
+copy test_null_binary_20240306_4(id2, id3) to '@abs_srcdir@/data/test_null_binary_20240306_4.binary' (format binary);
+copy test_null_binary_20240306_4(id2, id3) from '@abs_srcdir@/data/test_null_binary_20240306_4.binary' (format binary);
+select * from test_null_binary_20240306_4 order by id, id2, id3;
+
+--- test complex default null expr4
+create table test_null_binary_20240306_5(
+	id timestamp default (now()+null)::timestamp,
+	id2 character varying(32) default ''||null::character varying,
+	id3 character varying(32) default ''||null::character varying )
+	distribute by shard(id);
+
+insert into test_null_binary_20240306_5(id3) values ('ddddd'),('bbbbb');
+copy test_null_binary_20240306_5(id, id2, id3) from stdin (format csv);
+,,
+\.
+copy test_null_binary_20240306_5(id2, id3) to '@abs_srcdir@/data/test_null_binary_20240306_5.binary' (format binary);
+copy test_null_binary_20240306_5(id2, id3) from '@abs_srcdir@/data/test_null_binary_20240306_5.binary' (format binary);
+select * from test_null_binary_20240306_5 order by id, id2, id3;
+
+--- test complex random default expr which maybe NULL
+create table test_null_binary_20240306_6(
+	id int default nullif(ceil(random()*2),ceil(random()*2)),
+	id2 character varying(32) default ''||null::character varying,
+	id3 character varying(32) default ''||null::character varying )
+	distribute by shard(id);
+
+insert into test_null_binary_20240306_6(id3) values ('ddddd'),('bbbbb');
+insert into test_null_binary_20240306_6(id3) values ('ddddd'),('bbbbb');
+insert into test_null_binary_20240306_6(id3) values ('ddddd'),('bbbbb');
+insert into test_null_binary_20240306_6(id3) values ('ddddd'),('bbbbb');
+insert into test_null_binary_20240306_6(id3) values ('ddddd'),('bbbbb');
+insert into test_null_binary_20240306_6(id3) values ('ddddd'),('bbbbb');
+copy test_null_binary_20240306_6(id3) to '@abs_srcdir@/data/test_null_binary_20240306_6.binary' (format binary);
+copy test_null_binary_20240306_6(id3) from '@abs_srcdir@/data/test_null_binary_20240306_6.binary' (format binary);
+copy test_null_binary_20240306_6(id3) from '@abs_srcdir@/data/test_null_binary_20240306_6.binary' (format binary);
+copy test_null_binary_20240306_6(id3) from '@abs_srcdir@/data/test_null_binary_20240306_6.binary' (format binary);
+copy test_null_binary_20240306_6(id3) from '@abs_srcdir@/data/test_null_binary_20240306_6.binary' (format binary);
+copy test_null_binary_20240306_6(id3) from '@abs_srcdir@/data/test_null_binary_20240306_6.binary' (format binary);
+copy test_null_binary_20240306_6(id3) from '@abs_srcdir@/data/test_null_binary_20240306_6.binary' (format binary);
+select count(*) from test_null_binary_20240306_6 where id = 0;
+
+
+-- test default null expr in non-distributed column
+--- test complex random default expr1 which maybe NULL
+create table test_null_binary_20240306_7(
+    id character varying(16) default null::character varying,
+    id2 character varying(32) default null::character varying,
+    id3 int default nullif(ceil(random()*2+100), ceil(random()*2+100)))
+    distribute by shard(id);
+
+insert into test_null_binary_20240306_7(id) values ('ddddd'),('bbbbb');
+insert into test_null_binary_20240306_7(id) values ('ddddd'),('bbbbb');
+insert into test_null_binary_20240306_7(id) values ('ddddd'),('bbbbb');
+insert into test_null_binary_20240306_7(id) values ('ddddd'),('bbbbb');
+insert into test_null_binary_20240306_7(id) values ('ddddd'),('bbbbb');
+insert into test_null_binary_20240306_7(id) values (NULL),(NULL);
+copy test_null_binary_20240306_7(id) to '@abs_srcdir@/data/test_null_binary_20240306_7.binary' (format binary);
+copy test_null_binary_20240306_7(id) from '@abs_srcdir@/data/test_null_binary_20240306_7.binary' (format binary);
+copy test_null_binary_20240306_7(id) from '@abs_srcdir@/data/test_null_binary_20240306_7.binary' (format binary);
+copy test_null_binary_20240306_7(id) from '@abs_srcdir@/data/test_null_binary_20240306_7.binary' (format binary);
+copy test_null_binary_20240306_7(id) from '@abs_srcdir@/data/test_null_binary_20240306_7.binary' (format binary);
+copy test_null_binary_20240306_7(id) from '@abs_srcdir@/data/test_null_binary_20240306_7.binary' (format binary);
+copy test_null_binary_20240306_7(id) from '@abs_srcdir@/data/test_null_binary_20240306_7.binary' (format binary);
+
+select * from test_null_binary_20240306_7 where id3 <= 100;
+
+--- test complex random default expr2 which maybe NULL
+reset transform_insert_to_copy;

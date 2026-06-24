@@ -1,6 +1,8 @@
 --
 -- UPDATABLE VIEWS
 --
+-- avoid bit-exact output here because operations may not be bit-exact.
+SET extra_float_digits = 0;
 -- check that non-updatable views and columns are rejected with useful error
 -- messages
 CREATE TABLE base_tbl (a int PRIMARY KEY, b text DEFAULT 'Unspecified') DISTRIBUTE BY REPLICATION;
@@ -397,7 +399,7 @@ SELECT * FROM base_tbl order by 1;
 EXPLAIN (costs off, nodes off) UPDATE rw_view1 SET a=6 WHERE a=5;
                        QUERY PLAN                       
 --------------------------------------------------------
- Remote Subquery Scan on any
+ Remote Subquery Scan on any (datanodes 2)
    ->  Update on base_tbl
          ->  Index Scan using base_tbl_pkey on base_tbl
                Index Cond: ((a > 0) AND (a = 5))
@@ -406,7 +408,7 @@ EXPLAIN (costs off, nodes off) UPDATE rw_view1 SET a=6 WHERE a=5;
 EXPLAIN (costs off, nodes off) DELETE FROM rw_view1 WHERE a=5;
                        QUERY PLAN                       
 --------------------------------------------------------
- Remote Subquery Scan on any
+ Remote Subquery Scan on any (datanodes 2)
    ->  Delete on base_tbl
          ->  Index Scan using base_tbl_pkey on base_tbl
                Index Cond: ((a > 0) AND (a = 5))
@@ -469,7 +471,7 @@ SELECT * FROM rw_view2;
 EXPLAIN (costs off, nodes off) UPDATE rw_view2 SET aaa=5 WHERE aaa=4;
                           QUERY PLAN                          
 --------------------------------------------------------------
- Remote Subquery Scan on any
+ Remote Subquery Scan on any (datanodes 2)
    ->  Update on base_tbl
          ->  Index Scan using base_tbl_pkey on base_tbl
                Index Cond: ((a < 10) AND (a > 0) AND (a = 4))
@@ -478,7 +480,7 @@ EXPLAIN (costs off, nodes off) UPDATE rw_view2 SET aaa=5 WHERE aaa=4;
 EXPLAIN (costs off, nodes off) DELETE FROM rw_view2 WHERE aaa=4;
                           QUERY PLAN                          
 --------------------------------------------------------------
- Remote Subquery Scan on any
+ Remote Subquery Scan on any (datanodes 2)
    ->  Delete on base_tbl
          ->  Index Scan using base_tbl_pkey on base_tbl
                Index Cond: ((a < 10) AND (a > 0) AND (a = 4))
@@ -663,7 +665,7 @@ SELECT * FROM rw_view2;
 EXPLAIN (costs off, nodes off) UPDATE rw_view2 SET a=3 WHERE a=2;
                                QUERY PLAN                               
 ------------------------------------------------------------------------
- Remote Subquery Scan on any
+ Remote Subquery Scan on any (datanodes 2)
    ->  Update on base_tbl
          ->  Nested Loop
                ->  Index Scan using base_tbl_pkey on base_tbl
@@ -681,7 +683,7 @@ EXPLAIN (costs off, nodes off) UPDATE rw_view2 SET a=3 WHERE a=2;
 EXPLAIN (costs off, nodes off) DELETE FROM rw_view2 WHERE a=2;
                                QUERY PLAN                               
 ------------------------------------------------------------------------
- Remote Subquery Scan on any
+ Remote Subquery Scan on any (datanodes 2)
    ->  Delete on base_tbl
          ->  Nested Loop
                ->  Index Scan using base_tbl_pkey on base_tbl
@@ -914,7 +916,9 @@ CREATE TABLE base_tbl (a int PRIMARY KEY, b text DEFAULT 'Unspecified') DISTRIBU
 INSERT INTO base_tbl SELECT i, 'Row ' || i FROM generate_series(-2, 2) g(i);
 CREATE VIEW rw_view1 AS SELECT b AS bb, a AS aa FROM base_tbl order by 1;
 CREATE FUNCTION rw_view1_aa(x rw_view1)
-  RETURNS int AS $$ SELECT x.aa $$ LANGUAGE sql;
+  RETURNS int AS $$ SELECT x.aa $$ LANGUAGE sql pushdown;
+WARNING:  You are pushing function down to datanode for execution
+HINT:  Make sure it's not attempt to access any other datanode OR YOU MAY SUFFER DATA LOSE !!
 UPDATE rw_view1 v SET bb='Updated row 2' WHERE rw_view1_aa(v)=2
   RETURNING rw_view1_aa(v), v.bb;
  rw_view1_aa |      bb       
@@ -937,7 +941,7 @@ UPDATE rw_view1 v SET bb='Updated row 2' WHERE rw_view1_aa(v)=2
   RETURNING rw_view1_aa(v), v.bb;
                        QUERY PLAN                       
 --------------------------------------------------------
- Remote Subquery Scan on any
+ Remote Subquery Scan on any (datanodes 2)
    ->  Update on base_tbl
          ->  Index Scan using base_tbl_pkey on base_tbl
                Index Cond: (a = 2)
@@ -1133,14 +1137,14 @@ SELECT * FROM rw_view1;
 (4 rows)
 
 EXPLAIN (verbose, costs off, nodes off) UPDATE rw_view1 SET b = b + 1 RETURNING *;
-                                     QUERY PLAN                                      
--------------------------------------------------------------------------------------
- Remote Subquery Scan on any
+                               QUERY PLAN                                
+-------------------------------------------------------------------------
+ Remote Subquery Scan[1] on any (datanodes 2)
    Output: base_tbl.a, base_tbl.b
    ->  Update on public.base_tbl
          Output: base_tbl.a, base_tbl.b
          ->  Seq Scan on public.base_tbl
-               Output: base_tbl.a, (base_tbl.b + 1), base_tbl.ctid, base_tbl.shardid
+               Output: (base_tbl.b + 1), base_tbl.shardid, base_tbl.ctid
 (6 rows)
 
 UPDATE rw_view1 SET b = b + 1 RETURNING *;
@@ -1251,7 +1255,6 @@ DELETE FROM rw_view3 WHERE s = sin(0.1); -- should be OK
 SELECT * FROM base_tbl ORDER BY a;
   a  
 -----
- 0.1
  0.2
  0.3
  0.4
@@ -1261,7 +1264,7 @@ SELECT * FROM base_tbl ORDER BY a;
  0.8
  0.9
    1
-(10 rows)
+(9 rows)
 
 SELECT table_name, is_insertable_into
   FROM information_schema.tables
@@ -1658,32 +1661,34 @@ DETAIL:  Failing row contains (15).
 UPDATE rw_view1 SET a = a + 5; -- ok
 UPDATE rw_view1 SET a = a + 5; -- should fail
 EXPLAIN (costs off, nodes off) INSERT INTO rw_view1 VALUES (5);
-                                QUERY PLAN                                 
----------------------------------------------------------------------------
- Remote Subquery Scan on any
+                             QUERY PLAN                              
+---------------------------------------------------------------------
+ Remote Subquery Scan on any (datanodes 2)
    ->  Insert on base_tbl b
          ->  Result
-               SubPlan 1
-                 ->  Remote Subquery Scan on all
-                       ->  Index Only Scan using ref_tbl_pkey on ref_tbl r
-                             Index Cond: (a = b.a)
-(7 rows)
+         SubPlan 1
+           ->  Remote Subquery Scan on all (datanodes 1)
+                 Distribute results by R
+                 ->  Index Only Scan using ref_tbl_pkey on ref_tbl r
+                       Index Cond: (a = b.a)
+(8 rows)
 
 EXPLAIN (costs off, nodes off) UPDATE rw_view1 SET a = a + 5;
-                                 QUERY PLAN                                  
------------------------------------------------------------------------------
- Remote Subquery Scan on any
+                              QUERY PLAN                               
+-----------------------------------------------------------------------
+ Remote Subquery Scan on any (datanodes 2)
    ->  Update on base_tbl b
          ->  Hash Join
                Hash Cond: (b.a = r.a)
                ->  Seq Scan on base_tbl b
                ->  Hash
                      ->  Seq Scan on ref_tbl r
-               SubPlan 1
-                 ->  Remote Subquery Scan on all
-                       ->  Index Only Scan using ref_tbl_pkey on ref_tbl r_1
-                             Index Cond: (a = b.a)
-(11 rows)
+         SubPlan 1
+           ->  Remote Subquery Scan on all (datanodes 1)
+                 Distribute results by R
+                 ->  Index Only Scan using ref_tbl_pkey on ref_tbl r_1
+                       Index Cond: (a = b.a)
+(12 rows)
 
 DROP TABLE base_tbl, ref_tbl CASCADE;
 NOTICE:  drop cascades to view rw_view1
@@ -1838,12 +1843,16 @@ NOTICE:  snooped value: Harry
 (2 rows)
 
 UPDATE rw_view1 SET person=person WHERE snoop(person);
-ERROR:  DML contains a function runs on CN which is not supported
-HINT:  You might need to push that function down to DN.
+WARNING:  Detect function that need to be executed in CN: snoop
+ERROR:  Using pull-up functions in DML statements is not supported
+HINT:  Consider using ALTER FUNCTION PUSHDOWN to enable pushdown execution.
 DELETE FROM rw_view1 WHERE NOT snoop(person);
-ERROR:  DML contains a function runs on CN which is not supported
-HINT:  You might need to push that function down to DN.
+WARNING:  Detect function that need to be executed in CN: snoop
+ERROR:  Using pull-up functions in DML statements is not supported
+HINT:  Consider using ALTER FUNCTION PUSHDOWN to enable pushdown execution.
 ALTER FUNCTION snoop(anyelement) pushdown;
+WARNING:  You are pushing function down to datanode for execution
+HINT:  Make sure it's not attempt to access any other datanode OR YOU MAY SUFFER DATA LOSE !!
 UPDATE rw_view1 SET person=person WHERE snoop(person);
 DELETE FROM rw_view1 WHERE NOT snoop(person);
 ALTER FUNCTION snoop(anyelement) not pushdown;
@@ -1883,28 +1892,30 @@ NOTICE:  snooped value: Harry
 (2 rows)
 
 UPDATE rw_view1 SET person=person WHERE snoop(person);
-ERROR:  DML contains a function runs on CN which is not supported
-HINT:  You might need to push that function down to DN.
+WARNING:  Detect function that need to be executed in CN: snoop
+ERROR:  Using pull-up functions in DML statements is not supported
+HINT:  Consider using ALTER FUNCTION PUSHDOWN to enable pushdown execution.
 DELETE FROM rw_view1 WHERE NOT snoop(person);
-ERROR:  DML contains a function runs on CN which is not supported
-HINT:  You might need to push that function down to DN.
+WARNING:  Detect function that need to be executed in CN: snoop
+ERROR:  Using pull-up functions in DML statements is not supported
+HINT:  Consider using ALTER FUNCTION PUSHDOWN to enable pushdown execution.
 ALTER FUNCTION snoop(anyelement) pushdown;
+WARNING:  You are pushing function down to datanode for execution
+HINT:  Make sure it's not attempt to access any other datanode OR YOU MAY SUFFER DATA LOSE !!
 UPDATE rw_view1 SET person=person WHERE snoop(person);
 DELETE FROM rw_view1 WHERE NOT snoop(person);
 EXPLAIN (costs off, nodes off) SELECT * FROM rw_view1 WHERE snoop(person);
-                     QUERY PLAN                      
------------------------------------------------------
- Remote Subquery Scan on all
-   ->  Subquery Scan on rw_view1
-         Filter: snoop(rw_view1.person)
-         ->  Seq Scan on base_tbl
-               Filter: (visibility = 'public'::text)
-(5 rows)
+                            QUERY PLAN                             
+-------------------------------------------------------------------
+ Remote Fast Query Execution
+   ->  Seq Scan on base_tbl
+         Filter: (snoop(person) AND (visibility = 'public'::text))
+(3 rows)
 
 EXPLAIN (costs off, nodes off) UPDATE rw_view1 SET person=person WHERE snoop(person);
                                QUERY PLAN                                
 -------------------------------------------------------------------------
- Remote Subquery Scan on any
+ Remote Subquery Scan on any (datanodes 2)
    ->  Update on base_tbl
          ->  Seq Scan on base_tbl
                Filter: ((visibility = 'public'::text) AND snoop(person))
@@ -1913,7 +1924,7 @@ EXPLAIN (costs off, nodes off) UPDATE rw_view1 SET person=person WHERE snoop(per
 EXPLAIN (costs off, nodes off) DELETE FROM rw_view1 WHERE NOT snoop(person);
                                   QUERY PLAN                                   
 -------------------------------------------------------------------------------
- Remote Subquery Scan on any
+ Remote Subquery Scan on any (datanodes 2)
    ->  Delete on base_tbl
          ->  Seq Scan on base_tbl
                Filter: ((visibility = 'public'::text) AND (NOT snoop(person)))
@@ -1960,30 +1971,30 @@ NOTICE:  snooped value: Harry
 (2 rows)
 
 UPDATE rw_view2 SET person=person WHERE snoop(person);
-ERROR:  DML contains a function runs on CN which is not supported
-HINT:  You might need to push that function down to DN.
+WARNING:  Detect function that need to be executed in CN: snoop
+ERROR:  Using pull-up functions in DML statements is not supported
+HINT:  Consider using ALTER FUNCTION PUSHDOWN to enable pushdown execution.
 DELETE FROM rw_view2 WHERE NOT snoop(person);
-ERROR:  DML contains a function runs on CN which is not supported
-HINT:  You might need to push that function down to DN.
+WARNING:  Detect function that need to be executed in CN: snoop
+ERROR:  Using pull-up functions in DML statements is not supported
+HINT:  Consider using ALTER FUNCTION PUSHDOWN to enable pushdown execution.
 ALTER FUNCTION snoop(anyelement) pushdown;
+WARNING:  You are pushing function down to datanode for execution
+HINT:  Make sure it's not attempt to access any other datanode OR YOU MAY SUFFER DATA LOSE !!
 UPDATE rw_view2 SET person=person WHERE snoop(person);
 DELETE FROM rw_view2 WHERE NOT snoop(person);
 EXPLAIN (costs off, nodes off) SELECT * FROM rw_view2 WHERE snoop(person);
-                        QUERY PLAN                         
------------------------------------------------------------
- Subquery Scan on rw_view2
-   Filter: snoop(rw_view2.person)
-   ->  Remote Subquery Scan on all
-         ->  Subquery Scan on rw_view1
-               Filter: snoop(rw_view1.person)
-               ->  Seq Scan on base_tbl
-                     Filter: (visibility = 'public'::text)
-(7 rows)
+                                     QUERY PLAN                                      
+-------------------------------------------------------------------------------------
+ Remote Fast Query Execution
+   ->  Seq Scan on base_tbl
+         Filter: (snoop(person) AND snoop(person) AND (visibility = 'public'::text))
+(3 rows)
 
 EXPLAIN (costs off, nodes off) UPDATE rw_view2 SET person=person WHERE snoop(person);
                                         QUERY PLAN                                         
 -------------------------------------------------------------------------------------------
- Remote Subquery Scan on any
+ Remote Subquery Scan on any (datanodes 2)
    ->  Update on base_tbl
          ->  Seq Scan on base_tbl
                Filter: ((visibility = 'public'::text) AND snoop(person) AND snoop(person))
@@ -1992,7 +2003,7 @@ EXPLAIN (costs off, nodes off) UPDATE rw_view2 SET person=person WHERE snoop(per
 EXPLAIN (costs off, nodes off) DELETE FROM rw_view2 WHERE NOT snoop(person);
                                            QUERY PLAN                                            
 -------------------------------------------------------------------------------------------------
- Remote Subquery Scan on any
+ Remote Subquery Scan on any (datanodes 2)
    ->  Delete on base_tbl
          ->  Seq Scan on base_tbl
                Filter: ((visibility = 'public'::text) AND snoop(person) AND (NOT snoop(person)))
@@ -2022,16 +2033,20 @@ SELECT * FROM rw_view1;
 (1 row)
 
 EXPLAIN (costs off, nodes off) DELETE FROM rw_view1 WHERE id = 1 AND snoop(data);
-ERROR:  DML contains a function runs on CN which is not supported
-HINT:  You might need to push that function down to DN.
+WARNING:  Detect function that need to be executed in CN: snoop
+ERROR:  Using pull-up functions in DML statements is not supported
+HINT:  Consider using ALTER FUNCTION PUSHDOWN to enable pushdown execution.
 DELETE FROM rw_view1 WHERE id = 1 AND snoop(data);
-ERROR:  DML contains a function runs on CN which is not supported
-HINT:  You might need to push that function down to DN.
+WARNING:  Detect function that need to be executed in CN: snoop
+ERROR:  Using pull-up functions in DML statements is not supported
+HINT:  Consider using ALTER FUNCTION PUSHDOWN to enable pushdown execution.
 ALTER FUNCTION snoop(anyelement) pushdown;
+WARNING:  You are pushing function down to datanode for execution
+HINT:  Make sure it's not attempt to access any other datanode OR YOU MAY SUFFER DATA LOSE !!
 EXPLAIN (costs off, nodes off) DELETE FROM rw_view1 WHERE id = 1 AND snoop(data);
                                QUERY PLAN                                
 -------------------------------------------------------------------------
- Remote Subquery Scan on any
+ Remote Subquery Scan on any (datanodes 2)
    ->  Update on base_tbl base_tbl_1
          ->  Nested Loop
                ->  Index Scan using base_tbl_pkey on base_tbl base_tbl_1
@@ -2044,28 +2059,32 @@ EXPLAIN (costs off, nodes off) DELETE FROM rw_view1 WHERE id = 1 AND snoop(data)
 DELETE FROM rw_view1 WHERE id = 1 AND snoop(data);
 ALTER FUNCTION snoop(anyelement) not pushdown;
 EXPLAIN (costs off, nodes off) INSERT INTO rw_view1 VALUES (2, 'New row 2');
-                              QUERY PLAN                               
------------------------------------------------------------------------
- Remote Subquery Scan on any
+                           QUERY PLAN                            
+-----------------------------------------------------------------
+ Remote Subquery Scan on any (datanodes 2)
+   Params Evaluated: $0
+   InitPlan 1 (returns $0)
+     ->  Remote Subquery Scan on all (datanodes 1)
+           Distribute results by R
+           ->  Index Only Scan using base_tbl_pkey on base_tbl t
+                 Index Cond: (id = 2)
    ->  Insert on base_tbl
-         InitPlan 1 (returns $0)
-           ->  Remote Subquery Scan on all
-                 ->  Index Only Scan using base_tbl_pkey on base_tbl t
-                       Index Cond: (id = 2)
          ->  Result
                One-Time Filter: ($0 IS NOT TRUE)
  
- Remote Subquery Scan on any
+ Remote Subquery Scan on any (datanodes 2)
+   Params Evaluated: $0
+   InitPlan 1 (returns $0)
+     ->  Remote Subquery Scan on all (datanodes 1)
+           Distribute results by R
+           ->  Index Only Scan using base_tbl_pkey on base_tbl t
+                 Index Cond: (id = 2)
    ->  Update on base_tbl
-         InitPlan 1 (returns $0)
-           ->  Remote Subquery Scan on all
-                 ->  Index Only Scan using base_tbl_pkey on base_tbl t
-                       Index Cond: (id = 2)
          ->  Result
                One-Time Filter: $0
                ->  Index Scan using base_tbl_pkey on base_tbl
                      Index Cond: (id = 2)
-(19 rows)
+(23 rows)
 
 INSERT INTO rw_view1 VALUES (2, 'New row 2');
 SELECT * FROM base_tbl order by 1;
@@ -2127,47 +2146,57 @@ SELECT * FROM v1 WHERE a=8;
 
 EXPLAIN (VERBOSE, COSTS OFF)
 UPDATE v1 SET a=100 WHERE snoop(a) AND leakproof(a) AND a < 7 AND a != 6;
-ERROR:  DML contains a function runs on CN which is not supported
-HINT:  You might need to push that function down to DN.
+WARNING:  Detect function that need to be executed in CN: snoop
+ERROR:  Using pull-up functions in DML statements is not supported
+HINT:  Consider using ALTER FUNCTION PUSHDOWN to enable pushdown execution.
 UPDATE v1 SET a=100 WHERE snoop(a) AND leakproof(a) AND a < 7 AND a != 6;
-ERROR:  DML contains a function runs on CN which is not supported
-HINT:  You might need to push that function down to DN.
+WARNING:  Detect function that need to be executed in CN: snoop
+ERROR:  Using pull-up functions in DML statements is not supported
+HINT:  Consider using ALTER FUNCTION PUSHDOWN to enable pushdown execution.
 ALTER FUNCTION leakproof(anyelement) pushdown;
+WARNING:  You are pushing function down to datanode for execution
+HINT:  Make sure it's not attempt to access any other datanode OR YOU MAY SUFFER DATA LOSE !!
 ALTER FUNCTION snoop(anyelement) pushdown;
+WARNING:  You are pushing function down to datanode for execution
+HINT:  Make sure it's not attempt to access any other datanode OR YOU MAY SUFFER DATA LOSE !!
 EXPLAIN (VERBOSE, COSTS OFF)
 UPDATE v1 SET a=100 WHERE snoop(a) AND leakproof(a) AND a < 7 AND a != 6;
-                                          QUERY PLAN                                           
------------------------------------------------------------------------------------------------
- Remote Subquery Scan on any (datanode_1,datanode_2)
+                                                QUERY PLAN                                                 
+-----------------------------------------------------------------------------------------------------------
+ Remote Subquery Scan[1] on any (datanode_1,datanode_2)
    ->  Update on public.t1
-         Update on public.t1
+         Update on public.t1 t1_1
          Update on public.t11
          Update on public.t12
          Update on public.t111
-         ->  Index Scan using t1_a_idx on public.t1
-               Output: 100, t1.b, t1.c, t1.ctid, t1.shardid
-               Index Cond: ((t1.a > 5) AND (t1.a < 7))
-               Filter: ((t1.a <> 6) AND (SubPlan 1) AND snoop(t1.a) AND leakproof(t1.a))
-               SubPlan 1
-                 ->  Remote Subquery Scan on all (datanode_1)
-                       ->  Append
-                             ->  Seq Scan on public.t12 t12_1
-                                   Filter: (t12_1.a = t1.a)
-                             ->  Seq Scan on public.t111 t111_1
-                                   Filter: (t111_1.a = t1.a)
-         ->  Index Scan using t11_a_idx on public.t11
-               Output: 100, t11.b, t11.c, t11.d, t11.ctid, t11.shardid
-               Index Cond: ((t11.a > 5) AND (t11.a < 7))
-               Filter: ((t11.a <> 6) AND (SubPlan 1) AND snoop(t11.a) AND leakproof(t11.a))
-         ->  Index Scan using t12_a_idx on public.t12
-               Output: 100, t12.b, t12.c, t12.e, t12.ctid, t12.shardid
-               Index Cond: ((t12.a > 5) AND (t12.a < 7))
-               Filter: ((t12.a <> 6) AND (SubPlan 1) AND snoop(t12.a) AND leakproof(t12.a))
-         ->  Index Scan using t111_a_idx on public.t111
-               Output: 100, t111.b, t111.c, t111.d, t111.e, t111.ctid, t111.shardid
-               Index Cond: ((t111.a > 5) AND (t111.a < 7))
-               Filter: ((t111.a <> 6) AND (SubPlan 1) AND snoop(t111.a) AND leakproof(t111.a))
-(29 rows)
+         ->  Result
+               Output: 100, t1_1.tableoid, t1_1.shardid, t1_1.ctid
+               ->  Append
+                     ->  Index Scan using t1_a_idx on public.t1 t1_1
+                           Output: t1_1.tableoid, t1_1.shardid, t1_1.ctid
+                           Index Cond: ((t1_1.a > 5) AND (t1_1.a < 7))
+                           Filter: ((t1_1.a <> 6) AND (SubPlan 1) AND snoop(t1_1.a) AND leakproof(t1_1.a))
+                           SubPlan 1
+                             ->  Remote Subquery Scan[2] param[3] on all (datanode_1)
+                                   Distribute results by R
+                                   ->  Append
+                                         ->  Seq Scan on public.t12 t12_1
+                                               Filter: (t12_1.a = t1_1.a)
+                                         ->  Seq Scan on public.t111 t111_1
+                                               Filter: (t111_1.a = t1_1.a)
+                     ->  Index Scan using t11_a_idx on public.t11
+                           Output: t11.tableoid, t11.shardid, t11.ctid
+                           Index Cond: ((t11.a > 5) AND (t11.a < 7))
+                           Filter: ((t11.a <> 6) AND (SubPlan 1) AND snoop(t11.a) AND leakproof(t11.a))
+                     ->  Index Scan using t12_a_idx on public.t12
+                           Output: t12.tableoid, t12.shardid, t12.ctid
+                           Index Cond: ((t12.a > 5) AND (t12.a < 7))
+                           Filter: ((t12.a <> 6) AND (SubPlan 1) AND snoop(t12.a) AND leakproof(t12.a))
+                     ->  Index Scan using t111_a_idx on public.t111
+                           Output: t111.tableoid, t111.shardid, t111.ctid
+                           Index Cond: ((t111.a > 5) AND (t111.a < 7))
+                           Filter: ((t111.a <> 6) AND (SubPlan 1) AND snoop(t111.a) AND leakproof(t111.a))
+(33 rows)
 
 UPDATE v1 SET a=100 WHERE snoop(a) AND leakproof(a) AND a < 7 AND a != 6;
 ALTER FUNCTION leakproof(anyelement) not pushdown;
@@ -2184,56 +2213,66 @@ SELECT * FROM t1 WHERE a=100; -- Nothing should have been changed to 100
 
 EXPLAIN (VERBOSE, COSTS OFF)
 UPDATE v1 SET a=a+1 WHERE snoop(a) AND leakproof(a) AND a = 8;
-ERROR:  DML contains a function runs on CN which is not supported
-HINT:  You might need to push that function down to DN.
+WARNING:  Detect function that need to be executed in CN: snoop
+ERROR:  Using pull-up functions in DML statements is not supported
+HINT:  Consider using ALTER FUNCTION PUSHDOWN to enable pushdown execution.
 UPDATE v1 SET a=a+1 WHERE snoop(a) AND leakproof(a) AND a = 8;
-ERROR:  DML contains a function runs on CN which is not supported
-HINT:  You might need to push that function down to DN.
+WARNING:  Detect function that need to be executed in CN: snoop
+ERROR:  Using pull-up functions in DML statements is not supported
+HINT:  Consider using ALTER FUNCTION PUSHDOWN to enable pushdown execution.
 ALTER FUNCTION leakproof(anyelement) pushdown;
+WARNING:  You are pushing function down to datanode for execution
+HINT:  Make sure it's not attempt to access any other datanode OR YOU MAY SUFFER DATA LOSE !!
 ALTER FUNCTION snoop(anyelement) pushdown;
+WARNING:  You are pushing function down to datanode for execution
+HINT:  Make sure it's not attempt to access any other datanode OR YOU MAY SUFFER DATA LOSE !!
 EXPLAIN (VERBOSE, COSTS OFF)
 UPDATE v1 SET a=a+1 WHERE snoop(a) AND leakproof(a) AND a = 8;
-                                         QUERY PLAN                                          
----------------------------------------------------------------------------------------------
- Remote Subquery Scan on any (datanode_1,datanode_2)
+                                       QUERY PLAN                                        
+-----------------------------------------------------------------------------------------
+ Remote Subquery Scan[1] on any (datanode_1,datanode_2)
    ->  Update on public.t1
-         Update on public.t1
+         Update on public.t1 t1_1
          Update on public.t11
          Update on public.t12
          Update on public.t111
-         ->  Index Scan using t1_a_idx on public.t1
-               Output: (t1.a + 1), t1.b, t1.c, t1.ctid, t1.shardid
-               Index Cond: ((t1.a > 5) AND (t1.a = 8))
-               Filter: ((SubPlan 1) AND snoop(t1.a) AND leakproof(t1.a))
-               SubPlan 1
-                 ->  Remote Subquery Scan on all (datanode_1)
-                       ->  Append
-                             ->  Seq Scan on public.t12 t12_1
-                                   Filter: (t12_1.a = t1.a)
-                             ->  Seq Scan on public.t111 t111_1
-                                   Filter: (t111_1.a = t1.a)
-         ->  Index Scan using t11_a_idx on public.t11
-               Output: (t11.a + 1), t11.b, t11.c, t11.d, t11.ctid, t11.shardid
-               Index Cond: ((t11.a > 5) AND (t11.a = 8))
-               Filter: ((SubPlan 1) AND snoop(t11.a) AND leakproof(t11.a))
-         ->  Index Scan using t12_a_idx on public.t12
-               Output: (t12.a + 1), t12.b, t12.c, t12.e, t12.ctid, t12.shardid
-               Index Cond: ((t12.a > 5) AND (t12.a = 8))
-               Filter: ((SubPlan 1) AND snoop(t12.a) AND leakproof(t12.a))
-         ->  Index Scan using t111_a_idx on public.t111
-               Output: (t111.a + 1), t111.b, t111.c, t111.d, t111.e, t111.ctid, t111.shardid
-               Index Cond: ((t111.a > 5) AND (t111.a = 8))
-               Filter: ((SubPlan 1) AND snoop(t111.a) AND leakproof(t111.a))
-(29 rows)
+         ->  Result
+               Output: (t1_1.a + 1), t1_1.tableoid, t1_1.shardid, t1_1.ctid
+               ->  Append
+                     ->  Index Scan using t1_a_idx on public.t1 t1_1
+                           Output: t1_1.a, t1_1.tableoid, t1_1.shardid, t1_1.ctid
+                           Index Cond: ((t1_1.a > 5) AND (t1_1.a = 8))
+                           Filter: ((SubPlan 1) AND snoop(t1_1.a) AND leakproof(t1_1.a))
+                           SubPlan 1
+                             ->  Remote Subquery Scan[2] param[3] on all (datanode_1)
+                                   Distribute results by R
+                                   ->  Append
+                                         ->  Seq Scan on public.t12 t12_1
+                                               Filter: (t12_1.a = t1_1.a)
+                                         ->  Seq Scan on public.t111 t111_1
+                                               Filter: (t111_1.a = t1_1.a)
+                     ->  Index Scan using t11_a_idx on public.t11
+                           Output: t11.a, t11.tableoid, t11.shardid, t11.ctid
+                           Index Cond: ((t11.a > 5) AND (t11.a = 8))
+                           Filter: ((SubPlan 1) AND snoop(t11.a) AND leakproof(t11.a))
+                     ->  Index Scan using t12_a_idx on public.t12
+                           Output: t12.a, t12.tableoid, t12.shardid, t12.ctid
+                           Index Cond: ((t12.a > 5) AND (t12.a = 8))
+                           Filter: ((SubPlan 1) AND snoop(t12.a) AND leakproof(t12.a))
+                     ->  Index Scan using t111_a_idx on public.t111
+                           Output: t111.a, t111.tableoid, t111.shardid, t111.ctid
+                           Index Cond: ((t111.a > 5) AND (t111.a = 8))
+                           Filter: ((SubPlan 1) AND snoop(t111.a) AND leakproof(t111.a))
+(33 rows)
 
 UPDATE v1 SET a=a+1 WHERE snoop(a) AND leakproof(a) AND a = 8;
 SELECT * FROM v1 WHERE b=8;
  a | b |  c   |   d   
 ---+---+------+-------
- 9 | 8 | t1   | t111d
- 9 | 8 | t11  | t111d
- 9 | 8 | t12  | t111d
  9 | 8 | t111 | t111d
+ 9 | 8 | t12  | t111d
+ 9 | 8 | t11  | t111d
+ 9 | 8 | t1   | t111d
 (4 rows)
 
 DELETE FROM v1 WHERE snoop(a) AND leakproof(a); -- should not delete everything, just where a>5
@@ -2474,3 +2513,211 @@ ERROR:  new row violates check option for view "wcowrtest_v2"
 DETAIL:  Failing row contains (2, no such row in sometable).
 drop view wcowrtest_v, wcowrtest_v2;
 drop table wcowrtest, sometable;
+-- Check INSERT .. ON CONFLICT DO UPDATE works correctly when the view's
+-- columns are named and ordered differently than the underlying table's.
+create table uv_iocu_tab (a text unique, b float);
+insert into uv_iocu_tab values ('xyxyxy', 0);
+create view uv_iocu_view as
+   select b, b+1 as c, a, '2.0'::text as two from uv_iocu_tab;
+insert into uv_iocu_view (a, b) values ('xyxyxy', 1)
+   on conflict (a) do update set b = uv_iocu_view.b;
+select * from uv_iocu_tab;
+   a    | b 
+--------+---
+ xyxyxy | 0
+(1 row)
+
+insert into uv_iocu_view (a, b) values ('xyxyxy', 1)
+   on conflict (a) do update set b = excluded.b;
+select * from uv_iocu_tab;
+   a    | b 
+--------+---
+ xyxyxy | 1
+(1 row)
+
+-- OK to access view columns that are not present in underlying base
+-- relation in the ON CONFLICT portion of the query
+insert into uv_iocu_view (a, b) values ('xyxyxy', 3)
+   on conflict (a) do update set b = cast(excluded.two as float);
+select * from uv_iocu_tab;
+   a    | b 
+--------+---
+ xyxyxy | 2
+(1 row)
+
+explain (costs off)
+insert into uv_iocu_view (a, b) values ('xyxyxy', 3)
+   on conflict (a) do update set b = excluded.b where excluded.c > 0;
+                                       QUERY PLAN                                        
+-----------------------------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 1)
+   ->  Insert on uv_iocu_tab
+         Conflict Resolution: UPDATE
+         Conflict Arbiter Indexes: uv_iocu_tab_a_key
+         Conflict Filter: ((excluded.b + '1'::double precision) > '0'::double precision)
+         ->  Result
+(6 rows)
+
+insert into uv_iocu_view (a, b) values ('xyxyxy', 3)
+   on conflict (a) do update set b = excluded.b where excluded.c > 0;
+select * from uv_iocu_tab;
+   a    | b 
+--------+---
+ xyxyxy | 3
+(1 row)
+
+drop view uv_iocu_view;
+drop table uv_iocu_tab;
+-- Test whole-row references to the view
+create table uv_iocu_tab (a int unique, b text);
+create view uv_iocu_view as
+    select b as bb, a as aa, uv_iocu_tab::text as cc from uv_iocu_tab;
+insert into uv_iocu_view (aa,bb) values (1,'x');
+explain (costs off)
+insert into uv_iocu_view (aa,bb) values (1,'y')
+   on conflict (aa) do update set bb = 'Rejected: '||excluded.*
+   where excluded.aa > 0
+   and excluded.bb != ''
+   and excluded.cc is not null;
+                                                  QUERY PLAN                                                   
+---------------------------------------------------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 1)
+   ->  Insert on uv_iocu_tab
+         Conflict Resolution: UPDATE
+         Conflict Arbiter Indexes: uv_iocu_tab_a_key
+         Conflict Filter: ((excluded.a > 0) AND (excluded.b <> ''::text) AND ((excluded.*)::text IS NOT NULL))
+         ->  Result
+(6 rows)
+
+insert into uv_iocu_view (aa,bb) values (1,'y')
+   on conflict (aa) do update set bb = 'Rejected: '||excluded.*
+   where excluded.aa > 0
+   and excluded.bb != ''
+   and excluded.cc is not null;
+select * from uv_iocu_view;
+           bb            | aa |               cc                
+-------------------------+----+---------------------------------
+ Rejected: (y,1,"(1,y)") |  1 | (1,"Rejected: (y,1,""(1,y)"")")
+(1 row)
+
+-- Test omitting a column of the base relation
+delete from uv_iocu_view;
+insert into uv_iocu_view (aa,bb) values (1,'x');
+insert into uv_iocu_view (aa) values (1)
+   on conflict (aa) do update set bb = 'Rejected: '||excluded.*;
+select * from uv_iocu_view;
+          bb           | aa |              cc               
+-----------------------+----+-------------------------------
+ Rejected: (,1,"(1,)") |  1 | (1,"Rejected: (,1,""(1,)"")")
+(1 row)
+
+alter table uv_iocu_tab alter column b set default 'table default';
+insert into uv_iocu_view (aa) values (1)
+   on conflict (aa) do update set bb = 'Rejected: '||excluded.*;
+select * from uv_iocu_view;
+                          bb                           | aa |                                 cc                                  
+-------------------------------------------------------+----+---------------------------------------------------------------------
+ Rejected: ("table default",1,"(1,""table default"")") |  1 | (1,"Rejected: (""table default"",1,""(1,""""table default"""")"")")
+(1 row)
+
+alter view uv_iocu_view alter column bb set default 'view default';
+insert into uv_iocu_view (aa) values (1)
+   on conflict (aa) do update set bb = 'Rejected: '||excluded.*;
+select * from uv_iocu_view;
+                         bb                          | aa |                                cc                                 
+-----------------------------------------------------+----+-------------------------------------------------------------------
+ Rejected: ("view default",1,"(1,""view default"")") |  1 | (1,"Rejected: (""view default"",1,""(1,""""view default"""")"")")
+(1 row)
+
+-- Should fail to update non-updatable columns
+insert into uv_iocu_view (aa) values (1)
+   on conflict (aa) do update set cc = 'XXX';
+ERROR:  cannot insert into column "cc" of view "uv_iocu_view"
+DETAIL:  View columns that are not columns of their base relation are not updatable.
+drop view uv_iocu_view;
+drop table uv_iocu_tab;
+-- ON CONFLICT DO UPDATE permissions checks
+create user regress_view_user1;
+create user regress_view_user2;
+set session authorization regress_view_user1;
+create table base_tbl(a int unique, b text, c float);
+insert into base_tbl values (1,'xxx',1.0);
+create view rw_view1 as select b as bb, c as cc, a as aa from base_tbl;
+grant select (aa,bb) on rw_view1 to regress_view_user2;
+grant insert on rw_view1 to regress_view_user2;
+grant update (bb) on rw_view1 to regress_view_user2;
+set session authorization regress_view_user2;
+insert into rw_view1 values ('yyy',2.0,1)
+  on conflict (aa) do update set bb = excluded.cc; -- Not allowed
+ERROR:  permission denied for relation rw_view1
+insert into rw_view1 values ('yyy',2.0,1)
+  on conflict (aa) do update set bb = rw_view1.cc; -- Not allowed
+ERROR:  permission denied for relation rw_view1
+insert into rw_view1 values ('yyy',2.0,1)
+  on conflict (aa) do update set bb = excluded.bb; -- OK
+insert into rw_view1 values ('zzz',2.0,1)
+  on conflict (aa) do update set bb = rw_view1.bb||'xxx'; -- OK
+insert into rw_view1 values ('zzz',2.0,1)
+  on conflict (aa) do update set cc = 3.0; -- Not allowed
+ERROR:  permission denied for relation rw_view1
+reset session authorization;
+select * from base_tbl;
+ a |   b    | c 
+---+--------+---
+ 1 | yyyxxx | 1
+(1 row)
+
+set session authorization regress_view_user1;
+grant select (a,b) on base_tbl to regress_view_user2;
+grant insert (a,b) on base_tbl to regress_view_user2;
+grant update (a,b) on base_tbl to regress_view_user2;
+set session authorization regress_view_user2;
+create view rw_view2 as select b as bb, c as cc, a as aa from base_tbl;
+insert into rw_view2 (aa,bb) values (1,'xxx')
+  on conflict (aa) do update set bb = excluded.bb; -- Not allowed
+ERROR:  permission denied for relation base_tbl
+create view rw_view3 as select b as bb, a as aa from base_tbl;
+insert into rw_view3 (aa,bb) values (1,'xxx')
+  on conflict (aa) do update set bb = excluded.bb; -- OK
+reset session authorization;
+select * from base_tbl;
+ a |  b  | c 
+---+-----+---
+ 1 | xxx | 1
+(1 row)
+
+set session authorization regress_view_user2;
+create view rw_view4 as select aa, bb, cc FROM rw_view1;
+insert into rw_view4 (aa,bb) values (1,'yyy')
+  on conflict (aa) do update set bb = excluded.bb; -- Not allowed
+ERROR:  permission denied for relation rw_view1
+create view rw_view5 as select aa, bb FROM rw_view1;
+insert into rw_view5 (aa,bb) values (1,'yyy')
+  on conflict (aa) do update set bb = excluded.bb; -- OK
+reset session authorization;
+select * from base_tbl;
+ a |  b  | c 
+---+-----+---
+ 1 | yyy | 1
+(1 row)
+
+drop view rw_view5;
+drop view rw_view4;
+drop view rw_view3;
+drop view rw_view2;
+drop view rw_view1;
+drop table base_tbl;
+drop user regress_view_user1;
+drop user regress_view_user2;
+create table opentenbase_test(id int);
+create view test_view as select id from opentenbase_test where id >100;
+insert into test_view values(1001),(1002);
+select id from test_view order by id;
+  id  
+------
+ 1001
+ 1002
+(2 rows)
+
+drop view test_view;
+drop table opentenbase_test;

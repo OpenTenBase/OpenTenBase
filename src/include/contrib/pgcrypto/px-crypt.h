@@ -1,6 +1,6 @@
 /*
  * px-crypt.h
- *        Header file for px_crypt().
+ *		Header file for px_crypt().
  *
  * Copyright (c) 2001 Marko Kreen
  * All rights reserved.
@@ -9,10 +9,10 @@
  * modification, are permitted provided that the following conditions
  * are met:
  * 1. Redistributions of source code must retain the above copyright
- *      notice, this list of conditions and the following disclaimer.
+ *	  notice, this list of conditions and the following disclaimer.
  * 2. Redistributions in binary form must reproduce the above copyright
- *      notice, this list of conditions and the following disclaimer in the
- *      documentation and/or other materials provided with the distribution.
+ *	  notice, this list of conditions and the following disclaimer in the
+ *	  documentation and/or other materials provided with the distribution.
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -33,23 +33,23 @@
 #define _PX_CRYPT_H
 
 /* max room for result */
-#define PX_MAX_CRYPT  128
+#define PX_MAX_CRYPT 128
 
 /* max salt returned by gen_salt() */
-#define PX_MAX_SALT_LEN        128
+#define PX_MAX_SALT_LEN 128
 
 /* default rounds for xdes salt */
 /* NetBSD bin/passwd/local_passwd.c has (29 * 25)*/
-#define PX_XDES_ROUNDS        (29 * 25)
+#define PX_XDES_ROUNDS (29 * 25)
 
 /* default for blowfish salt */
-#define PX_BF_ROUNDS        6
+#define PX_BF_ROUNDS 6
 
 /*
  * main interface
  */
-char       *px_crypt(const char *psw, const char *salt, char *buf, unsigned buflen);
-int            px_gen_salt(const char *salt_type, char *dst, int rounds);
+char *px_crypt(const char *psw, const char *salt, char *buf, unsigned buflen);
+int px_gen_salt(const char *salt_type, char *dst, int rounds);
 
 /*
  * internal functions
@@ -57,26 +57,26 @@ int            px_gen_salt(const char *salt_type, char *dst, int rounds);
 
 /* crypt-gensalt.c */
 char *_crypt_gensalt_traditional_rn(unsigned long count,
-                 const char *input, int size, char *output, int output_size);
+									const char *input, int size, char *output, int output_size);
 char *_crypt_gensalt_extended_rn(unsigned long count,
-                 const char *input, int size, char *output, int output_size);
+								 const char *input, int size, char *output, int output_size);
 char *_crypt_gensalt_md5_rn(unsigned long count,
-                 const char *input, int size, char *output, int output_size);
+							const char *input, int size, char *output, int output_size);
 char *_crypt_gensalt_blowfish_rn(unsigned long count,
-                 const char *input, int size, char *output, int output_size);
+								 const char *input, int size, char *output, int output_size);
 
 /* disable 'extended DES crypt' */
 /* #define DISABLE_XDES */
 
 /* crypt-blowfish.c */
 char *_crypt_blowfish_rn(const char *key, const char *setting,
-                   char *output, int size);
+						 char *output, int size);
 
 /* crypt-des.c */
-char       *px_crypt_des(const char *key, const char *setting);
+char *px_crypt_des(const char *key, const char *setting);
 
 /* crypt-md5.c */
 char *px_crypt_md5(const char *pw, const char *salt,
-             char *dst, unsigned dstlen);
+				   char *dst, unsigned dstlen);
 
-#endif   /* _PX_CRYPT_H */
+#endif /* _PX_CRYPT_H */

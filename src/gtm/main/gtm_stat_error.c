@@ -4,10 +4,7 @@
 
  *	  collect error logs of gtm
  *
- * Copyright (c) 2023 THL A29 Limited, a Tencent company.
- *
- * This source code file is licensed under the BSD 3-Clause License,
- * you may obtain a copy of the License at http://opensource.org/license/bsd-3-clause/
+ * Copyright (c) 2020-Present OpenTenBase development team, Tencent
  *
  * IDENTIFICATION
  *	  src/gtm/main/gtm_stat_error.c
@@ -31,6 +28,7 @@ static int gtm_errmsg_size = GTM_MAX_ERRMSG_SIZE;
 static int gtm_max_errlog_tuple_len = sizeof(GTM_ErrLog) + GTM_MAX_ERRMSG_SIZE;
 
 GTM_LogCollector GlobalLogCollector;
+volatile bool IsGlobalLogCollectorInit = false;
 void GTM_ErrorLogCollector(ErrorData *edata, StringInfo buff);
 
 /*
@@ -119,6 +117,9 @@ int
 GTM_InitLogCollector(void)
 {
     MemoryContext oldContext;
+
+    if (IsGlobalLogCollectorInit)
+        return 0;
     oldContext = MemoryContextSwitchTo(TopMostMemoryContext);
 
     GlobalLogCollector.tmp_buff = palloc(gtm_max_errlog_tuple_len);
@@ -152,6 +153,9 @@ GTM_InitLogCollector(void)
     pg_atomic_init_u32(&GlobalLogCollector.full, 0);
 
     MemoryContextSwitchTo(oldContext);
+
+    pg_write_barrier();
+    IsGlobalLogCollectorInit = true;
     return 0;
 }
 
@@ -304,11 +308,11 @@ GTM_ProcessLogCollection(void)
 
                 /* serialize */
                 errmsg_len = err_info->errmsg_len;
-                err_info->proc_id = htonl(err_info->proc_id);
-                err_info->error_no = htonl(err_info->error_no);
+                err_info->proc_id = pg_hton32(err_info->proc_id);
+                err_info->error_no = pg_hton32(err_info->error_no);
                 err_info->log_time = htobe64(err_info->log_time);
-                err_info->err_level = htonl(err_info->err_level);
-                err_info->errmsg_len = htonl(err_info->errmsg_len);
+                err_info->err_level = pg_hton32(err_info->err_level);
+                err_info->errmsg_len = pg_hton32(err_info->errmsg_len);
 
                 /* put err log into global datapumpbuff */
                 PutData(global_datapump_buff, (char*) err_info, sizeof(GTM_ErrLog) + errmsg_len);
@@ -336,9 +340,15 @@ ProcessGetErrorlogCommand(Port *myport, StringInfo message)
     uint32 data_len = 0;
     uint32 total_len = 0;
     StringInfoData buf;
-    DataPumpBuf* global_datapump_buff = GlobalLogCollector.datapump_buff;
-    BLOOM *bloom_filter = GlobalLogCollector.bloom_filter;
+    DataPumpBuf* global_datapump_buff;
+    BLOOM *bloom_filter;
 
+    if (!IsGlobalLogCollectorInit)
+    	ereport(ERROR, (errmsg("collector is not init")));
+
+    pg_read_barrier();
+	global_datapump_buff = GlobalLogCollector.datapump_buff;
+	bloom_filter = GlobalLogCollector.bloom_filter;
     pq_getmsgend(message);
 
     SpinLockAcquire(&GlobalLogCollector.lock);

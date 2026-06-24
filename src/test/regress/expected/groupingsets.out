@@ -14,12 +14,19 @@ create temp table gstest3 (a integer, b integer, c integer, d integer);
 copy gstest3 from stdin;
 alter table gstest3 add primary key (a);
 create temp table gstest4(id integer, v integer,
-                          unhashable_col bit(4), unsortable_col xid);
+                          normal_col bit(4), unsortable_col xid);
 insert into gstest4
 values (1,1,b'0000','1'), (2,2,b'0001','1'),
        (3,4,b'0010','2'), (4,8,b'0011','2'),
        (5,16,b'0000','2'), (6,32,b'0001','2'),
        (7,64,b'0010','1'), (8,128,b'0011','1');
+create temp table gstest5(id integer, v integer,
+                          unhashable_col tid, unsortable_col xid);
+insert into gstest5
+values (1,1,'(0,0)','1'), (2,2,'(0,1)','1'),
+       (3,4,'(0,2)','2'), (4,8,'(0,3)','2'),
+       (5,16,'(0,0)','2'), (6,32,'(0,1)','2'),
+       (7,64,'(0,2)','1'), (8,128,'(0,3)','1');
 create temp table gstest_empty (a integer, b integer, v integer);
 create function gstest_data(v integer, out a integer, out b integer)
   returns setof record
@@ -87,23 +94,59 @@ select a, b, grouping(a,b), sum(v), count(*), max(v)
 (12 rows)
 
 select a, b, grouping(a,b), sum(v), count(*), max(v)
-  from gstest1 group by rollup (a,b) order by coalesce(a,0)+coalesce(b,0);
+  from gstest1 group by rollup (a,b) order by coalesce(a,0)+coalesce(b,0),a,b;
  a | b | grouping | sum | count | max 
 ---+---+----------+-----+-------+-----
    |   |        3 | 145 |    10 |  19
  1 |   |        1 |  60 |     5 |  14
  1 | 1 |        0 |  21 |     2 |  11
  2 |   |        1 |  15 |     1 |  15
- 3 |   |        1 |  33 |     2 |  17
  1 | 2 |        0 |  25 |     2 |  13
+ 3 |   |        1 |  33 |     2 |  17
  1 | 3 |        0 |  14 |     1 |  14
  4 |   |        1 |  37 |     2 |  19
- 4 | 1 |        0 |  37 |     2 |  19
  2 | 3 |        0 |  15 |     1 |  15
+ 4 | 1 |        0 |  37 |     2 |  19
  3 | 3 |        0 |  16 |     1 |  16
  3 | 4 |        0 |  17 |     1 |  17
 (12 rows)
 
+-- further tests for grouping cte optimize
+set enable_hashagg = false;
+select t1.a, t2.b, grouping(t1.a, t2.b), sum(t1.v), max(t2.a)
+  from gstest1 t1, gstest2 t2
+ group by grouping sets ((t1.a, t2.b), ()) order by 1, 2, 3, 4, 5;
+ a | b | grouping | sum  | max 
+---+---+----------+------+-----
+ 1 | 1 |        0 |  420 |   1
+ 1 | 2 |        0 |  120 |   2
+ 2 | 1 |        0 |  105 |   1
+ 2 | 2 |        0 |   30 |   2
+ 3 | 1 |        0 |  231 |   1
+ 3 | 2 |        0 |   66 |   2
+ 4 | 1 |        0 |  259 |   1
+ 4 | 2 |        0 |   74 |   2
+   |   |        3 | 1305 |   2
+(9 rows)
+
+set enable_hashagg = true;
+select t1.a, t2.b, grouping(t1.a, t2.b), sum(t1.v), max(t2.a)
+  from gstest1 t1, gstest2 t2
+ group by grouping sets ((t1.a, t2.b), ()) order by 1, 2, 3, 4, 5;
+ a | b | grouping | sum  | max 
+---+---+----------+------+-----
+ 1 | 1 |        0 |  420 |   1
+ 1 | 2 |        0 |  120 |   2
+ 2 | 1 |        0 |  105 |   1
+ 2 | 2 |        0 |   30 |   2
+ 3 | 1 |        0 |  231 |   1
+ 3 | 2 |        0 |   66 |   2
+ 4 | 1 |        0 |  259 |   1
+ 4 | 2 |        0 |   74 |   2
+   |   |        3 | 1305 |   2
+(9 rows)
+
+set enable_hashagg = false;
 -- various types of ordered aggs
 select a, b, grouping(a,b),
        array_agg(v order by v),
@@ -313,34 +356,34 @@ select t1.a, t2.b, sum(t1.v), count(*) from gstest_empty t1, gstest_empty t2
 -- simple joins, var resolution, GROUPING on join vars
 select t1.a, t2.b, grouping(t1.a, t2.b), sum(t1.v), max(t2.a)
   from gstest1 t1, gstest2 t2
- group by grouping sets ((t1.a, t2.b), ());
+ group by grouping sets ((t1.a, t2.b), ()) order by 4;
  a | b | grouping | sum  | max 
 ---+---+----------+------+-----
- 1 | 1 |        0 |  420 |   1
- 1 | 2 |        0 |  120 |   2
- 2 | 1 |        0 |  105 |   1
  2 | 2 |        0 |   30 |   2
- 3 | 1 |        0 |  231 |   1
  3 | 2 |        0 |   66 |   2
- 4 | 1 |        0 |  259 |   1
  4 | 2 |        0 |   74 |   2
+ 2 | 1 |        0 |  105 |   1
+ 1 | 2 |        0 |  120 |   2
+ 3 | 1 |        0 |  231 |   1
+ 4 | 1 |        0 |  259 |   1
+ 1 | 1 |        0 |  420 |   1
    |   |        3 | 1305 |   2
 (9 rows)
 
 select t1.a, t2.b, grouping(t1.a, t2.b), sum(t1.v), max(t2.a)
   from gstest1 t1 join gstest2 t2 on (t1.a=t2.a)
- group by grouping sets ((t1.a, t2.b), ());
+ group by grouping sets ((t1.a, t2.b), ()) order by 4;
  a | b | grouping | sum | max 
 ---+---+----------+-----+-----
- 1 | 1 |        0 | 420 |   1
- 1 | 2 |        0 |  60 |   1
  2 | 2 |        0 |  15 |   2
+ 1 | 2 |        0 |  60 |   1
+ 1 | 1 |        0 | 420 |   1
    |   |        3 | 495 |   2
 (4 rows)
 
 select a, b, grouping(a, b), sum(t1.v), max(t2.c)
   from gstest1 t1 join gstest2 t2 using (a,b)
- group by grouping sets ((a, b), ());
+ group by grouping sets ((a, b), ()) order by 1,2;
  a | b | grouping | sum | max 
 ---+---+----------+-----+-----
  1 | 1 |        0 | 147 |   2
@@ -351,14 +394,88 @@ select a, b, grouping(a, b), sum(t1.v), max(t2.c)
 -- check that functionally dependent cols are not nulled
 select a, d, grouping(a,b,c)
   from gstest3
- group by grouping sets ((a,b), (a,c));
+ group by grouping sets ((a,b), (a,c)) order by 1,2,3;
  a | d | grouping 
 ---+---+----------
  1 | 1 |        1
- 2 | 2 |        1
  1 | 1 |        2
+ 2 | 2 |        1
  2 | 2 |        2
 (4 rows)
+
+-- check that distinct grouping columns are kept separate
+-- even if they are equal()
+explain (costs off)
+select g as alias1, g as alias2
+  from generate_series(1,3) g
+ group by alias1, rollup(alias2);
+                   QUERY PLAN                   
+------------------------------------------------
+ GroupAggregate
+   Group Key: g, g
+   Group Key: g
+   ->  Sort
+         Sort Key: g
+         ->  Function Scan on generate_series g
+(6 rows)
+
+select g as alias1, g as alias2
+  from generate_series(1,3) g
+ group by alias1, rollup(alias2);
+ alias1 | alias2 
+--------+--------
+      1 |      1
+      1 |       
+      2 |      2
+      2 |       
+      3 |      3
+      3 |       
+(6 rows)
+
+-- check that pulled-up subquery outputs still go to null when appropriate
+select four, x
+  from (select four, ten, 'foo'::text as x from tenk1) as t
+  group by grouping sets (four, x)
+  having x = 'foo';
+ four |  x  
+------+-----
+      | foo
+(1 row)
+
+select four, x || 'x'
+  from (select four, ten, 'foo'::text as x from tenk1) as t
+  group by grouping sets (four, x)
+  order by four;
+ four | ?column? 
+------+----------
+    0 | 
+    1 | 
+    2 | 
+    3 | 
+      | foox
+(5 rows)
+
+select (x+y)*1, sum(z)
+ from (select 1 as x, 2 as y, 3 as z) s
+ group by grouping sets (x+y, x);
+ ?column? | sum 
+----------+-----
+        3 |   3
+          |   3
+(2 rows)
+
+select x, not x as not_x, q2 from
+  (select *, q1 = 1 as x from int8_tbl i1) as t
+  group by grouping sets(x, q2)
+  order by x, q2;
+ x | not_x |        q2         
+---+-------+-------------------
+ f | t     |                  
+   |       | -4567890123456789
+   |       |               123
+   |       |               456
+   |       |  4567890123456789
+(5 rows)
 
 -- simple rescan tests
 select a, b, sum(v.x)
@@ -391,11 +508,12 @@ explain (costs off)
  Result
    InitPlan 1 (returns $0)
      ->  Limit
-           ->  Remote Subquery Scan on all (datanode_1,datanode_2)
+           ->  Remote Subquery Scan on all (datanodes 2)
+                 Sort Key: tenk1.unique1
                  ->  Limit
                        ->  Index Only Scan using tenk1_unique1 on tenk1
                              Index Cond: (unique1 IS NOT NULL)
-(7 rows)
+(8 rows)
 
 -- Views with GROUPING SET queries
 CREATE VIEW gstest_view AS select a, b, grouping(a,b), sum(c), count(*), max(c)
@@ -440,26 +558,26 @@ select(select (select grouping(c) from (values (1)) v2(c) GROUP BY c) from (valu
 (3 rows)
 
 -- Combinations of operations
-select a, b, c, d from gstest2 group by rollup(a,b),grouping sets(c,d);
+select a, b, c, d from gstest2 group by rollup(a,b),grouping sets(c,d) order by 1,2,3,4;
  a | b | c | d 
 ---+---+---+---
  1 | 1 | 1 |  
- 1 |   | 1 |  
-   |   | 1 |  
  1 | 1 | 2 |  
- 1 | 2 | 2 |  
- 1 |   | 2 |  
- 2 | 2 | 2 |  
- 2 |   | 2 |  
-   |   | 2 |  
  1 | 1 |   | 1
- 1 |   |   | 1
-   |   |   | 1
  1 | 1 |   | 2
+ 1 | 2 | 2 |  
  1 | 2 |   | 2
+ 1 |   | 1 |  
+ 1 |   | 2 |  
+ 1 |   |   | 1
  1 |   |   | 2
+ 2 | 2 | 2 |  
  2 | 2 |   | 2
+ 2 |   | 2 |  
  2 |   |   | 2
+   |   | 1 |  
+   |   | 2 |  
+   |   |   | 1
    |   |   | 2
 (18 rows)
 
@@ -571,7 +689,7 @@ ERROR:  arguments to GROUPING must be grouping expressions of the associated que
 LINE 1: select (select grouping(a,b) from gstest2) from gstest2 grou...
                                 ^
 --Nested queries
-select a, b, sum(c), count(*) from gstest2 group by grouping sets (rollup(a,b),a);
+select a, b, sum(c), count(*) from gstest2 group by grouping sets (rollup(a,b),a) order by 1,2,3,4;
  a | b | sum | count 
 ---+---+-----+-------
  1 | 1 |   8 |     7
@@ -635,17 +753,18 @@ select a,count(*) from gstest2 group by rollup(a) having a is distinct from 1 or
 
 explain (costs off)
   select a,count(*) from gstest2 group by rollup(a) having a is distinct from 1 order by a;
-                        QUERY PLAN                         
------------------------------------------------------------
+                   QUERY PLAN                    
+-------------------------------------------------
  GroupAggregate
    Group Key: a
    Group Key: ()
    Filter: (a IS DISTINCT FROM 1)
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
+   ->  Remote Subquery Scan on all (datanodes 2)
+         Sort Key: a
          ->  Sort
                Sort Key: a
                ->  Seq Scan on gstest2
-(8 rows)
+(9 rows)
 
 select v.c, (select count(*) from gstest2 group by () having v.c)
   from (values (false),(true)) v(c) order by v.c;
@@ -658,9 +777,9 @@ select v.c, (select count(*) from gstest2 group by () having v.c)
 explain (costs off)
   select v.c, (select count(*) from gstest2 group by () having v.c)
     from (values (false),(true)) v(c) order by v.c;
-                                  QUERY PLAN                                   
--------------------------------------------------------------------------------
- Remote Subquery Scan on all (datanode_1)
+                              QUERY PLAN                               
+-----------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 1)
    ->  Sort
          Sort Key: "*VALUES*".column1
          ->  Values Scan on "*VALUES*"
@@ -668,11 +787,12 @@ explain (costs off)
                  ->  Aggregate
                        Group Key: ()
                        Filter: "*VALUES*".column1
-                       ->  Remote Subquery Scan on all (datanode_1,datanode_2)
+                       ->  Remote Subquery Scan on all (datanodes 2)
+                             Distribute results by R
                              ->  Result
                                    One-Time Filter: "*VALUES*".column1
                                    ->  Seq Scan on gstest2
-(12 rows)
+(13 rows)
 
 -- HAVING with GROUPING queries
 select ten, grouping(ten) from onek
@@ -863,7 +983,7 @@ select sum(ten) from onek group by rollup(four::text), two order by 1;
 -- hashing support
 set enable_hashagg = true;
 -- failure cases
-select count(*) from gstest4 group by rollup(unhashable_col,unsortable_col);
+select count(*) from gstest5 group by rollup(unhashable_col,unsortable_col);
 ERROR:  could not implement GROUP BY
 DETAIL:  Some of the datatypes only support hashing, while others only support sorting.
 select array_agg(v order by v) from gstest4 group by grouping sets ((id,unsortable_col),(id));
@@ -888,7 +1008,7 @@ explain (costs off) select a, b, grouping(a,b), sum(v), count(*), max(v)
   from gstest1 group by grouping sets ((a),(b)) order by 3,1,2;
                                                   QUERY PLAN                                                  
 --------------------------------------------------------------------------------------------------------------
- Remote Subquery Scan on all (datanode_1)
+ Remote Subquery Scan on all (datanodes 1)
    ->  Sort
          Sort Key: (GROUPING("*VALUES*".column1, "*VALUES*".column2)), "*VALUES*".column1, "*VALUES*".column2
          ->  HashAggregate
@@ -923,7 +1043,7 @@ explain (costs off) select a, b, grouping(a,b), sum(v), count(*), max(v)
   from gstest1 group by cube(a,b) order by 3,1,2;
                                                   QUERY PLAN                                                  
 --------------------------------------------------------------------------------------------------------------
- Remote Subquery Scan on all (datanode_1)
+ Remote Subquery Scan on all (datanodes 1)
    ->  Sort
          Sort Key: (GROUPING("*VALUES*".column1, "*VALUES*".column2)), "*VALUES*".column1, "*VALUES*".column2
          ->  MixedAggregate
@@ -940,7 +1060,7 @@ explain (costs off)
     from gstest1 group by cube(a,b);
                            QUERY PLAN                           
 ----------------------------------------------------------------
- Remote Subquery Scan on all (datanode_1)
+ Remote Subquery Scan on all (datanodes 1)
    ->  GroupAggregate
          Group Key: "*VALUES*".column1, "*VALUES*".column2
          Group Key: "*VALUES*".column1
@@ -952,84 +1072,124 @@ explain (costs off)
                ->  Values Scan on "*VALUES*"
 (10 rows)
 
--- mixed hashable/sortable cases
-select unhashable_col, unsortable_col,
-       grouping(unhashable_col, unsortable_col),
+-- unsortable cases
+select unsortable_col, count(*)
+  from gstest4 group by grouping sets ((unsortable_col),(unsortable_col))
+  order by unsortable_col::text;
+ unsortable_col | count 
+----------------+-------
+              1 |     4
+              1 |     4
+              2 |     4
+              2 |     4
+(4 rows)
+
+-- mixed hashable/normal cases
+select normal_col, unsortable_col,
+       grouping(normal_col, unsortable_col),
        count(*), sum(v)
-  from gstest4 group by grouping sets ((unhashable_col),(unsortable_col))
+  from gstest4 group by grouping sets ((normal_col),(unsortable_col))
  order by 3, 5;
- unhashable_col | unsortable_col | grouping | count | sum 
-----------------+----------------+----------+-------+-----
- 0000           |                |        1 |     2 |  17
- 0001           |                |        1 |     2 |  34
- 0010           |                |        1 |     2 |  68
- 0011           |                |        1 |     2 | 136
-                |              2 |        2 |     4 |  60
-                |              1 |        2 |     4 | 195
+ normal_col | unsortable_col | grouping | count | sum 
+------------+----------------+----------+-------+-----
+ 0000       |                |        1 |     2 |  17
+ 0001       |                |        1 |     2 |  34
+ 0010       |                |        1 |     2 |  68
+ 0011       |                |        1 |     2 | 136
+            |              2 |        2 |     4 |  60
+            |              1 |        2 |     4 | 195
 (6 rows)
 
 explain (costs off)
-  select unhashable_col, unsortable_col,
-         grouping(unhashable_col, unsortable_col),
+  select normal_col, unsortable_col,
+         grouping(normal_col, unsortable_col),
          count(*), sum(v)
-    from gstest4 group by grouping sets ((unhashable_col),(unsortable_col))
+    from gstest4 group by grouping sets ((normal_col),(unsortable_col))
    order by 3,5;
-                            QUERY PLAN                            
-------------------------------------------------------------------
- Sort
-   Sort Key: (GROUPING(unhashable_col, unsortable_col)), (sum(v))
-   ->  MixedAggregate
-         Hash Key: unsortable_col
-         Group Key: unhashable_col
-         ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-               ->  Sort
-                     Sort Key: unhashable_col
-                     ->  Seq Scan on gstest4
-(9 rows)
+                               QUERY PLAN                                
+-------------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   Sort Key: (GROUPING(normal_col, unsortable_col)), (sum(v))
+   ->  Sort
+         Sort Key: (GROUPING(normal_col, unsortable_col)), (sum(v))
+         ->  Append
+               ->  Remote Subquery Scan on all (datanodes 2)
+                     Distribute results by Local
+                     ->  Finalize HashAggregate
+                           Group Key: unsortable_col
+                           ->  Remote Subquery Scan on all (datanodes 2)
+                                 Distribute results by S: unsortable_col
+                                 ->  Partial HashAggregate
+                                       Group Key: unsortable_col
+                                       ->  Seq Scan on gstest4
+               ->  Remote Subquery Scan on all (datanodes 2)
+                     Distribute results by Local
+                     ->  Finalize HashAggregate
+                           Group Key: normal_col
+                           ->  Remote Subquery Scan on all (datanodes 2)
+                                 Distribute results by S: normal_col
+                                 ->  Partial HashAggregate
+                                       Group Key: normal_col
+                                       ->  Seq Scan on gstest4
+(23 rows)
 
-select unhashable_col, unsortable_col,
-       grouping(unhashable_col, unsortable_col),
+select normal_col, unsortable_col,
+       grouping(normal_col, unsortable_col),
        count(*), sum(v)
-  from gstest4 group by grouping sets ((v,unhashable_col),(v,unsortable_col))
+  from gstest4 group by grouping sets ((v,normal_col),(v,unsortable_col))
  order by 3,5;
- unhashable_col | unsortable_col | grouping | count | sum 
-----------------+----------------+----------+-------+-----
- 0000           |                |        1 |     1 |   1
- 0001           |                |        1 |     1 |   2
- 0010           |                |        1 |     1 |   4
- 0011           |                |        1 |     1 |   8
- 0000           |                |        1 |     1 |  16
- 0001           |                |        1 |     1 |  32
- 0010           |                |        1 |     1 |  64
- 0011           |                |        1 |     1 | 128
-                |              1 |        2 |     1 |   1
-                |              1 |        2 |     1 |   2
-                |              2 |        2 |     1 |   4
-                |              2 |        2 |     1 |   8
-                |              2 |        2 |     1 |  16
-                |              2 |        2 |     1 |  32
-                |              1 |        2 |     1 |  64
-                |              1 |        2 |     1 | 128
+ normal_col | unsortable_col | grouping | count | sum 
+------------+----------------+----------+-------+-----
+ 0000       |                |        1 |     1 |   1
+ 0001       |                |        1 |     1 |   2
+ 0010       |                |        1 |     1 |   4
+ 0011       |                |        1 |     1 |   8
+ 0000       |                |        1 |     1 |  16
+ 0001       |                |        1 |     1 |  32
+ 0010       |                |        1 |     1 |  64
+ 0011       |                |        1 |     1 | 128
+            |              1 |        2 |     1 |   1
+            |              1 |        2 |     1 |   2
+            |              2 |        2 |     1 |   4
+            |              2 |        2 |     1 |   8
+            |              2 |        2 |     1 |  16
+            |              2 |        2 |     1 |  32
+            |              1 |        2 |     1 |  64
+            |              1 |        2 |     1 | 128
 (16 rows)
 
 explain (costs off)
-  select unhashable_col, unsortable_col,
-         grouping(unhashable_col, unsortable_col),
+  select normal_col, unsortable_col,
+         grouping(normal_col, unsortable_col),
          count(*), sum(v)
-    from gstest4 group by grouping sets ((v,unhashable_col),(v,unsortable_col))
+    from gstest4 group by grouping sets ((v,normal_col),(v,unsortable_col))
    order by 3,5;
-                            QUERY PLAN                            
-------------------------------------------------------------------
- Sort
-   Sort Key: (GROUPING(unhashable_col, unsortable_col)), (sum(v))
-   ->  MixedAggregate
-         Hash Key: v, unsortable_col
-         Group Key: v, unhashable_col
-         ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-               ->  Sort
-                     Sort Key: v, unhashable_col
-                     ->  Seq Scan on gstest4
-(9 rows)
+                                 QUERY PLAN                                 
+----------------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   Sort Key: (GROUPING(normal_col, unsortable_col)), (sum(v))
+   ->  Sort
+         Sort Key: (GROUPING(normal_col, unsortable_col)), (sum(v))
+         ->  Append
+               ->  Remote Subquery Scan on all (datanodes 2)
+                     Distribute results by Local
+                     ->  Finalize HashAggregate
+                           Group Key: v, unsortable_col
+                           ->  Remote Subquery Scan on all (datanodes 2)
+                                 Distribute results by S: v, unsortable_col
+                                 ->  Partial HashAggregate
+                                       Group Key: v, unsortable_col
+                                       ->  Seq Scan on gstest4
+               ->  Remote Subquery Scan on all (datanodes 2)
+                     Distribute results by Local
+                     ->  Finalize HashAggregate
+                           Group Key: v, normal_col
+                           ->  Remote Subquery Scan on all (datanodes 2)
+                                 Distribute results by S: v, normal_col
+                                 ->  Partial HashAggregate
+                                       Group Key: v, normal_col
+                                       ->  Seq Scan on gstest4
+(23 rows)
 
 -- empty input: first is 0 rows, second 1, third 3 etc.
 select a, b, sum(v), count(*) from gstest_empty group by grouping sets ((a,b),a);
@@ -1039,14 +1199,29 @@ select a, b, sum(v), count(*) from gstest_empty group by grouping sets ((a,b),a)
 
 explain (costs off)
   select a, b, sum(v), count(*) from gstest_empty group by grouping sets ((a,b),a);
-                        QUERY PLAN                         
------------------------------------------------------------
- HashAggregate
-   Hash Key: a, b
-   Hash Key: a
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-         ->  Seq Scan on gstest_empty
-(5 rows)
+                            QUERY PLAN                             
+-------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   ->  Append
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by Local
+               ->  Finalize HashAggregate
+                     Group Key: a, b
+                     ->  Remote Subquery Scan on all (datanodes 2)
+                           Distribute results by S: a, b
+                           ->  Partial HashAggregate
+                                 Group Key: a, b
+                                 ->  Seq Scan on gstest_empty
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by Local
+               ->  Finalize HashAggregate
+                     Group Key: a
+                     ->  Remote Subquery Scan on all (datanodes 2)
+                           Distribute results by S: a
+                           ->  Partial HashAggregate
+                                 Group Key: a
+                                 ->  Seq Scan on gstest_empty
+(20 rows)
 
 select a, b, sum(v), count(*) from gstest_empty group by grouping sets ((a,b),());
  a | b | sum | count 
@@ -1064,16 +1239,38 @@ select a, b, sum(v), count(*) from gstest_empty group by grouping sets ((a,b),()
 
 explain (costs off)
   select a, b, sum(v), count(*) from gstest_empty group by grouping sets ((a,b),(),(),());
-                        QUERY PLAN                         
------------------------------------------------------------
- MixedAggregate
-   Hash Key: a, b
-   Group Key: ()
-   Group Key: ()
-   Group Key: ()
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-         ->  Seq Scan on gstest_empty
-(7 rows)
+                            QUERY PLAN                             
+-------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   ->  Append
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by Local
+               ->  Finalize HashAggregate
+                     Group Key: a, b
+                     ->  Remote Subquery Scan on all (datanodes 2)
+                           Distribute results by S: a, b
+                           ->  Partial HashAggregate
+                                 Group Key: a, b
+                                 ->  Seq Scan on gstest_empty
+         ->  Remote Subquery Scan on all (datanodes 1)
+               Distribute results by Local
+               ->  Finalize Aggregate
+                     ->  Remote Subquery Scan on all (datanodes 2)
+                           ->  Partial Aggregate
+                                 ->  Seq Scan on gstest_empty
+         ->  Remote Subquery Scan on all (datanodes 1)
+               Distribute results by Local
+               ->  Finalize Aggregate
+                     ->  Remote Subquery Scan on all (datanodes 2)
+                           ->  Partial Aggregate
+                                 ->  Seq Scan on gstest_empty
+         ->  Remote Subquery Scan on all (datanodes 1)
+               Distribute results by Local
+               ->  Finalize Aggregate
+                     ->  Remote Subquery Scan on all (datanodes 2)
+                           ->  Partial Aggregate
+                                 ->  Seq Scan on gstest_empty
+(29 rows)
 
 select sum(v), count(*) from gstest_empty group by grouping sets ((),(),());
  sum | count 
@@ -1085,25 +1282,25 @@ select sum(v), count(*) from gstest_empty group by grouping sets ((),(),());
 
 explain (costs off)
   select sum(v), count(*) from gstest_empty group by grouping sets ((),(),());
-                        QUERY PLAN                         
------------------------------------------------------------
+                   QUERY PLAN                    
+-------------------------------------------------
  Aggregate
    Group Key: ()
    Group Key: ()
    Group Key: ()
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
+   ->  Remote Subquery Scan on all (datanodes 2)
          ->  Seq Scan on gstest_empty
 (6 rows)
 
 -- check that functionally dependent cols are not nulled
 select a, d, grouping(a,b,c)
   from gstest3
- group by grouping sets ((a,b), (a,c));
+ group by grouping sets ((a,b), (a,c)) order by 1,2,3;
  a | d | grouping 
 ---+---+----------
  1 | 1 |        1
- 2 | 2 |        1
  1 | 1 |        2
+ 2 | 2 |        1
  2 | 2 |        2
 (4 rows)
 
@@ -1111,43 +1308,65 @@ explain (costs off)
   select a, d, grouping(a,b,c)
     from gstest3
    group by grouping sets ((a,b), (a,c));
-            QUERY PLAN            
-----------------------------------
- Remote Fast Query Execution
-   Node/s: datanode_1, datanode_2
-   ->  HashAggregate
-         Hash Key: a, b
-         Hash Key: a, c
-         ->  Seq Scan on gstest3
-(6 rows)
+                                    QUERY PLAN                                    
+----------------------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   CTE Grouping_1 (datanodes 2)
+     ->  Seq Scan on gstest3
+   ->  Append
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by Local
+               ->  Finalize HashAggregate
+                     Group Key: a, b
+                     ->  Remote Subquery Scan on all (datanodes 2)
+                           Workers Planned: 1
+                           Distribute results by S: a, b
+                           ->  Partial HashAggregate
+                                 Group Key: a, b
+                                 ->  Parallel Shared CTE Scan on "CTE Grouping_1"
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by Local
+               ->  Finalize HashAggregate
+                     Group Key: a, c
+                     ->  Remote Subquery Scan on all (datanodes 2)
+                           Workers Planned: 1
+                           Distribute results by S: a, c
+                           ->  Partial HashAggregate
+                                 Group Key: a, c
+                                 ->  Parallel Shared CTE Scan on "CTE Grouping_1"
+(24 rows)
 
 -- simple rescan tests
 select a, b, sum(v.x)
   from (values (1),(2)) v(x), gstest_data(v.x)
- group by grouping sets (a,b);
+ group by grouping sets (a,b)
+ order by 1, 2, 3;
  a | b | sum 
 ---+---+-----
- 2 |   |   6
  1 |   |   3
+ 2 |   |   6
+   | 1 |   3
    | 2 |   3
    | 3 |   3
-   | 1 |   3
 (5 rows)
 
 explain (costs off)
   select a, b, sum(v.x)
     from (values (1),(2)) v(x), gstest_data(v.x)
-   group by grouping sets (a,b);
-                      QUERY PLAN                      
-------------------------------------------------------
- HashAggregate
-   Hash Key: gstest_data.a
-   Hash Key: gstest_data.b
-   ->  Nested Loop
-         ->  Remote Subquery Scan on all (datanode_1)
-               ->  Values Scan on "*VALUES*"
-         ->  Function Scan on gstest_data
-(7 rows)
+   group by grouping sets (a,b)
+   order by 3, 1, 2;
+                             QUERY PLAN                              
+---------------------------------------------------------------------
+ Sort
+   Sort Key: (sum("*VALUES*".column1)), gstest_data.a, gstest_data.b
+   ->  HashAggregate
+         Hash Key: gstest_data.a
+         Hash Key: gstest_data.b
+         ->  Nested Loop
+               ->  Remote Subquery Scan on all (datanodes 1)
+                     ->  Values Scan on "*VALUES*"
+               ->  Function Scan on gstest_data
+(9 rows)
 
 select *
   from (values (1),(2)) v(x),
@@ -1195,7 +1414,7 @@ explain (costs off)
     from gstest1 group by grouping sets ((a,b),(a+1,b+1),(a+2,b+2)) order by 3,6;
                                            QUERY PLAN                                            
 -------------------------------------------------------------------------------------------------
- Remote Subquery Scan on all (datanode_1)
+ Remote Subquery Scan on all (datanodes 1)
    ->  Sort
          Sort Key: (GROUPING("*VALUES*".column1, "*VALUES*".column2)), (max("*VALUES*".column3))
          ->  HashAggregate
@@ -1222,21 +1441,52 @@ select a, b, sum(c), sum(sum(c)) over (order by a,b) as rsum
 explain (costs off)
   select a, b, sum(c), sum(sum(c)) over (order by a,b) as rsum
     from gstest2 group by cube (a,b) order by rsum, a, b;
-                                 QUERY PLAN                                  
------------------------------------------------------------------------------
- Sort
-   Sort Key: (sum((sum(c))) OVER (?)), a, b
-   ->  WindowAgg
-         ->  Sort
-               Sort Key: a, b
-               ->  MixedAggregate
-                     Hash Key: a, b
-                     Hash Key: a
-                     Hash Key: b
-                     Group Key: ()
-                     ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-                           ->  Seq Scan on gstest2
-(12 rows)
+                                        QUERY PLAN                                         
+-------------------------------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 1)
+   ->  Sort
+         Sort Key: (sum((sum(c))) OVER (?)), a, b
+         ->  WindowAgg
+               ->  Remote Subquery Scan on all (datanodes 2)
+                     Sort Key: a, b
+                     Distribute results by R
+                     ->  Sort
+                           Sort Key: a, b
+                           ->  Append
+                                 ->  Remote Subquery Scan on all (datanodes 2)
+                                       Distribute results by Local
+                                       ->  Finalize HashAggregate
+                                             Group Key: a, b
+                                             ->  Remote Subquery Scan on all (datanodes 2)
+                                                   Distribute results by S: a, b
+                                                   ->  Partial HashAggregate
+                                                         Group Key: a, b
+                                                         ->  Seq Scan on gstest2
+                                 ->  Remote Subquery Scan on all (datanodes 2)
+                                       Distribute results by Local
+                                       ->  Finalize HashAggregate
+                                             Group Key: a
+                                             ->  Remote Subquery Scan on all (datanodes 2)
+                                                   Distribute results by S: a
+                                                   ->  Partial HashAggregate
+                                                         Group Key: a
+                                                         ->  Seq Scan on gstest2
+                                 ->  Remote Subquery Scan on all (datanodes 2)
+                                       Distribute results by Local
+                                       ->  Finalize HashAggregate
+                                             Group Key: b
+                                             ->  Remote Subquery Scan on all (datanodes 2)
+                                                   Distribute results by S: b
+                                                   ->  Partial HashAggregate
+                                                         Group Key: b
+                                                         ->  Seq Scan on gstest2
+                                 ->  Remote Subquery Scan on all (datanodes 1)
+                                       Distribute results by Local
+                                       ->  Finalize Aggregate
+                                             ->  Remote Subquery Scan on all (datanodes 2)
+                                                   ->  Partial Aggregate
+                                                         ->  Seq Scan on gstest2
+(43 rows)
 
 select a, b, sum(v.x)
   from (values (1),(2)) v(x), gstest_data(v.x)
@@ -1261,8 +1511,8 @@ explain (costs off)
   select a, b, sum(v.x)
     from (values (1),(2)) v(x), gstest_data(v.x)
    group by cube (a,b) order by a,b;
-                         QUERY PLAN                         
-------------------------------------------------------------
+                         QUERY PLAN                          
+-------------------------------------------------------------
  Sort
    Sort Key: gstest_data.a, gstest_data.b
    ->  MixedAggregate
@@ -1271,7 +1521,7 @@ explain (costs off)
          Hash Key: gstest_data.b
          Group Key: ()
          ->  Nested Loop
-               ->  Remote Subquery Scan on all (datanode_1)
+               ->  Remote Subquery Scan on all (datanodes 1)
                      ->  Values Scan on "*VALUES*"
                ->  Function Scan on gstest_data
 (11 rows)
@@ -1410,23 +1660,85 @@ explain (costs off)
          count(hundred), count(thousand), count(twothousand),
          count(*)
     from tenk1 group by grouping sets (unique1,twothousand,thousand,hundred,ten,four,two);
-                        QUERY PLAN                         
------------------------------------------------------------
- MixedAggregate
-   Hash Key: two
-   Hash Key: four
-   Hash Key: ten
-   Hash Key: hundred
-   Group Key: unique1
-   Sort Key: twothousand
-     Group Key: twothousand
-   Sort Key: thousand
-     Group Key: thousand
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-         ->  Sort
-               Sort Key: unique1
-               ->  Seq Scan on tenk1
-(14 rows)
+                                    QUERY PLAN                                    
+----------------------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   CTE Grouping_1 (datanodes 2)
+     ->  Sort
+           Sort Key: tenk1.unique1
+           ->  Seq Scan on tenk1
+   ->  Append
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by Local
+               ->  Finalize HashAggregate
+                     Group Key: two
+                     ->  Remote Subquery Scan on all (datanodes 2)
+                           Workers Planned: 1
+                           Distribute results by S: two
+                           ->  Partial HashAggregate
+                                 Group Key: two
+                                 ->  Parallel Shared CTE Scan on "CTE Grouping_1"
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by Local
+               ->  Finalize HashAggregate
+                     Group Key: four
+                     ->  Remote Subquery Scan on all (datanodes 2)
+                           Workers Planned: 1
+                           Distribute results by S: four
+                           ->  Partial HashAggregate
+                                 Group Key: four
+                                 ->  Parallel Shared CTE Scan on "CTE Grouping_1"
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by Local
+               ->  Finalize HashAggregate
+                     Group Key: ten
+                     ->  Remote Subquery Scan on all (datanodes 2)
+                           Workers Planned: 1
+                           Distribute results by S: ten
+                           ->  Partial HashAggregate
+                                 Group Key: ten
+                                 ->  Parallel Shared CTE Scan on "CTE Grouping_1"
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by Local
+               ->  Finalize HashAggregate
+                     Group Key: hundred
+                     ->  Remote Subquery Scan on all (datanodes 2)
+                           Workers Planned: 1
+                           Distribute results by S: hundred
+                           ->  Partial HashAggregate
+                                 Group Key: hundred
+                                 ->  Parallel Shared CTE Scan on "CTE Grouping_1"
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by Local
+               ->  Finalize HashAggregate
+                     Group Key: unique1
+                     ->  Remote Subquery Scan on all (datanodes 2)
+                           Workers Planned: 1
+                           Distribute results by S: unique1
+                           ->  Partial HashAggregate
+                                 Group Key: unique1
+                                 ->  Parallel Shared CTE Scan on "CTE Grouping_1"
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by Local
+               ->  Finalize HashAggregate
+                     Group Key: twothousand
+                     ->  Remote Subquery Scan on all (datanodes 2)
+                           Workers Planned: 1
+                           Distribute results by S: twothousand
+                           ->  Partial HashAggregate
+                                 Group Key: twothousand
+                                 ->  Parallel Shared CTE Scan on "CTE Grouping_1"
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by Local
+               ->  Finalize HashAggregate
+                     Group Key: thousand
+                     ->  Remote Subquery Scan on all (datanodes 2)
+                           Workers Planned: 1
+                           Distribute results by S: thousand
+                           ->  Partial HashAggregate
+                                 Group Key: thousand
+                                 ->  Parallel Shared CTE Scan on "CTE Grouping_1"
+(76 rows)
 
 explain (costs off)
   select unique1,
@@ -1434,19 +1746,65 @@ explain (costs off)
          count(hundred), count(thousand), count(twothousand),
          count(*)
     from tenk1 group by grouping sets (unique1,hundred,ten,four,two);
-                        QUERY PLAN                         
------------------------------------------------------------
- MixedAggregate
-   Hash Key: two
-   Hash Key: four
-   Hash Key: ten
-   Hash Key: hundred
-   Group Key: unique1
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-         ->  Sort
-               Sort Key: unique1
-               ->  Seq Scan on tenk1
-(10 rows)
+                                    QUERY PLAN                                    
+----------------------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   CTE Grouping_1 (datanodes 2)
+     ->  Sort
+           Sort Key: tenk1.unique1
+           ->  Seq Scan on tenk1
+   ->  Append
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by Local
+               ->  Finalize HashAggregate
+                     Group Key: two
+                     ->  Remote Subquery Scan on all (datanodes 2)
+                           Workers Planned: 1
+                           Distribute results by S: two
+                           ->  Partial HashAggregate
+                                 Group Key: two
+                                 ->  Parallel Shared CTE Scan on "CTE Grouping_1"
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by Local
+               ->  Finalize HashAggregate
+                     Group Key: four
+                     ->  Remote Subquery Scan on all (datanodes 2)
+                           Workers Planned: 1
+                           Distribute results by S: four
+                           ->  Partial HashAggregate
+                                 Group Key: four
+                                 ->  Parallel Shared CTE Scan on "CTE Grouping_1"
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by Local
+               ->  Finalize HashAggregate
+                     Group Key: ten
+                     ->  Remote Subquery Scan on all (datanodes 2)
+                           Workers Planned: 1
+                           Distribute results by S: ten
+                           ->  Partial HashAggregate
+                                 Group Key: ten
+                                 ->  Parallel Shared CTE Scan on "CTE Grouping_1"
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by Local
+               ->  Finalize HashAggregate
+                     Group Key: hundred
+                     ->  Remote Subquery Scan on all (datanodes 2)
+                           Workers Planned: 1
+                           Distribute results by S: hundred
+                           ->  Partial HashAggregate
+                                 Group Key: hundred
+                                 ->  Parallel Shared CTE Scan on "CTE Grouping_1"
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by Local
+               ->  Finalize HashAggregate
+                     Group Key: unique1
+                     ->  Remote Subquery Scan on all (datanodes 2)
+                           Workers Planned: 1
+                           Distribute results by S: unique1
+                           ->  Partial HashAggregate
+                                 Group Key: unique1
+                                 ->  Parallel Shared CTE Scan on "CTE Grouping_1"
+(56 rows)
 
 set work_mem = '384kB';
 explain (costs off)
@@ -1455,20 +1813,1040 @@ explain (costs off)
          count(hundred), count(thousand), count(twothousand),
          count(*)
     from tenk1 group by grouping sets (unique1,twothousand,thousand,hundred,ten,four,two);
-                        QUERY PLAN                         
------------------------------------------------------------
- MixedAggregate
-   Hash Key: two
-   Hash Key: four
-   Hash Key: ten
-   Hash Key: hundred
-   Hash Key: thousand
-   Hash Key: twothousand
-   Group Key: unique1
-   ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-         ->  Sort
-               Sort Key: unique1
-               ->  Seq Scan on tenk1
-(12 rows)
+                                    QUERY PLAN                                    
+----------------------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   CTE Grouping_1 (datanodes 2)
+     ->  Sort
+           Sort Key: tenk1.unique1
+           ->  Seq Scan on tenk1
+   ->  Append
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by Local
+               ->  Finalize HashAggregate
+                     Group Key: two
+                     ->  Remote Subquery Scan on all (datanodes 2)
+                           Workers Planned: 1
+                           Distribute results by S: two
+                           ->  Partial HashAggregate
+                                 Group Key: two
+                                 ->  Parallel Shared CTE Scan on "CTE Grouping_1"
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by Local
+               ->  Finalize HashAggregate
+                     Group Key: four
+                     ->  Remote Subquery Scan on all (datanodes 2)
+                           Workers Planned: 1
+                           Distribute results by S: four
+                           ->  Partial HashAggregate
+                                 Group Key: four
+                                 ->  Parallel Shared CTE Scan on "CTE Grouping_1"
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by Local
+               ->  Finalize HashAggregate
+                     Group Key: ten
+                     ->  Remote Subquery Scan on all (datanodes 2)
+                           Workers Planned: 1
+                           Distribute results by S: ten
+                           ->  Partial HashAggregate
+                                 Group Key: ten
+                                 ->  Parallel Shared CTE Scan on "CTE Grouping_1"
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by Local
+               ->  Finalize HashAggregate
+                     Group Key: hundred
+                     ->  Remote Subquery Scan on all (datanodes 2)
+                           Workers Planned: 1
+                           Distribute results by S: hundred
+                           ->  Partial HashAggregate
+                                 Group Key: hundred
+                                 ->  Parallel Shared CTE Scan on "CTE Grouping_1"
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by Local
+               ->  Finalize HashAggregate
+                     Group Key: thousand
+                     ->  Remote Subquery Scan on all (datanodes 2)
+                           Workers Planned: 1
+                           Distribute results by S: thousand
+                           ->  Partial HashAggregate
+                                 Group Key: thousand
+                                 ->  Parallel Shared CTE Scan on "CTE Grouping_1"
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by Local
+               ->  Finalize HashAggregate
+                     Group Key: unique1
+                     ->  Remote Subquery Scan on all (datanodes 2)
+                           Workers Planned: 1
+                           Distribute results by S: unique1
+                           ->  Partial HashAggregate
+                                 Group Key: unique1
+                                 ->  Parallel Shared CTE Scan on "CTE Grouping_1"
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by Local
+               ->  Finalize HashAggregate
+                     Group Key: twothousand
+                     ->  Remote Subquery Scan on all (datanodes 2)
+                           Workers Planned: 1
+                           Distribute results by S: twothousand
+                           ->  Partial HashAggregate
+                                 Group Key: twothousand
+                                 ->  Parallel Shared CTE Scan on "CTE Grouping_1"
+(76 rows)
 
--- end
+-- check collation-sensitive matching between grouping expressions
+-- (similar to a check for aggregates, but there are additional code
+-- paths for GROUPING, so check again here)
+select v||'a', case grouping(v||'a') when 1 then 1 else 0 end, count(*)
+  from unnest(array[1,1], array['a','b']) u(i,v)
+ group by rollup(i, v||'a') order by 1,3;
+ ?column? | case | count 
+----------+------+-------
+ aa       |    0 |     1
+ ba       |    0 |     1
+          |    1 |     2
+          |    1 |     2
+(4 rows)
+
+select v||'a', case when grouping(v||'a') = 1 then 1 else 0 end, count(*)
+  from unnest(array[1,1], array['a','b']) u(i,v)
+ group by rollup(i, v||'a') order by 1,3;
+ ?column? | case | count 
+----------+------+-------
+ aa       |    0 |     1
+ ba       |    0 |     1
+          |    1 |     2
+          |    1 |     2
+(4 rows)
+
+-- Bug #16784
+CREATE TABLE bug_16784(i INT, j INT);
+ANALYZE bug_16784;
+ALTER TABLE bug_16784 SET (autovacuum_enabled = 'false');
+UPDATE pg_class SET reltuples = 10 WHERE relname='bug_16784';
+INSERT INTO bug_16784 SELECT g/10, g FROM generate_series(1,40) g;
+SET work_mem='64kB';
+explain (costs off) select * from
+  (values (1),(2)) v(a),
+  lateral (select v.a, i, j, count(*) from
+             bug_16784 group by cube(i,j)) s
+  order by v.a, i, j;
+                            QUERY PLAN                             
+-------------------------------------------------------------------
+ Sort
+   Sort Key: "*VALUES*".column1, bug_16784.i, bug_16784.j
+   ->  Nested Loop
+         ->  Remote Subquery Scan on all (datanodes 1)
+               ->  Values Scan on "*VALUES*"
+         ->  MixedAggregate
+               Hash Key: bug_16784.i, bug_16784.j
+               Hash Key: bug_16784.i
+               Hash Key: bug_16784.j
+               Group Key: ()
+               ->  Materialize
+                     ->  Remote Subquery Scan on all (datanodes 2)
+                           ->  Seq Scan on bug_16784
+(13 rows)
+
+select * from
+  (values (1),(2)) v(a),
+  lateral (select a, i, j, count(*) from
+             bug_16784 group by cube(i,j)) s
+  order by v.a, i, j;
+ a | a | i | j  | count 
+---+---+---+----+-------
+ 1 | 1 | 0 |  1 |     1
+ 1 | 1 | 0 |  2 |     1
+ 1 | 1 | 0 |  3 |     1
+ 1 | 1 | 0 |  4 |     1
+ 1 | 1 | 0 |  5 |     1
+ 1 | 1 | 0 |  6 |     1
+ 1 | 1 | 0 |  7 |     1
+ 1 | 1 | 0 |  8 |     1
+ 1 | 1 | 0 |  9 |     1
+ 1 | 1 | 0 |    |     9
+ 1 | 1 | 1 | 10 |     1
+ 1 | 1 | 1 | 11 |     1
+ 1 | 1 | 1 | 12 |     1
+ 1 | 1 | 1 | 13 |     1
+ 1 | 1 | 1 | 14 |     1
+ 1 | 1 | 1 | 15 |     1
+ 1 | 1 | 1 | 16 |     1
+ 1 | 1 | 1 | 17 |     1
+ 1 | 1 | 1 | 18 |     1
+ 1 | 1 | 1 | 19 |     1
+ 1 | 1 | 1 |    |    10
+ 1 | 1 | 2 | 20 |     1
+ 1 | 1 | 2 | 21 |     1
+ 1 | 1 | 2 | 22 |     1
+ 1 | 1 | 2 | 23 |     1
+ 1 | 1 | 2 | 24 |     1
+ 1 | 1 | 2 | 25 |     1
+ 1 | 1 | 2 | 26 |     1
+ 1 | 1 | 2 | 27 |     1
+ 1 | 1 | 2 | 28 |     1
+ 1 | 1 | 2 | 29 |     1
+ 1 | 1 | 2 |    |    10
+ 1 | 1 | 3 | 30 |     1
+ 1 | 1 | 3 | 31 |     1
+ 1 | 1 | 3 | 32 |     1
+ 1 | 1 | 3 | 33 |     1
+ 1 | 1 | 3 | 34 |     1
+ 1 | 1 | 3 | 35 |     1
+ 1 | 1 | 3 | 36 |     1
+ 1 | 1 | 3 | 37 |     1
+ 1 | 1 | 3 | 38 |     1
+ 1 | 1 | 3 | 39 |     1
+ 1 | 1 | 3 |    |    10
+ 1 | 1 | 4 | 40 |     1
+ 1 | 1 | 4 |    |     1
+ 1 | 1 |   |  1 |     1
+ 1 | 1 |   |  2 |     1
+ 1 | 1 |   |  3 |     1
+ 1 | 1 |   |  4 |     1
+ 1 | 1 |   |  5 |     1
+ 1 | 1 |   |  6 |     1
+ 1 | 1 |   |  7 |     1
+ 1 | 1 |   |  8 |     1
+ 1 | 1 |   |  9 |     1
+ 1 | 1 |   | 10 |     1
+ 1 | 1 |   | 11 |     1
+ 1 | 1 |   | 12 |     1
+ 1 | 1 |   | 13 |     1
+ 1 | 1 |   | 14 |     1
+ 1 | 1 |   | 15 |     1
+ 1 | 1 |   | 16 |     1
+ 1 | 1 |   | 17 |     1
+ 1 | 1 |   | 18 |     1
+ 1 | 1 |   | 19 |     1
+ 1 | 1 |   | 20 |     1
+ 1 | 1 |   | 21 |     1
+ 1 | 1 |   | 22 |     1
+ 1 | 1 |   | 23 |     1
+ 1 | 1 |   | 24 |     1
+ 1 | 1 |   | 25 |     1
+ 1 | 1 |   | 26 |     1
+ 1 | 1 |   | 27 |     1
+ 1 | 1 |   | 28 |     1
+ 1 | 1 |   | 29 |     1
+ 1 | 1 |   | 30 |     1
+ 1 | 1 |   | 31 |     1
+ 1 | 1 |   | 32 |     1
+ 1 | 1 |   | 33 |     1
+ 1 | 1 |   | 34 |     1
+ 1 | 1 |   | 35 |     1
+ 1 | 1 |   | 36 |     1
+ 1 | 1 |   | 37 |     1
+ 1 | 1 |   | 38 |     1
+ 1 | 1 |   | 39 |     1
+ 1 | 1 |   | 40 |     1
+ 1 | 1 |   |    |    40
+ 2 | 2 | 0 |  1 |     1
+ 2 | 2 | 0 |  2 |     1
+ 2 | 2 | 0 |  3 |     1
+ 2 | 2 | 0 |  4 |     1
+ 2 | 2 | 0 |  5 |     1
+ 2 | 2 | 0 |  6 |     1
+ 2 | 2 | 0 |  7 |     1
+ 2 | 2 | 0 |  8 |     1
+ 2 | 2 | 0 |  9 |     1
+ 2 | 2 | 0 |    |     9
+ 2 | 2 | 1 | 10 |     1
+ 2 | 2 | 1 | 11 |     1
+ 2 | 2 | 1 | 12 |     1
+ 2 | 2 | 1 | 13 |     1
+ 2 | 2 | 1 | 14 |     1
+ 2 | 2 | 1 | 15 |     1
+ 2 | 2 | 1 | 16 |     1
+ 2 | 2 | 1 | 17 |     1
+ 2 | 2 | 1 | 18 |     1
+ 2 | 2 | 1 | 19 |     1
+ 2 | 2 | 1 |    |    10
+ 2 | 2 | 2 | 20 |     1
+ 2 | 2 | 2 | 21 |     1
+ 2 | 2 | 2 | 22 |     1
+ 2 | 2 | 2 | 23 |     1
+ 2 | 2 | 2 | 24 |     1
+ 2 | 2 | 2 | 25 |     1
+ 2 | 2 | 2 | 26 |     1
+ 2 | 2 | 2 | 27 |     1
+ 2 | 2 | 2 | 28 |     1
+ 2 | 2 | 2 | 29 |     1
+ 2 | 2 | 2 |    |    10
+ 2 | 2 | 3 | 30 |     1
+ 2 | 2 | 3 | 31 |     1
+ 2 | 2 | 3 | 32 |     1
+ 2 | 2 | 3 | 33 |     1
+ 2 | 2 | 3 | 34 |     1
+ 2 | 2 | 3 | 35 |     1
+ 2 | 2 | 3 | 36 |     1
+ 2 | 2 | 3 | 37 |     1
+ 2 | 2 | 3 | 38 |     1
+ 2 | 2 | 3 | 39 |     1
+ 2 | 2 | 3 |    |    10
+ 2 | 2 | 4 | 40 |     1
+ 2 | 2 | 4 |    |     1
+ 2 | 2 |   |  1 |     1
+ 2 | 2 |   |  2 |     1
+ 2 | 2 |   |  3 |     1
+ 2 | 2 |   |  4 |     1
+ 2 | 2 |   |  5 |     1
+ 2 | 2 |   |  6 |     1
+ 2 | 2 |   |  7 |     1
+ 2 | 2 |   |  8 |     1
+ 2 | 2 |   |  9 |     1
+ 2 | 2 |   | 10 |     1
+ 2 | 2 |   | 11 |     1
+ 2 | 2 |   | 12 |     1
+ 2 | 2 |   | 13 |     1
+ 2 | 2 |   | 14 |     1
+ 2 | 2 |   | 15 |     1
+ 2 | 2 |   | 16 |     1
+ 2 | 2 |   | 17 |     1
+ 2 | 2 |   | 18 |     1
+ 2 | 2 |   | 19 |     1
+ 2 | 2 |   | 20 |     1
+ 2 | 2 |   | 21 |     1
+ 2 | 2 |   | 22 |     1
+ 2 | 2 |   | 23 |     1
+ 2 | 2 |   | 24 |     1
+ 2 | 2 |   | 25 |     1
+ 2 | 2 |   | 26 |     1
+ 2 | 2 |   | 27 |     1
+ 2 | 2 |   | 28 |     1
+ 2 | 2 |   | 29 |     1
+ 2 | 2 |   | 30 |     1
+ 2 | 2 |   | 31 |     1
+ 2 | 2 |   | 32 |     1
+ 2 | 2 |   | 33 |     1
+ 2 | 2 |   | 34 |     1
+ 2 | 2 |   | 35 |     1
+ 2 | 2 |   | 36 |     1
+ 2 | 2 |   | 37 |     1
+ 2 | 2 |   | 38 |     1
+ 2 | 2 |   | 39 |     1
+ 2 | 2 |   | 40 |     1
+ 2 | 2 |   |    |    40
+(172 rows)
+
+--
+-- Compare results between plans using sorting and plans using hash
+-- aggregation. Force spilling in both cases by setting work_mem low
+-- and altering the statistics.
+--
+create table gs_data_1 as
+select g%1000 as g1000, g%100 as g100, g%10 as g10, g
+   from generate_series(0,1999) g;
+analyze gs_data_1;
+alter table gs_data_1 set (autovacuum_enabled = 'false');
+update pg_class set reltuples = 10 where relname='gs_data_1';
+SET work_mem='64kB';
+-- Produce results with sorting.
+set enable_hashagg = false;
+set jit_above_cost = 0;
+explain (costs off)
+select g100, g10, sum(g::numeric), count(*), max(g::text)
+from gs_data_1 group by cube (g1000, g100,g10);
+                                     QUERY PLAN                                      
+-------------------------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   CTE Grouping_1 (datanodes 2)
+     ->  Sort
+           Sort Key: gs_data_1.g1000, gs_data_1.g100, gs_data_1.g10
+           ->  Seq Scan on gs_data_1
+   ->  Append
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by Local
+               ->  Finalize GroupAggregate
+                     Group Key: g1000, g100, g10
+                     ->  Sort
+                           Sort Key: g1000, g100, g10
+                           ->  Remote Subquery Scan on all (datanodes 2)
+                                 Sort Key: g1000, g100, g10
+                                 Distribute results by S: g1000, g100, g10
+                                 ->  Partial GroupAggregate
+                                       Group Key: g1000, g100, g10
+                                       ->  Sort
+                                             Sort Key: g1000, g100, g10
+                                             ->  Shared CTE Scan on "CTE Grouping_1"
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by Local
+               ->  Finalize GroupAggregate
+                     Group Key: g1000, g100
+                     ->  Sort
+                           Sort Key: g1000, g100
+                           ->  Remote Subquery Scan on all (datanodes 2)
+                                 Sort Key: g1000, g100
+                                 Distribute results by S: g1000, g100
+                                 ->  Partial GroupAggregate
+                                       Group Key: g1000, g100
+                                       ->  Sort
+                                             Sort Key: g1000, g100
+                                             ->  Shared CTE Scan on "CTE Grouping_1"
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by Local
+               ->  Finalize GroupAggregate
+                     Group Key: g1000
+                     ->  Sort
+                           Sort Key: g1000
+                           ->  Remote Subquery Scan on all (datanodes 2)
+                                 Sort Key: g1000
+                                 Distribute results by S: g1000
+                                 ->  Partial GroupAggregate
+                                       Group Key: g1000
+                                       ->  Sort
+                                             Sort Key: g1000
+                                             ->  Shared CTE Scan on "CTE Grouping_1"
+         ->  Remote Subquery Scan on all (datanodes 1)
+               Distribute results by Local
+               ->  Finalize Aggregate
+                     ->  Remote Subquery Scan on all (datanodes 2)
+                           ->  Partial Aggregate
+                                 ->  Shared CTE Scan on "CTE Grouping_1"
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by Local
+               ->  Finalize GroupAggregate
+                     Group Key: g100, g10
+                     ->  Sort
+                           Sort Key: g100, g10
+                           ->  Remote Subquery Scan on all (datanodes 2)
+                                 Sort Key: g100, g10
+                                 Distribute results by S: g100, g10
+                                 ->  Partial GroupAggregate
+                                       Group Key: g100, g10
+                                       ->  Sort
+                                             Sort Key: g100, g10
+                                             ->  Shared CTE Scan on "CTE Grouping_1"
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by Local
+               ->  Finalize GroupAggregate
+                     Group Key: g100
+                     ->  Sort
+                           Sort Key: g100
+                           ->  Remote Subquery Scan on all (datanodes 2)
+                                 Sort Key: g100
+                                 Distribute results by S: g100
+                                 ->  Partial GroupAggregate
+                                       Group Key: g100
+                                       ->  Sort
+                                             Sort Key: g100
+                                             ->  Shared CTE Scan on "CTE Grouping_1"
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by Local
+               ->  Finalize GroupAggregate
+                     Group Key: g10, g1000
+                     ->  Sort
+                           Sort Key: g10, g1000
+                           ->  Remote Subquery Scan on all (datanodes 2)
+                                 Sort Key: g10, g1000
+                                 Distribute results by S: g10, g1000
+                                 ->  Partial GroupAggregate
+                                       Group Key: g10, g1000
+                                       ->  Sort
+                                             Sort Key: g10, g1000
+                                             ->  Shared CTE Scan on "CTE Grouping_1"
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by Local
+               ->  Finalize GroupAggregate
+                     Group Key: g10
+                     ->  Sort
+                           Sort Key: g10
+                           ->  Remote Subquery Scan on all (datanodes 2)
+                                 Sort Key: g10
+                                 Distribute results by S: g10
+                                 ->  Partial GroupAggregate
+                                       Group Key: g10
+                                       ->  Sort
+                                             Sort Key: g10
+                                             ->  Shared CTE Scan on "CTE Grouping_1"
+(110 rows)
+
+create table gs_group_1 as
+select g100, g10, sum(g::numeric), count(*), max(g::text)
+from gs_data_1 group by cube (g1000, g100,g10);
+-- Produce results with hash aggregation.
+set enable_hashagg = true;
+set enable_sort = false;
+explain (costs off)
+select g100, g10, sum(g::numeric), count(*), max(g::text)
+from gs_data_1 group by cube (g1000, g100,g10);
+                                    QUERY PLAN                                    
+----------------------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   CTE Grouping_1 (datanodes 2)
+     ->  Seq Scan on gs_data_1
+   ->  Append
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by Local
+               ->  Finalize HashAggregate
+                     Group Key: g1000, g100, g10
+                     ->  Remote Subquery Scan on all (datanodes 2)
+                           Workers Planned: 1
+                           Distribute results by S: g1000, g100, g10
+                           ->  Partial HashAggregate
+                                 Group Key: g1000, g100, g10
+                                 ->  Parallel Shared CTE Scan on "CTE Grouping_1"
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by Local
+               ->  Finalize HashAggregate
+                     Group Key: g1000, g100
+                     ->  Remote Subquery Scan on all (datanodes 2)
+                           Workers Planned: 1
+                           Distribute results by S: g1000, g100
+                           ->  Partial HashAggregate
+                                 Group Key: g1000, g100
+                                 ->  Parallel Shared CTE Scan on "CTE Grouping_1"
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by Local
+               ->  Finalize HashAggregate
+                     Group Key: g1000
+                     ->  Remote Subquery Scan on all (datanodes 2)
+                           Workers Planned: 1
+                           Distribute results by S: g1000
+                           ->  Partial HashAggregate
+                                 Group Key: g1000
+                                 ->  Parallel Shared CTE Scan on "CTE Grouping_1"
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by Local
+               ->  Finalize HashAggregate
+                     Group Key: g100, g10
+                     ->  Remote Subquery Scan on all (datanodes 2)
+                           Workers Planned: 1
+                           Distribute results by S: g100, g10
+                           ->  Partial HashAggregate
+                                 Group Key: g100, g10
+                                 ->  Parallel Shared CTE Scan on "CTE Grouping_1"
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by Local
+               ->  Finalize HashAggregate
+                     Group Key: g100
+                     ->  Remote Subquery Scan on all (datanodes 2)
+                           Workers Planned: 1
+                           Distribute results by S: g100
+                           ->  Partial HashAggregate
+                                 Group Key: g100
+                                 ->  Parallel Shared CTE Scan on "CTE Grouping_1"
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by Local
+               ->  Finalize HashAggregate
+                     Group Key: g10, g1000
+                     ->  Remote Subquery Scan on all (datanodes 2)
+                           Workers Planned: 1
+                           Distribute results by S: g10, g1000
+                           ->  Partial HashAggregate
+                                 Group Key: g10, g1000
+                                 ->  Parallel Shared CTE Scan on "CTE Grouping_1"
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by Local
+               ->  Finalize HashAggregate
+                     Group Key: g10
+                     ->  Remote Subquery Scan on all (datanodes 2)
+                           Workers Planned: 1
+                           Distribute results by S: g10
+                           ->  Partial HashAggregate
+                                 Group Key: g10
+                                 ->  Parallel Shared CTE Scan on "CTE Grouping_1"
+         ->  Remote Subquery Scan on all (datanodes 1)
+               Distribute results by Local
+               ->  Finalize Aggregate
+                     ->  Remote Subquery Scan on all (datanodes 2)
+                           Workers Planned: 1
+                           ->  Partial Aggregate
+                                 ->  Parallel Shared CTE Scan on "CTE Grouping_1"
+(81 rows)
+
+create table gs_hash_1 as
+select g100, g10, sum(g::numeric), count(*), max(g::text)
+from gs_data_1 group by cube (g1000, g100,g10);
+set enable_sort = true;
+set work_mem to default;
+-- Compare results
+(select * from gs_hash_1 except select * from gs_group_1)
+  union all
+(select * from gs_group_1 except select * from gs_hash_1);
+ g100 | g10 | sum | count | max 
+------+-----+-----+-------+-----
+(0 rows)
+
+drop table gs_group_1;
+drop table gs_hash_1;
+-- Check plan with group_optimizer
+-- normal output target
+explain (costs off, verbose) select g1000, g100 from gs_data_1 group by rollup(g1000, g100);
+                                   QUERY PLAN                                   
+--------------------------------------------------------------------------------
+ Remote Subquery Scan[1] on all (datanode_1,datanode_2)
+   Output: g1000, g100
+   ->  Append
+         ->  Remote Subquery Scan[2] on all (datanode_1,datanode_2)
+               Output: g1000, g100
+               Distribute results by Local
+               ->  Finalize HashAggregate
+                     Output: g1000, g100
+                     Group Key: gs_data_1.g1000, gs_data_1.g100
+                     ->  Remote Subquery Scan[3] on all (datanode_1,datanode_2)
+                           Output: g1000, g100
+                           Distribute results by S: g1000, g100
+                           ->  Partial HashAggregate
+                                 Output: g1000, g100
+                                 Group Key: gs_data_1.g1000, gs_data_1.g100
+                                 ->  Seq Scan on public.gs_data_1
+                                       Output: g1000, g100
+         ->  Remote Subquery Scan[4] on all (datanode_1,datanode_2)
+               Output: g1000, NULL::integer
+               Distribute results by Local
+               ->  Finalize HashAggregate
+                     Output: g1000, NULL::integer
+                     Group Key: gs_data_1.g1000
+                     ->  Remote Subquery Scan[5] on all (datanode_1,datanode_2)
+                           Output: g1000
+                           Distribute results by S: g1000
+                           ->  Partial HashAggregate
+                                 Output: g1000
+                                 Group Key: gs_data_1.g1000
+                                 ->  Seq Scan on public.gs_data_1
+                                       Output: g1000, g100
+         ->  Remote Subquery Scan[6] on all (datanode_1)
+               Output: NULL::integer, NULL::integer
+               Distribute results by Local
+               ->  Result
+                     Output: NULL::integer, NULL::integer
+(36 rows)
+
+-- output with grouping func + expr
+explain (costs off, verbose) select g1000, g100, grouping(g1000, g100) * 2 from gs_data_1 group by rollup(g1000, g100);
+                                   QUERY PLAN                                    
+---------------------------------------------------------------------------------
+ Remote Subquery Scan[1] on all (datanode_1,datanode_2)
+   Output: g1000, g100, (((GROUPING(g1000, g100)) * 2))
+   ->  Append
+         ->  Remote Subquery Scan[2] on all (datanode_1,datanode_2)
+               Output: g1000, g100, (((GROUPING(g1000, g100)) * 2))
+               Distribute results by Local
+               ->  Finalize HashAggregate
+                     Output: g1000, g100, ((GROUPING(g1000, g100)) * 2)
+                     Group Key: gs_data_1.g1000, gs_data_1.g100
+                     ->  Remote Subquery Scan[3] on all (datanode_1,datanode_2)
+                           Output: g1000, g100, (GROUPING(g1000, g100))
+                           Distribute results by S: g1000, g100
+                           ->  Partial HashAggregate
+                                 Output: g1000, g100, GROUPING(g1000, g100)
+                                 Group Key: gs_data_1.g1000, gs_data_1.g100
+                                 ->  Seq Scan on public.gs_data_1
+                                       Output: g1000, g100
+         ->  Remote Subquery Scan[4] on all (datanode_1,datanode_2)
+               Output: g1000, NULL::integer, (((GROUPING(g1000, g100)) * 2))
+               Distribute results by Local
+               ->  Finalize HashAggregate
+                     Output: g1000, NULL::integer, ((GROUPING(g1000, g100)) * 2)
+                     Group Key: gs_data_1.g1000
+                     ->  Remote Subquery Scan[5] on all (datanode_1,datanode_2)
+                           Output: g1000, (GROUPING(g1000, g100))
+                           Distribute results by S: g1000
+                           ->  Partial HashAggregate
+                                 Output: g1000, GROUPING(g1000, g100)
+                                 Group Key: gs_data_1.g1000
+                                 ->  Seq Scan on public.gs_data_1
+                                       Output: g1000, g100
+         ->  Remote Subquery Scan[6] on all (datanode_1)
+               Output: NULL::integer, NULL::integer, ((3 * 2))
+               Distribute results by Local
+               ->  Result
+                     Output: NULL::integer, NULL::integer, (3 * 2)
+(36 rows)
+
+-- output with agg
+explain (costs off, verbose) select g1000, g100, sum(g100), avg(g10) from gs_data_1 group by rollup(g1000, g100);
+                                        QUERY PLAN                                        
+------------------------------------------------------------------------------------------
+ Remote Subquery Scan[1] on all (datanode_1,datanode_2)
+   Output: g1000, g100, (sum(g100)), (avg(g10))
+   ->  Append
+         ->  Remote Subquery Scan[2] on all (datanode_1,datanode_2)
+               Output: g1000, g100, (sum(g100)), (avg(g10))
+               Distribute results by Local
+               ->  Finalize HashAggregate
+                     Output: g1000, g100, sum(g100), avg(g10)
+                     Group Key: gs_data_1.g1000, gs_data_1.g100
+                     ->  Remote Subquery Scan[3] on all (datanode_1,datanode_2)
+                           Output: g1000, g100, (PARTIAL sum(g100)), (PARTIAL avg(g10))
+                           Distribute results by S: g1000, g100
+                           ->  Partial HashAggregate
+                                 Output: g1000, g100, PARTIAL sum(g100), PARTIAL avg(g10)
+                                 Group Key: gs_data_1.g1000, gs_data_1.g100
+                                 ->  Seq Scan on public.gs_data_1
+                                       Output: g1000, g100, g10
+         ->  Remote Subquery Scan[4] on all (datanode_1,datanode_2)
+               Output: g1000, NULL::integer, (sum(g100)), (avg(g10))
+               Distribute results by Local
+               ->  Finalize HashAggregate
+                     Output: g1000, NULL::integer, sum(g100), avg(g10)
+                     Group Key: gs_data_1.g1000
+                     ->  Remote Subquery Scan[5] on all (datanode_1,datanode_2)
+                           Output: g1000, (PARTIAL sum(g100)), (PARTIAL avg(g10))
+                           Distribute results by S: g1000
+                           ->  Partial HashAggregate
+                                 Output: g1000, PARTIAL sum(g100), PARTIAL avg(g10)
+                                 Group Key: gs_data_1.g1000
+                                 ->  Seq Scan on public.gs_data_1
+                                       Output: g1000, g100, g10
+         ->  Remote Subquery Scan[6] on all (datanode_1)
+               Output: NULL::integer, NULL::integer, (sum(g100)), (avg(g10))
+               Distribute results by Local
+               ->  Finalize Aggregate
+                     Output: NULL::integer, NULL::integer, sum(g100), avg(g10)
+                     ->  Remote Subquery Scan[7] on all (datanode_1,datanode_2)
+                           Output: (PARTIAL sum(g100)), (PARTIAL avg(g10))
+                           ->  Partial Aggregate
+                                 Output: PARTIAL sum(g100), PARTIAL avg(g10)
+                                 ->  Seq Scan on public.gs_data_1
+                                       Output: g1000, g100, g10, g
+(42 rows)
+
+-- output with agg + grouping func + expr
+explain (costs off, verbose) select g1000, g100, sum(g100), avg(g10), grouping(g1000, g100) * 2 from gs_data_1 group by rollup(g1000, g100);
+                                                   QUERY PLAN                                                    
+-----------------------------------------------------------------------------------------------------------------
+ Remote Subquery Scan[1] on all (datanode_1,datanode_2)
+   Output: g1000, g100, (sum(g100)), (avg(g10)), (((GROUPING(g1000, g100)) * 2))
+   ->  Append
+         ->  Remote Subquery Scan[2] on all (datanode_1,datanode_2)
+               Output: g1000, g100, (sum(g100)), (avg(g10)), (((GROUPING(g1000, g100)) * 2))
+               Distribute results by Local
+               ->  Finalize HashAggregate
+                     Output: g1000, g100, sum(g100), avg(g10), ((GROUPING(g1000, g100)) * 2)
+                     Group Key: gs_data_1.g1000, gs_data_1.g100
+                     ->  Remote Subquery Scan[3] on all (datanode_1,datanode_2)
+                           Output: g1000, g100, (PARTIAL sum(g100)), (PARTIAL avg(g10)), (GROUPING(g1000, g100))
+                           Distribute results by S: g1000, g100
+                           ->  Partial HashAggregate
+                                 Output: g1000, g100, PARTIAL sum(g100), PARTIAL avg(g10), GROUPING(g1000, g100)
+                                 Group Key: gs_data_1.g1000, gs_data_1.g100
+                                 ->  Seq Scan on public.gs_data_1
+                                       Output: g1000, g100, g10
+         ->  Remote Subquery Scan[4] on all (datanode_1,datanode_2)
+               Output: g1000, NULL::integer, (sum(g100)), (avg(g10)), (((GROUPING(g1000, g100)) * 2))
+               Distribute results by Local
+               ->  Finalize HashAggregate
+                     Output: g1000, NULL::integer, sum(g100), avg(g10), ((GROUPING(g1000, g100)) * 2)
+                     Group Key: gs_data_1.g1000
+                     ->  Remote Subquery Scan[5] on all (datanode_1,datanode_2)
+                           Output: g1000, (PARTIAL sum(g100)), (PARTIAL avg(g10)), (GROUPING(g1000, g100))
+                           Distribute results by S: g1000
+                           ->  Partial HashAggregate
+                                 Output: g1000, PARTIAL sum(g100), PARTIAL avg(g10), GROUPING(g1000, g100)
+                                 Group Key: gs_data_1.g1000
+                                 ->  Seq Scan on public.gs_data_1
+                                       Output: g1000, g100, g10
+         ->  Remote Subquery Scan[6] on all (datanode_1)
+               Output: NULL::integer, NULL::integer, (sum(g100)), (avg(g10)), ((3 * 2))
+               Distribute results by Local
+               ->  Finalize Aggregate
+                     Output: NULL::integer, NULL::integer, sum(g100), avg(g10), (3 * 2)
+                     ->  Remote Subquery Scan[7] on all (datanode_1,datanode_2)
+                           Output: (PARTIAL sum(g100)), (PARTIAL avg(g10))
+                           ->  Partial Aggregate
+                                 Output: PARTIAL sum(g100), PARTIAL avg(g10)
+                                 ->  Seq Scan on public.gs_data_1
+                                       Output: g1000, g100, g10, g
+(42 rows)
+
+-- OPENTENBASE
+-- mixed hashable/sortable cases
+select unhashable_col, unsortable_col,
+       grouping(unhashable_col, unsortable_col),
+       count(*), sum(v)
+  from gstest5 group by grouping sets ((unhashable_col),(unsortable_col))
+ order by 3, 5;
+ unhashable_col | unsortable_col | grouping | count | sum 
+----------------+----------------+----------+-------+-----
+ (0,0)          |                |        1 |     2 |  17
+ (0,1)          |                |        1 |     2 |  34
+ (0,2)          |                |        1 |     2 |  68
+ (0,3)          |                |        1 |     2 | 136
+                |              2 |        2 |     4 |  60
+                |              1 |        2 |     4 | 195
+(6 rows)
+
+explain (costs off)
+  select unhashable_col, unsortable_col,
+         grouping(unhashable_col, unsortable_col),
+         count(*), sum(v)
+    from gstest5 group by grouping sets ((unhashable_col),(unsortable_col))
+   order by 3,5;
+                            QUERY PLAN                            
+------------------------------------------------------------------
+ Sort
+   Sort Key: (GROUPING(unhashable_col, unsortable_col)), (sum(v))
+   ->  MixedAggregate
+         Hash Key: unsortable_col
+         Group Key: unhashable_col
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Sort Key: unhashable_col
+               ->  Sort
+                     Sort Key: unhashable_col
+                     ->  Seq Scan on gstest5
+(10 rows)
+
+select unhashable_col, unsortable_col,
+       grouping(unhashable_col, unsortable_col),
+       count(*), sum(v)
+  from gstest5 group by grouping sets ((v,unhashable_col),(v,unsortable_col))
+ order by 3,5;
+ unhashable_col | unsortable_col | grouping | count | sum 
+----------------+----------------+----------+-------+-----
+ (0,0)          |                |        1 |     1 |   1
+ (0,1)          |                |        1 |     1 |   2
+ (0,2)          |                |        1 |     1 |   4
+ (0,3)          |                |        1 |     1 |   8
+ (0,0)          |                |        1 |     1 |  16
+ (0,1)          |                |        1 |     1 |  32
+ (0,2)          |                |        1 |     1 |  64
+ (0,3)          |                |        1 |     1 | 128
+                |              1 |        2 |     1 |   1
+                |              1 |        2 |     1 |   2
+                |              2 |        2 |     1 |   4
+                |              2 |        2 |     1 |   8
+                |              2 |        2 |     1 |  16
+                |              2 |        2 |     1 |  32
+                |              1 |        2 |     1 |  64
+                |              1 |        2 |     1 | 128
+(16 rows)
+
+explain (costs off)
+  select unhashable_col, unsortable_col,
+         grouping(unhashable_col, unsortable_col),
+         count(*), sum(v)
+    from gstest5 group by grouping sets ((v,unhashable_col),(v,unsortable_col))
+   order by 3,5;
+                            QUERY PLAN                            
+------------------------------------------------------------------
+ Sort
+   Sort Key: (GROUPING(unhashable_col, unsortable_col)), (sum(v))
+   ->  MixedAggregate
+         Hash Key: v, unsortable_col
+         Group Key: v, unhashable_col
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Sort Key: v, unhashable_col
+               ->  Sort
+                     Sort Key: v, unhashable_col
+                     ->  Seq Scan on gstest5
+(10 rows)
+
+-- grouping func with share ctescan
+create table grouping_cte (c1 int, t2c2 numeric, c2 numeric, t2c1 int, c3 numeric);
+insert into grouping_cte values(10, 505.5, 505.5, 10, 48562.84);
+explain (costs off) select grouping(c1,c2,t2c1,t2c2, c3), c1, c2, t2c2, t2c1,c3 from grouping_cte group by cube ((c1, t2c2, c2, t2c1), c3, sin(1)) order by 1,2,3;
+                                                       QUERY PLAN                                                        
+-------------------------------------------------------------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   Sort Key: (GROUPING(c1, c2, t2c1, t2c2, c3)), c1, c2
+   CTE Grouping_1 (datanodes 2)
+     ->  Seq Scan on grouping_cte
+   ->  Sort
+         Sort Key: (GROUPING(c1, c2, t2c1, t2c2, c3)), c1, c2
+         ->  Append
+               ->  Remote Subquery Scan on all (datanodes 2)
+                     Distribute results by Local
+                     ->  Finalize HashAggregate
+                           Group Key: c3, '0.8414709848078965'::double precision, c1, t2c2, c2, t2c1
+                           ->  Remote Subquery Scan on all (datanodes 2)
+                                 Workers Planned: 1
+                                 Distribute results by S: c3, '0.8414709848078965'::double precision, c1, t2c2, c2, t2c1
+                                 ->  Partial HashAggregate
+                                       Group Key: c3, '0.8414709848078965'::double precision, c1, t2c2, c2, t2c1
+                                       ->  Parallel Shared CTE Scan on "CTE Grouping_1"
+               ->  Remote Subquery Scan on all (datanodes 2)
+                     Distribute results by Local
+                     ->  Finalize HashAggregate
+                           Group Key: c3, '0.8414709848078965'::double precision
+                           ->  Remote Subquery Scan on all (datanodes 2)
+                                 Workers Planned: 1
+                                 Distribute results by S: c3, '0.8414709848078965'::double precision
+                                 ->  Partial HashAggregate
+                                       Group Key: c3, '0.8414709848078965'::double precision
+                                       ->  Parallel Shared CTE Scan on "CTE Grouping_1"
+               ->  Remote Subquery Scan on all (datanodes 2)
+                     Distribute results by Local
+                     ->  Finalize HashAggregate
+                           Group Key: c3
+                           ->  Remote Subquery Scan on all (datanodes 2)
+                                 Workers Planned: 1
+                                 Distribute results by S: c3
+                                 ->  Partial HashAggregate
+                                       Group Key: c3
+                                       ->  Parallel Shared CTE Scan on "CTE Grouping_1"
+               ->  Remote Subquery Scan on all (datanodes 2)
+                     Distribute results by Local
+                     ->  Finalize HashAggregate
+                           Group Key: '0.8414709848078965'::double precision, c1, t2c2, c2, t2c1
+                           ->  Remote Subquery Scan on all (datanodes 2)
+                                 Workers Planned: 1
+                                 Distribute results by S: '0.8414709848078965'::double precision, c1, t2c2, c2, t2c1
+                                 ->  Partial HashAggregate
+                                       Group Key: '0.8414709848078965'::double precision, c1, t2c2, c2, t2c1
+                                       ->  Parallel Shared CTE Scan on "CTE Grouping_1"
+               ->  Remote Subquery Scan on all (datanodes 2)
+                     Distribute results by Local
+                     ->  Finalize HashAggregate
+                           Group Key: '0.8414709848078965'::double precision
+                           ->  Remote Subquery Scan on all (datanodes 2)
+                                 Workers Planned: 1
+                                 Distribute results by S: '0.8414709848078965'::double precision
+                                 ->  Partial HashAggregate
+                                       Group Key: '0.8414709848078965'::double precision
+                                       ->  Parallel Shared CTE Scan on "CTE Grouping_1"
+               ->  Remote Subquery Scan on all (datanodes 2)
+                     Distribute results by Local
+                     ->  Finalize HashAggregate
+                           Group Key: c1, t2c2, c2, t2c1, c3
+                           ->  Remote Subquery Scan on all (datanodes 2)
+                                 Workers Planned: 1
+                                 Distribute results by S: c1, t2c2, c2, t2c1, c3
+                                 ->  Partial HashAggregate
+                                       Group Key: c1, t2c2, c2, t2c1, c3
+                                       ->  Parallel Shared CTE Scan on "CTE Grouping_1"
+               ->  Remote Subquery Scan on all (datanodes 2)
+                     Distribute results by Local
+                     ->  Finalize HashAggregate
+                           Group Key: c1, t2c2, c2, t2c1
+                           ->  Remote Subquery Scan on all (datanodes 2)
+                                 Workers Planned: 1
+                                 Distribute results by S: c1, t2c2, c2, t2c1
+                                 ->  Partial HashAggregate
+                                       Group Key: c1, t2c2, c2, t2c1
+                                       ->  Parallel Shared CTE Scan on "CTE Grouping_1"
+               ->  Remote Subquery Scan on all (datanodes 1)
+                     Distribute results by Local
+                     ->  Result
+(80 rows)
+
+select grouping(c1,c2,t2c1,t2c2, c3), c1, c2, t2c2, t2c1,c3 from grouping_cte group by cube ((c1, t2c2, c2, t2c1), c3, sin(1)) order by 1,2,3;
+ grouping | c1 |  c2   | t2c2  | t2c1 |    c3    
+----------+----+-------+-------+------+----------
+        0 | 10 | 505.5 | 505.5 |   10 | 48562.84
+        0 | 10 | 505.5 | 505.5 |   10 | 48562.84
+        1 | 10 | 505.5 | 505.5 |   10 |         
+        1 | 10 | 505.5 | 505.5 |   10 |         
+       30 |    |       |       |      | 48562.84
+       30 |    |       |       |      | 48562.84
+       31 |    |       |       |      |         
+       31 |    |       |       |      |         
+(8 rows)
+
+set parallel_tuple_cost to 0;
+set parallel_setup_cost to 0;
+set min_parallel_table_scan_size to 0;
+explain (costs off) select grouping(c1,c2,t2c1,t2c2, c3), c1, c2, t2c2, t2c1,c3 from grouping_cte group by cube ((c1, t2c2, c2, t2c1), c3, sin(1)) order by 1,2,3;
+                                                       QUERY PLAN                                                        
+-------------------------------------------------------------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   Sort Key: (GROUPING(c1, c2, t2c1, t2c2, c3)), c1, c2
+   CTE Grouping_1 (datanodes 2)
+     ->  Gather
+           Workers Planned: 2
+           ->  Parallel Seq Scan on grouping_cte
+   ->  Sort
+         Sort Key: (GROUPING(c1, c2, t2c1, t2c2, c3)), c1, c2
+         ->  Append
+               ->  Remote Subquery Scan on all (datanodes 2)
+                     Distribute results by Local
+                     ->  Finalize HashAggregate
+                           Group Key: c3, '0.8414709848078965'::double precision, c1, t2c2, c2, t2c1
+                           ->  Remote Subquery Scan on all (datanodes 2)
+                                 Workers Planned: 2
+                                 Distribute results by S: c3, '0.8414709848078965'::double precision, c1, t2c2, c2, t2c1
+                                 ->  Partial HashAggregate
+                                       Group Key: c3, '0.8414709848078965'::double precision, c1, t2c2, c2, t2c1
+                                       ->  Parallel Shared CTE Scan on "CTE Grouping_1"
+               ->  Remote Subquery Scan on all (datanodes 2)
+                     Distribute results by Local
+                     ->  Finalize HashAggregate
+                           Group Key: c3, '0.8414709848078965'::double precision
+                           ->  Remote Subquery Scan on all (datanodes 2)
+                                 Workers Planned: 2
+                                 Distribute results by S: c3, '0.8414709848078965'::double precision
+                                 ->  Partial HashAggregate
+                                       Group Key: c3, '0.8414709848078965'::double precision
+                                       ->  Parallel Shared CTE Scan on "CTE Grouping_1"
+               ->  Remote Subquery Scan on all (datanodes 2)
+                     Distribute results by Local
+                     ->  Finalize HashAggregate
+                           Group Key: c3
+                           ->  Remote Subquery Scan on all (datanodes 2)
+                                 Workers Planned: 2
+                                 Distribute results by S: c3
+                                 ->  Partial HashAggregate
+                                       Group Key: c3
+                                       ->  Parallel Shared CTE Scan on "CTE Grouping_1"
+               ->  Remote Subquery Scan on all (datanodes 2)
+                     Distribute results by Local
+                     ->  Finalize HashAggregate
+                           Group Key: '0.8414709848078965'::double precision, c1, t2c2, c2, t2c1
+                           ->  Remote Subquery Scan on all (datanodes 2)
+                                 Workers Planned: 2
+                                 Distribute results by S: '0.8414709848078965'::double precision, c1, t2c2, c2, t2c1
+                                 ->  Partial HashAggregate
+                                       Group Key: '0.8414709848078965'::double precision, c1, t2c2, c2, t2c1
+                                       ->  Parallel Shared CTE Scan on "CTE Grouping_1"
+               ->  Remote Subquery Scan on all (datanodes 2)
+                     Distribute results by Local
+                     ->  Finalize HashAggregate
+                           Group Key: '0.8414709848078965'::double precision
+                           ->  Remote Subquery Scan on all (datanodes 2)
+                                 Workers Planned: 2
+                                 Distribute results by S: '0.8414709848078965'::double precision
+                                 ->  Partial HashAggregate
+                                       Group Key: '0.8414709848078965'::double precision
+                                       ->  Parallel Shared CTE Scan on "CTE Grouping_1"
+               ->  Remote Subquery Scan on all (datanodes 2)
+                     Distribute results by Local
+                     ->  Finalize HashAggregate
+                           Group Key: c1, t2c2, c2, t2c1, c3
+                           ->  Remote Subquery Scan on all (datanodes 2)
+                                 Workers Planned: 2
+                                 Distribute results by S: c1, t2c2, c2, t2c1, c3
+                                 ->  Partial HashAggregate
+                                       Group Key: c1, t2c2, c2, t2c1, c3
+                                       ->  Parallel Shared CTE Scan on "CTE Grouping_1"
+               ->  Remote Subquery Scan on all (datanodes 2)
+                     Distribute results by Local
+                     ->  Finalize HashAggregate
+                           Group Key: c1, t2c2, c2, t2c1
+                           ->  Remote Subquery Scan on all (datanodes 2)
+                                 Workers Planned: 2
+                                 Distribute results by S: c1, t2c2, c2, t2c1
+                                 ->  Partial HashAggregate
+                                       Group Key: c1, t2c2, c2, t2c1
+                                       ->  Parallel Shared CTE Scan on "CTE Grouping_1"
+               ->  Remote Subquery Scan on all (datanodes 1)
+                     Distribute results by Local
+                     ->  Result
+(82 rows)
+
+select grouping(c1,c2,t2c1,t2c2, c3), c1, c2, t2c2, t2c1,c3 from grouping_cte group by cube ((c1, t2c2, c2, t2c1), c3, sin(1)) order by 1,2,3;
+ grouping | c1 |  c2   | t2c2  | t2c1 |    c3    
+----------+----+-------+-------+------+----------
+        0 | 10 | 505.5 | 505.5 |   10 | 48562.84
+        0 | 10 | 505.5 | 505.5 |   10 | 48562.84
+        1 | 10 | 505.5 | 505.5 |   10 |         
+        1 | 10 | 505.5 | 505.5 |   10 |         
+       30 |    |       |       |      | 48562.84
+       30 |    |       |       |      | 48562.84
+       31 |    |       |       |      |         
+       31 |    |       |       |      |         
+(8 rows)
+
+reset parallel_tuple_cost;
+reset parallel_setup_cost;
+reset min_parallel_table_scan_size;
+drop table grouping_cte;
+drop view gstest1;
+drop view gstest_view;
+drop table gstest2;
+drop table gstest3;
+drop table gstest4;
+drop table gstest5;
+drop table gstest_empty;
+drop function gstest_data;
+drop table bug_16784;
+drop table gs_data_1;

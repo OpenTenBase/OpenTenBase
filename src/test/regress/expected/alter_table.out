@@ -319,7 +319,7 @@ ALTER TABLE constraint_rename_test RENAME CONSTRAINT con3 TO con3foo; -- ok
  b      | integer |           |          | 
  c      | integer |           |          | 
 Indexes:
-    "con3foo" PRIMARY KEY, btree (a)
+    "con3foo" PRIMARY KEY, btree (a) WITH (checksum='on')
 Check constraints:
     "con1foo" CHECK (a > 0)
     "con2bar" CHECK (b > 0) NO INHERIT
@@ -464,43 +464,43 @@ alter table nv_child_2011 add check (d between '2011-01-01'::date and '2011-12-3
 explain (costs off, nodes off) select * from nv_parent where d between '2011-08-01' and '2011-08-31';
                                    QUERY PLAN                                    
 ---------------------------------------------------------------------------------
- Remote Subquery Scan on all
+ Remote Fast Query Execution Mode: fqs_mode_std_planer
    ->  Append
          ->  Seq Scan on nv_parent
-               Filter: ((d >= '08-01-2011'::date) AND (d <= '08-31-2011'::date))
+               Filter: ((d >= '2011-08-01'::date) AND (d <= '2011-08-31'::date))
          ->  Seq Scan on nv_child_2010
-               Filter: ((d >= '08-01-2011'::date) AND (d <= '08-31-2011'::date))
+               Filter: ((d >= '2011-08-01'::date) AND (d <= '2011-08-31'::date))
          ->  Seq Scan on nv_child_2011
-               Filter: ((d >= '08-01-2011'::date) AND (d <= '08-31-2011'::date))
+               Filter: ((d >= '2011-08-01'::date) AND (d <= '2011-08-31'::date))
 (8 rows)
 
 create table nv_child_2009 (check (d between '2009-01-01'::date and '2009-12-31'::date)) inherits (nv_parent);
 explain (costs off, nodes off) select * from nv_parent where d between '2011-08-01'::date and '2011-08-31'::date;
                                    QUERY PLAN                                    
 ---------------------------------------------------------------------------------
- Remote Subquery Scan on all
+ Remote Fast Query Execution Mode: fqs_mode_std_planer
    ->  Append
          ->  Seq Scan on nv_parent
-               Filter: ((d >= '08-01-2011'::date) AND (d <= '08-31-2011'::date))
+               Filter: ((d >= '2011-08-01'::date) AND (d <= '2011-08-31'::date))
          ->  Seq Scan on nv_child_2010
-               Filter: ((d >= '08-01-2011'::date) AND (d <= '08-31-2011'::date))
+               Filter: ((d >= '2011-08-01'::date) AND (d <= '2011-08-31'::date))
          ->  Seq Scan on nv_child_2011
-               Filter: ((d >= '08-01-2011'::date) AND (d <= '08-31-2011'::date))
+               Filter: ((d >= '2011-08-01'::date) AND (d <= '2011-08-31'::date))
 (8 rows)
 
 explain (costs off, nodes off) select * from nv_parent where d between '2009-08-01'::date and '2009-08-31'::date;
                                    QUERY PLAN                                    
 ---------------------------------------------------------------------------------
- Remote Subquery Scan on all
+ Remote Fast Query Execution Mode: fqs_mode_std_planer
    ->  Append
          ->  Seq Scan on nv_parent
-               Filter: ((d >= '08-01-2009'::date) AND (d <= '08-31-2009'::date))
+               Filter: ((d >= '2009-08-01'::date) AND (d <= '2009-08-31'::date))
          ->  Seq Scan on nv_child_2010
-               Filter: ((d >= '08-01-2009'::date) AND (d <= '08-31-2009'::date))
+               Filter: ((d >= '2009-08-01'::date) AND (d <= '2009-08-31'::date))
          ->  Seq Scan on nv_child_2011
-               Filter: ((d >= '08-01-2009'::date) AND (d <= '08-31-2009'::date))
+               Filter: ((d >= '2009-08-01'::date) AND (d <= '2009-08-31'::date))
          ->  Seq Scan on nv_child_2009
-               Filter: ((d >= '08-01-2009'::date) AND (d <= '08-31-2009'::date))
+               Filter: ((d >= '2009-08-01'::date) AND (d <= '2009-08-31'::date))
 (10 rows)
 
 -- after validation, the constraint should be used
@@ -508,14 +508,14 @@ alter table nv_child_2011 VALIDATE CONSTRAINT nv_child_2011_d_check;
 explain (costs off, nodes off) select * from nv_parent where d between '2009-08-01'::date and '2009-08-31'::date;
                                    QUERY PLAN                                    
 ---------------------------------------------------------------------------------
- Remote Subquery Scan on all
+ Remote Fast Query Execution Mode: fqs_mode_std_planer
    ->  Append
          ->  Seq Scan on nv_parent
-               Filter: ((d >= '08-01-2009'::date) AND (d <= '08-31-2009'::date))
+               Filter: ((d >= '2009-08-01'::date) AND (d <= '2009-08-31'::date))
          ->  Seq Scan on nv_child_2010
-               Filter: ((d >= '08-01-2009'::date) AND (d <= '08-31-2009'::date))
+               Filter: ((d >= '2009-08-01'::date) AND (d <= '2009-08-31'::date))
          ->  Seq Scan on nv_child_2009
-               Filter: ((d >= '08-01-2009'::date) AND (d <= '08-31-2009'::date))
+               Filter: ((d >= '2009-08-01'::date) AND (d <= '2009-08-31'::date))
 (8 rows)
 
 -- add an inherited NOT VALID constraint
@@ -1983,8 +1983,8 @@ create index on at_partitioned (a);
  b      | text    |           |          | 
 Partition of: at_partitioned FOR VALUES FROM (0) TO (1000)
 Indexes:
-    "at_part_1_a_idx" btree (a)
-    "at_part_1_b_idx" btree (b)
+    "at_part_1_a_idx" btree (a) WITH (checksum='on')
+    "at_part_1_b_idx" btree (b) WITH (checksum='on')
 
 \d at_part_2
              Table "public.at_part_2"
@@ -2002,8 +2002,8 @@ alter table at_partitioned attach partition at_part_2 for values from (1000) to 
  b      | text    |           |          | 
 Partition of: at_partitioned FOR VALUES FROM (1000) TO (2000)
 Indexes:
-    "at_part_2_a_idx" btree (a)
-    "at_part_2_b_idx" btree (b)
+    "at_part_2_a_idx" btree (a) WITH (checksum='on')
+    "at_part_2_b_idx" btree (b) WITH (checksum='on')
 
 alter table at_partitioned alter column b type numeric using b::numeric;
 \d at_part_1
@@ -2014,8 +2014,8 @@ alter table at_partitioned alter column b type numeric using b::numeric;
  b      | numeric |           |          | 
 Partition of: at_partitioned FOR VALUES FROM (0) TO (1000)
 Indexes:
-    "at_part_1_a_idx" btree (a)
-    "at_part_1_b_idx" btree (b)
+    "at_part_1_a_idx" btree (a) WITH (checksum='on')
+    "at_part_1_b_idx" btree (b) WITH (checksum='on')
 
 \d at_part_2
              Table "public.at_part_2"
@@ -2025,8 +2025,8 @@ Indexes:
  b      | numeric |           |          | 
 Partition of: at_partitioned FOR VALUES FROM (1000) TO (2000)
 Indexes:
-    "at_part_2_a_idx" btree (a)
-    "at_part_2_b_idx" btree (b)
+    "at_part_2_a_idx" btree (a) WITH (checksum='on')
+    "at_part_2_b_idx" btree (b) WITH (checksum='on')
 
 -- disallow recursive containment of row types
 create temp table recur1 (f1 int);
@@ -2035,11 +2035,8 @@ ERROR:  composite type recur1 cannot be made a member of itself
 alter table recur1 add column f2 recur1[]; -- fails
 ERROR:  composite type recur1 cannot be made a member of itself
 create domain array_of_recur1 as recur1[];
-ERROR:  type "recur1[]" does not exist
 alter table recur1 add column f2 array_of_recur1; -- fails
-ERROR:  type "array_of_recur1" does not exist
-LINE 1: alter table recur1 add column f2 array_of_recur1;
-                                         ^
+ERROR:  composite type recur1 cannot be made a member of itself
 create temp table recur2 (f1 int, f2 recur1);
 alter table recur1 add column f2 recur2; -- fails
 ERROR:  composite type recur1 cannot be made a member of itself
@@ -2252,6 +2249,128 @@ Foreign-key constraints:
     "check_fk_presence_2_id_fkey" FOREIGN KEY (id) REFERENCES check_fk_presence_1(id)
 
 DROP TABLE check_fk_presence_1, check_fk_presence_2;
+-- check column addition within a view (bug #14876)
+create table at_base_table(id int, stuff text);
+insert into at_base_table values (23, 'skidoo');
+create view at_view_1 as select * from at_base_table bt;
+create view at_view_2 as select *, to_json(v1) as j from at_view_1 v1;
+\d+ at_view_1
+                          View "public.at_view_1"
+ Column |  Type   | Collation | Nullable | Default | Storage  | Description 
+--------+---------+-----------+----------+---------+----------+-------------
+ id     | integer |           |          |         | plain    | 
+ stuff  | text    |           |          |         | extended | 
+View definition:
+ SELECT bt.id,
+    bt.stuff
+   FROM at_base_table bt;
+
+\d+ at_view_2
+                          View "public.at_view_2"
+ Column |  Type   | Collation | Nullable | Default | Storage  | Description 
+--------+---------+-----------+----------+---------+----------+-------------
+ id     | integer |           |          |         | plain    | 
+ stuff  | text    |           |          |         | extended | 
+ j      | json    |           |          |         | extended | 
+View definition:
+ SELECT v1.id,
+    v1.stuff,
+    to_json(v1.*) AS j
+   FROM at_view_1 v1;
+
+explain (verbose, costs off) select * from at_view_2;
+                                                                          QUERY PLAN                                                                           
+---------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Remote Fast Query Execution Mode: fqs_mode_std_planer
+   Output: at_view_2.id, at_view_2.stuff, at_view_2.j
+   Node/s: datanode_1, datanode_2
+   Remote query: SELECT id, stuff, j FROM (SELECT v1.id, v1.stuff, to_json(v1.*) AS j FROM (SELECT bt.id, bt.stuff FROM public.at_base_table bt) v1) at_view_2
+   ->  Seq Scan on public.at_base_table bt
+         Output: bt.id, bt.stuff, to_json(ROW(bt.id, bt.stuff))
+(6 rows)
+
+select * from at_view_2;
+ id | stuff  |             j              
+----+--------+----------------------------
+ 23 | skidoo | {"id":23,"stuff":"skidoo"}
+(1 row)
+
+create or replace view at_view_1 as select *, 2+2 as more from at_base_table bt;
+\d+ at_view_1
+                          View "public.at_view_1"
+ Column |  Type   | Collation | Nullable | Default | Storage  | Description 
+--------+---------+-----------+----------+---------+----------+-------------
+ id     | integer |           |          |         | plain    | 
+ stuff  | text    |           |          |         | extended | 
+ more   | integer |           |          |         | plain    | 
+View definition:
+ SELECT bt.id,
+    bt.stuff,
+    2 + 2 AS more
+   FROM at_base_table bt;
+
+\d+ at_view_2
+                          View "public.at_view_2"
+ Column |  Type   | Collation | Nullable | Default | Storage  | Description 
+--------+---------+-----------+----------+---------+----------+-------------
+ id     | integer |           |          |         | plain    | 
+ stuff  | text    |           |          |         | extended | 
+ j      | json    |           |          |         | extended | 
+View definition:
+ SELECT v1.id,
+    v1.stuff,
+    to_json(v1.*) AS j
+   FROM at_view_1 v1;
+
+explain (verbose, costs off) select * from at_view_2;
+                                                                                   QUERY PLAN                                                                                   
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Remote Fast Query Execution Mode: fqs_mode_std_planer
+   Output: at_view_2.id, at_view_2.stuff, at_view_2.j
+   Node/s: datanode_1, datanode_2
+   Remote query: SELECT id, stuff, j FROM (SELECT v1.id, v1.stuff, to_json(v1.*) AS j FROM (SELECT bt.id, bt.stuff, (2 + 2) AS more FROM public.at_base_table bt) v1) at_view_2
+   ->  Seq Scan on public.at_base_table bt
+         Output: bt.id, bt.stuff, to_json(ROW(bt.id, bt.stuff, 4))
+(6 rows)
+
+select * from at_view_2;
+ id | stuff  |                  j                  
+----+--------+-------------------------------------
+ 23 | skidoo | {"id":23,"stuff":"skidoo","more":4}
+(1 row)
+
+drop view at_view_2;
+drop view at_view_1;
+drop table at_base_table;
+-- related case (bug #17811)
+begin;
+create temp table t1 distribute by replication as select * from int8_tbl;
+create temp view v1 as select 1::int8 as q1;
+create temp view v2 as select * from v1;
+create or replace temp view v1 with (security_barrier = true)
+  as select * from t1;
+create temp table log (q1 int8, q2 int8);
+create rule v1_upd_rule as on update to v1
+  do also insert into log values (new.*);
+update v2 set q1 = q1 + 1 where q1 = 123;
+select * from t1;
+        q1        |        q2         
+------------------+-------------------
+ 4567890123456789 |               123
+ 4567890123456789 |  4567890123456789
+ 4567890123456789 | -4567890123456789
+              124 |               456
+              124 |  4567890123456789
+(5 rows)
+
+select * from log;
+ q1  |        q2        
+-----+------------------
+ 124 |              456
+ 124 | 4567890123456789
+(2 rows)
+
+rollback;
 --
 -- lock levels
 --
@@ -2456,6 +2575,12 @@ select * from my_locks order by 1;
 
 alter table my_locks reset (security_barrier);
 rollback;
+alter table my_locks set (estore_insert_mem_limit = 1);
+ERROR:  unrecognized parameter "estore_insert_mem_limit"
+alter view my_locks set (estore_insert_mem_limit = 1);
+ERROR:  unrecognized parameter "estore_insert_mem_limit"
+alter table my_locks reset (estore_insert_mem_limit);
+alter view my_locks reset (estore_insert_mem_limit);
 -- cleanup
 drop table alterlock2;
 drop table alterlock;
@@ -2835,7 +2960,7 @@ CREATE TABLE tt8(a int);
 CREATE SCHEMA alter2;
 ALTER TABLE IF EXISTS tt8 ADD COLUMN f int;
 ALTER TABLE IF EXISTS tt8 ADD CONSTRAINT xxx PRIMARY KEY(f);
-ERROR:  Unique index of partitioned table must contain the hash distribution column.
+ERROR:  Unique index of distributed table must contain the distribution column.
 ALTER TABLE IF EXISTS tt8 ADD CHECK (f BETWEEN 0 AND 10);
 ALTER TABLE IF EXISTS tt8 ALTER COLUMN f SET DEFAULT 0;
 ALTER TABLE IF EXISTS tt8 RENAME COLUMN f TO f1;
@@ -2992,7 +3117,7 @@ ALTER TABLE new_system_table RENAME TO old_system_table;
 CREATE INDEX old_system_table__othercol ON old_system_table (othercol);
 INSERT INTO old_system_table(othercol) VALUES ('somedata'), ('otherdata');
 UPDATE old_system_table SET id = -id;
-ERROR:  Distributed column or partition column "id" can't be updated in current version
+ERROR:  Distributed column "id" can't be updated in current version
 DELETE FROM old_system_table WHERE othercol = 'somedata';
 TRUNCATE old_system_table;
 ALTER TABLE old_system_table DROP CONSTRAINT new_system_table_pkey;
@@ -3405,7 +3530,7 @@ INFO:  partition constraint for table "part_3_4" is implied by existing constrai
 -- check if default partition scan skipped
 ALTER TABLE list_parted2_def ADD CONSTRAINT check_a CHECK (a IN (5, 6));
 CREATE TABLE part_55_66 PARTITION OF list_parted2 FOR VALUES IN (55, 66);
-INFO:  partition constraint for table "list_parted2_def" is implied by existing constraints
+INFO:  updated partition constraint for default partition "list_parted2_def" is implied by existing constraints
 -- check validation when attaching range partitions
 CREATE TABLE range_parted (
 	a int,
@@ -3554,7 +3679,7 @@ DROP TABLE quuux1, quuux2;
 -- should validate for quuux1, but not for quuux2
 CREATE TABLE quuux1 PARTITION OF quuux FOR VALUES IN (1);
 CREATE TABLE quuux2 PARTITION OF quuux FOR VALUES IN (2);
-INFO:  partition constraint for table "quuux_default1" is implied by existing constraints
+INFO:  updated partition constraint for default partition "quuux_default1" is implied by existing constraints
 DROP TABLE quuux;
 -- check validation when attaching hash partitions
 -- The default hash functions as they exist today aren't portable; they can
@@ -3562,11 +3687,15 @@ DROP TABLE quuux;
 -- values are hashed, the row may map to different partitions, which result in
 -- regression failure.  To avoid this, let's create a non-default hash function
 -- that just returns the input value unchanged.
+DROP FUNCTION IF EXISTS dummy_hashint4 CASCADE;
+NOTICE:  function dummy_hashint4() does not exist, skipping
 CREATE OR REPLACE FUNCTION dummy_hashint4(a int4, seed int8) RETURNS int8 AS
 $$ BEGIN RETURN (a + 1 + seed); END; $$ LANGUAGE 'plpgsql' IMMUTABLE;
 CREATE OPERATOR CLASS custom_opclass FOR TYPE int4 USING HASH AS
 OPERATOR 1 = , FUNCTION 2 dummy_hashint4(int4, int8);
 -- check that the new partition won't overlap with an existing partition
+DROP TABLE IF EXISTS hash_parted;
+NOTICE:  table "hash_parted" does not exist, skipping
 CREATE TABLE hash_parted (
 	a int,
 	b int
@@ -3797,6 +3926,19 @@ alter table defpart_attach_test_d add check (a > 1);
 alter table defpart_attach_test attach partition defpart_attach_test_d default;
 INFO:  partition constraint for table "defpart_attach_test_d" is implied by existing constraints
 drop table defpart_attach_test;
+-- check combinations of temporary and permanent relations when attaching
+-- partitions.
+create table perm_part_parent (a int) partition by list (a);
+create temp table temp_part_parent (a int) partition by list (a);
+create table perm_part_child (a int);
+create temp table temp_part_child (a int);
+alter table temp_part_parent attach partition perm_part_child default; -- error
+ERROR:  cannot attach a permanent relation as partition of temporary relation "temp_part_parent"
+alter table perm_part_parent attach partition temp_part_child default; -- error
+ERROR:  cannot attach a temporary relation as partition of permanent relation "perm_part_parent"
+alter table temp_part_parent attach partition temp_part_child default; -- ok
+drop table perm_part_parent cascade;
+drop table temp_part_parent cascade;
 -- test case where the partitioning operator is a SQL function whose
 -- evaluation results in the table's relcache being rebuilt partway through
 -- the execution of an ATTACH PARTITION command
@@ -3814,7 +3956,6 @@ drop operator class at_test_sql_partop using btree;
 drop function at_test_sql_partop;
 -- remote dml with dropped column
 create table dropped_col_remote_dml (a int, b int, c int) distribute by shard(a);
-NOTICE:  Replica identity is needed for shard table, please add to this table through "alter table" command.
 insert into dropped_col_remote_dml values(1,1,1);
 create or replace function dropped_col_remote_dml_func() returns trigger as
 $$
@@ -3833,7 +3974,6 @@ drop table dropped_col_remote_dml cascade;
 drop function dropped_col_remote_dml_func;
 -- add column with default values and check shardid
 create table t_default_shardid(a int, b int) distribute by shard(a);
-NOTICE:  Replica identity is needed for shard table, please add to this table through "alter table" command.
 insert into t_default_shardid values(1,1), (2,2), (3,3);
 select shardid, a, b from t_default_shardid order by 1;
  shardid | a | b 
@@ -3856,3 +3996,151 @@ select shardid, a, b from t_default_shardid order by 1;
 
 drop table t_default_shardid;
 drop sequence s_default_shardid;
+drop table if exists aa;
+NOTICE:  table "aa" does not exist, skipping
+create table aa(a int, b int, c int);
+alter table aa add constraint aa_pck CHECK(a > 0);
+alter table aa add constraint aa_pck primary key(a,b);
+ERROR:  constraint "aa_pck" for relation "aa" already exists
+drop table if exists aa;
+-- multilevel partition
+drop table if exists test_col_alter_multi_part;
+NOTICE:  table "test_col_alter_multi_part" does not exist, skipping
+create table test_col_alter_multi_part(id int,c1 date) partition by range(c1) distribute by shard(id);
+create table test_col_alter_multi_part_p1 partition of test_col_alter_multi_part for values from ('2023-12-12') to ('2024-11-19') partition by range(c1);
+alter table test_col_alter_multi_part add column c2 serial;
+drop table test_col_alter_multi_part;
+-- start bug: 122976613
+CREATE TABLE IF NOT EXISTS public."bug122976613"("ID" NUMERIC(10,2) NOT NULL,
+    "1" BIGINT,
+    "EXT_COL_1" BIGINT,
+    "ext_col_2" BIGINT,
+    "EXT_COL_3" BIGINT,
+    "EXT_COL_4" NUMERIC(10,2),
+    "ext_col_5" NUMERIC(10,2),
+    CONSTRAINT "SHARD_TABLE_PKEY" PRIMARY KEY ("ID")
+    ) WITH (OIDS = FALSE) DISTRIBUTE BY SHARD("ID");
+-- PostgreSQL converts all objects without double quotes to lowercase
+ALTER TABLE PUBLIC.BUG122976613 ALTER COLUMN EXT_COL_5 TYPE NUMERIC(10, 3);
+ALTER TABLE PUBlic.Bug122976613 ALTER COLUMN EXT_col_5 TYPE NUMERIC(10, 4);
+ALTER TABLE public.bug122976613 ALTER COLUMN "EXT_COL_4" TYPE NUMERIC(10, 3);
+ALTER TABLE public."bug122976613" ALTER COLUMN "ext_col_2" TYPE INT;
+ALTER TABLE "public"."bug122976613" ALTER COLUMN "EXT_COL_1" TYPE INT;
+-- ERROR
+ALTER TABLE "public"."bug122976613" ALTER COLUMN ext_col_3 TYPE INT;
+ERROR:  column "ext_col_3" of relation "bug122976613" does not exist
+ALTER TABLE "public"."bug122976613" ALTER COLUMN "ext_col_4" TYPE NUMERIC(10, 3);
+ERROR:  column "ext_col_4" of relation "bug122976613" does not exist
+ALTER TABLE public.bug122976613 ALTER COLUMN "Ext_col_5" TYPE NUMERIC(10, 3);
+ERROR:  column "Ext_col_5" of relation "bug122976613" does not exist
+ALTER TABLE "PUBLIC".bug122976613 ALTER COLUMN "EXT_COL_3" TYPE INT;
+ERROR:  schema "PUBLIC" does not exist
+ALTER TABLE public."BUG122976613" ALTER COLUMN "EXT_COL_3" TYPE INT;
+ERROR:  relation "public.BUG122976613" does not exist
+DROP TABLE public."bug122976613";
+-- end bug: 122976613
+-- Test that ALTER TABLE rewrite preserves a clustered index
+-- for normal indexes and indexes on constraints.
+create table alttype_cluster (a int);
+alter table alttype_cluster add primary key (a);
+create index alttype_cluster_ind on alttype_cluster (a);
+alter table alttype_cluster cluster on alttype_cluster_ind;
+-- Normal index remains clustered.
+select indexrelid::regclass, indisclustered from pg_index
+  where indrelid = 'alttype_cluster'::regclass
+  order by indexrelid::regclass::text;
+      indexrelid      | indisclustered 
+----------------------+----------------
+ alttype_cluster_ind  | t
+ alttype_cluster_pkey | f
+(2 rows)
+
+alter table alttype_cluster alter a type bigint;
+select indexrelid::regclass, indisclustered from pg_index
+  where indrelid = 'alttype_cluster'::regclass
+  order by indexrelid::regclass::text;
+      indexrelid      | indisclustered 
+----------------------+----------------
+ alttype_cluster_ind  | f
+ alttype_cluster_pkey | f
+(2 rows)
+
+-- Constraint index remains clustered.
+alter table alttype_cluster cluster on alttype_cluster_pkey;
+select indexrelid::regclass, indisclustered from pg_index
+  where indrelid = 'alttype_cluster'::regclass
+  order by indexrelid::regclass::text;
+      indexrelid      | indisclustered 
+----------------------+----------------
+ alttype_cluster_ind  | f
+ alttype_cluster_pkey | t
+(2 rows)
+
+alter table alttype_cluster alter a type int;
+select indexrelid::regclass, indisclustered from pg_index
+  where indrelid = 'alttype_cluster'::regclass
+  order by indexrelid::regclass::text;
+      indexrelid      | indisclustered 
+----------------------+----------------
+ alttype_cluster_ind  | f
+ alttype_cluster_pkey | f
+(2 rows)
+
+drop table alttype_cluster;
+--
+-- Check that attaching or detaching a partitioned partition correctly leads
+-- to its partitions' constraint being updated to reflect the parent's
+-- newly added/removed constraint
+create table target_parted (a int, b int) partition by list (a);
+create table attach_parted (a int, b int) partition by list (b);
+create table attach_parted_part1 partition of attach_parted for values in (1);
+-- insert a row directly into the leaf partition so that its partition
+-- constraint is built and stored in the relcache
+insert into attach_parted_part1 values (1, 1);
+-- the following better invalidate the partition constraint of the leaf
+-- partition too...
+alter table target_parted attach partition attach_parted for values in (1);
+-- ...such that the following insert fails
+insert into attach_parted_part1 values (2, 1);
+ERROR:  new row for relation "attach_parted_part1" violates partition constraint
+DETAIL:  Failing row contains (2, 1).
+-- ...and doesn't when the partition is detached along with its own partition
+alter table target_parted detach partition attach_parted;
+insert into attach_parted_part1 values (2, 1);
+-- alter table replication default in pg mode
+drop table if exists t_alter_repl_add_test1;
+NOTICE:  table "t_alter_repl_add_test1" does not exist, skipping
+create table t_alter_repl_add_test1(id int,c2 int) distribute by replication;
+insert into t_alter_repl_add_test1 values(1,10);
+alter table t_alter_repl_add_test1 add c3 varchar(32) default random();
+ERROR:  Adding columns with volatile defaults to replication table is prohibited due to data inconsistency risk.
+alter table t_alter_repl_add_test1 add c3 varchar(50) default 's' || random() || 's';
+ERROR:  Adding columns with volatile defaults to replication table is prohibited due to data inconsistency risk.
+alter table t_alter_repl_add_test1 add c3 varchar(50) default 's' || round(random() + 1) || 's';
+ERROR:  Adding columns with volatile defaults to replication table is prohibited due to data inconsistency risk.
+drop table if exists t_alter_repl_add_test1;
+-- alter table shard default in pg mode
+drop table if exists t_alter_shard_add_test1;
+NOTICE:  table "t_alter_shard_add_test1" does not exist, skipping
+create table t_alter_shard_add_test1(id int,c2 int) distribute by shard(id);
+insert into t_alter_shard_add_test1 values(1,10);
+alter table t_alter_shard_add_test1 add c3 varchar(50) default 's' || round(random() + 1) || 's';
+drop table if exists t_alter_shard_add_test1;
+-- alter table replication default in ora mode
+\c regression_ora
+drop table if exists t_alter_repl_add_test1;
+NOTICE:  table "T_ALTER_REPL_ADD_TEST1" does not exist, skipping
+create table t_alter_repl_add_test1(id int,c2 int) distribute by replication;
+insert into t_alter_repl_add_test1 values(1,10);
+alter table t_alter_repl_add_test1 add c3 varchar(50) default 's' || sys_guid() || 's';
+ERROR:  Adding columns with volatile defaults to replication table is prohibited due to data inconsistency risk.
+alter table t_alter_repl_add_test1 add c3 varchar(50) default 's' || HEXTORAW(sys_guid() || 's') || 's';
+ERROR:  Adding columns with volatile defaults to replication table is prohibited due to data inconsistency risk.
+drop table if exists t_alter_repl_add_test1;
+-- alter table shard default in ora mode
+drop table if exists t_alter_shard_add_test1;
+NOTICE:  table "T_ALTER_SHARD_ADD_TEST1" does not exist, skipping
+create table t_alter_shard_add_test1(id int,c2 int) distribute by shard(id);
+insert into t_alter_shard_add_test1 values(1,10);
+alter table t_alter_shard_add_test1 add c3 varchar(50) default 's' || sys_guid() || 's';
+drop table if exists t_alter_shard_add_test1;

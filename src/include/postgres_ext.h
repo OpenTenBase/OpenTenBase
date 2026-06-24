@@ -2,21 +2,18 @@
  *
  * postgres_ext.h
  *
- *       This file contains declarations of things that are visible everywhere
- *    in PostgreSQL *and* are visible to clients of frontend interface libraries.
- *    For example, the Oid type is part of the API of libpq and other libraries.
+ *	   This file contains declarations of things that are visible everywhere
+ *	in PostgreSQL *and* are visible to clients of frontend interface libraries.
+ *	For example, the Oid type is part of the API of libpq and other libraries.
  *
- *       Declarations which are specific to a particular interface should
- *    go in the header file for that interface (such as libpq-fe.h).  This
- *    file is only for fundamental Postgres declarations.
+ *	   Declarations which are specific to a particular interface should
+ *	go in the header file for that interface (such as libpq-fe.h).  This
+ *	file is only for fundamental Postgres declarations.
  *
- *       User-written C functions don't count as "external to Postgres."
- *    Those function much as local modifications to the backend itself, and
- *    use header files that are otherwise internal to Postgres to interface
- *    with the backend.
- *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
+ *	   User-written C functions don't count as "external to Postgres."
+ *	Those function much as local modifications to the backend itself, and
+ *	use header files that are otherwise internal to Postgres to interface
+ *	with the backend.
  *
  * src/include/postgres_ext.h
  *
@@ -34,9 +31,9 @@
 typedef unsigned int Oid;
 
 #ifdef __cplusplus
-#define InvalidOid        (Oid(0))
+#define InvalidOid		(Oid(0))
 #else
-#define InvalidOid        ((Oid) 0)
+#define InvalidOid		((Oid) 0)
 #endif
 
 #define OID_MAX  UINT_MAX
@@ -55,37 +52,41 @@ typedef PG_INT64_TYPE pg_int64;
  * between frontend and backend, and also to export them to libpq
  * applications.
  */
-#define PG_DIAG_SEVERITY        'S'
+#define PG_DIAG_SEVERITY		'S'
 #define PG_DIAG_SEVERITY_NONLOCALIZED 'V'
-#define PG_DIAG_SQLSTATE        'C'
+#define PG_DIAG_SQLSTATE		'C'
 #define PG_DIAG_MESSAGE_PRIMARY 'M'
-#define PG_DIAG_MESSAGE_DETAIL    'D'
-#define PG_DIAG_MESSAGE_HINT    'H'
+#define PG_DIAG_MESSAGE_DETAIL	'D'
+#define PG_DIAG_MESSAGE_HINT	'H'
 #define PG_DIAG_STATEMENT_POSITION 'P'
 #define PG_DIAG_INTERNAL_POSITION 'p'
-#define PG_DIAG_INTERNAL_QUERY    'q'
-#define PG_DIAG_CONTEXT            'W'
-#define PG_DIAG_SCHEMA_NAME        's'
-#define PG_DIAG_TABLE_NAME        't'
-#define PG_DIAG_COLUMN_NAME        'c'
-#define PG_DIAG_DATATYPE_NAME    'd'
+#define PG_DIAG_INTERNAL_QUERY	'q'
+#define PG_DIAG_CONTEXT			'W'
+#define PG_DIAG_SCHEMA_NAME		's'
+#define PG_DIAG_TABLE_NAME		't'
+#define PG_DIAG_COLUMN_NAME		'c'
+#define PG_DIAG_DATATYPE_NAME	'd'
 #define PG_DIAG_CONSTRAINT_NAME 'n'
-#define PG_DIAG_SOURCE_FILE        'F'
-#define PG_DIAG_SOURCE_LINE        'L'
+#define PG_DIAG_SOURCE_FILE		'F'
+#define PG_DIAG_SOURCE_LINE		'L'
 #define PG_DIAG_SOURCE_FUNCTION 'R'
 
 /*-------------------------------------------------------------------------------
- *    shard and extent
+ *	shard and extent
  *-------------------------------------------------------------------------------
  */
-typedef short ShardID;
-#define NullShardId        (0)
-#define MAX_SHARDS 4096U
-#define InvalidShardID MAX_SHARDS
+typedef unsigned short          ShardID;
+#define NullShardId		(0)
+#define MAX_SHARDS      4096U
+#define InvalidShardID  MAX_SHARDS
 #define ShardIDIsValid(sid) ((sid) >= 0 && (sid) < MAX_SHARDS)
+
+extern int shard_cluster_num;
+//#define SHARD_CLUSTER_NUM   (8)
+#define MAX_SHARD_CLUSTER_NUM	(128)
 
 typedef unsigned int ExtentID;
 #define InvalidExtentID MAX_EXTENTS
 #define ExtentIdIsValid(eid) ((eid) >= 0 && (eid) < MAX_EXTENTS)
 
-#endif                            /* POSTGRES_EXT_H */
+#endif							/* POSTGRES_EXT_H */

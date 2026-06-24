@@ -7,9 +7,6 @@
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * src/include/commands/tablecmds.h
  *
  *-------------------------------------------------------------------------
@@ -21,24 +18,21 @@
 #include "catalog/dependency.h"
 #include "catalog/objectaddress.h"
 #include "nodes/parsenodes.h"
-#include "catalog/partition.h"
 #include "storage/lock.h"
 #include "utils/relcache.h"
 
+#include "access/heapam.h"
+
+
+extern void	DefineExternalRelation(CreateExternalStmt *stmt);
 
 extern ObjectAddress DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
-			   ObjectAddress *typaddress, const char *queryString);
+			   ObjectAddress *typaddress, const char *queryString, Oid viewId);
 #ifdef __OPENTENBASE__
-extern ObjectAddresses* PreCheckforRemoveRelation(DropStmt* drop,
-													char* queryString,
-													bool *needDrop,
-													List **heap_list);
 extern int RemoveRelations(DropStmt *drop, char* queryString);
 #else
 extern void RemoveRelations(DropStmt *drop);
 #endif
-
-extern char GetRemoveObjectRelkind(ObjectType removeType);
 
 extern Oid	AlterTableLookupRelation(AlterTableStmt *stmt, LOCKMODE lockmode);
 
@@ -46,7 +40,7 @@ extern void AlterTable(Oid relid, LOCKMODE lockmode, AlterTableStmt *stmt);
 
 extern LOCKMODE AlterTableGetLockLevel(List *cmds);
 
-extern void ATExecChangeOwner(Oid relationOid, Oid newOwnerId, bool recursing, LOCKMODE lockmode);
+extern void ATExecChangeOwner(Oid relationOid, Oid newOwnerId, bool recursing, LOCKMODE lockmode, void *context);
 
 extern void AlterTableInternal(Oid relid, List *cmds, bool recurse);
 
@@ -66,6 +60,9 @@ extern void AlterRelationNamespaceInternal(Relation classRel, Oid relOid,
 							   Oid oldNspOid, Oid newNspOid,
 							   bool hasDependEntry,
 							   ObjectAddresses *objsMoved);
+
+extern bool ConstraintSatisfyAutoIncrement(HeapTuple tuple, TupleDesc desc, 
+										   AttrNumber attrnum, char contype);
 
 extern void CheckTableNotInUse(Relation rel, const char *stmt);
 
@@ -99,9 +96,11 @@ extern void AtEOSubXact_on_commit_actions(bool isCommit,
 							  SubTransactionId mySubid,
 							  SubTransactionId parentSubid);
 #ifdef PGXC
+extern bool IsShardRelOrMainTableIsShardRelOrRepRel(Oid relid);
 extern bool IsTempTable(Oid relid);
 extern bool IsLocalTempTable(Oid relid);
 extern bool IsIndexUsingTempTable(Oid relid);
+extern bool IsIndexUsingGlobalTempTable(Oid relid);
 extern bool IsOnCommitActions(void);
 extern void DropTableThrowErrorExternal(RangeVar *relation,
 										ObjectType removeType,
@@ -110,6 +109,8 @@ extern void DropTableThrowErrorExternal(RangeVar *relation,
 
 extern void RangeVarCallbackOwnsTable(const RangeVar *relation,
 						  Oid relId, Oid oldRelId, void *arg);
+
+extern bool has_partition_ancestor_privs(Oid relid, Oid userid, AclMode acl);
 
 extern void RangeVarCallbackOwnsRelation(const RangeVar *relation,
 							 Oid relId, Oid oldRelId, void *noCatalogs);
@@ -121,12 +122,18 @@ extern bool oidarray_contian_oid(Oid *old_oids, int old_num, Oid new_oid);
 extern Oid *add_node_list(Oid *old_oids, int old_num, Oid *add_oids, int add_num, int *new_num);
 #endif
 
-#ifdef __OPENTENBASE__
-extern void StoreIntervalPartitionInfo(Oid relationId, char partkind, Oid parentId, bool isindex);
+#ifdef _PG_ORCL_
+extern void MoveDefaultPartitionRows(Relation def_rel, Relation newRel,
+						HeapTuple tuple, int hi_options, BulkInsertState bistate,
+						CommandId mycid);
 #endif
 
-#ifdef __COLD_HOT__
-extern void ExecCheckOverLapStmt(CheckOverLapStmt *stmt);
-#endif
+extern List *MergeAttributes(List *schema, List *supers, char relpersistence,
+				bool is_partition, List **supconstr,
+				int *supOidCount
+				);
+
+extern void report_utility_time(RangeVar* relation, Relation objRel, Oid parentOid);
+extern void record_acitve_temp_table(Oid oid);
 
 #endif							/* TABLECMDS_H */

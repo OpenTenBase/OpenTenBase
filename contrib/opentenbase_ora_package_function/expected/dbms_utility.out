@@ -1,0 +1,108 @@
+\c opentenbase_ora_package_function_regression_ora
+-- Just create extension
+create extension if not exists opentenbase_ora_package_function;
+NOTICE:  extension "opentenbase_ora_package_function" already exists, skipping
+\set ECHO none
+CHECKHEXCALLSTACK
+----- PL/pgSQL Call Stack -----
+  object     line  object
+  handle   number  name
+       0           function CHECKHEXCALLSTACK  
+
+(1 row)
+CHECKINTCALLSTACK
+       0           function CHECKINTCALLSTACK  
+
+(1 row)
+CHECKINTUNPADDEDCALLSTACK
+0, ,CHECKINTUNPADDEDCALLSTACK  
+
+(1 row)
+GET_HASH_VALUE
+0
+(1 row)
+GET_HASH_VALUE
+5
+(1 row)
+GET_HASH_VALUE
+-5
+(1 row)
+ERROR:  bad argument
+ERROR:  bad argument
+GET_HASH_VALUE
+96
+(1 row)
+GET_HASH_VALUE
+64
+(1 row)
+GET_HASH_VALUE
+65
+(1 row)
+GET_HASH_VALUE
+66
+(1 row)
+GET_HASH_VALUE
+67
+(1 row)
+GET_HASH_VALUE
+68
+(1 row)
+GET_HASH_VALUE
+-134
+(1 row)
+ERROR:  integer out of range
+GET_HASH_VALUE
+789055518
+(1 row)
+GET_HASH_VALUE
+789055519
+(1 row)
+ERROR:  integer out of range
+ERROR:  integer out of range
+GET_HASH_VALUE
+-2147483582
+(1 row)
+GET_HASH_VALUE
+-2147483583
+(1 row)
+ERROR:  integer out of range
+GET_HASH_VALUE
+1061
+(1 row)
+GET_HASH_VALUE
+1061
+(1 row)
+GET_HASH_VALUE
+1230
+(1 row)
+GET_HASH_VALUE
+1061
+(1 row)
+GET_HASH_VALUE
+1062
+(1 row)
+GET_HASH_VALUE
+1207
+(1 row)
+NOTICE:  elapsed time is >= 100: t
+Error Stack
+	  ----- PL/pgSQL Call Stack -----
+  object     line  object
+  handle   number  name
+       0        8  function anonymous object
+
+ERROR:  division by zero
+CONTEXT:  SQL statement "select 1/0           from dual"
+PL/pgSQL function inline_code_block line 10 at SQL statement
+col1
+Error Stack
+	  ----- PL/pgSQL Call Stack -----
+  object     line  object
+  handle   number  name
+	0	1	anonymous block
+
+(1 row)
+ERROR:  null value in column "tmplname" violates not-null constraint
+DETAIL:  Failing row contains (null, f, t, null, null, null, ----- PL/pgSQL Call Stack -----
+  object     line  object
+  hand..., null).

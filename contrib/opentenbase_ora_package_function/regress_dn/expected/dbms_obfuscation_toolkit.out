@@ -1,0 +1,40 @@
+\c opentenbase_ora_package_function_regression_ora
+SET client_min_messages = error;
+create extension if not exists opentenbase_ora_package_function;
+reset client_min_messages;
+-- md5
+select utl_raw.cast_to_raw(dbms_obfuscation_toolkit.md5(input_string => 168)) from dual;
+           CAST_TO_RAW            
+----------------------------------
+ 006F52E9102A8D3BE2FE5614F42BA989
+(1 row)
+
+select utl_raw.cast_to_raw(dbms_obfuscation_toolkit.md5(input_string => '中国')) from dual;
+           CAST_TO_RAW            
+----------------------------------
+ C13DCEABCB143ACD6C9298265D618A9F
+(1 row)
+
+select utl_raw.cast_to_raw(dbms_obfuscation_toolkit.md5(input_string => '中*国')) from dual;
+           CAST_TO_RAW            
+----------------------------------
+ E169FDD50B2EE8FB5F16BE966E2C8D67
+(1 row)
+
+select utl_raw.cast_to_raw(dbms_obfuscation_toolkit.md5(input_string => '中*国')) from dual;
+           CAST_TO_RAW            
+----------------------------------
+ E169FDD50B2EE8FB5F16BE966E2C8D67
+(1 row)
+
+select utl_raw.cast_to_raw(dbms_obfuscation_toolkit.md5(input_string => 'abc')) from dual;
+           CAST_TO_RAW            
+----------------------------------
+ 900150983CD24FB0D6963F7D28E17F72
+(1 row)
+
+select dbms_obfuscation_toolkit.md5(input => utl_raw.cast_to_raw('abc')) from dual;
+               MD5                
+----------------------------------
+ 900150983CD24FB0D6963F7D28E17F72
+(1 row)

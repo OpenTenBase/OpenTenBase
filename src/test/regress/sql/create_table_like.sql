@@ -149,3 +149,19 @@ CREATE TABLE like_test5 (z INTEGER, LIKE no_oid) WITH OIDS;
 SELECT oid FROM like_test5;
 DROP TABLE has_oid, no_oid, like_test, like_test2, like_test3,
   like_test4, like_test5;
+
+/* LIKE reference relation distribute key when INCLUDING ALL */
+create table t5(f1 int ,f2 int primary key );
+create index t5_f2_idx on t5(f2);
+\d+ t5
+create table t6_like (like t5 including all);
+\d+ t6_like
+DROP TABLE t5, t6_like;
+
+CREATE TABLE test_like_bigint (a bigint GENERATED ALWAYS AS IDENTITY, b text);
+\d test_like_bigint
+CREATE TABLE tlike_bigint(LIKE test_like_bigint INCLUDING ALL);
+insert into tlike_bigint(b) values ('3123');
+insert into tlike_bigint(b) values ('insert bigint');
+select * from tlike_bigint order by a;
+drop table test_like_bigint, tlike_bigint;

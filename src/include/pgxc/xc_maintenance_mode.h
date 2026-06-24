@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * pgxc.h
- *        XC maintenance mode stuff
+ *		XC maintenance mode stuff
  *
  *
  * Portions Copyright (c) 1996-2011 PostgreSQL Global Development Group
@@ -20,6 +20,6 @@
 #include "utils/guc.h"
 
 extern bool xc_maintenance_mode;
-extern GucContext    currentGucContext;
+extern GucContext	currentGucContext;
 
 #endif /* XC_MAINTENANCE_MODE_H */

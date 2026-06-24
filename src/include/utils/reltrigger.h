@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * reltrigger.h
- *      POSTGRES relation trigger definitions.
+ *	  POSTGRES relation trigger definitions.
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -22,59 +22,70 @@
 
 typedef struct Trigger
 {
-    Oid            tgoid;            /* OID of trigger (pg_trigger row) */
-    /* Remaining fields are copied from pg_trigger, see pg_trigger.h */
-    char       *tgname;
-    Oid            tgfoid;
-    int16        tgtype;
-    char        tgenabled;
-    bool        tgisinternal;
-    Oid            tgconstrrelid;
-    Oid            tgconstrindid;
-    Oid            tgconstraint;
-    bool        tgdeferrable;
-    bool        tginitdeferred;
-    int16        tgnargs;
-    int16        tgnattr;
-    int16       *tgattr;
-    char      **tgargs;
-    char       *tgqual;
-    char       *tgoldtable;
-    char       *tgnewtable;
+	Oid			tgoid;			/* OID of trigger (pg_trigger row) */
+	/* Remaining fields are copied from pg_trigger, see pg_trigger.h */
+	char	   *tgname;
+	Oid			tgfoid;
+	int16		tgtype;
+	char		tgenabled;
+	bool		tgisinternal;
+	Oid			tgconstrrelid;
+	Oid			tgconstrindid;
+	Oid			tgconstraint;
+	bool		tgdeferrable;
+	bool		tginitdeferred;
+	int16		tgnargs;
+	int16		tgnattr;
+	int16	   *tgattr;
+	char	  **tgargs;
+	char	   *tgqual;
+	char	   *tgoldtable;
+	char	   *tgnewtable;
 } Trigger;
 
 typedef struct TriggerDesc
 {
-    Trigger    *triggers;        /* array of Trigger structs */
-    int            numtriggers;    /* number of array entries */
+	Trigger    *triggers;		/* array of Trigger structs */
+	int			numtriggers;	/* number of array entries */
 
-    /*
-     * These flags indicate whether the array contains at least one of each
-     * type of trigger.  We use these to skip searching the array if not.
-     */
-    bool        trig_insert_before_row;
-    bool        trig_insert_after_row;
-    bool        trig_insert_instead_row;
-    bool        trig_insert_before_statement;
-    bool        trig_insert_after_statement;
-    bool        trig_update_before_row;
-    bool        trig_update_after_row;
-    bool        trig_update_instead_row;
-    bool        trig_update_before_statement;
-    bool        trig_update_after_statement;
-    bool        trig_delete_before_row;
-    bool        trig_delete_after_row;
-    bool        trig_delete_instead_row;
-    bool        trig_delete_before_statement;
-    bool        trig_delete_after_statement;
-    /* there are no row-level truncate triggers */
-    bool        trig_truncate_before_statement;
-    bool        trig_truncate_after_statement;
-    /* Is there at least one trigger specifying each transition relation? */
-    bool        trig_insert_new_table;
-    bool        trig_update_old_table;
-    bool        trig_update_new_table;
-    bool        trig_delete_old_table;
+	/*
+	 * These flags indicate whether the array contains at least one of each
+	 * type of trigger.  We use these to skip searching the array if not.
+	 */
+	bool		trig_insert_before_row;
+	bool		trig_insert_after_row;
+	bool		trig_insert_instead_row;
+	bool		trig_insert_before_statement;
+	bool		trig_insert_after_statement;
+	bool		trig_update_before_row;
+	bool		trig_update_after_row;
+	bool		trig_update_instead_row;
+	bool		trig_update_before_statement;
+	bool		trig_update_after_statement;
+	bool		trig_delete_before_row;
+	bool		trig_delete_after_row;
+	bool		trig_delete_instead_row;
+	bool		trig_delete_before_statement;
+	bool		trig_delete_after_statement;
+	/* there are no row-level truncate triggers */
+	bool		trig_truncate_before_statement;
+	bool		trig_truncate_after_statement;
+	/* Is there at least one trigger specifying each transition relation? */
+	bool		trig_insert_new_table;
+	bool		trig_update_old_table;
+	bool		trig_update_new_table;
+	bool		trig_delete_old_table;
+	/* Is there any trigger needs to pullup to CN? */
+	int16       trig_pullup;
 } TriggerDesc;
 
-#endif                            /* RELTRIGGER_H */
+typedef enum
+{
+	TRIG_EXECMODE_AUTO,
+	TRIG_EXECMODE_PUSHDOWN,
+	TRIG_EXECMODE_PULLUP
+} TriggerExecMode;
+/* guc variable */
+extern int g_trig_exec_mode;
+
+#endif							/* RELTRIGGER_H */

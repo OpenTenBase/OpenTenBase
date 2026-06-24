@@ -7,8 +7,6 @@
  * Portions Copyright (c) 1994, Regents of the University of California
  * Portions Copyright (c) 2010-2012 Postgres-XC Development Group
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  * IDENTIFICATION
  *		src/gtm/common/gtm_standby.c
@@ -31,6 +29,7 @@
 #ifdef __OPENTENBASE__
 #include "gtm/gtm_store.h"
 #endif
+#include <dirent.h>
 
 #ifdef __XLOG__
 
@@ -245,6 +244,9 @@ gtm_standby_restore_node(void)
 	elog(LOG, "Copying node information from the GTM active...");
 
 	data = (GTM_PGXCNodeInfo *) malloc(sizeof(GTM_PGXCNodeInfo) * 128);
+	if (data == NULL)
+		elog(ERROR, "get_node_list() failed, out of memory.");
+	
 	memset(data, 0, sizeof(GTM_PGXCNodeInfo) * 128);
 	
 	rc = get_node_list(GTM_ActiveConn, data, 128);
@@ -682,12 +684,70 @@ gtm_standby_connectToActiveGTM(int timeout)
     }
     else
     {
-        sprintf(connect_string, "host=%s port=%d node_name=%s remote_type=%d",
-                active_address, active_port, NodeName, GTM_NODE_GTM);
+	sprintf(connect_string, "host=%s port=%d node_name=%s remote_type=%d",
+			active_address, active_port, NodeName, GTM_NODE_GTM);
     }
 
 	return PQconnectGTM(connect_string);
 }
+
+static void GTM_RemoveUnusedXLogFiles(void)
+{
+    elog(LOG, "GTM_RemoveUnusedXLogFiles:remove all xlog files");
+    system("rm -rf gtm_xlog/*");
+}
+
+bool
+GTM_RecoveyFromOverwriting(size_t file_size)
+{
+    /* gtm crashed while copying data from primary */
+    bool proc_state = false;
+    int src_file_stat;
+    int dst_file_stat;
+
+    CloseMapperFile();
+
+    src_file_stat = access(GTM_MAP_BACKUP_NAME, F_OK);
+    dst_file_stat = access(GTM_MAP_FILE_NAME, F_OK);
+
+    if (src_file_stat != 0 && dst_file_stat != 0)
+    {
+        elog(LOG, "map file lost, must copy from primary");
+        return false;
+    }
+
+    if (src_file_stat == 0 && dst_file_stat == 0)
+    {
+        /* two file both exist ,just copying data from primary ,so check copy is finished or not */
+        proc_state = CheckMapperFile(GTM_MAP_FILE_NAME, file_size);
+
+        if (proc_state)
+        {
+            XLogSegNo cur_seg;
+            elog(LOG, "gtm data copy from primary is ok, no need recovery");
+            GTM_RemoveUnusedXLogFiles();
+            cur_seg = GetSegmentNo(ControlData->checkPoint);
+            NewXLogFile(cur_seg);
+            GTM_RecoveryUpdateMetaData(ControlData->checkPoint, FIRST_USABLE_BYTE, cur_seg, ControlData->checkPoint % GTM_XLOG_SEG_SIZE);
+            ControlData->state = GTM_IN_OVERWRITE_DONE;
+            ControlDataSync(false);
+            return false; /* return false and break, no need redo,just do as GTM_IN_OVERWRITE_DONE */
+        }
+
+        unlink(GTM_MAP_FILE_NAME);
+        dst_file_stat = -1;
+    }
+
+    if (src_file_stat == 0 && dst_file_stat != 0)
+    {
+        rename(GTM_MAP_BACKUP_NAME, GTM_MAP_FILE_NAME);
+    }
+
+    /* write back checkpoint position */
+    ControlData->checkPoint = ControlData->prevCheckPoint;
+    return true;
+}
+
 #ifdef __OPENTENBASE__
 /*
  * Init standby storage.
@@ -695,8 +755,7 @@ gtm_standby_connectToActiveGTM(int timeout)
 int32 GTM_StoreStandbyInitFromMaster(char *data_dir)
 {
 	int32  ret   = 0;
-	size_t size  = 0;
-	char   *data = NULL;
+	GetStoreFileSt store_file_info;
 
 	if (NULL == data_dir)
 	{
@@ -709,14 +768,19 @@ int32 GTM_StoreStandbyInitFromMaster(char *data_dir)
 		elog(LOG, "GTM_StoreStandbyInitFromMaster begin");
 	}
 	
-	size = (uint32)get_storage_file(GTM_ActiveConn, &data,&XLogCtl->apply,&XLogCtl->thisTimeLineID);
-	if (-1 == size)
+	ret = get_storage_file(GTM_ActiveConn, &store_file_info);
+	if (ret != 0)
 	{
 		elog(LOG, "GTM_StoreStandbyInitFromMaster get_storage_file failed");
 		return GTM_STORE_ERROR;
 	}
 
-	ret = GTM_StoreStandbyInit(data_dir, data, (uint32)size);
+	XLogCtl->apply = store_file_info.start_pos;
+	XLogCtl->thisTimeLineID = store_file_info.time_line;
+	elog(LOG, "GTM_StoreStandbyInitFromMaster start:%X/%X, tl:%u, data org len:%u, compressed len:%u",
+		(uint32)(XLogCtl->apply >> 32), (uint32)(XLogCtl->apply), store_file_info.time_line, store_file_info.org_len, store_file_info.c_len);
+
+	ret = GTM_StoreStandbyInit(data_dir, store_file_info.data, store_file_info.org_len, store_file_info.c_len);
 	if (ret)
 	{
 		elog(LOG, "GTM_StoreStandbyInitFromMaster GTM_StoreStandbyInit failed");
@@ -725,6 +789,7 @@ int32 GTM_StoreStandbyInitFromMaster(char *data_dir)
 
     /* we transfer data from the beginning of xlog */
 	XLogCtl->LogwrtResult.Write = XLogCtl->LogwrtResult.Flush = XLogCtl->apply - (XLogCtl->apply % GTM_XLOG_SEG_SIZE);
+	GTM_RemoveUnusedXLogFiles();
 	NewXLogFile(GetSegmentNo(XLogCtl->LogwrtResult.Flush));
 
     ControlData->checkPoint     = XLogCtl->apply;
@@ -732,11 +797,13 @@ int32 GTM_StoreStandbyInitFromMaster(char *data_dir)
 	ControlData->thisTimeLineID = XLogCtl->thisTimeLineID;
 	ControlData->gts            = g_GTM_Store_Header->m_next_gts;
 	ControlData->time           = time(NULL);
-
+	ControlData->CurrBytePos = XLogRecPtrToBytePos(XLogCtl->apply);
+	ControlData->PrevBytePos = FIRST_USABLE_BYTE;
+    ControlData->state = GTM_IN_OVERWRITE_DONE;
 	ControlDataSync(false);
     AddBackupLabel(GetSegmentNo(XLogCtl->LogwrtResult.Flush));
 
-	elog(LOG,"Get start replication at %X/%X,timeLine: %d",
+	elog(LOG,"Copy Map file ok, Get start replication at %X/%X,timeLine: %d",
 		 (uint32_t)(XLogCtl->LogwrtResult.Flush>>32),
 		 (uint32_t)(XLogCtl->LogwrtResult.Flush),
 		 XLogCtl->thisTimeLineID);
@@ -746,9 +813,9 @@ int32 GTM_StoreStandbyInitFromMaster(char *data_dir)
 	{
 		elog(LOG, "GTM_StoreStandbyInitFromMaster done");
 	}
+	
 	return GTM_STORE_OK;
 }
-
 static void
 AddBackupLabel(uint64 segment_no)
 {

@@ -10,11 +10,7 @@ CREATE USER regress_addr_user;
 CREATE SCHEMA addr_nsp;
 SET search_path TO 'addr_nsp';
 CREATE FOREIGN DATA WRAPPER addr_fdw;
-ERROR:  Postgres-XL does not support FOREIGN DATA WRAPPER yet
-DETAIL:  The feature is not currently supported
 CREATE SERVER addr_fserv FOREIGN DATA WRAPPER addr_fdw;
-ERROR:  Postgres-XL does not support SERVER yet
-DETAIL:  The feature is not currently supported
 CREATE TEXT SEARCH DICTIONARY addr_ts_dict (template=simple);
 CREATE TEXT SEARCH CONFIGURATION addr_ts_conf (copy=english);
 CREATE TEXT SEARCH TEMPLATE addr_ts_temp (lexize=dsimple_lexize);
@@ -28,7 +24,6 @@ CREATE MATERIALIZED VIEW addr_nsp.genmatview AS SELECT * FROM addr_nsp.gentable;
 CREATE TYPE addr_nsp.gencomptype AS (a int);
 CREATE TYPE addr_nsp.genenum AS ENUM ('one', 'two');
 CREATE FOREIGN TABLE addr_nsp.genftable (a int) SERVER addr_fserv;
-ERROR:  server "addr_fserv" does not exist
 CREATE AGGREGATE addr_nsp.genaggr(int4) (sfunc = int4pl, stype = int4);
 CREATE DOMAIN addr_nsp.gendomain AS int4 CONSTRAINT domconstr CHECK (value > 0);
 CREATE FUNCTION addr_nsp.trig() RETURNS TRIGGER LANGUAGE plpgsql AS $$ BEGIN END; $$;
@@ -36,12 +31,9 @@ CREATE TRIGGER t BEFORE INSERT ON addr_nsp.gentable FOR EACH ROW EXECUTE PROCEDU
 ERROR:  Postgres-XL does not support TRIGGER yet
 DETAIL:  The feature is not currently supported
 CREATE POLICY genpol ON addr_nsp.gentable;
+CREATE PROCEDURE addr_nsp.proc(int4) LANGUAGE SQL AS $$ $$;
 CREATE SERVER "integer" FOREIGN DATA WRAPPER addr_fdw;
-ERROR:  Postgres-XL does not support SERVER yet
-DETAIL:  The feature is not currently supported
 CREATE USER MAPPING FOR regress_addr_user SERVER "integer";
-ERROR:  Postgres-XL does not support USER MAPPING yet
-DETAIL:  The feature is not currently supported
 ALTER DEFAULT PRIVILEGES FOR ROLE regress_addr_user IN SCHEMA public GRANT ALL ON TABLES TO regress_addr_user;
 ALTER DEFAULT PRIVILEGES FOR ROLE regress_addr_user REVOKE DELETE ON TABLES FROM regress_addr_user;
 CREATE TRANSFORM FOR int LANGUAGE SQL (
@@ -102,7 +94,7 @@ BEGIN
 		('table'), ('index'), ('sequence'), ('view'),
 		('materialized view'), ('foreign table'),
 		('table column'), ('foreign table column'),
-		('aggregate'), ('function'), ('type'), ('cast'),
+		('aggregate'), ('function'), ('procedure'), ('type'), ('cast'),
 		('table constraint'), ('domain constraint'), ('conversion'), ('default value'),
 		('operator'), ('operator class'), ('operator family'), ('rule'), ('trigger'),
 		('text search parser'), ('text search dictionary'),
@@ -185,6 +177,12 @@ WARNING:  error for function,{addr_nsp,zwei},{}: function addr_nsp.zwei() does n
 WARNING:  error for function,{addr_nsp,zwei},{integer}: function addr_nsp.zwei(integer) does not exist
 WARNING:  error for function,{eins,zwei,drei},{}: cross-database references are not implemented: eins.zwei.drei
 WARNING:  error for function,{eins,zwei,drei},{integer}: cross-database references are not implemented: eins.zwei.drei
+WARNING:  error for procedure,{eins},{}: procedure eins() does not exist
+WARNING:  error for procedure,{eins},{integer}: procedure eins(integer) does not exist
+WARNING:  error for procedure,{addr_nsp,zwei},{}: procedure addr_nsp.zwei() does not exist
+WARNING:  error for procedure,{addr_nsp,zwei},{integer}: procedure addr_nsp.zwei(integer) does not exist
+WARNING:  error for procedure,{eins,zwei,drei},{}: cross-database references are not implemented: eins.zwei.drei
+WARNING:  error for procedure,{eins,zwei,drei},{integer}: cross-database references are not implemented: eins.zwei.drei
 WARNING:  error for type,{eins},{}: type "eins" does not exist
 WARNING:  error for type,{eins},{integer}: type "eins" does not exist
 WARNING:  error for type,{addr_nsp,zwei},{}: name list length must be exactly 1
@@ -383,6 +381,7 @@ WITH objects (type, name, args) AS (VALUES
 				('table column', '{addr_nsp, gentable, b}', '{}'),
 				('aggregate', '{addr_nsp, genaggr}', '{int4}'),
 				('function', '{pg_catalog, pg_identify_object}', '{pg_catalog.oid, pg_catalog.oid, int4}'),
+				('procedure', '{addr_nsp, proc}', '{int4}'),
 				('type', '{pg_catalog._int4}', '{}'),
 				('type', '{addr_nsp.gendomain}', '{}'),
 				('type', '{addr_nsp.gencomptype}', '{}'),
@@ -436,6 +435,7 @@ SELECT (pg_identify_object(addr1.classid, addr1.objid, addr1.objsubid)).*,
  type                      | addr_nsp   | gendomain         | addr_nsp.gendomain                                                   | t
  function                  | pg_catalog |                   | pg_catalog.pg_identify_object(pg_catalog.oid,pg_catalog.oid,integer) | t
  aggregate                 | addr_nsp   |                   | addr_nsp.genaggr(integer)                                            | t
+ procedure                 | addr_nsp   |                   | addr_nsp.proc(integer)                                               | t
  sequence                  | addr_nsp   | gentable_a_seq    | addr_nsp.gentable_a_seq                                              | t
  table                     | addr_nsp   | gentable          | addr_nsp.gentable                                                    | t
  table column              | addr_nsp   | gentable          | addr_nsp.gentable.b                                                  | t
@@ -465,19 +465,19 @@ SELECT (pg_identify_object(addr1.classid, addr1.objid, addr1.objsubid)).*,
  text search parser        | addr_nsp   | addr_ts_prs       | addr_nsp.addr_ts_prs                                                 | t
  text search configuration | addr_nsp   | addr_ts_conf      | addr_nsp.addr_ts_conf                                                | t
  text search template      | addr_nsp   | addr_ts_temp      | addr_nsp.addr_ts_temp                                                | t
-(37 rows)
+(38 rows)
 
 ---
 --- Cleanup resources
 ---
 \set VERBOSITY terse \\ -- suppress cascade details
 DROP FOREIGN DATA WRAPPER addr_fdw CASCADE;
-ERROR:  foreign-data wrapper "addr_fdw" does not exist
+NOTICE:  drop cascades to 4 other objects
 DROP PUBLICATION addr_pub;
 ERROR:  publication "addr_pub" does not exist
 DROP SUBSCRIPTION addr_sub;
 ERROR:  COORDINATOR only supports DROP OPENTENBASE SUBSCRIPTION
 DROP SCHEMA addr_nsp CASCADE;
-NOTICE:  drop cascades to 12 other objects
+NOTICE:  drop cascades to 13 other objects
 DROP OWNED BY regress_addr_user;
 DROP USER regress_addr_user;

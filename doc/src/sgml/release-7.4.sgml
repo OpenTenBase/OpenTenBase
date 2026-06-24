@@ -4150,7 +4150,7 @@ DROP SCHEMA information_schema CASCADE;
    </listitem>
 
    <listitem>
-    <para>Make <function>initcap()</function> more compatible with Oracle (Mike Nolan)</para>
+    <para>Make <function>initcap()</function> more compatible with OpenTenBase_Ora (Mike Nolan)</para>
     <para>
      <function>initcap()</function> now uppercases a letter appearing
      after any non-alphanumeric character, rather than only after
@@ -4598,7 +4598,7 @@ DROP SCHEMA information_schema CASCADE;
    <listitem><para>Improve earthdistance (Bruno Wolff III)</para></listitem>
    <listitem><para>Portability improvements to pgcrypto (Marko Kreen)</para></listitem>
    <listitem><para>Prevent crash in xml (John Gray, Michael Richards)</para></listitem>
-   <listitem><para>Update oracle</para></listitem>
+   <listitem><para>Update opentenbase_ora</para></listitem>
    <listitem><para>Update mysql</para></listitem>
    <listitem><para>Update cube (Bruno Wolff III)</para></listitem>
    <listitem><para>Update earthdistance to use cube (Bruno Wolff III)</para></listitem>

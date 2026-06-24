@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * extension.h
- *        Extension management commands (create/drop extension).
+ *		Extension management commands (create/drop extension).
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -28,7 +28,7 @@
  * them from the extension first.
  */
 extern PGDLLIMPORT bool creating_extension;
-extern Oid    CurrentExtensionObject;
+extern PGDLLIMPORT Oid CurrentExtensionObject;
 
 
 extern ObjectAddress CreateExtension(ParseState *pstate, CreateExtensionStmt *stmt);
@@ -40,21 +40,25 @@ extern void SetExitCreateExtension(void);
 extern void RemoveExtensionById(Oid extId);
 
 extern ObjectAddress InsertExtensionTuple(const char *extName, Oid extOwner,
-                     Oid schemaOid, bool relocatable, const char *extVersion,
-                     Datum extConfig, Datum extCondition,
-                     List *requiredExtensions);
+					 Oid schemaOid, bool relocatable, const char *extVersion,
+					 Datum extConfig, Datum extCondition,
+					 List *requiredExtensions);
 
 extern ObjectAddress ExecAlterExtensionStmt(ParseState *pstate, AlterExtensionStmt *stmt);
 
 extern ObjectAddress ExecAlterExtensionContentsStmt(AlterExtensionContentsStmt *stmt,
-                               ObjectAddress *objAddress);
+							   ObjectAddress *objAddress);
 
-extern Oid    get_extension_oid(const char *extname, bool missing_ok);
+extern Oid	get_extension_oid(const char *extname, bool missing_ok);
 extern char *get_extension_name(Oid ext_oid);
 
 extern ObjectAddress AlterExtensionNamespace(const char *extensionName, const char *newschema,
-                        Oid *oldschema);
+						Oid *oldschema);
 
 extern void AlterExtensionOwner_oid(Oid extensionOid, Oid newOwnerId);
+extern Oid get_extension_schema(Oid ext_oid);
 
-#endif                            /* EXTENSION_H */
+extern char *get_c_function_symbol_name(char *funcname);
+
+extern bool extension_in_whitelist(char *extname);
+#endif							/* EXTENSION_H */

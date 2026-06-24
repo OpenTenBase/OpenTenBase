@@ -6,9 +6,6 @@
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * ------------------------------------------------------------------------
  */
 #include "postgres.h"
@@ -37,7 +34,7 @@ ExecInitCustomScan(CustomScan *cscan, EState *estate, int eflags)
 	CustomScanState *css;
 	Relation	scan_rel = NULL;
 	Index		scanrelid = cscan->scan.scanrelid;
-	Index		tlistvarno;
+	int			tlistvarno;
 
 	/*
 	 * Allocate the CustomScanState object.  We let the custom scan provider
@@ -60,14 +57,6 @@ ExecInitCustomScan(CustomScan *cscan, EState *estate, int eflags)
 	/* create expression context for node */
 	ExecAssignExprContext(estate, &css->ss.ps);
 
-	/* initialize child expressions */
-	css->ss.ps.qual =
-		ExecInitQual(cscan->scan.plan.qual, (PlanState *) css);
-
-	/* tuple table initialization */
-	ExecInitScanTupleSlot(estate, &css->ss);
-	ExecInitResultTupleSlot(estate, &css->ss.ps);
-
 	/*
 	 * open the base relation, if any, and acquire an appropriate lock on it
 	 */
@@ -76,13 +65,11 @@ ExecInitCustomScan(CustomScan *cscan, EState *estate, int eflags)
 		scan_rel = ExecOpenScanRelation(estate, scanrelid, eflags);
 		css->ss.ss_currentRelation = scan_rel;
 #ifdef _MLS_
-        mls_check_datamask_need_passby((ScanState*)css, scan_rel->rd_id);
-#endif        
+		mls_check_datamask_need_passby((ScanState*)css, scan_rel->rd_id);
 	}
-    else
-    {
-#ifdef _MLS_
-        mls_check_datamask_need_passby((ScanState*)css, InvalidOid);
+	else
+	{
+		mls_check_datamask_need_passby((ScanState*)css, InvalidOid);
 #endif
     }
 
@@ -96,22 +83,26 @@ ExecInitCustomScan(CustomScan *cscan, EState *estate, int eflags)
 		TupleDesc	scan_tupdesc;
 
 		scan_tupdesc = ExecTypeFromTL(cscan->custom_scan_tlist, false);
-		ExecAssignScanType(&css->ss, scan_tupdesc);
+		ExecInitScanTupleSlot(estate, &css->ss, scan_tupdesc);
 		/* Node's targetlist will contain Vars with varno = INDEX_VAR */
 		tlistvarno = INDEX_VAR;
 	}
 	else
 	{
-		ExecAssignScanType(&css->ss, RelationGetDescr(scan_rel));
+		ExecInitScanTupleSlot(estate, &css->ss, RelationGetDescr(scan_rel));
 		/* Node's targetlist will contain Vars with varno = scanrelid */
 		tlistvarno = scanrelid;
 	}
 
 	/*
-	 * Initialize result tuple type and projection info.
+	 * Initialize result slot, type and projection.
 	 */
-	ExecAssignResultTypeFromTL(&css->ss.ps);
+	ExecInitResultTupleSlotTL(&css->ss.ps);
 	ExecAssignScanProjectionInfoWithVarno(&css->ss, tlistvarno);
+
+	/* initialize child expressions */
+	css->ss.ps.qual =
+		ExecInitQual(cscan->scan.plan.qual, (PlanState *) css);
 
 	/*
 	 * The callback of custom-scan provider applies the final initialization

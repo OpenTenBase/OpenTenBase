@@ -19,48 +19,52 @@ ERROR:  there is no unique or exclusion constraint matching the ON CONFLICT spec
 explain (costs off) insert into insertconflicttest values(0, 'Crowberry') on conflict (key, fruit) do nothing;
                                      QUERY PLAN                                      
 -------------------------------------------------------------------------------------
- Remote Subquery Scan on all (datanode_2)
+ Remote Fast Query Execution
+   Node expr: 0
    ->  Insert on insertconflicttest
          Conflict Resolution: NOTHING
          Conflict Arbiter Indexes: op_index_key, collation_index_key, both_index_key
          ->  Result
-(5 rows)
+(6 rows)
 
 explain (costs off) insert into insertconflicttest values(0, 'Crowberry') on conflict (fruit, key, fruit, key) do nothing;
                                      QUERY PLAN                                      
 -------------------------------------------------------------------------------------
- Remote Subquery Scan on all (datanode_2)
+ Remote Fast Query Execution
+   Node expr: 0
    ->  Insert on insertconflicttest
          Conflict Resolution: NOTHING
          Conflict Arbiter Indexes: op_index_key, collation_index_key, both_index_key
          ->  Result
-(5 rows)
+(6 rows)
 
 explain (costs off) insert into insertconflicttest values(0, 'Crowberry') on conflict (lower(fruit), key, lower(fruit), key) do nothing;
                       QUERY PLAN                       
 -------------------------------------------------------
- Remote Subquery Scan on all (datanode_2)
+ Remote Fast Query Execution
+   Node expr: 0
    ->  Insert on insertconflicttest
          Conflict Resolution: NOTHING
          Conflict Arbiter Indexes: both_index_expr_key
          ->  Result
-(5 rows)
+(6 rows)
 
 explain (costs off) insert into insertconflicttest values(0, 'Crowberry') on conflict (key, fruit) do update set fruit = excluded.fruit
   where exists (select 1 from insertconflicttest ii where ii.key = excluded.key);
-                                       QUERY PLAN                                       
-----------------------------------------------------------------------------------------
- Remote Subquery Scan on all (datanode_2)
+                                     QUERY PLAN                                      
+-------------------------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 1)
    ->  Insert on insertconflicttest
          Conflict Resolution: UPDATE
          Conflict Arbiter Indexes: op_index_key, collation_index_key, both_index_key
          Conflict Filter: (SubPlan 1)
          ->  Result
          SubPlan 1
-           ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-                 ->  Index Only Scan using both_index_expr_key on insertconflicttest ii
-                       Index Cond: (key = excluded.key)
-(10 rows)
+           ->  Remote Subquery Scan on all (datanodes 2)
+                 Distribute results by R
+                 ->  Seq Scan on insertconflicttest ii
+                       Filter: (key = excluded.key)
+(11 rows)
 
 -- Neither collation nor operator class specifications are required --
 -- supplying them merely *limits* matches to indexes with matching opclasses
@@ -68,48 +72,52 @@ explain (costs off) insert into insertconflicttest values(0, 'Crowberry') on con
 explain (costs off) insert into insertconflicttest values(0, 'Crowberry') on conflict (key, fruit text_pattern_ops) do nothing;
                            QUERY PLAN                           
 ----------------------------------------------------------------
- Remote Subquery Scan on all (datanode_2)
+ Remote Fast Query Execution
+   Node expr: 0
    ->  Insert on insertconflicttest
          Conflict Resolution: NOTHING
          Conflict Arbiter Indexes: op_index_key, both_index_key
          ->  Result
-(5 rows)
+(6 rows)
 
 -- Okay, arbitrates using both index where text_pattern_ops opclass does and
 -- does not appear.
 explain (costs off) insert into insertconflicttest values(0, 'Crowberry') on conflict (key, fruit collate "C") do nothing;
                               QUERY PLAN                               
 -----------------------------------------------------------------------
- Remote Subquery Scan on all (datanode_2)
+ Remote Fast Query Execution
+   Node expr: 0
    ->  Insert on insertconflicttest
          Conflict Resolution: NOTHING
          Conflict Arbiter Indexes: collation_index_key, both_index_key
          ->  Result
-(5 rows)
+(6 rows)
 
 -- Okay, but only accepts the single index where both opclass and collation are
 -- specified
 explain (costs off) insert into insertconflicttest values(0, 'Crowberry') on conflict (fruit collate "C" text_pattern_ops, key) do nothing;
                     QUERY PLAN                    
 --------------------------------------------------
- Remote Subquery Scan on all (datanode_2)
+ Remote Fast Query Execution
+   Node expr: 0
    ->  Insert on insertconflicttest
          Conflict Resolution: NOTHING
          Conflict Arbiter Indexes: both_index_key
          ->  Result
-(5 rows)
+(6 rows)
 
 -- Okay, but only accepts the single index where both opclass and collation are
 -- specified (plus expression variant)
 explain (costs off) insert into insertconflicttest values(0, 'Crowberry') on conflict (lower(fruit) collate "C", key, key) do nothing;
                       QUERY PLAN                       
 -------------------------------------------------------
- Remote Subquery Scan on all (datanode_2)
+ Remote Fast Query Execution
+   Node expr: 0
    ->  Insert on insertconflicttest
          Conflict Resolution: NOTHING
          Conflict Arbiter Indexes: both_index_expr_key
          ->  Result
-(5 rows)
+(6 rows)
 
 -- Attribute appears twice, while not all attributes/expressions on attributes
 -- appearing within index definition match in terms of both opclass and
@@ -128,22 +136,24 @@ explain (costs off) insert into insertconflicttest values(0, 'Crowberry') on con
 explain (costs off) insert into insertconflicttest values(0, 'Crowberry') on conflict (fruit, key, fruit text_pattern_ops, key) do nothing;
                            QUERY PLAN                           
 ----------------------------------------------------------------
- Remote Subquery Scan on all (datanode_2)
+ Remote Fast Query Execution
+   Node expr: 0
    ->  Insert on insertconflicttest
          Conflict Resolution: NOTHING
          Conflict Arbiter Indexes: op_index_key, both_index_key
          ->  Result
-(5 rows)
+(6 rows)
 
 explain (costs off) insert into insertconflicttest values(0, 'Crowberry') on conflict (lower(fruit) collate "C" text_pattern_ops, key, key) do nothing;
                       QUERY PLAN                       
 -------------------------------------------------------
- Remote Subquery Scan on all (datanode_2)
+ Remote Fast Query Execution
+   Node expr: 0
    ->  Insert on insertconflicttest
          Conflict Resolution: NOTHING
          Conflict Arbiter Indexes: both_index_expr_key
          ->  Result
-(5 rows)
+(6 rows)
 
 drop index op_index_key;
 drop index collation_index_key;
@@ -155,7 +165,7 @@ drop index both_index_expr_key;
 -- In XL, table is distributed by HASH( key ) by default.
 -- unique index contains fruit and not key, so this fails.
 create unique index cross_match on insertconflicttest(lower(fruit) collate "C", upper(fruit) text_pattern_ops);
-ERROR:  Unique index of partitioned table must contain the hash/modulo distribution column.
+ERROR:  Unique index of distributed table must contain the distribution column.
 -- fails:
 explain (costs off) insert into insertconflicttest values(0, 'Crowberry') on conflict (lower(fruit) text_pattern_ops, upper(fruit) collate "C") do nothing;
 ERROR:  there is no unique or exclusion constraint matching the ON CONFLICT specification
@@ -174,70 +184,74 @@ create unique index key_index on insertconflicttest(key);
 explain (costs off) insert into insertconflicttest values (0, 'Bilberry') on conflict (key) do update set fruit = excluded.fruit;
                  QUERY PLAN                  
 ---------------------------------------------
- Remote Subquery Scan on all (datanode_2)
+ Remote Fast Query Execution
+   Node expr: 0
    ->  Insert on insertconflicttest
          Conflict Resolution: UPDATE
          Conflict Arbiter Indexes: key_index
          ->  Result
-(5 rows)
+(6 rows)
 
 -- Should display qual actually attributable to internal sequential scan:
 explain (costs off) insert into insertconflicttest values (0, 'Bilberry') on conflict (key) do update set fruit = excluded.fruit where insertconflicttest.fruit != 'Cawesh';
                               QUERY PLAN                               
 -----------------------------------------------------------------------
- Remote Subquery Scan on all (datanode_2)
+ Remote Fast Query Execution
+   Node expr: 0
    ->  Insert on insertconflicttest
          Conflict Resolution: UPDATE
          Conflict Arbiter Indexes: key_index
          Conflict Filter: (insertconflicttest.fruit <> 'Cawesh'::text)
          ->  Result
-(6 rows)
+(7 rows)
 
 -- With EXCLUDED.* expression in scan node:
 explain (costs off) insert into insertconflicttest values(0, 'Crowberry') on conflict (key) do update set fruit = excluded.fruit where excluded.fruit != 'Elderberry';
                            QUERY PLAN                            
 -----------------------------------------------------------------
- Remote Subquery Scan on all (datanode_2)
+ Remote Fast Query Execution
+   Node expr: 0
    ->  Insert on insertconflicttest
          Conflict Resolution: UPDATE
          Conflict Arbiter Indexes: key_index
          Conflict Filter: (excluded.fruit <> 'Elderberry'::text)
          ->  Result
-(6 rows)
+(7 rows)
 
 -- Does the same, but JSON format shows "Conflict Arbiter Index" as JSON array:
 explain (costs off, format json) insert into insertconflicttest values (0, 'Bilberry') on conflict (key) do update set fruit = excluded.fruit where insertconflicttest.fruit != 'Lime' returning *;
-                                 QUERY PLAN                                 
-----------------------------------------------------------------------------
- [                                                                         +
-   {                                                                       +
-     "Plan": {                                                             +
-       "Node Type": "Remote Subquery Scan",                                +
-       "Parallel Aware": false,                                            +
-       "Replicated": "no",                                                 +
-       "Node List": ["datanode_2"],                                        +
-       "Plans": [                                                          +
-         {                                                                 +
-           "Node Type": "ModifyTable",                                     +
-           "Operation": "Insert",                                          +
-           "Parent Relationship": "Outer",                                 +
-           "Parallel Aware": false,                                        +
-           "Relation Name": "insertconflicttest",                          +
-           "Alias": "insertconflicttest",                                  +
-           "Conflict Resolution": "UPDATE",                                +
-           "Conflict Arbiter Indexes": ["key_index"],                      +
-           "Conflict Filter": "(insertconflicttest.fruit <> 'Lime'::text)",+
-           "Plans": [                                                      +
-             {                                                             +
-               "Node Type": "Result",                                      +
-               "Parent Relationship": "Member",                            +
-               "Parallel Aware": false                                     +
-             }                                                             +
-           ]                                                               +
-         }                                                                 +
-       ]                                                                   +
-     }                                                                     +
-   }                                                                       +
+                                  QUERY PLAN                                  
+------------------------------------------------------------------------------
+ [                                                                           +
+   {                                                                         +
+     "Plan": {                                                               +
+       "Node Type": "Remote Fast Query Execution",                           +
+       "Parallel Aware": false,                                              +
+       "Node expr": "0",                                                     +
+       "Remote plan": [                                                      +
+         {                                                                   +
+           "Plan": {                                                         +
+             "Node Type": "ModifyTable",                                     +
+             "Operation": "Insert",                                          +
+             "Parallel Aware": false,                                        +
+             "Relation Name": "insertconflicttest",                          +
+             "Alias": "insertconflicttest",                                  +
+             "Conflict Resolution": "UPDATE",                                +
+             "Conflict Arbiter Indexes": ["key_index"],                      +
+             "Conflict Filter": "(insertconflicttest.fruit <> 'Lime'::text)",+
+             "Plans": [                                                      +
+               {                                                             +
+                 "Node Type": "Result",                                      +
+                 "Parent Relationship": "Outer",                             +
+                 "Parallel Aware": false                                     +
+               }                                                             +
+             ]                                                               +
+           }                                                                 +
+         }                                                                   +
+       ]                                                                     +
+                                                                             +
+     }                                                                       +
+   }                                                                         +
  ]
 (1 row)
 
@@ -254,6 +268,7 @@ insert into insertconflicttest values (2, 'Orange') on conflict (key, key, key) 
 insert into insertconflicttest
 values (1, 'Apple'), (2, 'Orange')
 on conflict (key) do update set (fruit, key) = (excluded.fruit, excluded.key);
+ERROR:  Distributed column "key" can't be updated in current version
 -- Give good diagnostic message when EXCLUDED.* spuriously referenced from
 -- RETURNING:
 insert into insertconflicttest values (1, 'Apple') on conflict (key) do update set fruit = excluded.fruit RETURNING excluded.fruit;
@@ -332,7 +347,7 @@ drop index expr_part_comp_key_index;
 -- Expression index tests
 --
 create unique index expr_key_index on insertconflicttest(lower(fruit));
-ERROR:  Unique index of partitioned table must contain the hash/modulo distribution column.
+ERROR:  Unique index of distributed table must contain the distribution column.
 -- inference succeeds:
 insert into insertconflicttest values (20, 'Quince') on conflict (lower(fruit)) do update set fruit = excluded.fruit;
 ERROR:  there is no unique or exclusion constraint matching the ON CONFLICT specification
@@ -357,12 +372,13 @@ insert into insertconflicttest values (25, 'Peach') on conflict (lower(fruit), k
 explain (costs off) insert into insertconflicttest values (26, 'Fig') on conflict (lower(fruit), key, lower(fruit), key) do update set fruit = excluded.fruit;
                       QUERY PLAN                       
 -------------------------------------------------------
- Remote Subquery Scan on all (datanode_1)
+ Remote Fast Query Execution
+   Node expr: 26
    ->  Insert on insertconflicttest
          Conflict Resolution: UPDATE
          Conflict Arbiter Indexes: expr_comp_key_index
          ->  Result
-(5 rows)
+(6 rows)
 
 -- inference fails:
 insert into insertconflicttest values (27, 'Prune') on conflict (key, upper(fruit)) do update set fruit = excluded.fruit;
@@ -378,7 +394,7 @@ drop index tricky_expr_comp_key_index;
 --
 create unique index key_index on insertconflicttest(key);
 create unique index fruit_index on insertconflicttest(fruit);
-ERROR:  Unique index of partitioned table must contain the hash/modulo distribution column.
+ERROR:  Unique index of distributed table must contain the distribution column.
 -- succeeds, since UPDATE happens to update "fruit" to existing value:
 insert into insertconflicttest values (26, 'Fig') on conflict (key) do update set fruit = excluded.fruit;
 -- fails, since UPDATE is to row with key value 26, and we're updating "fruit"
@@ -445,23 +461,25 @@ insert into insertconflicttest as i values (23, 'Avocado') on conflict (key) do 
 explain (costs off) insert into insertconflicttest as i values (23, 'Avocado') on conflict (key) do update set fruit = excluded.fruit where excluded.* is null;
                   QUERY PLAN                   
 -----------------------------------------------
- Remote Subquery Scan on all (datanode_1)
+ Remote Fast Query Execution
+   Node expr: 23
    ->  Insert on insertconflicttest i
          Conflict Resolution: UPDATE
          Conflict Arbiter Indexes: plain
          Conflict Filter: (excluded.* IS NULL)
          ->  Result
-(6 rows)
+(7 rows)
 
 explain (costs off) insert into insertconflicttest as i values (23, 'Avocado') on conflict (key) do update set fruit = excluded.*::text;
-                QUERY PLAN                
-------------------------------------------
- Remote Subquery Scan on all (datanode_1)
+               QUERY PLAN                
+-----------------------------------------
+ Remote Fast Query Execution
+   Node expr: 23
    ->  Insert on insertconflicttest i
          Conflict Resolution: UPDATE
          Conflict Arbiter Indexes: plain
          ->  Result
-(5 rows)
+(6 rows)
 
 drop index plain;
 -- Cleanup
@@ -513,7 +531,7 @@ select * from insertconflict;
 
 insert into insertconflictv values (1,'bar')
   on conflict (f1) do update set f2 = excluded.f2;
-select * from insertconflict;
+select * from insertconflict order by 1;
  f1 | f2  
 ----+-----
   1 | bar
@@ -546,7 +564,7 @@ insert into cities values ('Mariposa', 1200, 1953);
 insert into capitals values ('Sacramento', 3.694E+5, 30, 'CA');
 insert into capitals values ('Madison', 1.913E+5, 845, 'WI');
 -- Tests proper for inheritance:
-select * from capitals;
+select * from capitals order by 1;
     name    | population | altitude | state 
 ------------+------------+----------+-------
  Madison    |     191300 |      845 | WI
@@ -568,50 +586,50 @@ select * from capitals;
 insert into cities values ('Las Vegas', 5.83E+5, 2001) on conflict (name) do update set population = excluded.population, altitude = excluded.altitude;
 -- tableoid::regclass is not mapped to relation name in XL
 -- bug #4
-select * from cities;
+select * from cities order by 1;
      name      | population | altitude 
 ---------------+------------+----------
- Madison       |     191300 |      845
- San Francisco |     724000 |       63
- Mariposa      |       1200 |     1953
  Las Vegas     |     583000 |     2001
+ Madison       |     191300 |      845
+ Mariposa      |       1200 |     1953
  Sacramento    |  466400000 |       30
+ San Francisco |     724000 |       63
 (5 rows)
 
 insert into capitals values ('Las Vegas', 5.83E+5, 2222, 'NV') on conflict (name) do update set population = excluded.population;
 -- Capitals will contain new capital, Las Vegas:
-select * from capitals;
+select * from capitals order by 1;
     name    | population | altitude | state 
 ------------+------------+----------+-------
+ Las Vegas  |     583000 |     2222 | NV
  Madison    |     191300 |      845 | WI
  Sacramento |  466400000 |       30 | CA
- Las Vegas  |     583000 |     2222 | NV
 (3 rows)
 
 -- Cities contains two instances of "Las Vegas", since unique constraints don't
 -- work across inheritance:
-select * from cities;
+select * from cities order by 1;
      name      | population | altitude 
 ---------------+------------+----------
- Madison       |     191300 |      845
- San Francisco |     724000 |       63
- Mariposa      |       1200 |     1953
  Las Vegas     |     583000 |     2001
- Sacramento    |  466400000 |       30
  Las Vegas     |     583000 |     2222
+ Madison       |     191300 |      845
+ Mariposa      |       1200 |     1953
+ Sacramento    |  466400000 |       30
+ San Francisco |     724000 |       63
 (6 rows)
 
 -- This only affects "cities" version of "Las Vegas":
 insert into cities values ('Las Vegas', 5.86E+5, 2223) on conflict (name) do update set population = excluded.population, altitude = excluded.altitude;
-select * from cities;
+select * from cities order by 1;
      name      | population | altitude 
 ---------------+------------+----------
- Madison       |     191300 |      845
- San Francisco |     724000 |       63
- Mariposa      |       1200 |     1953
  Las Vegas     |     586000 |     2223
- Sacramento    |  466400000 |       30
  Las Vegas     |     583000 |     2222
+ Madison       |     191300 |      845
+ Mariposa      |       1200 |     1953
+ Sacramento    |  466400000 |       30
+ San Francisco |     724000 |       63
 (6 rows)
 
 -- clean up
@@ -772,7 +790,7 @@ ERROR:  conflicting key value violates exclusion constraint "twoconstraints_f2_e
 DETAIL:  Key (f2)=((1,2),(0,0)) conflicts with existing key (f2)=((1,1),(0,0)).
 insert into twoconstraints values(2, '((0,0),(1,2))')
   on conflict on constraint twoconstraints_f2_excl do nothing;  -- do nothing
-select * from twoconstraints;
+select * from twoconstraints order by 1;
  f1 |     f2      
 ----+-------------
   1 | (1,1),(0,0)
@@ -805,7 +823,7 @@ insert into selfconflict values (6,1), (6,2) on conflict(f1) do update set f2 = 
 ERROR:  ON CONFLICT DO UPDATE command cannot affect row a second time
 HINT:  Ensure that no rows proposed for insertion within the same command have duplicate constrained values.
 commit;
-select * from selfconflict;
+select * from selfconflict order by 1;
  f1 | f2 
 ----+----
   1 |  1
@@ -814,16 +832,237 @@ select * from selfconflict;
 (3 rows)
 
 drop table selfconflict;
--- check that the following works:
--- insert into partitioned_table on conflict do nothing
-create table parted_conflict_test (a int, b char) partition by list (a);
-create table parted_conflict_test_1 partition of parted_conflict_test (b unique) for values in (1);
+-- check ON CONFLICT handling with partitioned tables
+drop table if exists parted_conflict_test;
+NOTICE:  table "parted_conflict_test" does not exist, skipping
+create table parted_conflict_test (a int unique, b char) partition by list (a);
+create table parted_conflict_test_1 partition of parted_conflict_test for values in (1, 2);
+-- no indexes required here
 insert into parted_conflict_test values (1, 'a') on conflict do nothing;
-insert into parted_conflict_test values (1, 'a') on conflict do nothing;
--- however, on conflict do update is not supported yet
-insert into parted_conflict_test values (1) on conflict (b) do update set a = excluded.a;
-ERROR:  ON CONFLICT DO UPDATE cannot be applied to partitioned table "parted_conflict_test"
--- but it works OK if we target the partition directly
-insert into parted_conflict_test_1 values (1) on conflict (b) do
-update set a = excluded.a;
+-- index on a required, which does exist in parent
+insert into parted_conflict_test values (1, 'a') on conflict (a) do nothing;
+insert into parted_conflict_test values (1, 'b') on conflict (a) do update set b = excluded.b;
+select * from parted_conflict_test order by 1,2;
+ a | b 
+---+---
+ 1 | b
+(1 row)
+
+-- targeting partition directly will work
+insert into parted_conflict_test_1 values (1, 'a') on conflict (a) do nothing;
+insert into parted_conflict_test_1 values (1, 'c') on conflict (a) do update set b = excluded.b;
+select * from parted_conflict_test order by 1,2;
+ a | b 
+---+---
+ 1 | c
+(1 row)
+
+-- index on b required, which doesn't exist in parent
+insert into parted_conflict_test values (2, 'b') on conflict (a) do update set a = excluded.a;
+ERROR:  Distributed column "a" can't be updated in current version
+insert into parted_conflict_test values (2, 'b') on conflict (a) do update set b = excluded.b;
+select * from parted_conflict_test order by 1,2;
+ a | b 
+---+---
+ 1 | c
+ 2 | b
+(2 rows)
+
+-- targeting partition directly will work
+insert into parted_conflict_test_1 values (2, 'b') on conflict (a) do update set b = excluded.b;
+select * from parted_conflict_test order by 1,2;
+ a | b 
+---+---
+ 1 | c
+ 2 | b
+(2 rows)
+
+-- should see (2, 'b')
+select * from parted_conflict_test order by a;
+ a | b 
+---+---
+ 1 | c
+ 2 | b
+(2 rows)
+
+-- now check that DO UPDATE works correctly for target partition with
+-- different attribute numbers
+create table parted_conflict_test_2 (b char, a int unique);
+alter table parted_conflict_test attach partition parted_conflict_test_2 for values in (3);
+ERROR:  table "parted_conflict_test_2" contains column "a" at position 2, but parent "parted_conflict_test" has it at position 1
+DETAIL:  Postgres-XL requires attribute positions to match
+HINT:  Check for column ordering and dropped columns, if any
+drop table if exists parted_conflict_test_2;
+create table parted_conflict_test_2 (a int unique, b char);
+alter table parted_conflict_test attach partition parted_conflict_test_2 for values in (3);
+truncate parted_conflict_test;
+insert into parted_conflict_test values (3, 'a') on conflict (a) do update set b = excluded.b;
+insert into parted_conflict_test values (3, 'b') on conflict (a) do update set b = excluded.b;
+-- should see (3, 'b')
+select * from parted_conflict_test order by a;
+ a | b 
+---+---
+ 3 | b
+(1 row)
+
+-- case where parent will have a dropped column, but the partition won't
+alter table parted_conflict_test drop b, add b char;
+create table parted_conflict_test_3 partition of parted_conflict_test for values in (4);
+truncate parted_conflict_test;
+insert into parted_conflict_test (a, b) values (4, 'a') on conflict (a) do update set b = excluded.b;
+select * from parted_conflict_test order by a;
+ a | b 
+---+---
+ 4 | a
+(1 row)
+
+insert into parted_conflict_test (a, b) values (4, 'b') on conflict (a) do update set b = excluded.b where parted_conflict_test.b = 'c';
+select * from parted_conflict_test order by a;
+ a | b 
+---+---
+ 4 | a
+(1 row)
+
+insert into parted_conflict_test (a, b) values (4, 'b') on conflict (a) do update set b = excluded.b where parted_conflict_test.b = 'a';
+-- should see (4, 'b')
+select * from parted_conflict_test order by a;
+ a | b 
+---+---
+ 4 | b
+(1 row)
+
+-- case with multi-level partitioning
+create table parted_conflict_test_4 partition of parted_conflict_test for values in (5) partition by list (a);
+create table parted_conflict_test_4_1 partition of parted_conflict_test_4 for values in (5);
+truncate parted_conflict_test;
+insert into parted_conflict_test (a, b) values (5, 'a') on conflict (a) do update set b = excluded.b;
+select * from parted_conflict_test order by a;
+ a | b 
+---+---
+ 5 | a
+(1 row)
+
+insert into parted_conflict_test (a, b) values (5, 'b') on conflict (a) do update set b = excluded.b where parted_conflict_test.b = 'b';
+select * from parted_conflict_test order by a;
+ a | b 
+---+---
+ 5 | a
+(1 row)
+
+insert into parted_conflict_test (a, b) values (5, 'b') on conflict (a) do update set b = excluded.b where parted_conflict_test.b = 'a';
+select * from parted_conflict_test order by a;
+ a | b 
+---+---
+ 5 | b
+(1 row)
+
+-- should see (5, 'b')
+select * from parted_conflict_test order by a;
+ a | b 
+---+---
+ 5 | b
+(1 row)
+
+select * from parted_conflict_test_4 order by a;
+ a | b 
+---+---
+ 5 | b
+(1 row)
+
+select * from parted_conflict_test_4_1 order by a;
+ a | b 
+---+---
+ 5 | b
+(1 row)
+
+-- test with multiple rows
+truncate parted_conflict_test;
+insert into parted_conflict_test (a, b) values (1, 'a'), (2, 'a'), (4, 'a') on conflict (a) do update set b = excluded.b where excluded.b = 'b';
+select * from parted_conflict_test order by a;
+ a | b 
+---+---
+ 1 | a
+ 2 | a
+ 4 | a
+(3 rows)
+
+insert into parted_conflict_test (a, b) values (1, 'b'), (2, 'c'), (4, 'b') on conflict (a) do update set b = excluded.b where excluded.b = 'b';
+-- should see (1, 'b'), (2, 'a'), (4, 'b')
+select * from parted_conflict_test order by a;
+ a | b 
+---+---
+ 1 | b
+ 2 | a
+ 4 | b
+(3 rows)
+
 drop table parted_conflict_test;
+-- test behavior of inserting a conflicting tuple into an intermediate
+-- partitioning level
+create table parted_conflict (a int primary key, b text) partition by range (a);
+create table parted_conflict_1 partition of parted_conflict for values from (0) to (1000) partition by range (a);
+create table parted_conflict_1_1 partition of parted_conflict_1 for values from (0) to (500);
+insert into parted_conflict values (40, 'forty');
+insert into parted_conflict_1 values (40, 'cuarenta')
+  on conflict (a) do update set b = excluded.b;
+select * from parted_conflict;
+ a  |    b     
+----+----------
+ 40 | cuarenta
+(1 row)
+
+select * from parted_conflict_1;
+ a  |    b     
+----+----------
+ 40 | cuarenta
+(1 row)
+
+select * from parted_conflict_1_1;
+ a  |    b     
+----+----------
+ 40 | cuarenta
+(1 row)
+
+drop table parted_conflict;
+-- same thing, but this time try to use an index that's created not in the
+-- partition
+create table parted_conflict (a int, b text) partition by range (a);
+create table parted_conflict_1 partition of parted_conflict for values from (0) to (1000) partition by range (a);
+create unique index on only parted_conflict_1 (a);
+create unique index on only parted_conflict (a);
+alter index parted_conflict_a_idx attach partition parted_conflict_1_a_idx;
+create table parted_conflict_1_1 partition of parted_conflict_1 for values from (0) to (500);
+insert into parted_conflict values (40, 'forty');
+insert into parted_conflict_1 values (40, 'cuarenta')
+  on conflict (a) do update set b = excluded.b;
+ERROR:  there is no unique or exclusion constraint matching the ON CONFLICT specification
+drop table parted_conflict;
+-- support syntax begin deferrable/not deferrable/read only/read write;
+Drop table if exists tb1;
+NOTICE:  table "tb1" does not exist, skipping
+create table tb1(a int);
+insert into tb1 values(1),(2);
+select count(*) from tb1;
+ count 
+-------
+     2
+(1 row)
+
+begin deferrable;
+end;
+begin not deferrable;
+end;
+begin read only;
+insert into tb1 values(3);
+ERROR:  cannot execute INSERT in a read-only transaction
+End;
+begin read write;
+insert into tb1 values(3);
+Select * from tb1 where a = 3;
+ a 
+---
+ 3
+(1 row)
+
+End;
+Drop table tb1;

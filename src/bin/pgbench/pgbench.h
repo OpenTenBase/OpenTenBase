@@ -33,49 +33,49 @@ union YYSTYPE;
  */
 typedef enum
 {
-    PGBT_INT,
-    PGBT_DOUBLE
-    /* add other types here */
+	PGBT_INT,
+	PGBT_DOUBLE
+	/* add other types here */
 } PgBenchValueType;
 
 typedef struct
 {
-    PgBenchValueType type;
-    union
-    {
-        int64        ival;
-        double        dval;
-        /* add other types here */
-    }            u;
+	PgBenchValueType type;
+	union
+	{
+		int64		ival;
+		double		dval;
+		/* add other types here */
+	}			u;
 } PgBenchValue;
 
 /* Types of expression nodes */
 typedef enum PgBenchExprType
 {
-    ENODE_CONSTANT,
-    ENODE_VARIABLE,
-    ENODE_FUNCTION
+	ENODE_CONSTANT,
+	ENODE_VARIABLE,
+	ENODE_FUNCTION
 } PgBenchExprType;
 
 /* List of operators and callable functions */
 typedef enum PgBenchFunction
 {
-    PGBENCH_ADD,
-    PGBENCH_SUB,
-    PGBENCH_MUL,
-    PGBENCH_DIV,
-    PGBENCH_MOD,
-    PGBENCH_DEBUG,
-    PGBENCH_ABS,
-    PGBENCH_LEAST,
-    PGBENCH_GREATEST,
-    PGBENCH_INT,
-    PGBENCH_DOUBLE,
-    PGBENCH_PI,
-    PGBENCH_SQRT,
-    PGBENCH_RANDOM,
-    PGBENCH_RANDOM_GAUSSIAN,
-    PGBENCH_RANDOM_EXPONENTIAL
+	PGBENCH_ADD,
+	PGBENCH_SUB,
+	PGBENCH_MUL,
+	PGBENCH_DIV,
+	PGBENCH_MOD,
+	PGBENCH_DEBUG,
+	PGBENCH_ABS,
+	PGBENCH_LEAST,
+	PGBENCH_GREATEST,
+	PGBENCH_INT,
+	PGBENCH_DOUBLE,
+	PGBENCH_PI,
+	PGBENCH_SQRT,
+	PGBENCH_RANDOM,
+	PGBENCH_RANDOM_GAUSSIAN,
+	PGBENCH_RANDOM_EXPONENTIAL
 } PgBenchFunction;
 
 typedef struct PgBenchExpr PgBenchExpr;
@@ -84,57 +84,57 @@ typedef struct PgBenchExprList PgBenchExprList;
 
 struct PgBenchExpr
 {
-    PgBenchExprType etype;
-    union
-    {
-        PgBenchValue constant;
-        struct
-        {
-            char       *varname;
-        }            variable;
-        struct
-        {
-            PgBenchFunction function;
-            PgBenchExprLink *args;
-        }            function;
-    }            u;
+	PgBenchExprType etype;
+	union
+	{
+		PgBenchValue constant;
+		struct
+		{
+			char	   *varname;
+		}			variable;
+		struct
+		{
+			PgBenchFunction function;
+			PgBenchExprLink *args;
+		}			function;
+	}			u;
 };
 
 /* List of expression nodes */
 struct PgBenchExprLink
 {
-    PgBenchExpr *expr;
-    PgBenchExprLink *next;
+	PgBenchExpr *expr;
+	PgBenchExprLink *next;
 };
 
 struct PgBenchExprList
 {
-    PgBenchExprLink *head;
-    PgBenchExprLink *tail;
+	PgBenchExprLink *head;
+	PgBenchExprLink *tail;
 };
 
 extern PgBenchExpr *expr_parse_result;
 
-extern int    expr_yyparse(yyscan_t yyscanner);
-extern int    expr_yylex(union YYSTYPE *lvalp, yyscan_t yyscanner);
+extern int	expr_yyparse(yyscan_t yyscanner);
+extern int	expr_yylex(union YYSTYPE *lvalp, yyscan_t yyscanner);
 extern void expr_yyerror(yyscan_t yyscanner, const char *str) pg_attribute_noreturn();
 extern void expr_yyerror_more(yyscan_t yyscanner, const char *str,
-                  const char *more) pg_attribute_noreturn();
+				  const char *more) pg_attribute_noreturn();
 extern bool expr_lex_one_word(PsqlScanState state, PQExpBuffer word_buf,
-                  int *offset);
+				  int *offset);
 extern yyscan_t expr_scanner_init(PsqlScanState state,
-                  const char *source, int lineno, int start_offset,
-                  const char *command);
+				  const char *source, int lineno, int start_offset,
+				  const char *command);
 extern void expr_scanner_finish(yyscan_t yyscanner);
-extern int    expr_scanner_offset(PsqlScanState state);
+extern int	expr_scanner_offset(PsqlScanState state);
 extern char *expr_scanner_get_substring(PsqlScanState state,
-                           int start_offset, int end_offset);
-extern int    expr_scanner_get_lineno(PsqlScanState state, int offset);
+						   int start_offset, int end_offset);
+extern int	expr_scanner_get_lineno(PsqlScanState state, int offset);
 
 extern void syntax_error(const char *source, int lineno, const char *line,
-             const char *cmd, const char *msg,
-             const char *more, int col) pg_attribute_noreturn();
+			 const char *cmd, const char *msg,
+			 const char *more, int col) pg_attribute_noreturn();
 
 extern int64 strtoint64(const char *str);
 
-#endif                            /* PGBENCH_H */
+#endif							/* PGBENCH_H */

@@ -1,16 +1,13 @@
 /*-------------------------------------------------------------------------
  *
  * plancache.h
- *      Plan cache definitions.
+ *	  Plan cache definitions.
  *
  * See plancache.c for comments.
  *
  * Portions Copyright (c) 2012-2014, TransLattice, Inc.
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
- *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  * src/include/utils/plancache.h
  *
@@ -22,12 +19,14 @@
 #include "access/tupdesc.h"
 #include "nodes/params.h"
 #include "utils/queryenvironment.h"
+#include "utils/resowner.h"
+
 
 /* Forward declaration, to avoid including parsenodes.h here */
 struct RawStmt;
 
-#define CACHEDPLANSOURCE_MAGIC        195726186
-#define CACHEDPLAN_MAGIC            953717834
+#define CACHEDPLANSOURCE_MAGIC		195726186
+#define CACHEDPLAN_MAGIC			953717834
 
 /*
  * CachedPlanSource (which might better have been called CachedQuery)
@@ -83,48 +82,51 @@ struct RawStmt;
  */
 typedef struct CachedPlanSource
 {
-    int            magic;            /* should equal CACHEDPLANSOURCE_MAGIC */
-    struct RawStmt *raw_parse_tree; /* output of raw_parser(), or NULL */
-    const char *query_string;    /* source text of query */
-    const char *commandTag;        /* command tag (a constant!), or NULL */
-    Oid           *param_types;    /* array of parameter type OIDs, or NULL */
-    int            num_params;        /* length of param_types array */
-    ParserSetupHook parserSetup;    /* alternative parameter spec method */
-    void       *parserSetupArg;
-    int            cursor_options; /* cursor options used for planning */
-    bool        fixed_result;    /* disallow change in result tupdesc? */
-    TupleDesc    resultDesc;        /* result type; NULL = doesn't return tuples */
-    MemoryContext context;        /* memory context holding all above */
-    /* These fields describe the current analyzed-and-rewritten query tree: */
-    List       *query_list;        /* list of Query nodes, or NIL if not valid */
-    List       *relationOids;    /* OIDs of relations the queries depend on */
-    List       *invalItems;        /* other dependencies, as PlanInvalItems */
-    struct OverrideSearchPath *search_path; /* search_path used for parsing
-                                             * and planning */
-    MemoryContext query_context;    /* context holding the above, or NULL */
-    Oid            rewriteRoleId;    /* Role ID we did rewriting for */
-    bool        rewriteRowSecurity; /* row_security used during rewrite */
-    bool        dependsOnRLS;    /* is rewritten query specific to the above? */
-    /* If we have a generic plan, this is a reference-counted link to it: */
-    struct CachedPlan *gplan;    /* generic plan, or NULL if not valid */
-    /* Some state flags: */
-    bool        is_oneshot;        /* is it a "oneshot" plan? */
-    bool        is_complete;    /* has CompleteCachedPlan been done? */
-    bool        is_saved;        /* has CachedPlanSource been "saved"? */
-    bool        is_valid;        /* is the query_list currently valid? */
-    int            generation;        /* increments each time we create a plan */
-    /* If CachedPlanSource has been saved, it is a member of a global list */
-    struct CachedPlanSource *next_saved;    /* list link, if so */
-    /* State kept to help decide whether to use custom or generic plans: */
-    double        generic_cost;    /* cost of generic plan, or -1 if not known */
-    double        total_custom_cost;    /* total cost of custom plans so far */
-    int            num_custom_plans;    /* number of plans included in total */
+	int			magic;			/* should equal CACHEDPLANSOURCE_MAGIC */
+	struct RawStmt *raw_parse_tree; /* output of raw_parser(), or NULL */
+	const char *query_string;	/* source text of query */
+	const char *commandTag;		/* command tag (a constant!), or NULL */
+	Oid		   *param_types;	/* array of parameter type OIDs, or NULL */
+	int			num_params;		/* length of param_types array */
+	ParserSetupHook parserSetup;	/* alternative parameter spec method */
+	void	   *parserSetupArg;
+	int			cursor_options; /* cursor options used for planning */
+	bool		fixed_result;	/* disallow change in result tupdesc? */
+	TupleDesc	resultDesc;		/* result type; NULL = doesn't return tuples */
+	MemoryContext context;		/* memory context holding all above */
+	/* These fields describe the current analyzed-and-rewritten query tree: */
+	List	   *query_list;		/* list of Query nodes, or NIL if not valid */
+	List	   *relationOids;	/* OIDs of relations the queries depend on */
+	List	   *invalItems;		/* other dependencies, as PlanInvalItems */
+	struct OverrideSearchPath *search_path; /* search_path used for parsing
+											 * and planning */
+	MemoryContext query_context;	/* context holding the above, or NULL */
+	Oid			rewriteRoleId;	/* Role ID we did rewriting for */
+	bool		rewriteRowSecurity; /* row_security used during rewrite */
+	bool		dependsOnRLS;	/* is rewritten query specific to the above? */
+	/* If we have a generic plan, this is a reference-counted link to it: */
+	struct CachedPlan *gplan;	/* generic plan, or NULL if not valid */
+	/* Some state flags: */
+	bool		is_oneshot;		/* is it a "oneshot" plan? */
+	bool		is_complete;	/* has CompleteCachedPlan been done? */
+	bool		is_saved;		/* has CachedPlanSource been "saved"? */
+	bool		is_valid;		/* is the query_list currently valid? */
+	int			generation;		/* increments each time we create a plan */
+	/* If CachedPlanSource has been saved, it is a member of a global list */
+	struct CachedPlanSource *next_saved;	/* list link, if so */
+	/* State kept to help decide whether to use custom or generic plans: */
+	double		generic_cost;	/* cost of generic plan, or -1 if not known */
+	double		total_custom_cost;	/* total cost of custom plans so far */
+	int			num_custom_plans;	/* number of plans included in total */
 #ifdef PGXC
-    char       *stmt_name;        /* If set, this is a copy of prepared stmt name */
+	char	   *stmt_name;		/* If set, this is a copy of prepared stmt name */
 #endif
 #ifdef __OPENTENBASE__
-    bool       insert_into;
+	bool       insert_into;
 	int        instrument_options;
+    ExecNodes  *single_exec_node;
+	bool       is_in_use;
+	bool       is_deparsed_query;
 #endif
 } CachedPlanSource;
 
@@ -140,20 +142,23 @@ typedef struct CachedPlanSource
  */
 typedef struct CachedPlan
 {
-    int            magic;            /* should equal CACHEDPLAN_MAGIC */
-    List       *stmt_list;        /* list of PlannedStmts */
-    bool        is_oneshot;        /* is it a "oneshot" plan? */
-    bool        is_saved;        /* is CachedPlan in a long-lived context? */
-    bool        is_valid;        /* is the stmt_list currently valid? */
-    Oid            planRoleId;        /* Role ID the plan was created for */
-    bool        dependsOnRole;    /* is plan specific to that role? */
-    TransactionId saved_xmin;    /* if valid, replan when TransactionXmin
-                                 * changes from this value */
-    int            generation;        /* parent's generation number for this plan */
-    int            refcount;        /* count of live references to this struct */
-    MemoryContext context;        /* context containing this CachedPlan */
+	int			magic;			/* should equal CACHEDPLAN_MAGIC */
+	List	   *stmt_list;		/* list of PlannedStmts */
+	bool		is_oneshot;		/* is it a "oneshot" plan? */
+	bool		is_saved;		/* is CachedPlan in a long-lived context? */
+	bool		is_valid;		/* is the stmt_list currently valid? */
+	Oid			planRoleId;		/* Role ID the plan was created for */
+	bool		dependsOnRole;	/* is plan specific to that role? */
+	TransactionId saved_xmin;	/* if valid, replan when TransactionXmin
+								 * changes from this value */
+	int			generation;		/* parent's generation number for this plan */
+	int			refcount;		/* count of live references to this struct */
+	MemoryContext context;		/* context containing this CachedPlan */
 #ifdef __OPENTENBASE__
-    List       *stmt_list_backup;
+	List       *stmt_list_backup;
+	int64      sql_id;
+	int64      plan_id;
+	bool       spm_applyed;
 #endif
 } CachedPlan;
 
@@ -162,45 +167,64 @@ extern void InitPlanCache(void);
 extern void ResetPlanCache(void);
 
 extern CachedPlanSource *CreateCachedPlan(struct RawStmt *raw_parse_tree,
-                 const char *query_string,
+				 const char *query_string,
 #ifdef PGXC
-                 const char *stmt_name,
+				 const char *stmt_name,
 #endif
-                 const char *commandTag);
+				 const char *commandTag);
 extern CachedPlanSource *CreateOneShotCachedPlan(struct RawStmt *raw_parse_tree,
-                        const char *query_string,
-                        const char *commandTag);
+						const char *query_string,
+						const char *commandTag);
 extern void CompleteCachedPlan(CachedPlanSource *plansource,
-                   List *querytree_list,
-                   MemoryContext querytree_context,
-                   Oid *param_types,
-                   int num_params,
-                   ParserSetupHook parserSetup,
-                   void *parserSetupArg,
-                   int cursor_options,
-                   bool fixed_result);
+				   List *querytree_list,
+				   MemoryContext querytree_context,
+				   Oid *param_types,
+				   int num_params,
+				   ParserSetupHook parserSetup,
+				   void *parserSetupArg,
+				   int cursor_options,
+				   bool fixed_result,
+				   ExecNodes *single_exec_node,
+				   bool is_deparsed_query);
 
 extern void SaveCachedPlan(CachedPlanSource *plansource);
 extern void DropCachedPlan(CachedPlanSource *plansource);
 
 extern void CachedPlanSetParentContext(CachedPlanSource *plansource,
-                           MemoryContext newcontext);
+						   MemoryContext newcontext);
 
 extern CachedPlanSource *CopyCachedPlan(CachedPlanSource *plansource);
 
 extern bool CachedPlanIsValid(CachedPlanSource *plansource);
 
 extern List *CachedPlanGetTargetList(CachedPlanSource *plansource,
-                        QueryEnvironment *queryEnv);
+						QueryEnvironment *queryEnv);
 
 extern CachedPlan *GetCachedPlan(CachedPlanSource *plansource,
-              ParamListInfo boundParams,
-              bool useResOwner,
-              QueryEnvironment *queryEnv);
-extern void ReleaseCachedPlan(CachedPlan *plan, bool useResOwner);
+								 ParamListInfo boundParams,
+								 ResourceOwner owner,
+								 QueryEnvironment *queryEnv);
+extern void ReleaseCachedPlan(CachedPlan *plan, ResourceOwner owner);
 #ifdef XCP
 extern void SetRemoteSubplan(CachedPlanSource *plansource,
-                 const char *plan_string);
+				 const char *plan_string);
 #endif
+extern bool CachedPlanAllowsSimpleValidityCheck(CachedPlanSource *plansource,
+												CachedPlan *plan);
+extern bool CachedPlanIsSimplyValid(CachedPlanSource *plansource,
+									CachedPlan *plan,
+									ResourceOwner owner);
+extern void PlanCacheRelCallback(Datum arg, Oid relid);
 
-#endif                            /* PLANCACHE_H */
+/* possible values for plan_cache_mode */
+typedef enum
+{
+	PLAN_CACHE_MODE_AUTO,
+	PLAN_CACHE_MODE_FORCE_GENERIC_PLAN,
+	PLAN_CACHE_MODE_FORCE_CUSTOM_PLAN
+} PlanCacheMode;
+
+/* GUC parameter */
+extern int plan_cache_mode;
+
+#endif							/* PLANCACHE_H */

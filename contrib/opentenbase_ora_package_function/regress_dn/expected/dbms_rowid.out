@@ -1,0 +1,76 @@
+\c opentenbase_ora_package_function_regression_ora
+-- pyDE1w==AQAAAAAAAAA=
+select dbms_rowid.rowid_block_number('pyDE1w==AAAAAA==AQAAAAAAAAA=');
+ ROWID_BLOCK_NUMBER 
+--------------------
+                   
+(1 row)
+
+declare
+r rowid;
+begin
+  select dbms_rowid.rowid_create(dbms_rowid.rowid_type_restricted, 3619954855::number,1, 0, 0) into r;
+  raise notice '%', r;
+end;
+/
+NOTICE:  pyDE1w==AAAAAA==AQAAAAAAAAA=
+declare
+  rowid_type number;
+  object_number number;
+  relative_fno number;
+  block_number number;
+  row_number number;
+begin
+  call dbms_rowid.rowid_info ('pyDE1w==AAAAAA==AQAAAAAAAAA=', rowid_type, object_number,
+                                relative_fno, block_number, row_number);
+  raise notice '%, %, %, %, %', rowid_type, object_number, relative_fno, block_number, row_number;
+end;
+/
+NOTICE:  <NULL>, 3619954855, 1, <NULL>, <NULL>
+select dbms_rowid.rowid_object ('pyDE1w==AAAAAA==AQAAAAAAAAA=');
+ ROWID_OBJECT 
+--------------
+   3619954855
+(1 row)
+
+select dbms_rowid.rowid_relative_fno ('pyDE1w==AAAAAA==AQAAAAAAAAA=');
+ ROWID_RELATIVE_FNO 
+--------------------
+                  1
+(1 row)
+
+select dbms_rowid.rowid_row_number ('pyDE1w==AAAAAA==AQAAAAAAAAA=');
+ ROWID_ROW_NUMBER 
+------------------
+                 
+(1 row)
+
+select dbms_rowid.rowid_to_absolute_fno ('pyDE1w==AAAAAA==AQAAAAAAAAA=', 'a', 'b');
+ ROWID_TO_ABSOLUTE_FNO 
+-----------------------
+                      
+(1 row)
+
+select dbms_rowid.rowid_to_extended ('pyDE1w==AAAAAA==AQAAAAAAAAA=', 'a', 'b', 1);
+      ROWID_TO_EXTENDED       
+------------------------------
+ pyDE1w==AAAAAA==AQAAAAAAAAA=
+(1 row)
+
+select dbms_rowid.rowid_to_restricted ('pyDE1w==AAAAAA==AQAAAAAAAAA=', 1);
+     ROWID_TO_RESTRICTED      
+------------------------------
+ pyDE1w==AAAAAA==AQAAAAAAAAA=
+(1 row)
+
+select dbms_rowid.rowid_type ('pyDE1w==AAAAAA==AQAAAAAAAAA=');
+ ROWID_TYPE 
+------------
+          1
+(1 row)
+
+select dbms_rowid.rowid_verify ('pyDE1w==AAAAAA==AQAAAAAAAAA=', 'a', 'b', 1);
+ ROWID_VERIFY 
+--------------
+            1
+(1 row)

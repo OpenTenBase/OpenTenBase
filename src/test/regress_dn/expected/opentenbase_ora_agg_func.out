@@ -1,0 +1,826 @@
+\c regression_ora
+drop table tcount_20230710;
+ERROR:  table "TCOUNT_20230710" does not exist
+create table tcount_20230710(a int, b int, c int);
+-- create table tcount_20230710(a int, b binary_float,c number(12,9));
+insert into tcount_20230710 values(1,2,3);
+insert into tcount_20230710 values(2,null,3);
+insert into tcount_20230710 values(1,2,null);
+insert into tcount_20230710 values(1,null,3);
+insert into tcount_20230710 values(3,4,3);
+insert into tcount_20230710 values(null,2,null);
+insert into tcount_20230710 values(1,null,3);
+insert into tcount_20230710 values(2,null,3);
+insert into tcount_20230710 values(1,3,null);
+insert into tcount_20230710 values(3,null,3);
+insert into tcount_20230710 values(1,4,null);
+insert into tcount_20230710 values(null,2,3);
+insert into tcount_20230710 values(null,3,3);
+drop table tempty_20230713;
+ERROR:  table "TEMPTY_20230713" does not exist
+create table tempty_20230713(a int, b int,c int);
+-- basic usage
+select count(*) as all, count(a) as ca, count(b) as cb, count(c) as cc from tcount_20230710;
+ ALL | CA | CB | CC 
+-----+----+----+----
+  13 | 10 |  8 |  9
+(1 row)
+
+select count(nvl(a,'12')) from tcount_20230710;
+ COUNT 
+-------
+    13
+(1 row)
+
+select count(nvl(a,'')) from tcount_20230710;
+ COUNT 
+-------
+    10
+(1 row)
+
+select count(nvl(a, NULL)) from tcount_20230710;
+ COUNT 
+-------
+    10
+(1 row)
+
+select count(1) from tcount_20230710;
+ COUNT 
+-------
+    13
+(1 row)
+
+select count(decode(a,1,'1','')) from tcount_20230710;
+ COUNT 
+-------
+     6
+(1 row)
+
+select count(decode(a,2,'2','')) from tcount_20230710;
+ COUNT 
+-------
+     2
+(1 row)
+
+select count(decode(a,3,'3','')) from tcount_20230710;
+ COUNT 
+-------
+     2
+(1 row)
+
+select count(decode(a,'',1,'')) from tcount_20230710;
+ COUNT 
+-------
+     3
+(1 row)
+
+select pg_typeof(count(*)),pg_typeof(count(a)) from tcount_20230710;
+ PG_TYPEOF | PG_TYPEOF 
+-----------+-----------
+ NUMERIC   | NUMERIC
+(1 row)
+
+select count(a)/count(*), count(a)/count(c) from tcount_20230710;
+                 ?column?                  |                 ?column?                 
+-------------------------------------------+------------------------------------------
+ .7692307692307692307692307692307692307692 | 1.11111111111111111111111111111111111111
+(1 row)
+
+select sum(a)/count(*) from tcount_20230710;
+                 ?column?                 
+------------------------------------------
+ 1.23076923076923076923076923076923076923
+(1 row)
+
+select count(a)/13, pg_typeof(count(a)/13) from tcount_20230710;
+                 ?column?                  | PG_TYPEOF 
+-------------------------------------------+-----------
+ .7692307692307692307692307692307692307692 | NUMERIC
+(1 row)
+
+select count(a)/13::int2, pg_typeof(count(a)/13::int2) from tcount_20230710;
+                 ?column?                  | PG_TYPEOF 
+-------------------------------------------+-----------
+ .7692307692307692307692307692307692307692 | NUMERIC
+(1 row)
+
+select count(a)/13::int4, pg_typeof(count(a)/13::int4) from tcount_20230710;
+                 ?column?                  | PG_TYPEOF 
+-------------------------------------------+-----------
+ .7692307692307692307692307692307692307692 | NUMERIC
+(1 row)
+
+select count(a)/13::bigint, pg_typeof(count(a)/13::bigint) from tcount_20230710;
+                 ?column?                  | PG_TYPEOF 
+-------------------------------------------+-----------
+ .7692307692307692307692307692307692307692 | NUMERIC
+(1 row)
+
+select count(a)+13, pg_typeof(count(a)+13) from tcount_20230710;
+ ?column? | PG_TYPEOF 
+----------+-----------
+       23 | NUMERIC
+(1 row)
+
+select count(a)+13::int2, pg_typeof(count(a)+13::int2) from tcount_20230710;
+ ?column? | PG_TYPEOF 
+----------+-----------
+       23 | NUMERIC
+(1 row)
+
+select count(a)+13::int4, pg_typeof(count(a)+13::int4) from tcount_20230710;
+ ?column? | PG_TYPEOF 
+----------+-----------
+       23 | NUMERIC
+(1 row)
+
+select count(a)+13::bigint, pg_typeof(count(a)+13::bigint) from tcount_20230710;
+ ?column? | PG_TYPEOF 
+----------+-----------
+       23 | NUMERIC
+(1 row)
+
+select count(a)-13, pg_typeof(count(a)-13) from tcount_20230710;
+ ?column? | PG_TYPEOF 
+----------+-----------
+       -3 | NUMERIC
+(1 row)
+
+select count(a)-13::int2, pg_typeof(count(a)-13::int2) from tcount_20230710;
+ ?column? | PG_TYPEOF 
+----------+-----------
+       -3 | NUMERIC
+(1 row)
+
+select count(a)-13::int4, pg_typeof(count(a)-13::int4) from tcount_20230710;
+ ?column? | PG_TYPEOF 
+----------+-----------
+       -3 | NUMERIC
+(1 row)
+
+select count(a)-13::bigint, pg_typeof(count(a)-13::bigint) from tcount_20230710;
+ ?column? | PG_TYPEOF 
+----------+-----------
+       -3 | NUMERIC
+(1 row)
+
+select count(a)*13, pg_typeof(count(a)*13) from tcount_20230710;
+ ?column? | PG_TYPEOF 
+----------+-----------
+      130 | NUMERIC
+(1 row)
+
+select count(a)*13::int2, pg_typeof(count(a)*13::int2) from tcount_20230710;
+ ?column? | PG_TYPEOF 
+----------+-----------
+      130 | NUMERIC
+(1 row)
+
+select count(a)*13::int4, pg_typeof(count(a)*13::int4) from tcount_20230710;
+ ?column? | PG_TYPEOF 
+----------+-----------
+      130 | NUMERIC
+(1 row)
+
+select count(a)*13::bigint, pg_typeof(count(a)*13::bigint) from tcount_20230710;
+ ?column? | PG_TYPEOF 
+----------+-----------
+      130 | NUMERIC
+(1 row)
+
+select -count(*), -count(a), pg_typeof(-count(*)), pg_typeof(-count(a)) from tcount_20230710;
+ ?column? | ?column? | PG_TYPEOF | PG_TYPEOF 
+----------+----------+-----------+-----------
+      -13 |      -10 | NUMERIC   | NUMERIC
+(1 row)
+
+select +count(*), +count(a), pg_typeof(+count(*)), pg_typeof(+count(a)) from tcount_20230710;
+ ?column? | ?column? | PG_TYPEOF | PG_TYPEOF 
+----------+----------+-----------+-----------
+       13 |       10 | NUMERIC   | NUMERIC
+(1 row)
+
+select ((-count(*)*2::bigint)+count(a)+12::int2)/(count(b)-1::int4)*(count(c)/2::int8),
+pg_typeof(((-count(*)*2::bigint)+count(a)+12::int2)/(count(b)-1::int4)*(count(c)/2::int8)) from tcount_20230710;
+                 ?column?                  | PG_TYPEOF 
+-------------------------------------------+-----------
+ -2.57142857142857142857142857142857142857 | NUMERIC
+(1 row)
+
+select a, count(a) from tcount_20230710 group by a order by a;
+ A | COUNT 
+---+-------
+ 1 |     6
+ 2 |     2
+ 3 |     2
+   |     0
+(4 rows)
+
+SELECT a, count(a) over (partition by a) FROM tcount_20230710 order by a;
+ A | COUNT 
+---+-------
+ 1 |     6
+ 1 |     6
+ 1 |     6
+ 1 |     6
+ 1 |     6
+ 1 |     6
+ 2 |     2
+ 2 |     2
+ 3 |     2
+ 3 |     2
+   |     0
+   |     0
+   |     0
+(13 rows)
+
+SELECT a, count(a) over (order by a rows between 2 preceding and 2 following) FROM tcount_20230710 order by a;
+ A | COUNT 
+---+-------
+ 1 |     3
+ 1 |     4
+ 1 |     5
+ 1 |     5
+ 1 |     5
+ 1 |     5
+ 2 |     5
+ 2 |     5
+ 3 |     4
+ 3 |     3
+   |     2
+   |     1
+   |     0
+(13 rows)
+
+select a, count(*) from tcount_20230710 group by a order by a;
+ A | COUNT 
+---+-------
+ 1 |     6
+ 2 |     2
+ 3 |     2
+   |     3
+(4 rows)
+
+SELECT a, count(*) over (partition by a) FROM tcount_20230710 order by a;
+ A | COUNT 
+---+-------
+ 1 |     6
+ 1 |     6
+ 1 |     6
+ 1 |     6
+ 1 |     6
+ 1 |     6
+ 2 |     2
+ 2 |     2
+ 3 |     2
+ 3 |     2
+   |     3
+   |     3
+   |     3
+(13 rows)
+
+SELECT a, count(*) over (order by a rows between 2 preceding and 2 following) FROM tcount_20230710 order by a;
+ A | COUNT 
+---+-------
+ 1 |     3
+ 1 |     4
+ 1 |     5
+ 1 |     5
+ 1 |     5
+ 1 |     5
+ 2 |     5
+ 2 |     5
+ 3 |     5
+ 3 |     5
+   |     5
+   |     4
+   |     3
+(13 rows)
+
+SELECT COUNT(a) FILTER (WHERE a > 1) FROM tcount_20230710;
+ COUNT 
+-------
+     4
+(1 row)
+
+-- agg related functions
+select a, numeric_dec(a::numeric) from tcount_20230710 order by 1,2;
+ A | NUMERIC_DEC 
+---+-------------
+ 1 |           0
+ 1 |           0
+ 1 |           0
+ 1 |           0
+ 1 |           0
+ 1 |           0
+ 2 |           1
+ 2 |           1
+ 3 |           2
+ 3 |           2
+   |            
+   |            
+   |            
+(13 rows)
+
+select a, numeric_inc_any(a::numeric,0) from tcount_20230710 order by 1,2;;
+ A | NUMERIC_INC_ANY 
+---+-----------------
+ 1 |               2
+ 1 |               2
+ 1 |               2
+ 1 |               2
+ 1 |               2
+ 1 |               2
+ 2 |               3
+ 2 |               3
+ 3 |               4
+ 3 |               4
+   |                
+   |                
+   |                
+(13 rows)
+
+select a, numeric_dec_any(a::numeric,0) from tcount_20230710 order by 1,2;;
+ A | NUMERIC_DEC_ANY 
+---+-----------------
+ 1 |               0
+ 1 |               0
+ 1 |               0
+ 1 |               0
+ 1 |               0
+ 1 |               0
+ 2 |               1
+ 2 |               1
+ 3 |               2
+ 3 |               2
+   |                
+   |                
+   |                
+(13 rows)
+
+select numeric_dec(1) from dual;
+ NUMERIC_DEC 
+-------------
+           0
+(1 row)
+
+select numeric_inc_any(1::numeric,0) from dual;
+ NUMERIC_INC_ANY 
+-----------------
+               2
+(1 row)
+
+select numeric_dec_any(1::numeric,0) from dual;
+ NUMERIC_DEC_ANY 
+-----------------
+               0
+(1 row)
+
+-- count distinct
+set distinct_optimizer to on;
+set distinct_with_hash to on;
+select count(distinct a), count(distinct b),count(distinct c) from tcount_20230710;
+ COUNT | COUNT | COUNT 
+-------+-------+-------
+     3 |     3 |     1
+(1 row)
+
+select count(distinct a), count(distinct b),count(distinct c) from tempty_20230713;
+ COUNT | COUNT | COUNT 
+-------+-------+-------
+     0 |     0 |     0
+(1 row)
+
+select pg_typeof(count(distinct a)), pg_typeof(count(distinct b)),pg_typeof(count(distinct c)) from tcount_20230710;
+ PG_TYPEOF | PG_TYPEOF | PG_TYPEOF 
+-----------+-----------+-----------
+ NUMERIC   | NUMERIC   | NUMERIC
+(1 row)
+
+select pg_typeof(count(distinct a)), pg_typeof(count(distinct b)),pg_typeof(count(distinct c)) from tempty_20230713;
+ PG_TYPEOF | PG_TYPEOF | PG_TYPEOF 
+-----------+-----------+-----------
+ NUMERIC   | NUMERIC   | NUMERIC
+(1 row)
+
+select pow(count(distinct a)/sum(distinct a),3) from tcount_20230710;
+ POW  
+------
+ .125
+(1 row)
+
+select count(distinct a) filter (where a > 1) from tcount_20230710;
+ COUNT 
+-------
+     2
+(1 row)
+
+reset distinct_optimizer;
+reset distinct_with_hash;
+set distinct_optimizer to on;
+set distinct_with_hash to off;
+select count(distinct a), count(distinct b),count(distinct c) from tcount_20230710;
+ COUNT | COUNT | COUNT 
+-------+-------+-------
+     3 |     3 |     1
+(1 row)
+
+select count(distinct a), count(distinct b),count(distinct c) from tempty_20230713;
+ COUNT | COUNT | COUNT 
+-------+-------+-------
+     0 |     0 |     0
+(1 row)
+
+select pg_typeof(count(distinct a)), pg_typeof(count(distinct b)),pg_typeof(count(distinct c)) from tcount_20230710;
+ PG_TYPEOF | PG_TYPEOF | PG_TYPEOF 
+-----------+-----------+-----------
+ NUMERIC   | NUMERIC   | NUMERIC
+(1 row)
+
+select pg_typeof(count(distinct a)), pg_typeof(count(distinct b)),pg_typeof(count(distinct c)) from tempty_20230713;
+ PG_TYPEOF | PG_TYPEOF | PG_TYPEOF 
+-----------+-----------+-----------
+ NUMERIC   | NUMERIC   | NUMERIC
+(1 row)
+
+select pow(count(distinct a)/sum(distinct a),3) from tcount_20230710;
+ POW  
+------
+ .125
+(1 row)
+
+select count(distinct a) filter (where a > 1) from tcount_20230710;
+ COUNT 
+-------
+     2
+(1 row)
+
+reset distinct_optimizer;
+reset distinct_with_hash;
+set distinct_optimizer to off;
+set distinct_with_hash to on;
+select count(distinct a), count(distinct b),count(distinct c) from tcount_20230710;
+ COUNT | COUNT | COUNT 
+-------+-------+-------
+     3 |     3 |     1
+(1 row)
+
+select count(distinct a), count(distinct b),count(distinct c) from tempty_20230713;
+ COUNT | COUNT | COUNT 
+-------+-------+-------
+     0 |     0 |     0
+(1 row)
+
+select pg_typeof(count(distinct a)), pg_typeof(count(distinct b)),pg_typeof(count(distinct c)) from tcount_20230710;
+ PG_TYPEOF | PG_TYPEOF | PG_TYPEOF 
+-----------+-----------+-----------
+ NUMERIC   | NUMERIC   | NUMERIC
+(1 row)
+
+select pg_typeof(count(distinct a)), pg_typeof(count(distinct b)),pg_typeof(count(distinct c)) from tempty_20230713;
+ PG_TYPEOF | PG_TYPEOF | PG_TYPEOF 
+-----------+-----------+-----------
+ NUMERIC   | NUMERIC   | NUMERIC
+(1 row)
+
+select pow(count(distinct a)/sum(distinct a),3) from tcount_20230710;
+ POW  
+------
+ .125
+(1 row)
+
+select count(distinct a) filter (where a > 1) from tcount_20230710;
+ COUNT 
+-------
+     2
+(1 row)
+
+reset distinct_optimizer;
+reset distinct_with_hash;
+set distinct_optimizer to off;
+set distinct_with_hash to off;
+select count(distinct a), count(distinct b),count(distinct c) from tcount_20230710;
+ COUNT | COUNT | COUNT 
+-------+-------+-------
+     3 |     3 |     1
+(1 row)
+
+select count(distinct a), count(distinct b),count(distinct c) from tempty_20230713;
+ COUNT | COUNT | COUNT 
+-------+-------+-------
+     0 |     0 |     0
+(1 row)
+
+select pg_typeof(count(distinct a)), pg_typeof(count(distinct b)),pg_typeof(count(distinct c)) from tcount_20230710;
+ PG_TYPEOF | PG_TYPEOF | PG_TYPEOF 
+-----------+-----------+-----------
+ NUMERIC   | NUMERIC   | NUMERIC
+(1 row)
+
+select pg_typeof(count(distinct a)), pg_typeof(count(distinct b)),pg_typeof(count(distinct c)) from tempty_20230713;
+ PG_TYPEOF | PG_TYPEOF | PG_TYPEOF 
+-----------+-----------+-----------
+ NUMERIC   | NUMERIC   | NUMERIC
+(1 row)
+
+select pow(count(distinct a)/sum(distinct a),3) from tcount_20230710;
+ POW  
+------
+ .125
+(1 row)
+
+select count(distinct a) filter (where a > 1) from tcount_20230710;
+ COUNT 
+-------
+     2
+(1 row)
+
+reset distinct_optimizer;
+reset distinct_with_hash;
+-- agg filter in row mode
+select count(a) filter (where a > 1) from tcount_20230710;
+ COUNT 
+-------
+     4
+(1 row)
+
+select count(distinct a) filter (where a > 1) from tcount_20230710;
+ COUNT 
+-------
+     2
+(1 row)
+
+select count(distinct a) filter (where b > 6) from tcount_20230710;
+ COUNT 
+-------
+     0
+(1 row)
+
+select sum(a) filter (where a+b+c is not null) from tcount_20230710;
+ SUM 
+-----
+   4
+(1 row)
+
+select sum(a) filter (where a>1) from tcount_20230710;
+ SUM 
+-----
+  10
+(1 row)
+
+select sum(distinct a) filter (where a>1) from tcount_20230710;
+ SUM 
+-----
+   5
+(1 row)
+
+select sum(a) filter (where a+b>4) from tcount_20230710;
+ SUM 
+-----
+   4
+(1 row)
+
+select sum(a) filter (where a+b+c>6) from tcount_20230710;
+ SUM 
+-----
+   3
+(1 row)
+
+select sum(a+b+c) filter (where a+b+c>6) from tcount_20230710;
+ SUM 
+-----
+  10
+(1 row)
+
+select sum(a+b+c) filter (where (case when a = 1 then true when b is null then true else false end)) from tcount_20230710;
+ SUM 
+-----
+   6
+(1 row)
+
+select string_agg((a||'-'||b||'-'||c),',')
+filter (where (case when a = 1 then true when b is null then true else false end))
+from (select a,b,c from tcount_20230710 order by a,b,c) as t;
+                  STRING_AGG                   
+-----------------------------------------------
+ 1-2-3,1-2-,1-3-,1-4-,1--3,1--3,2--3,2--3,3--3
+(1 row)
+
+select string_agg((a||'-'||b||'-'||c),',')
+filter (where decode(a,1,true,3,true,false) and b is not null and c is not null)
+from (select a,b,c from tcount_20230710 order by a,b,c) as t;
+ STRING_AGG  
+-------------
+ 1-2-3,3-4-3
+(1 row)
+
+select string_agg((a||'-'||b||'-'||c),',')
+filter (where (a in (1,2) or a is null) and b is not null and c is not null)
+from (select a,b,c from tcount_20230710 order by a,b,c) as t;
+   STRING_AGG    
+-----------------
+ 1-2-3,-2-3,-3-3
+(1 row)
+
+SELECT a,b,count(a+b) filter (where a+b >3) over (partition by a) FROM tcount_20230710 order by a,b;
+ A | B | COUNT 
+---+---+-------
+ 1 | 2 |     2
+ 1 | 2 |     2
+ 1 | 3 |     2
+ 1 | 4 |     2
+ 1 |   |     2
+ 1 |   |     2
+ 2 |   |     0
+ 2 |   |     0
+ 3 | 4 |     1
+ 3 |   |     1
+   | 2 |     0
+   | 2 |     0
+   | 3 |     0
+(13 rows)
+
+SELECT a,b,sum(a+b) filter (where a+b >3) over (partition by a) FROM tcount_20230710 order by a,b;
+ A | B | SUM 
+---+---+-----
+ 1 | 2 |   9
+ 1 | 2 |   9
+ 1 | 3 |   9
+ 1 | 4 |   9
+ 1 |   |   9
+ 1 |   |   9
+ 2 |   |    
+ 2 |   |    
+ 3 | 4 |   7
+ 3 |   |   7
+   | 2 |    
+   | 2 |    
+   | 3 |    
+(13 rows)
+
+SELECT a, sum(a) filter(where a >1) over (order by a rows between 2 preceding and 2 following)
+FROM tcount_20230710 order by a;
+ A | SUM 
+---+-----
+ 1 |    
+ 1 |    
+ 1 |    
+ 1 |    
+ 1 |   2
+ 1 |   4
+ 2 |   7
+ 2 |  10
+ 3 |  10
+ 3 |   8
+   |   6
+   |   3
+   |    
+(13 rows)
+
+select max(a) filter (where (a+b+c) > 6) from tcount_20230710;
+ MAX 
+-----
+   3
+(1 row)
+
+select min(a) filter (where (a+b+c) > 6) from tcount_20230710;
+ MIN 
+-----
+   3
+(1 row)
+
+-- in postgres
+\c postgres
+drop table tcount_20230710;
+ERROR:  table "tcount_20230710" does not exist
+create table tcount_20230710(a int, b int, c int);
+-- create table tcount_20230710(a int, b binary_float,c number(12,9));
+insert into tcount_20230710 values(1,2,3);
+insert into tcount_20230710 values(2,null,3);
+insert into tcount_20230710 values(1,2,null);
+insert into tcount_20230710 values(1,null,3);
+insert into tcount_20230710 values(3,2,3);
+insert into tcount_20230710 values(null,2,null);
+insert into tcount_20230710 values(1,null,3);
+insert into tcount_20230710 values(2,null,3);
+insert into tcount_20230710 values(1,2,null);
+insert into tcount_20230710 values(3,null,3);
+insert into tcount_20230710 values(1,2,null);
+insert into tcount_20230710 values(null,2,3);
+insert into tcount_20230710 values(null,2,3);
+select count(*) as all, count(a) as ca, count(b) as cb, count(c) as cc from tcount_20230710;
+ all | ca | cb | cc 
+-----+----+----+----
+  13 | 10 |  8 |  9
+(1 row)
+
+select count(distinct a) from tcount_20230710;
+ count 
+-------
+     3
+(1 row)
+
+select pg_typeof(count(*)),pg_typeof(count(a)) from tcount_20230710;
+ pg_typeof | pg_typeof 
+-----------+-----------
+ bigint    | bigint
+(1 row)
+
+select count(a)/count(*), count(a)/count(c) from tcount_20230710;
+ ?column? | ?column? 
+----------+----------
+        0 |        1
+(1 row)
+
+select sum(a)/count(*) from tcount_20230710;
+ ?column? 
+----------
+        1
+(1 row)
+
+select count(a)/13, pg_typeof(count(a)/13) from tcount_20230710;
+ ?column? | pg_typeof 
+----------+-----------
+        0 | bigint
+(1 row)
+
+select count(a)/13::int2, pg_typeof(count(a)/13::int2) from tcount_20230710;
+ ?column? | pg_typeof 
+----------+-----------
+        0 | bigint
+(1 row)
+
+select count(a)/13::int4, pg_typeof(count(a)/13::int4) from tcount_20230710;
+ ?column? | pg_typeof 
+----------+-----------
+        0 | bigint
+(1 row)
+
+select count(a)/13::bigint, pg_typeof(count(a)/13::bigint) from tcount_20230710;
+ ?column? | pg_typeof 
+----------+-----------
+        0 | bigint
+(1 row)
+
+select count(a)+13, pg_typeof(count(a)+13) from tcount_20230710;
+ ?column? | pg_typeof 
+----------+-----------
+       23 | bigint
+(1 row)
+
+select count(a)+13::int2, pg_typeof(count(a)+13::int2) from tcount_20230710;
+ ?column? | pg_typeof 
+----------+-----------
+       23 | bigint
+(1 row)
+
+select count(a)+13::int4, pg_typeof(count(a)+13::int4) from tcount_20230710;
+ ?column? | pg_typeof 
+----------+-----------
+       23 | bigint
+(1 row)
+
+select count(a)+13::bigint, pg_typeof(count(a)+13::bigint) from tcount_20230710;
+ ?column? | pg_typeof 
+----------+-----------
+       23 | bigint
+(1 row)
+
+select -count(*), -count(a), pg_typeof(-count(*)), pg_typeof(-count(a)) from tcount_20230710;
+ ?column? | ?column? | pg_typeof | pg_typeof 
+----------+----------+-----------+-----------
+      -13 |      -10 | bigint    | bigint
+(1 row)
+
+select +count(*), +count(a), pg_typeof(+count(*)), pg_typeof(+count(a)) from tcount_20230710;
+ ?column? | ?column? | pg_typeof | pg_typeof 
+----------+----------+-----------+-----------
+       13 |       10 | bigint    | bigint
+(1 row)
+
+select ((-count(*)*2::bigint)+count(a)+12::int2)/(count(b)-1::int4)*(count(c)/2::int8),
+ pg_typeof(((-count(*)*2::bigint)+count(a)+12::int2)/(count(b)-1::int4)*(count(c)/2::int8)) from tcount_20230710;
+ ?column? | pg_typeof 
+----------+-----------
+        0 | bigint
+(1 row)
+
+\c regression_ora
+drop table tr_varchar2;
+ERROR:  table "TR_VARCHAR2" does not exist
+create table tr_varchar2(f1 varchar2(20), f2 text, f3 number, f4 integer);
+insert into tr_varchar2 values(1,1,1,1);
+insert into tr_varchar2 values(2,2,2,2);
+insert into tr_varchar2 values('10000',10000,10000,10000);
+insert into tr_varchar2 values('100.9876543210987',100.9876543210987,100.9876543210987,100);
+select avg(f1), avg(f2), avg(f3), avg(f4) as avg from tr_varchar2;
+         AVG          |         AVG          |         AVG          |   AVG   
+----------------------+----------------------+----------------------+---------
+ 2525.996913580274675 | 2525.996913580274675 | 2525.996913580274675 | 2525.75
+(1 row)
+
+insert into tr_varchar2 values('1234.1qwe','1234.1qwe',0,0);
+select avg(f1), avg(f2), avg(f3), avg(f4) as avg from tr_varchar2;
+ERROR:  invalid input syntax for type numeric: "1234.1qwe"
+delete from tr_varchar2;
+drop table tr_varchar2;

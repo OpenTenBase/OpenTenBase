@@ -8,7 +8,7 @@
  *
  *
  * IDENTIFICATION
- *      src/backend/rewrite/rewriteSupport.c
+ *	  src/backend/rewrite/rewriteSupport.c
  *
  *-------------------------------------------------------------------------
  */
@@ -33,15 +33,15 @@
 bool
 IsDefinedRewriteRule(Oid owningRel, const char *ruleName)
 {
-    return SearchSysCacheExists2(RULERELNAME,
-                                 ObjectIdGetDatum(owningRel),
-                                 PointerGetDatum(ruleName));
+	return SearchSysCacheExists2(RULERELNAME,
+								 ObjectIdGetDatum(owningRel),
+								 PointerGetDatum(ruleName));
 }
 
 
 /*
  * SetRelationRuleStatus
- *        Set the value of the relation's relhasrules field in pg_class.
+ *		Set the value of the relation's relhasrules field in pg_class.
  *
  * NOTE: caller must be holding an appropriate lock on the relation.
  *
@@ -54,34 +54,34 @@ IsDefinedRewriteRule(Oid owningRel, const char *ruleName)
 void
 SetRelationRuleStatus(Oid relationId, bool relHasRules)
 {
-    Relation    relationRelation;
-    HeapTuple    tuple;
-    Form_pg_class classForm;
+	Relation	relationRelation;
+	HeapTuple	tuple;
+	Form_pg_class classForm;
 
-    /*
-     * Find the tuple to update in pg_class, using syscache for the lookup.
-     */
-    relationRelation = heap_open(RelationRelationId, RowExclusiveLock);
-    tuple = SearchSysCacheCopy1(RELOID, ObjectIdGetDatum(relationId));
-    if (!HeapTupleIsValid(tuple))
-        elog(ERROR, "cache lookup failed for relation %u", relationId);
-    classForm = (Form_pg_class) GETSTRUCT(tuple);
+	/*
+	 * Find the tuple to update in pg_class, using syscache for the lookup.
+	 */
+	relationRelation = heap_open(RelationRelationId, RowExclusiveLock);
+	tuple = SearchSysCacheCopy1(RELOID, ObjectIdGetDatum(relationId));
+	if (!HeapTupleIsValid(tuple))
+		elog(ERROR, "cache lookup failed for relation %u", relationId);
+	classForm = (Form_pg_class) GETSTRUCT(tuple);
 
-    if (classForm->relhasrules != relHasRules)
-    {
-        /* Do the update */
-        classForm->relhasrules = relHasRules;
+	if (classForm->relhasrules != relHasRules)
+	{
+		/* Do the update */
+		classForm->relhasrules = relHasRules;
 
-        CatalogTupleUpdate(relationRelation, &tuple->t_self, tuple);
-    }
-    else
-    {
-        /* no need to change tuple, but force relcache rebuild anyway */
-        CacheInvalidateRelcacheByTuple(tuple);
-    }
+		CatalogTupleUpdate(relationRelation, &tuple->t_self, tuple);
+	}
+	else
+	{
+		/* no need to change tuple, but force relcache rebuild anyway */
+		CacheInvalidateRelcacheByTuple(tuple);
+	}
 
-    heap_freetuple(tuple);
-    heap_close(relationRelation, RowExclusiveLock);
+	heap_freetuple(tuple);
+	heap_close(relationRelation, RowExclusiveLock);
 }
 
 /*
@@ -93,24 +93,24 @@ SetRelationRuleStatus(Oid relationId, bool relHasRules)
 Oid
 get_rewrite_oid(Oid relid, const char *rulename, bool missing_ok)
 {
-    HeapTuple    tuple;
-    Oid            ruleoid;
+	HeapTuple	tuple;
+	Oid			ruleoid;
 
-    /* Find the rule's pg_rewrite tuple, get its OID */
-    tuple = SearchSysCache2(RULERELNAME,
-                            ObjectIdGetDatum(relid),
-                            PointerGetDatum(rulename));
-    if (!HeapTupleIsValid(tuple))
-    {
-        if (missing_ok)
-            return InvalidOid;
-        ereport(ERROR,
-                (errcode(ERRCODE_UNDEFINED_OBJECT),
-                 errmsg("rule \"%s\" for relation \"%s\" does not exist",
-                        rulename, get_rel_name(relid))));
-    }
-    Assert(relid == ((Form_pg_rewrite) GETSTRUCT(tuple))->ev_class);
-    ruleoid = HeapTupleGetOid(tuple);
-    ReleaseSysCache(tuple);
-    return ruleoid;
+	/* Find the rule's pg_rewrite tuple, get its OID */
+	tuple = SearchSysCache2(RULERELNAME,
+							ObjectIdGetDatum(relid),
+							PointerGetDatum(rulename));
+	if (!HeapTupleIsValid(tuple))
+	{
+		if (missing_ok)
+			return InvalidOid;
+		ereport(ERROR,
+				(errcode(ERRCODE_UNDEFINED_OBJECT),
+				 errmsg("rule \"%s\" for relation \"%s\" does not exist",
+						rulename, get_rel_name(relid))));
+	}
+	Assert(relid == ((Form_pg_rewrite) GETSTRUCT(tuple))->ev_class);
+	ruleoid = HeapTupleGetOid(tuple);
+	ReleaseSysCache(tuple);
+	return ruleoid;
 }

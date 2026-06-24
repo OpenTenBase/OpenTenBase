@@ -1,0 +1,61 @@
+--
+-- SM2, SM3 and SM4
+--
+
+CREATE OR REPLACE PROCEDURE SM_func_validation(x in text)
+AS $$
+DECLARE
+    sm2_skey1 text;
+    sm2_pkey1 text;
+    sm2_plain1 text;
+    sm2_key_pair text;
+    sm2_skey2 text;
+    sm2_pkey2 text;
+    sm2_plain2 text;
+    sm2_cipher1 text;
+    sm2_cipher2 text;
+    sm3_hash_value text;
+    sm4_key text;
+    sm4_iv text;
+    sm4_plain text;
+BEGIN
+    sm2_skey1 := SM2_gen_skey();
+    sm2_pkey1 := SM2_gen_pkey(sm2_skey1);
+    sm2_key_pair := SM2_gen_key_pair();
+    sm2_pkey2 := substring(sm2_key_pair FROM '\(([^,]+),');
+    sm2_skey2 := substring(sm2_key_pair FROM ',([^)]+)');
+    sm2_plain1 := SM2_dec(SM2_enc(x, sm2_pkey1), sm2_skey1);
+    sm2_plain2 := SM2_dec(SM2_enc(x, sm2_pkey2), sm2_skey2);
+    sm4_key := SM4_gen_key();
+    sm4_iv := SM4_gen_iv();
+    sm4_plain := SM4_dec(SM4_enc(x, sm4_key, sm4_iv), sm4_key, sm4_iv);
+    
+    if x = sm2_plain1 then
+        raise notice 'SM2 plaintext1: %', sm2_plain1;
+        raise notice 'SM2 encryption and decryption with key pair 1 succeed';
+    else
+        raise notice 'SM2 encryption and decryption with key pair 1 fail';
+    end if;
+
+    if x = sm2_plain2 then
+        raise notice 'SM2 plaintext2: %', sm2_plain2;
+        raise notice 'SM2 encryption and decryption with key pair 2 succeed';
+    else
+        raise notice 'SM2 encryption and decryption with key pair 2 fail';
+    end if;
+
+    raise notice 'SM3 hash: %', SM3_hash(x);
+
+    if x = sm4_plain then
+        raise notice 'SM4 plaintext: %', sm4_plain;
+        raise notice 'SM4 encryption and decryption succeed';
+    else
+        raise notice 'SM4 encryption and decryption fail';
+    end if;
+END;
+$$
+LANGUAGE plpgsql;
+    
+CALL SM_func_validation('the show must go on');
+
+DROP PROCEDURE SM_func_validation;

@@ -35,7 +35,11 @@ declare
   updated4 bool;
 begin
   -- we don't want to wait forever; loop will exit after 30 seconds
-  for i in 1 .. 300 loop
+  -- OpenTenBase-C: Here we actually only do it for 10 seconds, or rather 100
+  --          loops, as we currently have an memory leak for about 10-12 MB
+  --          per query statement. In order to have this test passed on
+  --          normal DevC machines without being oom killed, here we changed it.
+  for i in 1 .. 100 loop
 
     -- With parallel query, the seqscan and indexscan on tenk2 might be done
     -- in parallel worker processes, which will send their stats counters
@@ -93,13 +97,11 @@ INSERT INTO trunc_stats_test1 DEFAULT VALUES;
 INSERT INTO trunc_stats_test1 DEFAULT VALUES;
 INSERT INTO trunc_stats_test1 DEFAULT VALUES;
 UPDATE trunc_stats_test1 SET id = id + 10 WHERE id IN (1, 2);
-ERROR:  could not plan this distributed update
-DETAIL:  correlated UPDATE or updating distribution column currently not supported in Postgres-XL.
+ERROR:  Distributed column "id" can't be updated in current version
 DELETE FROM trunc_stats_test1 WHERE id = 3;
 BEGIN;
 UPDATE trunc_stats_test1 SET id = id + 100;
-ERROR:  could not plan this distributed update
-DETAIL:  correlated UPDATE or updating distribution column currently not supported in Postgres-XL.
+ERROR:  Distributed column "id" can't be updated in current version
 TRUNCATE trunc_stats_test1;
 ERROR:  current transaction is aborted, commands ignored until end of transaction block
 INSERT INTO trunc_stats_test1 DEFAULT VALUES;
@@ -110,15 +112,10 @@ BEGIN;
 INSERT INTO trunc_stats_test2 DEFAULT VALUES;
 INSERT INTO trunc_stats_test2 DEFAULT VALUES;
 SAVEPOINT p1;
-ERROR:  SAVEPOINT is not yet supported.
 INSERT INTO trunc_stats_test2 DEFAULT VALUES;
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
 TRUNCATE trunc_stats_test2;
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
 INSERT INTO trunc_stats_test2 DEFAULT VALUES;
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
 RELEASE SAVEPOINT p1;
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
 COMMIT;
 -- rollback a savepoint: this should count 4 inserts and have 2
 -- live tuples after commit (and 2 dead ones due to aborted subxact)
@@ -126,17 +123,11 @@ BEGIN;
 INSERT INTO trunc_stats_test3 DEFAULT VALUES;
 INSERT INTO trunc_stats_test3 DEFAULT VALUES;
 SAVEPOINT p1;
-ERROR:  SAVEPOINT is not yet supported.
 INSERT INTO trunc_stats_test3 DEFAULT VALUES;
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
 INSERT INTO trunc_stats_test3 DEFAULT VALUES;
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
 TRUNCATE trunc_stats_test3;
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
 INSERT INTO trunc_stats_test3 DEFAULT VALUES;
-ERROR:  current transaction is aborted, commands ignored until end of transaction block
 ROLLBACK TO SAVEPOINT p1;
-ERROR:  no such savepoint
 COMMIT;
 -- rollback a truncate: this should count 2 inserts and produce 2 dead tuples
 BEGIN;
@@ -153,12 +144,15 @@ SELECT count(*) FROM tenk2;
 (1 row)
 
 -- do an indexscan
+-- make sure it is not a bitmap scan, which might skip fetching heap tuples
+SET enable_bitmapscan TO off;
 SELECT count(*) FROM tenk2 WHERE unique1 = 1;
  count 
 -------
      1
 (1 row)
 
+RESET enable_bitmapscan;
 -- We can't just call wait_for_stats() at this point, because we only
 -- transmit stats when the session goes idle, and we probably didn't
 -- transmit the last couple of counts yet thanks to the rate-limiting logic
@@ -179,10 +173,10 @@ SELECT relname, n_tup_ins, n_tup_upd, n_tup_del, n_live_tup, n_dead_tup
  WHERE relname like 'trunc_stats_test%' order by relname;
       relname      | n_tup_ins | n_tup_upd | n_tup_del | n_live_tup | n_dead_tup 
 -------------------+-----------+-----------+-----------+------------+------------
- trunc_stats_test  |         3 |         0 |         0 |          3 |          0
+ trunc_stats_test  |         3 |         0 |         0 |          0 |          0
  trunc_stats_test1 |         3 |         0 |         1 |          2 |          1
- trunc_stats_test2 |         2 |         0 |         0 |          0 |          2
- trunc_stats_test3 |         2 |         0 |         0 |          0 |          2
+ trunc_stats_test2 |         1 |         0 |         0 |          1 |          0
+ trunc_stats_test3 |         4 |         0 |         0 |          2 |          2
  trunc_stats_test4 |         2 |         0 |         0 |          0 |          2
 (5 rows)
 

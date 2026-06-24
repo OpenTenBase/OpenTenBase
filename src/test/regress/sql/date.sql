@@ -346,3 +346,16 @@ select make_date(2013, 13, 1);
 select make_date(2013, 11, -1);
 select make_time(10, 55, 100.1);
 select make_time(24, 0, 2.1);
+
+--
+-- test text_date()
+--
+set datestyle to iso;
+set datestyle to ymd;
+
+select text_date('2023-02-01');
+select text_date('2023-March-02');
+select text_date('2023-Apr-03');
+select text_date(null);
+
+reset datestyle;

@@ -1,0 +1,56 @@
+-- Tests for nlssort
+\set ECHO none
+  NAME  
+--------
+ brown
+ Purple
+ red
+ yellow
+(4 rows)
+
+  NAME  
+--------
+ Purple
+ brown
+ red
+ yellow
+(4 rows)
+
+  NAME  
+--------
+ Purple
+ brown
+ red
+ yellow
+(4 rows)
+
+  NAME  
+--------
+ Purple
+ brown
+ red
+ yellow
+(4 rows)
+
+ SET_NLS_SORT 
+--------------
+ 
+(1 row)
+
+  NAME  
+--------
+ brown
+ Purple
+ red
+ yellow
+(4 rows)
+
+  NAME  
+--------
+ brown
+ Purple
+ red
+ yellow
+ 
+(5 rows)
+

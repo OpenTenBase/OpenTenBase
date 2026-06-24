@@ -123,6 +123,15 @@ GetForeignRelSize (PlannerInfo *root,
      should be replaced if at all possible.  The function may also choose to
      update <literal>baserel-&gt;width</> if it can compute a better estimate
      of the average result row width.
+     (The initial value is based on column data types and on column
+     average-width values measured by the last <command>ANALYZE</command>.)
+     Also, this function may update <literal>baserel-&gt;tuples</literal> if
+     it can compute a better estimate of the foreign table's total row count.
+     (The initial value is
+     from <structname>pg_class</structname>.<structfield>reltuples</structfield>
+     which represents the total row count seen by the
+     last <command>ANALYZE</command>; it will be <literal>-1</literal> if
+     no <command>ANALYZE</command> has been done on this foreign table.)
     </para>
 
     <para>
@@ -404,9 +413,10 @@ GetForeignUpperPaths (PlannerInfo *root,
     <para>
 <programlisting>
 void
-AddForeignUpdateTargets (Query *parsetree,
-                         RangeTblEntry *target_rte,
-                         Relation target_relation);
+AddForeignUpdateTargets(PlannerInfo *root,
+                        Index rtindex,
+                        RangeTblEntry *target_rte,
+                        Relation target_relation);
 </programlisting>
 
      <command>UPDATE</> and <command>DELETE</> operations are performed
@@ -420,24 +430,31 @@ AddForeignUpdateTargets (Query *parsetree,
     </para>
 
     <para>
-     To do that, add <structname>TargetEntry</> items to
-     <literal>parsetree-&gt;targetList</>, containing expressions for the
-     extra values to be fetched.  Each such entry must be marked
-     <structfield>resjunk</> = <literal>true</>, and must have a distinct
-     <structfield>resname</> that will identify it at execution time.
-     Avoid using names matching <literal>ctid<replaceable>N</></literal>,
-     <literal>wholerow</literal>, or
-     <literal>wholerow<replaceable>N</></literal>, as the core system can
-     generate junk columns of these names.
-    </para>
-
-    <para>
-     This function is called in the rewriter, not the planner, so the
-     information available is a bit different from that available to the
-     planning routines.
-     <literal>parsetree</> is the parse tree for the <command>UPDATE</> or
-     <command>DELETE</> command, while <literal>target_rte</> and
-     <literal>target_relation</> describe the target foreign table.
+     To do that, construct a <structname>Var</structname> representing
+     an extra value you need, and pass it
+     to <function>add_row_identity_var</function>, along with a name for
+     the junk column.  (You can do this more than once if several columns
+     are needed.)  You must choose a distinct junk column name for each
+     different <structname>Var</structname> you need, except
+     that <structname>Var</structname>s that are identical except for
+     the <structfield>varno</structfield> field can and should share a
+     column name.
+     The core system uses the junk column names
+     <literal>tableoid</literal> for a
+     table's <structfield>tableoid</structfield> column,
+     <literal>ctid</literal>
+     or <literal>ctid<replaceable>N</replaceable></literal>
+     for <structfield>ctid</structfield>,
+     <literal>wholerow</literal>
+     for a whole-row <structname>Var</structname> marked with
+     <structfield>vartype</structfield> = <type>RECORD</type>,
+     and <literal>wholerow<replaceable>N</replaceable></literal>
+     for a whole-row <structname>Var</structname> with 
+     <structfield>vartype</structfield> equal to the table's declared rowtype.
+     Re-use these names when you can (the planner will combine duplicate
+     requests for identical junk columns).  If you need another kind of
+     junk column besides these, it might be wise to choose a name prefixed
+     with your extension name, to avoid conflicts against other FDWs.
     </para>
 
     <para>
@@ -466,14 +483,14 @@ PlanForeignModify (PlannerInfo *root,
     </para>
 
     <para>
-     <literal>root</> is the planner's global information about the query.
-     <literal>plan</> is the <structname>ModifyTable</> plan node, which is
-     complete except for the <structfield>fdwPrivLists</> field.
-     <literal>resultRelation</> identifies the target foreign table by its
-     range table index.  <literal>subplan_index</> identifies which target of
-     the <structname>ModifyTable</> plan node this is, counting from zero;
-     use this if you want to index into <literal>plan-&gt;plans</> or other
-     substructure of the <literal>plan</> node.
+     <literal>root</literal> is the planner's global information about the query.
+     <literal>plan</literal> is the <structname>ModifyTable</structname> plan node, which is
+     complete except for the <structfield>fdwPrivLists</structfield> field.
+     <literal>resultRelation</literal> identifies the target foreign table by its
+     range table index.  <literal>subplan_index</literal> identifies which target of
+     the <structname>ModifyTable</structname> plan node this is, counting from zero;
+     use this if you want to index into per-target-relation substructures of the
+     <literal>plan</literal> node.
     </para>
 
     <para>
@@ -594,11 +611,15 @@ ExecForeignUpdate (EState *estate,
      the target foreign table.
      <literal>slot</> contains the new data for the tuple; it will match the
      row-type definition of the foreign table.
-     <literal>planSlot</> contains the tuple that was generated by the
-     <structname>ModifyTable</> plan node's subplan; it differs from
-     <literal>slot</> in possibly containing additional <quote>junk</>
-     columns.  In particular, any junk columns that were requested by
-     <function>AddForeignUpdateTargets</> will be available from this slot.
+     <literal>planSlot</literal> contains the tuple that was generated by the
+     <structname>ModifyTable</structname> plan node's subplan.  Unlike
+     <literal>slot</literal>, this tuple contains only the new values for
+     columns changed by the query, so do not rely on attribute numbers of the
+     foreign table to index into <literal>planSlot</literal>.
+     Also, <literal>planSlot</literal> typically contains
+     additional <quote>junk</quote> columns.  In particular, any junk columns
+     that were requested by <function>AddForeignUpdateTargets</function> will
+     be available from this slot.
     </para>
 
     <para>

@@ -1,69 +1,62 @@
 # contrib/Makefile
-#
-# This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
-# All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
-#
 
 subdir = contrib
 top_builddir = ..
 include $(top_builddir)/src/Makefile.global
 
 SUBDIRS = \
-                adminpack       \
-                amcheck         \
-                auth_delay      \
-                auto_explain    \
-                btree_gin       \
-                btree_gist      \
-                chkpass         \
-                citext          \
-                cube            \
-                dblink          \
-                dict_int        \
-                dict_xsyn       \
-                earthdistance   \
-                file_fdw        \
-                fuzzystrmatch   \
-                hstore          \
-                intagg          \
-                intarray        \
-                isn             \
-                lo              \
-                ltree           \
-                oid2name        \
-                pageinspect     \
-                passwordcheck   \
-                pg_buffercache  \
-                pg_freespacemap \
-                pg_prewarm      \
-                pg_standby      \
-                uuid-ossp \
-                pg_trgm         \
-                pgcrypto        \
-                pgrowlocks      \
-                pgstattuple     \
-                pgxc_clean      \
-                pg_clean        \
-                pg_unlock       \
-                pgxc_ctl        \
-                pgxc_monitor \
-                pg_visibility   \
-                postgres_fdw    \
-                seg             \
-                spi             \
-                tablefunc       \
-				opentenbase_gts_tools \
-		        opentenbase_memory_tools	\
-                tcn             \
-                test_decoding   \
-                tsm_system_rows \
-                tsm_system_time \
-                unaccent        \
-                vacuumlo        \
-                stormstats		\
-                opentenbase_subscription  \
-				opentenbase_pooler_stat \
-                pg_stat_cluster_activity
+		adminpack	\
+		amcheck		\
+		auth_delay	\
+		auto_explain	\
+		btree_gin	\
+		btree_gist	\
+		chkpass		\
+		citext		\
+		cube		\
+		dblink		\
+		dict_int	\
+		dict_xsyn	\
+		earthdistance	\
+		file_fdw	\
+		fuzzystrmatch	\
+		hstore		\
+		intagg		\
+		intarray	\
+		isn		\
+		lo		\
+		ltree		\
+		oid2name	\
+		pageinspect	\
+		passwordcheck	\
+		pg_buffercache	\
+		pg_freespacemap \
+		pg_prewarm	\
+		pg_standby	\
+		pg_trgm		\
+		pgrowlocks	\
+		pgstattuple	\
+		pgxc_clean	\
+		pgxc_ctl	\
+		pgxc_monitor \
+		pg_visibility	\
+		postgres_fdw	\
+		seg		\
+		spi		\
+		tablefunc	\
+		opentenbase_gts_tools	\
+		tcn		\
+		test_decoding	\
+		tsm_system_rows \
+		tsm_system_time \
+		unaccent	\
+		vacuumlo	\
+		stormstats	\
+		opentenbase_subscription	\
+		pgvector	\
+		pgsql-http \
+		opentenbase_ai \
+                opentenbase_ctl	
 
 ifeq ($(with_openssl),yes)
 SUBDIRS += sslinfo

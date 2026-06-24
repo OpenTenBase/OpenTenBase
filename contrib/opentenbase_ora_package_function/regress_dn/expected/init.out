@@ -1,0 +1,7 @@
+\c opentenbase_ora_package_function_regression_ora
+\set ECHO none
+ NODE_NAME  | NODE_TYPE | NODE_HOST | NODEIS_PRIMARY | NODEIS_PREFERRED | NODE_PLANE_NAME 
+------------+-----------+-----------+----------------+------------------+-----------------
+ a_one      | G         | localhost | t              | f                | opentenbase_cluster
+ datanode_1 | D         | localhost | t              | t                | opentenbase_cluster
+(2 rows)

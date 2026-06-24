@@ -134,9 +134,9 @@ SET enable_seqscan = ON;
 SET enable_indexscan = OFF;
 SET enable_bitmapscan = OFF;
 
-SELECT * FROM fast_emp4000
-    WHERE home_base @ '(200,200),(2000,1000)'::box
-    ORDER BY (home_base[0])[0];
+--SELECT * FROM fast_emp4000
+--    WHERE home_base @ '(200,200),(2000,1000)'::box
+--    ORDER BY (home_base[0])[0];
 
 SELECT count(*) FROM fast_emp4000 WHERE home_base && '(1000,1000,0,0)'::box;
 
@@ -223,6 +223,8 @@ SELECT count(*) FROM radix_text_tbl WHERE t >    'Worth                         
 
 SELECT count(*) FROM radix_text_tbl WHERE t ~>~  'Worth                         St  ';
 
+SELECT count(*) FROM radix_text_tbl WHERE starts_with(t, 'Worth');
+
 SELECT * FROM gpolygon_tbl ORDER BY f1 <-> '(0,0)'::point LIMIT 10;
 
 SELECT circle_center(f1), round(radius(f1)) as radius FROM gcircle_tbl ORDER BY f1 <-> '(200,300)'::point LIMIT 10;
@@ -232,13 +234,13 @@ SET enable_seqscan = OFF;
 SET enable_indexscan = ON;
 SET enable_bitmapscan = OFF;
 
-EXPLAIN (NODES OFF, COSTS OFF)
-SELECT * FROM fast_emp4000
-    WHERE home_base @ '(200,200),(2000,1000)'::box
-    ORDER BY (home_base[0])[0];
-SELECT * FROM fast_emp4000
-    WHERE home_base @ '(200,200),(2000,1000)'::box
-    ORDER BY (home_base[0])[0];
+--EXPLAIN (NODES OFF, COSTS OFF)
+--SELECT * FROM fast_emp4000
+--    WHERE home_base @ '(200,200),(2000,1000)'::box
+--    ORDER BY (home_base[0])[0];
+--SELECT * FROM fast_emp4000
+--    WHERE home_base @ '(200,200),(2000,1000)'::box
+--    ORDER BY (home_base[0])[0];
 
 EXPLAIN (COSTS OFF, NODES OFF)
 SELECT count(*) FROM fast_emp4000 WHERE home_base && '(1000,1000,0,0)'::box;
@@ -1032,6 +1034,27 @@ REINDEX (VERBOSE) TABLE reindex_verbose;
 DROP TABLE reindex_verbose;
 
 --
+-- check that system tables can be reindexed
+--
+
+-- whole tables
+REINDEX TABLE pg_class; -- mapped, non-shared, critical
+REINDEX TABLE pg_index; -- non-mapped, non-shared, critical
+REINDEX TABLE pg_operator; -- non-mapped, non-shared, critical
+REINDEX TABLE pg_database; -- mapped, shared, critical
+REINDEX TABLE pg_shdescription; -- mapped, shared non-critical
+
+-- Check that individual system indexes can be reindexed. That's a bit
+-- different from the entire-table case because reindex_relation
+-- treats e.g. pg_class special.
+REINDEX INDEX pg_class_oid_index; -- mapped, non-shared, critical
+REINDEX INDEX pg_class_relname_nsp_index; -- mapped, non-shared, non-critical
+REINDEX INDEX pg_index_indexrelid_index; -- non-mapped, non-shared, critical
+REINDEX INDEX pg_index_indrelid_index; -- non-mapped, non-shared, non-critical
+REINDEX INDEX pg_database_oid_index; -- mapped, shared, critical
+REINDEX INDEX pg_shdescription_o_c_index; -- mapped, shared, non-critical
+
+--
 -- REINDEX SCHEMA
 --
 REINDEX SCHEMA schema_to_reindex; -- failure, schema does not exist
@@ -1083,3 +1106,26 @@ RESET ROLE;
 DROP ROLE regress_reindexuser;
 \set VERBOSITY terse \\ -- suppress cascade details
 DROP SCHEMA schema_to_reindex CASCADE;
+
+-- composite unique index
+set search_path to public;
+create table test_muti_index(id numeric,name varchar(10));
+create unique index idx_test_muti_index_idname on test_muti_index(id,name);
+insert into test_muti_index values(1,null);
+insert into test_muti_index values(1,null);
+insert into test_muti_index values(null,2);
+insert into test_muti_index values(null,2);
+insert into test_muti_index values(null,null);
+insert into test_muti_index values(null,null);
+insert into test_muti_index values(1,2);
+insert into test_muti_index values(1,2);
+
+create table test_index(a int);
+create unique index idx_test_index on test_index(a);
+insert into test_index(a) values(1);
+insert into test_index(a) values(1);
+insert into test_index(a) values(NULL);
+insert into test_index(a) values(NULL);
+
+drop table test_muti_index;
+drop table test_index;

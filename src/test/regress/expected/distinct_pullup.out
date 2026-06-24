@@ -1,0 +1,303 @@
+create table tt1_20240508
+(
+c1 integer not null,
+c2 integer not null,
+c3 integer,
+c4 char(20)
+)
+DISTRIBUTE BY SHARD (c1);
+create table tt2_20240508
+(
+c1 integer not null,
+c2 integer not null,
+c3 integer,
+c4 char(20)
+)
+DISTRIBUTE BY SHARD (c1);
+create table tt3_20240508
+(
+c1 integer not null,
+c2 integer not null,
+c3 integer,
+c4 char(20)
+)
+DISTRIBUTE BY SHARD (c1);
+insert into tt2_20240508 select t, t, t+1 from generate_series(1, 100) t;
+insert into tt1_20240508 select t, t, t+1 from generate_series(1, 1000) t;
+analyze;
+-- select distinct targetlist
+set enable_pullup_expr_distinct = off;
+explain (costs off) select tt1_20240508.c2,  (select distinct tt2_20240508.c2 from tt2_20240508 where tt2_20240508.c1 = tt1_20240508.c1) as x from tt1_20240508 ;
+                                  QUERY PLAN                                  
+------------------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   ->  Seq Scan on tt1_20240508
+         SubPlan 1
+           ->  Remote Subquery Scan on all (datanodes 2)
+                 Sort Key: tt2_20240508.c2
+                 Distribute results by R
+                 ->  Unique
+                       ->  Remote Subquery Scan on all (datanodes 2)
+                             Sort Key: tt2_20240508.c2
+                             Distribute results by S: c2
+                             ->  Unique
+                                   ->  Sort
+                                         Sort Key: tt2_20240508.c2
+                                         ->  Seq Scan on tt2_20240508
+                                               Filter: (c1 = tt1_20240508.c1)
+(15 rows)
+
+set enable_pullup_expr_distinct = on;
+explain (costs off) select tt1_20240508.c2,  (select distinct tt2_20240508.c2 from tt2_20240508 where tt2_20240508.c1 = tt1_20240508.c1) as x from tt1_20240508 ;
+                              QUERY PLAN                              
+----------------------------------------------------------------------
+ Nested Loop Left Scalar Join
+   ->  Remote Subquery Scan on all (datanodes 2)
+         ->  Seq Scan on tt1_20240508
+   ->  Remote Subquery Scan on all (datanodes 2)
+         Sort Key: tt2_20240508.c2
+         ->  Unique
+               ->  Remote Subquery Scan on all (datanodes 2)
+                     Sort Key: tt2_20240508.c2
+                     Distribute results by S: c2
+                     ->  Unique
+                           ->  Sort
+                                 Sort Key: tt2_20240508.c2
+                                 ->  Seq Scan on tt2_20240508
+                                       Filter: (c1 = tt1_20240508.c1)
+(14 rows)
+
+-- update distinct targetlist
+set enable_pullup_expr_distinct = off;
+explain (costs off) update tt1_20240508 set (c2,c3) = (select distinct c2,c3 from tt2_20240508 where tt1_20240508.c4 = tt2_20240508.c4);
+                                     QUERY PLAN                                     
+------------------------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   Params Evaluated: $1, $2
+   ->  Update on tt1_20240508
+         ->  Seq Scan on tt1_20240508
+               SubPlan 1 (returns $1,$2)
+                 ->  Remote Subquery Scan on all (datanodes 2)
+                       Sort Key: tt2_20240508.c2, tt2_20240508.c3
+                       Distribute results by R
+                       ->  Unique
+                             ->  Remote Subquery Scan on all (datanodes 2)
+                                   Sort Key: tt2_20240508.c2, tt2_20240508.c3
+                                   Distribute results by S: c2, c3
+                                   ->  Sort
+                                         Sort Key: tt2_20240508.c2, tt2_20240508.c3
+                                         ->  Seq Scan on tt2_20240508
+                                               Filter: (tt1_20240508.c4 = c4)
+(16 rows)
+
+set enable_pullup_expr_distinct = on;
+explain (costs off) update tt1_20240508 set (c2,c3) = (select distinct c2,c3 from tt2_20240508 where tt1_20240508.c4 = tt2_20240508.c4);
+                                       QUERY PLAN                                       
+----------------------------------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   ->  Update on tt1_20240508
+         ->  Nested Loop Left Scalar Join
+               ->  Seq Scan on tt1_20240508
+               ->  Remote Subquery Scan on all (datanodes 2)
+                     Sort Key: "TARGETLIST_subquery".c2, "TARGETLIST_subquery".c3
+                     Distribute results by R
+                     ->  Subquery Scan on "TARGETLIST_subquery"
+                           ->  Unique
+                                 ->  Remote Subquery Scan on all (datanodes 2)
+                                       Sort Key: tt2_20240508.c2, tt2_20240508.c3
+                                       Distribute results by S: c2, c3
+                                       ->  Sort
+                                             Sort Key: tt2_20240508.c2, tt2_20240508.c3
+                                             ->  Seq Scan on tt2_20240508
+                                                   Filter: (tt1_20240508.c4 = c4)
+(16 rows)
+
+drop table tt1_20240508;
+drop table tt2_20240508;
+drop table tt3_20240508;
+--test alias name
+create table tt1_20240820 (i int, j int);
+create table tt2_20240820 (i int, j int);
+explain (verbose,costs off, summary off, nodes off) select distinct tt1_20240820.i col1, (select tt2_20240820.j from tt2_20240820 where tt2_20240820.i=tt1_20240820.i order by 1 limit 1) as col2 from tt1_20240820, dual order by 1;
+                                   QUERY PLAN                                    
+---------------------------------------------------------------------------------
+ Remote Subquery Scan[1] on all (datanodes 2)
+   Output: "Subquery".i, ((SubPlan 1))
+   Sort Key: "Subquery".i
+   ->  Subquery Scan on "Subquery"
+         Output: "Subquery".i, (SubPlan 1)
+         ->  Unique
+               Output: tt1_20240820.i
+               ->  Sort
+                     Output: tt1_20240820.i
+                     Sort Key: tt1_20240820.i
+                     ->  Seq Scan on public.tt1_20240820
+                           Output: tt1_20240820.i
+         SubPlan 1
+           ->  Limit
+                 Output: tt2_20240820.j
+                 ->  Remote Subquery Scan[2] param[3] on all (datanodes 2)
+                       Output: tt2_20240820.j
+                       Sort Key: tt2_20240820.j
+                       Distribute results by R
+                       ->  Limit
+                             Output: tt2_20240820.j
+                             ->  Sort
+                                   Output: tt2_20240820.j
+                                   Sort Key: tt2_20240820.j
+                                   ->  Seq Scan on public.tt2_20240820
+                                         Output: tt2_20240820.j
+                                         Filter: (tt2_20240820.i = "Subquery".i)
+(27 rows)
+
+select distinct tt1_20240820.i col1, (select tt2_20240820.j from tt2_20240820 where tt2_20240820.i=tt1_20240820.i order by 1 limit 1) as col2 from tt1_20240820, dual order by 1;
+ col1 | col2 
+------+------
+(0 rows)
+
+explain (verbose,costs off, summary off, nodes off) select distinct tt1_20240820.i col1, tableoid as tab_oid,(select tt2_20240820.j from tt2_20240820 where tt2_20240820.i=tt1_20240820.i order by 1 limit 1) as col2 from tt1_20240820, dual order by 1;
+                                   QUERY PLAN                                    
+---------------------------------------------------------------------------------
+ Remote Subquery Scan[1] on all (datanodes 2)
+   Output: "Subquery".i, "Subquery".tab_oid, ((SubPlan 1))
+   Sort Key: "Subquery".i
+   ->  Subquery Scan on "Subquery"
+         Output: "Subquery".i, "Subquery".tab_oid, (SubPlan 1)
+         ->  Unique
+               Output: tt1_20240820.i, tt1_20240820.tableoid
+               ->  Sort
+                     Output: tt1_20240820.i, tt1_20240820.tableoid
+                     Sort Key: tt1_20240820.i, tt1_20240820.tableoid
+                     ->  Seq Scan on public.tt1_20240820
+                           Output: tt1_20240820.i, tt1_20240820.tableoid
+         SubPlan 1
+           ->  Limit
+                 Output: tt2_20240820.j
+                 ->  Remote Subquery Scan[2] param[3] on all (datanodes 2)
+                       Output: tt2_20240820.j
+                       Sort Key: tt2_20240820.j
+                       Distribute results by R
+                       ->  Limit
+                             Output: tt2_20240820.j
+                             ->  Sort
+                                   Output: tt2_20240820.j
+                                   Sort Key: tt2_20240820.j
+                                   ->  Seq Scan on public.tt2_20240820
+                                         Output: tt2_20240820.j
+                                         Filter: (tt2_20240820.i = "Subquery".i)
+(27 rows)
+
+select distinct tt1_20240820.i col1, tableoid tab_oid, (select tt2_20240820.j from tt2_20240820 where tt2_20240820.i=tt1_20240820.i order by 1 limit 1) as col2 from tt1_20240820, dual order by 1;
+ col1 | tab_oid | col2 
+------+---------+------
+(0 rows)
+
+explain (verbose,costs off, summary off, nodes off) select distinct tt1_20240820.i col1, (select tableoid from tt2_20240820 where tt2_20240820.i=tt1_20240820.i order by 1 limit 1) as col2 from tt1_20240820, dual order by 1;
+                                   QUERY PLAN                                    
+---------------------------------------------------------------------------------
+ Remote Subquery Scan[1] on all (datanodes 2)
+   Output: "Subquery".i, ((SubPlan 1))
+   Sort Key: "Subquery".i
+   ->  Subquery Scan on "Subquery"
+         Output: "Subquery".i, (SubPlan 1)
+         ->  Unique
+               Output: tt1_20240820.i
+               ->  Sort
+                     Output: tt1_20240820.i
+                     Sort Key: tt1_20240820.i
+                     ->  Seq Scan on public.tt1_20240820
+                           Output: tt1_20240820.i
+         SubPlan 1
+           ->  Limit
+                 Output: tt2_20240820.tableoid
+                 ->  Remote Subquery Scan[2] param[3] on all (datanodes 2)
+                       Output: tt2_20240820.tableoid
+                       Sort Key: tt2_20240820.tableoid
+                       Distribute results by R
+                       ->  Limit
+                             Output: tt2_20240820.tableoid
+                             ->  Sort
+                                   Output: tt2_20240820.tableoid
+                                   Sort Key: tt2_20240820.tableoid
+                                   ->  Seq Scan on public.tt2_20240820
+                                         Output: tt2_20240820.tableoid
+                                         Filter: (tt2_20240820.i = "Subquery".i)
+(27 rows)
+
+select distinct tt1_20240820.i col1, (select tableoid from tt2_20240820 where tt2_20240820.i=tt1_20240820.i order by 1 limit 1) as col2 from tt1_20240820, dual order by 1;
+ col1 | col2 
+------+------
+(0 rows)
+
+explain (verbose,costs off, summary off, nodes off) select distinct tt1_20240820.i col1, tableoid tab_oid, (select tt1_20240820.i from tt2_20240820 where tt2_20240820.i=tt1_20240820.i order by 1 limit 1) as col2 from tt1_20240820, dual order by 1;
+                                QUERY PLAN                                 
+---------------------------------------------------------------------------
+ Remote Subquery Scan[1] on all (datanodes 2)
+   Output: "Subquery".i, "Subquery".tab_oid, ((SubPlan 1))
+   Sort Key: "Subquery".i
+   ->  Subquery Scan on "Subquery"
+         Output: "Subquery".i, "Subquery".tab_oid, (SubPlan 1)
+         ->  Unique
+               Output: tt1_20240820.i, tt1_20240820.tableoid
+               ->  Sort
+                     Output: tt1_20240820.i, tt1_20240820.tableoid
+                     Sort Key: tt1_20240820.i, tt1_20240820.tableoid
+                     ->  Seq Scan on public.tt1_20240820
+                           Output: tt1_20240820.i, tt1_20240820.tableoid
+         SubPlan 1
+           ->  Limit
+                 Output: ("Subquery".i)
+                 ->  Remote Subquery Scan[2] param[3] on all (datanodes 2)
+                       Output: ("Subquery".i)
+                       Distribute results by R
+                       ->  Limit
+                             Output: ("Subquery".i)
+                             ->  Seq Scan on public.tt2_20240820
+                                   Output: "Subquery".i
+                                   Filter: (tt2_20240820.i = "Subquery".i)
+(23 rows)
+
+select distinct tt1_20240820.i col1, tableoid tab_oid, (select tt1_20240820.i from tt2_20240820 where tt2_20240820.i=tt1_20240820.i order by 1 limit 1) as col2 from tt1_20240820, dual order by 1;
+ col1 | tab_oid | col2 
+------+---------+------
+(0 rows)
+
+explain (verbose,costs off, summary off, nodes off) select distinct tt1_20240820.i col1, tt1_20240820 whole_row, (select tt2_20240820.j from tt2_20240820 where tt2_20240820.i=tt1_20240820.i order by 1 limit 1) as col2 from tt1_20240820, dual order by 1;
+                                   QUERY PLAN                                    
+---------------------------------------------------------------------------------
+ Remote Subquery Scan[1] on all (datanodes 2)
+   Output: "Subquery".i, "Subquery".whole_row, ((SubPlan 1))
+   Sort Key: "Subquery".i
+   ->  Subquery Scan on "Subquery"
+         Output: "Subquery".i, "Subquery".whole_row, (SubPlan 1)
+         ->  Unique
+               Output: tt1_20240820.i, tt1_20240820.*
+               ->  Sort
+                     Output: tt1_20240820.i, tt1_20240820.*
+                     Sort Key: tt1_20240820.i, tt1_20240820.*
+                     ->  Seq Scan on public.tt1_20240820
+                           Output: tt1_20240820.i, tt1_20240820.*
+         SubPlan 1
+           ->  Limit
+                 Output: tt2_20240820.j
+                 ->  Remote Subquery Scan[2] param[3] on all (datanodes 2)
+                       Output: tt2_20240820.j
+                       Sort Key: tt2_20240820.j
+                       Distribute results by R
+                       ->  Limit
+                             Output: tt2_20240820.j
+                             ->  Sort
+                                   Output: tt2_20240820.j
+                                   Sort Key: tt2_20240820.j
+                                   ->  Seq Scan on public.tt2_20240820
+                                         Output: tt2_20240820.j
+                                         Filter: (tt2_20240820.i = "Subquery".i)
+(27 rows)
+
+select distinct tt1_20240820.i col1, tt1_20240820 as whole_row, (select tt2_20240820.j from tt2_20240820 where tt2_20240820.i=tt1_20240820.i order by 1 limit 1) as col2 from tt1_20240820, dual order by 1;
+ col1 | whole_row | col2 
+------+-----------+------
+(0 rows)
+
+drop table tt1_20240820;
+drop table tt2_20240820;

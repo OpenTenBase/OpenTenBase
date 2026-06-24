@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * spin.c
- *       Hardware-independent implementation of spinlocks.
+ *	   Hardware-independent implementation of spinlocks.
  *
  *
  * For machines that have test-and-set (TAS) instructions, s_lock.h/.c
@@ -16,7 +16,7 @@
  *
  *
  * IDENTIFICATION
- *      src/backend/storage/lmgr/spin.c
+ *	  src/backend/storage/lmgr/spin.c
  *
  *-------------------------------------------------------------------------
  */
@@ -38,7 +38,7 @@ PGSemaphore *SpinlockSemaArray;
 Size
 SpinlockSemaSize(void)
 {
-    return SpinlockSemas() * sizeof(PGSemaphore);
+	return SpinlockSemas() * sizeof(PGSemaphore);
 }
 
 #ifdef HAVE_SPINLOCKS
@@ -49,9 +49,9 @@ SpinlockSemaSize(void)
 int
 SpinlockSemas(void)
 {
-    return 0;
+	return 0;
 }
-#else                            /* !HAVE_SPINLOCKS */
+#else							/* !HAVE_SPINLOCKS */
 
 /*
  * No TAS, so spinlocks are implemented as PGSemaphores.
@@ -64,7 +64,7 @@ SpinlockSemas(void)
 int
 SpinlockSemas(void)
 {
-    return NUM_SPINLOCK_SEMAPHORES + NUM_ATOMICS_SEMAPHORES;
+	return NUM_SPINLOCK_SEMAPHORES + NUM_ATOMICS_SEMAPHORES;
 }
 
 /*
@@ -75,18 +75,18 @@ SpinlockSemas(void)
 void
 SpinlockSemaInit(void)
 {
-    PGSemaphore *spinsemas;
-    int            nsemas = SpinlockSemas();
-    int            i;
+	PGSemaphore *spinsemas;
+	int			nsemas = SpinlockSemas();
+	int			i;
 
-    /*
-     * We must use ShmemAllocUnlocked(), since the spinlock protecting
-     * ShmemAlloc() obviously can't be ready yet.
-     */
-    spinsemas = (PGSemaphore *) ShmemAllocUnlocked(SpinlockSemaSize());
-    for (i = 0; i < nsemas; ++i)
-        spinsemas[i] = PGSemaphoreCreate();
-    SpinlockSemaArray = spinsemas;
+	/*
+	 * We must use ShmemAllocUnlocked(), since the spinlock protecting
+	 * ShmemAlloc() obviously can't be ready yet.
+	 */
+	spinsemas = (PGSemaphore *) ShmemAllocUnlocked(SpinlockSemaSize());
+	for (i = 0; i < nsemas; ++i)
+		spinsemas[i] = PGSemaphoreCreate();
+	SpinlockSemaArray = spinsemas;
 }
 
 /*
@@ -106,38 +106,38 @@ SpinlockSemaInit(void)
 void
 s_init_lock_sema(volatile slock_t *lock, bool nested)
 {
-    static int    counter = 0;
+	static int	counter = 0;
 
-    *lock = ((++counter) % NUM_SPINLOCK_SEMAPHORES) + 1;
+	*lock = ((++counter) % NUM_SPINLOCK_SEMAPHORES) + 1;
 }
 
 void
 s_unlock_sema(volatile slock_t *lock)
 {
-    int            lockndx = *lock;
+	int			lockndx = *lock;
 
-    if (lockndx <= 0 || lockndx > NUM_SPINLOCK_SEMAPHORES)
-        elog(ERROR, "invalid spinlock number: %d", lockndx);
-    PGSemaphoreUnlock(SpinlockSemaArray[lockndx - 1]);
+	if (lockndx <= 0 || lockndx > NUM_SPINLOCK_SEMAPHORES)
+		elog(ERROR, "invalid spinlock number: %d", lockndx);
+	PGSemaphoreUnlock(SpinlockSemaArray[lockndx - 1]);
 }
 
 bool
 s_lock_free_sema(volatile slock_t *lock)
 {
-    /* We don't currently use S_LOCK_FREE anyway */
-    elog(ERROR, "spin.c does not support S_LOCK_FREE()");
-    return false;
+	/* We don't currently use S_LOCK_FREE anyway */
+	elog(ERROR, "spin.c does not support S_LOCK_FREE()");
+	return false;
 }
 
 int
 tas_sema(volatile slock_t *lock)
 {
-    int            lockndx = *lock;
+	int			lockndx = *lock;
 
-    if (lockndx <= 0 || lockndx > NUM_SPINLOCK_SEMAPHORES)
-        elog(ERROR, "invalid spinlock number: %d", lockndx);
-    /* Note that TAS macros return 0 if *success* */
-    return !PGSemaphoreTryLock(SpinlockSemaArray[lockndx - 1]);
+	if (lockndx <= 0 || lockndx > NUM_SPINLOCK_SEMAPHORES)
+		elog(ERROR, "invalid spinlock number: %d", lockndx);
+	/* Note that TAS macros return 0 if *success* */
+	return !PGSemaphoreTryLock(SpinlockSemaArray[lockndx - 1]);
 }
 
-#endif                            /* !HAVE_SPINLOCKS */
+#endif							/* !HAVE_SPINLOCKS */

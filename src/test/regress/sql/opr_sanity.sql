@@ -82,18 +82,19 @@ WHERE p1.prolang = 0 OR p1.prorettype = 0 OR
        0::oid = ANY (p1.proargtypes) OR
        procost <= 0 OR
        CASE WHEN proretset THEN prorows <= 0 ELSE prorows != 0 END OR
+       prokind NOT IN ('f', 'a', 'w', 'p') OR
        provolatile NOT IN ('i', 's', 'v') OR
-       proparallel NOT IN ('s', 'r', 'u');
+       proparallel NOT IN ('s', 'r', 'u') ORDER BY 1;
 
 -- prosrc should never be null or empty
 SELECT p1.oid, p1.proname
 FROM pg_proc as p1
 WHERE prosrc IS NULL OR prosrc = '' OR prosrc = '-';
 
--- proiswindow shouldn't be set together with proisagg or proretset
+-- proretset should only be set for normal functions
 SELECT p1.oid, p1.proname
 FROM pg_proc AS p1
-WHERE proiswindow AND (proisagg OR proretset);
+WHERE proretset AND prokind != 'f';
 
 -- currently, no built-in functions should be SECURITY DEFINER;
 -- this might change in future, but there will probably never be many.
@@ -141,9 +142,9 @@ FROM pg_proc AS p1, pg_proc AS p2
 WHERE p1.oid < p2.oid AND
     p1.prosrc = p2.prosrc AND
     p1.prolang = 12 AND p2.prolang = 12 AND
-    (p1.proisagg = false OR p2.proisagg = false) AND
+    (p1.prokind != 'a' OR p2.prokind != 'a') AND
     (p1.prolang != p2.prolang OR
-     p1.proisagg != p2.proisagg OR
+     p1.prokind != p2.prokind OR
      p1.prosecdef != p2.prosecdef OR
      p1.proleakproof != p2.proleakproof OR
      p1.proisstrict != p2.proisstrict OR
@@ -167,7 +168,7 @@ FROM pg_proc AS p1, pg_proc AS p2
 WHERE p1.oid != p2.oid AND
     p1.prosrc = p2.prosrc AND
     p1.prolang = 12 AND p2.prolang = 12 AND
-    NOT p1.proisagg AND NOT p2.proisagg AND
+    p1.prokind != 'a' AND p2.prokind != 'a' AND
     p1.prosrc NOT LIKE E'range\\_constructor_' AND
     p2.prosrc NOT LIKE E'range\\_constructor_' AND
     (p1.prorettype < p2.prorettype)
@@ -178,7 +179,7 @@ FROM pg_proc AS p1, pg_proc AS p2
 WHERE p1.oid != p2.oid AND
     p1.prosrc = p2.prosrc AND
     p1.prolang = 12 AND p2.prolang = 12 AND
-    NOT p1.proisagg AND NOT p2.proisagg AND
+    p1.prokind != 'a' AND p2.prokind != 'a' AND
     p1.prosrc NOT LIKE E'range\\_constructor_' AND
     p2.prosrc NOT LIKE E'range\\_constructor_' AND
     (p1.proargtypes[0] < p2.proargtypes[0])
@@ -189,7 +190,7 @@ FROM pg_proc AS p1, pg_proc AS p2
 WHERE p1.oid != p2.oid AND
     p1.prosrc = p2.prosrc AND
     p1.prolang = 12 AND p2.prolang = 12 AND
-    NOT p1.proisagg AND NOT p2.proisagg AND
+    p1.prokind != 'a' AND p2.prokind != 'a' AND
     p1.prosrc NOT LIKE E'range\\_constructor_' AND
     p2.prosrc NOT LIKE E'range\\_constructor_' AND
     (p1.proargtypes[1] < p2.proargtypes[1])
@@ -200,7 +201,7 @@ FROM pg_proc AS p1, pg_proc AS p2
 WHERE p1.oid != p2.oid AND
     p1.prosrc = p2.prosrc AND
     p1.prolang = 12 AND p2.prolang = 12 AND
-    NOT p1.proisagg AND NOT p2.proisagg AND
+    p1.prokind != 'a' AND p2.prokind != 'a' AND
     (p1.proargtypes[2] < p2.proargtypes[2])
 ORDER BY 1, 2;
 
@@ -209,7 +210,7 @@ FROM pg_proc AS p1, pg_proc AS p2
 WHERE p1.oid != p2.oid AND
     p1.prosrc = p2.prosrc AND
     p1.prolang = 12 AND p2.prolang = 12 AND
-    NOT p1.proisagg AND NOT p2.proisagg AND
+    p1.prokind != 'a' AND p2.prokind != 'a' AND
     (p1.proargtypes[3] < p2.proargtypes[3])
 ORDER BY 1, 2;
 
@@ -218,7 +219,7 @@ FROM pg_proc AS p1, pg_proc AS p2
 WHERE p1.oid != p2.oid AND
     p1.prosrc = p2.prosrc AND
     p1.prolang = 12 AND p2.prolang = 12 AND
-    NOT p1.proisagg AND NOT p2.proisagg AND
+    p1.prokind != 'a' AND p2.prokind != 'a' AND
     (p1.proargtypes[4] < p2.proargtypes[4])
 ORDER BY 1, 2;
 
@@ -227,7 +228,7 @@ FROM pg_proc AS p1, pg_proc AS p2
 WHERE p1.oid != p2.oid AND
     p1.prosrc = p2.prosrc AND
     p1.prolang = 12 AND p2.prolang = 12 AND
-    NOT p1.proisagg AND NOT p2.proisagg AND
+    p1.prokind != 'a' AND p2.prokind != 'a' AND
     (p1.proargtypes[5] < p2.proargtypes[5])
 ORDER BY 1, 2;
 
@@ -236,7 +237,7 @@ FROM pg_proc AS p1, pg_proc AS p2
 WHERE p1.oid != p2.oid AND
     p1.prosrc = p2.prosrc AND
     p1.prolang = 12 AND p2.prolang = 12 AND
-    NOT p1.proisagg AND NOT p2.proisagg AND
+    p1.prokind != 'a' AND p2.prokind != 'a' AND
     (p1.proargtypes[6] < p2.proargtypes[6])
 ORDER BY 1, 2;
 
@@ -245,7 +246,7 @@ FROM pg_proc AS p1, pg_proc AS p2
 WHERE p1.oid != p2.oid AND
     p1.prosrc = p2.prosrc AND
     p1.prolang = 12 AND p2.prolang = 12 AND
-    NOT p1.proisagg AND NOT p2.proisagg AND
+    p1.prokind != 'a' AND p2.prokind != 'a' AND
     (p1.proargtypes[7] < p2.proargtypes[7])
 ORDER BY 1, 2;
 
@@ -418,8 +419,8 @@ WHERE provolatile = 'i' AND proparallel = 'u';
 
 SELECT *
 FROM pg_cast c
-WHERE castsource = 0 OR casttarget = 0 OR castcontext NOT IN ('e', 'a', 'i')
-    OR castmethod NOT IN ('f', 'b' ,'i');
+WHERE castsource = 0 OR casttarget = 0 OR castcontext NOT IN ('e', 'a', 'i', 'x', 'z')
+    OR castmethod NOT IN ('f', 'b', 'i');
 
 -- Check that castfunc is nonzero only for cast methods that need a function,
 -- and zero otherwise
@@ -556,7 +557,7 @@ WHERE p1.oid != p2.oid AND
     p1.oprname = p2.oprname AND
     p1.oprkind = p2.oprkind AND
     p1.oprleft = p2.oprleft AND
-    p1.oprright = p2.oprright;
+    p1.oprright = p2.oprright order by p1.oid,p2.oid;
 
 -- Look for commutative operators that don't commute.
 -- DEFINITIONAL NOTE: If A.oprcom = B, then x A y has the same result as y B x.
@@ -570,7 +571,7 @@ WHERE p1.oprcom = p2.oid AND
      p1.oprleft != p2.oprright OR
      p1.oprright != p2.oprleft OR
      p1.oprresult != p2.oprresult OR
-     p1.oid != p2.oprcom);
+     p1.oid != p2.oprcom) order by p1.oid,p2.oid;
 
 -- Look for negatory operators that don't agree.
 -- DEFINITIONAL NOTE: If A.oprnegate = B, then both A and B must yield
@@ -796,6 +797,8 @@ WHERE aggfnoid = 0 OR aggtransfn = 0 OR
     aggkind NOT IN ('n', 'o', 'h') OR
     aggnumdirectargs < 0 OR
     (aggkind = 'n' AND aggnumdirectargs > 0) OR
+    aggfinalmodify NOT IN ('r', 's', 'w') OR
+    aggmfinalmodify NOT IN ('r', 's', 'w') OR
     aggtranstype = 0 OR aggtransspace < 0 OR aggmtransspace < 0;
 
 -- Make sure the matching pg_proc entry is sensible, too.
@@ -803,13 +806,13 @@ WHERE aggfnoid = 0 OR aggtransfn = 0 OR
 SELECT a.aggfnoid::oid, p.proname
 FROM pg_aggregate as a, pg_proc as p
 WHERE a.aggfnoid = p.oid AND
-    (NOT p.proisagg OR p.proretset OR p.pronargs < a.aggnumdirectargs);
+    (p.prokind != 'a' OR p.proretset OR p.pronargs < a.aggnumdirectargs);
 
--- Make sure there are no proisagg pg_proc entries without matches.
+-- Make sure there are no prokind = PROKIND_AGGREGATE pg_proc entries without matches.
 
 SELECT oid, proname
 FROM pg_proc as p
-WHERE p.proisagg AND
+WHERE p.prokind = 'a' AND
     NOT EXISTS (SELECT 1 FROM pg_aggregate a WHERE a.aggfnoid = p.oid);
 
 -- If there is no finalfn then the output type must be the transtype.
@@ -1084,11 +1087,12 @@ ORDER BY 1, 2;
 -- (Note: we don't forbid users from creating such aggregates; the policy is
 -- just to think twice before creating built-in aggregates like this.)
 -- The only aggregates that should show up here are count(x) and count(*).
+-- listagg from opentenbase_ora, it is speciall.
 
 SELECT p1.oid::regprocedure, p2.oid::regprocedure
 FROM pg_proc AS p1, pg_proc AS p2
-WHERE p1.oid < p2.oid AND p1.proname = p2.proname AND
-    p1.proisagg AND p2.proisagg AND
+WHERE p1.oid < p2.oid AND p1.proname = p2.proname AND p1.proname <> 'listagg' AND
+    p1.prokind = 'a' AND p2.prokind = 'a' AND
     array_dims(p1.proargtypes) != array_dims(p2.proargtypes)
 ORDER BY 1;
 
@@ -1096,7 +1100,7 @@ ORDER BY 1;
 
 SELECT oid, proname
 FROM pg_proc AS p
-WHERE proisagg AND proargdefaults IS NOT NULL;
+WHERE prokind = 'a' AND proargdefaults IS NOT NULL;
 
 -- For the same reason, we avoid creating built-in variadic aggregates, except
 -- that variadic ordered-set aggregates are OK (since they have special syntax
@@ -1104,7 +1108,7 @@ WHERE proisagg AND proargdefaults IS NOT NULL;
 
 SELECT p.oid, proname
 FROM pg_proc AS p JOIN pg_aggregate AS a ON a.aggfnoid = p.oid
-WHERE proisagg AND provariadic != 0 AND a.aggkind = 'n';
+WHERE prokind = 'a' AND provariadic != 0 AND a.aggkind = 'n';
 
 
 -- **************** pg_opfamily ****************

@@ -1,8 +1,8 @@
 /*-------------------------------------------------------------------------
  *
  * memdebug.c
- *      Declarations used in memory context implementations, not part of the
- *      public API of the memory management subsystem.
+ *	  Declarations used in memory context implementations, not part of the
+ *	  public API of the memory management subsystem.
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -11,44 +11,44 @@
  * src/backend/utils/memdebug.c
  *
  *
- *    About CLOBBER_FREED_MEMORY:
+ *	About CLOBBER_FREED_MEMORY:
  *
- *    If this symbol is defined, all freed memory is overwritten with 0x7F's.
- *    This is useful for catching places that reference already-freed memory.
+ *	If this symbol is defined, all freed memory is overwritten with 0x7F's.
+ *	This is useful for catching places that reference already-freed memory.
  *
- *    About MEMORY_CONTEXT_CHECKING:
+ *	About MEMORY_CONTEXT_CHECKING:
  *
- *    Since we usually round request sizes up to the next power of 2, there
- *    is often some unused space immediately after a requested data area.
- *    Thus, if someone makes the common error of writing past what they've
- *    requested, the problem is likely to go unnoticed ... until the day when
- *    there *isn't* any wasted space, perhaps because of different memory
- *    alignment on a new platform, or some other effect.  To catch this sort
- *    of problem, the MEMORY_CONTEXT_CHECKING option stores 0x7E just beyond
- *    the requested space whenever the request is less than the actual chunk
- *    size, and verifies that the byte is undamaged when the chunk is freed.
+ *	Since we usually round request sizes up to the next power of 2, there
+ *	is often some unused space immediately after a requested data area.
+ *	Thus, if someone makes the common error of writing past what they've
+ *	requested, the problem is likely to go unnoticed ... until the day when
+ *	there *isn't* any wasted space, perhaps because of different memory
+ *	alignment on a new platform, or some other effect.  To catch this sort
+ *	of problem, the MEMORY_CONTEXT_CHECKING option stores 0x7E just beyond
+ *	the requested space whenever the request is less than the actual chunk
+ *	size, and verifies that the byte is undamaged when the chunk is freed.
  *
  *
- *    About USE_VALGRIND and Valgrind client requests:
+ *	About USE_VALGRIND and Valgrind client requests:
  *
- *    Valgrind provides "client request" macros that exchange information with
- *    the host Valgrind (if any).  Under !USE_VALGRIND, memdebug.h stubs out
- *    currently-used macros.
+ *	Valgrind provides "client request" macros that exchange information with
+ *	the host Valgrind (if any).  Under !USE_VALGRIND, memdebug.h stubs out
+ *	currently-used macros.
  *
- *    When running under Valgrind, we want a NOACCESS memory region both before
- *    and after the allocation.  The chunk header is tempting as the preceding
- *    region, but mcxt.c expects to able to examine the standard chunk header
- *    fields.  Therefore, we use, when available, the requested_size field and
- *    any subsequent padding.  requested_size is made NOACCESS before returning
- *    a chunk pointer to a caller.  However, to reduce client request traffic,
- *    it is kept DEFINED in chunks on the free list.
+ *	When running under Valgrind, we want a NOACCESS memory region both before
+ *	and after the allocation.  The chunk header is tempting as the preceding
+ *	region, but mcxt.c expects to able to examine the standard chunk header
+ *	fields.  Therefore, we use, when available, the requested_size field and
+ *	any subsequent padding.  requested_size is made NOACCESS before returning
+ *	a chunk pointer to a caller.  However, to reduce client request traffic,
+ *	it is kept DEFINED in chunks on the free list.
  *
- *    The rounded-up capacity of the chunk usually acts as a post-allocation
- *    NOACCESS region.  If the request consumes precisely the entire chunk,
- *    there is no such region; another chunk header may immediately follow.  In
- *    that case, Valgrind will not detect access beyond the end of the chunk.
+ *	The rounded-up capacity of the chunk usually acts as a post-allocation
+ *	NOACCESS region.  If the request consumes precisely the entire chunk,
+ *	there is no such region; another chunk header may immediately follow.  In
+ *	that case, Valgrind will not detect access beyond the end of the chunk.
  *
- *    See also the cooperating Valgrind client requests in mcxt.c.
+ *	See also the cooperating Valgrind client requests in mcxt.c.
  *
  *-------------------------------------------------------------------------
  */
@@ -74,20 +74,20 @@
 void
 randomize_mem(char *ptr, size_t size)
 {
-    static int    save_ctr = 1;
-    size_t        remaining = size;
-    int            ctr;
+	static int	save_ctr = 1;
+	size_t		remaining = size;
+	int			ctr;
 
-    ctr = save_ctr;
-    VALGRIND_MAKE_MEM_UNDEFINED(ptr, size);
-    while (remaining-- > 0)
-    {
-        *ptr++ = ctr;
-        if (++ctr > 251)
-            ctr = 1;
-    }
-    VALGRIND_MAKE_MEM_UNDEFINED(ptr - size, size);
-    save_ctr = ctr;
+	ctr = save_ctr;
+	VALGRIND_MAKE_MEM_UNDEFINED(ptr, size);
+	while (remaining-- > 0)
+	{
+		*ptr++ = ctr;
+		if (++ctr > 251)
+			ctr = 1;
+	}
+	VALGRIND_MAKE_MEM_UNDEFINED(ptr - size, size);
+	save_ctr = ctr;
 }
 
-#endif                            /* RANDOMIZE_ALLOCATED_MEMORY */
+#endif							/* RANDOMIZE_ALLOCATED_MEMORY */

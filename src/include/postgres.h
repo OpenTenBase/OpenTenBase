@@ -11,9 +11,6 @@
  * Portions Copyright (c) 1995, Regents of the University of California
  * Portions Copyright (c) 2010-2012 Postgres-XC Development Group
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * src/include/postgres.h
  *
  *-------------------------------------------------------------------------
@@ -28,8 +25,7 @@
  *	  section	description
  *	  -------	------------------------------------------------
  *		1)		variable-length datatypes (TOAST support)
- *		2)		datum type + support macros
- *		3)		exception handling backend support
+ *		2)		Datum type + support macros
  *
  *	 NOTES
  *
@@ -73,6 +69,12 @@
 #define BLOCKNUMBER_TO_EXTENTID(blk) ((blk)/PAGES_PER_EXTENTS)
 #define EXTENT_FIRST_BLOCKNUMBER(eid) ((eid)*PAGES_PER_EXTENTS)
 #endif
+
+extern char *proxy_for_dn;      /* Proxy for which dn? */
+extern bool am_proxy_for_dn;    /* Am I a proxy for dn? */
+extern bool am_conn_from_proxy; /* Am I connected from proxy? */
+
+extern uint8 internal_cmd_sequence;
 
 /* ----------------------------------------------------------------
  *				Section 1:	variable-length datatypes (TOAST support)
@@ -399,8 +401,6 @@ typedef uintptr_t Datum;
 
 #define SIZEOF_DATUM SIZEOF_VOID_P
 
-typedef Datum *DatumPtr;
-
 #define GET_1_BYTE(datum)	(((Datum) (datum)) & 0x000000ff)
 #define GET_2_BYTES(datum)	(((Datum) (datum)) & 0x0000ffff)
 #define GET_4_BYTES(datum)	(((Datum) (datum)) & 0xffffffff)
@@ -457,6 +457,12 @@ typedef Datum *DatumPtr;
  */
 
 #define Int8GetDatum(X) ((Datum) SET_1_BYTE(X))
+
+/*
+ * DatumGetInt8
+ *		Returns 8-bit integer value of a datum.
+ */
+#define DatumGetInt8(X) ((int8)GET_1_BYTE(X))
 
 /*
  * DatumGetUInt8
@@ -819,31 +825,44 @@ extern Datum Float8GetDatum(float8 X);
 #endif
 
 
-/* ----------------------------------------------------------------
- *				Section 3:	exception handling backend support
- * ----------------------------------------------------------------
- */
-
-/*
- * Backend only infrastructure for the assertion-related macros in c.h.
- *
- * ExceptionalCondition must be present even when assertions are not enabled.
- */
-extern void ExceptionalCondition(const char *conditionName,
-					 const char *errorType,
-					 const char *fileName, int lineNumber) pg_attribute_noreturn();
-
-
 extern void ResetUsageCommon(struct rusage *save_r, struct timeval *save_t);
 extern void ResetUsage(void);
 extern void ShowUsageCommon(const char *title, struct rusage *save_r, struct
 		timeval *save_t);
-#ifdef __OPENTENBASE__
+
+extern void process_last_pos_slash(const char *query_string, int query_len);
+extern int check_func_proc_add_dollar_pos(const char *query_string, int query_len, bool *dollar_or_decl);
+extern bool check_anonymous_block_add_dollar(char *query_string, int query_len);
+extern char *preprocess_comment(const char *query_string, bool *is_find);
+extern void execute_simple_query(const char* query_string);
+
 #define CLEAR_BIT(data, bit) data = (~(1 << (bit)) & (data))
 #define SET_BIT(data, bit)   data = ((1 << (bit)) | (data))
 #define BIT_CLEAR(data, bit) (0 == ((1 << (bit)) & (data))) 
 #define BIT_SET(data, bit)   ((1 << (bit)) & (data)) 
 /* for error code */
 extern bool g_is_in_init_phase;
+#define DatumGetItemPointer(X)	 ((ItemPointer) DatumGetPointer(X))
+#define ItemPointerGetDatum(X)	 PointerGetDatum(X)
+
+/* OPENTENBASE_ORA function: DBMS_UTILITY.GET_TIME */
+extern int32 DbmsUtilityGetTime(void);
+
+#ifdef __OPTIMIZE__
+#define DBUG_EXECUTE_IF(keyword, statements)
+#define DBUG_SUSPEND_IF_PREFIX(keyword)
+#else
+extern bool opentenbase_test_flag_contains(char *keyword);
+extern void opentenbase_test_suspend_if_prefix(char *keyword);
+#define DBUG_EXECUTE_IF(keyword, statements)		\
+	do {											\
+		if (opentenbase_test_flag_contains(keyword)) {	\
+			statements								\
+		}											\
+	} while (0)
+
+#define DBUG_SUSPEND_IF_PREFIX(keyword) opentenbase_test_suspend_if_prefix(keyword)
 #endif
+
+extern void HandleReadOnlyInterrupt(void);
 #endif							/* POSTGRES_H */

@@ -464,7 +464,7 @@ alter table nv_child_2011 add check (d between '2011-01-01'::date and '2011-12-3
 explain (costs off, nodes off) select * from nv_parent where d between '2011-08-01' and '2011-08-31';
                                    QUERY PLAN                                    
 ---------------------------------------------------------------------------------
- Remote Subquery Scan on all
+ Remote Subquery Scan on all (datanodes 2)
    ->  Append
          ->  Seq Scan on nv_parent
                Filter: ((d >= '08-01-2011'::date) AND (d <= '08-31-2011'::date))
@@ -478,7 +478,7 @@ create table nv_child_2009 (check (d between '2009-01-01'::date and '2009-12-31'
 explain (costs off, nodes off) select * from nv_parent where d between '2011-08-01'::date and '2011-08-31'::date;
                                    QUERY PLAN                                    
 ---------------------------------------------------------------------------------
- Remote Subquery Scan on all
+ Remote Subquery Scan on all (datanodes 2)
    ->  Append
          ->  Seq Scan on nv_parent
                Filter: ((d >= '08-01-2011'::date) AND (d <= '08-31-2011'::date))
@@ -491,7 +491,7 @@ explain (costs off, nodes off) select * from nv_parent where d between '2011-08-
 explain (costs off, nodes off) select * from nv_parent where d between '2009-08-01'::date and '2009-08-31'::date;
                                    QUERY PLAN                                    
 ---------------------------------------------------------------------------------
- Remote Subquery Scan on all
+ Remote Subquery Scan on all (datanodes 2)
    ->  Append
          ->  Seq Scan on nv_parent
                Filter: ((d >= '08-01-2009'::date) AND (d <= '08-31-2009'::date))
@@ -508,7 +508,7 @@ alter table nv_child_2011 VALIDATE CONSTRAINT nv_child_2011_d_check;
 explain (costs off, nodes off) select * from nv_parent where d between '2009-08-01'::date and '2009-08-31'::date;
                                    QUERY PLAN                                    
 ---------------------------------------------------------------------------------
- Remote Subquery Scan on all
+ Remote Subquery Scan on all (datanodes 2)
    ->  Append
          ->  Seq Scan on nv_parent
                Filter: ((d >= '08-01-2009'::date) AND (d <= '08-31-2009'::date))
@@ -2774,7 +2774,7 @@ CREATE TABLE tt8(a int);
 CREATE SCHEMA alter2;
 ALTER TABLE IF EXISTS tt8 ADD COLUMN f int;
 ALTER TABLE IF EXISTS tt8 ADD CONSTRAINT xxx PRIMARY KEY(f);
-ERROR:  Unique index of partitioned table must contain the hash distribution column.
+ERROR:  Unique index of distributed table must contain the distribution column.
 ALTER TABLE IF EXISTS tt8 ADD CHECK (f BETWEEN 0 AND 10);
 ALTER TABLE IF EXISTS tt8 ALTER COLUMN f SET DEFAULT 0;
 ALTER TABLE IF EXISTS tt8 RENAME COLUMN f TO f1;
@@ -3686,7 +3686,6 @@ drop operator class at_test_sql_partop using btree;
 drop function at_test_sql_partop;
 -- remote dml with dropped column
 create table dropped_col_remote_dml (a int, b int, c int) distribute by shard(a);
-NOTICE:  Replica identity is needed for shard table, please add to this table through "alter table" command.
 insert into dropped_col_remote_dml values(1,1,1);
 create or replace function dropped_col_remote_dml_func() returns trigger as
 $$
@@ -3703,28 +3702,8 @@ update dropped_col_remote_dml set b = 2;
 NOTICE:  this is a test
 drop table dropped_col_remote_dml cascade;
 drop function dropped_col_remote_dml_func;
--- add column with default values and check shardid
-create table t_default_shardid(a int, b int) distribute by shard(a);
-NOTICE:  Replica identity is needed for shard table, please add to this table through "alter table" command.
-insert into t_default_shardid values(1,1), (2,2), (3,3);
-select shardid, a, b from t_default_shardid order by 1;
- shardid | a | b 
----------+---+---
-     105 | 3 | 3
-    2234 | 1 | 1
-    3318 | 2 | 2
-(3 rows)
-
-create sequence s_default_shardid;
-alter table t_default_shardid add column c int default nextval('s_default_shardid');
--- shardid should not change
-select shardid, a, b from t_default_shardid order by 1;
- shardid | a | b 
----------+---+---
-     105 | 3 | 3
-    2234 | 1 | 1
-    3318 | 2 | 2
-(3 rows)
-
-drop table t_default_shardid;
-drop sequence s_default_shardid;
+create table checksum_test(a int) with (checksum=false);
+create index checksum_test_index on checksum_test(a) with (checksum=false);
+alter index checksum_test_index set (checksum=on);
+alter table checksum_test set (checksum=on);
+rebuild checksum checksum_test;

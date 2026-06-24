@@ -24,23 +24,25 @@ extern char *connstr_source;
 extern bool debug;
 extern bool showprogress;
 extern bool dry_run;
+extern bool checkTimelineStatus;
+extern char *pgxcNodeName;
 
 /* Target history */
 extern TimeLineHistoryEntry *targetHistory;
-extern int    targetNentries;
+extern int	targetNentries;
 
 /* in parsexlog.c */
 extern void extractPageMap(const char *datadir, XLogRecPtr startpoint,
-               int tliIndex, XLogRecPtr endpoint);
+			   int tliIndex, XLogRecPtr endpoint);
 extern void findLastCheckpoint(const char *datadir, XLogRecPtr searchptr,
-                   int tliIndex,
-                   XLogRecPtr *lastchkptrec, TimeLineID *lastchkpttli,
-                   XLogRecPtr *lastchkptredo);
-extern XLogRecPtr readOneRecord(const char *datadir, XLogRecPtr ptr,
-              int tliIndex);
+				   int tliIndex,
+				   XLogRecPtr *lastchkptrec, TimeLineID *lastchkpttli,
+				   XLogRecPtr *lastchkptredo);
+extern XLogRecPtr readEndRecord(const char *datadir, XLogRecPtr ptr,
+			  int tliIndex);
 
 /* in timeline.c */
 extern TimeLineHistoryEntry *rewind_parseTimeLineHistory(char *buffer,
-                            TimeLineID targetTLI, int *nentries);
+							TimeLineID targetTLI, int *nentries);
 
-#endif                            /* PG_REWIND_H */
+#endif							/* PG_REWIND_H */

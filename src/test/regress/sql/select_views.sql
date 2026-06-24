@@ -15,7 +15,7 @@ SELECT * FROM toyemp WHERE name = 'sharon';
 CREATE ROLE regress_alice;
 
 CREATE FUNCTION f_leak (text)
-       RETURNS bool LANGUAGE 'plpgsql' COST 0.0000001 pushdown
+       RETURNS bool LANGUAGE 'plpgsql' pushdown COST 0.0000001
        AS 'BEGIN RAISE NOTICE ''f_leak => %'', $1; RETURN true; END';
 
 CREATE TABLE customer (
@@ -126,14 +126,18 @@ EXPLAIN (COSTS OFF) SELECT * FROM my_credit_card_secure WHERE f_leak(cnum);
 --           implemented with leakproof functions.
 --
 SELECT * FROM my_credit_card_usage_normal
-       WHERE f_leak(cnum) AND ymd >= '2011-10-01' AND ymd < '2011-11-01';
+       WHERE f_leak(cnum) AND ymd >= '2011-10-01' AND ymd < '2011-11-01'
+	ORDER BY 8;
 EXPLAIN (COSTS OFF) SELECT * FROM my_credit_card_usage_normal
-       WHERE f_leak(cnum) AND ymd >= '2011-10-01' AND ymd < '2011-11-01';
+       WHERE f_leak(cnum) AND ymd >= '2011-10-01' AND ymd < '2011-11-01'
+	ORDER BY 8;
 
 SELECT * FROM my_credit_card_usage_secure
-       WHERE f_leak(cnum) AND ymd >= '2011-10-01' AND ymd < '2011-11-01';
+       WHERE f_leak(cnum) AND ymd >= '2011-10-01' AND ymd < '2011-11-01'
+	ORDER BY 8;
 EXPLAIN (COSTS OFF) SELECT * FROM my_credit_card_usage_secure
-       WHERE f_leak(cnum) AND ymd >= '2011-10-01' AND ymd < '2011-11-01';
+       WHERE f_leak(cnum) AND ymd >= '2011-10-01' AND ymd < '2011-11-01'
+	ORDER BY 8;
 
 --
 -- Test for the case when security_barrier gets changed between rewriter

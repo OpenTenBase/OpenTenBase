@@ -252,6 +252,10 @@ CREATE TABLE IF NOT EXISTS test_tsvector(
 	t text
 );
 
+-- invalid: non-lowercase quoted reloptions identifiers
+CREATE TABLE tas_case WITH ("Fillfactor" = 10) AS SELECT 1 a;
+CREATE TABLE tas_case (a text) WITH ("Oids" = true);
+
 CREATE UNLOGGED TABLE unlogged1 (a int primary key);			-- OK
 CREATE TEMPORARY TABLE unlogged2 (a int primary key);			-- OK
 SELECT relname, relkind, relpersistence FROM pg_class WHERE relname ~ '^unlogged\d' ORDER BY relname;
@@ -275,6 +279,16 @@ CREATE TABLE IF NOT EXISTS as_select1 AS SELECT * FROM pg_class WHERE relkind = 
 --CREATE TABLE as_select1 AS SELECT * FROM pg_attribute WHERE attstorage = 'p';
 --CREATE TABLE IF NOT EXISTS as_select1 AS SELECT * FROM pg_attribute WHERE attstorage = 'p';
 DROP TABLE as_select1;
+
+-- create an extra wide table to test for issues related to that
+-- (temporarily hide query, to avoid the long CREATE TABLE stmt)
+\set ECHO none
+SELECT 'CREATE TABLE extra_wide_table(firstc text, '|| array_to_string(array_agg('c'||i||' bool'),',')||', lastc text);'
+FROM generate_series(1, 1100) g(i)
+\gexec
+\set ECHO all
+INSERT INTO extra_wide_table(firstc, lastc) VALUES('first col', 'last col');
+SELECT firstc, lastc FROM extra_wide_table;
 
 -- check that the oid column is added before the primary key is checked
 CREATE TABLE oid_pk (f1 INT, PRIMARY KEY(oid)) WITH OIDS;
@@ -740,6 +754,12 @@ SELECT obj_description('parted_col_comment'::regclass);
 \d+ parted_col_comment
 DROP TABLE parted_col_comment;
 
+-- list partitioning on array type column
+CREATE TABLE arrlp (a int[]) PARTITION BY LIST (a);
+CREATE TABLE arrlp12 PARTITION OF arrlp FOR VALUES IN ('{1}', '{2}');
+\d+ arrlp12
+DROP TABLE arrlp;
+
 -- partition on boolean column
 create table boolspart (a bool) partition by list (a);
 create table boolspart_t partition of boolspart for values in (true);
@@ -747,6 +767,16 @@ create table boolspart_f partition of boolspart for values in (false);
 \d+ boolspart
 drop table boolspart;
 
+-- partitions mixing temporary and permanent relations
+create table perm_parted (a int) partition by list (a);
+create temporary table temp_parted (a int) partition by list (a);
+create table perm_part partition of temp_parted default; -- error
+create temp table temp_part partition of perm_parted default; -- error
+create temp table temp_part partition of temp_parted default; -- ok
+drop table perm_parted cascade;
+drop table temp_parted cascade;
+
+-- OPENTENBASE
 drop function if exists create_multi_tables1(integer, varchar);
 CREATE OR REPLACE FUNCTION create_multi_tables1(table_num_in integer, table_sql varchar) RETURNS void
     LANGUAGE 'plpgsql'
@@ -801,3 +831,264 @@ SELECT del_multi_table1('drop table if exists');
 DROP FUNCTION create_multi_tables1;
 DROP FUNCTION del_multi_table1;
 
+-- 1020421696090509239
+drop table if exists t_src;
+drop procedure if exists p_test(inout res varchar);
+create table t_src
+       (empno numeric(4) constraint pk_emp primary key,
+        ename varchar(10),
+        job varchar(9),
+        mgr numeric(4),
+        hiredate date,
+        sal numeric(7,2),
+        comm numeric(7,2),
+        deptno numeric(2));
+insert into t_src values
+(7369,'smith','clerk',7902,to_date('17-12-1980','dd-mm-yyyy'),800,null,20);
+insert into t_src values
+(7499,'allen','salesman',7698,to_date('20-2-1981','dd-mm-yyyy'),1600,300,30);
+insert into t_src values
+(7521,'ward','salesman',7698,to_date('22-2-1981','dd-mm-yyyy'),1250,500,30);
+insert into t_src values
+(7566,'jones','manager',7839,to_date('2-4-1981','dd-mm-yyyy'),2975,null,20);
+insert into t_src values
+(7654,'martin','salesman',7698,to_date('28-9-1981','dd-mm-yyyy'),1250,1400,30);
+insert into t_src values
+(7698,'blake','manager',7839,to_date('1-5-1981','dd-mm-yyyy'),2850,null,30);
+insert into t_src values
+(7782,'clark','manager',7839,to_date('9-6-1981','dd-mm-yyyy'),2450,null,10);
+insert into t_src values
+(7788,'scott','analyst',7566,to_date('19-04-1987','dd-mm-yyyy'),3000,null,20);
+insert into t_src values
+(7839,'king','president',null,to_date('17-11-1981','dd-mm-yyyy'),5000,null,10);
+insert into t_src values
+(7844,'turner','salesman',7698,to_date('8-9-1981','dd-mm-yyyy'),1500,0,30);
+insert into t_src values
+(7876,'adams','clerk',7788,to_date('23-05-1987', 'dd-mm-yyyy'),1100,null,20);
+insert into t_src values
+(7900,'james','clerk',7698,to_date('3-12-1981','dd-mm-yyyy'),950,null,30);
+insert into t_src values
+(7902,'ford','analyst',7566,to_date('3-12-1981','dd-mm-yyyy'),3000,null,20);
+insert into t_src values
+(7934,'miller','clerk',7782,to_date('23-1-1982','dd-mm-yyyy'),1300,null,10);
+create or replace procedure p_test(inout res varchar)
+    language plpgsql
+    as $$
+declare
+num numeric ;
+v1 t_src.empno%type;
+begin
+    res:='ok';
+    drop table if exists t_dst;
+    create table t_dst as select empno,sal from t_src;
+    select empno from t_src where empno='7788' into v1;
+    raise notice '%',v1;
+exception
+    when others then
+        raise notice '%',sqlerrm;
+end;
+$$;
+call p_test('');
+select count(*) from t_src;
+select count(*) from t_dst;
+drop procedure p_test(inout res varchar);
+
+-- The original snapshot status must be maintained in CTAS process snapshot replacement.
+drop function if exists f_ctas_subabort(last_number numeric );
+create or replace function f_ctas_subabort(last_number numeric ) returns varchar
+    language plpgsql
+    as $$
+declare
+v1 numeric ;
+res varchar(20):='ok';
+begin
+   drop table if exists t_dst_subabort;
+   create table t_dst_subabort as select * from t_src;
+   RAISE EXCEPTION 'xxx > 0' USING ERRCODE = 'division_by_zero';
+   return res;
+exception
+    when others then
+        raise notice '%',sqlerrm;
+        return null;
+end;
+$$;
+select f_ctas_subabort(1);
+drop function f_ctas_subabort(last_number numeric );
+drop table t_src;
+drop table t_dst;
+
+-- https://github.com/Tencent/OpenTenBase/issues/83
+drop table if exists r;
+drop table if exists  r2;
+drop table if exists  s;
+Drop table if exists  tb1;
+drop table if exists  mv_r_s_1;
+drop table if exists  mv_r_s_3;
+Drop FUNCTION if exists  getr_text(id integer);
+Drop FUNCTION if exists  getmaincatalog_tst();
+create table r distribute by replication as select i i, i || '_val'::text itxt from generate_series(1,5) i;
+create table r2 distribute by replication as select i i, i || '_val'::text itxt from generate_series(1,5) I;
+CREATE OR REPLACE FUNCTION getr_text(id integer)
+ RETURNS text
+ LANGUAGE sql
+ IMMUTABLE
+ parallel safe
+AS $function$
+    select itxt from r2 where i = id;
+$function$;
+create table s (id int primary key, val text) distribute by shard(id) ;
+insert into s  select id, id|| '_val' idval from generate_series(1,3) id;
+Select count(*) from s;
+-- this works
+create  table mv_r_s_1 as 
+select s.*,r.*, getr_text(r.i),  getr_text(s.id) d2 from
+r right outer join s on (getr_text(r.i) = s.val) limit 0;
+Select count(*) from mv_r_s_1;
+
+create table tb1(a int);
+insert into tb1 select generate_series(1,10);
+CREATE OR REPLACE FUNCTION getmaincatalog_tst()
+ RETURNS int
+ LANGUAGE sql
+ immutable PARALLEL SAFE
+AS $function$  select a  from tb1;  $function$;
+Select count(*) from tb1;
+--- However if we use a function that does lookup on some well established table, we get the above error:
+create  table mv_r_s_3 as
+select s.*,r.*, getr_text(r.i),  getr_text(s.id) d2 from
+r right outer join s on (getr_text(r.i) = s.val or 
+getmaincatalog_tst() = i % 4);
+Select count(*) from mv_r_s_3;
+
+drop table r;
+drop table r2;
+drop table s;
+Drop table tb1;
+drop table mv_r_s_1;
+drop table mv_r_s_3;
+Drop FUNCTION getr_text(id integer);
+Drop FUNCTION getmaincatalog_tst();
+-- ctas in procedure support params
+drop table if exists t_src;
+drop table if exists t_dst;
+create table t_src(a int, b int);
+insert into t_src values(1,1),(2,2),(3,3),(4,4);
+select * from t_src order by a;
+create table t_dst as select * from t_src where a > 1 and b != 4 - 1;
+select * from t_dst order by a;
+drop table t_dst;
+DROP FUNCTION if exists f1(integer,integer);
+create or replace function f1(pa int, pb int)
+RETURNS void
+language plpgsql
+    as $$
+declare
+	tmp_a int;
+	tmp_b int;
+	v_sql varchar(2000);
+begin
+	tmp_a := pa;
+	tmp_b := pb -1;
+
+	v_sql := 'drop table if exists t_dst ';
+    EXECUTE v_sql;
+	
+	create table t_dst as select * from t_src where a > tmp_a and b != tmp_b;
+exception
+    when others then
+        raise notice '%',sqlerrm;
+end;
+$$;
+select * from f1(1, 4);
+select * from t_dst order by a;
+drop table t_src;
+drop table t_dst;
+DROP FUNCTION f1(integer,integer);
+
+-- comment on column of temp table
+CREATE TEMP TABLE comment_t1(c0 int, c1 smallint);
+COMMENT ON COLUMN comment_t1.c0 IS NULL;
+COMMENT ON COLUMN comment_t1.c0 IS 'comment on temp table';
+select description from pg_description, pg_class where objoid = pg_class.oid and relname='comment_t1';
+Drop TABLE comment_t1;
+
+-- statistic on temp table
+CREATE TEMPORARY TABLE IF NOT EXISTS stat_t0(c0 smallint  UNIQUE NULL,
+  c1 bigserial CHECK (((length((((('' COLLATE "C"))||(TRUE)) COLLATE "C")))!=(stat_t0.c1))) NO INHERIT UNIQUE,
+  UNIQUE(c1) WITH (autovacuum_vacuum_threshold=1554318410, autovacuum_enabled=1, autovacuum_vacuum_scale_factor=0.5, autovacuum_analyze_threshold=351112419, autovacuum_freeze_min_age=646736889, autovacuum_analyze_scale_factor=0.9, autovacuum_freeze_max_age=975613214))
+  ON COMMIT PRESERVE ROWS ;
+CREATE STATISTICS IF NOT EXISTS s0 ON c0, c1 FROM stat_t0;
+DROP STATISTICS s0;
+
+--
+-- test function pg_get_tabledef()
+--
+CREATE TABLE t1_tbl_def(c1 int, c2 text) DISTRIBUTE BY SHARD(c1, c2);
+CREATE TABLE t3_tbl_def(c1 int, c2 text) DISTRIBUTE BY REPLICATION;
+CREATE TABLE t4_tbl_def(c1 int, c2 text) DISTRIBUTE BY ROUNDROBIN;
+CREATE TABLE t5_tbl_def(c1 int, c2 text) DISTRIBUTE BY MODULO(c1);
+COMMENT ON COLUMN t4_tbl_def.c2 IS 'comment on t4_tbl_def';
+CREATE TABLE t6_tbl_def(c1 int, c2 text) DISTRIBUTE BY HASH(c1);
+SELECT pg_get_tabledef(oid) FROM pg_class WHERE relname = 't1_tbl_def';
+SELECT pg_get_tabledef('t1_tbl_def');
+SELECT pg_get_tabledef('t3_tbl_def');
+SELECT pg_get_tabledef('t4_tbl_def');
+SELECT pg_get_tabledef('t5_tbl_def');
+SELECT pg_get_tabledef('t6_tbl_def');
+DROP TABLE t1_tbl_def;
+DROP TABLE t3_tbl_def;
+DROP TABLE t4_tbl_def;
+DROP TABLE t5_tbl_def;
+DROP TABLE t6_tbl_def;
+
+--
+-- test function pg_get_tabledef of partition table
+--
+create table pkslow_person_r (age int not null, city varchar not null) partition by RANGE (age) DISTRIBUTE BY SHARD(age);
+create table pkslow_person_r1 partition of pkslow_person_r for values from (MINVALUE) to (10);
+create table pkslow_person_r2 partition of pkslow_person_r for values from (11) to (20); 
+create table pkslow_person_r3 partition of pkslow_person_r for values from (21) to (MAXVALUE); 
+select pg_get_tabledef('pkslow_person_r');
+select pg_get_tabledef('pkslow_person_r1');
+select pg_get_tabledef('pkslow_person_r2');
+select pg_get_tabledef('pkslow_person_r3');
+create table pkslow_person_l (age int not null, city varchar not null) PARTITION BY list (city) DISTRIBUTE BY SHARD(age); 
+create table pkslow_person_l1 PARTITION OF pkslow_person_l FOR VALUES IN ('GZ');  
+create table pkslow_person_l2 PARTITION OF pkslow_person_l FOR VALUES IN ('BJ');  
+create table pkslow_person_l3 PARTITION OF pkslow_person_l DEFAULT; 
+select pg_get_tabledef('pkslow_person_l');
+select pg_get_tabledef('pkslow_person_l1');
+select pg_get_tabledef('pkslow_person_l2');
+select pg_get_tabledef('pkslow_person_l3');
+create table pkslow_person_h (age int not null, city varchar not null) partition by hash (city) DISTRIBUTE BY SHARD(age); 
+create table pkslow_person_h1 partition of pkslow_person_h for values with (modulus 4, remainder 0);  
+create table pkslow_person_h2 partition of pkslow_person_h for values with (modulus 4, remainder 1);  
+create table pkslow_person_h3 partition of pkslow_person_h for values with (modulus 4, remainder 2);  
+create table pkslow_person_h4 partition of pkslow_person_h for values with (modulus 4, remainder 3); 
+select pg_get_tabledef('pkslow_person_h');
+select pg_get_tabledef('pkslow_person_h1');
+select pg_get_tabledef('pkslow_person_h2');
+select pg_get_tabledef('pkslow_person_h3');
+select pg_get_tabledef('pkslow_person_h4');
+drop table pkslow_person_r;
+drop table pkslow_person_l;
+drop table pkslow_person_h;
+
+-- check that NOT NULL and default value are inherited correctly
+create table parted_notnull_inh_test (a int default 1, b int not null default 0) partition by list (a);
+create table parted_notnull_inh_test1 partition of parted_notnull_inh_test (a not null, b default 1) for values in (1);
+insert into parted_notnull_inh_test (b) values (null);
+-- note that while b's default is overriden, a's default is preserved
+\d parted_notnull_inh_test1
+drop table parted_notnull_inh_test;
+
+-- check for a conflicting COLLATE clause
+create table parted_collate_must_match (a text collate "C", b text collate "C")
+  partition by range (a);
+-- on the partition key
+create table parted_collate_must_match1 partition of parted_collate_must_match
+  (a collate "POSIX") for values from ('a') to ('m');
+-- on another column
+create table parted_collate_must_match2 partition of parted_collate_must_match
+  (b collate "POSIX") for values from ('m') to ('z');
+drop table parted_collate_must_match;

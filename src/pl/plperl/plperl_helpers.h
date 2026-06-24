@@ -11,15 +11,15 @@
 static inline char *
 utf_u2e(char *utf8_str, size_t len)
 {
-    char       *ret;
+	char	   *ret;
 
-    ret = pg_any_to_server(utf8_str, len, PG_UTF8);
+	ret = pg_any_to_server(utf8_str, len, PG_UTF8, false, false);
 
-    /* ensure we have a copy even if no conversion happened */
-    if (ret == utf8_str)
-        ret = pstrdup(ret);
+	/* ensure we have a copy even if no conversion happened */
+	if (ret == utf8_str)
+		ret = pstrdup(ret);
 
-    return ret;
+	return ret;
 }
 
 /*
@@ -30,15 +30,15 @@ utf_u2e(char *utf8_str, size_t len)
 static inline char *
 utf_e2u(const char *str)
 {
-    char       *ret;
+	char	   *ret;
 
-    ret = pg_server_to_any(str, strlen(str), PG_UTF8);
+	ret = pg_server_to_any(str, strlen(str), PG_UTF8);
 
-    /* ensure we have a copy even if no conversion happened */
-    if (ret == str)
-        ret = pstrdup(ret);
+	/* ensure we have a copy even if no conversion happened */
+	if (ret == str)
+		ret = pstrdup(ret);
 
-    return ret;
+	return ret;
 }
 
 
@@ -50,55 +50,55 @@ utf_e2u(const char *str)
 static inline char *
 sv2cstr(SV *sv)
 {
-    dTHX;
-    char       *val,
-               *res;
-    STRLEN        len;
+	dTHX;
+	char	   *val,
+			   *res;
+	STRLEN		len;
 
-    /*
-     * get a utf8 encoded char * out of perl. *note* it may not be valid utf8!
-     */
+	/*
+	 * get a utf8 encoded char * out of perl. *note* it may not be valid utf8!
+	 */
 
-    /*
-     * SvPVutf8() croaks nastily on certain things, like typeglobs and
-     * readonly objects such as $^V. That's a perl bug - it's not supposed to
-     * happen. To avoid crashing the backend, we make a copy of the sv before
-     * passing it to SvPVutf8(). The copy is garbage collected when we're done
-     * with it.
-     */
-    if (SvREADONLY(sv) ||
-        isGV_with_GP(sv) ||
-        (SvTYPE(sv) > SVt_PVLV && SvTYPE(sv) != SVt_PVFM))
-        sv = newSVsv(sv);
-    else
-    {
-        /*
-         * increase the reference count so we can just SvREFCNT_dec() it when
-         * we are done
-         */
-        SvREFCNT_inc_simple_void(sv);
-    }
+	/*
+	 * SvPVutf8() croaks nastily on certain things, like typeglobs and
+	 * readonly objects such as $^V. That's a perl bug - it's not supposed to
+	 * happen. To avoid crashing the backend, we make a copy of the sv before
+	 * passing it to SvPVutf8(). The copy is garbage collected when we're done
+	 * with it.
+	 */
+	if (SvREADONLY(sv) ||
+		isGV_with_GP(sv) ||
+		(SvTYPE(sv) > SVt_PVLV && SvTYPE(sv) != SVt_PVFM))
+		sv = newSVsv(sv);
+	else
+	{
+		/*
+		 * increase the reference count so we can just SvREFCNT_dec() it when
+		 * we are done
+		 */
+		SvREFCNT_inc_simple_void(sv);
+	}
 
-    /*
-     * Request the string from Perl, in UTF-8 encoding; but if we're in a
-     * SQL_ASCII database, just request the byte soup without trying to make
-     * it UTF8, because that might fail.
-     */
-    if (GetDatabaseEncoding() == PG_SQL_ASCII)
-        val = SvPV(sv, len);
-    else
-        val = SvPVutf8(sv, len);
+	/*
+	 * Request the string from Perl, in UTF-8 encoding; but if we're in a
+	 * SQL_ASCII database, just request the byte soup without trying to make
+	 * it UTF8, because that might fail.
+	 */
+	if (GetDatabaseEncoding() == PG_SQL_ASCII)
+		val = SvPV(sv, len);
+	else
+		val = SvPVutf8(sv, len);
 
-    /*
-     * Now convert to database encoding.  We use perl's length in the event we
-     * had an embedded null byte to ensure we error out properly.
-     */
-    res = utf_u2e(val, len);
+	/*
+	 * Now convert to database encoding.  We use perl's length in the event we
+	 * had an embedded null byte to ensure we error out properly.
+	 */
+	res = utf_u2e(val, len);
 
-    /* safe now to garbage collect the new SV */
-    SvREFCNT_dec(sv);
+	/* safe now to garbage collect the new SV */
+	SvREFCNT_dec(sv);
 
-    return res;
+	return res;
 }
 
 /*
@@ -108,21 +108,21 @@ sv2cstr(SV *sv)
 static inline SV *
 cstr2sv(const char *str)
 {
-    dTHX;
-    SV           *sv;
-    char       *utf8_str;
+	dTHX;
+	SV		   *sv;
+	char	   *utf8_str;
 
-    /* no conversion when SQL_ASCII */
-    if (GetDatabaseEncoding() == PG_SQL_ASCII)
-        return newSVpv(str, 0);
+	/* no conversion when SQL_ASCII */
+	if (GetDatabaseEncoding() == PG_SQL_ASCII)
+		return newSVpv(str, 0);
 
-    utf8_str = utf_e2u(str);
+	utf8_str = utf_e2u(str);
 
-    sv = newSVpv(utf8_str, 0);
-    SvUTF8_on(sv);
-    pfree(utf8_str);
+	sv = newSVpv(utf8_str, 0);
+	SvUTF8_on(sv);
+	pfree(utf8_str);
 
-    return sv;
+	return sv;
 }
 
 /*
@@ -136,33 +136,33 @@ cstr2sv(const char *str)
 static inline void
 croak_cstr(const char *str)
 {
-    dTHX;
+	dTHX;
 
 #ifdef croak_sv
-    /* Use sv_2mortal() to be sure the transient SV gets freed */
-    croak_sv(sv_2mortal(cstr2sv(str)));
+	/* Use sv_2mortal() to be sure the transient SV gets freed */
+	croak_sv(sv_2mortal(cstr2sv(str)));
 #else
 
-    /*
-     * The older way to do this is to assign a UTF8-marked value to ERRSV and
-     * then call croak(NULL).  But if we leave it to croak() to append the
-     * error location, it does so too late (only after popping the stack) in
-     * some Perl versions.  Hence, use mess() to create an SV with the error
-     * location info already appended.
-     */
-    SV           *errsv = get_sv("@", GV_ADD);
-    char       *utf8_str = utf_e2u(str);
-    SV           *ssv;
+	/*
+	 * The older way to do this is to assign a UTF8-marked value to ERRSV and
+	 * then call croak(NULL).  But if we leave it to croak() to append the
+	 * error location, it does so too late (only after popping the stack) in
+	 * some Perl versions.  Hence, use mess() to create an SV with the error
+	 * location info already appended.
+	 */
+	SV		   *errsv = get_sv("@", GV_ADD);
+	char	   *utf8_str = utf_e2u(str);
+	SV		   *ssv;
 
-    ssv = mess("%s", utf8_str);
-    SvUTF8_on(ssv);
+	ssv = mess("%s", utf8_str);
+	SvUTF8_on(ssv);
 
-    pfree(utf8_str);
+	pfree(utf8_str);
 
-    sv_setsv(errsv, ssv);
+	sv_setsv(errsv, ssv);
 
-    croak(NULL);
-#endif                            /* croak_sv */
+	croak(NULL);
+#endif							/* croak_sv */
 }
 
-#endif                            /* PL_PERL_HELPERS_H */
+#endif							/* PL_PERL_HELPERS_H */

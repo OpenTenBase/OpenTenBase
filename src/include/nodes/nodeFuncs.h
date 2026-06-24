@@ -1,13 +1,10 @@
 /*-------------------------------------------------------------------------
  *
  * nodeFuncs.h
- *        Various general-purpose manipulations of Node trees
+ *		Various general-purpose manipulations of Node trees
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
- *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  * src/include/nodes/nodeFuncs.h
  *
@@ -17,6 +14,7 @@
 #define NODEFUNCS_H
 
 #include "nodes/parsenodes.h"
+#include "nodes/relation.h"
 
 
 /* flags bits for query_tree_walker and query_tree_mutator */
@@ -34,58 +32,82 @@
 #define QTW_IGNORE_TARGET_LIST      0x0100	/* skip target list */
 #define QTW_IGNORE_RETURNING_LIST   0x0200	/* skip returning list */
 #endif
+#define QTW_IGNORE_DUMMY_RTE		0x0800	/* skip multi-insert nodes */
 
+#define IS_PLAN_NODE(node) (nodeTag(node) > T_Plan && nodeTag(node) <= T_ConnectBy)
 
 /* callback function for check_functions_in_node */
-typedef bool (*check_function_callback) (Oid func_id, void *context);
+typedef bool (*check_function_callback) (Oid func_id, void *context
+#ifdef _PG_ORCL_
+										, Node *node
+#endif
+										);
 
 
-extern Oid    exprType(const Node *expr);
+extern Oid	exprType(const Node *expr);
 extern int32 exprTypmod(const Node *expr);
 extern bool exprIsLengthCoercion(const Node *expr, int32 *coercedTypmod);
 extern Node *relabel_to_typmod(Node *expr, int32 typmod);
 extern Node *strip_implicit_coercions(Node *node);
 extern bool expression_returns_set(Node *clause);
 
-extern Oid    exprCollation(const Node *expr);
-extern Oid    exprInputCollation(const Node *expr);
+extern Oid	exprCollation(const Node *expr);
+extern Oid	exprInputCollation(const Node *expr);
 extern void exprSetCollation(Node *expr, Oid collation);
 extern void exprSetInputCollation(Node *expr, Oid inputcollation);
 
-extern int    exprLocation(const Node *expr);
+extern int	exprLocation(const Node *expr);
 
+extern void find_nextval_seqoid_walker(Node *node, Oid *seqoid);
 extern void fix_opfuncids(Node *node);
 extern void set_opfuncid(OpExpr *opexpr);
 extern void set_sa_opfuncid(ScalarArrayOpExpr *opexpr);
 
 extern bool check_functions_in_node(Node *node, check_function_callback checker,
-                        void *context);
+						void *context);
 
 extern bool expression_tree_walker(Node *node, bool (*walker) (),
-                                   void *context);
+								   void *context);
 extern Node *expression_tree_mutator(Node *node, Node *(*mutator) (),
-                                     void *context);
+									 void *context);
+extern Node *expression_tree_mutator_internal(Node *node, Node *(*mutator) (),
+											void *context, bool isCopy);
 
 extern bool query_tree_walker(Query *query, bool (*walker) (),
-                              void *context, int flags);
+							  void *context, int flags);
 extern Query *query_tree_mutator(Query *query, Node *(*mutator) (),
-                                 void *context, int flags);
+								 void *context, int flags);
 
 extern bool range_table_walker(List *rtable, bool (*walker) (),
-                               void *context, int flags);
+							   void *context, int flags);
 extern List *range_table_mutator(List *rtable, Node *(*mutator) (),
-                                 void *context, int flags);
+								 void *context, int flags);
+
+extern bool range_table_entry_walker(RangeTblEntry *rte, bool (*walker) (),
+									 void *context, int flags);
 
 extern bool query_or_expression_tree_walker(Node *node, bool (*walker) (),
-                                            void *context, int flags);
+											void *context, int flags);
 extern Node *query_or_expression_tree_mutator(Node *node, Node *(*mutator) (),
-                                              void *context, int flags);
+											  void *context, int flags);
 
 extern bool raw_expression_tree_walker(Node *node, bool (*walker) (),
-                                       void *context);
+									   void *context);
 
 struct PlanState;
 extern bool planstate_tree_walker(struct PlanState *planstate, bool (*walker) (),
-                                  void *context);
+								  void *context);
 
-#endif                            /* NODEFUNCS_H */
+
+extern bool planstate_tree_walker_get_rels(struct PlanState *planstate, bool (*walker) (),
+								  void *context);
+
+struct Plan;
+extern bool plan_tree_walker(struct Plan *plan, bool (*walker) (),
+							 void *context);
+extern bool plan_or_expression_tree_walker(Node *node, bool (*walker) (),
+										   void *context);
+
+extern bool path_tree_walker(Path *path, bool (*walker)(), void *context);
+extern Plan* ReplaceSqlValueFuncInPlan(Plan * plan, bool need_copy);
+#endif							/* NODEFUNCS_H */

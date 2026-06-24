@@ -32,6 +32,6 @@ SELECT count(*) FROM float8tmp WHERE a >= -1890.0::float8;
 
 SELECT count(*) FROM float8tmp WHERE a >  -1890.0::float8;
 
-EXPLAIN (COSTS OFF)
+EXPLAIN (COSTS OFF, NODES OFF)
 SELECT a, a <-> '-1890.0' FROM float8tmp ORDER BY a <-> '-1890.0' LIMIT 3;
 SELECT a, a <-> '-1890.0' FROM float8tmp ORDER BY a <-> '-1890.0' LIMIT 3;

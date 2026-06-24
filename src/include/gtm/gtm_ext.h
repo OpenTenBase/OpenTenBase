@@ -19,12 +19,12 @@
  * between frontend and backend, and also to export them to libpq
  * applications.
  */
-#define PG_DIAG_SEVERITY        'S'
+#define PG_DIAG_SEVERITY		'S'
 #define PG_DIAG_MESSAGE_PRIMARY 'M'
-#define PG_DIAG_MESSAGE_DETAIL    'D'
-#define PG_DIAG_MESSAGE_HINT    'H'
-#define PG_DIAG_SOURCE_FILE        'F'
-#define PG_DIAG_SOURCE_LINE        'L'
+#define PG_DIAG_MESSAGE_DETAIL	'D'
+#define PG_DIAG_MESSAGE_HINT	'H'
+#define PG_DIAG_SOURCE_FILE		'F'
+#define PG_DIAG_SOURCE_LINE		'L'
 #define PG_DIAG_SOURCE_FUNCTION 'R'
 
 

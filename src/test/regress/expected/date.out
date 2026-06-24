@@ -1469,11 +1469,46 @@ select make_time(8, 20, 0.0);
 -- should fail
 select make_date(2013, 2, 30);
 ERROR:  date field value out of range: 2013-02-30
+HINT:   while processing column make_date
 select make_date(2013, 13, 1);
 ERROR:  date field value out of range: 2013-13-01
+HINT:   while processing column make_date
 select make_date(2013, 11, -1);
 ERROR:  date field value out of range: 2013-11--1
+HINT:   while processing column make_date
 select make_time(10, 55, 100.1);
 ERROR:  time field value out of range: 10:55:100.1
+HINT:   while processing column make_time
 select make_time(24, 0, 2.1);
 ERROR:  time field value out of range: 24:00:2.1
+HINT:   while processing column make_time
+--
+-- test text_date()
+--
+set datestyle to iso;
+set datestyle to ymd;
+select text_date('2023-02-01');
+ text_date  
+------------
+ 2023-02-01
+(1 row)
+
+select text_date('2023-March-02');
+ text_date  
+------------
+ 2023-03-02
+(1 row)
+
+select text_date('2023-Apr-03');
+ text_date  
+------------
+ 2023-04-03
+(1 row)
+
+select text_date(null);
+ text_date 
+-----------
+ 
+(1 row)
+
+reset datestyle;

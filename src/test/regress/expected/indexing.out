@@ -27,8 +27,7 @@ drop table idxpart;
 create table idxpart (a int, b int, c text) partition by range (a);
 create table idxpart1 partition of idxpart for values from (0) to (10);
 create index concurrently on idxpart (a);
-ERROR:  PGXC does not support concurrent INDEX yet
-DETAIL:  The feature is not currently supported
+ERROR:  cannot create index on partitioned table "idxpart" concurrently
 drop table idxpart;
 -- Verify bugfix with index rewrite on ALTER TABLE / SET DATA TYPE
 -- https://postgr.es/m/CAKcux6mxNCGsgATwf5CGMF8g4WSupCXicCVMeKUTuWbyxHOMsQ@mail.gmail.com
@@ -62,8 +61,8 @@ alter table idxpart attach partition idxpart1 for values from (0) to (10);
  c      | text    |           |          | 
 Partition of: idxpart FOR VALUES FROM (0) TO (10)
 Indexes:
-    "idxpart1_a_idx" btree (a)
-    "idxpart1_b_c_idx" btree (b, c)
+    "idxpart1_a_idx" btree (a) WITH (checksum='on')
+    "idxpart1_b_c_idx" btree (b, c) WITH (checksum='on')
 
 \d+ idxpart1_a_idx
       Index "public.idxpart1_a_idx"
@@ -80,6 +79,23 @@ btree, for table "public.idxpart1"
  c      | text    | c          | extended
 btree, for table "public.idxpart1"
 
+-- Forbid ALTER TABLE when attaching or detaching an index to a partition.
+create index idxpart_c on only idxpart (c);
+create index idxpart1_c on idxpart1 (c);
+alter table idxpart_c attach partition idxpart1_c for values from (10) to (20);
+ERROR:  "idxpart_c" is not a partitioned table
+alter index idxpart_c attach partition idxpart1_c;
+select relname, relpartbound from pg_class
+  where relname in ('idxpart_c', 'idxpart1_c')
+  order by relname;
+  relname   | relpartbound 
+------------+--------------
+ idxpart1_c | 
+ idxpart_c  | 
+(2 rows)
+
+alter table idxpart_c detach partition idxpart1_c;
+ERROR:  "idxpart_c" is not a table
 drop table idxpart;
 -- If a partition already has an index, don't create a duplicative one
 create table idxpart (a int, b int) partition by range (a, b);
@@ -94,7 +110,7 @@ create index on idxpart (a, b);
  b      | integer |           |          | 
 Partition of: idxpart FOR VALUES FROM (0, 0) TO (10, 10)
 Indexes:
-    "idxpart1_a_b_idx" btree (a, b)
+    "idxpart1_a_b_idx" btree (a, b) WITH (checksum='on')
 
 select relname, relkind, inhparent::regclass
     from pg_class left join pg_index ix on (indexrelid = oid)
@@ -195,11 +211,11 @@ alter table idxpart attach partition idxpart1 for values from (0) to (1000);
  b      | integer |           |          | 
 Partition of: idxpart FOR VALUES FROM (0) TO (1000)
 Indexes:
-    "idxpart1_a_a1_idx" btree (a, a)
-    "idxpart1_a_idx" hash (a)
-    "idxpart1_a_idx1" btree (a) WHERE b > 1
-    "idxpart1_a_idx2" btree (a)
-    "idxpart1_expr_idx" btree ((a + 0))
+    "idxpart1_a_a1_idx" btree (a, a) WITH (checksum='on')
+    "idxpart1_a_idx" hash (a) WITH (checksum='on')
+    "idxpart1_a_idx1" btree (a) WITH (checksum='on') WHERE b > 1
+    "idxpart1_a_idx2" btree (a) WITH (checksum='on')
+    "idxpart1_expr_idx" btree ((a + 0)) WITH (checksum='on')
 
 drop table idxpart;
 -- If CREATE INDEX ONLY, don't create indexes on partitions; and existing
@@ -223,7 +239,7 @@ create index on idxpart (a);
  a      | integer |           |          | 
 Partition of: idxpart FOR VALUES FROM (0) TO (100)
 Indexes:
-    "idxpart1_a_idx" btree (a)
+    "idxpart1_a_idx" btree (a) WITH (checksum='on')
 
 \d idxpart2
               Table "public.idxpart2"
@@ -233,7 +249,7 @@ Indexes:
 Partition of: idxpart FOR VALUES FROM (100) TO (1000)
 Partition key: RANGE (a)
 Indexes:
-    "idxpart2_a_idx" btree (a) INVALID
+    "idxpart2_a_idx" btree (a) WITH (checksum='on') INVALID
 Number of partitions: 2 (Use \d+ to list them.)
 
 \d idxpart21
@@ -278,7 +294,7 @@ alter index idxpart2_a_idx attach partition idxpart22_a_idx;
 Partition of: idxpart FOR VALUES FROM (100) TO (1000)
 Partition key: RANGE (a)
 Indexes:
-    "idxpart2_a_idx" btree (a) INVALID
+    "idxpart2_a_idx" btree (a) WITH (checksum='on') INVALID
 Number of partitions: 2 (Use \d+ to list them.)
 
 -- ... but this one is.
@@ -292,7 +308,7 @@ alter index idxpart2_a_idx attach partition idxpart21_a_idx;
 Partition of: idxpart FOR VALUES FROM (100) TO (1000)
 Partition key: RANGE (a)
 Indexes:
-    "idxpart2_a_idx" btree (a)
+    "idxpart2_a_idx" btree (a) WITH (checksum='on')
 Number of partitions: 2 (Use \d+ to list them.)
 
 drop table idxpart;
@@ -311,8 +327,8 @@ create table idxpart1 (like idxpart including indexes);
  b      | integer |           |          | 
  c      | text    |           |          | 
 Indexes:
-    "idxpart1_a_idx" btree (a)
-    "idxpart1_b_c_idx" btree (b, c)
+    "idxpart1_a_idx" btree (a) WITH (checksum='on')
+    "idxpart1_b_c_idx" btree (b, c) WITH (checksum='on')
 
 select relname, relkind, inhparent::regclass
     from pg_class left join pg_index ix on (indexrelid = oid)
@@ -338,8 +354,8 @@ alter table idxpart attach partition idxpart1 for values from (0) to (10);
  c      | text    |           |          | 
 Partition of: idxpart FOR VALUES FROM (0) TO (10)
 Indexes:
-    "idxpart1_a_idx" btree (a)
-    "idxpart1_b_c_idx" btree (b, c)
+    "idxpart1_a_idx" btree (a) WITH (checksum='on')
+    "idxpart1_b_c_idx" btree (b, c) WITH (checksum='on')
 
 select relname, relkind, inhparent::regclass
     from pg_class left join pg_index ix on (indexrelid = oid)
@@ -500,11 +516,11 @@ select relname as child, inhparent::regclass as parent, pg_get_indexdef as child
   from pg_class join pg_inherits on inhrelid = oid,
   lateral pg_get_indexdef(pg_class.oid)
   where relkind in ('i', 'I') and relname like 'idxpart%' order by relname;
-       child       |      parent      |                              childdef                              
--------------------+------------------+--------------------------------------------------------------------
- idxpart1_expr_idx | idxpart_expr_idx | CREATE INDEX idxpart1_expr_idx ON idxpart1 USING btree (((a + b)))
- idxpart2_expr_idx | idxpart_expr_idx | CREATE INDEX idxpart2_expr_idx ON idxpart2 USING btree (((a + b)))
- idxpart3_expr_idx | idxpart_expr_idx | CREATE INDEX idxpart3_expr_idx ON idxpart3 USING btree (((a + b)))
+       child       |      parent      |                                            childdef                                            
+-------------------+------------------+------------------------------------------------------------------------------------------------
+ idxpart1_expr_idx | idxpart_expr_idx | CREATE INDEX idxpart1_expr_idx ON public.idxpart1 USING btree (((a + b))) WITH (checksum='on')
+ idxpart2_expr_idx | idxpart_expr_idx | CREATE INDEX idxpart2_expr_idx ON public.idxpart2 USING btree (((a + b))) WITH (checksum='on')
+ idxpart3_expr_idx | idxpart_expr_idx | CREATE INDEX idxpart3_expr_idx ON public.idxpart3 USING btree (((a + b))) WITH (checksum='on')
 (3 rows)
 
 drop table idxpart;
@@ -524,15 +540,15 @@ select relname as child, inhparent::regclass as parent, pg_get_indexdef as child
   from pg_class left join pg_inherits on inhrelid = oid,
   lateral pg_get_indexdef(pg_class.oid)
   where relkind in ('i', 'I') and relname like 'idxpart%' order by relname;
-      child      |    parent     |                                childdef                                 
------------------+---------------+-------------------------------------------------------------------------
- idxpart1_a_idx  | idxpart_a_idx | CREATE INDEX idxpart1_a_idx ON idxpart1 USING btree (a COLLATE "C")
- idxpart2_a_idx  |               | CREATE INDEX idxpart2_a_idx ON idxpart2 USING btree (a COLLATE "POSIX")
- idxpart2_a_idx1 |               | CREATE INDEX idxpart2_a_idx1 ON idxpart2 USING btree (a)
- idxpart2_a_idx2 | idxpart_a_idx | CREATE INDEX idxpart2_a_idx2 ON idxpart2 USING btree (a COLLATE "C")
- idxpart3_a_idx  | idxpart_a_idx | CREATE INDEX idxpart3_a_idx ON idxpart3 USING btree (a COLLATE "C")
- idxpart4_a_idx  | idxpart_a_idx | CREATE INDEX idxpart4_a_idx ON idxpart4 USING btree (a COLLATE "C")
- idxpart_a_idx   |               | CREATE INDEX idxpart_a_idx ON ONLY idxpart USING btree (a COLLATE "C")
+      child      |    parent     |                                              childdef                                               
+-----------------+---------------+-----------------------------------------------------------------------------------------------------
+ idxpart1_a_idx  | idxpart_a_idx | CREATE INDEX idxpart1_a_idx ON public.idxpart1 USING btree (a COLLATE "C") WITH (checksum='on')
+ idxpart2_a_idx  |               | CREATE INDEX idxpart2_a_idx ON public.idxpart2 USING btree (a COLLATE "POSIX") WITH (checksum='on')
+ idxpart2_a_idx1 |               | CREATE INDEX idxpart2_a_idx1 ON public.idxpart2 USING btree (a) WITH (checksum='on')
+ idxpart2_a_idx2 | idxpart_a_idx | CREATE INDEX idxpart2_a_idx2 ON public.idxpart2 USING btree (a COLLATE "C") WITH (checksum='on')
+ idxpart3_a_idx  | idxpart_a_idx | CREATE INDEX idxpart3_a_idx ON public.idxpart3 USING btree (a COLLATE "C") WITH (checksum='on')
+ idxpart4_a_idx  | idxpart_a_idx | CREATE INDEX idxpart4_a_idx ON public.idxpart4 USING btree (a COLLATE "C") WITH (checksum='on')
+ idxpart_a_idx   |               | CREATE INDEX idxpart_a_idx ON ONLY public.idxpart USING btree (a COLLATE "C") WITH (checksum='on')
 (7 rows)
 
 drop table idxpart;
@@ -551,14 +567,14 @@ select relname as child, inhparent::regclass as parent, pg_get_indexdef as child
   from pg_class left join pg_inherits on inhrelid = oid,
   lateral pg_get_indexdef(pg_class.oid)
   where relkind in ('i', 'I') and relname like 'idxpart%' order by relname;
-      child      |    parent     |                                  childdef                                   
------------------+---------------+-----------------------------------------------------------------------------
- idxpart1_a_idx  | idxpart_a_idx | CREATE INDEX idxpart1_a_idx ON idxpart1 USING btree (a text_pattern_ops)
- idxpart2_a_idx  |               | CREATE INDEX idxpart2_a_idx ON idxpart2 USING btree (a)
- idxpart2_a_idx1 | idxpart_a_idx | CREATE INDEX idxpart2_a_idx1 ON idxpart2 USING btree (a text_pattern_ops)
- idxpart3_a_idx  | idxpart_a_idx | CREATE INDEX idxpart3_a_idx ON idxpart3 USING btree (a text_pattern_ops)
- idxpart4_a_idx  | idxpart_a_idx | CREATE INDEX idxpart4_a_idx ON idxpart4 USING btree (a text_pattern_ops)
- idxpart_a_idx   |               | CREATE INDEX idxpart_a_idx ON ONLY idxpart USING btree (a text_pattern_ops)
+      child      |    parent     |                                                childdef                                                 
+-----------------+---------------+---------------------------------------------------------------------------------------------------------
+ idxpart1_a_idx  | idxpart_a_idx | CREATE INDEX idxpart1_a_idx ON public.idxpart1 USING btree (a text_pattern_ops) WITH (checksum='on')
+ idxpart2_a_idx  |               | CREATE INDEX idxpart2_a_idx ON public.idxpart2 USING btree (a) WITH (checksum='on')
+ idxpart2_a_idx1 | idxpart_a_idx | CREATE INDEX idxpart2_a_idx1 ON public.idxpart2 USING btree (a text_pattern_ops) WITH (checksum='on')
+ idxpart3_a_idx  | idxpart_a_idx | CREATE INDEX idxpart3_a_idx ON public.idxpart3 USING btree (a text_pattern_ops) WITH (checksum='on')
+ idxpart4_a_idx  | idxpart_a_idx | CREATE INDEX idxpart4_a_idx ON public.idxpart4 USING btree (a text_pattern_ops) WITH (checksum='on')
+ idxpart_a_idx   |               | CREATE INDEX idxpart_a_idx ON ONLY public.idxpart USING btree (a text_pattern_ops) WITH (checksum='on')
 (6 rows)
 
 drop index idxpart_a_idx;
@@ -595,15 +611,15 @@ select relname as child, inhparent::regclass as parent, pg_get_indexdef as child
   from pg_class left join pg_inherits on inhrelid = oid,
   lateral pg_get_indexdef(pg_class.oid)
   where relkind in ('i', 'I') and relname like 'idxpart%' order by relname;
-      child      |    parent     |                                     childdef                                     
------------------+---------------+----------------------------------------------------------------------------------
- idxpart1_1_idx  | idxpart_1_idx | CREATE INDEX idxpart1_1_idx ON idxpart1 USING btree (b, a)
- idxpart1_1b_idx |               | CREATE INDEX idxpart1_1b_idx ON idxpart1 USING btree (b)
- idxpart1_2_idx  | idxpart_2_idx | CREATE INDEX idxpart1_2_idx ON idxpart1 USING btree (((b + a))) WHERE (a > 1)
- idxpart1_2b_idx |               | CREATE INDEX idxpart1_2b_idx ON idxpart1 USING btree (((a + b))) WHERE (a > 1)
- idxpart1_2c_idx |               | CREATE INDEX idxpart1_2c_idx ON idxpart1 USING btree (((b + a))) WHERE (b > 1)
- idxpart_1_idx   |               | CREATE INDEX idxpart_1_idx ON ONLY idxpart USING btree (b, a)
- idxpart_2_idx   |               | CREATE INDEX idxpart_2_idx ON ONLY idxpart USING btree (((b + a))) WHERE (a > 1)
+      child      |    parent     |                                                   childdef                                                   
+-----------------+---------------+--------------------------------------------------------------------------------------------------------------
+ idxpart1_1_idx  | idxpart_1_idx | CREATE INDEX idxpart1_1_idx ON public.idxpart1 USING btree (b, a) WITH (checksum='on')
+ idxpart1_1b_idx |               | CREATE INDEX idxpart1_1b_idx ON public.idxpart1 USING btree (b) WITH (checksum='on')
+ idxpart1_2_idx  | idxpart_2_idx | CREATE INDEX idxpart1_2_idx ON public.idxpart1 USING btree (((b + a))) WITH (checksum='on') WHERE (a > 1)
+ idxpart1_2b_idx |               | CREATE INDEX idxpart1_2b_idx ON public.idxpart1 USING btree (((a + b))) WITH (checksum='on') WHERE (a > 1)
+ idxpart1_2c_idx |               | CREATE INDEX idxpart1_2c_idx ON public.idxpart1 USING btree (((b + a))) WITH (checksum='on') WHERE (b > 1)
+ idxpart_1_idx   |               | CREATE INDEX idxpart_1_idx ON ONLY public.idxpart USING btree (b, a) WITH (checksum='on')
+ idxpart_2_idx   |               | CREATE INDEX idxpart_2_idx ON ONLY public.idxpart USING btree (((b + a))) WITH (checksum='on') WHERE (a > 1)
 (7 rows)
 
 drop table idxpart;
@@ -620,15 +636,15 @@ alter table idxpart attach partition idxpart2 for values from (10) to (20);
 select c.relname, pg_get_indexdef(indexrelid)
   from pg_class c join pg_index i on c.oid = i.indexrelid
   where indrelid::regclass::text like 'idxpart%'
-  order by indrelid::regclass::text collate "C";
-     relname      |                       pg_get_indexdef                        
-------------------+--------------------------------------------------------------
- idxparti         | CREATE INDEX idxparti ON ONLY idxpart USING btree (a)
- idxparti2        | CREATE INDEX idxparti2 ON ONLY idxpart USING btree (c, b)
- idxpart1_a_idx   | CREATE INDEX idxpart1_a_idx ON idxpart1 USING btree (a)
- idxpart1_c_b_idx | CREATE INDEX idxpart1_c_b_idx ON idxpart1 USING btree (c, b)
- idxpart2_a_idx   | CREATE INDEX idxpart2_a_idx ON idxpart2 USING btree (a)
- idxpart2_c_b_idx | CREATE INDEX idxpart2_c_b_idx ON idxpart2 USING btree (c, b)
+  order by c.relname, indrelid::regclass::text collate "C";
+     relname      |                                     pg_get_indexdef                                      
+------------------+------------------------------------------------------------------------------------------
+ idxpart1_a_idx   | CREATE INDEX idxpart1_a_idx ON public.idxpart1 USING btree (a) WITH (checksum='on')
+ idxpart1_c_b_idx | CREATE INDEX idxpart1_c_b_idx ON public.idxpart1 USING btree (c, b) WITH (checksum='on')
+ idxpart2_a_idx   | CREATE INDEX idxpart2_a_idx ON public.idxpart2 USING btree (a) WITH (checksum='on')
+ idxpart2_c_b_idx | CREATE INDEX idxpart2_c_b_idx ON public.idxpart2 USING btree (c, b) WITH (checksum='on')
+ idxparti         | CREATE INDEX idxparti ON ONLY public.idxpart USING btree (a) WITH (checksum='on')
+ idxparti2        | CREATE INDEX idxparti2 ON ONLY public.idxpart USING btree (c, b) WITH (checksum='on')
 (6 rows)
 
 drop table idxpart;
@@ -643,12 +659,12 @@ alter table idxpart attach partition idxpart1 for values from (1) to (2);
 select c.relname, pg_get_indexdef(indexrelid)
   from pg_class c join pg_index i on c.oid = i.indexrelid
   where indrelid::regclass::text like 'idxpart%'
-  order by indrelid::regclass::text collate "C";
-     relname      |                          pg_get_indexdef                          
-------------------+-------------------------------------------------------------------
- idxpart_abs_idx  | CREATE INDEX idxpart_abs_idx ON ONLY idxpart USING btree (abs(b))
- idxpart1_abs_idx | CREATE INDEX idxpart1_abs_idx ON idxpart1 USING btree (abs(b))
- idxpart2_abs_idx | CREATE INDEX idxpart2_abs_idx ON idxpart2 USING btree (abs(b))
+  order by c.relname, indrelid::regclass::text collate "C";
+     relname      |                                        pg_get_indexdef                                        
+------------------+-----------------------------------------------------------------------------------------------
+ idxpart1_abs_idx | CREATE INDEX idxpart1_abs_idx ON public.idxpart1 USING btree (abs(b)) WITH (checksum='on')
+ idxpart2_abs_idx | CREATE INDEX idxpart2_abs_idx ON public.idxpart2 USING btree (abs(b)) WITH (checksum='on')
+ idxpart_abs_idx  | CREATE INDEX idxpart_abs_idx ON ONLY public.idxpart USING btree (abs(b)) WITH (checksum='on')
 (3 rows)
 
 drop table idxpart;
@@ -664,11 +680,11 @@ select c.relname, pg_get_indexdef(indexrelid)
   from pg_class c join pg_index i on c.oid = i.indexrelid
   where indrelid::regclass::text like 'idxpart%'
   order by indrelid::regclass::text collate "C";
-    relname     |                               pg_get_indexdef                               
-----------------+-----------------------------------------------------------------------------
- idxpart_a_idx  | CREATE INDEX idxpart_a_idx ON ONLY idxpart USING btree (a) WHERE (b > 1000)
- idxpart1_a_idx | CREATE INDEX idxpart1_a_idx ON idxpart1 USING btree (a) WHERE (b > 1000)
- idxpart2_a_idx | CREATE INDEX idxpart2_a_idx ON idxpart2 USING btree (a) WHERE (b > 1000)
+    relname     |                                             pg_get_indexdef                                             
+----------------+---------------------------------------------------------------------------------------------------------
+ idxpart_a_idx  | CREATE INDEX idxpart_a_idx ON ONLY public.idxpart USING btree (a) WITH (checksum='on') WHERE (b > 1000)
+ idxpart1_a_idx | CREATE INDEX idxpart1_a_idx ON public.idxpart1 USING btree (a) WITH (checksum='on') WHERE (b > 1000)
+ idxpart2_a_idx | CREATE INDEX idxpart2_a_idx ON public.idxpart2 USING btree (a) WITH (checksum='on') WHERE (b > 1000)
 (3 rows)
 
 drop table idxpart;
@@ -688,7 +704,7 @@ alter table idxpart attach partition idxpart1 for values from (0) to (1000);
  col_keep | integer |           |          | 
 Partition key: RANGE (col_keep)
 Indexes:
-    "idxpart_col_keep_idx" btree (col_keep)
+    "idxpart_col_keep_idx" btree (col_keep) WITH (checksum='on')
 Number of partitions: 1 (Use \d+ to list them.)
 
 \d idxpart1
@@ -698,7 +714,7 @@ Number of partitions: 1 (Use \d+ to list them.)
  col_keep | integer |           |          | 
 Partition of: idxpart FOR VALUES FROM (0) TO (1000)
 Indexes:
-    "idxpart1_col_keep_idx" btree (col_keep)
+    "idxpart1_col_keep_idx" btree (col_keep) WITH (checksum='on')
 
 select attrelid::regclass, attname, attnum from pg_attribute
   where attrelid::regclass::text like 'idxpart%' and attnum > 0
@@ -731,7 +747,7 @@ alter table idxpart attach partition idxpart1 for values from (0) to (1000);
  col_keep | integer |           |          | 
 Partition key: RANGE (col_keep)
 Indexes:
-    "idxpart_col_keep_idx" btree (col_keep)
+    "idxpart_col_keep_idx" btree (col_keep) WITH (checksum='on')
 Number of partitions: 1 (Use \d+ to list them.)
 
 \d idxpart1
@@ -741,7 +757,7 @@ Number of partitions: 1 (Use \d+ to list them.)
  col_keep | integer |           |          | 
 Partition of: idxpart FOR VALUES FROM (0) TO (1000)
 Indexes:
-    "idxpart1_col_keep_idx" btree (col_keep)
+    "idxpart1_col_keep_idx" btree (col_keep) WITH (checksum='on')
 
 select attrelid::regclass, attname, attnum from pg_attribute
   where attrelid::regclass::text like 'idxpart%' and attnum > 0
@@ -771,7 +787,7 @@ create table idxpart (a int primary key, b int) partition by range (a);
  b      | integer |           |          | 
 Partition key: RANGE (a)
 Indexes:
-    "idxpart_pkey" PRIMARY KEY, btree (a)
+    "idxpart_pkey" PRIMARY KEY, btree (a) WITH (checksum='on')
 Number of partitions: 0
 
 drop table idxpart;
@@ -818,7 +834,7 @@ alter table idxpart add primary key (a, b);	-- this works
  c      | text    |           |          | 
 Partition key: RANGE (a, b)
 Indexes:
-    "idxpart_pkey" PRIMARY KEY, btree (a, b)
+    "idxpart_pkey" PRIMARY KEY, btree (a, b) WITH (checksum='on')
 Number of partitions: 0
 
 create table idxpart1 partition of idxpart for values from (0, 0) to (1000, 1000);
@@ -831,7 +847,7 @@ create table idxpart1 partition of idxpart for values from (0, 0) to (1000, 1000
  c      | text    |           |          | 
 Partition of: idxpart FOR VALUES FROM (0, 0) TO (1000, 1000)
 Indexes:
-    "idxpart1_pkey" PRIMARY KEY, btree (a, b)
+    "idxpart1_pkey" PRIMARY KEY, btree (a, b) WITH (checksum='on')
 
 drop table idxpart;
 -- use ALTER TABLE to add a unique constraint
@@ -848,7 +864,7 @@ alter table idxpart add unique (b, a);		-- this works
  b      | integer |           |          | 
 Partition key: RANGE (a, b)
 Indexes:
-    "idxpart_b_a_key" UNIQUE CONSTRAINT, btree (b, a)
+    "idxpart_b_a_key" UNIQUE CONSTRAINT, btree (b, a) WITH (checksum='on')
 Number of partitions: 0
 
 drop table idxpart;
@@ -1047,6 +1063,259 @@ select tableoid::regclass, * from idxpart order by a;
 (8 rows)
 
 drop table idxpart;
+-- test fastpath mechanism for index insertion
+create table fastpath (a int, b text, c numeric);
+create unique index fpindex1 on fastpath(a);
+insert into fastpath values (1, 'b1', 100.00);
+insert into fastpath values (1, 'b1', 100.00); -- unique key check
+ERROR:  duplicate key value violates unique constraint "fpindex1"
+DETAIL:  Key (a)=(1) already exists.
+truncate fastpath;
+insert into fastpath select generate_series(1,10000), 'b', 100;
+-- vacuum the table so as to improve chances of index-only scans. we can't
+-- guarantee if index-only scans will be picked up in all cases or not, but
+-- that fuzziness actually helps the test.
+vacuum fastpath;
+set enable_seqscan to false;
+set enable_bitmapscan to false;
+explain select sum(a) from fastpath where a = 6456;
+                                        QUERY PLAN                                        
+------------------------------------------------------------------------------------------
+ Remote Fast Query Execution
+   Node/s: datanode_1
+   ->  Aggregate  (cost=8.30..8.31 rows=1 width=8)
+         ->  Index Only Scan using fpindex1 on fastpath  (cost=0.28..8.30 rows=1 width=4)
+               Index Cond: (a = 6456)
+(5 rows)
+
+explain (costs off) select sum(a) from fastpath where a >= 5000 and a < 5700;
+                          QUERY PLAN                          
+--------------------------------------------------------------
+ Finalize Aggregate
+   ->  Remote Subquery Scan on all (datanodes 2)
+         ->  Partial Aggregate
+               ->  Index Only Scan using fpindex1 on fastpath
+                     Index Cond: ((a >= 5000) AND (a < 5700))
+(5 rows)
+
+select sum(a) from fastpath where a = 6456;
+ sum  
+------
+ 6456
+(1 row)
+
+select sum(a) from fastpath where a >= 5000 and a < 5700;
+   sum   
+---------
+ 3744650
+(1 row)
+
+-- drop the only index on the table and compute hashes for
+-- a few queries which orders the results in various different ways.
+drop index fpindex1;
+truncate fastpath;
+insert into fastpath select y.x, 'b' || (y.x/10)::text, 100 from (select generate_series(1,10000) as x) y;
+select md5(string_agg(a::text, b order by a, b asc)) from fastpath
+	where a >= 1000 and a < 2000 and b > 'b1' and b < 'b3';
+               md5                
+----------------------------------
+ 2ca216010a558a52d7df12f76dfc77ab
+(1 row)
+
+select md5(string_agg(a::text, b order by a desc, b desc)) from fastpath
+	where a >= 1000 and a < 2000 and b > 'b1' and b < 'b3';
+               md5                
+----------------------------------
+ 6167a852b3e0679886b84a5405b5b53d
+(1 row)
+
+select md5(string_agg(a::text, b order by b, a desc)) from fastpath
+	where a >= 1000 and a < 2000 and b > 'b1' and b < 'b3';
+               md5                
+----------------------------------
+ dfcf2bd5e5fea8397d47b2fd14618d31
+(1 row)
+
+select md5(string_agg(a::text, b order by b, a asc)) from fastpath
+	where a >= 1000 and a < 2000 and b > 'b1' and b < 'b3';
+               md5                
+----------------------------------
+ 2ca216010a558a52d7df12f76dfc77ab
+(1 row)
+
+-- now create a multi-column index with both column asc
+create index fpindex2 on fastpath(a, b);
+truncate fastpath;
+insert into fastpath select y.x, 'b' || (y.x/10)::text, 100 from (select generate_series(1,10000) as x) y;
+-- again, vacuum here either forces index-only scans or creates fuzziness
+vacuum fastpath;
+select md5(string_agg(a::text, b order by a, b asc)) from fastpath
+	where a >= 1000 and a < 2000 and b > 'b1' and b < 'b3';
+               md5                
+----------------------------------
+ 2ca216010a558a52d7df12f76dfc77ab
+(1 row)
+
+select md5(string_agg(a::text, b order by a desc, b desc)) from fastpath
+	where a >= 1000 and a < 2000 and b > 'b1' and b < 'b3';
+               md5                
+----------------------------------
+ 6167a852b3e0679886b84a5405b5b53d
+(1 row)
+
+select md5(string_agg(a::text, b order by b, a desc)) from fastpath
+	where a >= 1000 and a < 2000 and b > 'b1' and b < 'b3';
+               md5                
+----------------------------------
+ dfcf2bd5e5fea8397d47b2fd14618d31
+(1 row)
+
+select md5(string_agg(a::text, b order by b, a asc)) from fastpath
+	where a >= 1000 and a < 2000 and b > 'b1' and b < 'b3';
+               md5                
+----------------------------------
+ 2ca216010a558a52d7df12f76dfc77ab
+(1 row)
+
+-- same queries with a different kind of index now. the final result must not
+-- change irrespective of what kind of index we have.
+drop index fpindex2;
+create index fpindex3 on fastpath(a desc, b asc);
+truncate fastpath;
+insert into fastpath select y.x, 'b' || (y.x/10)::text, 100 from (select generate_series(1,10000) as x) y;
+vacuum fastpath;
+select md5(string_agg(a::text, b order by a, b asc)) from fastpath
+	where a >= 1000 and a < 2000 and b > 'b1' and b < 'b3';
+               md5                
+----------------------------------
+ 2ca216010a558a52d7df12f76dfc77ab
+(1 row)
+
+select md5(string_agg(a::text, b order by a desc, b desc)) from fastpath
+	where a >= 1000 and a < 2000 and b > 'b1' and b < 'b3';
+               md5                
+----------------------------------
+ 6167a852b3e0679886b84a5405b5b53d
+(1 row)
+
+select md5(string_agg(a::text, b order by b, a desc)) from fastpath
+	where a >= 1000 and a < 2000 and b > 'b1' and b < 'b3';
+               md5                
+----------------------------------
+ dfcf2bd5e5fea8397d47b2fd14618d31
+(1 row)
+
+select md5(string_agg(a::text, b order by b, a asc)) from fastpath
+	where a >= 1000 and a < 2000 and b > 'b1' and b < 'b3';
+               md5                
+----------------------------------
+ 2ca216010a558a52d7df12f76dfc77ab
+(1 row)
+
+-- repeat again
+drop index fpindex3;
+create index fpindex4 on fastpath(a asc, b desc);
+truncate fastpath;
+insert into fastpath select y.x, 'b' || (y.x/10)::text, 100 from (select generate_series(1,10000) as x) y;
+vacuum fastpath;
+select md5(string_agg(a::text, b order by a, b asc)) from fastpath
+	where a >= 1000 and a < 2000 and b > 'b1' and b < 'b3';
+               md5                
+----------------------------------
+ 2ca216010a558a52d7df12f76dfc77ab
+(1 row)
+
+select md5(string_agg(a::text, b order by a desc, b desc)) from fastpath
+	where a >= 1000 and a < 2000 and b > 'b1' and b < 'b3';
+               md5                
+----------------------------------
+ 6167a852b3e0679886b84a5405b5b53d
+(1 row)
+
+select md5(string_agg(a::text, b order by b, a desc)) from fastpath
+	where a >= 1000 and a < 2000 and b > 'b1' and b < 'b3';
+               md5                
+----------------------------------
+ dfcf2bd5e5fea8397d47b2fd14618d31
+(1 row)
+
+select md5(string_agg(a::text, b order by b, a asc)) from fastpath
+	where a >= 1000 and a < 2000 and b > 'b1' and b < 'b3';
+               md5                
+----------------------------------
+ 2ca216010a558a52d7df12f76dfc77ab
+(1 row)
+
+-- and again, this time indexing by (b, a). Note that column "b" has non-unique
+-- values.
+drop index fpindex4;
+create index fpindex5 on fastpath(b asc, a desc);
+truncate fastpath;
+insert into fastpath select y.x, 'b' || (y.x/10)::text, 100 from (select generate_series(1,10000) as x) y;
+vacuum fastpath;
+select md5(string_agg(a::text, b order by a, b asc)) from fastpath
+	where a >= 1000 and a < 2000 and b > 'b1' and b < 'b3';
+               md5                
+----------------------------------
+ 2ca216010a558a52d7df12f76dfc77ab
+(1 row)
+
+select md5(string_agg(a::text, b order by a desc, b desc)) from fastpath
+	where a >= 1000 and a < 2000 and b > 'b1' and b < 'b3';
+               md5                
+----------------------------------
+ 6167a852b3e0679886b84a5405b5b53d
+(1 row)
+
+select md5(string_agg(a::text, b order by b, a desc)) from fastpath
+	where a >= 1000 and a < 2000 and b > 'b1' and b < 'b3';
+               md5                
+----------------------------------
+ dfcf2bd5e5fea8397d47b2fd14618d31
+(1 row)
+
+select md5(string_agg(a::text, b order by b, a asc)) from fastpath
+	where a >= 1000 and a < 2000 and b > 'b1' and b < 'b3';
+               md5                
+----------------------------------
+ 2ca216010a558a52d7df12f76dfc77ab
+(1 row)
+
+-- one last time
+drop index fpindex5;
+create index fpindex6 on fastpath(b desc, a desc);
+truncate fastpath;
+insert into fastpath select y.x, 'b' || (y.x/10)::text, 100 from (select generate_series(1,10000) as x) y;
+vacuum fastpath;
+select md5(string_agg(a::text, b order by a, b asc)) from fastpath
+	where a >= 1000 and a < 2000 and b > 'b1' and b < 'b3';
+               md5                
+----------------------------------
+ 2ca216010a558a52d7df12f76dfc77ab
+(1 row)
+
+select md5(string_agg(a::text, b order by a desc, b desc)) from fastpath
+	where a >= 1000 and a < 2000 and b > 'b1' and b < 'b3';
+               md5                
+----------------------------------
+ 6167a852b3e0679886b84a5405b5b53d
+(1 row)
+
+select md5(string_agg(a::text, b order by b, a desc)) from fastpath
+	where a >= 1000 and a < 2000 and b > 'b1' and b < 'b3';
+               md5                
+----------------------------------
+ dfcf2bd5e5fea8397d47b2fd14618d31
+(1 row)
+
+select md5(string_agg(a::text, b order by b, a asc)) from fastpath
+	where a >= 1000 and a < 2000 and b > 'b1' and b < 'b3';
+               md5                
+----------------------------------
+ 2ca216010a558a52d7df12f76dfc77ab
+(1 row)
+
+drop table fastpath;
 -- intentionally leave some objects around
 create table idxpart (a int) partition by range (a);
 create table idxpart1 partition of idxpart for values from (0) to (100);

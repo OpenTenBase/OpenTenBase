@@ -1,0 +1,113 @@
+create default node group default_group with ("dn1", "dn2");
+CREATE NODE GROUP
+create sharding group to group default_group;
+CREATE SHARDING GROUP
+clean sharding;
+CLEAN SHARDING
+create table hahahaha(a int, b int);
+CREATE TABLE
+grant all on hahahaha to public;
+GRANT
+-- set resource_group_bypass=1;
+CREATE RESOURCE GROUP res_group_bypass WITH concurrency 1 cpu_rate_limit 10;
+CREATE RESOURCE GROUP
+CREATE ROLE bypasstest RESOURCE GROUP res_group_bypass;
+CREATE ROLE
+-- session 1
+set role bypasstest;
+SET
+set opentenbase_test_flag='suspend_after_resgroup_assignedconn1';
+SET
+ select count(*) from hahahaha;
+-- session 2 should be blocked
+set role bypasstest;
+SET
+set opentenbase_test_flag='suspend_after_resgroup_assignedconn2';
+SET
+ select count(*) from hahahaha;
+CREATE OR REPLACE VIEW rg_activity_status AS
+	SELECT rsgname, wait_event_type, state, query
+	FROM pg_stat_activity
+	WHERE rsgname='res_group_bypass'
+    order by wait_event_type, state;
+CREATE VIEW
+select * from rg_activity_status;
+     rsgname      | wait_event_type | state  |             query              
+------------------+-----------------+--------+--------------------------------
+ res_group_bypass | ResourceGroup   | active | select count(*) from hahahaha;
+ res_group_bypass |                 | active | select count(*) from hahahaha;
+(2 rows)
+
+-- turn on resource_group_bypass, should not be blocked
+set role bypasstest;
+SET
+set resource_group_bypass=1;
+SET
+select count(*) from hahahaha;
+ count 
+-------
+     0
+(1 row)
+
+-- close session 1 & 2
+ count 
+-------
+     0
+(1 row)
+
+ count 
+-------
+     0
+(1 row)
+
+-- resource_group_bypass can not be set in a transaction in gpdb, but can be set in opentenbase
+-- session 1
+set role bypasstest;
+SET
+BEGIN;
+BEGIN
+set resource_group_bypass = 1;
+SET
+END;
+COMMIT
+-- test resource_group_bypass_sql
+-- session 1
+set role bypasstest;
+SET
+set opentenbase_test_flag='suspend_after_resgroup_assignedconn1';
+SET
+ select count(*) from hahahaha;
+-- session 2 should be blocked
+set role bypasstest;
+SET
+set opentenbase_test_flag='suspend_after_resgroup_assignedconn2';
+SET
+ select count(*) from hahahaha;
+select * from rg_activity_status;
+     rsgname      | wait_event_type | state  |             query              
+------------------+-----------------+--------+--------------------------------
+ res_group_bypass | ResourceGroup   | active | select count(*) from hahahaha;
+ res_group_bypass |                 | active | select count(*) from hahahaha;
+(2 rows)
+
+-- turn on resource_group_bypass_sql, should not be blocked
+set role bypasstest;
+SET
+set resource_group_bypass_sql='.*hahahaha.*';
+SET
+select count(*) from hahahaha;
+ count 
+-------
+     0
+(1 row)
+
+-- close session 1 & 2
+ count 
+-------
+     0
+(1 row)
+
+ count 
+-------
+     0
+(1 row)

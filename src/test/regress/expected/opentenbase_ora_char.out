@@ -1,0 +1,326 @@
+------------------------------------------
+-- Test cases for opentenbase_ora character type.
+------------------------------------------
+\c regression_ora
+--------------------------
+-- test char
+--------------------------
+create table char_table(c1 char(5), c2 char(5 char), c3 char(5 byte));
+insert into char_table values('abc', 'abc', 'abc');
+select * from char_table;
+  C1   |  C2   |  C3   
+-------+-------+-------
+ abc   | abc   | abc  
+(1 row)
+
+select c1, length(c1), c2, length(c2), c3, length(c3) from char_table;
+  C1   | LENGTH |  C2   | LENGTH |  C3   | LENGTH 
+-------+--------+-------+--------+-------+--------
+ abc   |      5 | abc   |      5 | abc   |      5
+(1 row)
+
+select c1, lengthb(c1), c2, lengthb(c2), c3, lengthb(c3) from char_table;
+  C1   | LENGTHB |  C2   | LENGTHB |  C3   | LENGTHB 
+-------+---------+-------+---------+-------+---------
+ abc   |       5 | abc   |       5 | abc   |       5
+(1 row)
+
+select c1 || '1' as new_c1, c2 || '2' as new_c2, c3 || '3' as new_c3 from char_table;
+ NEW_C1 | NEW_C2 | NEW_C3 
+--------+--------+--------
+ abc  1 | abc  2 | abc  3
+(1 row)
+
+-- ERROR: value too long
+insert into char_table values('abcdefg', 'abc', 'abc');
+ERROR:  value too long for type character(5), actual(7)
+insert into char_table values('abc', 'abcdefg', 'abc');
+ERROR:  value too long for type character(5), actual(7)
+insert into char_table values('abc', 'abc', 'abcdefg');
+ERROR:  value too long for type character(5), actual(7)
+drop table char_table;
+-- char max length
+create table char_table_length_max(c1 char(10485760));
+insert into char_table_length_max values('abc');
+select length(c1), lengthb(c1) from char_table_length_max;
+  LENGTH  | LENGTHB  
+----------+----------
+ 10485760 | 10485760
+(1 row)
+
+drop table char_table_length_max;
+-- ERROR: char length exceed
+create table char_table_length_exceed(c1 char(10485761));
+ERROR:  length for type char cannot exceed 10485760
+LINE 1: create table char_table_length_exceed(c1 char(10485761));
+                                                 ^
+-- char default length is 1
+create table char_table_default_length(c1 char);
+insert into char_table_default_length values('a');
+select c1, length(c1) from char_table_default_length;
+ C1 | LENGTH 
+----+--------
+ a  |      1
+(1 row)
+
+insert into char_table_default_length values('ab');
+ERROR:  value too long for type character(1), actual(2)
+drop table char_table_default_length;
+--------------------------
+-- test nchar
+--------------------------
+create table nchar_table(c1 char(5), c2 nchar(5));
+insert into nchar_table values('abc', 'abc');
+select * from nchar_table;
+  C1   |  C2   
+-------+-------
+ abc   | abc  
+(1 row)
+
+select c1, length(c1), c2, length(c2) from nchar_table;
+  C1   | LENGTH |  C2   | LENGTH 
+-------+--------+-------+--------
+ abc   |      5 | abc   |      5
+(1 row)
+
+select c1, lengthb(c1), c2, lengthb(c2) from nchar_table;
+  C1   | LENGTHB |  C2   | LENGTHB 
+-------+---------+-------+---------
+ abc   |       5 | abc   |       5
+(1 row)
+
+select c1 || '1' as new_c1, c2 || '2' as new_c2 from nchar_table;
+ NEW_C1 | NEW_C2 
+--------+--------
+ abc  1 | abc  2
+(1 row)
+
+-- ERROR: value too long
+insert into nchar_table values('abc', 'abcdefg');
+ERROR:  value too long for type character(5), actual(7)
+drop table nchar_table;
+-- nchar max length
+create table nchar_table_length_max(c1 nchar(10485760));
+insert into nchar_table_length_max values('abc');
+select length(c1), lengthb(c1) from nchar_table_length_max;
+  LENGTH  | LENGTHB  
+----------+----------
+ 10485760 | 10485760
+(1 row)
+
+drop table nchar_table_length_max;
+-- ERROR: nchar length exceed
+create table nchar_table_length_exceed(c1 nchar(10485761));
+ERROR:  length for type char cannot exceed 10485760
+LINE 1: create table nchar_table_length_exceed(c1 nchar(10485761));
+                                                  ^
+-- nchar default length is 1
+create table nchar_table_default_length(c1 nchar);
+insert into nchar_table_default_length values('a');
+select c1, length(c1) from nchar_table_default_length;
+ C1 | LENGTH 
+----+--------
+ a  |      1
+(1 row)
+
+insert into nchar_table_default_length values('ab');
+ERROR:  value too long for type character(1), actual(2)
+drop table nchar_table_default_length;
+--------------------------
+-- test varchar
+--------------------------
+create table varchar_table(c1 char(5), c2 varchar(5));
+insert into varchar_table values('abc', 'abc');
+select * from varchar_table;
+  C1   | C2  
+-------+-----
+ abc   | abc
+(1 row)
+
+select c1, length(c1), c2, length(c2) from varchar_table;
+  C1   | LENGTH | C2  | LENGTH 
+-------+--------+-----+--------
+ abc   |      5 | abc |      3
+(1 row)
+
+select c1, lengthb(c1), c2, lengthb(c2) from varchar_table;
+  C1   | LENGTHB | C2  | LENGTHB 
+-------+---------+-----+---------
+ abc   |       5 | abc |       3
+(1 row)
+
+select c1 || '1' as new_c1, c2 || '2' as new_c2 from varchar_table;
+ NEW_C1 | NEW_C2 
+--------+--------
+ abc  1 | abc2
+(1 row)
+
+-- ERROR: value too long
+insert into varchar_table values('abc', 'abcdefg');
+ERROR:  value too long for type character(5), actual(7)
+drop table varchar_table;
+-- varchar max length
+create table varchar_table_length_max(c1 varchar(10485760));
+insert into varchar_table_length_max values('abc');
+select c1, length(c1), lengthb(c1) from varchar_table_length_max;
+ C1  | LENGTH | LENGTHB 
+-----+--------+---------
+ abc |      3 |       3
+(1 row)
+
+drop table varchar_table_length_max;
+-- ERROR: varchar length exceed
+create table varchar_table_length_exceed(c1 varchar(10485761));
+ERROR:  length for type varchar cannot exceed 10485760
+LINE 1: create table varchar_table_length_exceed(c1 varchar(10485761...
+                                                    ^
+-- varchar default length is 10485760
+create table varchar_table_default_length(c1 varchar);
+insert into varchar_table_default_length values('a');
+select c1, length(c1) from varchar_table_default_length;
+ C1 | LENGTH 
+----+--------
+ a  |      1
+(1 row)
+
+insert into varchar_table_default_length values('abcdefg');
+select c1, length(c1) from varchar_table_default_length order by 1;
+   C1    | LENGTH 
+---------+--------
+ a       |      1
+ abcdefg |      7
+(2 rows)
+
+drop table varchar_table_default_length;
+--------------------------
+-- test varchar2
+--------------------------
+create table varchar2_table(c1 char(5), c2 varchar2(5));
+insert into varchar2_table values('abc', 'abc');
+select * from varchar2_table;
+  C1   | C2  
+-------+-----
+ abc   | abc
+(1 row)
+
+select c1, length(c1), c2, length(c2) from varchar2_table;
+  C1   | LENGTH | C2  | LENGTH 
+-------+--------+-----+--------
+ abc   |      5 | abc |      3
+(1 row)
+
+select c1, lengthb(c1), c2, lengthb(c2) from varchar2_table;
+  C1   | LENGTHB | C2  | LENGTHB 
+-------+---------+-----+---------
+ abc   |       5 | abc |       3
+(1 row)
+
+select c1 || '1' as new_c1, c2 || '2' as new_c2 from varchar2_table;
+ NEW_C1 | NEW_C2 
+--------+--------
+ abc  1 | abc2
+(1 row)
+
+-- ERROR: value too long
+insert into varchar2_table values('abc', 'abcdefg');
+ERROR:  input value length is 7; too long for type varchar2(5)
+drop table varchar2_table;
+-- varchar2 max length
+create table varchar2_table_length_max(c1 varchar2(10485760));
+insert into varchar2_table_length_max values('abc');
+select c1, length(c1), lengthb(c1) from varchar2_table_length_max;
+ C1  | LENGTH | LENGTHB 
+-----+--------+---------
+ abc |      3 |       3
+(1 row)
+
+drop table varchar2_table_length_max;
+-- ERROR: varchar2 length exceed
+create table varchar2_table_length_exceed(c1 varchar2(10485761));
+ERROR:  length for type varchar2 cannot exceed 10485760
+LINE 1: create table varchar2_table_length_exceed(c1 varchar2(104857...
+                                                     ^
+-- varchar2 default length is 10485760
+create table varchar2_table_default_length(c1 varchar2);
+insert into varchar2_table_default_length values('a');
+select c1, length(c1) from varchar2_table_default_length;
+ C1 | LENGTH 
+----+--------
+ a  |      1
+(1 row)
+
+insert into varchar2_table_default_length values('abcdefg');
+select c1, length(c1) from varchar2_table_default_length order by 1;
+   C1    | LENGTH 
+---------+--------
+ a       |      1
+ abcdefg |      7
+(2 rows)
+
+drop table varchar2_table_default_length;
+--------------------------
+-- test nvarchar2
+--------------------------
+create table nvarchar2_table(c1 char(5), c2 nvarchar2(5));
+insert into nvarchar2_table values('abc', 'abc');
+select * from nvarchar2_table;
+  C1   | C2  
+-------+-----
+ abc   | abc
+(1 row)
+
+select c1, length(c1), c2, length(c2) from nvarchar2_table;
+  C1   | LENGTH | C2  | LENGTH 
+-------+--------+-----+--------
+ abc   |      5 | abc |      3
+(1 row)
+
+select c1, lengthb(c1), c2, lengthb(c2) from nvarchar2_table;
+  C1   | LENGTHB | C2  | LENGTHB 
+-------+---------+-----+---------
+ abc   |       5 | abc |       3
+(1 row)
+
+select c1 || '1' as new_c1, c2 || '2' as new_c2 from nvarchar2_table;
+ NEW_C1 | NEW_C2 
+--------+--------
+ abc  1 | abc2
+(1 row)
+
+-- ERROR: value too long
+insert into nvarchar2_table values('abc', 'abcdefg');
+ERROR:  input value too long for type nvarchar2(5)
+drop table nvarchar2_table;
+-- nvarchar2 max length
+create table nvarchar2_table_length_max(c1 nvarchar2(10485760));
+insert into nvarchar2_table_length_max values('abc');
+select c1, length(c1), lengthb(c1) from nvarchar2_table_length_max;
+ C1  | LENGTH | LENGTHB 
+-----+--------+---------
+ abc |      3 |       3
+(1 row)
+
+drop table nvarchar2_table_length_max;
+-- ERROR: nvarchar2 length exceed
+create table nvarchar2_table_length_exceed(c1 nvarchar2(10485761));
+ERROR:  length for type nvarchar2 cannot exceed 10485760
+LINE 1: create table nvarchar2_table_length_exceed(c1 nvarchar2(1048...
+                                                      ^
+-- nvarchar2 default length is 10485760
+create table nvarchar2_table_default_length(c1 nvarchar2);
+insert into nvarchar2_table_default_length values('a');
+select c1, length(c1) from nvarchar2_table_default_length;
+ C1 | LENGTH 
+----+--------
+ a  |      1
+(1 row)
+
+insert into nvarchar2_table_default_length values('abcdefg');
+select c1, length(c1) from nvarchar2_table_default_length order by 1;
+   C1    | LENGTH 
+---------+--------
+ a       |      1
+ abcdefg |      7
+(2 rows)
+
+drop table nvarchar2_table_default_length;

@@ -1,0 +1,25 @@
+ <refentry id="sql-alterpackage">
+  <indexterm zone="sql-alterpackage">
+   <primary>ALTER PACKAGE</primary>
+  </indexterm>
+ 
+  <refmeta>
+   <refentrytitle>ALTER PACKAGE</refentrytitle>
+   <manvolnum>7</manvolnum>
+   <refmiscinfo>SQL - Language Statements</refmiscinfo>
+  </refmeta>
+ 
+  <refnamediv>
+   <refname>ALTER PACKAGE</refname>
+   <refpurpose>compile or change a package</refpurpose>
+  </refnamediv>
+ 
+  <refsynopsisdiv>
+ <synopsis>
+ALTER PACKAGE <replaceable class="parameter">name</replaceable> [ COMPILE [ DEBUG ] [ PACKAGE | SPECIFICATION | BODY ] compile_flags [ REUSE SETTINGS ] ]
+ALTER PACKAGE <replaceable class="parameter">name</replaceable> [ EDITIONABLE | NONEDITIONABLE ]
+ </synopsis>
+  </refsynopsisdiv>
+ 
+ </refentry>
+

@@ -25,9 +25,9 @@
 
 static void test(void) {
   /* exec sql begin declare section */
-         
-      
-       
+	     
+	  
+	   
   
 #line 10 "autoprep.pgc"
  int item [ 4 ] , ind [ 4 ] , i = 1 ;
@@ -73,8 +73,8 @@ if (sqlca.sqlcode < 0) sqlprint();}
 #line 23 "autoprep.pgc"
 
   { ECPGdo(__LINE__, 0, 1, NULL, 0, ECPGst_prepnormal, "insert into T values ( 1 , $1  )", 
-    ECPGt_int,&(i),(long)1,(long)1,sizeof(int), 
-    ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EOIT, ECPGt_EORT);
+	ECPGt_int,&(i),(long)1,(long)1,sizeof(int), 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EOIT, ECPGt_EORT);
 #line 24 "autoprep.pgc"
 
 if (sqlca.sqlwarn[0] == 'W') sqlprint();
@@ -85,8 +85,8 @@ if (sqlca.sqlcode < 0) sqlprint();}
 
   i++;
   { ECPGdo(__LINE__, 0, 1, NULL, 0, ECPGst_prepnormal, "insert into T values ( 1 , $1  )", 
-    ECPGt_int,&(i),(long)1,(long)1,sizeof(int), 
-    ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EOIT, ECPGt_EORT);
+	ECPGt_int,&(i),(long)1,(long)1,sizeof(int), 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EOIT, ECPGt_EORT);
 #line 26 "autoprep.pgc"
 
 if (sqlca.sqlwarn[0] == 'W') sqlprint();
@@ -115,8 +115,8 @@ if (sqlca.sqlcode < 0) sqlprint();}
 
 
   { ECPGdo(__LINE__, 0, 1, NULL, 0, ECPGst_prepnormal, "select Item2 from T order by Item2 nulls last", ECPGt_EOIT, 
-    ECPGt_int,(item),(long)1,(long)4,sizeof(int), 
-    ECPGt_int,(ind),(long)1,(long)4,sizeof(int), ECPGt_EORT);
+	ECPGt_int,(item),(long)1,(long)4,sizeof(int), 
+	ECPGt_int,(ind),(long)1,(long)4,sizeof(int), ECPGt_EORT);
 #line 30 "autoprep.pgc"
 
 if (sqlca.sqlwarn[0] == 'W') sqlprint();
@@ -127,7 +127,7 @@ if (sqlca.sqlcode < 0) sqlprint();}
 
 
   for (i=0; i<4; i++)
-    printf("item[%d] = %d\n", i, ind[i] ? -1 : item[i]);
+	printf("item[%d] = %d\n", i, ind[i] ? -1 : item[i]);
 
   /* declare C cursor for select Item1 from T */
 #line 35 "autoprep.pgc"
@@ -144,8 +144,8 @@ if (sqlca.sqlcode < 0) sqlprint();}
 
 
   { ECPGdo(__LINE__, 0, 1, NULL, 0, ECPGst_normal, "fetch 1 in C", ECPGt_EOIT, 
-    ECPGt_int,&(i),(long)1,(long)1,sizeof(int), 
-    ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EORT);
+	ECPGt_int,&(i),(long)1,(long)1,sizeof(int), 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EORT);
 #line 39 "autoprep.pgc"
 
 if (sqlca.sqlwarn[0] == 'W') sqlprint();
@@ -181,8 +181,8 @@ if (sqlca.sqlcode < 0) sqlprint();}
 
 
   { ECPGdo(__LINE__, 0, 1, NULL, 0, ECPGst_normal, "declare cur1 cursor for $1", 
-    ECPGt_char_variable,(ECPGprepared_statement(NULL, "stmt1", __LINE__)),(long)1,(long)1,(1)*sizeof(char), 
-    ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EOIT, ECPGt_EORT);
+	ECPGt_char_variable,(ECPGprepared_statement(NULL, "stmt1", __LINE__)),(long)1,(long)1,(1)*sizeof(char), 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EOIT, ECPGt_EORT);
 #line 48 "autoprep.pgc"
 
 if (sqlca.sqlwarn[0] == 'W') sqlprint();
@@ -199,9 +199,9 @@ if (sqlca.sqlcode < 0) sqlprint();}
   i = 0;
   while (1)
   {
-    { ECPGdo(__LINE__, 0, 1, NULL, 0, ECPGst_normal, "fetch cur1", ECPGt_EOIT, 
-    ECPGt_int,&(item1),(long)1,(long)1,sizeof(int), 
-    ECPGt_int,&(ind1),(long)1,(long)1,sizeof(int), ECPGt_EORT);
+	{ ECPGdo(__LINE__, 0, 1, NULL, 0, ECPGst_normal, "fetch cur1", ECPGt_EOIT, 
+	ECPGt_int,&(item1),(long)1,(long)1,sizeof(int), 
+	ECPGt_int,&(ind1),(long)1,(long)1,sizeof(int), ECPGt_EORT);
 #line 55 "autoprep.pgc"
 
 if (sqlca.sqlcode == ECPG_NOT_FOUND) break;
@@ -213,8 +213,8 @@ if (sqlca.sqlwarn[0] == 'W') sqlprint();
 if (sqlca.sqlcode < 0) sqlprint();}
 #line 55 "autoprep.pgc"
 
-    printf("item[%d] = %d\n", i, ind1 ? -1 : item1);
-    i++;
+	printf("item[%d] = %d\n", i, ind1 ? -1 : item1);
+	i++;
   }
 
   { ECPGdo(__LINE__, 0, 1, NULL, 0, ECPGst_normal, "close cur1", ECPGt_EOIT, ECPGt_EORT);

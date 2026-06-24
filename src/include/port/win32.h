@@ -50,13 +50,13 @@
 #include <signal.h>
 #include <errno.h>
 #include <direct.h>
-#include <sys/utime.h>            /* for non-unicode version */
+#include <sys/utime.h>			/* for non-unicode version */
 #undef near
 
 /* Must be here to avoid conflicting with prototype in windows.h */
-#define mkdir(a,b)    mkdir(a)
+#define mkdir(a,b)	mkdir(a)
 
-#define ftruncate(a,b)    chsize(a,b)
+#define ftruncate(a,b)	chsize(a,b)
 
 /* Windows doesn't have fsync() as such, use _commit() */
 #define fsync(fd) _commit(fd)
@@ -73,16 +73,16 @@
 
 /* defines for dynamic linking on Win32 platform
  *
- *    http://support.microsoft.com/kb/132044
- *    http://msdn.microsoft.com/en-us/library/8fskxacy(v=vs.80).aspx
- *    http://msdn.microsoft.com/en-us/library/a90k134d(v=vs.80).aspx
+ *	http://support.microsoft.com/kb/132044
+ *	http://msdn.microsoft.com/en-us/library/8fskxacy(v=vs.80).aspx
+ *	http://msdn.microsoft.com/en-us/library/a90k134d(v=vs.80).aspx
  */
 
 #if defined(WIN32) || defined(__CYGWIN__)
 
 #ifdef BUILDING_DLL
 #define PGDLLIMPORT __declspec (dllexport)
-#else                            /* not BUILDING_DLL */
+#else							/* not BUILDING_DLL */
 #define PGDLLIMPORT __declspec (dllimport)
 #endif
 
@@ -91,14 +91,14 @@
 #else
 #define PGDLLEXPORT
 #endif
-#else                            /* not CYGWIN, not MSVC, not MingW */
+#else							/* not CYGWIN, not MSVC, not MingW */
 #define PGDLLIMPORT
 #define PGDLLEXPORT
 #endif
 
 
 /*
- *    IPC defines
+ *	IPC defines
  */
 #undef HAVE_UNION_SEMUN
 #define HAVE_UNION_SEMUN 1
@@ -107,7 +107,7 @@
 #define IPC_CREAT 512
 #define IPC_EXCL 1024
 #define IPC_PRIVATE 234564
-#define IPC_NOWAIT    2048
+#define IPC_NOWAIT	2048
 #define IPC_STAT 4096
 
 #define EACCESS 2048
@@ -123,56 +123,56 @@
 
 
 /*
- *    Signal stuff
+ *	Signal stuff
  *
- *    For WIN32, there is no wait() call so there are no wait() macros
- *    to interpret the return value of system().  Instead, system()
- *    return values < 0x100 are used for exit() termination, and higher
- *    values are used to indicated non-exit() termination, which is
- *    similar to a unix-style signal exit (think SIGSEGV ==
- *    STATUS_ACCESS_VIOLATION).  Return values are broken up into groups:
+ *	For WIN32, there is no wait() call so there are no wait() macros
+ *	to interpret the return value of system().  Instead, system()
+ *	return values < 0x100 are used for exit() termination, and higher
+ *	values are used to indicated non-exit() termination, which is
+ *	similar to a unix-style signal exit (think SIGSEGV ==
+ *	STATUS_ACCESS_VIOLATION).  Return values are broken up into groups:
  *
- *    http://msdn2.microsoft.com/en-gb/library/aa489609.aspx
+ *	http://msdn2.microsoft.com/en-gb/library/aa489609.aspx
  *
- *        NT_SUCCESS            0 - 0x3FFFFFFF
- *        NT_INFORMATION        0x40000000 - 0x7FFFFFFF
- *        NT_WARNING            0x80000000 - 0xBFFFFFFF
- *        NT_ERROR            0xC0000000 - 0xFFFFFFFF
+ *		NT_SUCCESS			0 - 0x3FFFFFFF
+ *		NT_INFORMATION		0x40000000 - 0x7FFFFFFF
+ *		NT_WARNING			0x80000000 - 0xBFFFFFFF
+ *		NT_ERROR			0xC0000000 - 0xFFFFFFFF
  *
- *    Effectively, we don't care on the severity of the return value from
- *    system(), we just need to know if it was because of exit() or generated
- *    by the system, and it seems values >= 0x100 are system-generated.
- *    See this URL for a list of WIN32 STATUS_* values:
+ *	Effectively, we don't care on the severity of the return value from
+ *	system(), we just need to know if it was because of exit() or generated
+ *	by the system, and it seems values >= 0x100 are system-generated.
+ *	See this URL for a list of WIN32 STATUS_* values:
  *
- *        Wine (URL used in our error messages) -
- *            http://source.winehq.org/source/include/ntstatus.h
- *        Descriptions - http://www.comp.nus.edu.sg/~wuyongzh/my_doc/ntstatus.txt
- *        MS SDK - http://www.nologs.com/ntstatus.html
+ *		Wine (URL used in our error messages) -
+ *			http://source.winehq.org/source/include/ntstatus.h
+ *		Descriptions - http://www.comp.nus.edu.sg/~wuyongzh/my_doc/ntstatus.txt
+ *		MS SDK - http://www.nologs.com/ntstatus.html
  *
- *    It seems the exception lists are in both ntstatus.h and winnt.h, but
- *    ntstatus.h has a more comprehensive list, and it only contains
- *    exception values, rather than winnt, which contains lots of other
- *    things:
+ *	It seems the exception lists are in both ntstatus.h and winnt.h, but
+ *	ntstatus.h has a more comprehensive list, and it only contains
+ *	exception values, rather than winnt, which contains lots of other
+ *	things:
  *
- *        http://www.microsoft.com/msj/0197/exception/exception.aspx
+ *		http://www.microsoft.com/msj/0197/exception/exception.aspx
  *
- *        The ExceptionCode parameter is the number that the operating system
- *        assigned to the exception. You can see a list of various exception codes
- *        in WINNT.H by searching for #defines that start with "STATUS_". For
- *        example, the code for the all-too-familiar STATUS_ACCESS_VIOLATION is
- *        0xC0000005. A more complete set of exception codes can be found in
- *        NTSTATUS.H from the Windows NT DDK.
+ *		The ExceptionCode parameter is the number that the operating system
+ *		assigned to the exception. You can see a list of various exception codes
+ *		in WINNT.H by searching for #defines that start with "STATUS_". For
+ *		example, the code for the all-too-familiar STATUS_ACCESS_VIOLATION is
+ *		0xC0000005. A more complete set of exception codes can be found in
+ *		NTSTATUS.H from the Windows NT DDK.
  *
- *    Some day we might want to print descriptions for the most common
- *    exceptions, rather than printing an include file name.  We could use
- *    RtlNtStatusToDosError() and pass to FormatMessage(), which can print
- *    the text of error values, but MinGW does not support
- *    RtlNtStatusToDosError().
+ *	Some day we might want to print descriptions for the most common
+ *	exceptions, rather than printing an include file name.  We could use
+ *	RtlNtStatusToDosError() and pass to FormatMessage(), which can print
+ *	the text of error values, but MinGW does not support
+ *	RtlNtStatusToDosError().
  */
-#define WIFEXITED(w)    (((w) & 0XFFFFFF00) == 0)
-#define WIFSIGNALED(w)    (!WIFEXITED(w))
-#define WEXITSTATUS(w)    (w)
-#define WTERMSIG(w)        (w)
+#define WIFEXITED(w)	(((w) & 0XFFFFFF00) == 0)
+#define WIFSIGNALED(w)	(!WIFEXITED(w))
+#define WEXITSTATUS(w)	(w)
+#define WTERMSIG(w)		(w)
 
 #define sigmask(sig) ( 1 << ((sig)-1) )
 
@@ -185,22 +185,22 @@
 #define SIG_IGN ((pqsigfunc)1)
 
 /* Some extra signals */
-#define SIGHUP                1
-#define SIGQUIT                3
-#define SIGTRAP                5
-#define SIGABRT                22    /* Set to match W32 value -- not UNIX value */
-#define SIGKILL                9
-#define SIGPIPE                13
-#define SIGALRM                14
-#define SIGSTOP                17
-#define SIGTSTP                18
-#define SIGCONT                19
-#define SIGCHLD                20
-#define SIGTTIN                21
-#define SIGTTOU                22    /* Same as SIGABRT -- no problem, I hope */
-#define SIGWINCH            28
-#define SIGUSR1                30
-#define SIGUSR2                31
+#define SIGHUP				1
+#define SIGQUIT				3
+#define SIGTRAP				5
+#define SIGABRT				22	/* Set to match W32 value -- not UNIX value */
+#define SIGKILL				9
+#define SIGPIPE				13
+#define SIGALRM				14
+#define SIGSTOP				17
+#define SIGTSTP				18
+#define SIGCONT				19
+#define SIGCHLD				20
+#define SIGTTIN				21
+#define SIGTTOU				22	/* Same as SIGABRT -- no problem, I hope */
+#define SIGWINCH			28
+#define SIGUSR1				30
+#define SIGUSR2				31
 
 /*
  * New versions of mingw have gettimeofday() and also declare
@@ -209,8 +209,8 @@
 #ifndef HAVE_GETTIMEOFDAY
 struct timezone
 {
-    int            tz_minuteswest; /* Minutes west of GMT.  */
-    int            tz_dsttime;        /* Nonzero if DST is ever in effect.  */
+	int			tz_minuteswest; /* Minutes west of GMT.  */
+	int			tz_dsttime;		/* Nonzero if DST is ever in effect.  */
 };
 #endif
 
@@ -218,11 +218,11 @@ struct timezone
 #define ITIMER_REAL 0
 struct itimerval
 {
-    struct timeval it_interval;
-    struct timeval it_value;
+	struct timeval it_interval;
+	struct timeval it_value;
 };
 
-int            setitimer(int which, const struct itimerval *value, struct itimerval *ovalue);
+int			setitimer(int which, const struct itimerval *value, struct itimerval *ovalue);
 
 /*
  * WIN32 does not provide 64-bit off_t, but does provide the functions operating
@@ -356,13 +356,13 @@ extern PGDLLIMPORT int pg_signal_mask;
 extern HANDLE pgwin32_signal_event;
 extern HANDLE pgwin32_initial_signal_pipe;
 
-#define UNBLOCKED_SIGNAL_QUEUE()    (pg_signal_queue & ~pg_signal_mask)
+#define UNBLOCKED_SIGNAL_QUEUE()	(pg_signal_queue & ~pg_signal_mask)
 
 
-void        pgwin32_signal_initialize(void);
-HANDLE        pgwin32_create_signal_listener(pid_t pid);
-void        pgwin32_dispatch_queued_signals(void);
-void        pg_queue_signal(int signum);
+void		pgwin32_signal_initialize(void);
+HANDLE		pgwin32_create_signal_listener(pid_t pid);
+void		pgwin32_dispatch_queued_signals(void);
+void		pg_queue_signal(int signum);
 
 /* In backend/port/win32/socket.c */
 #ifndef FRONTEND
@@ -375,24 +375,24 @@ void        pg_queue_signal(int signum);
 #define recv(s, buf, len, flags) pgwin32_recv(s, buf, len, flags)
 #define send(s, buf, len, flags) pgwin32_send(s, buf, len, flags)
 
-SOCKET        pgwin32_socket(int af, int type, int protocol);
-int            pgwin32_bind(SOCKET s, struct sockaddr *addr, int addrlen);
-int            pgwin32_listen(SOCKET s, int backlog);
-SOCKET        pgwin32_accept(SOCKET s, struct sockaddr *addr, int *addrlen);
-int            pgwin32_connect(SOCKET s, const struct sockaddr *name, int namelen);
-int            pgwin32_select(int nfds, fd_set *readfs, fd_set *writefds, fd_set *exceptfds, const struct timeval *timeout);
-int            pgwin32_recv(SOCKET s, char *buf, int len, int flags);
-int            pgwin32_send(SOCKET s, const void *buf, int len, int flags);
+SOCKET		pgwin32_socket(int af, int type, int protocol);
+int			pgwin32_bind(SOCKET s, struct sockaddr *addr, int addrlen);
+int			pgwin32_listen(SOCKET s, int backlog);
+SOCKET		pgwin32_accept(SOCKET s, struct sockaddr *addr, int *addrlen);
+int			pgwin32_connect(SOCKET s, const struct sockaddr *name, int namelen);
+int			pgwin32_select(int nfds, fd_set *readfs, fd_set *writefds, fd_set *exceptfds, const struct timeval *timeout);
+int			pgwin32_recv(SOCKET s, char *buf, int len, int flags);
+int			pgwin32_send(SOCKET s, const void *buf, int len, int flags);
 
 const char *pgwin32_socket_strerror(int err);
-int            pgwin32_waitforsinglesocket(SOCKET s, int what, int timeout);
+int			pgwin32_waitforsinglesocket(SOCKET s, int what, int timeout);
 
-extern int    pgwin32_noblock;
+extern int	pgwin32_noblock;
 
 #endif
 
 /* in backend/port/win32_shmem.c */
-extern int    pgwin32_ReserveSharedMemoryRegion(HANDLE);
+extern int	pgwin32_ReserveSharedMemoryRegion(HANDLE);
 
 /* in backend/port/win32/crashdump.c */
 extern void pgwin32_install_crashdump_handler(void);
@@ -401,12 +401,12 @@ extern void pgwin32_install_crashdump_handler(void);
 extern void _dosmaperr(unsigned long);
 
 /* in port/win32env.c */
-extern int    pgwin32_putenv(const char *);
+extern int	pgwin32_putenv(const char *);
 extern void pgwin32_unsetenv(const char *);
 
 /* in port/win32security.c */
-extern int    pgwin32_is_service(void);
-extern int    pgwin32_is_admin(void);
+extern int	pgwin32_is_service(void);
+extern int	pgwin32_is_admin(void);
 
 #define putenv(x) pgwin32_putenv(x)
 #define unsetenv(x) pgwin32_unsetenv(x)
@@ -442,7 +442,7 @@ typedef unsigned short mode_t;
 /* Pulled from Makefile.port in mingw */
 #define DLSUFFIX ".dll"
 
-#endif                            /* _MSC_VER */
+#endif							/* _MSC_VER */
 
 /* These aren't provided by either MingW or MSVC */
 #define S_IRGRP 0

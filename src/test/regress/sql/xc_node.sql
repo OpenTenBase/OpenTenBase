@@ -39,3 +39,10 @@ ALTER NODE dummy_node WITH (PREFERRED);
 ALTER NODE dummy_node WITH (PRIMARY);
 ALTER NODE dummy_node WITH (TYPE = 'datanode');
 DROP NODE dummy_node;
+
+-- experiment_feature
+set experiment_feature to off;
+--expected error
+CREATE PUBLICATION mypub_dn001 FOR ALL TABLES;
+CREATE SUBSCRIPTION sub_dn001 CONNECTION 'host=100.105.39.157 port=20008 user=test1 dbname=postgres' PUBLICATION mypub_dn001 WITH (connect=true, enabled=true, create_slot=true, copy_data=true, synchronous_commit=on, ignore_pk_conflict = true, parallel_number=4);
+reset experiment_feature;

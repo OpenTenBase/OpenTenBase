@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * pg_backup_utils.c
- *    Utility routines shared by pg_dump and pg_restore
+ *	Utility routines shared by pg_dump and pg_restore
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -19,15 +19,15 @@
 /* Globals exported by this file */
 const char *progname = NULL;
 
-#define MAX_ON_EXIT_NICELY                20
+#define MAX_ON_EXIT_NICELY				20
 
 static struct
 {
-    on_exit_nicely_callback function;
-    void       *arg;
-}            on_exit_nicely_list[MAX_ON_EXIT_NICELY];
+	on_exit_nicely_callback function;
+	void	   *arg;
+}			on_exit_nicely_list[MAX_ON_EXIT_NICELY];
 
-static int    on_exit_nicely_index;
+static int	on_exit_nicely_index;
 
 /*
  * Parse a --section=foo command line argument.
@@ -39,24 +39,24 @@ static int    on_exit_nicely_index;
 void
 set_dump_section(const char *arg, int *dumpSections)
 {
-    /* if this is the first call, clear all the bits */
-    if (*dumpSections == DUMP_UNSECTIONED)
-        *dumpSections = 0;
+	/* if this is the first call, clear all the bits */
+	if (*dumpSections == DUMP_UNSECTIONED)
+		*dumpSections = 0;
 
-    if (strcmp(arg, "pre-data") == 0)
-        *dumpSections |= DUMP_PRE_DATA;
-    else if (strcmp(arg, "data") == 0)
-        *dumpSections |= DUMP_DATA;
-    else if (strcmp(arg, "post-data") == 0)
-        *dumpSections |= DUMP_POST_DATA;
-    else
-    {
-        fprintf(stderr, _("%s: unrecognized section name: \"%s\"\n"),
-                progname, arg);
-        fprintf(stderr, _("Try \"%s --help\" for more information.\n"),
-                progname);
-        exit_nicely(1);
-    }
+	if (strcmp(arg, "pre-data") == 0)
+		*dumpSections |= DUMP_PRE_DATA;
+	else if (strcmp(arg, "data") == 0)
+		*dumpSections |= DUMP_DATA;
+	else if (strcmp(arg, "post-data") == 0)
+		*dumpSections |= DUMP_POST_DATA;
+	else
+	{
+		fprintf(stderr, _("%s: unrecognized section name: \"%s\"\n"),
+				progname, arg);
+		fprintf(stderr, _("Try \"%s --help\" for more information.\n"),
+				progname);
+		exit_nicely(1);
+	}
 }
 
 
@@ -70,11 +70,11 @@ set_dump_section(const char *arg, int *dumpSections)
 void
 write_msg(const char *modulename, const char *fmt,...)
 {
-    va_list        ap;
+	va_list		ap;
 
-    va_start(ap, fmt);
-    vwrite_msg(modulename, fmt, ap);
-    va_end(ap);
+	va_start(ap, fmt);
+	vwrite_msg(modulename, fmt, ap);
+	va_end(ap);
 }
 
 /*
@@ -83,14 +83,14 @@ write_msg(const char *modulename, const char *fmt,...)
 void
 vwrite_msg(const char *modulename, const char *fmt, va_list ap)
 {
-    if (progname)
-    {
-        if (modulename)
-            fprintf(stderr, "%s: [%s] ", progname, _(modulename));
-        else
-            fprintf(stderr, "%s: ", progname);
-    }
-    vfprintf(stderr, _(fmt), ap);
+	if (progname)
+	{
+		if (modulename)
+			fprintf(stderr, "%s: [%s] ", progname, _(modulename));
+		else
+			fprintf(stderr, "%s: ", progname);
+	}
+	vfprintf(stderr, _(fmt), ap);
 }
 
 /*
@@ -101,24 +101,24 @@ vwrite_msg(const char *modulename, const char *fmt, va_list ap)
 void
 exit_horribly(const char *modulename, const char *fmt,...)
 {
-    va_list        ap;
+	va_list		ap;
 
-    va_start(ap, fmt);
-    vwrite_msg(modulename, fmt, ap);
-    va_end(ap);
+	va_start(ap, fmt);
+	vwrite_msg(modulename, fmt, ap);
+	va_end(ap);
 
-    exit_nicely(1);
+	exit_nicely(1);
 }
 
 /* Register a callback to be run when exit_nicely is invoked. */
 void
 on_exit_nicely(on_exit_nicely_callback function, void *arg)
 {
-    if (on_exit_nicely_index >= MAX_ON_EXIT_NICELY)
-        exit_horribly(NULL, "out of on_exit_nicely slots\n");
-    on_exit_nicely_list[on_exit_nicely_index].function = function;
-    on_exit_nicely_list[on_exit_nicely_index].arg = arg;
-    on_exit_nicely_index++;
+	if (on_exit_nicely_index >= MAX_ON_EXIT_NICELY)
+		exit_horribly(NULL, "out of on_exit_nicely slots\n");
+	on_exit_nicely_list[on_exit_nicely_index].function = function;
+	on_exit_nicely_list[on_exit_nicely_index].arg = arg;
+	on_exit_nicely_index++;
 }
 
 /*
@@ -141,16 +141,16 @@ on_exit_nicely(on_exit_nicely_callback function, void *arg)
 void
 exit_nicely(int code)
 {
-    int            i;
+	int			i;
 
-    for (i = on_exit_nicely_index - 1; i >= 0; i--)
-        (*on_exit_nicely_list[i].function) (code,
-                                            on_exit_nicely_list[i].arg);
+	for (i = on_exit_nicely_index - 1; i >= 0; i--)
+		on_exit_nicely_list[i].function(code,
+										on_exit_nicely_list[i].arg);
 
 #ifdef WIN32
-    if (parallel_init_done && GetCurrentThreadId() != mainThreadId)
-        _endthreadex(code);
+	if (parallel_init_done && GetCurrentThreadId() != mainThreadId)
+		_endthreadex(code);
 #endif
 
-    exit(code);
+	exit(code);
 }

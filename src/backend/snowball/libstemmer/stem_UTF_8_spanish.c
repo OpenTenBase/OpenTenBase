@@ -718,7 +718,7 @@ static int r_attached_pronoun(struct SN_env * z) {
     return 1;
 }
 
-static int r_standard_suffix(struct SN_env * z) {// #lizard forgives
+static int r_standard_suffix(struct SN_env * z) {
     int among_var;
     z->ket = z->c; /* [, line 87 */
     if (z->c - 2 <= z->lb || z->p[z->c - 1] >> 5 != 3 || !((835634 >> (z->p[z->c - 1] & 0x1f)) & 1)) return 0;

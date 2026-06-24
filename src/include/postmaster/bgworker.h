@@ -1,6 +1,6 @@
 /*--------------------------------------------------------------------
  * bgworker.h
- *        POSTGRES pluggable background workers interface
+ *		POSTGRES pluggable background workers interface
  *
  * A background worker is a process able to run arbitrary, user-supplied code,
  * including normal transactions.
@@ -34,11 +34,8 @@
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- * 
  * IDENTIFICATION
- *        src/include/postmaster/bgworker.h
+ *		src/include/postmaster/bgworker.h
  *--------------------------------------------------------------------
  */
 #ifndef BGWORKER_H
@@ -52,14 +49,14 @@
 /*
  * Pass this flag to have your worker be able to connect to shared memory.
  */
-#define BGWORKER_SHMEM_ACCESS                        0x0001
+#define BGWORKER_SHMEM_ACCESS						0x0001
 
 /*
  * This flag means the bgworker requires a database connection.  The connection
  * is not established automatically; the worker must establish it later.
  * It requires that BGWORKER_SHMEM_ACCESS was passed too.
  */
-#define BGWORKER_BACKEND_DATABASE_CONNECTION        0x0002
+#define BGWORKER_BACKEND_DATABASE_CONNECTION		0x0002
 
 /*
  * This class is used internally for parallel queries, to keep track of the
@@ -67,7 +64,7 @@
  * max_parallel_workers parallel workers at the same time.  Third party
  * background workers should not use this class.
  */
-#define BGWORKER_CLASS_PARALLEL                    0x0010
+#define BGWORKER_CLASS_PARALLEL					0x0010
 /* add additional bgworker classes here */
 
 #ifdef __AUDIT_FGA__
@@ -81,35 +78,36 @@ typedef void (*bgworker_main_type) (Datum main_arg);
  */
 typedef enum
 {
-    BgWorkerStart_PostmasterStart,
-    BgWorkerStart_ConsistentState,
-    BgWorkerStart_RecoveryFinished
+	BgWorkerStart_PostmasterStart,
+	BgWorkerStart_ConsistentState,
+	BgWorkerStart_RecoveryFinished
 } BgWorkerStartTime;
 
-#define BGW_DEFAULT_RESTART_INTERVAL    60
-#define BGW_NEVER_RESTART                -1
-#define BGW_MAXLEN                        64
-#define BGW_EXTRALEN                    128
+#define BGW_DEFAULT_RESTART_INTERVAL	60
+#define BGW_NEVER_RESTART				-1
+#define BGW_MAXLEN						64
+#define BGW_EXTRALEN					128
 
 typedef struct BackgroundWorker
 {
-    char        bgw_name[BGW_MAXLEN];
-    int            bgw_flags;
-    BgWorkerStartTime bgw_start_time;
-    int            bgw_restart_time;    /* in seconds, or BGW_NEVER_RESTART */
-    char        bgw_library_name[BGW_MAXLEN];
-    char        bgw_function_name[BGW_MAXLEN];
-    Datum        bgw_main_arg;
-    char        bgw_extra[BGW_EXTRALEN];
-    pid_t        bgw_notify_pid; /* SIGUSR1 this backend on start/stop */
+	char		bgw_name[BGW_MAXLEN];
+	char		bgw_type[BGW_MAXLEN];
+	int			bgw_flags;
+	BgWorkerStartTime bgw_start_time;
+	int			bgw_restart_time;	/* in seconds, or BGW_NEVER_RESTART */
+	char		bgw_library_name[BGW_MAXLEN];
+	char		bgw_function_name[BGW_MAXLEN];
+	Datum		bgw_main_arg;
+	char		bgw_extra[BGW_EXTRALEN];
+	pid_t		bgw_notify_pid; /* SIGUSR1 this backend on start/stop */
 } BackgroundWorker;
 
 typedef enum BgwHandleStatus
 {
-    BGWH_STARTED,                /* worker is running */
-    BGWH_NOT_YET_STARTED,        /* worker hasn't been started yet */
-    BGWH_STOPPED,                /* worker has exited */
-    BGWH_POSTMASTER_DIED        /* postmaster died; worker status unclear */
+	BGWH_STARTED,				/* worker is running */
+	BGWH_NOT_YET_STARTED,		/* worker hasn't been started yet */
+	BGWH_STOPPED,				/* worker has exited */
+	BGWH_POSTMASTER_DIED		/* postmaster died; worker status unclear */
 } BgwHandleStatus;
 
 struct BackgroundWorkerHandle;
@@ -120,17 +118,20 @@ extern void RegisterBackgroundWorker(BackgroundWorker *worker);
 
 /* Register a new bgworker from a regular backend */
 extern bool RegisterDynamicBackgroundWorker(BackgroundWorker *worker,
-                                BackgroundWorkerHandle **handle);
+								BackgroundWorkerHandle **handle);
 
 /* Query the status of a bgworker */
 extern BgwHandleStatus GetBackgroundWorkerPid(BackgroundWorkerHandle *handle,
-                       pid_t *pidp);
+					   pid_t *pidp);
 extern BgwHandleStatus WaitForBackgroundWorkerStartup(BackgroundWorkerHandle *handle, pid_t *pid);
 extern BgwHandleStatus
-            WaitForBackgroundWorkerShutdown(BackgroundWorkerHandle *);
+			WaitForBackgroundWorkerShutdown(BackgroundWorkerHandle *);
+extern const char *GetBackgroundWorkerTypeByPid(pid_t pid);
 
 /* Terminate a bgworker */
 extern void TerminateBackgroundWorker(BackgroundWorkerHandle *handle);
+
+extern void EndQueryBackgroundWorker(BackgroundWorkerHandle *handle);
 
 /* This is valid in a running worker */
 extern PGDLLIMPORT BackgroundWorker *MyBgworkerEntry;
@@ -153,4 +154,4 @@ extern void BackgroundWorkerInitializeConnectionByOid(Oid dboid, Oid useroid);
 extern void BackgroundWorkerBlockSignals(void);
 extern void BackgroundWorkerUnblockSignals(void);
 
-#endif                            /* BGWORKER_H */
+#endif							/* BGWORKER_H */

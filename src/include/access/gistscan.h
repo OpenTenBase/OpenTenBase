@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * gistscan.h
- *      routines defined in access/gist/gistscan.c
+ *	  routines defined in access/gist/gistscan.c
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -18,7 +18,7 @@
 
 extern IndexScanDesc gistbeginscan(Relation r, int nkeys, int norderbys);
 extern void gistrescan(IndexScanDesc scan, ScanKey key, int nkeys,
-           ScanKey orderbys, int norderbys);
+		   ScanKey orderbys, int norderbys);
 extern void gistendscan(IndexScanDesc scan);
 
-#endif                            /* GISTSCAN_H */
+#endif							/* GISTSCAN_H */

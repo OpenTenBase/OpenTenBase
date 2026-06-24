@@ -1,0 +1,294 @@
+%cn 1
+%cn_slave 0
+%dn 2
+%dn_slave 0
+%gtm 1
+%gtm_slave 0
+
+connect conn cn1
+connection conn
+
+create default node group default_group with ("dn1", "dn2");
+create sharding group to group default_group;
+clean sharding;
+create table t(a int, b int);
+grant all on t to public;
+
+-- test1: cancel a query that is waiting for a slot
+DROP ROLE IF EXISTS role_concurrency_test;
+-- start_ignore
+DROP RESOURCE GROUP rg_concurrency_test;
+-- end_ignore
+
+CREATE OR REPLACE VIEW rg_concurrency_view AS
+  SELECT wait_event_type IS NOT NULL as waiting, wait_event_type, state, query, rsgname
+  FROM pg_stat_activity
+  WHERE rsgname='rg_concurrency_test'
+  order by wait_event_type;
+
+CREATE RESOURCE GROUP rg_concurrency_test WITH concurrency 1 cpu_rate_limit 20;
+CREATE ROLE role_concurrency_test RESOURCE GROUP rg_concurrency_test;
+
+connect conn1 cn1
+connection conn1
+SET ROLE role_concurrency_test;
+set opentenbase_test_flag='suspend_after_resgroup_assignedconn1';
+sendblock select count(*) from t;
+
+
+connect conn2 cn1
+connection conn2
+SET ROLE role_concurrency_test;
+set opentenbase_test_flag='suspend_after_resgroup_assignedconn2';
+sendblock select count(*) from t;
+
+connect conn3 cn1
+connection conn3
+SET ROLE role_concurrency_test;
+set opentenbase_test_flag='suspend_after_resgroup_assignedconn3';
+sendblock select count(*) from t;
+
+connection conn
+SELECT * FROM rg_concurrency_view;
+SELECT pg_cancel_backend(pid) FROM pg_stat_activity WHERE wait_event_type='ResourceGroup' AND rsgname='rg_concurrency_test';
+
+execute_shell_cmd rm /tmp/suspend_after_resgroup_assignedconn1
+reap conn1
+execute_shell_cmd rm /tmp/suspend_after_resgroup_assignedconn2
+reap conn2
+execute_shell_cmd rm /tmp/suspend_after_resgroup_assignedconn3
+reap conn3
+
+connection conn
+SELECT * FROM rg_concurrency_view;
+
+disconnect conn1
+disconnect conn2
+disconnect conn3
+
+connection conn
+DROP ROLE role_concurrency_test;
+DROP RESOURCE GROUP rg_concurrency_test;
+
+-- test2: terminate a query that is waiting for a slot
+DROP ROLE IF EXISTS role_concurrency_test;
+-- start_ignore
+DROP RESOURCE GROUP rg_concurrency_test;
+-- end_ignore
+
+CREATE RESOURCE GROUP rg_concurrency_test WITH concurrency 1 cpu_rate_limit 20;
+CREATE ROLE role_concurrency_test RESOURCE GROUP rg_concurrency_test;
+
+connect conn1 cn1
+connection conn1
+SET ROLE role_concurrency_test;
+set opentenbase_test_flag='suspend_after_resgroup_assignedconn1';
+sendblock select count(*) from t;
+
+connect conn2 cn1
+connection conn2
+SET ROLE role_concurrency_test;
+set opentenbase_test_flag='suspend_after_resgroup_assignedconn2';
+sendblock select count(*) from t;
+
+connect conn3 cn1
+connection conn3
+SET ROLE role_concurrency_test;
+set opentenbase_test_flag='suspend_after_resgroup_assignedconn3';
+sendblock select count(*) from t;
+
+connection conn
+SELECT * FROM rg_concurrency_view;
+SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE wait_event_type='ResourceGroup' AND rsgname='rg_concurrency_test';
+
+execute_shell_cmd rm /tmp/suspend_after_resgroup_assignedconn1
+reap conn1
+execute_shell_cmd rm /tmp/suspend_after_resgroup_assignedconn2
+reap conn2
+execute_shell_cmd rm /tmp/suspend_after_resgroup_assignedconn3
+reap conn3
+
+connection conn
+SELECT * FROM rg_concurrency_view;
+
+disconnect conn1
+disconnect conn2
+disconnect conn3
+
+connection conn
+DROP ROLE role_concurrency_test;
+DROP RESOURCE GROUP rg_concurrency_test;
+
+-- test3: cancel a query that is running
+DROP ROLE IF EXISTS role_concurrency_test;
+-- start_ignore
+DROP RESOURCE GROUP rg_concurrency_test;
+-- end_ignore
+
+CREATE RESOURCE GROUP rg_concurrency_test WITH concurrency 2 cpu_rate_limit 20;
+CREATE ROLE role_concurrency_test RESOURCE GROUP rg_concurrency_test;
+
+
+connect conn1 cn1
+connection conn1
+SET ROLE role_concurrency_test;
+set opentenbase_test_flag='suspend_after_resgroup_assignedconn1';
+sendblock select count(*) from t;
+
+connect conn2 cn1
+connection conn2
+SET ROLE role_concurrency_test;
+set opentenbase_test_flag='suspend_after_resgroup_assignedconn2';
+sendblock select count(*) from t;
+
+connect conn6 cn1
+connection conn6
+SET ROLE role_concurrency_test;
+set opentenbase_test_flag='suspend_after_resgroup_assignedconn6';
+sendblock select count(*) from t;
+
+connect conn7 cn1
+connection conn7
+SET ROLE role_concurrency_test;
+set opentenbase_test_flag='suspend_after_resgroup_assignedconn7';
+sendblock select count(*) from t;
+
+connection conn
+SELECT * FROM rg_concurrency_view;
+SELECT pg_cancel_backend(pid) FROM pg_stat_activity WHERE wait_event_type is null AND rsgname='rg_concurrency_test';
+
+execute_shell_cmd rm /tmp/suspend_after_resgroup_assignedconn1
+reap conn1
+execute_shell_cmd rm /tmp/suspend_after_resgroup_assignedconn2
+reap conn2
+
+sleep 1
+connection conn
+SELECT * FROM rg_concurrency_view;
+
+execute_shell_cmd rm /tmp/suspend_after_resgroup_assignedconn6
+reap conn6
+execute_shell_cmd rm /tmp/suspend_after_resgroup_assignedconn7
+reap conn7
+
+connection conn
+SELECT * FROM rg_concurrency_view;
+
+disconnect conn1
+disconnect conn2
+disconnect conn6
+disconnect conn7
+
+connection conn
+DROP ROLE role_concurrency_test;
+DROP RESOURCE GROUP rg_concurrency_test;
+
+-- test4: terminate a query that is running
+DROP ROLE IF EXISTS role_concurrency_test;
+-- start_ignore
+DROP RESOURCE GROUP rg_concurrency_test;
+-- end_ignore
+
+CREATE RESOURCE GROUP rg_concurrency_test WITH concurrency 2 cpu_rate_limit 20;
+CREATE ROLE role_concurrency_test RESOURCE GROUP rg_concurrency_test;
+
+connect conn1 cn1
+connection conn1
+SET ROLE role_concurrency_test;
+set opentenbase_test_flag='suspend_after_resgroup_assignedconn1';
+sendblock select count(*) from t;
+
+connect conn2 cn1
+connection conn2
+SET ROLE role_concurrency_test;
+set opentenbase_test_flag='suspend_after_resgroup_assignedconn2';
+sendblock select count(*) from t;
+
+
+connect conn6 cn1
+connection conn6
+SET ROLE role_concurrency_test;
+set opentenbase_test_flag='suspend_after_resgroup_assignedconn6';
+sendblock select count(*) from t;
+
+
+connect conn7 cn1
+connection conn7
+SET ROLE role_concurrency_test;
+set opentenbase_test_flag='suspend_after_resgroup_assignedconn7';
+sendblock select count(*) from t;
+
+connection conn
+SELECT * FROM rg_concurrency_view;
+SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE wait_event_type is null AND rsgname='rg_concurrency_test';
+
+execute_shell_cmd rm /tmp/suspend_after_resgroup_assignedconn1
+reap conn1
+execute_shell_cmd rm /tmp/suspend_after_resgroup_assignedconn2
+reap conn2
+
+connection conn
+sleep 1
+SELECT * FROM rg_concurrency_view;
+
+execute_shell_cmd rm /tmp/suspend_after_resgroup_assignedconn6
+reap conn6
+execute_shell_cmd rm /tmp/suspend_after_resgroup_assignedconn7
+reap conn7
+
+connection conn
+SELECT * FROM rg_concurrency_view;
+
+disconnect conn1
+disconnect conn2
+disconnect conn6
+disconnect conn7
+
+connection conn
+DROP ROLE role_concurrency_test;
+DROP RESOURCE GROUP rg_concurrency_test;
+
+
+-- test5: terminate a query waiting for a slot, that opens a transaction on exit callback
+DROP ROLE IF EXISTS role_concurrency_test;
+-- start_ignore
+DROP RESOURCE GROUP rg_concurrency_test;
+-- end_ignore
+
+
+CREATE RESOURCE GROUP rg_concurrency_test WITH concurrency 1 cpu_rate_limit 20;
+CREATE ROLE role_concurrency_test RESOURCE GROUP rg_concurrency_test;
+
+connect conn1 cn1
+connection conn1
+SET ROLE role_concurrency_test;
+CREATE TEMP TABLE tmp(a INT);
+
+connect conn2 cn1
+connection conn2
+SET ROLE role_concurrency_test;
+set opentenbase_test_flag='suspend_after_resgroup_assignedconn2';
+sendblock select count(*) from t;
+
+connection conn1
+set opentenbase_test_flag='suspend_after_resgroup_assignedconn1';
+sendblock select count(*) from t;
+
+connection conn
+SELECT * FROM rg_concurrency_view;
+-- Upon receiving the terminate request, session 1 should start a new transaction to cleanup temp table.
+-- Note, that session 1 has already been waiting for resource group slot, its new transaction will bypass
+-- resource group since it's exiting.
+
+SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE wait_event_type='ResourceGroup' AND rsgname='rg_concurrency_test';
+
+execute_shell_cmd rm /tmp/suspend_after_resgroup_assignedconn1
+reap conn1
+execute_shell_cmd rm /tmp/suspend_after_resgroup_assignedconn2
+reap conn2
+
+connection conn
+SELECT * FROM rg_concurrency_view;
+
+disconnect conn1
+disconnect conn2

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * logging.h
- *     prototypes for logging functions
+ *	 prototypes for logging functions
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -21,10 +21,10 @@ extern uint64 fetch_done;
  */
 typedef enum
 {
-    PG_DEBUG,
-    PG_PROGRESS,
-    PG_WARNING,
-    PG_FATAL
+	PG_DEBUG,
+	PG_PROGRESS,
+	PG_WARNING,
+	PG_FATAL
 } eLogType;
 
 extern void pg_log(eLogType type, const char *fmt,...) pg_attribute_printf(2, 3);
@@ -32,4 +32,4 @@ extern void pg_fatal(const char *fmt,...) pg_attribute_printf(1, 2) pg_attribute
 
 extern void progress_report(bool force);
 
-#endif                            /* PG_REWIND_LOGGING_H */
+#endif							/* PG_REWIND_LOGGING_H */

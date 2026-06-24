@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * off.h
- *      POSTGRES disk "offset" definitions.
+ *	  POSTGRES disk "offset" definitions.
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -23,36 +23,40 @@
  */
 typedef uint16 OffsetNumber;
 
-#define InvalidOffsetNumber        ((OffsetNumber) 0)
-#define FirstOffsetNumber        ((OffsetNumber) 1)
-#define MaxOffsetNumber            ((OffsetNumber) (BLCKSZ / sizeof(ItemIdData)))
-#define OffsetNumberMask        (0xffff)    /* valid uint16 bits */
+#ifdef __OPENTENBASE_C__
+typedef uint32	ColOffsetNumber;
+#endif
+
+#define InvalidOffsetNumber		((OffsetNumber) 0)
+#define FirstOffsetNumber		((OffsetNumber) 1)
+#define MaxOffsetNumber			((OffsetNumber) (BLCKSZ / sizeof(ItemIdData)))
+#define OffsetNumberMask		(0xffff)	/* valid uint16 bits */
 
 /* ----------------
- *        support macros
+ *		support macros
  * ----------------
  */
 
 /*
  * OffsetNumberIsValid
- *        True iff the offset number is valid.
+ *		True iff the offset number is valid.
  */
 #define OffsetNumberIsValid(offsetNumber) \
-    ((bool) ((offsetNumber != InvalidOffsetNumber) && \
-             (offsetNumber <= MaxOffsetNumber)))
+	((bool) ((offsetNumber != InvalidOffsetNumber) && \
+			 (offsetNumber <= MaxOffsetNumber)))
 
 /*
  * OffsetNumberNext
  * OffsetNumberPrev
- *        Increments/decrements the argument.  These macros look pointless
- *        but they help us disambiguate the different manipulations on
- *        OffsetNumbers (e.g., sometimes we subtract one from an
- *        OffsetNumber to move back, and sometimes we do so to form a
- *        real C array index).
+ *		Increments/decrements the argument.  These macros look pointless
+ *		but they help us disambiguate the different manipulations on
+ *		OffsetNumbers (e.g., sometimes we subtract one from an
+ *		OffsetNumber to move back, and sometimes we do so to form a
+ *		real C array index).
  */
 #define OffsetNumberNext(offsetNumber) \
-    ((OffsetNumber) (1 + (offsetNumber)))
+	((OffsetNumber) (1 + (offsetNumber)))
 #define OffsetNumberPrev(offsetNumber) \
-    ((OffsetNumber) (-1 + (offsetNumber)))
+	((OffsetNumber) (-1 + (offsetNumber)))
 
-#endif                            /* OFF_H */
+#endif							/* OFF_H */

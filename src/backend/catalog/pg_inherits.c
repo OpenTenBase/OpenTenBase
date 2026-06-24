@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * pg_inherits.c
- *      routines to support manipulation of the pg_inherits relation
+ *	  routines to support manipulation of the pg_inherits relation
  *
  * Note: currently, this module only contains inquiry functions; the actual
  * creation and deletion of pg_inherits entries is done in tablecmds.c.
@@ -11,11 +11,9 @@
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  * IDENTIFICATION
- *      src/backend/catalog/pg_inherits.c
+ *	  src/backend/catalog/pg_inherits.c
  *
  *-------------------------------------------------------------------------
  */
@@ -40,8 +38,8 @@
  */
 typedef struct SeenRelsEntry
 {
-    Oid            rel_id;            /* relation oid */
-    ListCell   *numparents_cell;    /* corresponding list cell */
+	Oid			rel_id;			/* relation oid */
+	ListCell   *numparents_cell;	/* corresponding list cell */
 } SeenRelsEntry;
 
 /*
@@ -57,108 +55,108 @@ typedef struct SeenRelsEntry
  */
 List *
 find_inheritance_children(Oid parentrelId, LOCKMODE lockmode)
-{// #lizard forgives
-    List       *list = NIL;
-    Relation    relation;
-    SysScanDesc scan;
-    ScanKeyData key[1];
-    HeapTuple    inheritsTuple;
-    Oid            inhrelid;
-    Oid           *oidarr;
-    int            maxoids,
-                numoids,
-                i;
+{
+	List	   *list = NIL;
+	Relation	relation;
+	SysScanDesc scan;
+	ScanKeyData key[1];
+	HeapTuple	inheritsTuple;
+	Oid			inhrelid;
+	Oid		   *oidarr;
+	int			maxoids,
+				numoids,
+				i;
 
-    /*
-     * Can skip the scan if pg_class shows the relation has never had a
-     * subclass.
-     */
-    if (!has_subclass(parentrelId))
-        return NIL;
+	/*
+	 * Can skip the scan if pg_class shows the relation has never had a
+	 * subclass.
+	 */
+	if (!has_subclass(parentrelId))
+		return NIL;
 
-    /*
-     * Scan pg_inherits and build a working array of subclass OIDs.
-     */
-    maxoids = 32;
-    oidarr = (Oid *) palloc(maxoids * sizeof(Oid));
-    numoids = 0;
+	/*
+	 * Scan pg_inherits and build a working array of subclass OIDs.
+	 */
+	maxoids = 32;
+	oidarr = (Oid *) palloc(maxoids * sizeof(Oid));
+	numoids = 0;
 
-    relation = heap_open(InheritsRelationId, AccessShareLock);
+	relation = heap_open(InheritsRelationId, AccessShareLock);
 
-    ScanKeyInit(&key[0],
-                Anum_pg_inherits_inhparent,
-                BTEqualStrategyNumber, F_OIDEQ,
-                ObjectIdGetDatum(parentrelId));
+	ScanKeyInit(&key[0],
+				Anum_pg_inherits_inhparent,
+				BTEqualStrategyNumber, F_OIDEQ,
+				ObjectIdGetDatum(parentrelId));
 
-    scan = systable_beginscan(relation, InheritsParentIndexId, true,
-                              NULL, 1, key);
+	scan = systable_beginscan(relation, InheritsParentIndexId, true,
+							  NULL, 1, key);
 
-    while ((inheritsTuple = systable_getnext(scan)) != NULL)
-    {
-        inhrelid = ((Form_pg_inherits) GETSTRUCT(inheritsTuple))->inhrelid;
-        if (numoids >= maxoids)
-        {
-            maxoids *= 2;
-            oidarr = (Oid *) repalloc(oidarr, maxoids * sizeof(Oid));
-        }
-        oidarr[numoids++] = inhrelid;
-    }
+	while ((inheritsTuple = systable_getnext(scan)) != NULL)
+	{
+		inhrelid = ((Form_pg_inherits) GETSTRUCT(inheritsTuple))->inhrelid;
+		if (numoids >= maxoids)
+		{
+			maxoids *= 2;
+			oidarr = (Oid *) repalloc(oidarr, maxoids * sizeof(Oid));
+		}
+		oidarr[numoids++] = inhrelid;
+	}
 
-    systable_endscan(scan);
+	systable_endscan(scan);
 
-    heap_close(relation, AccessShareLock);
+	heap_close(relation, AccessShareLock);
 
-    /*
-     * If we found more than one child, sort them by OID.  This ensures
-     * reasonably consistent behavior regardless of the vagaries of an
-     * indexscan.  This is important since we need to be sure all backends
-     * lock children in the same order to avoid needless deadlocks.
-     */
-    if (numoids > 1)
-        qsort(oidarr, numoids, sizeof(Oid), oid_cmp);
+	/*
+	 * If we found more than one child, sort them by OID.  This ensures
+	 * reasonably consistent behavior regardless of the vagaries of an
+	 * indexscan.  This is important since we need to be sure all backends
+	 * lock children in the same order to avoid needless deadlocks.
+	 */
+	if (numoids > 1)
+		qsort(oidarr, numoids, sizeof(Oid), oid_cmp);
 
-    /*
-     * Acquire locks and build the result list.
-     */
-    for (i = 0; i < numoids; i++)
-    {
-        inhrelid = oidarr[i];
+	/*
+	 * Acquire locks and build the result list.
+	 */
+	for (i = 0; i < numoids; i++)
+	{
+		inhrelid = oidarr[i];
 
-        if (lockmode != NoLock)
-        {
-            /* Get the lock to synchronize against concurrent drop */
-            LockRelationOid(inhrelid, lockmode);
+		if (lockmode != NoLock)
+		{
+			/* Get the lock to synchronize against concurrent drop */
+			LockRelationOid(inhrelid, lockmode);
 
-            /*
-             * Now that we have the lock, double-check to see if the relation
-             * really exists or not.  If not, assume it was dropped while we
-             * waited to acquire lock, and ignore it.
-             */
-            if (!SearchSysCacheExists1(RELOID, ObjectIdGetDatum(inhrelid)))
-            {
-                /* Release useless lock */
-                UnlockRelationOid(inhrelid, lockmode);
-                /* And ignore this relation */
-                continue;
-            }
-        }
+			/*
+			 * Now that we have the lock, double-check to see if the relation
+			 * really exists or not.  If not, assume it was dropped while we
+			 * waited to acquire lock, and ignore it.
+			 */
+			if (!SearchSysCacheExists1(RELOID, ObjectIdGetDatum(inhrelid)))
+			{
+				/* Release useless lock */
+				UnlockRelationOid(inhrelid, lockmode);
+				/* And ignore this relation */
+				continue;
+			}
+		}
 
-        list = lappend_oid(list, inhrelid);
-    }
+		list = lappend_oid(list, inhrelid);
+	}
 
-    pfree(oidarr);
+	pfree(oidarr);
 
-    return list;
+	return list;
 }
 
 
 /*
  * find_all_inheritors -
- *        Returns a list of relation OIDs including the given rel plus
- *        all relations that inherit from it, directly or indirectly.
- *        Optionally, it also returns the number of parents found for
- *        each such relation within the inheritance tree rooted at the
- *        given rel.
+ *		Returns a list of relation OIDs including the given rel plus
+ *		all relations that inherit from it, directly or indirectly.
+ *		Optionally, it also returns the number of parents found for
+ *		each such relation within the inheritance tree rooted at the
+ *		given rel.
  *
  * The specified lock type is acquired on all child relations (but not on the
  * given rel; caller should already have locked it).  If lockmode is NoLock
@@ -168,81 +166,103 @@ find_inheritance_children(Oid parentrelId, LOCKMODE lockmode)
 List *
 find_all_inheritors(Oid parentrelId, LOCKMODE lockmode, List **numparents)
 {
-    /* hash table for O(1) rel_oid -> rel_numparents cell lookup */
-    HTAB       *seen_rels;
-    HASHCTL        ctl;
-    List       *rels_list,
-               *rel_numparents;
-    ListCell   *l;
+	/* hash table for O(1) rel_oid -> rel_numparents cell lookup */
+	HTAB	   *seen_rels;
+	HASHCTL		ctl;
+	List	   *rels_list,
+			   *rel_numparents;
+	ListCell   *l;
 
-    memset(&ctl, 0, sizeof(ctl));
-    ctl.keysize = sizeof(Oid);
-    ctl.entrysize = sizeof(SeenRelsEntry);
-    ctl.hcxt = CurrentMemoryContext;
+	memset(&ctl, 0, sizeof(ctl));
+	ctl.keysize = sizeof(Oid);
+	ctl.entrysize = sizeof(SeenRelsEntry);
+	ctl.hcxt = CurrentMemoryContext;
 
-    seen_rels = hash_create("find_all_inheritors temporary table",
-                            32, /* start small and extend */
-                            &ctl,
-                            HASH_ELEM | HASH_BLOBS | HASH_CONTEXT);
+	seen_rels = hash_create("find_all_inheritors temporary table",
+							32, /* start small and extend */
+							&ctl,
+							HASH_ELEM | HASH_BLOBS | HASH_CONTEXT);
 
-    /*
-     * We build a list starting with the given rel and adding all direct and
-     * indirect children.  We can use a single list as both the record of
-     * already-found rels and the agenda of rels yet to be scanned for more
-     * children.  This is a bit tricky but works because the foreach() macro
-     * doesn't fetch the next list element until the bottom of the loop.
-     */
-    rels_list = list_make1_oid(parentrelId);
-    rel_numparents = list_make1_int(0);
+	/*
+	 * We build a list starting with the given rel and adding all direct and
+	 * indirect children.  We can use a single list as both the record of
+	 * already-found rels and the agenda of rels yet to be scanned for more
+	 * children.  This is a bit tricky but works because the foreach() macro
+	 * doesn't fetch the next list element until the bottom of the loop.
+	 */
+	rels_list = list_make1_oid(parentrelId);
+	rel_numparents = list_make1_int(0);
 
-    foreach(l, rels_list)
-    {
-        Oid            currentrel = lfirst_oid(l);
-        List       *currentchildren;
-        ListCell   *lc;
+	foreach(l, rels_list)
+	{
+		Oid			currentrel = lfirst_oid(l);
+		List	   *currentchildren;
+		ListCell   *lc;
 
-        /* Get the direct children of this rel */
-        currentchildren = find_inheritance_children(currentrel, lockmode);
+		/* Get the direct children of this rel */
+		currentchildren = find_inheritance_children(currentrel, lockmode);
 
-        /*
-         * Add to the queue only those children not already seen. This avoids
-         * making duplicate entries in case of multiple inheritance paths from
-         * the same parent.  (It'll also keep us from getting into an infinite
-         * loop, though theoretically there can't be any cycles in the
-         * inheritance graph anyway.)
-         */
-        foreach(lc, currentchildren)
-        {
-            Oid            child_oid = lfirst_oid(lc);
-            bool        found;
-            SeenRelsEntry *hash_entry;
+		/*
+		 * Add to the queue only those children not already seen. This avoids
+		 * making duplicate entries in case of multiple inheritance paths from
+		 * the same parent.  (It'll also keep us from getting into an infinite
+		 * loop, though theoretically there can't be any cycles in the
+		 * inheritance graph anyway.)
+		 */
+		foreach(lc, currentchildren)
+		{
+			Oid			child_oid = lfirst_oid(lc);
+			bool		found;
+			SeenRelsEntry *hash_entry;
 
-            hash_entry = hash_search(seen_rels, &child_oid, HASH_ENTER, &found);
-            if (found)
-            {
-                /* if the rel is already there, bump number-of-parents counter */
-                lfirst_int(hash_entry->numparents_cell)++;
-            }
-            else
-            {
-                /* if it's not there, add it. expect 1 parent, initially. */
-                rels_list = lappend_oid(rels_list, child_oid);
-                rel_numparents = lappend_int(rel_numparents, 1);
-                hash_entry->numparents_cell = rel_numparents->tail;
-            }
-        }
-    }
+			hash_entry = hash_search(seen_rels, &child_oid, HASH_ENTER, &found);
+			if (found)
+			{
+				/* if the rel is already there, bump number-of-parents counter */
+				lfirst_int(hash_entry->numparents_cell)++;
+			}
+			else
+			{
+				/* if it's not there, add it. expect 1 parent, initially. */
+				rels_list = lappend_oid(rels_list, child_oid);
+				rel_numparents = lappend_int(rel_numparents, 1);
+				hash_entry->numparents_cell = rel_numparents->tail;
+			}
+		}
+	}
 
-    if (numparents)
-        *numparents = rel_numparents;
-    else
-        list_free(rel_numparents);
+	if (numparents)
+		*numparents = rel_numparents;
+	else
+		list_free(rel_numparents);
 
-    hash_destroy(seen_rels);
+	hash_destroy(seen_rels);
 
-    return rels_list;
+	return rels_list;
 }
 
+
+/*
+ * get last level partition table oid
+ */
+void
+find_all_children(Oid reloid, List **res)
+{
+	List		*children;
+	ListCell	*lc;
+
+	children = find_inheritance_children(reloid, NoLock);
+
+	foreach(lc, children)
+	{
+		Oid			childreloid = lfirst_oid(lc);
+
+		if (!has_subclass(childreloid))
+			*res = lappend_oid(*res, childreloid);
+		else
+			find_all_children(childreloid, res);
+	}
+}
 
 /*
  * has_subclass - does this relation have any children?
@@ -263,16 +283,36 @@ find_all_inheritors(Oid parentrelId, LOCKMODE lockmode, List **numparents)
 bool
 has_subclass(Oid relationId)
 {
-    HeapTuple    tuple;
-    bool        result;
+	HeapTuple	tuple;
+	bool		result;
 
-    tuple = SearchSysCache1(RELOID, ObjectIdGetDatum(relationId));
-    if (!HeapTupleIsValid(tuple))
-        elog(ERROR, "cache lookup failed for relation %u", relationId);
+	tuple = SearchSysCache1(RELOID, ObjectIdGetDatum(relationId));
+	if (!HeapTupleIsValid(tuple))
+		elog(ERROR, "cache lookup failed for relation %u", relationId);
 
-    result = ((Form_pg_class) GETSTRUCT(tuple))->relhassubclass;
-    ReleaseSysCache(tuple);
-    return result;
+	result = ((Form_pg_class) GETSTRUCT(tuple))->relhassubclass;
+	ReleaseSysCache(tuple);
+	return result;
+}
+
+bool
+has_subclass_exact(Oid relationId)
+{
+	Relation	catalog;
+	SysScanDesc scan;
+	ScanKeyData skey;
+	bool		result;
+
+	catalog = heap_open(InheritsRelationId, AccessShareLock);
+	ScanKeyInit(&skey, Anum_pg_inherits_inhparent, BTEqualStrategyNumber,
+				F_OIDEQ, ObjectIdGetDatum(relationId));
+	scan = systable_beginscan(catalog, InheritsParentIndexId, true,
+							  NULL, 1, &skey);
+	result = HeapTupleIsValid(systable_getnext(scan));
+	systable_endscan(scan);
+	heap_close(catalog, AccessShareLock);
+
+	return result;
 }
 
 /*
@@ -283,124 +323,129 @@ has_subclass(Oid relationId)
 bool
 has_superclass(Oid relationId)
 {
-    Relation    catalog;
-    SysScanDesc scan;
-    ScanKeyData skey;
-    bool        result;
+	Relation	catalog;
+	SysScanDesc scan;
+	ScanKeyData skey;
+	bool		result;
 
-    catalog = heap_open(InheritsRelationId, AccessShareLock);
-    ScanKeyInit(&skey, Anum_pg_inherits_inhrelid, BTEqualStrategyNumber,
-                F_OIDEQ, ObjectIdGetDatum(relationId));
-    scan = systable_beginscan(catalog, InheritsRelidSeqnoIndexId, true,
-                              NULL, 1, &skey);
-    result = HeapTupleIsValid(systable_getnext(scan));
-    systable_endscan(scan);
-    heap_close(catalog, AccessShareLock);
+	catalog = heap_open(InheritsRelationId, AccessShareLock);
+	ScanKeyInit(&skey, Anum_pg_inherits_inhrelid, BTEqualStrategyNumber,
+				F_OIDEQ, ObjectIdGetDatum(relationId));
+	scan = systable_beginscan(catalog, InheritsRelidSeqnoIndexId, true,
+							  NULL, 1, &skey);
+	result = HeapTupleIsValid(systable_getnext(scan));
+	systable_endscan(scan);
+	heap_close(catalog, AccessShareLock);
 
-    return result;
+	return result;
 }
 
 /*
  * Given two type OIDs, determine whether the first is a complex type
  * (class type) that inherits from the second.
+ *
+ * This essentially asks whether the first type is guaranteed to be coercible
+ * to the second.  Therefore, we allow the first type to be a domain over a
+ * complex type that inherits from the second; that creates no difficulties.
+ * But the second type cannot be a domain.
  */
 bool
 typeInheritsFrom(Oid subclassTypeId, Oid superclassTypeId)
 {
-    bool        result = false;
-    Oid            subclassRelid;
-    Oid            superclassRelid;
-    Relation    inhrel;
-    List       *visited,
-               *queue;
-    ListCell   *queue_item;
+	bool		result = false;
+	Oid			subclassRelid;
+	Oid			superclassRelid;
+	Relation	inhrel;
+	List	   *visited,
+			   *queue;
+	ListCell   *queue_item;
 
-    /* We need to work with the associated relation OIDs */
-    subclassRelid = typeidTypeRelid(subclassTypeId);
-    if (subclassRelid == InvalidOid)
-        return false;            /* not a complex type */
-    superclassRelid = typeidTypeRelid(superclassTypeId);
-    if (superclassRelid == InvalidOid)
-        return false;            /* not a complex type */
+	/* We need to work with the associated relation OIDs */
+	subclassRelid = typeOrDomainTypeRelid(subclassTypeId);
+	if (subclassRelid == InvalidOid)
+		return false;			/* not a complex type or domain over one */
+	superclassRelid = typeidTypeRelid(superclassTypeId);
+	if (superclassRelid == InvalidOid)
+		return false;			/* not a complex type */
 
-    /* No point in searching if the superclass has no subclasses */
-    if (!has_subclass(superclassRelid))
-        return false;
+	/* No point in searching if the superclass has no subclasses */
+	if (!has_subclass(superclassRelid))
+		return false;
 
-    /*
-     * Begin the search at the relation itself, so add its relid to the queue.
-     */
-    queue = list_make1_oid(subclassRelid);
-    visited = NIL;
+	/*
+	 * Begin the search at the relation itself, so add its relid to the queue.
+	 */
+	queue = list_make1_oid(subclassRelid);
+	visited = NIL;
 
-    inhrel = heap_open(InheritsRelationId, AccessShareLock);
+	inhrel = heap_open(InheritsRelationId, AccessShareLock);
 
-    /*
-     * Use queue to do a breadth-first traversal of the inheritance graph from
-     * the relid supplied up to the root.  Notice that we append to the queue
-     * inside the loop --- this is okay because the foreach() macro doesn't
-     * advance queue_item until the next loop iteration begins.
-     */
-    foreach(queue_item, queue)
-    {
-        Oid            this_relid = lfirst_oid(queue_item);
-        ScanKeyData skey;
-        SysScanDesc inhscan;
-        HeapTuple    inhtup;
+	/*
+	 * Use queue to do a breadth-first traversal of the inheritance graph from
+	 * the relid supplied up to the root.  Notice that we append to the queue
+	 * inside the loop --- this is okay because the foreach() macro doesn't
+	 * advance queue_item until the next loop iteration begins.
+	 */
+	foreach(queue_item, queue)
+	{
+		Oid			this_relid = lfirst_oid(queue_item);
+		ScanKeyData skey;
+		SysScanDesc inhscan;
+		HeapTuple	inhtup;
 
-        /*
-         * If we've seen this relid already, skip it.  This avoids extra work
-         * in multiple-inheritance scenarios, and also protects us from an
-         * infinite loop in case there is a cycle in pg_inherits (though
-         * theoretically that shouldn't happen).
-         */
-        if (list_member_oid(visited, this_relid))
-            continue;
+		/*
+		 * If we've seen this relid already, skip it.  This avoids extra work
+		 * in multiple-inheritance scenarios, and also protects us from an
+		 * infinite loop in case there is a cycle in pg_inherits (though
+		 * theoretically that shouldn't happen).
+		 */
+		if (list_member_oid(visited, this_relid))
+			continue;
 
-        /*
-         * Okay, this is a not-yet-seen relid. Add it to the list of
-         * already-visited OIDs, then find all the types this relid inherits
-         * from and add them to the queue.
-         */
-        visited = lappend_oid(visited, this_relid);
+		/*
+		 * Okay, this is a not-yet-seen relid. Add it to the list of
+		 * already-visited OIDs, then find all the types this relid inherits
+		 * from and add them to the queue.
+		 */
+		visited = lappend_oid(visited, this_relid);
 
-        ScanKeyInit(&skey,
-                    Anum_pg_inherits_inhrelid,
-                    BTEqualStrategyNumber, F_OIDEQ,
-                    ObjectIdGetDatum(this_relid));
+		ScanKeyInit(&skey,
+					Anum_pg_inherits_inhrelid,
+					BTEqualStrategyNumber, F_OIDEQ,
+					ObjectIdGetDatum(this_relid));
 
-        inhscan = systable_beginscan(inhrel, InheritsRelidSeqnoIndexId, true,
-                                     NULL, 1, &skey);
+		inhscan = systable_beginscan(inhrel, InheritsRelidSeqnoIndexId, true,
+									 NULL, 1, &skey);
 
-        while ((inhtup = systable_getnext(inhscan)) != NULL)
-        {
-            Form_pg_inherits inh = (Form_pg_inherits) GETSTRUCT(inhtup);
-            Oid            inhparent = inh->inhparent;
+		while ((inhtup = systable_getnext(inhscan)) != NULL)
+		{
+			Form_pg_inherits inh = (Form_pg_inherits) GETSTRUCT(inhtup);
+			Oid			inhparent = inh->inhparent;
 
-            /* If this is the target superclass, we're done */
-            if (inhparent == superclassRelid)
-            {
-                result = true;
-                break;
-            }
+			/* If this is the target superclass, we're done */
+			if (inhparent == superclassRelid)
+			{
+				result = true;
+				break;
+			}
 
-            /* Else add to queue */
-            queue = lappend_oid(queue, inhparent);
-        }
+			/* Else add to queue */
+			queue = lappend_oid(queue, inhparent);
+		}
 
-        systable_endscan(inhscan);
+		systable_endscan(inhscan);
 
-        if (result)
-            break;
-    }
+		if (result)
+			break;
+	}
 
-    /* clean up ... */
-    heap_close(inhrel, AccessShareLock);
+	/* clean up ... */
+	heap_close(inhrel, AccessShareLock);
 
-    list_free(visited);
-    list_free(queue);
+	list_free(visited);
+	list_free(queue);
 
-    return result;
+	return result;
 }
 
 /*

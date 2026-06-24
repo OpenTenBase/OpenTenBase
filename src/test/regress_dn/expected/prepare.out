@@ -1,0 +1,473 @@
+-- Regression tests for prepareable statements. We query the content
+-- of the pg_prepared_statements view as prepared statements are
+-- created and removed.
+SELECT name, statement, parameter_types FROM pg_prepared_statements;
+ name | statement | parameter_types 
+------+-----------+-----------------
+(0 rows)
+
+PREPARE q1 AS SELECT 1 AS a;
+EXECUTE q1;
+ a 
+---
+ 1
+(1 row)
+
+SELECT name, statement, parameter_types FROM pg_prepared_statements;
+ name |          statement           | parameter_types 
+------+------------------------------+-----------------
+ q1   | PREPARE q1 AS SELECT 1 AS a; | {}
+(1 row)
+
+-- should fail
+PREPARE q1 AS SELECT 2;
+ERROR:  prepared statement "q1" already exists, and plansource is not the same.
+-- should succeed
+DEALLOCATE q1;
+PREPARE q1 AS SELECT 2;
+EXECUTE q1;
+ ?column? 
+----------
+        2
+(1 row)
+
+PREPARE q2 AS SELECT 2 AS b;
+SELECT name, statement, parameter_types FROM pg_prepared_statements ORDER BY name;
+ name |          statement           | parameter_types 
+------+------------------------------+-----------------
+ q1   | PREPARE q1 AS SELECT 2;      | {}
+ q2   | PREPARE q2 AS SELECT 2 AS b; | {}
+(2 rows)
+
+-- sql92 syntax
+DEALLOCATE PREPARE q1;
+SELECT name, statement, parameter_types FROM pg_prepared_statements;
+ name |          statement           | parameter_types 
+------+------------------------------+-----------------
+ q2   | PREPARE q2 AS SELECT 2 AS b; | {}
+(1 row)
+
+DEALLOCATE PREPARE q2;
+-- the view should return the empty set again
+SELECT name, statement, parameter_types FROM pg_prepared_statements;
+ name | statement | parameter_types 
+------+-----------+-----------------
+(0 rows)
+
+-- parameterized queries
+PREPARE q2(text) AS
+	SELECT datname, datistemplate, datallowconn
+	FROM pg_catalog.pg_database WHERE datname = $1;
+EXECUTE q2('postgres');
+ datname  | datistemplate | datallowconn 
+----------+---------------+--------------
+ postgres | f             | t
+(1 row)
+
+PREPARE q3(text, int, float, boolean, oid, smallint) AS
+	SELECT * FROM tenk1 WHERE string4 = $1 AND (four = $2 OR
+	ten = $3::bigint OR true = $4 OR oid = $5 OR odd = $6::int)
+	ORDER BY unique1;
+EXECUTE q3('AAAAxx', 5::smallint, 10.5::float, false, 500::oid, 4::bigint);
+ unique1 | unique2 | two | four | ten | twenty | hundred | thousand | twothousand | fivethous | tenthous | odd | even | stringu1 | stringu2 | string4 
+---------+---------+-----+------+-----+--------+---------+----------+-------------+-----------+----------+-----+------+----------+----------+---------
+       2 |    2716 |   0 |    2 |   2 |      2 |       2 |        2 |           2 |         2 |        2 |   4 |    5 | CAAAAA   | MAEAAA   | AAAAxx
+     102 |     612 |   0 |    2 |   2 |      2 |       2 |      102 |         102 |       102 |      102 |   4 |    5 | YDAAAA   | OXAAAA   | AAAAxx
+     802 |    2908 |   0 |    2 |   2 |      2 |       2 |      802 |         802 |       802 |      802 |   4 |    5 | WEAAAA   | WHEAAA   | AAAAxx
+     902 |    1104 |   0 |    2 |   2 |      2 |       2 |      902 |         902 |       902 |      902 |   4 |    5 | SIAAAA   | MQBAAA   | AAAAxx
+    1002 |    2580 |   0 |    2 |   2 |      2 |       2 |        2 |        1002 |      1002 |     1002 |   4 |    5 | OMAAAA   | GVDAAA   | AAAAxx
+    1602 |    8148 |   0 |    2 |   2 |      2 |       2 |      602 |        1602 |      1602 |     1602 |   4 |    5 | QJAAAA   | KBMAAA   | AAAAxx
+    1702 |    7940 |   0 |    2 |   2 |      2 |       2 |      702 |        1702 |      1702 |     1702 |   4 |    5 | MNAAAA   | KTLAAA   | AAAAxx
+    2102 |    6184 |   0 |    2 |   2 |      2 |       2 |      102 |         102 |      2102 |     2102 |   4 |    5 | WCAAAA   | WDJAAA   | AAAAxx
+    2202 |    8028 |   0 |    2 |   2 |      2 |       2 |      202 |         202 |      2202 |     2202 |   4 |    5 | SGAAAA   | UWLAAA   | AAAAxx
+    2302 |    7112 |   0 |    2 |   2 |      2 |       2 |      302 |         302 |      2302 |     2302 |   4 |    5 | OKAAAA   | ONKAAA   | AAAAxx
+    2902 |    6816 |   0 |    2 |   2 |      2 |       2 |      902 |         902 |      2902 |     2902 |   4 |    5 | QHAAAA   | ECKAAA   | AAAAxx
+    3202 |    7128 |   0 |    2 |   2 |      2 |       2 |      202 |        1202 |      3202 |     3202 |   4 |    5 | ETAAAA   | EOKAAA   | AAAAxx
+    3902 |    9224 |   0 |    2 |   2 |      2 |       2 |      902 |        1902 |      3902 |     3902 |   4 |    5 | CUAAAA   | UQNAAA   | AAAAxx
+    4102 |    7676 |   0 |    2 |   2 |      2 |       2 |      102 |         102 |      4102 |     4102 |   4 |    5 | UBAAAA   | GJLAAA   | AAAAxx
+    4202 |    6628 |   0 |    2 |   2 |      2 |       2 |      202 |         202 |      4202 |     4202 |   4 |    5 | QFAAAA   | YUJAAA   | AAAAxx
+    4502 |     412 |   0 |    2 |   2 |      2 |       2 |      502 |         502 |      4502 |     4502 |   4 |    5 | ERAAAA   | WPAAAA   | AAAAxx
+    4702 |    2520 |   0 |    2 |   2 |      2 |       2 |      702 |         702 |      4702 |     4702 |   4 |    5 | WYAAAA   | YSDAAA   | AAAAxx
+    4902 |    1600 |   0 |    2 |   2 |      2 |       2 |      902 |         902 |      4902 |     4902 |   4 |    5 | OGAAAA   | OJCAAA   | AAAAxx
+    5602 |    8796 |   0 |    2 |   2 |      2 |       2 |      602 |        1602 |       602 |     5602 |   4 |    5 | MHAAAA   | IANAAA   | AAAAxx
+    6002 |    8932 |   0 |    2 |   2 |      2 |       2 |        2 |           2 |      1002 |     6002 |   4 |    5 | WWAAAA   | OFNAAA   | AAAAxx
+    6402 |    3808 |   0 |    2 |   2 |      2 |       2 |      402 |         402 |      1402 |     6402 |   4 |    5 | GMAAAA   | MQFAAA   | AAAAxx
+    7602 |    1040 |   0 |    2 |   2 |      2 |       2 |      602 |        1602 |      2602 |     7602 |   4 |    5 | KGAAAA   | AOBAAA   | AAAAxx
+    7802 |    7508 |   0 |    2 |   2 |      2 |       2 |      802 |        1802 |      2802 |     7802 |   4 |    5 | COAAAA   | UCLAAA   | AAAAxx
+    8002 |    9980 |   0 |    2 |   2 |      2 |       2 |        2 |           2 |      3002 |     8002 |   4 |    5 | UVAAAA   | WTOAAA   | AAAAxx
+    8302 |    7800 |   0 |    2 |   2 |      2 |       2 |      302 |         302 |      3302 |     8302 |   4 |    5 | IHAAAA   | AOLAAA   | AAAAxx
+    8402 |    5708 |   0 |    2 |   2 |      2 |       2 |      402 |         402 |      3402 |     8402 |   4 |    5 | ELAAAA   | OLIAAA   | AAAAxx
+    8602 |    5440 |   0 |    2 |   2 |      2 |       2 |      602 |         602 |      3602 |     8602 |   4 |    5 | WSAAAA   | GBIAAA   | AAAAxx
+    9502 |    1812 |   0 |    2 |   2 |      2 |       2 |      502 |        1502 |      4502 |     9502 |   4 |    5 | MBAAAA   | SRCAAA   | AAAAxx
+    9602 |    9972 |   0 |    2 |   2 |      2 |       2 |      602 |        1602 |      4602 |     9602 |   4 |    5 | IFAAAA   | OTOAAA   | AAAAxx
+(29 rows)
+
+-- too few params
+EXECUTE q3('bool');
+ERROR:  wrong number of parameters for prepared statement "q3"
+DETAIL:  Expected 6 parameters but got 1.
+-- too many params
+EXECUTE q3('bytea', 5::smallint, 10.5::float, false, 500::oid, 4::bigint, true);
+ERROR:  wrong number of parameters for prepared statement "q3"
+DETAIL:  Expected 6 parameters but got 7.
+-- wrong param types
+EXECUTE q3(5::smallint, 10.5::float, false, 500::oid, 4::bigint, 'bytea');
+ERROR:  parameter $3 of type boolean cannot be coerced to the expected type double precision
+HINT:  You will need to rewrite or cast the expression.
+-- invalid type
+PREPARE q4(nonexistenttype) AS SELECT $1;
+ERROR:  type "nonexistenttype" does not exist
+LINE 1: PREPARE q4(nonexistenttype) AS SELECT $1;
+                   ^
+-- create table as execute
+PREPARE q5(int, text) AS
+	SELECT * FROM tenk1 WHERE unique1 = $1 OR stringu1 = $2
+	ORDER BY unique1;
+CREATE TEMPORARY TABLE q5_prep_results AS EXECUTE q5(200, 'DTAAAA');
+ERROR:  CREATE TABLE AS EXECUTE not yet supported
+SELECT * FROM q5_prep_results;
+ERROR:  relation "q5_prep_results" does not exist
+LINE 1: SELECT * FROM q5_prep_results;
+                      ^
+-- unknown or unspecified parameter types: should succeed
+PREPARE q6 AS
+    SELECT * FROM tenk1 WHERE unique1 = $1 AND stringu1 = $2;
+PREPARE q7(unknown) AS
+    SELECT * FROM road WHERE thepath = $1;
+SELECT name, statement, parameter_types FROM pg_prepared_statements
+    ORDER BY name;
+ name |                              statement                              |                    parameter_types                     
+------+---------------------------------------------------------------------+--------------------------------------------------------
+ q2   | PREPARE q2(text) AS                                                +| {text}
+      |         SELECT datname, datistemplate, datallowconn                +| 
+      |         FROM pg_catalog.pg_database WHERE datname = $1;             | 
+ q3   | PREPARE q3(text, int, float, boolean, oid, smallint) AS            +| {text,integer,"double precision",boolean,oid,smallint}
+      |         SELECT * FROM tenk1 WHERE string4 = $1 AND (four = $2 OR   +| 
+      |         ten = $3::bigint OR true = $4 OR oid = $5 OR odd = $6::int)+| 
+      |         ORDER BY unique1;                                           | 
+ q5   | PREPARE q5(int, text) AS                                           +| {integer,text}
+      |         SELECT * FROM tenk1 WHERE unique1 = $1 OR stringu1 = $2    +| 
+      |         ORDER BY unique1;                                           | 
+ q6   | PREPARE q6 AS                                                      +| {integer,name}
+      |     SELECT * FROM tenk1 WHERE unique1 = $1 AND stringu1 = $2;       | 
+ q7   | PREPARE q7(unknown) AS                                             +| {path}
+      |     SELECT * FROM road WHERE thepath = $1;                          | 
+(5 rows)
+
+-- test DEALLOCATE ALL;
+DEALLOCATE ALL;
+SELECT name, statement, parameter_types FROM pg_prepared_statements
+    ORDER BY name;
+ name | statement | parameter_types 
+------+-----------+-----------------
+(0 rows)
+
+--
+-- search_path test
+--
+CREATE DATABASE search_path_db;
+\c search_path_db
+CREATE TABLE tbl_test(
+    id int primary key,
+    name  varchar(30)
+);
+INSERT INTO tbl_test VALUES (1, 'public 01');
+INSERT INTO tbl_test VALUES (2, 'public 02');
+INSERT INTO tbl_test VALUES (3, 'public 03');
+select * from tbl_test order by id;
+ id |   name    
+----+-----------
+  1 | public 01
+  2 | public 02
+  3 | public 03
+(3 rows)
+
+-- create schema
+CREATE SCHEMA sch01;
+CREATE SCHEMA sch02;
+-- set schema to sch01
+SET search_path TO sch01;
+CREATE TABLE IF NOT EXISTS tbl_test(
+    id int primary key,
+    name  varchar(30)
+);
+BEGIN;
+INSERT INTO tbl_test VALUES (11, 'sch01 11');
+INSERT INTO tbl_test VALUES (12, 'sch01 12');
+INSERT INTO tbl_test VALUES (13, 'sch01 13');
+COMMIT;
+select * from tbl_test order by id;
+ id |   name   
+----+----------
+ 11 | sch01 11
+ 12 | sch01 12
+ 13 | sch01 13
+(3 rows)
+
+-- set schema to sch02
+SET search_path TO sch02;
+CREATE TABLE IF NOT EXISTS tbl_test(
+    id int primary key,
+    name  varchar(30)
+);
+BEGIN;
+INSERT INTO tbl_test VALUES (21, 'sch02 21');
+INSERT INTO tbl_test VALUES (22, 'sch02 22');
+INSERT INTO tbl_test VALUES (23, 'sch02 23');
+ROLLBACK;
+select * from tbl_test order by id;
+ id | name 
+----+------
+(0 rows)
+
+-- set schema to sch01
+SET search_path = sch01;
+SHOW search_path;
+ search_path 
+-------------
+ sch01
+(1 row)
+
+PREPARE ps_test_insert (int, varchar) AS INSERT INTO tbl_test VALUES ($1, $2);;
+PREPARE ps_test_select (int) AS select * from tbl_test where id < $1 order by id;
+BEGIN;
+EXECUTE ps_test_insert(14, 'sch01 14');
+EXECUTE ps_test_select(50);
+ id |   name   
+----+----------
+ 11 | sch01 11
+ 12 | sch01 12
+ 13 | sch01 13
+ 14 | sch01 14
+(4 rows)
+
+ROLLBACK;
+EXECUTE ps_test_select(50);
+ id |   name   
+----+----------
+ 11 | sch01 11
+ 12 | sch01 12
+ 13 | sch01 13
+(3 rows)
+
+SHOW search_path;
+ search_path 
+-------------
+ sch01
+(1 row)
+
+BEGIN;
+EXECUTE ps_test_insert(15, 'sch01 15');
+EXECUTE ps_test_select(50);
+ id |   name   
+----+----------
+ 11 | sch01 11
+ 12 | sch01 12
+ 13 | sch01 13
+ 15 | sch01 15
+(4 rows)
+
+COMMIT;
+EXECUTE ps_test_select(50);
+ id |   name   
+----+----------
+ 11 | sch01 11
+ 12 | sch01 12
+ 13 | sch01 13
+ 15 | sch01 15
+(4 rows)
+
+SHOW search_path;
+ search_path 
+-------------
+ sch01
+(1 row)
+
+EXECUTE ps_test_insert(16, 'sch01 16');
+EXECUTE ps_test_select(50);
+ id |   name   
+----+----------
+ 11 | sch01 11
+ 12 | sch01 12
+ 13 | sch01 13
+ 15 | sch01 15
+ 16 | sch01 16
+(5 rows)
+
+SHOW search_path;
+ search_path 
+-------------
+ sch01
+(1 row)
+
+DEALLOCATE PREPARE ps_test_insert;
+DEALLOCATE PREPARE ps_test_select;
+-- test insert fqs in prepare
+CREATE TABLE insert_fsq_test(id serial primary key, name  varchar(30));
+PREPARE ps_test_insert (varchar) AS INSERT INTO insert_fsq_test (name) VALUES ($1);
+EXECUTE ps_test_insert('1');
+EXECUTE ps_test_insert('2');
+EXECUTE ps_test_insert('3');
+EXECUTE ps_test_insert('4');
+EXECUTE ps_test_insert('5');
+SELECT * from insert_fsq_test order by id;
+ id | name 
+----+------
+  1 | 1
+  2 | 2
+  3 | 3
+  4 | 4
+  5 | 5
+(5 rows)
+
+DEALLOCATE PREPARE ps_test_insert;
+DROP TABLE insert_fsq_test cascade;
+-- test non-distribute key with function, no need rewrite
+CREATE TABLE insert_fsq_test1(v int, w int);
+CREATE SEQUENCE test_seq;
+PREPARE ps_test_insert1(int) AS INSERT INTO insert_fsq_test1 values($1, nextval('test_seq'));
+EXECUTE ps_test_insert1(1);
+EXECUTE ps_test_insert1(2);
+EXECUTE ps_test_insert1(3);
+EXECUTE ps_test_insert1(4);
+EXECUTE ps_test_insert1(5);
+SELECT * from insert_fsq_test1 order by v;
+ v | w 
+---+---
+ 1 | 1
+ 2 | 2
+ 3 | 3
+ 4 | 4
+ 5 | 5
+(5 rows)
+
+DEALLOCATE PREPARE ps_test_insert1;
+DROP TABLE insert_fsq_test1 cascade;
+--
+-- gb18030 test
+--
+CREATE DATABASE gb18030_db template template0_ora encoding = gb18030 LC_COLLATE = 'zh_CN.gb18030' LC_CTYPE = 'zh_CN.gb18030';
+\c gb18030_db;
+-- set client_encoding
+SET client_encoding = utf8;
+CREATE TABLE tbl_test(id int primary key, name varchar(3));
+INSERT INTO tbl_test VALUES (3, '张三');
+BEGIN;
+INSERT INTO tbl_test VALUES (4, '李四');
+INSERT INTO tbl_test VALUES (5, '王五');
+COMMIT;
+BEGIN;
+INSERT INTO tbl_test VALUES (6, '丁六');
+INSERT INTO tbl_test VALUES (7, '方七');
+ROLLBACK;
+SELECT * FROM tbl_test ORDER BY id;
+ ID | NAME 
+----+------
+  3 | 张三
+  4 | 李四
+  5 | 王五
+(3 rows)
+
+SHOW client_encoding;
+ client_encoding 
+-----------------
+ UTF8
+(1 row)
+
+PREPARE ps_test (int) AS select * from tbl_test where id < $1 order by id;
+EXECUTE ps_test(20);
+ ID | NAME 
+----+------
+  3 | 张三
+  4 | 李四
+  5 | 王五
+(3 rows)
+
+SHOW client_encoding;
+ client_encoding 
+-----------------
+ UTF8
+(1 row)
+
+EXECUTE ps_test(20);
+ ID | NAME 
+----+------
+  3 | 张三
+  4 | 李四
+  5 | 王五
+(3 rows)
+
+SHOW client_encoding;
+ client_encoding 
+-----------------
+ UTF8
+(1 row)
+
+EXECUTE ps_test(20);
+ ID | NAME 
+----+------
+  3 | 张三
+  4 | 李四
+  5 | 王五
+(3 rows)
+
+SHOW client_encoding;
+ client_encoding 
+-----------------
+ UTF8
+(1 row)
+
+DEALLOCATE PREPARE ps_test;
+
+drop table if exists INT8_TBL;
+NOTICE:  table "INT8_TBL" does not exist, skipping
+CREATE TABLE INT8_TBL(q1 int8, q2 int8);
+INSERT INTO INT8_TBL VALUES('+4567890123456789','-4567890123456789');
+CREATE TEMP TABLE pcachetest AS SELECT * FROM int8_tbl;
+PREPARE prepstmt AS SELECT * FROM pcachetest;
+EXECUTE prepstmt;
+        Q1        |        Q2         
+------------------+-------------------
+ 4567890123456789 | -4567890123456789
+(1 row)
+
+DROP TABLE pcachetest;
+EXECUTE prepstmt;
+ERROR:  relation "PCACHETEST" does not exist
+CREATE TEMP TABLE pcachetest AS SELECT * FROM int8_tbl ORDER BY 2;
+EXECUTE prepstmt;
+        Q1        |        Q2         
+------------------+-------------------
+ 4567890123456789 | -4567890123456789
+(1 row)
+
+DEALLOCATE PREPARE prepstmt;
+DROP TABLE pcachetest;
+DROP TABLE INT8_TBL;
+-- bugfix(ID116410473): gts optimize cause error
+DROP TABLE IF EXISTS gts_opt_test_tbl;
+NOTICE:  table "GTS_OPT_TEST_TBL" does not exist, skipping
+CREATE TABLE gts_opt_test_tbl(f1 int,f2 float,f3 interval,f4 int) distribute by shard(f1,f2,f3);
+INSERT INTO gts_opt_test_tbl values (1,1.11,'1 day'::interval,0);
+INSERT INTO gts_opt_test_tbl values (2,2.22,'2 days'::interval,0);
+INSERT INTO gts_opt_test_tbl values (3,3.33,'3 days'::interval,0);
+SELECT f1,f2,f4 FROM gts_opt_test_tbl ORDER BY 1,2,3;
+ F1 |  F2  | F4 
+----+------+----
+  1 | 1.11 |  0
+  2 | 2.22 |  0
+  3 | 3.33 |  0
+(3 rows)
+
+PREPARE gts_opt_test_tbl_update(int, int, int) AS UPDATE gts_opt_test_tbl SET f4=f4+1 WHERE f1=$1 AND f2=($2 % 200)*1.11 AND f3=$3*'1 day'::interval;
+EXECUTE gts_opt_test_tbl_update(1, 1, 1);
+SELECT f1,f2,f4 FROM gts_opt_test_tbl ORDER BY 1,2,3;
+ F1 |  F2  | F4 
+----+------+----
+  1 | 1.11 |  1
+  2 | 2.22 |  0
+  3 | 3.33 |  0
+(3 rows)
+
+DEALLOCATE PREPARE gts_opt_test_tbl_update;
+DROP TABLE gts_opt_test_tbl;

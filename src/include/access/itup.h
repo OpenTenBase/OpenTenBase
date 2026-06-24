@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * itup.h
- *      POSTGRES index tuple definitions.
+ *	  POSTGRES index tuple definitions.
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -34,28 +34,28 @@
 
 typedef struct IndexTupleData
 {
-    ItemPointerData t_tid;        /* reference TID to heap tuple */
+	ItemPointerData t_tid;		/* reference TID to heap tuple */
 
-    /* ---------------
-     * t_info is laid out in the following fashion:
-     *
-     * 15th (high) bit: has nulls
-     * 14th bit: has var-width attributes
-     * 13th bit: unused
-     * 12-0 bit: size of tuple
-     * ---------------
-     */
+	/* ---------------
+	 * t_info is laid out in the following fashion:
+	 *
+	 * 15th (high) bit: has nulls
+	 * 14th bit: has var-width attributes
+	 * 13th bit: unused
+	 * 12-0 bit: size of tuple
+	 * ---------------
+	 */
 
-    unsigned short t_info;        /* various info about tuple */
+	unsigned short t_info;		/* various info about tuple */
 
-} IndexTupleData;                /* MORE DATA FOLLOWS AT END OF STRUCT */
+} IndexTupleData;				/* MORE DATA FOLLOWS AT END OF STRUCT */
 
 typedef IndexTupleData *IndexTuple;
 
 typedef struct IndexAttributeBitMapData
 {
-    bits8        bits[(INDEX_MAX_KEYS + 8 - 1) / 8];
-}            IndexAttributeBitMapData;
+	bits8		bits[(INDEX_MAX_KEYS + 8 - 1) / 8];
+}			IndexAttributeBitMapData;
 
 typedef IndexAttributeBitMapData * IndexAttributeBitMap;
 
@@ -63,13 +63,15 @@ typedef IndexAttributeBitMapData * IndexAttributeBitMap;
  * t_info manipulation macros
  */
 #define INDEX_SIZE_MASK 0x1FFF
+#define INDEX_AM_RESERVED_BIT 0x2000	/* reserved for index-AM specific
+										 * usage */
+
 /* bit 0x2000 is reserved for index-AM specific usage */
-#define INDEX_VAR_MASK    0x4000
+#define INDEX_VAR_MASK	0x4000
 #define INDEX_NULL_MASK 0x8000
 
-#define IndexTupleSize(itup)        ((Size) (((IndexTuple) (itup))->t_info & INDEX_SIZE_MASK))
-#define IndexTupleDSize(itup)        ((Size) ((itup).t_info & INDEX_SIZE_MASK))
-#define IndexTupleHasNulls(itup)    ((((IndexTuple) (itup))->t_info & INDEX_NULL_MASK))
+#define IndexTupleSize(itup)		((Size) ((itup)->t_info & INDEX_SIZE_MASK))
+#define IndexTupleHasNulls(itup)	((((IndexTuple) (itup))->t_info & INDEX_NULL_MASK))
 #define IndexTupleHasVarwidths(itup) ((((IndexTuple) (itup))->t_info & INDEX_VAR_MASK))
 
 
@@ -79,51 +81,51 @@ typedef IndexAttributeBitMapData * IndexAttributeBitMap;
  */
 #define IndexInfoFindDataOffset(t_info) \
 ( \
-    (!((t_info) & INDEX_NULL_MASK)) ? \
-    ( \
-        (Size)MAXALIGN(sizeof(IndexTupleData)) \
-    ) \
-    : \
-    ( \
-        (Size)MAXALIGN(sizeof(IndexTupleData) + sizeof(IndexAttributeBitMapData)) \
-    ) \
+	(!((t_info) & INDEX_NULL_MASK)) ? \
+	( \
+		(Size)MAXALIGN(sizeof(IndexTupleData)) \
+	) \
+	: \
+	( \
+		(Size)MAXALIGN(sizeof(IndexTupleData) + sizeof(IndexAttributeBitMapData)) \
+	) \
 )
 
 /* ----------------
- *        index_getattr
+ *		index_getattr
  *
- *        This gets called many times, so we macro the cacheable and NULL
- *        lookups, and call nocache_index_getattr() for the rest.
+ *		This gets called many times, so we macro the cacheable and NULL
+ *		lookups, and call nocache_index_getattr() for the rest.
  *
  * ----------------
  */
 #define index_getattr(tup, attnum, tupleDesc, isnull) \
 ( \
-    AssertMacro(PointerIsValid(isnull) && (attnum) > 0), \
-    *(isnull) = false, \
-    !IndexTupleHasNulls(tup) ? \
-    ( \
-        (tupleDesc)->attrs[(attnum)-1]->attcacheoff >= 0 ? \
-        ( \
-            fetchatt((tupleDesc)->attrs[(attnum)-1], \
-            (char *) (tup) + IndexInfoFindDataOffset((tup)->t_info) \
-            + (tupleDesc)->attrs[(attnum)-1]->attcacheoff) \
-        ) \
-        : \
-            nocache_index_getattr((tup), (attnum), (tupleDesc)) \
-    ) \
-    : \
-    ( \
-        (att_isnull((attnum)-1, (char *)(tup) + sizeof(IndexTupleData))) ? \
-        ( \
-            *(isnull) = true, \
-            (Datum)NULL \
-        ) \
-        : \
-        ( \
-            nocache_index_getattr((tup), (attnum), (tupleDesc)) \
-        ) \
-    ) \
+	AssertMacro(PointerIsValid(isnull) && (attnum) > 0), \
+	*(isnull) = false, \
+	!IndexTupleHasNulls(tup) ? \
+	( \
+		TupleDescAttr((tupleDesc), (attnum)-1)->attcacheoff >= 0 ? \
+		( \
+			fetchatt(TupleDescAttr((tupleDesc), (attnum)-1), \
+			(char *) (tup) + IndexInfoFindDataOffset((tup)->t_info) \
+			+ TupleDescAttr((tupleDesc), (attnum)-1)->attcacheoff) \
+		) \
+		: \
+			nocache_index_getattr((tup), (attnum), (tupleDesc)) \
+	) \
+	: \
+	( \
+		(att_isnull((attnum)-1, (char *)(tup) + sizeof(IndexTupleData))) ? \
+		( \
+			*(isnull) = true, \
+			(Datum)NULL \
+		) \
+		: \
+		( \
+			nocache_index_getattr((tup), (attnum), (tupleDesc)) \
+		) \
+	) \
 )
 
 /*
@@ -134,18 +136,18 @@ typedef IndexAttributeBitMapData * IndexAttributeBitMap;
  * must be maxaligned, and it must have an associated item pointer.
  */
 #define MinIndexTupleSize MAXALIGN(sizeof(IndexTupleData) + 1)
-#define MaxIndexTuplesPerPage    \
-    ((int) ((BLCKSZ - SizeOfPageHeaderData) / \
-            (MAXALIGN(sizeof(IndexTupleData) + 1) + sizeof(ItemIdData))))
+#define MaxIndexTuplesPerPage	\
+	((int) ((BLCKSZ - SizeOfPageHeaderData) / \
+			(MAXALIGN(sizeof(IndexTupleData) + 1) + sizeof(ItemIdData))))
 
 
 /* routines in indextuple.c */
 extern IndexTuple index_form_tuple(TupleDesc tupleDescriptor,
-                 Datum *values, bool *isnull);
+				 Datum *values, bool *isnull);
 extern Datum nocache_index_getattr(IndexTuple tup, int attnum,
-                      TupleDesc tupleDesc);
+					  TupleDesc tupleDesc);
 extern void index_deform_tuple(IndexTuple tup, TupleDesc tupleDescriptor,
-                   Datum *values, bool *isnull);
+				   Datum *values, bool *isnull);
 extern IndexTuple CopyIndexTuple(IndexTuple source);
 
-#endif                            /* ITUP_H */
+#endif							/* ITUP_H */

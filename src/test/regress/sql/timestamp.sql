@@ -228,6 +228,12 @@ SELECT '' AS to_char_10, to_char(d1, 'IYYY IYY IY I IW IDDD ID')
 SELECT '' AS to_char_11, to_char(d1, 'FMIYYY FMIYY FMIY FMI FMIW FMIDDD FMID')
    FROM TIMESTAMP_TBL ORDER BY d1;
 
+-- Roman months, with upper and lower case.
+SELECT i,
+       to_char(i * interval '1mon', 'rm'),
+       to_char(i * interval '1mon', 'RM')
+    FROM generate_series(-13, 13) i;
+
 -- timestamp numeric fields constructor
 SELECT make_timestamp(2014,12,28,6,30,45.887);
 
@@ -244,3 +250,28 @@ INSERT INTO testnow SELECT now();
 SELECT COUNT(DISTINCT t) FROM testnow;
 ROLLBACK;
 DROP TABLE testnow;
+
+
+SELECT year('2024-04-11 18:00:00');
+SELECT year('2024-04-11 18:00:00'::timestamptz);
+SELECT year('2024-04-11 18:00:00'::timestamp);
+SELECT day('2024-04-11 18:00:00');
+SELECT day('2024-04-11 18:00:00'::timestamptz);
+SELECT day('2024-04-11 18:00:00'::timestamp);
+SELECT unix_timestamp('2024-04-11 18:00:00');
+SELECT unix_timestamp('2024-04-11 18:00:00'::timestamptz);
+SELECT unix_timestamp('2024-04-11 18:00:00'::timestamp);
+--select unix_timestamp();
+
+set enable_lightweight_ora_syntax = on;
+SELECT date_format('2021-02-20 18:10:15', '%Y%m');
+SELECT date_format('2021-02-20 18:10:15', '%Y%m%d');
+SELECT date_format('2009-10-04 22:23:00', '%M %D %W');
+SELECT date_format('2021-02-20 08:30:45', '%Y-%m-%d %H:%i:%S');
+SELECT date_format('2021-02-20 18:10:15', '%r-%T');
+SELECT date_format('2021-02-20 18:10:15+08'::timestamptz, '%Y%m');
+SELECT date_format('2021-02-20 18:10:15+08'::timestamptz, '%Y%m%d');
+SELECT date_format('2009-10-04 22:23:00+08'::timestamptz, '%M %D %W');
+SELECT date_format('2021-02-20 08:30:45+08'::timestamptz, '%Y-%m-%d %H:%i:%S');
+SELECT date_format('2021-02-20 18:10:15+08'::timestamptz, '%r-%T');
+set enable_lightweight_ora_syntax = off;

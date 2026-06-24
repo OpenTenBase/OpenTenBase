@@ -1,14 +1,11 @@
 /*-------------------------------------------------------------------------
  *
  * xml.c
- *      XML data type support.
+ *	  XML data type support.
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
- *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
  *
  * src/backend/utils/adt/xml.c
  *
@@ -47,33 +44,11 @@
 /* #define USE_LIBXMLCONTEXT */
 
 #include "postgres.h"
-
-#ifdef USE_LIBXML
-#include <libxml/chvalid.h>
-#include <libxml/parser.h>
-#include <libxml/parserInternals.h>
-#include <libxml/tree.h>
-#include <libxml/uri.h>
-#include <libxml/xmlerror.h>
-#include <libxml/xmlversion.h>
-#include <libxml/xmlwriter.h>
-#include <libxml/xpath.h>
-#include <libxml/xpathInternals.h>
-
-/*
- * We used to check for xmlStructuredErrorContext via a configure test; but
- * that doesn't work on Windows, so instead use this grottier method of
- * testing the library version number.
- */
-#if LIBXML_VERSION >= 20704
-#define HAVE_XMLSTRUCTUREDERRORCONTEXT 1
-#endif
-#endif                            /* USE_LIBXML */
-
 #include "access/htup_details.h"
 #include "catalog/namespace.h"
 #include "catalog/pg_class.h"
 #include "catalog/pg_type.h"
+#include "catalog/pg_namespace.h"
 #include "commands/dbcommands.h"
 #include "executor/spi.h"
 #include "executor/tablefunc.h"
@@ -93,37 +68,42 @@
 #include "utils/rel.h"
 #include "utils/syscache.h"
 #include "utils/xml.h"
+#ifdef _PG_ORCL_
+#include <stdio.h>
+#endif
 
 
 /* GUC variables */
-int            xmlbinary;
-int            xmloption;
+int			xmlbinary;
+int			xmloption;
+
+int			autoxact_mode;
 
 #ifdef USE_LIBXML
 
 /* random number to identify PgXmlErrorContext */
-#define ERRCXT_MAGIC    68275028
+#define ERRCXT_MAGIC	68275028
 
 struct PgXmlErrorContext
 {
-    int            magic;
-    /* strictness argument passed to pg_xml_init */
-    PgXmlStrictness strictness;
-    /* current error status and accumulated message, if any */
-    bool        err_occurred;
-    StringInfoData err_buf;
-    /* previous libxml error handling state (saved by pg_xml_init) */
-    xmlStructuredErrorFunc saved_errfunc;
-    void       *saved_errcxt;
-    /* previous libxml entity handler (saved by pg_xml_init) */
-    xmlExternalEntityLoader saved_entityfunc;
+	int			magic;
+	/* strictness argument passed to pg_xml_init */
+	PgXmlStrictness strictness;
+	/* current error status and accumulated message, if any */
+	bool		err_occurred;
+	StringInfoData err_buf;
+	/* previous libxml error handling state (saved by pg_xml_init) */
+	xmlStructuredErrorFunc saved_errfunc;
+	void	   *saved_errcxt;
+	/* previous libxml entity handler (saved by pg_xml_init) */
+	xmlExternalEntityLoader saved_entityfunc;
 };
 
 static xmlParserInputPtr xmlPgEntityLoader(const char *URL, const char *ID,
-                  xmlParserCtxtPtr ctxt);
+				  xmlParserCtxtPtr ctxt);
 static void xml_errorHandler(void *data, xmlErrorPtr error);
 static void xml_ereport_by_code(int level, int sqlcode,
-                    const char *msg, int errcode);
+					const char *msg, int errcode);
 static void chopStringInfoNewlines(StringInfo str);
 static void appendStringInfoLineSeparator(StringInfo str);
 
@@ -136,93 +116,86 @@ static void *xml_palloc(size_t size);
 static void *xml_repalloc(void *ptr, size_t size);
 static void xml_pfree(void *ptr);
 static char *xml_pstrdup(const char *string);
-#endif                            /* USE_LIBXMLCONTEXT */
+#endif							/* USE_LIBXMLCONTEXT */
 
 static xmlChar *xml_text2xmlChar(text *in);
-static int parse_xml_decl(const xmlChar *str, size_t *lenp,
-               xmlChar **version, xmlChar **encoding, int *standalone);
 static bool print_xml_decl(StringInfo buf, const xmlChar *version,
-               pg_enc encoding, int standalone);
-static xmlDocPtr xml_parse(text *data, XmlOptionType xmloption_arg,
-          bool preserve_whitespace, int encoding);
+			   pg_enc encoding, int standalone);
+
 static text *xml_xmlnodetoxmltype(xmlNodePtr cur, PgXmlErrorContext *xmlerrcxt);
-static int xml_xpathobjtoxmlarray(xmlXPathObjectPtr xpathobj,
-                       ArrayBuildState *astate,
-                       PgXmlErrorContext *xmlerrcxt);
-static xmlChar *pg_xmlCharStrndup(char *str, size_t len);
-#endif                            /* USE_LIBXML */
+#endif							/* USE_LIBXML */
 
 static void xmldata_root_element_start(StringInfo result, const char *eltname,
-                           const char *xmlschema, const char *targetns,
-                           bool top_level);
+						   const char *xmlschema, const char *targetns,
+						   bool top_level);
 static void xmldata_root_element_end(StringInfo result, const char *eltname);
 static StringInfo query_to_xml_internal(const char *query, char *tablename,
-                      const char *xmlschema, bool nulls, bool tableforest,
-                      const char *targetns, bool top_level);
+					  const char *xmlschema, bool nulls, bool tableforest,
+					  const char *targetns, bool top_level);
 static const char *map_sql_table_to_xmlschema(TupleDesc tupdesc, Oid relid,
-                           bool nulls, bool tableforest, const char *targetns);
+						   bool nulls, bool tableforest, const char *targetns);
 static const char *map_sql_schema_to_xmlschema_types(Oid nspid,
-                                  List *relid_list, bool nulls,
-                                  bool tableforest, const char *targetns);
+								  List *relid_list, bool nulls,
+								  bool tableforest, const char *targetns);
 static const char *map_sql_catalog_to_xmlschema_types(List *nspid_list,
-                                   bool nulls, bool tableforest,
-                                   const char *targetns);
+								   bool nulls, bool tableforest,
+								   const char *targetns);
 static const char *map_sql_type_to_xml_name(Oid typeoid, int typmod);
 static const char *map_sql_typecoll_to_xmlschema_types(List *tupdesc_list);
 static const char *map_sql_type_to_xmlschema_type(Oid typeoid, int typmod);
 static void SPI_sql_row_to_xmlelement(uint64 rownum, StringInfo result,
-                          char *tablename, bool nulls, bool tableforest,
-                          const char *targetns, bool top_level);
+						  char *tablename, bool nulls, bool tableforest,
+						  const char *targetns, bool top_level);
 
 /* XMLTABLE support */
 #ifdef USE_LIBXML
 /* random number to identify XmlTableContext */
-#define XMLTABLE_CONTEXT_MAGIC    46922182
+#define XMLTABLE_CONTEXT_MAGIC	46922182
 typedef struct XmlTableBuilderData
 {
-    int            magic;
-    int            natts;
-    long int    row_count;
-    PgXmlErrorContext *xmlerrcxt;
-    xmlParserCtxtPtr ctxt;
-    xmlDocPtr    doc;
-    xmlXPathContextPtr xpathcxt;
-    xmlXPathCompExprPtr xpathcomp;
-    xmlXPathObjectPtr xpathobj;
-    xmlXPathCompExprPtr *xpathscomp;
+	int			magic;
+	int			natts;
+	long int	row_count;
+	PgXmlErrorContext *xmlerrcxt;
+	xmlParserCtxtPtr ctxt;
+	xmlDocPtr	doc;
+	xmlXPathContextPtr xpathcxt;
+	xmlXPathCompExprPtr xpathcomp;
+	xmlXPathObjectPtr xpathobj;
+	xmlXPathCompExprPtr *xpathscomp;
 } XmlTableBuilderData;
 #endif
 
 static void XmlTableInitOpaque(struct TableFuncScanState *state, int natts);
 static void XmlTableSetDocument(struct TableFuncScanState *state, Datum value);
 static void XmlTableSetNamespace(struct TableFuncScanState *state, char *name,
-                     char *uri);
+					 char *uri);
 static void XmlTableSetRowFilter(struct TableFuncScanState *state, char *path);
 static void XmlTableSetColumnFilter(struct TableFuncScanState *state,
-                        char *path, int colnum);
+						char *path, int colnum);
 static bool XmlTableFetchRow(struct TableFuncScanState *state);
 static Datum XmlTableGetValue(struct TableFuncScanState *state, int colnum,
-                 Oid typid, int32 typmod, bool *isnull);
+				 Oid typid, int32 typmod, bool *isnull);
 static void XmlTableDestroyOpaque(struct TableFuncScanState *state);
 
 const TableFuncRoutine XmlTableRoutine =
 {
-    XmlTableInitOpaque,
-    XmlTableSetDocument,
-    XmlTableSetNamespace,
-    XmlTableSetRowFilter,
-    XmlTableSetColumnFilter,
-    XmlTableFetchRow,
-    XmlTableGetValue,
-    XmlTableDestroyOpaque
+	XmlTableInitOpaque,
+	XmlTableSetDocument,
+	XmlTableSetNamespace,
+	XmlTableSetRowFilter,
+	XmlTableSetColumnFilter,
+	XmlTableFetchRow,
+	XmlTableGetValue,
+	XmlTableDestroyOpaque
 };
 
 #define NO_XML_SUPPORT() \
-    ereport(ERROR, \
-            (errcode(ERRCODE_FEATURE_NOT_SUPPORTED), \
-             errmsg("unsupported XML feature"), \
-             errdetail("This functionality requires the server to be built with libxml support."), \
-             errhint("You need to rebuild PostgreSQL using --with-libxml.")))
+	ereport(ERROR, \
+			(errcode(ERRCODE_FEATURE_NOT_SUPPORTED), \
+			 errmsg("unsupported XML feature"), \
+			 errdetail("This functionality requires the server to be built with libxml support."), \
+			 errhint("You need to rebuild PostgreSQL using --with-libxml.")))
 
 
 /* from SQL/XML:2008 section 4.9 */
@@ -236,14 +209,14 @@ const TableFuncRoutine XmlTableRoutine =
 static int
 xmlChar_to_encoding(const xmlChar *encoding_name)
 {
-    int            encoding = pg_char_to_encoding((const char *) encoding_name);
+	int			encoding = pg_char_to_encoding((const char *) encoding_name);
 
-    if (encoding < 0)
-        ereport(ERROR,
-                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-                 errmsg("invalid encoding name \"%s\"",
-                        (const char *) encoding_name)));
-    return encoding;
+	if (encoding < 0)
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				 errmsg("invalid encoding name \"%s\"",
+						(const char *) encoding_name)));
+	return encoding;
 }
 #endif
 
@@ -258,24 +231,31 @@ xmlChar_to_encoding(const xmlChar *encoding_name)
 Datum
 xml_in(PG_FUNCTION_ARGS)
 {
+	char	   *s = PG_GETARG_CSTRING(0);
+	xmltype    *vardata;
+	xmlDocPtr	doc;
+	bool		need_check = true;
+
+	vardata = (xmltype *) cstring_to_text(s);
+
+	if (!PG_ARGISNULL(3))
+		need_check = PG_GETARG_BOOL(3);
+
+	/*
+	 * Parse the data to check if it is well-formed XML data.  Assume that
+	 * ERROR occurred if parsing failed.
+	 */
+	if (need_check)
+	{
+		doc = xml_parse(vardata, xmloption, true, GetDatabaseEncoding(), true);
+		xmlFreeDoc(doc);
+	}
+
+	PG_RETURN_XML_P(vardata);
 #ifdef USE_LIBXML
-    char       *s = PG_GETARG_CSTRING(0);
-    xmltype    *vardata;
-    xmlDocPtr    doc;
-
-    vardata = (xmltype *) cstring_to_text(s);
-
-    /*
-     * Parse the data to check if it is well-formed XML data.  Assume that
-     * ERROR occurred if parsing failed.
-     */
-    doc = xml_parse(vardata, xmloption, true, GetDatabaseEncoding());
-    xmlFreeDoc(doc);
-
-    PG_RETURN_XML_P(vardata);
 #else
-    NO_XML_SUPPORT();
-    return 0;
+	NO_XML_SUPPORT();
+	return 0;
 #endif
 }
 
@@ -293,58 +273,58 @@ xml_in(PG_FUNCTION_ARGS)
 static char *
 xml_out_internal(xmltype *x, pg_enc target_encoding)
 {
-    char       *str = text_to_cstring((text *) x);
+	char	   *str = text_to_cstring((text *) x);
 
 #ifdef USE_LIBXML
-    size_t        len = strlen(str);
-    xmlChar    *version;
-    int            standalone;
-    int            res_code;
+	size_t		len = strlen(str);
+	xmlChar    *version;
+	int			standalone;
+	int			res_code;
 
-    if ((res_code = parse_xml_decl((xmlChar *) str,
-                                   &len, &version, NULL, &standalone)) == 0)
-    {
-        StringInfoData buf;
+	if ((res_code = parse_xml_decl((xmlChar *) str,
+								   &len, &version, NULL, &standalone)) == 0)
+	{
+		StringInfoData buf;
 
-        initStringInfo(&buf);
+		initStringInfo(&buf);
 
-        if (!print_xml_decl(&buf, version, target_encoding, standalone))
-        {
-            /*
-             * If we are not going to produce an XML declaration, eat a single
-             * newline in the original string to prevent empty first lines in
-             * the output.
-             */
-            if (*(str + len) == '\n')
-                len += 1;
-        }
-        appendStringInfoString(&buf, str + len);
+		if (!print_xml_decl(&buf, version, target_encoding, standalone))
+		{
+			/*
+			 * If we are not going to produce an XML declaration, eat a single
+			 * newline in the original string to prevent empty first lines in
+			 * the output.
+			 */
+			if (*(str + len) == '\n')
+				len += 1;
+		}
+		appendStringInfoString(&buf, str + len);
 
-        pfree(str);
+		pfree(str);
 
-        return buf.data;
-    }
+		return buf.data;
+	}
 
-    xml_ereport_by_code(WARNING, ERRCODE_INTERNAL_ERROR,
-                        "could not parse XML declaration in stored value",
-                        res_code);
+	xml_ereport_by_code(WARNING, ERRCODE_INTERNAL_ERROR,
+						"could not parse XML declaration in stored value",
+						res_code);
 #endif
-    return str;
+	return str;
 }
 
 
 Datum
 xml_out(PG_FUNCTION_ARGS)
 {
-    xmltype    *x = PG_GETARG_XML_P(0);
+	xmltype    *x = PG_GETARG_XML_P(0);
 
-    /*
-     * xml_out removes the encoding property in all cases.  This is because we
-     * cannot control from here whether the datum will be converted to a
-     * different client encoding, so we'd do more harm than good by including
-     * it.
-     */
-    PG_RETURN_CSTRING(xml_out_internal(x, 0));
+	/*
+	 * xml_out removes the encoding property in all cases.  This is because we
+	 * cannot control from here whether the datum will be converted to a
+	 * different client encoding, so we'd do more harm than good by including
+	 * it.
+	 */
+	PG_RETURN_CSTRING(xml_out_internal(x, 0));
 }
 
 
@@ -352,65 +332,65 @@ Datum
 xml_recv(PG_FUNCTION_ARGS)
 {
 #ifdef USE_LIBXML
-    StringInfo    buf = (StringInfo) PG_GETARG_POINTER(0);
-    xmltype    *result;
-    char       *str;
-    char       *newstr;
-    int            nbytes;
-    xmlDocPtr    doc;
-    xmlChar    *encodingStr = NULL;
-    int            encoding;
+	StringInfo	buf = (StringInfo) PG_GETARG_POINTER(0);
+	xmltype    *result;
+	char	   *str;
+	char	   *newstr;
+	int			nbytes;
+	xmlDocPtr	doc;
+	xmlChar    *encodingStr = NULL;
+	int			encoding;
 
-    /*
-     * Read the data in raw format. We don't know yet what the encoding is, as
-     * that information is embedded in the xml declaration; so we have to
-     * parse that before converting to server encoding.
-     */
-    nbytes = buf->len - buf->cursor;
-    str = (char *) pq_getmsgbytes(buf, nbytes);
+	/*
+	 * Read the data in raw format. We don't know yet what the encoding is, as
+	 * that information is embedded in the xml declaration; so we have to
+	 * parse that before converting to server encoding.
+	 */
+	nbytes = buf->len - buf->cursor;
+	str = (char *) pq_getmsgbytes(buf, nbytes);
 
-    /*
-     * We need a null-terminated string to pass to parse_xml_decl().  Rather
-     * than make a separate copy, make the temporary result one byte bigger
-     * than it needs to be.
-     */
-    result = palloc(nbytes + 1 + VARHDRSZ);
-    SET_VARSIZE(result, nbytes + VARHDRSZ);
-    memcpy(VARDATA(result), str, nbytes);
-    str = VARDATA(result);
-    str[nbytes] = '\0';
+	/*
+	 * We need a null-terminated string to pass to parse_xml_decl().  Rather
+	 * than make a separate copy, make the temporary result one byte bigger
+	 * than it needs to be.
+	 */
+	result = palloc(nbytes + 1 + VARHDRSZ);
+	SET_VARSIZE(result, nbytes + VARHDRSZ);
+	memcpy(VARDATA(result), str, nbytes);
+	str = VARDATA(result);
+	str[nbytes] = '\0';
 
-    parse_xml_decl((const xmlChar *) str, NULL, NULL, &encodingStr, NULL);
+	parse_xml_decl((const xmlChar *) str, NULL, NULL, &encodingStr, NULL);
 
-    /*
-     * If encoding wasn't explicitly specified in the XML header, treat it as
-     * UTF-8, as that's the default in XML. This is different from xml_in(),
-     * where the input has to go through the normal client to server encoding
-     * conversion.
-     */
-    encoding = encodingStr ? xmlChar_to_encoding(encodingStr) : PG_UTF8;
+	/*
+	 * If encoding wasn't explicitly specified in the XML header, treat it as
+	 * UTF-8, as that's the default in XML. This is different from xml_in(),
+	 * where the input has to go through the normal client to server encoding
+	 * conversion.
+	 */
+	encoding = encodingStr ? xmlChar_to_encoding(encodingStr) : PG_UTF8;
 
-    /*
-     * Parse the data to check if it is well-formed XML data.  Assume that
-     * xml_parse will throw ERROR if not.
-     */
-    doc = xml_parse(result, xmloption, true, encoding);
-    xmlFreeDoc(doc);
+	/*
+	 * Parse the data to check if it is well-formed XML data.  Assume that
+	 * xml_parse will throw ERROR if not.
+	 */
+	doc = xml_parse(result, xmloption, true, encoding, false);
+	xmlFreeDoc(doc);
 
-    /* Now that we know what we're dealing with, convert to server encoding */
-    newstr = pg_any_to_server(str, nbytes, encoding);
+	/* Now that we know what we're dealing with, convert to server encoding */
+	newstr = pg_any_to_server(str, nbytes, encoding, false, false);
 
-    if (newstr != str)
-    {
-        pfree(result);
-        result = (xmltype *) cstring_to_text(newstr);
-        pfree(newstr);
-    }
+	if (newstr != str)
+	{
+		pfree(result);
+		result = (xmltype *) cstring_to_text(newstr);
+		pfree(newstr);
+	}
 
-    PG_RETURN_XML_P(result);
+	PG_RETURN_XML_P(result);
 #else
-    NO_XML_SUPPORT();
-    return 0;
+	NO_XML_SUPPORT();
+	return 0;
 #endif
 }
 
@@ -418,28 +398,63 @@ xml_recv(PG_FUNCTION_ARGS)
 Datum
 xml_send(PG_FUNCTION_ARGS)
 {
-    xmltype    *x = PG_GETARG_XML_P(0);
-    char       *outval;
-    StringInfoData buf;
+	xmltype    *x = PG_GETARG_XML_P(0);
+	char	   *outval;
+	StringInfoData buf;
 
-    /*
-     * xml_out_internal doesn't convert the encoding, it just prints the right
-     * declaration. pq_sendtext will do the conversion.
-     */
-    outval = xml_out_internal(x, pg_get_client_encoding());
+	/*
+	 * xml_out_internal doesn't convert the encoding, it just prints the right
+	 * declaration. pq_sendtext will do the conversion.
+	 */
+	outval = xml_out_internal(x, pg_get_client_encoding());
 
-    pq_begintypsend(&buf);
-    pq_sendtext(&buf, outval, strlen(outval));
-    pfree(outval);
-    PG_RETURN_BYTEA_P(pq_endtypsend(&buf));
+	pq_begintypsend(&buf);
+	pq_sendtext(&buf, outval, strlen(outval));
+	pfree(outval);
+	PG_RETURN_BYTEA_P(pq_endtypsend(&buf));
 }
 
+#ifdef _PG_ORCL_
+Datum
+xmltype_in(PG_FUNCTION_ARGS)
+{
+#ifdef USE_LIBXML
+    return DirectFunctionCall1(xml_in, PG_GETARG_DATUM(0));
+#else
+    NO_XML_SUPPORT();
+	return 0;
+#endif
+}
+
+Datum
+xmltype_out(PG_FUNCTION_ARGS)
+{
+    return DirectFunctionCall1(xml_out, PG_GETARG_DATUM(0));
+}
+
+Datum
+xmltype_recv(PG_FUNCTION_ARGS)
+{
+#ifdef USE_LIBXML
+    return DirectFunctionCall1(xml_recv, PG_GETARG_DATUM(0));
+#else
+    NO_XML_SUPPORT();
+	return 0;
+#endif
+}
+
+Datum
+xmltype_send(PG_FUNCTION_ARGS)
+{
+    return DirectFunctionCall1(xml_send, PG_GETARG_DATUM(0));
+}
+#endif
 
 #ifdef USE_LIBXML
 static void
 appendStringInfoText(StringInfo str, const text *t)
 {
-    appendBinaryStringInfo(str, VARDATA_ANY(t), VARSIZE_ANY_EXHDR(t));
+	appendBinaryStringInfo(str, VARDATA_ANY(t), VARSIZE_ANY_EXHDR(t));
 }
 #endif
 
@@ -447,14 +462,14 @@ appendStringInfoText(StringInfo str, const text *t)
 static xmltype *
 stringinfo_to_xmltype(StringInfo buf)
 {
-    return (xmltype *) cstring_to_text_with_len(buf->data, buf->len);
+	return (xmltype *) cstring_to_text_with_len(buf->data, buf->len);
 }
 
 
 static xmltype *
 cstring_to_xmltype(const char *string)
 {
-    return (xmltype *) cstring_to_text(string);
+	return (xmltype *) cstring_to_text(string);
 }
 
 
@@ -462,8 +477,8 @@ cstring_to_xmltype(const char *string)
 static xmltype *
 xmlBuffer_to_xmltype(xmlBufferPtr buf)
 {
-    return (xmltype *) cstring_to_text_with_len((const char *) xmlBufferContent(buf),
-                                                xmlBufferLength(buf));
+	return (xmltype *) cstring_to_text_with_len((const char *) xmlBufferContent(buf),
+												xmlBufferLength(buf));
 }
 #endif
 
@@ -472,34 +487,34 @@ Datum
 xmlcomment(PG_FUNCTION_ARGS)
 {
 #ifdef USE_LIBXML
-    text       *arg = PG_GETARG_TEXT_PP(0);
-    char       *argdata = VARDATA_ANY(arg);
-    int            len = VARSIZE_ANY_EXHDR(arg);
-    StringInfoData buf;
-    int            i;
+	text	   *arg = PG_GETARG_TEXT_PP(0);
+	char	   *argdata = VARDATA_ANY(arg);
+	int			len = VARSIZE_ANY_EXHDR(arg);
+	StringInfoData buf;
+	int			i;
 
-    /* check for "--" in string or "-" at the end */
-    for (i = 1; i < len; i++)
-    {
-        if (argdata[i] == '-' && argdata[i - 1] == '-')
-            ereport(ERROR,
-                    (errcode(ERRCODE_INVALID_XML_COMMENT),
-                     errmsg("invalid XML comment")));
-    }
-    if (len > 0 && argdata[len - 1] == '-')
-        ereport(ERROR,
-                (errcode(ERRCODE_INVALID_XML_COMMENT),
-                 errmsg("invalid XML comment")));
+	/* check for "--" in string or "-" at the end */
+	for (i = 1; i < len; i++)
+	{
+		if (argdata[i] == '-' && argdata[i - 1] == '-')
+			ereport(ERROR,
+					(errcode(ERRCODE_INVALID_XML_COMMENT),
+					 errmsg("invalid XML comment")));
+	}
+	if (len > 0 && argdata[len - 1] == '-')
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_XML_COMMENT),
+				 errmsg("invalid XML comment")));
 
-    initStringInfo(&buf);
-    appendStringInfoString(&buf, "<!--");
-    appendStringInfoText(&buf, arg);
-    appendStringInfoString(&buf, "-->");
+	initStringInfo(&buf);
+	appendStringInfoString(&buf, "<!--");
+	appendStringInfoText(&buf, arg);
+	appendStringInfoString(&buf, "-->");
 
-    PG_RETURN_XML_P(stringinfo_to_xmltype(&buf));
+	PG_RETURN_XML_P(stringinfo_to_xmltype(&buf));
 #else
-    NO_XML_SUPPORT();
-    return 0;
+	NO_XML_SUPPORT();
+	return 0;
 #endif
 }
 
@@ -511,63 +526,63 @@ xmlcomment(PG_FUNCTION_ARGS)
  */
 xmltype *
 xmlconcat(List *args)
-{// #lizard forgives
+{
 #ifdef USE_LIBXML
-    int            global_standalone = 1;
-    xmlChar    *global_version = NULL;
-    bool        global_version_no_value = false;
-    StringInfoData buf;
-    ListCell   *v;
+	int			global_standalone = 1;
+	xmlChar    *global_version = NULL;
+	bool		global_version_no_value = false;
+	StringInfoData buf;
+	ListCell   *v;
 
-    initStringInfo(&buf);
-    foreach(v, args)
-    {
-        xmltype    *x = DatumGetXmlP(PointerGetDatum(lfirst(v)));
-        size_t        len;
-        xmlChar    *version;
-        int            standalone;
-        char       *str;
+	initStringInfo(&buf);
+	foreach(v, args)
+	{
+		xmltype    *x = DatumGetXmlP(PointerGetDatum(lfirst(v)));
+		size_t		len;
+		xmlChar    *version;
+		int			standalone;
+		char	   *str;
 
-        len = VARSIZE(x) - VARHDRSZ;
-        str = text_to_cstring((text *) x);
+		len = VARSIZE(x) - VARHDRSZ;
+		str = text_to_cstring((text *) x);
 
-        parse_xml_decl((xmlChar *) str, &len, &version, NULL, &standalone);
+		parse_xml_decl((xmlChar *) str, &len, &version, NULL, &standalone);
 
-        if (standalone == 0 && global_standalone == 1)
-            global_standalone = 0;
-        if (standalone < 0)
-            global_standalone = -1;
+		if (standalone == 0 && global_standalone == 1)
+			global_standalone = 0;
+		if (standalone < 0)
+			global_standalone = -1;
 
-        if (!version)
-            global_version_no_value = true;
-        else if (!global_version)
-            global_version = version;
-        else if (xmlStrcmp(version, global_version) != 0)
-            global_version_no_value = true;
+		if (!version)
+			global_version_no_value = true;
+		else if (!global_version)
+			global_version = version;
+		else if (xmlStrcmp(version, global_version) != 0)
+			global_version_no_value = true;
 
-        appendStringInfoString(&buf, str + len);
-        pfree(str);
-    }
+		appendStringInfoString(&buf, str + len);
+		pfree(str);
+	}
 
-    if (!global_version_no_value || global_standalone >= 0)
-    {
-        StringInfoData buf2;
+	if (!global_version_no_value || global_standalone >= 0)
+	{
+		StringInfoData buf2;
 
-        initStringInfo(&buf2);
+		initStringInfo(&buf2);
 
-        print_xml_decl(&buf2,
-                       (!global_version_no_value) ? global_version : NULL,
-                       0,
-                       global_standalone);
+		print_xml_decl(&buf2,
+					   (!global_version_no_value) ? global_version : NULL,
+					   0,
+					   global_standalone);
 
-        appendStringInfoString(&buf2, buf.data);
-        buf = buf2;
-    }
+		appendStringInfoString(&buf2, buf.data);
+		buf = buf2;
+	}
 
-    return stringinfo_to_xmltype(&buf);
+	return stringinfo_to_xmltype(&buf);
 #else
-    NO_XML_SUPPORT();
-    return NULL;
+	NO_XML_SUPPORT();
+	return NULL;
 #endif
 }
 
@@ -578,191 +593,205 @@ xmlconcat(List *args)
 Datum
 xmlconcat2(PG_FUNCTION_ARGS)
 {
-    if (PG_ARGISNULL(0))
-    {
-        if (PG_ARGISNULL(1))
-            PG_RETURN_NULL();
-        else
-            PG_RETURN_XML_P(PG_GETARG_XML_P(1));
-    }
-    else if (PG_ARGISNULL(1))
-        PG_RETURN_XML_P(PG_GETARG_XML_P(0));
-    else
-        PG_RETURN_XML_P(xmlconcat(list_make2(PG_GETARG_XML_P(0),
-                                             PG_GETARG_XML_P(1))));
+	if (PG_ARGISNULL(0))
+	{
+		if (PG_ARGISNULL(1))
+			PG_RETURN_NULL();
+		else
+			PG_RETURN_XML_P(PG_GETARG_XML_P(1));
+	}
+	else if (PG_ARGISNULL(1))
+		PG_RETURN_XML_P(PG_GETARG_XML_P(0));
+	else
+		PG_RETURN_XML_P(xmlconcat(list_make2(PG_GETARG_XML_P(0),
+											 PG_GETARG_XML_P(1))));
 }
 
 
 Datum
 texttoxml(PG_FUNCTION_ARGS)
 {
-    text       *data = PG_GETARG_TEXT_PP(0);
-
-    PG_RETURN_XML_P(xmlparse(data, xmloption, true));
+	text	   *data = PG_GETARG_TEXT_PP(0);
+	if (ORA_MODE)
+		PG_RETURN_XML_P(xmlparse(data, xmloption, XWOWO_PG_PRESERVE_WHITESPACE));
+	else
+		PG_RETURN_XML_P(xmlparse(data, xmloption, (int) true));
 }
 
 
 Datum
 xmltotext(PG_FUNCTION_ARGS)
 {
-    xmltype    *data = PG_GETARG_XML_P(0);
+	xmltype    *data = PG_GETARG_XML_P(0);
 
-    /* It's actually binary compatible. */
-    PG_RETURN_TEXT_P((text *) data);
+	/* It's actually binary compatible. */
+	PG_RETURN_TEXT_P((text *) data);
 }
 
 
 text *
 xmltotext_with_xmloption(xmltype *data, XmlOptionType xmloption_arg)
 {
-    if (xmloption_arg == XMLOPTION_DOCUMENT && !xml_is_document(data))
-        ereport(ERROR,
-                (errcode(ERRCODE_NOT_AN_XML_DOCUMENT),
-                 errmsg("not an XML document")));
+	if (xmloption_arg == XMLOPTION_DOCUMENT && !xml_is_document(data))
+		ereport(ERROR,
+				(errcode(ERRCODE_NOT_AN_XML_DOCUMENT),
+				 errmsg("not an XML document")));
 
-    /* It's actually binary compatible, save for the above check. */
-    return (text *) data;
+	/* It's actually binary compatible, save for the above check. */
+	return (text *) data;
 }
 
 
 xmltype *
 xmlelement(XmlExpr *xexpr,
-           Datum *named_argvalue, bool *named_argnull,
-           Datum *argvalue, bool *argnull)
-{// #lizard forgives
+		   Datum *named_argvalue, bool *named_argnull,
+		   Datum *argvalue, bool *argnull)
+{
 #ifdef USE_LIBXML
-    xmltype    *result;
-    List       *named_arg_strings;
-    List       *arg_strings;
-    int            i;
-    ListCell   *arg;
-    ListCell   *narg;
-    PgXmlErrorContext *xmlerrcxt;
-    volatile xmlBufferPtr buf = NULL;
-    volatile xmlTextWriterPtr writer = NULL;
+	xmltype    *result;
+	List	   *named_arg_strings;
+	List	   *arg_strings;
+	int			i;
+	ListCell   *arg;
+	ListCell   *narg;
+	PgXmlErrorContext *xmlerrcxt;
+	volatile xmlBufferPtr buf = NULL;
+	volatile xmlTextWriterPtr writer = NULL;
 
-    /*
-     * All arguments are already evaluated, and their values are passed in the
-     * named_argvalue/named_argnull or argvalue/argnull arrays.  This avoids
-     * issues if one of the arguments involves a call to some other function
-     * or subsystem that wants to use libxml on its own terms.  We examine the
-     * original XmlExpr to identify the numbers and types of the arguments.
-     */
-    named_arg_strings = NIL;
-    i = 0;
-    foreach(arg, xexpr->named_args)
-    {
-        Expr       *e = (Expr *) lfirst(arg);
-        char       *str;
+	/*
+	 * All arguments are already evaluated, and their values are passed in the
+	 * named_argvalue/named_argnull or argvalue/argnull arrays.  This avoids
+	 * issues if one of the arguments involves a call to some other function
+	 * or subsystem that wants to use libxml on its own terms.  We examine the
+	 * original XmlExpr to identify the numbers and types of the arguments.
+	 */
+	named_arg_strings = NIL;
+	i = 0;
+	foreach(arg, xexpr->named_args)
+	{
+		Expr	   *e = (Expr *) lfirst(arg);
+		char	   *str;
 
-        if (named_argnull[i])
-            str = NULL;
-        else
-            str = map_sql_value_to_xml_value(named_argvalue[i],
-                                             exprType((Node *) e),
-                                             false);
-        named_arg_strings = lappend(named_arg_strings, str);
-        i++;
-    }
+		if (named_argnull[i])
+			str = NULL;
+		else
+			str = map_sql_value_to_xml_value(named_argvalue[i],
+											 exprType((Node *) e),
+											 false);
+		named_arg_strings = lappend(named_arg_strings, str);
+		i++;
+	}
 
-    arg_strings = NIL;
-    i = 0;
-    foreach(arg, xexpr->args)
-    {
-        Expr       *e = (Expr *) lfirst(arg);
-        char       *str;
+	arg_strings = NIL;
+	i = 0;
+	foreach(arg, xexpr->args)
+	{
+		Expr	   *e = (Expr *) lfirst(arg);
+		char	   *str;
 
-        /* here we can just forget NULL elements immediately */
-        if (!argnull[i])
-        {
-            str = map_sql_value_to_xml_value(argvalue[i],
-                                             exprType((Node *) e),
-                                             true);
-            arg_strings = lappend(arg_strings, str);
-        }
-        i++;
-    }
+		/* here we can just forget NULL elements immediately */
+		if (!argnull[i])
+		{
+			str = map_sql_value_to_xml_value(argvalue[i],
+											 exprType((Node *) e),
+											 true);
+			arg_strings = lappend(arg_strings, str);
+		}
+		i++;
+	}
 
-    xmlerrcxt = pg_xml_init(PG_XML_STRICTNESS_ALL);
+	xmlerrcxt = pg_xml_init(PG_XML_STRICTNESS_ALL);
 
-    PG_TRY();
-    {
-        buf = xmlBufferCreate();
-        if (buf == NULL || xmlerrcxt->err_occurred)
-            xml_ereport(xmlerrcxt, ERROR, ERRCODE_OUT_OF_MEMORY,
-                        "could not allocate xmlBuffer");
-        writer = xmlNewTextWriterMemory(buf, 0);
-        if (writer == NULL || xmlerrcxt->err_occurred)
-            xml_ereport(xmlerrcxt, ERROR, ERRCODE_OUT_OF_MEMORY,
-                        "could not allocate xmlTextWriter");
+	PG_TRY();
+	{
+		buf = xmlBufferCreate();
+		if (buf == NULL || xmlerrcxt->err_occurred)
+			xml_ereport(xmlerrcxt, ERROR, ERRCODE_OUT_OF_MEMORY,
+						"could not allocate xmlBuffer");
+		writer = xmlNewTextWriterMemory(buf, 0);
+		if (writer == NULL || xmlerrcxt->err_occurred)
+			xml_ereport(xmlerrcxt, ERROR, ERRCODE_OUT_OF_MEMORY,
+						"could not allocate xmlTextWriter");
 
-        xmlTextWriterStartElement(writer, (xmlChar *) xexpr->name);
+		xmlTextWriterStartElement(writer, (xmlChar *) xexpr->name);
 
-        forboth(arg, named_arg_strings, narg, xexpr->arg_names)
-        {
-            char       *str = (char *) lfirst(arg);
-            char       *argname = strVal(lfirst(narg));
+		forboth(arg, named_arg_strings, narg, xexpr->arg_names)
+		{
+			char	   *str = (char *) lfirst(arg);
+			char	   *argname = strVal(lfirst(narg));
 
-            if (str)
-                xmlTextWriterWriteAttribute(writer,
-                                            (xmlChar *) argname,
-                                            (xmlChar *) str);
-        }
+			if (str)
+				xmlTextWriterWriteAttribute(writer,
+											(xmlChar *) argname,
+											(xmlChar *) str);
+		}
 
-        foreach(arg, arg_strings)
-        {
-            char       *str = (char *) lfirst(arg);
+		foreach(arg, arg_strings)
+		{
+			char	   *str = (char *) lfirst(arg);
 
-            xmlTextWriterWriteRaw(writer, (xmlChar *) str);
-        }
+			xmlTextWriterWriteRaw(writer, (xmlChar *) str);
+		}
 
-        xmlTextWriterEndElement(writer);
+		xmlTextWriterEndElement(writer);
 
-        /* we MUST do this now to flush data out to the buffer ... */
-        xmlFreeTextWriter(writer);
-        writer = NULL;
+		/* we MUST do this now to flush data out to the buffer ... */
+		xmlFreeTextWriter(writer);
+		writer = NULL;
 
-        result = xmlBuffer_to_xmltype(buf);
-    }
-    PG_CATCH();
-    {
-        if (writer)
-            xmlFreeTextWriter(writer);
-        if (buf)
-            xmlBufferFree(buf);
+		result = xmlBuffer_to_xmltype(buf);
+	}
+	PG_CATCH();
+	{
+		if (writer)
+			xmlFreeTextWriter(writer);
+		if (buf)
+			xmlBufferFree(buf);
 
-        pg_xml_done(xmlerrcxt, true);
+		pg_xml_done(xmlerrcxt, true);
 
-        PG_RE_THROW();
-    }
-    PG_END_TRY();
+		PG_RE_THROW();
+	}
+	PG_END_TRY();
 
-    xmlBufferFree(buf);
+	xmlBufferFree(buf);
 
-    pg_xml_done(xmlerrcxt, false);
+	pg_xml_done(xmlerrcxt, false);
 
-    return result;
+	return result;
 #else
-    NO_XML_SUPPORT();
-    return NULL;
+	NO_XML_SUPPORT();
+	return NULL;
 #endif
 }
 
 
 xmltype *
-xmlparse(text *data, XmlOptionType xmloption_arg, bool preserve_whitespace)
+xmlparse(text *data, XmlOptionType xmloption_arg, int preserve_whitespace_or_wellformed)
 {
 #ifdef USE_LIBXML
-    xmlDocPtr    doc;
+	xmlDocPtr	doc;
+	bool 		preserve_whitespace;
+	if (ORA_MODE && xmloption_arg == XMLOPTION_CONTENT && preserve_whitespace_or_wellformed == XWOWO_OPENTENBASE_ORA_WELLFORMED)
+	{
+		/* opentenbase_ora does not check the validity of xml content if you specify the wellformed option */
+		return (xmltype *) data;
+	}
+	if (ORA_MODE && preserve_whitespace_or_wellformed == XWOWO_PG_PRESERVE_WHITESPACE)
+		preserve_whitespace = true;
+	else if (ORA_MODE)
+		preserve_whitespace = false;
+	else
+		preserve_whitespace = preserve_whitespace_or_wellformed;
 
-    doc = xml_parse(data, xmloption_arg, preserve_whitespace,
-                    GetDatabaseEncoding());
-    xmlFreeDoc(doc);
+	doc = xml_parse(data, xmloption_arg, preserve_whitespace,
+					GetDatabaseEncoding(), false);
+	xmlFreeDoc(doc);
 
-    return (xmltype *) data;
+	return (xmltype *) data;
 #else
-    NO_XML_SUPPORT();
-    return NULL;
+	NO_XML_SUPPORT();
+	return NULL;
 #endif
 }
 
@@ -771,50 +800,50 @@ xmltype *
 xmlpi(char *target, text *arg, bool arg_is_null, bool *result_is_null)
 {
 #ifdef USE_LIBXML
-    xmltype    *result;
-    StringInfoData buf;
+	xmltype    *result;
+	StringInfoData buf;
 
-    if (pg_strcasecmp(target, "xml") == 0)
-        ereport(ERROR,
-                (errcode(ERRCODE_SYNTAX_ERROR), /* really */
-                 errmsg("invalid XML processing instruction"),
-                 errdetail("XML processing instruction target name cannot be \"%s\".", target)));
+	if (pg_strcasecmp(target, "xml") == 0)
+		ereport(ERROR,
+				(errcode(ERRCODE_SYNTAX_ERROR), /* really */
+				 errmsg("invalid XML processing instruction"),
+				 errdetail("XML processing instruction target name cannot be \"%s\".", target)));
 
-    /*
-     * Following the SQL standard, the null check comes after the syntax check
-     * above.
-     */
-    *result_is_null = arg_is_null;
-    if (*result_is_null)
-        return NULL;
+	/*
+	 * Following the SQL standard, the null check comes after the syntax check
+	 * above.
+	 */
+	*result_is_null = arg_is_null;
+	if (*result_is_null)
+		return NULL;
 
-    initStringInfo(&buf);
+	initStringInfo(&buf);
 
-    appendStringInfo(&buf, "<?%s", target);
+	appendStringInfo(&buf, "<?%s", target);
 
-    if (arg != NULL)
-    {
-        char       *string;
+	if (arg != NULL)
+	{
+		char	   *string;
 
-        string = text_to_cstring(arg);
-        if (strstr(string, "?>") != NULL)
-            ereport(ERROR,
-                    (errcode(ERRCODE_INVALID_XML_PROCESSING_INSTRUCTION),
-                     errmsg("invalid XML processing instruction"),
-                     errdetail("XML processing instruction cannot contain \"?>\".")));
+		string = text_to_cstring(arg);
+		if (strstr(string, "?>") != NULL)
+			ereport(ERROR,
+					(errcode(ERRCODE_INVALID_XML_PROCESSING_INSTRUCTION),
+					 errmsg("invalid XML processing instruction"),
+					 errdetail("XML processing instruction cannot contain \"?>\".")));
 
-        appendStringInfoChar(&buf, ' ');
-        appendStringInfoString(&buf, string + strspn(string, " "));
-        pfree(string);
-    }
-    appendStringInfoString(&buf, "?>");
+		appendStringInfoChar(&buf, ' ');
+		appendStringInfoString(&buf, string + strspn(string, " "));
+		pfree(string);
+	}
+	appendStringInfoString(&buf, "?>");
 
-    result = stringinfo_to_xmltype(&buf);
-    pfree(buf.data);
-    return result;
+	result = stringinfo_to_xmltype(&buf);
+	pfree(buf.data);
+	return result;
 #else
-    NO_XML_SUPPORT();
-    return NULL;
+	NO_XML_SUPPORT();
+	return NULL;
 #endif
 }
 
@@ -823,46 +852,46 @@ xmltype *
 xmlroot(xmltype *data, text *version, int standalone)
 {
 #ifdef USE_LIBXML
-    char       *str;
-    size_t        len;
-    xmlChar    *orig_version;
-    int            orig_standalone;
-    StringInfoData buf;
+	char	   *str;
+	size_t		len;
+	xmlChar    *orig_version;
+	int			orig_standalone;
+	StringInfoData buf;
 
-    len = VARSIZE(data) - VARHDRSZ;
-    str = text_to_cstring((text *) data);
+	len = VARSIZE(data) - VARHDRSZ;
+	str = text_to_cstring((text *) data);
 
-    parse_xml_decl((xmlChar *) str, &len, &orig_version, NULL, &orig_standalone);
+	parse_xml_decl((xmlChar *) str, &len, &orig_version, NULL, &orig_standalone);
 
-    if (version)
-        orig_version = xml_text2xmlChar(version);
-    else
-        orig_version = NULL;
+	if (version)
+		orig_version = xml_text2xmlChar(version);
+	else
+		orig_version = NULL;
 
-    switch (standalone)
-    {
-        case XML_STANDALONE_YES:
-            orig_standalone = 1;
-            break;
-        case XML_STANDALONE_NO:
-            orig_standalone = 0;
-            break;
-        case XML_STANDALONE_NO_VALUE:
-            orig_standalone = -1;
-            break;
-        case XML_STANDALONE_OMITTED:
-            /* leave original value */
-            break;
-    }
+	switch (standalone)
+	{
+		case XML_STANDALONE_YES:
+			orig_standalone = 1;
+			break;
+		case XML_STANDALONE_NO:
+			orig_standalone = 0;
+			break;
+		case XML_STANDALONE_NO_VALUE:
+			orig_standalone = -1;
+			break;
+		case XML_STANDALONE_OMITTED:
+			/* leave original value */
+			break;
+	}
 
-    initStringInfo(&buf);
-    print_xml_decl(&buf, orig_version, 0, orig_standalone);
-    appendStringInfoString(&buf, str + len);
+	initStringInfo(&buf);
+	print_xml_decl(&buf, orig_version, 0, orig_standalone);
+	appendStringInfoString(&buf, str + len);
 
-    return stringinfo_to_xmltype(&buf);
+	return stringinfo_to_xmltype(&buf);
 #else
-    NO_XML_SUPPORT();
-    return NULL;
+	NO_XML_SUPPORT();
+	return NULL;
 #endif
 }
 
@@ -878,10 +907,10 @@ xmlroot(xmltype *data, text *version, int standalone)
 Datum
 xmlvalidate(PG_FUNCTION_ARGS)
 {
-    ereport(ERROR,
-            (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-             errmsg("xmlvalidate is not implemented")));
-    return 0;
+	ereport(ERROR,
+			(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+			 errmsg("xmlvalidate is not implemented")));
+	return 0;
 }
 
 
@@ -889,45 +918,45 @@ bool
 xml_is_document(xmltype *arg)
 {
 #ifdef USE_LIBXML
-    bool        result;
-    volatile xmlDocPtr doc = NULL;
-    MemoryContext ccxt = CurrentMemoryContext;
+	bool		result;
+	volatile xmlDocPtr doc = NULL;
+	MemoryContext ccxt = CurrentMemoryContext;
 
-    /* We want to catch ereport(INVALID_XML_DOCUMENT) and return false */
-    PG_TRY();
-    {
-        doc = xml_parse((text *) arg, XMLOPTION_DOCUMENT, true,
-                        GetDatabaseEncoding());
-        result = true;
-    }
-    PG_CATCH();
-    {
-        ErrorData  *errdata;
-        MemoryContext ecxt;
+	/* We want to catch ereport(INVALID_XML_DOCUMENT) and return false */
+	PG_TRY();
+	{
+		doc = xml_parse((text *) arg, XMLOPTION_DOCUMENT, true,
+						GetDatabaseEncoding(), true);
+		result = true;
+	}
+	PG_CATCH();
+	{
+		ErrorData  *errdata;
+		MemoryContext ecxt;
 
-        ecxt = MemoryContextSwitchTo(ccxt);
-        errdata = CopyErrorData();
-        if (errdata->sqlerrcode == ERRCODE_INVALID_XML_DOCUMENT)
-        {
-            FlushErrorState();
-            result = false;
-        }
-        else
-        {
-            MemoryContextSwitchTo(ecxt);
-            PG_RE_THROW();
-        }
-    }
-    PG_END_TRY();
+		ecxt = MemoryContextSwitchTo(ccxt);
+		errdata = CopyErrorData();
+		if (errdata->sqlerrcode == ERRCODE_INVALID_XML_DOCUMENT)
+		{
+			FlushErrorState();
+			result = false;
+		}
+		else
+		{
+			MemoryContextSwitchTo(ecxt);
+			PG_RE_THROW();
+		}
+	}
+	PG_END_TRY();
 
-    if (doc)
-        xmlFreeDoc(doc);
+	if (doc)
+		xmlFreeDoc(doc);
 
-    return result;
-#else                            /* not USE_LIBXML */
-    NO_XML_SUPPORT();
-    return false;
-#endif                            /* not USE_LIBXML */
+	return result;
+#else							/* not USE_LIBXML */
+	NO_XML_SUPPORT();
+	return false;
+#endif							/* not USE_LIBXML */
 }
 
 
@@ -947,32 +976,32 @@ xml_is_document(xmltype *arg)
 void
 pg_xml_init_library(void)
 {
-    static bool first_time = true;
+	static bool first_time = true;
 
-    if (first_time)
-    {
-        /* Stuff we need do only once per session */
+	if (first_time)
+	{
+		/* Stuff we need do only once per session */
 
-        /*
-         * Currently, we have no pure UTF-8 support for internals -- check if
-         * we can work.
-         */
-        if (sizeof(char) != sizeof(xmlChar))
-            ereport(ERROR,
-                    (errmsg("could not initialize XML library"),
-                     errdetail("libxml2 has incompatible char type: sizeof(char)=%u, sizeof(xmlChar)=%u.",
-                               (int) sizeof(char), (int) sizeof(xmlChar))));
+		/*
+		 * Currently, we have no pure UTF-8 support for internals -- check if
+		 * we can work.
+		 */
+		if (sizeof(char) != sizeof(xmlChar))
+			ereport(ERROR,
+					(errmsg("could not initialize XML library"),
+					 errdetail("libxml2 has incompatible char type: sizeof(char)=%u, sizeof(xmlChar)=%u.",
+							   (int) sizeof(char), (int) sizeof(xmlChar))));
 
 #ifdef USE_LIBXMLCONTEXT
-        /* Set up libxml's memory allocation our way */
-        xml_memory_init();
+		/* Set up libxml's memory allocation our way */
+		xml_memory_init();
 #endif
 
-        /* Check library compatibility */
-        LIBXML_TEST_VERSION;
+		/* Check library compatibility */
+		LIBXML_TEST_VERSION;
 
-        first_time = false;
-    }
+		first_time = false;
+	}
 }
 
 /*
@@ -993,72 +1022,72 @@ pg_xml_init_library(void)
 PgXmlErrorContext *
 pg_xml_init(PgXmlStrictness strictness)
 {
-    PgXmlErrorContext *errcxt;
-    void       *new_errcxt;
+	PgXmlErrorContext *errcxt;
+	void	   *new_errcxt;
 
-    /* Do one-time setup if needed */
-    pg_xml_init_library();
+	/* Do one-time setup if needed */
+	pg_xml_init_library();
 
-    /* Create error handling context structure */
-    errcxt = (PgXmlErrorContext *) palloc(sizeof(PgXmlErrorContext));
-    errcxt->magic = ERRCXT_MAGIC;
-    errcxt->strictness = strictness;
-    errcxt->err_occurred = false;
-    initStringInfo(&errcxt->err_buf);
+	/* Create error handling context structure */
+	errcxt = (PgXmlErrorContext *) palloc(sizeof(PgXmlErrorContext));
+	errcxt->magic = ERRCXT_MAGIC;
+	errcxt->strictness = strictness;
+	errcxt->err_occurred = false;
+	initStringInfo(&errcxt->err_buf);
 
-    /*
-     * Save original error handler and install ours. libxml originally didn't
-     * distinguish between the contexts for generic and for structured error
-     * handlers.  If we're using an old libxml version, we must thus save the
-     * generic error context, even though we're using a structured error
-     * handler.
-     */
-    errcxt->saved_errfunc = xmlStructuredError;
-
-#ifdef HAVE_XMLSTRUCTUREDERRORCONTEXT
-    errcxt->saved_errcxt = xmlStructuredErrorContext;
-#else
-    errcxt->saved_errcxt = xmlGenericErrorContext;
-#endif
-
-    xmlSetStructuredErrorFunc((void *) errcxt, xml_errorHandler);
-
-    /*
-     * Verify that xmlSetStructuredErrorFunc set the context variable we
-     * expected it to.  If not, the error context pointer we just saved is not
-     * the correct thing to restore, and since that leaves us without a way to
-     * restore the context in pg_xml_done, we must fail.
-     *
-     * The only known situation in which this test fails is if we compile with
-     * headers from a libxml2 that doesn't track the structured error context
-     * separately (< 2.7.4), but at runtime use a version that does, or vice
-     * versa.  The libxml2 authors did not treat that change as constituting
-     * an ABI break, so the LIBXML_TEST_VERSION test in pg_xml_init_library
-     * fails to protect us from this.
-     */
+	/*
+	 * Save original error handler and install ours. libxml originally didn't
+	 * distinguish between the contexts for generic and for structured error
+	 * handlers.  If we're using an old libxml version, we must thus save the
+	 * generic error context, even though we're using a structured error
+	 * handler.
+	 */
+	errcxt->saved_errfunc = xmlStructuredError;
 
 #ifdef HAVE_XMLSTRUCTUREDERRORCONTEXT
-    new_errcxt = xmlStructuredErrorContext;
+	errcxt->saved_errcxt = xmlStructuredErrorContext;
 #else
-    new_errcxt = xmlGenericErrorContext;
+	errcxt->saved_errcxt = xmlGenericErrorContext;
 #endif
 
-    if (new_errcxt != (void *) errcxt)
-        ereport(ERROR,
-                (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-                 errmsg("could not set up XML error handler"),
-                 errhint("This probably indicates that the version of libxml2"
-                         " being used is not compatible with the libxml2"
-                         " header files that PostgreSQL was built with.")));
+	xmlSetStructuredErrorFunc((void *) errcxt, xml_errorHandler);
 
-    /*
-     * Also, install an entity loader to prevent unwanted fetches of external
-     * files and URLs.
-     */
-    errcxt->saved_entityfunc = xmlGetExternalEntityLoader();
-    xmlSetExternalEntityLoader(xmlPgEntityLoader);
+	/*
+	 * Verify that xmlSetStructuredErrorFunc set the context variable we
+	 * expected it to.  If not, the error context pointer we just saved is not
+	 * the correct thing to restore, and since that leaves us without a way to
+	 * restore the context in pg_xml_done, we must fail.
+	 *
+	 * The only known situation in which this test fails is if we compile with
+	 * headers from a libxml2 that doesn't track the structured error context
+	 * separately (< 2.7.4), but at runtime use a version that does, or vice
+	 * versa.  The libxml2 authors did not treat that change as constituting
+	 * an ABI break, so the LIBXML_TEST_VERSION test in pg_xml_init_library
+	 * fails to protect us from this.
+	 */
 
-    return errcxt;
+#ifdef HAVE_XMLSTRUCTUREDERRORCONTEXT
+	new_errcxt = xmlStructuredErrorContext;
+#else
+	new_errcxt = xmlGenericErrorContext;
+#endif
+
+	if (new_errcxt != (void *) errcxt)
+		ereport(ERROR,
+				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+				 errmsg("could not set up XML error handler"),
+				 errhint("This probably indicates that the version of libxml2"
+						 " being used is not compatible with the libxml2"
+						 " header files that PostgreSQL was built with.")));
+
+	/*
+	 * Also, install an entity loader to prevent unwanted fetches of external
+	 * files and URLs.
+	 */
+	errcxt->saved_entityfunc = xmlGetExternalEntityLoader();
+	xmlSetExternalEntityLoader(xmlPgEntityLoader);
+
+	return errcxt;
 }
 
 
@@ -1074,45 +1103,45 @@ pg_xml_init(PgXmlStrictness strictness)
 void
 pg_xml_done(PgXmlErrorContext *errcxt, bool isError)
 {
-    void       *cur_errcxt;
+	void	   *cur_errcxt;
 
-    /* An assert seems like enough protection here */
-    Assert(errcxt->magic == ERRCXT_MAGIC);
+	/* An assert seems like enough protection here */
+	Assert(errcxt->magic == ERRCXT_MAGIC);
 
-    /*
-     * In a normal exit, there should be no un-handled libxml errors.  But we
-     * shouldn't try to enforce this during error recovery, since the longjmp
-     * could have been thrown before xml_ereport had a chance to run.
-     */
-    Assert(!errcxt->err_occurred || isError);
+	/*
+	 * In a normal exit, there should be no un-handled libxml errors.  But we
+	 * shouldn't try to enforce this during error recovery, since the longjmp
+	 * could have been thrown before xml_ereport had a chance to run.
+	 */
+	Assert(!errcxt->err_occurred || isError);
 
-    /*
-     * Check that libxml's global state is correct, warn if not.  This is a
-     * real test and not an Assert because it has a higher probability of
-     * happening.
-     */
+	/*
+	 * Check that libxml's global state is correct, warn if not.  This is a
+	 * real test and not an Assert because it has a higher probability of
+	 * happening.
+	 */
 #ifdef HAVE_XMLSTRUCTUREDERRORCONTEXT
-    cur_errcxt = xmlStructuredErrorContext;
+	cur_errcxt = xmlStructuredErrorContext;
 #else
-    cur_errcxt = xmlGenericErrorContext;
+	cur_errcxt = xmlGenericErrorContext;
 #endif
 
-    if (cur_errcxt != (void *) errcxt)
-        elog(WARNING, "libxml error handling state is out of sync with xml.c");
+	if (cur_errcxt != (void *) errcxt)
+		elog(WARNING, "libxml error handling state is out of sync with xml.c");
 
-    /* Restore the saved handlers */
-    xmlSetStructuredErrorFunc(errcxt->saved_errcxt, errcxt->saved_errfunc);
-    xmlSetExternalEntityLoader(errcxt->saved_entityfunc);
+	/* Restore the saved handlers */
+	xmlSetStructuredErrorFunc(errcxt->saved_errcxt, errcxt->saved_errfunc);
+	xmlSetExternalEntityLoader(errcxt->saved_entityfunc);
 
-    /*
-     * Mark the struct as invalid, just in case somebody somehow manages to
-     * call xml_errorHandler or xml_ereport with it.
-     */
-    errcxt->magic = 0;
+	/*
+	 * Mark the struct as invalid, just in case somebody somehow manages to
+	 * call xml_errorHandler or xml_ereport with it.
+	 */
+	errcxt->magic = 0;
 
-    /* Release memory */
-    pfree(errcxt->err_buf.data);
-    pfree(errcxt);
+	/* Release memory */
+	pfree(errcxt->err_buf.data);
+	pfree(errcxt);
 }
 
 
@@ -1122,7 +1151,7 @@ pg_xml_done(PgXmlErrorContext *errcxt, bool isError)
 bool
 pg_xml_error_occurred(PgXmlErrorContext *errcxt)
 {
-    return errcxt->err_occurred;
+	return errcxt->err_occurred;
 }
 
 
@@ -1136,46 +1165,46 @@ pg_xml_error_occurred(PgXmlErrorContext *errcxt)
  */
 
 #define CHECK_XML_SPACE(p) \
-    do { \
-        if (!xmlIsBlank_ch(*(p))) \
-            return XML_ERR_SPACE_REQUIRED; \
-    } while (0)
+	do { \
+		if (!xmlIsBlank_ch(*(p))) \
+			return XML_ERR_SPACE_REQUIRED; \
+	} while (0)
 
 #define SKIP_XML_SPACE(p) \
-    while (xmlIsBlank_ch(*(p))) (p)++
+	while (xmlIsBlank_ch(*(p))) (p)++
 
 /* Letter | Digit | '.' | '-' | '_' | ':' | CombiningChar | Extender */
 /* Beware of multiple evaluations of argument! */
 #define PG_XMLISNAMECHAR(c) \
-    (xmlIsBaseChar_ch(c) || xmlIsIdeographicQ(c) \
-            || xmlIsDigit_ch(c) \
-            || c == '.' || c == '-' || c == '_' || c == ':' \
-            || xmlIsCombiningQ(c) \
-            || xmlIsExtender_ch(c))
+	(xmlIsBaseChar_ch(c) || xmlIsIdeographicQ(c) \
+			|| xmlIsDigit_ch(c) \
+			|| c == '.' || c == '-' || c == '_' || c == ':' \
+			|| xmlIsCombiningQ(c) \
+			|| xmlIsExtender_ch(c))
 
 /* pnstrdup, but deal with xmlChar not char; len is measured in xmlChars */
 static xmlChar *
 xml_pnstrdup(const xmlChar *str, size_t len)
 {
-    xmlChar    *result;
+	xmlChar    *result;
 
-    result = (xmlChar *) palloc((len + 1) * sizeof(xmlChar));
-    memcpy(result, str, len * sizeof(xmlChar));
-    result[len] = 0;
-    return result;
+	result = (xmlChar *) palloc((len + 1) * sizeof(xmlChar));
+	memcpy(result, str, len * sizeof(xmlChar));
+	result[len] = 0;
+	return result;
 }
 
 /* Ditto, except input is char* */
-static xmlChar *
+xmlChar *
 pg_xmlCharStrndup(char *str, size_t len)
 {
-    xmlChar    *result;
+	xmlChar    *result;
 
-    result = (xmlChar *) palloc((len + 1) * sizeof(xmlChar));
-    memcpy(result, str, len);
-    result[len] = '\0';
+	result = (xmlChar *) palloc((len + 1) * sizeof(xmlChar));
+	memcpy(result, str, len);
+	result[len] = '\0';
 
-    return result;
+	return result;
 }
 
 /*
@@ -1184,155 +1213,155 @@ pg_xmlCharStrndup(char *str, size_t len)
  * version and encoding are returned as locally-palloc'd strings.
  * Result is 0 if OK, an error code if not.
  */
-static int
+int
 parse_xml_decl(const xmlChar *str, size_t *lenp,
-               xmlChar **version, xmlChar **encoding, int *standalone)
-{// #lizard forgives
-    const xmlChar *p;
-    const xmlChar *save_p;
-    size_t        len;
-    int            utf8char;
-    int            utf8len;
+			   xmlChar **version, xmlChar **encoding, int *standalone)
+{
+	const xmlChar *p;
+	const xmlChar *save_p;
+	size_t		len;
+	int			utf8char;
+	int			utf8len;
 
-    /*
-     * Only initialize libxml.  We don't need error handling here, but we do
-     * need to make sure libxml is initialized before calling any of its
-     * functions.  Note that this is safe (and a no-op) if caller has already
-     * done pg_xml_init().
-     */
-    pg_xml_init_library();
+	/*
+	 * Only initialize libxml.  We don't need error handling here, but we do
+	 * need to make sure libxml is initialized before calling any of its
+	 * functions.  Note that this is safe (and a no-op) if caller has already
+	 * done pg_xml_init().
+	 */
+	pg_xml_init_library();
 
-    /* Initialize output arguments to "not present" */
-    if (version)
-        *version = NULL;
-    if (encoding)
-        *encoding = NULL;
-    if (standalone)
-        *standalone = -1;
+	/* Initialize output arguments to "not present" */
+	if (version)
+		*version = NULL;
+	if (encoding)
+		*encoding = NULL;
+	if (standalone)
+		*standalone = -1;
 
-    p = str;
+	p = str;
 
-    if (xmlStrncmp(p, (xmlChar *) "<?xml", 5) != 0)
-        goto finished;
+	if (xmlStrncmp(p, (xmlChar *) "<?xml", 5) != 0)
+		goto finished;
 
-    /* if next char is name char, it's a PI like <?xml-stylesheet ...?> */
-    utf8len = strlen((const char *) (p + 5));
-    utf8char = xmlGetUTF8Char(p + 5, &utf8len);
-    if (PG_XMLISNAMECHAR(utf8char))
-        goto finished;
+	/* if next char is name char, it's a PI like <?xml-stylesheet ...?> */
+	utf8len = strlen((const char *) (p + 5));
+	utf8char = xmlGetUTF8Char(p + 5, &utf8len);
+	if (PG_XMLISNAMECHAR(utf8char))
+		goto finished;
 
-    p += 5;
+	p += 5;
 
-    /* version */
-    CHECK_XML_SPACE(p);
-    SKIP_XML_SPACE(p);
-    if (xmlStrncmp(p, (xmlChar *) "version", 7) != 0)
-        return XML_ERR_VERSION_MISSING;
-    p += 7;
-    SKIP_XML_SPACE(p);
-    if (*p != '=')
-        return XML_ERR_VERSION_MISSING;
-    p += 1;
-    SKIP_XML_SPACE(p);
+	/* version */
+	CHECK_XML_SPACE(p);
+	SKIP_XML_SPACE(p);
+	if (xmlStrncmp(p, (xmlChar *) "version", 7) != 0)
+		return XML_ERR_VERSION_MISSING;
+	p += 7;
+	SKIP_XML_SPACE(p);
+	if (*p != '=')
+		return XML_ERR_VERSION_MISSING;
+	p += 1;
+	SKIP_XML_SPACE(p);
 
-    if (*p == '\'' || *p == '"')
-    {
-        const xmlChar *q;
+	if (*p == '\'' || *p == '"')
+	{
+		const xmlChar *q;
 
-        q = xmlStrchr(p + 1, *p);
-        if (!q)
-            return XML_ERR_VERSION_MISSING;
+		q = xmlStrchr(p + 1, *p);
+		if (!q)
+			return XML_ERR_VERSION_MISSING;
 
-        if (version)
-            *version = xml_pnstrdup(p + 1, q - p - 1);
-        p = q + 1;
-    }
-    else
-        return XML_ERR_VERSION_MISSING;
+		if (version)
+			*version = xml_pnstrdup(p + 1, q - p - 1);
+		p = q + 1;
+	}
+	else
+		return XML_ERR_VERSION_MISSING;
 
-    /* encoding */
-    save_p = p;
-    SKIP_XML_SPACE(p);
-    if (xmlStrncmp(p, (xmlChar *) "encoding", 8) == 0)
-    {
-        CHECK_XML_SPACE(save_p);
-        p += 8;
-        SKIP_XML_SPACE(p);
-        if (*p != '=')
-            return XML_ERR_MISSING_ENCODING;
-        p += 1;
-        SKIP_XML_SPACE(p);
+	/* encoding */
+	save_p = p;
+	SKIP_XML_SPACE(p);
+	if (xmlStrncmp(p, (xmlChar *) "encoding", 8) == 0)
+	{
+		CHECK_XML_SPACE(save_p);
+		p += 8;
+		SKIP_XML_SPACE(p);
+		if (*p != '=')
+			return XML_ERR_MISSING_ENCODING;
+		p += 1;
+		SKIP_XML_SPACE(p);
 
-        if (*p == '\'' || *p == '"')
-        {
-            const xmlChar *q;
+		if (*p == '\'' || *p == '"')
+		{
+			const xmlChar *q;
 
-            q = xmlStrchr(p + 1, *p);
-            if (!q)
-                return XML_ERR_MISSING_ENCODING;
+			q = xmlStrchr(p + 1, *p);
+			if (!q)
+				return XML_ERR_MISSING_ENCODING;
 
-            if (encoding)
-                *encoding = xml_pnstrdup(p + 1, q - p - 1);
-            p = q + 1;
-        }
-        else
-            return XML_ERR_MISSING_ENCODING;
-    }
-    else
-    {
-        p = save_p;
-    }
+			if (encoding)
+				*encoding = xml_pnstrdup(p + 1, q - p - 1);
+			p = q + 1;
+		}
+		else
+			return XML_ERR_MISSING_ENCODING;
+	}
+	else
+	{
+		p = save_p;
+	}
 
-    /* standalone */
-    save_p = p;
-    SKIP_XML_SPACE(p);
-    if (xmlStrncmp(p, (xmlChar *) "standalone", 10) == 0)
-    {
-        CHECK_XML_SPACE(save_p);
-        p += 10;
-        SKIP_XML_SPACE(p);
-        if (*p != '=')
-            return XML_ERR_STANDALONE_VALUE;
-        p += 1;
-        SKIP_XML_SPACE(p);
-        if (xmlStrncmp(p, (xmlChar *) "'yes'", 5) == 0 ||
-            xmlStrncmp(p, (xmlChar *) "\"yes\"", 5) == 0)
-        {
-            if (standalone)
-                *standalone = 1;
-            p += 5;
-        }
-        else if (xmlStrncmp(p, (xmlChar *) "'no'", 4) == 0 ||
-                 xmlStrncmp(p, (xmlChar *) "\"no\"", 4) == 0)
-        {
-            if (standalone)
-                *standalone = 0;
-            p += 4;
-        }
-        else
-            return XML_ERR_STANDALONE_VALUE;
-    }
-    else
-    {
-        p = save_p;
-    }
+	/* standalone */
+	save_p = p;
+	SKIP_XML_SPACE(p);
+	if (xmlStrncmp(p, (xmlChar *) "standalone", 10) == 0)
+	{
+		CHECK_XML_SPACE(save_p);
+		p += 10;
+		SKIP_XML_SPACE(p);
+		if (*p != '=')
+			return XML_ERR_STANDALONE_VALUE;
+		p += 1;
+		SKIP_XML_SPACE(p);
+		if (xmlStrncmp(p, (xmlChar *) "'yes'", 5) == 0 ||
+			xmlStrncmp(p, (xmlChar *) "\"yes\"", 5) == 0)
+		{
+			if (standalone)
+				*standalone = 1;
+			p += 5;
+		}
+		else if (xmlStrncmp(p, (xmlChar *) "'no'", 4) == 0 ||
+				 xmlStrncmp(p, (xmlChar *) "\"no\"", 4) == 0)
+		{
+			if (standalone)
+				*standalone = 0;
+			p += 4;
+		}
+		else
+			return XML_ERR_STANDALONE_VALUE;
+	}
+	else
+	{
+		p = save_p;
+	}
 
-    SKIP_XML_SPACE(p);
-    if (xmlStrncmp(p, (xmlChar *) "?>", 2) != 0)
-        return XML_ERR_XMLDECL_NOT_FINISHED;
-    p += 2;
+	SKIP_XML_SPACE(p);
+	if (xmlStrncmp(p, (xmlChar *) "?>", 2) != 0)
+		return XML_ERR_XMLDECL_NOT_FINISHED;
+	p += 2;
 
 finished:
-    len = p - str;
+	len = p - str;
 
-    for (p = str; p < str + len; p++)
-        if (*p > 127)
-            return XML_ERR_INVALID_CHAR;
+	for (p = str; p < str + len; p++)
+		if (*p > 127)
+			return XML_ERR_INVALID_CHAR;
 
-    if (lenp)
-        *lenp = len;
+	if (lenp)
+		*lenp = len;
 
-    return XML_ERR_OK;
+	return XML_ERR_OK;
 }
 
 
@@ -1352,41 +1381,65 @@ finished:
  */
 static bool
 print_xml_decl(StringInfo buf, const xmlChar *version,
-               pg_enc encoding, int standalone)
-{// #lizard forgives
-    if ((version && strcmp((const char *) version, PG_XML_DEFAULT_VERSION) != 0)
-        || (encoding && encoding != PG_UTF8)
-        || standalone != -1)
-    {
-        appendStringInfoString(buf, "<?xml");
+			   pg_enc encoding, int standalone)
+{
+	if ((version && strcmp((const char *) version, PG_XML_DEFAULT_VERSION) != 0)
+		|| (encoding && encoding != PG_UTF8)
+		|| standalone != -1)
+	{
+		appendStringInfoString(buf, "<?xml");
 
-        if (version)
-            appendStringInfo(buf, " version=\"%s\"", version);
-        else
-            appendStringInfo(buf, " version=\"%s\"", PG_XML_DEFAULT_VERSION);
+		if (version)
+			appendStringInfo(buf, " version=\"%s\"", version);
+		else
+			appendStringInfo(buf, " version=\"%s\"", PG_XML_DEFAULT_VERSION);
 
-        if (encoding && encoding != PG_UTF8)
-        {
-            /*
-             * XXX might be useful to convert this to IANA names (ISO-8859-1
-             * instead of LATIN1 etc.); needs field experience
-             */
-            appendStringInfo(buf, " encoding=\"%s\"",
-                             pg_encoding_to_char(encoding));
-        }
+		if (encoding && encoding != PG_UTF8)
+		{
+			/*
+			 * XXX might be useful to convert this to IANA names (ISO-8859-1
+			 * instead of LATIN1 etc.); needs field experience
+			 */
+			appendStringInfo(buf, " encoding=\"%s\"",
+							 pg_encoding_to_char(encoding));
+		}
 
-        if (standalone == 1)
-            appendStringInfoString(buf, " standalone=\"yes\"");
-        else if (standalone == 0)
-            appendStringInfoString(buf, " standalone=\"no\"");
-        appendStringInfoString(buf, "?>");
+		if (standalone == 1)
+			appendStringInfoString(buf, " standalone=\"yes\"");
+		else if (standalone == 0)
+			appendStringInfoString(buf, " standalone=\"no\"");
+		appendStringInfoString(buf, "?>");
 
-        return true;
-    }
-    else
-        return false;
+		return true;
+	}
+	else
+		return false;
 }
 
+static void
+OraValidateXml(const xmlChar *utf8string, PgXmlErrorContext *xmlerrcxt)
+{
+	int              res_code = 0;
+	xmlTextReaderPtr reader = NULL;
+
+	reader = xmlReaderForMemory((const char *) utf8string, xmlStrlen(utf8string), NULL, "UTF-8", 0);
+	if (reader == NULL)
+		elog(ERROR, "couldn't create a parser");
+
+	/*
+	 * int xmlTextReaderRead(xmlTextReaderPtr reader)
+	 * Returns:	1 if the node was read successfully, 0 if there is no more nodes to read, or -1 in case of error
+	 */
+	res_code = xmlTextReaderRead(reader);
+	while (res_code == 1)
+	{
+		res_code = xmlTextReaderRead(reader);
+	}
+	xmlFreeTextReader(reader);
+
+	if (res_code == -1)
+		xml_ereport(xmlerrcxt, ERROR, ERRCODE_INVALID_XML_CONTENT, "invalid XML content");
+}
 
 /*
  * Convert a C string to XML internal representation
@@ -1397,104 +1450,107 @@ print_xml_decl(StringInfo buf, const xmlChar *version,
  * TODO maybe libxml2's xmlreader is better? (do not construct DOM,
  * yet do not use SAX - see xmlreader.c)
  */
-static xmlDocPtr
+xmlDocPtr
 xml_parse(text *data, XmlOptionType xmloption_arg, bool preserve_whitespace,
-          int encoding)
-{// #lizard forgives
-    int32        len;
-    xmlChar    *string;
-    xmlChar    *utf8string;
-    PgXmlErrorContext *xmlerrcxt;
-    volatile xmlParserCtxtPtr ctxt = NULL;
-    volatile xmlDocPtr doc = NULL;
+		  int encoding, bool need_check)
+{
+	int32		len;
+	xmlChar    *string;
+	xmlChar    *utf8string;
+	PgXmlErrorContext *xmlerrcxt;
+	volatile xmlParserCtxtPtr ctxt = NULL;
+	volatile xmlDocPtr doc = NULL;
 
-    len = VARSIZE_ANY_EXHDR(data);    /* will be useful later */
-    string = xml_text2xmlChar(data);
+	len = VARSIZE_ANY_EXHDR(data);	/* will be useful later */
+	string = xml_text2xmlChar(data);
 
-    utf8string = pg_do_encoding_conversion(string,
-                                           len,
-                                           encoding,
-                                           PG_UTF8);
+	utf8string = pg_do_encoding_conversion(string,
+										   len,
+										   encoding,
+										   PG_UTF8);
 
-    /* Start up libxml and its parser */
-    xmlerrcxt = pg_xml_init(PG_XML_STRICTNESS_WELLFORMED);
+	/* Start up libxml and its parser */
+	xmlerrcxt = pg_xml_init(PG_XML_STRICTNESS_WELLFORMED);
 
-    /* Use a TRY block to ensure we clean up correctly */
-    PG_TRY();
-    {
-        xmlInitParser();
+	/* Use a TRY block to ensure we clean up correctly */
+	PG_TRY();
+	{
+		xmlInitParser();
 
-        ctxt = xmlNewParserCtxt();
-        if (ctxt == NULL || xmlerrcxt->err_occurred)
-            xml_ereport(xmlerrcxt, ERROR, ERRCODE_OUT_OF_MEMORY,
-                        "could not allocate parser context");
+		ctxt = xmlNewParserCtxt();
+		if (ctxt == NULL || xmlerrcxt->err_occurred)
+			xml_ereport(xmlerrcxt, ERROR, ERRCODE_OUT_OF_MEMORY,
+						"could not allocate parser context");
 
-        if (xmloption_arg == XMLOPTION_DOCUMENT)
-        {
-            /*
-             * Note, that here we try to apply DTD defaults
-             * (XML_PARSE_DTDATTR) according to SQL/XML:2008 GR 10.16.7.d:
-             * 'Default values defined by internal DTD are applied'. As for
-             * external DTDs, we try to support them too, (see SQL/XML:2008 GR
-             * 10.16.7.e)
-             */
-            doc = xmlCtxtReadDoc(ctxt, utf8string,
-                                 NULL,
-                                 "UTF-8",
-                                 XML_PARSE_NOENT | XML_PARSE_DTDATTR
-                                 | (preserve_whitespace ? 0 : XML_PARSE_NOBLANKS));
-            if (doc == NULL || xmlerrcxt->err_occurred)
-                xml_ereport(xmlerrcxt, ERROR, ERRCODE_INVALID_XML_DOCUMENT,
-                            "invalid XML document");
-        }
-        else
-        {
-            int            res_code;
-            size_t        count;
-            xmlChar    *version;
-            int            standalone;
+		if (xmloption_arg == XMLOPTION_DOCUMENT)
+		{
+			/*
+			 * Note, that here we try to apply DTD defaults
+			 * (XML_PARSE_DTDATTR) according to SQL/XML:2008 GR 10.16.7.d:
+			 * 'Default values defined by internal DTD are applied'. As for
+			 * external DTDs, we try to support them too, (see SQL/XML:2008 GR
+			 * 10.16.7.e)
+			 */
+			doc = xmlCtxtReadDoc(ctxt, utf8string,
+								 NULL,
+								 "UTF-8",
+								 XML_PARSE_NOENT | XML_PARSE_DTDATTR
+								 | (preserve_whitespace ? 0 : XML_PARSE_NOBLANKS));
+			if (doc == NULL || xmlerrcxt->err_occurred)
+				xml_ereport(xmlerrcxt, ERROR, ERRCODE_INVALID_XML_DOCUMENT,
+							"invalid XML document");
+		}
+		else
+		{
+			int			res_code;
+			size_t		count;
+			xmlChar    *version;
+			int			standalone;
 
-            res_code = parse_xml_decl(utf8string,
-                                      &count, &version, NULL, &standalone);
-            if (res_code != 0)
-                xml_ereport_by_code(ERROR, ERRCODE_INVALID_XML_CONTENT,
-                                    "invalid XML content: invalid XML declaration",
-                                    res_code);
+			if (ORA_MODE && need_check)
+				OraValidateXml(utf8string, xmlerrcxt);
 
-            doc = xmlNewDoc(version);
-            Assert(doc->encoding == NULL);
-            doc->encoding = xmlStrdup((const xmlChar *) "UTF-8");
-            doc->standalone = standalone;
+			res_code = parse_xml_decl(utf8string,
+									  &count, &version, NULL, &standalone);
+			if (res_code != 0)
+				xml_ereport_by_code(ERROR, ERRCODE_INVALID_XML_CONTENT,
+									"invalid XML content: invalid XML declaration",
+									res_code);
 
-            /* allow empty content */
-            if (*(utf8string + count))
-            {
-                res_code = xmlParseBalancedChunkMemory(doc, NULL, NULL, 0,
-                                                       utf8string + count, NULL);
-                if (res_code != 0 || xmlerrcxt->err_occurred)
-                    xml_ereport(xmlerrcxt, ERROR, ERRCODE_INVALID_XML_CONTENT,
-                                "invalid XML content");
-            }
-        }
-    }
-    PG_CATCH();
-    {
-        if (doc != NULL)
-            xmlFreeDoc(doc);
-        if (ctxt != NULL)
-            xmlFreeParserCtxt(ctxt);
+			doc = xmlNewDoc(version);
+			Assert(doc->encoding == NULL);
+			doc->encoding = xmlStrdup((const xmlChar *) "UTF-8");
+			doc->standalone = standalone;
 
-        pg_xml_done(xmlerrcxt, true);
+			/* allow empty content */
+			if (*(utf8string + count))
+			{
+				res_code = xmlParseBalancedChunkMemory(doc, NULL, NULL, 0,
+													   utf8string + count, NULL);
+				if (res_code != 0 || xmlerrcxt->err_occurred)
+					xml_ereport(xmlerrcxt, ERROR, ERRCODE_INVALID_XML_CONTENT,
+								"invalid XML content");
+			}
+		}
+	}
+	PG_CATCH();
+	{
+		if (doc != NULL)
+			xmlFreeDoc(doc);
+		if (ctxt != NULL)
+			xmlFreeParserCtxt(ctxt);
 
-        PG_RE_THROW();
-    }
-    PG_END_TRY();
+		pg_xml_done(xmlerrcxt, true);
 
-    xmlFreeParserCtxt(ctxt);
+		PG_RE_THROW();
+	}
+	PG_END_TRY();
 
-    pg_xml_done(xmlerrcxt, false);
+	xmlFreeParserCtxt(ctxt);
 
-    return doc;
+	pg_xml_done(xmlerrcxt, false);
+
+	return doc;
 }
 
 
@@ -1504,7 +1560,7 @@ xml_parse(text *data, XmlOptionType xmloption_arg, bool preserve_whitespace,
 static xmlChar *
 xml_text2xmlChar(text *in)
 {
-    return (xmlChar *) text_to_cstring(in);
+	return (xmlChar *) text_to_cstring(in);
 }
 
 
@@ -1517,14 +1573,14 @@ xml_text2xmlChar(text *in)
 static void
 xml_memory_init(void)
 {
-    /* Create memory context if not there already */
-    if (LibxmlContext == NULL)
-        LibxmlContext = AllocSetContextCreate(TopMemoryContext,
-                                              "Libxml context",
-                                              ALLOCSET_DEFAULT_SIZES);
+	/* Create memory context if not there already */
+	if (LibxmlContext == NULL)
+		LibxmlContext = AllocSetContextCreate(TopMemoryContext,
+											  "Libxml context",
+											  ALLOCSET_DEFAULT_SIZES);
 
-    /* Re-establish the callbacks even if already set */
-    xmlMemSetup(xml_pfree, xml_palloc, xml_repalloc, xml_pstrdup);
+	/* Re-establish the callbacks even if already set */
+	xmlMemSetup(xml_pfree, xml_palloc, xml_repalloc, xml_pstrdup);
 }
 
 /*
@@ -1533,32 +1589,32 @@ xml_memory_init(void)
 static void *
 xml_palloc(size_t size)
 {
-    return MemoryContextAlloc(LibxmlContext, size);
+	return MemoryContextAlloc(LibxmlContext, size);
 }
 
 
 static void *
 xml_repalloc(void *ptr, size_t size)
 {
-    return repalloc(ptr, size);
+	return repalloc(ptr, size);
 }
 
 
 static void
 xml_pfree(void *ptr)
 {
-    /* At least some parts of libxml assume xmlFree(NULL) is allowed */
-    if (ptr)
-        pfree(ptr);
+	/* At least some parts of libxml assume xmlFree(NULL) is allowed */
+	if (ptr)
+		pfree(ptr);
 }
 
 
 static char *
 xml_pstrdup(const char *string)
 {
-    return MemoryContextStrdup(LibxmlContext, string);
+	return MemoryContextStrdup(LibxmlContext, string);
 }
-#endif                            /* USE_LIBXMLCONTEXT */
+#endif							/* USE_LIBXMLCONTEXT */
 
 
 /*
@@ -1574,9 +1630,9 @@ xml_pstrdup(const char *string)
  */
 static xmlParserInputPtr
 xmlPgEntityLoader(const char *URL, const char *ID,
-                  xmlParserCtxtPtr ctxt)
+				  xmlParserCtxtPtr ctxt)
 {
-    return xmlNewStringInputStream(ctxt, (const xmlChar *) "");
+	return xmlNewStringInputStream(ctxt, (const xmlChar *) "");
 }
 
 
@@ -1593,25 +1649,25 @@ xmlPgEntityLoader(const char *URL, const char *ID,
 void
 xml_ereport(PgXmlErrorContext *errcxt, int level, int sqlcode, const char *msg)
 {
-    char       *detail;
+	char	   *detail;
 
-    /* Defend against someone passing us a bogus context struct */
-    if (errcxt->magic != ERRCXT_MAGIC)
-        elog(ERROR, "xml_ereport called with invalid PgXmlErrorContext");
+	/* Defend against someone passing us a bogus context struct */
+	if (errcxt->magic != ERRCXT_MAGIC)
+		elog(ERROR, "xml_ereport called with invalid PgXmlErrorContext");
 
-    /* Flag that the current libxml error has been reported */
-    errcxt->err_occurred = false;
+	/* Flag that the current libxml error has been reported */
+	errcxt->err_occurred = false;
 
-    /* Include detail only if we have some text from libxml */
-    if (errcxt->err_buf.len > 0)
-        detail = errcxt->err_buf.data;
-    else
-        detail = NULL;
+	/* Include detail only if we have some text from libxml */
+	if (errcxt->err_buf.len > 0)
+		detail = errcxt->err_buf.data;
+	else
+		detail = NULL;
 
-    ereport(level,
-            (errcode(sqlcode),
-             errmsg_internal("%s", msg),
-             detail ? errdetail_internal("%s", detail) : 0));
+	ereport(level,
+			(errcode(sqlcode),
+			 errmsg_internal("%s", msg),
+			 detail ? errdetail_internal("%s", detail) : 0));
 }
 
 
@@ -1620,164 +1676,164 @@ xml_ereport(PgXmlErrorContext *errcxt, int level, int sqlcode, const char *msg)
  */
 static void
 xml_errorHandler(void *data, xmlErrorPtr error)
-{// #lizard forgives
-    PgXmlErrorContext *xmlerrcxt = (PgXmlErrorContext *) data;
-    xmlParserCtxtPtr ctxt = (xmlParserCtxtPtr) error->ctxt;
-    xmlParserInputPtr input = (ctxt != NULL) ? ctxt->input : NULL;
-    xmlNodePtr    node = error->node;
-    const xmlChar *name = (node != NULL &&
-                           node->type == XML_ELEMENT_NODE) ? node->name : NULL;
-    int            domain = error->domain;
-    int            level = error->level;
-    StringInfo    errorBuf;
+{
+	PgXmlErrorContext *xmlerrcxt = (PgXmlErrorContext *) data;
+	xmlParserCtxtPtr ctxt = (xmlParserCtxtPtr) error->ctxt;
+	xmlParserInputPtr input = (ctxt != NULL) ? ctxt->input : NULL;
+	xmlNodePtr	node = error->node;
+	const xmlChar *name = (node != NULL &&
+						   node->type == XML_ELEMENT_NODE) ? node->name : NULL;
+	int			domain = error->domain;
+	int			level = error->level;
+	StringInfo	errorBuf;
 
-    /*
-     * Defend against someone passing us a bogus context struct.
-     *
-     * We force a backend exit if this check fails because longjmp'ing out of
-     * libxml would likely render it unsafe to use further.
-     */
-    if (xmlerrcxt->magic != ERRCXT_MAGIC)
-        elog(FATAL, "xml_errorHandler called with invalid PgXmlErrorContext");
+	/*
+	 * Defend against someone passing us a bogus context struct.
+	 *
+	 * We force a backend exit if this check fails because longjmp'ing out of
+	 * libxml would likely render it unsafe to use further.
+	 */
+	if (xmlerrcxt->magic != ERRCXT_MAGIC)
+		elog(FATAL, "xml_errorHandler called with invalid PgXmlErrorContext");
 
-    /*----------
-     * Older libxml versions report some errors differently.
-     * First, some errors were previously reported as coming from the parser
-     * domain but are now reported as coming from the namespace domain.
-     * Second, some warnings were upgraded to errors.
-     * We attempt to compensate for that here.
-     *----------
-     */
-    switch (error->code)
-    {
-        case XML_WAR_NS_URI:
-            level = XML_ERR_ERROR;
-            domain = XML_FROM_NAMESPACE;
-            break;
+	/*----------
+	 * Older libxml versions report some errors differently.
+	 * First, some errors were previously reported as coming from the parser
+	 * domain but are now reported as coming from the namespace domain.
+	 * Second, some warnings were upgraded to errors.
+	 * We attempt to compensate for that here.
+	 *----------
+	 */
+	switch (error->code)
+	{
+		case XML_WAR_NS_URI:
+			level = XML_ERR_ERROR;
+			domain = XML_FROM_NAMESPACE;
+			break;
 
-        case XML_ERR_NS_DECL_ERROR:
-        case XML_WAR_NS_URI_RELATIVE:
-        case XML_WAR_NS_COLUMN:
-        case XML_NS_ERR_XML_NAMESPACE:
-        case XML_NS_ERR_UNDEFINED_NAMESPACE:
-        case XML_NS_ERR_QNAME:
-        case XML_NS_ERR_ATTRIBUTE_REDEFINED:
-        case XML_NS_ERR_EMPTY:
-            domain = XML_FROM_NAMESPACE;
-            break;
-    }
+		case XML_ERR_NS_DECL_ERROR:
+		case XML_WAR_NS_URI_RELATIVE:
+		case XML_WAR_NS_COLUMN:
+		case XML_NS_ERR_XML_NAMESPACE:
+		case XML_NS_ERR_UNDEFINED_NAMESPACE:
+		case XML_NS_ERR_QNAME:
+		case XML_NS_ERR_ATTRIBUTE_REDEFINED:
+		case XML_NS_ERR_EMPTY:
+			domain = XML_FROM_NAMESPACE;
+			break;
+	}
 
-    /* Decide whether to act on the error or not */
-    switch (domain)
-    {
-        case XML_FROM_PARSER:
-        case XML_FROM_NONE:
-        case XML_FROM_MEMORY:
-        case XML_FROM_IO:
+	/* Decide whether to act on the error or not */
+	switch (domain)
+	{
+		case XML_FROM_PARSER:
+		case XML_FROM_NONE:
+		case XML_FROM_MEMORY:
+		case XML_FROM_IO:
 
-            /*
-             * Suppress warnings about undeclared entities.  We need to do
-             * this to avoid problems due to not loading DTD definitions.
-             */
-            if (error->code == XML_WAR_UNDECLARED_ENTITY)
-                return;
+			/*
+			 * Suppress warnings about undeclared entities.  We need to do
+			 * this to avoid problems due to not loading DTD definitions.
+			 */
+			if (error->code == XML_WAR_UNDECLARED_ENTITY)
+				return;
 
-            /* Otherwise, accept error regardless of the parsing purpose */
-            break;
+			/* Otherwise, accept error regardless of the parsing purpose */
+			break;
 
-        default:
-            /* Ignore error if only doing well-formedness check */
-            if (xmlerrcxt->strictness == PG_XML_STRICTNESS_WELLFORMED)
-                return;
-            break;
-    }
+		default:
+			/* Ignore error if only doing well-formedness check */
+			if (xmlerrcxt->strictness == PG_XML_STRICTNESS_WELLFORMED)
+				return;
+			break;
+	}
 
-    /* Prepare error message in errorBuf */
-    errorBuf = makeStringInfo();
+	/* Prepare error message in errorBuf */
+	errorBuf = makeStringInfo();
 
-    if (error->line > 0)
-        appendStringInfo(errorBuf, "line %d: ", error->line);
-    if (name != NULL)
-        appendStringInfo(errorBuf, "element %s: ", name);
-    appendStringInfoString(errorBuf, error->message);
+	if (error->line > 0)
+		appendStringInfo(errorBuf, "line %d: ", error->line);
+	if (name != NULL)
+		appendStringInfo(errorBuf, "element %s: ", name);
+	appendStringInfoString(errorBuf, error->message);
 
-    /*
-     * Append context information to errorBuf.
-     *
-     * xmlParserPrintFileContext() uses libxml's "generic" error handler to
-     * write the context.  Since we don't want to duplicate libxml
-     * functionality here, we set up a generic error handler temporarily.
-     *
-     * We use appendStringInfo() directly as libxml's generic error handler.
-     * This should work because it has essentially the same signature as
-     * libxml expects, namely (void *ptr, const char *msg, ...).
-     */
-    if (input != NULL)
-    {
-        xmlGenericErrorFunc errFuncSaved = xmlGenericError;
-        void       *errCtxSaved = xmlGenericErrorContext;
+	/*
+	 * Append context information to errorBuf.
+	 *
+	 * xmlParserPrintFileContext() uses libxml's "generic" error handler to
+	 * write the context.  Since we don't want to duplicate libxml
+	 * functionality here, we set up a generic error handler temporarily.
+	 *
+	 * We use appendStringInfo() directly as libxml's generic error handler.
+	 * This should work because it has essentially the same signature as
+	 * libxml expects, namely (void *ptr, const char *msg, ...).
+	 */
+	if (input != NULL)
+	{
+		xmlGenericErrorFunc errFuncSaved = xmlGenericError;
+		void	   *errCtxSaved = xmlGenericErrorContext;
 
-        xmlSetGenericErrorFunc((void *) errorBuf,
-                               (xmlGenericErrorFunc) appendStringInfo);
+		xmlSetGenericErrorFunc((void *) errorBuf,
+							   (xmlGenericErrorFunc) appendStringInfo);
 
-        /* Add context information to errorBuf */
-        appendStringInfoLineSeparator(errorBuf);
+		/* Add context information to errorBuf */
+		appendStringInfoLineSeparator(errorBuf);
 
-        xmlParserPrintFileContext(input);
+		xmlParserPrintFileContext(input);
 
-        /* Restore generic error func */
-        xmlSetGenericErrorFunc(errCtxSaved, errFuncSaved);
-    }
+		/* Restore generic error func */
+		xmlSetGenericErrorFunc(errCtxSaved, errFuncSaved);
+	}
 
-    /* Get rid of any trailing newlines in errorBuf */
-    chopStringInfoNewlines(errorBuf);
+	/* Get rid of any trailing newlines in errorBuf */
+	chopStringInfoNewlines(errorBuf);
 
-    /*
-     * Legacy error handling mode.  err_occurred is never set, we just add the
-     * message to err_buf.  This mode exists because the xml2 contrib module
-     * uses our error-handling infrastructure, but we don't want to change its
-     * behaviour since it's deprecated anyway.  This is also why we don't
-     * distinguish between notices, warnings and errors here --- the old-style
-     * generic error handler wouldn't have done that either.
-     */
-    if (xmlerrcxt->strictness == PG_XML_STRICTNESS_LEGACY)
-    {
-        appendStringInfoLineSeparator(&xmlerrcxt->err_buf);
-        appendStringInfoString(&xmlerrcxt->err_buf, errorBuf->data);
+	/*
+	 * Legacy error handling mode.  err_occurred is never set, we just add the
+	 * message to err_buf.  This mode exists because the xml2 contrib module
+	 * uses our error-handling infrastructure, but we don't want to change its
+	 * behaviour since it's deprecated anyway.  This is also why we don't
+	 * distinguish between notices, warnings and errors here --- the old-style
+	 * generic error handler wouldn't have done that either.
+	 */
+	if (xmlerrcxt->strictness == PG_XML_STRICTNESS_LEGACY)
+	{
+		appendStringInfoLineSeparator(&xmlerrcxt->err_buf);
+		appendStringInfoString(&xmlerrcxt->err_buf, errorBuf->data);
 
-        pfree(errorBuf->data);
-        pfree(errorBuf);
-        return;
-    }
+		pfree(errorBuf->data);
+		pfree(errorBuf);
+		return;
+	}
 
-    /*
-     * We don't want to ereport() here because that'd probably leave libxml in
-     * an inconsistent state.  Instead, we remember the error and ereport()
-     * from xml_ereport().
-     *
-     * Warnings and notices can be reported immediately since they won't cause
-     * a longjmp() out of libxml.
-     */
-    if (level >= XML_ERR_ERROR)
-    {
-        appendStringInfoLineSeparator(&xmlerrcxt->err_buf);
-        appendStringInfoString(&xmlerrcxt->err_buf, errorBuf->data);
+	/*
+	 * We don't want to ereport() here because that'd probably leave libxml in
+	 * an inconsistent state.  Instead, we remember the error and ereport()
+	 * from xml_ereport().
+	 *
+	 * Warnings and notices can be reported immediately since they won't cause
+	 * a longjmp() out of libxml.
+	 */
+	if (level >= XML_ERR_ERROR)
+	{
+		appendStringInfoLineSeparator(&xmlerrcxt->err_buf);
+		appendStringInfoString(&xmlerrcxt->err_buf, errorBuf->data);
 
-        xmlerrcxt->err_occurred = true;
-    }
-    else if (level >= XML_ERR_WARNING)
-    {
-        ereport(WARNING,
-                (errmsg_internal("%s", errorBuf->data)));
-    }
-    else
-    {
-        ereport(NOTICE,
-                (errmsg_internal("%s", errorBuf->data)));
-    }
+		xmlerrcxt->err_occurred = true;
+	}
+	else if (level >= XML_ERR_WARNING)
+	{
+		ereport(WARNING,
+				(errmsg_internal("%s", errorBuf->data)));
+	}
+	else
+	{
+		ereport(NOTICE,
+				(errmsg_internal("%s", errorBuf->data)));
+	}
 
-    pfree(errorBuf->data);
-    pfree(errorBuf);
+	pfree(errorBuf->data);
+	pfree(errorBuf);
 }
 
 
@@ -1790,39 +1846,39 @@ xml_errorHandler(void *data, xmlErrorPtr error)
  */
 static void
 xml_ereport_by_code(int level, int sqlcode,
-                    const char *msg, int code)
+					const char *msg, int code)
 {
-    const char *det;
+	const char *det;
 
-    switch (code)
-    {
-        case XML_ERR_INVALID_CHAR:
-            det = gettext_noop("Invalid character value.");
-            break;
-        case XML_ERR_SPACE_REQUIRED:
-            det = gettext_noop("Space required.");
-            break;
-        case XML_ERR_STANDALONE_VALUE:
-            det = gettext_noop("standalone accepts only 'yes' or 'no'.");
-            break;
-        case XML_ERR_VERSION_MISSING:
-            det = gettext_noop("Malformed declaration: missing version.");
-            break;
-        case XML_ERR_MISSING_ENCODING:
-            det = gettext_noop("Missing encoding in text declaration.");
-            break;
-        case XML_ERR_XMLDECL_NOT_FINISHED:
-            det = gettext_noop("Parsing XML declaration: '?>' expected.");
-            break;
-        default:
-            det = gettext_noop("Unrecognized libxml error code: %d.");
-            break;
-    }
+	switch (code)
+	{
+		case XML_ERR_INVALID_CHAR:
+			det = gettext_noop("Invalid character value.");
+			break;
+		case XML_ERR_SPACE_REQUIRED:
+			det = gettext_noop("Space required.");
+			break;
+		case XML_ERR_STANDALONE_VALUE:
+			det = gettext_noop("standalone accepts only 'yes' or 'no'.");
+			break;
+		case XML_ERR_VERSION_MISSING:
+			det = gettext_noop("Malformed declaration: missing version.");
+			break;
+		case XML_ERR_MISSING_ENCODING:
+			det = gettext_noop("Missing encoding in text declaration.");
+			break;
+		case XML_ERR_XMLDECL_NOT_FINISHED:
+			det = gettext_noop("Parsing XML declaration: '?>' expected.");
+			break;
+		default:
+			det = gettext_noop("Unrecognized libxml error code: %d.");
+			break;
+	}
 
-    ereport(level,
-            (errcode(sqlcode),
-             errmsg_internal("%s", msg),
-             errdetail(det, code)));
+	ereport(level,
+			(errcode(sqlcode),
+			 errmsg_internal("%s", msg),
+			 errdetail(det, code)));
 }
 
 
@@ -1832,8 +1888,8 @@ xml_ereport_by_code(int level, int sqlcode,
 static void
 chopStringInfoNewlines(StringInfo str)
 {
-    while (str->len > 0 && str->data[str->len - 1] == '\n')
-        str->data[--str->len] = '\0';
+	while (str->len > 0 && str->data[str->len - 1] == '\n')
+		str->data[--str->len] = '\0';
 }
 
 
@@ -1843,9 +1899,9 @@ chopStringInfoNewlines(StringInfo str)
 static void
 appendStringInfoLineSeparator(StringInfo str)
 {
-    chopStringInfoNewlines(str);
-    if (str->len > 0)
-        appendStringInfoChar(str, '\n');
+	chopStringInfoNewlines(str);
+	if (str->len > 0)
+		appendStringInfoChar(str, '\n');
 }
 
 
@@ -1855,42 +1911,42 @@ appendStringInfoLineSeparator(StringInfo str)
 static pg_wchar
 sqlchar_to_unicode(char *s)
 {
-    char       *utf8string;
-    pg_wchar    ret[2];            /* need space for trailing zero */
+	char	   *utf8string;
+	pg_wchar	ret[2];			/* need space for trailing zero */
 
-    /* note we're not assuming s is null-terminated */
-    utf8string = pg_server_to_any(s, pg_mblen(s), PG_UTF8);
+	/* note we're not assuming s is null-terminated */
+	utf8string = pg_server_to_any(s, pg_mblen(s), PG_UTF8);
 
-    pg_encoding_mb2wchar_with_len(PG_UTF8, utf8string, ret,
-                                  pg_encoding_mblen(PG_UTF8, utf8string));
+	pg_encoding_mb2wchar_with_len(PG_UTF8, utf8string, ret,
+								  pg_encoding_mblen(PG_UTF8, utf8string));
 
-    if (utf8string != s)
-        pfree(utf8string);
+	if (utf8string != s)
+		pfree(utf8string);
 
-    return ret[0];
+	return ret[0];
 }
 
 
 static bool
 is_valid_xml_namefirst(pg_wchar c)
 {
-    /* (Letter | '_' | ':') */
-    return (xmlIsBaseCharQ(c) || xmlIsIdeographicQ(c)
-            || c == '_' || c == ':');
+	/* (Letter | '_' | ':') */
+	return (xmlIsBaseCharQ(c) || xmlIsIdeographicQ(c)
+			|| c == '_' || c == ':');
 }
 
 
 static bool
 is_valid_xml_namechar(pg_wchar c)
-{// #lizard forgives
-    /* Letter | Digit | '.' | '-' | '_' | ':' | CombiningChar | Extender */
-    return (xmlIsBaseCharQ(c) || xmlIsIdeographicQ(c)
-            || xmlIsDigitQ(c)
-            || c == '.' || c == '-' || c == '_' || c == ':'
-            || xmlIsCombiningQ(c)
-            || xmlIsExtenderQ(c));
+{
+	/* Letter | Digit | '.' | '-' | '_' | ':' | CombiningChar | Extender */
+	return (xmlIsBaseCharQ(c) || xmlIsIdeographicQ(c)
+			|| xmlIsDigitQ(c)
+			|| c == '.' || c == '-' || c == '_' || c == ':'
+			|| xmlIsCombiningQ(c)
+			|| xmlIsExtenderQ(c));
 }
-#endif                            /* USE_LIBXML */
+#endif							/* USE_LIBXML */
 
 
 /*
@@ -1898,54 +1954,54 @@ is_valid_xml_namechar(pg_wchar c)
  */
 char *
 map_sql_identifier_to_xml_name(char *ident, bool fully_escaped,
-                               bool escape_period)
-{// #lizard forgives
+							   bool escape_period)
+{
 #ifdef USE_LIBXML
-    StringInfoData buf;
-    char       *p;
+	StringInfoData buf;
+	char	   *p;
 
-    /*
-     * SQL/XML doesn't make use of this case anywhere, so it's probably a
-     * mistake.
-     */
-    Assert(fully_escaped || !escape_period);
+	/*
+	 * SQL/XML doesn't make use of this case anywhere, so it's probably a
+	 * mistake.
+	 */
+	Assert(fully_escaped || !escape_period);
 
-    initStringInfo(&buf);
+	initStringInfo(&buf);
 
-    for (p = ident; *p; p += pg_mblen(p))
-    {
-        if (*p == ':' && (p == ident || fully_escaped))
-            appendStringInfoString(&buf, "_x003A_");
-        else if (*p == '_' && *(p + 1) == 'x')
-            appendStringInfoString(&buf, "_x005F_");
-        else if (fully_escaped && p == ident &&
-                 pg_strncasecmp(p, "xml", 3) == 0)
-        {
-            if (*p == 'x')
-                appendStringInfoString(&buf, "_x0078_");
-            else
-                appendStringInfoString(&buf, "_x0058_");
-        }
-        else if (escape_period && *p == '.')
-            appendStringInfoString(&buf, "_x002E_");
-        else
-        {
-            pg_wchar    u = sqlchar_to_unicode(p);
+	for (p = ident; *p; p += pg_mblen(p))
+	{
+		if (*p == ':' && (p == ident || fully_escaped))
+			appendStringInfoString(&buf, "_x003A_");
+		else if (*p == '_' && *(p + 1) == 'x')
+			appendStringInfoString(&buf, "_x005F_");
+		else if (fully_escaped && p == ident &&
+				 pg_strncasecmp(p, "xml", 3) == 0)
+		{
+			if (*p == 'x')
+				appendStringInfoString(&buf, "_x0078_");
+			else
+				appendStringInfoString(&buf, "_x0058_");
+		}
+		else if (escape_period && *p == '.')
+			appendStringInfoString(&buf, "_x002E_");
+		else
+		{
+			pg_wchar	u = sqlchar_to_unicode(p);
 
-            if ((p == ident)
-                ? !is_valid_xml_namefirst(u)
-                : !is_valid_xml_namechar(u))
-                appendStringInfo(&buf, "_x%04X_", (unsigned int) u);
-            else
-                appendBinaryStringInfo(&buf, p, pg_mblen(p));
-        }
-    }
+			if ((p == ident)
+				? !is_valid_xml_namefirst(u)
+				: !is_valid_xml_namechar(u))
+				appendStringInfo(&buf, "_x%04X_", (unsigned int) u);
+			else
+				appendBinaryStringInfo(&buf, p, pg_mblen(p));
+		}
+	}
 
-    return buf.data;
-#else                            /* not USE_LIBXML */
-    NO_XML_SUPPORT();
-    return NULL;
-#endif                            /* not USE_LIBXML */
+	return buf.data;
+#else							/* not USE_LIBXML */
+	NO_XML_SUPPORT();
+	return NULL;
+#endif							/* not USE_LIBXML */
 }
 
 
@@ -1955,17 +2011,17 @@ map_sql_identifier_to_xml_name(char *ident, bool fully_escaped,
 static char *
 unicode_to_sqlchar(pg_wchar c)
 {
-    char        utf8string[8];    /* need room for trailing zero */
-    char       *result;
+	char		utf8string[8];	/* need room for trailing zero */
+	char	   *result;
 
-    memset(utf8string, 0, sizeof(utf8string));
-    unicode_to_utf8(c, (unsigned char *) utf8string);
+	memset(utf8string, 0, sizeof(utf8string));
+	unicode_to_utf8(c, (unsigned char *) utf8string);
 
-    result = pg_any_to_server(utf8string, strlen(utf8string), PG_UTF8);
-    /* if pg_any_to_server didn't strdup, we must */
-    if (result == utf8string)
-        result = pstrdup(result);
-    return result;
+	result = pg_any_to_server(utf8string, strlen(utf8string), PG_UTF8, false, false);
+	/* if pg_any_to_server didn't strdup, we must */
+	if (result == utf8string)
+		result = pstrdup(result);
+	return result;
 }
 
 
@@ -1974,32 +2030,32 @@ unicode_to_sqlchar(pg_wchar c)
  */
 char *
 map_xml_name_to_sql_identifier(char *name)
-{// #lizard forgives
-    StringInfoData buf;
-    char       *p;
+{
+	StringInfoData buf;
+	char	   *p;
 
-    initStringInfo(&buf);
+	initStringInfo(&buf);
 
-    for (p = name; *p; p += pg_mblen(p))
-    {
-        if (*p == '_' && *(p + 1) == 'x'
-            && isxdigit((unsigned char) *(p + 2))
-            && isxdigit((unsigned char) *(p + 3))
-            && isxdigit((unsigned char) *(p + 4))
-            && isxdigit((unsigned char) *(p + 5))
-            && *(p + 6) == '_')
-        {
-            unsigned int u;
+	for (p = name; *p; p += pg_mblen(p))
+	{
+		if (*p == '_' && *(p + 1) == 'x'
+			&& isxdigit((unsigned char) *(p + 2))
+			&& isxdigit((unsigned char) *(p + 3))
+			&& isxdigit((unsigned char) *(p + 4))
+			&& isxdigit((unsigned char) *(p + 5))
+			&& *(p + 6) == '_')
+		{
+			unsigned int u;
 
-            sscanf(p + 2, "%X", &u);
-            appendStringInfoString(&buf, unicode_to_sqlchar(u));
-            p += 6;
-        }
-        else
-            appendBinaryStringInfo(&buf, p, pg_mblen(p));
-    }
+			sscanf(p + 2, "%X", &u);
+			appendStringInfoString(&buf, unicode_to_sqlchar(u));
+			p += 6;
+		}
+		else
+			appendBinaryStringInfo(&buf, p, pg_mblen(p));
+	}
 
-    return buf.data;
+	return buf.data;
 }
 
 /*
@@ -2014,215 +2070,235 @@ map_xml_name_to_sql_identifier(char *name)
  */
 char *
 map_sql_value_to_xml_value(Datum value, Oid type, bool xml_escape_strings)
-{// #lizard forgives
-    if (type_is_array_domain(type))
-    {
-        ArrayType  *array;
-        Oid            elmtype;
-        int16        elmlen;
-        bool        elmbyval;
-        char        elmalign;
-        int            num_elems;
-        Datum       *elem_values;
-        bool       *elem_nulls;
-        StringInfoData buf;
-        int            i;
+{
+	if (type_is_array_domain(type))
+	{
+		ArrayType  *array;
+		Oid			elmtype;
+		int16		elmlen;
+		bool		elmbyval;
+		char		elmalign;
+		int			num_elems;
+		Datum	   *elem_values;
+		bool	   *elem_nulls;
+		StringInfoData buf;
+		int			i;
 
-        array = DatumGetArrayTypeP(value);
-        elmtype = ARR_ELEMTYPE(array);
-        get_typlenbyvalalign(elmtype, &elmlen, &elmbyval, &elmalign);
+		array = DatumGetArrayTypeP(value);
+		elmtype = ARR_ELEMTYPE(array);
+		get_typlenbyvalalign(elmtype, &elmlen, &elmbyval, &elmalign);
 
-        deconstruct_array(array, elmtype,
-                          elmlen, elmbyval, elmalign,
-                          &elem_values, &elem_nulls,
-                          &num_elems);
+		deconstruct_array(array, elmtype,
+						  elmlen, elmbyval, elmalign,
+						  &elem_values, &elem_nulls,
+						  &num_elems);
 
-        initStringInfo(&buf);
+		initStringInfo(&buf);
 
-        for (i = 0; i < num_elems; i++)
-        {
-            if (elem_nulls[i])
-                continue;
-            appendStringInfoString(&buf, "<element>");
-            appendStringInfoString(&buf,
-                                   map_sql_value_to_xml_value(elem_values[i],
-                                                              elmtype, true));
-            appendStringInfoString(&buf, "</element>");
-        }
+		for (i = 0; i < num_elems; i++)
+		{
+			if (elem_nulls[i])
+				continue;
+			appendStringInfoString(&buf, "<element>");
+			appendStringInfoString(&buf,
+								   map_sql_value_to_xml_value(elem_values[i],
+															  elmtype, true));
+			appendStringInfoString(&buf, "</element>");
+		}
 
-        pfree(elem_values);
-        pfree(elem_nulls);
+		pfree(elem_values);
+		pfree(elem_nulls);
 
-        return buf.data;
-    }
-    else
-    {
-        Oid            typeOut;
-        bool        isvarlena;
-        char       *str;
+		return buf.data;
+	}
+	else
+	{
+		Oid			typeOut;
+		bool		isvarlena;
+		char	   *str;
 
-        /*
-         * Flatten domains; the special-case treatments below should apply to,
-         * eg, domains over boolean not just boolean.
-         */
-        type = getBaseType(type);
+		/*
+		 * Flatten domains; the special-case treatments below should apply to,
+		 * eg, domains over boolean not just boolean.
+		 */
+		type = getBaseType(type);
 
-        /*
-         * Special XSD formatting for some data types
-         */
-        switch (type)
-        {
-            case BOOLOID:
-                if (DatumGetBool(value))
-                    return "true";
-                else
-                    return "false";
+		/*
+		 * Special XSD formatting for some data types
+		 */
+		switch (type)
+		{
+			case BOOLOID:
+				if (DatumGetBool(value))
+					return "true";
+				else
+					return "false";
 
-            case DATEOID:
-                {
-                    DateADT        date;
-                    struct pg_tm tm;
-                    char        buf[MAXDATELEN + 1];
+			case DATEOID:
+				{
+					DateADT		date;
+					struct pg_tm tm;
+					char		buf[MAXDATELEN + 1];
 
-                    date = DatumGetDateADT(value);
-                    /* XSD doesn't support infinite values */
-                    if (DATE_NOT_FINITE(date))
-                        ereport(ERROR,
-                                (errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE),
-                                 errmsg("date out of range"),
-                                 errdetail("XML does not support infinite date values.")));
-                    j2date(date + POSTGRES_EPOCH_JDATE,
-                           &(tm.tm_year), &(tm.tm_mon), &(tm.tm_mday));
-                    EncodeDateOnly(&tm, USE_XSD_DATES, buf);
+					date = DatumGetDateADT(value);
+					/* XSD doesn't support infinite values */
+					if (DATE_NOT_FINITE(date))
+						ereport(ERROR,
+								(errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE),
+								 errmsg("date out of range"),
+								 errdetail("XML does not support infinite date values.")));
+					j2date(date + POSTGRES_EPOCH_JDATE,
+						   &(tm.tm_year), &(tm.tm_mon), &(tm.tm_mday));
+					EncodeDateOnly(&tm, USE_XSD_DATES, buf);
 
-                    return pstrdup(buf);
-                }
+					return pstrdup(buf);
+				}
 
-            case TIMESTAMPOID:
-                {
-                    Timestamp    timestamp;
-                    struct pg_tm tm;
-                    fsec_t        fsec;
-                    char        buf[MAXDATELEN + 1];
+			case TIMESTAMPOID:
+				{
+					Timestamp	timestamp;
+					struct pg_tm tm;
+					fsec_t		fsec;
+					char		buf[MAXDATELEN + 1];
 
-                    timestamp = DatumGetTimestamp(value);
+					timestamp = DatumGetTimestamp(value);
 
-                    /* XSD doesn't support infinite values */
-                    if (TIMESTAMP_NOT_FINITE(timestamp))
-                        ereport(ERROR,
-                                (errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE),
-                                 errmsg("timestamp out of range"),
-                                 errdetail("XML does not support infinite timestamp values.")));
-                    else if (timestamp2tm(timestamp, NULL, &tm, &fsec, NULL, NULL) == 0)
-                        EncodeDateTime(&tm, fsec, false, 0, NULL, USE_XSD_DATES, buf);
-                    else
-                        ereport(ERROR,
-                                (errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE),
-                                 errmsg("timestamp out of range")));
+					/* XSD doesn't support infinite values */
+					if (TIMESTAMP_NOT_FINITE(timestamp))
+						ereport(ERROR,
+								(errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE),
+								 errmsg("timestamp out of range"),
+								 errdetail("XML does not support infinite timestamp values.")));
+					else if (timestamp2tm(timestamp, NULL, &tm, &fsec, NULL, NULL) == 0)
+						EncodeDateTime(&tm, fsec, false, 0, NULL, USE_XSD_DATES, buf);
+					else
+						ereport(ERROR,
+								(errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE),
+								 errmsg("timestamp out of range")));
 
-                    return pstrdup(buf);
-                }
+					return pstrdup(buf);
+				}
 
-            case TIMESTAMPTZOID:
-                {
-                    TimestampTz timestamp;
-                    struct pg_tm tm;
-                    int            tz;
-                    fsec_t        fsec;
-                    const char *tzn = NULL;
-                    char        buf[MAXDATELEN + 1];
+			case TIMESTAMPTZOID:
+				{
+					TimestampTz timestamp;
+					struct pg_tm tm;
+					int			tz;
+					fsec_t		fsec;
+					const char *tzn = NULL;
+					char		buf[MAXDATELEN + 1];
 
-                    timestamp = DatumGetTimestamp(value);
+					timestamp = DatumGetTimestamp(value);
 
-                    /* XSD doesn't support infinite values */
-                    if (TIMESTAMP_NOT_FINITE(timestamp))
-                        ereport(ERROR,
-                                (errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE),
-                                 errmsg("timestamp out of range"),
-                                 errdetail("XML does not support infinite timestamp values.")));
-                    else if (timestamp2tm(timestamp, &tz, &tm, &fsec, &tzn, NULL) == 0)
-                        EncodeDateTime(&tm, fsec, true, tz, tzn, USE_XSD_DATES, buf);
-                    else
-                        ereport(ERROR,
-                                (errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE),
-                                 errmsg("timestamp out of range")));
+					/* XSD doesn't support infinite values */
+					if (TIMESTAMP_NOT_FINITE(timestamp))
+						ereport(ERROR,
+								(errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE),
+								 errmsg("timestamp out of range"),
+								 errdetail("XML does not support infinite timestamp values.")));
+					else if (timestamp2tm(timestamp, &tz, &tm, &fsec, &tzn, NULL) == 0)
+						EncodeDateTime(&tm, fsec, true, tz, tzn, USE_XSD_DATES, buf);
+					else
+						ereport(ERROR,
+								(errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE),
+								 errmsg("timestamp out of range")));
 
-                    return pstrdup(buf);
-                }
+					return pstrdup(buf);
+				}
 
 #ifdef USE_LIBXML
-            case BYTEAOID:
-                {
-                    bytea       *bstr = DatumGetByteaPP(value);
-                    PgXmlErrorContext *xmlerrcxt;
-                    volatile xmlBufferPtr buf = NULL;
-                    volatile xmlTextWriterPtr writer = NULL;
-                    char       *result;
+			case BYTEAOID:
+				{
+					bytea	   *bstr = DatumGetByteaPP(value);
+					PgXmlErrorContext *xmlerrcxt;
+					volatile xmlBufferPtr buf = NULL;
+					volatile xmlTextWriterPtr writer = NULL;
+					char	   *result;
 
-                    xmlerrcxt = pg_xml_init(PG_XML_STRICTNESS_ALL);
+					xmlerrcxt = pg_xml_init(PG_XML_STRICTNESS_ALL);
 
-                    PG_TRY();
-                    {
-                        buf = xmlBufferCreate();
-                        if (buf == NULL || xmlerrcxt->err_occurred)
-                            xml_ereport(xmlerrcxt, ERROR, ERRCODE_OUT_OF_MEMORY,
-                                        "could not allocate xmlBuffer");
-                        writer = xmlNewTextWriterMemory(buf, 0);
-                        if (writer == NULL || xmlerrcxt->err_occurred)
-                            xml_ereport(xmlerrcxt, ERROR, ERRCODE_OUT_OF_MEMORY,
-                                        "could not allocate xmlTextWriter");
+					PG_TRY();
+					{
+						buf = xmlBufferCreate();
+						if (buf == NULL || xmlerrcxt->err_occurred)
+							xml_ereport(xmlerrcxt, ERROR, ERRCODE_OUT_OF_MEMORY,
+										"could not allocate xmlBuffer");
+						writer = xmlNewTextWriterMemory(buf, 0);
+						if (writer == NULL || xmlerrcxt->err_occurred)
+							xml_ereport(xmlerrcxt, ERROR, ERRCODE_OUT_OF_MEMORY,
+										"could not allocate xmlTextWriter");
 
-                        if (xmlbinary == XMLBINARY_BASE64)
-                            xmlTextWriterWriteBase64(writer, VARDATA_ANY(bstr),
-                                                     0, VARSIZE_ANY_EXHDR(bstr));
-                        else
-                            xmlTextWriterWriteBinHex(writer, VARDATA_ANY(bstr),
-                                                     0, VARSIZE_ANY_EXHDR(bstr));
+						if (xmlbinary == XMLBINARY_BASE64)
+							xmlTextWriterWriteBase64(writer, VARDATA_ANY(bstr),
+													 0, VARSIZE_ANY_EXHDR(bstr));
+						else
+							xmlTextWriterWriteBinHex(writer, VARDATA_ANY(bstr),
+													 0, VARSIZE_ANY_EXHDR(bstr));
 
-                        /* we MUST do this now to flush data out to the buffer */
-                        xmlFreeTextWriter(writer);
-                        writer = NULL;
+						/* we MUST do this now to flush data out to the buffer */
+						xmlFreeTextWriter(writer);
+						writer = NULL;
 
-                        result = pstrdup((const char *) xmlBufferContent(buf));
-                    }
-                    PG_CATCH();
-                    {
-                        if (writer)
-                            xmlFreeTextWriter(writer);
-                        if (buf)
-                            xmlBufferFree(buf);
+						result = pstrdup((const char *) xmlBufferContent(buf));
+					}
+					PG_CATCH();
+					{
+						if (writer)
+							xmlFreeTextWriter(writer);
+						if (buf)
+							xmlBufferFree(buf);
 
-                        pg_xml_done(xmlerrcxt, true);
+						pg_xml_done(xmlerrcxt, true);
 
-                        PG_RE_THROW();
-                    }
-                    PG_END_TRY();
+						PG_RE_THROW();
+					}
+					PG_END_TRY();
 
-                    xmlBufferFree(buf);
+					xmlBufferFree(buf);
 
-                    pg_xml_done(xmlerrcxt, false);
+					pg_xml_done(xmlerrcxt, false);
 
-                    return result;
-                }
-#endif                            /* USE_LIBXML */
+					return result;
+				}
+#endif							/* USE_LIBXML */
 
-        }
+		}
 
-        /*
-         * otherwise, just use the type's native text representation
-         */
-        getTypeOutputInfo(type, &typeOut, &isvarlena);
-        str = OidOutputFunctionCall(typeOut, value);
+		/*
+		 * otherwise, just use the type's native text representation
+		 */
+		getTypeOutputInfo(type, &typeOut, &isvarlena);
+		str = OidOutputFunctionCall(typeOut, value);
 
-        /* ... exactly as-is for XML, and when escaping is not wanted */
-        if (type == XMLOID || !xml_escape_strings)
-            return str;
+		/* ... exactly as-is for XML, and when escaping is not wanted */
+		if (type == XMLOID || !xml_escape_strings || is_opentenbase_ora_xmltype(type))
+			return str;
 
-        /* otherwise, translate special characters as needed */
-        return escape_xml(str);
-    }
+		/* otherwise, translate special characters as needed */
+		return escape_xml(str);
+	}
 }
 
+bool is_opentenbase_ora_xmltype(Oid typoid)
+{
+	HeapTuple	tp;
+	Form_pg_type	typeForm;
+	Oid				typnamespace;
+	bool			isxmltype;
+	tp = SearchSysCache1(TYPEOID, ObjectIdGetDatum(typoid));
+	if (!HeapTupleIsValid(tp))
+		elog(ERROR, "cache lookup failed for type %u", typoid);
+
+	typeForm = (Form_pg_type) GETSTRUCT(tp);
+	typnamespace = typeForm->typnamespace;
+	isxmltype = (bool) (strcmp("XMLTYPE", NameStr(typeForm->typname)) == 0);
+	ReleaseSysCache(tp);
+	/* is typname is XMLTYPE? or is typnamespace is SYS? */
+	if (!isxmltype || (get_namespaceid(SYSNamespace) != typnamespace))
+		return false;
+
+	return true;
+}
 
 /*
  * Escape characters in text that have special meanings in XML.
@@ -2234,43 +2310,43 @@ map_sql_value_to_xml_value(Datum value, Oid type, bool xml_escape_strings)
 char *
 escape_xml(const char *str)
 {
-    StringInfoData buf;
-    const char *p;
+	StringInfoData buf;
+	const char *p;
 
-    initStringInfo(&buf);
-    for (p = str; *p; p++)
-    {
-        switch (*p)
-        {
-            case '&':
-                appendStringInfoString(&buf, "&amp;");
-                break;
-            case '<':
-                appendStringInfoString(&buf, "&lt;");
-                break;
-            case '>':
-                appendStringInfoString(&buf, "&gt;");
-                break;
-            case '\r':
-                appendStringInfoString(&buf, "&#x0d;");
-                break;
-            default:
-                appendStringInfoCharMacro(&buf, *p);
-                break;
-        }
-    }
-    return buf.data;
+	initStringInfo(&buf);
+	for (p = str; *p; p++)
+	{
+		switch (*p)
+		{
+			case '&':
+				appendStringInfoString(&buf, "&amp;");
+				break;
+			case '<':
+				appendStringInfoString(&buf, "&lt;");
+				break;
+			case '>':
+				appendStringInfoString(&buf, "&gt;");
+				break;
+			case '\r':
+				appendStringInfoString(&buf, "&#x0d;");
+				break;
+			default:
+				appendStringInfoCharMacro(&buf, *p);
+				break;
+		}
+	}
+	return buf.data;
 }
 
 
 static char *
 _SPI_strdup(const char *s)
 {
-    size_t        len = strlen(s) + 1;
-    char       *ret = SPI_palloc(len);
+	size_t		len = strlen(s) + 1;
+	char	   *ret = SPI_palloc(len);
 
-    memcpy(ret, s, len);
-    return ret;
+	memcpy(ret, s, len);
+	return ret;
 }
 
 
@@ -2323,43 +2399,43 @@ _SPI_strdup(const char *s)
 static List *
 query_to_oid_list(const char *query)
 {
-    uint64        i;
-    List       *list = NIL;
+	uint64		i;
+	List	   *list = NIL;
 
-    SPI_execute(query, true, 0);
+	SPI_execute(query, true, 0);
 
-    for (i = 0; i < SPI_processed; i++)
-    {
-        Datum        oid;
-        bool        isnull;
+	for (i = 0; i < SPI_processed; i++)
+	{
+		Datum		oid;
+		bool		isnull;
 
-        oid = SPI_getbinval(SPI_tuptable->vals[i],
-                            SPI_tuptable->tupdesc,
-                            1,
-                            &isnull);
-        if (!isnull)
-            list = lappend_oid(list, DatumGetObjectId(oid));
-    }
+		oid = SPI_getbinval(SPI_tuptable->vals[i],
+							SPI_tuptable->tupdesc,
+							1,
+							&isnull);
+		if (!isnull)
+			list = lappend_oid(list, DatumGetObjectId(oid));
+	}
 
-    return list;
+	return list;
 }
 
 
 static List *
 schema_get_xml_visible_tables(Oid nspid)
 {
-    StringInfoData query;
+	StringInfoData query;
 
-    initStringInfo(&query);
-    appendStringInfo(&query, "SELECT oid FROM pg_catalog.pg_class"
-                     " WHERE relnamespace = %u AND relkind IN ("
-                     CppAsString2(RELKIND_RELATION) ","
-                     CppAsString2(RELKIND_MATVIEW) ","
-                     CppAsString2(RELKIND_VIEW) ")"
-                     " AND pg_catalog.has_table_privilege (oid, 'SELECT')"
-                     " ORDER BY relname;", nspid);
+	initStringInfo(&query);
+	appendStringInfo(&query, "SELECT oid FROM pg_catalog.pg_class"
+					 " WHERE relnamespace = %u AND relkind IN ("
+					 CppAsString2(RELKIND_RELATION) ","
+					 CppAsString2(RELKIND_MATVIEW) ","
+					 CppAsString2(RELKIND_VIEW) ")"
+					 " AND pg_catalog.has_table_privilege (oid, 'SELECT')"
+					 " ORDER BY relname;", nspid);
 
-    return query_to_oid_list(query.data);
+	return query_to_oid_list(query.data);
 }
 
 
@@ -2375,21 +2451,21 @@ schema_get_xml_visible_tables(Oid nspid)
 static List *
 database_get_xml_visible_schemas(void)
 {
-    return query_to_oid_list(XML_VISIBLE_SCHEMAS " ORDER BY nspname;");
+	return query_to_oid_list(XML_VISIBLE_SCHEMAS " ORDER BY nspname;");
 }
 
 
 static List *
 database_get_xml_visible_tables(void)
 {
-    /* At the moment there is no order required here. */
-    return query_to_oid_list("SELECT oid FROM pg_catalog.pg_class"
-                             " WHERE relkind IN ("
-                             CppAsString2(RELKIND_RELATION) ","
-                             CppAsString2(RELKIND_MATVIEW) ","
-                             CppAsString2(RELKIND_VIEW) ")"
-                             " AND pg_catalog.has_table_privilege(pg_class.oid, 'SELECT')"
-                             " AND relnamespace IN (" XML_VISIBLE_SCHEMAS ");");
+	/* At the moment there is no order required here. */
+	return query_to_oid_list("SELECT oid FROM pg_catalog.pg_class"
+							 " WHERE relkind IN ("
+							 CppAsString2(RELKIND_RELATION) ","
+							 CppAsString2(RELKIND_MATVIEW) ","
+							 CppAsString2(RELKIND_VIEW) ")"
+							 " AND pg_catalog.has_table_privilege(pg_class.oid, 'SELECT')"
+							 " AND relnamespace IN (" XML_VISIBLE_SCHEMAS ");");
 }
 
 
@@ -2400,88 +2476,88 @@ database_get_xml_visible_tables(void)
 
 static StringInfo
 table_to_xml_internal(Oid relid,
-                      const char *xmlschema, bool nulls, bool tableforest,
-                      const char *targetns, bool top_level)
+					  const char *xmlschema, bool nulls, bool tableforest,
+					  const char *targetns, bool top_level)
 {
-    StringInfoData query;
+	StringInfoData query;
 
-    initStringInfo(&query);
-    appendStringInfo(&query, "SELECT * FROM %s",
-                     DatumGetCString(DirectFunctionCall1(regclassout,
-                                                         ObjectIdGetDatum(relid))));
-    return query_to_xml_internal(query.data, get_rel_name(relid),
-                                 xmlschema, nulls, tableforest,
-                                 targetns, top_level);
+	initStringInfo(&query);
+	appendStringInfo(&query, "SELECT * FROM %s",
+					 DatumGetCString(DirectFunctionCall1(regclassout,
+														 ObjectIdGetDatum(relid))));
+	return query_to_xml_internal(query.data, get_rel_name(relid),
+								 xmlschema, nulls, tableforest,
+								 targetns, top_level);
 }
 
 
 Datum
 table_to_xml(PG_FUNCTION_ARGS)
 {
-    Oid            relid = PG_GETARG_OID(0);
-    bool        nulls = PG_GETARG_BOOL(1);
-    bool        tableforest = PG_GETARG_BOOL(2);
-    const char *targetns = text_to_cstring(PG_GETARG_TEXT_PP(3));
+	Oid			relid = PG_GETARG_OID(0);
+	bool		nulls = PG_GETARG_BOOL(1);
+	bool		tableforest = PG_GETARG_BOOL(2);
+	const char *targetns = text_to_cstring(PG_GETARG_TEXT_PP(3));
 
-    PG_RETURN_XML_P(stringinfo_to_xmltype(table_to_xml_internal(relid, NULL,
-                                                                nulls, tableforest,
-                                                                targetns, true)));
+	PG_RETURN_XML_P(stringinfo_to_xmltype(table_to_xml_internal(relid, NULL,
+																nulls, tableforest,
+																targetns, true)));
 }
 
 
 Datum
 query_to_xml(PG_FUNCTION_ARGS)
 {
-    char       *query = text_to_cstring(PG_GETARG_TEXT_PP(0));
-    bool        nulls = PG_GETARG_BOOL(1);
-    bool        tableforest = PG_GETARG_BOOL(2);
-    const char *targetns = text_to_cstring(PG_GETARG_TEXT_PP(3));
+	char	   *query = text_to_cstring(PG_GETARG_TEXT_PP(0));
+	bool		nulls = PG_GETARG_BOOL(1);
+	bool		tableforest = PG_GETARG_BOOL(2);
+	const char *targetns = text_to_cstring(PG_GETARG_TEXT_PP(3));
 
-    PG_RETURN_XML_P(stringinfo_to_xmltype(query_to_xml_internal(query, NULL,
-                                                                NULL, nulls, tableforest,
-                                                                targetns, true)));
+	PG_RETURN_XML_P(stringinfo_to_xmltype(query_to_xml_internal(query, NULL,
+																NULL, nulls, tableforest,
+																targetns, true)));
 }
 
 
 Datum
 cursor_to_xml(PG_FUNCTION_ARGS)
 {
-    char       *name = text_to_cstring(PG_GETARG_TEXT_PP(0));
-    int32        count = PG_GETARG_INT32(1);
-    bool        nulls = PG_GETARG_BOOL(2);
-    bool        tableforest = PG_GETARG_BOOL(3);
-    const char *targetns = text_to_cstring(PG_GETARG_TEXT_PP(4));
+	char	   *name = text_to_cstring(PG_GETARG_TEXT_PP(0));
+	int32		count = PG_GETARG_INT32(1);
+	bool		nulls = PG_GETARG_BOOL(2);
+	bool		tableforest = PG_GETARG_BOOL(3);
+	const char *targetns = text_to_cstring(PG_GETARG_TEXT_PP(4));
 
-    StringInfoData result;
-    Portal        portal;
-    uint64        i;
+	StringInfoData result;
+	Portal		portal;
+	uint64		i;
 
-    initStringInfo(&result);
+	initStringInfo(&result);
 
-    if (!tableforest)
-    {
-        xmldata_root_element_start(&result, "table", NULL, targetns, true);
-        appendStringInfoChar(&result, '\n');
-    }
+	if (!tableforest)
+	{
+		xmldata_root_element_start(&result, "table", NULL, targetns, true);
+		appendStringInfoChar(&result, '\n');
+	}
 
-    SPI_connect();
-    portal = SPI_cursor_find(name);
-    if (portal == NULL)
-        ereport(ERROR,
-                (errcode(ERRCODE_UNDEFINED_CURSOR),
-                 errmsg("cursor \"%s\" does not exist", name)));
+	SPI_connect();
+	portal = SPI_cursor_find(name);
+	if (portal == NULL)
+		ereport(ERROR,
+				(errcode(ERRCODE_UNDEFINED_CURSOR),
+				 errmsg("cursor \"%s\" does not exist", name)));
 
-    SPI_cursor_fetch(portal, true, count);
-    for (i = 0; i < SPI_processed; i++)
-        SPI_sql_row_to_xmlelement(i, &result, NULL, nulls,
-                                  tableforest, targetns, true);
+	SPI_cursor_fetch(portal, true, count);
+	for (i = 0; i < SPI_processed; i++)
+		SPI_sql_row_to_xmlelement(i, &result, NULL, nulls,
+								  tableforest, targetns, true);
 
-    SPI_finish();
+	SPI_finish();
 
-    if (!tableforest)
-        xmldata_root_element_end(&result, "table");
+	if (!tableforest)
+		xmldata_root_element_end(&result, "table");
 
-    PG_RETURN_XML_P(stringinfo_to_xmltype(&result));
+	PG_RETURN_XML_P(stringinfo_to_xmltype(&result));
 }
 
 
@@ -2499,206 +2575,206 @@ cursor_to_xml(PG_FUNCTION_ARGS)
  */
 static void
 xmldata_root_element_start(StringInfo result, const char *eltname,
-                           const char *xmlschema, const char *targetns,
-                           bool top_level)
+						   const char *xmlschema, const char *targetns,
+						   bool top_level)
 {
-    /* This isn't really wrong but currently makes no sense. */
-    Assert(top_level || !xmlschema);
+	/* This isn't really wrong but currently makes no sense. */
+	Assert(top_level || !xmlschema);
 
-    appendStringInfo(result, "<%s", eltname);
-    if (top_level)
-    {
-        appendStringInfoString(result, " xmlns:xsi=\"" NAMESPACE_XSI "\"");
-        if (strlen(targetns) > 0)
-            appendStringInfo(result, " xmlns=\"%s\"", targetns);
-    }
-    if (xmlschema)
-    {
-        /* FIXME: better targets */
-        if (strlen(targetns) > 0)
-            appendStringInfo(result, " xsi:schemaLocation=\"%s #\"", targetns);
-        else
-            appendStringInfoString(result, " xsi:noNamespaceSchemaLocation=\"#\"");
-    }
-    appendStringInfoString(result, ">\n");
+	appendStringInfo(result, "<%s", eltname);
+	if (top_level)
+	{
+		appendStringInfoString(result, " xmlns:xsi=\"" NAMESPACE_XSI "\"");
+		if (strlen(targetns) > 0)
+			appendStringInfo(result, " xmlns=\"%s\"", targetns);
+	}
+	if (xmlschema)
+	{
+		/* FIXME: better targets */
+		if (strlen(targetns) > 0)
+			appendStringInfo(result, " xsi:schemaLocation=\"%s #\"", targetns);
+		else
+			appendStringInfoString(result, " xsi:noNamespaceSchemaLocation=\"#\"");
+	}
+	appendStringInfoString(result, ">\n");
 }
 
 
 static void
 xmldata_root_element_end(StringInfo result, const char *eltname)
 {
-    appendStringInfo(result, "</%s>\n", eltname);
+	appendStringInfo(result, "</%s>\n", eltname);
 }
 
 
 static StringInfo
 query_to_xml_internal(const char *query, char *tablename,
-                      const char *xmlschema, bool nulls, bool tableforest,
-                      const char *targetns, bool top_level)
+					  const char *xmlschema, bool nulls, bool tableforest,
+					  const char *targetns, bool top_level)
 {
-    StringInfo    result;
-    char       *xmltn;
-    uint64        i;
+	StringInfo	result;
+	char	   *xmltn;
+	uint64		i;
 
-    if (tablename)
-        xmltn = map_sql_identifier_to_xml_name(tablename, true, false);
-    else
-        xmltn = "table";
+	if (tablename)
+		xmltn = map_sql_identifier_to_xml_name(tablename, true, false);
+	else
+		xmltn = "table";
 
-    result = makeStringInfo();
+	result = makeStringInfo();
 
-    SPI_connect();
-    if (SPI_execute(query, true, 0) != SPI_OK_SELECT)
-        ereport(ERROR,
-                (errcode(ERRCODE_DATA_EXCEPTION),
-                 errmsg("invalid query")));
+	SPI_connect();
+	if (SPI_execute(query, true, 0) != SPI_OK_SELECT)
+		ereport(ERROR,
+				(errcode(ERRCODE_DATA_EXCEPTION),
+				 errmsg("invalid query")));
 
-    if (!tableforest)
-    {
-        xmldata_root_element_start(result, xmltn, xmlschema,
-                                   targetns, top_level);
-        appendStringInfoChar(result, '\n');
-    }
+	if (!tableforest)
+	{
+		xmldata_root_element_start(result, xmltn, xmlschema,
+								   targetns, top_level);
+		appendStringInfoChar(result, '\n');
+	}
 
-    if (xmlschema)
-        appendStringInfo(result, "%s\n\n", xmlschema);
+	if (xmlschema)
+		appendStringInfo(result, "%s\n\n", xmlschema);
 
-    for (i = 0; i < SPI_processed; i++)
-        SPI_sql_row_to_xmlelement(i, result, tablename, nulls,
-                                  tableforest, targetns, top_level);
+	for (i = 0; i < SPI_processed; i++)
+		SPI_sql_row_to_xmlelement(i, result, tablename, nulls,
+								  tableforest, targetns, top_level);
 
-    if (!tableforest)
-        xmldata_root_element_end(result, xmltn);
+	if (!tableforest)
+		xmldata_root_element_end(result, xmltn);
 
-    SPI_finish();
+	SPI_finish();
 
-    return result;
+	return result;
 }
 
 
 Datum
 table_to_xmlschema(PG_FUNCTION_ARGS)
 {
-    Oid            relid = PG_GETARG_OID(0);
-    bool        nulls = PG_GETARG_BOOL(1);
-    bool        tableforest = PG_GETARG_BOOL(2);
-    const char *targetns = text_to_cstring(PG_GETARG_TEXT_PP(3));
-    const char *result;
-    Relation    rel;
+	Oid			relid = PG_GETARG_OID(0);
+	bool		nulls = PG_GETARG_BOOL(1);
+	bool		tableforest = PG_GETARG_BOOL(2);
+	const char *targetns = text_to_cstring(PG_GETARG_TEXT_PP(3));
+	const char *result;
+	Relation	rel;
 
-    rel = heap_open(relid, AccessShareLock);
-    result = map_sql_table_to_xmlschema(rel->rd_att, relid, nulls,
-                                        tableforest, targetns);
-    heap_close(rel, NoLock);
+	rel = heap_open(relid, AccessShareLock);
+	result = map_sql_table_to_xmlschema(rel->rd_att, relid, nulls,
+										tableforest, targetns);
+	heap_close(rel, NoLock);
 
-    PG_RETURN_XML_P(cstring_to_xmltype(result));
+	PG_RETURN_XML_P(cstring_to_xmltype(result));
 }
 
 
 Datum
 query_to_xmlschema(PG_FUNCTION_ARGS)
 {
-    char       *query = text_to_cstring(PG_GETARG_TEXT_PP(0));
-    bool        nulls = PG_GETARG_BOOL(1);
-    bool        tableforest = PG_GETARG_BOOL(2);
-    const char *targetns = text_to_cstring(PG_GETARG_TEXT_PP(3));
-    const char *result;
-    SPIPlanPtr    plan;
-    Portal        portal;
+	char	   *query = text_to_cstring(PG_GETARG_TEXT_PP(0));
+	bool		nulls = PG_GETARG_BOOL(1);
+	bool		tableforest = PG_GETARG_BOOL(2);
+	const char *targetns = text_to_cstring(PG_GETARG_TEXT_PP(3));
+	const char *result;
+	SPIPlanPtr	plan;
+	Portal		portal;
 
-    SPI_connect();
+	SPI_connect();
 
-    if ((plan = SPI_prepare(query, 0, NULL)) == NULL)
-        elog(ERROR, "SPI_prepare(\"%s\") failed", query);
+	if ((plan = SPI_prepare(query, 0, NULL)) == NULL)
+		elog(ERROR, "SPI_prepare(\"%s\") failed", query);
 
-    if ((portal = SPI_cursor_open(NULL, plan, NULL, NULL, true)) == NULL)
-        elog(ERROR, "SPI_cursor_open(\"%s\") failed", query);
+	if ((portal = SPI_cursor_open(NULL, plan, NULL, NULL, true)) == NULL)
+		elog(ERROR, "SPI_cursor_open(\"%s\") failed", query);
 
-    result = _SPI_strdup(map_sql_table_to_xmlschema(portal->tupDesc,
-                                                    InvalidOid, nulls,
-                                                    tableforest, targetns));
-    SPI_cursor_close(portal);
-    SPI_finish();
+	result = _SPI_strdup(map_sql_table_to_xmlschema(portal->tupDesc,
+													InvalidOid, nulls,
+													tableforest, targetns));
+	SPI_cursor_close(portal);
+	SPI_finish();
 
-    PG_RETURN_XML_P(cstring_to_xmltype(result));
+	PG_RETURN_XML_P(cstring_to_xmltype(result));
 }
 
 
 Datum
 cursor_to_xmlschema(PG_FUNCTION_ARGS)
 {
-    char       *name = text_to_cstring(PG_GETARG_TEXT_PP(0));
-    bool        nulls = PG_GETARG_BOOL(1);
-    bool        tableforest = PG_GETARG_BOOL(2);
-    const char *targetns = text_to_cstring(PG_GETARG_TEXT_PP(3));
-    const char *xmlschema;
-    Portal        portal;
+	char	   *name = text_to_cstring(PG_GETARG_TEXT_PP(0));
+	bool		nulls = PG_GETARG_BOOL(1);
+	bool		tableforest = PG_GETARG_BOOL(2);
+	const char *targetns = text_to_cstring(PG_GETARG_TEXT_PP(3));
+	const char *xmlschema;
+	Portal		portal;
 
-    SPI_connect();
-    portal = SPI_cursor_find(name);
-    if (portal == NULL)
-        ereport(ERROR,
-                (errcode(ERRCODE_UNDEFINED_CURSOR),
-                 errmsg("cursor \"%s\" does not exist", name)));
+	SPI_connect();
+	portal = SPI_cursor_find(name);
+	if (portal == NULL)
+		ereport(ERROR,
+				(errcode(ERRCODE_UNDEFINED_CURSOR),
+				 errmsg("cursor \"%s\" does not exist", name)));
 
-    xmlschema = _SPI_strdup(map_sql_table_to_xmlschema(portal->tupDesc,
-                                                       InvalidOid, nulls,
-                                                       tableforest, targetns));
-    SPI_finish();
+	xmlschema = _SPI_strdup(map_sql_table_to_xmlschema(portal->tupDesc,
+													   InvalidOid, nulls,
+													   tableforest, targetns));
+	SPI_finish();
 
-    PG_RETURN_XML_P(cstring_to_xmltype(xmlschema));
+	PG_RETURN_XML_P(cstring_to_xmltype(xmlschema));
 }
 
 
 Datum
 table_to_xml_and_xmlschema(PG_FUNCTION_ARGS)
 {
-    Oid            relid = PG_GETARG_OID(0);
-    bool        nulls = PG_GETARG_BOOL(1);
-    bool        tableforest = PG_GETARG_BOOL(2);
-    const char *targetns = text_to_cstring(PG_GETARG_TEXT_PP(3));
-    Relation    rel;
-    const char *xmlschema;
+	Oid			relid = PG_GETARG_OID(0);
+	bool		nulls = PG_GETARG_BOOL(1);
+	bool		tableforest = PG_GETARG_BOOL(2);
+	const char *targetns = text_to_cstring(PG_GETARG_TEXT_PP(3));
+	Relation	rel;
+	const char *xmlschema;
 
-    rel = heap_open(relid, AccessShareLock);
-    xmlschema = map_sql_table_to_xmlschema(rel->rd_att, relid, nulls,
-                                           tableforest, targetns);
-    heap_close(rel, NoLock);
+	rel = heap_open(relid, AccessShareLock);
+	xmlschema = map_sql_table_to_xmlschema(rel->rd_att, relid, nulls,
+										   tableforest, targetns);
+	heap_close(rel, NoLock);
 
-    PG_RETURN_XML_P(stringinfo_to_xmltype(table_to_xml_internal(relid,
-                                                                xmlschema, nulls, tableforest,
-                                                                targetns, true)));
+	PG_RETURN_XML_P(stringinfo_to_xmltype(table_to_xml_internal(relid,
+																xmlschema, nulls, tableforest,
+																targetns, true)));
 }
 
 
 Datum
 query_to_xml_and_xmlschema(PG_FUNCTION_ARGS)
 {
-    char       *query = text_to_cstring(PG_GETARG_TEXT_PP(0));
-    bool        nulls = PG_GETARG_BOOL(1);
-    bool        tableforest = PG_GETARG_BOOL(2);
-    const char *targetns = text_to_cstring(PG_GETARG_TEXT_PP(3));
+	char	   *query = text_to_cstring(PG_GETARG_TEXT_PP(0));
+	bool		nulls = PG_GETARG_BOOL(1);
+	bool		tableforest = PG_GETARG_BOOL(2);
+	const char *targetns = text_to_cstring(PG_GETARG_TEXT_PP(3));
 
-    const char *xmlschema;
-    SPIPlanPtr    plan;
-    Portal        portal;
+	const char *xmlschema;
+	SPIPlanPtr	plan;
+	Portal		portal;
 
-    SPI_connect();
+	SPI_connect();
 
-    if ((plan = SPI_prepare(query, 0, NULL)) == NULL)
-        elog(ERROR, "SPI_prepare(\"%s\") failed", query);
+	if ((plan = SPI_prepare(query, 0, NULL)) == NULL)
+		elog(ERROR, "SPI_prepare(\"%s\") failed", query);
 
-    if ((portal = SPI_cursor_open(NULL, plan, NULL, NULL, true)) == NULL)
-        elog(ERROR, "SPI_cursor_open(\"%s\") failed", query);
+	if ((portal = SPI_cursor_open(NULL, plan, NULL, NULL, true)) == NULL)
+		elog(ERROR, "SPI_cursor_open(\"%s\") failed", query);
 
-    xmlschema = _SPI_strdup(map_sql_table_to_xmlschema(portal->tupDesc,
-                                                       InvalidOid, nulls, tableforest, targetns));
-    SPI_cursor_close(portal);
-    SPI_finish();
+	xmlschema = _SPI_strdup(map_sql_table_to_xmlschema(portal->tupDesc,
+													   InvalidOid, nulls, tableforest, targetns));
+	SPI_cursor_close(portal);
+	SPI_finish();
 
-    PG_RETURN_XML_P(stringinfo_to_xmltype(query_to_xml_internal(query, NULL,
-                                                                xmlschema, nulls, tableforest,
-                                                                targetns, true)));
+	PG_RETURN_XML_P(stringinfo_to_xmltype(query_to_xml_internal(query, NULL,
+																xmlschema, nulls, tableforest,
+																targetns, true)));
 }
 
 
@@ -2709,63 +2785,63 @@ query_to_xml_and_xmlschema(PG_FUNCTION_ARGS)
 
 static StringInfo
 schema_to_xml_internal(Oid nspid, const char *xmlschema, bool nulls,
-                       bool tableforest, const char *targetns, bool top_level)
+					   bool tableforest, const char *targetns, bool top_level)
 {
-    StringInfo    result;
-    char       *xmlsn;
-    List       *relid_list;
-    ListCell   *cell;
+	StringInfo	result;
+	char	   *xmlsn;
+	List	   *relid_list;
+	ListCell   *cell;
 
-    xmlsn = map_sql_identifier_to_xml_name(get_namespace_name(nspid),
-                                           true, false);
-    result = makeStringInfo();
+	xmlsn = map_sql_identifier_to_xml_name(get_namespace_name(nspid),
+										   true, false);
+	result = makeStringInfo();
 
-    xmldata_root_element_start(result, xmlsn, xmlschema, targetns, top_level);
-    appendStringInfoChar(result, '\n');
+	xmldata_root_element_start(result, xmlsn, xmlschema, targetns, top_level);
+	appendStringInfoChar(result, '\n');
 
-    if (xmlschema)
-        appendStringInfo(result, "%s\n\n", xmlschema);
+	if (xmlschema)
+		appendStringInfo(result, "%s\n\n", xmlschema);
 
-    SPI_connect();
+	SPI_connect();
 
-    relid_list = schema_get_xml_visible_tables(nspid);
+	relid_list = schema_get_xml_visible_tables(nspid);
 
-    foreach(cell, relid_list)
-    {
-        Oid            relid = lfirst_oid(cell);
-        StringInfo    subres;
+	foreach(cell, relid_list)
+	{
+		Oid			relid = lfirst_oid(cell);
+		StringInfo	subres;
 
-        subres = table_to_xml_internal(relid, NULL, nulls, tableforest,
-                                       targetns, false);
+		subres = table_to_xml_internal(relid, NULL, nulls, tableforest,
+									   targetns, false);
 
-        appendStringInfoString(result, subres->data);
-        appendStringInfoChar(result, '\n');
-    }
+		appendStringInfoString(result, subres->data);
+		appendStringInfoChar(result, '\n');
+	}
 
-    SPI_finish();
+	SPI_finish();
 
-    xmldata_root_element_end(result, xmlsn);
+	xmldata_root_element_end(result, xmlsn);
 
-    return result;
+	return result;
 }
 
 
 Datum
 schema_to_xml(PG_FUNCTION_ARGS)
 {
-    Name        name = PG_GETARG_NAME(0);
-    bool        nulls = PG_GETARG_BOOL(1);
-    bool        tableforest = PG_GETARG_BOOL(2);
-    const char *targetns = text_to_cstring(PG_GETARG_TEXT_PP(3));
+	Name		name = PG_GETARG_NAME(0);
+	bool		nulls = PG_GETARG_BOOL(1);
+	bool		tableforest = PG_GETARG_BOOL(2);
+	const char *targetns = text_to_cstring(PG_GETARG_TEXT_PP(3));
 
-    char       *schemaname;
-    Oid            nspid;
+	char	   *schemaname;
+	Oid			nspid;
 
-    schemaname = NameStr(*name);
-    nspid = LookupExplicitNamespace(schemaname, false);
+	schemaname = NameStr(*name);
+	nspid = LookupExplicitNamespace(schemaname, false);
 
-    PG_RETURN_XML_P(stringinfo_to_xmltype(schema_to_xml_internal(nspid, NULL,
-                                                                 nulls, tableforest, targetns, true)));
+	PG_RETURN_XML_P(stringinfo_to_xmltype(schema_to_xml_internal(nspid, NULL,
+																 nulls, tableforest, targetns, true)));
 }
 
 
@@ -2775,105 +2851,105 @@ schema_to_xml(PG_FUNCTION_ARGS)
 static void
 xsd_schema_element_start(StringInfo result, const char *targetns)
 {
-    appendStringInfoString(result,
-                           "<xsd:schema\n"
-                           "    xmlns:xsd=\"" NAMESPACE_XSD "\"");
-    if (strlen(targetns) > 0)
-        appendStringInfo(result,
-                         "\n"
-                         "    targetNamespace=\"%s\"\n"
-                         "    elementFormDefault=\"qualified\"",
-                         targetns);
-    appendStringInfoString(result,
-                           ">\n\n");
+	appendStringInfoString(result,
+						   "<xsd:schema\n"
+						   "    xmlns:xsd=\"" NAMESPACE_XSD "\"");
+	if (strlen(targetns) > 0)
+		appendStringInfo(result,
+						 "\n"
+						 "    targetNamespace=\"%s\"\n"
+						 "    elementFormDefault=\"qualified\"",
+						 targetns);
+	appendStringInfoString(result,
+						   ">\n\n");
 }
 
 
 static void
 xsd_schema_element_end(StringInfo result)
 {
-    appendStringInfoString(result, "</xsd:schema>");
+	appendStringInfoString(result, "</xsd:schema>");
 }
 
 
 static StringInfo
 schema_to_xmlschema_internal(const char *schemaname, bool nulls,
-                             bool tableforest, const char *targetns)
+							 bool tableforest, const char *targetns)
 {
-    Oid            nspid;
-    List       *relid_list;
-    List       *tupdesc_list;
-    ListCell   *cell;
-    StringInfo    result;
+	Oid			nspid;
+	List	   *relid_list;
+	List	   *tupdesc_list;
+	ListCell   *cell;
+	StringInfo	result;
 
-    result = makeStringInfo();
+	result = makeStringInfo();
 
-    nspid = LookupExplicitNamespace(schemaname, false);
+	nspid = LookupExplicitNamespace(schemaname, false);
 
-    xsd_schema_element_start(result, targetns);
+	xsd_schema_element_start(result, targetns);
 
-    SPI_connect();
+	SPI_connect();
 
-    relid_list = schema_get_xml_visible_tables(nspid);
+	relid_list = schema_get_xml_visible_tables(nspid);
 
-    tupdesc_list = NIL;
-    foreach(cell, relid_list)
-    {
-        Relation    rel;
+	tupdesc_list = NIL;
+	foreach(cell, relid_list)
+	{
+		Relation	rel;
 
-        rel = heap_open(lfirst_oid(cell), AccessShareLock);
-        tupdesc_list = lappend(tupdesc_list, CreateTupleDescCopy(rel->rd_att));
-        heap_close(rel, NoLock);
-    }
+		rel = heap_open(lfirst_oid(cell), AccessShareLock);
+		tupdesc_list = lappend(tupdesc_list, CreateTupleDescCopy(rel->rd_att));
+		heap_close(rel, NoLock);
+	}
 
-    appendStringInfoString(result,
-                           map_sql_typecoll_to_xmlschema_types(tupdesc_list));
+	appendStringInfoString(result,
+						   map_sql_typecoll_to_xmlschema_types(tupdesc_list));
 
-    appendStringInfoString(result,
-                           map_sql_schema_to_xmlschema_types(nspid, relid_list,
-                                                             nulls, tableforest, targetns));
+	appendStringInfoString(result,
+						   map_sql_schema_to_xmlschema_types(nspid, relid_list,
+															 nulls, tableforest, targetns));
 
-    xsd_schema_element_end(result);
+	xsd_schema_element_end(result);
 
-    SPI_finish();
+	SPI_finish();
 
-    return result;
+	return result;
 }
 
 
 Datum
 schema_to_xmlschema(PG_FUNCTION_ARGS)
 {
-    Name        name = PG_GETARG_NAME(0);
-    bool        nulls = PG_GETARG_BOOL(1);
-    bool        tableforest = PG_GETARG_BOOL(2);
-    const char *targetns = text_to_cstring(PG_GETARG_TEXT_PP(3));
+	Name		name = PG_GETARG_NAME(0);
+	bool		nulls = PG_GETARG_BOOL(1);
+	bool		tableforest = PG_GETARG_BOOL(2);
+	const char *targetns = text_to_cstring(PG_GETARG_TEXT_PP(3));
 
-    PG_RETURN_XML_P(stringinfo_to_xmltype(schema_to_xmlschema_internal(NameStr(*name),
-                                                                       nulls, tableforest, targetns)));
+	PG_RETURN_XML_P(stringinfo_to_xmltype(schema_to_xmlschema_internal(NameStr(*name),
+																	   nulls, tableforest, targetns)));
 }
 
 
 Datum
 schema_to_xml_and_xmlschema(PG_FUNCTION_ARGS)
 {
-    Name        name = PG_GETARG_NAME(0);
-    bool        nulls = PG_GETARG_BOOL(1);
-    bool        tableforest = PG_GETARG_BOOL(2);
-    const char *targetns = text_to_cstring(PG_GETARG_TEXT_PP(3));
-    char       *schemaname;
-    Oid            nspid;
-    StringInfo    xmlschema;
+	Name		name = PG_GETARG_NAME(0);
+	bool		nulls = PG_GETARG_BOOL(1);
+	bool		tableforest = PG_GETARG_BOOL(2);
+	const char *targetns = text_to_cstring(PG_GETARG_TEXT_PP(3));
+	char	   *schemaname;
+	Oid			nspid;
+	StringInfo	xmlschema;
 
-    schemaname = NameStr(*name);
-    nspid = LookupExplicitNamespace(schemaname, false);
+	schemaname = NameStr(*name);
+	nspid = LookupExplicitNamespace(schemaname, false);
 
-    xmlschema = schema_to_xmlschema_internal(schemaname, nulls,
-                                             tableforest, targetns);
+	xmlschema = schema_to_xmlschema_internal(schemaname, nulls,
+											 tableforest, targetns);
 
-    PG_RETURN_XML_P(stringinfo_to_xmltype(schema_to_xml_internal(nspid,
-                                                                 xmlschema->data, nulls,
-                                                                 tableforest, targetns, true)));
+	PG_RETURN_XML_P(stringinfo_to_xmltype(schema_to_xml_internal(nspid,
+																 xmlschema->data, nulls,
+																 tableforest, targetns, true)));
 }
 
 
@@ -2884,126 +2960,126 @@ schema_to_xml_and_xmlschema(PG_FUNCTION_ARGS)
 
 static StringInfo
 database_to_xml_internal(const char *xmlschema, bool nulls,
-                         bool tableforest, const char *targetns)
+						 bool tableforest, const char *targetns)
 {
-    StringInfo    result;
-    List       *nspid_list;
-    ListCell   *cell;
-    char       *xmlcn;
+	StringInfo	result;
+	List	   *nspid_list;
+	ListCell   *cell;
+	char	   *xmlcn;
 
-    xmlcn = map_sql_identifier_to_xml_name(get_database_name(MyDatabaseId),
-                                           true, false);
-    result = makeStringInfo();
+	xmlcn = map_sql_identifier_to_xml_name(get_database_name(MyDatabaseId),
+										   true, false);
+	result = makeStringInfo();
 
-    xmldata_root_element_start(result, xmlcn, xmlschema, targetns, true);
-    appendStringInfoChar(result, '\n');
+	xmldata_root_element_start(result, xmlcn, xmlschema, targetns, true);
+	appendStringInfoChar(result, '\n');
 
-    if (xmlschema)
-        appendStringInfo(result, "%s\n\n", xmlschema);
+	if (xmlschema)
+		appendStringInfo(result, "%s\n\n", xmlschema);
 
-    SPI_connect();
+	SPI_connect();
 
-    nspid_list = database_get_xml_visible_schemas();
+	nspid_list = database_get_xml_visible_schemas();
 
-    foreach(cell, nspid_list)
-    {
-        Oid            nspid = lfirst_oid(cell);
-        StringInfo    subres;
+	foreach(cell, nspid_list)
+	{
+		Oid			nspid = lfirst_oid(cell);
+		StringInfo	subres;
 
-        subres = schema_to_xml_internal(nspid, NULL, nulls,
-                                        tableforest, targetns, false);
+		subres = schema_to_xml_internal(nspid, NULL, nulls,
+										tableforest, targetns, false);
 
-        appendStringInfoString(result, subres->data);
-        appendStringInfoChar(result, '\n');
-    }
+		appendStringInfoString(result, subres->data);
+		appendStringInfoChar(result, '\n');
+	}
 
-    SPI_finish();
+	SPI_finish();
 
-    xmldata_root_element_end(result, xmlcn);
+	xmldata_root_element_end(result, xmlcn);
 
-    return result;
+	return result;
 }
 
 
 Datum
 database_to_xml(PG_FUNCTION_ARGS)
 {
-    bool        nulls = PG_GETARG_BOOL(0);
-    bool        tableforest = PG_GETARG_BOOL(1);
-    const char *targetns = text_to_cstring(PG_GETARG_TEXT_PP(2));
+	bool		nulls = PG_GETARG_BOOL(0);
+	bool		tableforest = PG_GETARG_BOOL(1);
+	const char *targetns = text_to_cstring(PG_GETARG_TEXT_PP(2));
 
-    PG_RETURN_XML_P(stringinfo_to_xmltype(database_to_xml_internal(NULL, nulls,
-                                                                   tableforest, targetns)));
+	PG_RETURN_XML_P(stringinfo_to_xmltype(database_to_xml_internal(NULL, nulls,
+																   tableforest, targetns)));
 }
 
 
 static StringInfo
 database_to_xmlschema_internal(bool nulls, bool tableforest,
-                               const char *targetns)
+							   const char *targetns)
 {
-    List       *relid_list;
-    List       *nspid_list;
-    List       *tupdesc_list;
-    ListCell   *cell;
-    StringInfo    result;
+	List	   *relid_list;
+	List	   *nspid_list;
+	List	   *tupdesc_list;
+	ListCell   *cell;
+	StringInfo	result;
 
-    result = makeStringInfo();
+	result = makeStringInfo();
 
-    xsd_schema_element_start(result, targetns);
+	xsd_schema_element_start(result, targetns);
 
-    SPI_connect();
+	SPI_connect();
 
-    relid_list = database_get_xml_visible_tables();
-    nspid_list = database_get_xml_visible_schemas();
+	relid_list = database_get_xml_visible_tables();
+	nspid_list = database_get_xml_visible_schemas();
 
-    tupdesc_list = NIL;
-    foreach(cell, relid_list)
-    {
-        Relation    rel;
+	tupdesc_list = NIL;
+	foreach(cell, relid_list)
+	{
+		Relation	rel;
 
-        rel = heap_open(lfirst_oid(cell), AccessShareLock);
-        tupdesc_list = lappend(tupdesc_list, CreateTupleDescCopy(rel->rd_att));
-        heap_close(rel, NoLock);
-    }
+		rel = heap_open(lfirst_oid(cell), AccessShareLock);
+		tupdesc_list = lappend(tupdesc_list, CreateTupleDescCopy(rel->rd_att));
+		heap_close(rel, NoLock);
+	}
 
-    appendStringInfoString(result,
-                           map_sql_typecoll_to_xmlschema_types(tupdesc_list));
+	appendStringInfoString(result,
+						   map_sql_typecoll_to_xmlschema_types(tupdesc_list));
 
-    appendStringInfoString(result,
-                           map_sql_catalog_to_xmlschema_types(nspid_list, nulls, tableforest, targetns));
+	appendStringInfoString(result,
+						   map_sql_catalog_to_xmlschema_types(nspid_list, nulls, tableforest, targetns));
 
-    xsd_schema_element_end(result);
+	xsd_schema_element_end(result);
 
-    SPI_finish();
+	SPI_finish();
 
-    return result;
+	return result;
 }
 
 
 Datum
 database_to_xmlschema(PG_FUNCTION_ARGS)
 {
-    bool        nulls = PG_GETARG_BOOL(0);
-    bool        tableforest = PG_GETARG_BOOL(1);
-    const char *targetns = text_to_cstring(PG_GETARG_TEXT_PP(2));
+	bool		nulls = PG_GETARG_BOOL(0);
+	bool		tableforest = PG_GETARG_BOOL(1);
+	const char *targetns = text_to_cstring(PG_GETARG_TEXT_PP(2));
 
-    PG_RETURN_XML_P(stringinfo_to_xmltype(database_to_xmlschema_internal(nulls,
-                                                                         tableforest, targetns)));
+	PG_RETURN_XML_P(stringinfo_to_xmltype(database_to_xmlschema_internal(nulls,
+																		 tableforest, targetns)));
 }
 
 
 Datum
 database_to_xml_and_xmlschema(PG_FUNCTION_ARGS)
 {
-    bool        nulls = PG_GETARG_BOOL(0);
-    bool        tableforest = PG_GETARG_BOOL(1);
-    const char *targetns = text_to_cstring(PG_GETARG_TEXT_PP(2));
-    StringInfo    xmlschema;
+	bool		nulls = PG_GETARG_BOOL(0);
+	bool		tableforest = PG_GETARG_BOOL(1);
+	const char *targetns = text_to_cstring(PG_GETARG_TEXT_PP(2));
+	StringInfo	xmlschema;
 
-    xmlschema = database_to_xmlschema_internal(nulls, tableforest, targetns);
+	xmlschema = database_to_xmlschema_internal(nulls, tableforest, targetns);
 
-    PG_RETURN_XML_P(stringinfo_to_xmltype(database_to_xml_internal(xmlschema->data,
-                                                                   nulls, tableforest, targetns)));
+	PG_RETURN_XML_P(stringinfo_to_xmltype(database_to_xml_internal(xmlschema->data,
+																   nulls, tableforest, targetns)));
 }
 
 
@@ -3014,24 +3090,24 @@ database_to_xml_and_xmlschema(PG_FUNCTION_ARGS)
 static char *
 map_multipart_sql_identifier_to_xml_name(char *a, char *b, char *c, char *d)
 {
-    StringInfoData result;
+	StringInfoData result;
 
-    initStringInfo(&result);
+	initStringInfo(&result);
 
-    if (a)
-        appendStringInfoString(&result,
-                               map_sql_identifier_to_xml_name(a, true, true));
-    if (b)
-        appendStringInfo(&result, ".%s",
-                         map_sql_identifier_to_xml_name(b, true, true));
-    if (c)
-        appendStringInfo(&result, ".%s",
-                         map_sql_identifier_to_xml_name(c, true, true));
-    if (d)
-        appendStringInfo(&result, ".%s",
-                         map_sql_identifier_to_xml_name(d, true, true));
+	if (a)
+		appendStringInfoString(&result,
+							   map_sql_identifier_to_xml_name(a, true, true));
+	if (b)
+		appendStringInfo(&result, ".%s",
+						 map_sql_identifier_to_xml_name(b, true, true));
+	if (c)
+		appendStringInfo(&result, ".%s",
+						 map_sql_identifier_to_xml_name(c, true, true));
+	if (d)
+		appendStringInfo(&result, ".%s",
+						 map_sql_identifier_to_xml_name(d, true, true));
 
-    return result.data;
+	return result.data;
 }
 
 
@@ -3044,100 +3120,102 @@ map_multipart_sql_identifier_to_xml_name(char *a, char *b, char *c, char *d)
  */
 static const char *
 map_sql_table_to_xmlschema(TupleDesc tupdesc, Oid relid, bool nulls,
-                           bool tableforest, const char *targetns)
-{// #lizard forgives
-    int            i;
-    char       *xmltn;
-    char       *tabletypename;
-    char       *rowtypename;
-    StringInfoData result;
+						   bool tableforest, const char *targetns)
+{
+	int			i;
+	char	   *xmltn;
+	char	   *tabletypename;
+	char	   *rowtypename;
+	StringInfoData result;
 
-    initStringInfo(&result);
+	initStringInfo(&result);
 
-    if (OidIsValid(relid))
-    {
-        HeapTuple    tuple;
-        Form_pg_class reltuple;
+	if (OidIsValid(relid))
+	{
+		HeapTuple	tuple;
+		Form_pg_class reltuple;
 
-        tuple = SearchSysCache1(RELOID, ObjectIdGetDatum(relid));
-        if (!HeapTupleIsValid(tuple))
-            elog(ERROR, "cache lookup failed for relation %u", relid);
-        reltuple = (Form_pg_class) GETSTRUCT(tuple);
+		tuple = SearchSysCache1(RELOID, ObjectIdGetDatum(relid));
+		if (!HeapTupleIsValid(tuple))
+			elog(ERROR, "cache lookup failed for relation %u", relid);
+		reltuple = (Form_pg_class) GETSTRUCT(tuple);
 
-        xmltn = map_sql_identifier_to_xml_name(NameStr(reltuple->relname),
-                                               true, false);
+		xmltn = map_sql_identifier_to_xml_name(NameStr(reltuple->relname),
+											   true, false);
 
-        tabletypename = map_multipart_sql_identifier_to_xml_name("TableType",
-                                                                 get_database_name(MyDatabaseId),
-                                                                 get_namespace_name(reltuple->relnamespace),
-                                                                 NameStr(reltuple->relname));
+		tabletypename = map_multipart_sql_identifier_to_xml_name("TableType",
+																 get_database_name(MyDatabaseId),
+																 get_namespace_name(reltuple->relnamespace),
+																 NameStr(reltuple->relname));
 
-        rowtypename = map_multipart_sql_identifier_to_xml_name("RowType",
-                                                               get_database_name(MyDatabaseId),
-                                                               get_namespace_name(reltuple->relnamespace),
-                                                               NameStr(reltuple->relname));
+		rowtypename = map_multipart_sql_identifier_to_xml_name("RowType",
+															   get_database_name(MyDatabaseId),
+															   get_namespace_name(reltuple->relnamespace),
+															   NameStr(reltuple->relname));
 
-        ReleaseSysCache(tuple);
-    }
-    else
-    {
-        if (tableforest)
-            xmltn = "row";
-        else
-            xmltn = "table";
+		ReleaseSysCache(tuple);
+	}
+	else
+	{
+		if (tableforest)
+			xmltn = "row";
+		else
+			xmltn = "table";
 
-        tabletypename = "TableType";
-        rowtypename = "RowType";
-    }
+		tabletypename = "TableType";
+		rowtypename = "RowType";
+	}
 
-    xsd_schema_element_start(&result, targetns);
+	xsd_schema_element_start(&result, targetns);
 
-    appendStringInfoString(&result,
-                           map_sql_typecoll_to_xmlschema_types(list_make1(tupdesc)));
+	appendStringInfoString(&result,
+						   map_sql_typecoll_to_xmlschema_types(list_make1(tupdesc)));
 
-    appendStringInfo(&result,
-                     "<xsd:complexType name=\"%s\">\n"
-                     "  <xsd:sequence>\n",
-                     rowtypename);
+	appendStringInfo(&result,
+					 "<xsd:complexType name=\"%s\">\n"
+					 "  <xsd:sequence>\n",
+					 rowtypename);
 
-    for (i = 0; i < tupdesc->natts; i++)
-    {
-        if (tupdesc->attrs[i]->attisdropped)
-            continue;
-        appendStringInfo(&result,
-                         "    <xsd:element name=\"%s\" type=\"%s\"%s></xsd:element>\n",
-                         map_sql_identifier_to_xml_name(NameStr(tupdesc->attrs[i]->attname),
-                                                        true, false),
-                         map_sql_type_to_xml_name(tupdesc->attrs[i]->atttypid, -1),
-                         nulls ? " nillable=\"true\"" : " minOccurs=\"0\"");
-    }
+	for (i = 0; i < tupdesc->natts; i++)
+	{
+		Form_pg_attribute att = TupleDescAttr(tupdesc, i);
 
-    appendStringInfoString(&result,
-                           "  </xsd:sequence>\n"
-                           "</xsd:complexType>\n\n");
+		if (att->attisdropped)
+			continue;
+		appendStringInfo(&result,
+						 "    <xsd:element name=\"%s\" type=\"%s\"%s></xsd:element>\n",
+						 map_sql_identifier_to_xml_name(NameStr(att->attname),
+														true, false),
+						 map_sql_type_to_xml_name(att->atttypid, -1),
+						 nulls ? " nillable=\"true\"" : " minOccurs=\"0\"");
+	}
 
-    if (!tableforest)
-    {
-        appendStringInfo(&result,
-                         "<xsd:complexType name=\"%s\">\n"
-                         "  <xsd:sequence>\n"
-                         "    <xsd:element name=\"row\" type=\"%s\" minOccurs=\"0\" maxOccurs=\"unbounded\"/>\n"
-                         "  </xsd:sequence>\n"
-                         "</xsd:complexType>\n\n",
-                         tabletypename, rowtypename);
+	appendStringInfoString(&result,
+						   "  </xsd:sequence>\n"
+						   "</xsd:complexType>\n\n");
 
-        appendStringInfo(&result,
-                         "<xsd:element name=\"%s\" type=\"%s\"/>\n\n",
-                         xmltn, tabletypename);
-    }
-    else
-        appendStringInfo(&result,
-                         "<xsd:element name=\"%s\" type=\"%s\"/>\n\n",
-                         xmltn, rowtypename);
+	if (!tableforest)
+	{
+		appendStringInfo(&result,
+						 "<xsd:complexType name=\"%s\">\n"
+						 "  <xsd:sequence>\n"
+						 "    <xsd:element name=\"row\" type=\"%s\" minOccurs=\"0\" maxOccurs=\"unbounded\"/>\n"
+						 "  </xsd:sequence>\n"
+						 "</xsd:complexType>\n\n",
+						 tabletypename, rowtypename);
 
-    xsd_schema_element_end(&result);
+		appendStringInfo(&result,
+						 "<xsd:element name=\"%s\" type=\"%s\"/>\n\n",
+						 xmltn, tabletypename);
+	}
+	else
+		appendStringInfo(&result,
+						 "<xsd:element name=\"%s\" type=\"%s\"/>\n\n",
+						 xmltn, rowtypename);
 
-    return result.data;
+	xsd_schema_element_end(&result);
+
+	return result.data;
 }
 
 
@@ -3147,70 +3225,70 @@ map_sql_table_to_xmlschema(TupleDesc tupdesc, Oid relid, bool nulls,
  */
 static const char *
 map_sql_schema_to_xmlschema_types(Oid nspid, List *relid_list, bool nulls,
-                                  bool tableforest, const char *targetns)
+								  bool tableforest, const char *targetns)
 {
-    char       *dbname;
-    char       *nspname;
-    char       *xmlsn;
-    char       *schematypename;
-    StringInfoData result;
-    ListCell   *cell;
+	char	   *dbname;
+	char	   *nspname;
+	char	   *xmlsn;
+	char	   *schematypename;
+	StringInfoData result;
+	ListCell   *cell;
 
-    dbname = get_database_name(MyDatabaseId);
-    nspname = get_namespace_name(nspid);
+	dbname = get_database_name(MyDatabaseId);
+	nspname = get_namespace_name(nspid);
 
-    initStringInfo(&result);
+	initStringInfo(&result);
 
-    xmlsn = map_sql_identifier_to_xml_name(nspname, true, false);
+	xmlsn = map_sql_identifier_to_xml_name(nspname, true, false);
 
-    schematypename = map_multipart_sql_identifier_to_xml_name("SchemaType",
-                                                              dbname,
-                                                              nspname,
-                                                              NULL);
+	schematypename = map_multipart_sql_identifier_to_xml_name("SchemaType",
+															  dbname,
+															  nspname,
+															  NULL);
 
-    appendStringInfo(&result,
-                     "<xsd:complexType name=\"%s\">\n", schematypename);
-    if (!tableforest)
-        appendStringInfoString(&result,
-                               "  <xsd:all>\n");
-    else
-        appendStringInfoString(&result,
-                               "  <xsd:sequence>\n");
+	appendStringInfo(&result,
+					 "<xsd:complexType name=\"%s\">\n", schematypename);
+	if (!tableforest)
+		appendStringInfoString(&result,
+							   "  <xsd:all>\n");
+	else
+		appendStringInfoString(&result,
+							   "  <xsd:sequence>\n");
 
-    foreach(cell, relid_list)
-    {
-        Oid            relid = lfirst_oid(cell);
-        char       *relname = get_rel_name(relid);
-        char       *xmltn = map_sql_identifier_to_xml_name(relname, true, false);
-        char       *tabletypename = map_multipart_sql_identifier_to_xml_name(tableforest ? "RowType" : "TableType",
-                                                                             dbname,
-                                                                             nspname,
-                                                                             relname);
+	foreach(cell, relid_list)
+	{
+		Oid			relid = lfirst_oid(cell);
+		char	   *relname = get_rel_name(relid);
+		char	   *xmltn = map_sql_identifier_to_xml_name(relname, true, false);
+		char	   *tabletypename = map_multipart_sql_identifier_to_xml_name(tableforest ? "RowType" : "TableType",
+																			 dbname,
+																			 nspname,
+																			 relname);
 
-        if (!tableforest)
-            appendStringInfo(&result,
-                             "    <xsd:element name=\"%s\" type=\"%s\"/>\n",
-                             xmltn, tabletypename);
-        else
-            appendStringInfo(&result,
-                             "    <xsd:element name=\"%s\" type=\"%s\" minOccurs=\"0\" maxOccurs=\"unbounded\"/>\n",
-                             xmltn, tabletypename);
-    }
+		if (!tableforest)
+			appendStringInfo(&result,
+							 "    <xsd:element name=\"%s\" type=\"%s\"/>\n",
+							 xmltn, tabletypename);
+		else
+			appendStringInfo(&result,
+							 "    <xsd:element name=\"%s\" type=\"%s\" minOccurs=\"0\" maxOccurs=\"unbounded\"/>\n",
+							 xmltn, tabletypename);
+	}
 
-    if (!tableforest)
-        appendStringInfoString(&result,
-                               "  </xsd:all>\n");
-    else
-        appendStringInfoString(&result,
-                               "  </xsd:sequence>\n");
-    appendStringInfoString(&result,
-                           "</xsd:complexType>\n\n");
+	if (!tableforest)
+		appendStringInfoString(&result,
+							   "  </xsd:all>\n");
+	else
+		appendStringInfoString(&result,
+							   "  </xsd:sequence>\n");
+	appendStringInfoString(&result,
+						   "</xsd:complexType>\n\n");
 
-    appendStringInfo(&result,
-                     "<xsd:element name=\"%s\" type=\"%s\"/>\n\n",
-                     xmlsn, schematypename);
+	appendStringInfo(&result,
+					 "<xsd:element name=\"%s\" type=\"%s\"/>\n\n",
+					 xmlsn, schematypename);
 
-    return result.data;
+	return result.data;
 }
 
 
@@ -3220,55 +3298,55 @@ map_sql_schema_to_xmlschema_types(Oid nspid, List *relid_list, bool nulls,
  */
 static const char *
 map_sql_catalog_to_xmlschema_types(List *nspid_list, bool nulls,
-                                   bool tableforest, const char *targetns)
+								   bool tableforest, const char *targetns)
 {
-    char       *dbname;
-    char       *xmlcn;
-    char       *catalogtypename;
-    StringInfoData result;
-    ListCell   *cell;
+	char	   *dbname;
+	char	   *xmlcn;
+	char	   *catalogtypename;
+	StringInfoData result;
+	ListCell   *cell;
 
-    dbname = get_database_name(MyDatabaseId);
+	dbname = get_database_name(MyDatabaseId);
 
-    initStringInfo(&result);
+	initStringInfo(&result);
 
-    xmlcn = map_sql_identifier_to_xml_name(dbname, true, false);
+	xmlcn = map_sql_identifier_to_xml_name(dbname, true, false);
 
-    catalogtypename = map_multipart_sql_identifier_to_xml_name("CatalogType",
-                                                               dbname,
-                                                               NULL,
-                                                               NULL);
+	catalogtypename = map_multipart_sql_identifier_to_xml_name("CatalogType",
+															   dbname,
+															   NULL,
+															   NULL);
 
-    appendStringInfo(&result,
-                     "<xsd:complexType name=\"%s\">\n", catalogtypename);
-    appendStringInfoString(&result,
-                           "  <xsd:all>\n");
+	appendStringInfo(&result,
+					 "<xsd:complexType name=\"%s\">\n", catalogtypename);
+	appendStringInfoString(&result,
+						   "  <xsd:all>\n");
 
-    foreach(cell, nspid_list)
-    {
-        Oid            nspid = lfirst_oid(cell);
-        char       *nspname = get_namespace_name(nspid);
-        char       *xmlsn = map_sql_identifier_to_xml_name(nspname, true, false);
-        char       *schematypename = map_multipart_sql_identifier_to_xml_name("SchemaType",
-                                                                              dbname,
-                                                                              nspname,
-                                                                              NULL);
+	foreach(cell, nspid_list)
+	{
+		Oid			nspid = lfirst_oid(cell);
+		char	   *nspname = get_namespace_name(nspid);
+		char	   *xmlsn = map_sql_identifier_to_xml_name(nspname, true, false);
+		char	   *schematypename = map_multipart_sql_identifier_to_xml_name("SchemaType",
+																			  dbname,
+																			  nspname,
+																			  NULL);
 
-        appendStringInfo(&result,
-                         "    <xsd:element name=\"%s\" type=\"%s\"/>\n",
-                         xmlsn, schematypename);
-    }
+		appendStringInfo(&result,
+						 "    <xsd:element name=\"%s\" type=\"%s\"/>\n",
+						 xmlsn, schematypename);
+	}
 
-    appendStringInfoString(&result,
-                           "  </xsd:all>\n");
-    appendStringInfoString(&result,
-                           "</xsd:complexType>\n\n");
+	appendStringInfoString(&result,
+						   "  </xsd:all>\n");
+	appendStringInfoString(&result,
+						   "</xsd:complexType>\n\n");
 
-    appendStringInfo(&result,
-                     "<xsd:element name=\"%s\" type=\"%s\"/>\n\n",
-                     xmlcn, catalogtypename);
+	appendStringInfo(&result,
+					 "<xsd:element name=\"%s\" type=\"%s\"/>\n\n",
+					 xmlcn, catalogtypename);
 
-    return result.data;
+	return result.data;
 }
 
 
@@ -3277,116 +3355,122 @@ map_sql_catalog_to_xmlschema_types(List *nspid_list, bool nulls,
  */
 static const char *
 map_sql_type_to_xml_name(Oid typeoid, int typmod)
-{// #lizard forgives
-    StringInfoData result;
+{
+	StringInfoData result;
 
-    initStringInfo(&result);
+	initStringInfo(&result);
 
-    switch (typeoid)
-    {
-        case BPCHAROID:
-            if (typmod == -1)
-                appendStringInfoString(&result, "CHAR");
-            else
-                appendStringInfo(&result, "CHAR_%d", typmod - VARHDRSZ);
-            break;
-        case VARCHAROID:
-            if (typmod == -1)
-                appendStringInfoString(&result, "VARCHAR");
-            else
-                appendStringInfo(&result, "VARCHAR_%d", typmod - VARHDRSZ);
-            break;
+	if (unlikely(is_opentenbase_ora_xmltype(typeoid)))
+	{
+		appendStringInfoString(&result, "XMLTYPE");
+		return result.data;
+	}
+
+	switch (typeoid)
+	{
+		case BPCHAROID:
+			if (typmod == -1)
+				appendStringInfoString(&result, "CHAR");
+			else
+				appendStringInfo(&result, "CHAR_%d", typmod - VARHDRSZ);
+			break;
+		case VARCHAROID:
+			if (typmod == -1)
+				appendStringInfoString(&result, "VARCHAR");
+			else
+				appendStringInfo(&result, "VARCHAR_%d", typmod - VARHDRSZ);
+			break;
 #ifdef _PG_ORCL_
-        case VARCHAR2OID:
-            if (typmod == -1)
-                appendStringInfoString(&result, "VARCHAR2");
-            else
-                appendStringInfo(&result, "VARCHAR2_%d", typmod - VARHDRSZ);
-            break;
-        case NVARCHAR2OID:
-            if (typmod == -1)
-                appendStringInfoString(&result, "NVARCHAR2");
-            else
-                appendStringInfo(&result, "NVARCHAR2_%d", typmod - VARHDRSZ);
-            break;
+		case VARCHAR2OID:
+			if (typmod == -1)
+				appendStringInfoString(&result, "VARCHAR2");
+			else
+				appendStringInfo(&result, "VARCHAR2_%d", typmod - VARHDRSZ);
+			break;
+		case NVARCHAR2OID:
+			if (typmod == -1)
+				appendStringInfoString(&result, "NVARCHAR2");
+			else
+				appendStringInfo(&result, "NVARCHAR2_%d", typmod - VARHDRSZ);
+			break;
 #endif
-        case NUMERICOID:
-            if (typmod == -1)
-                appendStringInfoString(&result, "NUMERIC");
-            else
-                appendStringInfo(&result, "NUMERIC_%d_%d",
-                                 ((typmod - VARHDRSZ) >> 16) & 0xffff,
-                                 (typmod - VARHDRSZ) & 0xffff);
-            break;
-        case INT4OID:
-            appendStringInfoString(&result, "INTEGER");
-            break;
-        case INT2OID:
-            appendStringInfoString(&result, "SMALLINT");
-            break;
-        case INT8OID:
-            appendStringInfoString(&result, "BIGINT");
-            break;
-        case FLOAT4OID:
-            appendStringInfoString(&result, "REAL");
-            break;
-        case FLOAT8OID:
-            appendStringInfoString(&result, "DOUBLE");
-            break;
-        case BOOLOID:
-            appendStringInfoString(&result, "BOOLEAN");
-            break;
-        case TIMEOID:
-            if (typmod == -1)
-                appendStringInfoString(&result, "TIME");
-            else
-                appendStringInfo(&result, "TIME_%d", typmod);
-            break;
-        case TIMETZOID:
-            if (typmod == -1)
-                appendStringInfoString(&result, "TIME_WTZ");
-            else
-                appendStringInfo(&result, "TIME_WTZ_%d", typmod);
-            break;
-        case TIMESTAMPOID:
-            if (typmod == -1)
-                appendStringInfoString(&result, "TIMESTAMP");
-            else
-                appendStringInfo(&result, "TIMESTAMP_%d", typmod);
-            break;
-        case TIMESTAMPTZOID:
-            if (typmod == -1)
-                appendStringInfoString(&result, "TIMESTAMP_WTZ");
-            else
-                appendStringInfo(&result, "TIMESTAMP_WTZ_%d", typmod);
-            break;
-        case DATEOID:
-            appendStringInfoString(&result, "DATE");
-            break;
-        case XMLOID:
-            appendStringInfoString(&result, "XML");
-            break;
-        default:
-            {
-                HeapTuple    tuple;
-                Form_pg_type typtuple;
+		case NUMERICOID:
+			if (typmod == -1)
+				appendStringInfoString(&result, "NUMERIC");
+			else
+				appendStringInfo(&result, "NUMERIC_%d_%d",
+								 ((typmod - VARHDRSZ) >> 16) & 0xffff,
+								 (typmod - VARHDRSZ) & 0xffff);
+			break;
+		case INT4OID:
+			appendStringInfoString(&result, "INTEGER");
+			break;
+		case INT2OID:
+			appendStringInfoString(&result, "SMALLINT");
+			break;
+		case INT8OID:
+			appendStringInfoString(&result, "BIGINT");
+			break;
+		case FLOAT4OID:
+			appendStringInfoString(&result, "REAL");
+			break;
+		case FLOAT8OID:
+			appendStringInfoString(&result, "DOUBLE");
+			break;
+		case BOOLOID:
+			appendStringInfoString(&result, "BOOLEAN");
+			break;
+		case TIMEOID:
+			if (typmod == -1)
+				appendStringInfoString(&result, "TIME");
+			else
+				appendStringInfo(&result, "TIME_%d", typmod);
+			break;
+		case TIMETZOID:
+			if (typmod == -1)
+				appendStringInfoString(&result, "TIME_WTZ");
+			else
+				appendStringInfo(&result, "TIME_WTZ_%d", typmod);
+			break;
+		case TIMESTAMPOID:
+			if (typmod == -1)
+				appendStringInfoString(&result, "TIMESTAMP");
+			else
+				appendStringInfo(&result, "TIMESTAMP_%d", typmod);
+			break;
+		case TIMESTAMPTZOID:
+			if (typmod == -1)
+				appendStringInfoString(&result, "TIMESTAMP_WTZ");
+			else
+				appendStringInfo(&result, "TIMESTAMP_WTZ_%d", typmod);
+			break;
+		case DATEOID:
+			appendStringInfoString(&result, "DATE");
+			break;
+		case XMLOID:
+			appendStringInfoString(&result, "XML");
+			break;
+		default:
+			{
+				HeapTuple	tuple;
+				Form_pg_type typtuple;
 
-                tuple = SearchSysCache1(TYPEOID, ObjectIdGetDatum(typeoid));
-                if (!HeapTupleIsValid(tuple))
-                    elog(ERROR, "cache lookup failed for type %u", typeoid);
-                typtuple = (Form_pg_type) GETSTRUCT(tuple);
+				tuple = SearchSysCache1(TYPEOID, ObjectIdGetDatum(typeoid));
+				if (!HeapTupleIsValid(tuple))
+					elog(ERROR, "cache lookup failed for type %u", typeoid);
+				typtuple = (Form_pg_type) GETSTRUCT(tuple);
 
-                appendStringInfoString(&result,
-                                       map_multipart_sql_identifier_to_xml_name((typtuple->typtype == TYPTYPE_DOMAIN) ? "Domain" : "UDT",
-                                                                                get_database_name(MyDatabaseId),
-                                                                                get_namespace_name(typtuple->typnamespace),
-                                                                                NameStr(typtuple->typname)));
+				appendStringInfoString(&result,
+									   map_multipart_sql_identifier_to_xml_name((typtuple->typtype == TYPTYPE_DOMAIN) ? "Domain" : "UDT",
+																				get_database_name(MyDatabaseId),
+																				get_namespace_name(typtuple->typnamespace),
+																				NameStr(typtuple->typname)));
 
-                ReleaseSysCache(tuple);
-            }
-    }
+				ReleaseSysCache(tuple);
+			}
+	}
 
-    return result.data;
+	return result.data;
 }
 
 
@@ -3397,46 +3481,47 @@ map_sql_type_to_xml_name(Oid typeoid, int typmod)
 static const char *
 map_sql_typecoll_to_xmlschema_types(List *tupdesc_list)
 {
-    List       *uniquetypes = NIL;
-    int            i;
-    StringInfoData result;
-    ListCell   *cell0;
+	List	   *uniquetypes = NIL;
+	int			i;
+	StringInfoData result;
+	ListCell   *cell0;
 
-    /* extract all column types used in the set of TupleDescs */
-    foreach(cell0, tupdesc_list)
-    {
-        TupleDesc    tupdesc = (TupleDesc) lfirst(cell0);
+	/* extract all column types used in the set of TupleDescs */
+	foreach(cell0, tupdesc_list)
+	{
+		TupleDesc	tupdesc = (TupleDesc) lfirst(cell0);
 
-        for (i = 0; i < tupdesc->natts; i++)
-        {
-            if (tupdesc->attrs[i]->attisdropped)
-                continue;
-            uniquetypes = list_append_unique_oid(uniquetypes,
-                                                 tupdesc->attrs[i]->atttypid);
-        }
-    }
+		for (i = 0; i < tupdesc->natts; i++)
+		{
+			Form_pg_attribute att = TupleDescAttr(tupdesc, i);
 
-    /* add base types of domains */
-    foreach(cell0, uniquetypes)
-    {
-        Oid            typid = lfirst_oid(cell0);
-        Oid            basetypid = getBaseType(typid);
+			if (att->attisdropped)
+				continue;
+			uniquetypes = list_append_unique_oid(uniquetypes, att->atttypid);
+		}
+	}
 
-        if (basetypid != typid)
-            uniquetypes = list_append_unique_oid(uniquetypes, basetypid);
-    }
+	/* add base types of domains */
+	foreach(cell0, uniquetypes)
+	{
+		Oid			typid = lfirst_oid(cell0);
+		Oid			basetypid = getBaseType(typid);
 
-    /* Convert to textual form */
-    initStringInfo(&result);
+		if (basetypid != typid)
+			uniquetypes = list_append_unique_oid(uniquetypes, basetypid);
+	}
 
-    foreach(cell0, uniquetypes)
-    {
-        appendStringInfo(&result, "%s\n",
-                         map_sql_type_to_xmlschema_type(lfirst_oid(cell0),
-                                                        -1));
-    }
+	/* Convert to textual form */
+	initStringInfo(&result);
 
-    return result.data;
+	foreach(cell0, uniquetypes)
+	{
+		appendStringInfo(&result, "%s\n",
+						 map_sql_type_to_xmlschema_type(lfirst_oid(cell0),
+														-1));
+	}
+
+	return result.data;
 }
 
 
@@ -3450,176 +3535,176 @@ map_sql_typecoll_to_xmlschema_types(List *tupdesc_list)
  */
 static const char *
 map_sql_type_to_xmlschema_type(Oid typeoid, int typmod)
-{// #lizard forgives
-    StringInfoData result;
-    const char *typename = map_sql_type_to_xml_name(typeoid, typmod);
+{
+	StringInfoData result;
+	const char *typename = map_sql_type_to_xml_name(typeoid, typmod);
 
-    initStringInfo(&result);
+	initStringInfo(&result);
 
-    if (typeoid == XMLOID)
-    {
-        appendStringInfoString(&result,
-                               "<xsd:complexType mixed=\"true\">\n"
-                               "  <xsd:sequence>\n"
-                               "    <xsd:any name=\"element\" minOccurs=\"0\" maxOccurs=\"unbounded\" processContents=\"skip\"/>\n"
-                               "  </xsd:sequence>\n"
-                               "</xsd:complexType>\n");
-    }
-    else
-    {
-        appendStringInfo(&result,
-                         "<xsd:simpleType name=\"%s\">\n", typename);
+	if (typeoid == XMLOID || is_opentenbase_ora_xmltype(typeoid))
+	{
+		appendStringInfoString(&result,
+							   "<xsd:complexType mixed=\"true\">\n"
+							   "  <xsd:sequence>\n"
+							   "    <xsd:any name=\"element\" minOccurs=\"0\" maxOccurs=\"unbounded\" processContents=\"skip\"/>\n"
+							   "  </xsd:sequence>\n"
+							   "</xsd:complexType>\n");
+	}
+	else
+	{
+		appendStringInfo(&result,
+						 "<xsd:simpleType name=\"%s\">\n", typename);
 
-        switch (typeoid)
-        {
-            case BPCHAROID:
-            case VARCHAROID:
-            case TEXTOID:
+		switch (typeoid)
+		{
+			case BPCHAROID:
+			case VARCHAROID:
+			case TEXTOID:
 #ifdef _PG_ORCL_
-            case VARCHAR2OID:
-            case NVARCHAR2OID:
+			case VARCHAR2OID:
+			case NVARCHAR2OID:
 #endif
-                appendStringInfo(&result,
-                                 "  <xsd:restriction base=\"xsd:string\">\n");
-                if (typmod != -1)
-                    appendStringInfo(&result,
-                                     "    <xsd:maxLength value=\"%d\"/>\n",
-                                     typmod - VARHDRSZ);
-                appendStringInfoString(&result, "  </xsd:restriction>\n");
-                break;
+				appendStringInfo(&result,
+								 "  <xsd:restriction base=\"xsd:string\">\n");
+				if (typmod != -1)
+					appendStringInfo(&result,
+									 "    <xsd:maxLength value=\"%d\"/>\n",
+									 typmod - VARHDRSZ);
+				appendStringInfoString(&result, "  </xsd:restriction>\n");
+				break;
 
-            case BYTEAOID:
-                appendStringInfo(&result,
-                                 "  <xsd:restriction base=\"xsd:%s\">\n"
-                                 "  </xsd:restriction>\n",
-                                 xmlbinary == XMLBINARY_BASE64 ? "base64Binary" : "hexBinary");
-                break;
+			case BYTEAOID:
+				appendStringInfo(&result,
+								 "  <xsd:restriction base=\"xsd:%s\">\n"
+								 "  </xsd:restriction>\n",
+								 xmlbinary == XMLBINARY_BASE64 ? "base64Binary" : "hexBinary");
+				break;
 
-            case NUMERICOID:
-                if (typmod != -1)
-                    appendStringInfo(&result,
-                                     "  <xsd:restriction base=\"xsd:decimal\">\n"
-                                     "    <xsd:totalDigits value=\"%d\"/>\n"
-                                     "    <xsd:fractionDigits value=\"%d\"/>\n"
-                                     "  </xsd:restriction>\n",
-                                     ((typmod - VARHDRSZ) >> 16) & 0xffff,
-                                     (typmod - VARHDRSZ) & 0xffff);
-                break;
+			case NUMERICOID:
+				if (typmod != -1)
+					appendStringInfo(&result,
+									 "  <xsd:restriction base=\"xsd:decimal\">\n"
+									 "    <xsd:totalDigits value=\"%d\"/>\n"
+									 "    <xsd:fractionDigits value=\"%d\"/>\n"
+									 "  </xsd:restriction>\n",
+									 ((typmod - VARHDRSZ) >> 16) & 0xffff,
+									 (typmod - VARHDRSZ) & 0xffff);
+				break;
 
-            case INT2OID:
-                appendStringInfo(&result,
-                                 "  <xsd:restriction base=\"xsd:short\">\n"
-                                 "    <xsd:maxInclusive value=\"%d\"/>\n"
-                                 "    <xsd:minInclusive value=\"%d\"/>\n"
-                                 "  </xsd:restriction>\n",
-                                 SHRT_MAX, SHRT_MIN);
-                break;
+			case INT2OID:
+				appendStringInfo(&result,
+								 "  <xsd:restriction base=\"xsd:short\">\n"
+								 "    <xsd:maxInclusive value=\"%d\"/>\n"
+								 "    <xsd:minInclusive value=\"%d\"/>\n"
+								 "  </xsd:restriction>\n",
+								 SHRT_MAX, SHRT_MIN);
+				break;
 
-            case INT4OID:
-                appendStringInfo(&result,
-                                 "  <xsd:restriction base=\"xsd:int\">\n"
-                                 "    <xsd:maxInclusive value=\"%d\"/>\n"
-                                 "    <xsd:minInclusive value=\"%d\"/>\n"
-                                 "  </xsd:restriction>\n",
-                                 INT_MAX, INT_MIN);
-                break;
+			case INT4OID:
+				appendStringInfo(&result,
+								 "  <xsd:restriction base=\"xsd:int\">\n"
+								 "    <xsd:maxInclusive value=\"%d\"/>\n"
+								 "    <xsd:minInclusive value=\"%d\"/>\n"
+								 "  </xsd:restriction>\n",
+								 INT_MAX, INT_MIN);
+				break;
 
-            case INT8OID:
-                appendStringInfo(&result,
-                                 "  <xsd:restriction base=\"xsd:long\">\n"
-                                 "    <xsd:maxInclusive value=\"" INT64_FORMAT "\"/>\n"
-                                 "    <xsd:minInclusive value=\"" INT64_FORMAT "\"/>\n"
-                                 "  </xsd:restriction>\n",
-                                 (((uint64) 1) << (sizeof(int64) * 8 - 1)) - 1,
-                                 (((uint64) 1) << (sizeof(int64) * 8 - 1)));
-                break;
+			case INT8OID:
+				appendStringInfo(&result,
+								 "  <xsd:restriction base=\"xsd:long\">\n"
+								 "    <xsd:maxInclusive value=\"" INT64_FORMAT "\"/>\n"
+								 "    <xsd:minInclusive value=\"" INT64_FORMAT "\"/>\n"
+								 "  </xsd:restriction>\n",
+								 (((uint64) 1) << (sizeof(int64) * 8 - 1)) - 1,
+								 (((uint64) 1) << (sizeof(int64) * 8 - 1)));
+				break;
 
-            case FLOAT4OID:
-                appendStringInfoString(&result,
-                                       "  <xsd:restriction base=\"xsd:float\"></xsd:restriction>\n");
-                break;
+			case FLOAT4OID:
+				appendStringInfoString(&result,
+									   "  <xsd:restriction base=\"xsd:float\"></xsd:restriction>\n");
+				break;
 
-            case FLOAT8OID:
-                appendStringInfoString(&result,
-                                       "  <xsd:restriction base=\"xsd:double\"></xsd:restriction>\n");
-                break;
+			case FLOAT8OID:
+				appendStringInfoString(&result,
+									   "  <xsd:restriction base=\"xsd:double\"></xsd:restriction>\n");
+				break;
 
-            case BOOLOID:
-                appendStringInfoString(&result,
-                                       "  <xsd:restriction base=\"xsd:boolean\"></xsd:restriction>\n");
-                break;
+			case BOOLOID:
+				appendStringInfoString(&result,
+									   "  <xsd:restriction base=\"xsd:boolean\"></xsd:restriction>\n");
+				break;
 
-            case TIMEOID:
-            case TIMETZOID:
-                {
-                    const char *tz = (typeoid == TIMETZOID ? "(+|-)\\p{Nd}{2}:\\p{Nd}{2}" : "");
+			case TIMEOID:
+			case TIMETZOID:
+				{
+					const char *tz = (typeoid == TIMETZOID ? "(+|-)\\p{Nd}{2}:\\p{Nd}{2}" : "");
 
-                    if (typmod == -1)
-                        appendStringInfo(&result,
-                                         "  <xsd:restriction base=\"xsd:time\">\n"
-                                         "    <xsd:pattern value=\"\\p{Nd}{2}:\\p{Nd}{2}:\\p{Nd}{2}(.\\p{Nd}+)?%s\"/>\n"
-                                         "  </xsd:restriction>\n", tz);
-                    else if (typmod == 0)
-                        appendStringInfo(&result,
-                                         "  <xsd:restriction base=\"xsd:time\">\n"
-                                         "    <xsd:pattern value=\"\\p{Nd}{2}:\\p{Nd}{2}:\\p{Nd}{2}%s\"/>\n"
-                                         "  </xsd:restriction>\n", tz);
-                    else
-                        appendStringInfo(&result,
-                                         "  <xsd:restriction base=\"xsd:time\">\n"
-                                         "    <xsd:pattern value=\"\\p{Nd}{2}:\\p{Nd}{2}:\\p{Nd}{2}.\\p{Nd}{%d}%s\"/>\n"
-                                         "  </xsd:restriction>\n", typmod - VARHDRSZ, tz);
-                    break;
-                }
+					if (typmod == -1)
+						appendStringInfo(&result,
+										 "  <xsd:restriction base=\"xsd:time\">\n"
+										 "    <xsd:pattern value=\"\\p{Nd}{2}:\\p{Nd}{2}:\\p{Nd}{2}(.\\p{Nd}+)?%s\"/>\n"
+										 "  </xsd:restriction>\n", tz);
+					else if (typmod == 0)
+						appendStringInfo(&result,
+										 "  <xsd:restriction base=\"xsd:time\">\n"
+										 "    <xsd:pattern value=\"\\p{Nd}{2}:\\p{Nd}{2}:\\p{Nd}{2}%s\"/>\n"
+										 "  </xsd:restriction>\n", tz);
+					else
+						appendStringInfo(&result,
+										 "  <xsd:restriction base=\"xsd:time\">\n"
+										 "    <xsd:pattern value=\"\\p{Nd}{2}:\\p{Nd}{2}:\\p{Nd}{2}.\\p{Nd}{%d}%s\"/>\n"
+										 "  </xsd:restriction>\n", typmod - VARHDRSZ, tz);
+					break;
+				}
 
-            case TIMESTAMPOID:
-            case TIMESTAMPTZOID:
-                {
-                    const char *tz = (typeoid == TIMESTAMPTZOID ? "(+|-)\\p{Nd}{2}:\\p{Nd}{2}" : "");
+			case TIMESTAMPOID:
+			case TIMESTAMPTZOID:
+				{
+					const char *tz = (typeoid == TIMESTAMPTZOID ? "(+|-)\\p{Nd}{2}:\\p{Nd}{2}" : "");
 
-                    if (typmod == -1)
-                        appendStringInfo(&result,
-                                         "  <xsd:restriction base=\"xsd:dateTime\">\n"
-                                         "    <xsd:pattern value=\"\\p{Nd}{4}-\\p{Nd}{2}-\\p{Nd}{2}T\\p{Nd}{2}:\\p{Nd}{2}:\\p{Nd}{2}(.\\p{Nd}+)?%s\"/>\n"
-                                         "  </xsd:restriction>\n", tz);
-                    else if (typmod == 0)
-                        appendStringInfo(&result,
-                                         "  <xsd:restriction base=\"xsd:dateTime\">\n"
-                                         "    <xsd:pattern value=\"\\p{Nd}{4}-\\p{Nd}{2}-\\p{Nd}{2}T\\p{Nd}{2}:\\p{Nd}{2}:\\p{Nd}{2}%s\"/>\n"
-                                         "  </xsd:restriction>\n", tz);
-                    else
-                        appendStringInfo(&result,
-                                         "  <xsd:restriction base=\"xsd:dateTime\">\n"
-                                         "    <xsd:pattern value=\"\\p{Nd}{4}-\\p{Nd}{2}-\\p{Nd}{2}T\\p{Nd}{2}:\\p{Nd}{2}:\\p{Nd}{2}.\\p{Nd}{%d}%s\"/>\n"
-                                         "  </xsd:restriction>\n", typmod - VARHDRSZ, tz);
-                    break;
-                }
+					if (typmod == -1)
+						appendStringInfo(&result,
+										 "  <xsd:restriction base=\"xsd:dateTime\">\n"
+										 "    <xsd:pattern value=\"\\p{Nd}{4}-\\p{Nd}{2}-\\p{Nd}{2}T\\p{Nd}{2}:\\p{Nd}{2}:\\p{Nd}{2}(.\\p{Nd}+)?%s\"/>\n"
+										 "  </xsd:restriction>\n", tz);
+					else if (typmod == 0)
+						appendStringInfo(&result,
+										 "  <xsd:restriction base=\"xsd:dateTime\">\n"
+										 "    <xsd:pattern value=\"\\p{Nd}{4}-\\p{Nd}{2}-\\p{Nd}{2}T\\p{Nd}{2}:\\p{Nd}{2}:\\p{Nd}{2}%s\"/>\n"
+										 "  </xsd:restriction>\n", tz);
+					else
+						appendStringInfo(&result,
+										 "  <xsd:restriction base=\"xsd:dateTime\">\n"
+										 "    <xsd:pattern value=\"\\p{Nd}{4}-\\p{Nd}{2}-\\p{Nd}{2}T\\p{Nd}{2}:\\p{Nd}{2}:\\p{Nd}{2}.\\p{Nd}{%d}%s\"/>\n"
+										 "  </xsd:restriction>\n", typmod - VARHDRSZ, tz);
+					break;
+				}
 
-            case DATEOID:
-                appendStringInfoString(&result,
-                                       "  <xsd:restriction base=\"xsd:date\">\n"
-                                       "    <xsd:pattern value=\"\\p{Nd}{4}-\\p{Nd}{2}-\\p{Nd}{2}\"/>\n"
-                                       "  </xsd:restriction>\n");
-                break;
+			case DATEOID:
+				appendStringInfoString(&result,
+									   "  <xsd:restriction base=\"xsd:date\">\n"
+									   "    <xsd:pattern value=\"\\p{Nd}{4}-\\p{Nd}{2}-\\p{Nd}{2}\"/>\n"
+									   "  </xsd:restriction>\n");
+				break;
 
-            default:
-                if (get_typtype(typeoid) == TYPTYPE_DOMAIN)
-                {
-                    Oid            base_typeoid;
-                    int32        base_typmod = -1;
+			default:
+				if (get_typtype(typeoid) == TYPTYPE_DOMAIN)
+				{
+					Oid			base_typeoid;
+					int32		base_typmod = -1;
 
-                    base_typeoid = getBaseTypeAndTypmod(typeoid, &base_typmod);
+					base_typeoid = getBaseTypeAndTypmod(typeoid, &base_typmod);
 
-                    appendStringInfo(&result,
-                                     "  <xsd:restriction base=\"%s\"/>\n",
-                                     map_sql_type_to_xml_name(base_typeoid, base_typmod));
-                }
-                break;
-        }
-        appendStringInfoString(&result, "</xsd:simpleType>\n");
-    }
+					appendStringInfo(&result,
+									 "  <xsd:restriction base=\"%s\"/>\n",
+									 map_sql_type_to_xml_name(base_typeoid, base_typmod));
+				}
+				break;
+		}
+		appendStringInfoString(&result, "</xsd:simpleType>\n");
+	}
 
-    return result.data;
+	return result.data;
 }
 
 
@@ -3629,59 +3714,59 @@ map_sql_type_to_xmlschema_type(Oid typeoid, int typmod)
  */
 static void
 SPI_sql_row_to_xmlelement(uint64 rownum, StringInfo result, char *tablename,
-                          bool nulls, bool tableforest,
-                          const char *targetns, bool top_level)
+						  bool nulls, bool tableforest,
+						  const char *targetns, bool top_level)
 {
-    int            i;
-    char       *xmltn;
+	int			i;
+	char	   *xmltn;
 
-    if (tablename)
-        xmltn = map_sql_identifier_to_xml_name(tablename, true, false);
-    else
-    {
-        if (tableforest)
-            xmltn = "row";
-        else
-            xmltn = "table";
-    }
+	if (tablename)
+		xmltn = map_sql_identifier_to_xml_name(tablename, true, false);
+	else
+	{
+		if (tableforest)
+			xmltn = "row";
+		else
+			xmltn = "table";
+	}
 
-    if (tableforest)
-        xmldata_root_element_start(result, xmltn, NULL, targetns, top_level);
-    else
-        appendStringInfoString(result, "<row>\n");
+	if (tableforest)
+		xmldata_root_element_start(result, xmltn, NULL, targetns, top_level);
+	else
+		appendStringInfoString(result, "<row>\n");
 
-    for (i = 1; i <= SPI_tuptable->tupdesc->natts; i++)
-    {
-        char       *colname;
-        Datum        colval;
-        bool        isnull;
+	for (i = 1; i <= SPI_tuptable->tupdesc->natts; i++)
+	{
+		char	   *colname;
+		Datum		colval;
+		bool		isnull;
 
-        colname = map_sql_identifier_to_xml_name(SPI_fname(SPI_tuptable->tupdesc, i),
-                                                 true, false);
-        colval = SPI_getbinval(SPI_tuptable->vals[rownum],
-                               SPI_tuptable->tupdesc,
-                               i,
-                               &isnull);
-        if (isnull)
-        {
-            if (nulls)
-                appendStringInfo(result, "  <%s xsi:nil=\"true\"/>\n", colname);
-        }
-        else
-            appendStringInfo(result, "  <%s>%s</%s>\n",
-                             colname,
-                             map_sql_value_to_xml_value(colval,
-                                                        SPI_gettypeid(SPI_tuptable->tupdesc, i), true),
-                             colname);
-    }
+		colname = map_sql_identifier_to_xml_name(SPI_fname(SPI_tuptable->tupdesc, i),
+												 true, false);
+		colval = SPI_getbinval(SPI_tuptable->vals[rownum],
+							   SPI_tuptable->tupdesc,
+							   i,
+							   &isnull);
+		if (isnull)
+		{
+			if (nulls)
+				appendStringInfo(result, "  <%s xsi:nil=\"true\"/>\n", colname);
+		}
+		else
+			appendStringInfo(result, "  <%s>%s</%s>\n",
+							 colname,
+							 map_sql_value_to_xml_value(colval,
+														SPI_gettypeid(SPI_tuptable->tupdesc, i), true),
+							 colname);
+	}
 
-    if (tableforest)
-    {
-        xmldata_root_element_end(result, xmltn);
-        appendStringInfoChar(result, '\n');
-    }
-    else
-        appendStringInfoString(result, "</row>\n\n");
+	if (tableforest)
+	{
+		xmldata_root_element_end(result, xmltn);
+		appendStringInfoChar(result, '\n');
+	}
+	else
+		appendStringInfoString(result, "</row>\n\n");
 }
 
 
@@ -3698,64 +3783,63 @@ SPI_sql_row_to_xmlelement(uint64 rownum, StringInfo result, char *tablename,
 static text *
 xml_xmlnodetoxmltype(xmlNodePtr cur, PgXmlErrorContext *xmlerrcxt)
 {
-    xmltype    *result;
+	xmltype    *result;
 
-    if (cur->type == XML_ELEMENT_NODE)
-    {
-        xmlBufferPtr buf;
-        xmlNodePtr    cur_copy;
+	if (cur->type == XML_ELEMENT_NODE)
+	{
+		xmlBufferPtr buf;
+		xmlNodePtr	cur_copy;
+		buf = xmlBufferCreate();
 
-        buf = xmlBufferCreate();
+		/*
+		 * The result of xmlNodeDump() won't contain namespace definitions
+		 * from parent nodes, but xmlCopyNode() duplicates a node along with
+		 * its required namespace definitions.
+		 */
+		cur_copy = xmlCopyNode(cur, 1);
 
-        /*
-         * The result of xmlNodeDump() won't contain namespace definitions
-         * from parent nodes, but xmlCopyNode() duplicates a node along with
-         * its required namespace definitions.
-         */
-        cur_copy = xmlCopyNode(cur, 1);
+		if (cur_copy == NULL)
+			xml_ereport(xmlerrcxt, ERROR, ERRCODE_OUT_OF_MEMORY,
+						"could not copy node");
 
-        if (cur_copy == NULL)
-            xml_ereport(xmlerrcxt, ERROR, ERRCODE_OUT_OF_MEMORY,
-                        "could not copy node");
+		PG_TRY();
+		{
+			xmlNodeDump(buf, NULL, cur_copy, 0, 1);
+			result = xmlBuffer_to_xmltype(buf);
+		}
+		PG_CATCH();
+		{
+			xmlFreeNode(cur_copy);
+			xmlBufferFree(buf);
+			PG_RE_THROW();
+		}
+		PG_END_TRY();
+		xmlFreeNode(cur_copy);
+		xmlBufferFree(buf);
+	}
+	else
+	{
+		xmlChar    *str;
 
-        PG_TRY();
-        {
-            xmlNodeDump(buf, NULL, cur_copy, 0, 1);
-            result = xmlBuffer_to_xmltype(buf);
-        }
-        PG_CATCH();
-        {
-            xmlFreeNode(cur_copy);
-            xmlBufferFree(buf);
-            PG_RE_THROW();
-        }
-        PG_END_TRY();
-        xmlFreeNode(cur_copy);
-        xmlBufferFree(buf);
-    }
-    else
-    {
-        xmlChar    *str;
+		str = xmlXPathCastNodeToString(cur);
+		PG_TRY();
+		{
+			/* Here we rely on XML having the same representation as TEXT */
+			char	   *escaped = escape_xml((char *) str);
 
-        str = xmlXPathCastNodeToString(cur);
-        PG_TRY();
-        {
-            /* Here we rely on XML having the same representation as TEXT */
-            char       *escaped = escape_xml((char *) str);
+			result = (xmltype *) cstring_to_text(escaped);
+			pfree(escaped);
+		}
+		PG_CATCH();
+		{
+			xmlFree(str);
+			PG_RE_THROW();
+		}
+		PG_END_TRY();
+		xmlFree(str);
+	}
 
-            result = (xmltype *) cstring_to_text(escaped);
-            pfree(escaped);
-        }
-        PG_CATCH();
-        {
-            xmlFree(str);
-            PG_RE_THROW();
-        }
-        PG_END_TRY();
-        xmlFree(str);
-    }
-
-    return result;
+	return result;
 }
 
 /*
@@ -3770,72 +3854,93 @@ xml_xmlnodetoxmltype(xmlNodePtr cur, PgXmlErrorContext *xmlerrcxt)
  * representations.  Primitive values (float, double, string) are converted
  * to a single-element array containing the value's string representation.
  */
-static int
+int
 xml_xpathobjtoxmlarray(xmlXPathObjectPtr xpathobj,
-                       ArrayBuildState *astate,
-                       PgXmlErrorContext *xmlerrcxt)
-{// #lizard forgives
-    int            result = 0;
-    Datum        datum;
-    Oid            datumtype;
-    char       *result_str;
+					   ArrayBuildState *astate,
+					   PgXmlErrorContext *xmlerrcxt)
+{
+	int			result = 0;
+	Datum		datum;
+	Oid			datumtype;
+	char	   *result_str;
+	xmlNodePtr 	nodeptr;
+	switch (xpathobj->type)
+	{
+		case XPATH_NODESET:
+			if (xpathobj->nodesetval != NULL)
+			{
+				result = xpathobj->nodesetval->nodeNr;
+				if (astate != NULL)
+				{
+					int			i;
 
-    switch (xpathobj->type)
-    {
-        case XPATH_NODESET:
-            if (xpathobj->nodesetval != NULL)
-            {
-                result = xpathobj->nodesetval->nodeNr;
-                if (astate != NULL)
-                {
-                    int            i;
+					for (i = 0; i < result; i++)
+					{
+						nodeptr = xpathobj->nodesetval->nodeTab[i];
+						if (ORA_MODE && nodeptr->type == XML_DOCUMENT_NODE)
+							datum = PointerGetDatum(xml_xmlnodetoxmltype(xmlDocGetRootElement((xmlDocPtr) nodeptr),
+																		 xmlerrcxt));
+						else
+							datum = PointerGetDatum(xml_xmlnodetoxmltype(nodeptr, xmlerrcxt));
+						(void) accumArrayResult(astate, datum, false,
+												XMLOID, CurrentMemoryContext);
+					}
+				}
+			}
+			return result;
 
-                    for (i = 0; i < result; i++)
-                    {
-                        datum = PointerGetDatum(xml_xmlnodetoxmltype(xpathobj->nodesetval->nodeTab[i],
-                                                                     xmlerrcxt));
-                        (void) accumArrayResult(astate, datum, false,
-                                                XMLOID, CurrentMemoryContext);
-                    }
-                }
-            }
-            return result;
+		case XPATH_BOOLEAN:
+			if (astate == NULL)
+				return 1;
+			datum = BoolGetDatum(xpathobj->boolval);
+			datumtype = BOOLOID;
+			break;
 
-        case XPATH_BOOLEAN:
-            if (astate == NULL)
-                return 1;
-            datum = BoolGetDatum(xpathobj->boolval);
-            datumtype = BOOLOID;
-            break;
+		case XPATH_NUMBER:
+			if (astate == NULL)
+				return 1;
+			datum = Float8GetDatum(xpathobj->floatval);
+			datumtype = FLOAT8OID;
+			break;
 
-        case XPATH_NUMBER:
-            if (astate == NULL)
-                return 1;
-            datum = Float8GetDatum(xpathobj->floatval);
-            datumtype = FLOAT8OID;
-            break;
+		case XPATH_STRING:
+			if (astate == NULL)
+				return 1;
+			datum = CStringGetDatum((char *) xpathobj->stringval);
+			datumtype = CSTRINGOID;
+			break;
 
-        case XPATH_STRING:
-            if (astate == NULL)
-                return 1;
-            datum = CStringGetDatum((char *) xpathobj->stringval);
-            datumtype = CSTRINGOID;
-            break;
+		default:
+			elog(ERROR, "xpath expression result type %d is unsupported",
+				 xpathobj->type);
+			return 0;			/* keep compiler quiet */
+	}
 
-        default:
-            elog(ERROR, "xpath expression result type %d is unsupported",
-                 xpathobj->type);
-            return 0;            /* keep compiler quiet */
-    }
-
-    /* Common code for scalar-value cases */
-    result_str = map_sql_value_to_xml_value(datum, datumtype, true);
-    datum = PointerGetDatum(cstring_to_xmltype(result_str));
-    (void) accumArrayResult(astate, datum, false,
-                            XMLOID, CurrentMemoryContext);
-    return 1;
+	/* Common code for scalar-value cases */
+	result_str = map_sql_value_to_xml_value(datum, datumtype, true);
+	datum = PointerGetDatum(cstring_to_xmltype(result_str));
+	(void) accumArrayResult(astate, datum, false,
+							XMLOID, CurrentMemoryContext);
+	return 1;
 }
 
+void
+opentenbaseOraXmlRemoveBlankNodes(xmlNodePtr node)
+{
+	xmlNodePtr cur;
+	xmlNodePtr next;
+
+	for (cur = node; cur; cur = next) {
+		next = cur->next;
+		if (xmlIsBlankNode(cur)) {
+			xmlUnlinkNode(cur);
+			xmlFreeNode(cur);
+			continue;
+		}
+
+		opentenbaseOraXmlRemoveBlankNodes(cur->children);
+	}
+}
 
 /*
  * Common code for xpath() and xmlexists()
@@ -3848,180 +3953,197 @@ xml_xpathobjtoxmlarray(xmlXPathObjectPtr xpathobj,
  * an XML document - XPath doesn't work easily on fragments without
  * a context node being known.
  */
-static void
+void
 xpath_internal(text *xpath_expr_text, xmltype *data, ArrayType *namespaces,
-               int *res_nitems, ArrayBuildState *astate)
-{// #lizard forgives
-    PgXmlErrorContext *xmlerrcxt;
-    volatile xmlParserCtxtPtr ctxt = NULL;
-    volatile xmlDocPtr doc = NULL;
-    volatile xmlXPathContextPtr xpathctx = NULL;
-    volatile xmlXPathCompExprPtr xpathcomp = NULL;
-    volatile xmlXPathObjectPtr xpathobj = NULL;
-    char       *datastr;
-    int32        len;
-    int32        xpath_len;
-    xmlChar    *string;
-    xmlChar    *xpath_expr;
-    int            i;
-    int            ndim;
-    Datum       *ns_names_uris;
-    bool       *ns_names_uris_nulls;
-    int            ns_count;
+			   int *res_nitems, ArrayBuildState *astate)
+{
+	PgXmlErrorContext *xmlerrcxt;
+	volatile xmlParserCtxtPtr ctxt = NULL;
+	volatile xmlDocPtr doc = NULL;
+	volatile xmlXPathContextPtr xpathctx = NULL;
+	volatile xmlXPathCompExprPtr xpathcomp = NULL;
+	volatile xmlXPathObjectPtr xpathobj = NULL;
+	char	   *datastr;
+	int32		len;
+	int32		xpath_len;
+	xmlChar    *string;
+	xmlChar    *xpath_expr;
+	size_t		xmldecl_len = 0;
+	int			i;
+	int			ndim;
+	Datum	   *ns_names_uris;
+	bool	   *ns_names_uris_nulls;
+	int			ns_count;
 
-    /*
-     * Namespace mappings are passed as text[].  If an empty array is passed
-     * (ndim = 0, "0-dimensional"), then there are no namespace mappings.
-     * Else, a 2-dimensional array with length of the second axis being equal
-     * to 2 should be passed, i.e., every subarray contains 2 elements, the
-     * first element defining the name, the second one the URI.  Example:
-     * ARRAY[ARRAY['myns', 'http://example.com'], ARRAY['myns2',
-     * 'http://example2.com']].
-     */
-    ndim = namespaces ? ARR_NDIM(namespaces) : 0;
-    if (ndim != 0)
-    {
-        int           *dims;
+	/*
+	 * Namespace mappings are passed as text[].  If an empty array is passed
+	 * (ndim = 0, "0-dimensional"), then there are no namespace mappings.
+	 * Else, a 2-dimensional array with length of the second axis being equal
+	 * to 2 should be passed, i.e., every subarray contains 2 elements, the
+	 * first element defining the name, the second one the URI.  Example:
+	 * ARRAY[ARRAY['myns', 'http://example.com'], ARRAY['myns2',
+	 * 'http://example2.com']].
+	 */
+	ndim = namespaces ? ARR_NDIM(namespaces) : 0;
+	if (ndim != 0)
+	{
+		int		   *dims;
 
-        dims = ARR_DIMS(namespaces);
+		dims = ARR_DIMS(namespaces);
 
-        if (ndim != 2 || dims[1] != 2)
-            ereport(ERROR,
-                    (errcode(ERRCODE_DATA_EXCEPTION),
-                     errmsg("invalid array for XML namespace mapping"),
-                     errdetail("The array must be two-dimensional with length of the second axis equal to 2.")));
+		if (ndim != 2 || dims[1] != 2)
+			ereport(ERROR,
+					(errcode(ERRCODE_DATA_EXCEPTION),
+					 errmsg("invalid array for XML namespace mapping"),
+					 errdetail("The array must be two-dimensional with length of the second axis equal to 2.")));
 
-        Assert(ARR_ELEMTYPE(namespaces) == TEXTOID);
+		Assert(ARR_ELEMTYPE(namespaces) == TEXTOID);
 
-        deconstruct_array(namespaces, TEXTOID, -1, false, 'i',
-                          &ns_names_uris, &ns_names_uris_nulls,
-                          &ns_count);
+		deconstruct_array(namespaces, TEXTOID, -1, false, 'i',
+						  &ns_names_uris, &ns_names_uris_nulls,
+						  &ns_count);
 
-        Assert((ns_count % 2) == 0);    /* checked above */
-        ns_count /= 2;            /* count pairs only */
-    }
-    else
-    {
-        ns_names_uris = NULL;
-        ns_names_uris_nulls = NULL;
-        ns_count = 0;
-    }
+		Assert((ns_count % 2) == 0);	/* checked above */
+		ns_count /= 2;			/* count pairs only */
+	}
+	else
+	{
+		ns_names_uris = NULL;
+		ns_names_uris_nulls = NULL;
+		ns_count = 0;
+	}
 
-    datastr = VARDATA(data);
-    len = VARSIZE(data) - VARHDRSZ;
-    xpath_len = VARSIZE_ANY_EXHDR(xpath_expr_text);
-    if (xpath_len == 0)
-        ereport(ERROR,
-                (errcode(ERRCODE_DATA_EXCEPTION),
-                 errmsg("empty XPath expression")));
+	datastr = VARDATA(data);
+	len = VARSIZE(data) - VARHDRSZ;
+	xpath_len = VARSIZE_ANY_EXHDR(xpath_expr_text);
+	if (xpath_len == 0)
+		ereport(ERROR,
+				(errcode(ERRCODE_DATA_EXCEPTION),
+				 errmsg("empty XPath expression")));
 
-    string = pg_xmlCharStrndup(datastr, len);
-    xpath_expr = pg_xmlCharStrndup(VARDATA_ANY(xpath_expr_text), xpath_len);
+	string = pg_xmlCharStrndup(datastr, len);
+	xpath_expr = pg_xmlCharStrndup(VARDATA_ANY(xpath_expr_text), xpath_len);
 
-    xmlerrcxt = pg_xml_init(PG_XML_STRICTNESS_ALL);
+	/*
+	 * In a UTF8 database, skip any xml declaration, which might assert
+	 * another encoding.  Ignore parse_xml_decl() failure, letting
+	 * xmlCtxtReadMemory() report parse errors.  Documentation disclaims
+	 * xpath() support for non-ASCII data in non-UTF8 databases, so leave
+	 * those scenarios bug-compatible with historical behavior.
+	 */
+	if (GetDatabaseEncoding() == PG_UTF8)
+		parse_xml_decl(string, &xmldecl_len, NULL, NULL, NULL);
 
-    PG_TRY();
-    {
-        xmlInitParser();
+	xmlerrcxt = pg_xml_init(PG_XML_STRICTNESS_ALL);
 
-        /*
-         * redundant XML parsing (two parsings for the same value during one
-         * command execution are possible)
-         */
-        ctxt = xmlNewParserCtxt();
-        if (ctxt == NULL || xmlerrcxt->err_occurred)
-            xml_ereport(xmlerrcxt, ERROR, ERRCODE_OUT_OF_MEMORY,
-                        "could not allocate parser context");
-        doc = xmlCtxtReadMemory(ctxt, (char *) string, len, NULL, NULL, 0);
-        if (doc == NULL || xmlerrcxt->err_occurred)
-            xml_ereport(xmlerrcxt, ERROR, ERRCODE_INVALID_XML_DOCUMENT,
-                        "could not parse XML document");
-        xpathctx = xmlXPathNewContext(doc);
-        if (xpathctx == NULL || xmlerrcxt->err_occurred)
-            xml_ereport(xmlerrcxt, ERROR, ERRCODE_OUT_OF_MEMORY,
-                        "could not allocate XPath context");
-        xpathctx->node = xmlDocGetRootElement(doc);
-        if (xpathctx->node == NULL || xmlerrcxt->err_occurred)
-            xml_ereport(xmlerrcxt, ERROR, ERRCODE_INTERNAL_ERROR,
-                        "could not find root XML element");
+	PG_TRY();
+	{
+		xmlInitParser();
 
-        /* register namespaces, if any */
-        if (ns_count > 0)
-        {
-            for (i = 0; i < ns_count; i++)
-            {
-                char       *ns_name;
-                char       *ns_uri;
+		/*
+		 * redundant XML parsing (two parsings for the same value during one
+		 * command execution are possible)
+		 */
+		ctxt = xmlNewParserCtxt();
+		if (ctxt == NULL || xmlerrcxt->err_occurred)
+			xml_ereport(xmlerrcxt, ERROR, ERRCODE_OUT_OF_MEMORY,
+						"could not allocate parser context");
+		doc = xmlCtxtReadMemory(ctxt, (char *) string + xmldecl_len,
+								len - xmldecl_len, NULL, NULL, 0);
+		if (doc == NULL || xmlerrcxt->err_occurred)
+			xml_ereport(xmlerrcxt, ERROR, ERRCODE_INVALID_XML_DOCUMENT,
+						"could not parse XML document");
+		if (ORA_MODE)
+			opentenbaseOraXmlRemoveBlankNodes(xmlDocGetRootElement(doc));
+		xpathctx = xmlXPathNewContext(doc);
+		if (xpathctx == NULL || xmlerrcxt->err_occurred)
+			xml_ereport(xmlerrcxt, ERROR, ERRCODE_OUT_OF_MEMORY,
+						"could not allocate XPath context");
+		if (ORA_MODE)
+			xpathctx->node = (xmlNodePtr) doc;
+		else
+			xpathctx->node = xmlDocGetRootElement(doc);
+		if (xpathctx->node == NULL || xmlerrcxt->err_occurred)
+			xml_ereport(xmlerrcxt, ERROR, ERRCODE_INTERNAL_ERROR,
+						"could not find root XML element");
 
-                if (ns_names_uris_nulls[i * 2] ||
-                    ns_names_uris_nulls[i * 2 + 1])
-                    ereport(ERROR,
-                            (errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED),
-                             errmsg("neither namespace name nor URI may be null")));
-                ns_name = TextDatumGetCString(ns_names_uris[i * 2]);
-                ns_uri = TextDatumGetCString(ns_names_uris[i * 2 + 1]);
-                if (xmlXPathRegisterNs(xpathctx,
-                                       (xmlChar *) ns_name,
-                                       (xmlChar *) ns_uri) != 0)
-                    ereport(ERROR,    /* is this an internal error??? */
-                            (errmsg("could not register XML namespace with name \"%s\" and URI \"%s\"",
-                                    ns_name, ns_uri)));
-            }
-        }
+		/* register namespaces, if any */
+		if (ns_count > 0)
+		{
+			for (i = 0; i < ns_count; i++)
+			{
+				char	   *ns_name;
+				char	   *ns_uri;
 
-        xpathcomp = xmlXPathCompile(xpath_expr);
-        if (xpathcomp == NULL || xmlerrcxt->err_occurred)
-            xml_ereport(xmlerrcxt, ERROR, ERRCODE_INTERNAL_ERROR,
-                        "invalid XPath expression");
+				if (ns_names_uris_nulls[i * 2] ||
+					ns_names_uris_nulls[i * 2 + 1])
+					ereport(ERROR,
+							(errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED),
+							 errmsg("neither namespace name nor URI may be null")));
+				ns_name = TextDatumGetCString(ns_names_uris[i * 2]);
+				ns_uri = TextDatumGetCString(ns_names_uris[i * 2 + 1]);
+				if (xmlXPathRegisterNs(xpathctx,
+									   (xmlChar *) ns_name,
+									   (xmlChar *) ns_uri) != 0)
+					ereport(ERROR,	/* is this an internal error??? */
+							(errmsg("could not register XML namespace with name \"%s\" and URI \"%s\"",
+									ns_name, ns_uri)));
+			}
+		}
 
-        /*
-         * Version 2.6.27 introduces a function named
-         * xmlXPathCompiledEvalToBoolean, which would be enough for xmlexists,
-         * but we can derive the existence by whether any nodes are returned,
-         * thereby preventing a library version upgrade and keeping the code
-         * the same.
-         */
-        xpathobj = xmlXPathCompiledEval(xpathcomp, xpathctx);
-        if (xpathobj == NULL || xmlerrcxt->err_occurred)
-            xml_ereport(xmlerrcxt, ERROR, ERRCODE_INTERNAL_ERROR,
-                        "could not create XPath object");
+		xpathcomp = xmlXPathCompile(xpath_expr);
+		if (xpathcomp == NULL || xmlerrcxt->err_occurred)
+			xml_ereport(xmlerrcxt, ERROR, ERRCODE_INTERNAL_ERROR,
+						"invalid XPath expression");
 
-        /*
-         * Extract the results as requested.
-         */
-        if (res_nitems != NULL)
-            *res_nitems = xml_xpathobjtoxmlarray(xpathobj, astate, xmlerrcxt);
-        else
-            (void) xml_xpathobjtoxmlarray(xpathobj, astate, xmlerrcxt);
-    }
-    PG_CATCH();
-    {
-        if (xpathobj)
-            xmlXPathFreeObject(xpathobj);
-        if (xpathcomp)
-            xmlXPathFreeCompExpr(xpathcomp);
-        if (xpathctx)
-            xmlXPathFreeContext(xpathctx);
-        if (doc)
-            xmlFreeDoc(doc);
-        if (ctxt)
-            xmlFreeParserCtxt(ctxt);
+		/*
+		 * Version 2.6.27 introduces a function named
+		 * xmlXPathCompiledEvalToBoolean, which would be enough for xmlexists,
+		 * but we can derive the existence by whether any nodes are returned,
+		 * thereby preventing a library version upgrade and keeping the code
+		 * the same.
+		 */
+		xpathobj = xmlXPathCompiledEval(xpathcomp, xpathctx);
+		if (xpathobj == NULL || xmlerrcxt->err_occurred)
+			xml_ereport(xmlerrcxt, ERROR, ERRCODE_INTERNAL_ERROR,
+						"could not create XPath object");
 
-        pg_xml_done(xmlerrcxt, true);
+		/*
+		 * Extract the results as requested.
+		 */
+		if (res_nitems != NULL)
+			*res_nitems = xml_xpathobjtoxmlarray(xpathobj, astate, xmlerrcxt);
+		else
+			(void) xml_xpathobjtoxmlarray(xpathobj, astate, xmlerrcxt);
+	}
+	PG_CATCH();
+	{
+		if (xpathobj)
+			xmlXPathFreeObject(xpathobj);
+		if (xpathcomp)
+			xmlXPathFreeCompExpr(xpathcomp);
+		if (xpathctx)
+			xmlXPathFreeContext(xpathctx);
+		if (doc)
+			xmlFreeDoc(doc);
+		if (ctxt)
+			xmlFreeParserCtxt(ctxt);
 
-        PG_RE_THROW();
-    }
-    PG_END_TRY();
+		pg_xml_done(xmlerrcxt, true);
 
-    xmlXPathFreeObject(xpathobj);
-    xmlXPathFreeCompExpr(xpathcomp);
-    xmlXPathFreeContext(xpathctx);
-    xmlFreeDoc(doc);
-    xmlFreeParserCtxt(ctxt);
+		PG_RE_THROW();
+	}
+	PG_END_TRY();
 
-    pg_xml_done(xmlerrcxt, false);
+	xmlXPathFreeObject(xpathobj);
+	xmlXPathFreeCompExpr(xpathcomp);
+	xmlXPathFreeContext(xpathctx);
+	xmlFreeDoc(doc);
+	xmlFreeParserCtxt(ctxt);
+
+	pg_xml_done(xmlerrcxt, false);
 }
-#endif                            /* USE_LIBXML */
+#endif							/* USE_LIBXML */
 
 /*
  * Evaluate XPath expression and return array of XML values.
@@ -4034,19 +4156,514 @@ Datum
 xpath(PG_FUNCTION_ARGS)
 {
 #ifdef USE_LIBXML
-    text       *xpath_expr_text = PG_GETARG_TEXT_PP(0);
-    xmltype    *data = PG_GETARG_XML_P(1);
-    ArrayType  *namespaces = PG_GETARG_ARRAYTYPE_P(2);
+	text	   *xpath_expr_text = PG_GETARG_TEXT_PP(0);
+	xmltype    *data = PG_GETARG_XML_P(1);
+	ArrayType  *namespaces = PG_GETARG_ARRAYTYPE_P(2);
+	ArrayBuildState *astate;
+
+	astate = initArrayResult(XMLOID, CurrentMemoryContext, true);
+	xpath_internal(xpath_expr_text, data, namespaces,
+				   NULL, astate);
+	PG_RETURN_ARRAYTYPE_P(makeArrayResult(astate, CurrentMemoryContext));
+#else
+	NO_XML_SUPPORT();
+	return 0;
+#endif
+}
+
+#ifdef _PG_ORCL_
+#ifdef USE_LIBXML
+ArrayType *
+trans_nspstring_to_array(char *nspstring)
+{
+#define PARAMS_ARRAY_SIZE 200
+#define MAXNAMELEN 64
+#define MAXURILEN 3000
+    char **xmlns_str = (char **)palloc0(sizeof(char *) * PARAMS_ARRAY_SIZE);
+    char *tmp        = NULL;
+    int xmlns       = 0;
+    int out_size[2] = {0, 2};
+    int lb[2]       = {0, 0};
+    int ndims       = 2;
+    int i           = 0;
+    int j           = 0;
+    Datum *out_datums;
+    bool  *out_nulls;
+
+    tmp = strtok(nspstring, " ");
+    while (tmp != NULL)
+    {
+        xmlns_str[xmlns] = (char *)palloc0(sizeof(char) * strlen(tmp));
+        strncpy(xmlns_str[xmlns], tmp, strlen(tmp));
+        xmlns++;
+        tmp = strtok(NULL, " ");
+    }
+
+    out_datums = palloc0(sizeof(Datum) * xmlns * 2);
+    out_nulls  = palloc0(sizeof(bool) * xmlns * 2);
+    for (i = 0; i < xmlns; i++)
+    {
+        //xmlns:prefix="uri"
+        char alias_str[MAXNAMELEN], uri_str[MAXURILEN];
+        memset(alias_str, 0, MAXNAMELEN);
+        memset(uri_str, 0, MAXURILEN);
+        sscanf(xmlns_str[i], "%*[^:]:%[^=]", alias_str);
+        sscanf(xmlns_str[i], "%*[^\"]\"%[^\"]", uri_str);
+
+        out_datums[j]  = CStringGetTextDatum(alias_str);
+        out_nulls[j++] = false;
+
+        out_datums[j]  = CStringGetTextDatum(uri_str);
+        out_nulls[j++] = false;
+
+        out_size[0]++;
+    }
+
+    for (i = 0; i < xmlns; i++)
+    {
+        if (xmlns_str[i])
+            pfree(xmlns_str[i]);
+    }
+    if (xmlns_str)
+        pfree(xmlns_str);
+
+    return construct_md_array(out_datums, out_nulls,
+                              ndims, out_size, lb,
+                              TEXTOID, -1, false, 'i');
+}
+#endif
+
+Datum
+extract_internal(PG_FUNCTION_ARGS)
+{
+#ifdef USE_LIBXML
+    xmltype *data;
+    text *xpath_expr_text;
+    char *nspstring  = NULL;
+    ArrayType       *namespaces  = NULL;
     ArrayBuildState *astate;
+    ArrayType       *ArrayResult = NULL;
+    StringInfoData  buf;
+    int16 elmlen;
+    bool  elmbyval;
+    char  elmalign;
+    Datum *xml_datum;
+    int   nelems = 0;
+    int   i = 0;
+
+    if (PG_ARGISNULL(0))
+    {
+        PG_RETURN_NULL();
+    }
+    if (PG_ARGISNULL(1))
+    {
+        elog(ERROR,"Invalid XPATH expression");
+    }
+
+    data = PG_GETARG_XML_P(0);
+    xpath_expr_text = PG_GETARG_TEXT_PP(1);
+
+    if (!PG_ARGISNULL(2))
+    {
+        nspstring  = TextDatumGetCString(PG_GETARG_DATUM(2));
+        namespaces = trans_nspstring_to_array(nspstring);
+    }
 
     astate = initArrayResult(XMLOID, CurrentMemoryContext, true);
     xpath_internal(xpath_expr_text, data, namespaces,
                    NULL, astate);
-    PG_RETURN_ARRAYTYPE_P(makeArrayResult(astate, CurrentMemoryContext));
+    ArrayResult = DatumGetArrayTypeP(makeArrayResult(astate, CurrentMemoryContext));
+
+    get_typlenbyvalalign(XMLOID, &elmlen, &elmbyval, &elmalign);
+    deconstruct_array(ArrayResult, XMLOID, elmlen, elmbyval, elmalign, &xml_datum, NULL, &nelems);
+
+    if (nelems == 0)
+        PG_RETURN_NULL();
+
+    initStringInfo(&buf);
+    for (i = 0; i < nelems; i++)
+    {
+        appendStringInfoString(&buf, TextDatumGetCString(xml_datum[i]));
+    }
+
+    PG_RETURN_XML_P((xmltype *)cstring_to_text_with_len(buf.data, buf.len));
 #else
     NO_XML_SUPPORT();
     return 0;
 #endif
+}
+
+Datum
+extractvalue_internal(PG_FUNCTION_ARGS)
+{
+#ifdef USE_LIBXML
+#define MAXLEN 3000
+    text    *xpath_expr_text;
+    xmltype *data;
+    ArrayType *ArrayResult = NULL;
+    ArrayType *namespaces  = NULL;
+    char *nspstring = NULL;
+    ArrayBuildState *astate;
+    int   nelems = 0;
+    int16 elmlen;
+    bool  elmbyval;
+    char  elmalign;
+    char  *result_xml = NULL;
+    char  result[MAXLEN];
+    Datum *xml_datum;
+    int count = 0;
+    int i     = 0;
+
+    if (PG_ARGISNULL(0))
+    {
+        PG_RETURN_NULL();
+    }
+    if (PG_ARGISNULL(1))
+    {
+        elog(ERROR,"Invalid XPATH expression");
+    }
+
+    data = PG_GETARG_XML_P(0);
+    xpath_expr_text = PG_GETARG_TEXT_PP(1);
+
+    if (!PG_ARGISNULL(2))
+    {
+        nspstring  = TextDatumGetCString(PG_GETARG_DATUM(2));
+        namespaces = trans_nspstring_to_array(nspstring);
+    }
+
+    astate = initArrayResult(XMLOID, CurrentMemoryContext, true);
+    xpath_internal(xpath_expr_text, data, namespaces,
+                   NULL, astate);
+    ArrayResult = DatumGetArrayTypeP(makeArrayResult(astate, CurrentMemoryContext));
+
+    get_typlenbyvalalign(XMLOID, &elmlen, &elmbyval, &elmalign);
+    deconstruct_array(ArrayResult, XMLOID, elmlen, elmbyval, elmalign, &xml_datum, NULL, &nelems);
+
+    if (nelems == 0)
+        PG_RETURN_NULL();
+    else if (nelems > 1)
+        elog(ERROR, "EXTRACTVALUE returns value of only one node");
+
+    /* EXTRACTVALUE can only retrieve value of leaf node */
+    result_xml = text_to_cstring((text *)DatumGetPointer(xml_datum[0]));
+    if (result_xml == NULL)
+        PG_RETURN_NULL();
+    while(result_xml[i] != '\0')
+    {
+        if(result_xml[i] == '>')
+            ++count;
+        ++i;
+    }
+
+    if (count == 2)
+        sscanf(result_xml, "%*[^>]>%[^<]", result);
+    else if (count == 0)
+        strcpy(result, result_xml);
+    else
+        elog(ERROR, "EXTRACTVALUE can only retrieve value of leaf node");
+
+    PG_RETURN_TEXT_P(cstring_to_text(result));
+#else
+    NO_XML_SUPPORT();
+    return 0;
+#endif
+}
+#endif
+
+#ifdef USE_LIBXML
+static StringInfoData
+SetXPathExprNode(xmltype *data, text *target_xpath_text, xmltype *new_xpath_node_data,
+                    text *new_xpath_value_text)
+{
+#define ENCODE_FORMAT "UTF-8"
+
+	PgXmlErrorContext           *xmlerrcxt;
+	volatile xmlParserCtxtPtr    ctxt = NULL;
+	volatile xmlDocPtr           doc = NULL;
+	volatile xmlDocPtr           xpath_expr_doc = NULL;
+	volatile xmlXPathContextPtr  xpathctx = NULL;
+	volatile xmlXPathCompExprPtr xpathcomp = NULL;
+	volatile xmlXPathObjectPtr   xpathobj = NULL;
+	char                        *datastr;
+	int32                        datalen;
+	int32                        xpath_len;
+	xmlChar                     *xml_data_str;
+	xmlChar                     *xml_xpath_expr;
+	int                          i;
+	StringInfoData               nodestr;
+	xmlChar                     *nodebuf = NULL;
+	int                          bufsize = 0;
+	int                          nodenum = 0;
+
+	datastr = VARDATA(data);
+	datalen = VARSIZE(data) - VARHDRSZ;
+	xpath_len = VARSIZE_ANY_EXHDR(target_xpath_text);
+	if (xpath_len == 0)
+		ereport(ERROR, (errcode(ERRCODE_DATA_EXCEPTION), errmsg("empty XPath expression")));
+
+	xml_data_str = pg_xmlCharStrndup(datastr, datalen);
+	xml_xpath_expr = pg_xmlCharStrndup(VARDATA_ANY(target_xpath_text), xpath_len);
+
+	xmlerrcxt = pg_xml_init(PG_XML_STRICTNESS_ALL);
+
+	PG_TRY();
+	{
+		xmlInitParser();
+
+		ctxt = xmlNewParserCtxt();
+		if (ctxt == NULL || xmlerrcxt->err_occurred)
+			xml_ereport(xmlerrcxt,
+			            ERROR,
+			            ERRCODE_OUT_OF_MEMORY,
+			            "could not allocate parser context");
+		doc = xmlCtxtReadMemory(ctxt, (char *) xml_data_str, datalen, NULL, NULL, 0);
+		if (doc == NULL || xmlerrcxt->err_occurred)
+			xml_ereport(xmlerrcxt,
+			            ERROR,
+			            ERRCODE_INVALID_XML_DOCUMENT,
+			            "could not parse XML document");
+		xpathctx = xmlXPathNewContext(doc);
+		if (xpathctx == NULL || xmlerrcxt->err_occurred)
+			xml_ereport(xmlerrcxt,
+			            ERROR,
+			            ERRCODE_OUT_OF_MEMORY,
+			            "could not allocate XPath context");
+		xpathctx->node = xmlDocGetRootElement(doc);
+		if (xpathctx->node == NULL || xmlerrcxt->err_occurred)
+			xml_ereport(xmlerrcxt,
+			            ERROR,
+			            ERRCODE_INTERNAL_ERROR,
+			            "could not find root XML element");
+
+		xpathcomp = xmlXPathCompile(xml_xpath_expr);
+		if (xpathcomp == NULL || xmlerrcxt->err_occurred)
+			xml_ereport(xmlerrcxt, ERROR, ERRCODE_INTERNAL_ERROR, "invalid XPath expression");
+
+		xpathobj = xmlXPathCompiledEval(xpathcomp, xpathctx);
+		if (xpathobj == NULL || xmlerrcxt->err_occurred)
+			xml_ereport(xmlerrcxt, ERROR, ERRCODE_INTERNAL_ERROR, "could not create XPath object");
+
+		if (new_xpath_node_data)
+		{
+			char *     new_node_str = VARDATA(new_xpath_node_data);
+			int        new_node_str_len = VARSIZE(new_xpath_node_data) - VARHDRSZ;
+			xmlNodePtr new_node = NULL;
+			xpath_expr_doc =
+				xmlCtxtReadMemory(ctxt, (char *) new_node_str, new_node_str_len, NULL, NULL, 0);
+			if (xpath_expr_doc == NULL || xmlerrcxt->err_occurred)
+			{
+				xml_ereport(xmlerrcxt,
+				            ERROR,
+				            ERRCODE_INVALID_XML_DOCUMENT,
+				            "could not parse XML document");
+			}
+			if (xpathobj->type == XPATH_NODESET && xpathobj->nodesetval != NULL)
+			{
+				nodenum = xpathobj->nodesetval->nodeNr;
+				new_node = xmlDocGetRootElement(xpath_expr_doc);
+				for (i = 0; i < nodenum; i++)
+				{
+					xmlReplaceNode(xpathobj->nodesetval->nodeTab[i],
+					               xmlDocCopyNodeList(xpath_expr_doc, new_node));
+				}
+			}
+		}
+		else if (new_xpath_value_text)
+		{
+			int32    attr_value_len = VARSIZE_ANY_EXHDR(new_xpath_value_text);
+			xmlChar *xml_attr_value = NULL;
+			if (xpathobj->type == XPATH_NODESET && xpathobj->nodesetval != NULL)
+			{
+				nodenum = xpathobj->nodesetval->nodeNr;
+				for (i = 0; i < nodenum; i++)
+				{
+					xml_attr_value =
+						pg_xmlCharStrndup(VARDATA_ANY(new_xpath_value_text), attr_value_len);
+					xmlNodeSetContent(xpathobj->nodesetval->nodeTab[i], xml_attr_value);
+				}
+			}
+		}
+		else
+		{
+			if (xpathobj->type == XPATH_NODESET && xpathobj->nodesetval != NULL)
+			{
+				nodenum = xpathobj->nodesetval->nodeNr;
+				for (i = 0; i < nodenum; i++)
+				{
+					xmlNodeSetContent(xpathobj->nodesetval->nodeTab[i], NULL);
+				}
+			}
+		}
+
+		xmlDocDumpFormatMemoryEnc(xpathctx->doc, &nodebuf, &bufsize, ENCODE_FORMAT, 0);
+		initStringInfo(&nodestr);
+		appendStringInfoString(&nodestr, (const char *) nodebuf);
+		xmlFree(nodebuf);
+	}
+	PG_CATCH();
+	{
+		if (xpathobj)
+			xmlXPathFreeObject(xpathobj);
+		if (xpathcomp)
+			xmlXPathFreeCompExpr(xpathcomp);
+		if (xpathctx)
+			xmlXPathFreeContext(xpathctx);
+		if (xpath_expr_doc)
+			xmlFreeDoc(xpath_expr_doc);
+		if (doc)
+			xmlFreeDoc(doc);
+		if (ctxt)
+			xmlFreeParserCtxt(ctxt);
+
+		pg_xml_done(xmlerrcxt, true);
+
+		PG_RE_THROW();
+	}
+	PG_END_TRY();
+
+	xmlXPathFreeObject(xpathobj);
+	xmlXPathFreeCompExpr(xpathcomp);
+	xmlXPathFreeContext(xpathctx);
+	if (xpath_expr_doc)
+		xmlFreeDoc(xpath_expr_doc);
+	xmlFreeDoc(doc);
+	xmlFreeParserCtxt(ctxt);
+
+	pg_xml_done(xmlerrcxt, false);
+	return nodestr;
+}
+
+static Datum
+UpdateXmlByText(PG_FUNCTION_ARGS)
+{
+	text          *xpath_expr_text = NULL;
+	text          *xpath_expr_text_val = NULL;
+	xmltype       *data = NULL;
+	StringInfoData nodestr;
+
+	if (PG_ARGISNULL(0))
+	{
+		PG_RETURN_NULL();
+	}
+	if (PG_ARGISNULL(1))
+	{
+		elog(ERROR, "Invalid XPATH expression");
+	}
+
+	data = PG_GETARG_XML_P(0);
+	xpath_expr_text = PG_GETARG_TEXT_PP(1);
+	if (!PG_ARGISNULL(2))
+		xpath_expr_text_val = PG_GETARG_TEXT_PP(2);
+
+	nodestr = SetXPathExprNode(data, xpath_expr_text, NULL, xpath_expr_text_val);
+	PG_RETURN_XML_P((xmltype *) cstring_to_text_with_len(nodestr.data, nodestr.len));
+}
+
+static Datum
+UpdateXmlByXmlType(PG_FUNCTION_ARGS)
+{
+	text          *xpath_expr_text = NULL;
+	xmltype       *xpath_expr_data = NULL;
+	xmltype       *data = NULL;
+	StringInfoData nodestr;
+
+	if (PG_ARGISNULL(0))
+	{
+		PG_RETURN_NULL();
+	}
+	if (PG_ARGISNULL(1))
+	{
+		elog(ERROR, "Invalid XPATH expression");
+	}
+	if (PG_ARGISNULL(2))
+	{
+		elog(ERROR, "Invalid XPATH expression value");
+	}
+
+	data = PG_GETARG_XML_P(0);
+	xpath_expr_text = PG_GETARG_TEXT_PP(1);
+	xpath_expr_data = PG_GETARG_XML_P(2);
+
+	nodestr = SetXPathExprNode(data, xpath_expr_text, xpath_expr_data, NULL);
+	PG_RETURN_XML_P((xmltype *) cstring_to_text_with_len(nodestr.data, nodestr.len));
+}
+#endif
+
+static Datum
+OrclUpdateXmlInternal(PG_FUNCTION_ARGS)
+{
+#ifdef USE_LIBXML
+	int   i = 0;
+	Datum target_xpath_expr_text = (Datum) 0;
+	Datum xpath_expr_text = (Datum) 0;
+	Datum data = 0;
+	Datum result = 0;
+	int   arg_nums = 0;
+	if (get_fn_expr_variadic(fcinfo->flinfo))
+	{
+		elog(ERROR, "Format not support for updatexml");
+	}
+
+	arg_nums = PG_NARGS();
+	if ((arg_nums - 1) % 2 != 0)
+		elog(ERROR, "Args error for updatexml");
+
+	if (PG_ARGISNULL(0))
+		PG_RETURN_NULL();
+
+	for (i = 0; i < arg_nums; i++)
+	{
+		if (!PG_ARGISNULL(i))
+		{
+			Oid valtype;
+
+			valtype = get_fn_expr_argtype(fcinfo->flinfo, i);
+			if (i == 0)
+			{
+				if (valtype != XMLTYPEOID)
+					elog(ERROR, "Format error for updatexml");
+				data = PG_GETARG_DATUM(i);
+			}
+			else if ((i - 1) % 2 == 0)
+			{
+				target_xpath_expr_text = PG_GETARG_DATUM(i);
+			}
+			else if ((i - 1) % 2 == 1)
+			{
+				valtype = get_fn_expr_argtype(fcinfo->flinfo, i);
+				xpath_expr_text = PG_GETARG_DATUM(i);
+				if (valtype == XMLTYPEOID)
+					result = DirectFunctionCall3(UpdateXmlByXmlType,
+					                             data,
+					                             target_xpath_expr_text,
+					                             xpath_expr_text);
+				else
+					result = DirectFunctionCall3(UpdateXmlByText,
+					                             data,
+					                             target_xpath_expr_text,
+					                             xpath_expr_text);
+				data = result;
+			}
+		}
+		else if ((i - 1) % 2 == 1)
+		{
+			result = DirectFunctionCall2(UpdateXmlByText, data, target_xpath_expr_text);
+			data = result;
+		}
+		else
+			elog(ERROR, "Args error for updatexml");
+	}
+	return result;
+#else
+	NO_XML_SUPPORT();
+	return 0;
+#endif
+}
+
+Datum
+orcl_updatexml(PG_FUNCTION_ARGS) {
+	return OrclUpdateXmlInternal(fcinfo);
 }
 
 /*
@@ -4057,17 +4674,17 @@ Datum
 xmlexists(PG_FUNCTION_ARGS)
 {
 #ifdef USE_LIBXML
-    text       *xpath_expr_text = PG_GETARG_TEXT_PP(0);
-    xmltype    *data = PG_GETARG_XML_P(1);
-    int            res_nitems;
+	text	   *xpath_expr_text = PG_GETARG_TEXT_PP(0);
+	xmltype    *data = PG_GETARG_XML_P(1);
+	int			res_nitems;
 
-    xpath_internal(xpath_expr_text, data, NULL,
-                   &res_nitems, NULL);
+	xpath_internal(xpath_expr_text, data, NULL,
+				   &res_nitems, NULL);
 
-    PG_RETURN_BOOL(res_nitems > 0);
+	PG_RETURN_BOOL(res_nitems > 0);
 #else
-    NO_XML_SUPPORT();
-    return 0;
+	NO_XML_SUPPORT();
+	return 0;
 #endif
 }
 
@@ -4080,18 +4697,18 @@ Datum
 xpath_exists(PG_FUNCTION_ARGS)
 {
 #ifdef USE_LIBXML
-    text       *xpath_expr_text = PG_GETARG_TEXT_PP(0);
-    xmltype    *data = PG_GETARG_XML_P(1);
-    ArrayType  *namespaces = PG_GETARG_ARRAYTYPE_P(2);
-    int            res_nitems;
+	text	   *xpath_expr_text = PG_GETARG_TEXT_PP(0);
+	xmltype    *data = PG_GETARG_XML_P(1);
+	ArrayType  *namespaces = PG_GETARG_ARRAYTYPE_P(2);
+	int			res_nitems;
 
-    xpath_internal(xpath_expr_text, data, namespaces,
-                   &res_nitems, NULL);
+	xpath_internal(xpath_expr_text, data, namespaces,
+				   &res_nitems, NULL);
 
-    PG_RETURN_BOOL(res_nitems > 0);
+	PG_RETURN_BOOL(res_nitems > 0);
 #else
-    NO_XML_SUPPORT();
-    return 0;
+	NO_XML_SUPPORT();
+	return 0;
 #endif
 }
 
@@ -4103,26 +4720,29 @@ xpath_exists(PG_FUNCTION_ARGS)
 static bool
 wellformed_xml(text *data, XmlOptionType xmloption_arg)
 {
-    bool        result;
-    volatile xmlDocPtr doc = NULL;
+	bool		result;
+	volatile xmlDocPtr doc = NULL;
+	MemoryContext current_ctx = CurrentMemoryContext;
 
-    /* We want to catch any exceptions and return false */
-    PG_TRY();
-    {
-        doc = xml_parse(data, xmloption_arg, true, GetDatabaseEncoding());
-        result = true;
-    }
-    PG_CATCH();
-    {
-        FlushErrorState();
-        result = false;
-    }
-    PG_END_TRY();
+	/* We want to catch any exceptions and return false */
+	PG_TRY();
+	{
+		doc = xml_parse(data, xmloption_arg, true, GetDatabaseEncoding(), true);
+		result = true;
+	}
+	PG_CATCH();
+	{
+		(void)MemoryContextSwitchTo(current_ctx);
 
-    if (doc)
-        xmlFreeDoc(doc);
+		FlushErrorState();
+		result = false;
+	}
+	PG_END_TRY();
 
-    return result;
+	if (doc)
+		xmlFreeDoc(doc);
+
+	return result;
 }
 #endif
 
@@ -4130,39 +4750,39 @@ Datum
 xml_is_well_formed(PG_FUNCTION_ARGS)
 {
 #ifdef USE_LIBXML
-    text       *data = PG_GETARG_TEXT_PP(0);
+	text	   *data = PG_GETARG_TEXT_PP(0);
 
-    PG_RETURN_BOOL(wellformed_xml(data, xmloption));
+	PG_RETURN_BOOL(wellformed_xml(data, xmloption));
 #else
-    NO_XML_SUPPORT();
-    return 0;
-#endif                            /* not USE_LIBXML */
+	NO_XML_SUPPORT();
+	return 0;
+#endif							/* not USE_LIBXML */
 }
 
 Datum
 xml_is_well_formed_document(PG_FUNCTION_ARGS)
 {
 #ifdef USE_LIBXML
-    text       *data = PG_GETARG_TEXT_PP(0);
+	text	   *data = PG_GETARG_TEXT_PP(0);
 
-    PG_RETURN_BOOL(wellformed_xml(data, XMLOPTION_DOCUMENT));
+	PG_RETURN_BOOL(wellformed_xml(data, XMLOPTION_DOCUMENT));
 #else
-    NO_XML_SUPPORT();
-    return 0;
-#endif                            /* not USE_LIBXML */
+	NO_XML_SUPPORT();
+	return 0;
+#endif							/* not USE_LIBXML */
 }
 
 Datum
 xml_is_well_formed_content(PG_FUNCTION_ARGS)
 {
 #ifdef USE_LIBXML
-    text       *data = PG_GETARG_TEXT_PP(0);
+	text	   *data = PG_GETARG_TEXT_PP(0);
 
-    PG_RETURN_BOOL(wellformed_xml(data, XMLOPTION_CONTENT));
+	PG_RETURN_BOOL(wellformed_xml(data, XMLOPTION_CONTENT));
 #else
-    NO_XML_SUPPORT();
-    return 0;
-#endif                            /* not USE_LIBXML */
+	NO_XML_SUPPORT();
+	return 0;
+#endif							/* not USE_LIBXML */
 }
 
 /*
@@ -4178,22 +4798,22 @@ xml_is_well_formed_content(PG_FUNCTION_ARGS)
 static inline XmlTableBuilderData *
 GetXmlTableBuilderPrivateData(TableFuncScanState *state, const char *fname)
 {
-    XmlTableBuilderData *result;
+	XmlTableBuilderData *result;
 
-    if (!IsA(state, TableFuncScanState))
-        elog(ERROR, "%s called with invalid TableFuncScanState", fname);
-    result = (XmlTableBuilderData *) state->opaque;
-    if (result->magic != XMLTABLE_CONTEXT_MAGIC)
-        elog(ERROR, "%s called with invalid TableFuncScanState", fname);
+	if (!IsA(state, TableFuncScanState))
+		elog(ERROR, "%s called with invalid TableFuncScanState", fname);
+	result = (XmlTableBuilderData *) state->opaque;
+	if (result->magic != XMLTABLE_CONTEXT_MAGIC)
+		elog(ERROR, "%s called with invalid TableFuncScanState", fname);
 
-    return result;
+	return result;
 }
 #endif
 
 /*
  * XmlTableInitOpaque
- *        Fill in TableFuncScanState->opaque for XmlTable processor; initialize
- *        the XML parser.
+ *		Fill in TableFuncScanState->opaque for XmlTable processor; initialize
+ *		the XML parser.
  *
  * Note: Because we call pg_xml_init() here and pg_xml_done() in
  * XmlTableDestroyOpaque, it is critical for robustness that no other
@@ -4205,452 +4825,455 @@ static void
 XmlTableInitOpaque(TableFuncScanState *state, int natts)
 {
 #ifdef USE_LIBXML
-    volatile xmlParserCtxtPtr ctxt = NULL;
-    XmlTableBuilderData *xtCxt;
-    PgXmlErrorContext *xmlerrcxt;
+	volatile xmlParserCtxtPtr ctxt = NULL;
+	XmlTableBuilderData *xtCxt;
+	PgXmlErrorContext *xmlerrcxt;
 
-    xtCxt = palloc0(sizeof(XmlTableBuilderData));
-    xtCxt->magic = XMLTABLE_CONTEXT_MAGIC;
-    xtCxt->natts = natts;
-    xtCxt->xpathscomp = palloc0(sizeof(xmlXPathCompExprPtr) * natts);
+	xtCxt = palloc0(sizeof(XmlTableBuilderData));
+	xtCxt->magic = XMLTABLE_CONTEXT_MAGIC;
+	xtCxt->natts = natts;
+	xtCxt->xpathscomp = palloc0(sizeof(xmlXPathCompExprPtr) * natts);
 
-    xmlerrcxt = pg_xml_init(PG_XML_STRICTNESS_ALL);
+	xmlerrcxt = pg_xml_init(PG_XML_STRICTNESS_ALL);
 
-    PG_TRY();
-    {
-        xmlInitParser();
+	PG_TRY();
+	{
+		xmlInitParser();
 
-        ctxt = xmlNewParserCtxt();
-        if (ctxt == NULL || xmlerrcxt->err_occurred)
-            xml_ereport(xmlerrcxt, ERROR, ERRCODE_OUT_OF_MEMORY,
-                        "could not allocate parser context");
-    }
-    PG_CATCH();
-    {
-        if (ctxt != NULL)
-            xmlFreeParserCtxt(ctxt);
+		ctxt = xmlNewParserCtxt();
+		if (ctxt == NULL || xmlerrcxt->err_occurred)
+			xml_ereport(xmlerrcxt, ERROR, ERRCODE_OUT_OF_MEMORY,
+						"could not allocate parser context");
+	}
+	PG_CATCH();
+	{
+		if (ctxt != NULL)
+			xmlFreeParserCtxt(ctxt);
 
-        pg_xml_done(xmlerrcxt, true);
+		pg_xml_done(xmlerrcxt, true);
 
-        PG_RE_THROW();
-    }
-    PG_END_TRY();
+		PG_RE_THROW();
+	}
+	PG_END_TRY();
 
-    xtCxt->xmlerrcxt = xmlerrcxt;
-    xtCxt->ctxt = ctxt;
+	xtCxt->xmlerrcxt = xmlerrcxt;
+	xtCxt->ctxt = ctxt;
 
-    state->opaque = xtCxt;
+	state->opaque = xtCxt;
 #else
-    NO_XML_SUPPORT();
-#endif                            /* not USE_LIBXML */
+	NO_XML_SUPPORT();
+#endif							/* not USE_LIBXML */
 }
 
 /*
  * XmlTableSetDocument
- *        Install the input document
+ *		Install the input document
  */
 static void
 XmlTableSetDocument(TableFuncScanState *state, Datum value)
-{// #lizard forgives
+{
 #ifdef USE_LIBXML
-    XmlTableBuilderData *xtCxt;
-    xmltype    *xmlval = DatumGetXmlP(value);
-    char       *str;
-    xmlChar    *xstr;
-    int            length;
-    volatile xmlDocPtr doc = NULL;
-    volatile xmlXPathContextPtr xpathcxt = NULL;
+	XmlTableBuilderData *xtCxt;
+	xmltype    *xmlval = DatumGetXmlP(value);
+	char	   *str;
+	xmlChar    *xstr;
+	int			length;
+	volatile xmlDocPtr doc = NULL;
+	volatile xmlXPathContextPtr xpathcxt = NULL;
 
-    xtCxt = GetXmlTableBuilderPrivateData(state, "XmlTableSetDocument");
+	xtCxt = GetXmlTableBuilderPrivateData(state, "XmlTableSetDocument");
 
-    /*
-     * Use out function for casting to string (remove encoding property). See
-     * comment in xml_out.
-     */
-    str = xml_out_internal(xmlval, 0);
+	/*
+	 * Use out function for casting to string (remove encoding property). See
+	 * comment in xml_out.
+	 */
+	str = xml_out_internal(xmlval, 0);
 
-    length = strlen(str);
-    xstr = pg_xmlCharStrndup(str, length);
+	length = strlen(str);
+	xstr = pg_xmlCharStrndup(str, length);
 
-    PG_TRY();
-    {
-        doc = xmlCtxtReadMemory(xtCxt->ctxt, (char *) xstr, length, NULL, NULL, 0);
-        if (doc == NULL || xtCxt->xmlerrcxt->err_occurred)
-            xml_ereport(xtCxt->xmlerrcxt, ERROR, ERRCODE_INVALID_XML_DOCUMENT,
-                        "could not parse XML document");
-        xpathcxt = xmlXPathNewContext(doc);
-        if (xpathcxt == NULL || xtCxt->xmlerrcxt->err_occurred)
-            xml_ereport(xtCxt->xmlerrcxt, ERROR, ERRCODE_OUT_OF_MEMORY,
-                        "could not allocate XPath context");
-        xpathcxt->node = xmlDocGetRootElement(doc);
-        if (xpathcxt->node == NULL || xtCxt->xmlerrcxt->err_occurred)
-            xml_ereport(xtCxt->xmlerrcxt, ERROR, ERRCODE_INTERNAL_ERROR,
-                        "could not find root XML element");
-    }
-    PG_CATCH();
-    {
-        if (xpathcxt != NULL)
-            xmlXPathFreeContext(xpathcxt);
-        if (doc != NULL)
-            xmlFreeDoc(doc);
+	PG_TRY();
+	{
+		doc = xmlCtxtReadMemory(xtCxt->ctxt, (char *) xstr, length, NULL, NULL, 0);
+		if (doc == NULL || xtCxt->xmlerrcxt->err_occurred)
+			xml_ereport(xtCxt->xmlerrcxt, ERROR, ERRCODE_INVALID_XML_DOCUMENT,
+						"could not parse XML document");
+		xpathcxt = xmlXPathNewContext(doc);
+		if (xpathcxt == NULL || xtCxt->xmlerrcxt->err_occurred)
+			xml_ereport(xtCxt->xmlerrcxt, ERROR, ERRCODE_OUT_OF_MEMORY,
+						"could not allocate XPath context");
+		xpathcxt->node = xmlDocGetRootElement(doc);
+		if (xpathcxt->node == NULL || xtCxt->xmlerrcxt->err_occurred)
+			xml_ereport(xtCxt->xmlerrcxt, ERROR, ERRCODE_INTERNAL_ERROR,
+						"could not find root XML element");
+	}
+	PG_CATCH();
+	{
+		if (xpathcxt != NULL)
+			xmlXPathFreeContext(xpathcxt);
+		if (doc != NULL)
+			xmlFreeDoc(doc);
 
-        PG_RE_THROW();
-    }
-    PG_END_TRY();
+		PG_RE_THROW();
+	}
+	PG_END_TRY();
 
-    xtCxt->doc = doc;
-    xtCxt->xpathcxt = xpathcxt;
+	xtCxt->doc = doc;
+	xtCxt->xpathcxt = xpathcxt;
 #else
-    NO_XML_SUPPORT();
-#endif                            /* not USE_LIBXML */
+	NO_XML_SUPPORT();
+#endif							/* not USE_LIBXML */
 }
 
 /*
  * XmlTableSetNamespace
- *        Add a namespace declaration
+ *		Add a namespace declaration
  */
 static void
 XmlTableSetNamespace(TableFuncScanState *state, char *name, char *uri)
 {
 #ifdef USE_LIBXML
-    XmlTableBuilderData *xtCxt;
+	XmlTableBuilderData *xtCxt;
 
-    if (name == NULL)
-        ereport(ERROR,
-                (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-                 errmsg("DEFAULT namespace is not supported")));
-    xtCxt = GetXmlTableBuilderPrivateData(state, "XmlTableSetNamespace");
+	if (name == NULL)
+		ereport(ERROR,
+				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+				 errmsg("DEFAULT namespace is not supported")));
+	xtCxt = GetXmlTableBuilderPrivateData(state, "XmlTableSetNamespace");
 
-    if (xmlXPathRegisterNs(xtCxt->xpathcxt,
-                           pg_xmlCharStrndup(name, strlen(name)),
-                           pg_xmlCharStrndup(uri, strlen(uri))))
-        xml_ereport(xtCxt->xmlerrcxt, ERROR, ERRCODE_DATA_EXCEPTION,
-                    "could not set XML namespace");
+	if (xmlXPathRegisterNs(xtCxt->xpathcxt,
+						   pg_xmlCharStrndup(name, strlen(name)),
+						   pg_xmlCharStrndup(uri, strlen(uri))))
+		xml_ereport(xtCxt->xmlerrcxt, ERROR, ERRCODE_DATA_EXCEPTION,
+					"could not set XML namespace");
 #else
-    NO_XML_SUPPORT();
-#endif                            /* not USE_LIBXML */
+	NO_XML_SUPPORT();
+#endif							/* not USE_LIBXML */
 }
 
 /*
  * XmlTableSetRowFilter
- *        Install the row-filter Xpath expression.
+ *		Install the row-filter Xpath expression.
  */
 static void
 XmlTableSetRowFilter(TableFuncScanState *state, char *path)
 {
 #ifdef USE_LIBXML
-    XmlTableBuilderData *xtCxt;
-    xmlChar    *xstr;
+	XmlTableBuilderData *xtCxt;
+	xmlChar    *xstr;
 
-    xtCxt = GetXmlTableBuilderPrivateData(state, "XmlTableSetRowFilter");
+	xtCxt = GetXmlTableBuilderPrivateData(state, "XmlTableSetRowFilter");
 
-    if (*path == '\0')
-        ereport(ERROR,
-                (errcode(ERRCODE_DATA_EXCEPTION),
-                 errmsg("row path filter must not be empty string")));
+	if (*path == '\0')
+		ereport(ERROR,
+				(errcode(ERRCODE_DATA_EXCEPTION),
+				 errmsg("row path filter must not be empty string")));
 
-    xstr = pg_xmlCharStrndup(path, strlen(path));
+	xstr = pg_xmlCharStrndup(path, strlen(path));
 
-    xtCxt->xpathcomp = xmlXPathCompile(xstr);
-    if (xtCxt->xpathcomp == NULL || xtCxt->xmlerrcxt->err_occurred)
-        xml_ereport(xtCxt->xmlerrcxt, ERROR, ERRCODE_SYNTAX_ERROR,
-                    "invalid XPath expression");
+	xtCxt->xpathcomp = xmlXPathCompile(xstr);
+	if (xtCxt->xpathcomp == NULL || xtCxt->xmlerrcxt->err_occurred)
+		xml_ereport(xtCxt->xmlerrcxt, ERROR, ERRCODE_SYNTAX_ERROR,
+					"invalid XPath expression");
 #else
-    NO_XML_SUPPORT();
-#endif                            /* not USE_LIBXML */
+	NO_XML_SUPPORT();
+#endif							/* not USE_LIBXML */
 }
 
 /*
  * XmlTableSetColumnFilter
- *        Install the column-filter Xpath expression, for the given column.
+ *		Install the column-filter Xpath expression, for the given column.
  */
 static void
 XmlTableSetColumnFilter(TableFuncScanState *state, char *path, int colnum)
 {
 #ifdef USE_LIBXML
-    XmlTableBuilderData *xtCxt;
-    xmlChar    *xstr;
+	XmlTableBuilderData *xtCxt;
+	xmlChar    *xstr;
 
-    AssertArg(PointerIsValid(path));
+	AssertArg(PointerIsValid(path));
 
-    xtCxt = GetXmlTableBuilderPrivateData(state, "XmlTableSetColumnFilter");
+	xtCxt = GetXmlTableBuilderPrivateData(state, "XmlTableSetColumnFilter");
 
-    if (*path == '\0')
-        ereport(ERROR,
-                (errcode(ERRCODE_DATA_EXCEPTION),
-                 errmsg("column path filter must not be empty string")));
+	if (*path == '\0')
+		ereport(ERROR,
+				(errcode(ERRCODE_DATA_EXCEPTION),
+				 errmsg("column path filter must not be empty string")));
 
-    xstr = pg_xmlCharStrndup(path, strlen(path));
+	xstr = pg_xmlCharStrndup(path, strlen(path));
 
-    xtCxt->xpathscomp[colnum] = xmlXPathCompile(xstr);
-    if (xtCxt->xpathscomp[colnum] == NULL || xtCxt->xmlerrcxt->err_occurred)
-        xml_ereport(xtCxt->xmlerrcxt, ERROR, ERRCODE_DATA_EXCEPTION,
-                    "invalid XPath expression");
+	xtCxt->xpathscomp[colnum] = xmlXPathCompile(xstr);
+	if (xtCxt->xpathscomp[colnum] == NULL || xtCxt->xmlerrcxt->err_occurred)
+		xml_ereport(xtCxt->xmlerrcxt, ERROR, ERRCODE_DATA_EXCEPTION,
+					"invalid XPath expression");
 #else
-    NO_XML_SUPPORT();
-#endif                            /* not USE_LIBXML */
+	NO_XML_SUPPORT();
+#endif							/* not USE_LIBXML */
 }
 
 /*
  * XmlTableFetchRow
- *        Prepare the next "current" tuple for upcoming GetValue calls.
- *        Returns FALSE if the row-filter expression returned no more rows.
+ *		Prepare the next "current" tuple for upcoming GetValue calls.
+ *		Returns FALSE if the row-filter expression returned no more rows.
  */
 static bool
 XmlTableFetchRow(TableFuncScanState *state)
 {
 #ifdef USE_LIBXML
-    XmlTableBuilderData *xtCxt;
+	XmlTableBuilderData *xtCxt;
 
-    xtCxt = GetXmlTableBuilderPrivateData(state, "XmlTableFetchRow");
+	xtCxt = GetXmlTableBuilderPrivateData(state, "XmlTableFetchRow");
 
-    /*
-     * XmlTable returns table - set of composite values. The error context, is
-     * used for producement more values, between two calls, there can be
-     * created and used another libxml2 error context. It is libxml2 global
-     * value, so it should be refreshed any time before any libxml2 usage,
-     * that is finished by returning some value.
-     */
-    xmlSetStructuredErrorFunc((void *) xtCxt->xmlerrcxt, xml_errorHandler);
+	/*
+	 * XmlTable returns table - set of composite values. The error context, is
+	 * used for producement more values, between two calls, there can be
+	 * created and used another libxml2 error context. It is libxml2 global
+	 * value, so it should be refreshed any time before any libxml2 usage,
+	 * that is finished by returning some value.
+	 */
+	xmlSetStructuredErrorFunc((void *) xtCxt->xmlerrcxt, xml_errorHandler);
 
-    if (xtCxt->xpathobj == NULL)
-    {
-        xtCxt->xpathobj = xmlXPathCompiledEval(xtCxt->xpathcomp, xtCxt->xpathcxt);
-        if (xtCxt->xpathobj == NULL || xtCxt->xmlerrcxt->err_occurred)
-            xml_ereport(xtCxt->xmlerrcxt, ERROR, ERRCODE_INTERNAL_ERROR,
-                        "could not create XPath object");
+	if (xtCxt->xpathobj == NULL)
+	{
+		xtCxt->xpathobj = xmlXPathCompiledEval(xtCxt->xpathcomp, xtCxt->xpathcxt);
+		if (xtCxt->xpathobj == NULL || xtCxt->xmlerrcxt->err_occurred)
+			xml_ereport(xtCxt->xmlerrcxt, ERROR, ERRCODE_INTERNAL_ERROR,
+						"could not create XPath object");
 
-        xtCxt->row_count = 0;
-    }
+		xtCxt->row_count = 0;
+	}
 
-    if (xtCxt->xpathobj->type == XPATH_NODESET)
-    {
-        if (xtCxt->xpathobj->nodesetval != NULL)
-        {
-            if (xtCxt->row_count++ < xtCxt->xpathobj->nodesetval->nodeNr)
-                return true;
-        }
-    }
+	if (xtCxt->xpathobj->type == XPATH_NODESET)
+	{
+		if (xtCxt->xpathobj->nodesetval != NULL)
+		{
+			if (xtCxt->row_count++ < xtCxt->xpathobj->nodesetval->nodeNr)
+				return true;
+		}
+	}
 
-    return false;
+	return false;
 #else
-    NO_XML_SUPPORT();
-    return false;
-#endif                            /* not USE_LIBXML */
+	NO_XML_SUPPORT();
+	return false;
+#endif							/* not USE_LIBXML */
 }
 
 /*
  * XmlTableGetValue
- *        Return the value for column number 'colnum' for the current row.  If
- *        column -1 is requested, return representation of the whole row.
+ *		Return the value for column number 'colnum' for the current row.  If
+ *		column -1 is requested, return representation of the whole row.
  *
  * This leaks memory, so be sure to reset often the context in which it's
  * called.
  */
 static Datum
 XmlTableGetValue(TableFuncScanState *state, int colnum,
-                 Oid typid, int32 typmod, bool *isnull)
-{// #lizard forgives
+				 Oid typid, int32 typmod, bool *isnull)
+{
 #ifdef USE_LIBXML
-    XmlTableBuilderData *xtCxt;
-    Datum        result = (Datum) 0;
-    xmlNodePtr    cur;
-    char       *cstr = NULL;
-    volatile xmlXPathObjectPtr xpathobj = NULL;
+	XmlTableBuilderData *xtCxt;
+	Datum		result = (Datum) 0;
+	xmlNodePtr	cur;
+	char	   *cstr = NULL;
+	volatile xmlXPathObjectPtr xpathobj = NULL;
 
-    xtCxt = GetXmlTableBuilderPrivateData(state, "XmlTableGetValue");
+	xtCxt = GetXmlTableBuilderPrivateData(state, "XmlTableGetValue");
 
-    Assert(xtCxt->xpathobj &&
-           xtCxt->xpathobj->type == XPATH_NODESET &&
-           xtCxt->xpathobj->nodesetval != NULL);
+	Assert(xtCxt->xpathobj &&
+		   xtCxt->xpathobj->type == XPATH_NODESET &&
+		   xtCxt->xpathobj->nodesetval != NULL);
 
-    /* Propagate context related error context to libxml2 */
-    xmlSetStructuredErrorFunc((void *) xtCxt->xmlerrcxt, xml_errorHandler);
+	/* Propagate context related error context to libxml2 */
+	xmlSetStructuredErrorFunc((void *) xtCxt->xmlerrcxt, xml_errorHandler);
 
-    *isnull = false;
+	*isnull = false;
 
-    cur = xtCxt->xpathobj->nodesetval->nodeTab[xtCxt->row_count - 1];
+	cur = xtCxt->xpathobj->nodesetval->nodeTab[xtCxt->row_count - 1];
 
-    Assert(xtCxt->xpathscomp[colnum] != NULL);
+	Assert(xtCxt->xpathscomp[colnum] != NULL);
 
-    PG_TRY();
-    {
-        /* Set current node as entry point for XPath evaluation */
-        xtCxt->xpathcxt->node = cur;
+	PG_TRY();
+	{
+		/* Set current node as entry point for XPath evaluation */
+		xtCxt->xpathcxt->node = cur;
 
-        /* Evaluate column path */
-        xpathobj = xmlXPathCompiledEval(xtCxt->xpathscomp[colnum], xtCxt->xpathcxt);
-        if (xpathobj == NULL || xtCxt->xmlerrcxt->err_occurred)
-            xml_ereport(xtCxt->xmlerrcxt, ERROR, ERRCODE_INTERNAL_ERROR,
-                        "could not create XPath object");
+		/* Evaluate column path */
+		xpathobj = xmlXPathCompiledEval(xtCxt->xpathscomp[colnum], xtCxt->xpathcxt);
+		if (xpathobj == NULL || xtCxt->xmlerrcxt->err_occurred)
+			xml_ereport(xtCxt->xmlerrcxt, ERROR, ERRCODE_INTERNAL_ERROR,
+						"could not create XPath object");
 
-        /*
-         * There are four possible cases, depending on the number of nodes
-         * returned by the XPath expression and the type of the target column:
-         * a) XPath returns no nodes.  b) One node is returned, and column is
-         * of type XML.  c) One node, column type other than XML.  d) Multiple
-         * nodes are returned.
-         */
-        if (xpathobj->type == XPATH_NODESET)
-        {
-            int            count = 0;
+		/*
+		 * There are four possible cases, depending on the number of nodes
+		 * returned by the XPath expression and the type of the target column:
+		 * a) XPath returns no nodes.  b) One node is returned, and column is
+		 * of type XML.  c) One node, column type other than XML.  d) Multiple
+		 * nodes are returned.
+		 */
+		if (xpathobj->type == XPATH_NODESET)
+		{
+			int			count = 0;
+			bool is_ora_xmltype = is_opentenbase_ora_xmltype(typid);
+			if (xpathobj->nodesetval != NULL)
+				count = xpathobj->nodesetval->nodeNr;
 
-            if (xpathobj->nodesetval != NULL)
-                count = xpathobj->nodesetval->nodeNr;
+			if (xpathobj->nodesetval == NULL || count == 0)
+			{
+				*isnull = true;
+			}
+			else if (count == 1 && (typid == XMLOID || is_ora_xmltype))
+			{
+				text	   *textstr;
 
-            if (xpathobj->nodesetval == NULL || count == 0)
-            {
-                *isnull = true;
-            }
-            else if (count == 1 && typid == XMLOID)
-            {
-                text       *textstr;
+				/* simple case, result is one value */
+				textstr = xml_xmlnodetoxmltype(xpathobj->nodesetval->nodeTab[0],
+											   xtCxt->xmlerrcxt);
+				cstr = text_to_cstring(textstr);
+			}
+			else if (count == 1)
+			{
+				xmlChar    *str;
 
-                /* simple case, result is one value */
-                textstr = xml_xmlnodetoxmltype(xpathobj->nodesetval->nodeTab[0],
-                                               xtCxt->xmlerrcxt);
-                cstr = text_to_cstring(textstr);
-            }
-            else if (count == 1)
-            {
-                xmlChar    *str;
+				if (ORA_MODE)
+					str = xmlNodeGetContent(xpathobj->nodesetval->nodeTab[0]);
+				else
+					str = xmlNodeListGetString(xtCxt->doc,
+										   xpathobj->nodesetval->nodeTab[0]->xmlChildrenNode,
+										   1);
 
-                str = xmlNodeListGetString(xtCxt->doc,
-                                           xpathobj->nodesetval->nodeTab[0]->xmlChildrenNode,
-                                           1);
+				if (str != NULL)
+				{
+					PG_TRY();
+					{
+						cstr = pstrdup((char *) str);
+					}
+					PG_CATCH();
+					{
+						xmlFree(str);
+						PG_RE_THROW();
+					}
+					PG_END_TRY();
+					xmlFree(str);
+				}
+				else
+				{
+					/*
+					 * This line ensure mapping of empty tags to PostgreSQL
+					 * value. Usually we would to map a empty tag to empty
+					 * string. But this mapping can create empty string when
+					 * user doesn't expect it - when empty tag is enforced by
+					 * libxml2 - when user uses a text() function for example.
+					 */
+					cstr = "";
+				}
+			}
+			else
+			{
+				StringInfoData str;
+				int			i;
 
-                if (str != NULL)
-                {
-                    PG_TRY();
-                    {
-                        cstr = pstrdup((char *) str);
-                    }
-                    PG_CATCH();
-                    {
-                        xmlFree(str);
-                        PG_RE_THROW();
-                    }
-                    PG_END_TRY();
-                    xmlFree(str);
-                }
-                else
-                {
-                    /*
-                     * This line ensure mapping of empty tags to PostgreSQL
-                     * value. Usually we would to map a empty tag to empty
-                     * string. But this mapping can create empty string when
-                     * user doesn't expect it - when empty tag is enforced by
-                     * libxml2 - when user uses a text() function for example.
-                     */
-                    cstr = "";
-                }
-            }
-            else
-            {
-                StringInfoData str;
-                int            i;
+				Assert(count > 1);
 
-                Assert(count > 1);
+				/*
+				 * When evaluating the XPath expression returns multiple
+				 * nodes, the result is the concatenation of them all. The
+				 * target type must be XML.
+				 */
+				if (typid != XMLOID && !is_ora_xmltype)
+					ereport(ERROR,
+							(errcode(ERRCODE_CARDINALITY_VIOLATION),
+							 errmsg("more than one value returned by column XPath expression")));
 
-                /*
-                 * When evaluating the XPath expression returns multiple
-                 * nodes, the result is the concatenation of them all. The
-                 * target type must be XML.
-                 */
-                if (typid != XMLOID)
-                    ereport(ERROR,
-                            (errcode(ERRCODE_CARDINALITY_VIOLATION),
-                             errmsg("more than one value returned by column XPath expression")));
+				/* Concatenate serialized values */
+				initStringInfo(&str);
+				for (i = 0; i < count; i++)
+				{
+					appendStringInfoText(&str,
+										 xml_xmlnodetoxmltype(xpathobj->nodesetval->nodeTab[i],
+															  xtCxt->xmlerrcxt));
+				}
+				cstr = str.data;
+			}
+		}
+		else if (xpathobj->type == XPATH_STRING)
+		{
+			cstr = (char *) xpathobj->stringval;
+		}
+		else
+			elog(ERROR, "unexpected XPath object type %u", xpathobj->type);
 
-                /* Concatenate serialized values */
-                initStringInfo(&str);
-                for (i = 0; i < count; i++)
-                {
-                    appendStringInfoText(&str,
-                                         xml_xmlnodetoxmltype(xpathobj->nodesetval->nodeTab[i],
-                                                              xtCxt->xmlerrcxt));
-                }
-                cstr = str.data;
-            }
-        }
-        else if (xpathobj->type == XPATH_STRING)
-        {
-            cstr = (char *) xpathobj->stringval;
-        }
-        else
-            elog(ERROR, "unexpected XPath object type %u", xpathobj->type);
+		/*
+		 * By here, either cstr contains the result value, or the isnull flag
+		 * has been set.
+		 */
+		Assert(cstr || *isnull);
 
-        /*
-         * By here, either cstr contains the result value, or the isnull flag
-         * has been set.
-         */
-        Assert(cstr || *isnull);
+		if (!*isnull)
+			result = InputFunctionCall(&state->in_functions[colnum],
+									   cstr,
+									   state->typioparams[colnum],
+									   typmod);
+	}
+	PG_CATCH();
+	{
+		if (xpathobj != NULL)
+			xmlXPathFreeObject(xpathobj);
+		PG_RE_THROW();
+	}
+	PG_END_TRY();
 
-        if (!*isnull)
-            result = InputFunctionCall(&state->in_functions[colnum],
-                                       cstr,
-                                       state->typioparams[colnum],
-                                       typmod);
-    }
-    PG_CATCH();
-    {
-        if (xpathobj != NULL)
-            xmlXPathFreeObject(xpathobj);
-        PG_RE_THROW();
-    }
-    PG_END_TRY();
+	xmlXPathFreeObject(xpathobj);
 
-    xmlXPathFreeObject(xpathobj);
-
-    return result;
+	return result;
 #else
-    NO_XML_SUPPORT();
-    return 0;
-#endif                            /* not USE_LIBXML */
+	NO_XML_SUPPORT();
+	return 0;
+#endif							/* not USE_LIBXML */
 }
 
 /*
  * XmlTableDestroyOpaque
- *        Release all libxml2 resources
+ *		Release all libxml2 resources
  */
 static void
 XmlTableDestroyOpaque(TableFuncScanState *state)
-{// #lizard forgives
+{
 #ifdef USE_LIBXML
-    XmlTableBuilderData *xtCxt;
+	XmlTableBuilderData *xtCxt;
 
-    xtCxt = GetXmlTableBuilderPrivateData(state, "XmlTableDestroyOpaque");
+	xtCxt = GetXmlTableBuilderPrivateData(state, "XmlTableDestroyOpaque");
 
-    /* Propagate context related error context to libxml2 */
-    xmlSetStructuredErrorFunc((void *) xtCxt->xmlerrcxt, xml_errorHandler);
+	/* Propagate context related error context to libxml2 */
+	xmlSetStructuredErrorFunc((void *) xtCxt->xmlerrcxt, xml_errorHandler);
 
-    if (xtCxt->xpathscomp != NULL)
-    {
-        int            i;
+	if (xtCxt->xpathscomp != NULL)
+	{
+		int			i;
 
-        for (i = 0; i < xtCxt->natts; i++)
-            if (xtCxt->xpathscomp[i] != NULL)
-                xmlXPathFreeCompExpr(xtCxt->xpathscomp[i]);
-    }
+		for (i = 0; i < xtCxt->natts; i++)
+			if (xtCxt->xpathscomp[i] != NULL)
+				xmlXPathFreeCompExpr(xtCxt->xpathscomp[i]);
+	}
 
-    if (xtCxt->xpathobj != NULL)
-        xmlXPathFreeObject(xtCxt->xpathobj);
-    if (xtCxt->xpathcomp != NULL)
-        xmlXPathFreeCompExpr(xtCxt->xpathcomp);
-    if (xtCxt->xpathcxt != NULL)
-        xmlXPathFreeContext(xtCxt->xpathcxt);
-    if (xtCxt->doc != NULL)
-        xmlFreeDoc(xtCxt->doc);
-    if (xtCxt->ctxt != NULL)
-        xmlFreeParserCtxt(xtCxt->ctxt);
+	if (xtCxt->xpathobj != NULL)
+		xmlXPathFreeObject(xtCxt->xpathobj);
+	if (xtCxt->xpathcomp != NULL)
+		xmlXPathFreeCompExpr(xtCxt->xpathcomp);
+	if (xtCxt->xpathcxt != NULL)
+		xmlXPathFreeContext(xtCxt->xpathcxt);
+	if (xtCxt->doc != NULL)
+		xmlFreeDoc(xtCxt->doc);
+	if (xtCxt->ctxt != NULL)
+		xmlFreeParserCtxt(xtCxt->ctxt);
 
-    pg_xml_done(xtCxt->xmlerrcxt, true);
+	pg_xml_done(xtCxt->xmlerrcxt, true);
 
-    /* not valid anymore */
-    xtCxt->magic = 0;
-    state->opaque = NULL;
+	/* not valid anymore */
+	xtCxt->magic = 0;
+	state->opaque = NULL;
 
 #else
-    NO_XML_SUPPORT();
-#endif                            /* not USE_LIBXML */
+	NO_XML_SUPPORT();
+#endif							/* not USE_LIBXML */
 }

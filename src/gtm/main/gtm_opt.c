@@ -11,9 +11,6 @@
  * Portions Copyright (c) 2010-2012 Postgres-XC Development Group
  * Written by Peter Eisentraut <peter_e@gmx.net>.
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * IDENTIFICATION
  *	  src/backend/utils/misc/guc.c
  *
@@ -39,7 +36,6 @@
 const char *config_filename = CONFIG_FILENAME;
 
 volatile sig_atomic_t ConfigReloadPending = false;
-
 /*
  * Variables declared elsewhere for gtm, mainly option variables.
  */
@@ -73,17 +69,19 @@ extern char     *application_name;
 extern bool      enalbe_gtm_xlog_debug;
 extern char     *recovery_command;
 extern char     *recovery_target_timestamp;
-
 extern char*   GTMStartupGTSSet;
 extern bool    GTMClusterReadOnly;
 extern int     GTMStartupGTSDelta;
 extern int     GTMGTSFreezeLimit;
+extern int     standby_connect_timeout;
+#endif
 
+#ifdef __RESOURCE_QUEUE__
+extern 	bool	enable_gtm_resqueue_debug;
 #endif
 extern char*   unix_socket_directory;
 extern char*   unix_socket_group;
 extern int     unix_socket_permissions;
-
 extern char *Log_filename;
 extern int	Log_RotationAge;
 extern int	Log_RotationSize;
@@ -219,16 +217,33 @@ struct config_bool ConfigureNamesBool[] =
 #endif
 	},
 #endif
-	{
-        {GTM_OPTNAME_CLUSTER_READ_ONLY, GTMC_STARTUP,
-         gettext_noop("Nodes connected with gtm will be readonly."),
-         gettext_noop("Default value is off."),
-         0
-        },
-        &GTMClusterReadOnly,
-        false, NULL, NULL, false, NULL
-	},
 
+#ifdef __RESOURCE_QUEUE__
+	/* Set it as a GUC only if we are running regression. */
+	{
+		{GTM_OPTNAME_ENABLE_RESQUEUE_DEBUG, GTMC_SIGHUP,
+		   gettext_noop("enable GTM resource queueu debug."),
+		   gettext_noop("Default value is off."),
+		   0
+		},
+		&enable_gtm_resqueue_debug,
+#ifdef _PG_REGRESS_
+		true, false, NULL
+#else
+		false, false, NULL
+#endif
+	},
+#endif
+	{
+			{GTM_OPTNAME_CLUSTER_READ_ONLY, GTMC_SIGHUP,
+			 gettext_noop("Nodes connected with gtm will be readonly."),
+			 gettext_noop("Default value is off."),
+			 0
+			},
+			&GTMClusterReadOnly,
+			false, NULL, NULL, false, NULL
+	},
+	
     {
         {GTM_OPTNAME_LOG_TRUNCATE_ON_ROTATION, GTMC_SIGHUP,
          gettext_noop("Truncate existing log files of same name during log rotation."),
@@ -238,7 +253,7 @@ struct config_bool ConfigureNamesBool[] =
         &Log_truncate_on_rotation,
         false, NULL, NULL, false, NULL
     },
-
+	
 	/* End-of-list marker */
 	{
 		{NULL, 0, NULL, NULL, 0}, NULL, false, NULL, NULL, false, NULL
@@ -319,7 +334,7 @@ struct config_int ConfigureNamesInt[] =
 		&worker_thread_number,
 		2, 0, INT_MAX, NULL, NULL,
 		0, NULL
-	},			
+	},
 #ifdef __XLOG__
 	{
 		{
@@ -365,56 +380,69 @@ struct config_int ConfigureNamesInt[] =
 		3, 0, 100, NULL, NULL,
 		0, NULL
 	},
-	{
-		{
-			GTM_OPTNAME_MAX_WAL_SENDER, GTMC_STARTUP,
-			gettext_noop("print time cost in ms when cost is larger then it."),
-			NULL,
-			0
-		},
-		&warnning_time_cost,
-		500, 0, INT_MAX,
-		0, NULL
-	},
 #endif
 	{
-        {
-            GTM_OPTNAME_GTS_FREEZE_TIME_LIMIT, GTMC_STARTUP,
-            gettext_noop("refuse to start gtm before GTS has n days left,default 100 years"),
-            NULL,
-            0
-        },
-        &GTMGTSFreezeLimit,
-        365 * 100, 0, INT_MAX, NULL, NULL,
-        0, NULL
+			{
+					GTM_OPTNAME_GTS_FREEZE_TIME_LIMIT, GTMC_STARTUP,
+					gettext_noop("refuse to start gtm before GTS has n days left,default 100 years"),
+					NULL,
+					0
+			},
+			&GTMGTSFreezeLimit,
+			365 * 100, 0, INT_MAX, NULL, NULL,
+			0, NULL
 	},
 	{
-        {
-            GTM_OPTNAME_STARTUP_GTS_DELTA, GTMC_STARTUP,
-            gettext_noop("Add -d seconds to GTS when started"),
-            NULL,
-            0
-        },
-        &GTMStartupGTSDelta,
-        300 , 0, INT_MAX, NULL, NULL,
-        0, NULL
+			{
+					GTM_OPTNAME_STARTUP_GTS_DELTA, GTMC_STARTUP,
+					gettext_noop("Add -d seconds to GTS when started"),
+					NULL,
+					0
+			},
+			&GTMStartupGTSDelta,
+			300 , 0, INT_MAX, NULL, NULL,
+			0, NULL
 	},
 
     {
+            {
+                    GTM_OPTNAME_UNIX_SOCKET_PERMISSIONS, GTMC_STARTUP,
+                    gettext_noop("Sets the access permissions of the Unix-domain socket."
+                                 "Unix-domain sockets use the usual Unix file system "
+                                 "permission set. The parameter value is expected "
+                                 "to be a numeric mode specification in the form "
+                                 "accepted by the chmod and umask system calls. "
+                                 "(To use the customary octal format the number must "
+                                 "start with a 0 (zero).)"),
+                    NULL,
+                    0
+            },
+            &unix_socket_permissions,
+            0777, 0000, 0777, NULL, NULL,
+            0, NULL
+    },
+
+    {
         {
-            GTM_OPTNAME_UNIX_SOCKET_PERMISSIONS, GTMC_STARTUP,
-            gettext_noop("Sets the access permissions of the Unix-domain socket."
-                         "Unix-domain sockets use the usual Unix file system "
-                         "permission set. The parameter value is expected "
-                         "to be a numeric mode specification in the form "
-                         "accepted by the chmod and umask system calls. "
-                         "(To use the customary octal format the number must "
-                         "start with a 0 (zero).)"),
+            "gtm_walsender_timeout", GTMC_SIGHUP,
+            gettext_noop("Sets the maximum time to send for WAL replication."),
             NULL,
-            0
+            GTMOPT_UNIT_S
         },
-        &unix_socket_permissions,
-        0777, 0000, 0777, NULL, NULL,
+        &gtm_walsender_timeout,
+        60, 0, INT_MAX, NULL, NULL,
+        0, NULL
+    },
+
+    {
+        {
+            "gtm_walreceiver_timeout", GTMC_SIGHUP,
+            gettext_noop("Sets the maximum time to wait for WAL from master."),
+            NULL,
+            GTMOPT_UNIT_S
+        },
+        &gtm_walreceiver_timeout,
+        60, 0, INT_MAX, NULL, NULL,
         0, NULL
     },
 
@@ -441,7 +469,18 @@ struct config_int ConfigureNamesInt[] =
         10 * 1024, 0, INT_MAX / 1024, NULL, NULL,
         0, NULL
     },
-
+    {
+		{
+			"standby_connect_timeout", GTMC_STARTUP,
+			gettext_noop("wait time for standby connection to primary to get store file"),
+			NULL,
+			0
+		},
+		&standby_connect_timeout,
+		2, 0, INT_MAX, NULL, NULL,
+		0, NULL
+	},
+	
 	/* End-of-list marker */
 	{
 		{NULL, 0, NULL, NULL, 0}, NULL, 0, 0, 0, NULL, NULL, 0, NULL
@@ -629,15 +668,15 @@ struct config_string ConfigureNamesString[] =
 	},
 #endif
 	{
-		{GTM_OPTNAME_STARTUP_GTS_SET, GTMC_STARTUP,
-		 gettext_noop("Force start GTM with this GTS"),
-		 NULL,
-		 0
-		},
-		&GTMStartupGTSSet,
-		NULL,
+			{GTM_OPTNAME_STARTUP_GTS_SET, GTMC_STARTUP,
+			 gettext_noop("Force start GTM with this GTS"),
+			 NULL,
+			 0
+			},
+			&GTMStartupGTSSet,
+			NULL,
 		NULL, NULL,
-		NULL, NULL
+			NULL, NULL
 	},
 
     {

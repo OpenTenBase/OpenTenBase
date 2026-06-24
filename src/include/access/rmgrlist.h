@@ -9,9 +9,6 @@
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * src/include/access/rmgrlist.h
  *---------------------------------------------------------------------------
  */
@@ -56,9 +53,7 @@ PG_RMGR(RM_LOGICALMSG_ID, "LogicalMessage", logicalmsg_redo, logicalmsg_desc, lo
 #ifdef _SHARDING_
 PG_RMGR(RM_EXTENT_ID, "ExtentMap", extent_redo, extent_desc, extent_identify, NULL, NULL, NULL)
 #endif
-#ifdef _MLS_
-PG_RMGR(RM_REL_CRYPT_ID, "RelCrypt", rel_crypt_redo, rel_crypt_desc, rel_crypt_identify, NULL, NULL, NULL)
-#endif
 #ifdef _PUB_SUB_RELIABLE_
 PG_RMGR(RM_RELICATION_SLOT_ID, "ReplicationSlot", replication_slot_redo, replication_slot_desc, replication_slot_identify, NULL, NULL, NULL)
 #endif
+PG_RMGR(RM_CSNLOG_ID, "CSNLOG", csnlog_redo, csnlog_desc, csnlog_identify, NULL, NULL, NULL)

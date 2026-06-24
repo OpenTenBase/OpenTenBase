@@ -388,6 +388,16 @@
    </varlistentry>
 
    <varlistentry>
+    <term><acronym>JIT</acronym></term>
+    <listitem>
+     <para>
+      <ulink url="https://en.wikipedia.org/wiki/Just-in-time_compilation">Just-in-Time
+      compilation</ulink>
+     </para>
+    </listitem>
+   </varlistentry>
+
+   <varlistentry>
     <term><acronym>LDAP</acronym></term>
     <listitem>
      <para>

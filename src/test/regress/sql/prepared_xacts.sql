@@ -99,6 +99,12 @@ ROLLBACK PREPARED 'foo5';
 -- Clean up
 DROP TABLE pxtest1;
 
+-- Test detection of session-level and xact-level locks on same object
+BEGIN;
+SELECT pg_advisory_lock(1);
+SELECT pg_advisory_xact_lock_shared(1);
+PREPARE TRANSACTION 'foo6';  -- fails
+
 -- Test subtransactions
 BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE;
   CREATE TABLE pxtest2 (a int);
@@ -175,3 +181,382 @@ SELECT pgxc_prepared_xact FROM pgxc_prepared_xacts ORDER by 1;
 DROP TABLE pxtest2;
 DROP TABLE pxtest3;  -- will still be there if prepared xacts are disabled
 DROP TABLE pxtest4;
+
+-- Test same gid
+BEGIN;
+PREPARE TRANSACTION 'regress0301';
+ROLLBACK PREPARED 'regress0301';
+BEGIN;
+PREPARE TRANSACTION 'regress0301';
+COMMIT PREPARED 'regress0301';
+
+-- Create a simple table
+CREATE TABLE pxtest5 (foobar VARCHAR(10)) distribute by replication;
+
+INSERT INTO pxtest5 VALUES ('aaa');
+
+-- Test PREPARE TRANSACTION
+BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+UPDATE pxtest5 SET foobar = 'bbb' WHERE foobar = 'aaa';
+SELECT * FROM pxtest5 ORDER BY foobar;
+PREPARE TRANSACTION 'regress0301';
+
+SELECT * FROM pxtest5 ORDER BY foobar;
+
+-- Test pg_prepared_xacts system view
+SELECT gid FROM pg_prepared_xacts ORDER BY gid;
+-- Test pgxc_prepared_xacts system view
+SELECT pgxc_prepared_xact FROM pgxc_prepared_xacts ORDER by 1;
+
+-- Test ROLLBACK PREPARED
+ROLLBACK PREPARED 'regress0301';
+
+SELECT * FROM pxtest5  ORDER BY foobar;
+
+-- Check prepared transactions on Coordinator
+SELECT gid FROM pg_prepared_xacts ORDER BY gid;
+-- Check prepared transactions in the cluster
+SELECT pgxc_prepared_xact FROM pgxc_prepared_xacts ORDER by 1;
+
+-- Test COMMIT PREPARED
+BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+INSERT INTO pxtest5 VALUES ('ddd');
+SELECT * FROM pxtest5 ORDER BY foobar;
+PREPARE TRANSACTION 'regress0301';
+
+SELECT * FROM pxtest5  ORDER BY foobar;
+
+COMMIT PREPARED 'regress0301';
+
+SELECT * FROM pxtest5  ORDER BY foobar;
+
+-- Test duplicate gids
+BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+UPDATE pxtest5 SET foobar = 'eee' WHERE foobar = 'ddd';
+SELECT * FROM pxtest5  ORDER BY foobar;
+PREPARE TRANSACTION 'regress0301';
+
+-- Check prepared transactions on Coordinator
+SELECT gid FROM pg_prepared_xacts ORDER BY gid;
+-- Check prepared transactions in the cluster
+SELECT pgxc_prepared_xact FROM pgxc_prepared_xacts ORDER by 1;
+
+BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+INSERT INTO pxtest5 VALUES ('fff');
+
+-- This should fail, because the gid regress0301 is already in use
+PREPARE TRANSACTION 'regress0301';
+
+SELECT * FROM pxtest5  ORDER BY foobar;
+
+ROLLBACK PREPARED 'regress0301';
+
+SELECT * FROM pxtest5  ORDER BY foobar;
+
+-- Test serialization failure (SSI)
+BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+UPDATE pxtest5 SET foobar = 'eee' WHERE foobar = 'ddd';
+SELECT * FROM pxtest5 order by foobar;
+PREPARE TRANSACTION 'regress0301';
+
+SELECT gid FROM pg_prepared_xacts;
+
+BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+SELECT * FROM pxtest5 order by foobar;
+
+-- This should fail, because the two transactions have a write-skew anomaly
+INSERT INTO pxtest5 VALUES ('fff');
+PREPARE TRANSACTION 'regress0302';
+
+SELECT gid FROM pg_prepared_xacts;
+
+ROLLBACK PREPARED 'regress0301';
+
+SELECT gid FROM pg_prepared_xacts;
+
+-- In Postgres-XL, serializable is not yet supported, and SERIALIZABLE falls to
+-- read-committed silently, so rollback transaction properly
+ROLLBACK PREPARED 'regress0302';
+
+-- Clean up
+DROP TABLE pxtest5;
+
+
+-- Create a same name table
+CREATE TABLE pxtest5 (foobar VARCHAR(10)) distribute by replication;
+
+INSERT INTO pxtest5 VALUES ('aaa');
+
+-- Test PREPARE TRANSACTION
+BEGIN;
+UPDATE pxtest5 SET foobar = 'bbb' WHERE foobar = 'aaa';
+SELECT * FROM pxtest5 ORDER BY foobar;
+PREPARE TRANSACTION 'regress0301';
+
+SELECT * FROM pxtest5 ORDER BY foobar;
+
+-- Test pg_prepared_xacts system view
+SELECT gid FROM pg_prepared_xacts ORDER BY gid;
+-- Test pgxc_prepared_xacts system view
+SELECT pgxc_prepared_xact FROM pgxc_prepared_xacts ORDER by 1;
+
+-- Test ROLLBACK PREPARED
+ROLLBACK PREPARED 'regress0301';
+
+SELECT * FROM pxtest5  ORDER BY foobar;
+
+-- Check prepared transactions on Coordinator
+SELECT gid FROM pg_prepared_xacts ORDER BY gid;
+-- Check prepared transactions in the cluster
+SELECT pgxc_prepared_xact FROM pgxc_prepared_xacts ORDER by 1;
+
+-- Test COMMIT PREPARED
+BEGIN;
+INSERT INTO pxtest5 VALUES ('ddd');
+SELECT * FROM pxtest5 ORDER BY foobar;
+PREPARE TRANSACTION 'regress0301';
+
+SELECT * FROM pxtest5  ORDER BY foobar;
+
+COMMIT PREPARED 'regress0301';
+
+SELECT * FROM pxtest5  ORDER BY foobar;
+
+-- Test duplicate gids
+BEGIN;
+UPDATE pxtest5 SET foobar = 'eee' WHERE foobar = 'ddd';
+SELECT * FROM pxtest5  ORDER BY foobar;
+PREPARE TRANSACTION 'regress0301';
+
+-- Check prepared transactions on Coordinator
+SELECT gid FROM pg_prepared_xacts ORDER BY gid;
+-- Check prepared transactions in the cluster
+SELECT pgxc_prepared_xact FROM pgxc_prepared_xacts ORDER by 1;
+
+BEGIN;
+INSERT INTO pxtest5 VALUES ('fff');
+
+-- This should fail, because the gid regress0301 is already in use
+PREPARE TRANSACTION 'regress0301';
+
+SELECT * FROM pxtest5  ORDER BY foobar;
+
+ROLLBACK PREPARED 'regress0301';
+
+SELECT * FROM pxtest5  ORDER BY foobar;
+
+-- Test serialization failure (SSI)
+BEGIN;
+UPDATE pxtest5 SET foobar = 'eee' WHERE foobar = 'ddd';
+SELECT * FROM pxtest5 order by foobar;
+PREPARE TRANSACTION 'regress0301';
+
+SELECT gid FROM pg_prepared_xacts;
+
+BEGIN;
+SELECT * FROM pxtest5 order by foobar;
+
+-- This should fail, because the two transactions have a write-skew anomaly
+INSERT INTO pxtest5 VALUES ('fff');
+PREPARE TRANSACTION 'regress0302';
+
+SELECT gid FROM pg_prepared_xacts;
+
+ROLLBACK PREPARED 'regress0301';
+
+SELECT gid FROM pg_prepared_xacts;
+
+-- In Postgres-XL, serializable is not yet supported, and SERIALIZABLE falls to
+-- read-committed silently, so rollback transaction properly
+ROLLBACK PREPARED 'regress0302';
+
+-- Clean up
+DROP TABLE pxtest5;
+
+
+
+-- Create a same name table
+CREATE TABLE pxtest5 (foobar VARCHAR(10)) distribute by replication;
+
+INSERT INTO pxtest5 VALUES ('aaa');
+
+-- Test PREPARE TRANSACTION
+BEGIN;
+UPDATE pxtest5 SET foobar = 'bbb' WHERE foobar = 'aaa';
+SELECT * FROM pxtest5 ORDER BY foobar;
+PREPARE TRANSACTION 'regress0301';
+
+SELECT * FROM pxtest5 ORDER BY foobar;
+
+-- Test pg_prepared_xacts system view
+SELECT gid FROM pg_prepared_xacts ORDER BY gid;
+-- Test pgxc_prepared_xacts system view
+SELECT pgxc_prepared_xact FROM pgxc_prepared_xacts ORDER by 1;
+
+-- Test ROLLBACK PREPARED
+ROLLBACK PREPARED 'regress0301';
+
+SELECT * FROM pxtest5  ORDER BY foobar;
+
+-- Check prepared transactions on Coordinator
+SELECT gid FROM pg_prepared_xacts ORDER BY gid;
+-- Check prepared transactions in the cluster
+SELECT pgxc_prepared_xact FROM pgxc_prepared_xacts ORDER by 1;
+
+-- Test COMMIT PREPARED
+BEGIN;
+INSERT INTO pxtest5 VALUES ('ddd');
+SELECT * FROM pxtest5 ORDER BY foobar;
+PREPARE TRANSACTION 'regress0301';
+
+SELECT * FROM pxtest5  ORDER BY foobar;
+
+COMMIT PREPARED 'regress0301';
+
+SELECT * FROM pxtest5  ORDER BY foobar;
+
+-- Test duplicate gids
+BEGIN;
+UPDATE pxtest5 SET foobar = 'eee' WHERE foobar = 'ddd';
+SELECT * FROM pxtest5  ORDER BY foobar;
+PREPARE TRANSACTION 'regress0301';
+
+-- Check prepared transactions on Coordinator
+SELECT gid FROM pg_prepared_xacts ORDER BY gid;
+-- Check prepared transactions in the cluster
+SELECT pgxc_prepared_xact FROM pgxc_prepared_xacts ORDER by 1;
+
+BEGIN;
+INSERT INTO pxtest5 VALUES ('fff');
+
+-- This should fail, because the gid regress0301 is already in use
+PREPARE TRANSACTION 'regress0301';
+
+SELECT * FROM pxtest5  ORDER BY foobar;
+
+COMMIT PREPARED 'regress0301';
+
+SELECT * FROM pxtest5  ORDER BY foobar;
+
+-- Test serialization failure (SSI)
+BEGIN;
+UPDATE pxtest5 SET foobar = 'bbb' WHERE foobar = 'aaa';
+SELECT * FROM pxtest5 order by foobar;
+PREPARE TRANSACTION 'regress0301';
+
+SELECT gid FROM pg_prepared_xacts;
+
+BEGIN;
+SELECT * FROM pxtest5 order by foobar;
+
+-- This should fail, because the two transactions have a write-skew anomaly
+INSERT INTO pxtest5 VALUES ('fff');
+PREPARE TRANSACTION 'regress0302';
+
+SELECT gid FROM pg_prepared_xacts;
+
+COMMIT PREPARED 'regress0301';
+
+SELECT gid FROM pg_prepared_xacts;
+
+-- In Postgres-XL, serializable is not yet supported, and SERIALIZABLE falls to
+-- read-committed silently, so rollback transaction properly
+COMMIT PREPARED 'regress0302';
+
+SELECT * FROM pxtest5 order by foobar;
+
+-- Clean up
+DROP TABLE pxtest5;
+
+-- Bugfix(ID116473145): test whether 2pc gid is valid
+DROP TABLE IF EXISTS test_2pc_gid_valid;
+CREATE TABLE test_2pc_gid_valid(id int primary key, num int);
+INSERT INTO test_2pc_gid_valid values (generate_series(1,10), generate_series(1,10));
+-- 2pc gid is valid
+BEGIN;
+UPDATE test_2pc_gid_valid set num = num + 1 where id > 3 and id < 8;
+PREPARE TRANSACTION 'y)lU''''SC=mp''''a80jDUpV1E&zQ1=r''W''''lvVfC%`e%ei&H''''AN''$~D''h8W0neO6';
+ROLLBACK PREPARED 'y)lU''''SC=mp''''a80jDUpV1E&zQ1=r''W''''lvVfC%`e%ei&H''''AN''$~D''h8W0neO6';
+
+BEGIN;
+UPDATE test_2pc_gid_valid set num = num + 1 where id > 3 and id < 8;
+PREPARE TRANSACTION '!;`~@#$%^&()_-+=[{.}]''';
+ROLLBACK PREPARED '!;`~@#$%^&()_-+=[{.}]''';
+
+BEGIN;
+UPDATE test_2pc_gid_valid set num = num + 1 where id > 3 and id < 8;
+PREPARE TRANSACTION 'a:::__$$$';
+ROLLBACK PREPARED 'a:::__$$$';
+
+-- 2pc gid is invalid
+BEGIN;
+UPDATE test_2pc_gid_valid set num = num + 1 where id > 3 and id < 8;
+PREPARE TRANSACTION 'a*';
+ROLLBACK PREPARED 'a*';
+END;
+ROLLBACK PREPARED 'a*';
+
+BEGIN;
+UPDATE test_2pc_gid_valid set num = num + 1 where id > 3 and id < 8;
+PREPARE TRANSACTION 'a<';
+ROLLBACK PREPARED 'a<';
+END;
+ROLLBACK PREPARED 'a<';
+
+BEGIN;
+UPDATE test_2pc_gid_valid set num = num + 1 where id > 3 and id < 8;
+PREPARE TRANSACTION 'a>';
+ROLLBACK PREPARED 'a>';
+END;
+ROLLBACK PREPARED 'a>';
+
+BEGIN;
+UPDATE test_2pc_gid_valid set num = num + 1 where id > 3 and id < 8;
+PREPARE TRANSACTION 'a?';
+ROLLBACK PREPARED 'a?';
+END;
+ROLLBACK PREPARED 'a?';
+
+BEGIN;
+UPDATE test_2pc_gid_valid set num = num + 1 where id > 3 and id < 8;
+PREPARE TRANSACTION 'a|';
+ROLLBACK PREPARED 'a|';
+END;
+ROLLBACK PREPARED 'a|';
+
+BEGIN;
+UPDATE test_2pc_gid_valid set num = num + 1 where id > 3 and id < 8;
+PREPARE TRANSACTION 'a/';
+ROLLBACK PREPARED 'a/';
+END;
+ROLLBACK PREPARED 'a/';
+
+BEGIN;
+UPDATE test_2pc_gid_valid set num = num + 1 where id > 3 and id < 8;
+PREPARE TRANSACTION 'a\';
+ROLLBACK PREPARED 'a\';
+END;
+ROLLBACK PREPARED 'a\';
+
+BEGIN;
+UPDATE test_2pc_gid_valid set num = num + 1 where id > 3 and id < 8;
+PREPARE TRANSACTION 'a"';
+ROLLBACK PREPARED 'a"';
+END;
+ROLLBACK PREPARED 'a"';
+
+BEGIN;
+UPDATE test_2pc_gid_valid set num = num + 1 where id > 3 and id < 8;
+PREPARE TRANSACTION 'a,b';
+ROLLBACK PREPARED 'a,b';
+END;
+ROLLBACK PREPARED 'a,b';
+
+BEGIN;
+UPDATE test_2pc_gid_valid set num = num + 1 where id > 3 and id < 8;
+PREPARE TRANSACTION 'a b';
+ROLLBACK PREPARED 'a b';
+END;
+ROLLBACK PREPARED 'a b';
+
+DROP TABLE test_2pc_gid_valid;

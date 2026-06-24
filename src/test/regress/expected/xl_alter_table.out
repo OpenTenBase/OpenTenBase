@@ -60,7 +60,9 @@ CREATE TABLE xl_at2h (
 ALTER TABLE xl_at2h DROP COLUMN product_id;--fail - distribution column cannot be dropped. 
 ERROR:  Distribution column cannot be dropped
 ALTER TABLE xl_at2h DISTRIBUTE BY MODULO(product_id);
+ERROR:  this operation is not permitted
 ALTER TABLE xl_at2h DISTRIBUTE BY HASH(product_id);
+ERROR:  this operation is not permitted
 ALTER TABLE xl_at2h DROP COLUMN product_no;
 ALTER TABLE xl_at2h ADD COLUMN product_no INT8;
 ALTER TABLE xl_at2h ALTER COLUMN product_no SET NOT NULL;
@@ -74,9 +76,8 @@ ALTER TABLE xl_at2h ALTER COLUMN product_id DROP DEFAULT;
 ALTER TABLE xl_at2h RENAME COLUMN product_no TO product_number;
 ALTER TABLE xl_at2h RENAME COLUMN product_id TO product_identifier;
 ALTER TABLE xl_at2h RENAME TO xl_at3h;
-ALTER TABLE xl_at3h DELETE NODE (datanode_2);
-ALTER TABLE xl_at3h ADD NODE (datanode_2);
 ALTER TABLE xl_at3h DISTRIBUTE BY REPLICATION; 
+ERROR:  this operation is not permitted
 -- MODULO Distributed table:
 CREATE TABLE xl_at2m (
     product_no INT8,
@@ -85,7 +86,9 @@ CREATE TABLE xl_at2m (
 ALTER TABLE xl_at2m DROP COLUMN product_id;--fail - distribution column cannot be dropped. 
 ERROR:  Distribution column cannot be dropped
 ALTER TABLE xl_at2m DISTRIBUTE BY HASH(product_id);
+ERROR:  this operation is not permitted
 ALTER TABLE xl_at2m DISTRIBUTE BY MODULO(product_id);
+ERROR:  this operation is not permitted
 ALTER TABLE xl_at2m DROP COLUMN product_no;
 ALTER TABLE xl_at2m ADD COLUMN product_no INT8;
 ALTER TABLE xl_at2m ALTER COLUMN product_no SET NOT NULL;
@@ -99,9 +102,8 @@ ALTER TABLE xl_at2m ALTER COLUMN product_id DROP DEFAULT;
 ALTER TABLE xl_at2m RENAME COLUMN product_no TO product_number;
 ALTER TABLE xl_at2m RENAME COLUMN product_id TO product_identifier;
 ALTER TABLE xl_at2m RENAME TO xl_at3m;
-ALTER TABLE xl_at3m DELETE NODE (datanode_2);
-ALTER TABLE xl_at3m ADD NODE (datanode_2);
 ALTER TABLE xl_at3m DISTRIBUTE BY REPLICATION;
+ERROR:  this operation is not permitted
 DROP TABLE xl_at;
 DROP TABLE xl_at1;
 DROP TABLE xl_at2h;

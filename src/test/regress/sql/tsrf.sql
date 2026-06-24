@@ -71,22 +71,27 @@ SELECT sum((3 = ANY(SELECT lag(x) over(order by x)
 SELECT min(generate_series(1, 3)) OVER() FROM few;
 
 -- SRFs are normally computed after window functions
-SELECT id,lag(id) OVER(), count(*) OVER(), generate_series(1,3) FROM few ORDER BY 1, 2, 4;
+SELECT id,lag(id) OVER(order by id), count(*) OVER(), generate_series(1,3) FROM few ORDER BY 1, 2, 4;
 -- unless referencing SRFs
-SELECT SUM(count(*)) OVER(PARTITION BY generate_series(1,3) ORDER BY generate_series(1,3)), generate_series(1,3) g FROM few GROUP BY g;
+SELECT SUM(count(*)) OVER(PARTITION BY generate_series(1,3) ORDER BY generate_series(1,3)), generate_series(1,3) g FROM few GROUP BY g ORDER BY 1, 2;
 
 -- sorting + grouping
 SELECT few.dataa, count(*), min(id), max(id), generate_series(1,3) FROM few GROUP BY few.dataa ORDER BY 5, 1;
 
 -- grouping sets are a bit special, they produce NULLs in columns not actually NULL
 set enable_hashagg = false;
-SELECT dataa, datab b, generate_series(1,2) g, count(*) FROM few GROUP BY CUBE(dataa, datab);
-SELECT dataa, datab b, generate_series(1,2) g, count(*) FROM few GROUP BY CUBE(dataa, datab) ORDER BY dataa;
-SELECT dataa, datab b, generate_series(1,2) g, count(*) FROM few GROUP BY CUBE(dataa, datab) ORDER BY g;
-SELECT dataa, datab b, generate_series(1,2) g, count(*) FROM few GROUP BY CUBE(dataa, datab, g);
-SELECT dataa, datab b, generate_series(1,2) g, count(*) FROM few GROUP BY CUBE(dataa, datab, g) ORDER BY dataa;
-SELECT dataa, datab b, generate_series(1,2) g, count(*) FROM few GROUP BY CUBE(dataa, datab, g) ORDER BY g;
+SELECT dataa, datab b, generate_series(1,2) g, count(*) FROM few GROUP BY CUBE(dataa, datab) ORDER BY 1, 2, 3, 4;
+SELECT dataa, datab b, generate_series(1,2) g, count(*) FROM few GROUP BY CUBE(dataa, datab) ORDER BY 1, 2, 3, 4;
+SELECT dataa, datab b, generate_series(1,2) g, count(*) FROM few GROUP BY CUBE(dataa, datab) ORDER BY 1, 2, 3, 4;
+SELECT dataa, datab b, generate_series(1,2) g, count(*) FROM few GROUP BY CUBE(dataa, datab, g) ORDER BY 1, 2, 3, 4;
+SELECT dataa, datab b, generate_series(1,2) g, count(*) FROM few GROUP BY CUBE(dataa, datab, g) ORDER BY 1, 2, 3, 4;
+SELECT dataa, datab b, generate_series(1,2) g, count(*) FROM few GROUP BY CUBE(dataa, datab, g) ORDER BY 1, 2, 3, 4;
 reset enable_hashagg;
+
+-- case with degenerate ORDER BY
+explain (verbose, costs off)
+select 'foo' as f, generate_series(1,2) as g from few order by 1;
+select 'foo' as f, generate_series(1,2) as g from few order by 1, 2;
 
 -- data modification
 CREATE TABLE fewmore AS SELECT generate_series(1,3) AS data;
@@ -137,12 +142,12 @@ SELECT DISTINCT ON (g) a, b, generate_series(1,3) g
 FROM (VALUES (3, 2), (3,1), (1,1), (1,4), (5,3), (5,1)) AS t(a, b);
 
 -- LIMIT / OFFSET is evaluated after SRF evaluation
-SELECT a, generate_series(1,2) FROM (VALUES(1),(2),(3)) r(a) LIMIT 2 OFFSET 2;
+SELECT a, generate_series(1,2) FROM (VALUES(1),(2),(3)) r(a) order by 1,2 LIMIT 2 OFFSET 2;
 -- SRFs are not allowed in LIMIT.
 SELECT 1 LIMIT generate_series(1,3);
 
 -- tSRF in correlated subquery, referencing table outside
-SELECT (SELECT generate_series(1,3) LIMIT 1 OFFSET few.id) FROM few order by 1;
+SELECT (SELECT generate_series(1,3) LIMIT 1 OFFSET few.id) FROM few order by generate_series;
 -- tSRF in correlated subquery, referencing SRF outside
 SELECT (SELECT generate_series(1,3) LIMIT 1 OFFSET g.i) FROM generate_series(0,3) g(i);
 
@@ -162,6 +167,8 @@ select generate_series(1,3)+1 order by generate_series(1,3);
 explain (verbose, costs off)
 select generate_series(1,3) as x, generate_series(3,6) + 1 as y;
 select generate_series(1,3) as x, generate_series(3,6) + 1 as y;
+
+select 'foo' as f, generate_series(1,2) as g from few order by 2;
 
 -- Clean up
 DROP TABLE few;

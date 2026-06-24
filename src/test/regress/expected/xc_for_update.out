@@ -94,15 +94,16 @@ WITH q1 AS (SELECT * from t1 order by 1 FOR UPDATE) SELECT * FROM q1 FOR UPDATE;
 -- confirm that in various join scenarios for update gets to the remote query
 -- single table case
 explain (costs off, num_nodes off, nodes off, verbose on)  select * from t1 for update of t1 nowait;
-              QUERY PLAN               
----------------------------------------
- Remote Subquery Scan on all
-   Output: val, val2, ctid
+                               QUERY PLAN                                
+-------------------------------------------------------------------------
+ Remote Fast Query Execution
+   Output: t1.val, t1.val2, t1.ctid, t1.xc_node_id
+   Remote query: SELECT val, val2 FROM public.t1 FOR UPDATE OF t1 NOWAIT
    ->  LockRows
-         Output: val, val2, ctid
+         Output: val, val2, ctid, xc_node_id
          ->  Seq Scan on public.t1
-               Output: val, val2, ctid
-(6 rows)
+               Output: val, val2, ctid, xc_node_id
+(7 rows)
 
 -- two table case
 explain (costs off, num_nodes off, nodes off, verbose on)  select * from t1, t2 where t1.val = t2.val for update nowait;
@@ -112,11 +113,11 @@ ERROR:  FOR UPDATE is not allowed with joins
 explain (costs off, num_nodes off, nodes off, verbose on)  select * from t1, t2 where t1.val = t2.val for share;
 ERROR:  FOR SHARE is not allowed with joins
 explain (costs off, num_nodes off, nodes off, verbose on)  select * from t1, t2 where t1.val = t2.val;
-                                         QUERY PLAN                                          
----------------------------------------------------------------------------------------------
+                                                QUERY PLAN                                                 
+-----------------------------------------------------------------------------------------------------------
  Remote Fast Query Execution
    Output: t1.val, t1.val2, t2.val, t2.val2
-   Remote query: SELECT t1.val, t1.val2, t2.val, t2.val2 FROM t1, t2 WHERE (t1.val = t2.val)
+   Remote query: SELECT t1.val, t1.val2, t2.val, t2.val2 FROM public.t1, public.t2 WHERE (t1.val = t2.val)
    ->  Merge Join
          Output: t1.val, t1.val2, t2.val, t2.val2
          Merge Cond: (t1.val = t2.val)
@@ -133,17 +134,17 @@ explain (costs off, num_nodes off, nodes off, verbose on)  select * from t1, t2 
 (16 rows)
 
 explain (costs off, num_nodes off, nodes off, verbose on)  select * from t1, t2;
-                 QUERY PLAN                  
----------------------------------------------
+                        QUERY PLAN                        
+----------------------------------------------------------
  Nested Loop
    Output: t1.val, t1.val2, t2.val, t2.val2
-   ->  Remote Subquery Scan on all
+   ->  Remote Subquery Scan[1] on all (datanodes 2)
          Output: t1.val, t1.val2
          ->  Seq Scan on public.t1
                Output: t1.val, t1.val2
    ->  Materialize
          Output: t2.val, t2.val2
-         ->  Remote Subquery Scan on all
+         ->  Remote Subquery Scan[2] on all (datanodes 2)
                Output: t2.val, t2.val2
                ->  Seq Scan on public.t2
                      Output: t2.val, t2.val2
@@ -173,25 +174,25 @@ select * from t1 right join t2 on (t1.val = t2.val) for share;
 ERROR:  FOR SHARE is not allowed with joins
 -- three table case
 explain (costs off, num_nodes off, nodes off, verbose on)  select * from t1, t2, t3;
-                         QUERY PLAN                          
--------------------------------------------------------------
+                           QUERY PLAN                           
+----------------------------------------------------------------
  Nested Loop
    Output: t1.val, t1.val2, t2.val, t2.val2, t3.val, t3.val2
    ->  Nested Loop
          Output: t1.val, t1.val2, t2.val, t2.val2
-         ->  Remote Subquery Scan on all
+         ->  Remote Subquery Scan[1] on all (datanodes 2)
                Output: t1.val, t1.val2
                ->  Seq Scan on public.t1
                      Output: t1.val, t1.val2
          ->  Materialize
                Output: t2.val, t2.val2
-               ->  Remote Subquery Scan on all
+               ->  Remote Subquery Scan[2] on all (datanodes 2)
                      Output: t2.val, t2.val2
                      ->  Seq Scan on public.t2
                            Output: t2.val, t2.val2
    ->  Materialize
          Output: t3.val, t3.val2
-         ->  Remote Subquery Scan on all
+         ->  Remote Subquery Scan[3] on all (datanodes 2)
                Output: t3.val, t3.val2
                ->  Seq Scan on public.t3
                      Output: t3.val, t3.val2
@@ -208,47 +209,47 @@ ERROR:  FOR UPDATE is not allowed with joins
 explain (costs off, num_nodes off, nodes off, verbose on)  select * from t1, t2, t3 for share of t1,t2 nowait;
 ERROR:  FOR SHARE is not allowed with joins
 explain (costs off, num_nodes off, nodes off, verbose on)  select * from t1 join t2 on (t1.val2 = t2.val2) join t3 on (t1.val2 = t3.val2);
-                             QUERY PLAN                              
----------------------------------------------------------------------
- Remote Subquery Scan on all
+                              QUERY PLAN                              
+----------------------------------------------------------------------
+ Remote Subquery Scan[1] on all (datanodes 2)
    Output: t1.val, t1.val2, t2.val, t2.val2, t3.val, t3.val2
    ->  Merge Join
          Output: t1.val, t1.val2, t2.val, t2.val2, t3.val, t3.val2
-         Merge Cond: (t3.val2 = t1.val2)
-         ->  Remote Subquery Scan on all
+         Merge Cond: (t1.val2 = t3.val2)
+         ->  Merge Join
+               Output: t1.val, t1.val2, t2.val, t2.val2
+               Merge Cond: (t1.val2 = t2.val2)
+               ->  Remote Subquery Scan[2] on all (datanodes 2)
+                     Output: t1.val, t1.val2
+                     Sort Key: t1.val2
+                     Distribute results by S: val2
+                     ->  Sort
+                           Output: t1.val, t1.val2
+                           Sort Key: t1.val2
+                           ->  Seq Scan on public.t1
+                                 Output: t1.val, t1.val2
+               ->  Materialize
+                     Output: t2.val, t2.val2
+                     ->  Remote Subquery Scan[3] on all (datanodes 2)
+                           Output: t2.val, t2.val2
+                           Sort Key: t2.val2
+                           Distribute results by S: val2
+                           ->  Sort
+                                 Output: t2.val, t2.val2
+                                 Sort Key: t2.val2
+                                 ->  Seq Scan on public.t2
+                                       Output: t2.val, t2.val2
+         ->  Materialize
                Output: t3.val, t3.val2
-               Distribute results by H: val2
-               Sort Key: t3.val2
-               ->  Sort
+               ->  Remote Subquery Scan[4] on all (datanodes 2)
                      Output: t3.val, t3.val2
                      Sort Key: t3.val2
-                     ->  Seq Scan on public.t3
+                     Distribute results by S: val2
+                     ->  Sort
                            Output: t3.val, t3.val2
-         ->  Materialize
-               Output: t1.val, t1.val2, t2.val, t2.val2
-               ->  Merge Join
-                     Output: t1.val, t1.val2, t2.val, t2.val2
-                     Merge Cond: (t1.val2 = t2.val2)
-                     ->  Remote Subquery Scan on all
-                           Output: t1.val, t1.val2
-                           Distribute results by H: val2
-                           Sort Key: t1.val2
-                           ->  Sort
-                                 Output: t1.val, t1.val2
-                                 Sort Key: t1.val2
-                                 ->  Seq Scan on public.t1
-                                       Output: t1.val, t1.val2
-                     ->  Materialize
-                           Output: t2.val, t2.val2
-                           ->  Remote Subquery Scan on all
-                                 Output: t2.val, t2.val2
-                                 Distribute results by H: val2
-                                 Sort Key: t2.val2
-                                 ->  Sort
-                                       Output: t2.val, t2.val2
-                                       Sort Key: t2.val2
-                                       ->  Seq Scan on public.t2
-                                             Output: t2.val, t2.val2
+                           Sort Key: t3.val2
+                           ->  Seq Scan on public.t3
+                                 Output: t3.val, t3.val2
 (39 rows)
 
 explain (costs off, num_nodes off, nodes off, verbose on)  select * from t1 join t2 on (t1.val2 = t2.val2) join t3 on (t1.val2 = t3.val2) for update;
@@ -261,12 +262,12 @@ select * from t1 join t2 on (t1.val2 = t2.val2) join t3 on (t1.val2 = t3.val2);
  val | val2 | val | val2 | val | val2 
 -----+------+-----+------+-----+------
    1 |   11 |   3 |   11 |   5 |   11
-   1 |   11 |   4 |   11 |   5 |   11
-   2 |   11 |   3 |   11 |   5 |   11
-   2 |   11 |   4 |   11 |   5 |   11
    1 |   11 |   3 |   11 |   6 |   11
+   1 |   11 |   4 |   11 |   5 |   11
    1 |   11 |   4 |   11 |   6 |   11
+   2 |   11 |   3 |   11 |   5 |   11
    2 |   11 |   3 |   11 |   6 |   11
+   2 |   11 |   4 |   11 |   5 |   11
    2 |   11 |   4 |   11 |   6 |   11
 (8 rows)
 
@@ -278,42 +279,42 @@ select * from t1 join t2 on (t1.val2 = t2.val2) join t3 on (t1.val2 = t3.val2) f
 ERROR:  FOR UPDATE is not allowed with joins
 -- check a few subquery cases
 explain (costs off, num_nodes off, nodes off, verbose on)  select * from (select * from t1 for update of t1 nowait) as foo;
-                      QUERY PLAN                      
-------------------------------------------------------
- Remote Subquery Scan on all
+                             QUERY PLAN                              
+---------------------------------------------------------------------
+ Remote Subquery Scan[1] on all (datanodes 2)
    Output: foo.val, foo.val2
    ->  Subquery Scan on foo
          Output: foo.val, foo.val2
          ->  LockRows
-               Output: t1.val, t1.val2, t1.ctid
+               Output: t1.val, t1.val2, t1.ctid, t1.xc_node_id
                ->  Seq Scan on public.t1
-                     Output: t1.val, t1.val2, t1.ctid
+                     Output: t1.val, t1.val2, t1.ctid, t1.xc_node_id
 (8 rows)
 
 explain (costs off, num_nodes off, nodes off, verbose on)  select * from t1 where val in (select val from t2 for update of t2 nowait) for update;
 ERROR:  FOR UPDATE is not allowed with joins
 explain (costs off, num_nodes off, nodes off, verbose on)  select * from t1 where val in (select val from t2 for update of t2 nowait);
-                          QUERY PLAN                           
----------------------------------------------------------------
- Remote Subquery Scan on all
+                                  QUERY PLAN                                  
+------------------------------------------------------------------------------
+ Remote Subquery Scan[1] on all (datanodes 2)
    Output: t1.val, t1.val2
    ->  Hash Join
          Output: t1.val, t1.val2
          Inner Unique: true
-         Hash Cond: (t1.val = "ANY_subquery".val)
+         Hash Cond: (t1.val = any_subquery_1.val)
          ->  Seq Scan on public.t1
                Output: t1.val, t1.val2
          ->  Hash
-               Output: "ANY_subquery".val
+               Output: any_subquery_1.val
                ->  HashAggregate
-                     Output: "ANY_subquery".val
-                     Group Key: "ANY_subquery".val
-                     ->  Subquery Scan on "ANY_subquery"
-                           Output: "ANY_subquery".val
+                     Output: any_subquery_1.val
+                     Group Key: any_subquery_1.val
+                     ->  Subquery Scan on any_subquery_1
+                           Output: any_subquery_1.val
                            ->  LockRows
-                                 Output: t2.val, t2.ctid
+                                 Output: t2.val, t2.ctid, t2.xc_node_id
                                  ->  Seq Scan on public.t2
-                                       Output: t2.val, t2.ctid
+                                       Output: t2.val, t2.ctid, t2.xc_node_id
 (19 rows)
 
 -- test multiple row marks
@@ -321,60 +322,65 @@ explain (costs off, num_nodes off, nodes off, verbose on)  select * from t1, t2 
 ERROR:  FOR SHARE is not allowed with joins
 -- make sure FOR UPDATE takes prioriy over FOR SHARE when mentioned for the same table
 explain (costs off, num_nodes off, nodes off, verbose on)  select * from t1 for share of t1 for update of t1;
-              QUERY PLAN               
----------------------------------------
- Remote Subquery Scan on all
-   Output: val, val2, ctid
+                            QUERY PLAN                            
+------------------------------------------------------------------
+ Remote Fast Query Execution
+   Output: t1.val, t1.val2, t1.ctid, t1.xc_node_id
+   Remote query: SELECT val, val2 FROM public.t1 FOR UPDATE OF t1
    ->  LockRows
-         Output: val, val2, ctid
+         Output: val, val2, ctid, xc_node_id
          ->  Seq Scan on public.t1
-               Output: val, val2, ctid
-(6 rows)
+               Output: val, val2, ctid, xc_node_id
+(7 rows)
 
 explain (costs off, num_nodes off, nodes off, verbose on)  select * from t1 for update of t1 for share of t1;
-              QUERY PLAN               
----------------------------------------
- Remote Subquery Scan on all
-   Output: val, val2, ctid
+                            QUERY PLAN                            
+------------------------------------------------------------------
+ Remote Fast Query Execution
+   Output: t1.val, t1.val2, t1.ctid, t1.xc_node_id
+   Remote query: SELECT val, val2 FROM public.t1 FOR UPDATE OF t1
    ->  LockRows
-         Output: val, val2, ctid
+         Output: val, val2, ctid, xc_node_id
          ->  Seq Scan on public.t1
-               Output: val, val2, ctid
-(6 rows)
+               Output: val, val2, ctid, xc_node_id
+(7 rows)
 
 explain (costs off, num_nodes off, nodes off, verbose on)  select * from t1 for share of t1 for share of t1 for update of t1;
-              QUERY PLAN               
----------------------------------------
- Remote Subquery Scan on all
-   Output: val, val2, ctid
+                            QUERY PLAN                            
+------------------------------------------------------------------
+ Remote Fast Query Execution
+   Output: t1.val, t1.val2, t1.ctid, t1.xc_node_id
+   Remote query: SELECT val, val2 FROM public.t1 FOR UPDATE OF t1
    ->  LockRows
-         Output: val, val2, ctid
+         Output: val, val2, ctid, xc_node_id
          ->  Seq Scan on public.t1
-               Output: val, val2, ctid
-(6 rows)
+               Output: val, val2, ctid, xc_node_id
+(7 rows)
 
 explain (costs off, num_nodes off, nodes off, verbose on)  select * from t1 for share of t1 for share of t1 for share of t1;
-              QUERY PLAN               
----------------------------------------
- Remote Subquery Scan on all
-   Output: val, val2, ctid
+                           QUERY PLAN                            
+-----------------------------------------------------------------
+ Remote Fast Query Execution
+   Output: t1.val, t1.val2, t1.ctid, t1.xc_node_id
+   Remote query: SELECT val, val2 FROM public.t1 FOR SHARE OF t1
    ->  LockRows
-         Output: val, val2, ctid
+         Output: val, val2, ctid, xc_node_id
          ->  Seq Scan on public.t1
-               Output: val, val2, ctid
-(6 rows)
+               Output: val, val2, ctid, xc_node_id
+(7 rows)
 
 -- make sure NOWAIT is used in remote query even if it is not mentioned with FOR UPDATE clause
 explain (costs off, num_nodes off, nodes off, verbose on)  select * from t1 for share of t1 for share of t1 nowait for update of t1;
-              QUERY PLAN               
----------------------------------------
- Remote Subquery Scan on all
-   Output: val, val2, ctid
+                               QUERY PLAN                                
+-------------------------------------------------------------------------
+ Remote Fast Query Execution
+   Output: t1.val, t1.val2, t1.ctid, t1.xc_node_id
+   Remote query: SELECT val, val2 FROM public.t1 FOR UPDATE OF t1 NOWAIT
    ->  LockRows
-         Output: val, val2, ctid
+         Output: val, val2, ctid, xc_node_id
          ->  Seq Scan on public.t1
-               Output: val, val2, ctid
-(6 rows)
+               Output: val, val2, ctid, xc_node_id
+(7 rows)
 
 -- same table , different aliases and different row marks for different aliases
 explain (costs off, num_nodes off, nodes off, verbose on)  select * from t1 a,t1 b for share of a for update of b;
@@ -384,42 +390,38 @@ ERROR:  FOR SHARE is not allowed with joins
 explain (costs off, num_nodes off, nodes off, verbose on)  WITH q1 AS (SELECT * from t1 FOR UPDATE) SELECT * FROM q1,t2 FOR UPDATE;
 ERROR:  FOR UPDATE is not allowed with joins
 explain (costs off, num_nodes off, nodes off, verbose on)  WITH q1 AS (SELECT * from t1) SELECT * FROM q1;
-               QUERY PLAN                
------------------------------------------
- CTE Scan on q1
+                                         QUERY PLAN                                          
+---------------------------------------------------------------------------------------------
+ Remote Fast Query Execution Mode: fqs_mode_std_planer
    Output: q1.val, q1.val2
-   CTE q1
-     ->  Remote Subquery Scan on all
-           Output: t1.val, t1.val2
-           ->  Seq Scan on public.t1
-                 Output: t1.val, t1.val2
-(7 rows)
+   Remote query: WITH q1 AS (SELECT t1.val, t1.val2 FROM public.t1) SELECT val, val2 FROM q1
+   ->  Seq Scan on public.t1
+         Output: t1.val, t1.val2
+(5 rows)
 
 -- make sure row marks are no ops for queries on WITH tables
 explain (costs off, num_nodes off, nodes off, verbose on)  WITH q1 AS (SELECT * from t1) SELECT * FROM q1 FOR UPDATE;
-               QUERY PLAN                
------------------------------------------
- CTE Scan on q1
+                                         QUERY PLAN                                          
+---------------------------------------------------------------------------------------------
+ Remote Fast Query Execution Mode: fqs_mode_std_planer
    Output: q1.val, q1.val2
-   CTE q1
-     ->  Remote Subquery Scan on all
-           Output: t1.val, t1.val2
-           ->  Seq Scan on public.t1
-                 Output: t1.val, t1.val2
-(7 rows)
+   Remote query: WITH q1 AS (SELECT t1.val, t1.val2 FROM public.t1) SELECT val, val2 FROM q1
+   ->  Seq Scan on public.t1
+         Output: t1.val, t1.val2
+(5 rows)
 
 explain (costs off, num_nodes off, nodes off, verbose on)  WITH q1 AS (SELECT * from t1 FOR UPDATE) SELECT * FROM q1 FOR UPDATE;
-                       QUERY PLAN                       
---------------------------------------------------------
+                              QUERY PLAN                               
+-----------------------------------------------------------------------
  CTE Scan on q1
    Output: q1.val, q1.val2
    CTE q1
-     ->  Remote Subquery Scan on all
-           Output: t1.val, t1.val2, t1.ctid
+     ->  Remote Subquery Scan[1] on all (datanodes 2)
+           Output: t1.val, t1.val2, t1.ctid, t1.xc_node_id
            ->  LockRows
-                 Output: t1.val, t1.val2, t1.ctid
+                 Output: t1.val, t1.val2, t1.ctid, t1.xc_node_id
                  ->  Seq Scan on public.t1
-                       Output: t1.val, t1.val2, t1.ctid
+                       Output: t1.val, t1.val2, t1.ctid, t1.xc_node_id
 (9 rows)
 
 -- test case of inheried tables
@@ -433,17 +435,17 @@ select * from p1 order by 1 for update;
 (4 rows)
 
 explain (costs off, num_nodes off, nodes off, verbose on)  select * from p1 for update;
-                          QUERY PLAN                          
---------------------------------------------------------------
- Remote Subquery Scan on all
-   Output: a, b, ctid, tableoid
+                                 QUERY PLAN                                  
+-----------------------------------------------------------------------------
+ Remote Subquery Scan[1] on all (datanodes 2)
+   Output: p1.a, p1.b, p1.ctid, p1.xc_node_id, p1.tableoid
    ->  LockRows
-         Output: p1.a, p1.b, p1.ctid, p1.tableoid
+         Output: p1.a, p1.b, p1.ctid, p1.xc_node_id, p1.tableoid
          ->  Append
                ->  Seq Scan on public.p1
-                     Output: p1.a, p1.b, p1.ctid, p1.tableoid
+                     Output: p1.a, p1.b, p1.ctid, p1.xc_node_id, p1.tableoid
                ->  Seq Scan on public.c1
-                     Output: c1.a, c1.b, c1.ctid, c1.tableoid
+                     Output: c1.a, c1.b, c1.ctid, c1.xc_node_id, c1.tableoid
 (9 rows)
 
 select * from c1 order by 1 for update;
@@ -454,15 +456,16 @@ select * from c1 order by 1 for update;
 (2 rows)
 
 explain (costs off, num_nodes off, nodes off, verbose on)  select * from c1 for update;
-               QUERY PLAN               
-----------------------------------------
- Remote Subquery Scan on all
-   Output: a, b, d, e, ctid
+                            QUERY PLAN                             
+-------------------------------------------------------------------
+ Remote Fast Query Execution
+   Output: c1.a, c1.b, c1.d, c1.e, c1.ctid, c1.xc_node_id
+   Remote query: SELECT a, b, d, e FROM public.c1 FOR UPDATE OF c1
    ->  LockRows
-         Output: a, b, d, e, ctid
+         Output: a, b, d, e, ctid, xc_node_id
          ->  Seq Scan on public.c1
-               Output: a, b, d, e, ctid
-(6 rows)
+               Output: a, b, d, e, ctid, xc_node_id
+(7 rows)
 
 -- confirm that in various join scenarios for update gets to the remote query
 -- single table case
@@ -685,11 +688,13 @@ set statement_timeout to 1000;
 
 --  3. update a row (Should fail)
        update mytab1 set val2=33 where val = 1;
+ERROR:  canceling statement due to statement timeout
 --  4. delete a row
 --     Newly Inserted (Should pass)
        delete from mytab1 where val2=456;
 --     Previously Inserted (Should fail)
        delete from mytab1 where val=1;
+ERROR:  canceling statement due to statement timeout
 --  5. inherit form it (Should pass)
        create table chld_mytab1(d int, e int) inherits (mytab1);
 --  6. create a view on it (Should pass)
@@ -743,21 +748,13 @@ ERROR:  could not obtain lock on relation "mytab1"
        begin;
          declare c1 cursor for select * from mytab1 for share nowait;
          fetch 1 from c1;
- val | val2 | val3 
------+------+------
-   2 |   11 | 3344
-(1 row)
-
+ERROR:  could not obtain lock on row in relation "mytab1"
        end;
 -- 13. do a SELECT FOR UPDATE on it (Should fail)
        begin;
          declare c1 cursor for select * from mytab1 for update nowait;
          fetch 1 from c1;
- val | val2 | val3 
------+------+------
-   2 |   11 | 3344
-(1 row)
-
+ERROR:  could not obtain lock on row in relation "mytab1"
        end;
 -- 14. alter already defined index on it (Should fail)
        ALTER INDEX test_idx RENAME TO mytab1_idx;
@@ -796,14 +793,14 @@ declare c1 cursor for select * from mytab1 for share;
 fetch 1 from c1;
  val | val2 | val3 
 -----+------+------
-   2 |   11 | 3344
+   1 |   11 | 1122
 (1 row)
 
 declare c2 cursor for select * from mytab1 for update;
 fetch 1 from c2;
  val | val2 | val3 
 -----+------+------
-   2 |   11 | 3344
+   1 |   11 | 1122
 (1 row)
 
 end;
@@ -813,7 +810,7 @@ declare c1 cursor for select * from mytab1 for share;
 fetch 1 from c1;
  val | val2 | val3 
 -----+------+------
-   2 |   11 | 3344
+   1 |   11 | 1122
 (1 row)
 
 prepare transaction 'tbl_mytab1_locked';
@@ -824,8 +821,9 @@ set statement_timeout to 1000;
        select * from mytab1 order by 1 ;
  val | val2 | val3 
 -----+------+------
+   1 |   11 | 1122
    2 |   11 | 3344
-(1 row)
+(2 rows)
 
 --  2. insert a row (Should pass)
        insert into mytab1 values(123,456);
@@ -835,11 +833,13 @@ set statement_timeout to 1000;
 
 --  3. update a row (Should fail)
        update mytab1 set val2=33 where val = 1;
+ERROR:  canceling statement due to statement timeout
 --  4. delete a row
 --     Newly Inserted (Should pass)
        delete from mytab1 where val2=456;
 --     Previously Inserted (Should fail)
        delete from mytab1 where val=1;
+ERROR:  canceling statement due to statement timeout
 --  5. inherit form it (Should pass)
        create table chld_mytab1(d int, e int) inherits (mytab1);
 --  6. create a view on it (Should pass)
@@ -896,7 +896,7 @@ ERROR:  could not obtain lock on relation "mytab1"
          fetch 1 from c1;
  val | val2 | val3 
 -----+------+------
-   2 |   11 | 3344
+   1 |   11 | 1122
 (1 row)
 
        end;
@@ -904,11 +904,7 @@ ERROR:  could not obtain lock on relation "mytab1"
        begin;
          declare c1 cursor for select * from mytab1 for update nowait;
          fetch 1 from c1;
- val | val2 | val3 
------+------+------
-   2 |   11 | 3344
-(1 row)
-
+ERROR:  could not obtain lock on row in relation "mytab1"
        end;
 -- 14. alter already defined index on it (Should fail)
        ALTER INDEX test_idx RENAME TO mytab1_idx;
@@ -974,7 +970,7 @@ select gid from pg_prepared_xacts where gid = 'pt_1';
 select is_prepared_on_node('pt_1', 1); -- true
  is_prepared_on_node 
 ---------------------
- f
+ t
 (1 row)
 
 commit prepared 'pt_1';
@@ -1003,7 +999,7 @@ select gid from pg_prepared_xacts where gid = 'pt_1';
 select is_prepared_on_node('pt_1', 1); -- true
  is_prepared_on_node 
 ---------------------
- f
+ t
 (1 row)
 
 commit prepared 'pt_1';
@@ -1066,7 +1062,7 @@ select gid from pg_prepared_xacts where gid = 'pt_1';
 select is_prepared_on_node('pt_1', 1); -- true
  is_prepared_on_node 
 ---------------------
- f
+ t
 (1 row)
 
 commit prepared 'pt_1';
@@ -1087,7 +1083,7 @@ select gid from pg_prepared_xacts where gid = 'pt_1';
 select is_prepared_on_node('pt_1', 1); -- true
  is_prepared_on_node 
 ---------------------
- f
+ t
 (1 row)
 
 commit prepared 'pt_1';
@@ -1112,7 +1108,7 @@ select gid from pg_prepared_xacts where gid = 'pt_1';
 select is_prepared_on_node('pt_1', 1); -- true
  is_prepared_on_node 
 ---------------------
- f
+ t
 (1 row)
 
 commit prepared 'pt_1';
@@ -1135,7 +1131,7 @@ select gid from pg_prepared_xacts where gid = 'pt_1';
 select is_prepared_on_node('pt_1', 1); -- true
  is_prepared_on_node 
 ---------------------
- f
+ t
 (1 row)
 
 commit prepared 'pt_1';
@@ -1156,7 +1152,7 @@ select gid from pg_prepared_xacts where gid = 'pt_1';
 select is_prepared_on_node('pt_1', 1); -- true
  is_prepared_on_node 
 ---------------------
- f
+ t
 (1 row)
 
 commit prepared 'pt_1';
@@ -1177,7 +1173,7 @@ select gid from pg_prepared_xacts where gid = 'pt_1';
 select is_prepared_on_node('pt_1', 1); -- true
  is_prepared_on_node 
 ---------------------
- f
+ t
 (1 row)
 
 commit prepared 'pt_1';
@@ -1202,7 +1198,7 @@ select gid from pg_prepared_xacts where gid = 'pt_1';
 select is_prepared_on_node('pt_1', 1); -- true
  is_prepared_on_node 
 ---------------------
- f
+ t
 (1 row)
 
 commit prepared 'pt_1';
@@ -1225,7 +1221,7 @@ select gid from pg_prepared_xacts where gid = 'pt_1';
 select is_prepared_on_node('pt_1', 1); -- true
  is_prepared_on_node 
 ---------------------
- f
+ t
 (1 row)
 
 commit prepared 'pt_1';
@@ -1248,7 +1244,7 @@ select gid from pg_prepared_xacts where gid = 'pt_1';
 select is_prepared_on_node('pt_1', 1); -- true
  is_prepared_on_node 
 ---------------------
- f
+ t
 (1 row)
 
 commit prepared 'pt_1';
@@ -1271,7 +1267,7 @@ select gid from pg_prepared_xacts where gid = 'pt_1';
 select is_prepared_on_node('pt_1', 1); -- true
  is_prepared_on_node 
 ---------------------
- f
+ t
 (1 row)
 
 commit prepared 'pt_1';
@@ -1294,7 +1290,7 @@ select gid from pg_prepared_xacts where gid = 'pt_1';
 select is_prepared_on_node('pt_1', 1); -- true
  is_prepared_on_node 
 ---------------------
- f
+ t
 (1 row)
 
 commit prepared 'pt_1';
@@ -1317,7 +1313,7 @@ select gid from pg_prepared_xacts where gid = 'pt_1';
 select is_prepared_on_node('pt_1', 1); -- true
  is_prepared_on_node 
 ---------------------
- f
+ t
 (1 row)
 
 commit prepared 'pt_1';
@@ -1342,7 +1338,7 @@ select gid from pg_prepared_xacts where gid = 'pt_1';
 select is_prepared_on_node('pt_1', 1); -- true
  is_prepared_on_node 
 ---------------------
- f
+ t
 (1 row)
 
 commit prepared 'pt_1';
@@ -1367,7 +1363,7 @@ select gid from pg_prepared_xacts where gid = 'pt_1';
 select is_prepared_on_node('pt_1', 1); -- true
  is_prepared_on_node 
 ---------------------
- f
+ t
 (1 row)
 
 commit prepared 'pt_1';
@@ -1392,7 +1388,7 @@ select gid from pg_prepared_xacts where gid = 'pt_1';
 select is_prepared_on_node('pt_1', 1); --true
  is_prepared_on_node 
 ---------------------
- f
+ t
 (1 row)
 
 commit prepared 'pt_1';
@@ -1415,7 +1411,7 @@ select gid from pg_prepared_xacts where gid = 'pt_1';
 select is_prepared_on_node('pt_1', 1); -- true
  is_prepared_on_node 
 ---------------------
- f
+ t
 (1 row)
 
 commit prepared 'pt_1';
@@ -1438,7 +1434,7 @@ select gid from pg_prepared_xacts where gid = 'pt_1';
 select is_prepared_on_node('pt_1', 1); -- true
  is_prepared_on_node 
 ---------------------
- f
+ t
 (1 row)
 
 commit prepared 'pt_1';
@@ -1465,7 +1461,7 @@ select gid from pg_prepared_xacts where gid = 'pt_1';
 select is_prepared_on_node('pt_1', 1); -- true
  is_prepared_on_node 
 ---------------------
- f
+ t
 (1 row)
 
 commit prepared 'pt_1';
@@ -1494,7 +1490,7 @@ select gid from pg_prepared_xacts where gid = 'pt_1';
 select is_prepared_on_node('pt_1', 1); -- true
  is_prepared_on_node 
 ---------------------
- f
+ t
 (1 row)
 
 commit prepared 'pt_1';
@@ -1557,7 +1553,7 @@ select gid from pg_prepared_xacts where gid = 'pt_1';
 select is_prepared_on_node('pt_1', 1); -- true
  is_prepared_on_node 
 ---------------------
- f
+ t
 (1 row)
 
 commit prepared 'pt_1';
@@ -1578,7 +1574,7 @@ select gid from pg_prepared_xacts where gid = 'pt_1';
 select is_prepared_on_node('pt_1', 1); -- true
  is_prepared_on_node 
 ---------------------
- f
+ t
 (1 row)
 
 commit prepared 'pt_1';
@@ -1603,7 +1599,7 @@ select gid from pg_prepared_xacts where gid = 'pt_1';
 select is_prepared_on_node('pt_1', 1); -- true
  is_prepared_on_node 
 ---------------------
- f
+ t
 (1 row)
 
 commit prepared 'pt_1';
@@ -1626,7 +1622,7 @@ select gid from pg_prepared_xacts where gid = 'pt_1';
 select is_prepared_on_node('pt_1', 1); -- true
  is_prepared_on_node 
 ---------------------
- f
+ t
 (1 row)
 
 commit prepared 'pt_1';
@@ -1647,7 +1643,7 @@ select gid from pg_prepared_xacts where gid = 'pt_1';
 select is_prepared_on_node('pt_1', 1); -- true
  is_prepared_on_node 
 ---------------------
- f
+ t
 (1 row)
 
 commit prepared 'pt_1';
@@ -1668,7 +1664,7 @@ select gid from pg_prepared_xacts where gid = 'pt_1';
 select is_prepared_on_node('pt_1', 1); -- true
  is_prepared_on_node 
 ---------------------
- f
+ t
 (1 row)
 
 commit prepared 'pt_1';
@@ -1693,7 +1689,7 @@ select gid from pg_prepared_xacts where gid = 'pt_1';
 select is_prepared_on_node('pt_1', 1); -- true
  is_prepared_on_node 
 ---------------------
- f
+ t
 (1 row)
 
 commit prepared 'pt_1';
@@ -1716,7 +1712,7 @@ select gid from pg_prepared_xacts where gid = 'pt_1';
 select is_prepared_on_node('pt_1', 1); -- true
  is_prepared_on_node 
 ---------------------
- f
+ t
 (1 row)
 
 commit prepared 'pt_1';
@@ -1739,7 +1735,7 @@ select gid from pg_prepared_xacts where gid = 'pt_1';
 select is_prepared_on_node('pt_1', 1); -- true
  is_prepared_on_node 
 ---------------------
- f
+ t
 (1 row)
 
 commit prepared 'pt_1';
@@ -1762,7 +1758,7 @@ select gid from pg_prepared_xacts where gid = 'pt_1';
 select is_prepared_on_node('pt_1', 1); -- true
  is_prepared_on_node 
 ---------------------
- f
+ t
 (1 row)
 
 commit prepared 'pt_1';
@@ -1785,7 +1781,7 @@ select gid from pg_prepared_xacts where gid = 'pt_1';
 select is_prepared_on_node('pt_1', 1); -- true
  is_prepared_on_node 
 ---------------------
- f
+ t
 (1 row)
 
 commit prepared 'pt_1';
@@ -1808,7 +1804,7 @@ select gid from pg_prepared_xacts where gid = 'pt_1';
 select is_prepared_on_node('pt_1', 1); -- true
  is_prepared_on_node 
 ---------------------
- f
+ t
 (1 row)
 
 commit prepared 'pt_1';
@@ -1833,7 +1829,7 @@ select gid from pg_prepared_xacts where gid = 'pt_1';
 select is_prepared_on_node('pt_1', 1); -- true
  is_prepared_on_node 
 ---------------------
- f
+ t
 (1 row)
 
 commit prepared 'pt_1';
@@ -1858,7 +1854,7 @@ select gid from pg_prepared_xacts where gid = 'pt_1';
 select is_prepared_on_node('pt_1', 1); -- true
  is_prepared_on_node 
 ---------------------
- f
+ t
 (1 row)
 
 commit prepared 'pt_1';
@@ -1883,7 +1879,7 @@ select gid from pg_prepared_xacts where gid = 'pt_1';
 select is_prepared_on_node('pt_1', 1); --true
  is_prepared_on_node 
 ---------------------
- f
+ t
 (1 row)
 
 commit prepared 'pt_1';
@@ -1906,7 +1902,7 @@ select gid from pg_prepared_xacts where gid = 'pt_1';
 select is_prepared_on_node('pt_1', 1); -- true
  is_prepared_on_node 
 ---------------------
- f
+ t
 (1 row)
 
 commit prepared 'pt_1';
@@ -1929,7 +1925,7 @@ select gid from pg_prepared_xacts where gid = 'pt_1';
 select is_prepared_on_node('pt_1', 1); -- true
  is_prepared_on_node 
 ---------------------
- f
+ t
 (1 row)
 
 commit prepared 'pt_1';
@@ -1945,9 +1941,295 @@ execute my_plan(1);
 (1 row)
 
 -- ****  
+drop table if exists test_rr_for_update_share_shard_1 cascade;
+NOTICE:  table "test_rr_for_update_share_shard_1" does not exist, skipping
+create table test_rr_for_update_share_shard_1 (id int, ename varchar, address text, score float, dt date, pt timestamp, creation_date timestamp default current_timestamp, primary key(id, ename));
+insert into test_rr_for_update_share_shard_1 select i, 'opentenbase'||i%2000, '深圳'||i%20, i, date'2020-01-01'+i*interval '1 hour', timestamp'2020-01-01 09:00:00'+i*interval '1 second' from generate_series(1, 10000) i;
+drop table if exists test_rr_for_update_share_replication_1 cascade;
+NOTICE:  table "test_rr_for_update_share_replication_1" does not exist, skipping
+create table test_rr_for_update_share_replication_1(id int, ename varchar, address text, score float, dt date, pt timestamp, creation_date timestamp default current_timestamp) distribute by replication;
+insert into test_rr_for_update_share_replication_1 select i, 'opentenbase'||i%2000, '深圳'||i%20, i, date'2020-01-01'+i*interval '1 hour', timestamp'2020-01-01 09:00:00'+i*interval '1 second' from generate_series(100, 5000) i;
+drop table if exists test_rr_for_update_share_multi_shard_1 cascade;
+NOTICE:  table "test_rr_for_update_share_multi_shard_1" does not exist, skipping
+create table test_rr_for_update_share_multi_shard_1(id int, ename varchar, address text, score float, dt date, pt timestamp, creation_date timestamp default current_timestamp) distribute by shard(id,ename,pt);
+insert into test_rr_for_update_share_multi_shard_1 select i, 'opentenbase'||i%2000, '深圳'||i%20, i, date'2020-01-01'+i*interval '1 hour', timestamp'2020-01-01 09:00:00'+i*interval '1 second' from generate_series(200, 20000) i;
+drop table if exists test_rr_for_update_share_par_hash_1 cascade;
+NOTICE:  table "test_rr_for_update_share_par_hash_1" does not exist, skipping
+create table test_rr_for_update_share_par_hash_1(id int, ename varchar, address text, score float, dt date, pt timestamp, creation_date timestamp default current_timestamp) partition by hash(pt) distribute by shard(id,ename,pt);
+create table test_rr_for_update_share_par_hash_1_part_0 partition of test_rr_for_update_share_par_hash_1 for values with (modulus 5, remainder 0);
+create table test_rr_for_update_share_par_hash_1_part_1 partition of test_rr_for_update_share_par_hash_1 for values with (modulus 5, remainder 1);
+create table test_rr_for_update_share_par_hash_1_part_2 partition of test_rr_for_update_share_par_hash_1 for values with (modulus 5, remainder 2);
+create table test_rr_for_update_share_par_hash_1_part_3 partition of test_rr_for_update_share_par_hash_1 for values with (modulus 5, remainder 3);
+create table test_rr_for_update_share_par_hash_1_part_4 partition of test_rr_for_update_share_par_hash_1 for values with (modulus 5, remainder 4);
+insert into test_rr_for_update_share_par_hash_1 select i, 'opentenbase'||i%2000, '深圳'||i%20, i, date'2020-01-01'+i*interval '1 hour', timestamp'2020-01-01 09:00:00'+i*interval '1 second' from generate_series(100, 22000) i;
+ -- error 2 for update
+ with cte_sub1 as (
+ select * from test_rr_for_update_share_multi_shard_1 where score <= 100 for update
+ ), cte_sub2 as (
+ select * from test_rr_for_update_share_par_hash_1 where id <= 500 for update
+ ) select count(1) from cte_sub1, cte_sub2 where cte_sub1.id = cte_sub2.id;
+ERROR:  There are multiple writable fragments
+-- ok for update
+ with cte_sub1 as (
+ select * from test_rr_for_update_share_multi_shard_1 where score <= 100
+ ), cte_sub2 as (
+ select * from test_rr_for_update_share_par_hash_1 where id <= 500 for update
+ ) select count(1) from cte_sub1, cte_sub2 where cte_sub1.id = cte_sub2.id;
+ count 
+-------
+     0
+(1 row)
+
+-- ok update with for update
+update test_rr_for_update_share_multi_shard_1 t1 set address=(select address from test_rr_for_update_share_par_hash_1 t2 where t1.id=t2.id for update) where id<=200;
+ERROR:  There are multiple writable fragments
 -- drop objects created
+drop table if exists test_rr_for_update_share_shard_1 cascade;
+drop table if exists test_rr_for_update_share_replication_1 cascade;
+drop table if exists test_rr_for_update_share_multi_shard_1 cascade;
+drop table if exists test_rr_for_update_share_par_hash_1 cascade;
 drop table c1;
 drop table p1;
 drop table t1;
 drop table t2;
 drop table t3;
+drop table if exists test_for_update_replication_1 cascade;
+NOTICE:  table "test_for_update_replication_1" does not exist, skipping
+create table test_for_update_replication_1(id int, ename varchar, address text, score float, dt date, pt timestamp, creation_date timestamp default current_timestamp) distribute by replication;
+insert into test_for_update_replication_1 select i, 'opentenbase'||i%2000, '深圳'||i%20, i, date'2020-01-01'+i*interval '1 hour', timestamp'2020-01-01 09:00:00'+i*interval '1 second' from generate_series(100, 105) i;
+-- expected send all dn
+explain select id,ename from test_for_update_replication_1 where id=100 for update;
+                                         QUERY PLAN                                          
+---------------------------------------------------------------------------------------------
+ Remote Fast Query Execution
+   Node/s: datanode_1, datanode_2
+   ->  LockRows  (cost=0.00..22.38 rows=550 width=46)
+         ->  Seq Scan on test_for_update_replication_1  (cost=0.00..16.88 rows=550 width=46)
+               Filter: (id = 100)
+(5 rows)
+
+select id,ename from test_for_update_replication_1 where id=100 for update;
+ id  |     ename      
+-----+----------------
+ 100 | opentenbase100
+(1 row)
+
+create table test_replication_2 (id int, ename varchar, address text, score float, dt date, pt timestamp, creation_date timestamp default current_timestamp) distribute by replication;
+insert into test_replication_2 select i, 'opentenbase'||i%2000, '深圳'||i%20, i, date'2020-01-01'+i*interval '1 hour', timestamp'2020-01-01 09:00:00'+i*interval '1 second' from generate_series(100, 103) i;
+select ename,sum(score) from test_replication_2 t1 where exists (select 1 from (select * from test_for_update_replication_1 for update) t2 where t1.id=t2.id) group by ename order by 1;
+     ename      | sum 
+----------------+-----
+ opentenbase100 | 100
+ opentenbase101 | 101
+ opentenbase102 | 102
+ opentenbase103 | 103
+(4 rows)
+
+create table test_shard_1(id int, ename varchar, address text, score float, dt date, pt timestamp, creation_date timestamp default current_timestamp) distribute by shard(id);
+insert into test_shard_1 select i, 'opentenbase'||i%2000, '深圳'||i%20, i, date'2020-01-01'+i*interval '1 hour', timestamp'2020-01-01 09:00:00'+i*interval '1 second' from generate_series(100, 103) i;
+select ename,sum(score) from test_shard_1 t1 where exists (select 1 from (select * from test_for_update_replication_1 for update) t2 where t1.id=t2.id) group by ename order by 1;
+     ename      | sum 
+----------------+-----
+ opentenbase100 | 100
+ opentenbase101 | 101
+ opentenbase102 | 102
+ opentenbase103 | 103
+(4 rows)
+
+drop table test_for_update_replication_1;
+drop table test_replication_2;
+drop table test_shard_1;
+drop table if exists test_replication_union;
+NOTICE:  table "test_replication_union" does not exist, skipping
+create table test_replication_union(a int, b varchar(30)) distribute by replication;
+insert into test_replication_union values(1, 'xxx');
+insert into test_replication_union values(2, 'yyy');
+select b from (select b from test_replication_union for update) union select b from test_replication_union order by 1;
+  b  
+-----
+ xxx
+ yyy
+(2 rows)
+
+select b from test_replication_union union select b from  (select b from test_replication_union for update) order by 1;
+  b  
+-----
+ xxx
+ yyy
+(2 rows)
+
+select b from (select b from test_replication_union for update) union all select b from test_replication_union order by 1;
+  b  
+-----
+ xxx
+ xxx
+ yyy
+ yyy
+(4 rows)
+
+select b from test_replication_union union all select b from  (select b from test_replication_union for update) order by 1;
+  b  
+-----
+ xxx
+ xxx
+ yyy
+ yyy
+(4 rows)
+
+select b from (select b from test_replication_union for update) intersect select b from test_replication_union order by 1;
+  b  
+-----
+ xxx
+ yyy
+(2 rows)
+
+select b from test_replication_union intersect select b from  (select b from test_replication_union for update) order by 1;
+  b  
+-----
+ xxx
+ yyy
+(2 rows)
+
+create table test_shard_union(a int, b varchar(30)) distribute by shard(a);
+insert into test_shard_union values(1, 'aaa');
+insert into test_shard_union values(2, 'bbb');
+select b from (select b from test_shard_union for update) union select b from test_replication_union order by 1;
+  b  
+-----
+ aaa
+ bbb
+ xxx
+ yyy
+(4 rows)
+
+select b from test_shard_union union select b from  (select b from test_replication_union for update) order by 1;
+  b  
+-----
+ aaa
+ bbb
+ xxx
+ yyy
+(4 rows)
+
+select b from (select b from test_shard_union for update) union all select b from test_replication_union order by 1;
+  b  
+-----
+ aaa
+ bbb
+ xxx
+ yyy
+(4 rows)
+
+select b from test_shard_union union all select b from  (select b from test_replication_union for update) order by 1;
+  b  
+-----
+ aaa
+ bbb
+ xxx
+ yyy
+(4 rows)
+
+select b from (select b from test_shard_union for update) intersect select b from test_replication_union order by 1;
+ b 
+---
+(0 rows)
+
+select b from test_shard_union intersect select b from  (select b from test_replication_union for update) order by 1;
+ b 
+---
+(0 rows)
+
+drop table test_replication_union;
+drop table test_shard_union;
+drop table if exists t_student_20221113;
+NOTICE:  table "t_student_20221113" does not exist, skipping
+create table t_student_20221113(id int primary key, name varchar(20), age int, sex int, point int) distribute by replication;
+insert into t_student_20221113 values(1, '张三', 15, 1, 93);
+insert into t_student_20221113 values(2, '李四', 20, 2, 90);
+insert into t_student_20221113 values(3, '王五', 19, 2, 85);
+insert into t_student_20221113 values(4, '李六', 30, 1, 73);
+insert into t_student_20221113 values(5, '李六', 20, 1, 88);
+insert into t_student_20221113 values(6, '赵六', 19, 2, 63);
+explain select * from t_student_20221113 order by id offset 2 rows fetch next 2 rows only for update;
+                                                       QUERY PLAN                                                       
+------------------------------------------------------------------------------------------------------------------------
+ Remote Fast Query Execution
+   Node/s: datanode_1, datanode_2
+   ->  Limit  (cost=0.35..0.55 rows=2 width=84)
+         ->  LockRows  (cost=0.15..64.15 rows=640 width=84)
+               ->  Index Scan using t_student_20221113_pkey on t_student_20221113  (cost=0.15..57.75 rows=640 width=84)
+(5 rows)
+
+select * from t_student_20221113 order by id offset 2 rows fetch next 2 rows only for update;
+ id | name | age | sex | point 
+----+------+-----+-----+-------
+  3 | 王五 |  19 |   2 |    85
+  4 | 李六 |  30 |   1 |    73
+(2 rows)
+
+drop table t_student_20221113;
+drop table if exists subselect_tbl;
+CREATE TABLE subselect_tbl (f1 integer,f2 integer,f3 float) distribute by replication;
+INSERT INTO subselect_tbl VALUES (1, 2, 3);
+INSERT INTO subselect_tbl VALUES (2, 3, 4);
+INSERT INTO subselect_tbl VALUES (3, 4, 5);
+INSERT INTO subselect_tbl VALUES (1, 1, 1);
+INSERT INTO subselect_tbl VALUES (2, 2, 2);
+INSERT INTO subselect_tbl VALUES (3, 3, 3);
+INSERT INTO subselect_tbl VALUES (6, 7, 8);
+INSERT INTO subselect_tbl VALUES (8, 9, NULL);
+explain (verbose, costs off,nodes off)
+with x as (select * from (select f1 from subselect_tbl for update) ss)
+select * from x where f1 = 1;
+                                             QUERY PLAN                                             
+----------------------------------------------------------------------------------------------------
+ CTE Scan on x
+   Output: x.f1
+   Filter: (x.f1 = 1)
+   CTE x
+     ->  Remote Subquery Scan[1] on all (datanodes 2)
+           Output: ss.f1
+           ->  Subquery Scan on ss
+                 Output: ss.f1
+                 ->  LockRows
+                       Output: subselect_tbl.f1, subselect_tbl.ctid, subselect_tbl.xc_node_id
+                       ->  Seq Scan on public.subselect_tbl
+                             Output: subselect_tbl.f1, subselect_tbl.ctid, subselect_tbl.xc_node_id
+(12 rows)
+
+with x as (select * from (select f1 from subselect_tbl for update) ss)
+select * from x where f1 = 1;
+ f1 
+----
+  1
+  1
+(2 rows)
+
+explain (verbose, costs off,nodes off)
+with x as (select * from subselect_tbl order by 1,2) select * from x for update;
+                                                                                       QUERY PLAN                                                                                       
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Remote Fast Query Execution
+   Output: x.f1, x.f2, x.f3
+   Remote query: WITH x AS (SELECT subselect_tbl.f1, subselect_tbl.f2, subselect_tbl.f3 FROM public.subselect_tbl ORDER BY subselect_tbl.f1, subselect_tbl.f2) SELECT f1, f2, f3 FROM x
+   ->  Sort
+         Output: subselect_tbl.f1, subselect_tbl.f2, subselect_tbl.f3
+         Sort Key: subselect_tbl.f1, subselect_tbl.f2
+         ->  Seq Scan on public.subselect_tbl
+               Output: subselect_tbl.f1, subselect_tbl.f2, subselect_tbl.f3
+(8 rows)
+
+with x as (select * from subselect_tbl order by 1,2) select * from x for update;
+ f1 | f2 | f3 
+----+----+----
+  1 |  1 |  1
+  1 |  2 |  3
+  2 |  2 |  2
+  2 |  3 |  4
+  3 |  3 |  3
+  3 |  4 |  5
+  6 |  7 |  8
+  8 |  9 |   
+(8 rows)
+
+drop table subselect_tbl;

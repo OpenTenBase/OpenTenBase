@@ -1,0 +1,1241 @@
+-- Tests for package DBMS_METADATA
+create table mtbl(a int);
+select dbms_metadata.get_ddl('TABLE', '');
+                        get_ddl                         
+--------------------------------------------------------
+ --                                                    +
+ -- PostgreSQL database dump                           +
+ --                                                    +
+                                                       +
+ -- Dumped by pg_dump version 10.0 OpenTenBase V5            +
+                                                       +
+ SET statement_timeout = 0;                            +
+ SET lock_timeout = 0;                                 +
+ SET idle_in_transaction_session_timeout = 0;          +
+ SET client_encoding = 'UTF8';                         +
+ SET standard_conforming_strings = off;                +
+ SET check_function_bodies = false;                    +
+ SET client_min_messages = warning;                    +
+ SET escape_string_warning = off;                      +
+ SET row_security = on;                                +
+                                                       +
+ SET SESSION AUTHORIZATION 'teg';                      +
+                                                       +
+ SET search_path = public, pg_catalog;                 +
+                                                       +
+ SET default_with_oids = false;                        +
+                                                       +
+ --                                                    +
+ -- Name: mtbl; Type: TABLE; Schema: public; Owner: teg+
+ --                                                    +
+                                                       +
+ CREATE TABLE mtbl (                                   +
+     a integer                                         +
+ );                                                    +
+                                                       +
+                                                       +
+ 
+(1 row)
+
+select dbms_metadata.get_ddl('TABLE', '', 'public');
+                        get_ddl                         
+--------------------------------------------------------
+ --                                                    +
+ -- PostgreSQL database dump                           +
+ --                                                    +
+                                                       +
+ -- Dumped by pg_dump version 10.0 OpenTenBase V5            +
+                                                       +
+ SET statement_timeout = 0;                            +
+ SET lock_timeout = 0;                                 +
+ SET idle_in_transaction_session_timeout = 0;          +
+ SET client_encoding = 'UTF8';                         +
+ SET standard_conforming_strings = off;                +
+ SET check_function_bodies = false;                    +
+ SET client_min_messages = warning;                    +
+ SET escape_string_warning = off;                      +
+ SET row_security = on;                                +
+                                                       +
+ SET SESSION AUTHORIZATION 'teg';                      +
+                                                       +
+ SET search_path = public, pg_catalog;                 +
+                                                       +
+ SET default_with_oids = false;                        +
+                                                       +
+ --                                                    +
+ -- Name: mtbl; Type: TABLE; Schema: public; Owner: teg+
+ --                                                    +
+                                                       +
+ CREATE TABLE mtbl (                                   +
+     a integer                                         +
+ );                                                    +
+                                                       +
+                                                       +
+ 
+(1 row)
+
+select dbms_metadata.get_ddl('TABLE', '', 'pgxzm_oss');
+ERROR:  no matching schemas were found for pattern "pgxzm_oss"
+
+-- create type/table/function
+create type public.my_test_type as (cf1 text, cf2 text);
+create table public.my_test_table1(col1 integer, col2 text, col3 integer);
+create table public.my_test_table2(col_1 integer, col_2 text, col_3 integer);
+CREATE OR REPLACE FUNCTION my_test_func_add(aa int, bb int) RETURNS int AS $$
+DECLARE
+	cnt int;
+BEGIN
+	cnt = aa + bb;
+	raise notice 'count=%', cnt;
+	return cnt;
+END;
+$$ LANGUAGE plpgsql;
+CREATE OR REPLACE FUNCTION my_test_func_add(aa text, bb text) RETURNS text AS $$
+DECLARE
+	res text;
+BEGIN
+	res =  aa || bb;
+	raise notice 'count=%', res;
+	return res;
+END;
+$$ LANGUAGE plpgsql;
+-- create schema type/table/function
+CREATE SCHEMA IF NOT EXISTS pgxzm_oss;
+set search_path=pgxzm_oss;
+select current_schema();
+ current_schema 
+----------------
+ pgxzm_oss
+(1 row)
+
+create type pgxzm_oss.my_test_type as (cf1 int, cf2 int);
+create table pgxzm_oss.my_test_table1(col1 integer, col2 text, col3 integer);
+create table pgxzm_oss.my_test_table2(col_1 integer, col_2 text, col_3 integer);
+CREATE OR REPLACE FUNCTION my_test_func_add(aa int, bb int) RETURNS int AS $$
+DECLARE
+	cnt int;
+BEGIN
+	cnt = aa + bb;
+	raise notice 'count=%', cnt;
+	return cnt;
+END;
+$$ LANGUAGE plpgsql;
+CREATE OR REPLACE FUNCTION my_test_func_add(aa text, bb text) RETURNS text AS $$
+DECLARE
+	res text;
+BEGIN
+	res =  aa || bb;
+	raise notice 'count=%', res;
+	return res;
+END;
+$$ LANGUAGE plpgsql;
+-----------
+select typname, n.nspname from pg_type t, pg_namespace n where typname like 'my_test%' and t.typnamespace=n.oid order by typnamespace, typname, t.oid;
+    typname     |  nspname  
+----------------+-----------
+ my_test_table1 | public
+ my_test_table2 | public
+ my_test_type   | public
+ my_test_table1 | pgxzm_oss
+ my_test_table2 | pgxzm_oss
+ my_test_type   | pgxzm_oss
+(6 rows)
+
+select relname, n.nspname from pg_class c, pg_namespace n where relname like 'my_test%' and c.relnamespace=n.oid order by relnamespace, relname, c.oid;
+    relname     |  nspname  
+----------------+-----------
+ my_test_table1 | public
+ my_test_table2 | public
+ my_test_type   | public
+ my_test_table1 | pgxzm_oss
+ my_test_table2 | pgxzm_oss
+ my_test_type   | pgxzm_oss
+(6 rows)
+
+select proname, n.nspname from pg_proc p, pg_namespace n where proname like 'my_test%' and p.pronamespace=n.oid order by pronamespace, proname, p.oid;
+     proname      |  nspname  
+------------------+-----------
+ my_test_func_add | public
+ my_test_func_add | public
+ my_test_func_add | pgxzm_oss
+ my_test_func_add | pgxzm_oss
+(4 rows)
+
+--test 
+select current_schema();
+ current_schema 
+----------------
+ pgxzm_oss
+(1 row)
+
+select dbms_metadata.get_ddl('TYPE', 'my_test_type');
+                             get_ddl                              
+------------------------------------------------------------------
+ --                                                              +
+ -- PostgreSQL database dump                                     +
+ --                                                              +
+                                                                 +
+ -- Dumped by pg_dump version 10.0 OpenTenBase V5                      +
+                                                                 +
+ SET statement_timeout = 0;                                      +
+ SET lock_timeout = 0;                                           +
+ SET idle_in_transaction_session_timeout = 0;                    +
+ SET client_encoding = 'UTF8';                                   +
+ SET standard_conforming_strings = off;                          +
+ SET check_function_bodies = false;                              +
+ SET client_min_messages = warning;                              +
+ SET escape_string_warning = off;                                +
+ SET row_security = on;                                          +
+                                                                 +
+ SET SESSION AUTHORIZATION 'teg';                                +
+                                                                 +
+ SET search_path = pgxzm_oss, pg_catalog;                        +
+                                                                 +
+ --                                                              +
+ -- Name: my_test_type; Type: TYPE; Schema: pgxzm_oss; Owner: teg+
+ --                                                              +
+                                                                 +
+ CREATE TYPE my_test_type AS (                                   +
+         cf1 integer,                                            +
+         cf2 integer                                             +
+ );                                                              +
+                                                                 +
+                                                                 +
+ 
+(1 row)
+
+select dbms_metadata.get_ddl('TYPE', 'my_test_type', 'public');
+                            get_ddl                            
+---------------------------------------------------------------
+ --                                                           +
+ -- PostgreSQL database dump                                  +
+ --                                                           +
+                                                              +
+ -- Dumped by pg_dump version 10.0 OpenTenBase V5                   +
+                                                              +
+ SET statement_timeout = 0;                                   +
+ SET lock_timeout = 0;                                        +
+ SET idle_in_transaction_session_timeout = 0;                 +
+ SET client_encoding = 'UTF8';                                +
+ SET standard_conforming_strings = off;                       +
+ SET check_function_bodies = false;                           +
+ SET client_min_messages = warning;                           +
+ SET escape_string_warning = off;                             +
+ SET row_security = on;                                       +
+                                                              +
+ SET SESSION AUTHORIZATION 'teg';                             +
+                                                              +
+ SET search_path = public, pg_catalog;                        +
+                                                              +
+ --                                                           +
+ -- Name: my_test_type; Type: TYPE; Schema: public; Owner: teg+
+ --                                                           +
+                                                              +
+ CREATE TYPE my_test_type AS (                                +
+         cf1 text,                                            +
+         cf2 text                                             +
+ );                                                           +
+                                                              +
+                                                              +
+ 
+(1 row)
+
+select dbms_metadata.get_ddl('TABLE', 'my_test_table1');
+                               get_ddl                               
+---------------------------------------------------------------------
+ --                                                                 +
+ -- PostgreSQL database dump                                        +
+ --                                                                 +
+                                                                    +
+ -- Dumped by pg_dump version 10.0 OpenTenBase V5                         +
+                                                                    +
+ SET statement_timeout = 0;                                         +
+ SET lock_timeout = 0;                                              +
+ SET idle_in_transaction_session_timeout = 0;                       +
+ SET client_encoding = 'UTF8';                                      +
+ SET standard_conforming_strings = off;                             +
+ SET check_function_bodies = false;                                 +
+ SET client_min_messages = warning;                                 +
+ SET escape_string_warning = off;                                   +
+ SET row_security = on;                                             +
+                                                                    +
+ SET SESSION AUTHORIZATION 'teg';                                   +
+                                                                    +
+ SET search_path = pgxzm_oss, pg_catalog;                           +
+                                                                    +
+ SET default_with_oids = false;                                     +
+                                                                    +
+ --                                                                 +
+ -- Name: my_test_table1; Type: TABLE; Schema: pgxzm_oss; Owner: teg+
+ --                                                                 +
+                                                                    +
+ CREATE TABLE my_test_table1 (                                      +
+     col1 integer,                                                  +
+     col2 text,                                                     +
+     col3 integer                                                   +
+ );                                                                 +
+                                                                    +
+                                                                    +
+ 
+(1 row)
+
+select dbms_metadata.get_ddl('TABLE', '');
+                               get_ddl                               
+---------------------------------------------------------------------
+ --                                                                 +
+ -- PostgreSQL database dump                                        +
+ --                                                                 +
+                                                                    +
+ -- Dumped by pg_dump version 10.0 OpenTenBase V5                         +
+                                                                    +
+ SET statement_timeout = 0;                                         +
+ SET lock_timeout = 0;                                              +
+ SET idle_in_transaction_session_timeout = 0;                       +
+ SET client_encoding = 'UTF8';                                      +
+ SET standard_conforming_strings = off;                             +
+ SET check_function_bodies = false;                                 +
+ SET client_min_messages = warning;                                 +
+ SET escape_string_warning = off;                                   +
+ SET row_security = on;                                             +
+                                                                    +
+ SET SESSION AUTHORIZATION 'teg';                                   +
+                                                                    +
+ --                                                                 +
+ -- Name: pgxzm_oss; Type: SCHEMA; Schema: -; Owner: teg            +
+ --                                                                 +
+                                                                    +
+ CREATE SCHEMA pgxzm_oss;                                           +
+                                                                    +
+                                                                    +
+ SET search_path = pgxzm_oss, pg_catalog;                           +
+                                                                    +
+ SET default_with_oids = false;                                     +
+                                                                    +
+ --                                                                 +
+ -- Name: my_test_table1; Type: TABLE; Schema: pgxzm_oss; Owner: teg+
+ --                                                                 +
+                                                                    +
+ CREATE TABLE my_test_table1 (                                      +
+     col1 integer,                                                  +
+     col2 text,                                                     +
+     col3 integer                                                   +
+ );                                                                 +
+                                                                    +
+                                                                    +
+ --                                                                 +
+ -- Name: my_test_table2; Type: TABLE; Schema: pgxzm_oss; Owner: teg+
+ --                                                                 +
+                                                                    +
+ CREATE TABLE my_test_table2 (                                      +
+     col_1 integer,                                                 +
+     col_2 text,                                                    +
+     col_3 integer                                                  +
+ );                                                                 +
+                                                                    +
+                                                                    +
+ 
+(1 row)
+
+select dbms_metadata.get_ddl('TABLE', 'my_test_table1', 'public');
+                             get_ddl                              
+------------------------------------------------------------------
+ --                                                              +
+ -- PostgreSQL database dump                                     +
+ --                                                              +
+                                                                 +
+ -- Dumped by pg_dump version 10.0 OpenTenBase V5                      +
+                                                                 +
+ SET statement_timeout = 0;                                      +
+ SET lock_timeout = 0;                                           +
+ SET idle_in_transaction_session_timeout = 0;                    +
+ SET client_encoding = 'UTF8';                                   +
+ SET standard_conforming_strings = off;                          +
+ SET check_function_bodies = false;                              +
+ SET client_min_messages = warning;                              +
+ SET escape_string_warning = off;                                +
+ SET row_security = on;                                          +
+                                                                 +
+ SET SESSION AUTHORIZATION 'teg';                                +
+                                                                 +
+ SET search_path = public, pg_catalog;                           +
+                                                                 +
+ SET default_with_oids = false;                                  +
+                                                                 +
+ --                                                              +
+ -- Name: my_test_table1; Type: TABLE; Schema: public; Owner: teg+
+ --                                                              +
+                                                                 +
+ CREATE TABLE my_test_table1 (                                   +
+     col1 integer,                                               +
+     col2 text,                                                  +
+     col3 integer                                                +
+ );                                                              +
+                                                                 +
+                                                                 +
+ 
+(1 row)
+
+select dbms_metadata.get_ddl('TABLE', '', 'public');
+                             get_ddl                              
+------------------------------------------------------------------
+ --                                                              +
+ -- PostgreSQL database dump                                     +
+ --                                                              +
+                                                                 +
+ -- Dumped by pg_dump version 10.0 OpenTenBase V5                      +
+                                                                 +
+ SET statement_timeout = 0;                                      +
+ SET lock_timeout = 0;                                           +
+ SET idle_in_transaction_session_timeout = 0;                    +
+ SET client_encoding = 'UTF8';                                   +
+ SET standard_conforming_strings = off;                          +
+ SET check_function_bodies = false;                              +
+ SET client_min_messages = warning;                              +
+ SET escape_string_warning = off;                                +
+ SET row_security = on;                                          +
+                                                                 +
+ SET SESSION AUTHORIZATION 'teg';                                +
+                                                                 +
+ SET search_path = public, pg_catalog;                           +
+                                                                 +
+ SET default_with_oids = false;                                  +
+                                                                 +
+ --                                                              +
+ -- Name: mtbl; Type: TABLE; Schema: public; Owner: teg          +
+ --                                                              +
+                                                                 +
+ CREATE TABLE mtbl (                                             +
+     a integer                                                   +
+ );                                                              +
+                                                                 +
+                                                                 +
+ --                                                              +
+ -- Name: my_test_table1; Type: TABLE; Schema: public; Owner: teg+
+ --                                                              +
+                                                                 +
+ CREATE TABLE my_test_table1 (                                   +
+     col1 integer,                                               +
+     col2 text,                                                  +
+     col3 integer                                                +
+ );                                                              +
+                                                                 +
+                                                                 +
+ --                                                              +
+ -- Name: my_test_table2; Type: TABLE; Schema: public; Owner: teg+
+ --                                                              +
+                                                                 +
+ CREATE TABLE my_test_table2 (                                   +
+     col_1 integer,                                              +
+     col_2 text,                                                 +
+     col_3 integer                                               +
+ );                                                              +
+                                                                 +
+                                                                 +
+ 
+(1 row)
+
+select dbms_metadata.get_ddl('FUNCTION', 'my_test_func_add');
+                                          get_ddl                                           
+--------------------------------------------------------------------------------------------
+ --                                                                                        +
+ -- PostgreSQL database dump                                                               +
+ --                                                                                        +
+                                                                                           +
+ -- Dumped by pg_dump version 10.0 OpenTenBase V5                                                +
+                                                                                           +
+ SET statement_timeout = 0;                                                                +
+ SET lock_timeout = 0;                                                                     +
+ SET idle_in_transaction_session_timeout = 0;                                              +
+ SET client_encoding = 'UTF8';                                                             +
+ SET standard_conforming_strings = off;                                                    +
+ SET check_function_bodies = false;                                                        +
+ SET client_min_messages = warning;                                                        +
+ SET escape_string_warning = off;                                                          +
+ SET row_security = on;                                                                    +
+                                                                                           +
+ SET SESSION AUTHORIZATION 'teg';                                                          +
+                                                                                           +
+ SET search_path = pgxzm_oss, pg_catalog;                                                  +
+                                                                                           +
+ --                                                                                        +
+ -- Name: my_test_func_add(integer, integer); Type: FUNCTION; Schema: pgxzm_oss; Owner: teg+
+ --                                                                                        +
+                                                                                           +
+ CREATE FUNCTION my_test_func_add(aa integer, bb integer) RETURNS integer                  +
+     LANGUAGE plpgsql                                                                      +
+     AS '                                                                                  +
+ DECLARE                                                                                   +
+         cnt int;                                                                          +
+ BEGIN                                                                                     +
+         cnt = aa + bb;                                                                    +
+         raise notice ''count=%'', cnt;                                                    +
+         return cnt;                                                                       +
+ END;                                                                                      +
+ ';                                                                                        +
+                                                                                           +
+                                                                                           +
+ --                                                                                        +
+ -- Name: my_test_func_add(text, text); Type: FUNCTION; Schema: pgxzm_oss; Owner: teg      +
+ --                                                                                        +
+                                                                                           +
+ CREATE FUNCTION my_test_func_add(aa text, bb text) RETURNS text                           +
+     LANGUAGE plpgsql                                                                      +
+     AS '                                                                                  +
+ DECLARE                                                                                   +
+         res text;                                                                         +
+ BEGIN                                                                                     +
+         res =  aa || bb;                                                                  +
+         raise notice ''count=%'', res;                                                    +
+         return res;                                                                       +
+ END;                                                                                      +
+ ';                                                                                        +
+                                                                                           +
+                                                                                           +
+ 
+(1 row)
+
+select dbms_metadata.get_ddl('FUNCTION', '');
+                                          get_ddl                                           
+--------------------------------------------------------------------------------------------
+ --                                                                                        +
+ -- PostgreSQL database dump                                                               +
+ --                                                                                        +
+                                                                                           +
+ -- Dumped by pg_dump version 10.0 OpenTenBase V5                                                +
+                                                                                           +
+ SET statement_timeout = 0;                                                                +
+ SET lock_timeout = 0;                                                                     +
+ SET idle_in_transaction_session_timeout = 0;                                              +
+ SET client_encoding = 'UTF8';                                                             +
+ SET standard_conforming_strings = off;                                                    +
+ SET check_function_bodies = false;                                                        +
+ SET client_min_messages = warning;                                                        +
+ SET escape_string_warning = off;                                                          +
+ SET row_security = on;                                                                    +
+                                                                                           +
+ SET SESSION AUTHORIZATION 'teg';                                                          +
+                                                                                           +
+ --                                                                                        +
+ -- Name: pgxzm_oss; Type: SCHEMA; Schema: -; Owner: teg                                   +
+ --                                                                                        +
+                                                                                           +
+ CREATE SCHEMA pgxzm_oss;                                                                  +
+                                                                                           +
+                                                                                           +
+ SET search_path = pgxzm_oss, pg_catalog;                                                  +
+                                                                                           +
+ --                                                                                        +
+ -- Name: my_test_func_add(integer, integer); Type: FUNCTION; Schema: pgxzm_oss; Owner: teg+
+ --                                                                                        +
+                                                                                           +
+ CREATE FUNCTION my_test_func_add(aa integer, bb integer) RETURNS integer                  +
+     LANGUAGE plpgsql                                                                      +
+     AS '                                                                                  +
+ DECLARE                                                                                   +
+         cnt int;                                                                          +
+ BEGIN                                                                                     +
+         cnt = aa + bb;                                                                    +
+         raise notice ''count=%'', cnt;                                                    +
+         return cnt;                                                                       +
+ END;                                                                                      +
+ ';                                                                                        +
+                                                                                           +
+                                                                                           +
+ --                                                                                        +
+ -- Name: my_test_func_add(text, text); Type: FUNCTION; Schema: pgxzm_oss; Owner: teg      +
+ --                                                                                        +
+                                                                                           +
+ CREATE FUNCTION my_test_func_add(aa text, bb text) RETURNS text                           +
+     LANGUAGE plpgsql                                                                      +
+     AS '                                                                                  +
+ DECLARE                                                                                   +
+         res text;                                                                         +
+ BEGIN                                                                                     +
+         res =  aa || bb;                                                                  +
+         raise notice ''count=%'', res;                                                    +
+         return res;                                                                       +
+ END;                                                                                      +
+ ';                                                                                        +
+                                                                                           +
+                                                                                           +
+ 
+(1 row)
+
+select dbms_metadata.get_ddl('FUNCTION', 'my_test_func_add', 'public');
+                                         get_ddl                                         
+-----------------------------------------------------------------------------------------
+ --                                                                                     +
+ -- PostgreSQL database dump                                                            +
+ --                                                                                     +
+                                                                                        +
+ -- Dumped by pg_dump version 10.0 OpenTenBase V5                                             +
+                                                                                        +
+ SET statement_timeout = 0;                                                             +
+ SET lock_timeout = 0;                                                                  +
+ SET idle_in_transaction_session_timeout = 0;                                           +
+ SET client_encoding = 'UTF8';                                                          +
+ SET standard_conforming_strings = off;                                                 +
+ SET check_function_bodies = false;                                                     +
+ SET client_min_messages = warning;                                                     +
+ SET escape_string_warning = off;                                                       +
+ SET row_security = on;                                                                 +
+                                                                                        +
+ SET SESSION AUTHORIZATION 'teg';                                                       +
+                                                                                        +
+ SET search_path = public, pg_catalog;                                                  +
+                                                                                        +
+ --                                                                                     +
+ -- Name: my_test_func_add(integer, integer); Type: FUNCTION; Schema: public; Owner: teg+
+ --                                                                                     +
+                                                                                        +
+ CREATE FUNCTION my_test_func_add(aa integer, bb integer) RETURNS integer               +
+     LANGUAGE plpgsql                                                                   +
+     AS '                                                                               +
+ DECLARE                                                                                +
+         cnt int;                                                                       +
+ BEGIN                                                                                  +
+         cnt = aa + bb;                                                                 +
+         raise notice ''count=%'', cnt;                                                 +
+         return cnt;                                                                    +
+ END;                                                                                   +
+ ';                                                                                     +
+                                                                                        +
+                                                                                        +
+ --                                                                                     +
+ -- Name: my_test_func_add(text, text); Type: FUNCTION; Schema: public; Owner: teg      +
+ --                                                                                     +
+                                                                                        +
+ CREATE FUNCTION my_test_func_add(aa text, bb text) RETURNS text                        +
+     LANGUAGE plpgsql                                                                   +
+     AS '                                                                               +
+ DECLARE                                                                                +
+         res text;                                                                      +
+ BEGIN                                                                                  +
+         res =  aa || bb;                                                               +
+         raise notice ''count=%'', res;                                                 +
+         return res;                                                                    +
+ END;                                                                                   +
+ ';                                                                                     +
+                                                                                        +
+                                                                                        +
+ 
+(1 row)
+
+select dbms_metadata.get_ddl('FUNCTION', '', 'public');
+                                         get_ddl                                         
+-----------------------------------------------------------------------------------------
+ --                                                                                     +
+ -- PostgreSQL database dump                                                            +
+ --                                                                                     +
+                                                                                        +
+ -- Dumped by pg_dump version 10.0 OpenTenBase V5                                             +
+                                                                                        +
+ SET statement_timeout = 0;                                                             +
+ SET lock_timeout = 0;                                                                  +
+ SET idle_in_transaction_session_timeout = 0;                                           +
+ SET client_encoding = 'UTF8';                                                          +
+ SET standard_conforming_strings = off;                                                 +
+ SET check_function_bodies = false;                                                     +
+ SET client_min_messages = warning;                                                     +
+ SET escape_string_warning = off;                                                       +
+ SET row_security = on;                                                                 +
+                                                                                        +
+ SET SESSION AUTHORIZATION 'teg';                                                       +
+                                                                                        +
+ SET search_path = public, pg_catalog;                                                  +
+                                                                                        +
+ --                                                                                     +
+ -- Name: my_test_func_add(integer, integer); Type: FUNCTION; Schema: public; Owner: teg+
+ --                                                                                     +
+                                                                                        +
+ CREATE FUNCTION my_test_func_add(aa integer, bb integer) RETURNS integer               +
+     LANGUAGE plpgsql                                                                   +
+     AS '                                                                               +
+ DECLARE                                                                                +
+         cnt int;                                                                       +
+ BEGIN                                                                                  +
+         cnt = aa + bb;                                                                 +
+         raise notice ''count=%'', cnt;                                                 +
+         return cnt;                                                                    +
+ END;                                                                                   +
+ ';                                                                                     +
+                                                                                        +
+                                                                                        +
+ --                                                                                     +
+ -- Name: my_test_func_add(text, text); Type: FUNCTION; Schema: public; Owner: teg      +
+ --                                                                                     +
+                                                                                        +
+ CREATE FUNCTION my_test_func_add(aa text, bb text) RETURNS text                        +
+     LANGUAGE plpgsql                                                                   +
+     AS '                                                                               +
+ DECLARE                                                                                +
+         res text;                                                                      +
+ BEGIN                                                                                  +
+         res =  aa || bb;                                                               +
+         raise notice ''count=%'', res;                                                 +
+         return res;                                                                    +
+ END;                                                                                   +
+ ';                                                                                     +
+                                                                                        +
+                                                                                        +
+ 
+(1 row)
+
+set search_path = default;
+select current_schema();
+ current_schema 
+----------------
+ public
+(1 row)
+
+select dbms_metadata.get_ddl('TABLE', 'my_test_table1');
+                             get_ddl                              
+------------------------------------------------------------------
+ --                                                              +
+ -- PostgreSQL database dump                                     +
+ --                                                              +
+                                                                 +
+ -- Dumped by pg_dump version 10.0 OpenTenBase V5                      +
+                                                                 +
+ SET statement_timeout = 0;                                      +
+ SET lock_timeout = 0;                                           +
+ SET idle_in_transaction_session_timeout = 0;                    +
+ SET client_encoding = 'UTF8';                                   +
+ SET standard_conforming_strings = off;                          +
+ SET check_function_bodies = false;                              +
+ SET client_min_messages = warning;                              +
+ SET escape_string_warning = off;                                +
+ SET row_security = on;                                          +
+                                                                 +
+ SET SESSION AUTHORIZATION 'teg';                                +
+                                                                 +
+ SET search_path = public, pg_catalog;                           +
+                                                                 +
+ SET default_with_oids = false;                                  +
+                                                                 +
+ --                                                              +
+ -- Name: my_test_table1; Type: TABLE; Schema: public; Owner: teg+
+ --                                                              +
+                                                                 +
+ CREATE TABLE my_test_table1 (                                   +
+     col1 integer,                                               +
+     col2 text,                                                  +
+     col3 integer                                                +
+ );                                                              +
+                                                                 +
+                                                                 +
+ 
+(1 row)
+
+select dbms_metadata.get_ddl('TABLE', '');
+                             get_ddl                              
+------------------------------------------------------------------
+ --                                                              +
+ -- PostgreSQL database dump                                     +
+ --                                                              +
+                                                                 +
+ -- Dumped by pg_dump version 10.0 OpenTenBase V5                      +
+                                                                 +
+ SET statement_timeout = 0;                                      +
+ SET lock_timeout = 0;                                           +
+ SET idle_in_transaction_session_timeout = 0;                    +
+ SET client_encoding = 'UTF8';                                   +
+ SET standard_conforming_strings = off;                          +
+ SET check_function_bodies = false;                              +
+ SET client_min_messages = warning;                              +
+ SET escape_string_warning = off;                                +
+ SET row_security = on;                                          +
+                                                                 +
+ SET SESSION AUTHORIZATION 'teg';                                +
+                                                                 +
+ SET search_path = public, pg_catalog;                           +
+                                                                 +
+ SET default_with_oids = false;                                  +
+                                                                 +
+ --                                                              +
+ -- Name: mtbl; Type: TABLE; Schema: public; Owner: teg          +
+ --                                                              +
+                                                                 +
+ CREATE TABLE mtbl (                                             +
+     a integer                                                   +
+ );                                                              +
+                                                                 +
+                                                                 +
+ --                                                              +
+ -- Name: my_test_table1; Type: TABLE; Schema: public; Owner: teg+
+ --                                                              +
+                                                                 +
+ CREATE TABLE my_test_table1 (                                   +
+     col1 integer,                                               +
+     col2 text,                                                  +
+     col3 integer                                                +
+ );                                                              +
+                                                                 +
+                                                                 +
+ --                                                              +
+ -- Name: my_test_table2; Type: TABLE; Schema: public; Owner: teg+
+ --                                                              +
+                                                                 +
+ CREATE TABLE my_test_table2 (                                   +
+     col_1 integer,                                              +
+     col_2 text,                                                 +
+     col_3 integer                                               +
+ );                                                              +
+                                                                 +
+                                                                 +
+ 
+(1 row)
+
+select dbms_metadata.get_ddl('TABLE', 'my_test_table1', 'public');
+                             get_ddl                              
+------------------------------------------------------------------
+ --                                                              +
+ -- PostgreSQL database dump                                     +
+ --                                                              +
+                                                                 +
+ -- Dumped by pg_dump version 10.0 OpenTenBase V5                      +
+                                                                 +
+ SET statement_timeout = 0;                                      +
+ SET lock_timeout = 0;                                           +
+ SET idle_in_transaction_session_timeout = 0;                    +
+ SET client_encoding = 'UTF8';                                   +
+ SET standard_conforming_strings = off;                          +
+ SET check_function_bodies = false;                              +
+ SET client_min_messages = warning;                              +
+ SET escape_string_warning = off;                                +
+ SET row_security = on;                                          +
+                                                                 +
+ SET SESSION AUTHORIZATION 'teg';                                +
+                                                                 +
+ SET search_path = public, pg_catalog;                           +
+                                                                 +
+ SET default_with_oids = false;                                  +
+                                                                 +
+ --                                                              +
+ -- Name: my_test_table1; Type: TABLE; Schema: public; Owner: teg+
+ --                                                              +
+                                                                 +
+ CREATE TABLE my_test_table1 (                                   +
+     col1 integer,                                               +
+     col2 text,                                                  +
+     col3 integer                                                +
+ );                                                              +
+                                                                 +
+                                                                 +
+ 
+(1 row)
+
+select dbms_metadata.get_ddl('TABLE', '', 'pgxzm_oss');
+                               get_ddl                               
+---------------------------------------------------------------------
+ --                                                                 +
+ -- PostgreSQL database dump                                        +
+ --                                                                 +
+                                                                    +
+ -- Dumped by pg_dump version 10.0 OpenTenBase V5                         +
+                                                                    +
+ SET statement_timeout = 0;                                         +
+ SET lock_timeout = 0;                                              +
+ SET idle_in_transaction_session_timeout = 0;                       +
+ SET client_encoding = 'UTF8';                                      +
+ SET standard_conforming_strings = off;                             +
+ SET check_function_bodies = false;                                 +
+ SET client_min_messages = warning;                                 +
+ SET escape_string_warning = off;                                   +
+ SET row_security = on;                                             +
+                                                                    +
+ SET SESSION AUTHORIZATION 'teg';                                   +
+                                                                    +
+ --                                                                 +
+ -- Name: pgxzm_oss; Type: SCHEMA; Schema: -; Owner: teg            +
+ --                                                                 +
+                                                                    +
+ CREATE SCHEMA pgxzm_oss;                                           +
+                                                                    +
+                                                                    +
+ SET search_path = pgxzm_oss, pg_catalog;                           +
+                                                                    +
+ SET default_with_oids = false;                                     +
+                                                                    +
+ --                                                                 +
+ -- Name: my_test_table1; Type: TABLE; Schema: pgxzm_oss; Owner: teg+
+ --                                                                 +
+                                                                    +
+ CREATE TABLE my_test_table1 (                                      +
+     col1 integer,                                                  +
+     col2 text,                                                     +
+     col3 integer                                                   +
+ );                                                                 +
+                                                                    +
+                                                                    +
+ --                                                                 +
+ -- Name: my_test_table2; Type: TABLE; Schema: pgxzm_oss; Owner: teg+
+ --                                                                 +
+                                                                    +
+ CREATE TABLE my_test_table2 (                                      +
+     col_1 integer,                                                 +
+     col_2 text,                                                    +
+     col_3 integer                                                  +
+ );                                                                 +
+                                                                    +
+                                                                    +
+ 
+(1 row)
+
+select dbms_metadata.get_ddl('TABLE', 'my_test_table1', 'pgxzm_oss');
+                               get_ddl                               
+---------------------------------------------------------------------
+ --                                                                 +
+ -- PostgreSQL database dump                                        +
+ --                                                                 +
+                                                                    +
+ -- Dumped by pg_dump version 10.0 OpenTenBase V5                         +
+                                                                    +
+ SET statement_timeout = 0;                                         +
+ SET lock_timeout = 0;                                              +
+ SET idle_in_transaction_session_timeout = 0;                       +
+ SET client_encoding = 'UTF8';                                      +
+ SET standard_conforming_strings = off;                             +
+ SET check_function_bodies = false;                                 +
+ SET client_min_messages = warning;                                 +
+ SET escape_string_warning = off;                                   +
+ SET row_security = on;                                             +
+                                                                    +
+ SET SESSION AUTHORIZATION 'teg';                                   +
+                                                                    +
+ SET search_path = pgxzm_oss, pg_catalog;                           +
+                                                                    +
+ SET default_with_oids = false;                                     +
+                                                                    +
+ --                                                                 +
+ -- Name: my_test_table1; Type: TABLE; Schema: pgxzm_oss; Owner: teg+
+ --                                                                 +
+                                                                    +
+ CREATE TABLE my_test_table1 (                                      +
+     col1 integer,                                                  +
+     col2 text,                                                     +
+     col3 integer                                                   +
+ );                                                                 +
+                                                                    +
+                                                                    +
+ 
+(1 row)
+
+select dbms_metadata.get_ddl('TABLE', '', 'pgxzm_oss');
+                               get_ddl                               
+---------------------------------------------------------------------
+ --                                                                 +
+ -- PostgreSQL database dump                                        +
+ --                                                                 +
+                                                                    +
+ -- Dumped by pg_dump version 10.0 OpenTenBase V5                         +
+                                                                    +
+ SET statement_timeout = 0;                                         +
+ SET lock_timeout = 0;                                              +
+ SET idle_in_transaction_session_timeout = 0;                       +
+ SET client_encoding = 'UTF8';                                      +
+ SET standard_conforming_strings = off;                             +
+ SET check_function_bodies = false;                                 +
+ SET client_min_messages = warning;                                 +
+ SET escape_string_warning = off;                                   +
+ SET row_security = on;                                             +
+                                                                    +
+ SET SESSION AUTHORIZATION 'teg';                                   +
+                                                                    +
+ --                                                                 +
+ -- Name: pgxzm_oss; Type: SCHEMA; Schema: -; Owner: teg            +
+ --                                                                 +
+                                                                    +
+ CREATE SCHEMA pgxzm_oss;                                           +
+                                                                    +
+                                                                    +
+ SET search_path = pgxzm_oss, pg_catalog;                           +
+                                                                    +
+ SET default_with_oids = false;                                     +
+                                                                    +
+ --                                                                 +
+ -- Name: my_test_table1; Type: TABLE; Schema: pgxzm_oss; Owner: teg+
+ --                                                                 +
+                                                                    +
+ CREATE TABLE my_test_table1 (                                      +
+     col1 integer,                                                  +
+     col2 text,                                                     +
+     col3 integer                                                   +
+ );                                                                 +
+                                                                    +
+                                                                    +
+ --                                                                 +
+ -- Name: my_test_table2; Type: TABLE; Schema: pgxzm_oss; Owner: teg+
+ --                                                                 +
+                                                                    +
+ CREATE TABLE my_test_table2 (                                      +
+     col_1 integer,                                                 +
+     col_2 text,                                                    +
+     col_3 integer                                                  +
+ );                                                                 +
+                                                                    +
+                                                                    +
+ 
+(1 row)
+
+select dbms_metadata.get_ddl('FUNCTION', 'my_test_func_add');
+                                         get_ddl                                         
+-----------------------------------------------------------------------------------------
+ --                                                                                     +
+ -- PostgreSQL database dump                                                            +
+ --                                                                                     +
+                                                                                        +
+ -- Dumped by pg_dump version 10.0 OpenTenBase V5                                             +
+                                                                                        +
+ SET statement_timeout = 0;                                                             +
+ SET lock_timeout = 0;                                                                  +
+ SET idle_in_transaction_session_timeout = 0;                                           +
+ SET client_encoding = 'UTF8';                                                          +
+ SET standard_conforming_strings = off;                                                 +
+ SET check_function_bodies = false;                                                     +
+ SET client_min_messages = warning;                                                     +
+ SET escape_string_warning = off;                                                       +
+ SET row_security = on;                                                                 +
+                                                                                        +
+ SET SESSION AUTHORIZATION 'teg';                                                       +
+                                                                                        +
+ SET search_path = public, pg_catalog;                                                  +
+                                                                                        +
+ --                                                                                     +
+ -- Name: my_test_func_add(integer, integer); Type: FUNCTION; Schema: public; Owner: teg+
+ --                                                                                     +
+                                                                                        +
+ CREATE FUNCTION my_test_func_add(aa integer, bb integer) RETURNS integer               +
+     LANGUAGE plpgsql                                                                   +
+     AS '                                                                               +
+ DECLARE                                                                                +
+         cnt int;                                                                       +
+ BEGIN                                                                                  +
+         cnt = aa + bb;                                                                 +
+         raise notice ''count=%'', cnt;                                                 +
+         return cnt;                                                                    +
+ END;                                                                                   +
+ ';                                                                                     +
+                                                                                        +
+                                                                                        +
+ --                                                                                     +
+ -- Name: my_test_func_add(text, text); Type: FUNCTION; Schema: public; Owner: teg      +
+ --                                                                                     +
+                                                                                        +
+ CREATE FUNCTION my_test_func_add(aa text, bb text) RETURNS text                        +
+     LANGUAGE plpgsql                                                                   +
+     AS '                                                                               +
+ DECLARE                                                                                +
+         res text;                                                                      +
+ BEGIN                                                                                  +
+         res =  aa || bb;                                                               +
+         raise notice ''count=%'', res;                                                 +
+         return res;                                                                    +
+ END;                                                                                   +
+ ';                                                                                     +
+                                                                                        +
+                                                                                        +
+ 
+(1 row)
+
+select dbms_metadata.get_ddl('FUNCTION', '');
+                                         get_ddl                                         
+-----------------------------------------------------------------------------------------
+ --                                                                                     +
+ -- PostgreSQL database dump                                                            +
+ --                                                                                     +
+                                                                                        +
+ -- Dumped by pg_dump version 10.0 OpenTenBase V5                                             +
+                                                                                        +
+ SET statement_timeout = 0;                                                             +
+ SET lock_timeout = 0;                                                                  +
+ SET idle_in_transaction_session_timeout = 0;                                           +
+ SET client_encoding = 'UTF8';                                                          +
+ SET standard_conforming_strings = off;                                                 +
+ SET check_function_bodies = false;                                                     +
+ SET client_min_messages = warning;                                                     +
+ SET escape_string_warning = off;                                                       +
+ SET row_security = on;                                                                 +
+                                                                                        +
+ SET SESSION AUTHORIZATION 'teg';                                                       +
+                                                                                        +
+ SET search_path = public, pg_catalog;                                                  +
+                                                                                        +
+ --                                                                                     +
+ -- Name: my_test_func_add(integer, integer); Type: FUNCTION; Schema: public; Owner: teg+
+ --                                                                                     +
+                                                                                        +
+ CREATE FUNCTION my_test_func_add(aa integer, bb integer) RETURNS integer               +
+     LANGUAGE plpgsql                                                                   +
+     AS '                                                                               +
+ DECLARE                                                                                +
+         cnt int;                                                                       +
+ BEGIN                                                                                  +
+         cnt = aa + bb;                                                                 +
+         raise notice ''count=%'', cnt;                                                 +
+         return cnt;                                                                    +
+ END;                                                                                   +
+ ';                                                                                     +
+                                                                                        +
+                                                                                        +
+ --                                                                                     +
+ -- Name: my_test_func_add(text, text); Type: FUNCTION; Schema: public; Owner: teg      +
+ --                                                                                     +
+                                                                                        +
+ CREATE FUNCTION my_test_func_add(aa text, bb text) RETURNS text                        +
+     LANGUAGE plpgsql                                                                   +
+     AS '                                                                               +
+ DECLARE                                                                                +
+         res text;                                                                      +
+ BEGIN                                                                                  +
+         res =  aa || bb;                                                               +
+         raise notice ''count=%'', res;                                                 +
+         return res;                                                                    +
+ END;                                                                                   +
+ ';                                                                                     +
+                                                                                        +
+                                                                                        +
+ 
+(1 row)
+
+select dbms_metadata.get_ddl('FUNCTION', 'my_test_func_add', 'pgxzm_oss');
+                                          get_ddl                                           
+--------------------------------------------------------------------------------------------
+ --                                                                                        +
+ -- PostgreSQL database dump                                                               +
+ --                                                                                        +
+                                                                                           +
+ -- Dumped by pg_dump version 10.0 OpenTenBase V5                                                +
+                                                                                           +
+ SET statement_timeout = 0;                                                                +
+ SET lock_timeout = 0;                                                                     +
+ SET idle_in_transaction_session_timeout = 0;                                              +
+ SET client_encoding = 'UTF8';                                                             +
+ SET standard_conforming_strings = off;                                                    +
+ SET check_function_bodies = false;                                                        +
+ SET client_min_messages = warning;                                                        +
+ SET escape_string_warning = off;                                                          +
+ SET row_security = on;                                                                    +
+                                                                                           +
+ SET SESSION AUTHORIZATION 'teg';                                                          +
+                                                                                           +
+ SET search_path = pgxzm_oss, pg_catalog;                                                  +
+                                                                                           +
+ --                                                                                        +
+ -- Name: my_test_func_add(integer, integer); Type: FUNCTION; Schema: pgxzm_oss; Owner: teg+
+ --                                                                                        +
+                                                                                           +
+ CREATE FUNCTION my_test_func_add(aa integer, bb integer) RETURNS integer                  +
+     LANGUAGE plpgsql                                                                      +
+     AS '                                                                                  +
+ DECLARE                                                                                   +
+         cnt int;                                                                          +
+ BEGIN                                                                                     +
+         cnt = aa + bb;                                                                    +
+         raise notice ''count=%'', cnt;                                                    +
+         return cnt;                                                                       +
+ END;                                                                                      +
+ ';                                                                                        +
+                                                                                           +
+                                                                                           +
+ --                                                                                        +
+ -- Name: my_test_func_add(text, text); Type: FUNCTION; Schema: pgxzm_oss; Owner: teg      +
+ --                                                                                        +
+                                                                                           +
+ CREATE FUNCTION my_test_func_add(aa text, bb text) RETURNS text                           +
+     LANGUAGE plpgsql                                                                      +
+     AS '                                                                                  +
+ DECLARE                                                                                   +
+         res text;                                                                         +
+ BEGIN                                                                                     +
+         res =  aa || bb;                                                                  +
+         raise notice ''count=%'', res;                                                    +
+         return res;                                                                       +
+ END;                                                                                      +
+ ';                                                                                        +
+                                                                                           +
+                                                                                           +
+ 
+(1 row)
+
+select dbms_metadata.get_ddl('FUNCTION', '', 'pgxzm_oss');
+                                          get_ddl                                           
+--------------------------------------------------------------------------------------------
+ --                                                                                        +
+ -- PostgreSQL database dump                                                               +
+ --                                                                                        +
+                                                                                           +
+ -- Dumped by pg_dump version 10.0 OpenTenBase V5                                                +
+                                                                                           +
+ SET statement_timeout = 0;                                                                +
+ SET lock_timeout = 0;                                                                     +
+ SET idle_in_transaction_session_timeout = 0;                                              +
+ SET client_encoding = 'UTF8';                                                             +
+ SET standard_conforming_strings = off;                                                    +
+ SET check_function_bodies = false;                                                        +
+ SET client_min_messages = warning;                                                        +
+ SET escape_string_warning = off;                                                          +
+ SET row_security = on;                                                                    +
+                                                                                           +
+ SET SESSION AUTHORIZATION 'teg';                                                          +
+                                                                                           +
+ --                                                                                        +
+ -- Name: pgxzm_oss; Type: SCHEMA; Schema: -; Owner: teg                                   +
+ --                                                                                        +
+                                                                                           +
+ CREATE SCHEMA pgxzm_oss;                                                                  +
+                                                                                           +
+                                                                                           +
+ SET search_path = pgxzm_oss, pg_catalog;                                                  +
+                                                                                           +
+ --                                                                                        +
+ -- Name: my_test_func_add(integer, integer); Type: FUNCTION; Schema: pgxzm_oss; Owner: teg+
+ --                                                                                        +
+                                                                                           +
+ CREATE FUNCTION my_test_func_add(aa integer, bb integer) RETURNS integer                  +
+     LANGUAGE plpgsql                                                                      +
+     AS '                                                                                  +
+ DECLARE                                                                                   +
+         cnt int;                                                                          +
+ BEGIN                                                                                     +
+         cnt = aa + bb;                                                                    +
+         raise notice ''count=%'', cnt;                                                    +
+         return cnt;                                                                       +
+ END;                                                                                      +
+ ';                                                                                        +
+                                                                                           +
+                                                                                           +
+ --                                                                                        +
+ -- Name: my_test_func_add(text, text); Type: FUNCTION; Schema: pgxzm_oss; Owner: teg      +
+ --                                                                                        +
+                                                                                           +
+ CREATE FUNCTION my_test_func_add(aa text, bb text) RETURNS text                           +
+     LANGUAGE plpgsql                                                                      +
+     AS '                                                                                  +
+ DECLARE                                                                                   +
+         res text;                                                                         +
+ BEGIN                                                                                     +
+         res =  aa || bb;                                                                  +
+         raise notice ''count=%'', res;                                                    +
+         return res;                                                                       +
+ END;                                                                                      +
+ ';                                                                                        +
+                                                                                           +
+                                                                                           +
+ 
+(1 row)
+
+--clean all object
+set search_path = default;
+drop FUNCTION my_test_func_add(aa int, bb int);
+drop FUNCTION my_test_func_add(aa text, bb text);
+drop table my_test_table2;
+drop table my_test_table1;
+drop type my_test_type;
+drop schema pgxzm_oss CASCADE;
+NOTICE:  drop cascades to 5 other objects
+DETAIL:  drop cascades to type pgxzm_oss.my_test_type
+drop cascades to table pgxzm_oss.my_test_table1
+drop cascades to table pgxzm_oss.my_test_table2
+drop cascades to function pgxzm_oss.my_test_func_add(integer,integer)
+drop cascades to function pgxzm_oss.my_test_func_add(text,text)

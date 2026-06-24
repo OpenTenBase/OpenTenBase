@@ -7,17 +7,17 @@
 bool
 GlobalTransactionIdPrecedes(GlobalTransactionId id1, GlobalTransactionId id2)
 {
-    /*
-     * If either ID is a permanent XID then we can just do unsigned
-     * comparison.    If both are normal, do a modulo-2^31 comparison.
-     */
-    int32        diff;
+	/*
+	 * If either ID is a permanent XID then we can just do unsigned
+	 * comparison.	If both are normal, do a modulo-2^31 comparison.
+	 */
+	int32		diff;
 
-    if (!GlobalTransactionIdIsNormal(id1) || !GlobalTransactionIdIsNormal(id2))
-        return (id1 < id2);
+	if (!GlobalTransactionIdIsNormal(id1) || !GlobalTransactionIdIsNormal(id2))
+		return (id1 < id2);
 
-    diff = (int32) (id1 - id2);
-    return (diff < 0);
+	diff = (int32) (id1 - id2);
+	return (diff < 0);
 }
 
 /*
@@ -26,13 +26,13 @@ GlobalTransactionIdPrecedes(GlobalTransactionId id1, GlobalTransactionId id2)
 bool
 GlobalTransactionIdPrecedesOrEquals(GlobalTransactionId id1, GlobalTransactionId id2)
 {
-    int32        diff;
+	int32		diff;
 
-    if (!GlobalTransactionIdIsNormal(id1) || !GlobalTransactionIdIsNormal(id2))
-        return (id1 <= id2);
+	if (!GlobalTransactionIdIsNormal(id1) || !GlobalTransactionIdIsNormal(id2))
+		return (id1 <= id2);
 
-    diff = (int32) (id1 - id2);
-    return (diff <= 0);
+	diff = (int32) (id1 - id2);
+	return (diff <= 0);
 }
 
 /*
@@ -41,13 +41,13 @@ GlobalTransactionIdPrecedesOrEquals(GlobalTransactionId id1, GlobalTransactionId
 bool
 GlobalTransactionIdFollows(GlobalTransactionId id1, GlobalTransactionId id2)
 {
-    int32        diff;
+	int32		diff;
 
-    if (!GlobalTransactionIdIsNormal(id1) || !GlobalTransactionIdIsNormal(id2))
-        return (id1 > id2);
+	if (!GlobalTransactionIdIsNormal(id1) || !GlobalTransactionIdIsNormal(id2))
+		return (id1 > id2);
 
-    diff = (int32) (id1 - id2);
-    return (diff > 0);
+	diff = (int32) (id1 - id2);
+	return (diff > 0);
 }
 
 /*
@@ -56,12 +56,12 @@ GlobalTransactionIdFollows(GlobalTransactionId id1, GlobalTransactionId id2)
 bool
 GlobalTransactionIdFollowsOrEquals(GlobalTransactionId id1, GlobalTransactionId id2)
 {
-    int32        diff;
+	int32		diff;
 
-    if (!GlobalTransactionIdIsNormal(id1) || !GlobalTransactionIdIsNormal(id2))
-        return (id1 >= id2);
+	if (!GlobalTransactionIdIsNormal(id1) || !GlobalTransactionIdIsNormal(id2))
+		return (id1 >= id2);
 
-    diff = (int32) (id1 - id2);
-    return (diff >= 0);
+	diff = (int32) (id1 - id2);
+	return (diff >= 0);
 }
 

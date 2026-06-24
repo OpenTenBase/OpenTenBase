@@ -1,0 +1,73 @@
+--
+-- test \dn in opentenbase_ora mode, filter out package and type object created scheam.
+--
+create database db_ora_test_dn_20240229 with sql mode opentenbase_ora;
+\c db_ora_test_dn_20240229;
+\dn;
+      List of schemas
+        Name        | Owner 
+--------------------+-------
+ INFORMATION_SCHEMA | root
+ opentenbase_ora    | root
+ public             | root
+(3 rows)
+
+\dn+;
+                                        List of schemas
+        Name        | Owner | Access privileges |                 Description                  
+--------------------+-------+-------------------+----------------------------------------------
+ INFORMATION_SCHEMA | root  | root=UC/root     +| 
+                    |       | =U/root           | 
+ opentenbase_ora    | root  |                   | new schema for opentenbase_ora compatibility
+ public             | root  | root=UC/root     +| standard public schema
+                    |       | =UC/root          | 
+(3 rows)
+
+create or replace package pkg_test_20240229 is
+a int;
+end;
+/
+create or replace type typobj_20240229 as object
+(
+f int,
+e int
+);
+ERROR:  syntax error at or near "object"
+LINE 1: create or replace type typobj_20240229 as object
+                                                  ^
+/
+select nspname from pg_namespace where nspname not like '%temp%' order by 1;
+      NSPNAME       
+--------------------
+ INFORMATION_SCHEMA
+ PKG_TEST_20240229
+ opentenbase_ora
+ pg_catalog
+ pg_slice
+ pg_toast
+ public
+(7 rows)
+
+\dn;
+      List of schemas
+        Name        | Owner 
+--------------------+-------
+ INFORMATION_SCHEMA | root
+ opentenbase_ora    | root
+ public             | root
+(3 rows)
+
+\dn+;
+                                        List of schemas
+        Name        | Owner | Access privileges |                 Description                  
+--------------------+-------+-------------------+----------------------------------------------
+ INFORMATION_SCHEMA | root  | root=UC/root     +| 
+                    |       | =U/root           | 
+ opentenbase_ora    | root  |                   | new schema for opentenbase_ora compatibility
+ public             | root  | root=UC/root     +| standard public schema
+                    |       | =UC/root          | 
+(3 rows)
+
+\c regression_ora;
+drop database db_ora_test_dn_20240229 with(force);
+ERROR:  database "DB_ORA_TEST_DN_20240229" does not exist

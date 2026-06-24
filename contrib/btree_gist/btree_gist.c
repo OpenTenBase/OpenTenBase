@@ -19,11 +19,11 @@ PG_FUNCTION_INFO_V1(gbtreekey_out);
 Datum
 gbtreekey_in(PG_FUNCTION_ARGS)
 {
-    ereport(ERROR,
-            (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-             errmsg("<datatype>key_in() not implemented")));
+	ereport(ERROR,
+			(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+			 errmsg("<datatype>key_in() not implemented")));
 
-    PG_RETURN_POINTER(NULL);
+	PG_RETURN_POINTER(NULL);
 }
 
 #include "btree_utils_var.h"
@@ -31,10 +31,10 @@ gbtreekey_in(PG_FUNCTION_ARGS)
 Datum
 gbtreekey_out(PG_FUNCTION_ARGS)
 {
-    ereport(ERROR,
-            (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-             errmsg("<datatype>key_out() not implemented")));
-    PG_RETURN_POINTER(NULL);
+	ereport(ERROR,
+			(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+			 errmsg("<datatype>key_out() not implemented")));
+	PG_RETURN_POINTER(NULL);
 }
 
 
@@ -45,5 +45,5 @@ gbtreekey_out(PG_FUNCTION_ARGS)
 Datum
 gbt_decompress(PG_FUNCTION_ARGS)
 {
-    PG_RETURN_POINTER(PG_GETARG_POINTER(0));
+	PG_RETURN_POINTER(PG_GETARG_POINTER(0));
 }

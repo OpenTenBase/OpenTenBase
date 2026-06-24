@@ -85,7 +85,7 @@ CREATE FUNCTION interpt_pp(path, path)
 CREATE FUNCTION reverse_name(name)
    RETURNS name
    AS '@libdir@/regress@DLSUFFIX@'
-   LANGUAGE C STRICT;
+   LANGUAGE C STRICT pushdown;
 
 --
 -- Function dynamic loading

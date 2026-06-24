@@ -10,6 +10,26 @@ CREATE SEQUENCE my_seq;
 CREATE SEQUENCE my_seq;
 \c regression
 
+drop sequence if exists seq_1;
+create sequence seq_1 INCREMENT BY 1 MINVALUE 1 START WITH 1;
+create table test_serial
+(
+    id serial primary key,
+    name varchar(100)
+) distribute by shard(id);
+
+create table test_identiy_1
+(
+    id int generated always as identity (cache 100 START WITH 1 INCREMENT BY 1)  primary key,
+    name varchar(100)
+);
+\d+ seq_1
+\d+ test_serial_id_seq
+\d+ test_identiy_1_id_seq
+
+drop sequence seq_1;
+drop table test_serial;
+drop table test_identiy_1;
 -- various error cases
 CREATE UNLOGGED SEQUENCE sequence_testx;
 CREATE SEQUENCE sequence_testx INCREMENT BY 0;
@@ -288,6 +308,13 @@ SELECT setval('sequence_test_temp1', 1);  -- ok
 SELECT setval('sequence_test2', 1);  -- error
 ROLLBACK;
 
+-- test global temp sequence,  consider global temporary sequence as regular temporary sequence.
+create global temp sequence my_temp_seq0801;
+select nextval('my_temp_seq0801');
+select lastval();
+select setval('my_temp_seq0801', 99);
+select lastval();
+
 -- privileges tests
 
 -- nextval
@@ -422,6 +449,50 @@ SELECT nextval('test_seq1');
 SELECT nextval('test_seq1');
 
 DROP SEQUENCE test_seq1;
+
+-- Test sequece both copy and rename
+create or replace function drop_db_conn(dbname_prefix varchar) returns void
+as
+$$
+declare
+    c1 cursor for select node_name from pgxc_node where node_type not like 'G';
+    c2 cursor for select datname from pg_database where datname like dbname_prefix||'%';
+    vsql varchar;
+    nodename varchar;
+    dbname varchar;
+begin
+    open c2;
+    loop
+      FETCH c2 INTO dbname;
+      EXIT WHEN NOT FOUND;
+      open c1;
+      loop
+          FETCH c1 INTO nodename;
+          EXIT WHEN NOT FOUND;
+          vsql := 'execute direct on('||nodename||') ''SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE pid <> pg_backend_pid() AND datname = '''||quote_literal(dbname)||'''''';
+          -- raise notice '%',vsql;
+          execute vsql;
+      end loop;
+      CLOSE c1;
+      raise notice 'drop database % connections;', dbname;
+    end loop;
+    CLOSE c2;
+end;
+$$
+language default_plsql;
+
+drop database "aa---bbb---ccc---03";
+drop database "a-b-c011";
+select drop_db_conn('db_seq1');
+create database "aa---bbb---ccc---03" template db_seq1;
+begin;
+select drop_db_conn('aa---bbb---ccc---03');
+alter database "aa---bbb---ccc---03" rename to "a-b-c011";
+end;
+create database "aa---bbb---ccc---03" template db_seq1;
+drop database "aa---bbb---ccc---03";
+drop database "a-b-c011";
+
 -- Test sequece when alter database
 ALTER DATABASE db_seq1 RENAME TO db_seq3;
 ALTER DATABASE db_seq2 RENAME TO db_seq1;
@@ -451,7 +522,7 @@ create table t3(f1 serial,f2 int);
 insert into t1(f2) values(1);
 insert into t2(f2) values(2);
 insert into t3(f2) values(3);
-drop database db_seq1;
+drop database db_seq1(force);
 
 \c db_seq1_bak
 insert into t1(f2) values(4);

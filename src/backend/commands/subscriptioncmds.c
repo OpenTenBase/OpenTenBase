@@ -1,16 +1,13 @@
 /*-------------------------------------------------------------------------
  *
  * subscriptioncmds.c
- *        subscription catalog manipulation functions
+ *		subscription catalog manipulation functions
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * IDENTIFICATION
- *        subscriptioncmds.c
+ *		subscriptioncmds.c
  *
  *-------------------------------------------------------------------------
  */
@@ -75,8 +72,8 @@ const char * g_opentenbase_subscription_parallel_relname = "opentenbase_subscrip
 #ifdef __STORAGE_SCALABLE__
 typedef struct
 {
-    int32 shardid;
-    char  *pubname;
+	int32 shardid;
+	char  *pubname;
 } PubShard;
 #endif
 
@@ -88,17 +85,12 @@ static List *fetch_shard_list(WalReceiverConn *wrconn, List *publications);
 #ifdef __SUBSCRIPTION__
 static void
 parse_opentenbase_subscription_options(List *options,
-                                 bool is_create_stmt,
-                                 bool *ignore_pk_conflict,
-                                 char **manual_hot_date,
-                                 char **temp_hot_date,
-                                 char **temp_cold_date,
-                                 int *parallel_number,
-								 bool *copy_data,
-								 char **slot_name,
-								 bool *slot_name_given);
+								 bool is_create_stmt,
+								 bool *ignore_pk_conflict,
+								 int *parallel_number,
+								 bool *copy_data);
 static bool check_opentenbase_subscription_ifexists(Relation opentenbase_sub_rel, char * check_subname);
-static List * opentenbase_subscription_parallelization(Node * stmt, int parallel_number, bool slot_name_given);
+static List * opentenbase_subscription_parallelization(Node * stmt, int parallel_number);
 #endif
 
 /*
@@ -110,195 +102,241 @@ static List * opentenbase_subscription_parallelization(Node * stmt, int parallel
  */
 static void
 parse_subscription_options(List *options, bool *connect, bool *enabled_given,
-                           bool *enabled, bool *create_slot,
-                           bool *slot_name_given, char **slot_name,
-                           bool *copy_data, char **synchronous_commit,
-                           bool *refresh)
-{// #lizard forgives
-    ListCell   *lc;
-    bool        connect_given = false;
-    bool        create_slot_given = false;
-    bool        copy_data_given = false;
-    bool        refresh_given = false;
+						   bool *enabled, bool *create_slot,
+						   bool *slot_name_given, char **slot_name,
+						   bool *copy_data, char **synchronous_commit,
+						   bool *col_chunks,int32 *dst_scno,
+						   bool *refresh)
+{
+	ListCell   *lc;
+	bool		connect_given = false;
+	bool		create_slot_given = false;
+	bool		copy_data_given = false;
+	bool		refresh_given = false;
+	bool		col_chunks_given = false;
+	bool		dst_scno_given = false;
 
-    /* If connect is specified, the others also need to be. */
-    Assert(!connect || (enabled && create_slot && copy_data));
+	/* If connect is specified, the others also need to be. */
+	Assert(!connect || (enabled && create_slot && copy_data));
 
-    if (connect)
-        *connect = true;
-    if (enabled)
-    {
-        *enabled_given = false;
-        *enabled = true;
-    }
-    if (create_slot)
-        *create_slot = true;
-    if (slot_name)
-    {
-        *slot_name_given = false;
-        *slot_name = NULL;
-    }
-    if (copy_data)
-        *copy_data = true;
-    if (synchronous_commit)
-        *synchronous_commit = NULL;
-    if (refresh)
-        *refresh = true;
+	if (connect)
+		*connect = true;
+	if (enabled)
+	{
+		*enabled_given = false;
+		*enabled = true;
+	}
+	if (create_slot)
+		*create_slot = true;
+	if (slot_name)
+	{
+		*slot_name_given = false;
+		*slot_name = NULL;
+	}
+	if (copy_data)
+		*copy_data = true;
+	if (synchronous_commit)
+		*synchronous_commit = NULL;
+	if (refresh)
+		*refresh = true;
+	if (col_chunks)
+		*col_chunks = false;
+	if (dst_scno)
+		*dst_scno = 0xffff;
 
-    /* Parse options */
-    foreach(lc, options)
-    {
-        DefElem    *defel = (DefElem *) lfirst(lc);
+	/* Parse options */
+	foreach(lc, options)
+	{
+		DefElem    *defel = (DefElem *) lfirst(lc);
 
-        if (strcmp(defel->defname, "connect") == 0 && connect)
-        {
-            if (connect_given)
-                ereport(ERROR,
-                        (errcode(ERRCODE_SYNTAX_ERROR),
-                         errmsg("conflicting or redundant options")));
+		if (strcmp(defel->defname, "connect") == 0 && connect)
+		{
+			if (connect_given)
+				ereport(ERROR,
+						(errcode(ERRCODE_SYNTAX_ERROR),
+						 errmsg("conflicting or redundant options")));
 
-            connect_given = true;
-            *connect = defGetBoolean(defel);
-        }
-        else if (strcmp(defel->defname, "enabled") == 0 && enabled)
-        {
-            if (*enabled_given)
-                ereport(ERROR,
-                        (errcode(ERRCODE_SYNTAX_ERROR),
-                         errmsg("conflicting or redundant options")));
+			connect_given = true;
+			*connect = defGetBoolean(defel);
+		}
+		else if (strcmp(defel->defname, "enabled") == 0 && enabled)
+		{
+			if (*enabled_given)
+				ereport(ERROR,
+						(errcode(ERRCODE_SYNTAX_ERROR),
+						 errmsg("conflicting or redundant options")));
 
-            *enabled_given = true;
-            *enabled = defGetBoolean(defel);
-        }
-        else if (strcmp(defel->defname, "create_slot") == 0 && create_slot)
-        {
-            if (create_slot_given)
-                ereport(ERROR,
-                        (errcode(ERRCODE_SYNTAX_ERROR),
-                         errmsg("conflicting or redundant options")));
+			*enabled_given = true;
+			*enabled = defGetBoolean(defel);
+		}
+		else if (strcmp(defel->defname, "create_slot") == 0 && create_slot)
+		{
+			if (create_slot_given)
+				ereport(ERROR,
+						(errcode(ERRCODE_SYNTAX_ERROR),
+						 errmsg("conflicting or redundant options")));
 
-            create_slot_given = true;
-            *create_slot = defGetBoolean(defel);
-        }
-        else if (strcmp(defel->defname, "slot_name") == 0 && slot_name)
-        {
-            if (*slot_name_given)
-                ereport(ERROR,
-                        (errcode(ERRCODE_SYNTAX_ERROR),
-                         errmsg("conflicting or redundant options")));
+			create_slot_given = true;
+			*create_slot = defGetBoolean(defel);
+		}
+		else if (strcmp(defel->defname, "slot_name") == 0 && slot_name)
+		{
+			if (*slot_name_given)
+				ereport(ERROR,
+						(errcode(ERRCODE_SYNTAX_ERROR),
+						 errmsg("conflicting or redundant options")));
 
-            *slot_name_given = true;
-            *slot_name = defGetString(defel);
+			*slot_name_given = true;
+			*slot_name = defGetString(defel);
 
-            /* Setting slot_name = NONE is treated as no slot name. */
-            if (strcmp(*slot_name, "none") == 0)
-                *slot_name = NULL;
-        }
-        else if (strcmp(defel->defname, "copy_data") == 0 && copy_data)
-        {
-            if (copy_data_given)
-                ereport(ERROR,
-                        (errcode(ERRCODE_SYNTAX_ERROR),
-                         errmsg("conflicting or redundant options")));
+			/* Setting slot_name = NONE is treated as no slot name. */
+			if (strcmp(*slot_name, "none") == 0)
+				*slot_name = NULL;
+		}
+		else if (strcmp(defel->defname, "copy_data") == 0 && copy_data)
+		{
+			if (copy_data_given)
+				ereport(ERROR,
+						(errcode(ERRCODE_SYNTAX_ERROR),
+						 errmsg("conflicting or redundant options")));
 
-            copy_data_given = true;
-            *copy_data = defGetBoolean(defel);
-        }
-        else if (strcmp(defel->defname, "synchronous_commit") == 0 &&
-                 synchronous_commit)
-        {
-            if (*synchronous_commit)
-                ereport(ERROR,
-                        (errcode(ERRCODE_SYNTAX_ERROR),
-                         errmsg("conflicting or redundant options")));
+			copy_data_given = true;
+			*copy_data = defGetBoolean(defel);
+		}
+		else if (strcmp(defel->defname, "synchronous_commit") == 0 &&
+				 synchronous_commit)
+		{
+			if (*synchronous_commit)
+				ereport(ERROR,
+						(errcode(ERRCODE_SYNTAX_ERROR),
+						 errmsg("conflicting or redundant options")));
 
-            *synchronous_commit = defGetString(defel);
+			*synchronous_commit = defGetString(defel);
 
-            /* Test if the given value is valid for synchronous_commit GUC. */
-            (void) set_config_option("synchronous_commit", *synchronous_commit,
-                                     PGC_BACKEND, PGC_S_TEST, GUC_ACTION_SET,
-                                     false, 0, false);
-        }
-        else if (strcmp(defel->defname, "refresh") == 0 && refresh)
-        {
-            if (refresh_given)
-                ereport(ERROR,
-                        (errcode(ERRCODE_SYNTAX_ERROR),
-                         errmsg("conflicting or redundant options")));
+			/* Test if the given value is valid for synchronous_commit GUC. */
+			(void) set_config_option("synchronous_commit", *synchronous_commit,
+									 PGC_BACKEND, PGC_S_TEST, GUC_ACTION_SET,
+									 false, 0, false);
+		}
+		else if (strcmp(defel->defname, "refresh") == 0 && refresh)
+		{
+			if (refresh_given)
+				ereport(ERROR,
+						(errcode(ERRCODE_SYNTAX_ERROR),
+						 errmsg("conflicting or redundant options")));
 
-            refresh_given = true;
-            *refresh = defGetBoolean(defel);
-        }
-#ifdef __SUBSCRIPTION__
-        else if (strcmp(defel->defname, "ignore_pk_conflict") == 0 ||
-                 strcmp(defel->defname, "manual_hot_date") == 0 ||
-                 strcmp(defel->defname, "temp_hot_date") == 0 ||
-                 strcmp(defel->defname, "temp_cold_date") == 0 ||
-                 strcmp(defel->defname, "parallel_number") == 0)
-        {
-            /* parse in parse_opentenbase_subscription_options */
-        }
+			refresh_given = true;
+			*refresh = defGetBoolean(defel);
+		}
+#ifdef __OPENTENBASE_C__
+		else if (strcmp(defel->defname, "col_chunks") == 0 && col_chunks)
+		{
+			if (col_chunks_given)
+				ereport(ERROR,
+						(errcode(ERRCODE_SYNTAX_ERROR),
+						 errmsg("conflicting or redundant options")));
+
+			col_chunks_given = true;
+			*col_chunks = defGetBoolean(defel);
+		}
+		else if (strcmp(defel->defname, "dst_scno") == 0 && dst_scno)
+		{
+			if (dst_scno_given)
+				ereport(ERROR,
+						(errcode(ERRCODE_SYNTAX_ERROR),
+						 errmsg("conflicting or redundant options")));
+
+			dst_scno_given = true;
+			*dst_scno = defGetInt32(defel);
+		}
 #endif
-        else
-            ereport(ERROR,
-                    (errcode(ERRCODE_SYNTAX_ERROR),
-                     errmsg("unrecognized subscription parameter: %s", defel->defname)));
-    }
+#ifdef __SUBSCRIPTION__
+		else if (strcmp(defel->defname, "ignore_pk_conflict") == 0 ||
+				 strcmp(defel->defname, "parallel_number") == 0)
+		{
+			/* parse in parse_opentenbase_subscription_options */
+		}
+#endif
+		else
+			ereport(ERROR,
+					(errcode(ERRCODE_SYNTAX_ERROR),
+					 errmsg("unrecognized subscription parameter: \"%s\"", defel->defname)));
+	}
 
-    /*
-     * We've been explicitly asked to not connect, that requires some
-     * additional processing.
-     */
-    if (connect && !*connect)
-    {
-        /* Check for incompatible options from the user. */
-        if (enabled && *enabled_given && *enabled)
-            ereport(ERROR,
-                    (errcode(ERRCODE_SYNTAX_ERROR),
-                     errmsg("connect = false and enabled = true are mutually exclusive options")));
+	/*
+	 * We've been explicitly asked to not connect, that requires some
+	 * additional processing.
+	 */
+	if (connect && !*connect)
+	{
+		/* Check for incompatible options from the user. */
+		if (enabled && *enabled_given && *enabled)
+			ereport(ERROR,
+					(errcode(ERRCODE_SYNTAX_ERROR),
+			/*- translator: both %s are strings of the form "option = value" */
+					 errmsg("%s and %s are mutually exclusive options",
+							"connect = false", "enabled = true")));
 
-        if (create_slot && create_slot_given && *create_slot)
-            ereport(ERROR,
-                    (errcode(ERRCODE_SYNTAX_ERROR),
-                     errmsg("connect = false and create_slot = true are mutually exclusive options")));
+		if (create_slot && create_slot_given && *create_slot)
+			ereport(ERROR,
+					(errcode(ERRCODE_SYNTAX_ERROR),
+					 errmsg("%s and %s are mutually exclusive options",
+							"connect = false", "create_slot = true")));
 
-        if (copy_data && copy_data_given && *copy_data)
-            ereport(ERROR,
-                    (errcode(ERRCODE_SYNTAX_ERROR),
-                     errmsg("connect = false and copy_data = true are mutually exclusive options")));
+		if (copy_data && copy_data_given && *copy_data)
+			ereport(ERROR,
+					(errcode(ERRCODE_SYNTAX_ERROR),
+					 errmsg("%s and %s are mutually exclusive options",
+							"connect = false", "copy_data = true")));
 
-        /* Change the defaults of other options. */
-        *enabled = false;
-        *create_slot = false;
-        *copy_data = false;
-    }
+		/* Change the defaults of other options. */
+		*enabled = false;
+		*create_slot = false;
+		*copy_data = false;
+	}
 
-    /*
-     * Do additional checking for disallowed combination when slot_name = NONE
-     * was used.
-     */
-    if (slot_name && *slot_name_given && !*slot_name)
-    {
-        if (enabled && *enabled_given && *enabled)
-            ereport(ERROR,
-                    (errcode(ERRCODE_SYNTAX_ERROR),
-                     errmsg("slot_name = NONE and enabled = true are mutually exclusive options")));
+	/*
+	 * Do additional checking for disallowed combination when slot_name = NONE
+	 * was used.
+	 */
+	if (slot_name && *slot_name_given && !*slot_name)
+	{
+		if (enabled && *enabled_given && *enabled)
+			ereport(ERROR,
+					(errcode(ERRCODE_SYNTAX_ERROR),
+			/*- translator: both %s are strings of the form "option = value" */
+					 errmsg("%s and %s are mutually exclusive options",
+							"slot_name = NONE", "enable = true")));
 
-        if (create_slot && create_slot_given && *create_slot)
-            ereport(ERROR,
-                    (errcode(ERRCODE_SYNTAX_ERROR),
-                     errmsg("slot_name = NONE and create_slot = true are mutually exclusive options")));
+		if (create_slot && create_slot_given && *create_slot)
+			ereport(ERROR,
+					(errcode(ERRCODE_SYNTAX_ERROR),
+					 errmsg("%s and %s are mutually exclusive options",
+							"slot_name = NONE", "create_slot = true")));
 
-        if (enabled && !*enabled_given && *enabled)
-            ereport(ERROR,
-                    (errcode(ERRCODE_SYNTAX_ERROR),
-                     errmsg("subscription with slot_name = NONE must also set enabled = false")));
+		if (enabled && !*enabled_given && *enabled)
+			ereport(ERROR,
+					(errcode(ERRCODE_SYNTAX_ERROR),
+			/*- translator: both %s are strings of the form "option = value" */
+					 errmsg("subscription with %s must also set %s",
+							"slot_name = NONE", "enabled = false")));
 
-        if (create_slot && !create_slot_given && *create_slot)
-            ereport(ERROR,
-                    (errcode(ERRCODE_SYNTAX_ERROR),
-                     errmsg("subscription with slot_name = NONE must also set create_slot = false")));
-    }
+		if (create_slot && !create_slot_given && *create_slot)
+			ereport(ERROR,
+					(errcode(ERRCODE_SYNTAX_ERROR),
+					 errmsg("subscription with %s must also set %s",
+							"slot_name = NONE", "create_slot = false")));
+	}
+
+#ifdef __OPENTENBASE_C__
+	if(col_chunks && dst_scno)
+	{
+		if(*col_chunks && !dst_scno_given)
+			ereport(ERROR,
+					(errcode(ERRCODE_SYNTAX_ERROR),
+					 errmsg("subscription with col_chunks = true must also set dst_scno")));
+	}
+#endif
 }
 
 /*
@@ -307,52 +345,50 @@ parse_subscription_options(List *options, bool *connect, bool *enabled_given,
 static Datum
 publicationListToArray(List *publist)
 {
-    ArrayType  *arr;
-    Datum       *datums;
-    int            j = 0;
-    ListCell   *cell;
-    MemoryContext memcxt;
-    MemoryContext oldcxt;
+	ArrayType  *arr;
+	Datum	   *datums;
+	int			j = 0;
+	ListCell   *cell;
+	MemoryContext memcxt;
+	MemoryContext oldcxt;
 
-    /* Create memory context for temporary allocations. */
-    memcxt = AllocSetContextCreate(CurrentMemoryContext,
-                                   "publicationListToArray to array",
-                                   ALLOCSET_DEFAULT_MINSIZE,
-                                   ALLOCSET_DEFAULT_INITSIZE,
-                                   ALLOCSET_DEFAULT_MAXSIZE);
-    oldcxt = MemoryContextSwitchTo(memcxt);
+	/* Create memory context for temporary allocations. */
+	memcxt = AllocSetContextCreate(CurrentMemoryContext,
+								   "publicationListToArray to array",
+								   ALLOCSET_DEFAULT_SIZES);
+	oldcxt = MemoryContextSwitchTo(memcxt);
 
-    datums = palloc(sizeof(text *) * list_length(publist));
-    foreach(cell, publist)
-    {
-        char       *name = strVal(lfirst(cell));
-        ListCell   *pcell;
+	datums = palloc(sizeof(text *) * list_length(publist));
+	foreach(cell, publist)
+	{
+		char	   *name = strVal(lfirst(cell));
+		ListCell   *pcell;
 
-        /* Check for duplicates. */
-        foreach(pcell, publist)
-        {
-            char       *pname = strVal(lfirst(pcell));
+		/* Check for duplicates. */
+		foreach(pcell, publist)
+		{
+			char	   *pname = strVal(lfirst(pcell));
 
-            if (name == pname)
-                break;
+			if (name == pname)
+				break;
 
-            if (strcmp(name, pname) == 0)
-                ereport(ERROR,
-                        (errcode(ERRCODE_SYNTAX_ERROR),
-                         errmsg("publication name \"%s\" used more than once",
-                                pname)));
-        }
+			if (strcmp(name, pname) == 0)
+				ereport(ERROR,
+						(errcode(ERRCODE_SYNTAX_ERROR),
+						 errmsg("publication name \"%s\" used more than once",
+								pname)));
+		}
 
-        datums[j++] = CStringGetTextDatum(name);
-    }
+		datums[j++] = CStringGetTextDatum(name);
+	}
 
-    MemoryContextSwitchTo(oldcxt);
+	MemoryContextSwitchTo(oldcxt);
 
-    arr = construct_array(datums, list_length(publist),
-                          TEXTOID, -1, false, 'i');
-    MemoryContextDelete(memcxt);
+	arr = construct_array(datums, list_length(publist),
+						  TEXTOID, -1, false, 'i');
+	MemoryContextDelete(memcxt);
 
-    return PointerGetDatum(arr);
+	return PointerGetDatum(arr);
 }
 
 /*
@@ -365,351 +401,345 @@ CreateSubscription(CreateSubscriptionStmt *stmt, bool isTopLevel, bool force_to_
 ObjectAddress
 CreateSubscription(CreateSubscriptionStmt *stmt, bool isTopLevel)
 #endif
-{// #lizard forgives
-    Relation    rel;
-    ObjectAddress myself;
-    Oid            subid;
-    bool        nulls[Natts_pg_subscription];
-    Datum        values[Natts_pg_subscription];
-    Oid            owner = GetUserId();
-    HeapTuple    tup;
-    bool        connect;
-    bool        enabled_given;
-    bool        enabled;
-    bool        copy_data;
-    char       *synchronous_commit;
-    char       *conninfo;
-    char       *slotname;
-    bool        slotname_given;
-    char        originname[NAMEDATALEN];
-    bool        create_slot;
-    List       *publications;
-
-    /*
-     * Parse and check options.
-     *
-     * Connection and publication should not be specified here.
-     */
-    parse_subscription_options(stmt->options, &connect, &enabled_given,
-                               &enabled, &create_slot, &slotname_given,
-                               &slotname, &copy_data, &synchronous_commit,
-                               NULL);
-
-    /*
-     * Since creating a replication slot is not transactional, rolling back
-     * the transaction leaves the created replication slot.  So we cannot run
-     * CREATE SUBSCRIPTION inside a transaction block if creating a
-     * replication slot.
-     */
-    if (create_slot)
-        PreventTransactionChain(isTopLevel, "CREATE SUBSCRIPTION ... WITH (create_slot = true)");
-
-    if (!superuser())
-        ereport(ERROR,
-                (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-                 (errmsg("must be superuser to create subscriptions"))));
-
-    rel = heap_open(SubscriptionRelationId, RowExclusiveLock);
-
-    /* Check if name is used */
-    subid = GetSysCacheOid2(SUBSCRIPTIONNAME, MyDatabaseId,
-                            CStringGetDatum(stmt->subname));
-    if (OidIsValid(subid))
-    {
-        ereport(ERROR,
-                (errcode(ERRCODE_DUPLICATE_OBJECT),
-                 errmsg("subscription \"%s\" already exists",
-                        stmt->subname)));
-    }
-
-    if (!slotname_given && slotname == NULL)
-        slotname = stmt->subname;
-
-    /* The default for synchronous_commit of subscriptions is off. */
-    if (synchronous_commit == NULL)
-        synchronous_commit = "off";
-
-    conninfo = stmt->conninfo;
-    publications = stmt->publication;
-
-#ifdef __SUBSCRIPTION__
-    /* add parallel info into conninfo */
-    if (conninfo != NULL && isOpenTenBaseSubscription((Node *)stmt))
-    {
-        StringInfoData conn_str;
-        initStringInfo(&conn_str);
-        appendStringInfo(&conn_str, 
-            "%s sub_parallel_number=%d sub_parallel_index=%d",
-            conninfo, stmt->sub_parallel_number, stmt->sub_parallel_index);
-        conninfo = conn_str.data;
-
-        Assert(stmt->sub_parallel_number >= 1 && stmt->sub_parallel_index >= 0);
-        if (!((stmt->sub_parallel_number >= 1 && stmt->sub_parallel_index >= 0))) abort();
-
-        Assert(stmt->sub_parallel_number > stmt->sub_parallel_index);
-        if (!((stmt->sub_parallel_number > stmt->sub_parallel_index))) abort();
-    }
+{
+	Relation	rel;
+	ObjectAddress myself;
+	Oid			subid;
+	bool		nulls[Natts_pg_subscription];
+	Datum		values[Natts_pg_subscription];
+	Oid			owner = GetUserId();
+	HeapTuple	tup;
+	bool		connect;
+	bool		enabled_given;
+	bool		enabled;
+	bool		copy_data;
+	char	   *synchronous_commit;
+	char	   *conninfo;
+	char	   *slotname;
+	bool		slotname_given;
+	char		originname[NAMEDATALEN];
+	bool		create_slot;
+	List	   *publications;
+#ifdef __OPENTENBASE_C__
+	bool        col_chunks;
+	int32       dst_scno;
 #endif
 
-    /* Load the library providing us libpq calls. */
-    load_file("libpqwalreceiver", false);
+	/*
+	 * Parse and check options.
+	 *
+	 * Connection and publication should not be specified here.
+	 */
+	parse_subscription_options(stmt->options, &connect, &enabled_given,
+							   &enabled, &create_slot, &slotname_given,
+							   &slotname, &copy_data, &synchronous_commit,
+							   &col_chunks, &dst_scno,
+							   NULL);
 
-    /* Check the connection info string. */
-    walrcv_check_conninfo(conninfo);
+	/*
+	 * Since creating a replication slot is not transactional, rolling back
+	 * the transaction leaves the created replication slot.  So we cannot run
+	 * CREATE SUBSCRIPTION inside a transaction block if creating a
+	 * replication slot.
+	 */
+	if (create_slot)
+		PreventTransactionChain(isTopLevel, "CREATE SUBSCRIPTION ... WITH (create_slot = true)");
 
-    /* Everything ok, form a new tuple. */
-    memset(values, 0, sizeof(values));
-    memset(nulls, false, sizeof(nulls));
+	if (!superuser())
+		ereport(ERROR,
+				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+				 (errmsg("must be superuser to create subscriptions"))));
 
-    values[Anum_pg_subscription_subdbid - 1] = ObjectIdGetDatum(MyDatabaseId);
-    values[Anum_pg_subscription_subname - 1] =
-        DirectFunctionCall1(namein, CStringGetDatum(stmt->subname));
-    values[Anum_pg_subscription_subowner - 1] = ObjectIdGetDatum(owner);
-    values[Anum_pg_subscription_subenabled - 1] = BoolGetDatum(enabled);
+	rel = heap_open(SubscriptionRelationId, RowExclusiveLock);
+
+	/* Check if name is used */
+	subid = GetSysCacheOid2(SUBSCRIPTIONNAME, MyDatabaseId,
+							CStringGetDatum(stmt->subname));
+	if (OidIsValid(subid))
+	{
+		ereport(ERROR,
+				(errcode(ERRCODE_DUPLICATE_OBJECT),
+				 errmsg("subscription \"%s\" already exists",
+						stmt->subname)));
+	}
+
+	if (!slotname_given && slotname == NULL)
+		slotname = stmt->subname;
+
+	/* The default for synchronous_commit of subscriptions is off. */
+	if (synchronous_commit == NULL)
+		synchronous_commit = "off";
+
+	conninfo = stmt->conninfo;
+	publications = stmt->publication;
 
 #ifdef __SUBSCRIPTION__
-    if (force_to_disable == true)
-    {
-        values[Anum_pg_subscription_subenabled - 1] = BoolGetDatum(false);
-    }
+	/* add parallel info into conninfo */
+	if (conninfo != NULL && IsOpenTenBaseSubscription((Node *)stmt))
+	{
+		StringInfoData conn_str;
+		initStringInfo(&conn_str);
+		appendStringInfo(&conn_str, 
+			"%s sub_parallel_number=%d sub_parallel_index=%d",
+			conninfo, stmt->sub_parallel_number, stmt->sub_parallel_index);
+		conninfo = conn_str.data;
 
-    values[Anum_pg_subscription_subconninfo - 1] = CStringGetTextDatum(stmt->conninfo);
+		Assert(stmt->sub_parallel_number >= 1 && stmt->sub_parallel_index >= 0);
+		if (!((stmt->sub_parallel_number >= 1 && stmt->sub_parallel_index >= 0))) abort();
+
+		Assert(stmt->sub_parallel_number > stmt->sub_parallel_index);
+		if (!((stmt->sub_parallel_number > stmt->sub_parallel_index))) abort();
+	}
+#endif
+
+	/* Load the library providing us libpq calls. */
+	load_file("libpqwalreceiver", false);
+
+	/* Check the connection info string. */
+	walrcv_check_conninfo(conninfo);
+
+	/* Everything ok, form a new tuple. */
+	memset(values, 0, sizeof(values));
+	memset(nulls, false, sizeof(nulls));
+
+	values[Anum_pg_subscription_subdbid - 1] = ObjectIdGetDatum(MyDatabaseId);
+	values[Anum_pg_subscription_subname - 1] =
+		DirectFunctionCall1(namein, CStringGetDatum(stmt->subname));
+	values[Anum_pg_subscription_subowner - 1] = ObjectIdGetDatum(owner);
+	values[Anum_pg_subscription_subenabled - 1] = BoolGetDatum(enabled);
+
+#ifdef __SUBSCRIPTION__
+	if (force_to_disable == true)
+	{
+		values[Anum_pg_subscription_subenabled - 1] = BoolGetDatum(false);
+	}
+
+	values[Anum_pg_subscription_subconninfo - 1] = CStringGetTextDatum(stmt->conninfo);
 #else
-    values[Anum_pg_subscription_subconninfo - 1] =
-        CStringGetTextDatum(conninfo);
+	values[Anum_pg_subscription_subconninfo - 1] =
+		CStringGetTextDatum(conninfo);
 #endif
 
-    if (slotname)
-        values[Anum_pg_subscription_subslotname - 1] =
-            DirectFunctionCall1(namein, CStringGetDatum(slotname));
-    else
-        nulls[Anum_pg_subscription_subslotname - 1] = true;
-    values[Anum_pg_subscription_subsynccommit - 1] =
-        CStringGetTextDatum(synchronous_commit);
-    values[Anum_pg_subscription_subpublications - 1] =
-        publicationListToArray(publications);
-
-    tup = heap_form_tuple(RelationGetDescr(rel), values, nulls);
-
-    /* Insert tuple into catalog. */
-    subid = CatalogTupleInsert(rel, tup);
-    heap_freetuple(tup);
-
-    recordDependencyOnOwner(SubscriptionRelationId, subid, owner);
-
-    snprintf(originname, sizeof(originname), "pg_%u", subid);
-    replorigin_create(originname);
-
-    /*
-     * Connect to remote side to execute requested commands and fetch table
-     * info.
-     */
-    if (connect)
-    {
-        XLogRecPtr    lsn;
-        char       *err;
-        WalReceiverConn *wrconn;
-        List       *tables;
-#ifdef __STORAGE_SCALABLE__
-        List       *shards;
+	if (slotname)
+		values[Anum_pg_subscription_subslotname - 1] =
+			DirectFunctionCall1(namein, CStringGetDatum(slotname));
+	else
+		nulls[Anum_pg_subscription_subslotname - 1] = true;
+	values[Anum_pg_subscription_subsynccommit - 1] =
+		CStringGetTextDatum(synchronous_commit);
+	values[Anum_pg_subscription_subpublications - 1] =
+		publicationListToArray(publications);
+#ifdef __OPENTENBASE_C__
+	values[Anum_pg_subscription_subcolcunks - 1] = BoolGetDatum(col_chunks);
+	values[Anum_pg_subscription_subdstscno - 1] = DatumGetInt16(dst_scno);
 #endif
-        ListCell   *lc;
-        char        table_state;
 
-        /* Try to connect to the publisher. */
-        wrconn = walrcv_connect(conninfo, true, stmt->subname, &err);
-        if (!wrconn)
-            ereport(ERROR,
-                    (errmsg("could not connect to the publisher: %s", err)));
+	tup = heap_form_tuple(RelationGetDescr(rel), values, nulls);
 
-        PG_TRY();
-        {
-            /*
-             * Set sync state based on if we were asked to do data copy or
-             * not.
-             */
-            table_state = copy_data ? SUBREL_STATE_INIT : SUBREL_STATE_READY;
+	/* Insert tuple into catalog. */
+	subid = CatalogTupleInsert(rel, tup);
+	heap_freetuple(tup);
 
-            /*
-             * Get the table list from publisher and build local table status
-             * info.
-             */
-            tables = fetch_table_list(wrconn, publications);
+	recordDependencyOnOwner(SubscriptionRelationId, subid, owner);
+
+	snprintf(originname, sizeof(originname), "pg_%u", subid);
+	replorigin_create(originname);
+
+	/*
+	 * Connect to remote side to execute requested commands and fetch table
+	 * info.
+	 */
+	if (connect)
+	{
+		XLogRecPtr	lsn;
+		char	   *err;
+		WalReceiverConn *wrconn;
+		List	   *tables;
 #ifdef __STORAGE_SCALABLE__
-            shards = fetch_shard_list(wrconn, publications);
+		List       *shards;
 #endif
-            foreach(lc, tables)
-            {
-                RangeVar   *rv = (RangeVar *) lfirst(lc);
-                Oid            relid;
-                Relation    relation;
+		ListCell   *lc;
+		char		table_state;
 
-                relid = RangeVarGetRelid(rv, AccessShareLock, false);
+		/* Try to connect to the publisher. */
+		wrconn = walrcv_connect(conninfo, true, stmt->subname, &err);
+		if (!wrconn)
+			ereport(ERROR,
+					(errmsg("could not connect to the publisher: %s", err)));
+
+		PG_TRY();
+		{
+			/*
+			 * Set sync state based on if we were asked to do data copy or
+			 * not.
+			 */
+			table_state = copy_data ? SUBREL_STATE_INIT : SUBREL_STATE_READY;
+
+			/*
+			 * Get the table list from publisher and build local table status
+			 * info.
+			 */
+			tables = fetch_table_list(wrconn, publications);
+#ifdef __STORAGE_SCALABLE__
+			shards = fetch_shard_list(wrconn, publications);
+#endif
+			foreach(lc, tables)
+			{
+				RangeVar   *rv = (RangeVar *) lfirst(lc);
+				Oid			relid;
+				Relation    relation;
+
+				relid = RangeVarGetRelid(rv, AccessShareLock, false);
 
 #ifdef __STORAGE_SCALABLE__
-                relation = heap_open(relid, NoLock);
-                if (shards && !stmt->isopentenbase)
-                {
-                    if (!RelationIsSharded(relation))
-                    {
-                        heap_close(relation, NoLock);
+				relation = heap_open(relid, NoLock);
+				if (shards && !stmt->isopentenbase)
+				{
+					if (!RelationIsSharded(relation))
+					{
+						heap_close(relation, NoLock);
 
+						continue;
+					}
+				}
+
+#ifdef __SUBSCRIPTION__
+				if (stmt->isopentenbase)
+				{
+					/* only support shard table */
+					if (relation->rd_locator_info == NULL ||
+						relation->rd_locator_info->locatorType != LOCATOR_TYPE_SHARD)
+					{
+						heap_close(relation, NoLock);
+						ereport(LOG,
+							(errcode(ERRCODE_WRONG_OBJECT_TYPE),
+							 errmsg("OpenTenBase Subscripton currently only supports subscribing into the SHARD table, "
+							 		"but \"%s\" is not a SHARD table, skip it", RangeVarGetName(rv))));
                         continue;
                     }
-                }
-
-                if (RELATION_IS_INTERVAL(relation))
-                {
-                    heap_close(relation, NoLock);
-
-                    continue;
-                }
-
-#ifdef __SUBSCRIPTION__
-                if (stmt->isopentenbase)
-                {
-                    /* only support shard table */
-                    if (relation->rd_locator_info == NULL ||
-                        relation->rd_locator_info->locatorType != LOCATOR_TYPE_SHARD)
-                    {
-                        heap_close(relation, NoLock);
-                        ereport(LOG,
-                            (errcode(ERRCODE_WRONG_OBJECT_TYPE),
-                             errmsg("OpenTenBase Subscripton currently only supports subscribing into the SHARD table, "
-                                     "but \"%s\" is not a SHARD table, skip it", RangeVarGetName(rv))));
-                        continue;
-                    }
-                }
-#endif
-                heap_close(relation, NoLock);
-#endif
-
-                /* Check for supported relkind. */
-                CheckSubscriptionRelkind(get_rel_relkind(relid),
-                                         rv->schemaname, rv->relname);
-
-                SetSubscriptionRelState(subid, relid, table_state,
-                                        InvalidXLogRecPtr, false, true);
-#ifdef __STORAGE_SCALABLE__
-                /* add subscription / table mapping with publication */
-                subscription_add_table(stmt->subname, subid, relid, rv->pubname, true);
-#endif
-            }
-
-#ifdef __STORAGE_SCALABLE__
-            /*
-             * Get the shard list from publisher and build local shard status
-             * info.
-             */
-            foreach(lc, shards)
-            {
-                PubShard   *ps = (PubShard *) lfirst(lc);
-
-                if (!ShardIDIsValid(ps->shardid))
-                    ereport(ERROR,
-                            (errcode(ERRCODE_WRONG_OBJECT_TYPE),
-                             errmsg("logical replication target shard \"%d\" is invalid",
-                                    ps->shardid)));
-
-                subscription_add_shard(stmt->subname, subid, ps->shardid, ps->pubname, true);
-            }
-#endif
-
-            /*
-             * If requested, create permanent slot for the subscription. We
-             * won't use the initial snapshot for anything, so no need to
-             * export it.
-             */
-            if (create_slot)
-            {
-                Assert(slotname);
-
-#ifdef __STORAGE_SCALABLE__
-                /* send subscription's name and oid addition additionally */
-				if (shards)
-				{
-					walrcv_create_slot(wrconn, slotname, false,
-									   CRS_NOEXPORT_SNAPSHOT, &lsn, slotname, subid, NULL, NULL);
 				}
-				else
-				{
-					walrcv_create_slot(wrconn, slotname, false,
-									   CRS_NOEXPORT_SNAPSHOT, &lsn, NULL, InvalidOid, NULL, NULL);
-				}
+#endif
+				heap_close(relation, NoLock);
+#endif
+
+				/* Check for supported relkind. */
+				CheckSubscriptionRelkind(get_rel_relkind(relid),
+										 rv->schemaname, rv->relname);
+
+				SetSubscriptionRelState(subid, relid, table_state,
+										InvalidXLogRecPtr, false, true);
+#ifdef __STORAGE_SCALABLE__
+				/* add subscription / table mapping with publication */
+				subscription_add_table(stmt->subname, subid, relid, rv->pubname, true);
+#endif
+			}
+
+#ifdef __STORAGE_SCALABLE__
+			/*
+			 * Get the shard list from publisher and build local shard status
+			 * info.
+			 */
+			foreach(lc, shards)
+			{
+				PubShard   *ps = (PubShard *) lfirst(lc);
+
+				if (!ShardIDIsValid(ps->shardid))
+					ereport(ERROR,
+							(errcode(ERRCODE_WRONG_OBJECT_TYPE),
+							 errmsg("logical replication target shard \"%d\" is invalid",
+									ps->shardid)));
+
+				subscription_add_shard(stmt->subname, subid, ps->shardid, ps->pubname, true);
+			}
+#endif
+
+			/*
+			 * If requested, create permanent slot for the subscription. We
+			 * won't use the initial snapshot for anything, so no need to
+			 * export it.
+			 */
+			if (create_slot)
+			{
+				Assert(slotname);
+
+#ifdef __STORAGE_SCALABLE__
+				/* send subscription's name and oid addition additionally */
+				walrcv_create_slot(wrconn, slotname, false,
+								   CRS_NOEXPORT_SNAPSHOT, &lsn, slotname, subid, NULL, NULL);
 #else
-                walrcv_create_slot(wrconn, slotname, false,
-                                   CRS_NOEXPORT_SNAPSHOT, &lsn);
+				walrcv_create_slot(wrconn, slotname, false,
+								   CRS_NOEXPORT_SNAPSHOT, &lsn);
 #endif
-                ereport(NOTICE,
-                        (errmsg("created replication slot \"%s\" on publisher",
-                                slotname)));
-            }
-        }
-        PG_CATCH();
-        {
-            /* Close the connection in case of failure. */
-            walrcv_disconnect(wrconn);
-            PG_RE_THROW();
-        }
-        PG_END_TRY();
+				ereport(NOTICE,
+						(errmsg("created replication slot \"%s\" on publisher",
+								slotname)));
+			}
+		}
+		PG_CATCH();
+		{
+			/* Close the connection in case of failure. */
+			walrcv_disconnect(wrconn);
+			PG_RE_THROW();
+		}
+		PG_END_TRY();
 
-        /* And we are done with the remote side. */
-        walrcv_disconnect(wrconn);
-    }
-    else
-        ereport(WARNING,
-                (errmsg("tables were not subscribed, you will have to run "
-                        "ALTER SUBSCRIPTION ... REFRESH PUBLICATION to "
-                        "subscribe the tables")));
+		/* And we are done with the remote side. */
+		walrcv_disconnect(wrconn);
+	}
+	else
+		ereport(WARNING,
+		/* translator: %s is an SQL ALTER statement */
+				(errmsg("tables were not subscribed, you will have to run %s to subscribe the tables",
+						"ALTER SUBSCRIPTION ... REFRESH PUBLICATION")));
 
-    heap_close(rel, RowExclusiveLock);
+	heap_close(rel, RowExclusiveLock);
 
-    if (enabled)
-        ApplyLauncherWakeupAtCommit();
+	if (enabled)
+		ApplyLauncherWakeupAtCommit();
 
-    ObjectAddressSet(myself, SubscriptionRelationId, subid);
+	ObjectAddressSet(myself, SubscriptionRelationId, subid);
 
-    InvokeObjectPostCreateHook(SubscriptionRelationId, subid, 0);
+	InvokeObjectPostCreateHook(SubscriptionRelationId, subid, 0);
 
-    return myself;
+	return myself;
 }
 
 static void
 AlterSubscription_refresh(Subscription *sub, bool copy_data)
-{// #lizard forgives
-    char       *err;
-    List       *pubrel_names;
-    List       *subrel_states;
-    Oid           *subrel_local_oids;
-    Oid           *pubrel_local_oids;
-    ListCell   *lc;
-    int            off;
+{
+	char	   *err;
+	List	   *pubrel_names;
+	List	   *subrel_states;
+	Oid		   *subrel_local_oids;
+	Oid		   *pubrel_local_oids;
+	ListCell   *lc;
+	int			off;
 
-    /* Load the library providing us libpq calls. */
-    load_file("libpqwalreceiver", false);
+	/* Load the library providing us libpq calls. */
+	load_file("libpqwalreceiver", false);
 
-    /* Try to connect to the publisher. */
-    wrconn = walrcv_connect(sub->conninfo, true, sub->name, &err);
-    if (!wrconn)
-        ereport(ERROR,
-                (errmsg("could not connect to the publisher: %s", err)));
+	/* Try to connect to the publisher. */
+	wrconn = walrcv_connect(sub->conninfo, true, sub->name, &err);
+	if (!wrconn)
+		ereport(ERROR,
+				(errmsg("could not connect to the publisher: %s", err)));
 
-    /* Get the table list from publisher. */
-    pubrel_names = fetch_table_list(wrconn, sub->publications);
+	/* Get the table list from publisher. */
+	pubrel_names = fetch_table_list(wrconn, sub->publications);
 
-    /* We are done with the remote side, close connection. */
-    walrcv_disconnect(wrconn);
+	/* We are done with the remote side, close connection. */
+	walrcv_disconnect(wrconn);
 
 #ifdef __STORAGE_SCALABLE__
-    if (IS_PGXC_COORDINATOR)
-    {
-        List *shard_pubrel_names = NIL;
+	if (IS_PGXC_COORDINATOR)
+	{
+		List *shard_pubrel_names = NIL;
 
-        foreach(lc, pubrel_names)
-        {
-            RangeVar   *rv = (RangeVar *) lfirst(lc);
-            Oid            relid = InvalidOid;
-            Relation    relation = NULL;
+		foreach(lc, pubrel_names)
+		{
+			RangeVar   *rv = (RangeVar *) lfirst(lc);
+			Oid			relid = InvalidOid;
+			Relation    relation = NULL;
 
 			relid = RangeVarGetRelid(rv, AccessShareLock, true);
 			if (!OidIsValid(relid))
@@ -718,118 +748,109 @@ AlterSubscription_refresh(Subscription *sub, bool copy_data)
 				continue;
 			}
 
-            relation = heap_open(relid, NoLock);
+			relation = heap_open(relid, NoLock);
 
-            /* only support shard table */
-            if (!RelationIsSharded(relation))
-            {
-                heap_close(relation, NoLock);
-                ereport(LOG,
-                    (errcode(ERRCODE_WRONG_OBJECT_TYPE),
-                     errmsg("OpenTenBase Subscripton on COORDINATOR currently only supports subscribing into the SHARD table, "
-                            "but \"%s\" is not a SHARD table, skip it", RangeVarGetName(rv))));
-                continue;
-            }
+			/* only support shard table */
+			if (!RelationIsSharded(relation))
+			{
+				heap_close(relation, NoLock);
+				ereport(LOG,
+					(errcode(ERRCODE_WRONG_OBJECT_TYPE),
+					 errmsg("OpenTenBase Subscripton on COORDINATOR currently only supports subscribing into the SHARD table, "
+							"but \"%s\" is not a SHARD table, skip it", RangeVarGetName(rv))));
+				continue;
+			}
 
-            if (RELATION_IS_INTERVAL(relation))
-            {
-                heap_close(relation, NoLock);
-                continue;
-            }
+			heap_close(relation, NoLock);
+			shard_pubrel_names = lappend(shard_pubrel_names, rv);
+		}
 
-            heap_close(relation, NoLock);
-            shard_pubrel_names = lappend(shard_pubrel_names, rv);
-        }
-
-        pubrel_names = shard_pubrel_names;
-    }
+		pubrel_names = shard_pubrel_names;
+	}
 #endif
 
-    /* Get local table list. */
-    subrel_states = GetSubscriptionRelations(sub->oid);
+	/* Get local table list. */
+	subrel_states = GetSubscriptionRelations(sub->oid);
 
-    /*
-     * Build qsorted array of local table oids for faster lookup. This can
-     * potentially contain all tables in the database so speed of lookup is
-     * important.
-     */
-    subrel_local_oids = palloc(list_length(subrel_states) * sizeof(Oid));
-    off = 0;
-    foreach(lc, subrel_states)
-    {
-        SubscriptionRelState *relstate = (SubscriptionRelState *) lfirst(lc);
+	/*
+	 * Build qsorted array of local table oids for faster lookup. This can
+	 * potentially contain all tables in the database so speed of lookup is
+	 * important.
+	 */
+	subrel_local_oids = palloc(list_length(subrel_states) * sizeof(Oid));
+	off = 0;
+	foreach(lc, subrel_states)
+	{
+		SubscriptionRelState *relstate = (SubscriptionRelState *) lfirst(lc);
 
-        subrel_local_oids[off++] = relstate->relid;
-    }
-    qsort(subrel_local_oids, list_length(subrel_states),
-          sizeof(Oid), oid_cmp);
+		subrel_local_oids[off++] = relstate->relid;
+	}
+	qsort(subrel_local_oids, list_length(subrel_states),
+		  sizeof(Oid), oid_cmp);
 
-    /*
-     * Walk over the remote tables and try to match them to locally known
-     * tables. If the table is not known locally create a new state for it.
-     *
-     * Also builds array of local oids of remote tables for the next step.
-     */
-    off = 0;
-    pubrel_local_oids = palloc(list_length(pubrel_names) * sizeof(Oid));
+	/*
+	 * Walk over the remote tables and try to match them to locally known
+	 * tables. If the table is not known locally create a new state for it.
+	 *
+	 * Also builds array of local oids of remote tables for the next step.
+	 */
+	off = 0;
+	pubrel_local_oids = palloc(list_length(pubrel_names) * sizeof(Oid));
 
-    foreach(lc, pubrel_names)
-    {
-        RangeVar   *rv = (RangeVar *) lfirst(lc);
-        Oid            relid;
+	foreach(lc, pubrel_names)
+	{
+		RangeVar   *rv = (RangeVar *) lfirst(lc);
+		Oid			relid;
 
-        relid = RangeVarGetRelid(rv, AccessShareLock, false);
+		relid = RangeVarGetRelid(rv, AccessShareLock, false);
 
-        /* Check for supported relkind. */
-        CheckSubscriptionRelkind(get_rel_relkind(relid),
-                                 rv->schemaname, rv->relname);
+		/* Check for supported relkind. */
+		CheckSubscriptionRelkind(get_rel_relkind(relid),
+								 rv->schemaname, rv->relname);
 
-        pubrel_local_oids[off++] = relid;
+		pubrel_local_oids[off++] = relid;
 
-        if (!bsearch(&relid, subrel_local_oids,
-                     list_length(subrel_states), sizeof(Oid), oid_cmp))
-        {
-            SetSubscriptionRelState(sub->oid, relid,
-                                    copy_data ? SUBREL_STATE_INIT : SUBREL_STATE_READY,
-                                    InvalidXLogRecPtr, false, true);
+		if (!bsearch(&relid, subrel_local_oids,
+					 list_length(subrel_states), sizeof(Oid), oid_cmp))
+		{
+			SetSubscriptionRelState(sub->oid, relid,
+									copy_data ? SUBREL_STATE_INIT : SUBREL_STATE_READY,
+									InvalidXLogRecPtr, false, true);
 #ifdef __STORAGE_SCALABLE__
-            /* add subscription / table mapping with publication */
-            subscription_add_table(sub->name, sub->oid, relid, rv->pubname, true);
+			/* add subscription / table mapping with publication */
+			subscription_add_table(sub->name, sub->oid, relid, rv->pubname, true);
 #endif
-            ereport(DEBUG1,
-                    (errmsg("table \"%s.%s\" added to subscription \"%s\"",
-                            rv->schemaname, rv->relname, sub->name)));
-        }
-    }
+			ereport(DEBUG1,
+					(errmsg("table \"%s.%s\" added to subscription \"%s\"",
+							rv->schemaname, rv->relname, sub->name)));
+		}
+	}
 
-    /*
-     * Next remove state for tables we should not care about anymore using the
-     * data we collected above
-     */
-    qsort(pubrel_local_oids, list_length(pubrel_names),
-          sizeof(Oid), oid_cmp);
+	/*
+	 * Next remove state for tables we should not care about anymore using the
+	 * data we collected above
+	 */
+	qsort(pubrel_local_oids, list_length(pubrel_names),
+		  sizeof(Oid), oid_cmp);
 
-    for (off = 0; off < list_length(subrel_states); off++)
-    {
-        Oid            relid = subrel_local_oids[off];
+	for (off = 0; off < list_length(subrel_states); off++)
+	{
+		Oid			relid = subrel_local_oids[off];
 
-        if (!bsearch(&relid, pubrel_local_oids,
-                     list_length(pubrel_names), sizeof(Oid), oid_cmp))
-        {
-            RemoveSubscriptionRel(sub->oid, relid);
-#ifdef __STORAGE_SCALABLE__
-            /* remove subscription / table mapping with publication */
-            RemoveSubscriptionTable(sub->oid, relid);
-#endif
-            logicalrep_worker_stop_at_commit(sub->oid, relid);
+		if (!bsearch(&relid, pubrel_local_oids,
+					 list_length(pubrel_names), sizeof(Oid), oid_cmp))
+		{
+			RemoveSubscriptionRel(sub->oid, relid);
 
-            ereport(DEBUG1,
-                    (errmsg("table \"%s.%s\" removed from subscription \"%s\"",
-                            get_namespace_name(get_rel_namespace(relid)),
-                            get_rel_name(relid),
-                            sub->name)));
-        }
-    }
+			logicalrep_worker_stop_at_commit(sub->oid, relid);
+
+			ereport(DEBUG1,
+					(errmsg("table \"%s.%s\" removed from subscription \"%s\"",
+							get_namespace_name(get_rel_namespace(relid)),
+							get_rel_name(relid),
+							sub->name)));
+		}
+	}
 }
 
 /*
@@ -837,195 +858,198 @@ AlterSubscription_refresh(Subscription *sub, bool copy_data)
  */
 ObjectAddress
 AlterSubscription(AlterSubscriptionStmt *stmt)
-{// #lizard forgives
-    Relation    rel;
-    ObjectAddress myself;
-    bool        nulls[Natts_pg_subscription];
-    bool        replaces[Natts_pg_subscription];
-    Datum        values[Natts_pg_subscription];
-    HeapTuple    tup;
-    Oid            subid;
-    bool        update_tuple = false;
-    Subscription *sub;
+{
+	Relation	rel;
+	ObjectAddress myself;
+	bool		nulls[Natts_pg_subscription];
+	bool		replaces[Natts_pg_subscription];
+	Datum		values[Natts_pg_subscription];
+	HeapTuple	tup;
+	Oid			subid;
+	bool		update_tuple = false;
+	Subscription *sub;
 
-    rel = heap_open(SubscriptionRelationId, RowExclusiveLock);
+	rel = heap_open(SubscriptionRelationId, RowExclusiveLock);
 
-    /* Fetch the existing tuple. */
-    tup = SearchSysCacheCopy2(SUBSCRIPTIONNAME, MyDatabaseId,
-                              CStringGetDatum(stmt->subname));
+	/* Fetch the existing tuple. */
+	tup = SearchSysCacheCopy2(SUBSCRIPTIONNAME, MyDatabaseId,
+							  CStringGetDatum(stmt->subname));
 
-    if (!HeapTupleIsValid(tup))
-        ereport(ERROR,
-                (errcode(ERRCODE_UNDEFINED_OBJECT),
-                 errmsg("subscription \"%s\" does not exist",
-                        stmt->subname)));
+	if (!HeapTupleIsValid(tup))
+		ereport(ERROR,
+				(errcode(ERRCODE_UNDEFINED_OBJECT),
+				 errmsg("subscription \"%s\" does not exist",
+						stmt->subname)));
 
-    /* must be owner */
-    if (!pg_subscription_ownercheck(HeapTupleGetOid(tup), GetUserId()))
-        aclcheck_error(ACLCHECK_NOT_OWNER, ACL_KIND_SUBSCRIPTION,
-                       stmt->subname);
+	/* must be owner */
+	if (!pg_subscription_ownercheck(HeapTupleGetOid(tup), GetUserId()))
+		aclcheck_error(ACLCHECK_NOT_OWNER, ACL_KIND_SUBSCRIPTION,
+					   stmt->subname);
 
-    subid = HeapTupleGetOid(tup);
-    sub = GetSubscription(subid, false);
+	subid = HeapTupleGetOid(tup);
+	sub = GetSubscription(subid, false);
 
-    /* Lock the subscription so nobody else can do anything with it. */
-    LockSharedObject(SubscriptionRelationId, subid, 0, AccessExclusiveLock);
+	/* Lock the subscription so nobody else can do anything with it. */
+	LockSharedObject(SubscriptionRelationId, subid, 0, AccessExclusiveLock);
 
-    /* Form a new tuple. */
-    memset(values, 0, sizeof(values));
-    memset(nulls, false, sizeof(nulls));
-    memset(replaces, false, sizeof(replaces));
+	/* Form a new tuple. */
+	memset(values, 0, sizeof(values));
+	memset(nulls, false, sizeof(nulls));
+	memset(replaces, false, sizeof(replaces));
 
-    switch (stmt->kind)
-    {
-        case ALTER_SUBSCRIPTION_OPTIONS:
-            {
-                char       *slotname;
-                bool        slotname_given;
-                char       *synchronous_commit;
+	switch (stmt->kind)
+	{
+		case ALTER_SUBSCRIPTION_OPTIONS:
+			{
+				char	   *slotname;
+				bool		slotname_given;
+				char	   *synchronous_commit;
 
-                parse_subscription_options(stmt->options, NULL, NULL, NULL,
-                                           NULL, &slotname_given, &slotname,
-                                           NULL, &synchronous_commit, NULL);
+				parse_subscription_options(stmt->options, NULL, NULL, NULL,
+										   NULL, &slotname_given, &slotname,
+										   NULL, &synchronous_commit, NULL,
+										   NULL, NULL);
 
-                if (slotname_given)
-                {
-                    if (sub->enabled && !slotname)
-                        ereport(ERROR,
-                                (errcode(ERRCODE_SYNTAX_ERROR),
-                                 errmsg("cannot set slot_name = NONE for enabled subscription")));
+				if (slotname_given)
+				{
+					if (sub->enabled && !slotname)
+						ereport(ERROR,
+								(errcode(ERRCODE_SYNTAX_ERROR),
+								 errmsg("cannot set %s for enabled subscription",
+										"slot_name = NONE")));
 
-                    if (slotname)
-                        values[Anum_pg_subscription_subslotname - 1] =
-                            DirectFunctionCall1(namein, CStringGetDatum(slotname));
-                    else
-                        nulls[Anum_pg_subscription_subslotname - 1] = true;
-                    replaces[Anum_pg_subscription_subslotname - 1] = true;
-                }
+					if (slotname)
+						values[Anum_pg_subscription_subslotname - 1] =
+							DirectFunctionCall1(namein, CStringGetDatum(slotname));
+					else
+						nulls[Anum_pg_subscription_subslotname - 1] = true;
+					replaces[Anum_pg_subscription_subslotname - 1] = true;
+				}
 
-                if (synchronous_commit)
-                {
-                    values[Anum_pg_subscription_subsynccommit - 1] =
-                        CStringGetTextDatum(synchronous_commit);
-                    replaces[Anum_pg_subscription_subsynccommit - 1] = true;
-                }
+				if (synchronous_commit)
+				{
+					values[Anum_pg_subscription_subsynccommit - 1] =
+						CStringGetTextDatum(synchronous_commit);
+					replaces[Anum_pg_subscription_subsynccommit - 1] = true;
+				}
 
-                update_tuple = true;
-                break;
-            }
+				update_tuple = true;
+				break;
+			}
 
-        case ALTER_SUBSCRIPTION_ENABLED:
-            {
-                bool        enabled,
-                            enabled_given;
+		case ALTER_SUBSCRIPTION_ENABLED:
+			{
+				bool		enabled,
+							enabled_given;
 
-                parse_subscription_options(stmt->options, NULL,
-                                           &enabled_given, &enabled, NULL,
-                                           NULL, NULL, NULL, NULL, NULL);
-                Assert(enabled_given);
+				parse_subscription_options(stmt->options, NULL,
+										   &enabled_given, &enabled, NULL,
+										   NULL, NULL, NULL, NULL, NULL, 
+										   NULL, NULL);
+				Assert(enabled_given);
 
-                if (!sub->slotname && enabled)
-                    ereport(ERROR,
-                            (errcode(ERRCODE_SYNTAX_ERROR),
-                             errmsg("cannot enable subscription that does not have a slot name")));
+				if (!sub->slotname && enabled)
+					ereport(ERROR,
+							(errcode(ERRCODE_SYNTAX_ERROR),
+							 errmsg("cannot enable subscription that does not have a slot name")));
 
-                values[Anum_pg_subscription_subenabled - 1] =
-                    BoolGetDatum(enabled);
-                replaces[Anum_pg_subscription_subenabled - 1] = true;
+				values[Anum_pg_subscription_subenabled - 1] =
+					BoolGetDatum(enabled);
+				replaces[Anum_pg_subscription_subenabled - 1] = true;
 
-                if (enabled)
-                    ApplyLauncherWakeupAtCommit();
+				if (enabled)
+					ApplyLauncherWakeupAtCommit();
 
-                update_tuple = true;
-                break;
-            }
+				update_tuple = true;
+				break;
+			}
 
-        case ALTER_SUBSCRIPTION_CONNECTION:
-            /* Load the library providing us libpq calls. */
-            load_file("libpqwalreceiver", false);
-            /* Check the connection info string. */
-            walrcv_check_conninfo(stmt->conninfo);
+		case ALTER_SUBSCRIPTION_CONNECTION:
+			/* Load the library providing us libpq calls. */
+			load_file("libpqwalreceiver", false);
+			/* Check the connection info string. */
+			walrcv_check_conninfo(stmt->conninfo);
 
-            values[Anum_pg_subscription_subconninfo - 1] =
-                CStringGetTextDatum(stmt->conninfo);
-            replaces[Anum_pg_subscription_subconninfo - 1] = true;
-            update_tuple = true;
-            break;
+			values[Anum_pg_subscription_subconninfo - 1] =
+				CStringGetTextDatum(stmt->conninfo);
+			replaces[Anum_pg_subscription_subconninfo - 1] = true;
+			update_tuple = true;
+			break;
 
-        case ALTER_SUBSCRIPTION_PUBLICATION:
-            {
-                bool        copy_data;
-                bool        refresh;
+		case ALTER_SUBSCRIPTION_PUBLICATION:
+			{
+				bool		copy_data;
+				bool		refresh;
 
-                parse_subscription_options(stmt->options, NULL, NULL, NULL,
-                                           NULL, NULL, NULL, &copy_data,
-                                           NULL, &refresh);
+				parse_subscription_options(stmt->options, NULL, NULL, NULL,
+										   NULL, NULL, NULL, &copy_data,
+										   NULL, NULL, NULL, &refresh);
 
-                values[Anum_pg_subscription_subpublications - 1] =
-                    publicationListToArray(stmt->publication);
-                replaces[Anum_pg_subscription_subpublications - 1] = true;
+				values[Anum_pg_subscription_subpublications - 1] =
+					publicationListToArray(stmt->publication);
+				replaces[Anum_pg_subscription_subpublications - 1] = true;
 
-                update_tuple = true;
+				update_tuple = true;
 
-                /* Refresh if user asked us to. */
-                if (refresh)
-                {
-                    if (!sub->enabled)
-                        ereport(ERROR,
-                                (errcode(ERRCODE_SYNTAX_ERROR),
-                                 errmsg("ALTER SUBSCRIPTION with refresh is not allowed for disabled subscriptions"),
-                                 errhint("Use ALTER SUBSCRIPTION ... SET PUBLICATION ... WITH (refresh = false).")));
+				/* Refresh if user asked us to. */
+				if (refresh)
+				{
+					if (!sub->enabled)
+						ereport(ERROR,
+								(errcode(ERRCODE_SYNTAX_ERROR),
+								 errmsg("ALTER SUBSCRIPTION with refresh is not allowed for disabled subscriptions"),
+								 errhint("Use ALTER SUBSCRIPTION ... SET PUBLICATION ... WITH (refresh = false).")));
 
-                    /* Make sure refresh sees the new list of publications. */
-                    sub->publications = stmt->publication;
+					/* Make sure refresh sees the new list of publications. */
+					sub->publications = stmt->publication;
 
-                    AlterSubscription_refresh(sub, copy_data);
-                }
+					AlterSubscription_refresh(sub, copy_data);
+				}
 
-                break;
-            }
+				break;
+			}
 
-        case ALTER_SUBSCRIPTION_REFRESH:
-            {
-                bool        copy_data;
+		case ALTER_SUBSCRIPTION_REFRESH:
+			{
+				bool		copy_data;
 
-                if (!sub->enabled)
-                    ereport(ERROR,
-                            (errcode(ERRCODE_SYNTAX_ERROR),
-                             errmsg("ALTER SUBSCRIPTION ... REFRESH is not allowed for disabled subscriptions")));
+				if (!sub->enabled)
+					ereport(ERROR,
+							(errcode(ERRCODE_SYNTAX_ERROR),
+							 errmsg("ALTER SUBSCRIPTION ... REFRESH is not allowed for disabled subscriptions")));
 
-                parse_subscription_options(stmt->options, NULL, NULL, NULL,
-                                           NULL, NULL, NULL, &copy_data,
-                                           NULL, NULL);
+				parse_subscription_options(stmt->options, NULL, NULL, NULL,
+										   NULL, NULL, NULL, &copy_data,
+										   NULL, NULL, NULL, NULL);
 
-                AlterSubscription_refresh(sub, copy_data);
+				AlterSubscription_refresh(sub, copy_data);
 
-                break;
-            }
+				break;
+			}
 
-        default:
-            elog(ERROR, "unrecognized ALTER SUBSCRIPTION kind %d",
-                 stmt->kind);
-    }
+		default:
+			elog(ERROR, "unrecognized ALTER SUBSCRIPTION kind %d",
+				 stmt->kind);
+	}
 
-    /* Update the catalog if needed. */
-    if (update_tuple)
-    {
-        tup = heap_modify_tuple(tup, RelationGetDescr(rel), values, nulls,
-                                replaces);
+	/* Update the catalog if needed. */
+	if (update_tuple)
+	{
+		tup = heap_modify_tuple(tup, RelationGetDescr(rel), values, nulls,
+								replaces);
 
-        CatalogTupleUpdate(rel, &tup->t_self, tup);
+		CatalogTupleUpdate(rel, &tup->t_self, tup);
 
-        heap_freetuple(tup);
-    }
+		heap_freetuple(tup);
+	}
 
-    heap_close(rel, RowExclusiveLock);
+	heap_close(rel, RowExclusiveLock);
 
-    ObjectAddressSet(myself, SubscriptionRelationId, subid);
+	ObjectAddressSet(myself, SubscriptionRelationId, subid);
 
-    InvokeObjectPostAlterHook(SubscriptionRelationId, subid, 0);
+	InvokeObjectPostAlterHook(SubscriptionRelationId, subid, 0);
 
-    return myself;
+	return myself;
 }
 
 /*
@@ -1033,213 +1057,217 @@ AlterSubscription(AlterSubscriptionStmt *stmt)
  */
 void
 DropSubscription(DropSubscriptionStmt *stmt, bool isTopLevel)
-{// #lizard forgives
-    Relation    rel;
-    ObjectAddress myself;
-    HeapTuple    tup;
-    Oid            subid;
-    Datum        datum;
-    bool        isnull;
-    char       *subname;
-    char       *conninfo;
-    char       *slotname;
-    List       *subworkers;
-    ListCell   *lc;
-    char        originname[NAMEDATALEN];
-    char       *err = NULL;
-    RepOriginId originid;
-    WalReceiverConn *wrconn = NULL;
-    StringInfoData cmd;
+{
+	Relation	rel;
+	ObjectAddress myself;
+	HeapTuple	tup;
+	Oid			subid;
+	Datum		datum;
+	bool		isnull;
+	char	   *subname;
+	char	   *conninfo;
+	char	   *slotname;
+	List	   *subworkers;
+	ListCell   *lc;
+	char		originname[NAMEDATALEN];
+	char	   *err = NULL;
+	RepOriginId originid;
+	WalReceiverConn *wrconn = NULL;
+	StringInfoData cmd;
 
-    /*
-     * Lock pg_subscription with AccessExclusiveLock to ensure that the
-     * launcher doesn't restart new worker during dropping the subscription
-     */
-    rel = heap_open(SubscriptionRelationId, AccessExclusiveLock);
+	/*
+	 * Lock pg_subscription with AccessExclusiveLock to ensure that the
+	 * launcher doesn't restart new worker during dropping the subscription
+	 */
+	rel = heap_open(SubscriptionRelationId, AccessExclusiveLock);
 
-    tup = SearchSysCache2(SUBSCRIPTIONNAME, MyDatabaseId,
-                          CStringGetDatum(stmt->subname));
+	tup = SearchSysCache2(SUBSCRIPTIONNAME, MyDatabaseId,
+						  CStringGetDatum(stmt->subname));
 
-    if (!HeapTupleIsValid(tup))
-    {
-        heap_close(rel, NoLock);
+	if (!HeapTupleIsValid(tup))
+	{
+		heap_close(rel, NoLock);
 
-        if (!stmt->missing_ok)
-            ereport(ERROR,
-                    (errcode(ERRCODE_UNDEFINED_OBJECT),
-                     errmsg("subscription \"%s\" does not exist",
-                            stmt->subname)));
-        else
-            ereport(NOTICE,
-                    (errmsg("subscription \"%s\" does not exist, skipping",
-                            stmt->subname)));
+		if (!stmt->missing_ok)
+			ereport(ERROR,
+					(errcode(ERRCODE_UNDEFINED_OBJECT),
+					 errmsg("subscription \"%s\" does not exist",
+							stmt->subname)));
+		else
+			ereport(NOTICE,
+					(errmsg("subscription \"%s\" does not exist, skipping",
+							stmt->subname)));
 
-        return;
-    }
+		return;
+	}
 
-    subid = HeapTupleGetOid(tup);
+	subid = HeapTupleGetOid(tup);
 
-    /* must be owner */
-    if (!pg_subscription_ownercheck(subid, GetUserId()))
-        aclcheck_error(ACLCHECK_NOT_OWNER, ACL_KIND_SUBSCRIPTION,
-                       stmt->subname);
+	/* must be owner */
+	if (!pg_subscription_ownercheck(subid, GetUserId()))
+		aclcheck_error(ACLCHECK_NOT_OWNER, ACL_KIND_SUBSCRIPTION,
+					   stmt->subname);
 
-    /* DROP hook for the subscription being removed */
-    InvokeObjectDropHook(SubscriptionRelationId, subid, 0);
+	/* DROP hook for the subscription being removed */
+	InvokeObjectDropHook(SubscriptionRelationId, subid, 0);
 
-    /*
-     * Lock the subscription so nobody else can do anything with it (including
-     * the replication workers).
-     */
-    LockSharedObject(SubscriptionRelationId, subid, 0, AccessExclusiveLock);
+	/*
+	 * Lock the subscription so nobody else can do anything with it (including
+	 * the replication workers).
+	 */
+	LockSharedObject(SubscriptionRelationId, subid, 0, AccessExclusiveLock);
 
-    /* Get subname */
-    datum = SysCacheGetAttr(SUBSCRIPTIONOID, tup,
-                            Anum_pg_subscription_subname, &isnull);
-    Assert(!isnull);
-    subname = pstrdup(NameStr(*DatumGetName(datum)));
+	/* Get subname */
+	datum = SysCacheGetAttr(SUBSCRIPTIONOID, tup,
+							Anum_pg_subscription_subname, &isnull);
+	Assert(!isnull);
+	subname = pstrdup(NameStr(*DatumGetName(datum)));
 
-    /* Get conninfo */
-    datum = SysCacheGetAttr(SUBSCRIPTIONOID, tup,
-                            Anum_pg_subscription_subconninfo, &isnull);
-    Assert(!isnull);
-    conninfo = TextDatumGetCString(datum);
+	/* Get conninfo */
+	datum = SysCacheGetAttr(SUBSCRIPTIONOID, tup,
+							Anum_pg_subscription_subconninfo, &isnull);
+	Assert(!isnull);
+	conninfo = TextDatumGetCString(datum);
 
-    /* Get slotname */
-    datum = SysCacheGetAttr(SUBSCRIPTIONOID, tup,
-                            Anum_pg_subscription_subslotname, &isnull);
-    if (!isnull)
-        slotname = pstrdup(NameStr(*DatumGetName(datum)));
-    else
-        slotname = NULL;
+	/* Get slotname */
+	datum = SysCacheGetAttr(SUBSCRIPTIONOID, tup,
+							Anum_pg_subscription_subslotname, &isnull);
+	if (!isnull)
+		slotname = pstrdup(NameStr(*DatumGetName(datum)));
+	else
+		slotname = NULL;
 
-    /*
-     * Since dropping a replication slot is not transactional, the replication
-     * slot stays dropped even if the transaction rolls back.  So we cannot
-     * run DROP SUBSCRIPTION inside a transaction block if dropping the
-     * replication slot.
-     *
-     * XXX The command name should really be something like "DROP SUBSCRIPTION
-     * of a subscription that is associated with a replication slot", but we
-     * don't have the proper facilities for that.
-     */
-    if (slotname)
-        PreventTransactionChain(isTopLevel, "DROP SUBSCRIPTION");
+	/*
+	 * Since dropping a replication slot is not transactional, the replication
+	 * slot stays dropped even if the transaction rolls back.  So we cannot
+	 * run DROP SUBSCRIPTION inside a transaction block if dropping the
+	 * replication slot.
+	 *
+	 * XXX The command name should really be something like "DROP SUBSCRIPTION
+	 * of a subscription that is associated with a replication slot", but we
+	 * don't have the proper facilities for that.
+	 */
+	if (slotname && IsInTransactionChain(isTopLevel))
+	{
+		ReleaseSysCache(tup);
+		heap_close(rel, NoLock);
+		PreventTransactionChain(isTopLevel, "DROP SUBSCRIPTION");
+	}
 
+	ObjectAddressSet(myself, SubscriptionRelationId, subid);
+	EventTriggerSQLDropAddObject(&myself, true, true);
 
-    ObjectAddressSet(myself, SubscriptionRelationId, subid);
-    EventTriggerSQLDropAddObject(&myself, true, true);
+	/* Remove the tuple from catalog. */
+	CatalogTupleDelete(rel, &tup->t_self);
 
-    /* Remove the tuple from catalog. */
-    CatalogTupleDelete(rel, &tup->t_self);
+	ReleaseSysCache(tup);
 
-    ReleaseSysCache(tup);
+	/*
+	 * If we are dropping the replication slot, stop all the subscription
+	 * workers immediately, so that the slot becomes accessible.  Otherwise
+	 * just schedule the stopping for the end of the transaction.
+	 *
+	 * New workers won't be started because we hold an exclusive lock on the
+	 * subscription till the end of the transaction.
+	 */
+	LWLockAcquire(LogicalRepWorkerLock, LW_SHARED);
+	subworkers = logicalrep_workers_find(subid, false);
+	LWLockRelease(LogicalRepWorkerLock);
+	foreach(lc, subworkers)
+	{
+		LogicalRepWorker *w = (LogicalRepWorker *) lfirst(lc);
 
-    /*
-     * If we are dropping the replication slot, stop all the subscription
-     * workers immediately, so that the slot becomes accessible.  Otherwise
-     * just schedule the stopping for the end of the transaction.
-     *
-     * New workers won't be started because we hold an exclusive lock on the
-     * subscription till the end of the transaction.
-     */
-    LWLockAcquire(LogicalRepWorkerLock, LW_SHARED);
-    subworkers = logicalrep_workers_find(subid, false);
-    LWLockRelease(LogicalRepWorkerLock);
-    foreach(lc, subworkers)
-    {
-        LogicalRepWorker *w = (LogicalRepWorker *) lfirst(lc);
+		if (slotname)
+			logicalrep_worker_stop(w->subid, w->relid);
+		else
+			logicalrep_worker_stop_at_commit(w->subid, w->relid);
+	}
+	list_free(subworkers);
 
-        if (slotname)
-            logicalrep_worker_stop(w->subid, w->relid);
-        else
-            logicalrep_worker_stop_at_commit(w->subid, w->relid);
-    }
-    list_free(subworkers);
+	/* Clean up dependencies */
+	deleteSharedDependencyRecordsFor(SubscriptionRelationId, subid, 0);
 
-    /* Clean up dependencies */
-    deleteSharedDependencyRecordsFor(SubscriptionRelationId, subid, 0);
-
-    /* Remove any associated relation synchronization states. */
-    RemoveSubscriptionRel(subid, InvalidOid);
+	/* Remove any associated relation synchronization states. */
+	RemoveSubscriptionRel(subid, InvalidOid);
 
 #ifdef __STORAGE_SCALABLE__
-    /* Remove any associated shards/tables */
-    RemoveSubscriptionShard(subid, InvalidShardID);
-    RemoveSubscriptionTable(subid, InvalidOid);
-    DirectFunctionCall1Coll(opentenbase_remove_subtable_stat, InvalidOid,
-                            UInt32GetDatum(subid));
-    DirectFunctionCall1Coll(opentenbase_remove_sub_stat, InvalidOid,
-                            PointerGetDatum(cstring_to_text(stmt->subname)));
+	/* Remove any associated shards/tables */
+	RemoveSubscriptionShard(subid, InvalidShardID);
+	RemoveSubscriptionTable(subid, InvalidOid);
+	DirectFunctionCall1Coll(opentenbase_remove_subtable_stat, InvalidOid,
+						    UInt32GetDatum(subid));
+	DirectFunctionCall1Coll(opentenbase_remove_sub_stat, InvalidOid,
+						    PointerGetDatum(cstring_to_text(stmt->subname)));
 #endif
 
-    /* Remove the origin tracking if exists. */
-    snprintf(originname, sizeof(originname), "pg_%u", subid);
-    originid = replorigin_by_name(originname, true);
-    if (originid != InvalidRepOriginId)
-        replorigin_drop(originid, false);
+	/* Remove the origin tracking if exists. */
+	snprintf(originname, sizeof(originname), "pg_%u", subid);
+	originid = replorigin_by_name(originname, true);
+	if (originid != InvalidRepOriginId)
+		replorigin_drop(originid, false);
 
-    /*
-     * If there is no slot associated with the subscription, we can finish
-     * here.
-     */
-    if (!slotname)
-    {
+	/*
+	 * If there is no slot associated with the subscription, we can finish
+	 * here.
+	 */
+	if (!slotname)
+	{
+		heap_close(rel, NoLock);
+		return;
+	}
+
+	/*
+	 * Otherwise drop the replication slot at the publisher node using the
+	 * replication connection.
+	 */
+	load_file("libpqwalreceiver", false);
+
+	initStringInfo(&cmd);
+	appendStringInfo(&cmd, "DROP_REPLICATION_SLOT %s", quote_identifier_as_pg(slotname));
+
+	wrconn = walrcv_connect(conninfo, true, subname, &err);
+	if (wrconn == NULL)
+	{
         heap_close(rel, NoLock);
-        return;
-    }
+		ereport(ERROR,
+				(errmsg("could not connect to publisher when attempting to "
+						"drop the replication slot \"%s\"", slotname),
+				 errdetail("The error was: %s", err),
+		/* translator: %s is an SQL ALTER command */
+				 errhint("Use %s to disassociate the subscription from the slot.",
+						 "ALTER SUBSCRIPTION ... SET (slot_name = NONE)")));
+	}
+	PG_TRY();
+	{
+		WalRcvExecResult *res;
 
-    /*
-     * Otherwise drop the replication slot at the publisher node using the
-     * replication connection.
-     */
-    load_file("libpqwalreceiver", false);
+		res = walrcv_exec(wrconn, cmd.data, 0, NULL);
 
-    initStringInfo(&cmd);
-    appendStringInfo(&cmd, "DROP_REPLICATION_SLOT %s", quote_identifier(slotname));
+		if (res->status != WALRCV_OK_COMMAND)
+			ereport(ERROR,
+					(errmsg("could not drop the replication slot \"%s\" on publisher",
+							slotname),
+					 errdetail("The error was: %s", res->err)));
+		else
+			ereport(NOTICE,
+					(errmsg("dropped replication slot \"%s\" on publisher",
+							slotname)));
 
-    wrconn = walrcv_connect(conninfo, true, subname, &err);
-    if (wrconn == NULL)
-    {
-        heap_close(rel, NoLock);
-        ereport(ERROR,
-                (errmsg("could not connect to publisher when attempting to "
-                        "drop the replication slot \"%s\"", slotname),
-                 errdetail("The error was: %s", err),
-                 errhint("Use ALTER SUBSCRIPTION ... SET (slot_name = NONE) "
-                         "to disassociate the subscription from the slot.")));
-    }
-    PG_TRY();
-    {
-        WalRcvExecResult *res;
+		walrcv_clear_result(res);
+	}
+	PG_CATCH();
+	{
+		/* Close the connection in case of failure */
+		walrcv_disconnect(wrconn);
+		PG_RE_THROW();
+	}
+	PG_END_TRY();
 
-        res = walrcv_exec(wrconn, cmd.data, 0, NULL);
+	walrcv_disconnect(wrconn);
 
-        if (res->status != WALRCV_OK_COMMAND)
-            ereport(ERROR,
-                    (errmsg("could not drop the replication slot \"%s\" on publisher",
-                            slotname),
-                     errdetail("The error was: %s", res->err)));
-        else
-            ereport(NOTICE,
-                    (errmsg("dropped replication slot \"%s\" on publisher",
-                            slotname)));
+	pfree(cmd.data);
 
-        walrcv_clear_result(res);
-    }
-    PG_CATCH();
-    {
-        /* Close the connection in case of failure */
-        walrcv_disconnect(wrconn);
-        PG_RE_THROW();
-    }
-    PG_END_TRY();
-
-    walrcv_disconnect(wrconn);
-
-    pfree(cmd.data);
-
-    heap_close(rel, NoLock);
+	heap_close(rel, NoLock);
 }
 
 /*
@@ -1248,35 +1276,35 @@ DropSubscription(DropSubscriptionStmt *stmt, bool isTopLevel)
 static void
 AlterSubscriptionOwner_internal(Relation rel, HeapTuple tup, Oid newOwnerId)
 {
-    Form_pg_subscription form;
+	Form_pg_subscription form;
 
-    form = (Form_pg_subscription) GETSTRUCT(tup);
+	form = (Form_pg_subscription) GETSTRUCT(tup);
 
-    if (form->subowner == newOwnerId)
-        return;
+	if (form->subowner == newOwnerId)
+		return;
 
-    if (!pg_subscription_ownercheck(HeapTupleGetOid(tup), GetUserId()))
-        aclcheck_error(ACLCHECK_NOT_OWNER, ACL_KIND_SUBSCRIPTION,
-                       NameStr(form->subname));
+	if (!pg_subscription_ownercheck(HeapTupleGetOid(tup), GetUserId()))
+		aclcheck_error(ACLCHECK_NOT_OWNER, ACL_KIND_SUBSCRIPTION,
+					   NameStr(form->subname));
 
-    /* New owner must be a superuser */
-    if (!superuser_arg(newOwnerId))
-        ereport(ERROR,
-                (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-                 errmsg("permission denied to change owner of subscription \"%s\"",
-                        NameStr(form->subname)),
-                 errhint("The owner of a subscription must be a superuser.")));
+	/* New owner must be a superuser */
+	if (!superuser_arg(newOwnerId))
+		ereport(ERROR,
+				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+				 errmsg("permission denied to change owner of subscription \"%s\"",
+						NameStr(form->subname)),
+				 errhint("The owner of a subscription must be a superuser.")));
 
-    form->subowner = newOwnerId;
-    CatalogTupleUpdate(rel, &tup->t_self, tup);
+	form->subowner = newOwnerId;
+	CatalogTupleUpdate(rel, &tup->t_self, tup);
 
-    /* Update owner dependency reference */
-    changeDependencyOnOwner(SubscriptionRelationId,
-                            HeapTupleGetOid(tup),
-                            newOwnerId);
+	/* Update owner dependency reference */
+	changeDependencyOnOwner(SubscriptionRelationId,
+							HeapTupleGetOid(tup),
+							newOwnerId);
 
-    InvokeObjectPostAlterHook(SubscriptionRelationId,
-                              HeapTupleGetOid(tup), 0);
+	InvokeObjectPostAlterHook(SubscriptionRelationId,
+							  HeapTupleGetOid(tup), 0);
 }
 
 /*
@@ -1285,32 +1313,32 @@ AlterSubscriptionOwner_internal(Relation rel, HeapTuple tup, Oid newOwnerId)
 ObjectAddress
 AlterSubscriptionOwner(const char *name, Oid newOwnerId)
 {
-    Oid            subid;
-    HeapTuple    tup;
-    Relation    rel;
-    ObjectAddress address;
+	Oid			subid;
+	HeapTuple	tup;
+	Relation	rel;
+	ObjectAddress address;
 
-    rel = heap_open(SubscriptionRelationId, RowExclusiveLock);
+	rel = heap_open(SubscriptionRelationId, RowExclusiveLock);
 
-    tup = SearchSysCacheCopy2(SUBSCRIPTIONNAME, MyDatabaseId,
-                              CStringGetDatum(name));
+	tup = SearchSysCacheCopy2(SUBSCRIPTIONNAME, MyDatabaseId,
+							  CStringGetDatum(name));
 
-    if (!HeapTupleIsValid(tup))
-        ereport(ERROR,
-                (errcode(ERRCODE_UNDEFINED_OBJECT),
-                 errmsg("subscription \"%s\" does not exist", name)));
+	if (!HeapTupleIsValid(tup))
+		ereport(ERROR,
+				(errcode(ERRCODE_UNDEFINED_OBJECT),
+				 errmsg("subscription \"%s\" does not exist", name)));
 
-    subid = HeapTupleGetOid(tup);
+	subid = HeapTupleGetOid(tup);
 
-    AlterSubscriptionOwner_internal(rel, tup, newOwnerId);
+	AlterSubscriptionOwner_internal(rel, tup, newOwnerId);
 
-    ObjectAddressSet(address, SubscriptionRelationId, subid);
+	ObjectAddressSet(address, SubscriptionRelationId, subid);
 
-    heap_freetuple(tup);
+	heap_freetuple(tup);
 
-    heap_close(rel, RowExclusiveLock);
+	heap_close(rel, RowExclusiveLock);
 
-    return address;
+	return address;
 }
 
 /*
@@ -1319,23 +1347,23 @@ AlterSubscriptionOwner(const char *name, Oid newOwnerId)
 void
 AlterSubscriptionOwner_oid(Oid subid, Oid newOwnerId)
 {
-    HeapTuple    tup;
-    Relation    rel;
+	HeapTuple	tup;
+	Relation	rel;
 
-    rel = heap_open(SubscriptionRelationId, RowExclusiveLock);
+	rel = heap_open(SubscriptionRelationId, RowExclusiveLock);
 
-    tup = SearchSysCacheCopy1(SUBSCRIPTIONOID, ObjectIdGetDatum(subid));
+	tup = SearchSysCacheCopy1(SUBSCRIPTIONOID, ObjectIdGetDatum(subid));
 
-    if (!HeapTupleIsValid(tup))
-        ereport(ERROR,
-                (errcode(ERRCODE_UNDEFINED_OBJECT),
-                 errmsg("subscription with OID %u does not exist", subid)));
+	if (!HeapTupleIsValid(tup))
+		ereport(ERROR,
+				(errcode(ERRCODE_UNDEFINED_OBJECT),
+				 errmsg("subscription with OID %u does not exist", subid)));
 
-    AlterSubscriptionOwner_internal(rel, tup, newOwnerId);
+	AlterSubscriptionOwner_internal(rel, tup, newOwnerId);
 
-    heap_freetuple(tup);
+	heap_freetuple(tup);
 
-    heap_close(rel, RowExclusiveLock);
+	heap_close(rel, RowExclusiveLock);
 }
 
 /*
@@ -1345,70 +1373,70 @@ AlterSubscriptionOwner_oid(Oid subid, Oid newOwnerId)
 static List *
 fetch_table_list(WalReceiverConn *wrconn, List *publications)
 {
-    WalRcvExecResult *res;
-    StringInfoData cmd;
-    TupleTableSlot *slot;
-    Oid            tableRow[3] = {TEXTOID, TEXTOID, TEXTOID};
-    ListCell   *lc;
-    bool        first;
-    List       *tablelist = NIL;
+	WalRcvExecResult *res;
+	StringInfoData cmd;
+	TupleTableSlot *slot;
+	Oid			tableRow[3] = {TEXTOID, TEXTOID, TEXTOID};
+	ListCell   *lc;
+	bool		first;
+	List	   *tablelist = NIL;
 
-    Assert(list_length(publications) > 0);
+	Assert(list_length(publications) > 0);
 
-    initStringInfo(&cmd);
-    appendStringInfo(&cmd, "SELECT DISTINCT t.schemaname, t.tablename, t.pubname \n"
-                     "  FROM pg_catalog.pg_publication_tables t\n"
-                     " WHERE t.pubname IN (");
-    first = true;
-    foreach(lc, publications)
-    {
-        char       *pubname = strVal(lfirst(lc));
+	initStringInfo(&cmd);
+	appendStringInfo(&cmd, "SELECT DISTINCT t.schemaname, t.tablename, t.pubname \n"
+					 "  FROM pg_catalog.pg_publication_tables t\n"
+					 " WHERE t.pubname IN (");
+	first = true;
+	foreach(lc, publications)
+	{
+		char	   *pubname = strVal(lfirst(lc));
 
-        if (first)
-            first = false;
-        else
-            appendStringInfoString(&cmd, ", ");
+		if (first)
+			first = false;
+		else
+			appendStringInfoString(&cmd, ", ");
 
-        appendStringInfo(&cmd, "%s", quote_literal_cstr(pubname));
-    }
-    appendStringInfoString(&cmd, ")");
+		appendStringInfo(&cmd, "%s", quote_literal_cstr(pubname));
+	}
+	appendStringInfoString(&cmd, ")");
 
-    res = walrcv_exec(wrconn, cmd.data, 3, tableRow);
-    pfree(cmd.data);
+	res = walrcv_exec(wrconn, cmd.data, 3, tableRow);
+	pfree(cmd.data);
 
-    if (res->status != WALRCV_OK_TUPLES)
-        ereport(ERROR,
-                (errmsg("could not receive list of replicated tables from the publisher: %s",
-                        res->err)));
+	if (res->status != WALRCV_OK_TUPLES)
+		ereport(ERROR,
+				(errmsg("could not receive list of replicated tables from the publisher: %s",
+						res->err)));
 
-    /* Process tables. */
-    slot = MakeSingleTupleTableSlot(res->tupledesc);
-    while (tuplestore_gettupleslot(res->tuplestore, true, false, slot))
-    {
-        char       *nspname;
-        char       *relname;
-        char       *pubname;
-        bool        isnull;
-        RangeVar   *rv;
+	/* Process tables. */
+	slot = MakeSingleTupleTableSlot(res->tupledesc);
+	while (tuplestore_gettupleslot(res->tuplestore, true, false, slot))
+	{
+		char	   *nspname;
+		char	   *relname;
+		char       *pubname;
+		bool		isnull;
+		RangeVar   *rv;
 
-        nspname = TextDatumGetCString(slot_getattr(slot, 1, &isnull));
-        Assert(!isnull);
-        relname = TextDatumGetCString(slot_getattr(slot, 2, &isnull));
-        Assert(!isnull);
-        pubname = TextDatumGetCString(slot_getattr(slot, 3, &isnull));
-        Assert(!isnull);
+		nspname = TextDatumGetCString(slot_getattr(slot, 1, &isnull));
+		Assert(!isnull);
+		relname = TextDatumGetCString(slot_getattr(slot, 2, &isnull));
+		Assert(!isnull);
+		pubname = TextDatumGetCString(slot_getattr(slot, 3, &isnull));
+		Assert(!isnull);
 
-        rv = makeRangeVar(pstrdup(nspname), pstrdup(relname), -1);
-        rv->pubname = pstrdup(pubname);
-        tablelist = lappend(tablelist, rv);
+		rv = makeRangeVar(pstrdup(nspname), pstrdup(relname), -1);
+		rv->pubname = pstrdup(pubname);
+		tablelist = lappend(tablelist, rv);
 
-        ExecClearTuple(slot);
-    }
-    ExecDropSingleTupleTableSlot(slot);
+		ExecClearTuple(slot);
+	}
+	ExecDropSingleTupleTableSlot(slot);
 
-    walrcv_clear_result(res);
+	walrcv_clear_result(res);
 
-    return tablelist;
+	return tablelist;
 }
 
 #ifdef __STORAGE_SCALABLE__
@@ -1419,68 +1447,68 @@ fetch_table_list(WalReceiverConn *wrconn, List *publications)
 static List *
 fetch_shard_list(WalReceiverConn *wrconn, List *publications)
 {
-    WalRcvExecResult *res;
-    StringInfoData cmd;
-    TupleTableSlot *slot;
-    Oid            shardrow[2] = {INT4OID, TEXTOID};
-    ListCell   *lc;
-    bool        first;
-    List       *shardlist = NIL;
+	WalRcvExecResult *res;
+	StringInfoData cmd;
+	TupleTableSlot *slot;
+	Oid			shardrow[2] = {INT4OID, TEXTOID};
+	ListCell   *lc;
+	bool		first;
+	List	   *shardlist = NIL;
 
-    Assert(list_length(publications) > 0);
+	Assert(list_length(publications) > 0);
 
-    initStringInfo(&cmd);
-    appendStringInfo(&cmd, "SELECT DISTINCT t.prshardid, p.pubname \n"
-                     " FROM pg_catalog.pg_publication_shard t, pg_catalog.pg_publication p \n"
-                     " WHERE t.prpubid = p.oid and p.pubname IN (");
-    first = true;
-    foreach(lc, publications)
-    {
-        char       *pubname = strVal(lfirst(lc));
+	initStringInfo(&cmd);
+	appendStringInfo(&cmd, "SELECT DISTINCT t.prshardid, p.pubname \n"
+					 " FROM pg_catalog.pg_publication_shard t, pg_catalog.pg_publication p \n"
+					 " WHERE t.prpubid = p.oid and p.pubname IN (");
+	first = true;
+	foreach(lc, publications)
+	{
+		char	   *pubname = strVal(lfirst(lc));
 
-        if (first)
-            first = false;
-        else
-            appendStringInfoString(&cmd, ", ");
+		if (first)
+			first = false;
+		else
+			appendStringInfoString(&cmd, ", ");
 
-        appendStringInfo(&cmd, "%s", quote_literal_cstr(pubname));
-    }
-    appendStringInfoString(&cmd, ")");
+		appendStringInfo(&cmd, "%s", quote_literal_cstr(pubname));
+	}
+	appendStringInfoString(&cmd, ")");
 
-    res = walrcv_exec(wrconn, cmd.data, 2, shardrow);
-    pfree(cmd.data);
+	res = walrcv_exec(wrconn, cmd.data, 2, shardrow);
+	pfree(cmd.data);
 
-    if (res->status != WALRCV_OK_TUPLES)
-        ereport(ERROR,
-                (errmsg("could not receive list of shards from the publisher: %s",
-                        res->err)));
+	if (res->status != WALRCV_OK_TUPLES)
+		ereport(ERROR,
+				(errmsg("could not receive list of shards from the publisher: %s",
+						res->err)));
 
-    /* Process tables. */
-    slot = MakeSingleTupleTableSlot(res->tupledesc);
-    while (tuplestore_gettupleslot(res->tuplestore, true, false, slot))
-    {
-        int32       shardid;
-        char       *pubname;
-        bool        isnull;
-        PubShard   *ps;
+	/* Process tables. */
+	slot = MakeSingleTupleTableSlot(res->tupledesc);
+	while (tuplestore_gettupleslot(res->tuplestore, true, false, slot))
+	{
+		int32	   shardid;
+		char	   *pubname;
+		bool		isnull;
+		PubShard   *ps;
 
-        shardid = DatumGetInt32(slot_getattr(slot, 1, &isnull));
-        Assert(!isnull);
-        pubname = TextDatumGetCString(slot_getattr(slot, 2, &isnull));
-        Assert(!isnull);
+		shardid = DatumGetInt32(slot_getattr(slot, 1, &isnull));
+		Assert(!isnull);
+		pubname = TextDatumGetCString(slot_getattr(slot, 2, &isnull));
+		Assert(!isnull);
 
-        ps = (PubShard *)palloc0(sizeof(PubShard));
-        ps->shardid = shardid;
-        ps->pubname = pstrdup(pubname);
-        shardlist = lappend(shardlist, ps);
+		ps = (PubShard *)palloc0(sizeof(PubShard));
+		ps->shardid = shardid;
+		ps->pubname = pstrdup(pubname);
+		shardlist = lappend(shardlist, ps);
 
-        ExecClearTuple(slot);
-    }
-    ExecDropSingleTupleTableSlot(slot);
+		ExecClearTuple(slot);
+	}
+	ExecDropSingleTupleTableSlot(slot);
 
-    walrcv_clear_result(res);
+	walrcv_clear_result(res);
 
-    return shardlist;
+	return shardlist;
 }
 #endif
 
@@ -1494,115 +1522,74 @@ fetch_shard_list(WalReceiverConn *wrconn, List *publications)
  */
 static void
 parse_opentenbase_subscription_options(List *options,
-                                 bool is_create_stmt,
-                                 bool *ignore_pk_conflict,
-                                 char **manual_hot_date,
-                                 char **temp_hot_date,
-                                 char **temp_cold_date,
-                                 int *parallel_number,
-								 bool *copy_data,
-								 char **slot_name,
-								 bool *slot_name_given)
-{// #lizard forgives
-    ListCell *lc = NULL;
-    bool copy_data_given = false;
-    *slot_name_given = false;
+								 bool is_create_stmt,
+								 bool *ignore_pk_conflict,
+								 int *parallel_number,
+								 bool *copy_data)
+{
+	ListCell *lc = NULL;
+	bool copy_data_given = false;
 
-    /* This operation can only be performed on Coordinator */
-    if (!IS_PGXC_COORDINATOR || !IsConnFromApp())
-    {
-        ereport(ERROR,
-                (errcode(ERRCODE_SYNTAX_ERROR),
-                 errmsg("This operation can only be performed on Coordinator.")));
-    }
+	/* This operation can only be performed on Coordinator */
+	if (!IS_PGXC_COORDINATOR || !IsConnFromApp())
+	{
+		ereport(ERROR,
+				(errcode(ERRCODE_SYNTAX_ERROR),
+				 errmsg("This operation can only be performed on Coordinator.")));
+	}
 
-    if (copy_data)
-        *copy_data = true;
+	if (copy_data)
+		*copy_data = true;
 
-    /* Parse options */
-    foreach(lc, options)
-    {
-        DefElem    *defel = (DefElem *) lfirst(lc);
+	/* Parse options */
+	foreach(lc, options)
+	{
+		DefElem    *defel = (DefElem *) lfirst(lc);
 
-        if (strcmp(defel->defname, "ignore_pk_conflict") == 0 && ignore_pk_conflict)
-        {
-            *ignore_pk_conflict = defGetBoolean(defel);
-        }
-        else if (strcmp(defel->defname, "manual_hot_date") == 0 && manual_hot_date)
-        {
-            *manual_hot_date = defGetString(defel);
+		if (strcmp(defel->defname, "ignore_pk_conflict") == 0 && ignore_pk_conflict)
+		{
+			*ignore_pk_conflict = defGetBoolean(defel);
+		}
+		else if (strcmp(defel->defname, "parallel_number") == 0 && parallel_number)
+		{
+			*parallel_number = defGetInt32(defel);
 
-            /* Test if the given value is valid for manual_hot_date GUC. */
-            (void) set_config_option("manual_hot_date", *manual_hot_date,
-                                     PGC_BACKEND, PGC_S_TEST, GUC_ACTION_SET,
-                                     false, 0, false);
-        }
-        else if (strcmp(defel->defname, "temp_hot_date") == 0 && temp_hot_date)
-        {
-            *temp_hot_date = defGetString(defel);
+			if (*parallel_number <= 0)
+			{
+				ereport(ERROR,
+						(errcode(ERRCODE_SYNTAX_ERROR),
+						 errmsg("Invalid value %d of \"parallel_number\"", *parallel_number)));
+			}
+		}
+		else if (strcmp(defel->defname, "slot_name") == 0)
+		{
+			ereport(ERROR,
+					(errcode(ERRCODE_SYNTAX_ERROR),
+					 errmsg("User-defined \"slot_name\" is not allowed in OPENTENBASE SUBSCRIPTION.")));
+		}
+		else if (strcmp(defel->defname, "copy_data") == 0)
+		{
+			if (is_create_stmt)
+			{
+				if (copy_data_given)
+					ereport(ERROR,
+							(errcode(ERRCODE_SYNTAX_ERROR),
+							 errmsg("conflicting or redundant options")));
 
-            /* Test if the given value is valid for temp_hot_date GUC. */
-            (void) set_config_option("temp_hot_date", *temp_hot_date,
-                                     PGC_BACKEND, PGC_S_TEST, GUC_ACTION_SET,
-                                     false, 0, false);
-        }
-        else if (strcmp(defel->defname, "temp_cold_date") == 0 && temp_cold_date)
-        {
-            *temp_cold_date = defGetString(defel);
-
-            /* Test if the given value is valid for temp_cold_date GUC. */
-            (void) set_config_option("temp_cold_date", *temp_cold_date,
-                                     PGC_BACKEND, PGC_S_TEST, GUC_ACTION_SET,
-                                     false, 0, false);
-        }
-        else if (strcmp(defel->defname, "parallel_number") == 0 && parallel_number)
-        {
-            *parallel_number = defGetInt32(defel);
-
-            if (*parallel_number <= 0)
-            {
-                ereport(ERROR,
-                        (errcode(ERRCODE_SYNTAX_ERROR),
-                         errmsg("Invalid value %d of \"parallel_number\"", *parallel_number)));
-            }
-        }
-        else if (strcmp(defel->defname, "slot_name") == 0)
-        {
-		    if (*slot_name_given)
-		        ereport(ERROR,
-		                (errcode(ERRCODE_SYNTAX_ERROR),
-		                        errmsg("conflicting or redundant options")));
-
-		    *slot_name_given = true;
-		    *slot_name       = defGetString(defel);
-
-		    /* Setting slot_name = NONE is treated as no slot name. */
-		    if (strcmp(*slot_name, "none") == 0)
-		        *slot_name = NULL;
-        }
-        else if (strcmp(defel->defname, "copy_data") == 0)
-        {
-            if (is_create_stmt)
-            {
-                if (copy_data_given)
-                    ereport(ERROR,
-                            (errcode(ERRCODE_SYNTAX_ERROR),
-                             errmsg("conflicting or redundant options")));
-
-                copy_data_given = true;
-                if (copy_data)
-                {
-                    *copy_data = defGetBoolean(defel);
-                }
-            }
-            else
-            {
-                ereport(ERROR,
-                        (errcode(ERRCODE_SYNTAX_ERROR),
-                         errmsg("The \"copy_data\" option can not be specified in ALTER OPENTENBASE SUBSCRIPTION.")));
-            }
-        }
-    }
+				copy_data_given = true;
+				if (copy_data)
+				{
+					*copy_data = defGetBoolean(defel);
+				}
+			}
+			else
+			{
+				ereport(ERROR,
+						(errcode(ERRCODE_SYNTAX_ERROR),
+						 errmsg("The \"copy_data\" option can not be specified in ALTER OPENTENBASE SUBSCRIPTION.")));
+			}
+		}
+	}
 }
 
 /*
@@ -1610,190 +1597,151 @@ parse_opentenbase_subscription_options(List *options,
  */
 void check_opentenbase_subscription_extension(void)
 {
-    Oid extOid = InvalidOid;
+	Oid extOid = InvalidOid;
 
-    extOid = get_extension_oid(g_opentenbase_subscription_extension, true);
+	extOid = get_extension_oid(g_opentenbase_subscription_extension, true);
 
-    if (!OidIsValid(extOid))
-        ereport(ERROR,
-                (errcode(ERRCODE_UNDEFINED_OBJECT),
-                 errmsg("This operation is not allowed until the extension \"%s\" is installed.",
-                        g_opentenbase_subscription_extension)));
+	if (IsInplaceUpgrade && WorkingGrandVersionNum < 5)
+		ereport(ERROR, (errcode(ERRCODE_UNDEFINED_OBJECT),
+			errmsg("during 3.16 upgrade, this operation not allowed until upgrade finish.")));
+
+	if (!OidIsValid(extOid))
+		ereport(ERROR,
+				(errcode(ERRCODE_UNDEFINED_OBJECT),
+				 errmsg("This operation is not allowed until the extension \"%s\" is installed.",
+						g_opentenbase_subscription_extension)));
 }
 
 /* check if already exists a same name */
 static bool check_opentenbase_subscription_ifexists(Relation opentenbase_sub_rel, char * check_subname)
 {
-    HeapScanDesc    scan = NULL;
-    HeapTuple       tuple = NULL;
-    TupleDesc        desc = NULL;
+	HeapScanDesc	scan = NULL;
+	HeapTuple   	tuple = NULL;
+	TupleDesc		desc = NULL;
 
-    bool            exists = false;
+	bool			exists = false;
 
-    desc = RelationGetDescr(opentenbase_sub_rel);
-    scan = heap_beginscan(opentenbase_sub_rel, GetActiveSnapshot(), 0, NULL);
-    while ((tuple = heap_getnext(scan, ForwardScanDirection)) != NULL)
-    {
-        Name subname = NULL;
-        bool isnull = true;
+	desc = RelationGetDescr(opentenbase_sub_rel);
+	scan = heap_beginscan(opentenbase_sub_rel, GetActiveSnapshot(), 0, NULL);
+	while ((tuple = heap_getnext(scan, ForwardScanDirection)) != NULL)
+	{
+		Name subname = NULL;
+		bool isnull = true;
 
-        subname = DatumGetName(fastgetattr(tuple, Anum_opentenbase_subscription_sub_name, desc, &isnull));
+		subname = DatumGetName(fastgetattr(tuple, Anum_opentenbase_subscription_sub_name, desc, &isnull));
 
-        if (false == isnull && subname != NULL && 0 == pg_strcasecmp(check_subname, NameStr(*subname)))
-        {
-            exists = true;
-            break;
-        }        
-    }
-    heap_endscan(scan);
+		if (false == isnull && subname != NULL && 0 == pg_strcasecmp(check_subname, NameStr(*subname)))
+		{
+			exists = true;
+			break;
+		}		
+	}
+	heap_endscan(scan);
 
-    return exists;
+	return exists;
 }
 
 /*
  * transform opentenbase subscription into parallel sub-subscriptions list
  */
-static List * opentenbase_subscription_parallelization(Node * stmt, int parallel_number, bool slot_name_given)
-{// #lizard forgives
-    int i = 0;
-    List * lstmt = NIL;
+static List * opentenbase_subscription_parallelization(Node * stmt, int parallel_number)
+{
+	int i = 0;
+	List * lstmt = NIL;
 
-    Assert(parallel_number >= 1);
-    if (!(parallel_number >= 1))
-    {
-        abort();
-    }
+	Assert(parallel_number >= 1);
+	if (!(parallel_number >= 1))
+	{
+		abort();
+	}
 
-    for (i = 0; i < parallel_number; i++)
-    {
-        Node * stmt_parallel = copyObject(stmt);
+	for (i = 0; i < parallel_number; i++)
+	{
+		Node * stmt_parallel = copyObject(stmt);
 
-        lstmt = lappend(lstmt, stmt_parallel);
-        
-        switch (nodeTag(stmt_parallel))
-        {
-            case T_CreateSubscriptionStmt:
-            {
-                CreateSubscriptionStmt * stmt_create = (CreateSubscriptionStmt *) stmt_parallel;
-                char * new_subname = palloc0(NAMEDATALEN);
-				char * new_slot_name = palloc0(NAMEDATALEN);
+		lstmt = lappend(lstmt, stmt_parallel);
+		
+		switch (nodeTag(stmt_parallel))
+		{
+			case T_CreateSubscriptionStmt:
+			{
+				CreateSubscriptionStmt * stmt_create = (CreateSubscriptionStmt *) stmt_parallel;
+				char * new_subname = palloc0(NAMEDATALEN);
 
-                /* rename subname a parallel one */
-                snprintf(new_subname, NAMEDATALEN - 1, "%s_%d_%d", stmt_create->subname, parallel_number, i);
-                stmt_create->subname = new_subname;
+				/* rename subname a parallel one */
+				snprintf(new_subname, NAMEDATALEN - 1, "%s_%d_%d", stmt_create->subname, parallel_number, i);
+				stmt_create->subname = new_subname;
 
-				/* construct slotname for a parallel one */
-				if (slot_name_given)
+				/*
+				 * Only the first sub-subscription of all parallel sub-subscriptions is allowed
+				 * to perform the copy_data operation. Other sub-subscriptions must wait until the
+				 * first sub-subscription completes the copy_data before starting the incremental
+				 * subscription, so only the first sub-subscription's copy_data is retained,
+				 * while the copy_data option of other subsubscriptions will be emptied here.
+				 */
+				if (i != 0)
 				{
-				    ListCell * 	lc = NULL;
+					ListCell * 	lc = NULL;
+					bool		copy_data_given = false;
 
-				    foreach(lc, stmt_create->options)
-				    {
-				        DefElem * defel = (DefElem *) lfirst(lc);
-				        if (strcmp(defel->defname, "slot_name") == 0)
-				        {
-				            char * slot_name_pre = defGetString(defel);
-				            if (strcmp(slot_name_pre, "none") == 0)
-				                snprintf(new_slot_name, NAMEDATALEN - 1, "%s", slot_name_pre);
-				            else
-				                snprintf(new_slot_name, NAMEDATALEN - 1, "%s_%d_%d", slot_name_pre, parallel_number, i);
+					foreach(lc, stmt_create->options)
+					{
+						DefElem * defel = (DefElem *) lfirst(lc);
 
-				            defel->arg = (Node *)makeString(new_slot_name);
-				        }
-				    }
+						if (strcmp(defel->defname, "copy_data") == 0)
+						{
+							bool bool_value = defGetBoolean(defel);
+
+							if (bool_value)
+								defel->arg = (Node *)makeString("false");
+
+							copy_data_given = true;
+							break;
+						}
+					}
+
+					if (false == copy_data_given)
+					{
+						DefElem * copy_data = makeDefElem("copy_data", (Node *)makeString("false"), -1);
+						stmt_create->options = lappend(stmt_create->options, copy_data);
+					}
 				}
 
-                /*
-                 * Only the first sub-subscription of all parallel sub-subscriptions is allowed
-                 * to perform the copy_data operation. Other sub-subscriptions must wait until the
-                 * first sub-subscription completes the copy_data before starting the incremental
-                 * subscription, so only the first sub-subscription's copy_data is retained,
-                 * while the copy_data option of other subsubscriptions will be emptied here.
-                 */
-                if (i != 0)
-                {
-                    ListCell *     lc = NULL;
-                    bool        copy_data_given = false;
-
-                    foreach(lc, stmt_create->options)
-                    {
-                        DefElem * defel = (DefElem *) lfirst(lc);
-
-                        if (strcmp(defel->defname, "copy_data") == 0)
-                        {
-                            bool bool_value = defGetBoolean(defel);
-
-                            if (bool_value)
-                                defel->arg = (Node *)makeString("false");
-
-                            copy_data_given = true;
-                            break;
-                        }
-                    }
-
-                    if (false == copy_data_given)
-                    {
-                        DefElem * copy_data = makeDefElem("copy_data", (Node *)makeString("false"), -1);
-                        stmt_create->options = lappend(stmt_create->options, copy_data);
-                    }
-                }
-
-                do
-                {
-                    stmt_create->sub_parallel_number = parallel_number;
-                    stmt_create->sub_parallel_index = i;
-                } while (0);
-                break;
-            }
-            case T_AlterSubscriptionStmt:
-            {
-                AlterSubscriptionStmt * stmt_alter = (AlterSubscriptionStmt *) stmt_parallel;
-                char * new_subname = palloc0(NAMEDATALEN);
-				char * new_slot_name = palloc0(NAMEDATALEN);
-
-                /* rename subname a parallel one */
-                snprintf(new_subname, NAMEDATALEN - 1, "%s_%d_%d", stmt_alter->subname, parallel_number, i);
-                stmt_alter->subname = new_subname;
-
-				/*construct a new parallel slot_name */
-				if (slot_name_given)
+				do
 				{
-				    ListCell * 	lc = NULL;
+					stmt_create->sub_parallel_number = parallel_number;
+					stmt_create->sub_parallel_index = i;
+				} while (0);
+				break;
+			}
+			case T_AlterSubscriptionStmt:
+			{
+				AlterSubscriptionStmt * stmt_alter = (AlterSubscriptionStmt *) stmt_parallel;
+				char * new_subname = palloc0(NAMEDATALEN);
 
-				    foreach(lc, stmt_alter->options)
-				    {
-				        DefElem * defel = (DefElem *) lfirst(lc);
-				        if (strcmp(defel->defname, "slot_name") == 0)
-				        {
-				            char * slot_name_pre = defGetString(defel);
-				            if (strcmp(slot_name_pre, "none") == 0)
-				                snprintf(new_slot_name, NAMEDATALEN - 1, "%s", slot_name_pre);
-				            else
-				                snprintf(new_slot_name, NAMEDATALEN - 1, "%s_%d_%d", slot_name_pre, parallel_number, i);
-				            defel->arg = (Node *)makeString(new_slot_name);
-				        }
-				    }
-				}
-                break;
-            }
-            case T_DropSubscriptionStmt:
-            {
-                DropSubscriptionStmt * stmt_drop = (DropSubscriptionStmt *) stmt_parallel;
-                char * new_subname = palloc0(NAMEDATALEN);
+				/* rename subname a parallel one */
+				snprintf(new_subname, NAMEDATALEN - 1, "%s_%d_%d", stmt_alter->subname, parallel_number, i);
+				stmt_alter->subname = new_subname;
+				break;
+			}
+			case T_DropSubscriptionStmt:
+			{
+				DropSubscriptionStmt * stmt_drop = (DropSubscriptionStmt *) stmt_parallel;
+				char * new_subname = palloc0(NAMEDATALEN);
 
-                /* rename subname a parallel one */
-                snprintf(new_subname, NAMEDATALEN - 1, "%s_%d_%d", stmt_drop->subname, parallel_number, i);
-                stmt_drop->subname = new_subname;
-                break;
-            }
-            default:
-            {
-                break;
-            }
-        }
-    }
+				/* rename subname a parallel one */
+				snprintf(new_subname, NAMEDATALEN - 1, "%s_%d_%d", stmt_drop->subname, parallel_number, i);
+				stmt_drop->subname = new_subname;
+				break;
+			}
+			default:
+			{
+				break;
+			}
+		}
+	}
 
-    return lstmt;
+	return lstmt;
 }
 
 /*
@@ -1801,257 +1749,207 @@ static List * opentenbase_subscription_parallelization(Node * stmt, int parallel
  */
 ObjectAddress
 CreateOpenTenBaseSubscription(CreateSubscriptionStmt *stmt, bool isTopLevel)
-{// #lizard forgives
-    bool ignore_pk_conflict = false;
-    char *manual_hot_date = NULL;
-    char *temp_hot_date = NULL;
-    char *temp_cold_date = NULL;
-    int parallel_number = 1;
-    bool copy_data = false;
-	char *slot_name = NULL;
-	bool slot_name_given = false;
+{
+	bool ignore_pk_conflict = false;
+	int parallel_number = 1;
+	bool copy_data = false;
 
-    Relation opentenbase_sub_rel = NULL;
-    Oid    opentenbase_sub_parent_oid = InvalidOid;
+	Relation opentenbase_sub_rel = NULL;
+	Oid	opentenbase_sub_parent_oid = InvalidOid;
 
-    List * stmt_create_list = NULL;
+	List * stmt_create_list = NULL;
 
-    ObjectAddress myself = InvalidObjectAddress;
+	ObjectAddress myself = InvalidObjectAddress;
 
-    /* check if opentenbase_subscription is installed */
-    check_opentenbase_subscription_extension();
+	/* check if opentenbase_subscription is installed */
+	check_opentenbase_subscription_extension();
 
-    /* parse options */
-    parse_opentenbase_subscription_options(stmt->options, true,
-                                        &ignore_pk_conflict,
-                                        &manual_hot_date,
-                                        &temp_hot_date,
-                                        &temp_cold_date,
-                                        &parallel_number,
-										&copy_data,
-										&slot_name,
-										&slot_name_given);
+	/* parse options */
+	parse_opentenbase_subscription_options(stmt->options, true,
+										&ignore_pk_conflict,
+										&parallel_number,
+										&copy_data);
 
-	/* check if parallel_number is not greater than max_logical_replication_workers parameter */
-	if (parallel_number > max_logical_replication_workers)
+	PushActiveSnapshot(GetLocalTransactionSnapshot());
+
+	/* check if already exists a same name */
+	opentenbase_sub_rel = relation_openrv(makeRangeVar("public", (char *)g_opentenbase_subscription_relname, -1), RowExclusiveLock);
+	if (check_opentenbase_subscription_ifexists(opentenbase_sub_rel,  stmt->subname))
 	{
+		relation_close(opentenbase_sub_rel, RowExclusiveLock);
 		ereport(ERROR,
-                (errcode(ERRCODE_CONFIGURATION_LIMIT_EXCEEDED),
-                 errmsg("options parallel_number %d is greater than max_logical_replication_workers %d",
-                     parallel_number, max_logical_replication_workers),
-                 errhint("You might need to increase max_logical_replication_workers or decrease parallel_number.")));
+				(errcode(ERRCODE_DUPLICATE_OBJECT),
+				 errmsg("opentenbase subscription \"%s\" already exists",
+						stmt->subname)));
 	}
 
-    PushActiveSnapshot(GetLocalTransactionSnapshot());
+	/* create an item in opentenbase_subscription */
+	do
+	{
+		TupleDesc	tup_desc = NULL;
+		HeapTuple	tuple = NULL;
+		bool		nulls[Natts_opentenbase_subscription] = { false };
+		Datum		values[Natts_opentenbase_subscription] = { 0 };
 
-    /* check if already exists a same name */
-    opentenbase_sub_rel = relation_openrv(makeRangeVar("public", (char *)g_opentenbase_subscription_relname, -1), RowExclusiveLock);
-    if (check_opentenbase_subscription_ifexists(opentenbase_sub_rel,  stmt->subname))
-    {
-        relation_close(opentenbase_sub_rel, RowExclusiveLock);
-        ereport(ERROR,
-                (errcode(ERRCODE_DUPLICATE_OBJECT),
-                 errmsg("opentenbase subscription \"%s\" already exists",
-                        stmt->subname)));
-    }
+		tup_desc = RelationGetDescr(opentenbase_sub_rel);
 
-    /* create an item in opentenbase_subscription */
-    do
-    {
-        TupleDesc    tup_desc = NULL;
-        HeapTuple    tuple = NULL;
-        bool        nulls[Natts_opentenbase_subscription] = { false };
-        Datum        values[Natts_opentenbase_subscription] = { 0 };
+		values[Anum_opentenbase_subscription_sub_name - 1] = DirectFunctionCall1(namein, CStringGetDatum(stmt->subname));
+		values[Anum_opentenbase_subscription_sub_ignore_pk_conflict - 1] = BoolGetDatum(ignore_pk_conflict);
+		values[Anum_opentenbase_subscription_sub_parallel_number - 1] = Int32GetDatum(parallel_number);
 
-        tup_desc = RelationGetDescr(opentenbase_sub_rel);
+		/*
+		 * If there are some parallel opentenbase-sub-subscriptions, 
+		 * other opentenbase-sub-subscriptions can be activated only after 
+		 * the first opentenbase-sub-subscription has completed the data COPY.
+		 * And other opentenbase-sub-subscriptions can only be activated by 
+		 * the first opentenbase-sub-subscription.
+		 */
+		if (parallel_number > 1 && copy_data == true)
+		{
+			values[Anum_opentenbase_subscription_sub_is_all_actived - 1] = BoolGetDatum(false);
+		}
+		else
+		{
+			values[Anum_opentenbase_subscription_sub_is_all_actived - 1] = BoolGetDatum(true);
+		}
 
-        values[Anum_opentenbase_subscription_sub_name - 1] = DirectFunctionCall1(namein, CStringGetDatum(stmt->subname));
-        values[Anum_opentenbase_subscription_sub_ignore_pk_conflict - 1] = BoolGetDatum(ignore_pk_conflict);
+		tuple = heap_form_tuple(tup_desc, values, nulls);
+		opentenbase_sub_parent_oid = simple_heap_insert(opentenbase_sub_rel, tuple);
+		heap_freetuple(tuple);
+	} while (0);
 
-        if (manual_hot_date)
-        {
-            values[Anum_opentenbase_subscription_sub_manual_hot_date - 1] = CStringGetTextDatum(manual_hot_date);
-        }
-        else
-        {
-            nulls[Anum_opentenbase_subscription_sub_manual_hot_date - 1] = true;
-        }
+	/* transform to CreateSubscriptionStmt list, and rename each item */
+	stmt_create_list = opentenbase_subscription_parallelization((Node *)stmt, parallel_number);
 
-        if (temp_hot_date)
-        {
-            values[Anum_opentenbase_subscription_sub_temp_hot_date - 1] = CStringGetTextDatum(temp_hot_date);
-        }
-        else
-        {
-            nulls[Anum_opentenbase_subscription_sub_temp_hot_date - 1] = true;
-        }
+	/* call CreateSubscription for each item */
+	do
+	{
+		Relation opentenbase_sub_parallel_rel = NULL;		
+		
+		int i = 0;
+		ListCell * lc = NULL;
 
-        if (temp_cold_date)
-        {
-            values[Anum_opentenbase_subscription_sub_temp_cold_date - 1] = CStringGetTextDatum(temp_cold_date);
-        }
-        else
-        {
-            nulls[Anum_opentenbase_subscription_sub_temp_cold_date - 1] = true;
-        }
+		opentenbase_sub_parallel_rel = relation_openrv(makeRangeVar("public", (char *)g_opentenbase_subscription_parallel_relname, -1), RowExclusiveLock);
 
-        values[Anum_opentenbase_subscription_sub_parallel_number - 1] = Int32GetDatum(parallel_number);
+		foreach(lc, stmt_create_list)
+		{
+			ObjectAddress pg_sub_tup_addr = InvalidObjectAddress;
+			CreateSubscriptionStmt * stmt_create = (CreateSubscriptionStmt *) lfirst(lc);
 
-        /*
-         * If there are some parallel opentenbase-sub-subscriptions, 
-         * other opentenbase-sub-subscriptions can be activated only after 
-         * the first opentenbase-sub-subscription has completed the data COPY.
-         * And other opentenbase-sub-subscriptions can only be activated by 
-         * the first opentenbase-sub-subscription.
-         */
-        if (parallel_number > 1 && copy_data == true)
-        {
-            values[Anum_opentenbase_subscription_sub_is_all_actived - 1] = BoolGetDatum(false);
-        }
-        else
-        {
-            values[Anum_opentenbase_subscription_sub_is_all_actived - 1] = BoolGetDatum(true);
-        }
+			TupleDesc	tup_desc = NULL;
+			HeapTuple	tuple = NULL;
+			bool		nulls[Natts_opentenbase_subscription_parallel] = { false };
+			Datum		values[Natts_opentenbase_subscription_parallel] = { 0 };
 
-        tuple = heap_form_tuple(tup_desc, values, nulls);
-        opentenbase_sub_parent_oid = simple_heap_insert(opentenbase_sub_rel, tuple);
-        heap_freetuple(tuple);
-    } while (0);
+			bool		force_to_disable = false;
 
-    /* transform to CreateSubscriptionStmt list, and rename each item */
-	stmt_create_list = opentenbase_subscription_parallelization((Node *)stmt, parallel_number, slot_name_given);
+			if (parallel_number > 1 && copy_data == true)
+			{
+				if (i == 0)
+				{
+					/*
+					 * Here we only activate the first opentenbase-sub-subscription. 
+					 * When the first opentenbase-sub-subscription completes the data COPY, 
+					 * it will activate the other opentenbase-sub-subscriptions.
+					 */
+					values[Anum_opentenbase_subscription_parallel_sub_active_state - 1] = BoolGetDatum(true);
+				}
+				else
+				{
+					force_to_disable = true;
+					values[Anum_opentenbase_subscription_parallel_sub_active_state - 1] = BoolGetDatum(false);
+				}
+			}
+			else
+			{
+				values[Anum_opentenbase_subscription_parallel_sub_active_state - 1] = BoolGetDatum(true);
+			}
 
-    /* call CreateSubscription for each item */
-    do
-    {
-        Relation opentenbase_sub_parallel_rel = NULL;        
-        
-        int i = 0;
-        ListCell * lc = NULL;
+			values[Anum_opentenbase_subscription_parallel_sub_active_lsn - 1] = LSNGetDatum(InvalidXLogRecPtr);
 
-        opentenbase_sub_parallel_rel = relation_openrv(makeRangeVar("public", (char *)g_opentenbase_subscription_parallel_relname, -1), RowExclusiveLock);
+			/* create each sub-subscription by CREATE SUBSCRIPTION */
+			pg_sub_tup_addr = CreateSubscription(stmt_create, isTopLevel, force_to_disable);
 
-        foreach(lc, stmt_create_list)
-        {
-            ObjectAddress pg_sub_tup_addr = InvalidObjectAddress;
-            CreateSubscriptionStmt * stmt_create = (CreateSubscriptionStmt *) lfirst(lc);
+			/* record each sub-subscription into opentenbase_subscription_parallel */
+			values[Anum_opentenbase_subscription_parallel_sub_parent - 1] = ObjectIdGetDatum(opentenbase_sub_parent_oid);
+			values[Anum_opentenbase_subscription_parallel_sub_child - 1] = ObjectIdGetDatum(pg_sub_tup_addr.objectId);
+			values[Anum_opentenbase_subscription_parallel_sub_index - 1] = Int32GetDatum(i);
 
-            TupleDesc    tup_desc = NULL;
-            HeapTuple    tuple = NULL;
-            bool        nulls[Natts_opentenbase_subscription_parallel] = { false };
-            Datum        values[Natts_opentenbase_subscription_parallel] = { 0 };
+			tup_desc = RelationGetDescr(opentenbase_sub_parallel_rel);
+			tuple = heap_form_tuple(tup_desc, values, nulls);
+			simple_heap_insert(opentenbase_sub_parallel_rel, tuple);
+			heap_freetuple(tuple);
 
-            bool        force_to_disable = false;
+			Assert(i <= parallel_number && i == stmt_create->sub_parallel_index);
+			if (!(i <= parallel_number && i == stmt_create->sub_parallel_index))
+			{
+				abort();
+			}
 
-            if (parallel_number > 1 && copy_data == true)
-            {
-                if (i == 0)
-                {
-                    /*
-                     * Here we only activate the first opentenbase-sub-subscription. 
-                     * When the first opentenbase-sub-subscription completes the data COPY, 
-                     * it will activate the other opentenbase-sub-subscriptions.
-                     */
-                    values[Anum_opentenbase_subscription_parallel_sub_active_state - 1] = BoolGetDatum(true);
-                }
-                else
-                {
-                    force_to_disable = true;
-                    values[Anum_opentenbase_subscription_parallel_sub_active_state - 1] = BoolGetDatum(false);
-                }
-            }
-            else
-            {
-                values[Anum_opentenbase_subscription_parallel_sub_active_state - 1] = BoolGetDatum(true);
-            }
+			i++; 
+		}
 
-            values[Anum_opentenbase_subscription_parallel_sub_active_lsn - 1] = LSNGetDatum(InvalidXLogRecPtr);
+		relation_close(opentenbase_sub_parallel_rel, RowExclusiveLock);
+	} while (0);
 
-            /* create each sub-subscription by CREATE SUBSCRIPTION */
-            pg_sub_tup_addr = CreateSubscription(stmt_create, isTopLevel, force_to_disable);
+	ObjectAddressSet(myself, RelationGetRelid(opentenbase_sub_rel), opentenbase_sub_parent_oid);
+	relation_close(opentenbase_sub_rel, RowExclusiveLock);
 
-            /* record each sub-subscription into opentenbase_subscription_parallel */
-            values[Anum_opentenbase_subscription_parallel_sub_parent - 1] = ObjectIdGetDatum(opentenbase_sub_parent_oid);
-            values[Anum_opentenbase_subscription_parallel_sub_child - 1] = ObjectIdGetDatum(pg_sub_tup_addr.objectId);
-            values[Anum_opentenbase_subscription_parallel_sub_index - 1] = Int32GetDatum(i);
+	PopActiveSnapshot();
+	CommandCounterIncrement();
 
-            tup_desc = RelationGetDescr(opentenbase_sub_parallel_rel);
-            tuple = heap_form_tuple(tup_desc, values, nulls);
-            simple_heap_insert(opentenbase_sub_parallel_rel, tuple);
-            heap_freetuple(tuple);
-
-            Assert(i <= parallel_number && i == stmt_create->sub_parallel_index);
-            if (!(i <= parallel_number && i == stmt_create->sub_parallel_index))
-            {
-                abort();
-            }
-
-            i++; 
-        }
-
-        relation_close(opentenbase_sub_parallel_rel, RowExclusiveLock);
-    } while (0);
-
-    ObjectAddressSet(myself, RelationGetRelid(opentenbase_sub_rel), opentenbase_sub_parent_oid);
-    relation_close(opentenbase_sub_rel, RowExclusiveLock);
-
-    PopActiveSnapshot();
-    CommandCounterIncrement();
-
-    return myself;
+	return myself;
 }
 
 /*
  * Alter the existing OpenTenBase subscription.
  */
 void AlterOpenTenBaseSubscription(AlterSubscriptionStmt *stmt)
-{// #lizard forgives
+{
     int parallel_number = 0;
-    bool is_all_actived = false;
-    bool slot_name_given = false;
-    char * slot_name = NULL;
+	bool is_all_actived = false;
 
-    check_opentenbase_subscription_extension();
+	check_opentenbase_subscription_extension();
 
     /* first check OpenTenBase subscprition exists and get parallel_number */
     do
     {
         Relation        opentenbase_sub_rel = NULL;
-        HeapScanDesc    scan = NULL;
-        HeapTuple       tuple = NULL;
-        TupleDesc        desc = NULL;
-        bool            exists = false;
+    	HeapScanDesc	scan = NULL;
+    	HeapTuple   	tuple = NULL;
+    	TupleDesc		desc = NULL;
+        bool			exists = false;
 
-        PushActiveSnapshot(GetLocalTransactionSnapshot());
+		PushActiveSnapshot(GetLocalTransactionSnapshot());
 
-        opentenbase_sub_rel = relation_openrv(makeRangeVar("public", 
-                                        (char *)g_opentenbase_subscription_relname, -1), 
-                                        RowExclusiveLock);
-        desc = RelationGetDescr(opentenbase_sub_rel);
-        scan = heap_beginscan(opentenbase_sub_rel, GetActiveSnapshot(), 0, NULL);
+    	opentenbase_sub_rel = relation_openrv(makeRangeVar("public", 
+    									(char *)g_opentenbase_subscription_relname, -1), 
+    									RowExclusiveLock);
+    	desc = RelationGetDescr(opentenbase_sub_rel);
+    	scan = heap_beginscan(opentenbase_sub_rel, GetActiveSnapshot(), 0, NULL);
 
         exists = false;
-        while ((tuple = heap_getnext(scan, ForwardScanDirection)) != NULL)
-        {
-            Name subname;
-            bool isnull;
+    	while ((tuple = heap_getnext(scan, ForwardScanDirection)) != NULL)
+    	{
+    		Name subname;
+    		bool isnull;
 
-            subname = DatumGetName(fastgetattr(tuple, Anum_opentenbase_subscription_sub_name, desc, &isnull));
+    		subname = DatumGetName(fastgetattr(tuple, Anum_opentenbase_subscription_sub_name, desc, &isnull));
 
-            if (false == isnull && subname != NULL && 0 == pg_strcasecmp(stmt->subname, NameStr(*subname)))
-            {
-                exists = true;
-                parallel_number = DatumGetInt32(fastgetattr(tuple, Anum_opentenbase_subscription_sub_parallel_number, desc, &isnull));
-                is_all_actived = DatumGetBool(fastgetattr(tuple, Anum_opentenbase_subscription_sub_is_all_actived, desc, &isnull));
+    		if (false == isnull && subname != NULL && 0 == pg_strcasecmp(stmt->subname, NameStr(*subname)))
+    		{
+    			exists = true;
+    			parallel_number = DatumGetInt32(fastgetattr(tuple, Anum_opentenbase_subscription_sub_parallel_number, desc, &isnull));
+				is_all_actived = DatumGetBool(fastgetattr(tuple, Anum_opentenbase_subscription_sub_is_all_actived, desc, &isnull));
                 break;
-            }        
-        }
+            }		
+    	}
 
-        heap_endscan(scan);
-        relation_close(opentenbase_sub_rel, RowExclusiveLock);
+    	heap_endscan(scan);
+    	relation_close(opentenbase_sub_rel, RowExclusiveLock);
 
-        PopActiveSnapshot();
-        CommandCounterIncrement();
+		PopActiveSnapshot();
+		CommandCounterIncrement();
 
         if (false == exists)
         {
@@ -2060,40 +1958,34 @@ void AlterOpenTenBaseSubscription(AlterSubscriptionStmt *stmt)
         }
     } while(0);
 
-    if (false == is_all_actived && parallel_number > 1 &&
-        stmt->kind == ALTER_SUBSCRIPTION_REFRESH)
-    {
-        elog(ERROR, "OpenTenBase Subscription '%s' is not allowed to refresh until all its sub-subscriptions have been activated", stmt->subname);
-        return;
-    }
-	/* check if slot_name is given*/
-	if (stmt->kind == ALTER_SUBSCRIPTION_OPTIONS)
+	if (false == is_all_actived && parallel_number > 1 &&
+		stmt->kind == ALTER_SUBSCRIPTION_REFRESH)
 	{
-	    parse_opentenbase_subscription_options(stmt->options, false, NULL, NULL, NULL,
-	            NULL, NULL, NULL, &slot_name, &slot_name_given);
+		elog(ERROR, "OpenTenBase Subscription '%s' is not allowed to refresh until all its sub-subscriptions have been activated", stmt->subname);
+		return;
 	}
 
     do
-    {
-        List    * stmt_list;
-        ListCell* lc;
+	{
+		List    * stmt_list;
+		ListCell* lc;
 
-		stmt_list = opentenbase_subscription_parallelization((Node *)stmt, parallel_number, slot_name_given);
+		stmt_list = opentenbase_subscription_parallelization((Node *)stmt, parallel_number);
 
-        foreach(lc, stmt_list)
-        {
-            AlterSubscriptionStmt * stmt;
+		foreach(lc, stmt_list)
+		{
+			AlterSubscriptionStmt * stmt;
             ObjectAddress           address;
             
-            stmt    = (AlterSubscriptionStmt *) lfirst(lc);
+			stmt    = (AlterSubscriptionStmt *) lfirst(lc);
             address = AlterSubscription(stmt);
 
             /* do commandCollected inside */
             EventTriggerCollectSimpleCommand(address, InvalidObjectAddress, (Node *)stmt);
         }
-    } while (0);
+	} while (0);
 
-    return;
+	return;
 }
 
 /*
@@ -2101,177 +1993,191 @@ void AlterOpenTenBaseSubscription(AlterSubscriptionStmt *stmt)
  */
 void
 DropOpenTenBaseSubscription(DropSubscriptionStmt *stmt, bool isTopLevel)
-{// #lizard forgives
-    Oid    sub_parent_oid = InvalidOid;
-    int parallel_number = -1;
-    
-    check_opentenbase_subscription_extension();
+{
+	Oid	sub_parent_oid = InvalidOid;
+	int parallel_number = -1;
+	
+	check_opentenbase_subscription_extension();
 
-    PushActiveSnapshot(GetLocalTransactionSnapshot());
+	PushActiveSnapshot(GetLocalTransactionSnapshot());
 
-    /* check if subscription exists */
-    do
-    {
-        Relation         opentenbase_sub_rel = NULL;
-        HeapScanDesc    scan = NULL;
-        HeapTuple       tuple = NULL;
-        TupleDesc        desc = NULL;
+	if (IsInTransactionChain(isTopLevel)) {
+		PreventTransactionChain(isTopLevel, "DROP SUBSCRIPTION");
+	}
+	
+	/* check if subscription exists */
+	do
+	{
+		Relation 		opentenbase_sub_rel = NULL;
+		HeapScanDesc	scan = NULL;
+		HeapTuple   	tuple = NULL;
+		TupleDesc		desc = NULL;
 
-        bool            exists = false;
+		bool			exists = false;
 
-        opentenbase_sub_rel = relation_openrv(makeRangeVar("public", 
-                                        (char *)g_opentenbase_subscription_relname, -1), 
-                                        RowExclusiveLock);
-        desc = RelationGetDescr(opentenbase_sub_rel);
-        scan = heap_beginscan(opentenbase_sub_rel, GetActiveSnapshot(), 0, NULL);
+		opentenbase_sub_rel = relation_openrv(makeRangeVar("public", 
+										(char *)g_opentenbase_subscription_relname, -1), 
+										RowExclusiveLock);
+		desc = RelationGetDescr(opentenbase_sub_rel);
+		scan = heap_beginscan(opentenbase_sub_rel, GetActiveSnapshot(), 0, NULL);
 
-        while ((tuple = heap_getnext(scan, ForwardScanDirection)) != NULL)
-        {
-            Name subname = NULL;
-            bool isnull = true;
+		while ((tuple = heap_getnext(scan, ForwardScanDirection)) != NULL)
+		{
+			Name subname = NULL;
+			bool isnull = true;
 
-            subname = DatumGetName(fastgetattr(tuple, Anum_opentenbase_subscription_sub_name, desc, &isnull));
+			subname = DatumGetName(fastgetattr(tuple, Anum_opentenbase_subscription_sub_name, desc, &isnull));
 
-            if (false == isnull && subname != NULL && 0 == pg_strcasecmp(stmt->subname, NameStr(*subname)))
-            {
-                exists = true;
-                sub_parent_oid = HeapTupleGetOid(tuple);
-                parallel_number = DatumGetInt32(fastgetattr(tuple, Anum_opentenbase_subscription_sub_parallel_number, desc, &isnull));
-                simple_heap_delete(opentenbase_sub_rel, &tuple->t_self);
-                break;
-            }        
-        }
-
-        heap_endscan(scan);
-        relation_close(opentenbase_sub_rel, RowExclusiveLock);
-
-        if (false == exists)
-        {
-            if (!stmt->missing_ok)
-            {
-                ereport(ERROR,
-                        (errcode(ERRCODE_UNDEFINED_OBJECT),
-                         errmsg("opentenbase subscription \"%s\" does not exist",
-                                stmt->subname)));
-            }
-            else
-            {
-                ereport(NOTICE,
-                        (errmsg("opentenbase subscription \"%s\" does not exist, skipping",
-                                stmt->subname)));
-            }
-
-            return;
-        }
-
-        Assert(parallel_number >= 1 && sub_parent_oid != InvalidOid);
-        if (!(parallel_number >= 1 && sub_parent_oid != InvalidOid))
-        {
-            abort();
-        }
-    } while (0);
-
-    /* scan opentenbase_subscription_parallel, and delete related tuple by sub_parent */
-    do
-    {
-        Relation         opentenbase_sub_parallel_rel = NULL;
-        HeapScanDesc    scan = NULL;
-        HeapTuple       tuple = NULL;
-        TupleDesc        desc = NULL;
-
-        int32             i_assert = 0;
-
-        opentenbase_sub_parallel_rel = relation_openrv(makeRangeVar("public",
-                                                    (char *)g_opentenbase_subscription_parallel_relname, -1),
-                                                    RowExclusiveLock);
-        desc = RelationGetDescr(opentenbase_sub_parallel_rel);
-        scan = heap_beginscan(opentenbase_sub_parallel_rel, GetActiveSnapshot(), 0, NULL);
-
-        while ((tuple = heap_getnext(scan, ForwardScanDirection)) != NULL)
-        {
-            Oid     sub_parent = InvalidOid;
-            bool isnull = true;
-
-            sub_parent = DatumGetObjectId(fastgetattr(tuple, Anum_opentenbase_subscription_parallel_sub_parent, desc, &isnull));
-
-            if (false == isnull && sub_parent == sub_parent_oid)
-            {
-                i_assert++; Assert(i_assert <= parallel_number);
-                simple_heap_delete(opentenbase_sub_parallel_rel, &tuple->t_self);
-            }
-        }
-
-        heap_endscan(scan);
-        relation_close(opentenbase_sub_parallel_rel, RowExclusiveLock);
-
-        Assert(i_assert == parallel_number);
-        if (!(i_assert == parallel_number))
-        {
-            abort();
-        }
-    } while (0);
-
-    /* parallelization drop stmt, and drop each parallel sub-subscritions by DropSubscription  */
-    do
-    {
-        List * stmt_drop_list = NULL;
-        ListCell * lc = NULL;
-        int32 i_assert = 0;
-
-		stmt_drop_list = opentenbase_subscription_parallelization((Node *)stmt, parallel_number, false);
-
-        foreach(lc, stmt_drop_list)
-        {
-            DropSubscriptionStmt * stmt_drop = NULL;
-
-            stmt_drop = (DropSubscriptionStmt *) lfirst(lc);
-            
-			DropSubscription(stmt_drop, isTopLevel);
-
-			i_assert++;
-			Assert(i_assert <= parallel_number);
-
-			if (!(i_assert <= parallel_number))
+			if (false == isnull && subname != NULL && 0 == pg_strcasecmp(stmt->subname, NameStr(*subname)))
 			{
-				abort();
-			}
-        }
-    } while (0);
+				exists = true;
+				sub_parent_oid = HeapTupleGetOid(tuple);
+				parallel_number = DatumGetInt32(fastgetattr(tuple, Anum_opentenbase_subscription_sub_parallel_number, desc, &isnull));
+				simple_heap_delete(opentenbase_sub_rel, &tuple->t_self);
+				break;
+			}		
+		}
 
-    PopActiveSnapshot();
-    CommandCounterIncrement();
+		heap_endscan(scan);
+		relation_close(opentenbase_sub_rel, RowExclusiveLock);
+
+		if (false == exists)
+		{
+			PopActiveSnapshot();
+			if (!stmt->missing_ok)
+			{
+				ereport(ERROR,
+						(errcode(ERRCODE_UNDEFINED_OBJECT),
+						 errmsg("opentenbase subscription \"%s\" does not exist",
+								stmt->subname)));
+			}
+			else
+			{
+				ereport(NOTICE,
+						(errmsg("opentenbase subscription \"%s\" does not exist, skipping",
+								stmt->subname)));
+			}
+
+			return;
+		}
+
+		Assert(parallel_number >= 1 && sub_parent_oid != InvalidOid);
+		if (!(parallel_number >= 1 && sub_parent_oid != InvalidOid))
+		{
+			abort();
+		}
+	} while (0);
+
+	/* scan opentenbase_subscription_parallel, and delete related tuple by sub_parent */
+	do
+	{
+		Relation 		opentenbase_sub_parallel_rel = NULL;
+		HeapScanDesc	scan = NULL;
+		HeapTuple   	tuple = NULL;
+		TupleDesc		desc = NULL;
+
+		int32 			i_assert = 0;
+
+		opentenbase_sub_parallel_rel = relation_openrv(makeRangeVar("public",
+													(char *)g_opentenbase_subscription_parallel_relname, -1),
+													RowExclusiveLock);
+		desc = RelationGetDescr(opentenbase_sub_parallel_rel);
+		scan = heap_beginscan(opentenbase_sub_parallel_rel, GetActiveSnapshot(), 0, NULL);
+
+		while ((tuple = heap_getnext(scan, ForwardScanDirection)) != NULL)
+		{
+			Oid	 sub_parent = InvalidOid;
+			bool isnull = true;
+
+			sub_parent = DatumGetObjectId(fastgetattr(tuple, Anum_opentenbase_subscription_parallel_sub_parent, desc, &isnull));
+
+			if (false == isnull && sub_parent == sub_parent_oid)
+			{
+				i_assert++; Assert(i_assert <= parallel_number);
+				simple_heap_delete(opentenbase_sub_parallel_rel, &tuple->t_self);
+			}
+		}
+
+		heap_endscan(scan);
+		relation_close(opentenbase_sub_parallel_rel, RowExclusiveLock);
+
+		Assert(i_assert == parallel_number);
+		if (!(i_assert == parallel_number))
+		{
+			abort();
+		}
+	} while (0);
+
+	/* parallelization drop stmt, and drop each parallel sub-subscritions by DropSubscription  */
+	do
+	{
+		List * stmt_drop_list = NULL;
+		ListCell * lc = NULL;
+		int32 i_assert = 0;
+
+		stmt_drop_list = opentenbase_subscription_parallelization((Node *)stmt, parallel_number);
+
+		foreach(lc, stmt_drop_list)
+		{
+			DropSubscriptionStmt * stmt_drop = NULL;
+
+			stmt_drop = (DropSubscriptionStmt *) lfirst(lc);
+            
+          	PG_TRY();
+	        {
+			    DropSubscription(stmt_drop, isTopLevel);
+          	}
+            PG_CATCH();
+        	{
+        		HOLD_INTERRUPTS();
+                EmitErrorReport();
+                FlushErrorState();
+                RESUME_INTERRUPTS();
+                /*
+                 * omit errors from input files, PG_exception_stack has been reset.
+                 */
+        	}
+        	PG_END_TRY();   
+            
+			i_assert++; 
+            Assert(i_assert <= parallel_number);
+		}
+	} while (0);
+
+	PopActiveSnapshot();
+	CommandCounterIncrement();
 }
 
-bool isOpenTenBaseSubscription(Node * stmt)
+bool IsOpenTenBaseSubscription(Node * stmt)
 {
-    switch (nodeTag(stmt))
-    {
-        case T_CreateSubscriptionStmt:
-        {
-            CreateSubscriptionStmt * stmt_create = (CreateSubscriptionStmt *) stmt;
-            return stmt_create->isopentenbase;
-            break;
-        }
-        case T_AlterSubscriptionStmt:
-        {
-            AlterSubscriptionStmt * stmt_alter = (AlterSubscriptionStmt *) stmt;
-            return stmt_alter->isopentenbase;
-            break;
-        }
-        case T_DropSubscriptionStmt:
-        {
-            DropSubscriptionStmt * stmt_drop = (DropSubscriptionStmt *) stmt;
-            return stmt_drop->isopentenbase;
-            break;
-        }
-        default:
-        {
-            return false;
-            break;
-        }
-    }
+	switch (nodeTag(stmt))
+	{
+		case T_CreateSubscriptionStmt:
+		{
+			CreateSubscriptionStmt * stmt_create = (CreateSubscriptionStmt *) stmt;
+			return stmt_create->isopentenbase;
+			break;
+		}
+		case T_AlterSubscriptionStmt:
+		{
+			AlterSubscriptionStmt * stmt_alter = (AlterSubscriptionStmt *) stmt;
+			return stmt_alter->isopentenbase;
+			break;
+		}
+		case T_DropSubscriptionStmt:
+		{
+			DropSubscriptionStmt * stmt_drop = (DropSubscriptionStmt *) stmt;
+			return stmt_drop->isopentenbase;
+			break;
+		}
+		default:
+		{
+			return false;
+			break;
+		}
+	}
 
-    return false;
+	return false;
 }
 
 #endif

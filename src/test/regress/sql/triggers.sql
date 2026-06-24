@@ -26,13 +26,13 @@ create unique index pkeys_i on pkeys (pkey1, pkey2);
 create trigger check_fkeys_pkey_exist
 	before insert or update on fkeys
 	for each row
-	execute procedure
+	execute function
 	check_primary_key ('fkey1', 'fkey2', 'pkeys', 'pkey1', 'pkey2');
 
 create trigger check_fkeys_pkey2_exist
 	before insert or update on fkeys
 	for each row
-	execute procedure check_primary_key ('fkey3', 'fkeys2', 'pkey23');
+	execute function check_primary_key ('fkey3', 'fkeys2', 'pkey23');
 
 --
 -- For fkeys2:
@@ -1184,6 +1184,33 @@ drop function self_ref_trigger_ins_func();
 drop function self_ref_trigger_del_func();
 
 --
+-- Check that statement triggers work correctly even with all children excluded
+--
+
+create table stmt_trig_on_empty_upd (a int);
+create table stmt_trig_on_empty_upd1 () inherits (stmt_trig_on_empty_upd);
+create function update_stmt_notice() returns trigger as $$
+begin
+	raise notice 'updating %', TG_TABLE_NAME;
+	return null;
+end;
+$$ language plpgsql;
+create trigger before_stmt_trigger
+	before update on stmt_trig_on_empty_upd
+	execute procedure update_stmt_notice();
+create trigger before_stmt_trigger
+	before update on stmt_trig_on_empty_upd1
+	execute procedure update_stmt_notice();
+
+-- inherited no-op update
+update stmt_trig_on_empty_upd set a = a where false returning a+1 as aa;
+-- simple no-op update
+update stmt_trig_on_empty_upd1 set a = a where false returning a+1 as aa;
+
+drop table stmt_trig_on_empty_upd cascade;
+drop function update_stmt_notice();
+
+--
 -- Check that index creation (or DDL in general) is prohibited in a trigger
 --
 
@@ -1409,7 +1436,7 @@ $$;
 --
 -- Verify behavior of statement triggers on partition hierarchy with
 -- transition tables.  Tuples should appear to each trigger in the
--- format of the the relation the trigger is attached to.
+-- format of the relation the trigger is attached to.
 --
 
 -- set up a partition hierarchy with some different TupleDescriptors
@@ -1735,6 +1762,12 @@ create trigger table2_trig
 with wcte as (insert into table1 values (42))
   insert into table2 values ('hello world');
 
+with wcte as (insert into table1 values (43))
+  insert into table1 values (44);
+
+select * from table1;
+select * from table2;
+
 drop table table1;
 drop table table2;
 
@@ -1767,6 +1800,41 @@ insert into my_table values (3, 'CCC'), (4, 'DDD')
   update set b = my_table.b || ':' || excluded.b;
 
 --
+-- now using a partitioned table
+--
+
+set enable_datanode_row_triggers to true;
+create table iocdu_tt_parted (a int primary key, b text) partition by list (a) distribute by hash(a);
+create table iocdu_tt_parted1 partition of iocdu_tt_parted for values in (1);
+create table iocdu_tt_parted2 partition of iocdu_tt_parted for values in (2);
+create table iocdu_tt_parted3 partition of iocdu_tt_parted for values in (3);
+create table iocdu_tt_parted4 partition of iocdu_tt_parted for values in (4);
+create trigger iocdu_tt_parted_insert_trig
+  after insert on iocdu_tt_parted referencing new table as new_table
+  for each statement execute procedure dump_insert();
+create trigger iocdu_tt_parted_update_trig
+  after update on iocdu_tt_parted referencing old table as old_table new table as new_table
+  for each statement execute procedure dump_update();
+
+-- inserts only
+insert into iocdu_tt_parted values (1, 'AAA'), (2, 'BBB')
+  on conflict (a) do
+  update set b = iocdu_tt_parted.b || ':' || excluded.b;
+
+-- mixture of inserts and updates
+insert into iocdu_tt_parted values (1, 'AAA'), (2, 'BBB'), (3, 'CCC'), (4, 'DDD')
+  on conflict (a) do
+  update set b = iocdu_tt_parted.b || ':' || excluded.b;
+
+-- updates only
+insert into iocdu_tt_parted values (3, 'CCC'), (4, 'DDD')
+  on conflict (a) do
+  update set b = iocdu_tt_parted.b || ':' || excluded.b;
+
+drop table iocdu_tt_parted;
+reset enable_datanode_row_triggers;
+
+--
 -- Verify that you can't create a trigger with transition tables for
 -- more than one event.
 --
@@ -1775,12 +1843,115 @@ create trigger my_table_multievent_trig
   after insert or update on my_table referencing new table as new_table
   for each statement execute procedure dump_insert();
 
+--
+-- Verify that you can't create a trigger with transition tables with
+-- a column list.
+--
+set enable_datanode_row_triggers to true;
+create trigger my_table_col_update_trig
+  after update of b on my_table referencing new table as new_table
+  for each statement execute procedure dump_insert();
+
 drop table my_table;
+
+--
+-- Test firing of triggers with transition tables by foreign key cascades
+--
+drop table if exists refd_table cascade;
+drop table if exists trig_table cascade;
+create table refd_table (a int primary key, b text) distribute by shard(a);
+create table trig_table (a int, b text,
+  foreign key (a) references refd_table on update cascade on delete cascade
+)
+distribute by shard(a);
+
+create trigger trig_table_insert_trig
+  after insert on trig_table referencing new table as new_table
+  for each statement execute procedure dump_insert();
+create trigger trig_table_update_trig
+  after update on trig_table referencing old table as old_table new table as new_table
+  for each statement execute procedure dump_update();
+create trigger trig_table_delete_trig
+  after delete on trig_table referencing old table as old_table
+  for each statement execute procedure dump_delete();
+
+insert into refd_table values
+  (1, 'one'),
+  (2, 'two'),
+  (3, 'three');
+insert into trig_table values
+  (1, 'one a'),
+  (1, 'one b'),
+  (2, 'two a'),
+  (2, 'two b'),
+  (3, 'three a'),
+  (3, 'three b');
+-- Not supported in distributed mode
+update refd_table set a = 11 where b = 'one';
+
+select * from trig_table order by 1,2;
+
+delete from refd_table where length(b) = 3;
+
+select * from trig_table order by 1,2;
+
+drop table refd_table, trig_table;
+
+--
+-- self-referential FKs are even more fun
+--
+drop table if exists self_ref cascade;
+create table self_ref (a int primary key,
+                       b int references self_ref(a) on delete cascade) distribute by shard(a);
+
+create trigger self_ref_r_trig
+  after delete on self_ref referencing old table as old_table
+  for each row execute procedure dump_delete();
+create trigger self_ref_s_trig
+  after delete on self_ref referencing old table as old_table
+  for each statement execute procedure dump_delete();
+
+insert into self_ref values (1, null), (2, 1), (3, 2);
+
+delete from self_ref where a = 1;
+
+-- without AR trigger, cascaded deletes all end up in one transition table
+drop trigger self_ref_r_trig on self_ref;
+
+insert into self_ref values (1, null), (2, 1), (3, 2), (4, 3);
+
+delete from self_ref where a = 1;
+
+drop table self_ref;
+reset enable_datanode_row_triggers;
 
 -- cleanup
 drop function dump_insert();
 drop function dump_update();
 drop function dump_delete();
+
+-- trigger with shard table
+CREATE TABLE t_trigger
+ (
+     id integer NOT NULL,
+     nc text NOT NULL
+ ) distribute by shard(id);
+CREATE OR REPLACE FUNCTION t_trigger_insert_trigger_func() RETURNS trigger AS 
+$$
+BEGIN
+    IF NEW.nc = '' THEN    
+        NEW.nc = 'OpenTenBase_' || random()::text;
+    END IF;
+    RETURN NEW;
+END;
+$$ 
+LANGUAGE plpgsql;
+CREATE TRIGGER t_trigger_insert_trigger BEFORE INSERT ON t_trigger
+  FOR EACH ROW EXECUTE PROCEDURE t_trigger_insert_trigger_func();  
+INSERT INTO t_trigger values(1,'');
+SELECT count(*) FROM t_trigger;
+drop table t_trigger;
+drop function t_trigger_insert_trigger_func();
 
 -- trigger support subtransaction
 drop table if exists tb1 cascade;
@@ -1821,3 +1992,33 @@ select count(*) from tb3;
 drop table tb1 cascade;
 drop table tb3 cascade;
 drop function fun_fbjfyj();
+
+-- Test row storage table distribute by shard trigger
+create table test_insert_into_select_trigger_table1(id int,  name varchar(20)) distribute by shard(id);
+create table test_insert_into_select_trigger_table2(id int, name varchar(20)) distribute by shard(id);
+create table test_insert_into_select_trigger_table_temp(id int,  name varchar(20)) distribute by shard(id);
+insert into test_insert_into_select_trigger_table_temp values(100, 'test1');
+insert into test_insert_into_select_trigger_table_temp values(200, 'test2');
+insert into test_insert_into_select_trigger_table_temp values(300, 'test3');
+
+create or replace function test_insert_into_select_trigger_table2_func() returns trigger as $$
+begin
+        insert into test_insert_into_select_trigger_table2 values(new.id, new.name);
+        raise notice '% % % %', TG_RELNAME, TG_OP, TG_WHEN, TG_LEVEL;
+        return new;
+end;$$ language plpgsql;
+--create trigger test_insert_into_select_trigger_table2_trig before insert or delete or update on test_insert_into_select_trigger_table1
+--for each row execute procedure test_insert_into_select_trigger_table2_func();
+--insert into test_insert_into_select_trigger_table1 select * from test_insert_into_select_trigger_table_temp;
+--select * from test_insert_into_select_trigger_table1 order by id;
+--select * from test_insert_into_select_trigger_table2 order by id;
+
+--update test_insert_into_select_trigger_table1 set name = 'update' where id = 300;
+--select * from test_insert_into_select_trigger_table1 order by id;
+--select * from test_insert_into_select_trigger_table2 order by id;
+
+drop table if exists test_insert_into_select_trigger_table1;
+drop table if exists test_insert_into_select_trigger_table2;
+drop table if exists test_insert_into_select_trigger_table_temp;
+drop function test_insert_into_select_trigger_table2_func;
+drop table main_table cascade;

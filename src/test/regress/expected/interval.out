@@ -256,9 +256,10 @@ EXPLAIN (COSTS OFF)
 SELECT f1 FROM INTERVAL_TBL_OF r1 ORDER BY f1;
                                 QUERY PLAN                                
 --------------------------------------------------------------------------
- Remote Subquery Scan on all (datanode_1,datanode_2)
+ Remote Subquery Scan on all (datanodes 2)
+   Sort Key: f1
    ->  Index Only Scan using interval_tbl_of_f1_idx on interval_tbl_of r1
-(2 rows)
+(3 rows)
 
 SELECT f1 FROM INTERVAL_TBL_OF r1 ORDER BY f1;
                     f1                     
@@ -916,12 +917,16 @@ select make_interval(hours := -2, mins := -10, secs := -25.3);
 
 select make_interval(years := 'inf'::float::int);
 ERROR:  integer out of range
+HINT:   while processing column make_interval
 select make_interval(months := 'NaN'::float::int);
 ERROR:  integer out of range
+HINT:   while processing column make_interval
 select make_interval(secs := 'inf');
 ERROR:  interval out of range
+HINT:   while processing column make_interval
 select make_interval(secs := 'NaN');
 ERROR:  interval out of range
+HINT:   while processing column make_interval
 select make_interval(secs := 7e12);
            make_interval            
 ------------------------------------

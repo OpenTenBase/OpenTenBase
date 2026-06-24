@@ -7,9 +7,6 @@
  * Portions Copyright (c) 1994, Regents of the University of California
  * Portions Copyright (c) 2010-2012 Postgres-XC Development Group
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * $PostgreSQL$
  *
  *-------------------------------------------------------------------------
@@ -330,6 +327,9 @@ void ProcessGetGTSCommand(Port *myport, StringInfo message);
 void ProcessGetGTSCommandMulti(Port *myport, StringInfo message);
 void ProcessCheckGTMCommand(Port *myport, StringInfo message);
 void ProcessStandbyPreCheckGTMCommand(Port *myport, StringInfo message);
+#endif
+#ifdef __OPENTENBASE_C__
+void GTM_RestoreStoreFidManager(void);
 #endif
 
 #endif

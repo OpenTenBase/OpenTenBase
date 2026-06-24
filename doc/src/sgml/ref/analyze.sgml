@@ -109,6 +109,23 @@ values are used as they are.
   <title>Notes</title>
 
   <para>
+   To analyze a table, one must ordinarily have the <literal>MAINTAIN</literal>
+   privilege on the table or be the table's owner, a superuser, or a role with
+   privileges of the
+   <link linkend="predefined-roles-table"><literal>pg_maintain</literal></link>
+   role.  However, database owners are allowed to
+   analyze all tables in their databases, except shared catalogs.
+   (The restriction for shared catalogs means that a true database-wide
+   <command>ANALYZE</command> can only be performed by superusers and roles
+   with privileges of <literal>pg_maintain</literal>.)  If a role has
+   permission to <command>ANALYZE</command> a partitioned table, it is also
+   permitted to <command>ANALYZE</command> each of its partitions, regardless
+   of whether the role has the aforementioned privileges on the partition.
+   <command>ANALYZE</command> will skip over any tables that the calling user
+   does not have permission to analyze.
+  </para>
+
+  <para>
    Foreign tables are analyzed only when explicitly selected.  Not all
    foreign data wrappers support <command>ANALYZE</>.  If the table's
    wrapper does not support <command>ANALYZE</>, the command prints a

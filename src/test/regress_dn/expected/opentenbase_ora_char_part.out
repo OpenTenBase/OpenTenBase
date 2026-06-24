@@ -1,0 +1,2502 @@
+------------------------------------------------------------
+-- A part of opentenbase_ora.sql, test char functions related cases.
+------------------------------------------------------------
+\set ECHO all
+SET client_min_messages = warning;
+SET datestyle TO ISO;
+SET client_encoding = utf8;
+DROP DATABASE IF EXISTS regression_sort;
+CREATE DATABASE regression_sort WITH TEMPLATE = template0_ora ENCODING='SQL_ASCII' LC_COLLATE='C' LC_CTYPE='C';
+\c regression_ora
+-- test varchar2
+    -- ERROR (typmod >= 1)
+    CREATE TABLE foo (a VARCHAR2(0));
+ERROR:  length for type varchar2 must be at least 1
+LINE 1: CREATE TABLE foo (a VARCHAR2(0));
+                            ^
+    -- ERROR (number of typmods = 1)
+    CREATE TABLE foo (a VARCHAR2(10, 1));
+ERROR:  invalid type modifier
+LINE 1: CREATE TABLE foo (a VARCHAR2(10, 1));
+                            ^
+    -- OK
+    CREATE TABLE foo (a VARCHAR(5000));
+    -- cleanup
+    DROP TABLE foo;
+    -- OK
+    CREATE TABLE foo (a VARCHAR2(5));
+    CREATE INDEX ON foo(a);
+    --
+    -- test that no value longer than maxlen is allowed
+    --
+    -- ERROR (length > 5)
+    INSERT INTO foo VALUES ('abcdef');
+ERROR:  input value length is 6; too long for type varchar2(5)
+    -- ERROR (length > 5);
+    -- VARCHAR2 does not truncate blank spaces on implicit coercion
+    INSERT INTO foo VALUES ('abcde  ');
+ERROR:  input value length is 7; too long for type varchar2(5)
+    -- OK
+    INSERT INTO foo VALUES ('abcde');
+    -- OK
+    INSERT INTO foo VALUES ('abcdef'::VARCHAR2(5));
+    -- OK
+    INSERT INTO foo VALUES ('abcde  '::VARCHAR2(5));
+    --OK
+    INSERT INTO foo VALUES ('abc'::VARCHAR2(5));
+    --
+    -- test whitespace semantics on comparison
+    --
+    -- equal
+    SELECT 'abcde   '::VARCHAR2(10) = 'abcde   '::VARCHAR2(10);
+ ?column? 
+----------
+ t
+(1 row)
+
+    -- not equal
+    SELECT 'abcde  '::VARCHAR2(10) = 'abcde   '::VARCHAR2(10);
+ ?column? 
+----------
+ f
+(1 row)
+
+    -- cleanup
+    DROP TABLE foo;
+    -- varchar2 specified unit is a character or byte (default is byte)
+    create table test_varchar2_1(c1 varchar(5), c2 varchar2(5), c3 varchar2(5 char), c4 varchar2(5 byte));
+    create table test_varchar2_2(c1 varchar(5), c2 varchar2(5), c3 varchar2(5 CHAR), c4 varchar2(5 BYTE));
+    create table test_varchar2_3(c1 varchar(5), c2 varchar2(5), c3 varchar2(5 CHARACTER), c4 varchar2(5 byte));
+    create table test_varchar2_4(c1 varchar(5), c2 varchar2(5), c3 varchar2(5 character), c4 varchar2(5 BYTE));
+    insert into test_varchar2_1 values('中国中国中', '中', '中国中国中', '中');   -- should OK (c3 maxlen is 5 char)
+    insert into test_varchar2_2 values('中国中国中', '中国中国中', '中国中国中', '中');   -- should failed (c2 byte longer than maxlen 5)
+ERROR:  input value length is 15; too long for type varchar2(5)
+    insert into test_varchar2_3 values('中国中国中', '中', '中国中国中', '中国中国中');   -- should failed (c4 byte longer than maxlen 5)
+ERROR:  input value length is 15; too long for type varchar2(5)
+    insert into test_varchar2_4 values('中国中国中', '中', '中国中国中', 'abcde');    -- should OK (c3 maxlen is 5 char, c2/c4 maxlen is 5 byte)
+    drop table test_varchar2_1, test_varchar2_2, test_varchar2_3, test_varchar2_4;
+-- test nvarchar2
+    --
+    -- test type modifier related rules
+    --
+    -- ERROR (typmod >= 1)
+    CREATE TABLE bar (a NVARCHAR2(0));
+ERROR:  length for type nvarchar2 must be at least 1
+LINE 1: CREATE TABLE bar (a NVARCHAR2(0));
+                            ^
+    -- ERROR (number of typmods = 1)
+    CREATE TABLE bar (a NVARCHAR2(10, 1));
+ERROR:  invalid type modifier
+LINE 1: CREATE TABLE bar (a NVARCHAR2(10, 1));
+                            ^
+    -- OK
+    CREATE TABLE bar (a VARCHAR(5000));
+    CREATE INDEX ON bar(a);
+    -- cleanup
+    DROP TABLE bar;
+    -- OK
+    CREATE TABLE bar (a NVARCHAR2(5));
+    --
+    -- test that no value longer than maxlen is allowed
+    --
+    -- ERROR (length > 5)
+    INSERT INTO bar VALUES ('abcdef');
+ERROR:  input value too long for type nvarchar2(5)
+    -- ERROR (length > 5);
+    -- NVARCHAR2 does not truncate blank spaces on implicit coercion
+    INSERT INTO bar VALUES ('abcde  ');
+ERROR:  input value too long for type nvarchar2(5)
+    -- OK
+    INSERT INTO bar VALUES ('abcde');
+    -- OK
+    INSERT INTO bar VALUES ('abcdef'::NVARCHAR2(5));
+    -- OK
+    INSERT INTO bar VALUES ('abcde  '::NVARCHAR2(5));
+    --OK
+    INSERT INTO bar VALUES ('abc'::NVARCHAR2(5));
+    --
+    -- test whitespace semantics on comparison
+    --
+    -- equal
+    SELECT 'abcde   '::NVARCHAR2(10) = 'abcde   '::NVARCHAR2(10);
+ ?column? 
+----------
+ t
+(1 row)
+
+    -- not equal
+    SELECT 'abcde  '::NVARCHAR2(10) = 'abcde   '::NVARCHAR2(10);
+ ?column? 
+----------
+ f
+(1 row)
+
+    -- cleanup
+    DROP TABLE bar;
+-- test cast string to numeric
+drop table if exists test_t;
+NOTICE:  table "TEST_T" does not exist, skipping
+create table test_t(id varchar2(20));
+insert into test_t values('1'); 
+insert into test_t values(23);
+insert into test_t values(24);
+insert into test_t values(25);
+select * from test_t where id = 1 order by id asc;
+ ID 
+----
+ 1
+(1 row)
+
+select * from test_t where id = '1' order by id asc;
+ ID 
+----
+ 1
+(1 row)
+
+select * from test_t where id=1::text order by id asc;
+ ID 
+----
+ 1
+(1 row)
+
+select * from test_t where id = 'xxx' order by id asc;
+ ID 
+----
+(0 rows)
+
+select * from test_t where id = 1 order by id asc;
+ ID 
+----
+ 1
+(1 row)
+
+select * from test_t where id = '1' order by id asc;
+ ID 
+----
+ 1
+(1 row)
+
+select * from test_t where id=1::text order by id asc;
+ ID 
+----
+ 1
+(1 row)
+
+select * from test_t where id = 'xxx' order by id asc;
+ ID 
+----
+(0 rows)
+
+insert into test_t values('xxx');
+select * from test_t where id = 1 order by id asc;
+ERROR:  invalid input syntax for type numeric: "xxx"
+select * from test_t where id = '1' order by id asc;
+ ID 
+----
+ 1
+(1 row)
+
+select * from test_t where id=1::text order by id asc;
+ ID 
+----
+ 1
+(1 row)
+
+select * from test_t where id = 'xxx' order by id asc;
+ ID  
+-----
+ xxx
+(1 row)
+
+select * from test_t where id = 1 order by id asc;
+ERROR:  invalid input syntax for type numeric: "xxx"
+select * from test_t where id = '1' order by id asc;
+ ID 
+----
+ 1
+(1 row)
+
+select * from test_t where id=1::text order by id asc;
+ ID 
+----
+ 1
+(1 row)
+
+select * from test_t where id = 'xxx' order by id asc;
+ ID  
+-----
+ xxx
+(1 row)
+
+drop table if exists test_t;
+select 'xxx' || 1 as r;
+  R   
+------
+ xxx1
+(1 row)
+
+select 1 || 'xxxx' as r;
+   R   
+-------
+ 1xxxx
+(1 row)
+
+drop table if exists test_t;
+NOTICE:  table "TEST_T" does not exist, skipping
+create table test_t (n int);
+insert into test_t values(1);
+insert into test_t values(2);
+insert into test_t values(3);
+insert into test_t values(4);
+insert into test_t values(5);
+insert into test_t values(6);
+insert into test_t values(7);
+insert into test_t values(8);
+insert into test_t values(9);
+select r from (SELECT '7' as r from dual UNION ALL SELECT n+1 as r FROM test_t WHERE n < 7 ) order by r;
+ R 
+---
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 7
+(7 rows)
+
+drop table if exists test_t;
+-- test nlssort
+\c regression_sort
+DROP TABLE IF EXISTS test_sort;
+NOTICE:  table "TEST_SORT" does not exist, skipping
+CREATE TABLE test_sort (name TEXT);
+INSERT INTO test_sort VALUES ('red'), ('brown'), ('yellow'), ('Purple');
+INSERT INTO test_sort VALUES ('guangdong'), ('shenzhen'), ('Tencent'), ('OpenTenBase');
+SELECT * FROM test_sort ORDER BY NLSSORT(name, 'en_US.utf8');
+   NAME    
+-----------
+ brown
+ guangdong
+ Purple
+ red
+ shenzhen
+ OpenTenBase
+ Tencent
+ yellow
+(8 rows)
+
+SELECT * FROM test_sort ORDER BY NLSSORT(name, '');
+   NAME    
+-----------
+ Purple
+ OpenTenBase
+ Tencent
+ brown
+ guangdong
+ red
+ shenzhen
+ yellow
+(8 rows)
+
+SELECT set_nls_sort('invalid');
+ SET_NLS_SORT 
+--------------
+ 
+(1 row)
+
+SELECT * FROM test_sort ORDER BY NLSSORT(name);
+ERROR:  failed to set the requested LC_COLLATE value [invalid]
+CONTEXT:  SQL function "NLSSORT" statement 1
+SELECT set_nls_sort(' ');
+ SET_NLS_SORT 
+--------------
+ 
+(1 row)
+
+SELECT * FROM test_sort ORDER BY NLSSORT(name);
+   NAME    
+-----------
+ Purple
+ OpenTenBase
+ Tencent
+ brown
+ guangdong
+ red
+ shenzhen
+ yellow
+(8 rows)
+
+SELECT set_nls_sort('en_US.utf8');
+ SET_NLS_SORT 
+--------------
+ 
+(1 row)
+
+SELECT * FROM test_sort ORDER BY NLSSORT(name);
+   NAME    
+-----------
+ brown
+ guangdong
+ Purple
+ red
+ shenzhen
+ OpenTenBase
+ Tencent
+ yellow
+(8 rows)
+
+INSERT INTO test_sort VALUES(NULL);
+SELECT * FROM test_sort ORDER BY NLSSORT(name);
+   NAME    
+-----------
+ brown
+ guangdong
+ Purple
+ red
+ shenzhen
+ OpenTenBase
+ Tencent
+ yellow
+ 
+(9 rows)
+
+SELECT set_nls_sort('nls_sort = russian');
+ SET_NLS_SORT 
+--------------
+ 
+(1 row)
+
+SELECT * FROM test_sort ORDER BY NLSSORT(name);
+   NAME    
+-----------
+ brown
+ guangdong
+ Purple
+ red
+ shenzhen
+ OpenTenBase
+ Tencent
+ yellow
+ 
+(9 rows)
+
+SELECT set_nls_sort('nls_sortr = pt_PT.iso885915@euro');
+ SET_NLS_SORT 
+--------------
+ 
+(1 row)
+
+SELECT * FROM test_sort ORDER BY NLSSORT(name);
+ERROR:  failed to set the requested LC_COLLATE value [nls_sortr = pt_PT.iso885915@euro]
+CONTEXT:  SQL function "NLSSORT" statement 1
+SELECT set_nls_sort('nls_sortr = en_US.iso885915');
+ SET_NLS_SORT 
+--------------
+ 
+(1 row)
+
+SELECT * FROM test_sort ORDER BY NLSSORT(name, 'Nls_sort =   ');
+   NAME    
+-----------
+ Purple
+ OpenTenBase
+ Tencent
+ brown
+ guangdong
+ red
+ shenzhen
+ yellow
+ 
+(9 rows)
+
+SELECT * FROM test_sort ORDER BY NLSSORT(name, 'Nls_sort =  zh_CN.gb18030 ');
+   NAME    
+-----------
+ brown
+ guangdong
+ Purple
+ red
+ shenzhen
+ OpenTenBase
+ Tencent
+ yellow
+ 
+(9 rows)
+
+SELECT * FROM test_sort ORDER BY NLSSORT(name, 'Nls_sort =  wa_BE.iso885915@euro ');
+   NAME    
+-----------
+ brown
+ guangdong
+ Purple
+ red
+ shenzhen
+ OpenTenBase
+ Tencent
+ yellow
+ 
+(9 rows)
+
+SELECT * FROM test_sort ORDER BY NLSSORT(name, 'NLS_SORT =  tt_RU.utf8@iqtelif ');
+   NAME    
+-----------
+ brown
+ guangdong
+ Purple
+ red
+ shenzhen
+ OpenTenBase
+ Tencent
+ yellow
+ 
+(9 rows)
+
+SELECT * FROM test_sort ORDER BY NLSSORT(name, 'Nls_sortR =  tt_RU.utf8@iqtelif ');
+ERROR:  failed to set the requested LC_COLLATE value [Nls_sortR =  tt_RU.utf8@iqtelif]
+SELECT * FROM test_sort ORDER BY NLSSORT(name,'NLS_SORT = SCHINESE_PINYIN_M');
+   NAME    
+-----------
+ brown
+ guangdong
+ Purple
+ red
+ shenzhen
+ OpenTenBase
+ Tencent
+ yellow
+ 
+(9 rows)
+
+SELECT * FROM test_sort ORDER BY NLSSORT(name,'NLS_SORT = SCHINESE_STROKE_M');
+   NAME    
+-----------
+ brown
+ guangdong
+ Purple
+ red
+ shenzhen
+ OpenTenBase
+ Tencent
+ yellow
+ 
+(9 rows)
+
+SELECT * FROM test_sort ORDER BY NLSSORT(name,'NLS_SORT = SCHINESE_RADICAL_M');
+   NAME    
+-----------
+ brown
+ guangdong
+ Purple
+ red
+ shenzhen
+ OpenTenBase
+ Tencent
+ yellow
+ 
+(9 rows)
+
+DROP TABLE test_sort;
+\c regression_ora
+SET client_encoding to default;
+-- test instr
+select instr('Tech on the net', 'e') = 2;
+ ?column? 
+----------
+ t
+(1 row)
+
+select instr('Tech on the net', 'e', 1, 1) = 2;
+ ?column? 
+----------
+ t
+(1 row)
+
+select instr('Tech on the net', 'e', 1, 2) = 11;
+ ?column? 
+----------
+ t
+(1 row)
+
+select instr('Tech on the net', 'e', 1, 3) = 14;
+ ?column? 
+----------
+ t
+(1 row)
+
+select instr('Tech on the net', 'e', -3, 2) = 2;
+ ?column? 
+----------
+ t
+(1 row)
+
+select instr('abc', NULL) IS NULL;
+ ?column? 
+----------
+ t
+(1 row)
+
+select instr('abc', '') IS NULL;
+ ?column? 
+----------
+ t
+(1 row)
+
+select instr('', 'a') IS NULL;
+ ?column? 
+----------
+ t
+(1 row)
+
+select 1 = instr('abc', 'a');
+ ?column? 
+----------
+ t
+(1 row)
+
+select 3 = instr('abc', 'c');
+ ?column? 
+----------
+ t
+(1 row)
+
+select 0 = instr('abc', 'z');
+ ?column? 
+----------
+ t
+(1 row)
+
+select 1 = instr('abcabcabc', 'abca', 1);
+ ?column? 
+----------
+ t
+(1 row)
+
+select 4 = instr('abcabcabc', 'abca', 2);
+ ?column? 
+----------
+ t
+(1 row)
+
+select 0 = instr('abcabcabc', 'abca', 7);
+ ?column? 
+----------
+ t
+(1 row)
+
+select 0 = instr('abcabcabc', 'abca', 9);
+ ?column? 
+----------
+ t
+(1 row)
+
+select 4 = instr('abcabcabc', 'abca', -1);
+ ?column? 
+----------
+ t
+(1 row)
+
+select 1 = instr('abcabcabc', 'abca', -8);
+ ?column? 
+----------
+ t
+(1 row)
+
+select 1 = instr('abcabcabc', 'abca', -9);
+ ?column? 
+----------
+ t
+(1 row)
+
+select 0 = instr('abcabcabc', 'abca', -10);
+ ?column? 
+----------
+ t
+(1 row)
+
+select 1 = instr('abcabcabc', 'abca', 1, 1);
+ ?column? 
+----------
+ t
+(1 row)
+
+select 4 = instr('abcabcabc', 'abca', 1, 2);
+ ?column? 
+----------
+ t
+(1 row)
+
+select 0 = instr('abcabcabc', 'abca', 1, 3);
+ ?column? 
+----------
+ t
+(1 row)
+
+select 2 = instr('张三','三') from dual;
+ ?column? 
+----------
+ t
+(1 row)
+
+select 0 = instr('张三',' ') from dual;
+ ?column? 
+----------
+ t
+(1 row)
+
+select instr('张三','') is NULL from dual;
+ ?column? 
+----------
+ t
+(1 row)
+
+select instr('','三') is NULL from dual;
+ ?column? 
+----------
+ t
+(1 row)
+
+-- test substr
+select substr('This is a test', 6, 2) = 'is';
+ ?column? 
+----------
+ t
+(1 row)
+
+select substr('This is a test', 6) =  'is a test';
+ ?column? 
+----------
+ t
+(1 row)
+
+select substr('TechOnTheNet', 1, 4) =  'Tech';
+ ?column? 
+----------
+ t
+(1 row)
+
+select substr('TechOnTheNet', -3, 3) =  'Net';
+ ?column? 
+----------
+ t
+(1 row)
+
+select substr('TechOnTheNet', -6, 3) =  'The';
+ ?column? 
+----------
+ t
+(1 row)
+
+select substr('TechOnTheNet', -8, 2) =  'On';
+ ?column? 
+----------
+ t
+(1 row)
+
+select substr('TechOnTheNet', -8, 0) =  '';
+ ?column? 
+----------
+ 
+(1 row)
+
+select substr('TechOnTheNet', -8, -1) =  '';
+ ?column? 
+----------
+ 
+(1 row)
+
+select substr(1234567,3.6::smallint)='4567';
+ ?column? 
+----------
+ t
+(1 row)
+
+select substr(1234567,3.6::int)='4567';
+ ?column? 
+----------
+ t
+(1 row)
+
+select substr(1234567,3.6::bigint)='4567';
+ ?column? 
+----------
+ t
+(1 row)
+
+select substr(1234567,3.6::numeric)='34567';
+ ?column? 
+----------
+ t
+(1 row)
+
+select substr(1234567,-1)='7';
+ ?column? 
+----------
+ t
+(1 row)
+
+select substr(1234567,3.6::smallint,2.6)='45';
+ ?column? 
+----------
+ t
+(1 row)
+
+select substr(1234567,3.6::smallint,2.6::smallint)='456';
+ ?column? 
+----------
+ t
+(1 row)
+
+select substr(1234567,3.6::smallint,2.6::int)='456';
+ ?column? 
+----------
+ t
+(1 row)
+
+select substr(1234567,3.6::smallint,2.6::bigint)='456';
+ ?column? 
+----------
+ t
+(1 row)
+
+select substr(1234567,3.6::smallint,2.6::numeric)='45';
+ ?column? 
+----------
+ t
+(1 row)
+
+select substr(1234567,3.6::int,2.6::smallint)='456';
+ ?column? 
+----------
+ t
+(1 row)
+
+select substr(1234567,3.6::int,2.6::int)='456';
+ ?column? 
+----------
+ t
+(1 row)
+
+select substr(1234567,3.6::int,2.6::bigint)='456';
+ ?column? 
+----------
+ t
+(1 row)
+
+select substr(1234567,3.6::int,2.6::numeric)='45';
+ ?column? 
+----------
+ t
+(1 row)
+
+select substr(1234567,3.6::bigint,2.6::smallint)='456';
+ ?column? 
+----------
+ t
+(1 row)
+
+select substr(1234567,3.6::bigint,2.6::int)='456';
+ ?column? 
+----------
+ t
+(1 row)
+
+select substr(1234567,3.6::bigint,2.6::bigint)='456';
+ ?column? 
+----------
+ t
+(1 row)
+
+select substr(1234567,3.6::bigint,2.6::numeric)='45';
+ ?column? 
+----------
+ t
+(1 row)
+
+select substr(1234567,3.6::numeric,2.6::smallint)='345';
+ ?column? 
+----------
+ t
+(1 row)
+
+select substr(1234567,3.6::numeric,2.6::int)='345';
+ ?column? 
+----------
+ t
+(1 row)
+
+select substr(1234567,3.6::numeric,2.6::bigint)='345';
+ ?column? 
+----------
+ t
+(1 row)
+
+select substr(1234567,3.6::numeric,2.6::numeric)='34';
+ ?column? 
+----------
+ t
+(1 row)
+
+select substr('abcdef'::varchar,3.6::smallint)='def';
+ ?column? 
+----------
+ t
+(1 row)
+
+select substr('abcdef'::varchar,3.6::int)='def';
+ ?column? 
+----------
+ t
+(1 row)
+
+select substr('abcdef'::varchar,3.6::bigint)='def';
+ ?column? 
+----------
+ t
+(1 row)
+
+select substr('abcdef'::varchar,3.6::numeric)='cdef';
+ ?column? 
+----------
+ t
+(1 row)
+
+select substr('abcdef'::varchar,3.5::int,3.5::int)='def';
+ ?column? 
+----------
+ t
+(1 row)
+
+select substr('abcdef'::varchar,3.5::numeric,3.5::numeric)='cde';
+ ?column? 
+----------
+ t
+(1 row)
+
+select substr('abcdef'::varchar,3.5::numeric,3.5::int)='cdef';
+ ?column? 
+----------
+ t
+(1 row)
+
+-- test lengthb
+select length('opentenbase_ora'),lengthB('opentenbase_ora') from dual;
+ LENGTH | LENGTHB 
+--------+---------
+      6 |       6
+(1 row)
+
+-- test strposb
+select strposb('abc', '') from dual;
+ STRPOSB 
+---------
+        
+(1 row)
+
+select strposb('abc', 'a') from dual;
+ STRPOSB 
+---------
+       1
+(1 row)
+
+select strposb('abc', 'c') from dual;
+ STRPOSB 
+---------
+       3
+(1 row)
+
+select strposb('abc', 'z') from dual;
+ STRPOSB 
+---------
+       0
+(1 row)
+
+select strposb('abcabcabc', 'abca') from dual;
+ STRPOSB 
+---------
+       1
+(1 row)
+
+--test regexp_replace function
+SELECT regexp_replace('abc1def2', '[[:digit:]]','@',1,2) output  from dual;
+  OUTPUT  
+----------
+ abc1def@
+(1 row)
+
+SELECT regexp_replace('abc1def2', '[[:digit:]]','@',1,'1') output  from dual;
+  OUTPUT  
+----------
+ abc@def2
+(1 row)
+
+SELECT regexp_replace('abc1def2', '[[:digit:]]','@',1,to_number(2)::int) output  from dual;
+  OUTPUT  
+----------
+ abc1def@
+(1 row)
+
+SELECT regexp_replace('abc1def2', '[[:digit:]]','@',1,2.1::int) output  from dual;
+  OUTPUT  
+----------
+ abc1def@
+(1 row)
+
+SELECT regexp_replace('abc1def2', '[[:digit:]]','@',1,to_char(1)::int) output  from dual;
+  OUTPUT  
+----------
+ abc@def2
+(1 row)
+
+SELECT regexp_replace('abc1def2', '[[:digit:]]','@',1,to_char(1)::int) output  from dual;
+  OUTPUT  
+----------
+ abc@def2
+(1 row)
+
+SELECT regexp_replace('abc1def2', '[[:digit:]]','@',1,power(1,1)::int) output  from dual;
+  OUTPUT  
+----------
+ abc@def2
+(1 row)
+
+SELECT regexp_replace('abc1def2', '[[:digit:]]','@',4) output  from dual;
+  OUTPUT  
+----------
+ abc@def@
+(1 row)
+
+SELECT regexp_replace('abc1def2', '[[:digit:]]','@',5) output  from dual;
+  OUTPUT  
+----------
+ abc1def@
+(1 row)
+
+SELECT regexp_replace('abc1def2', '[[:digit:]]','@',1000000) output  from dual;
+  OUTPUT  
+----------
+ abc1def2
+(1 row)
+
+SELECT regexp_replace('abc1def2', '[[:digit:]]','@','5') output  from dual;
+  OUTPUT  
+----------
+ abc1def@
+(1 row)
+
+SELECT regexp_replace('abc1def2', '[[:digit:]]','@',5.5::int) output  from dual;
+  OUTPUT  
+----------
+ abc1def@
+(1 row)
+
+SELECT regexp_replace('abc1def2', '[[:digit:]]','@',to_char(5)) output  from dual;
+  OUTPUT  
+----------
+ abc1def@
+(1 row)
+
+SELECT regexp_replace('abc1def2', '[[:digit:]]','@',power(1,1)::int) output  from dual;
+  OUTPUT  
+----------
+ abc@def@
+(1 row)
+
+SELECT regexp_replace('abc1def2', '[[:digit:]]D','@',1,1,'i') output  from dual;
+ OUTPUT  
+---------
+ abc@ef2
+(1 row)
+
+SELECT regexp_replace('abc1def2', '[[:digit:]]D','@',1,1,'c') output  from dual;
+  OUTPUT  
+----------
+ abc1def2
+(1 row)
+
+SELECT regexp_replace('abc1
+def2', '[[:digit:]].d','@',1,1,'n') output  from dual;
+ OUTPUT  
+---------
+ abc@ef2
+(1 row)
+
+SELECT regexp_replace('abc1
+def2', '[[:digit:]].d','#',1,1,'xic') output  from dual;
+ OUTPUT 
+--------
+ abc1  +
+ def2
+(1 row)
+
+SELECT regexp_replace('abc1def2', '[[:digit:]] d','@',1,1,'x') output  from dual;
+ OUTPUT  
+---------
+ abc@ef2
+(1 row)
+
+select regexp_replace('abcxxx#%
+adfbc','^a','@',1,2,'n') from dual;
+ REGEXP_REPLACE 
+----------------
+ abcxxx#%      +
+ adfbc
+(1 row)
+
+select regexp_replace('abcxxx#%
+adfbc','^a','@',1,2,'c') from dual;
+ REGEXP_REPLACE 
+----------------
+ abcxxx#%      +
+ adfbc
+(1 row)
+
+SELECT regexp_replace('', '', '1', 1, 0)
+regexp_replace FROM DUAL;
+ REGEXP_REPLACE 
+----------------
+ 
+(1 row)
+
+SELECT opentenbase_ora.regexp_replace('', '', '', 1, 0) regexp_replace FROM DUAL;
+ REGEXP_REPLACE 
+----------------
+ 
+(1 row)
+
+select opentenbase_ora.REGEXP_REPLACE('i,aaaaa,bbi,ccc', ',', '') from dual;
+ REGEXP_REPLACE 
+----------------
+ iaaaaabbiccc
+(1 row)
+
+select opentenbase_ora.REGEXP_REPLACE('i,aaaaa,bbi,ccc', ',', null) from dual;
+ REGEXP_REPLACE 
+----------------
+ iaaaaabbiccc
+(1 row)
+
+SELECT opentenbase_ora.regexp_replace('abc1def2', '[[:digit:]]D','@',1,1,'') output  from dual;
+  OUTPUT  
+----------
+ abc1def2
+(1 row)
+
+SELECT opentenbase_ora.regexp_replace('abc1def2', '[[:digit:]]D','@',1,1,null) output  from dual;
+  OUTPUT  
+----------
+ abc1def2
+(1 row)
+
+SELECT opentenbase_ora.regexp_replace('abc1def2', '[[:digit:]]','@',1,'') output  from dual;
+ OUTPUT 
+--------
+ 
+(1 row)
+
+SELECT opentenbase_ora.regexp_replace('abc1def2', '[[:digit:]]D','@', null, 1) output  from dual;
+ OUTPUT 
+--------
+ 
+(1 row)
+
+select opentenbase_ora.regexp_replace('abcxxx', 'xx') from dual;
+ REGEXP_REPLACE 
+----------------
+ abcx
+(1 row)
+
+select opentenbase_ora.regexp_replace('abcxxx', '') from dual;
+ REGEXP_REPLACE 
+----------------
+ abcxxx
+(1 row)
+
+SELECT opentenbase_ora.regexp_replace('abc1def2', '[[:digit:]]','@', '') output  from dual;
+ OUTPUT 
+--------
+ 
+(1 row)
+
+SELECT opentenbase_ora.regexp_replace('abc1def2', '[[:digit:]]D','@', null) output  from dual;
+ OUTPUT 
+--------
+ 
+(1 row)
+
+SELECT opentenbase_ora.regexp_replace('abc1def2', '[[:digit:]]D','@','', 1,'x') output  from dual;
+ OUTPUT 
+--------
+ 
+(1 row)
+
+SELECT opentenbase_ora.regexp_replace('abc1def2', '[[:digit:]]D','@',3, null,'x') output  from dual;
+ OUTPUT 
+--------
+ 
+(1 row)
+
+SELECT opentenbase_ora.regexp_replace('abc1def2', '[[:digit:]]D','@',3, '','x') output  from dual;
+ OUTPUT 
+--------
+ 
+(1 row)
+
+-- fix customer issue:877165291
+\c regression
+select regexp_replace('aaaaaaaaa', '[^0-9]',',') from dual;
+ regexp_replace 
+----------------
+ ,aaaaaaaa
+(1 row)
+
+select regexp_replace('aaaaaaaaa', '[^0-9]','') from dual;
+ regexp_replace 
+----------------
+ aaaaaaaa
+(1 row)
+
+select regexp_replace('aaaaaaaaa', null,',') from dual;
+ regexp_replace 
+----------------
+ 
+(1 row)
+
+select regexp_replace('aaaaaaaaa', null, null) from dual;
+ regexp_replace 
+----------------
+ 
+(1 row)
+
+select regexp_replace(null, null, null) from dual;
+ regexp_replace 
+----------------
+ 
+(1 row)
+
+select regexp_replace(null, 'a', null) from dual;
+ regexp_replace 
+----------------
+ 
+(1 row)
+
+select regexp_replace(null, 'a', 'a') from dual;
+ regexp_replace 
+----------------
+ 
+(1 row)
+
+\c regression_ora
+select regexp_replace('aaaaaaaaa', '[^0-9]',',') from dual;
+ REGEXP_REPLACE 
+----------------
+ ,,,,,,,,,
+(1 row)
+
+select regexp_replace('aaaaaaaaa', '[^0-9]','') from dual;
+ REGEXP_REPLACE 
+----------------
+ 
+(1 row)
+
+select regexp_replace('aaaaaaaaa', null,',') from dual;
+ REGEXP_REPLACE 
+----------------
+ aaaaaaaaa
+(1 row)
+
+select regexp_replace('aaaaaaaaa', null, null) from dual;
+ REGEXP_REPLACE 
+----------------
+ aaaaaaaaa
+(1 row)
+
+select regexp_replace(null, null, null) from dual;
+ REGEXP_REPLACE 
+----------------
+ 
+(1 row)
+
+select regexp_replace(null, 'a', null) from dual;
+ REGEXP_REPLACE 
+----------------
+ 
+(1 row)
+
+select regexp_replace(null, 'a', 'a') from dual;
+ REGEXP_REPLACE 
+----------------
+ 
+(1 row)
+
+--test regexp_count function
+select regexp_count('abcdfbc','Bc',1,'i') from dual;
+ REGEXP_COUNT 
+--------------
+            2
+(1 row)
+
+select regexp_count('abcdfBc','Bc',1,'c') from dual;
+ REGEXP_COUNT 
+--------------
+            1
+(1 row)
+
+select regexp_count('ab
+cdfbc','b.c',1,'n') from dual;
+ REGEXP_COUNT 
+--------------
+            1
+(1 row)
+
+select regexp_count('ab
+cdfbc','b.c',1,'i') from dual;
+ REGEXP_COUNT 
+--------------
+            0
+(1 row)
+
+select regexp_count('abcxxx#%
+adfbc','^a',1,'m') from dual;
+ REGEXP_COUNT 
+--------------
+            2
+(1 row)
+
+select regexp_count('abcxxx#%
+adfbc','^a',1,'i') from dual;
+ REGEXP_COUNT 
+--------------
+            1
+(1 row)
+
+select regexp_count('abcxxx#%
+adfbc','^a',1,'n') from dual;
+ REGEXP_COUNT 
+--------------
+            1
+(1 row)
+
+select regexp_count('abcxxx#%
+adfbc','^a',1,'x') from dual;
+ REGEXP_COUNT 
+--------------
+            1
+(1 row)
+
+select regexp_count('abcxxx#%
+adfbc','^a',1,'c') from dual;
+ REGEXP_COUNT 
+--------------
+            1
+(1 row)
+
+select regexp_count('abcvvbcvvb c','b c',1,'x') from dual;
+ REGEXP_COUNT 
+--------------
+            2
+(1 row)
+
+select regexp_count('abcvvbcvvb c','b c',1,'n') from dual;
+ REGEXP_COUNT 
+--------------
+            1
+(1 row)
+
+select regexp_count('abcvvbcvvBC','bc',1,'ic') from dual;
+ REGEXP_COUNT 
+--------------
+            2
+(1 row)
+
+select regexp_count('abcvvbcvvBC','bc',1,'ci') from dual;
+ REGEXP_COUNT 
+--------------
+            3
+(1 row)
+
+select regexp_count('abcvvbcvvBC','b c',1,'ix') from dual;
+ REGEXP_COUNT 
+--------------
+            3
+(1 row)
+
+select regexp_count('abcvvb
+cvvB
+C','b.c',1,'in') from dual;
+ REGEXP_COUNT 
+--------------
+            2
+(1 row)
+
+select regexp_count('abcvvb cvvB C','b c') from dual;
+ REGEXP_COUNT 
+--------------
+            1
+(1 row)
+
+select regexp_count('abacvvb
+cvvB C','b.c') from dual;
+ REGEXP_COUNT 
+--------------
+            1
+(1 row)
+
+select regexp_count('abc
+abc','bc?') from dual;
+ REGEXP_COUNT 
+--------------
+            2
+(1 row)
+
+select regexp_count('abcvvbcvvbc','bc',2.9::int,'c') from dual;
+ REGEXP_COUNT 
+--------------
+            2
+(1 row)
+
+select regexp_count('abcvvbcvvbc','bc',exp(2)::int,'c') from dual;
+ REGEXP_COUNT 
+--------------
+            1
+(1 row)
+
+select regexp_count('abcvvbcvvbc','bc','1','c') from dual;
+ REGEXP_COUNT 
+--------------
+            3
+(1 row)
+
+select regexp_count('abcvvbcvvbc','bc',-1,'c') from dual;
+ERROR:  Invalid "position" value (-1) for "regexp_count"
+HINT:  "position" must be a positive integer
+select regexp_count('abcvvbcvvbc','bc',1000000,'c') from dual;
+ REGEXP_COUNT 
+--------------
+            0
+(1 row)
+
+select regexp_count('12345','123',1) from dual;
+ REGEXP_COUNT 
+--------------
+            1
+(1 row)
+
+select regexp_count('abcvvbcvvbc','bc',2.1::int,'c') from dual;
+ REGEXP_COUNT 
+--------------
+            3
+(1 row)
+
+select regexp_count(null,'',1,'i') from dual;
+ REGEXP_COUNT 
+--------------
+             
+(1 row)
+
+select regexp_count('','',1,'i') from dual;
+ REGEXP_COUNT 
+--------------
+             
+(1 row)
+
+--test regexp_substr function
+SELECT regexp_substr('abc1def2', '[[:digit:]]',1,2::bigint) output  from dual;
+ OUTPUT 
+--------
+ 2
+(1 row)
+
+SELECT regexp_substr('abc1def2', '[[:digit:]]',1::bigint,'1') output  from dual;
+ OUTPUT 
+--------
+ 1
+(1 row)
+
+SELECT regexp_substr('abc1def2', '[[:digit:]]',1,to_number(2)::bigint) output  from dual;
+ OUTPUT 
+--------
+ 2
+(1 row)
+
+SELECT regexp_substr('abc1def2', '[[:digit:]]',1,2.1::int) output  from dual;
+ OUTPUT 
+--------
+ 2
+(1 row)
+
+SELECT regexp_substr('abc1def2', '[[:digit:]]',1,to_char(1)::int) output  from dual;
+ OUTPUT 
+--------
+ 1
+(1 row)
+
+SELECT regexp_substr('abc1def2', '[[:digit:]]',1,power(2,1)::bigint) output  from dual;
+ OUTPUT 
+--------
+ 2
+(1 row)
+
+SELECT regexp_substr('abc1def2', '[[:digit:]]',4::int) output  from dual;
+ OUTPUT 
+--------
+ 1
+(1 row)
+
+SELECT regexp_substr('abc1def2', '[[:digit:]]',5::bigint) output  from dual;
+ OUTPUT 
+--------
+ 2
+(1 row)
+
+SELECT regexp_substr('abc1def2', '[[:digit:]]',1000000) output  from dual;
+ OUTPUT 
+--------
+ 
+(1 row)
+
+SELECT regexp_substr('abc1def2', '[[:digit:]]','5'::int) output  from dual;
+ OUTPUT 
+--------
+ 2
+(1 row)
+
+SELECT regexp_substr('abc1def2', '[[:digit:]]',5.5::bigint) output  from dual;
+ OUTPUT 
+--------
+ 2
+(1 row)
+
+SELECT regexp_substr('abc1def2', '[[:digit:]]',to_char(5)::int) output  from dual;
+ OUTPUT 
+--------
+ 2
+(1 row)
+
+SELECT regexp_substr('abc1def2', '[[:digit:]]',power(5,1)::int) output  from dual;
+ OUTPUT 
+--------
+ 2
+(1 row)
+
+SELECT regexp_substr('abc1def2', '[[:digit:]]D',1,1,'i') output  from dual;
+ OUTPUT 
+--------
+ 1d
+(1 row)
+
+SELECT regexp_substr('abc1def2', '[[:digit:]]D',1,1,'c') output  from dual;
+ OUTPUT 
+--------
+ 
+(1 row)
+
+SELECT regexp_substr('abc1
+def2', '[[:digit:]].d',1,1,'n') output  from dual;
+ OUTPUT 
+--------
+ 1     +
+ d
+(1 row)
+
+SELECT regexp_substr('abc1
+def2', '[[:digit:]].d',1,1,'i') output  from dual;
+ OUTPUT 
+--------
+ 
+(1 row)
+
+SELECT regexp_substr('abc1def2', '[[:digit:]] d',1,1,'x') output  from dual;
+ OUTPUT 
+--------
+ 1d
+(1 row)
+
+select regexp_substr('abcxxx#%
+adfbc','^a',1,2,'m') from dual;
+ REGEXP_SUBSTR 
+---------------
+ a
+(1 row)
+
+select regexp_substr('abcxxx#%
+adfbc','^a',1,2,'n') from dual;
+ REGEXP_SUBSTR 
+---------------
+ 
+(1 row)
+
+select regexp_substr('abcxxx#%
+adfbc','^a',1,2,'i') from dual;
+ REGEXP_SUBSTR 
+---------------
+ 
+(1 row)
+
+select regexp_substr('abcxxx#%
+adfbc','^a',1,2,'x') from dual;
+ REGEXP_SUBSTR 
+---------------
+ 
+(1 row)
+
+select regexp_substr('abcxxx#%
+adfbc','^a',1,2,'c') from dual;
+ REGEXP_SUBSTR 
+---------------
+ 
+(1 row)
+
+SELECT REGEXP_SUBSTR('123', '12', 1, 1)  FROM DUAL;
+ REGEXP_SUBSTR 
+---------------
+ 12
+(1 row)
+
+SELECT REGEXP_SUBSTR('1234567890', '(123)(4(56)(78))', 1, 1, 'i', 4)  FROM DUAL;
+ REGEXP_SUBSTR 
+---------------
+ 78
+(1 row)
+
+SELECT REGEXP_SUBSTR('1234567890', '(123)(4(56)(78))', 1, 1, 'i', 1)  FROM DUAL;
+ REGEXP_SUBSTR 
+---------------
+ 123
+(1 row)
+
+SELECT REGEXP_SUBSTR('1234567890', '(123)(4(56)(78))', 1, 1, 'i', 9::bigint)  FROM DUAL;
+ REGEXP_SUBSTR 
+---------------
+ 
+(1 row)
+
+SELECT REGEXP_SUBSTR('1234567890', '(123)(4(56)(78))', 1, 1, 'i', 0)  FROM DUAL;
+ REGEXP_SUBSTR 
+---------------
+ 12345678
+(1 row)
+
+SELECT REGEXP_SUBSTR('1234567890', '(123)(4(56)(78))', 1, 1, 'i', 4.5::bigint) FROM DUAL;
+ REGEXP_SUBSTR 
+---------------
+ 
+(1 row)
+
+SELECT REGEXP_SUBSTR('1234567890', '(123)(4(56)(78))', 1, 1, 'i', to_char(4)::int)  FROM DUAL;
+ REGEXP_SUBSTR 
+---------------
+ 78
+(1 row)
+
+SELECT REGEXP_SUBSTR('1234567890', '(123)(4(56)(78))', 1, 1, 'i',power(2,2)::bigint)  FROM DUAL;
+ REGEXP_SUBSTR 
+---------------
+ 78
+(1 row)
+
+SELECT REGEXP_SUBSTR('1234567890', '(123)(4(56)(78))', 1, 1, 'i', '4')  FROM DUAL;
+ REGEXP_SUBSTR 
+---------------
+ 78
+(1 row)
+
+SELECT REGEXP_SUBSTR('1234567890abcdefg', '(1)(2)(3)(4)(5)(6)(7)(8)(9)(0)(a)(b)', 1, 1, 'i', 10::bigint)  FROM DUAL;
+ERROR:  Invalid "subexpr" value (10) for "regexp_substr"
+HINT:  "subexpr" must be a nonnegative integer from 0 to 9
+SELECT REGEXP_SUBSTR('', '', 1, 1, '0') FROM DUAL;
+ REGEXP_SUBSTR 
+---------------
+ 
+(1 row)
+
+SELECT REGEXP_SUBSTR(null, null, 1, 1, '0') FROM DUAL;
+ REGEXP_SUBSTR 
+---------------
+ 
+(1 row)
+
+\c regression_ora
+--test chr function
+select chr(67)||chr(0)||chr(65)||chr(0)||chr(84) "dog" from dual;
+  dog  
+-------
+ C A T
+(1 row)
+
+select chr(0),length(chr(0)) from dual;
+ CHR | LENGTH 
+-----+--------
+     |      1
+(1 row)
+
+--test nchr function
+select nchr(256);
+ NCHR 
+------
+ Ā
+(1 row)
+
+select nchr(257);
+ NCHR 
+------
+ ā
+(1 row)
+
+select nchr(258);
+ NCHR 
+------
+ Ă
+(1 row)
+
+select nchr(420);
+ NCHR 
+------
+ Ƥ
+(1 row)
+
+select nchr(-1);
+ERROR:  requested character too large for encoding: -1
+select nchr(10241234);
+ERROR:  requested character too large for encoding: 10241234
+select nchr(1024123);
+ NCHR 
+------
+ 󺁻
+(1 row)
+
+select nchr('1234');
+ NCHR 
+------
+ Ӓ
+(1 row)
+
+select nchr(to_char(97)::int);
+ NCHR 
+------
+ a
+(1 row)
+
+select nchr(0),length(nchr(0)) from dual;
+ NCHR | LENGTH 
+------+--------
+      |      1
+(1 row)
+
+-- test number like text
+select 9999 like '9%' from dual;
+ ?column? 
+----------
+ t
+(1 row)
+
+select 9999 like '09%' from dual;
+ ?column? 
+----------
+ f
+(1 row)
+
+select 9999 ilike '9%' from dual;
+ ?column? 
+----------
+ t
+(1 row)
+
+select 9999 ilike '09%' from dual;
+ ?column? 
+----------
+ f
+(1 row)
+
+select 9999 not like '9%' from dual;
+ ?column? 
+----------
+ f
+(1 row)
+
+select 9999 not like '09%' from dual;
+ ?column? 
+----------
+ t
+(1 row)
+
+select 9999 not ilike '9%' from dual;
+ ?column? 
+----------
+ f
+(1 row)
+
+select 9999 not ilike '09%' from dual;
+ ?column? 
+----------
+ t
+(1 row)
+
+create table t_nlssort_regress (f1 integer,f2 varchar2(10),f3 varchar(255));
+insert into t_nlssort_regress values(1,'深圳','深圳abcdefghijklmnopqrstuvwxyz');
+insert into t_nlssort_regress values(2,'中国','中国ABCDEFGHIJKLMNOPQRSTUVWXYZ');
+insert into t_nlssort_regress values(3,'PG','PG_ABCDEFGHIJKLMNOPQRSTUVWXYZ');
+insert into t_nlssort_regress values(4,'OpenTenBase','OpenTenBase_abcdefghijklmnopqrstuvwxyz');
+insert into t_nlssort_regress values(5,'PG中国','PG中国_abcdefghijklmnopqrstuvwxyz');
+--test function NLS_UPPER
+SELECT nls_upper(f3) FROM t_nlssort_regress order by f1;
+             NLS_UPPER             
+-----------------------------------
+ 深圳ABCDEFGHIJKLMNOPQRSTUVWXYZ
+ 中国ABCDEFGHIJKLMNOPQRSTUVWXYZ
+ PG_ABCDEFGHIJKLMNOPQRSTUVWXYZ
+ OPENTENBASE_ABCDEFGHIJKLMNOPQRSTUVWXYZ
+ PG中国_ABCDEFGHIJKLMNOPQRSTUVWXYZ
+(5 rows)
+
+SELECT nls_upper(f3,'NLS_SORT = zh_CN.gb2312') FROM t_nlssort_regress order by f1;
+             NLS_UPPER             
+-----------------------------------
+ 深圳ABCDEFGHIJKLMNOPQRSTUVWXYZ
+ 中国ABCDEFGHIJKLMNOPQRSTUVWXYZ
+ PG_ABCDEFGHIJKLMNOPQRSTUVWXYZ
+ OPENTENBASE_ABCDEFGHIJKLMNOPQRSTUVWXYZ
+ PG中国_ABCDEFGHIJKLMNOPQRSTUVWXYZ
+(5 rows)
+
+SELECT nls_upper(f3,'NLS_SORT = zh_CN.UTF8') FROM t_nlssort_regress order by f1;
+             NLS_UPPER             
+-----------------------------------
+ 深圳ABCDEFGHIJKLMNOPQRSTUVWXYZ
+ 中国ABCDEFGHIJKLMNOPQRSTUVWXYZ
+ PG_ABCDEFGHIJKLMNOPQRSTUVWXYZ
+ OPENTENBASE_ABCDEFGHIJKLMNOPQRSTUVWXYZ
+ PG中国_ABCDEFGHIJKLMNOPQRSTUVWXYZ
+(5 rows)
+
+SELECT * FROM t_nlssort_regress order by nls_upper(f3,'NLS_SORT = SCHINESE_PINYIN_M') ;
+ F1 |   F2   |                F3                 
+----+--------+-----------------------------------
+  3 | PG     | PG_ABCDEFGHIJKLMNOPQRSTUVWXYZ
+  5 | PG中国 | PG中国_abcdefghijklmnopqrstuvwxyz
+  4 | OpenTenBase  | OpenTenBase_abcdefghijklmnopqrstuvwxyz
+  2 | 中国   | 中国ABCDEFGHIJKLMNOPQRSTUVWXYZ
+  1 | 深圳   | 深圳abcdefghijklmnopqrstuvwxyz
+(5 rows)
+
+SELECT * FROM t_nlssort_regress order by nls_upper(f3,'NLS_SORT = zh_CN.UTF8') ;
+ F1 |   F2   |                F3                 
+----+--------+-----------------------------------
+  3 | PG     | PG_ABCDEFGHIJKLMNOPQRSTUVWXYZ
+  5 | PG中国 | PG中国_abcdefghijklmnopqrstuvwxyz
+  4 | OpenTenBase  | OpenTenBase_abcdefghijklmnopqrstuvwxyz
+  2 | 中国   | 中国ABCDEFGHIJKLMNOPQRSTUVWXYZ
+  1 | 深圳   | 深圳abcdefghijklmnopqrstuvwxyz
+(5 rows)
+
+SELECT * FROM t_nlssort_regress order by nls_upper(f3,'NLS_SORT = zh_CN.gb2312') ;
+ F1 |   F2   |                F3                 
+----+--------+-----------------------------------
+  3 | PG     | PG_ABCDEFGHIJKLMNOPQRSTUVWXYZ
+  5 | PG中国 | PG中国_abcdefghijklmnopqrstuvwxyz
+  4 | OpenTenBase  | OpenTenBase_abcdefghijklmnopqrstuvwxyz
+  2 | 中国   | 中国ABCDEFGHIJKLMNOPQRSTUVWXYZ
+  1 | 深圳   | 深圳abcdefghijklmnopqrstuvwxyz
+(5 rows)
+
+SELECT * FROM t_nlssort_regress order by nls_upper(f3,'NLS_SORT = zh_CN.gb18030') ;
+ F1 |   F2   |                F3                 
+----+--------+-----------------------------------
+  3 | PG     | PG_ABCDEFGHIJKLMNOPQRSTUVWXYZ
+  5 | PG中国 | PG中国_abcdefghijklmnopqrstuvwxyz
+  4 | OpenTenBase  | OpenTenBase_abcdefghijklmnopqrstuvwxyz
+  2 | 中国   | 中国ABCDEFGHIJKLMNOPQRSTUVWXYZ
+  1 | 深圳   | 深圳abcdefghijklmnopqrstuvwxyz
+(5 rows)
+
+SELECT count(1) FROM t_nlssort_regress group by nls_upper(f3,'NLS_SORT = SCHINESE_PINYIN_M') ;
+ COUNT 
+-------
+     1
+     1
+     1
+     1
+     1
+(5 rows)
+
+SELECT count(1) FROM t_nlssort_regress group by nls_upper(f3,'NLS_SORT = SCHINESE_STROKE_M') ;
+ COUNT 
+-------
+     1
+     1
+     1
+     1
+     1
+(5 rows)
+
+SELECT count(1) FROM t_nlssort_regress group by nls_upper(f3,'NLS_SORT = SCHINESE_RADICAL_M') ;
+ COUNT 
+-------
+     1
+     1
+     1
+     1
+     1
+(5 rows)
+
+SELECT count(1) FROM t_nlssort_regress group by nls_upper(f3,'NLS_SORT = zh_CN.UTF8') ;
+ COUNT 
+-------
+     1
+     1
+     1
+     1
+     1
+(5 rows)
+
+SELECT count(1) FROM t_nlssort_regress group by nls_upper(f3,'NLS_SORT = zh_CN.gb2312') ;
+ COUNT 
+-------
+     1
+     1
+     1
+     1
+     1
+(5 rows)
+
+SELECT count(1) FROM t_nlssort_regress group by nls_upper(f3,'NLS_SORT = zh_CN.gb18030') ;
+ COUNT 
+-------
+     1
+     1
+     1
+     1
+     1
+(5 rows)
+
+insert into t_nlssort_regress values (6,nls_upper('aBCCCaaaa'));
+select * from t_nlssort_regress order by f1;
+ F1 |    F2     |                F3                 
+----+-----------+-----------------------------------
+  1 | 深圳      | 深圳abcdefghijklmnopqrstuvwxyz
+  2 | 中国      | 中国ABCDEFGHIJKLMNOPQRSTUVWXYZ
+  3 | PG        | PG_ABCDEFGHIJKLMNOPQRSTUVWXYZ
+  4 | OpenTenBase     | OpenTenBase_abcdefghijklmnopqrstuvwxyz
+  5 | PG中国    | PG中国_abcdefghijklmnopqrstuvwxyz
+  6 | ABCCCAAAA | 
+(6 rows)
+
+--test function NLS_LOWER
+SELECT nls_lower(f3) FROM t_nlssort_regress order by f1;
+             NLS_LOWER             
+-----------------------------------
+ 深圳abcdefghijklmnopqrstuvwxyz
+ 中国abcdefghijklmnopqrstuvwxyz
+ pg_abcdefghijklmnopqrstuvwxyz
+ opentenbase_abcdefghijklmnopqrstuvwxyz
+ pg中国_abcdefghijklmnopqrstuvwxyz
+ 
+(6 rows)
+
+SELECT nls_lower(f3,'zh_CN.gb2312') FROM t_nlssort_regress order by f1;;
+             NLS_LOWER             
+-----------------------------------
+ 深圳abcdefghijklmnopqrstuvwxyz
+ 中国abcdefghijklmnopqrstuvwxyz
+ pg_abcdefghijklmnopqrstuvwxyz
+ opentenbase_abcdefghijklmnopqrstuvwxyz
+ pg中国_abcdefghijklmnopqrstuvwxyz
+ 
+(6 rows)
+
+SELECT nls_lower(f3,'zh_CN.UTF8') FROM t_nlssort_regress order by f1;
+             NLS_LOWER             
+-----------------------------------
+ 深圳abcdefghijklmnopqrstuvwxyz
+ 中国abcdefghijklmnopqrstuvwxyz
+ pg_abcdefghijklmnopqrstuvwxyz
+ opentenbase_abcdefghijklmnopqrstuvwxyz
+ pg中国_abcdefghijklmnopqrstuvwxyz
+ 
+(6 rows)
+
+SELECT * FROM t_nlssort_regress order by nls_lower(f3,'NLS_SORT = SCHINESE_PINYIN_M') ;
+ F1 |    F2     |                F3                 
+----+-----------+-----------------------------------
+  3 | PG        | PG_ABCDEFGHIJKLMNOPQRSTUVWXYZ
+  5 | PG中国    | PG中国_abcdefghijklmnopqrstuvwxyz
+  4 | OpenTenBase     | OpenTenBase_abcdefghijklmnopqrstuvwxyz
+  2 | 中国      | 中国ABCDEFGHIJKLMNOPQRSTUVWXYZ
+  1 | 深圳      | 深圳abcdefghijklmnopqrstuvwxyz
+  6 | ABCCCAAAA | 
+(6 rows)
+
+SELECT * FROM t_nlssort_regress order by nls_lower(f3,'NLS_SORT = zh_CN.UTF8') ;
+ F1 |    F2     |                F3                 
+----+-----------+-----------------------------------
+  3 | PG        | PG_ABCDEFGHIJKLMNOPQRSTUVWXYZ
+  5 | PG中国    | PG中国_abcdefghijklmnopqrstuvwxyz
+  4 | OpenTenBase     | OpenTenBase_abcdefghijklmnopqrstuvwxyz
+  2 | 中国      | 中国ABCDEFGHIJKLMNOPQRSTUVWXYZ
+  1 | 深圳      | 深圳abcdefghijklmnopqrstuvwxyz
+  6 | ABCCCAAAA | 
+(6 rows)
+
+SELECT * FROM t_nlssort_regress order by nls_lower(f3,'NLS_SORT = zh_CN.gb2312') ;
+ F1 |    F2     |                F3                 
+----+-----------+-----------------------------------
+  3 | PG        | PG_ABCDEFGHIJKLMNOPQRSTUVWXYZ
+  5 | PG中国    | PG中国_abcdefghijklmnopqrstuvwxyz
+  4 | OpenTenBase     | OpenTenBase_abcdefghijklmnopqrstuvwxyz
+  2 | 中国      | 中国ABCDEFGHIJKLMNOPQRSTUVWXYZ
+  1 | 深圳      | 深圳abcdefghijklmnopqrstuvwxyz
+  6 | ABCCCAAAA | 
+(6 rows)
+
+SELECT * FROM t_nlssort_regress order by nls_lower(f3,'NLS_SORT = zh_CN.gb18030') ;
+ F1 |    F2     |                F3                 
+----+-----------+-----------------------------------
+  3 | PG        | PG_ABCDEFGHIJKLMNOPQRSTUVWXYZ
+  5 | PG中国    | PG中国_abcdefghijklmnopqrstuvwxyz
+  4 | OpenTenBase     | OpenTenBase_abcdefghijklmnopqrstuvwxyz
+  2 | 中国      | 中国ABCDEFGHIJKLMNOPQRSTUVWXYZ
+  1 | 深圳      | 深圳abcdefghijklmnopqrstuvwxyz
+  6 | ABCCCAAAA | 
+(6 rows)
+
+SELECT count(1) FROM t_nlssort_regress group by nls_lower(f3,'NLS_SORT = SCHINESE_PINYIN_M') ;
+ COUNT 
+-------
+     1
+     1
+     1
+     1
+     1
+     1
+(6 rows)
+
+SELECT count(1) FROM t_nlssort_regress group by nls_lower(f3,'NLS_SORT = SCHINESE_STROKE_M') ;
+ COUNT 
+-------
+     1
+     1
+     1
+     1
+     1
+     1
+(6 rows)
+
+SELECT count(1) FROM t_nlssort_regress group by nls_lower(f3,'NLS_SORT = SCHINESE_RADICAL_M') ;
+ COUNT 
+-------
+     1
+     1
+     1
+     1
+     1
+     1
+(6 rows)
+
+SELECT count(1) FROM t_nlssort_regress group by nls_lower(f3,'NLS_SORT = zh_CN.UTF8') ;
+ COUNT 
+-------
+     1
+     1
+     1
+     1
+     1
+     1
+(6 rows)
+
+SELECT count(1) FROM t_nlssort_regress group by nls_lower(f3,'NLS_SORT = zh_CN.gb2312') ;
+ COUNT 
+-------
+     1
+     1
+     1
+     1
+     1
+     1
+(6 rows)
+
+SELECT count(1) FROM t_nlssort_regress group by nls_lower(f3,'NLS_SORT = zh_CN.gb18030') ;
+ COUNT 
+-------
+     1
+     1
+     1
+     1
+     1
+     1
+(6 rows)
+
+insert into t_nlssort_regress values (7,nls_lower('aBCCCaaaa'));
+select * from t_nlssort_regress order by f1;
+ F1 |    F2     |                F3                 
+----+-----------+-----------------------------------
+  1 | 深圳      | 深圳abcdefghijklmnopqrstuvwxyz
+  2 | 中国      | 中国ABCDEFGHIJKLMNOPQRSTUVWXYZ
+  3 | PG        | PG_ABCDEFGHIJKLMNOPQRSTUVWXYZ
+  4 | OpenTenBase     | OpenTenBase_abcdefghijklmnopqrstuvwxyz
+  5 | PG中国    | PG中国_abcdefghijklmnopqrstuvwxyz
+  6 | ABCCCAAAA | 
+  7 | abcccaaaa | 
+(7 rows)
+
+--get correct encoding
+SELECT * FROM t_nlssort_regress order by nls_upper(f3,'NLS_SORT = zh_CN.18030') ;
+ F1 |    F2     |                F3                 
+----+-----------+-----------------------------------
+  3 | PG        | PG_ABCDEFGHIJKLMNOPQRSTUVWXYZ
+  5 | PG中国    | PG中国_abcdefghijklmnopqrstuvwxyz
+  4 | OpenTenBase     | OpenTenBase_abcdefghijklmnopqrstuvwxyz
+  2 | 中国      | 中国ABCDEFGHIJKLMNOPQRSTUVWXYZ
+  1 | 深圳      | 深圳abcdefghijklmnopqrstuvwxyz
+  6 | ABCCCAAAA | 
+  7 | abcccaaaa | 
+(7 rows)
+
+drop table t_nlssort_regress;
+--
+select substring(ltrim(to_char(sysdate,'yyyy')), 1,2) FROM dual;
+ SUBSTRING 
+-----------
+ 20
+(1 row)
+
+select to_char('1234', 'xxxxx') from dual;
+ TO_CHAR 
+---------
+    4d2
+(1 row)
+
+select to_char('1234.23', 'xxxxx') from dual;
+ TO_CHAR 
+---------
+    4d2
+(1 row)
+
+select to_char(NULL, 'xxxxx') from dual;
+ TO_CHAR 
+---------
+ 
+(1 row)
+
+select to_char('1234.23', NULL) from dual;
+ TO_CHAR 
+---------
+ 
+(1 row)
+
+select to_char(NULL, NULL) from dual;
+ TO_CHAR 
+---------
+ 
+(1 row)
+
+-- test char(n)
+DROP TABLE IF EXISTS CHAR_TBL;
+NOTICE:  table "CHAR_TBL" does not exist, skipping
+CREATE TABLE CHAR_TBL(key int, f1 char(4));
+INSERT INTO CHAR_TBL (key, f1) VALUES (1,'a');
+INSERT INTO CHAR_TBL (key, f1) VALUES (2, 'ab');
+INSERT INTO CHAR_TBL (key, f1) VALUES (3, 'abcd');
+INSERT INTO CHAR_TBL (key, f1) VALUES (4, 'abcde');
+ERROR:  value too long for type character(4), actual(5)
+INSERT INTO CHAR_TBL (key, f1) VALUES (5, 'abcd    ');
+ERROR:  value too long for type character(4), actual(8)
+SELECT key, f1, length(f1) FROM CHAR_TBL ORDER BY f1;
+ KEY |  F1  | LENGTH 
+-----+------+--------
+   1 | a    |      4
+   2 | ab   |      4
+   3 | abcd |      4
+(3 rows)
+
+DROP TABLE IF EXISTS VARCHAR_TBL;
+NOTICE:  table "VARCHAR_TBL" does not exist, skipping
+CREATE TABLE VARCHAR_TBL(key int, f1 varchar(4));
+INSERT INTO VARCHAR_TBL (key, f1) VALUES (1, 'a');
+INSERT INTO VARCHAR_TBL (key, f1) VALUES (2, 'ab');
+INSERT INTO VARCHAR_TBL (key, f1) VALUES (3, 'abcd');
+INSERT INTO VARCHAR_TBL (key, f1) VALUES (4, 'abcde');
+ERROR:  value too long for type character(4), actual(5)
+INSERT INTO VARCHAR_TBL (key, f1) VALUES (5, 'abcd    ');
+ERROR:  value too long for type character(4), actual(8)
+SELECT key, f1, length(f1) FROM VARCHAR_TBL ORDER BY f1;
+ KEY |  F1  | LENGTH 
+-----+------+--------
+   1 | a    |      1
+   2 | ab   |      2
+   3 | abcd |      4
+(3 rows)
+
+-- cast char(n) to text
+SELECT CAST(f1 AS text) AS c_text, length(CAST(f1 AS text)) len FROM CHAR_TBL ORDER BY f1;
+ C_TEXT | LEN 
+--------+-----
+ a      |   4
+ ab     |   4
+ abcd   |   4
+(3 rows)
+
+-- cast char(n) to varchar
+SELECT CAST(f1 AS varchar(4)) c_varchar, length(CAST(f1 AS varchar(4))) len FROM CHAR_TBL ORDER BY f1;
+ C_VARCHAR | LEN 
+-----------+-----
+ a         |   4
+ ab        |   4
+ abcd      |   4
+(3 rows)
+
+DROP TABLE CHAR_TBL;
+DROP TABLE VARCHAR_TBL;
+SELECT CAST('characters' AS char(20)) || ' and text' AS "Concat char to unknown type";
+  Concat char to unknown type  
+-------------------------------
+ characters           and text
+(1 row)
+
+SELECT CAST('text' AS text) || CAST(' and characters' AS char(20)) AS "Concat text to char";
+   Concat text to char    
+--------------------------
+ text and characters     
+(1 row)
+
+SELECT '|' || lpad(cast('X123bcd' as char(8)), 10) || '|' from dual;
+   ?column?   
+--------------
+ |  X123bcd |
+(1 row)
+
+select to_char(to_date('2023-07-18', 'yyyy-mm-dd'), 'iw') from dual;
+ TO_CHAR 
+---------
+ 29
+(1 row)
+
+select to_char(to_date('2023-01-01', 'yyyy-mm-dd'), 'iw') from dual;
+ TO_CHAR 
+---------
+ 52
+(1 row)
+
+select to_char(to_date('2023-12-31', 'yyyy-mm-dd'), 'iw') from dual;
+ TO_CHAR 
+---------
+ 52
+(1 row)
+
+select to_char(to_date('2023-10-19', 'yyyy-mm-dd'), 'ww') from dual;
+ TO_CHAR 
+---------
+ 42
+(1 row)
+
+select to_char(to_date('2023-01-01', 'yyyy-mm-dd'), 'ww') from dual;
+ TO_CHAR 
+---------
+ 01
+(1 row)
+
+select to_char(to_date('2023-12-31', 'yyyy-mm-dd'), 'ww') from dual;
+ TO_CHAR 
+---------
+ 53
+(1 row)
+
+select to_char(to_date('2023-06-18', 'yyyy-mm-dd'), 'w') from dual;
+ TO_CHAR 
+---------
+ 3
+(1 row)
+
+select to_char(to_date('2023-01-01', 'yyyy-mm-dd'), 'w') from dual;
+ TO_CHAR 
+---------
+ 1
+(1 row)
+
+select to_char(to_date('2023-12-31', 'yyyy-mm-dd'), 'w') from dual;
+ TO_CHAR 
+---------
+ 5
+(1 row)
+
+-- save pg function for upgrade case in opentenbase_ora mode issue: ID884752731
+\c regression
+-- arg 3
+SELECT regexp_replace('hello world', 'o', '0');
+ regexp_replace 
+----------------
+ hell0 world
+(1 row)
+
+-- Output: 'hell0 world'
+SELECT regexp_replace('123-456-789', '\d+', 'X');
+ regexp_replace 
+----------------
+ X-456-789
+(1 row)
+
+-- Output: 'X-456-789'
+-- arg 4
+SELECT regexp_replace('hello world', 'o', '', 'g');
+ regexp_replace 
+----------------
+ hell wrld
+(1 row)
+
+-- Output: 'hell wrld'
+SELECT regexp_replace('hello world', 'o', 'O', 'g');
+ regexp_replace 
+----------------
+ hellO wOrld
+(1 row)
+
+-- Output: 'hellO wOrld'
+select regexp_replace('aaaaaaaaa', '[^0-9]',',') from dual;
+ regexp_replace 
+----------------
+ ,aaaaaaaa
+(1 row)
+
+select regexp_replace('aaaaaaaaa', '[^0-9]','') from dual;
+ regexp_replace 
+----------------
+ aaaaaaaa
+(1 row)
+
+select regexp_replace('aaaaaaaaa', null,',') from dual;
+ regexp_replace 
+----------------
+ 
+(1 row)
+
+select regexp_replace('aaaaaaaaa', null, null) from dual;
+ regexp_replace 
+----------------
+ 
+(1 row)
+
+select regexp_replace(null, null, null) from dual;
+ regexp_replace 
+----------------
+ 
+(1 row)
+
+select regexp_replace(null, 'a', null) from dual;
+ regexp_replace 
+----------------
+ 
+(1 row)
+
+select regexp_replace(null, 'a', 'a') from dual;
+ regexp_replace 
+----------------
+ 
+(1 row)
+
+\c regression_ora
+-- arg 3
+SELECT regexp_replace('hello world', 'o', '0') from dual;
+ REGEXP_REPLACE 
+----------------
+ hell0 w0rld
+(1 row)
+
+-- Output: 'hell0 w0rld'
+SELECT regexp_replace('123-456-789', '\d+', 'X') from dual;
+ REGEXP_REPLACE 
+----------------
+ X-X-X
+(1 row)
+
+-- Output: 'X-X-X'
+-- arg 4
+SELECT regexp_replace('hello world', 'o', '', 'g') from dual;
+ERROR:  invalid input syntax for type numeric: "g"
+LINE 1: SELECT regexp_replace('hello world', 'o', '', 'g') from dual...
+                                                      ^
+-- ERROR: invalid number
+SELECT regexp_replace('hello world', 'o', 'O', 'g') from dual;
+ERROR:  invalid input syntax for type numeric: "g"
+LINE 1: SELECT regexp_replace('hello world', 'o', 'O', 'g') from dua...
+                                                       ^
+-- ERROR: invalid number
+select regexp_replace('abcd(def)','\(|\)','\1','g') from dual;
+ERROR:  invalid input syntax for type numeric: "g"
+LINE 1: select regexp_replace('abcd(def)','\(|\)','\1','g') from dua...
+                                                       ^
+-- ERROR: invalid number
+-- const test
+select regexp_replace('1g3fd6f8dyf', '[0-9]',',','1a') from dual;
+ERROR:  invalid input syntax for type numeric: "1a"
+LINE 1: select regexp_replace('1g3fd6f8dyf', '[0-9]',',','1a') from ...
+                                                         ^
+select regexp_replace('1g3fd6f8dyf', '[0-9]',',','gggg') from dual;
+ERROR:  invalid input syntax for type numeric: "gggg"
+LINE 1: select regexp_replace('1g3fd6f8dyf', '[0-9]',',','gggg') fro...
+                                                         ^
+select regexp_replace('1g3fd6f8dyf', '[0-9]',',','ggggiii') from dual;
+ERROR:  invalid input syntax for type numeric: "ggggiii"
+LINE 1: select regexp_replace('1g3fd6f8dyf', '[0-9]',',','ggggiii') ...
+                                                         ^
+select regexp_replace('1g3fd6f8dyf', '[0-9]',',','ggggiii12') from dual;
+ERROR:  invalid input syntax for type numeric: "ggggiii12"
+LINE 1: select regexp_replace('1g3fd6f8dyf', '[0-9]',',','ggggiii12'...
+                                                         ^
+select regexp_replace('1g3fd6f8dyf', '[0-9]',',','1g') from dual;
+ERROR:  invalid input syntax for type numeric: "1g"
+LINE 1: select regexp_replace('1g3fd6f8dyf', '[0-9]',',','1g') from ...
+                                                         ^
+select regexp_replace('1g3fd6f8dyf', '[0-9]',',','1') from dual;
+ REGEXP_REPLACE 
+----------------
+ ,g,fd,f,dyf
+(1 row)
+
+select regexp_replace('1g3fd6f8dyf', null,',',1) from dual;
+ REGEXP_REPLACE 
+----------------
+ 1g3fd6f8dyf
+(1 row)
+
+select regexp_replace('1g3fd6f8dyf', null, null,'5') from dual;
+ REGEXP_REPLACE 
+----------------
+ 1g3fd6f8dyf
+(1 row)
+
+select regexp_replace('1g3fd6f8dyf', null, null,5) from dual;
+ REGEXP_REPLACE 
+----------------
+ 1g3fd6f8dyf
+(1 row)
+
+-- postion err
+select regexp_replace('1g3fd6f8dyf', '[0-9]',',','-1') from dual;
+ERROR:  Invalid "position" value (-1) for "regexp_replace"
+HINT:  "position" must be a positive integer
+select regexp_replace('1g3fd6f8dyf', null,',',-1) from dual;
+ REGEXP_REPLACE 
+----------------
+ 1g3fd6f8dyf
+(1 row)
+
+select regexp_replace('1g3fd6f8dyf', null, null,'0') from dual;
+ REGEXP_REPLACE 
+----------------
+ 1g3fd6f8dyf
+(1 row)
+
+select regexp_replace('1g3fd6f8dyf', null, null,0) from dual;
+ REGEXP_REPLACE 
+----------------
+ 1g3fd6f8dyf
+(1 row)
+
+select regexp_replace('1g3fd6f8dyf', '[0-9]',',','100000') from dual;
+ REGEXP_REPLACE 
+----------------
+ 1g3fd6f8dyf
+(1 row)
+
+select regexp_replace('1g3fd6f8dyf', null,',',100000) from dual;
+ REGEXP_REPLACE 
+----------------
+ 1g3fd6f8dyf
+(1 row)
+
+select regexp_replace('1g3fd6f8dyf', null, null,'100000') from dual;
+ REGEXP_REPLACE 
+----------------
+ 1g3fd6f8dyf
+(1 row)
+
+select regexp_replace('1g3fd6f8dyf', null, null,100000) from dual;
+ REGEXP_REPLACE 
+----------------
+ 1g3fd6f8dyf
+(1 row)
+
+--------------------------------------------------------------------------
+-- A part of opentenbase_ora_other_syntax.sql, test char functions related cases.
+--------------------------------------------------------------------------
+-- null equals '' for opentenbase's functions
+\c regression_ora
+select translate('123345567789', '#0123456789', '#') from dual;
+ TRANSLATE 
+-----------
+ 
+(1 row)
+
+select translate('123345567789', '#0123456789', '#') from dual where translate('123345567789', '#0123456789', '#') is null;
+ TRANSLATE 
+-----------
+ 
+(1 row)
+
+select translate('123345567789', '#0123456789', '#') from dual where translate('123345567789', '#0123456789', '#') = '';
+ TRANSLATE 
+-----------
+(0 rows)
+
+select translate('123345567789','#0123456789', '#'), nvl(translate('123345567789','#0123456789', '#'), 'f') from dual;
+ TRANSLATE | NVL 
+-----------+-----
+           | f
+(1 row)
+
+select replace('123', '123', '') from dual;
+ REPLACE 
+---------
+ 
+(1 row)
+
+select 'abcdef' as xxxxxxxx from dual where replace('123', '123', '') is null;
+ XXXXXXXX 
+----------
+ abcdef
+(1 row)
+
+select 'abcdef' as xxxxxxxx from dual where replace('123', '123', '') = '';
+ XXXXXXXX 
+----------
+(0 rows)
+
+select replace('123', '123', '') || 'abcdef' as xxxxxx from dual;
+ XXXXXX 
+--------
+ abcdef
+(1 row)
+
+select length(replace('123', '123', '') || 'abcdef') as xxxxxx from dual;
+ XXXXXX 
+--------
+      6
+(1 row)
+
+select replace('123', '123', ''), nvl(replace('123', '123', ''), 'f') from dual;
+ REPLACE | NVL 
+---------+-----
+         | f
+(1 row)
+
+select case when trim('  ') is null then 1 else 0 end from dual;
+ case 
+------
+    1
+(1 row)
+
+select trim('  '), nvl(trim('  '), 'f') from dual;
+ BTRIM | NVL 
+-------+-----
+       | f
+(1 row)
+
+select trim('  ') || 'abcdef' as xxxxxx from dual where trim('  ') is null;
+ XXXXXX 
+--------
+ abcdef
+(1 row)
+
+select trim('  ') || 'abcdef' as xxxxxx from dual where trim('  ') = '';
+ XXXXXX 
+--------
+(0 rows)

@@ -1,14 +1,14 @@
 /*--------------------------------------------------------------------------
  *
  * copyops.h
- *        Routines for manipulation of remote COPY data
+ *		Routines for manipulation of remote COPY data
  *
  *
  * Copyright (c) 2010-2012 Postgres-XC Development Group
  *
  *
  * IDENTIFICATION
- *        src/include/pgxc/copyops.h
+ *		src/include/pgxc/copyops.h
  *
  *-------------------------------------------------------------------------
  */
@@ -19,10 +19,9 @@
 #include "access/tupdesc.h"
 
 /* Type of data delimiter used for data redistribution using remote COPY */
-#define COPYOPS_DELIMITER    '\t'
+#define COPYOPS_DELIMITER	'\t'
 
 extern char **CopyOps_RawDataToArrayField(TupleDesc tupdesc, char *message,
-        int len, char **tmpbuf);
-extern char *CopyOps_BuildOneRowTo(TupleDesc tupdesc, Datum *values, bool *nulls, int *len);
+		int len, char **tmpbuf);
 
 #endif

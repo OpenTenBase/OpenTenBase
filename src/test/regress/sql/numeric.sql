@@ -852,6 +852,19 @@ select div(12345678901234567890, 123);
 select div(12345678901234567890, 123) * 123 + 12345678901234567890 % 123;
 
 --
+-- Test some corner cases for square root
+--
+
+select sqrt(1.000000000000003::numeric);
+select sqrt(1.000000000000004::numeric);
+select sqrt(96627521408608.56340355805::numeric);
+select sqrt(96627521408608.56340355806::numeric);
+select sqrt(515549506212297735.073688290367::numeric);
+select sqrt(515549506212297735.073688290368::numeric);
+select sqrt(8015491789940783531003294973900306::numeric);
+select sqrt(8015491789940783531003294973900307::numeric);
+
+--
 -- Test code path for raising to integer powers
 --
 
@@ -1005,3 +1018,94 @@ select scale(-13.000000000000000);
 -- cases that need carry propagation
 SELECT SUM(9999::numeric) FROM generate_series(1, 100000);
 SELECT SUM((-9999)::numeric) FROM generate_series(1, 100000);
+
+-- test function to_numeric()
+select to_numeric('0');
+select to_numeric('0.00');
+select to_numeric('147258369.31415926555589');
+select to_numeric('147258369.');
+select to_numeric('.31415926555589');
+select to_numeric('+147258369.31415926555589');
+select to_numeric('-147258369.31415926555589');
+select to_numeric('NaN');
+select to_numeric(null);
+select to_numeric('1472o58369');
+
+--
+-- support number(p, s)
+-- case1: p < s
+create table test_regress_ps4(id number(5, 7));
+\c regression_ora
+create table test_regress_ps4(id number(5, 7));
+insert into test_regress_ps4 values(0.001234567); 
+insert into test_regress_ps4 values(0.0091999999); 
+insert into test_regress_ps4 values(0.00919191919); 
+insert into test_regress_ps4 values(0.009432111);
+select * from test_regress_ps4 order by id;
+insert into test_regress_ps4 values(0.0099999999);
+insert into test_regress_ps4 values(2.0099999999);
+drop table test_regress_ps4;
+
+--case2: s < 0  s (- [-84, 127]
+create table test_scale_min(id number(5, -84));
+create table test_scale_min2(id number(5, -85));
+create table test_scale_max(id number(5, 127));
+create table test_scale_max2(id number(5, 128));
+
+create table test_regress_ps5(id number(7, -2), id2 number);
+insert into test_regress_ps5 values(-12345, -12345);
+insert into test_regress_ps5 values(.1, .1);
+insert into test_regress_ps5 values(1, 1 );
+insert into test_regress_ps5 values(12, 12);
+insert into test_regress_ps5 values(123, 123);
+insert into test_regress_ps5 values(1234, 1234);
+insert into test_regress_ps5 values(12345, 12345);
+insert into test_regress_ps5 values(123456, 123456);
+insert into test_regress_ps5 values(1234567, 1234567);
+insert into test_regress_ps5 values(1234567.6789, 1234567.6789);
+insert into test_regress_ps5 values(123456789, 123456789);
+select * from test_regress_ps5 order by id2;
+insert into test_regress_ps5 values(1234567891, 1234567891);
+drop table test_regress_ps5;
+\c regression
+create table test_regress_ps5(id number(7, -2), id2 number);
+
+--other associated case
+\c regression_ora
+select scale(-13000000000000000::numeric(29, -10));
+select 123456789::numeric(7, -3) from dual;
+select 123456789::numeric(7, -2) - 123456789::numeric(7, -3) from dual;
+select 123456789::numeric(7, -2) + 123456789::numeric(7, -3) from dual;
+select 123456789::numeric(11, 2) + 123456789::numeric(7, -3) from dual;
+select trunc(123456789::numeric(10, -3), -2);
+select trunc(123456789::numeric(10, -3), -5);
+select round(123456789::numeric(10, -3), -2);
+select round(123456789::numeric(10, -3), -5);
+select -0.00000000000000000000000000000000000000000000000000000000000000000000000000000000000123456::numeric(1, 84);
+select 0.0123456789::numeric(4, 5) from dual;
+select 0.0123456789::numeric(6, 7) from dual;
+select 0.00123456789::numeric(6, 8) + 0.00123456789::numeric(3, 5) from dual;
+
+-- big integer optimization
+create table test_numeric(i int, j numeric);
+insert into test_numeric values (1, 70141183460469231731687303715884105727);
+insert into test_numeric values (1, 70141183460469231731687303715884105727);
+insert into test_numeric values (1, 70141183460469231731687303715884105727);
+select sum(j) from test_numeric;
+
+truncate table test_numeric;
+insert into test_numeric values (1, 9223372036854775808);
+insert into test_numeric values (1, 9223372036854775808);
+select sum(j) from test_numeric;
+
+truncate table test_numeric;
+insert into test_numeric values (1, 70141183460469231731687303715884105727);
+insert into test_numeric values (1, 9223372036854775808);
+select sum(j) from test_numeric;
+
+truncate table test_numeric;
+insert into test_numeric values (1, 9223372036854775808);
+insert into test_numeric values (1, 70141183460469231731687303715884105727);
+select sum(j) from test_numeric;
+
+drop table test_numeric;

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * arch-ppc.h
- *      Atomic operations considerations specific to PowerPC
+ *	  Atomic operations considerations specific to PowerPC
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -20,9 +20,9 @@
  * But a load can be performed before a subsequent store, so sync must be used
  * for a full memory barrier.
  */
-#define pg_memory_barrier_impl()    __asm__ __volatile__ ("sync" : : : "memory")
-#define pg_read_barrier_impl()        __asm__ __volatile__ ("lwsync" : : : "memory")
-#define pg_write_barrier_impl()        __asm__ __volatile__ ("lwsync" : : : "memory")
+#define pg_memory_barrier_impl()	__asm__ __volatile__ ("sync" : : : "memory")
+#define pg_read_barrier_impl()		__asm__ __volatile__ ("lwsync" : : : "memory")
+#define pg_write_barrier_impl()		__asm__ __volatile__ ("lwsync" : : : "memory")
 #endif
 
 /* per architecture manual doubleword accesses have single copy atomicity */

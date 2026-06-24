@@ -1,0 +1,41 @@
+\c opentenbase_ora_package_function_regression_ora
+\set ECHO none
+ PG_SLEEP 
+----------
+ 
+(1 row)
+
+ RECEIVE_MESSAGE 
+-----------------
+               0
+(1 row)
+
+ NEXT_ITEM_TYPE 
+----------------
+             11
+(1 row)
+
+ UNPACK_MESSAGE_TEXT 
+---------------------
+ neco je jinak
+(1 row)
+
+ NEXT_ITEM_TYPE 
+----------------
+             11
+(1 row)
+
+ UNPACK_MESSAGE_TEXT 
+---------------------
+ anything is else
+(1 row)
+
+ NEXT_ITEM_TYPE 
+----------------
+              0
+(1 row)
+
+ REMOVE_PIPE 
+-------------
+ 
+(1 row)

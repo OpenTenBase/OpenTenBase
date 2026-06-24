@@ -20,4 +20,4 @@ extern TableFuncScanState *ExecInitTableFuncScan(TableFuncScan *node, EState *es
 extern void ExecEndTableFuncScan(TableFuncScanState *node);
 extern void ExecReScanTableFuncScan(TableFuncScanState *node);
 
-#endif                            /* NODETABLEFUNCSCAN_H */
+#endif							/* NODETABLEFUNCSCAN_H */

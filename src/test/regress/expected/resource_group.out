@@ -1,0 +1,181 @@
+select oid, * from pg_resgroup;
+ oid  |    rsgname    | parent 
+------+---------------+--------
+ 9019 | default_group |      0
+ 9020 | admin_group   |      0
+(2 rows)
+
+select * from pg_resgroupcapability;
+ resgroupid | reslimittype | value 
+------------+--------------+-------
+       9019 |            1 | 20
+       9019 |            2 | 30
+       9019 |            3 | -1
+       9019 |            4 | -1
+       9020 |            1 | 10
+       9020 |            2 | 10
+       9020 |            3 | -1
+       9020 |            4 | -1
+(8 rows)
+
+create resource group rg1 with (concurrency=3, cpu_rate_limit=20, memory_limit=30);
+ERROR:  syntax error at or near "("
+LINE 1: create resource group rg1 with (concurrency=3, cpu_rate_limi...
+                                       ^
+create resource group rg1 with concurrency 3 cpu_rate_limit 20 memory_limit 30;
+WARNING:  resource group is disabled
+HINT:  To enable set enable_resource_group=true
+select count(*) from pg_resgroup;
+ count 
+-------
+     3
+(1 row)
+
+select count(*) from pg_resgroupcapability;
+ count 
+-------
+    12
+(1 row)
+
+select count(*) from pg_authid;
+ count 
+-------
+     9
+(1 row)
+
+create role user1 with resource group rg1 password 'pass1';
+WARNING:  resource group is disabled
+HINT:  To enable set enable_resource_group=true
+select count(*) from pg_authid;
+ count 
+-------
+    10
+(1 row)
+
+select rolname, rolresgroup, rolpriority from pg_authid where rolname = 'user1';
+ rolname | rolresgroup | rolpriority 
+---------+-------------+-------------
+ user1   | rg1         | low
+(1 row)
+
+alter role user1 with resource group none priority 'high';
+WARNING:  resource group is disabled
+HINT:  To enable set enable_resource_group=true
+select rolname, rolresgroup, rolpriority from pg_authid where rolname = 'user1';
+ rolname |  rolresgroup  | rolpriority 
+---------+---------------+-------------
+ user1   | default_group | high
+(1 row)
+
+drop resource group rg1;
+select count(*) from pg_resgroup;
+ count 
+-------
+     2
+(1 row)
+
+select count(*) from pg_resgroupcapability;
+ count 
+-------
+     8
+(1 row)
+
+drop role user1;
+select count(*) from pg_authid;
+ count 
+-------
+     9
+(1 row)
+
+create resource group rg1 with cpuset '0';
+ERROR:  resource group must be enabled to use cpuset feature
+alter resource group rg1 set cpuset '0';
+ERROR:  resource group must be enabled to use cpuset feature
+drop resource group rg1;
+ERROR:  resource group "rg1" does not exist
+-- Test: check gucs
+show enable_resource_group;
+ enable_resource_group 
+-----------------------
+ off
+(1 row)
+
+show resource_group_cpu_priority;
+ resource_group_cpu_priority 
+-----------------------------
+ 10
+(1 row)
+
+show resource_group_cpu_limit;
+ resource_group_cpu_limit 
+--------------------------
+ 0.9
+(1 row)
+
+show resource_group_memory_limit;
+ERROR:  unrecognized configuration parameter "resource_group_memory_limit"
+show resource_group_cpu_ceiling_enforcement;
+ resource_group_cpu_ceiling_enforcement 
+----------------------------------------
+ off
+(1 row)
+
+show resource_group_bypass;
+ resource_group_bypass 
+-----------------------
+ off
+(1 row)
+
+show resource_group_queuing_timeout;
+ resource_group_queuing_timeout 
+--------------------------------
+ 0
+(1 row)
+
+show resource_group_name;
+ resource_group_name 
+---------------------
+ opentenbase
+(1 row)
+
+show resource_group_bypass_sql;
+ resource_group_bypass_sql 
+---------------------------
+ 
+(1 row)
+
+show resource_group_local;
+ resource_group_local 
+----------------------
+ off
+(1 row)
+
+show resgroup_memory_query_fixed_mem;
+ resgroup_memory_query_fixed_mem 
+---------------------------------
+ 0
+(1 row)
+
+show resource_group_leader_coordinator;
+ resource_group_leader_coordinator 
+-----------------------------------
+ 
+(1 row)
+
+select * from  pg_resgroup_get_status_kv('check');
+ groupname | prop |     value      
+-----------+------+----------------
+           |      | {"info":[,,,]}
+(1 row)
+
+select * from  pg_resgroup_get_status_kv('dump');
+ groupname | prop |     value      
+-----------+------+----------------
+           |      | {"info":[,,,]}
+(1 row)
+
+select * from  pg_resgroup_get_status_kv('');
+ groupname | prop | value 
+-----------+------+-------
+(0 rows)
+

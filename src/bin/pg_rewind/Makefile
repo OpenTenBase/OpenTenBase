@@ -15,11 +15,15 @@ subdir = src/bin/pg_rewind
 top_builddir = ../../..
 include $(top_builddir)/src/Makefile.global
 
+SUBDIRS = \
+	unittest 
+
 override CPPFLAGS := -I$(libpq_srcdir) -DFRONTEND $(CPPFLAGS)
 override LDFLAGS := $(libpq_pgport) $(LDFLAGS)
 
 OBJS	= pg_rewind.o parsexlog.o xlogreader.o datapagemap.o timeline.o \
 	fetch.o file_ops.o copy_fetch.o libpq_fetch.o filemap.o logging.o \
+	disk_verify.o \
 	$(WIN32RES)
 
 EXTRA_CLEAN = xlogreader.c
@@ -50,3 +54,7 @@ check:
 
 installcheck:
 	$(prove_installcheck)
+
+
+$(recurse)
+$(recurse_always)

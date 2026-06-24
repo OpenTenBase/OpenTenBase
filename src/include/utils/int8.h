@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * int8.h
- *      Declarations for operations on 64-bit integers.
+ *	  Declarations for operations on 64-bit integers.
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -11,9 +11,9 @@
  *
  * NOTES
  * These data types are supported on all 64-bit architectures, and may
- *    be supported through libraries on some 32-bit machines. If your machine
- *    is not currently supported, then please try to make it so, then post
- *    patches to the postgresql.org hackers mailing list.
+ *	be supported through libraries on some 32-bit machines. If your machine
+ *	is not currently supported, then please try to make it so, then post
+ *	patches to the postgresql.org hackers mailing list.
  *
  *-------------------------------------------------------------------------
  */
@@ -22,4 +22,4 @@
 
 extern bool scanint8(const char *str, bool errorOK, int64 *result);
 
-#endif                            /* INT8_H */
+#endif							/* INT8_H */

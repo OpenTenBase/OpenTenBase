@@ -29,9 +29,9 @@
  */
 typedef struct pairingheap_node
 {
-    struct pairingheap_node *first_child;
-    struct pairingheap_node *next_sibling;
-    struct pairingheap_node *prev_or_parent;
+	struct pairingheap_node *first_child;
+	struct pairingheap_node *next_sibling;
+	struct pairingheap_node *prev_or_parent;
 } pairingheap_node;
 
 /*
@@ -41,25 +41,25 @@ typedef struct pairingheap_node
  * This is used to convert a pairingheap_node * back to its containing struct.
  */
 #define pairingheap_container(type, membername, ptr) \
-    (AssertVariableIsOfTypeMacro(ptr, pairingheap_node *), \
-     AssertVariableIsOfTypeMacro(((type *) NULL)->membername, pairingheap_node),  \
-     ((type *) ((char *) (ptr) - offsetof(type, membername))))
+	(AssertVariableIsOfTypeMacro(ptr, pairingheap_node *), \
+	 AssertVariableIsOfTypeMacro(((type *) NULL)->membername, pairingheap_node),  \
+	 ((type *) ((char *) (ptr) - offsetof(type, membername))))
 
 /*
  * Like pairingheap_container, but used when the pointer is 'const ptr'
  */
 #define pairingheap_const_container(type, membername, ptr) \
-    (AssertVariableIsOfTypeMacro(ptr, const pairingheap_node *), \
-     AssertVariableIsOfTypeMacro(((type *) NULL)->membername, pairingheap_node),  \
-     ((const type *) ((const char *) (ptr) - offsetof(type, membername))))
+	(AssertVariableIsOfTypeMacro(ptr, const pairingheap_node *), \
+	 AssertVariableIsOfTypeMacro(((type *) NULL)->membername, pairingheap_node),  \
+	 ((const type *) ((const char *) (ptr) - offsetof(type, membername))))
 
 /*
  * For a max-heap, the comparator must return <0 iff a < b, 0 iff a == b,
  * and >0 iff a > b.  For a min-heap, the conditions are reversed.
  */
 typedef int (*pairingheap_comparator) (const pairingheap_node *a,
-                                       const pairingheap_node *b,
-                                       void *arg);
+									   const pairingheap_node *b,
+									   void *arg);
 
 /*
  * A pairing heap.
@@ -70,13 +70,13 @@ typedef int (*pairingheap_comparator) (const pairingheap_node *a,
  */
 typedef struct pairingheap
 {
-    pairingheap_comparator ph_compare;    /* comparison function */
-    void       *ph_arg;            /* opaque argument to ph_compare */
-    pairingheap_node *ph_root;    /* current root of the heap */
+	pairingheap_comparator ph_compare;	/* comparison function */
+	void	   *ph_arg;			/* opaque argument to ph_compare */
+	pairingheap_node *ph_root;	/* current root of the heap */
 } pairingheap;
 
 extern pairingheap *pairingheap_allocate(pairingheap_comparator compare,
-                     void *arg);
+					 void *arg);
 extern void pairingheap_free(pairingheap *heap);
 extern void pairingheap_add(pairingheap *heap, pairingheap_node *node);
 extern pairingheap_node *pairingheap_first(pairingheap *heap);
@@ -85,18 +85,18 @@ extern void pairingheap_remove(pairingheap *heap, pairingheap_node *node);
 
 #ifdef PAIRINGHEAP_DEBUG
 extern char *pairingheap_dump(pairingheap *heap,
-                 void (*dumpfunc) (pairingheap_node *node, StringInfo buf, void *opaque),
-                 void *opaque);
+				 void (*dumpfunc) (pairingheap_node *node, StringInfo buf, void *opaque),
+				 void *opaque);
 #endif
 
 /* Resets the heap to be empty. */
-#define pairingheap_reset(h)            ((h)->ph_root = NULL)
+#define pairingheap_reset(h)			((h)->ph_root = NULL)
 
 /* Is the heap empty? */
-#define pairingheap_is_empty(h)            ((h)->ph_root == NULL)
+#define pairingheap_is_empty(h)			((h)->ph_root == NULL)
 
 /* Is there exactly one node in the heap? */
 #define pairingheap_is_singular(h) \
-    ((h)->ph_root && (h)->ph_root->first_child == NULL)
+	((h)->ph_root && (h)->ph_root->first_child == NULL)
 
-#endif                            /* PAIRINGHEAP_H */
+#endif							/* PAIRINGHEAP_H */

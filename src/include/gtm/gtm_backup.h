@@ -18,9 +18,9 @@
 #include "gtm/gtm_lock.h"
 #include "gtm/gtm_seq.h"
 
-extern GTM_RWLock    gtm_bkup_lock;
+extern GTM_RWLock	gtm_bkup_lock;
 
-#define RestoreDuration    2000
+#define RestoreDuration	2000
 
 extern void GTM_WriteRestorePoint(void);
 extern void GTM_MakeBackup(char *path);

@@ -16,21 +16,21 @@
 #define NUM_HASH_BUCKET 128
 
 typedef struct pgxc_ctl_var {
-    struct pgxc_ctl_var *next;
-    struct pgxc_ctl_var *prev;
-    char    *varname;
-    int        val_size;        /*
-                             * current size of the allocated array including
-                             * place to store the NULL pointer as an
-                             * end-of-array marker
-                             */
+	struct pgxc_ctl_var *next;
+	struct pgxc_ctl_var *prev;
+	char	*varname;
+	int		val_size;		/*
+							 * current size of the allocated array including
+							 * place to store the NULL pointer as an
+							 * end-of-array marker
+							 */
 
-    int        val_used;        /* currently used values */
+	int		val_used;		/* currently used values */
 
-    char    **val;            /* 
-                             * max (val_size - 1) values and NULL as the last
-                             * element
-                             */
+	char	**val;			/* 
+							 * max (val_size - 1) values and NULL as the last
+							 * element
+							 */
 } pgxc_ctl_var;
 
 
@@ -38,13 +38,10 @@ extern pgxc_ctl_var *var_head;
 extern pgxc_ctl_var *var_tail;
 
 typedef struct pgxc_var_hash {
-    int        el_size;
-    int        el_used;
-    pgxc_ctl_var **el;
+	int		el_size;
+	int		el_used;
+	pgxc_ctl_var **el;
 } pgxc_var_hash;
-
-
-extern pgxc_var_hash var_hash[NUM_HASH_BUCKET];
 
 void init_var_hash(void);
 void add_var_hash(pgxc_ctl_var *var);
@@ -75,7 +72,7 @@ char  *listValue(char *name);
 int extendVar(char *name, int newSize, char *def_value);
 int doesExist(char *name, int idx);
 void assign_arrayEl_internal(char *name, int idx, char *val, char *pad,
-        int extend);
+		int extend);
 
 #define AddMember(a, b) do{if((a) == NULL) (a) = Malloc0(sizeof(char *)); (a) = add_member((a), (b));}while(0)
 void clean_array(char **array);

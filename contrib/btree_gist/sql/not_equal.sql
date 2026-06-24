@@ -16,7 +16,7 @@ INSERT INTO test_ne SELECT '2009-01-01', 10.7 FROM generate_series(1,1000);
 
 SET enable_indexscan to false;
 
-EXPLAIN (COSTS OFF) SELECT * FROM test_ne WHERE a <> '2009-01-01' AND b <> 10.7;
+EXPLAIN (COSTS OFF, NODES OFF) SELECT * FROM test_ne WHERE a <> '2009-01-01' AND b <> 10.7;
 
 SELECT * FROM test_ne WHERE a <> '2009-01-01' AND b <> 10.7;
 

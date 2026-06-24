@@ -1,0 +1,44 @@
+-- 1020421696875393133
+/*
+ * test insert with table alias.
+ * 1. INSERT INTO table t1(c1,c2, t1.c3)
+ * 2. INSERT INTO table (test.c1)
+ * 3. INSERT INTO table t1 VALUES
+ * 4. INSERT INTO table t1 select
+ * exception:
+ * 1. INSERT INTO table t1(t1.t2.c1)
+ * 2. INSERT INTO table t1(t1.*)
+ */
+\c regression_ora
+create table table_102(c1 int, c2 int, c3 int, c4 int);
+-- 1. INSERT INTO table t1(c1,c2, t1.c3)
+insert into table_102 t(t.c1,t.c2) values(1, 2);
+insert into table_102 t(t.c1,t.c2) select 1, 22;
+select * from table_102 order by 1, 2;
+delete from table_102;
+
+-- 2. INSERT INTO table (test.c1)
+insert into table_102(table_102.c1, table_102.c2) values(2, 3);
+select * from table_102;
+delete from table_102;
+
+-- 3. INSERT INTO table t1 VALUES
+insert into table_102 t1 values(1, 2);
+insert into table_102 t2 select 1, 2;
+select * from table_102;
+delete from table_102;
+--mixed
+insert into table_102 t(t.c1, t.c2, c3) select 1, 2, 12;
+select * from table_102;
+delete from table_102;
+
+-- 4. INSERT INTO table t1 select
+-- tested above
+-- exception:
+-- 1. INSERT INTO table t1(t1.t2.c1)
+insert into table_102 t(t.t.c1, t.c2) select 1, 22;
+insert into table_102 t(table_102.c1, t.c2) select 1, 22;
+-- 2. INSERT INTO table t1(t1.*)
+insert into table_102 t(t.*) select 1;
+drop table table_102;
+

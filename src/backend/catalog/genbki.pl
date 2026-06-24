@@ -23,6 +23,7 @@ my @input_files;
 our @include_path;
 my $output_path = '';
 my $major_version;
+my $db_type;
 
 # Process command line switches.
 while (@ARGV)
@@ -40,6 +41,10 @@ while (@ARGV)
 	{
 		push @include_path, length($arg) > 2 ? substr($arg, 2) : shift @ARGV;
 	}
+	elsif ($arg =~ /^-t/)
+	{
+		$db_type = length($arg) > 2 ? substr($arg, 2) : shift @ARGV;
+	}
 	elsif ($arg =~ /^--set-version=(.*)$/)
 	{
 		$major_version = $1;
@@ -56,6 +61,7 @@ while (@ARGV)
 die "No input files.\n"                                     if !@input_files;
 die "No include path; you must specify -I at least once.\n" if !@include_path;
 die "--set-version must be specified.\n" if !defined $major_version;
+die "No dbtype; use opentenbase_ora or postgres.\n" if !defined $db_type;
 
 # Make sure output_path ends in a slash.
 if ($output_path ne '' && substr($output_path, -1) ne '/')
@@ -65,16 +71,16 @@ if ($output_path ne '' && substr($output_path, -1) ne '/')
 
 # Open temp files
 my $tmpext  = ".tmp$$";
-my $bkifile = $output_path . 'postgres.bki';
+my $bkifile = $output_path . "$db_type.bki";
 open my $bki, '>', $bkifile . $tmpext
   or die "can't open $bkifile$tmpext: $!";
 my $schemafile = $output_path . 'schemapg.h';
 open my $schemapg, '>', $schemafile . $tmpext
   or die "can't open $schemafile$tmpext: $!";
-my $descrfile = $output_path . 'postgres.description';
+my $descrfile = $output_path . "$db_type.description";
 open my $descr, '>', $descrfile . $tmpext
   or die "can't open $descrfile$tmpext: $!";
-my $shdescrfile = $output_path . 'postgres.shdescription';
+my $shdescrfile = $output_path . "$db_type.shdescription";
 open my $shdescr, '>', $shdescrfile . $tmpext
   or die "can't open $shdescrfile$tmpext: $!";
 
@@ -90,11 +96,13 @@ my $BOOTSTRAP_SUPERUSERID =
   find_defined_symbol('pg_authid.h', 'BOOTSTRAP_SUPERUSERID');
 my $PG_CATALOG_NAMESPACE =
   find_defined_symbol('pg_namespace.h', 'PG_CATALOG_NAMESPACE');
-my $PG_ORACLE_NAMESPACE =
-  find_defined_symbol('pg_namespace.h', 'PG_ORACLE_NAMESPACE');
+my $OPENTENBASE_ORA_NAMESPACE =
+  find_defined_symbol('pg_namespace.h', 'OPENTENBASE_ORA_NAMESPACE');
+my $PG_SEGMENT_NAMESPACE =
+  find_defined_symbol('pg_namespace.h', 'PG_SEGMENT_NAMESPACE');
 
 # Read all the input header files into internal data structures
-my $catalogs = Catalog::Catalogs(@input_files);
+my $catalogs = Catalog::Catalogs(\$db_type, \@input_files);
 
 # Generate postgres.bki, postgres.description, and postgres.shdescription
 
@@ -176,7 +184,8 @@ foreach my $catname (@{ $catalogs->{names} })
 				# (It's intentional that this can apply to parts of a field).
 				$bki_values{$att} =~ s/\bPGUID\b/$BOOTSTRAP_SUPERUSERID/g;
 				$bki_values{$att} =~ s/\bPGNSP\b/$PG_CATALOG_NAMESPACE/g;
-				$bki_values{$att} =~ s/\bPGORCL\b/$PG_ORACLE_NAMESPACE/g;
+				$bki_values{$att} =~ s/\bPGORCL\b/$OPENTENBASE_ORA_NAMESPACE/g;
+				$bki_values{$att} =~ s/\bPGSEG\b/$PG_SEGMENT_NAMESPACE/g;
 
 				# Replace regproc columns' values with OIDs.
 				# If we don't have a unique value to substitute,
@@ -290,6 +299,9 @@ foreach my $catname (@{ $catalogs->{names} })
 					{ name => 'tableoid', type => 'oid' }
 #PGXC_BEGIN
 					,{ name => 'xc_node_id', type => 'int4' }
+					,{ name => 'shardid', type => 'int4' }
+					,{ name => 'xmax_gts', type => 'int8' }
+					,{ name => 'xmin_gts', type => 'int8' }
 					);
 #PGXC_END
 				foreach my $attr (@SYS_ATTRS)
@@ -457,8 +469,16 @@ sub emit_pgattr_row
 #MLS END		
 		attidentity   => '',
 		attisdropped  => 'f',
+
 		attislocal    => 't',
 		attinhcount   => '0',
+#COL COMPRESS
+		attcollen	  => '0',
+		atttranscomp  => '0',
+		atttranscomplevel => '0',
+		attlwcomp => '0',
+		attuniquestore => 'f',
+#COL COMPRESS
 		attacl        => '_null_',
 		attoptions    => '_null_',
 		attfdwoptions => '_null_',
@@ -550,6 +570,7 @@ Options:
     -I               path to include files
     -o               output path
     --set-version    PostgreSQL version number for initdb cross-check
+	-t               template type opentenbase_ora, postgres , all
 
 genbki.pl generates BKI files from specially formatted
 header files.  These BKI files are used to initialize the

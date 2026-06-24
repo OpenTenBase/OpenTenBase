@@ -310,23 +310,23 @@ DROP ROLE regress_guc_user;
 --
 set search_path = foo, public, not_there_initially;
 select current_schemas(false);
- current_schemas 
------------------
- {public}
+     current_schemas      
+--------------------------
+ {public,opentenbase_ora}
 (1 row)
 
 create schema not_there_initially;
 select current_schemas(false);
-       current_schemas        
-------------------------------
- {public,not_there_initially}
+               current_schemas                
+----------------------------------------------
+ {public,not_there_initially,opentenbase_ora}
 (1 row)
 
 drop schema not_there_initially;
 select current_schemas(false);
- current_schemas 
------------------
- {public}
+     current_schemas      
+--------------------------
+ {public,opentenbase_ora}
 (1 row)
 
 reset search_path;
@@ -469,7 +469,7 @@ reset check_function_bodies;
 SET application_name TO "special name";
 CREATE TABLE testtab (a int);
 INSERT INTO testtab VALUES (1), (2), (3);
-SELECT * FROM testtab;
+SELECT * FROM testtab order by 1;
  a 
 ---
  1
@@ -481,7 +481,7 @@ DROP TABLE testtab;
 SET default_transaction_isolation TO "read committed";
 CREATE TABLE testtab (a int);
 INSERT INTO testtab VALUES (1), (2), (3);
-SELECT * FROM testtab;
+SELECT * FROM testtab order by 1;
  a 
 ---
  1
@@ -493,7 +493,7 @@ DROP TABLE testtab;
 SET work_mem TO '64kB';
 CREATE TABLE testtab (a int);
 INSERT INTO testtab VALUES (1), (2), (3);
-SELECT * FROM testtab;
+SELECT * FROM testtab order by 1;
  a 
 ---
  1
@@ -505,7 +505,7 @@ DROP TABLE testtab;
 SET work_mem TO "64kB";
 CREATE TABLE testtab (a int);
 INSERT INTO testtab VALUES (1), (2), (3);
-SELECT * FROM testtab;
+SELECT * FROM testtab order by 1;
  a 
 ---
  1
@@ -517,7 +517,7 @@ DROP TABLE testtab;
 SET log_min_duration_statement = '1s';
 CREATE TABLE testtab (a int);
 INSERT INTO testtab VALUES (1), (2), (3);
-SELECT * FROM testtab;
+SELECT * FROM testtab order by 1;
  a 
 ---
  1
@@ -549,7 +549,7 @@ Distribute By: HASH(a)
 Location Nodes: ALL DATANODES
 
 INSERT INTO testtab VALUES (1), (2), (3);
-SELECT * FROM testtab;
+SELECT * FROM testtab order by 1;
  a 
 ---
  1
@@ -569,7 +569,7 @@ Distribute By: HASH(a)
 Location Nodes: ALL DATANODES
 
 INSERT INTO testtab VALUES (1), (2), (3);
-SELECT * FROM testtab;
+SELECT * FROM testtab order by 1;
  a 
 ---
  1
@@ -589,7 +589,7 @@ Distribute By: HASH(a)
 Location Nodes: ALL DATANODES
 
 INSERT INTO testtab VALUES (1), (2), (3);
-SELECT * FROM testtab;
+SELECT * FROM testtab order by 1;
  a 
 ---
  1
@@ -609,7 +609,7 @@ Distribute By: HASH(a)
 Location Nodes: ALL DATANODES
 
 INSERT INTO testtab VALUES (1), (2), (3);
-SELECT * FROM testtab;
+SELECT * FROM testtab order by 1;
  a 
 ---
  1
@@ -618,6 +618,22 @@ SELECT * FROM testtab;
 (3 rows)
 
 DROP TABLE testtab;
+-- EXPERIMENT MODE
+SET enable_experiment_isolation to false;
+ALTER SYSTEM SET default_transaction_isolation TO 'repeatable read';
+ERROR:  parameter "default_transaction_isolation" is restricted to default value.
+HINT:  enable_experiment_isolation is not restricted but might cause instability.
+SET default_transaction_isolation TO 'repeatable read';
+ERROR:  parameter "default_transaction_isolation" is restricted to default value.
+HINT:  enable_experiment_isolation is not restricted but might cause instability.
+BEGIN TRANSACTION ISOLATION level REPEATABLE READ ;
+ERROR:  transaction mode is restricted to READ COMMITTED.
+HINT:  Isolation modes other than READ COMMITTED can be enabled by setting enable_experiment_isolation to on, but as experimental feature they are not recommended to use in production environment.
+SET enable_experiment_isolation to true;
+SET default_transaction_isolation TO 'repeatable read';
+BEGIN TRANSACTION ISOLATION level REPEATABLE READ ;
+COMMIT;
+RESET default_transaction_isolation;
 -- ERROR
 SET search_path TO "testschema 3", SELECT;
 ERROR:  syntax error at or near "SELECT"
@@ -644,7 +660,7 @@ Location Nodes: ALL DATANODES
 
 INSERT INTO "testschema 3".testtab VALUES (1), (2), (3);
 INSERT INTO "SELECT".testtab VALUES (4);
-SELECT * FROM "testschema 3".testtab;
+SELECT * FROM "testschema 3".testtab order by 1;
  a 
 ---
  1
@@ -653,7 +669,7 @@ SELECT * FROM "testschema 3".testtab;
 (3 rows)
 
 INSERT INTO testtab SELECT * FROM "testschema 3".testtab;
-SELECT * FROM "testschema 3".testtab;
+SELECT * FROM "testschema 3".testtab order by 1;
  a 
 ---
  1
@@ -669,27 +685,27 @@ SELECT * FROM "testschema 3".testtab;
 Distribute By: HASH(a)
 Location Nodes: ALL DATANODES
 
-SELECT * FROM testtab;
+SELECT * FROM testtab order by 1;
  a 
 ---
  1
  2
- 4
  3
+ 4
 (4 rows)
 
 INSERT INTO testtab SELECT * FROM testtab;
-SELECT * FROM testtab;
+SELECT * FROM testtab order by 1;
  a 
 ---
  1
- 2
  1
  2
- 4
+ 2
+ 3
  3
  4
- 3
+ 4
 (8 rows)
 
 DROP TABLE testtab;
@@ -703,3 +719,165 @@ ERROR:  syntax error at or near "SELECT"
 LINE 1: DROP SCHEMA SELECT CASCADE;
                     ^
 DROP SCHEMA "SELECT" CASCADE;
+create schema test_alter_1;
+create schema test_alter_2;
+create role test_alter_set with login superuser;
+\c - test_alter_set
+alter user test_alter_set set search_path=test_alter_1;
+\c 
+show search_path;
+ search_path  
+--------------
+ test_alter_1
+(1 row)
+
+alter user test_alter_set set search_path=test_alter_2;
+show search_path;
+ search_path  
+--------------
+ test_alter_1
+(1 row)
+
+create table test_alter_table(id int);
+\d+ test_alter_table
+                          Table "test_alter_1.test_alter_table"
+ Column |  Type   | Collation | Nullable | Default | Storage | Stats target | Description 
+--------+---------+-----------+----------+---------+---------+--------------+-------------
+ id     | integer |           |          |         | plain   |              | 
+Distribute By: HASH(id)
+Location Nodes: ALL DATANODES
+
+insert into test_alter_table values(1);
+select * from test_alter_table;
+ id 
+----
+  1
+(1 row)
+
+drop table test_alter_table;
+-- Test extension black list and white list
+create extension opentenbase_ora_package_function;
+ERROR:  The extension "opentenbase_ora_package_function" is not supported in postgresql sql mode
+\c regression_ora
+-- Test search_path are be cut into 64 and cause something wrong
+-- TAPD: https://tapd.woa.com/OpenTenBase_C/bugtrace/bugs/view?bug_id=1020385652126678671
+\c regression_ora
+create schema "rownum_dml_dis_01_schema_20240702";
+create schema "opentenbase_pg_proc_20240702";
+set search_path = "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog";
+create table r_search_path_bug_20240702
+(
+    id   number primary key,
+    col1 number
+);
+insert into r_search_path_bug_20240702 values(1, 1);
+set search_path = "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog";
+ERROR:  The size of guc search_path value is larger than 1024
+drop schema "rownum_dml_dis_01_schema_20240702" cascade;
+NOTICE:  drop cascades to table R_SEARCH_PATH_BUG_20240702
+drop schema "opentenbase_pg_proc_20240702";
+\c regression
+create schema "rownum_dml_dis_01_schema_20240702";
+create schema "opentenbase_pg_proc_20240702";
+set search_path = "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog";
+create table r_search_path_bug_20240702
+(
+    id   int primary key,
+    col1 int
+);
+insert into r_search_path_bug_20240702 values(1, 1);
+update r_search_path_bug_20240702 set col1 = 1 where id in (select * from (select id from r_search_path_bug_20240702 order by id));
+set search_path = "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog", "rownum_dml_dis_01_schema_20240702", "$user", "public", "opentenbase_pg_proc_20240702", "pg_catalog";
+ERROR:  The size of guc search_path value is larger than 1024
+update r_search_path_bug_20240702 set col1 = 1 where id in (select * from (select id from r_search_path_bug_20240702 order by id));
+drop schema "rownum_dml_dis_01_schema_20240702" cascade;
+NOTICE:  drop cascades to table r_search_path_bug_20240702
+drop schema "opentenbase_pg_proc_20240702";
+-- Test unit memory display
+-- TAPD: https://tapd.woa.com/OpenTenBase_C/prong/stories/view/1020385652118989323
+-- GUC_UNIT_KB
+SHOW work_mem;
+ work_mem 
+----------
+ 65535kB
+(1 row)
+
+-- GUC_UNIT_BLOCKS
+SHOW checkpoint_flush_after;
+ checkpoint_flush_after 
+------------------------
+ 256kB
+(1 row)
+
+-- GUC_UNIT_XBLOCKS
+SHOW wal_segment_size;
+ wal_segment_size 
+------------------
+ 16MB
+(1 row)
+
+-- test reset all
+\c regression root
+CREATE SCHEMA TEST_S1;
+SET SEARCH_PATH TO 'TEST_S1';
+RESET ALL;
+CREATE TABLE TEST_T20241231(A INT);
+INSERT INTO TEST_T20241231 VALUES(1);
+INSERT INTO TEST_T20241231 VALUES(2);
+INSERT INTO TEST_T20241231 VALUES(3);
+INSERT INTO TEST_T20241231 VALUES(4);
+INSERT INTO TEST_T20241231 VALUES(5);
+SELECT * FROM TEST_T20241231 ORDER BY 1;
+ a 
+---
+ 1
+ 2
+ 3
+ 4
+ 5
+(5 rows)
+
+DROP TABLE TEST_T20241231;
+DROP SCHEMA TEST_S1;
+DISCARD ALL;
+\c regression_ora  root
+CREATE SCHEMA TEST_S1;
+show search_path;
+   search_path   
+-----------------
+ "$user", public
+(1 row)
+
+SET SEARCH_PATH TO 'TEST_S1';
+show search_path;
+ search_path 
+-------------
+ TEST_S1
+(1 row)
+
+RESET ALL;
+show search_path;
+   search_path   
+-----------------
+ "$user", public
+(1 row)
+
+CREATE TABLE TEST_T20241231(A INT);
+INSERT INTO TEST_T20241231 VALUES(1);
+INSERT INTO TEST_T20241231 VALUES(2);
+INSERT INTO TEST_T20241231 VALUES(3);
+INSERT INTO TEST_T20241231 VALUES(4);
+INSERT INTO TEST_T20241231 VALUES(5);
+SELECT * FROM TEST_T20241231 ORDER BY 1;
+ A 
+---
+ 1
+ 2
+ 3
+ 4
+ 5
+(5 rows)
+
+DROP TABLE TEST_T20241231;
+DROP SCHEMA TEST_S1;
+DISCARD ALL;

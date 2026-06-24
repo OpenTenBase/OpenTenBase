@@ -21,6 +21,9 @@
 #include "gtm/gtm_txn.h"
 #include "gtm/register.h"
 #include "gtm/gtm_seq.h"
+#ifdef __RESOURCE_QUEUE__
+#include "gtm/gtm_resqueue.h"
+#endif
 
 size_t gtm_get_snapshotdata_size(GTM_SnapshotData *);
 size_t gtm_serialize_snapshotdata(GTM_SnapshotData *, char *, size_t);
@@ -41,6 +44,12 @@ size_t gtm_deserialize_pgxcnodeinfo(GTM_PGXCNodeInfo *, const char *, size_t, PQ
 size_t gtm_get_sequence_size(GTM_SeqInfo *);
 size_t gtm_serialize_sequence(GTM_SeqInfo *, char *, size_t);
 size_t gtm_deserialize_sequence(GTM_SeqInfo *seq, const char *, size_t);
+
+#ifdef __RESOURCE_QUEUE__
+size_t gtm_get_resqueue_size(GTM_ResQueueInfo *);
+size_t gtm_serialize_resqueue(GTM_ResQueueInfo *, char *, size_t);
+size_t gtm_deserialize_resqueue(GTM_ResQueueInfo *resq, const char *, size_t);
+#endif
 
 void dump_transactions_elog(GTM_Transactions *, int);
 void dump_transactioninfo_elog(GTM_TransactionInfo *);

@@ -1,13 +1,13 @@
 /*-------------------------------------------------------------------------
  *
  * username.c
- *      get user name
+ *	  get user name
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *      src/common/username.c
+ *	  src/common/username.c
  *
  *-------------------------------------------------------------------------
  */
@@ -31,38 +31,38 @@ const char *
 get_user_name(char **errstr)
 {
 #ifndef WIN32
-    struct passwd *pw;
-    uid_t        user_id = geteuid();
+	struct passwd *pw;
+	uid_t		user_id = geteuid();
 
-    *errstr = NULL;
+	*errstr = NULL;
 
-    errno = 0;                    /* clear errno before call */
-    pw = getpwuid(user_id);
-    if (!pw)
-    {
-        *errstr = psprintf(_("could not look up effective user ID %ld: %s"),
-                           (long) user_id,
-                           errno ? strerror(errno) : _("user does not exist"));
-        return NULL;
-    }
+	errno = 0;					/* clear errno before call */
+	pw = getpwuid(user_id);
+	if (!pw)
+	{
+		*errstr = psprintf(_("could not look up effective user ID %ld: %s"),
+						   (long) user_id,
+						   errno ? strerror(errno) : _("user does not exist"));
+		return NULL;
+	}
 
-    return pw->pw_name;
+	return pw->pw_name;
 #else
-    /* Microsoft recommends buffer size of UNLEN+1, where UNLEN = 256 */
-    /* "static" variable remains after function exit */
-    static char username[256 + 1];
-    DWORD        len = sizeof(username);
+	/* Microsoft recommends buffer size of UNLEN+1, where UNLEN = 256 */
+	/* "static" variable remains after function exit */
+	static char username[256 + 1];
+	DWORD		len = sizeof(username);
 
-    *errstr = NULL;
+	*errstr = NULL;
 
-    if (!GetUserName(username, &len))
-    {
-        *errstr = psprintf(_("user name lookup failure: error code %lu"),
-                           GetLastError());
-        return NULL;
-    }
+	if (!GetUserName(username, &len))
+	{
+		*errstr = psprintf(_("user name lookup failure: error code %lu"),
+						   GetLastError());
+		return NULL;
+	}
 
-    return username;
+	return username;
 #endif
 }
 
@@ -73,15 +73,15 @@ get_user_name(char **errstr)
 const char *
 get_user_name_or_exit(const char *progname)
 {
-    const char *user_name;
-    char       *errstr;
+	const char *user_name;
+	char	   *errstr;
 
-    user_name = get_user_name(&errstr);
+	user_name = get_user_name(&errstr);
 
-    if (!user_name)
-    {
-        fprintf(stderr, "%s: %s\n", progname, errstr);
-        exit(1);
-    }
-    return user_name;
+	if (!user_name)
+	{
+		fprintf(stderr, "%s: %s\n", progname, errstr);
+		exit(1);
+	}
+	return user_name;
 }

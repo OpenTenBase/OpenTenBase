@@ -3,7 +3,7 @@ CREATE EXTENSION hstore;
 -- Check whether any of our opclasses fail amvalidate
 SELECT amname, opcname
 FROM pg_opclass opc LEFT JOIN pg_am am ON am.oid = opcmethod
-WHERE opc.oid >= 16384 AND NOT amvalidate(opc.oid);
+WHERE opc.oid >= 32768 AND NOT amvalidate(opc.oid);
 
 set escape_string_warning=off;
 

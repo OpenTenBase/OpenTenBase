@@ -299,7 +299,7 @@ DECLARE
 	cond text;
 	idx_ctids tid[];
 	ss_ctids tid[];
-	count int;
+	num int;
 	plan_ok bool;
 	plan_line text;
 BEGIN
@@ -347,13 +347,13 @@ BEGIN
 			INTO ss_ctids;
 
 		-- make sure both return the same results
-		count := array_length(idx_ctids, 1);
+		num := array_length(idx_ctids, 1);
 
-		IF NOT (count = array_length(ss_ctids, 1) AND
+		IF NOT (num = array_length(ss_ctids, 1) AND
 				idx_ctids @> ss_ctids AND
 				idx_ctids <@ ss_ctids) THEN
 			-- report the results of each scan to make the differences obvious
-			RAISE WARNING 'something not right in %: count %', r, count;
+			RAISE WARNING 'something not right in %: num %', r, num;
 			SET enable_seqscan = 1;
 			SET enable_bitmapscan = 0;
 			FOR r2 IN EXECUTE 'SELECT ' || r.colname || ' FROM brintest WHERE ' || cond LOOP
@@ -368,7 +368,7 @@ BEGIN
 		END IF;
 
 		-- make sure we found expected number of matches
-		IF count != r.matches THEN RAISE WARNING 'unexpected number of results % for %', count, r; END IF;
+		IF num != r.matches THEN RAISE WARNING 'unexpected number of results % for %', num, r; END IF;
 	END LOOP;
 END;
 $x$;

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * backendid.h
- *      POSTGRES backend id communication definitions
+ *	  POSTGRES backend id communication definitions
  *
  *
  * Portions Copyright (c) 2012-2014, TransLattice, Inc.
@@ -16,14 +16,14 @@
 #define BACKENDID_H
 
 /* ----------------
- *        -cim 8/17/90
+ *		-cim 8/17/90
  * ----------------
  */
-typedef int BackendId;            /* unique currently active backend identifier */
+typedef int BackendId;			/* unique currently active backend identifier */
 
-#define InvalidBackendId        (-1)
+#define InvalidBackendId		(-1)
 
-extern PGDLLIMPORT BackendId MyBackendId;    /* backend id of this backend */
+extern PGDLLIMPORT BackendId MyBackendId;	/* backend id of this backend */
 
 #ifdef XCP
 /*
@@ -36,10 +36,14 @@ extern PGDLLIMPORT Oid MyCoordId;
 extern PGDLLIMPORT char MyCoordName[NAMEDATALEN];
 
 extern PGDLLIMPORT int MyCoordPid;
-extern PGDLLIMPORT LocalTransactionId MyCoordLxid;
+extern uint64 MyCoordTimestamp;
 
 /* BackendId of the first backend of the distributed session on the node */
 extern PGDLLIMPORT BackendId MyFirstBackendId;
+/* ProcPid of the first backend of the distributed session on the node */
+extern PGDLLIMPORT int32 MyFirstProcPid;
+/* Process start Time of the first backend of the distributed session on the node */
+extern PGDLLIMPORT uint64 MyFirstProcStartTime;
 #endif
 /* backend id of our parallel session leader, or InvalidBackendId if none */
 extern PGDLLIMPORT BackendId ParallelMasterBackendId;
@@ -49,6 +53,6 @@ extern PGDLLIMPORT BackendId ParallelMasterBackendId;
  * but parallel workers should use their leader's ID.
  */
 #define BackendIdForTempRelations() \
-    (ParallelMasterBackendId == InvalidBackendId ? MyBackendId : ParallelMasterBackendId)
+	(ParallelMasterBackendId == InvalidBackendId ? MyBackendId : ParallelMasterBackendId)
 
-#endif                            /* BACKENDID_H */
+#endif							/* BACKENDID_H */

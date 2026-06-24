@@ -72,8 +72,8 @@ if (sqlca.sqlcode < 0) sqlprint();}
 
 
   { ECPGdo(__LINE__, 0, 1, NULL, 0, ECPGst_normal, "show standard_conforming_strings", ECPGt_EOIT, 
-    ECPGt_char,(var),(long)25,(long)1,(25)*sizeof(char), 
-    ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EORT);
+	ECPGt_char,(var),(long)25,(long)1,(25)*sizeof(char), 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EORT);
 #line 24 "quote.pgc"
 
 if (sqlca.sqlwarn[0] == 'W') sqlprint();
@@ -116,8 +116,8 @@ if (sqlca.sqlcode < 0) sqlprint();}
 
 
   { ECPGdo(__LINE__, 0, 1, NULL, 0, ECPGst_normal, "show standard_conforming_strings", ECPGt_EOIT, 
-    ECPGt_char,(var),(long)25,(long)1,(25)*sizeof(char), 
-    ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EORT);
+	ECPGt_char,(var),(long)25,(long)1,(25)*sizeof(char), 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EORT);
 #line 34 "quote.pgc"
 
 if (sqlca.sqlwarn[0] == 'W') sqlprint();
@@ -178,11 +178,11 @@ if (sqlca.sqlcode < 0) sqlprint();}
 
   while (true)
   {
-    { ECPGdo(__LINE__, 0, 1, NULL, 0, ECPGst_normal, "fetch C", ECPGt_EOIT, 
-    ECPGt_int,&(i),(long)1,(long)1,sizeof(int), 
-    ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, 
-    ECPGt_char,(var),(long)25,(long)1,(25)*sizeof(char), 
-    ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EORT);
+	{ ECPGdo(__LINE__, 0, 1, NULL, 0, ECPGst_normal, "fetch C", ECPGt_EOIT, 
+	ECPGt_int,&(i),(long)1,(long)1,sizeof(int), 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, 
+	ECPGt_char,(var),(long)25,(long)1,(25)*sizeof(char), 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EORT);
 #line 51 "quote.pgc"
 
 if (sqlca.sqlcode == ECPG_NOT_FOUND) break;
@@ -194,7 +194,7 @@ if (sqlca.sqlwarn[0] == 'W') sqlprint();
 if (sqlca.sqlcode < 0) sqlprint();}
 #line 51 "quote.pgc"
 
-    printf("value: %d %s\n", i, var);
+	printf("value: %d %s\n", i, var);
   }
 
   { ECPGtrans(__LINE__, NULL, "rollback");

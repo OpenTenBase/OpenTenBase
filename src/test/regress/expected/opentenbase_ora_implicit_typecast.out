@@ -1,0 +1,220 @@
+\c regression_ora
+-- test implicit type cast from numeric to int
+create or replace procedure test_call_assign_cast(a_int int)
+as
+$$
+begin
+   raise notice '%', a_int;
+end;
+$$
+language default_plsql;
+do
+$$
+declare
+	a_numeric numeric:='1000';
+begin
+	call test_call_assign_cast(a_numeric);
+end;
+$$;
+NOTICE:  1000
+drop procedure test_call_assign_cast(int);
+create or replace procedure test_call_assign_cast(a_int int, a_int1 int)
+as
+$$
+begin
+   raise notice '%','(int,int)';
+end;
+$$
+language default_plsql;
+create or replace procedure test_call_assign_cast(a_int numeric, a_int1 int)
+as
+$$
+begin
+   raise notice '%', '(numeric,int)';
+end;
+$$
+language default_plsql;
+do
+$$
+declare
+        a_numeric numeric:='1000';
+begin
+        call test_call_assign_cast(a_numeric, a_numeric);
+end;
+$$;
+NOTICE:  (numeric,int)
+create or replace procedure test_call_assign_cast(a_int int, a_int1 numeric)
+as
+$$
+begin
+   raise notice '%', '(int, numeric)';
+end;
+$$
+language default_plsql;
+do
+$$
+declare
+        a_numeric numeric:='1000';
+begin
+        call test_call_assign_cast(a_numeric, a_numeric);
+end;
+$$;
+ERROR:  procedure TEST_CALL_ASSIGN_CAST(NUMERIC, NUMERIC) is not unique
+LINE 1: CALL test_call_assign_cast(a_numeric, a_numeric)
+             ^
+HINT:  Could not choose a best candidate procedure. You might need to add explicit type casts.
+QUERY:  CALL test_call_assign_cast(a_numeric, a_numeric)
+CONTEXT:  PL/pgSQL function inline_code_block line 5 at CALL
+drop procedure test_call_assign_cast(int,int);
+drop procedure test_call_assign_cast(int,numeric);
+drop procedure test_call_assign_cast(numeric,int);
+-- test implicit from text/varchar/varchar2 to clob
+create or replace procedure test_call_assign_cast(a_clob clob)
+as
+$$
+begin
+   raise notice '%', a_clob;
+end;
+$$
+language default_plsql;
+do
+$$
+declare
+a_text text := 'text';
+a_varchar varchar(20) := 'varchar';
+a_varchar2 varchar2 := 'varchar2';
+begin
+call test_call_assign_cast(a_text);
+call test_call_assign_cast(a_varchar);
+call test_call_assign_cast(a_varchar2);
+end;
+$$;
+NOTICE:  text
+NOTICE:  varchar
+NOTICE:  varchar2
+drop procedure test_call_assign_cast(clob);
+-- test implicit from binary_double to binary_float
+create or replace procedure test_call_assign_cast(a_bfloat binary_float)
+as
+$$
+begin
+   raise notice '%', a_bfloat;
+end;
+$$
+language default_plsql;
+do
+$$
+declare
+a_bdouble binary_double := 123.456;
+begin
+call test_call_assign_cast(a_bdouble);
+end;
+$$;
+NOTICE:  123.456
+drop procedure test_call_assign_cast(binary_float);
+--test implicit from binary_float/binary_double to int
+create or replace procedure test_call_assign_cast(a_int int)
+as
+$$
+begin
+   raise notice '%', a_int;
+       return 1;
+end;
+$$
+language default_plsql;
+ERROR:  RETURN cannot have a parameter in a procedure
+LINE 6:        return 1;
+                      ^
+do
+$$
+declare
+a_bfloat binary_float := 123.456;
+a_bdouble binary_double := 123.456;
+begin
+call test_call_assign_cast(a_bfloat);
+call test_call_assign_cast(a_bdouble);
+end;
+$$;
+ERROR:  procedure TEST_CALL_ASSIGN_CAST(NUMERIC) does not exist
+LINE 1: CALL test_call_assign_cast(a_bfloat)
+             ^
+HINT:  No procedure matches the given name and argument types. You might need to add explicit type casts.
+QUERY:  CALL test_call_assign_cast(a_bfloat)
+CONTEXT:  PL/pgSQL function inline_code_block line 6 at CALL
+drop procedure test_call_assign_cast(int);
+ERROR:  procedure TEST_CALL_ASSIGN_CAST(INTEGER) does not exist
+\c regression
+-- test implicit type cast from numeric to int
+create or replace procedure test_call_assign_cast(a_int int)
+as
+$$
+begin
+   raise notice '%', a_int;
+end;
+$$
+language default_plsql;
+do
+$$
+declare
+        a_numeric numeric:='1000';
+begin
+        call test_call_assign_cast(a_numeric);
+end;
+$$;
+ERROR:  procedure test_call_assign_cast(numeric) does not exist
+LINE 1: CALL test_call_assign_cast(a_numeric)
+             ^
+HINT:  No procedure matches the given name and argument types. You might need to add explicit type casts.
+QUERY:  CALL test_call_assign_cast(a_numeric)
+CONTEXT:  PL/pgSQL function inline_code_block line 5 at CALL
+drop procedure test_call_assign_cast(int);
+-- test implicit from timestamp to date
+create or replace procedure test_call_assign_cast(a_date date)
+as
+$$
+begin
+   raise notice '%', a_date;
+end;
+$$
+language default_plsql;
+do
+$$
+declare
+a_timestamp timestamp:='2022-1-1 10:00:00.000001';
+begin
+call test_call_assign_cast(a_timestamp);
+end;
+$$;
+ERROR:  procedure test_call_assign_cast(timestamp without time zone) does not exist
+LINE 1: CALL test_call_assign_cast(a_timestamp)
+             ^
+HINT:  No procedure matches the given name and argument types. You might need to add explicit type casts.
+QUERY:  CALL test_call_assign_cast(a_timestamp)
+CONTEXT:  PL/pgSQL function inline_code_block line 5 at CALL
+drop procedure test_call_assign_cast(date);
+-- test implicit from text/varchar to clob
+create or replace procedure test_call_assign_cast(a_clob clob)
+as
+$$
+begin
+   raise notice '%', a_clob;
+end;
+$$
+language default_plsql;
+do
+$$
+declare
+a_text text := 'text';
+a_varchar varchar(20) := 'varchar';
+begin
+call test_call_assign_cast(a_text);
+call test_call_assign_cast(a_varchar);
+end;
+$$;
+ERROR:  procedure test_call_assign_cast(text) does not exist
+LINE 1: CALL test_call_assign_cast(a_text)
+             ^
+HINT:  No procedure matches the given name and argument types. You might need to add explicit type casts.
+QUERY:  CALL test_call_assign_cast(a_text)
+CONTEXT:  PL/pgSQL function inline_code_block line 6 at CALL
+drop procedure test_call_assign_cast(clob);

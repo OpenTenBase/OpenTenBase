@@ -1,0 +1,150 @@
+-- =====================================================================
+-- Title     : global index ddl
+-- Author    : azurezhao
+-- Date      : 2022-08-22
+-- Level     : P0
+-- Tag       :
+-- Status    : Ready
+-- =====================================================================
+/* normal */
+drop table if exists gindex_test;
+NOTICE:  table "gindex_test" does not exist, skipping
+create table gindex_test(a int,b int,c varchar,d numeric,e float) distribute by shard(a) ;
+/* index type */
+create global index on gindex_test using btree (b);
+create global index on gindex_test using hash (b);
+/* index with column qualifier */
+create global index on gindex_test(b nulls first);
+create global index on gindex_test(b desc);
+--create global index on gindex_test(b COLLATE "de_DE");
+/* index with options */
+create global index on gindex_test(b) with (fillfactor=70);
+/* tablespace */
+create global index on gindex_test(b) TABLESPACE pg_default;
+/* distribute key */
+create global index on gindex_test(a);
+create global index on gindex_test(c);
+create global index on gindex_test(d);
+create global index on gindex_test(e);
+create global index on gindex_test(e);
+/* multiple key */
+create global index on gindex_test(e,b);
+/* concurrently */
+create global index concurrently on gindex_test(e);
+/* create table like */
+create table gindex_test_like3 (like gindex_test);
+\d+ gindex_test;
+                                     Table "public.gindex_test"
+ Column |       Type        | Collation | Nullable | Default | Storage  | Stats target | Description 
+--------+-------------------+-----------+----------+---------+----------+--------------+-------------
+ a      | integer           |           | not null |         | plain    |              | 
+ b      | integer           |           |          |         | plain    |              | 
+ c      | character varying |           |          |         | extended |              | 
+ d      | numeric           |           |          |         | main     |              | 
+ e      | double precision  |           |          |         | plain    |              | 
+Indexes:
+    "gindex_test_a_idx" global (a) WITH (fillfactor='70')
+    "gindex_test_b_idx" global (b) WITH (fillfactor='70')
+    "gindex_test_b_idx1" global (b) WITH (fillfactor='70')
+    "gindex_test_b_idx2" global (b) WITH (fillfactor='70')
+    "gindex_test_b_idx3" global (b) WITH (fillfactor='70')
+    "gindex_test_b_idx4" global (b) WITH (fillfactor='70')
+    "gindex_test_b_idx5" global (b) WITH (fillfactor='70')
+    "gindex_test_c_idx" global (c) WITH (fillfactor='70')
+    "gindex_test_d_idx" global (d) WITH (fillfactor='70')
+    "gindex_test_e_b_idx" global (e, b) WITH (fillfactor='70')
+    "gindex_test_e_idx" global (e) WITH (fillfactor='70')
+    "gindex_test_e_idx1" global (e) WITH (fillfactor='70')
+    "gindex_test_e_idx2" global (e) WITH (fillfactor='70')
+Distribute By: SHARD(a)
+Location Nodes: ALL DATANODES
+
+insert into gindex_test values (1,2,3,4,5);
+/* unique */
+insert into gindex_test values (1,2,3,4,5);
+create global unique index on gindex_test(b);
+ERROR:  duplicate key value violates unique constraint "gindex_test_b_idx6_b_idx"
+DETAIL:  Key (b)=(2) already exists.
+CONTEXT:  SQL statement "INSERT INTO public.gindex_test_b_idx6(b, cni_shardid, cni_table_oid, cni_ctid, cni_extra) select b, shardid, NULL, ctid, NULL from public.gindex_test"
+truncate gindex_test;
+create global unique index on gindex_test(b);
+insert into gindex_test values (1,2,3,4,5);
+insert into gindex_test values (1,2,3,4,5);
+ERROR:  duplicate key value violates unique constraint "gindex_test_b_idx6_b_idx"
+DETAIL:  Key (b)=(2) already exists.
+/* alter table */
+alter table gindex_test_c_idx drop COLUMN location;
+ERROR:  "gindex_test_c_idx" is not a table, composite type, or foreign table
+alter table gindex_test_c_idx add test varchar(10);
+ERROR:  "gindex_test_c_idx" is not a table, composite type, or foreign table
+alter table gindex_test add test varchar(10);
+alter table gindex_test alter column c TYPE text;
+ERROR:  unexpected object depending on column: relation gindex_test_c_idx
+alter table gindex_test alter column c set NOT NULL;
+alter table gindex_test alter column c set default 1000;
+alter table gindex_test drop column c;
+\d+ gindex_test_c_idx
+/* replicate table */
+create table t_rep (id int,mc text) distribute by replication to group default_group;
+create global index on t_rep(mc);
+ERROR:  global index does not support no shard table yet
+/* trigger */
+drop table if exists COMPANY,COMPANY1;
+NOTICE:  table "company" does not exist, skipping
+NOTICE:  table "company1" does not exist, skipping
+CREATE TABLE COMPANY(
+		ID INT PRIMARY KEY     NOT NULL,
+		NAME           TEXT    NOT NULL,
+		AGE            INT     NOT NULL,
+		ADDRESS        CHAR(50),
+		SALARY         REAL
+		) distribute by shard(ID);
+CREATE TABLE COMPANY1(
+		EMP_ID INT NOT NULL,
+		ENTRY_DATE TEXT NOT NULL
+		)distribute by shard(EMP_ID);;
+CREATE OR REPLACE FUNCTION auditlogfunc() RETURNS TRIGGER AS $example_table$
+BEGIN
+INSERT INTO COMPANY1(EMP_ID, ENTRY_DATE) VALUES (new.ID, current_timestamp);
+RETURN NEW;
+END;
+$example_table$ LANGUAGE plpgsql;
+CREATE TRIGGER example_trigger AFTER INSERT ON COMPANY FOR EACH ROW EXECUTE PROCEDURE auditlogfunc();
+create global index on COMPANY(NAME);
+drop trigger example_trigger on COMPANY;
+create global index on COMPANY(NAME);
+CREATE TRIGGER example_trigger AFTER INSERT ON COMPANY FOR EACH ROW EXECUTE PROCEDURE auditlogfunc();
+drop table COMPANY,COMPANY1;
+/* truncate */
+truncate gindex_test;
+truncate gindex_test_d_idx;
+ERROR:  truncate a global index table is forbidden, truncate a table is allowed
+/* vacuum */
+vacuum gindex_test;
+vacuum gindex_test_d_idx;
+/* vacuum full */
+vacuum full gindex_test;
+ERROR:  table "gindex_test" with global index can not vacuum full
+vacuum full gindex_test_d_idx;
+/* reindex */
+reindex table gindex_test_d_idx;
+ERROR:  "gindex_test_d_idx" is not a table or materialized view
+reindex index gindex_test_b_idx3_b_idx;
+reindex table gindex_test;
+create table gindex_col(a int,b int,c varchar(10),d varchar)with (orientation = column) distribute by shard(a);
+create global unique index on gindex_col(b); --fail
+ERROR:  global index does not support column table yet
+create table gindex_hash(a int,b int,c varchar(10),d varchar) distribute by hash(a);
+create global unique index on gindex_hash(b); --fail
+ERROR:  global index does not support no shard table yet
+/* drop table */
+drop table gindex_test_b_idx;
+ERROR:  "gindex_test_b_idx" is not a table
+HINT:  Use DROP INDEX to remove an global index.
+drop index gindex_test_b_idx;
+drop table gindex_test;
+drop table gindex_col;
+drop table gindex_hash;
+drop function auditlogfunc;
+drop table gindex_test_like3;
+drop table t_rep;

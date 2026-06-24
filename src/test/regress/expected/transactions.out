@@ -1,6 +1,25 @@
 --
 -- TRANSACTIONS
 --
+drop table if exists st_tbl2_7 CASCADE;
+NOTICE:  table "st_tbl2_7" does not exist, skipping
+create table st_tbl2_7(userid int,createdate timestamp default '2021-01-01', product text) distribute by shard(userid);
+start transaction;
+savepoint s1;
+drop table st_tbl2_7;
+create table st_tbl2_7(userid int,createdate timestamp default '2021-01-01', product text) distribute by shard(userid);
+insert into st_tbl2_7(userid,product) select t,'hello,world' from generate_series(1,200)as t;
+rollback;
+select count(1) from st_tbl2_7;
+ count 
+-------
+     0
+(1 row)
+
+-- no core
+begin;
+savepoint x;
+end;
 BEGIN;
 SELECT *
    INTO TABLE xacttest
@@ -130,9 +149,9 @@ SELECT * FROM writetest; -- ok
 
 DELETE FROM temptest; -- ok
 UPDATE temptest SET a = 0 FROM writetest WHERE temptest.a = 1 AND writetest.a = temptest.a; -- ok
-ERROR:  Distributed column or partition column "a" can't be updated in current version
+ERROR:  Distributed column "a" can't be updated in current version
 PREPARE test AS UPDATE writetest SET a = 0; -- ok
-ERROR:  Distributed column or partition column "a" can't be updated in current version
+ERROR:  Distributed column "a" can't be updated in current version
 EXECUTE test; -- fail
 ERROR:  prepared statement "test" does not exist
 SELECT * FROM writetest, temptest; -- ok
@@ -453,11 +472,11 @@ ERROR:  division by zero
 	ROLLBACK TO SAVEPOINT two;
 	-- c is now dead to the world ...
 		FETCH 10 FROM c;
-ERROR:  portal "c" cannot be run
+ERROR:  portal "c" cannot be run. 
 	ROLLBACK TO SAVEPOINT two;
 	RELEASE SAVEPOINT two;
 	FETCH 10 FROM c;
-ERROR:  portal "c" cannot be run
+ERROR:  portal "c" cannot be run. 
 COMMIT;
 --
 -- Check that "stable" functions are really stable.  They should not be
@@ -479,7 +498,7 @@ create or replace function max_xacttest() returns smallint language sql as
 'select max(a) from xacttest' stable;
 begin;
 update xacttest set a = max_xacttest() + 10 where a > 0;
-ERROR:  Distributed column or partition column "a" can't be updated in current version
+ERROR:  Distributed column "a" can't be updated in current version
 select * from xacttest order by a, b;
 ERROR:  current transaction is aborted, commands ignored until end of transaction block
 rollback;
@@ -488,7 +507,7 @@ create or replace function max_xacttest() returns smallint language sql as
 'select max(a) from xacttest' volatile;
 begin;
 update xacttest set a = max_xacttest() + 10 where a > 0;
-ERROR:  Distributed column or partition column "a" can't be updated in current version
+ERROR:  Distributed column "a" can't be updated in current version
 select * from xacttest order by a, b;
 ERROR:  current transaction is aborted, commands ignored until end of transaction block
 rollback;
@@ -497,7 +516,7 @@ create or replace function max_xacttest() returns smallint language plpgsql as
 'begin return max(a) from xacttest; end' stable;
 begin;
 update xacttest set a = max_xacttest() + 10 where a > 0;
-ERROR:  Distributed column or partition column "a" can't be updated in current version
+ERROR:  Distributed column "a" can't be updated in current version
 select * from xacttest order by a, b;
 ERROR:  current transaction is aborted, commands ignored until end of transaction block
 rollback;
@@ -505,7 +524,7 @@ create or replace function max_xacttest() returns smallint language plpgsql as
 'begin return max(a) from xacttest; end' volatile;
 begin;
 update xacttest set a = max_xacttest() + 10 where a > 0;
-ERROR:  Distributed column or partition column "a" can't be updated in current version
+ERROR:  Distributed column "a" can't be updated in current version
 select * from xacttest order by a, b;
 ERROR:  current transaction is aborted, commands ignored until end of transaction block
 rollback;
@@ -578,13 +597,11 @@ begin
   return 1::float8/$1;
 exception
   when division_by_zero then return 0;
-end$$ language plpgsql volatile;
+end$$ language plpgsql volatile pushdown;
+WARNING:  You are pushing function down to datanode for execution
+HINT:  Make sure it's not attempt to access any other datanode OR YOU MAY SUFFER DATA LOSE !!
 create table revalidate_bug (c float8 unique);
 insert into revalidate_bug values (1);
-insert into revalidate_bug values (inverse(0));
-ERROR:  DML contains a function runs on CN which is not supported
-HINT:  You might need to push that function down to DN.
-alter function inverse(int) pushdown;
 insert into revalidate_bug values (inverse(0));
 drop table revalidate_bug;
 drop function inverse(int);
@@ -639,6 +656,8 @@ abort;
 -- that was created in an outer subtransaction
 CREATE FUNCTION invert(x float8) RETURNS float8 pushdown LANGUAGE plpgsql AS
 $$ begin return 1/x; end $$;
+WARNING:  You are pushing function down to datanode for execution
+HINT:  Make sure it's not attempt to access any other datanode OR YOU MAY SUFFER DATA LOSE !!
 CREATE FUNCTION create_temp_tab() RETURNS text
 LANGUAGE plpgsql AS $$
 BEGIN
@@ -665,7 +684,7 @@ FETCH ok;  -- should work
 (1 row)
 
 FETCH ctt; -- error occurs here
-ERROR:  Failed to read from SQueue, CONSUMER_ERROR set, err_msg "division by zero",,
+ERROR:  division by zero
 CONTEXT:  SQL statement "INSERT INTO new_table SELECT invert(0.0)"
 PL/pgSQL function create_temp_tab() line 6 at SQL statement
 ROLLBACK TO s1;
@@ -676,10 +695,164 @@ FETCH ok;  -- should work
 (1 row)
 
 FETCH ctt; -- must be rejected
-ERROR:  portal "ctt" cannot be run
+ERROR:  portal "ctt" cannot be run. 
 COMMIT;
 DROP FUNCTION create_temp_tab();
 DROP FUNCTION invert(x float8);
+-- Test for distributed subtrans in secondary DNs
+begin;
+savepoint s;
+-- create tables in subtransaction
+create table t1_trans(f1 int,f2 int);
+create table t2_trans(f1 int,f2 int);
+create table t3_trans(f1 int,f2 int);
+insert into t1_trans values(1,1),(2,2);
+insert into t3_trans select * from t1_trans;
+insert into t2_trans(f2) select count(1) from t3_trans;
+select * from t2_trans;
+ f1 | f2 
+----+----
+    |  2
+(1 row)
+
+abort;
+begin;
+-- create tables in parent transaction
+create table t1_trans(f1 int,f2 int);
+create table t2_trans(f1 int,f2 int);
+create table t3_trans(f1 int,f2 int);
+savepoint s;
+insert into t1_trans values(1,1),(2,2);
+insert into t3_trans select * from t1_trans;
+insert into t2_trans(f2) select count(1) from t3_trans;
+select * from t2_trans;
+ f1 | f2 
+----+----
+    |  2
+(1 row)
+
+abort;
+-- create tables out of transaction
+create table t1_trans(f1 int,f2 int);
+create table t2_trans(f1 int,f2 int);
+create table t3_trans(f1 int,f2 int);
+insert into t1_trans values(1,1),(2,2);
+begin;
+savepoint s;
+insert into t3_trans select * from t1_trans;
+insert into t2_trans(f2) select count(1) from t3_trans;
+select * from t2_trans;
+ f1 | f2 
+----+----
+    |  2
+(1 row)
+
+abort;
+-- test for subtrans in parallel worker
+begin;
+savepoint s;
+set parallel_setup_cost=0;
+set parallel_tuple_cost=0;
+set min_parallel_table_scan_size=0;
+set max_parallel_workers_per_gather=2;
+insert into t3_trans select * from t1_trans;
+select count(*) from t3_trans join t1_trans using (f2);
+ count 
+-------
+     2
+(1 row)
+
+abort;
+drop table t1_trans, t2_trans, t3_trans;
+-- Test savepoint for ddl
+drop table if exists t_seq1;
+NOTICE:  table "t_seq1" does not exist, skipping
+create table t_seq1(v serial);
+drop table if exists t_seq2;
+NOTICE:  table "t_seq2" does not exist, skipping
+create table t_seq2(v serial);
+drop table if exists t_seq3;
+NOTICE:  table "t_seq3" does not exist, skipping
+create table t_seq3(v serial);
+begin;
+drop table t_seq1;
+savepoint s1;
+drop table t_seq2;
+savepoint s2;
+drop table t_seq3;
+rollback to s1;
+end;
+select relname from pg_class where relname like 't_seq%' order by 1;
+   relname    
+--------------
+ t_seq2
+ t_seq2_v_seq
+ t_seq3
+ t_seq3_v_seq
+(4 rows)
+
+drop table t_seq2;
+drop table t_seq3;
+begin;
+create table t_seq3(v serial);
+savepoint s1;
+create table t_seq4(v serial);
+savepoint s2;
+create table t_seq5(v serial);
+rollback to s1;
+end;
+select relname from pg_class where relname like 't_seq%' order by 1;
+   relname    
+--------------
+ t_seq3
+ t_seq3_v_seq
+(2 rows)
+
+drop table t_seq3;
+begin;
+create table t_seq6(v serial);
+alter sequence t_seq6_v_seq rename to t_seq6_v_seq_1;
+savepoint s1;
+alter sequence t_seq6_v_seq_1 rename to t_seq6_v_seq_2;
+savepoint s2;
+alter sequence t_seq6_v_seq_2 rename to t_seq6_v_seq_3;
+rollback to s1;
+end;
+select relname from pg_class where relname like 't_seq%' order by 1;
+    relname     
+----------------
+ t_seq6
+ t_seq6_v_seq_1
+(2 rows)
+
+drop table t_seq6;
+-- Test for global command id
+create table x(x1 int, x2 int);                                                           
+insert into x values(1, 2);    
+  
+begin;                                                                                  
+    declare cb cursor for select x1, x2 from x, pg_class;                                 
+    create temp table a_tamp(a int) on commit drop;                                       
+    fetch in cb;                                                                          
+ x1 | x2 
+----+----
+  1 |  2
+(1 row)
+
+    insert into a_tamp values(1);                                                         
+commit;
+begin;                                                                                  
+    declare cb cursor for select x1, x2 from x, pg_class;                                 
+    create temp table a_tamp(a int) on commit drop;                                       
+    fetch in cb;                                                                          
+ x1 | x2 
+----+----
+  1 |  2
+(1 row)
+
+    insert into a_tamp values(1);                                                         
+abort;
+drop table x;
 -- Test for successful cleanup of an aborted transaction at session exit.
 -- THIS MUST BE THE LAST TEST IN THIS FILE.
 begin;

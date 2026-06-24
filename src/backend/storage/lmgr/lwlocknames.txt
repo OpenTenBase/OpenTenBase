@@ -49,32 +49,41 @@ MultiXactTruncationLock				41
 OldSnapshotTimeMapLock				42
 BarrierLock							43
 NodeTableLock						44
-SQueuesLock							45
-ClusterMonitorLock					46
-BackendRandomLock					47
-LogicalRepWorkerLock				48
-CLogTruncationLock					49
+ClusterMonitorLock					45
+BackendRandomLock					46
+LogicalRepWorkerLock				47
+CLogTruncationLock					48
 #ifdef _MIGRATE_
-ShardMapLock						50
-ShardBarrierLock					51
+ShardMapLock						49
+ShardBarrierLock					50
 #endif
-NodeLockMgrLock                     52
-#ifdef __AUDIT__
-AlogQueueLock						53
-#endif
+NodeLockMgrLock                     51
 #ifdef __STORAGE_SCALABLE__
-PubStatLock                         54
-SubStatLock                         55
+PubStatLock                         52
+SubStatLock                         53
 #endif
-#ifdef __OPENTENBASE__
-DisconnectConsLock                  56
+#ifdef __OPENTENBASE_C__
+SharedCteHashLock                   54
 #endif
-#ifdef __COLD_HOT__
-ColdAccessLock                      57
-DualWriteLock                       58
+ErrorLogLock                        55
+#ifdef __OPENTENBASE_C__
+ColDirtyBufferLock                  56
 #endif
-#ifdef __OPENTENBASE__
-AnalyzeInfoLock                     59
-UserAuthLock						60
+NodeGroupLock                       57
+EstoreSiloIdCacheLock				59
+EstoreColumnOffsetCacheLock			60
 Clean2pcLock						61
-#endif
+ResGroupLock						62
+SessionStateLock					63
+FnSndBufferLock                     66
+TDECacheLock						67
+WorkFileManagerLock					68
+WrapLimitsVacuumLock				69
+NotifyQueueTailLock					70
+CSNLogControlLock					71
+CommitSeqNoLock		    			72
+McxtDumpHashLock					73
+FnMaintainLock                      74
+JobShmemLock						75
+SPMPlanIdHashTblLock				76
+SPMHistoryIdHashTblLock				77

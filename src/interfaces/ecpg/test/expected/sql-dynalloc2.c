@@ -18,10 +18,10 @@
 #define PGDLLIMPORT __declspec (dllimport)
 #else
 #define PGDLLIMPORT
-#endif                            /* __CYGWIN__ */
-#endif                            /* PGDLLIMPORT */
+#endif							/* __CYGWIN__ */
+#endif							/* PGDLLIMPORT */
 
-#define SQLERRMC_LEN    150
+#define SQLERRMC_LEN	150
 
 #ifdef __cplusplus
 extern "C"
@@ -30,39 +30,39 @@ extern "C"
 
 struct sqlca_t
 {
-    char        sqlcaid[8];
-    long        sqlabc;
-    long        sqlcode;
-    struct
-    {
-        int            sqlerrml;
-        char        sqlerrmc[SQLERRMC_LEN];
-    }            sqlerrm;
-    char        sqlerrp[8];
-    long        sqlerrd[6];
-    /* Element 0: empty                        */
-    /* 1: OID of processed tuple if applicable            */
-    /* 2: number of rows processed                */
-    /* after an INSERT, UPDATE or                */
-    /* DELETE statement                    */
-    /* 3: empty                        */
-    /* 4: empty                        */
-    /* 5: empty                        */
-    char        sqlwarn[8];
-    /* Element 0: set to 'W' if at least one other is 'W'    */
-    /* 1: if 'W' at least one character string        */
-    /* value was truncated when it was            */
-    /* stored into a host variable.             */
+	char		sqlcaid[8];
+	long		sqlabc;
+	long		sqlcode;
+	struct
+	{
+		int			sqlerrml;
+		char		sqlerrmc[SQLERRMC_LEN];
+	}			sqlerrm;
+	char		sqlerrp[8];
+	long		sqlerrd[6];
+	/* Element 0: empty						*/
+	/* 1: OID of processed tuple if applicable			*/
+	/* 2: number of rows processed				*/
+	/* after an INSERT, UPDATE or				*/
+	/* DELETE statement					*/
+	/* 3: empty						*/
+	/* 4: empty						*/
+	/* 5: empty						*/
+	char		sqlwarn[8];
+	/* Element 0: set to 'W' if at least one other is 'W'	*/
+	/* 1: if 'W' at least one character string		*/
+	/* value was truncated when it was			*/
+	/* stored into a host variable.             */
 
-    /*
-     * 2: if 'W' a (hopefully) non-fatal notice occurred
-     */    /* 3: empty */
-    /* 4: empty                        */
-    /* 5: empty                        */
-    /* 6: empty                        */
-    /* 7: empty                        */
+	/*
+	 * 2: if 'W' a (hopefully) non-fatal notice occurred
+	 */	/* 3: empty */
+	/* 4: empty						*/
+	/* 5: empty						*/
+	/* 6: empty						*/
+	/* 7: empty						*/
 
-    char        sqlstate[5];
+	char		sqlstate[5];
 };
 
 struct sqlca_t *ECPGget_sqlca(void);
@@ -188,8 +188,8 @@ if (sqlca.sqlcode < 0) sqlprint ( );
 #line 32 "dynalloc2.pgc"
 
    { ECPGdo(__LINE__, 0, 1, NULL, 0, ECPGst_normal, "select * from test", ECPGt_EOIT, 
-    ECPGt_descriptor, "mydesc", 1L, 1L, 1L, 
-    ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EORT);
+	ECPGt_descriptor, "mydesc", 1L, 1L, 1L, 
+	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EORT);
 #line 33 "dynalloc2.pgc"
 
 if (sqlca.sqlcode < 0) sqlprint ( );}
@@ -203,8 +203,8 @@ if (sqlca.sqlcode < 0) sqlprint ( );}
 #line 34 "dynalloc2.pgc"
 
    { ECPGget_desc(__LINE__, "mydesc", 1,ECPGd_indicator,
-    ECPGt_int,&(ipointer1),(long)1,(long)0,sizeof(int), ECPGd_data,
-    ECPGt_int,&(ip1),(long)1,(long)0,sizeof(int), ECPGd_EODT);
+	ECPGt_int,&(ipointer1),(long)1,(long)0,sizeof(int), ECPGd_data,
+	ECPGt_int,&(ip1),(long)1,(long)0,sizeof(int), ECPGd_EODT);
 
 #line 35 "dynalloc2.pgc"
 
@@ -212,8 +212,8 @@ if (sqlca.sqlcode < 0) sqlprint ( );}
 #line 35 "dynalloc2.pgc"
 
    { ECPGget_desc(__LINE__, "mydesc", 2,ECPGd_indicator,
-    ECPGt_int,&(ipointer2),(long)1,(long)0,sizeof(int), ECPGd_data,
-    ECPGt_char,&(cp2),(long)0,(long)0,(1)*sizeof(char), ECPGd_EODT);
+	ECPGt_int,&(ipointer2),(long)1,(long)0,sizeof(int), ECPGd_data,
+	ECPGt_char,&(cp2),(long)0,(long)0,(1)*sizeof(char), ECPGd_EODT);
 
 #line 36 "dynalloc2.pgc"
 

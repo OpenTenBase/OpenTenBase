@@ -25,22 +25,22 @@
 #ifndef HAVE_GETOPT_H
 
 extern char *optarg;
-extern int    optind;
-extern int    opterr;
-extern int    optopt;
+extern int	optind;
+extern int	opterr;
+extern int	optopt;
 
-#endif                            /* HAVE_GETOPT_H */
+#endif							/* HAVE_GETOPT_H */
 
 /*
  * Some platforms have optreset but fail to declare it in <getopt.h>, so cope.
  * Cygwin, however, doesn't like this either.
  */
 #if defined(HAVE_INT_OPTRESET) && !defined(__CYGWIN__)
-extern int    optreset;
+extern int	optreset;
 #endif
 
 #ifndef HAVE_GETOPT
-extern int    getopt(int nargc, char *const *nargv, const char *ostr);
+extern int	getopt(int nargc, char *const *nargv, const char *ostr);
 #endif
 
-#endif                            /* PG_GETOPT_H */
+#endif							/* PG_GETOPT_H */

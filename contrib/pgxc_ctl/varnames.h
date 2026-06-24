@@ -7,157 +7,160 @@
  *
  * Portions Copyright (c) 1996-2009, PostgreSQL Global Development Group
  * Portions Copyright (c) 2010-2013 Postgres-XC Development Group
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
+ *
  *-------------------------------------------------------------------------
  */
 #ifndef VARNAMES_H
 #define VARNAMES_H
 
 /* Install Directory */
-#define VAR_pgxcInstallDir    "pgxcInstallDir" /* Not mandatory */
+#define VAR_pgxcInstallDir	"pgxcInstallDir" /* Not mandatory */
 
 /* Overall */
-#define VAR_pgxcOwner        "pgxcOwner"
-#define VAR_pgxcUser        "pgxcUser"
+#define VAR_pgxcOwner		"pgxcOwner"
+#define VAR_pgxcUser		"pgxcUser"
 #define VAR_multiCluster    "multiCluster"
 #define VAR_pgxcMainClusterName "pgxcMainClusterName"
-#define VAR_tmpDir            "tmpDir"
-#define VAR_localTmpDir        "localTmpDir"
-#define VAR_logOpt            "logOpt"
-#define VAR_logDir            "logDir"
-#define VAR_configBackup    "configBackup"
-#define VAR_configBackupHost    "configBackupHost"
-#define VAR_configBackupDir    "configBackupDir"
-#define VAR_configBackupFile    "configBackupFile"
-#define VAR_allServers        "allServers"
+#define VAR_tmpDir			"tmpDir"
+#define VAR_localTmpDir		"localTmpDir"
+#define VAR_logOpt			"logOpt"
+#define VAR_logDir			"logDir"
+#define VAR_configBackup	"configBackup"
+#define VAR_configBackupHost	"configBackupHost"
+#define VAR_configBackupDir	"configBackupDir"
+#define VAR_configBackupFile	"configBackupFile"
+#define VAR_allServers		"allServers"
 
 
 /* GTM master */
-#define VAR_gtmName    "gtmName"
-#define VAR_gtmMasterServer    "gtmMasterServer"
-#define VAR_gtmMasterPort    "gtmMasterPort"
-#define VAR_gtmMasterDir    "gtmMasterDir"
-#define VAR_gtmExtraConfig    "gtmExtraConfig"
+#define VAR_gtmName	"gtmName"
+#define VAR_gtmMasterServer	"gtmMasterServer"
+#define VAR_gtmMasterPort	"gtmMasterPort"
+#define VAR_gtmMasterDir	"gtmMasterDir"
+#define VAR_gtmExtraConfig	"gtmExtraConfig"
 #define VAR_gtmMasterSpecificExtraConfig "gtmMasterSpecificExtraConfig"
 
 /* GTM slave */
-#define VAR_gtmSlave         "gtmSlave"
-#define VAR_gtmSlaveName    "gtmSlaveName"
-#define VAR_gtmSlaveServer    "gtmSlaveServer"
-#define VAR_gtmSlavePort    "gtmSlavePort"
-#define VAR_gtmSlaveDir        "gtmSlaveDir"
-#define VAR_gtmSlaveSpecificExtraConfig    "gtmSlaveSpecificExtraConfig"
+#define VAR_gtmSlave 		"gtmSlave"
+#define VAR_gtmSlaveName	"gtmSlaveName"
+#define VAR_gtmSlaveServer	"gtmSlaveServer"
+#define VAR_gtmSlavePort	"gtmSlavePort"
+#define VAR_gtmSlaveDir		"gtmSlaveDir"
+#define VAR_gtmSlaveSpecificExtraConfig	"gtmSlaveSpecificExtraConfig"
 
 /* GTM Proxy */
-#define VAR_gtmProxy        "gtmProxy"
-#define VAR_gtmProxyNames    "gtmProxyNames"
-#define VAR_gtmProxyServers    "gtmProxyServers"
-#define VAR_gtmProxyPorts    "gtmProxyPorts"
-#define VAR_gtmProxyDirs    "gtmProxyDirs"
-#define VAR_gtmPxyExtraConfig    "gtmPxyExtraConfig"
-#define VAR_gtmPxySpecificExtraConfig    "gtmPxySpecificExtraConfig"
+#define VAR_gtmProxy		"gtmProxy"
+#define VAR_gtmProxyNames	"gtmProxyNames"
+#define VAR_gtmProxyServers	"gtmProxyServers"
+#define VAR_gtmProxyPorts	"gtmProxyPorts"
+#define VAR_gtmProxyDirs	"gtmProxyDirs"
+#define VAR_gtmPxyExtraConfig	"gtmPxyExtraConfig"
+#define VAR_gtmPxySpecificExtraConfig	"gtmPxySpecificExtraConfig"
 
 /* Coordinators overall */
-#define VAR_coordNames        "coordNames"
-#define VAR_coordPorts        "coordPorts"
-#define VAR_poolerPorts        "poolerPorts"
-#define VAR_coordPgHbaEntries    "coordPgHbaEntries"
+#define VAR_coordNames		"coordNames"
+#define VAR_coordPorts		"coordPorts"
+#define VAR_coordForwardPorts		"coordForwardPorts"
+#define VAR_poolerPorts		"poolerPorts"
+#define VAR_coordPgHbaEntries	"coordPgHbaEntries"
 
 /* Coordinators master */
-#define VAR_coordMasterServers    "coordMasterServers"
-#define VAR_coordMasterDirs        "coordMasterDirs"
-#define VAR_coordMaxWALSenders    "coordMaxWALSenders"
-#define VAR_coordMasterCluster    "coordMasterCluster"
+#define VAR_coordMasterServers	"coordMasterServers"
+#define VAR_coordMasterDirs		"coordMasterDirs"
+#define VAR_coordMaxWALSenders	"coordMaxWALSenders"
+#define VAR_coordMasterCluster	"coordMasterCluster"
 
 
 /* Coordinators slave */
-#define VAR_coordSlave        "coordSlave"
-#define VAR_coordSlaveServers    "coordSlaveServers"
-#define VAR_coordSlavePorts    "coordSlavePorts"
-#define VAR_coordSlavePoolerPorts    "coordSlavePoolerPorts"
-#define VAR_coordSlaveSync    "coordSlaveSync"
-#define VAR_coordSlaveDirs    "coordSlaveDirs"
-#define VAR_coordArchLogDirs    "coordArchLogDirs"
-#define VAR_coordSlaveCluster    "coordSlaveCluster"
+#define VAR_coordSlave		"coordSlave"
+#define VAR_coordSlaveServers	"coordSlaveServers"
+#define VAR_coordSlavePorts	"coordSlavePorts"
+#define VAR_coordSlaveForwardPorts	"coordSlaveForwardPorts"
+#define VAR_coordSlavePoolerPorts	"coordSlavePoolerPorts"
+#define VAR_coordSlaveSync	"coordSlaveSync"
+#define VAR_coordSlaveDirs	"coordSlaveDirs"
+#define VAR_coordArchLogDirs	"coordArchLogDirs"
+#define VAR_coordSlaveCluster	"coordSlaveCluster"
 
 
 /* Coordinator configuration files */
-#define VAR_coordExtraConfig    "coordExtraConfig"
-#define VAR_coordSpecificExtraConfig    "coordSpecificExtraConfig"
-#define VAR_coordExtraPgHba        "coordExtraPgHba"
-#define VAR_coordSpecificExtraPgHba    "coordSpecificExtraPgHba"
+#define VAR_coordExtraConfig	"coordExtraConfig"
+#define VAR_coordSpecificExtraConfig	"coordSpecificExtraConfig"
+#define VAR_coordExtraPgHba		"coordExtraPgHba"
+#define VAR_coordSpecificExtraPgHba	"coordSpecificExtraPgHba"
 
 /* Coordinators additional slaves */
 /* Actual additional slave configuration will be obtained from coordAdditionalSlaveSet */
-#define VAR_coordAdditionalSlaves    "coordAdditionalSlaves"
-#define VAR_coordAdditionalSlaveSet    "coordAdditionalSlaveSet"
+#define VAR_coordAdditionalSlaves	"coordAdditionalSlaves"
+#define VAR_coordAdditionalSlaveSet	"coordAdditionalSlaveSet"
 
 
 /* Datanodes overall */
-#define VAR_coordAdditionalSlaveSet    "coordAdditionalSlaveSet"
-#define VAR_datanodeNames            "datanodeNames"
-#define VAR_datanodePorts            "datanodePorts"
-#define VAR_datanodePoolerPorts        "datanodePoolerPorts"
-#define VAR_datanodePgHbaEntries    "datanodePgHbaEntries"
-#define VAR_primaryDatanode            "primaryDatanode"
+#define VAR_coordAdditionalSlaveSet	"coordAdditionalSlaveSet"
+#define VAR_datanodeNames			"datanodeNames"
+#define VAR_datanodePorts			"datanodePorts"
+#define VAR_datanodeForwardPorts			"datanodeForwardPorts"
+#define VAR_datanodePoolerPorts		"datanodePoolerPorts"
+#define VAR_datanodePgHbaEntries	"datanodePgHbaEntries"
+#define VAR_primaryDatanode			"primaryDatanode"
 
 /* Datanode masters */
-#define VAR_datanodeMasterServers    "datanodeMasterServers"
-#define VAR_datanodeMasterDirs        "datanodeMasterDirs"
-#define VAR_datanodeMasterWALDirs        "datanodeMasterWALDirs"
-#define VAR_datanodeMaxWALSenders    "datanodeMaxWALSenders"
-#define VAR_datanodeMasterCluster    "datanodeMasterCluster"
+#define VAR_datanodeMasterServers	"datanodeMasterServers"
+#define VAR_datanodeMasterDirs		"datanodeMasterDirs"
+#define VAR_datanodeMasterWALDirs		"datanodeMasterWALDirs"
+#define VAR_datanodeMaxWALSenders	"datanodeMaxWALSenders"
+#define VAR_datanodeMasterCluster	"datanodeMasterCluster"
 
 
 /* Datanode slaves */
-#define VAR_datanodeSlave            "datanodeSlave"
-#define VAR_datanodeSlaveServers    "datanodeSlaveServers"
-#define VAR_datanodeSlavePorts        "datanodeSlavePorts"
-#define VAR_datanodeSlavePoolerPorts        "datanodeSlavePoolerPorts"
-#define VAR_datanodeSlaveSync        "datanodeSlaveSync"
-#define VAR_datanodeSlaveDirs        "datanodeSlaveDirs"
-#define VAR_datanodeSlaveWALDirs        "datanodeSlaveWALDirs"
-#define VAR_datanodeArchLogDirs        "datanodeArchLogDirs"
-#define VAR_datanodeSlaveCluster    "datanodeSlaveCluster"
+#define VAR_datanodeSlave			"datanodeSlave"
+#define VAR_datanodeSlaveServers	"datanodeSlaveServers"
+#define VAR_datanodeSlavePorts		"datanodeSlavePorts"
+#define VAR_datanodeSlaveForwardPorts		"datanodeSlaveForwardPorts"
+#define VAR_datanodeSlavePoolerPorts		"datanodeSlavePoolerPorts"
+#define VAR_datanodeSlaveSync		"datanodeSlaveSync"
+#define VAR_datanodeSlaveDirs		"datanodeSlaveDirs"
+#define VAR_datanodeSlaveWALDirs		"datanodeSlaveWALDirs"
+#define VAR_datanodeArchLogDirs		"datanodeArchLogDirs"
+#define VAR_datanodeSlaveCluster	"datanodeSlaveCluster"
 
 
 /* Datanode configuration files */
-#define VAR_datanodeExtraConfig        "datanodeExtraConfig"
-#define VAR_datanodeSpecificExtraConfig    "datanodeSpecificExtraConfig"
-#define VAR_datanodeExtraPgHba        "datanodeExtraPgHba"
-#define VAR_datanodeSpecificExtraPgHba    "datanodeSpecificExtraPgHba"
+#define VAR_datanodeExtraConfig		"datanodeExtraConfig"
+#define VAR_datanodeSpecificExtraConfig	"datanodeSpecificExtraConfig"
+#define VAR_datanodeExtraPgHba		"datanodeExtraPgHba"
+#define VAR_datanodeSpecificExtraPgHba	"datanodeSpecificExtraPgHba"
 
 /* Datanode additional slaves */
 /* Actual additional slave configuration will be obtained from datanodeAdditionalSlaveSet */
-#define VAR_datanodeAdditionalSlaves    "datanodeAdditionalSlaves"
-#define VAR_datanodeAdditionalSlaveSet    "datanodeAdditionalSlaveSet"
+#define VAR_datanodeAdditionalSlaves	"datanodeAdditionalSlaves"
+#define VAR_datanodeAdditionalSlaveSet	"datanodeAdditionalSlaveSet"
 
 /* WAL Archives */
 /* Actual wal archive will be obtained from walArchiveSet */
-#define VAR_walArchive        "walArchive"
-#define VAR_walArchiveSet    "walArchiveSet"
+#define VAR_walArchive		"walArchive"
+#define VAR_walArchiveSet	"walArchiveSet"
 
 /* Connection to datanode/coordinator */
 
-#define VAR_pgxcCtlName        "pgxcCtlName"
-#define VAR_defaultDatabase    "defaultDatabase"
+#define VAR_pgxcCtlName		"pgxcCtlName"
+#define VAR_defaultDatabase	"defaultDatabase"
 
 /* Other Options */
 
-#define VAR_pgxc_ctl_home    "pgxc_ctl_home"
-#define VAR_xc_prompt        "xc_prompt"
-#define VAR_verbose            "verbose"
-#define VAR_logDir            "logDir"
-#define VAR_logFile            "logFile"
-#define VAR_tmpDir            "tmpDir"
-#define VAR_localTmpDir        "localTmpDir"
-#define VAR_configFile        "configFile"
-#define VAR_echoAll            "echoAll"
-#define VAR_debug            "debug"
-#define VAR_logMessage        "logMessage"
-#define VAR_printMessage    "printMessage"    
-#define VAR_logLocation        "logLocation"
-#define VAR_printLocation    "printLocation"
+#define VAR_pgxc_ctl_home	"pgxc_ctl_home"
+#define VAR_xc_prompt		"xc_prompt"
+#define VAR_verbose			"verbose"
+#define VAR_logDir			"logDir"
+#define VAR_logFile			"logFile"
+#define VAR_tmpDir			"tmpDir"
+#define VAR_localTmpDir		"localTmpDir"
+#define VAR_configFile		"configFile"
+#define VAR_echoAll			"echoAll"
+#define VAR_debug			"debug"
+#define VAR_logMessage		"logMessage"
+#define VAR_printMessage	"printMessage"	
+#define VAR_logLocation		"logLocation"
+#define VAR_printLocation	"printLocation"
 
 #endif /* VARNAMES_H */

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * tablefunc.h
- *                interface for TableFunc executor node
+ *				interface for TableFunc executor node
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -51,17 +51,17 @@ struct TableFuncScanState;
  */
 typedef struct TableFuncRoutine
 {
-    void        (*InitOpaque) (struct TableFuncScanState *state, int natts);
-    void        (*SetDocument) (struct TableFuncScanState *state, Datum value);
-    void        (*SetNamespace) (struct TableFuncScanState *state, char *name,
-                                 char *uri);
-    void        (*SetRowFilter) (struct TableFuncScanState *state, char *path);
-    void        (*SetColumnFilter) (struct TableFuncScanState *state,
-                                    char *path, int colnum);
-    bool        (*FetchRow) (struct TableFuncScanState *state);
-    Datum        (*GetValue) (struct TableFuncScanState *state, int colnum,
-                             Oid typid, int32 typmod, bool *isnull);
-    void        (*DestroyOpaque) (struct TableFuncScanState *state);
+	void		(*InitOpaque) (struct TableFuncScanState *state, int natts);
+	void		(*SetDocument) (struct TableFuncScanState *state, Datum value);
+	void		(*SetNamespace) (struct TableFuncScanState *state, char *name,
+								 char *uri);
+	void		(*SetRowFilter) (struct TableFuncScanState *state, char *path);
+	void		(*SetColumnFilter) (struct TableFuncScanState *state,
+									char *path, int colnum);
+	bool		(*FetchRow) (struct TableFuncScanState *state);
+	Datum		(*GetValue) (struct TableFuncScanState *state, int colnum,
+							 Oid typid, int32 typmod, bool *isnull);
+	void		(*DestroyOpaque) (struct TableFuncScanState *state);
 } TableFuncRoutine;
 
-#endif                            /* _TABLEFUNC_H */
+#endif							/* _TABLEFUNC_H */

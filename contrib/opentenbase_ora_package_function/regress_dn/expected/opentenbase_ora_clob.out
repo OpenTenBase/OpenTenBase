@@ -1,0 +1,95 @@
+\c opentenbase_ora_package_function_regression_ora
+\set ECHO none
+--
+-- test empty_clob() function
+--
+select empty_clob() is null;
+ ?column? 
+----------
+ f
+(1 row)
+
+drop table if exists empty_clob_table;
+NOTICE:  table "EMPTY_CLOB_TABLE" does not exist, skipping
+create table empty_clob_table (id int, col clob not null);
+insert into empty_clob_table values(1, null::clob);
+ERROR:  null value in column "COL" violates not-null constraint
+DETAIL:  Failing row contains (1, null).
+insert into empty_clob_table values(2, ''::clob);
+ERROR:  null value in column "COL" violates not-null constraint
+DETAIL:  Failing row contains (2, null).
+insert into empty_clob_table values(3, empty_clob());
+select * from empty_clob_table;
+ ID | COL 
+----+-----
+  3 | 
+(1 row)
+
+drop table empty_clob_table;
+select empty_clob() is null;
+ ?column? 
+----------
+ f
+(1 row)
+
+create table empty_clob_table (id int, col clob not null);
+insert into empty_clob_table values(1, null::clob);
+ERROR:  null value in column "COL" violates not-null constraint
+DETAIL:  Failing row contains (1, null).
+insert into empty_clob_table values(2, ''::clob);
+ERROR:  null value in column "COL" violates not-null constraint
+DETAIL:  Failing row contains (2, null).
+insert into empty_clob_table values(3, empty_clob());
+select * from empty_clob_table;
+ ID | COL 
+----+-----
+  3 | 
+(1 row)
+
+drop table empty_clob_table;
+-- test nclob
+create table nct(a int, b nclob);
+insert into nct values(1, 'nclob value');
+select * from nct;
+ A |      B      
+---+-------------
+ 1 | nclob value
+(1 row)
+
+drop table nct;
+select to_nclob(1);
+ TO_NCLOB 
+----------
+ 1
+(1 row)
+
+select to_nclob('2');
+ TO_NCLOB 
+----------
+ 2
+(1 row)
+
+select to_nclob('2'::nclob);
+ TO_NCLOB 
+----------
+ 2
+(1 row)
+
+select to_nclob(2.1);
+ TO_NCLOB 
+----------
+ 2.1
+(1 row)
+
+-- test nclob array
+create table nct(v int, b nclob[]);
+insert into nct values(1, ARRAY [ 'text1', 'test2' ] );
+insert into nct values(1, '{ "test3", "test4" }');
+select * from nct;
+ V |       B       
+---+---------------
+ 1 | {text1,test2}
+ 1 | {test3,test4}
+(2 rows)
+
+drop table nct;

@@ -13,6 +13,28 @@
 PGFILEDESC = "pg_regress - test driver"
 PGAPPICON = win32
 
+EXTRA_INSTALL+=contrib/postgres_fdw
+EXTRA_INSTALL+=contrib/opentenbase_ora_package_function
+# install the contrib for make check
+EXTRA_INSTALL+=contrib/opentenbase_subscription
+EXTRA_INSTALL+=contrib/pageinspect
+EXTRA_INSTALL+=contrib/uuid-ossp
+EXTRA_INSTALL+=contrib/dblink
+EXTRA_INSTALL+=contrib/file_fdw
+
+contrib_check_dir+=contrib/opentenbase_subscription
+contrib_check_dir+=contrib/pageinspect
+contrib_check_dir+=contrib/uuid-ossp
+# Select dblink function in a DML of distribute mode will be failed
+contrib_check_dir+=contrib/dblink
+# Don't support file_fdw foreign table inherited from or as a partition of a common table
+contrib_check_dir+=contrib/file_fdw
+contrib_check_dir+=src/backend/contrib/pgcrypto
+
+contrib_check_dir+=contrib/opentenbase_ora_package_function
+contrib_check_dir+=contrib/pg_plan_ads
+
+
 subdir = src/test/regress
 top_builddir = ../../..
 include $(top_builddir)/src/Makefile.global
@@ -80,6 +102,8 @@ regress_data_files = \
 	$(wildcard $(srcdir)/input/*.source) \
 	$(wildcard $(srcdir)/output/*.source) \
 	$(filter-out $(addprefix $(srcdir)/,$(input_files)),$(wildcard $(srcdir)/sql/*.sql)) \
+	$(shell find $(srcdir)/sql2 -name "*.sql") \
+	$(shell find $(srcdir)/expected_opensource -name "*.out") \
 	$(wildcard $(srcdir)/data/*.data) \
 	$(srcdir)/parallel_schedule $(srcdir)/serial_schedule $(srcdir)/resultmap
 
@@ -127,7 +151,8 @@ tablespace-setup:
 REGRESS_OPTS = --dlpath=. $(EXTRA_REGRESS_OPTS)
 
 check: all tablespace-setup
-	$(pg_regress_check) $(REGRESS_OPTS) --schedule=$(srcdir)/parallel_schedule $(MAXCONNOPT) $(EXTRA_TESTS)
+	-$(pg_regress_check) $(REGRESS_OPTS) --user=root --temp-instance=./tmp_check_single --outputdir=./single_cn_dn --single-cn-dn --schedule=$(srcdir)/parallel_schedule_single_cndn --temp-config=$(srcdir)/make_check_postgresql.conf $(MAXCONNOPT) $(EXTRA_TESTS)
+	$(pg_regress_check) $(REGRESS_OPTS) --user=root --schedule=$(srcdir)/parallel_schedule --temp-config=$(srcdir)/make_check_postgresql.conf $(MAXCONNOPT) $(EXTRA_TESTS)
 
 check-tests: all tablespace-setup
 	$(pg_regress_check) $(REGRESS_OPTS) $(MAXCONNOPT) $(TESTS) $(EXTRA_TESTS)
@@ -143,6 +168,16 @@ installcheck-tests: all tablespace-setup
 
 standbycheck: all
 	$(pg_regress_installcheck) $(REGRESS_OPTS) --schedule=$(srcdir)/standby_schedule --use-existing
+
+contribcheck:
+	@for dir in $(contrib_check_dir); do \
+		$(MAKE) -C $(top_builddir)/$$dir check USE_MODULE_DB=1; \
+	done
+
+contribinstallcheck:
+	@for dir in $(contrib_check_dir); do \
+		$(MAKE) -C $(top_builddir)/$$dir installcheck USE_MODULE_DB=1; \
+	done
 
 # old interfaces follow...
 

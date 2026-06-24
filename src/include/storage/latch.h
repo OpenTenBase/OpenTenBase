@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * latch.h
- *      Routines for interprocess latches
+ *	  Routines for interprocess latches
  *
  * A latch is a boolean variable, with operations that let processes sleep
  * until it is set. A latch can be set from another process, or a signal
@@ -29,9 +29,9 @@
  *
  * There are three basic operations on a latch:
  *
- * SetLatch        - Sets the latch
- * ResetLatch    - Clears the latch, allowing it to be set again
- * WaitLatch    - Waits for the latch to become set
+ * SetLatch		- Sets the latch
+ * ResetLatch	- Clears the latch, allowing it to be set again
+ * WaitLatch	- Waits for the latch to become set
  *
  * WaitLatch includes a provision for timeouts (which should be avoided
  * when possible, as they incur extra overhead) and a provision for
@@ -42,10 +42,10 @@
  *
  * for (;;)
  * {
- *       ResetLatch();
- *       if (work to do)
- *           Do Stuff();
- *       WaitLatch();
+ *	   ResetLatch();
+ *	   if (work to do)
+ *		   Do Stuff();
+ *	   WaitLatch();
  * }
  *
  * It's important to reset the latch *before* checking if there's work to
@@ -56,10 +56,10 @@
  *
  * for (;;)
  * {
- *       if (work to do)
- *           Do Stuff(); // in particular, exit loop if some condition satisfied
- *       WaitLatch();
- *       ResetLatch();
+ *	   if (work to do)
+ *		   Do Stuff(); // in particular, exit loop if some condition satisfied
+ *	   WaitLatch();
+ *	   ResetLatch();
  * }
  *
  * This is useful to reduce latch traffic if it's expected that the loop's
@@ -109,11 +109,11 @@
  */
 typedef struct Latch
 {
-    sig_atomic_t is_set;
-    bool        is_shared;
-    int            owner_pid;
+	sig_atomic_t is_set;
+	bool		is_shared;
+	int			owner_pid;
 #ifdef WIN32
-    HANDLE        event;
+	HANDLE		event;
 #endif
 } Latch;
 
@@ -121,20 +121,20 @@ typedef struct Latch
  * Bitmasks for events that may wake-up WaitLatch(), WaitLatchOrSocket(), or
  * WaitEventSetWait().
  */
-#define WL_LATCH_SET         (1 << 0)
-#define WL_SOCKET_READABLE     (1 << 1)
+#define WL_LATCH_SET		 (1 << 0)
+#define WL_SOCKET_READABLE	 (1 << 1)
 #define WL_SOCKET_WRITEABLE  (1 << 2)
-#define WL_TIMEOUT             (1 << 3)    /* not for WaitEventSetWait() */
+#define WL_TIMEOUT			 (1 << 3)	/* not for WaitEventSetWait() */
 #define WL_POSTMASTER_DEATH  (1 << 4)
 
 typedef struct WaitEvent
 {
-    int            pos;            /* position in the event data structure */
-    uint32        events;            /* triggered events */
-    pgsocket    fd;                /* socket fd associated with event */
-    void       *user_data;        /* pointer provided in AddWaitEventToSet */
+	int			pos;			/* position in the event data structure */
+	uint32		events;			/* triggered events */
+	pgsocket	fd;				/* socket fd associated with event */
+	void	   *user_data;		/* pointer provided in AddWaitEventToSet */
 #ifdef WIN32
-    bool        reset;            /* Is reset of the event required? */
+	bool		reset;			/* Is reset of the event required? */
 #endif
 } WaitEvent;
 
@@ -153,19 +153,17 @@ extern void SetLatch(volatile Latch *latch);
 extern void ResetLatch(volatile Latch *latch);
 
 extern WaitEventSet *CreateWaitEventSet(MemoryContext context, int nevents);
-extern void FreeWaitEventSet(WaitEventSet *set);
 extern int AddWaitEventToSet(WaitEventSet *set, uint32 events, pgsocket fd,
-                  Latch *latch, void *user_data);
+				  Latch *latch, void *user_data);
 extern void ModifyWaitEvent(WaitEventSet *set, int pos, uint32 events, Latch *latch);
 
 extern int WaitEventSetWait(WaitEventSet *set, long timeout,
-                 WaitEvent *occurred_events, int nevents,
-                 uint32 wait_event_info);
+				 WaitEvent *occurred_events, int nevents,
+				 uint32 wait_event_info);
 extern int WaitLatch(volatile Latch *latch, int wakeEvents, long timeout,
-          uint32 wait_event_info);
+		  uint32 wait_event_info);
 extern int WaitLatchOrSocket(volatile Latch *latch, int wakeEvents,
-                  pgsocket sock, long timeout, uint32 wait_event_info);
-
+				  pgsocket sock, long timeout, uint32 wait_event_info);
 /*
  * Unix implementation uses SIGUSR1 for inter-process signaling.
  * Win32 doesn't need this.
@@ -176,4 +174,4 @@ extern void latch_sigusr1_handler(void);
 #define latch_sigusr1_handler()  ((void) 0)
 #endif
 
-#endif                            /* LATCH_H */
+#endif							/* LATCH_H */

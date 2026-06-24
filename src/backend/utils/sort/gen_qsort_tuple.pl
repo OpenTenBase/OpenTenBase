@@ -162,7 +162,8 @@ qsort_$SUFFIX(SortTuple *a, size_t n$EXTRAARGS)
 
 loop:
 	CHECK_FOR_INTERRUPTS();
-	if (n < 7)
+	/* 16 will be effective under htap scene, for stack will be shallower*/
+	if (n < 16)
 	{
 		for (pm = a + 1; pm < a + n; pm++)
 			for (pl = pm; pl > a && cmp_$SUFFIX(pl - 1, pl$CMPPARAMS) > 0; pl--)
@@ -182,7 +183,7 @@ loop:
 	if (presorted)
 		return;
 	pm = a + (n / 2);
-	if (n > 7)
+	if (n > 16)
 	{
 		pl = a;
 		pn = a + (n - 1);

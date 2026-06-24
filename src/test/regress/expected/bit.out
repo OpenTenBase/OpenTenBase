@@ -524,6 +524,7 @@ SELECT set_bit(B'0101011000100100', 15, 1);
 
 SELECT set_bit(B'0101011000100100', 16, 1);	-- fail
 ERROR:  bit index 16 out of valid range (0..15)
+HINT:   while processing column set_bit
 -- Overlay
 SELECT overlay(B'0101011100' placing '001' from 2 for 3);
   overlay   

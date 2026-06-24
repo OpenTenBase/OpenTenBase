@@ -1,5 +1,0 @@
-# opentenbase_pooler_stat extension
-comment = 'pooler statistics'
-default_version = '1.0'
-module_pathname = '$libdir/opentenbase_pooler_stat'
-relocatable = true

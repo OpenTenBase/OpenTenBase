@@ -15262,7 +15262,7 @@ msgstr "path absolut tidak diijinkan"
 msgid "path must be in or below the current directory"
 msgstr "path harus didalam atau dibawah direktori saat ini"
 
-#: utils/adt/genfile.c:118 utils/adt/oracle_compat.c:184 utils/adt/oracle_compat.c:282 utils/adt/oracle_compat.c:758 utils/adt/oracle_compat.c:1048
+#: utils/adt/genfile.c:118 utils/adt/opentenbase_ora_compat.c:184 utils/adt/opentenbase_ora_compat.c:282 utils/adt/opentenbase_ora_compat.c:758 utils/adt/opentenbase_ora_compat.c:1048
 #, c-format
 msgid "requested length too large"
 msgstr "panjang yang diminta terlalu besar"
@@ -15943,17 +15943,17 @@ msgstr "nilai « %s » di luar jangkauan tipe oid"
 msgid "invalid oidvector data"
 msgstr "data oidvector tidak valid"
 
-#: utils/adt/oracle_compat.c:895
+#: utils/adt/opentenbase_ora_compat.c:895
 #, c-format
 msgid "requested character too large"
 msgstr "karakter yang diminta terlalu besar"
 
-#: utils/adt/oracle_compat.c:941 utils/adt/oracle_compat.c:995
+#: utils/adt/opentenbase_ora_compat.c:941 utils/adt/opentenbase_ora_compat.c:995
 #, c-format
 msgid "requested character too large for encoding: %d"
 msgstr "karakter yang diminta terlalu besar untuk encoding: %d"
 
-#: utils/adt/oracle_compat.c:988
+#: utils/adt/opentenbase_ora_compat.c:988
 #, c-format
 msgid "null character not permitted"
 msgstr "karakter NULL tidak diperbolehkan"

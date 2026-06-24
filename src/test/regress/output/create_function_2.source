@@ -66,7 +66,9 @@ CREATE FUNCTION interpt_pp(path, path)
 CREATE FUNCTION reverse_name(name)
    RETURNS name
    AS '@libdir@/regress@DLSUFFIX@'
-   LANGUAGE C STRICT;
+   LANGUAGE C STRICT pushdown;
+WARNING:  You are pushing function down to datanode for execution
+HINT:  Make sure it's not attempt to access any other datanode OR YOU MAY SUFFER DATA LOSE !!
 --
 -- Function dynamic loading
 --

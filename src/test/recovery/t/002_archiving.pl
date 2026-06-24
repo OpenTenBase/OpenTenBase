@@ -7,10 +7,17 @@ use Test::More tests => 1;
 use File::Copy;
 
 # Initialize master node, doing archives
-my $node_master = get_new_node('master');
+my $node_master = get_new_node('master', 'datanode');
+# There is no gtm in centralized mode, so it doesn’t matter what 
+# the master gtm IP and port are 
 $node_master->init(
 	has_archiving    => 1,
-	allows_streaming => 1);
+	allows_streaming => 1,
+        extra => ['--master_gtm_nodename', 'no_gtm',
+                  '--master_gtm_ip', '127.0.0.1',
+                  '--master_gtm_port', '25001']);
+$node_master->append_conf('postgresql.conf', "allow_dml_on_datanode = on");
+$node_master->append_conf('postgresql.conf', "is_centralized_mode = on");
 my $backup_name = 'my_backup';
 
 # Start it
@@ -20,7 +27,7 @@ $node_master->start;
 $node_master->backup($backup_name);
 
 # Initialize standby node from backup, fetching WAL from archives
-my $node_standby = get_new_node('standby');
+my $node_standby = get_new_node('standby', 'datanode');
 $node_standby->init_from_backup($node_master, $backup_name,
 	has_restoring => 1);
 $node_standby->append_conf('postgresql.conf',

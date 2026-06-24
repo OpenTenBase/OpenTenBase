@@ -1,6 +1,8 @@
 --
 -- AGGREGATES
 --
+-- avoid bit-exact output here because operations may not be bit-exact.
+SET extra_float_digits = 0;
 SELECT avg(four) AS avg_1 FROM onek;
        avg_1        
 --------------------
@@ -76,9 +78,9 @@ SELECT max(student.gpa) AS max_3_7 FROM student;
 (1 row)
 
 SELECT stddev_pop(b) FROM aggtest;
-    stddev_pop    
-------------------
- 131.107032318951
+   stddev_pop    
+-----------------
+ 131.10703231895
 (1 row)
 
 SELECT stddev_samp(b) FROM aggtest;
@@ -90,13 +92,13 @@ SELECT stddev_samp(b) FROM aggtest;
 SELECT var_pop(b) FROM aggtest;
      var_pop      
 ------------------
- 17189.0539234824
+ 17189.0539234823
 (1 row)
 
 SELECT var_samp(b) FROM aggtest;
      var_samp     
 ------------------
- 22918.7385646432
+ 22918.7385646431
 (1 row)
 
 SELECT stddev_pop(b::numeric) FROM aggtest;
@@ -214,13 +216,13 @@ SELECT regr_sxx(b, a) FROM aggtest;
 SELECT regr_syy(b, a) FROM aggtest;
      regr_syy     
 ------------------
- 68756.2156939297
+ 68756.2156939293
 (1 row)
 
 SELECT regr_sxy(b, a) FROM aggtest;
      regr_sxy     
 ------------------
- 2614.51582155001
+ 2614.51582155004
 (1 row)
 
 SELECT regr_avgx(b, a), regr_avgy(b, a) FROM aggtest;
@@ -232,25 +234,25 @@ SELECT regr_avgx(b, a), regr_avgy(b, a) FROM aggtest;
 SELECT regr_r2(b, a) FROM aggtest;
       regr_r2       
 --------------------
- 0.0194977982031797
+ 0.0194977982031803
 (1 row)
 
 SELECT regr_slope(b, a), regr_intercept(b, a) FROM aggtest;
     regr_slope     |  regr_intercept  
 -------------------+------------------
- 0.512750700441265 | 82.5619926012313
+ 0.512750700441271 | 82.5619926012309
 (1 row)
 
 SELECT covar_pop(b, a), covar_samp(b, a) FROM aggtest;
-    covar_pop     |    covar_samp    
-------------------+------------------
- 653.628955387502 | 871.505273850003
+    covar_pop    |    covar_samp    
+-----------------+------------------
+ 653.62895538751 | 871.505273850014
 (1 row)
 
 SELECT corr(b, a) FROM aggtest;
        corr        
 -------------------
- 0.139634516517871
+ 0.139634516517873
 (1 row)
 
 SELECT count(four) AS cnt_1000 FROM onek;
@@ -592,11 +594,12 @@ explain (costs off, nodes off)
  Result
    InitPlan 1 (returns $0)
      ->  Limit
-           ->  Remote Subquery Scan on all
+           ->  Remote Subquery Scan on all (datanodes 2)
+                 Sort Key: tenk1.unique1
                  ->  Limit
                        ->  Index Only Scan using tenk1_unique1 on tenk1
                              Index Cond: (unique1 IS NOT NULL)
-(7 rows)
+(8 rows)
 
 select min(unique1) from tenk1;
  min 
@@ -611,11 +614,12 @@ explain (costs off, nodes off)
  Result
    InitPlan 1 (returns $0)
      ->  Limit
-           ->  Remote Subquery Scan on all
+           ->  Remote Subquery Scan on all (datanodes 2)
+                 Sort Key: tenk1.unique1 DESC
                  ->  Limit
                        ->  Index Only Scan Backward using tenk1_unique1 on tenk1
                              Index Cond: (unique1 IS NOT NULL)
-(7 rows)
+(8 rows)
 
 select max(unique1) from tenk1;
  max  
@@ -630,11 +634,12 @@ explain (costs off, nodes off)
  Result
    InitPlan 1 (returns $0)
      ->  Limit
-           ->  Remote Subquery Scan on all
+           ->  Remote Subquery Scan on all (datanodes 2)
+                 Sort Key: tenk1.unique1 DESC
                  ->  Limit
                        ->  Index Only Scan Backward using tenk1_unique1 on tenk1
                              Index Cond: ((unique1 IS NOT NULL) AND (unique1 < 42))
-(7 rows)
+(8 rows)
 
 select max(unique1) from tenk1 where unique1 < 42;
  max 
@@ -649,11 +654,12 @@ explain (costs off, nodes off)
  Result
    InitPlan 1 (returns $0)
      ->  Limit
-           ->  Remote Subquery Scan on all
+           ->  Remote Subquery Scan on all (datanodes 2)
+                 Sort Key: tenk1.unique1 DESC
                  ->  Limit
                        ->  Index Only Scan Backward using tenk1_unique1 on tenk1
                              Index Cond: ((unique1 IS NOT NULL) AND (unique1 > 42))
-(7 rows)
+(8 rows)
 
 select max(unique1) from tenk1 where unique1 > 42;
  max  
@@ -674,11 +680,12 @@ explain (costs off)
  Result
    InitPlan 1 (returns $0)
      ->  Limit
-           ->  Remote Subquery Scan on all (datanode_1,datanode_2)
+           ->  Remote Subquery Scan on all (datanodes 2)
+                 Sort Key: tenk1.unique1 DESC
                  ->  Limit
                        ->  Index Only Scan Backward using tenk1_unique1 on tenk1
                              Index Cond: ((unique1 IS NOT NULL) AND (unique1 > 42000))
-(7 rows)
+(8 rows)
 
 select max(unique1) from tenk1 where unique1 > 42000;
  max 
@@ -695,11 +702,12 @@ explain (costs off, nodes off)
  Result
    InitPlan 1 (returns $0)
      ->  Limit
-           ->  Remote Subquery Scan on all
+           ->  Remote Subquery Scan on all (datanodes 2)
+                 Sort Key: tenk1.tenthous DESC
                  ->  Limit
                        ->  Index Only Scan Backward using tenk1_thous_tenthous on tenk1
                              Index Cond: ((thousand = 33) AND (tenthous IS NOT NULL))
-(7 rows)
+(8 rows)
 
 select max(tenthous) from tenk1 where thousand = 33;
  max  
@@ -714,11 +722,12 @@ explain (costs off, nodes off)
  Result
    InitPlan 1 (returns $0)
      ->  Limit
-           ->  Remote Subquery Scan on all
+           ->  Remote Subquery Scan on all (datanodes 2)
+                 Sort Key: tenk1.tenthous
                  ->  Limit
                        ->  Index Only Scan using tenk1_thous_tenthous on tenk1
                              Index Cond: ((thousand = 33) AND (tenthous IS NOT NULL))
-(7 rows)
+(8 rows)
 
 select min(tenthous) from tenk1 where thousand = 33;
  min 
@@ -732,17 +741,19 @@ explain (costs off, nodes off)
     from int4_tbl;
                                                 QUERY PLAN                                                 
 -----------------------------------------------------------------------------------------------------------
- Remote Subquery Scan on all
+ Remote Subquery Scan on all (datanodes 1)
+   Params Evaluated: $1
    ->  Seq Scan on int4_tbl
          SubPlan 2
            ->  Result
                  InitPlan 1 (returns $1)
                    ->  Limit
-                         ->  Remote Subquery Scan on all
+                         ->  Remote Subquery Scan on all (datanodes 2)
+                               Sort Key: tenk1.unique1
                                ->  Limit
                                      ->  Index Only Scan using tenk1_unique1 on tenk1
                                            Index Cond: ((unique1 IS NOT NULL) AND (unique1 > int4_tbl.f1))
-(10 rows)
+(12 rows)
 
 select f1, (select min(unique1) from tenk1 where unique1 > f1) AS gt
 from int4_tbl 
@@ -765,12 +776,13 @@ explain (costs off, nodes off)
    Group Key: $0
    InitPlan 1 (returns $0)
      ->  Limit
-           ->  Remote Subquery Scan on all
+           ->  Remote Subquery Scan on all (datanodes 2)
+                 Sort Key: tenk1.unique2 DESC
                  ->  Limit
                        ->  Index Only Scan Backward using tenk1_unique2 on tenk1
                              Index Cond: (unique2 IS NOT NULL)
    ->  Result
-(9 rows)
+(10 rows)
 
 select distinct max(unique2) from tenk1;
  max  
@@ -786,12 +798,13 @@ explain (costs off, nodes off)
    Sort Key: ($0)
    InitPlan 1 (returns $0)
      ->  Limit
-           ->  Remote Subquery Scan on all
+           ->  Remote Subquery Scan on all (datanodes 2)
+                 Sort Key: tenk1.unique2 DESC
                  ->  Limit
                        ->  Index Only Scan Backward using tenk1_unique2 on tenk1
                              Index Cond: (unique2 IS NOT NULL)
    ->  Result
-(9 rows)
+(10 rows)
 
 select max(unique2) from tenk1 order by 1;
  max  
@@ -807,12 +820,13 @@ explain (costs off, nodes off)
    Sort Key: ($0)
    InitPlan 1 (returns $0)
      ->  Limit
-           ->  Remote Subquery Scan on all
+           ->  Remote Subquery Scan on all (datanodes 2)
+                 Sort Key: tenk1.unique2 DESC
                  ->  Limit
                        ->  Index Only Scan Backward using tenk1_unique2 on tenk1
                              Index Cond: (unique2 IS NOT NULL)
    ->  Result
-(9 rows)
+(10 rows)
 
 select max(unique2) from tenk1 order by max(unique2);
  max  
@@ -828,12 +842,13 @@ explain (costs off, nodes off)
    Sort Key: (($0 + 1))
    InitPlan 1 (returns $0)
      ->  Limit
-           ->  Remote Subquery Scan on all
+           ->  Remote Subquery Scan on all (datanodes 2)
+                 Sort Key: tenk1.unique2 DESC
                  ->  Limit
                        ->  Index Only Scan Backward using tenk1_unique2 on tenk1
                              Index Cond: (unique2 IS NOT NULL)
    ->  Result
-(9 rows)
+(10 rows)
 
 select max(unique2) from tenk1 order by max(unique2)+1;
  max  
@@ -849,13 +864,14 @@ explain (costs off, nodes off)
    Sort Key: (generate_series(1, 3)) DESC
    InitPlan 1 (returns $0)
      ->  Limit
-           ->  Remote Subquery Scan on all
+           ->  Remote Subquery Scan on all (datanodes 2)
+                 Sort Key: tenk1.unique2 DESC
                  ->  Limit
                        ->  Index Only Scan Backward using tenk1_unique2 on tenk1
                              Index Cond: (unique2 IS NOT NULL)
    ->  ProjectSet
          ->  Result
-(10 rows)
+(11 rows)
 
 select max(unique2), generate_series(1,3) as g from tenk1 order by g desc;
  max  | g 
@@ -868,12 +884,12 @@ select max(unique2), generate_series(1,3) as g from tenk1 order by g desc;
 -- interesting corner case: constant gets optimized into a seqscan
 explain (costs off)
   select max(100) from tenk1;
-                            QUERY PLAN                             
--------------------------------------------------------------------
+                           QUERY PLAN                           
+----------------------------------------------------------------
  Result
    InitPlan 1 (returns $0)
      ->  Limit
-           ->  Remote Subquery Scan on all (datanode_1,datanode_2)
+           ->  Remote Subquery Scan on all (datanodes 2)
                  ->  Limit
                        ->  Result
                              One-Time Filter: (100 IS NOT NULL)
@@ -901,17 +917,38 @@ insert into minmaxtest2 values(15), (16);
 insert into minmaxtest3 values(17), (18);
 explain (costs off, nodes off)
   select min(f1), max(f1) from minmaxtest;
-                   QUERY PLAN                    
--------------------------------------------------
- Finalize Aggregate
-   ->  Remote Subquery Scan on all
-         ->  Partial Aggregate
-               ->  Append
-                     ->  Seq Scan on minmaxtest
-                     ->  Seq Scan on minmaxtest1
-                     ->  Seq Scan on minmaxtest2
-                     ->  Seq Scan on minmaxtest3
-(8 rows)
+                                                QUERY PLAN                                                
+----------------------------------------------------------------------------------------------------------
+ Result
+   InitPlan 1 (returns $0)
+     ->  Limit
+           ->  Remote Subquery Scan on all (datanodes 2)
+                 Sort Key: minmaxtest.f1
+                 ->  Limit
+                       ->  Merge Append
+                             Sort Key: minmaxtest.f1
+                             ->  Index Only Scan using minmaxtesti on minmaxtest
+                                   Index Cond: (f1 IS NOT NULL)
+                             ->  Index Only Scan using minmaxtest1i on minmaxtest1
+                                   Index Cond: (f1 IS NOT NULL)
+                             ->  Index Only Scan Backward using minmaxtest2i on minmaxtest2
+                                   Index Cond: (f1 IS NOT NULL)
+                             ->  Index Only Scan using minmaxtest3i on minmaxtest3
+   InitPlan 2 (returns $1)
+     ->  Limit
+           ->  Remote Subquery Scan on all (datanodes 2)
+                 Sort Key: minmaxtest_1.f1 DESC
+                 ->  Limit
+                       ->  Merge Append
+                             Sort Key: minmaxtest_1.f1 DESC
+                             ->  Index Only Scan Backward using minmaxtesti on minmaxtest minmaxtest_1
+                                   Index Cond: (f1 IS NOT NULL)
+                             ->  Index Only Scan Backward using minmaxtest1i on minmaxtest1 minmaxtest1_1
+                                   Index Cond: (f1 IS NOT NULL)
+                             ->  Index Only Scan using minmaxtest2i on minmaxtest2 minmaxtest2_1
+                                   Index Cond: (f1 IS NOT NULL)
+                             ->  Index Only Scan Backward using minmaxtest3i on minmaxtest3 minmaxtest3_1
+(29 rows)
 
 select min(f1), max(f1) from minmaxtest;
  min | max 
@@ -922,20 +959,41 @@ select min(f1), max(f1) from minmaxtest;
 -- DISTINCT doesn't do anything useful here, but it shouldn't fail
 explain (costs off)
   select distinct min(f1), max(f1) from minmaxtest;
-                              QUERY PLAN                               
------------------------------------------------------------------------
+                                                QUERY PLAN                                                
+----------------------------------------------------------------------------------------------------------
  Unique
+   InitPlan 1 (returns $0)
+     ->  Limit
+           ->  Remote Subquery Scan on all (datanodes 2)
+                 Sort Key: minmaxtest.f1
+                 ->  Limit
+                       ->  Merge Append
+                             Sort Key: minmaxtest.f1
+                             ->  Index Only Scan using minmaxtesti on minmaxtest
+                                   Index Cond: (f1 IS NOT NULL)
+                             ->  Index Only Scan using minmaxtest1i on minmaxtest1
+                                   Index Cond: (f1 IS NOT NULL)
+                             ->  Index Only Scan Backward using minmaxtest2i on minmaxtest2
+                                   Index Cond: (f1 IS NOT NULL)
+                             ->  Index Only Scan using minmaxtest3i on minmaxtest3
+   InitPlan 2 (returns $1)
+     ->  Limit
+           ->  Remote Subquery Scan on all (datanodes 2)
+                 Sort Key: minmaxtest_1.f1 DESC
+                 ->  Limit
+                       ->  Merge Append
+                             Sort Key: minmaxtest_1.f1 DESC
+                             ->  Index Only Scan Backward using minmaxtesti on minmaxtest minmaxtest_1
+                                   Index Cond: (f1 IS NOT NULL)
+                             ->  Index Only Scan Backward using minmaxtest1i on minmaxtest1 minmaxtest1_1
+                                   Index Cond: (f1 IS NOT NULL)
+                             ->  Index Only Scan using minmaxtest2i on minmaxtest2 minmaxtest2_1
+                                   Index Cond: (f1 IS NOT NULL)
+                             ->  Index Only Scan Backward using minmaxtest3i on minmaxtest3 minmaxtest3_1
    ->  Sort
-         Sort Key: (min(f1)), (max(f1))
-         ->  Finalize Aggregate
-               ->  Remote Subquery Scan on all (datanode_1,datanode_2)
-                     ->  Partial Aggregate
-                           ->  Append
-                                 ->  Seq Scan on minmaxtest
-                                 ->  Seq Scan on minmaxtest1
-                                 ->  Seq Scan on minmaxtest2
-                                 ->  Seq Scan on minmaxtest3
-(11 rows)
+         Sort Key: ($0), ($1)
+         ->  Result
+(32 rows)
 
 select distinct min(f1), max(f1) from minmaxtest;
  min | max 
@@ -957,6 +1015,12 @@ select (select max(min(unique1)) from int8_tbl) from tenk1;
 ERROR:  aggregate function calls cannot be nested
 LINE 1: select (select max(min(unique1)) from int8_tbl) from tenk1;
                            ^
+select avg((select avg(a1.col1 order by (select avg(a2.col2) from tenk1 a3))
+            from tenk1 a1(col1)))
+from tenk1 a2(col2);
+ERROR:  aggregate function calls cannot be nested
+LINE 1: select avg((select avg(a1.col1 order by (select avg(a2.col2)...
+                                                        ^
 --
 -- Test removal of redundant GROUP BY columns
 --
@@ -989,39 +1053,35 @@ explain (costs off) select a,c from t1 group by a,c,d;
 explain (costs off) select *
 from t1 inner join t2 on t1.a = t2.x and t1.b = t2.y
 group by t1.a,t1.b,t1.c,t1.d,t2.x,t2.y,t2.z;
-                            QUERY PLAN                            
-------------------------------------------------------------------
+                         QUERY PLAN                         
+------------------------------------------------------------
  Remote Fast Query Execution
    Node/s: datanode_1, datanode_2
-   ->  Group
+   ->  HashAggregate
          Group Key: t1.a, t1.b, t2.x, t2.y
-         ->  Sort
-               Sort Key: t1.a, t1.b
-               ->  Hash Join
-                     Hash Cond: ((t2.x = t1.a) AND (t2.y = t1.b))
-                     ->  Seq Scan on t2
-                     ->  Hash
-                           ->  Seq Scan on t1
-(11 rows)
+         ->  Hash Join
+               Hash Cond: ((t2.x = t1.a) AND (t2.y = t1.b))
+               ->  Seq Scan on t2
+               ->  Hash
+                     ->  Seq Scan on t1
+(9 rows)
 
 -- Test case where t1 can be optimized but not t2
 explain (costs off) select t1.*,t2.x,t2.z
 from t1 inner join t2 on t1.a = t2.x and t1.b = t2.y
 group by t1.a,t1.b,t1.c,t1.d,t2.x,t2.z;
-                            QUERY PLAN                            
-------------------------------------------------------------------
+                         QUERY PLAN                         
+------------------------------------------------------------
  Remote Fast Query Execution
    Node/s: datanode_1, datanode_2
-   ->  Group
+   ->  HashAggregate
          Group Key: t1.a, t1.b, t2.x, t2.z
-         ->  Sort
-               Sort Key: t1.a, t1.b, t2.z
-               ->  Hash Join
-                     Hash Cond: ((t2.x = t1.a) AND (t2.y = t1.b))
-                     ->  Seq Scan on t2
-                     ->  Hash
-                           ->  Seq Scan on t1
-(11 rows)
+         ->  Hash Join
+               Hash Cond: ((t2.x = t1.a) AND (t2.y = t1.b))
+               ->  Seq Scan on t2
+               ->  Hash
+                     ->  Seq Scan on t1
+(9 rows)
 
 -- Cannot optimize when PK is deferrable
 explain (costs off) select * from t3 group by a,b,c;
@@ -1364,7 +1424,7 @@ select string_agg(distinct f1::text, ',' order by f1::text) from varchar_tbl;  -
 (1 row)
 
 -- string_agg bytea tests
-create table bytea_test_table(v bytea);
+create table bytea_test_table(v bytea) distribute by replication;
 select string_agg(v, '') from bytea_test_table;
  string_agg 
 ------------
@@ -1403,6 +1463,12 @@ select min(unique1) filter (where unique1 > 100) from tenk1;
  min 
 -----
  101
+(1 row)
+
+select sum(1/ten) filter (where ten > 0) from tenk1;
+ sum  
+------
+ 1000
 (1 row)
 
 select ten, sum(distinct four) filter (where four::text ~ '123') from onek a
@@ -1494,6 +1560,36 @@ select aggfns(distinct a,b,c order by a,c using ~<~,b) filter (where a > 1)
  {"(2,2,bar)","(3,1,baz)"}
 (1 row)
 
+-- check handling of bare boolean Var in FILTER
+select max(0) filter (where b1) from bool_test;
+ max 
+-----
+   0
+(1 row)
+
+select (select max(0) filter (where b1)) from bool_test;
+ max 
+-----
+   0
+(1 row)
+
+-- check for correct detection of nested-aggregate errors in FILTER
+select max(unique1) filter (where sum(ten) > 0) from tenk1;
+ERROR:  aggregate functions are not allowed in FILTER
+LINE 1: select max(unique1) filter (where sum(ten) > 0) from tenk1;
+                                          ^
+select (select max(unique1) filter (where sum(ten) > 0) from int8_tbl) from tenk1;
+ERROR:  aggregate function calls cannot be nested
+LINE 1: select (select max(unique1) filter (where sum(ten) > 0) from...
+                                                  ^
+select max(unique1) filter (where bool_or(ten > 0)) from tenk1;
+ERROR:  aggregate functions are not allowed in FILTER
+LINE 1: select max(unique1) filter (where bool_or(ten > 0)) from ten...
+                                          ^
+select (select max(unique1) filter (where bool_or(ten > 0)) from int8_tbl) from tenk1;
+ERROR:  aggregate function calls cannot be nested
+LINE 1: select (select max(unique1) filter (where bool_or(ten > 0)) ...
+                                                  ^
 -- ordered-set aggregates
 select p, percentile_cont(p) within group (order by x::float8)
 from generate_series(1,5) x,
@@ -1912,6 +2008,35 @@ select my_avg(one),my_sum(two) from (values(1,2),(3,4)) t(one,two);
       2 |      6
 (1 row)
 
+-- exercise cases where OSAs share state
+select
+  percentile_cont(0.5) within group (order by a),
+  percentile_disc(0.5) within group (order by a)
+from (values(1::float8),(3),(5),(7)) t(a);
+ percentile_cont | percentile_disc 
+-----------------+-----------------
+               4 |               3
+(1 row)
+
+select
+  percentile_cont(0.25) within group (order by a),
+  percentile_disc(0.5) within group (order by a)
+from (values(1::float8),(3),(5),(7)) t(a);
+ percentile_cont | percentile_disc 
+-----------------+-----------------
+             2.5 |               3
+(1 row)
+
+-- these can't share state currently
+select
+  rank(4) within group (order by a),
+  dense_rank(4) within group (order by a)
+from (values(1),(3),(5),(7)) t(a);
+ rank | dense_rank 
+------+------------
+    3 |          3
+(1 row)
+
 -- test that aggs with the same sfunc and initcond share the same agg state
 create aggregate my_sum_init(int4)
 (
@@ -2000,6 +2125,80 @@ select my_sum(one),my_half_sum(one) from (values(1),(2),(3),(4)) t(one);
 (1 row)
 
 rollback;
+-- test that the aggregate transition logic correctly handles
+-- transition / combine functions returning NULL
+-- First test the case of a normal transition function returning NULL
+BEGIN;
+CREATE FUNCTION balkifnull(int8, int4)
+RETURNS int8
+STRICT
+LANGUAGE plpgsql AS $$
+BEGIN
+    IF $1 IS NULL THEN
+       RAISE 'erroneously called with NULL argument';
+    END IF;
+    RETURN NULL;
+END$$;
+CREATE AGGREGATE balk(int4)
+(
+    SFUNC = balkifnull(int8, int4),
+    STYPE = int8,
+    PARALLEL = SAFE,
+    INITCOND = '0'
+);
+SELECT balk(hundred) FROM tenk1;
+ balk 
+------
+     
+(1 row)
+
+ROLLBACK;
+-- Secondly test the case of a parallel aggregate combiner function
+-- returning NULL. For that use normal transition function, but a
+-- combiner function returning NULL.
+BEGIN ISOLATION LEVEL REPEATABLE READ;
+CREATE FUNCTION balkifnull(int8, int8)
+RETURNS int8
+PARALLEL SAFE
+STRICT
+LANGUAGE plpgsql AS $$
+BEGIN
+    IF $1 IS NULL THEN
+       RAISE 'erroneously called with NULL argument';
+    END IF;
+    RETURN NULL;
+END$$;
+CREATE AGGREGATE balk(int4)
+(
+    SFUNC = int4_sum(int8, int4),
+    STYPE = int8,
+    COMBINEFUNC = balkifnull(int8, int8),
+    PARALLEL = SAFE,
+    INITCOND = '0'
+);
+-- force use of parallelism
+set enable_indexonlyscan to off;
+ALTER TABLE tenk1 set (parallel_workers = 4);
+SET LOCAL parallel_setup_cost=0;
+SET LOCAL max_parallel_workers_per_gather=4;
+EXPLAIN (COSTS OFF) SELECT balk(hundred) FROM tenk1;
+                   QUERY PLAN                    
+-------------------------------------------------
+ Finalize Aggregate
+   ->  Remote Subquery Scan on all (datanodes 2)
+         Workers Planned: 4
+         ->  Partial Aggregate
+               ->  Parallel Seq Scan on tenk1
+(5 rows)
+
+SELECT balk(hundred) FROM tenk1;
+ balk 
+------
+     
+(1 row)
+
+ROLLBACK;
+reset enable_indexonlyscan;
 -- test coverage for aggregate combine/serial/deserial functions
 BEGIN ISOLATION LEVEL REPEATABLE READ;
 SET parallel_setup_cost = 0;
@@ -2011,15 +2210,14 @@ SET enable_indexonlyscan = off;
 -- sum(int8) covers int8_avg_combine
 EXPLAIN (COSTS OFF)
   SELECT variance(unique1::int4), sum(unique1::int8) FROM tenk1;
-                             QUERY PLAN                             
---------------------------------------------------------------------
- Parallel Finalize Aggregate
-   ->  Parallel Remote Subquery Scan on all (datanode_1,datanode_2)
-         ->  Gather
-               Workers Planned: 4
-               ->  Partial Aggregate
-                     ->  Parallel Seq Scan on tenk1
-(6 rows)
+                   QUERY PLAN                    
+-------------------------------------------------
+ Finalize Aggregate
+   ->  Remote Subquery Scan on all (datanodes 2)
+         Workers Planned: 4
+         ->  Partial Aggregate
+               ->  Parallel Seq Scan on tenk1
+(5 rows)
 
 SELECT variance(unique1::int4), sum(unique1::int8) FROM tenk1;
        variance       |   sum    
@@ -2028,3 +2226,279 @@ SELECT variance(unique1::int4), sum(unique1::int8) FROM tenk1;
 (1 row)
 
 ROLLBACK;
+-- test coverage for dense_rank
+SELECT dense_rank(x) WITHIN GROUP (ORDER BY x) FROM (VALUES (1),(1),(2),(2),(3),(3)) v(x) GROUP BY (x) ORDER BY 1;
+ dense_rank 
+------------
+          1
+          1
+          1
+(3 rows)
+
+-- Ensure that the STRICT checks for aggregates does not take NULLness
+-- of ORDER BY columns into account. See bug report around
+-- 2a505161-2727-2473-7c46-591ed108ac52@email.cz
+SELECT min(x ORDER BY y) FROM (VALUES(1, NULL)) AS d(x,y);
+ min 
+-----
+   1
+(1 row)
+
+SELECT min(x ORDER BY y) FROM (VALUES(1, 2)) AS d(x,y);
+ min 
+-----
+   1
+(1 row)
+
+-- check collation-sensitive matching between grouping expressions
+select v||'a', case v||'a' when 'aa' then 1 else 0 end, count(*)
+  from unnest(array['a','b']) u(v)
+ group by v||'a' order by 1;
+ ?column? | case | count 
+----------+------+-------
+ aa       |    1 |     1
+ ba       |    0 |     1
+(2 rows)
+
+select v||'a', case when v||'a' = 'aa' then 1 else 0 end, count(*)
+  from unnest(array['a','b']) u(v)
+ group by v||'a' order by 1;
+ ?column? | case | count 
+----------+------+-------
+ aa       |    1 |     1
+ ba       |    0 |     1
+(2 rows)
+
+-- Make sure that generation of HashAggregate for uniqification purposes
+-- does not lead to array overflow due to unexpected duplicate hash keys
+-- see CAFeeJoKKu0u+A_A9R9316djW-YW3-+Gtgvy3ju655qRHR3jtdA@mail.gmail.com
+explain (costs off)
+  select 1 from tenk1
+   where (hundred, thousand) in (select twothousand, twothousand from onek);
+                         QUERY PLAN                          
+-------------------------------------------------------------
+ Remote Subquery Scan on all (datanodes 2)
+   ->  Hash Semi Join
+         Hash Cond: (tenk1.hundred = onek.twothousand)
+         ->  Remote Subquery Scan on all (datanodes 2)
+               Distribute results by S: hundred
+               ->  Seq Scan on tenk1
+                     Filter: (hundred = thousand)
+         ->  Hash
+               ->  Remote Subquery Scan on all (datanodes 2)
+                     Distribute results by S: twothousand
+                     ->  Seq Scan on onek
+(11 rows)
+
+--
+-- Hash Aggregation Spill tests
+--
+set enable_sort=false;
+set work_mem='64kB';
+select unique1, count(*), sum(twothousand) from tenk1
+group by unique1
+having sum(fivethous) > 4975
+order by sum(twothousand);
+ unique1 | count | sum  
+---------+-------+------
+    4976 |     1 |  976
+    4977 |     1 |  977
+    4978 |     1 |  978
+    4979 |     1 |  979
+    4980 |     1 |  980
+    4981 |     1 |  981
+    4982 |     1 |  982
+    4983 |     1 |  983
+    4984 |     1 |  984
+    4985 |     1 |  985
+    4986 |     1 |  986
+    4987 |     1 |  987
+    4988 |     1 |  988
+    4989 |     1 |  989
+    4990 |     1 |  990
+    4991 |     1 |  991
+    4992 |     1 |  992
+    4993 |     1 |  993
+    4994 |     1 |  994
+    4995 |     1 |  995
+    4996 |     1 |  996
+    4997 |     1 |  997
+    4998 |     1 |  998
+    4999 |     1 |  999
+    9976 |     1 | 1976
+    9977 |     1 | 1977
+    9978 |     1 | 1978
+    9979 |     1 | 1979
+    9980 |     1 | 1980
+    9981 |     1 | 1981
+    9982 |     1 | 1982
+    9983 |     1 | 1983
+    9984 |     1 | 1984
+    9985 |     1 | 1985
+    9986 |     1 | 1986
+    9987 |     1 | 1987
+    9988 |     1 | 1988
+    9989 |     1 | 1989
+    9990 |     1 | 1990
+    9991 |     1 | 1991
+    9992 |     1 | 1992
+    9993 |     1 | 1993
+    9994 |     1 | 1994
+    9995 |     1 | 1995
+    9996 |     1 | 1996
+    9997 |     1 | 1997
+    9998 |     1 | 1998
+    9999 |     1 | 1999
+(48 rows)
+
+set work_mem to default;
+set enable_sort to default;
+--
+-- Compare results between plans using sorting and plans using hash
+-- aggregation. Force spilling in both cases by setting work_mem low.
+--
+set work_mem='64kB';
+create table agg_data_2k distribute by replication as
+select g from generate_series(0, 1999) g;
+analyze agg_data_2k;
+create table agg_data_20k distribute by replication as
+select g from generate_series(0, 19999) g;
+analyze agg_data_20k;
+-- Produce results with sorting.
+set enable_hashagg = false;
+set jit_above_cost = 0;
+explain (costs off)
+select g%10000 as c1, sum(g::numeric) as c2, count(*) as c3
+  from agg_data_20k group by g%10000;
+                           QUERY PLAN                            
+-----------------------------------------------------------------
+ Remote Fast Query Execution
+   Node/s: datanode_1
+   ->  Finalize GroupAggregate
+         Group Key: ((g % 10000))
+         ->  Gather Merge
+               Workers Planned: 4
+               ->  Partial GroupAggregate
+                     Group Key: ((g % 10000))
+                     ->  Sort
+                           Sort Key: ((g % 10000))
+                           ->  Parallel Seq Scan on agg_data_20k
+(11 rows)
+
+create table agg_group_1 as
+select g%10000 as c1, sum(g::numeric) as c2, count(*) as c3
+  from agg_data_20k group by g%10000;
+create table agg_group_2 as
+select * from
+  (values (100), (300), (500)) as r(a),
+  lateral (
+    select (g/2)::numeric as c1,
+           array_agg(g::numeric) as c2,
+	   count(*) as c3
+    from agg_data_2k
+    where g < r.a
+    group by g/2) as s;
+set jit_above_cost to default;
+create table agg_group_3 as
+select (g/2)::numeric as c1, sum(7::int4) as c2, count(*) as c3
+  from agg_data_2k group by g/2;
+create table agg_group_4 as
+select (g/2)::numeric as c1, array_agg(g::numeric) as c2, count(*) as c3
+  from agg_data_2k group by g/2;
+-- Produce results with hash aggregation
+set enable_hashagg = true;
+set enable_sort = false;
+set jit_above_cost = 0;
+explain (costs off)
+select g%10000 as c1, sum(g::numeric) as c2, count(*) as c3
+  from agg_data_20k group by g%10000;
+                        QUERY PLAN                         
+-----------------------------------------------------------
+ Remote Fast Query Execution
+   Node/s: datanode_1
+   ->  Finalize HashAggregate
+         Group Key: ((g % 10000))
+         ->  Gather
+               Workers Planned: 4
+               ->  Partial HashAggregate
+                     Group Key: (g % 10000)
+                     ->  Parallel Seq Scan on agg_data_20k
+(9 rows)
+
+create table agg_hash_1 as
+select g%10000 as c1, sum(g::numeric) as c2, count(*) as c3
+  from agg_data_20k group by g%10000;
+create table agg_hash_2 as
+select * from
+  (values (100), (300), (500)) as r(a),
+  lateral (
+    select (g/2)::numeric as c1,
+           array_agg(g::numeric) as c2,
+	   count(*) as c3
+    from agg_data_2k
+    where g < r.a
+    group by g/2) as s;
+set jit_above_cost to default;
+create table agg_hash_3 as
+select (g/2)::numeric as c1, sum(7::int4) as c2, count(*) as c3
+  from agg_data_2k group by g/2;
+create table agg_hash_4 as
+select (g/2)::numeric as c1, array_agg(g::numeric) as c2, count(*) as c3
+  from agg_data_2k group by g/2;
+set enable_sort = true;
+set work_mem to default;
+-- Compare group aggregation results to hash aggregation results
+(select * from agg_hash_1 except select * from agg_group_1)
+  union all
+(select * from agg_group_1 except select * from agg_hash_1);
+ c1 | c2 | c3 
+----+----+----
+(0 rows)
+
+(select * from agg_hash_2 except select * from agg_group_2)
+  union all
+(select * from agg_group_2 except select * from agg_hash_2);
+ a | c1 | c2 | c3 
+---+----+----+----
+(0 rows)
+
+(select * from agg_hash_3 except select * from agg_group_3)
+  union all
+(select * from agg_group_3 except select * from agg_hash_3);
+ c1 | c2 | c3 
+----+----+----
+(0 rows)
+
+(select * from agg_hash_4 except select * from agg_group_4)
+  union all
+(select * from agg_group_4 except select * from agg_hash_4);
+ c1 | c2 | c3 
+----+----+----
+(0 rows)
+
+drop table agg_group_1;
+drop table agg_group_2;
+drop table agg_group_3;
+drop table agg_group_4;
+drop table agg_hash_1;
+drop table agg_hash_2;
+drop table agg_hash_3;
+drop table agg_hash_4;
+--OPENTENBASE
+-- Distinct test
+create table distinct_test(a int, b int);
+insert into distinct_test select i, i from generate_series(1,10) i;
+explain (verbose, costs off) select '1' person, count(distinct b) cnt from distinct_test;
+                          QUERY PLAN                          
+--------------------------------------------------------------
+ Finalize Aggregate
+   Output: '1'::text, count(DISTINCT_H b)
+   ->  Remote Subquery Scan[1] on all (datanode_1,datanode_2)
+         Output: (PARTIAL count(DISTINCT_H b))
+         ->  Partial Aggregate
+               Output: PARTIAL count(DISTINCT_H b)
+               ->  Seq Scan on public.distinct_test
+                     Output: a, b
+(8 rows)
+
+drop table distinct_test;

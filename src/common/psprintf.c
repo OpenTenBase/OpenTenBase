@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * psprintf.c
- *        sprintf into an allocated-on-demand buffer
+ *		sprintf into an allocated-on-demand buffer
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -9,7 +9,7 @@
  *
  *
  * IDENTIFICATION
- *      src/common/psprintf.c
+ *	  src/common/psprintf.c
  *
  *-------------------------------------------------------------------------
  */
@@ -25,7 +25,7 @@
 #include "postgres_fe.h"
 
 /* It's possible we could use a different value for this in frontend code */
-#define MaxAllocSize    ((Size) 0x3fffffff) /* 1 gigabyte - 1 */
+#define MaxAllocSize	((Size) 0x3fffffff) /* 1 gigabyte - 1 */
 
 #endif
 
@@ -45,32 +45,32 @@
 char *
 psprintf(const char *fmt,...)
 {
-    size_t        len = 128;        /* initial assumption about buffer size */
+	size_t		len = 128;		/* initial assumption about buffer size */
 
-    for (;;)
-    {
-        char       *result;
-        va_list        args;
-        size_t        newlen;
+	for (;;)
+	{
+		char	   *result;
+		va_list		args;
+		size_t		newlen;
 
-        /*
-         * Allocate result buffer.  Note that in frontend this maps to malloc
-         * with exit-on-error.
-         */
-        result = (char *) palloc(len);
+		/*
+		 * Allocate result buffer.  Note that in frontend this maps to malloc
+		 * with exit-on-error.
+		 */
+		result = (char *) palloc(len);
 
-        /* Try to format the data. */
-        va_start(args, fmt);
-        newlen = pvsnprintf(result, len, fmt, args);
-        va_end(args);
+		/* Try to format the data. */
+		va_start(args, fmt);
+		newlen = pvsnprintf(result, len, fmt, args);
+		va_end(args);
 
-        if (newlen < len)
-            return result;        /* success */
+		if (newlen < len)
+			return result;		/* success */
 
-        /* Release buffer and loop around to try again with larger len. */
-        pfree(result);
-        len = newlen;
-    }
+		/* Release buffer and loop around to try again with larger len. */
+		pfree(result);
+		len = newlen;
+	}
 }
 
 /*
@@ -102,89 +102,89 @@ psprintf(const char *fmt,...)
  */
 size_t
 pvsnprintf(char *buf, size_t len, const char *fmt, va_list args)
-{// #lizard forgives
-    int            nprinted;
+{
+	int			nprinted;
 
-    Assert(len > 0);
+	Assert(len > 0);
 
-    errno = 0;
+	errno = 0;
 
-    /*
-     * Assert check here is to catch buggy vsnprintf that overruns the
-     * specified buffer length.  Solaris 7 in 64-bit mode is an example of a
-     * platform with such a bug.
-     */
+	/*
+	 * Assert check here is to catch buggy vsnprintf that overruns the
+	 * specified buffer length.  Solaris 7 in 64-bit mode is an example of a
+	 * platform with such a bug.
+	 */
 #ifdef USE_ASSERT_CHECKING
-    buf[len - 1] = '\0';
+	buf[len - 1] = '\0';
 #endif
 
-    nprinted = vsnprintf(buf, len, fmt, args);
+	nprinted = vsnprintf(buf, len, fmt, args);
 
-    Assert(buf[len - 1] == '\0');
+	Assert(buf[len - 1] == '\0');
 
-    /*
-     * If vsnprintf reports an error other than ENOMEM, fail.  The possible
-     * causes of this are not user-facing errors, so elog should be enough.
-     */
-    if (nprinted < 0 && errno != 0 && errno != ENOMEM)
-    {
+	/*
+	 * If vsnprintf reports an error other than ENOMEM, fail.  The possible
+	 * causes of this are not user-facing errors, so elog should be enough.
+	 */
+	if (nprinted < 0 && errno != 0 && errno != ENOMEM)
+	{
 #ifndef FRONTEND
-        elog(ERROR, "vsnprintf failed: %m");
+		elog(ERROR, "vsnprintf failed: %m");
 #else
-        fprintf(stderr, "vsnprintf failed: %s\n", strerror(errno));
-        exit(EXIT_FAILURE);
+		fprintf(stderr, "vsnprintf failed: %s\n", strerror(errno));
+		exit(EXIT_FAILURE);
 #endif
-    }
+	}
 
-    /*
-     * Note: some versions of vsnprintf return the number of chars actually
-     * stored, not the total space needed as C99 specifies.  And at least one
-     * returns -1 on failure.  Be conservative about believing whether the
-     * print worked.
-     */
-    if (nprinted >= 0 && (size_t) nprinted < len - 1)
-    {
-        /* Success.  Note nprinted does not include trailing null. */
-        return (size_t) nprinted;
-    }
+	/*
+	 * Note: some versions of vsnprintf return the number of chars actually
+	 * stored, not the total space needed as C99 specifies.  And at least one
+	 * returns -1 on failure.  Be conservative about believing whether the
+	 * print worked.
+	 */
+	if (nprinted >= 0 && (size_t) nprinted < len - 1)
+	{
+		/* Success.  Note nprinted does not include trailing null. */
+		return (size_t) nprinted;
+	}
 
-    if (nprinted >= 0 && (size_t) nprinted > len)
-    {
-        /*
-         * This appears to be a C99-compliant vsnprintf, so believe its
-         * estimate of the required space.  (If it's wrong, the logic will
-         * still work, but we may loop multiple times.)  Note that the space
-         * needed should be only nprinted+1 bytes, but we'd better allocate
-         * one more than that so that the test above will succeed next time.
-         *
-         * In the corner case where the required space just barely overflows,
-         * fall through so that we'll error out below (possibly after
-         * looping).
-         */
-        if ((size_t) nprinted <= MaxAllocSize - 2)
-            return nprinted + 2;
-    }
+	if (nprinted >= 0 && (size_t) nprinted > len)
+	{
+		/*
+		 * This appears to be a C99-compliant vsnprintf, so believe its
+		 * estimate of the required space.  (If it's wrong, the logic will
+		 * still work, but we may loop multiple times.)  Note that the space
+		 * needed should be only nprinted+1 bytes, but we'd better allocate
+		 * one more than that so that the test above will succeed next time.
+		 *
+		 * In the corner case where the required space just barely overflows,
+		 * fall through so that we'll error out below (possibly after
+		 * looping).
+		 */
+		if ((size_t) nprinted <= MaxAllocSize - 2)
+			return nprinted + 2;
+	}
 
-    /*
-     * Buffer overrun, and we don't know how much space is needed.  Estimate
-     * twice the previous buffer size, but not more than MaxAllocSize; if we
-     * are already at MaxAllocSize, choke.  Note we use this palloc-oriented
-     * overflow limit even when in frontend.
-     */
-    if (len >= MaxAllocSize)
-    {
+	/*
+	 * Buffer overrun, and we don't know how much space is needed.  Estimate
+	 * twice the previous buffer size, but not more than MaxAllocSize; if we
+	 * are already at MaxAllocSize, choke.  Note we use this palloc-oriented
+	 * overflow limit even when in frontend.
+	 */
+	if (len >= MaxAllocSize)
+	{
 #ifndef FRONTEND
-        ereport(ERROR,
-                (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
-                 errmsg("out of memory")));
+		ereport(ERROR,
+				(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
+				 errmsg("out of memory")));
 #else
-        fprintf(stderr, _("out of memory\n"));
-        exit(EXIT_FAILURE);
+		fprintf(stderr, _("out of memory\n"));
+		exit(EXIT_FAILURE);
 #endif
-    }
+	}
 
-    if (len >= MaxAllocSize / 2)
-        return MaxAllocSize;
+	if (len >= MaxAllocSize / 2)
+		return MaxAllocSize;
 
-    return len * 2;
+	return len * 2;
 }

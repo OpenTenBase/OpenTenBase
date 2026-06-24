@@ -48,17 +48,17 @@
 /* assertions */
 #ifndef assert
 #ifndef REG_DEBUG
-#define  NDEBUG                    /* no assertions */
+#define  NDEBUG					/* no assertions */
 #endif
 #include <assert.h>
 #endif
 
 /* voids */
 #ifndef DISCARD
-#define DISCARD void            /* for throwing values away */
+#define DISCARD void			/* for throwing values away */
 #endif
 #ifndef VS
-#define VS(x)    ((void *)(x))    /* cast something to generic ptr */
+#define VS(x)	((void *)(x))	/* cast something to generic ptr */
 #endif
 
 /* function-pointer declarator */
@@ -68,18 +68,18 @@
 
 /* memory allocation */
 #ifndef MALLOC
-#define MALLOC(n)    malloc(n)
+#define MALLOC(n)	malloc(n)
 #endif
 #ifndef REALLOC
-#define REALLOC(p, n)    realloc(VS(p), n)
+#define REALLOC(p, n)	realloc(VS(p), n)
 #endif
 #ifndef FREE
-#define FREE(p)        free(VS(p))
+#define FREE(p)		free(VS(p))
 #endif
 
 /* want size of a char in bits, and max value in bounded quantifiers */
 #ifndef _POSIX2_RE_DUP_MAX
-#define _POSIX2_RE_DUP_MAX    255 /* normally from <limits.h> */
+#define _POSIX2_RE_DUP_MAX	255 /* normally from <limits.h> */
 #endif
 
 
@@ -88,19 +88,19 @@
  * misc
  */
 
-#define NOTREACHED    0
+#define NOTREACHED	0
 
-#define DUPMAX    _POSIX2_RE_DUP_MAX
-#define DUPINF    (DUPMAX+1)
+#define DUPMAX	_POSIX2_RE_DUP_MAX
+#define DUPINF	(DUPMAX+1)
 
-#define REMAGIC 0xfed7            /* magic number for main struct */
+#define REMAGIC 0xfed7			/* magic number for main struct */
 
 /* Type codes for lookaround constraints */
-#define LATYPE_AHEAD_POS    03    /* positive lookahead */
-#define LATYPE_AHEAD_NEG    02    /* negative lookahead */
-#define LATYPE_BEHIND_POS    01    /* positive lookbehind */
-#define LATYPE_BEHIND_NEG    00    /* negative lookbehind */
-#define LATYPE_IS_POS(la)    ((la) & 01)
+#define LATYPE_AHEAD_POS	03	/* positive lookahead */
+#define LATYPE_AHEAD_NEG	02	/* negative lookahead */
+#define LATYPE_BEHIND_POS	01	/* positive lookbehind */
+#define LATYPE_BEHIND_NEG	00	/* negative lookbehind */
+#define LATYPE_IS_POS(la)	((la) & 01)
 #define LATYPE_IS_AHEAD(la) ((la) & 02)
 
 
@@ -122,20 +122,20 @@
 /*
  * bitmap manipulation
  */
-#define UBITS    (CHAR_BIT * sizeof(unsigned))
-#define BSET(uv, sn)    ((uv)[(sn)/UBITS] |= (unsigned)1 << ((sn)%UBITS))
-#define ISBSET(uv, sn)    ((uv)[(sn)/UBITS] & ((unsigned)1 << ((sn)%UBITS)))
+#define UBITS	(CHAR_BIT * sizeof(unsigned))
+#define BSET(uv, sn)	((uv)[(sn)/UBITS] |= (unsigned)1 << ((sn)%UBITS))
+#define ISBSET(uv, sn)	((uv)[(sn)/UBITS] & ((unsigned)1 << ((sn)%UBITS)))
 
 
 /*
  * As soon as possible, we map chrs into equivalence classes -- "colors" --
  * which are of much more manageable number.
  */
-typedef short color;            /* colors of characters */
+typedef short color;			/* colors of characters */
 
-#define MAX_COLOR    32767        /* max color (must fit in 'color' datatype) */
-#define COLORLESS    (-1)        /* impossible color */
-#define WHITE        0            /* default color, parent of all others */
+#define MAX_COLOR	32767		/* max color (must fit in 'color' datatype) */
+#define COLORLESS	(-1)		/* impossible color */
+#define WHITE		0			/* default color, parent of all others */
 /* Note: various places in the code know that WHITE is zero */
 
 
@@ -153,15 +153,15 @@ typedef short color;            /* colors of characters */
  */
 struct colordesc
 {
-    int            nschrs;            /* number of simple chars of this color */
-    int            nuchrs;            /* number of upper map entries of this color */
-    color        sub;            /* open subcolor, if any; or free-chain ptr */
-#define  NOSUB     COLORLESS        /* value of "sub" when no open subcolor */
-    struct arc *arcs;            /* chain of all arcs of this color */
-    chr            firstchr;        /* simple char first assigned to this color */
-    int            flags;            /* bit values defined next */
-#define  FREECOL 01                /* currently free */
-#define  PSEUDO  02                /* pseudocolor, no real chars */
+	int			nschrs;			/* number of simple chars of this color */
+	int			nuchrs;			/* number of upper map entries of this color */
+	color		sub;			/* open subcolor, if any; or free-chain ptr */
+#define  NOSUB	 COLORLESS		/* value of "sub" when no open subcolor */
+	struct arc *arcs;			/* chain of all arcs of this color */
+	chr			firstchr;		/* simple char first assigned to this color */
+	int			flags;			/* bit values defined next */
+#define  FREECOL 01				/* currently free */
+#define  PSEUDO  02				/* pseudocolor, no real chars */
 #define  UNUSEDCOLOR(cd) ((cd)->flags & FREECOL)
 };
 
@@ -194,46 +194,46 @@ struct colordesc
  * appear in increasing chr-value order.
  */
 
-#define NUM_CCLASSES 13            /* must match data in regc_locale.c */
+#define NUM_CCLASSES 13			/* must match data in regc_locale.c */
 
 typedef struct colormaprange
 {
-    chr            cmin;            /* range represents cmin..cmax inclusive */
-    chr            cmax;
-    int            rownum;            /* row index in hicolormap array (>= 1) */
+	chr			cmin;			/* range represents cmin..cmax inclusive */
+	chr			cmax;
+	int			rownum;			/* row index in hicolormap array (>= 1) */
 } colormaprange;
 
 struct colormap
 {
-    int            magic;
+	int			magic;
 #define  CMMAGIC 0x876
-    struct vars *v;                /* for compile error reporting */
-    size_t        ncds;            /* allocated length of colordescs array */
-    size_t        max;            /* highest color number currently in use */
-    color        free;            /* beginning of free chain (if non-0) */
-    struct colordesc *cd;        /* pointer to array of colordescs */
-#define  CDEND(cm)     (&(cm)->cd[(cm)->max + 1])
+	struct vars *v;				/* for compile error reporting */
+	size_t		ncds;			/* allocated length of colordescs array */
+	size_t		max;			/* highest color number currently in use */
+	color		free;			/* beginning of free chain (if non-0) */
+	struct colordesc *cd;		/* pointer to array of colordescs */
+#define  CDEND(cm)	 (&(cm)->cd[(cm)->max + 1])
 
-    /* mapping data for chrs <= MAX_SIMPLE_CHR: */
-    color       *locolormap;        /* simple array indexed by chr code */
+	/* mapping data for chrs <= MAX_SIMPLE_CHR: */
+	color	   *locolormap;		/* simple array indexed by chr code */
 
-    /* mapping data for chrs > MAX_SIMPLE_CHR: */
-    int            classbits[NUM_CCLASSES];    /* see comment above */
-    int            numcmranges;    /* number of colormapranges */
-    colormaprange *cmranges;    /* ranges of high chrs */
-    color       *hicolormap;        /* 2-D array of color entries */
-    int            maxarrayrows;    /* number of array rows allocated */
-    int            hiarrayrows;    /* number of array rows in use */
-    int            hiarraycols;    /* number of array columns (2^N) */
+	/* mapping data for chrs > MAX_SIMPLE_CHR: */
+	int			classbits[NUM_CCLASSES];	/* see comment above */
+	int			numcmranges;	/* number of colormapranges */
+	colormaprange *cmranges;	/* ranges of high chrs */
+	color	   *hicolormap;		/* 2-D array of color entries */
+	int			maxarrayrows;	/* number of array rows allocated */
+	int			hiarrayrows;	/* number of array rows in use */
+	int			hiarraycols;	/* number of array columns (2^N) */
 
-    /* If we need up to NINLINECDS, we store them here to save a malloc */
+	/* If we need up to NINLINECDS, we store them here to save a malloc */
 #define  NINLINECDS  ((size_t) 10)
-    struct colordesc cdspace[NINLINECDS];
+	struct colordesc cdspace[NINLINECDS];
 };
 
 /* fetch color for chr; beware of multiple evaluation of c argument */
 #define GETCOLOR(cm, c) \
-    ((c) <= MAX_SIMPLE_CHR ? (cm)->locolormap[(c) - CHR_MIN] : pg_reg_getcolor(cm, c))
+	((c) <= MAX_SIMPLE_CHR ? (cm)->locolormap[(c) - CHR_MIN] : pg_reg_getcolor(cm, c))
 
 
 /*
@@ -255,13 +255,13 @@ struct colormap
  */
 struct cvec
 {
-    int            nchrs;            /* number of chrs */
-    int            chrspace;        /* number of chrs allocated in chrs[] */
-    chr           *chrs;            /* pointer to vector of chrs */
-    int            nranges;        /* number of ranges (chr pairs) */
-    int            rangespace;        /* number of ranges allocated in ranges[] */
-    chr           *ranges;            /* pointer to vector of chr pairs */
-    int            cclasscode;        /* value of "enum classes", or -1 */
+	int			nchrs;			/* number of chrs */
+	int			chrspace;		/* number of chrs allocated in chrs[] */
+	chr		   *chrs;			/* pointer to vector of chrs */
+	int			nranges;		/* number of ranges (chr pairs) */
+	int			rangespace;		/* number of ranges allocated in ranges[] */
+	chr		   *ranges;			/* pointer to vector of chr pairs */
+	int			cclasscode;		/* value of "enum classes", or -1 */
 };
 
 
@@ -275,58 +275,58 @@ struct state;
 
 struct arc
 {
-    int            type;            /* 0 if free, else an NFA arc type code */
-    color        co;
-    struct state *from;            /* where it's from (and contained within) */
-    struct state *to;            /* where it's to */
-    struct arc *outchain;        /* link in *from's outs chain or free chain */
-    struct arc *outchainRev;    /* back-link in *from's outs chain */
-#define  freechain    outchain    /* we do not maintain "freechainRev" */
-    struct arc *inchain;        /* link in *to's ins chain */
-    struct arc *inchainRev;        /* back-link in *to's ins chain */
-    struct arc *colorchain;        /* link in color's arc chain */
-    struct arc *colorchainRev;    /* back-link in color's arc chain */
+	int			type;			/* 0 if free, else an NFA arc type code */
+	color		co;
+	struct state *from;			/* where it's from (and contained within) */
+	struct state *to;			/* where it's to */
+	struct arc *outchain;		/* link in *from's outs chain or free chain */
+	struct arc *outchainRev;	/* back-link in *from's outs chain */
+#define  freechain	outchain	/* we do not maintain "freechainRev" */
+	struct arc *inchain;		/* link in *to's ins chain */
+	struct arc *inchainRev;		/* back-link in *to's ins chain */
+	struct arc *colorchain;		/* link in color's arc chain */
+	struct arc *colorchainRev;	/* back-link in color's arc chain */
 };
 
 struct arcbatch
-{                                /* for bulk allocation of arcs */
-    struct arcbatch *next;
+{								/* for bulk allocation of arcs */
+	struct arcbatch *next;
 #define  ABSIZE  10
-    struct arc    a[ABSIZE];
+	struct arc	a[ABSIZE];
 };
 
 struct state
 {
-    int            no;
-#define  FREESTATE     (-1)
-    char        flag;            /* marks special states */
-    int            nins;            /* number of inarcs */
-    struct arc *ins;            /* chain of inarcs */
-    int            nouts;            /* number of outarcs */
-    struct arc *outs;            /* chain of outarcs */
-    struct arc *free;            /* chain of free arcs */
-    struct state *tmp;            /* temporary for traversal algorithms */
-    struct state *next;            /* chain for traversing all */
-    struct state *prev;            /* back chain */
-    struct arcbatch oas;        /* first arcbatch, avoid malloc in easy case */
-    int            noas;            /* number of arcs used in first arcbatch */
+	int			no;
+#define  FREESTATE	 (-1)
+	char		flag;			/* marks special states */
+	int			nins;			/* number of inarcs */
+	struct arc *ins;			/* chain of inarcs */
+	int			nouts;			/* number of outarcs */
+	struct arc *outs;			/* chain of outarcs */
+	struct arc *free;			/* chain of free arcs */
+	struct state *tmp;			/* temporary for traversal algorithms */
+	struct state *next;			/* chain for traversing all */
+	struct state *prev;			/* back chain */
+	struct arcbatch oas;		/* first arcbatch, avoid malloc in easy case */
+	int			noas;			/* number of arcs used in first arcbatch */
 };
 
 struct nfa
 {
-    struct state *pre;            /* pre-initial state */
-    struct state *init;            /* initial state */
-    struct state *final;        /* final state */
-    struct state *post;            /* post-final state */
-    int            nstates;        /* for numbering states */
-    struct state *states;        /* state-chain header */
-    struct state *slast;        /* tail of the chain */
-    struct state *free;            /* free list */
-    struct colormap *cm;        /* the color map */
-    color        bos[2];            /* colors, if any, assigned to BOS and BOL */
-    color        eos[2];            /* colors, if any, assigned to EOS and EOL */
-    struct vars *v;                /* simplifies compile error reporting */
-    struct nfa *parent;            /* parent NFA, if any */
+	struct state *pre;			/* pre-initial state */
+	struct state *init;			/* initial state */
+	struct state *final;		/* final state */
+	struct state *post;			/* post-final state */
+	int			nstates;		/* for numbering states */
+	struct state *states;		/* state-chain header */
+	struct state *slast;		/* tail of the chain */
+	struct state *free;			/* free list */
+	struct colormap *cm;		/* the color map */
+	color		bos[2];			/* colors, if any, assigned to BOS and BOL */
+	color		eos[2];			/* colors, if any, assigned to EOS and EOL */
+	struct vars *v;				/* simplifies compile error reporting */
+	struct nfa *parent;			/* parent NFA, if any */
 };
 
 
@@ -347,29 +347,29 @@ struct nfa
  */
 struct carc
 {
-    color        co;                /* COLORLESS is list terminator */
-    int            to;                /* next-state number */
+	color		co;				/* COLORLESS is list terminator */
+	int			to;				/* next-state number */
 };
 
 struct cnfa
 {
-    int            nstates;        /* number of states */
-    int            ncolors;        /* number of colors (max color in use + 1) */
-    int            flags;
-#define  HASLACONS    01            /* uses lookaround constraints */
-    int            pre;            /* setup state number */
-    int            post;            /* teardown state number */
-    color        bos[2];            /* colors, if any, assigned to BOS and BOL */
-    color        eos[2];            /* colors, if any, assigned to EOS and EOL */
-    char       *stflags;        /* vector of per-state flags bytes */
-#define  CNFA_NOPROGRESS    01    /* flag bit for a no-progress state */
-    struct carc **states;        /* vector of pointers to outarc lists */
-    /* states[n] are pointers into a single malloc'd array of arcs */
-    struct carc *arcs;            /* the area for the lists */
+	int			nstates;		/* number of states */
+	int			ncolors;		/* number of colors (max color in use + 1) */
+	int			flags;
+#define  HASLACONS	01			/* uses lookaround constraints */
+	int			pre;			/* setup state number */
+	int			post;			/* teardown state number */
+	color		bos[2];			/* colors, if any, assigned to BOS and BOL */
+	color		eos[2];			/* colors, if any, assigned to EOS and EOL */
+	char	   *stflags;		/* vector of per-state flags bytes */
+#define  CNFA_NOPROGRESS	01	/* flag bit for a no-progress state */
+	struct carc **states;		/* vector of pointers to outarc lists */
+	/* states[n] are pointers into a single malloc'd array of arcs */
+	struct carc *arcs;			/* the area for the lists */
 };
 
-#define ZAPCNFA(cnfa)    ((cnfa).nstates = 0)
-#define NULLCNFA(cnfa)    ((cnfa).nstates == 0)
+#define ZAPCNFA(cnfa)	((cnfa).nstates = 0)
+#define NULLCNFA(cnfa)	((cnfa).nstates == 0)
 
 /*
  * This symbol limits the transient heap space used by the regex compiler,
@@ -381,19 +381,19 @@ struct cnfa
  */
 #ifndef REG_MAX_COMPILE_SPACE
 #define REG_MAX_COMPILE_SPACE  \
-    (100000 * sizeof(struct state) + 100000 * sizeof(struct arcbatch))
+	(100000 * sizeof(struct state) + 100000 * sizeof(struct arcbatch))
 #endif
 
 /*
  * subexpression tree
  *
  * "op" is one of:
- *        '='  plain regex without interesting substructure (implemented as DFA)
- *        'b'  back-reference (has no substructure either)
- *        '('  capture node: captures the match of its single child
- *        '.'  concatenation: matches a match for left, then a match for right
- *        '|'  alternation: matches a match for left or a match for right
- *        '*'  iteration: matches some number of matches of its single child
+ *		'='  plain regex without interesting substructure (implemented as DFA)
+ *		'b'  back-reference (has no substructure either)
+ *		'('  capture node: captures the match of its single child
+ *		'.'  concatenation: matches a match for left, then a match for right
+ *		'|'  alternation: matches a match for left or a match for right
+ *		'*'  iteration: matches some number of matches of its single child
  *
  * Note: the right child of an alternation must be another alternation or
  * NULL; hence, an N-way branch requires N alternation nodes, not N-1 as you
@@ -407,33 +407,33 @@ struct cnfa
  */
 struct subre
 {
-    char        op;                /* see type codes above */
-    char        flags;
-#define  LONGER  01                /* prefers longer match */
-#define  SHORTER 02                /* prefers shorter match */
-#define  MIXED     04                /* mixed preference below */
-#define  CAP     010            /* capturing parens below */
-#define  BACKR     020            /* back reference below */
-#define  INUSE     0100            /* in use in final tree */
-#define  NOPROP  03                /* bits which may not propagate up */
-#define  LMIX(f) ((f)<<2)        /* LONGER -> MIXED */
-#define  SMIX(f) ((f)<<1)        /* SHORTER -> MIXED */
-#define  UP(f)     (((f)&~NOPROP) | (LMIX(f) & SMIX(f) & MIXED))
-#define  MESSY(f)     ((f)&(MIXED|CAP|BACKR))
+	char		op;				/* see type codes above */
+	char		flags;
+#define  LONGER  01				/* prefers longer match */
+#define  SHORTER 02				/* prefers shorter match */
+#define  MIXED	 04				/* mixed preference below */
+#define  CAP	 010			/* capturing parens below */
+#define  BACKR	 020			/* back reference below */
+#define  INUSE	 0100			/* in use in final tree */
+#define  NOPROP  03				/* bits which may not propagate up */
+#define  LMIX(f) ((f)<<2)		/* LONGER -> MIXED */
+#define  SMIX(f) ((f)<<1)		/* SHORTER -> MIXED */
+#define  UP(f)	 (((f)&~NOPROP) | (LMIX(f) & SMIX(f) & MIXED))
+#define  MESSY(f)	 ((f)&(MIXED|CAP|BACKR))
 #define  PREF(f) ((f)&NOPROP)
-#define  PREF2(f1, f2)     ((PREF(f1) != 0) ? PREF(f1) : PREF(f2))
+#define  PREF2(f1, f2)	 ((PREF(f1) != 0) ? PREF(f1) : PREF(f2))
 #define  COMBINE(f1, f2) (UP((f1)|(f2)) | PREF2(f1, f2))
-    short        id;                /* ID of subre (1..ntree-1) */
-    int            subno;            /* subexpression number for 'b' and '(', or
-                                 * LATYPE code for lookaround constraint */
-    short        min;            /* min repetitions for iteration or backref */
-    short        max;            /* max repetitions for iteration or backref */
-    struct subre *left;            /* left child, if any (also freelist chain) */
-    struct subre *right;        /* right child, if any */
-    struct state *begin;        /* outarcs from here... */
-    struct state *end;            /* ...ending in inarcs here */
-    struct cnfa cnfa;            /* compacted NFA, if any */
-    struct subre *chain;        /* for bookkeeping and error cleanup */
+	short		id;				/* ID of subre (1..ntree-1) */
+	int			subno;			/* subexpression number for 'b' and '(', or
+								 * LATYPE code for lookaround constraint */
+	short		min;			/* min repetitions for iteration or backref */
+	short		max;			/* max repetitions for iteration or backref */
+	struct subre *left;			/* left child, if any (also freelist chain) */
+	struct subre *right;		/* right child, if any */
+	struct state *begin;		/* outarcs from here... */
+	struct state *end;			/* ...ending in inarcs here */
+	struct cnfa cnfa;			/* compacted NFA, if any */
+	struct subre *chain;		/* for bookkeeping and error cleanup */
 };
 
 
@@ -444,16 +444,16 @@ struct subre
  */
 struct fns
 {
-    void        FUNCPTR(free, (regex_t *));
-    int            FUNCPTR(cancel_requested, (void));
-    int            FUNCPTR(stack_too_deep, (void));
+	void		FUNCPTR(free, (regex_t *));
+	int			FUNCPTR(cancel_requested, (void));
+	int			FUNCPTR(stack_too_deep, (void));
 };
 
 #define CANCEL_REQUESTED(re)  \
-    ((*((struct fns *) (re)->re_fns)->cancel_requested) ())
+	((*((struct fns *) (re)->re_fns)->cancel_requested) ())
 
-#define STACK_TOO_DEEP(re)    \
-    ((*((struct fns *) (re)->re_fns)->stack_too_deep) ())
+#define STACK_TOO_DEEP(re)	\
+	((*((struct fns *) (re)->re_fns)->stack_too_deep) ())
 
 
 /*
@@ -461,19 +461,19 @@ struct fns
  */
 struct guts
 {
-    int            magic;
-#define  GUTSMAGIC     0xfed9
-    int            cflags;            /* copy of compile flags */
-    long        info;            /* copy of re_info */
-    size_t        nsub;            /* copy of re_nsub */
-    struct subre *tree;
-    struct cnfa search;            /* for fast preliminary search */
-    int            ntree;            /* number of subre's, plus one */
-    struct colormap cmap;
-    int            FUNCPTR(compare, (const chr *, const chr *, size_t));
-    struct subre *lacons;        /* lookaround-constraint vector */
-    int            nlacons;        /* size of lacons[]; note that only slots
-                                 * numbered 1 .. nlacons-1 are used */
+	int			magic;
+#define  GUTSMAGIC	 0xfed9
+	int			cflags;			/* copy of compile flags */
+	long		info;			/* copy of re_info */
+	size_t		nsub;			/* copy of re_nsub */
+	struct subre *tree;
+	struct cnfa search;			/* for fast preliminary search */
+	int			ntree;			/* number of subre's, plus one */
+	struct colormap cmap;
+	int			FUNCPTR(compare, (const chr *, const chr *, size_t));
+	struct subre *lacons;		/* lookaround-constraint vector */
+	int			nlacons;		/* size of lacons[]; note that only slots
+								 * numbered 1 .. nlacons-1 are used */
 };
 
 

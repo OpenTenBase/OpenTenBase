@@ -1,0 +1,7 @@
+# opentenbase_mls extension
+comment = 'opentenbase multi level security'
+default_version = '1.0'
+module_pathname = '$libdir/opentenbase_mls'
+relocatable = true
+# sql_mode can be opentenbase_ora, postgresql, all
+sql_mode = 'all'

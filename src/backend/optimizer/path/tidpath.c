@@ -1,8 +1,8 @@
 /*-------------------------------------------------------------------------
  *
  * tidpath.c
- *      Routines to determine which TID conditions are usable for scanning
- *      a given relation, and create TidPaths accordingly.
+ *	  Routines to determine which TID conditions are usable for scanning
+ *	  a given relation, and create TidPaths accordingly.
  *
  * What we are looking for here is WHERE conditions of the form
  * "CTID = pseudoconstant", which can be implemented by just fetching
@@ -10,7 +10,7 @@
  * such as (CTID = const1) OR (CTID = const2), as well as ScalarArrayOpExpr
  * conditions of the form CTID = ANY(pseudoconstant_array).  In particular
  * this allows
- *        WHERE ctid IN (tid1, tid2, ...)
+ *		WHERE ctid IN (tid1, tid2, ...)
  *
  * We also support "WHERE CURRENT OF cursor" conditions (CurrentOfExpr),
  * which amount to "CTID = run-time-determined-TID".  These could in
@@ -30,7 +30,7 @@
  *
  *
  * IDENTIFICATION
- *      src/backend/optimizer/path/tidpath.c
+ *	  src/backend/optimizer/path/tidpath.c
  *
  *-------------------------------------------------------------------------
  */
@@ -54,9 +54,9 @@ static List *TidQualFromBaseRestrictinfo(RelOptInfo *rel);
 
 /*
  * Check to see if an opclause is of the form
- *        CTID = pseudoconstant
+ *		CTID = pseudoconstant
  * or
- *        pseudoconstant = CTID
+ *		pseudoconstant = CTID
  *
  * We check that the CTID Var belongs to relation "varno".  That is probably
  * redundant considering this is only applied to restriction clauses, but
@@ -64,207 +64,207 @@ static List *TidQualFromBaseRestrictinfo(RelOptInfo *rel);
  */
 static bool
 IsTidEqualClause(OpExpr *node, int varno)
-{// #lizard forgives
-    Node       *arg1,
-               *arg2,
-               *other;
-    Var           *var;
+{
+	Node	   *arg1,
+			   *arg2,
+			   *other;
+	Var		   *var;
 
-    /* Operator must be tideq */
-    if (node->opno != TIDEqualOperator)
-        return false;
-    if (list_length(node->args) != 2)
-        return false;
-    arg1 = linitial(node->args);
-    arg2 = lsecond(node->args);
+	/* Operator must be tideq */
+	if (node->opno != TIDEqualOperator)
+		return false;
+	if (list_length(node->args) != 2)
+		return false;
+	arg1 = linitial(node->args);
+	arg2 = lsecond(node->args);
 
-    /* Look for CTID as either argument */
-    other = NULL;
-    if (arg1 && IsA(arg1, Var))
-    {
-        var = (Var *) arg1;
-        if (var->varattno == SelfItemPointerAttributeNumber &&
-            var->vartype == TIDOID &&
-            var->varno == varno &&
-            var->varlevelsup == 0)
-            other = arg2;
-    }
-    if (!other && arg2 && IsA(arg2, Var))
-    {
-        var = (Var *) arg2;
-        if (var->varattno == SelfItemPointerAttributeNumber &&
-            var->vartype == TIDOID &&
-            var->varno == varno &&
-            var->varlevelsup == 0)
-            other = arg1;
-    }
-    if (!other)
-        return false;
-    if (exprType(other) != TIDOID)
-        return false;            /* probably can't happen */
+	/* Look for CTID as either argument */
+	other = NULL;
+	if (arg1 && IsA(arg1, Var))
+	{
+		var = (Var *) arg1;
+		if (var->varattno == SelfItemPointerAttributeNumber &&
+			var->vartype == TIDOID &&
+			var->varno == varno &&
+			var->varlevelsup == 0)
+			other = arg2;
+	}
+	if (!other && arg2 && IsA(arg2, Var))
+	{
+		var = (Var *) arg2;
+		if (var->varattno == SelfItemPointerAttributeNumber &&
+			var->vartype == TIDOID &&
+			var->varno == varno &&
+			var->varlevelsup == 0)
+			other = arg1;
+	}
+	if (!other)
+		return false;
+	if (exprType(other) != TIDOID)
+		return false;			/* probably can't happen */
 
-    /* The other argument must be a pseudoconstant */
-    if (!is_pseudo_constant_clause(other))
-        return false;
+	/* The other argument must be a pseudoconstant */
+	if (!is_pseudo_constant_clause(other))
+		return false;
 
-    return true;                /* success */
+	return true;				/* success */
 }
 
 /*
  * Check to see if a clause is of the form
- *        CTID = ANY (pseudoconstant_array)
+ *		CTID = ANY (pseudoconstant_array)
  */
 static bool
 IsTidEqualAnyClause(ScalarArrayOpExpr *node, int varno)
-{// #lizard forgives
-    Node       *arg1,
-               *arg2;
+{
+	Node	   *arg1,
+			   *arg2;
 
-    /* Operator must be tideq */
-    if (node->opno != TIDEqualOperator)
-        return false;
-    if (!node->useOr)
-        return false;
-    Assert(list_length(node->args) == 2);
-    arg1 = linitial(node->args);
-    arg2 = lsecond(node->args);
+	/* Operator must be tideq */
+	if (node->opno != TIDEqualOperator)
+		return false;
+	if (!node->useOr)
+		return false;
+	Assert(list_length(node->args) == 2);
+	arg1 = linitial(node->args);
+	arg2 = lsecond(node->args);
 
-    /* CTID must be first argument */
-    if (arg1 && IsA(arg1, Var))
-    {
-        Var           *var = (Var *) arg1;
+	/* CTID must be first argument */
+	if (arg1 && IsA(arg1, Var))
+	{
+		Var		   *var = (Var *) arg1;
 
-        if (var->varattno == SelfItemPointerAttributeNumber &&
-            var->vartype == TIDOID &&
-            var->varno == varno &&
-            var->varlevelsup == 0)
-        {
-            /* The other argument must be a pseudoconstant */
-            if (is_pseudo_constant_clause(arg2))
-                return true;    /* success */
-        }
-    }
+		if (var->varattno == SelfItemPointerAttributeNumber &&
+			var->vartype == TIDOID &&
+			var->varno == varno &&
+			var->varlevelsup == 0)
+		{
+			/* The other argument must be a pseudoconstant */
+			if (is_pseudo_constant_clause(arg2))
+				return true;	/* success */
+		}
+	}
 
-    return false;
+	return false;
 }
 
 /*
- *    Extract a set of CTID conditions from the given qual expression
+ *	Extract a set of CTID conditions from the given qual expression
  *
- *    Returns a List of CTID qual expressions (with implicit OR semantics
- *    across the list), or NIL if there are no usable conditions.
+ *	Returns a List of CTID qual expressions (with implicit OR semantics
+ *	across the list), or NIL if there are no usable conditions.
  *
- *    If the expression is an AND clause, we can use a CTID condition
- *    from any sub-clause.  If it is an OR clause, we must be able to
- *    extract a CTID condition from every sub-clause, or we can't use it.
+ *	If the expression is an AND clause, we can use a CTID condition
+ *	from any sub-clause.  If it is an OR clause, we must be able to
+ *	extract a CTID condition from every sub-clause, or we can't use it.
  *
- *    In theory, in the AND case we could get CTID conditions from different
- *    sub-clauses, in which case we could try to pick the most efficient one.
- *    In practice, such usage seems very unlikely, so we don't bother; we
- *    just exit as soon as we find the first candidate.
+ *	In theory, in the AND case we could get CTID conditions from different
+ *	sub-clauses, in which case we could try to pick the most efficient one.
+ *	In practice, such usage seems very unlikely, so we don't bother; we
+ *	just exit as soon as we find the first candidate.
  */
 static List *
 TidQualFromExpr(Node *expr, int varno)
-{// #lizard forgives
-    List       *rlst = NIL;
-    ListCell   *l;
+{
+	List	   *rlst = NIL;
+	ListCell   *l;
 
-    if (is_opclause(expr))
-    {
-        /* base case: check for tideq opclause */
-        if (IsTidEqualClause((OpExpr *) expr, varno))
-            rlst = list_make1(expr);
-    }
-    else if (expr && IsA(expr, ScalarArrayOpExpr))
-    {
-        /* another base case: check for tid = ANY clause */
-        if (IsTidEqualAnyClause((ScalarArrayOpExpr *) expr, varno))
-            rlst = list_make1(expr);
-    }
-    else if (expr && IsA(expr, CurrentOfExpr))
-    {
-        /* another base case: check for CURRENT OF on this rel */
-        if (((CurrentOfExpr *) expr)->cvarno == varno)
-            rlst = list_make1(expr);
-    }
-    else if (and_clause(expr))
-    {
-        foreach(l, ((BoolExpr *) expr)->args)
-        {
-            rlst = TidQualFromExpr((Node *) lfirst(l), varno);
-            if (rlst)
-                break;
-        }
-    }
-    else if (or_clause(expr))
-    {
-        foreach(l, ((BoolExpr *) expr)->args)
-        {
-            List       *frtn = TidQualFromExpr((Node *) lfirst(l), varno);
+	if (is_opclause(expr))
+	{
+		/* base case: check for tideq opclause */
+		if (IsTidEqualClause((OpExpr *) expr, varno))
+			rlst = list_make1(expr);
+	}
+	else if (expr && IsA(expr, ScalarArrayOpExpr))
+	{
+		/* another base case: check for tid = ANY clause */
+		if (IsTidEqualAnyClause((ScalarArrayOpExpr *) expr, varno))
+			rlst = list_make1(expr);
+	}
+	else if (expr && IsA(expr, CurrentOfExpr))
+	{
+		/* another base case: check for CURRENT OF on this rel */
+		if (((CurrentOfExpr *) expr)->cvarno == varno)
+			rlst = list_make1(expr);
+	}
+	else if (and_clause(expr))
+	{
+		foreach(l, ((BoolExpr *) expr)->args)
+		{
+			rlst = TidQualFromExpr((Node *) lfirst(l), varno);
+			if (rlst)
+				break;
+		}
+	}
+	else if (or_clause(expr))
+	{
+		foreach(l, ((BoolExpr *) expr)->args)
+		{
+			List	   *frtn = TidQualFromExpr((Node *) lfirst(l), varno);
 
-            if (frtn)
-                rlst = list_concat(rlst, frtn);
-            else
-            {
-                if (rlst)
-                    list_free(rlst);
-                rlst = NIL;
-                break;
-            }
-        }
-    }
-    return rlst;
+			if (frtn)
+				rlst = list_concat(rlst, frtn);
+			else
+			{
+				if (rlst)
+					list_free(rlst);
+				rlst = NIL;
+				break;
+			}
+		}
+	}
+	return rlst;
 }
 
 /*
- *    Extract a set of CTID conditions from the rel's baserestrictinfo list
+ *	Extract a set of CTID conditions from the rel's baserestrictinfo list
  */
 static List *
 TidQualFromBaseRestrictinfo(RelOptInfo *rel)
 {
-    List       *rlst = NIL;
-    ListCell   *l;
+	List	   *rlst = NIL;
+	ListCell   *l;
 
-    foreach(l, rel->baserestrictinfo)
-    {
-        RestrictInfo *rinfo = (RestrictInfo *) lfirst(l);
+	foreach(l, rel->baserestrictinfo)
+	{
+		RestrictInfo *rinfo = (RestrictInfo *) lfirst(l);
 
-        /*
-         * If clause must wait till after some lower-security-level
-         * restriction clause, reject it.
-         */
-        if (!restriction_is_securely_promotable(rinfo, rel))
-            continue;
+		/*
+		 * If clause must wait till after some lower-security-level
+		 * restriction clause, reject it.
+		 */
+		if (!restriction_is_securely_promotable(rinfo, rel))
+			continue;
 
-        rlst = TidQualFromExpr((Node *) rinfo->clause, rel->relid);
-        if (rlst)
-            break;
-    }
-    return rlst;
+		rlst = TidQualFromExpr((Node *) rinfo->clause, rel->relid);
+		if (rlst)
+			break;
+	}
+	return rlst;
 }
 
 /*
  * create_tidscan_paths
- *      Create paths corresponding to direct TID scans of the given rel.
+ *	  Create paths corresponding to direct TID scans of the given rel.
  *
- *      Candidate paths are added to the rel's pathlist (using add_path).
+ *	  Candidate paths are added to the rel's pathlist (using add_path).
  */
 void
 create_tidscan_paths(PlannerInfo *root, RelOptInfo *rel)
 {
-    Relids        required_outer;
-    List       *tidquals;
+	Relids		required_outer;
+	List	   *tidquals;
 
-    /*
-     * We don't support pushing join clauses into the quals of a tidscan, but
-     * it could still have required parameterization due to LATERAL refs in
-     * its tlist.
-     */
-    required_outer = rel->lateral_relids;
+	/*
+	 * We don't support pushing join clauses into the quals of a tidscan, but
+	 * it could still have required parameterization due to LATERAL refs in
+	 * its tlist.
+	 */
+	required_outer = rel->lateral_relids;
 
-    tidquals = TidQualFromBaseRestrictinfo(rel);
+	tidquals = TidQualFromBaseRestrictinfo(rel);
 
-    if (tidquals)
-        add_path(rel, (Path *) create_tidscan_path(root, rel, tidquals,
-                                                   required_outer));
+	if (tidquals)
+		add_path(rel, (Path *) create_tidscan_path(root, rel, tidquals,
+												   required_outer));
 }

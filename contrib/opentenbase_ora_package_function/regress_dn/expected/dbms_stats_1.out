@@ -1,0 +1,190 @@
+\c opentenbase_ora_package_function_regression_ora
+SET client_min_messages = error;
+DROP USER IF EXISTS godlike_dbms_stats;
+CREATE user godlike_dbms_stats superuser;
+create user joe;
+create user no_privilege;
+\c - GODLIKE_DBMS_STATS
+grant usage on schema dbms_stats to no_privilege;
+grant usage on schema dbms_stats to joe;
+\c - JOE
+-- table joe_t
+create table joe_t (id integer not null PRIMARY KEY, test integer);
+create index joe_t_test_idx on joe_t(test);
+insert into joe_t SELECT generate_series(1,300) as key, 100::integer;
+insert into joe_t SELECT generate_series(301,600) as key, 200::integer;
+insert into joe_t SELECT generate_series(601,1000) as key, 300::integer;
+-- table joe_t_p
+create table joe_t_p (id integer not null PRIMARY KEY, test integer) distribute by shard(id);
+create index joe_t_p_test_idx on joe_t_p(test);
+insert into joe_t_p SELECT generate_series(1,300) as key, 100::integer;
+insert into joe_t_p SELECT generate_series(301,600) as key, 200::integer;
+insert into joe_t_p SELECT generate_series(601,1000) as key, 300::integer;
+\c - NO_PRIVILEGE
+exec dbms_stats.gather_table_stats(ownname => 'joe',tabname => 'joe_t');
+ERROR:  User NO_PRIVILEGE has no privilege to analyze table JOE_T
+CONTEXT:  PL/pgSQL package DBMS_STATS package body DBMS_STATS.GATHER_TABLE_STATS(TEXT,TEXT,TEXT,NUMERIC,BOOLEAN,TEXT,NUMERIC,TEXT,BOOLEAN,TEXT,TEXT,TEXT,BOOLEAN,BOOLEAN) line 45 RAISE
+exec dbms_stats.get_table_stats(ownname => 'joe',tabname => 'joe_t');
+ERROR:  User NO_PRIVILEGE has no privilege to analyze table JOE_T
+CONTEXT:  PL/pgSQL package DBMS_STATS package body DBMS_STATS.GET_TABLE_STATS(TEXT,TEXT,TEXT,TEXT,TEXT,NUMERIC,NUMERIC,NUMERIC,TEXT,NUMERIC,NUMERIC) line 121 RAISE
+exec dbms_stats.get_column_stats('joe', 'joe_t', 'test');
+ERROR:  User NO_PRIVILEGE has no privilege to analyze table JOE_T
+CONTEXT:  PL/pgSQL package DBMS_STATS package body DBMS_STATS.GET_COLUMN_STATS(TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,INTEGER,NUMERIC,NUMERIC,TEXT,NUMERIC,TEXT) line 196 RAISE
+exec dbms_stats.get_index_stats('joe', 'joe_t_test_idx');
+ERROR:  User NO_PRIVILEGE has no privilege to analyze index JOE_T_TEST_IDX
+CONTEXT:  PL/pgSQL package DBMS_STATS package body DBMS_STATS.GET_INDEX_STATS(TEXT,TEXT,TEXT,TEXT,TEXT,NUMERIC,NUMERIC,NUMERIC,NUMERIC,NUMERIC,NUMERIC,NUMERIC,TEXT,NUMERIC,NUMERIC) line 293 RAISE
+exec dbms_stats.get_index_stats('joe', 'joe_t_p_test_idx', 'joe_t_p_test_idx_part_0');
+ERROR:  index JOE_T_P_TEST_IDX_PART_0 does not exist
+CONTEXT:  PL/pgSQL package DBMS_STATS package body DBMS_STATS.GET_INDEX_STATS(TEXT,TEXT,TEXT,TEXT,TEXT,NUMERIC,NUMERIC,NUMERIC,NUMERIC,NUMERIC,NUMERIC,NUMERIC,TEXT,NUMERIC,NUMERIC) line 246 RAISE
+\c - JOE
+exec dbms_stats.gather_table_stats(ownname => 'joe',tabname => 'joe_t');
+exec dbms_stats.get_table_stats(ownname => 'joe',tabname => 'joe_t');
+ NUMROWS | NUMBLKS | AVGRLEN | CACHEDBLK | CACHEHIT 
+---------+---------+---------+-----------+----------
+    1000 |       8 |       8 |         0 |        0
+(1 row)
+
+exec dbms_stats.get_column_stats('joe', 'joe_t', 'test');
+ DISTCNT |                  DENSITY                  | NULLCNT | SREC | AVGCLEN 
+---------+-------------------------------------------+---------+------+---------
+       3 | .3333333333333333333333333333333333333333 |       0 |      |       4
+(1 row)
+
+declare
+numrows numeric;
+numlblks numeric;
+numdist numeric;
+avglblk numeric;
+avgdblk numeric;
+clstfct numeric;
+indlevel numeric;
+cachedblk numeric;
+cachehit numeric;
+begin
+exec dbms_stats.get_index_stats('joe', 'joe_t_p_test_idx', numrows=>numrows, numlblks=>numlblks, numdist=>numdist, avglblk=>avglblk, avgdblk=>avgdblk, clstfct=>clstfct, indlevel=>indlevel, cachedblk=>cachedblk, cachehit=>cachehit);
+--raise notice '%', numrows; 统计信息更新不及时
+end;
+/
+exec dbms_stats.get_index_stats('joe', 'joe_t_pkey');
+ NUMROWS | NUMLBLKS | NUMDIST | AVGLBLK | AVGDBLK | CLSTFCT | INDLEVEL | CACHEDBLK | CACHEHIT 
+---------+----------+---------+---------+---------+---------+----------+-----------+----------
+    1000 |        5 |    1000 |       4 |       8 |       0 |        0 |         0 |        0
+(1 row)
+
+exec dbms_stats.gather_database_stats();
+exec dbms_stats.get_table_stats(ownname => 'joe',tabname => 'joe_t_p');
+ NUMROWS | NUMBLKS | AVGRLEN | CACHEDBLK | CACHEHIT 
+---------+---------+---------+-----------+----------
+    1000 |       8 |       8 |         0 |        0
+(1 row)
+
+exec dbms_stats.get_column_stats('joe', 'joe_t_p', 'test');
+ DISTCNT |                  DENSITY                  | NULLCNT | SREC | AVGCLEN 
+---------+-------------------------------------------+---------+------+---------
+       3 | .3333333333333333333333333333333333333333 |       0 |      |       4
+(1 row)
+
+declare
+numrows numeric;
+numlblks numeric;
+numdist numeric;
+avglblk numeric;
+avgdblk numeric;
+clstfct numeric;
+indlevel numeric;
+cachedblk numeric;
+cachehit numeric;
+begin
+exec dbms_stats.get_index_stats('joe', 'joe_t_p_test_idx', numrows=>numrows, numlblks=>numlblks, numdist=>numdist, avglblk=>avglblk, avgdblk=>avgdblk, clstfct=>clstfct, indlevel=>indlevel, cachedblk=>cachedblk, cachehit=>cachehit);
+raise notice '%', numrows;
+end;
+/
+NOTICE:  1000
+exec dbms_stats.get_table_stats('joe', 'joe_t_p', 'joe_t_p_part_0');
+ERROR:  table JOE_T_P_PART_0 does not exist
+CONTEXT:  PL/pgSQL package DBMS_STATS package body DBMS_STATS.GET_TABLE_STATS(TEXT,TEXT,TEXT,TEXT,TEXT,NUMERIC,NUMERIC,NUMERIC,TEXT,NUMERIC,NUMERIC) line 114 RAISE
+exec dbms_stats.get_index_stats('joe', 'joe_t_p_test_idx', 'joe_t_p_test_idx_part_0');
+ERROR:  index JOE_T_P_TEST_IDX_PART_0 does not exist
+CONTEXT:  PL/pgSQL package DBMS_STATS package body DBMS_STATS.GET_INDEX_STATS(TEXT,TEXT,TEXT,TEXT,TEXT,NUMERIC,NUMERIC,NUMERIC,NUMERIC,NUMERIC,NUMERIC,NUMERIC,TEXT,NUMERIC,NUMERIC) line 246 RAISE
+-- clean
+\c - GODLIKE_DBMS_STATS
+drop table joe_t;
+drop table joe_t_p;
+REVOKE usage ON schema dbms_stats FROM joe;
+REVOKE usage ON schema dbms_stats FROM no_privilege;
+-- test identifier in double quotes
+\c - GODLIKE_DBMS_STATS
+create table "t_ident_in_d_quotes_20240124"("id" int);
+insert into "t_ident_in_d_quotes_20240124" SELECT generate_series(1,300);
+exec dbms_stats.gather_table_stats(ownname => 'GODLIKE_DBMS_STATS',tabname => 't_ident_in_d_quotes_20240124');
+ERROR:  table T_IDENT_IN_D_QUOTES_20240124 does not exist
+CONTEXT:  PL/pgSQL package DBMS_STATS package body DBMS_STATS.GATHER_TABLE_STATS(TEXT,TEXT,TEXT,NUMERIC,BOOLEAN,TEXT,NUMERIC,TEXT,BOOLEAN,TEXT,TEXT,TEXT,BOOLEAN,BOOLEAN) line 41 RAISE
+exec dbms_stats.gather_table_stats(ownname => 'GODLIKE_DBMS_STATS',tabname => '"t_ident_in_d_quotes_20240124"');
+exec dbms_stats.get_table_stats(ownname => 'GODLIKE_DBMS_STATS',tabname => 't_ident_in_d_quotes_20240124');
+ERROR:  table T_IDENT_IN_D_QUOTES_20240124 does not exist
+CONTEXT:  PL/pgSQL package DBMS_STATS package body DBMS_STATS.GET_TABLE_STATS(TEXT,TEXT,TEXT,TEXT,TEXT,NUMERIC,NUMERIC,NUMERIC,TEXT,NUMERIC,NUMERIC) line 114 RAISE
+exec dbms_stats.get_table_stats(ownname => 'GODLIKE_DBMS_STATS',tabname => '"t_ident_in_d_quotes_20240124"');
+ NUMROWS | NUMBLKS | AVGRLEN | CACHEDBLK | CACHEHIT 
+---------+---------+---------+-----------+----------
+     300 |       3 |       4 |         0 |        0
+(1 row)
+
+exec dbms_stats.get_column_stats('GODLIKE_DBMS_STATS', '"t_ident_in_d_quotes_20240124"', 'id');
+ERROR:  column ID does not exist
+CONTEXT:  PL/pgSQL package DBMS_STATS package body DBMS_STATS.GET_COLUMN_STATS(TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,INTEGER,NUMERIC,NUMERIC,TEXT,NUMERIC,TEXT) line 193 RAISE
+exec dbms_stats.get_column_stats('GODLIKE_DBMS_STATS', '"t_ident_in_d_quotes_20240124"', '"id"');
+ DISTCNT |                   DENSITY                   | NULLCNT | SREC | AVGCLEN 
+---------+---------------------------------------------+---------+------+---------
+     300 | .003333333333333333333333333333333333333333 |       0 |      |       4
+(1 row)
+
+create index "i_ident_in_d_quotes_20240124" on "t_ident_in_d_quotes_20240124"("id");
+exec dbms_stats.get_index_stats('GODLIKE_DBMS_STATS', '"t_ident_in_d_quotes_20240124"', 'i_ident_in_d_quotes_20240124');
+ERROR:  index I_IDENT_IN_D_QUOTES_20240124 does not exist
+CONTEXT:  PL/pgSQL package DBMS_STATS package body DBMS_STATS.GET_INDEX_STATS(TEXT,TEXT,TEXT,TEXT,TEXT,NUMERIC,NUMERIC,NUMERIC,NUMERIC,NUMERIC,NUMERIC,NUMERIC,TEXT,NUMERIC,NUMERIC) line 246 RAISE
+exec dbms_stats.get_index_stats('GODLIKE_DBMS_STATS', '"t_ident_in_d_quotes_20240124"', '"i_ident_in_d_quotes_20240124"');
+ NUMROWS | NUMLBLKS | NUMDIST | AVGLBLK | AVGDBLK | CLSTFCT | INDLEVEL | CACHEDBLK | CACHEHIT 
+---------+----------+---------+---------+---------+---------+----------+-----------+----------
+     300 |        2 |     300 |       4 |       4 |       0 |        0 |         0 |        0
+(1 row)
+
+create user "r_ident_in_dq_20240124" with superuser;
+\c - r_ident_in_dq_20240124
+create table t_ident_in_d_quotes_20240125(id int);
+insert into t_ident_in_d_quotes_20240125 SELECT generate_series(1,300);
+create index i_ident_in_d_quotes_20240125 on t_ident_in_d_quotes_20240125(id);
+exec dbms_stats.gather_table_stats(ownname => 'r_ident_in_dq_20240124',tabname => 'T_IDENT_IN_D_QUOTES_20240125');
+ERROR:  table T_IDENT_IN_D_QUOTES_20240125 does not exist
+CONTEXT:  PL/pgSQL package DBMS_STATS package body DBMS_STATS.GATHER_TABLE_STATS(TEXT,TEXT,TEXT,NUMERIC,BOOLEAN,TEXT,NUMERIC,TEXT,BOOLEAN,TEXT,TEXT,TEXT,BOOLEAN,BOOLEAN) line 41 RAISE
+exec dbms_stats.gather_table_stats(ownname => '"r_ident_in_dq_20240124"',tabname => 't_ident_In_D_quotes_20240125');
+exec dbms_stats.get_table_stats(ownname => 'r_ident_in_dq_20240124',tabname => 'T_IDENT_IN_D_QUOTES_20240125');
+ERROR:  table T_IDENT_IN_D_QUOTES_20240125 does not exist
+CONTEXT:  PL/pgSQL package DBMS_STATS package body DBMS_STATS.GET_TABLE_STATS(TEXT,TEXT,TEXT,TEXT,TEXT,NUMERIC,NUMERIC,NUMERIC,TEXT,NUMERIC,NUMERIC) line 114 RAISE
+exec dbms_stats.get_table_stats(ownname => '"r_ident_in_dq_20240124"',tabname => 't_ident_in_d_quotes_20240125');
+ NUMROWS | NUMBLKS | AVGRLEN | CACHEDBLK | CACHEHIT 
+---------+---------+---------+-----------+----------
+     300 |       3 |       4 |         0 |        0
+(1 row)
+
+exec dbms_stats.get_column_stats('r_ident_in_dq_20240124', 'T_IDENT_IN_D_QUOTES_20240125', 'ID');
+ERROR:  table T_IDENT_IN_D_QUOTES_20240125 does not exist
+CONTEXT:  PL/pgSQL package DBMS_STATS package body DBMS_STATS.GET_COLUMN_STATS(TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,INTEGER,NUMERIC,NUMERIC,TEXT,NUMERIC,TEXT) line 174 RAISE
+exec dbms_stats.get_column_stats('"r_ident_in_dq_20240124"', 't_ident_in_d_quotes_20240125', 'id');
+ DISTCNT |                   DENSITY                   | NULLCNT | SREC | AVGCLEN 
+---------+---------------------------------------------+---------+------+---------
+     300 | .003333333333333333333333333333333333333333 |       0 |      |       4
+(1 row)
+
+exec dbms_stats.get_index_stats('r_ident_in_dq_20240124', 'T_IDENT_IN_D_QUOTES_20240125', 'I_IDENT_IN_D_QUOTES_20240125');
+ERROR:  index I_IDENT_IN_D_QUOTES_20240125 does not exist
+CONTEXT:  PL/pgSQL package DBMS_STATS package body DBMS_STATS.GET_INDEX_STATS(TEXT,TEXT,TEXT,TEXT,TEXT,NUMERIC,NUMERIC,NUMERIC,NUMERIC,NUMERIC,NUMERIC,NUMERIC,TEXT,NUMERIC,NUMERIC) line 246 RAISE
+exec dbms_stats.get_index_stats('"r_ident_in_dq_20240124"', 't_ident_in_d_quotes_20240125', 'i_ident_in_d_quotes_20240125');
+ NUMROWS | NUMLBLKS | NUMDIST | AVGLBLK | AVGDBLK | CLSTFCT | INDLEVEL | CACHEDBLK | CACHEHIT 
+---------+----------+---------+---------+---------+---------+----------+-----------+----------
+     300 |        2 |     300 |       4 |       4 |       0 |        0 |         0 |        0
+(1 row)
+
+\c - GODLIKE_DBMS_STATS
+drop table t_ident_in_d_quotes_20240125;
+drop user "r_ident_in_dq_20240124";
+drop table "t_ident_in_d_quotes_20240124";

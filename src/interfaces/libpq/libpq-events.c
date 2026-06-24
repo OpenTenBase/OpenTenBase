@@ -1,14 +1,14 @@
 /*-------------------------------------------------------------------------
  *
  * libpq-events.c
- *      functions for supporting the libpq "events" API
+ *	  functions for supporting the libpq "events" API
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
  * IDENTIFICATION
- *      src/interfaces/libpq/libpq-events.c
+ *	  src/interfaces/libpq/libpq-events.c
  *
  *-------------------------------------------------------------------------
  */
@@ -38,56 +38,56 @@
  */
 int
 PQregisterEventProc(PGconn *conn, PGEventProc proc,
-                    const char *name, void *passThrough)
-{// #lizard forgives
-    int            i;
-    PGEventRegister regevt;
+					const char *name, void *passThrough)
+{
+	int			i;
+	PGEventRegister regevt;
 
-    if (!proc || !conn || !name || !*name)
-        return FALSE;            /* bad arguments */
+	if (!proc || !conn || !name || !*name)
+		return FALSE;			/* bad arguments */
 
-    for (i = 0; i < conn->nEvents; i++)
-    {
-        if (conn->events[i].proc == proc)
-            return FALSE;        /* already registered */
-    }
+	for (i = 0; i < conn->nEvents; i++)
+	{
+		if (conn->events[i].proc == proc)
+			return FALSE;		/* already registered */
+	}
 
-    if (conn->nEvents >= conn->eventArraySize)
-    {
-        PGEvent    *e;
-        int            newSize;
+	if (conn->nEvents >= conn->eventArraySize)
+	{
+		PGEvent    *e;
+		int			newSize;
 
-        newSize = conn->eventArraySize ? conn->eventArraySize * 2 : 8;
-        if (conn->events)
-            e = (PGEvent *) realloc(conn->events, newSize * sizeof(PGEvent));
-        else
-            e = (PGEvent *) malloc(newSize * sizeof(PGEvent));
+		newSize = conn->eventArraySize ? conn->eventArraySize * 2 : 8;
+		if (conn->events)
+			e = (PGEvent *) realloc(conn->events, newSize * sizeof(PGEvent));
+		else
+			e = (PGEvent *) malloc(newSize * sizeof(PGEvent));
 
-        if (!e)
-            return FALSE;
+		if (!e)
+			return FALSE;
 
-        conn->eventArraySize = newSize;
-        conn->events = e;
-    }
+		conn->eventArraySize = newSize;
+		conn->events = e;
+	}
 
-    conn->events[conn->nEvents].proc = proc;
-    conn->events[conn->nEvents].name = strdup(name);
-    if (!conn->events[conn->nEvents].name)
-        return FALSE;
-    conn->events[conn->nEvents].passThrough = passThrough;
-    conn->events[conn->nEvents].data = NULL;
-    conn->events[conn->nEvents].resultInitialized = FALSE;
-    conn->nEvents++;
+	conn->events[conn->nEvents].proc = proc;
+	conn->events[conn->nEvents].name = strdup(name);
+	if (!conn->events[conn->nEvents].name)
+		return FALSE;
+	conn->events[conn->nEvents].passThrough = passThrough;
+	conn->events[conn->nEvents].data = NULL;
+	conn->events[conn->nEvents].resultInitialized = FALSE;
+	conn->nEvents++;
 
-    regevt.conn = conn;
-    if (!proc(PGEVT_REGISTER, &regevt, passThrough))
-    {
-        conn->nEvents--;
-        free(conn->events[conn->nEvents].name);
-        return FALSE;
-    }
+	regevt.conn = conn;
+	if (!proc(PGEVT_REGISTER, &regevt, passThrough))
+	{
+		conn->nEvents--;
+		free(conn->events[conn->nEvents].name);
+		return FALSE;
+	}
 
-    return TRUE;
+	return TRUE;
 }
 
 /*
@@ -97,21 +97,21 @@ PQregisterEventProc(PGconn *conn, PGEventProc proc,
 int
 PQsetInstanceData(PGconn *conn, PGEventProc proc, void *data)
 {
-    int            i;
+	int			i;
 
-    if (!conn || !proc)
-        return FALSE;
+	if (!conn || !proc)
+		return FALSE;
 
-    for (i = 0; i < conn->nEvents; i++)
-    {
-        if (conn->events[i].proc == proc)
-        {
-            conn->events[i].data = data;
-            return TRUE;
-        }
-    }
+	for (i = 0; i < conn->nEvents; i++)
+	{
+		if (conn->events[i].proc == proc)
+		{
+			conn->events[i].data = data;
+			return TRUE;
+		}
+	}
 
-    return FALSE;
+	return FALSE;
 }
 
 /*
@@ -120,18 +120,18 @@ PQsetInstanceData(PGconn *conn, PGEventProc proc, void *data)
 void *
 PQinstanceData(const PGconn *conn, PGEventProc proc)
 {
-    int            i;
+	int			i;
 
-    if (!conn || !proc)
-        return NULL;
+	if (!conn || !proc)
+		return NULL;
 
-    for (i = 0; i < conn->nEvents; i++)
-    {
-        if (conn->events[i].proc == proc)
-            return conn->events[i].data;
-    }
+	for (i = 0; i < conn->nEvents; i++)
+	{
+		if (conn->events[i].proc == proc)
+			return conn->events[i].data;
+	}
 
-    return NULL;
+	return NULL;
 }
 
 /*
@@ -141,21 +141,21 @@ PQinstanceData(const PGconn *conn, PGEventProc proc)
 int
 PQresultSetInstanceData(PGresult *result, PGEventProc proc, void *data)
 {
-    int            i;
+	int			i;
 
-    if (!result || !proc)
-        return FALSE;
+	if (!result || !proc)
+		return FALSE;
 
-    for (i = 0; i < result->nEvents; i++)
-    {
-        if (result->events[i].proc == proc)
-        {
-            result->events[i].data = data;
-            return TRUE;
-        }
-    }
+	for (i = 0; i < result->nEvents; i++)
+	{
+		if (result->events[i].proc == proc)
+		{
+			result->events[i].data = data;
+			return TRUE;
+		}
+	}
 
-    return FALSE;
+	return FALSE;
 }
 
 /*
@@ -164,16 +164,16 @@ PQresultSetInstanceData(PGresult *result, PGEventProc proc, void *data)
 void *
 PQresultInstanceData(const PGresult *result, PGEventProc proc)
 {
-    int            i;
+	int			i;
 
-    if (!result || !proc)
-        return NULL;
+	if (!result || !proc)
+		return NULL;
 
-    for (i = 0; i < result->nEvents; i++)
-        if (result->events[i].proc == proc)
-            return result->events[i].data;
+	for (i = 0; i < result->nEvents; i++)
+		if (result->events[i].proc == proc)
+			return result->events[i].data;
 
-    return NULL;
+	return NULL;
 }
 
 /*
@@ -184,26 +184,26 @@ PQresultInstanceData(const PGresult *result, PGEventProc proc)
 int
 PQfireResultCreateEvents(PGconn *conn, PGresult *res)
 {
-    int            i;
+	int			i;
 
-    if (!res)
-        return FALSE;
+	if (!res)
+		return FALSE;
 
-    for (i = 0; i < res->nEvents; i++)
-    {
-        if (!res->events[i].resultInitialized)
-        {
-            PGEventResultCreate evt;
+	for (i = 0; i < res->nEvents; i++)
+	{
+		if (!res->events[i].resultInitialized)
+		{
+			PGEventResultCreate evt;
 
-            evt.conn = conn;
-            evt.result = res;
-            if (!res->events[i].proc(PGEVT_RESULTCREATE, &evt,
-                                     res->events[i].passThrough))
-                return FALSE;
+			evt.conn = conn;
+			evt.result = res;
+			if (!res->events[i].proc(PGEVT_RESULTCREATE, &evt,
+									 res->events[i].passThrough))
+				return FALSE;
 
-            res->events[i].resultInitialized = TRUE;
-        }
-    }
+			res->events[i].resultInitialized = TRUE;
+		}
+	}
 
-    return TRUE;
+	return TRUE;
 }

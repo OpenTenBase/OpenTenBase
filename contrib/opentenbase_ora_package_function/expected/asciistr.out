@@ -1,0 +1,81 @@
+\c opentenbase_ora_package_function_regression_ora
+set client_encoding = utf8;
+set client_min_messages = 'warning';
+create extension if not exists opentenbase_ora_package_function;
+-- test asciistr common case
+select asciistr('嗨！JIM') from dual;
+   ASCIISTR    
+---------------
+ \55E8\FF01JIM
+(1 row)
+
+select asciistr('环境治理第1要务！') from dual;
+                 ASCIISTR                  
+-------------------------------------------
+ \73AF\5883\6CBB\7406\7B2C1\8981\52A1\FF01
+(1 row)
+
+select asciistr('魑魅魍魉钆xyz😀123') from dual;
+                 ASCIISTR                  
+-------------------------------------------
+ \9B51\9B45\9B4D\9B49\9486xyz\D83D\DE00123
+(1 row)
+
+select asciistr('魑👦xyz😀123') from dual;
+            ASCIISTR             
+---------------------------------
+ \9B51\D83D\DC66xyz\D83D\DE00123
+(1 row)
+
+select asciistr('') from dual;
+ ASCIISTR 
+----------
+ 
+(1 row)
+
+select asciistr(NULL) from dual;
+ ASCIISTR 
+----------
+ 
+(1 row)
+
+-- test asciistr with system function
+select asciistr(repeat('魑👦xyz😀123', 2)) from dual;
+                            ASCIISTR                            
+----------------------------------------------------------------
+ \9B51\D83D\DC66xyz\D83D\DE00123\9B51\D83D\DC66xyz\D83D\DE00123
+(1 row)
+
+select asciistr(chr(72)) from dual;
+ ASCIISTR 
+----------
+ H
+(1 row)
+
+select asciistr(to_char('')) from dual;
+ ASCIISTR 
+----------
+ 
+(1 row)
+
+-- test asciistr with table colum
+create table r_asciistr_20230207(id int, name text);
+insert into r_asciistr_20230207 values (1, '汉字123abc！');
+insert into r_asciistr_20230207 values (2, 'emoj👦xyz😀123？');
+insert into r_asciistr_20230207 values (3, 'Just English.!?');
+insert into r_asciistr_20230207 values (4, '');
+insert into r_asciistr_20230207 values (5, NULL);
+select asciistr(name) from r_asciistr_20230207 order by id;
+              ASCIISTR               
+-------------------------------------
+ \6C49\5B57123abc\FF01
+ emoj\D83D\DC66xyz\D83D\DE00123\FF1F
+ Just English.!?
+ 
+ 
+(5 rows)
+
+-- clean up
+drop table r_asciistr_20230207;
+reset client_encoding;
+reset client_min_messages;

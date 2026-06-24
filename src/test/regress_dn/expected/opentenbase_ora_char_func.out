@@ -1,0 +1,1825 @@
+---------------------------------------------
+-- Test cases for opentenbase_ora character function.
+---------------------------------------------
+\c regression_ora
+create schema if not exists opentenbase_ora_char_func authorization current_user;
+set search_path = opentenbase_ora_char_func;
+--------------------------
+-- Test ascii function
+--------------------------
+select ascii('abc') from dual;
+ ASCII 
+-------
+    97
+(1 row)
+
+select ascii('bcd') from dual;
+ ASCII 
+-------
+    98
+(1 row)
+
+select ascii('cde') from dual;
+ ASCII 
+-------
+    99
+(1 row)
+
+select ascii('def') from dual;
+ ASCII 
+-------
+   100
+(1 row)
+
+select ascii(0) from dual;
+ ASCII 
+-------
+    48
+(1 row)
+
+select ascii(1) from dual;
+ ASCII 
+-------
+    49
+(1 row)
+
+select ascii(2) from dual;
+ ASCII 
+-------
+    50
+(1 row)
+
+select ascii(-1) from dual;
+ ASCII 
+-------
+    45
+(1 row)
+
+select ascii(0.0) from dual;
+ ASCII 
+-------
+    48
+(1 row)
+
+select ascii(0.1) from dual;
+ ASCII 
+-------
+    46
+(1 row)
+
+select ascii(.23) from dual;
+ ASCII 
+-------
+    46
+(1 row)
+
+select ascii(2.3) from dual;
+ ASCII 
+-------
+    50
+(1 row)
+
+drop table if exists tbl_ascii_test;
+NOTICE:  table "TBL_ASCII_TEST" does not exist, skipping
+create table tbl_ascii_test(id int, c20 long raw, c21 raw(100), c22 ROWID, c23 varchar2(50), c24 integer);
+insert into tbl_ascii_test values (1, 'ABC', 'ABC', '', 'ABC', 0);
+select ascii(c21),ascii(c22), ascii(c23), ascii(c24) from tbl_ascii_test;
+ ASCII | ASCII | ASCII | ASCII 
+-------+-------+-------+-------
+    48 |       |    65 |    48
+(1 row)
+
+drop table tbl_ascii_test;
+drop table if exists t_ascii;
+NOTICE:  table "T_ASCII" does not exist, skipping
+create table t_ascii(f1 int, f2 varchar2, f3 int, f4 numeric);
+insert into t_ascii values(1, 'abc', 0, 0.0);
+insert into t_ascii values(2, 'bcd', 1, 0.1);
+insert into t_ascii values(3, 'cde', 2, .23);
+insert into t_ascii values(4, 'def', -1, 2.3);
+drop table t_ascii;
+--------------------------
+-- Test replace function
+--------------------------
+select replace('JACK and JUE', 'J', 'BL') "Changes" from dual;
+    Changes     
+----------------
+ BLACK and BLUE
+(1 row)
+
+select replace('JACK and JUE', 'J', 23) "Changes" from dual;
+    Changes     
+----------------
+ 23ACK and 23UE
+(1 row)
+
+select replace('JACK and JUE', 'J') "Changes" from dual;
+  Changes   
+------------
+ ACK and UE
+(1 row)
+
+select replace(replace('$1'||rtrim(trim(leading '=' from '=='||lpad(chr(12540), 20, remainder(1123E13, ascii(122E13)))||'=='), '=')||'$2', '$1', '$$'), '$2', '$$') from dual;
+         REPLACE         
+-------------------------
+ $$-12-12-12-12-12-120$$
+(1 row)
+
+select ascii(replace(rtrim(trim('a' from 'a'||lpad(null||'abcde'||'你好'||-20||3*6||'',remainder('1228', '100'))||'a'), '-'), ' ','')) as ascii from dual;
+ ASCII 
+-------
+    97
+(1 row)
+
+drop table if exists t_replace;
+NOTICE:  table "T_REPLACE" does not exist, skipping
+create table t_replace(f1 int, f2 varchar2);
+insert into t_replace values(1, 'JACK');
+insert into t_replace values(2, 'JUE');
+insert into t_replace values(3, 'JACK and JUE');
+insert into t_replace values(4, 'JACK or JUE');
+select f1, f2, replace(f2, 'J', 'BL') from t_replace order by f1;
+ F1 |      F2      |    REPLACE     
+----+--------------+----------------
+  1 | JACK         | BLACK
+  2 | JUE          | BLUE
+  3 | JACK and JUE | BLACK and BLUE
+  4 | JACK or JUE  | BLACK or BLUE
+(4 rows)
+
+select f1, f2, replace(f2, 'J', 23) from t_replace order by f1;
+ F1 |      F2      |    REPLACE     
+----+--------------+----------------
+  1 | JACK         | 23ACK
+  2 | JUE          | 23UE
+  3 | JACK and JUE | 23ACK and 23UE
+  4 | JACK or JUE  | 23ACK or 23UE
+(4 rows)
+
+select f1, f2, replace(f2, 'J') from t_replace order by f1;
+ F1 |      F2      |  REPLACE   
+----+--------------+------------
+  1 | JACK         | ACK
+  2 | JUE          | UE
+  3 | JACK and JUE | ACK and UE
+  4 | JACK or JUE  | ACK or UE
+(4 rows)
+
+drop table t_replace;
+drop table if exists replace_t;
+NOTICE:  table "REPLACE_T" does not exist, skipping
+create table replace_t(id int, c1 varchar2(100), c2 char(100), c3 nchar(100), c4 nvarchar2(100), c5 clob, c6 nclob, c7 number, c8 smallint, c9 date, c10 timestamp);
+insert into replace_t values(1, 'abc', 'eqw', chr(20)||'da', chr(30)||'==', '而我却', chr(465)||'饿我去的', 465.89, -100, '2021-07-06 10:15:12', to_timestamp('2021-07-06 14:38:48.680297', 'yyyy-mm-dd HH24:mi:ss.ff'));
+insert into replace_t values(2, '中国', '大苏打', chr(125)||'ddsaa', chr(120)||'==', 'daewq', chr(879)||'大苏打ew', 1.89, 128,'2020-08-06 10:15:12', to_timestamp('2021-07-06 14:38:48.680297', 'yyyy-mm-dd HH24:mi:ss.ff'));
+insert into replace_t values(3, '四届', 'eqw', chr(51082)||'打算', chr(654)||'==', '打算而我却', chr(135)||'而我打算eqw', 0.89, 0, '2020-08-06 10:15:12', to_timestamp('2021-07-08 14:38:48', 'yyyy-mm-dd HH24:mi:ss'));
+insert into replace_t values(4, 'abc', '而且我给v的', chr(20)||'da', chr(445)||'==', '和梵蒂冈', chr(135)||'aeq4556大', -895.89, 11, '2021-08-06 10:15:12', to_timestamp('2021-08-08 14:38:48', 'yyyy-mm-dd HH24:mi:ss'));
+insert into replace_t values(5, 'abewqe', 'eqw', chr(34)||'恶趣味', chr(102)||'==', '日期', chr(798)||'321', -7895.89, 22, '2020-09-06 10:15:12', to_timestamp('2021-07-09 14:38:48', 'yyyy-mm-dd HH24:mi:ss'));
+insert into replace_t values(6, '打算', 'dasdas', chr(38)||'大师的人情味', chr(128)||'==', '发', chr(4565)||'', 7851.89, -56, '2020-10-06 10:15:12', to_timestamp('2021-10-08 14:38:48', 'yyyy-mm-dd HH24:mi:ss'));
+-- 插入空值
+insert into replace_t values(7, '', 'dasdas','', chr(128)||'==', '发', chr(4565)||'', '', 127, '', '');
+insert into replace_t values(9, '', 'dasdas', '', '', '', chr(4565)||'', 7895.89, '', '', to_timestamp('2021-10-08 14:38:48', 'yyyy-mm-dd HH24:mi:ss'));
+-- 查询
+select id, c1, replace(c1, 'a', '替换') replace from replace_t order by id;
+ ID |   C1   |  REPLACE  
+----+--------+-----------
+  1 | abc    | 替换bc
+  2 | 中国   | 中国
+  3 | 四届   | 四届
+  4 | abc    | 替换bc
+  5 | abewqe | 替换bewqe
+  6 | 打算   | 打算
+  7 |        | 
+  9 |        | 
+(8 rows)
+
+select id, c1, c2, c3, replace(c1, c2, c3) as replace from replace_t order by id;
+ ID |   C1   |                                                    C2                                                     |                                                     C3                                                     | REPLACE 
+----+--------+-----------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------+---------
+  1 | abc    | eqw                                                                                                       | \x14da                                                                                                     | abc
+  2 | 中国   | 大苏打                                                                                                    | }ddsaa                                                                                                     | 中国
+  3 | 四届   | eqw                                                                                                       | Ǌ打算                                                                                                      | 四届
+  4 | abc    | 而且我给v的                                                                                               | \x14da                                                                                                     | abc
+  5 | abewqe | eqw                                                                                                       | "恶趣味                                                                                                    | abewqe
+  6 | 打算   | dasdas                                                                                                    | &大师的人情味                                                                                              | 打算
+  7 |        | dasdas                                                                                                    |                                                                                                            | 
+  9 |        | dasdas                                                                                                    |                                                                                                            | 
+(8 rows)
+
+select id, c1, c2, c3, replace(c2, c2, c3) as replace from replace_t order by id;
+ ID |   C1   |                                                    C2                                                     |                                                     C3                                                     |                                                  REPLACE                                                   
+----+--------+-----------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------
+  1 | abc    | eqw                                                                                                       | \x14da                                                                                                     | \x14da                                                                                                 
+  2 | 中国   | 大苏打                                                                                                    | }ddsaa                                                                                                     | }ddsaa                                                                                              
+  3 | 四届   | eqw                                                                                                       | Ǌ打算                                                                                                      | Ǌ打算                                                                                                 
+  4 | abc    | 而且我给v的                                                                                               | \x14da                                                                                                     | \x14da                                                                                                 
+  5 | abewqe | eqw                                                                                                       | "恶趣味                                                                                                    | "恶趣味                                                                                                
+  6 | 打算   | dasdas                                                                                                    | &大师的人情味                                                                                              | &大师的人情味                                                                                             
+  7 |        | dasdas                                                                                                    |                                                                                                            | 
+  9 |        | dasdas                                                                                                    |                                                                                                            | 
+(8 rows)
+
+select id, c1, c2, c3, replace(c8, c8, c7) as replace from replace_t order by id;
+ ID |   C1   |                                                    C2                                                     |                                                     C3                                                     | REPLACE  
+----+--------+-----------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------+----------
+  1 | abc    | eqw                                                                                                       | \x14da                                                                                                     | 465.89
+  2 | 中国   | 大苏打                                                                                                    | }ddsaa                                                                                                     | 1.89
+  3 | 四届   | eqw                                                                                                       | Ǌ打算                                                                                                      | .89
+  4 | abc    | 而且我给v的                                                                                               | \x14da                                                                                                     | -895.89
+  5 | abewqe | eqw                                                                                                       | "恶趣味                                                                                                    | -7895.89
+  6 | 打算   | dasdas                                                                                                    | &大师的人情味                                                                                              | 7851.89
+  7 |        | dasdas                                                                                                    |                                                                                                            | 
+  9 |        | dasdas                                                                                                    |                                                                                                            | 
+(8 rows)
+
+select id, c9 ,replace(c9, '-', '/') as replace from replace_t order by id;
+ ID |     C9     |  REPLACE   
+----+------------+------------
+  1 | 07-06-2021 | 07/06/2021
+  2 | 08-06-2020 | 08/06/2020
+  3 | 08-06-2020 | 08/06/2020
+  4 | 08-06-2021 | 08/06/2021
+  5 | 09-06-2020 | 09/06/2020
+  6 | 10-06-2020 | 10/06/2020
+  7 |            | 
+  9 |            | 
+(8 rows)
+
+select id, c10 ,replace(c10, '-', '/') as replace from replace_t order by id;
+ ID |           C10            |         REPLACE          
+----+--------------------------+--------------------------
+  1 | Tue Jul 06 14:38:48 2021 | Tue Jul 06 14:38:48 2021
+  2 | Tue Jul 06 14:38:48 2021 | Tue Jul 06 14:38:48 2021
+  3 | Thu Jul 08 14:38:48 2021 | Thu Jul 08 14:38:48 2021
+  4 | Sun Aug 08 14:38:48 2021 | Sun Aug 08 14:38:48 2021
+  5 | Fri Jul 09 14:38:48 2021 | Fri Jul 09 14:38:48 2021
+  6 | Fri Oct 08 14:38:48 2021 | Fri Oct 08 14:38:48 2021
+  7 |                          | 
+  9 | Fri Oct 08 14:38:48 2021 | Fri Oct 08 14:38:48 2021
+(8 rows)
+
+-- where 语句
+select id, c1 from replace_t where replace(c1, 'a', '替换')=c1 order by id;
+ ID |  C1  
+----+------
+  2 | 中国
+  3 | 四届
+  6 | 打算
+(3 rows)
+
+select id, c1, c2 from replace_t where replace(c1, c2, '替换')=c1 order by id;
+ ID |   C1   |                                                    C2                                                     
+----+--------+-----------------------------------------------------------------------------------------------------------
+  1 | abc    | eqw                                                                                                 
+  2 | 中国   | 大苏打                                                                                                 
+  3 | 四届   | eqw                                                                                                 
+  4 | abc    | 而且我给v的                                                                                              
+  5 | abewqe | eqw                                                                                                 
+  6 | 打算   | dasdas                                                                                              
+(6 rows)
+
+select id, c1, c2, c3 from replace_t where replace(c1, c2, c3)=c3 order by id;
+ ID | C1 | C2 | C3 
+----+----+----+----
+(0 rows)
+
+drop table if exists replace_t;
+--------------------------
+-- Test instr function
+--------------------------
+select instr('CORPORATE FLOOR', 'OR', 3, 2) "Instring" from dual;
+ Instring 
+----------
+       14
+(1 row)
+
+select instr('CORPORATE FLOOR', 'OR', -1, 1) "Instring" from dual;
+ Instring 
+----------
+       14
+(1 row)
+
+select instr('CORPORATE FLOOR', 'OR', -1) "Instring" from dual;
+ Instring 
+----------
+       14
+(1 row)
+
+select instr('CORPORATE FLOOR', 'OR') "Instring" from dual;
+ Instring 
+----------
+        2
+(1 row)
+
+select instr('CORPORATE FLOOR', 'OR', 0) "Instring" from dual;
+ Instring 
+----------
+        0
+(1 row)
+
+select instr('CORPORATE FLOOR', 'OR', 0.1) "Instring" from dual;
+ Instring 
+----------
+        0
+(1 row)
+
+select instr('This is a test', 6, 2) from dual;
+ INSTR 
+-------
+     0
+(1 row)
+
+select instr('This is a test', 6) from dual;
+ INSTR 
+-------
+     0
+(1 row)
+
+drop table if exists t_instr;
+NOTICE:  table "T_INSTR" does not exist, skipping
+create table t_instr(f1 int, f2 varchar2, f3 varchar2);
+insert into t_instr values(1, 'CORPORATE FLOOR', 'OR');
+insert into t_instr values(2, 'A CORPORATE FLOOR', 'OR');
+insert into t_instr values(3, 'AB CORPORATE FLOOR', 'OR');
+insert into t_instr values(4, 'ABC CORPORATE FLOOR', 'OR');
+select f1, f2, instr(f2, f3, 3, 2) from t_instr order by f1;
+ F1 |         F2          | INSTR 
+----+---------------------+-------
+  1 | CORPORATE FLOOR     |    14
+  2 | A CORPORATE FLOOR   |     7
+  3 | AB CORPORATE FLOOR  |     8
+  4 | ABC CORPORATE FLOOR |     9
+(4 rows)
+
+select f1, f2, instr(f2, f3, -1, 1) from t_instr order by f1;
+ F1 |         F2          | INSTR 
+----+---------------------+-------
+  1 | CORPORATE FLOOR     |    14
+  2 | A CORPORATE FLOOR   |    16
+  3 | AB CORPORATE FLOOR  |    17
+  4 | ABC CORPORATE FLOOR |    18
+(4 rows)
+
+select f1, f2, instr(f2, f3, -1) from t_instr order by f1;
+ F1 |         F2          | INSTR 
+----+---------------------+-------
+  1 | CORPORATE FLOOR     |    14
+  2 | A CORPORATE FLOOR   |    16
+  3 | AB CORPORATE FLOOR  |    17
+  4 | ABC CORPORATE FLOOR |    18
+(4 rows)
+
+select f1, f2, instr(f2, f3) from t_instr order by f1;
+ F1 |         F2          | INSTR 
+----+---------------------+-------
+  1 | CORPORATE FLOOR     |     2
+  2 | A CORPORATE FLOOR   |     4
+  3 | AB CORPORATE FLOOR  |     5
+  4 | ABC CORPORATE FLOOR |     6
+(4 rows)
+
+select f1, f2, instr(f2, f3, 0) from t_instr order by f1;
+ F1 |         F2          | INSTR 
+----+---------------------+-------
+  1 | CORPORATE FLOOR     |     0
+  2 | A CORPORATE FLOOR   |     0
+  3 | AB CORPORATE FLOOR  |     0
+  4 | ABC CORPORATE FLOOR |     0
+(4 rows)
+
+select f1, f2, instr(f2, f3, 0.1) from t_instr order by f1;
+ F1 |         F2          | INSTR 
+----+---------------------+-------
+  1 | CORPORATE FLOOR     |     0
+  2 | A CORPORATE FLOOR   |     0
+  3 | AB CORPORATE FLOOR  |     0
+  4 | ABC CORPORATE FLOOR |     0
+(4 rows)
+
+drop table t_instr;
+--------------------------
+-- Test substr function
+--------------------------
+select substr('ABCDEFG', 3, 4) "Substring" from dual;
+ Substring 
+-----------
+ CDEF
+(1 row)
+
+select substr('ABCDEFG', -5, 4) "Substring" from dual;
+ Substring 
+-----------
+ CDEF
+(1 row)
+
+select substr('1234567890', 1) "Substring with bytes" from dual;
+ Substring with bytes 
+----------------------
+ 1234567890
+(1 row)
+
+select substr('1234567890', 0) "Substring with bytes" from dual;
+ Substring with bytes 
+----------------------
+ 1234567890
+(1 row)
+
+select substr('1234567890', 2) "Substring with bytes" from dual;
+ Substring with bytes 
+----------------------
+ 234567890
+(1 row)
+
+select substr(1234567890, 1) "Substring with bytes" from dual;
+ Substring with bytes 
+----------------------
+ 1234567890
+(1 row)
+
+select substr(1234567890, 2) "Substring with bytes" from dual;
+ Substring with bytes 
+----------------------
+ 234567890
+(1 row)
+
+select substr(1234567890, 0) "Substring with bytes" from dual;
+ Substring with bytes 
+----------------------
+ 1234567890
+(1 row)
+
+select substr(1234567890, -1) "Substring with bytes" from dual;
+ Substring with bytes 
+----------------------
+ 0
+(1 row)
+
+select substr(1234567890, 5, 3) "Substring with bytes" from dual;
+ Substring with bytes 
+----------------------
+ 567
+(1 row)
+
+select substr(1234567890, -5, 3) "Substring with bytes" from dual;
+ Substring with bytes 
+----------------------
+ 678
+(1 row)
+
+select substr(123.456, 2, 3) "Substring with bytes" from dual;
+ Substring with bytes 
+----------------------
+ 23.
+(1 row)
+
+select substr(123.456, 2) "Substring with bytes" from dual;
+ Substring with bytes 
+----------------------
+ 23.456
+(1 row)
+
+select substr( '今天天气很不错', 3) from dual;
+   SUBSTR   
+------------
+ 天气很不错
+(1 row)
+
+select substr( '今天天气很不错', 3, 2) from dual;
+ SUBSTR 
+--------
+ 天气
+(1 row)
+
+drop table if exists t_substr;
+NOTICE:  table "T_SUBSTR" does not exist, skipping
+create table t_substr(f1 int, f2 varchar2, f3 numeric);
+insert into t_substr values(1, 'ABCDEFG', 123.456);
+insert into t_substr values(2, '1234567890', 1234567890);
+insert into t_substr values(3, '今天天气很不错', 98765.4321);
+insert into t_substr values(4, '9876543210', 9876543210);
+select f1, f2, substr(f2, 3, 4), f3, substr(f3, 3, 4) from t_substr order by f1;
+ F1 |       F2       |  SUBSTR  |     F3     | SUBSTR 
+----+----------------+----------+------------+--------
+  1 | ABCDEFG        | CDEF     |    123.456 | 3.45
+  2 | 1234567890     | 3456     | 1234567890 | 3456
+  3 | 今天天气很不错 | 天气很不 | 98765.4321 | 765.
+  4 | 9876543210     | 7654     | 9876543210 | 7654
+(4 rows)
+
+select f1, f2, substr(f2, -5, 4), f3, substr(f3, -5, 4) from t_substr order by f1;
+ F1 |       F2       |  SUBSTR  |     F3     | SUBSTR 
+----+----------------+----------+------------+--------
+  1 | ABCDEFG        | CDEF     |    123.456 | 3.45
+  2 | 1234567890     | 6789     | 1234567890 | 6789
+  3 | 今天天气很不错 | 天气很不 | 98765.4321 | .432
+  4 | 9876543210     | 4321     | 9876543210 | 4321
+(4 rows)
+
+select f1, f2, substr(f2, 1), f3, substr(f3, 1) from t_substr order by f1;
+ F1 |       F2       |     SUBSTR     |     F3     |   SUBSTR   
+----+----------------+----------------+------------+------------
+  1 | ABCDEFG        | ABCDEFG        |    123.456 | 123.456
+  2 | 1234567890     | 1234567890     | 1234567890 | 1234567890
+  3 | 今天天气很不错 | 今天天气很不错 | 98765.4321 | 98765.4321
+  4 | 9876543210     | 9876543210     | 9876543210 | 9876543210
+(4 rows)
+
+select f1, f2, substr(f2, 0), f3, substr(f3, 0) from t_substr order by f1;
+ F1 |       F2       |     SUBSTR     |     F3     |   SUBSTR   
+----+----------------+----------------+------------+------------
+  1 | ABCDEFG        | ABCDEFG        |    123.456 | 123.456
+  2 | 1234567890     | 1234567890     | 1234567890 | 1234567890
+  3 | 今天天气很不错 | 今天天气很不错 | 98765.4321 | 98765.4321
+  4 | 9876543210     | 9876543210     | 9876543210 | 9876543210
+(4 rows)
+
+select f1, f2, substr(f2, 2), f3, substr(f3, 2) from t_substr order by f1;
+ F1 |       F2       |    SUBSTR    |     F3     |  SUBSTR   
+----+----------------+--------------+------------+-----------
+  1 | ABCDEFG        | BCDEFG       |    123.456 | 23.456
+  2 | 1234567890     | 234567890    | 1234567890 | 234567890
+  3 | 今天天气很不错 | 天天气很不错 | 98765.4321 | 8765.4321
+  4 | 9876543210     | 876543210    | 9876543210 | 876543210
+(4 rows)
+
+select f1, f2, substr(f2, -1), f3, substr(f3, -1) from t_substr order by f1;
+ F1 |       F2       | SUBSTR |     F3     | SUBSTR 
+----+----------------+--------+------------+--------
+  1 | ABCDEFG        | G      |    123.456 | 6
+  2 | 1234567890     | 0      | 1234567890 | 0
+  3 | 今天天气很不错 | 错     | 98765.4321 | 1
+  4 | 9876543210     | 0      | 9876543210 | 0
+(4 rows)
+
+select f1, f2, substr(f2, 5, 3), f3, substr(f3, 5, 3) from t_substr order by f1;
+ F1 |       F2       | SUBSTR |     F3     | SUBSTR 
+----+----------------+--------+------------+--------
+  1 | ABCDEFG        | EFG    |    123.456 | 456
+  2 | 1234567890     | 567    | 1234567890 | 567
+  3 | 今天天气很不错 | 很不错 | 98765.4321 | 5.4
+  4 | 9876543210     | 543    | 9876543210 | 543
+(4 rows)
+
+select f1, f2, substr(f2, -5, 3), f3, substr(f3, -5, 3) from t_substr order by f1;
+ F1 |       F2       | SUBSTR |     F3     | SUBSTR 
+----+----------------+--------+------------+--------
+  1 | ABCDEFG        | CDE    |    123.456 | 3.4
+  2 | 1234567890     | 678    | 1234567890 | 678
+  3 | 今天天气很不错 | 天气很 | 98765.4321 | .43
+  4 | 9876543210     | 432    | 9876543210 | 432
+(4 rows)
+
+select f1, f2, substr(f2, 2, 3), f3, substr(f3, 2, 3) from t_substr order by f1;
+ F1 |       F2       | SUBSTR |     F3     | SUBSTR 
+----+----------------+--------+------------+--------
+  1 | ABCDEFG        | BCD    |    123.456 | 23.
+  2 | 1234567890     | 234    | 1234567890 | 234
+  3 | 今天天气很不错 | 天天气 | 98765.4321 | 876
+  4 | 9876543210     | 876    | 9876543210 | 876
+(4 rows)
+
+drop table t_substr;
+--------------------------
+-- Test substrb function
+--------------------------
+select substrb('ABCDEFG', 5, 4.2) "Substring with bytes" from dual;
+ Substring with bytes 
+----------------------
+ EFG
+(1 row)
+
+select substrb('ABCDEFG', 1.2) "Substring with bytes" from dual;
+ Substring with bytes 
+----------------------
+ ABCDEFG
+(1 row)
+
+select substrb('ABCDEFG', 1) "Substring with bytes" from dual;
+ Substring with bytes 
+----------------------
+ ABCDEFG
+(1 row)
+
+drop table if exists t_substrb;
+NOTICE:  table "T_SUBSTRB" does not exist, skipping
+create table t_substrb(f1 int, f2 nvarchar2);
+insert into t_substrb values(1, 'ABCDEFG');
+insert into t_substrb values(2, '1234567890');
+insert into t_substrb values(3, '今天天气很不错');
+insert into t_substrb values(4, '9876543210');
+select f1, f2, substrb(f2, 5, 4.2) from t_substrb order by f1;
+ F1 |       F2       | SUBSTRB 
+----+----------------+---------
+  1 | ABCDEFG        | EFG
+  2 | 1234567890     | 5678
+  3 | 今天天气很不错 |     
+  4 | 9876543210     | 5432
+(4 rows)
+
+select f1, f2, substrb(f2, 1.2) from t_substrb order by f1;
+ F1 |       F2       |    SUBSTRB     
+----+----------------+----------------
+  1 | ABCDEFG        | ABCDEFG
+  2 | 1234567890     | 1234567890
+  3 | 今天天气很不错 | 今天天气很不错
+  4 | 9876543210     | 9876543210
+(4 rows)
+
+select f1, f2, substrb(f2, 1) from t_substrb order by f1;
+ F1 |       F2       |    SUBSTRB     
+----+----------------+----------------
+  1 | ABCDEFG        | ABCDEFG
+  2 | 1234567890     | 1234567890
+  3 | 今天天气很不错 | 今天天气很不错
+  4 | 9876543210     | 9876543210
+(4 rows)
+
+drop table t_substrb;
+-------------------------------------
+-- Test length && lengthb function
+-------------------------------------
+select lengthb('中国') from dual;
+ LENGTHB 
+---------
+       6
+(1 row)
+
+select lengthb('123') from dual;
+ LENGTHB 
+---------
+       3
+(1 row)
+
+select lengthb(to_date('2018-01-17 15:56:30','yyyy-mm-dd hh24:mi:ss')) from dual;
+ LENGTHB 
+---------
+      10
+(1 row)
+
+select length('中国') from dual;
+ LENGTH 
+--------
+      2
+(1 row)
+
+select length(123) from dual;
+ LENGTH 
+--------
+      3
+(1 row)
+
+select length(123.3456) from dual;
+ LENGTH 
+--------
+      8
+(1 row)
+
+select length(to_date('2018-01-17 15:56:30','yyyy-mm-dd hh24:mi:ss')) from dual;
+ LENGTH 
+--------
+     10
+(1 row)
+
+drop table if exists t_length;
+NOTICE:  table "T_LENGTH" does not exist, skipping
+create table t_length(f1 int, f2 nvarchar2, f3 numeric);
+insert into t_length values(1, '123', 123);
+insert into t_length values(2, '中国', 123.3456);
+select f1, f2, length(f2), lengthb(f2), f3, length(f3) from t_length order by f1;
+ F1 |  F2  | LENGTH | LENGTHB |    F3    | LENGTH 
+----+------+--------+---------+----------+--------
+  1 | 123  |      3 |       3 |      123 |      3
+  2 | 中国 |      2 |       6 | 123.3456 |      8
+(2 rows)
+
+drop table t_length;
+--------------------------
+-- Test nchr function
+--------------------------
+select nchr(123) from dual;
+ NCHR 
+------
+ {
+(1 row)
+
+select nchr(123.3) from dual;
+ NCHR 
+------
+ {
+(1 row)
+
+select nchr(123.6) from dual;
+ NCHR 
+------
+ {
+(1 row)
+
+drop table if exists t_nchr;
+NOTICE:  table "T_NCHR" does not exist, skipping
+create table t_nchr(f1 int, f2 numeric);
+insert into t_nchr values(1, 123);
+insert into t_nchr values(2, 123.3);
+insert into t_nchr values(3, 123.6);
+select f1, f2, nchr(f2) from t_nchr order by f1;
+ F1 |  F2   | NCHR 
+----+-------+------
+  1 |   123 | {
+  2 | 123.3 | {
+  3 | 123.6 | {
+(3 rows)
+
+drop table t_nchr;
+------------------------------
+-- Test empty_blob function
+------------------------------
+drop table if exists t_blob;
+NOTICE:  table "T_BLOB" does not exist, skipping
+create table t_blob(b blob, c clob);
+insert into t_blob values(empty_blob(), '2');
+select length(b), length(c) from t_blob;
+ LENGTH | LENGTH 
+--------+--------
+      0 |      1
+(1 row)
+
+drop table t_blob;
+--------------------------
+-- Test strposb function
+--------------------------
+select strposb('abc123abc', '123') from dual;
+ STRPOSB 
+---------
+       4
+(1 row)
+
+drop table if exists t_strposb;
+NOTICE:  table "T_STRPOSB" does not exist, skipping
+create table t_strposb(f1 int, f2 varchar2, f3 varchar2, f4 varchar2);
+insert into t_strposb values(1, 'abc123abc', '123', 'abc');
+insert into t_strposb values(2, 'abcabc123', '123', 'abc');
+insert into t_strposb values(3, '123abcabc', '123', 'abc');
+select f1, f2, f3, strposb(f2, f3) from t_strposb order by f1;
+ F1 |    F2     | F3  | STRPOSB 
+----+-----------+-----+---------
+  1 | abc123abc | 123 |       4
+  2 | abcabc123 | 123 |       7
+  3 | 123abcabc | 123 |       1
+(3 rows)
+
+select f1, f2, f4, strposb(f2, f4) from t_strposb order by f1;
+ F1 |    F2     | F4  | STRPOSB 
+----+-----------+-----+---------
+  1 | abc123abc | abc |       1
+  2 | abcabc123 | abc |       1
+  3 | 123abcabc | abc |       4
+(3 rows)
+
+drop table t_strposb;
+--------------------------
+-- Test nlssort function
+--------------------------
+drop table if exists test_nlssort;
+NOTICE:  table "TEST_NLSSORT" does not exist, skipping
+create table test_nlssort (name varchar2(15));
+insert into test_nlssort values ('Gaardiner');
+insert into test_nlssort values ('Gaberd');
+insert into test_nlssort values ('Gaasten');
+select * from test_nlssort order by nlssort(name, 'NLS_SORT = C');
+   NAME    
+-----------
+ Gaardiner
+ Gaasten
+ Gaberd
+(3 rows)
+
+select * from test_nlssort order by name;
+   NAME    
+-----------
+ Gaardiner
+ Gaasten
+ Gaberd
+(3 rows)
+
+drop table test_nlssort;
+-----------------------------
+-- Test nls_lower function
+-----------------------------
+select nls_lower('NOKTASINDA', 'NLS_SORT = danish') "Lowercase" from dual;
+ Lowercase  
+------------
+ noktasinda
+(1 row)
+
+select nls_lower('NOKTASINDA', 'NLS_SORT = SCHINESE_PINYIN_M') "Lowercase" from dual;
+ Lowercase  
+------------
+ noktasinda
+(1 row)
+
+select nls_lower('NOKTASINDA', 'NLS_SORT = SCHINESE_STROKE_M') "Lowercase" from dual;
+ Lowercase  
+------------
+ noktasinda
+(1 row)
+
+select nls_lower('NOKTASINDA', 'NLS_SORT = SCHINESE_RADICAL_M') "Lowercase" from dual;
+ Lowercase  
+------------
+ noktasinda
+(1 row)
+
+drop table if exists t_nls_lower;
+NOTICE:  table "T_NLS_LOWER" does not exist, skipping
+create table t_nls_lower(f1 int, f2 varchar2);
+insert into t_nls_lower values(1, 'NOKTASINDA');
+insert into t_nls_lower values(2, 'ABCDEFG');
+insert into t_nls_lower values(3, 'ABCDefg');
+insert into t_nls_lower values(4, 'abcdefg');
+select f1, f2, nls_lower(f2), nls_lower(f2, 'NLS_SORT = danish'), nls_lower(f2, 'NLS_SORT = SCHINESE_PINYIN_M'), nls_lower(f2, 'NLS_SORT = SCHINESE_STROKE_M'), nls_lower(f2, 'NLS_SORT = SCHINESE_RADICAL_M') from t_nls_lower order by f1;
+ F1 |     F2     | NLS_LOWER  | NLS_LOWER  | NLS_LOWER  | NLS_LOWER  | NLS_LOWER  
+----+------------+------------+------------+------------+------------+------------
+  1 | NOKTASINDA | noktasinda | noktasinda | noktasinda | noktasinda | noktasinda
+  2 | ABCDEFG    | abcdefg    | abcdefg    | abcdefg    | abcdefg    | abcdefg
+  3 | ABCDefg    | abcdefg    | abcdefg    | abcdefg    | abcdefg    | abcdefg
+  4 | abcdefg    | abcdefg    | abcdefg    | abcdefg    | abcdefg    | abcdefg
+(4 rows)
+
+drop table t_nls_lower;
+-----------------------------
+-- Test nls_upper function
+-----------------------------
+select nls_upper('große') "Uppercase" from dual;
+ Uppercase 
+-----------
+ GROßE
+(1 row)
+
+select nls_upper('große', 'NLS_SORT = German') "Uppercase" from dual;
+ Uppercase 
+-----------
+ GROßE
+(1 row)
+
+drop table if exists t_nls_upper;
+NOTICE:  table "T_NLS_UPPER" does not exist, skipping
+create table t_nls_upper(f1 int, f2 varchar2);
+insert into t_nls_upper values(1, 'NOKTASINDA');
+insert into t_nls_upper values(2, 'ABCDEFG');
+insert into t_nls_upper values(3, 'ABCDefg');
+insert into t_nls_upper values(4, 'abcdefg');
+insert into t_nls_upper values(5, 'große');
+select f1, f2, nls_upper(f2), nls_upper(f2, 'NLS_SORT = German'), nls_upper(f2, 'NLS_SORT = danish'), nls_upper(f2, 'NLS_SORT = SCHINESE_PINYIN_M'), nls_upper(f2, 'NLS_SORT = SCHINESE_STROKE_M'), nls_upper(f2, 'NLS_SORT = SCHINESE_RADICAL_M') from t_nls_upper order by f1;
+ F1 |     F2     | NLS_UPPER  | NLS_UPPER  | NLS_UPPER  | NLS_UPPER  | NLS_UPPER  | NLS_UPPER  
+----+------------+------------+------------+------------+------------+------------+------------
+  1 | NOKTASINDA | NOKTASINDA | NOKTASINDA | NOKTASINDA | NOKTASINDA | NOKTASINDA | NOKTASINDA
+  2 | ABCDEFG    | ABCDEFG    | ABCDEFG    | ABCDEFG    | ABCDEFG    | ABCDEFG    | ABCDEFG
+  3 | ABCDefg    | ABCDEFG    | ABCDEFG    | ABCDEFG    | ABCDEFG    | ABCDEFG    | ABCDEFG
+  4 | abcdefg    | ABCDEFG    | ABCDEFG    | ABCDEFG    | ABCDEFG    | ABCDEFG    | ABCDEFG
+  5 | große      | GROßE      | GROßE      | GROßE      | GROßE      | GROßE      | GROßE
+(5 rows)
+
+drop table t_nls_upper;
+-----------------------------
+-- Test nls_initcap function
+-----------------------------
+select nls_initcap('ijsland') "InitCap" from dual;
+ InitCap 
+---------
+ Ijsland
+(1 row)
+
+select nls_initcap('ijsland', 'NLS_SORT = Dutch') "InitCap" from dual;
+ InitCap 
+---------
+ Ijsland
+(1 row)
+
+drop table if exists t_nls_initcap;
+NOTICE:  table "T_NLS_INITCAP" does not exist, skipping
+create table t_nls_initcap(f1 int, f2 varchar2);
+insert into t_nls_initcap values(1, 'ijsland');
+insert into t_nls_initcap values(2, 'ABCDEFG');
+insert into t_nls_initcap values(3, 'abcdefg');
+insert into t_nls_initcap values(4, 'it is a dog');
+select f1, f2, nls_initcap(f2), nls_initcap(f2, 'NLS_SORT = Dutch') from t_nls_initcap order by f1;
+ F1 |     F2      | NLS_INITCAP | NLS_INITCAP 
+----+-------------+-------------+-------------
+  1 | ijsland     | Ijsland     | Ijsland
+  2 | ABCDEFG     | Abcdefg     | Abcdefg
+  3 | abcdefg     | Abcdefg     | Abcdefg
+  4 | it is a dog | It Is A Dog | It Is A Dog
+(4 rows)
+
+drop table t_nls_initcap;
+-----------------------------
+-- Test lower function
+-----------------------------
+select lower(123) from dual;
+ LOWER 
+-------
+ 123
+(1 row)
+
+select lower('') from dual;
+ LOWER 
+-------
+ 
+(1 row)
+
+select lower(null) from dual;
+ LOWER 
+-------
+ 
+(1 row)
+
+-----------------------------
+-- Test upper function
+-----------------------------
+select upper(123) from dual;
+ UPPER 
+-------
+ 123
+(1 row)
+
+select upper('') from dual;
+ UPPER 
+-------
+ 
+(1 row)
+
+select upper(null) from dual;
+ UPPER 
+-------
+ 
+(1 row)
+
+-------------------------------
+-- Test regexp_count function
+-------------------------------
+select regexp_count('123123123123123', '(12)3', 1, 'i') from dual;
+ REGEXP_COUNT 
+--------------
+            5
+(1 row)
+
+select regexp_count('abcdefgABcdefg', '(ab)c', 1, 'i') from dual;
+ REGEXP_COUNT 
+--------------
+            2
+(1 row)
+
+select regexp_count('abcdefgABcdefg', '(ab)c', 1, 'c') from dual;
+ REGEXP_COUNT 
+--------------
+            1
+(1 row)
+
+select regexp_count('abcdefgABcdefg', '(ab)c') from dual;
+ REGEXP_COUNT 
+--------------
+            1
+(1 row)
+
+select regexp_count('ABC123', '[A-Z]'), regexp_count('A1B2C3', '[A-Z]') from dual;
+ REGEXP_COUNT | REGEXP_COUNT 
+--------------+--------------
+            3 |            3
+(1 row)
+
+select regexp_count('ABC123', '[A-Z][0-9]'), regexp_count('A1B2C3', '[A-Z][0-9]') from dual;
+ REGEXP_COUNT | REGEXP_COUNT 
+--------------+--------------
+            1 |            3
+(1 row)
+
+select regexp_count('ABC123', '[A-Z][0-9]'), regexp_count('A1B2C3', '[A-Z][0-9]') from dual;
+ REGEXP_COUNT | REGEXP_COUNT 
+--------------+--------------
+            1 |            3
+(1 row)
+
+--各种数据类型
+drop table if exists t_regexp_count;
+NOTICE:  table "T_REGEXP_COUNT" does not exist, skipping
+create table t_regexp_count(f1 int, f2 varchar2, f3 varchar2);
+insert into t_regexp_count values(1, '123123123123123', '(12)3');
+insert into t_regexp_count values(2, 'abcdefgABcdefg', '(ab)c');
+insert into t_regexp_count values(3, 'ABC123', '[A-Z]');
+insert into t_regexp_count values(4, 'ABC123', '[A-Z][0-9]');
+insert into t_regexp_count values(5, 'A1B2C3', '[A-Z]');
+insert into t_regexp_count values(6, 'A1B2C3', '[A-Z][0-9]');
+select f1, f2, f3, regexp_count(f2, f3), regexp_count(f2, f3, 1, 'i'), regexp_count(f2, f3, 1, 'c') from t_regexp_count order by f1;
+ F1 |       F2        |     F3     | REGEXP_COUNT | REGEXP_COUNT | REGEXP_COUNT 
+----+-----------------+------------+--------------+--------------+--------------
+  1 | 123123123123123 | (12)3      |            5 |            5 |            5
+  2 | abcdefgABcdefg  | (ab)c      |            1 |            2 |            1
+  3 | ABC123          | [A-Z]      |            3 |            3 |            3
+  4 | ABC123          | [A-Z][0-9] |            1 |            1 |            1
+  5 | A1B2C3          | [A-Z]      |            3 |            3 |            3
+  6 | A1B2C3          | [A-Z][0-9] |            3 |            3 |            3
+(6 rows)
+
+drop table t_regexp_count;
+-------------------------------
+-- Test regexp_substr function
+-------------------------------
+select regexp_substr('500 opentenbase_ora Parkway, Redwood Shores, CA', ',[^,]+,') from dual;
+   REGEXP_SUBSTR   
+-------------------
+ , Redwood Shores,
+(1 row)
+
+select regexp_substr('http://www.example.com/products', 'http://([[:alnum:]]+\.?){3,4}/?') from dual;
+      REGEXP_SUBSTR      
+-------------------------
+ http://www.example.com/
+(1 row)
+
+select regexp_substr('1234567890', '(123)(4(56)(78))', 1, 1, 'i', 1) from dual;
+ REGEXP_SUBSTR 
+---------------
+ 123
+(1 row)
+
+select regexp_substr('1234567890', '(123)(4(56)(78))', 1, 1, 'i', 4) from dual;
+ REGEXP_SUBSTR 
+---------------
+ 78
+(1 row)
+
+with strings as (
+  select 'ABC123' str from dual union all
+  select 'A1B2C3' str from dual union all
+  select '123ABC' str from dual union all
+  select '1A2B3C' str from dual
+)
+  select regexp_substr(str, '[0-9]') First_Occurrence_of_Number,
+         regexp_substr(str, '[0-9].*') Num_Followed_by_String,
+         regexp_substr(str, '[A-Z][0-9]') Letter_Followed_by_String
+  from strings;
+ FIRST_OCCURRENCE_OF_NUMBER | NUM_FOLLOWED_BY_STRING | LETTER_FOLLOWED_BY_STRING 
+----------------------------+------------------------+---------------------------
+ 1                          | 123                    | C1
+ 1                          | 1B2C3                  | A1
+ 1                          | 123ABC                 | 
+ 1                          | 1A2B3C                 | A2
+(4 rows)
+
+with strings as (
+  select 'LHRJFK/010315/JOHNDOE' str from dual union all
+  select 'CDGLAX/050515/JANEDOE' str from dual union all
+  select 'LAXCDG/220515/JOHNDOE' str from dual union all
+  select 'SFOJFK/010615/JANEDOE' str from dual
+)
+  select regexp_substr(str, '[A-Z]{6}') String_of_6_characters,
+         regexp_substr(str, '[0-9]+') First_Matching_Numbers,
+         regexp_substr(str, '[A-Z].*$') Letter_by_other_characters,
+         regexp_substr(str, '/[A-Z].*$') Slash_letter_and_characters
+  from strings;
+ STRING_OF_6_CHARACTERS | FIRST_MATCHING_NUMBERS | LETTER_BY_OTHER_CHARACTERS | SLASH_LETTER_AND_CHARACTERS 
+------------------------+------------------------+----------------------------+-----------------------------
+ LHRJFK                 | 010315                 | LHRJFK/010315/JOHNDOE      | /JOHNDOE
+ CDGLAX                 | 050515                 | CDGLAX/050515/JANEDOE      | /JANEDOE
+ LAXCDG                 | 220515                 | LAXCDG/220515/JOHNDOE      | /JOHNDOE
+ SFOJFK                 | 010615                 | SFOJFK/010615/JANEDOE      | /JANEDOE
+(4 rows)
+
+drop table if exists t_regexp_substr;
+NOTICE:  table "T_REGEXP_SUBSTR" does not exist, skipping
+create table t_regexp_substr(f1 int, f2 varchar2, f3 varchar2);
+insert into t_regexp_substr values(1, '500 opentenbase_ora Parkway, Redwood Shores, CA', ',[^,]+,');
+insert into t_regexp_substr values(2, 'http://www.example.com/products', 'http://([[:alnum:]]+\.?){3,4}/?');
+insert into t_regexp_substr values(3, '1234567890', '(123)(4(56)(78))');
+insert into t_regexp_substr values(4, 'ABC123', '[0-9]');
+insert into t_regexp_substr values(5, 'A1B2C3', '[0-9]');
+insert into t_regexp_substr values(6, '123ABC', '[0-9]');
+insert into t_regexp_substr values(7, '1A2B3C', '[0-9]');
+insert into t_regexp_substr values(8, 'LHRJFK/010315/JOHNDOE', '[0-9]');
+insert into t_regexp_substr values(9, 'CDGLAX/050515/JANEDOE', '[0-9]');
+insert into t_regexp_substr values(10, 'LAXCDG/220515/JOHNDOE', '[0-9]');
+insert into t_regexp_substr values(11, 'SFOJFK/010615/JANEDOE', '[0-9]');
+select f1, f2, f3, regexp_substr(f2, f3), regexp_substr(f2, f3, 1, 1, 'i', 1), regexp_substr(f2, f3, 1, 1, 'i', 4) from t_regexp_substr order by f1;
+ F1 |                   F2                   |               F3                |      REGEXP_SUBSTR      | REGEXP_SUBSTR | REGEXP_SUBSTR 
+----+----------------------------------------+---------------------------------+-------------------------+---------------+---------------
+  1 | 500 opentenbase_ora Parkway, Redwood Shores, CA | ,[^,]+,                         | , Redwood Shores,       |               | 
+  2 | http://www.example.com/products        | http://([[:alnum:]]+\.?){3,4}/? | http://www.example.com/ | m             | 
+  3 | 1234567890                             | (123)(4(56)(78))                | 12345678                | 123           | 78
+  4 | ABC123                                 | [0-9]                           | 1                       |               | 
+  5 | A1B2C3                                 | [0-9]                           | 1                       |               | 
+  6 | 123ABC                                 | [0-9]                           | 1                       |               | 
+  7 | 1A2B3C                                 | [0-9]                           | 1                       |               | 
+  8 | LHRJFK/010315/JOHNDOE                  | [0-9]                           | 0                       |               | 
+  9 | CDGLAX/050515/JANEDOE                  | [0-9]                           | 0                       |               | 
+ 10 | LAXCDG/220515/JOHNDOE                  | [0-9]                           | 2                       |               | 
+ 11 | SFOJFK/010615/JANEDOE                  | [0-9]                           | 0                       |               | 
+(11 rows)
+
+select f1, f2, f3, regexp_substr(f2, '[0-9]'), regexp_substr(f2, '[0-9].*'), regexp_substr(f2, '[A-Z][0-9]') from t_regexp_substr order by f1;
+ F1 |                   F2                   |               F3                | REGEXP_SUBSTR |             REGEXP_SUBSTR              | REGEXP_SUBSTR 
+----+----------------------------------------+---------------------------------+---------------+----------------------------------------+---------------
+  1 | 500 opentenbase_ora Parkway, Redwood Shores, CA | ,[^,]+,                         | 5             | 500 opentenbase_ora Parkway, Redwood Shores, CA | 
+  2 | http://www.example.com/products        | http://([[:alnum:]]+\.?){3,4}/? |               |                                        | 
+  3 | 1234567890                             | (123)(4(56)(78))                | 1             | 1234567890                             | 
+  4 | ABC123                                 | [0-9]                           | 1             | 123                                    | C1
+  5 | A1B2C3                                 | [0-9]                           | 1             | 1B2C3                                  | A1
+  6 | 123ABC                                 | [0-9]                           | 1             | 123ABC                                 | 
+  7 | 1A2B3C                                 | [0-9]                           | 1             | 1A2B3C                                 | A2
+  8 | LHRJFK/010315/JOHNDOE                  | [0-9]                           | 0             | 010315/JOHNDOE                         | 
+  9 | CDGLAX/050515/JANEDOE                  | [0-9]                           | 0             | 050515/JANEDOE                         | 
+ 10 | LAXCDG/220515/JOHNDOE                  | [0-9]                           | 2             | 220515/JOHNDOE                         | 
+ 11 | SFOJFK/010615/JANEDOE                  | [0-9]                           | 0             | 010615/JANEDOE                         | 
+(11 rows)
+
+select f1, f2, f3, regexp_substr(f2, '[A-Z]{6}'), regexp_substr(f2, '[0-9]+'), regexp_substr(f2, '[A-Z].*$'), regexp_substr(f2, '/[A-Z].*$') from t_regexp_substr order by f1;
+ F1 |                   F2                   |               F3                | REGEXP_SUBSTR | REGEXP_SUBSTR |           REGEXP_SUBSTR            | REGEXP_SUBSTR 
+----+----------------------------------------+---------------------------------+---------------+---------------+------------------------------------+---------------
+  1 | 500 opentenbase_ora Parkway, Redwood Shores, CA | ,[^,]+,                         |               | 500           | opentenbase_ora Parkway, Redwood Shores, CA | 
+  2 | http://www.example.com/products        | http://([[:alnum:]]+\.?){3,4}/? |               |               |                                    | 
+  3 | 1234567890                             | (123)(4(56)(78))                |               | 1234567890    |                                    | 
+  4 | ABC123                                 | [0-9]                           |               | 123           | ABC123                             | 
+  5 | A1B2C3                                 | [0-9]                           |               | 1             | A1B2C3                             | 
+  6 | 123ABC                                 | [0-9]                           |               | 123           | ABC                                | 
+  7 | 1A2B3C                                 | [0-9]                           |               | 1             | A2B3C                              | 
+  8 | LHRJFK/010315/JOHNDOE                  | [0-9]                           | LHRJFK        | 010315        | LHRJFK/010315/JOHNDOE              | /JOHNDOE
+  9 | CDGLAX/050515/JANEDOE                  | [0-9]                           | CDGLAX        | 050515        | CDGLAX/050515/JANEDOE              | /JANEDOE
+ 10 | LAXCDG/220515/JOHNDOE                  | [0-9]                           | LAXCDG        | 220515        | LAXCDG/220515/JOHNDOE              | /JOHNDOE
+ 11 | SFOJFK/010615/JANEDOE                  | [0-9]                           | SFOJFK        | 010615        | SFOJFK/010615/JANEDOE              | /JANEDOE
+(11 rows)
+
+drop table t_regexp_substr;
+select 1 as res from dual where regexp_substr('123ABC', '[A-Z][0-9]') is null;
+ RES 
+-----
+   1
+(1 row)
+
+-------------------------------
+-- Test regexp_replace function
+-------------------------------
+with strings as (
+  select 'abc123' s from dual union all
+  select '123abc' s from dual union all
+  select 'a1b2c3' s from dual
+)
+  select s "STRING", regexp_replace(s, '[0-9]', '') "MODIFIED_STRING"
+  from strings;
+ STRING | MODIFIED_STRING 
+--------+-----------------
+ abc123 | abc
+ 123abc | abc
+ a1b2c3 | abc
+(3 rows)
+
+with strings as (
+  select 'abc123' s from dual union all
+  select '123abc' s from dual union all
+  select 'a1b2c3' s from dual
+)
+  select s "STRING", regexp_replace(s, '[0-9]', '', 1, 1) "MODIFIED_STRING"
+  from strings;
+ STRING | MODIFIED_STRING 
+--------+-----------------
+ abc123 | abc23
+ 123abc | 23abc
+ a1b2c3 | ab2c3
+(3 rows)
+
+with strings as (
+  select 'abc123' s from dual union all
+  select '123abc' s from dual union all
+  select 'a1b2c3' s from dual
+)
+  select s "STRING", regexp_replace(s, '[0-9]', '', 1, 2) "MODIFIED_STRING"
+  from strings;
+ STRING | MODIFIED_STRING 
+--------+-----------------
+ abc123 | abc13
+ 123abc | 13abc
+ a1b2c3 | a1bc3
+(3 rows)
+
+drop table if exists t_regexp_replace;
+NOTICE:  table "T_REGEXP_REPLACE" does not exist, skipping
+create table t_regexp_replace(f1 int, f2 varchar2, f3 varchar2, f4 varchar2);
+insert into t_regexp_replace values(1, 'abc123', '[0-9]', '');
+insert into t_regexp_replace values(2, '123abc', '[0-9]', '');
+insert into t_regexp_replace values(3, 'a1b2c3', '[0-9]', '');
+select f1, f2, f3, f4, regexp_replace(f2, f3, f4), regexp_replace(f2, f3, f4, 1, 1), regexp_replace(f2, f3, f4, 1, 2) from t_regexp_replace order by f1;
+ F1 |   F2   |  F3   | F4 | REGEXP_REPLACE | REGEXP_REPLACE | REGEXP_REPLACE 
+----+--------+-------+----+----------------+----------------+----------------
+  1 | abc123 | [0-9] |    | abc            | abc23          | abc13
+  2 | 123abc | [0-9] |    | abc            | 23abc          | 13abc
+  3 | a1b2c3 | [0-9] |    | abc            | ab2c3          | a1bc3
+(3 rows)
+
+drop table t_regexp_replace;
+with strings as (
+  select 'AddressLine1' s from dual union all
+  select 'ZipCode'      s from dual union all
+  select 'Country'      s from dual
+)
+  select s "STRING", lower(regexp_replace(s, '([A-Z0-9])', '_\1', 2)) "MODIFIED_STRING"
+  from strings;
+    STRING    | MODIFIED_STRING 
+--------------+-----------------
+ AddressLine1 | address_line_1
+ ZipCode      | zip_code
+ Country      | country
+(3 rows)
+
+drop table if exists t_regexp_replace;
+NOTICE:  table "T_REGEXP_REPLACE" does not exist, skipping
+create table t_regexp_replace(f1 int, f2 varchar2, f3 varchar2, f4 varchar2);
+insert into t_regexp_replace values(1, 'AddressLine1', '([A-Z0-9])', '_\1');
+insert into t_regexp_replace values(2, 'ZipCode',      '([A-Z0-9])', '_\1');
+insert into t_regexp_replace values(3, 'Country',      '([A-Z0-9])', '_\1');
+select f1, f2, f3, f4, lower(regexp_replace(f2, f3, f4, 2)) from t_regexp_replace order by f1;
+ F1 |      F2      |     F3     | F4  |     LOWER      
+----+--------------+------------+-----+----------------
+  1 | AddressLine1 | ([A-Z0-9]) | _\1 | address_line_1
+  2 | ZipCode      | ([A-Z0-9]) | _\1 | zip_code
+  3 | Country      | ([A-Z0-9]) | _\1 | country
+(3 rows)
+
+drop table t_regexp_replace;
+with strings as (
+  select 'Hello  World'       s from dual union all
+  select 'Hello        World' s from dual union all
+  select 'Hello,   World  !'  s from dual
+)
+  select s "STRING", regexp_replace(s, ' {2,}', ' ') "MODIFIED_STRING"
+  from strings;
+       STRING       | MODIFIED_STRING 
+--------------------+-----------------
+ Hello  World       | Hello World
+ Hello        World | Hello World
+ Hello,   World  !  | Hello, World !
+(3 rows)
+
+with date_strings as (
+  select '2015-01-01' d from dual union all
+  select '2000-12-31' d from dual union all
+  select '900-01-01'  d from dual
+)
+  select d "STRING",
+         regexp_replace(d, '([[:digit:]]+)-([[:digit:]]{2})-([[:digit:]]{2})', '\3.\2.\1') "MODIFIED_STRING"
+  from date_strings;
+   STRING   | MODIFIED_STRING 
+------------+-----------------
+ 2015-01-01 | 01.01.2015
+ 2000-12-31 | 31.12.2000
+ 900-01-01  | 01.01.900
+(3 rows)
+
+select regexp_replace('500   opentenbase_ora     Parkway,    Redwood  Shores, CA', '( ){2,}', ' ') from dual;
+             REGEXP_REPLACE             
+----------------------------------------
+ 500 opentenbase_ora Parkway, Redwood Shores, CA
+(1 row)
+
+select length(regexp_replace('500   opentenbase_ora     Parkway,    Redwood  Shores, CA', '( ){2,}', ' ')) from dual;
+ LENGTH 
+--------
+     38
+(1 row)
+
+drop table if exists t_regexp_replace;
+NOTICE:  table "T_REGEXP_REPLACE" does not exist, skipping
+create table t_regexp_replace(f1 int, f2 varchar2, f3 varchar2, f4 varchar2);
+insert into t_regexp_replace values(1, 'Hello  World',       ' {2,}', ' ');
+insert into t_regexp_replace values(2, 'Hello        World', ' {2,}', ' ');
+insert into t_regexp_replace values(3, 'Hello,   World  !',  ' {2,}', ' ');
+insert into t_regexp_replace values(4, '2015-01-01', '([[:digit:]]+)-([[:digit:]]{2})-([[:digit:]]{2})', '\3.\2.\1');
+insert into t_regexp_replace values(5, '2000-12-31', '([[:digit:]]+)-([[:digit:]]{2})-([[:digit:]]{2})', '\3.\2.\1');
+insert into t_regexp_replace values(6, '900-01-01',  '([[:digit:]]+)-([[:digit:]]{2})-([[:digit:]]{2})', '\3.\2.\1');
+insert into t_regexp_replace values(7, '500   opentenbase_ora     Parkway,    Redwood  Shores, CA', '( ){2,}', ' ');
+select f1, f2, f3, f4, regexp_replace(f2, f3, f4), length(regexp_replace(f2, f3, f4)) from t_regexp_replace order by f1;
+ F1 |                        F2                        |                        F3                        |    F4    |             REGEXP_REPLACE             | LENGTH 
+----+--------------------------------------------------+--------------------------------------------------+----------+----------------------------------------+--------
+  1 | Hello  World                                     |  {2,}                                            |          | Hello World                            |     11
+  2 | Hello        World                               |  {2,}                                            |          | Hello World                            |     11
+  3 | Hello,   World  !                                |  {2,}                                            |          | Hello, World !                         |     14
+  4 | 2015-01-01                                       | ([[:digit:]]+)-([[:digit:]]{2})-([[:digit:]]{2}) | \3.\2.\1 | 01.01.2015                             |     10
+  5 | 2000-12-31                                       | ([[:digit:]]+)-([[:digit:]]{2})-([[:digit:]]{2}) | \3.\2.\1 | 31.12.2000                             |     10
+  6 | 900-01-01                                        | ([[:digit:]]+)-([[:digit:]]{2})-([[:digit:]]{2}) | \3.\2.\1 | 01.01.900                              |      9
+  7 | 500   opentenbase_ora     Parkway,    Redwood  Shores, CA | ( ){2,}                                          |          | 500 opentenbase_ora Parkway, Redwood Shores, CA |     38
+(7 rows)
+
+drop table t_regexp_replace;
+with strings as (
+  select 'NEW YORK' s from dual union all
+  select 'New York' s from dual union all
+  select 'new york' s from dual
+)
+  select s "STRING",
+        regexp_replace(s, '[a-z]', '1', 1, 0, 'i') "CASE_INSENSITIVE",
+        regexp_replace(s, '[a-z]', '1', 1, 0, 'c') "CASE_SENSITIVE",
+        regexp_replace(s, '[a-zA-Z]', '1', 1, 0, 'c') "CASE_SENSITIVE_MATCHING"
+  from  strings;
+  STRING  | CASE_INSENSITIVE | CASE_SENSITIVE | CASE_SENSITIVE_MATCHING 
+----------+------------------+----------------+-------------------------
+ NEW YORK | 111 1111         | NEW YORK       | 111 1111
+ New York | 111 1111         | N11 Y111       | 111 1111
+ new york | 111 1111         | 111 1111       | 111 1111
+(3 rows)
+
+drop table if exists t_regexp_replace;
+NOTICE:  table "T_REGEXP_REPLACE" does not exist, skipping
+create table t_regexp_replace(f1 int, f2 varchar2, f3 varchar2, f4 varchar2);
+insert into t_regexp_replace values(1, 'NEW YORK', '[a-z]', '1');
+insert into t_regexp_replace values(2, 'New York', '[a-z]', '1');
+insert into t_regexp_replace values(3, 'new york', '[a-z]', '1');
+select f1, f2, f3, f4, regexp_replace(f2, f3, f4, 1, 0, 'i'), regexp_replace(f2, f3, f4, 1, 0, 'c'), regexp_replace(f2, '[a-zA-Z]', '1', 1, 0, 'c') from t_regexp_replace order by f1;
+ F1 |    F2    |  F3   | F4 | REGEXP_REPLACE | REGEXP_REPLACE | REGEXP_REPLACE 
+----+----------+-------+----+----------------+----------------+----------------
+  1 | NEW YORK | [a-z] | 1  | 111 1111       | NEW YORK       | 111 1111
+  2 | New York | [a-z] | 1  | 111 1111       | N11 Y111       | 111 1111
+  3 | new york | [a-z] | 1  | 111 1111       | 111 1111       | 111 1111
+(3 rows)
+
+drop table t_regexp_replace;
+--------------------------
+-- Test trim function
+--------------------------
+\c regression
+-- usage1
+SELECT trim('    aaa  bbb  ccc     ') ltrim FROM dual;
+     ltrim     
+---------------
+ aaa  bbb  ccc
+(1 row)
+
+SELECT ltrim('    aaa  bbb  ccc     ') ltrim FROM dual;
+       ltrim        
+--------------------
+ aaa  bbb  ccc     
+(1 row)
+
+SELECT rtrim('    aaa  bbb  ccc     ') ltrim FROM dual;
+       ltrim       
+-------------------
+     aaa  bbb  ccc
+(1 row)
+
+-- usage2
+SELECT trim(leading 'd' from 'dfssa') FROM dual;
+ ltrim 
+-------
+ fssa
+(1 row)
+
+SELECT trim(both '1' from '123sfd111') FROM dual;
+ btrim 
+-------
+ 23sfd
+(1 row)
+
+SELECT trim(trailing '2' from '213dsq12') FROM dual;
+  rtrim  
+---------
+ 213dsq1
+(1 row)
+
+-- usage3
+SELECT trim('    aaa  bbb  ccc     ') ltrim FROM dual;
+     ltrim     
+---------------
+ aaa  bbb  ccc
+(1 row)
+
+SELECT ltrim('    aaa  bbb  ccc     ') ltrim FROM dual;
+       ltrim        
+--------------------
+ aaa  bbb  ccc     
+(1 row)
+
+SELECT rtrim('    aaa  bbb  ccc     ') ltrim FROM dual;
+       ltrim       
+-------------------
+     aaa  bbb  ccc
+(1 row)
+
+select ltrim('10900111000991110224323','109') from dual;
+ ltrim  
+--------
+ 224323
+(1 row)
+
+SELECT rtrim('aaaaminb','main') FROM dual;
+  rtrim   
+----------
+ aaaaminb
+(1 row)
+
+SELECT rtrim('aaaaminb','mainb') FROM dual;
+ rtrim 
+-------
+ 
+(1 row)
+
+SELECT ltrim('ccbcminb','cb') FROM dual;
+ ltrim 
+-------
+ minb
+(1 row)
+
+SELECT rtrim('abcdssscb','adscb') FROM dual;
+ rtrim 
+-------
+ 
+(1 row)
+
+SELECT rtrim('abcdssscb','badsc') FROM dual;
+ rtrim 
+-------
+ 
+(1 row)
+
+-- usage4
+SELECT trim(leading 'df' from 'dfssa') FROM dual;
+ ltrim 
+-------
+ ssa
+(1 row)
+
+SELECT trim(both '13' from '123sfd111') FROM dual;
+ btrim 
+-------
+ 23sfd
+(1 row)
+
+SELECT trim(trailing '23' from '213dsq12') FROM dual;
+  rtrim  
+---------
+ 213dsq1
+(1 row)
+
+\c regression_ora
+-- usage5
+SELECT trim(leading 'df' from 'dfssa') FROM dual;
+ERROR:  trim set should have only one character
+SELECT trim(both '13' from '123sfd111') FROM dual;
+ERROR:  trim set should have only one character
+SELECT trim(trailing '23' from '213dsq12') FROM dual;
+ERROR:  trim set should have only one character
+-- trim(' ') is null
+select 'abcd' col_name from dual where trim(' ') is null;
+ COL_NAME 
+----------
+ abcd
+(1 row)
+
+select nvl(trim(both '' from ' '),'-1') from dual;
+ NVL 
+-----
+ -1
+(1 row)
+
+-- Trim parameter length detection, suitable for different codes
+select trim(both '啊' from '啊中国啊') "test_trim" from dual;
+ test_trim 
+-----------
+ 中国
+(1 row)
+
+select trim(leading '啊' from '啊中国啊') "test_trim" from dual;
+ test_trim 
+-----------
+ 中国啊
+(1 row)
+
+select trim(trailing '啊' from '啊中国啊') "test_trim" from dual;
+ test_trim 
+-----------
+ 啊中国
+(1 row)
+
+select trim(both '报错' from '啊中国啊') "test_trim" from dual;
+ERROR:  trim set should have only one character
+select trim(leading '报错' from '啊中国啊') "test_trim" from dual;
+ERROR:  trim set should have only one character
+select trim(trailing '报错' from '啊中国啊') "test_trim" from dual;
+ERROR:  trim set should have only one character
+SELECT trim(leading 'df' from 'dfssa') FROM dual;
+ERROR:  trim set should have only one character
+SELECT trim(both '13' from '123sfd111') FROM dual;
+ERROR:  trim set should have only one character
+SELECT trim(trailing '23' from '213dsq12') FROM dual;
+ERROR:  trim set should have only one character
+-- test INSERB
+select INSTRB('abc', 'bc')||INSTRB('abc', '')||'avc' from dual;
+ ?column? 
+----------
+ 2avc
+(1 row)
+
+select 1||INSTRB('abc', '')||'avc' from dual;
+ ?column? 
+----------
+ 1avc
+(1 row)
+
+select INSTRB('abc', 'bc')||INSTRB('abc', '')||INSTRB('abc', 'bc') from dual;
+ ?column? 
+----------
+ 22
+(1 row)
+
+SELECT nullif(trim(SUBSTR(lpad('abcde',INSTRB('32.8,63.5',',', 1, 1), '2'), 2)) , 'bcde') FROM DUAL;
+ nullif 
+--------
+ 
+(1 row)
+
+select nullif(INSTRB('TechOnTheNet', 'On','0001E1', '00001'),0) from dual;
+ nullif 
+--------
+       
+(1 row)
+
+SELECT nullif(INSTRB('32.8,63.5',',', 1, 1), 2+2+1)  FROM dual;
+ nullif 
+--------
+       
+(1 row)
+
+select INSTRB('Tech on the net', 'e') = 2;
+ ?column? 
+----------
+ t
+(1 row)
+
+select INSTRB('Tech on the net', 'e', 1, 1) = 2;
+ ?column? 
+----------
+ t
+(1 row)
+
+select INSTRB('Tech on the net', 'e', 1, 2) = 11;
+ ?column? 
+----------
+ t
+(1 row)
+
+select INSTRB('Tech on the net', 'e', 1, 3) = 14;
+ ?column? 
+----------
+ t
+(1 row)
+
+select INSTRB('Tech on the net', 'e', -3, 2) = 2;
+ ?column? 
+----------
+ t
+(1 row)
+
+select INSTRB('abc', NULL) IS NULL;
+ ?column? 
+----------
+ t
+(1 row)
+
+select INSTRB('abc', '') IS NULL;
+ ?column? 
+----------
+ t
+(1 row)
+
+select INSTRB('', 'a') IS NULL;
+ ?column? 
+----------
+ t
+(1 row)
+
+select 1 = INSTRB('abc', 'a');
+ ?column? 
+----------
+ t
+(1 row)
+
+select 3 = INSTRB('abc', 'c');
+ ?column? 
+----------
+ t
+(1 row)
+
+select 0 = INSTRB('abc', 'z');
+ ?column? 
+----------
+ t
+(1 row)
+
+select 1 = INSTRB('abcabcabc', 'abca', 1);
+ ?column? 
+----------
+ t
+(1 row)
+
+select 4 = INSTRB('abcabcabc', 'abca', 2);
+ ?column? 
+----------
+ t
+(1 row)
+
+select 0 = INSTRB('abcabcabc', 'abca', 7);
+ ?column? 
+----------
+ t
+(1 row)
+
+select 0 = INSTRB('abcabcabc', 'abca', 9);
+ ?column? 
+----------
+ t
+(1 row)
+
+select 4 = INSTRB('abcabcabc', 'abca', -1);
+ ?column? 
+----------
+ t
+(1 row)
+
+select 1 = INSTRB('abcabcabc', 'abca', -8);
+ ?column? 
+----------
+ t
+(1 row)
+
+select 1 = INSTRB('abcabcabc', 'abca', -9);
+ ?column? 
+----------
+ t
+(1 row)
+
+select 0 = INSTRB('abcabcabc', 'abca', -10);
+ ?column? 
+----------
+ t
+(1 row)
+
+select 1 = INSTRB('abcabcabc', 'abca', 1, 1);
+ ?column? 
+----------
+ t
+(1 row)
+
+select 4 = INSTRB('abcabcabc', 'abca', 1, 2);
+ ?column? 
+----------
+ t
+(1 row)
+
+select 0 = INSTRB('abcabcabc', 'abca', 1, 3);
+ ?column? 
+----------
+ t
+(1 row)
+
+select 2 = INSTRB('张三','三') from dual;
+ ?column? 
+----------
+ f
+(1 row)
+
+select 0 = INSTRB('张三',' ') from dual;
+ ?column? 
+----------
+ t
+(1 row)
+
+select INSTRB('张三','') is NULL from dual;
+ ?column? 
+----------
+ t
+(1 row)
+
+select INSTRB('','三') is NULL from dual;
+ ?column? 
+----------
+ t
+(1 row)
+
+select INSTRB('Tech on the net', 'e', '1', '1') = 2;
+ ?column? 
+----------
+ t
+(1 row)
+
+select INSTRB('Tech on the net', 'e', 1.12, 2.65) = 11;
+ ?column? 
+----------
+ t
+(1 row)
+
+select INSTRB('Tech on the net', 'e', 1.12, 3.12) = 14;
+ ?column? 
+----------
+ t
+(1 row)
+
+select INSTRB('Tech on the net', 'e', '1', '4a') from dual;
+ERROR:  invalid input syntax for type numeric: "4a"
+LINE 1: select INSTRB('Tech on the net', 'e', '1', '4a') from dual;
+                                                   ^
+SELECT ltrim(trim(both 'l' from lpad(SUBSTR('32.8,63.5',1,INSTRB('32.8,63.5',',', 1, 1)+1), 123, 'lpad')), 'lpad') trim FROM DUAL;
+  TRIM  
+--------
+ 32.8,6
+(1 row)
+
+-------------------------------------------------------------------------------
+--  FIX 【【5.21.6】【分布式流水线】【SQL】流水线chr（556）不符合预期】
+--  https://tapd.woa.com/OpenTenBase_C/bugtrace/bugs/view?bug_id=1020385652118469715.
+--------------------------------------------------------------------------------
+\c regression_ora
+select ascii(chr(replace(rtrim(trim(' ' from instr(INITCAP(lpad(concat('010-','88888888')||'转23'||chr(789), 100, '||')||rpad(chr(434)||'中国', 10, avg(123))||chr(556)), '转',  trunc(2.5), 1))), '',''))) replace from dual;
+ REPLACE 
+---------
+      95
+(1 row)
+
+select dump(chr(0), 16) from dual;
+           DUMP            
+---------------------------
+ Typ=25 Len=5: 14,0,0,0,20
+(1 row)
+
+select chr(-1) from dual;
+ERROR:  numeric overflow
+select chr(0.1) from dual;
+ CHR 
+-----
+  
+(1 row)
+
+select substrb('hello', -5.5), substrb('hello', -5), substrb('hello', 0), substrb('hello', 1), substrb('hello', 5), substrb('hello', 5.5) from dual;
+ SUBSTRB | SUBSTRB | SUBSTRB | SUBSTRB | SUBSTRB | SUBSTRB 
+---------+---------+---------+---------+---------+---------
+ hello   | hello   | hello   | hello   | o       | o
+(1 row)
+
+select dump(substrb('hello', -1234567890987654321), 16), dump(substrb('hello', -6), 16), dump(substrb('hello', 6), 16), dump(substrb('hello', 1234567890987654321), 16) from dual;
+ DUMP | DUMP | DUMP | DUMP 
+------+------+------+------
+ NULL | NULL | NULL | NULL
+(1 row)
+
+select dump(substrb('hello', 1, -1234567890987654321), 16), dump(substrb('hello', 1, -0.1), 16), dump(substrb('hello', 1, 0), 16), dump(substrb('hello', 1, 0.1), 16) from dual;
+ DUMP | DUMP | DUMP | DUMP 
+------+------+------+------
+ NULL | NULL | NULL | NULL
+(1 row)
+
+select substrb('hello', 1, 1.1), substrb('hello', 1, 1234567890987654321) from dual;
+ SUBSTRB | SUBSTRB 
+---------+---------
+ h       | hello
+(1 row)
+
+-------------------------------------------------------------------------------
+-- 【【OpenTenBase内核】【5.21.6.1】substr 函数在某些场景下结果与 opentenbase_ora 不一致】
+-- https://tapd.woa.com/OpenTenBase_C/bugtrace/bugs/view?bug_id=1020385652120676821
+-------------------------------------------------------------------------------
+select 1 from dual where substr('123', 4) is null;
+ ?column? 
+----------
+        1
+(1 row)
+
+select 1 from dual where substr('123', 1, 0) is null;
+ ?column? 
+----------
+        1
+(1 row)
+
+select 1 from dual where substr('123', 1, -1) is null;
+ ?column? 
+----------
+        1
+(1 row)
+
+-------------------------------------------------------------------------------
+--【【memcheck】【heap-buffer-overflow】【td_regress】pg_utf_mblen orcl_lpad】
+-- https://tapd.woa.com/OpenTenBase_C/bugtrace/bugs/view?bug_id=1020385652122033179
+-------------------------------------------------------------------------------
+select lpad(chr(12540), 20, chr(4822)) from dual;
+                 LPAD                  
+---------------------------------------
+ \x12\x12\x12\x12\x12\x12\x12\x12\x120
+(1 row)
+
+-------------------------------------------------------------------------------
+--【CI】【5.21.7.0 sqlsmith】core函数: shortest
+-- https://tapd.woa.com/20385652/bugtrace/bugs/view/1020385652122498845
+-- core by regexp_substr('test', 'test', -1733464470)
+-------------------------------------------------------------------------------
+select regexp_substr('test', 'test', -1733464470) from dual;
+ERROR:  Invalid "position" value (-1733464470) for "regexp_substr"
+HINT:  "position" must be a positive integer
+select regexp_substr('test', 'test', 2561502826) from dual;
+ERROR:  Invalid "position" value (2561502826) for "regexp_substr"
+HINT:  "position" must be a positive integer
+\c postgres
+select regexp_substr('test', 'test', -1733464470);
+ERROR:  Invalid "position" value (-1733464470) for "regexp_substr"
+HINT:  "position" must be a positive integer
+ while processing column regexp_substr

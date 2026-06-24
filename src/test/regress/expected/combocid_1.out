@@ -60,8 +60,8 @@ DELETE FROM combocidtest;
 FETCH ALL FROM c;
  ctid  | cmin | foobar 
 -------+------+--------
- (0,3) |    3 |     11
- (0,4) |    3 |     12
+ (0,3) |   24 |     11
+ (0,4) |   24 |     12
  (0,5) |    0 |    333
 (3 rows)
 
@@ -69,8 +69,8 @@ ROLLBACK;
 SELECT ctid,cmin,* FROM combocidtest ORDER BY ctid;
  ctid  | cmin | foobar 
 -------+------+--------
- (0,3) |    3 |     11
- (0,4) |    3 |     12
+ (0,3) |   24 |     11
+ (0,4) |   24 |     12
 (2 rows)
 
 -- check behavior with locked tuples
@@ -90,8 +90,8 @@ INSERT INTO combocidtest VALUES (444);
 SELECT ctid,cmin,* FROM combocidtest ORDER BY ctid;
  ctid  | cmin | foobar 
 -------+------+--------
- (0,3) |    3 |     11
- (0,4) |    3 |     12
+ (0,3) |   24 |     11
+ (0,4) |   24 |     12
  (0,6) |   20 |    444
 (3 rows)
 
@@ -100,16 +100,16 @@ SELECT ctid,cmin,* FROM combocidtest ORDER BY ctid;
 SELECT ctid,cmin,* FROM combocidtest FOR UPDATE;
  ctid  | cmin | foobar 
 -------+------+--------
- (0,3) |    3 |     11
- (0,4) |    3 |     12
+ (0,3) |   24 |     11
+ (0,4) |   24 |     12
  (0,6) |   20 |    444
 (3 rows)
 
 SELECT ctid,cmin,* FROM combocidtest ORDER BY ctid;
  ctid  | cmin | foobar 
 -------+------+--------
- (0,3) |    3 |     11
- (0,4) |    3 |     12
+ (0,3) |   24 |     11
+ (0,4) |   24 |     12
  (0,6) |   20 |    444
 (3 rows)
 

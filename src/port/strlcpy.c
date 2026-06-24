@@ -1,20 +1,20 @@
 /*-------------------------------------------------------------------------
  *
  * strlcpy.c
- *      strncpy done right
+ *	  strncpy done right
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  *
  *
  * IDENTIFICATION
- *      src/port/strlcpy.c
+ *	  src/port/strlcpy.c
  *
  * This file was taken from OpenBSD and is used on platforms that don't
  * provide strlcpy().  The OpenBSD copyright terms follow.
  *-------------------------------------------------------------------------
  */
 
-/*    $OpenBSD: strlcpy.c,v 1.11 2006/05/05 15:27:38 millert Exp $    */
+/*	$OpenBSD: strlcpy.c,v 1.11 2006/05/05 15:27:38 millert Exp $	*/
 
 /*
  * Copyright (c) 1998 Todd C. Miller <Todd.Miller@courtesan.com>
@@ -44,28 +44,28 @@
 size_t
 strlcpy(char *dst, const char *src, size_t siz)
 {
-    char       *d = dst;
-    const char *s = src;
-    size_t        n = siz;
+	char	   *d = dst;
+	const char *s = src;
+	size_t		n = siz;
 
-    /* Copy as many bytes as will fit */
-    if (n != 0)
-    {
-        while (--n != 0)
-        {
-            if ((*d++ = *s++) == '\0')
-                break;
-        }
-    }
+	/* Copy as many bytes as will fit */
+	if (n != 0)
+	{
+		while (--n != 0)
+		{
+			if ((*d++ = *s++) == '\0')
+				break;
+		}
+	}
 
-    /* Not enough room in dst, add NUL and traverse rest of src */
-    if (n == 0)
-    {
-        if (siz != 0)
-            *d = '\0';            /* NUL-terminate dst */
-        while (*s++)
-            ;
-    }
+	/* Not enough room in dst, add NUL and traverse rest of src */
+	if (n == 0)
+	{
+		if (siz != 0)
+			*d = '\0';			/* NUL-terminate dst */
+		while (*s++)
+			;
+	}
 
-    return (s - src - 1);        /* count does not include NUL */
+	return (s - src - 1);		/* count does not include NUL */
 }

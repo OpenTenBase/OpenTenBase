@@ -8,14 +8,14 @@
  *
  *
  * IDENTIFICATION
- *      $PostgreSQL$
+ *	  $PostgreSQL$
  *
  *-------------------------------------------------------------------------
  */
 typedef struct GTM_Stats
 {
-    int     GTM_RecvMessages[GTM_MAX_MESSAGE_TYPE];
-    int     GTM_SentMessages[GTM_MAX_MESSAGE_TYPE];
-    float    GTM_RecvBytes;
-    float    GTM_SentBytes;
+	int 	GTM_RecvMessages[GTM_MAX_MESSAGE_TYPE];
+	int 	GTM_SentMessages[GTM_MAX_MESSAGE_TYPE];
+	float	GTM_RecvBytes;
+	float	GTM_SentBytes;
 } GTM_Stats;

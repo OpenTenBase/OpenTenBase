@@ -1,0 +1,19 @@
+set enable_opentenbase_ora_compatible to on;
+set enable_seqscan = off;
+set enable_indexscan = on;
+set enable_bitmapscan = on;
+create table tbl1 (id int, v1 opentenbase_ora.date);
+insert into tbl1 values (generate_series(1, 100000), current_timestamp::opentenbase_ora.date);
+create index idx1 on tbl1 using btree (v1);
+explain select * from tbl1 where v1 > sysdate - 1;
+                                  QUERY PLAN
+-------------------------------------------------------------------------------
+ Remote Fast Query Execution  (cost=0.00..0.00 rows=0 width=0)
+   Node/s: dn001, dn002
+   ->  Bitmap Heap Scan on tbl1  (cost=473.96..1206.34 rows=24990 width=12)
+         Recheck Cond: (v1 > '2022-12-14 17:19:50'::opentenbase_ora.date)
+         ->  Bitmap Index Scan on idx1  (cost=0.00..467.71 rows=24990 width=0)
+               Index Cond: (v1 > '2022-12-14 17:19:50'::opentenbase_ora.date)
+(6 rows)
+
+drop table if exists tbl1;

@@ -1,4 +1,4 @@
-CREATE TABLE test1 (a int, b text);
+CREATE TABLE test1 (a int, b text) DISTRIBUTE BY REPLICATION;
 INSERT INTO test1 VALUES (1, 'one');
 CREATE INDEX test1_a_idx ON test1 USING brin (a);
 SELECT brin_page_type(get_raw_page('test1_a_idx', 0));
@@ -41,11 +41,65 @@ SELECT * FROM brin_revmap_data(get_raw_page('test1_a_idx', 1)) LIMIT 5;
  (0,0)
 (5 rows)
 
-SELECT * FROM brin_page_items(get_raw_page('test1_a_idx', 2), 'test1_a_idx')
+SELECT itemoffset, blknum, attnum, hasnulls, placeholder FROM brin_page_items(get_raw_page('test1_a_idx', 2), 'test1_a_idx')
     ORDER BY blknum, attnum LIMIT 5;
- itemoffset | blknum | attnum | allnulls | hasnulls | placeholder |  value   
-------------+--------+--------+----------+----------+-------------+----------
-          1 |      0 |      1 | f        | f        | f           | {1 .. 1}
+ itemoffset | blknum | attnum | hasnulls | placeholder 
+------------+--------+--------+----------+-------------
+          1 |      0 |      1 | f        | f
+(1 row)
+
+DROP TABLE test1;
+create database contrib_ora_pageinspect sql mode opentenbase_ora;
+ERROR:  database "contrib_ora_pageinspect" already exists
+\c contrib_ora_pageinspect
+CREATE TABLE test1 (a int, b text) DISTRIBUTE BY REPLICATION;
+INSERT INTO test1 VALUES (1, 'one');
+CREATE INDEX test1_a_idx ON test1 USING brin (a);
+SELECT brin_page_type(get_raw_page('TEST1_A_IDX', 0));
+ BRIN_PAGE_TYPE 
+----------------
+ meta
+(1 row)
+
+SELECT brin_page_type(get_raw_page('TEST1_A_IDX', 1));
+ BRIN_PAGE_TYPE 
+----------------
+ revmap
+(1 row)
+
+SELECT brin_page_type(get_raw_page('TEST1_A_IDX', 2));
+ BRIN_PAGE_TYPE 
+----------------
+ regular
+(1 row)
+
+SELECT * FROM brin_metapage_info(get_raw_page('TEST1_A_IDX', 0));
+   MAGIC    | VERSION | PAGESPERRANGE | LASTREVMAPPAGE 
+------------+---------+---------------+----------------
+ 0xA8109CFA |       1 |           128 |              1
+(1 row)
+
+SELECT * FROM brin_metapage_info(get_raw_page('TEST1_A_IDX', 1));
+ERROR:  page is not a BRIN page of type "metapage"
+DETAIL:  Expected special type 0000f091, got 0000f092.
+SELECT * FROM brin_revmap_data(get_raw_page('TEST1_A_IDX', 0)) LIMIT 5;
+ERROR:  page is not a BRIN page of type "revmap"
+DETAIL:  Expected special type 0000f092, got 0000f091.
+SELECT * FROM brin_revmap_data(get_raw_page('TEST1_A_IDX', 1)) LIMIT 5;
+ PAGES 
+-------
+ (2,1)
+ (0,0)
+ (0,0)
+ (0,0)
+ (0,0)
+(5 rows)
+
+SELECT itemoffset, blknum, attnum, hasnulls, placeholder FROM brin_page_items(get_raw_page('TEST1_A_IDX', 2), 'TEST1_A_IDX')
+ORDER BY blknum, attnum LIMIT 5;
+ ITEMOFFSET | BLKNUM | ATTNUM | HASNULLS | PLACEHOLDER 
+------------+--------+--------+----------+-------------
+          1 |      0 |      1 | f        | f
 (1 row)
 
 DROP TABLE test1;

@@ -3,10 +3,8 @@
  * replslotdesc.c
  *    rmgr descriptor routines for replication/slot.c
  *
- * Copyright (c) 2023 THL A29 Limited, a Tencent company.
+ * Portions Copyright (c) 2019, OpenTenBase Development Group
  *
- * This source code file is licensed under the BSD 3-Clause License,
- * you may obtain a copy of the License at http://opensource.org/license/bsd-3-clause/
  *
  * IDENTIFICATION
  *    src/backend/access/rmgrdesc/replslotdesc.c
@@ -70,18 +68,6 @@ void replication_slot_desc(StringInfo buf, XLogReaderState *record)
                             NameStr(xlrec->slotname));
             break;
         }
-        case XLOG_REPLORIGIN_SLOT_RENAME:
-        {
-            xl_replication_slot_rename *xlrec;
-
-            xlrec = (xl_replication_slot_rename *) rec;
-
-            appendStringInfo(buf, "info in xlrec, id:%d, old_name:%s, new_name:%s",
-                             xlrec->slotid,
-                             NameStr(xlrec->old_slotname),
-                             NameStr(xlrec->new_slotname));
-            break;
-        }
         default:
             break;
     }
@@ -98,8 +84,6 @@ const char * replication_slot_identify(uint8 info)
             return "REPLORIGIN_SLOT_CREATE";
         case XLOG_REPLORIGIN_SLOT_DROP:
             return "REPLORIGIN_SLOT_DROP";
-        case XLOG_REPLORIGIN_SLOT_RENAME:
-            return "REPLORIGIN_SLOT_RENAME";
         default:
             break;
     }

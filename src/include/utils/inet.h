@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * inet.h
- *      Declarations for operations on INET datatypes.
+ *	  Declarations for operations on INET datatypes.
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -17,14 +17,14 @@
 #include "fmgr.h"
 
 /*
- *    This is the internal storage format for IP addresses
- *    (both INET and CIDR datatypes):
+ *	This is the internal storage format for IP addresses
+ *	(both INET and CIDR datatypes):
  */
 typedef struct
 {
-    unsigned char family;        /* PGSQL_AF_INET or PGSQL_AF_INET6 */
-    unsigned char bits;            /* number of bits in netmask */
-    unsigned char ipaddr[16];    /* up to 128 bits of address */
+	unsigned char family;		/* PGSQL_AF_INET or PGSQL_AF_INET6 */
+	unsigned char bits;			/* number of bits in netmask */
+	unsigned char ipaddr[16];	/* up to 128 bits of address */
 } inet_struct;
 
 /*
@@ -36,8 +36,8 @@ typedef struct
  * dump/reload requirement.  Pre-7.4 databases used AF_INET for the family
  * type on disk.
  */
-#define PGSQL_AF_INET    (AF_INET + 0)
-#define PGSQL_AF_INET6    (AF_INET + 1)
+#define PGSQL_AF_INET	(AF_INET + 0)
+#define PGSQL_AF_INET6	(AF_INET + 1)
 
 /*
  * Both INET and CIDR addresses are represented within Postgres as varlena
@@ -51,80 +51,80 @@ typedef struct
  */
 typedef struct
 {
-    char        vl_len_[4];        /* Do not touch this field directly! */
-    inet_struct inet_data;
+	char		vl_len_[4];		/* Do not touch this field directly! */
+	inet_struct inet_data;
 } inet;
 
 /*
- *    Access macros.  We use VARDATA_ANY so that we can process short-header
- *    varlena values without detoasting them.  This requires a trick:
- *    VARDATA_ANY assumes the varlena header is already filled in, which is
- *    not the case when constructing a new value (until SET_INET_VARSIZE is
- *    called, which we typically can't do till the end).  Therefore, we
- *    always initialize the newly-allocated value to zeroes (using palloc0).
- *    A zero length word will look like the not-1-byte case to VARDATA_ANY,
- *    and so we correctly construct an uncompressed value.
+ *	Access macros.  We use VARDATA_ANY so that we can process short-header
+ *	varlena values without detoasting them.  This requires a trick:
+ *	VARDATA_ANY assumes the varlena header is already filled in, which is
+ *	not the case when constructing a new value (until SET_INET_VARSIZE is
+ *	called, which we typically can't do till the end).  Therefore, we
+ *	always initialize the newly-allocated value to zeroes (using palloc0).
+ *	A zero length word will look like the not-1-byte case to VARDATA_ANY,
+ *	and so we correctly construct an uncompressed value.
  *
- *    Note that ip_addrsize(), ip_maxbits(), and SET_INET_VARSIZE() require
- *    the family field to be set correctly.
+ *	Note that ip_addrsize(), ip_maxbits(), and SET_INET_VARSIZE() require
+ *	the family field to be set correctly.
  */
 #define ip_family(inetptr) \
-    (((inet_struct *) VARDATA_ANY(inetptr))->family)
+	(((inet_struct *) VARDATA_ANY(inetptr))->family)
 
 #define ip_bits(inetptr) \
-    (((inet_struct *) VARDATA_ANY(inetptr))->bits)
+	(((inet_struct *) VARDATA_ANY(inetptr))->bits)
 
 #define ip_addr(inetptr) \
-    (((inet_struct *) VARDATA_ANY(inetptr))->ipaddr)
+	(((inet_struct *) VARDATA_ANY(inetptr))->ipaddr)
 
 #define ip_addrsize(inetptr) \
-    (ip_family(inetptr) == PGSQL_AF_INET ? 4 : 16)
+	(ip_family(inetptr) == PGSQL_AF_INET ? 4 : 16)
 
 #define ip_maxbits(inetptr) \
-    (ip_family(inetptr) == PGSQL_AF_INET ? 32 : 128)
+	(ip_family(inetptr) == PGSQL_AF_INET ? 32 : 128)
 
 #define SET_INET_VARSIZE(dst) \
-    SET_VARSIZE(dst, VARHDRSZ + offsetof(inet_struct, ipaddr) + \
-                ip_addrsize(dst))
+	SET_VARSIZE(dst, VARHDRSZ + offsetof(inet_struct, ipaddr) + \
+				ip_addrsize(dst))
 
 
 /*
- *    This is the internal storage format for MAC addresses:
+ *	This is the internal storage format for MAC addresses:
  */
 typedef struct macaddr
 {
-    unsigned char a;
-    unsigned char b;
-    unsigned char c;
-    unsigned char d;
-    unsigned char e;
-    unsigned char f;
+	unsigned char a;
+	unsigned char b;
+	unsigned char c;
+	unsigned char d;
+	unsigned char e;
+	unsigned char f;
 } macaddr;
 
 /*
- *    This is the internal storage format for MAC8 addresses:
+ *	This is the internal storage format for MAC8 addresses:
  */
 typedef struct macaddr8
 {
-    unsigned char a;
-    unsigned char b;
-    unsigned char c;
-    unsigned char d;
-    unsigned char e;
-    unsigned char f;
-    unsigned char g;
-    unsigned char h;
+	unsigned char a;
+	unsigned char b;
+	unsigned char c;
+	unsigned char d;
+	unsigned char e;
+	unsigned char f;
+	unsigned char g;
+	unsigned char h;
 } macaddr8;
 
 /*
  * fmgr interface macros
  */
-#define DatumGetInetPP(X)    ((inet *) PG_DETOAST_DATUM_PACKED(X))
-#define InetPGetDatum(X)    PointerGetDatum(X)
+#define DatumGetInetPP(X)	((inet *) PG_DETOAST_DATUM_PACKED(X))
+#define InetPGetDatum(X)	PointerGetDatum(X)
 #define PG_GETARG_INET_PP(n) DatumGetInetPP(PG_GETARG_DATUM(n))
 #define PG_RETURN_INET_P(x) return InetPGetDatum(x)
 /* obsolescent variants */
-#define DatumGetInetP(X)    ((inet *) PG_DETOAST_DATUM(X))
+#define DatumGetInetP(X)	((inet *) PG_DETOAST_DATUM(X))
 #define PG_GETARG_INET_P(n) DatumGetInetP(PG_GETARG_DATUM(n))
 
 /* macaddr is a fixed-length pass-by-reference datatype */
@@ -134,8 +134,8 @@ typedef struct macaddr8
 #define PG_RETURN_MACADDR_P(x) return MacaddrPGetDatum(x)
 
 /* macaddr8 is a fixed-length pass-by-reference datatype */
-#define DatumGetMacaddr8P(X)    ((macaddr8 *) DatumGetPointer(X))
-#define Macaddr8PGetDatum(X)    PointerGetDatum(X)
+#define DatumGetMacaddr8P(X)	((macaddr8 *) DatumGetPointer(X))
+#define Macaddr8PGetDatum(X)	PointerGetDatum(X)
 #define PG_GETARG_MACADDR8_P(n) DatumGetMacaddr8P(PG_GETARG_DATUM(n))
 #define PG_RETURN_MACADDR8_P(x) return Macaddr8PGetDatum(x)
 
@@ -143,7 +143,7 @@ typedef struct macaddr8
  * Support functions in network.c
  */
 extern inet *cidr_set_masklen_internal(const inet *src, int bits);
-extern int    bitncmp(const unsigned char *l, const unsigned char *r, int n);
-extern int    bitncommon(const unsigned char *l, const unsigned char *r, int n);
+extern int	bitncmp(const unsigned char *l, const unsigned char *r, int n);
+extern int	bitncommon(const unsigned char *l, const unsigned char *r, int n);
 
-#endif                            /* INET_H */
+#endif							/* INET_H */

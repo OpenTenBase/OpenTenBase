@@ -1,16 +1,13 @@
 /*-------------------------------------------------------------------------
  *
  * int8.c
- *      Internal 64-bit integer operations
+ *	  Internal 64-bit integer operations
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- * 
  * IDENTIFICATION
- *      src/backend/utils/adt/int8.c
+ *	  src/backend/utils/adt/int8.c
  *
  *-------------------------------------------------------------------------
  */
@@ -20,27 +17,28 @@
 #include <limits.h>
 #include <math.h>
 
+#include "common/int.h"
 #include "funcapi.h"
 #include "libpq/pqformat.h"
 #include "utils/int8.h"
 #include "utils/builtins.h"
+#ifdef _PG_ORCL_
+#include "utils/guc.h"
+#endif
 
 
-#define MAXINT8LEN        25
-
-#define SAMESIGN(a,b)    (((a) < 0) == ((b) < 0))
+#define MAXINT8LEN		25
 
 typedef struct
 {
-    int64        current;
-    int64        finish;
-    int64        step;
+	int64		current;
+	int64		finish;
+	int64		step;
 } generate_series_fctx;
-
 
 /***********************************************************************
  **
- **        Routines for 64-bit integers.
+ **		Routines for 64-bit integers.
  **
  ***********************************************************************/
 
@@ -56,90 +54,84 @@ typedef struct
  */
 bool
 scanint8(const char *str, bool errorOK, int64 *result)
-{// #lizard forgives
-    const char *ptr = str;
-    int64        tmp = 0;
-    int            sign = 1;
+{
+	const char *ptr = str;
+	int64		tmp = 0;
+	bool		neg = false;
 
-    /*
-     * Do our own scan, rather than relying on sscanf which might be broken
-     * for long long.
-     */
+	/*
+	 * Do our own scan, rather than relying on sscanf which might be broken
+	 * for long long.
+	 *
+	 * As INT64_MIN can't be stored as a positive 64 bit integer, accumulate
+	 * value as a negative number.
+	 */
 
-    /* skip leading spaces */
-    while (*ptr && isspace((unsigned char) *ptr))
-        ptr++;
+	/* skip leading spaces */
+	while (*ptr && isspace((unsigned char) *ptr))
+		ptr++;
 
-    /* handle sign */
-    if (*ptr == '-')
-    {
-        ptr++;
+	/* handle sign */
+	if (*ptr == '-')
+	{
+		ptr++;
+		neg = true;
+	}
+	else if (*ptr == '+')
+		ptr++;
 
-        /*
-         * Do an explicit check for INT64_MIN.  Ugly though this is, it's
-         * cleaner than trying to get the loop below to handle it portably.
-         */
-        if (strncmp(ptr, "9223372036854775808", 19) == 0)
-        {
-            tmp = PG_INT64_MIN;
-            ptr += 19;
-            goto gotdigits;
-        }
-        sign = -1;
-    }
-    else if (*ptr == '+')
-        ptr++;
+	/* require at least one digit */
+	if (unlikely(!isdigit((unsigned char) *ptr)))
+	{
+		goto invalid_syntax;
+	}
 
-    /* require at least one digit */
-    if (!isdigit((unsigned char) *ptr))
-    {
-        if (errorOK)
-            return false;
-        else
-            ereport(ERROR,
-                    (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
-                     errmsg("invalid input syntax for %s: \"%s\"",
-                            "integer", str)));
-    }
+	/* process digits */
+	while (*ptr && isdigit((unsigned char) *ptr))
+	{
+		int8		digit = (*ptr++ - '0');
 
-    /* process digits */
-    while (*ptr && isdigit((unsigned char) *ptr))
-    {
-        int64        newtmp = tmp * 10 + (*ptr++ - '0');
+		if (unlikely(pg_mul_s64_overflow(tmp, 10, &tmp)) ||
+			unlikely(pg_sub_s64_overflow(tmp, digit, &tmp)))
+			goto out_of_range;
+	}
 
-        if ((newtmp / 10) != tmp)    /* overflow? */
-        {
-            if (errorOK)
-                return false;
-            else
-                ereport(ERROR,
-                        (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
-                         errmsg("value \"%s\" is out of range for type %s",
-                                str, "bigint")));
-        }
-        tmp = newtmp;
-    }
+	/* allow trailing whitespace, but not other trailing chars */
+	while (*ptr != '\0' && isspace((unsigned char) *ptr))
+		ptr++;
 
-gotdigits:
+	if (unlikely(*ptr != '\0'))
+		goto invalid_syntax;
 
-    /* allow trailing whitespace, but not other trailing chars */
-    while (*ptr != '\0' && isspace((unsigned char) *ptr))
-        ptr++;
+	if (!neg)
+	{
+		if (unlikely(tmp == INT64_MIN))
+			goto out_of_range;
+		tmp = -tmp;
+	}
+	*result = tmp;
 
-    if (*ptr != '\0')
-    {
-        if (errorOK)
-            return false;
-        else
-            ereport(ERROR,
-                    (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
-                     errmsg("invalid input syntax for %s: \"%s\"",
-                            "integer", str)));
-    }
+	return true;
 
-    *result = (sign < 0) ? -tmp : tmp;
-
-    return true;
+out_of_range:
+	if (errorOK)
+		return false;
+	else
+		ereport(ERROR,
+				(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+				 errmsg("value \"%s\" is out of range for type %s",
+						str, "bigint")));
+invalid_syntax:
+	if (errorOK)
+		return false;
+	else
+	{
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
+				 errmsg("invalid input syntax for integer: \"%s\"",
+						str)));
+		return false;
+	}
 }
 
 /* int8in()
@@ -147,11 +139,21 @@ gotdigits:
 Datum
 int8in(PG_FUNCTION_ARGS)
 {
-    char       *str = PG_GETARG_CSTRING(0);
-    int64        result;
+	char	   *str = PG_GETARG_CSTRING(0);
+	int64		result;
 
-    (void) scanint8(str, false, &result);
-    PG_RETURN_INT64(result);
+#ifdef _PG_ORCL_
+    if (ORA_MODE)
+    {
+        /* support insert numeric-type data into int2/in4/int8-type column */
+        return DirectFunctionCall1(numeric_int8, DirectFunctionCall3(numeric_in,
+                                                                     PG_GETARG_DATUM(0),
+                                                                     PG_GETARG_OID(InvalidOid),
+                                                                     Int32GetDatum(-1)));
+    }
+#endif
+	(void) scanint8(str, false, &result);
+	PG_RETURN_INT64(result);
 }
 
 
@@ -160,43 +162,43 @@ int8in(PG_FUNCTION_ARGS)
 Datum
 int8out(PG_FUNCTION_ARGS)
 {
-    int64        val = PG_GETARG_INT64(0);
-    char        buf[MAXINT8LEN + 1];
-    char       *result;
+	int64		val = PG_GETARG_INT64(0);
+	char		buf[MAXINT8LEN + 1];
+	char	   *result;
 
-    pg_lltoa(val, buf);
-    result = pstrdup(buf);
-    PG_RETURN_CSTRING(result);
+	pg_lltoa(val, buf);
+	result = pstrdup(buf);
+	PG_RETURN_CSTRING(result);
 }
 
 /*
- *        int8recv            - converts external binary format to int8
+ *		int8recv			- converts external binary format to int8
  */
 Datum
 int8recv(PG_FUNCTION_ARGS)
 {
-    StringInfo    buf = (StringInfo) PG_GETARG_POINTER(0);
+	StringInfo	buf = (StringInfo) PG_GETARG_POINTER(0);
 
-    PG_RETURN_INT64(pq_getmsgint64(buf));
+	PG_RETURN_INT64(pq_getmsgint64(buf));
 }
 
 /*
- *        int8send            - converts int8 to binary format
+ *		int8send			- converts int8 to binary format
  */
 Datum
 int8send(PG_FUNCTION_ARGS)
 {
-    int64        arg1 = PG_GETARG_INT64(0);
-    StringInfoData buf;
+	int64		arg1 = PG_GETARG_INT64(0);
+	StringInfoData buf;
 
-    pq_begintypsend(&buf);
-    pq_sendint64(&buf, arg1);
-    PG_RETURN_BYTEA_P(pq_endtypsend(&buf));
+	pq_begintypsend(&buf);
+	pq_sendint64(&buf, arg1);
+	PG_RETURN_BYTEA_P(pq_endtypsend(&buf));
 }
 
 
 /*----------------------------------------------------------
- *    Relational operators for int8s, including cross-data-type comparisons.
+ *	Relational operators for int8s, including cross-data-type comparisons.
  *---------------------------------------------------------*/
 
 /* int8relop()
@@ -205,55 +207,55 @@ int8send(PG_FUNCTION_ARGS)
 Datum
 int8eq(PG_FUNCTION_ARGS)
 {
-    int64        val1 = PG_GETARG_INT64(0);
-    int64        val2 = PG_GETARG_INT64(1);
+	int64		val1 = PG_GETARG_INT64(0);
+	int64		val2 = PG_GETARG_INT64(1);
 
-    PG_RETURN_BOOL(val1 == val2);
+	PG_RETURN_BOOL(val1 == val2);
 }
 
 Datum
 int8ne(PG_FUNCTION_ARGS)
 {
-    int64        val1 = PG_GETARG_INT64(0);
-    int64        val2 = PG_GETARG_INT64(1);
+	int64		val1 = PG_GETARG_INT64(0);
+	int64		val2 = PG_GETARG_INT64(1);
 
-    PG_RETURN_BOOL(val1 != val2);
+	PG_RETURN_BOOL(val1 != val2);
 }
 
 Datum
 int8lt(PG_FUNCTION_ARGS)
 {
-    int64        val1 = PG_GETARG_INT64(0);
-    int64        val2 = PG_GETARG_INT64(1);
+	int64		val1 = PG_GETARG_INT64(0);
+	int64		val2 = PG_GETARG_INT64(1);
 
-    PG_RETURN_BOOL(val1 < val2);
+	PG_RETURN_BOOL(val1 < val2);
 }
 
 Datum
 int8gt(PG_FUNCTION_ARGS)
 {
-    int64        val1 = PG_GETARG_INT64(0);
-    int64        val2 = PG_GETARG_INT64(1);
+	int64		val1 = PG_GETARG_INT64(0);
+	int64		val2 = PG_GETARG_INT64(1);
 
-    PG_RETURN_BOOL(val1 > val2);
+	PG_RETURN_BOOL(val1 > val2);
 }
 
 Datum
 int8le(PG_FUNCTION_ARGS)
 {
-    int64        val1 = PG_GETARG_INT64(0);
-    int64        val2 = PG_GETARG_INT64(1);
+	int64		val1 = PG_GETARG_INT64(0);
+	int64		val2 = PG_GETARG_INT64(1);
 
-    PG_RETURN_BOOL(val1 <= val2);
+	PG_RETURN_BOOL(val1 <= val2);
 }
 
 Datum
 int8ge(PG_FUNCTION_ARGS)
 {
-    int64        val1 = PG_GETARG_INT64(0);
-    int64        val2 = PG_GETARG_INT64(1);
+	int64		val1 = PG_GETARG_INT64(0);
+	int64		val2 = PG_GETARG_INT64(1);
 
-    PG_RETURN_BOOL(val1 >= val2);
+	PG_RETURN_BOOL(val1 >= val2);
 }
 
 /* int84relop()
@@ -262,55 +264,55 @@ int8ge(PG_FUNCTION_ARGS)
 Datum
 int84eq(PG_FUNCTION_ARGS)
 {
-    int64        val1 = PG_GETARG_INT64(0);
-    int32        val2 = PG_GETARG_INT32(1);
+	int64		val1 = PG_GETARG_INT64(0);
+	int32		val2 = PG_GETARG_INT32(1);
 
-    PG_RETURN_BOOL(val1 == val2);
+	PG_RETURN_BOOL(val1 == val2);
 }
 
 Datum
 int84ne(PG_FUNCTION_ARGS)
 {
-    int64        val1 = PG_GETARG_INT64(0);
-    int32        val2 = PG_GETARG_INT32(1);
+	int64		val1 = PG_GETARG_INT64(0);
+	int32		val2 = PG_GETARG_INT32(1);
 
-    PG_RETURN_BOOL(val1 != val2);
+	PG_RETURN_BOOL(val1 != val2);
 }
 
 Datum
 int84lt(PG_FUNCTION_ARGS)
 {
-    int64        val1 = PG_GETARG_INT64(0);
-    int32        val2 = PG_GETARG_INT32(1);
+	int64		val1 = PG_GETARG_INT64(0);
+	int32		val2 = PG_GETARG_INT32(1);
 
-    PG_RETURN_BOOL(val1 < val2);
+	PG_RETURN_BOOL(val1 < val2);
 }
 
 Datum
 int84gt(PG_FUNCTION_ARGS)
 {
-    int64        val1 = PG_GETARG_INT64(0);
-    int32        val2 = PG_GETARG_INT32(1);
+	int64		val1 = PG_GETARG_INT64(0);
+	int32		val2 = PG_GETARG_INT32(1);
 
-    PG_RETURN_BOOL(val1 > val2);
+	PG_RETURN_BOOL(val1 > val2);
 }
 
 Datum
 int84le(PG_FUNCTION_ARGS)
 {
-    int64        val1 = PG_GETARG_INT64(0);
-    int32        val2 = PG_GETARG_INT32(1);
+	int64		val1 = PG_GETARG_INT64(0);
+	int32		val2 = PG_GETARG_INT32(1);
 
-    PG_RETURN_BOOL(val1 <= val2);
+	PG_RETURN_BOOL(val1 <= val2);
 }
 
 Datum
 int84ge(PG_FUNCTION_ARGS)
 {
-    int64        val1 = PG_GETARG_INT64(0);
-    int32        val2 = PG_GETARG_INT32(1);
+	int64		val1 = PG_GETARG_INT64(0);
+	int32		val2 = PG_GETARG_INT32(1);
 
-    PG_RETURN_BOOL(val1 >= val2);
+	PG_RETURN_BOOL(val1 >= val2);
 }
 
 /* int48relop()
@@ -319,55 +321,55 @@ int84ge(PG_FUNCTION_ARGS)
 Datum
 int48eq(PG_FUNCTION_ARGS)
 {
-    int32        val1 = PG_GETARG_INT32(0);
-    int64        val2 = PG_GETARG_INT64(1);
+	int32		val1 = PG_GETARG_INT32(0);
+	int64		val2 = PG_GETARG_INT64(1);
 
-    PG_RETURN_BOOL(val1 == val2);
+	PG_RETURN_BOOL(val1 == val2);
 }
 
 Datum
 int48ne(PG_FUNCTION_ARGS)
 {
-    int32        val1 = PG_GETARG_INT32(0);
-    int64        val2 = PG_GETARG_INT64(1);
+	int32		val1 = PG_GETARG_INT32(0);
+	int64		val2 = PG_GETARG_INT64(1);
 
-    PG_RETURN_BOOL(val1 != val2);
+	PG_RETURN_BOOL(val1 != val2);
 }
 
 Datum
 int48lt(PG_FUNCTION_ARGS)
 {
-    int32        val1 = PG_GETARG_INT32(0);
-    int64        val2 = PG_GETARG_INT64(1);
+	int32		val1 = PG_GETARG_INT32(0);
+	int64		val2 = PG_GETARG_INT64(1);
 
-    PG_RETURN_BOOL(val1 < val2);
+	PG_RETURN_BOOL(val1 < val2);
 }
 
 Datum
 int48gt(PG_FUNCTION_ARGS)
 {
-    int32        val1 = PG_GETARG_INT32(0);
-    int64        val2 = PG_GETARG_INT64(1);
+	int32		val1 = PG_GETARG_INT32(0);
+	int64		val2 = PG_GETARG_INT64(1);
 
-    PG_RETURN_BOOL(val1 > val2);
+	PG_RETURN_BOOL(val1 > val2);
 }
 
 Datum
 int48le(PG_FUNCTION_ARGS)
 {
-    int32        val1 = PG_GETARG_INT32(0);
-    int64        val2 = PG_GETARG_INT64(1);
+	int32		val1 = PG_GETARG_INT32(0);
+	int64		val2 = PG_GETARG_INT64(1);
 
-    PG_RETURN_BOOL(val1 <= val2);
+	PG_RETURN_BOOL(val1 <= val2);
 }
 
 Datum
 int48ge(PG_FUNCTION_ARGS)
 {
-    int32        val1 = PG_GETARG_INT32(0);
-    int64        val2 = PG_GETARG_INT64(1);
+	int32		val1 = PG_GETARG_INT32(0);
+	int64		val2 = PG_GETARG_INT64(1);
 
-    PG_RETURN_BOOL(val1 >= val2);
+	PG_RETURN_BOOL(val1 >= val2);
 }
 
 /* int82relop()
@@ -376,55 +378,55 @@ int48ge(PG_FUNCTION_ARGS)
 Datum
 int82eq(PG_FUNCTION_ARGS)
 {
-    int64        val1 = PG_GETARG_INT64(0);
-    int16        val2 = PG_GETARG_INT16(1);
+	int64		val1 = PG_GETARG_INT64(0);
+	int16		val2 = PG_GETARG_INT16(1);
 
-    PG_RETURN_BOOL(val1 == val2);
+	PG_RETURN_BOOL(val1 == val2);
 }
 
 Datum
 int82ne(PG_FUNCTION_ARGS)
 {
-    int64        val1 = PG_GETARG_INT64(0);
-    int16        val2 = PG_GETARG_INT16(1);
+	int64		val1 = PG_GETARG_INT64(0);
+	int16		val2 = PG_GETARG_INT16(1);
 
-    PG_RETURN_BOOL(val1 != val2);
+	PG_RETURN_BOOL(val1 != val2);
 }
 
 Datum
 int82lt(PG_FUNCTION_ARGS)
 {
-    int64        val1 = PG_GETARG_INT64(0);
-    int16        val2 = PG_GETARG_INT16(1);
+	int64		val1 = PG_GETARG_INT64(0);
+	int16		val2 = PG_GETARG_INT16(1);
 
-    PG_RETURN_BOOL(val1 < val2);
+	PG_RETURN_BOOL(val1 < val2);
 }
 
 Datum
 int82gt(PG_FUNCTION_ARGS)
 {
-    int64        val1 = PG_GETARG_INT64(0);
-    int16        val2 = PG_GETARG_INT16(1);
+	int64		val1 = PG_GETARG_INT64(0);
+	int16		val2 = PG_GETARG_INT16(1);
 
-    PG_RETURN_BOOL(val1 > val2);
+	PG_RETURN_BOOL(val1 > val2);
 }
 
 Datum
 int82le(PG_FUNCTION_ARGS)
 {
-    int64        val1 = PG_GETARG_INT64(0);
-    int16        val2 = PG_GETARG_INT16(1);
+	int64		val1 = PG_GETARG_INT64(0);
+	int16		val2 = PG_GETARG_INT16(1);
 
-    PG_RETURN_BOOL(val1 <= val2);
+	PG_RETURN_BOOL(val1 <= val2);
 }
 
 Datum
 int82ge(PG_FUNCTION_ARGS)
 {
-    int64        val1 = PG_GETARG_INT64(0);
-    int16        val2 = PG_GETARG_INT16(1);
+	int64		val1 = PG_GETARG_INT64(0);
+	int16		val2 = PG_GETARG_INT16(1);
 
-    PG_RETURN_BOOL(val1 >= val2);
+	PG_RETURN_BOOL(val1 >= val2);
 }
 
 /* int28relop()
@@ -433,197 +435,202 @@ int82ge(PG_FUNCTION_ARGS)
 Datum
 int28eq(PG_FUNCTION_ARGS)
 {
-    int16        val1 = PG_GETARG_INT16(0);
-    int64        val2 = PG_GETARG_INT64(1);
+	int16		val1 = PG_GETARG_INT16(0);
+	int64		val2 = PG_GETARG_INT64(1);
 
-    PG_RETURN_BOOL(val1 == val2);
+	PG_RETURN_BOOL(val1 == val2);
 }
 
 Datum
 int28ne(PG_FUNCTION_ARGS)
 {
-    int16        val1 = PG_GETARG_INT16(0);
-    int64        val2 = PG_GETARG_INT64(1);
+	int16		val1 = PG_GETARG_INT16(0);
+	int64		val2 = PG_GETARG_INT64(1);
 
-    PG_RETURN_BOOL(val1 != val2);
+	PG_RETURN_BOOL(val1 != val2);
 }
 
 Datum
 int28lt(PG_FUNCTION_ARGS)
 {
-    int16        val1 = PG_GETARG_INT16(0);
-    int64        val2 = PG_GETARG_INT64(1);
+	int16		val1 = PG_GETARG_INT16(0);
+	int64		val2 = PG_GETARG_INT64(1);
 
-    PG_RETURN_BOOL(val1 < val2);
+	PG_RETURN_BOOL(val1 < val2);
 }
 
 Datum
 int28gt(PG_FUNCTION_ARGS)
 {
-    int16        val1 = PG_GETARG_INT16(0);
-    int64        val2 = PG_GETARG_INT64(1);
+	int16		val1 = PG_GETARG_INT16(0);
+	int64		val2 = PG_GETARG_INT64(1);
 
-    PG_RETURN_BOOL(val1 > val2);
+	PG_RETURN_BOOL(val1 > val2);
 }
 
 Datum
 int28le(PG_FUNCTION_ARGS)
 {
-    int16        val1 = PG_GETARG_INT16(0);
-    int64        val2 = PG_GETARG_INT64(1);
+	int16		val1 = PG_GETARG_INT16(0);
+	int64		val2 = PG_GETARG_INT64(1);
 
-    PG_RETURN_BOOL(val1 <= val2);
+	PG_RETURN_BOOL(val1 <= val2);
 }
 
 Datum
 int28ge(PG_FUNCTION_ARGS)
 {
-    int16        val1 = PG_GETARG_INT16(0);
-    int64        val2 = PG_GETARG_INT64(1);
+	int16		val1 = PG_GETARG_INT16(0);
+	int64		val2 = PG_GETARG_INT64(1);
 
-    PG_RETURN_BOOL(val1 >= val2);
+	PG_RETURN_BOOL(val1 >= val2);
 }
 
+/*
+ * in_range support function for int8.
+ *
+ * Note: we needn't supply int8_int4 or int8_int2 variants, as implicit
+ * coercion of the offset value takes care of those scenarios just as well.
+ */
+Datum
+in_range_int8_int8(PG_FUNCTION_ARGS)
+{
+	int64		val = PG_GETARG_INT64(0);
+	int64		base = PG_GETARG_INT64(1);
+	int64		offset = PG_GETARG_INT64(2);
+	bool		sub = PG_GETARG_BOOL(3);
+	bool		less = PG_GETARG_BOOL(4);
+	int64		sum;
+
+	if (offset < 0)
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_PRECEDING_FOLLOWING_SIZE),
+				 errmsg("invalid preceding or following size in window function")));
+
+	if (sub)
+		offset = -offset;		/* cannot overflow */
+
+	if (unlikely(pg_add_s64_overflow(base, offset, &sum)))
+	{
+		/*
+		 * If sub is false, the true sum is surely more than val, so correct
+		 * answer is the same as "less".  If sub is true, the true sum is
+		 * surely less than val, so the answer is "!less".
+		 */
+		PG_RETURN_BOOL(sub ? !less : less);
+	}
+
+	if (less)
+		PG_RETURN_BOOL(val <= sum);
+	else
+		PG_RETURN_BOOL(val >= sum);
+}
 
 /*----------------------------------------------------------
- *    Arithmetic operators on 64-bit integers.
+ *	Arithmetic operators on 64-bit integers.
  *---------------------------------------------------------*/
 
 Datum
 int8um(PG_FUNCTION_ARGS)
 {
-    int64        arg = PG_GETARG_INT64(0);
-    int64        result;
+	int64		arg = PG_GETARG_INT64(0);
+	int64		result;
 
-    result = -arg;
-    /* overflow check (needed for INT64_MIN) */
-    if (arg != 0 && SAMESIGN(result, arg))
-        ereport(ERROR,
-                (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
-                 errmsg("bigint out of range")));
-    PG_RETURN_INT64(result);
+	if (unlikely(arg == PG_INT64_MIN))
+		ereport(ERROR,
+				(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+				 errmsg("bigint out of range")));
+	result = -arg;
+	PG_RETURN_INT64(result);
 }
 
 Datum
 int8up(PG_FUNCTION_ARGS)
 {
-    int64        arg = PG_GETARG_INT64(0);
+	int64		arg = PG_GETARG_INT64(0);
 
-    PG_RETURN_INT64(arg);
+	PG_RETURN_INT64(arg);
 }
 
 Datum
 int8pl(PG_FUNCTION_ARGS)
 {
-    int64        arg1 = PG_GETARG_INT64(0);
-    int64        arg2 = PG_GETARG_INT64(1);
-    int64        result;
+	int64		arg1 = PG_GETARG_INT64(0);
+	int64		arg2 = PG_GETARG_INT64(1);
+	int64		result;
 
-    result = arg1 + arg2;
-
-    /*
-     * Overflow check.  If the inputs are of different signs then their sum
-     * cannot overflow.  If the inputs are of the same sign, their sum had
-     * better be that sign too.
-     */
-    if (SAMESIGN(arg1, arg2) && !SAMESIGN(result, arg1))
-        ereport(ERROR,
-                (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
-                 errmsg("bigint out of range")));
-    PG_RETURN_INT64(result);
+	if (unlikely(pg_add_s64_overflow(arg1, arg2, &result)))
+		ereport(ERROR,
+				(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+				 errmsg("bigint out of range")));
+	PG_RETURN_INT64(result);
 }
 
 Datum
 int8mi(PG_FUNCTION_ARGS)
 {
-    int64        arg1 = PG_GETARG_INT64(0);
-    int64        arg2 = PG_GETARG_INT64(1);
-    int64        result;
+	int64		arg1 = PG_GETARG_INT64(0);
+	int64		arg2 = PG_GETARG_INT64(1);
+	int64		result;
 
-    result = arg1 - arg2;
-
-    /*
-     * Overflow check.  If the inputs are of the same sign then their
-     * difference cannot overflow.  If they are of different signs then the
-     * result should be of the same sign as the first input.
-     */
-    if (!SAMESIGN(arg1, arg2) && !SAMESIGN(result, arg1))
-        ereport(ERROR,
-                (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
-                 errmsg("bigint out of range")));
-    PG_RETURN_INT64(result);
+	if (unlikely(pg_sub_s64_overflow(arg1, arg2, &result)))
+		ereport(ERROR,
+				(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+				 errmsg("bigint out of range")));
+	PG_RETURN_INT64(result);
 }
 
 Datum
 int8mul(PG_FUNCTION_ARGS)
-{// #lizard forgives
-    int64        arg1 = PG_GETARG_INT64(0);
-    int64        arg2 = PG_GETARG_INT64(1);
-    int64        result;
+{
+	int64		arg1 = PG_GETARG_INT64(0);
+	int64		arg2 = PG_GETARG_INT64(1);
+	int64		result;
 
-    result = arg1 * arg2;
-
-    /*
-     * Overflow check.  We basically check to see if result / arg2 gives arg1
-     * again.  There are two cases where this fails: arg2 = 0 (which cannot
-     * overflow) and arg1 = INT64_MIN, arg2 = -1 (where the division itself
-     * will overflow and thus incorrectly match).
-     *
-     * Since the division is likely much more expensive than the actual
-     * multiplication, we'd like to skip it where possible.  The best bang for
-     * the buck seems to be to check whether both inputs are in the int32
-     * range; if so, no overflow is possible.
-     */
-    if (arg1 != (int64) ((int32) arg1) || arg2 != (int64) ((int32) arg2))
-    {
-        if (arg2 != 0 &&
-            ((arg2 == -1 && arg1 < 0 && result < 0) ||
-             result / arg2 != arg1))
-            ereport(ERROR,
-                    (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
-                     errmsg("bigint out of range")));
-    }
-    PG_RETURN_INT64(result);
+	if (unlikely(pg_mul_s64_overflow(arg1, arg2, &result)))
+		ereport(ERROR,
+				(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+				 errmsg("bigint out of range")));
+	PG_RETURN_INT64(result);
 }
 
 Datum
 int8div(PG_FUNCTION_ARGS)
 {
-    int64        arg1 = PG_GETARG_INT64(0);
-    int64        arg2 = PG_GETARG_INT64(1);
-    int64        result;
+	int64		arg1 = PG_GETARG_INT64(0);
+	int64		arg2 = PG_GETARG_INT64(1);
+	int64		result;
 
-    if (arg2 == 0)
-    {
-        ereport(ERROR,
-                (errcode(ERRCODE_DIVISION_BY_ZERO),
-                 errmsg("division by zero")));
-        /* ensure compiler realizes we mustn't reach the division (gcc bug) */
-        PG_RETURN_NULL();
-    }
+	if (arg2 == 0)
+	{
+		ereport(ERROR,
+				(errcode(ERRCODE_DIVISION_BY_ZERO),
+				 errmsg("division by zero")));
+		/* ensure compiler realizes we mustn't reach the division (gcc bug) */
+		PG_RETURN_NULL();
+	}
 
-    /*
-     * INT64_MIN / -1 is problematic, since the result can't be represented on
-     * a two's-complement machine.  Some machines produce INT64_MIN, some
-     * produce zero, some throw an exception.  We can dodge the problem by
-     * recognizing that division by -1 is the same as negation.
-     */
-    if (arg2 == -1)
-    {
-        result = -arg1;
-        /* overflow check (needed for INT64_MIN) */
-        if (arg1 != 0 && SAMESIGN(result, arg1))
-            ereport(ERROR,
-                    (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
-                     errmsg("bigint out of range")));
-        PG_RETURN_INT64(result);
-    }
+	/*
+	 * INT64_MIN / -1 is problematic, since the result can't be represented on
+	 * a two's-complement machine.  Some machines produce INT64_MIN, some
+	 * produce zero, some throw an exception.  We can dodge the problem by
+	 * recognizing that division by -1 is the same as negation.
+	 */
+	if (arg2 == -1)
+	{
+		if (unlikely(arg1 == INT64_MIN))
+			ereport(ERROR,
+					(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+					 errmsg("bigint out of range")));
+		result = -arg1;
+		PG_RETURN_INT64(result);
+	}
 
-    /* No overflow is possible */
+	/* No overflow is possible */
 
-    result = arg1 / arg2;
+	result = arg1 / arg2;
 
-    PG_RETURN_INT64(result);
+	PG_RETURN_INT64(result);
 }
 
 /* int8abs()
@@ -632,16 +639,15 @@ int8div(PG_FUNCTION_ARGS)
 Datum
 int8abs(PG_FUNCTION_ARGS)
 {
-    int64        arg1 = PG_GETARG_INT64(0);
-    int64        result;
+	int64		arg1 = PG_GETARG_INT64(0);
+	int64		result;
 
-    result = (arg1 < 0) ? -arg1 : arg1;
-    /* overflow check (needed for INT64_MIN) */
-    if (result < 0)
-        ereport(ERROR,
-                (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
-                 errmsg("bigint out of range")));
-    PG_RETURN_INT64(result);
+	if (unlikely(arg1 == INT64_MIN))
+		ereport(ERROR,
+				(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+				 errmsg("bigint out of range")));
+	result = (arg1 < 0) ? -arg1 : arg1;
+	PG_RETURN_INT64(result);
 }
 
 /* int8mod()
@@ -650,118 +656,133 @@ int8abs(PG_FUNCTION_ARGS)
 Datum
 int8mod(PG_FUNCTION_ARGS)
 {
-    int64        arg1 = PG_GETARG_INT64(0);
-    int64        arg2 = PG_GETARG_INT64(1);
+	int64		arg1 = PG_GETARG_INT64(0);
+	int64		arg2 = PG_GETARG_INT64(1);
 
-    if (arg2 == 0)
-    {
-        ereport(ERROR,
-                (errcode(ERRCODE_DIVISION_BY_ZERO),
-                 errmsg("division by zero")));
-        /* ensure compiler realizes we mustn't reach the division (gcc bug) */
-        PG_RETURN_NULL();
-    }
+	if (unlikely(arg2 == 0))
+	{
+		if (ORA_MODE)
+			PG_RETURN_INT64(arg1);
+			
+		ereport(ERROR,
+				(errcode(ERRCODE_DIVISION_BY_ZERO),
+				 errmsg("division by zero")));
+		/* ensure compiler realizes we mustn't reach the division (gcc bug) */
+		PG_RETURN_NULL();
+	}
 
-    /*
-     * Some machines throw a floating-point exception for INT64_MIN % -1,
-     * which is a bit silly since the correct answer is perfectly
-     * well-defined, namely zero.
-     */
-    if (arg2 == -1)
-        PG_RETURN_INT64(0);
+	/*
+	 * Some machines throw a floating-point exception for INT64_MIN % -1,
+	 * which is a bit silly since the correct answer is perfectly
+	 * well-defined, namely zero.
+	 */
+	if (arg2 == -1)
+		PG_RETURN_INT64(0);
 
-    /* No overflow is possible */
+	/* No overflow is possible */
 
-    PG_RETURN_INT64(arg1 % arg2);
+	PG_RETURN_INT64(arg1 % arg2);
 }
 
+Datum
+int8remainder(PG_FUNCTION_ARGS)
+{
+	int64 arg1 = PG_GETARG_INT64(0);
+	int64 arg2 = PG_GETARG_INT64(1);
+
+	if (unlikely(arg2 == 0))
+	{
+		ereport(ERROR, (errcode(ERRCODE_DIVISION_BY_ZERO), errmsg("division by zero")));
+		/* ensure compiler realizes we mustn't reach the division (gcc bug) */
+		PG_RETURN_NULL();
+	}
+
+	/*
+	 * Some machines throw a floating-point exception for INT64_MIN % -1,
+	 * which is a bit silly since the correct answer is perfectly
+	 * well-defined, namely zero.
+	 */
+	if (arg2 == -1)
+		PG_RETURN_INT64(0);
+
+	/* No overflow is possible */
+
+	PG_RETURN_INT64(arg1 - pg_banker_round((double) arg1 / arg2) * arg2);
+}
 
 Datum
 int8inc(PG_FUNCTION_ARGS)
 {
-    /*
-     * When int8 is pass-by-reference, we provide this special case to avoid
-     * palloc overhead for COUNT(): when called as an aggregate, we know that
-     * the argument is modifiable local storage, so just update it in-place.
-     * (If int8 is pass-by-value, then of course this is useless as well as
-     * incorrect, so just ifdef it out.)
-     */
-#ifndef USE_FLOAT8_BYVAL        /* controls int8 too */
-    if (AggCheckCallContext(fcinfo, NULL))
-    {
-        int64       *arg = (int64 *) PG_GETARG_POINTER(0);
-        int64        result;
+	/*
+	 * When int8 is pass-by-reference, we provide this special case to avoid
+	 * palloc overhead for COUNT(): when called as an aggregate, we know that
+	 * the argument is modifiable local storage, so just update it in-place.
+	 * (If int8 is pass-by-value, then of course this is useless as well as
+	 * incorrect, so just ifdef it out.)
+	 */
+#ifndef USE_FLOAT8_BYVAL		/* controls int8 too */
+	if (AggCheckCallContext(fcinfo, NULL))
+	{
+		int64	   *arg = (int64 *) PG_GETARG_POINTER(0);
 
-        result = *arg + 1;
-        /* Overflow check */
-        if (result < 0 && *arg > 0)
-            ereport(ERROR,
-                    (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
-                     errmsg("bigint out of range")));
+		if (unlikely(pg_add_s64_overflow(*arg, 1, arg)))
+			ereport(ERROR,
+					(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+					 errmsg("bigint out of range")));
 
-        *arg = result;
-        PG_RETURN_POINTER(arg);
-    }
-    else
+		PG_RETURN_POINTER(arg);
+	}
+	else
 #endif
-    {
-        /* Not called as an aggregate, so just do it the dumb way */
-        int64        arg = PG_GETARG_INT64(0);
-        int64        result;
+	{
+		/* Not called as an aggregate, so just do it the dumb way */
+		int64		arg = PG_GETARG_INT64(0);
+		int64		result;
 
-        result = arg + 1;
-        /* Overflow check */
-        if (result < 0 && arg > 0)
-            ereport(ERROR,
-                    (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
-                     errmsg("bigint out of range")));
+		if (unlikely(pg_add_s64_overflow(arg, 1, &result)))
+			ereport(ERROR,
+					(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+					 errmsg("bigint out of range")));
 
-        PG_RETURN_INT64(result);
-    }
+		PG_RETURN_INT64(result);
+	}
 }
 
 Datum
 int8dec(PG_FUNCTION_ARGS)
 {
-    /*
-     * When int8 is pass-by-reference, we provide this special case to avoid
-     * palloc overhead for COUNT(): when called as an aggregate, we know that
-     * the argument is modifiable local storage, so just update it in-place.
-     * (If int8 is pass-by-value, then of course this is useless as well as
-     * incorrect, so just ifdef it out.)
-     */
-#ifndef USE_FLOAT8_BYVAL        /* controls int8 too */
-    if (AggCheckCallContext(fcinfo, NULL))
-    {
-        int64       *arg = (int64 *) PG_GETARG_POINTER(0);
-        int64        result;
+	/*
+	 * When int8 is pass-by-reference, we provide this special case to avoid
+	 * palloc overhead for COUNT(): when called as an aggregate, we know that
+	 * the argument is modifiable local storage, so just update it in-place.
+	 * (If int8 is pass-by-value, then of course this is useless as well as
+	 * incorrect, so just ifdef it out.)
+	 */
+#ifndef USE_FLOAT8_BYVAL		/* controls int8 too */
+	if (AggCheckCallContext(fcinfo, NULL))
+	{
+		int64	   *arg = (int64 *) PG_GETARG_POINTER(0);
 
-        result = *arg - 1;
-        /* Overflow check */
-        if (result > 0 && *arg < 0)
-            ereport(ERROR,
-                    (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
-                     errmsg("bigint out of range")));
-
-        *arg = result;
-        PG_RETURN_POINTER(arg);
-    }
-    else
+		if (unlikely(pg_sub_s64_overflow(*arg, 1, arg)))
+			ereport(ERROR,
+					(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+					 errmsg("bigint out of range")));
+		PG_RETURN_POINTER(arg);
+	}
+	else
 #endif
-    {
-        /* Not called as an aggregate, so just do it the dumb way */
-        int64        arg = PG_GETARG_INT64(0);
-        int64        result;
+	{
+		/* Not called as an aggregate, so just do it the dumb way */
+		int64		arg = PG_GETARG_INT64(0);
+		int64		result;
 
-        result = arg - 1;
-        /* Overflow check */
-        if (result > 0 && arg < 0)
-            ereport(ERROR,
-                    (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
-                     errmsg("bigint out of range")));
+		if (unlikely(pg_sub_s64_overflow(arg, 1, &result)))
+			ereport(ERROR,
+					(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+					 errmsg("bigint out of range")));
 
-        PG_RETURN_INT64(result);
-    }
+		PG_RETURN_INT64(result);
+	}
 }
 
 
@@ -777,566 +798,448 @@ int8dec(PG_FUNCTION_ARGS)
 Datum
 int8inc_any(PG_FUNCTION_ARGS)
 {
-    return int8inc(fcinfo);
+	return int8inc(fcinfo);
 }
 
 Datum
 int8inc_float8_float8(PG_FUNCTION_ARGS)
 {
-    return int8inc(fcinfo);
+	return int8inc(fcinfo);
 }
 
 Datum
 int8dec_any(PG_FUNCTION_ARGS)
 {
-    return int8dec(fcinfo);
+	return int8dec(fcinfo);
 }
 
 
 Datum
 int8larger(PG_FUNCTION_ARGS)
 {
-    int64        arg1 = PG_GETARG_INT64(0);
-    int64        arg2 = PG_GETARG_INT64(1);
-    int64        result;
+	int64		arg1 = PG_GETARG_INT64(0);
+	int64		arg2 = PG_GETARG_INT64(1);
+	int64		result;
 
-    result = ((arg1 > arg2) ? arg1 : arg2);
+	result = ((arg1 > arg2) ? arg1 : arg2);
 
-    PG_RETURN_INT64(result);
+	PG_RETURN_INT64(result);
 }
 
 Datum
 int8smaller(PG_FUNCTION_ARGS)
 {
-    int64        arg1 = PG_GETARG_INT64(0);
-    int64        arg2 = PG_GETARG_INT64(1);
-    int64        result;
+	int64		arg1 = PG_GETARG_INT64(0);
+	int64		arg2 = PG_GETARG_INT64(1);
+	int64		result;
 
-    result = ((arg1 < arg2) ? arg1 : arg2);
+	result = ((arg1 < arg2) ? arg1 : arg2);
 
-    PG_RETURN_INT64(result);
+	PG_RETURN_INT64(result);
 }
 
 Datum
 int84pl(PG_FUNCTION_ARGS)
 {
-    int64        arg1 = PG_GETARG_INT64(0);
-    int32        arg2 = PG_GETARG_INT32(1);
-    int64        result;
+	int64		arg1 = PG_GETARG_INT64(0);
+	int32		arg2 = PG_GETARG_INT32(1);
+	int64		result;
 
-    result = arg1 + arg2;
-
-    /*
-     * Overflow check.  If the inputs are of different signs then their sum
-     * cannot overflow.  If the inputs are of the same sign, their sum had
-     * better be that sign too.
-     */
-    if (SAMESIGN(arg1, arg2) && !SAMESIGN(result, arg1))
-        ereport(ERROR,
-                (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
-                 errmsg("bigint out of range")));
-    PG_RETURN_INT64(result);
+	if (unlikely(pg_add_s64_overflow(arg1, (int64) arg2, &result)))
+		ereport(ERROR,
+				(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+				 errmsg("bigint out of range")));
+	PG_RETURN_INT64(result);
 }
 
 Datum
 int84mi(PG_FUNCTION_ARGS)
 {
-    int64        arg1 = PG_GETARG_INT64(0);
-    int32        arg2 = PG_GETARG_INT32(1);
-    int64        result;
+	int64		arg1 = PG_GETARG_INT64(0);
+	int32		arg2 = PG_GETARG_INT32(1);
+	int64		result;
 
-    result = arg1 - arg2;
-
-    /*
-     * Overflow check.  If the inputs are of the same sign then their
-     * difference cannot overflow.  If they are of different signs then the
-     * result should be of the same sign as the first input.
-     */
-    if (!SAMESIGN(arg1, arg2) && !SAMESIGN(result, arg1))
-        ereport(ERROR,
-                (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
-                 errmsg("bigint out of range")));
-    PG_RETURN_INT64(result);
+	if (unlikely(pg_sub_s64_overflow(arg1, (int64) arg2, &result)))
+		ereport(ERROR,
+				(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+				 errmsg("bigint out of range")));
+	PG_RETURN_INT64(result);
 }
 
 Datum
 int84mul(PG_FUNCTION_ARGS)
 {
-    int64        arg1 = PG_GETARG_INT64(0);
-    int32        arg2 = PG_GETARG_INT32(1);
-    int64        result;
+	int64		arg1 = PG_GETARG_INT64(0);
+	int32		arg2 = PG_GETARG_INT32(1);
+	int64		result;
 
-    result = arg1 * arg2;
-
-    /*
-     * Overflow check.  We basically check to see if result / arg1 gives arg2
-     * again.  There is one case where this fails: arg1 = 0 (which cannot
-     * overflow).
-     *
-     * Since the division is likely much more expensive than the actual
-     * multiplication, we'd like to skip it where possible.  The best bang for
-     * the buck seems to be to check whether both inputs are in the int32
-     * range; if so, no overflow is possible.
-     */
-    if (arg1 != (int64) ((int32) arg1) &&
-        result / arg1 != arg2)
-        ereport(ERROR,
-                (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
-                 errmsg("bigint out of range")));
-    PG_RETURN_INT64(result);
+	if (unlikely(pg_mul_s64_overflow(arg1, (int64) arg2, &result)))
+		ereport(ERROR,
+				(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+				 errmsg("bigint out of range")));
+	PG_RETURN_INT64(result);
 }
 
 Datum
 int84div(PG_FUNCTION_ARGS)
 {
-    int64        arg1 = PG_GETARG_INT64(0);
-    int32        arg2 = PG_GETARG_INT32(1);
-    int64        result;
+	int64		arg1 = PG_GETARG_INT64(0);
+	int32		arg2 = PG_GETARG_INT32(1);
+	int64		result;
 
-    if (arg2 == 0)
-    {
-        ereport(ERROR,
-                (errcode(ERRCODE_DIVISION_BY_ZERO),
-                 errmsg("division by zero")));
-        /* ensure compiler realizes we mustn't reach the division (gcc bug) */
-        PG_RETURN_NULL();
-    }
+	if (arg2 == 0)
+	{
+		ereport(ERROR,
+				(errcode(ERRCODE_DIVISION_BY_ZERO),
+				 errmsg("division by zero")));
+		/* ensure compiler realizes we mustn't reach the division (gcc bug) */
+		PG_RETURN_NULL();
+	}
 
-    /*
-     * INT64_MIN / -1 is problematic, since the result can't be represented on
-     * a two's-complement machine.  Some machines produce INT64_MIN, some
-     * produce zero, some throw an exception.  We can dodge the problem by
-     * recognizing that division by -1 is the same as negation.
-     */
-    if (arg2 == -1)
-    {
-        result = -arg1;
-        /* overflow check (needed for INT64_MIN) */
-        if (arg1 != 0 && SAMESIGN(result, arg1))
-            ereport(ERROR,
-                    (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
-                     errmsg("bigint out of range")));
-        PG_RETURN_INT64(result);
-    }
+	/*
+	 * INT64_MIN / -1 is problematic, since the result can't be represented on
+	 * a two's-complement machine.  Some machines produce INT64_MIN, some
+	 * produce zero, some throw an exception.  We can dodge the problem by
+	 * recognizing that division by -1 is the same as negation.
+	 */
+	if (arg2 == -1)
+	{
+		if (unlikely(arg1 == INT64_MIN))
+			ereport(ERROR,
+					(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+					 errmsg("bigint out of range")));
+		result = -arg1;
+		PG_RETURN_INT64(result);
+	}
 
-    /* No overflow is possible */
+	/* No overflow is possible */
 
-    result = arg1 / arg2;
+	result = arg1 / arg2;
 
-    PG_RETURN_INT64(result);
+	PG_RETURN_INT64(result);
 }
 
 Datum
 int48pl(PG_FUNCTION_ARGS)
 {
-    int32        arg1 = PG_GETARG_INT32(0);
-    int64        arg2 = PG_GETARG_INT64(1);
-    int64        result;
+	int32		arg1 = PG_GETARG_INT32(0);
+	int64		arg2 = PG_GETARG_INT64(1);
+	int64		result;
 
-    result = arg1 + arg2;
-
-    /*
-     * Overflow check.  If the inputs are of different signs then their sum
-     * cannot overflow.  If the inputs are of the same sign, their sum had
-     * better be that sign too.
-     */
-    if (SAMESIGN(arg1, arg2) && !SAMESIGN(result, arg1))
-        ereport(ERROR,
-                (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
-                 errmsg("bigint out of range")));
-    PG_RETURN_INT64(result);
+	if (unlikely(pg_add_s64_overflow((int64) arg1, arg2, &result)))
+		ereport(ERROR,
+				(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+				 errmsg("bigint out of range")));
+	PG_RETURN_INT64(result);
 }
 
 Datum
 int48mi(PG_FUNCTION_ARGS)
 {
-    int32        arg1 = PG_GETARG_INT32(0);
-    int64        arg2 = PG_GETARG_INT64(1);
-    int64        result;
+	int32		arg1 = PG_GETARG_INT32(0);
+	int64		arg2 = PG_GETARG_INT64(1);
+	int64		result;
 
-    result = arg1 - arg2;
-
-    /*
-     * Overflow check.  If the inputs are of the same sign then their
-     * difference cannot overflow.  If they are of different signs then the
-     * result should be of the same sign as the first input.
-     */
-    if (!SAMESIGN(arg1, arg2) && !SAMESIGN(result, arg1))
-        ereport(ERROR,
-                (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
-                 errmsg("bigint out of range")));
-    PG_RETURN_INT64(result);
+	if (unlikely(pg_sub_s64_overflow((int64) arg1, arg2, &result)))
+		ereport(ERROR,
+				(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+				 errmsg("bigint out of range")));
+	PG_RETURN_INT64(result);
 }
 
 Datum
 int48mul(PG_FUNCTION_ARGS)
 {
-    int32        arg1 = PG_GETARG_INT32(0);
-    int64        arg2 = PG_GETARG_INT64(1);
-    int64        result;
+	int32		arg1 = PG_GETARG_INT32(0);
+	int64		arg2 = PG_GETARG_INT64(1);
+	int64		result;
 
-    result = arg1 * arg2;
-
-    /*
-     * Overflow check.  We basically check to see if result / arg2 gives arg1
-     * again.  There is one case where this fails: arg2 = 0 (which cannot
-     * overflow).
-     *
-     * Since the division is likely much more expensive than the actual
-     * multiplication, we'd like to skip it where possible.  The best bang for
-     * the buck seems to be to check whether both inputs are in the int32
-     * range; if so, no overflow is possible.
-     */
-    if (arg2 != (int64) ((int32) arg2) &&
-        result / arg2 != arg1)
-        ereport(ERROR,
-                (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
-                 errmsg("bigint out of range")));
-    PG_RETURN_INT64(result);
+	if (unlikely(pg_mul_s64_overflow((int64) arg1, arg2, &result)))
+		ereport(ERROR,
+				(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+				 errmsg("bigint out of range")));
+	PG_RETURN_INT64(result);
 }
 
 Datum
 int48div(PG_FUNCTION_ARGS)
 {
-    int32        arg1 = PG_GETARG_INT32(0);
-    int64        arg2 = PG_GETARG_INT64(1);
+	int32		arg1 = PG_GETARG_INT32(0);
+	int64		arg2 = PG_GETARG_INT64(1);
 
-    if (arg2 == 0)
-    {
-        ereport(ERROR,
-                (errcode(ERRCODE_DIVISION_BY_ZERO),
-                 errmsg("division by zero")));
-        /* ensure compiler realizes we mustn't reach the division (gcc bug) */
-        PG_RETURN_NULL();
-    }
+	if (unlikely(arg2 == 0))
+	{
+		ereport(ERROR,
+				(errcode(ERRCODE_DIVISION_BY_ZERO),
+				 errmsg("division by zero")));
+		/* ensure compiler realizes we mustn't reach the division (gcc bug) */
+		PG_RETURN_NULL();
+	}
 
-    /* No overflow is possible */
-    PG_RETURN_INT64((int64) arg1 / arg2);
+	/* No overflow is possible */
+	PG_RETURN_INT64((int64) arg1 / arg2);
 }
 
 Datum
 int82pl(PG_FUNCTION_ARGS)
 {
-    int64        arg1 = PG_GETARG_INT64(0);
-    int16        arg2 = PG_GETARG_INT16(1);
-    int64        result;
+	int64		arg1 = PG_GETARG_INT64(0);
+	int16		arg2 = PG_GETARG_INT16(1);
+	int64		result;
 
-    result = arg1 + arg2;
-
-    /*
-     * Overflow check.  If the inputs are of different signs then their sum
-     * cannot overflow.  If the inputs are of the same sign, their sum had
-     * better be that sign too.
-     */
-    if (SAMESIGN(arg1, arg2) && !SAMESIGN(result, arg1))
-        ereport(ERROR,
-                (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
-                 errmsg("bigint out of range")));
-    PG_RETURN_INT64(result);
+	if (unlikely(pg_add_s64_overflow(arg1, (int64) arg2, &result)))
+		ereport(ERROR,
+				(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+				 errmsg("bigint out of range")));
+	PG_RETURN_INT64(result);
 }
 
 Datum
 int82mi(PG_FUNCTION_ARGS)
 {
-    int64        arg1 = PG_GETARG_INT64(0);
-    int16        arg2 = PG_GETARG_INT16(1);
-    int64        result;
+	int64		arg1 = PG_GETARG_INT64(0);
+	int16		arg2 = PG_GETARG_INT16(1);
+	int64		result;
 
-    result = arg1 - arg2;
-
-    /*
-     * Overflow check.  If the inputs are of the same sign then their
-     * difference cannot overflow.  If they are of different signs then the
-     * result should be of the same sign as the first input.
-     */
-    if (!SAMESIGN(arg1, arg2) && !SAMESIGN(result, arg1))
-        ereport(ERROR,
-                (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
-                 errmsg("bigint out of range")));
-    PG_RETURN_INT64(result);
+	if (unlikely(pg_sub_s64_overflow(arg1, (int64) arg2, &result)))
+		ereport(ERROR,
+				(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+				 errmsg("bigint out of range")));
+	PG_RETURN_INT64(result);
 }
 
 Datum
 int82mul(PG_FUNCTION_ARGS)
 {
-    int64        arg1 = PG_GETARG_INT64(0);
-    int16        arg2 = PG_GETARG_INT16(1);
-    int64        result;
+	int64		arg1 = PG_GETARG_INT64(0);
+	int16		arg2 = PG_GETARG_INT16(1);
+	int64		result;
 
-    result = arg1 * arg2;
-
-    /*
-     * Overflow check.  We basically check to see if result / arg1 gives arg2
-     * again.  There is one case where this fails: arg1 = 0 (which cannot
-     * overflow).
-     *
-     * Since the division is likely much more expensive than the actual
-     * multiplication, we'd like to skip it where possible.  The best bang for
-     * the buck seems to be to check whether both inputs are in the int32
-     * range; if so, no overflow is possible.
-     */
-    if (arg1 != (int64) ((int32) arg1) &&
-        result / arg1 != arg2)
-        ereport(ERROR,
-                (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
-                 errmsg("bigint out of range")));
-    PG_RETURN_INT64(result);
+	if (unlikely(pg_mul_s64_overflow(arg1, (int64) arg2, &result)))
+		ereport(ERROR,
+				(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+				 errmsg("bigint out of range")));
+	PG_RETURN_INT64(result);
 }
 
 Datum
 int82div(PG_FUNCTION_ARGS)
 {
-    int64        arg1 = PG_GETARG_INT64(0);
-    int16        arg2 = PG_GETARG_INT16(1);
-    int64        result;
+	int64		arg1 = PG_GETARG_INT64(0);
+	int16		arg2 = PG_GETARG_INT16(1);
+	int64		result;
 
-    if (arg2 == 0)
-    {
-        ereport(ERROR,
-                (errcode(ERRCODE_DIVISION_BY_ZERO),
-                 errmsg("division by zero")));
-        /* ensure compiler realizes we mustn't reach the division (gcc bug) */
-        PG_RETURN_NULL();
-    }
+	if (unlikely(arg2 == 0))
+	{
+		ereport(ERROR,
+				(errcode(ERRCODE_DIVISION_BY_ZERO),
+				 errmsg("division by zero")));
+		/* ensure compiler realizes we mustn't reach the division (gcc bug) */
+		PG_RETURN_NULL();
+	}
 
-    /*
-     * INT64_MIN / -1 is problematic, since the result can't be represented on
-     * a two's-complement machine.  Some machines produce INT64_MIN, some
-     * produce zero, some throw an exception.  We can dodge the problem by
-     * recognizing that division by -1 is the same as negation.
-     */
-    if (arg2 == -1)
-    {
-        result = -arg1;
-        /* overflow check (needed for INT64_MIN) */
-        if (arg1 != 0 && SAMESIGN(result, arg1))
-            ereport(ERROR,
-                    (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
-                     errmsg("bigint out of range")));
-        PG_RETURN_INT64(result);
-    }
+	/*
+	 * INT64_MIN / -1 is problematic, since the result can't be represented on
+	 * a two's-complement machine.  Some machines produce INT64_MIN, some
+	 * produce zero, some throw an exception.  We can dodge the problem by
+	 * recognizing that division by -1 is the same as negation.
+	 */
+	if (arg2 == -1)
+	{
+		if (unlikely(arg1 == INT64_MIN))
+			ereport(ERROR,
+					(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+					 errmsg("bigint out of range")));
+		result = -arg1;
+		PG_RETURN_INT64(result);
+	}
 
-    /* No overflow is possible */
+	/* No overflow is possible */
 
-    result = arg1 / arg2;
+	result = arg1 / arg2;
 
-    PG_RETURN_INT64(result);
+	PG_RETURN_INT64(result);
 }
 
 Datum
 int28pl(PG_FUNCTION_ARGS)
 {
-    int16        arg1 = PG_GETARG_INT16(0);
-    int64        arg2 = PG_GETARG_INT64(1);
-    int64        result;
+	int16		arg1 = PG_GETARG_INT16(0);
+	int64		arg2 = PG_GETARG_INT64(1);
+	int64		result;
 
-    result = arg1 + arg2;
-
-    /*
-     * Overflow check.  If the inputs are of different signs then their sum
-     * cannot overflow.  If the inputs are of the same sign, their sum had
-     * better be that sign too.
-     */
-    if (SAMESIGN(arg1, arg2) && !SAMESIGN(result, arg1))
-        ereport(ERROR,
-                (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
-                 errmsg("bigint out of range")));
-    PG_RETURN_INT64(result);
+	if (unlikely(pg_add_s64_overflow((int64) arg1, arg2, &result)))
+		ereport(ERROR,
+				(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+				 errmsg("bigint out of range")));
+	PG_RETURN_INT64(result);
 }
 
 Datum
 int28mi(PG_FUNCTION_ARGS)
 {
-    int16        arg1 = PG_GETARG_INT16(0);
-    int64        arg2 = PG_GETARG_INT64(1);
-    int64        result;
+	int16		arg1 = PG_GETARG_INT16(0);
+	int64		arg2 = PG_GETARG_INT64(1);
+	int64		result;
 
-    result = arg1 - arg2;
-
-    /*
-     * Overflow check.  If the inputs are of the same sign then their
-     * difference cannot overflow.  If they are of different signs then the
-     * result should be of the same sign as the first input.
-     */
-    if (!SAMESIGN(arg1, arg2) && !SAMESIGN(result, arg1))
-        ereport(ERROR,
-                (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
-                 errmsg("bigint out of range")));
-    PG_RETURN_INT64(result);
+	if (unlikely(pg_sub_s64_overflow((int64) arg1, arg2, &result)))
+		ereport(ERROR,
+				(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+				 errmsg("bigint out of range")));
+	PG_RETURN_INT64(result);
 }
 
 Datum
 int28mul(PG_FUNCTION_ARGS)
 {
-    int16        arg1 = PG_GETARG_INT16(0);
-    int64        arg2 = PG_GETARG_INT64(1);
-    int64        result;
+	int16		arg1 = PG_GETARG_INT16(0);
+	int64		arg2 = PG_GETARG_INT64(1);
+	int64		result;
 
-    result = arg1 * arg2;
-
-    /*
-     * Overflow check.  We basically check to see if result / arg2 gives arg1
-     * again.  There is one case where this fails: arg2 = 0 (which cannot
-     * overflow).
-     *
-     * Since the division is likely much more expensive than the actual
-     * multiplication, we'd like to skip it where possible.  The best bang for
-     * the buck seems to be to check whether both inputs are in the int32
-     * range; if so, no overflow is possible.
-     */
-    if (arg2 != (int64) ((int32) arg2) &&
-        result / arg2 != arg1)
-        ereport(ERROR,
-                (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
-                 errmsg("bigint out of range")));
-    PG_RETURN_INT64(result);
+	if (unlikely(pg_mul_s64_overflow((int64) arg1, arg2, &result)))
+		ereport(ERROR,
+				(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+				 errmsg("bigint out of range")));
+	PG_RETURN_INT64(result);
 }
 
 Datum
 int28div(PG_FUNCTION_ARGS)
 {
-    int16        arg1 = PG_GETARG_INT16(0);
-    int64        arg2 = PG_GETARG_INT64(1);
+	int16		arg1 = PG_GETARG_INT16(0);
+	int64		arg2 = PG_GETARG_INT64(1);
 
-    if (arg2 == 0)
-    {
-        ereport(ERROR,
-                (errcode(ERRCODE_DIVISION_BY_ZERO),
-                 errmsg("division by zero")));
-        /* ensure compiler realizes we mustn't reach the division (gcc bug) */
-        PG_RETURN_NULL();
-    }
+	if (unlikely(arg2 == 0))
+	{
+		ereport(ERROR,
+				(errcode(ERRCODE_DIVISION_BY_ZERO),
+				 errmsg("division by zero")));
+		/* ensure compiler realizes we mustn't reach the division (gcc bug) */
+		PG_RETURN_NULL();
+	}
 
-    /* No overflow is possible */
-    PG_RETURN_INT64((int64) arg1 / arg2);
+	/* No overflow is possible */
+	PG_RETURN_INT64((int64) arg1 / arg2);
 }
 
 /* Binary arithmetics
  *
- *        int8and        - returns arg1 & arg2
- *        int8or        - returns arg1 | arg2
- *        int8xor        - returns arg1 # arg2
- *        int8not        - returns ~arg1
- *        int8shl        - returns arg1 << arg2
- *        int8shr        - returns arg1 >> arg2
+ *		int8and		- returns arg1 & arg2
+ *		int8or		- returns arg1 | arg2
+ *		int8xor		- returns arg1 # arg2
+ *		int8not		- returns ~arg1
+ *		int8shl		- returns arg1 << arg2
+ *		int8shr		- returns arg1 >> arg2
  */
 
 Datum
 int8and(PG_FUNCTION_ARGS)
 {
-    int64        arg1 = PG_GETARG_INT64(0);
-    int64        arg2 = PG_GETARG_INT64(1);
+	int64		arg1 = PG_GETARG_INT64(0);
+	int64		arg2 = PG_GETARG_INT64(1);
 
-    PG_RETURN_INT64(arg1 & arg2);
+	PG_RETURN_INT64(arg1 & arg2);
 }
 
 Datum
 int8or(PG_FUNCTION_ARGS)
 {
-    int64        arg1 = PG_GETARG_INT64(0);
-    int64        arg2 = PG_GETARG_INT64(1);
+	int64		arg1 = PG_GETARG_INT64(0);
+	int64		arg2 = PG_GETARG_INT64(1);
 
-    PG_RETURN_INT64(arg1 | arg2);
+	PG_RETURN_INT64(arg1 | arg2);
 }
 
 Datum
 int8xor(PG_FUNCTION_ARGS)
 {
-    int64        arg1 = PG_GETARG_INT64(0);
-    int64        arg2 = PG_GETARG_INT64(1);
+	int64		arg1 = PG_GETARG_INT64(0);
+	int64		arg2 = PG_GETARG_INT64(1);
 
-    PG_RETURN_INT64(arg1 ^ arg2);
+	PG_RETURN_INT64(arg1 ^ arg2);
 }
 
 Datum
 int8not(PG_FUNCTION_ARGS)
 {
-    int64        arg1 = PG_GETARG_INT64(0);
+	int64		arg1 = PG_GETARG_INT64(0);
 
-    PG_RETURN_INT64(~arg1);
+	PG_RETURN_INT64(~arg1);
 }
 
 Datum
 int8shl(PG_FUNCTION_ARGS)
 {
-    int64        arg1 = PG_GETARG_INT64(0);
-    int32        arg2 = PG_GETARG_INT32(1);
+	int64		arg1 = PG_GETARG_INT64(0);
+	int32		arg2 = PG_GETARG_INT32(1);
 
-    PG_RETURN_INT64(arg1 << arg2);
+	PG_RETURN_INT64(arg1 << arg2);
 }
 
 Datum
 int8shr(PG_FUNCTION_ARGS)
 {
-    int64        arg1 = PG_GETARG_INT64(0);
-    int32        arg2 = PG_GETARG_INT32(1);
+	int64		arg1 = PG_GETARG_INT64(0);
+	int32		arg2 = PG_GETARG_INT32(1);
 
-    PG_RETURN_INT64(arg1 >> arg2);
+	PG_RETURN_INT64(arg1 >> arg2);
 }
 
 /*----------------------------------------------------------
- *    Conversion operators.
+ *	Conversion operators.
  *---------------------------------------------------------*/
 
 Datum
 int48(PG_FUNCTION_ARGS)
 {
-    int32        arg = PG_GETARG_INT32(0);
+	int32		arg = PG_GETARG_INT32(0);
 
-    PG_RETURN_INT64((int64) arg);
+	PG_RETURN_INT64((int64) arg);
 }
 
 Datum
 int84(PG_FUNCTION_ARGS)
 {
-    int64        arg = PG_GETARG_INT64(0);
-    int32        result;
+	int64		arg = PG_GETARG_INT64(0);
 
-    result = (int32) arg;
+	if (unlikely(arg < PG_INT32_MIN) || unlikely(arg > PG_INT32_MAX))
+		ereport(ERROR,
+				(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+				 errmsg("integer out of range")));
 
-    /* Test for overflow by reverse-conversion. */
-    if ((int64) result != arg)
-        ereport(ERROR,
-                (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
-                 errmsg("integer out of range")));
-
-    PG_RETURN_INT32(result);
+	PG_RETURN_INT32((int32) arg);
 }
 
 Datum
 int28(PG_FUNCTION_ARGS)
 {
-    int16        arg = PG_GETARG_INT16(0);
+	int16		arg = PG_GETARG_INT16(0);
 
-    PG_RETURN_INT64((int64) arg);
+	PG_RETURN_INT64((int64) arg);
 }
 
 Datum
 int82(PG_FUNCTION_ARGS)
 {
-    int64        arg = PG_GETARG_INT64(0);
-    int16        result;
+	int64		arg = PG_GETARG_INT64(0);
 
-    result = (int16) arg;
+	if (unlikely(arg < PG_INT16_MIN) || unlikely(arg > PG_INT16_MAX))
+		ereport(ERROR,
+				(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+				 errmsg("smallint out of range")));
 
-    /* Test for overflow by reverse-conversion. */
-    if ((int64) result != arg)
-        ereport(ERROR,
-                (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
-                 errmsg("smallint out of range")));
-
-    PG_RETURN_INT16(result);
+	PG_RETURN_INT16((int16) arg);
 }
 
 Datum
 i8tod(PG_FUNCTION_ARGS)
 {
-    int64        arg = PG_GETARG_INT64(0);
-    float8        result;
+	int64		arg = PG_GETARG_INT64(0);
+	float8		result;
 
-    result = arg;
+	result = arg;
 
-    PG_RETURN_FLOAT8(result);
+	PG_RETURN_FLOAT8(result);
 }
 
 /* dtoi8()
@@ -1345,36 +1248,33 @@ i8tod(PG_FUNCTION_ARGS)
 Datum
 dtoi8(PG_FUNCTION_ARGS)
 {
-    float8        arg = PG_GETARG_FLOAT8(0);
-    int64        result;
+	float8		arg = PG_GETARG_FLOAT8(0);
+	int64		result;
 
-    /* Round arg to nearest integer (but it's still in float form) */
-    arg = rint(arg);
+	/* Round arg to nearest integer (but it's still in float form) */
+	arg = rint(arg);
 
-    /*
-     * Does it fit in an int64?  Avoid assuming that we have handy constants
-     * defined for the range boundaries, instead test for overflow by
-     * reverse-conversion.
-     */
-    result = (int64) arg;
+	if (unlikely(arg < (double) PG_INT64_MIN) ||
+		unlikely(arg > (double) PG_INT64_MAX) ||
+		unlikely(isnan(arg)))
+		ereport(ERROR,
+				(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+				 errmsg("bigint out of range")));
 
-    if ((float8) result != arg)
-        ereport(ERROR,
-                (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
-                 errmsg("bigint out of range")));
+	result = (int64) arg;
 
-    PG_RETURN_INT64(result);
+	PG_RETURN_INT64(result);
 }
 
 Datum
 i8tof(PG_FUNCTION_ARGS)
 {
-    int64        arg = PG_GETARG_INT64(0);
-    float4        result;
+	int64		arg = PG_GETARG_INT64(0);
+	float4		result;
 
-    result = arg;
+	result = arg;
 
-    PG_RETURN_FLOAT4(result);
+	PG_RETURN_FLOAT4(result);
 }
 
 /* ftoi8()
@@ -1383,51 +1283,41 @@ i8tof(PG_FUNCTION_ARGS)
 Datum
 ftoi8(PG_FUNCTION_ARGS)
 {
-    float4        arg = PG_GETARG_FLOAT4(0);
-    int64        result;
-    float8        darg;
+	float4		arg = PG_GETARG_FLOAT4(0);
+	float8		darg;
 
-    /* Round arg to nearest integer (but it's still in float form) */
-    darg = rint(arg);
+	/* Round arg to nearest integer (but it's still in float form) */
+	darg = rint(arg);
 
-    /*
-     * Does it fit in an int64?  Avoid assuming that we have handy constants
-     * defined for the range boundaries, instead test for overflow by
-     * reverse-conversion.
-     */
-    result = (int64) darg;
+	if (unlikely(arg < (float4) PG_INT64_MIN) ||
+		unlikely(arg > (float4) PG_INT64_MAX) ||
+		unlikely(isnan(arg)))
+		ereport(ERROR,
+				(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+				 errmsg("bigint out of range")));
 
-    if ((float8) result != darg)
-        ereport(ERROR,
-                (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
-                 errmsg("bigint out of range")));
-
-    PG_RETURN_INT64(result);
+	PG_RETURN_INT64((int64) darg);
 }
 
 Datum
 i8tooid(PG_FUNCTION_ARGS)
 {
-    int64        arg = PG_GETARG_INT64(0);
-    Oid            result;
+	int64		arg = PG_GETARG_INT64(0);
 
-    result = (Oid) arg;
+	if (unlikely(arg < 0) || unlikely(arg > PG_UINT32_MAX))
+		ereport(ERROR,
+				(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+				 errmsg("OID out of range")));
 
-    /* Test for overflow by reverse-conversion. */
-    if ((int64) result != arg)
-        ereport(ERROR,
-                (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
-                 errmsg("OID out of range")));
-
-    PG_RETURN_OID(result);
+	PG_RETURN_OID((Oid) arg);
 }
 
 Datum
 oidtoi8(PG_FUNCTION_ARGS)
 {
-    Oid            arg = PG_GETARG_OID(0);
+	Oid			arg = PG_GETARG_OID(0);
 
-    PG_RETURN_INT64((int64) arg);
+	PG_RETURN_INT64((int64) arg);
 }
 
 /*
@@ -1436,78 +1326,86 @@ oidtoi8(PG_FUNCTION_ARGS)
 Datum
 generate_series_int8(PG_FUNCTION_ARGS)
 {
-    return generate_series_step_int8(fcinfo);
+	return generate_series_step_int8(fcinfo);
 }
 
 Datum
 generate_series_step_int8(PG_FUNCTION_ARGS)
-{// #lizard forgives
-    FuncCallContext *funcctx;
-    generate_series_fctx *fctx;
-    int64        result;
-    MemoryContext oldcontext;
+{
+	FuncCallContext *funcctx;
+	generate_series_fctx *fctx;
+	int64		result;
+	MemoryContext oldcontext;
 
-    /* stuff done only on the first call of the function */
-    if (SRF_IS_FIRSTCALL())
-    {
-        int64        start = PG_GETARG_INT64(0);
-        int64        finish = PG_GETARG_INT64(1);
-        int64        step = 1;
+	/* stuff done only on the first call of the function */
+	if (SRF_IS_FIRSTCALL())
+	{
+		int64		start = PG_GETARG_INT64(0);
+		int64		finish = PG_GETARG_INT64(1);
+		int64		step = 1;
 
-        /* see if we were given an explicit step size */
-        if (PG_NARGS() == 3)
-            step = PG_GETARG_INT64(2);
-        if (step == 0)
-            ereport(ERROR,
-                    (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-                     errmsg("step size cannot equal zero")));
+		/* see if we were given an explicit step size */
+		if (PG_NARGS() == 3)
+			step = PG_GETARG_INT64(2);
+		if (step == 0)
+			ereport(ERROR,
+					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+					 errmsg("step size cannot equal zero")));
 
-        /* create a function context for cross-call persistence */
-        funcctx = SRF_FIRSTCALL_INIT();
+		/* create a function context for cross-call persistence */
+		funcctx = SRF_FIRSTCALL_INIT();
 
-        /*
-         * switch to memory context appropriate for multiple function calls
-         */
-        oldcontext = MemoryContextSwitchTo(funcctx->multi_call_memory_ctx);
+		/*
+		 * switch to memory context appropriate for multiple function calls
+		 */
+		oldcontext = MemoryContextSwitchTo(funcctx->multi_call_memory_ctx);
 
-        /* allocate memory for user context */
-        fctx = (generate_series_fctx *) palloc(sizeof(generate_series_fctx));
+		/* allocate memory for user context */
+		fctx = (generate_series_fctx *) palloc(sizeof(generate_series_fctx));
 
-        /*
-         * Use fctx to keep state from call to call. Seed current with the
-         * original start value
-         */
-        fctx->current = start;
-        fctx->finish = finish;
-        fctx->step = step;
+		/*
+		 * Use fctx to keep state from call to call. Seed current with the
+		 * original start value
+		 */
+		fctx->current = start;
+		fctx->finish = finish;
+		fctx->step = step;
 
-        funcctx->user_fctx = fctx;
-        MemoryContextSwitchTo(oldcontext);
-    }
+		funcctx->user_fctx = fctx;
+		MemoryContextSwitchTo(oldcontext);
+	}
 
-    /* stuff done on every call of the function */
-    funcctx = SRF_PERCALL_SETUP();
+	/* stuff done on every call of the function */
+	funcctx = SRF_PERCALL_SETUP();
 
-    /*
-     * get the saved state and use current as the result for this iteration
-     */
-    fctx = funcctx->user_fctx;
-    result = fctx->current;
+	/*
+	 * get the saved state and use current as the result for this iteration
+	 */
+	fctx = funcctx->user_fctx;
+	result = fctx->current;
 
-    if ((fctx->step > 0 && fctx->current <= fctx->finish) ||
-        (fctx->step < 0 && fctx->current >= fctx->finish))
-    {
-        /* increment current in preparation for next iteration */
-        fctx->current += fctx->step;
+	if ((fctx->step > 0 && fctx->current <= fctx->finish) ||
+		(fctx->step < 0 && fctx->current >= fctx->finish))
+	{
+		/*
+		 * Increment current in preparation for next iteration. If next-value
+		 * computation overflows, this is the final result.
+		 */
+		if (pg_add_s64_overflow(fctx->current, fctx->step, &fctx->current))
+			fctx->step = 0;
 
-        /* if next-value computation overflows, this is the final result */
-        if (SAMESIGN(result, fctx->step) && !SAMESIGN(result, fctx->current))
-            fctx->step = 0;
+		/* do when there is more left to send */
+		SRF_RETURN_NEXT(funcctx, Int64GetDatum(result));
+	}
+	else
+		/* do when there is no more left */
+		SRF_RETURN_DONE(funcctx);
+}
 
-        /* do when there is more left to send */
-        SRF_RETURN_NEXT(funcctx, Int64GetDatum(result));
-    }
-    else
-        /* do when there is no more left */
-        SRF_RETURN_DONE(funcctx);
+Datum
+varchar_to_int8(PG_FUNCTION_ARGS)
+{
+	char *str = TextDatumGetCString(PG_GETARG_DATUM(0));
+	
+	return DirectFunctionCall1(int8in, CStringGetDatum(str));
 }

@@ -8,6 +8,6 @@ subdir = src/backend/contrib
 top_builddir = ../../..
 include $(top_builddir)/src/Makefile.global
 
-SUBDIRS	    = pgcrypto sm
+SUBDIRS	    = pgcrypto 
 
 include $(top_srcdir)/src/backend/common.mk

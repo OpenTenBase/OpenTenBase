@@ -1,0 +1,104 @@
+%cn 1
+%cn_slave 0
+%dn 2
+%dn_slave 0
+%gtm 1
+%gtm_slave 0
+
+connect conn cn1
+connection conn
+
+create default node group default_group with ("dn1", "dn2");
+create sharding group to group default_group;
+clean sharding;
+create table hahahaha(a int, b int);
+grant all on hahahaha to public;
+
+-- set resource_group_bypass=1;
+CREATE RESOURCE GROUP res_group_bypass WITH concurrency 1 cpu_rate_limit 10;
+CREATE ROLE bypasstest RESOURCE GROUP res_group_bypass;
+
+-- session 1
+connect conn1 cn1
+connection conn1
+set role bypasstest;
+set opentenbase_test_flag='suspend_after_resgroup_assignedconn1';
+sendblock select count(*) from hahahaha;
+
+connect conn2 cn1
+connection conn2
+-- session 2 should be blocked
+set role bypasstest;
+set opentenbase_test_flag='suspend_after_resgroup_assignedconn2';
+sendblock select count(*) from hahahaha;
+
+connection conn
+CREATE OR REPLACE VIEW rg_activity_status AS
+	SELECT rsgname, wait_event_type, state, query
+	FROM pg_stat_activity
+	WHERE rsgname='res_group_bypass'
+    order by wait_event_type, state;
+select * from rg_activity_status;
+
+connect connbypass cn1
+connection connbypass
+-- turn on resource_group_bypass, should not be blocked
+set role bypasstest;
+set resource_group_bypass=1;
+select count(*) from hahahaha;
+
+
+-- close session 1 & 2
+execute_shell_cmd rm /tmp/suspend_after_resgroup_assignedconn1
+reap conn1
+disconnect conn1
+
+execute_shell_cmd rm /tmp/suspend_after_resgroup_assignedconn2
+reap conn2
+disconnect conn2
+
+
+connect conn1 cn1
+connection conn1
+-- resource_group_bypass can not be set in a transaction in gpdb, but can be set in opentenbase
+-- session 1
+set role bypasstest;
+BEGIN;
+set resource_group_bypass = 1;
+END;
+disconnect conn1
+
+
+connect conn1 cn1
+connection conn1
+-- test resource_group_bypass_sql
+-- session 1
+set role bypasstest;
+set opentenbase_test_flag='suspend_after_resgroup_assignedconn1';
+sendblock select count(*) from hahahaha;
+
+connect conn2 cn1
+connection conn2
+-- session 2 should be blocked
+set role bypasstest;
+set opentenbase_test_flag='suspend_after_resgroup_assignedconn2';
+sendblock select count(*) from hahahaha;
+
+connection conn
+select * from rg_activity_status;
+
+connect connbypass cn1
+connection connbypass
+-- turn on resource_group_bypass_sql, should not be blocked
+set role bypasstest;
+set resource_group_bypass_sql='.*hahahaha.*';
+select count(*) from hahahaha;
+
+-- close session 1 & 2
+execute_shell_cmd rm /tmp/suspend_after_resgroup_assignedconn1
+reap conn1
+disconnect conn1
+
+execute_shell_cmd rm /tmp/suspend_after_resgroup_assignedconn2
+reap conn2
+disconnect conn2

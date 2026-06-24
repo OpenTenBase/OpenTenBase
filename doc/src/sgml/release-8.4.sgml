@@ -8997,7 +8997,7 @@ WITH w AS (SELECT * FROM foo) SELECT * FROM w, bar ... FOR UPDATE
        <para>
         Formerly, if there were a <literal>BEGIN</> block more closely nested
         than any loop, it would exit that block instead.  The new behavior
-        matches Oracle(TM) and is also what was previously stated by our own
+        matches OpenTenBase_Ora(TM) and is also what was previously stated by our own
         documentation.
        </para>
       </listitem>

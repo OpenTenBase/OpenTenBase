@@ -7,9 +7,6 @@
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * src/include/access/heapam.h
  *
  *-------------------------------------------------------------------------
@@ -25,6 +22,9 @@
 #include "storage/lockdefs.h"
 #include "utils/relcache.h"
 #include "utils/snapshot.h"
+#ifdef __OPENTENBASE_C__
+#include "executor/tuptable.h"
+#endif
 
 
 /* "options" flag bits for heap_insert */
@@ -34,7 +34,7 @@
 #define HEAP_INSERT_SPECULATIVE 0x0008
 
 typedef struct BulkInsertStateData *BulkInsertState;
-
+typedef struct TidScanState         TidScanState;
 /*
  * Possible lock modes for a tuple.
  */
@@ -139,6 +139,7 @@ extern HeapScanDesc heap_beginscan_parallel(Relation, ParallelHeapScanDesc);
 extern bool heap_fetch(Relation relation, Snapshot snapshot,
 		   HeapTuple tuple, Buffer *userbuf, bool keep_buf,
 		   Relation stats_relation);
+
 extern bool heap_hot_search_buffer(ItemPointer tid, Relation relation,
 					   Buffer buffer, Snapshot snapshot, HeapTuple heapTuple,
 					   bool *all_dead, bool first_call);
@@ -155,23 +156,29 @@ extern BulkInsertState GetBulkInsertState_part(int npart);
 #endif
 extern void FreeBulkInsertState(BulkInsertState);
 extern void ReleaseBulkInsertStatePin(BulkInsertState bistate);
-
+extern HeapTuple heap_prepare_insert(Relation relation, HeapTuple tup,
+					TransactionId xid, CommandId cid, int options);
 extern Oid heap_insert(Relation relation, HeapTuple tup, CommandId cid,
 			int options, BulkInsertState bistate);
 extern void heap_multi_insert(Relation relation, HeapTuple *tuples, int ntuples,
 				  CommandId cid, int options, BulkInsertState bistate);
 extern HTSU_Result heap_delete(Relation relation, ItemPointer tid,
 			CommandId cid, Snapshot crosscheck,  bool wait,
-			HeapUpdateFailureData *hufd);
+			HeapUpdateFailureData *hufd, bool changingPart);
 extern void heap_finish_speculative(Relation relation, HeapTuple tuple);
 extern void heap_abort_speculative(Relation relation, HeapTuple tuple);
 extern HTSU_Result heap_update(Relation relation, ItemPointer otid,
 			HeapTuple newtup,
 			CommandId cid, Snapshot crosscheck, bool wait,
-			HeapUpdateFailureData *hufd, LockTupleMode *lockmode);
+			HeapUpdateFailureData *hufd, LockTupleMode *lockmode, HeapTuple oldtup);
 extern HTSU_Result heap_lock_tuple(Relation relation, HeapTuple tuple,
 				CommandId cid, LockTupleMode mode, LockWaitPolicy wait_policy,
 				bool follow_update,
+				Buffer *buffer, HeapUpdateFailureData *hufd);
+extern HTSU_Result
+heap_lock_tuple_with_timeout(Relation relation, HeapTuple tuple,
+				CommandId cid, LockTupleMode mode, LockWaitPolicy wait_policy,
+				int wait_timeout, bool follow_updates,
 				Buffer *buffer, HeapUpdateFailureData *hufd);
 extern void heap_inplace_update(Relation relation, HeapTuple tuple);
 extern bool heap_freeze_tuple(HeapTupleHeader tuple, TransactionId cutoff_xid,
@@ -208,4 +215,15 @@ extern Size SyncScanShmemSize(void);
 extern void mls_enable_update_rolpassword(void);
 extern void mls_disable_update_rolpassword(void);
 #endif
+
+extern bool heap_tuple_attr_equals(TupleDesc tupdesc, int attrnum,
+											HeapTuple tup1, HeapTuple tup2);
+
+#ifdef __OPENTENBASE_C__
+extern bool TestForOldTimestampForOriginRecentDataTs(GlobalTimestamp currentTimestamp, bool skip_template_db);
+
+
+#endif
+
+
 #endif							/* HEAPAM_H */

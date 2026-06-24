@@ -6,9 +6,6 @@
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * src/include/access/slru.h
  *
  *-------------------------------------------------------------------------
@@ -16,9 +13,10 @@
 #ifndef SLRU_H
 #define SLRU_H
 
+#ifndef CSN_UPGRADE
 #include "access/xlogdefs.h"
 #include "storage/lwlock.h"
-
+#endif
 
 /*
  * Define SLRU segment size.  A page is the same BLCKSZ as is used everywhere
@@ -52,6 +50,7 @@ typedef enum
 	SLRU_PAGE_WRITE_IN_PROGRESS /* page is being written out */
 } SlruPageStatus;
 
+#ifndef CSN_UPGRADE
 /*
  * Shared-memory state
  */
@@ -124,9 +123,14 @@ typedef struct SlruCtlData
 	bool		do_fsync;
 
 	/*
-	 * Decide which of two page numbers is "older" for truncation purposes. We
-	 * need to use comparison of TransactionIds here in order to do the right
-	 * thing with wraparound XID arithmetic.
+	 * Decide whether a page is "older" for truncation and as a hint for
+	 * evicting pages in LRU order.  Return true if every entry of the first
+	 * argument is older than every entry of the second argument.  Note that
+	 * !PagePrecedes(a,b) && !PagePrecedes(b,a) need not imply a==b; it also
+	 * arises when some entries are older and some are not.  For SLRUs using
+	 * SimpleLruTruncate(), this must use modular arithmetic.  (For others,
+	 * the behavior of this callback has no functional implications.)  Use
+	 * SlruPagePrecedesUnitTests() in SLRUs meeting its criteria.
 	 */
 	bool		(*PagePrecedes) (int, int);
 
@@ -150,6 +154,11 @@ extern int SimpleLruReadPage_ReadOnly(SlruCtl ctl, int pageno,
 						   TransactionId xid);
 extern void SimpleLruWritePage(SlruCtl ctl, int slotno);
 extern void SimpleLruFlush(SlruCtl ctl, bool allow_redirtied);
+#ifdef USE_ASSERT_CHECKING
+extern void SlruPagePrecedesUnitTests(SlruCtl ctl, int per_page);
+#else
+#define SlruPagePrecedesUnitTests(ctl, per_page) do {} while (0)
+#endif
 extern void SimpleLruTruncate(SlruCtl ctl, int cutoffPage);
 extern bool SimpleLruDoesPhysicalPageExist(SlruCtl ctl, int pageno);
 
@@ -163,8 +172,5 @@ extern bool SlruScanDirCbReportPresence(SlruCtl ctl, char *filename,
 							int segpage, void *data);
 extern bool SlruScanDirCbDeleteAll(SlruCtl ctl, char *filename, int segpage,
 					   void *data);
-
-extern void SlruClogEnableMemoryProtection(char *address);
-extern void SlruClogDisableMemoryProtection(char *address);
-
+#endif                          /* CSN_UPGRADE */
 #endif							/* SLRU_H */

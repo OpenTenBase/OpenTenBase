@@ -1,0 +1,314 @@
+\c regression_ora
+\set ECHO all
+SET client_min_messages = warning;
+SET datestyle TO ISO;
+SET client_encoding = utf8;
+--
+-- blob compare function
+--
+select compare('麓轹麈痨喙q耜腹额钐邡'::blob, '麓轹麈耜腹额钐邡痨喙q噤耜腹额钐邡维醑点'::blob, 7, 1, 1) from dual;
+ COMPARE 
+---------
+       0
+(1 row)
+
+select compare('麓轹麈痨喙q'::blob, '麓轹麈痨喙q噤耜腹额钐邡维醑点'::blob, 7, 1, 1) from dual;
+ COMPARE 
+---------
+       0
+(1 row)
+
+select compare('麓轹麈痨喙q'::blob, '噤耜腹额钐邡维醑点麓轹麈痨喙q'::blob, 6, 1, 10) from dual;
+ COMPARE 
+---------
+       1
+(1 row)
+
+select compare('麓轹麈痨喙啊qqqqqqq'::blob, '麓轹麈痨喙啊'::blob, 7, 1, 1) from dual;
+ COMPARE 
+---------
+       0
+(1 row)
+
+select compare('x64TcNBa3h'::blob, 'uwVybxZqaP'::blob, 41, 95, 49) from dual;
+ COMPARE 
+---------
+       0
+(1 row)
+
+select compare('Wt80pDnlkP'::blob, 'I3QCzZ8Vki'::blob, 9, 6, 8) from dual;
+ COMPARE 
+---------
+      -1
+(1 row)
+
+select compare('身掬惹税伙松组哭难蘸'::blob, '即诣耨埭请魇'::blob, 10, 10, 8) from dual;
+ COMPARE 
+---------
+       1
+(1 row)
+
+select compare('麓轹麈痨喙'::blob, '噤耜腹额钐邡维醑点'::blob, 2, 2, 6) from dual;
+ COMPARE 
+---------
+       1
+(1 row)
+
+select compare('麓轹aa麈痨喙啊'::blob, '麓轹a麈痨喙a'::blob, 5, 4, 3) from dual;
+ COMPARE 
+---------
+       1
+(1 row)
+
+select compare('Wt80pDnlkP'::blob, 'I3QCzZ8DnlkP'::blob, 9, 6, 8) from dual;
+ COMPARE 
+---------
+       0
+(1 row)
+
+select compare('x64TcNBa3h'::blob, 'uwVybxZqaP'::blob, 41, 95, 49) from dual;
+ COMPARE 
+---------
+       0
+(1 row)
+
+select compare('身掬惹税伙松组哭难蘸'::blob, '即诣耨埭请魇'::blob, 10, 10, 8) from dual;
+ COMPARE 
+---------
+       1
+(1 row)
+
+select compare('麓轹麈痨喙'::blob, '噤耜腹额钐邡维醑点'::blob, 2, 2, 6) from dual;
+ COMPARE 
+---------
+       1
+(1 row)
+
+--
+-- clob compare function
+--
+select compare('麓轹麈痨喙q耜腹额钐邡'::clob, '麓轹麈耜腹额钐邡痨喙q噤耜腹额钐邡维醑点'::clob, 7, 1, 1) from dual;
+ COMPARE 
+---------
+      -1
+(1 row)
+
+select compare('麓轹麈痨喙q'::clob, '麓轹麈痨喙q噤耜腹额钐邡维醑点'::clob, 7, 1, 1) from dual;
+ COMPARE 
+---------
+      -1
+(1 row)
+
+select compare('麓轹麈痨喙q'::clob, '噤耜腹额钐邡维醑点麓轹麈痨喙q'::clob, 6, 1, 10) from dual;
+ COMPARE 
+---------
+       0
+(1 row)
+
+select compare('麓轹麈痨喙啊qqqqqqq'::clob, '麓轹麈痨喙啊'::clob, 7, 1, 1) from dual;
+ COMPARE 
+---------
+       1
+(1 row)
+
+select compare('x64TcNBa3h'::clob, 'uwVybxZqaP'::clob, 41, 95, 49) from dual;
+ COMPARE 
+---------
+       0
+(1 row)
+
+select compare('Wt80pDnlkP'::clob, 'I3QCzZ8Vki'::clob, 9, 6, 8) from dual;
+ COMPARE 
+---------
+      -1
+(1 row)
+
+select compare('身掬惹税伙松组哭难蘸'::clob, '即诣耨埭请魇'::clob, 10, 10, 8) from dual;
+ COMPARE 
+---------
+       1
+(1 row)
+
+select compare('麓轹麈痨喙'::clob, '噤耜腹额钐邡维醑点'::clob::clob, 2, 2, 6) from dual;
+ COMPARE 
+---------
+      -1
+(1 row)
+
+select compare('麓轹aa麈痨喙啊'::clob, '麓轹a麈痨喙a'::clob, 5, 4, 3) from dual;
+ COMPARE 
+---------
+       1
+(1 row)
+
+select compare('Wt80pDnlkP'::clob, 'I3QCzZ8DnlkP'::clob, 9, 6, 8) from dual;
+ COMPARE 
+---------
+       0
+(1 row)
+
+select compare('x64TcNBa3h'::clob, 'uwVybxZqaP'::clob, 41, 95, 49) from dual;
+ COMPARE 
+---------
+       0
+(1 row)
+
+select compare('身掬惹税伙松组哭难蘸'::clob, '即诣耨埭请魇'::clob, 10, 10, 8) from dual;
+ COMPARE 
+---------
+       1
+(1 row)
+
+select compare('麓轹麈痨喙'::clob, '噤耜腹额钐邡维醑点'::clob, 2, 2, 6) from dual;
+ COMPARE 
+---------
+      -1
+(1 row)
+
+create table test_blob(f1 int,f2 blob);
+insert into test_blob values (1,'test_opentenbase_ora');
+insert into test_blob values (2,'test_opentenbase_ora'),(3,'test_opentenbase_ora');
+select * from test_blob order by f1;
+ F1 |                     F2                     
+----+--------------------------------------------
+  1 | \x746573745f6f70656e74656e626173655f6f7261
+  2 | \x746573745f6f70656e74656e626173655f6f7261
+  3 | \x746573745f6f70656e74656e626173655f6f7261
+(3 rows)
+
+delete from test_blob where f1='1';
+select * from test_blob order by f1;
+ F1 |                     F2                     
+----+--------------------------------------------
+  2 | \x746573745f6f70656e74656e626173655f6f7261
+  3 | \x746573745f6f70656e74656e626173655f6f7261
+(2 rows)
+
+update test_blob set f2='test_opentenbase_update' where f1='2';
+select * from test_blob order by f1;
+ F1 |                        F2                        
+----+--------------------------------------------------
+  2 | \x746573745f6f70656e74656e626173655f757064617465
+  3 | \x746573745f6f70656e74656e626173655f6f7261
+(2 rows)
+
+select * from test_blob order by f2 desc;
+ERROR:  There exists unexpected data type of BLOB for sort
+select * from test_blob order by f2 asc;
+ERROR:  There exists unexpected data type of BLOB for sort
+select * from test_blob where f2>'opentenbase' order by f1;
+ERROR:  inconsistent datatypes: expected - got BLOB
+select * from test_blob where f2<'opentenbase' order by f1;
+ERROR:  inconsistent datatypes: expected - got BLOB
+select * from test_blob where f2<='opentenbase' order by f1;
+ERROR:  inconsistent datatypes: expected - got BLOB
+select * from test_blob where f2>='opentenbase' order by f1;
+ERROR:  inconsistent datatypes: expected - got BLOB
+insert into test_blob values (5,empty_blob());
+select * from test_blob where f2 is null order by f1;
+ F1 | F2 
+----+----
+(0 rows)
+
+select * from test_blob where f2=empty_blob();
+ERROR:  inconsistent datatypes: expected - got BLOB
+create table test_clob(f1 int,f2 clob);
+insert into test_clob values (1,'test_opentenbase_ora');
+insert into test_clob values (2,'test_opentenbase_ora'),(3,'test_opentenbase_ora');
+select * from test_clob order by f1;
+ F1 |          F2          
+----+----------------------
+  1 | test_opentenbase_ora
+  2 | test_opentenbase_ora
+  3 | test_opentenbase_ora
+(3 rows)
+
+delete from test_clob where f1='1';
+select * from test_clob order by f1;
+ F1 |          F2          
+----+----------------------
+  2 | test_opentenbase_ora
+  3 | test_opentenbase_ora
+(2 rows)
+
+update test_clob set f2='test_opentenbase_update' where f1='2';
+select * from test_clob order by f1;
+ F1 |           F2            
+----+-------------------------
+  2 | test_opentenbase_update
+  3 | test_opentenbase_ora
+(2 rows)
+
+select * from test_clob   order by f2 desc;
+ERROR:  There exists unexpected data type of CLOB for sort
+select * from test_clob   order by f2 asc;
+ERROR:  There exists unexpected data type of CLOB for sort
+select * from test_clob where f2>'opentenbase' order by f1;
+ F1 |           F2            
+----+-------------------------
+  2 | test_opentenbase_update
+  3 | test_opentenbase_ora
+(2 rows)
+
+select * from test_clob where f2<'opentenbase' order by f1;
+ F1 | F2 
+----+----
+(0 rows)
+
+select * from test_clob where f2<='opentenbase' order by f1;
+ F1 | F2 
+----+----
+(0 rows)
+
+select * from test_clob where f2>='opentenbase' order by f1;
+ F1 |           F2            
+----+-------------------------
+  2 | test_opentenbase_update
+  3 | test_opentenbase_ora
+(2 rows)
+
+insert into test_clob values (5,empty_clob());
+select * from test_clob where f2 is null order by f1;
+ F1 | F2 
+----+----
+(0 rows)
+
+select to_char(f2) from test_clob order by f1;
+         TO_CHAR         
+-------------------------
+ test_opentenbase_update
+ test_opentenbase_ora
+ 
+(3 rows)
+
+select to_clob(f2) from test_clob order by f1;
+         TO_CLOB         
+-------------------------
+ test_opentenbase_update
+ test_opentenbase_ora
+ 
+(3 rows)
+
+drop table test_clob;
+drop table test_blob;
+-- test for ID875274667
+create table t_blob(id int, info blob);
+insert into t_blob values (1,'[B@57e8b764'::varchar);
+insert into t_blob values (2,'[B@57e8b764'::varchar2);
+insert into t_blob values (3,'[B@57e8b764'::char(20));
+insert into t_blob values (4, to_char('[B@57e8b764'));
+insert into t_blob values (5,'[B@57e8b764');
+select * from t_blob order by id;
+ ID |                    INFO                    
+----+--------------------------------------------
+  1 | \x5b42403537653862373634
+  2 | \x5b42403537653862373634
+  3 | \x5b42403537653862373634202020202020202020
+  4 | \x5b42403537653862373634
+  5 | \x5b42403537653862373634
+(5 rows)
+
+drop table t_blob;
+RESET client_min_messages;
+RESET datestyle;
+RESET client_encoding;

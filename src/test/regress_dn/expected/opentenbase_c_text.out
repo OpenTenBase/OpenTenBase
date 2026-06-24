@@ -1,0 +1,60 @@
+\set ECHO all
+SET client_min_messages = warning;
+SET datestyle TO ISO;
+SET client_encoding = utf8;
+-- prepare
+select current_database();
+ current_database 
+------------------
+ regression
+(1 row)
+
+-- test toast for vec execute
+drop table if exists test_toast_insert;
+drop table if exists test_toast;
+drop table if exists test_cstring;
+create table test_toast_insert (distkey timestamp default now(), id integer, a varchar(10000));
+create table test_toast(id int, a varchar(10000));
+insert into test_toast select i, b from array_to_string(array(select substring('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz' FROM (ceil(random()*62))::int FOR 1) FROM generate_series(1, 10000)), '') as b, generate_series(1, 100) as i;
+insert into test_toast_insert(id, a) select * from test_toast where id > 50 and id < 90;
+EXPLAIN (COSTS OFF, NODES OFF) insert into test_toast_insert(id, a) select * from test_toast where id > 50 and id < 90;
+                QUERY PLAN                 
+-------------------------------------------
+ Insert on test_toast_insert
+   ->  Seq Scan on test_toast
+         Filter: ((id > 50) AND (id < 90))
+(3 rows)
+
+select count(1) from test_toast_insert;
+ count 
+-------
+    39
+(1 row)
+
+-- test for cstring for vec execute
+create table test_cstring(id int, ip CIDR);
+insert into test_cstring select i, concat(concat_ws('.',abs((100+i%200)%257-1),1+i%100,1+i%100,abs((100+i%200)%257-1)),'/25')::inet from generate_series(1, 1010) i;
+select cstring_in(ip::text::cstring) from test_cstring order by id limit 5 offset 10;
+   cstring_in   
+----------------
+ 110.12.12.0/25
+ 111.13.13.0/25
+ 112.14.14.0/25
+ 113.15.15.0/25
+ 114.16.16.0/25
+(5 rows)
+
+-- test toast for insert into column table from row table
+drop table if exists t_row;
+create table t_row(f1 int,f2 text,f3 varchar(32),f4 varchar(160),f5 varchar(320),primary key (f1));
+alter table t_row alter column f2 set storage EXTERNAL; 
+insert into t_row select t,repeat('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ',1000),md5(random()::text),repeat(md5(random()::text),5),repeat(md5(random()::text),10) from generate_series(1,10) as t;
+truncate table t_row;
+-- drop table
+drop table test_toast_insert;
+drop table test_toast;
+drop table test_cstring;
+drop table t_row;
+reset client_min_messages;
+reset datestyle;
+reset client_encoding;

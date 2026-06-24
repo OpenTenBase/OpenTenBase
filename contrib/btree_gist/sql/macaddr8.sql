@@ -32,6 +32,6 @@ SELECT count(*) FROM macaddr8tmp WHERE a >  '22:00:5c:e5:9b:0d'::macaddr8;
 
 -- Test index-only scans
 SET enable_bitmapscan=off;
-EXPLAIN (COSTS OFF)
+EXPLAIN (COSTS OFF, NODES OFF)
 SELECT * FROM macaddr8tmp WHERE a < '02:03:04:05:06:07'::macaddr8 ORDER BY a;
 SELECT * FROM macaddr8tmp WHERE a < '02:03:04:05:06:07'::macaddr8 ORDER BY a;

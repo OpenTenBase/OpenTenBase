@@ -1,0 +1,15 @@
+V2.6.0-release 版本主要修改集中在:
+
+1、功能增强
+支持空间数据库插件PostGIS
+支持rpm包部署
+增加记录执行时间超过设定阈值的查询请求sql的插件slowquery
+
+2、其他已知bug修复
+修复多操作系统支持问题
+修复/doc/src/sgml/func.sgml引起的make html编译问题
+
+3、周边生态
+添加容器化部署案例指引及文档
+添加k8s集群化部署插件KubeBlock支持，新增部署案例指引及文档
+添加基于Grafana/Prometheus的监控部署案例指引及文档

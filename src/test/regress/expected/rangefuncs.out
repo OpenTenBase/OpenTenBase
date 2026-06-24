@@ -1583,7 +1583,7 @@ DROP FUNCTION foo();
 --
 -- some tests on SQL functions with RETURNING
 --
-create table tt(f1 serial, data text);
+create table tt(f1 serial, data text) distribute by replication;
 create function insert_tt(text) returns int as
 $$ insert into tt(data) values($1) returning f1 $$
 language sql;
@@ -1740,6 +1740,7 @@ select * from tt order by 1, 2;
  14 | barlog
 (14 rows)
 
+drop table tt;
 -- note that nextval() gets executed a second time in the rule expansion,
 -- which is expected.
 select * from tt_log order by 1, 2;
@@ -1750,7 +1751,6 @@ select * from tt_log order by 1, 2;
 (2 rows)
 
 drop table tt_log cascade;
-NOTICE:  drop cascades to rule insert_tt_rule on table tt
 -- test case for a whole-row-variable bug
 create function foo1(n integer, out a text, out b text)
   returns setof record
@@ -1795,7 +1795,7 @@ select * from array_to_set(array['one', 'two']); -- fail
 ERROR:  a column definition list is required for functions returning "record"
 LINE 1: select * from array_to_set(array['one', 'two']);
                       ^
-create table foo(f1 int8, f2 int8);
+create table foo(f1 int8, f2 int8) distribute by replication;
 create function testfoo() returns record as $$
   insert into foo values (1,2) returning *;
 $$ language sql;
@@ -1976,11 +1976,11 @@ create function extractq2(t int8_tbl) returns int8 as $$
 $$ language sql immutable;
 explain (verbose, costs off)
 select x from int8_tbl, extractq2(int8_tbl) f(x);
-                   QUERY PLAN                   
-------------------------------------------------
+                    QUERY PLAN                     
+---------------------------------------------------
  Nested Loop
    Output: f.x
-   ->  Remote Subquery Scan on all (datanode_1)
+   ->  Remote Subquery Scan[1] on all (datanode_1)
          Output: int8_tbl.q2
          ->  Seq Scan on public.int8_tbl
                Output: int8_tbl.q2
@@ -2004,11 +2004,11 @@ create function extractq2_2(t int8_tbl) returns table(ret1 int8) as $$
 $$ language sql immutable;
 explain (verbose, costs off, nodes off)
 select x from int8_tbl, extractq2_2(int8_tbl) f(x);
-               QUERY PLAN                
------------------------------------------
+                     QUERY PLAN                     
+----------------------------------------------------
  Nested Loop
    Output: ((int8_tbl.*).q2)
-   ->  Remote Subquery Scan on all
+   ->  Remote Subquery Scan[1] on all (datanodes 1)
          Output: int8_tbl.*
          ->  Seq Scan on public.int8_tbl
                Output: int8_tbl.*
@@ -2032,9 +2032,9 @@ create function extractq2_2_opt(t int8_tbl) returns table(ret1 int8) as $$
 $$ language sql immutable;
 explain (verbose, costs off)
 select x from int8_tbl, extractq2_2_opt(int8_tbl) f(x);
-                QUERY PLAN                
-------------------------------------------
- Remote Subquery Scan on all (datanode_1)
+                 QUERY PLAN                  
+---------------------------------------------
+ Remote Subquery Scan[1] on all (datanode_1)
    Output: int8_tbl.q2
    ->  Seq Scan on public.int8_tbl
          Output: int8_tbl.q2

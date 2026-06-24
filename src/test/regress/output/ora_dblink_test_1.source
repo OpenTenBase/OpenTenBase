@@ -1,0 +1,484 @@
+\c regression_ora
+create extension if not exists postgres_fdw;
+set dblink_types to 'postgresql';
+--dblink to linktest_db/U1/SCHEMA_1
+CREATE  DATABASE LINK link1 CONNECT TO u1 IDENTIFIED BY ''
+USING '(DESCRIPTION =
+			(ADDRESS =
+				(PROTOCOL = TCP)(HOST = localhost)(PORT = @dblink_port@))
+			(CONNECT_DATA =
+				(SERVER = DEDICATED)(SERVICE_NAME = linktest_db)(SCHEMA_NAME=SCHEMA_1)))';
+select * from t@link1;
+ I |          J          |      K       
+---+---------------------+--------------
+ 1 | 2022-01-01 00:00:00 | U1_SCHEMA1_T
+(1 row)
+
+select * from "t"@link1;
+ I |          J          |      K       
+---+---------------------+--------------
+ 1 | 2022-01-01 00:00:00 | U1_SCHEMA1_t
+(1 row)
+
+--dblink to linktest_db/U1/schema_1
+CREATE  DATABASE LINK link2 CONNECT TO u1 IDENTIFIED BY ''
+USING '(DESCRIPTION =
+			(ADDRESS =
+				(PROTOCOL = TCP)(HOST = localhost)(PORT = @dblink_port@))
+			(CONNECT_DATA =
+				(SERVER = DEDICATED)(SERVICE_NAME = linktest_db)(SCHEMA_NAME=schema_1)))';
+select * from t@link2;
+ I |          J          |      K       
+---+---------------------+--------------
+ 1 | 2022-01-01 00:00:00 | U1_schema1_T
+(1 row)
+
+select * from "t"@link2;
+ I |          J          |      K       
+---+---------------------+--------------
+ 1 | 2022-01-01 00:00:00 | U1_schema1_t
+(1 row)
+
+--dblink to linktest_db/u1/SCHEMA_1
+CREATE  DATABASE LINK link3 CONNECT TO "u1" IDENTIFIED BY ''
+USING '(DESCRIPTION =
+			(ADDRESS =
+				(PROTOCOL = TCP)(HOST = localhost)(PORT = @dblink_port@))
+			(CONNECT_DATA =
+				(SERVER = DEDICATED)(SERVICE_NAME = linktest_db)(SCHEMA_NAME=SCHEMA_1)))';
+select * from t1@link3;
+ I |          J          |       K       
+---+---------------------+---------------
+ 1 | 2022-01-01 00:00:00 | u1_SCHEMA1_T1
+(1 row)
+
+select * from "t1"@link3;
+ I |          J          |       K       
+---+---------------------+---------------
+ 1 | 2022-01-01 00:00:00 | u1_SCHEMA1_t1
+(1 row)
+
+--dblink to linktest_db/u1/schema_1
+CREATE  DATABASE LINK link4 CONNECT TO "u1" IDENTIFIED BY ''
+USING '(DESCRIPTION =
+			(ADDRESS =
+				(PROTOCOL = TCP)(HOST = localhost)(PORT = @dblink_port@))
+			(CONNECT_DATA =
+				(SERVER = DEDICATED)(SERVICE_NAME = linktest_db)(SCHEMA_NAME=schema_1)))';
+select * from t1@link4;
+ I |          J          |       K       
+---+---------------------+---------------
+ 1 | 2022-01-01 00:00:00 | u1_schema1_T1
+(1 row)
+
+select * from "t1"@link4;
+ I |          J          |       K       
+---+---------------------+---------------
+ 1 | 2022-01-01 00:00:00 | u1_schema1_t1
+(1 row)
+
+drop database link link2;
+NOTICE:  drop cascades to 4 other objects
+DETAIL:  drop cascades to foreign table "LINK2_linktest_db_schema_1_localhost_@dblink_port@_U1".T
+drop cascades to foreign table "LINK2_linktest_db_schema_1_localhost_@dblink_port@_U1".T1
+drop cascades to foreign table "LINK2_linktest_db_schema_1_localhost_@dblink_port@_U1"."t"
+drop cascades to foreign table "LINK2_linktest_db_schema_1_localhost_@dblink_port@_U1"."t1"
+drop database link link3;
+NOTICE:  drop cascades to 6 other objects
+DETAIL:  drop cascades to foreign table "LINK3_linktest_db_SCHEMA_1_localhost_@dblink_port@_u1".T
+drop cascades to foreign table "LINK3_linktest_db_SCHEMA_1_localhost_@dblink_port@_u1".T1
+drop cascades to foreign table "LINK3_linktest_db_SCHEMA_1_localhost_@dblink_port@_u1".TEST1
+drop cascades to foreign table "LINK3_linktest_db_SCHEMA_1_localhost_@dblink_port@_u1".TEST2
+drop cascades to foreign table "LINK3_linktest_db_SCHEMA_1_localhost_@dblink_port@_u1"."t"
+drop cascades to foreign table "LINK3_linktest_db_SCHEMA_1_localhost_@dblink_port@_u1"."t1"
+drop database link link4;
+NOTICE:  drop cascades to 4 other objects
+DETAIL:  drop cascades to foreign table "LINK4_linktest_db_schema_1_localhost_@dblink_port@_u1".T
+drop cascades to foreign table "LINK4_linktest_db_schema_1_localhost_@dblink_port@_u1".T1
+drop cascades to foreign table "LINK4_linktest_db_schema_1_localhost_@dblink_port@_u1"."t"
+drop cascades to foreign table "LINK4_linktest_db_schema_1_localhost_@dblink_port@_u1"."t1"
+--test single table select
+explain (costs off) select * from test1@link1 where test1.id = 1;
+      QUERY PLAN       
+-----------------------
+ Foreign Scan on TEST1
+(1 row)
+
+select * from test1@link1 where test1.id = 1;
+ ID | NAME | COMMENT |             D1             |         D2          |                D3                 |             D4             |    NUM    |  F1   |   F2    |       B1       
+----+------+---------+----------------------------+---------------------+-----------------------------------+----------------------------+-----------+-------+---------+----------------
+  1 | n1   | com1    | 2022-01-01 12:00:00.000000 | 2022-01-01 00:00:00 | 2022-01-01 00:00:00.000000 -08:00 | 2022-01-01 08:00:00.000000 | 123324234 | 1.333 | 4.55788 | \x616162626363
+(1 row)
+
+select * from test1@link1 where test1.id - 2 > 1;
+ ID | NAME | COMMENT | D1 | D2 | D3 | D4 | NUM | F1 | F2 | B1 
+----+------+---------+----+----+----+----+-----+----+----+----
+(0 rows)
+
+select * from test1@link1 where to_char(test1.id) = '1';
+ ID | NAME | COMMENT |             D1             |         D2          |                D3                 |             D4             |    NUM    |  F1   |   F2    |       B1       
+----+------+---------+----------------------------+---------------------+-----------------------------------+----------------------------+-----------+-------+---------+----------------
+  1 | n1   | com1    | 2022-01-01 12:00:00.000000 | 2022-01-01 00:00:00 | 2022-01-01 00:00:00.000000 -08:00 | 2022-01-01 08:00:00.000000 | 123324234 | 1.333 | 4.55788 | \x616162626363
+(1 row)
+
+select * from test1@link1 t1 where t1.id = 1;
+ ID | NAME | COMMENT |             D1             |         D2          |                D3                 |             D4             |    NUM    |  F1   |   F2    |       B1       
+----+------+---------+----------------------------+---------------------+-----------------------------------+----------------------------+-----------+-------+---------+----------------
+  1 | n1   | com1    | 2022-01-01 12:00:00.000000 | 2022-01-01 00:00:00 | 2022-01-01 00:00:00.000000 -08:00 | 2022-01-01 08:00:00.000000 | 123324234 | 1.333 | 4.55788 | \x616162626363
+(1 row)
+
+select * from test1@link1 as t1 where t1.id = 1;
+ ID | NAME | COMMENT |             D1             |         D2          |                D3                 |             D4             |    NUM    |  F1   |   F2    |       B1       
+----+------+---------+----------------------------+---------------------+-----------------------------------+----------------------------+-----------+-------+---------+----------------
+  1 | n1   | com1    | 2022-01-01 12:00:00.000000 | 2022-01-01 00:00:00 | 2022-01-01 00:00:00.000000 -08:00 | 2022-01-01 08:00:00.000000 | 123324234 | 1.333 | 4.55788 | \x616162626363
+(1 row)
+
+--test join between to dblink table
+explain (costs off) select * from test1@link1 inner join test2@link1 on test1.id = test2.id;
+             QUERY PLAN             
+------------------------------------
+ Hash Join
+   Hash Cond: (TEST1.ID = TEST2.ID)
+   ->  Foreign Scan on TEST1
+   ->  Hash
+         ->  Foreign Scan on TEST2
+(5 rows)
+
+explain (costs off) select * from test1@link1 inner join test2@link1 on test1.id = test2.id;
+             QUERY PLAN             
+------------------------------------
+ Hash Join
+   Hash Cond: (TEST1.ID = TEST2.ID)
+   ->  Foreign Scan on TEST1
+   ->  Hash
+         ->  Foreign Scan on TEST2
+(5 rows)
+
+explain (costs off) select * from test1@link1 full outer join test2@link1 where test1.id = test2.id;
+ERROR:  syntax error at or near "where"
+LINE 1: ...ct * from test1@link1 full outer join test2@link1 where test...
+                                                             ^
+explain (costs off) select * from test1@link1 where exists (select 1 from test2@link1 where test1.id=test2.id);
+               QUERY PLAN                
+-----------------------------------------
+ Hash Join
+   Hash Cond: (TEST1.ID = TEST2.ID)
+   ->  Foreign Scan on TEST1
+   ->  Hash
+         ->  HashAggregate
+               Group Key: TEST2.ID
+               ->  Foreign Scan on TEST2
+(7 rows)
+
+explain (costs off) select * from test1@link1 where not exists (select 1 from test2@link1 where test1.id=test2.id);
+             QUERY PLAN             
+------------------------------------
+ Hash Anti Join
+   Hash Cond: (TEST1.ID = TEST2.ID)
+   ->  Foreign Scan on TEST1
+   ->  Hash
+         ->  Foreign Scan on TEST2
+(5 rows)
+
+explain (costs off) select * from test1@link1 where id in (select id from test2@link1);
+               QUERY PLAN                
+-----------------------------------------
+ Hash Join
+   Hash Cond: (TEST1.ID = TEST2.ID)
+   ->  Foreign Scan on TEST1
+   ->  Hash
+         ->  HashAggregate
+               Group Key: TEST2.ID
+               ->  Foreign Scan on TEST2
+(7 rows)
+
+explain (costs off) select * from test1@link1 where id not in (select id from test2@link1);
+             QUERY PLAN             
+------------------------------------
+ Foreign Scan on TEST1
+   Filter: (NOT (hashed SubPlan 1))
+   SubPlan 1
+     ->  Foreign Scan on TEST2
+(4 rows)
+
+select * from test1@link1 inner join test2@link1 on test1.id = test2.id;
+ ID | NAME | COMMENT |             D1             |         D2          |                D3                 |             D4             |    NUM    |  F1   |   F2    |     B1     | ID | NAME | COMMENT |             D1             |         D2          |                D3                 |             D4             |    NUM    |  F1   |   F2    |       B1       
+----+------+---------+----------------------------+---------------------+-----------------------------------+----------------------------+-----------+-------+---------+------------+----+------+---------+----------------------------+---------------------+-----------------------------------+----------------------------+-----------+-------+---------+----------------
+  2 | n2   | com2    | 2022-01-01 12:00:00.000000 | 2022-01-01 00:00:00 | 2022-01-01 00:00:00.000000 -08:00 | 2022-01-01 08:00:00.000000 | 123324234 | 1.333 | 4.55788 | \x31313232 |  2 | n1   | com1    | 2022-01-01 12:00:00.000000 | 2022-01-01 00:00:00 | 2022-01-01 00:00:00.000000 -08:00 | 2022-01-01 08:00:00.000000 | 123324234 | 1.333 | 4.55788 | \x616162626363
+(1 row)
+
+select * from test1@link1 inner join test2@link1 on test1.id = test2.id;
+ ID | NAME | COMMENT |             D1             |         D2          |                D3                 |             D4             |    NUM    |  F1   |   F2    |     B1     | ID | NAME | COMMENT |             D1             |         D2          |                D3                 |             D4             |    NUM    |  F1   |   F2    |       B1       
+----+------+---------+----------------------------+---------------------+-----------------------------------+----------------------------+-----------+-------+---------+------------+----+------+---------+----------------------------+---------------------+-----------------------------------+----------------------------+-----------+-------+---------+----------------
+  2 | n2   | com2    | 2022-01-01 12:00:00.000000 | 2022-01-01 00:00:00 | 2022-01-01 00:00:00.000000 -08:00 | 2022-01-01 08:00:00.000000 | 123324234 | 1.333 | 4.55788 | \x31313232 |  2 | n1   | com1    | 2022-01-01 12:00:00.000000 | 2022-01-01 00:00:00 | 2022-01-01 00:00:00.000000 -08:00 | 2022-01-01 08:00:00.000000 | 123324234 | 1.333 | 4.55788 | \x616162626363
+(1 row)
+
+select * from test1@link1 full outer join test2@link1 where test1.id = test2.id;
+ERROR:  syntax error at or near "where"
+LINE 1: ...ct * from test1@link1 full outer join test2@link1 where test...
+                                                             ^
+select * from test1@link1 where exists (select 1 from test2@link1 where test1.id=test2.id);
+ ID | NAME | COMMENT |             D1             |         D2          |                D3                 |             D4             |    NUM    |  F1   |   F2    |     B1     
+----+------+---------+----------------------------+---------------------+-----------------------------------+----------------------------+-----------+-------+---------+------------
+  2 | n2   | com2    | 2022-01-01 12:00:00.000000 | 2022-01-01 00:00:00 | 2022-01-01 00:00:00.000000 -08:00 | 2022-01-01 08:00:00.000000 | 123324234 | 1.333 | 4.55788 | \x31313232
+(1 row)
+
+select * from test1@link1 where not exists (select 1 from test2@link1 where test1.id=test2.id);
+ ID | NAME | COMMENT |             D1             |         D2          |                D3                 |             D4             |    NUM    |  F1   |   F2    |       B1       
+----+------+---------+----------------------------+---------------------+-----------------------------------+----------------------------+-----------+-------+---------+----------------
+  1 | n1   | com1    | 2022-01-01 12:00:00.000000 | 2022-01-01 00:00:00 | 2022-01-01 00:00:00.000000 -08:00 | 2022-01-01 08:00:00.000000 | 123324234 | 1.333 | 4.55788 | \x616162626363
+(1 row)
+
+select * from test1@link1 where id in (select id from test2@link1);
+ ID | NAME | COMMENT |             D1             |         D2          |                D3                 |             D4             |    NUM    |  F1   |   F2    |     B1     
+----+------+---------+----------------------------+---------------------+-----------------------------------+----------------------------+-----------+-------+---------+------------
+  2 | n2   | com2    | 2022-01-01 12:00:00.000000 | 2022-01-01 00:00:00 | 2022-01-01 00:00:00.000000 -08:00 | 2022-01-01 08:00:00.000000 | 123324234 | 1.333 | 4.55788 | \x31313232
+(1 row)
+
+select * from test1@link1 where id not in (select id from test2@link1);
+ ID | NAME | COMMENT |             D1             |         D2          |                D3                 |             D4             |    NUM    |  F1   |   F2    |       B1       
+----+------+---------+----------------------------+---------------------+-----------------------------------+----------------------------+-----------+-------+---------+----------------
+  1 | n1   | com1    | 2022-01-01 12:00:00.000000 | 2022-01-01 00:00:00 | 2022-01-01 00:00:00.000000 -08:00 | 2022-01-01 08:00:00.000000 | 123324234 | 1.333 | 4.55788 | \x616162626363
+(1 row)
+
+--test join between local table and dblink table
+create table test2
+(
+    id int,
+    name text,
+    comment varchar2(10),
+    d1 timestamp,
+    d2 date,
+    d3 timestamptz,
+    d4 timestampltz,
+    num numeric,
+    f1  float,
+    f2 double precision,
+    b1 bytea
+);
+insert into test2 values
+(1, 'n1','com1','2022-1-1 12:00:00','2022-1-1','2022-1-1 00:00:00','2022-1-1', 123324234, 1.333, 4.55788, 'aabbcc'),
+(2, 'n2','com2','2022-1-1 12:00:00','2022-1-1','2022-1-1 00:00:00','2022-1-1', 123324234, 1.333, 4.55788,'\x31313232');
+explain (costs off) select * from test1@link1 inner join test2 on test1.id = test2.id;
+                   QUERY PLAN                    
+-------------------------------------------------
+ Hash Join
+   Hash Cond: (TEST2.ID = TEST1.ID)
+   ->  Remote Subquery Scan on all (datanodes 2)
+         ->  Seq Scan on TEST2
+   ->  Hash
+         ->  Foreign Scan on TEST1
+(6 rows)
+
+explain (costs off) select * from test1@link1 full outer join test2 on  test1.id = test2.id;
+                   QUERY PLAN                    
+-------------------------------------------------
+ Hash Full Join
+   Hash Cond: (TEST2.ID = TEST1.ID)
+   ->  Remote Subquery Scan on all (datanodes 2)
+         ->  Seq Scan on TEST2
+   ->  Hash
+         ->  Foreign Scan on TEST1
+(6 rows)
+
+explain (costs off) select * from test1@link1 where exists (select 1 from test2 where test1.id=test2.id);
+                      QUERY PLAN                       
+-------------------------------------------------------
+ Hash Semi Join
+   Hash Cond: (TEST1.ID = TEST2.ID)
+   ->  Foreign Scan on TEST1
+   ->  Hash
+         ->  Remote Subquery Scan on all (datanodes 2)
+               ->  Seq Scan on TEST2
+(6 rows)
+
+explain (costs off) select * from test1@link1 where not exists (select 1 from test2 where test1.id=test2.id);
+                      QUERY PLAN                       
+-------------------------------------------------------
+ Hash Anti Join
+   Hash Cond: (TEST1.ID = TEST2.ID)
+   ->  Foreign Scan on TEST1
+   ->  Hash
+         ->  Remote Subquery Scan on all (datanodes 2)
+               ->  Seq Scan on TEST2
+(6 rows)
+
+explain (costs off) select * from test1@link1 where id in (select id from test2);
+                      QUERY PLAN                       
+-------------------------------------------------------
+ Hash Semi Join
+   Hash Cond: (TEST1.ID = TEST2.ID)
+   ->  Foreign Scan on TEST1
+   ->  Hash
+         ->  Remote Subquery Scan on all (datanodes 2)
+               ->  Seq Scan on TEST2
+(6 rows)
+
+explain (costs off) select * from test1@link1 where id not in (select id from test2);
+                       QUERY PLAN                        
+---------------------------------------------------------
+ Foreign Scan on TEST1
+   Filter: (NOT (hashed SubPlan 1))
+   SubPlan 1
+     ->  Materialize
+           ->  Remote Subquery Scan on all (datanodes 2)
+                 Distribute results by R
+                 ->  Seq Scan on TEST2
+(7 rows)
+
+select * from test1@link1 inner join test2 on test1.id = test2.id;
+ ID | NAME | COMMENT |             D1             |         D2          |                D3                 |             D4             |    NUM    |  F1   |   F2    |       B1       | ID | NAME | COMMENT |             D1             |         D2          |                D3                 |             D4             |    NUM    |  F1   |   F2    |       B1       
+----+------+---------+----------------------------+---------------------+-----------------------------------+----------------------------+-----------+-------+---------+----------------+----+------+---------+----------------------------+---------------------+-----------------------------------+----------------------------+-----------+-------+---------+----------------
+  1 | n1   | com1    | 2022-01-01 12:00:00.000000 | 2022-01-01 00:00:00 | 2022-01-01 00:00:00.000000 -08:00 | 2022-01-01 08:00:00.000000 | 123324234 | 1.333 | 4.55788 | \x616162626363 |  1 | n1   | com1    | 2022-01-01 12:00:00.000000 | 2022-01-01 00:00:00 | 2022-01-01 00:00:00.000000 -08:00 | 2022-01-01 00:00:00.000000 | 123324234 | 1.333 | 4.55788 | \x616162626363
+  2 | n2   | com2    | 2022-01-01 12:00:00.000000 | 2022-01-01 00:00:00 | 2022-01-01 00:00:00.000000 -08:00 | 2022-01-01 08:00:00.000000 | 123324234 | 1.333 | 4.55788 | \x31313232     |  2 | n2   | com2    | 2022-01-01 12:00:00.000000 | 2022-01-01 00:00:00 | 2022-01-01 00:00:00.000000 -08:00 | 2022-01-01 00:00:00.000000 | 123324234 | 1.333 | 4.55788 | \x31313232
+(2 rows)
+
+select * from test1@link1 full outer join test2 on test1.id = test2.id;
+ ID | NAME | COMMENT |             D1             |         D2          |                D3                 |             D4             |    NUM    |  F1   |   F2    |       B1       | ID | NAME | COMMENT |             D1             |         D2          |                D3                 |             D4             |    NUM    |  F1   |   F2    |       B1       
+----+------+---------+----------------------------+---------------------+-----------------------------------+----------------------------+-----------+-------+---------+----------------+----+------+---------+----------------------------+---------------------+-----------------------------------+----------------------------+-----------+-------+---------+----------------
+  1 | n1   | com1    | 2022-01-01 12:00:00.000000 | 2022-01-01 00:00:00 | 2022-01-01 00:00:00.000000 -08:00 | 2022-01-01 08:00:00.000000 | 123324234 | 1.333 | 4.55788 | \x616162626363 |  1 | n1   | com1    | 2022-01-01 12:00:00.000000 | 2022-01-01 00:00:00 | 2022-01-01 00:00:00.000000 -08:00 | 2022-01-01 00:00:00.000000 | 123324234 | 1.333 | 4.55788 | \x616162626363
+  2 | n2   | com2    | 2022-01-01 12:00:00.000000 | 2022-01-01 00:00:00 | 2022-01-01 00:00:00.000000 -08:00 | 2022-01-01 08:00:00.000000 | 123324234 | 1.333 | 4.55788 | \x31313232     |  2 | n2   | com2    | 2022-01-01 12:00:00.000000 | 2022-01-01 00:00:00 | 2022-01-01 00:00:00.000000 -08:00 | 2022-01-01 00:00:00.000000 | 123324234 | 1.333 | 4.55788 | \x31313232
+(2 rows)
+
+select * from test1@link1 where exists (select 1 from test2 where test1.id=test2.id);
+ ID | NAME | COMMENT |             D1             |         D2          |                D3                 |             D4             |    NUM    |  F1   |   F2    |       B1       
+----+------+---------+----------------------------+---------------------+-----------------------------------+----------------------------+-----------+-------+---------+----------------
+  1 | n1   | com1    | 2022-01-01 12:00:00.000000 | 2022-01-01 00:00:00 | 2022-01-01 00:00:00.000000 -08:00 | 2022-01-01 08:00:00.000000 | 123324234 | 1.333 | 4.55788 | \x616162626363
+  2 | n2   | com2    | 2022-01-01 12:00:00.000000 | 2022-01-01 00:00:00 | 2022-01-01 00:00:00.000000 -08:00 | 2022-01-01 08:00:00.000000 | 123324234 | 1.333 | 4.55788 | \x31313232
+(2 rows)
+
+select * from test1@link1 where not exists (select 1 from test2 where test1.id=test2.id);
+ ID | NAME | COMMENT | D1 | D2 | D3 | D4 | NUM | F1 | F2 | B1 
+----+------+---------+----+----+----+----+-----+----+----+----
+(0 rows)
+
+select * from test1@link1 where id in (select id from test2);
+ ID | NAME | COMMENT |             D1             |         D2          |                D3                 |             D4             |    NUM    |  F1   |   F2    |       B1       
+----+------+---------+----------------------------+---------------------+-----------------------------------+----------------------------+-----------+-------+---------+----------------
+  1 | n1   | com1    | 2022-01-01 12:00:00.000000 | 2022-01-01 00:00:00 | 2022-01-01 00:00:00.000000 -08:00 | 2022-01-01 08:00:00.000000 | 123324234 | 1.333 | 4.55788 | \x616162626363
+  2 | n2   | com2    | 2022-01-01 12:00:00.000000 | 2022-01-01 00:00:00 | 2022-01-01 00:00:00.000000 -08:00 | 2022-01-01 08:00:00.000000 | 123324234 | 1.333 | 4.55788 | \x31313232
+(2 rows)
+
+select * from test1@link1 where id not in (select id from test2);
+ ID | NAME | COMMENT | D1 | D2 | D3 | D4 | NUM | F1 | F2 | B1 
+----+------+---------+----+----+----+----+-----+----+----+----
+(0 rows)
+
+--test cte scan
+with t as (select * from test1@link1) select * from t;
+ ID | NAME | COMMENT |             D1             |         D2          |                D3                 |             D4             |    NUM    |  F1   |   F2    |       B1       
+----+------+---------+----------------------------+---------------------+-----------------------------------+----------------------------+-----------+-------+---------+----------------
+  1 | n1   | com1    | 2022-01-01 12:00:00.000000 | 2022-01-01 00:00:00 | 2022-01-01 00:00:00.000000 -08:00 | 2022-01-01 08:00:00.000000 | 123324234 | 1.333 | 4.55788 | \x616162626363
+  2 | n2   | com2    | 2022-01-01 12:00:00.000000 | 2022-01-01 00:00:00 | 2022-01-01 00:00:00.000000 -08:00 | 2022-01-01 08:00:00.000000 | 123324234 | 1.333 | 4.55788 | \x31313232
+(2 rows)
+
+with t as materialized (select * from test1@link1) select * from t;
+ ID | NAME | COMMENT |             D1             |         D2          |                D3                 |             D4             |    NUM    |  F1   |   F2    |       B1       
+----+------+---------+----------------------------+---------------------+-----------------------------------+----------------------------+-----------+-------+---------+----------------
+  1 | n1   | com1    | 2022-01-01 12:00:00.000000 | 2022-01-01 00:00:00 | 2022-01-01 00:00:00.000000 -08:00 | 2022-01-01 08:00:00.000000 | 123324234 | 1.333 | 4.55788 | \x616162626363
+  2 | n2   | com2    | 2022-01-01 12:00:00.000000 | 2022-01-01 00:00:00 | 2022-01-01 00:00:00.000000 -08:00 | 2022-01-01 08:00:00.000000 | 123324234 | 1.333 | 4.55788 | \x31313232
+(2 rows)
+
+--test insert
+insert into test1@link1 values
+(3, 'n3','com3','2022-1-1 12:00:00','2022-1-1','2022-1-1 00:00:00','2022-1-1', 123324234, 1.333, 4.55788, 'aabbcc');
+select * from test1@link1 order by id;
+ ID | NAME | COMMENT |             D1             |         D2          |                D3                 |             D4             |    NUM    |  F1   |   F2    |       B1       
+----+------+---------+----------------------------+---------------------+-----------------------------------+----------------------------+-----------+-------+---------+----------------
+  1 | n1   | com1    | 2022-01-01 12:00:00.000000 | 2022-01-01 00:00:00 | 2022-01-01 00:00:00.000000 -08:00 | 2022-01-01 08:00:00.000000 | 123324234 | 1.333 | 4.55788 | \x616162626363
+  2 | n2   | com2    | 2022-01-01 12:00:00.000000 | 2022-01-01 00:00:00 | 2022-01-01 00:00:00.000000 -08:00 | 2022-01-01 08:00:00.000000 | 123324234 | 1.333 | 4.55788 | \x31313232
+  3 | n3   | com3    | 2022-01-01 12:00:00.000000 | 2022-01-01 00:00:00 | 2022-01-01 00:00:00.000000 -08:00 | 2022-01-01 00:00:00.000000 | 123324234 | 1.333 | 4.55788 | \x616162626363
+(3 rows)
+
+--test update
+update test1@link1 set name='n4',b1='\x97979898' where id=3;
+select * from test1@link1 order by 1;
+ ID | NAME | COMMENT |             D1             |         D2          |                D3                 |             D4             |    NUM    |  F1   |   F2    |       B1       
+----+------+---------+----------------------------+---------------------+-----------------------------------+----------------------------+-----------+-------+---------+----------------
+  1 | n1   | com1    | 2022-01-01 12:00:00.000000 | 2022-01-01 00:00:00 | 2022-01-01 00:00:00.000000 -08:00 | 2022-01-01 08:00:00.000000 | 123324234 | 1.333 | 4.55788 | \x616162626363
+  2 | n2   | com2    | 2022-01-01 12:00:00.000000 | 2022-01-01 00:00:00 | 2022-01-01 00:00:00.000000 -08:00 | 2022-01-01 08:00:00.000000 | 123324234 | 1.333 | 4.55788 | \x31313232
+  3 | n4   | com3    | 2022-01-01 12:00:00.000000 | 2022-01-01 00:00:00 | 2022-01-01 00:00:00.000000 -08:00 | 2022-01-01 00:00:00.000000 | 123324234 | 1.333 | 4.55788 | \x97979898
+(3 rows)
+
+--test delete
+delete from test1@link1 where id=1;
+select * from test1@link1 order by id;
+ ID | NAME | COMMENT |             D1             |         D2          |                D3                 |             D4             |    NUM    |  F1   |   F2    |     B1     
+----+------+---------+----------------------------+---------------------+-----------------------------------+----------------------------+-----------+-------+---------+------------
+  2 | n2   | com2    | 2022-01-01 12:00:00.000000 | 2022-01-01 00:00:00 | 2022-01-01 00:00:00.000000 -08:00 | 2022-01-01 08:00:00.000000 | 123324234 | 1.333 | 4.55788 | \x31313232
+  3 | n4   | com3    | 2022-01-01 12:00:00.000000 | 2022-01-01 00:00:00 | 2022-01-01 00:00:00.000000 -08:00 | 2022-01-01 00:00:00.000000 | 123324234 | 1.333 | 4.55788 | \x97979898
+(2 rows)
+
+--test transaction
+begin;
+insert into test1@link1 values
+(5, 'n5','com3','2022-1-1 12:00:00','2022-1-1','2022-1-1 00:00:00','2022-1-1', 123324234, 1.333, 4.55788, 'aabbcc');
+select * from test1@link1 order by id;
+ ID | NAME | COMMENT |             D1             |         D2          |                D3                 |             D4             |    NUM    |  F1   |   F2    |       B1       
+----+------+---------+----------------------------+---------------------+-----------------------------------+----------------------------+-----------+-------+---------+----------------
+  2 | n2   | com2    | 2022-01-01 12:00:00.000000 | 2022-01-01 00:00:00 | 2022-01-01 00:00:00.000000 -08:00 | 2022-01-01 08:00:00.000000 | 123324234 | 1.333 | 4.55788 | \x31313232
+  3 | n4   | com3    | 2022-01-01 12:00:00.000000 | 2022-01-01 00:00:00 | 2022-01-01 00:00:00.000000 -08:00 | 2022-01-01 00:00:00.000000 | 123324234 | 1.333 | 4.55788 | \x97979898
+  5 | n5   | com3    | 2022-01-01 12:00:00.000000 | 2022-01-01 00:00:00 | 2022-01-01 00:00:00.000000 -08:00 | 2022-01-01 00:00:00.000000 | 123324234 | 1.333 | 4.55788 | \x616162626363
+(3 rows)
+
+rollback;
+select * from test1@link1 order by id;
+ ID | NAME | COMMENT |             D1             |         D2          |                D3                 |             D4             |    NUM    |  F1   |   F2    |     B1     
+----+------+---------+----------------------------+---------------------+-----------------------------------+----------------------------+-----------+-------+---------+------------
+  2 | n2   | com2    | 2022-01-01 12:00:00.000000 | 2022-01-01 00:00:00 | 2022-01-01 00:00:00.000000 -08:00 | 2022-01-01 08:00:00.000000 | 123324234 | 1.333 | 4.55788 | \x31313232
+  3 | n4   | com3    | 2022-01-01 12:00:00.000000 | 2022-01-01 00:00:00 | 2022-01-01 00:00:00.000000 -08:00 | 2022-01-01 00:00:00.000000 | 123324234 | 1.333 | 4.55788 | \x97979898
+(2 rows)
+
+begin;
+insert into test1@link1 values
+(6, 'n6','com3','2022-1-1 12:00:00','2022-1-1','2022-1-1 00:00:00','2022-1-1', 123324234, 1.333, 4.55788, 'aabbcc');
+commit;
+select * from test1@link1 order by id;
+ ID | NAME | COMMENT |             D1             |         D2          |                D3                 |             D4             |    NUM    |  F1   |   F2    |       B1       
+----+------+---------+----------------------------+---------------------+-----------------------------------+----------------------------+-----------+-------+---------+----------------
+  2 | n2   | com2    | 2022-01-01 12:00:00.000000 | 2022-01-01 00:00:00 | 2022-01-01 00:00:00.000000 -08:00 | 2022-01-01 08:00:00.000000 | 123324234 | 1.333 | 4.55788 | \x31313232
+  3 | n4   | com3    | 2022-01-01 12:00:00.000000 | 2022-01-01 00:00:00 | 2022-01-01 00:00:00.000000 -08:00 | 2022-01-01 00:00:00.000000 | 123324234 | 1.333 | 4.55788 | \x97979898
+  6 | n6   | com3    | 2022-01-01 12:00:00.000000 | 2022-01-01 00:00:00 | 2022-01-01 00:00:00.000000 -08:00 | 2022-01-01 00:00:00.000000 | 123324234 | 1.333 | 4.55788 | \x616162626363
+(3 rows)
+
+--not support
+--test multi insert
+insert all into test1@link1
+select * from test2;
+ERROR:  could not perform insert all/first on a view, materialized view or foreign table
+--test merge into
+merge into test1@link1 using test2 on test1.id=test2.id when matched then update set name='nn' when not matched then
+insert values
+(7, 'n7','com3','2022-1-1 12:00:00','2022-1-1','2022-1-1 00:00:00','2022-1-1', 123324234, 1.333, 4.55788, 'aabbcc');
+ERROR:  cannot execute MERGE on relation "TEST1"
+DETAIL:  This operation is not supported for foreign tables.
+drop table test2;
+drop database link link1;
+NOTICE:  drop cascades to 6 other objects
+DETAIL:  drop cascades to foreign table "LINK1_linktest_db_SCHEMA_1_localhost_@dblink_port@_U1".T
+drop cascades to foreign table "LINK1_linktest_db_SCHEMA_1_localhost_@dblink_port@_U1".T1
+drop cascades to foreign table "LINK1_linktest_db_SCHEMA_1_localhost_@dblink_port@_U1".TEST1
+drop cascades to foreign table "LINK1_linktest_db_SCHEMA_1_localhost_@dblink_port@_U1".TEST2
+drop cascades to foreign table "LINK1_linktest_db_SCHEMA_1_localhost_@dblink_port@_U1"."t"
+drop cascades to foreign table "LINK1_linktest_db_SCHEMA_1_localhost_@dblink_port@_U1"."t1"
+\c linktest_db
+drop schema "schema_1" cascade;
+NOTICE:  drop cascades to 4 other objects
+DETAIL:  drop cascades to table "schema_1".T
+drop cascades to table "schema_1"."t"
+drop cascades to table "schema_1".T1
+drop cascades to table "schema_1"."t1"
+drop schema "SCHEMA_1" cascade;
+NOTICE:  drop cascades to 6 other objects
+DETAIL:  drop cascades to table SCHEMA_1.T
+drop cascades to table SCHEMA_1."t"
+drop cascades to table SCHEMA_1.T1
+drop cascades to table SCHEMA_1."t1"
+drop cascades to table SCHEMA_1.TEST1
+drop cascades to table SCHEMA_1.TEST2
+\c regression
+revoke all on database linktest_db from "u1";
+revoke all on database linktest_db from "U1";
+drop user "u1";
+drop user "U1";
+drop database linktest_db;

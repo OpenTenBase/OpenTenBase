@@ -13,22 +13,22 @@
 
 CREATE FUNCTION gin_extract_value_anyenum(anyenum, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_value_anyenum'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_compare_prefix_anyenum(anyenum, anyenum, int2, internal)
 RETURNS int4
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_compare_prefix_anyenum'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_extract_query_anyenum(anyenum, internal, int2, internal, internal)
 RETURNS internal
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_extract_query_anyenum'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION gin_enum_cmp(anyenum, anyenum)
 RETURNS int4
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'gin_enum_cmp'
 LANGUAGE C STRICT IMMUTABLE;
 
 CREATE OPERATOR CLASS enum_ops

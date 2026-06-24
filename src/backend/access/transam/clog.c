@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * clog.c
- *        PostgreSQL transaction-commit-log manager
+ *		PostgreSQL transaction-commit-log manager
  *
  * This module replaces the old "pg_log" access code, which treated pg_log
  * essentially like a relation, in that it went through the regular buffer
@@ -28,9 +28,6 @@
  * Portions Copyright (c) 1994, Regents of the University of California
  * Portions Copyright (c) 2010-2012 Postgres-XC Development Group
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- *
  * src/backend/access/transam/clog.c
  *
  *-------------------------------------------------------------------------
@@ -38,6 +35,7 @@
 #include "postgres.h"
 
 #include "access/clog.h"
+#include "access/mvccvars.h"
 #include "access/slru.h"
 #include "access/transam.h"
 #include "access/xlog.h"
@@ -47,36 +45,6 @@
 #include "pg_trace.h"
 
 /*
- * Defines for CLOG page sizes.  A page is the same BLCKSZ as is used
- * everywhere else in Postgres.
- *
- * Note: because TransactionIds are 32 bits and wrap around at 0xFFFFFFFF,
- * CLOG page numbering also wraps around at 0xFFFFFFFF/CLOG_XACTS_PER_PAGE,
- * and CLOG segment numbering at
- * 0xFFFFFFFF/CLOG_XACTS_PER_PAGE/SLRU_PAGES_PER_SEGMENT.  We need take no
- * explicit notice of that fact in this module, except when comparing segment
- * and page numbers in TruncateCLOG (see CLOGPagePrecedes).
- */
-
-/* We need two bits per xact, so four xacts fit in a byte */
-#define CLOG_BITS_PER_XACT    2
-#define CLOG_XACTS_PER_BYTE 4
-#define CLOG_XACTS_PER_PAGE (BLCKSZ * CLOG_XACTS_PER_BYTE)
-#define CLOG_XACT_BITMASK    ((1 << CLOG_BITS_PER_XACT) - 1)
-
-#define TransactionIdToPage(xid)    ((xid) / (TransactionId) CLOG_XACTS_PER_PAGE)
-#define TransactionIdToPgIndex(xid) ((xid) % (TransactionId) CLOG_XACTS_PER_PAGE)
-#define TransactionIdToByte(xid)    (TransactionIdToPgIndex(xid) / CLOG_XACTS_PER_BYTE)
-#define TransactionIdToBIndex(xid)    ((xid) % (TransactionId) CLOG_XACTS_PER_BYTE)
-
-/* We store the latest async LSN for each group of transactions */
-#define CLOG_XACTS_PER_LSN_GROUP    32    /* keep this a power of 2 */
-#define CLOG_LSNS_PER_PAGE    (CLOG_XACTS_PER_PAGE / CLOG_XACTS_PER_LSN_GROUP)
-
-#define GetLSNIndex(slotno, xid)    ((slotno) * CLOG_LSNS_PER_PAGE + \
-    ((xid) % (TransactionId) CLOG_XACTS_PER_PAGE) / CLOG_XACTS_PER_LSN_GROUP)
-
-/*
  * Link to shared-memory data structures for CLOG control
  */
 static SlruCtlData ClogCtlData;
@@ -84,18 +52,18 @@ static SlruCtlData ClogCtlData;
 #define ClogCtl (&ClogCtlData)
 
 
-static int    ZeroCLOGPage(int pageno, bool writeXlog);
+static int	ZeroCLOGPage(int pageno, bool writeXlog);
 static bool CLOGPagePrecedes(int page1, int page2);
 static void WriteZeroPageXlogRec(int pageno);
 static void WriteTruncateXlogRec(int pageno, TransactionId oldestXact,
-                     Oid oldestXidDb);
+					 Oid oldestXidDb);
 static void TransactionIdSetPageStatus(TransactionId xid, int nsubxids,
-                           TransactionId *subxids, XidStatus status,
-                           XLogRecPtr lsn, int pageno);
+						   TransactionId *subxids, XidStatus status,
+						   XLogRecPtr lsn, int pageno);
 static void TransactionIdSetStatusBit(TransactionId xid, XidStatus status,
-                          XLogRecPtr lsn, int slotno);
+						  XLogRecPtr lsn, int slotno);
 static void set_status_by_pages(int nsubxids, TransactionId *subxids,
-                    XidStatus status, XLogRecPtr lsn);
+					XidStatus status, XLogRecPtr lsn);
 
 
 /*
@@ -121,26 +89,26 @@ static void set_status_by_pages(int nsubxids, TransactionId *subxids,
  * the same CLOG page as xid.  If they all are, then the lock will be grabbed
  * only once, and the status will be set to committed directly.  Otherwise
  * we must
- *     1. set sub-committed all subxids that are not on the same page as the
- *        main xid
- *     2. atomically set committed the main xid and the subxids on the same page
- *     3. go over the first bunch again and set them committed
+ *	 1. set sub-committed all subxids that are not on the same page as the
+ *		main xid
+ *	 2. atomically set committed the main xid and the subxids on the same page
+ *	 3. go over the first bunch again and set them committed
  * Note that as far as concurrent checkers are concerned, main transaction
  * commit as a whole is still atomic.
  *
  * Example:
- *        TransactionId t commits and has subxids t1, t2, t3, t4
- *        t is on page p1, t1 is also on p1, t2 and t3 are on p2, t4 is on p3
- *        1. update pages2-3:
- *                    page2: set t2,t3 as sub-committed
- *                    page3: set t4 as sub-committed
- *        2. update page1:
- *                    set t1 as sub-committed,
- *                    then set t as committed,
-                    then set t1 as committed
- *        3. update pages2-3:
- *                    page2: set t2,t3 as committed
- *                    page3: set t4 as committed
+ *		TransactionId t commits and has subxids t1, t2, t3, t4
+ *		t is on page p1, t1 is also on p1, t2 and t3 are on p2, t4 is on p3
+ *		1. update pages2-3:
+ *					page2: set t2,t3 as sub-committed
+ *					page3: set t4 as sub-committed
+ *		2. update page1:
+ *					set t1 as sub-committed,
+ *					then set t as committed,
+					then set t1 as committed
+ *		3. update pages2-3:
+ *					page2: set t2,t3 as committed
+ *					page3: set t4 as committed
  *
  * NB: this is a low-level routine and is NOT the preferred entry point
  * for most uses; functions in transam.c are the intended callers.
@@ -151,75 +119,75 @@ static void set_status_by_pages(int nsubxids, TransactionId *subxids,
  */
 void
 TransactionIdSetTreeStatus(TransactionId xid, int nsubxids,
-                           TransactionId *subxids, XidStatus status, XLogRecPtr lsn)
+						   TransactionId *subxids, XidStatus status, XLogRecPtr lsn)
 {
-    int            pageno = TransactionIdToPage(xid);    /* get page of parent */
-    int            i;
+	int			pageno = TransactionIdToPage(xid);	/* get page of parent */
+	int			i;
 
-    Assert(status == TRANSACTION_STATUS_COMMITTED ||
-           status == TRANSACTION_STATUS_ABORTED);
+	Assert(status == TRANSACTION_STATUS_COMMITTED ||
+		   status == TRANSACTION_STATUS_ABORTED);
 
-    if (status == TRANSACTION_STATUS_COMMITTED)
-        elog(DEBUG1, "Record transaction commit %u", xid);
-    else
-        elog(DEBUG1, "Record transaction abort %u", xid);
+	if (status == TRANSACTION_STATUS_COMMITTED)
+		elog(DEBUG1, "Record transaction commit %u", xid);
+	else
+		elog(DEBUG1, "Record transaction abort %u", xid);
 
-    /*
-     * See how many subxids, if any, are on the same page as the parent, if
-     * any.
-     */
-    for (i = 0; i < nsubxids; i++)
-    {
-        if (TransactionIdToPage(subxids[i]) != pageno)
-            break;
-    }
+	/*
+	 * See how many subxids, if any, are on the same page as the parent, if
+	 * any.
+	 */
+	for (i = 0; i < nsubxids; i++)
+	{
+		if (TransactionIdToPage(subxids[i]) != pageno)
+			break;
+	}
 
-    /*
-     * Do all items fit on a single page?
-     */
-    if (i == nsubxids)
-    {
-        /*
-         * Set the parent and all subtransactions in a single call
-         */
-        TransactionIdSetPageStatus(xid, nsubxids, subxids, status, lsn,
-                                   pageno);
-    }
-    else
-    {
-        int            nsubxids_on_first_page = i;
+	/*
+	 * Do all items fit on a single page?
+	 */
+	if (i == nsubxids)
+	{
+		/*
+		 * Set the parent and all subtransactions in a single call
+		 */
+		TransactionIdSetPageStatus(xid, nsubxids, subxids, status, lsn,
+								   pageno);
+	}
+	else
+	{
+		int			nsubxids_on_first_page = i;
 
-        /*
-         * If this is a commit then we care about doing this correctly (i.e.
-         * using the subcommitted intermediate status).  By here, we know
-         * we're updating more than one page of clog, so we must mark entries
-         * that are *not* on the first page so that they show as subcommitted
-         * before we then return to update the status to fully committed.
-         *
-         * To avoid touching the first page twice, skip marking subcommitted
-         * for the subxids on that first page.
-         */
-        if (status == TRANSACTION_STATUS_COMMITTED)
-            set_status_by_pages(nsubxids - nsubxids_on_first_page,
-                                subxids + nsubxids_on_first_page,
-                                TRANSACTION_STATUS_SUB_COMMITTED, lsn);
+		/*
+		 * If this is a commit then we care about doing this correctly (i.e.
+		 * using the subcommitted intermediate status).  By here, we know
+		 * we're updating more than one page of clog, so we must mark entries
+		 * that are *not* on the first page so that they show as subcommitted
+		 * before we then return to update the status to fully committed.
+		 *
+		 * To avoid touching the first page twice, skip marking subcommitted
+		 * for the subxids on that first page.
+		 */
+		if (status == TRANSACTION_STATUS_COMMITTED)
+			set_status_by_pages(nsubxids - nsubxids_on_first_page,
+								subxids + nsubxids_on_first_page,
+								TRANSACTION_STATUS_SUB_COMMITTED, lsn);
 
-        /*
-         * Now set the parent and subtransactions on same page as the parent,
-         * if any
-         */
-        pageno = TransactionIdToPage(xid);
-        TransactionIdSetPageStatus(xid, nsubxids_on_first_page, subxids, status,
-                                   lsn, pageno);
+		/*
+		 * Now set the parent and subtransactions on same page as the parent,
+		 * if any
+		 */
+		pageno = TransactionIdToPage(xid);
+		TransactionIdSetPageStatus(xid, nsubxids_on_first_page, subxids, status,
+								   lsn, pageno);
 
-        /*
-         * Now work through the rest of the subxids one clog page at a time,
-         * starting from the second page onwards, like we did above.
-         */
-        set_status_by_pages(nsubxids - nsubxids_on_first_page,
-                            subxids + nsubxids_on_first_page,
-                            status, lsn);
-    }
+		/*
+		 * Now work through the rest of the subxids one clog page at a time,
+		 * starting from the second page onwards, like we did above.
+		 */
+		set_status_by_pages(nsubxids - nsubxids_on_first_page,
+							subxids + nsubxids_on_first_page,
+							status, lsn);
+	}
 }
 
 /*
@@ -230,28 +198,28 @@ TransactionIdSetTreeStatus(TransactionId xid, int nsubxids,
  */
 static void
 set_status_by_pages(int nsubxids, TransactionId *subxids,
-                    XidStatus status, XLogRecPtr lsn)
+					XidStatus status, XLogRecPtr lsn)
 {
-    int            pageno = TransactionIdToPage(subxids[0]);
-    int            offset = 0;
-    int            i = 0;
+	int			pageno = TransactionIdToPage(subxids[0]);
+	int			offset = 0;
+	int			i = 0;
 
-    while (i < nsubxids)
-    {
-        int            num_on_page = 0;
+	while (i < nsubxids)
+	{
+		int			num_on_page = 0;
 
-        while (TransactionIdToPage(subxids[i]) == pageno && i < nsubxids)
-        {
-            num_on_page++;
-            i++;
-        }
+		while (TransactionIdToPage(subxids[i]) == pageno && i < nsubxids)
+		{
+			num_on_page++;
+			i++;
+		}
 
-        TransactionIdSetPageStatus(InvalidTransactionId,
-                                   num_on_page, subxids + offset,
-                                   status, lsn, pageno);
-        offset = i;
-        pageno = TransactionIdToPage(subxids[offset]);
-    }
+		TransactionIdSetPageStatus(InvalidTransactionId,
+								   num_on_page, subxids + offset,
+								   status, lsn, pageno);
+		offset = i;
+		pageno = TransactionIdToPage(subxids[offset]);
+	}
 }
 
 /*
@@ -262,66 +230,66 @@ set_status_by_pages(int nsubxids, TransactionId *subxids,
  */
 static void
 TransactionIdSetPageStatus(TransactionId xid, int nsubxids,
-                           TransactionId *subxids, XidStatus status,
-                           XLogRecPtr lsn, int pageno)
+						   TransactionId *subxids, XidStatus status,
+						   XLogRecPtr lsn, int pageno)
 {
-    int            slotno;
-    int            i;
+	int			slotno;
+	int			i;
 
-    Assert(status == TRANSACTION_STATUS_COMMITTED ||
-           status == TRANSACTION_STATUS_ABORTED ||
-           (status == TRANSACTION_STATUS_SUB_COMMITTED && !TransactionIdIsValid(xid)));
+	Assert(status == TRANSACTION_STATUS_COMMITTED ||
+		   status == TRANSACTION_STATUS_ABORTED ||
+		   (status == TRANSACTION_STATUS_SUB_COMMITTED && !TransactionIdIsValid(xid)));
 
-    LWLockAcquire(CLogControlLock, LW_EXCLUSIVE);
+	LWLockAcquire(CLogControlLock, LW_EXCLUSIVE);
 
-    /*
-     * If we're doing an async commit (ie, lsn is valid), then we must wait
-     * for any active write on the page slot to complete.  Otherwise our
-     * update could reach disk in that write, which will not do since we
-     * mustn't let it reach disk until we've done the appropriate WAL flush.
-     * But when lsn is invalid, it's OK to scribble on a page while it is
-     * write-busy, since we don't care if the update reaches disk sooner than
-     * we think.
-     */
-    slotno = SimpleLruReadPage(ClogCtl, pageno, XLogRecPtrIsInvalid(lsn), xid);
+	/*
+	 * If we're doing an async commit (ie, lsn is valid), then we must wait
+	 * for any active write on the page slot to complete.  Otherwise our
+	 * update could reach disk in that write, which will not do since we
+	 * mustn't let it reach disk until we've done the appropriate WAL flush.
+	 * But when lsn is invalid, it's OK to scribble on a page while it is
+	 * write-busy, since we don't care if the update reaches disk sooner than
+	 * we think.
+	 */
+	slotno = SimpleLruReadPage(ClogCtl, pageno, XLogRecPtrIsInvalid(lsn), xid);
 
-    /*
-     * Set the main transaction id, if any.
-     *
-     * If we update more than one xid on this page while it is being written
-     * out, we might find that some of the bits go to disk and others don't.
-     * If we are updating commits on the page with the top-level xid that
-     * could break atomicity, so we subcommit the subxids first before we mark
-     * the top-level commit.
-     */
-    if (TransactionIdIsValid(xid))
-    {
-        /* Subtransactions first, if needed ... */
-        if (status == TRANSACTION_STATUS_COMMITTED)
-        {
-            for (i = 0; i < nsubxids; i++)
-            {
-                Assert(ClogCtl->shared->page_number[slotno] == TransactionIdToPage(subxids[i]));
-                TransactionIdSetStatusBit(subxids[i],
-                                          TRANSACTION_STATUS_SUB_COMMITTED,
-                                          lsn, slotno);
-            }
-        }
+	/*
+	 * Set the main transaction id, if any.
+	 *
+	 * If we update more than one xid on this page while it is being written
+	 * out, we might find that some of the bits go to disk and others don't.
+	 * If we are updating commits on the page with the top-level xid that
+	 * could break atomicity, so we subcommit the subxids first before we mark
+	 * the top-level commit.
+	 */
+	if (TransactionIdIsValid(xid))
+	{
+		/* Subtransactions first, if needed ... */
+		if (status == TRANSACTION_STATUS_COMMITTED)
+		{
+			for (i = 0; i < nsubxids; i++)
+			{
+				Assert(ClogCtl->shared->page_number[slotno] == TransactionIdToPage(subxids[i]));
+				TransactionIdSetStatusBit(subxids[i],
+										  TRANSACTION_STATUS_SUB_COMMITTED,
+										  lsn, slotno);
+			}
+		}
 
-        /* ... then the main transaction */
-        TransactionIdSetStatusBit(xid, status, lsn, slotno);
-    }
+		/* ... then the main transaction */
+		TransactionIdSetStatusBit(xid, status, lsn, slotno);
+	}
 
-    /* Set the subtransactions */
-    for (i = 0; i < nsubxids; i++)
-    {
-        Assert(ClogCtl->shared->page_number[slotno] == TransactionIdToPage(subxids[i]));
-        TransactionIdSetStatusBit(subxids[i], status, lsn, slotno);
-    }
+	/* Set the subtransactions */
+	for (i = 0; i < nsubxids; i++)
+	{
+		Assert(ClogCtl->shared->page_number[slotno] == TransactionIdToPage(subxids[i]));
+		TransactionIdSetStatusBit(subxids[i], status, lsn, slotno);
+	}
 
-    ClogCtl->shared->page_dirty[slotno] = true;
+	ClogCtl->shared->page_dirty[slotno] = true;
 
-    LWLockRelease(CLogControlLock);
+	LWLockRelease(CLogControlLock);
 }
 
 /*
@@ -331,62 +299,60 @@ TransactionIdSetPageStatus(TransactionId xid, int nsubxids,
  */
 static void
 TransactionIdSetStatusBit(TransactionId xid, XidStatus status, XLogRecPtr lsn, int slotno)
-{// #lizard forgives
-    int            byteno = TransactionIdToByte(xid);
-    int            bshift = TransactionIdToBIndex(xid) * CLOG_BITS_PER_XACT;
-    char       *byteptr;
-    char        byteval;
-    char        curval;
+{
+	int			byteno = TransactionIdToByte(xid);
+	int			bshift = TransactionIdToBIndex(xid) * CLOG_BITS_PER_XACT;
+	char	   *byteptr;
+	char		byteval;
+	char		curval;
 
-    byteptr = ClogCtl->shared->page_buffer[slotno] + byteno;
-    curval = (*byteptr >> bshift) & CLOG_XACT_BITMASK;
+	byteptr = ClogCtl->shared->page_buffer[slotno] + byteno;
+	curval = (*byteptr >> bshift) & CLOG_XACT_BITMASK;
 
-    /*
-     * When replaying transactions during recovery we still need to perform
-     * the two phases of subcommit and then commit. However, some transactions
-     * are already correctly marked, so we just treat those as a no-op which
-     * allows us to keep the following Assert as restrictive as possible.
-     */
-    if (InRecovery && status == TRANSACTION_STATUS_SUB_COMMITTED &&
-        curval == TRANSACTION_STATUS_COMMITTED)
-        return;
+	/*
+	 * When replaying transactions during recovery we still need to perform
+	 * the two phases of subcommit and then commit. However, some transactions
+	 * are already correctly marked, so we just treat those as a no-op which
+	 * allows us to keep the following Assert as restrictive as possible.
+	 */
+	if (InRecovery && status == TRANSACTION_STATUS_SUB_COMMITTED &&
+		curval == TRANSACTION_STATUS_COMMITTED)
+		return;
 
-    /*
-     * Current state change should be from 0 or subcommitted to target state
-     * or we should already be there when replaying changes during recovery.
-     */
-    if (!(curval == 0 ||
-           (curval == TRANSACTION_STATUS_SUB_COMMITTED &&
-            status != TRANSACTION_STATUS_IN_PROGRESS) ||
-           curval == status))
-    {
-        elog(WARNING, "Unexpected clog condition. curval = %d, status = %d",
-                    curval, status);
-    }
+	/*
+	 * Current state change should be from 0 or subcommitted to target state
+	 * or we should already be there when replaying changes during recovery.
+	 */
+	if (!(curval == 0 ||
+		   (curval == TRANSACTION_STATUS_SUB_COMMITTED &&
+			status != TRANSACTION_STATUS_IN_PROGRESS) ||
+		   curval == status))
+	{
+		elog(WARNING, "Unexpected clog condition. curval = %d, status = %d",
+					curval, status);
+	}
 
-    /* note this assumes exclusive access to the clog page */
-    byteval = *byteptr;
-    byteval &= ~(((1 << CLOG_BITS_PER_XACT) - 1) << bshift);
-    byteval |= (status << bshift);
-	SlruClogDisableMemoryProtection(ClogCtl->shared->page_buffer[slotno]);
-    *byteptr = byteval;
-	SlruClogEnableMemoryProtection(ClogCtl->shared->page_buffer[slotno]);
+	/* note this assumes exclusive access to the clog page */
+	byteval = *byteptr;
+	byteval &= ~(((1 << CLOG_BITS_PER_XACT) - 1) << bshift);
+	byteval |= (status << bshift);
+	*byteptr = byteval;
 
-    /*
-     * Update the group LSN if the transaction completion LSN is higher.
-     *
-     * Note: lsn will be invalid when supplied during InRecovery processing,
-     * so we don't need to do anything special to avoid LSN updates during
-     * recovery. After recovery completes the next clog change will set the
-     * LSN correctly.
-     */
-    if (!XLogRecPtrIsInvalid(lsn))
-    {
-        int            lsnindex = GetLSNIndex(slotno, xid);
+	/*
+	 * Update the group LSN if the transaction completion LSN is higher.
+	 *
+	 * Note: lsn will be invalid when supplied during InRecovery processing,
+	 * so we don't need to do anything special to avoid LSN updates during
+	 * recovery. After recovery completes the next clog change will set the
+	 * LSN correctly.
+	 */
+	if (!XLogRecPtrIsInvalid(lsn))
+	{
+		int			lsnindex = GetLSNIndex(slotno, xid);
 
-        if (ClogCtl->shared->group_lsn[lsnindex] < lsn)
-            ClogCtl->shared->group_lsn[lsnindex] = lsn;
-    }
+		if (ClogCtl->shared->group_lsn[lsnindex] < lsn)
+			ClogCtl->shared->group_lsn[lsnindex] = lsn;
+	}
 }
 
 /*
@@ -396,7 +362,7 @@ TransactionIdSetStatusBit(TransactionId xid, XidStatus status, XLogRecPtr lsn, i
  * an LSN that is late enough to be able to guarantee that if we flush up to
  * that LSN then we will have flushed the transaction's commit record to disk.
  * The result is not necessarily the exact LSN of the transaction's commit
- * record!    For example, for long-past transactions (those whose clog pages
+ * record!	For example, for long-past transactions (those whose clog pages
  * already migrated to disk), we'll return InvalidXLogRecPtr.  Also, because
  * we group transactions on the same clog page to conserve storage, we might
  * return the LSN of a later transaction that falls into the same group.
@@ -407,27 +373,27 @@ TransactionIdSetStatusBit(TransactionId xid, XidStatus status, XLogRecPtr lsn, i
 XidStatus
 TransactionIdGetStatus(TransactionId xid, XLogRecPtr *lsn)
 {
-    int            pageno = TransactionIdToPage(xid);
-    int            byteno = TransactionIdToByte(xid);
-    int            bshift = TransactionIdToBIndex(xid) * CLOG_BITS_PER_XACT;
-    int            slotno;
-    int            lsnindex;
-    char       *byteptr;
-    XidStatus    status;
+	int			pageno = TransactionIdToPage(xid);
+	int			byteno = TransactionIdToByte(xid);
+	int			bshift = TransactionIdToBIndex(xid) * CLOG_BITS_PER_XACT;
+	int			slotno;
+	int			lsnindex;
+	char	   *byteptr;
+	XidStatus	status;
 
-    /* lock is acquired by SimpleLruReadPage_ReadOnly */
+	/* lock is acquired by SimpleLruReadPage_ReadOnly */
 
-    slotno = SimpleLruReadPage_ReadOnly(ClogCtl, pageno, xid);
-    byteptr = ClogCtl->shared->page_buffer[slotno] + byteno;
+	slotno = SimpleLruReadPage_ReadOnly(ClogCtl, pageno, xid);
+	byteptr = ClogCtl->shared->page_buffer[slotno] + byteno;
 
-    status = (*byteptr >> bshift) & CLOG_XACT_BITMASK;
+	status = (*byteptr >> bshift) & CLOG_XACT_BITMASK;
 
-    lsnindex = GetLSNIndex(slotno, xid);
-    *lsn = ClogCtl->shared->group_lsn[lsnindex];
+	lsnindex = GetLSNIndex(slotno, xid);
+	*lsn = ClogCtl->shared->group_lsn[lsnindex];
 
-    LWLockRelease(CLogControlLock);
+	LWLockRelease(CLogControlLock);
 
-    return status;
+	return status;
 }
 
 /*
@@ -449,7 +415,7 @@ TransactionIdGetStatus(TransactionId xid, XLogRecPtr *lsn)
 Size
 CLOGShmemBuffers(void)
 {
-    return Min(128, Max(4, NBuffers / 512));
+	return Min(128, Max(4, NBuffers / 512));
 }
 
 /*
@@ -458,15 +424,16 @@ CLOGShmemBuffers(void)
 Size
 CLOGShmemSize(void)
 {
-    return SimpleLruShmemSize(CLOGShmemBuffers(), CLOG_LSNS_PER_PAGE);
+	return SimpleLruShmemSize(CLOGShmemBuffers(), CLOG_LSNS_PER_PAGE);
 }
 
 void
 CLOGShmemInit(void)
 {
-    ClogCtl->PagePrecedes = CLOGPagePrecedes;
-    SimpleLruInit(ClogCtl, "clog", CLOGShmemBuffers(), CLOG_LSNS_PER_PAGE,
-                  CLogControlLock, "pg_xact", LWTRANCHE_CLOG_BUFFERS);
+	ClogCtl->PagePrecedes = CLOGPagePrecedes;
+	SimpleLruInit(ClogCtl, "clog", CLOGShmemBuffers(), CLOG_LSNS_PER_PAGE,
+				  CLogControlLock, "pg_xact", LWTRANCHE_CLOG_BUFFERS);
+	SlruPagePrecedesUnitTests(ClogCtl, CLOG_XACTS_PER_PAGE);
 }
 
 /*
@@ -478,18 +445,18 @@ CLOGShmemInit(void)
 void
 BootStrapCLOG(void)
 {
-    int            slotno;
+	int			slotno;
 
-    LWLockAcquire(CLogControlLock, LW_EXCLUSIVE);
+	LWLockAcquire(CLogControlLock, LW_EXCLUSIVE);
 
-    /* Create and zero the first page of the commit log */
-    slotno = ZeroCLOGPage(0, false);
+	/* Create and zero the first page of the commit log */
+	slotno = ZeroCLOGPage(0, false);
 
-    /* Make sure it's written out */
-    SimpleLruWritePage(ClogCtl, slotno);
-    Assert(!ClogCtl->shared->page_dirty[slotno]);
+	/* Make sure it's written out */
+	SimpleLruWritePage(ClogCtl, slotno);
+	Assert(!ClogCtl->shared->page_dirty[slotno]);
 
-    LWLockRelease(CLogControlLock);
+	LWLockRelease(CLogControlLock);
 }
 
 /*
@@ -504,14 +471,14 @@ BootStrapCLOG(void)
 static int
 ZeroCLOGPage(int pageno, bool writeXlog)
 {
-    int            slotno;
+	int			slotno;
 
-    slotno = SimpleLruZeroPage(ClogCtl, pageno);
+	slotno = SimpleLruZeroPage(ClogCtl, pageno);
 
-    if (writeXlog)
-        WriteZeroPageXlogRec(pageno);
+	if (writeXlog)
+		WriteZeroPageXlogRec(pageno);
 
-    return slotno;
+	return slotno;
 }
 
 /*
@@ -521,18 +488,18 @@ ZeroCLOGPage(int pageno, bool writeXlog)
 void
 StartupCLOG(void)
 {
-    TransactionId xid = ShmemVariableCache->nextXid;
-    int            pageno = TransactionIdToPage(xid);
+	TransactionId xid = ShmemVariableCache->nextXid;
+	int			pageno = TransactionIdToPage(xid);
 
-    LWLockAcquire(CLogControlLock, LW_EXCLUSIVE);
+	LWLockAcquire(CLogControlLock, LW_EXCLUSIVE);
 
-    /*
-     * Initialize our idea of the latest page number.
-     */
-    ClogCtl->shared->latest_page_number = pageno;
-    elog(LOG, "startup CLOG next xid %d latest page number %d", xid, pageno);
+	/*
+	 * Initialize our idea of the latest page number.
+	 */
+	ClogCtl->shared->latest_page_number = pageno;
+	elog(LOG, "startup CLOG next xid %d latest page number %d", xid, pageno);
 
-    LWLockRelease(CLogControlLock);
+	LWLockRelease(CLogControlLock);
 }
 
 /*
@@ -541,50 +508,48 @@ StartupCLOG(void)
 void
 TrimCLOG(void)
 {
-    TransactionId xid = ShmemVariableCache->nextXid;
-    int            pageno = TransactionIdToPage(xid);
+	TransactionId xid = ShmemVariableCache->nextXid;
+	int			pageno = TransactionIdToPage(xid);
 
-    LWLockAcquire(CLogControlLock, LW_EXCLUSIVE);
+	LWLockAcquire(CLogControlLock, LW_EXCLUSIVE);
 
-    /*
-     * Re-Initialize our idea of the latest page number.
-     */
-    ClogCtl->shared->latest_page_number = pageno;
-    elog(LOG, "Trim CLOG next xid %d latest page number %d", xid, pageno);
+	/*
+	 * Re-Initialize our idea of the latest page number.
+	 */
+	ClogCtl->shared->latest_page_number = pageno;
+	elog(LOG, "Trim CLOG next xid %d latest page number %d", xid, pageno);
 
-    /*
-     * Zero out the remainder of the current clog page.  Under normal
-     * circumstances it should be zeroes already, but it seems at least
-     * theoretically possible that XLOG replay will have settled on a nextXID
-     * value that is less than the last XID actually used and marked by the
-     * previous database lifecycle (since subtransaction commit writes clog
-     * but makes no WAL entry).  Let's just be safe. (We need not worry about
-     * pages beyond the current one, since those will be zeroed when first
-     * used.  For the same reason, there is no need to do anything when
-     * nextXid is exactly at a page boundary; and it's likely that the
-     * "current" page doesn't exist yet in that case.)
-     */
-    if (TransactionIdToPgIndex(xid) != 0)
-    {
-        int            byteno = TransactionIdToByte(xid);
-        int            bshift = TransactionIdToBIndex(xid) * CLOG_BITS_PER_XACT;
-        int            slotno;
-        char       *byteptr;
+	/*
+	 * Zero out the remainder of the current clog page.  Under normal
+	 * circumstances it should be zeroes already, but it seems at least
+	 * theoretically possible that XLOG replay will have settled on a nextXID
+	 * value that is less than the last XID actually used and marked by the
+	 * previous database lifecycle (since subtransaction commit writes clog
+	 * but makes no WAL entry).  Let's just be safe. (We need not worry about
+	 * pages beyond the current one, since those will be zeroed when first
+	 * used.  For the same reason, there is no need to do anything when
+	 * nextXid is exactly at a page boundary; and it's likely that the
+	 * "current" page doesn't exist yet in that case.)
+	 */
+	if (TransactionIdToPgIndex(xid) != 0)
+	{
+		int			byteno = TransactionIdToByte(xid);
+		int			bshift = TransactionIdToBIndex(xid) * CLOG_BITS_PER_XACT;
+		int			slotno;
+		char	   *byteptr;
 
-        slotno = SimpleLruReadPage(ClogCtl, pageno, false, xid);
-        byteptr = ClogCtl->shared->page_buffer[slotno] + byteno;
+		slotno = SimpleLruReadPage(ClogCtl, pageno, false, xid);
+		byteptr = ClogCtl->shared->page_buffer[slotno] + byteno;
 
-        /* Zero so-far-unused positions in the current byte */
-		SlruClogDisableMemoryProtection(ClogCtl->shared->page_buffer[slotno]);
-        *byteptr &= (1 << bshift) - 1;
-        /* Zero the rest of the page */
-        MemSet(byteptr + 1, 0, BLCKSZ - byteno - 1);
-		SlruClogEnableMemoryProtection(ClogCtl->shared->page_buffer[slotno]);
+		/* Zero so-far-unused positions in the current byte */
+		*byteptr &= (1 << bshift) - 1;
+		/* Zero the rest of the page */
+		MemSet(byteptr + 1, 0, BLCKSZ - byteno - 1);
 
-        ClogCtl->shared->page_dirty[slotno] = true;
-    }
+		ClogCtl->shared->page_dirty[slotno] = true;
+	}
 
-    LWLockRelease(CLogControlLock);
+	LWLockRelease(CLogControlLock);
 }
 
 /*
@@ -593,17 +558,17 @@ TrimCLOG(void)
 void
 ShutdownCLOG(void)
 {
-    /* Flush dirty CLOG pages to disk */
-    TRACE_POSTGRESQL_CLOG_CHECKPOINT_START(false);
-    SimpleLruFlush(ClogCtl, false);
+	/* Flush dirty CLOG pages to disk */
+	TRACE_POSTGRESQL_CLOG_CHECKPOINT_START(false);
+	SimpleLruFlush(ClogCtl, false);
 
-    /*
-     * fsync pg_xact to ensure that any files flushed previously are durably
-     * on disk.
-     */
-    fsync_fname("pg_xact", true);
+	/*
+	 * fsync pg_xact to ensure that any files flushed previously are durably
+	 * on disk.
+	 */
+	fsync_fname("pg_xact", true);
 
-    TRACE_POSTGRESQL_CLOG_CHECKPOINT_DONE(false);
+	TRACE_POSTGRESQL_CLOG_CHECKPOINT_DONE(false);
 }
 
 /*
@@ -612,17 +577,10 @@ ShutdownCLOG(void)
 void
 CheckPointCLOG(void)
 {
-    /* Flush dirty CLOG pages to disk */
-    TRACE_POSTGRESQL_CLOG_CHECKPOINT_START(true);
-    SimpleLruFlush(ClogCtl, true);
-
-    /*
-     * fsync pg_xact to ensure that any files flushed previously are durably
-     * on disk.
-     */
-    fsync_fname("pg_xact", true);
-
-    TRACE_POSTGRESQL_CLOG_CHECKPOINT_DONE(true);
+	/* Flush dirty CLOG pages to disk */
+	TRACE_POSTGRESQL_CLOG_CHECKPOINT_START(true);
+	SimpleLruFlush(ClogCtl, true);
+	TRACE_POSTGRESQL_CLOG_CHECKPOINT_DONE(true);
 }
 
 
@@ -636,81 +594,81 @@ CheckPointCLOG(void)
  */
 void
 ExtendCLOG(TransactionId newestXact)
-{// #lizard forgives
-    int            pageno;
+{
+	int			pageno;
 #ifndef __SUPPORT_DISTRIBUTED_TRANSACTION__
-    TransactionId latestXid;
+	TransactionId latestXid;
 #endif
 
-    /*
-     * No work except at first XID of a page.  But beware: just after
-     * wraparound, the first XID of page zero is FirstNormalTransactionId.
-     */
+	/*
+	 * No work except at first XID of a page.  But beware: just after
+	 * wraparound, the first XID of page zero is FirstNormalTransactionId.
+	 */
 #ifndef __SUPPORT_DISTRIBUTED_TRANSACTION__ /* PGXC_COORD || PGXC_DATANODE */
-    /* 
-     * In PGXC, it may be that a node is not involved in a transaction,
-     * and therefore will be skipped, so we need to detect this by using
-     * the latest_page_number instead of the pg index.
-     *
-     * latest_page_number always points to the last page of CLOG. We don't need
-     * to do anything for an XID that maps to a page that precedes or equals
-     * the latest_page_number. To handle wrap-around correctly, we just compute
-     * the last XID mapped to latest_page_number and compare that against the
-     * passed in XID.
-     */
-    pageno = TransactionIdToPage(newestXact);
+	/* 
+	 * In PGXC, it may be that a node is not involved in a transaction,
+	 * and therefore will be skipped, so we need to detect this by using
+	 * the latest_page_number instead of the pg index.
+	 *
+	 * latest_page_number always points to the last page of CLOG. We don't need
+	 * to do anything for an XID that maps to a page that precedes or equals
+	 * the latest_page_number. To handle wrap-around correctly, we just compute
+	 * the last XID mapped to latest_page_number and compare that against the
+	 * passed in XID.
+	 */
+	pageno = TransactionIdToPage(newestXact);
 
-    /* 
-     * Note that this value can change and we are not holding a lock, 
-     * so we repeat the check below. We do it this way instead of 
-     * grabbing the lock to avoid lock contention.
-     */
-    latestXid = (ClogCtl->shared->latest_page_number * CLOG_XACTS_PER_PAGE)
-                    + CLOG_XACTS_PER_PAGE - 1;
-    if (TransactionIdPrecedesOrEquals(newestXact, latestXid))
-        return;
+	/* 
+	 * Note that this value can change and we are not holding a lock, 
+	 * so we repeat the check below. We do it this way instead of 
+	 * grabbing the lock to avoid lock contention.
+	 */
+	latestXid = (ClogCtl->shared->latest_page_number * CLOG_XACTS_PER_PAGE)
+					+ CLOG_XACTS_PER_PAGE - 1;
+	if (TransactionIdPrecedesOrEquals(newestXact, latestXid))
+		return;
 #else
-    if (TransactionIdToPgIndex(newestXact) != 0 &&
-        !TransactionIdEquals(newestXact, FirstNormalTransactionId))
-        return;
+	if (TransactionIdToPgIndex(newestXact) != 0 &&
+		!TransactionIdEquals(newestXact, FirstNormalTransactionId))
+		return;
 
-    pageno = TransactionIdToPage(newestXact);
+	pageno = TransactionIdToPage(newestXact);
 #endif
 
-    LWLockAcquire(CLogControlLock, LW_EXCLUSIVE);
+	LWLockAcquire(CLogControlLock, LW_EXCLUSIVE);
 
 #ifndef __SUPPORT_DISTRIBUTED_TRANSACTION__
-    /*
-     * We repeat the check.  Another process may have written 
-     * out the page already and advanced the latest_page_number
-     * while we were waiting for the lock.
-     */
-    latestXid = (ClogCtl->shared->latest_page_number * CLOG_XACTS_PER_PAGE)
-                    + CLOG_XACTS_PER_PAGE - 1;
-    if (TransactionIdPrecedesOrEquals(newestXact, latestXid))
-    {
-        LWLockRelease(CLogControlLock);
-        return;
-    }
+	/*
+	 * We repeat the check.  Another process may have written 
+	 * out the page already and advanced the latest_page_number
+	 * while we were waiting for the lock.
+	 */
+	latestXid = (ClogCtl->shared->latest_page_number * CLOG_XACTS_PER_PAGE)
+					+ CLOG_XACTS_PER_PAGE - 1;
+	if (TransactionIdPrecedesOrEquals(newestXact, latestXid))
+	{
+		LWLockRelease(CLogControlLock);
+		return;
+	}
 
-    /*
-     * We must initialise all pages between latest_page_number and pageno,
-     * taking into consideration XID wraparound
-     */
-    for (;;)
-    {
-        /* Zero the page and make an XLOG entry about it */
-        int target_pageno = ClogCtl->shared->latest_page_number + 1;
-        if (target_pageno > TransactionIdToPage(MaxTransactionId))
-            target_pageno = 0;
-        ZeroCLOGPage(target_pageno, true);
-        if (target_pageno == pageno)
-            break;
-    }
+	/*
+	 * We must initialise all pages between latest_page_number and pageno,
+	 * taking into consideration XID wraparound
+	 */
+	for (;;)
+	{
+		/* Zero the page and make an XLOG entry about it */
+		int target_pageno = ClogCtl->shared->latest_page_number + 1;
+		if (target_pageno > TransactionIdToPage(MaxTransactionId))
+			target_pageno = 0;
+		ZeroCLOGPage(target_pageno, true);
+		if (target_pageno == pageno)
+			break;
+	}
 #else
-    ZeroCLOGPage(pageno, true);
+	ZeroCLOGPage(pageno, true);
 #endif
-    LWLockRelease(CLogControlLock);
+	LWLockRelease(CLogControlLock);
 }
 
 /*
@@ -731,61 +689,71 @@ ExtendCLOG(TransactionId newestXact)
 void
 TruncateCLOG(TransactionId oldestXact, Oid oldestxid_datoid)
 {
-    int            cutoffPage;
+	int			cutoffPage;
 
-    /*
-     * The cutoff point is the start of the segment containing oldestXact. We
-     * pass the *page* containing oldestXact to SimpleLruTruncate.
-     */
-    cutoffPage = TransactionIdToPage(oldestXact);
+	/*
+	 * The cutoff point is the start of the segment containing oldestXact. We
+	 * pass the *page* containing oldestXact to SimpleLruTruncate.
+	 */
+	cutoffPage = TransactionIdToPage(oldestXact);
 
-    /* Check to see if there's any files that could be removed */
-    if (!SlruScanDirectory(ClogCtl, SlruScanDirCbReportPresence, &cutoffPage))
-        return;                    /* nothing to remove */
+	/* Check to see if there's any files that could be removed */
+	if (!SlruScanDirectory(ClogCtl, SlruScanDirCbReportPresence, &cutoffPage))
+		return;					/* nothing to remove */
 
-    /*
-     * Advance oldestClogXid before truncating clog, so concurrent xact status
-     * lookups can ensure they don't attempt to access truncated-away clog.
-     *
-     * It's only necessary to do this if we will actually truncate away clog
-     * pages.
-     */
-    AdvanceOldestClogXid(oldestXact);
+	/*
+	 * Advance oldestClogXid before truncating clog, so concurrent xact status
+	 * lookups can ensure they don't attempt to access truncated-away clog.
+	 *
+	 * It's only necessary to do this if we will actually truncate away clog
+	 * pages.
+	 */
+	AdvanceOldestClogXid(oldestXact);
 
-    /*
-     * Write XLOG record and flush XLOG to disk. We record the oldest xid
-     * we're keeping information about here so we can ensure that it's always
-     * ahead of clog truncation in case we crash, and so a standby finds out
-     * the new valid xid before the next checkpoint.
-     */
-    WriteTruncateXlogRec(cutoffPage, oldestXact, oldestxid_datoid);
+	/*
+	 * Write XLOG record and flush XLOG to disk. We record the oldest xid
+	 * we're keeping information about here so we can ensure that it's always
+	 * ahead of clog truncation in case we crash, and so a standby finds out
+	 * the new valid xid before the next checkpoint.
+	 */
+	WriteTruncateXlogRec(cutoffPage, oldestXact, oldestxid_datoid);
 
-    /* Now we can remove the old CLOG segment(s) */
-    SimpleLruTruncate(ClogCtl, cutoffPage);
+	/* Now we can remove the old CLOG segment(s) */
+	SimpleLruTruncate(ClogCtl, cutoffPage);
 }
 
 
 /*
- * Decide which of two CLOG page numbers is "older" for truncation purposes.
+ * Decide whether a CLOG page number is "older" for truncation purposes.
  *
  * We need to use comparison of TransactionIds here in order to do the right
- * thing with wraparound XID arithmetic.  However, if we are asked about
- * page number zero, we don't want to hand InvalidTransactionId to
- * TransactionIdPrecedes: it'll get weird about permanent xact IDs.  So,
- * offset both xids by FirstNormalTransactionId to avoid that.
+ * thing with wraparound XID arithmetic.  However, TransactionIdPrecedes()
+ * would get weird about permanent xact IDs.  So, offset both such that xid1,
+ * xid2, and xid2 + CLOG_XACTS_PER_PAGE - 1 are all normal XIDs; this offset
+ * is relevant to page 0 and to the page preceding page 0.
+ *
+ * The page containing oldestXact-2^31 is the important edge case.  The
+ * portion of that page equaling or following oldestXact-2^31 is expendable,
+ * but the portion preceding oldestXact-2^31 is not.  When oldestXact-2^31 is
+ * the first XID of a page and segment, the entire page and segment is
+ * expendable, and we could truncate the segment.  Recognizing that case would
+ * require making oldestXact, not just the page containing oldestXact,
+ * available to this callback.  The benefit would be rare and small, so we
+ * don't optimize that edge case.
  */
 static bool
 CLOGPagePrecedes(int page1, int page2)
 {
-    TransactionId xid1;
-    TransactionId xid2;
+	TransactionId xid1;
+	TransactionId xid2;
 
-    xid1 = ((TransactionId) page1) * CLOG_XACTS_PER_PAGE;
-    xid1 += FirstNormalTransactionId;
-    xid2 = ((TransactionId) page2) * CLOG_XACTS_PER_PAGE;
-    xid2 += FirstNormalTransactionId;
+	xid1 = ((TransactionId) page1) * CLOG_XACTS_PER_PAGE;
+	xid1 += FirstNormalTransactionId + 1;
+	xid2 = ((TransactionId) page2) * CLOG_XACTS_PER_PAGE;
+	xid2 += FirstNormalTransactionId + 1;
 
-    return TransactionIdPrecedes(xid1, xid2);
+	return (TransactionIdPrecedes(xid1, xid2) &&
+			TransactionIdPrecedes(xid1, xid2 + CLOG_XACTS_PER_PAGE - 1));
 }
 
 
@@ -795,9 +763,9 @@ CLOGPagePrecedes(int page1, int page2)
 static void
 WriteZeroPageXlogRec(int pageno)
 {
-    XLogBeginInsert();
-    XLogRegisterData((char *) (&pageno), sizeof(int));
-    (void) XLogInsert(RM_CLOG_ID, CLOG_ZEROPAGE);
+	XLogBeginInsert();
+	XLogRegisterData((char *) (&pageno), sizeof(int));
+	(void) XLogInsert(RM_CLOG_ID, CLOG_ZEROPAGE);
 }
 
 /*
@@ -809,17 +777,17 @@ WriteZeroPageXlogRec(int pageno)
 static void
 WriteTruncateXlogRec(int pageno, TransactionId oldestXact, Oid oldestXactDb)
 {
-    XLogRecPtr    recptr;
-    xl_clog_truncate xlrec;
+	XLogRecPtr	recptr;
+	xl_clog_truncate xlrec;
 
-    xlrec.pageno = pageno;
-    xlrec.oldestXact = oldestXact;
-    xlrec.oldestXactDb = oldestXactDb;
+	xlrec.pageno = pageno;
+	xlrec.oldestXact = oldestXact;
+	xlrec.oldestXactDb = oldestXactDb;
 
-    XLogBeginInsert();
-    XLogRegisterData((char *) (&xlrec), sizeof(xl_clog_truncate));
-    recptr = XLogInsert(RM_CLOG_ID, CLOG_TRUNCATE);
-    XLogFlush(recptr);
+	XLogBeginInsert();
+	XLogRegisterData((char *) (&xlrec), sizeof(xl_clog_truncate));
+	recptr = XLogInsert(RM_CLOG_ID, CLOG_TRUNCATE);
+	XLogFlush(recptr);
 }
 
 /*
@@ -828,42 +796,45 @@ WriteTruncateXlogRec(int pageno, TransactionId oldestXact, Oid oldestXactDb)
 void
 clog_redo(XLogReaderState *record)
 {
-    uint8        info = XLogRecGetInfo(record) & ~XLR_INFO_MASK;
+	uint8		info = XLogRecGetInfo(record) & ~XLR_INFO_MASK;
 
-    /* Backup blocks are not used in clog records */
-    Assert(!XLogRecHasAnyBlockRefs(record));
+    elog(PANIC, "Clog related xlog from previous binary version. Need to do "
+                "crash recovery with the previous binary version.\n");
 
-    if (info == CLOG_ZEROPAGE)
-    {
-        int            pageno;
-        int            slotno;
+	/* Backup blocks are not used in clog records */
+	Assert(!XLogRecHasAnyBlockRefs(record));
 
-        memcpy(&pageno, XLogRecGetData(record), sizeof(int));
+	if (info == CLOG_ZEROPAGE)
+	{
+		int			pageno;
+		int			slotno;
 
-        LWLockAcquire(CLogControlLock, LW_EXCLUSIVE);
+		memcpy(&pageno, XLogRecGetData(record), sizeof(int));
 
-        slotno = ZeroCLOGPage(pageno, false);
-        SimpleLruWritePage(ClogCtl, slotno);
-        Assert(!ClogCtl->shared->page_dirty[slotno]);
+		LWLockAcquire(CLogControlLock, LW_EXCLUSIVE);
 
-        LWLockRelease(CLogControlLock);
-    }
-    else if (info == CLOG_TRUNCATE)
-    {
-        xl_clog_truncate xlrec;
+		slotno = ZeroCLOGPage(pageno, false);
+		SimpleLruWritePage(ClogCtl, slotno);
+		Assert(!ClogCtl->shared->page_dirty[slotno]);
 
-        memcpy(&xlrec, XLogRecGetData(record), sizeof(xl_clog_truncate));
+		LWLockRelease(CLogControlLock);
+	}
+	else if (info == CLOG_TRUNCATE)
+	{
+		xl_clog_truncate xlrec;
 
-        /*
-         * During XLOG replay, latest_page_number isn't set up yet; insert a
-         * suitable value to bypass the sanity test in SimpleLruTruncate.
-         */
-        ClogCtl->shared->latest_page_number = xlrec.pageno;
+		memcpy(&xlrec, XLogRecGetData(record), sizeof(xl_clog_truncate));
 
-        AdvanceOldestClogXid(xlrec.oldestXact);
+		/*
+		 * During XLOG replay, latest_page_number isn't set up yet; insert a
+		 * suitable value to bypass the sanity test in SimpleLruTruncate.
+		 */
+		ClogCtl->shared->latest_page_number = xlrec.pageno;
 
-        SimpleLruTruncate(ClogCtl, xlrec.pageno);
-    }
-    else
-        elog(PANIC, "clog_redo: unknown op code %u", info);
+		AdvanceOldestClogXid(xlrec.oldestXact);
+
+		SimpleLruTruncate(ClogCtl, xlrec.pageno);
+	}
+	else
+		elog(PANIC, "clog_redo: unknown op code %u", info);
 }

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * define.c
- *      Support routines for various kinds of object creation.
+ *	  Support routines for various kinds of object creation.
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -9,23 +9,23 @@
  *
  *
  * IDENTIFICATION
- *      src/backend/commands/define.c
+ *	  src/backend/commands/define.c
  *
  * DESCRIPTION
- *      The "DefineFoo" routines take the parse tree and pick out the
- *      appropriate arguments/flags, passing the results to the
- *      corresponding "FooDefine" routines (in src/catalog) that do
- *      the actual catalog-munging.  These routines also verify permission
- *      of the user to execute the command.
+ *	  The "DefineFoo" routines take the parse tree and pick out the
+ *	  appropriate arguments/flags, passing the results to the
+ *	  corresponding "FooDefine" routines (in src/catalog) that do
+ *	  the actual catalog-munging.  These routines also verify permission
+ *	  of the user to execute the command.
  *
  * NOTES
- *      These things must be defined and committed in the following order:
- *        "create function":
- *                input/output, recv/send procedures
- *        "create type":
- *                type
- *        "create operator":
- *                operators
+ *	  These things must be defined and committed in the following order:
+ *		"create function":
+ *				input/output, recv/send procedures
+ *		"create type":
+ *				type
+ *		"create operator":
+ *				operators
  *
  *
  *-------------------------------------------------------------------------
@@ -37,45 +37,47 @@
 
 #include "catalog/namespace.h"
 #include "commands/defrem.h"
+#include "common/int.h"
 #include "nodes/makefuncs.h"
 #include "parser/parse_type.h"
 #include "parser/scansup.h"
 #include "utils/builtins.h"
+#include "utils/biginteger.h"
 
 /*
  * Extract a string value (otherwise uninterpreted) from a DefElem.
  */
 char *
 defGetString(DefElem *def)
-{// #lizard forgives
-    if (def->arg == NULL)
-        ereport(ERROR,
-                (errcode(ERRCODE_SYNTAX_ERROR),
-                 errmsg("%s requires a parameter",
-                        def->defname)));
-    switch (nodeTag(def->arg))
-    {
-        case T_Integer:
-            return psprintf("%ld", (long) intVal(def->arg));
-        case T_Float:
+{
+	if (def->arg == NULL)
+		ereport(ERROR,
+				(errcode(ERRCODE_SYNTAX_ERROR),
+				 errmsg("%s requires a parameter",
+						def->defname)));
+	switch (nodeTag(def->arg))
+	{
+		case T_Integer:
+			return psprintf("%ld", (long) intVal(def->arg));
+		case T_Float:
 
-            /*
-             * T_Float values are kept in string form, so this type cheat
-             * works (and doesn't risk losing precision)
-             */
-            return strVal(def->arg);
-        case T_String:
-            return strVal(def->arg);
-        case T_TypeName:
-            return TypeNameToString((TypeName *) def->arg);
-        case T_List:
-            return NameListToString((List *) def->arg);
-        case T_A_Star:
-            return pstrdup("*");
-        default:
-            elog(ERROR, "unrecognized node type: %d", (int) nodeTag(def->arg));
-    }
-    return NULL;                /* keep compiler quiet */
+			/*
+			 * T_Float values are kept in string form, so this type cheat
+			 * works (and doesn't risk losing precision)
+			 */
+			return strVal(def->arg);
+		case T_String:
+			return strVal(def->arg);
+		case T_TypeName:
+			return TypeNameToString((TypeName *) def->arg);
+		case T_List:
+			return NameListToString((List *) def->arg);
+		case T_A_Star:
+			return pstrdup("*");
+		default:
+			elog(ERROR, "unrecognized node type: %d", (int) nodeTag(def->arg));
+	}
+	return NULL;				/* keep compiler quiet */
 }
 
 /*
@@ -84,24 +86,24 @@ defGetString(DefElem *def)
 double
 defGetNumeric(DefElem *def)
 {
-    if (def->arg == NULL)
-        ereport(ERROR,
-                (errcode(ERRCODE_SYNTAX_ERROR),
-                 errmsg("%s requires a numeric value",
-                        def->defname)));
-    switch (nodeTag(def->arg))
-    {
-        case T_Integer:
-            return (double) intVal(def->arg);
-        case T_Float:
-            return floatVal(def->arg);
-        default:
-            ereport(ERROR,
-                    (errcode(ERRCODE_SYNTAX_ERROR),
-                     errmsg("%s requires a numeric value",
-                            def->defname)));
-    }
-    return 0;                    /* keep compiler quiet */
+	if (def->arg == NULL)
+		ereport(ERROR,
+				(errcode(ERRCODE_SYNTAX_ERROR),
+				 errmsg("%s requires a numeric value",
+						def->defname)));
+	switch (nodeTag(def->arg))
+	{
+		case T_Integer:
+			return (double) intVal(def->arg);
+		case T_Float:
+			return floatVal(def->arg);
+		default:
+			ereport(ERROR,
+					(errcode(ERRCODE_SYNTAX_ERROR),
+					 errmsg("%s requires a numeric value",
+							def->defname)));
+	}
+	return 0;					/* keep compiler quiet */
 }
 
 /*
@@ -109,54 +111,54 @@ defGetNumeric(DefElem *def)
  */
 bool
 defGetBoolean(DefElem *def)
-{// #lizard forgives
-    /*
-     * If no parameter given, assume "true" is meant.
-     */
-    if (def->arg == NULL)
-        return true;
+{
+	/*
+	 * If no parameter given, assume "true" is meant.
+	 */
+	if (def->arg == NULL)
+		return true;
 
-    /*
-     * Allow 0, 1, "true", "false", "on", "off"
-     */
-    switch (nodeTag(def->arg))
-    {
-        case T_Integer:
-            switch (intVal(def->arg))
-            {
-                case 0:
-                    return false;
-                case 1:
-                    return true;
-                default:
-                    /* otherwise, error out below */
-                    break;
-            }
-            break;
-        default:
-            {
-                char       *sval = defGetString(def);
+	/*
+	 * Allow 0, 1, "true", "false", "on", "off"
+	 */
+	switch (nodeTag(def->arg))
+	{
+		case T_Integer:
+			switch (intVal(def->arg))
+			{
+				case 0:
+					return false;
+				case 1:
+					return true;
+				default:
+					/* otherwise, error out below */
+					break;
+			}
+			break;
+		default:
+			{
+				char	   *sval = defGetString(def);
 
-                /*
-                 * The set of strings accepted here should match up with the
-                 * grammar's opt_boolean production.
-                 */
-                if (pg_strcasecmp(sval, "true") == 0)
-                    return true;
-                if (pg_strcasecmp(sval, "false") == 0)
-                    return false;
-                if (pg_strcasecmp(sval, "on") == 0)
-                    return true;
-                if (pg_strcasecmp(sval, "off") == 0)
-                    return false;
-            }
-            break;
-    }
-    ereport(ERROR,
-            (errcode(ERRCODE_SYNTAX_ERROR),
-             errmsg("%s requires a Boolean value",
-                    def->defname)));
-    return false;                /* keep compiler quiet */
+				/*
+				 * The set of strings accepted here should match up with the
+				 * grammar's opt_boolean production.
+				 */
+				if (pg_strcasecmp(sval, "true") == 0)
+					return true;
+				if (pg_strcasecmp(sval, "false") == 0)
+					return false;
+				if (pg_strcasecmp(sval, "on") == 0)
+					return true;
+				if (pg_strcasecmp(sval, "off") == 0)
+					return false;
+			}
+			break;
+	}
+	ereport(ERROR,
+			(errcode(ERRCODE_SYNTAX_ERROR),
+			 errmsg("%s requires a Boolean value",
+					def->defname)));
+	return false;				/* keep compiler quiet */
 }
 
 /*
@@ -165,22 +167,22 @@ defGetBoolean(DefElem *def)
 int32
 defGetInt32(DefElem *def)
 {
-    if (def->arg == NULL)
-        ereport(ERROR,
-                (errcode(ERRCODE_SYNTAX_ERROR),
-                 errmsg("%s requires an integer value",
-                        def->defname)));
-    switch (nodeTag(def->arg))
-    {
-        case T_Integer:
-            return (int32) intVal(def->arg);
-        default:
-            ereport(ERROR,
-                    (errcode(ERRCODE_SYNTAX_ERROR),
-                     errmsg("%s requires an integer value",
-                            def->defname)));
-    }
-    return 0;                    /* keep compiler quiet */
+	if (def->arg == NULL)
+		ereport(ERROR,
+				(errcode(ERRCODE_SYNTAX_ERROR),
+				 errmsg("%s requires an integer value",
+						def->defname)));
+	switch (nodeTag(def->arg))
+	{
+		case T_Integer:
+			return (int32) intVal(def->arg);
+		default:
+			ereport(ERROR,
+					(errcode(ERRCODE_SYNTAX_ERROR),
+					 errmsg("%s requires an integer value",
+							def->defname)));
+	}
+	return 0;					/* keep compiler quiet */
 }
 
 /*
@@ -189,31 +191,31 @@ defGetInt32(DefElem *def)
 int64
 defGetInt64(DefElem *def)
 {
-    if (def->arg == NULL)
-        ereport(ERROR,
-                (errcode(ERRCODE_SYNTAX_ERROR),
-                 errmsg("%s requires a numeric value",
-                        def->defname)));
-    switch (nodeTag(def->arg))
-    {
-        case T_Integer:
-            return (int64) intVal(def->arg);
-        case T_Float:
+	if (def->arg == NULL)
+		ereport(ERROR,
+				(errcode(ERRCODE_SYNTAX_ERROR),
+				 errmsg("%s requires a numeric value",
+						def->defname)));
+	switch (nodeTag(def->arg))
+	{
+		case T_Integer:
+			return (int64) intVal(def->arg);
+		case T_Float:
 
-            /*
-             * Values too large for int4 will be represented as Float
-             * constants by the lexer.  Accept these if they are valid int8
-             * strings.
-             */
-            return DatumGetInt64(DirectFunctionCall1(int8in,
-                                                     CStringGetDatum(strVal(def->arg))));
-        default:
-            ereport(ERROR,
-                    (errcode(ERRCODE_SYNTAX_ERROR),
-                     errmsg("%s requires a numeric value",
-                            def->defname)));
-    }
-    return 0;                    /* keep compiler quiet */
+			/*
+			 * Values too large for int4 will be represented as Float
+			 * constants by the lexer.  Accept these if they are valid int8
+			 * strings.
+			 */
+			return DatumGetInt64(DirectFunctionCall1(int8in,
+													 CStringGetDatum(strVal(def->arg))));
+		default:
+			ereport(ERROR,
+					(errcode(ERRCODE_SYNTAX_ERROR),
+					 errmsg("%s requires a numeric value",
+							def->defname)));
+	}
+	return 0;					/* keep compiler quiet */
 }
 
 /*
@@ -222,27 +224,27 @@ defGetInt64(DefElem *def)
 List *
 defGetQualifiedName(DefElem *def)
 {
-    if (def->arg == NULL)
-        ereport(ERROR,
-                (errcode(ERRCODE_SYNTAX_ERROR),
-                 errmsg("%s requires a parameter",
-                        def->defname)));
-    switch (nodeTag(def->arg))
-    {
-        case T_TypeName:
-            return ((TypeName *) def->arg)->names;
-        case T_List:
-            return (List *) def->arg;
-        case T_String:
-            /* Allow quoted name for backwards compatibility */
-            return list_make1(def->arg);
-        default:
-            ereport(ERROR,
-                    (errcode(ERRCODE_SYNTAX_ERROR),
-                     errmsg("argument of %s must be a name",
-                            def->defname)));
-    }
-    return NIL;                    /* keep compiler quiet */
+	if (def->arg == NULL)
+		ereport(ERROR,
+				(errcode(ERRCODE_SYNTAX_ERROR),
+				 errmsg("%s requires a parameter",
+						def->defname)));
+	switch (nodeTag(def->arg))
+	{
+		case T_TypeName:
+			return ((TypeName *) def->arg)->names;
+		case T_List:
+			return (List *) def->arg;
+		case T_String:
+			/* Allow quoted name for backwards compatibility */
+			return list_make1(def->arg);
+		default:
+			ereport(ERROR,
+					(errcode(ERRCODE_SYNTAX_ERROR),
+					 errmsg("argument of %s must be a name",
+							def->defname)));
+	}
+	return NIL;					/* keep compiler quiet */
 }
 
 /*
@@ -254,25 +256,25 @@ defGetQualifiedName(DefElem *def)
 TypeName *
 defGetTypeName(DefElem *def)
 {
-    if (def->arg == NULL)
-        ereport(ERROR,
-                (errcode(ERRCODE_SYNTAX_ERROR),
-                 errmsg("%s requires a parameter",
-                        def->defname)));
-    switch (nodeTag(def->arg))
-    {
-        case T_TypeName:
-            return (TypeName *) def->arg;
-        case T_String:
-            /* Allow quoted typename for backwards compatibility */
-            return makeTypeNameFromNameList(list_make1(def->arg));
-        default:
-            ereport(ERROR,
-                    (errcode(ERRCODE_SYNTAX_ERROR),
-                     errmsg("argument of %s must be a type name",
-                            def->defname)));
-    }
-    return NULL;                /* keep compiler quiet */
+	if (def->arg == NULL)
+		ereport(ERROR,
+				(errcode(ERRCODE_SYNTAX_ERROR),
+				 errmsg("%s requires a parameter",
+						def->defname)));
+	switch (nodeTag(def->arg))
+	{
+		case T_TypeName:
+			return (TypeName *) def->arg;
+		case T_String:
+			/* Allow quoted typename for backwards compatibility */
+			return makeTypeNameFromNameList(list_make1(def->arg));
+		default:
+			ereport(ERROR,
+					(errcode(ERRCODE_SYNTAX_ERROR),
+					 errmsg("argument of %s must be a type name",
+							def->defname)));
+	}
+	return NULL;				/* keep compiler quiet */
 }
 
 /*
@@ -281,43 +283,43 @@ defGetTypeName(DefElem *def)
  */
 int
 defGetTypeLength(DefElem *def)
-{// #lizard forgives
-    if (def->arg == NULL)
-        ereport(ERROR,
-                (errcode(ERRCODE_SYNTAX_ERROR),
-                 errmsg("%s requires a parameter",
-                        def->defname)));
-    switch (nodeTag(def->arg))
-    {
-        case T_Integer:
-            return intVal(def->arg);
-        case T_Float:
-            ereport(ERROR,
-                    (errcode(ERRCODE_SYNTAX_ERROR),
-                     errmsg("%s requires an integer value",
-                            def->defname)));
-            break;
-        case T_String:
-            if (pg_strcasecmp(strVal(def->arg), "variable") == 0)
-                return -1;        /* variable length */
-            break;
-        case T_TypeName:
-            /* cope if grammar chooses to believe "variable" is a typename */
-            if (pg_strcasecmp(TypeNameToString((TypeName *) def->arg),
-                              "variable") == 0)
-                return -1;        /* variable length */
-            break;
-        case T_List:
-            /* must be an operator name */
-            break;
-        default:
-            elog(ERROR, "unrecognized node type: %d", (int) nodeTag(def->arg));
-    }
-    ereport(ERROR,
-            (errcode(ERRCODE_SYNTAX_ERROR),
-             errmsg("invalid argument for %s: \"%s\"",
-                    def->defname, defGetString(def))));
-    return 0;                    /* keep compiler quiet */
+{
+	if (def->arg == NULL)
+		ereport(ERROR,
+				(errcode(ERRCODE_SYNTAX_ERROR),
+				 errmsg("%s requires a parameter",
+						def->defname)));
+	switch (nodeTag(def->arg))
+	{
+		case T_Integer:
+			return intVal(def->arg);
+		case T_Float:
+			ereport(ERROR,
+					(errcode(ERRCODE_SYNTAX_ERROR),
+					 errmsg("%s requires an integer value",
+							def->defname)));
+			break;
+		case T_String:
+			if (pg_strcasecmp(strVal(def->arg), "variable") == 0)
+				return -1;		/* variable length */
+			break;
+		case T_TypeName:
+			/* cope if grammar chooses to believe "variable" is a typename */
+			if (pg_strcasecmp(TypeNameToString((TypeName *) def->arg),
+							  "variable") == 0)
+				return -1;		/* variable length */
+			break;
+		case T_List:
+			/* must be an operator name */
+			break;
+		default:
+			elog(ERROR, "unrecognized node type: %d", (int) nodeTag(def->arg));
+	}
+	ereport(ERROR,
+			(errcode(ERRCODE_SYNTAX_ERROR),
+			 errmsg("invalid argument for %s: \"%s\"",
+					def->defname, defGetString(def))));
+	return 0;					/* keep compiler quiet */
 }
 
 /*
@@ -326,24 +328,24 @@ defGetTypeLength(DefElem *def)
 List *
 defGetStringList(DefElem *def)
 {
-    ListCell   *cell;
+	ListCell   *cell;
 
-    if (def->arg == NULL)
-        ereport(ERROR,
-                (errcode(ERRCODE_SYNTAX_ERROR),
-                 errmsg("%s requires a parameter",
-                        def->defname)));
-    if (nodeTag(def->arg) != T_List)
-        elog(ERROR, "unrecognized node type: %d", (int) nodeTag(def->arg));
+	if (def->arg == NULL)
+		ereport(ERROR,
+				(errcode(ERRCODE_SYNTAX_ERROR),
+				 errmsg("%s requires a parameter",
+						def->defname)));
+	if (nodeTag(def->arg) != T_List)
+		elog(ERROR, "unrecognized node type: %d", (int) nodeTag(def->arg));
 
-    foreach(cell, (List *) def->arg)
-    {
-        Node       *str = (Node *) lfirst(cell);
+	foreach(cell, (List *) def->arg)
+	{
+		Node	   *str = (Node *) lfirst(cell);
 
-        if (!IsA(str, String))
-            elog(ERROR, "unexpected node type in name list: %d",
-                 (int) nodeTag(str));
-    }
+		if (!IsA(str, String))
+			elog(ERROR, "unexpected node type in name list: %d",
+				 (int) nodeTag(str));
+	}
 
-    return (List *) def->arg;
+	return (List *) def->arg;
 }

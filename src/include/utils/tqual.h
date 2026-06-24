@@ -1,16 +1,13 @@
 /*-------------------------------------------------------------------------
  *
  * tqual.h
- *      POSTGRES "time qualification" definitions, ie, tuple visibility rules.
+ *	  POSTGRES "time qualification" definitions, ie, tuple visibility rules.
  *
- *      Should be moved/renamed...    - vadim 07/28/98
+ *	  Should be moved/renamed...    - vadim 07/28/98
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * This source code file contains modifications made by THL A29 Limited ("Tencent Modifications").
- * All Tencent Modifications are Copyright (C) 2023 THL A29 Limited.
- * 
  * src/include/utils/tqual.h
  *
  *-------------------------------------------------------------------------
@@ -21,24 +18,27 @@
 #include "utils/snapshot.h"
 #include "access/xlogdefs.h"
 
+/* guc parameter */
+extern bool enable_distri_visibility_print;
+extern bool enable_distri_print;
 
 /* Static variables representing various special snapshot semantics */
 extern PGDLLIMPORT SnapshotData SnapshotSelfData;
 extern PGDLLIMPORT SnapshotData SnapshotAnyData;
 extern PGDLLIMPORT SnapshotData CatalogSnapshotData;
 
-#define SnapshotSelf        (&SnapshotSelfData)
-#define SnapshotAny            (&SnapshotAnyData)
+#define SnapshotSelf		(&SnapshotSelfData)
+#define SnapshotAny			(&SnapshotAnyData)
 /*
 #ifdef _MIGRATE_
-#define SnapshotNow            (&SnapshotNowData)
+#define SnapshotNow			(&SnapshotNowData)
 #endif
 */
 
 #ifdef _MIGRATE_
-#define     SHARD_VISIBLE_MODE_VISIBLE     0
-#define        SHARD_VISIBLE_MODE_HIDDEN   1
-#define        SHARD_VISIBLE_MODE_ALL    2
+#define 	SHARD_VISIBLE_MODE_VISIBLE 	0
+#define		SHARD_VISIBLE_MODE_HIDDEN   1
+#define		SHARD_VISIBLE_MODE_ALL	2
 #endif
 
 
@@ -46,78 +46,91 @@ extern PGDLLIMPORT SnapshotData CatalogSnapshotData;
 
 /* This macro encodes the knowledge of which snapshots are MVCC-safe */
 #define IsMVCCSnapshot(snapshot)  \
+	((snapshot)->satisfies == HeapTupleSatisfiesMVCC || \
+	 (snapshot)->satisfies == HeapTupleSatisfiesHistoricMVCC)
+
+/* This macro encodes the knowledge of which snapshots need to check shardcluster Visibility. */
+#define IsSnapshotNeedCheckScVisibility(snapshot)  \
     ((snapshot)->satisfies == HeapTupleSatisfiesMVCC || \
-     (snapshot)->satisfies == HeapTupleSatisfiesHistoricMVCC)
+     (snapshot)->satisfies == HeapTupleSatisfiesSelf)
+
+#ifdef __OPENTENBASE_C__
+extern bool col_force_all_visible;
+#endif
 
 /*
  * HeapTupleSatisfiesVisibility
- *        True iff heap tuple satisfies a time qual.
+ *		True iff heap tuple satisfies a time qual.
  *
  * Notes:
- *    Assumes heap tuple is valid.
- *    Beware of multiple evaluations of snapshot argument.
- *    Hint bits in the HeapTuple's t_infomask may be updated as a side effect;
- *    if so, the indicated buffer is marked dirty.
+ *	Assumes heap tuple is valid.
+ *	Beware of multiple evaluations of snapshot argument.
+ *	Hint bits in the HeapTuple's t_infomask may be updated as a side effect;
+ *	if so, the indicated buffer is marked dirty.
  */
 #define HeapTupleSatisfiesVisibility(tuple, snapshot, buffer) \
-    ((*(snapshot)->satisfies) (tuple, snapshot, buffer))
+	((*(snapshot)->satisfies) (tuple, snapshot, buffer))
 
 /* Result codes for HeapTupleSatisfiesVacuum */
 typedef enum
 {
-    HEAPTUPLE_DEAD,                /* tuple is dead and deletable */
-    HEAPTUPLE_LIVE,                /* tuple is live (committed, no deleter) */
-    HEAPTUPLE_RECENTLY_DEAD,    /* tuple is dead, but not deletable yet */
-    HEAPTUPLE_INSERT_IN_PROGRESS,    /* inserting xact is still in progress */
-    HEAPTUPLE_DELETE_IN_PROGRESS    /* deleting xact is still in progress */
+	HEAPTUPLE_DEAD,				/* tuple is dead and deletable */
+	HEAPTUPLE_LIVE,				/* tuple is live (committed, no deleter) */
+	HEAPTUPLE_RECENTLY_DEAD,	/* tuple is dead, but not deletable yet */
+	HEAPTUPLE_INSERT_IN_PROGRESS,	/* inserting xact is still in progress */
+	HEAPTUPLE_DELETE_IN_PROGRESS	/* deleting xact is still in progress */
 } HTSV_Result;
 
 /* These are the "satisfies" test routines for the various snapshot types */
 extern bool HeapTupleSatisfiesMVCC(HeapTuple htup,
-                       Snapshot snapshot, Buffer buffer);
+					   Snapshot snapshot, Buffer buffer);
 extern bool HeapTupleSatisfiesSelf(HeapTuple htup,
-                       Snapshot snapshot, Buffer buffer);
+					   Snapshot snapshot, Buffer buffer);
 extern bool HeapTupleSatisfiesAny(HeapTuple htup,
-                      Snapshot snapshot, Buffer buffer);
+					  Snapshot snapshot, Buffer buffer);
 extern bool HeapTupleSatisfiesToast(HeapTuple htup,
-                        Snapshot snapshot, Buffer buffer);
+						Snapshot snapshot, Buffer buffer);
 extern bool HeapTupleSatisfiesDirty(HeapTuple htup,
-                        Snapshot snapshot, Buffer buffer);
+						Snapshot snapshot, Buffer buffer);
 extern bool HeapTupleSatisfiesHistoricMVCC(HeapTuple htup,
-                               Snapshot snapshot, Buffer buffer);
+							   Snapshot snapshot, Buffer buffer);
 
 #ifdef __STORAGE_SCALABLE__
 extern bool HeapTupleSatisfiesUnshard(HeapTuple htup, Snapshot snapshot, Buffer buffer);
 #endif
 
+
 /* Special "satisfies" routines with different APIs */
 extern HTSU_Result HeapTupleSatisfiesUpdate(HeapTuple htup,
-                         CommandId curcid, Buffer buffer);
+						 CommandId curcid, Buffer buffer);
 extern HTSV_Result HeapTupleSatisfiesVacuum(HeapTuple htup,
-                         TransactionId OldestXmin, Buffer buffer);
+						 TransactionId OldestXmin, Buffer buffer);
 extern bool HeapTupleIsSurelyDead(HeapTuple htup,
-                      TransactionId OldestXmin);
+					  TransactionId OldestXmin,
+					  bool within_transaction);
 
 extern void HeapTupleSetHintBits(HeapTupleHeader tuple, Buffer buffer,
-                     uint16 infomask, TransactionId xid);
+					 uint16 infomask, TransactionId xid);
 extern bool HeapTupleHeaderIsOnlyLocked(HeapTupleHeader tuple);
 /*
 #ifdef _MIGRATE_
 extern bool HeapTupleSatisfiesNow(HeapTupleHeader tuple,
-                      Snapshot snapshot, Buffer buffer);
+					  Snapshot snapshot, Buffer buffer);
 
 #endif
 */
+bool IsShardClusterInvisible(Relation rel, Snapshot snap, ShardClusterId sc_id);
+
 /*
  * To avoid leaking too much knowledge about reorderbuffer implementation
  * details this is implemented in reorderbuffer.c not tqual.c.
  */
 struct HTAB;
 extern bool ResolveCminCmaxDuringDecoding(struct HTAB *tuplecid_data,
-                              Snapshot snapshot,
-                              HeapTuple htup,
-                              Buffer buffer,
-                              CommandId *cmin, CommandId *cmax);
+							  Snapshot snapshot,
+							  HeapTuple htup,
+							  Buffer buffer,
+							  CommandId *cmin, CommandId *cmax);
 
 /*
  * We don't provide a static SnapshotDirty variable because it would be
@@ -125,15 +138,15 @@ extern bool ResolveCminCmaxDuringDecoding(struct HTAB *tuplecid_data,
  * local variable of type SnapshotData, and initialize it with this macro.
  */
 #define InitDirtySnapshot(snapshotdata)  \
-    ((snapshotdata).satisfies = HeapTupleSatisfiesDirty)
+	((snapshotdata).satisfies = HeapTupleSatisfiesDirty)
 
 /*
  * Similarly, some initialization is required for SnapshotToast.  We need
  * to set lsn and whenTaken correctly to support snapshot_too_old.
  */
 #define InitToastSnapshot(snapshotdata, l, w)  \
-    ((snapshotdata).satisfies = HeapTupleSatisfiesToast, \
-     (snapshotdata).lsn = (l),                    \
-     (snapshotdata).whenTaken = (w))
+	((snapshotdata).satisfies = HeapTupleSatisfiesToast, \
+	 (snapshotdata).lsn = (l),					\
+	 (snapshotdata).whenTaken = (w))
 
-#endif                            /* TQUAL_H */
+#endif							/* TQUAL_H */

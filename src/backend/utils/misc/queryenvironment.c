@@ -1,9 +1,9 @@
 /*-------------------------------------------------------------------------
  *
  * queryenvironment.c
- *      Query environment, to store context-specific values like ephemeral named
- *      relations.  Initial use is for named tuplestores for delta information
- *      from "normal" relations.
+ *	  Query environment, to store context-specific values like ephemeral named
+ *	  relations.  Initial use is for named tuplestores for delta information
+ *	  from "normal" relations.
  *
  * The initial implementation uses a list because the number of such relations
  * in any one context is expected to be very small.  If that becomes a
@@ -16,7 +16,7 @@
  *
  *
  * IDENTIFICATION
- *      src/backend/backend/utils/misc/queryenvironment.c
+ *	  src/backend/backend/utils/misc/queryenvironment.c
  *
  *-------------------------------------------------------------------------
  */
@@ -31,32 +31,32 @@
  */
 struct QueryEnvironment
 {
-    List       *namedRelList;
+	List	   *namedRelList;
 };
 
 
 QueryEnvironment *
 create_queryEnv()
 {
-    return (QueryEnvironment *) palloc0(sizeof(QueryEnvironment));
+	return (QueryEnvironment *) palloc0(sizeof(QueryEnvironment));
 }
 
 EphemeralNamedRelationMetadata
 get_visible_ENR_metadata(QueryEnvironment *queryEnv, const char *refname)
 {
-    EphemeralNamedRelation enr;
+	EphemeralNamedRelation enr;
 
-    Assert(refname != NULL);
+	Assert(refname != NULL);
 
-    if (queryEnv == NULL)
-        return NULL;
+	if (queryEnv == NULL)
+		return NULL;
 
-    enr = get_ENR(queryEnv, refname);
+	enr = get_ENR(queryEnv, refname);
 
-    if (enr)
-        return &(enr->md);
+	if (enr)
+		return &(enr->md);
 
-    return NULL;
+	return NULL;
 }
 
 /*
@@ -68,10 +68,10 @@ get_visible_ENR_metadata(QueryEnvironment *queryEnv, const char *refname)
 void
 register_ENR(QueryEnvironment *queryEnv, EphemeralNamedRelation enr)
 {
-    Assert(enr != NULL);
-    Assert(get_ENR(queryEnv, enr->md.name) == NULL);
+	Assert(enr != NULL);
+	Assert(get_ENR(queryEnv, enr->md.name) == NULL);
 
-    queryEnv->namedRelList = lappend(queryEnv->namedRelList, enr);
+	queryEnv->namedRelList = lappend(queryEnv->namedRelList, enr);
 }
 
 /*
@@ -81,11 +81,11 @@ register_ENR(QueryEnvironment *queryEnv, EphemeralNamedRelation enr)
 void
 unregister_ENR(QueryEnvironment *queryEnv, const char *name)
 {
-    EphemeralNamedRelation match;
+	EphemeralNamedRelation match;
 
-    match = get_ENR(queryEnv, name);
-    if (match)
-        queryEnv->namedRelList = list_delete(queryEnv->namedRelList, match);
+	match = get_ENR(queryEnv, name);
+	if (match)
+		queryEnv->namedRelList = list_delete(queryEnv->namedRelList, match);
 }
 
 /*
@@ -95,22 +95,22 @@ unregister_ENR(QueryEnvironment *queryEnv, const char *name)
 EphemeralNamedRelation
 get_ENR(QueryEnvironment *queryEnv, const char *name)
 {
-    ListCell   *lc;
+	ListCell   *lc;
 
-    Assert(name != NULL);
+	Assert(name != NULL);
 
-    if (queryEnv == NULL)
-        return NULL;
+	if (queryEnv == NULL)
+		return NULL;
 
-    foreach(lc, queryEnv->namedRelList)
-    {
-        EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(lc);
+	foreach(lc, queryEnv->namedRelList)
+	{
+		EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(lc);
 
-        if (strcmp(enr->md.name, name) == 0)
-            return enr;
-    }
+		if (strcmp(enr->md.name, name) == 0)
+			return enr;
+	}
 
-    return NULL;
+	return NULL;
 }
 
 /*
@@ -124,21 +124,21 @@ get_ENR(QueryEnvironment *queryEnv, const char *name)
 TupleDesc
 ENRMetadataGetTupDesc(EphemeralNamedRelationMetadata enrmd)
 {
-    TupleDesc    tupdesc;
+	TupleDesc	tupdesc;
 
-    /* One, and only one, of these fields must be filled. */
-    Assert((enrmd->reliddesc == InvalidOid) != (enrmd->tupdesc == NULL));
+	/* One, and only one, of these fields must be filled. */
+	Assert((enrmd->reliddesc == InvalidOid) != (enrmd->tupdesc == NULL));
 
-    if (enrmd->tupdesc != NULL)
-        tupdesc = enrmd->tupdesc;
-    else
-    {
-        Relation    relation;
+	if (enrmd->tupdesc != NULL)
+		tupdesc = enrmd->tupdesc;
+	else
+	{
+		Relation	relation;
 
-        relation = heap_open(enrmd->reliddesc, NoLock);
-        tupdesc = relation->rd_att;
-        heap_close(relation, NoLock);
-    }
+		relation = heap_open(enrmd->reliddesc, NoLock);
+		tupdesc = relation->rd_att;
+		heap_close(relation, NoLock);
+	}
 
-    return tupdesc;
+	return tupdesc;
 }

@@ -1,0 +1,69 @@
+%cn 3
+%cn_slave 1
+%dn 3
+%dn_slave1
+%gtm 1
+%gtm_slave 1
+
+connect conncn1 cn1
+
+connection conncn1
+
+create default node group default_group with ("dn1", "dn2", "dn3");
+
+create sharding group to group default_group;
+
+clean sharding;
+
+create table t(a int, b int);
+insert into t select
+generate_series(200,210);
+update
+t set b=a*a;
+
+select * from t order by a;
+
+
+disconnect conncn1
+
+stop dn1_slave1
+kill dn2
+stop dn3
+kill dn1
+
+kill gtm_slave1
+kill gtm
+
+start dn1
+kill cn1
+stop cn2_slave1
+kill cn3_slave1
+
+start gtm_slave1
+
+start dn2
+
+start cn2_slave1
+
+start dn3
+
+start cn1
+
+start cn3_slave1
+
+start gtm
+
+start dn1_slave1
+
+sleep 10
+
+
+connect conncn1 cn1
+
+connection conncn1
+
+
+select * from t order by a;
+
+
+disconnect conncn1

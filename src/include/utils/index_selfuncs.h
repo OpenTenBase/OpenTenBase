@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * index_selfuncs.h
- *      Index cost estimation functions for standard index access methods.
+ *	  Index cost estimation functions for standard index access methods.
  *
  *
  * Note: this is split out of selfuncs.h mainly to avoid importing all of the
@@ -23,52 +23,52 @@
 
 /* Functions in selfuncs.c */
 extern void brincostestimate(struct PlannerInfo *root,
-                 struct IndexPath *path,
-                 double loop_count,
-                 Cost *indexStartupCost,
-                 Cost *indexTotalCost,
-                 Selectivity *indexSelectivity,
-                 double *indexCorrelation,
-                 double *indexPages);
+				 struct IndexPath *path,
+				 double loop_count,
+				 Cost *indexStartupCost,
+				 Cost *indexTotalCost,
+				 Selectivity *indexSelectivity,
+				 double *indexCorrelation,
+				 double *indexPages);
 extern void btcostestimate(struct PlannerInfo *root,
-               struct IndexPath *path,
-               double loop_count,
-               Cost *indexStartupCost,
-               Cost *indexTotalCost,
-               Selectivity *indexSelectivity,
-               double *indexCorrelation,
-               double *indexPages);
+			   struct IndexPath *path,
+			   double loop_count,
+			   Cost *indexStartupCost,
+			   Cost *indexTotalCost,
+			   Selectivity *indexSelectivity,
+			   double *indexCorrelation,
+			   double *indexPages);
 extern void hashcostestimate(struct PlannerInfo *root,
-                 struct IndexPath *path,
-                 double loop_count,
-                 Cost *indexStartupCost,
-                 Cost *indexTotalCost,
-                 Selectivity *indexSelectivity,
-                 double *indexCorrelation,
-                 double *indexPages);
+				 struct IndexPath *path,
+				 double loop_count,
+				 Cost *indexStartupCost,
+				 Cost *indexTotalCost,
+				 Selectivity *indexSelectivity,
+				 double *indexCorrelation,
+				 double *indexPages);
 extern void gistcostestimate(struct PlannerInfo *root,
-                 struct IndexPath *path,
-                 double loop_count,
-                 Cost *indexStartupCost,
-                 Cost *indexTotalCost,
-                 Selectivity *indexSelectivity,
-                 double *indexCorrelation,
-                 double *indexPages);
+				 struct IndexPath *path,
+				 double loop_count,
+				 Cost *indexStartupCost,
+				 Cost *indexTotalCost,
+				 Selectivity *indexSelectivity,
+				 double *indexCorrelation,
+				 double *indexPages);
 extern void spgcostestimate(struct PlannerInfo *root,
-                struct IndexPath *path,
-                double loop_count,
-                Cost *indexStartupCost,
-                Cost *indexTotalCost,
-                Selectivity *indexSelectivity,
-                double *indexCorrelation,
-                double *indexPages);
+				struct IndexPath *path,
+				double loop_count,
+				Cost *indexStartupCost,
+				Cost *indexTotalCost,
+				Selectivity *indexSelectivity,
+				double *indexCorrelation,
+				double *indexPages);
 extern void gincostestimate(struct PlannerInfo *root,
-                struct IndexPath *path,
-                double loop_count,
-                Cost *indexStartupCost,
-                Cost *indexTotalCost,
-                Selectivity *indexSelectivity,
-                double *indexCorrelation,
-                double *indexPages);
+				struct IndexPath *path,
+				double loop_count,
+				Cost *indexStartupCost,
+				Cost *indexTotalCost,
+				Selectivity *indexSelectivity,
+				double *indexCorrelation,
+				double *indexPages);
 
-#endif                            /* INDEX_SELFUNCS_H */
+#endif							/* INDEX_SELFUNCS_H */

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * regproc.h
- *      Functions for the built-in types regproc, regclass, regtype, etc.
+ *	  Functions for the built-in types regproc, regclass, regtype, etc.
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -19,10 +19,12 @@ extern List *stringToQualifiedNameList(const char *string);
 extern char *format_procedure(Oid procedure_oid);
 extern char *format_procedure_qualified(Oid procedure_oid);
 extern void format_procedure_parts(Oid operator_oid, List **objnames,
-                       List **objargs);
+					   List **objargs);
 extern char *format_operator(Oid operator_oid);
 extern char *format_operator_qualified(Oid operator_oid);
 extern void format_operator_parts(Oid operator_oid, List **objnames,
-                      List **objargs);
+					  List **objargs);
 
+extern List *stringToQualifiedNameListAsPG(const char *string);
+extern Oid regprocedurein_ext(char *pro_name_or_oid, bool is_missing);
 #endif

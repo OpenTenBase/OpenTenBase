@@ -1,0 +1,98 @@
+-- 公用插入函数
+--\c regression
+drop procedure if exists insert_data_start(starts int,table_num int, table_name text);
+create or REPLACE procedure insert_data_start(starts int,table_num int, table_name text)
+as $$
+declare
+    v_sql text;
+BEGIN
+    v_sql := 'insert into '||table_name||'(c0,c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13,c14,c15,c16,c17,c18,c19,c20,c21,c22,c23,c24,c25,c26,c27,c31,c32) select i, repeat((i%365)::text,5)::bytea, (i%10)::char, int8(i%550), int2(i%127), int4(i%789),round(i%20*2.5866,3)::numeric, bpchar(md5((i%300)::text)), (''工号:''||(i%360))::varchar, ''南山''||(i%400)||''>号''::TEXT, md5((i%300)::TEXT), (i%666)::bigint::oid, ((i%200)*2.35)::float4, float8((i%300)*2.215), ''abstime ''||(i%765), ''reltime ''||(i%332), ''tinterval ''||(i%378), concat(concat_ws(''.'',(i+100)%200, i%100,i%100,(i+100)%200),''/25'')::inet, date(abstime(''2022-02-17 19:12:40+08''::timestamp + (i%500+1))), ''00:00:00'' + (i%400+1) * interval ''1 minute'', (date(''2022-02-18'')+(i%24) * interval ''1 day''+(i%24) * interval ''1 minute''+(i%24) * interval ''1 second'')::timestamp,timestamptz((date(date(''2022-02-18'')+(i%24) * interval ''1 day'')),(date ''2022-02-18'' + (i%365) * interval ''10 hour'')::time without time zone),(i%500) * interval ''1 day'',timetz(''2022-02-16 17:29:13.9+08''::timestamp + (i%500)*interval ''1 second''), concat(concat_ws(''.'',(i+100)%200, i%100,i%100,(i+100)%200),''/25'')::inet, int4(i%10)::bit(5), (i%100+1)::int::bit(5)::varbit(5), bool(i::int4), array(select round(random()*100) from generate_series(1,5)),array(select array(select round(random()*100) from generate_series(1,5)) from generate_series(1,5)) from generate_series('||starts||','||table_num||') i';
+-- RAISE notice '%', v_sql;
+execute v_sql;
+end;
+$$LANGUAGE default_plsql;
+
+-- 普通shard表
+drop table if exists col_vec_qm_type_shard_1;
+create table col_vec_qm_type_shard_1(c0 INTEGER,c1 BYTEA default '',c2 CHAR default 'a',c3 INT8 default 0,c4 INT2 default -1,c5 INT4 default -1,c6 numeric default 0.1,c7 BPCHAR default '',c8 VARCHAR default '',c9 text default '',c10 TEXT default '',c11 OID default 1,c12 FLOAT4 default 0.1,c13 FLOAT8 default 0.1,c14 text default 'abstime',c15 varchar default '00:05:04',c16 varchar default 'tinterval(abstime(now()), abstime(now()))',c17 INET default '148.85.65.189/25',c18 DATE default '2022-02-16 14:25:25',c19 TIME default '14:25:03',c20 TIMESTAMP default current_timestamp,c21 TIMESTAMPTZ default current_timestamp,c22 INTERVAL default interval '1 hour',c23 TIMETZ default '14:36:04+08',c24 CIDR default '198.24.10.0/24',c25 bit varying(5) default '',c26 VARBIT default '',c27 bool default false,c28 serial,c29 bigserial,c30 bigserial,c31 int[] default array[1,2],c32 varchar(32)[][] default array[[1,2,3],[4,5,6]])  distribute by shard(c0);
+
+call insert_data_start(1,1000,'col_vec_qm_type_shard_1');
+
+--复制表
+drop table if exists col_vec_qm_type_replic_1;
+create table col_vec_qm_type_replic_1(c0 INTEGER,c1 BYTEA default '',c2 CHAR default 'a',c3 INT8 default 0,c4 INT2 default -1,c5 INT4 default -1,c6 numeric default 0.1,c7 BPCHAR default '',c8 VARCHAR default '',c9 text default '',c10 TEXT default '',c11 OID default 1,c12 FLOAT4 default 0.1,c13 FLOAT8 default 0.1,c14 text default 'abstime',c15 varchar default '00:05:04',c16 varchar default 'tinterval(abstime(now()), abstime(now()))',c17 INET default '148.85.65.189/25',c18 DATE default '2022-02-16 14:25:25',c19 TIME default '14:25:03',c20 TIMESTAMP default current_timestamp,c21 TIMESTAMPTZ default current_timestamp,c22 INTERVAL default interval '1 hour',c23 TIMETZ default '14:36:04+08',c24 CIDR default '198.24.10.0/24',c25 bit varying(5) default '',c26 VARBIT default '',c27 bool default false,c28 serial,c29 bigserial,c30 bigserial,c31 int[] default array[1,2],c32 varchar(32)[][] default array[[1,2,3],[4,5,6]]) distribute by replication;
+call insert_data_start(1,1000,'col_vec_qm_type_replic_1');
+
+--range分区表drop table if exists col_vec_qm_type_partition_range;
+create table col_vec_qm_type_partition_range(c0 INTEGER,c1 BYTEA default '',c2 CHAR default 'a',c3 INT8 default 0,c4 INT2 default -1,c5 INT4 default -1,c6 numeric default 0.1,c7 BPCHAR default '',c8 VARCHAR default '',c9 text default '',c10 TEXT default '',c11 OID default 1,c12 FLOAT4 default 0.1,c13 FLOAT8 default 0.1,c14 text default 'abstime',c15 varchar default '00:05:04',c16 varchar default 'tinterval(abstime(now()), abstime(now()))',c17 INET default '148.85.65.189/25',c18 DATE default '2022-02-16 14:25:25',c19 TIME default '14:25:03',c20 TIMESTAMP default current_timestamp,c21 TIMESTAMPTZ default current_timestamp,c22 INTERVAL default interval '1 hour',c23 TIMETZ default '14:36:04+08',c24 CIDR default '198.24.10.0/24',c25 bit varying(5) default '',c26 VARBIT default '',c27 bool default false,c28 serial,c29 bigserial,c30 bigserial,c31 int[] default array[1,2],c32 varchar(32)[][] default array[[1,2,3],[4,5,6]]) partition by range(c20) distribute by shard(c0);
+
+--二级分区
+create table col_vec_qm_type_partition_range_1 partition of col_vec_qm_type_partition_range for values from ('2022-02-18') to ('2022-02-26');
+create table col_vec_qm_type_partition_range_2 partition of col_vec_qm_type_partition_range for values from ('2022-02-26') to ('2022-03-04');
+create table col_vec_qm_type_partition_range_3 partition of col_vec_qm_type_partition_range for values from ('2022-03-04') to ('2022-03-14');
+
+call insert_data_start(1,1000,'col_vec_qm_type_partition_range');
+
+
+--list分区表
+drop table if exists col_vec_qm_type_partition_list;
+create table col_vec_qm_type_partition_list(c0 INTEGER,c1 BYTEA default '',c2 CHAR default 'a',c3 INT8 default 0,c4 INT2 default -1,c5 INT4 default -1,c6 numeric default 0.1,c7 BPCHAR default '',c8 VARCHAR default '',c9 text default '',c10 TEXT default '',c11 OID default 1,c12 FLOAT4 default 0.1,c13 FLOAT8 default 0.1,c14 text default 'abstime',c15 varchar default '00:05:04',c16 varchar default 'tinterval(abstime(now()), abstime(now()))',c17 INET default '148.85.65.189/25',c18 DATE default '2022-02-16 14:25:25',c19 TIME default '14:25:03',c20 TIMESTAMP default current_timestamp,c21 TIMESTAMPTZ default current_timestamp,c22 INTERVAL default interval '1 hour',c23 TIMETZ default '14:36:04+08',c24 CIDR default '198.24.10.0/24',c25 bit varying(5) default '',c26 VARBIT default '',c27 bool default false,c28 serial,c29 bigserial,c30 bigserial,c31 int[] default array[1,2],c32 varchar(32)[][] default array[[1,2,3],[4,5,6]]) partition by list(c27) distribute by shard(c0);
+
+--二级分区
+create table col_vec_qm_type_partition_list_1 partition of col_vec_qm_type_partition_list for values in (false) ;
+create table col_vec_qm_type_partition_list_2 partition of col_vec_qm_type_partition_list for values in (true) partition by range(c20);
+--三级分区
+create table col_vec_qm_type_partition_list_2_1 partition of col_vec_qm_type_partition_list_2 for values from ('2022-02-18') to ('2022-02-28');
+create table col_vec_qm_type_partition_list_2_2 partition of col_vec_qm_type_partition_list_2 for values from ('2022-02-28') to ('2022-03-08');
+create table col_vec_qm_type_partition_list_2_3 partition of col_vec_qm_type_partition_list_2 for values from ('2022-03-08') to ('2022-03-18');
+
+
+call insert_data_start(1,1000,'col_vec_qm_type_partition_list');
+
+-- in 5.06.5 sqlsmith test, this query will cause dn coredump which not expected
+MERGE INTO public.col_vec_qm_type_partition_range as target_0 USING (select
+(select 'squeeze_log') as c0,
+subq_6.c3 as c1,
+ref_8.c17 as c2,
+14 as c3
+from
+public.col_vec_qm_type_partition_list_2 as ref_8,
+    lateral (select
+          sample_5.c2 as c0,
+          ref_8.c26 as c1,
+          sample_5.c14 as c2,
+          sample_5.c10 as c3,
+          sample_5.c8 as c4,
+          sample_5.c25 as c5
+        from
+          public.col_vec_qm_type_partition_range_2 as sample_5 tablesample bernoulli (0.3)
+        where cast(null as tsvector) <= cast(null as tsvector)
+        limit 87) as subq_6
+  where (select pg_catalog.max(c21) from public.col_vec_qm_type_partition_range)
+       > ref_8.c20
+  limit 152) as subq_7 right join (select ref_9.c19 as c0, ref_9.c18 as c1,
+  pg_catalog.smgrin(cast(cast(null as cstring) as cstring)) as c2,
+    ref_9.c15 as c3 from public.col_vec_qm_type_partition_list_2_1 as ref_9
+  where ref_9.c5 < ref_9.c0 limit 151) as subq_8 on ((subq_8.c3 is not NULL)
+  and ((select c25 from public.col_vec_qm_type_replic_1 limit 1 offset 98)
+  <= cast(null as varbit)))
+  ON target_0.c0 = subq_7.c3
+  WHEN NOT MATCHED THEN
+  INSERT ( c1, c4, c5, c6, c8, c10, c15, c18, c20, c22, c23, c25, c26, c27, c28, c29 ) VALUES
+  ( cast(null as bytea), cast(null as int2), 92, cast(null as "numeric"), cast(null as "varchar"),
+   cast(null as text), cast(null as "varchar"), cast(null as date), cast(null as "timestamp"), 
+   cast(null as "interval"), cast(null as timetz), cast(null as varbit), cast(null as varbit), 
+   false, 27, cast(null as int8) )
+  WHEN MATCHED AND (cast(null as polygon) <@ cast(null as polygon)) and (false = pg_catalog.pg_reload_conf()) THEN
+  UPDATE SET c1 = target_0.c1, c4 = target_0.c4, c5 = target_0.c0, 
+  c6 = 123, c8 = 'dfjk', 
+  c10 = target_0.c14, c15 = target_0.c8, c18 = target_0.c18, c20 = target_0.c20, 
+  c22 = target_0.c22, c23 = target_0.c23, c25 = target_0.c25, c26 = target_0.c25, 
+  c27 = target_0.c27, c28 = target_0.c5, c29 = target_0.c30 ;
+
+drop table col_vec_qm_type_shard_1;
+drop table col_vec_qm_type_replic_1;
+drop table col_vec_qm_type_partition_range;
+drop table col_vec_qm_type_partition_list;
+drop procedure if exists insert_data_start(starts int,table_num int, table_name text);
+

@@ -1,0 +1,88 @@
+\c regression_ora
+drop table if exists pl_tab;
+NOTICE:  table "PL_TAB" does not exist, skipping
+create table pl_tab(a int, b int);
+-- case 1
+-- oraplsql -> plpgsql
+-- report error because commit used in plpgsql
+create or replace procedure ora_pro() AS
+$$
+BEGIN
+	call pg_pro1();
+	call pg_pro();
+	insert into pl_tab values(2, 2);
+    commit;
+	exception
+	when others then
+		raise notice 'ora_pro excpetion:%', sqlerrm;
+end;
+$$ language oraplsql;
+create or replace procedure pg_pro() AS
+$$
+BEGIN
+	insert into pl_tab values(1, 1);
+	commit;
+    EXCEPTION
+    when others then
+		raise notice 'pg_pro excpetion:%', sqlerrm;
+end;
+$$ language plpgsql;
+create or replace procedure pg_pro1() AS
+$$
+BEGIN
+	insert into pl_tab values(0, 0);
+    EXCEPTION
+    when others then
+		raise notice 'pg_pro excpetion:%', sqlerrm;
+end;
+$$ language plpgsql;
+call ora_pro();
+NOTICE:  ora_pro excpetion:SPI check failed! Cross-used oraplsql with plpgsql is not allowed!
+select * from pl_tab order by a;
+ A | B 
+---+---
+(0 rows)
+
+delete from pl_tab;
+-- case 2
+-- plpgsql -> oraplsql
+-- commit/rollback can NOT be used in ORA plsql.
+create or replace procedure ora_pro1() AS
+$$
+BEGIN
+    insert into pl_tab values(1,1);
+	raise notice 'ora_pro1 insert ok';
+end;
+$$ language oraplsql;
+create or replace procedure ora_pro() AS
+$$
+BEGIN
+    commit;
+end;
+$$ language oraplsql;
+create or replace procedure pg_pro() AS
+$$
+BEGIN
+    call ora_pro1();
+    call ora_pro();
+    EXCEPTION
+    when others then
+		raise notice 'pg_pro excpetion:%', sqlerrm;
+end;
+$$ language plpgsql;
+call pg_pro();
+NOTICE:  pg_pro excpetion:SPI check failed! Cross-used oraplsql with plpgsql is not allowed!
+-- case 3
+-- use commit in plpgsql is not allowed.
+create or replace procedure pxx() AS
+$$
+BEGIN
+    commit;
+	EXCEPTION
+		when others then
+			raise notice 'error: %', sqlerrm;
+			commit;
+end;
+$$ language plpgsql;
+call pxx();
+NOTICE:  error: cannot commit while a subtransaction is active

@@ -28,6 +28,7 @@ $keyword_categories{'unreserved_keyword'}     = 'UNRESERVED_KEYWORD';
 $keyword_categories{'col_name_keyword'}       = 'COL_NAME_KEYWORD';
 $keyword_categories{'type_func_name_keyword'} = 'TYPE_FUNC_NAME_KEYWORD';
 $keyword_categories{'reserved_keyword'}       = 'RESERVED_KEYWORD';
+$keyword_categories{'pkg_reserved_keyword'}       = 'PKG_RESERVED_KEYWORD';
 
 open(my $gram, '<', $gram_filename) || die("Could not open : $gram_filename");
 
@@ -159,11 +160,11 @@ kwlist_line: while (<$kwlist>)
 {
 	my ($line) = $_;
 
-	if ($line =~ /^PG_KEYWORD\(\"(.*)\", (.*), (.*)\)/)
+	if ($line =~ /^(PG|ORA)_KEYWORD\(\"(.*)\", (.*), (.*)\)/)
 	{
-		my ($kwstring) = $1;
-		my ($kwname)   = $2;
-		my ($kwcat_id) = $3;
+		my ($kwstring) = $2;
+		my ($kwname)   = $3;
+		my ($kwcat_id) = $4;
 
 		# Check that the list is in alphabetical order (critical!)
 		if ($kwstring le $prevkwstring)
@@ -225,11 +226,14 @@ close $kwlist;
 # Check that we've paired up all keywords from gram.y with lines in kwlist.h
 while (my ($kwcat, $kwcat_id) = each(%keyword_categories))
 {
-	%kwhash = %{ $kwhashes{$kwcat_id} };
-
-	for my $kw (keys %kwhash)
+	if (${kwhashes}{$kwcat_id})
 	{
-		error "'$kw' found in gram.y $kwcat category, but not in kwlist.h";
+		%kwhash = %{ $kwhashes{$kwcat_id} };
+
+		for my $kw (keys %kwhash)
+		{
+			error "'$kw' found in gram.y or gram_ora.y $kwcat category, but not in kwlist.h";
+		}
 	}
 }
 

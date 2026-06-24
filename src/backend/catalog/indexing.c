@@ -1,21 +1,22 @@
 /*-------------------------------------------------------------------------
  *
  * indexing.c
- *      This file contains routines to support indexes defined on system
- *      catalogs.
+ *	  This file contains routines to support indexes defined on system
+ *	  catalogs.
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
  * IDENTIFICATION
- *      src/backend/catalog/indexing.c
+ *	  src/backend/catalog/indexing.c
  *
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
 
 #include "access/htup_details.h"
+#include "access/xact.h"
 #include "catalog/index.h"
 #include "catalog/indexing.h"
 #include "executor/executor.h"
@@ -39,16 +40,16 @@
 CatalogIndexState
 CatalogOpenIndexes(Relation heapRel)
 {
-    ResultRelInfo *resultRelInfo;
+	ResultRelInfo *resultRelInfo;
 
-    resultRelInfo = makeNode(ResultRelInfo);
-    resultRelInfo->ri_RangeTableIndex = 1;    /* dummy */
-    resultRelInfo->ri_RelationDesc = heapRel;
-    resultRelInfo->ri_TrigDesc = NULL;    /* we don't fire triggers */
+	resultRelInfo = makeNode(ResultRelInfo);
+	resultRelInfo->ri_RangeTableIndex = 1;	/* dummy */
+	resultRelInfo->ri_RelationDesc = heapRel;
+	resultRelInfo->ri_TrigDesc = NULL;	/* we don't fire triggers */
 
-    ExecOpenIndices(resultRelInfo, false);
+	ExecOpenIndices(resultRelInfo, false);
 
-    return resultRelInfo;
+	return resultRelInfo;
 }
 
 /*
@@ -57,8 +58,8 @@ CatalogOpenIndexes(Relation heapRel)
 void
 CatalogCloseIndexes(CatalogIndexState indstate)
 {
-    ExecCloseIndices(indstate);
-    pfree(indstate);
+	ExecCloseIndices(indstate);
+	pfree(indstate);
 }
 
 /*
@@ -71,79 +72,100 @@ CatalogCloseIndexes(CatalogIndexState indstate)
 static void
 CatalogIndexInsert(CatalogIndexState indstate, HeapTuple heapTuple)
 {
-    int            i;
-    int            numIndexes;
-    RelationPtr relationDescs;
-    Relation    heapRelation;
-    TupleTableSlot *slot;
-    IndexInfo **indexInfoArray;
-    Datum        values[INDEX_MAX_KEYS];
-    bool        isnull[INDEX_MAX_KEYS];
+	int			i;
+	int			numIndexes;
+	RelationPtr relationDescs;
+	Relation	heapRelation;
+	TupleTableSlot *slot;
+	IndexInfo **indexInfoArray;
+	Datum		values[INDEX_MAX_KEYS];
+	bool		isnull[INDEX_MAX_KEYS];
 
-    /* HOT update does not require index inserts */
-    if (HeapTupleIsHeapOnly(heapTuple))
-        return;
+	/*
+	 * HOT update does not require index inserts. But with asserts enabled we
+	 * want to check that it'd be legal to currently insert into the
+	 * table/index.
+	 */
+#ifndef USE_ASSERT_CHECKING
+	if (HeapTupleIsHeapOnly(heapTuple))
+		return;
+#endif
 
-    /*
-     * Get information from the state structure.  Fall out if nothing to do.
-     */
-    numIndexes = indstate->ri_NumIndices;
-    if (numIndexes == 0)
-        return;
-    relationDescs = indstate->ri_IndexRelationDescs;
-    indexInfoArray = indstate->ri_IndexRelationInfo;
-    heapRelation = indstate->ri_RelationDesc;
+	/*
+	 * Get information from the state structure.  Fall out if nothing to do.
+	 */
+	numIndexes = indstate->ri_NumIndices;
+	if (numIndexes == 0)
+		return;
+	relationDescs = indstate->ri_IndexRelationDescs;
+	indexInfoArray = indstate->ri_IndexRelationInfo;
+	heapRelation = indstate->ri_RelationDesc;
 
-    /* Need a slot to hold the tuple being examined */
-    slot = MakeSingleTupleTableSlot(RelationGetDescr(heapRelation));
-    ExecStoreTuple(heapTuple, slot, InvalidBuffer, false);
+	/* Need a slot to hold the tuple being examined */
+	slot = MakeSingleTupleTableSlot(RelationGetDescr(heapRelation));
+	ExecStoreHeapTuple(heapTuple, slot, false);
 
-    /*
-     * for each index, form and insert the index tuple
-     */
-    for (i = 0; i < numIndexes; i++)
-    {
-        IndexInfo  *indexInfo;
+	/*
+	 * for each index, form and insert the index tuple
+	 */
+	for (i = 0; i < numIndexes; i++)
+	{
+		IndexInfo  *indexInfo;
+#ifdef USE_ASSERT_CHECKING
+		Relation	index;
+#endif
 
-        indexInfo = indexInfoArray[i];
+		indexInfo = indexInfoArray[i];
+#ifdef USE_ASSERT_CHECKING
+		index = relationDescs[i];
+#endif
 
-        /* If the index is marked as read-only, ignore it */
-        if (!indexInfo->ii_ReadyForInserts)
-            continue;
+		/* If the index is marked as read-only, ignore it */
+		if (!indexInfo->ii_ReadyForInserts)
+			continue;
 
-        /*
-         * Expressional and partial indexes on system catalogs are not
-         * supported, nor exclusion constraints, nor deferred uniqueness
-         */
-        Assert(indexInfo->ii_Expressions == NIL);
-        Assert(indexInfo->ii_Predicate == NIL);
-        Assert(indexInfo->ii_ExclusionOps == NULL);
-        Assert(relationDescs[i]->rd_index->indimmediate);
+		/*
+		 * Expressional and partial indexes on system catalogs are not
+		 * supported, nor exclusion constraints, nor deferred uniqueness
+		 */
+		Assert(indexInfo->ii_Expressions == NIL);
+		Assert(indexInfo->ii_Predicate == NIL);
+		Assert(indexInfo->ii_ExclusionOps == NULL);
+#ifdef USE_ASSERT_CHECKING
+		Assert(index->rd_index->indimmediate);
 
-        /*
-         * FormIndexDatum fills in its values and isnull parameters with the
-         * appropriate values for the column(s) of the index.
-         */
-        FormIndexDatum(indexInfo,
-                       slot,
-                       NULL,    /* no expression eval to do */
-                       values,
-                       isnull);
+		/* see earlier check above */
+		if (HeapTupleIsHeapOnly(heapTuple))
+		{
+			Assert(!ReindexIsProcessingIndex(RelationGetRelid(index)));
+			continue;
+		}
+#endif /* USE_ASSERT_CHECKING */
 
-        /*
-         * The index AM does the rest.
-         */
-        index_insert(relationDescs[i],    /* index relation */
-                     values,    /* array of index Datums */
-                     isnull,    /* is-null flags */
-                     &(heapTuple->t_self),    /* tid of heap tuple */
-                     heapRelation,
-                     relationDescs[i]->rd_index->indisunique ?
-                     UNIQUE_CHECK_YES : UNIQUE_CHECK_NO,
-                     indexInfo);
-    }
+		/*
+		 * FormIndexDatum fills in its values and isnull parameters with the
+		 * appropriate values for the column(s) of the index.
+		 */
+		FormIndexDatum(indexInfo,
+					   slot,
+					   NULL,	/* no expression eval to do */
+					   values,
+					   isnull);
 
-    ExecDropSingleTupleTableSlot(slot);
+		/*
+		 * The index AM does the rest.
+		 */
+		index_insert(relationDescs[i],	/* index relation */
+					 values,	/* array of index Datums */
+					 isnull,	/* is-null flags */
+					 &(heapTuple->t_self),	/* tid of heap tuple */
+					 heapRelation,
+					 relationDescs[i]->rd_index->indisunique ?
+					 UNIQUE_CHECK_YES : UNIQUE_CHECK_NO,
+					 indexInfo);
+	}
+
+	ExecDropSingleTupleTableSlot(slot);
 }
 
 /*
@@ -161,17 +183,17 @@ CatalogIndexInsert(CatalogIndexState indstate, HeapTuple heapTuple)
 Oid
 CatalogTupleInsert(Relation heapRel, HeapTuple tup)
 {
-    CatalogIndexState indstate;
-    Oid            oid;
+	CatalogIndexState indstate;
+	Oid			oid;
 
-    indstate = CatalogOpenIndexes(heapRel);
+	indstate = CatalogOpenIndexes(heapRel);
 
-    oid = simple_heap_insert(heapRel, tup);
+	oid = simple_heap_insert(heapRel, tup);
 
-    CatalogIndexInsert(indstate, tup);
-    CatalogCloseIndexes(indstate);
+	CatalogIndexInsert(indstate, tup);
+	CatalogCloseIndexes(indstate);
 
-    return oid;
+	return oid;
 }
 
 /*
@@ -184,15 +206,15 @@ CatalogTupleInsert(Relation heapRel, HeapTuple tup)
  */
 Oid
 CatalogTupleInsertWithInfo(Relation heapRel, HeapTuple tup,
-                           CatalogIndexState indstate)
+						   CatalogIndexState indstate)
 {
-    Oid            oid;
+	Oid			oid;
 
-    oid = simple_heap_insert(heapRel, tup);
+	oid = simple_heap_insert(heapRel, tup);
 
-    CatalogIndexInsert(indstate, tup);
+	CatalogIndexInsert(indstate, tup);
 
-    return oid;
+	return oid;
 }
 
 /*
@@ -209,14 +231,56 @@ CatalogTupleInsertWithInfo(Relation heapRel, HeapTuple tup,
 void
 CatalogTupleUpdate(Relation heapRel, ItemPointer otid, HeapTuple tup)
 {
-    CatalogIndexState indstate;
+	CatalogIndexState indstate;
 
-    indstate = CatalogOpenIndexes(heapRel);
+	indstate = CatalogOpenIndexes(heapRel);
 
-    simple_heap_update(heapRel, otid, tup);
+	simple_heap_update(heapRel, otid, tup);
 
-    CatalogIndexInsert(indstate, tup);
-    CatalogCloseIndexes(indstate);
+	CatalogIndexInsert(indstate, tup);
+	CatalogCloseIndexes(indstate);
+}
+
+/*
+ * same with CatalogTupleUpdate, but no error when HeapTupleUpdated
+*/
+HTSU_Result
+CatalogTupleUpdateNoError(Relation heapRel, ItemPointer otid, HeapTuple tup)
+{
+	CatalogIndexState indstate;
+	HTSU_Result result;
+	HeapUpdateFailureData hufd;
+	LockTupleMode lockmode;
+	indstate = CatalogOpenIndexes(heapRel);
+	result = heap_update(heapRel, otid, tup,
+						 GetCurrentCommandId(true), InvalidSnapshot,
+						 true /* wait for commit */ ,
+						 &hufd, &lockmode, NULL);
+	switch (result)
+	{
+		case HeapTupleSelfUpdated:
+			/* Tuple was already updated in current command? */
+			break;
+	
+		case HeapTupleMayBeUpdated:
+			/* done successfully */
+			break;
+	
+		case HeapTupleUpdated:
+			if (IsolationUsesXactSnapshot())
+				ereport(ERROR,
+						(errcode(ERRCODE_T_R_SERIALIZATION_FAILURE),
+						 errmsg("could not serialize access due to concurrent update")));
+			elog(LOG, "tuple concurrently updated, try again");
+			CatalogCloseIndexes(indstate);
+			return result;
+		default:
+			elog(ERROR, "unrecognized heap_update status: %u", result);
+			break;
+	}
+	CatalogIndexInsert(indstate, tup);
+	CatalogCloseIndexes(indstate);
+	return result;
 }
 
 /*
@@ -229,11 +293,11 @@ CatalogTupleUpdate(Relation heapRel, ItemPointer otid, HeapTuple tup)
  */
 void
 CatalogTupleUpdateWithInfo(Relation heapRel, ItemPointer otid, HeapTuple tup,
-                           CatalogIndexState indstate)
+						   CatalogIndexState indstate)
 {
-    simple_heap_update(heapRel, otid, tup);
+	simple_heap_update(heapRel, otid, tup);
 
-    CatalogIndexInsert(indstate, tup);
+	CatalogIndexInsert(indstate, tup);
 }
 
 /*
@@ -254,5 +318,6 @@ CatalogTupleUpdateWithInfo(Relation heapRel, ItemPointer otid, HeapTuple tup,
 void
 CatalogTupleDelete(Relation heapRel, ItemPointer tid)
 {
-    simple_heap_delete(heapRel, tid);
+	simple_heap_delete(heapRel, tid);
 }
+

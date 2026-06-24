@@ -1,14 +1,14 @@
 /*-------------------------------------------------------------------------
  *
  * quotes.c
- *      string quoting and escaping functions
+ *	  string quoting and escaping functions
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
  * IDENTIFICATION
- *      src/port/quotes.c
+ *	  src/port/quotes.c
  *
  *-------------------------------------------------------------------------
  */
@@ -32,20 +32,20 @@
 char *
 escape_single_quotes_ascii(const char *src)
 {
-    int            len = strlen(src),
-                i,
-                j;
-    char       *result = malloc(len * 2 + 1);
+	int			len = strlen(src),
+				i,
+				j;
+	char	   *result = malloc(len * 2 + 1);
 
-    if (!result)
-        return NULL;
+	if (!result)
+		return NULL;
 
-    for (i = 0, j = 0; i < len; i++)
-    {
-        if (SQL_STR_DOUBLE(src[i], true))
-            result[j++] = src[i];
-        result[j++] = src[i];
-    }
-    result[j] = '\0';
-    return result;
+	for (i = 0, j = 0; i < len; i++)
+	{
+		if (SQL_STR_DOUBLE(src[i], true))
+			result[j++] = src[i];
+		result[j++] = src[i];
+	}
+	result[j] = '\0';
+	return result;
 }

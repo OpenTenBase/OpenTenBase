@@ -1,6 +1,82 @@
--- Currently this tests polymorphic aggregates and indirectly does some
--- testing of polymorphic SQL functions.  It ought to be extended.
+--
+-- Tests for polymorphic SQL functions and aggregates based on them.
 -- Tests for other features related to function-calling have snuck in, too.
+--
+create function polyf(x anyelement) returns anyelement as $$
+  select x + 1
+$$ language sql;
+select polyf(42) as int, polyf(4.5) as num;
+ int | num 
+-----+-----
+  43 | 5.5
+(1 row)
+
+select polyf(point(3,4));  -- fail for lack of + operator
+ERROR:  operator does not exist: point + integer
+LINE 2:   select x + 1
+                   ^
+HINT:  No operator matches the given name and argument type(s). You might need to add explicit type casts.
+ while processing column polyf
+QUERY:  
+  select x + 1
+
+CONTEXT:  SQL function "polyf" during inlining
+drop function polyf(x anyelement);
+create function polyf(x anyelement) returns anyarray as $$
+  select array[x + 1, x + 2]
+$$ language sql;
+select polyf(42) as int, polyf(4.5) as num;
+   int   |    num    
+---------+-----------
+ {43,44} | {5.5,6.5}
+(1 row)
+
+drop function polyf(x anyelement);
+create function polyf(x anyarray) returns anyelement as $$
+  select x[1]
+$$ language sql;
+select polyf(array[2,4]) as int, polyf(array[4.5, 7.7]) as num;
+ int | num 
+-----+-----
+   2 | 4.5
+(1 row)
+
+select polyf(stavalues1) from pg_statistic;  -- fail, can't infer element type
+ERROR:  argument declared anyarray is not an array but type anyarray
+drop function polyf(x anyarray);
+create function polyf(x anyarray) returns anyarray as $$
+  select x
+$$ language sql;
+select polyf(array[2,4]) as int, polyf(array[4.5, 7.7]) as num;
+  int  |    num    
+-------+-----------
+ {2,4} | {4.5,7.7}
+(1 row)
+
+select polyf(stavalues1) from pg_statistic;  -- fail, can't infer element type
+ERROR:  return type anyarray is not supported for SQL functions
+HINT:   while processing column polyf
+CONTEXT:  SQL function "polyf" during inlining
+drop function polyf(x anyarray);
+-- fail, can't infer type:
+create function polyf(x anyelement) returns anyrange as $$
+  select array[x + 1, x + 2]
+$$ language sql;
+ERROR:  cannot determine result data type
+DETAIL:  A function returning "anyrange" must have at least one "anyrange" argument.
+create function polyf(x anyrange) returns anyarray as $$
+  select array[lower(x), upper(x)]
+$$ language sql;
+select polyf(int4range(42, 49)) as int, polyf(float8range(4.5, 7.8)) as num;
+   int   |    num    
+---------+-----------
+ {42,49} | {4.5,7.8}
+(1 row)
+
+drop function polyf(x anyrange);
+--
+-- Polymorphic aggregate tests
+--
 -- Legend:
 -----------
 -- A = type is ANY
@@ -915,10 +991,10 @@ select dfunc();
 
 -- verify it lists properly
 \df dfunc
-                                           List of functions
- Schema | Name  | Result data type |                    Argument data types                    |  Type  
---------+-------+------------------+-----------------------------------------------------------+--------
- public | dfunc | integer          | a integer DEFAULT 1, OUT sum integer, b integer DEFAULT 2 | normal
+                                          List of functions
+ Schema | Name  | Result data type |                    Argument data types                    | Type 
+--------+-------+------------------+-----------------------------------------------------------+------
+ public | dfunc | integer          | a integer DEFAULT 1, OUT sum integer, b integer DEFAULT 2 | func
 (1 row)
 
 drop function dfunc(int, int);
@@ -1083,10 +1159,10 @@ $$ select array_upper($1, 1) $$ language sql;
 ERROR:  cannot remove parameter defaults from existing function
 HINT:  Use DROP FUNCTION dfunc(integer[]) first.
 \df dfunc
-                                      List of functions
- Schema | Name  | Result data type |               Argument data types               |  Type  
---------+-------+------------------+-------------------------------------------------+--------
- public | dfunc | integer          | VARIADIC a integer[] DEFAULT ARRAY[]::integer[] | normal
+                                     List of functions
+ Schema | Name  | Result data type |               Argument data types               | Type 
+--------+-------+------------------+-------------------------------------------------+------
+ public | dfunc | integer          | VARIADIC a integer[] DEFAULT ARRAY[]::integer[] | func
 (1 row)
 
 drop function dfunc(a variadic int[]);
@@ -1511,3 +1587,838 @@ View definition:
 
 drop view dfview;
 drop function dfunc(anyelement, anyelement, bool);
+\c regression_ora
+-- check all the arguments are IN arguments
+drop procedure tp11;
+ERROR:  could not find a procedure named "TP11"
+CREATE or replace PROCEDURE tp11(
+  a in integer, 
+  b in integer,
+  c in integer default 320,
+  d in integer,
+  e in integer default 500,
+  f in integer)
+LANGUAGE default_plsql
+AS $$
+BEGIN
+  raise notice 'a: %', a;
+  raise notice 'b: %', b;
+  raise notice 'c: %', c;
+  raise notice 'd: %', d;
+  raise notice 'e: %', e;
+  raise notice 'f: %', f;
+END;
+$$;
+call tp11(1,2,3,4,5,6);
+NOTICE:  a: 1
+NOTICE:  b: 2
+NOTICE:  c: 3
+NOTICE:  d: 4
+NOTICE:  e: 5
+NOTICE:  f: 6
+call tp11(1,2,3,4,5);
+ERROR:  not enough default arguments
+call tp11(1,2,3,4);
+ERROR:  not enough default arguments
+call tp11(1,2,3);
+ERROR:  procedure TP11(INTEGER, INTEGER, INTEGER) does not exist
+LINE 1: call tp11(1,2,3);
+             ^
+HINT:  No procedure matches the given name and argument types. You might need to add explicit type casts.
+call tp11(1,2);
+ERROR:  procedure TP11(INTEGER, INTEGER) does not exist
+LINE 1: call tp11(1,2);
+             ^
+HINT:  No procedure matches the given name and argument types. You might need to add explicit type casts.
+call tp11(1);
+ERROR:  procedure TP11(INTEGER) does not exist
+LINE 1: call tp11(1);
+             ^
+HINT:  No procedure matches the given name and argument types. You might need to add explicit type casts.
+call tp11(1,2,3,4,5,f=>610);
+NOTICE:  a: 1
+NOTICE:  b: 2
+NOTICE:  c: 3
+NOTICE:  d: 4
+NOTICE:  e: 5
+NOTICE:  f: 610
+call tp11(1,2,3,4,f=>610);
+NOTICE:  a: 1
+NOTICE:  b: 2
+NOTICE:  c: 3
+NOTICE:  d: 4
+NOTICE:  e: 500
+NOTICE:  f: 610
+call tp11(1,2,3,f=>610);
+ERROR:  procedure TP11(INTEGER, INTEGER, INTEGER, F => INTEGER) does not exist
+LINE 1: call tp11(1,2,3,f=>610);
+             ^
+HINT:  No procedure matches the given name and argument types. You might need to add explicit type casts.
+call tp11(1,2,3,d=>410,f=>610);
+NOTICE:  a: 1
+NOTICE:  b: 2
+NOTICE:  c: 3
+NOTICE:  d: 410
+NOTICE:  e: 500
+NOTICE:  f: 610
+call tp11(1,2,3,d=>410,500,f=>610);  -- failed
+ERROR:  positional argument cannot follow named argument
+LINE 1: call tp11(1,2,3,d=>410,500,f=>610);
+                               ^
+call tp11(1,2,c=>300,d=>400,f=>600);
+NOTICE:  a: 1
+NOTICE:  b: 2
+NOTICE:  c: 300
+NOTICE:  d: 400
+NOTICE:  e: 500
+NOTICE:  f: 600
+call tp11(1,2,c=>300,d=>400,e=>500,f=>600);
+NOTICE:  a: 1
+NOTICE:  b: 2
+NOTICE:  c: 300
+NOTICE:  d: 400
+NOTICE:  e: 500
+NOTICE:  f: 600
+call tp11(1,b=>200,c=>300,d=>400,e=>500,f=>600);
+NOTICE:  a: 1
+NOTICE:  b: 200
+NOTICE:  c: 300
+NOTICE:  d: 400
+NOTICE:  e: 500
+NOTICE:  f: 600
+call tp11(a=>100,b=>200,c=>300,d=>400,e=>500,f=>600);
+NOTICE:  a: 100
+NOTICE:  b: 200
+NOTICE:  c: 300
+NOTICE:  d: 400
+NOTICE:  e: 500
+NOTICE:  f: 600
+select proname, pronargdefaults, proargdefaults, pg_get_function_arguments(oid)
+from pg_proc
+where proname = 'TP11';
+ PRONAME | PRONARGDEFAULTS |                                                                                                                                                      PROARGDEFAULTS                                                                                                                                                       |                                PG_GET_FUNCTION_ARGUMENTS                                 
+---------+-----------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------
+ TP11    |               2 | (<> <> {CONST :consttype 23 :consttypmod -1 :constcollid 0 :constlen 4 :constbyval true :constisnull false :location 90 :constvalue 4 [ 64 1 0 0 0 0 0 0 ]} <> {CONST :consttype 23 :consttypmod -1 :constcollid 0 :constlen 4 :constbyval true :constisnull false :location 134 :constvalue 4 [ -12 1 0 0 0 0 0 0 ]} <>) | A INTEGER, B INTEGER, C INTEGER DEFAULT 320, D INTEGER, E INTEGER DEFAULT 500, F INTEGER
+(1 row)
+
+-- check all the arguments are IN arguments, all default but last
+drop procedure tp11;
+CREATE or replace PROCEDURE tp11(
+  a in integer default 120, 
+  b in integer default 220,
+  c in integer default 320,
+  d in integer default 420,
+  e in integer default 500,
+  f in integer)
+LANGUAGE default_plsql
+AS $$
+BEGIN
+  raise notice 'a: %', a;
+  raise notice 'b: %', b;
+  raise notice 'c: %', c;
+  raise notice 'd: %', d;
+  raise notice 'e: %', e;
+  raise notice 'f: %', f;
+END;
+$$;
+call tp11(1,2,3,4,5,6);
+NOTICE:  a: 1
+NOTICE:  b: 2
+NOTICE:  c: 3
+NOTICE:  d: 4
+NOTICE:  e: 5
+NOTICE:  f: 6
+call tp11(1,2,3,4,5);
+ERROR:  not enough default arguments
+call tp11(1,2,3,4);
+ERROR:  not enough default arguments
+call tp11(1,2,3);
+ERROR:  not enough default arguments
+call tp11(1,2);
+ERROR:  not enough default arguments
+call tp11(1);
+ERROR:  not enough default arguments
+call tp11(1,2,3,4,5,f=>610);
+NOTICE:  a: 1
+NOTICE:  b: 2
+NOTICE:  c: 3
+NOTICE:  d: 4
+NOTICE:  e: 5
+NOTICE:  f: 610
+call tp11(1,2,3,4,f=>610);
+NOTICE:  a: 1
+NOTICE:  b: 2
+NOTICE:  c: 3
+NOTICE:  d: 4
+NOTICE:  e: 500
+NOTICE:  f: 610
+call tp11(1,2,3,f=>610);
+NOTICE:  a: 1
+NOTICE:  b: 2
+NOTICE:  c: 3
+NOTICE:  d: 420
+NOTICE:  e: 500
+NOTICE:  f: 610
+call tp11(1,2,f=>610);
+NOTICE:  a: 1
+NOTICE:  b: 2
+NOTICE:  c: 320
+NOTICE:  d: 420
+NOTICE:  e: 500
+NOTICE:  f: 610
+call tp11(1,f=>610);
+NOTICE:  a: 1
+NOTICE:  b: 220
+NOTICE:  c: 320
+NOTICE:  d: 420
+NOTICE:  e: 500
+NOTICE:  f: 610
+call tp11(f=>610);
+NOTICE:  a: 120
+NOTICE:  b: 220
+NOTICE:  c: 320
+NOTICE:  d: 420
+NOTICE:  e: 500
+NOTICE:  f: 610
+select proname, pronargdefaults, proargdefaults, pg_get_function_arguments(oid)
+from pg_proc
+where proname = 'TP11';
+ PRONAME | PRONARGDEFAULTS |                                                                                                                                                                                                                                                                                                                                                                                    PROARGDEFAULTS                                                                                                                                                                                                                                                                                                                                                                                    |                                                  PG_GET_FUNCTION_ARGUMENTS                                                   
+---------+-----------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------------------
+ TP11    |               5 | ({CONST :consttype 23 :consttypmod -1 :constcollid 0 :constlen 4 :constbyval true :constisnull false :location 57 :constvalue 4 [ 120 0 0 0 0 0 0 0 ]} {CONST :consttype 23 :consttypmod -1 :constcollid 0 :constlen 4 :constbyval true :constisnull false :location 86 :constvalue 4 [ -36 0 0 0 0 0 0 0 ]} {CONST :consttype 23 :consttypmod -1 :constcollid 0 :constlen 4 :constbyval true :constisnull false :location 114 :constvalue 4 [ 64 1 0 0 0 0 0 0 ]} {CONST :consttype 23 :consttypmod -1 :constcollid 0 :constlen 4 :constbyval true :constisnull false :location 142 :constvalue 4 [ -92 1 0 0 0 0 0 0 ]} {CONST :consttype 23 :consttypmod -1 :constcollid 0 :constlen 4 :constbyval true :constisnull false :location 170 :constvalue 4 [ -12 1 0 0 0 0 0 0 ]} <>) | A INTEGER DEFAULT 120, B INTEGER DEFAULT 220, C INTEGER DEFAULT 320, D INTEGER DEFAULT 420, E INTEGER DEFAULT 500, F INTEGER
+(1 row)
+
+-- check all the arguments are IN arguments, all default
+drop procedure tp11;
+CREATE or replace PROCEDURE tp11(
+  a in integer default 120, 
+  b in integer default 220,
+  c in integer default 320,
+  d in integer default 420,
+  e in integer default 500,
+  f in integer default 640)
+LANGUAGE default_plsql
+AS $$
+BEGIN
+  raise notice 'a: %', a;
+  raise notice 'b: %', b;
+  raise notice 'c: %', c;
+  raise notice 'd: %', d;
+  raise notice 'e: %', e;
+  raise notice 'f: %', f;
+END;
+$$;
+call tp11(1,2,3,4,5,6);
+NOTICE:  a: 1
+NOTICE:  b: 2
+NOTICE:  c: 3
+NOTICE:  d: 4
+NOTICE:  e: 5
+NOTICE:  f: 6
+call tp11(1,2,3,4,5);
+NOTICE:  a: 1
+NOTICE:  b: 2
+NOTICE:  c: 3
+NOTICE:  d: 4
+NOTICE:  e: 5
+NOTICE:  f: 640
+call tp11(1,2,3,4);
+NOTICE:  a: 1
+NOTICE:  b: 2
+NOTICE:  c: 3
+NOTICE:  d: 4
+NOTICE:  e: 500
+NOTICE:  f: 640
+call tp11(1,2,3);
+NOTICE:  a: 1
+NOTICE:  b: 2
+NOTICE:  c: 3
+NOTICE:  d: 420
+NOTICE:  e: 500
+NOTICE:  f: 640
+call tp11(1,2);
+NOTICE:  a: 1
+NOTICE:  b: 2
+NOTICE:  c: 320
+NOTICE:  d: 420
+NOTICE:  e: 500
+NOTICE:  f: 640
+call tp11(1);
+NOTICE:  a: 1
+NOTICE:  b: 220
+NOTICE:  c: 320
+NOTICE:  d: 420
+NOTICE:  e: 500
+NOTICE:  f: 640
+call tp11(1,2,3,4,5,f=>610);
+NOTICE:  a: 1
+NOTICE:  b: 2
+NOTICE:  c: 3
+NOTICE:  d: 4
+NOTICE:  e: 5
+NOTICE:  f: 610
+call tp11(1,2,3,4,f=>610);
+NOTICE:  a: 1
+NOTICE:  b: 2
+NOTICE:  c: 3
+NOTICE:  d: 4
+NOTICE:  e: 500
+NOTICE:  f: 610
+call tp11(1,2,3,f=>610);
+NOTICE:  a: 1
+NOTICE:  b: 2
+NOTICE:  c: 3
+NOTICE:  d: 420
+NOTICE:  e: 500
+NOTICE:  f: 610
+call tp11(1,2,f=>610);
+NOTICE:  a: 1
+NOTICE:  b: 2
+NOTICE:  c: 320
+NOTICE:  d: 420
+NOTICE:  e: 500
+NOTICE:  f: 610
+call tp11(1,f=>610);
+NOTICE:  a: 1
+NOTICE:  b: 220
+NOTICE:  c: 320
+NOTICE:  d: 420
+NOTICE:  e: 500
+NOTICE:  f: 610
+call tp11(f=>610);
+NOTICE:  a: 120
+NOTICE:  b: 220
+NOTICE:  c: 320
+NOTICE:  d: 420
+NOTICE:  e: 500
+NOTICE:  f: 610
+call tp11(b=>210);
+NOTICE:  a: 120
+NOTICE:  b: 210
+NOTICE:  c: 320
+NOTICE:  d: 420
+NOTICE:  e: 500
+NOTICE:  f: 640
+call tp11(b=>210,f=>690);
+NOTICE:  a: 120
+NOTICE:  b: 210
+NOTICE:  c: 320
+NOTICE:  d: 420
+NOTICE:  e: 500
+NOTICE:  f: 690
+select proname, pronargdefaults, proargdefaults, pg_get_function_arguments(oid)
+from pg_proc
+where proname = 'TP11';
+ PRONAME | PRONARGDEFAULTS |                                                                                                                                                                                                                                                                                                                                                                                                                                                              PROARGDEFAULTS                                                                                                                                                                                                                                                                                                                                                                                                                                                               |                                                        PG_GET_FUNCTION_ARGUMENTS                                                         
+---------+-----------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------------------------------
+ TP11    |               6 | ({CONST :consttype 23 :consttypmod -1 :constcollid 0 :constlen 4 :constbyval true :constisnull false :location 57 :constvalue 4 [ 120 0 0 0 0 0 0 0 ]} {CONST :consttype 23 :consttypmod -1 :constcollid 0 :constlen 4 :constbyval true :constisnull false :location 86 :constvalue 4 [ -36 0 0 0 0 0 0 0 ]} {CONST :consttype 23 :consttypmod -1 :constcollid 0 :constlen 4 :constbyval true :constisnull false :location 114 :constvalue 4 [ 64 1 0 0 0 0 0 0 ]} {CONST :consttype 23 :consttypmod -1 :constcollid 0 :constlen 4 :constbyval true :constisnull false :location 142 :constvalue 4 [ -92 1 0 0 0 0 0 0 ]} {CONST :consttype 23 :consttypmod -1 :constcollid 0 :constlen 4 :constbyval true :constisnull false :location 170 :constvalue 4 [ -12 1 0 0 0 0 0 0 ]} {CONST :consttype 23 :consttypmod -1 :constcollid 0 :constlen 4 :constbyval true :constisnull false :location 198 :constvalue 4 [ -128 2 0 0 0 0 0 0 ]}) | A INTEGER DEFAULT 120, B INTEGER DEFAULT 220, C INTEGER DEFAULT 320, D INTEGER DEFAULT 420, E INTEGER DEFAULT 500, F INTEGER DEFAULT 640
+(1 row)
+
+-- check IN OUT arguments
+drop procedure tp11;
+CREATE or replace PROCEDURE tp11(
+  a out integer, 
+  b in  integer, 
+  c out integer,
+  d in integer default 410,
+  e in integer default 510,
+  f out integer)
+LANGUAGE default_plsql
+AS $$
+BEGIN
+  raise notice 'b: %', b;
+  raise notice 'd: %', d;
+  raise notice 'e: %', e;
+  a := 1322;
+  c := 2211;
+  f := 6300;
+END;
+$$;
+call tp11(1,2,3,4,5); -- ok
+NOTICE:  b: 2
+NOTICE:  d: 4
+NOTICE:  e: 5
+  A   |  C   |  F   
+------+------+------
+ 1322 | 2211 | 6300
+(1 row)
+
+call tp11(1,2,3,4);   -- ok
+NOTICE:  b: 2
+NOTICE:  d: 4
+NOTICE:  e: 410
+  A   |  C   |  F   
+------+------+------
+ 1322 | 2211 | 6300
+(1 row)
+
+call tp11(1,2,3);     -- failed
+ERROR:  procedure TP11(INTEGER, INTEGER, INTEGER) does not exist
+LINE 1: call tp11(1,2,3);
+             ^
+HINT:  No procedure matches the given name and argument types. You might need to add explicit type casts.
+select proname, pronargdefaults, proargdefaults, pg_get_function_arguments(oid)
+from pg_proc
+where proname = 'TP11';
+ PRONAME | PRONARGDEFAULTS |                                                                                                                                                   PROARGDEFAULTS                                                                                                                                                   |                                      PG_GET_FUNCTION_ARGUMENTS                                       
+---------+-----------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------
+ TP11    |               2 | (<> {CONST :consttype 23 :consttypmod -1 :constcollid 0 :constlen 4 :constbyval true :constisnull false :location 110 :constvalue 4 [ -102 1 0 0 0 0 0 0 ]} {CONST :consttype 23 :consttypmod -1 :constcollid 0 :constlen 4 :constbyval true :constisnull false :location 138 :constvalue 4 [ -2 1 0 0 0 0 0 0 ]}) | OUT A INTEGER, B INTEGER, OUT C INTEGER, D INTEGER DEFAULT 410, E INTEGER DEFAULT 510, OUT F INTEGER
+(1 row)
+
+-- check INOUT arguments
+drop procedure tp11;
+CREATE or replace PROCEDURE tp11(
+  a inout integer, 
+  b in    integer, 
+  c in    integer,
+  d inout integer,
+  e in    integer default 510,
+  f out   integer)
+LANGUAGE default_plsql
+AS $$
+BEGIN
+  raise notice 'a: %', a;
+  raise notice 'b: %', b;
+  raise notice 'c: %', c;
+  raise notice 'd: %', d;
+  raise notice 'e: %', e;
+  b := 2322;
+  c := 3211;
+  f := 6300;
+END;
+$$;
+call tp11(1,2,3,4,5,6);   -- ok
+NOTICE:  a: 1
+NOTICE:  b: 2
+NOTICE:  c: 3
+NOTICE:  d: 4
+NOTICE:  e: 5
+ A | D |  F   
+---+---+------
+ 1 | 4 | 6300
+(1 row)
+
+call tp11(1,2,3,4,6);     -- ok
+NOTICE:  a: 1
+NOTICE:  b: 2
+NOTICE:  c: 3
+NOTICE:  d: 4
+NOTICE:  e: 6
+ A | D |  F   
+---+---+------
+ 1 | 4 | 6300
+(1 row)
+
+call tp11(1,2,3,4);       -- failed
+ERROR:  procedure TP11(INTEGER, INTEGER, INTEGER, INTEGER) does not exist
+LINE 1: call tp11(1,2,3,4);
+             ^
+HINT:  No procedure matches the given name and argument types. You might need to add explicit type casts.
+select proname, pronargdefaults, proargdefaults, pg_get_function_arguments(oid)
+from pg_proc
+where proname = 'TP11';
+ PRONAME | PRONARGDEFAULTS |                                                                           PROARGDEFAULTS                                                                            |                                  PG_GET_FUNCTION_ARGUMENTS                                   
+---------+-----------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------+----------------------------------------------------------------------------------------------
+ TP11    |               1 | (<> <> <> <> {CONST :consttype 23 :consttypmod -1 :constcollid 0 :constlen 4 :constbyval true :constisnull false :location 138 :constvalue 4 [ -2 1 0 0 0 0 0 0 ]}) | INOUT A INTEGER, B INTEGER, C INTEGER, INOUT D INTEGER, E INTEGER DEFAULT 510, OUT F INTEGER
+(1 row)
+
+drop procedure tp11;
+-- check INOUT arguments for functions
+drop function tp11;
+ERROR:  could not find a function named "TP11"
+CREATE or replace function tp11(
+  a in integer, 
+  b in integer,
+  c in integer default 320,
+  d in integer,
+  e in integer default 500,
+  f in integer)
+RETURN void
+LANGUAGE default_plsql
+AS $$
+BEGIN
+  raise notice 'a: %', a;
+  raise notice 'b: %', b;
+  raise notice 'c: %', c;
+  raise notice 'd: %', d;
+  raise notice 'e: %', e;
+  raise notice 'f: %', f;
+END;
+$$;
+select  tp11(1,2,3,4,5,6);
+NOTICE:  a: 1
+NOTICE:  b: 2
+NOTICE:  c: 3
+NOTICE:  d: 4
+NOTICE:  e: 5
+NOTICE:  f: 6
+ TP11 
+------
+ 
+(1 row)
+
+select  tp11(1,2,3,4,5);
+ERROR:  not enough default arguments
+HINT:   while processing column TP11
+select  tp11(1,2,3,4);
+ERROR:  not enough default arguments
+HINT:   while processing column TP11
+select  tp11(1,2,3);
+ERROR:  function TP11(INTEGER, INTEGER, INTEGER) does not exist
+LINE 1: select  tp11(1,2,3);
+                ^
+HINT:  No function matches the given name and argument types. You might need to add explicit type casts.
+select  tp11(1,2);
+ERROR:  function TP11(INTEGER, INTEGER) does not exist
+LINE 1: select  tp11(1,2);
+                ^
+HINT:  No function matches the given name and argument types. You might need to add explicit type casts.
+select  tp11(1);
+ERROR:  function TP11(INTEGER) does not exist
+LINE 1: select  tp11(1);
+                ^
+HINT:  No function matches the given name and argument types. You might need to add explicit type casts.
+select  tp11(1,2,3,4,5,f=>610);
+NOTICE:  a: 1
+NOTICE:  b: 2
+NOTICE:  c: 3
+NOTICE:  d: 4
+NOTICE:  e: 5
+NOTICE:  f: 610
+ TP11 
+------
+ 
+(1 row)
+
+select  tp11(1,2,3,4,f=>610);
+NOTICE:  a: 1
+NOTICE:  b: 2
+NOTICE:  c: 3
+NOTICE:  d: 4
+NOTICE:  e: 500
+NOTICE:  f: 610
+ TP11 
+------
+ 
+(1 row)
+
+select  tp11(1,2,3,f=>610);
+ERROR:  function TP11(INTEGER, INTEGER, INTEGER, F => INTEGER) does not exist
+LINE 1: select  tp11(1,2,3,f=>610);
+                ^
+HINT:  No function matches the given name and argument types. You might need to add explicit type casts.
+select  tp11(1,2,3,d=>410,f=>610);
+NOTICE:  a: 1
+NOTICE:  b: 2
+NOTICE:  c: 3
+NOTICE:  d: 410
+NOTICE:  e: 500
+NOTICE:  f: 610
+ TP11 
+------
+ 
+(1 row)
+
+select  tp11(1,2,3,d=>410,500,f=>610);  -- failed
+ERROR:  positional argument cannot follow named argument
+LINE 1: select  tp11(1,2,3,d=>410,500,f=>610);
+                                  ^
+select  tp11(1,2,c=>300,d=>400,f=>600);
+NOTICE:  a: 1
+NOTICE:  b: 2
+NOTICE:  c: 300
+NOTICE:  d: 400
+NOTICE:  e: 500
+NOTICE:  f: 600
+ TP11 
+------
+ 
+(1 row)
+
+select  tp11(1,2,c=>300,d=>400,e=>500,f=>600);
+NOTICE:  a: 1
+NOTICE:  b: 2
+NOTICE:  c: 300
+NOTICE:  d: 400
+NOTICE:  e: 500
+NOTICE:  f: 600
+ TP11 
+------
+ 
+(1 row)
+
+select  tp11(1,b=>200,c=>300,d=>400,e=>500,f=>600);
+NOTICE:  a: 1
+NOTICE:  b: 200
+NOTICE:  c: 300
+NOTICE:  d: 400
+NOTICE:  e: 500
+NOTICE:  f: 600
+ TP11 
+------
+ 
+(1 row)
+
+select  tp11(a=>100,b=>200,c=>300,d=>400,e=>500,f=>600);
+NOTICE:  a: 100
+NOTICE:  b: 200
+NOTICE:  c: 300
+NOTICE:  d: 400
+NOTICE:  e: 500
+NOTICE:  f: 600
+ TP11 
+------
+ 
+(1 row)
+
+select proname, pronargdefaults, proargdefaults, pg_get_function_arguments(oid)
+from pg_proc
+where proname = 'TP11';
+ PRONAME | PRONARGDEFAULTS |                                                                                                                                                      PROARGDEFAULTS                                                                                                                                                       |                                PG_GET_FUNCTION_ARGUMENTS                                 
+---------+-----------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------
+ TP11    |               2 | (<> <> {CONST :consttype 23 :consttypmod -1 :constcollid 0 :constlen 4 :constbyval true :constisnull false :location 89 :constvalue 4 [ 64 1 0 0 0 0 0 0 ]} <> {CONST :consttype 23 :consttypmod -1 :constcollid 0 :constlen 4 :constbyval true :constisnull false :location 133 :constvalue 4 [ -12 1 0 0 0 0 0 0 ]} <>) | A INTEGER, B INTEGER, C INTEGER DEFAULT 320, D INTEGER, E INTEGER DEFAULT 500, F INTEGER
+(1 row)
+
+drop function tp1121;
+ERROR:  could not find a function named "TP1121"
+drop procedure tp1121;
+ERROR:  could not find a procedure named "TP1121"
+-- type-location-mixed scenario
+drop function tf13;
+ERROR:  could not find a function named "TF13"
+CREATE or replace function tf13(
+  a in integer, 
+  b in text default 'bbb',
+  c in integer,
+  d in text default 'ddd',
+  e in integer)
+RETURNS void
+LANGUAGE default_plsql 
+AS $$
+BEGIN
+  raise notice 'a: %', a;
+  raise notice 'b: %', b;
+  raise notice 'c: %', c;
+  raise notice 'd: %', d;
+  raise notice 'e: %', e;
+  return;
+END;
+$$;
+select tf13(1,'b',3,'d',5);
+NOTICE:  a: 1
+NOTICE:  b: b
+NOTICE:  c: 3
+NOTICE:  d: d
+NOTICE:  e: 5
+ TF13 
+------
+ 
+(1 row)
+
+select tf13(1,'b',3,'d',e=>5);
+NOTICE:  a: 1
+NOTICE:  b: b
+NOTICE:  c: 3
+NOTICE:  d: d
+NOTICE:  e: 5
+ TF13 
+------
+ 
+(1 row)
+
+select tf13(1,'b',3,e=>5);
+NOTICE:  a: 1
+NOTICE:  b: b
+NOTICE:  c: 3
+NOTICE:  d: ddd
+NOTICE:  e: 5
+ TF13 
+------
+ 
+(1 row)
+
+select tf13(1,'b',3,d=>'d',e=>5);
+NOTICE:  a: 1
+NOTICE:  b: b
+NOTICE:  c: 3
+NOTICE:  d: d
+NOTICE:  e: 5
+ TF13 
+------
+ 
+(1 row)
+
+select tf13(1,'b',c=>3,d=>'d',e=>5);
+NOTICE:  a: 1
+NOTICE:  b: b
+NOTICE:  c: 3
+NOTICE:  d: d
+NOTICE:  e: 5
+ TF13 
+------
+ 
+(1 row)
+
+select tf13(1,b=>'b',c=>3,d=>'d',e=>5);
+NOTICE:  a: 1
+NOTICE:  b: b
+NOTICE:  c: 3
+NOTICE:  d: d
+NOTICE:  e: 5
+ TF13 
+------
+ 
+(1 row)
+
+select tf13(a=>1,b=>'b',c=>3,d=>'d',e=>5);
+NOTICE:  a: 1
+NOTICE:  b: b
+NOTICE:  c: 3
+NOTICE:  d: d
+NOTICE:  e: 5
+ TF13 
+------
+ 
+(1 row)
+
+select tf13(1,c=>3,e=>5);
+NOTICE:  a: 1
+NOTICE:  b: bbb
+NOTICE:  c: 3
+NOTICE:  d: ddd
+NOTICE:  e: 5
+ TF13 
+------
+ 
+(1 row)
+
+select tf13(1,b=>'bbb',c=>3,e=>5);
+NOTICE:  a: 1
+NOTICE:  b: bbb
+NOTICE:  c: 3
+NOTICE:  d: ddd
+NOTICE:  e: 5
+ TF13 
+------
+ 
+(1 row)
+
+-- failed
+select tf13(a=>'a',b=>'b',c=>3,d=>'d',e=>5);
+ERROR:  invalid input syntax for type numeric: "a"
+LINE 1: select tf13(a=>'a',b=>'b',c=>3,d=>'d',e=>5);
+                       ^
+select tf13(a=>1,b=>'b',c=>'c',d=>'d',e=>5);
+ERROR:  invalid input syntax for type numeric: "c"
+LINE 1: select tf13(a=>1,b=>'b',c=>'c',d=>'d',e=>5);
+                                   ^
+select tf13(a=>1,b=>'b',c=>3,d=>'d',e=>'e');
+ERROR:  invalid input syntax for type numeric: "e"
+LINE 1: select tf13(a=>1,b=>'b',c=>3,d=>'d',e=>'e');
+                                               ^
+select tf13(1,b=>'bbb',c=>'ccc',e=>5);
+ERROR:  invalid input syntax for type numeric: "ccc"
+LINE 1: select tf13(1,b=>'bbb',c=>'ccc',e=>5);
+                                  ^
+select tf13(1,c=>3,e=>'eee');
+ERROR:  invalid input syntax for type numeric: "eee"
+LINE 1: select tf13(1,c=>3,e=>'eee');
+                              ^
+-- type-location-out-mixed scenario
+drop function tf13;
+CREATE or replace function tf13(
+  a in integer, 
+  b in text default 'bbb',
+  c out integer,
+  d in text default 'ddd',
+  e in integer)
+RETURNS void
+LANGUAGE default_plsql 
+AS $$
+BEGIN
+  raise notice 'a: %', a;
+  raise notice 'b: %', b;
+  raise notice 'c: %', c;
+  raise notice 'd: %', d;
+  raise notice 'e: %', e;
+  return;
+END;
+$$;
+select tf13(1,'b',3,'d',5);
+NOTICE:  a: 1
+NOTICE:  b: b
+NOTICE:  c: <NULL>
+NOTICE:  d: d
+NOTICE:  e: 5
+ TF13 
+------
+ 
+(1 row)
+
+select tf13(1,'b',3,'d',e=>5);
+NOTICE:  a: 1
+NOTICE:  b: b
+NOTICE:  c: <NULL>
+NOTICE:  d: d
+NOTICE:  e: 5
+ TF13 
+------
+ 
+(1 row)
+
+-- enable_opentenbase_ora_compatible = off scenario
+\c regression
+CREATE or replace PROCEDURE tp1121(
+  a in integer, 
+  b in integer,
+  c in integer default 320,
+  d in integer default 420,
+  e in integer default 500,
+  f in integer default 600)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  raise notice 'a: %', a;
+  raise notice 'b: %', b;
+  raise notice 'c: %', c;
+  raise notice 'd: %', d;
+  raise notice 'e: %', e;
+  raise notice 'f: %', f;
+END;
+$$;
+select proname, pronargdefaults, proargdefaults, pg_get_function_arguments(oid)
+from pg_proc
+where proname = 'tp1121';
+ proname | pronargdefaults |                                                                                                                                                                                                                                                                                                       proargdefaults                                                                                                                                                                                                                                                                                                       |                                            pg_get_function_arguments                                             
+---------+-----------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------
+ tp1121  |               4 | ({CONST :consttype 23 :consttypmod -1 :constcollid 0 :constlen 4 :constbyval true :constisnull false :location 92 :constvalue 4 [ 64 1 0 0 0 0 0 0 ]} {CONST :consttype 23 :consttypmod -1 :constcollid 0 :constlen 4 :constbyval true :constisnull false :location 120 :constvalue 4 [ -92 1 0 0 0 0 0 0 ]} {CONST :consttype 23 :consttypmod -1 :constcollid 0 :constlen 4 :constbyval true :constisnull false :location 148 :constvalue 4 [ -12 1 0 0 0 0 0 0 ]} {CONST :consttype 23 :consttypmod -1 :constcollid 0 :constlen 4 :constbyval true :constisnull false :location 176 :constvalue 4 [ 88 2 0 0 0 0 0 0 ]}) | a integer, b integer, c integer DEFAULT 320, d integer DEFAULT 420, e integer DEFAULT 500, f integer DEFAULT 600
+(1 row)
+
+drop procedure tp1121;
+CREATE or replace PROCEDURE tp1122(
+  a in integer, 
+  b in integer,
+  c in integer default 320,
+  d in integer default 420,
+  e in integer default 500,
+  f out integer)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  raise notice 'a: %', a;
+  raise notice 'b: %', b;
+  raise notice 'c: %', c;
+  raise notice 'd: %', d;
+  raise notice 'e: %', e;
+  raise notice 'f: %', f;
+END;
+$$;
+select proname, pronargdefaults, proargdefaults, pg_get_function_arguments(oid)
+from pg_proc
+where proname = 'tp1122';
+ proname | pronargdefaults |                                                                                                                                                                                                                            proargdefaults                                                                                                                                                                                                                            |                                  pg_get_function_arguments                                   
+---------+-----------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+----------------------------------------------------------------------------------------------
+ tp1122  |               3 | ({CONST :consttype 23 :consttypmod -1 :constcollid 0 :constlen 4 :constbyval true :constisnull false :location 92 :constvalue 4 [ 64 1 0 0 0 0 0 0 ]} {CONST :consttype 23 :consttypmod -1 :constcollid 0 :constlen 4 :constbyval true :constisnull false :location 120 :constvalue 4 [ -92 1 0 0 0 0 0 0 ]} {CONST :consttype 23 :consttypmod -1 :constcollid 0 :constlen 4 :constbyval true :constisnull false :location 148 :constvalue 4 [ -12 1 0 0 0 0 0 0 ]}) | a integer, b integer, c integer, d integer DEFAULT 320, e integer DEFAULT 420, OUT f integer
+(1 row)
+
+drop procedure tp1122;

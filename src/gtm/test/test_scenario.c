@@ -17,70 +17,70 @@ pthread_key_t     threadinfo_key;
 void
 setUp()
 {
-    sprintf(connect_string, "host=localhost port=6666 node_name=one remote_type=%d",
-        GTM_NODE_GTM);
-    
-    conn = PQconnectGTM(connect_string);
+	sprintf(connect_string, "host=localhost port=6666 node_name=one remote_type=%d",
+		GTM_NODE_GTM);
+	
+	conn = PQconnectGTM(connect_string);
 
-    _ASSERT( conn!=NULL );
+	_ASSERT( conn!=NULL );
 }
 
 void
 tearDown()
 {
-    GTMPQfinish(conn);
+	GTMPQfinish(conn);
 }
 
 void
 test01()
 {
-    GlobalTransactionId gxid;
-    int rc;
-    char host[1024];
+	GlobalTransactionId gxid;
+	int rc;
+	char host[1024];
 
-    printf("\n=== test01:node_register ===\n");
+	printf("\n=== test01:node_register ===\n");
 
-    setUp();
+	setUp();
 
-    node_get_local_addr(conn, host, sizeof(host));
+	node_get_local_addr(conn, host, sizeof(host));
 
-    /*
-     * starting
-     */
-    rc = node_register_internal(conn, GTM_NODE_GTM, host, 6667, "One zero two", "/tmp/pgxc/data/gtm_standby", NODE_DISCONNECTED);
-    _ASSERT(rc == 0);
-    rc = node_unregister(conn, GTM_NODE_GTM, "One zero two");
-    _ASSERT(rc == 0);
+	/*
+	 * starting
+	 */
+	rc = node_register_internal(conn, GTM_NODE_GTM, host, 6667, "One zero two", "/tmp/pgxc/data/gtm_standby", NODE_DISCONNECTED);
+	_ASSERT(rc == 0);
+	rc = node_unregister(conn, GTM_NODE_GTM, "One zero two");
+	_ASSERT(rc == 0);
 
-    rc = node_register_internal(conn, GTM_NODE_GTM, host, 6667, "One zero two", "/tmp/pgxc/data/gtm_standby", NODE_CONNECTED);
-    _ASSERT(rc == 0);
+	rc = node_register_internal(conn, GTM_NODE_GTM, host, 6667, "One zero two", "/tmp/pgxc/data/gtm_standby", NODE_CONNECTED);
+	_ASSERT(rc == 0);
 
-    sleep(10);
+	sleep(10);
 
-    gxid = begin_transaction(conn, GTM_ISOLATION_SERIALIZABLE, timestamp);
-    _ASSERT( gxid!=InvalidGlobalTransactionId );
+	gxid = begin_transaction(conn, GTM_ISOLATION_SERIALIZABLE, timestamp);
+	_ASSERT( gxid!=InvalidGlobalTransactionId );
 
-    rc = prepare_transaction(conn, gxid);
-    _ASSERT( rc!=-1 );
+	rc = prepare_transaction(conn, gxid);
+	_ASSERT( rc!=-1 );
 
-    rc = abort_transaction(conn, gxid);
-    _ASSERT( rc!=-1 );
+	rc = abort_transaction(conn, gxid);
+	_ASSERT( rc!=-1 );
 
-    sleep(10);
+	sleep(10);
 
-    /*
-     * closing
-     */
-    rc = node_unregister(conn, GTM_NODE_GTM, "One zero two");
-    _ASSERT( rc==0 );
+	/*
+	 * closing
+	 */
+	rc = node_unregister(conn, GTM_NODE_GTM, "One zero two");
+	_ASSERT( rc==0 );
 
-    tearDown();
+	tearDown();
 }
 
 int
 main(int argc, char *argv[])
 {
-    test01();
+	test01();
 
-    return 0;
+	return 0;
 }

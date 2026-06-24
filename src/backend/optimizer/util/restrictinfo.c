@@ -1,14 +1,14 @@
 /*-------------------------------------------------------------------------
  *
  * restrictinfo.c
- *      RestrictInfo node manipulation routines.
+ *	  RestrictInfo node manipulation routines.
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
  * IDENTIFICATION
- *      src/backend/optimizer/util/restrictinfo.c
+ *	  src/backend/optimizer/util/restrictinfo.c
  *
  *-------------------------------------------------------------------------
  */
@@ -20,22 +20,22 @@
 
 
 static RestrictInfo *make_restrictinfo_internal(Expr *clause,
-                           Expr *orclause,
-                           bool is_pushed_down,
-                           bool outerjoin_delayed,
-                           bool pseudoconstant,
-                           Index security_level,
-                           Relids required_relids,
-                           Relids outer_relids,
-                           Relids nullable_relids);
+						   Expr *orclause,
+						   bool is_pushed_down,
+						   bool outerjoin_delayed,
+						   bool pseudoconstant,
+						   Index security_level,
+						   Relids required_relids,
+						   Relids outer_relids,
+						   Relids nullable_relids);
 static Expr *make_sub_restrictinfos(Expr *clause,
-                       bool is_pushed_down,
-                       bool outerjoin_delayed,
-                       bool pseudoconstant,
-                       Index security_level,
-                       Relids required_relids,
-                       Relids outer_relids,
-                       Relids nullable_relids);
+					   bool is_pushed_down,
+					   bool outerjoin_delayed,
+					   bool pseudoconstant,
+					   Index security_level,
+					   Relids required_relids,
+					   Relids outer_relids,
+					   Relids nullable_relids);
 
 
 /*
@@ -55,40 +55,40 @@ static Expr *make_sub_restrictinfos(Expr *clause,
  */
 RestrictInfo *
 make_restrictinfo(Expr *clause,
-                  bool is_pushed_down,
-                  bool outerjoin_delayed,
-                  bool pseudoconstant,
-                  Index security_level,
-                  Relids required_relids,
-                  Relids outer_relids,
-                  Relids nullable_relids)
+				  bool is_pushed_down,
+				  bool outerjoin_delayed,
+				  bool pseudoconstant,
+				  Index security_level,
+				  Relids required_relids,
+				  Relids outer_relids,
+				  Relids nullable_relids)
 {
-    /*
-     * If it's an OR clause, build a modified copy with RestrictInfos inserted
-     * above each subclause of the top-level AND/OR structure.
-     */
-    if (or_clause((Node *) clause))
-        return (RestrictInfo *) make_sub_restrictinfos(clause,
-                                                       is_pushed_down,
-                                                       outerjoin_delayed,
-                                                       pseudoconstant,
-                                                       security_level,
-                                                       required_relids,
-                                                       outer_relids,
-                                                       nullable_relids);
+	/*
+	 * If it's an OR clause, build a modified copy with RestrictInfos inserted
+	 * above each subclause of the top-level AND/OR structure.
+	 */
+	if (or_clause((Node *) clause))
+		return (RestrictInfo *) make_sub_restrictinfos(clause,
+													   is_pushed_down,
+													   outerjoin_delayed,
+													   pseudoconstant,
+													   security_level,
+													   required_relids,
+													   outer_relids,
+													   nullable_relids);
 
-    /* Shouldn't be an AND clause, else AND/OR flattening messed up */
-    Assert(!and_clause((Node *) clause));
+	/* Shouldn't be an AND clause, else AND/OR flattening messed up */
+	Assert(!and_clause((Node *) clause));
 
-    return make_restrictinfo_internal(clause,
-                                      NULL,
-                                      is_pushed_down,
-                                      outerjoin_delayed,
-                                      pseudoconstant,
-                                      security_level,
-                                      required_relids,
-                                      outer_relids,
-                                      nullable_relids);
+	return make_restrictinfo_internal(clause,
+									  NULL,
+									  is_pushed_down,
+									  outerjoin_delayed,
+									  pseudoconstant,
+									  security_level,
+									  required_relids,
+									  outer_relids,
+									  nullable_relids);
 }
 
 /*
@@ -98,109 +98,111 @@ make_restrictinfo(Expr *clause,
  */
 static RestrictInfo *
 make_restrictinfo_internal(Expr *clause,
-                           Expr *orclause,
-                           bool is_pushed_down,
-                           bool outerjoin_delayed,
-                           bool pseudoconstant,
-                           Index security_level,
-                           Relids required_relids,
-                           Relids outer_relids,
-                           Relids nullable_relids)
-{// #lizard forgives
-    RestrictInfo *restrictinfo = makeNode(RestrictInfo);
+						   Expr *orclause,
+						   bool is_pushed_down,
+						   bool outerjoin_delayed,
+						   bool pseudoconstant,
+						   Index security_level,
+						   Relids required_relids,
+						   Relids outer_relids,
+						   Relids nullable_relids)
+{
+	RestrictInfo *restrictinfo = makeNode(RestrictInfo);
 
-    restrictinfo->clause = clause;
-    restrictinfo->orclause = orclause;
-    restrictinfo->is_pushed_down = is_pushed_down;
-    restrictinfo->outerjoin_delayed = outerjoin_delayed;
-    restrictinfo->pseudoconstant = pseudoconstant;
-    restrictinfo->can_join = false; /* may get set below */
-    restrictinfo->security_level = security_level;
-    restrictinfo->outer_relids = outer_relids;
-    restrictinfo->nullable_relids = nullable_relids;
+	restrictinfo->clause = clause;
+	restrictinfo->orclause = orclause;
+	restrictinfo->is_pushed_down = is_pushed_down;
+	restrictinfo->outerjoin_delayed = outerjoin_delayed;
+	restrictinfo->pseudoconstant = pseudoconstant;
+	restrictinfo->can_join = false; /* may get set below */
+	restrictinfo->security_level = security_level;
+	restrictinfo->outer_relids = outer_relids;
+	restrictinfo->nullable_relids = nullable_relids;
 
-    /*
-     * If it's potentially delayable by lower-level security quals, figure out
-     * whether it's leakproof.  We can skip testing this for level-zero quals,
-     * since they would never get delayed on security grounds anyway.
-     */
-    if (security_level > 0)
-        restrictinfo->leakproof = !contain_leaked_vars((Node *) clause);
-    else
-        restrictinfo->leakproof = false;    /* really, "don't know" */
+	/*
+	 * If it's potentially delayable by lower-level security quals, figure out
+	 * whether it's leakproof.  We can skip testing this for level-zero quals,
+	 * since they would never get delayed on security grounds anyway.
+	 */
+	if (security_level > 0)
+		restrictinfo->leakproof = !contain_leaked_vars((Node *) clause);
+	else
+		restrictinfo->leakproof = false;	/* really, "don't know" */
 
-    /*
-     * If it's a binary opclause, set up left/right relids info. In any case
-     * set up the total clause relids info.
-     */
-    if (is_opclause(clause) && list_length(((OpExpr *) clause)->args) == 2)
-    {
-        restrictinfo->left_relids = pull_varnos(get_leftop(clause));
-        restrictinfo->right_relids = pull_varnos(get_rightop(clause));
+	/*
+	 * If it's a binary opclause, set up left/right relids info. In any case
+	 * set up the total clause relids info.
+	 */
+	if (is_opclause(clause) && list_length(((OpExpr *) clause)->args) == 2)
+	{
+		restrictinfo->left_relids = pull_varnos(get_leftop(clause));
+		restrictinfo->right_relids = pull_varnos(get_rightop(clause));
 
-        restrictinfo->clause_relids = bms_union(restrictinfo->left_relids,
-                                                restrictinfo->right_relids);
+		restrictinfo->clause_relids = bms_union(restrictinfo->left_relids,
+												restrictinfo->right_relids);
 
-        /*
-         * Does it look like a normal join clause, i.e., a binary operator
-         * relating expressions that come from distinct relations? If so we
-         * might be able to use it in a join algorithm.  Note that this is a
-         * purely syntactic test that is made regardless of context.
-         */
-        if (!bms_is_empty(restrictinfo->left_relids) &&
-            !bms_is_empty(restrictinfo->right_relids) &&
-            !bms_overlap(restrictinfo->left_relids,
-                         restrictinfo->right_relids))
-        {
-            restrictinfo->can_join = true;
-            /* pseudoconstant should certainly not be true */
-            Assert(!restrictinfo->pseudoconstant);
-        }
-    }
-    else
-    {
-        /* Not a binary opclause, so mark left/right relid sets as empty */
-        restrictinfo->left_relids = NULL;
-        restrictinfo->right_relids = NULL;
-        /* and get the total relid set the hard way */
-        restrictinfo->clause_relids = pull_varnos((Node *) clause);
-    }
+		/*
+		 * Does it look like a normal join clause, i.e., a binary operator
+		 * relating expressions that come from distinct relations? If so we
+		 * might be able to use it in a join algorithm.  Note that this is a
+		 * purely syntactic test that is made regardless of context.
+		 */
+		if (!bms_is_empty(restrictinfo->left_relids) &&
+			!bms_is_empty(restrictinfo->right_relids) &&
+			!bms_overlap(restrictinfo->left_relids,
+						 restrictinfo->right_relids))
+		{
+			restrictinfo->can_join = true;
+			/* pseudoconstant should certainly not be true */
+			Assert(!restrictinfo->pseudoconstant);
+		}
+	}
+	else
+	{
+		/* Not a binary opclause, so mark left/right relid sets as empty */
+		restrictinfo->left_relids = NULL;
+		restrictinfo->right_relids = NULL;
+		/* and get the total relid set the hard way */
+		restrictinfo->clause_relids = pull_varnos((Node *) clause);
+	}
 
-    /* required_relids defaults to clause_relids */
-    if (required_relids != NULL)
-        restrictinfo->required_relids = required_relids;
-    else
-        restrictinfo->required_relids = restrictinfo->clause_relids;
+	/* required_relids defaults to clause_relids */
+	if (required_relids != NULL)
+		restrictinfo->required_relids = required_relids;
+	else
+		restrictinfo->required_relids = restrictinfo->clause_relids;
 
-    /*
-     * Fill in all the cacheable fields with "not yet set" markers. None of
-     * these will be computed until/unless needed.  Note in particular that we
-     * don't mark a binary opclause as mergejoinable or hashjoinable here;
-     * that happens only if it appears in the right context (top level of a
-     * joinclause list).
-     */
-    restrictinfo->parent_ec = NULL;
+	/*
+	 * Fill in all the cacheable fields with "not yet set" markers. None of
+	 * these will be computed until/unless needed.  Note in particular that we
+	 * don't mark a binary opclause as mergejoinable or hashjoinable here;
+	 * that happens only if it appears in the right context (top level of a
+	 * joinclause list).
+	 */
+	restrictinfo->parent_ec = NULL;
 
-    restrictinfo->eval_cost.startup = -1;
-    restrictinfo->norm_selec = -1;
-    restrictinfo->outer_selec = -1;
+	restrictinfo->eval_cost.startup = -1;
+	restrictinfo->norm_selec = -1;
+	restrictinfo->outer_selec = -1;
 
-    restrictinfo->mergeopfamilies = NIL;
+	restrictinfo->mergeopfamilies = NIL;
 
-    restrictinfo->left_ec = NULL;
-    restrictinfo->right_ec = NULL;
-    restrictinfo->left_em = NULL;
-    restrictinfo->right_em = NULL;
-    restrictinfo->scansel_cache = NIL;
+	restrictinfo->left_ec = NULL;
+	restrictinfo->right_ec = NULL;
+	restrictinfo->left_em = NULL;
+	restrictinfo->right_em = NULL;
+	restrictinfo->scansel_cache = NIL;
 
-    restrictinfo->outer_is_left = false;
+	restrictinfo->outer_is_left = false;
 
-    restrictinfo->hashjoinoperator = InvalidOid;
+	restrictinfo->hashjoinoperator = InvalidOid;
 
-    restrictinfo->left_bucketsize = -1;
-    restrictinfo->right_bucketsize = -1;
+	restrictinfo->left_bucketsize = -1;
+	restrictinfo->right_bucketsize = -1;
+	restrictinfo->left_mcvfreq = -1;
+	restrictinfo->right_mcvfreq = -1;
 
-    return restrictinfo;
+	return restrictinfo;
 }
 
 /*
@@ -222,66 +224,66 @@ make_restrictinfo_internal(Expr *clause,
  */
 static Expr *
 make_sub_restrictinfos(Expr *clause,
-                       bool is_pushed_down,
-                       bool outerjoin_delayed,
-                       bool pseudoconstant,
-                       Index security_level,
-                       Relids required_relids,
-                       Relids outer_relids,
-                       Relids nullable_relids)
+					   bool is_pushed_down,
+					   bool outerjoin_delayed,
+					   bool pseudoconstant,
+					   Index security_level,
+					   Relids required_relids,
+					   Relids outer_relids,
+					   Relids nullable_relids)
 {
-    if (or_clause((Node *) clause))
-    {
-        List       *orlist = NIL;
-        ListCell   *temp;
+	if (or_clause((Node *) clause))
+	{
+		List	   *orlist = NIL;
+		ListCell   *temp;
 
-        foreach(temp, ((BoolExpr *) clause)->args)
-            orlist = lappend(orlist,
-                             make_sub_restrictinfos(lfirst(temp),
-                                                    is_pushed_down,
-                                                    outerjoin_delayed,
-                                                    pseudoconstant,
-                                                    security_level,
-                                                    NULL,
-                                                    outer_relids,
-                                                    nullable_relids));
-        return (Expr *) make_restrictinfo_internal(clause,
-                                                   make_orclause(orlist),
-                                                   is_pushed_down,
-                                                   outerjoin_delayed,
-                                                   pseudoconstant,
-                                                   security_level,
-                                                   required_relids,
-                                                   outer_relids,
-                                                   nullable_relids);
-    }
-    else if (and_clause((Node *) clause))
-    {
-        List       *andlist = NIL;
-        ListCell   *temp;
+		foreach(temp, ((BoolExpr *) clause)->args)
+			orlist = lappend(orlist,
+							 make_sub_restrictinfos(lfirst(temp),
+													is_pushed_down,
+													outerjoin_delayed,
+													pseudoconstant,
+													security_level,
+													NULL,
+													outer_relids,
+													nullable_relids));
+		return (Expr *) make_restrictinfo_internal(clause,
+												   make_orclause(orlist),
+												   is_pushed_down,
+												   outerjoin_delayed,
+												   pseudoconstant,
+												   security_level,
+												   required_relids,
+												   outer_relids,
+												   nullable_relids);
+	}
+	else if (and_clause((Node *) clause))
+	{
+		List	   *andlist = NIL;
+		ListCell   *temp;
 
-        foreach(temp, ((BoolExpr *) clause)->args)
-            andlist = lappend(andlist,
-                              make_sub_restrictinfos(lfirst(temp),
-                                                     is_pushed_down,
-                                                     outerjoin_delayed,
-                                                     pseudoconstant,
-                                                     security_level,
-                                                     required_relids,
-                                                     outer_relids,
-                                                     nullable_relids));
-        return make_andclause(andlist);
-    }
-    else
-        return (Expr *) make_restrictinfo_internal(clause,
-                                                   NULL,
-                                                   is_pushed_down,
-                                                   outerjoin_delayed,
-                                                   pseudoconstant,
-                                                   security_level,
-                                                   required_relids,
-                                                   outer_relids,
-                                                   nullable_relids);
+		foreach(temp, ((BoolExpr *) clause)->args)
+			andlist = lappend(andlist,
+							  make_sub_restrictinfos(lfirst(temp),
+													 is_pushed_down,
+													 outerjoin_delayed,
+													 pseudoconstant,
+													 security_level,
+													 required_relids,
+													 outer_relids,
+													 nullable_relids));
+		return make_andclause(andlist);
+	}
+	else
+		return (Expr *) make_restrictinfo_internal(clause,
+												   NULL,
+												   is_pushed_down,
+												   outerjoin_delayed,
+												   pseudoconstant,
+												   security_level,
+												   required_relids,
+												   outer_relids,
+												   nullable_relids);
 }
 
 /*
@@ -292,10 +294,10 @@ make_sub_restrictinfos(Expr *clause,
 bool
 restriction_is_or_clause(RestrictInfo *restrictinfo)
 {
-    if (restrictinfo->orclause != NULL)
-        return true;
-    else
-        return false;
+	if (restrictinfo->orclause != NULL)
+		return true;
+	else
+		return false;
 }
 
 /*
@@ -306,17 +308,17 @@ restriction_is_or_clause(RestrictInfo *restrictinfo)
  */
 bool
 restriction_is_securely_promotable(RestrictInfo *restrictinfo,
-                                   RelOptInfo *rel)
+								   RelOptInfo *rel)
 {
-    /*
-     * It's okay if there are no baserestrictinfo clauses for the rel that
-     * would need to go before this one, *or* if this one is leakproof.
-     */
-    if (restrictinfo->security_level <= rel->baserestrict_min_security ||
-        restrictinfo->leakproof)
-        return true;
-    else
-        return false;
+	/*
+	 * It's okay if there are no baserestrictinfo clauses for the rel that
+	 * would need to go before this one, *or* if this one is leakproof.
+	 */
+	if (restrictinfo->security_level <= rel->baserestrict_min_security ||
+		restrictinfo->leakproof)
+		return true;
+	else
+		return false;
 }
 
 /*
@@ -330,18 +332,18 @@ restriction_is_securely_promotable(RestrictInfo *restrictinfo,
 List *
 get_actual_clauses(List *restrictinfo_list)
 {
-    List       *result = NIL;
-    ListCell   *l;
+	List	   *result = NIL;
+	ListCell   *l;
 
-    foreach(l, restrictinfo_list)
-    {
-        RestrictInfo *rinfo = lfirst_node(RestrictInfo, l);
+	foreach(l, restrictinfo_list)
+	{
+		RestrictInfo *rinfo = lfirst_node(RestrictInfo, l);
 
-        Assert(!rinfo->pseudoconstant);
+		Assert(!rinfo->pseudoconstant);
 
-        result = lappend(result, rinfo->clause);
-    }
-    return result;
+		result = lappend(result, rinfo->clause);
+	}
+	return result;
 }
 
 /*
@@ -352,26 +354,26 @@ get_actual_clauses(List *restrictinfo_list)
  */
 List *
 extract_actual_clauses(List *restrictinfo_list,
-                       bool pseudoconstant)
+					   bool pseudoconstant)
 {
-    List       *result = NIL;
-    ListCell   *l;
+	List	   *result = NIL;
+	ListCell   *l;
 
-    foreach(l, restrictinfo_list)
-    {
-        RestrictInfo *rinfo = lfirst_node(RestrictInfo, l);
+	foreach(l, restrictinfo_list)
+	{
+		RestrictInfo *rinfo = lfirst_node(RestrictInfo, l);
 
-        if (rinfo->pseudoconstant == pseudoconstant)
-            result = lappend(result, rinfo->clause);
-    }
-    return result;
+		if (rinfo->pseudoconstant == pseudoconstant)
+			result = lappend(result, rinfo->clause);
+	}
+	return result;
 }
 
 /*
  * extract_actual_join_clauses
  *
  * Extract bare clauses from 'restrictinfo_list', separating those that
- * syntactically match the join level from those that were pushed down.
+ * semantically match the join level from those that were pushed down.
  * Pseudoconstant clauses are excluded from the results.
  *
  * This is only used at outer joins, since for plain joins we don't care
@@ -379,37 +381,38 @@ extract_actual_clauses(List *restrictinfo_list,
  */
 void
 extract_actual_join_clauses(List *restrictinfo_list,
-                            List **joinquals,
-                            List **otherquals)
+							Relids joinrelids,
+							List **joinquals,
+							List **otherquals)
 {
-    ListCell   *l;
+	ListCell   *l;
 
-    *joinquals = NIL;
-    *otherquals = NIL;
+	*joinquals = NIL;
+	*otherquals = NIL;
 
-    foreach(l, restrictinfo_list)
-    {
-        RestrictInfo *rinfo = lfirst_node(RestrictInfo, l);
+	foreach(l, restrictinfo_list)
+	{
+		RestrictInfo *rinfo = lfirst_node(RestrictInfo, l);
 
-        if (rinfo->is_pushed_down)
-        {
-            if (!rinfo->pseudoconstant)
-                *otherquals = lappend(*otherquals, rinfo->clause);
-        }
-        else
-        {
-            /* joinquals shouldn't have been marked pseudoconstant */
-            Assert(!rinfo->pseudoconstant);
-            *joinquals = lappend(*joinquals, rinfo->clause);
-        }
-    }
+		if (RINFO_IS_PUSHED_DOWN(rinfo, joinrelids))
+		{
+			if (!rinfo->pseudoconstant)
+				*otherquals = lappend(*otherquals, rinfo->clause);
+		}
+		else
+		{
+			/* joinquals shouldn't have been marked pseudoconstant */
+			Assert(!rinfo->pseudoconstant);
+			*joinquals = lappend(*joinquals, rinfo->clause);
+		}
+	}
 }
 
 
 /*
  * join_clause_is_movable_to
- *        Test whether a join clause is a safe candidate for parameterization
- *        of a scan on the specified base relation.
+ *		Test whether a join clause is a safe candidate for parameterization
+ *		of a scan on the specified base relation.
  *
  * A movable join clause is one that can safely be evaluated at a rel below
  * its normal semantic level (ie, its required_relids), if the values of
@@ -434,33 +437,33 @@ extract_actual_join_clauses(List *restrictinfo_list,
 bool
 join_clause_is_movable_to(RestrictInfo *rinfo, RelOptInfo *baserel)
 {
-    /* Clause must physically reference target rel */
-    if (!bms_is_member(baserel->relid, rinfo->clause_relids))
-        return false;
+	/* Clause must physically reference target rel */
+	if (!bms_is_member(baserel->relid, rinfo->clause_relids))
+		return false;
 
-    /* Cannot move an outer-join clause into the join's outer side */
-    if (bms_is_member(baserel->relid, rinfo->outer_relids))
-        return false;
+	/* Cannot move an outer-join clause into the join's outer side */
+	if (bms_is_member(baserel->relid, rinfo->outer_relids))
+		return false;
 
-    /* Target rel must not be nullable below the clause */
-    if (bms_is_member(baserel->relid, rinfo->nullable_relids))
-        return false;
+	/* Target rel must not be nullable below the clause */
+	if (bms_is_member(baserel->relid, rinfo->nullable_relids))
+		return false;
 
-    /* Clause must not use any rels with LATERAL references to this rel */
-    if (bms_overlap(baserel->lateral_referencers, rinfo->clause_relids))
-        return false;
+	/* Clause must not use any rels with LATERAL references to this rel */
+	if (bms_overlap(baserel->lateral_referencers, rinfo->clause_relids))
+		return false;
 
-    return true;
+	return true;
 }
 
 /*
  * join_clause_is_movable_into
- *        Test whether a join clause is movable and can be evaluated within
- *        the current join context.
+ *		Test whether a join clause is movable and can be evaluated within
+ *		the current join context.
  *
  * currentrelids: the relids of the proposed evaluation location
  * current_and_outer: the union of currentrelids and the required_outer
- *        relids (parameterization's outer relations)
+ *		relids (parameterization's outer relations)
  *
  * The API would be a bit clearer if we passed the current relids and the
  * outer relids separately and did bms_union internally; but since most
@@ -506,29 +509,29 @@ join_clause_is_movable_to(RestrictInfo *rinfo, RelOptInfo *baserel)
  */
 bool
 join_clause_is_movable_into(RestrictInfo *rinfo,
-                            Relids currentrelids,
-                            Relids current_and_outer)
+							Relids currentrelids,
+							Relids current_and_outer)
 {
-    /* Clause must be evaluable given available context */
-    if (!bms_is_subset(rinfo->clause_relids, current_and_outer))
-        return false;
+	/* Clause must be evaluable given available context */
+	if (!bms_is_subset(rinfo->clause_relids, current_and_outer))
+		return false;
 
-    /* Clause must physically reference at least one target rel */
-    if (!bms_overlap(currentrelids, rinfo->clause_relids))
-        return false;
+	/* Clause must physically reference at least one target rel */
+	if (!bms_overlap(currentrelids, rinfo->clause_relids))
+		return false;
 
-    /* Cannot move an outer-join clause into the join's outer side */
-    if (bms_overlap(currentrelids, rinfo->outer_relids))
-        return false;
+	/* Cannot move an outer-join clause into the join's outer side */
+	if (bms_overlap(currentrelids, rinfo->outer_relids))
+		return false;
 
-    /*
-     * Target rel(s) must not be nullable below the clause.  This is
-     * approximate, in the safe direction, because the current join might be
-     * above the join where the nulling would happen, in which case the clause
-     * would work correctly here.  But we don't have enough info to be sure.
-     */
-    if (bms_overlap(currentrelids, rinfo->nullable_relids))
-        return false;
+	/*
+	 * Target rel(s) must not be nullable below the clause.  This is
+	 * approximate, in the safe direction, because the current join might be
+	 * above the join where the nulling would happen, in which case the clause
+	 * would work correctly here.  But we don't have enough info to be sure.
+	 */
+	if (bms_overlap(currentrelids, rinfo->nullable_relids))
+		return false;
 
-    return true;
+	return true;
 }
