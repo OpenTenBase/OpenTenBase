@@ -12,7 +12,7 @@
 #include "postgres.h"
 #include <zstd.h> 
 
-typedef struct _CompressResouce 
+typedef struct _CompressResource 
 {
     size_t in_size;
     size_t out_size;
@@ -24,9 +24,9 @@ typedef struct _CompressResouce
     ZSTD_inBuffer zstd_in_buf;
     ZSTD_outBuffer zstd_out_buf;
 	char *errormsg_buf;
-} CompressResouce;
+} CompressResource;
 
-typedef struct _DecompressResouce 
+typedef struct _DecompressResource 
 {
     size_t in_size;
     size_t out_size;
@@ -36,15 +36,15 @@ typedef struct _DecompressResouce
     ZSTD_inBuffer zstd_in_buf;
     ZSTD_outBuffer zstd_out_buf;
 	char *errormsg_buf;
-} DecompressResouce;
+} DecompressResource;
 
-extern CompressResouce *init_compress_resouce(int compress_level, size_t in_size);
-extern CompressResouce *simple_init_compress_resouce(void);
-extern int compress_file(CompressResouce *resouce, const char *src_path, const char *dst_path);
-extern void free_compress_resouce(CompressResouce *resouce);
+extern CompressResource *init_compress_resource(int compress_level, size_t in_size);
+extern CompressResource *simple_init_compress_resource(void);
+extern int compress_file(CompressResource *resource, const char *src_path, const char *dst_path);
+extern void free_compress_resource(CompressResource *resource);
 
-extern DecompressResouce *init_decompress_resouce(size_t out_size);
-extern DecompressResouce *simple_init_decompress_resouce(void);
-extern int decompress_file(DecompressResouce *resouce, const char *src_path, const char *dst_path);
-extern void free_decompress_resouce(DecompressResouce *res);
+extern DecompressResource *init_decompress_resource(size_t out_size);
+extern DecompressResource *simple_init_decompress_resource(void);
+extern int decompress_file(DecompressResource *resource, const char *src_path, const char *dst_path);
+extern void free_decompress_resource(DecompressResource *resource);
 #endif
