@@ -484,7 +484,7 @@ InitMultinodeExecutor(bool is_force)
 	}
 	
 #ifdef __OPENTENBASE__	
-	/* destory hash table */
+	/* destroy hash table */
 	if (node_handles_hash)
 	{
 		hash_destroy(node_handles_hash);
@@ -504,7 +504,7 @@ InitMultinodeExecutor(bool is_force)
 	node_handles_hash = hash_create("Node Handles Hash",
 									NumCoords + NumDataNodes,
 									&hinfo, hflags);
-	/* destory hash table */
+	/* destroy hash table */
 	if (dn_node_handles_hash)
 	{
 		hash_destroy(dn_node_handles_hash);

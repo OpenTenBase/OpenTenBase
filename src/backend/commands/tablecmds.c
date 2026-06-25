@@ -670,7 +670,7 @@ GetForeignDistributeType(char relkind, CreateStmt *stmt)
 	return 0;
 }
 static bool is_temp_table_active(Oid oid);
-static void destory_active_table_hash(void);
+static void destroy_active_table_hash(void);
 
 /* ----------------------------------------------------------------
  *		DefineRelation
@@ -16644,8 +16644,8 @@ AtEOXact_on_commit_actions(bool isCommit)
 			cur_item = lnext(prev_item);
 		}
 	}
-	/* destory the hash table that stores transaction-level active temp tables */
-	destory_active_table_hash();	
+	/* destroy the hash table that stores transaction-level active temp tables */
+	destroy_active_table_hash();	
 }
 
 /*
@@ -19083,7 +19083,7 @@ is_temp_table_active(Oid oid)
  * destroy active temp table hashtable
  */
 static void
-destory_active_table_hash(void)
+destroy_active_table_hash(void)
 {
 	if (active_temp_table_hash)
 	{
