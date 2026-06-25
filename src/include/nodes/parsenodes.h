@@ -2717,7 +2717,7 @@ GetConstraintType(ConstrType type)
 		case CONSTR_ATTR_IMMEDIATE:
 			return "ATTR IMMEDIATE";
 		default:
-			return "UNSUPPORT CONTYPE";
+			return "UNSUPPORTED CONTYPE";
 	}
 }
 

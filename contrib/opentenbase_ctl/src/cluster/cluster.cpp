@@ -424,7 +424,7 @@ int pre_process_pkg(OpentenbaseConfig *config) {
         LOG_ERROR_FMT("Failed to prepare *.tar.gz pkg");
         return -1;
     }
-    LOG_INFO_FMT("Sucess to make tar.gz Package for %s", config->instance.package_path.c_str());
+    LOG_INFO_FMT("Success to make tar.gz Package for %s", config->instance.package_path.c_str());
 
     return 0;
 }

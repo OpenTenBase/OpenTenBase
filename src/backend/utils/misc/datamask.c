@@ -631,12 +631,12 @@ static Datum datamask_exchange_one_col_value(Oid relid,
 
     if (unknown_option_kind)
     {
-        elog(ERROR, "datamask:unsupport type, typid:%d for option:%d", attr->atttypid, option);
+        elog(ERROR, "datamask:unsupported type, typid:%d for option:%d", attr->atttypid, option);
     }
 
     if (unsupport_data_type)
     {
-        elog(ERROR, "datamask:unsupport type, typid:%d for option:%d", attr->atttypid, option);
+        elog(ERROR, "datamask:unsupported type, typid:%d for option:%d", attr->atttypid, option);
     }
     
     return value;
