@@ -233,7 +233,7 @@ class PgxcCtlConf:
 
         with open(f'{self.basedir}/pgxc_ctl.conf', 'w') as fout:
             fout.write(content)
-        global_thl_data.logger.debug(f'{self.basedir}/pgxc_ctl.conf has been writen on disk')
+        global_thl_data.logger.debug(f'{self.basedir}/pgxc_ctl.conf has been written on disk')
 
     @staticmethod
     def GeneratePgxcCtlConfNoPortsInPgclass(cluster_conf, basedir):
@@ -425,7 +425,7 @@ def CloneCluster(srcdir, targetdir):
     dst_pgxc_ctl_conf.basedir = targetdir
     dst_pgxc_ctl_conf.SetMemberVariables()
     dst_pgxc_ctl_conf.WriteToFile()
-    global_thl_data.logger.debug('pgxc_ctl.conf with new ports has been writen on disk')
+    global_thl_data.logger.debug('pgxc_ctl.conf with new ports has been written on disk')
     # useless and ports in pgclass not changed
     dst_pgxc_ctl_conf.DumpToPickleFile()
 

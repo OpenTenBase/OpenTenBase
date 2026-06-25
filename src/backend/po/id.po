@@ -1105,7 +1105,7 @@ msgstr "cluster database telah diinisialkan dengan RELSEG_SIZE %d, tapi server t
 #: access/transam/xlog.c:3662
 #, c-format
 msgid "The database cluster was initialized with XLOG_BLCKSZ %d, but the server was compiled with XLOG_BLCKSZ %d."
-msgstr "cluster databse telah diinisialkan dengan XLOG_BLCKSZ %d, tapi server telah dikompilasi dengan XLOG_BLCKSZ %d."
+msgstr "cluster database telah diinisialkan dengan XLOG_BLCKSZ %d, tapi server telah dikompilasi dengan XLOG_BLCKSZ %d."
 
 #: access/transam/xlog.c:3669
 #, c-format
@@ -1300,7 +1300,7 @@ msgstr "sistem database telah mati pada %s"
 #: access/transam/xlog.c:4898
 #, c-format
 msgid "database system was shut down in recovery at %s"
-msgstr "sistem databse telah mati dalam pemulihan pada %s"
+msgstr "sistem database telah mati dalam pemulihan pada %s"
 
 #: access/transam/xlog.c:4902
 #, c-format
@@ -4536,7 +4536,7 @@ msgstr "Anda harus memindahkan kembali semua itu ke tablespace default database 
 #: commands/dbcommands.c:1290 commands/dbcommands.c:1789 commands/dbcommands.c:2007 commands/dbcommands.c:2055 commands/tablespace.c:585
 #, c-format
 msgid "some useless files may be left behind in old database directory \"%s\""
-msgstr "beberapa file tidak terpakai mungkin sisa dari directory databse yang dulu « %s »"
+msgstr "beberapa file tidak terpakai mungkin sisa dari directory database yang dulu « %s »"
 
 #: commands/dbcommands.c:1546
 #, c-format

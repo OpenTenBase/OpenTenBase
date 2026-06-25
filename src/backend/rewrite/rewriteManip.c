@@ -1210,7 +1210,7 @@ replace_rte_variables_mutator(Node *node,
  * If the expression tree contains a whole-row Var for the target RTE,
  * *found_whole_row is returned as TRUE.  In addition, if to_rowtype is
  * not InvalidOid, we modify the Var's vartype and insert a ConvertRowTypeExpr
- * to map back to the orignal rowtype.  Callers that don't provide to_rowtype
+ * to map back to the original rowtype.  Callers that don't provide to_rowtype
  * should report an error if *found_row_type is true; we don't do that here
  * because we don't know exactly what wording for the error message would
  * be most appropriate.  The caller will be aware of the context.
