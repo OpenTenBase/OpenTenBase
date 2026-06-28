@@ -225,6 +225,7 @@ test: xc_having
 test: xc_temp
 test: xc_remote
 test: xc_node
+test: forward_node
 test: xc_FQS
 test: xc_FQS_join
 test: xc_misc
