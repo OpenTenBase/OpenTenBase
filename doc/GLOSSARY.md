@@ -26,6 +26,8 @@ flowchart TD
     cn -->|query fragments| dn3
 ```
 
+> Arrows show the request path. Results flow back along the reverse route: each DN returns its partial result to the CN, which merges them and returns the final result to the user.
+
 **How a query flows through the cluster:**
 
 | Step | Who | What |
@@ -49,7 +51,7 @@ The storage layer where **all user data resides.** Each DN holds a portion (shar
 A common point of confusion for newcomers: CNs and DNs share the same table schemas, but data only exists on DNs. When you query a table, multiple DNs typically work in parallel. This parallelism is what enables horizontal scaling.
 
 ### 3. GTM (Global Transaction Manager)
-The global transaction coordinator. In a single-node database, transaction IDs and snapshots are managed locally. In a distributed system, a transaction can span multiple DNs. A single, central authority must issue **global transaction IDs (GXIDs)** and **global snapshots** so that cross-node consistency is maintained — for example, to prevent a transaction that has committed on DN1 but is still in-flight on DN2 from being visible as partially-committed data. The GTM source code is located at `src/gtm/`.
+The global transaction coordinator. In a single-node database, transaction IDs and snapshots are managed locally. In a distributed system, a transaction can span multiple DNs. A single, central authority must issue **global transaction IDs (GXIDs)** and **global snapshots** so that cross-node consistency is maintained — for example, to prevent a transaction that has committed on DN1 but is still in-flight on DN2 from being visible as partially committed data. The GTM source code is located at `src/gtm/`.
 
 ### 4. Global Transaction ID & Global Snapshot (GXID / Global Snapshot)
 Two pieces of information that the GTM provides. A **global transaction ID** is a cluster-wide unique number assigned to each transaction. A **global snapshot** describes which transactions are committed and which are still in-flight at a given moment. All DNs use the same snapshot to determine data visibility, so that data spread across multiple nodes remains as consistent as in a single database.
@@ -58,7 +60,7 @@ Two pieces of information that the GTM provides. A **global transaction ID** is 
 A deployment topology that uses **all three node types: GTM + Coordinator + DataNode.** Data is sharded across multiple DNs, enabling horizontal scaling and high concurrency. This is the primary deployment mode for OpenTenBase. Set via `type=distributed` in `opentenbase_config.ini`.
 
 ### 6. Centralized Mode
-A deployment topology that uses **only DataNodes** (with optional masters/slaves) — no CNs, no GTM. Suitable for workloads with modest data volume and concurrency that only need a highly-available single-node setup. Set via `type=centralized` in the config file. Understanding the difference between these two modes is essential for reading the deployment docs.
+A deployment topology that uses **only DataNodes** (with optional masters/slaves) — no CNs, no GTM. Suitable for workloads with modest data volume and concurrency that only need a highly available single-node setup. Set via `type=centralized` in the config file. Understanding the difference between these two modes is essential for reading the deployment docs.
 
 ### 7. Distribution Strategy
 How a table's rows are spread across DNs, specified with `DISTRIBUTE BY` at table creation. OpenTenBase supports several strategies:
@@ -105,7 +107,7 @@ Connect to a **CN master node.** Users never connect directly to DNs. After inst
 All data lives on **DNs.** CNs only store metadata — no user data.
 
 **Q: Distributed vs. centralized mode — which one should I pick?**
-Need horizontal scaling and high concurrency? → Distributed (GTM + CN + DN). Need a highly-available single-node database with modest data volume? → Centralized (DN master/slave only).
+Need horizontal scaling and high concurrency? → Distributed (GTM + CN + DN). Need a highly available single-node database with modest data volume? → Centralized (DN master/slave only).
 
 **Q: Why does OpenTenBase need a GTM? Single-node databases don't have one.**
 Because a single transaction can modify data on multiple DNs simultaneously. A central transaction coordinator is required to hand out consistent transaction IDs and snapshots across all nodes. A single-node database manages everything locally, so it does not need a separate transaction manager.
