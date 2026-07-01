@@ -14,6 +14,8 @@ OpenTenBase具有许多类似于PostgreSQL的语言接口，其中的一些可�
 
 用户总是连接到 CoordinateNodes，CoordinateNodes 将查询分解为在 DataNodes 中执行的片段，并收集结果。
 
+> 初次接触这些概念（Coordinator、DataNode、GTM、node group、分布式/集中式等）？可参阅 [架构术语表与新手导览](doc/GLOSSARY_ZH.md)，其中用通俗语言解释了核心术语并配有架构图。
+
 您可以在以下链接获取 OpenTenBase 软件的最新版本：
 
 	https://github.com/OpenTenBase/OpenTenBase
