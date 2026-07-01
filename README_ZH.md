@@ -158,14 +158,8 @@ sudo systemctl stop firewalld
 > sudo systemctl stop nftables
 > sudo systemctl disable nftables
 >
-> # 方式 3：仅放行 OpenTenBase 所需端口（推荐生产环境）
-> sudo firewall-cmd --add-port=30001/tcp --permanent  # GTM
-> sudo firewall-cmd --add-port=30004/tcp --permanent  # CN
-> sudo firewall-cmd --add-port=30006-30007/tcp --permanent  # DN
-> sudo firewall-cmd --reload
-> # 若无 firewalld，使用 iptables：
-> # sudo iptables -A INPUT -p tcp --dport 30001 -j ACCEPT
-> # sudo iptables -A INPUT -p tcp --dport 30004 -j ACCEPT
+> # 方式 3：仅放行集群实际使用的端口（推荐生产环境）。具体端口号请
+> # 参考 OpenTenBase 官方文档对部署拓扑（GTM / Coordinator / DataNode）的说明。
 > ```
 
 #### 3. 创建用于初始化实例的 *.tar.gz 包。
@@ -318,7 +312,7 @@ nodes-per-server=1
 [server]
 ssh-user=opentenbase
 ssh-password=
-ssh-port=22
+ssh-port=36000
 
 # 日志配置
 [log]
@@ -326,15 +320,6 @@ level=DEBUG
 ```
 
 > **注意**：集中式单节点模式不需要配置 `[gtm]` 和 `[coordinators]` 段，GTM 功能内嵌在 CN 中。不要填写 `slave=` 行，否则解析器可能报 `Failed to parse configuration file`。
-
-**集中式模式端口规划：**
-
-| 节点 | 角色 | 默认端口 | 说明 |
-|------|------|---------|------|
-| dn0001 | DataNode | 20001 | 数据节点 |
-| cn0001 | Coordinator | 5432 | 协调节点（客户端连接入口）|
-
-> 集中式模式下 GTM 内嵌在 CN 中，无需独立 GTM 进程和端口。
 
 #### 2. 执行实例安装命令。
 

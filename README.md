@@ -162,14 +162,9 @@ sudo systemctl stop firewalld
 > sudo systemctl stop nftables
 > sudo systemctl disable nftables
 >
-> # Option 3: only open the OpenTenBase ports (recommended for production)
-> sudo firewall-cmd --add-port=30001/tcp --permanent  # GTM
-> sudo firewall-cmd --add-port=30004/tcp --permanent  # CN
-> sudo firewall-cmd --add-port=30006-30007/tcp --permanent  # DN
-> sudo firewall-cmd --reload
-> # Without firewalld, use iptables:
-> # sudo iptables -A INPUT -p tcp --dport 30001 -j ACCEPT
-> # sudo iptables -A INPUT -p tcp --dport 30004 -j ACCEPT
+> # Option 3: only open the ports your cluster uses (recommended for production).
+> # Refer to the OpenTenBase documentation for the exact ports required by your
+> # deployment topology (GTM / Coordinator / DataNode).
 > ```
 
 #### 3. Create the *.tar.gz package for initializing instances.
@@ -337,7 +332,7 @@ nodes-per-server=1
 [server]
 ssh-user=opentenbase
 ssh-password=
-ssh-port=22
+ssh-port=36000
 
 # Log configuration
 [log]
