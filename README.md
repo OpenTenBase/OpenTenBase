@@ -343,13 +343,6 @@ ssh-port=22
 [log]
 level=DEBUG
 ```
-Port planning for this single-node setup:
-| Node | Role | Default port | Description |
-|------|------|---------|------|
-| dn0001 | DataNode | 20001 | Data node |
-| cn0001 | Coordinator | 5432 | Coordinator (client connection entry) |
-
-> In centralized mode, the GTM is embedded in the CN, so no standalone GTM process or port is needed.
 
 #### 2. Execute command for instance installation.
 
