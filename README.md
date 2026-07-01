@@ -30,19 +30,29 @@ For more information look at our website located at:
 
 Memory: 8G RAM minimum
 
-OS: TencentOS 2, TencentOS 3, OpenCloudOS 8.x, CentOS 7, CentOS 8, Ubuntu 18.04
+OS: TencentOS 2, TencentOS 3, OpenCloudOS 8.x, OpenCloudOS 9, CentOS 7, CentOS 8, Ubuntu 18.04
 
 ### Dependencies
 
-``` 
-yum -y install git sudo gcc make readline-devel zlib-devel openssl-devel uuid-devel bison flex cmake postgresql-devel libssh2-devel sshpass  libcurl-devel libxml2-devel
-```
-
-or
+**yum / dnf (RHEL family):**
 
 ```
-apt install -y git sudo gcc make libreadline-dev zlib1g-dev libssl-dev libossp-uuid-dev bison flex cmake libssh2-1-dev sshpass libxml2-dev language-pack-zh-hans
+yum -y install git sudo gcc gcc-c++ make readline-devel zlib-devel openssl-devel uuid-devel \
+  bison flex cmake postgresql-devel libssh2-devel sshpass libcurl-devel libxml2-devel \
+  libxslt-devel perl-ExtUtils-Embed python3-devel libicu-devel pam-devel \
+  libevent-devel libyaml-devel lz4-devel libzstd-devel
 ```
+
+**apt (Debian family):**
+
+```
+apt install -y git sudo gcc g++ make libreadline-dev zlib1g-dev libssl-dev libossp-uuid-dev \
+  bison flex cmake libpq-dev libssh2-1-dev sshpass libcurl4-openssl-dev libxml2-dev \
+  libxslt1-dev libperl-dev python3-dev libicu-dev libpam0g-dev \
+  libevent-dev libyaml-dev liblz4-dev libzstd-dev language-pack-zh-hans
+```
+
+> **Note**: Some distributions (such as OpenCloudOS 9) may not include `cli11-devel` in their repositories. If the build reports a CLI11-related error, install it from the [CLI11 source](https://github.com/CLIUtils/CLI11) or skip with the `--without-cli11` option.
 
 
 ### Create User 'opentenbase'
@@ -73,7 +83,15 @@ visudo
 ```bash
 su - opentenbase
 cd /data/opentenbase/
+
+# Direct GitHub clone (recommended when network is good)
 git clone https://github.com/OpenTenBase/OpenTenBase
+
+# Alternative 1: use ghfast.top proxy for acceleration
+# git clone https://ghfast.top/https://github.com/OpenTenBase/OpenTenBase.git
+
+# Alternative 2: use the Gitee mirror
+# git clone https://gitee.com/opentenbase/OpenTenBase.git
 
 export SOURCECODE_PATH=/data/opentenbase/OpenTenBase
 export INSTALL_PATH=/data/opentenbase/install/
@@ -81,6 +99,7 @@ export INSTALL_PATH=/data/opentenbase/install/
 cd ${SOURCECODE_PATH}
 rm -rf ${INSTALL_PATH}/opentenbase_bin_v5.0
 chmod +x configure*
+# --disable-license is equivalent to -DNOLIC; either one is sufficient
 ./configure --prefix=${INSTALL_PATH}/opentenbase_bin_v5.0 --enable-user-switch --with-libxml --disable-license --with-openssl --with-ossp-uuid CFLAGS="-g"
 make clean
 make -sj
@@ -98,23 +117,60 @@ Use OPENTENBASE\_CTL tool to build a cluster, for example: a cluster with a glob
 
 #### 1. Install opentenbase and import the path of opentenbase installation package into environment variable.
 
-```shell
+It is recommended to write the environment variables to `~/.bash_profile` (not `~/.bashrc`) so they are loaded automatically on login:
+
+```bash
+# Write to ~/.bash_profile
+cat >> ~/.bash_profile <<'EOF'
+
+# OpenTenBase environment variables
 PG_HOME=${INSTALL_PATH}/opentenbase_bin_v5.0
-export PATH="$PATH:$PG_HOME/bin"
-export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$PG_HOME/lib"
+export PATH="$PG_HOME/bin:$PATH"
+export LD_LIBRARY_PATH="$PG_HOME/lib:$LD_LIBRARY_PATH"
 export LC_ALL=C
+EOF
+
+# Apply immediately
+source ~/.bash_profile
+
+# Verify
+which psql
+echo $LD_LIBRARY_PATH
 ```
+
+> **Note**: `LD_LIBRARY_PATH` must be set correctly, otherwise `psql`, `pg_ctl`, and other tools will report `error while loading shared libraries`. If `PATH` does not take effect, check whether `~/.bashrc` is overriding the `~/.bash_profile` settings.
 
 #### 2. Disable SELinux and firewall (optional)
 
 ```
-vi /etc/selinux/config 
+vi /etc/selinux/config
 set SELINUX=disabled
 
 # Disable firewalld
 sudo systemctl disable firewalld
 sudo systemctl stop firewalld
 ```
+
+> **Note**: OpenCloudOS 9 / some CentOS minimal installations do not ship `firewalld` by default; the commands above will report `Unit firewalld.service could not be found`. In that case use one of the following:
+>
+> ```
+> # Option 1: use iptables
+> sudo systemctl stop iptables
+> sudo systemctl disable iptables
+>
+> # Option 2: use nftables
+> sudo systemctl stop nftables
+> sudo systemctl disable nftables
+>
+> # Option 3: only open the OpenTenBase ports (recommended for production)
+> sudo firewall-cmd --add-port=30001/tcp --permanent  # GTM
+> sudo firewall-cmd --add-port=30004/tcp --permanent  # CN
+> sudo firewall-cmd --add-port=30006-30007/tcp --permanent  # DN
+> sudo firewall-cmd --reload
+> # Without firewalld, use iptables:
+> # sudo iptables -A INPUT -p tcp --dport 30001 -j ACCEPT
+> # sudo iptables -A INPUT -p tcp --dport 30004 -j ACCEPT
+> ```
 
 #### 3. Create the *.tar.gz package for initializing instances.
 
@@ -140,6 +196,29 @@ bin  include  lib  share
 [opentenbase@VM-32-21-tencentos ~/install/opentenbase_bin_v5.0/bin/usr/local/install/opentenbase]$ ls
 bin  include  lib  opentenbase-5.21.8-i.x86_64.tar.gz  share
 
+```
+
+#### 4. Configure SSH passwordless login (required for multi-node deployment)
+
+For multi-node deployment, `opentenbase_ctl` operates on each node through SSH, so passwordless login must be configured in advance. Single-node deployment also benefits from this to avoid password prompts on local SSH operations.
+
+```bash
+# Run as the opentenbase user
+su - opentenbase
+
+# Generate the key pair (non-interactive, no passphrase)
+mkdir -p ~/.ssh && chmod 700 ~/.ssh
+ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa -N "" -C "opentenbase@localhost"
+
+# Add the public key to authorized_keys
+cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+
+# For multi-node deployment, also copy the public key to every node:
+# ssh-copy-id -i ~/.ssh/id_rsa.pub opentenbase@<remote_node_ip>
+
+# Verify passwordless login
+ssh opentenbase@localhost echo "SSH OK"
 ```
 
 ### Cluster startup steps
@@ -241,6 +320,36 @@ ssh-port=36000
 level=DEBUG
 ```
 
+* For a single-node centralized instance (simplest path for getting started on a single machine), the configuration is as follows. No `slave=` line is required for centralized mode, and the `[gtm]` block should be omitted because the centralized mode reuses a built-in GTM:
+```
+# Instance configuration
+[instance]
+name=opentenbase_single
+type=centralized
+package=/data/opentenbase/install/opentenbase-5.21.8-i.x86_64.tar.gz
+
+# Data nodes (single node, no slave)
+[datanodes]
+master=127.0.0.1
+nodes-per-server=1
+
+# Login and deployment account
+[server]
+ssh-user=opentenbase
+ssh-password=
+ssh-port=22
+
+# Log configuration
+[log]
+level=DEBUG
+```
+Port planning for this single-node setup:
+| Role | Port |
+|------|------|
+| GTM | 30001 |
+| Coordinator (main) | 30004 |
+| DataNode (main) | 30006 |
+
 #### 2. Execute command for instance installation.
 
 ```
@@ -286,6 +395,12 @@ step 6:Create node group ...
 ====== Installation completed successfully  ====== 
 ```
 * When you see the words 'Installation completed successfully', it means that the installation has been completed. Enjoy your opentenbase journey to the fullest.
+
+> **Note**: The `opentenbase_ctl install` command only runs `initdb` and prepares the cluster files; it does **not** automatically start the cluster. After installation finishes, start the cluster with:
+> ```
+> opentenbase_ctl start -c opentenbase_config.ini
+> ```
+> You can then check the status with `opentenbase_ctl status -c opentenbase_config.ini`.
 * You can check the status of the instance
 ```
 [opentenbase@VM-16-49-tencentos opentenbase_ctl]$ ./opentenbase_bin_v5.0/bin/opentenbase_ctl status -c opentenbase_config.ini
@@ -310,6 +425,48 @@ Node dn0001(172.16.16.131) is Running
 Environment variable: export LD_LIBRARY_PATH=/data/opentenbase/install/opentenbase/5.21.8/lib  && export PATH=/data/opentenbase/install/opentenbase/5.21.8/bin:${PATH} 
 PSQL connection: psql -h 172.16.16.49 -p 11000 -U opentenbase postgres 
 ```
+
+
+## Common Errors and Troubleshooting
+
+The following common issues may be encountered when deploying and using OpenTenBase. They are grouped by category, with the symptom, root cause, and solution for each.
+
+### Environment
+
+| Symptom | Root cause | Solution |
+|---------|-----------|----------|
+| `systemctl stop firewalld` reports `Unit firewalld.service could not be found` | OpenCloudOS 9 / some CentOS minimal installations do not ship `firewalld`; they use `iptables`/`nftables` instead | Use `systemctl stop iptables` or `systemctl stop nftables`; or open only the required ports |
+| `dnf install` cannot find `cli11-devel` | The package is not shipped in some distribution repositories | Build it from the [CLI11 source](https://github.com/CLIUtils/CLI11), or skip it with the `--without-cli11` option |
+| `make` reports missing `libzstd` / `lz4` static libraries | `libzstd-devel` / `lz4-devel` are not pre-installed | `dnf install -y libzstd-devel lz4-devel` |
+| `git clone` times out or is extremely slow | GitHub network is unstable | Use the `ghfast.top` proxy prefix or the Gitee mirror (see the "Building" section for alternatives) |
+
+### Compilation
+
+| Symptom | Root cause | Solution |
+|---------|-----------|----------|
+| `contrib` build reports `Permission denied` | The `make_signature` file is not executable | Run `chmod +x contrib/pgxc_ctl/make_signature` **before** `cd contrib` |
+| `make install` reports `Permission denied` | The `--prefix` path is not writable by the current user | `chown -R opentenbase:opentenbase ${INSTALL_PATH}` |
+| `configure` reports `libxml2 not found` | `libxml2-devel` is not installed | `dnf install -y libxml2-devel` |
+| `make` reports `fatal error: libxslt/xslt.h: No such file` | `libxslt-devel` is not installed | `dnf install -y libxslt-devel` |
+
+### Startup
+
+| Symptom | Root cause | Solution |
+|---------|-----------|----------|
+| `opentenbase_ctl install` reports `Failed to parse configuration file` | The parser misbehaves when `[datanodes].slave=` is empty | In centralized single-node mode, omit the `slave=` line entirely |
+| `opentenbase_ctl install` reports a GTM connection failure | Centralized mode has no standalone GTM process, but the configuration still contains a `[gtm]` block | In centralized mode, keep only `[datanodes]` + `[server]` + `[log]` |
+| `pg_ctl start` exits without leaving a running process | The node type was not specified | You must add `-Z datanode` (or `-Z coordinator`) |
+| `opentenbase_ctl install` finishes but no node is running | The `install` command only runs `initdb`; it does not auto-start the cluster | Run `opentenbase_ctl start -c opentenbase_config.ini` afterwards |
+| `opentenbase_ctl` reports `pg_config: command not found` | `PATH` does not include `$PG_HOME/bin` | Verify the environment variables are set and run `source ~/.bash_profile` |
+
+### Connection
+
+| Symptom | Root cause | Solution |
+|---------|-----------|----------|
+| `psql` cannot connect to the CN | `pg_hba.conf` does not allow the local network segment | Add `host all all 0.0.0.0/0 md5` or a `trust` rule for the local IP |
+| Environment variable `PATH` does not take effect | `~/.bashrc` is overriding `~/.bash_profile` | Put the environment variables at the top of `~/.bash_profile` and `source` it; or merge/remove the duplicates |
+| `psql` reports `server closed the connection unexpectedly` | `listen_addresses` is not opened up | Set `listen_addresses = '*'` in `postgresql.conf` |
+| `psql` reports `error while loading shared libraries` | `LD_LIBRARY_PATH` does not include `$PG_HOME/lib` | Confirm `LD_LIBRARY_PATH` is set in `~/.bash_profile` and run `source` |
 
 
 ## Usage
