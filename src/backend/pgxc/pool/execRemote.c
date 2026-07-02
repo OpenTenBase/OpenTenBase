@@ -9902,9 +9902,11 @@ determine_param_types(Plan *plan,  struct find_params_context *context)
 			if (expression_tree_walker((Node *) ((WindowAgg *) plan)->startOffset,
 									   determine_param_types_walker,
 									   (void *) context))
+				return true;
 			if (expression_tree_walker((Node *) ((WindowAgg *) plan)->endOffset,
 									   determine_param_types_walker,
 									   (void *) context))
+				return true;
 			break;
 
 		case T_Gather:
