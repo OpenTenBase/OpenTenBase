@@ -9915,6 +9915,7 @@ determine_param_types(Plan *plan,  struct find_params_context *context)
 		case T_Unique:
 		case T_SetOp:
 		case T_Group:
+		case T_ProjectSet:
 		case T_MergeQualProj:
 		case T_ConnectBy:
 		case T_PartIterator:
