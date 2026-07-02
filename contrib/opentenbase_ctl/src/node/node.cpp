@@ -1220,8 +1220,6 @@ int transfer_package_concurrency(OpentenbaseConfig *configInfo,
     std::vector<std::thread> threads;
     std::vector<int> results(server_list.size(), 0);  // 每个 server 对应一个结果
 
-    int failedCount = 0;
-
     size_t i = 0;  // 手动维护索引
     for (const std::string& server : server_list) {
         LOG_INFO_FMT("Start to copy to %s:%s %s", server.c_str(), dest_path.c_str(), source_file.c_str());
@@ -1241,8 +1239,6 @@ int transfer_package_concurrency(OpentenbaseConfig *configInfo,
                 std::cout << " " << server << " failed " << '\n';
                 LOG_ERROR_FMT("Failed to transfer package to node %s (%s)", server.c_str(), dest_path.c_str());
                 results[i] = ret;  // 记录失败结果
-                failedCount++;
-                // 注意：failedCount++ 应该用原子操作或加锁，否则多线程下不安全！下面会提到
             } else {
                 std::cout << " " << server << " successful " << '\n';
                 results[i] = 0;  // 成功
@@ -1257,19 +1253,19 @@ int transfer_package_concurrency(OpentenbaseConfig *configInfo,
         thread.join();
     }
 
-    // 检查所有结果
-    for (int result : results) {
-        if (result != 0) {
-            LOG_ERROR_FMT("Failed to transfer package to one or more nodes");
-            return -1;
-        }
-    }
-
     int total_num = server_list.size();
-    int success_num = server_list.size() - failedCount;
+    int failedCount = std::count_if(results.begin(), results.end(), [](int result) {
+        return result != 0;
+    });
+    int success_num = total_num - failedCount;
 
     std::cout << "Total: " << std::to_string(total_num) << ",Success: " 
               << std::to_string(success_num)  << std::endl;
+
+    if (failedCount > 0) {
+        LOG_ERROR_FMT("Failed to transfer package to one or more nodes");
+        return -1;
+    }
 
     return 0;
 }
@@ -1287,17 +1283,16 @@ int excute_cmd_concurrency(OpentenbaseConfig *configInfo, const std::vector<std:
     // 每个 server 对应一个结果
     std::vector<std::thread> threads;
     std::vector<int> results(server_list.size(), 0);
-    int failedCount = 0;
 
     // 手动维护索引
     size_t i = 0; 
-    std::string result;
     std::string cmd = configInfo->shell.shell_cmd;
     for (const std::string& server : server_list) {
         LOG_INFO_FMT("Start to excute cmd(%s) on %s", cmd, server);
 
         // 捕获当前 server、i、以及其它所需变量
         threads.emplace_back([&, server, i]() {
+            std::string result;
             int ret = execute_command( 
                 server,
                 configInfo->server.ssh_port,
@@ -1311,8 +1306,6 @@ int excute_cmd_concurrency(OpentenbaseConfig *configInfo, const std::vector<std:
                 LOG_ERROR_FMT("Failed to excute cmd(%s) on %s", cmd, server);
                 std::cout << "[ " << server << " ] Failed to excute cmd as user: " << configInfo->server.ssh_user << std::to_string(configInfo->server.ssh_port) << '\n';
                 results[i] = ret;
-                failedCount++;
-                // 注意：failedCount++ 应该用原子操作或加锁，否则多线程下不安全！下面会提到
             } else {
                  // 成功
                 results[i] = 0; 
@@ -1329,19 +1322,19 @@ int excute_cmd_concurrency(OpentenbaseConfig *configInfo, const std::vector<std:
         thread.join();
     }
 
-    // 检查所有结果
-    for (int result : results) {
-        if (result != 0) {
-            LOG_ERROR_FMT("Failed to  excute cmd on one or more servers");
-            return -1;
-        }
-    }
-
     int total_num = server_list.size();
-    int success_num = server_list.size() - failedCount;
+    int failedCount = std::count_if(results.begin(), results.end(), [](int result) {
+        return result != 0;
+    });
+    int success_num = total_num - failedCount;
 
     std::cout << "Total: " << std::to_string(total_num) << ",Success: " 
               << std::to_string(success_num)  << std::endl;
+
+    if (failedCount > 0) {
+        LOG_ERROR_FMT("Failed to  excute cmd on one or more servers");
+        return -1;
+    }
 
     return 0;
 }
@@ -1358,13 +1351,10 @@ int excute_sql_concurrency(OpentenbaseConfig *configInfo, const std::vector<Node
     // 每个 server 对应一个结果
     std::vector<std::thread> threads;
     std::vector<int> results(node_list.size(), 0);
-    int failedCount = 0;
-    int tatolCount = 0;
 
     // 手动维护索引
     size_t i = 0; 
-    std::string result;
-    std::string cmd = configInfo->shell.shell_cmd;
+    std::string sql = configInfo->sql.sql;
 
     for (const NodeInfo& node : node_list) {
 
@@ -1374,10 +1364,11 @@ int excute_sql_concurrency(OpentenbaseConfig *configInfo, const std::vector<Node
             continue;
         }
         
-        LOG_DEBUG_FMT("Start to excute cmd(%s) on %s", cmd, node);
+        LOG_DEBUG_FMT("Start to excute sql(%s) on %s", sql, node);
 
         // 捕获当前 node、i、以及其它所需变量
         threads.emplace_back([&, node, i]() {
+            std::string result;
 
             std::string psql_cmd = build_sql_cmd_for_psql(node.install_path, 
                                                           node.ip, 
@@ -1394,18 +1385,15 @@ int excute_sql_concurrency(OpentenbaseConfig *configInfo, const std::vector<Node
                                           psql_cmd,
                                           result);
             if (ret != 0) {
-                LOG_WARN_FMT("Failed to excute sql(%s) on %s", cmd, node);
+                LOG_WARN_FMT("Failed to excute sql(%s) on %s", sql, node);
                 std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " Failed to excute sql in database " << configInfo->sql.database_name << " as user " << configInfo->sql.user_name << '\n';
                 results[i] = ret;
-                failedCount++;
-                // 注意：failedCount++ 应该用原子操作或加锁，否则多线程下不安全！下面会提到
             } else {
                  // 成功
                 results[i] = 0; 
                 std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " Result: " << '\n';
                 std::cout << result.c_str() << '\n';
             }
-            tatolCount++;
         });
         // 手动递增索引
         ++i;
@@ -1416,17 +1404,18 @@ int excute_sql_concurrency(OpentenbaseConfig *configInfo, const std::vector<Node
         thread.join();
     }
 
-    // 检查所有结果
-    for (int result : results) {
-        if (result != 0) {
-            LOG_ERROR_FMT("Failed to  excute cmd on one or more servers");
-            return -1;
-        }
-    }
-
-    int success_num = tatolCount - failedCount;
-    std::cout << "Total: " << std::to_string(tatolCount) << ",Success: " 
+    int totalCount = i;
+    int failedCount = std::count_if(results.begin(), results.begin() + totalCount, [](int result) {
+        return result != 0;
+    });
+    int success_num = totalCount - failedCount;
+    std::cout << "Total: " << std::to_string(totalCount) << ",Success: "
               << std::to_string(success_num)  << std::endl;
+
+    if (failedCount > 0) {
+        LOG_ERROR_FMT("Failed to excute sql on one or more nodes");
+        return -1;
+    }
 
     return 0;
 }
@@ -1443,12 +1432,9 @@ int excute_show_guc_concurrency(OpentenbaseConfig *configInfo, const std::vector
     // 每个 server 对应一个结果
     std::vector<std::thread> threads;
     std::vector<int> results(node_list.size(), 0);
-    int failedCount = 0;
-    int tatolCount = 0;
 
     // 手动维护索引
     size_t i = 0; 
-    std::string output;
     for (const NodeInfo& node : node_list) {
 
         // 如果不是操作的节点，继续下一个
@@ -1459,6 +1445,7 @@ int excute_show_guc_concurrency(OpentenbaseConfig *configInfo, const std::vector
 
         // 捕获当前 node、i、以及其它所需变量
         threads.emplace_back([&, node, i]() {
+            std::string output;
 
 
             int ret = show_guc(configInfo, node, output);
@@ -1467,15 +1454,12 @@ int excute_show_guc_concurrency(OpentenbaseConfig *configInfo, const std::vector
                         configInfo->guc.guc_name, node.name.c_str(), node.ip.c_str());
                 std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " Failed to show config item " << configInfo->guc.guc_name  << '\n';
                 results[i] = ret;
-                failedCount++;
-                // todo：failedCount++ 应该用原子操作或加锁，否则多线程下不安全！下面会提到 
+                return;
             } 
 
             // 成功
             results[i] = 0; 
             std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " "<< configInfo->guc.guc_name <<"=" << output << '\n';
-            
-            tatolCount++;
         });
         // 手动递增索引
         ++i;
@@ -1486,17 +1470,18 @@ int excute_show_guc_concurrency(OpentenbaseConfig *configInfo, const std::vector
         thread.join();
     }
 
-    // 检查所有结果
-    for (int result : results) {
-        if (result != 0) {
-            LOG_ERROR_FMT("Failed to  excute cmd on one or more servers");
-            return -1;
-        }
-    }
-
-    int success_num = tatolCount - failedCount;
-    std::cout << "Total: " << std::to_string(tatolCount) << ",Success: " 
+    int totalCount = i;
+    int failedCount = std::count_if(results.begin(), results.begin() + totalCount, [](int result) {
+        return result != 0;
+    });
+    int success_num = totalCount - failedCount;
+    std::cout << "Total: " << std::to_string(totalCount) << ",Success: "
               << std::to_string(success_num)  << std::endl;
+
+    if (failedCount > 0) {
+        LOG_ERROR_FMT("Failed to show config item on one or more nodes");
+        return -1;
+    }
 
     return 0;
 }
@@ -1513,12 +1498,9 @@ int excute_del_guc_concurrency(OpentenbaseConfig *configInfo, const std::vector<
     // 每个 server 对应一个结果
     std::vector<std::thread> threads;
     std::vector<int> results(node_list.size(), 0);
-    int failedCount = 0;
-    int tatolCount = 0;
 
     // 手动维护索引
     size_t i = 0; 
-    std::string output;
     for (const NodeInfo& node : node_list) {
 
         // 如果不是操作的节点，继续下一个
@@ -1536,16 +1518,12 @@ int excute_del_guc_concurrency(OpentenbaseConfig *configInfo, const std::vector<
                         configInfo->guc.guc_name, node.name.c_str(), node.ip.c_str());
                 std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " Failed to delete config item " << configInfo->guc.guc_name  << '\n';
                 results[i] = ret;
-                failedCount++;
-                // todo：failedCount++ 应该用原子操作或加锁，否则多线程下不安全！下面会提到 
+                return;
             } 
 
             // 成功
             results[i] = 0; 
-            std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " Result: " << output << '\n';
-            std::cout << output.c_str() << '\n';
-            
-            tatolCount++;
+            std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " Delete config item " << configInfo->guc.guc_name << " Success" << '\n';
         });
         // 手动递增索引
         ++i;
@@ -1556,17 +1534,18 @@ int excute_del_guc_concurrency(OpentenbaseConfig *configInfo, const std::vector<
         thread.join();
     }
 
-    // 检查所有结果
-    for (int result : results) {
-        if (result != 0) {
-            LOG_ERROR_FMT("Failed to  excute cmd on one or more servers");
-            return -1;
-        }
-    }
-
-    int success_num = tatolCount - failedCount;
-    std::cout << "Total: " << std::to_string(tatolCount) << ",Success: " 
+    int totalCount = i;
+    int failedCount = std::count_if(results.begin(), results.begin() + totalCount, [](int result) {
+        return result != 0;
+    });
+    int success_num = totalCount - failedCount;
+    std::cout << "Total: " << std::to_string(totalCount) << ",Success: "
               << std::to_string(success_num)  << std::endl;
+
+    if (failedCount > 0) {
+        LOG_ERROR_FMT("Failed to delete config item on one or more nodes");
+        return -1;
+    }
 
     return 0;
 }
@@ -1583,13 +1562,10 @@ int excute_change_guc_concurrency(OpentenbaseConfig *configInfo, const std::vect
     // 每个 server 对应一个结果
     std::vector<std::thread> threads;
     std::vector<int> results(node_list.size(), 0);
-    int failedCount = 0;
-    int tatolCount = 0;
     std::string sql = "";
 
     // 手动维护索引
     size_t i = 0; 
-    std::string output;
     for (const NodeInfo& node : node_list) {
 
         // 如果不是操作的节点，继续下一个
@@ -1605,30 +1581,25 @@ int excute_change_guc_concurrency(OpentenbaseConfig *configInfo, const std::vect
 
             int ret = delete_guc(configInfo, node);
             if (ret != 0) {
-                LOG_WARN_FMT("Failed to delete config item %s on node %s (%s)", 
+                LOG_WARN_FMT("Failed to delete config item %s on node %s (%s)",
                         configInfo->guc.guc_name, node.name.c_str(), node.ip.c_str());
                 std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " Failed to delete config item " << configInfo->guc.guc_name  << '\n';
                 results[i] = ret;
-                failedCount++;
-                // todo：failedCount++ 应该用原子操作或加锁，否则多线程下不安全！下面会提到 
+                return;
             } 
 
             ret = add_guc(configInfo, node);
             if (ret != 0) {
-                LOG_WARN_FMT("Failed to delete config item %s on node %s (%s)", 
+                LOG_WARN_FMT("Failed to add config item %s on node %s (%s)",
                         configInfo->guc.guc_name, node.name.c_str(), node.ip.c_str());
-                std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " Failed to delete config item " << configInfo->guc.guc_name  << '\n';
+                std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " Failed to add config item " << configInfo->guc.guc_name  << '\n';
                 results[i] = ret;
-                failedCount++;
-                // todo：failedCount++ 应该用原子操作或加锁，否则多线程下不安全！下面会提到
+                return;
             } 
 
             // 成功
             results[i] = 0; 
             std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " " << configInfo->guc.guc_name << " Change to " << configInfo->guc.guc_value << '\n';
-            std::cout << output.c_str() << '\n';
-            
-            tatolCount++;
         });
         // 手动递增索引
         ++i;
@@ -1639,17 +1610,18 @@ int excute_change_guc_concurrency(OpentenbaseConfig *configInfo, const std::vect
         thread.join();
     }
 
-    // 检查所有结果
-    for (int result : results) {
-        if (result != 0) {
-            LOG_ERROR_FMT("Failed to  excute cmd on one or more servers");
-            return -1;
-        }
-    }
-
-    int success_num = tatolCount - failedCount;
-    std::cout << "Total: " << std::to_string(tatolCount) << ",Success: " 
+    int totalCount = i;
+    int failedCount = std::count_if(results.begin(), results.begin() + totalCount, [](int result) {
+        return result != 0;
+    });
+    int success_num = totalCount - failedCount;
+    std::cout << "Total: " << std::to_string(totalCount) << ",Success: "
               << std::to_string(success_num)  << std::endl;
+
+    if (failedCount > 0) {
+        LOG_ERROR_FMT("Failed to change config item on one or more nodes");
+        return -1;
+    }
 
     return 0;
 }
