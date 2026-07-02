@@ -507,6 +507,7 @@ int pre_install_command_concurrency(OpentenbaseConfig *config) {
     for (auto& thread : threads) {
         thread.join();
     }
+    threads.clear();
     for (int result : results) {
         if (result != 0) {
             LOG_ERROR_FMT("Failed to create directory for nodes");
