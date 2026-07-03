@@ -201,8 +201,7 @@ std::string build_create_pgxz_node_cmd(NodeInfo *node, OpentenbaseConfig* config
 // CREATE DEFAULT node group group01 with(dn001);
 std::string build_create_node_group_cmd(OpentenbaseConfig* config) {
 
-    std::string create_sql = "";
-    std::string node_name_list = "";
+    std::vector<std::string> node_names;
 
     // Create node for each node
     for (size_t i = 0; i < config->nodes.size(); ++i) {
@@ -212,15 +211,62 @@ std::string build_create_node_group_cmd(OpentenbaseConfig* config) {
             continue;
         }
 
-        node_name_list += config->nodes[i].name + ",";
+        node_names.push_back(config->nodes[i].name);
     }
 
-    //删除最后一个逗号
-    node_name_list.pop_back();
-	create_sql = "CREATE DEFAULT node group default_group with (" + node_name_list + ");";
+    if (node_names.empty())
+    {
+        LOG_ERROR_FMT("Cannot create default node group: no master datanode found");
+        return "";
+    }
+
+    std::string node_name_list;
+    for (size_t i = 0; i < node_names.size(); ++i)
+    {
+        if (i > 0)
+        {
+            node_name_list += ",";
+        }
+        node_name_list += node_names[i];
+    }
+
+    std::string create_sql = "CREATE DEFAULT NODE GROUP default_group WITH (" + node_name_list + ");";
 
     LOG_INFO_FMT("Create node command: %s", create_sql.c_str());
     return create_sql;
+}
+
+std::string build_idempotent_node_group_cmd(const std::string& binDir,
+                                            NodeInfo *node,
+                                            const std::string& create_node_group_sql)
+{
+    std::string psql_base = buid_ld_library_path_str(binDir)
+        + " && psql -h " + node->ip
+        + " -p " + std::to_string(node->port)
+        + " -d " + std::string(Constants::DEFAULT_DB)
+        + " -U " + std::string(Constants::DEFAULT_USER_OF_INITDB);
+
+    std::string group_exists_sql =
+        "SELECT count(*) FROM pg_catalog.pgxc_group WHERE group_name = 'default_group';";
+    std::string shard_exists_sql =
+        "SELECT count(*) "
+        "FROM pg_catalog.pgxc_shard_map m "
+        "JOIN pg_catalog.pgxc_group g ON g.oid = m.disgroup "
+        "WHERE g.group_name = 'default_group';";
+
+    std::string command =
+        "set -e; "
+        "group_count=$(" + psql_base + " -At --command \\\"" + escape_sql(group_exists_sql) + "\\\"); "
+        "if [ \"$group_count\" = \"0\" ]; then "
+        + psql_base + " -v ON_ERROR_STOP=1 --command \\\"" + escape_sql(create_node_group_sql) + "\\\"; "
+        "else echo \"default_group already exists; skipping node group creation\"; fi"
+        " && shard_count=$(" + psql_base + " -At --command \\\"" + escape_sql(shard_exists_sql) + "\\\"); "
+        "if [ \"$shard_count\" = \"0\" ]; then "
+        + psql_base + " -v ON_ERROR_STOP=1 --command \\\"CREATE SHARDING GROUP TO GROUP default_group;\\\"; "
+        "else echo \"default_group sharding map already exists; skipping sharding creation\"; fi"
+        " && " + psql_base + " -v ON_ERROR_STOP=1 --command \\\"clean sharding;\\\"";
+
+    return command;
 }
 
 int
@@ -287,20 +333,19 @@ create_default_node_group(NodeInfo *node, OpentenbaseConfig *config) {
 
     // 生成sql语句
     std::string create_node_sql = build_create_node_group_cmd(config);
-    std::string create_sharding_group_sql = "CREATE sharding group to group default_group;";
-    std::string clean_sharding_sql = "clean sharding;";
+    if (create_node_sql.empty())
+    {
+        return -1;
+    }
 
-    std::string conn_str = "psql -h " + node->ip + " -p " + std::to_string(node->port) + " -d " + std::string(Constants::DEFAULT_DB)  + " -U " + std::string(Constants::DEFAULT_USER_OF_INITDB);
     std::string binDir =  node->install_path;
-
+    std::string command = build_idempotent_node_group_cmd(binDir, node, create_node_sql);
 
     // 如果明确指定是本地执行，或者IP是本地IP，则本地执行
     std::string result;
     bool should_execute_local = is_local_ip(node->ip);
     if (should_execute_local) {
         // Local execution
-        std::string psql_cmd =  conn_str + "  --command \\\"" +  escape_sql(create_node_sql) +escape_sql(create_sharding_group_sql) + escape_sql(clean_sharding_sql) + "\\\" ";
-        std::string command = buid_ld_library_path_str(binDir)+ " && " + psql_cmd;
         LOG_INFO_FMT("Executing local command: %s", command.c_str());
         int ret = local_exec_as_user(config->server.ssh_user, command, result);
         if (ret != 0) {
@@ -311,8 +356,6 @@ create_default_node_group(NodeInfo *node, OpentenbaseConfig *config) {
 
     } else {
         // Remote execution
-        std::string psql_cmd =  conn_str + "  --command \"" +  escape_sql(create_node_sql) +escape_sql(create_sharding_group_sql) + escape_sql(clean_sharding_sql) + "\" ";
-        std::string command = buid_ld_library_path_str(binDir)+ " && " + psql_cmd;
         LOG_INFO_FMT("Executing remote command: %s", command.c_str());
         if (remote_ssh_exec(node->ip, config->server.ssh_port, config->server.ssh_user, config->server.ssh_password, command, result) != 0) {
             LOG_ERROR_FMT("Failed to excute(%s) on node %s (%s): %s",
