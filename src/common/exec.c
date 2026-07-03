@@ -21,6 +21,7 @@
 #endif
 
 #include <signal.h>
+#include <ctype.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -42,6 +43,10 @@
 static int	validate_exec(const char *path);
 static int	resolve_symlinks(char *path);
 static char *pipe_read_line(char *cmd, char *line, int maxsize);
+static int	find_other_exec_internal(const char *argv0, const char *target,
+									 const char *versionstr, bool prefix_match,
+									 char *retpath);
+static bool version_prefix_match(const char *line, const char *prefix);
 
 #ifdef WIN32
 static BOOL GetTokenUser(HANDLE hToken, PTOKEN_USER *ppTokenUser);
@@ -307,6 +312,25 @@ int
 find_other_exec(const char *argv0, const char *target,
 				const char *versionstr, char *retpath)
 {
+	return find_other_exec_internal(argv0, target, versionstr, false, retpath);
+}
+
+/*
+ * Find another program in our binary's directory, then make sure its version
+ * starts with the supplied prefix.
+ */
+int
+find_other_exec_with_version_prefix(const char *argv0, const char *target,
+									const char *versionstr, char *retpath)
+{
+	return find_other_exec_internal(argv0, target, versionstr, true, retpath);
+}
+
+static int
+find_other_exec_internal(const char *argv0, const char *target,
+						 const char *versionstr, bool prefix_match,
+						 char *retpath)
+{
 	char		cmd[MAXPGPATH];
 	char		line[MAXPGPATH];
 
@@ -329,10 +353,30 @@ find_other_exec(const char *argv0, const char *target,
 	if (!pipe_read_line(cmd, line, sizeof(line)))
 		return -1;
 
-	if (strcmp(line, versionstr) != 0)
+	if (prefix_match)
+	{
+		if (!version_prefix_match(line, versionstr))
+			return -2;
+	}
+	else if (strcmp(line, versionstr) != 0)
 		return -2;
 
 	return 0;
+}
+
+static bool
+version_prefix_match(const char *line, const char *prefix)
+{
+	size_t		prefix_len = strlen(prefix);
+	unsigned char next;
+
+	if (strncmp(line, prefix, prefix_len) != 0)
+		return false;
+
+	next = (unsigned char) line[prefix_len];
+
+	return next == '\0' || next == '\n' || next == '-' ||
+		next == '@' || (!isdigit(next) && next != '.');
 }
 
 
