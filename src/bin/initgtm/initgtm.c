@@ -22,6 +22,7 @@
 #include "postgres_fe.h"
 
 #include <dirent.h>
+#include <ctype.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <locale.h>
@@ -94,6 +95,7 @@ static void setup_control(void);
 static void trapsig(int signum);
 static void check_ok(void);
 static void usage(const char *progname);
+static void build_backend_version_prefix(char *versionstr, size_t versionstr_len);
 
 #ifdef WIN32
 static int	CreateRestrictedProcess(char *cmd, PROCESS_INFORMATION *processInfo);
@@ -801,6 +803,23 @@ usage(const char *progname)
 	printf(_("  -V, --version             output version information, then exit\n"));
 }
 
+static void
+build_backend_version_prefix(char *versionstr, size_t versionstr_len)
+{
+	char	   *version_token;
+	char	   *version_token_end;
+
+	snprintf(versionstr, versionstr_len, "postgres (PostgreSQL) %s", PG_VERSION);
+
+	version_token = versionstr + strlen("postgres (PostgreSQL) ");
+	version_token_end = version_token;
+	while (*version_token_end != '\0' &&
+		   !isspace((unsigned char) *version_token_end))
+		version_token_end++;
+
+	*version_token_end = '\0';
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -823,6 +842,7 @@ main(int argc, char *argv[])
 	char	   *effective_user;
 	char		bin_dir[MAXPGPATH];
 	char	   *pg_data_native;
+	char		backend_version_prefix[MAXPGPATH];
 	bool		node_type_specified = false;
 
 	progname = get_progname(argv[0]);
@@ -969,9 +989,16 @@ main(int argc, char *argv[])
 	}
 #endif
 
-	/* Like for initdb, check if a valid version of Postgres is running */
-	if ((ret = find_other_exec(argv[0], "postgres", PG_BACKEND_VERSIONSTR,
-							   backend_exec)) < 0)
+	/*
+	 * Like for initdb, check if a valid version of Postgres is running.
+	 * OpenTenBase package versions can include build metadata such as tags and
+	 * timestamps, so initgtm only requires the stable version token to match.
+	 */
+	build_backend_version_prefix(backend_version_prefix,
+								 sizeof(backend_version_prefix));
+	if ((ret = find_other_exec_with_version_prefix(argv[0], "postgres",
+												   backend_version_prefix,
+												   backend_exec)) < 0)
 	{
 		char        full_path[MAXPGPATH];
 
