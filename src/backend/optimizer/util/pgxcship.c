@@ -548,6 +548,17 @@ pgxc_FQS_datanodes_for_rtr(Index varno, Query *query, int leftmostRTI, Shippabil
 				if (exec_nodes && exec_nodes->nodeList &&
 					(list_length(exec_nodes->nodeList) == 1))
 					return exec_nodes;
+				/*
+				 * Enhancement: replicated subquery can be shipped to any DN.
+				 * The result is the same on all DNs, so pick a preferred node.
+				 */
+				else if (exec_nodes && IsExecNodesReplicated(exec_nodes) && exec_nodes->nodeList)
+				{
+					List   *tmp_list = exec_nodes->nodeList;
+					exec_nodes->nodeList = GetPreferredReplicationNode(exec_nodes->nodeList);
+					list_free(tmp_list);
+					return exec_nodes;
+				}
 				else if (exec_nodes && exec_nodes->nodeList)
 				{
 					List       *tmp = list_copy(exec_nodes->dist_attno);
@@ -1815,9 +1826,19 @@ pgxc_shippability_walker(Node *node, Shippability_context *sc_context)
 			 * 3. the query has ORDER BY clause
 			 * 4. the query has limit and offset clause
 			 */
-			if (query->groupingSets || query->hasWindowFuncs || query->sortClause ||
-				query->limitOffset || query->limitCount)
+			if (query->groupingSets || query->hasWindowFuncs)
 				pgxc_set_shippability_reason(sc_context, SS_NEED_SINGLENODE);
+
+			if (query->sortClause || query->limitOffset || query->limitCount)
+			{
+				/*
+				 * For vector search queries with ORDER BY distance LIMIT K,
+				 * skip SS_NEED_SINGLENODE to allow FQS pushdown to multiple DNs.
+				 * The CN will handle the TopK merge from each DN's local results.
+				 */
+				if (!pgxc_is_vector_search_query(query))
+					pgxc_set_shippability_reason(sc_context, SS_NEED_SINGLENODE);
+			}
 
 			/*
 			 * Presence of aggregates or having clause, implies grouping. In
@@ -2064,6 +2085,16 @@ pgxc_shippability_walker(Node *node, Shippability_context *sc_context)
 				 * Merge if only the accumulated SubLink ExecNodes and the
 				 * ExecNodes for this subquery are both replicated.
 				 */
+#ifdef __OPENTENBASE__
+				/*
+				 * Enhancement: const_subquery SubLink produces the same result
+				 * on all DNs, so it can merge with any accumulated SubLink ExecNodes.
+				 */
+				else if (sublink_en && sublink_en->const_subquery)
+				{
+					/* Keep the accumulated exec_nodes, const_subquery is compatible */
+				}
+#endif
 				else if (sublink_en && IsExecNodesReplicated(sublink_en) &&
 							IsExecNodesReplicated(sc_context->sc_subquery_en))
 				{
@@ -2168,6 +2199,16 @@ pgxc_shippability_walker(Node *node, Shippability_context *sc_context)
 					 * Merge if only the accumulated SubLink ExecNodes and the
 					 * ExecNodes for this subquery are both replicated.
 					 */
+#ifdef __OPENTENBASE__
+				/*
+				 * Enhancement: const_subquery CTE produces the same result
+				 * on all DNs, so it can merge with any accumulated SubLink ExecNodes.
+				 */
+				else if (sublink_en && sublink_en->const_subquery)
+				{
+					/* Keep the accumulated exec_nodes, const_subquery is compatible */
+				}
+#endif
 				else if (sublink_en && IsExecNodesReplicated(sublink_en) &&
 						 IsExecNodesReplicated(sc_context->sc_subquery_en))
 				{
@@ -2727,6 +2768,21 @@ merge_sublink_exec_nodes(const Query *query, Shippability_context *sc_context, E
         num_sublink_nodes = list_length(sc_context->sc_subquery_en->nodeList);
     }
 
+
+#ifdef __OPENTENBASE__
+	/*
+	 * Enhancement: const_subquery SubLink can merge with any main query.
+	 * A const subquery produces the same result on all DNs, so we can
+	 * use the main query's exec_nodes directly without merging.
+	 */
+	if (enable_subquery_shipping &&
+		sc_context->sc_subquery_en &&
+		sc_context->sc_subquery_en->const_subquery)
+	{
+		/* const_subquery result is same on all DNs, use main query's nodes */
+		return exec_nodes;
+	}
+#endif
     /*
     * Try to merge sublink nodelist only if:
     * XXX Only cover CMD_SELECT
@@ -2744,6 +2800,25 @@ merge_sublink_exec_nodes(const Query *query, Shippability_context *sc_context, E
         exec_nodes = pgxc_merge_exec_nodes(exec_nodes, sc_context->sc_subquery_en);
     }
     /* Fall back to PGXC logic that only try with replicated type */
+#ifdef __OPENTENBASE__
+	/*
+	 * Enhancement: extend same distribution type merge to multi-DN case.
+	 * If both main query and SubLink have the same column distribution type,
+	 * try to merge their exec_nodes. pgxc_merge_exec_nodes() will handle
+	 * the intersection of node lists correctly - if the merge fails (returns
+	 * NULL), the query will not be shipped via FQS, which is safe.
+	 */
+	else if (enable_subquery_shipping &&
+			 exec_nodes && sc_context->sc_subquery_en &&
+			 query->commandType == CMD_SELECT &&
+			 IsExecNodesColumnDistributed(exec_nodes) &&
+			 IsExecNodesColumnDistributed(sc_context->sc_subquery_en) &&
+			 exec_nodes->baselocatortype == sc_context->sc_subquery_en->baselocatortype &&
+			 num_fromclause_nodes > 0 && num_sublink_nodes > 0)
+	{
+		exec_nodes = pgxc_merge_exec_nodes(exec_nodes, sc_context->sc_subquery_en);
+	}
+#endif
     else if (sc_context->sc_subquery_en &&
              IsExecNodesReplicated(sc_context->sc_subquery_en))
     {
@@ -3941,9 +4016,9 @@ pgxc_is_group_subquery_shippable(Query *query, Shippability_context *sc_context)
 					return NULL;
 				}
 
-				if (local_sc.sc_exec_nodes && 1 == list_length(local_sc.sc_exec_nodes->nodeList))
+				if (local_sc.sc_exec_nodes && local_sc.sc_exec_nodes->nodeList)
 				{
-					/* try to merge the exec node to check whether the subquery has the same exec
+					/* try to merge the exec nodes to check whether the subquery has compatible exec
 					 * node as the local one. */
 					local_exec_nodes_0 = pgxc_merge_exec_nodes(local_sc.sc_exec_nodes, sc_context->sc_exec_nodes);
 					local_exec_nodes_1 = exec_nodes;
@@ -4036,5 +4111,172 @@ get_var_from_arg(Node *arg)
 	}
 
 	return (Node *)var;
+}
+
+/*
+ * pgxc_is_vector_distance_func
+ *	  Check if the given function OID is a pgvector distance function.
+ *
+ * pgvector distance functions are: l2_distance, cosine_distance,
+ * l1_distance, vector_negative_inner_product.
+ * These are the underlying functions for <->, <=>, <+>, <#> operators.
+ */
+static bool
+pgxc_is_vector_distance_func(Oid funcid)
+{
+	char	   *funcname;
+
+	if (!OidIsValid(funcid))
+		return false;
+
+	funcname = get_func_name(funcid);
+	if (funcname == NULL)
+		return false;
+
+	if (strcmp(funcname, "l2_distance") == 0 ||
+		strcmp(funcname, "cosine_distance") == 0 ||
+		strcmp(funcname, "l1_distance") == 0 ||
+		strcmp(funcname, "vector_negative_inner_product") == 0)
+	{
+		pfree(funcname);
+		return true;
+	}
+
+	pfree(funcname);
+	return false;
+}
+
+/*
+ * pgxc_is_vector_distance_op
+ *	  Check if the given operator OID is a pgvector distance operator.
+ *
+ * pgvector distance operators are: <-> (l2_distance), <=> (cosine_distance),
+ * <+> (l1_distance), <#> (vector_negative_inner_product).
+ */
+static bool
+pgxc_is_vector_distance_op(Oid opno)
+{
+	char	   *oprname;
+
+	if (!OidIsValid(opno))
+		return false;
+
+	oprname = get_opname(opno);
+	if (oprname == NULL)
+		return false;
+
+	if (strcmp(oprname, "<->") == 0 ||
+		strcmp(oprname, "<=>") == 0 ||
+		strcmp(oprname, "<+>") == 0 ||
+		strcmp(oprname, "<#>") == 0)
+	{
+		pfree(oprname);
+		return true;
+	}
+
+	pfree(oprname);
+	return false;
+}
+
+/*
+ * pgxc_is_vector_distance_expr
+ *	  Check if the given expression node contains a pgvector distance
+ *	  operator or function call.
+ *
+ * Handles both operator form (embedding <-> query_vec) and function form
+ * (l2_distance(embedding, query_vec)).
+ */
+static bool
+pgxc_is_vector_distance_expr(Node *expr)
+{
+	if (expr == NULL)
+		return false;
+
+	/* Check for operator form: embedding <-> query_vec */
+	if (IsA(expr, OpExpr))
+	{
+		OpExpr	   *opexpr = (OpExpr *) expr;
+
+		/* First check the operator OID directly */
+		if (pgxc_is_vector_distance_op(opexpr->opno))
+			return true;
+
+		/* Also check via the implementation function */
+		if (OidIsValid(opexpr->opfuncid) &&
+			pgxc_is_vector_distance_func(opexpr->opfuncid))
+			return true;
+	}
+
+	/* Check for function form: l2_distance(embedding, query_vec) */
+	if (IsA(expr, FuncExpr))
+	{
+		FuncExpr   *funcexpr = (FuncExpr *) expr;
+
+		if (pgxc_is_vector_distance_func(funcexpr->funcid))
+			return true;
+	}
+
+	return false;
+}
+
+/*
+ * pgxc_is_vector_search_query
+ *	  Check if the query is a vector similarity search query.
+ *
+ * A vector search query has the pattern:
+ *	  SELECT ... FROM ... ORDER BY embedding <-> query_vec LIMIT K
+ *
+ * Detection criteria:
+ *	  1. Query has sortClause (ORDER BY)
+ *	  2. Query has limitCount (LIMIT)
+ *	  3. At least one sort clause's target expression contains a vector
+ *	     distance operator or function
+ *	  4. No groupingSets or window functions (those need single-node processing)
+ *
+ * Note: The sortop in SortGroupClause is the B-tree ordering operator for the
+ * result type (e.g., float8_lt), NOT the vector distance operator itself.
+ * The vector distance operator is in the TargetEntry's expression, so we must
+ * examine the expression rather than the sortop.
+ */
+bool
+pgxc_is_vector_search_query(Query *query)
+{
+	ListCell   *lc;
+
+	/* Must have ORDER BY and LIMIT */
+	if (query->sortClause == NIL || query->limitCount == NULL)
+		return false;
+
+	/* OFFSET is not yet supported for vector search FQS pushdown.
+	 * TODO: To support OFFSET, we need to send LIMIT (offset+count) to DNs
+	 * without OFFSET, then apply OFFSET+LIMIT at CN's Limit node.
+	 */
+	if (query->limitOffset != NULL)
+		return false;
+
+	/* Vector search with grouping sets or window functions is not supported */
+	if (query->groupingSets || query->hasWindowFuncs)
+		return false;
+
+	/* Check each sort clause for vector distance expression */
+	foreach(lc, query->sortClause)
+	{
+		SortGroupClause *sgc = (SortGroupClause *) lfirst(lc);
+		TargetEntry *tle;
+
+		if (!IsA(sgc, SortGroupClause))
+			continue;
+
+		/* Find the target entry referenced by this sort clause */
+		tle = get_sortgroupref_tle(sgc->tleSortGroupRef, query->targetList);
+		if (tle == NULL)
+			continue;
+
+		/* Check if the target expression contains a vector distance operator/function */
+		if (pgxc_is_vector_distance_expr((Node *) tle->expr))
+			return true;
+	}
+
+	return false;
 }
 #endif
