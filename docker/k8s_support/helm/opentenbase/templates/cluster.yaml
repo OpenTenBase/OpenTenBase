@@ -1,0 +1,47 @@
+apiVersion: opentenbase.org/v1
+kind: OpenTenBaseCluster
+metadata:
+  name: {{ .Values.clusterName }}
+  labels:
+    app.kubernetes.io/name: opentenbase
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion }}
+spec:
+  gtm:
+    replicas: {{ .Values.gtm.replicas }}
+    resources:
+      limits:
+        cpu: {{ .Values.gtm.resources.limits.cpu | quote }}
+        memory: {{ .Values.gtm.resources.limits.memory | quote }}
+    {{- if .Values.gtm.persistence.enabled }}
+    persistence:
+      size: {{ .Values.gtm.persistence.size }}
+      {{- if .Values.gtm.persistence.storageClassName }}
+      storageClassName: {{ .Values.gtm.persistence.storageClassName }}
+      {{- end }}
+    {{- end }}
+  coordinator:
+    replicas: {{ .Values.coordinator.replicas }}
+    resources:
+      limits:
+        cpu: {{ .Values.coordinator.resources.limits.cpu | quote }}
+        memory: {{ .Values.coordinator.resources.limits.memory | quote }}
+  datanode:
+    replicas: {{ .Values.datanode.replicas }}
+    resources:
+      limits:
+        cpu: {{ .Values.datanode.resources.limits.cpu | quote }}
+        memory: {{ .Values.datanode.resources.limits.memory | quote }}
+    storage:
+      size: {{ .Values.datanode.storage.size }}
+      storageClassName: {{ .Values.datanode.storage.storageClassName }}
+  {{- if .Values.backup.enabled }}
+  backup:
+    enabled: true
+    schedule: {{ .Values.backup.schedule | quote }}
+    retention: {{ .Values.backup.retention }}
+  {{- end }}
+  image:
+    repository: {{ .Values.image.repository }}
+    tag: {{ .Values.image.tag }}
+    pullPolicy: {{ .Values.image.pullPolicy }}

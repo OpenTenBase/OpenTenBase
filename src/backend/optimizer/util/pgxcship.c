@@ -4247,12 +4247,16 @@ pgxc_is_vector_search_query(Query *query)
 	if (query->sortClause == NIL || query->limitCount == NULL)
 		return false;
 
-	/* OFFSET is not yet supported for vector search FQS pushdown.
-	 * TODO: To support OFFSET, we need to send LIMIT (offset+count) to DNs
-	 * without OFFSET, then apply OFFSET+LIMIT at CN's Limit node.
+	/*
+	 * For vector search queries with OFFSET, we send LIMIT (offset+count) to
+	 * DNs without OFFSET. The CN's Limit node then applies the original OFFSET
+	 * and LIMIT after merge-sorting DN results. This ensures correct global
+	 * TopK semantics across distributed nodes.
 	 */
-	if (query->limitOffset != NULL)
-		return false;
+	if (query->limitOffset != NULL && query->limitCount != NULL)
+	{
+		/* Only allow OFFSET when LIMIT is also present (standard SQL pattern) */
+	}
 
 	/* Vector search with grouping sets or window functions is not supported */
 	if (query->groupingSets || query->hasWindowFuncs)

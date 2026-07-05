@@ -683,6 +683,67 @@ pgxc_FQS_create_remote_plan(Query *query, ExecNodes *exec_nodes, bool is_exec_di
 
 	Assert(query_step->exec_nodes);
 
+#ifdef __OPENTENBASE__
+	/*
+	 * For vector search queries with OFFSET, adjust the query sent to DNs:
+	 * strip OFFSET and increase LIMIT to (offset + count) so each DN
+	 * returns enough rows. The CN's Limit node then applies the original
+	 * OFFSET and LIMIT after merge-sorting all DN results.
+	 */
+	if (pgxc_is_vector_search_query(query) && query->limitOffset != NULL)
+	{
+		Node	   *saved_offset = query->limitOffset;
+		Node	   *saved_count = query->limitCount;
+		int64		new_limit;
+		bool		can_compute = false;
+
+		query->limitOffset = NULL;
+
+		/* Try to compute offset + count at plan time */
+		if (IsA(saved_offset, Const) && IsA(saved_count, Const))
+		{
+			Const  *c_off = (Const *) saved_offset;
+			Const  *c_cnt = (Const *) saved_count;
+
+			if (!c_off->constisnull && !c_cnt->constisnull)
+			{
+				int64	off_val = DatumGetInt64(c_off->constvalue);
+				int64	cnt_val = DatumGetInt64(c_cnt->constvalue);
+
+				new_limit = off_val + cnt_val;
+				can_compute = true;
+			}
+		}
+
+		if (can_compute)
+		{
+			query->limitCount = (Node *) makeConst(INT8OID, -1, InvalidOid,
+												   sizeof(int64),
+												   Int64GetDatum(new_limit),
+												   false, true);
+		}
+		else
+		{
+			/*
+			 * Can't compute sum at plan time (e.g. parameterized values).
+			 * Remove limit entirely; DNs will return all rows sorted by
+			 * distance. Less efficient but semantically correct.
+			 */
+			query->limitCount = NULL;
+		}
+
+		/* Deparse with adjusted limit/offset for DNs */
+		initStringInfo(&buf);
+		deparse_query(query, &buf, NIL, true, false);
+		query_step->sql_statement = pstrdup(buf.data);
+		pfree(buf.data);
+
+		/* Restore original values for CN Limit node */
+		query->limitOffset = saved_offset;
+		query->limitCount = saved_count;
+	}
+	else
+#endif
 	/* Deparse query tree to get step query. */
 	if (query_step->sql_statement == NULL)
 	{
