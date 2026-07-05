@@ -657,7 +657,7 @@ pgxc_FQS_planner(Query *query, int cursorOptions, ParamListInfo boundParams,
 	return result;
 }
 
-RemoteQuery *
+Plan *
 pgxc_FQS_create_remote_plan(Query *query, ExecNodes *exec_nodes, bool is_exec_direct, FQS_MODE mode)
 {
 	RemoteQuery *query_step;
@@ -683,6 +683,67 @@ pgxc_FQS_create_remote_plan(Query *query, ExecNodes *exec_nodes, bool is_exec_di
 
 	Assert(query_step->exec_nodes);
 
+#ifdef __OPENTENBASE__
+	/*
+	 * For vector search queries with OFFSET, adjust the query sent to DNs:
+	 * strip OFFSET and increase LIMIT to (offset + count) so each DN
+	 * returns enough rows. The CN's Limit node then applies the original
+	 * OFFSET and LIMIT after merge-sorting all DN results.
+	 */
+	if (pgxc_is_vector_search_query(query) && query->limitOffset != NULL)
+	{
+		Node	   *saved_offset = query->limitOffset;
+		Node	   *saved_count = query->limitCount;
+		int64		new_limit;
+		bool		can_compute = false;
+
+		query->limitOffset = NULL;
+
+		/* Try to compute offset + count at plan time */
+		if (IsA(saved_offset, Const) && IsA(saved_count, Const))
+		{
+			Const  *c_off = (Const *) saved_offset;
+			Const  *c_cnt = (Const *) saved_count;
+
+			if (!c_off->constisnull && !c_cnt->constisnull)
+			{
+				int64	off_val = DatumGetInt64(c_off->constvalue);
+				int64	cnt_val = DatumGetInt64(c_cnt->constvalue);
+
+				new_limit = off_val + cnt_val;
+				can_compute = true;
+			}
+		}
+
+		if (can_compute)
+		{
+			query->limitCount = (Node *) makeConst(INT8OID, -1, InvalidOid,
+												   sizeof(int64),
+												   Int64GetDatum(new_limit),
+												   false, true);
+		}
+		else
+		{
+			/*
+			 * Can't compute sum at plan time (e.g. parameterized values).
+			 * Remove limit entirely; DNs will return all rows sorted by
+			 * distance. Less efficient but semantically correct.
+			 */
+			query->limitCount = NULL;
+		}
+
+		/* Deparse with adjusted limit/offset for DNs */
+		initStringInfo(&buf);
+		deparse_query(query, &buf, NIL, true, false);
+		query_step->sql_statement = pstrdup(buf.data);
+		pfree(buf.data);
+
+		/* Restore original values for CN Limit node */
+		query->limitOffset = saved_offset;
+		query->limitCount = saved_count;
+	}
+	else
+#endif
 	/* Deparse query tree to get step query. */
 	if (query_step->sql_statement == NULL)
 	{
@@ -762,7 +823,73 @@ pgxc_FQS_create_remote_plan(Query *query, ExecNodes *exec_nodes, bool is_exec_di
 	query_step->scan.plan.targetlist = query->targetList;
 	query_step->base_tlist = query->targetList;
     query_step->fqs_mode = mode;
-    
+
+#ifdef __OPENTENBASE__
+	/*
+	 * For vector search queries (ORDER BY distance LIMIT K), set up SimpleSort
+	 * for CN-side merge sort and wrap with Limit node for final TopK filtering.
+	 *
+	 * Each DN executes: SELECT ... ORDER BY distance LIMIT K (local TopK)
+	 * CN merge-sorts results from all DNs using SimpleSort
+	 * CN applies final LIMIT K to get global TopK
+	 */
+	if (pgxc_is_vector_search_query(query))
+	{
+		ListCell   *lc;
+		int			numsortkeys = list_length(query->sortClause);
+		AttrNumber *sortColIdx;
+		Oid		   *sortOperators;
+		Oid		   *sortCollations;
+		bool	   *nullsFirst;
+		int			i = 0;
+
+		sortColIdx = (AttrNumber *) palloc(numsortkeys * sizeof(AttrNumber));
+		sortOperators = (Oid *) palloc(numsortkeys * sizeof(Oid));
+		sortCollations = (Oid *) palloc(numsortkeys * sizeof(Oid));
+		nullsFirst = (bool *) palloc(numsortkeys * sizeof(bool));
+
+		foreach(lc, query->sortClause)
+		{
+			SortGroupClause *sgc = (SortGroupClause *) lfirst(lc);
+			TargetEntry *tle;
+
+			tle = get_sortgroupref_tle(sgc->tleSortGroupRef, query->targetList);
+			if (tle == NULL)
+				continue;
+
+			sortColIdx[i] = tle->resno;
+			sortOperators[i] = sgc->sortop;
+			sortCollations[i] = exprCollation((Node *) tle->expr);
+			nullsFirst[i] = sgc->nulls_first;
+			i++;
+		}
+
+		if (i > 0)
+		{
+			query_step->sort = makeNode(SimpleSort);
+			query_step->sort->numCols = i;
+			query_step->sort->sortColIdx = sortColIdx;
+			query_step->sort->sortOperators = sortOperators;
+			query_step->sort->sortCollations = sortCollations;
+			query_step->sort->nullsFirst = nullsFirst;
+		}
+
+		/*
+		 * Wrap RemoteQuery with Limit node so CN returns only the final
+		 * TopK results after merge-sorting from all DNs.
+		 */
+		if (query->limitCount != NULL)
+		{
+			Limit	   *limit_plan = make_limit((Plan *) query_step,
+													 query->limitOffset,
+													 query->limitCount,
+													 query->limitOption,
+													 0, NULL, NULL, NULL);
+			return (Plan *) limit_plan;
+		}
+	}
+#endif
+
 	return query_step;
 }
 #ifdef __OPENTENBASE__
