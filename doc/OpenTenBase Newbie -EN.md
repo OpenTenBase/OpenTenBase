@@ -93,7 +93,7 @@ OpenTenBase is a relational database cluster platform that provides write reliab
 
 ### 2. OpenTenBase Architecture Diagram
 
-<img title="OpenTenBase Architecture Diagram" src="../images/opentenbase架构图_CN.png" alt="OpenTenBase Architecture Diagram" width="764">
+<img title="OpenTenBase Architecture Diagram" src="../images/opentenbase架构图_EN.png" alt="OpenTenBase Architecture Diagram" width="764">
 
 #### Text Description
 
