@@ -336,3 +336,6 @@ OpenTenBase 使用 BSD 3-Clause 许可证，版权和许可信息可以在 [LICE
 
 ## 历史
 [history_events](history_events.md)
+
+## 新手指南
+[新手指南](doc/OpenTenBase%20Newbie%20-ZH.md)

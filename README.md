@@ -353,3 +353,6 @@ Thanks for all contributors here: [CONTRIBUTORS](CONTRIBUTORS.md)
 
 ## History
 [history_events](history_events.md)
+
+## Newbie Guide
+[newbie_guide](doc/OpenTenBase%20Newbie%20-EN.md)
