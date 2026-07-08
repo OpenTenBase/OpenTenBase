@@ -158,8 +158,14 @@ sudo systemctl stop firewalld
 > sudo systemctl stop nftables
 > sudo systemctl disable nftables
 >
-> # 方式 3：仅放行集群实际使用的端口（推荐生产环境）。具体端口号请
-> # 参考 OpenTenBase 官方文档对部署拓扑（GTM / Coordinator / DataNode）的说明。
+> # 方式 3：仅放行 OpenTenBase 所需端口（推荐生产环境）
+> # 具体端口请参考 OpenTenBase 官方文档（节点角色与端口对照表）
+> # 如有 firewalld：
+> # sudo firewall-cmd --add-service=opentenbase --permanent
+> # sudo firewall-cmd --reload
+> # 如无 firewalld，使用 iptables：
+> # sudo iptables -A INPUT -p tcp --dport <OpenTenBase_PORT> -j ACCEPT
+> # 请将 <OpenTenBase_PORT> 替换为实际需要开放的端口
 > ```
 
 #### 3. 创建用于初始化实例的 *.tar.gz 包。
@@ -320,6 +326,8 @@ level=DEBUG
 ```
 
 > **注意**：集中式单节点模式不需要配置 `[gtm]` 和 `[coordinators]` 段，GTM 功能内嵌在 CN 中。不要填写 `slave=` 行，否则解析器可能报 `Failed to parse configuration file`。
+
+> **关于端口**：本文档不引入任何具体业务端口数字。客户端连接入口、节点端口等以 OpenTenBase 官方文档为准。`ssh-port=36000` 与分布式样例保持一致，便于工具识别。
 
 #### 2. 执行实例安装命令。
 
