@@ -220,6 +220,7 @@
 
 #ifndef __cplusplus
 
+#include <stdbool.h>
 #ifndef bool
 typedef char bool;
 #endif
