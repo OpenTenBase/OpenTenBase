@@ -194,32 +194,74 @@ pgbench -i -s 100  →  10,000,000 行 pgbench_accounts
 
 ## 六、测试脚本
 
-### pgbench 命令
+所有脚本位于仓库 `bench/` 目录，可直接复现本次测试。
 
-```bash
-# 初始化（scale=100 → 10M 行）
-pgbench -h 127.0.0.1 -p 11000 -U opentenbase -d bench_test -i -s 100
+### 脚本目录结构
 
-# 点查询测试
-pgbench -h 127.0.0.1 -p 11000 -U opentenbase -d bench_test -S -c 10 -T 30
-
-# 混合读写测试
-pgbench -h 127.0.0.1 -p 11000 -U opentenbase -d bench_test -c 10 -T 30
+```
+bench/
+├── run_benchmarks.sh              # 一键运行脚本
+├── sql/
+│   ├── setup.sql                  # 建表（4 张表 + 14 个索引）
+│   ├── data_load.sql              # 数据加载（10 万账户 + 100 万交易 + 1 万商品）
+│   ├── bench_point_select.sql     # 点查询（主键索引命中）
+│   ├── bench_single_insert.sql    # 单行 INSERT
+│   ├── bench_batch_insert.sql     # 批量 INSERT
+│   ├── bench_aggregation.sql      # GROUP BY + SUM/AVG/COUNT/MIN/MAX
+│   ├── bench_aggregation_txn.sql  # 事务内聚合
+│   ├── bench_join.sql             # 3 表 JOIN
+│   ├── bench_mixed.sql            # 混合负载（40% 读 + 20% 点查 + 15% 写 + 10% 聚合 + 10% 更新 + 5% JOIN）
+└── results/                       # 测试结果输出目录
 ```
 
-### 自定义 SQL
+### 快速复现
 
-```sql
--- 聚合查询（10M 行 GROUP BY）
+```bash
+# 1. 建表
+psql -h 127.0.0.1 -p 11000 -U opentenbase -d bench_test -f bench/sql/setup.sql
+
+# 2. 加载数据
+psql -h 127.0.0.1 -p 11000 -U opentenbase -d bench_test -f bench/sql/data_load.sql
+
+# 3. 运行全部基准测试
+cd bench && ./run_benchmarks.sh all
+
+# 或单独运行某个测试
+./run_benchmarks.sh single bench_point_select
+```
+
+### 本次测试实际使用命令
+
+由于本次在集中式单 DN 实例上测试，以下为实际执行的命令和参数：
+
+```bash
+# pgbench 初始化（基于内置 TPC-B 表）
+pgbench -h 127.0.0.1 -p 11000 -U opentenbase -d bench_test -i -s 100
+
+# 点查询测试（4 级并发）
+pgbench -h 127.0.0.1 -p 11000 -U opentenbase -d bench_test -S -c 1  -T 15
+pgbench -h 127.0.0.1 -p 11000 -U opentenbase -d bench_test -S -c 10 -T 15
+pgbench -h 127.0.0.1 -p 11000 -U opentenbase -d bench_test -S -c 50 -T 15
+pgbench -h 127.0.0.1 -p 11000 -U opentenbase -d bench_test -S -c 100 -T 15
+
+# 混合读写测试（3 级并发）
+pgbench -h 127.0.0.1 -p 11000 -U opentenbase -d bench_test -c 1  -T 15
+pgbench -h 127.0.0.1 -p 11000 -U opentenbase -d bench_test -c 10 -T 15
+pgbench -h 127.0.0.1 -p 11000 -U opentenbase -d bench_test -c 50 -T 15
+
+# 自定义聚合 / JOIN（单次执行，time 计时）
+psql -h 127.0.0.1 -p 11000 -U opentenbase -d bench_test -c "
 SELECT bid, COUNT(*), SUM(abalance), AVG(abalance)::bigint,
        MIN(abalance), MAX(abalance)
 FROM pgbench_accounts GROUP BY bid ORDER BY bid;
+"
 
--- JOIN + 聚合
+psql -h 127.0.0.1 -p 11000 -U opentenbase -d bench_test -c "
 SELECT b.bid, b.bbalance, COUNT(a.aid), SUM(a.abalance)
 FROM pgbench_branches b
 LEFT JOIN pgbench_accounts a ON b.bid = a.bid
 GROUP BY b.bid, b.bbalance ORDER BY b.bid;
+"
 ```
 
 ---
