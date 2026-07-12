@@ -22,6 +22,8 @@ OpenTenBase具有许多类似于PostgreSQL的语言接口，其中的一些可�
 
 	https://www.opentenbase.org/
 
+> **新手入门提示**：如果你是第一次接触分布式数据库，建议先阅读[架构术语表与新手导览](doc/TERMINOLOGY_ZH.md)，了解 CN、DN、GTM 等核心概念后再继续。
+
 ## 构建
 ### 系统要求
 
@@ -79,11 +81,11 @@ rm -rf ${INSTALL_PATH}/opentenbase_bin_v5.0
 chmod +x configure*
 ./configure --prefix=${INSTALL_PATH}/opentenbase_bin_v5.0 --enable-user-switch --with-libxml --disable-license --with-openssl --with-ossp-uuid CFLAGS="-g"
 make clean
-make -sj
+make -j"$(nproc)"
 make install
 chmod +x contrib/pgxc_ctl/make_signature
 cd contrib
-make -sj
+make -j"$(nproc)"
 make install
 ```
 
@@ -99,36 +101,48 @@ PG_HOME=${INSTALL_PATH}/opentenbase_bin_v5.0
 export PATH="$PATH:$PG_HOME/bin"
 export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$PG_HOME/lib"
 export LC_ALL=C
+
+# 建议将以上环境变量写入 ~/.bashrc 以持久化，避免每次打开新终端都需要重新设置：
+# echo 'export PG_HOME='"${PG_HOME}" >> ~/.bashrc
+# echo 'export PATH="$PATH:$PG_HOME/bin"' >> ~/.bashrc
+# echo 'export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$PG_HOME/lib"' >> ~/.bashrc
+# echo 'export LC_ALL=C' >> ~/.bashrc
+# source ~/.bashrc
 ```
 
 #### 2. 禁用 SELinux 和防火墙（可选）
 
 ```
-vi /etc/selinux/config 
-set SELINUX=disabled
+vi /etc/selinux/config
+# 将 SELINUX=enforcing 改为 SELINUX=disabled，保存退出
 
 # 禁用防火墙
 sudo systemctl disable firewalld
 sudo systemctl stop firewalld
 ```
 
-#### 3. 创建用于初始化实例的 *.tar.gz 包。
+#### 3. 创建用于初始化实例的 `.tar.gz` 包并检查部署工具。
 
-```
+```bash
 cd ${PG_HOME}
 tar -zcf ${INSTALL_PATH}/opentenbase-5.21.8-i.x86_64.tar.gz *
 cd ${INSTALL_PATH}
+
+# 安装前检查：工具和软件包路径必须存在且可读
+"${PG_HOME}/bin/opentenbase_ctl" -h
+test -r "${INSTALL_PATH}/opentenbase-5.21.8-i.x86_64.tar.gz"
 ```
 
 ### 集群启动步骤
 
-#### 生成并填写配置文件 
-opentenbase\_config.opentenbase\_ctl 工具可以生成配置文件的模板。您需要在模板中填写集群节点信息。启动 opentenbase\_ctl 工具后，将在当前用户的主目录中生成 opentenbase\_ctl 目录。输入 "prepare config" 命令后，将在 opentenbase\_ctl 目录中生成可直接修改的配置文件模板。
+#### 生成并填写配置文件
 
-* opentenbase\_config.ini 中各字段说明
-```
+配置模板位于仓库的 `contrib/opentenbase_ctl/config/config.ini`。将其复制到部署目录后，填写集群节点 IP、软件包绝对路径和 SSH 信息。`opentenbase_ctl` 当前不提供 `prepare config` 子命令。
+
+* `opentenbase_config.ini` 中各字段说明
+
 | 配置类别        | 配置项            | 说明                                                                      |
-|----------------|------------------|---------------------------------------------------------------------------||
+|----------------|------------------|---------------------------------------------------------------------------|
 | instance       | name             | 实例名称，可用字符：字母、数字、下划线，例如：opentenbase_instance01        |
 |                | type             | distributed 表示分布式模式，需要 gtm、coordinator 和 data 节点；centralized 表示集中式模式 |
 |                | package          | 软件包。完整路径（推荐）或相对于 opentenbase_ctl 的相对路径                  |
@@ -139,23 +153,24 @@ opentenbase\_config.opentenbase\_ctl 工具可以生成配置文件的模板。�
 |                |                  | 示例：如果 1 主 1 从，IP 数量与主节点相同；如果 1 主 2 从，IP 数量是主节点的两倍 |
 |                | nodes-per-server | 可选，默认 1。每个 IP 上部署的节点数。示例：主节点有 3 个 IP，配置为 2，则有 6 个节点 |
 |                |                  | cn001-cn006 共 6 个节点，每个服务器分布 2 个节点                            |
+|                | conf             | 可选。自定义 postgresql.conf 的绝对路径，用于覆盖节点初始化后的 GUC 默认配置 |
 | datanodes      | master           | 主节点 IP，自动生成节点名称，在每个 IP 上部署 nodes-per-server 个节点        |
 |                | slave            | 从节点 IP，数量是主节点的整数倍                                             |
 |                |                  | 示例：如果 1 主 1 从，IP 数量与主节点相同；如果 1 主 2 从，IP 数量是主节点的两倍 |
 |                | nodes-per-server | 可选，默认 1。每个 IP 上部署的节点数。示例：主节点有 3 个 IP，配置为 2，则有 6 个节点 |
 |                |                  | dn001-dn006 共 6 个节点，每个服务器分布 2 个节点                            |
+|                | conf             | 可选。自定义 postgresql.conf 的绝对路径，用于覆盖节点初始化后的 GUC 默认配置 |
 | server         | ssh-user         | 远程命令执行用户名，需要提前创建，所有服务器应有相同账户以简化配置管理          |
 |                | ssh-password     | 远程命令执行密码，需要提前创建，所有服务器应有相同密码以简化配置管理            |
 |                | ssh-port         | SSH 端口，所有服务器应保持一致以简化配置管理                                 |
 | log            | level            | opentenbase_ctl 工具执行的日志级别（不是 opentenbase 节点的日志级别）        |
 
-```
-
 #### 1. 为实例创建配置文件 opentenbase\_config.ini
-```
+```bash
 mkdir -p ./logs
-touch opentenbase_config.ini
+cp ${SOURCECODE_PATH}/contrib/opentenbase_ctl/config/config.ini opentenbase_config.ini
 vim opentenbase_config.ini
+test -r opentenbase_config.ini
 ```
 
 * 例如，如果我有两台服务器 172.16.16.49 和 172.16.16.131，分布在两台服务器上的典型分布式实例配置如下。您可以复制此配置信息并根据您的部署要求进行修改。不要忘记填写 ssh 密码配置。
@@ -222,9 +237,8 @@ level=DEBUG
 
 #### 2. 执行实例安装命令。
 
-```
-export LD_LIBRARY_PATH=/data/opentenbase/install/opentenbase_bin_v5.0/lib
-./opentenbase_bin_v5.0/bin/opentenbase_ctl install  -c opentenbase_config.ini
+```bash
+"${PG_HOME}/bin/opentenbase_ctl" install -c opentenbase_config.ini
 
 ====== Start to Install Opentenbase test_cluster01  ====== 
 
@@ -267,8 +281,8 @@ step 6: Create node group ...
 ```
 * 当您看到 'Installation completed successfully' 字样时，表示安装已完成。尽情享受您的 opentenbase 之旅吧。
 * 您可以检查实例的状态
-```
-[opentenbase@VM-16-49-tencentos opentenbase_ctl]$ ./opentenbase_bin_v5.0/bin/opentenbase_ctl status -c opentenbase_config.ini
+```bash
+[opentenbase@VM-16-49-tencentos opentenbase_ctl]$ "${PG_HOME}/bin/opentenbase_ctl" status -c opentenbase_config.ini
 
 ------------- Instance status -----------  
 Instance name: test_cluster01
@@ -290,6 +304,84 @@ Node dn0001(172.16.16.131) is Running
 Environment variable: export LD_LIBRARY_PATH=/data/opentenbase/install/opentenbase/5.21.8/lib  && export PATH=/data/opentenbase/install/opentenbase/5.21.8/bin:${PATH} 
 PSQL connection: psql -h 172.16.16.49 -p 11000 -U opentenbase postgres 
 ```
+
+## 常见错误与排查
+
+### 环境变量与路径问题
+
+| 现象 | 原因 | 排查和处理 |
+| --- | --- | --- |
+| `opentenbase_ctl: command not found` | `PATH` 未包含 `opentenbase_ctl` 所在目录 | 确认 `PG_HOME` 指向安装目录（编译安装的 `--prefix` 路径），并执行 `export PATH="$PG_HOME/bin:$PATH"`。也可以直接使用 `"$PG_HOME/bin/opentenbase_ctl"` 绝对路径调用。 |
+| `error while loading shared libraries: libpq.so` 或类似 | 动态库搜索路径未设置 | 执行 `export LD_LIBRARY_PATH="$PG_HOME/lib:${LD_LIBRARY_PATH}"`；若使用 `sudo` 或 `su` 切换用户后失效，可在 `~/.bashrc` 中持久化该变量。 |
+| 新开终端后 `PG_HOME`、`PATH` 环境变量丢失 | 仅在当前 Shell 中 `export`，未持久化 | 将以下内容追加到 `~/.bashrc`：`export PG_HOME=<安装目录>`、`export PATH="$PG_HOME/bin:$PATH"`、`export LD_LIBRARY_PATH="$PG_HOME/lib:$LD_LIBRARY_PATH"`，然后 `source ~/.bashrc` 使其生效。 |
+
+### 编译与依赖问题
+
+| 现象 | 原因 | 排查和处理 |
+| --- | --- | --- |
+| `configure: error: readline library not found` | 缺少 readline 开发库 | RHEL/CentOS: `yum install readline-devel`；Debian/Ubuntu: `apt install libreadline-dev` |
+| `configure: error: zlib library not found` | 缺少 zlib 开发库 | RHEL/CentOS: `yum install zlib-devel`；Debian/Ubuntu: `apt install zlib1g-dev` |
+| `make: *** No targets specified and no makefile found.` | 未执行 `./configure` 或 configure 失败 | 检查 configure 输出中的 error，修复后重新 `./configure ...` 再 `make` |
+| `./configure: No such file or directory` | 未在源码目录下执行，或源码目录路径错误 | 确认 `SOURCECODE_PATH` 指向 git clone 下来的源码目录，然后 `cd ${SOURCECODE_PATH}` 再执行 configure |
+| configure 时提示 `--with-libxml` 但 libxml2 未安装 | 编译选项要求 libxml2 开发库 | RHEL/CentOS: `yum install libxml2-devel`；Debian/Ubuntu: `apt install libxml2-dev`；或从 configure 参数中移除 `--with-libxml` |
+
+### SSH 与连通性问题
+
+| 现象 | 原因 | 排查和处理 |
+| --- | --- | --- |
+| SSH 超时、`Permission denied` 或节点显示 `Unknown` | SSH 凭据、端口不正确，或 sshpass 未安装 | 在部署机上用 `ssh -p <ssh-port> <ssh-user>@<节点IP>` 验证能否免密登录（需输入密码也说明 sshpass 可工作）；检查 `[server]` 段中的 ssh-user、ssh-password、ssh-port 与实际一致；确认部署机已安装 `sshpass`（`which sshpass`）。 |
+| `ssh: connect to host ... port 22: Connection refused` | SSH 端口配置错误（默认 22，实际使用了自定义端口如 36000） | 确认 `[server]` 中 `ssh-port` 与实际 SSH 服务监听端口一致；检查 `/etc/ssh/sshd_config` 中 `Port` 的值。 |
+| 节点初始化成功但状态为 `Unknown` | SSH 能连接但 pg 进程检查失败 | 登录对应节点，执行 `ps -ef | grep <data_path> | grep -v grep` 确认进程状态；检查节点日志（位于 `<data_path>/pg_log/` 或 `<data_path>/gtm.log`）。 |
+
+### 配置文件问题
+
+| 现象 | 原因 | 排查和处理 |
+| --- | --- | --- |
+| `Failed to parse config file ...` | ini 文件路径不正确或格式有误 | 使用 `-c opentenbase_config.ini` 显式指定绝对路径；确认 `[instance]` 中的 `package` 是部署机（执行 opentenbase_ctl 的机器）上的文件路径且可读（`test -r <package>`）。 |
+| `Package file not found` | `package` 字段指定的软件包不存在 | 检查 package 路径的绝对路径是否正确：编译安装则 tar.gz 应位于 `${INSTALL_PATH}` 上级目录；下载预编译包则确认已 wget 到正确位置。 |
+| 实例名称含特殊字符导致部署失败 | 实例名称仅支持字母、数字、下划线 | 修改 `[instance]` 的 `name` 字段，确保不包含 `-`、`.`、空格等字符。 |
+| `type` 配置为 `distributed` 但缺少 `[gtm]` 段 | 分布式实例需要 GTM 节点配置 | 确保 `[gtm]` 段至少包含一个 `master` IP。集中式实例使用 `type=centralized` 则无需 `[gtm]` 和 `[coordinators]` 段。 |
+
+### 端口与防火墙问题
+
+| 现象 | 原因 | 排查和处理 |
+| --- | --- | --- |
+| `psql` 连接 CN/DN 被拒绝（Connection refused） | 数据库节点未启动或端口被防火墙阻止 | 先执行 `opentenbase_ctl status -c opentenbase_config.ini` 确认目标节点为 `Running`；使用 status 输出中的连接串（IP:端口）；检查并放行对应端口：`sudo firewall-cmd --add-port=<端口>/tcp --permanent && sudo firewall-cmd --reload`（或 `sudo ufw allow <端口>/tcp`）。 |
+| 端口冲突：启动节点时报端口已被占用 | 自动分配的端口与已有服务冲突 | `opentenbase_ctl` 从 11000 开始自动分配端口（每节点占用连续 3 个端口），检查冲突：`ss -tlnp \| grep <端口号>`；必要时在 `postgres.conf` 中手动指定端口。 |
+
+### 其他常见问题
+
+| 现象 | 原因 | 排查和处理 |
+| --- | --- | --- |
+| initdb 报 locale 错误（如 `zh_CN.utf8` 不可用） | 系统缺少对应 locale | `locale -a \| grep zh_CN` 检查是否已生成；若缺少则 `sudo locale-gen zh_CN.UTF-8`（Debian/Ubuntu）或 `sudo localedef -i zh_CN -f UTF-8 zh_CN.UTF-8`（RHEL/CentOS）。 |
+| 节点启动后立即退出，日志显示 shared memory 相关错误 | 系统共享内存不足 | 检查 `sysctl kernel.shmmax` 和 `kernel.shmall`，适当增大：`sudo sysctl -w kernel.shmmax=<值> && sudo sysctl -w kernel.shmall=<值>`。 |
+| SELinux 阻止节点进程启动 | SELinux 处于 enforcing 模式 | 临时关闭验证：`sudo setenforce 0`；永久关闭：编辑 `/etc/selinux/config`，设置 `SELINUX=disabled`，重启生效。 |
+
+首次部署的验证过程、实际遇到的环境问题及复验步骤见[最小部署路径验证记录](doc/DEPLOYMENT_VALIDATION_ZH.md)。
+
+### 单机部署注意事项
+
+在单台机器上部署测试集群时，需注意以下问题：
+
+1. **避免 master 和 slave 使用相同 IP**：单机部署集中式实例时，如果 master 和 slave 都设为 `127.0.0.1`，两者会共享同一数据目录 `<home>/run/instance/<name>/dn0001/data/`，导致 slave 的 pg_basebackup 覆盖 master 数据。建议单机测试时设置 `slave=` 为空，仅部署主节点。
+
+2. **预编译包的系统库依赖**：从云端下载的预编译包（`opentenbase-5.21.8-i.x86_64.tar.gz`）是在 CentOS 7 / GCC 4.8.5 环境下编译的，依赖 OpenSSL 1.0.x（`libssl.so.10`）和 Readline 6（`libreadline.so.6`）。在 Ubuntu 20.04+ 上需要安装兼容库：
+   ```bash
+   # Ubuntu 22.04 示例：编译 OpenSSL 1.0.2 并提供 symlink
+   # 或者将系统 libreadline.so.8 软链接为 libreadline.so.6
+   ```
+
+3. **源码编译的 GCC 版本**：当前源码基于 Postgres-XL 10beta3，与 GCC 11+ 存在 `_Bool`/`bool` 类型兼容性问题。建议使用 GCC 7-9 编译，或添加 `-std=gnu99 -Wno-error=incompatible-pointer-types` 编译选项。
+
+4. **Windows/WSL 环境额外步骤**：从 Windows 文件系统复制源码到 WSL 后，CRLF 换行符会导致 Perl 脚本和 sed 脚本解析失败。执行 `find . -type f -exec dos2unix {} +` 或使用 `git clone` 直接在 WSL 内获取源码。
+
+5. **集中式实例部署后手动补全**：使用 `opentenbase_ctl install` 部署集中式实例后，可能需要手动创建 PGXC 节点路由和分片组才能正常执行 CREATE TABLE：
+   ```sql
+   CREATE NODE dn0001 WITH (TYPE='datanode', HOST='127.0.0.1', PORT=11000);
+   CREATE DEFAULT node group default_group with (dn0001);
+   CREATE sharding group to group default_group;
+   CLEAN SHARDING;
+   ```
 
 ## 使用
 * 连接到 CN 主节点执行 SQL
