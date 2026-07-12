@@ -22,6 +22,8 @@ OpenTenBase具有许多类似于PostgreSQL的语言接口，其中的一些可�
 
 	https://www.opentenbase.org/
 
+> **新手入门提示**：如果你是第一次接触分布式数据库，建议先阅读[架构术语表与新手导览](doc/TERMINOLOGY_ZH.md)，了解 CN、DN、GTM 等核心概念后再继续。
+
 ## 构建
 ### 系统要求
 
