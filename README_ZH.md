@@ -357,6 +357,30 @@ PSQL connection: psql -h 172.16.16.49 -p 11000 -U opentenbase postgres
 
 首次部署的验证过程、实际遇到的环境问题及复验步骤见[最小部署路径验证记录](doc/DEPLOYMENT_VALIDATION_ZH.md)。
 
+### 单机部署注意事项
+
+在单台机器上部署测试集群时，需注意以下问题：
+
+1. **避免 master 和 slave 使用相同 IP**：单机部署集中式实例时，如果 master 和 slave 都设为 `127.0.0.1`，两者会共享同一数据目录 `<home>/run/instance/<name>/dn0001/data/`，导致 slave 的 pg_basebackup 覆盖 master 数据。建议单机测试时设置 `slave=` 为空，仅部署主节点。
+
+2. **预编译包的系统库依赖**：从云端下载的预编译包（`opentenbase-5.21.8-i.x86_64.tar.gz`）是在 CentOS 7 / GCC 4.8.5 环境下编译的，依赖 OpenSSL 1.0.x（`libssl.so.10`）和 Readline 6（`libreadline.so.6`）。在 Ubuntu 20.04+ 上需要安装兼容库：
+   ```bash
+   # Ubuntu 22.04 示例：编译 OpenSSL 1.0.2 并提供 symlink
+   # 或者将系统 libreadline.so.8 软链接为 libreadline.so.6
+   ```
+
+3. **源码编译的 GCC 版本**：当前源码基于 Postgres-XL 10beta3，与 GCC 11+ 存在 `_Bool`/`bool` 类型兼容性问题。建议使用 GCC 7-9 编译，或添加 `-std=gnu99 -Wno-error=incompatible-pointer-types` 编译选项。
+
+4. **Windows/WSL 环境额外步骤**：从 Windows 文件系统复制源码到 WSL 后，CRLF 换行符会导致 Perl 脚本和 sed 脚本解析失败。执行 `find . -type f -exec dos2unix {} +` 或使用 `git clone` 直接在 WSL 内获取源码。
+
+5. **集中式实例部署后手动补全**：使用 `opentenbase_ctl install` 部署集中式实例后，可能需要手动创建 PGXC 节点路由和分片组才能正常执行 CREATE TABLE：
+   ```sql
+   CREATE NODE dn0001 WITH (TYPE='datanode', HOST='127.0.0.1', PORT=11000);
+   CREATE DEFAULT node group default_group with (dn0001);
+   CREATE sharding group to group default_group;
+   CLEAN SHARDING;
+   ```
+
 ## 使用
 * 连接到 CN 主节点执行 SQL
 
