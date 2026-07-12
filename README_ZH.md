@@ -79,11 +79,11 @@ rm -rf ${INSTALL_PATH}/opentenbase_bin_v5.0
 chmod +x configure*
 ./configure --prefix=${INSTALL_PATH}/opentenbase_bin_v5.0 --enable-user-switch --with-libxml --disable-license --with-openssl --with-ossp-uuid CFLAGS="-g"
 make clean
-make -sj
+make -j"$(nproc)"
 make install
 chmod +x contrib/pgxc_ctl/make_signature
 cd contrib
-make -sj
+make -j"$(nproc)"
 make install
 ```
 
@@ -112,23 +112,28 @@ sudo systemctl disable firewalld
 sudo systemctl stop firewalld
 ```
 
-#### 3. 创建用于初始化实例的 *.tar.gz 包。
+#### 3. 创建用于初始化实例的 `.tar.gz` 包并检查部署工具。
 
-```
+```bash
 cd ${PG_HOME}
 tar -zcf ${INSTALL_PATH}/opentenbase-5.21.8-i.x86_64.tar.gz *
 cd ${INSTALL_PATH}
+
+# 安装前检查：工具和软件包路径必须存在且可读
+"${PG_HOME}/bin/opentenbase_ctl" -h
+test -r "${INSTALL_PATH}/opentenbase-5.21.8-i.x86_64.tar.gz"
 ```
 
 ### 集群启动步骤
 
-#### 生成并填写配置文件 
-opentenbase\_config.opentenbase\_ctl 工具可以生成配置文件的模板。您需要在模板中填写集群节点信息。启动 opentenbase\_ctl 工具后，将在当前用户的主目录中生成 opentenbase\_ctl 目录。输入 "prepare config" 命令后，将在 opentenbase\_ctl 目录中生成可直接修改的配置文件模板。
+#### 生成并填写配置文件
 
-* opentenbase\_config.ini 中各字段说明
-```
+配置模板位于仓库的 `contrib/opentenbase_ctl/config/config.ini`。将其复制到部署目录后，填写集群节点 IP、软件包绝对路径和 SSH 信息。`opentenbase_ctl` 当前不提供 `prepare config` 子命令。
+
+* `opentenbase_config.ini` 中各字段说明
+
 | 配置类别        | 配置项            | 说明                                                                      |
-|----------------|------------------|---------------------------------------------------------------------------||
+|----------------|------------------|---------------------------------------------------------------------------|
 | instance       | name             | 实例名称，可用字符：字母、数字、下划线，例如：opentenbase_instance01        |
 |                | type             | distributed 表示分布式模式，需要 gtm、coordinator 和 data 节点；centralized 表示集中式模式 |
 |                | package          | 软件包。完整路径（推荐）或相对于 opentenbase_ctl 的相对路径                  |
@@ -149,13 +154,12 @@ opentenbase\_config.opentenbase\_ctl 工具可以生成配置文件的模板。�
 |                | ssh-port         | SSH 端口，所有服务器应保持一致以简化配置管理                                 |
 | log            | level            | opentenbase_ctl 工具执行的日志级别（不是 opentenbase 节点的日志级别）        |
 
-```
-
 #### 1. 为实例创建配置文件 opentenbase\_config.ini
-```
+```bash
 mkdir -p ./logs
-touch opentenbase_config.ini
+cp ${SOURCECODE_PATH}/contrib/opentenbase_ctl/config/config.ini opentenbase_config.ini
 vim opentenbase_config.ini
+test -r opentenbase_config.ini
 ```
 
 * 例如，如果我有两台服务器 172.16.16.49 和 172.16.16.131，分布在两台服务器上的典型分布式实例配置如下。您可以复制此配置信息并根据您的部署要求进行修改。不要忘记填写 ssh 密码配置。
@@ -222,9 +226,8 @@ level=DEBUG
 
 #### 2. 执行实例安装命令。
 
-```
-export LD_LIBRARY_PATH=/data/opentenbase/install/opentenbase_bin_v5.0/lib
-./opentenbase_bin_v5.0/bin/opentenbase_ctl install  -c opentenbase_config.ini
+```bash
+"${PG_HOME}/bin/opentenbase_ctl" install -c opentenbase_config.ini
 
 ====== Start to Install Opentenbase test_cluster01  ====== 
 
@@ -267,8 +270,8 @@ step 6: Create node group ...
 ```
 * 当您看到 'Installation completed successfully' 字样时，表示安装已完成。尽情享受您的 opentenbase 之旅吧。
 * 您可以检查实例的状态
-```
-[opentenbase@VM-16-49-tencentos opentenbase_ctl]$ ./opentenbase_bin_v5.0/bin/opentenbase_ctl status -c opentenbase_config.ini
+```bash
+[opentenbase@VM-16-49-tencentos opentenbase_ctl]$ "${PG_HOME}/bin/opentenbase_ctl" status -c opentenbase_config.ini
 
 ------------- Instance status -----------  
 Instance name: test_cluster01
@@ -290,6 +293,18 @@ Node dn0001(172.16.16.131) is Running
 Environment variable: export LD_LIBRARY_PATH=/data/opentenbase/install/opentenbase/5.21.8/lib  && export PATH=/data/opentenbase/install/opentenbase/5.21.8/bin:${PATH} 
 PSQL connection: psql -h 172.16.16.49 -p 11000 -U opentenbase postgres 
 ```
+
+## 常见错误与排查
+
+| 现象 | 排查和处理 |
+| --- | --- |
+| `opentenbase_ctl: command not found` | 确认 `PG_HOME` 指向安装目录，并执行 `export PATH="$PG_HOME/bin:$PATH"`。也可以直接使用 `"$PG_HOME/bin/opentenbase_ctl"`。 |
+| `error while loading shared libraries` | 确认动态库目录存在，并执行 `export LD_LIBRARY_PATH="$PG_HOME/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"`；重新打开终端后需要再次设置或写入 shell 配置文件。 |
+| `Failed to parse file ...` | 使用 `-c opentenbase_config.ini` 显式指定配置文件；确认文件可读、`package` 是部署机上的绝对路径，并从仓库模板重新检查必填项。 |
+| SSH 超时、`Permission denied` 或节点显示 `Unknown` | 在部署机上用 `ssh -p <ssh-port> <ssh-user>@<节点IP>` 单独验证连接；检查所有节点的账号、密码和 SSH 端口是否与 `[server]` 一致，并确认 `sshpass` 已安装。 |
+| `psql` 连接 CN 被拒绝 | 先执行 `opentenbase_ctl status -c opentenbase_config.ini`，确认 CN 为 `Running`；使用输出中的主 CN 地址和端口，并检查主机防火墙和安全组是否放行该端口。 |
+
+首次部署的验证过程、实际遇到的环境问题及复验步骤见[最小部署路径验证记录](doc/DEPLOYMENT_VALIDATION_ZH.md)。
 
 ## 使用
 * 连接到 CN 主节点执行 SQL
