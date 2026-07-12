@@ -99,13 +99,20 @@ PG_HOME=${INSTALL_PATH}/opentenbase_bin_v5.0
 export PATH="$PATH:$PG_HOME/bin"
 export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$PG_HOME/lib"
 export LC_ALL=C
+
+# 建议将以上环境变量写入 ~/.bashrc 以持久化，避免每次打开新终端都需要重新设置：
+# echo 'export PG_HOME='"${PG_HOME}" >> ~/.bashrc
+# echo 'export PATH="$PATH:$PG_HOME/bin"' >> ~/.bashrc
+# echo 'export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$PG_HOME/lib"' >> ~/.bashrc
+# echo 'export LC_ALL=C' >> ~/.bashrc
+# source ~/.bashrc
 ```
 
 #### 2. 禁用 SELinux 和防火墙（可选）
 
 ```
-vi /etc/selinux/config 
-set SELINUX=disabled
+vi /etc/selinux/config
+# 将 SELINUX=enforcing 改为 SELINUX=disabled，保存退出
 
 # 禁用防火墙
 sudo systemctl disable firewalld
@@ -144,11 +151,13 @@ test -r "${INSTALL_PATH}/opentenbase-5.21.8-i.x86_64.tar.gz"
 |                |                  | 示例：如果 1 主 1 从，IP 数量与主节点相同；如果 1 主 2 从，IP 数量是主节点的两倍 |
 |                | nodes-per-server | 可选，默认 1。每个 IP 上部署的节点数。示例：主节点有 3 个 IP，配置为 2，则有 6 个节点 |
 |                |                  | cn001-cn006 共 6 个节点，每个服务器分布 2 个节点                            |
+|                | conf             | 可选。自定义 postgresql.conf 的绝对路径，用于覆盖节点初始化后的 GUC 默认配置 |
 | datanodes      | master           | 主节点 IP，自动生成节点名称，在每个 IP 上部署 nodes-per-server 个节点        |
 |                | slave            | 从节点 IP，数量是主节点的整数倍                                             |
 |                |                  | 示例：如果 1 主 1 从，IP 数量与主节点相同；如果 1 主 2 从，IP 数量是主节点的两倍 |
 |                | nodes-per-server | 可选，默认 1。每个 IP 上部署的节点数。示例：主节点有 3 个 IP，配置为 2，则有 6 个节点 |
 |                |                  | dn001-dn006 共 6 个节点，每个服务器分布 2 个节点                            |
+|                | conf             | 可选。自定义 postgresql.conf 的绝对路径，用于覆盖节点初始化后的 GUC 默认配置 |
 | server         | ssh-user         | 远程命令执行用户名，需要提前创建，所有服务器应有相同账户以简化配置管理          |
 |                | ssh-password     | 远程命令执行密码，需要提前创建，所有服务器应有相同密码以简化配置管理            |
 |                | ssh-port         | SSH 端口，所有服务器应保持一致以简化配置管理                                 |
@@ -296,13 +305,55 @@ PSQL connection: psql -h 172.16.16.49 -p 11000 -U opentenbase postgres
 
 ## 常见错误与排查
 
-| 现象 | 排查和处理 |
-| --- | --- |
-| `opentenbase_ctl: command not found` | 确认 `PG_HOME` 指向安装目录，并执行 `export PATH="$PG_HOME/bin:$PATH"`。也可以直接使用 `"$PG_HOME/bin/opentenbase_ctl"`。 |
-| `error while loading shared libraries` | 确认动态库目录存在，并执行 `export LD_LIBRARY_PATH="$PG_HOME/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"`；重新打开终端后需要再次设置或写入 shell 配置文件。 |
-| `Failed to parse file ...` | 使用 `-c opentenbase_config.ini` 显式指定配置文件；确认文件可读、`package` 是部署机上的绝对路径，并从仓库模板重新检查必填项。 |
-| SSH 超时、`Permission denied` 或节点显示 `Unknown` | 在部署机上用 `ssh -p <ssh-port> <ssh-user>@<节点IP>` 单独验证连接；检查所有节点的账号、密码和 SSH 端口是否与 `[server]` 一致，并确认 `sshpass` 已安装。 |
-| `psql` 连接 CN 被拒绝 | 先执行 `opentenbase_ctl status -c opentenbase_config.ini`，确认 CN 为 `Running`；使用输出中的主 CN 地址和端口，并检查主机防火墙和安全组是否放行该端口。 |
+### 环境变量与路径问题
+
+| 现象 | 原因 | 排查和处理 |
+| --- | --- | --- |
+| `opentenbase_ctl: command not found` | `PATH` 未包含 `opentenbase_ctl` 所在目录 | 确认 `PG_HOME` 指向安装目录（编译安装的 `--prefix` 路径），并执行 `export PATH="$PG_HOME/bin:$PATH"`。也可以直接使用 `"$PG_HOME/bin/opentenbase_ctl"` 绝对路径调用。 |
+| `error while loading shared libraries: libpq.so` 或类似 | 动态库搜索路径未设置 | 执行 `export LD_LIBRARY_PATH="$PG_HOME/lib:${LD_LIBRARY_PATH}"`；若使用 `sudo` 或 `su` 切换用户后失效，可在 `~/.bashrc` 中持久化该变量。 |
+| 新开终端后 `PG_HOME`、`PATH` 环境变量丢失 | 仅在当前 Shell 中 `export`，未持久化 | 将以下内容追加到 `~/.bashrc`：`export PG_HOME=<安装目录>`、`export PATH="$PG_HOME/bin:$PATH"`、`export LD_LIBRARY_PATH="$PG_HOME/lib:$LD_LIBRARY_PATH"`，然后 `source ~/.bashrc` 使其生效。 |
+
+### 编译与依赖问题
+
+| 现象 | 原因 | 排查和处理 |
+| --- | --- | --- |
+| `configure: error: readline library not found` | 缺少 readline 开发库 | RHEL/CentOS: `yum install readline-devel`；Debian/Ubuntu: `apt install libreadline-dev` |
+| `configure: error: zlib library not found` | 缺少 zlib 开发库 | RHEL/CentOS: `yum install zlib-devel`；Debian/Ubuntu: `apt install zlib1g-dev` |
+| `make: *** No targets specified and no makefile found.` | 未执行 `./configure` 或 configure 失败 | 检查 configure 输出中的 error，修复后重新 `./configure ...` 再 `make` |
+| `./configure: No such file or directory` | 未在源码目录下执行，或源码目录路径错误 | 确认 `SOURCECODE_PATH` 指向 git clone 下来的源码目录，然后 `cd ${SOURCECODE_PATH}` 再执行 configure |
+| configure 时提示 `--with-libxml` 但 libxml2 未安装 | 编译选项要求 libxml2 开发库 | RHEL/CentOS: `yum install libxml2-devel`；Debian/Ubuntu: `apt install libxml2-dev`；或从 configure 参数中移除 `--with-libxml` |
+
+### SSH 与连通性问题
+
+| 现象 | 原因 | 排查和处理 |
+| --- | --- | --- |
+| SSH 超时、`Permission denied` 或节点显示 `Unknown` | SSH 凭据、端口不正确，或 sshpass 未安装 | 在部署机上用 `ssh -p <ssh-port> <ssh-user>@<节点IP>` 验证能否免密登录（需输入密码也说明 sshpass 可工作）；检查 `[server]` 段中的 ssh-user、ssh-password、ssh-port 与实际一致；确认部署机已安装 `sshpass`（`which sshpass`）。 |
+| `ssh: connect to host ... port 22: Connection refused` | SSH 端口配置错误（默认 22，实际使用了自定义端口如 36000） | 确认 `[server]` 中 `ssh-port` 与实际 SSH 服务监听端口一致；检查 `/etc/ssh/sshd_config` 中 `Port` 的值。 |
+| 节点初始化成功但状态为 `Unknown` | SSH 能连接但 pg 进程检查失败 | 登录对应节点，执行 `ps -ef | grep <data_path> | grep -v grep` 确认进程状态；检查节点日志（位于 `<data_path>/pg_log/` 或 `<data_path>/gtm.log`）。 |
+
+### 配置文件问题
+
+| 现象 | 原因 | 排查和处理 |
+| --- | --- | --- |
+| `Failed to parse config file ...` | ini 文件路径不正确或格式有误 | 使用 `-c opentenbase_config.ini` 显式指定绝对路径；确认 `[instance]` 中的 `package` 是部署机（执行 opentenbase_ctl 的机器）上的文件路径且可读（`test -r <package>`）。 |
+| `Package file not found` | `package` 字段指定的软件包不存在 | 检查 package 路径的绝对路径是否正确：编译安装则 tar.gz 应位于 `${INSTALL_PATH}` 上级目录；下载预编译包则确认已 wget 到正确位置。 |
+| 实例名称含特殊字符导致部署失败 | 实例名称仅支持字母、数字、下划线 | 修改 `[instance]` 的 `name` 字段，确保不包含 `-`、`.`、空格等字符。 |
+| `type` 配置为 `distributed` 但缺少 `[gtm]` 段 | 分布式实例需要 GTM 节点配置 | 确保 `[gtm]` 段至少包含一个 `master` IP。集中式实例使用 `type=centralized` 则无需 `[gtm]` 和 `[coordinators]` 段。 |
+
+### 端口与防火墙问题
+
+| 现象 | 原因 | 排查和处理 |
+| --- | --- | --- |
+| `psql` 连接 CN/DN 被拒绝（Connection refused） | 数据库节点未启动或端口被防火墙阻止 | 先执行 `opentenbase_ctl status -c opentenbase_config.ini` 确认目标节点为 `Running`；使用 status 输出中的连接串（IP:端口）；检查并放行对应端口：`sudo firewall-cmd --add-port=<端口>/tcp --permanent && sudo firewall-cmd --reload`（或 `sudo ufw allow <端口>/tcp`）。 |
+| 端口冲突：启动节点时报端口已被占用 | 自动分配的端口与已有服务冲突 | `opentenbase_ctl` 从 11000 开始自动分配端口（每节点占用连续 3 个端口），检查冲突：`ss -tlnp \| grep <端口号>`；必要时在 `postgres.conf` 中手动指定端口。 |
+
+### 其他常见问题
+
+| 现象 | 原因 | 排查和处理 |
+| --- | --- | --- |
+| initdb 报 locale 错误（如 `zh_CN.utf8` 不可用） | 系统缺少对应 locale | `locale -a \| grep zh_CN` 检查是否已生成；若缺少则 `sudo locale-gen zh_CN.UTF-8`（Debian/Ubuntu）或 `sudo localedef -i zh_CN -f UTF-8 zh_CN.UTF-8`（RHEL/CentOS）。 |
+| 节点启动后立即退出，日志显示 shared memory 相关错误 | 系统共享内存不足 | 检查 `sysctl kernel.shmmax` 和 `kernel.shmall`，适当增大：`sudo sysctl -w kernel.shmmax=<值> && sudo sysctl -w kernel.shmall=<值>`。 |
+| SELinux 阻止节点进程启动 | SELinux 处于 enforcing 模式 | 临时关闭验证：`sudo setenforce 0`；永久关闭：编辑 `/etc/selinux/config`，设置 `SELINUX=disabled`，重启生效。 |
 
 首次部署的验证过程、实际遇到的环境问题及复验步骤见[最小部署路径验证记录](doc/DEPLOYMENT_VALIDATION_ZH.md)。
 
