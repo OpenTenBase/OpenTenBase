@@ -12,10 +12,21 @@ OpenTenBase has many language interfaces similar to PostgreSQL, many of which ar
 
 	https://www.postgresql.org/download
 
-## Overview
-An OpenTenBase cluster consists of multiple CoordinateNodes, DataNodes, and GTM nodes. All user data resides in the DataNodes, the CoordinateNode contains only metadata, the GTM is for global transaction management. The CoordinateNodes and DataNodes share the same schema.
+## Overview & Architecture Guide
+An OpenTenBase cluster consists of multiple CoordinateNodes (CN), DataNodes (DN), and GTM nodes. All user data resides in the DataNodes, the CoordinateNode contains only metadata, and the GTM is for global transaction management. The CoordinateNodes and DataNodes share the same schema.
 
 Users always connect to the CoordinateNodes, which divide up the query into fragments that are executed in the DataNodes, and collect the results.
+
+| Component | Role | Relationship with Client & Nodes |
+| :--- | :--- | :--- |
+| **Client** | Application / SQL Driver | Always connects directly to **CoordinatorNode (CN)**. |
+| **CoordinatorNode (CN)** | Query Gateway & Distributed Planner | Receives SQL, requests Global Timestamp (GTS) from GTM, generates distributed plan, pushes fragments down to DNs, and aggregates results. |
+| **DataNode (DN)** | Sharded Storage & Execution Engine | Stores sharded user data, executes pushed-down query fragments, and participates in 2PC distributed transactions. |
+| **GTM** | Global Transaction Manager | Allocates monotonic Global Timestamps (GTS) and manages snapshot visibility across all DNs. |
+
+> [!TIP]
+> **Beginner's Architecture Guide & Glossary**: For a comprehensive explanation of Coordinator, DataNode, GTM, Distributed/Centralized modes, Node Group, and `opentenbase_ctl`, see our detailed guide:  
+> **👉 [OpenTenBase Core Glossary & Beginner's Architecture Guide (doc/GLOSSARY_ZH.md)](doc/GLOSSARY_ZH.md)**
 
 The latest version of this software may be obtained at:
 
