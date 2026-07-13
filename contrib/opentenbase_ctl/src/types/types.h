@@ -11,8 +11,8 @@ namespace Constants {
     
     // APP basic info
     inline constexpr auto APP_NAME = "opentenbase_ctl";
-    inline constexpr auto APP_DESC = "OpenTenBase cluster management tool";
-    inline constexpr auto APP_VERSION = "v5.21.9.7";
+    inline constexpr auto APP_DESC = "Opentenbase cluster management tool";
+    inline constexpr auto APP_VERSION = "v5.21.8";
 
     // 节点类型相关的常量
     inline constexpr auto NODE_TYPE_GTM_MASTER = "gtm_master";
@@ -35,9 +35,10 @@ namespace Constants {
     inline constexpr auto COMMAND_TYPE_SCP = "scp";
     inline constexpr auto COMMAND_TYPE_SHELL = "shell";
     inline constexpr auto COMMAND_TYPE_SQL = "sql";
+    inline constexpr auto COMMAND_TYPE_GUC = "guc";
 
-    // 默认平面cluster,{"optentenbase_cluster","opentenbase_cluster"}
-    inline constexpr auto MAIN_CLUSTER_NAME = "optentenbase_cluster";
+    // 默认平面cluster,{"opentenbase_cluster"}
+    inline constexpr auto MAIN_CLUSTER_NAME = "opentenbase_cluster";
 
     // 环境变量
     inline constexpr auto ENV_CLUSTER_CONFIG_FILE = "CLUSTER_CONFIG_FILE";
@@ -47,7 +48,16 @@ namespace Constants {
     inline constexpr auto DEFAULT_DB = "postgres";
     inline constexpr auto DEFAULT_INSTALL_DIR = "/usr/local/install/opentenbase";
     inline constexpr auto DEFAULT_PKG_TMP_DIR = "opentenbase";
-    
+
+    // guc op name 
+    inline constexpr auto GUC_OP_SHOW = "show";
+    inline constexpr auto GUC_OP_DEL = "delete";
+    inline constexpr auto GUC_OP_CHANGE = "change";
+
+    // config file name 
+    inline constexpr auto FILE_POSTGRESQL_CONF = "postgresql.conf";
+    inline constexpr auto FILE_POSTGRESQL_CONF_USER = "postgresql.conf.user";
+    inline constexpr auto FILE_GTM_CONF = "gtm.conf";
 }
 
 // 节点信息结构体
@@ -110,6 +120,7 @@ struct OpentenbaseConfig {
     ScpConfig scpfile;               // scp 命令的配置
     ShellConfig shell;               // shell 命令的配置
     SQLConfig sql;                   // sql 命令的配置
+    GUCConfig guc;                   // guc 命令的配置
 };
 
 
@@ -153,11 +164,17 @@ int build_opentenbase_config(CommandLineArgs& args, const ConfigFile& cfg_file, 
  */
 std::string get_node_name(const std::string& node_name);
 
+// 根据配置文件的内容，生成scp的结构体的信息
 int build_scp_config(CommandLineArgs& args, OpentenbaseConfig& config);
+
+// 根据配置文件的内容，生成shell的结构体的信息
 int build_shell_config(CommandLineArgs& args, OpentenbaseConfig& config);
 
 // 根据配置文件的内容，生成sql的结构体的信息
 int build_sql_config(CommandLineArgs& args, OpentenbaseConfig& config);
+
+// 根据配置文件的内容，生成 guc 的结构体的信息
+int build_guc_config(CommandLineArgs& args, OpentenbaseConfig& config);
 
 // 命令行处理函数
 bool parse_command_line(int argc, char** argv, CommandLineArgs& args, OpentenbaseConfig& config);

@@ -387,6 +387,7 @@ build_cn_node_config(const ConfigFile& cfg_file, OpentenbaseConfig& config) {
     std::map<std::string, std::string> cn_guc_cfg;
     if (!parseConfigFile(cfg_file.coordinators.conf, cn_guc_cfg)) {
         LOG_ERROR_FMT("Failed to parse configuration file %s.", cfg_file.coordinators.conf.c_str());
+        return -1;
     }
     config.cn_guc_cfg = cn_guc_cfg;
 
@@ -448,6 +449,7 @@ build_dn_node_config(const ConfigFile& cfg_file, OpentenbaseConfig& config) {
     std::map<std::string, std::string> dn_guc_cfg;
     if (!parseConfigFile(cfg_file.datanodes.conf, dn_guc_cfg)) {
         LOG_ERROR_FMT("Failed to parse configuration file %s.", cfg_file.datanodes.conf.c_str());
+        return -1;
     }
     config.dn_guc_cfg = dn_guc_cfg;
 
@@ -612,14 +614,43 @@ int build_sql_config(CommandLineArgs& args, OpentenbaseConfig& config) {
 
     SQLConfig sqlInfo; 
     sqlInfo.sql = args.sql;
-    sqlInfo.user_name = args.user;
-    sqlInfo.database_name = args.database;
+
+    // user name
+    if (args.user != ""){
+        sqlInfo.user_name = args.user;
+    } else {
+        sqlInfo.user_name = Constants::DEFAULT_USER_OF_INITDB;
+    }
+
+    // database name
+    if (args.database != ""){
+        sqlInfo.database_name = args.database;
+    } else {
+        sqlInfo.database_name = Constants::DEFAULT_DB;
+    }
     
     // 生成 sql 结构体的信息
     config.sql = sqlInfo;
 
 
     LOG_DEBUG_FMT("Build sql config end.");
+    return 0;
+}
+
+// 根据配置文件的内容，生成 guc 的结构体的信息
+int build_guc_config(CommandLineArgs& args, OpentenbaseConfig& config) {
+    LOG_DEBUG_FMT("Build guc config begin.");
+
+    GUCConfig gucInfo; 
+    gucInfo.guc_name = args.guc_key;
+    gucInfo.guc_value = args.guc_value;
+    gucInfo.op_name = args.guc_op;
+    
+    // 生成 sql 结构体的信息
+    config.guc = gucInfo;
+
+
+    LOG_DEBUG_FMT("Build guc config end.");
     return 0;
 }
 
@@ -684,7 +715,14 @@ int build_opentenbase_config(CommandLineArgs& args, const ConfigFile& cfg_file, 
     }
 
     // 构建sql信息
-    if (build_scp_config(args,config) != 0)
+    if (build_sql_config(args,config) != 0)
+    {
+        LOG_ERROR_FMT("There are some errors in the log configurations in the file.");
+        return -1;
+    }
+
+    // 构建guc信息
+    if (build_guc_config(args,config) != 0)
     {
         LOG_ERROR_FMT("There are some errors in the log configurations in the file.");
         return -1;
@@ -789,8 +827,7 @@ bool parse_command_line(int argc, char** argv, CommandLineArgs& args, Opentenbas
     init_scp_command(app, args);
     init_shell_command(app, args);
     init_sql_command(app, args);
-    init_expand_command(app, args);
-    init_shrink_command(app, args);
+    init_guc_command(app, args);
 
     try {
         app.parse(argc, argv);

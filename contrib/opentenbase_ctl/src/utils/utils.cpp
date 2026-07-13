@@ -254,10 +254,11 @@ std::string build_sql_cmd_for_psql(const std::string& binDir,
     const int port, 
     const std::string& username, 
     const std::string& database, 
+    const std::string& psql_option, 
     const std::string& sql) {
 
     // psql connection
-    std::string conn_str = "psql -h " + ip + " -p " + std::to_string(port) + " -d " + database + " -U " + std::string(Constants::DEFAULT_USER_OF_INITDB);
+    std::string conn_str = "psql -h " + ip + " -p " + std::to_string(port) + " -d " + database + " -U " + std::string(Constants::DEFAULT_USER_OF_INITDB) + psql_option;
 
     // sql command
     std::string psql_cmd;
@@ -269,7 +270,7 @@ std::string build_sql_cmd_for_psql(const std::string& binDir,
     }
 
     // Complete psql command
-    psql_cmd = "export LD_LIBRARY_PATH=" + binDir + "/lib && export PATH=" + binDir + "/bin:${PATH} && " + psql_cmd;
+    psql_cmd = buid_ld_library_path_str(binDir) + " && " + psql_cmd;
     return psql_cmd;
 }
 

@@ -12,10 +12,21 @@ OpenTenBase has many language interfaces similar to PostgreSQL, many of which ar
 
 	https://www.postgresql.org/download
 
-## Overview
-An OpenTenBase cluster consists of multiple CoordinateNodes, DataNodes, and GTM nodes. All user data resides in the DataNodes, the CoordinateNode contains only metadata, the GTM is for global transaction management. The CoordinateNodes and DataNodes share the same schema.
+## Overview & Architecture Guide
+An OpenTenBase cluster consists of multiple CoordinateNodes (CN), DataNodes (DN), and GTM nodes. All user data resides in the DataNodes, the CoordinateNode contains only metadata, and the GTM is for global transaction management. The CoordinateNodes and DataNodes share the same schema.
 
 Users always connect to the CoordinateNodes, which divide up the query into fragments that are executed in the DataNodes, and collect the results.
+
+| Component | Role | Relationship with Client & Nodes |
+| :--- | :--- | :--- |
+| **Client** | Application / SQL Driver | Always connects directly to **CoordinatorNode (CN)**. |
+| **CoordinatorNode (CN)** | Query Gateway & Distributed Planner | Receives SQL, requests Global Timestamp (GTS) from GTM, generates distributed plan, pushes fragments down to DNs, and aggregates results. |
+| **DataNode (DN)** | Sharded Storage & Execution Engine | Stores sharded user data, executes pushed-down query fragments, and participates in 2PC distributed transactions. |
+| **GTM** | Global Transaction Manager | Allocates monotonic Global Timestamps (GTS) and manages snapshot visibility across all DNs. |
+
+> [!TIP]
+> **Beginner's Architecture Guide & Glossary**: For a comprehensive explanation of Coordinator, DataNode, GTM, Distributed/Centralized modes, Node Group, and `opentenbase_ctl`, see our detailed guide:  
+> **👉 [OpenTenBase Core Glossary & Beginner's Architecture Guide (doc/GLOSSARY_ZH.md)](doc/GLOSSARY_ZH.md)**
 
 The latest version of this software may be obtained at:
 
@@ -118,10 +129,28 @@ sudo systemctl stop firewalld
 
 #### 3. Create the *.tar.gz package for initializing instances.
 
+1）If you are compiling from source code, after compilation, you can navigate to the compilation result directory using 'cd ${INSTALL_PATH}' and then package it.
+
+For example: opentenbase-5.21.8-i.x86_64.tar.gz. The packaging process and the package structure information are as follows:
 ```
-cd ${PG_HOME}
-tar -zcf ${INSTALL_PATH}/opentenbase-5.21.8-i.x86_64.tar.gz *
-cd ${INSTALL_PATH}
+[opentenbase@VM-32-23-tencentos opentenbase]$ cd ${INSTALL_PATH}
+[opentenbase@VM-32-23-tencentos opentenbase]$ ls
+bin  include  lib  share
+[opentenbase@VM-32-23-tencentos opentenbase]$ tar zcf opentenbase-5.21.8-i.x86_64.tar.gz *
+[opentenbase@VM-32-23-tencentos opentenbase]$ ls
+bin  include  lib  share  opentenbase-5.21.8-i.x86_64.tar.gz
+
+```
+2）If you have obtained an RPM package, you can use the command 'rpm2cpio opentenbase-5.21.8-i.x86_64.rpm | cpio -idmv' to extract the RPM package in the current directory. Then, navigate to the corresponding directory and package it into a *.tar.gz format.
+```
+[opentenbase@VM-32-21-tencentos ~/install/opentenbase_bin_v5.0/bin]$ rpm2cpio opentenbase-5.21.8-i.x86_64.rpm | cpio -idmv
+[opentenbase@VM-32-21-tencentos ~/install/opentenbase_bin_v5.0/bin]$ cd ./usr/local/install/opentenbase/
+[opentenbase@VM-32-21-tencentos ~/install/opentenbase_bin_v5.0/bin/usr/local/install/opentenbase]$ ls
+bin  include  lib  share
+[opentenbase@VM-32-21-tencentos ~/install/opentenbase_bin_v5.0/bin/usr/local/install/opentenbase]$ tar -zcf opentenbase-5.21.8-i.x86_64.tar.gz *
+[opentenbase@VM-32-21-tencentos ~/install/opentenbase_bin_v5.0/bin/usr/local/install/opentenbase]$ ls
+bin  include  lib  opentenbase-5.21.8-i.x86_64.tar.gz  share
+
 ```
 
 ### Cluster startup steps
@@ -157,7 +186,6 @@ opentenbase\_ctl tool can generate a template for the configuration file. You ne
 
 #### 1. Create a configuration file opentenbase\_config.ini for the instance
 ```
-mkdir -p ./logs
 touch opentenbase_config.ini
 vim opentenbase_config.ini
 ```

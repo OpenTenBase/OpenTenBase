@@ -56,7 +56,7 @@ void init_start_command(CLI::App& app, CommandLineArgs& args) {
     start_cmd->add_option("-c,--config", args.config_file, "Path to configuration file");
     start_cmd->add_option("-n,--node", args.op_node, 
                            "Node to start. "
-                           "A certain type of node, Or a certain node.such as cn-master/cn-slave/dn-master/dn-slave. "
+                           "A certain type of node, Or a certain node. "
                            "The available options are: cn-master, cn-slave, dn-master, dn-slave, cn0001, ip:port");
 }
 
@@ -69,7 +69,7 @@ void init_stop_command(CLI::App& app, CommandLineArgs& args) {
     stop_cmd->add_option("-c,--config", args.config_file, "Path to configuration file");
     stop_cmd->add_option("-n,--node", args.op_node, 
                            "Node to stop. "
-                           "A certain type of node, Or a certain node.such as cn-master/cn-slave/dn-master/dn-slave. "
+                           "A certain type of node, Or a certain node. "
                            "The available options are: cn-master, cn-slave, dn-master, dn-slave, cn0001, ip:port");
 }
 
@@ -79,7 +79,7 @@ void init_status_command(CLI::App& app, CommandLineArgs& args) {
     status_cmd->add_option("-c,--config", args.config_file, "Path to configuration file");
     status_cmd->add_option("-n,--node", args.op_node, 
                            "Node to  show status. "
-                           "A certain type of node, Or a certain node.such as cn-master/cn-slave/dn-master/dn-slave. "
+                           "A certain type of node, Or a certain node. "
                            "The available options are: cn-master, cn-slave, dn-master, dn-slave, cn0001, ip:port");
 }
 
@@ -89,7 +89,7 @@ void init_scp_command(CLI::App& app, CommandLineArgs& args) {
     status_cmd->add_option("-c,--config", args.config_file, "Path to configuration file");
     status_cmd->add_option("-n,--node", args.op_node, 
                            "Node to scp file. "
-                           "A certain type of node, Or a certain node.such as cn-master/cn-slave/dn-master/dn-slave. "
+                           "A certain type of node, Or a certain node. "
                            "The available options are: cn-master, cn-slave, dn-master, dn-slave, cn0001, ip:port");
 
     // 方式2:命令参数
@@ -103,24 +103,37 @@ void init_shell_command(CLI::App& app, CommandLineArgs& args) {
     status_cmd->add_option("-c,--config", args.config_file, "Path to configuration file");
     status_cmd->add_option("-n,--node", args.op_node, 
                            "Node for executing cmd. "
-                           "A certain type of node, Or a certain node.such as cn-master/cn-slave/dn-master/dn-slave. "
+                           "A certain type of node, Or a certain node. "
                            "The available options are: cn-master, cn-slave, dn-master, dn-slave, cn0001, ip:port");
     status_cmd->add_option("--cmd", args.shell_cmd, "Shell command");
 }
 
-// 执行shell命令
+// 执行sql命令
 void init_sql_command(CLI::App& app, CommandLineArgs& args) {
     auto status_cmd = app.add_subcommand("sql", "Execute sql command");
     status_cmd->add_option("-c,--config", args.config_file, "Path to configuration file");
     status_cmd->add_option("-n,--node", args.op_node, 
                            "Node for executing SQL. "
-                           "A certain type of node, Or a certain node.such as cn-master/cn-slave/dn-master/dn-slave. "
+                           "A certain type of node, Or a certain node. "
                            "The available options are: cn-master, cn-slave, dn-master, dn-slave, cn0001, ip:port");
 
     // 方式2:命令参数
-    status_cmd->add_option("--sql", args.shell_cmd, "sql");
+    status_cmd->add_option("--sql", args.sql, "sql");
     status_cmd->add_option("-u,--user", args.user, "Username for connecting to the database");
     status_cmd->add_option("-d,--db", args.database, "The database name for executing SQL");
+}
+
+// 执行config命令
+void init_guc_command(CLI::App& app, CommandLineArgs& args) {
+    auto status_cmd = app.add_subcommand("guc", "Display or set GUC parameters");
+    status_cmd->add_option("-c,--config", args.config_file, "Path to configuration file");
+    status_cmd->add_option("-k,--key", args.guc_key, "Key name of guc item");
+    status_cmd->add_option("-v,--value", args.guc_value, "Value of guc item");
+    status_cmd->add_option("-o,--operation", args.guc_op, "Operation on GUC parameters, optional operation: change|delete|show ");
+    status_cmd->add_option("-n,--node", args.op_node, 
+                           "Node for executing SQL. "
+                           "A certain type of node, Or a certain node. "
+                           "The available options are: cn-master, cn-slave, dn-master, dn-slave, cn0001, ip:port");
 }
 
 // 初始化扩容命令

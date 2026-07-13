@@ -847,7 +847,7 @@ std::string build_initdb_cmd(NodeInfo* node, OpentenbaseConfig* install) {
         command = "rm -rf " + dataDir + "/* " +
             " && " + buid_ld_library_path_str(binDir) + 
             " && PGXC_CTL_SILENT=1 " + 
-            " && " + binDir + "/bin/initgtm -Z gtm -D " + dataDir + " >/tmp/initgtm_" + node->name + "_" + node->ip + ".log 2>&1";
+            " && " + binDir + "/bin/initgtm -Z gtm -D " + dataDir + " &>/dev/null";
     } 
     else if (node_type == Constants::NODE_TYPE_CN_MASTER || node_type == Constants::NODE_TYPE_CN_SLAVE)
     {
@@ -856,7 +856,7 @@ std::string build_initdb_cmd(NodeInfo* node, OpentenbaseConfig* install) {
             " && " + buid_ld_library_path_str(binDir) + 
             " && PGXC_CTL_SILENT=1 " + 
             " && " + binDir + "/bin/initdb -U " + Constants::DEFAULT_USER_OF_INITDB + " -E utf8 --locale=" + locale + " --nodename " + node->name + " --nodetype coordinator -D " + dataDir 
-            + " --master_gtm_nodename " + node->gtm_name + " --master_gtm_ip " + node->gtm_ip + " --master_gtm_port " + std::to_string(node->gtm_port) + " >/tmp/initdb_" + node->name + "_" + node->ip + ".log 2>&1";
+            + " --master_gtm_nodename " + node->gtm_name + " --master_gtm_ip " + node->gtm_ip + " --master_gtm_port " + std::to_string(node->gtm_port) + " &>/dev/null";
 
     } 
     else if (node_type == Constants::NODE_TYPE_DN_MASTER || node_type == Constants::NODE_TYPE_DN_SLAVE)
@@ -866,7 +866,7 @@ std::string build_initdb_cmd(NodeInfo* node, OpentenbaseConfig* install) {
             " && " + buid_ld_library_path_str(binDir) + 
             " && PGXC_CTL_SILENT=1 " + 
             " && " + binDir + "/bin/initdb -U " + Constants::DEFAULT_USER_OF_INITDB + " -E utf8 --locale=" + locale + " --nodename " + node->name + " --nodetype datanode -D " + dataDir 
-            + " --master_gtm_nodename " + node->gtm_name + " --master_gtm_ip " + node->gtm_ip + " --master_gtm_port " + std::to_string(node->gtm_port) + " >/tmp/initdb_" + node->name + "_" + node->ip + ".log 2>&1";
+            + " --master_gtm_nodename " + node->gtm_name + " --master_gtm_ip " + node->gtm_ip + " --master_gtm_port " + std::to_string(node->gtm_port) + " &>/dev/null";
     }
 
     LOG_INFO_FMT("InitDB command: %s", command.c_str());
@@ -1493,7 +1493,7 @@ int shell_command(OpentenbaseConfig *config_info) {
     // 页面输出信息
     std::cout << "--------------------------------------------------------  " << '\n';
     std::cout << "Instance name : " << config_info->instance.instance_name.c_str() << '\n';
-    std::cout << "Version       : " << config_info->instance.version.c_str() << '\n';
+    std::cout << "Version       : v" << config_info->instance.version.c_str() << '\n';
     std::cout << "Config file   : " << config_info->config_file.c_str() << '\n';
     std::cout << "CMD           : " << config_info->shell.shell_cmd << '\n';
     std::cout << "--------------------------------------------------------  " << '\n' << '\n';
@@ -1527,7 +1527,7 @@ int sql_command(OpentenbaseConfig *config_info) {
     // 页面展示的基本信息
     std::cout << "--------------------------------------------------------  " << '\n';
     std::cout << "Instance name : " << config_info->instance.instance_name.c_str() << '\n';
-    std::cout << "Version       : " << config_info->instance.version.c_str() << '\n';
+    std::cout << "Version       : v" << config_info->instance.version.c_str() << '\n';
     std::cout << "Config file   : " << config_info->config_file.c_str() << '\n';
     std::cout << "SQL           : " << config_info->sql.sql.c_str() << '\n';
     std::cout << "--------------------------------------------------------  " << '\n' << '\n';
@@ -1537,6 +1537,60 @@ int sql_command(OpentenbaseConfig *config_info) {
     if (ret != 0)
     {
         LOG_ERROR_FMT("Failed to scp file");
+        return -1;
+    }
+    
+    return 0;
+}
+
+// guc command
+int guc_command(OpentenbaseConfig *config_info) {
+
+    std::vector<std::thread> threads;
+    std::vector<int> results(config_info->nodes.size(), 0);
+    int ret = 0;
+
+    // 页面展示的基本信息
+    std::cout << "--------------------------------------------------------  " << '\n';
+    std::cout << "Instance name : " << config_info->instance.instance_name.c_str() << '\n';
+    std::cout << "Version       : v" << config_info->instance.version.c_str() << '\n';
+    std::cout << "Config file   : " << config_info->config_file.c_str() << '\n';
+    std::cout << "--------------------------------------------------------  " << '\n' << '\n';
+    
+    std::string op_name = config_info->guc.op_name;
+    if (Constants::GUC_OP_SHOW == op_name)
+    {
+        // 并行执行 show guc
+        ret = excute_show_guc_concurrency(config_info, config_info->nodes);
+        if (ret != 0)
+        {
+            LOG_ERROR_FMT("Failed to show config item %s", config_info->guc.guc_name);
+            return -1;
+        }
+    } else if(Constants::GUC_OP_CHANGE == op_name){
+
+         // 并行执行 change guc
+        ret = excute_change_guc_concurrency(config_info, config_info->nodes);
+        if (ret != 0)
+        {
+            LOG_ERROR_FMT("Failed to change config item %s", config_info->guc.guc_name);
+            return -1;
+        }
+
+    } else if(Constants::GUC_OP_DEL == op_name){
+
+        // 并行执行 delete guc
+        std::string sql = "set " + config_info->guc.guc_name + "=" + config_info->guc.guc_value;
+        ret = excute_del_guc_concurrency(config_info, config_info->nodes);
+        if (ret != 0)
+        {
+            LOG_ERROR_FMT("Failed to delete config item %s", config_info->guc.guc_name);
+            return -1;
+        }
+
+    } else {
+
+        LOG_ERROR_FMT("Invalid operation name.");
         return -1;
     }
     
