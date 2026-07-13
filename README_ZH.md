@@ -31,13 +31,13 @@ OpenTenBase具有许多类似于PostgreSQL的语言接口，其中的一些可�
 
 ### 依赖
 
-``` 
-yum -y install git sudo gcc make readline-devel zlib-devel openssl-devel uuid-devel bison flex cmake postgresql-devel libssh2-devel sshpass  libcurl-devel libxml2-devel
+* 对于 RedHat/CentOS:
+```bash
+yum -y install git sudo gcc make readline-devel zlib-devel openssl-devel uuid-devel bison flex cmake postgresql-devel libssh2-devel sshpass libcurl-devel libxml2-devel
 ```
 
-或者
-
-```
+* 对于 Debian/Ubuntu:
+```bash
 apt install -y git sudo gcc make libreadline-dev zlib1g-dev libssl-dev libossp-uuid-dev bison flex cmake libssh2-1-dev sshpass libxml2-dev language-pack-zh-hans
 ```
 
@@ -77,13 +77,16 @@ export INSTALL_PATH=/data/opentenbase/install/
 cd ${SOURCECODE_PATH}
 rm -rf ${INSTALL_PATH}/opentenbase_bin_v5.0
 chmod +x configure*
-./configure --prefix=${INSTALL_PATH}/opentenbase_bin_v5.0 --enable-user-switch --with-libxml --disable-license --with-openssl --with-ossp-uuid CFLAGS="-g"
+# 在高版本 GCC 环境建议在 CFLAGS 中加上 -mcx16 以支持 128 位 CPU 原子指令
+./configure --prefix=${INSTALL_PATH}/opentenbase_bin_v5.0 --enable-user-switch --with-libxml --disable-license --with-openssl --with-ossp-uuid CFLAGS="-g -std=gnu99 -Wall -Wno-error=incompatible-pointer-types -mcx16"
 make clean
-make -sj
+# 为避免多进程并发生成词法分析器代码时抢夺临时文件 (lex.backup) 导致报错，建议先单进程顺序预生成代码
+make -C src -j1 distprep
+make -sj$(nproc)
 make install
 chmod +x contrib/pgxc_ctl/make_signature
 cd contrib
-make -sj
+make CXXFLAGS="-include cstdint" -sj$(nproc)
 make install
 ```
 
@@ -139,11 +142,13 @@ opentenbase\_config.opentenbase\_ctl 工具可以生成配置文件的模板。�
 |                |                  | 示例：如果 1 主 1 从，IP 数量与主节点相同；如果 1 主 2 从，IP 数量是主节点的两倍 |
 |                | nodes-per-server | 可选，默认 1。每个 IP 上部署的节点数。示例：主节点有 3 个 IP，配置为 2，则有 6 个节点 |
 |                |                  | cn001-cn006 共 6 个节点，每个服务器分布 2 个节点                            |
+|                | conf             | 协调节点（CN）自定义 GUC 配置文件绝对路径。若无修改默认参数需求，需通过 touch postgres.conf 创建空文件并指明其绝对路径 |
 | datanodes      | master           | 主节点 IP，自动生成节点名称，在每个 IP 上部署 nodes-per-server 个节点        |
 |                | slave            | 从节点 IP，数量是主节点的整数倍                                             |
 |                |                  | 示例：如果 1 主 1 从，IP 数量与主节点相同；如果 1 主 2 从，IP 数量是主节点的两倍 |
 |                | nodes-per-server | 可选，默认 1。每个 IP 上部署的节点数。示例：主节点有 3 个 IP，配置为 2，则有 6 个节点 |
 |                |                  | dn001-dn006 共 6 个节点，每个服务器分布 2 个节点                            |
+|                | conf             | 数据节点（DN）自定义 GUC 配置文件绝对路径。若无修改默认参数需求，需通过 touch postgres.conf 创建空文件并指明其绝对路径 |
 | server         | ssh-user         | 远程命令执行用户名，需要提前创建，所有服务器应有相同账户以简化配置管理          |
 |                | ssh-password     | 远程命令执行密码，需要提前创建，所有服务器应有相同密码以简化配置管理            |
 |                | ssh-port         | SSH 端口，所有服务器应保持一致以简化配置管理                                 |
@@ -152,14 +157,18 @@ opentenbase\_config.opentenbase\_ctl 工具可以生成配置文件的模板。�
 ```
 
 #### 1. 为实例创建配置文件 opentenbase\_config.ini
-```
+
+> **注意**：最新版的 `opentenbase_ctl` 工具要求 `[coordinators]` 和 `[datanodes]` 下必须指明 `conf` 参数。如不需要自定义内核启动 GUC 参数，请先创建一个空的配置文件：`touch /data/opentenbase/install/postgres.conf`。
+
+```bash
 mkdir -p ./logs
 touch opentenbase_config.ini
+touch postgres.conf # 创建空的自定义 GUC 参数文件
 vim opentenbase_config.ini
 ```
 
 * 例如，如果我有两台服务器 172.16.16.49 和 172.16.16.131，分布在两台服务器上的典型分布式实例配置如下。您可以复制此配置信息并根据您的部署要求进行修改。不要忘记填写 ssh 密码配置。
-```
+```ini
 # 实例配置
 [instance]
 name=opentenbase01
@@ -174,14 +183,16 @@ slave=172.16.16.50,172.16.16.131
 # 协调器节点
 [coordinators]
 master=172.16.16.49
-slave= 172.16.16.131
+slave=172.16.16.131
 nodes-per-server=1
+conf=/data/opentenbase/install/postgres.conf
 
 # 数据节点
 [datanodes]
 master=172.16.16.49,172.16.16.131
 slave=172.16.16.131,172.16.16.49
 nodes-per-server=1
+conf=/data/opentenbase/install/postgres.conf
 
 # 登录和部署账户
 [server]
@@ -196,7 +207,7 @@ level=DEBUG
 
 
 * 同样，典型集中式实例的配置如下。不要忘记填写 ssh 密码配置。
-```
+```ini
 # 实例配置
 [instance]
 name=opentenbase02
@@ -208,6 +219,7 @@ package=/data/opentenbase/install/opentenbase-5.21.8-i.x86_64.tar.gz
 master=172.16.16.49
 slave=172.16.16.131
 nodes-per-server=1
+conf=/data/opentenbase/install/postgres.conf
 
 # 登录和部署账户
 [server]
@@ -336,3 +348,62 @@ OpenTenBase 使用 BSD 3-Clause 许可证，版权和许可信息可以在 [LICE
 
 ## 历史
 [history_events](history_events.md)
+
+## 常见错误与排查
+
+### 一、 基础环境与环境变量问题
+
+1. **`psql: command not found` 或加载共享库报错 `cannot open shared object file`**
+   * **原因**：当前终端的环境变量 `PATH` 和 `LD_LIBRARY_PATH` 未正确包含 OpenTenBase 的安装路径。
+   * **解决**：在终端执行以下命令（或将其写入 `~/.bashrc` / `~/.bash_profile`）：
+     ```bash
+     export PG_HOME=/data/opentenbase/install/opentenbase_bin_v5.0
+     export PATH="$PATH:$PG_HOME/bin"
+     export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$PG_HOME/lib"
+     ```
+
+2. **创建 Linux 用户或命令提示权限不足 (`Permission denied`)**
+   * **解决**：在非 root 账户下执行需特权管理操作（如 `useradd`、`mkdir /data` 等）时，请在命令前加上 `sudo` 命令，并确保用户已加入 `wheel` / `sudo` 用户组。
+
+### 二、 源码编译阶段常见错误
+
+1. **链接时报错 `undefined reference to '__sync_val_compare_and_swap_16'`**
+   * **原因**：在某些操作系统中，`uname -p` 可能返回 `unknown`，导致 `configure` 脚本无法自动侦测并启用 x86_64 128 位 CPU 硬件原子指令。
+   * **解决**：在 `./configure` 时将 `-mcx16` 显式加入到 `CFLAGS` 参数中：
+     ```bash
+     ./configure ... CFLAGS="-g -std=gnu99 -Wall -mcx16"
+     make clean && make -sj$(nproc)
+     ```
+
+2. **多核并发编译报 `rm: cannot remove 'lex.backup': No such file or directory`**
+   * **原因**：在 GNU Make 多进程高并发（`-j$(nproc)`）编译时，`src/fe_utils` 等目录下的多个 Flex 词法分析脚本同时尝试读写和清理临时文件 `lex.backup` 产生竞态冲突。
+   * **解决**：在执行高并发全量编译前，先用单进程顺序将各类语法分析器源码生成好：
+     ```bash
+     make -C src -j1 distprep
+     make -sj$(nproc)
+     ```
+
+3. **高版本 GCC 编译报错 `error: 'bool' cannot be defined via 'typedef'`**
+   * **原因**：较新版本的 GCC 默认采用 C23 标准，`bool` 已作为原生关键字，不可再用 `typedef` 重新定义。
+   * **解决**：在 `./configure` 的 `CFLAGS` 中明确追加 `-std=gnu99`。
+
+4. **高版本 GCC 编译 `opentenbase_ctl` 报 `uint64_t does not name a type`**
+   * **原因**：GCC 13/14 进行了标准库头文件清理（Header cleanups），`<string>` 等头文件不再间接包含 `<cstdint>`。
+   * **解决**：进入 `contrib` 编译时加入 `CXXFLAGS="-include cstdint"`：
+     ```bash
+     cd contrib
+     make CXXFLAGS="-include cstdint" -sj$(nproc)
+     ```
+
+5. **缺少压缩或加密依赖库 (`zstd library not found` / `lz4 library not found`)**
+   * **解决**：通过包管理器安装对应开发库；若 `/usr/lib/` 存在共享库但无法找到静态连接库，可执行软连接修复：`sudo ln -s /usr/lib/liblz4.so /usr/local/lib/liblz4.a`。
+
+### 三、 `opentenbase_ctl` 工具部署与网络连接问题
+
+1. **SCP 传输失败报错 `SCP transfer failed with exit code 32512`**
+   * **原因**：Linux shell 返回错误码 `32512` 对应十进制 `127`（Command not found）。`opentenbase_ctl` 工具底层进行 SSH 下发和 SCP 文件传输时，硬编码依赖 `sshpass` 命令行工具。若未安装 `sshpass` 则会直接导致分发卡死。
+   * **解决**：通过包管理器安装 `sshpass`（如 Arch Linux 下执行 `sudo pacman -S --needed sshpass`，CentOS 下 `yum install -y sshpass`）。
+
+2. **配置文件解析报错 `Failed to parse configuration file .`**
+   * **原因**：`opentenbase_ctl` 在解析配置文件时，强行校验 `[coordinators]` 和 `[datanodes]` 下的 `conf=` 字段（指向 GUC 配置文件）。若模板中遗漏了 `conf=`，程序会尝试读取空路径并报错。
+   * **解决**：通过 `touch /data/opentenbase/install/postgres.conf` 创建一个空的自定义配置文件，并在 ini 的 `[coordinators]` 和 `[datanodes]` 下分别加上一行 `conf=/data/opentenbase/install/postgres.conf`（绝对路径）。
