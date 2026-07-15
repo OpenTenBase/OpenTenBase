@@ -308,6 +308,8 @@ level=DEBUG
 name=opentenbase_single
 type=centralized
 package=/data/opentenbase/install/opentenbase-5.21.8-i.x86_64.tar.gz
+# ↑ package 必须是 .tar.gz 全路径，不能是解压后的目录
+# （opentenbase_ctl pre_process_pkg 内部使用 cp，不支持目录）
 
 # 数据节点（单节点，不配置 slave）
 [datanodes]

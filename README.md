@@ -327,6 +327,8 @@ level=DEBUG
 name=opentenbase_single
 type=centralized
 package=/data/opentenbase/install/opentenbase-5.21.8-i.x86_64.tar.gz
+# ↑ package MUST be the .tar.gz archive path, NOT the unpacked directory
+# (opentenbase_ctl pre_process_pkg uses cp, which does not accept dirs)
 
 # Data nodes (single node, no slave)
 [datanodes]
