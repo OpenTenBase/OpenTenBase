@@ -331,9 +331,12 @@ level=DEBUG
 
 #### 2. 执行实例安装命令。
 
+> **提示（来自社区反馈）**：`opentenbase_ctl` 的子命令对 `-c config.ini` 参数要求不统一。`install` / `delete` / `expand` / `shrink` **必须**带 `-c opentenbase_config.ini`，否则会报 `Failed to extract version from package name`；`start` / `stop` / `status` 不强制要求 `-c`，但建议统一带上避免歧义。
+
 ```
 export LD_LIBRARY_PATH=/data/opentenbase/install/opentenbase_bin_v5.0/lib
-./opentenbase_bin_v5.0/bin/opentenbase_ctl install  -c opentenbase_config.ini
+# 注意：install/delete/expand/shrink 必须带 -c config.ini；start/stop/status 可省略
+./opentenbase_bin_v5.0/bin/opentenbase_ctl install -c opentenbase_config.ini
 
 ====== Start to Install Opentenbase test_cluster01  ======
 

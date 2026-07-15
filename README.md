@@ -348,8 +348,11 @@ level=DEBUG
 
 #### 2. Execute command for instance installation.
 
+> **Note (community feedback)**: `opentenbase_ctl` subcommands do not all require `-c` consistently. `install` / `delete` / `expand` / `shrink` **require** `-c opentenbase_config.ini`, otherwise they fail with `Failed to extract version from package name`. `start` / `stop` / `status` work without `-c`, but using it everywhere is recommended to avoid ambiguity.
+
 ```
-opentenbase_ctl install  -c opentenbase_config.ini
+# install/delete/expand/shrink require -c config.ini; start/stop/status do not
+opentenbase_ctl install -c opentenbase_config.ini
 
 ====== Start to Install Opentenbase test_cluster01  ====== 
 
