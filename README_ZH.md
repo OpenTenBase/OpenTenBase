@@ -460,6 +460,7 @@ postgres=#
 | `pg_ctl start` 后进程没起来 | 未指定节点类型 | 必须加 `-Z datanode`（或 `-Z coordinator`）|
 | `opentenbase_ctl install` 完成但节点未运行 | install 命令只执行 initdb，不自动启动 | 安装完成后执行 `opentenbase_ctl start -c opentenbase_config.ini` |
 | `opentenbase_ctl` 报 `pg_config: command not found` | `PATH` 未包含 `$PG_HOME/bin` | 确认环境变量已正确设置并 `source ~/.bash_profile` |
+| GTM 启动后报 `FATAL: binding threads failed`（多见于 ≤ 2 核机器） | `pthread_setaffinity_np` 在核数少时返回 `EINVAL`（`bind_service_threads()` 在低核数下生成空 `cpuset`） | 编译 `noaffinity.so` 并写入 `/etc/ld.so.preload` 绕过；或升级到 ≥ 4 核机器 |
 
 ### 连接类
 

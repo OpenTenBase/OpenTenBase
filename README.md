@@ -459,6 +459,7 @@ The following common issues may be encountered when deploying and using OpenTenB
 | `pg_ctl start` exits without leaving a running process | The node type was not specified | You must add `-Z datanode` (or `-Z coordinator`) |
 | `opentenbase_ctl install` finishes but no node is running | The `install` command only runs `initdb`; it does not auto-start the cluster | Run `opentenbase_ctl start -c opentenbase_config.ini` afterwards |
 | `opentenbase_ctl` reports `pg_config: command not found` | `PATH` does not include `$PG_HOME/bin` | Verify the environment variables are set and run `source ~/.bash_profile` |
+| GTM startup reports `FATAL: binding threads failed` (typically on machines with ≤ 2 CPU cores) | `pthread_setaffinity_np` returns `EINVAL` on low-core machines because `bind_service_threads()` produces an empty `cpuset` | Build `noaffinity.so` and inject it via `/etc/ld.so.preload`, or use a machine with ≥ 4 cores |
 
 ### Connection
 
