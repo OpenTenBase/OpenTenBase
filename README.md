@@ -17,6 +17,8 @@ An OpenTenBase cluster consists of multiple CoordinateNodes, DataNodes, and GTM 
 
 Users always connect to the CoordinateNodes, which divide up the query into fragments that are executed in the DataNodes, and collect the results.
 
+> **New to OpenTenBase?** Start with the [architecture glossary and newcomer guide](doc/GLOSSARY.md) to understand how clients, Coordinators, DataNodes, GTM, node groups, and data distribution fit together.
+
 The latest version of this software may be obtained at:
 
 	https://github.com/OpenTenBase/OpenTenBase
