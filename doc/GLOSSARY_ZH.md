@@ -77,7 +77,7 @@ flowchart LR
 
 ### 8. `opentenbase_ctl`
 
-OpenTenBase V5 的命令行部署与运维工具。它读取 `opentenbase_config.ini`，支持安装、删除、启动、停止、状态查询、远程 shell、SQL 执行、文件复制和 GUC 管理等操作。它负责配置和控制数据库进程，但自身不是数据库服务进程。
+OpenTenBase V5 的命令行部署与运维工具。它通过 `-c/--config` 接收集群配置文件路径（常见文件名为 `opentenbase_config.ini`），支持安装、删除、启动、停止、状态查询、远程 shell、SQL 执行、文件复制和 GUC 管理等操作。它负责配置和控制数据库进程，但自身不是数据库服务进程。
 
 ### 9. 数据分片（Shard）与分片（Sharding）
 

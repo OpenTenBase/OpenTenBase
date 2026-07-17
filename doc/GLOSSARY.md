@@ -77,7 +77,7 @@ A named logical set of primary DNs used as a data-placement boundary. Tables and
 
 ### 8. `opentenbase_ctl`
 
-The OpenTenBase V5 command-line deployment and operations tool. It reads `opentenbase_config.ini` and supports tasks such as install, delete, start, stop, status, remote shell, SQL execution, file copy, and GUC management. It configures and controls database processes; it is not a database server process itself.
+The OpenTenBase V5 command-line deployment and operations tool. It accepts a cluster configuration file through `-c/--config` (commonly named `opentenbase_config.ini`) and supports tasks such as install, delete, start, stop, status, remote shell, SQL execution, file copy, and GUC management. It configures and controls database processes; it is not a database server process itself.
 
 ### 9. Data shard and sharding
 
