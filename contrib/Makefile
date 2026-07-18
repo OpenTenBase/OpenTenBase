@@ -56,7 +56,8 @@ SUBDIRS = \
 		pgvector	\
 		pgsql-http \
 		opentenbase_ai \
-                opentenbase_ctl	
+		opentenbase_backup \
+		opentenbase_ctl
 
 ifeq ($(with_openssl),yes)
 SUBDIRS += sslinfo
