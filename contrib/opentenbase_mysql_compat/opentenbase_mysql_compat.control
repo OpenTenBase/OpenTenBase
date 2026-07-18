@@ -1,0 +1,11 @@
+# opentenbase_mysql_compat extension
+#
+# Copyright (c) 2026 OpenTenBase Contributors
+#
+# This file is licensed under the same terms as OpenTenBase. See LICENSE.txt
+# in the repository root for details.
+
+comment = 'MySQL-compatible scalar and aggregate functions for migrations'
+default_version = '1.0'
+relocatable = false
+sql_mode = 'all'
