@@ -1,0 +1,9 @@
+OpenTenBase 5,000,000-row benchmark summaries
+Date: 2026-07-21
+Database: database
+Read-only tests: 30 seconds each; insert: 100 transactions.
+point_select: transactions=132725 tps=4424.756839 latency=0.226ms stddev=0.033ms errors=0
+scatter_select: transactions=17107 tps=570.304214 latency=1.753ms stddev=3.388ms errors=0
+aggregate: transactions=86 tps=2.854746 latency=350.294ms stddev=43.515ms errors=0
+join: transactions=215 tps=7.161851 latency=139.629ms stddev=18.826ms errors=0
+insert: transactions=100/100 tps=82.881403 latency=12.065ms stddev=2.728ms errors=0
