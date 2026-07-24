@@ -67,12 +67,12 @@ struct NodeInfo {
     std::string install_path;  // 安装路径
     std::string data_path;     // 数据路径
     std::string type;          // 节点类型,取值范围参考Constants中的节点类型的定义
-    int port;                  // 节点端口（自动分配）
-    int pooler_port;           // 节点连接池端口（自动分配，与node port相邻）
-    int forward_port;          // 转发节点端口（自动分配，与node port相邻）
+    int port = 0;              // 节点端口（自动分配）
+    int pooler_port = 0;       // 节点连接池端口（自动分配，与node port相邻）
+    int forward_port = 0;      // 转发节点端口（自动分配，与node port相邻）
     std::string  gtm_name;     // gtm节点名称
     std::string  gtm_ip;       // gtm节点IP
-    int gtm_port;              // gtm节点端口
+    int gtm_port = 0;          // gtm节点端口
     bool is_op_node = true;    // 是否是本次操作指定的节点，install时默认全部都是true，其他操作要看命令的--node是否指定本节点
 };
 

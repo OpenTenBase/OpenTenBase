@@ -141,13 +141,22 @@ std::string base64_encode(const unsigned char* bytes_to_encode, unsigned int in_
 std::string string_to_base64(const std::string& input);
 
 /**
+ * Classify exactly one complete remote port-probe marker line. Unrelated
+ * output lines are ignored, and a trailing carriage return is accepted for
+ * CRLF marker lines.
+ * @return 0: port is available; 1: port is occupied; -1: missing, malformed,
+ *         duplicate, mixed, or error marker output
+ */
+int classify_port_probe_output(const std::string& output);
+
+/**
  * 检查端口是否可用
  * @param ip 目标主机IP地址
  * @param port 要检查的端口号
  * @param username 用户名
  * @param password 密码
  * @param ssh_port SSH端口号
- * @return 0: 端口可用; -1: 端口不可用或发生错误
+ * @return 0: 端口可用; 1: 端口已占用; -1: 端口探测失败
  */
 int check_port_available(const char *ip, int port, const char *username, const char *password, int ssh_port);
 

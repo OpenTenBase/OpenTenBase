@@ -36,18 +36,20 @@ int assign_ports_for_nodes(std::vector<NodeInfo>& nodes, const std::string& user
 std::string get_value_after_equal(const std::string& line);
 
 /**
- * 检查并获取可用的端口对（node port和pooler port）
+ * 检查并获取可用的端口组（node port、pooler port和forward port）
  * @param ip 目标主机IP
  * @param start_port 起始端口号
  * @param node_port 返回分配的节点端口
  * @param pooler_port 返回分配的连接池端口
+ * @param forward_port 返回分配的转发端口
  * @param username SSH用户名
  * @param password SSH密码
  * @param ssh_port SSH端口
  * @return 0: 分配成功; 非0: 分配失败
  */
 int get_available_port_pair(const std::string& ip, int start_port, int& node_port, int& pooler_port,
-                          const std::string& username, const std::string& password, int ssh_port);
+                            int& forward_port, const std::string& username,
+                            const std::string& password, int ssh_port);
 
 /**
  * 判断软件包名是否是rpm包
@@ -159,4 +161,4 @@ std::string build_sql_cmd_for_psql(const std::string& binDir,
 // build export env str
 std::string buid_ld_library_path_str(std::string bin_dir);
 
-#endif // UTILS_H 
+#endif // UTILS_H
