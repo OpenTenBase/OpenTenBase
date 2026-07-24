@@ -116,4 +116,6 @@ uninstall-data:
 clean:
 
 maintainer-clean: clean
-	rm -f $(BKIFILES)
+	rm -f $(BKIFILES) \
+		opentenbase_ora.description opentenbase_ora.shdescription \
+		all.description all.shdescription

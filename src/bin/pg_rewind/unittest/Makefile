@@ -59,3 +59,4 @@ clean:
 	rm -f $(CPP_OBJS)
 	rm -f pg_rewind_test
 
+distclean maintainer-clean: clean

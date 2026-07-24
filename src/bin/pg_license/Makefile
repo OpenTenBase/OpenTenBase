@@ -68,7 +68,7 @@ uninstall:
 	rm -f '$(DESTDIR)$(bindir)/pg_license$(X)'
 
 clean distclean maintainer-clean:
-	rm -f  pg_license$(X) $(OBJS) 
+	rm -f pg_license$(X) libpglicense.a $(OBJS)
 
 
 # ensure that changes in datadir propagate into object file

@@ -1,5 +1,6 @@
 /pg_dump
 /pg_dumpall
 /pg_restore
+/pg_dump_security
 
 /tmp_check/
