@@ -52,18 +52,26 @@ ln -s /usr/lib64/libzstd.a /usr/local/lib/libzstd.a
 ln -s /usr/lib64/liblz4.a /usr/local/lib/liblz4.a
 ```
 
-如果软链接已经存在，先用 `readlink -f` 核对目标，不需要重复创建或强制覆盖。
-
 CentOS 7 已停止维护。如果 `yum` 报 `Cannot find a valid baseurl`，需要先把 CentOS、SCL 和 EPEL 仓库切换到仍可访问且可信任的镜像，再重新执行安装。项目官方的 [CentOS 7 DevEnv Dockerfile](https://github.com/OpenTenBase/OpenTenBase-DevEnv/blob/master/Dockerfile.centos) 给出了完整的镜像替换和依赖安装示例；不要通过关闭仓库签名检查来绕过错误。
 
-Debian/Ubuntu 系发行版：
+Ubuntu 18.04：
 
 ```bash
 apt-get update
 apt-get install -y git sudo gcc g++ make libreadline-dev zlib1g-dev libssl-dev \
     libossp-uuid-dev bison flex cmake libssh2-1-dev sshpass \
     libcurl4-openssl-dev libxml2-dev libzstd-dev liblz4-dev language-pack-zh-hans
+
+# Ubuntu 的静态库位于 multiarch 目录，同样需要链接到 configure 使用的路径
+ZSTD_STATIC=$(dpkg -L libzstd-dev | awk '/\/libzstd\.a$/ { print; exit }')
+LZ4_STATIC=$(dpkg -L liblz4-dev | awk '/\/liblz4\.a$/ { print; exit }')
+test -n "${ZSTD_STATIC}" && test -n "${LZ4_STATIC}"
+install -d /usr/local/lib
+ln -s "${ZSTD_STATIC}" /usr/local/lib/libzstd.a
+ln -s "${LZ4_STATIC}" /usr/local/lib/liblz4.a
 ```
+
+如果上述软链接已经存在，先用 `readlink -f` 核对目标，不需要重复创建或强制覆盖。
 
 ### 创建用户 'opentenbase'
 
@@ -143,6 +151,8 @@ ldd "$PG_HOME/bin/psql" | grep 'not found' && echo "存在未找到的动态库"
 #### 2. 检查 SELinux 和防火墙
 
 在隔离的测试环境中，可以临时停用安全策略来排除问题；生产环境不建议直接关闭 SELinux 或防火墙，应按实际分配的节点端口配置访问规则。`opentenbase_ctl status` 会显示 CN 的实际连接端口。
+
+下面的命令适用于 Red Hat 系发行版。Ubuntu 可使用 `sudo ufw status` 检查防火墙状态。
 
 ```bash
 getenforce
@@ -312,48 +322,38 @@ cd "${INSTALL_PATH}"
 "${PG_HOME}/bin/opentenbase_ctl" install -c opentenbase_config.ini
 ```
 
-下面是一个多机分布式实例的成功输出示例；节点数量、路径和端口会随配置及主机上的端口占用情况变化。
+根据上述单机最小实例的实际验证，成功输出示例如下。CN 和 DN 并发安装时，相关行的先后顺序可能不同。
 
 ```text
 
-====== Start to Install Opentenbase test_cluster01  ====== 
+====== Start to Install Instance opentenbase_quickstart  ======
 
 step 1: Make *.tar.gz pkg ...
     Make opentenbase-5.21.8-i.x86_64.tar.gz successfully.
 
 step 2: Transfer and extract pkg to servers ...
-    Package_path: /data/opentenbase/opentenbase_ctl/opentenbase-5.21.8-i.x86_64.tar.gz
+    Package_path: /data/opentenbase/install/opentenbase-5.21.8-i.x86_64.tar.gz
     Transfer and extract pkg to servers successfully.
 
 step 3: Install gtm master node ...
-    Install gtm0001(172.16.16.49) ...
-    Install gtm0001(172.16.16.49) successfully
-    Success to install  gtm master node. 
+    Install gtm0001(127.0.0.1) ...
+    Install gtm0001(127.0.0.1) successfully
+    Success to install gtm master node.
 
 step 4: Install cn/dn master node ...
-    Install cn0001(172.16.16.49) ...
-    Install dn0001(172.16.16.49) ...
-    Install dn0002(172.16.16.131) ...
-    Install cn0001(172.16.16.49) successfully
-    Install dn0001(172.16.16.49) successfully
-    Install dn0002(172.16.16.131) successfully
-    Success to install all cn/dn master nodes. 
+    Install cn0001(127.0.0.1) ...
+    Install dn0001(127.0.0.1) ...
+    Install cn0001(127.0.0.1) successfully
+    Install dn0001(127.0.0.1) successfully
+    Success to install all cn/dn master nodes.
 
 step 5: Install slave nodes ...
-    Install gtm0002(172.16.16.131) ...
-    Install cn0001(172.16.16.131) ...
-    Install dn0001(172.16.16.131) ...
-    Install dn0002(172.16.16.49) ...
-    Install gtm0002(172.16.16.131) successfully
-    Install dn0002(172.16.16.49) successfully
-    Install dn0001(172.16.16.131) successfully
-    Install cn0001(172.16.16.131) successfully
-    Success to install all slave nodes. 
+    Success to install all slave nodes.
 
 step 6: Create node group ...
-    Create node group successfully. 
+    Create node group successfully.
 
-====== Installation completed successfully  ====== 
+====== Installation completed successfully  ======
 ```
 
 当看到 `Installation completed successfully` 时，安装流程已完成。继续检查所有节点是否为 `Running`：
@@ -362,29 +362,24 @@ step 6: Create node group ...
 "${PG_HOME}/bin/opentenbase_ctl" status -c opentenbase_config.ini
 ```
 
-示例输出：
+该实例的实际输出：
 
 ```text
 
 ------------- Instance status -----------  
-Instance name: test_cluster01
+Instance name: opentenbase_quickstart
 Version: v5.21.8
 
 -------------- Node status --------------  
-Node gtm0001(172.16.16.49) is Running 
-Node dn0001(172.16.16.49) is Running 
-Node dn0002(172.16.16.49) is Running 
-Node cn0001(172.16.16.49) is Running 
-Node dn0002(172.16.16.131) is Running 
-Node cn0001(172.16.16.131) is Running 
-Node gtm0002(172.16.16.131) is Running 
-Node dn0001(172.16.16.131) is Running 
-[Result] Total: 8, Running: 8, Stopped: 0, Unknown: 0
+Node dn0001(127.0.0.1:11006) is Running
+Node gtm0001(127.0.0.1:11000) is Running
+Node cn0001(127.0.0.1:11003) is Running
+[Result] Total: 3, Running: 3, Stopped: 0, Unknown: 0
 
 ------- Master CN Connection Info -------  
-[1] cn0001(172.16.16.49)  
+[1] cn0001(127.0.0.1)
 Environment variable: export LD_LIBRARY_PATH=/data/opentenbase/install/opentenbase/5.21.8/lib  && export PATH=/data/opentenbase/install/opentenbase/5.21.8/bin:${PATH} 
-PSQL connection: psql -h 172.16.16.49 -p 11000 -U opentenbase postgres 
+PSQL connection: psql -h 127.0.0.1 -p 11003 -U opentenbase postgres
 ```
 
 节点端口由工具从可用端口中分配，不要根据上述示例猜测端口。请复制本次 `status` 输出中的 `PSQL connection` 命令；后续执行 `start`、`stop` 和 `status` 时也建议始终显式传入同一个 `-c` 配置文件。
@@ -458,7 +453,7 @@ free -h
 
 ### 软件仓库失效、缺少头文件或 `zstd library not found`
 
-Debian/Ubuntu 的新环境应先执行 `apt-get update`。`opentenbase_ctl` 是 C++ 程序，因此仅安装 `gcc` 不够，还需要 `g++`；出现 `curl/curl.h: No such file or directory` 时，确认已安装 `libcurl4-openssl-dev`（Red Hat 系为 `libcurl-devel`）。
+Ubuntu 的新环境应先执行 `apt-get update`。`opentenbase_ctl` 是 C++ 程序，因此仅安装 `gcc` 不够，还需要 `g++`；出现 `curl/curl.h: No such file or directory` 时，确认已安装 `libcurl4-openssl-dev`（Red Hat 系为 `libcurl-devel`）。
 
 CentOS 7 出现 `Cannot find a valid baseurl for repo: centos-sclo-rh` 时，按依赖章节引用的官方 DevEnv 示例修复已失效的 CentOS、SCL 和 EPEL 源。不要反复执行 `yum install`，也不要禁用证书或签名检查。
 
