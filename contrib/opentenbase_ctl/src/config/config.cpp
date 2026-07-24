@@ -111,7 +111,7 @@ parse_config_file(const std::string& filename, ConfigFile& cfg_file) {
         trim_whitespace(value);
 
         const std::string log_value =
-            section == "server" && key == "ssh-password"
+            key == "ssh-password"
                 ? (value.empty() ? "(empty)" : "********")
                 : value;
         LOG_DEBUG_FMT("Parsing config item: %s = %s",

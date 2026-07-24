@@ -250,7 +250,7 @@ ssh-port=22
 level=INFO
 ```
 
-将最小配置中的 `REPLACE_WITH_UNAME_M` 替换为打包时 `uname -m` 的实际输出，例如 x86 主机通常为 `x86_64`，ARM64 主机通常为 `aarch64`。配置中的路径必须与打包命令打印的 `PACKAGE_PATH` 完全一致。
+将各配置示例中的 `REPLACE_WITH_UNAME_M` 替换为打包时 `uname -m` 的实际输出，例如 x86 主机通常为 `x86_64`，ARM64 主机通常为 `aarch64`。配置中的路径必须与打包命令打印的 `PACKAGE_PATH` 完全一致。
 
 例如，在两台服务器 `172.16.16.49` 和 `172.16.16.131` 上部署带从节点的分布式实例时，可使用下面的配置。示例假设两台服务器的 SSH 服务都监听 `36000` 端口；请根据实际环境修改端口和密码。
 
@@ -259,7 +259,7 @@ level=INFO
 [instance]
 name=opentenbase01
 type=distributed
-package=/data/opentenbase/install/opentenbase-5.21.8-i.x86_64.tar.gz
+package=/data/opentenbase/install/opentenbase-5.21.8-i.REPLACE_WITH_UNAME_M.tar.gz
 
 # GTM 节点
 [gtm]
@@ -298,7 +298,7 @@ level=DEBUG
 [instance]
 name=opentenbase02
 type=centralized
-package=/data/opentenbase/install/opentenbase-5.21.8-i.x86_64.tar.gz
+package=/data/opentenbase/install/opentenbase-5.21.8-i.REPLACE_WITH_UNAME_M.tar.gz
 
 # 数据节点
 [datanodes]
