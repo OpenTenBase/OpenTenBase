@@ -93,6 +93,16 @@ def check_minimum_topology(parsers: List[configparser.ConfigParser]) -> None:
         fail("minimum INI package must use the explicit uname -m placeholder")
 
 
+def check_ini_package_architecture(
+    parsers: List[configparser.ConfigParser],
+) -> None:
+    expected_suffix = "opentenbase-5.21.8-i.REPLACE_WITH_UNAME_M.tar.gz"
+    for index, parser in enumerate(parsers, start=1):
+        package = parser.get("instance", "package", fallback="")
+        if package and not package.endswith(expected_suffix):
+            fail(f"INI block {index} package must use the uname -m placeholder")
+
+
 def check_architecture_contract(markdown: str) -> None:
     required_snippets = (
         'PACKAGE_ARCH=$(uname -m)',
@@ -153,8 +163,13 @@ def check_password_redaction() -> None:
     )
     if plaintext_parser_log.search(config_source):
         fail("opentenbase_ctl must not write the SSH password while parsing config")
-    if 'key == "ssh-password"' not in config_source:
-        fail("opentenbase_ctl config parser must identify the SSH password")
+    section_limited_mask = re.compile(
+        r'section\s*==\s*"server"\s*&&\s*key\s*==\s*"ssh-password"'
+    )
+    if section_limited_mask.search(config_source):
+        fail("opentenbase_ctl must mask misplaced SSH password config items")
+    if not re.search(r'log_value\s*=\s*key\s*==\s*"ssh-password"', config_source):
+        fail("opentenbase_ctl config parser must mask the SSH password by key")
     if '"********"' not in config_source:
         fail("opentenbase_ctl config parser must use an explicit password mask")
 
@@ -166,6 +181,7 @@ def main() -> None:
     if len(ini_parsers) < 3:
         fail(f"expected at least 3 INI examples, found {len(ini_parsers)}")
     check_minimum_topology(ini_parsers)
+    check_ini_package_architecture(ini_parsers)
     check_architecture_contract(markdown)
     check_troubleshooting(markdown)
     link_count = check_relative_links(markdown)
