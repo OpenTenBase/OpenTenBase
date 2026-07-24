@@ -146,11 +146,12 @@ def check_password_redaction() -> None:
         fail("opentenbase_ctl config summary must use an explicit password mask")
 
     config_source = CTL_CONFIG.read_text(encoding="utf-8")
-    plaintext_parser_log = (
-        'LOG_DEBUG_FMT("Parsing config item: %s = %s", '
-        "key.c_str(), value.c_str());"
+    plaintext_parser_log = re.compile(
+        r'LOG_DEBUG_FMT\s*\(\s*"Parsing config item: %s = %s"\s*,'
+        r"\s*key\.c_str\s*\(\s*\)\s*,\s*value\.c_str\s*\(\s*\)",
+        flags=re.DOTALL,
     )
-    if plaintext_parser_log in config_source:
+    if plaintext_parser_log.search(config_source):
         fail("opentenbase_ctl must not write the SSH password while parsing config")
     if 'key == "ssh-password"' not in config_source:
         fail("opentenbase_ctl config parser must identify the SSH password")
