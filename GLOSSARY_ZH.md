@@ -11,13 +11,14 @@ SPDX-License-Identifier: BSD-3-Clause
 
 ```mermaid
 flowchart TB
-    client["应用 / psql"] -->|"1. 连接并发送 SQL"| cn["Coordinator / CN"]
-    cn <-->|"2. 申请 GXID、全局快照并报告事务状态"| gtm["Global Transaction Manager / GTM"]
-    cn -->|"3. 按数据位置分发查询片段"| dn1["DataNode / DN 1"]
-    cn -->|"3. 按数据位置分发查询片段"| dn2["DataNode / DN 2"]
-    dn1 -->|"4. 返回局部结果"| cn
-    dn2 -->|"4. 返回局部结果"| cn
-    cn -->|"5. 汇总并返回结果"| client
+    client["应用 / psql"]
+    cn["Coordinator / CN<br/>规划、分发与汇总"]
+    gtm["Global Transaction Manager / GTM<br/>管理全局事务"]
+    dn["一个或多个 DataNode / DN<br/>存储用户数据并执行本地任务"]
+
+    client <-->|"1. SQL 请求 / 4. 最终结果"| cn
+    cn <-->|"事务期间：GXID、全局快照、状态"| gtm
+    cn <-->|"2. 查询片段 / 3. 局部结果"| dn
 ```
 
 图中只表示组件关系，不限定进程数量或端口。一个集群可以有多个 CN 和 DN，也可以为节点配置从节点。客户端在分布式模式下连接 CN；用户数据保存在 DN；GTM 负责全局事务 ID 和快照等事务协调信息，不参与用户表数据的存储。
@@ -25,10 +26,10 @@ flowchart TB
 | 交互 | 谁发起 | 谁处理 | 发生了什么 |
 | --- | --- | --- | --- |
 | 建立会话、提交 SQL | 客户端 | CN | CN 是分布式集群的应用入口，对外提供统一的数据库视图 |
-| 获取事务信息 | CN 或 DN | GTM | 事务按需获取全局事务 ID 和全局快照，并报告事务状态 |
+| 获取、报告事务信息 | CN 或 DN | GTM | 事务按需获取全局事务 ID 和全局快照，并在开始、结束或进入两阶段提交准备阶段时报告状态 |
 | 执行查询片段 | CN | 一个或多个 DN | CN 根据表的分布信息选择 DN，并尽量下推过滤、投影、连接或排序等工作 |
-| 保存和读取用户行 | CN 调度 | DN | DN 在本地存储用户数据并执行发送到本节点的工作 |
-| 汇总结果 | DN 返回，CN 汇总 | CN | CN 收集局部结果，完成必要的合并后返回客户端 |
+| 保存和读取用户行 | CN | DN | CN 向目标 DN 发送任务；DN 在本地存储或读取用户数据 |
+| 返回并汇总结果 | DN | CN | DN 返回局部结果；CN 完成必要的合并后返回客户端 |
 
 ## 查询处理流程
 
