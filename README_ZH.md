@@ -164,11 +164,14 @@ sudo systemctl stop firewalld
 #### 3. 创建用于初始化实例的 *.tar.gz 包。
 
 ```bash
-tar -C "${PG_HOME}" -zcf "${INSTALL_PATH}/opentenbase-5.21.8-i.x86_64.tar.gz" .
-test -s "${INSTALL_PATH}/opentenbase-5.21.8-i.x86_64.tar.gz"
+PACKAGE_ARCH=$(uname -m)
+export PACKAGE_PATH="${INSTALL_PATH}/opentenbase-5.21.8-i.${PACKAGE_ARCH}.tar.gz"
+tar -C "${PG_HOME}" -zcf "${PACKAGE_PATH}" .
+test -s "${PACKAGE_PATH}"
+printf 'package=%s\n' "${PACKAGE_PATH}"
 ```
 
-软件包名称必须包含点分版本号，`opentenbase_ctl` 会从文件名中提取版本；`package` 配置项应填写该压缩包的绝对路径，而不是安装目录。
+软件包名称必须包含点分版本号，`opentenbase_ctl` 会从文件名中提取版本；架构后缀用于区分不同机器的构建产物。`package` 配置项应填写上述命令打印的压缩包绝对路径，而不是安装目录。
 
 ### 集群启动步骤
 
@@ -223,7 +226,7 @@ done
 [instance]
 name=opentenbase_quickstart
 type=distributed
-package=/data/opentenbase/install/opentenbase-5.21.8-i.x86_64.tar.gz
+package=/data/opentenbase/install/opentenbase-5.21.8-i.REPLACE_WITH_UNAME_M.tar.gz
 
 [gtm]
 master=127.0.0.1
@@ -246,6 +249,8 @@ ssh-port=22
 [log]
 level=INFO
 ```
+
+将最小配置中的 `REPLACE_WITH_UNAME_M` 替换为打包时 `uname -m` 的实际输出，例如 x86 主机通常为 `x86_64`，ARM64 主机通常为 `aarch64`。配置中的路径必须与打包命令打印的 `PACKAGE_PATH` 完全一致。
 
 例如，在两台服务器 `172.16.16.49` 和 `172.16.16.131` 上部署带从节点的分布式实例时，可使用下面的配置。示例假设两台服务器的 SSH 服务都监听 `36000` 端口；请根据实际环境修改端口和密码。
 
@@ -380,6 +385,21 @@ Environment variable: export LD_LIBRARY_PATH=/data/opentenbase/install/opentenba
 PSQL connection: psql -h 127.0.0.1 -p 11003 -U opentenbase postgres
 ```
 
+#### ARM64 原生验证记录
+
+除上述 x86_64 验证外，本流程还在 Apple Silicon 宿主机的原生 `arm64v8/ubuntu:20.04` Docker 容器中完成了独立复验。使用 `opentenbase-5.21.8-i.aarch64.tar.gz` 部署 1 GTM、1 CN 和 1 DN 后，三个节点均为 `Running`；通过 CN 创建 SHARD 分布表、写入并读回两行数据后成功删除。关键证据如下：
+
+```text
+uname -m: aarch64
+package: opentenbase-5.21.8-i.aarch64.tar.gz
+version(): PostgreSQL 10.0 @ OpenTenBase_v5.0 on aarch64-unknown-linux-gnu
+[Result] Total: 3, Running: 3, Stopped: 0, Unknown: 0
+query rows: arm64-cn-to-dn-ok, second-row
+ARM64_MINIMAL_DEPLOYMENT=PASS
+```
+
+这是一条可复现性验证记录，不代表扩大项目“系统要求”中列出的正式支持范围。生产部署仍应使用项目明确支持的操作系统和经过团队验证的架构组合。
+
 节点端口由工具从可用端口中分配，不要根据上述示例猜测端口。请复制本次 `status` 输出中的 `PSQL connection` 命令；后续执行 `start`、`stop` 和 `status` 时也建议始终显式传入同一个 `-c` 配置文件。
 
 ## 使用
@@ -470,6 +490,19 @@ ls -l /usr/local/lib/libzstd.a /usr/local/lib/liblz4.a
 
 如果文件不存在，按依赖章节创建指向系统静态库的软链接后重新执行 `configure`。同时执行 `gcc --version`，确认当前 shell 已加载 SCL 的 GCC 7 环境。
 
+### `opentenbase_ctl` 无输出或长时间等待
+
+控制工具会在当前工作目录下创建并写入 `logs/`。如果从 `/` 等不可写目录运行，命令可能长时间没有可见输出。切换到安装目录，确认日志目录可写，再显式传入配置文件：
+
+```bash
+cd "${INSTALL_PATH}"
+mkdir -p logs
+test -w logs
+"${PG_HOME}/bin/opentenbase_ctl" status -c opentenbase_config.ini
+```
+
+仍无结果时，检查 `logs/opentenbase_ctl_*.log`，并确认没有其他安装或状态命令正在占用同一配置。控制工具会在日志中遮盖 SSH 密码，但配置文件本身仍含明文密码，必须保持 `chmod 600`。
+
 ### `Failed to parse configuration file`
 
 优先检查以下项目：
@@ -483,7 +516,9 @@ ls -l /usr/local/lib/libzstd.a /usr/local/lib/liblz4.a
 
 ```bash
 grep '^package=' opentenbase_config.ini
-tar -tzf /data/opentenbase/install/opentenbase-5.21.8-i.x86_64.tar.gz >/dev/null
+PACKAGE_ARCH=$(uname -m)
+PACKAGE_PATH="/data/opentenbase/install/opentenbase-5.21.8-i.${PACKAGE_ARCH}.tar.gz"
+tar -tzf "${PACKAGE_PATH}" >/dev/null
 ```
 
 `package` 应指向可读的 `.tar.gz` 文件，而不是目录；文件名需要采用 `名称-主版本.次版本...` 的形式，以便工具提取版本号。
