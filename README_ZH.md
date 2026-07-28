@@ -87,6 +87,33 @@ make -sj
 make install
 ```
 
+### 清理源码构建产物
+
+在源码目录内构建会生成源码文件、对象列表、库和配置输出。这些都是预期的构建产物，Git
+会忽略它们。
+
+- `make clean` 删除编译对象和二进制文件，但保留当前的 `configure`
+  结果，以便按相同配置重新构建。
+- `make distclean` 还会删除 `GNUmakefile`、`config.log` 和
+  `config.status`，但保留发布归档中需要包含的生成文件。
+- `make maintainer-clean` 会进一步删除这些发布用生成文件，并将 Git
+  检出恢复为干净状态。下次构建时需要使用依赖列表中的 Bison 和 Flex
+  重新生成它们。
+
+请在已配置的构建目录中执行清理。正常的构建清理不需要使用 `git clean`。
+
+如果希望源码目录始终不被修改，请使用独立构建目录：
+
+```bash
+mkdir -p /data/opentenbase/build
+cd /data/opentenbase/build
+${SOURCECODE_PATH}/configure --prefix=${INSTALL_PATH}/opentenbase_bin_v5.0 \
+  --enable-user-switch --with-libxml --disable-license \
+  --with-openssl --with-ossp-uuid CFLAGS="-g"
+make -sj
+make install
+```
+
 ## 安装
 使用 OPENTENBASE\_CTL 工具来搭建一个集群，例如：搭建一个具有1个全局事务管理节点(GTM)、1个协调器节点(COORDINATOR)以及2个数据节点(DATANODE)的集群。
 <img src="images/topology.png" width="50%" />

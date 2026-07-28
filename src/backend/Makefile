@@ -392,6 +392,12 @@ maintainer-clean: distclean
 	      catalog/postgres.bki \
 	      catalog/postgres.description \
 	      catalog/postgres.shdescription \
+	      catalog/opentenbase_ora.bki \
+	      catalog/opentenbase_ora.description \
+	      catalog/opentenbase_ora.shdescription \
+	      catalog/all.bki \
+	      catalog/all.description \
+	      catalog/all.shdescription \
 	      replication/repl_gram.c \
 	      replication/repl_scanner.c \
 	      replication/syncrep_gram.c \

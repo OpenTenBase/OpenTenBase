@@ -87,4 +87,4 @@ clean distclean: clean-lib
 	rm -f $(OBJS) pl_gram.c
 
 maintainer-clean: clean
-	rm -f pl_gram.c pl_gram.h plerrcodes.h
+	rm -f pl_gram.c pl_gram.h pl_gram.output plerrcodes.h

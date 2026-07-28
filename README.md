@@ -91,6 +91,36 @@ make -sj
 make install
 ```
 
+### Cleaning a source build
+
+An in-tree build creates generated source files, object lists, libraries, and
+configuration output. These are expected build artifacts and are ignored by
+Git.
+
+- `make clean` removes compiled objects and binaries, but keeps the current
+  `configure` result so the same configuration can be rebuilt.
+- `make distclean` also removes `GNUmakefile`, `config.log`, and
+  `config.status`, but keeps generated files that are included in release
+  archives.
+- `make maintainer-clean` additionally removes those generated release files
+  and restores a clean Git checkout. The next build requires the documented
+  Bison and Flex dependencies to regenerate them.
+
+Run cleanup from the configured build directory. You do not need
+`git clean` for normal build cleanup.
+
+To keep the source directory untouched, use a separate build directory:
+
+```bash
+mkdir -p /data/opentenbase/build
+cd /data/opentenbase/build
+${SOURCECODE_PATH}/configure --prefix=${INSTALL_PATH}/opentenbase_bin_v5.0 \
+  --enable-user-switch --with-libxml --disable-license \
+  --with-openssl --with-ossp-uuid CFLAGS="-g"
+make -sj
+make install
+```
+
 ## Installation
 Use OPENTENBASE\_CTL tool to build a cluster, for example: a cluster with a global transaction management node (GTM), a coordinator(COORDINATOR) and two data nodes (DATANODE).
 <img src="images/topology.png" width="50%" />

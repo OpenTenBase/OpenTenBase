@@ -3,7 +3,14 @@
 .project
 .settings/language.settings.xml
 *.so
+*.so.*
 *.o
+*.a
+*.pc
+objfiles.txt
+/GNUmakefile
+/config.log
+/config.status
 /.idea
 .*/.DS_Store
 /src/.idea/misc.xml
