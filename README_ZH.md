@@ -25,67 +25,99 @@ OpenTenBase具有许多类似于PostgreSQL的语言接口，其中的一些可�
 ## 构建
 ### 系统要求
 
-内存: 最小 8G RAM
+内存：最小 8 GB RAM
 
-操作系统: TencentOS 2, TencentOS 3, OpenCloudOS 8.x, CentOS 7, CentOS 8, Ubuntu 18.04
+操作系统：TencentOS 2、TencentOS 3、OpenCloudOS 8.x、CentOS 7、CentOS 8、Ubuntu 18.04
+
+> **版本提示：** 请优先使用上述经过验证的操作系统版本。较新的发行版可能自带不兼容的编译器或基础库（例如 Ubuntu 22.04 的 OpenSSL 3）；此时建议使用 [OpenTenBase-DevEnv](https://github.com/OpenTenBase/OpenTenBase-DevEnv) 提供的容器环境。
 
 ### 依赖
 
-``` 
-yum -y install git sudo gcc make readline-devel zlib-devel openssl-devel uuid-devel bison flex cmake postgresql-devel libssh2-devel sshpass  libcurl-devel libxml2-devel
+RedHat 系统（以下以 CentOS 7 为例，其他系统请启用能提供相同软件包的对应仓库）：
+
+```bash
+# CentOS 7 安装 libzstd/lz4 静态库前需要启用 EPEL
+sudo yum install -y epel-release
+sudo yum install -y git sudo gcc gcc-c++ make readline-devel zlib-devel \
+  openssl-devel uuid-devel bison flex cmake postgresql-devel libssh2-devel \
+  sshpass libcurl-devel libxml2-devel libzstd-devel libzstd-static \
+  lz4-devel lz4-static
+
+# 当前 configure 脚本从 /usr/local/lib 查找这两个静态库
+sudo mkdir -p /usr/local/lib
+sudo ln -sf /usr/lib64/libzstd.a /usr/local/lib/libzstd.a
+sudo ln -sf /usr/lib64/liblz4.a /usr/local/lib/liblz4.a
 ```
 
-或者
+Debian/Ubuntu 系统：
 
-```
-apt install -y git sudo gcc make libreadline-dev zlib1g-dev libssl-dev libossp-uuid-dev bison flex cmake libssh2-1-dev sshpass libxml2-dev language-pack-zh-hans
+```bash
+sudo apt update
+sudo apt install -y git sudo gcc g++ make libreadline-dev zlib1g-dev \
+  libssl-dev libossp-uuid-dev bison flex cmake libssh2-1-dev sshpass \
+  libcurl4-openssl-dev libxml2-dev libzstd-dev liblz4-dev \
+  language-pack-zh-hans
+
+# Debian/Ubuntu 的静态库位于 multiarch 目录
+MULTIARCH="$(gcc -print-multiarch)"
+sudo mkdir -p /usr/local/lib
+sudo ln -sf "/usr/lib/${MULTIARCH}/libzstd.a" /usr/local/lib/libzstd.a
+sudo ln -sf "/usr/lib/${MULTIARCH}/liblz4.a" /usr/local/lib/liblz4.a
 ```
 
 ### 创建用户 'opentenbase'
 
 ```bash
 # 1. 创建目录 /data
-mkdir -p /data
+sudo mkdir -p /data
 
 # 2. 添加用户
-useradd -d /data/opentenbase -s /bin/bash -m opentenbase # 添加用户 opentenbase
+sudo useradd -d /data/opentenbase -s /bin/bash -m opentenbase
 
 # 3. 设置密码
-passwd opentenbase # 设置密码
+sudo passwd opentenbase
 
-# 4. 将用户添加到 wheel 组
-# 对于 RedHat
-usermod -aG wheel opentenbase
-# 对于 Debian
-usermod -aG sudo opentenbase
+# 4. 添加 sudo 权限（二选一）
+# RedHat
+sudo usermod -aG wheel opentenbase
+# Debian/Ubuntu
+sudo usermod -aG sudo opentenbase
 
-# 5. 为 wheel 组启用 sudo 权限（通过 visudo）
-visudo 
-# 然后取消注释 "% wheel" 行，保存并退出
+# 5. 仅 RedHat 需要确认 wheel 组已在 sudoers 中启用
+sudo visudo
+# 确认 "%wheel ALL=(ALL) ALL" 已取消注释
 ```
+
+Debian/Ubuntu 默认已经启用 `sudo` 组，无需修改 `sudoers`。切换用户后可运行 `sudo -v` 验证权限。
 
 ### 编译
 
 ```bash
 su - opentenbase
-cd /data/opentenbase/
-git clone https://github.com/OpenTenBase/OpenTenBase
+cd /data/opentenbase
+git clone https://github.com/OpenTenBase/OpenTenBase.git
 
 export SOURCECODE_PATH=/data/opentenbase/OpenTenBase
-export INSTALL_PATH=/data/opentenbase/install/
+export INSTALL_PATH=/data/opentenbase/install
+export PG_HOME="${INSTALL_PATH}/opentenbase_bin_v5.0"
+export JOBS="${JOBS:-$(nproc)}"
 
-cd ${SOURCECODE_PATH}
-rm -rf ${INSTALL_PATH}/opentenbase_bin_v5.0
+cd "${SOURCECODE_PATH}"
+rm -rf "${PG_HOME}"
 chmod +x configure*
-./configure --prefix=${INSTALL_PATH}/opentenbase_bin_v5.0 --enable-user-switch --with-libxml --disable-license --with-openssl --with-ossp-uuid CFLAGS="-g"
+./configure --prefix="${PG_HOME}" --enable-user-switch --with-libxml \
+  --disable-license --with-openssl --with-ossp-uuid CFLAGS="-g"
 make clean
-make -sj
+make -j"${JOBS}"
 make install
+
 chmod +x contrib/pgxc_ctl/make_signature
-cd contrib
-make -sj
+cd "${SOURCECODE_PATH}/contrib"
+make -j"${JOBS}"
 make install
 ```
+
+`make -sj` 中的 `-s` 会隐藏编译命令，而没有数值的 `-j` 不限制并行任务数，不利于首次部署排错。上面的 `JOBS` 默认使用 CPU 核数；内存不足时可先执行 `export JOBS=2`。
 
 ## 安装
 使用 OPENTENBASE\_CTL 工具来搭建一个集群，例如：搭建一个具有1个全局事务管理节点(GTM)、1个协调器节点(COORDINATOR)以及2个数据节点(DATANODE)的集群。
@@ -94,11 +126,14 @@ make install
 
 #### 1. 安装 opentenbase 并将 opentenbase 安装包的路径导入到环境变量中。
 
-```shell
-PG_HOME=${INSTALL_PATH}/opentenbase_bin_v5.0
-export PATH="$PATH:$PG_HOME/bin"
-export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$PG_HOME/lib"
+```bash
+export PG_HOME="${INSTALL_PATH}/opentenbase_bin_v5.0"
+export PATH="${PG_HOME}/bin:${PATH}"
+export LD_LIBRARY_PATH="${PG_HOME}/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
 export LC_ALL=C
+
+command -v opentenbase_ctl
+command -v psql
 ```
 
 #### 2. 禁用 SELinux 和防火墙（可选）
@@ -114,21 +149,24 @@ sudo systemctl stop firewalld
 
 #### 3. 创建用于初始化实例的 *.tar.gz 包。
 
+```bash
+export PACKAGE_PATH="${INSTALL_PATH}/opentenbase-5.21.8-i.x86_64.tar.gz"
+tar -C "${PG_HOME}" -zcf "${PACKAGE_PATH}" .
+tar -tzf "${PACKAGE_PATH}" | head
 ```
-cd ${PG_HOME}
-tar -zcf ${INSTALL_PATH}/opentenbase-5.21.8-i.x86_64.tar.gz *
-cd ${INSTALL_PATH}
-```
+
+使用 `tar -C ... .` 可以确保安装目录中的隐藏文件也被打包，并避免因当前工作目录错误而生成不完整的软件包。
 
 ### 集群启动步骤
 
-#### 生成并填写配置文件 
-opentenbase\_config.opentenbase\_ctl 工具可以生成配置文件的模板。您需要在模板中填写集群节点信息。启动 opentenbase\_ctl 工具后，将在当前用户的主目录中生成 opentenbase\_ctl 目录。输入 "prepare config" 命令后，将在 opentenbase\_ctl 目录中生成可直接修改的配置文件模板。
+#### 生成并填写配置文件
+
+当前版本的 `opentenbase_ctl` 不提供 `prepare config` 子命令，需要手动创建配置文件。可参考仓库中的 [`contrib/opentenbase_ctl/config/config.ini`](contrib/opentenbase_ctl/config/config.ini)，并按实际服务器信息修改。
 
 * opentenbase\_config.ini 中各字段说明
-```
+
 | 配置类别        | 配置项            | 说明                                                                      |
-|----------------|------------------|---------------------------------------------------------------------------||
+|----------------|------------------|---------------------------------------------------------------------------|
 | instance       | name             | 实例名称，可用字符：字母、数字、下划线，例如：opentenbase_instance01        |
 |                | type             | distributed 表示分布式模式，需要 gtm、coordinator 和 data 节点；centralized 表示集中式模式 |
 |                | package          | 软件包。完整路径（推荐）或相对于 opentenbase_ctl 的相对路径                  |
@@ -139,27 +177,32 @@ opentenbase\_config.opentenbase\_ctl 工具可以生成配置文件的模板。�
 |                |                  | 示例：如果 1 主 1 从，IP 数量与主节点相同；如果 1 主 2 从，IP 数量是主节点的两倍 |
 |                | nodes-per-server | 可选，默认 1。每个 IP 上部署的节点数。示例：主节点有 3 个 IP，配置为 2，则有 6 个节点 |
 |                |                  | cn001-cn006 共 6 个节点，每个服务器分布 2 个节点                            |
+|                | conf             | CN 的自定义 GUC 配置文件；没有自定义项时也需提供一个空文件                    |
 | datanodes      | master           | 主节点 IP，自动生成节点名称，在每个 IP 上部署 nodes-per-server 个节点        |
 |                | slave            | 从节点 IP，数量是主节点的整数倍                                             |
 |                |                  | 示例：如果 1 主 1 从，IP 数量与主节点相同；如果 1 主 2 从，IP 数量是主节点的两倍 |
 |                | nodes-per-server | 可选，默认 1。每个 IP 上部署的节点数。示例：主节点有 3 个 IP，配置为 2，则有 6 个节点 |
 |                |                  | dn001-dn006 共 6 个节点，每个服务器分布 2 个节点                            |
+|                | conf             | DN 的自定义 GUC 配置文件；没有自定义项时也需提供一个空文件                    |
 | server         | ssh-user         | 远程命令执行用户名，需要提前创建，所有服务器应有相同账户以简化配置管理          |
 |                | ssh-password     | 远程命令执行密码，需要提前创建，所有服务器应有相同密码以简化配置管理            |
-|                | ssh-port         | SSH 端口，所有服务器应保持一致以简化配置管理                                 |
+|                | ssh-port         | SSH 服务实际监听端口，默认通常为 22；所有服务器应保持一致                    |
 | log            | level            | opentenbase_ctl 工具执行的日志级别（不是 opentenbase 节点的日志级别）        |
 
-```
-
 #### 1. 为实例创建配置文件 opentenbase\_config.ini
-```
-mkdir -p ./logs
-touch opentenbase_config.ini
+
+```bash
+cd /data/opentenbase
+mkdir -p logs
+touch postgres.conf opentenbase_config.ini
 vim opentenbase_config.ini
 ```
 
-* 例如，如果我有两台服务器 172.16.16.49 和 172.16.16.131，分布在两台服务器上的典型分布式实例配置如下。您可以复制此配置信息并根据您的部署要求进行修改。不要忘记填写 ssh 密码配置。
-```
+`postgres.conf` 用于提供自定义 GUC；没有自定义项时保持空文件即可。
+
+* 例如，如果有两台服务器 `172.16.16.49` 和 `172.16.16.131`，典型分布式实例配置如下。请根据实际环境修改 IP、SSH 密码和端口。
+
+```ini
 # 实例配置
 [instance]
 name=opentenbase01
@@ -169,62 +212,72 @@ package=/data/opentenbase/install/opentenbase-5.21.8-i.x86_64.tar.gz
 # GTM 节点
 [gtm]
 master=172.16.16.49
-slave=172.16.16.50,172.16.16.131
+slave=172.16.16.131
 
 # 协调器节点
 [coordinators]
 master=172.16.16.49
-slave= 172.16.16.131
+slave=172.16.16.131
 nodes-per-server=1
+conf=/data/opentenbase/postgres.conf
 
 # 数据节点
 [datanodes]
 master=172.16.16.49,172.16.16.131
 slave=172.16.16.131,172.16.16.49
 nodes-per-server=1
+conf=/data/opentenbase/postgres.conf
 
 # 登录和部署账户
 [server]
 ssh-user=opentenbase
 ssh-password=
-ssh-port=36000
+ssh-port=22
 
 # 日志配置
 [log]
 level=DEBUG
 ```
 
+* 首次体验可在单台服务器上部署一个集中式实例。即使目标是本机，`opentenbase_ctl` 仍会通过 SSH 执行部分操作；请先确保 `ssh -p 22 opentenbase@127.0.0.1 'echo ok'` 成功，再使用以下最小配置。
 
-* 同样，典型集中式实例的配置如下。不要忘记填写 ssh 密码配置。
-```
+```ini
 # 实例配置
 [instance]
-name=opentenbase02
+name=opentenbase_minimal
 type=centralized
 package=/data/opentenbase/install/opentenbase-5.21.8-i.x86_64.tar.gz
 
 # 数据节点
 [datanodes]
-master=172.16.16.49
-slave=172.16.16.131
+master=127.0.0.1
 nodes-per-server=1
+conf=/data/opentenbase/postgres.conf
 
 # 登录和部署账户
 [server]
 ssh-user=opentenbase
 ssh-password=
-ssh-port=36000
+ssh-port=22
 
 # 日志配置
 [log]
 level=DEBUG
 ```
 
-#### 2. 执行实例安装命令。
+#### 2. 执行实例安装命令
 
+```bash
+cd /data/opentenbase
+export PG_HOME=/data/opentenbase/install/opentenbase_bin_v5.0
+export PATH="${PG_HOME}/bin:${PATH}"
+export LD_LIBRARY_PATH="${PG_HOME}/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+opentenbase_ctl install -c /data/opentenbase/opentenbase_config.ini
 ```
-export LD_LIBRARY_PATH=/data/opentenbase/install/opentenbase_bin_v5.0/lib
-./opentenbase_bin_v5.0/bin/opentenbase_ctl install  -c opentenbase_config.ini
+
+典型分布式实例安装成功时会看到类似输出：
+
+```text
 
 ====== Start to Install Opentenbase test_cluster01  ====== 
 
@@ -267,8 +320,14 @@ step 6: Create node group ...
 ```
 * 当您看到 'Installation completed successfully' 字样时，表示安装已完成。尽情享受您的 opentenbase 之旅吧。
 * 您可以检查实例的状态
+
+```bash
+opentenbase_ctl status -c /data/opentenbase/opentenbase_config.ini
 ```
-[opentenbase@VM-16-49-tencentos opentenbase_ctl]$ ./opentenbase_bin_v5.0/bin/opentenbase_ctl status -c opentenbase_config.ini
+
+典型状态输出如下：
+
+```text
 
 ------------- Instance status -----------  
 Instance name: test_cluster01
@@ -291,12 +350,86 @@ Environment variable: export LD_LIBRARY_PATH=/data/opentenbase/install/opentenba
 PSQL connection: psql -h 172.16.16.49 -p 11000 -U opentenbase postgres 
 ```
 
+## 常见错误与排查
+
+### `configure` 找不到 zstd 或 lz4
+
+如果出现 `zstd library not found`、`lz4 library not found`，或日志中包含 `cannot find /usr/local/lib/libzstd.a`，请检查开发包和静态库链接：
+
+```bash
+ls -l /usr/local/lib/libzstd.a /usr/local/lib/liblz4.a
+test -r /usr/local/lib/libzstd.a
+test -r /usr/local/lib/liblz4.a
+```
+
+若文件不存在，重新执行“依赖”小节中对应操作系统的安装和软链接命令。Ubuntu 还需要 `libcurl4-openssl-dev`，否则编译会报 `curl/curl.h: No such file or directory`。
+
+### `opentenbase_ctl`、`psql` 找不到或动态库加载失败
+
+每次打开新终端后都需要设置安装目录。若希望永久生效，可将以下三行加入 `~/.bashrc`：
+
+```bash
+export PG_HOME=/data/opentenbase/install/opentenbase_bin_v5.0
+export PATH="${PG_HOME}/bin:${PATH}"
+export LD_LIBRARY_PATH="${PG_HOME}/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+```
+
+检查命令和动态库：
+
+```bash
+command -v opentenbase_ctl psql
+ldd "$(command -v opentenbase_ctl)" | grep "not found"
+```
+
+`grep` 没有输出表示未发现缺失的动态库。
+
+### SSH 连接失败或超时
+
+`ssh-port` 必须填写目标服务器 SSH 服务实际监听端口，不能直接照抄示例。部署前从执行机逐台验证：
+
+```bash
+SSH_PORT=22
+SERVER_IP=127.0.0.1
+ssh -p "${SSH_PORT}" opentenbase@"${SERVER_IP}" 'echo ssh-ok'
+```
+
+若失败，请依次检查：
+
+1. 目标机的 `sshd` 是否启动，`ss -lnt` 是否显示对应端口。
+2. 防火墙和安全组是否允许执行机访问该 SSH 端口。
+3. `ssh-user`、`ssh-password` 是否与目标机一致，以及 SSH 是否允许密码认证。
+4. `/data/opentenbase` 及其子目录是否属于 `opentenbase` 用户。
+
+### 端口被占用
+
+`opentenbase_ctl` 从 `11000` 开始为每个节点寻找三个连续可用端口（节点端口、pooler 端口和 forward 端口）。部署前可检查占用情况：
+
+```bash
+ss -lnt | grep -E ':(1100[0-9]|110[1-9][0-9])\b'
+```
+
+如果日志显示 `Failed to assign ports for nodes`，请释放冲突端口，或检查 SSH 是否有权限在目标机执行 `ss -tln`。跨服务器访问时，还需要在防火墙和安全组中开放最终分配的节点端口。
+
+### 配置文件或软件包路径错误
+
+`package` 以及 `[coordinators]`、`[datanodes]` 中的 `conf` 建议全部填写绝对路径，并在安装前检查：
+
+```bash
+test -r /data/opentenbase/opentenbase_config.ini
+test -r /data/opentenbase/postgres.conf
+test -r /data/opentenbase/install/opentenbase-5.21.8-i.x86_64.tar.gz
+tar -tzf /data/opentenbase/install/opentenbase-5.21.8-i.x86_64.tar.gz | head
+```
+
+工具日志位于执行命令时所在目录的 `logs/` 下。失败后可运行 `tail -n 100 logs/opentenbase_ctl_*.log` 查看详细原因。
+
 ## 使用
 * 连接到 CN 主节点执行 SQL
 
-```
-export LD_LIBRARY_PATH=/home/opentenbase/install/opentenbase/5.21.8/lib  && export PATH=/home/opentenbase/install/opentenbase/5.21.8/bin:${PATH} 
-$ psql -h ${CoordinateNode_IP} -p ${CoordinateNode_PORT} -U opentenbase -d postgres
+```bash
+export LD_LIBRARY_PATH=/data/opentenbase/install/opentenbase/5.21.8/lib
+export PATH=/data/opentenbase/install/opentenbase/5.21.8/bin:${PATH}
+psql -h "${CoordinateNode_IP}" -p "${CoordinateNode_PORT}" -U opentenbase -d postgres
 
 postgres=# 
 
