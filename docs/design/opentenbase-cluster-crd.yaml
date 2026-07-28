@@ -1,0 +1,354 @@
+# Copyright (c) 2026 OpenTenBase Contributors
+# Licensed under the BSD 3-Clause License. See LICENSE.txt.
+
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: opentenbaseclusters.database.opentenbase.org
+spec:
+  group: database.opentenbase.org
+  scope: Namespaced
+  names:
+    plural: opentenbaseclusters
+    singular: opentenbasecluster
+    kind: OpenTenBaseCluster
+    shortNames:
+      - otbc
+    categories:
+      - all
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      additionalPrinterColumns:
+        - name: Mode
+          type: string
+          jsonPath: .spec.mode
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: Ready
+          type: string
+          jsonPath: .status.ready
+        - name: Revision
+          type: string
+          jsonPath: .status.topologyRevision
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      subresources:
+        status: {}
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          x-kubernetes-validations:
+            - rule: >-
+                self.spec.mode == 'Centralized'
+                  ? (!has(self.spec.gtm) &&
+                     !has(self.spec.coordinator) &&
+                     self.spec.datanode.groups == 1)
+                  : (has(self.spec.gtm) &&
+                     has(self.spec.coordinator))
+              message: >-
+                Centralized mode requires exactly one DataNode group and forbids
+                GTM/Coordinator; Distributed mode requires both GTM and Coordinator.
+          properties:
+            apiVersion:
+              type: string
+            kind:
+              type: string
+            metadata:
+              type: object
+            spec:
+              type: object
+              required:
+                - mode
+                - image
+                - datanode
+              properties:
+                mode:
+                  type: string
+                  enum:
+                    - Centralized
+                    - Distributed
+                  description: OpenTenBase deployment mode.
+                image:
+                  type: string
+                  minLength: 1
+                  description: >-
+                    Immutable OpenTenBase application image reference. Production
+                    deployments should use a digest.
+                imagePullPolicy:
+                  type: string
+                  enum:
+                    - Always
+                    - IfNotPresent
+                    - Never
+                  default: IfNotPresent
+                imagePullSecrets:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - name
+                    properties:
+                      name:
+                        type: string
+                        minLength: 1
+                gtm:
+                  type: object
+                  description: Required only in Distributed mode.
+                  required:
+                    - replicas
+                    - storage
+                  properties:
+                    replicas:
+                      type: integer
+                      format: int32
+                      minimum: 1
+                      maximum: 3
+                      default: 2
+                      description: Number of GTM instances in the logical GTM group.
+                    storage:
+                      type: object
+                      required:
+                        - size
+                      properties:
+                        size:
+                          type: string
+                          minLength: 1
+                        storageClassName:
+                          type: string
+                        retainOnDelete:
+                          type: boolean
+                          default: true
+                    resources:
+                      type: object
+                      x-kubernetes-preserve-unknown-fields: true
+                    affinity:
+                      type: object
+                      x-kubernetes-preserve-unknown-fields: true
+                coordinator:
+                  type: object
+                  description: Required only in Distributed mode.
+                  required:
+                    - groups
+                    - replicasPerGroup
+                    - storage
+                  properties:
+                    groups:
+                      type: integer
+                      format: int32
+                      minimum: 1
+                      maximum: 64
+                      description: Number of logical Coordinator nodes.
+                    replicasPerGroup:
+                      type: integer
+                      format: int32
+                      minimum: 1
+                      maximum: 3
+                      default: 1
+                      description: Number of physical instances for each logical node.
+                    storage:
+                      type: object
+                      required:
+                        - size
+                      properties:
+                        size:
+                          type: string
+                          minLength: 1
+                        storageClassName:
+                          type: string
+                        retainOnDelete:
+                          type: boolean
+                          default: true
+                    resources:
+                      type: object
+                      x-kubernetes-preserve-unknown-fields: true
+                    affinity:
+                      type: object
+                      x-kubernetes-preserve-unknown-fields: true
+                datanode:
+                  type: object
+                  required:
+                    - groups
+                    - replicasPerGroup
+                    - storage
+                  properties:
+                    groups:
+                      type: integer
+                      format: int32
+                      minimum: 1
+                      maximum: 256
+                      description: >-
+                        Number of logical DataNode groups. The PoC treats this
+                        field as immutable after creation.
+                    replicasPerGroup:
+                      type: integer
+                      format: int32
+                      minimum: 1
+                      maximum: 3
+                      default: 1
+                      description: Number of physical instances for each logical node.
+                    storage:
+                      type: object
+                      required:
+                        - size
+                      properties:
+                        size:
+                          type: string
+                          minLength: 1
+                        storageClassName:
+                          type: string
+                        retainOnDelete:
+                          type: boolean
+                          default: true
+                    resources:
+                      type: object
+                      x-kubernetes-preserve-unknown-fields: true
+                    affinity:
+                      type: object
+                      x-kubernetes-preserve-unknown-fields: true
+                service:
+                  type: object
+                  properties:
+                    type:
+                      type: string
+                      enum:
+                        - ClusterIP
+                        - LoadBalancer
+                        - NodePort
+                      default: ClusterIP
+                    annotations:
+                      type: object
+                      additionalProperties:
+                        type: string
+                    loadBalancerSourceRanges:
+                      type: array
+                      items:
+                        type: string
+                observability:
+                  type: object
+                  properties:
+                    podMonitor:
+                      type: boolean
+                      default: false
+                    scrapeInterval:
+                      type: string
+                      pattern: ^[0-9]+(ms|s|m|h)$
+                      default: 30s
+                    customQueriesConfigMap:
+                      type: string
+                safety:
+                  type: object
+                  properties:
+                    topologyChangePolicy:
+                      type: string
+                      enum:
+                        - Manual
+                        - OnlineSafe
+                      default: Manual
+                      description: >-
+                        Manual is the PoC default. OnlineSafe may only enable
+                        operations proven safe by the controller.
+                    pause:
+                      type: boolean
+                      default: false
+                      description: Pause new mutations while continuing observation.
+            status:
+              type: object
+              properties:
+                observedGeneration:
+                  type: integer
+                  format: int64
+                phase:
+                  type: string
+                  enum:
+                    - Pending
+                    - Provisioning
+                    - BootstrappingGTM
+                    - BootstrappingDataPlane
+                    - BootstrappingReplicas
+                    - RegisteringTopology
+                    - Ready
+                    - Scaling
+                    - Upgrading
+                    - Degraded
+                    - Deleting
+                ready:
+                  type: string
+                  enum:
+                    - "True"
+                    - "False"
+                    - Unknown
+                topologyRevision:
+                  type: string
+                roleStatus:
+                  type: object
+                  properties:
+                    gtm:
+                      type: object
+                      properties:
+                        desired:
+                          type: integer
+                          format: int32
+                        ready:
+                          type: integer
+                          format: int32
+                        primary:
+                          type: string
+                    coordinator:
+                      type: object
+                      properties:
+                        desired:
+                          type: integer
+                          format: int32
+                        ready:
+                          type: integer
+                          format: int32
+                        serving:
+                          type: integer
+                          format: int32
+                    datanode:
+                      type: object
+                      properties:
+                        desired:
+                          type: integer
+                          format: int32
+                        ready:
+                          type: integer
+                          format: int32
+                conditions:
+                  type: array
+                  x-kubernetes-list-type: map
+                  x-kubernetes-list-map-keys:
+                    - type
+                  items:
+                    type: object
+                    required:
+                      - type
+                      - status
+                      - reason
+                      - lastTransitionTime
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                        enum:
+                          - "True"
+                          - "False"
+                          - Unknown
+                      observedGeneration:
+                        type: integer
+                        format: int64
+                      reason:
+                        type: string
+                        minLength: 1
+                      message:
+                        type: string
+                      lastTransitionTime:
+                        type: string
+                        format: date-time
