@@ -424,27 +424,68 @@ std::string string_to_base64(const std::string& input) {
     return base64_encode(reinterpret_cast<const unsigned char*>(input.c_str()), input.length());
 }
 
+int
+classify_port_probe_output(const std::string& output) {
+    std::istringstream stream(output);
+    std::string line;
+    int marker_count = 0;
+    int classification = -1;
+
+    while (std::getline(stream, line)) {
+        if (!line.empty() && line.back() == '\r') {
+            line.pop_back();
+        }
+
+        if (line == "OPENTENBASE_PORT_AVAILABLE") {
+            classification = 0;
+        } else if (line == "OPENTENBASE_PORT_OCCUPIED") {
+            classification = 1;
+        } else if (line == "OPENTENBASE_PORT_ERROR") {
+            classification = -1;
+        } else {
+            continue;
+        }
+        marker_count++;
+    }
+
+    if (marker_count != 1 || classification < 0) {
+        return -1;
+    }
+    return classification;
+}
 
 // Check if port is available
 int 
 check_port_available(const char *ip, int port, const char *username, const char *password, int ssh_port) {
-    std::string cmd = "export PATH=/usr/local/bin:/usr/bin:/usr/sbin:$PATH && ss -tln | grep -q ':" + std::to_string(port) + "'";
+    if (port < 1 || port > 65535) {
+        return -1;
+    }
+
+    std::string cmd = "export PATH=/usr/local/bin:/usr/bin:/usr/sbin:$PATH; "
+                      "if ! command -v ss >/dev/null 2>&1; then "
+                      "printf '%s\\n' OPENTENBASE_PORT_ERROR; "
+                      "else port_probe_output=$(ss -H -ltn 'sport = :" + std::to_string(port) + "'); "
+                      "port_probe_status=$?; "
+                      "if [ $port_probe_status -ne 0 ]; then "
+                      "printf '%s\\n' OPENTENBASE_PORT_ERROR; "
+                      "elif [ -n \"$port_probe_output\" ]; then "
+                      "printf '%s\\n' OPENTENBASE_PORT_OCCUPIED; "
+                      "else printf '%s\\n' OPENTENBASE_PORT_AVAILABLE; fi; fi";
     std::string result;
     
     int ret = remote_ssh_exec(ip, ssh_port, username, password, cmd, result);
     
-    if (ret == 0) {
-        // Command executed successfully, check return value
-        if (result.empty()) {
-            // No port found, means port is available
-            return 0;
-        } else {
-            // Port found, means port is occupied
-            return 1;
-        }
-    } else {
-        // Command execution failed
+    if (ret != 0) {
         LOG_ERROR_FMT("Failed to check port %d on %s: %s", port, ip, result.c_str());
         return -1;
     }
+
+    const int classification = classify_port_probe_output(result);
+    if (classification < 0) {
+        const char *context = result.empty() ? "<empty>" : result.c_str();
+        LOG_ERROR_FMT("Invalid port probe output for %s:%d: %.256s",
+                      ip, port, context);
+        return -1;
+    }
+    return classification;
 }

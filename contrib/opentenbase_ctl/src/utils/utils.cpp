@@ -34,7 +34,7 @@ std::string extract_version_from_package_name(const std::string& package_name) {
     }
 }
 
-// Get available port pair
+// Get available three-port group
 int 
 get_available_port_pair(const std::string& ip, int start_port, int& node_port, int& pooler_port, int& forward_port,
                           const std::string& username, const std::string& password, int ssh_port) {
@@ -44,22 +44,32 @@ get_available_port_pair(const std::string& ip, int start_port, int& node_port, i
     int retry_count = 0;
 
     while (retry_count < RETRY_LIMIT && current_port < MAX_PORT - 1) {
-        // Check if both adjacent ports are available
-        if (check_port_available(ip.c_str(), current_port, username.c_str(), password.c_str(), ssh_port) == 0 &&
-            check_port_available(ip.c_str(), current_port + 1, username.c_str(), password.c_str(), ssh_port) == 0 &&
-            check_port_available(ip.c_str(), current_port + 2, username.c_str(), password.c_str(), ssh_port) == 0) {
+        bool port_group_available = true;
+        for (int offset = 0; offset < 3; ++offset) {
+            const int result = check_port_available(ip.c_str(), current_port + offset,
+                                                    username.c_str(), password.c_str(), ssh_port);
+            if (result < 0) {
+                return -1;
+            }
+            if (result != 0) {
+                port_group_available = false;
+                break;
+            }
+        }
+
+        if (port_group_available) {
             node_port = current_port;
             pooler_port = current_port + 1;
             forward_port = current_port + 2;
-            LOG_INFO_FMT("Found available port pair for %s: node_port=%d, pooler_port=%d",
-                        ip.c_str(), node_port, pooler_port);
+            LOG_INFO_FMT("Found available three-port group for %s: node_port=%d, pooler_port=%d, forward_port=%d",
+                        ip.c_str(), node_port, pooler_port, forward_port);
             return 0;
         }
-        current_port += 3;  // Skip the two ports already checked
+        current_port += 3;  // Skip the three-port group that was checked
         retry_count++;
     }
 
-    LOG_ERROR_FMT("Failed to find available port pair for %s after %d attempts",
+    LOG_ERROR_FMT("Failed to find available three-port group for %s after %d attempts",
                  ip.c_str(), retry_count);
     return -1;
 }
@@ -77,7 +87,7 @@ assign_ports_for_nodes(std::vector<NodeInfo>& nodes, const std::string& username
         auto it = ip_next_port.find(node.ip);
         int start_port = (it != ip_next_port.end()) ? it->second : START_PORT;
 
-        // Get available port pair
+        // Get available three-port group
         if (get_available_port_pair(node.ip, start_port, node_port, pooler_port, forward_port, username, password, ssh_port) != 0) {
             LOG_ERROR_FMT("Failed to assign ports for node %s", node.name.c_str());
             return -1;
