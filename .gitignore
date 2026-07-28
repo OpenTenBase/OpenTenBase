@@ -113,3 +113,9 @@
 /src/gtm/xlog_test/set_gts
 /src/gtm/xlog_test/set_gts.c
 /src/gtm/xlog_test/xlog_reader
+
+# Local benchmark credentials and generated evidence
+/benchmark/config.local.json
+/benchmark-results/
+__pycache__/
+*.py[cod]

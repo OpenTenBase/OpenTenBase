@@ -1,0 +1,35 @@
+{
+  "connection": {
+    "host": "127.0.0.1",
+    "port": 15432,
+    "user": "opentenbase",
+    "database": "benchmark"
+  },
+  "cluster": {
+    "node_group": "default_group",
+    "network_mbps": 10000,
+    "description": "1 GTM + 1 CN + 2 DN; replace with the physical host mapping"
+  },
+  "data": {
+    "account_count": 100000,
+    "order_count": 1000000,
+    "event_count": 1000000
+  },
+  "run": {
+    "clients": [1, 4, 16, 64],
+    "duration_seconds": 60,
+    "warmup_seconds": 15,
+    "jobs": 8,
+    "mode": "prepared",
+    "latency_sample_rate": 0.1
+  },
+  "workloads": [
+    "write",
+    "point_read",
+    "aggregate",
+    "join_colocated",
+    "join_replicated",
+    "join_redistributed",
+    "short_tx"
+  ]
+}
