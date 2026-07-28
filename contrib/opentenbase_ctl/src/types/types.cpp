@@ -53,7 +53,8 @@ void printInstanceConfig(const InstanceConfig& instance) {
 // 打印 ServerConfig 的辅助函数
 void printServerConfig(const ServerConfig& server) {
     LOG_INFO_FMT("SSH user name: %s", server.ssh_user.c_str());
-    LOG_INFO_FMT("SSH password : %s", server.ssh_password.c_str());
+    LOG_INFO_FMT("SSH password : %s",
+                 server.ssh_password.empty() ? "(empty)" : "********");
     LOG_INFO_FMT("SSH port     : %d", server.ssh_port);
     LOG_INFO_FMT("-----------------------------");
 }

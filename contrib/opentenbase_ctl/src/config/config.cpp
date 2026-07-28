@@ -110,7 +110,12 @@ parse_config_file(const std::string& filename, ConfigFile& cfg_file) {
         trim_whitespace(key);
         trim_whitespace(value);
 
-        LOG_DEBUG_FMT("Parsing config item: %s = %s", key.c_str(), value.c_str());
+        const std::string log_value =
+            key == "ssh-password"
+                ? (value.empty() ? "(empty)" : "********")
+                : value;
+        LOG_DEBUG_FMT("Parsing config item: %s = %s",
+                      key.c_str(), log_value.c_str());
 
         if (section == "instance") {
             if (key == "name") {
