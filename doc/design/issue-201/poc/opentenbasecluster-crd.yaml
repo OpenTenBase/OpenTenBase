@@ -1,0 +1,371 @@
+# Copyright (C) 2019-2025 OpenTenBase Authors. All rights reserved.
+# SPDX-License-Identifier: BSD-3-Clause
+#
+# OpenTenBaseCluster CRD 草案（issue #201）
+#
+# 设计说明：
+#   本 CRD 的校验规则不是凭经验设定的，而是从仓库源码提取的硬约束。
+#   每条非显然的约束都在注释中标注了依据位置，便于评审复核。
+#
+# 状态：静态草案。尚未经过 Kubernetes API Server admission 校验。
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: opentenbaseclusters.opentenbase.org
+spec:
+  group: opentenbase.org
+  scope: Namespaced
+  names:
+    plural: opentenbaseclusters
+    singular: opentenbasecluster
+    kind: OpenTenBaseCluster
+    shortNames:
+      - otbc
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Mode
+          type: string
+          jsonPath: .spec.mode
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: Shards
+          type: integer
+          jsonPath: .spec.datanodes.shards
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      schema:
+        openAPIV3Schema:
+          type: object
+          required: [spec]
+          properties:
+            spec:
+              type: object
+              required: [mode, image, datanodes]
+              properties:
+
+                mode:
+                  type: string
+                  enum: [distributed, centralized]
+                  default: distributed
+                  description: >-
+                    部署模式。distributed 需要 gtm、coordinators 和 datanodes；
+                    centralized 会忽略 gtm 与 coordinators 配置，只构建一组 datanodes。
+                    依据：contrib/opentenbase_ctl/src/config/config.h ConfigFileInstance::type
+
+                image:
+                  type: string
+                  minLength: 1
+                  description: "OpenTenBase 容器镜像。entrypoint 需支持按角色执行 initgtm 或 initdb"
+
+                imagePullPolicy:
+                  type: string
+                  enum: [Always, Never, IfNotPresent]
+                  default: IfNotPresent
+
+                ports:
+                  type: object
+                  description: >-
+                    每个节点占用 3 个连续端口。物理部署时由工具从 11000 起 SSH 探测分配；
+                    Kubernetes 中每个 Pod 有独立网络命名空间，改为静态约定。
+                    依据：contrib/opentenbase_ctl/src/utils/utils.cpp:39-95
+                  properties:
+                    node:
+                      type: integer
+                      default: 11000
+                      minimum: 1024
+                      maximum: 65533
+                      description: "客户端与节点间 SQL 端口"
+                    pooler:
+                      type: integer
+                      default: 11001
+                      minimum: 1025
+                      maximum: 65534
+                      description: "连接池端口，物理部署中为 node + 1"
+                    forward:
+                      type: integer
+                      default: 11002
+                      minimum: 1026
+                      maximum: 65535
+                      description: >-
+                        节点间数据转发端口，物理部署中为 node + 2。
+                        依据：contrib/opentenbase_ctl/src/types/types.h:72
+
+                gtm:
+                  type: object
+                  description: >-
+                    全局事务管理器。centralized 模式下忽略此段。
+                    注意：GTM 地址在 CN/DN 的 initdb 阶段以 SQL 写入系统表
+                    （src/bin/initdb/initdb.c:2165-2168），因此 GTM 必须最先就绪。
+                  properties:
+                    replicas:
+                      type: integer
+                      default: 2
+                      minimum: 1
+                      maximum: 8
+                      description: >-
+                        GTM 实例总数（1 主 + N 备）。
+                        物理配置中 gtm.master 只接受一个 IP，故主节点恒为 1。
+                        依据：config.h ConfigFileGtm::master 注释「主节点，只有一个IP」
+                    storage:
+                      $ref: "#/definitions/storageSpec"
+                    resources:
+                      type: object
+                      x-kubernetes-preserve-unknown-fields: true
+
+                coordinators:
+                  type: object
+                  description: >-
+                    协调节点。多主对等，每个节点提供相同的数据库视图，
+                    只存全局元数据，不存业务数据。centralized 模式下忽略此段。
+                  properties:
+                    replicas:
+                      type: integer
+                      default: 2
+                      minimum: 1
+                      maximum: 64
+                      description: "CN 主节点数量。CN 不存业务数据，扩容不涉及数据迁移"
+                    standbysPerNode:
+                      type: integer
+                      default: 0
+                      minimum: 0
+                      description: >-
+                        每个 CN 主节点的备节点数。
+                        物理配置要求备节点 IP 数为主节点的整数倍。
+                        依据：config.h ConfigFileCoordinators::slave 注释
+                    storage:
+                      $ref: "#/definitions/storageSpec"
+                    resources:
+                      type: object
+                      x-kubernetes-preserve-unknown-fields: true
+
+                datanodes:
+                  type: object
+                  required: [shards, storage]
+                  description: >-
+                    数据节点。存储业务数据分片并执行 CN 下发的查询片段。
+                    每个分片对应一个独立的 StatefulSet，以便单独调整存储与副本。
+                  properties:
+                    shards:
+                      type: integer
+                      minimum: 1
+                      maximum: 128
+                      description: >-
+                        分片数量。默认节点组仅由 DN 主节点构成，
+                        安装时执行 CREATE DEFAULT node group default_group with (dn...)。
+                        依据：cluster.cpp build_create_node_group_cmd() 只收集 NODE_TYPE_DN_MASTER
+                        警告：增加此值需要数据重分布，见 operator-design.md 第 7.2 节与风险 R3。
+                        减少此值在第一版实现中应被拒绝。
+                    standbysPerShard:
+                      type: integer
+                      default: 1
+                      minimum: 0
+                      description: >-
+                        每个分片内的备节点数。
+                        依据：config.h ConfigFileDatanodes::slave 整数倍约束
+                    storage:
+                      $ref: "#/definitions/storageSpec"
+                    resources:
+                      type: object
+                      x-kubernetes-preserve-unknown-fields: true
+
+                nodeGroup:
+                  type: object
+                  description: >-
+                    节点组配置。安装流程会创建默认节点组并随后创建分片组。
+                    依据：cluster.cpp:220, 290-291
+                  properties:
+                    defaultGroupName:
+                      type: string
+                      default: default_group
+                      maxLength: 64
+                      pattern: '^[a-z][a-z0-9_]*$'
+                      description: >-
+                        默认节点组名。长度上限沿用节点名限制。
+                        依据：src/include/pgxc/nodemgr.h:21 PGXC_NODENAME_LENGTH = 64
+
+                nodeNaming:
+                  type: object
+                  description: >-
+                    节点名前缀。get_node_name() 依据 cn/dn/gtm 前缀处理节点名，
+                    非这三种前缀会返回空字符串。
+                    依据：contrib/opentenbase_ctl/src/types/types.h:149-163
+                  properties:
+                    coordinatorPrefix:
+                      type: string
+                      default: cn
+                      pattern: '^cn$'
+                    datanodePrefix:
+                      type: string
+                      default: dn
+                      pattern: '^dn$'
+                    gtmPrefix:
+                      type: string
+                      default: gtm
+                      pattern: '^gtm$'
+                    digits:
+                      type: integer
+                      default: 4
+                      minimum: 3
+                      maximum: 5
+                      description: "序号位数，例如 4 对应 cn0001。前缀加序号必须不超过 64 字符"
+
+                topologyReconcile:
+                  type: object
+                  description: >-
+                    拓扑目录协调。OpenTenBase 将对端地址持久化在系统表中，
+                    Pod 地址变化不会被自动感知，需要 Operator 主动对齐。
+                  properties:
+                    enabled:
+                      type: boolean
+                      default: true
+                    intervalSeconds:
+                      type: integer
+                      default: 60
+                      minimum: 10
+                      description: "周期性比对 pgxc_node 与期望拓扑的间隔"
+                    poolReloadAfterChange:
+                      type: boolean
+                      default: true
+                      description: >-
+                        拓扑变更后是否执行 SELECT pgxc_pool_reload()。
+                        依据：cluster.cpp:241
+                    gtmFailoverStrategy:
+                      type: string
+                      enum: [alterClusterGtmNode, manual]
+                      default: alterClusterGtmNode
+                      description: >-
+                        GTM 切换后更新目录的方式。
+                        alterClusterGtmNode 使用 ALTER CLUSTER GTM NODE，
+                        该语句带 cluster 标志时会广播到全部节点。
+                        依据：gram.y:12949 与 utility.c:971-975
+                        注意：该路径在 GTM 主节点已宕机场景下尚未验证，见风险 R2。
+
+                monitoring:
+                  type: object
+                  properties:
+                    enabled:
+                      type: boolean
+                      default: true
+                    postgresExporter:
+                      type: boolean
+                      default: true
+                      description: "为 CN/DN 注入 postgres-exporter sidecar"
+                    gtmExporter:
+                      type: boolean
+                      default: false
+                      description: >-
+                        GTM 不是 PostgreSQL 实例，没有 pg_stat_* 视图，
+                        需要独立 exporter。可采集指标清单尚未确认，见风险 R5。
+
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum:
+                    - Pending
+                    - BootstrappingGTM
+                    - BootstrappingDN
+                    - BootstrappingCN
+                    - RegisteringTopology
+                    - Running
+                    - TopologyDrifted
+                    - Reconciling
+                    - Degraded
+                  description: >-
+                    引导顺序为 GTM 到 DN 到 CN，这不是设计偏好而是强制约束：
+                    CN/DN 的 initdb 命令行必须携带 GTM 地址。
+                    依据：cluster.cpp:844-870
+                observedGeneration:
+                  type: integer
+                gtm:
+                  type: object
+                  properties:
+                    currentPrimary:
+                      type: string
+                      description: "当前 GTM 主节点的节点名"
+                    primaryAddress:
+                      type: string
+                      description: "已注册到系统表中的 GTM 地址"
+                    readyReplicas:
+                      type: integer
+                coordinators:
+                  type: object
+                  properties:
+                    readyReplicas:
+                      type: integer
+                    registeredNodes:
+                      type: array
+                      items:
+                        type: string
+                datanodes:
+                  type: object
+                  properties:
+                    shards:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          name:
+                            type: string
+                          primaryReady:
+                            type: boolean
+                          readyStandbys:
+                            type: integer
+                          inNodeGroup:
+                            type: boolean
+                topology:
+                  type: object
+                  description: "拓扑目录一致性状态。目录漂移是本方案识别的头号风险"
+                  properties:
+                    consistent:
+                      type: boolean
+                    lastReconcileTime:
+                      type: string
+                      format: date-time
+                    driftDetails:
+                      type: array
+                      items:
+                        type: string
+                      description: "检测到的不一致项，例如某节点缺少对端注册"
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    required: [type, status]
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                        enum: ["True", "False", "Unknown"]
+                      reason:
+                        type: string
+                      message:
+                        type: string
+                      lastTransitionTime:
+                        type: string
+                        format: date-time
+
+          definitions:
+            storageSpec:
+              type: object
+              required: [size]
+              properties:
+                size:
+                  type: string
+                  pattern: '^[0-9]+(Mi|Gi|Ti)$'
+                storageClassName:
+                  type: string
+                walSize:
+                  type: string
+                  pattern: '^[0-9]+(Mi|Gi|Ti)$'
+                  description: "可选。若设置则 WAL 使用独立 PVC，借鉴 CloudNativePG 的分盘设计"
