@@ -1,0 +1,83 @@
+# Copyright (C) 2019-2025 OpenTenBase Authors. All rights reserved.
+# SPDX-License-Identifier: BSD-3-Clause
+#
+# 分布式模式最小示例：1 GTM 主 + 1 GTM 备、2 CN、2 分片（每分片 1 主 1 备）
+# 对应 README.md 安装章节演示的 1 GTM + 1 CN + 2 DN 拓扑的扩展版本
+---
+apiVersion: opentenbase.org/v1alpha1
+kind: OpenTenBaseCluster
+metadata:
+  name: otb-demo
+  namespace: opentenbase
+spec:
+  mode: distributed
+  image: opentenbase/opentenbase:5.21.8
+  imagePullPolicy: IfNotPresent
+
+  # 每节点 3 个连续端口，Kubernetes 中改为静态约定
+  ports:
+    node: 11000
+    pooler: 11001
+    forward: 11002
+
+  gtm:
+    replicas: 2          # 1 主 + 1 备。主节点恒为 1，源自 config.h 的单 IP 约束
+    storage:
+      size: 10Gi
+      storageClassName: standard
+    resources:
+      requests:
+        cpu: "500m"
+        memory: 512Mi
+      limits:
+        cpu: "2"
+        memory: 2Gi
+
+  coordinators:
+    replicas: 2          # 多主对等，对外由同一个 Service 分流
+    standbysPerNode: 0
+    storage:
+      size: 20Gi
+      storageClassName: standard
+    resources:
+      requests:
+        cpu: "1"
+        memory: 2Gi
+      limits:
+        cpu: "4"
+        memory: 8Gi
+
+  datanodes:
+    shards: 2            # 每个分片一个独立 StatefulSet
+    standbysPerShard: 1
+    storage:
+      size: 100Gi
+      storageClassName: standard
+      walSize: 20Gi      # WAL 独立 PVC
+    resources:
+      requests:
+        cpu: "2"
+        memory: 4Gi
+      limits:
+        cpu: "8"
+        memory: 16Gi
+
+  nodeGroup:
+    defaultGroupName: default_group
+
+  nodeNaming:
+    coordinatorPrefix: cn
+    datanodePrefix: dn
+    gtmPrefix: gtm
+    digits: 4            # 生成 cn0001 / dn0001 / gtm0001
+
+  topologyReconcile:
+    enabled: true
+    intervalSeconds: 60
+    poolReloadAfterChange: true
+    gtmFailoverStrategy: alterClusterGtmNode
+
+  monitoring:
+    enabled: true
+    postgresExporter: true
+    gtmExporter: false   # 指标清单未确认，默认关闭
