@@ -25,6 +25,10 @@ For more information look at our website located at:
 
 	https://www.opentenbase.org/
 
+### 📖 Getting Started
+
+[**👉 Newcomer's Guide**](doc/BeginnerGuider.md) — 13 core terms, architecture diagrams, query execution flow, source code reading map. **Get up to speed in 30 minutes.** 🚀
+
 ## Building
 ### System Requirements: 
 
