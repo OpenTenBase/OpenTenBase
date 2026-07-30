@@ -70,6 +70,16 @@ CNPG 最值得借鉴的一点是**它不迷信 StatefulSet**。它选择直接�
 
 本节全部结论来自仓库源码，可逐条复核。
 
+为避免歧义，先固定本文的角色称谓：
+
+| 全称 | 本文缩写 | 一句话职责 |
+| --- | --- | --- |
+| Global Transaction Manager | GTM | 管理集群事务信息与全局对象 |
+| Coordinator（CoordinateNode） | CN | 集群入口，保存元数据，拆分查询并汇总结果 |
+| DataNode | DN | 存储业务数据分片，执行 CN 下发的查询片段 |
+
+后文为简洁统一使用 GTM、CN、DN 三个缩写。
+
 ### 3.1 角色与初始化命令不同
 
 三种角色使用**不同的初始化二进制和参数**：
@@ -272,6 +282,29 @@ Kubernetes 中的正确做法是：容器 entrypoint 完成本地初始化，Ope
 ---
 
 ## 6. 最小 PoC 设计
+
+本节给出的 PoC 由一个自定义资源 `OpenTenBaseCluster` 驱动，完整 CRD 草案见 [`poc/opentenbasecluster-crd.yaml`](poc/opentenbasecluster-crd.yaml)，两种模式的示例见 [`poc/sample-distributed.yaml`](poc/sample-distributed.yaml) 与 [`poc/sample-centralized.yaml`](poc/sample-centralized.yaml)。
+
+一个最小的 `OpenTenBaseCluster` 声明形如：
+
+```yaml
+apiVersion: opentenbase.org/v1alpha1
+kind: OpenTenBaseCluster
+metadata:
+  name: otb-demo
+spec:
+  mode: distributed        # 或 centralized
+  image: opentenbase/opentenbase:5.21.8
+  gtm:
+    replicas: 2            # 1 主 + 1 备
+  coordinators:
+    replicas: 2            # 多主对等
+  datanodes:
+    shards: 2              # 每分片一个独立 StatefulSet
+    standbysPerShard: 1
+    storage:
+      size: 100Gi
+```
 
 ### 6.1 资源拓扑
 
