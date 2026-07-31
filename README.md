@@ -353,3 +353,9 @@ Thanks for all contributors here: [CONTRIBUTORS](CONTRIBUTORS.md)
 
 ## History
 [history_events](history_events.md)
+
+## 新手快速学习导览
+ 刚接触OpenTenBase可优先阅读以下新手文档：
+ 1. [架构术语对照表](./doc/term_glossary.md)
+ 2. [新手常见问题FAQ](./doc/newbie_faq.md)
+ 3. [AI辅助学习说明](./doc/ai_use_report.md)
