@@ -515,33 +515,30 @@ printtup(TupleTableSlot *slot, DestReceiver *self)
 	}
 
 #ifdef PGXC
-	if (!(slot->tts_datarow && slot->tts_tupleDescriptor->cn_penetrate_tuple))
-	{
-		/* Set or update my derived attribute info, if needed */
-		if (myState->attrinfo != typeinfo || myState->nattrs != natts)
-			printtup_prepare_info(myState, typeinfo, natts);
+	/* Set or update my derived attribute info, if needed */
+	if (myState->attrinfo != typeinfo || myState->nattrs != natts)
+		printtup_prepare_info(myState, typeinfo, natts);
 
-		/*
-		 * The datanodes would have sent all attributes in TEXT form. But
-		 * if the client has asked for any attribute to be sent in a binary format,
-		 * then we must decode the datarow and send every attribute in the format
-		 * that the client has asked for. Otherwise its ok to just forward the
-		 * datarow as it is
-		 */
-		for (i = 0; i < natts; ++i)
-		{
-			PrinttupAttrInfo *thisState = myState->myinfo + i;
-			if (thisState->format != 0)
-				binary = true;
-		}
+	/*
+	 * The datanodes would have sent all attributes in TEXT form. But
+	 * if the client has asked for any attribute to be sent in a binary format,
+	 * then we must decode the datarow and send every attribute in the format
+	 * that the client has asked for. Otherwise its ok to just forward the
+	 * datarow as it is.
+	 */
+	for (i = 0; i < natts; ++i)
+	{
+		PrinttupAttrInfo *thisState = myState->myinfo + i;
+		if (thisState->format != 0)
+			binary = true;
 	}
 
 	/*
 	 * If we are having DataRow-based tuple we do not have to encode attribute
 	 * values, just send over the DataRow message as we received it from the
-	 * Datanode
+	 * Datanode.  This is only safe when the frontend asked for text output.
 	 */
-	if (slot->tts_datarow && (!binary || slot->tts_tupleDescriptor->cn_penetrate_tuple) && slot->tts_tupleDescriptor->natts > 0)
+	if (slot->tts_datarow && !binary && slot->tts_tupleDescriptor->natts > 0)
 	{
 		pq_putmessage(message_type, slot->tts_datarow->msg, slot->tts_datarow->msglen);
 #ifdef __OPENTENBASE_C__
